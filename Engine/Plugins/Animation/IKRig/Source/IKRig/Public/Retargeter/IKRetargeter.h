@@ -14,6 +14,7 @@ class FIKRetargetEditorController;
 struct FIKRetargetPose;
 class URetargetChainSettings;
 class URetargetRootSettings;
+class URetargetOpStack;
 
 struct UE_DEPRECATED(5.1, "Use URetargetChainSettings instead.") FRetargetChainMap;
 USTRUCT()
@@ -142,7 +143,6 @@ private:
 #endif
 };
 
-
 UCLASS(BlueprintType)
 class IKRIG_API UIKRetargetGlobalSettings: public UObject
 {
@@ -159,7 +159,6 @@ public:
 	TSharedPtr<FIKRetargetEditorController> EditorController;
 	#endif
 };
-
 
 USTRUCT(BlueprintType)
 struct IKRIG_API FIKRetargetPose
@@ -219,6 +218,10 @@ public:
 	// Get read-write access to the target IK Rig asset.
 	// WARNING: do not use for editing the data model. Use Controller class instead. 
 	UIKRigDefinition* GetTargetIKRigWriteable() const;
+	#if WITH_EDITORONLY_DATA
+	// Get read-only access to preview meshes
+	const USkeletalMesh* GetPreviewMesh(ERetargetSourceOrTarget SourceOrTarget) const;
+	#endif
 
 	// Get read-only access to the chain mapping 
 	const TArray<TObjectPtr<URetargetChainSettings>>& GetAllChainSettings() const { return ChainSettings; };
@@ -232,6 +235,8 @@ public:
 	UIKRetargetGlobalSettings* GetGlobalSettingsUObject() const { return GlobalSettings; };
 	// Get access to the global settings itself 
 	const FRetargetGlobalSettings& GetGlobalSettings() const { return GlobalSettings->Settings; };
+	// Get access to the post settings uobject
+	URetargetOpStack* GetPostSettingsUObject() const { return OpStack; };
 
 	// Get read-only access to a retarget pose 
 	const FIKRetargetPose* GetCurrentRetargetPose(const ERetargetSourceOrTarget& SourceOrTarget) const;
@@ -457,6 +462,10 @@ private:
 	// the retarget root settings 
 	UPROPERTY()
 	TObjectPtr<UIKRetargetGlobalSettings> GlobalSettings;
+
+	// the stack of ops to run after the retarget
+	UPROPERTY()
+	TObjectPtr<URetargetOpStack> OpStack;
 
 	// settings profiles stored in this asset 
 	UPROPERTY()

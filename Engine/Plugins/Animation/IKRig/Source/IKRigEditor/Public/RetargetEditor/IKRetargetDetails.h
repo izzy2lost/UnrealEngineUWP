@@ -236,3 +236,27 @@ private:
 
 	TArray<TSharedPtr<FString>> TargetChainOptions;
 };
+
+/** ------------------------------------- BEGIN POST DETAILS CUSTOMIZATION -------------*/
+
+class FRetargetOpStackCustomization : public IDetailCustomization
+{
+public:
+
+	static TSharedRef<IDetailCustomization> MakeInstance()
+	{
+		return MakeShareable(new FRetargetOpStackCustomization);
+	}
+
+	/** IDetailCustomization interface */
+	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+
+private:
+
+	TSharedRef<SWidget> CreateAddNewMenuWidget();
+
+	void AddNewRetargetOp(UClass* Class);
+	
+	TWeakObjectPtr<URetargetOpStack> RetargetOpStackObject;
+	TSharedPtr<FIKRetargetEditorController> Controller;
+};

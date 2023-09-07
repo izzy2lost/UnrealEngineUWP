@@ -22,6 +22,8 @@
 #include "RetargetEditor/SIKRetargetChainMapList.h"
 #include "RetargetEditor/SIKRetargetHierarchy.h"
 #include "Retargeter/IKRetargeter.h"
+#include "Retargeter/IKRetargetOps.h"
+#include "RetargetEditor/SRetargetOpStack.h"
 #include "RigEditor/SIKRigOutputLog.h"
 #include "RigEditor/IKRigController.h"
 #include "Styling/AppStyle.h"
@@ -236,12 +238,20 @@ void FIKRetargetEditorController::HandleRetargetChainRemoved(UIKRigDefinition* M
 
 void FIKRetargetEditorController::HandleRetargeterNeedsInitialized() const
 {
-	// clear the output log
-	ClearOutputLog();
-
 	// check for "zero height" retarget roots, and prompt user to fix
 	FixZeroHeightRetargetRoot(ERetargetSourceOrTarget::Source);
 	FixZeroHeightRetargetRoot(ERetargetSourceOrTarget::Target);
+	
+	ReinitializeProcessor();
+	
+	// refresh all the UI views
+	RefreshAllViews();	
+}
+
+void FIKRetargetEditorController::ReinitializeProcessor() const
+{
+	// clear the output log
+	ClearOutputLog();
 	
 	// force reinit the retarget processor (also inits the target IK Rig processor)
 	if (UIKRetargetProcessor* Processor = GetRetargetProcessor())
@@ -253,9 +263,6 @@ void FIKRetargetEditorController::HandleRetargeterNeedsInitialized() const
 			AssetController->GetAsset(),
 			bSuppressWarnings);
 	}
-	
-	// refresh all the UI views
-	RefreshAllViews();
 }
 
 void FIKRetargetEditorController::HandleIKRigReplaced(ERetargetSourceOrTarget SourceOrTarget)
@@ -650,16 +657,12 @@ bool FIKRetargetEditorController::IsObjectInDetailsView(const UObject* Object)
 
 void FIKRetargetEditorController::RefreshAllViews() const
 {
-	//if (!Editor.IsValid())
-	//{
-	//	return;
-	//}
-	
 	Editor.Pin()->RegenerateMenusAndToolbars();
 	RefreshDetailsView();
 	RefreshChainsView();
 	RefreshAssetBrowserView();
 	RefreshHierarchyView();
+	RefreshOpStackView();
 }
 
 void FIKRetargetEditorController::RefreshDetailsView() const
@@ -698,6 +701,14 @@ void FIKRetargetEditorController::RefreshHierarchyView() const
 	}
 }
 
+void FIKRetargetEditorController::RefreshOpStackView() const
+{
+	if (OpStackView.IsValid())
+	{
+		OpStackView->RefreshStackView();
+	}
+}
+
 void FIKRetargetEditorController::RefreshPoseList() const
 {
 	if (HierarchyView.IsValid())
@@ -710,7 +721,7 @@ void FIKRetargetEditorController::SetDetailsObject(UObject* DetailsObject) const
 {
 	if (DetailsView.IsValid())
 	{
-		DetailsView->SetObject(DetailsObject);
+		DetailsView->SetObject(DetailsObject, true /*forceRefresh*/);
 	}
 }
 
@@ -995,6 +1006,17 @@ void FIKRetargetEditorController::ClearSelection(const bool bKeepBoneSelection)
 	RefreshDetailsView();
 }
 
+URetargetOpBase* FIKRetargetEditorController::GetSelectedOp() const
+{
+	if (!OpStackView.IsValid())
+	{
+		return nullptr;
+	}
+
+	const int32 SelectedOpIndex = OpStackView->GetSelectedItemIndex();
+	return AssetController->GetRetargetOpAtIndex(SelectedOpIndex);
+}
+
 void FIKRetargetEditorController::SetRetargeterMode(ERetargeterOutputMode Mode)
 {
 	if (OutputMode == Mode)
@@ -1097,6 +1119,11 @@ bool FIKRetargetEditorController::IsCurrentMeshLoaded() const
 bool FIKRetargetEditorController::IsEditingPose() const
 {
 	return GetRetargeterMode() == ERetargeterOutputMode::EditRetargetPose;
+}
+
+FRetargetGlobalSettings& FIKRetargetEditorController::GetGlobalSettings() const
+{
+	return AssetController->GetAsset()->GetGlobalSettingsUObject()->Settings;
 }
 
 void FIKRetargetEditorController::HandleNewPose()
@@ -1627,49 +1654,15 @@ void FIKRetargetEditorController::ShowGlobalSettings()
 	SetDetailsObject(GlobalSettings);
 }
 
-bool FIKRetargetEditorController::IsShowingGlobalSettings()
+void FIKRetargetEditorController::ShowPostPhaseSettings()
 {
-	const UIKRetargetGlobalSettings* GlobalSettings = AssetController->GetAsset()->GetGlobalSettingsUObject();
-	return IsObjectInDetailsView(GlobalSettings);
-}
-
-bool FIKRetargetEditorController::IsShowingRootSettings()
-{
-	const URetargetRootSettings* RootSettings = AssetController->GetAsset()->GetRootSettingsUObject();
-	return IsObjectInDetailsView(RootSettings);
-}
-
-void FIKRetargetEditorController::ToggleRootRetargetPass()
-{
-	UIKRetargetGlobalSettings* GlobalSettings = AssetController->GetAsset()->GetGlobalSettingsUObject();
-	GlobalSettings->Settings.bEnableRoot = !GlobalSettings->Settings.bEnableRoot;
-}
-
-bool FIKRetargetEditorController::IsRootRetargetOn()
-{
-	return AssetController->GetAsset()->GetGlobalSettingsUObject()->Settings.bEnableRoot;
-}
-
-void FIKRetargetEditorController::ToggleFKRetargetPass()
-{
-	UIKRetargetGlobalSettings* GlobalSettings = AssetController->GetAsset()->GetGlobalSettingsUObject();
-	GlobalSettings->Settings.bEnableFK = !GlobalSettings->Settings.bEnableFK;
-}
-
-bool FIKRetargetEditorController::IsFKRetargetOn()
-{
-	return AssetController->GetAsset()->GetGlobalSettingsUObject()->Settings.bEnableFK;
-}
-
-void FIKRetargetEditorController::ToggleIKRetargetPass()
-{
-	UIKRetargetGlobalSettings* GlobalSettings = AssetController->GetAsset()->GetGlobalSettingsUObject();
-	GlobalSettings->Settings.bEnableIK = !GlobalSettings->Settings.bEnableIK;
-}
-
-bool FIKRetargetEditorController::IsIKRetargetOn()
-{
-	return AssetController->GetAsset()->GetGlobalSettingsUObject()->Settings.bEnableIK;
+	URetargetOpStack* PostSettings = AssetController->GetAsset()->GetPostSettingsUObject();
+	if (PostSettings->EditorController.Get() != this)
+	{
+		PostSettings->EditorController = SharedThis(this);
+	}
+	
+	SetDetailsObject(PostSettings);
 }
 
 void FIKRetargetEditorController::ShowRootSettings()

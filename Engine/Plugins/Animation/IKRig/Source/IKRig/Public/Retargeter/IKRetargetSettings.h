@@ -274,22 +274,28 @@ struct IKRIG_API FRetargetGlobalSettings
 	GENERATED_BODY()
 	
 	/** When false, the motion of the Retarget Root bone is not copied from the source. Useful for debugging issues with the root settings.
-	 * Note: the retargeting order is: Root > FK > IK
+	* Note: the retargeting order is: Root > FK > IK > Post
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = RetargetPhases)
 	bool bEnableRoot = true;
 	
 	/** When false, limbs are not copied via FK. Useful for debugging limb issues suspected to be caused by FK chain settings.
-	 * Note: the retargeting order is: Root > FK > IK
+	* Note: the retargeting order is: Root > FK > IK > Post
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = RetargetPhases)
 	bool bEnableFK = true;
 	
 	/** When false, IK is not applied as part of retargeter. Useful for debugging limb issues suspected to be caused by IK.
-	 * Note: the retargeting order is: Root > FK > IK
+	* Note: the retargeting order is: Root > FK > IK > Post
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = RetargetPhases)
 	bool bEnableIK = true;
+
+	/** When false, Post operations are not applied as part of retargeter. Useful for debugging issues suspected to be caused by the post phase.
+	 * Note: the retargeting order is: Root > FK > IK > Post
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = RetargetPhases)
+	bool bEnablePost = true;
 
 	/** Enable IK Warping.
 	 * These options allow for global modifications to all IK Goals that have "Affected by IK Warping" turned on (the default).

@@ -99,6 +99,42 @@ public:
 	bool SetRetargetChainSettings(const FName& TargetChainName, const FTargetChainSettings& Settings) const;
 
 	//
+	// RETARGET OPS PUBLIC/SCRIPTING API
+	//
+	
+	// Add a new retarget op of the given type to the bottom of the stack. Returns the stack index.
+	UFUNCTION(BlueprintCallable, BlueprintPure=false, Category=RetargetOps)
+	int32 AddRetargetOp(TSubclassOf<URetargetOpBase> InOpClass) const;
+
+	// Remove the retarget op at the given stack index. 
+	UFUNCTION(BlueprintCallable, BlueprintPure=false, Category=RetargetOps)
+	bool RemoveRetargetOp(const int32 OpIndex) const;
+
+	// Get access to the given retarget operation. 
+	UFUNCTION(BlueprintCallable, Category=RetargetOps)
+	URetargetOpBase* GetRetargetOpAtIndex(int32 Index) const;
+
+	// Get access to the given retarget operation. 
+	UFUNCTION(BlueprintCallable, Category=RetargetOps)
+	int32 GetIndexOfRetargetOp(URetargetOpBase* RetargetOp) const;
+
+	// Get the number of solvers in the stack.
+	UFUNCTION(BlueprintCallable, Category=RetargetOps)
+	int32 GetNumRetargetOps() const;
+
+	// Move the retarget op at the given index to the target index. 
+	UFUNCTION(BlueprintCallable, BlueprintPure=false, Category=RetargetOps)
+	bool MoveRetargetOpInStack(int32 OpToMoveIndex, int32 TargetIndex) const;
+
+	// Set enabled/disabled status of the given retarget operation. 
+	UFUNCTION(BlueprintCallable, BlueprintPure=false, Category=RetargetOps)
+	bool SetRetargetOpEnabled(int32 RetargetOpIndex, bool bIsEnabled) const;
+
+	// Get enabled status of the given solver. 
+	UFUNCTION(BlueprintCallable, Category=RetargetOps)
+	bool GetRetargetOpEnabled(int32 RetargetOpIndex) const;
+
+	//
 	// GENERAL C++ ONLY API
 	//
 

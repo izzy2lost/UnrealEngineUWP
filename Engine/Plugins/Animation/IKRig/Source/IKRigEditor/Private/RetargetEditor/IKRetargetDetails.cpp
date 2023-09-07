@@ -15,7 +15,10 @@
 #include "Widgets/Input/SSegmentedControl.h"
 #include "ScopedTransaction.h"
 #include "AnimationRuntime.h"
+#include "SPositiveActionButton.h"
 #include "SSearchableComboBox.h"
+#include "RetargetEditor/SRetargetOpStack.h"
+#include "Retargeter/IKRetargetOps.h"
 #include "UObject/UnrealTypePrivate.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(IKRetargetDetails)
@@ -1337,7 +1340,8 @@ void FRetargetGlobalSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder
 	AlphaGroup.AddPropertyRow(GetPropertyHandle(GET_MEMBER_NAME_STRING_CHECKED(FRetargetGlobalSettings, bEnableRoot)));
 	AlphaGroup.AddPropertyRow(GetPropertyHandle(GET_MEMBER_NAME_STRING_CHECKED(FRetargetGlobalSettings, bEnableFK)));
 	AlphaGroup.AddPropertyRow(GetPropertyHandle(GET_MEMBER_NAME_STRING_CHECKED(FRetargetGlobalSettings, bEnableIK)));
-
+	AlphaGroup.AddPropertyRow(GetPropertyHandle(GET_MEMBER_NAME_STRING_CHECKED(FRetargetGlobalSettings, bEnablePost)));
+	
 	// stride warping group
 	const FText WarpingTitleLabel = LOCTEXT("Warping_Label", "Stride Warping");
 	IDetailGroup& WarpingGroup = SettingsCategory.AddGroup("Warping", WarpingTitleLabel, false, true);
@@ -1411,6 +1415,106 @@ void FRetargetGlobalSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder
 	WarpingGroup.AddPropertyRow(GetPropertyHandle(GET_MEMBER_NAME_STRING_CHECKED(FRetargetGlobalSettings, WarpForwards))).EditCondition(EditCondition,nullptr);
 	WarpingGroup.AddPropertyRow(GetPropertyHandle(GET_MEMBER_NAME_STRING_CHECKED(FRetargetGlobalSettings, WarpSplay))).EditCondition(EditCondition,nullptr);
 	WarpingGroup.AddPropertyRow(GetPropertyHandle(GET_MEMBER_NAME_STRING_CHECKED(FRetargetGlobalSettings, SidewaysOffset))).EditCondition(EditCondition,nullptr);
+}
+
+void FRetargetOpStackCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
+{
+	TArray<TWeakObjectPtr<UObject>> ObjectsBeingCustomized = DetailBuilder.GetSelectedObjects();
+	if (ObjectsBeingCustomized.Num() < 0)
+	{
+		return;
+	}
+	
+	RetargetOpStackObject = Cast<URetargetOpStack>(ObjectsBeingCustomized[0].Get());
+	if (!RetargetOpStackObject.IsValid())
+	{
+		return;
+	}
+
+	Controller = RetargetOpStackObject->EditorController;
+	if (!Controller.IsValid())
+	{
+		return;
+	}
+
+	IDetailCategoryBuilder& OpStackCategory = DetailBuilder.EditCategory(TEXT("Retarget Ops Stack"));
+	
+	// add row to select source chain to map to
+	OpStackCategory.AddCustomRow(LOCTEXT("RetargetOps_Label", "Retarget Ops"))
+	.WholeRowWidget
+	[
+		SNew(SRetargetOpStack, Controller)
+	];
+
+	// add custom category with all op settings, filter visibility based on selection
+	IDetailCategoryBuilder& OpSettingCategory = DetailBuilder.EditCategory(TEXT("Op Settings"));
+	for (TObjectPtr<URetargetOpBase> Op : RetargetOpStackObject->RetargetOps)
+	{
+		for (TFieldIterator<FProperty> PropIt(Op->GetClass()); PropIt; ++PropIt)
+		{
+			const FProperty* Prop = *PropIt;
+			if (!Prop->HasAllPropertyFlags(CPF_Edit))
+			{
+				continue;
+			}
+			
+			const TSharedPtr<IPropertyHandle> PropertyHandle = DetailBuilder.AddObjectPropertyData({Op}, Prop->GetFName());
+			if (PropertyHandle && PropertyHandle->IsValidHandle())
+			{
+				PropertyHandle->SetOnChildPropertyValueChanged(FSimpleDelegate::CreateLambda([this]()
+				{
+					Controller->ReinitializeProcessor();
+				}));
+				
+				OpSettingCategory.AddProperty(PropertyHandle)
+				.Visibility(MakeAttributeLambda([this, Op]()
+				{
+					return Controller->GetSelectedOp() == Op ? EVisibility::Visible : EVisibility::Hidden;
+				}));
+			}
+		}
+	}
+}
+
+TSharedRef<SWidget> FRetargetOpStackCustomization::CreateAddNewMenuWidget()
+{
+	constexpr bool bCloseMenuAfterSelection = true;
+	FMenuBuilder MenuBuilder(bCloseMenuAfterSelection, nullptr);
+
+	MenuBuilder.BeginSection("AddNewRetargetOp", LOCTEXT("AddOperations", "Add New Retarget Op"));
+
+	// add menu option to create each retarget op type
+	for(TObjectIterator<UClass> ClassIt; ClassIt; ++ClassIt)
+	{
+		UClass* Class = *ClassIt;
+		if(Class->IsChildOf(URetargetOpBase::StaticClass()) && !Class->HasAnyClassFlags(CLASS_Abstract))
+		{
+			const URetargetOpBase* OpCDO = Cast<URetargetOpBase>(Class->GetDefaultObject());
+			FUIAction Action = FUIAction( FExecuteAction::CreateSP(this, &FRetargetOpStackCustomization::AddNewRetargetOp, Class));
+			MenuBuilder.AddMenuEntry(FText::FromString(OpCDO->GetNiceName().ToString()), FText::GetEmpty(), FSlateIcon(), Action);
+		}
+	}
+
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+void FRetargetOpStackCustomization::AddNewRetargetOp(UClass* Class)
+{
+	if (!Controller.IsValid())
+	{
+		return; 
+	}
+
+	const UIKRetargeterController* AssetController = Controller->AssetController;
+	if (!AssetController)
+	{
+		return;
+	}
+	
+	// add the op todo refresh UI
+	const int32 NewOpIndex = AssetController->AddRetargetOp(Class);
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -10,6 +10,7 @@
 
 #include "IKRetargetProcessor.generated.h"
 
+class UIKRetargetProcessor;
 enum class ERetargetTranslationMode : uint8;
 enum class ERetargetRotationMode : uint8;
 class URetargetChainSettings;
@@ -21,6 +22,7 @@ struct FIKRetargetPose;
 class UObject;
 class UIKRetargeter;
 class USkeletalMesh;
+class URetargetOpBase;
 
 struct IKRIG_API FRetargetSkeleton
 {
@@ -452,6 +454,18 @@ struct FRetargetDebugData
 	FTransform StrideWarpingFrame;
 };
 
+struct FRetargetOps
+{
+	TArray<TObjectPtr<URetargetOpBase>> OpStack;
+
+	bool Initialize(
+		const FRetargetSkeleton& SourceSkeleton,
+		const FTargetSkeleton& TargetSkeleton,
+		const TArray<TObjectPtr<URetargetOpBase>>& OpStackFromAsset,
+		UIKRetargetProcessor* Processor,
+		FIKRigLogger& Log);
+};
+
 /** The runtime processor that converts an input pose from a source skeleton into an output pose on a target skeleton.
  * To use:
  * 1. Initialize a processor with a Source/Target skeletal mesh and a UIKRetargeter asset.
@@ -522,6 +536,18 @@ public:
 	/** Get the currently running IK Rig processor for the target */
 	UIKRigProcessor* GetTargetIKRigProcessor() const { return IKRigProcessor; };
 	
+	/** Get read only access to the core IK retarget chains */
+	const TArray<FRetargetChainPairIK>& GetIKChainPairs() const { return ChainPairsIK; };
+	
+	/** Get read only access to the core FK retarget chains */
+	const TArray<FRetargetChainPairFK>& GetFKChainPairs() const { return ChainPairsFK; };
+	
+	/** Get read only access to the core root retargeter */
+	const FRootRetargeter& GetRootRetargeter() const { return RootRetargeter; };
+	
+	// Get read only access to the retarget ops currently running in processor
+	const FRetargetOps& GetRetargetOps() const {return RetargetOps; };
+	
 	/** Reset the IK planting state. */
 	void ResetPlanting();
 
@@ -535,12 +561,6 @@ public:
 	bool IsBoneRetargeted(const int32& BoneIndex, const int8& SkeletonToCheck) const;
 	/** Returns name of the chain associated with this bone. Returns NAME_None if bone is not in a chain. */
 	FName GetChainNameForBone(const int32& BoneIndex, const int8& SkeletonToCheck) const;
-	/** Get read only access to the core IK retarget chains for debug purposes */
-	const TArray<FRetargetChainPairIK>& GetIKChainPairs() const { return ChainPairsIK; };
-	/** Get read only access to the core FK retarget chains for debug purposes */
-	const TArray<FRetargetChainPairFK>& GetFKChainPairs() const { return ChainPairsFK; };
-	/** Get read only access to the core root retargeter for debug purposes */
-	const FRootRetargeter& GetRootRetargeter() const { return RootRetargeter; };
 	/** store data for debug drawing */
 	FRetargetDebugData DebugData;
 #endif
@@ -580,6 +600,9 @@ private:
 
 	/** The currently used global settings (driven either by source asset or a profile) */
 	FRetargetGlobalSettings GlobalSettings;
+
+	/** The collection of operations to run in the final phase of retargeting */
+	FRetargetOps RetargetOps;
 	
 	/** Initializes the FRootRetargeter */
 	bool InitializeRoots();
@@ -607,7 +630,10 @@ private:
 	void RunPoleVectorMatching(const TArray<FTransform>& InGlobalTransforms, TArray<FTransform>& OutGlobalTransforms);
 
 	/** Runs in the after the base IK retarget to apply stride warping to IK goals. */
-	void RunStrideWarping(const TArray<FTransform>& InTargeGlobalPose);
+	void RunStrideWarping(const TArray<FTransform>& InTargetGlobalPose);
+
+	/** Run all post process operations on the retargeted result. */
+	void RunRetargetOps(const TArray<FTransform>& InSourceGlobalPose, TArray<FTransform>& OutTargetGlobalPose);
 
 	/** Does a partial reinitialization (at runtime) whenever the retarget pose is swapped to a different one. */
 	void ApplyNewRetargetPose(const FName NewRetargetPoseName, ERetargetSourceOrTarget SourceOrTarget);

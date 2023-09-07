@@ -3,7 +3,9 @@
 #include "Retargeter/IKRetargeter.h"
 
 #include "IKRigObjectVersion.h"
+#include "Retargeter/IKRetargetOps.h"
 #include "Retargeter/IKRetargetProfile.h"
+#include "Engine/SkeletalMesh.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(IKRetargeter)
 
@@ -23,7 +25,6 @@ void UIKRetargeter::GetSpeedCurveNames(TArray<FName>& OutSpeedCurveNames) const
 		}
 	}
 }
-
 #endif
 
 UIKRetargeter::UIKRetargeter(const FObjectInitializer& ObjectInitializer)
@@ -34,6 +35,9 @@ UIKRetargeter::UIKRetargeter(const FObjectInitializer& ObjectInitializer)
 
 	GlobalSettings = CreateDefaultSubobject<UIKRetargetGlobalSettings>(TEXT("GlobalSettings"));
 	GlobalSettings->SetFlags(RF_Transactional);
+
+	OpStack = CreateDefaultSubobject<URetargetOpStack>(TEXT("PostSettings"));
+	OpStack->SetFlags(RF_Transactional);
 
 	CleanAndInitialize();
 }
@@ -77,6 +81,25 @@ UIKRigDefinition* UIKRetargeter::GetTargetIKRigWriteable() const
 	
 	return nullptr;
 }
+
+#if WITH_EDITORONLY_DATA
+const USkeletalMesh* UIKRetargeter::GetPreviewMesh(ERetargetSourceOrTarget SourceOrTarget) const
+{
+	if (IsInGameThread())
+	{
+		if (SourceOrTarget == ERetargetSourceOrTarget::Source)
+		{
+			return SourcePreviewMesh.LoadSynchronous();	
+		}
+		else
+		{
+			return TargetPreviewMesh.LoadSynchronous();	
+		}
+	}
+	
+	return nullptr;
+}
+#endif
 
 void UIKRetargeter::PostDuplicate(bool bDuplicateForPIE)
 {

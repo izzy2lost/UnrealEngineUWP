@@ -10,6 +10,7 @@
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/SWindow.h"
 
+class SRetargetOpStack;
 enum class ERetargetSourceOrTarget : uint8;
 class SIKRetargetHierarchy;
 class SIKRigOutputLog;
@@ -102,6 +103,7 @@ public:
 	void HandleRetargetChainRemoved(UIKRigDefinition* ModifiedIKRig, const FName InChainRemoved) const;
 	/** callback when IK Retargeter asset requires reinitialization */
 	void HandleRetargeterNeedsInitialized() const;
+	void ReinitializeProcessor() const;
 	FDelegateHandle RetargeterReInitDelegateHandle;
 	/** callback when IK Rig asset has been swapped out */
 	void HandleIKRigReplaced(ERetargetSourceOrTarget SourceOrTarget);
@@ -136,11 +138,12 @@ public:
 	
 	/** store pointers to various tabs of UI,
 	 * have to manage access to these because they can be null if the tabs are closed */
-	void SetDetailsView(TSharedPtr<IDetailsView> InDetailsView) { DetailsView = InDetailsView; };
-	void SetChainsView(TSharedPtr<SIKRetargetChainMapList> InChainsView) { ChainsView = InChainsView; };
-	void SetAssetBrowserView(TSharedPtr<SIKRetargetAssetBrowser> InAssetBrowserView) { AssetBrowserView = InAssetBrowserView; };
-	void SetOutputLogView(TSharedPtr<SIKRigOutputLog> InOutputLogView) { OutputLogView = InOutputLogView; };
-	void SetHierarchyView(TSharedPtr<SIKRetargetHierarchy> InHierarchyView) { HierarchyView = InHierarchyView; };
+	void SetDetailsView(const TSharedPtr<IDetailsView>& InDetailsView) { DetailsView = InDetailsView; };
+	void SetChainsView(const TSharedPtr<SIKRetargetChainMapList>& InChainsView) { ChainsView = InChainsView; };
+	void SetAssetBrowserView(const TSharedPtr<SIKRetargetAssetBrowser>& InAssetBrowserView) { AssetBrowserView = InAssetBrowserView; };
+	void SetOutputLogView(const TSharedPtr<SIKRigOutputLog>& InOutputLogView) { OutputLogView = InOutputLogView; };
+	void SetHierarchyView(const TSharedPtr<SIKRetargetHierarchy>& InHierarchyView) { HierarchyView = InHierarchyView; };
+	void SetOpStackView(const TSharedPtr<SRetargetOpStack>& InOpStackView) { OpStackView = InOpStackView; };
 	bool IsObjectInDetailsView(const UObject* Object);
 	
 	/** force refresh all views in the editor */
@@ -149,6 +152,7 @@ public:
 	void RefreshChainsView() const;
 	void RefreshAssetBrowserView() const;
 	void RefreshHierarchyView() const;
+	void RefreshOpStackView() const;
 	void RefreshPoseList() const;
 	void SetDetailsObject(UObject* DetailsObject) const;
 	void SetDetailsObjects(const TArray<UObject*>& DetailsObjects) const;
@@ -158,20 +162,11 @@ public:
 	bool IsCurrentMeshLoaded() const;
 	bool IsEditingPose() const;
 
-	/** display global settings in the details panel */
+	/** display settings in the details panel */
 	void ShowGlobalSettings();
-	bool IsShowingGlobalSettings();
-	/** display root settings in the details panel */
 	void ShowRootSettings();
-	bool IsShowingRootSettings();
-
-	/** toggle retarget passes */
-	void ToggleRootRetargetPass();
-	bool IsRootRetargetOn();
-	void ToggleFKRetargetPass();
-	bool IsFKRetargetOn();
-	void ToggleIKRetargetPass();
-	bool IsIKRetargetOn();
+	void ShowPostPhaseSettings();
+	FRetargetGlobalSettings& GetGlobalSettings() const;
 
 	/** clear the output log */
 	void ClearOutputLog() const;
@@ -252,6 +247,9 @@ public:
 	void ClearSelection(const bool bKeepBoneSelection=false);
 	ERetargetSelectionType GetLastSelectedItemType() const { return LastSelectedItem; };
 
+	// op stack selection
+	URetargetOpBase* GetSelectedOp() const;
+
 	/** to frame selection when pressing "f" in viewport */
 	bool GetCameraTargetForSelection(FSphere& OutTarget) const;
 
@@ -329,6 +327,8 @@ private:
 	TSharedPtr<SIKRigOutputLog> OutputLogView;
 	/** hierarchy view */
 	TSharedPtr<SIKRetargetHierarchy> HierarchyView;
+	/** op stack widget */
+	TSharedPtr<SRetargetOpStack> OpStackView;
 
 	/** when prompting user to assign an IK Rig */
 	TSharedPtr<SWindow> IKRigPickerWindow;

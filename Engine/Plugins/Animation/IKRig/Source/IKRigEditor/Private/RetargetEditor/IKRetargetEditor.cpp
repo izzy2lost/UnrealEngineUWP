@@ -18,6 +18,7 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 
 #include "Retargeter/IKRetargeter.h"
+#include "Retargeter/IKRetargetOps.h"
 #include "RetargetEditor/IKRetargetAnimInstance.h"
 #include "RetargetEditor/IKRetargetCommands.h"
 #include "RetargetEditor/IKRetargetEditPoseMode.h"
@@ -54,8 +55,8 @@ void FIKRetargetEditor::InitAssetEditor(
 	FPersonaModule& PersonaModule = FModuleManager::LoadModuleChecked<FPersonaModule>("Persona");
 	PersonaToolkit = PersonaModule.CreatePersonaToolkit(InAsset, PersonaToolkitArgs);
 
-	const bool bCreateDefaultStandaloneMenu = true;
-	const bool bCreateDefaultToolbar = true;
+	constexpr bool bCreateDefaultStandaloneMenu = true;
+	constexpr bool bCreateDefaultToolbar = true;
 	FAssetEditorToolkit::InitAssetEditor(
 		Mode, 
 		InitToolkitHost, 
@@ -88,13 +89,6 @@ void FIKRetargetEditor::InitAssetEditor(
 
 	ExtendToolbar();
 	RegenerateMenusAndToolbars();
-
-	// DISABLED: MAY 2023 - These modal dialogs cause an editor crash when closing the main UE editor. Not clear why this happens,
-	// and it's not clear that we want to keep this creation flow. It was a compromise for UEFN, but we will likely do
-	// something better once we revisit UEFN integration.
-	// initial setup, ignored if IK Rig is already assigned
-	//EditorController->PromptUserToAssignIKRig(ERetargetSourceOrTarget::Source);
-	//EditorController->PromptUserToAssignIKRig(ERetargetSourceOrTarget::Target);
 
 	// run retarget by default
 	EditorController->SetRetargeterMode(ERetargeterOutputMode::RunRetarget);
@@ -151,12 +145,29 @@ void FIKRetargetEditor::BindCommands()
 		Commands.ShowGlobalSettings,
 		FExecuteAction::CreateSP(EditorController, &FIKRetargetEditorController::ShowGlobalSettings),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(EditorController,  &FIKRetargetEditorController::IsShowingGlobalSettings));
+		FIsActionChecked::CreateLambda([this]() ->bool
+		{
+			const UIKRetargetGlobalSettings* GlobalSettings = EditorController->AssetController->GetAsset()->GetGlobalSettingsUObject();
+			return EditorController->IsObjectInDetailsView(GlobalSettings);	
+		}));
 	ToolkitCommands->MapAction(
 		Commands.ShowRootSettings,
 		FExecuteAction::CreateSP(EditorController, &FIKRetargetEditorController::ShowRootSettings),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(EditorController,  &FIKRetargetEditorController::IsShowingRootSettings));
+		FIsActionChecked::CreateLambda([this]() ->bool
+		{
+			const URetargetRootSettings* RootSettings = EditorController->AssetController->GetAsset()->GetRootSettingsUObject();
+			return EditorController->IsObjectInDetailsView(RootSettings);	
+		}));
+	ToolkitCommands->MapAction(
+		Commands.ShowPostSettings,
+		FExecuteAction::CreateSP(EditorController, &FIKRetargetEditorController::ShowPostPhaseSettings),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateLambda([this]() ->bool
+		{
+			const URetargetOpStack* PostSettings = EditorController->AssetController->GetAsset()->GetPostSettingsUObject();
+			return EditorController->IsObjectInDetailsView(PostSettings);	
+		}));
 
 	//
 	// Edit pose commands
@@ -286,6 +297,13 @@ void FIKRetargetEditor::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 		TAttribute<FText>(),
 		TAttribute<FText>(),
 		FSlateIcon(FIKRetargetEditorStyle::Get().GetStyleSetName(),"IKRetarget.RootSettings"));
+
+		ToolbarBuilder.AddToolBarButton(
+		FIKRetargetCommands::Get().ShowPostSettings,
+		NAME_None,
+		TAttribute<FText>(),
+		TAttribute<FText>(),
+		FSlateIcon(FIKRetargetEditorStyle::Get().GetStyleSetName(),"IKRetarget.PostSettings"));
 	}
 	ToolbarBuilder.EndSection();
 
@@ -321,12 +339,13 @@ void FIKRetargetEditor::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 			SNew(SButton)
 			.OnClicked_Lambda([this]()
 			{
-				EditorController->ToggleRootRetargetPass();
+				FRetargetGlobalSettings& GlobalSettings = EditorController->GetGlobalSettings();
+				GlobalSettings.bEnableRoot = !GlobalSettings.bEnableRoot;
 				return FReply::Handled();
 			})
 			.ButtonColorAndOpacity_Lambda([this, OffColor, OnColor]() -> FLinearColor
 			{
-				return EditorController->IsRootRetargetOn() ? OnColor : OffColor;
+				return EditorController->GetGlobalSettings().bEnableRoot ? OnColor : OffColor;
 			})
 			[
 				SNew(STextBlock).Text(FText::FromString("Root"))
@@ -340,12 +359,13 @@ void FIKRetargetEditor::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 			SNew(SButton)
 			.OnClicked_Lambda([this]()
 			{
-				EditorController->ToggleFKRetargetPass();
+				FRetargetGlobalSettings& GlobalSettings = EditorController->GetGlobalSettings();
+				GlobalSettings.bEnableFK = !GlobalSettings.bEnableFK;
 				return FReply::Handled();
 			})
 			.ButtonColorAndOpacity_Lambda([this, OffColor, OnColor]() -> FLinearColor
 			{
-				return EditorController->IsFKRetargetOn() ? OnColor : OffColor;
+				return EditorController->GetGlobalSettings().bEnableFK ? OnColor : OffColor;
 			})
 			[
 				SNew(STextBlock).Text(FText::FromString("FK"))
@@ -359,15 +379,36 @@ void FIKRetargetEditor::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 			SNew(SButton)
 			.OnClicked_Lambda([this]()
 			{
-				EditorController->ToggleIKRetargetPass();
+				FRetargetGlobalSettings& GlobalSettings = EditorController->GetGlobalSettings();
+				GlobalSettings.bEnableIK = !GlobalSettings.bEnableIK;
 				return FReply::Handled();
 			})
 			.ButtonColorAndOpacity_Lambda([this, OffColor, OnColor]() -> FLinearColor
 			{
-				return EditorController->IsIKRetargetOn() ? OnColor : OffColor;
+				return EditorController->GetGlobalSettings().bEnableIK ? OnColor : OffColor;
 			})
 			[
 				SNew(STextBlock).Text(FText::FromString("IK"))
+			]
+		]
+
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.HAlign(HAlign_Center)
+		[
+			SNew(SButton)
+			.OnClicked_Lambda([this]()
+			{
+				FRetargetGlobalSettings& GlobalSettings = EditorController->GetGlobalSettings();
+				GlobalSettings.bEnablePost = !GlobalSettings.bEnablePost;
+				return FReply::Handled();
+			})
+			.ButtonColorAndOpacity_Lambda([this, OffColor, OnColor]() -> FLinearColor
+			{
+				return EditorController->GetGlobalSettings().bEnablePost ? OnColor : OffColor;
+			})
+			[
+				SNew(STextBlock).Text(FText::FromString("Post"))
 			]
 		]
 	];

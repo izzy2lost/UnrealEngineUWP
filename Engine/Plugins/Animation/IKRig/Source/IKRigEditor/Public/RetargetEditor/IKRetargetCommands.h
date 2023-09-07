@@ -29,6 +29,8 @@ public:
 	TSharedPtr< FUICommandInfo > ShowGlobalSettings;
 	// open global settings
 	TSharedPtr< FUICommandInfo > ShowRootSettings;
+	// open global settings
+	TSharedPtr< FUICommandInfo > ShowPostSettings;
 
 	// enable Root retarget pass
 	TSharedPtr< FUICommandInfo > EnableRoot;
@@ -36,6 +38,8 @@ public:
 	TSharedPtr< FUICommandInfo > EnableFK;
 	// enable IK retarget pass
 	TSharedPtr< FUICommandInfo > EnableIK;
+	// enable IK retarget pass
+	TSharedPtr< FUICommandInfo > EnablePostPass;
 
 	// reset retarget pose to ref pose
 	TSharedPtr< FUICommandInfo > ResetAllBones;

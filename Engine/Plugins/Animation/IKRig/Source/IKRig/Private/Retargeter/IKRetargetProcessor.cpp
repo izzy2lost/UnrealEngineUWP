@@ -9,6 +9,7 @@
 
 #include "Retargeter/IKRetargeter.h"
 #include "Retargeter/IKRetargetProfile.h"
+#include "Retargeter/IKRetargetOps.h"
 
 #include "Engine/SkeletalMesh.h"
 #include "Kismet/KismetMathLibrary.h"
@@ -1468,6 +1469,42 @@ FVector FPoleVectorMatcher::GetChainNormal(
 	return ChainAxis.GetSafeNormal();
 }
 
+bool FRetargetOps::Initialize(
+	const FRetargetSkeleton& SourceSkeleton,
+	const FTargetSkeleton& TargetSkeleton,
+	const TArray<TObjectPtr<URetargetOpBase>>& OpStackFromAsset,
+	UIKRetargetProcessor* Processor,
+	FIKRigLogger& Log)
+{
+	bool bAllOpsInitialized = true;
+	// create copies of all the operations in the retarget asset for runtime use
+	OpStack.Reset(OpStackFromAsset.Num());
+	int32 OpIndex = 0;
+	for (const URetargetOpBase* OpFromAsset : OpStackFromAsset)
+	{
+		if (!OpFromAsset)
+		{
+			// this can happen if asset references deleted op type which should only happen during development (if at all)
+			Log.LogWarning(FText(LOCTEXT("UnknownPostOperation", "Retargeter has null/unknown post operation in it. Please remove it.")));
+			continue;
+		}
+
+		// create duplicate solver instance with unique name
+		FString Name = "RetargetOpInstance";
+		Name.AppendInt(OpIndex++);
+		URetargetOpBase* NewOp  = DuplicateObject(OpFromAsset, Processor, FName(*Name));
+		
+		// initialize it and store in the processor
+		if (!NewOp->Initialize(SourceSkeleton, TargetSkeleton, Processor, Log))
+		{
+			bAllOpsInitialized = false;
+		}
+		OpStack.Add(NewOp);
+	}
+
+	return bAllOpsInitialized;
+}
+
 UIKRetargetProcessor::UIKRetargetProcessor()
 {
 	const FName LogName = FName("IKRetarget_",GetUniqueID());
@@ -1549,6 +1586,14 @@ void UIKRetargetProcessor::Initialize(
 		Log.LogWarning( FText::Format(
 			LOCTEXT("CouldNotInitializeIKRig", "IK Retargeter was unable to initialize the IK Rig, {0} for the Skeletal Mesh {1}. See previous warnings."),
 			FText::FromString(TargetIKRig->GetName()), FText::FromString(TargetSkeletalMesh->GetName())));
+	}
+
+	// initialize the post operations
+	const TArray<TObjectPtr<URetargetOpBase>>& OpsFromAsset = RetargeterAsset->GetPostSettingsUObject()->RetargetOps;
+	const bool bAllOpsInitialized = RetargetOps.Initialize(SourceSkeleton, TargetSkeleton, OpsFromAsset, this, Log);
+	if (!bAllOpsInitialized)
+	{
+		Log.LogWarning(FText(LOCTEXT("PostOperationInitError", "One of the retarget post operations has warnings. See output log for details.")));
 	}
 
 	// must have a mapped root bone OR at least a single mapped chain to be able to do any retargeting at all
@@ -1860,6 +1905,12 @@ TArray<FTransform>&  UIKRetargetProcessor::RunRetargeter(
 		RunPoleVectorMatching(InSourceGlobalPose, TargetSkeleton.OutputGlobalPose);
 	}
 
+	// POST processes operations
+	if (GlobalSettings.bEnablePost)
+	{
+		RunRetargetOps(InSourceGlobalPose, TargetSkeleton.OutputGlobalPose);
+	}
+
 	return TargetSkeleton.OutputGlobalPose;
 }
 
@@ -2080,6 +2131,19 @@ void UIKRetargetProcessor::RunStrideWarping(const TArray<FTransform>& InTargetGl
 #if WITH_EDITOR
 	DebugData.StrideWarpingFrame = CurrentGlobalGoalTransform;
 #endif
+}
+
+void UIKRetargetProcessor::RunRetargetOps(
+	const TArray<FTransform>& InSourceGlobalPose,
+	TArray<FTransform>& OutTargetGlobalPose)
+{
+	for (URetargetOpBase* RetargetOp : RetargetOps.OpStack)
+	{
+		if (RetargetOp->bIsEnabled)
+		{
+			RetargetOp->Run(InSourceGlobalPose, OutTargetGlobalPose);
+		}
+	}
 }
 
 void UIKRetargetProcessor::ResetPlanting()

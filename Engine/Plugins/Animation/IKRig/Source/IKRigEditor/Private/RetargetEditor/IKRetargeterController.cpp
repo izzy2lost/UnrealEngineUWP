@@ -9,6 +9,7 @@
 #include "Retargeter/IKRetargeter.h"
 #include "RigEditor/IKRigController.h"
 #include "IKRigEditor.h"
+#include "Retargeter/IKRetargetOps.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(IKRetargeterController)
 
@@ -199,6 +200,124 @@ bool UIKRetargeterController::SetRetargetChainSettings(const FName& TargetChainN
 	}
 
 	return false;
+}
+
+int32 UIKRetargeterController::AddRetargetOp(TSubclassOf<URetargetOpBase> InOpClass) const
+{
+	check(Asset)
+
+	if (!InOpClass)
+	{
+		UE_LOG(LogIKRigEditor, Warning, TEXT("Could not add solver to IK Rig. Invalid solver class specified."));
+		return INDEX_NONE;
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("AddRetargetOp_Label", "Add Retarget Op"));
+	FScopedReinitializeIKRetargeter Reinitialize(this);
+	Asset->OpStack->Modify();
+	URetargetOpBase* NewOp = NewObject<URetargetOpBase>(Asset, InOpClass, NAME_None, RF_Transactional);
+	NewOp->OnAddedToStack(GetAsset());
+	return Asset->OpStack->RetargetOps.Add(NewOp);
+}
+
+bool UIKRetargeterController::RemoveRetargetOp(const int32 OpIndex) const
+{
+	check(Asset)
+	
+	if (!Asset->OpStack->RetargetOps.IsValidIndex(OpIndex))
+	{
+		UE_LOG(LogIKRigEditor, Warning, TEXT("Retarget Op not removed. Invalid index, %d."), OpIndex);
+		return false;
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("RemoveRetargetOp_Label", "Remove Retarget Op"));
+	FScopedReinitializeIKRetargeter Reinitialize(this);
+	Asset->OpStack->Modify();
+	Asset->OpStack->RetargetOps.RemoveAt(OpIndex);
+	return true;
+}
+
+URetargetOpBase* UIKRetargeterController::GetRetargetOpAtIndex(int32 Index) const
+{
+	check(Asset)
+
+	if (Asset->OpStack->RetargetOps.IsValidIndex(Index))
+	{
+		return Asset->OpStack->RetargetOps[Index];
+	}
+	
+	return nullptr;
+}
+
+int32 UIKRetargeterController::GetIndexOfRetargetOp(URetargetOpBase* RetargetOp) const
+{
+	check(Asset)
+	return Asset->OpStack->RetargetOps.Find(RetargetOp);
+}
+
+int32 UIKRetargeterController::GetNumRetargetOps() const
+{
+	check(Asset)
+	return Asset->OpStack->RetargetOps.Num();
+}
+
+bool UIKRetargeterController::MoveRetargetOpInStack(int32 OpToMoveIndex, int32 TargetIndex) const
+{
+	TArray<TObjectPtr<URetargetOpBase>>& RetargetOps = Asset->OpStack->RetargetOps;
+	
+	if (!RetargetOps.IsValidIndex(OpToMoveIndex))
+	{
+		UE_LOG(LogIKRigEditor, Warning, TEXT("Retarget Op not moved. Invalid source index, %d."), OpToMoveIndex);
+		return false;
+	}
+
+	if (!RetargetOps.IsValidIndex(TargetIndex))
+	{
+		UE_LOG(LogIKRigEditor, Warning, TEXT("Retarget Op not moved. Invalid target index, %d."), TargetIndex);
+		return false;
+	}
+
+	if (OpToMoveIndex == TargetIndex)
+	{
+		UE_LOG(LogIKRigEditor, Warning, TEXT("Retarget Op not moved. Source and target index cannot be the same."));
+		return false;
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("ReorderRetargetOps_Label", "Reorder Retarget Ops"));
+	FScopedReinitializeIKRetargeter Reinitialize(this);
+	Asset->OpStack->Modify();
+	URetargetOpBase* OpToMove = RetargetOps[OpToMoveIndex];
+	RetargetOps.Insert(OpToMove, TargetIndex + 1);
+	const int32 SolverToRemove = TargetIndex > OpToMoveIndex ? OpToMoveIndex : TargetIndex + 1;
+	RetargetOps.RemoveAt(SolverToRemove);
+	return true;
+}
+
+bool UIKRetargeterController::SetRetargetOpEnabled(int32 RetargetOpIndex, bool bIsEnabled) const
+{
+	if (!Asset->OpStack->RetargetOps.IsValidIndex(RetargetOpIndex))
+	{
+		UE_LOG(LogIKRigEditor, Warning, TEXT("Retarget op not found. Invalid index, %d."), RetargetOpIndex);
+		return false;
+	}
+	
+	FScopedTransaction Transaction(LOCTEXT("SetRetargetOpEnabled_Label", "Enable/Disable Solver"));
+	FScopedReinitializeIKRetargeter Reinitialize(this);
+	URetargetOpBase* OpToMove = Asset->OpStack->RetargetOps[RetargetOpIndex];
+	OpToMove->Modify();
+	OpToMove->bIsEnabled = bIsEnabled;
+	return true;
+}
+
+bool UIKRetargeterController::GetRetargetOpEnabled(int32 RetargetOpIndex) const
+{
+	if (!Asset->OpStack->RetargetOps.IsValidIndex(RetargetOpIndex))
+	{
+		UE_LOG(LogIKRigEditor, Warning, TEXT("Invalid retarget op index, %d."), RetargetOpIndex);
+		return false;
+	}
+
+	return Asset->OpStack->RetargetOps[RetargetOpIndex]->bIsEnabled;
 }
 
 bool UIKRetargeterController::GetAskedToFixRootHeightForMesh(USkeletalMesh* Mesh) const
