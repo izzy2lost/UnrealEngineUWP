@@ -26,8 +26,6 @@ IMPLEMENT_MODULE(UE::NearestNeighborModel::FNearestNeighborModelEditorModule, Ne
 
 namespace UE::NearestNeighborModel
 {
-	using namespace UE::MLDeformer;
-
 	void FNearestNeighborModelEditorModule::StartupModule()
 	{
 		// Register object detail customizations.

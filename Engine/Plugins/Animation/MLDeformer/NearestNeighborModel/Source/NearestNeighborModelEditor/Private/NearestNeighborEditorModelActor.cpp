@@ -6,8 +6,6 @@
 
 namespace UE::NearestNeighborModel
 {
-	using namespace UE::MLDeformer;
-
 	FNearestNeighborEditorModelActor::FNearestNeighborEditorModelActor(const FConstructSettings& Settings)
 		: FMLDeformerGeomCacheActor(Settings)
 	{

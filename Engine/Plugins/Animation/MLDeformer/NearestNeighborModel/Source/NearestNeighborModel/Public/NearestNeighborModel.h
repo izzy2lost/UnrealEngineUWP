@@ -69,6 +69,9 @@ struct FSkeletonCachePair
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbors")
 	TObjectPtr<UGeometryCache> Cache = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbors")
+	TArray<int32> ExcludedFrames;
 };
 
 USTRUCT(BlueprintType, Blueprintable)
@@ -120,12 +123,19 @@ struct FClothPartData
 	UPROPERTY()
 	TArray<float> VertexMean;
 
+	/** PCA coefficients of the nearest neighbors. This is a flattened array of size (NumNeighbors, PCACoeffNum) */
+	UPROPERTY()
+	TArray<float> AssetNeighborCoeffs;
+
 	/** The remaining offsets of the nearest neighbor shapes (after reducing PCA offsets). This is a flattened array of size (NumNeighbors, PCACoeffNum) */
 	UPROPERTY()
-	TArray<float> NeighborOffsets;
+	TArray<float> AssetNeighborOffsets;
+
+	/** Mapping from NeighborCoeffs to AssetNeighborCoeffs */
+	UPROPERTY()
+	TArray<int32> AssetNeighborIndexMap;
 #endif
 
-	/** PCA coefficients of the nearest neighbors. This is a flattened array of size (NumNeighbors, PCACoeffNum) */
 	UPROPERTY()
 	TArray<float> NeighborCoeffs;
 };
@@ -197,7 +207,6 @@ private:
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
 	int32 GetPCACoeffNum(int32 PartId) const { return ClothPartData[PartId].PCACoeffNum; }
 
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
 	int32 GetNumNeighbors(int32 PartId) const { return ClothPartData[PartId].NumNeighbors; }
 
 	int32 GetTotalNumPCACoeffs() const;
@@ -205,14 +214,6 @@ private:
 
 	float GetDecayFactor() const { return DecayFactor; };
 	float GetNearestNeighborOffsetWeight() const { return NearestNeighborOffsetWeight; }
-
-	UFUNCTION(BlueprintCallable, Category = "Nearest Neighbor Model")
-	void SetNumNeighbors(int32 PartId, int32 InNumNeighbors) { ClothPartData[PartId].NumNeighbors = InNumNeighbors; }
-	
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	const TArray<float>& NeighborCoeffs(int32 PartId) const { return ClothPartData[PartId].NeighborCoeffs; }
-	
-	TArray<float>& NeighborCoeffs(int32 PartId) { return ClothPartData[PartId].NeighborCoeffs; }
 
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
 	TArray<float> ClipInputs(const TArray<float>& Input) const;
@@ -222,6 +223,8 @@ private:
 	void InitInputInfo();
 
 	void ResetMorphBuffers();
+
+	const TArray<float>& NeighborCoeffs(int32 PartId) const { return ClothPartData[PartId].NeighborCoeffs; }
 
 	virtual int32 GetNumFloatsPerBone() const override { return NearestNeighborNumFloatsPerBone; }
 	virtual int32 GetNumFloatsPerCurve() const override { return NearestNeighborNumFloatsPerCurve; }
@@ -238,6 +241,9 @@ private:
 	bool LoadOptimizedNetworkFromFile(const FString& Filename);
 
 #if WITH_EDITOR
+	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
+	int32 GetAssetNumNeighbors(int32 PartId) const;
+
 	const TArray<uint32>& PartVertexMap(int32 PartId) const { return ClothPartData[PartId].VertexMap; }
 
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
@@ -256,17 +262,20 @@ private:
 	UFUNCTION(BlueprintCallable, Category = "Nearest Neighbor Model")
 	void SetVertexMean(int32 PartId, const TArray<float>& VertexMean) { ClothPartData[PartId].VertexMean = VertexMean; }
 
+	void SetNumNeighbors(int32 PartId, int32 InNumNeighbors) { ClothPartData[PartId].NumNeighbors = InNumNeighbors; }
+
 	UFUNCTION(BlueprintCallable, Category = "Nearest Neighbor Model")
+	void SetAssetNeighborCoeffs(int32 PartId, const TArray<float>& AssetNeighborCoeffs) { ClothPartData[PartId].AssetNeighborCoeffs = AssetNeighborCoeffs; }
+
 	void SetNeighborCoeffs(int32 PartId, const TArray<float>& NeighborCoeffs) { ClothPartData[PartId].NeighborCoeffs = NeighborCoeffs; }
 
-
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	const TArray<float>& NeighborOffsets(int32 PartId) const { return ClothPartData[PartId].NeighborOffsets; }
-
-	TArray<float>& NeighborOffsets(int32 PartId) { return ClothPartData[PartId].NeighborOffsets; }
+	const TArray<float>& AssetNeighborCoeffs(int32 PartId) const { return ClothPartData[PartId].AssetNeighborCoeffs; }
+	
+	const TArray<float>& AssetNeighborOffsets(int32 PartId) const { return ClothPartData[PartId].AssetNeighborOffsets; }
 
 	UFUNCTION(BlueprintCallable, Category = "Nearest Neighbor Model")
-	void SetNeighborOffsets(int32 PartId, const TArray<float>& NeighborOffsets) { ClothPartData[PartId].NeighborOffsets = NeighborOffsets; }
+	void SetAssetNeighborOffsets(int32 PartId, const TArray<float>& AssetNeighborOffsets) { ClothPartData[PartId].AssetNeighborOffsets = AssetNeighborOffsets; }
 #endif
 
 #if WITH_EDITORONLY_DATA

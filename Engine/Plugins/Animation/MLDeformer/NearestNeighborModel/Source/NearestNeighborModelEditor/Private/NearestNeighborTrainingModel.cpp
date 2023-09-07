@@ -7,11 +7,10 @@
 #include "Animation/AnimSequence.h"
 
 #define LOCTEXT_NAMESPACE "NearestNeighborTrainingModel"
-using namespace UE::NearestNeighborModel;
 
 UNearestNeighborTrainingModel::~UNearestNeighborTrainingModel() = default;
 
-void UNearestNeighborTrainingModel::Init(UE::MLDeformer::FMLDeformerEditorModel* InEditorModel)
+void UNearestNeighborTrainingModel::Init(::UE::MLDeformer::FMLDeformerEditorModel* InEditorModel)
 {
 	UMLDeformerTrainingModel::Init(InEditorModel);
 	check(InEditorModel != nullptr);
@@ -121,8 +120,8 @@ int32 UNearestNeighborTrainingModel::GetKmeansNumClusters() const
 
 const TArray<float> UNearestNeighborTrainingModel::GetUnskinnedVertexPositions() const
 {
-	FMLDeformerSampler* BaseSampler = EditorModel->GetNumTrainingInputAnims() > 0 ? EditorModel->GetSamplerForTrainingAnim(0) : nullptr;
-	FNearestNeighborGeomCacheSampler* Sampler = static_cast<FNearestNeighborGeomCacheSampler*>(BaseSampler);
+	UE::MLDeformer::FMLDeformerSampler* BaseSampler = EditorModel->GetNumTrainingInputAnims() > 0 ? EditorModel->GetSamplerForTrainingAnim(0) : nullptr;
+	UE::NearestNeighborModel::FNearestNeighborGeomCacheSampler* Sampler = static_cast<UE::NearestNeighborModel::FNearestNeighborGeomCacheSampler*>(BaseSampler);
 	if (Sampler == nullptr)
 	{
 		return TArray<float>();
@@ -142,13 +141,12 @@ const TArray<float> UNearestNeighborTrainingModel::GetUnskinnedVertexPositions()
 
 const TArray<int32> UNearestNeighborTrainingModel::GetMeshIndexBuffer() const
 {
-	FMLDeformerSampler* BaseSampler = EditorModel->GetNumTrainingInputAnims() > 0 ? EditorModel->GetSamplerForTrainingAnim(0) : nullptr;
-	FNearestNeighborGeomCacheSampler* Sampler = static_cast<FNearestNeighborGeomCacheSampler*>(BaseSampler);
+	UE::MLDeformer::FMLDeformerSampler* BaseSampler = EditorModel->GetNumTrainingInputAnims() > 0 ? EditorModel->GetSamplerForTrainingAnim(0) : nullptr;
+	UE::NearestNeighborModel::FNearestNeighborGeomCacheSampler* Sampler = static_cast<UE::NearestNeighborModel::FNearestNeighborGeomCacheSampler*>(BaseSampler);
 	if (Sampler == nullptr)
 	{
 		return TArray<int32>();
 	}
-
 	TArray<uint32> UIndexBuffer = Sampler->GetMeshIndexBuffer();
 	return TArray<int32>((int32*)UIndexBuffer.GetData(), UIndexBuffer.Num());
 }
@@ -169,7 +167,7 @@ void UNearestNeighborTrainingModel::DestroyModelInstance(UNearestNeighborModelIn
 
 void UNearestNeighborTrainingModel::SetNewAnimSampler()
 {
-	AnimSampler = MakeUnique<FNearestNeighborGeomCacheSampler>();
+	AnimSampler = MakeUnique<UE::NearestNeighborModel::FNearestNeighborGeomCacheSampler>();
 	AnimSampler->Init(EditorModel, 0);
 }
 
@@ -179,7 +177,7 @@ const UAnimSequence* UNearestNeighborTrainingModel::GetTestAnim() const
 	{
 		return nullptr;
 	}
-	const FNearestNeighborEditorModel* NNEditorModel = static_cast<FNearestNeighborEditorModel*>(EditorModel);
+	const UE::NearestNeighborModel::FNearestNeighborEditorModel* NNEditorModel = static_cast<UE::NearestNeighborModel::FNearestNeighborEditorModel*>(EditorModel);
 	const UNearestNeighborModelVizSettings* Viz = NNEditorModel->GetNearestNeighborModelVizSettings();
 	if (!Viz)
 	{

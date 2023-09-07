@@ -23,6 +23,7 @@ namespace UE::NearestNeighborModel
 		NNGroup.AddPropertyRow(DetailLayoutBuilder->GetProperty(UNearestNeighborModelVizSettings::GetNearestNeighborIdsPropertyName(), UNearestNeighborModelVizSettings::StaticClass()));
 
 		IDetailGroup& ToolsGroup = LiveSettingsCategory->AddGroup("Tools", LOCTEXT("ToolsLabel", "Tools"), false, true);
+		ToolsGroup.AddPropertyRow(DetailLayoutBuilder->GetProperty(UNearestNeighborModelVizSettings::GetNeighborStatsPartIdPropertyName(), UNearestNeighborModelVizSettings::StaticClass()));
 		ToolsGroup.AddWidgetRow()
 		.WholeRowContent()
 		[

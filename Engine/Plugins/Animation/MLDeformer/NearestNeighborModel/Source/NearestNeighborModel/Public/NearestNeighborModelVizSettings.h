@@ -24,6 +24,7 @@ class NEARESTNEIGHBORMODEL_API UNearestNeighborModelVizSettings
 public:
 	static FName GetNearestNeighborActorsOffsetPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelVizSettings, NearestNeighborActorsOffset); }
 	static FName GetNearestNeighborIdsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelVizSettings, NearestNeighborIds); }
+	static FName GetNeighborStatsPartIdPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelVizSettings, NeighborStatsPartId); }
 	
 	friend class UE::NearestNeighborModel::FNearestNeighborEditorModel;
 
@@ -33,6 +34,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Live Settings")
 	TArray<uint32> NearestNeighborIds;
+
+	UPROPERTY(EditAnywhere, Category = "Live Settings", meta = (DisplayName = "Part Id"))
+	int32 NeighborStatsPartId = 0;
 
 private:
 	void SetNearestNeighborActorsOffset(float InOffset) { NearestNeighborActorsOffset = InOffset; }

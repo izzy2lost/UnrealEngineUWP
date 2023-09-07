@@ -50,7 +50,7 @@ namespace UE::NearestNeighborModel
 			const TArray<FSkelMeshImportedMeshInfo>& SkelMeshInfos = LODModel.ImportedMeshInfos;
 			for (int32 MeshMappingIndex = 0; MeshMappingIndex < MeshMappings.Num(); ++MeshMappingIndex)
 			{
-				const UE::MLDeformer::FMLDeformerGeomCacheMeshMapping& MeshMapping = MeshMappings[MeshMappingIndex];
+				const ::UE::MLDeformer::FMLDeformerGeomCacheMeshMapping& MeshMapping = MeshMappings[MeshMappingIndex];
 				const FSkelMeshImportedMeshInfo& MeshInfo = SkelMeshInfos[MeshMapping.MeshIndex];
 				UGeometryCacheTrack* Track = GeometryCache->Tracks[MeshMapping.TrackIndex];
 
@@ -153,7 +153,7 @@ namespace UE::NearestNeighborModel
 				{
 					Sign = Inner(R0, R) < 0 ? -1 : 1;
 				}
-				const float	Weight = Sign * static_cast<float>(WeightByte) * UE::AnimationCore::InvMaxRawBoneWeightFloat;
+				const float	Weight = Sign * static_cast<float>(WeightByte) * ::UE::AnimationCore::InvMaxRawBoneWeightFloat;
 				QuatSum += R * Weight;
 			}
 		}

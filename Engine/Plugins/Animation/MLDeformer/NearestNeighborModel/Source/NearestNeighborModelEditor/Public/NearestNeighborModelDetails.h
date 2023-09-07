@@ -15,7 +15,7 @@ namespace UE::NearestNeighborModel
 	class FNearestNeighborEditorModel;
 
 	class NEARESTNEIGHBORMODELEDITOR_API FNearestNeighborModelDetails
-		: public UE::MLDeformer::FMLDeformerMorphModelDetails
+		: public ::UE::MLDeformer::FMLDeformerMorphModelDetails
 	{
 	public:
 		/** Makes a new instance of this detail layout class for a specific detail view requesting it. */

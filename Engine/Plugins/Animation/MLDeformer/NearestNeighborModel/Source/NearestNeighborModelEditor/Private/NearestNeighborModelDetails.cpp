@@ -25,7 +25,7 @@
 
 namespace UE::NearestNeighborModel
 {
-	using namespace UE::MLDeformer;
+	using namespace ::UE::MLDeformer;
 
 	TSharedRef<IDetailCustomization> FNearestNeighborModelDetails::MakeInstance()
 	{

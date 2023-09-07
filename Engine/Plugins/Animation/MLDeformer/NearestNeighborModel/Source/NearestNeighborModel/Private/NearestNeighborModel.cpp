@@ -73,8 +73,8 @@ void UNearestNeighborModel::UpdateMemoryUsage()
 	for (const FClothPartData& Part : ClothPartData)
 	{
 		ClothDataSize += Part.PCABasis.GetTypeSize() * Part.PCABasis.Num();
-		ClothDataSize += Part.NeighborOffsets.GetTypeSize() * Part.NeighborOffsets.Num();
-		ClothDataSize += Part.NeighborCoeffs.GetTypeSize() * Part.NeighborCoeffs.Num();
+		ClothDataSize += Part.AssetNeighborOffsets.GetTypeSize() * Part.AssetNeighborOffsets.Num();
+		ClothDataSize += Part.AssetNeighborCoeffs.GetTypeSize() * Part.AssetNeighborCoeffs.Num();
 		ClothDataSize += Part.VertexMean.GetTypeSize() * Part.VertexMean.Num();
 		ClothDataSize += Part.VertexMap.GetTypeSize() * Part.VertexMap.Num();
 	}
@@ -140,6 +140,13 @@ TArray<uint32> AddConstant(const TArray<uint32> &InArr, uint32 Constant)
 	}
 	return OutArr;
 }
+
+#if WITH_EDITOR
+int32 UNearestNeighborModel::GetAssetNumNeighbors(int32 PartId) const
+{
+	return FMath::Min(GetNumNeighborsFromGeometryCache(PartId), GetNumNeighborsFromAnimSequence(PartId));
+}
+#endif
 
 TArray<float> UNearestNeighborModel::ClipInputs(const TArray<float>& Inputs) const
 {
@@ -331,8 +338,8 @@ UE::NearestNeighborModel::EUpdateResult UNearestNeighborModel::UpdateClothPartDa
 			ClothPartData[PartId].PCABasis.SetNumZeroed(ClothPartData[PartId].NumVertices * 3 * ClothPartData[PartId].PCACoeffNum);
 
 			// Init default neighbor data.
-			ClothPartData[PartId].NeighborCoeffs.SetNumZeroed(ClothPartData[PartId].PCACoeffNum);
-			ClothPartData[PartId].NeighborOffsets.SetNumZeroed(ClothPartData[PartId].NumVertices * 3);
+			ClothPartData[PartId].AssetNeighborCoeffs.SetNumZeroed(ClothPartData[PartId].PCACoeffNum);
+			ClothPartData[PartId].AssetNeighborOffsets.SetNumZeroed(ClothPartData[PartId].NumVertices * 3);
 			ClothPartData[PartId].NumNeighbors = 1;
 		}
 	}

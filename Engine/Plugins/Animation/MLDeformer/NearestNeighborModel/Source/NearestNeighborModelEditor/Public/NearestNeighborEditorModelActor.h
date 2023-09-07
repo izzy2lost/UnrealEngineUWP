@@ -12,15 +12,13 @@ namespace UE::NearestNeighborModel
 {
 	class FNearestNeighborEditorModel;
 
-	using namespace UE::MLDeformer;
-
 	enum : int32
 	{
 		ActorID_NearestNeighborActors = 6
 	};
 
 	class NEARESTNEIGHBORMODELEDITOR_API FNearestNeighborEditorModelActor
-		: public FMLDeformerGeomCacheActor
+		: public ::UE::MLDeformer::FMLDeformerGeomCacheActor
 	{
 	public:
 		FNearestNeighborEditorModelActor(const FConstructSettings& Settings);

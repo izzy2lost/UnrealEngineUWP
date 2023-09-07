@@ -81,7 +81,7 @@ namespace UE::NearestNeighborModel
 
 		uint8 InitMorphTargets();
 		void RefreshMorphTargets();
-		void AddFloatArrayToDeltaArray(const TArray<float>& FloatArr, const TArray<uint32>& VertexMap, TArray<FVector3f>& DeltaArr, int32 DeltaArrayOffset = -1, float ScaleFactor = 1);
+		void AddFloatArrayToDeltaArray(const TArray<float>& FloatArr, const TArray<uint32>& VertexMap, TArray<FVector3f>& DeltaArr, int32 DeltaArrayOffset = INDEX_NONE, TOptional<TArray<int32>> OptionalIncludedFrames = TOptional<TArray<int32>>());
 
 		int32 GetNumParts();
 

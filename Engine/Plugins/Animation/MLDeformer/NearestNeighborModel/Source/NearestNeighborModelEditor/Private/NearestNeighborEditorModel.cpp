@@ -181,8 +181,19 @@ namespace UE::NearestNeighborModel
 				}
 			}
 			const UNearestNeighborModelInstance* ModelInstance = static_cast<UNearestNeighborModelInstance*>(GetTestMLDeformerModelInstance());
-			if (ModelInstance)
+			UNearestNeighborModel* NearestNeighborModel = GetNearestNeighborModel();
+			if (ModelInstance && NearestNeighborModel)
 			{
+				const TArray<uint32>& NeighborIds = ModelInstance->GetNearestNeighborIds();
+				TArray<uint32> AssetNeighborIds; 
+				const int32 NumParts = FMath::Min(NeighborIds.Num(), NearestNeighborModel->GetNumParts());
+				AssetNeighborIds.SetNum(NumParts);
+				for(int32 Index = 0; Index < NumParts; Index++)
+				{
+					const int32 Id = NeighborIds[Index];
+					const TArray<int32>& IndexMap = NearestNeighborModel->ClothPartData[Index].AssetNeighborIndexMap;
+					AssetNeighborIds[Index] = IndexMap.IsValidIndex(Id) ? IndexMap[Id] : INDEX_NONE;
+				}
 				NNViz->SetNearestNeighborIds(ModelInstance->GetNearestNeighborIds());
 			}
 		}
@@ -544,7 +555,7 @@ namespace UE::NearestNeighborModel
 	{
 		TArray<T> Result;
 		Result.SetNum(End);
-		for (uint32 i = 0; i < End; i++)
+		for (uint32 i = 0; (T)i < End; i++)
 		{
 			Result[i] = i;
 		}
@@ -695,7 +706,25 @@ namespace UE::NearestNeighborModel
 		return MakeTuple(Anim, ReturnCode);
 	}
 
-	void FNearestNeighborEditorModel::AddFloatArrayToDeltaArray(const TArray<float>& FloatArr, const TArray<uint32>& VertexMap, TArray<FVector3f>& DeltaArr, int32 DeltaArrayOffset, float ScaleFactor)
+	namespace Private
+	{
+		TArray<int32> GetIncludedFrame(TConstArrayView<int32> ExcludedFrames, int32 NumFrames)
+		{
+			TArray<int32> IncludedFrames;
+			TArray<int32> FrameMap;
+			IncludedFrames.Reserve(NumFrames);
+			for (int32 Frame = 0; Frame < NumFrames; Frame++)
+			{
+				if (!ExcludedFrames.Contains(Frame))
+				{
+					IncludedFrames.Add(Frame);
+				}
+			}
+			return IncludedFrames;
+		}
+	};
+
+	void FNearestNeighborEditorModel::AddFloatArrayToDeltaArray(const TArray<float>& FloatArr, const TArray<uint32>& VertexMap, TArray<FVector3f>& DeltaArr, int32 DeltaArrayOffset, TOptional<TArray<int32>> OptionalIncludedFrames)
 	{
 		const int32 NumBaseMeshVerts = Model->GetNumBaseMeshVerts();
 		const UNearestNeighborModel* NearestNeighborModel = GetNearestNeighborModel();
@@ -705,19 +734,22 @@ namespace UE::NearestNeighborModel
 			return;
 		}
 		const int32 NumShapes = FloatArr.Num() / (PartNumVerts * 3);
-		if (DeltaArrayOffset < 0)
+		if (DeltaArrayOffset == INDEX_NONE)
 		{
 			DeltaArrayOffset = DeltaArr.Num();
 		}
-		DeltaArr.SetNumZeroed(FMath::Max(DeltaArrayOffset + NumShapes * NumBaseMeshVerts, DeltaArr.Num()), false);
+		const TArray<int32> IncludedFrames = OptionalIncludedFrames.IsSet() ? OptionalIncludedFrames.GetValue() : Range<int32>(NumShapes);
+		const int32 NumIncludedFrames = IncludedFrames.Num();
+		DeltaArr.SetNumZeroed(FMath::Max(DeltaArrayOffset + NumIncludedFrames * NumBaseMeshVerts, DeltaArr.Num()), false);
 
-		for(int32 ShapeId = 0; ShapeId < NumShapes; ShapeId++)
+		for(int32 Frame = 0; Frame < IncludedFrames.Num(); ++Frame)
 		{
+			const int32 IncludedFrame = IncludedFrames[Frame];
 			for(int32 VertexId = 0; VertexId < PartNumVerts; VertexId++)
 			{
-				const int32 DeltaId = ShapeId * NumBaseMeshVerts + VertexMap[VertexId];
-				const int32 FloatId = (ShapeId * PartNumVerts + VertexId) * 3;
-				DeltaArr[DeltaArrayOffset + DeltaId] = FVector3f(FloatArr[FloatId], FloatArr[FloatId + 1], FloatArr[FloatId + 2]) * ScaleFactor;
+				const int32 DeltaId = Frame * NumBaseMeshVerts + VertexMap[VertexId];
+				const int32 FloatId = (IncludedFrame * PartNumVerts + VertexId) * 3;
+				DeltaArr[DeltaArrayOffset + DeltaId] = FVector3f(FloatArr[FloatId], FloatArr[FloatId + 1], FloatArr[FloatId + 2]);
 			}
 		}
 	}
@@ -824,8 +856,22 @@ namespace UE::NearestNeighborModel
 
 		for (int32 PartId = 0; PartId < NumParts; PartId++)
 		{
-			const TArray<uint32>& VertexMap = NearestNeighborModel->PartVertexMap(PartId);
-			AddFloatArrayToDeltaArray(NearestNeighborModel->ClothPartData[PartId].NeighborOffsets, VertexMap, Deltas);
+			FClothPartData& Data = NearestNeighborModel->ClothPartData[PartId];
+			const TArray<uint32>& VertexMap = Data.VertexMap;
+			const TArray<float>& AssetNeighborOffsets = Data.AssetNeighborOffsets;
+			constexpr int32 DeltaOffset = INDEX_NONE;
+			const int32 NumAssetNeighbors = AssetNeighborOffsets.Num() / (VertexMap.Num() * 3);
+			check(AssetNeighborOffsets.Num() % (VertexMap.Num() * 3) == 0);
+			if (NumAssetNeighbors == 0)
+			{
+				continue;
+			}
+			check(NearestNeighborModel->NearestNeighborData.IsValidIndex(PartId));
+			const TArray<int32> ExcludedFrames = NearestNeighborModel->NearestNeighborData[PartId].ExcludedFrames;
+			const TArray<int32> IncludedFrames = UE::NearestNeighborModel::Private::GetIncludedFrame(ExcludedFrames, NumAssetNeighbors);
+			NearestNeighborModel->SetNumNeighbors(PartId, IncludedFrames.Num());
+			Data.AssetNeighborIndexMap = IncludedFrames;
+			AddFloatArrayToDeltaArray(AssetNeighborOffsets, VertexMap, Deltas, DeltaOffset, IncludedFrames);
 		}
 
 		if (Deltas.Num() == 0)
@@ -938,6 +984,20 @@ namespace UE::NearestNeighborModel
 	void FNearestNeighborEditorModel::GetNeighborStats()
 	{
 		UNearestNeighborTrainingModel *TrainingModel = InitTrainingModel<UNearestNeighborTrainingModel>(this);
+		if (!TrainingModel)
+		{
+			return;
+		}
+		const UNearestNeighborModel *NearestNeighborModel = GetNearestNeighborModel();
+		if (!NearestNeighborModel)
+		{
+			return;
+		}
+		if (!NearestNeighborModel->GetOptimizedNetwork())
+		{
+			UE_LOG(LogNearestNeighborModel, Error, TEXT("Network is not loaded. Network is needed to compute stats. Please train model first."));
+			return;
+		}
 		TrainingModel->GetNeighborStats(0);
 	}
 }	// namespace UE::NearestNeighborModel
