@@ -861,8 +861,19 @@ private:
 	FBox CurrLocalBounds;
 
 	FBox SystemFixedBounds;
-	TMap<FName, FBox> EmitterFixedBounds;
 
+	struct FEmitterOverrideInfo
+	{
+		explicit FEmitterOverrideInfo(FName InEmitterName) : EmitterName(InEmitterName) {}
+
+		FName	EmitterName;
+		bool	bEnabled = true;
+		FBox	FixedBounds = FBox(EForceInit::ForceInit);
+	};
+	TArray<FEmitterOverrideInfo> EmitterOverrideInfos;
+	const FEmitterOverrideInfo* FindEmitterOverrideInfo(FName EmitterName) const;
+	FEmitterOverrideInfo* FindEmitterOverrideInfo(FName EmitterName);
+	FEmitterOverrideInfo& FindOrAddEmitterOverrideInfo(FName EmitterName);
 
 	float CustomTimeDilation = 1.0f;
 

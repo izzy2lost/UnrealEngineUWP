@@ -165,61 +165,18 @@ FNiagaraSystemInstance::FNiagaraSystemInstance(UWorld& InWorld, UNiagaraSystem& 
 
 void FNiagaraSystemInstance::SetEmitterEnable(FName EmitterName, bool bNewEnableState)
 {
-	// No need fo this code since it's not supported yet
-	//// Wait for any async operations, can complete the system
-	//WaitForAsyncTickAndFinalize();
-	//if (IsComplete())
-	//{
-	//	return;
-	//}
-
-	UE_LOG(LogNiagara, Warning, TEXT("SetEmitterEnable: Is not implemented in Niagara. Emitter(%s) System(%s) Component(%s)"), *EmitterName.ToString(), *GetNameSafe(System), *GetFullNameSafe(AttachComponent.Get()));
-	return;
-
-	/*
-	UNiagaraSystem* System = GetSystem();
-	if (System != nullptr)
+	for (const TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe>& Emitter : Emitters)
 	{
-		const TArray<FNiagaraEmitterHandle>& EmitterHandles = GetSystem()->GetEmitterHandles();
-		int32 FoundIdx = INDEX_NONE;
-		for (int32 EmitterIdx = 0; EmitterIdx < GetSystem()->GetEmitterHandles().Num(); ++EmitterIdx)
+		if (Emitter->GetEmitterHandle().GetName() == EmitterName)
 		{
-			const FNiagaraEmitterHandle& EmitterHandle = EmitterHandles[EmitterIdx];
-			if (EmitterName == EmitterHandle.GetName())
-			{
-				FoundIdx = EmitterIdx;
-				break;
-			}
+			Emitter->SetEmitterEnable(bNewEnableState);
+			return;
 		}
+	}
 
-		if (FoundIdx != INDEX_NONE && Emitters.IsValidIndex(FoundIdx))
-		{
-			if (Emitters[FoundIdx]->IsAllowedToExecute())
-			{
-
-				{
-					if (bNewEnableState)
-					{
-						Emitters[FoundIdx]->SetExecutionState(ENiagaraExecutionState::Active);
-					}
-					else
-					{
-						Emitters[FoundIdx]->SetExecutionState(ENiagaraExecutionState::Inactive);
-					}
-				}
-			}
-			else
-			{
-				UE_LOG(LogNiagara, Log, TEXT("SetEmitterEnable: Emitter \"%s\" was found in the system's list of emitters, but it does not pass FNiagaraEmitterInstance::IsAllowedToExecute() and therefore cannot be manually enabled!"), *EmitterName.ToString());
-			}
-		}
-		else
-		{
-			UE_LOG(LogNiagara, Log, TEXT("SetEmitterEnable: Emitter \"%s\" was not found in the system's list of emitters!"), *EmitterName.ToString());
-		}
-	}*/
+	// Failed to find emitter
+	UE_LOG(LogNiagara, Warning, TEXT("SetEmitterEnable: Failed to find Emitter(%s) System(%s) Component(%s)"), *EmitterName.ToString(), *GetNameSafe(System), *GetFullNameSafe(AttachComponent.Get()));
 }
-
 
 void FNiagaraSystemInstance::Init(bool bInForceSolo)
 {

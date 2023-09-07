@@ -638,6 +638,9 @@ void UNiagaraComponent::SetLODDistance(float InLODDistance, float InMaxLODDistan
 
 void UNiagaraComponent::SetEmitterEnable(FName EmitterName, bool bNewEnableState)
 {
+	FEmitterOverrideInfo& EmitterOverrideInfo = FindOrAddEmitterOverrideInfo(EmitterName);
+	EmitterOverrideInfo.bEnabled = bNewEnableState;
+
 	if (SystemInstanceController.IsValid() && !SystemInstanceController->IsComplete())
 	{
 		SystemInstanceController->SetEmitterEnable(EmitterName, bNewEnableState);
@@ -669,7 +672,9 @@ void UNiagaraComponent::ClearSystemFixedBounds()
 
 void UNiagaraComponent::SetEmitterFixedBounds(FName EmitterName, FBox LocalBounds)
 {
-	EmitterFixedBounds.FindOrAdd(EmitterName, LocalBounds);
+	FEmitterOverrideInfo& EmitterOverrideInfo = FindOrAddEmitterOverrideInfo(EmitterName);
+	EmitterOverrideInfo.FixedBounds = LocalBounds;
+
 	if (SystemInstanceController.IsValid())
 	{
 		SystemInstanceController->SetEmitterFixedBounds(EmitterName, LocalBounds);
@@ -678,16 +683,20 @@ void UNiagaraComponent::SetEmitterFixedBounds(FName EmitterName, FBox LocalBound
 
 FBox UNiagaraComponent::GetEmitterFixedBounds(FName EmitterName) const
 {
-	if ( const FBox* EmitterBounds = EmitterFixedBounds.Find(EmitterName) )
+	if ( const FEmitterOverrideInfo* EmitterOverrideInfo = FindEmitterOverrideInfo(EmitterName) )
 	{
-		return *EmitterBounds;
+		return EmitterOverrideInfo->FixedBounds;
 	}
 	return FBox(EForceInit::ForceInit);
 }
 
 void UNiagaraComponent::ClearEmitterFixedBounds(FName EmitterName)
 {
-	EmitterFixedBounds.Remove(EmitterName);
+	if (FEmitterOverrideInfo* EmitterOverrideInfo = FindEmitterOverrideInfo(EmitterName))
+	{
+		EmitterOverrideInfo->FixedBounds = FBox(EForceInit::ForceInit);
+	}
+
 	if (SystemInstanceController.IsValid())
 	{
 		SystemInstanceController->SetEmitterFixedBounds(EmitterName, FBox(EForceInit::ForceInit));
@@ -1113,11 +1122,15 @@ bool UNiagaraComponent::InitializeSystem()
 		{
 			SystemInstanceController->SetSystemFixedBounds(SystemFixedBounds);
 		}
-		if (!EmitterFixedBounds.IsEmpty())
+		for ( const FEmitterOverrideInfo& EmitterOverrideInfo : EmitterOverrideInfos)
 		{
-			for ( auto it=EmitterFixedBounds.CreateConstIterator(); it; ++it )
+			if (!EmitterOverrideInfo.bEnabled)
 			{
-				SystemInstanceController->SetEmitterFixedBounds(it.Key(), it.Value());
+				SystemInstanceController->SetEmitterEnable(EmitterOverrideInfo.EmitterName, EmitterOverrideInfo.bEnabled);
+			}
+			if (EmitterOverrideInfo.FixedBounds.IsValid)
+			{
+				SystemInstanceController->SetEmitterFixedBounds(EmitterOverrideInfo.EmitterName, EmitterOverrideInfo.FixedBounds);
 			}
 		}
 
@@ -1801,7 +1814,7 @@ void UNiagaraComponent::OnPooledReuse(UWorld* NewWorld)
 	ForceUpdateTransformTime = 0.0f;
 	CurrLocalBounds.Init();
 	SystemFixedBounds.Init();
-	EmitterFixedBounds.Empty();
+	EmitterOverrideInfos.Empty();
 
 	if (SystemInstanceController != nullptr)
 	{
@@ -2035,6 +2048,42 @@ void UNiagaraComponent::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSiz
 	{
 		CumulativeResourceSize.AddDedicatedSystemMemoryBytes(SystemInstanceController->GetTotalBytesUsed());
 	}
+}
+
+const UNiagaraComponent::FEmitterOverrideInfo* UNiagaraComponent::FindEmitterOverrideInfo(FName EmitterName) const
+{
+	for (const FEmitterOverrideInfo& Info : EmitterOverrideInfos)
+	{
+		if (Info.EmitterName == EmitterName)
+		{
+			return &Info;
+		}
+	}
+	return nullptr;
+}
+
+UNiagaraComponent::FEmitterOverrideInfo* UNiagaraComponent::FindEmitterOverrideInfo(FName EmitterName)
+{
+	for (FEmitterOverrideInfo& Info : EmitterOverrideInfos)
+	{
+		if (Info.EmitterName == EmitterName)
+		{
+			return &Info;
+		}
+	}
+	return nullptr;
+}
+
+UNiagaraComponent::FEmitterOverrideInfo& UNiagaraComponent::FindOrAddEmitterOverrideInfo(FName EmitterName)
+{
+	for (FEmitterOverrideInfo& Info : EmitterOverrideInfos)
+	{
+		if (Info.EmitterName == EmitterName)
+		{
+			return Info;
+		}
+	}
+	return EmitterOverrideInfos.Emplace_GetRef(EmitterName);
 }
 
 void UNiagaraComponent::CreateCullProxy(bool bForce)

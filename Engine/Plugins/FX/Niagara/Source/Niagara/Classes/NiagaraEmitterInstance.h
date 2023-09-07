@@ -158,6 +158,11 @@ public:
 	}
 	FBox GetFixedBounds() const;
 
+	void SetEmitterEnable(bool bNewEnableState)
+	{
+		bAllowSpawning_GT = bNewEnableState;
+	}
+
 	NIAGARA_API UObject* FindBinding(const FNiagaraVariable& InVariable) const;
 	NIAGARA_API UNiagaraDataInterface* FindDataInterface(const FNiagaraVariable& InVariable) const;
 
@@ -257,6 +262,9 @@ private:
 
 	/** Typical resets must be deferred until the tick as the RT could still be using the current buffer. */
 	uint32 bResetPending : 1;
+
+	bool bAllowSpawning_GT = true;
+	bool bAllowSpawning_CNC = true;
 
 	// This is used to keep track which particles have spawned a component. This is needed when the bOnlyCreateComponentsOnParticleSpawn flag is set in the renderer.
 	// Without this bookkeeping, the particles would lose their components when the render state is recreated or the visibility tag flips them off and on again.

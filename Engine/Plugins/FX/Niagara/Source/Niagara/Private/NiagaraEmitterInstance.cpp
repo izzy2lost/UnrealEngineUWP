@@ -555,6 +555,8 @@ void FNiagaraEmitterInstance::OnPooledReuse()
 	// Ensure we kill any existing particles and mark our buffers for reset
 	bResetPending = true;
 	TotalSpawnedParticles = 0;
+	bAllowSpawning_GT = true;
+	bAllowSpawning_CNC = true;
 
 	FixedBounds.Init();
 }
@@ -1244,6 +1246,8 @@ void FNiagaraEmitterInstance::PreTick()
 		}
 	}
 
+	bAllowSpawning_CNC = bAllowSpawning_GT;
+
 	if (ParentSystemInstance && RendererBindings.GetUObjectsDirty())
 	{
 		if ( const FNiagaraParameterStore* SrcStore = ParentSystemInstance->GetOverrideParameters() )
@@ -1403,7 +1407,7 @@ void FNiagaraEmitterInstance::Tick(float DeltaSeconds)
 
 	// Calculate number of new particles from regular spawning 
 	uint32 SpawnTotal = 0;
-	if (ExecutionState == ENiagaraExecutionState::Active)
+	if (ExecutionState == ENiagaraExecutionState::Active && bAllowSpawning_CNC)
 	{
 		for (FNiagaraSpawnInfo& Info : SpawnInfos)
 		{
