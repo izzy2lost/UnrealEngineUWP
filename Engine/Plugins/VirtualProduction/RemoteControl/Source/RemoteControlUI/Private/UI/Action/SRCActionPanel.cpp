@@ -95,7 +95,7 @@ void SRCActionPanel::UpdateWrappedWidget(TSharedPtr<FRCBehaviourModel> InBehavio
 		// Action Dock Panel
 		TSharedPtr<SRCMinorPanel> ActionDockPanel = SNew(SRCMinorPanel)
 			.HeaderLabel(LOCTEXT("ActionsLabel", "Actions"))
-			.EnableFooter(true)
+			.EnableFooter(false)
 			[
 				ActionPanelList.ToSharedRef()
 			];
@@ -145,31 +145,9 @@ void SRCActionPanel::UpdateWrappedWidget(TSharedPtr<FRCBehaviourModel> InBehavio
 					.Image(FAppStyle::GetBrush("Icons.Duplicate"))
 				]
 			];
-		
-	// Delete Selected Action Button
-		TSharedRef<SWidget> DeleteSelectedActionButton = SNew(SButton)
-			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("Delete Selected Action")))
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			.ForegroundColor(FSlateColor::UseForeground())
-			.ButtonStyle(&RCPanelStyle->FlatButtonStyle)
-			.ToolTipText(LOCTEXT("DeleteSelectedActionToolTip", "Deletes all selected Action."))
-			.OnClicked(this, &SRCActionPanel::RequestDeleteSelectedItem)
-			.IsEnabled_Lambda([this]() { return ActionPanelList.IsValid() && ActionPanelList->NumSelectedLogicItems() > 0; })
-			[
-				SNew(SBox)
-				.WidthOverride(RCPanelStyle->IconSize.X)
-				.HeightOverride(RCPanelStyle->IconSize.Y)
-				[
-					SNew(SImage)
-					.ColorAndOpacity(FSlateColor::UseForeground())
-					.Image(FAppStyle::GetBrush("Icons.Delete"))
-				]
-			];
 
 		ActionDockPanel->AddHeaderToolbarItem(EToolbar::Left, AddNewActionButton);
 		ActionDockPanel->AddHeaderToolbarItem(EToolbar::Right, AddAllActionsButton);
-		ActionDockPanel->AddFooterToolbarItem(EToolbar::Right, DeleteSelectedActionButton);
 
 		// Header Dock Panel
 		TSharedPtr<SRCMinorPanel> BehaviourDetailsPanel = SNew(SRCMinorPanel)

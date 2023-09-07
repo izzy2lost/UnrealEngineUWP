@@ -43,7 +43,7 @@ void SRCControllerPanel::Construct(const FArguments& InArgs, const TSharedRef<SR
 	// Controller Dock Panel
 	TSharedPtr<SRCMinorPanel> ControllerDockPanel = SNew(SRCMinorPanel)
 		.HeaderLabel(LOCTEXT("ControllersLabel", "Controller"))
-		.EnableFooter(true)
+		.EnableFooter(false)
 		[
 			SAssignNew(ControllerPanelList, SRCControllerPanelList, SharedThis(this), InPanel)
 		];
@@ -75,29 +75,7 @@ void SRCControllerPanel::Construct(const FArguments& InArgs, const TSharedRef<SR
 			GetControllerMenuContentWidget()
 		];
 
-	// Delete Selected Controller Button
-	TSharedRef<SWidget> DeleteSelectedControllerButton = SNew(SButton)
-		.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("Delete Selected Controller")))
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		.ForegroundColor(FSlateColor::UseForeground())
-		.ButtonStyle(&RCPanelStyle->FlatButtonStyle)
-		.ToolTipText(LOCTEXT("DeleteSelectedControllerToolTip", "Deletes the selected controller."))
-		.OnClicked(this, &SRCControllerPanel::RequestDeleteSelectedItem)
-		.IsEnabled_Lambda([this]() { return ControllerPanelList.IsValid() && !bIsInLiveMode.Get() && ControllerPanelList->NumSelectedLogicItems() > 0; })
-		[
-			SNew(SBox)
-			.WidthOverride(RCPanelStyle->IconSize.X)
-			.HeightOverride(RCPanelStyle->IconSize.Y)
-			[
-				SNew(SImage)
-				.ColorAndOpacity(FSlateColor::UseForeground())
-				.Image(FAppStyle::GetBrush("Icons.Delete"))
-			]
-		];
-
 	ControllerDockPanel->AddHeaderToolbarItem(EToolbar::Left, AddNewControllerButton);
-	ControllerDockPanel->AddFooterToolbarItem(EToolbar::Right, DeleteSelectedControllerButton);
 	ControllerDockPanel->AddHeaderToolbarItem(EToolbar::Right, GetMultiControllerSwitchWidget());
 
 	ChildSlot

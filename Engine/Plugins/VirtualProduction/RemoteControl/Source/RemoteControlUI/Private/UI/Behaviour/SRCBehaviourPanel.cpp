@@ -79,7 +79,7 @@ void SRCBehaviourPanel::UpdateWrappedWidget(TSharedPtr<FRCControllerModel> InCon
 		// Behaviour Dock Panel
 		TSharedPtr<SRCMinorPanel> BehaviourDockPanel = SNew(SRCMinorPanel)
 			.HeaderLabel(LOCTEXT("BehavioursLabel", "Behavior"))
-			.EnableFooter(true)
+			.EnableFooter(false)
 			[
 				SAssignNew(BehaviourPanelList, SRCBehaviourPanelList, SharedThis(this), InControllerItem, RemoteControlPanel.ToSharedRef())
 			];
@@ -110,29 +110,7 @@ void SRCBehaviourPanel::UpdateWrappedWidget(TSharedPtr<FRCControllerModel> InCon
 				GetBehaviourMenuContentWidget()
 			];
 
-		// Delete Selected Behaviour Button
-		TSharedRef<SWidget> DeleteSelectedBehaviourButton = SNew(SButton)
-			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("Delete Selected Behaviour")))
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			.ForegroundColor(FSlateColor::UseForeground())
-			.ButtonStyle(&RCPanelStyle->FlatButtonStyle)
-			.ToolTipText(LOCTEXT("DeleteSelectedBehaviourToolTip", "Deletes the selected behaviour."))
-			.OnClicked(this, &SRCBehaviourPanel::RequestDeleteSelectedItem)
-			.IsEnabled_Lambda([this]() { return BehaviourPanelList.IsValid() && BehaviourPanelList->NumSelectedLogicItems(); })
-			[
-				SNew(SBox)
-				.WidthOverride(RCPanelStyle->IconSize.X)
-				.HeightOverride(RCPanelStyle->IconSize.Y)
-				[
-					SNew(SImage)
-					.ColorAndOpacity(FSlateColor::UseForeground())
-					.Image(FAppStyle::GetBrush("Icons.Delete"))
-				]
-			];
-
 		BehaviourDockPanel->AddHeaderToolbarItem(EToolbar::Left, AddNewBehaviourButton);
-		BehaviourDockPanel->AddFooterToolbarItem(EToolbar::Right, DeleteSelectedBehaviourButton);
 
 		WrappedBoxWidget->SetContent(BehaviourDockPanel.ToSharedRef());
 	}

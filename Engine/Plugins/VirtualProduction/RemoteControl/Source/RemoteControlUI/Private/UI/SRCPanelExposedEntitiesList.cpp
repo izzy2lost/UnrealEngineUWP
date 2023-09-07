@@ -242,30 +242,7 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 			]
 		];
 
-	// Delete All Groups Button
-	TSharedPtr<SWidget> DeleteAllGroupsButton = SNew(SButton)
-		.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("Delete All Groups")))
-		.IsEnabled_Lambda([this]() { return !bIsInLiveMode.Get() && FieldGroups.Num() > 0; })
-		.Visibility_Lambda([this]() { return (!bIsInLiveMode.Get() && FieldGroups.Num() > 0) ? EVisibility::Visible : EVisibility::Collapsed; })
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		.ForegroundColor(FSlateColor::UseForeground())
-		.ButtonStyle(&RCPanelStyle->FlatButtonStyle)
-		.ToolTipText(LOCTEXT("DeleteAllGroupsToolTip", "Delete all groups."))
-		.OnClicked(this, &SRCPanelExposedEntitiesList::RequestDeleteAllGroups)
-		[
-			SNew(SBox)
-			.WidthOverride(RCPanelStyle->IconSize.X)
-			.HeightOverride(RCPanelStyle->IconSize.Y)
-			[
-				SNew(SImage)
-				.ColorAndOpacity(FSlateColor::UseForeground())
-				.Image(FAppStyle::GetBrush("Icons.Delete"))
-			]
-		];
-
 	GroupDockPanel->AddHeaderToolbarItem(EToolbar::Left, NewGroupButton.ToSharedRef());
-	GroupDockPanel->AddHeaderToolbarItem(EToolbar::Right, DeleteAllGroupsButton.ToSharedRef());
 
 	ExposePanel->AddPanel(GroupDockPanel.ToSharedRef(), 0.25f);
 
@@ -328,40 +305,9 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 	TSharedPtr<SRCMinorPanel> ExposeDockPanel = SNew(SRCMinorPanel)
 		.HeaderLabel(this, &SRCPanelExposedEntitiesList::HandleEntityListHeaderLabel)
 		.Visibility_Lambda([this]() {return bIsInLiveMode.Get() ? EVisibility::Collapsed : EVisibility::Visible; })
-		.EnableFooter(true)
+		.EnableFooter(false)
 		[
 			FieldsListView.ToSharedRef()
-		];
-
-	// Placeholder Box
-	TSharedPtr<SWidget> PlaceholderBox = SNew(SBox)
-		.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("Placeholder")))
-		.WidthOverride(30.f)
-		.HeightOverride(30.f)
-		[
-			SNullWidget::NullWidget
-		];
-
-	// Delete All Entities Button
-	TSharedPtr<SWidget> DeleteAllEntitiesButton = SNew(SButton)
-		.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("Delete All Entities")))
-		.IsEnabled_Lambda([this]() { return !bIsInLiveMode.Get() && FieldWidgetMap.Num() > 0; })
-		.Visibility_Lambda([this]() { return (!bIsInLiveMode.Get() && FieldWidgetMap.Num() > 0) ? EVisibility::Visible : EVisibility::Collapsed; })
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		.ForegroundColor(FSlateColor::UseForeground())
-		.ButtonStyle(&RCPanelStyle->FlatButtonStyle)
-		.ToolTipText(LOCTEXT("DeleteAllEntitiesToolTip", "Delete all entities."))
-		.OnClicked(this, &SRCPanelExposedEntitiesList::RequestDeleteAllEntities)
-		[
-			SNew(SBox)
-			.WidthOverride(RCPanelStyle->IconSize.X)
-			.HeightOverride(RCPanelStyle->IconSize.Y)
-			[
-				SNew(SImage)
-				.ColorAndOpacity(FSlateColor::UseForeground())
-				.Image(FAppStyle::GetBrush("Icons.Delete"))
-			]
 		];
 
 	// Mode Switcher
@@ -427,11 +373,9 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 	}
 
 	// Expose Button
-	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Left, PlaceholderBox.ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, ModeSwitcher.ToSharedRef());
-	ExposeDockPanel->AddFooterToolbarItem(EToolbar::Left, InArgs._ExposeActorsComboButton.Get().ToSharedRef());
-	ExposeDockPanel->AddFooterToolbarItem(EToolbar::Left, InArgs._ExposeFunctionsComboButton.Get().ToSharedRef());
-	ExposeDockPanel->AddFooterToolbarItem(EToolbar::Right, DeleteAllEntitiesButton.ToSharedRef());
+	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Left, InArgs._ExposeActorsComboButton.Get().ToSharedRef());
+	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Left, InArgs._ExposeFunctionsComboButton.Get().ToSharedRef());
 
 	ExposePanel->AddPanel(ExposeDockPanel.ToSharedRef(), 0.75f);
 
