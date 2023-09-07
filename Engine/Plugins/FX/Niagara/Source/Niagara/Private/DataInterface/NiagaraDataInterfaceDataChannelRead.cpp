@@ -139,6 +139,8 @@ namespace NDIDataChannelReadLocal
 		For compound data types that contain multiple component floats or ints, comparissons are done on a per component basis.\n\
 		For example if you add a Vector condition parameter it will be compared against each component of the corresponding Vector in the Data Channel.\n\
 		Result = (Param.X == ChannelValue.X) && (Param.Y == ChannelValue.Y) && (Param.Z == ChannelValue.Z)");
+
+			Sig.FunctionVersion = (uint32)FunctionVersion_SpawnConditional::EmitterIDParameter;
 #endif
 			Sig.bMemberFunction = true;
 			Sig.bExperimental = true;
@@ -152,8 +154,6 @@ namespace NDIDataChannelReadLocal
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Min Spawn Count")), LOCTEXT("MinSpawnCountInputDesc", "Minimum number of particles to spawn for each element in the data channel."));
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Max Spawn Count")), LOCTEXT("MaxSpawnCountInputDesc", "Maximum number of particles to spawn for each element in the data channel."));
 			Sig.RequiredInputs = Sig.Inputs.Num();
-
-			Sig.FunctionVersion = (uint32)FunctionVersion_SpawnConditional::EmitterIDParameter;
 		}
 		return Sig;
 	}
