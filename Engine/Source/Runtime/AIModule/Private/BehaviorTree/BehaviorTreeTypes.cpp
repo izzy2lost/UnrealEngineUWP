@@ -263,18 +263,48 @@ FBehaviorTreeInstance::~FBehaviorTreeInstance()
 
 void FBehaviorTreeInstance::AddToActiveAuxNodes(UBTAuxiliaryNode* AuxNode)
 {
+	AddToActiveAuxNodesImpl(AuxNode);
+}
+
+void FBehaviorTreeInstance::AddToActiveAuxNodesImpl(UBTAuxiliaryNode* AuxNode)
+{
 #if DO_ENSURE
 	ensureAlwaysMsgf(bIteratingNodes == false, TEXT("Adding aux node while iterating through them is not allowed."));
 #endif // DO_ENSURE
+
 	MEM_STAT_UPDATE_WRAPPER(ActiveAuxNodes.Add(AuxNode));
+}
+
+void FBehaviorTreeInstance::AddToActiveAuxNodes(UBehaviorTreeComponent& OwnerComp, UBTAuxiliaryNode* AuxNode)
+{
+	UE_VLOG(OwnerComp.GetOwner(), LogBehaviorTree, Verbose, TEXT("%hs %s")
+		, __FUNCTION__
+		, *UBehaviorTreeTypes::DescribeNodeHelper(AuxNode));
+
+	AddToActiveAuxNodesImpl(AuxNode);
 }
 
 void FBehaviorTreeInstance::RemoveFromActiveAuxNodes(UBTAuxiliaryNode* AuxNode)
 {
+	RemoveFromActiveAuxNodesImpl(AuxNode);
+}
+
+void FBehaviorTreeInstance::RemoveFromActiveAuxNodesImpl(UBTAuxiliaryNode* AuxNode)
+{
 #if DO_ENSURE
 	ensureAlwaysMsgf(bIteratingNodes == false, TEXT("Removing aux node while iterating through them is not allowed."));
 #endif // DO_ENSURE
+
 	MEM_STAT_UPDATE_WRAPPER(ActiveAuxNodes.RemoveSingleSwap(AuxNode));
+}
+
+void FBehaviorTreeInstance::RemoveFromActiveAuxNodes(UBehaviorTreeComponent& OwnerComp, UBTAuxiliaryNode* AuxNode)
+{
+	UE_VLOG(OwnerComp.GetOwner(), LogBehaviorTree, Verbose, TEXT("%hs %s")
+		, __FUNCTION__
+		, *UBehaviorTreeTypes::DescribeNodeHelper(AuxNode));
+
+	RemoveFromActiveAuxNodesImpl(AuxNode);
 }
 
 void FBehaviorTreeInstance::ResetActiveAuxNodes()
@@ -472,7 +502,7 @@ void FBehaviorTreeSearchData::AddUniqueUpdate(const FBehaviorTreeSearchUpdate& U
 	{
 		const bool bIsActive = OwnerComp.IsAuxNodeActive(UpdateInfo.AuxNode, UpdateInfo.InstanceIndex);
 		bSkipAdding = !bIsActive;
-		UE_CVLOG(bSkipAdding, OwnerComp.GetOwner(), LogBehaviorTree, Verbose, TEXT(">> skipped: inactive aux nodes"));
+		UE_CVLOG(bSkipAdding, OwnerComp.GetOwner(), LogBehaviorTree, Verbose, TEXT(">> skipped: did not push a remove to PendingUpdates due to inactive aux node"));
 	}
 
 	if (!bSkipAdding)
@@ -704,4 +734,3 @@ void UBehaviorTreeTypes::SetBTLoggingContext(const UBTNode* NewBTLoggingContext)
 //----------------------------------------------------------------------//
 // DEPRECATED
 //----------------------------------------------------------------------//
-

@@ -403,7 +403,15 @@ protected:
 	AIMODULE_API void ApplyDiscardedSearch();
 
 	/** apply updates from specific list */
+	UE_DEPRECATED(5.4, "This function is deprecated. Please use ApplyAllSearchUpdates instead.")
 	AIMODULE_API void ApplySearchUpdates(const TArray<FBehaviorTreeSearchUpdate>& UpdateList, int32 NewNodeExecutionIndex, bool bPostUpdate = false);
+
+	/** 
+	 * Apply updates and post update from specified UpdateList.
+	 * @param bDoPostUpdate if true the post updates will also be processed.
+	 * @param bAllowTaskUpdates If false Task node updates will not be processed from the UpdateList.
+	 */
+	AIMODULE_API void ApplyAllSearchUpdates(const TArray<FBehaviorTreeSearchUpdate>& UpdateList, int32 NewNodeExecutionIndex, bool bDoPostUpdate = true, bool bAllowTaskUpdates = true);
 
 	/** abort currently executed task */
 	AIMODULE_API void AbortCurrentTask();
@@ -499,6 +507,8 @@ protected:
 		UBehaviorTreeComponent& BTComp;
 	};
 
+	void TickNewlyAddedAuxNodesHelper();
+
 	UE_DEPRECATED(5.1, "This struct is deprecated. Please use FBTSuspendBranchActionsScoped instead.")
 	typedef FBTSuspendBranchActionsScoped FBTSuspendBranchDeactivationScoped;
 
@@ -509,6 +519,10 @@ protected:
 	friend UBTTask_RunBehaviorDynamic;
 	friend FBehaviorTreeDebugger;
 	friend FBehaviorTreeInstance;
+
+private:
+	/** Please don't call this function directly instead call ApplyAllSearchUpdates */
+	void ApplySearchUpdatesImpl(const TArray<FBehaviorTreeSearchUpdate>& UpdateList, int32 NewNodeExecutionIndex, bool bPostUpdate, bool bAllowTaskUpdates);
 
 protected:
 	/** data asset defining the tree */

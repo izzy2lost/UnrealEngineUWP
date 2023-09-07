@@ -3944,4 +3944,38 @@ struct FAITest_BTCompleteRestartDuringTaskExecute : public FAITest_SimpleBT
 	}
 };
 IMPLEMENT_AI_LATENT_TEST(FAITest_BTCompleteRestartDuringTaskExecute, "System.AI.Behavior Trees.Restart: complete during task execute")
+
+struct FAITest_BTTestOberserverAbortLowerPriorityTwoDeep: public FAITest_SimpleBT
+{
+	FAITest_BTTestOberserverAbortLowerPriorityTwoDeep()
+	{
+		enum
+		{
+			MainTaskExecute = 1,
+			InteruptingTaskExecute,
+		};
+
+		UBTCompositeNode& RootNode = FBTBuilder::AddSelector(*BTAsset);
+		UBTCompositeNode& CompNode = FBTBuilder::AddSelector(RootNode);
+
+		{
+			UBTCompositeNode& Comp1Node = FBTBuilder::AddSelector(CompNode);
+			FBTBuilder::WithDecoratorBlackboard(CompNode, EArithmeticKeyOperation::Equal, 1, EBTFlowAbortMode::LowerPriority, EBTBlackboardRestart::ValueChange, TEXT("Int"));
+
+			UBTCompositeNode& Comp2Node = FBTBuilder::AddSelector(Comp1Node);
+			FBTBuilder::WithDecoratorBlackboard(Comp1Node, EArithmeticKeyOperation::Equal, 1, EBTFlowAbortMode::LowerPriority, EBTBlackboardRestart::ValueChange, TEXT("Int2"));
+
+			FBTBuilder::AddTask(Comp2Node, InteruptingTaskExecute, EBTNodeResult::Succeeded);
+		}
+
+		{
+			FBTBuilder::AddTaskValuesChangedWithLogs(/*ParentNode*/ CompNode, /*LogIndex*/ MainTaskExecute, /*NodeResult*/ EBTNodeResult::Succeeded, /*Value1*/1, /*Value2*/ 1, /*IntKeyName2*/ TEXT("Int"), /* IntKeyName2 */ TEXT("Int2"), /*ExecutionTicks1*/ 5, /*ExecutionTicks2*/ 5);
+		}
+
+		ExpectedResult.Add(MainTaskExecute);
+		ExpectedResult.Add(InteruptingTaskExecute);
+	}
+};
+IMPLEMENT_AI_LATENT_TEST(FAITest_BTTestOberserverAbortLowerPriorityTwoDeep, "System.AI.Behavior Trees.OberserverAbortLowerPriorityTwoDeep: Two nodes in same branch with observer aborts lower priority")
+
 #undef LOCTEXT_NAMESPACE

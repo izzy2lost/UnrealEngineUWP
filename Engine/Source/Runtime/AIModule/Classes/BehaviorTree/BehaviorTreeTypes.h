@@ -371,11 +371,17 @@ struct FBehaviorTreeInstance
 	/** get list of all active auxiliary nodes */
 	TArrayView<UBTAuxiliaryNode* const> GetActiveAuxNodes() const { return ActiveAuxNodes; }
 
-	/** add specified node to the active nodes list */
+	UE_DEPRECATED(5.4, "This function is deprecated. Please use version that takes UBehaviorTreeComponent.")
 	void AddToActiveAuxNodes(UBTAuxiliaryNode* AuxNode);
 
-	/** remove specified node from the active nodes list */
+	/** add specified node to the active nodes list */
+	void AddToActiveAuxNodes(UBehaviorTreeComponent& OwnerComp, UBTAuxiliaryNode* AuxNode);
+
+	UE_DEPRECATED(5.4, "This function is deprecated. Please use version that takes UBehaviorTreeComponent.")
 	void RemoveFromActiveAuxNodes(UBTAuxiliaryNode* AuxNode);
+
+	/** remove specified node from the active nodes list */
+	void RemoveFromActiveAuxNodes(UBehaviorTreeComponent& OwnerComp, UBTAuxiliaryNode* AuxNode);
 
 	/** remove all auxiliary nodes from active nodes list */
 	void ResetActiveAuxNodes();
@@ -411,6 +417,10 @@ protected:
 
 	/** worker for updating all nodes */
 	void CleanupNodes(UBehaviorTreeComponent& OwnerComp, UBTCompositeNode& Node, EBTMemoryClear::Type CleanupType);
+
+private:
+	void AddToActiveAuxNodesImpl(UBTAuxiliaryNode* AuxNode);
+	void RemoveFromActiveAuxNodesImpl(UBTAuxiliaryNode* AuxNode);
 
 private:
 #if DO_ENSURE

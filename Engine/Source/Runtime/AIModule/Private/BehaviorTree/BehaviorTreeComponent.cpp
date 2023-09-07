@@ -33,6 +33,8 @@ double UBehaviorTreeComponent::FrameSearchTime = 0.;
 int32 UBehaviorTreeComponent::NumSearchTimeCalls = 0;
 #endif
 
+static TAutoConsoleVariable<bool> CVarAddAuxNodesFromFailedSearches(TEXT("BehaviorTree.AddAuxNodesFromFailedSearches"), 1, TEXT("Add Aux Nodes From Failed Searches"));
+
 //----------------------------------------------------------------------//
 // UBehaviorTreeComponent
 //----------------------------------------------------------------------//
@@ -1420,7 +1422,7 @@ void UBehaviorTreeComponent::RequestExecution(const UBTCompositeNode* RequestedO
 	}
 }
 
-void UBehaviorTreeComponent::ApplySearchUpdates(const TArray<FBehaviorTreeSearchUpdate>& UpdateList, int32 NewNodeExecutionIndex, bool bPostUpdate)
+void UBehaviorTreeComponent::ApplySearchUpdatesImpl(const TArray<FBehaviorTreeSearchUpdate>& UpdateList, int32 NewNodeExecutionIndex, bool bPostUpdate, bool bAllowTaskUpdates)
 {
 	for (int32 Index = 0; Index < UpdateList.Num(); Index++)
 	{
@@ -1444,17 +1446,21 @@ void UBehaviorTreeComponent::ApplySearchUpdates(const TArray<FBehaviorTreeSearch
 		{
 			bIsComponentActive = UpdateInstance.GetActiveAuxNodes().Contains(UpdateInfo.AuxNode);
 		}
-		else if (UpdateInfo.TaskNode)
+		else if (bAllowTaskUpdates && UpdateInfo.TaskNode)
 		{
 			ParallelTaskIdx = UpdateInstance.GetParallelTasks().IndexOfByKey(UpdateInfo.TaskNode);
 			bIsComponentActive = (ParallelTaskIdx != INDEX_NONE && UpdateInstance.GetParallelTasks()[ParallelTaskIdx].Status == EBTTaskStatus::Active);
+		}
+		else
+		{
+			continue;
 		}
 
 		const UBTNode* UpdateNode = UpdateInfo.AuxNode ? (const UBTNode*)UpdateInfo.AuxNode : (const UBTNode*)UpdateInfo.TaskNode;
 		checkSlow(UpdateNode);
 
 		if ((UpdateInfo.Mode == EBTNodeUpdateMode::Remove && !bIsComponentActive) ||
-			(UpdateInfo.Mode == EBTNodeUpdateMode::Add && (bIsComponentActive || UpdateNode->GetExecutionIndex() > NewNodeExecutionIndex)) )
+			(UpdateInfo.Mode == EBTNodeUpdateMode::Add && (bIsComponentActive || UpdateNode->GetExecutionIndex() > NewNodeExecutionIndex)))
 		{
 			UpdateInfo.bApplySkipped = true;
 			UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("Skipping: %s for %s: %s (already in the right state)"),
@@ -1488,12 +1494,12 @@ void UBehaviorTreeComponent::ApplySearchUpdates(const TArray<FBehaviorTreeSearch
 			uint8* NodeMemory = (uint8*)UpdateNode->GetNodeMemory<uint8>(UpdateInstance);
 			if (UpdateInfo.Mode == EBTNodeUpdateMode::Remove)
 			{
-				UpdateInstance.RemoveFromActiveAuxNodes(UpdateInfo.AuxNode);
+				UpdateInstance.RemoveFromActiveAuxNodes(*this, UpdateInfo.AuxNode);
 				UpdateInfo.AuxNode->WrappedOnCeaseRelevant(*this, NodeMemory);
 			}
 			else
 			{
-				UpdateInstance.AddToActiveAuxNodes(UpdateInfo.AuxNode);
+				UpdateInstance.AddToActiveAuxNodes(*this, UpdateInfo.AuxNode);
 				UpdateInfo.AuxNode->WrappedOnBecomeRelevant(*this, NodeMemory);
 			}
 		}
@@ -1515,7 +1521,7 @@ void UBehaviorTreeComponent::ApplySearchUpdates(const TArray<FBehaviorTreeSearch
 				const bool bStillValid = InstanceStack.IsValidIndex(UpdateInfo.InstanceIndex) &&
 					InstanceStack[UpdateInfo.InstanceIndex].GetParallelTasks().IsValidIndex(ParallelTaskIdx) &&
 					InstanceStack[UpdateInfo.InstanceIndex].GetParallelTasks()[ParallelTaskIdx] == UpdateInfo.TaskNode;
-				
+
 				if (bStillValid)
 				{
 					// mark as pending abort
@@ -1535,6 +1541,60 @@ void UBehaviorTreeComponent::ApplySearchUpdates(const TArray<FBehaviorTreeSearch
 
 				UpdateInstance.AddToParallelTasks(FBehaviorTreeParallelTask(UpdateInfo.TaskNode, EBTTaskStatus::Active));
 			}
+		}
+	}
+}
+
+void UBehaviorTreeComponent::ApplySearchUpdates(const TArray<FBehaviorTreeSearchUpdate>& UpdateList, int32 NewNodeExecutionIndex, bool bPostUpdate)
+{
+	ApplySearchUpdatesImpl(UpdateList, NewNodeExecutionIndex, bPostUpdate, true);
+}
+
+void UBehaviorTreeComponent::ApplyAllSearchUpdates(const TArray<FBehaviorTreeSearchUpdate>& UpdateList, int32 NewNodeExecutionIndex, bool bDoPostUpdate, bool bAllowTaskUpdates)
+{
+	const int32 NumIterations = bDoPostUpdate ? 2 : 1;
+	constexpr int32 PostUpdateIter = 1;
+
+	for (int32 UpdateIter = 0; UpdateIter < NumIterations; ++UpdateIter)
+	{
+		const bool bPostUpdate = UpdateIter == PostUpdateIter;
+
+		ApplySearchUpdatesImpl(UpdateList, NewNodeExecutionIndex, bPostUpdate, bAllowTaskUpdates);
+	}
+
+#if ENABLE_VISUAL_LOG
+	auto LogAuxNodes = [this]()
+	{
+		UE_VLOG(GetOwner(), LogBehaviorTree, VeryVerbose, TEXT("Logging All Aux Nodes"));
+		for (int32 InstanceIndex = 0; InstanceIndex < InstanceStack.Num(); InstanceIndex++)
+		{
+			FBehaviorTreeInstance& InstanceInfo = InstanceStack[InstanceIndex];
+			InstanceInfo.ExecuteOnEachAuxNode([this](const UBTAuxiliaryNode& AuxNode)
+				{
+					UE_VLOG(GetOwner(), LogBehaviorTree, VeryVerbose, TEXT("%s"), *UBehaviorTreeTypes::DescribeNodeHelper(&AuxNode));
+				});
+		}
+	};
+
+	UE_IFVLOG(LogAuxNodes());
+#endif // ENABLE_VISUAL_LOG
+}
+
+void UBehaviorTreeComponent::TickNewlyAddedAuxNodesHelper()
+{
+	UWorld* MyWorld = GetWorld();
+	const float CurrentFrameDeltaSeconds = MyWorld ? MyWorld->GetDeltaSeconds() : 0.0f;
+
+	for (const FBehaviorTreeSearchUpdate& UpdateInfo : SearchData.PendingUpdates)
+	{
+		if (!UpdateInfo.bApplySkipped && UpdateInfo.Mode == EBTNodeUpdateMode::Add && UpdateInfo.AuxNode && InstanceStack.IsValidIndex(UpdateInfo.InstanceIndex))
+		{
+			FBehaviorTreeInstance& InstanceInfo = InstanceStack[UpdateInfo.InstanceIndex];
+			uint8* NodeMemory = UpdateInfo.AuxNode->GetNodeMemory<uint8>(InstanceInfo);
+
+			// We do not care about the next needed DeltaTime, it will be recalculated in the tick later.
+			float NextNeededDeltaTime = 0.0f;
+			UpdateInfo.AuxNode->WrappedTickNode(*this, NodeMemory, CurrentFrameDeltaSeconds, NextNeededDeltaTime);
 		}
 	}
 }
@@ -1561,28 +1621,12 @@ void UBehaviorTreeComponent::ApplySearchData(UBTNode* NewActiveNode)
 
 	SearchData.bFilterOutRequestFromDeactivatedBranch = true;
 
-	ApplySearchUpdates(SearchData.PendingUpdates, NewNodeExecutionIndex);
-	ApplySearchUpdates(SearchData.PendingUpdates, NewNodeExecutionIndex, true);
+	ApplyAllSearchUpdates(SearchData.PendingUpdates, NewNodeExecutionIndex);
 	
 	SearchData.bFilterOutRequestFromDeactivatedBranch = false;
 
 	// tick newly added aux nodes to compensate for tick-search order changes
-	UWorld* MyWorld = GetWorld();
-	const float CurrentFrameDeltaSeconds = MyWorld ? MyWorld->GetDeltaSeconds() : 0.0f;
-
-	for (int32 Idx = 0; Idx < SearchData.PendingUpdates.Num(); Idx++)
-	{
-		const FBehaviorTreeSearchUpdate& UpdateInfo = SearchData.PendingUpdates[Idx];
-		if (!UpdateInfo.bApplySkipped && UpdateInfo.Mode == EBTNodeUpdateMode::Add && UpdateInfo.AuxNode && InstanceStack.IsValidIndex(UpdateInfo.InstanceIndex))
-		{
-			FBehaviorTreeInstance& InstanceInfo = InstanceStack[UpdateInfo.InstanceIndex];
-			uint8* NodeMemory = UpdateInfo.AuxNode->GetNodeMemory<uint8>(InstanceInfo);
-
-			// We do not care about the next needed DeltaTime, it will be recalculated in the tick later.
-			float NextNeededDeltaTime = 0.0f;
-			UpdateInfo.AuxNode->WrappedTickNode(*this, NodeMemory, CurrentFrameDeltaSeconds, NextNeededDeltaTime);
-		}
-	}
+	TickNewlyAddedAuxNodesHelper();
 
 	// clear update list
 	// nothing should be added during application or tick - all changes are supposed to go to ExecutionRequest accumulator first
@@ -1594,7 +1638,24 @@ void UBehaviorTreeComponent::ApplySearchData(UBTNode* NewActiveNode)
 
 void UBehaviorTreeComponent::ApplyDiscardedSearch()
 {
-	// remove everything else
+	if (CVarAddAuxNodesFromFailedSearches.GetValueOnGameThread())
+	{
+		// Apply aux nodes from last search with the currently active node as the 'NewNode'
+		int32 NewNodeExecutionIdx = 0;
+
+		if (InstanceStack.IsValidIndex(ActiveInstanceIdx))
+		{
+			FBehaviorTreeInstance& BTInstance = InstanceStack[ActiveInstanceIdx];
+
+			NewNodeExecutionIdx = BTInstance.ActiveNode ? BTInstance.ActiveNode->GetExecutionIndex() : 0;
+		}
+
+		ApplyAllSearchUpdates(/*UpdateList*/ SearchData.PendingUpdates, /*NewNodeExecutionIndex*/ NewNodeExecutionIdx, /*bDoPostUpdate*/ true, /*bAllowTaskUpdates*/ false);
+
+		// tick newly added aux nodes to compensate for tick-search order changes
+		TickNewlyAddedAuxNodesHelper();
+	}
+
 	SearchData.PendingUpdates.Reset();
 
 	// don't send deactivation notifies
@@ -1867,6 +1928,8 @@ void UBehaviorTreeComponent::ProcessExecutionRequest()
 		return;
 	}
 
+	UE_VLOG(GetOwner(), LogBehaviorTree, VeryVerbose, TEXT("%hs Active Node %s"), __FUNCTION__, *UBehaviorTreeTypes::DescribeNodeHelper(InstanceStack[ActiveInstanceIdx].ActiveNode));
+
 	if (PendingExecution.IsSet())
 	{
 		ProcessPendingExecution();
@@ -2116,7 +2179,9 @@ void UBehaviorTreeComponent::ProcessExecutionRequest()
 }
 
 void UBehaviorTreeComponent::ProcessPendingExecution()
-{
+{ 
+	UE_VLOG(GetOwner(), LogBehaviorTree, VeryVerbose, TEXT("%hs"), __FUNCTION__);
+
 	// can't continue if current task is still aborting
 	if (bWaitingForLatentAborts || !PendingExecution.IsSet())
 	{
@@ -2331,7 +2396,7 @@ void UBehaviorTreeComponent::UnregisterAuxNodesInBranch(const UBTCompositeNode* 
 		if (bApplyImmediately)
 		{
 			FBTSuspendBranchActionsScoped ScopedSuspend(*this, EBTBranchAction::All);
-			ApplySearchUpdates(SearchData.PendingUpdates, 0);
+			ApplyAllSearchUpdates(/*UpdateList*/ SearchData.PendingUpdates, /*NewNodeExecutionIndex*/ 0, /*bDoPostUpdate*/ false);
 			SearchData.PendingUpdates = UpdateListCopy;
 		}
 	}
@@ -2354,7 +2419,7 @@ void UBehaviorTreeComponent::ExecuteTask(UBTTaskNode* TaskNode)
 	{
 		uint8* NodeMemory = (uint8*)ServiceNode->GetNodeMemory<uint8>(ActiveInstance);
 
-		ActiveInstance.AddToActiveAuxNodes(ServiceNode);
+		ActiveInstance.AddToActiveAuxNodes(*this, ServiceNode);
 
 		UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("Activating task service: %s"), *UBehaviorTreeTypes::DescribeNodeHelper(ServiceNode));
 		ServiceNode->WrappedOnBecomeRelevant(*this, NodeMemory);
@@ -2663,7 +2728,7 @@ bool UBehaviorTreeComponent::PushInstance(UBehaviorTree& TreeAsset)
 			// send initial on search start events in case someone is using them for init logic
 			ServiceNode->NotifyParentActivation(SearchData);
 
-			InstanceStack[ActiveInstanceIdx].AddToActiveAuxNodes(ServiceNode);
+			InstanceStack[ActiveInstanceIdx].AddToActiveAuxNodes(*this,ServiceNode);
 			ServiceNode->WrappedOnBecomeRelevant(*this, NodeMemory);
 		}
 
