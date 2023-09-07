@@ -68,6 +68,24 @@ bool UBuoyancySubsystem::IsEnabled() const
 	return SimCallback != nullptr;
 }
 
+bool UBuoyancySubsystem::SetEnabledWithUpdatedNetModeCallback(const bool bEnabled)
+{
+	bool bEnabledResult = SetEnabled(bEnabled);
+
+	if (IsEnabled())
+	{
+		if (SimCallback)
+		{
+			if (FBuoyancySubsystemSimCallbackInput* AsyncInput = SimCallback->GetProducerInputData_External())
+			{
+				AsyncInput->NetMode = NetMode;
+			}
+		}
+	}
+
+	return bEnabledResult;
+}
+
 void UBuoyancySubsystem::CreateSimCallback()
 {
 	// Create sim callback

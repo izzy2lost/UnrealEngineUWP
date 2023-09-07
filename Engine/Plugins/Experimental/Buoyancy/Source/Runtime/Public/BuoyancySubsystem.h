@@ -112,6 +112,8 @@ public:
 	UFUNCTION()
 	bool IsEnabled() const;
 
+	bool SetEnabledWithUpdatedNetModeCallback(const bool bEnabled);
+
 protected:
 
 	// UTickableWorldSubsystem begin interface
