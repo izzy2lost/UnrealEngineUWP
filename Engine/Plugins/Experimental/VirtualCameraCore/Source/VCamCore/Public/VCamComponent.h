@@ -80,12 +80,11 @@ public:
 	 */
 	UPROPERTY(BlueprintAssignable, Category = "VirtualCamera")
 	FOnComponentReplaced OnComponentReplaced;
-	
-	UVCamComponent();
 
 	//~ Begin UActorComponent Interface
 	virtual void OnComponentCreated() override;
 	virtual void OnComponentDestroyed(bool bDestroyingHierarchy) override;
+	virtual void OnRegister() override;
 	virtual void BeginDestroy() override;
 	virtual TStructOnScope<FActorComponentInstanceData> GetComponentInstanceData() const override;
 	//~ End UActorComponent Interface
@@ -491,12 +490,19 @@ private:
 	/** Initialize and deinitialize calls match our  */
 	FObjectSubsystemCollection<UVCamSubsystem> SubsystemCollection;
 
-	void EnsureDelegatesRegistered();
+	/**
+	 * Creates the InputComponent and binds global delegates.
+	 * It is safe to call this multiple times.
+	 */
+	void SetupVCamSystemsIfNeeded();
 	void CleanupRegisteredDelegates();
-	
+
+	/** Calls Initialize if not already initialized and this component is enabled. */
 	void EnsureInitializedIfAllowed();
 	bool IsInitialized() const;
+	/** Initializes the input system, modifiers, output providers, and locks the viewport if needed. */
 	virtual void Initialize();
+	/** De-initializes all systems initialized in Initialize(). */
 	virtual void Deinitialize();
 
 	/** Called as part of applying component instance data */

@@ -139,7 +139,7 @@ bool UInputVCamSubsystem::InputKey(const FInputKeyParams& Params)
 
 void UInputVCamSubsystem::PushInputComponent(UInputComponent* InInputComponent)
 {
-	if (!ensure(InInputComponent))
+	if (!ensureAlways(InInputComponent))
 	{
 		return;
 	}

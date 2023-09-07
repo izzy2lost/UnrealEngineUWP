@@ -109,16 +109,6 @@ namespace UE::VCamCore::Private
 	}
 }
 
-UVCamComponent::UVCamComponent()
-{
-	UClass* InputComponentClass = UInputSettings::GetDefaultInputComponentClass();
-	constexpr bool bIsRequired = true;
-	constexpr bool bIsTransient = true;
-	InputComponent = Cast<UInputComponent>(CreateDefaultSubobject(TEXT("VCamInput0"), InputComponentClass, InputComponentClass, bIsRequired, bIsTransient));
-	
-	EnsureDelegatesRegistered();
-}
-
 void UVCamComponent::OnComponentCreated()
 {
 	Super::OnComponentCreated();
@@ -135,6 +125,7 @@ void UVCamComponent::OnComponentCreated()
 	const bool bIsBlueprintCreatedComponent = CreationMethod == EComponentCreationMethod::SimpleConstructionScript || CreationMethod == EComponentCreationMethod::UserConstructionScript;
 	if (!bIsBlueprintCreatedComponent || !GIsReconstructingBlueprintInstances)
 	{
+		SetupVCamSystemsIfNeeded();
 		EnsureInitializedIfAllowed();
 	}
 }
@@ -158,6 +149,12 @@ void UVCamComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 	}
 	
 	Super::OnComponentDestroyed(bDestroyingHierarchy);
+}
+
+void UVCamComponent::OnRegister()
+{
+	Super::OnRegister();
+	SetupVCamSystemsIfNeeded();
 }
 
 void UVCamComponent::BeginDestroy()
@@ -266,7 +263,7 @@ void UVCamComponent::PostLoad()
 	Super::PostLoad();
 
 	// This also ensures the input profile is applied when this component is loaded
-	EnsureDelegatesRegistered();
+	SetupVCamSystemsIfNeeded();
 }
 
 void UVCamComponent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
@@ -365,7 +362,7 @@ void UVCamComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 	}
 
 	// Called e.g. after PostEditUndo. Must make sure that the delegates are registered.
-	EnsureDelegatesRegistered();
+	SetupVCamSystemsIfNeeded();
 	ApplyInputProfile();
 
 	// Fix up any incorrect state we may be in after PostEditUndo or other types of changes.
@@ -1194,10 +1191,16 @@ void UVCamComponent::ApplyInputProfile()
 	}
 }
 
-void UVCamComponent::EnsureDelegatesRegistered()
+void UVCamComponent::SetupVCamSystemsIfNeeded()
 {
 	if (UE::VCamCore::Private::CanInitVCamInstance(this))
 	{
+		if (!InputComponent)
+		{
+			UClass* InputComponentClass = UInputSettings::GetDefaultInputComponentClass();
+			InputComponent = Cast<UInputComponent>(NewObject<UInputComponent>(this, InputComponentClass, TEXT("VCamInput0"), RF_Transient));
+		}
+		
 		// Hook into the Live Link Client for our Tick
 		IModularFeatures& ModularFeatures = IModularFeatures::Get();
 
@@ -1886,7 +1889,7 @@ void UVCamComponent::NotifyComponentWasReplaced(UVCamComponent* ReplacementCompo
 		if (bNeedsToStartupOutputProviders)
 		{
 			ReplacementComponent->ViewportLocker.Reset();
-			ReplacementComponent->EnsureDelegatesRegistered(),
+			ReplacementComponent->SetupVCamSystemsIfNeeded(),
 			ReplacementComponent->SetEnabled(false);
 			ReplacementComponent->SetEnabled(true);
 		}
