@@ -3244,7 +3244,7 @@ void FVirtualShadowMapArray::UpdateHZB(FRDGBuilder& GraphBuilder)
 }
 
 
-uint32 FVirtualShadowMapArray::AddRenderViews(const TSharedPtr<FVirtualShadowMapClipmap>& Clipmap, float LODScaleFactor, bool bSetHZBParams, bool bUpdateHZBMetaData, const FVector& CullingViewOrigin, TArray<Nanite::FPackedView, SceneRenderingAllocator> &OutVirtualShadowViews)
+uint32 FVirtualShadowMapArray::AddRenderViews(const TSharedPtr<FVirtualShadowMapClipmap>& Clipmap, const FViewInfo* CullingView, float LODScaleFactor, bool bSetHZBParams, bool bUpdateHZBMetaData, TArray<Nanite::FPackedView, SceneRenderingAllocator> &OutVirtualShadowViews)
 {
 	// TODO: Decide if this sort of logic belongs here or in Nanite (as with the mip level view expansion logic)
 	// We're eventually going to want to snap/quantize these rectangles/positions somewhat so probably don't want it
@@ -3260,8 +3260,8 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const TSharedPtr<FVirtualShadowMap
 	BaseParams.TargetMipLevel = 0;
 	BaseParams.TargetMipCount = 1;	// No mips for clipmaps
 	BaseParams.Flags = 0u;
-	BaseParams.bUseCullingViewOverrides = true;
-	BaseParams.CullingViewOrigin = CullingViewOrigin;
+	
+	Nanite::SetCullingViewOverrides(CullingView, BaseParams);
 
 	const TSharedPtr<FVirtualShadowMapPerLightCacheEntry>& CacheEntry = Clipmap->GetCacheEntry();
 	if (CacheEntry.IsValid())
@@ -3320,7 +3320,7 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const FProjectedShadowInfo* Projec
 		check(ProjectedShadowInfo->DependentView != nullptr);
 		check(bClampToNearPlane);
 
-		return AddRenderViews(ProjectedShadowInfo->VirtualShadowMapClipmap, LODScaleFactor, bSetHZBParams, bUpdateHZBMetaData, ProjectedShadowInfo->DependentView->ShadowViewMatrices.GetViewOrigin(), OutVirtualShadowViews);
+		return AddRenderViews(ProjectedShadowInfo->VirtualShadowMapClipmap, ProjectedShadowInfo->DependentView, LODScaleFactor, bSetHZBParams, bUpdateHZBMetaData, OutVirtualShadowViews);
 	}
 	Nanite::FPackedViewParams BaseParams;
 	BaseParams.ViewRect = ProjectedShadowInfo->GetOuterViewRect();
@@ -3334,23 +3334,21 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const FProjectedShadowInfo* Projec
 	BaseParams.Flags = NANITE_VIEW_FLAG_DISTANCE_CULL | (bClampToNearPlane ? 0u : NANITE_VIEW_FLAG_NEAR_CLIP);
 
 	// Local lights, select the view closest to the local light to get some kind of reasonable behavior for split screen.
-	FVector ClosestCullingViewOrigin = Views[0].ShadowViewMatrices.GetViewOrigin();
+	int32 ClosestCullingViewIndex = 0;
 	{
-		double MinDistanceSq = (ClosestCullingViewOrigin + ProjectedShadowInfo->PreShadowTranslation).SquaredLength();
+		double MinDistanceSq = (Views[0].ShadowViewMatrices.GetViewOrigin() + ProjectedShadowInfo->PreShadowTranslation).SquaredLength();
 		for (int Index = 1; Index < Views.Num(); ++Index)
 		{
 			FVector TestOrigin = Views[Index].ShadowViewMatrices.GetViewOrigin();
 			double TestDistanceSq = (TestOrigin + ProjectedShadowInfo->PreShadowTranslation).SquaredLength();
 			if (TestDistanceSq < MinDistanceSq)
 			{
-				ClosestCullingViewOrigin = TestOrigin;
+				ClosestCullingViewIndex = Index;
 				MinDistanceSq = TestDistanceSq;
 			}
 		}
 	}
-
-	BaseParams.bUseCullingViewOverrides = true;
-	BaseParams.CullingViewOrigin = ClosestCullingViewOrigin;
+	Nanite::SetCullingViewOverrides(&Views[ClosestCullingViewIndex], BaseParams);
 
 	TSharedPtr<FVirtualShadowMapPerLightCacheEntry> CacheEntry = ProjectedShadowInfo->VirtualShadowMapPerLightCacheEntry;
 	check(CacheEntry.IsValid())

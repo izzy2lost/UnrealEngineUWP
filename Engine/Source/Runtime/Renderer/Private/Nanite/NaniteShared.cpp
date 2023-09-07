@@ -85,6 +85,23 @@ void FPackedView::UpdateLODScales(const float NaniteMaxPixelsPerEdge, const floa
 	LODScales = FVector2f(LODScale, LODScaleHW);
 }
 
+void SetCullingViewOverrides(FViewInfo const* InCullingView, Nanite::FPackedViewParams& InOutParams)
+{
+	if (InCullingView != nullptr)
+	{
+		// Culling uses main view for distance and screen size.
+		InOutParams.bUseCullingViewOverrides = true;
+		InOutParams.CullingViewOrigin = InCullingView->ViewMatrices.GetViewOrigin();
+		InOutParams.CullingViewScreenMultiple = FMath::Max(InCullingView->ViewMatrices.GetProjectionMatrix().M[0][0], InCullingView->ViewMatrices.GetProjectionMatrix().M[1][1]);
+		// We bake the view lod scales into ScreenMultiple since the two things are always used together.
+		const float LODDistanceScale = GetCachedScalabilityCVars().StaticMeshLODDistanceScale * InCullingView->LODDistanceFactor;
+		InOutParams.CullingViewScreenMultiple /= LODDistanceScale;
+	}
+	else
+	{
+		InOutParams.bUseCullingViewOverrides = false;
+	}
+}
 
 FPackedView CreatePackedView( const FPackedViewParams& Params )
 {

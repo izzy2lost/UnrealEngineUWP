@@ -2291,21 +2291,6 @@ void FProjectedShadowInfo::AddReceiverPrimitive(FPrimitiveSceneInfo* PrimitiveSc
 	ReceiverPrimitives.Add(PrimitiveSceneInfo);
 }
 
-/** Sets values required for the culling manager views, based on the 'main view'.  */
-static void OverrideViewParamsForShadowMainView(FViewInfo const* InView, Nanite::FPackedViewParams& OutParams)
-{
-	if (InView != nullptr)
-	{
-		// Culling uses main view for distance and screen size.
-		OutParams.bUseCullingViewOverrides = true;
-		OutParams.CullingViewOrigin = InView->ViewMatrices.GetViewOrigin();
-		OutParams.CullingViewScreenMultiple = FMath::Max(InView->ViewMatrices.GetProjectionMatrix().M[0][0], InView->ViewMatrices.GetProjectionMatrix().M[1][1]);
-		// We bake the view lod scales into ScreenMultiple since the two things are always used together.
-		const float LODDistanceScale = GetCachedScalabilityCVars().StaticMeshLODDistanceScale * InView->LODDistanceFactor;
-		OutParams.CullingViewScreenMultiple /= LODDistanceScale;
-	}
-}
-
 void FProjectedShadowInfo::SetupMeshDrawCommandsForShadowDepth(FSceneRenderer& Renderer, FInstanceCullingManager& InstanceCullingManager)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_SetupMeshDrawCommandsForShadowDepth);
@@ -2343,7 +2328,7 @@ void FProjectedShadowInfo::SetupMeshDrawCommandsForShadowDepth(FSceneRenderer& R
 				Params.ViewRect = ShadowViewRect;
 				Params.RasterContextSize = FIntPoint(ResolutionX, ResolutionY);
 				Params.MaxPixelsPerEdgeMultipler = 1.0f;
-				OverrideViewParamsForShadowMainView(ShadowDepthView, Params);
+				Nanite::SetCullingViewOverrides(ShadowDepthView, Params);
 				ViewIds[CubemapFaceIndex] = InstanceCullingManager.RegisterView(Params);
 			}
 		}
@@ -2359,7 +2344,7 @@ void FProjectedShadowInfo::SetupMeshDrawCommandsForShadowDepth(FSceneRenderer& R
 		Params.ViewRect = GetInnerViewRect();
 		Params.RasterContextSize = FIntPoint(ResolutionX, ResolutionY);
 		Params.MaxPixelsPerEdgeMultipler = 1.0f;
-		OverrideViewParamsForShadowMainView(ShadowDepthView, Params);
+		Nanite::SetCullingViewOverrides(ShadowDepthView, Params);
 		ViewIds.Add(InstanceCullingManager.RegisterView(Params));
 	}
 	else
@@ -2375,7 +2360,7 @@ void FProjectedShadowInfo::SetupMeshDrawCommandsForShadowDepth(FSceneRenderer& R
 			Params.Flags &= ~NANITE_VIEW_FLAG_NEAR_CLIP;
 		}
 		Params.MaxPixelsPerEdgeMultipler = 1.0f;
-		OverrideViewParamsForShadowMainView(ShadowDepthView, Params);
+		Nanite::SetCullingViewOverrides(ShadowDepthView, Params);
 		ViewIds.Add(InstanceCullingManager.RegisterView(Params));
 	}
 	// GPUCULL_TODO: Pass along any custom culling planes or whatever here (e.g., cascade bounds):

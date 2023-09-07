@@ -167,6 +167,10 @@ struct FPackedViewParams
 	uint32 InstanceOcclusionQueryMask = 0;
 };
 
+// Helper function to setup the overrides for a culling view. 
+// This is used for shadow views that have an associated "main" view that drives distance/screensize elements of the culling.
+void SetCullingViewOverrides(FViewInfo const* InCullingView, Nanite::FPackedViewParams& InOutParams);
+
 FPackedView CreatePackedView(const FPackedViewParams& Params);
 
 // Convenience function to pull relevant packed view parameters out of a FViewInfo

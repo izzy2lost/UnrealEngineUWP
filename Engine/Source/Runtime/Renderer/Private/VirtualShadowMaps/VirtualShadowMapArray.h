@@ -403,7 +403,7 @@ private:
 
 	void AppendPhysicalPageList(FRDGBuilder& GraphBuilder, bool bEmptyToAvailable);
 
-	uint32 AddRenderViews(const TSharedPtr<FVirtualShadowMapClipmap>& Clipmap, float LODScaleFactor, bool bSetHzbParams, bool bUpdateHZBMetaData, const FVector &CullingViewOrigin, TArray<Nanite::FPackedView, SceneRenderingAllocator>& OutVirtualShadowViews);
+	uint32 AddRenderViews(const TSharedPtr<FVirtualShadowMapClipmap>& Clipmap, const FViewInfo* CullingView, float LODScaleFactor, bool bSetHzbParams, bool bUpdateHZBMetaData, TArray<Nanite::FPackedView, SceneRenderingAllocator>& OutVirtualShadowViews);
 
 	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> GetUncachedUniformBuffer(FRDGBuilder& GraphBuilder) const;
 	void UpdateCachedUniformBuffer(FRDGBuilder& GraphBuilder);
