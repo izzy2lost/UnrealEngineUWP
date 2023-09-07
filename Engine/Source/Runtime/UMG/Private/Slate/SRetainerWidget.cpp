@@ -217,6 +217,7 @@ void SRetainerWidget::Construct(const FArguments& InArgs)
 #if WITH_EDITOR
 	bIsDesignTime = false;
 	bShowEffectsInDesigner = true;
+	bWarnOnInvalidSize = InArgs._bWarnOnInvalidSize;
 #endif // WITH_EDITOR
 
 	RefreshRenderingMode();
@@ -502,13 +503,26 @@ SRetainerWidget::EPaintRetainedContentResult SRetainerWidget::PaintRetainedConte
 			if (!bInvalidSizeLogged)
 			{
 				bInvalidSizeLogged = true;
+
+				const bool bEnableWarnOnInvalidSize =
+#if WITH_EDITOR
+					bWarnOnInvalidSize;
+#else
+					true;
+#endif
 				if (bTextureIsTooLarge)
 				{
-					UE_LOG(LogUMG, Warning, TEXT("The requested size for SRetainerWidget is too large. W:%i H:%i"), RenderTargetWidth, RenderTargetHeight);
+					if (bEnableWarnOnInvalidSize)
+					{
+						UE_LOG(LogUMG, Warning, TEXT("The requested size for SRetainerWidget is too large. W:%i H:%i"), RenderTargetWidth, RenderTargetHeight);
+					}
 				}
 				else
 				{
-					UE_LOG(LogUMG, Warning, TEXT("The requested size for SRetainerWidget is 0. W:%i H:%i"), RenderTargetWidth, RenderTargetHeight);
+					if (bEnableWarnOnInvalidSize)
+					{
+						UE_LOG(LogUMG, Warning, TEXT("The requested size for SRetainerWidget is 0. W:%i H:%i"), RenderTargetWidth, RenderTargetHeight);
+					}
 				}
 			}
 			return bTextureIsTooLarge ? EPaintRetainedContentResult::TextureSizeTooBig : EPaintRetainedContentResult::TextureSizeZero;

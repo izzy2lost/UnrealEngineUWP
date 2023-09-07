@@ -58,7 +58,10 @@ public:
 		SLATE_ARGUMENT(int32, Phase)
 		SLATE_ARGUMENT(int32, PhaseCount)
 		SLATE_ARGUMENT(FName, StatId)
-	SLATE_END_ARGS()
+#if WITH_EDITOR
+		SLATE_ARGUMENT(bool, bWarnOnInvalidSize)
+#endif
+		SLATE_END_ARGS()
 
 	UMG_API SRetainerWidget();
 	UMG_API ~SRetainerWidget();
@@ -159,6 +162,9 @@ private:
 
 	/** True if we should retain rendering in designer */
 	bool bShowEffectsInDesigner;
+
+	/** True if we should warn when the requested size for the retainer is 0 or too large */
+	bool bWarnOnInvalidSize;
 #endif
 
 	bool RenderOnPhase;

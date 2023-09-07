@@ -424,6 +424,7 @@ void SCurveEditorViewContainer::AddView(TSharedRef<SCurveEditorView> ViewToAdd)
 		.RenderOnPhase(false)
 		.RenderOnInvalidation(false)
 		.RenderWithLocalTransform(false)
+		.bWarnOnInvalidSize(false)
 		[
 			SNew(SBox)
 			.Padding(MakeAttributeSP(this, &SCurveEditorViewContainer::GetSlotPadding, InsertIndex))
