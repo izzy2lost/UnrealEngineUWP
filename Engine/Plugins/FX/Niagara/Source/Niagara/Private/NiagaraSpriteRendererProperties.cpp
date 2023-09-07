@@ -187,6 +187,7 @@ void UNiagaraSpriteRendererProperties::PostLoad()
 		MaterialParameterBindings_DEPRECATED.Empty();
 	}
 #endif
+	MaterialParameters.ConditionalPostLoad();
 }
 
 void UNiagaraSpriteRendererProperties::PostInitProperties()

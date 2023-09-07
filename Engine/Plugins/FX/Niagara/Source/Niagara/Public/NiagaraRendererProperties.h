@@ -258,6 +258,7 @@ struct FNiagaraRendererMaterialParameters
 	UPROPERTY(EditAnywhere, Category = "Material")
 	TArray<FNiagaraRendererMaterialStaticBoolParameter> StaticBoolParameters;
 
+	NIAGARA_API void ConditionalPostLoad();
 #if WITH_EDITORONLY_DATA
 	NIAGARA_API void RenameVariable(const FNiagaraVariableBase& OldVariable, const FNiagaraVariableBase& NewVariable, const FVersionedNiagaraEmitter& InEmitter, ENiagaraRendererSourceDataMode SourceMode);
 	NIAGARA_API void RemoveVariable(const FNiagaraVariableBase& OldVariable, const FVersionedNiagaraEmitter& InEmitter, ENiagaraRendererSourceDataMode SourceMode);

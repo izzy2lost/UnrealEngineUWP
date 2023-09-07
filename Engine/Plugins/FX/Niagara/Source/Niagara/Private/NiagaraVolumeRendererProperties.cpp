@@ -98,6 +98,7 @@ void UNiagaraVolumeRendererProperties::PostLoad()
 	ChangeToPositionBinding(PositionBinding);
 #endif
 	PostLoadBindings(ENiagaraRendererSourceDataMode::Particles);
+	MaterialParameters.ConditionalPostLoad();
 }
 
 void UNiagaraVolumeRendererProperties::PostInitProperties()

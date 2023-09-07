@@ -180,6 +180,17 @@ void FNiagaraRendererLayout::Finalize()
 
 //////////////////////////////////////////////////////////////////////////
 
+void FNiagaraRendererMaterialParameters::ConditionalPostLoad()
+{
+	for (const FNiagaraRendererMaterialTextureParameter& TextureParameter : TextureParameters)
+	{
+		if (TextureParameter.Texture)
+		{
+			TextureParameter.Texture->ConditionalPostLoad();
+		}
+	}
+}
+
 #if WITH_EDITORONLY_DATA
 void FNiagaraRendererMaterialParameters::RenameVariable(const FNiagaraVariableBase& OldVariable, const FNiagaraVariableBase& NewVariable, const FVersionedNiagaraEmitter& InEmitter, ENiagaraRendererSourceDataMode SourceMode)
 {

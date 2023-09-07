@@ -948,6 +948,18 @@ void UNiagaraMeshRendererProperties::PostLoad()
 		}
 	}
 
+	for (const FNiagaraMeshMICOverride& MICOverrideMaterial : MICOverrideMaterials)
+	{
+		if (MICOverrideMaterial.OriginalMaterial)
+		{
+			MICOverrideMaterial.OriginalMaterial->ConditionalPostLoad();
+		}
+		if (MICOverrideMaterial.ReplacementMaterial)
+		{
+			MICOverrideMaterial.ReplacementMaterial->ConditionalPostLoad();
+		}
+	}
+
 #if WITH_EDITORONLY_DATA
 	if (MaterialParameterBindings_DEPRECATED.Num() > 0)
 	{
@@ -955,6 +967,7 @@ void UNiagaraMeshRendererProperties::PostLoad()
 		MaterialParameterBindings_DEPRECATED.Empty();
 	}
 #endif
+	MaterialParameters.ConditionalPostLoad();
 }
 
 #if WITH_EDITORONLY_DATA
