@@ -76,8 +76,8 @@ namespace Horde.Commands.Workspace
 			Stopwatch timer = Stopwatch.StartNew();
 			logger.LogInformation("Syncing into layer '{LayerId}'...", LayerId);
 
-			DirectoryNode node = await handle.ReadNodeAsync<DirectoryNode>();
-			await node.CopyToDirectoryAsync(workspace.RootDir.ToDirectoryInfo(), logger, CancellationToken.None);
+			DirectoryNode contents = await handle.ReadNodeAsync<DirectoryNode>();
+			await workspace.SyncAsync(LayerId, contents, cancellationToken);
 			await workspace.SaveAsync(cancellationToken);
 
 			logger.LogInformation("Elapsed: {Time}s", timer.Elapsed.TotalSeconds);

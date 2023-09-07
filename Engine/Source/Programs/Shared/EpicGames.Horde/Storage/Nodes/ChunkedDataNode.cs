@@ -93,6 +93,11 @@ namespace EpicGames.Horde.Storage.Nodes
 	public sealed class LeafChunkedDataNode : ChunkedDataNode
 	{
 		/// <summary>
+		/// Static accessor for the blob type
+		/// </summary>
+		public static BlobType BlobType { get; } = Node.GetNodeType<LeafChunkedDataNode>();
+
+		/// <summary>
 		/// Data for this node
 		/// </summary>
 		public ReadOnlyMemory<byte> Data { get; }
@@ -283,6 +288,11 @@ namespace EpicGames.Horde.Storage.Nodes
 	[NodeType("{F4DEDDBC-70CB-4C7A-8347-F011AFCCCDB9}", 1)]
 	public class InteriorChunkedDataNode : ChunkedDataNode
 	{
+		/// <summary>
+		/// Static accessor for the blob type
+		/// </summary>
+		public static BlobType BlobType { get; } = Node.GetNodeType<InteriorChunkedDataNode>();
+
 		/// <summary>
 		/// Child nodes
 		/// </summary>

@@ -1,10 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Net.Http.Headers;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Backends;
-using EpicGames.Horde.Storage.Bundles;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Commands
@@ -12,13 +10,15 @@ namespace Horde.Commands
 	/// <summary>
 	/// Base class for commands that require a configured storage client
 	/// </summary>
-	abstract class StorageCommandBase : Command
+	abstract class StorageCommandBase : Command, IDisposable
 	{
+		HordeHttpClient? _hordeHttpClient;
+
 		/// <summary>
 		/// Namespace to use
 		/// </summary>
 		[CommandLine("-Namespace=", Description = "Namespace for data to manipulate")]
-		public string Namespace { get; set; } = "default";
+		public NamespaceId Namespace { get; set; } = new NamespaceId("default");
 
 		/// <summary>
 		/// Base URI to upload to
@@ -39,6 +39,12 @@ namespace Horde.Commands
 			StorageCache = storageCache;
 		}
 
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			_hordeHttpClient?.Dispose();
+		}
+
 		/// <summary>
 		/// Creates a new client instance
 		/// </summary>
@@ -46,29 +52,15 @@ namespace Horde.Commands
 		/// <param name="cancellationToken"></param>
 		public async Task<IStorageClient> CreateStorageClientAsync(ILogger logger, CancellationToken cancellationToken = default)
 		{
-			Uri? server = await Settings.GetServerAsync(cancellationToken);
-			if (server == null)
-			{
-				throw new Exception("No server is configured. Run 'horde login -server=...' to set up.");
-			}
-
-			string? token = await Settings.GetAccessTokenAsync(logger, cancellationToken);
-			if (token == null)
-			{
-				throw new Exception("Unable to log in to server.");
-			}
-
+			_hordeHttpClient ??= await Settings.GetHttpClientAsync(logger, cancellationToken);
 			if (String.IsNullOrEmpty(Path))
 			{
-				Path = $"api/v1/storage/{Namespace}/";
+				return _hordeHttpClient.CreateStorageClient(Namespace, StorageCache);
 			}
-			else if(!Path.EndsWith("/", StringComparison.Ordinal))
+			else
 			{
-				Path += "/";
+				return _hordeHttpClient.CreateStorageClient(Path, StorageCache);
 			}
-
-			server = new Uri(server, Path);
-			return new HttpStorageClient(server, token, StorageCache, logger);
 		}
 	}
 }
