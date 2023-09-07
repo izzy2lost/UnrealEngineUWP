@@ -504,7 +504,7 @@ bool UNeuralMorphNetwork::Load(const FString& Filename)
 
 		if (NumGroups > 0 && Mode == ENeuralMorphMode::Local)
 		{
-			if (GroupModelData)
+			if (!GroupModelData)
 			{
 				GroupModelData = NewObject<UNNEModelData>(this);
 			}
@@ -617,7 +617,7 @@ int32 UNeuralMorphNetwork::GetNumMainOutputs() const
 int32 UNeuralMorphNetwork::GetNumGroupInputs() const
 {
 	return Mode == ENeuralMorphMode::Local ?
-		NumGroups * 6 :
+		NumGroups * 6 * NumItemsPerGroup :
 		0;
 }
 
