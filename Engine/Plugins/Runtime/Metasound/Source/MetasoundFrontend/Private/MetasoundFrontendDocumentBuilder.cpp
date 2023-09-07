@@ -1477,7 +1477,7 @@ const FMetasoundFrontendVertex* FMetaSoundFrontendDocumentBuilder::FindNodeInput
 	return NodeCache.FindInputVertex(InNodeID, InVertexName);
 }
 
-const FMetasoundFrontendClassInput* FMetaSoundFrontendDocumentBuilder::FindNodeInputClassInput(const FGuid& InNodeID, const FGuid& InVertexID) const
+const FMetasoundFrontendClassInput* FMetaSoundFrontendDocumentBuilder::FindNodeInputClassInput(const FGuid& InNodeID, const FName& InVertexName) const
 {
 	using namespace Metasound::Frontend;
 
@@ -1488,8 +1488,12 @@ const FMetasoundFrontendClassInput* FMetaSoundFrontendDocumentBuilder::FindNodeI
 	{
 		if (const FMetasoundFrontendClass* Class = DocumentCache->FindDependency(Node->ClassID))
 		{
-			auto InputMatchesVertex = [&InVertexID](const FMetasoundFrontendClassVertex& ClassVertex) { return ClassVertex.VertexID == InVertexID; };
-			return Class->Interface.Inputs.FindByPredicate(InputMatchesVertex);
+			if (const FMetasoundFrontendVertex* Vertex = NodeCache.FindInputVertex(InNodeID, InVertexName))
+			{
+				const FName VertexName = Vertex->Name;
+				auto InputMatchesVertexName = [&VertexName](const FMetasoundFrontendClassVertex& ClassVertex) { return ClassVertex.Name == VertexName; };
+				return Class->Interface.Inputs.FindByPredicate(InputMatchesVertexName);
+			}
 		}
 	}
 
@@ -1538,7 +1542,7 @@ const FMetasoundFrontendVertex* FMetaSoundFrontendDocumentBuilder::FindNodeOutpu
 	return NodeCache.FindOutputVertex(InNodeID, InVertexName);
 }
 
-const FMetasoundFrontendClassOutput* FMetaSoundFrontendDocumentBuilder::FindNodeOutputClassOutput(const FGuid& InNodeID, const FGuid& InVertexID) const
+const FMetasoundFrontendClassOutput* FMetaSoundFrontendDocumentBuilder::FindNodeOutputClassOutput(const FGuid& InNodeID, const FName& InVertexName) const
 {
 	using namespace Metasound::Frontend;
 
@@ -1549,8 +1553,12 @@ const FMetasoundFrontendClassOutput* FMetaSoundFrontendDocumentBuilder::FindNode
 	{
 		if (const FMetasoundFrontendClass* Class = DocumentCache->FindDependency(Node->ClassID))
 		{
-			auto OutputMatchesVertex = [&InVertexID](const FMetasoundFrontendClassVertex& ClassVertex) { return ClassVertex.VertexID == InVertexID; };
-			return Class->Interface.Outputs.FindByPredicate(OutputMatchesVertex);
+			if (const FMetasoundFrontendVertex* Vertex = NodeCache.FindOutputVertex(InNodeID, InVertexName))
+			{
+				const FName VertexName = Vertex->Name;
+				auto OutputMatchesVertexName = [&VertexName](const FMetasoundFrontendClassVertex& ClassVertex) { return ClassVertex.Name == VertexName; };
+				return Class->Interface.Outputs.FindByPredicate(OutputMatchesVertexName);
+			}
 		}
 	}
 
@@ -1593,6 +1601,21 @@ const FTopLevelAssetPath FMetaSoundFrontendDocumentBuilder::GetBuilderClassPath(
 	return Interface->GetBaseMetaSoundUClass().GetClassPathName();
 }
 
+const FString FMetaSoundFrontendDocumentBuilder::GetDebugName() const
+{
+	using namespace Metasound::Frontend;
+
+	const FMetasoundFrontendClassMetadata& Metadata = GetDocument().RootGraph.Metadata;
+	const FMetasoundFrontendVersionNumber& Version = Metadata.GetVersion();
+	const FNodeRegistryKey RegKey = NodeRegistryKey::CreateKey(EMetasoundFrontendClassType::External, Metadata.GetClassName().ToString(), Version.Major, Version.Minor);
+	if (const FMetasoundAssetBase* Asset = IMetaSoundAssetManager::GetChecked().TryLoadAssetFromKey(RegKey))
+	{
+		return Asset->GetOwningAssetName();
+	}
+
+	return Metadata.GetClassName().ToString();
+}
+
 FMetasoundFrontendDocument& FMetaSoundFrontendDocumentBuilder::GetDocument()
 {
 	IMetaSoundDocumentInterface* Interface = DocumentInterface.GetInterface();
@@ -1615,6 +1638,86 @@ const IMetaSoundDocumentInterface& FMetaSoundFrontendDocumentBuilder::GetDocumen
 	IMetaSoundDocumentInterface* Interface = DocumentInterface.GetInterface();
 	check(Interface);
 	return *Interface;
+}
+
+EMetasoundFrontendVertexAccessType FMetaSoundFrontendDocumentBuilder::GetNodeInputAccessType(const FGuid& InNodeID, const FGuid& InVertexID) const
+{
+	using namespace Metasound::Frontend;
+
+	const IDocumentGraphNodeCache& NodeCache = DocumentCache->GetNodeCache();
+	if (const int32* NodeIndex = NodeCache.FindNodeIndex(InNodeID))
+	{
+		const FMetasoundFrontendGraph& Graph = GetDocument().RootGraph.Graph;
+		const FMetasoundFrontendNode& Node = Graph.Nodes[*NodeIndex];
+		auto IsVertexID = [&InVertexID](const FMetasoundFrontendVertex& Vertex) { return Vertex.VertexID == InVertexID; };
+		if (const FMetasoundFrontendClass* Class = DocumentCache->FindDependency(Node.ClassID))
+		{
+			const EMetasoundFrontendClassType ClassType = Class->Metadata.GetType();
+			switch (ClassType)
+			{
+				case EMetasoundFrontendClassType::Template:
+				{
+					const FNodeRegistryKey Key = NodeRegistryKey::CreateKey(Class->Metadata);
+					const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(Key);
+					if (ensureMsgf(Template, TEXT("Failed to find MetaSound node template registered with key '%s'"), *Key))
+					{
+						if (Template->IsInputAccessTypeDynamic())
+						{
+							return Template->GetNodeInputAccessType(*this, InNodeID, InVertexID);
+						}
+					}
+				}
+				break;
+
+				case EMetasoundFrontendClassType::Output:
+				{
+					const FMetasoundFrontendClassInput& ClassInput = Class->Interface.Inputs.Last();
+					return ClassInput.AccessType;
+				}
+
+				default:
+				break;
+			}
+			static_assert(static_cast<uint32>(EMetasoundFrontendClassType::Invalid) == 10, "Potential missing case coverage for EMetasoundFrontendClassType");
+
+			if (const FMetasoundFrontendVertex* Vertex = Node.Interface.Inputs.FindByPredicate(IsVertexID))
+			{
+				auto IsClassInput = [VertexName = Vertex->Name](const FMetasoundFrontendClassInput& Input) { return Input.Name == VertexName; };
+				if (const FMetasoundFrontendClassInput* ClassInput = Class->Interface.Inputs.FindByPredicate(IsClassInput))
+				{
+					return ClassInput->AccessType;
+				}
+			}
+		}
+	}
+
+	return EMetasoundFrontendVertexAccessType::Unset;
+}
+
+const FMetasoundFrontendLiteral* FMetaSoundFrontendDocumentBuilder::GetNodeInputClassDefault(const FGuid& InNodeID, const FGuid& InVertexID) const
+{
+	using namespace Metasound::Frontend;
+
+	const IDocumentGraphNodeCache& NodeCache = DocumentCache->GetNodeCache();
+	if (const int32* NodeIndex = NodeCache.FindNodeIndex(InNodeID))
+	{
+		const FMetasoundFrontendGraph& Graph = GetDocument().RootGraph.Graph;
+		const FMetasoundFrontendNode& Node = Graph.Nodes[*NodeIndex];
+		auto IsVertexID = [&InVertexID](const FMetasoundFrontendVertex& Vertex) { return Vertex.VertexID == InVertexID; };
+		if (const FMetasoundFrontendVertex* Vertex = Node.Interface.Inputs.FindByPredicate(IsVertexID))
+		{
+			if (const FMetasoundFrontendClass* Class = DocumentCache->FindDependency(Node.ClassID))
+			{
+				auto IsClassInput = [VertexName = Vertex->Name](const FMetasoundFrontendClassInput& Input) { return Input.Name == VertexName; };
+				if (const FMetasoundFrontendClassInput* ClassInput = Class->Interface.Inputs.FindByPredicate(IsClassInput))
+				{
+					return &ClassInput->DefaultLiteral;
+				}
+			}
+		}
+	}
+
+	return nullptr;
 }
 
 const FMetasoundFrontendLiteral* FMetaSoundFrontendDocumentBuilder::GetNodeInputDefault(const FGuid& InNodeID, const FGuid& InVertexID) const
@@ -1646,7 +1749,7 @@ const FMetasoundFrontendLiteral* FMetaSoundFrontendDocumentBuilder::GetNodeInput
 	return nullptr;
 }
 
-const FMetasoundFrontendLiteral* FMetaSoundFrontendDocumentBuilder::GetNodeInputClassDefault(const FGuid& InNodeID, const FGuid& InVertexID) const
+EMetasoundFrontendVertexAccessType FMetaSoundFrontendDocumentBuilder::GetNodeOutputAccessType(const FGuid& InNodeID, const FGuid& InVertexID) const
 {
 	using namespace Metasound::Frontend;
 
@@ -1655,27 +1758,49 @@ const FMetasoundFrontendLiteral* FMetaSoundFrontendDocumentBuilder::GetNodeInput
 	{
 		const FMetasoundFrontendGraph& Graph = GetDocument().RootGraph.Graph;
 		const FMetasoundFrontendNode& Node = Graph.Nodes[*NodeIndex];
-
-		auto IsVertex = [&InVertexID](const FMetasoundFrontendVertex& Vertex) { return Vertex.VertexID == InVertexID; };
-		const int32 VertexIndex = Node.Interface.Inputs.IndexOfByPredicate(IsVertex);
-		if (VertexIndex != INDEX_NONE)
+		if (const FMetasoundFrontendClass* Class = DocumentCache->FindDependency(Node.ClassID))
 		{
-			const FMetasoundFrontendVertex& NodeInput = Node.Interface.Inputs[VertexIndex];
-			if (const FMetasoundFrontendClass* Class = DocumentCache->FindDependency(Node.ClassID))
+			const EMetasoundFrontendClassType ClassType = Class->Metadata.GetType();
+			switch (ClassType)
 			{
-// 				auto IsClassInput = [&NodeInput](const FMetasoundFrontendClassInput& Input)
-// 				{
-// 					return FMetasoundFrontendVertex::IsFunctionalEquivalent(Input, NodeInput);
-// 				};
-				if (const FMetasoundFrontendClassInput* ClassInput = Class->Interface.Inputs.FindByPredicate(IsVertex))
+				case EMetasoundFrontendClassType::Template:
 				{
-					return &ClassInput->DefaultLiteral;
+					const FNodeRegistryKey Key = NodeRegistryKey::CreateKey(Class->Metadata);
+					const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(Key);
+					if (ensureMsgf(Template, TEXT("Failed to find MetaSound node template registered with key '%s'"), *Key))
+					{
+						if (Template->IsOutputAccessTypeDynamic())
+						{
+							return Template->GetNodeOutputAccessType(*this, InNodeID, InVertexID);
+						}
+					}
+				}
+				break;
+
+				case EMetasoundFrontendClassType::Input:
+				{
+					const FMetasoundFrontendClassOutput& ClassOutput = Class->Interface.Outputs.Last();
+					return ClassOutput.AccessType;
+				}
+
+				default:
+				break;
+			}
+			static_assert(static_cast<uint32>(EMetasoundFrontendClassType::Invalid) == 10, "Potential missing case coverage for EMetasoundFrontendClassType");
+
+			auto IsVertexID = [&InVertexID](const FMetasoundFrontendVertex& Vertex) { return Vertex.VertexID == InVertexID; };
+			if (const FMetasoundFrontendVertex* Vertex = Node.Interface.Outputs.FindByPredicate(IsVertexID))
+			{
+				auto IsClassInput = [VertexName = Vertex->Name](const FMetasoundFrontendClassInput& Output) { return Output.Name == VertexName; };
+				if (const FMetasoundFrontendClassOutput* ClassOutput = Class->Interface.Outputs.FindByPredicate(IsClassInput))
+				{
+					return ClassOutput->AccessType;
 				}
 			}
 		}
 	}
 
-	return nullptr;
+	return EMetasoundFrontendVertexAccessType::Unset;
 }
 
 void FMetaSoundFrontendDocumentBuilder::InitGraphClassMetadata(FMetasoundFrontendClassMetadata& InOutMetadata, bool bResetVersion, const FMetasoundFrontendClassName* NewClassName)
@@ -1828,58 +1953,27 @@ Metasound::Frontend::EInvalidEdgeReason FMetaSoundFrontendDocumentBuilder::IsVal
 
 	const IDocumentGraphNodeCache& NodeCache = DocumentCache->GetNodeCache();
 
-	bool bOutputRerouted = false;
-	const FMetasoundFrontendNode* OutputNode = nullptr;
-	const FMetasoundFrontendVertex* OutputVertex = NodeCache.FindReroutedOutputVertex(InEdge.FromNodeID, InEdge.FromVertexID, &OutputNode, &bOutputRerouted);
+	const FMetasoundFrontendVertex* OutputVertex = NodeCache.FindOutputVertex(InEdge.FromNodeID, InEdge.FromVertexID);
 	if (!OutputVertex)
 	{
-		if (!bOutputRerouted)
-		{
-			// No concrete output found and not going through reroute
-			return EInvalidEdgeReason::MissingOutput;
-		}
+		return EInvalidEdgeReason::MissingOutput;
 	}
 
-	bool bInputRerouted = false;
-	TArray<const FMetasoundFrontendNode*> InputNodes;
-	TArray<const FMetasoundFrontendVertex*> InputVertices = NodeCache.FindReroutedInputVertices(InEdge.ToNodeID, InEdge.ToVertexID, &InputNodes, &bInputRerouted);
-	if (InputVertices.IsEmpty())
+	const FMetasoundFrontendVertex* InputVertex = NodeCache.FindInputVertex(InEdge.ToNodeID, InEdge.ToVertexID);
+	if (!InputVertex)
 	{
-		if (!bInputRerouted)
-		{
-			// No concrete input found and not going through reroute
-			return EInvalidEdgeReason::MissingInput;
-		}
+		return EInvalidEdgeReason::MissingInput;
 	}
 
-	FName OutputType;
-	EMetasoundFrontendVertexAccessType OutputAccessType = EMetasoundFrontendVertexAccessType::Unset;
-	if (OutputVertex)
-	{
-		OutputType = OutputVertex->TypeName;
-
-		const FMetasoundFrontendClassOutput* ClassOutput = FindNodeOutputClassOutput(OutputNode->GetID(), OutputVertex->VertexID);
-		check(ClassOutput);
-		OutputAccessType = ClassOutput->AccessType;
-	}
-
-	FName InputType;
-	EMetasoundFrontendVertexAccessType InputAccessType = EMetasoundFrontendVertexAccessType::Unset;
-	if (!InputVertices.IsEmpty())
-	{
-		InputType = InputVertices.Last()->TypeName;
-
-		// Only have to check last typename as all should be the same in theory if more than one off a reroute node
-		const FMetasoundFrontendClassInput* ClassInput = FindNodeInputClassInput(InputNodes.Last()->GetID(), InputVertices.Last()->VertexID);
-		check(ClassInput);
-		InputAccessType = ClassInput->AccessType;
-	}
-
-	if (!InputType.IsNone() && !OutputType.IsNone() && OutputType != InputType)
+	if (OutputVertex->TypeName != InputVertex->TypeName)
 	{
 		return EInvalidEdgeReason::MismatchedDataType;
 	}
 
+	// TODO: Add cycle detection here
+
+	const EMetasoundFrontendVertexAccessType OutputAccessType = GetNodeOutputAccessType(InEdge.FromNodeID, InEdge.FromVertexID);
+	const EMetasoundFrontendVertexAccessType InputAccessType = GetNodeInputAccessType(InEdge.ToNodeID, InEdge.ToVertexID);
 	if (!FMetasoundFrontendClassVertex::CanConnectVertexAccessTypes(OutputAccessType, InputAccessType))
 	{
 		return EInvalidEdgeReason::MismatchedAccessType;

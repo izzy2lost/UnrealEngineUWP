@@ -121,7 +121,7 @@ UENUM()
 enum class EMetasoundFrontendClassType : uint8
 {
 	// The MetaSound class is defined externally, in compiled code or in another document.
-	External,
+	External = 0,
 
 	// The MetaSound class is a graph within the containing document.
 	Graph,
@@ -148,7 +148,7 @@ enum class EMetasoundFrontendClassType : uint8
 	VariableMutator,
 
 	// The MetaSound class is defined only by the Frontend, and associatively
-	// performs a functional replacement operation in a pre-build step.
+	// performs a functional operation within the given document in a registration/cook step.
 	Template,
 
 	Invalid UMETA(Hidden)
@@ -595,6 +595,26 @@ struct FMetasoundFrontendEdge
 	FMetasoundFrontendVertexHandle GetToVertexHandle() const
 	{
 		return FMetasoundFrontendVertexHandle { ToNodeID, ToVertexID };
+	}
+
+	friend bool operator==(const FMetasoundFrontendEdge& InLHS, const FMetasoundFrontendEdge& InRHS)
+	{
+		return InLHS.FromNodeID == InRHS.FromNodeID
+			&& InLHS.FromVertexID == InRHS.FromVertexID
+			&& InLHS.ToNodeID == InRHS.ToNodeID
+			&& InLHS.ToVertexID == InRHS.ToVertexID;
+	}
+
+	friend bool operator!=(const FMetasoundFrontendEdge& InLHS, const FMetasoundFrontendEdge& InRHS)
+	{
+		return !(InLHS == InRHS);
+	}
+
+	friend FORCEINLINE uint32 GetTypeHash(const FMetasoundFrontendEdge& InEdge)
+	{
+		const int32 FromHash = HashCombineFast(InEdge.FromNodeID.A, InEdge.FromVertexID.B);
+		const int32 ToHash = HashCombineFast(InEdge.ToNodeID.C, InEdge.ToVertexID.D);
+		return HashCombineFast(FromHash, ToHash);
 	}
 };
 

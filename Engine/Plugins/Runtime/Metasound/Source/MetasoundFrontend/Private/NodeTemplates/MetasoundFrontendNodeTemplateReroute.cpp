@@ -3,8 +3,10 @@
 #include "NodeTemplates/MetasoundFrontendNodeTemplateReroute.h"
 
 #include "Algo/AnyOf.h"
+#include "MetasoundAssetManager.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
 #include "MetasoundFrontendDocumentBuilder.h"
+#include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendRegistries.h"
 #include "NodeTemplates/MetasoundFrontendDocumentTemplatePreprocessor.h"
 
@@ -27,14 +29,17 @@ namespace Metasound::Frontend
 			FMetasoundFrontendEdge InputEdge;
 			TArray<FMetasoundFrontendEdge> OutputEdges;
 
-			if (const FMetasoundFrontendNode* Node = OutBuilder.FindNode(InNodeID))
+			const FMetasoundFrontendNode* Node = OutBuilder.FindNode(InNodeID);
+			if (ensureMsgf(Node, TEXT("Failed to find node with ID '%s' when reroute template node transform was given a valid ID for builder '%s'."),
+				*InNodeID.ToString(),
+				*OutBuilder.GetDebugName()))
 			{
-				if (!ensureMsgf(Node->Interface.Inputs.Num() == 1, TEXT("Template nodes must only have one input")))
+				if (!ensureMsgf(Node->Interface.Inputs.Num() == 1, TEXT("Reroute nodes must only have one input")))
 				{
 					return false;
 				}
 
-				if (!ensureMsgf(Node->Interface.Outputs.Num() == 1, TEXT("Template nodes must only have one output")))
+				if (!ensureMsgf(Node->Interface.Outputs.Num() == 1, TEXT("Reroute nodes must only have one output")))
 				{
 					return false;
 				}
@@ -62,27 +67,21 @@ namespace Metasound::Frontend
 
 				// Remove the template node
 				OutBuilder.RemoveNode(Node->GetID());
-			}
-			else
-			{
-				const FMetaSoundFrontendDocumentBuilder& ConstBuilder = OutBuilder;
-				ensureMsgf(false, TEXT("Failed to find node with ID '%s' when template node transform was given a valid ID for builder '%s'."),
-					*InNodeID.ToString(),
-					*ConstBuilder.GetDocument().RootGraph.Metadata.GetClassName().GetFullName().ToString());
-			}
 
-			// Add new connections from reroute source node to reroute destination node. Either could be another reroute,
-			// which is valid because said node will subsequently get processed.
-			if (InputEdge.GetFromVertexHandle().IsSet())
-			{
-				for (FMetasoundFrontendEdge& OutputEdge : OutputEdges)
+				// Add new connections from reroute source node to reroute destination node. Either could be another reroute,
+				// which is valid because said node will subsequently get processed.
+				if (InputEdge.GetFromVertexHandle().IsSet())
 				{
-					OutputEdge.FromNodeID = InputEdge.FromNodeID;
-					OutputEdge.FromVertexID = InputEdge.FromVertexID;
-					OutBuilder.AddEdge(MoveTemp(OutputEdge));
-				}
+					bool bModified = !OutputEdges.IsEmpty();
+					for (FMetasoundFrontendEdge& OutputEdge : OutputEdges)
+					{
+						OutputEdge.FromNodeID = InputEdge.FromNodeID;
+						OutputEdge.FromVertexID = InputEdge.FromVertexID;
+						OutBuilder.AddEdge(MoveTemp(OutputEdge));
+					}
 
-				return !OutputEdges.IsEmpty();
+					return bModified;
+				}
 			}
 
 			return false;
@@ -146,6 +145,61 @@ namespace Metasound::Frontend
 		return NewInterface;
 	}
 
+	EMetasoundFrontendVertexAccessType FRerouteNodeTemplate::GetNodeInputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const
+	{
+		// Recursive search up DAG for first connected non-reroute node's input access type
+		if (const FMetasoundFrontendNode* Node = InBuilder.FindNode(InNodeID))
+		{
+			// Should only ever be one
+			const FMetasoundFrontendVertex& RerouteOutput = Node->Interface.Outputs.Last();
+
+			TArray<const FMetasoundFrontendNode*> ConnectedNodes;
+			TArray<const FMetasoundFrontendVertex*> ConnectedInputs = InBuilder.FindNodeInputsConnectedToNodeOutput(InNodeID, InVertexID, &ConnectedNodes);
+			for (int32 Index = 0; Index < ConnectedNodes.Num(); ++Index)
+			{
+				const FMetasoundFrontendNode* ConnectedNode = ConnectedNodes[Index];
+				if (const FMetasoundFrontendClass* ConnectedNodeClass = InBuilder.FindDependency(ConnectedNode->ClassID))
+				{
+					const FMetasoundFrontendVertex* ConnectedInput = ConnectedInputs[Index];
+					if (ConnectedNodeClass->Metadata.GetClassName() == ClassName)
+					{
+						return this->GetNodeInputAccessType(InBuilder, ConnectedNode->GetID(), ConnectedInput->VertexID);
+					}
+
+					return InBuilder.GetNodeInputAccessType(ConnectedNode->GetID(), ConnectedInput->VertexID);
+				}
+			}
+		}
+
+		return EMetasoundFrontendVertexAccessType::Unset;
+	}
+
+	EMetasoundFrontendVertexAccessType FRerouteNodeTemplate::GetNodeOutputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const
+	{
+		// Depth-first recursive search for first connected non-reroute node's output access type
+		if (const FMetasoundFrontendNode* Node = InBuilder.FindNode(InNodeID))
+		{
+			// Should only ever be one
+			const FMetasoundFrontendVertex& RerouteInput = Node->Interface.Inputs.Last();
+
+			const FMetasoundFrontendNode* ConnectedNode = nullptr;
+			if (const FMetasoundFrontendVertex* ConnectedOutput = InBuilder.FindNodeOutputConnectedToNodeInput(InNodeID, RerouteInput.VertexID, &ConnectedNode))
+			{
+				if (const FMetasoundFrontendClass* ConnectedNodeClass = InBuilder.FindDependency(ConnectedNode->ClassID))
+				{
+					if (ConnectedNodeClass->Metadata.GetClassName() == ClassName)
+					{
+						return this->GetNodeOutputAccessType(InBuilder, ConnectedNode->GetID(), ConnectedOutput->VertexID);
+					}
+
+					return InBuilder.GetNodeOutputAccessType(ConnectedNode->GetID(), ConnectedOutput->VertexID);
+				}
+			}
+		}
+
+		return EMetasoundFrontendVertexAccessType::Unset;
+	}
+
 	const FNodeRegistryKey& FRerouteNodeTemplate::GetRegistryKey()
 	{
 		static const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(
@@ -185,6 +239,16 @@ namespace Metasound::Frontend
 		return bHasRequiredConnections;
 	}
 #endif // WITH_EDITOR
+
+	bool FRerouteNodeTemplate::IsInputAccessTypeDynamic() const
+	{
+		return true;
+	}
+
+	bool FRerouteNodeTemplate::IsOutputAccessTypeDynamic() const
+	{
+		return true;
+	}
 
 	bool FRerouteNodeTemplate::IsValidNodeInterface(const FMetasoundFrontendNodeInterface& InNodeInterface) const
 	{
