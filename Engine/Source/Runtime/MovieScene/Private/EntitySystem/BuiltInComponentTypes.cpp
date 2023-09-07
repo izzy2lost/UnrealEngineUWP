@@ -31,11 +31,11 @@ UObject* FObjectComponent::GetObject() const
 	return ObjectKey.ResolveObjectPtr();
 }
 
-void AddReferencedObjectForComponent(FReferenceCollector& ReferenceCollector, FObjectComponent* ComponentData)
+void AddReferencedObjectForComponent(FReferenceCollector* ReferenceCollector, FObjectComponent* ComponentData)
 {
 	if (ComponentData->IsStrongReference())
 	{
-		ReferenceCollector.AddReferencedObject(ComponentData->ObjectPtr);
+		ReferenceCollector->AddReferencedObject(ComponentData->ObjectPtr);
 	}
 }
 

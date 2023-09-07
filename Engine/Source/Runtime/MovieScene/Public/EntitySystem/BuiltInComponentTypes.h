@@ -308,7 +308,7 @@ struct FObjectComponent
 	MOVIESCENE_API UObject* GetObject() const;
 
 	/** Conditionally add a reference for the specified component data based on whether it is strongly referenced or not */
-	friend void AddReferencedObjectForComponent(FReferenceCollector& ReferenceCollector, FObjectComponent* ComponentData);
+	MOVIESCENE_API friend void AddReferencedObjectForComponent(FReferenceCollector* ReferenceCollector, FObjectComponent* ComponentData);
 
 private:
 
