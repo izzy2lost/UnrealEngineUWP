@@ -330,9 +330,8 @@ namespace AJA
 			}
 
 			//Verify if Channel1 is used. If not, we need to be sure the card's main format is configured
-			if (bResult)
+			if (bResult && !::NTV2DeviceCanDoMultiFormat(Connection.Card->GetDeviceID()))
 			{
-				const NTV2FrameRate DesiredFrameRate = GetNTV2FrameRateFromVideoFormat(VideoFormat);
 				auto Found = std::find_if(std::begin(Connection.ChannelInfos), std::end(Connection.ChannelInfos), [=](const ChannelInfo* Info) { return Info->Channel == NTV2_CHANNEL1; });
 				if (Found == std::end(Connection.ChannelInfos))
 				{
@@ -1302,19 +1301,7 @@ namespace AJA
 		uint32_t DeviceConnection::Lock_AcquireBaseFrameIndex(NTV2Channel InChannel, NTV2VideoFormat InVideoFormat) const
 		{
 			const uint32_t MaxValue = ::NTV2DeviceGetNumberFrameBuffers(Card->GetDeviceID());
-
-			const bool bIsQuadFrameFormat = NTV2_IS_4K_VIDEO_FORMAT(InVideoFormat);
-
-			uint32_t BaseFrameIndex = 0;
-
-			if (bIsQuadFrameFormat)
-			{
-				BaseFrameIndex = InChannel * NumberOfFrameToAquire;
-			}
-			else
-			{
-				BaseFrameIndex = InChannel * NumberOfFrameToAquire * 4;
-			}
+			const uint32_t BaseFrameIndex = InChannel * NumberOfFrameToAquire * 4;
 
 			if (BaseFrameIndex < MaxValue)
 			{

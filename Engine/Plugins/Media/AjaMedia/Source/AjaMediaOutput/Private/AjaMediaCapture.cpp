@@ -625,6 +625,12 @@ void UAjaMediaCapture::LockDMATexture_RenderThread(FTextureRHIRef InTexture)
 				Args.PixelFormat = UE::GPUTextureTransfer::EPixelFormat::PF_10Bit;
 				Args.Stride = Args.Width * 16;
 			}
+			else if (Args.RHITexture->GetFormat() == EPixelFormat::PF_A2B10G10R10)
+			{
+				// RGB 10 bit can be considered as 8 PF_8 bits by GPUDirect.
+				Args.PixelFormat = UE::GPUTextureTransfer::EPixelFormat::PF_8Bit;
+				Args.Stride = Args.Width * 4;
+			}
 			else
 			{
 				checkf(false, TEXT("Format not supported"));
