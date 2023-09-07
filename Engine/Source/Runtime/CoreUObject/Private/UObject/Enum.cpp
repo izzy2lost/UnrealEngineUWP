@@ -723,7 +723,12 @@ int32 UEnum::GetIndexByNameString(const FString& InSearchString, EGetByNameFlags
 				SerializedObject = LoadContext->SerializedObject;
 			}
 		}
-		UE_LOG(LogEnum, Warning, TEXT("In asset '%s', there is an enum property of type '%s' with an invalid value of '%s'"), *GetPathNameSafe(SerializedObject ? SerializedObject : FUObjectThreadContext::Get().ConstructedObject), *GetName(), *InSearchString);
+		const bool bIsNativeOrLoaded = (!HasAnyFlags(RF_WasLoaded) || HasAnyFlags(RF_LoadCompleted));
+		UE_LOG(LogEnum, Warning, TEXT("UEnum: In asset '%s', there is an enum property of type '%s' with an invalid value of '%s' - %s"), 
+			*GetPathNameSafe(SerializedObject ? SerializedObject : FUObjectThreadContext::Get().ConstructedObject), 
+			*GetName(), 
+			*InSearchString,
+			bIsNativeOrLoaded ? TEXT("loaded") : TEXT("not loaded"));
 	}
 
 	return INDEX_NONE;
