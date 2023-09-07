@@ -256,6 +256,9 @@ void FRewindData::ApplyTargets(const int32 Frame, const bool bResetSimulation)
 	}
 }
 
+CHAOS_API bool bResimAllowRewindToResimulatedFrames = false;
+FAutoConsoleVariableRef CVarResimAllowRewindToResimulatedFrames(TEXT("p.Resim.AllowRewindToResimulatedFrames"), bResimAllowRewindToResimulatedFrames, TEXT("Allow rewinding back to a frame that was previously part of a resimulation. If a resimulation is performed between frame 100-110, allow a new resim from 105-115 if needed, else next resim will be able to start from frame 111."));
+
 bool FRewindData::RewindToFrame(int32 Frame)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(RewindToFrame);
@@ -283,6 +286,11 @@ bool FRewindData::RewindToFrame(int32 Frame)
 	//If property changed between Frame and CurFrame, record the latest value and rewind to old
 	FFrameAndPhase RewindFrameAndPhase{ Frame, FFrameAndPhase::PostPushData };
 	FFrameAndPhase CurFrameAndPhase{ CurFrame, FFrameAndPhase::PrePushData };
+
+	if (!bResimAllowRewindToResimulatedFrames)
+	{
+		BlockResimFrame = CurFrame;
+	}
 
 	auto RewindHelper = [RewindFrameAndPhase, CurFrameAndPhase, this](auto Obj, bool bResimAsFollower, auto& Property, const auto& RewindFunc) -> bool
 	{
@@ -838,10 +846,10 @@ void FRewindData::ExtendHistoryWithFrame(const int32 Frame)
 	FramesSaved = FMath::Max(CurFrame - Frame+1, FramesSaved);
 }
 
-CHAOS_API bool ResimFrameValidationLeniency = true;
-FAutoConsoleVariableRef CVarResimFrameValidationLeniency(TEXT("p.ResimFrameValidationLeniency"), ResimFrameValidationLeniency, TEXT("Lenient resim frame validation finds a frame to resim from where the particle that is triggering the resim has a valid target. Setting this to false will require all replicated particles to have a valid target and both valid component input and state history."));
-CHAOS_API bool ResimIncompleteHistory = true;
-FAutoConsoleVariableRef CVarResimIncompleteHistory(TEXT("p.ResimIncompleteHistory"), ResimIncompleteHistory, TEXT("If a valid resim frame can't be found, use the requested resim frame and perform a resimulation with incomplete data."));
+CHAOS_API bool bResimFrameValidationLeniency = true;
+FAutoConsoleVariableRef CVarResimFrameValidationLeniency(TEXT("p.Resim.FrameValidationLeniency"), bResimFrameValidationLeniency, TEXT("Lenient resim frame validation finds a frame to resim from where the particle that is triggering the resim has a valid target. Setting this to false will require all replicated particles to have a valid target and both valid component input and state history."));
+CHAOS_API bool bResimIncompleteHistory = true;
+FAutoConsoleVariableRef CVarResimIncompleteHistory(TEXT("p.Resim.IncompleteHistory"), bResimIncompleteHistory, TEXT("If a valid resim frame can't be found, use the requested resim frame and perform a resimulation with incomplete data."));
 
 int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 {
@@ -872,7 +880,7 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 			const bool bResimAsFollower = DirtyParticleInfo.bResimAsFollower;
 
 			// If the particle is not marked for resimulation, don't bother checking for valid target states.
-			if (ResimFrameValidationLeniency && Solver->GetEvolution()->GetIslandManager().GetParticleResimFrame(Handle) == INDEX_NONE)
+			if (bResimFrameValidationLeniency && Solver->GetEvolution()->GetIslandManager().GetParticleResimFrame(Handle) == INDEX_NONE)
 			{
 				continue;
 			}
@@ -895,7 +903,7 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 			}
 		}
 
-		if (!ResimFrameValidationLeniency)
+		if (!bResimFrameValidationLeniency)
 		{
 			if (bHasTargetHistory)
 			{
@@ -929,7 +937,7 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 	
 	if (!bHasTargetHistory)
 	{
-		ValidFrame = ResimIncompleteHistory ? RequestedFrame : INDEX_NONE;
+		ValidFrame = bResimIncompleteHistory ? RequestedFrame : INDEX_NONE;
 
 #if DEBUG_REWIND_DATA
 		UE_LOG(LogTemp, Warning, TEXT("COMMON | PT | FindValidResimFrame | No valid resim frame found | RequestedFrame: %d | ValidFrame: %d | EarliestFrame: %d | HasTargetHistory: %d | EarliestHistoryFrame: %d | CurrentFrame: %d | FramesSaved: %d, ResimFrameValidationLeniency:%d"), RequestedFrame, ValidFrame, EarliestFrame, bHasTargetHistory, GetEarliestFrame_Internal(), CurrentFrame(), FramesSaved, ResimFrameValidationLeniency);

@@ -38,9 +38,6 @@ namespace Chaos
 	FRealSingle Chaos_GBFCharacteristicTimeRatio = 1.0f;
 	FAutoConsoleVariableRef CVarChaos_GBFCharacteristicTimeRatio(TEXT("p.Chaos.Collision.GBFCharacteristicTimeRatio"), Chaos_GBFCharacteristicTimeRatio, TEXT("The ratio between characteristic time and Dt"));
 
-	bool bChaos_Manifold_EnableGjkWarmStart = true;
-	FAutoConsoleVariableRef CVarChaos_Manifold_EnableGjkWarmStart(TEXT("p.Chaos.Collision.Manifold.EnableGjkWarmStart"), bChaos_Manifold_EnableGjkWarmStart, TEXT(""));
-
 	bool bChaos_Manifold_EnableFrictionRestore = true;
 	FAutoConsoleVariableRef CVarChaos_Manifold_EnableFrictionRestore(TEXT("p.Chaos.Collision.Manifold.EnableFrictionRestore"), bChaos_Manifold_EnableFrictionRestore, TEXT(""));
 	
@@ -1054,8 +1051,7 @@ namespace Chaos
 	{
 		int32 MatchIndex = INDEX_NONE;
 
-		const bool bEnableNetworkPhysicsResim = FPhysicsSolverBase::IsNetworkPhysicsPredictionEnabled();
-		if (bChaos_Manifold_EnableFrictionRestore && !bEnableNetworkPhysicsResim)
+		if (bChaos_Manifold_EnableFrictionRestore)
 		{
 			const FManifoldPoint& ManifoldPoint = ManifoldPoints[ManifoldPointIndex];
 			if (!ManifoldPoint.Flags.bDisabled)

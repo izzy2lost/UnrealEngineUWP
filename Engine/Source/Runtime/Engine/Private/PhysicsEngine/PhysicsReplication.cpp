@@ -87,6 +87,18 @@ namespace PhysicsReplicationCVars
 	static int32 EnableDefaultReplication = 0;
 	static FAutoConsoleVariableRef CVarEnableDefaultReplication(TEXT("np2.EnableDefaultReplication"), EnableDefaultReplication, TEXT("Enable default replication in the networked physics prediction flow."));
 
+	namespace ResimulationCVars
+	{
+		static bool bRuntimeCorrectionEnabled = true;
+		static FAutoConsoleVariableRef CVarResimRuntimeCorrectionEnabled(TEXT("np2.Resim.RuntimeCorrectionEnabled"), bRuntimeCorrectionEnabled, TEXT("Apply runtime corrections while error is smalle enough not to trigger a resim."));
+
+		static float PosStabilityMultiplier = 0.5f;
+		static FAutoConsoleVariableRef CVarResimPosStabilityMultiplier(TEXT("np2.Resim.PosStabilityMultiplier"), PosStabilityMultiplier, TEXT("Recommended range between 0.0-1.0. Lower value means more stable positional corrections."));
+
+		static float RotStabilityMultiplier = 1.0f;
+		static FAutoConsoleVariableRef CVarResimRotStabilityMultiplier(TEXT("np2.Resim.RotStabilityMultiplier"), RotStabilityMultiplier, TEXT("Recommended range between 0.0-1.0. Lower value means more stable rotational corrections."));
+	}
+
 	namespace PredictiveInterpolationCVars
 	{
 		static float PosCorrectionTimeBase = 0.15f;
@@ -1406,62 +1418,95 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 	}
 
 	const int32 LocalFrame = Target.ServerFrame - Target.FrameOffset;
-
-	if (LocalFrame <= RewindData->CurrentFrame() && LocalFrame >= RewindData->GetEarliestFrame_Internal())
+	if (LocalFrame > RewindData->CurrentFrame() || LocalFrame < RewindData->GetEarliestFrame_Internal())
 	{
-		static constexpr Chaos::FFrameAndPhase::EParticleHistoryPhase RewindPhase = Chaos::FFrameAndPhase::EParticleHistoryPhase::PostPushData;
+		if (LocalFrame > 0)
+		{
+			UE_LOG(LogPhysics, Warning, TEXT("FPhysicsReplication::ApplyRigidBodyState target frame (%d) out of rewind data bounds (%d,%d)"), LocalFrame,
+				RewindData->GetEarliestFrame_Internal(), RewindData->CurrentFrame());
+		}
+		return true;
+	}
 
-		FAsyncPhysicsTimestamp TimeStamp;
-		TimeStamp.LocalFrame = RewindData->CurrentFrame();
+	bool bClearTarget = true;
 
-		const float ResimErrorThreshold = Chaos::FPhysicsSolverBase::ResimulationErrorThreshold();
+	static constexpr Chaos::FFrameAndPhase::EParticleHistoryPhase RewindPhase = Chaos::FFrameAndPhase::EParticleHistoryPhase::PostPushData;
+	FAsyncPhysicsTimestamp TimeStamp;
+	TimeStamp.LocalFrame = RewindData->CurrentFrame();
 
-		auto PastState = RewindData->GetPastStateAtFrame(*Handle, LocalFrame, RewindPhase);
+	const float ResimErrorThreshold = Chaos::FPhysicsSolverBase::ResimulationErrorThreshold();
+	const Chaos::FGeometryParticleState PastState = RewindData->GetPastStateAtFrame(*Handle, LocalFrame, RewindPhase);
 
-		const FVector ErrorOffset = (PastState.X() - Target.TargetState.Position);
-		const float ErrorDistance = ErrorOffset.Size();
-		const bool ShouldTriggerResim = ErrorDistance >= ResimErrorThreshold;
-		float ColorLerp = ShouldTriggerResim ? 1.0f : 0.0f;
+	const FVector ErrorOffset = (Target.TargetState.Position - PastState.X());
+	const float ErrorDistance = ErrorOffset.Size();
+	const bool ShouldTriggerResim = ErrorDistance >= ResimErrorThreshold;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
-		if (Chaos::FPhysicsSolverBase::CanDebugNetworkPhysicsPrediction())
-		{
-			UE_LOG(LogTemp, Log, TEXT("Apply Rigid body state at local frame %d with offset = %d"), LocalFrame, Target.FrameOffset);
-			UE_LOG(LogTemp, Log, TEXT("Particle Position Error = %f | Should Trigger Resim = %s | Server Frame = %d | Client Frame = %d"), ErrorDistance, (ShouldTriggerResim ? TEXT("True") : TEXT("False")), Target.ServerFrame, LocalFrame);
-			UE_LOG(LogTemp, Log, TEXT("Particle Target Position = %s | Current Position = %s"), *Target.TargetState.Position.ToString(), *PastState.X().ToString());
-			UE_LOG(LogTemp, Log, TEXT("Particle Target Velocity = %s | Current Velocity = %s"), *Target.TargetState.LinVel.ToString(), *PastState.V().ToString());
-			UE_LOG(LogTemp, Log, TEXT("Particle Target Quaternion = %s | Current Quaternion = %s"), *Target.TargetState.Quaternion.ToString(), *PastState.R().ToString());
-			UE_LOG(LogTemp, Log, TEXT("Particle Target Omega = %s | Current Omega= %s"), *Target.TargetState.AngVel.ToString(), *PastState.W().ToString());
+	if (Chaos::FPhysicsSolverBase::CanDebugNetworkPhysicsPrediction())
+	{
+		UE_LOG(LogTemp, Log, TEXT("Apply Rigid body state at local frame %d with offset = %d"), LocalFrame, Target.FrameOffset);
+		UE_LOG(LogTemp, Log, TEXT("Particle Position Error = %f | Should Trigger Resim = %s | Server Frame = %d | Client Frame = %d"), ErrorDistance, (ShouldTriggerResim ? TEXT("True") : TEXT("False")), Target.ServerFrame, LocalFrame);
+		UE_LOG(LogTemp, Log, TEXT("Particle Target Position = %s | Current Position = %s"), *Target.TargetState.Position.ToString(), *PastState.X().ToString());
+		UE_LOG(LogTemp, Log, TEXT("Particle Target Velocity = %s | Current Velocity = %s"), *Target.TargetState.LinVel.ToString(), *PastState.V().ToString());
+		UE_LOG(LogTemp, Log, TEXT("Particle Target Quaternion = %s | Current Quaternion = %s"), *Target.TargetState.Quaternion.ToString(), *PastState.R().ToString());
+		UE_LOG(LogTemp, Log, TEXT("Particle Target Omega = %s | Current Omega= %s"), *Target.TargetState.AngVel.ToString(), *PastState.W().ToString());
 
-			{ // DrawDebug
-				static constexpr float BoxSize = 5.0f;
-				const FColor DebugColor = FLinearColor::LerpUsingHSV(FLinearColor::Green, FLinearColor::Red, ColorLerp).ToFColor(false);
+		{ // DrawDebug
+			static constexpr float BoxSize = 5.0f;
+			const float ColorLerp = ShouldTriggerResim ? 1.0f : 0.0f;
+			const FColor DebugColor = FLinearColor::LerpUsingHSV(FLinearColor::Green, FLinearColor::Red, ColorLerp).ToFColor(false);
 
-				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Target.TargetState.Position, FVector(BoxSize, BoxSize, BoxSize), Target.TargetState.Quaternion, FColor::Orange, true, CharacterMovementCVars::NetCorrectionLifetime, 0, 1.0f);
-				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(PastState.X(), FVector(6, 6, 6), PastState.R(), DebugColor, true, CharacterMovementCVars::NetCorrectionLifetime, 0, 1.0f);
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Target.TargetState.Position, FVector(BoxSize, BoxSize, BoxSize), Target.TargetState.Quaternion, FColor::Orange, true, CharacterMovementCVars::NetCorrectionLifetime, 0, 1.0f);
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(PastState.X(), FVector(6, 6, 6), PastState.R(), DebugColor, true, CharacterMovementCVars::NetCorrectionLifetime, 0, 1.0f);
 
-				Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PastState.X(), Target.TargetState.Position, 5.0f, FColor::Green, true, CharacterMovementCVars::NetCorrectionLifetime, 0, 0.5f);
-			}
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PastState.X(), Target.TargetState.Position, 5.0f, FColor::MakeRandomSeededColor(LocalFrame), true, CharacterMovementCVars::NetCorrectionLifetime, 0, 0.5f);
 		}
+	}
 #endif
 
-		if (ShouldTriggerResim)
-		{
-			RigidsSolver->GetEvolution()->GetIslandManager().SetParticleResimFrame(Handle, LocalFrame);
+	if (Target.TickCount == 0 && LocalFrame > RewindData->GetBlockedResimFrame() && ShouldTriggerResim)
+	{
+		// Trigger resimulation
+		RigidsSolver->GetEvolution()->GetIslandManager().SetParticleResimFrame(Handle, LocalFrame);
 
-			int32 ResimFrame = RewindData->GetResimFrame();
-			ResimFrame = (ResimFrame == INDEX_NONE) ? LocalFrame : FMath::Min(ResimFrame, LocalFrame);
-			RewindData->SetResimFrame(ResimFrame);
+		int32 ResimFrame = RewindData->GetResimFrame();
+		ResimFrame = (ResimFrame == INDEX_NONE) ? LocalFrame : FMath::Min(ResimFrame, LocalFrame);
+		RewindData->SetResimFrame(ResimFrame);
+	}
+	else if (PhysicsReplicationCVars::ResimulationCVars::bRuntimeCorrectionEnabled)
+	{
+		const int32 NumPredictedFrames = RigidsSolver->GetCurrentFrame() - LocalFrame;
+
+		if (NumPredictedFrames > 0)
+		{
+			// Calculate correction to position
+			const float CorrectionAmountX = PhysicsReplicationCVars::ResimulationCVars::PosStabilityMultiplier / NumPredictedFrames; // Same result as (ErrorOffset / NumPredictedFrames) * PosStabilityMultiplier
+			const FVector CorrectedX = Handle->X() + (ErrorOffset * CorrectionAmountX);
+
+			// Calculate correction to rotation
+			const float CorrectionAmountR = (1.f / NumPredictedFrames) * PhysicsReplicationCVars::ResimulationCVars::RotStabilityMultiplier;
+			const FQuat InvCurrentQuat = PastState.R().Inverse();
+			const FQuat DeltaQuat = Target.TargetState.Quaternion * InvCurrentQuat;
+			const FQuat TargetCorrectionR = Handle->R() * DeltaQuat;
+			const FQuat CorrectedR = FQuat::Slerp(Handle->R(), TargetCorrectionR, CorrectionAmountR);
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+			if (Chaos::FPhysicsSolverBase::CanDebugNetworkPhysicsPrediction())
+			{
+				Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(Handle->X(), CorrectedX, 5.0f, FColor::MakeRandomSeededColor(LocalFrame), true, CharacterMovementCVars::NetCorrectionLifetime, 0, 0.5f);
+			}
+#endif
+			// Apply correction
+			Handle->SetX(CorrectedX);
+			Handle->SetR(CorrectedR);
+
+			// Keep target for NumPredictedFrames time to perform runtime corrections with until a new target is received
+			bClearTarget = Target.TickCount >= NumPredictedFrames;
 		}
 	}
-	else if (LocalFrame > 0)
-	{
-		UE_LOG(LogPhysics, Warning, TEXT("FPhysicsReplication::ApplyRigidBodyState target frame (%d) out of rewind data bounds (%d,%d)"), LocalFrame,
-			RewindData->GetEarliestFrame_Internal(), RewindData->CurrentFrame());
-	}
 
-	return true;
+	return bClearTarget;
 }
 
 FName FPhysicsReplicationAsync::GetFNameForStatId() const

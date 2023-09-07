@@ -1458,6 +1458,9 @@ public:
 	/** This blocks any future resimulation to rewind back past the frame this is called on */
 	void BlockResim();
 
+	/** Get the latest frame resim has been blocked from rewinding past */
+	int32 GetBlockedResimFrame() { return BlockResimFrame; }
+
 private:
 	friend class FPBDRigidsSolver;
 

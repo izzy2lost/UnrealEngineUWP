@@ -69,6 +69,9 @@ namespace Chaos
 	FAutoConsoleVariableRef CVarChaos_Collision_EnableManifoldReplace(TEXT("p.Chaos.Collision.EnableManifoldGJKReplace"), bChaos_Collision_EnableManifoldGJKReplace, TEXT(""));
 	FAutoConsoleVariableRef CVarChaos_Collision_EnableManifoldInject(TEXT("p.Chaos.Collision.EnableManifoldGJKInject"), bChaos_Collision_EnableManifoldGJKInject, TEXT(""));
 
+	bool bChaos_Manifold_EnableGjkWarmStart = true;
+	FAutoConsoleVariableRef CVarChaos_Manifold_EnableGjkWarmStart(TEXT("p.Chaos.Collision.Manifold.EnableGjkWarmStart"), bChaos_Manifold_EnableGjkWarmStart, TEXT(""));
+
 	// See GJKContactPointMargin for comments on why these matter
 	// LWC_TODO: These needs to be a larger values for float builds (1.e-3f)
 	FRealSingle Chaos_Collision_GJKEpsilon = 1.e-6f;
@@ -794,9 +797,7 @@ namespace Chaos
 			const FReal Margin2 = Constraint.GetCollisionMargin1();
 			const FRigidTransform3 Convex2ToConvex1Transform = Convex2Transform.GetRelativeTransformNoScale(Convex1Transform);
 
-			const bool bEnableNetworkPhysicsResim = FPhysicsSolverBase::IsNetworkPhysicsPredictionEnabled();
-			
-			if (bEnableNetworkPhysicsResim)
+			if (!bChaos_Manifold_EnableGjkWarmStart)
 			{
 				Constraint.GetGJKWarmStartData().Reset();
 			}

@@ -693,6 +693,7 @@ void FPBDRigidsEvolutionGBF::ResetCollisions()
 	{
 		if (Collision != nullptr)
 		{
+			Collision->GetContact().ResetSavedManifoldPoints();
 			Collision->GetContact().GetGJKWarmStartData().Reset();
 		}
 	}
