@@ -3,6 +3,7 @@
 
 #include "MetasoundExecutableOperator.h"
 #include "MetasoundGraphOperator.h"
+#include "MetasoundInstanceCounter.h"
 #include "MetasoundOperatorBuilder.h"
 #include "MetasoundOperatorInterface.h"
 #include "MetasoundParameterPack.h"
@@ -93,7 +94,9 @@ namespace Metasound
 
 	DECLARE_TS_MULTICAST_DELEGATE(FOnSetGraph);
 
-	class METASOUNDGENERATOR_API FMetasoundGenerator : public ISoundGenerator
+	class METASOUNDGENERATOR_API FMetasoundGenerator
+	: public ISoundGenerator
+	, FConcurrentMetasoundInstanceCounter
 	{
 	public:
 		using FOperatorUniquePtr = TUniquePtr<Metasound::IOperator>;
@@ -111,6 +114,8 @@ namespace Metasound
 		explicit FMetasoundGenerator(const FOperatorSettings& InOperatorSettings);
 
 		virtual ~FMetasoundGenerator();
+
+		virtual const FName& GetCategoryName() const override;
 
 		/** Set the value of a graph's input data using the assignment operator.
 		 *

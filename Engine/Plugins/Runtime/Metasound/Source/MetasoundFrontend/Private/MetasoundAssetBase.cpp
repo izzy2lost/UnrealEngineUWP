@@ -36,6 +36,8 @@
 #include "NodeTemplates/MetasoundFrontendDocumentTemplatePreprocessor.h"
 #include "StructSerializer.h"
 #include "Templates/SharedPointer.h"
+#include "Trace/Trace.h"
+#include "Trace/Trace.inl"
 #include "UObject/MetaData.h"
 
 #define LOCTEXT_NAMESPACE "MetaSound"
@@ -178,12 +180,19 @@ namespace Metasound
 
 const FString FMetasoundAssetBase::FileExtension(TEXT(".metasound"));
 
+UE_TRACE_EVENT_BEGIN(Cpu, RegisterGraphWithFrontEnd, NoSync)
+	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, AssetName)
+UE_TRACE_EVENT_END()
+
 void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions)
 {
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
 
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::RegisterGraphWithFrontend);
+	UE_TRACE_LOG_SCOPED_T(Cpu, RegisterGraphWithFrontEnd, CpuChannel)
+		<< RegisterGraphWithFrontEnd.AssetName(*GetOwningAssetName());
+	
 	if (!InRegistrationOptions.bForceReregister)
 	{
 		if (IsRegistered())
