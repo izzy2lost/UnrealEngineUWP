@@ -44,16 +44,25 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 			return false;
 		}
 
-		auto MatchesUniverseLambda = [GlobalFilter, Fader, this]()
+		const UDMXEntityFixturePatch* FixturePatch = Fader->GetOwnerFaderGroupChecked().GetFixturePatch();
+		auto MatchesUniverseAndAddressLambda = [GlobalFilter, Fader, FixturePatch, this]()
 		{
-			return
-				Algo::FindByPredicate(GlobalFilter.Universes, [Fader](int32 Universe)
-					{
-						return Universe == Fader->GetUniverseID();
-					}) != nullptr;
+			// True if the fader's universe id matches one of the filtered universes
+			const bool bMatchesUniverse = Algo::FindByPredicate(GlobalFilter.Universes, [Fader](int32 Universe)
+				{
+					return Universe == Fader->GetUniverseID();
+				}) != nullptr;
+
+			// Test fader's starting channel only if set
+			if (GlobalFilter.AbsoluteAddress.IsSet())
+			{
+				const bool bMatchesAddress = FixturePatch && GlobalFilter.AbsoluteAddress == FixturePatch->GetStartingChannel();
+				return bMatchesUniverse && bMatchesAddress;
+			}
+
+			return bMatchesUniverse;
 		};
 
-		const UDMXEntityFixturePatch* FixturePatch = Fader->GetOwnerFaderGroupChecked().GetFixturePatch();
 		auto MatchesFixtureIDLambda = [FixturePatch, GlobalFilter, Fader, this]()
 		{
 			return
@@ -66,14 +75,6 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 						}
 						return true;
 					}) != nullptr;
-		};
-
-		auto MatchesAddressLambda = [FixturePatch, GlobalFilter]()
-		{
-			return
-				FixturePatch &&
-				GlobalFilter.AbsoluteAddress.IsSet() &&
-				GlobalFilter.AbsoluteAddress == FixturePatch->GetStartingChannel();
 		};
 
 		const FString& FaderGroupName = Fader->GetOwnerFaderGroupChecked().GetFaderGroupName();
@@ -100,8 +101,7 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 
 		// True if owner Fader Group matches filter
 		const bool bFaderGroupMatchesFilter =
-			MatchesUniverseLambda() ||
-			MatchesAddressLambda() ||
+			MatchesUniverseAndAddressLambda() ||
 			MatchesFixtureIDLambda() ||
 			MatchesFaderGroupNameLambda();
 

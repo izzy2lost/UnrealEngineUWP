@@ -55,7 +55,7 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 		}
 	}
 
-	bool FFilterModelFaderGroup::MatchesGlobalFilterUniverses(const FGlobalFilter& GlobalFilter) const
+	bool FFilterModelFaderGroup::MatchesGlobalFilterUniverseAndAddress(const FGlobalFilter& GlobalFilter) const
 	{
 		const UDMXControlConsoleFaderGroup* FaderGroup = WeakFaderGroup.Get();
 		if (!FaderGroup || GlobalFilter.Universes.IsEmpty())
@@ -74,24 +74,13 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 					return FixturePatch->GetUniverseID() == Universe;
 				});
 
+		// Test for absolute address only if set
+		if (GlobalFilter.AbsoluteAddress.IsSet())
+		{
+			return MatchingUniversePtr != nullptr && GlobalFilter.AbsoluteAddress == FixturePatch->GetStartingChannel();
+		}
+
 		return MatchingUniversePtr != nullptr;
-	}
-
-	bool FFilterModelFaderGroup::MatchesGlobalFilterAbsoluteAddress(const FGlobalFilter& GlobalFilter) const
-	{
-		const UDMXControlConsoleFaderGroup* FaderGroup = WeakFaderGroup.Get();
-		if (!FaderGroup || !GlobalFilter.AbsoluteAddress.IsSet())
-		{
-			return false;
-		}
-
-		const UDMXEntityFixturePatch* FixturePatch = FaderGroup->GetFixturePatch();
-		if (!FixturePatch)
-		{
-			return false;
-		}
-
-		return GlobalFilter.AbsoluteAddress.IsSet() && GlobalFilter.AbsoluteAddress == FixturePatch->GetStartingChannel();
 	}
 
 	bool FFilterModelFaderGroup::MatchesGlobalFilterNames(const FGlobalFilter& GlobalFilter) const
@@ -186,8 +175,7 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 		const bool bRequiresMatchingFaderGroupName = NameFilterMode == ENameFilterMode::MatchFaderGroupNames || NameFilterMode == ENameFilterMode::MatchFaderAndFaderGroupNames;
 		if (bRequiresMatchingFaderGroupName)
 		{
-			if (!IsMatchingGlobalFilterUniverses(GlobalFilter) &&
-				!IsMatchingGlobalFilterAbsoluteAddress(GlobalFilter) &&
+			if (!IsMatchingGlobalFilterUniverseAndAddress(GlobalFilter) &&
 				!IsMatchingGlobalFilterNames(GlobalFilter) &&
 				!IsMatchingGlobalFilterFixtureIDs(GlobalFilter))
 			{
@@ -243,7 +231,7 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 			});
 	}
 
-	bool FFilterModelFaderGroup::IsMatchingGlobalFilterUniverses(const FGlobalFilter& GlobalFilter) const
+	bool FFilterModelFaderGroup::IsMatchingGlobalFilterUniverseAndAddress(const FGlobalFilter& GlobalFilter) const
 	{
 		const UDMXControlConsoleFaderGroup* FaderGroup = WeakFaderGroup.Get();
 		if (!FaderGroup || GlobalFilter.Universes.IsEmpty())
@@ -263,25 +251,14 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 					return FixturePatch->GetUniverseID() == Universe;
 				}) != nullptr;
 
+		// Test for absolute address only if set
+		if (GlobalFilter.AbsoluteAddress.IsSet())
+		{
+			const bool bMatchesFaderGroupAbsoluteAddress = GlobalFilter.AbsoluteAddress == FixturePatch->GetStartingChannel();
+			return bMatchesFaderGroupUniverse && bMatchesFaderGroupAbsoluteAddress;
+		}
+
 		return bMatchesFaderGroupUniverse;
-	}
-
-	bool FFilterModelFaderGroup::IsMatchingGlobalFilterAbsoluteAddress(const FGlobalFilter& GlobalFilter) const
-	{
-		const UDMXControlConsoleFaderGroup* FaderGroup = WeakFaderGroup.Get();
-		if (!FaderGroup || !GlobalFilter.AbsoluteAddress.IsSet())
-		{
-			return false;
-		}
-
-		const UDMXEntityFixturePatch* FixturePatch = FaderGroup->GetFixturePatch();
-		if (!FixturePatch)
-		{
-			return false;
-		}
-
-		const bool bMatchesFaderGroupAbsoluteAddress = GlobalFilter.AbsoluteAddress == FixturePatch->GetStartingChannel();
-		return bMatchesFaderGroupAbsoluteAddress;
 	}
 
 	bool FFilterModelFaderGroup::IsMatchingGlobalFilterNames(const FGlobalFilter& GlobalFilter) const

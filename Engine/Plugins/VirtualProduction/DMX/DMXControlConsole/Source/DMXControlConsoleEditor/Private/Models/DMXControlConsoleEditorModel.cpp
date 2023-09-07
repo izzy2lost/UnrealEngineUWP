@@ -13,6 +13,7 @@
 #include "DMXControlConsoleFaderGroup.h"
 #include "Editor.h"
 #include "Editor/Transactor.h"
+#include "Engine/EngineTypes.h"
 #include "FileHelpers.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IContentBrowserSingleton.h"
@@ -373,11 +374,11 @@ void UDMXControlConsoleEditorModel::LoadConsole(const FAssetData& AssetData)
 	OnConsoleLoadedDelegate.Broadcast();
 }
 
-void UDMXControlConsoleEditorModel::RequestRefresh()
+void UDMXControlConsoleEditorModel::RequestUpdateEditorModel()
 {
-	if (!ForceRefreshTimerHandle.IsValid())
+	if (!UpdateEditorModelTimerHandle.IsValid())
 	{
-		ForceRefreshTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UDMXControlConsoleEditorModel::ForceRefresh));
+		UpdateEditorModelTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UDMXControlConsoleEditorModel::UpdateEditorModel));
 	}
 }
 
@@ -443,10 +444,11 @@ void UDMXControlConsoleEditorModel::BeginDestroy()
 	}
 }
 
-void UDMXControlConsoleEditorModel::ForceRefresh()
+void UDMXControlConsoleEditorModel::UpdateEditorModel()
 {
-	ForceRefreshTimerHandle.Invalidate();
-	OnControlConsoleForceRefresh.Broadcast();
+	UpdateEditorModelTimerHandle.Invalidate();
+
+	OnEditorModelUpdated.Broadcast();
 }
 
 void UDMXControlConsoleEditorModel::BindToDMXLibraryChanges()
@@ -671,7 +673,7 @@ void UDMXControlConsoleEditorModel::OnDMXLibraryChanged()
 	EditorConsoleLayouts->UpdateDefaultLayout(EditorConsoleData);
 	EditorConsoleLayouts->PostEditChange();
 
-	RequestRefresh();
+	RequestUpdateEditorModel();
 }
 
 void UDMXControlConsoleEditorModel::OnFEngineLoopInitComplete()

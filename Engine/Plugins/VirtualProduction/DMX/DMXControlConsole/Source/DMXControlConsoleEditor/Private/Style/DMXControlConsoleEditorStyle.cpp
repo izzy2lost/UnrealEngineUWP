@@ -18,18 +18,16 @@
 FDMXControlConsoleEditorStyle::FDMXControlConsoleEditorStyle()
 	: FSlateStyleSet("DMXControlConsoleEditorStyle")
 {
-	static const FVector2D Icon16x16(16.f, 16.f);
-	static const FVector2D Icon51x30(51.f, 30.f);
-	static const FVector2D Icon51x31(51.f, 31.f);
-	static const FVector2D Icon40x40(40.f, 40.f);
+	const FVector2D Icon16x16(16.f, 16.f);
+	const FVector2D Icon51x30(51.f, 30.f);
+	const FVector2D Icon51x31(51.f, 31.f);
+	const FVector2D Icon40x40(40.f, 40.f);
 
 	const FSlateColor SelectorColor = FAppStyle::GetSlateColor("SelectorColor");
 
-	const TSharedPtr<FSlateStyleSet> Style = MakeShared<FSlateStyleSet>(GetStyleSetName());
-
-	static const TCHAR* DMXEnginePluginName = TEXT("DMXEngine");
-	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(DMXEnginePluginName);
-	if (ensureMsgf(Plugin.IsValid(), TEXT("Cannot find Plugin 'DMXEngine' hence cannot set the DMXControlConsoleEditorStyle root directory.")))
+	const TCHAR* DMXControlConsolePluginName = TEXT("DMXControlConsole");
+	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(DMXControlConsolePluginName);
+	if (ensureMsgf(Plugin.IsValid(), TEXT("Cannot find Plugin 'DMXControlConsole' hence cannot set the DMXControlConsoleEditorStyle root directory.")))
 	{
 		SetContentRoot(Plugin->GetBaseDir() / TEXT("Content/Slate"));
 	}
@@ -49,10 +47,10 @@ FDMXControlConsoleEditorStyle::FDMXControlConsoleEditorStyle()
 	// Icons
 	{
 		Set("DMXControlConsole.TabIcon", new IMAGE_BRUSH_SVG("DMXControlConsole_16", Icon16x16));
-		Set("DMXControlConsole.PlayDMX", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/play", Icon16x16, FStyleColors::AccentGreen));
+		Set("DMXControlConsole.PlayDMX", new CORE_IMAGE_BRUSH_SVG("Starship/Common/play", Icon16x16, FStyleColors::AccentGreen));
 		Set("DMXControlConsole.StopPlayingDMX", new EDITOR_IMAGE_BRUSH("Icons/generic_stop_16x", Icon16x16, FStyleColors::AccentRed));
 		Set("DMXControlConsole.ResetToDefault", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/Reset", Icon16x16));
-		Set("DMXControlConsole.InputMode", new EDITOR_IMAGE_BRUSH_SVG("Starship/MainToolbar/select", Icon16x16));
+		Set("DMXControlConsole.ControlMode", new EDITOR_IMAGE_BRUSH_SVG("Starship/MainToolbar/select", Icon16x16));
 		Set("DMXControlConsole.Fader.Mute", new CORE_IMAGE_BRUSH("Common/SmallCheckBox", Icon16x16));
 		Set("DMXControlConsole.Fader.Unmute", new CORE_IMAGE_BRUSH("Common/SmallCheckBox_Checked", Icon16x16));
 	}
@@ -106,13 +104,6 @@ FDMXControlConsoleEditorStyle::FDMXControlConsoleEditorStyle()
 		Set("DMXControlConsole.Rounded.SpinBoxBorder_Hovered", new FSlateRoundedBoxBrush(DefaultFaderFillColor, 4.f));
 	}
 
-	// Macros
-	{
-		Set("DMXControlConsole.MacroSineWave", new IMAGE_BRUSH("icon_MacroSineWave_51x31", Icon51x31));
-		Set("DMXControlConsole.MacroMin", new IMAGE_BRUSH("icon_MacroMin_51x30", Icon51x30));
-		Set("DMXControlConsole.MacroMax", new IMAGE_BRUSH("icon_MacroMax_51x30", Icon51x30));
-	}
-
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }
 
@@ -128,3 +119,4 @@ const FDMXControlConsoleEditorStyle& FDMXControlConsoleEditorStyle::Get()
 }
 
 #undef EDITOR_IMAGE_BRUSH_SVG
+#undef EDITOR_IMAGE_BRUSH

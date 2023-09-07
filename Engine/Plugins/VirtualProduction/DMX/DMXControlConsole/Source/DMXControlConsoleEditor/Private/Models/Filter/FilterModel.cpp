@@ -61,22 +61,35 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 		if (UniverseRegex.FindNext())
 		{
 			UniverseSubstring = UniverseRegex.GetCaptureGroup(1);
-			Universes = FDMXEditorUtils::ParseUniverses(UniverseSubstring);
+			Universes.Append(FDMXEditorUtils::ParseUniverses(UniverseSubstring));
 		}
 
-		// Parse fixture IDs. Ignore universes.
-		const FString StringWithoutUniverses = String.Replace(*UniverseSubstring, TEXT(""));
-		FixtureIDs = FDMXEditorUtils::ParseFixtureIDs(StringWithoutUniverses);
+		const FRegexPattern UniverseWithAddressPattern(TEXT("(\\d+\\.)*"));
+		FRegexMatcher UniverseWithAddressRegex(UniverseWithAddressPattern, String);
+		FString UniverseWithAddressSubstring;
+		if (UniverseWithAddressRegex.FindNext())
+		{
+			UniverseWithAddressSubstring = UniverseWithAddressRegex.GetCaptureGroup(0);
+			Universes.Append(FDMXEditorUtils::ParseUniverses(UniverseWithAddressSubstring));
+		}
 
 		// Parse address. Ignore universes.
-		int32 Address;
+		const FString StringWithoutUniverses = String.Replace(*UniverseSubstring, TEXT(""));
+		int32 Address = -1;
 		if (FDMXEditorUtils::ParseAddress(StringWithoutUniverses, Address))
 		{
 			AbsoluteAddress = Address;
 		}
 
+		// Parse fixture IDs. Ignore universes and address.
+		const FString AddressAsString = FString::FromInt(Address);
+		const FString StringWithoutUniversesWithAddress = StringWithoutUniverses.Replace(*UniverseWithAddressSubstring, TEXT(""));
+		const FString StringWithoutUniversesAndAddress = StringWithoutUniversesWithAddress.Replace(*AddressAsString, TEXT(""));
+
+		FixtureIDs = FDMXEditorUtils::ParseFixtureIDs(StringWithoutUniversesAndAddress);
+
 		// Parse names. Ignore universes.
-		Names = ParseStringIntoArray(StringWithoutUniverses);
+		Names = ParseStringIntoArray(StringWithoutUniversesAndAddress);
 	}
 
 	void FGlobalFilter::Reset()
@@ -209,8 +222,7 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 		for (const TSharedRef<FFilterModelFaderGroup>& FaderGroupModel : FaderGroupModels)
 		{
 			bGroupMatchesGlobalFilterNames |= 
-				FaderGroupModel->MatchesGlobalFilterUniverses(GlobalFilter) ||
-				FaderGroupModel->MatchesGlobalFilterAbsoluteAddress(GlobalFilter) ||
+				FaderGroupModel->MatchesGlobalFilterUniverseAndAddress(GlobalFilter) ||
 				FaderGroupModel->MatchesGlobalFilterNames(GlobalFilter) ||
 				FaderGroupModel->MatchesGlobalFilterFixtureIDs(GlobalFilter);
 

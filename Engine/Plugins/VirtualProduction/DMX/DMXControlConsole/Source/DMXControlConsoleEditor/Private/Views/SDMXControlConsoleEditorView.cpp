@@ -78,7 +78,7 @@ void SDMXControlConsoleEditorView::Construct(const FArguments& InArgs)
 	UDMXControlConsoleEditorModel& EditorConsoleModel = GetEditorConsoleModel();
 	EditorConsoleModel.GetOnConsoleLoaded().AddSP(this, &SDMXControlConsoleEditorView::OnConsoleLoaded);
 	EditorConsoleModel.GetOnConsoleSaved().AddSP(this, &SDMXControlConsoleEditorView::OnConsoleSaved);
-	EditorConsoleModel.GetOnControlConsoleForceRefresh().AddSP(this, &SDMXControlConsoleEditorView::OnConsoleRefreshed);
+	EditorConsoleModel.GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorView::OnConsoleRefreshed);
 
 	UDMXControlConsoleData::GetOnDMXLibraryChanged().AddSP(this, &SDMXControlConsoleEditorView::OnDMXLibraryChanged);
 	if (UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel.GetEditorConsoleLayouts())
@@ -320,7 +320,7 @@ void SDMXControlConsoleEditorView::PostUndo(bool bSuccess)
 	UpdateFixturePatchVerticalBox();
 	UpdateLayout();
 	UDMXControlConsoleEditorModel& EditorConsoleModel = GetEditorConsoleModel();
-	EditorConsoleModel.RequestRefresh();
+	EditorConsoleModel.RequestUpdateEditorModel();
 }
 
 void SDMXControlConsoleEditorView::PostRedo(bool bSuccess)
@@ -328,7 +328,7 @@ void SDMXControlConsoleEditorView::PostRedo(bool bSuccess)
 	UpdateFixturePatchVerticalBox();
 	UpdateLayout();
 	UDMXControlConsoleEditorModel& EditorConsoleModel = GetEditorConsoleModel();
-	EditorConsoleModel.RequestRefresh();
+	EditorConsoleModel.RequestUpdateEditorModel();
 }
 
 void SDMXControlConsoleEditorView::RegisterCommands()
@@ -465,7 +465,7 @@ TSharedRef<SWidget> SDMXControlConsoleEditorView::GenerateToolbar()
 			[
 				GenerateButtonContentLambda(
 					FSlateColor::UseForeground(),
-					FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.InputMode"),
+					FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.ControlMode"),
 					LOCTEXT("ControlModeToolbarButtonText", "Control"))
 			];
 

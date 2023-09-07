@@ -208,7 +208,7 @@ FReply FDMXControlConsoleFaderGroupDetails::OnClearButtonClicked()
 	SelectionHandler->AddToSelection(FaderGroupsToSelect, bNotifySelectionChange);
 	SelectionHandler->RemoveFromSelection(FaderGroupsToUnselect);
 
-	EditorConsoleModel->RequestRefresh();
+	EditorConsoleModel->RequestUpdateEditorModel();
 
 	return FReply::Handled();
 }

@@ -38,7 +38,7 @@ namespace UE::DMXControlConsoleEditor::Layout::Private
 
 		UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
 		EditorConsoleModel->GetOnConsoleLoaded().AddSP(this, &SDMXControlConsoleEditorVerticalLayout::Refresh);
-		EditorConsoleModel->GetOnControlConsoleForceRefresh().AddSP(this, &SDMXControlConsoleEditorVerticalLayout::Refresh);
+		EditorConsoleModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorVerticalLayout::Refresh);
 		EditorConsoleModel->GetOnScrollFaderGroupIntoView().AddSP(this, &SDMXControlConsoleEditorVerticalLayout::OnScrollIntoView);
 
 		const TSharedRef<SScrollBar> VerticalScrollBar = SNew(SScrollBar)

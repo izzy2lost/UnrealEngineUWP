@@ -54,8 +54,8 @@ void SDMXControlConsoleEditorFaderGroupView::Construct(const FArguments& InArgs,
 
 	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
 	EditorConsoleModel->GetOnFaderGroupsViewModeChanged().AddSP(this, &SDMXControlConsoleEditorFaderGroupView::OnViewModeChanged);
-	EditorConsoleModel->GetOnControlConsoleForceRefresh().AddSP(this, &SDMXControlConsoleEditorFaderGroupView::OnElementAdded);
-	EditorConsoleModel->GetOnControlConsoleForceRefresh().AddSP(this, &SDMXControlConsoleEditorFaderGroupView::OnElementRemoved);
+	EditorConsoleModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorFaderGroupView::OnElementAdded);
+	EditorConsoleModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorFaderGroupView::OnElementRemoved);
 	FaderGroup->GetOnFixturePatchChanged().AddSP(this, &SDMXControlConsoleEditorFaderGroupView::OnFaderGroupFixturePatchChanged);
 	FaderGroup->GetOnFaderGroupExpanded().AddSP(this, &SDMXControlConsoleEditorFaderGroupView::UpdateExpansionState);
 

@@ -368,7 +368,7 @@ void SDMXControlConsoleAddFixturePatchMenu::SetPatchOnFaderGroup()
 	SelectionHandler->AddToSelection(FaderGroupsToSelect, bNotifySelectionChange);
 	SelectionHandler->RemoveFromSelection(FaderGroupsToUnselect);
 
-	EditorConsoleModel->RequestRefresh();
+	EditorConsoleModel->RequestUpdateEditorModel();
 }
 
 #undef LOCTEXT_NAMESPACE

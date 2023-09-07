@@ -625,7 +625,7 @@ void SDMXControlConsoleEditorFaderGroupToolbar::OnComboBoxSelectionChanged(const
 		}
 	}
 
-	EditorConsoleModel->RequestRefresh();
+	EditorConsoleModel->RequestUpdateEditorModel();
 }
 
 void SDMXControlConsoleEditorFaderGroupToolbar::OnSearchTextChanged(const FText& SearchText)

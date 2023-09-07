@@ -21,7 +21,7 @@ void SDMXControlConsoleEditorLayoutRowView::Construct(const FArguments& InArgs, 
 	}
 
 	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	EditorConsoleModel->GetOnControlConsoleForceRefresh().AddSP(this, &SDMXControlConsoleEditorLayoutRowView::Refresh);
+	EditorConsoleModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorLayoutRowView::Refresh);
 
 	ChildSlot
 		[

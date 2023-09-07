@@ -159,7 +159,7 @@ void SDMXControlConsoleFixturePatchList::Construct(const FArguments& InArgs)
 		.OnRowSelectionChanged(this, &SDMXControlConsoleFixturePatchList::OnSelectionChanged));
 
 	EditorConsoleModel->GetOnConsoleLoaded().AddSP(this, &SDMXControlConsoleFixturePatchList::RequestRefresh);
-	EditorConsoleModel->GetOnControlConsoleForceRefresh().AddSP(this, &SDMXControlConsoleFixturePatchList::RequestRefresh);
+	EditorConsoleModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleFixturePatchList::RequestRefresh);
 	UDMXControlConsoleEditorGlobalLayoutRow::GetOnGlobalLayoutRowChanged().AddSP(this, &SDMXControlConsoleFixturePatchList::OnGlobalLayoutRowChanged);
 
 	RegisterCommands();

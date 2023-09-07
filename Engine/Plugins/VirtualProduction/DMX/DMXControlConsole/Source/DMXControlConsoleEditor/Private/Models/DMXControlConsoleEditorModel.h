@@ -12,6 +12,7 @@
 enum class EDMXControlConsoleLayoutMode : uint8;
 class FDMXControlConsoleEditorSelection;
 struct FDMXReadOnlyFixturePatchListDescriptor;
+struct FTimerHandle;
 class UDMXControlConsoleEditorLayouts;
 class UDMXControlConsoleEditorGlobalLayoutBase;
 class UDMXControlConsoleFaderGroup;
@@ -116,8 +117,8 @@ public:
 	/** Loads a console. Returns the loaded console, or nullptr if the console could not be loaded. */
 	void LoadConsole(const FAssetData& AssetData);
 
-	/** Requests refresh for the current Control Console */
-	void RequestRefresh();
+	/** Requests the Editor Model to be updated */
+	void RequestUpdateEditorModel();
 
 	/** 
 	 * Creates a new Control Console asset from provided source control console in desired package name.
@@ -141,17 +142,17 @@ public:
 	/** Returns a delegate broadcast whenever a console is loaded */
 	FSimpleMulticastDelegate& GetOnConsoleLoaded() { return OnConsoleLoadedDelegate; }
 
-	/** Gets a reference to OnFaderGroupsViewModeChanged delegate */
+	/** Returns a delegate broadcast whenever the Fader Groups view mode is changed */
 	FSimpleMulticastDelegate& GetOnFaderGroupsViewModeChanged() { return OnFaderGroupsViewModeChanged; }
 
-	/** Gets a reference to OnFadersViewModeChanged delegate */
+	/** Returns a delegate broadcast whenever the Faders view mode is changed */
 	FSimpleMulticastDelegate& GetOnFadersViewModeChanged() { return OnFadersViewModeChanged; }
 
-	/** Gets a reference to OnScrollFaderGroupIntoView delegate */
+	/** Returns a delegate broadcast whenever a Fader Group needs to be scrolled into view */
 	FDMXControlConsoleFaderGroupDelegate& GetOnScrollFaderGroupIntoView() { return OnScrollFaderGroupIntoView; }
 
-	/** Gets a reference to OnControlConsoleForceRefresh delegate */
-	FSimpleMulticastDelegate& GetOnControlConsoleForceRefresh() { return OnControlConsoleForceRefresh; }
+	/** Returns a delegate broadcast whenever Editor Model has changed */
+	FSimpleMulticastDelegate& GetOnEditorModelUpdated() { return OnEditorModelUpdated; }
 
 protected:
 	//~ Begin UObject interface
@@ -160,8 +161,8 @@ protected:
 	//~ End UObject interface
 
 private:
-	/** Refreshes Control Console */
-	void ForceRefresh();
+	/** Updates the Editor Model */
+	void UpdateEditorModel();
 
 	/** Binds Editor Model to the current DMX Library changes */
 	void BindToDMXLibraryChanges();
@@ -220,11 +221,11 @@ private:
 	/** Called when a Fader Group needs to be scrolled into view */
 	FDMXControlConsoleFaderGroupDelegate OnScrollFaderGroupIntoView;
 
-	/** Called when Control Console needs to be refreshed */
-	FSimpleMulticastDelegate OnControlConsoleForceRefresh;
+	/** Called when Editor Model has been updated */
+	FSimpleMulticastDelegate OnEditorModelUpdated;
 
-	/** Timer handle in use while refreshing Control Console is requested but not carried out yet */
-	FTimerHandle ForceRefreshTimerHandle;
+	/** Timer handle in use while updating Editor Model is requested but not carried out yet */
+	FTimerHandle UpdateEditorModelTimerHandle;
 
 	/** The filter model for this console editor */
 	TSharedPtr<UE::DMXControlConsoleEditor::FilterModel::Private::FFilterModel> FilterModel;

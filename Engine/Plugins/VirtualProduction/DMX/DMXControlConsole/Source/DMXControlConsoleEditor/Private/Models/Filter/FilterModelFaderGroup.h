@@ -40,11 +40,8 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 		/** Sets the fader group filter */
 		void SetFilter(const FString& InString);
 
-		/** Returns true if this group matches the global filter universes */
-		[[nodiscard]] bool MatchesGlobalFilterUniverses(const FGlobalFilter& GlobalFilter) const;
-
-		/** Returns true if this group matches the global filter absolute addresses */
-		[[nodiscard]] bool MatchesGlobalFilterAbsoluteAddress(const FGlobalFilter& GlobalFilter) const;
+		/** Returns true if this group matches the global filter universes and address */
+		[[nodiscard]] bool MatchesGlobalFilterUniverseAndAddress(const FGlobalFilter& GlobalFilter) const;
 
 		/** Returns true if this group matches the global filter names  (e.g. "MovingHead") */
 		[[nodiscard]] bool MatchesGlobalFilterNames(const FGlobalFilter& GlobalFilter) const;
@@ -62,11 +59,8 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 		void UpdateFaderModels();
 
 	private:
-		/** Returns true if this group matches one of the universes in the global filter */
-		bool IsMatchingGlobalFilterUniverses(const FGlobalFilter& GlobalFilter) const;
-
-		/** Returns true if this group matches one of the absolute addresses in the global filter */
-		bool IsMatchingGlobalFilterAbsoluteAddress(const FGlobalFilter& GlobalFilter) const;
+		/** Returns true if this group matches one of the universes and the absolute address in the global filter */
+		bool IsMatchingGlobalFilterUniverseAndAddress(const FGlobalFilter& GlobalFilter) const;
 
 		/** Returns true if this group matches one of the names in the global filter */
 		bool IsMatchingGlobalFilterNames(const FGlobalFilter& GlobalFilter) const;
