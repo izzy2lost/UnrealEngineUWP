@@ -1494,14 +1494,13 @@ void UNiagaraDataInterfaceDataChannelRead::GetParameterDefinitionHLSL(FNiagaraDa
 		}
 	}
 }
-#endif
 
 bool UNiagaraDataInterfaceDataChannelRead::UpgradeFunctionCall(FNiagaraFunctionSignature& FunctionSignature)
 {
 	TArray<FNiagaraFunctionSignature> Funcs;
 	GetFunctions(Funcs);
 
-	for(const FNiagaraFunctionSignature& Func : Funcs)
+	for (const FNiagaraFunctionSignature& Func : Funcs)
 	{
 		if (Func.Name == FunctionSignature.Name && Func.FunctionVersion > FunctionSignature.FunctionVersion)
 		{
@@ -1512,7 +1511,7 @@ bool UNiagaraDataInterfaceDataChannelRead::UpgradeFunctionCall(FNiagaraFunctionS
 			FunctionSignature.GetVariadicOutputs(VariadicOutputs);
 
 			FunctionSignature = Func;
-			for(FNiagaraVariableBase& Param : VariadicInputs)
+			for (FNiagaraVariableBase& Param : VariadicInputs)
 			{
 				FunctionSignature.AddInput(Param);
 			}
@@ -1526,6 +1525,8 @@ bool UNiagaraDataInterfaceDataChannelRead::UpgradeFunctionCall(FNiagaraFunctionS
 
 	return false;
 }
+
+#endif
 
 void UNiagaraDataInterfaceDataChannelRead::BuildShaderParameters(FNiagaraShaderParametersBuilder& ShaderParametersBuilder) const
 {
