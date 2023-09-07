@@ -211,7 +211,8 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 					}
 				}
 
-				if (bCounterCompenstateInterpolationByRootMotion)
+				// Don't compensate interpolation by the root motion angle delta if the previous angle isn't valid.
+				if (bCounterCompenstateInterpolationByRootMotion && !PreviousRootMotionDeltaDirection.IsNearlyZero(UE_SMALL_NUMBER))
 				{
 #if !ENABLE_ANIM_DEBUG
 					float RootMotionDeltaAngleRad;
