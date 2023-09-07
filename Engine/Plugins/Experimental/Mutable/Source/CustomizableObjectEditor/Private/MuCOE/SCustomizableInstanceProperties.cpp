@@ -76,14 +76,37 @@ void SCustomizableInstanceProperties::Construct(const FArguments& InArgs)
 
 		StateNames.Sort(&CompareNames);
 
-		// Store the texture parameters data required for the ui.
-		TextureParameterValueNames.Add(MakeShareable(new FString("None")));
-		TextureParameterValues.Add(FName());
+		// Store which Texture Parameter values can be selected.
+		// Get default values.
+		for (const FCustomizableObjectTextureParameterValue& TextureParameter : CustomInstance->GetTextureParameters())
+		{
+			const FName DefaultValue = CustomizableObject->GetTextureParameterDefaultValue(TextureParameter.ParameterName);
+			
+			if (!TextureParameterValues.Contains(DefaultValue))
+			{
+				TextureParameterValueNames.Add(MakeShareable(new FString(DefaultValue.ToString())));
+				TextureParameterValues.Add(DefaultValue);	
+			}
+		}
+
+		// Get values from registered providers providers.
 		TArray<FCustomizableObjectExternalTexture> Textures = UCustomizableObjectSystem::GetInstance()->GetTextureParameterValues();
 		for (int i = 0; i < Textures.Num(); ++i)
 		{
 			TextureParameterValueNames.Add(MakeShareable(new FString(Textures[i].Name)));
 			TextureParameterValues.Add(Textures[i].Value);
+		}
+
+		// Get values from TextureParameterDeclarations.
+		for (TObjectPtr<UTexture2D> Declaration : CustomInstance->GetTextureParameterDeclarations())
+		{
+			if (!Declaration)
+			{
+				continue;
+			}
+			
+			TextureParameterValueNames.Add(MakeShareable(new FString(Declaration.GetName())));
+			TextureParameterValues.Add(FName(Declaration.GetPathName()));
 		}
 
 		SetParameterProfileNamesOnEditor();

@@ -24,6 +24,10 @@
 	#include "Async/TaskGraphInterfaces.h"
 #endif
 
+#if WITH_EDITORONLY_DATA
+class UEditorImageProvider;
+#endif
+
 class UCustomizableObjectSystem;
 namespace LowLevelTasks { enum class ETaskPriority : int8; }
 struct FTexturePlatformData;
@@ -766,5 +770,10 @@ public:
 	
 	/** Mutable TaskGraph system (Mutable Thread). */
 	FMutableTaskGraph MutableTaskGraph;
+	
+#if WITH_EDITORONLY_DATA
+	/** Mutable default image provider. Used by the COIEditor and Instance/Descriptor APIs. */
+	TObjectPtr<UEditorImageProvider> EditorImageProvider = nullptr;
+#endif
 };
 

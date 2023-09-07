@@ -290,15 +290,6 @@ public:
 	/** [Texture Parameters] Remove all images from the cache. */
 	void ClearImageCache();
 
-	/** Initialize (if was not already) and get the default image provider. */
-	UDefaultImageProvider& GetOrCreateDefaultImageProvider();
-
-private:
-	/** Mutable default image provider. Used by the COIEditor and Instance/Descriptor APIs. */
-	UPROPERTY()
-	TObjectPtr<UDefaultImageProvider> DefaultImageProvider = nullptr;
-
-public:
 	// Show a warning on-screen and via a notification (if in Editor) and log an error when a CustomizableObject is
 	// being used and it's not compiled.  Callers can add additional information to the error log.
 	void AddUncompiledCOWarning(const UCustomizableObject& InObject, FString const* OptionalLogInfo = nullptr);

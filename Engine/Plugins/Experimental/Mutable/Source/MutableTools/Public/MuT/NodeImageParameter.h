@@ -58,6 +58,10 @@ namespace mu
 		//! Set the uid of the parameter.
 		void SetUid( const char* );
 
+    	//! Get the default value of the parameter.
+    	FName GetDefaultValue() const;
+    	void SetDefaultValue(FName Value);
+    	
 		//! Set the number of ranges (dimensions) for this parameter.
 		//! By default a parameter has 0 ranges, meaning it only has one value.
 		void SetRangeCount(int Index);

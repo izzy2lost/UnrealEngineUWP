@@ -244,23 +244,6 @@ void UCustomizableInstancePrivateData::PrepareForUpdate(const TSharedPtr<FMutabl
 
 #if WITH_EDITOR
 
-void UCustomizableObjectInstance::PreEditChange(FProperty* PropertyAboutToChange)
-{
-	UObject::PreEditChange(PropertyAboutToChange);
-	
-	const FName PropertyName = PropertyAboutToChange ? PropertyAboutToChange->GetFName() : NAME_None;
-
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(UCustomizableObjectInstance, TextureParameterDeclarations))
-	{
-		UDefaultImageProvider& DefaultImageProvider = UCustomizableObjectSystem::GetInstance()->GetOrCreateDefaultImageProvider();
-		
-		for (const TObjectPtr<UTexture2D>& Texture : TextureParameterDeclarations)
-		{
-			DefaultImageProvider.Remove(Texture);
-		}
-	}
-}
-
 
 void UCustomizableObjectInstance::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
@@ -272,13 +255,6 @@ void UCustomizableObjectInstance::PostEditChangeProperty(FPropertyChangedEvent& 
 
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UCustomizableObjectInstance, TextureParameterDeclarations))
 	{
-		UDefaultImageProvider& DefaultImageProvider = UCustomizableObjectSystem::GetInstance()->GetOrCreateDefaultImageProvider();
-		
-		for (const TObjectPtr<UTexture2D>& Texture : TextureParameterDeclarations)
-		{
-			DefaultImageProvider.Add(Texture);
-		}
-
 		UpdateSkeletalMeshAsync(true, true);
 	}
 }
@@ -2456,12 +2432,6 @@ void UCustomizableObjectInstance::SetTextureParameterSelectedOption(const FStrin
 }
 
 
-void UCustomizableObjectInstance::SetTextureParameterSelectedOptionT(const FString& TextureParamName, UTexture2D* TextureValue, const int32 RangeIndex)
-{
-	Descriptor.SetTextureParameterSelectedOptionT(TextureParamName, TextureValue, RangeIndex);
-}
-
-
 FLinearColor UCustomizableObjectInstance::GetColorParameterSelectedOption(const FString& ColorParamName) const
 {
 	return Descriptor.GetColorParameterSelectedOption(ColorParamName);
@@ -2952,6 +2922,13 @@ FDescriptorRuntimeHash UCustomizableObjectInstance::GetUpdateDescriptorRuntimeHa
 {
 	return UpdateDescriptorRuntimeHash;
 }
+
+#if WITH_EDITOR
+const TArray<TObjectPtr<UTexture2D>>& UCustomizableObjectInstance::GetTextureParameterDeclarations() const
+{
+	return TextureParameterDeclarations;
+}
+#endif
 
 
 UCustomizableInstancePrivateData* UCustomizableObjectInstance::GetPrivate() const

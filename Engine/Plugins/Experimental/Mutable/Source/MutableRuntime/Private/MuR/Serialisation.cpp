@@ -40,22 +40,36 @@ namespace mu
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(UE::Math::TIntVector2<uint16>);                
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(UE::Math::TIntVector2<int16>); 
 
-	template <>
-    void operator<<<FString>(OutputArchive& arch, const FString& t)
+	
+    void operator<<(OutputArchive& arch, const FString& t)
     {
 	    const TArray<TCHAR>& Data = t.GetCharArray();
     	arch << Data;
     }
 
 
-    template <>
-    void operator>><FString>(InputArchive& arch, FString& t)
+    void operator>>(InputArchive& arch, FString& t)
     {
 	    TArray<TCHAR> Data;
     	arch >> Data;
 
     	t = FString(Data.GetData()); // Construct from raw pointer to avoid double zero terminating character
     }
+
+
+    void operator<<(OutputArchive& arch, const FName& v)
+    {
+	    arch << v.ToString();
+    }
+
+
+    void operator>>(InputArchive& arch, FName& v)
+    {
+	    FString Temp;
+	    arch >> Temp;
+	    v = FName(Temp);
+    }
+
 
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------

@@ -28,6 +28,7 @@
 #include "UObject/UObjectIterator.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "ContentStreaming.h"
+#include "MuCO/EditorImageProvider.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -37,6 +38,7 @@
 #else
 #include "Engine/Engine.h"
 #endif
+
 
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableObjectSystem)
@@ -385,6 +387,12 @@ void UCustomizableObjectSystem::InitSystem()
 	Private->ImageProvider = Provider;
 	Private->MutableSystem->SetImageParameterGenerator(Provider);
 
+#if WITH_EDITORONLY_DATA
+	Private->EditorImageProvider = NewObject<UEditorImageProvider>();
+	check(Private->EditorImageProvider);
+	RegisterImageProvider(Private->EditorImageProvider);
+#endif
+	
 #if WITH_EDITOR
 	if (!IsRunningGame())
 	{
@@ -523,6 +531,10 @@ void FCustomizableObjectSystemPrivate::AddReferencedObjects(FReferenceCollector&
 	{
 		Collector.AddReferencedObject(CurrentInstanceBeingUpdated);
 	}
+
+#if WITH_EDITORONLY_DATA
+	Collector.AddReferencedObject(EditorImageProvider);
+#endif
 }
 
 
@@ -2958,18 +2970,6 @@ void UCustomizableObjectSystem::UnregisterImageProvider(UCustomizableSystemImage
 	GetPrivateChecked()->GetImageProviderChecked()->ImageProviders.Remove(Provider);
 }
 
-
-
-UDefaultImageProvider& UCustomizableObjectSystem::GetOrCreateDefaultImageProvider()
-{
-	if (!DefaultImageProvider)
-	{
-		DefaultImageProvider = NewObject<UDefaultImageProvider>();
-		RegisterImageProvider(DefaultImageProvider);
-	}
-
-	return *DefaultImageProvider;
-}
 
 static bool bRevertCacheTextureParameters = false;
 static FAutoConsoleVariableRef CVarRevertCacheTextureParameters(

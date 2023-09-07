@@ -20,6 +20,7 @@ namespace mu
 
 		static NODE_TYPE s_type;
 
+    	FName m_defaultValue;
 		string m_name;
 		string m_uid;
 
@@ -28,9 +29,10 @@ namespace mu
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32 ver = 2;
+            uint32 ver = 3;
 			arch << ver;
 
+			arch << m_defaultValue;
 			arch << m_name;
 			arch << m_uid;
 			arch << m_ranges;
@@ -41,8 +43,13 @@ namespace mu
 		{
             uint32 ver;
 			arch >> ver;
-            check(ver<=2);
+            check(ver <= 3);
 
+			if (ver >= 3)
+			{
+				arch >> m_defaultValue;
+			}
+			
 			arch >> m_name;
             arch >> m_uid;
 

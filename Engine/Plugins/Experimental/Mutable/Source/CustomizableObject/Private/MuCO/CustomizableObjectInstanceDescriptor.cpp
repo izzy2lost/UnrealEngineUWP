@@ -1395,18 +1395,6 @@ void FCustomizableObjectInstanceDescriptor::SetTextureParameterSelectedOption(co
 }
 
 
-void FCustomizableObjectInstanceDescriptor::SetTextureParameterSelectedOptionT(const FString& TextureParamName,	UTexture2D* TextureValue, int32 RangeIndex)
-{
-	check(CustomizableObject);
-	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set Int parameter "));
-
-	UDefaultImageProvider& UDefaultImageProvider = UCustomizableObjectSystem::GetInstance()->GetOrCreateDefaultImageProvider();
-	const FString Id = UDefaultImageProvider.Add(TextureValue);
-	
-	SetTextureParameterSelectedOption(TextureParamName, Id, RangeIndex);
-}
-
-
 FLinearColor FCustomizableObjectInstanceDescriptor::GetColorParameterSelectedOption(const FString& ColorParamName) const
 {
 	check(CustomizableObject);

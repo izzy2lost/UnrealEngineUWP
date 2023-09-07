@@ -180,7 +180,6 @@ public:
 
 	// UObject interface.
 #if WITH_EDITOR
-	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual bool CanEditChange( const FProperty* InProperty ) const override;
 #endif //WITH_EDITOR
@@ -397,10 +396,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	void SetTextureParameterSelectedOption(const FString& TextureParamName, const FString& TextureValue, int32 RangeIndex = -1);
 
-	/** @deprecated Use SetTextureParameterSelectedOption instead. */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	void SetTextureParameterSelectedOptionT(const FString& TextureParamName, UTexture2D* TextureValue, int32 RangeIndex = -1);
-	
 	// Gets the value of a color parameter with name "ColorParamName"
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	FLinearColor GetColorParameterSelectedOption(const FString& ColorParamName) const;
@@ -684,6 +679,10 @@ public:
 	/** Return the UCustomizableObjectInstance::Descriptor hash on the last successful update. */
 	FDescriptorRuntimeHash GetUpdateDescriptorRuntimeHash() const;
 
+#if WITH_EDITOR
+	const TArray<TObjectPtr<UTexture2D>>& GetTextureParameterDeclarations() const;
+#endif
+	
 	// --------------------------------------------------------------------
 
 	/** Flag to know if a property of this instance changed in the editor */
@@ -754,7 +753,7 @@ private:
 	int32 CurrentMaxLOD = -1;
 
 #if WITH_EDITORONLY_DATA
-	/** Textures used in the Texture Parameters. */
+	/** Textures which can used as values in Texture Parameters. */
 	UPROPERTY(EditAnywhere, Category = TextureParameter)
 	TArray<TObjectPtr<UTexture2D>> TextureParameterDeclarations;
 

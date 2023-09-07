@@ -91,6 +91,20 @@ namespace mu
 		}
 	}
 
+	
+	//---------------------------------------------------------------------------------------------
+	FName NodeImageParameter::GetDefaultValue() const
+	{
+		return m_pD->m_defaultValue;
+	}
+
+	
+	//---------------------------------------------------------------------------------------------
+	void NodeImageParameter::SetDefaultValue(FName Value)
+	{
+    	m_pD->m_defaultValue = Value;
+	}
+
 
 	//---------------------------------------------------------------------------------------------
 	void NodeImageParameter::SetRangeCount(int i)

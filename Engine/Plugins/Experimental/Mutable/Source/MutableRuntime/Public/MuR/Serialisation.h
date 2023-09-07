@@ -373,11 +373,15 @@ namespace mu
 	MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(FVector4f);
 	
 	//---------------------------------------------------------------------------------------------
-	template<>
-	void operator<< <FString>(OutputArchive& arch, const FString& t);
+	void operator<< (OutputArchive& arch, const FString& t);
 	
-	template<>
-	void operator>> <FString>(InputArchive& arch, FString& t);
+	void operator>> (InputArchive& arch, FString& t);
+
+
+	//---------------------------------------------------------------------------------------------
+	MUTABLERUNTIME_API void operator<<(OutputArchive& arch, const FName& v);
+
+	MUTABLERUNTIME_API void operator>>(InputArchive& arch, FName& v);
 
 
 	//---------------------------------------------------------------------------------------------
@@ -405,21 +409,6 @@ namespace mu
 			Arch >> V[Index];
 		}
 	}
-
-	//---------------------------------------------------------------------------------------------
-	template<> 
-	inline void operator<<(OutputArchive& arch, const FName& v)
-	{
-		arch << v.ToString();
-	}
-
-	template<> 
-	inline void operator>>(InputArchive& arch, FName& v)
-	{
-		FString Temp;
-		arch >> Temp;
-		v = FName(Temp);
-	}
-
+	
 }
 
