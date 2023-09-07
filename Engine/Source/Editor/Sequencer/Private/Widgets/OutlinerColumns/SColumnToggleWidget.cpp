@@ -6,6 +6,7 @@
 #include "ISequencerOutlinerColumn.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "MVVM/ViewModels/OutlinerViewModel.h"
+#include "MVVM/SharedViewModelData.h"
 #include "Sequencer.h"
 
 #define LOCTEXT_NAMESPACE "SColumnToggleWidget"
@@ -69,6 +70,8 @@ void SColumnToggleWidget::Construct(
 
 	WeakOutlinerExtension = InParams.OutlinerExtension;
 	WeakEditor = InParams.Editor->CastThisSharedChecked<FSequencerEditorViewModel>();
+
+	ModelID = InParams.OutlinerExtension.AsModel()->GetModelID();
 
 	bIsMouseOverWidget = false;
 	bIsActive = false;
@@ -147,14 +150,6 @@ FSlateColor SColumnToggleWidget::GetImageColorAndOpacity() const
 
 const FSlateBrush* SColumnToggleWidget::GetBrush() const
 {
-	TSharedPtr<FEditorViewModel> Editor = WeakEditor.Pin();
-	TViewModelPtr<IOutlinerExtension> OutlinerItem = WeakOutlinerExtension.Pin();
-
-	if (!Editor || !OutlinerItem)
-	{
-		return ActiveBrush;
-	}
-
 	if (bIsChildActive
 		&& !bIsActive
 		&& !bIsMouseOverWidget)

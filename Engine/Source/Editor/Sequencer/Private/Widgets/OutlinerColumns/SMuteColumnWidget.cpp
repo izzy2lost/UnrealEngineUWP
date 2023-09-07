@@ -2,7 +2,11 @@
 
 #include "Widgets/OutlinerColumns/SMuteColumnWidget.h"
 
-#include "MVVM/MuteEditorExtension.h"
+
+#include "MVVM/SharedViewModelData.h"
+#include "MVVM/Selection/Selection.h"
+#include "MVVM/Extensions/IMutableExtension.h"
+#include "MVVM/ViewModels/SequenceModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 
 namespace UE::Sequencer
@@ -21,18 +25,15 @@ void SMuteColumnWidget::Construct(const FArguments& InArgs, const TWeakPtr<ISequ
 		InWeakOutlinerColumn,
 		InParams
 	);
+
+	WeakMuteStateCacheExtension = CastViewModel<FMuteStateCacheExtension>(InParams.OutlinerExtension.AsModel()->GetSharedData());
 }
 
 bool SMuteColumnWidget::IsActive() const
 {
-	TSharedPtr<FSequencerEditorViewModel> SequencerEditor = WeakEditor.Pin();
-	if (SequencerEditor)
+	if (TViewModelPtr<FMuteStateCacheExtension> MuteStateCache = WeakMuteStateCacheExtension.Pin())
 	{
-		FMuteEditorExtension* MuteEditorExtension = SequencerEditor->CastDynamic<FMuteEditorExtension>();
-		if (MuteEditorExtension)
-		{
-			return MuteEditorExtension->IsNodeMuted(WeakOutlinerExtension);
-		}
+		return EnumHasAnyFlags(MuteStateCache->GetCachedFlags(ModelID), ECachedMuteState::Muted);
 	}
 
 	return false;
@@ -40,27 +41,64 @@ bool SMuteColumnWidget::IsActive() const
 
 void SMuteColumnWidget::SetIsActive(const bool bInIsActive)
 {
-	TSharedPtr<FSequencerEditorViewModel> SequencerEditor = WeakEditor.Pin();
-	if (SequencerEditor)
+	TViewModelPtr<IOutlinerExtension> OutlinerItem = WeakOutlinerExtension.Pin();
+	if (!OutlinerItem)
 	{
-		FMuteEditorExtension* MuteEditorExtension = SequencerEditor->CastDynamic<FMuteEditorExtension>();
-		if (MuteEditorExtension)
+		return;
+	}
+
+	TSharedPtr<FSequenceModel> SequenceModel = OutlinerItem.AsModel()->FindAncestorOfType<FSequenceModel>();
+	if (!SequenceModel)
+	{
+		return;
+	}
+
+	const FScopedTransaction Transaction(NSLOCTEXT("Sequencer", "SetNodeMuted", "Set Node Muted"));
+
+	if (OutlinerItem->GetSelectionState() == EOutlinerSelectionState::SelectedDirectly)
+	{
+		// If selected, modify all selected items
+		for (FViewModelPtr Selected : SequenceModel->GetEditor()->GetSelection()->Outliner)
 		{
-			MuteEditorExtension->SetNodeMuted(WeakOutlinerExtension, bInIsActive);
+			SetIsActive(Selected, bInIsActive);
+		}
+	}
+	else
+	{
+		SetIsActive(OutlinerItem.AsModel(), bInIsActive);
+	}
+}
+
+void SMuteColumnWidget::SetIsActive(const FViewModelPtr& ViewModel, const bool bInIsActive)
+{
+	TViewModelPtr<IMutableExtension> Mutable = ViewModel.ImplicitCast();
+	if (bInIsActive)
+	{
+		// If this is mutable, mute only this
+		if (Mutable)
+		{
+			Mutable->SetIsMuted(true);
+		}
+		// Otherwise mute mutable children of this (if any)
+		else for (TViewModelPtr<IMutableExtension> Child : ViewModel->GetDescendantsOfType<IMutableExtension>())
+		{
+			Child->SetIsMuted(true);
+		}
+	}
+	else
+	{
+		for (TViewModelPtr<IMutableExtension> Child : ViewModel->GetDescendantsOfType<IMutableExtension>(true))
+		{
+			Child->SetIsMuted(false);
 		}
 	}
 }
 
 bool SMuteColumnWidget::IsChildActive() const
 {
-	TSharedPtr<FSequencerEditorViewModel> SequencerEditor = WeakEditor.Pin();
-	if (SequencerEditor)
+	if (TViewModelPtr<FMuteStateCacheExtension> MuteStateCache = WeakMuteStateCacheExtension.Pin())
 	{
-		FMuteEditorExtension* MuteEditorExtension = SequencerEditor->CastDynamic<FMuteEditorExtension>();
-		if (MuteEditorExtension)
-		{
-			return MuteEditorExtension->HasMutedChildNode(WeakOutlinerExtension);
-		}
+		return EnumHasAnyFlags(MuteStateCache->GetCachedFlags(ModelID), ECachedMuteState::PartiallyMutedChildren);
 	}
 
 	return false;
@@ -68,14 +106,9 @@ bool SMuteColumnWidget::IsChildActive() const
 
 bool SMuteColumnWidget::IsImplicitlyActive() const
 {
-	TSharedPtr<FSequencerEditorViewModel> SequencerEditor = WeakEditor.Pin();
-	if (SequencerEditor)
+	if (TViewModelPtr<FMuteStateCacheExtension> MuteStateCache = WeakMuteStateCacheExtension.Pin())
 	{
-		FMuteEditorExtension* MuteEditorExtension = SequencerEditor->CastDynamic<FMuteEditorExtension>();
-		if (MuteEditorExtension)
-		{
-			return MuteEditorExtension->IsNodeImplicitlyMuted(WeakOutlinerExtension);
-		}
+		return EnumHasAnyFlags(MuteStateCache->GetCachedFlags(ModelID), ECachedMuteState::ImplicitlyMutedByParent);
 	}
 
 	return false;

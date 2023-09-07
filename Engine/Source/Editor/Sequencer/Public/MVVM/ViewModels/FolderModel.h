@@ -28,7 +28,7 @@ class FLayerBarModel;
 class FSequenceModel;
 
 class FFolderModel
-	: public FOutlinerItemModel
+	: public FMuteSoloOutlinerItemModel
 	, public IRenameableExtension
 	, public ITrackAreaExtension
 	, public IGroupableExtension
@@ -41,7 +41,7 @@ class FFolderModel
 public:
 
 	UE_SEQUENCER_DECLARE_CASTABLE(FFolderModel
-		, FOutlinerItemModel
+		, FMuteSoloOutlinerItemModel
 		, IRenameableExtension
 		, ITrackAreaExtension
 		, IGroupableExtension

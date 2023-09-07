@@ -3,8 +3,9 @@
 #include "OutlinerColumns/SoloOutlinerColumn.h"
 
 #include "ISequencerOutlinerColumn.h"
+#include "MVVM/SharedViewModelData.h"
 #include "MVVM/Extensions/IOutlinerExtension.h"
-#include "MVVM/SoloEditorExtension.h"
+#include "MVVM/Extensions/ISoloableExtension.h"
 #include "MVVM/ViewModels/EditorViewModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "Widgets/Layout/SScaleBox.h"
@@ -26,13 +27,9 @@ bool FSoloOutlinerColumn::IsItemCompatibleWithColumn(const UE::Sequencer::FCreat
 {
 	using namespace UE::Sequencer;
 
-	if (InParams.Editor)
+	if (FSoloStateCacheExtension* SoloStateCache = InParams.OutlinerExtension.AsModel()->GetSharedData()->CastThis<FSoloStateCacheExtension>())
 	{
-		FSoloEditorExtension* SoloEditorExtension = InParams.Editor->CastDynamic<FSoloEditorExtension>();
-		if (SoloEditorExtension)
-		{
-			return SoloEditorExtension->IsNodeSoloable(InParams.OutlinerExtension);
-		}
+		return EnumHasAnyFlags(SoloStateCache->GetCachedFlags(InParams.OutlinerExtension), ECachedSoloState::Soloable | ECachedSoloState::SoloableChildren);
 	}
 
 	return false;

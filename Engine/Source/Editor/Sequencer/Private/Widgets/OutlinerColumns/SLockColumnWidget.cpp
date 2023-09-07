@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Widgets/OutlinerColumns/SLockColumnWidget.h"
-
-#include "MVVM/LockEditorExtension.h"
+#include "MVVM/SharedViewModelData.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/Extensions/ILockableExtension.h"
+#include "MVVM/ViewModels/SequenceModel.h"
+#include "MVVM/Selection/Selection.h"
 
 namespace UE::Sequencer
 {
@@ -15,18 +17,15 @@ void SLockColumnWidget::Construct(const FArguments& InArgs, const TWeakPtr<ISequ
 		InWeakOutlinerColumn,
 		InParams
 	);
+
+	WeakLockStateCacheExtension = CastViewModel<FLockStateCacheExtension>(InParams.OutlinerExtension.AsModel()->GetSharedData());
 }
 
 bool SLockColumnWidget::IsActive() const
 {
-	TSharedPtr<FSequencerEditorViewModel> SequencerEditor = WeakEditor.Pin();
-	if (SequencerEditor)
+	if (TViewModelPtr<FLockStateCacheExtension> StateCache = WeakLockStateCacheExtension.Pin())
 	{
-		FLockEditorExtension* LockEditorExtension = SequencerEditor->CastDynamic<FLockEditorExtension>();
-		if (LockEditorExtension)
-		{
-			return LockEditorExtension->IsNodeLocked(WeakOutlinerExtension);
-		}
+		return EnumHasAnyFlags(StateCache->GetCachedFlags(ModelID), ECachedLockState::Locked);
 	}
 
 	return false;
@@ -34,27 +33,47 @@ bool SLockColumnWidget::IsActive() const
 
 void SLockColumnWidget::SetIsActive(const bool bInIsActive)
 {
-	TSharedPtr<FSequencerEditorViewModel> SequencerEditor = WeakEditor.Pin();
-	if (SequencerEditor)
+	TViewModelPtr<IOutlinerExtension> OutlinerItem = WeakOutlinerExtension.Pin();
+	if (!OutlinerItem)
 	{
-		FLockEditorExtension* LockEditorExtension = SequencerEditor->CastDynamic<FLockEditorExtension>();
-		if (LockEditorExtension)
+		return;
+	}
+
+	TSharedPtr<FSequenceModel> SequenceModel = OutlinerItem.AsModel()->FindAncestorOfType<FSequenceModel>();
+	if (!SequenceModel)
+	{
+		return;
+	}
+
+	const FScopedTransaction Transaction(NSLOCTEXT("Sequencer", "SetNodeLocked", "Set Node Locked"));
+
+	if (OutlinerItem->GetSelectionState() == EOutlinerSelectionState::SelectedDirectly)
+	{
+		// modify all selected items
+		for (FViewModelPtr OutlinerNode : SequenceModel->GetEditor()->GetSelection()->Outliner)
 		{
-			LockEditorExtension->SetNodeLocked(WeakOutlinerExtension, bInIsActive);
+			for (TSharedPtr<ILockableExtension> Lockable : OutlinerNode->GetDescendantsOfType<ILockableExtension>(true))
+			{
+				Lockable->SetIsLocked(bInIsActive);
+			}
+		}
+	}
+	else
+	{
+		// only one unselected item was toggled, toggle just that node
+		FViewModelPtr Item = OutlinerItem;
+		for (TSharedPtr<ILockableExtension> Lockable : Item->GetDescendantsOfType<ILockableExtension>(true))
+		{
+			Lockable->SetIsLocked(bInIsActive);
 		}
 	}
 }
 
 bool SLockColumnWidget::IsChildActive() const
 {
-	TSharedPtr<FSequencerEditorViewModel> SequencerEditor = WeakEditor.Pin();
-	if (SequencerEditor)
+	if (TViewModelPtr<FLockStateCacheExtension> StateCache = WeakLockStateCacheExtension.Pin())
 	{
-		FLockEditorExtension* LockEditorExtension = SequencerEditor->CastDynamic<FLockEditorExtension>();
-		if (LockEditorExtension)
-		{
-			return LockEditorExtension->HasLockedChildNode(WeakOutlinerExtension);
-		}
+		return EnumHasAnyFlags(StateCache->GetCachedFlags(ModelID), ECachedLockState::PartiallyLockedChildren);
 	}
 
 	return false;

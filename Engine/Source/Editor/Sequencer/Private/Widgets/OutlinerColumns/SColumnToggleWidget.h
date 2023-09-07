@@ -124,6 +124,13 @@ private:
 	/** Scoped undo transaction. */
 	TUniquePtr<FScopedTransaction> UndoTransaction;
 
+protected:
+
+	/** Cached model ID of the outliner widget this widget relates to */
+	uint32 ModelID;
+
+private:
+
 	/** Whether or not the mouse is directly over the widget. */
 	uint8 bIsMouseOverWidget : 1;
 

@@ -7,6 +7,8 @@
 namespace UE::Sequencer
 {
 
+class FLockStateCacheExtension;
+
 /**
 * A widget that shows and controls the locked state of outliner items.
 */
@@ -31,6 +33,11 @@ public:
 
 	/** Returns the brush to display when this item is locked. */
 	virtual const FSlateBrush* GetActiveBrush() const override;
+
+private:
+
+	/** Weak cache extension ptr (can be null). */
+	TWeakViewModelPtr<FLockStateCacheExtension> WeakLockStateCacheExtension;
 };
 
 } // namespace UE::Sequencer

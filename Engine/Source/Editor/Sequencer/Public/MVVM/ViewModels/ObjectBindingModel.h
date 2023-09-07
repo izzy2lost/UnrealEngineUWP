@@ -40,7 +40,7 @@ enum class EObjectBindingType
 };
 
 class SEQUENCER_API FObjectBindingModel
-	: public FOutlinerItemModel
+	: public FMuteSoloOutlinerItemModel
 	, public IObjectBindingExtension
 	, public IDraggableOutlinerExtension
 	, public ITrackAreaExtension
@@ -52,7 +52,7 @@ class SEQUENCER_API FObjectBindingModel
 public:
 
 	UE_SEQUENCER_DECLARE_CASTABLE(FObjectBindingModel
-		, FOutlinerItemModel
+		, FMuteSoloOutlinerItemModel
 		, IObjectBindingExtension
 		, IDraggableOutlinerExtension
 		, ITrackAreaExtension

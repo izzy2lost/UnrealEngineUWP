@@ -8,11 +8,13 @@
 #include "MVVM/ViewModels/ChannelModel.h"
 #include "MVVM/ViewModels/ViewModelIterators.h"
 #include "MVVM/Extensions/IRenameableExtension.h"
+#include "MVVM/Extensions/HierarchicalCacheExtension.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "MVVM/ViewModels/SequencerTrackAreaViewModel.h"
 #include "MVVM/ViewModels/SequencerOutlinerViewModel.h"
 #include "MVVM/ViewModels/TrackRowModel.h"
 #include "MVVM/Selection/Selection.h"
+#include "MVVM/SharedViewModelData.h"
 #include "Sections/MovieSceneSubSection.h"
 #include "MovieScene.h"
 #include "Framework/MultiBox/MultiBoxDefs.h"
@@ -68,7 +70,7 @@
 #include "DragAndDrop/FolderDragDropOp.h"
 #include "DragAndDrop/CompositeDragDropOp.h"
 #include "Widgets/Input/SSearchBox.h"
-#include "MVVM/Views/SOutlinerView.h"
+#include "MVVM/Views/SSequencerOutlinerView.h"
 #include "MovieSceneTrackEditor.h"
 #include "SSequencerSplitterOverlay.h"
 #include "SequencerHotspots.h"
@@ -288,7 +290,7 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 
 	TSharedPtr<FSequencerEditorViewModel> SequencerViewModel = InSequencer->GetViewModel()->CastThisShared<FSequencerEditorViewModel>();
 	SAssignNew(PinnedTrackArea, SSequencerTrackAreaView, SequencerViewModel->GetPinnedTrackArea(), TimeSliderControllerRef);
-	SAssignNew(PinnedTreeView, SOutlinerView, SequencerViewModel->GetOutliner(), PinnedTrackArea.ToSharedRef())
+	SAssignNew(PinnedTreeView, SSequencerOutlinerView, SequencerViewModel->GetOutliner(), PinnedTrackArea.ToSharedRef())
 		.Selection(InSequencer->GetViewModel()->GetSelection())
 		.ExternalScrollbar(PinnedAreaScrollBar)
 		.Clipping(EWidgetClipping::ClipToBounds);
@@ -299,7 +301,7 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 	PinnedTreeView->SetShowPinned(true);
 
 	SAssignNew(TrackArea, SSequencerTrackAreaView, SequencerViewModel->GetTrackArea(), TimeSliderControllerRef);
-	SAssignNew(TreeView, SOutlinerView, SequencerViewModel->GetOutliner(), TrackArea.ToSharedRef())
+	SAssignNew(TreeView, SSequencerOutlinerView, SequencerViewModel->GetOutliner(), TrackArea.ToSharedRef())
 		.Selection(InSequencer->GetViewModel()->GetSelection())
 		.ExternalScrollbar(ScrollBar)
 		.Clipping(EWidgetClipping::ClipToBounds);
@@ -2970,19 +2972,34 @@ void SSequencer::UpdateLayoutTree()
 		{
 			bool bAnyChanged = false;
 
-			TSharedPtr<FSequencerNodeTree> NodeTree = Sequencer->GetNodeTree();
-			const bool bHasSoloNodes = NodeTree->HasSoloNodes();
+			TSharedPtr<FSharedViewModelData> SharedData = Sequencer->GetViewModel()->GetRootModel()->GetSharedData();
+			FOutlinerCacheExtension*     OutlinerCache  = SharedData->CastThis<FOutlinerCacheExtension>();
+			FMuteStateCacheExtension*    MuteState      = SharedData->CastThis<FMuteStateCacheExtension>();
+			FSoloStateCacheExtension*    SoloState      = SharedData->CastThis<FSoloStateCacheExtension>();
 
-			for (TViewModelPtr<IOutlinerExtension> OutlinerItem
-				: Sequencer->GetNodeTree()->GetRootNode()->GetDescendantsOfType<IOutlinerExtension>())
+			check(OutlinerCache && MuteState && SoloState);
+
+			// Hack - we shouldn't really not just forcibly update these here, but currently this function is getting forcibly called before
+			//        UpdateCachedFlags has a chance to naturally update itself in response to the signature change
+			OutlinerCache->UpdateCachedFlags();
+
+			const bool bAnySoloNodes = EnumHasAnyFlags(SoloState->GetRootFlags(), ECachedSoloState::Soloed | ECachedSoloState::PartiallySoloedChildren);
+
+			for (TViewModelPtr<ITrackExtension> TrackNode
+				: Sequencer->GetNodeTree()->GetRootNode()->GetDescendantsOfType<ITrackExtension>())
 			{
-				TViewModelPtr<ITrackExtension> TrackNode = OutlinerItem.ImplicitCast();
-				if (TrackNode && TrackNode->GetTrack())
+				if (TrackNode->GetTrack())
 				{
-					UMovieSceneTrack* Track = TrackNode->GetTrack();
-					bool bDisableEval = NodeTree->IsNodeMute(OutlinerItem) || (bHasSoloNodes && !NodeTree->IsNodeSolo(OutlinerItem));
+					ECachedMuteState MuteFlags = MuteState->GetCachedFlags(TrackNode.AsModel());
+					ECachedSoloState SoloFlags = SoloState->GetCachedFlags(TrackNode.AsModel());
 
-					TViewModelPtr<FTrackRowModel> TrackRowModel = OutlinerItem.ImplicitCast();
+					UMovieSceneTrack* Track = TrackNode->GetTrack();
+					const bool bIsMuted  = EnumHasAnyFlags(MuteFlags, ECachedMuteState::Muted  | ECachedMuteState::ImplicitlyMutedByParent);
+					const bool bIsSoloed = EnumHasAnyFlags(SoloFlags, ECachedSoloState::Soloed | ECachedSoloState::ImplicitlySoloedByParent);
+
+					const bool bDisableEval = bIsMuted || (bAnySoloNodes && !bIsSoloed);
+
+					TViewModelPtr<FTrackRowModel> TrackRowModel = TrackNode.ImplicitCast();
 					if (TrackRowModel)
 					{
 						if (bDisableEval != Track->IsRowEvalDisabled(TrackNode->GetRowIndex()))

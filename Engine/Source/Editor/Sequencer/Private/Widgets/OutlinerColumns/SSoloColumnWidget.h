@@ -7,6 +7,8 @@
 namespace UE::Sequencer
 {
 
+class FSoloStateCacheExtension;
+
 /**
 * A widget that shows and controls the soloed state of outliner items.
 */
@@ -40,6 +42,11 @@ protected:
 
 	/** Returns the brush to display when this item is pinned. */
 	virtual const FSlateBrush* GetActiveBrush() const override;
+
+private:
+
+	/** Weak cache extension ptr (can be null). */
+	TWeakViewModelPtr<FSoloStateCacheExtension> WeakSoloStateCacheExtension;
 };
 
 } // namespace UE::Sequencer

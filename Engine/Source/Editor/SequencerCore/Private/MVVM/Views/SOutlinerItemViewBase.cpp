@@ -146,12 +146,6 @@ void SOutlinerItemViewBase::Construct(
 	static float IndentAmount = 10.f;
 
 	TSharedRef<SWidget>	FinalWidget = 
-		SNew( SBorder )
-		.VAlign( VAlign_Center )
-		.BorderImage( this, &SOutlinerItemViewBase::GetNodeBorderImage )
-		.BorderBackgroundColor( this, &SOutlinerItemViewBase::GetNodeBackgroundTint )
-		.Padding(FMargin(0.f))
-		[
 			SNew( SHorizontalBox )
 
 			+ SHorizontalBox::Slot()
@@ -235,8 +229,7 @@ void SOutlinerItemViewBase::Construct(
 			.AutoWidth()
 			[
 				InArgs._RightGutterContent.Widget
-			]
-		];
+			];
 
 	ChildSlot
 	[
@@ -395,51 +388,6 @@ const FSlateBrush* SOutlinerItemViewBase::GetNodeBorderImage() const
 	const bool bHasChildren = DataModel.IsValid() && (bool)DataModel->GetDescendantsOfType<IOutlinerExtension>();
 
 	return bHasChildren ? ExpandedBackgroundBrush : CollapsedBackgroundBrush;
-}
-
-FSlateColor SOutlinerItemViewBase::GetNodeBackgroundTint() const
-{
-	TSharedPtr<FEditorViewModel> Editor = WeakEditor.Pin();
-	TViewModelPtr<IOutlinerExtension> OutlinerItem = WeakOutlinerExtension.Pin();
-
-	if (!Editor || !OutlinerItem)
-	{
-		return FLinearColor(0.f,0.f,0.f,0.f);
-	}
-
-	EOutlinerSelectionState SelectionState = OutlinerItem->GetSelectionState();
-
-	if (EnumHasAnyFlags(SelectionState, EOutlinerSelectionState::SelectedDirectly))
-	{
-		return FStyleColors::Select;
-	}
-	if (EnumHasAnyFlags(SelectionState, EOutlinerSelectionState::HasSelectedKeys | EOutlinerSelectionState::HasSelectedTrackAreaItems))
-	{
-		return FStyleColors::Header;
-	}
-
-	// If this is collapsed but has any children with selected keys or sections, we report that state on the parent
-	if (!OutlinerItem->IsExpanded())
-	{
-		for (TViewModelPtr<IOutlinerExtension> Child : OutlinerItem.AsModel()->GetDescendantsOfType<IOutlinerExtension>())
-		{
-			if (EnumHasAnyFlags(SelectionState, EOutlinerSelectionState::HasSelectedKeys | EOutlinerSelectionState::HasSelectedTrackAreaItems))
-			{
-				return FStyleColors::Header;
-			}
-		}
-	}
-
-	if (Editor->GetOutliner()->GetHoveredItem() == OutlinerItem)
-	{
-		return ItemStyle == EOutlinerItemViewBaseStyle::ContainerHeader
-			? FLinearColor(FColor(52, 52, 52, 255))
-			: FLinearColor(FColor(72, 72, 72, 255));
-	}
-
-	return ItemStyle == EOutlinerItemViewBaseStyle::ContainerHeader
-		? FLinearColor(FColor(48, 48, 48, 255))
-		: FLinearColor(FColor(62, 62, 62, 255));
 }
 
 FSlateColor SOutlinerItemViewBase::GetNodeInnerBackgroundTint() const

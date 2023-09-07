@@ -10,8 +10,9 @@
 #include "MVVM/Extensions/IHoveredExtension.h"
 #include "MVVM/Extensions/IOutlinerExtension.h"
 #include "MVVM/Extensions/IPinnableExtension.h"
-#include "MVVM/Extensions/ISoloableExtension.h"
 #include "MVVM/Extensions/IMutableExtension.h"
+#include "MVVM/Extensions/ISoloableExtension.h"
+#include "MVVM/Extensions/HierarchicalCacheExtension.h"
 #include "CurveEditorTypes.h"
 #include "Tree/ICurveEditorTreeItem.h"
 
@@ -31,14 +32,12 @@ class SEQUENCER_API FOutlinerItemModelMixin
 	, public FPinnableExtensionShim
 	, public FHoveredExtensionShim
 	, public IDimmableExtension
-	, public ISoloableExtension
-	, public IMutableExtension
 	, public FCurveEditorTreeItemExtensionShim
 	, public ICurveEditorTreeItem
 {
 public:
 
-	using Implements = TImplements<IOutlinerExtension, IGeometryExtension, IPinnableExtension, IHoveredExtension, IDimmableExtension, IMutableExtension, ISoloableExtension, ICurveEditorTreeItemExtension>;
+	using Implements = TImplements<IOutlinerExtension, IGeometryExtension, IPinnableExtension, IHoveredExtension, IDimmableExtension, ICurveEditorTreeItemExtension>;
 
 	FOutlinerItemModelMixin();
 
@@ -66,12 +65,6 @@ public:
 
 	/*~ IDimmableExtension */
 	bool IsDimmed() const override;
-
-	/*~ ISoloableExtension */
-	bool IsSolo() const override;
-
-	/*~ IMutableExtension */
-	bool IsMuted() const override;
 
 protected:
 
@@ -103,10 +96,10 @@ private:
 	bool IsRootModelPinned() const;
 	void ToggleRootModelPinned();
 
-	bool IsSelectedModelsSolo() const;
+	ECheckBoxState SelectedModelsSoloState() const;
 	void ToggleSelectedModelsSolo();
 
-	bool IsSelectedModelsMuted() const;
+	ECheckBoxState SelectedModelsMuteState() const;
 	void ToggleSelectedModelsMuted();
 
 private:
@@ -145,6 +138,39 @@ class SEQUENCER_API FOutlinerItemModel : public TOutlinerModelMixin<FViewModel>
 public:
 	UE_SEQUENCER_DECLARE_CASTABLE(FOutlinerItemModel, FOutlinerItemModelMixin);
 };
+
+class SEQUENCER_API FMuteSoloOutlinerItemModel
+	: public FOutlinerItemModel
+	, public IMutableExtension
+	, public ISoloableExtension
+{
+public:
+
+	UE_SEQUENCER_DECLARE_CASTABLE(FMuteSoloOutlinerItemModel, FOutlinerItemModel, IMutableExtension, ISoloableExtension);
+
+	/*~ ISoloableExtension */
+	bool IsSolo() const override;
+	void SetIsSoloed(bool bIsSoloed) override;
+
+	/*~ IMutableExtension */
+	bool IsMuted() const override;
+	void SetIsMuted(bool bIsMuted) override;
+};
+
+
+class SEQUENCER_API FOutlinerCacheExtension
+	: public FHierarchicalCacheExtension
+{
+public:
+
+	UE_SEQUENCER_DECLARE_VIEW_MODEL_TYPE_ID(FOutlinerCacheExtension);
+
+	FOutlinerCacheExtension()
+	{
+		ModelListFilter = EViewModelListType::Outliner;
+	}
+};
+
 
 } // namespace Sequencer
 } // namespace UE

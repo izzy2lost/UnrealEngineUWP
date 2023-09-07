@@ -20,8 +20,6 @@ void SOutlinerColumnInnerBorder::Construct(const FArguments& InArgs, const FCrea
 	WeakOutlinerExtension = InParams.OutlinerExtension;
 	WeakEditor = InParams.Editor;
 
-	BackgroundBrush = FAppStyle::GetBrush("Sequencer.Column.OutlinerColumnBox");
-
 	TSharedPtr<SScaleBox> UniformScaleBox;
 
 	// Size of outliner column widgets stretch to desired height and are usually 12x12 based off padding and fixed width of columns
@@ -35,7 +33,7 @@ void SOutlinerColumnInnerBorder::Construct(const FArguments& InArgs, const FCrea
 			[
 				SNew(SBorder)
 				.VAlign(VAlign_Center)
-				.BorderImage(this, &SOutlinerColumnInnerBorder::GetBorderImage)
+				.BorderImage(FAppStyle::GetBrush("Sequencer.Column.OutlinerColumnBox"))
 				.Padding(FMargin(1.f))
 				[
 					InArgs._Content.Widget
@@ -66,17 +64,10 @@ FReply SOutlinerColumnBorder::OnMouseButtonDown(const FGeometry& MyGeometry, con
 	return FReply::Handled();
 }
 
-const FSlateBrush* SOutlinerColumnInnerBorder::GetBorderImage() const
-{
-	return BackgroundBrush;
-}
-
 void SOutlinerColumnBorder::Construct(const FArguments& InArgs, const FCreateOutlinerColumnParams& InParams, const bool bHasInnerBorder)
 {
 	WeakOutlinerExtension = InParams.OutlinerExtension;
 	WeakEditor = InParams.Editor;
-
-	BackgroundBrush = FAppStyle::GetBrush("Sequencer.AnimationOutliner.DefaultBorder");
 
 	TSharedPtr<SWidget> InnerWidget;
 	if (bHasInnerBorder)
@@ -91,20 +82,12 @@ void SOutlinerColumnBorder::Construct(const FArguments& InArgs, const FCreateOut
 		InnerWidget = InArgs._Content.Widget;
 	}
 
-	TSharedRef<SWidget>	FinalWidget = SNew(SBorder)
-		.VAlign(VAlign_Center)
-		.BorderImage(this, &SOutlinerColumnBorder::GetBorderImage)
-		.BorderBackgroundColor(this, &SOutlinerColumnBorder::GetBackgroundTint)
-		.VAlign(VAlign_Center)
-		.HAlign(HAlign_Center)
-		.Padding(FMargin(2.0f))
-		[
-			InnerWidget.ToSharedRef()
-		];
-
 	ChildSlot
+	.VAlign(VAlign_Center)
+	.HAlign(HAlign_Center)
+	.Padding(FMargin(2.0f))
 	[
-		FinalWidget
+		InnerWidget.ToSharedRef()
 	];
 }
 
@@ -127,58 +110,6 @@ void SOutlinerColumnBorder::OnMouseLeave(const FPointerEvent& MouseEvent)
 		Editor->GetOutliner()->SetHoveredItem(nullptr);
 	}
 	SWidget::OnMouseLeave(MouseEvent);
-}
-
-const FSlateBrush* SOutlinerColumnBorder::GetBorderImage() const
-{
-	return BackgroundBrush;
-}
-
-FSlateColor SOutlinerColumnBorder::GetBackgroundTint() const
-{
-	TSharedPtr<FEditorViewModel> Editor = WeakEditor.Pin();
-	TViewModelPtr<IOutlinerExtension> OutlinerItem = WeakOutlinerExtension.Pin();
-
-	if (!Editor || !OutlinerItem)
-	{
-		return FLinearColor(0.f, 0.f, 0.f, 0.f);
-	}
-
-	if (!OutlinerItem->HasBackground())
-	{
-		return FLinearColor(0.f, 0.f, 0.f, 0.f);
-	}
-
-	EOutlinerSelectionState SelectionState = OutlinerItem->GetSelectionState();
-
-	if (EnumHasAnyFlags(SelectionState, EOutlinerSelectionState::SelectedDirectly))
-	{
-		return FStyleColors::Select;
-	}
-	if (EnumHasAnyFlags(SelectionState, EOutlinerSelectionState::HasSelectedKeys | EOutlinerSelectionState::HasSelectedTrackAreaItems))
-	{
-		return FStyleColors::Header;
-	}
-
-	// If this is collapsed but has any children with selected keys or sections, we report that state on the parent
-	if (!OutlinerItem->IsExpanded())
-	{
-		for (TViewModelPtr<IOutlinerExtension> Child : OutlinerItem.AsModel()->GetDescendantsOfType<IOutlinerExtension>())
-		{
-			if (EnumHasAnyFlags(SelectionState, EOutlinerSelectionState::HasSelectedKeys | EOutlinerSelectionState::HasSelectedTrackAreaItems))
-			{
-				return FStyleColors::Header;
-			}
-		}
-	}
-
-	// Use same hovered and default colors as SOutlinerItemViewBase
-	if (Editor->GetOutliner()->GetHoveredItem() == OutlinerItem)
-	{
-		return FLinearColor(FColor(72, 72, 72, 255));
-	}
-
-	return FLinearColor(FColor(62, 62, 62, 255));
 }
 
 } // namespace UE::Sequencer

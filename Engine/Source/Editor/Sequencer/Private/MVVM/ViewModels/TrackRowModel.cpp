@@ -144,6 +144,42 @@ bool FTrackRowModel::IsDimmed() const
 	return FOutlinerItemModel::IsDimmed();
 }
 
+ELockableLockState FTrackRowModel::GetLockState() const
+{
+	int32 NumSections = 0;
+	int32 NumLockedSections = 0;
+
+	for (const TViewModelPtr<FSectionModel>& Section : SectionList.Iterate<FSectionModel>())
+	{
+		++NumSections;
+
+		UMovieSceneSection* SectionObject = Section->GetSection();
+		if (SectionObject && SectionObject->IsLocked())
+		{
+			++NumLockedSections;
+		}
+	}
+
+	if (NumSections == 0 || NumLockedSections == 0)
+	{
+		return ELockableLockState::None;
+	}
+	return NumLockedSections == NumSections ? ELockableLockState::Locked : ELockableLockState::PartiallyLocked;
+}
+
+void FTrackRowModel::SetIsLocked(bool bInIsLocked)
+{
+	for (const TViewModelPtr<FSectionModel>& Section : SectionList.Iterate<FSectionModel>())
+	{
+		UMovieSceneSection* SectionObject = Section->GetSection();
+		if (SectionObject)
+		{
+			SectionObject->Modify();
+			SectionObject->SetIsLocked(bInIsLocked);
+		}
+	}
+}
+
 FSlateFontInfo FTrackRowModel::GetLabelFont() const
 {
 	bool bAllAnimated = false;

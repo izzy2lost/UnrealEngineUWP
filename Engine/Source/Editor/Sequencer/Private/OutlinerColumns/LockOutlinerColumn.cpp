@@ -4,9 +4,10 @@
 
 #include "ISequencerOutlinerColumn.h"
 #include "MVVM/Extensions/IOutlinerExtension.h"
-#include "MVVM/LockEditorExtension.h"
 #include "MVVM/ViewModels/EditorViewModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/Extensions/ILockableExtension.h"
+#include "MVVM/SharedViewModelData.h"
 #include "Widgets/OutlinerColumns/SLockColumnWidget.h"
 
 #define LOCTEXT_NAMESPACE "FLockOutlinerColumn"
@@ -25,13 +26,9 @@ bool FLockOutlinerColumn::IsItemCompatibleWithColumn(const UE::Sequencer::FCreat
 {
 	using namespace UE::Sequencer;
 
-	if (InParams.Editor)
+	if (FLockStateCacheExtension* LockStateCache = InParams.OutlinerExtension.AsModel()->GetSharedData()->CastThis<FLockStateCacheExtension>())
 	{
-		FLockEditorExtension* LockEditorExtension = InParams.Editor->CastDynamic<FLockEditorExtension>();
-		if (LockEditorExtension)
-		{
-			return LockEditorExtension->IsNodeLockable(InParams.OutlinerExtension);
-		}
+		return EnumHasAnyFlags(LockStateCache->GetCachedFlags(InParams.OutlinerExtension), ECachedLockState::Lockable | ECachedLockState::LockableChildren);
 	}
 
 	return false;

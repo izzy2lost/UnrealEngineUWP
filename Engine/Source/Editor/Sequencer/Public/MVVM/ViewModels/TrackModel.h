@@ -10,6 +10,7 @@
 #include "MVVM/Extensions/IResizableExtension.h"
 #include "MVVM/Extensions/ISortableExtension.h"
 #include "MVVM/Extensions/ITrackAreaExtension.h"
+#include "MVVM/Extensions/ILockableExtension.h"
 #include "MVVM/Extensions/ITrackExtension.h"
 #include "MVVM/Extensions/IDeletableExtension.h"
 #include "MVVM/Extensions/IDraggableOutlinerExtension.h"
@@ -35,11 +36,12 @@ namespace Sequencer
 class FSectionModel;
 
 class SEQUENCER_API FTrackModel
-	: public FOutlinerItemModel
+	: public FMuteSoloOutlinerItemModel
 	, public IRenameableExtension
 	, public IResizableExtension
 	, public ITrackExtension
 	, public ITrackAreaExtension
+	, public ILockableExtension
 	, public IGroupableExtension
 	, public ISortableExtension
 	, public IDraggableOutlinerExtension
@@ -50,11 +52,12 @@ class SEQUENCER_API FTrackModel
 public:
 
 	UE_SEQUENCER_DECLARE_CASTABLE(FTrackModel
-		, FOutlinerItemModel
+		, FMuteSoloOutlinerItemModel
 		, IRenameableExtension
 		, IResizableExtension
 		, ITrackExtension
 		, ITrackAreaExtension
+		, ILockableExtension
 		, IGroupableExtension
 		, ISortableExtension
 		, IDraggableOutlinerExtension
@@ -99,6 +102,10 @@ public:
 	/*~ IResizableExtension */
 	bool IsResizable() const override;
 	void Resize(float NewSize) override;
+
+	/*~ ILockableExtension Interface */
+	ELockableLockState GetLockState() const override;
+	void SetIsLocked(bool bIsLocked) override;
 
 	/*~ ITrackAreaExtension */
 	FTrackAreaParameters GetTrackAreaParameters() const override;

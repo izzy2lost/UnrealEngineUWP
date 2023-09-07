@@ -47,6 +47,8 @@ public:
 	// @todo_sequencer_mvvm move this to the root view-model
 	void SetSequence(UMovieSceneSequence* InRootSequence);
 
+	TViewModelPtr<FSequenceModel> GetRootSequenceModel() const;
+
 public:
 
 	/** Adjust sequencer customizations based on the currently focused sequence */

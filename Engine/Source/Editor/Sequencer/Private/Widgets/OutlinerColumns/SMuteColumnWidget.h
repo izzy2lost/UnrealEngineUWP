@@ -7,6 +7,8 @@
 namespace UE::Sequencer
 {
 
+class FMuteStateCacheExtension;
+
 /**
  * A widget that shows and controls the muted state of outliner items.
  */
@@ -39,6 +41,13 @@ protected:
 
 	/** Returns the brush to display when this item is muted. */
 	virtual const FSlateBrush* GetActiveBrush() const override;
+
+private:
+
+	void SetIsActive(const FViewModelPtr& ViewModel, const bool bInIsActive);
+
+	/** Weak cache extension ptr (can be null). */
+	TWeakViewModelPtr<FMuteStateCacheExtension> WeakMuteStateCacheExtension;
 };
 
 } // namespace UE::Sequencer

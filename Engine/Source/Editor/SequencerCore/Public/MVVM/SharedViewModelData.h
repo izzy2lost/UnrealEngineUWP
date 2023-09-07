@@ -6,6 +6,7 @@
 #include "CoreMinimal.h"
 #include "Delegates/Delegate.h"
 #include "MVVM/ViewModels/ViewModelHierarchy.h"
+#include "MVVM/ViewModels/ViewModel.h"
 #include "SequencerCoreFwd.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UniquePtr.h"
@@ -19,7 +20,8 @@ namespace Sequencer
 
 class FViewModel;
 
-class SEQUENCERCORE_API FSharedViewModelData : public TSharedFromThis<FSharedViewModelData>
+class SEQUENCERCORE_API FSharedViewModelData
+	: public FViewModel
 {
 public:
 	void PreHierarchicalChange(const TSharedPtr<FViewModel>& InChangedModel);

@@ -2,6 +2,7 @@
 
 #include "MVVM/ViewModels/TrackModel.h"
 
+#include "MVVM/SharedViewModelData.h"
 #include "MVVM/Extensions/IObjectBindingExtension.h"
 #include "MVVM/Extensions/IRecyclableExtension.h"
 #include "MVVM/Extensions/ITrackExtension.h"
@@ -609,6 +610,42 @@ void FTrackModel::Resize(float NewSize)
 	if (Track && TrackEditor->IsResizable(Track))
 	{
 		TrackEditor->Resize(NewSize, Track);
+	}
+}
+
+ELockableLockState FTrackModel::GetLockState() const
+{
+	int32 NumSections = 0;
+	int32 NumLockedSections = 0;
+
+	for (const TViewModelPtr<FSectionModel>& Section : SectionList.Iterate<FSectionModel>())
+	{
+		++NumSections;
+
+		UMovieSceneSection* SectionObject = Section->GetSection();
+		if (SectionObject && SectionObject->IsLocked())
+		{
+			++NumLockedSections;
+		}
+	}
+
+	if (NumSections == 0 || NumLockedSections == 0)
+	{
+		return ELockableLockState::None;
+	}
+	return NumLockedSections == NumSections ? ELockableLockState::Locked : ELockableLockState::PartiallyLocked;
+}
+
+void FTrackModel::SetIsLocked(bool bInIsLocked)
+{
+	for (const TViewModelPtr<FSectionModel>& Section : SectionList.Iterate<FSectionModel>())
+	{
+		UMovieSceneSection* SectionObject = Section->GetSection();
+		if (SectionObject)
+		{
+			SectionObject->Modify();
+			SectionObject->SetIsLocked(bInIsLocked);
+		}
 	}
 }
 

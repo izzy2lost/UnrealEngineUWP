@@ -3,8 +3,10 @@
 #include "OutlinerColumns/MuteOutlinerColumn.h"
 
 #include "ISequencerOutlinerColumn.h"
+
+#include "MVVM/SharedViewModelData.h"
 #include "MVVM/Extensions/IOutlinerExtension.h"
-#include "MVVM/MuteEditorExtension.h"
+#include "MVVM/Extensions/IMutableExtension.h"
 #include "MVVM/ViewModels/EditorViewModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "Widgets/Layout/SScaleBox.h"
@@ -26,13 +28,9 @@ bool FMuteOutlinerColumn::IsItemCompatibleWithColumn(const UE::Sequencer::FCreat
 {
 	using namespace UE::Sequencer;
 
-	if (InParams.Editor)
+	if (FMuteStateCacheExtension* MuteStateCache = InParams.OutlinerExtension.AsModel()->GetSharedData()->CastThis<FMuteStateCacheExtension>())
 	{
-		FMuteEditorExtension* MuteEditorExtension = InParams.Editor->CastDynamic<FMuteEditorExtension>();
-		if (MuteEditorExtension)
-		{
-			return MuteEditorExtension->IsNodeMutable(InParams.OutlinerExtension);
-		}
+		return EnumHasAnyFlags(MuteStateCache->GetCachedFlags(InParams.OutlinerExtension), ECachedMuteState::Mutable | ECachedMuteState::MutableChildren);
 	}
 
 	return false;

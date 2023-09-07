@@ -138,11 +138,6 @@ private:
 	 * @return The border image to show in the tree node.
 	 */
 	const FSlateBrush* GetNodeBorderImage() const;
-	
-	/**
-	 * @return The tint to apply to the border image
-	 */
-	FSlateColor GetNodeBackgroundTint() const;
 
 	/**
 	* @return The tint to apply to the border image for the inner portion of the node.

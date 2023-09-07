@@ -2,7 +2,10 @@
 
 #include "Widgets/OutlinerColumns/SSoloColumnWidget.h"
 
-#include "MVVM/SoloEditorExtension.h"
+#include "MVVM/SharedViewModelData.h"
+#include "MVVM/Selection/Selection.h"
+#include "MVVM/Extensions/ISoloableExtension.h"
+#include "MVVM/ViewModels/SequenceModel.h"
 #include "MVVM/ViewModels/EditorViewModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 
@@ -22,18 +25,15 @@ void SSoloColumnWidget::Construct(const FArguments& InArgs, const TWeakPtr<ISequ
 		InWeakOutlinerColumn,
 		InParams
 	);
+
+	WeakSoloStateCacheExtension = CastViewModel<FSoloStateCacheExtension>(InParams.OutlinerExtension.AsModel()->GetSharedData());
 }
 
 bool SSoloColumnWidget::IsActive() const
 {
-	TSharedPtr<FSequencerEditorViewModel> SequencerEditor = WeakEditor.Pin();
-	if (SequencerEditor)
+	if (TViewModelPtr<FSoloStateCacheExtension> SoloStateCache = WeakSoloStateCacheExtension.Pin())
 	{
-		FSoloEditorExtension* SoloEditorExtension = SequencerEditor->CastDynamic<FSoloEditorExtension>();
-		if (SoloEditorExtension)
-		{
-			return SoloEditorExtension->IsNodeSoloed(WeakOutlinerExtension);
-		}
+		return EnumHasAnyFlags(SoloStateCache->GetCachedFlags(ModelID), ECachedSoloState::Soloed);
 	}
 
 	return false;
@@ -41,27 +41,39 @@ bool SSoloColumnWidget::IsActive() const
 
 void SSoloColumnWidget::SetIsActive(const bool bInIsActive)
 {
-	TSharedPtr<FSequencerEditorViewModel> SequencerEditor = WeakEditor.Pin();
-	if (SequencerEditor)
+	TViewModelPtr<IOutlinerExtension> OutlinerItem = WeakOutlinerExtension.Pin();
+	if (!OutlinerItem)
 	{
-		FSoloEditorExtension* SoloEditorExtension = SequencerEditor->CastDynamic<FSoloEditorExtension>();
-		if (SoloEditorExtension)
+		return;
+	}
+
+	TSharedPtr<FSequenceModel> SequenceModel = OutlinerItem.AsModel()->FindAncestorOfType<FSequenceModel>();
+	if (!SequenceModel)
+	{
+		return;
+	}
+
+	const FScopedTransaction Transaction(NSLOCTEXT("Sequencer", "SetNodeMuted", "Set Node Soloed"));
+
+	if (OutlinerItem->GetSelectionState() == EOutlinerSelectionState::SelectedDirectly)
+	{
+		// if selected, modify all selected items
+		for (TViewModelPtr<ISoloableExtension> Soloable : SequenceModel->GetEditor()->GetSelection()->Outliner.Filter<ISoloableExtension>())
 		{
-			SoloEditorExtension->SetNodeSoloed(WeakOutlinerExtension, bInIsActive);
+			Soloable->SetIsSoloed(bInIsActive);
 		}
+	}
+	else if (TViewModelPtr<ISoloableExtension> Soloable = OutlinerItem.ImplicitCast())
+	{
+		Soloable->SetIsSoloed(bInIsActive);
 	}
 }
 
 bool SSoloColumnWidget::IsChildActive() const
 {
-	TSharedPtr<FSequencerEditorViewModel> SequencerEditor = WeakEditor.Pin();
-	if (SequencerEditor)
+	if (TViewModelPtr<FSoloStateCacheExtension> SoloStateCache = WeakSoloStateCacheExtension.Pin())
 	{
-		FSoloEditorExtension* SoloEditorExtension = SequencerEditor->CastDynamic<FSoloEditorExtension>();
-		if (SoloEditorExtension)
-		{
-			return SoloEditorExtension->HasSoloedChildNode(WeakOutlinerExtension);
-		}
+		return EnumHasAnyFlags(SoloStateCache->GetCachedFlags(ModelID), ECachedSoloState::PartiallySoloedChildren);
 	}
 
 	return false;
@@ -69,14 +81,9 @@ bool SSoloColumnWidget::IsChildActive() const
 
 bool SSoloColumnWidget::IsImplicitlyActive() const
 {
-	TSharedPtr<FSequencerEditorViewModel> SequencerEditor = WeakEditor.Pin();
-	if (SequencerEditor)
+	if (TViewModelPtr<FSoloStateCacheExtension> SoloStateCache = WeakSoloStateCacheExtension.Pin())
 	{
-		FSoloEditorExtension* SoloEditorExtension = SequencerEditor->CastDynamic<FSoloEditorExtension>();
-		if (SoloEditorExtension)
-		{
-			return SoloEditorExtension->IsNodeImplicitlySoloed(WeakOutlinerExtension);
-		}
+		return EnumHasAnyFlags(SoloStateCache->GetCachedFlags(ModelID), ECachedSoloState::ImplicitlySoloedByParent);
 	}
 
 	return false;

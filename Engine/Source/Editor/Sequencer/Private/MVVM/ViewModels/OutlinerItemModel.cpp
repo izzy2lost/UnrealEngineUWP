@@ -9,6 +9,7 @@
 #include "MVVM/Extensions/IObjectBindingExtension.h"
 #include "MVVM/ViewModels/OutlinerViewModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/SharedViewModelData.h"
 #include "MVVM/Selection/Selection.h"
 
 #include "CurveEditor.h"
@@ -257,42 +258,22 @@ bool FOutlinerItemModelMixin::IsPinned() const
 
 bool FOutlinerItemModelMixin::IsDimmed() const
 {
-	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
-	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
-	if (Sequencer)
-	{
-		TViewModelPtr<IOutlinerExtension> ThisShared(const_cast<FViewModel*>(AsViewModel())->AsShared(), const_cast<FOutlinerItemModelMixin*>(this));
-		FSequencerNodeTree& ParentTree = Sequencer->GetNodeTree().Get();
-		if (ParentTree.IsNodeMute(ThisShared) || (ParentTree.HasSoloNodes() && !ParentTree.IsNodeSolo(ThisShared)))
-		{
-			return true;
-		}
-	}
-	return false;
-}
+	const FViewModel* ViewModel = AsViewModel();
 
-bool FOutlinerItemModelMixin::IsSolo() const
-{
-	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
-	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
-	if (Sequencer)
-	{
-		TViewModelPtr<IOutlinerExtension> ThisShared(const_cast<FViewModel*>(AsViewModel())->AsShared(), const_cast<FOutlinerItemModelMixin*>(this));
-		return Sequencer->GetNodeTree()->IsNodeSolo(ThisShared);
-	}
-	return false;
-}
+	FMuteStateCacheExtension* MuteState = ViewModel->GetSharedData()->CastThis<FMuteStateCacheExtension>();
+	FSoloStateCacheExtension* SoloState = ViewModel->GetSharedData()->CastThis<FSoloStateCacheExtension>();
 
-bool FOutlinerItemModelMixin::IsMuted() const
-{
-	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
-	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
-	if (Sequencer)
-	{
-		TViewModelPtr<IOutlinerExtension> ThisShared(const_cast<FViewModel*>(AsViewModel())->AsShared(), const_cast<FOutlinerItemModelMixin*>(this));
-		return Sequencer->GetNodeTree()->IsNodeMute(ThisShared);
-	}
-	return false;
+	check(MuteState && SoloState);
+
+	ECachedMuteState MuteFlags = MuteState->GetCachedFlags(ViewModel->GetModelID());
+	ECachedSoloState SoloFlags = SoloState->GetCachedFlags(ViewModel->GetModelID());
+
+	const bool bAnySoloNodes = EnumHasAnyFlags(SoloState->GetRootFlags(), ECachedSoloState::Soloed | ECachedSoloState::PartiallySoloedChildren);
+	const bool bIsMuted      = EnumHasAnyFlags(MuteFlags, ECachedMuteState::Muted  | ECachedMuteState::ImplicitlyMutedByParent);
+	const bool bIsSoloed     = EnumHasAnyFlags(SoloFlags, ECachedSoloState::Soloed | ECachedSoloState::ImplicitlySoloedByParent);
+
+	const bool bDisableEval = bIsMuted || (bAnySoloNodes && !bIsSoloed);
+	return bDisableEval;
 }
 
 bool FOutlinerItemModelMixin::IsRootModelPinned() const
@@ -319,45 +300,75 @@ void FOutlinerItemModelMixin::ToggleRootModelPinned()
 	}
 }
 
-bool FOutlinerItemModelMixin::IsSelectedModelsSolo() const
+ECheckBoxState FOutlinerItemModelMixin::SelectedModelsSoloState() const
 {
-	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
-	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
-	if (Sequencer)
+	FSoloStateCacheExtension* SoloStateCache = AsViewModel()->GetSharedData()->CastThis<FSoloStateCacheExtension>();
+	check(SoloStateCache);
+
+	int32 NumSoloables = 0;
+	int32 NumSoloed = 0;
+	for (FViewModelPtr Soloable : GetEditor()->GetSelection()->Outliner.Filter<ISoloableExtension>())
 	{
-		return Sequencer->GetNodeTree()->IsSelectedNodesSolo();
+		++NumSoloables;
+		if (EnumHasAnyFlags(SoloStateCache->GetCachedFlags(Soloable), ECachedSoloState::Soloed))
+		{
+			++NumSoloed;
+		}
 	}
-	return false;
+
+	if (NumSoloed == 0)
+	{
+		return ECheckBoxState::Unchecked;
+	}
+	return NumSoloables == NumSoloed ? ECheckBoxState::Checked : ECheckBoxState::Undetermined;
 }
 
 void FOutlinerItemModelMixin::ToggleSelectedModelsSolo()
 {
-	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
-	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
-	if (Sequencer)
+	ECheckBoxState CurrentState = SelectedModelsSoloState();
+	const bool bNewSoloState = CurrentState != ECheckBoxState::Checked;
+
+	const FScopedTransaction Transaction(NSLOCTEXT("Sequencer", "ToggleSolo", "Toggle Solo"));
+
+	for (TViewModelPtr<ISoloableExtension> Soloable : GetEditor()->GetSelection()->Outliner.Filter<ISoloableExtension>())
 	{
-		Sequencer->GetNodeTree()->ToggleSelectedNodesSolo();
+		Soloable->SetIsSoloed(bNewSoloState);
 	}
 }
 
-bool FOutlinerItemModelMixin::IsSelectedModelsMuted() const
+ECheckBoxState FOutlinerItemModelMixin::SelectedModelsMuteState() const
 {
-	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
-	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
-	if (Sequencer)
+	FMuteStateCacheExtension* MuteStateCache = AsViewModel()->GetSharedData()->CastThis<FMuteStateCacheExtension>();
+	check(MuteStateCache);
+
+	int32 NumMutables = 0;
+	int32 NumMuted = 0;
+	for (FViewModelPtr Mutable : GetEditor()->GetSelection()->Outliner.Filter<IMutableExtension>())
 	{
-		return Sequencer->GetNodeTree()->IsSelectedNodesMute();
+		++NumMutables;
+		if (EnumHasAnyFlags(MuteStateCache->GetCachedFlags(Mutable), ECachedMuteState::Muted))
+		{
+			++NumMuted;
+		}
 	}
-	return false;
+
+	if (NumMuted == 0)
+	{
+		return ECheckBoxState::Unchecked;
+	}
+	return NumMutables == NumMuted ? ECheckBoxState::Checked : ECheckBoxState::Undetermined;
 }
 
 void FOutlinerItemModelMixin::ToggleSelectedModelsMuted()
 {
-	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
-	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
-	if (Sequencer)
+	ECheckBoxState CurrentState = SelectedModelsMuteState();
+	const bool bNewMuteState = CurrentState != ECheckBoxState::Checked;
+
+	const FScopedTransaction Transaction(NSLOCTEXT("Sequencer", "ToggleMute", "Toggle Mute"));
+
+	for (TViewModelPtr<IMutableExtension> Muteable : GetEditor()->GetSelection()->Outliner.Filter<IMutableExtension>())
 	{
-		return Sequencer->GetNodeTree()->ToggleSelectedNodesMute();
+		Muteable->SetIsMuted(bNewMuteState);
 	}
 }
 
@@ -434,7 +445,7 @@ void FOutlinerItemModelMixin::BuildContextMenu(FMenuBuilder& MenuBuilder)
 			FUIAction(
 				FExecuteAction::CreateSP(SharedThis, &FOutlinerItemModelMixin::ToggleSelectedModelsSolo),
 				CanExecute,
-				FIsActionChecked::CreateSP(SharedThis, &FOutlinerItemModelMixin::IsSelectedModelsSolo)
+				FGetActionCheckState::CreateSP(SharedThis, &FOutlinerItemModelMixin::SelectedModelsSoloState)
 			),
 			NAME_None,
 			EUserInterfaceActionType::ToggleButton
@@ -447,7 +458,7 @@ void FOutlinerItemModelMixin::BuildContextMenu(FMenuBuilder& MenuBuilder)
 			FUIAction(
 				FExecuteAction::CreateSP(SharedThis, &FOutlinerItemModelMixin::ToggleSelectedModelsMuted),
 				CanExecute,
-				FIsActionChecked::CreateSP(SharedThis, &FOutlinerItemModelMixin::IsSelectedModelsMuted)
+				FGetActionCheckState::CreateSP(SharedThis, &FOutlinerItemModelMixin::SelectedModelsMuteState)
 			),
 			NAME_None,
 			EUserInterfaceActionType::ToggleButton
@@ -806,6 +817,128 @@ bool FOutlinerItemModelMixin::PassesFilter(const FCurveEditorTreeFilter* InFilte
 		return Filter->Match(AsViewModel()->AsShared());
 	}
 	return false;
+}
+
+
+
+bool FMuteSoloOutlinerItemModel::IsSolo() const
+{
+	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
+	if (Sequencer)
+	{
+		const TArray<FString>& SoloNodes = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->GetSoloNodes();
+
+		// Should be always called on the main thread, but thread_local for safety
+		static thread_local TStringBuilder<256> StaticBuffer;
+		StaticBuffer.Reset();
+
+		IOutlinerExtension::GetPathName(*AsViewModel(), StaticBuffer);
+
+		const TCHAR* NodePath = StaticBuffer.ToString();
+
+		// It's pretty ridiculous to do a linear string search within this array, but that's what we have
+		return SoloNodes.Contains(NodePath);
+	}
+	return false;
+}
+
+void FMuteSoloOutlinerItemModel::SetIsSoloed(bool bIsSoloed)
+{
+	FViewModel* ViewModel = AsViewModel();
+	TSharedPtr<FSequenceModel> SequenceModel = ViewModel->FindAncestorOfType<FSequenceModel>();
+
+	if (SequenceModel)
+	{
+		UMovieScene* MovieScene = SequenceModel->GetMovieScene();
+		if (MovieScene->IsReadOnly())
+		{
+			return;
+		}
+
+		TArray<FString>& SoloNodes = MovieScene->GetSoloNodes();
+
+		MovieScene->Modify();
+
+		// Should be always called on the main thread, but thread_local for safety
+		static thread_local TStringBuilder<256> StaticBuffer;
+		StaticBuffer.Reset();
+
+		IOutlinerExtension::GetPathName(*ViewModel, StaticBuffer);
+
+		const TCHAR* NodePath = StaticBuffer.ToString();
+
+		if (bIsSoloed)
+		{
+			// Mark Mute, being careful as we might be re-marking an already Mute node
+			SoloNodes.AddUnique(NodePath);
+		}
+		else
+		{
+			// UnMute
+			SoloNodes.Remove(NodePath);
+		}
+	}
+}
+
+bool FMuteSoloOutlinerItemModel::IsMuted() const
+{
+	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
+	if (Sequencer)
+	{
+		const TArray<FString>& MuteNodes = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->GetMuteNodes();
+
+		// Should be always called on the main thread, but thread_local for safety
+		static thread_local TStringBuilder<256> StaticBuffer;
+		StaticBuffer.Reset();
+
+		IOutlinerExtension::GetPathName(*AsViewModel(), StaticBuffer);
+
+		const TCHAR* NodePath = StaticBuffer.ToString();
+
+		// It's pretty ridiculous to do a linear string search within this array, but that's what we have
+		return MuteNodes.Contains(NodePath);
+	}
+	return false;
+}
+
+void FMuteSoloOutlinerItemModel::SetIsMuted(bool bIsMuted)
+{
+	FViewModel* ViewModel = AsViewModel();
+	TSharedPtr<FSequenceModel> SequenceModel = ViewModel->FindAncestorOfType<FSequenceModel>();
+
+	if (SequenceModel)
+	{
+		UMovieScene* MovieScene = SequenceModel->GetMovieScene();
+		if (MovieScene->IsReadOnly())
+		{
+			return;
+		}
+
+		TArray<FString>& MuteNodes = MovieScene->GetMuteNodes();
+
+		// Should be always called on the main thread, but thread_local for safety
+		static thread_local TStringBuilder<256> StaticBuffer;
+		StaticBuffer.Reset();
+
+		IOutlinerExtension::GetPathName(*ViewModel, StaticBuffer);
+
+		const TCHAR* NodePath = StaticBuffer.ToString();
+
+		MovieScene->Modify();
+
+		if (bIsMuted)
+		{
+			// Mark Mute, being careful as we might be re-marking an already Mute node
+			MuteNodes.AddUnique(NodePath);
+		}
+		else
+		{
+			// UnMute
+			MuteNodes.Remove(NodePath);
+		}
+	}
 }
 
 } // namespace Sequencer

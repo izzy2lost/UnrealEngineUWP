@@ -41,6 +41,9 @@ enum class EOutlinerSelectionState
 	SelectedDirectly          = 1 << 0,
 	HasSelectedKeys           = 1 << 1,
 	HasSelectedTrackAreaItems = 1 << 2,
+
+	DescendentHasSelectedKeys = 1 << 3,
+	DescendentHasSelectedTrackAreaItems = 1 << 4,
 };
 ENUM_CLASS_FLAGS(EOutlinerSelectionState);
 

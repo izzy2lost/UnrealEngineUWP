@@ -145,7 +145,7 @@ protected:
 	void ExpandCollapseNode(TViewModelPtr<IOutlinerExtension> InDataModel, bool bExpansionState, ETreeRecursion Recursion);
 
 	/** Generate a row for a particular node */
-	TSharedRef<ITableRow> OnGenerateRow(TWeakViewModelPtr<IOutlinerExtension> InDisplayNode, const TSharedRef<STableViewBase>& OwnerTable);
+	virtual TSharedRef<ITableRow> OnGenerateRow(TWeakViewModelPtr<IOutlinerExtension> InDisplayNode, const TSharedRef<STableViewBase>& OwnerTable);
 
 	void CreateTrackLanesForRow(TSharedRef<SOutlinerViewRow> InRow, TViewModelPtr<IOutlinerExtension> InDataModel);
 	TSharedPtr<STrackLane> FindOrCreateParentLane(TViewModelPtr<IOutlinerExtension> InDataModel);
@@ -175,7 +175,7 @@ public:
 
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 
-private:
+protected:
 
 	// Private, unimplemented overloaded name for SetItemSelection to prevent external calls - use ForceSetItemSelection instead
 	void SetItemSelection();
@@ -248,7 +248,7 @@ protected:
 
 	FString OnItemToString_Debug(TWeakViewModelPtr<IOutlinerExtension> InWeakModel);
 
-private:
+protected:
 
 	/** The tree view's header row (hidden) */
 	TSharedPtr<SHeaderRow> HeaderRow;
@@ -359,9 +359,10 @@ public:
 	FReply OnAcceptDrop( const FDragDropEvent& DragDropEvent, EItemDropZone ItemDropZone, TWeakViewModelPtr<IOutlinerExtension> InDataModel);
 
 protected:
+
 	FVector2D ComputeDesiredSize(float LayoutScaleMultiplier) const override;
 
-private:
+protected:
 
 	/**
 	 * Cached reference to a track lane that we relate to.

@@ -43,7 +43,7 @@ TMap<TWeakObjectPtr<UMovieSceneFolder>, FColor> FFolderModel::InitialFolderColor
 bool FFolderModel::bFolderPickerWasCancelled = false;
 
 FFolderModel::FFolderModel(UMovieSceneFolder* Folder)
-	: FOutlinerItemModel()
+	: FMuteSoloOutlinerItemModel()
 	, TrackAreaList(EViewModelListType::TrackArea)
 	, WeakFolder(Folder)
 	, OwnerModel(nullptr)
