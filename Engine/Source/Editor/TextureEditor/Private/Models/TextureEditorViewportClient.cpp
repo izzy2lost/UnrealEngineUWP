@@ -253,6 +253,8 @@ void FTextureEditorViewportClient::Draw(FViewport* Viewport, FCanvas* Canvas)
 			const FVector2D UV0 = TileItem.UV0;
 			const FVector2D UV1 = TileItem.UV1;
 
+			UE::RenderCommandPipe::FSyncScope SyncScope;
+
 			const ERHIFeatureLevel::Type InFeatureLevel = GMaxRHIFeatureLevel;
 			ENQUEUE_RENDER_COMMAND(MakeTilesResident)(
 				[InFeatureLevel, VTResource, ScreenSpaceSize, ViewportPositon, ViewportSize, UV0, UV1, MipLevel](FRHICommandListImmediate& RHICmdList)

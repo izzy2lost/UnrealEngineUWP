@@ -563,6 +563,8 @@ void UMoviePipeline::FlushAsyncEngineSystems()
 		}
 	}
 
+	UE::RenderCommandPipe::FSyncScope SyncScope;
+
 	// Flush virtual texture tile calculations
 	ERHIFeatureLevel::Type FeatureLevel = GetWorld()->GetFeatureLevel();
 	ENQUEUE_RENDER_COMMAND(VirtualTextureSystemFlushCommand)(

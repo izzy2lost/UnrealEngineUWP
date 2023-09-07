@@ -322,6 +322,8 @@ bool UE::AssetUtils::ForceVirtualTexturePrefetch(FImageDimensions ScreenSpaceDim
 	{
 		const FVector2D ScreenSpaceSize(ScreenSpaceDimensions.GetWidth(), ScreenSpaceDimensions.GetHeight());
 
+		UE::RenderCommandPipe::FSyncScope SyncScope;
+
 		ENQUEUE_RENDER_COMMAND(AssetUtils_ForceVirtualTexturePrefetch)(
 			[ScreenSpaceSize](FRHICommandListImmediate& RHICmdList)
 		{

@@ -975,8 +975,6 @@ void BeginSendEndOfFrameUpdatesDrawEvent(FSendAllEndOfFrameUpdates& SendAllEndOf
 {
 	BEGIN_DRAW_EVENTF_GAMETHREAD(SendAllEndOfFrameUpdates, SendAllEndOfFrameUpdates.DrawEvent, TEXT("SendAllEndOfFrameUpdates"));
 
-	UE::RenderCommandPipe::StartParallelRecordingValidation();
-
 	ENQUEUE_RENDER_COMMAND(BeginDrawEventCommand)(UE::RenderCommandPipe::SkeletalMesh,
 		[GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache]
 	{
@@ -1000,8 +998,6 @@ void EndSendEndOfFrameUpdatesDrawEvent(FSendAllEndOfFrameUpdates& SendAllEndOfFr
 		}
 	});
 
-	UE::RenderCommandPipe::StopParallelRecordingValidation();
-
 	STOP_DRAW_EVENT_GAMETHREAD(SendAllEndOfFrameUpdates.DrawEvent);
 }
 
@@ -1022,6 +1018,8 @@ void UWorld::SendAllEndOfFrameUpdates()
 	{
 		return;
 	}
+
+	UE::RenderCommandPipe::StartRecording();
 
 	// Wait for tasks that are generating data for the render proxies, but are not awaited in any TickFunctions 
 	// E.g., see cloth USkeletalMeshComponent::UpdateClothStateAndSimulate
@@ -1165,6 +1163,8 @@ void UWorld::SendAllEndOfFrameUpdates()
 	LocalComponentsThatNeedEndOfFrameUpdate.Reset();
 
 	EndSendEndOfFrameUpdatesDrawEvent(SendAllEndOfFrameUpdates);
+
+	UE::RenderCommandPipe::StopRecording();
 }
 
 /**

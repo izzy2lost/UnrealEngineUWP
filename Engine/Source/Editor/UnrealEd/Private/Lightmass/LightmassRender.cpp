@@ -1316,6 +1316,8 @@ bool FLightmassMaterialRenderer::GenerateMaterialPropertyData(
 					const ERHIFeatureLevel::Type FeatureLevel = GMaxRHIFeatureLevel;
 					const FVector2D ScreenSpaceSize(InOutSizeX, InOutSizeY);
 
+					UE::RenderCommandPipe::FSyncScope SyncScope;
+
 					ENQUEUE_RENDER_COMMAND(LoadTiles)(
 						[FeatureLevel, ScreenSpaceSize](FRHICommandListImmediate& RHICmdList)
 					{

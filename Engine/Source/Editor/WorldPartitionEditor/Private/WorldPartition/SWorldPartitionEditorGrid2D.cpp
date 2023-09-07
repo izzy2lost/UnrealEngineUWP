@@ -1967,6 +1967,8 @@ int32 SWorldPartitionEditorGrid2D::PaintMinimap(const FGeometry& AllottedGeometr
 			const ERHIFeatureLevel::Type InFeatureLevel = GMaxRHIFeatureLevel;
 			const int32 MipLevel = -1;
 
+			UE::RenderCommandPipe::FSyncScope SyncScope;
+
 			ENQUEUE_RENDER_COMMAND(MakeTilesResident)(
 				[InFeatureLevel, VTResource, ScreenSpaceSize, ViewportPositon, ViewportSize, UV0, UV1, MipLevel](FRHICommandListImmediate& RHICmdList)
 			{

@@ -1343,8 +1343,6 @@ void CaptureSceneIntoScratchCubemap(
 
 		FSceneRenderer* SceneRenderer = FSceneRenderer::CreateSceneRenderer(&ViewFamily, nullptr);
 
-		UE::RenderCommandPipe::FSyncScope SyncScope;
-
 		ENQUEUE_RENDER_COMMAND(CaptureCommand)(
 			[SceneRenderer, &ReflectionCubemapTexture, CubeFace, CubemapSize, bCapturingForSkyLight, bLowerHemisphereIsBlack, LowerHemisphereColor, bCapturingForMobile, bInsideTick](FRHICommandListImmediate& RHICmdList)
 		{
@@ -1438,6 +1436,8 @@ void FScene::CaptureOrUploadReflectionCapture(UReflectionCaptureComponent* Captu
 				UE_LOG(LogEngine, Warning, TEXT("No built data for %s, skipping generation in cooked build."), *CaptureComponent->GetPathName());
 				return;
 			}
+
+			UE::RenderCommandPipe::FSyncScope SyncScope;
 
 			// Prefetch all virtual textures so that we have content available
 			if (UseVirtualTexturing(GetFeatureLevel()))
@@ -1712,6 +1712,8 @@ void FScene::UpdateSkyCaptureContents(
 		const bool bSkySpecifiedCubemapUses32bitFloat = SpecifiedCubemapColorScale != nullptr && CaptureComponent->SourceType == SLS_SpecifiedCubemap && CaptureComponent->Cubemap->GetPixelFormat() == PF_A32B32G32R32F;
 
 		TRenderThreadStruct<FReflectionCubemapTexture> ReflectionCubemapTexture(CubemapResolution);
+
+		UE::RenderCommandPipe::FSyncScope SyncScope;
 
 		if (CaptureComponent->SourceType == SLS_CapturedScene)
 		{

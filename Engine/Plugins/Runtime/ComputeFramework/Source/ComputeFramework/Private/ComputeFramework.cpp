@@ -12,6 +12,7 @@
 #include "RenderGraphBuilder.h"
 #include "ShaderCore.h"
 #include "UObject/UObjectIterator.h"
+#include "Rendering/RenderCommandPipes.h"
 
 DEFINE_LOG_CATEGORY(LogComputeFramework);
 
@@ -87,7 +88,7 @@ namespace ComputeFramework
 		FComputeGraphTaskWorker* ComputeGraphWorker = ComputeSystem != nullptr ? ComputeSystem->GetComputeWorker(InScene) : nullptr;
 		if (ComputeGraphWorker)
 		{
-			UE::RenderCommandPipe::FSyncScope SyncScope;
+			UE::RenderCommandPipe::FSyncScope SyncScope({ &UE::RenderCommandPipe::SkeletalMesh });
 
 			ENQUEUE_RENDER_COMMAND(ComputeFrameworkFlushCommand)(
 				[ComputeGraphWorker, InExecutionGroupName](FRHICommandListImmediate& RHICmdList)

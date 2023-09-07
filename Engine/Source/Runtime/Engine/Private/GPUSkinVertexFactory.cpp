@@ -17,6 +17,7 @@
 #include "RenderUtils.h"
 #include "ShaderPlatformCachedIniValue.h"
 #include "Engine/RendererSettings.h"
+#include "Rendering/RenderCommandPipes.h"
 
 #if INTEL_ISPC
 #include "GPUSkinVertexFactory.ispc.generated.h"
@@ -242,7 +243,7 @@ static TAutoConsoleVariable<int32> CVarRHICmdDeferSkeletalLockAndFillToRHIThread
 
 static bool DeferSkeletalLockAndFillToRHIThread()
 {
-	return IsRunningRHIInSeparateThread() && CVarRHICmdDeferSkeletalLockAndFillToRHIThread.GetValueOnRenderThread() > 0 && !UE::RenderCommandPipe::IsReplaying();
+	return IsRunningRHIInSeparateThread() && CVarRHICmdDeferSkeletalLockAndFillToRHIThread.GetValueOnRenderThread() > 0 && !UE::RenderCommandPipe::SkeletalMesh.IsReplaying();
 }
 
 bool FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandList& RHICmdList, const TArray<FMatrix44f>& ReferenceToLocalMatrices,

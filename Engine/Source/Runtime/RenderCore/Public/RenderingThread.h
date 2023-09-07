@@ -294,31 +294,26 @@ enum class ERenderCommandPipeFlags : uint8
 
 ENUM_CLASS_FLAGS(ERenderCommandPipeFlags);
 
+class FRenderCommandPipe;
+
 namespace UE::RenderCommandPipe
 {
 	// [Game Thread] Initializes all statically initialized render command pipes.
 	extern RENDERCORE_API void Initialize();
 
-	// [Game Thread] Returns the active render command pipe mode.
-	extern RENDERCORE_API ERenderCommandPipeMode GetMode();
-
-	// [Game Thread (Parallel)] Returns whether render command pipes are currently recording on the game thread timeline.
+	// [Game Thread (Parallel)] Returns whether any render command pipes are currently recording on the game thread timeline.
 	extern RENDERCORE_API bool IsRecording();
 
-	// [Render Thread (Parallel)] Returns whether render command pipes are currently replaying commands on the render thread timeline.
+	// [Render Thread (Parallel)] Returns whether any render command pipes are currently replaying commands on the render thread timeline.
 	extern RENDERCORE_API bool IsReplaying();
 
-	// [Game Thread] Starts recording render commands into pipes.
+	// [Game Thread] Starts recording render commands into pipes. Returns whether the operation succeeded.
 	extern RENDERCORE_API void StartRecording();
+	extern RENDERCORE_API void StartRecording(TConstArrayView<FRenderCommandPipe*> Pipes);
 
-	// [Game Thread] Stops recording commands into pipes and syncs all remaining pipe work to the render thread.
+	// [Game Thread] Stops recording commands into pipes and syncs all remaining pipe work to the render thread. Returns whether the operation succeeded.
 	extern RENDERCORE_API void StopRecording();
-
-	// [Game Thread] Enables validation that will issue an ensure if recording is stopped.
-	extern RENDERCORE_API void StartParallelRecordingValidation();
-
-	// [Game Thread] Disables validation that will issue an ensure if recording is stopped.
-	extern RENDERCORE_API void StopParallelRecordingValidation();
+	extern RENDERCORE_API void StopRecording(TConstArrayView<FRenderCommandPipe*> Pipes);
 
 	// [Game Thread] Stops render command pipe recording during the duration of the scope and restarts recording once the scope is complete.
 	class FSyncScope
@@ -326,25 +321,33 @@ namespace UE::RenderCommandPipe
 	public:
 		FSyncScope()
 		{
-			if (IsRecording())
-			{
-				StopRecording();
-				bWasRecording = true;
-			}
+			StopRecording();
+		}
+
+		FSyncScope(TConstArrayView<FRenderCommandPipe*> InPipes)
+			: Pipes(InPipes)
+		{
+			StopRecording(Pipes);
 		}
 
 		~FSyncScope()
 		{
-			if (bWasRecording)
+			if (!Pipes.IsEmpty())
+			{
+				StartRecording(Pipes);
+			}
+			else
 			{
 				StartRecording();
 			}
 		}
 
 	private:
-		bool bWasRecording = false;
+		TConstArrayView<FRenderCommandPipe*> Pipes;
 	};
 }
+
+extern RENDERCORE_API ERenderCommandPipeMode GRenderCommandPipeMode;
 
 class FRenderThreadCommandPipe
 {
@@ -352,7 +355,7 @@ public:
 	template <typename RenderCommandTag, typename LambdaType>
 	FORCEINLINE_DEBUGGABLE static void Enqueue(LambdaType&& Lambda)
 	{
-		if (UE::RenderCommandPipe::GetMode() != ERenderCommandPipeMode::None)
+		if (GRenderCommandPipeMode != ERenderCommandPipeMode::None)
 		{
 			Instance.EnqueueAndLaunch(RenderCommandTag::GetName(), RenderCommandTag::GetSpecId(), RenderCommandTag::GetStatId(), MoveTemp(Lambda));
 		}
@@ -428,6 +431,17 @@ public:
 		return Name;
 	}
 
+	FORCEINLINE bool IsReplaying() const
+	{
+		ensure(IsInParallelRenderingThread());
+		return Frame_RenderThread != nullptr;
+	}
+
+	FORCEINLINE bool IsRecording() const
+	{
+		return bRecording;
+	}
+
 	void SetEnabled(bool bInIsEnabled)
 	{
 		check(IsInGameThread());
@@ -437,53 +451,65 @@ public:
 	template <typename RenderCommandTag>
 	static void Enqueue(FRenderCommandPipe* Pipe, FCommandListFunction&& Function)
 	{
-		if (Pipe && Pipe->IsRecording())
+		if (GRenderCommandPipeMode == ERenderCommandPipeMode::All && Pipe)
 		{
-			Pipe->EnqueueAndLaunch(MoveTemp(Function), RenderCommandTag::GetName(), RenderCommandTag::GetSpecId());
+			UE::TScopeLock Lock(Pipe->Mutex);
+			if (Pipe->Frame_GameThread)
+			{
+				Pipe->EnqueueAndLaunch(MoveTemp(Function), RenderCommandTag::GetName(), RenderCommandTag::GetSpecId());
+				return;
+			}
 		}
-		else
-		{
-			EnqueueUniqueRenderCommand<RenderCommandTag>([Function = MoveTemp(Function)](FRHICommandListImmediate& RHICmdList) { Function(RHICmdList); });
-		}
+
+		EnqueueUniqueRenderCommand<RenderCommandTag>([Function = MoveTemp(Function)](FRHICommandListImmediate& RHICmdList) { Function(RHICmdList); });
 	}
 
 	template <typename RenderCommandTag>
 	static void Enqueue(FRenderCommandPipe& Pipe, FCommandListFunction&& Function)
 	{
-		if (Pipe.IsRecording())
+		if (GRenderCommandPipeMode == ERenderCommandPipeMode::All)
 		{
-			Pipe.EnqueueAndLaunch(MoveTemp(Function), RenderCommandTag::GetName(), RenderCommandTag::GetSpecId());
+			UE::TScopeLock Lock(Pipe.Mutex);
+			if (Pipe.Frame_GameThread)
+			{
+				Pipe.EnqueueAndLaunch(MoveTemp(Function), RenderCommandTag::GetName(), RenderCommandTag::GetSpecId());
+				return;
+			}
 		}
-		else
-		{
-			EnqueueUniqueRenderCommand<RenderCommandTag>([Function = MoveTemp(Function)](FRHICommandListImmediate& RHICmdList) { Function(RHICmdList); });
-		}
+		
+		EnqueueUniqueRenderCommand<RenderCommandTag>([Function = MoveTemp(Function)](FRHICommandListImmediate& RHICmdList) { Function(RHICmdList); });
 	}
 
 	template <typename RenderCommandTag>
 	static void Enqueue(FRenderCommandPipe* Pipe, FEmptyFunction&& Function)
 	{
-		if (Pipe && Pipe->IsRecording())
+		if (GRenderCommandPipeMode == ERenderCommandPipeMode::All && Pipe)
 		{
-			Pipe->EnqueueAndLaunch(MoveTemp(Function), RenderCommandTag::GetName(), RenderCommandTag::GetSpecId());
+			UE::TScopeLock Lock(Pipe->Mutex);
+			if (Pipe->Frame_GameThread)
+			{
+				Pipe->EnqueueAndLaunch(MoveTemp(Function), RenderCommandTag::GetName(), RenderCommandTag::GetSpecId());
+				return;
+			}
 		}
-		else
-		{
-			EnqueueUniqueRenderCommand<RenderCommandTag>([Function = MoveTemp(Function)](FRHICommandListImmediate&) { Function(); });
-		}
+
+		EnqueueUniqueRenderCommand<RenderCommandTag>([Function = MoveTemp(Function)](FRHICommandListImmediate&) { Function(); });
 	}
 
 	template <typename RenderCommandTag>
 	static void Enqueue(FRenderCommandPipe& Pipe, FEmptyFunction&& Function)
 	{
-		if (Pipe.IsRecording())
+		if (Pipe.bEnabled)
 		{
-			Pipe.EnqueueAndLaunch(MoveTemp(Function), RenderCommandTag::GetName(), RenderCommandTag::GetSpecId());
+			UE::TScopeLock Lock(Pipe.Mutex);
+			if (Pipe.Frame_GameThread)
+			{
+				Pipe.EnqueueAndLaunch(MoveTemp(Function), RenderCommandTag::GetName(), RenderCommandTag::GetSpecId());
+				return;
+			}
 		}
-		else
-		{
-			EnqueueUniqueRenderCommand<RenderCommandTag>([Function = MoveTemp(Function)](FRHICommandListImmediate&) { Function(); });
-		}
+
+		EnqueueUniqueRenderCommand<RenderCommandTag>([Function = MoveTemp(Function)](FRHICommandListImmediate&) { Function(); });
 	}
 
 	template <typename RenderCommandTag, typename LambdaType>
@@ -509,11 +535,6 @@ private:
 		EnqueueAndLaunch(FFunctionVariant(TInPlaceType<FEmptyFunction>(), MoveTemp(Function)), CommandName, CommandSpecId);
 	}
 
-	FORCEINLINE bool IsRecording() const
-	{
-		return Frame_GameThread != nullptr;
-	}
-
 	struct FCommand
 	{
 		FCommand(FFunctionVariant&& InFunction, const TCHAR* InName, uint32& InOutSpecId)
@@ -527,7 +548,7 @@ private:
 		uint32* SpecId;
 	};
 
-	struct FFrame
+	struct FFrame : public TConcurrentLinearObject<FFrame>
 	{
 		FFrame(const TCHAR* Name, const UE::Tasks::FTaskEvent& InTaskEvent)
 			: Pipe(Name)
@@ -537,15 +558,17 @@ private:
 		UE::Tasks::FPipe Pipe;
 		UE::Tasks::FTaskEvent TaskEvent;
 		TArray<FCommand> Queue;
-		UE::FMutex QueueMutex;
 		FRHICommandList* RHICmdList = nullptr;
 	};
 
 	const TCHAR* Name;
+	UE::FMutex Mutex;
 	FFrame* Frame_GameThread = nullptr;
 	FFrame* Frame_RenderThread = nullptr;
 	TLinkedList<FRenderCommandPipe*> GlobalListLink;
 	FAutoConsoleVariable ConsoleVariable;
+	uint16 Index = uint16(-1);
+	bool bRecording = false;
 	bool bEnabled = true;
 };
 
