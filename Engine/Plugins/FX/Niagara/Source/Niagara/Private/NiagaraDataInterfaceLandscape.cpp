@@ -1156,6 +1156,7 @@ bool UNiagaraDataInterfaceLandscape::CopyToInternal(UNiagaraDataInterface* Desti
 	DestinationLandscape->SourceLandscape = SourceLandscape;	
 	DestinationLandscape->SourceMode = SourceMode;
 	DestinationLandscape->PhysicalMaterials = PhysicalMaterials;
+	DestinationLandscape->bVirtualTexturesSupported = bVirtualTexturesSupported;
 
 	return true;
 }
@@ -1169,7 +1170,8 @@ bool UNiagaraDataInterfaceLandscape::Equals(const UNiagaraDataInterface* Other) 
 	const UNiagaraDataInterfaceLandscape* OtherLandscape = CastChecked<const UNiagaraDataInterfaceLandscape>(Other);
 	return OtherLandscape->SourceLandscape == SourceLandscape
 		&& OtherLandscape->SourceMode == SourceMode
-		&& OtherLandscape->PhysicalMaterials == PhysicalMaterials;
+		&& OtherLandscape->PhysicalMaterials == PhysicalMaterials
+		&& OtherLandscape->bVirtualTexturesSupported == bVirtualTexturesSupported;
 }
 
 void UNiagaraDataInterfaceLandscape::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
@@ -1524,7 +1526,7 @@ void UNiagaraDataInterfaceLandscape::ApplyLandscape(const FNiagaraSystemInstance
 	InstanceData.NormalVirtualTextureIndex = INDEX_NONE;
 
 	// only worry about virtual textures if our current platform supports them
-	if (UseVirtualTexturing(SystemInstance.GetFeatureLevel()))
+	if (bVirtualTexturesSupported && UseVirtualTexturing(SystemInstance.GetFeatureLevel()))
 	{
 		const int32 RuntimeVirtualTextureCount = InstanceData.Landscape->RuntimeVirtualTextures.Num();
 		for (int32 TextureIt = 0; TextureIt < RuntimeVirtualTextureCount; ++TextureIt)

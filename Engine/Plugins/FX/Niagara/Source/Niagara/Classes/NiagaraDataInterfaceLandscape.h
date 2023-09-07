@@ -49,6 +49,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Landscape")
 	TArray<TObjectPtr<UPhysicalMaterial>> PhysicalMaterials;
 
+	/** Can be used to ignore virtual textures even if they are defined for the landscape. */
+	UPROPERTY(EditAnywhere, Category = "Landscape")
+	bool bVirtualTexturesSupported;
+
 	//UObject Interface
 	NIAGARA_API virtual void PostInitProperties() override;	
 	//UObject Interface End
