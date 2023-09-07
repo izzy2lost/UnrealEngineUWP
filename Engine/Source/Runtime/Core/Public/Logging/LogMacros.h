@@ -230,12 +230,6 @@ CORE_API void BasicFatalLog(const FLogCategoryBase& Category, const FStaticBasic
 	#define UE_SET_LOG_VERBOSITY(CategoryName, Verbosity) \
 		CategoryName.SetVerbosity(ELogVerbosity::Verbosity);
 
-	#if UE_VALIDATE_FORMAT_STRINGS
-		#define UE_VALIDATE_FORMAT_STRING UE_CHECK_FORMAT_STRING
-	#else
-		#define UE_VALIDATE_FORMAT_STRING(Format, ...)
-	#endif
-
 	/**
 	 * A macro that logs a formatted message if the log category is active at the requested verbosity level.
 	 *

@@ -15,6 +15,16 @@
 #define UE_CHECK_FORMAT_STRING_ERR(Err, Fmt, ...)												\
 	(::UE::Core::Private::FormatStringSan::TCheckFormatString<decltype(::UE::Core::Private::FormatStringSan::GetFmtArgTypes(__VA_ARGS__))>::Check(false, 0, Fmt).Status == Err)
 
+
+#if UE_VALIDATE_FORMAT_STRINGS
+	#define UE_VALIDATE_FORMAT_STRING UE_CHECK_FORMAT_STRING
+#else
+	#define UE_VALIDATE_FORMAT_STRING(Format, ...)
+#endif
+
+// Forward declaration
+template <typename T> class TEnumAsByte;
+
 /// implementation
 namespace UE::Core::Private
 {
@@ -108,8 +118,8 @@ namespace UE::Core::Private
 		FMT_STR_ERR(StatusI64BadSpec, "'%I' must appear as '%I64' with an integral suffix (eg. '%I64d', '%I64u', etc.)");
 		FMT_STR_ERR(StatusI64NeedsIntegerArg, "'%I64[ ]' expects integral arg (eg. `char`, `int`, `long`, etc.)");
 		FMT_STR_ERR(StatusDynamicLengthSpecNeedsIntegerArg, "dynamic field width specifier '*' expects integral arg (eg. `char`, `int`, `long`, etc.)");
-		FMT_STR_ERR(StatusUTF8NeedsStringCastAndS, "Pass UTF8 strings to StringCast<TCHAR> and use %s.");
-		FMT_STR_ERR(StatusUTF8NeedsStringCast, "'%s' expects `TCHAR*`; pass UTF8 strings to StringCast<TCHAR> first.");
+		FMT_STR_ERR(StatusUTF8NeedsStringCastAndS, "Pass UTF8 strings to WriteToString and use %s.");
+		FMT_STR_ERR(StatusUTF8NeedsStringCast, "'%s' expects `TCHAR*`; pass UTF8 strings to WriteToString first.");
 
 #undef FMT_STR_ERR
 
@@ -122,8 +132,16 @@ namespace UE::Core::Private
 		inline constexpr bool bIsTCharPtr = bIsPointerTo<T, TCHAR>;
 		template <typename T>
 		inline constexpr bool bIsFloatOrDouble = std::is_same_v<float, T> || std::is_same_v<double, T>;
+
+		// Returns true only when the type is TEnumAsByte
 		template <typename T>
-		inline constexpr bool bIsIntegralEnum = std::is_enum_v<T>;
+		struct TIsEnumAsByte { static constexpr bool IsEnumAsByte = false; };
+		template <typename T>
+		struct TIsEnumAsByte<TEnumAsByte<T>> { static constexpr bool IsEnumAsByte = true; };
+		
+
+		template <typename T>
+		inline constexpr bool bIsIntegralEnum = std::is_enum_v<T> || TIsEnumAsByte<T>::IsEnumAsByte;
 
 		template <typename... Ts>
 		struct TFmtArgTypes {};

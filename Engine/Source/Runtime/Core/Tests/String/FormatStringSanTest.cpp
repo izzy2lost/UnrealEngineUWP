@@ -92,6 +92,12 @@ TEST_CASE_NAMED(FFormatStringValidatorTest, "Core::String::FormatStringSan", "[C
 			enum class MyEnum { Value };
 			STATIC_CHECK(UE_CHECK_FORMAT_STRING_ERR(FormatStringSan::StatusOk, TEXT("enum class %d value"), MyEnum::Value));
 		}
+
+		{
+			enum ETestEnumAsByte { ETestEnumAsByte_Zero = 0 };
+			TEnumAsByte<ETestEnumAsByte> EnumAsByteParam = ETestEnumAsByte_Zero;
+			STATIC_CHECK(UE_CHECK_FORMAT_STRING_ERR(FormatStringSan::StatusOk, TEXT("%d"), EnumAsByteParam));
+		}
 	}
 }
 
