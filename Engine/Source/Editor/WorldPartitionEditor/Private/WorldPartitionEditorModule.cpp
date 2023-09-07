@@ -26,6 +26,7 @@
 #include "Engine/Level.h"
 
 #include "HAL/FileManager.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/FileHelper.h"
 #include "Misc/MessageDialog.h"
 #include "Misc/StringBuilder.h"
@@ -914,11 +915,16 @@ void FWorldPartitionEditorModule::FCleanupExternalObjectsEmptyFoldersWorker::DoW
 
 void FWorldPartitionEditorModule::CleanupExternalObjectsEmptyFolders()
 {
-	CleanupExternalObjectsEmptyFoldersWorkerAsyncTask = MakeUnique<FAsyncTask<FCleanupExternalObjectsEmptyFoldersWorker>>();
-	CleanupExternalObjectsEmptyFoldersWorkerAsyncTask->StartBackgroundTask();
-	// todo: cleanup content bundles when they are registered?
+	bool bDoCleanup = false;
+	GConfig->GetBool(TEXT("WorldPartitionEditor"), TEXT("bCleanupExternalObjectsEmptyFolders"), bDoCleanup, GEditorIni);
+	if (bDoCleanup)
+	{
+		CleanupExternalObjectsEmptyFoldersWorkerAsyncTask = MakeUnique<FAsyncTask<FCleanupExternalObjectsEmptyFoldersWorker>>();
+		CleanupExternalObjectsEmptyFoldersWorkerAsyncTask->StartBackgroundTask();
+		// todo: cleanup content bundles when they are registered?
 
-	FCoreDelegates::OnPostEngineInit.AddLambda([this]() { WaitForCleanupExternalObjectsEmptyFolders(); });
+		FCoreDelegates::OnPostEngineInit.AddLambda([this]() { WaitForCleanupExternalObjectsEmptyFolders(); });
+	}
 }
 
 void FWorldPartitionEditorModule::WaitForCleanupExternalObjectsEmptyFolders()
