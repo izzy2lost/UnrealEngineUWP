@@ -1580,9 +1580,9 @@ namespace mu
 								// we will devide the layout block by the format block
 								const FImageFormatData& finfo = GetImageFormatData(desc.m_format);
 
-								int mipsX = (int)ceilf(logf((float)blockSizeX / finfo.PixelsPerBlockX) / logf(2.0f));
-								int mipsY = (int)ceilf(logf((float)blockSizeY / finfo.PixelsPerBlockY) / logf(2.0f));
-								mop->BlockLevels = (uint8_t)FMath::Max(mipsX, mipsY);
+								int32 mipsX = FMath::CeilLogTwo(blockSizeX / finfo.PixelsPerBlockX);
+								int32 mipsY = FMath::CeilLogTwo(blockSizeY / finfo.PixelsPerBlockY);
+								mop->BlockLevels = (uint8)FMath::Max(mipsX, mipsY);
 
 								mop->AddressMode = mipmapNode->GetPrivate()->m_settings.m_addressMode;
 								mop->FilterType = mipmapNode->GetPrivate()->m_settings.m_filterType;

@@ -55,16 +55,16 @@ namespace mu
 		{
 			// Sizes in blocks of the current mips
 			UE::Math::TIntVector2<uint16> baseMipSize(
-				pBase->GetSizeX() / finfo.PixelsPerBlockX,
-				pBase->GetSizeY() / finfo.PixelsPerBlockY);
+				FMath::DivideAndRoundUp(pBase->GetSizeX(), uint16(finfo.PixelsPerBlockX)),
+				FMath::DivideAndRoundUp(pBase->GetSizeY(), uint16(finfo.PixelsPerBlockY)));
 
 			UE::Math::TIntVector2<uint16> blockMipPos(
 				rect.min[0] / finfo.PixelsPerBlockX,
 				rect.min[1] / finfo.PixelsPerBlockY);
 
 			UE::Math::TIntVector2<uint16> blockMipSize(
-				rect.size[0] / finfo.PixelsPerBlockX,
-				rect.size[1] / finfo.PixelsPerBlockY);
+				FMath::DivideAndRoundUp(rect.size[0], uint16(finfo.PixelsPerBlockX)),
+				FMath::DivideAndRoundUp(rect.size[1], uint16(finfo.PixelsPerBlockY)));
 
 			int doneMips = 0;
 			for (; doneMips < pBase->GetLODCount() && doneMips < pBlock->GetLODCount(); ++doneMips)

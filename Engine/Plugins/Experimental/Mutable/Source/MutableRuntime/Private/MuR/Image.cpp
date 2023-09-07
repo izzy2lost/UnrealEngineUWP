@@ -686,8 +686,8 @@ namespace mu
         int blockY = pixelY / fdata.PixelsPerBlockY;
         int blockPixelY = pixelY % fdata.PixelsPerBlockY;
 
-        int blocksPerRow = m_size[0] / fdata.PixelsPerBlockX;
-        int blockOffset = blockX + blockY * blocksPerRow;
+        int32 blocksPerRow = FMath::DivideAndRoundUp(int32(m_size[0]), int32(fdata.PixelsPerBlockX));
+        int32 blockOffset = blockX + blockY * blocksPerRow;
 
         // Non-generic part
         if ( m_format== EImageFormat::IF_RGB_UBYTE )

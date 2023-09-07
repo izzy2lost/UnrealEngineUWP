@@ -52,8 +52,8 @@ namespace mu
 		checkf( Rect.size[0] % finfo.PixelsPerBlockX == 0, TEXT("Rect must snap to blocks.") );
 		checkf( Rect.size[1] % finfo.PixelsPerBlockY == 0, TEXT("Rect must snap to blocks.") );
 
-		int baseRowSize = finfo.BytesPerBlock * Base->GetSizeX() / finfo.PixelsPerBlockX;
-		int cropRowSize = finfo.BytesPerBlock * Rect.size[0] / finfo.PixelsPerBlockX;
+		int baseRowSize = finfo.BytesPerBlock * FMath::DivideAndRoundUp(Base->GetSizeX(), uint16(finfo.PixelsPerBlockX));
+		int cropRowSize = finfo.BytesPerBlock * FMath::DivideAndRoundUp(Rect.size[0], int32(finfo.PixelsPerBlockX));
 
         const uint8_t* pBaseBuf = Base->GetData();
         uint8_t* pCropBuf = Cropped->GetData();
