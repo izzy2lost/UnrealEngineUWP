@@ -165,14 +165,17 @@ void UNiagaraDataInterfaceSimpleCounter::PostInitProperties()
 	}
 }
 
+void UNiagaraDataInterfaceSimpleCounter::PostLoad()
+{
+	Super::PostLoad();
+	UpdateDIProxy();
+}
+
 #if WITH_EDITOR
 void UNiagaraDataInterfaceSimpleCounter::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
-
-	// Ensure proxy properties are up to date
-	FNDISimpleCounterProxy* Proxy_GT = GetProxyAs<FNDISimpleCounterProxy>();
-	Proxy_GT->GpuSyncMode = GpuSyncMode;
+	UpdateDIProxy();
 }
 #endif
 
@@ -201,8 +204,7 @@ bool UNiagaraDataInterfaceSimpleCounter::CopyToInternal(UNiagaraDataInterface* D
 	DestinationTyped->InitialValue = InitialValue;
 
 	// Ensure proxy properties are up to date
-	FNDISimpleCounterProxy* DestinationProxy = DestinationTyped->GetProxyAs<FNDISimpleCounterProxy>();
-	DestinationProxy->GpuSyncMode = GpuSyncMode;
+	DestinationTyped->UpdateDIProxy();
 
 	return true;
 }
@@ -466,6 +468,12 @@ void UNiagaraDataInterfaceSimpleCounter::PushToRenderThreadImpl()
 			}
 		);
 	}
+}
+
+void UNiagaraDataInterfaceSimpleCounter::UpdateDIProxy()
+{
+	FNDISimpleCounterProxy* Proxy_GT = GetProxyAs<FNDISimpleCounterProxy>();
+	Proxy_GT->GpuSyncMode = GpuSyncMode;
 }
 
 void UNiagaraDataInterfaceSimpleCounter::VMGet(FVectorVMExternalFunctionContext& Context)

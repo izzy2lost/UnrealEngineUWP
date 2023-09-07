@@ -26,6 +26,7 @@ class UNiagaraDataInterfaceSimpleCounter : public UNiagaraDataInterfaceRWBase
 public:
 	// UObject Interface
 	NIAGARA_API virtual void PostInitProperties() override;
+	NIAGARA_API virtual void PostLoad() override;
 #if WITH_EDITOR
 	NIAGARA_API virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
@@ -55,6 +56,8 @@ public:
 	NIAGARA_API virtual void SetShaderParameters(const FNiagaraDataInterfaceSetShaderParametersContext& Context) const override;
 	NIAGARA_API virtual void PushToRenderThreadImpl() override;
 	// UNiagaraDataInterface Interface End
+
+	void UpdateDIProxy();
 
 	// VM functions
 	NIAGARA_API void VMGet(FVectorVMExternalFunctionContext& Context);
