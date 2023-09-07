@@ -32,6 +32,9 @@
 
 #include <type_traits>
 
+#define UE_STRING_COMPILING_UTF8 0
+#define UE_STRING_TEXT(x) TEXT(x)
+
 struct FStringFormatArg;
 template<typename InKeyType,typename InValueType,typename SetAllocator ,typename KeyFuncs > class TMap;
 
@@ -56,10 +59,11 @@ class FString
 {
 public:
 	using AllocatorType = TSizedDefaultAllocator<32>;
+	using ElementType   = TCHAR;
 
 private:
 	/** Array holding the character data */
-	typedef TArray<TCHAR, AllocatorType> DataType;
+	typedef TArray<ElementType, AllocatorType> DataType;
 	DataType Data;
 
 	template <typename RangeType>
@@ -71,9 +75,9 @@ private:
 	};
 
 	template <typename CharRangeType>
-	struct TIsRangeOfTCHAR
+	struct TIsRangeOfElementType
 	{
-		enum { Value = std::is_same_v<TCHAR, TRangeElementType<CharRangeType>> };
+		enum { Value = std::is_same_v<ElementType, TRangeElementType<CharRangeType>> };
 	};
 
 	/** Trait testing whether a type is a contiguous range of characters, and not CharType[]. */
@@ -83,28 +87,26 @@ private:
 		TNot<TIsArray<typename TRemoveReference<CharRangeType>::Type>>,
 		TIsRangeOfCharType<CharRangeType>>;
 
-	/** Trait testing whether a type is a contiguous range of characters, and not CharType[] and not FString. */
+	/** Trait testing whether a type is a contiguous range of characters, and not CharType[] and not a string class type. */
 	template <typename CharRangeType>
-	using TIsCharRangeNotCArrayNotFString = TAnd<
+	using TIsCharRangeNotCArrayNotStringClass = TAnd<
 		TIsCharRangeNotCArray<CharRangeType>,
 		TNot<TIsDerivedFrom<typename TDecay<CharRangeType>::Type, FString>>>;
 
-	/** Trait testing whether a type is a contiguous range of TCHAR, and not TCHAR[]. */
+	/** Trait testing whether a type is a contiguous range of ElementType, and not CharType[]. */
 	template <typename CharRangeType>
 	using TIsTCharRangeNotCArray = TAnd<
 		TIsContiguousContainer<CharRangeType>,
 		TNot<TIsArray<typename TRemoveReference<CharRangeType>::Type>>,
-		TIsRangeOfTCHAR<CharRangeType>>;
+		TIsRangeOfElementType<CharRangeType>>;
 
-	/** Trait testing whether a type is a contiguous range of TCHAR, and not TCHAR[] and not FString. */
+	/** Trait testing whether a type is a contiguous range of ElementType, and not CharType[] and not a string class type. */
 	template <typename CharRangeType>
-	using TIsTCharRangeNotCArrayNotFString = TAnd<
+	using TIsTCharRangeNotCArrayNotStringClass = TAnd<
 		TIsTCharRangeNotCArray<CharRangeType>,
 		TNot<TIsDerivedFrom<typename TDecay<CharRangeType>::Type, FString>>>;
 
 public:
-	using ElementType = TCHAR;
-
 	FString() = default;
 	FString(FString&&) = default;
 	FString(const FString&) = default;
@@ -151,14 +153,14 @@ public:
 	CORE_API FString(const UTF8CHAR* Str, int32 ExtraSlack);
 	CORE_API FString(const UCS2CHAR* Str, int32 ExtraSlack);
 
-	/** Construct from contiguous range of characters such as FStringView or FStringBuilderBase */
-	template <typename CharRangeType, typename TEnableIf<TIsCharRangeNotCArrayNotFString<CharRangeType>::Value>::Type* = nullptr>
+	/** Construct from contiguous range of characters such as a string view or string builder */
+	template <typename CharRangeType, typename TEnableIf<TIsCharRangeNotCArrayNotStringClass<CharRangeType>::Value>::Type* = nullptr>
 	FORCEINLINE explicit FString(CharRangeType&& Str) : FString(GetNum(Str), GetData(Forward<CharRangeType>(Str)))
 	{
 	}
 
 	/** Construct from contiguous range of characters with extra slack on top of original string length */
-	template <typename CharRangeType, typename TEnableIf<TIsCharRangeNotCArrayNotFString<CharRangeType>::Value>::Type* = nullptr>
+	template <typename CharRangeType, typename TEnableIf<TIsCharRangeNotCArrayNotStringClass<CharRangeType>::Value>::Type* = nullptr>
 	explicit FString(CharRangeType&& Str, int32 ExtraSlack)
 	{
 		uint32 InLen = GetNum(Str);
@@ -195,7 +197,7 @@ public:
 	}
 #endif
 
-	CORE_API FString& operator=(const TCHAR* Str);
+	CORE_API FString& operator=(const ElementType* Str);
 
 	template <typename CharRangeType, typename TEnableIf<TIsTCharRangeNotCArray<CharRangeType>::Value>::Type* = nullptr>
 	FORCEINLINE FString& operator=(CharRangeType&& Range)
@@ -205,7 +207,7 @@ public:
 	}
 
 private:
-	CORE_API void AssignRange(const TCHAR* Str, int32 Len);
+	CORE_API void AssignRange(const ElementType* Str, int32 Len);
 
 public:
 	/**
@@ -214,7 +216,7 @@ public:
 	 * @param Index into string
 	 * @return Character at Index
 	 */
-	FORCEINLINE TCHAR& operator[]( int32 Index ) UE_LIFETIMEBOUND
+	FORCEINLINE ElementType& operator[]( int32 Index ) UE_LIFETIMEBOUND
 	{
 		checkf(IsValidIndex(Index), TEXT("String index out of bounds: Index %i from a string with a length of %i"), Index, Len());
 		return Data.GetData()[Index];
@@ -226,7 +228,7 @@ public:
 	 * @param Index into string
 	 * @return const Character at Index
 	 */
-	FORCEINLINE const TCHAR& operator[]( int32 Index ) const UE_LIFETIMEBOUND
+	FORCEINLINE const ElementType& operator[]( int32 Index ) const UE_LIFETIMEBOUND
 	{
 		checkf(IsValidIndex(Index), TEXT("String index out of bounds: Index %i from a string with a length of %i"), Index, Len());
 		return Data.GetData()[Index];
@@ -324,11 +326,11 @@ public:
 	/**
 	 * Get pointer to the string
 	 *
-	 * @Return Pointer to Array of TCHAR if Num, otherwise the empty string
+	 * @Return Pointer to Array of ElementType if Num, otherwise the empty string
 	 */
-	UE_NODISCARD FORCEINLINE const TCHAR* operator*() const UE_LIFETIMEBOUND
+	UE_NODISCARD FORCEINLINE const ElementType* operator*() const UE_LIFETIMEBOUND
 	{
-		return Data.Num() ? Data.GetData() : TEXT("");
+		return Data.Num() ? Data.GetData() : UE_STRING_TEXT("");
 	}
 
 	/** 
@@ -349,7 +351,7 @@ public:
 	}
 
 #ifdef __OBJC__
-	/** Convert FString to Objective-C NSString */
+	/** Convert the string to Objective-C NSString */
     CORE_API NSString* GetNSString() const;
 #endif
 
@@ -395,7 +397,7 @@ public:
 	}
 
 	/** Append a single character and return a reference to this */
-	CORE_API FString& AppendChar(TCHAR InChar);
+	CORE_API FString& AppendChar(ElementType InChar);
 
 	/** Append a string and return a reference to this */
 	template <typename StrType>
@@ -411,9 +413,9 @@ public:
 	>
 	FORCEINLINE FString& operator+=(AppendedCharType Char)
 	{
-		if constexpr (TIsCharEncodingSimplyConvertibleTo_V<AppendedCharType, TCHAR>)
+		if constexpr (TIsCharEncodingSimplyConvertibleTo_V<AppendedCharType, ElementType>)
 		{
-			return AppendChar((TCHAR)Char);
+			return AppendChar((ElementType)Char);
 		}
 		else
 		{
@@ -422,7 +424,7 @@ public:
 		}
 	}
 
-	CORE_API void InsertAt(int32 Index, TCHAR Character);
+	CORE_API void InsertAt(int32 Index, ElementType Character);
 	CORE_API void InsertAt(int32 Index, const FString& Characters);
 
 	/**
@@ -440,10 +442,10 @@ public:
 	 * @param InPrefix the prefix to search for at the start of the string to remove.
 	 * @return true if the prefix was removed, otherwise false.
 	 */
-	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotFString<TCharRangeType>::Value>* = nullptr>
+	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotStringClass<TCharRangeType>::Value>* = nullptr>
 	bool RemoveFromStart(TCharRangeType&& InPrefix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase)
 	{
-		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, TCHAR>, "Expected a range of TCHAR");
+		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, ElementType>, "Expected a range of ElementType");
 		return RemoveFromStart(GetData(InPrefix), GetNum(InPrefix), SearchCase);
 	}
 
@@ -453,7 +455,7 @@ public:
 	 * @param InPrefix the prefix to search for at the start of the string to remove.
 	 * @return true if the prefix was removed, otherwise false.
 	 */
-	bool RemoveFromStart(const TCHAR* InPrefix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase)
+	bool RemoveFromStart(const ElementType* InPrefix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase)
 	{
 		return RemoveFromStart(InPrefix, InPrefix ? FCString::Strlen(InPrefix) : 0, SearchCase);
 	}
@@ -476,7 +478,7 @@ public:
 	 * @param InPrefixLen length of InPrefix
 	 * @return true if the prefix was removed, otherwise false.
 	 */
-	CORE_API bool RemoveFromStart(const TCHAR* InPrefix, int32 InPrefixLen, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase);
+	CORE_API bool RemoveFromStart(const ElementType* InPrefix, int32 InPrefixLen, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase);
 
 	/**
 	 * Removes the text from the end of the string if it exists.
@@ -484,10 +486,10 @@ public:
 	 * @param InSuffix the suffix to search for at the end of the string to remove.
 	 * @return true if the suffix was removed, otherwise false.
 	 */
-	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotFString<TCharRangeType>::Value>* = nullptr>
+	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotStringClass<TCharRangeType>::Value>* = nullptr>
 	bool RemoveFromEnd(TCharRangeType&& InSuffix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase)
 	{
-		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, TCHAR>, "Expected a range of TCHAR");
+		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, ElementType>, "Expected a range of ElementType");
 		return RemoveFromEnd(GetData(InSuffix), GetNum(InSuffix), SearchCase);
 	}
 
@@ -497,7 +499,7 @@ public:
 	 * @param InSuffix the suffix to search for at the end of the string to remove.
 	 * @return true if the suffix was removed, otherwise false.
 	 */
-	bool RemoveFromEnd(const TCHAR* InSuffix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase)
+	bool RemoveFromEnd(const ElementType* InSuffix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase)
 	{
 		return RemoveFromEnd(InSuffix, InSuffix ? FCString::Strlen(InSuffix) : 0, SearchCase);
 	}
@@ -520,7 +522,7 @@ public:
 	 * @param InSuffixLen length of InSuffix
 	 * @return true if the suffix was removed, otherwise false.
 	 */
-	CORE_API bool RemoveFromEnd(const TCHAR* InSuffix, int32 InSuffixLen, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase);
+	CORE_API bool RemoveFromEnd(const ElementType* InSuffix, int32 InSuffixLen, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase);
 
 	/**
 	 * Concatenate this path with given path ensuring the / character is used between them
@@ -528,12 +530,12 @@ public:
 	 * @param Str       Pointer to an array of TCHARs (not necessarily null-terminated) to be concatenated onto the end of this.
 	 * @param StrLength Exact number of characters from Str to append.
 	 */
-	CORE_API void PathAppend(const TCHAR* Str, int32 StrLength);
+	CORE_API void PathAppend(const ElementType* Str, int32 StrLength);
 
 	/**
-	 * Concatenates an FString with a TCHAR.
+	 * Concatenates a string with a character.
 	 * 
-	 * @param Lhs The FString on the left-hand-side of the expression.
+	 * @param Lhs The string on the left-hand-side of the expression.
 	 * @param Rhs The char on the right-hand-side of the expression.
 	 *
 	 * @return The concatenated string.
@@ -550,9 +552,9 @@ public:
 	}
 
 	/**
-	 * Concatenates an FString with a TCHAR.
+	 * Concatenates a string with a character.
 	 * 
-	 * @param Lhs The FString on the left-hand-side of the expression.
+	 * @param Lhs The string on the left-hand-side of the expression.
 	 * @param Rhs The char on the right-hand-side of the expression.
 	 *
 	 * @return The concatenated string.
@@ -572,42 +574,42 @@ private:
 	UE_NODISCARD static CORE_API FString ConcatFF(const FString& Lhs, const FString& Rhs);
 	UE_NODISCARD static CORE_API FString ConcatFF(FString&& Lhs, const FString& Rhs);
 	UE_NODISCARD static CORE_API FString ConcatFF(const FString& Lhs, FString&& Rhs);
-	UE_NODISCARD static CORE_API FString ConcatFF(FString&& Lhs,	FString&& Rhs);
-	UE_NODISCARD static CORE_API FString ConcatFC(const FString& Lhs, const TCHAR* Rhs);
-	UE_NODISCARD static CORE_API FString ConcatFC(FString&& Lhs,	const TCHAR* Rhs);
-	UE_NODISCARD static CORE_API FString ConcatCF(const TCHAR* Lhs, const FString& Rhs);
-	UE_NODISCARD static CORE_API FString ConcatCF(const TCHAR* Lhs, FString&& Rhs);
-	UE_NODISCARD static CORE_API FString ConcatFR(const FString& Lhs, const TCHAR* Rhs, int32 RhsLen);
-	UE_NODISCARD static CORE_API FString ConcatFR(FString&& Lhs,	const TCHAR* Rhs, int32 RhsLen);
-	UE_NODISCARD static CORE_API FString ConcatRF(const TCHAR* Lhs, int32 LhsLen, const FString& Rhs);
-	UE_NODISCARD static CORE_API FString ConcatRF(const TCHAR* Lhs, int32 LhsLen, FString&& Rhs);
+	UE_NODISCARD static CORE_API FString ConcatFF(FString&& Lhs, FString&& Rhs);
+	UE_NODISCARD static CORE_API FString ConcatFC(const FString& Lhs, const ElementType* Rhs);
+	UE_NODISCARD static CORE_API FString ConcatFC(FString&& Lhs,	const ElementType* Rhs);
+	UE_NODISCARD static CORE_API FString ConcatCF(const ElementType* Lhs, const FString& Rhs);
+	UE_NODISCARD static CORE_API FString ConcatCF(const ElementType* Lhs, FString&& Rhs);
+	UE_NODISCARD static CORE_API FString ConcatFR(const FString& Lhs, const ElementType* Rhs, int32 RhsLen);
+	UE_NODISCARD static CORE_API FString ConcatFR(FString&& Lhs,	const ElementType* Rhs, int32 RhsLen);
+	UE_NODISCARD static CORE_API FString ConcatRF(const ElementType* Lhs, int32 LhsLen, const FString& Rhs);
+	UE_NODISCARD static CORE_API FString ConcatRF(const ElementType* Lhs, int32 LhsLen, FString&& Rhs);
 
 public:
-	UE_NODISCARD FORCEINLINE friend FString operator+(const FString& Lhs, const FString& Rhs)	{ return ConcatFF(Lhs, Rhs); }
-	UE_NODISCARD FORCEINLINE friend FString operator+(FString&& Lhs, const FString& Rhs)		{ return ConcatFF(MoveTemp(Lhs), Rhs); }
-	UE_NODISCARD FORCEINLINE friend FString operator+(const FString& Lhs, FString&& Rhs)		{ return ConcatFF(Lhs,MoveTemp(Rhs)); }
-	UE_NODISCARD FORCEINLINE friend FString operator+(FString&& Lhs, FString&& Rhs)				{ return ConcatFF(MoveTemp(Lhs), MoveTemp(Rhs)); }
-	UE_NODISCARD FORCEINLINE friend FString operator+(const TCHAR* Lhs, const FString& Rhs)		{ return ConcatCF(Lhs, Rhs); }
-	UE_NODISCARD FORCEINLINE friend FString operator+(const TCHAR* Lhs, FString&& Rhs)			{ return ConcatCF(Lhs, MoveTemp(Rhs)); }
-	UE_NODISCARD FORCEINLINE friend FString operator+(const FString& Lhs, const TCHAR* Rhs)		{ return ConcatFC(Lhs, Rhs); }
-	UE_NODISCARD FORCEINLINE friend FString operator+(FString&& Lhs, const TCHAR* Rhs)			{ return ConcatFC(MoveTemp(Lhs), Rhs); }
+	UE_NODISCARD FORCEINLINE friend FString operator+(const FString& Lhs, const FString& Rhs)			{ return ConcatFF(Lhs, Rhs); }
+	UE_NODISCARD FORCEINLINE friend FString operator+(FString&& Lhs, const FString& Rhs)				{ return ConcatFF(MoveTemp(Lhs), Rhs); }
+	UE_NODISCARD FORCEINLINE friend FString operator+(const FString& Lhs, FString&& Rhs)				{ return ConcatFF(Lhs,MoveTemp(Rhs)); }
+	UE_NODISCARD FORCEINLINE friend FString operator+(FString&& Lhs, FString&& Rhs)						{ return ConcatFF(MoveTemp(Lhs), MoveTemp(Rhs)); }
+	UE_NODISCARD FORCEINLINE friend FString operator+(const ElementType* Lhs, const FString& Rhs)		{ return ConcatCF(Lhs, Rhs); }
+	UE_NODISCARD FORCEINLINE friend FString operator+(const ElementType* Lhs, FString&& Rhs)			{ return ConcatCF(Lhs, MoveTemp(Rhs)); }
+	UE_NODISCARD FORCEINLINE friend FString operator+(const FString& Lhs, const ElementType* Rhs)		{ return ConcatFC(Lhs, Rhs); }
+	UE_NODISCARD FORCEINLINE friend FString operator+(FString&& Lhs, const ElementType* Rhs)			{ return ConcatFC(MoveTemp(Lhs), Rhs); }
 
-	template <typename T, typename TEnableIf<TIsTCharRangeNotCArrayNotFString<T>::Value>::Type* = nullptr>
-	UE_NODISCARD FORCEINLINE friend FString operator+(T&& Lhs, const FString& Rhs)				{ return ConcatRF(GetData(Lhs), GetNum(Lhs), Rhs); }
-	template <typename T, typename TEnableIf<TIsTCharRangeNotCArrayNotFString<T>::Value>::Type* = nullptr>
-	UE_NODISCARD FORCEINLINE friend FString operator+(T&& Lhs, FString&& Rhs)					{ return ConcatRF(GetData(Lhs), GetNum(Lhs), MoveTemp(Rhs)); }
-	template <typename T, typename TEnableIf<TIsTCharRangeNotCArrayNotFString<T>::Value>::Type* = nullptr>
-	UE_NODISCARD FORCEINLINE friend FString operator+(const FString& Lhs, T&& Rhs)				{ return ConcatFR(Lhs, GetData(Rhs), GetNum(Rhs)); }
-	template <typename T, typename TEnableIf<TIsTCharRangeNotCArrayNotFString<T>::Value>::Type* = nullptr>
-	UE_NODISCARD FORCEINLINE friend FString operator+(FString&& Lhs, T&& Rhs)					{ return ConcatFR(MoveTemp(Lhs), GetData(Rhs), GetNum(Rhs)); }
+	template <typename T, typename TEnableIf<TIsTCharRangeNotCArrayNotStringClass<T>::Value>::Type* = nullptr>
+	UE_NODISCARD FORCEINLINE friend FString operator+(T&& Lhs, const FString& Rhs)						{ return ConcatRF(GetData(Lhs), GetNum(Lhs), Rhs); }
+	template <typename T, typename TEnableIf<TIsTCharRangeNotCArrayNotStringClass<T>::Value>::Type* = nullptr>
+	UE_NODISCARD FORCEINLINE friend FString operator+(T&& Lhs, FString&& Rhs)							{ return ConcatRF(GetData(Lhs), GetNum(Lhs), MoveTemp(Rhs)); }
+	template <typename T, typename TEnableIf<TIsTCharRangeNotCArrayNotStringClass<T>::Value>::Type* = nullptr>
+	UE_NODISCARD FORCEINLINE friend FString operator+(const FString& Lhs, T&& Rhs)						{ return ConcatFR(Lhs, GetData(Rhs), GetNum(Rhs)); }
+	template <typename T, typename TEnableIf<TIsTCharRangeNotCArrayNotStringClass<T>::Value>::Type* = nullptr>
+	UE_NODISCARD FORCEINLINE friend FString operator+(FString&& Lhs, T&& Rhs)							{ return ConcatFR(MoveTemp(Lhs), GetData(Rhs), GetNum(Rhs)); }
 
 	/**
 	 * Concatenate this path with given path ensuring the / character is used between them
 	 * 
-	 * @param Str path array of TCHAR to be concatenated onto the end of this
+	 * @param Str path array of characters to be concatenated onto the end of this
 	 * @return reference to path
 	 */
-	FORCEINLINE FString& operator/=( const TCHAR* Str )
+	FORCEINLINE FString& operator/=( const ElementType* Str )
 	{
 		checkSlow(Str);
 
@@ -618,7 +620,7 @@ public:
 	/**
 	* Concatenate this path with given path ensuring the / character is used between them
 	* 
-	* @param Str path CharRangeType (FString/FStringView/TStringBuilder etc) to be concatenated onto the end of this
+	* @param Str path CharRangeType (string class/string view/string builder etc) to be concatenated onto the end of this
 	* @return reference to path
 	*/
 	template <typename CharRangeType, typename TEnableIf<TIsTCharRangeNotCArray <CharRangeType>::Value>::Type* = nullptr>
@@ -647,9 +649,9 @@ public:
 	 *
 	 * @param Lhs Path to concatenate onto.
 	 * @param Rhs Path to concatenate.
-	 * @return new FString of the path
+	 * @return The new concatenated path
 	 */
-	UE_NODISCARD FORCEINLINE friend FString operator/(const FString& Lhs, const TCHAR* Rhs)
+	UE_NODISCARD FORCEINLINE friend FString operator/(const FString& Lhs, const ElementType* Rhs)
 	{
 		checkSlow(Rhs);
 
@@ -665,9 +667,9 @@ public:
 	 *
 	 * @param Lhs Path to concatenate onto.
 	 * @param Rhs Path to concatenate.
-	 * @return new FString of the path
+	 * @return The new concatenated path
 	 */
-	UE_NODISCARD FORCEINLINE friend FString operator/(FString&& Lhs, const TCHAR* Rhs)
+	UE_NODISCARD FORCEINLINE friend FString operator/(FString&& Lhs, const ElementType* Rhs)
 	{
 		checkSlow(Rhs);
 
@@ -683,7 +685,7 @@ public:
 	 *
 	 * @param Lhs Path to concatenate onto.
 	 * @param Rhs Path to concatenate.
-	 * @return new FString of the path
+	 * @return The new concatenated path
 	 */
 	UE_NODISCARD FORCEINLINE friend FString operator/(const FString& Lhs, const FString& Rhs)
 	{
@@ -699,7 +701,7 @@ public:
 	 *
 	 * @param Lhs Path to concatenate onto.
 	 * @param Rhs Path to concatenate.
-	 * @return new FString of the path
+	 * @return The new concatenated path
 	 */
 	UE_NODISCARD FORCEINLINE friend FString operator/(FString&& Lhs, const FString& Rhs)
 	{
@@ -715,9 +717,9 @@ public:
 	 *
 	 * @param Lhs Path to concatenate onto.
 	 * @param Rhs Path to concatenate.
-	 * @return new FString of the path
+	 * @return new string of the path
 	 */
-	UE_NODISCARD FORCEINLINE friend FString operator/(const TCHAR* Lhs, const FString& Rhs)
+	UE_NODISCARD FORCEINLINE friend FString operator/(const ElementType* Lhs, const FString& Rhs)
 	{
 		int32 StrLength = Rhs.Len();
 
@@ -1058,7 +1060,7 @@ public:
 	UE_NODISCARD CORE_API FString Mid(int32 Start, int32 Count) &&;
 
 	/** Returns the substring from Start position to the end */
-	UE_NODISCARD CORE_API FORCEINLINE FString Mid(int32 Start) const & { return RightChop(Start); }
+	UE_NODISCARD FORCEINLINE FString Mid(int32 Start) const & { return RightChop(Start); }
 	UE_NODISCARD FORCEINLINE FString Mid(int32 Start) && { return ((FString&&)*this).RightChop(Start); }
 
 	/** Modifies the string such that it is now the substring from Start position for Count characters. */
@@ -1087,11 +1089,11 @@ public:
 	 *
 	 *        Consider using UE::String::FindLast() as an alternative.
 	 */
-	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotFString<TCharRangeType>::Value>* = nullptr>
+	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotStringClass<TCharRangeType>::Value>* = nullptr>
 	UE_NODISCARD int32 Find(TCharRangeType&& SubStr, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase,
 		ESearchDir::Type SearchDir = ESearchDir::FromStart, int32 StartPosition = INDEX_NONE) const
 	{
-		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, TCHAR>, "Expected a range of TCHAR");
+		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, ElementType>, "Expected a range of ElementType");
 		return Find(GetData(SubStr), GetNum(SubStr), SearchCase, SearchDir, StartPosition);
 	}
 
@@ -1099,12 +1101,12 @@ public:
 	 * Searches the string for a substring, and returns index into this string of the first found instance. Can search
 	 * from beginning or end, and ignore case or not. If substring is empty, returns clamped StartPosition.
 	 *
-	 * @param SubStr			The string array of TCHAR to search for
+	 * @param SubStr			The string array of characters to search for
 	 * @param StartPosition		The start character position to search from.  See note below.
 	 * @param SearchCase		Indicates whether the search is case sensitive or not
 	 * @param SearchDir			Indicates whether the search starts at the beginning or at the end.
 	 */
-	UE_NODISCARD int32 Find(const TCHAR* SubStr, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase,
+	UE_NODISCARD int32 Find(const ElementType* SubStr, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase,
 		ESearchDir::Type SearchDir = ESearchDir::FromStart, int32 StartPosition = INDEX_NONE) const
 	{
 		return SubStr ? Find(SubStr, FCString::Strlen(SubStr), SearchCase, SearchDir, StartPosition) : INDEX_NONE;
@@ -1114,7 +1116,7 @@ public:
 	 * Searches the string for a substring, and returns index into this string of the first found instance. Can search
 	 * from beginning or end, and ignore case or not. If substring is empty, returns clamped StartPosition.
 	 *
-	 * @param SubStr			The string array of TCHAR to search for
+	 * @param SubStr			The string array of characters to search for
 	 * @param StartPosition		The start character position to search from.  See note below.
 	 * @param SearchCase		Indicates whether the search is case sensitive or not
 	 * @param SearchDir			Indicates whether the search starts at the beginning or at the end.
@@ -1136,7 +1138,7 @@ public:
 	 * Searches the string for a substring, and returns index into this string of the first found instance. Can search
 	 * from beginning or end, and ignore case or not. If substring is empty, returns clamped StartPosition.
 	 *
-	 * @param SubStr			The string array of TCHAR to search for
+	 * @param SubStr			The string array of characters to search for
 	 * @param SubStrLen			The length of the SubStr array
 	 * @param StartPosition		The start character position to search from.  See note below.
 	 * @param SearchCase		Indicates whether the search is case sensitive or not
@@ -1149,7 +1151,7 @@ public:
 	 *
 	 *        Consider using UE::String::FindLast() as an alternative.
 	 */
-	UE_NODISCARD CORE_API int32 Find(const TCHAR* SubStr, int32 InSubStrLen, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase,
+	UE_NODISCARD CORE_API int32 Find(const ElementType* SubStr, int32 InSubStrLen, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase,
 		ESearchDir::Type SearchDir = ESearchDir::FromStart, int32 StartPosition = INDEX_NONE) const;
 
 
@@ -1161,11 +1163,11 @@ public:
 	 * @param SearchDir			Indicates whether the search starts at the beginning or at the end ( defaults to ESearchDir::FromStart )
 	 * @return					Returns whether the string contains the substring. If the substring is empty, returns true.
 	 **/
-	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotFString<TCharRangeType>::Value>* = nullptr>
+	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotStringClass<TCharRangeType>::Value>* = nullptr>
 	UE_NODISCARD FORCEINLINE bool Contains(TCharRangeType&& SubStr, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase,
 		ESearchDir::Type SearchDir = ESearchDir::FromStart) const
 	{
-		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, TCHAR>, "Expected a range of TCHAR");
+		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, ElementType>, "Expected a range of characters");
 		return Find(Forward<TCharRangeType>(SubStr), SearchCase, SearchDir) != INDEX_NONE;
 	}
 
@@ -1177,7 +1179,7 @@ public:
 	 * @param SearchDir			Indicates whether the search starts at the beginning or at the end ( defaults to ESearchDir::FromStart )
 	 * @return					Returns whether the string contains the substring. If the substring is empty, returns true.
 	 **/
-	UE_NODISCARD FORCEINLINE bool Contains(const TCHAR* SubStr, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase,
+	UE_NODISCARD FORCEINLINE bool Contains(const ElementType* SubStr, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase,
 		ESearchDir::Type SearchDir = ESearchDir::FromStart) const
 	{
 		return Find(SubStr, SearchCase, SearchDir) != INDEX_NONE;
@@ -1191,7 +1193,7 @@ public:
 	 * @param SearchDir			Indicates whether the search starts at the beginning or at the end ( defaults to ESearchDir::FromStart )
 	 * @return					Returns whether the string contains the substring. If the substring is empty, returns true.
 	 **/
-	UE_NODISCARD FORCEINLINE bool Contains(const FString& SubStr, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase, 
+	UE_NODISCARD FORCEINLINE bool Contains(const FString& SubStr, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase,
 							  ESearchDir::Type SearchDir = ESearchDir::FromStart ) const
 	{
 		return Find(*SubStr, SearchCase, SearchDir) != INDEX_NONE;
@@ -1206,7 +1208,7 @@ public:
 	 * @param SearchDir			Indicates whether the search starts at the beginning or at the end ( defaults to ESearchDir::FromStart )
 	 * @return					Returns whether the string contains the substring. If the substring is empty, returns true.
 	 **/
-	UE_NODISCARD FORCEINLINE bool Contains(const TCHAR* SubStr, int32 SubStrLen,
+	UE_NODISCARD FORCEINLINE bool Contains(const ElementType* SubStr, int32 SubStrLen,
 		ESearchCase::Type SearchCase = ESearchCase::IgnoreCase, ESearchDir::Type SearchDir = ESearchDir::FromStart) const
 	{
 		return Find(SubStr, SubStrLen, SearchCase, SearchDir) != INDEX_NONE;
@@ -1219,7 +1221,7 @@ public:
 	 * @param Index out the position the character was found at, INDEX_NONE if return is false
 	 * @return true if character was found in this string, otherwise false
 	 */
-	FORCEINLINE bool FindChar( TCHAR InChar, int32& Index ) const
+	FORCEINLINE bool FindChar(ElementType InChar, int32& Index ) const
 	{
 		return Data.Find(InChar, Index);
 	}
@@ -1231,7 +1233,7 @@ public:
 	 * @param Index out the position the character was found at, INDEX_NONE if return is false
 	 * @return true if character was found in this string, otherwise false
 	 */
-	FORCEINLINE bool FindLastChar( TCHAR InChar, int32& Index ) const
+	FORCEINLINE bool FindLastChar( ElementType InChar, int32& Index ) const
 	{
 		return Data.FindLast(InChar, Index);
 	}
@@ -1239,10 +1241,10 @@ public:
 	/**
 	 * Searches an initial substring for the last occurrence of a character which matches the specified predicate.
 	 *
-	 * @param Pred Predicate that takes TCHAR and returns true if TCHAR matches search criteria, false otherwise.
+	 * @param Pred Predicate that takes a character and returns true if it matches search criteria, false otherwise.
 	 * @param Count The number of characters from the front of the string through which to search.
 	 *
-	 * @return Index of found TCHAR, INDEX_NONE otherwise.
+	 * @return Index of the found character, INDEX_NONE otherwise.
 	 */
 	template <typename Predicate>
 	FORCEINLINE int32 FindLastCharByPredicate(Predicate Pred, int32 Count) const
@@ -1254,10 +1256,10 @@ public:
 	/**
 	 * Searches the string for the last occurrence of a character which matches the specified predicate.
 	 *
-	 * @param Pred Predicate that takes TCHAR and returns true if TCHAR matches search criteria, false otherwise.
-	 * @param StartIndex Index of element from which to start searching. Defaults to last TCHAR in string.
+	 * @param Pred Predicate that takes a character and returns true if it matches search criteria, false otherwise.
+	 * @param StartIndex Index of element from which to start searching. Defaults to the last character in string.
 	 *
-	 * @return Index of found TCHAR, INDEX_NONE otherwise.
+	 * @return Index of the found character, INDEX_NONE otherwise.
 	 */
 	template <typename Predicate>
 	FORCEINLINE int32 FindLastCharByPredicate(Predicate Pred) const
@@ -1369,39 +1371,39 @@ public:
 	CORE_API void RemoveSpacesInline();
 
 	/**
-	 * Constructs FString object similarly to how classic sprintf works.
+	 * Constructs a string similarly to how classic sprintf works.
 	 *
-	 * @param Format	Format string that specifies how FString should be built optionally using additional args. Refer to standard printf format.
+	 * @param Format	Format string that specifies how the string should be built optionally using additional args. Refer to standard printf format.
 	 * @param ...		Depending on format function may require additional arguments to build output object.
 	 *
-	 * @returns FString object that was constructed using format and additional parameters.
+	 * @returns A string that was constructed using format and additional parameters.
 	 */
 	template <typename FmtType, typename... Types>
 	UE_NODISCARD static FString Printf(const FmtType& Fmt, Types... Args)
 	{
-		static_assert(TIsArrayOrRefOfTypeByPredicate<FmtType, TIsCharEncodingCompatibleWithTCHAR>::Value, "Formatting string must be a TCHAR array.");
-		static_assert(TAnd<TIsValidVariadicFunctionArg<Types>...>::Value, "Invalid argument(s) passed to FString::Printf");
+		static_assert(TIsArrayOrRefOfTypeByPredicate<FmtType, TIsCharEncodingCompatibleWithTCHAR>::Value, "Formatting string must be a character array.");
+		static_assert(TAnd<TIsValidVariadicFunctionArg<Types>...>::Value, "Invalid argument(s) passed to Printf");
 
-		return PrintfImpl((const TCHAR*)Fmt, Args...);
+		return PrintfImpl((const ElementType*)Fmt, Args...);
 	}
 
 	/**
-	 * Just like Printf, but appends the formatted text to the existing FString instead.
+	 * Just like Printf, but appends the formatted text to the existing string instead.
 	 * @return a reference to the modified string, so that it can be chained
 	 */
 	template <typename FmtType, typename... Types>
 	FString& Appendf(const FmtType& Fmt, Types... Args)
 	{
-		static_assert(TIsArrayOrRefOfTypeByPredicate<FmtType, TIsCharEncodingCompatibleWithTCHAR>::Value, "Formatting string must be a TCHAR array.");
-		static_assert(TAnd<TIsValidVariadicFunctionArg<Types>...>::Value, "Invalid argument(s) passed to FString::Appendf");
+		static_assert(TIsArrayOrRefOfTypeByPredicate<FmtType, TIsCharEncodingCompatibleWithTCHAR>::Value, "Formatting string must be a character array.");
+		static_assert(TAnd<TIsValidVariadicFunctionArg<Types>...>::Value, "Invalid argument(s) passed to TString::Appendf");
 
-		AppendfImpl(*this, (const TCHAR*)Fmt, Args...);
+		AppendfImpl(*this, (const ElementType*)Fmt, Args...);
 		return *this;
 	}
 
 private:
-	static CORE_API FString VARARGS PrintfImpl(const TCHAR* Fmt, ...);
-	static CORE_API void VARARGS AppendfImpl(FString& AppendToMe, const TCHAR* Fmt, ...);
+	static CORE_API FString VARARGS PrintfImpl(const ElementType* Fmt, ...);
+	static CORE_API void VARARGS AppendfImpl(FString& AppendToMe, const ElementType* Fmt, ...);
 public:
 
 	/**
@@ -1410,7 +1412,7 @@ public:
 	 * @param InNamedArguments		A map of named arguments that match the tokens specified in InExpression
 	 * @return A string containing the formatted text
 	 */
-	UE_NODISCARD static CORE_API FString Format(const TCHAR* InFormatString, const FStringFormatNamedArguments& InNamedArguments);
+	UE_NODISCARD static CORE_API FString Format(const ElementType* InFormatString, const FStringFormatNamedArguments& InNamedArguments);
 
 	/**
 	 * Format the specified string using the specified arguments. Replaces instances of {0} with indices from the given array matching the index specified in the token
@@ -1418,10 +1420,10 @@ public:
 	 * @param InOrderedArguments	An array of ordered arguments that match the tokens specified in InExpression
 	 * @return A string containing the formatted text
 	 */
-	UE_NODISCARD static CORE_API FString Format(const TCHAR* InFormatString, const FStringFormatOrderedArguments& InOrderedArguments);
+	UE_NODISCARD static CORE_API FString Format(const ElementType* InFormatString, const FStringFormatOrderedArguments& InOrderedArguments);
 
 	/** Returns a string containing only the Ch character */
-	UE_NODISCARD static CORE_API FString Chr( TCHAR Ch );
+	UE_NODISCARD static CORE_API FString Chr( ElementType Ch );
 
 	/**
 	 * Returns a string that is full of a variable number of characters
@@ -1431,7 +1433,7 @@ public:
 	 * 
 	 * @return The string of NumCharacters characters.
 	 */
-	UE_NODISCARD static CORE_API FString ChrN( int32 NumCharacters, TCHAR Char );
+	UE_NODISCARD static CORE_API FString ChrN( int32 NumCharacters, ElementType Char );
 
 	/**
 	 * Serializes the string.
@@ -1450,10 +1452,10 @@ public:
 	 * @param SearchCase		Indicates whether the search is case sensitive or not ( defaults to ESearchCase::IgnoreCase )
 	 * @return true if this string begins with specified text, false otherwise
 	 */
-	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotFString<TCharRangeType>::Value>* = nullptr>
+	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotStringClass<TCharRangeType>::Value>* = nullptr>
 	UE_NODISCARD bool StartsWith(TCharRangeType&& InPrefix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const
 	{
-		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, TCHAR>, "Expected a range of TCHAR");
+		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, ElementType>, "Expected a range of characters");
 		return StartsWith(GetData(InPrefix), GetNum(InPrefix), SearchCase);
 	}
 
@@ -1463,7 +1465,7 @@ public:
 	 * @param SearchCase		Indicates whether the search is case sensitive or not ( defaults to ESearchCase::IgnoreCase )
 	 * @return true if this string begins with specified text, false otherwise
 	 */
-	UE_NODISCARD bool StartsWith(const TCHAR* InPrefix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const
+	UE_NODISCARD bool StartsWith(const ElementType* InPrefix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const
 	{
 		return StartsWith(InPrefix, InPrefix ? FCString::Strlen(InPrefix) : 0, SearchCase);
 	}
@@ -1485,7 +1487,7 @@ public:
 	 * @param SearchCase		Indicates whether the search is case sensitive or not ( defaults to ESearchCase::IgnoreCase )
 	 * @return true if this string begins with specified text, false otherwise
 	 */
-	UE_NODISCARD CORE_API bool StartsWith(const TCHAR* InPrefix, int32 InPrefixLen, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const;
+	UE_NODISCARD CORE_API bool StartsWith(const ElementType* InPrefix, int32 InPrefixLen, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const;
 
 	/**
 	 * Test whether this string ends with given suffix.
@@ -1493,10 +1495,10 @@ public:
 	 * @param SearchCase		Indicates whether the search is case sensitive or not ( defaults to ESearchCase::IgnoreCase )
 	 * @return true if this string ends with specified text, false otherwise
 	 */
-	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotFString<TCharRangeType>::Value>* = nullptr>
+	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotStringClass<TCharRangeType>::Value>* = nullptr>
 	UE_NODISCARD bool EndsWith(TCharRangeType&& InSuffix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const
 	{
-		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, TCHAR>, "Expected a range of TCHAR");
+		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, ElementType>, "Expected a range of characters");
 		return EndsWith(GetData(InSuffix), GetNum(InSuffix), SearchCase);
 	}
 
@@ -1506,7 +1508,7 @@ public:
 	 * @param SearchCase		Indicates whether the search is case sensitive or not ( defaults to ESearchCase::IgnoreCase )
 	 * @return true if this string ends with specified text, false otherwise
 	 */
-	UE_NODISCARD bool EndsWith(const TCHAR* InSuffix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const
+	UE_NODISCARD bool EndsWith(const ElementType* InSuffix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const
 	{
 		return EndsWith(InSuffix, InSuffix ? FCString::Strlen(InSuffix) : 0, SearchCase);
 	}
@@ -1528,7 +1530,7 @@ public:
 	 * @param SearchCase		Indicates whether the search is case sensitive or not ( defaults to ESearchCase::IgnoreCase )
 	 * @return true if this string ends with specified text, false otherwise
 	 */
-	UE_NODISCARD CORE_API bool EndsWith(const TCHAR* InSuffix, int32 InSuffixLen, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase ) const;
+	UE_NODISCARD CORE_API bool EndsWith(const ElementType* InSuffix, int32 InSuffixLen, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase ) const;
 
 	/**
 	 * Searches this string for a given wild card
@@ -1538,10 +1540,10 @@ public:
 	 * @return true if this string matches the *?-type wildcard given. 
 	 * @warning This is a simple, SLOW routine. Use with caution
 	 */
-	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotFString<TCharRangeType>::Value>* = nullptr>
+	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotStringClass<TCharRangeType>::Value>* = nullptr>
 	UE_NODISCARD bool MatchesWildcard(TCharRangeType&& Wildcard, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const
 	{
-		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, TCHAR>, "Expected a range of TCHAR");
+		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, ElementType>, "Expected a range of characters");
 		return MatchesWildcard(GetData(Wildcard), GetNum(Wildcard), SearchCase);
 	}
 
@@ -1553,7 +1555,7 @@ public:
 	 * @return true if this string matches the *?-type wildcard given.
 	 * @warning This is a simple, SLOW routine. Use with caution
 	 */
-	UE_NODISCARD bool MatchesWildcard(const TCHAR* Wildcard, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const
+	UE_NODISCARD bool MatchesWildcard(const ElementType* Wildcard, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const
 	{
 		return MatchesWildcard(Wildcard, Wildcard ? FCString::Strlen(Wildcard) : 0, SearchCase);
 	}
@@ -1579,7 +1581,7 @@ public:
 	 * @return true if this string matches the *?-type wildcard given.
 	 * @warning This is a simple, SLOW routine. Use with caution
 	 */
-	UE_NODISCARD CORE_API bool MatchesWildcard(const TCHAR* Wildcard, int32 WildcardLen, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const;
+	UE_NODISCARD CORE_API bool MatchesWildcard(const ElementType* Wildcard, int32 WildcardLen, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const;
 
 	/**
 	 * Removes whitespace characters from the start and end of this string. Modifies the string in-place.
@@ -1647,7 +1649,7 @@ public:
 	* Trims a single character from the start and end of the string (removes at max one instance in the beginning and end of the string).
 	* @see TrimChar for a variant that returns a modified copy of the string
 	*/
-	CORE_API void TrimCharInline(const TCHAR CharacterToTrim, bool* bCharRemoved);
+	CORE_API void TrimCharInline(ElementType CharacterToTrim, bool* bCharRemoved);
 	
 	/**
 	 * Returns a copy of this string with wrapping quotation marks removed.
@@ -1663,12 +1665,12 @@ public:
 	* Returns a copy of this string with wrapping CharacterToTrim removed (removes at max one instance in the beginning and end of the string).
 	* @see TrimCharInline for an inline variant
 	*/
-	UE_NODISCARD CORE_API FString TrimChar(const TCHAR CharacterToTrim, bool* bCharRemoved = nullptr ) const &;
+	UE_NODISCARD CORE_API FString TrimChar(ElementType CharacterToTrim, bool* bCharRemoved = nullptr ) const &;
 
 	/**
 	* Returns a copy of this string with wrapping CharacterToTrim removed (removes at max one instance in the beginning and end of the string).
 	*/
-	UE_NODISCARD CORE_API FString TrimChar(const TCHAR CharacterToTrim, bool* bCharRemoved = nullptr) &&;
+	UE_NODISCARD CORE_API FString TrimChar(ElementType CharacterToTrim, bool* bCharRemoved = nullptr) &&;
 	
 	/**
 	 * Breaks up a delimited string into elements of a string array.
@@ -1679,7 +1681,7 @@ public:
 	 *
 	 * @return	The number of elements in InArray
 	 */
-	CORE_API int32 ParseIntoArray( TArray<FString>& OutArray, const TCHAR* pchDelim, bool InCullEmpty = true ) const;
+	CORE_API int32 ParseIntoArray( TArray<FString>& OutArray, const ElementType* pchDelim, bool InCullEmpty = true ) const;
 
 	/**
 	 * Breaks up a delimited string into elements of a string array, using any whitespace and an 
@@ -1691,7 +1693,7 @@ public:
 	 *
 	 * @return	The number of elements in InArray
 	 */
-	CORE_API int32 ParseIntoArrayWS( TArray<FString>& OutArray, const TCHAR* pchExtraDelim = nullptr, bool InCullEmpty = true ) const;
+	CORE_API int32 ParseIntoArrayWS( TArray<FString>& OutArray, const ElementType* pchExtraDelim = nullptr, bool InCullEmpty = true ) const;
 
 	/**
 	* Breaks up a delimited string into elements of a string array, using line ending characters
@@ -1713,7 +1715,7 @@ public:
 	*
 	* @return	The number of elements in InArray
 	*/
-	CORE_API int32 ParseIntoArray(TArray<FString>& OutArray, const TCHAR*const* DelimArray, int32 NumDelims, bool InCullEmpty = true) const;
+	CORE_API int32 ParseIntoArray(TArray<FString>& OutArray, const ElementType*const* DelimArray, int32 NumDelims, bool InCullEmpty = true) const;
 
 	/**
 	 * Takes an array of strings and removes any zero length entries.
@@ -1747,7 +1749,7 @@ public:
 	 * @param SearchCase	Indicates whether the search is case sensitive or not ( defaults to ESearchCase::IgnoreCase )
 	 * @return a copy of this string with the replacement made
 	 */
-	UE_NODISCARD CORE_API FString Replace(const TCHAR* From, const TCHAR* To, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const &;
+	UE_NODISCARD CORE_API FString Replace(const ElementType* From, const ElementType* To, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const &;
 
 	/**
 	 * Replace all occurrences of a substring in this string
@@ -1757,7 +1759,7 @@ public:
 	 * @param SearchCase	Indicates whether the search is case sensitive or not ( defaults to ESearchCase::IgnoreCase )
 	 * @return a copy of this string with the replacement made
 	 */
-	UE_NODISCARD CORE_API FString Replace(const TCHAR* From, const TCHAR* To, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) &&;
+	UE_NODISCARD CORE_API FString Replace(const ElementType* From, const ElementType* To, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) &&;
 
 	/**
 	 * Replace all occurrences of SearchText with ReplacementText in this string.
@@ -1768,19 +1770,19 @@ public:
 	 *
 	 * @return	the number of occurrences of SearchText that were replaced.
 	 */
-	CORE_API int32 ReplaceInline( const TCHAR* SearchText, const TCHAR* ReplacementText, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase );
+	CORE_API int32 ReplaceInline( const ElementType* SearchText, const ElementType* ReplacementText, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase );
 
 	/**
 	 * Replace all occurrences of a character with another.
 	 *
-	 * @param SearchChar      Character to remove from this FString
+	 * @param SearchChar      Character to remove from this string
 	 * @param ReplacementChar Replacement character
 	 * @param SearchCase      Indicates whether the search is case sensitive or not ( defaults to ESearchCase::IgnoreCase )
 	 * @note no dynamic allocation
 	 */
-	void ReplaceCharInline(const TCHAR SearchChar, const TCHAR ReplacementChar, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase)
+	void ReplaceCharInline(ElementType SearchChar, ElementType ReplacementChar, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase)
 	{
-		if (SearchCase == ESearchCase::IgnoreCase && TChar<TCHAR>::IsAlpha(SearchChar))
+		if (SearchCase == ESearchCase::IgnoreCase && TChar<ElementType>::IsAlpha(SearchChar))
 		{
 			ReplaceCharInlineIgnoreCase(SearchChar, ReplacementChar);
 		}
@@ -1792,8 +1794,8 @@ public:
 
 private:
 	
-	CORE_API void ReplaceCharInlineCaseSensitive(const TCHAR SearchChar, const TCHAR ReplacementChar);
-	CORE_API void ReplaceCharInlineIgnoreCase(const TCHAR SearchChar, const TCHAR ReplacementChar);
+	CORE_API void ReplaceCharInlineCaseSensitive(ElementType SearchChar, ElementType ReplacementChar);
+	CORE_API void ReplaceCharInlineIgnoreCase(ElementType SearchChar, ElementType ReplacementChar);
 
 public:
 
@@ -1817,7 +1819,7 @@ public:
 	 *
 	 * @param	Chars	by default, replaces all supported characters; this parameter allows you to limit the replacement to a subset.
 	 */
-	CORE_API void ReplaceCharWithEscapedCharInline( const TArray<TCHAR>* Chars = nullptr );
+	CORE_API void ReplaceCharWithEscapedCharInline( const TArray<ElementType>* Chars = nullptr );
 
 	/**
 	 * Replaces certain characters with the "escaped" version of that character (i.e. replaces "\n" with "\\n").
@@ -1827,7 +1829,7 @@ public:
 	 *
 	 * @return	a string with all control characters replaced by the escaped version.
 	 */
-	UE_NODISCARD FString ReplaceCharWithEscapedChar( const TArray<TCHAR>* Chars = nullptr ) const &
+	UE_NODISCARD FString ReplaceCharWithEscapedChar( const TArray<ElementType>* Chars = nullptr ) const &
 	{
 		FString Result(*this);
 		Result.ReplaceCharWithEscapedCharInline(Chars);
@@ -1842,7 +1844,7 @@ public:
 	 *
 	 * @return	a string with all control characters replaced by the escaped version.
 	 */
-	UE_NODISCARD FString ReplaceCharWithEscapedChar( const TArray<TCHAR>* Chars = nullptr ) &&
+	UE_NODISCARD FString ReplaceCharWithEscapedChar( const TArray<ElementType>* Chars = nullptr ) &&
 	{
 		ReplaceCharWithEscapedCharInline(Chars);
 		return MoveTemp(*this);
@@ -1852,14 +1854,14 @@ public:
 	 * Removes the escape backslash for all supported characters, replacing the escape and character with the non-escaped version.  (i.e.
 	 * replaces "\\n" with "\n".  Counterpart to ReplaceCharWithEscapedCharInline().
 	 */
-	CORE_API void ReplaceEscapedCharWithCharInline( const TArray<TCHAR>* Chars = nullptr );
+	CORE_API void ReplaceEscapedCharWithCharInline( const TArray<ElementType>* Chars = nullptr );
 
 	/**
 	 * Removes the escape backslash for all supported characters, replacing the escape and character with the non-escaped version.  (i.e.
 	 * replaces "\\n" with "\n".  Counterpart to ReplaceCharWithEscapedChar().
 	 * @return copy of this string with replacement made
 	 */
-	UE_NODISCARD FString ReplaceEscapedCharWithChar( const TArray<TCHAR>* Chars = nullptr ) const &
+	UE_NODISCARD FString ReplaceEscapedCharWithChar( const TArray<ElementType>* Chars = nullptr ) const &
 	{
 		FString Result(*this);
 		Result.ReplaceEscapedCharWithCharInline(Chars);
@@ -1871,7 +1873,7 @@ public:
 	 * replaces "\\n" with "\n".  Counterpart to ReplaceCharWithEscapedChar().
 	 * @return copy of this string with replacement made
 	 */
-	UE_NODISCARD FString ReplaceEscapedCharWithChar( const TArray<TCHAR>* Chars = nullptr ) &&
+	UE_NODISCARD FString ReplaceEscapedCharWithChar( const TArray<ElementType>* Chars = nullptr ) &&
 	{
 		ReplaceEscapedCharWithCharInline(Chars);
 		return MoveTemp(*this);
@@ -1925,7 +1927,7 @@ public:
 	/** Converts an integer to a string. */
 	UE_NODISCARD static FORCEINLINE FString FromInt( int32 Num )
 	{
-		FString Ret; 
+		FString Ret;
 		Ret.AppendInt(Num); 
 		return Ret;
 	}
@@ -2002,7 +2004,7 @@ public:
 	 * @return	The final, joined, separated string.
 	 */
 	template <typename RangeType>
-	UE_NODISCARD static FString Join(const RangeType& Range, const TCHAR* Separator)
+	UE_NODISCARD static FString Join(const RangeType& Range, const ElementType* Separator)
 	{
 		FString Result;
 		bool    First = true;
@@ -2033,7 +2035,7 @@ public:
 	 * @return	The final, joined, separated string.
 	 */
 	template <typename RangeType, typename ProjectionType>
-	UE_NODISCARD static FString JoinBy(const RangeType& Range, const TCHAR* Separator, ProjectionType Proj)
+	UE_NODISCARD static FString JoinBy(const RangeType& Range, const ElementType* Separator, ProjectionType Proj)
 	{
 		FString Result;
 		bool    First = true;
@@ -2070,12 +2072,12 @@ public:
 template<> struct TIsZeroConstructType<FString> { enum { Value = true }; };
 Expose_TNameOf(FString)
 
-inline TCHAR* GetData(FString& String)
+inline FString::ElementType* GetData(FString& String)
 {
 	return String.GetCharArray().GetData();
 }
 
-inline const TCHAR* GetData(const FString& String)
+inline const FString::ElementType* GetData(const FString& String)
 {
 	return String.GetCharArray().GetData();
 }
@@ -2086,7 +2088,7 @@ inline int32 GetNum(const FString& String)
 }
 
 /** 
- * Convert an array of bytes to a TCHAR
+ * Convert an array of bytes to a string
  * @param In byte array values to convert
  * @param Count number of bytes to convert
  * @return Valid string representing bytes.
@@ -2102,7 +2104,7 @@ UE_NODISCARD inline FString BytesToString(const uint8* In, int32 Count)
 		int16 Value = *In;
 		Value += 1;
 
-		Result += TCHAR(Value);
+		Result += FString::ElementType(Value);
 
 		++In;
 		Count--;
@@ -2120,7 +2122,7 @@ UE_NODISCARD inline FString BytesToString(const uint8* In, int32 Count)
 inline int32 StringToBytes( const FString& String, uint8* OutBytes, int32 MaxBufferSize )
 {
 	int32 NumBytes = 0;
-	const TCHAR* CharPos = *String;
+	const FString::ElementType* CharPos = *String;
 
 	while( *CharPos && NumBytes < MaxBufferSize)
 	{
@@ -2593,3 +2595,6 @@ struct FTextRange
 };
 
 #include "Misc/StringFormatArg.h"
+
+#undef UE_STRING_TEXT
+#undef UE_STRING_COMPILING_UTF8
