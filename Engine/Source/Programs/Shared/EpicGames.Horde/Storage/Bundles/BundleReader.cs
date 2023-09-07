@@ -155,6 +155,11 @@ namespace EpicGames.Horde.Storage.Bundles
 		public int NumPacketReads => _numPacketReads;
 
 		/// <summary>
+		/// Accessor for the cache
+		/// </summary>
+		public StorageCache Cache => _cache;
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="store"></param>

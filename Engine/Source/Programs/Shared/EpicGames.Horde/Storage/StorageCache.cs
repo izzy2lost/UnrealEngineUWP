@@ -37,6 +37,16 @@ namespace EpicGames.Horde.Storage
 		public static StorageCache None { get; } = new StorageCache();
 
 		/// <summary>
+		/// Size of the configured header cache
+		/// </summary>
+		public long HeaderCacheSize { get; }
+
+		/// <summary>
+		/// Size of the configured packet cache
+		/// </summary>
+		public long PacketCacheSize { get; }
+
+		/// <summary>
 		/// Whether there is a packet cache present
 		/// </summary>
 		public bool HasPacketCache => _packetCache != null;
@@ -55,10 +65,12 @@ namespace EpicGames.Horde.Storage
 		{
 			if (options.HeaderCacheSize > 0)
 			{
+				HeaderCacheSize = options.HeaderCacheSize;
 				_headerCache = new MemoryCache(new MemoryCacheOptions { SizeLimit = options.HeaderCacheSize });
 			}
 			if (options.PacketCacheSize > 0)
 			{
+				PacketCacheSize = options.PacketCacheSize;
 				_packetCache = new MemoryCache(new MemoryCacheOptions { SizeLimit = options.PacketCacheSize });
 			}
 		}

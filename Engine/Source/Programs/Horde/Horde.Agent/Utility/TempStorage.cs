@@ -2,6 +2,7 @@
 
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
 using System;
@@ -724,9 +725,19 @@ namespace Horde.Storage.Utility
 					throw new TempStorageException($"Missing block \"{blockName}\" from node \"{nodeName}\"");
 				}
 
+				BundleStorageClient bundleStorageClient = (BundleStorageClient)storageClient;
+				long initialNumBytesRead = bundleStorageClient.BundleReader.NumBytesRead;
+				int initialNumHeaderReads = bundleStorageClient.BundleReader.NumHeaderReads;
+				int initialNumPacketReads = bundleStorageClient.BundleReader.NumPacketReads;
+				Stopwatch timer = Stopwatch.StartNew();
+
 				// Add all the files and flush the ref
 				DirectoryNode rootDirNode = await rootDirEntry.ExpandAsync(cancellationToken);
 				await rootDirNode.CopyToDirectoryAsync(rootDir.ToDirectoryInfo(), logger, cancellationToken);
+
+				timer.Stop();
+				logger.LogInformation("Header cache: {Size}, Packet cache {Size}", bundleStorageClient.BundleReader.Cache.HeaderCacheSize, bundleStorageClient.BundleReader.Cache.PacketCacheSize);
+				logger.LogInformation("Elapsed: {Elapsed}s, Num bytes: {NumBytes}, Num headers: {NumHeaders}, Num packets: {NumPackets}", (int)timer.Elapsed.TotalSeconds, bundleStorageClient.BundleReader.NumBytesRead - initialNumBytesRead, bundleStorageClient.BundleReader.NumHeaderReads - initialNumHeaderReads, bundleStorageClient.BundleReader.NumPacketReads - initialNumPacketReads);
 
 				// Read the manifest in
 				manifest = TempStorageBlockManifest.Load(localManifestFile);
