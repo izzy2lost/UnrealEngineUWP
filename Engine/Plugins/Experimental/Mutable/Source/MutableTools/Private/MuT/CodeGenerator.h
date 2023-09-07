@@ -340,7 +340,7 @@ namespace mu
 			CompilerOptions::TextureLayoutStrategy ImageLayoutStrategy = CompilerOptions::TextureLayoutStrategy::None;
 
 			/** This is used to introduce additional image generation safety. \TODO: Move this "safety" to optimization? */
-			UE::Math::TIntVector2<int32> RectSize;
+			UE::Math::TIntVector2<int32> RectSize = {0, 0};
 
 			/** */
 			int32 CurrentStateIndex = -1;
