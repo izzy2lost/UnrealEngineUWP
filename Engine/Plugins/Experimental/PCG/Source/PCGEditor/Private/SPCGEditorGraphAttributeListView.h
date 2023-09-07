@@ -7,6 +7,7 @@
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
 
 #include "Misc/TextFilterExpressionEvaluator.h"
+#include "Tasks/Task.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 
@@ -40,8 +41,8 @@ struct FPCGListViewItem
 
 struct FPCGColumnData
 {
-	TUniquePtr<const IPCGAttributeAccessor> DataAccessor;
-	TUniquePtr<const IPCGAttributeAccessorKeys> DataKeys;
+	TSharedPtr<const IPCGAttributeAccessor> DataAccessor;
+	TSharedPtr<const IPCGAttributeAccessorKeys> DataKeys;
 };
 
 typedef TSharedPtr<FPCGListViewItem> PCGListviewItemPtr;
@@ -52,6 +53,42 @@ struct FTextAsNumberIsValid : std::false_type {};
 /** Utility to see if a value type is supported by FText::AsNumber */
 template <typename T>
 struct FTextAsNumberIsValid<T, std::void_t<decltype(FText::AsNumber(std::declval<T>()))>> : std::true_type {};
+
+/** Class used for threaded filtering and sorting of list view items */
+class FPCGListViewUpdater : public TSharedFromThis<FPCGListViewUpdater>
+{
+public:
+	FPCGListViewUpdater(
+		const TArray<PCGListviewItemPtr>& InListViewItems,
+		const TMap<FName, FPCGColumnData>& InColumnData,
+		const EColumnSortMode::Type InSortMode,
+		const FName InSortingColumn,
+		const TSharedPtr<FTextFilterExpressionEvaluator>& InTextFilter)
+	: ListViewItems(InListViewItems)
+	, ColumnData(InColumnData)
+	, SortMode(InSortMode)
+	, SortingColumn(InSortingColumn)
+	, TextFilter(InTextFilter)
+	{}
+
+	bool IsCompleted() const;
+	void Launch();
+
+	TArray<PCGListviewItemPtr> ListViewItems;
+
+private:
+	void AsyncSort();
+	void AsyncFilter();
+
+	TMap<FName, FPCGColumnData> ColumnData;
+
+	EColumnSortMode::Type SortMode = EColumnSortMode::Type::Ascending;
+	FName SortingColumn = NAME_None;
+
+	TSharedPtr<FTextFilterExpressionEvaluator> TextFilter;
+
+	UE::Tasks::FTask UpdateTask;
+};
 
 class SPCGListViewItemRow : public SMultiColumnTableRow<PCGListviewItemPtr>
 {
@@ -64,7 +101,7 @@ public:
 	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView);
 
 	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnId) override;
-	
+
 private:
 	TWeakPtr<SPCGEditorGraphAttributeListView> AttributeListView;
 	PCGListviewItemPtr InternalItem;
@@ -88,7 +125,7 @@ private:
 class SPCGEditorGraphAttributeListView : public SCompoundWidget
 {
 	friend SPCGListViewItemRow;
-	
+
 public:
 	SLATE_BEGIN_ARGS(SPCGEditorGraphAttributeListView) {}
 	SLATE_END_ARGS()
@@ -100,7 +137,7 @@ public:
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 	void RequestRefresh() { bNeedsRefresh = true; }
-	
+
 private:
 	TSharedRef<SHeaderRow> CreateHeaderRowWidget() const;
 
@@ -111,12 +148,12 @@ private:
 	void OnGenerateUpdated(UPCGComponent* InPCGComponent);
 
 	const FPCGDataCollection* GetInspectionData();
-	
+
 	void RefreshAttributeList();
 	void RefreshPinComboBox();
 	void RefreshDataComboBox();
 
-	void ApplyRowFilter();
+	void LaunchUpdateTask();
 
 	/** Only connected input pins are added to combo box, so keep track of the node pin index for each item. */
 	struct FPinComboBoxItem
@@ -150,7 +187,6 @@ private:
 
 	void OnColumnSortModeChanged(const EColumnSortPriority::Type SortPriority, const FName& ColumnId, const EColumnSortMode::Type InSortMode);
 	EColumnSortMode::Type GetColumnSortMode(const FName InColumnId) const;
-	void RefreshSorting();
 
 	void OnFilterTextChanged(const FText& InFilterText);
 	void OnFilterTextCommitted(const FText& NewText, ETextCommit::Type CommitInfo);
@@ -171,7 +207,7 @@ private:
 
 	TSharedPtr<FTextFilterExpressionEvaluator> TextFilter;
 
-	TSharedPtr<SSearchBox> SearchBoxWidget;	
+	TSharedPtr<SSearchBox> SearchBoxWidget;
 	TSharedPtr<SHeaderRow> ListViewHeader;
 	TSharedPtr<SListView<PCGListviewItemPtr>> ListView;
 	TArray<PCGListviewItemPtr> ListViewItems;
@@ -182,7 +218,7 @@ private:
 
 	TSharedPtr<SComboBox<TSharedPtr<FName>>> DataComboBox;
 	TArray<TSharedPtr<FName>> DataComboBoxItems;
-	
+
 	TSharedPtr<STextBlock> NodeNameTextBlock;
 	TSharedPtr<STextBlock> InfoTextBlock;
 	TSharedPtr<SComboButton> FilterButton;
@@ -197,4 +233,6 @@ private:
 	EColumnSortMode::Type SortMode = EColumnSortMode::Type::Ascending;
 
 	bool bNeedsRefresh = false;
+
+	TSharedPtr<FPCGListViewUpdater> CurrentUpdateTask = nullptr;
 };
