@@ -108,12 +108,13 @@ static FAutoConsoleVariableRef CVarNaniteBarrierTest(
 	ECVF_RenderThreadSafe
 );
 
-// TODO: Heavily work in progress / experimental - do not use!
-static int32 GNaniteQuadBinning = 1;
-static FAutoConsoleVariableRef CVarNaniteQuadBinning(
-	TEXT("r.Nanite.QuadBinning"),
-	GNaniteQuadBinning,
-	TEXT(""),
+static int32 GNaniteShadeBinningMode = 0;
+static FAutoConsoleVariableRef CVarNaniteShadeBinningMode(
+	TEXT("r.Nanite.ShadeBinningMode"),
+	GNaniteShadeBinningMode,
+	TEXT("0: Auto\n")
+	TEXT("1: Force to Pixel Mode\n")
+	TEXT("2: Force to Quad Mode\n"),
 	ECVF_RenderThreadSafe
 );
 
@@ -591,11 +592,10 @@ class FShadingBinBuildCS : public FNaniteGlobalShader
 	class FBuildPassDim : SHADER_PERMUTATION_SPARSE_INT("SHADING_BIN_PASS", NANITE_SHADING_BIN_COUNT, NANITE_SHADING_BIN_SCATTER);
 	class FTechniqueDim : SHADER_PERMUTATION_INT("BINNING_TECHNIQUE", 2);
 	class FGatherStatsDim : SHADER_PERMUTATION_BOOL("GATHER_STATS");
-	class FQuadBinningDim : SHADER_PERMUTATION_BOOL("QUAD_BINNING");
 	class FVariableRateDim : SHADER_PERMUTATION_BOOL("VARIABLE_SHADING_RATE");
 	class FOptimizeWriteMaskDim : SHADER_PERMUTATION_BOOL("OPTIMIZE_WRITE_MASK");
 	class FNumExports : SHADER_PERMUTATION_RANGE_INT("NUM_EXPORTS", 1, MaxSimultaneousRenderTargets);
-	using FPermutationDomain = TShaderPermutationDomain<FBuildPassDim, FTechniqueDim, FGatherStatsDim, FQuadBinningDim, FVariableRateDim, FOptimizeWriteMaskDim, FNumExports>;
+	using FPermutationDomain = TShaderPermutationDomain<FBuildPassDim, FTechniqueDim, FGatherStatsDim, FVariableRateDim, FOptimizeWriteMaskDim, FNumExports>;
 
 	FShadingBinBuildCS() = default;
 	FShadingBinBuildCS(const ShaderMetaType::CompiledShaderInitializerType & Initializer)
@@ -676,8 +676,7 @@ class FShadingBinReserveCS : public FNaniteGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FShadingBinReserveCS, FNaniteGlobalShader);
 
 	class FGatherStatsDim : SHADER_PERMUTATION_BOOL("GATHER_STATS");
-	class FQuadBinningDim : SHADER_PERMUTATION_BOOL("QUAD_BINNING");
-	using FPermutationDomain = TShaderPermutationDomain<FGatherStatsDim, FQuadBinningDim>;
+	using FPermutationDomain = TShaderPermutationDomain<FGatherStatsDim>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -794,6 +793,27 @@ struct FNaniteShadingCommand
 
 namespace Nanite
 {
+
+inline bool HasNoDerivativeOps(FRHIComputeShader* ComputeShaderRHI)
+{
+	if (GNaniteShadeBinningMode == 1)
+	{
+		return true;
+	}
+	else if (GNaniteShadeBinningMode == 2)
+	{
+		return false;
+	}
+	else
+	{
+#if 0
+		// Temporary debug code
+		return (GetTypeHash(ComputeShaderRHI) & 1) != 0;
+#else
+		return ComputeShaderRHI ? ComputeShaderRHI->HasNoDerivativeOps() : false;
+#endif
+	}
+}
 
 // TODO: Heavily work in progress / experimental - do not use!
 void BuildShadingCommands(
@@ -966,9 +986,11 @@ void RecordShadingParameters(
 	FRHIUnorderedAccessView* OutputTargetsArray
 )
 {
-	PassData.X = ShadingCommand.ShadingBin;
-
 	FRHIComputeShader* ComputeShaderRHI = ShadingCommand.ComputeShader.GetComputeShader();
+	const bool bNoDerivativeOps = HasNoDerivativeOps(ComputeShaderRHI);
+
+	PassData.X = ShadingCommand.ShadingBin;
+	PassData.Z = bNoDerivativeOps ? 0 : 1;
 
 	ShadingCommand.ShaderBindings.SetParameters(BatchedParameters, ComputeShaderRHI);
 
@@ -1458,7 +1480,7 @@ void DispatchBasePass(
 		FUint32Vector4 PassData(
 			0, // Set per shading command
 			GetShadingRateTileSize(),
-			GNaniteQuadBinning != 0,
+			0,
 			0
 		);
 
@@ -3433,7 +3455,6 @@ FShadeBinning ShadeBinning(
 	const uint32 ShadingBinCountPow2 = FMath::RoundUpToPowerOfTwo(ShadingBinCount);
 
 	const bool bGatherStats = GNaniteShowStats != 0;
-	const bool bQuadBinning = GNaniteQuadBinning != 0;
 
 	const FUintVector4 ViewRect = FUintVector4(uint32(InViewRect.Min.X), uint32(InViewRect.Min.Y), uint32(InViewRect.Max.X), uint32(InViewRect.Max.Y));
 
@@ -3456,13 +3477,9 @@ FShadeBinning ShadeBinning(
 		if (const FMaterial* Material = ShadingCommand->Material)
 		{
 			FUintVector4& MetaEntry = MetaBufferData[ShadingCommand->ShadingBin];
-			bool bNoDerivativeOps = false;
 
 			FRHIComputeShader* ComputeShaderRHI = ShadingCommand->ComputeShader.GetComputeShader();
-			if (ComputeShaderRHI)
-			{
-				bNoDerivativeOps = ComputeShaderRHI->HasNoDerivativeOps();
-			}
+			bool bNoDerivativeOps = HasNoDerivativeOps(ComputeShaderRHI);
 
 			MetaEntry.W = PackMaterialBitFlags(*Material, ShadingCommand->BoundTargetMask, bNoDerivativeOps);
 		}
@@ -3514,8 +3531,7 @@ FShadeBinning ShadeBinning(
 		PermutationVector.Set<FShadingBinBuildCS::FBuildPassDim>(NANITE_SHADING_BIN_COUNT);
 		PermutationVector.Set<FShadingBinBuildCS::FTechniqueDim>(FMath::Clamp<int32>(GBinningTechnique, 0, 1));
 		PermutationVector.Set<FShadingBinBuildCS::FGatherStatsDim>(bGatherStats);
-		PermutationVector.Set<FShadingBinBuildCS::FQuadBinningDim>(bQuadBinning);
-		PermutationVector.Set<FShadingBinBuildCS::FVariableRateDim>(!bQuadBinning && PassParameters->ShadingRateTileSize != 0u);
+		PermutationVector.Set<FShadingBinBuildCS::FVariableRateDim>(PassParameters->ShadingRateTileSize != 0u);
 		PermutationVector.Set<FShadingBinBuildCS::FOptimizeWriteMaskDim>(bOptimizeWriteMask);
 		PermutationVector.Set<FShadingBinBuildCS::FNumExports>(FMath::Max(1, ValidClearTargets.Num()));
 		auto ComputeShader = View.ShaderMap->GetShader<FShadingBinBuildCS>(PermutationVector);
@@ -3583,7 +3599,6 @@ FShadeBinning ShadeBinning(
 
 		FShadingBinReserveCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FShadingBinReserveCS::FGatherStatsDim>(bGatherStats);
-		PermutationVector.Set<FShadingBinReserveCS::FQuadBinningDim>(bQuadBinning);
 		auto ComputeShader = View.ShaderMap->GetShader<FShadingBinReserveCS>(PermutationVector);
 
 		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("ShadingReserve"), ComputeShader, PassParameters, BinDispatchDim);
@@ -3609,8 +3624,7 @@ FShadeBinning ShadeBinning(
 		PermutationVector.Set<FShadingBinBuildCS::FBuildPassDim>(NANITE_SHADING_BIN_SCATTER);
 		PermutationVector.Set<FShadingBinBuildCS::FTechniqueDim>(FMath::Clamp<int32>(GBinningTechnique, 0, 1));
 		PermutationVector.Set<FShadingBinBuildCS::FGatherStatsDim>(false);
-		PermutationVector.Set<FShadingBinBuildCS::FQuadBinningDim>(bQuadBinning);
-		PermutationVector.Set<FShadingBinBuildCS::FVariableRateDim>(!bQuadBinning && PassParameters->ShadingRateTileSize != 0u);
+		PermutationVector.Set<FShadingBinBuildCS::FVariableRateDim>(PassParameters->ShadingRateTileSize != 0u);
 		PermutationVector.Set<FShadingBinBuildCS::FOptimizeWriteMaskDim>(false);
 		PermutationVector.Set<FShadingBinBuildCS::FNumExports>(1);
 		auto ComputeShader = View.ShaderMap->GetShader<FShadingBinBuildCS>(PermutationVector);
