@@ -37,7 +37,7 @@ namespace Gauntlet
 
 	public class PackagedBuild : IBuild
 	{
-		public int PreferenceOrder { get { return 0; } }
+		public virtual int PreferenceOrder { get { return 0; } }
 
 		public UnrealTargetPlatform Platform { get; protected set; }
 
@@ -74,7 +74,7 @@ namespace Gauntlet
 
 	public class StagedBuild : IBuild
 	{
-		public int PreferenceOrder { get { return 1; } }
+		public virtual int PreferenceOrder { get { return 1; } }
 
 		public UnrealTargetPlatform Platform { get; protected set; }
 

@@ -360,7 +360,7 @@ namespace Gauntlet
 
 							foreach (IBuild Build in Builds)
 							{
-								Log.Info("Adding build {0} with flags {1}", BS.BuildName, Build.Flags);
+								Log.Info("Adding build {0} with flags {1} priority {2}", BS.BuildName, Build.Flags, Build.PreferenceOrder);
 								AddBuild(Build);
 							}
 						}
