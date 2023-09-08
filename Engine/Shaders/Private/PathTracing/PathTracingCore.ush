@@ -66,6 +66,9 @@ float CameraFocusDistance;
 float2 CameraLensRadius;
 
 RWTexture2D<float4> RadianceTexture;
+#if PATH_TRACER_USE_ADAPTIVE_SAMPLING
+RWTexture2D<float4> VarianceTexture;
+#endif
 RWTexture2D<float4> AlbedoTexture;
 RWTexture2D<float4> NormalTexture;
 RaytracingAccelerationStructure TLAS;
@@ -170,15 +173,27 @@ struct FPathState
 
 	void WritePixel(uint2 TextureIndex)
 	{
+#if PATH_TRACER_USE_ADAPTIVE_SAMPLING
+		float4 OldVariance = Iteration > 0 ? VarianceTexture[TextureIndex] : 0;
+		const float Blend = 1.0 / (OldVariance.z + 1);
+		const float PixelLum = Luminance(Radiance);
+		const float2 VarianceValue = float2(PixelLum, PixelLum * PixelLum);
+		VarianceTexture[TextureIndex] = float4(lerp(OldVariance.xy, VarianceValue, Blend), OldVariance.z + 1.0, 0.0);
+#else
+		// non-adaptive sampling, blend factor is constant for all pixels
+		const float Blend = BlendFactor;
+#endif
+
 		// Avoid reading the old pixel on the first sample on the off-chance there is a NaN/Inf pixel ...
 		float4 OldPixel  = Iteration > 0 ? RadianceTexture[TextureIndex] : 0;
 		float4 OldAlbedo = Iteration > 0 ? AlbedoTexture[TextureIndex]   : 0;
 		float4 OldNormal = Iteration > 0 ? NormalTexture[TextureIndex]   : 0;
 
 		const float4 PixelValue = float4(Radiance, saturate(BackgroundVisibility));
-		RadianceTexture[TextureIndex] = lerp(OldPixel, PixelValue, BlendFactor);
-		AlbedoTexture[TextureIndex] = lerp(OldAlbedo, float4(Albedo, 0), BlendFactor);
-		NormalTexture[TextureIndex].xyz = lerp(OldNormal.xyz,Normal.xyz, BlendFactor);
+
+		RadianceTexture[TextureIndex] = lerp(OldPixel, PixelValue, Blend);
+		AlbedoTexture[TextureIndex]   = lerp(OldAlbedo, float4(Albedo, 0), Blend);
+		NormalTexture[TextureIndex].xyz = lerp(OldNormal.xyz,Normal.xyz, Blend);
 	}
 
 	void WritePixel()
@@ -551,6 +566,7 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 				float StartVolumeTMin = Interval.VolumeTMin;
 				// Ray marching loop
 				float3 PathThroughput = PathState.PathThroughput;
+				float3 VolumeRadiance = 0;
 				// Limit number of steps to prevent timeouts // FIXME: This biases the result!
 				for (int Step = 0; Step < MaxRaymarchSteps; Step++)
 				{
@@ -590,7 +606,7 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 							}
 						}
 
-						PathState.Radiance += Result.Emission * PathThroughput;
+						VolumeRadiance += Result.Emission * PathThroughput;
 						// keep tracing through the volume
 						PathThroughput *= SigmaN;
 					}
@@ -602,6 +618,9 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 						break;
 					}
 				}
+				// accumulate all at once so clamping applies to entire volume contribution
+				AccumulateRadiance(PathState.Radiance, VolumeRadiance, bIsCameraRay);
+
 				// restore interval start now that we are finished with ray marching
 				Interval.VolumeTMin = StartVolumeTMin;
 				if (UseNullTrackingTransmittance)
@@ -1328,6 +1347,12 @@ FPathState CreatePathState(int2 PixelIndex, int2 PrimaryRayTextureIndex)
 
 	uint2 LaunchIndex = PixelIndex + View.ViewRectMin.xy;
 
+#if PATH_TRACER_USE_ADAPTIVE_SAMPLING
+	// initialize progressive sobol sequence based on current index for this pixel
+	// NOTE: Error diffusion sampler cannot be used in this mode
+	int SampleIndex = int(VarianceTexture[PrimaryRayTextureIndex].z);
+	RandomSequence_Initialize(Output.RandSequence, LaunchIndex.x + LaunchIndex.y * 65536, TemporalSeed - Iteration + SampleIndex);
+#else
 	// Initialize random sequence 
 	if (SamplerType == PATHTRACER_SAMPLER_ERROR_DIFFUSION)
 	{
@@ -1339,7 +1364,7 @@ FPathState CreatePathState(int2 PixelIndex, int2 PrimaryRayTextureIndex)
 		// random sobol init
 		RandomSequence_Initialize(Output.RandSequence, LaunchIndex.x + LaunchIndex.y * 65536, TemporalSeed);
 	}
-
+#endif
 
 	// Initialize ray and payload
 	{

@@ -35,6 +35,14 @@ TAutoConsoleVariable<int32> CVarPathTracing(
 #include <limits>
 #include "PathTracingSpatialTemporalDenoising.h"
 
+TAutoConsoleVariable<int32> CVarPathTracingExperimental(
+	TEXT("r.PathTracing.Experimental"),
+	0,
+	TEXT("Enables some experimental features of the path tracing renderer that require compiling additional permutations of the path tracer."),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly
+);
+
+
 TAutoConsoleVariable<int32> CVarPathTracingCompaction(
 	TEXT("r.PathTracing.Compaction"),
 	1,
@@ -382,6 +390,33 @@ TAutoConsoleVariable<int32> CVarPathTracingUseAnalyticTransmittance(
 	ECVF_RenderThreadSafe
 );
 
+TAutoConsoleVariable<int32> CVarPathTracingAdaptiveSampling(
+	TEXT("r.PathTracing.AdaptiveSampling"),
+	0,
+	TEXT("Determines if adaptive sampling is enabled. When non-zero, the path tracer will try to skip calculation of pixels below the specified error threshold.\n")
+	TEXT("0: off (uniform sampling - default)\n")
+	TEXT("1: on (adaptive sampling)\n"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<float> CVarPathTracingAdaptiveSamplingErrorThreshold(
+	TEXT("r.PathTracing.AdaptiveSampling.ErrorThreshold"),
+	0.001f,
+	TEXT("This is the target perceptual error threshold. Once a pixel's error falls below this value, it will not be sampled again (default: 0.001)\n"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarPathTracingAdaptiveSamplingVisualize(
+	TEXT("r.PathTracing.AdaptiveSampling.Visualize"),
+	0,
+	TEXT("Select a visualization mode to help understand how adaptive sampling is working.\n")
+	TEXT("0: off\n")
+	TEXT("1: Visualize active pixels with heatmap (converged pixels are displayed as is)\n")
+	TEXT("2: Visualize sample count heatmap (against current max samples)\n")
+	TEXT("3-7: Visualize variance mip levels\n"),
+	ECVF_RenderThreadSafe
+);
+
 BEGIN_SHADER_PARAMETER_STRUCT(FPathTracingData, )
 	SHADER_PARAMETER(float, BlendFactor)
 	SHADER_PARAMETER(uint32, Iteration)
@@ -429,8 +464,10 @@ struct FPathTracingConfig
 	bool UseMISCompensation;
 	bool LockedSamplingPattern;
 	bool UseCameraMediumTracking;
+	bool UseAdaptiveSampling;
 	bool UseMultiGPU; // NOTE: Requires invalidation because the buffer layout changes
 	int DenoiserMode; // NOTE: does not require path tracing invalidation
+	float AdaptiveSamplingThreshold;
 
 	bool IsDifferent(const FPathTracingConfig& Other) const
 	{
@@ -469,6 +506,8 @@ struct FPathTracingConfig
 			UseMISCompensation != Other.UseMISCompensation ||
 			LockedSamplingPattern != Other.LockedSamplingPattern ||
 			UseCameraMediumTracking != Other.UseCameraMediumTracking ||
+			UseAdaptiveSampling != Other.UseAdaptiveSampling ||
+			AdaptiveSamplingThreshold != Other.AdaptiveSamplingThreshold ||
 			UseMultiGPU != Other.UseMultiGPU;
 	}
 
@@ -522,6 +561,7 @@ struct FPathTracingState {
 	FPathTracingConfig LastConfig;
 	// Textures holding onto the accumulated frame data
 	TRefCountPtr<IPooledRenderTarget> RadianceRT;
+	TRefCountPtr<IPooledRenderTarget> VarianceRT;
 	TRefCountPtr<IPooledRenderTarget> AlbedoRT;
 	TRefCountPtr<IPooledRenderTarget> NormalRT;
 	TRefCountPtr<FRDGPooledBuffer> VarianceBuffer;
@@ -856,12 +896,37 @@ class FPathTracingRG : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FPathTracingRG)
 	SHADER_USE_ROOT_PARAMETER_STRUCT(FPathTracingRG, FGlobalShader)
 
-	class FCompactionType : SHADER_PERMUTATION_INT("PATH_TRACER_USE_COMPACTION", 2);
+	class FCompactionType : SHADER_PERMUTATION_BOOL("PATH_TRACER_USE_COMPACTION");
+	class FAdaptiveSampling : SHADER_PERMUTATION_BOOL("PATH_TRACER_USE_ADAPTIVE_SAMPLING");
 	class FSubstrateComplexSpecialMaterial : SHADER_PERMUTATION_BOOL("PATH_TRACER_USE_SUBSTRATE_SPECIAL_COMPLEX_MATERIAL");
-	using FPermutationDomain = TShaderPermutationDomain<FCompactionType, FSubstrateComplexSpecialMaterial>;
+	using FPermutationDomain = TShaderPermutationDomain<FCompactionType, FAdaptiveSampling, FSubstrateComplexSpecialMaterial>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
+		const bool bUseExperimental = CVarPathTracingExperimental.GetValueOnAnyThread() != 0;
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (bUseExperimental == false)
+		{
+			
+			if (PermutationVector.Get<FCompactionType>() == 0)
+			{
+				// non-compaction tracing is considered experimental
+				return false;
+			}
+			if (PermutationVector.Get<FAdaptiveSampling>())
+			{
+				// adaptive sampling is experimental
+				return false;
+			}
+		}
+		if (!Substrate::IsSubstrateEnabled())
+		{
+			// If we aren't using strata, no need to compile the complex material path
+			if (PermutationVector.Get<FSubstrateComplexSpecialMaterial>())
+			{
+				return false;
+			}
+		}
 		return ShouldCompilePathTracingShadersForProject(Parameters.Platform);
 	}
 
@@ -879,6 +944,7 @@ class FPathTracingRG : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RadianceTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float2>, VarianceTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, AlbedoTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, NormalTexture)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, TLAS)
@@ -997,7 +1063,7 @@ class FPathTracingBuildAtmosphereOpticalDepthLUTCS : public FGlobalShader
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
-		//OutEnvironment.CompilerFlags.Add(CFLAG_WarningsAsErrors);
+		OutEnvironment.CompilerFlags.Add(CFLAG_WarningsAsErrors);
 		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_X"), FComputeShaderUtils::kGolden2DGroupSize);
 		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Y"), FComputeShaderUtils::kGolden2DGroupSize);
 	}
@@ -1010,6 +1076,68 @@ class FPathTracingBuildAtmosphereOpticalDepthLUTCS : public FGlobalShader
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_SHADER_TYPE(, FPathTracingBuildAtmosphereOpticalDepthLUTCS, TEXT("/Engine/Private/PathTracing/PathTracingBuildAtmosphereLUT.usf"), TEXT("PathTracingBuildAtmosphereOpticalDepthLUTCS"), SF_Compute);
+
+
+class FPathTracingBuildAdaptiveErrorTextureCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FPathTracingBuildAdaptiveErrorTextureCS)
+	SHADER_USE_PARAMETER_STRUCT(FPathTracingBuildAdaptiveErrorTextureCS, FGlobalShader)
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return ShouldCompilePathTracingShadersForProject(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		OutEnvironment.CompilerFlags.Add(CFLAG_WarningsAsErrors);
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_X"), FComputeShaderUtils::kGolden2DGroupSize);
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Y"), FComputeShaderUtils::kGolden2DGroupSize);
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(FIntPoint, InputResolution)
+		SHADER_PARAMETER(FIntPoint, OutputResolution)
+		SHADER_PARAMETER_SAMPLER(SamplerState, InputMipSampler)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputMip)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutputMip)
+
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_SHADER_TYPE(, FPathTracingBuildAdaptiveErrorTextureCS, TEXT("/Engine/Private/PathTracing/PathTracingBuildAdaptiveError.usf"), TEXT("PathTracingBuildAdaptiveErrorTextureCS"), SF_Compute);
+
+class FPathTracingAdaptiveStartCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FPathTracingAdaptiveStartCS)
+	SHADER_USE_PARAMETER_STRUCT(FPathTracingAdaptiveStartCS, FGlobalShader)
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return ShouldCompilePathTracingShadersForProject(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		OutEnvironment.CompilerFlags.Add(CFLAG_WarningsAsErrors);
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_X"), FComputeShaderUtils::kGolden2DGroupSize);
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Y"), FComputeShaderUtils::kGolden2DGroupSize);
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, VarianceTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, VarianceSampler)
+		SHADER_PARAMETER(FIntVector, VarianceTextureDims)
+		SHADER_PARAMETER(float, AdaptiveSamplingErrorThreshold)
+		SHADER_PARAMETER(FIntPoint, TileTextureOffset)
+		SHADER_PARAMETER(FIntPoint, DispatchDim)
+		SHADER_PARAMETER(float, ViewPreExposure)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<int>, NextActivePaths)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<int>, NumPathStates)
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_SHADER_TYPE(, FPathTracingAdaptiveStartCS, TEXT("/Engine/Private/PathTracing/PathTracingAdaptiveStart.usf"), TEXT("PathTracingAdaptiveStartCS"), SF_Compute);
+
+
 
 // Default miss shader (using the path tracing payload)
 template <bool IsGPULightmass>
@@ -2137,13 +2265,23 @@ class FPathTracingCompositorPS : public FGlobalShader
 		return ShouldCompileRayTracingShadersForProject(Parameters.Platform);
 	}
 
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		OutEnvironment.CompilerFlags.Add(CFLAG_WarningsAsErrors);
+	}
+
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_SAMPLER(SamplerState, VarianceSampler)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float4>, RadianceTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float2>, VarianceTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float4>, NormalDepthTexture)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER(uint32, Iteration)
 		SHADER_PARAMETER(uint32, MaxSamples)
 		SHADER_PARAMETER(int, ProgressDisplayEnabled)
+		SHADER_PARAMETER(float, AdaptiveSamplingErrorThreshold)
+		SHADER_PARAMETER(int, AdaptiveSamplingVisualize)
+		SHADER_PARAMETER(FIntVector, VarianceTextureDims)
 
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
@@ -2152,11 +2290,14 @@ IMPLEMENT_SHADER_TYPE(, FPathTracingCompositorPS, TEXT("/Engine/Private/PathTrac
 
 static FPathTracingRG::FPermutationDomain GetPathTracingRGPermutation(const FScene& Scene)
 {
-	const int CompactionType = CVarPathTracingCompaction.GetValueOnRenderThread();
+	const bool bUseExperimental = CVarPathTracingExperimental.GetValueOnRenderThread() != 0;
+	const bool bUseCompaction = bUseExperimental && CVarPathTracingCompaction.GetValueOnRenderThread() != 0;
+	const bool bUseAdaptiveSampling = bUseExperimental && CVarPathTracingAdaptiveSampling.GetValueOnRenderThread() != 0;
 	const bool bHasComplexSpecialRenderPath = Substrate::IsSubstrateEnabled() && Scene.SubstrateSceneData.bUsesComplexSpecialRenderPath;
 
 	FPathTracingRG::FPermutationDomain Out;
-	Out.Set<FPathTracingRG::FCompactionType>(CompactionType);
+	Out.Set<FPathTracingRG::FCompactionType>(bUseCompaction);
+	Out.Set<FPathTracingRG::FAdaptiveSampling>(bUseAdaptiveSampling);
 	Out.Set<FPathTracingRG::FSubstrateComplexSpecialMaterial>(bHasComplexSpecialRenderPath);
 	return Out;
 }
@@ -2167,7 +2308,6 @@ void FDeferredShadingSceneRenderer::PreparePathTracing(const FSceneViewFamily& V
 		&& ShouldCompilePathTracingShadersForProject(ViewFamily.GetShaderPlatform()))
 	{
 		// Declare all RayGen shaders that require material closest hit shaders to be bound
-		const int CompactionType = CVarPathTracingCompaction.GetValueOnRenderThread();
 		FPathTracingRG::FPermutationDomain PermutationVector = GetPathTracingRGPermutation(Scene);
 		{
 			auto RayGenShader = GetGlobalShaderMap(ViewFamily.GetShaderPlatform())->GetShader<FPathTracingRG>(PermutationVector);
@@ -2197,6 +2337,7 @@ void FSceneViewState::PathTracingInvalidate(bool InvalidateAnimationStates)
 		}
 
 		State->RadianceRT.SafeRelease();
+		State->VarianceRT.SafeRelease();
 		State->AlbedoRT.SafeRelease();
 		State->NormalRT.SafeRelease();
 		State->VarianceBuffer.SafeRelease();
@@ -2275,8 +2416,13 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	int32 SamplesPerPixelCVar = View.bIsOfflineRender ? -1 : CVarPathTracingSamplesPerPixel.GetValueOnRenderThread();
 	uint32 MaxSPP = SamplesPerPixelCVar > -1 ? SamplesPerPixelCVar : View.FinalPostProcessSettings.PathTracingSamplesPerPixel;
 	MaxSPP = FMath::Max(MaxSPP, 1u);
+
+	const bool bUseExperimental = CVarPathTracingExperimental.GetValueOnRenderThread() != 0;
+
 	Config.LockedSamplingPattern = CVarPathTracingFrameIndependentTemporalSeed.GetValueOnRenderThread() == 0;
 	Config.UseCameraMediumTracking = CVarPathTracingCameraMediumTracking.GetValueOnRenderThread() != 0;
+	Config.UseAdaptiveSampling = bUseExperimental && CVarPathTracingAdaptiveSampling.GetValueOnAnyThread() != 0;
+	Config.AdaptiveSamplingThreshold = CVarPathTracingAdaptiveSamplingErrorThreshold.GetValueOnRenderThread();
 
 	// compute an integer code of what show flags and booleans related to lights are currently enabled so we can detect changes
 	Config.LightShowFlags = 0;
@@ -2441,6 +2587,8 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	}
 #if WITH_MGPU
 	Config.UseMultiGPU = CVarPathTracingMultiGPU.GetValueOnRenderThread() != 0;
+	// TODO: Figure out how to support adaptive sampling in multi-gpu cases (this is complicated due to the swizzled layout of the variance texture)
+	Config.UseMultiGPU &= !Config.UseAdaptiveSampling;
 #else
 	Config.UseMultiGPU = false;
 #endif
@@ -2466,8 +2614,10 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 
 	// Prepare radiance buffer (will be shared with display pass)
 	FRDGTexture* RadianceTexture = nullptr;
+	FRDGTexture* VarianceTexture = nullptr;
 	FRDGTexture* AlbedoTexture = nullptr;
 	FRDGTexture* NormalTexture = nullptr;
+	const int NumVarianceMips = FMath::Min(5u, 1 + FMath::FloorLog2(uint32(View.ViewRect.Size().GetMin())));
 	if (PathTracingState->RadianceRT)
 	{
 		// we already have a valid radiance texture, re-use it
@@ -2487,6 +2637,30 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		AlbedoTexture   = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.Albedo")  , ERDGTextureFlags::MultiFrame);
 		NormalTexture   = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.Normal")  , ERDGTextureFlags::MultiFrame);
 	}
+	if (Config.UseAdaptiveSampling)
+	{
+		if (PathTracingState->VarianceRT)
+		{
+			VarianceTexture = GraphBuilder.RegisterExternalTexture(PathTracingState->VarianceRT, TEXT("PathTracer.Variance"));
+		}
+		else
+		{
+			// format stores Luminance,Luminance^2,NumSamples which can be used for error estimation
+			FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
+				View.ViewRect.Size(),
+				PF_A32B32G32R32F,
+				FClearValueBinding::None,
+				TexCreate_ShaderResource | TexCreate_UAV);
+			Desc.NumMips = NumVarianceMips;
+			VarianceTexture = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.Variance"), ERDGTextureFlags::MultiFrame);
+		}
+	}
+	else
+	{
+		// If we are not using adaptive, make sure the old variance buffer doesn't stick around
+		PathTracingState->VarianceRT.SafeRelease();
+	}
+
 
 	// should we use multiple GPUs to render the image?
 	const FRHIGPUMask GPUMask = Config.UseMultiGPU ? FRHIGPUMask::All() : View.GPUMask;
@@ -2526,6 +2700,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 
 		if (bNeedsMoreRays)
 		{
+			RDG_EVENT_SCOPE(GraphBuilder, "Path Tracing Compute (%d x %d)", DispatchResX, DispatchResY);
 			bool bForceRebuild = CVarPathTracingHeterogeneousVolumesRebuildEveryFrame.GetValueOnRenderThread() != 0;
 			bCreateVolumeGrids = bForceRebuild ||
 				!PathTracingState->AdaptiveFrustumGridParameterCache.TopLevelGridBuffer ||
@@ -2552,14 +2727,14 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			bNeedsTextureExtract = true;
 
 			// should we use path compaction?
-			const int CompactionType = CVarPathTracingCompaction.GetValueOnRenderThread();
+			const bool bUseCompaction = bUseExperimental && CVarPathTracingCompaction.GetValueOnRenderThread() != 0;
 			const bool bUseIndirectDispatch = GRHISupportsRayTracingDispatchIndirect && CVarPathTracingIndirectDispatch.GetValueOnRenderThread() != 0;
 			const int FlushRenderingCommands = CVarPathTracingFlushDispatch.GetValueOnRenderThread();
 
 			FRDGBuffer* ActivePaths[2] = {};
 			FRDGBuffer* NumActivePaths[2] = {};
 			FRDGBuffer* PathStateData = nullptr;
-			if (CompactionType == 1)
+			if (bUseCompaction || Config.UseAdaptiveSampling)
 			{
 				const int32 NumPaths = FMath::Min(
 					DispatchSize * FMath::DivideAndRoundUp(DispatchSize, NumGPUs),
@@ -2603,13 +2778,46 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 
 						// Compute the dispatch size for just this set of scanlines
 						const int32 DispatchSizeYLocal = FMath::Min(DispatchSizeYSplit, DispatchSizeY - CurrentGPU * DispatchSizeYSplit);
-						if (CompactionType == 1)
+
+						RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, DispatchResX > DispatchSize || DispatchResY > DispatchSize, "Tile=(%d,%d - %dx%d)", TileX, TileY, DispatchSizeX, DispatchSizeYLocal);
+
+						if (Config.UseAdaptiveSampling && Config.PathTracingData.Iteration > 0)
+						{
+							// If we are using adaptive sampling, build a smaller list of active paths after the first iteration
+							TShaderMapRef<FPathTracingAdaptiveStartCS> ComputeShader(GetGlobalShaderMap(View.FeatureLevel));
+
+							FPathTracingAdaptiveStartCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FPathTracingAdaptiveStartCS::FParameters>();
+
+							PassParameters->VarianceTexture = GraphBuilder.CreateSRV(VarianceTexture);
+							PassParameters->VarianceSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
+							PassParameters->VarianceTextureDims = FIntVector(DispatchResX, DispatchResY, NumVarianceMips);
+							PassParameters->AdaptiveSamplingErrorThreshold = Config.AdaptiveSamplingThreshold;
+							PassParameters->ViewPreExposure = View.PreExposure;
+
+							PassParameters->NextActivePaths = GraphBuilder.CreateUAV(ActivePaths[0], PF_R32_SINT);
+							PassParameters->NumPathStates = GraphBuilder.CreateUAV(NumActivePaths[0], PF_R32_UINT);
+							AddClearUAVPass(GraphBuilder, PassParameters->NextActivePaths, -1); // make sure everything is initialized to -1 since paths that go inactive don't write anything
+							AddClearUAVPass(GraphBuilder, PassParameters->NumPathStates, 0);
+
+							PassParameters->TileTextureOffset.X = TileX;
+							PassParameters->TileTextureOffset.Y = TileY + CurrentGPU * DispatchSizeYSplit;
+							PassParameters->DispatchDim = FIntPoint(DispatchSizeX, DispatchSizeYLocal);
+
+							FComputeShaderUtils::AddPass(
+								GraphBuilder,
+								RDG_EVENT_NAME("Prepare Adaptive Sampling Mask"),
+								ComputeShader,
+								PassParameters,
+								FComputeShaderUtils::GetGroupCount(PassParameters->DispatchDim, FComputeShaderUtils::kGolden2DGroupSize));
+						}
+						else if (bUseCompaction)
 						{
 							AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ActivePaths[0], PF_R32_UINT), 0);
 						}
+
 						// When using path compaction, we need to run the path tracer once per bounce
 						// otherwise, the path tracer is the one doing the bounces
-						for (int Bounce = 0, MaxBounces = CompactionType == 1 ? Config.PathTracingData.MaxBounces : 0; Bounce <= MaxBounces; Bounce++)
+						for (int Bounce = 0, MaxBounces = bUseCompaction ? Config.PathTracingData.MaxBounces : 0; Bounce <= MaxBounces; Bounce++)
 						{
 							FPathTracingRG::FParameters* PassParameters = GraphBuilder.AllocParameters<FPathTracingRG::FParameters>();
 							PassParameters->TLAS = Scene->RayTracingScene.GetLayerView(ERayTracingSceneLayer::Base);
@@ -2637,6 +2845,17 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 							PassParameters->RadianceTexture = GraphBuilder.CreateUAV(RadianceTexture);
 							PassParameters->AlbedoTexture = GraphBuilder.CreateUAV(AlbedoTexture);
 							PassParameters->NormalTexture = GraphBuilder.CreateUAV(NormalTexture);
+
+							if (Config.UseAdaptiveSampling)
+							{
+								PassParameters->VarianceTexture = GraphBuilder.CreateUAV(VarianceTexture);
+							}
+							else
+							{
+								// this texture is not used in this case
+								PassParameters->VarianceTexture = nullptr;
+							}
+							
 
 							if (PreviousPassParameters != nullptr)
 							{
@@ -2683,7 +2902,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 							PassParameters->ScanlineWidth = DispatchSizeX;
 
 							PassParameters->Bounce = Bounce;
-							if (CompactionType == 1)
+							if (bUseCompaction)
 							{
 								PassParameters->ActivePaths = GraphBuilder.CreateSRV(ActivePaths[Bounce & 1], PF_R32_SINT);
 								PassParameters->NextActivePaths = GraphBuilder.CreateUAV(ActivePaths[(Bounce & 1) ^ 1], PF_R32_SINT);
@@ -2703,9 +2922,9 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 							ClearUnusedGraphResources(RayGenShader, PassParameters);
 							const bool bFlushRenderingCommands = FlushRenderingCommands == 1 || (FlushRenderingCommands == 2 && Bounce == MaxBounces);
 							GraphBuilder.AddPass(
-								CompactionType == 1
-								? RDG_EVENT_NAME("Path Tracer Compute (%d x %d) Tile=(%d,%d - %dx%d) Sample=%d/%d NumLights=%d (Bounce=%d%s)", DispatchResX, DispatchResY, TileX, TileY, DispatchSizeX, DispatchSizeYLocal, PathTracingState->SampleIndex, MaxSPP, PassParameters->SceneLightCount, Bounce, bUseIndirectDispatch && Bounce > 0 ? TEXT(" indirect") : TEXT(""))
-								: RDG_EVENT_NAME("Path Tracer Compute (%d x %d) Tile=(%d,%d - %dx%d) Sample=%d/%d NumLights=%d", DispatchResX, DispatchResY, TileX, TileY, DispatchSizeX, DispatchSizeYLocal, PathTracingState->SampleIndex, MaxSPP, PassParameters->SceneLightCount),
+								bUseCompaction
+								? RDG_EVENT_NAME("Path Tracer Sample=%d/%d NumLights=%d (Bounce=%d%s)", PathTracingState->SampleIndex, MaxSPP, PassParameters->SceneLightCount, Bounce, bUseIndirectDispatch && Bounce > 0 ? TEXT(" indirect") : TEXT(""))
+								: RDG_EVENT_NAME("Path Tracer Sample=%d/%d NumLights=%d"              , PathTracingState->SampleIndex, MaxSPP, PassParameters->SceneLightCount),
 								PassParameters,
 								ERDGPassFlags::Compute,
 								[PassParameters, RayGenShader, DispatchSizeX, DispatchSizeYLocal, bUseIndirectDispatch, bFlushRenderingCommands, GPUIndex, &View](FRHIRayTracingCommandList& RHICmdList)
@@ -2856,6 +3075,11 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		GraphBuilder.QueueTextureExtraction(RadianceTexture, &PathTracingState->RadianceRT);
 		GraphBuilder.QueueTextureExtraction(AlbedoTexture, &PathTracingState->AlbedoRT);
 		GraphBuilder.QueueTextureExtraction(NormalTexture, &PathTracingState->NormalRT);
+		if (Config.UseAdaptiveSampling)
+		{
+			check(VarianceTexture != nullptr);
+			GraphBuilder.QueueTextureExtraction(VarianceTexture, &PathTracingState->VarianceRT);
+		}
 	}
 
 	if (bCreateVolumeGrids)
@@ -2919,6 +3143,34 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		AlbedoTexture = NewAlbedoTexture;
 	}
 #endif
+
+	// build adaptive sampling error map if we traced some rays
+	if (Config.UseAdaptiveSampling && bNeedsMoreRays)
+	{
+		RDG_EVENT_SCOPE(GraphBuilder, "Adaptive Sampling");
+		FIntPoint BufferSize = View.ViewRect.Size();
+		TShaderMapRef<FPathTracingBuildAdaptiveErrorTextureCS> ComputeShader(GetGlobalShaderMap(View.FeatureLevel));
+		for (int MipLevel = 0; MipLevel < NumVarianceMips - 1; MipLevel++)
+		{
+			FPathTracingBuildAdaptiveErrorTextureCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FPathTracingBuildAdaptiveErrorTextureCS::FParameters>();
+
+			PassParameters->InputMipSampler = TStaticSamplerState<ESamplerFilter::SF_Bilinear>::CreateRHI();
+			PassParameters->InputMip = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForMipLevel(VarianceTexture, MipLevel));
+			PassParameters->OutputMip = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(VarianceTexture, MipLevel + 1));
+			PassParameters->InputResolution = FIntPoint(
+				FMath::Max(BufferSize.X >> MipLevel, 1),
+				FMath::Max(BufferSize.Y >> MipLevel, 1));
+			PassParameters->OutputResolution = FIntPoint(
+				FMath::Max(BufferSize.X >> (MipLevel + 1), 1),
+				FMath::Max(BufferSize.Y >> (MipLevel + 1), 1));
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("Build Error Estimation Mips (%d)", MipLevel),
+				ComputeShader,
+				PassParameters,
+				FComputeShaderUtils::GetGroupCount(PassParameters->OutputResolution, FComputeShaderUtils::kGolden2DGroupSize));
+		}
+	}
 
 	FPathTracingSpatialTemporalDenoisingContext DenoisingContext;
 	const bool EnablePathTracingDenoiserRealtimeDebug = ShouldEnablePathTracingDenoiserRealtimeDebug();
@@ -3005,11 +3257,16 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	DisplayParameters->Iteration = Config.PathTracingData.Iteration;
 	DisplayParameters->MaxSamples = MaxSPP;
 	DisplayParameters->ProgressDisplayEnabled = CVarPathTracingProgressDisplay.GetValueOnRenderThread();
+	DisplayParameters->AdaptiveSamplingErrorThreshold = Config.AdaptiveSamplingThreshold;
+	DisplayParameters->AdaptiveSamplingVisualize = CVarPathTracingAdaptiveSamplingVisualize.GetValueOnRenderThread();
+	DisplayParameters->VarianceTextureDims = FIntVector(DispatchResX, DispatchResY, NumVarianceMips);
 	DisplayParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 	DisplayParameters->RadianceTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(DenoisedRadianceTexture ? DenoisedRadianceTexture : RadianceTexture));
+	DisplayParameters->VarianceTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(VarianceTexture ? VarianceTexture : GSystemTextures.GetBlackDummy(GraphBuilder)));
 	DisplayParameters->NormalDepthTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(NormalTexture));
 	DisplayParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorOutputTexture, ERenderTargetLoadAction::ELoad);
 	DisplayParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthOutputTexture,  ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ENoAction, FExclusiveDepthStencil::DepthWrite_StencilNop);
+	DisplayParameters->VarianceSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 
 	FScreenPassTextureViewport Viewport(SceneColorOutputTexture, View.ViewRect);
 

@@ -6,8 +6,7 @@ PathTracing.usf: Reference path tracing
 
 #define PATH_TRACING  1
 
-// Bump to force-compile this shader
-#pragma message("UESHADERMETADATA_VERSION 8535C2EF-E5D9-4ABB-A0AF-F8FA45BBB08B")
+#define PATH_TRACING_SHADER_VERSION 0x51478b68 // Bump to force-compile this shader
 
 // Ensure specular profile and glints are supported
 #if SUBSTRATE_ENABLED && PATH_TRACER_USE_SUBSTRATE_SPECIAL_COMPLEX_MATERIAL
@@ -104,7 +103,7 @@ void StorePathStateData(FPathState PathState, uint Index)
 
 RAY_TRACING_ENTRY_RAYGEN(PathTracingMainRG)
 {
-	const uint2 DispatchIdx = DispatchRaysIndex().xy;
+	uint2 DispatchIdx = DispatchRaysIndex().xy;
 	const uint2 DispatchDim = DispatchRaysDimensions().xy;
 
 	int LinearPixelIndex = DispatchIdx.x + DispatchDim.x * DispatchIdx.y;
@@ -117,10 +116,19 @@ RAY_TRACING_ENTRY_RAYGEN(PathTracingMainRG)
 	FPathState PathState;
 	if (Bounce == 0)
 	{
+#if PATH_TRACER_USE_ADAPTIVE_SAMPLING
+		if (Iteration > 0)
+		{
+			LinearPixelIndex = ActivePaths[LinearPixelIndex];
+			if (LinearPixelIndex < 0)
+			{
+				return;
+			}
+			DispatchIdx = uint2(LinearPixelIndex % DispatchDim.x, LinearPixelIndex / DispatchDim.x);
+		}
+#endif
 		PathState = CreatePathState(ComputePixelIndex(DispatchIdx), 
-									ComputeTextureIndex(uint2(LinearPixelIndex % DispatchDim.x,
-															  LinearPixelIndex / DispatchDim.x))
-								   );
+									ComputeTextureIndex(DispatchIdx));
 	}
 	else
 	{
@@ -152,13 +160,28 @@ RAY_TRACING_ENTRY_RAYGEN(PathTracingMainRG)
 
 #else // PATH_TRACER_USE_COMPACTION == 0
 
+#if PATH_TRACER_USE_ADAPTIVE_SAMPLING
+Buffer<int> ActivePaths;
+#endif
+
 RAY_TRACING_ENTRY_RAYGEN(PathTracingMainRG)
 {
-	const uint2 DispatchIdx = DispatchRaysIndex().xy;
+	uint2 DispatchIdx = DispatchRaysIndex().xy;
 	const uint2 DispatchDim = DispatchRaysDimensions().xy;
-	int2 TextureIndex = ComputeTextureIndex(DispatchIdx);
 
-	FPathState PathState = CreatePathState(ComputePixelIndex(DispatchIdx), TextureIndex);
+#if PATH_TRACER_USE_ADAPTIVE_SAMPLING
+	if (Iteration > 0)
+	{
+		uint LinearPixelIndex = DispatchIdx.x + DispatchDim.x * DispatchIdx.y;
+		LinearPixelIndex = ActivePaths[LinearPixelIndex];
+		if (LinearPixelIndex < 0)
+		{
+			return;
+		}
+		DispatchIdx = uint2(LinearPixelIndex % DispatchDim.x, LinearPixelIndex / DispatchDim.x);
+	}
+#endif
+	FPathState PathState = CreatePathState(ComputePixelIndex(DispatchIdx), ComputeTextureIndex(DispatchIdx));
 
 	for (int Bounce = 0; Bounce <= MaxBounces; Bounce++)
 	{
