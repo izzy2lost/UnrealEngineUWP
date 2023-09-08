@@ -11,6 +11,10 @@
 
 #include "TypedElementDatabaseCompatibility.generated.h"
 
+#if !defined(TEDS_SEPARATE_ACTOR_REGISTRATION)
+#	define TEDS_SEPARATE_ACTOR_REGISTRATION 0
+#endif
+
 class AActor;
 class ITypedElementDataStorageInterface;
 struct FMassActorManager;
@@ -64,7 +68,9 @@ private:
 	TypedElementRowHandle DealiasObject(const UObject* Object) const;
 
 	void Tick();
+#if TEDS_SEPARATE_ACTOR_REGISTRATION
 	void TickPendingActorRegistration(UWorld* EditorWorld);
+#endif
 	void TickPendingUObjectRegistration();
 	void TickPendingExternalObjectRegistration();
 	void TickObjectSync();
@@ -98,7 +104,9 @@ private:
 		void* Object;
 		TWeakObjectPtr<const UScriptStruct> TypeInfo;
 	};
+#if TEDS_SEPARATE_ACTOR_REGISTRATION
 	TMap<TypedElementTableHandle, PendingRegistration<TWeakObjectPtr<AActor>>> ActorsPendingRegistration;
+#endif
 	TMap<TypedElementTableHandle, PendingRegistration<TWeakObjectPtr<UObject>>> UObjectsPendingRegistration;
 	TMap<TypedElementTableHandle, PendingRegistration<ExternalObjectRegistration>> ExternalObjectsPendingRegistration;
 	
@@ -112,7 +120,9 @@ private:
 	TypedElementTableHandle StandardUObjectTable{ TypedElementInvalidTableHandle };
 	TypedElementTableHandle StandardExternalObjectTable{ TypedElementInvalidTableHandle };
 	ITypedElementDataStorageInterface* Storage{ nullptr };
+#if TEDS_SEPARATE_ACTOR_REGISTRATION
 	TSharedPtr<FMassActorManager> ActorSubsystem;
+#endif
 
 	TMap<void*, TypedElementRowHandle> ReverseObjectLookup;
 
