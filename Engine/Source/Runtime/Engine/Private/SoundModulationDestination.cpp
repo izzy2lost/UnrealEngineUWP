@@ -307,35 +307,44 @@ namespace Audio
 
 	void FModulationDestination::UpdateModulatorsInternal(TArray<TUniquePtr<Audio::IModulatorSettings>>&& ProxySettings)
 	{
-		auto UpdateHandleLambda = [DestinationDataPtr = TSharedPtr<FModulationDestinationData>(DestinationData), ModSettings = MoveTemp(ProxySettings)]() mutable
+		FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get();
+		if (!AudioDeviceManager)
 		{
-			if (DestinationDataPtr.IsValid())
-			{
-				if (FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get())
-				{
-					if (FAudioDevice* AudioDevice = AudioDeviceManager->GetAudioDeviceRaw(DestinationDataPtr->GetDeviceId()))
-					{
-						if (AudioDevice->IsModulationPluginEnabled() && AudioDevice->ModulationInterface.IsValid())
-						{
-							if (IAudioModulationManager* Modulation = AudioDevice->ModulationInterface.Get())
-							{
-								TSet<FModulatorHandle> NewHandles;
-								for (TUniquePtr<Audio::IModulatorSettings>& ModSetting : ModSettings)
-								{
-									Audio::FModulationParameter HandleParam = DestinationDataPtr->GetParameter();
-									NewHandles.Add(FModulatorHandle{ *Modulation, *ModSetting.Get(), MoveTemp(HandleParam) });
-								}
-								DestinationDataPtr->SetHandles(MoveTemp(NewHandles));
-							}
-							return;
-						}
-					}
-				}
-				DestinationDataPtr->ResetHandles();
-			}
-		};
+			return;
+		}
 
-		FAudioThread::RunCommandOnAudioThread(MoveTemp(UpdateHandleLambda));
+		const FDeviceId DeviceId = DestinationData->GetDeviceId();
+		FAudioDevice* AudioDevice = AudioDeviceManager->GetAudioDeviceRaw(DeviceId);
+		if (!AudioDevice || !AudioDevice->IsModulationPluginEnabled() || !AudioDevice->ModulationInterface.IsValid())
+		{
+			return;
+		}
+
+		FAudioThread::RunCommandOnAudioThread(
+		[
+			DestinationDataPtr = TWeakPtr<FModulationDestinationData>(DestinationData),
+			ModInterfacePtr = TWeakPtr<IAudioModulationManager>(AudioDevice->ModulationInterface),
+			ModSettings = MoveTemp(ProxySettings)
+		]() mutable
+		{
+			TSharedPtr<FModulationDestinationData> DestDataPtr = DestinationDataPtr.Pin();
+			if (DestDataPtr.IsValid())
+			{
+				TAudioModulationPtr ModPtr = ModInterfacePtr.Pin();
+				if (ModPtr.IsValid())
+				{
+					TSet<FModulatorHandle> NewHandles;
+					for (TUniquePtr<Audio::IModulatorSettings>& ModSetting : ModSettings)
+					{
+						Audio::FModulationParameter HandleParam = DestDataPtr->GetParameter();
+						NewHandles.Add(FModulatorHandle { *ModPtr.Get(), *ModSetting.Get(), MoveTemp(HandleParam) });
+					}
+					DestDataPtr->SetHandles(MoveTemp(NewHandles));
+					return;
+				}
+				DestDataPtr->ResetHandles();
+			}
+		});
 	}
 } // namespace Audio
 
