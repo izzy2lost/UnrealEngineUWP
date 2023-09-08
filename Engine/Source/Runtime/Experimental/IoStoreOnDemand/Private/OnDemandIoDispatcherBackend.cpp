@@ -1541,6 +1541,8 @@ void FOnDemandIoBackend::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAn
 		}
 
 		AppendAnalyticsEventAttributeArray(OutAnalyticsArray, TEXT("IasCdnUrl"), MoveTemp(CdnUrl));
+
+		Stats.ReportAnalytics(OutAnalyticsArray);
 	}
 }
 
