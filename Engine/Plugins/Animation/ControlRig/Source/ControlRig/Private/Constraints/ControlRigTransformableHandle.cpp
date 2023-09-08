@@ -489,9 +489,19 @@ bool UTransformableControlHandle::AddTransformKeys(const TArray<FFrameNumber>& I
 
 		if (bLocal)
 		{
-			return InControlRig->SetControlLocalTransform(ControlName, InTransform, bNotify, InKeyframeContext, bUndo, bFixEuler);
+			InControlRig->SetControlLocalTransform(ControlName, InTransform, bNotify, InKeyframeContext, bUndo, bFixEuler);
+			if (InControlRig->IsAdditive())
+			{
+				InControlRig->Evaluate_AnyThread();
+			}
+			return;
 		}
+		
 		InControlRig->SetControlGlobalTransform(ControlName, InTransform, bNotify, InKeyframeContext, bUndo, bFixEuler);
+		if (InControlRig->IsAdditive())
+		{
+			InControlRig->Evaluate_AnyThread();
+		}
 	};
 
 	FRigControlModifiedContext KeyframeContext;
