@@ -772,7 +772,6 @@ FSubstrateEvaluateResult SubstrateEvaluateBSDFCommon(FSubstrateBSDFContext BSDFC
 
 				Sample.ThroughputV *= Cloth_DirectionalAlbedo_SpecularTransmission;
 				// The specular transmission is ignored towards the direction of the light. (TransmittanceAlongN can only store transmittance)
-				break;
 			}
 			#endif
 
