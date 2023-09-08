@@ -1301,9 +1301,6 @@ public:
 			{
 				Compiler->CompileShader(Job.Input.ShaderFormat, Job.Input, Job.Output, WorkingDirectory);
 			}
-
-			// set the input hash on the output to allow sanity checking the job results on completion/reading from cache
-			Job.Output.InputHash = Job.Input.Hash;
 		}
 #if PLATFORM_WINDOWS
 		__except(HandleShaderCompileException(GetExceptionInformation(), OutExceptionMsg, OutExceptionCallstack))
@@ -3333,8 +3330,6 @@ void FShaderCompileJob::SerializeOutput(FArchive& Ar)
 		Output.CompileTime = ActualCompileTime;
 		Output.PreprocessTime = ActualPreprocessTime;
 	}
-
-	checkf(!Output.bSucceeded || Output.InputHash == Input.Hash, TEXT("Failed sanity check: InputHash reported from compile output does not match InputHash from compile input"));
 }
 
 void FShaderCompileJob::OnComplete()
