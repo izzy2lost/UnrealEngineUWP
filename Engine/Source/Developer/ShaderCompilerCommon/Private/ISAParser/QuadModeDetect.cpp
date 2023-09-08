@@ -598,6 +598,8 @@ struct FQuadModeParserRDNA2
 			case RDNA2::EMIMGOps::image_gather4_c_b_cl_o:
 			case RDNA2::EMIMGOps::image_get_lod:
 			case RDNA2::EMIMGOps::image_gather4h:
+			case RDNA2::EMIMGOps::image_gather4h_pck:
+			case RDNA2::EMIMGOps::image_gather8h_pck:
 			{
 				if (bDebug)
 				{
