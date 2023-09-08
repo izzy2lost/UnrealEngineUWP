@@ -330,9 +330,16 @@ void FOutlinerItemModelMixin::ToggleSelectedModelsSolo()
 
 	const FScopedTransaction Transaction(NSLOCTEXT("Sequencer", "ToggleSolo", "Toggle Solo"));
 
-	for (TViewModelPtr<ISoloableExtension> Soloable : GetEditor()->GetSelection()->Outliner.Filter<ISoloableExtension>())
+	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	for (TViewModelPtr<ISoloableExtension> Soloable : EditorViewModel->GetSelection()->Outliner.Filter<ISoloableExtension>())
 	{
 		Soloable->SetIsSoloed(bNewSoloState);
+	}
+
+	TSharedPtr<ISequencer> Sequencer = EditorViewModel->GetSequencer();
+	if (Sequencer)
+	{
+		Sequencer->RefreshTree();
 	}
 }
 
@@ -366,9 +373,16 @@ void FOutlinerItemModelMixin::ToggleSelectedModelsMuted()
 
 	const FScopedTransaction Transaction(NSLOCTEXT("Sequencer", "ToggleMute", "Toggle Mute"));
 
-	for (TViewModelPtr<IMutableExtension> Muteable : GetEditor()->GetSelection()->Outliner.Filter<IMutableExtension>())
+	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	for (TViewModelPtr<IMutableExtension> Muteable : EditorViewModel->GetSelection()->Outliner.Filter<IMutableExtension>())
 	{
 		Muteable->SetIsMuted(bNewMuteState);
+	}
+
+	TSharedPtr<ISequencer> Sequencer = EditorViewModel->GetSequencer();
+	if (Sequencer)
+	{
+		Sequencer->RefreshTree();
 	}
 }
 
