@@ -31,9 +31,16 @@ public:
 
 	/** 
 	 * Creates a dedicated visual type described by host Desc and ties ISMComponent to it.
+	 * @note this is a helper function for a common "single ISMComponent" case. Calls AddVisualDescWithISMComponents under the hood.
 	 * @return The index of the visual type 
 	 */
 	int16 AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent);
+
+	/**
+	 * Creates a dedicated visual type described by host Desc and ties given ISMComponents to it.
+	 * @return The index of the visual type
+	 */
+	int16 AddVisualDescWithISMComponents(const FStaticMeshInstanceVisualizationDesc& Desc, TArrayView<TObjectPtr<UInstancedStaticMeshComponent>> ISMComponents);
 
 	/** 
 	 * Removes the visualization data associated with the given ISM component. Note that this is safe to do only when
@@ -75,10 +82,10 @@ protected:
 
 	/**
 	 * Creates LODSignificance ranges for all the meshes indicated by Info
-	 * @param ForcedStaticMeshRefKey if set to anything other than 0 will be used when adding individual FMassStaticMeshInstanceVisualizationMeshDesc
+	 * @param ForcedStaticMeshRefKeys if not empty will be used when adding individual FMassStaticMeshInstanceVisualizationMeshDesc
 	 *	instances to LOD significance ranges.
-	 */
-	void BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, const uint32 ForcedStaticMeshRefKey = 0);
+	 */	
+	void BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, TConstArrayView<uint32> ForcedStaticMeshRefKeys = TConstArrayView<uint32>());
 
 	/** Either adds an element to InstancedStaticMeshInfos or reuses an existing entry based on InstancedStaticMeshInfosFreeIndices*/
 	int32 AddInstancedStaticMeshInfo(const FStaticMeshInstanceVisualizationDesc& Desc);
@@ -98,4 +105,7 @@ protected:
 
 	/** Indicies to InstancedStaticMeshInfos that need their SMComponent constructed */
 	TArray<int32> InstancedSMComponentsRequiringConstructing;
+
+	UE_DEPRECATED(5.4, "This flavor of BuildLODSignificanceForInfo is no longer supported. Use the other one instead.")
+	void BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, const uint32 ForcedStaticMeshRefKey);
 };

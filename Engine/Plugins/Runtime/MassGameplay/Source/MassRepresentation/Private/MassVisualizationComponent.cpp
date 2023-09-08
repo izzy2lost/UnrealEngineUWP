@@ -93,27 +93,46 @@ int16 UMassVisualizationComponent::FindOrAddVisualDesc(const FStaticMeshInstance
 
 int16 UMassVisualizationComponent::AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent)
 {
-	checkf(Desc.Meshes.Num() > 0, TEXT("%hs is expected to be used when there's exactly one mesh description contained"), __FUNCTION__);
-	ensureMsgf(Desc.Meshes.Num() == 1, TEXT("%hs is expected to be used when there's exactly one mesh description contained"), __FUNCTION__);
+	TObjectPtr<UInstancedStaticMeshComponent> AsObjectPtr = ISMComponent;
+	return AddVisualDescWithISMComponents(Desc, MakeArrayView(&AsObjectPtr, 1));
+}
 
-	const FMassStaticMeshInstanceVisualizationMeshDesc& MeshDesc = Desc.Meshes[0];
-	if (MeshDesc.Mesh == nullptr)
-	{
-		// invalid description, bail out
-		return (int16)INDEX_NONE;
-	}
+int16 UMassVisualizationComponent::AddVisualDescWithISMComponents(const FStaticMeshInstanceVisualizationDesc& Desc, TArrayView<TObjectPtr<UInstancedStaticMeshComponent>> ISMComponents)
+{
+	check(Desc.Meshes.Num() == ISMComponents.Num());
 	
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
 
-	const int32 VisualIndex = AddInstancedStaticMeshInfo(Desc);
+	int32 VisualIndex = INDEX_NONE;
+	TArray<uint32> ISMComponentPathHashes;
 
-	const uint32 ISMComponentPathHash = GetTypeHash(ISMComponent.GetPathName()); 
-	FMassISMCSharedData& NewData = ISMCSharedData.FindOrAdd(ISMComponentPathHash, FMassISMCSharedData(&ISMComponent, /*bInRequiresExternalInstanceIDTracking=*/true));
-	InstancedStaticMeshInfos[VisualIndex].AddISMComponent(NewData);
-
-	BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualIndex], ISMComponentPathHash);
+	for (int32 EntryIndex = 0; EntryIndex < Desc.Meshes.Num(); ++EntryIndex)
+	{
+		const FMassStaticMeshInstanceVisualizationMeshDesc& MeshDesc = Desc.Meshes[EntryIndex];
+		if (MeshDesc.Mesh == nullptr || ISMComponents[EntryIndex] == nullptr)
+		{
+			// invalid description, log an continue.
+			UE_VLOG_UELOG(this, LogMassRepresentation, Error, TEXT("Empty mesh at index %d while registering FStaticMeshInstanceVisualizationDesc instance"), EntryIndex);
+			continue;
+		}
 	
-	ISMComponentMap.Add(ISMComponentPathHash, VisualIndex);
+		if (VisualIndex == INDEX_NONE)
+		{
+			VisualIndex = AddInstancedStaticMeshInfo(Desc);
+		}
+
+		const uint32 ISMComponentPathHash = GetTypeHash(ISMComponents[EntryIndex]->GetPathName());
+		FMassISMCSharedData& NewData = ISMCSharedData.FindOrAdd(ISMComponentPathHash, FMassISMCSharedData(ISMComponents[EntryIndex], /*bInRequiresExternalInstanceIDTracking=*/true));
+		InstancedStaticMeshInfos[VisualIndex].AddISMComponent(NewData);
+		ISMComponentPathHashes.Add(ISMComponentPathHash);
+	
+		ISMComponentMap.Add(ISMComponentPathHash, VisualIndex);
+	}
+
+	if (VisualIndex != INDEX_NONE)
+	{
+		BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualIndex], ISMComponentPathHashes);
+	}
 
 	checkf(VisualIndex < INT16_MAX, TEXT("%hs resulting VisualIndex is out of expected bounds"), __FUNCTION__);
 	return (int16)VisualIndex;
@@ -215,7 +234,7 @@ void UMassVisualizationComponent::ConstructStaticMeshComponents()
 	}
 }
 
-void UMassVisualizationComponent::BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, const uint32 ForcedStaticMeshRefKey)
+void UMassVisualizationComponent::BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, TConstArrayView<uint32> ForcedStaticMeshRefKeys)
 {
 	TArray<float> AllLODSignificances;
 	auto UniqueInsertOrdered = [&AllLODSignificances](const float Significance)
@@ -244,20 +263,21 @@ void UMassVisualizationComponent::BuildLODSignificanceForInfo(FMassInstancedStat
 	if (AllLODSignificances.Num() > 1)
 	{
 		Info.LODSignificanceRanges.SetNum(AllLODSignificances.Num() - 1);
-		for (int i = 0; i < Info.LODSignificanceRanges.Num(); ++i)
+		for (int RangeIndex = 0; RangeIndex < Info.LODSignificanceRanges.Num(); ++RangeIndex)
 		{
-			FMassLODSignificanceRange& Range = Info.LODSignificanceRanges[i];
-			Range.MinSignificance = AllLODSignificances[i];
-			Range.MaxSignificance = AllLODSignificances[i+1];
+			FMassLODSignificanceRange& Range = Info.LODSignificanceRanges[RangeIndex];
+			Range.MinSignificance = AllLODSignificances[RangeIndex];
+			Range.MaxSignificance = AllLODSignificances[RangeIndex + 1];
 			Range.ISMCSharedDataPtr = &ISMCSharedData;
 
-			for (int j = 0; j < Info.Desc.Meshes.Num(); ++j)
+			for (int MeshIndex = 0; MeshIndex < Info.Desc.Meshes.Num(); ++MeshIndex)
 			{
-				const FMassStaticMeshInstanceVisualizationMeshDesc& MeshDesc = Info.Desc.Meshes[j];
+				const FMassStaticMeshInstanceVisualizationMeshDesc& MeshDesc = Info.Desc.Meshes[MeshIndex];
 				const bool bAddMeshInRange = (Range.MinSignificance >= MeshDesc.MinLODSignificance && Range.MinSignificance < MeshDesc.MaxLODSignificance);
 				if (bAddMeshInRange)
 				{
-					Range.StaticMeshRefs.Add(ForcedStaticMeshRefKey ? ForcedStaticMeshRefKey : GetTypeHash(MeshDesc));
+					Range.StaticMeshRefs.Add(ForcedStaticMeshRefKeys.IsValidIndex(MeshIndex) && ForcedStaticMeshRefKeys[MeshIndex]
+						? ForcedStaticMeshRefKeys[MeshIndex] : GetTypeHash(MeshDesc));
 				}
 			}
 		}
@@ -751,4 +771,12 @@ void FMassLODSignificanceRange::WriteCustomDataFloatsAtStartIndex(int32 StaticMe
 		}
 		SharedData.WriteIterator++;
 	}
+}
+
+//-----------------------------------------------------------------------------
+// DEPRECATED
+//-----------------------------------------------------------------------------
+void UMassVisualizationComponent::BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, const uint32 ForcedStaticMeshRefKeys)
+{
+	BuildLODSignificanceForInfo(Info, MakeArrayView(&ForcedStaticMeshRefKeys, 1));
 }

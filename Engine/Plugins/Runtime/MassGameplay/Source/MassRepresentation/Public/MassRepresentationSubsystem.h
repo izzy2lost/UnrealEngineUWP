@@ -39,9 +39,16 @@ public:
 
 	/**
 	 * Creates a dedicated visual type described by host Desc and ties ISMComponent to it.
+	 * @note this is a helper function for a common "single ISMComponent" case. Calls AddVisualDescWithISMComponents under the hood.
 	 * @return The index of the visual type
 	 */
 	int16 AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent);
+
+	/**
+	 * Creates a dedicated visual type described by host Desc and ties given ISMComponents to it.
+	 * @return The index of the visual type
+	 */
+	int16 AddVisualDescWithISMComponents(const FStaticMeshInstanceVisualizationDesc& Desc, TArrayView<TObjectPtr<UInstancedStaticMeshComponent>> ISMComponents);
 
 	/**
 	 * Removes the visualization data associated with the given ISM component. Note that this is safe to do only when

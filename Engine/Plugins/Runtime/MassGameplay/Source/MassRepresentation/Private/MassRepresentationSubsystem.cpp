@@ -32,6 +32,12 @@ int16 UMassRepresentationSubsystem::AddVisualDescWithISMComponent(const FStaticM
 	return VisualizationComponent->AddVisualDescWithISMComponent(Desc, ISMComponent);
 }
 
+int16 UMassRepresentationSubsystem::AddVisualDescWithISMComponents(const FStaticMeshInstanceVisualizationDesc& Desc, TArrayView<TObjectPtr<UInstancedStaticMeshComponent>> ISMComponents)
+{
+	check(VisualizationComponent);
+	return VisualizationComponent->AddVisualDescWithISMComponents(Desc, ISMComponents);
+}
+
 void UMassRepresentationSubsystem::RemoveISMComponent(UInstancedStaticMeshComponent& ISMComponent)
 {
 	check(VisualizationComponent);
