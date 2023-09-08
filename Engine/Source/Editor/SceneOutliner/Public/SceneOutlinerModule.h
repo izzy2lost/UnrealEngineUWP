@@ -46,7 +46,7 @@ public:
 	virtual TSharedRef<ISceneOutliner> CreateActorPicker(
 		const FSceneOutlinerInitializationOptions& InInitOptions,
 		const FOnActorPicked& OnActorPickedDelegate,
-		TWeakObjectPtr<UWorld> SpecifiedWorld = nullptr) const;
+		TWeakObjectPtr<UWorld> SpecifiedWorld = nullptr, bool bHideLevelInstanceHierarchy = true) const;
 
 	/** Creates a component picker widget. Calls the OnComponentPickedDelegate when an item is selected. */
 	virtual TSharedRef<ISceneOutliner> CreateComponentPicker(
