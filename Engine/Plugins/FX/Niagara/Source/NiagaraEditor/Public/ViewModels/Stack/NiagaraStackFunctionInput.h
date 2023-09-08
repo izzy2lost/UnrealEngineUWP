@@ -190,6 +190,9 @@ public:
 
 	/** Sets this input's local value. */
 	NIAGARAEDITOR_API void SetLocalValue(TSharedRef<FStructOnScope> InLocalValue);
+
+	/** Sets this input's data interface value. */
+	NIAGARAEDITOR_API void SetDataInterfaceValue(const UNiagaraDataInterface& InDataInterface);
 	
 	/** Returns whether or not the value or handle of this input has been overridden and can be reset. */
 	NIAGARAEDITOR_API bool CanReset() const;

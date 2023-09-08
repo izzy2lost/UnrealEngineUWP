@@ -524,16 +524,24 @@ FSlateColor SNiagaraStackFunctionInputValue::GetVersionSelectorColor() const
 
 void SNiagaraStackFunctionInputValue::SetToLocalValue()
 {
-	const UScriptStruct* LocalValueStruct = FunctionInput->GetInputType().GetScriptStruct();
-	if (LocalValueStruct != nullptr)
+	if (FunctionInput->GetInputType().IsDataInterface())
 	{
-		TSharedRef<FStructOnScope> LocalValue = MakeShared<FStructOnScope>(LocalValueStruct);
-		TArray<uint8> DefaultValueData;
-		FNiagaraEditorUtilities::GetTypeDefaultValue(FunctionInput->GetInputType(), DefaultValueData);
-		if (DefaultValueData.Num() == LocalValueStruct->GetStructureSize())
+		const UNiagaraDataInterface* DefaultDataInterfaceValue = GetDefault<UNiagaraDataInterface>(FunctionInput->GetInputType().GetClass());
+		FunctionInput->SetDataInterfaceValue(*DefaultDataInterfaceValue);
+	}
+	else if (FunctionInput->GetInputType().IsUObject() == false)
+	{
+		const UScriptStruct* LocalValueStruct = FunctionInput->GetInputType().GetScriptStruct();
+		if (LocalValueStruct != nullptr)
 		{
-			FMemory::Memcpy(LocalValue->GetStructMemory(), DefaultValueData.GetData(), DefaultValueData.Num());
-			FunctionInput->SetLocalValue(LocalValue);
+			TSharedRef<FStructOnScope> LocalValue = MakeShared<FStructOnScope>(LocalValueStruct);
+			TArray<uint8> DefaultValueData;
+			FNiagaraEditorUtilities::GetTypeDefaultValue(FunctionInput->GetInputType(), DefaultValueData);
+			if (DefaultValueData.Num() == LocalValueStruct->GetStructureSize())
+			{
+				FMemory::Memcpy(LocalValue->GetStructMemory(), DefaultValueData.GetData(), DefaultValueData.Num());
+				FunctionInput->SetLocalValue(LocalValue);
+			}
 		}
 	}
 }
@@ -1208,9 +1216,10 @@ TArray<TSharedPtr<FNiagaraMenuAction_Generic>> SNiagaraStackFunctionInputValue::
 	FNiagaraActionSourceData NiagaraSourceData(EScriptSource::Niagara, FText::FromString(TEXT("Niagara")), true);
 	
 	// Set a local value
-	if(bIsDataInterfaceOrObject == false)
 	{
-		bool bCanSetLocalValue = FunctionInput->GetValueMode() != UNiagaraStackFunctionInput::EValueMode::Local;
+		bool bCanSetLocalValue = 
+			(FunctionInput->GetInputType().IsDataInterface() && FunctionInput->GetValueMode() != UNiagaraStackFunctionInput::EValueMode::Data) ||
+			(bIsDataInterfaceOrObject == false && FunctionInput->GetValueMode() != UNiagaraStackFunctionInput::EValueMode::Local);
 
 		const FText DisplayName = LOCTEXT("LocalValue", "New Local Value");
 		const FText Tooltip = FText::Format(LOCTEXT("LocalValueToolTip", "Set a local editable value for this input."), DisplayName);

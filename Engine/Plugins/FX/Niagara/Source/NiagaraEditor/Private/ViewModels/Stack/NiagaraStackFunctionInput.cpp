@@ -1198,7 +1198,7 @@ void UNiagaraStackFunctionInput::RefreshValues()
 	}
 	else
 	{
-		if (InputType.IsDataInterface())
+		if (InputType.IsDataInterface() && DefaultInputValues.Mode == EValueMode::Data)
 		{
 			// If the input it a data interface but hasn't been edited yet, we need to provide a placeholder data interface to edit.
 			FGuid EmitterHandleId = GetEmitterViewModel().IsValid()
@@ -1212,7 +1212,7 @@ void UNiagaraStackFunctionInput::RefreshValues()
 				DefaultInputValues.DataObject->CopyTo(InputValues.DataObject.Get());
 			}
 		}
-		else if (InputType.IsUObject())
+		else if (InputType.IsUObject() && DefaultInputValues.Mode == EValueMode::ObjectAsset)
 		{
 			InputValues.Mode = EValueMode::ObjectAsset;
 			InputValues.ObjectAssetInputNode = DefaultInputValues.ObjectAssetInputNode;
@@ -2042,6 +2042,38 @@ void UNiagaraStackFunctionInput::SetLocalValue(TSharedRef<FStructOnScope> InLoca
 	{
 		RefreshChildren();
 	}
+}
+
+void UNiagaraStackFunctionInput::SetDataInterfaceValue(const UNiagaraDataInterface& InDataInterface)
+{
+	checkf(InDataInterface.GetClass() == InputType.GetClass(), TEXT("Can not set an input to an unrelated type."));
+
+	if (InputValues.Mode == EValueMode::Data && InputValues.DataObject->Equals(&InDataInterface))
+	{
+		// The value matches the current value so noop.
+		return;
+	}
+
+	TGuardValue<bool> UpdateGuard(bUpdatingLocalValueDirectly, true);
+	FScopedTransaction ScopedTransaction(LOCTEXT("UpdateInputLocalDataValue", "Update input local data interface value"));
+	bool bGraphWillNeedRelayout = false;
+	UEdGraphPin* OverridePin = GetOverridePin();
+
+	if (OverridePin != nullptr && OverridePin->LinkedTo.Num() > 0)
+	{
+		// If there is an override pin and it's linked we'll need to remove all of the linked nodes to set a local value.
+		RemoveNodesForOverridePin(*OverridePin);
+		bGraphWillNeedRelayout = true;
+	}
+
+	if (OverridePin == nullptr)
+	{
+		OverridePin = &GetOrCreateOverridePin();
+	}
+
+	UNiagaraDataInterface* InputDataInterface = nullptr;
+	FNiagaraStackGraphUtilities::SetDataInterfaceValueForFunctionInput(*OverridePin, InDataInterface.GetClass(), AliasedInputParameterHandle.GetParameterHandleString().ToString(), InputDataInterface);
+
 }
 
 bool UNiagaraStackFunctionInput::CanReset() const
@@ -3133,16 +3165,23 @@ UEdGraphPin& UNiagaraStackFunctionInput::GetOrCreateOverridePin()
 
 void UNiagaraStackFunctionInput::GetDefaultDataInterfaceValueFromDefaultPin(UEdGraphPin* DefaultPin, UNiagaraStackFunctionInput::FInputValues& InInputValues) const
 {
-	// Default data interfaces are stored on the input node in the graph, but if it doesn't exist or it's data interface pointer is null, just use the CDO.
-	InInputValues.Mode = EValueMode::Data;
 	if (DefaultPin->LinkedTo.Num() == 1 && DefaultPin->LinkedTo[0]->GetOwningNode() != nullptr && DefaultPin->LinkedTo[0]->GetOwningNode()->IsA<UNiagaraNodeInput>())
 	{
+		// If a valid input node was linked, use the data interface from there.
+		InInputValues.Mode = EValueMode::Data;
 		UNiagaraNodeInput* DataInputNode = CastChecked<UNiagaraNodeInput>(DefaultPin->LinkedTo[0]->GetOwningNode());
 		InInputValues.DataObject = DataInputNode->GetDataInterface();
 	}
-	if (InInputValues.DataObject.IsValid() == false)
+	else
 	{
-		InInputValues.DataObject = Cast<UNiagaraDataInterface>(InputType.GetClass()->GetDefaultObject());
+		// If there was no input node, try to get a linked data interface default.
+		GetDefaultLinkedHandleOrLinkedFunctionFromDefaultPin(DefaultPin, InInputValues);
+		if (InInputValues.Mode == EValueMode::None)
+		{
+			// If there is no specified default input and no linked value, use the CDO as the default data value.
+			InInputValues.Mode = EValueMode::Data;
+			InInputValues.DataObject = Cast<UNiagaraDataInterface>(InputType.GetClass()->GetDefaultObject());
+		}
 	}
 }
 
