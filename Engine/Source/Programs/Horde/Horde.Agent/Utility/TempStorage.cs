@@ -733,7 +733,7 @@ namespace Horde.Storage.Utility
 
 				// Add all the files and flush the ref
 				DirectoryNode rootDirNode = await rootDirEntry.ExpandAsync(cancellationToken);
-				await rootDirNode.CopyToDirectoryAsync(rootDir.ToDirectoryInfo(), logger, cancellationToken);
+				await rootDirNode.CopyToDirectoryAsync(rootDir.ToDirectoryInfo(), new CopyStatsLogger(logger), logger, cancellationToken);
 
 				timer.Stop();
 				logger.LogInformation("Elapsed: {Elapsed}s, Num bytes: {NumBytes:n0}, Num headers: {NumHeaders:n0}, Num packets: {NumPackets:n0}, Header cache: {Size:n0}mb, Packet cache {Size:n0}mb", (int)timer.Elapsed.TotalSeconds, bundleStorageClient.BundleReader.NumBytesRead - initialNumBytesRead, bundleStorageClient.BundleReader.NumHeaderReads - initialNumHeaderReads, bundleStorageClient.BundleReader.NumPacketReads - initialNumPacketReads, bundleStorageClient.BundleReader.Cache.HeaderCacheSize / (1024.0 * 1024.0), bundleStorageClient.BundleReader.Cache.PacketCacheSize / (1024.0 * 1024.0));

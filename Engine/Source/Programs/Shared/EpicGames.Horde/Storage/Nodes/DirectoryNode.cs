@@ -58,7 +58,14 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <inheritdoc/>
 		public void Report(ICopyStats stats)
 		{
-			_logger.LogInformation("Copied {NumFiles:n0}/{TotalFiles:n0} ({Size:n1}/{TotalSize:n1}mb, {Pct}%)", stats.CopiedCount, stats.TotalCount, stats.CopiedSize / (1024.0 * 1024.0), stats.TotalSize / (1024.0 * 1024.0), (int)((Math.Max(stats.CopiedCount, 1) * 100) / Math.Max(stats.TotalCount, 1)));
+			if (stats.TotalCount == 0)
+			{
+				_logger.LogInformation("Copied {NumFiles:n0} files ({Size:n1}/{TotalSize:n1}mb, {Pct}%)", stats.CopiedCount, stats.CopiedSize / (1024.0 * 1024.0), stats.TotalSize / (1024.0 * 1024.0), (int)((Math.Max(stats.CopiedCount, 1) * 100) / Math.Max(stats.TotalCount, 1)));
+			}
+			else
+			{
+				_logger.LogInformation("Copied {NumFiles:n0}/{TotalFiles:n0} files ({Size:n1}/{TotalSize:n1}mb, {Pct}%)", stats.CopiedCount, stats.TotalCount, stats.CopiedSize / (1024.0 * 1024.0), stats.TotalSize / (1024.0 * 1024.0), (int)((Math.Max(stats.CopiedCount, 1) * 100) / Math.Max(stats.TotalCount, 1)));
+			}
 		}
 	}
 
@@ -753,11 +760,25 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="directoryInfo"></param>
 		/// <param name="logger"></param>
 		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public async Task CopyToDirectoryAsync(DirectoryInfo directoryInfo, ILogger logger, CancellationToken cancellationToken)
+		public Task CopyToDirectoryAsync(DirectoryInfo directoryInfo, ILogger logger, CancellationToken cancellationToken) => CopyToDirectoryAsync(directoryInfo, null, logger, cancellationToken);
+
+		/// <summary>
+		/// Utility function to allow extracting a packed directory to disk
+		/// </summary>
+		/// <param name="directoryInfo">Direcotry to write to</param>
+		/// <param name="progress">Sink for progress updates</param>
+		/// <param name="logger">Logger for output</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public async Task CopyToDirectoryAsync(DirectoryInfo directoryInfo, IProgress<ICopyStats>? progress, ILogger logger, CancellationToken cancellationToken)
 		{
 			int NumThreads = Math.Min(1 + (int)(Length / (10 * 1024 * 1024)), 4);
 			logger.LogInformation("Splitting read into {NumThreads} threads", NumThreads);
+
+			CopyStats? copyStats = null;
+			if (progress != null)
+			{
+				copyStats = new CopyStats(0, Length, progress);
+			}
 
 			List<Task> tasks = new List<Task>();
 			try
@@ -767,7 +788,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				{
 					long minOffset = offset;
 					long maxOffset = (Length * (threadIdx + 1)) / NumThreads;
-					tasks.Add(Task.Run(() => CopyToDirectoryInternalAsync(directoryInfo, minOffset, maxOffset - minOffset, logger, cancellationToken), cancellationToken));
+					tasks.Add(Task.Run(() => CopyToDirectoryInternalAsync(directoryInfo, minOffset, maxOffset - minOffset, copyStats, logger, cancellationToken), cancellationToken));
 					offset = maxOffset;
 				}
 			}
@@ -777,7 +798,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 		}
 
-		async Task CopyToDirectoryInternalAsync(DirectoryInfo directoryInfo, long windowOffset, long windowLength, ILogger logger, CancellationToken cancellationToken)
+		async Task CopyToDirectoryInternalAsync(DirectoryInfo directoryInfo, long windowOffset, long windowLength, CopyStats copyStats, ILogger logger, CancellationToken cancellationToken)
 		{
 			directoryInfo.Create();
 
@@ -788,6 +809,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				{
 					FileInfo fileInfo = new FileInfo(Path.Combine(directoryInfo.FullName, fileEntry.Name.ToString()));
 					await fileEntry.CopyToFileAsync(fileInfo, cancellationToken);
+					copyStats.Update(1, fileEntry.Length);
 				}
 				windowOffset -= fileEntry.Length;
 			}
@@ -799,7 +821,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				{
 					DirectoryInfo subDirectoryInfo = directoryInfo.CreateSubdirectory(directoryEntry.Name.ToString());
 					DirectoryNode subDirectoryNode = await directoryEntry.ExpandAsync(cancellationToken);
-					await subDirectoryNode.CopyToDirectoryInternalAsync(subDirectoryInfo, windowOffset, windowLength, logger, cancellationToken);
+					await subDirectoryNode.CopyToDirectoryInternalAsync(subDirectoryInfo, windowOffset, windowLength, copyStats, logger, cancellationToken);
 				}
 				windowOffset -= directoryEntry.Length;
 			}
