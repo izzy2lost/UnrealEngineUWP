@@ -674,7 +674,7 @@ enum class EShaderResourceUsageFlags : uint8
 	BindlessResources     = 1 << 1,
 	BindlessSamplers      = 1 << 2,
 	RootConstants         = 1 << 3,
-	NoImplicitDerivatives = 1 << 4,
+	NoDerivativeOps       = 1 << 4,
 };
 ENUM_CLASS_FLAGS(EShaderResourceUsageFlags)
 

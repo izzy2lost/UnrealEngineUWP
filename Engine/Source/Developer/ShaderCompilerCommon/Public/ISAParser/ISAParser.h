@@ -12,5 +12,5 @@ enum class EInstructionSet : uint8
 
 namespace ISAParser
 {
-	extern SHADERCOMPILERCOMMON_API bool HasImplicitDerivatives(bool& bImplicitDerivatives, const char* Code, uint32 CodeLength, EInstructionSet InstructionSet);
+	extern SHADERCOMPILERCOMMON_API bool HasDerivativeOps(bool& bHasDerivativeOps, const char* Code, uint32 CodeLength, EInstructionSet InstructionSet);
 }

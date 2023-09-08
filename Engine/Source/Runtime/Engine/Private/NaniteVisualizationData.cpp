@@ -64,7 +64,7 @@ void FNaniteVisualizationData::Initialize()
 		AddVisualizationMode(TEXT("PositionBits"), LOCTEXT("PositionBits", "Position Bits"), FModeType::Advanced, NANITE_VISUALIZE_POSITION_BITS, true);
 		AddVisualizationMode(TEXT("VSMStatic"), LOCTEXT("VSMStatic", "Virtual Shadow Map Static"), FModeType::Advanced, NANITE_VISUALIZE_VSM_STATIC_CACHING, true);
 		AddVisualizationMode(TEXT("ShadingWriteMask"), LOCTEXT("ShadingWriteMask", "Shading Write Mask"), FModeType::Advanced, NANITE_VISUALIZE_SHADING_WRITE_MASK, true);
-		AddVisualizationMode(TEXT("NoImplicitDerivatives"), LOCTEXT("NoImplicitDerivatives", "No Implicit Derivatives"), FModeType::Advanced, NANITE_VISUALIZE_NO_IMPLICIT_DERIVATIVES, true);
+		AddVisualizationMode(TEXT("NoDerivativeOps"), LOCTEXT("NoDerivativeOps", "No Derivative Ops"), FModeType::Advanced, NANITE_VISUALIZE_NO_DERIVATIVE_OPS, true);
 
 		ConfigureConsoleCommand();
 

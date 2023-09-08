@@ -700,19 +700,20 @@ bool PerformParsing(PARSER& Parser, const uint32* ReadPtr, const uint32* EndPtr)
 	return bSuccess;
 }
 
-bool ISAParser::HasImplicitDerivatives(bool& bImplicitDerivatives, const char* Code, uint32 CodeLength, EInstructionSet InstructionSet)
+bool ISAParser::HasDerivativeOps(bool& bHasDerivativeOps, const char* Code, uint32 CodeLength, EInstructionSet InstructionSet)
 {
 	const uint32* ReadPtr = reinterpret_cast<const uint32*>(Code);
 	const uint32* EndPtr  = reinterpret_cast<const uint32*>(Code + CodeLength);
 
-	bImplicitDerivatives = true;
+	// Safe default, any error and behavior is unchanged
+	bHasDerivativeOps = true;
 
 	if (InstructionSet == EInstructionSet::RDNA1)
 	{
 		FQuadModeParserRDNA1 Parser;
 		if (PerformParsing(Parser, ReadPtr, EndPtr))
 		{
-			bImplicitDerivatives = Parser.bQuadMode;
+			bHasDerivativeOps = Parser.bQuadMode;
 		}
 		else
 		{
@@ -724,7 +725,7 @@ bool ISAParser::HasImplicitDerivatives(bool& bImplicitDerivatives, const char* C
 		FQuadModeParserRDNA2 Parser;
 		if (PerformParsing(Parser, ReadPtr, EndPtr))
 		{
-			bImplicitDerivatives = Parser.bQuadMode;
+			bHasDerivativeOps = Parser.bQuadMode;
 		}
 		else
 		{

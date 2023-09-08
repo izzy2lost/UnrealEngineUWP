@@ -885,26 +885,26 @@ class FRHIComputeShader : public FRHIShader
 public:
 	FRHIComputeShader() : FRHIShader(RRT_ComputeShader, SF_Compute)
 	, Stats(nullptr)
-	, bNoImplicitDerivatives(false)
+	, bNoDerivativeOps(false)
 	{
 	}
 	
 	inline void SetStats(struct FPipelineStateStats* Ptr) { Stats = Ptr; }
 	RHI_API void UpdateStats();
 
-	inline void SetNoImplicitDerivatives(bool bValue)
+	inline void SetNoDerivativeOps(bool bValue)
 	{
-		bNoImplicitDerivatives = bValue;
+		bNoDerivativeOps = bValue;
 	}
 
-	inline bool HasNoImplicitDerivatives() const
+	inline bool HasNoDerivativeOps() const
 	{
-		return bNoImplicitDerivatives;
+		return bNoDerivativeOps;
 	}
 	
 private:
 	struct FPipelineStateStats* Stats;
-	uint8 bNoImplicitDerivatives : 1;
+	uint8 bNoDerivativeOps : 1;
 };
 
 //
