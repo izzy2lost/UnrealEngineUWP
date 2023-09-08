@@ -32,6 +32,13 @@ enum class EDrawSplineDrawMode : uint8
 };
 
 UENUM()
+enum class ESplineOffsetMethod : uint8
+{
+	HitNormal,
+	Custom
+};
+
+UENUM()
 enum class EDrawSplineOutputMode : uint8
 {
 	// Create a new empty actor with the spline inside it 
@@ -113,6 +120,16 @@ public:
 	UPROPERTY(EditAnywhere, Category = Spline, meta = (ClampMin = 0, UIMax = 1000,
 		EditCondition = "DrawMode == EDrawSplineDrawMode::FreeDraw", EditConditionHides))
 	double MinPointSpacing = 200;
+
+	/** How far to offset spline points from the clicked surface, along the surface normal */
+	UPROPERTY(EditAnywhere, Category = Spline, meta = (UIMin = 0, UIMax = 100))
+	double ClickOffset = 0;
+
+	UPROPERTY(EditAnywhere, Category = Spline, meta = (EditCondition = "ClickOffset > 0", EditConditionHides))
+	ESplineOffsetMethod OffsetMethod = ESplineOffsetMethod::HitNormal;
+
+	UPROPERTY(EditAnywhere, Category = Spline, meta = (EditCondition = "ClickOffset > 0 && OffsetMethod == ESplineOffsetMethod::Custom", EditConditionHides))
+	FVector OffsetDirection = FVector::UpVector;
 
 	/**
 	 * When nonzero, allows a visualization of the rotation of the spline. Can be controlled

@@ -739,6 +739,17 @@ bool UDrawSplineTool::Raycast(const FRay& WorldRay, FVector3d& HitLocationOut, F
 			BestHitT = HitTOut;
 		}
 	}
+
+	if (Settings->ClickOffset != 0.0)
+	{
+		FVector3d OffsetDirection = HitNormalOut;
+		if (Settings->OffsetMethod == ESplineOffsetMethod::Custom)
+		{
+			OffsetDirection = Settings->OffsetDirection.GetSafeNormal(UE_SMALL_NUMBER, FVector3d::UnitZ());
+		}
+
+		HitLocationOut += OffsetDirection * Settings->ClickOffset;
+	}
 	
 	return BestHitT < TNumericLimits<double>::Max();
 }
