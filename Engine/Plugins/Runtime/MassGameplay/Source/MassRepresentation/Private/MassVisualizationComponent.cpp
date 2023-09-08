@@ -417,6 +417,9 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 			// remove instance
 			if (ISMComponent.PerInstanceSMData.IsValidIndex(InstanceIndex))
 			{
+				// Request navigation update
+				ISMComponent.PartialNavigationUpdate(InstanceIndex);
+				
 				ISMComponent.PerInstanceSMData.RemoveAtSwap(InstanceIndex, 1, false);
 				ISMComponent.PerInstanceSMCustomData.RemoveAt(InstanceIndex * ISMComponent.NumCustomDataFloats, ISMComponent.NumCustomDataFloats, false);
 			}
@@ -556,10 +559,6 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 	if (bNavigationRelevant && ISMComponent.GetInstanceCount() == 0)
 	{
 		FNavigationSystem::UnregisterComponent(ISMComponent);
-	}
-	else
-	{
-		FNavigationSystem::UpdateComponentData(ISMComponent);
 	}
 
 	if (HISMComp)

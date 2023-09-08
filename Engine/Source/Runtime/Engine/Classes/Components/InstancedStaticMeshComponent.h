@@ -492,6 +492,9 @@ public:
 
 	FInstanceUpdateCmdBuffer& GetInstanceUpdateCmdBuffer() { return InstanceUpdateCmdBuffer; }
 
+	/** Request to navigation system to update only part of navmesh occupied by specified instance. */
+	ENGINE_API virtual void PartialNavigationUpdate(int32 InstanceIdx);
+
 	/** 
 	 * Flag for using RemoveAtSwap on instance removal. 
 	 * The implementation is free to ignore this flag, but should honor whatever behavior is being returned by SupportsRemoveSwap().
@@ -518,9 +521,6 @@ protected:
 
 	/** Request to navigation system to update for the bounds of the ISM. */
 	ENGINE_API virtual void FullNavigationUpdate();
-
-	/** Request to navigation system to update only part of navmesh occupied by specified instance. */
-	ENGINE_API virtual void PartialNavigationUpdate(int32 InstanceIdx);
 
 	/** Does this component support partial navigation updates */
 	virtual bool SupportsPartialNavigationUpdate() const { return true; }
