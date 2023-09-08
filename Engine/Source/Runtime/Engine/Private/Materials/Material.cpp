@@ -5610,14 +5610,21 @@ void UMaterial::CompileODSCMaterialsForRemoteRecompile(TArray<FODSCRequestPayloa
 		}
 	}
 
+	// pass one, cache the coalesced shaders in case there are ordering dependencies in the list
+	for (const auto& Entry : CoalescedShadersToCompile)
+	{
+		UMaterialInterface* MaterialInterface = Entry.Key;
+		const FShadersToCompile& Shaders = Entry.Value;
+		MaterialInterface->CacheGivenTypesForCooking(Shaders.ShaderPlatform, Shaders.FeatureLevel, Shaders.QualityLevel, Shaders.VFTypes, Shaders.PipelineTypes, Shaders.ShaderTypes);
+	}
+
+	// pass two can now run through the shaders in the same order successfully
 	for (const auto& Entry : CoalescedShadersToCompile)
 	{
 		UMaterialInterface* MaterialInterface = Entry.Key;
 		const FShadersToCompile& Shaders = Entry.Value;
 
 		TArray<FMaterialResource*>& ResourceArray = CompilingResources.Add(MaterialInterface->GetPathName(), TArray<FMaterialResource*>());
-		MaterialInterface->CacheGivenTypesForCooking(Shaders.ShaderPlatform, Shaders.FeatureLevel, Shaders.QualityLevel, Shaders.VFTypes, Shaders.PipelineTypes, Shaders.ShaderTypes);
-
 		FMaterialResource* MaterialResource = MaterialInterface->GetMaterialResource(Shaders.FeatureLevel, Shaders.QualityLevel);
 		check(MaterialResource);
 		check(MaterialResource->GetFeatureLevel() == Shaders.FeatureLevel);
