@@ -1052,15 +1052,10 @@ bool HashRegistryFile(const FString& FilePath, uint64* HashOut)
 
 bool LoadCookMetadata(const FString& FilePath, UE::Cook::FCookMetadataState& OutMetadataState)
 {
-	bool Success = false;
-	FArrayReader SerializedAssetData;
-	if (FFileHelper::LoadFileToArray(SerializedAssetData, *FilePath))
+	const bool Success = OutMetadataState.ReadFromFile(FilePath);
+	if (!Success)
 	{
-		Success = OutMetadataState.Serialize(SerializedAssetData);
-		if (!Success)
-		{
-			OutMetadataState.Reset();
-		}
+		OutMetadataState.Reset();
 	}
 	return Success;
 }

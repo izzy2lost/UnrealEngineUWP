@@ -3978,18 +3978,11 @@ static ECookMetadataFiles FindAndLoadMetadataFiles(
 	{
 		// The cook metadata file should be adjacent to the development asset registry.
 		FString CookMetadataFileName = FPaths::GetPath(PossibleAssetRegistryFiles[0]) / UE::Cook::GetCookMetadataFilename();
-		TUniquePtr<FArchive> FileReader(IFileManager::Get().CreateFileReader(*CookMetadataFileName));
-		if (FileReader)
+		if (IFileManager::Get().FileExists(*CookMetadataFileName))
 		{
-			TArray64<uint8> Data;
-			Data.SetNumUninitialized(FileReader->TotalSize());
-			FileReader->Serialize(Data.GetData(), Data.Num());
-			check(!FileReader->IsError());
-
-			FLargeMemoryReader MemoryReader(Data.GetData(), Data.Num());
-			if (OutCookMetadata->Serialize(MemoryReader) == false)
+			if (OutCookMetadata->ReadFromFile(CookMetadataFileName) == false)
 			{
-				UE_LOG(LogIoStore, Error, TEXT("Failed to deserialize cook metadata file - loaded successfully, but invalid data. [%s]"), *CookMetadataFileName);
+				UE_LOG(LogIoStore, Error, TEXT("Failed to deserialize cook metadata file - invalid data. [%s]"), *CookMetadataFileName);
 				if (EnumHasAnyFlags(InRequiredFiles, ECookMetadataFiles::CookMetadata))
 				{
 					return ECookMetadataFiles::None;

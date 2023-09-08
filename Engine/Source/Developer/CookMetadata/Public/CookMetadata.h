@@ -230,6 +230,9 @@ public:
 	void Reset() { *this = FCookMetadataState(); }
 	
 	bool Serialize(FArchive& Ar);
+	bool ReadFromFile(const FString& FilePath);
+	bool SaveToFile(const FString& FilePath);
+
 
 	// Plugin hierarchy information
 	void SetPluginHierarchyInfo(FCookMetadataPluginHierarchy&& InPluginHierarchy) { PluginHierarchy = MoveTemp(InPluginHierarchy); }

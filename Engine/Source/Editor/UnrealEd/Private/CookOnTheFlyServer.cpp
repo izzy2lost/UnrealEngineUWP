@@ -9689,12 +9689,7 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 			MetadataState.SetPlatformAndBuildVersion(PlatformNameString, FApp::GetBuildVersion());
 			MetadataState.SetHordeJobId(FPlatformMisc::GetEnvironmentVariable(TEXT("UE_HORDE_JOBID")));
 
-			FArrayWriter SerializedCookMetadata;
-			MetadataState.Serialize(SerializedCookMetadata);
-			if (FFileHelper::SaveArrayToFile(SerializedCookMetadata, *GetCookedCookMetadataFilename(PlatformNameString)) == false)
-			{
-				UE_LOG(LogCook, Error, TEXT("Failed to write cook metadata file (%s)"), *GetCookedCookMetadataFilename(PlatformNameString));
-			}
+			MetadataState.SaveToFile(GetCookedCookMetadataFilename(PlatformNameString));
 		}
 	}
 }

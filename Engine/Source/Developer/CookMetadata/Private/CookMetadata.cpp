@@ -2,9 +2,13 @@
 
 #include "CookMetadata.h"
 
+#include "HAL/FileManager.h"
 #include "Hash/xxhash.h"
 #include "Internationalization/Internationalization.h"
 #include "Memory/MemoryView.h"
+#include "Misc/FileHelper.h"
+#include "Serialization/ArrayWriter.h"
+#include "Serialization/LargeMemoryReader.h"
 
 namespace UE::Cook
 {
@@ -16,6 +20,8 @@ const FString& GetCookMetadataFilename()
 }
 
 constexpr uint32 COOK_METADATA_HEADER_MAGIC = 'UCMT';
+
+DEFINE_LOG_CATEGORY_STATIC(LogCookedMetadata, Log, All)
 
 bool FCookMetadataState::Serialize(FArchive& Ar)
 {
@@ -52,6 +58,48 @@ bool FCookMetadataState::Serialize(FArchive& Ar)
 	Ar << HordeJobId;
 	Ar << SizesPresent;
 	return true;
+}
+
+bool FCookMetadataState::ReadFromFile(const FString& FilePath)
+{
+	TUniquePtr<FArchive> FileReader(IFileManager::Get().CreateFileReader(*FilePath));
+	if (FileReader)
+	{
+		TArray64<uint8> Data;
+		Data.SetNumUninitialized(FileReader->TotalSize());
+		FileReader->Serialize(Data.GetData(), Data.Num());
+		check(!FileReader->IsError());
+
+		FLargeMemoryReader MemoryReader(Data.GetData(), Data.Num());
+		if (Serialize(MemoryReader))
+		{
+			return true;
+		}
+		else
+		{
+			UE_LOG(LogCookedMetadata, Error, TEXT("Failed to serialize cook metadata from file (%s)"), *FilePath);
+		}
+	}
+	else
+	{
+		UE_LOG(LogCookedMetadata, Error, TEXT("Failed to make file reader from (%s)"), *FilePath);
+	}
+	return false;
+}
+
+bool FCookMetadataState::SaveToFile(const FString& FilePath)
+{
+	FArrayWriter SerializedCookMetadata;
+	Serialize(SerializedCookMetadata);
+	if (FFileHelper::SaveArrayToFile(SerializedCookMetadata, *FilePath))
+	{
+		return true;
+	}
+	else
+	{
+		UE_LOG(LogCookedMetadata, Error, TEXT("Failed to write cook metadata file (%s)"), *FilePath);
+		return false;
+	}
 }
 
 /* static */ 
