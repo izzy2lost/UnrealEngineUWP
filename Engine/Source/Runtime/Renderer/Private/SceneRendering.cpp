@@ -976,7 +976,9 @@ void FViewInfo::Init()
 	HairStrandsViewData = FHairStrandsViewData();
 
 	LocalFogVolumeGPUInstanceCount = 0;
+	LocalFogVolumeGPUInstanceDataBuffer = nullptr;
 	LocalFogVolumeGPUInstanceDataBufferSRV = nullptr;
+	LocalFogVolumeUniformBuffer = nullptr;
 
 	GPUSceneViewId = INDEX_NONE;
 

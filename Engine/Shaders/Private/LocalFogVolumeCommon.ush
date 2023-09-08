@@ -33,7 +33,10 @@ struct FLocalFogVolumeGPUInstanceData
 
 // Structured buffers cannot be sampled from the vertex shader on some mobile platforms.
 // That is why simple Buffers are used, because this tech needs to run on mobile platforms.
-Buffer<float4> LocalFogVolumeInstances;
+
+uint LFV_LocalFogVolumeInstanceCount;
+Buffer<float4> LFV_LocalFogVolumeInstances;
+#define LFVInsts LFV_LocalFogVolumeInstances
 
 
 
@@ -42,23 +45,23 @@ FLocalFogVolumeGPUInstanceData GetLocalFogVolumeGPUInstanceData(uint Index)
 	FLocalFogVolumeGPUInstanceData Data;
 	uint Offset = Index * 19;
 
-	Data.Transform = float4x4(LocalFogVolumeInstances[Offset + 0], LocalFogVolumeInstances[Offset + 1], LocalFogVolumeInstances[Offset + 2], LocalFogVolumeInstances[Offset + 3]);
-	Data.InvTransform = float4x4(LocalFogVolumeInstances[Offset + 4], LocalFogVolumeInstances[Offset + 5], LocalFogVolumeInstances[Offset + 6], LocalFogVolumeInstances[Offset + 7]);
+	Data.Transform			= float4x4(LFVInsts[Offset + 0 ], LFVInsts[Offset + 1 ], LFVInsts[Offset + 2 ], LFVInsts[Offset + 3 ]);
+	Data.InvTransform		= float4x4(LFVInsts[Offset + 4 ], LFVInsts[Offset + 5 ], LFVInsts[Offset + 6 ], LFVInsts[Offset + 7 ]);
 
-	Data.InvTranformNoScale = float4x4(LocalFogVolumeInstances[Offset + 8], LocalFogVolumeInstances[Offset + 9], LocalFogVolumeInstances[Offset + 10], LocalFogVolumeInstances[Offset + 11]);
-	Data.TransformScaleOnly = float4x4(LocalFogVolumeInstances[Offset + 12], LocalFogVolumeInstances[Offset + 13], LocalFogVolumeInstances[Offset + 14], LocalFogVolumeInstances[Offset + 15]);
+	Data.InvTranformNoScale = float4x4(LFVInsts[Offset + 8 ], LFVInsts[Offset + 9 ], LFVInsts[Offset + 10], LFVInsts[Offset + 11]);
+	Data.TransformScaleOnly = float4x4(LFVInsts[Offset + 12], LFVInsts[Offset + 13], LFVInsts[Offset + 14], LFVInsts[Offset + 15]);
 
-	float4 Temp0 = LocalFogVolumeInstances[Offset + 16];
+	float4 Temp0 = LFVInsts[Offset + 16];
 	Data.Density = Temp0.x;
 	Data.HeightFalloff = Temp0.y;
 	Data.HeightOffset = Temp0.z;
 	Data.RadialAttenuation = Temp0.w;
 
-	float4 Temp1 = LocalFogVolumeInstances[Offset + 17];
+	float4 Temp1 = LFVInsts[Offset + 17];
 	Data.Albedo = Temp1.xyz;
 	Data.PhaseG = Temp1.w;
 
-	float4 Temp2 = LocalFogVolumeInstances[Offset + 18];
+	float4 Temp2 = LFVInsts[Offset + 18];
 	Data.Emissive = Temp2.xyz;
 	Data.FogMode = Temp2.w;
 

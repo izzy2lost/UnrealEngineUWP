@@ -3431,6 +3431,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		// Run before RenderSkyAtmosphereLookUpTables for cloud shadows to be valid.
 		InitVolumetricCloudsForViews(GraphBuilder, bShouldRenderVolumetricCloudBase, InstanceCullingManager);
 
+		// Run local fog volume initialisation before basepass for when data is needed in forward
+		InitLocalFogVolumesForViews(Scene, Views, GraphBuilder);
+
 		if (SkyAtmospherePassLocation == ESkyAtmospherePassLocation::BeforeOcclusion && bShouldRenderSkyAtmosphere)
 		{
 			// Generate the Sky/Atmosphere look up tables

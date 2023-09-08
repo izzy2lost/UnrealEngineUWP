@@ -16,6 +16,15 @@ struct FMinimalSceneTextures;
 
 
 /*=============================================================================
+	Local height fog rendering GPU data
+=============================================================================*/
+
+BEGIN_SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, )
+	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, LocalFogVolumeInstances)
+	SHADER_PARAMETER(uint32, LocalFogVolumeInstanceCount)
+END_SHADER_PARAMETER_STRUCT()
+
+/*=============================================================================
 	Local height fog rendering common data
 =============================================================================*/
 
@@ -85,6 +94,11 @@ bool ShouldRenderLocalFogVolume(const FScene* Scene, const FSceneViewFamily& Fam
 void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& Out);
 
 void CreateViewLocalFogVolumeBufferSRV(FViewInfo& View, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& SortingData);
+
+void InitLocalFogVolumesForViews(
+	const FScene* Scene,
+	TArray<FViewInfo>& Views,
+	FRDGBuilder& GraphBuilder);
 
 void RenderLocalFogVolume(
 	const FScene* Scene,

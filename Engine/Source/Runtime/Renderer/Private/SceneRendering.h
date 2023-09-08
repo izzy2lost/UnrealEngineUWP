@@ -46,6 +46,7 @@
 #include "TextureFallbacks.h"
 #include "SceneInterface.h"
 #include "Async/Mutex.h"
+#include "LocalFogVolumeRendering.h"
 
 #if RHI_RAYTRACING
 #include "RayTracingInstanceBufferUtil.h"
@@ -1368,7 +1369,10 @@ public:
 	FSubstrateViewData SubstrateViewData;
 
 	uint32 LocalFogVolumeGPUInstanceCount;
+	FRDGBufferRef LocalFogVolumeGPUInstanceDataBuffer;
 	FRDGBufferSRVRef LocalFogVolumeGPUInstanceDataBufferSRV;
+	FLocalFogVolumeUniformParameters LocalFogVolumeUniformParametersStruct;
+	TRDGUniformBufferRef<FLocalFogVolumeUniformParameters> LocalFogVolumeUniformBuffer;
 
 	FHairStrandsViewData HairStrandsViewData;
 

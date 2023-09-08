@@ -26,6 +26,23 @@ bool ShouldRenderLocalFogVolume(const FScene* Scene, const FSceneViewFamily& Fam
 
 DECLARE_GPU_STAT(LocalFogVolumeVolumes);
 
+static const uint32 SizeOfUintVec4 = sizeof(FUintVector4);
+static const uint32 UintVec4CountInLocalFogVolumeGPUInstanceData = sizeof(FLocalFogVolumeGPUInstanceData) / SizeOfUintVec4;
+
+static void SetDummyLocalFogVolumeForView(FRDGBuilder& GraphBuilder, FViewInfo& View)
+{
+	// The size of the structure must be a multiple of FUintVector4.
+	static_assert(sizeof(FLocalFogVolumeGPUInstanceData) == UintVec4CountInLocalFogVolumeGPUInstanceData * SizeOfUintVec4);
+
+	View.LocalFogVolumeGPUInstanceCount = 0;
+
+	static FLocalFogVolumeGPUInstanceData DummyData;
+	View.LocalFogVolumeGPUInstanceDataBuffer = CreateVertexBuffer(GraphBuilder, TEXT("DUMMYLocalFogVolumeGPUInstanceDataBuffer"),
+		FRDGBufferDesc::CreateBufferDesc(SizeOfUintVec4, UintVec4CountInLocalFogVolumeGPUInstanceData), &DummyData, sizeof(FLocalFogVolumeGPUInstanceData) * 1, ERDGInitialDataFlags::NoCopy);
+
+	View.LocalFogVolumeGPUInstanceDataBufferSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeGPUInstanceDataBuffer, PF_A32B32G32R32F);
+};
+
 /*=============================================================================
 	FScene functions
 =============================================================================*/
@@ -114,20 +131,9 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 
 void CreateViewLocalFogVolumeBufferSRV(FViewInfo& View, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& SortingData)
 {
-	static const uint32 SizeOfFloat4 = sizeof(float) * 4;
-	static const uint32 Float4CountInLocalFogVolumeGPUInstanceData = sizeof(FLocalFogVolumeGPUInstanceData) / SizeOfFloat4;
-	static_assert(sizeof(FLocalFogVolumeGPUInstanceData) == Float4CountInLocalFogVolumeGPUInstanceData * SizeOfFloat4); // The size of the structure must be a multiple of FVector4.
-
 	if (SortingData.LocalFogVolumeInstanceCountFinal == 0)
 	{
-		View.LocalFogVolumeGPUInstanceCount = 0;
-
-		static FLocalFogVolumeGPUInstanceData DummyData;
-		View.LocalFogVolumeGPUInstanceDataBufferSRV = GraphBuilder.CreateSRV(
-			CreateVertexBuffer(GraphBuilder, TEXT("LocalFogVolumeGPUInstanceDataBuffer"), 
-			FRDGBufferDesc::CreateBufferDesc(SizeOfFloat4, Float4CountInLocalFogVolumeGPUInstanceData), &DummyData, sizeof(FLocalFogVolumeGPUInstanceData) * 1, ERDGInitialDataFlags::NoCopy),
-			PF_A32B32G32R32F);
-		return;
+		SetDummyLocalFogVolumeForView(GraphBuilder, View);
 	}
 
 	// 1. Sort all the volumes
@@ -150,13 +156,45 @@ void CreateViewLocalFogVolumeBufferSRV(FViewInfo& View, FRDGBuilder& GraphBuilde
 
 	// 3. Allocate buffer and initialize with sorted data to upload to GPU
 	const uint32 AllLocalFogVolumeInstanceBytesFinal = sizeof(FLocalFogVolumeGPUInstanceData) * SortingData.LocalFogVolumeInstanceCountFinal;
-	FRDGBufferRef LocalFogVolumeGPUInstanceDataBuffer = CreateVertexBuffer(
-		GraphBuilder, TEXT("LocalFogVolumeGPUInstanceDataBuffer"),
-		FRDGBufferDesc::CreateBufferDesc(SizeOfFloat4, SortingData.LocalFogVolumeInstanceCountFinal * Float4CountInLocalFogVolumeGPUInstanceData), 
-		LocalFogVolumeGPUSortedInstanceData, AllLocalFogVolumeInstanceBytesFinal, ERDGInitialDataFlags::NoCopy);
 
 	View.LocalFogVolumeGPUInstanceCount = SortingData.LocalFogVolumeInstanceCountFinal;
-	View.LocalFogVolumeGPUInstanceDataBufferSRV = GraphBuilder.CreateSRV(LocalFogVolumeGPUInstanceDataBuffer, PF_A32B32G32R32F);
+	View.LocalFogVolumeGPUInstanceDataBuffer = CreateVertexBuffer(
+		GraphBuilder, TEXT("LocalFogVolumeGPUInstanceDataBuffer"),
+		FRDGBufferDesc::CreateBufferDesc(SizeOfUintVec4, SortingData.LocalFogVolumeInstanceCountFinal * UintVec4CountInLocalFogVolumeGPUInstanceData),
+		LocalFogVolumeGPUSortedInstanceData, AllLocalFogVolumeInstanceBytesFinal, ERDGInitialDataFlags::NoCopy);
+	View.LocalFogVolumeGPUInstanceDataBufferSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeGPUInstanceDataBuffer, PF_A32B32G32R32F);
+
+	View.LocalFogVolumeUniformParametersStruct.LocalFogVolumeInstanceCount = View.LocalFogVolumeGPUInstanceCount;
+	View.LocalFogVolumeUniformParametersStruct.LocalFogVolumeInstances = View.LocalFogVolumeGPUInstanceDataBufferSRV;
+	View.LocalFogVolumeUniformBuffer = GraphBuilder.CreateUniformBuffer(&View.LocalFogVolumeUniformParametersStruct);
+}
+
+void InitLocalFogVolumesForViews(
+	const FScene* Scene,
+	TArray<FViewInfo>& Views,
+	FRDGBuilder& GraphBuilder)
+{
+	const uint32 LocalFogVolumeInstanceCount = Scene->LocalFogVolumes.Num();
+	if (LocalFogVolumeInstanceCount > 0)
+	{
+		RDG_GPU_STAT_SCOPE(GraphBuilder, LocalFogVolumeVolumes);
+
+		FLocalFogVolumeSortingData SortingData;
+		GetLocalFogVolumeSortingData(Scene, GraphBuilder, SortingData);
+
+		for (FViewInfo& View : Views)
+		{
+			// LFV_TODO View.LocalFogVolumeGPUInstanceDataBufferSRV should be on the scene since it is common for all view.
+			CreateViewLocalFogVolumeBufferSRV(View, GraphBuilder, SortingData);
+		}
+	}
+	else
+	{
+		for (FViewInfo& View : Views)
+		{
+			SetDummyLocalFogVolumeForView(GraphBuilder, View);
+		}
+	}
 }
 
 /*=============================================================================
@@ -170,7 +208,7 @@ class FLocalFogVolumeVS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, LocalFogVolumeInstances)
+		SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
 	END_SHADER_PARAMETER_STRUCT()
 
 	using FPermutationDomain = TShaderPermutationDomain<>;
@@ -194,7 +232,7 @@ class FLocalFogVolumePS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, LocalFogVolumeInstances)
+		SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
 	END_SHADER_PARAMETER_STRUCT()
 
 	using FPermutationDomain = TShaderPermutationDomain<>;
@@ -230,82 +268,75 @@ void RenderLocalFogVolume(
 	{
 		RDG_GPU_STAT_SCOPE(GraphBuilder, LocalFogVolumeVolumes);
 
-		FLocalFogVolumeSortingData SortingData;
-		GetLocalFogVolumeSortingData(Scene, GraphBuilder, SortingData);
+		FRDGTextureRef SceneColorTexture = SceneTextures.Color.Resolve;
 
-		if (SortingData.LocalFogVolumeInstanceCountFinal > 0)
+		for (FViewInfo& View : Views)
 		{
-			FRDGTextureRef SceneColorTexture = SceneTextures.Color.Resolve;
-
-			for (FViewInfo& View : Views)
+			if (View.LocalFogVolumeGPUInstanceCount == 0)
 			{
-				CreateViewLocalFogVolumeBufferSRV(View, GraphBuilder, SortingData);
-				if (View.LocalFogVolumeGPUInstanceCount == 0)
-				{
-					continue;
-				}
-
-				FLocalFogVolumePassParameters* PassParameters = GraphBuilder.AllocParameters<FLocalFogVolumePassParameters>();
-
-				PassParameters->VS.View = GetShaderBinding(View.ViewUniformBuffer);
-				PassParameters->VS.LocalFogVolumeInstances = View.LocalFogVolumeGPUInstanceDataBufferSRV;
-
-				PassParameters->PS.View = GetShaderBinding(View.ViewUniformBuffer);
-				PassParameters->PS.LocalFogVolumeInstances = View.LocalFogVolumeGPUInstanceDataBufferSRV;
-
-				PassParameters->SceneTextures = SceneTextures.UniformBuffer;
-				PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorTexture, ERenderTargetLoadAction::ENoAction);
-
-				FLocalFogVolumeVS::FPermutationDomain VSPermutationVector;
-				auto VertexShader = View.ShaderMap->GetShader< FLocalFogVolumeVS >(VSPermutationVector);
-
-				FLocalFogVolumePS::FPermutationDomain PsPermutationVector;
-				auto PixelShader = View.ShaderMap->GetShader< FLocalFogVolumePS >(PsPermutationVector);
-
-				const FIntRect ViewRect = View.ViewRect;
-
-				ClearUnusedGraphResources(VertexShader, &PassParameters->VS);
-				ClearUnusedGraphResources(PixelShader, &PassParameters->PS);
-
-				uint32 LocalFogVolumeGPUInstanceCount = View.LocalFogVolumeGPUInstanceCount;
-				GraphBuilder.AddPass(
-					RDG_EVENT_NAME("RenderLocalFogVolume %u inst.", LocalFogVolumeGPUInstanceCount),
-					PassParameters,
-					ERDGPassFlags::Raster,
-					[VertexShader, PixelShader, PassParameters, LocalFogVolumeGPUInstanceCount, ViewRect](FRHICommandList& RHICmdList)
-				{
-					FGraphicsPipelineStateInitializer GraphicsPSOInit;
-					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
-
-					RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
-
-					// Render back faces only since camera may intersect
-					GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_CW>::GetRHI();
-					GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
-					GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI();
-					GraphicsPSOInit.PrimitiveType = PT_TriangleList;
-
-					GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector4();
-					GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
-					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
-
-					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
-
-					SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), PassParameters->VS);
-					SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters->PS);
-
-					RHICmdList.SetStreamSource(0, GetUnitCubeVertexBuffer(), 0);
-
-					RHICmdList.DrawIndexedPrimitive(GetUnitCubeIndexBuffer()
-						, 0									//BaseVertexIndex
-						, 0									//FirstInstance
-						, 8									//uint32 NumVertices
-						, 0									//uint32 StartIndex
-						, UE_ARRAY_COUNT(GCubeIndices) / 3	//uint32 NumPrimitives
-						, LocalFogVolumeGPUInstanceCount	//uint32 NumInstances
-					);
-				});
+				continue;
 			}
+
+			FLocalFogVolumePassParameters* PassParameters = GraphBuilder.AllocParameters<FLocalFogVolumePassParameters>();
+
+			PassParameters->VS.View = GetShaderBinding(View.ViewUniformBuffer);
+			PassParameters->VS.LFV = View.LocalFogVolumeUniformParametersStruct;
+
+			PassParameters->PS.View = GetShaderBinding(View.ViewUniformBuffer);
+			PassParameters->PS.LFV = View.LocalFogVolumeUniformParametersStruct;
+
+			PassParameters->SceneTextures = SceneTextures.UniformBuffer;
+			PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorTexture, ERenderTargetLoadAction::ENoAction);
+
+			FLocalFogVolumeVS::FPermutationDomain VSPermutationVector;
+			auto VertexShader = View.ShaderMap->GetShader< FLocalFogVolumeVS >(VSPermutationVector);
+
+			FLocalFogVolumePS::FPermutationDomain PsPermutationVector;
+			auto PixelShader = View.ShaderMap->GetShader< FLocalFogVolumePS >(PsPermutationVector);
+
+			const FIntRect ViewRect = View.ViewRect;
+
+			ClearUnusedGraphResources(VertexShader, &PassParameters->VS);
+			ClearUnusedGraphResources(PixelShader, &PassParameters->PS);
+
+			uint32 LocalFogVolumeGPUInstanceCount = View.LocalFogVolumeGPUInstanceCount;
+			GraphBuilder.AddPass(
+				RDG_EVENT_NAME("RenderLocalFogVolume %u inst.", LocalFogVolumeGPUInstanceCount),
+				PassParameters,
+				ERDGPassFlags::Raster,
+				[VertexShader, PixelShader, PassParameters, LocalFogVolumeGPUInstanceCount, ViewRect](FRHICommandList& RHICmdList)
+			{
+				FGraphicsPipelineStateInitializer GraphicsPSOInit;
+				RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+
+				RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
+
+				// Render back faces only since camera may intersect
+				GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_CW>::GetRHI();
+				GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+				GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI();
+				GraphicsPSOInit.PrimitiveType = PT_TriangleList;
+
+				GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector4();
+				GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+				GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
+
+				SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+
+				SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), PassParameters->VS);
+				SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters->PS);
+
+				RHICmdList.SetStreamSource(0, GetUnitCubeVertexBuffer(), 0);
+
+				RHICmdList.DrawIndexedPrimitive(GetUnitCubeIndexBuffer()
+					, 0									//BaseVertexIndex
+					, 0									//FirstInstance
+					, 8									//uint32 NumVertices
+					, 0									//uint32 StartIndex
+					, UE_ARRAY_COUNT(GCubeIndices) / 3	//uint32 NumPrimitives
+					, LocalFogVolumeGPUInstanceCount	//uint32 NumInstances
+				);
+			});
 		}
 	}
 }
@@ -322,7 +353,7 @@ class FMobileLocalFogVolumeVS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, LocalFogVolumeInstances)
+		SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
 	END_SHADER_PARAMETER_STRUCT()
 
 	using FPermutationDomain = TShaderPermutationDomain<>;
@@ -354,7 +385,7 @@ class FMobileLocalFogVolumePS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FMobileBasePassUniformParameters, MobileBasePass)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, LocalFogVolumeInstances)
+		SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
 	END_SHADER_PARAMETER_STRUCT()
 
 	using FPermutationDomain = TShaderPermutationDomain<>;
@@ -416,12 +447,12 @@ void RenderLocalFogVolumeMobile(
 
 	FMobileLocalFogVolumeVS::FParameters VSParameters;
 	VSParameters.View = View.GetShaderParameters();
-	VSParameters.LocalFogVolumeInstances = View.LocalFogVolumeGPUInstanceDataBufferSRV;
+	VSParameters.LFV = View.LocalFogVolumeUniformParametersStruct;
 	SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), VSParameters);
 
 	FMobileLocalFogVolumePS::FParameters PSParameters;
 	PSParameters.View = View.GetShaderParameters();
-	PSParameters.LocalFogVolumeInstances = View.LocalFogVolumeGPUInstanceDataBufferSRV;
+	PSParameters.LFV = View.LocalFogVolumeUniformParametersStruct;
 	// PSParameters.MobileBasePass filled up by the RDG pass parameters.
 	SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PSParameters);
 
