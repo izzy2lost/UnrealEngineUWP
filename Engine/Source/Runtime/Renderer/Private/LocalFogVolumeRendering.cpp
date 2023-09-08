@@ -14,6 +14,11 @@ static TAutoConsoleVariable<int32> CVarLocalFogVolume(
 	TEXT("LocalFogVolume components are rendered when this is not 0, otherwise ignored.\n"),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarLocalFogVolumeApplyOnTransclucent(
+	TEXT("r.LocalFogVolume.ApplyOnTransclucent"), 0,
+	TEXT("Project settings enabling the sampling of local fog volumes on translucent elements.\n"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
 bool ShouldRenderLocalFogVolume(const FScene* Scene, const FSceneViewFamily& Family)
 {
 	const FEngineShowFlags EngineShowFlags = Family.EngineShowFlags;
@@ -29,7 +34,7 @@ DECLARE_GPU_STAT(LocalFogVolumeVolumes);
 static const uint32 SizeOfUintVec4 = sizeof(FUintVector4);
 static const uint32 UintVec4CountInLocalFogVolumeGPUInstanceData = sizeof(FLocalFogVolumeGPUInstanceData) / SizeOfUintVec4;
 
-static void SetDummyLocalFogVolumeForView(FRDGBuilder& GraphBuilder, FViewInfo& View)
+void SetDummyLocalFogVolumeForView(FRDGBuilder& GraphBuilder, FViewInfo& View)
 {
 	// The size of the structure must be a multiple of FUintVector4.
 	static_assert(sizeof(FLocalFogVolumeGPUInstanceData) == UintVec4CountInLocalFogVolumeGPUInstanceData * SizeOfUintVec4);
@@ -177,10 +182,11 @@ void CreateViewLocalFogVolumeBufferSRV(FViewInfo& View, FRDGBuilder& GraphBuilde
 void InitLocalFogVolumesForViews(
 	const FScene* Scene,
 	TArray<FViewInfo>& Views,
+	const FSceneViewFamily& Family,
 	FRDGBuilder& GraphBuilder)
 {
 	const uint32 LocalFogVolumeInstanceCount = Scene->LocalFogVolumes.Num();
-	if (LocalFogVolumeInstanceCount > 0)
+	if (LocalFogVolumeInstanceCount > 0 && ShouldRenderLocalFogVolume(Scene, Family))
 	{
 		RDG_GPU_STAT_SCOPE(GraphBuilder, LocalFogVolumeVolumes);
 
@@ -264,12 +270,13 @@ END_SHADER_PARAMETER_STRUCT()
 void RenderLocalFogVolume(
 	const FScene* Scene,
 	TArray<FViewInfo>& Views,
+	const FSceneViewFamily& Family,
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
 	FRDGTextureRef LightShaftOcclusionTexture)
 {
 	uint32 LocalFogVolumeInstanceCount = Scene->LocalFogVolumes.Num();
-	if (LocalFogVolumeInstanceCount > 0)
+	if (LocalFogVolumeInstanceCount > 0 && ShouldRenderLocalFogVolume(Scene, Family))
 	{
 		RDG_GPU_STAT_SCOPE(GraphBuilder, LocalFogVolumeVolumes);
 

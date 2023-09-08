@@ -32,11 +32,22 @@ struct FLocalFogVolumeGPUInstanceData
 
 
 // Structured buffers cannot be sampled from the vertex shader on some mobile platforms.
-// That is why simple Buffers are used, because this tech needs to run on mobile platforms.
+// That is why simple Buffers are used for LocalFogVolumeInstances, because this tech needs to run on mobile platforms.
+
+#if defined(LFVStruct)
+
+#define LFVInsts LFVStruct.LFV.LocalFogVolumeInstances
+#define LFVInstcount LFVStruct.LFV.LocalFogVolumeInstanceCount
+
+#else
 
 uint LFV_LocalFogVolumeInstanceCount;
 Buffer<float4> LFV_LocalFogVolumeInstances;
+
 #define LFVInsts LFV_LocalFogVolumeInstances
+#define LFVInstcount LFV_LocalFogVolumeInstanceCount
+
+#endif
 
 
 

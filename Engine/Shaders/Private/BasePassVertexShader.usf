@@ -24,6 +24,10 @@
 #include "VolumetricCloudCommon.ush"
 #endif
 
+#if LOCAL_FOG_VOLUME_ON_TRANSLUCENT
+#include "LocalFogVolumeCommon.ush"
+#endif
+
 /** Entry point for the base pass vertex shader. */
 void Main(
 	FVertexFactoryInput Input,
@@ -100,6 +104,35 @@ void Main(
 			OneOverPreExposure, Output.BasePassInterpolants.VertexFog);
 	}
 #endif
+#endif // NEEDS_BASEPASS_VERTEX_FOGGING
+
+	// Apply local fog volume to if enabled. It is always enabled per vertex as of today, that is why it is out ofr the NEEDS_BASEPASS_VERTEX_FOGGING defines.
+#if LOCAL_FOG_VOLUME_ON_TRANSLUCENT
+	float4 LFVContribution = float4(0.0f, 0.0f, 0.0f, 1.0f);
+	for (uint LVFIndex = 0; LVFIndex < LFVInstcount; ++LVFIndex)
+	{
+		float3 CamRayTranslatedWorldOrigin	= ResolvedView.TranslatedWorldCameraOrigin;
+		float3 CamRayWorldOrigin			= CamRayTranslatedWorldOrigin - LWCHackToFloat(ResolvedView.PreViewTranslation);
+		float3 CamRayTranslatedWorldDir		= normalize(WorldPosition - CamRayTranslatedWorldOrigin);	// WorldPosition is expressed in TranslatedWorld space
+		float3 CamRayWorldDir				= CamRayTranslatedWorldDir;
+
+		float3 DepthBufferTranslatedWorldPos = WorldPosition.xyz;
+
+		const float4 LFVInstanceContribution = GetLFVInstanceContribution(
+			LVFIndex,
+			CamRayWorldOrigin,
+			CamRayWorldDir,
+			CamRayTranslatedWorldOrigin,
+			CamRayTranslatedWorldDir,
+			DepthBufferTranslatedWorldPos);
+
+		LFVContribution = float4(LFVContribution.rgb * LFVInstanceContribution.aaa + LFVInstanceContribution.rgb, LFVContribution.a * LFVInstanceContribution.a);
+	}
+
+	Output.BasePassInterpolants.VertexFog = float4(LFVContribution.rgb + Output.BasePassInterpolants.VertexFog.rgb * LFVContribution.a, LFVContribution.a * Output.BasePassInterpolants.VertexFog.a);
+#endif // LOCAL_FOG_VOLUME_ON_TRANSLUCENT
+
+#if NEEDS_BASEPASS_VERTEX_FOGGING
 
 #if MATERIAL_ENABLE_TRANSLUCENCY_CLOUD_FOGGING
 	if (TranslucentBasePass.ApplyVolumetricCloudOnTransparent > 0.0f)

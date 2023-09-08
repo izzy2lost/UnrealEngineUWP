@@ -7908,6 +7908,12 @@ void GlobalBeginCompileShader(
 		SET_SHADER_DEFINE(Input.Environment, PROJECT_MOBILE_DISABLE_VERTEX_FOG, CVar ? (CVar->GetInt() != 0) : 0);
 	}
 
+	{
+		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.LocalFogVolume.ApplyOnTransclucent"));
+		const bool bLocalFogVolumesApplyOnTranclucent = CVar && CVar->GetInt() > 0;
+		SET_SHADER_DEFINE(Input.Environment, PROJECT_LOCALFOGVOLUME_APPLYONTRANSLUCENT, (bLocalFogVolumesApplyOnTranclucent ? 1 : 0));
+	}
+
 	bool bSupportSkyAtmosphere = false;
 	{
 		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.SupportSkyAtmosphere"));

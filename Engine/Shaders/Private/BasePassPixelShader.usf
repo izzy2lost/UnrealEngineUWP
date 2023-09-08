@@ -1293,6 +1293,10 @@ void FPixelShaderInOut_MainPS(
 		float4 HeightFogging = BasePassInterpolants.VertexFog;
 	#elif NEEDS_BASEPASS_PIXEL_FOGGING
 		float4 HeightFogging = CalculateHeightFog(MaterialParameters.WorldPosition_CamRelative);
+		#if LOCAL_FOG_VOLUME_ON_TRANSLUCENT
+		const float4 LocalFogVolumeContrib = BasePassInterpolants.VertexFog;
+		HeightFogging = float4(LocalFogVolumeContrib.rgb + HeightFogging.rgb * LocalFogVolumeContrib.a, LocalFogVolumeContrib.a * HeightFogging.a);
+		#endif // LOCAL_FOG_VOLUME_ON_TRANSLUCENT
 	#else
 		float4 HeightFogging = float4(0,0,0,1);
 	#endif

@@ -25,6 +25,7 @@
 #include "SkyAtmosphereRendering.h"
 #include "RenderUtils.h"
 #include "DebugViewModeRendering.h"
+#include "LocalFogVolumeRendering.h"
 
 bool MobileLocalLightsBufferEnabled(const FStaticShaderPlatform Platform);
 bool MobileLocalLightsBufferPrepassEnabled(const FStaticShaderPlatform Platform);
@@ -38,6 +39,7 @@ struct FMobileBasePassTextures
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FMobileBasePassUniformParameters, )
 	SHADER_PARAMETER(float, AmbientOcclusionStaticFraction)
 	SHADER_PARAMETER_STRUCT(FFogUniformParameters, Fog)
+	SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
 	SHADER_PARAMETER_STRUCT(FForwardLightData, Forward)
 	SHADER_PARAMETER_STRUCT(FForwardLightData, ForwardMMV)
 	SHADER_PARAMETER_STRUCT(FPlanarReflectionUniformParameters, PlanarReflection) // Single global planar reflection for the forward pass.

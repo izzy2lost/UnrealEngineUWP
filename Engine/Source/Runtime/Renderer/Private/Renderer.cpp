@@ -44,6 +44,7 @@
 #include "RendererInterface.h"
 #include "PrimitiveSceneShaderData.h"
 #include "MeshDrawCommandStats.h"
+#include "LocalFogVolumeRendering.h"
 
 DEFINE_LOG_CATEGORY(LogRenderer);
 
@@ -307,6 +308,7 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 
 		View.InitRHIResources();
 		View.ForwardLightingResources.SetUniformBuffer(CreateDummyForwardLightUniformBuffer(GraphBuilder, View.GetShaderPlatform()));
+		SetDummyLocalFogVolumeForView(GraphBuilder, View);
 
 		TUniformBufferRef<FReflectionCaptureShaderData> EmptyReflectionCaptureUniformBuffer;
 

@@ -20,6 +20,10 @@
 #include "SkyAtmosphereCommon.ush"
 #endif
 
+#if LOCAL_FOG_VOLUME_ON_TRANSLUCENT
+#include "LocalFogVolumeCommon.ush"
+#endif
+
 struct FMobileShadingBasePassVSToPS
 {
 	FVertexFactoryInterpolantsVSToPS FactoryInterpolants;
@@ -105,12 +109,38 @@ void Main(
 	}
 #endif
 
+	// Apply local fog volume to if enabled
+#if LOCAL_FOG_VOLUME_ON_TRANSLUCENT
+	float4 LFVContribution = float4(0.0f, 0.0f, 0.0f, 1.0f);
+	for (uint LVFIndex = 0; LVFIndex < LFVInstcount; ++LVFIndex)
+	{
+		float3 CamRayTranslatedWorldOrigin = ResolvedView.TranslatedWorldCameraOrigin;
+		float3 CamRayWorldOrigin = CamRayTranslatedWorldOrigin - LWCHackToFloat(ResolvedView.PreViewTranslation);
+		float3 CamRayTranslatedWorldDir = normalize(WorldPosition - CamRayTranslatedWorldOrigin);	// WorldPosition is expressed in TranslatedWorld space
+		float3 CamRayWorldDir = CamRayTranslatedWorldDir;
+
+		float3 DepthBufferTranslatedWorldPos = WorldPosition.xyz;
+
+		const float4 LFVInstanceContribution = GetLFVInstanceContribution(
+			LVFIndex,
+			CamRayWorldOrigin,
+			CamRayWorldDir,
+			CamRayTranslatedWorldOrigin,
+			CamRayTranslatedWorldDir,
+			DepthBufferTranslatedWorldPos);
+
+		LFVContribution = float4(LFVContribution.rgb * LFVInstanceContribution.aaa + LFVInstanceContribution.rgb, LFVContribution.a * LFVInstanceContribution.a);
+	}
+
+	VertexFog = float4(LFVContribution.rgb + VertexFog.rgb * LFVContribution.a, LFVContribution.a * VertexFog.a);
+#endif // LOCAL_FOG_VOLUME_ON_TRANSLUCENT
+
 #if PACK_INTERPOLANTS
 	PackedInterps[0] = VertexFog;
 #else
 	Output.BasePassInterpolants.VertexFog = VertexFog;
 #endif // PACK_INTERPOLANTS
-#endif
+#endif // USE_VERTEX_FOG
 
 #if LANDSCAPE_BUG_WORKAROUND
 	Output.BasePassInterpolants.DummyInterp = 0;

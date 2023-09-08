@@ -603,6 +603,11 @@ class URendererSettings : public UDeveloperSettings
 		ToolTip="The axis that sorting will occur along when Translucent Sort Policy is set to SortAlongAxis."))
 	FVector TranslucentSortAxis;
 
+	UPROPERTY(config, EditAnywhere, Category=Translucency, meta=(
+		ConsoleVariable="r.LocalFogVolume.ApplyOnTransclucent",
+		ToolTip="Allow translucency to be rendered to a separate render targeted and composited after depth of field. Prevents translucency from appearing out of focus."))
+	uint32 bLocalFogVolumeApplyOnTranslucent:1;
+
 	UPROPERTY(config, EditAnywhere, Category = VR, meta = (
 		ConsoleVariable = "xr.VRS.FoveationLevel", DisplayName = "Stereo Foveation Level (Experimental)",
 		ToolTip = "Set the level of foveation to apply when generating the Variable Rate Shading attachment. This feature is currently experimental.\nThis can yield some fairly significant performance benefits on GPUs that support Tier 2 VRS.\nLower settings will result in almost no discernible artifacting on most HMDs; higher settings will show some artifacts towards the edges of the view."))
