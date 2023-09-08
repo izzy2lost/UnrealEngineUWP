@@ -203,7 +203,7 @@ ParallelForEach(IT ItBegin, IT ItEnd, FT F)
 
 template<typename T, typename FT>
 inline void
-ParallelForEach(T Container, FT F)
+ParallelForEach(T& Container, FT F)
 {
 	ParallelForEach(std::begin(Container), std::end(Container), F);
 }
