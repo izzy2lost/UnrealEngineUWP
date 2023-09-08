@@ -1401,3 +1401,22 @@ uint LenString(uint InEntryID, uint InInfoCount, StructuredBuffer<uint2> InInfoB
 	{\
 		return N##_InfoCount;\
 	}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// Current pixel
+
+// Store the current pixel coordinates, which allow to retrieve it in any shaders once set.
+// This data is only visible for the current thread/pixel, not available for neighbors
+static uint2 ShaderPrintCurrentPixelCoord;
+
+// Set current pixel coordinates
+void SetShaderPrintCurrentPixelCoord(uint2 In)
+{
+	ShaderPrintCurrentPixelCoord = In;
+}
+
+// Get current pixel coordinates
+uint2 GetShaderPrintCurrentPixelCoord()
+{
+	return ShaderPrintCurrentPixelCoord;
+}
