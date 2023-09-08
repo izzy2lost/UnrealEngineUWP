@@ -121,10 +121,14 @@ void FTetrahedralCollection::UpdateBoundingBox()
 		// Compute BoundingBox
 		for (int32 Idx = 0; Idx < Vertex.Num(); ++Idx)
 		{
-			int32 TransformIndexValue = BoneMap[Idx];
-			if (TransformToGeometryIndex[TransformIndexValue] != INDEX_NONE)
+			const int32 TransformIndexValue = BoneMap[Idx];
+			if (TransformIndexValue != INDEX_NONE)
 			{
-				BoundingBox[TransformToGeometryIndex[TransformIndexValue]] += FVector(Vertex[Idx]);
+				const int32 GeometryIndex = TransformToGeometryIndex[TransformIndexValue];
+				if (GeometryIndex != INDEX_NONE)
+				{
+					BoundingBox[GeometryIndex] += FVector(Vertex[Idx]);
+				}
 			}
 		}
 	}
