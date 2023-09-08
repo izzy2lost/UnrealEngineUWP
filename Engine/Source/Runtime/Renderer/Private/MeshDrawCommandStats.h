@@ -173,6 +173,9 @@ private:
 	FCriticalSection FrameDataCS;			
 	TArray<FFrameData*> Frames;				//< All active frames (contains the frame for which we are collecting stats now and all frames waiting for GPU readback)
 	FStats Stats;							//< Last updated frame stats
+	TMap<FName, FName> Budgets;				//< LinkedStatName to Budget CategoryName
+	TMap<FName, uint64> BudgetedPrimitives;	//< Budget CategoryName to Total Primitive Count
+	TMap<FName, uint64> UntrackedPrimitives;//< Primitives which aren't tracked by any Budgets
 
 	FDelegateHandle ScreenMessageDelegate;	//< Delegate used to render optional screen stats
 
