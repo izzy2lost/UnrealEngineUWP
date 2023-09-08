@@ -3020,6 +3020,50 @@ TOptional<float> ULandscapeHeightfieldCollisionComponent::GetHeight(float X, flo
 	return Height;
 }
 
+UPhysicalMaterial* ULandscapeHeightfieldCollisionComponent::GetPhysicalMaterial(float X, float Y, EHeightfieldSource HeightFieldSource)
+{
+	UPhysicalMaterial* PhysicalMaterial = nullptr;
+
+	if (!IsValidRef(HeightfieldRef))
+	{
+		return PhysicalMaterial;
+	}
+
+	Chaos::FHeightField* HeightField = nullptr;
+
+	switch (HeightFieldSource)
+	{
+	case EHeightfieldSource::None:
+		break;
+	case EHeightfieldSource::Simple:
+		HeightField = HeightfieldRef->HeightfieldSimpleGeometry.GetReference();
+		break;
+	case EHeightfieldSource::Complex:
+		HeightField = HeightfieldRef->HeightfieldGeometry.GetReference();
+		break;
+#if WITH_EDITORONLY_DATA		
+	case EHeightfieldSource::Editor:
+		HeightField = HeightfieldRef->EditorHeightfieldGeometry.GetReference();
+		break;
+#endif 
+	}
+
+	if (HeightField)
+	{
+		const uint8 MaterialIndex = HeightField->GetMaterialIndexAt({ X, Y });
+		if (MaterialIndex != TNumericLimits<uint8>::Max() && HeightfieldRef->UsedChaosMaterials.IsValidIndex(MaterialIndex))
+		{
+			Chaos::FMaterialHandle MaterialHandle = HeightfieldRef->UsedChaosMaterials[MaterialIndex];
+			if (Chaos::FChaosPhysicsMaterial* ChaosMaterial = MaterialHandle.Get())
+			{
+				PhysicalMaterial = FChaosUserData::Get<UPhysicalMaterial>(ChaosMaterial->UserData);
+			}
+		}
+	}
+
+	return PhysicalMaterial;
+}
+
 struct FHeightFieldAccessor
 {
 	FHeightFieldAccessor(const ULandscapeHeightfieldCollisionComponent::FHeightfieldGeometryRef& InGeometryRef)
@@ -3152,6 +3196,24 @@ TOptional<float> ALandscapeProxy::GetHeightAtLocation(FVector Location, EHeightf
 		}
 	}
 	return Height;
+}
+
+UPhysicalMaterial* ALandscapeProxy::GetPhysicalMaterialAtLocation(FVector Location, EHeightfieldSource HeightFieldSource) const
+{
+	UPhysicalMaterial* PhysicalMaterial = nullptr;
+	if (ULandscapeInfo* Info = GetLandscapeInfo())
+	{
+		const FVector ActorSpaceLocation = LandscapeActorToWorld().InverseTransformPosition(Location);
+		const FIntPoint Key = FIntPoint(FMath::FloorToInt32(ActorSpaceLocation.X / ComponentSizeQuads), FMath::FloorToInt32(ActorSpaceLocation.Y / ComponentSizeQuads));
+		ULandscapeHeightfieldCollisionComponent* Component = Info->XYtoCollisionComponentMap.FindRef(Key);
+		if (Component)
+		{
+			const FVector ComponentSpaceLocation = Component->GetComponentToWorld().InverseTransformPosition(Location);
+			PhysicalMaterial = Component->GetPhysicalMaterial(static_cast<float>(ComponentSpaceLocation.X), static_cast<float>(ComponentSpaceLocation.Y), HeightFieldSource);
+		}
+	}
+
+	return PhysicalMaterial;
 }
 
 void ALandscapeProxy::GetHeightValues(int32& SizeX, int32& SizeY, TArray<float> &ArrayValues) const

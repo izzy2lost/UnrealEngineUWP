@@ -876,6 +876,15 @@ namespace Chaos
 		return TNumericLimits<uint8>::Max();
 	}
 
+	uint8 Chaos::FHeightField::GetMaterialIndexAt(const FVec2& InGridLocationLocal) const
+	{
+		const FVec2 ClampledGridLocationLocal = FlatGrid.Clamp(InGridLocationLocal);
+		TVec2<int32> CellCoord = FlatGrid.Cell(ClampledGridLocationLocal);
+
+		const int32 Index = CellCoord[1] * (GeomData.NumCols - 1) + CellCoord[0];
+		return GetMaterialIndex(Index);
+	}
+
 	uint8 Chaos::FHeightField::GetMaterialIndex(int32 InX, int32 InY) const
 	{
 		const int32 Index = InY * (GeomData.NumCols - 1) + InX;

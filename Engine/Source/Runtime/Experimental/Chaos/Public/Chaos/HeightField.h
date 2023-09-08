@@ -54,6 +54,7 @@ namespace Chaos
 		CHAOS_API bool IsHole(int32 InCellX, int32 InCellY) const;
 		CHAOS_API FVec3 GetNormalAt(const FVec2& InGridLocationLocal) const;
 		CHAOS_API FReal GetHeightAt(const FVec2& InGridLocationLocal) const;
+		CHAOS_API uint8 GetMaterialIndexAt(const FVec2& InGridLocationLocal) const;
 
 		int32 GetNumRows() const { return GeomData.NumRows; }
 		int32 GetNumCols() const { return GeomData.NumCols; }
