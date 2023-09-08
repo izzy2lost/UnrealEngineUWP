@@ -84,6 +84,16 @@ struct FLocalFogVolumeSortingData
 	TArray<FLocalFogVolumeSortKey>	LocalFogVolumeSortKeys;
 };
 
+struct FLocalFogVolumeViewData
+{
+	uint32 GPUInstanceCount = 0;
+	FRDGBufferRef GPUInstanceDataBuffer = nullptr;
+	FRDGBufferSRVRef GPUInstanceDataBufferSRV = nullptr;
+	TRDGUniformBufferRef<FLocalFogVolumeUniformParameters> UniformBuffer = nullptr;
+
+	FLocalFogVolumeUniformParameters UniformParametersStruct;
+};
+
 
 /*=============================================================================
 	Local height fog rendering functions

@@ -719,7 +719,7 @@ void SetupSharedBasePassParameters(
 		SharedParameters.FogISR = SharedParameters.Fog;
 	}
 
-	SharedParameters.LFV = View.LocalFogVolumeUniformParametersStruct;
+	SharedParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
 
 	const FScene* Scene = View.Family->Scene ? View.Family->Scene->GetRenderScene() : nullptr;
 	const FPlanarReflectionSceneProxy* ReflectionSceneProxy = Scene ? Scene->GetForwardPassGlobalPlanarReflection() : nullptr;

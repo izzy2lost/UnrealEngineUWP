@@ -247,7 +247,7 @@ void SetupMobileBasePassUniformParameters(
 	// Substrate
 	Substrate::BindSubstrateMobileForwardPasslUniformParameters(GraphBuilder, View, BasePassParameters.Substrate);
 
-	BasePassParameters.LFV = View.LocalFogVolumeUniformParametersStruct;
+	BasePassParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
 
 	SetupReflectionUniformParameters(GraphBuilder, View, BasePassParameters.ReflectionsParameters);
 }

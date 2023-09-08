@@ -975,10 +975,7 @@ void FViewInfo::Init()
 	SubstrateViewData.Reset();
 	HairStrandsViewData = FHairStrandsViewData();
 
-	LocalFogVolumeGPUInstanceCount = 0;
-	LocalFogVolumeGPUInstanceDataBuffer = nullptr;
-	LocalFogVolumeGPUInstanceDataBufferSRV = nullptr;
-	LocalFogVolumeUniformBuffer = nullptr;
+	LocalFogVolumeViewData = FLocalFogVolumeViewData();
 
 	GPUSceneViewId = INDEX_NONE;
 

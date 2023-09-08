@@ -1368,11 +1368,7 @@ public:
 
 	FSubstrateViewData SubstrateViewData;
 
-	uint32 LocalFogVolumeGPUInstanceCount;
-	FRDGBufferRef LocalFogVolumeGPUInstanceDataBuffer;
-	FRDGBufferSRVRef LocalFogVolumeGPUInstanceDataBufferSRV;
-	FLocalFogVolumeUniformParameters LocalFogVolumeUniformParametersStruct;
-	TRDGUniformBufferRef<FLocalFogVolumeUniformParameters> LocalFogVolumeUniformBuffer;
+	FLocalFogVolumeViewData LocalFogVolumeViewData;
 
 	FHairStrandsViewData HairStrandsViewData;
 
