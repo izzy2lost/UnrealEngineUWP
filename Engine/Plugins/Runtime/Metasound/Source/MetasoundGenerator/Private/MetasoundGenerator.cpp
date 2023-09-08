@@ -288,12 +288,6 @@ namespace Metasound
 		FDataTransmissionCenter::Get().UnregisterDataChannelIfUnconnected(ParameterPackSendAddress);
 	}
 
-	static const FName InstanceCounterCategory(TEXT("Metasound/Active_Generators"));
-	const FName& FMetasoundGenerator::GetCategoryName() const
-	{
-		return InstanceCounterCategory;
-	}
-
 	FDelegateHandle FMetasoundGenerator::AddGraphSetCallback(FOnSetGraph::FDelegate&& Delegate)
 	{
 		FScopeLock SetPendingGraphLock(&PendingGraphMutex);
@@ -307,7 +301,7 @@ namespace Metasound
 
 	void FMetasoundGenerator::InitBase(const FMetasoundGeneratorInitParams& InInitParams)
 	{
-		FConcurrentMetasoundInstanceCounter::Init(InInitParams.MetaSoundName);
+		InstanceCounter.Init(FName(InInitParams.MetaSoundName));
 		MetasoundName = InInitParams.MetaSoundName;
 		NumChannels = InInitParams.AudioOutputNames.Num();
 		NumSamplesPerExecute = NumChannels * NumFramesPerExecute;

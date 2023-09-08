@@ -10,12 +10,6 @@ namespace Metasound
 		Increment();
 	}
 
-	FConcurrentMetasoundInstanceCounter::FConcurrentMetasoundInstanceCounter(const FString& InName)
-	: InstanceName(InName)
-	{
-		Increment();
-	}
-
 	// dtor
 	FConcurrentMetasoundInstanceCounter::~FConcurrentMetasoundInstanceCounter()
 	{
@@ -25,12 +19,6 @@ namespace Metasound
 	void FConcurrentMetasoundInstanceCounter::Init(const FName& InName)
 	{
 		InstanceName = InName;
-		Increment();
-	}
-
-	void FConcurrentMetasoundInstanceCounter::Init(const FString& InName)
-	{
-		InstanceName = FName(InName);
 		Increment();
 	}
 
@@ -69,6 +57,7 @@ namespace Metasound
 		GetOrAddStats().Decrement();
 	}
 
+	static const FString InstanceCounterCategory(TEXT("Metasound/Active_Generators"));
 	FConcurrentMetasoundInstanceCounter::FStats& FConcurrentMetasoundInstanceCounter::GetOrAddStats()
 	{
 		FScopeLock Lock(&MapCritSec);
@@ -80,7 +69,7 @@ namespace Metasound
 		}
 
 #if COUNTERSTRACE_ENABLED
-		return StatsMap.Emplace(InstanceName, FString::Printf(TEXT("%s - %s"), *GetCategoryName().ToString(), *InstanceName.ToString()));
+		return StatsMap.Emplace(InstanceName, FString::Printf(TEXT("%s - %s"), *InstanceCounterCategory, *InstanceName.ToString()));
 #else
 		return StatsMap.Add(InstanceName);
 #endif

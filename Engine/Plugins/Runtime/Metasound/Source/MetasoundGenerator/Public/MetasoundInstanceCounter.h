@@ -24,17 +24,12 @@ namespace Metasound
 		// ctor
 		FConcurrentMetasoundInstanceCounter() = default;
 		FConcurrentMetasoundInstanceCounter(const FName& InName);
-		FConcurrentMetasoundInstanceCounter(const FString& InName);
 
 		// dtor
 		virtual ~FConcurrentMetasoundInstanceCounter();
 
 		// for non-RAII clients
 		void Init(const FName& InName);
-		void Init(const FString& InName);
-
-		// pure virtual interface
-		virtual const FName& GetCategoryName() const = 0;
 
 		// static interface
 		static int64 GetCountForName(const FName& InName);

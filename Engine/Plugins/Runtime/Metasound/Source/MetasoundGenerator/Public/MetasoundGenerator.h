@@ -94,9 +94,7 @@ namespace Metasound
 
 	DECLARE_TS_MULTICAST_DELEGATE(FOnSetGraph);
 
-	class METASOUNDGENERATOR_API FMetasoundGenerator
-	: public ISoundGenerator
-	, FConcurrentMetasoundInstanceCounter
+	class METASOUNDGENERATOR_API FMetasoundGenerator : public ISoundGenerator
 	{
 	public:
 		using FOperatorUniquePtr = TUniquePtr<Metasound::IOperator>;
@@ -114,8 +112,6 @@ namespace Metasound
 		explicit FMetasoundGenerator(const FOperatorSettings& InOperatorSettings);
 
 		virtual ~FMetasoundGenerator();
-
-		virtual const FName& GetCategoryName() const override;
 
 		/** Set the value of a graph's input data using the assignment operator.
 		 *
@@ -242,6 +238,7 @@ namespace Metasound
 
 		virtual TUniquePtr<IOperator> ReleaseGraphOperator();
 		FInputVertexInterfaceData ReleaseInputVertexData();
+		FConcurrentMetasoundInstanceCounter InstanceCounter;
 
 		/** Release the graph operator and remove any references to data owned by
 		 * the graph operator.
