@@ -213,7 +213,7 @@ void TileMainCS(uint2 DispatchThreadId : SV_DispatchThreadID, uint LinearIndex :
 	}
 
 #if PERMUTATION_WAVE_OPS
-	const bool bTileContainsSubstrate							= WaveActiveAnyTrue(bContainsSubstrateMaterial);
+	const bool bTileContainsSubstrate						= WaveActiveAnyTrue(bContainsSubstrateMaterial);
 	const bool bTileContainsSimple							= WaveActiveAnyTrue(bContainsSimpleMaterial);
 	const bool bTileContainsSingle							= WaveActiveAnyTrue(bContainsSingleMaterial);
 	const bool bTileContainsComplex							= WaveActiveAnyTrue(bContainsComplexMaterial);
@@ -263,7 +263,7 @@ void TileMainCS(uint2 DispatchThreadId : SV_DispatchThreadID, uint LinearIndex :
 
 	const uint FinalTileFlags = s_TileFlags[LinearIndex] | s_TileFlags[LinearIndex + 1];
 
-	const bool bTileContainsSubstrate							= (FinalTileFlags & 0x1u) > 0;
+	const bool bTileContainsSubstrate						= (FinalTileFlags & 0x1u) > 0;
 	const bool bTileContainsSimple							= (FinalTileFlags & 0x2u) > 0;
 	const bool bTileContainsSingle							= (FinalTileFlags & 0x4u) > 0;
 	const bool bTileContainsComplex							= (FinalTileFlags & 0x8u) > 0;
@@ -283,7 +283,7 @@ void TileMainCS(uint2 DispatchThreadId : SV_DispatchThreadID, uint LinearIndex :
 			InterlockedAdd(TileDrawIndirectDataBufferUAV[GetSubstrateTileTypeDrawIndirectArgOffset_DWord(SUBSTRATE_TILE_TYPE_COMPLEX_SPECIAL) + 1], 1, WriteToIndex);
 			TileListBufferUAV[GetTileListBufferOffsets(SUBSTRATE_TILE_TYPE_COMPLEX_SPECIAL) + WriteToIndex] = EncodedTile;
 		}
-		else  if (bTileContainsComplex)
+		else if (bTileContainsComplex)
 		{
 			uint WriteToIndex;
 			InterlockedAdd(TileDrawIndirectDataBufferUAV[GetSubstrateTileTypeDrawIndirectArgOffset_DWord(SUBSTRATE_TILE_TYPE_COMPLEX) + 1], 1, WriteToIndex);

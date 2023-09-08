@@ -15,7 +15,7 @@
   #elif SUBSTRATE_TILETYPE == 2
 	// COMPLEX PATH
   #elif SUBSTRATE_TILETYPE == 3
-	// COMPLEX PATH
+	// COMPLEX SPECIAL PATH
 	#define SUBSTRATE_COMPLEXSPECIALPATH 1
   #else
 	#error Substrate tile type non-implemented

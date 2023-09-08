@@ -99,7 +99,7 @@ const TCHAR* ToString(ESubstrateTileType Type)
 	case ESubstrateTileType::EOpaqueRoughRefractionSSSWithout:	return TEXT("Opaque/RoughRefraction/SSSWithout");
 	case ESubstrateTileType::EDecalSimple:						return TEXT("Decal/Simple");
 	case ESubstrateTileType::EDecalSingle:						return TEXT("Decal/Single");
-	case ESubstrateTileType::EDecalComplex:					return TEXT("Decal/Complex");
+	case ESubstrateTileType::EDecalComplex:						return TEXT("Decal/Complex");
 
 	}
 	return TEXT("Unknown");
@@ -234,14 +234,14 @@ static void InitialiseSubstrateViewData(FRDGBuilder& GraphBuilder, FViewInfo& Vi
 
 			Out.ClassificationTileListBufferOffset[ESubstrateTileType::ESimple]							= 0;
 			Out.ClassificationTileListBufferOffset[ESubstrateTileType::ESingle]							= Out.ClassificationTileListBufferOffset[ESubstrateTileType::ESimple]							+ RegularTileCount;
-			Out.ClassificationTileListBufferOffset[ESubstrateTileType::EComplex]							= Out.ClassificationTileListBufferOffset[ESubstrateTileType::ESingle]							+ RegularTileCount;
+			Out.ClassificationTileListBufferOffset[ESubstrateTileType::EComplex]						= Out.ClassificationTileListBufferOffset[ESubstrateTileType::ESingle]							+ RegularTileCount;
 			Out.ClassificationTileListBufferOffset[ESubstrateTileType::EComplexSpecial]					= Out.ClassificationTileListBufferOffset[ESubstrateTileType::EComplex]							+ RegularTileCount;
-			Out.ClassificationTileListBufferOffset[ESubstrateTileType::EOpaqueRoughRefraction]				= Out.ClassificationTileListBufferOffset[ESubstrateTileType::EComplexSpecial]					+ (bUsesComplexSpecialRenderPath ? RegularTileCount : 4);
-			Out.ClassificationTileListBufferOffset[ESubstrateTileType::EOpaqueRoughRefractionSSSWithout]	= Out.ClassificationTileListBufferOffset[ESubstrateTileType::EOpaqueRoughRefraction]			+ RoughTileCount;
-			Out.ClassificationTileListBufferOffset[ESubstrateTileType::EDecalSimple]						= Out.ClassificationTileListBufferOffset[ESubstrateTileType::EOpaqueRoughRefractionSSSWithout]	+ RoughTileCount;
-			Out.ClassificationTileListBufferOffset[ESubstrateTileType::EDecalSingle]						= Out.ClassificationTileListBufferOffset[ESubstrateTileType::EDecalSimple]						+ DecalTileCount;
-			Out.ClassificationTileListBufferOffset[ESubstrateTileType::EDecalComplex]						= Out.ClassificationTileListBufferOffset[ESubstrateTileType::EDecalSingle]						+ DecalTileCount;
-			uint32 TotalTileCount										 								= Out.ClassificationTileListBufferOffset[ESubstrateTileType::EDecalComplex]					+ DecalTileCount;
+			Out.ClassificationTileListBufferOffset[ESubstrateTileType::EOpaqueRoughRefraction]			= Out.ClassificationTileListBufferOffset[ESubstrateTileType::EComplexSpecial]					+ (bUsesComplexSpecialRenderPath ? RegularTileCount : 4);
+			Out.ClassificationTileListBufferOffset[ESubstrateTileType::EOpaqueRoughRefractionSSSWithout]= Out.ClassificationTileListBufferOffset[ESubstrateTileType::EOpaqueRoughRefraction]			+ RoughTileCount;
+			Out.ClassificationTileListBufferOffset[ESubstrateTileType::EDecalSimple]					= Out.ClassificationTileListBufferOffset[ESubstrateTileType::EOpaqueRoughRefractionSSSWithout]	+ RoughTileCount;
+			Out.ClassificationTileListBufferOffset[ESubstrateTileType::EDecalSingle]					= Out.ClassificationTileListBufferOffset[ESubstrateTileType::EDecalSimple]						+ DecalTileCount;
+			Out.ClassificationTileListBufferOffset[ESubstrateTileType::EDecalComplex]					= Out.ClassificationTileListBufferOffset[ESubstrateTileType::EDecalSingle]						+ DecalTileCount;
+			uint32 TotalTileCount										 								= Out.ClassificationTileListBufferOffset[ESubstrateTileType::EDecalComplex]						+ DecalTileCount;
 
 			check(TotalTileCount > 0);
 
@@ -1005,10 +1005,10 @@ uint32 TileTypeDispatchIndirectArgOffset(const ESubstrateTileType Type)
 
 // Add additionnaly bits for filling/clearing stencil to ensure that the 'Substrate' bits are not corrupted by the stencil shadows 
 // when generating shadow mask. Withouth these 'trailing' bits, the incr./decr. operation would change/corrupt the 'Substrate' bits
-constexpr uint32 StencilBit_Fast_1	  = StencilBit_Fast;
-constexpr uint32 StencilBit_Single_1  = StencilBit_Single;
-constexpr uint32 StencilBit_Complex_1 = StencilBit_Complex; 
-constexpr uint32 StencilBit_ComplexSpecial_1 = StencilBit_ComplexSpecial; 
+constexpr uint32 StencilBit_Fast_1			= StencilBit_Fast;
+constexpr uint32 StencilBit_Single_1		= StencilBit_Single;
+constexpr uint32 StencilBit_Complex_1		= StencilBit_Complex; 
+constexpr uint32 StencilBit_ComplexSpecial_1= StencilBit_ComplexSpecial; 
 
 void AddSubstrateInternalClassificationTilePass(
 	FRDGBuilder& GraphBuilder,
@@ -1048,7 +1048,7 @@ void AddSubstrateInternalClassificationTilePass(
 		case ESubstrateTileType::ESimple:							ParametersPS->DebugTileColor = FVector4f(0.0f, 1.0f, 0.0f, 1.0); break;
 		case ESubstrateTileType::ESingle:							ParametersPS->DebugTileColor = FVector4f(1.0f, 1.0f, 0.0f, 1.0); break;
 		case ESubstrateTileType::EComplex:							ParametersPS->DebugTileColor = FVector4f(1.0f, 0.0f, 0.0f, 1.0); break;
-		case ESubstrateTileType::EComplexSpecial:					ParametersPS->DebugTileColor = FVector4f(0.3f, 0.0f, 0.0f, 1.0); break;
+		case ESubstrateTileType::EComplexSpecial:					ParametersPS->DebugTileColor = FVector4f(0.3f, 0.0f, 0.3f, 1.0); break;
 
 		case ESubstrateTileType::EOpaqueRoughRefraction:			ParametersPS->DebugTileColor = FVector4f(0.0f, 1.0f, 1.0f, 1.0); break;
 		case ESubstrateTileType::EOpaqueRoughRefractionSSSWithout:	ParametersPS->DebugTileColor = FVector4f(0.0f, 0.0f, 1.0f, 1.0); break;
