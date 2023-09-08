@@ -23386,7 +23386,7 @@ int32 UMaterialExpressionSubstrateShadingModels::Compile(class FMaterialCompiler
 
 void UMaterialExpressionSubstrateShadingModels::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	if (GraphNode)
+	if (GraphNode && PropertyChangedEvent.Property != nullptr)
 	{
 		GraphNode->ReconstructNode();
 	}
@@ -26546,7 +26546,7 @@ int32 UMaterialExpressionSubstrateConvertMaterialAttributes::Compile(class FMate
 
 void UMaterialExpressionSubstrateConvertMaterialAttributes::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	if (GraphNode)
+	if (GraphNode && PropertyChangedEvent.Property != nullptr)
 	{
 		GraphNode->ReconstructNode();
 	}
