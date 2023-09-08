@@ -459,6 +459,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbors", META = (ClampMin = "0", ClampMax = "1"))
 	float NearestNeighborOffsetWeight = 1.0f;
 
+	/** Use radial basis function (RBF). This will blend multiple nearest neighbors instead of finding a single neighbor. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbors")
+	bool bUseRBF = false;
+
+	/** The smaller this value is, the more similar it is to a single nearest neighbor. The bigger this value is, the more smeared out the geometric details are. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbors", META = (ClampMin = "0.001"))
+	float RBFSigma = 1.0f;
+
 private:
 	UPROPERTY()
 	TObjectPtr<UNearestNeighborOptimizedNetwork> OptimizedNetwork = nullptr;
