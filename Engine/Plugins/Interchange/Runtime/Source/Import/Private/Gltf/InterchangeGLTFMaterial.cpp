@@ -506,7 +506,7 @@ namespace UE::Interchange::GLTFMaterials
 					SetMap(GltfMaterial.Specular.SpecularMap, Inputs::SpecularTexture);
 
 					//SpecularFactor
-					SetScalar(Inputs::SpecularFactor, GltfMaterial.Specular.SpecularFactor, 1.f);
+					SetScalar(Inputs::SpecularFactor, GltfMaterial.Specular.SpecularFactor, 0.5); //(UE Specular default is 0.5).
 				}
 			}
 			else
