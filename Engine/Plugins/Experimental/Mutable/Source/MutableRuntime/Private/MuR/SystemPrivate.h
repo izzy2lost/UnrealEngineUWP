@@ -1862,6 +1862,9 @@ namespace mu
 
 		TSharedPtr<ImageParameterGenerator> ImageParameterGenerator;
 
+		/** If this is set, it will be tried first instead of the internal formatting function. */
+		FImageOperator::FImagePixelFormatFunc ImagePixelFormatOverride;
+
 		/** */
 		FWorkingMemoryManager WorkingMemoryManager;
 

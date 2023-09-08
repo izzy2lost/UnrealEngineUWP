@@ -7,11 +7,11 @@
 #include "MuR/Model.h"
 #include "MuT/Compiler.h"
 #include "MuT/ErrorLog.h"
+#include "MuT/UnrealPixelFormatOverride.h"
 #include "Serialization/MemoryWriter.h"
 #include "Trace/Trace.inl"
 
 class ITargetPlatform;
-
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
@@ -21,6 +21,7 @@ FCustomizableObjectCompileRunnable::FCustomizableObjectCompileRunnable(mu::Ptr<m
 	, bThreadCompleted(false)
 	, MutableIsDisabled(false)
 {
+	PrepareUnrealCompression();
 }
 
 
@@ -38,7 +39,8 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 		return true;
 	}
 
-	mu::CompilerOptionsPtr CompilerOptions = new mu::CompilerOptions();
+	// Translate CO compile options into mu::CompilerOptions
+	mu::Ptr<mu::CompilerOptions> CompilerOptions = new mu::CompilerOptions();
 
 	CompilerOptions->SetUseDiskCache(Options.bUseDiskCompilation);
 
@@ -81,6 +83,13 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 		break;
 	}
 
+	// Texture compression override, if necessary
+	if (Options.TextureCompression== ECustomizableObjectTextureCompression::HighQuality)
+	{
+		CompilerOptions->SetImagePixelFormatOverride( UnrealPixelFormatFunc );
+	}
+
+
 	// Minimum resident mip count.
 	const int MinResidentMips = UTexture::GetStaticMinTextureResidentMipCount();
 	// Data smaller than this will always be loaded, as part of the customizable object compiled model.
@@ -93,7 +102,7 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 	
 	CompilerOptions->SetImageTiling(Options.ImageTiling);
 
-	mu::CompilerPtr Compiler = new mu::Compiler(CompilerOptions);
+	mu::Ptr<mu::Compiler> Compiler = new mu::Compiler(CompilerOptions);
 
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] FCustomizableObjectCompileRunnable Compile start."), FPlatformTime::Seconds());
 	Model = Compiler->Compile(MutableRoot);

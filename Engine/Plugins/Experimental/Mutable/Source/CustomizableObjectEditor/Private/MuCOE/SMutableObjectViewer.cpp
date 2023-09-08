@@ -139,7 +139,7 @@ void SMutableObjectViewer::Construct(const FArguments& InArgs, UCustomizableObje
 	ParentNewTabId = InParentNewTabId;
 
 	// Initialize the debugger compile options
-	CompileOptions.bTextureCompression = true;
+	CompileOptions.TextureCompression = ECustomizableObjectTextureCompression::Fast;
 	CompileOptions.OptimizationLevel = 3;
 	{
 		ITargetPlatformManagerModule* TPM = GetTargetPlatformManager();
@@ -340,19 +340,6 @@ TSharedRef<SWidget> SMutableObjectViewer::GenerateCompileOptionsMenuContent()
 
 		MenuBuilder.AddWidget(DebugPlatformCombo.ToSharedRef(), LOCTEXT("MutableDebugPlatform", "Target Platform"));
 
-		// Texture compresssion
-		MenuBuilder.AddMenuEntry(
-			LOCTEXT("Generate_MutableEnableTextureCompression", "Enable texture compression."),
-			LOCTEXT("Generate_MutableEnableTextureCompressionTooltip", "Enable or disable the compression of textures in the mutable code compilation."),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateLambda([this]() { CompileOptions.bTextureCompression = !CompileOptions.bTextureCompression; }),
-				FCanExecuteAction(),
-				FIsActionChecked::CreateLambda([this]() { return CompileOptions.bTextureCompression; })),
-			NAME_None,
-			EUserInterfaceActionType::ToggleButton
-		);
-
 		// Compilation options
 		//-----------------------------------
 
@@ -372,6 +359,23 @@ TSharedRef<SWidget> SMutableObjectViewer::GenerateCompileOptionsMenuContent()
 			.OnSelectionChanged(this, &SMutableObjectViewer::OnChangeCompileOptimizationLevel)
 			;
 		MenuBuilder.AddWidget(CompileOptimizationCombo.ToSharedRef(), LOCTEXT("MutableCompileOptimizationLevel", "Optimization Level"));
+
+		{
+			CompileTextureCompressionStrings.Empty();
+			CompileTextureCompressionStrings.Add(MakeShareable(new FString(LOCTEXT("MutableTextureCompressionNone", "None").ToString())));
+			CompileTextureCompressionStrings.Add(MakeShareable(new FString(LOCTEXT("MutableTextureCompressionFast", "Fast").ToString())));
+			CompileTextureCompressionStrings.Add(MakeShareable(new FString(LOCTEXT("MutableTextureCompressionHighQuality", "High Quality").ToString())));
+
+			int32 SelectedCompression = FMath::Clamp(int32(CompileOptions.TextureCompression), 0, CompileTextureCompressionStrings.Num() - 1);
+			CompileTextureCompressionCombo =
+				SNew(STextComboBox)
+				.OptionsSource(&CompileTextureCompressionStrings)
+				.InitiallySelectedItem(CompileTextureCompressionStrings[SelectedCompression])
+				.OnSelectionChanged(this, &SMutableObjectViewer::OnChangeCompileTextureCompressionType)
+				;
+
+			MenuBuilder.AddWidget(CompileTextureCompressionCombo.ToSharedRef(), LOCTEXT("MutableCompileTextureCompressionType", "Texture Compression"));
+		}
 
 		// Image tiling
 		// Unfortunately SNumericDropDown doesn't work with integers at the time of writing.
@@ -424,6 +428,12 @@ TSharedRef<SWidget> SMutableObjectViewer::GenerateCompileOptionsMenuContent()
 void SMutableObjectViewer::OnChangeCompileOptimizationLevel(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
 {
 	CompileOptions.OptimizationLevel = CompileOptimizationStrings.Find(NewSelection);
+}
+
+
+void SMutableObjectViewer::OnChangeCompileTextureCompressionType(TSharedPtr<FString> NewSelection, ESelectInfo::Type)
+{
+	CompileOptions.TextureCompression = ECustomizableObjectTextureCompression(CompileTextureCompressionStrings.Find(NewSelection));
 }
 
 

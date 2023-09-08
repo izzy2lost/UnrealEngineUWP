@@ -156,6 +156,17 @@ void UCustomizableObject::PostLoad()
 		ReferenceSkeletalMeshes.Add(ReferenceSkeletalMesh_DEPRECATED);
 		ReferenceSkeletalMesh_DEPRECATED = nullptr;
 	}
+
+	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+
+	// Convert texture compression option
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::TextureCompressionEnum)
+	{
+		CompileOptions.TextureCompression = CompileOptions.bTextureCompression_DEPRECATED
+			? ECustomizableObjectTextureCompression::Fast
+			: ECustomizableObjectTextureCompression::None
+			;
+	}
 #endif
 }
 
@@ -702,10 +713,9 @@ void UCustomizableObject::CompileForTargetPlatform(const ITargetPlatform* Target
 
 	if (bIsRootObject && bIsRelevantForThisTarget)
 	{
-
 		FCompilationOptions Options;
 		Options.OptimizationLevel = 3;	// max optimization when packaging.
-		Options.bTextureCompression = true;
+		Options.TextureCompression = ECustomizableObjectTextureCompression::HighQuality;
 		Options.bIsCooking = true;
 		Options.bSaveCookedDataToDisk = bUsesOnCookStart;
 		Options.TargetPlatform = TargetPlatform;

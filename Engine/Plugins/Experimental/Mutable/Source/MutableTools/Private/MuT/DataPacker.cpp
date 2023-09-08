@@ -26,6 +26,7 @@
 #include "MuT/ASTOpMeshDifference.h"
 #include "MuT/ASTOpMeshMorph.h"
 #include "MuT/ASTOpLayoutFromMesh.h"
+#include "MuT/CompilerPrivate.h"
 
 
 namespace mu
@@ -710,9 +711,11 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    void DataOptimiseAST( int imageCompressionQuality, ASTOpList& roots,
-                          const FModelOptimizationOptions& options )
+    void DataOptimise( const CompilerOptions* Options, ASTOpList& roots )
     {
+		int32 ImageCompressionQuality = Options->GetPrivate()->ImageCompressionQuality;
+		const FModelOptimizationOptions& OptimizeOptions = Options->GetPrivate()->OptimisationOptions;
+
         // Images
         AccumulateImageFormatsAST accFormat;
         accFormat.Run( roots );
@@ -725,7 +728,7 @@ namespace mu
 				ASTOpConstantResource* typed = dynamic_cast<ASTOpConstantResource*>(n.get());
                 Ptr<const Image> pOld = static_cast<const Image*>(typed->GetValue().get());
 
-				FImageOperator ImOp = FImageOperator::GetDefault();
+				FImageOperator ImOp = FImageOperator::GetDefault( Options->GetPrivate()->ImageFormatFunc );
 
 				// See if there is a better format for this image
 				FVector4f PlainColor;
@@ -754,26 +757,26 @@ namespace mu
 				}
 				else if ( accFormat.m_supportedFormats[typed][(size_t)EImageFormat::IF_L_UBIT_RLE] )
                 {
-                    ImagePtr pNew = ImOp.ImagePixelFormat( imageCompressionQuality, pOld.get(), EImageFormat::IF_L_UBIT_RLE );
+                    ImagePtr pNew = ImOp.ImagePixelFormat( ImageCompressionQuality, pOld.get(), EImageFormat::IF_L_UBIT_RLE );
 
                     // Only replace if the compression was worth!
                     size_t oldSize = pOld->GetDataSize();
                     size_t newSize = pNew->GetDataSize();
-                    if (float(oldSize) > float(newSize) * options.MinRLECompressionGain)
+                    if (float(oldSize) > float(newSize) * OptimizeOptions.MinRLECompressionGain)
                     {
-                        typed->SetValue(pNew, options.bUseDiskCache);
+                        typed->SetValue(pNew, OptimizeOptions.bUseDiskCache);
                     }
                 }
                 else if ( accFormat.m_supportedFormats[typed][(size_t)EImageFormat::IF_L_UBYTE_RLE] )
                 {
-                    ImagePtr pNew = ImOp.ImagePixelFormat( imageCompressionQuality, pOld.get(), EImageFormat::IF_L_UBYTE_RLE );
+                    ImagePtr pNew = ImOp.ImagePixelFormat( ImageCompressionQuality, pOld.get(), EImageFormat::IF_L_UBYTE_RLE );
 
                     // Only replace if the compression was worth!
                     size_t oldSize = pOld->GetDataSize();
                     size_t newSize = pNew->GetDataSize();
-                    if (float(oldSize) > float(newSize) * options.MinRLECompressionGain)
+                    if (float(oldSize) > float(newSize) * OptimizeOptions.MinRLECompressionGain)
                     {
-                        typed->SetValue(pNew, options.bUseDiskCache);
+                        typed->SetValue(pNew, OptimizeOptions.bUseDiskCache);
                     }
                 }
             }
@@ -792,7 +795,7 @@ namespace mu
 				ASTOpConstantResource* typed = dynamic_cast<ASTOpConstantResource*>(n.get());
                 Ptr<Mesh> pMesh = static_cast<const Mesh*>(typed->GetValue().get())->Clone();
                 MeshRemoveUnusedBufferSemantics( pMesh.get(), meshSemanticsVisitor.m_requiredSemantics[typed]);
-                typed->SetValue(pMesh, options.bUseDiskCache);
+                typed->SetValue(pMesh, OptimizeOptions.bUseDiskCache);
             }
         });
 

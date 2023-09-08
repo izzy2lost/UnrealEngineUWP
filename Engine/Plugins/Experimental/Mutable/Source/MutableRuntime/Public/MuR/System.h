@@ -80,8 +80,7 @@ namespace mu
 	};
 
 
-    //! \brief Interface to request external images used as parameters.
-    //! \ingroup runtime
+    /** Interface to request external images used as parameters. */
     class MUTABLERUNTIME_API ImageParameterGenerator : public Base
     {
     public:
@@ -133,9 +132,15 @@ namespace mu
 		/** Set the amount of generated resources keys that will be stored for resource reusal. */
 		void SetGeneratedCacheSize(uint32 InCount);
 
-        //! Set a new provider for external image data. This is only necessary if image parameters
-        //! are used in the models.
-        void SetImageParameterGenerator(const TSharedPtr<ImageParameterGenerator>& );
+        /** Set a new provider for external image data. This is only necessary if image parameters are used in the models. */
+        void SetImageParameterGenerator(const TSharedPtr<ImageParameterGenerator>&);
+
+		/** Set a function that will be used to convert image pixel formats instead of the internal conversion. 
+		* \warning The provided function can be called from any thread, and also concurrently.
+		* If this function fails (returns false in the first parameter) the internal function is attempted next.
+		* This is useful to provide higher-quality external compressors in editor or when cooking.
+		*/
+		void SetImagePixelConversionOverride(const FImageOperator::FImagePixelFormatFunc&);
 
         //! Create a new instance from the given model. The instance can then be configured through
         //! calls to BeginUpdate/EndUpdate.

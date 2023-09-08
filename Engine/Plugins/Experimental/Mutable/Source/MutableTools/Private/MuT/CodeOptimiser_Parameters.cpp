@@ -2187,8 +2187,7 @@ namespace mu
         {
             MUTABLE_CPUPROFILER_SCOPE(DataFormats);
 
-            DataOptimiseAST( m_options->GetPrivate()->ImageCompressionQuality, roots,
-                             m_options->GetPrivate()->OptimisationOptions );
+            DataOptimise( m_options.get(), roots);
 
             // After optimising the data formats, we may remove more constants
             DuplicatedDataRemoverAST( roots );

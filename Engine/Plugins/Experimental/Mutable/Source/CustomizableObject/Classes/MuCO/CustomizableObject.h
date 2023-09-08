@@ -152,6 +152,17 @@ enum class ECustomizableObjectNumBoneInfluences : uint8
 	Twelve = 12 // This is essentially the same as "Unlimited", but UE ultimately limits to 12
 };
 
+UENUM()
+enum class ECustomizableObjectTextureCompression : uint8
+{
+	// Don't use texture compression
+	None = 0,
+	// Use Mutable's fast low-quality compression
+	Fast,
+	// Use Unreal's highest quality compression (100x slower to compress)
+	HighQuality
+};
+
 USTRUCT()
 struct FCompilationOptions
 {
@@ -159,7 +170,11 @@ struct FCompilationOptions
 
 	// Flag to know if texture compression should be enabled
 	UPROPERTY()
-	bool bTextureCompression = true;
+	bool bTextureCompression_DEPRECATED = true;
+	
+	// Enum to know what texture compression should be used
+	UPROPERTY()
+	ECustomizableObjectTextureCompression TextureCompression = ECustomizableObjectTextureCompression::Fast;
 
 	// From 0 to 3
 	UPROPERTY()
