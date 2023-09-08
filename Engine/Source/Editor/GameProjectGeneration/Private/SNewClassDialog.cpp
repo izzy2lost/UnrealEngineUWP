@@ -318,6 +318,7 @@ void SNewClassDialog::Construct( const FArguments& InArgs )
 						[
 							SNew(STextBlock)
 							.Text( this, &SNewClassDialog::GetGlobalErrorLabelText )
+							.AutoWrapText(true)
 						]
 
 						+SHorizontalBox::Slot()
