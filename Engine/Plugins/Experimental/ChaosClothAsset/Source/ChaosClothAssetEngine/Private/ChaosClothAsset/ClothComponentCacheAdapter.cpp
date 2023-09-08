@@ -41,12 +41,19 @@ namespace UE::Chaos::ClothAsset
 
 	void FClothComponentCacheAdapter::Record_PostSolve(UPrimitiveComponent* InComponent, const FTransform& InRootTransform, FPendingFrameWrite& OutFrame, ::Chaos::FReal InTime) const
 	{
-		ensureMsgf(false, TEXT("Record not implemented."));
+		if (const ::Chaos::FClothingSimulationSolver* ClothSolver = GetClothSolver(InComponent))
+		{
+			::Chaos::FClothingCacheSchema::RecordPostSolve(*ClothSolver, OutFrame, InTime);
+		}
 	}
 
 	void FClothComponentCacheAdapter::Playback_PreSolve(UPrimitiveComponent* InComponent, UChaosCache* InCache, ::Chaos::FReal InTime, FPlaybackTickRecord& TickRecord, TArray<::Chaos::TPBDRigidParticleHandle<::Chaos::FReal, 3>*>& OutUpdatedRigids) const
 	{
-		ensureMsgf(false, TEXT("Playback not implemented."));
+		check(InCache);
+		if (::Chaos::FClothingSimulationSolver* ClothSolver = GetClothSolver(InComponent))
+		{
+			::Chaos::FClothingCacheSchema::PlaybackPreSolve(*InCache, InTime, TickRecord, *ClothSolver);
+		}
 	}
 
 	FGuid FClothComponentCacheAdapter::GetGuid() const
@@ -64,7 +71,11 @@ namespace UE::Chaos::ClothAsset
 
 	::Chaos::FPhysicsSolverEvents* FClothComponentCacheAdapter::BuildEventsSolver(UPrimitiveComponent* InComponent) const
 	{
-		ensureMsgf(false, TEXT("Playback or record not implemented."));
+		if (UChaosClothComponent* ClothComp = GetClothComponent(InComponent))
+		{
+			ClothComp->RecreateClothSimulationProxy();
+			return ClothComp->ClothSimulationProxy->Solver.Get();
+		}
 		return nullptr;
 	}
 	
@@ -80,29 +91,50 @@ namespace UE::Chaos::ClothAsset
 			return;
 		}
 
-		if (UChaosClothComponent* ClothComp = GetClothComponent(InComponent))
+		if (UChaosClothComponent* const ClothComponent = GetClothComponent(InComponent))
 		{
-			FClothingSimulationCacheData CacheData;
-			::Chaos::FClothingCacheSchema::LoadCacheData(InCache, InTime, CacheData);
+			if (FClothSimulationProxy* const Proxy = ClothComponent->ClothSimulationProxy.Get())
+			{
+				FClothingSimulationCacheData CacheData;
+				::Chaos::FClothingCacheSchema::LoadCacheData(InCache, InTime, CacheData);
 
-			FClothSimulationProxy* Proxy = ClothComp->ClothSimulationProxy.Get();
-
-			Proxy->Tick_GameThread(0, &CacheData);
-			Proxy->CompleteParallelSimulation_GameThread();
-			ClothComp->MarkRenderDynamicDataDirty();
-			ClothComp->DoDeferredRenderUpdates_Concurrent();
+				Proxy->CacheData = MakeUnique<FClothingSimulationCacheData>(MoveTemp(CacheData));
+				Proxy->SolverMode = FClothSimulationProxy::ESolverMode::Default;
+#if WITH_EDITOR
+				ClothComponent->SetTickOnceInEditor();
+#endif
+			}
 		}
 	}
 
 	bool FClothComponentCacheAdapter::InitializeForRecord(UPrimitiveComponent* InComponent, UChaosCache* InCache)
 	{
+		if (FClothSimulationProxy* const Proxy = GetProxy(InComponent))
+		{
+			Proxy->SolverMode = FClothSimulationProxy::ESolverMode::EnableSolverForSimulateRecord;
+		}
 		return true;
 	}
 
 	bool FClothComponentCacheAdapter::InitializeForPlayback(UPrimitiveComponent* InComponent, UChaosCache* InCache, float InTime)
 	{
 		::Chaos::EnsureIsInGameThreadContext();
+
+		if (FClothSimulationProxy* const Proxy = GetProxy(InComponent))
+		{
+			Proxy->SolverMode = FClothSimulationProxy::ESolverMode::DisableSolverForPlayback;
+		}
 		return true;
+	}
+
+	void FClothComponentCacheAdapter::WaitForSolverTasks(UPrimitiveComponent* InComponent) const
+	{
+		::Chaos::EnsureIsInGameThreadContext();
+
+		if (UChaosClothComponent* const ClothComponent = GetClothComponent(InComponent))
+		{
+			ClothComponent->WaitForExistingParallelClothSimulation_GameThread();
+		}
 	}
 
 	UChaosClothComponent* FClothComponentCacheAdapter::GetClothComponent(UPrimitiveComponent* InComponent) const
@@ -127,6 +159,24 @@ namespace UE::Chaos::ClothAsset
 					return Cast<UChaosClothComponent>(ClothComps[0]);
 				}
 			}
+		}
+		return nullptr;
+	}
+
+	FClothSimulationProxy* FClothComponentCacheAdapter::GetProxy(UPrimitiveComponent* InComponent) const
+	{
+		if (UChaosClothComponent* const ClothComponent = GetClothComponent(InComponent))
+		{
+			return ClothComponent->ClothSimulationProxy.Get();
+		}
+		return nullptr;
+	}
+
+	::Chaos::FClothingSimulationSolver* FClothComponentCacheAdapter::GetClothSolver(UPrimitiveComponent* InComponent) const
+	{
+		if (FClothSimulationProxy* const Proxy = GetProxy(InComponent))
+		{
+			return Proxy->Solver.Get();
 		}
 		return nullptr;
 	}

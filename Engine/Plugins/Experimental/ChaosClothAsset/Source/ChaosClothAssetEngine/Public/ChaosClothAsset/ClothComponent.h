@@ -107,6 +107,14 @@ public:
 	void UpdateConfigProperties();
 #endif
 
+	/** Stalls on any currently running clothing simulations.*/
+	void WaitForExistingParallelClothSimulation_GameThread();
+
+#if WITH_EDITOR
+	/** This will cause the component to tick once in editor. Both flags will be consumed on that tick */
+	void SetTickOnceInEditor() { bTickOnceInEditor = true; bTickInEditor = true; }
+#endif
+
 protected:
 	//~ Begin UObject Interface
 	virtual void PostLoad() override;
@@ -185,6 +193,10 @@ private:
 	/** Blend amount between the skinned (=0) and the simulated pose (=1). */
 	UPROPERTY()
 	float BlendWeight = 1.f;
+
+#if WITH_EDITOR
+	bool bTickOnceInEditor = false;
+#endif
 
 	TArray<TSharedPtr<FManagedArrayCollection>> PropertyCollections;
 	TArray<TUniquePtr<::Chaos::Softs::FCollectionPropertyFacade>> CollectionPropertyFacades;

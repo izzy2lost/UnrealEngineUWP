@@ -118,6 +118,13 @@ void UChaosClothComponent::UpdateConfigProperties()
 }
 #endif
 
+void UChaosClothComponent::WaitForExistingParallelClothSimulation_GameThread()
+{
+	// Should only kick new parallel cloth simulations from game thread, so should be safe to also wait for existing ones there.
+	check(IsInGameThread());
+	HandleExistingParallelSimulation();
+}
+
 void UChaosClothComponent::RecreateClothSimulationProxy()
 {
 	if (IsRegistered())
@@ -233,6 +240,15 @@ void UChaosClothComponent::TickComponent(float DeltaTime, enum ELevelTick TickTy
 	{
 		HandleExistingParallelSimulation();
 	}
+
+#if WITH_EDITOR
+	if (TickType == LEVELTICK_ViewportsOnly && bTickOnceInEditor)
+	{
+		// Only tick once in editor when requested. This is used to update from caches by the Chaos Cache Manager.
+		bTickInEditor = false;
+		bTickOnceInEditor = false;
+	}
+#endif
 }
 
 bool UChaosClothComponent::RequiresPreEndOfFrameSync() const

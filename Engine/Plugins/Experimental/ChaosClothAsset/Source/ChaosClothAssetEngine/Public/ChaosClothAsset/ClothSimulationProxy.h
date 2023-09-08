@@ -45,7 +45,7 @@ namespace UE::Chaos::ClothAsset
 		FClothSimulationProxy& operator=(FClothSimulationProxy&&) = delete;
 
 		/** Start the simulation if it isn't paused or suspended and return true, or simply update the existing simulation data and return false otherwise. */
-		bool Tick_GameThread(float DeltaTime, FClothingSimulationCacheData* CacheData = nullptr);
+		bool Tick_GameThread(float DeltaTime);
 
 		/** Wait for the parallel task to complete if one was running, and update the simulation data. */
 		void CompleteParallelSimulation_GameThread();
@@ -73,9 +73,11 @@ namespace UE::Chaos::ClothAsset
 		void Tick();
 		void WriteSimulationData();
 		void InitializeConfigs();
-		void FillSimulationContext(float DeltaTime, bool bIsInitialization = false, FClothingSimulationCacheData* CacheData = nullptr);
+		void FillSimulationContext(float DeltaTime, bool bIsInitialization = false);
 
 	private:
+		bool ShouldEnableSolver(bool bSolverCurrentlyEnabled) const;
+
 		// Internal physics thread object
 		friend class FClothSimulationProxyParallelTask;
 
@@ -103,6 +105,19 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TArray<TUniquePtr<::Chaos::FClothingSimulationConfig>> Configs;
 		TArray<TUniquePtr<::Chaos::FClothingSimulationCollider>> Colliders;
 		TUniquePtr<::Chaos::FClothVisualization> Visualization;
+
+		// Chaos Cache needs to have access to the solver.
+		friend class FClothComponentCacheAdapter;
+
+		// Additional data used by the cache adapter
+		enum struct ESolverMode : uint8
+		{
+			Default = 0, // Default behavior. Enable solver if no cache data available.
+			EnableSolverForSimulateRecord = 1, // Normal simulation. Also used when Recording.
+			DisableSolverForPlayback = 2, // Solver is disabled. Used when live playing back cache.
+		};
+		TUniquePtr<FClothingSimulationCacheData> CacheData;
+		ESolverMode SolverMode = ESolverMode::Default;
 
 		// Properties that must be readable from all threads
 		std::atomic<int32> NumCloths;

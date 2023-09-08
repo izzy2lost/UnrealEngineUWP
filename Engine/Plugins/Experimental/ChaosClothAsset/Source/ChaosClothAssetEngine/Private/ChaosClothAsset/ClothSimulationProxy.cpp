@@ -167,19 +167,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		CompleteParallelSimulation_GameThread();
 	}
 
-	bool FClothSimulationProxy::Tick_GameThread(float DeltaTime, FClothingSimulationCacheData* CacheData)
+	bool FClothSimulationProxy::Tick_GameThread(float DeltaTime)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_ClothSimulationProxy_TickGame);
 
 		// Fill a new context, note the context is also needed when the simulation is suspended
-		ClothSimulationContext->Fill(ClothComponent, DeltaTime, MaxDeltaTime, false, CacheData);
+		constexpr bool bIsInitializationFalse = false;
+		FillSimulationContext(DeltaTime, bIsInitializationFalse);
+		Solver->SetEnableSolver(ShouldEnableSolver(Solver->GetEnableSolver()));
 
-		const bool bUseCache = ClothSimulationContext->CacheData.CacheIndices.Num() > 0;
-		if (bUseCache)
-		{
-			Solver->SetEnableSolver(false);
-		}
-
+		const bool bUseCache = ClothSimulationContext->CacheData.HasData();
 		const bool bCreateParallelTask = (DeltaTime > 0.f && !ClothComponent.IsSimulationSuspended()) || bUseCache;
 		if (bCreateParallelTask)
 		{
@@ -461,8 +458,27 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		Solver->SetSolverLOD(ClothSimulationContext->LodIndex);
 	}
 
-	void FClothSimulationProxy::FillSimulationContext(float DeltaTime, bool bIsInitialization, FClothingSimulationCacheData* CacheData)
+	void FClothSimulationProxy::FillSimulationContext(float DeltaTime, bool bIsInitialization)
 	{
-		ClothSimulationContext->Fill(ClothComponent, DeltaTime, MaxDeltaTime, bIsInitialization, CacheData);
+		ClothSimulationContext->Fill(ClothComponent, DeltaTime, MaxDeltaTime, bIsInitialization, CacheData.Get());
+		CacheData.Reset();
+	}
+
+	bool FClothSimulationProxy::ShouldEnableSolver(bool bSolverCurrentlyEnabled) const
+	{
+		switch (SolverMode)
+		{
+		case ESolverMode::EnableSolverForSimulateRecord:
+			return true;
+		case ESolverMode::DisableSolverForPlayback:
+			return false;
+		case ESolverMode::Default:
+		default:
+			if (ClothSimulationContext->CacheData.HasData())
+			{
+				return false;
+			}
+		}
+		return bSolverCurrentlyEnabled;
 	}
 }

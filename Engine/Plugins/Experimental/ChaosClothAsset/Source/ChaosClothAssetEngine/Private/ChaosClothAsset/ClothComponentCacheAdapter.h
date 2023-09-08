@@ -12,6 +12,8 @@ namespace Chaos
 
 namespace UE::Chaos::ClothAsset
 {	
+	class FClothSimulationProxy;
+
 	/**
 	 * Skeletal mesh cache adapter to be able to cache cloth simulation datas through the chaos cache system
 	 */
@@ -38,11 +40,15 @@ namespace UE::Chaos::ClothAsset
 										 ::Chaos::FReal										InTime,
 										 FPlaybackTickRecord&								TickRecord,
 										 TArray<::Chaos::TPBDRigidParticleHandle<::Chaos::FReal, 3>*>& OutUpdatedRigids) const override;
+		virtual void                   WaitForSolverTasks(UPrimitiveComponent* InComponent) const override;
 		// ~End FComponentCacheAdapter interface
 
 	private :
 		/** Return the cloth component.
 		 */
 		UChaosClothComponent* GetClothComponent(UPrimitiveComponent* InComponent) const;
+
+		FClothSimulationProxy* GetProxy(UPrimitiveComponent* InComponent) const;
+		::Chaos::FClothingSimulationSolver* GetClothSolver(UPrimitiveComponent* InComponent) const;
 	};
 }    // namespace Chaos
