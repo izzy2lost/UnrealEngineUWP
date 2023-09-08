@@ -275,7 +275,7 @@ float3 SubstrateForwardLighting(
 					#if FORWARD_SHADING && (MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED)
 						float2 NearestResolvedDepthScreenUV = CalculateNearestResolvedDepthScreenUV(ScreenUV, MaterialParameters.ScreenPosition.w);
 
-						IndirectOcclusion = GetIndirectOcclusion(NearestResolvedDepthScreenUV, HasDynamicIndirectShadowCasterRepresentation(SubstratePixelHeader));
+						IndirectOcclusion = GetIndirectOcclusion(NearestResolvedDepthScreenUV, SubstratePixelHeader.HasDynamicIndirectShadowCasterRepresentation());
 						DiffuseIndirectLighting *= IndirectOcclusion;
 						SubsurfaceIndirectLighting *= IndirectOcclusion;
 						IndirectIrradiance *= IndirectOcclusion;
