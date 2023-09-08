@@ -46,11 +46,5 @@ public class TakeRecorder : ModuleRules
                 "Sequencer",
             }
         );
-
-		PrivateIncludePaths.AddRange(
-			new string[] {
-                "TakeRecorderSources/Private",
-            }
-        );
     }
 }
