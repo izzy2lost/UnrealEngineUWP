@@ -1780,3 +1780,12 @@ void SDetailsViewBase::UnregisterInstancedCustomPropertyTypeLayout(FName Propert
 		LayoutCallbacks->Remove(Identifier);
 	}
 }
+
+TSharedPtr<FDetailsDisplayManager> SDetailsViewBase::GetDisplayManager()
+{
+	if (!DisplayManager.IsValid())
+	{
+		DisplayManager = MakeShared<FDetailsDisplayManager>();
+	}
+	return DisplayManager;
+}

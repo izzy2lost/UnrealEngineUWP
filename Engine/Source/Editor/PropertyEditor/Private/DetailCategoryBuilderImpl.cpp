@@ -818,13 +818,37 @@ TSharedRef<ITableRow> FDetailCategoryImpl::GenerateWidgetForTableView(const TSha
 		HeaderContent = Row.ValueWidget.Widget;
 	}
 
+	InitializeObjectName();
 	TSharedPtr<FDetailLayoutBuilderImpl> ParentLayout = GetParentLayoutImpl();
 
 	return SNew(SDetailCategoryTableRow, AsShared(), OwnerTable)
 		.PasteFromText(OnPasteFromText())
+		.ObjectName( ObjectName )
 		.InnerCategory(ParentLayout.IsValid() ? ParentLayout->IsLayoutForExternalRoot() : false)
 		.DisplayName(GetDisplayName())
 		.HeaderContent(HeaderContent);
+}
+
+void FDetailCategoryImpl::InitializeObjectName()
+{
+	if (!DetailLayoutBuilder.IsValid())
+	{
+		return;
+	}
+	
+	const TSharedPtr<FComplexPropertyNode> Node = DetailLayoutBuilder.Pin()->GetRootNode();
+	
+	if (Node.IsValid())
+	{
+		if (const FObjectPropertyNode* Object = Node->AsObjectNode())
+		{
+			if (const UObject* CategoryObject = Object->GetUObject(0))
+			{
+				const FName Name{CategoryObject->GetName()};
+				ObjectName = Name;
+			}
+		}
+	}	
 }
 
 bool FDetailCategoryImpl::GenerateStandaloneWidget(FDetailWidgetRow& OutRow) const

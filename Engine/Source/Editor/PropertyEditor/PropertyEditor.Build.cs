@@ -45,6 +45,7 @@ public class PropertyEditor : ModuleRules
 				"DesktopPlatform",
 				"PropertyPath",
 				"ToolWidgets",
+				"WidgetRegistration",
 				"Json"
 			}
         );

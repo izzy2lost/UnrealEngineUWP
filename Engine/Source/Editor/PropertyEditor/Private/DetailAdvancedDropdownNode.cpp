@@ -108,7 +108,7 @@ public:
 		[
 			SNew(SBorder)
 			.BorderImage(FAppStyle::Get().GetBrush("DetailsView.GridLine"))
-			.Padding(ViewStyle.GetRowPadding())
+			.Padding( 0, 0, 0, 1 )
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
@@ -121,16 +121,6 @@ public:
 					[
 						ContentWidget.ToSharedRef()
 					]
-				]
-				+ SHorizontalBox::Slot()
-				.HAlign(HAlign_Right)
-				.VAlign(VAlign_Fill)
-				.AutoWidth()
-				[
-					SNew(SBorder)
-					.BorderImage_Lambda(GetScrollbarWellBrush)
-					.BorderBackgroundColor_Lambda(GetScrollbarWellTint)
-					.Padding(FMargin(0, 0, SDetailTableRowBase::ScrollBarPadding, 0))
 				]
 			]
 		];

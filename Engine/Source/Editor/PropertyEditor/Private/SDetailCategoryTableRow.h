@@ -18,12 +18,14 @@ public:
 	SLATE_BEGIN_ARGS(SDetailCategoryTableRow)
 		: _InnerCategory(false)
 		, _ShowBorder(true)
+		, _ObjectName(NAME_Name)
 	{}
 		SLATE_ARGUMENT(FText, DisplayName)
 		SLATE_ARGUMENT(bool, InnerCategory)
 		SLATE_ARGUMENT(TSharedPtr<SWidget>, HeaderContent)
 		SLATE_ARGUMENT(bool, ShowBorder)
 		SLATE_ARGUMENT(TSharedPtr<FOnPasteFromText>, PasteFromText)
+		SLATE_ARGUMENT(FName, ObjectName)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, TSharedRef<FDetailTreeNode> InOwnerTreeNode, const TSharedRef<STableViewBase>& InOwnerTableView);
@@ -58,10 +60,16 @@ private:
 	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
 
+	/** Initializes the @code TSharedPtr<FDetailsDisplayManager> DisplayManager @endcode for this category */
+	void InitializeDisplayManager();
+
 private:
 	/** Cached category name. */
 	FText DisplayName;
 
+	/** The name of the object that is specified by this category */
+	FName ObjectName;
+	
 	/** Previously parsed clipboard data. */
 	UE::PropertyEditor::Internal::FClipboardData PreviousClipboardData;
 

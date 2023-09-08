@@ -181,6 +181,12 @@ public:
 	/** Restore all expanded items in root nodes and external root nodes. */
 	void RestoreAllExpandedItems();
 
+	/**
+	 * Returns a @code TSharedPtr @endcode to the @code FDetailsDisplayManager @endcode for this
+	 * details view
+	 */
+	virtual TSharedPtr<FDetailsDisplayManager> GetDisplayManager() override;
+
 	// SWidget interface
 	virtual bool SupportsKeyboardFocus() const override;
 	virtual FReply OnFocusReceived(const FGeometry& MyGeometry, const FFocusEvent& InFocusEvent) override;
@@ -471,6 +477,12 @@ protected:
 	TWeakPtr<FDetailTreeNode> CurrentlyHighlightedNode;
 	/** The list of nodes whose widgets should be animating. */
 	TArray<FAnimatingNodeCollection> CurrentlyAnimatingNodeCollections;
+
+	/**
+	 * The @code DetailsDisplayManager @endcode which provides an API to manage some of the characteristics of the
+	 * details display
+	 */
+	TSharedPtr<FDetailsDisplayManager> DisplayManager;
 
 	/** Current set of expanded detail nodes (by path) that should be saved when the details panel closes */
 	FStringPrefixTree ExpandedDetailNodes;

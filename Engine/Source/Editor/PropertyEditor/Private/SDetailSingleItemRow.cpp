@@ -674,13 +674,12 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 	};
 
 	static const FDetailsViewStyleKey& PrimaryKey = SDetailsView::GetPrimaryDetailsViewStyleKey();
-	FDetailsViewStyle ViewStyle = DetailsView ? DetailsView->GetStyleKey() : PrimaryKey;
 	
 	this->ChildSlot
 	[
 		SNew( SBorder )
 		.BorderImage(FAppStyle::Get().GetBrush("DetailsView.GridLine"))
-		.Padding(ViewStyle.GetRowPadding())
+		.Padding(FMargin(0,0,0,1))
 		.Clipping(EWidgetClipping::ClipToBounds)
 		[
 			SNew(SBox)
@@ -703,16 +702,6 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 							Widget
 						]
 					]
-				]
-				+ SHorizontalBox::Slot()
-				.HAlign(HAlign_Right)
-				.VAlign(VAlign_Fill)
-				.AutoWidth()
-				[
-					SNew( SBorder )
-					.BorderImage_Lambda(GetScrollbarWellBrush)
-					.BorderBackgroundColor_Lambda(GetScrollbarWellTint)
-					.Padding(FMargin(0, 0, SDetailTableRowBase::ScrollBarPadding, 0))
 				]
 			]
 		]

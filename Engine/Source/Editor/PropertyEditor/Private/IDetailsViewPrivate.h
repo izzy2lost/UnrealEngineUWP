@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AssetThumbnail.h"
+#include "DetailsDisplayManager.h"
 #include "DetailTreeNode.h"
 #include "IDetailsView.h"
 #include "PropertyNode.h"
@@ -199,4 +200,11 @@ public:
 	{
 		return true;
 	}
+
+	/**
+	 * Returns a @code TSharedPtr @endcode to the @code FDetailsDisplayManager @endcode for this
+	 * details view
+	 */
+	virtual TSharedPtr<FDetailsDisplayManager> GetDisplayManager() = 0;
+
 };

@@ -15,7 +15,10 @@
 #include "SDetailsView.h"
 #include "Serialization/JsonSerializer.h"
 #include "Styling/StyleColors.h"
+#include "UserInterface/Categories/CategoryMenuComboButtonBuilder.h"
 #include "UserInterface/PropertyEditor/PropertyEditorConstants.h"
+#include "Widgets/Input/SComboButton.h"
+#include "Widgets/Layout/SSeparator.h"
 
 void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDetailTreeNode> InOwnerTreeNode, const TSharedRef<STableViewBase>& InOwnerTableView)
 {
@@ -27,9 +30,12 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 
 	IDetailsViewPrivate* DetailsView = InOwnerTreeNode->GetDetailsView();
 	FDetailColumnSizeData& ColumnSizeData = DetailsView->GetColumnSizeData();
-	
-	PulseAnimation.AddCurve(0.0f, UE::PropertyEditor::Private::PulseAnimationLength, ECurveEaseFunction::CubicInOut);
+	ObjectName = InArgs._ObjectName;
+	DisplayManager = DetailsView->GetDisplayManager();
 
+	InitializeDisplayManager();
+
+	PulseAnimation.AddCurve(0.0f, UE::PropertyEditor::Private::PulseAnimationLength, ECurveEaseFunction::CubicInOut);
 	CopyAction.ExecuteAction = FExecuteAction::CreateSP(this, &SDetailCategoryTableRow::OnCopyCategory);
 	CopyAction.CanExecuteAction = FCanExecuteAction::CreateSP(this, &SDetailCategoryTableRow::CanCopyCategory);
 
@@ -83,26 +89,31 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 	auto GetScrollbarWellTint = [this]()
 	{
 		return SDetailTableRowBase::IsScrollBarVisible(OwnerTableViewWeak) ?
-			FSlateColor(EStyleColor::White) :
+			FSlateColor(EStyleColor::Header) :
 			this->GetInnerBackgroundColor();
 	};
-
-	FDetailsViewStyle ViewStyle = DetailsView->GetStyleKey();
-	ViewStyle.SetIsOuterCategory(!bIsInnerCategory);
 
 	this->ChildSlot
 	[
 		SNew(SBorder)
 		.BorderImage(FAppStyle::Get().GetBrush("DetailsView.GridLine"))
-		.Padding(ViewStyle.GetRowPadding())
+		.Padding_Lambda([this]
+		{
+			if (!DisplayManager.IsValid())
+			{
+				return FMargin{0};
+			}
+			DisplayManager->SetIsOuterCategory(!bIsInnerCategory);
+			return DisplayManager->GetRowPadding();
+		})
 		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
+			SNew(SOverlay)
+			+ SOverlay::Slot()
 			[
 				SNew(SBorder)
 				.BorderImage(this, &SDetailCategoryTableRow::GetBackgroundImage)
 				.BorderBackgroundColor(this, &SDetailCategoryTableRow::GetInnerBackgroundColor)
-				.Padding(0)
+					.Padding(0)
 				[
 					SNew(SBox)
 					.MinDesiredHeight(PropertyEditorConstants::PropertyRowHeight)
@@ -111,15 +122,37 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 					]
 				]
 			]
-			+ SHorizontalBox::Slot()
+			 + SOverlay::Slot()
 			.HAlign(HAlign_Right)
-			.AutoWidth()
 			[
-				SNew(SBorder)
-				.BorderImage(this, &SDetailCategoryTableRow::GetBackgroundImageForScrollBarWell)
-				.BorderBackgroundColor_Lambda(GetScrollbarWellTint)
-				.Padding(FMargin(0, 0, SDetailTableRowBase::ScrollBarPadding, 0))
+			SNew(SBorder)
+			 .BorderImage(this, &SDetailCategoryTableRow::GetBackgroundImageForScrollBarWell)
+			.Visibility(EVisibility::Visible)
+			.Padding_Lambda([this]
+			{
+				if (!DisplayManager.IsValid())
+				{
+					return FMargin{0};
+				}
+				DisplayManager->SetIsOuterCategory(!bIsInnerCategory);
+				DisplayManager->SetIsScrollbarShowing(IsScrollBarVisible(OwnerTableViewWeak));
+				return DisplayManager->GetCategoryButtonsPadding();
+			})
+			[
+			DisplayManager.IsValid() ?
+				*FCategoryMenuComboButtonBuilder( DisplayManager.ToSharedRef() )
+					.Set_OnGetContent(FOnGetContent::CreateLambda([this]
+					{
+						const TSharedPtr<SWidget> Menu = DisplayManager->GetCategoryMenu(ObjectName);
+						return Menu.IsValid() ? Menu.ToSharedRef() : SNullWidget::NullWidget;
+					}))
+					.Bind_IsVisible(TAttribute<EVisibility>::CreateLambda([this]
+					{
+						return IsHovered() ? EVisibility::Visible : EVisibility::Collapsed;
+					})) :
+					SNullWidget::NullWidget
 			]
+			] 
 		]
 	];
 
@@ -225,6 +258,8 @@ const FSlateBrush* SDetailCategoryTableRow::GetBackgroundImage() const
 		FDetailsViewStyle ViewStyle = View ? View->GetStyleKey() : PrimaryKey;
 		const bool bIsCategoryExpanded = IsItemExpanded();
 		const bool bIsScrollBarVisible = IsScrollBarVisible(OwnerTableViewWeak);
+		DisplayManager->SetIsScrollbarShowing(bIsScrollBarVisible);
+		ViewStyle.SetIsOuterCategory(!bIsInnerCategory);
 		
 		return ViewStyle.GetBackgroundImageForCategoryRow(bShowBorder, bIsInnerCategory, bIsCategoryExpanded, bIsScrollBarVisible);
 	}
@@ -240,13 +275,15 @@ const FSlateBrush* SDetailCategoryTableRow::GetBackgroundImageForScrollBarWell()
 		const FDetailsViewStyle ViewStyle = View ? View->GetStyleKey() : PrimaryKey;
 		const bool bIsCategoryExpanded = IsItemExpanded();
 		const bool bIsScrollBarVisible = IsScrollBarVisible(OwnerTableViewWeak);
+		DisplayManager->SetIsScrollbarShowing(bIsScrollBarVisible);
+		DisplayManager->SetIsOuterCategory(!bIsInnerCategory);
 
 		return ViewStyle.GetBackgroundImageForScrollBarWell(bShowBorder, bIsInnerCategory, bIsCategoryExpanded, bIsScrollBarVisible);
 	}
 	return nullptr;
 }
 
-FSlateColor SDetailCategoryTableRow::GetInnerBackgroundColor() const
+FSlateColor SDetailCategoryTableRow::	GetInnerBackgroundColor() const
 {
 	FSlateColor Color = FSlateColor(FLinearColor::White);
 	
@@ -474,4 +511,13 @@ FReply SDetailCategoryTableRow::OnMouseButtonDown(const FGeometry& MyGeometry, c
 FReply SDetailCategoryTableRow::OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
 {
 	return OnMouseButtonDown(InMyGeometry, InMouseEvent);
+}
+
+void SDetailCategoryTableRow::InitializeDisplayManager()
+{
+	if (DisplayManager.IsValid())
+	{
+		DisplayManager->SetCategoryObjectName( ObjectName );
+		DisplayManager->SetIsOuterCategory( !bIsInnerCategory );
+	}
 }

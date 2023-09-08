@@ -45,6 +45,11 @@
 
 #define LOCTEXT_NAMESPACE "SActorDetails"
 
+static TAutoConsoleVariable<bool> CVarForceShowComponentEditor(
+	TEXT("CoreEntity.UI.ForceShowComponentEditor"),
+	false,
+	TEXT("Force the component editor to show in the main details tab."));
+
 namespace UE::LevelEditor::Private
 {
 	class SElementSelectionDetailsButtons : public SCompoundWidget
@@ -617,9 +622,13 @@ FString SActorDetails::GetReferencerName() const
 	return TEXT("SActorDetails");
 }
 
-void SActorDetails::SetActorDetailsRootCustomization(TSharedPtr<FDetailsViewObjectFilter> InActorDetailsObjectFilter, TSharedPtr<IDetailRootObjectCustomization> ActorDetailsRootCustomization)
+	void SActorDetails::SetActorDetailsRootCustomization(TSharedPtr<FDetailsViewObjectFilter> InActorDetailsObjectFilter, TSharedPtr<IDetailRootObjectCustomization> ActorDetailsRootCustomization)
 {
-	ActorDetailsObjectFilter = InActorDetailsObjectFilter.ToWeakPtr();
+	if (InActorDetailsObjectFilter.IsValid())
+	{
+		DisplayManager = InActorDetailsObjectFilter->GetDisplayManager();
+	}
+	
 	DetailsView->SetObjectFilter(InActorDetailsObjectFilter);
 	DetailsView->SetRootObjectCustomizationInstance(ActorDetailsRootCustomization);
 	DetailsView->ForceRefresh();
@@ -881,12 +890,10 @@ void SActorDetails::OnNativeComponentWarningHyperlinkClicked(const FSlateHyperli
 
 EVisibility SActorDetails::GetComponentEditorVisibility() const
 {
-	IConsoleVariable* ForceShow = IConsoleManager::Get().FindConsoleVariable(TEXT("CoreEntity.UI.ForceShowComponentEditor"));
-
 	// force hide it if the style is not default and the ForceShowComponentEditor CVar is not set to true
-	const bool bHideEditorFromDetailsView = (ActorDetailsObjectFilter.IsValid() &&
-							                 ActorDetailsObjectFilter.Pin()->ShouldHideComponentEditor()) &&
-		                    (!ForceShow || !ForceShow->GetBool());
+	const bool bHideEditorFromDetailsView = (DisplayManager.IsValid() &&
+							                 DisplayManager->ShouldHideComponentEditor()) &&
+											(!CVarForceShowComponentEditor.GetValueOnAnyThread());
 	return GetActorContext() && !bHideEditorFromDetailsView  ? EVisibility::Visible : EVisibility::Collapsed;
 }
 

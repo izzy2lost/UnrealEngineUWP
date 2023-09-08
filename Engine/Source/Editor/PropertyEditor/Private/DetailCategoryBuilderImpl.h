@@ -399,6 +399,9 @@ private:
 	 */
 	void RefreshTreeInternal(bool bRefilterCategory);
 
+	/** Initialize the name of the Category  */
+	void InitializeObjectName();
+
 private:
 	/** Layouts that appear in this category category */
 	FDetailLayoutMap LayoutMap;
@@ -423,6 +426,8 @@ private:
 	/** Delegate handling pasting an optionally tagged text snippet */
 	TSharedPtr<FOnPasteFromText> PasteFromTextDelegate;
 
+	/** The name of the object that this category is being defined by */
+	FName ObjectName;
 	/** The category identifier */
 	FName CategoryName;
 	/** The sort order of this category (amongst all categories) */

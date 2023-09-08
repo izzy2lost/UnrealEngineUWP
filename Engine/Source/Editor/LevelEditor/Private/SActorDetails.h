@@ -25,6 +25,7 @@ class SSubobjectEditor;
 class ISCSEditorUICustomization;
 class FSubobjectEditorTreeNode;
 struct FPropertyChangedEvent;
+class FDetailsDisplayManager;
 
 namespace UE::LevelEditor::Private
 {
@@ -143,6 +144,7 @@ private:
 	// Used to prevent reentrant changes
 	bool bSelectionGuard = false;
 
-	/** The object filter which contains relevant information about the details objects being displayed */
-	TWeakPtr<FDetailsViewObjectFilter> ActorDetailsObjectFilter;
+	/** A @code TSharedPtr @endcode to the @code FDetailsDisplayManager @endcode to manage various aspects of the
+	 *details view */
+	TSharedPtr<FDetailsDisplayManager> DisplayManager;
 };

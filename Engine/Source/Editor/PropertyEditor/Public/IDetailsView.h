@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "DetailsDisplayManager.h"
 #include "Widgets/SCompoundWidget.h"
 #include "PropertyEditorDelegates.h"
 #include "Framework/Commands/UICommandList.h"
@@ -311,4 +312,5 @@ public:
    	* Returns a bool indicating whether the given @code FDetailsViewStyleKey @endcode is the default Details View Style 
    	*/
    	virtual bool IsDefaultStyle() const = 0;
+
 };

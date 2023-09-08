@@ -130,8 +130,8 @@ public:
 	/**
 	* Returns a bool indicating whether the given @code FDetailsViewStyleKey @endcode is the default Details View Style 
 	*/
-	bool IsDefaultStyle() const;
-	
+	virtual bool IsDefaultStyle() const override;
+
 private:
 
 	void SetObjectArrayPrivate(const TArray<UObject*>& InObjects);
@@ -221,7 +221,19 @@ private:
 	*/
 	virtual const FDetailsViewStyleKey& GetStyleKey() override;
 
+	/**
+	 * Returns a @code TSharedPtr @endcode to the @code FDetailsDisplayManager @endcode
+	 */
+	virtual TSharedPtr<FDetailsDisplayManager> GetDisplayManager() override;
+
 private:
+
+	/**
+	 * Refreshes the class member @code TSharedPtr<FDetailsDisplayManager> DisplayManager @endcode. This is required
+	 * anytime the data in the display manager may have grown stale.
+	 */
+	void RefreshDisplayManager();
+
 	/**
 	* The @code FDetailsViewStyle& @endcode shared pointer which provides style
 	* information for this details view.

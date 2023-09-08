@@ -57,6 +57,13 @@ public:
 	void SetIsOuterCategory(bool bIsOuterCategory);
 
 	/**
+	* Sets a bool indicating whether or not the Scrollbar is showing on the details view
+	*
+	* @param bInIsScrollbarShowing a bool indicating whether or not the Scrollbar is showing on the details view
+	*/
+	void SetIsScrollbarShowing(bool bInIsScrollbarShowing);
+	
+	/**
 	 * Returns the padding for details panel rows which are not outer Category rows
 	 */
 	FMargin GetRowPadding() const;
@@ -120,6 +127,35 @@ public:
 		const FDetailsViewStyleKey& InKey,
 		float InTopCategoryPadding = 0.f,
 		float InHorizontalPadding = 0.f);
+
+	
+	/** the Padding for the entirety of the details panel if no scrollbar is present for Classic style */
+	static const FMargin& TablePaddingNoScrollbarClassic()
+	{
+		static FMargin Margin = FMargin(0, 0, 0, 1);
+		return Margin;
+	}
+	
+	/** the Padding for the entirety of the details panel if no scrollbar is present for Card style */
+	static const FMargin& TablePaddingNoScrollbarCard()
+	{
+		static FMargin Margin = FMargin(8, 0, 8, 1);
+		return Margin;
+	}
+
+	/** the Padding for the entirety of the details panel if the scrollbar is present for Classic style */
+	static const FMargin TablePaddingWithScrollbarClassic()
+	{
+		static FMargin Margin = FMargin(0, 0, 16, 1);
+		return Margin;
+	}
+
+	/** the Padding for the entirety of the details panel if the scrollbar is present for Card style  */
+	static const FMargin TablePaddingWithScrollbarCard()
+	{
+		static FMargin Margin = FMargin(8, 0, 20, 1);
+		return Margin;
+	}
 	
 private:
 	/**
@@ -165,5 +201,8 @@ private:
 	
 	/** Whether the current Category is an outer versus an inner Category  */
    	bool bIsOuterCategory = false;
+
+	/** Whether the scrollbar is showing on the details view  */
+	bool bIsScrollbarShowing = false;
 };
 

@@ -3015,15 +3015,30 @@ void FStarshipEditorStyle::FStyle::SetupPropertyEditorStyles()
 		
 		/****** Styles for rounded corners for the Card style of a Details View ********/
 
-		Set( "DetailsView.CardHeaderTopLeftSideRounded",               new FSlateRoundedBoxBrush(FStyleColors::Header, FVector4(4.0f, 0.0f, 0.0f, 0.0f)));
-		Set( "DetailsView.CardHeaderLeftSideRounded",               new FSlateRoundedBoxBrush(FStyleColors::Header, FVector4(4.0f, 0.0f, 0.0f, 4.0f)));
-		Set( "DetailsView.CardHeaderTopRightSideRounded",               new FSlateRoundedBoxBrush(FStyleColors::Header, FVector4(0.0f, 4.0f, 0.0f, 0.0f)));
-		Set( "DetailsView.CardHeaderRightSideRounded",               new FSlateRoundedBoxBrush(FStyleColors::Header, FVector4(0.0f, 4.0f, 4.0f, 0.0f)));
-		Set( "DetailsView.CardHeaderTopRounded",               new FSlateRoundedBoxBrush(FStyleColors::Header, FVector4(4.0f, 4.0f, 0.0f, 0.0f)));
-		Set( "DetailsView.CardHeaderRounded",               new FSlateRoundedBoxBrush(FStyleColors::Header, FVector4(4.0f, 4.0f, 4.0f, 4.0f )));
+		Set( "DetailsView.CardHeaderTopLeftSideRounded", new FSlateRoundedBoxBrush(FStyleColors::Header, FVector4(4.0f, 0.0f, 0.0f, 0.0f)));
+		Set( "DetailsView.CardHeaderLeftSideRounded", new FSlateRoundedBoxBrush(FStyleColors::Header, FVector4(4.0f, 0.0f, 0.0f, 4.0f)));
+		Set( "DetailsView.CardHeaderTopRightSideRounded", new FSlateRoundedBoxBrush(FStyleColors::Header, FVector4(0.0f, 4.0f, 0.0f, 0.0f)));
+		Set( "DetailsView.CardHeaderRightSideRounded", new FSlateRoundedBoxBrush(FStyleColors::Header, FVector4(0.0f, 4.0f, 4.0f, 0.0f)));
+		Set( "DetailsView.CardHeaderTopRounded", new FSlateRoundedBoxBrush(FStyleColors::Header, FVector4(4.0f, 4.0f, 0.0f, 0.0f)));
+		Set( "DetailsView.CardHeaderRounded", new FSlateRoundedBoxBrush(FStyleColors::Header, FVector4(4.0f, 4.0f, 4.0f, 4.0f )));
 		
 		/*******************************************************************************/
-		
+
+		const FButtonStyle CategoryButton = FButtonStyle()
+			.SetNormal(FSlateRoundedBoxBrush(FStyleColors::Header, 0.f))
+			.SetHovered(FSlateRoundedBoxBrush(FStyleColors::Input, 0.f))
+			.SetPressed(FSlateRoundedBoxBrush(FStyleColors::Header, 0.f))
+			.SetDisabled(FSlateRoundedBoxBrush(FStyleColors::Header, 0.f))
+			.SetNormalPadding(FMargin(2.f, 0.f, 2.f, 0.f))
+			.SetPressedPadding(FMargin(2.f, 0.f, 2.f, 0.f));
+
+		FComboButtonStyle CategoryComboButton = FComboButtonStyle(FStarshipCoreStyle::GetCoreStyle().GetWidgetStyle<FComboButtonStyle>("ComboButton"))
+		.SetButtonStyle(CategoryButton)
+		.SetDownArrowPadding(FMargin(2.f, 5.f, 3.f, 5.f))
+		.SetDownArrowImage(CORE_IMAGE_BRUSH_SVG("Starship/Common/ellipsis-vertical-narrow", FVector2D(6, 15)));
+		CategoryComboButton.ButtonStyle = CategoryButton;
+		Set( "DetailsView.CategoryComboButton", CategoryComboButton);
+
 		Set( "DetailsView.CategoryTop_Hovered",       new FSlateColorBrush(FStyleColors::Hover));
 		Set( "DetailsView.CategoryBottom",            new FSlateColorBrush(FStyleColors::Recessed));
 		

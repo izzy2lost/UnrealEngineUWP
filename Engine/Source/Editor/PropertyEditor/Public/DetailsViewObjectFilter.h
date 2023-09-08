@@ -4,6 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "DetailsViewStyleKey.h"
+#include "Widgets/SWidget.h"
+#include "Templates/SharedPointer.h"
+#include "DetailsDisplayManager.h"
+
+DECLARE_DELEGATE(FOnUpdateFilteredObjects)
 
 /**
  * An object root is a collection of UObjects that represent a top level set of properties in a details panel
@@ -42,7 +47,14 @@ class FDetailsViewObjectFilter
 {
 public:
 
-	virtual ~FDetailsViewObjectFilter() {}
+	explicit FDetailsViewObjectFilter()
+	{
+		InitializeDetailsDisplayManager();
+	}
+
+	virtual ~FDetailsViewObjectFilter()
+	{
+	}
 
 	/**
 	 * Given a const TArray<UObject*>& SourceObjects, it fills a TArray<FDetailsViewObjectRoot> with the objects
@@ -54,20 +66,38 @@ public:
 	 */
 	virtual TArray<FDetailsViewObjectRoot> FilterObjects(const TArray<UObject*>& SourceObjects) = 0;
 
-	/**
-	 * Returns the @code FDetailsViewStyleKey& @endcode that is the Key to the current objects' style
-	 */
-	virtual const FDetailsViewStyleKey& GetObjectsDetailsViewStyleKey()
+	/** Updates the view of anything being filtered by this filter */
+	virtual void UpdateFilterView() const
 	{
-		static const FDetailsViewStyleKey Default = FDetailsViewStyleKeys::Default();
-		return Default;
 	}
 
 	/**
-	 * Returns a boolean indicating if the Component Editor should be hidden for these object(s)
-	 */
-	virtual bool ShouldHideComponentEditor()
+	* Returns a @code TSharedPtr @endcode to the @code FDetailsDisplayManager @endcode
+	*/
+	virtual TSharedPtr<FDetailsDisplayManager> GetDisplayManager()
 	{
-		return false;
+		if (!DisplayManager.IsValid())
+		{
+			InitializeDetailsDisplayManager();
+		}
+		return DisplayManager;
 	}
+
+
+protected:
+	/**
+	 * The @code DetailsDisplayManager @endcode which provides an API to manage some of the characteristics of the
+	 * details display
+	 */
+	TSharedPtr<FDetailsDisplayManager> DisplayManager;
+
+	/**
+	 * Initializes the Details Display Manager
+	 */
+	virtual void InitializeDetailsDisplayManager()
+	{
+		DisplayManager = MakeShared<FDetailsDisplayManager>();
+	}
+	
 };
+ 

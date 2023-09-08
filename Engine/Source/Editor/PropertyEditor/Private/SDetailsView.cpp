@@ -412,7 +412,20 @@ void SDetailsView::Construct(const FArguments& InArgs, const FDetailsViewArgs& I
 			]
 			+SHorizontalBox::Slot()
 			[
-				ConstructTreeView(ExternalScrollbar)
+	           SNew(SBorder)
+				.Padding_Lambda([this]
+				{
+					return DisplayManager->GetTablePadding();
+				})
+				.BorderImage_Lambda([this]
+				{
+					static const FSlateBrush* Background = FAppStyle::GetBrush("DetailsView.GridLine");
+					static const FSlateBrush* Panel = FAppStyle::GetBrush("Brushes.Panel");
+					
+					return RootPropertyNodes.Num() == 0 ? Panel : Background;
+				})
+				.Visibility(this, &SDetailsView::GetTreeVisibility)
+				[ ConstructTreeView(ExternalScrollbar) ]
 			]
 		]
 		+ SOverlay::Slot()
@@ -602,6 +615,12 @@ void SDetailsView::SetObjectFilter(TSharedPtr<FDetailsViewObjectFilter> InFilter
 	{
 		ObjectFilter = MakeShared<FDetailsViewDefaultObjectFilter>(!!DetailsViewArgs.bAllowMultipleTopLevelObjects);
 	}
+
+	RefreshDisplayManager();
+
+	// hook up the OnDetailsNeedsUpdate to the details panel refresh function so that when the display data
+	// is updated, the details panel will reflect it
+	DisplayManager->OnDetailsNeedsUpdate.BindSP(this, &SDetailsView::ForceRefresh);
 }
 
 void SDetailsView::SetClassViewerFilters(const TArray<TSharedRef<class IClassViewerFilter>>& InFilters)
@@ -1485,7 +1504,7 @@ bool SDetailsView::IsDefaultStyle() const
 
 void SDetailsView::UpdateStyleKey()
 {
-	const bool IsDefault = FDetailsViewStyleKeys::IsDefault(ObjectFilter->GetObjectsDetailsViewStyleKey());
+	const bool IsDefault = FDetailsViewStyleKeys::IsDefault(DisplayManager->GetDetailsViewStyleKey());
 
 	if (IsDefault && DetailsViewArgs.StyleKey.IsValid()) 
 	{
@@ -1493,7 +1512,7 @@ void SDetailsView::UpdateStyleKey()
 	}
 	else if (!IsDefault)
 	{
-		FDetailsViewStyleKey Key = ObjectFilter->GetObjectsDetailsViewStyleKey(); 
+		FDetailsViewStyleKey Key = DisplayManager->GetDetailsViewStyleKey(); 
 		StyleKeySP = MakeShared<FDetailsViewStyleKey>(Key);
 	}
 	else
@@ -1507,6 +1526,24 @@ const FDetailsViewStyleKey& SDetailsView::GetStyleKey()
 {
 	const FDetailsViewStyleKey& PrimaryKey = GetPrimaryDetailsViewStyleKey();
 	return StyleKeySP.IsValid() ? *StyleKeySP.Get() : PrimaryKey;
+}
+
+void SDetailsView::RefreshDisplayManager()
+{
+	if (ObjectFilter.IsValid())
+	{
+		DisplayManager = ObjectFilter->GetDisplayManager();
+	}
+	if (!DisplayManager.IsValid())
+	{
+		DisplayManager = MakeShared<FDetailsDisplayManager>();
+	}
+}
+
+TSharedPtr<FDetailsDisplayManager> SDetailsView::GetDisplayManager()
+{
+	RefreshDisplayManager();
+	return DisplayManager;
 }
 
 const FDetailsViewStyleKey& SDetailsView::GetPrimaryDetailsViewStyleKey()

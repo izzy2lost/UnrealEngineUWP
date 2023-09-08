@@ -108,4 +108,10 @@ protected:
 	 */
 	TWeakPtr<STableViewBase> OwnerTableViewWeak;
 	TWeakPtr<FDetailTreeNode> OwnerTreeNode;
+	
+	/**
+	 * The @code DetailsDisplayManager @endcode which provides an API to manage some of the characteristics of the
+	 * details display
+	 */
+	TSharedPtr<FDetailsDisplayManager> DisplayManager;
 };

@@ -82,7 +82,6 @@ const FSlateBrush* FDetailsViewStyle::GetBackgroundImageForCategoryRow(
 	static const FSlateBrush* CardStyleTopLevelCategoryCollapsedScrollbarVisibleRowBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderRounded");
 	static const FSlateBrush* CardStyleTopLevelCategoryCollapsedScrollbarHiddenRowBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderLeftSideRounded");
 	static const FSlateBrush* CardStyleTopLevelCategoryExpandedScrollbarVisibleRowBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderTopRounded");
-	static const FSlateBrush* CardStyleTopLevelCategoryExpandedScrollbarHiddenRowBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderTopLeftSideRounded");
 
 	if (bShowBorder)
 	{
@@ -105,11 +104,7 @@ const FSlateBrush* FDetailsViewStyle::GetBackgroundImageForCategoryRow(
 			}
 			return CardStyleTopLevelCategoryCollapsedScrollbarHiddenRowBrush;
 		}
-		if (bIsScrollBarVisible)
-		{
-			return CardStyleTopLevelCategoryExpandedScrollbarVisibleRowBrush;
-		}
-		return CardStyleTopLevelCategoryExpandedScrollbarHiddenRowBrush;
+		return CardStyleTopLevelCategoryExpandedScrollbarVisibleRowBrush;
 	}
 
 	return nullptr;
@@ -117,7 +112,7 @@ const FSlateBrush* FDetailsViewStyle::GetBackgroundImageForCategoryRow(
 
 void FDetailsViewStyle::InitializeDetailsViewStyles()
 {
-	static FDetailsViewStyle CardStyle{FDetailsViewStyleKeys::Card(), 8.0f, 8.0f};
+	static FDetailsViewStyle CardStyle{FDetailsViewStyleKeys::Card(), 8.0f, 0.0f};
 	StyleKeyToStyleTemplateMap.Add(FDetailsViewStyleKeys::Card().GetName(), &CardStyle);
 
 	static FDetailsViewStyle DefaultStyle{FDetailsViewStyleKeys::Default(), 0.0f, 0.0f};
@@ -145,18 +140,14 @@ const FSlateBrush* FDetailsViewStyle::GetBackgroundImageForScrollBarWell(
 		}
 		const bool bIsCardStyle = this->Key == FDetailsViewStyleKeys::Card();
 			
-		if (!bIsScrollBarVisible)
+		if (!bIsCardStyle)
 		{
-			if (!bIsCardStyle)
-			{
-				return ClassicStyleTopLevelCategoryRowBrush;
-			}
-			if (!bIsCategoryExpanded){
-				return CardStyleCollapsedScrollbarVisibleWellBrush;
-			}
-			return CardStyleExpandedScrollbarVisibleWellBrush;
+			return ClassicStyleTopLevelCategoryRowBrush;
 		}
-		return DetailsBackgroundWellBrush;
+		if (!bIsCategoryExpanded){
+			return CardStyleCollapsedScrollbarVisibleWellBrush;
+		}
+		return CardStyleExpandedScrollbarVisibleWellBrush;
 	}
 
 	return nullptr;
@@ -187,4 +178,9 @@ const FDetailsViewStyle* FDetailsViewStyle::GetStyle(FDetailsViewStyleKey Key)
 void FDetailsViewStyle::SetIsOuterCategory(bool bInIsOuterCategory)
 {
 	bIsOuterCategory = bInIsOuterCategory;
+}
+
+void FDetailsViewStyle::SetIsScrollbarShowing(bool bInIsScrollbarShowing)
+{
+	bIsScrollbarShowing = bInIsScrollbarShowing;
 }
