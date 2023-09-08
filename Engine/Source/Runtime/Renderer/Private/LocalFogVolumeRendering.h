@@ -92,6 +92,8 @@ struct FLocalFogVolumeViewData
 	TRDGUniformBufferRef<FLocalFogVolumeUniformParameters> UniformBuffer = nullptr;
 
 	FLocalFogVolumeUniformParameters UniformParametersStruct;
+
+	FRDGTextureRef TileInstanceIndexTextureArray; // First slice is the instance count, later slices are instance indices.
 };
 
 
