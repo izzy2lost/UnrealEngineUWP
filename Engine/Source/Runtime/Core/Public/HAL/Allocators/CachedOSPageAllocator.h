@@ -72,6 +72,11 @@ struct TCachedOSPageAllocator : private FCachedOSPageAllocator
 		return FCachedOSPageAllocator::IsOSAllocation(Size, CachedByteLimit);
 	}
 
+	void DumpAllocatorStats(class FOutputDevice& Ar)
+	{
+		Ar.Logf(TEXT("CachedOSPageAllocator = %fkb"), (double)GetCachedFreeTotal() / 1024.0);
+	}
+
 private:
 	FFreePageBlock FreedPageBlocks[NumCacheBlocks*2];
 	SIZE_T         CachedTotal;

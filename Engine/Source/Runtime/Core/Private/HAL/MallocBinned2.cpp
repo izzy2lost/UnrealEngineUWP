@@ -1509,6 +1509,13 @@ void FMallocBinned2::DumpAllocatorStats(class FOutputDevice& Ar)
 			AllocatedOSSmallPoolMemory + AllocatedLargePoolMemoryWAlignment + Binned2PoolInfoMemory + Binned2HashMemory + Binned2TLSMemory
 			) / (1024.0f * 1024.0f));
 	Ar.Logf(TEXT("Cached free OS pages: %fmb"), ((double)OSPageAllocatorCachedFreeSize) / (1024.0f * 1024.0f));
+
+#if !PLATFORM_UNIX && !PLATFORM_ANDROID
+	// Doesn't implemented
+#else
+	CachedOSPageAllocator.DumpAllocatorStats(Ar);
+#endif
+
 #else
 	Ar.Logf(TEXT("Allocator Stats for binned2 are not in this build set BINNED2_ALLOCATOR_STATS 1 in MallocBinned2.cpp"));
 #endif

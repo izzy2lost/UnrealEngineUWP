@@ -134,6 +134,9 @@ static int64 GetNativeHeapAllocatedSize()
 	return AllocatedSize;
 }
 
+/** Controls growth of pools - see PooledVirtualMemoryAllocator.cpp */
+extern float GVMAPoolScale;
+
 void FAndroidPlatformMemory::Init()
 {
 	// Only allow this method to be called once
@@ -154,6 +157,7 @@ void FAndroidPlatformMemory::Init()
 		float((double)MemoryStats.AvailablePhysical/1024.0/1024.0),
 		float((double)MemoryConstants.PageSize/1024.0)
 		);
+	UE_LOG(LogInit, Log, TEXT(" - VirtualMemoryAllocator pools will grow at scale %g"), GVMAPoolScale);
 
 #if HAS_ANDROID_MEMORY_ADVICE
 	CVarAndroidUseMemoryAdvisor->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(&OnCVarAndroidUseMemoryAdvisorChanged));

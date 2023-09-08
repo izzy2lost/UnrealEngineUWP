@@ -14,14 +14,15 @@
 
 using T64KBAlignedPool = TMemoryPool<65536>;
 
+#ifndef UE_VMA_POOL_SCALE
+#define UE_VMA_POOL_SCALE 1.4f
+#endif
+
 /** Scale parameter used when growing the pools on allocation (and scaling them back), configurable from the commandline */
-float GVMAPoolScale = 1.4f;
+float GVMAPoolScale = UE_VMA_POOL_SCALE;
 
 struct FPoolDescriptor : public FPooledVirtualMemoryAllocator::FPoolDescriptorBase
 {
-	/** Lock on modifying the pool - temporary, the class can be made lock-less */
-	FCriticalSection PoolAccessLock;
-
 	/** Pool itself */
 	T64KBAlignedPool* Pool;
 };
@@ -235,6 +236,18 @@ FPooledVirtualMemoryAllocator::FPoolDescriptorBase* FPooledVirtualMemoryAllocato
 	Ptr->Pool = new (PointerToPool) T64KBAlignedPool(AllocationSize, reinterpret_cast<SIZE_T>(AlignedMemoryForThePool), NumPooledAllocations, 
 		PointerToBookkeepingMemory, VMBlock);
 
+	// mmap can return allocation that is not 64k aligned, so we had to add 64k padding after the header.
+	// But we can trim excess pages after the fact.
+	uint8* AlignedMemoryAfterThePool = Align(AlignedMemoryForThePool + AllocationSize * static_cast<SIZE_T>(NumPooledAllocations), FPlatformMemory::FPlatformVirtualMemoryBlock::GetVirtualSizeAlignment());
+	SIZE_T PagesUsed = (AlignedMemoryAfterThePool - RawPtr) / FPlatformMemory::FPlatformVirtualMemoryBlock::GetVirtualSizeAlignment();
+	SIZE_T PagesLeft = Ptr->VMSizeDivVirtualSizeAlignment - PagesUsed;
+	if (PagesLeft > 0)
+	{
+		checkf(Ptr->VMSizeDivVirtualSizeAlignment > PagesLeft, TEXT("Arithmetic error calculating excess pages"));
+		Ptr->VMSizeDivVirtualSizeAlignment -= PagesLeft;
+		FPlatformMemory::FPlatformVirtualMemoryBlock(AlignedMemoryAfterThePool, (uint32)PagesLeft).FreeVirtual();
+	}
+
 	return Ptr;
 }
 
@@ -280,5 +293,29 @@ uint64 FPooledVirtualMemoryAllocator::GetCachedFreeTotal()
 	}
 
 	return TotalFree;
+}
+
+void FPooledVirtualMemoryAllocator::DumpAllocatorStats(FOutputDevice& Ar)
+{
+	for (int32 IdxSizeClass = 0; IdxSizeClass < Limits::NumAllocationSizeClasses; ++IdxSizeClass)
+	{
+		FScopeLock Lock(&ClassesLocks[IdxSizeClass]);
+		SIZE_T AllocationSizeForClass = CalculateAllocationSizeFromClass(IdxSizeClass);
+		Ar.Logf(TEXT("PooledVirtualMemoryAllocator Index: %d, SizeClass: %.2fKB"),
+			IdxSizeClass,
+			(double)AllocationSizeForClass / 1024.0);
+		for(FPoolDescriptorBase* BaseDesc = ClassesListHeads[IdxSizeClass]; BaseDesc; BaseDesc = BaseDesc->Next)
+		{
+			FPoolDescriptor& Desc = static_cast<FPoolDescriptor&>(*BaseDesc);
+
+			Ar.Logf(TEXT("Pool[%3d]: %10.2fKB allocatable, %10.2fKB overhead"),
+				IdxSizeClass,
+				(double)Desc.Pool->GetAllocatableMemorySize() / 1024.0,
+				(double)Desc.Pool->GetOverheadSize() / 1024.0);
+		}
+	}
+
+	FScopeLock Lock(&OsAllocatorCacheLock);
+	OsAllocatorCache.DumpAllocatorStats(Ar);
 }
 #endif
