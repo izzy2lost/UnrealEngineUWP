@@ -182,6 +182,7 @@
 #define NANITE_MATERIAL_FLAG_PIXEL_DISCARD					0x4
 #define NANITE_MATERIAL_FLAG_DISPLACEMENT					0x8
 #define NANITE_MATERIAL_FLAG_SPLINE_MESH					0x10
+#define NANITE_MATERIAL_FLAG_NO_IMPLICIT_DERIVATIVES		0x20
 
 #define NANITE_TRANSCODE_PASS_INDEPENDENT					0
 #define NANITE_TRANSCODE_PASS_PARENT_DEPENDENT				1
@@ -246,6 +247,7 @@
 #define NANITE_VISUALIZE_EVALUATE_WORLD_POSITION_OFFSET		31u
 #define NANITE_VISUALIZE_PICKING							32u
 #define NANITE_VISUALIZE_SHADING_WRITE_MASK					33u
+#define NANITE_VISUALIZE_NO_IMPLICIT_DERIVATIVES			34u
 
 #define NANITE_PICKING_DOMAIN_TRIANGLE		0
 #define NANITE_PICKING_DOMAIN_CLUSTER		1
@@ -269,6 +271,7 @@ struct FNaniteMaterialFlags
 	bool bPixelDiscard;
 	bool bDisplacement;
 	bool bSplineMesh;
+	bool bNoImplicitDerivatives;
 
 	bool bVertexProgrammable;
 	bool bPixelProgrammable;
@@ -282,6 +285,7 @@ INLINE_ATTR FNaniteMaterialFlags UnpackNaniteMaterialFlags(UINT_TYPE Packed)
 	MaterialFlags.bPixelDiscard = (Packed & NANITE_MATERIAL_FLAG_PIXEL_DISCARD) != 0u;
 	MaterialFlags.bDisplacement = (Packed & NANITE_MATERIAL_FLAG_DISPLACEMENT) != 0u;
 	MaterialFlags.bSplineMesh = (Packed & NANITE_MATERIAL_FLAG_SPLINE_MESH) != 0u;
+	MaterialFlags.bNoImplicitDerivatives = (Packed & NANITE_MATERIAL_FLAG_NO_IMPLICIT_DERIVATIVES) != 0u;
 	MaterialFlags.bVertexProgrammable = (Packed & NANITE_MATERIAL_VERTEX_PROGRAMMABLE_FLAGS) != 0u;
 	MaterialFlags.bPixelProgrammable = (Packed & NANITE_MATERIAL_PIXEL_PROGRAMMABLE_FLAGS) != 0u;
 	return MaterialFlags;
@@ -329,6 +333,11 @@ INLINE_ATTR UINT_TYPE PackNaniteMaterialBitFlags(FNaniteMaterialFlags Flags)
 	if (Flags.bSplineMesh)
 	{
 		MaterialBitFlags |= NANITE_MATERIAL_FLAG_SPLINE_MESH;
+	}
+
+	if (Flags.bNoImplicitDerivatives)
+	{
+		MaterialBitFlags |= NANITE_MATERIAL_FLAG_NO_IMPLICIT_DERIVATIVES;
 	}
 
 	return MaterialBitFlags;

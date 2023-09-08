@@ -152,6 +152,10 @@ enum ECompilerFlags
 	CFLAG_GenerateSymbolsInfo,
 	// Enabled root constants optimization on supported platforms
 	CFLAG_RootConstants,
+	// Specifies that a shader provides explicit derivatives, and the compiler should look in the compiled ISA for any instructions requiring
+	// implicit derivatives. If none are found, the shader will be marked with EShaderResourceUsageFlags::NoImplicitDerivatives, meaning that
+	// calling code can safely assume only explicit derivatives are used.
+	CFLAG_ExplicitDerivatives,
 	CFLAG_Max,
 };
 static_assert(CFLAG_Max < 64, "Out of bitfield space! Modify FShaderCompilerFlags");

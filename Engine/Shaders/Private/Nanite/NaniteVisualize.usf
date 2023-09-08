@@ -375,6 +375,19 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			}
 		}
 	#endif
+		else if (VisualizeMode == NANITE_VISUALIZE_NO_IMPLICIT_DERIVATIVES)
+		{
+			const uint PackedFlags = ShadingBinMeta[UnpackedMask.ShadingBin].MaterialFlags;
+			FNaniteMaterialFlags MaterialFlags = UnpackNaniteMaterialFlags(PackedFlags);
+			if (MaterialFlags.bNoImplicitDerivatives)
+			{
+				Result = float3(0, 178, 160);
+			}
+			else
+			{
+				Result = float3(79, 109, 94);
+			}
+		}
 		else if (VisualizeMode == NANITE_VISUALIZE_NANITE_MASK)
 		{
 			Result = float3(0, 1, 0);

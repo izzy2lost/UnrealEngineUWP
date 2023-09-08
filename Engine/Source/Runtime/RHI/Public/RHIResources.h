@@ -883,13 +883,28 @@ public:
 class FRHIComputeShader : public FRHIShader
 {
 public:
-	FRHIComputeShader() : FRHIShader(RRT_ComputeShader, SF_Compute), Stats(nullptr) {}
+	FRHIComputeShader() : FRHIShader(RRT_ComputeShader, SF_Compute)
+	, Stats(nullptr)
+	, bNoImplicitDerivatives(false)
+	{
+	}
 	
 	inline void SetStats(struct FPipelineStateStats* Ptr) { Stats = Ptr; }
 	RHI_API void UpdateStats();
+
+	inline void SetNoImplicitDerivatives(bool bValue)
+	{
+		bNoImplicitDerivatives = bValue;
+	}
+
+	inline bool HasNoImplicitDerivatives() const
+	{
+		return bNoImplicitDerivatives;
+	}
 	
 private:
 	struct FPipelineStateStats* Stats;
+	uint8 bNoImplicitDerivatives : 1;
 };
 
 //

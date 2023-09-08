@@ -3372,13 +3372,14 @@ static bool TessellationEnabled()
 	return bTessellation != 0 && NaniteTessellationSupported();
 }
 
-inline uint32 PackMaterialBitFlags(const FMaterial& Material, uint32 BoundTargetMask)
+inline uint32 PackMaterialBitFlags(const FMaterial& Material, uint32 BoundTargetMask, bool bNoImplicitDerivatives)
 {
 	FNaniteMaterialFlags Flags = {0};
 	Flags.bPixelDiscard = Material.IsMasked();
 	Flags.bPixelDepthOffset = Material.MaterialUsesPixelDepthOffset_RenderThread();
 	Flags.bWorldPositionOffset = Material.MaterialUsesWorldPositionOffset_RenderThread();
 	Flags.bDisplacement = TessellationEnabled() && Material.MaterialUsesDisplacement_RenderThread();
+	Flags.bNoImplicitDerivatives = bNoImplicitDerivatives;
 	const uint32 PackedFlags = PackNaniteMaterialBitFlags(Flags);
 	return ((BoundTargetMask & 0xFFu) << 24u) | (PackedFlags & 0x00FFFFFFu);
 }
@@ -3455,7 +3456,15 @@ FShadeBinning ShadeBinning(
 		if (const FMaterial* Material = ShadingCommand->Material)
 		{
 			FUintVector4& MetaEntry = MetaBufferData[ShadingCommand->ShadingBin];
-			MetaEntry.W = PackMaterialBitFlags(*Material, ShadingCommand->BoundTargetMask);
+			bool bNoImplicitDerivatives = false;
+
+			FRHIComputeShader* ComputeShaderRHI = ShadingCommand->ComputeShader.GetComputeShader();
+			if (ComputeShaderRHI)
+			{
+				bNoImplicitDerivatives = ComputeShaderRHI->HasNoImplicitDerivatives();
+			}
+
+			MetaEntry.W = PackMaterialBitFlags(*Material, ShadingCommand->BoundTargetMask, bNoImplicitDerivatives);
 		}
 	}
 
