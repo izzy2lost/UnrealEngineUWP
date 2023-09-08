@@ -156,7 +156,10 @@ public:
 	 */
 	FOnUpdated& OnUpdated() { return OnUpdatedDelegate; }
 
-	/** Sorts all nodes and their descendants by category then alphabetically.*/
+	/** Clears all custom sort orders so that sorting will be by category then alphabetically. */
+	void ClearCustomSortOrders();
+
+	/** Sorts all nodes and their descendants*/
 	void SortAllNodesAndDescendants();
 
 	/**

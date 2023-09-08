@@ -243,6 +243,20 @@ TArray<UE::Sequencer::TViewModelPtr<UE::Sequencer::IOutlinerExtension>> FSequenc
 	return RootNodes;
 }
 
+void FSequencerNodeTree::ClearCustomSortOrders()
+{
+	using namespace UE::Sequencer;
+
+	const bool bIncludeRootNode = true;
+	for (TSharedPtr<FViewModel> Child : RootNode->GetDescendants(bIncludeRootNode))
+	{
+		if (ISortableExtension* SortableExtension = Child->CastThis<ISortableExtension>())
+		{
+			SortableExtension->SetCustomOrder(-1);
+		}
+	}
+}
+
 void FSequencerNodeTree::SortAllNodesAndDescendants()
 {
 	using namespace UE::Sequencer;
@@ -253,7 +267,6 @@ void FSequencerNodeTree::SortAllNodesAndDescendants()
 	{
 		if (ISortableExtension* SortableExtension = Child->CastThis<ISortableExtension>())
 		{
-			SortableExtension->SetCustomOrder(-1);
 			SortableChildren.Add(SortableExtension);
 		}
 	}
@@ -261,10 +274,6 @@ void FSequencerNodeTree::SortAllNodesAndDescendants()
 	{
 		SortableChild->SortChildren();
 	}
-
-	// Refresh the tree so that our changes are visible.
-	// @todo: Is this necessary any more?
-	//GetSequencer().RefreshTree();
 }
 
 void FSequencerNodeTree::AddFilter(TSharedPtr<FSequencerTrackFilter> TrackFilter)

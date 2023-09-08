@@ -9477,6 +9477,7 @@ FText FSequencer::GetNavigateBackwardTooltip() const
 void FSequencer::SortAllNodesAndDescendants()
 {
 	FScopedTransaction SortAllNodesTransaction(NSLOCTEXT("Sequencer", "SortAllNodes_Transaction", "Sort Tracks"));
+	NodeTree->ClearCustomSortOrders();
 	NodeTree->SortAllNodesAndDescendants();
 }
 
