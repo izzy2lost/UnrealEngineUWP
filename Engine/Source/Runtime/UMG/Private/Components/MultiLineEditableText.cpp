@@ -124,6 +124,15 @@ void UMultiLineEditableText::SetJustification(ETextJustify::Type InJustification
 	}
 }
 
+void UMultiLineEditableText::OnLineHeightPercentageChanged(float InLineHeightPercentage)
+{
+	Super::OnLineHeightPercentageChanged(InLineHeightPercentage);
+	if (MyMultiLineEditableText.IsValid())
+	{
+		MyMultiLineEditableText->SetLineHeightPercentage(InLineHeightPercentage);
+	}
+}
+
 FText UMultiLineEditableText::GetText() const
 {
 	if ( MyMultiLineEditableText.IsValid() )

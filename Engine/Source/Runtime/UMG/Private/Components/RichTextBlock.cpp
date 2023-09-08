@@ -403,6 +403,16 @@ void URichTextBlock::SetJustification(ETextJustify::Type InJustification)
 }
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+void URichTextBlock::OnLineHeightPercentageChanged(float InLineHeightPercentage)
+{
+	Super::OnLineHeightPercentageChanged(InLineHeightPercentage);
+	if (MyRichTextBlock.IsValid())
+	{
+		MyRichTextBlock->SetLineHeightPercentage(InLineHeightPercentage);
+	}
+}
+
 void URichTextBlock::SetMinDesiredWidth(float InMinDesiredWidth)
 {
 	MinDesiredWidth = InMinDesiredWidth;

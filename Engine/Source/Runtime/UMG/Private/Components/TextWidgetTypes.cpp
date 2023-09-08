@@ -14,7 +14,6 @@ FShapedTextOptions::FShapedTextOptions()
 	TextFlowDirection = ETextFlowDirection::Auto;
 }
 
-
 UTextLayoutWidget::UTextLayoutWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -26,3 +25,8 @@ UTextLayoutWidget::UTextLayoutWidget(const FObjectInitializer& ObjectInitializer
 	LineHeightPercentage = 1.0f;
 }
 
+void UTextLayoutWidget::SetLineHeightPercentage(float InLineHeightPercentage)
+{
+	LineHeightPercentage = InLineHeightPercentage;
+	OnLineHeightPercentageChanged(InLineHeightPercentage);
+}

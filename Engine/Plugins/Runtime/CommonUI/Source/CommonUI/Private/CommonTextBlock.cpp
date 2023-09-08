@@ -348,8 +348,7 @@ void UCommonTextBlock::SetTextCase(bool bUseAllCaps)
 
 void UCommonTextBlock::SetLineHeightPercentage(float InLineHeightPercentage)
 {
-	LineHeightPercentage = InLineHeightPercentage;
-	SynchronizeProperties();
+	UTextLayoutWidget::SetLineHeightPercentage(InLineHeightPercentage);
 }
 
 void UCommonTextBlock::SetStyle(TSubclassOf<UCommonTextStyle> InStyle)

@@ -227,6 +227,10 @@ public:
 	UMG_API void RefreshTextLayout();
 
 protected:
+	//~ Begin UTextLayoutWidget Interface
+	UMG_API virtual void OnLineHeightPercentageChanged(float InLineHeightPercentage) override;
+	//~ End UTextLayoutWidget Interface
+
 	UMG_API virtual TSharedRef<SWidget> RebuildWidget() override;
 	
 	UMG_API virtual void UpdateStyleData();

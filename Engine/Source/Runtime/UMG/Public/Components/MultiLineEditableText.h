@@ -182,6 +182,10 @@ public:
 #endif
 
 protected:
+	//~ Begin UTextLayoutWidget Interface
+	UMG_API virtual void OnLineHeightPercentageChanged(float InLineHeightPercentage) override;
+	//~ End UTextLayoutWidget Interface
+
 	//~ Begin UWidget Interface
 	UMG_API virtual TSharedRef<SWidget> RebuildWidget() override;
 	// End of UWidget

@@ -256,6 +256,10 @@ public:
 #endif
 
 protected:
+	//~ Begin UTextLayoutWidget Interface
+	UMG_API virtual void OnLineHeightPercentageChanged(float InLineHeightPercentage) override;
+	//~ End UTextLayoutWidget Interface
+
 	/**
 	 * If this is enabled, text shaping, wrapping, justification are disabled in favor of much faster text layout and measurement.
 	 * This feature is only suitable for "simple" text (ie, text containing only numbers or basic ASCII) as it disables the complex text rendering support required for certain languages (such as Arabic and Thai).

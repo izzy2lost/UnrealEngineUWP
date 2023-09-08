@@ -152,6 +152,15 @@ void UTextBlock::SetJustification(ETextJustify::Type InJustification)
 	}
 }
 
+void UTextBlock::OnLineHeightPercentageChanged(float InLineHeightPercentage)
+{
+	Super::OnLineHeightPercentageChanged(InLineHeightPercentage);
+	if (MyTextBlock.IsValid())
+	{
+		MyTextBlock->SetLineHeightPercentage(InLineHeightPercentage);
+	}
+}
+
 float UTextBlock::GetMinDesiredWidth() const
 {
 	return MinDesiredWidth;

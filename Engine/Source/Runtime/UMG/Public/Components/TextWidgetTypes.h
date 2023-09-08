@@ -65,7 +65,11 @@ public:
 	UFUNCTION(BlueprintSetter)
 	virtual void SetJustification(ETextJustify::Type InJustification) { Justification = InJustification; }
 
+	UMG_API void SetLineHeightPercentage(float InLineHeightPercentage);
+
 protected:
+	virtual void OnLineHeightPercentageChanged(float InLineHeightPercentage) {};
+
 	/** Synchronize the properties with the given widget. A template as the Slate widgets conform to the same API, but don't derive from a common base. */
 	template <typename TWidgetType>
 	void SynchronizeTextLayoutProperties(TWidgetType& InWidget)
@@ -105,6 +109,6 @@ protected:
 	FMargin Margin;
 
 	/** The amount to scale each lines height by. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Appearance, AdvancedDisplay)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category=Appearance, AdvancedDisplay)
 	float LineHeightPercentage;
 };
