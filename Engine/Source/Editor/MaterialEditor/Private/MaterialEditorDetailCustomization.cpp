@@ -825,7 +825,14 @@ void FMaterialDetailCustomization::CustomizeDetails( IDetailLayoutBuilder& Detai
 				}
 			}
 
-			if (!Substrate::IsSubstrateEnabled())
+			if (Substrate::IsSubstrateEnabled())
+			{
+				if (PropertyName == GET_MEMBER_NAME_CHECKED(UMaterial, bUseMaterialAttributes))
+				{
+					DetailLayout.HideProperty(PropertyHandle);
+				}
+			}
+			else
 			{
 				if (PropertyName == GET_MEMBER_NAME_CHECKED(UMaterial, bIsThinSurface))
 				{

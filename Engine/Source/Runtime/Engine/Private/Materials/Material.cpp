@@ -3264,97 +3264,65 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 	// Connect all the legacy pin into the conversion node
 	if (bUseMaterialAttributes && EditorOnly->MaterialAttributes.Expression && !EditorOnly->MaterialAttributes.Expression->IsResultSubstrateMaterial(EditorOnly->MaterialAttributes.OutputIndex)) // M_Rifle cause issues there
 	{
-		UMaterialExpressionBreakMaterialAttributes* BreakMatAtt = NewObject<UMaterialExpressionBreakMaterialAttributes>(this);
-		SetPosXAndMoveReferenceToTheRight(BreakMatAtt);
-		MoveConnectionTo(EditorOnly->MaterialAttributes, BreakMatAtt, 0);
+		UMaterialExpressionSubstrateConvertMaterialAttributes* ConvertAttributeNode = NewObject<UMaterialExpressionSubstrateConvertMaterialAttributes>(this);
+		SetPosXAndMoveReferenceToTheRight(ConvertAttributeNode);
+		ConvertAttributeNode->SubsurfaceProfile = bRequireNoSubsurfaceProfile ? nullptr : SubsurfaceProfile;
+		ConvertAttributeNode->Material = this;
 
-		// Check if Anisotropy input is actually used/connected
-		// This is needed/important as if anisotropy is connected a converted material becomes 'complex' instead of 'single'. 
-		// Since this path uses material attributes, there is no direct way to evaluate if anisotropy is connected or not. To find this,
-		// we loop over all the material attribute make/set nodes to figure out if the anisotropy value is ever set.
-		bool bIsAnisotropyConnected = false;
+		MoveConnectionTo(EditorOnly->MaterialAttributes, ConvertAttributeNode, 0);
+
+		// Reconnect custom output to material attribute conversion node
 		{
-			// Gather 'make' attributes nodes
-			{
-				TArray<UMaterialExpressionMakeMaterialAttributes*> MakeAttributeExpressions;
-				GetAllExpressionsInMaterialAndFunctionsOfType<UMaterialExpressionMakeMaterialAttributes>(MakeAttributeExpressions);
-				for (UMaterialExpressionMakeMaterialAttributes* Expression : MakeAttributeExpressions)
-				{
-					bIsAnisotropyConnected = Expression->GetExpressionInput(MP_Anisotropy) != nullptr;
-					if (bIsAnisotropyConnected)
-					{
-						break;
-					}
-				}
-			}
+			check(ConvertAttributeNode);
+			GatherCustomNodes();
 
-			// Gather 'set' attributes nodes
-			if (!bIsAnisotropyConnected)
+			if (ThinTranslucentOutput)
 			{
-				const FGuid AnisotropyGuid = FMaterialAttributeDefinitionMap::GetID(MP_Anisotropy);
-				TArray<UMaterialExpressionSetMaterialAttributes*> SetAttributeExpressions;
-				GetAllExpressionsInMaterialAndFunctionsOfType<UMaterialExpressionSetMaterialAttributes>(SetAttributeExpressions);
-				for (UMaterialExpressionSetMaterialAttributes* Expression : SetAttributeExpressions)
-				{
-					for (const FGuid& AttributeGuid : Expression->AttributeSetTypes)
-					{
-						if (AttributeGuid == AnisotropyGuid)
-						{
-							bIsAnisotropyConnected = true;
-							break;
-						}
-					}
-					if (bIsAnisotropyConnected)
-					{
-						break;
-					}
-				}
+				MoveConnectionTo(*ThinTranslucentOutput->GetInput(0), ConvertAttributeNode, 1);	 // TransmittanceColor
+			}
+			if (SingleLayerWaterOutput)
+			{
+				MoveConnectionTo(*SingleLayerWaterOutput->GetInput(0), ConvertAttributeNode, 2); // WaterScatteringCoefficients
+				MoveConnectionTo(*SingleLayerWaterOutput->GetInput(1), ConvertAttributeNode, 3); // WaterAbsorptionCoefficients
+				MoveConnectionTo(*SingleLayerWaterOutput->GetInput(2), ConvertAttributeNode, 4); // WaterPhaseG
+				MoveConnectionTo(*SingleLayerWaterOutput->GetInput(3), ConvertAttributeNode, 5); // ColorScaleBehindWater
+			}
+			if (ClearCoatBottomNormalOutput)
+			{
+				CopyConnectionTo(*ClearCoatBottomNormalOutput->GetInput(0), ConvertAttributeNode, 6); // ClearCoatNormal
+			}
+			if (TangentOutput)
+			{
+				CopyConnectionTo(*TangentOutput->GetInput(0), ConvertAttributeNode, 7);	// TangentOutput
 			}
 		}
-
-		ConvertNode = NewObject<UMaterialExpressionSubstrateShadingModels>(this);
-		SetPosXAndMoveReferenceToTheRight(ConvertNode);
-		ConvertNode->BaseColor.Connect(0, BreakMatAtt);
-		ConvertNode->Metallic.Connect(1, BreakMatAtt);
-		ConvertNode->Specular.Connect(2, BreakMatAtt);
-		ConvertNode->Roughness.Connect(3, BreakMatAtt);
-		if (bIsAnisotropyConnected)
-		{
-		ConvertNode->Anisotropy.Connect(4, BreakMatAtt);
-		}
-		ConvertNode->EmissiveColor.Connect(5, BreakMatAtt);
-		ConvertNode->Normal.Connect(8, BreakMatAtt);
-		ConvertNode->Tangent.Connect(9, BreakMatAtt);
-		ConvertNode->SubSurfaceColor.Connect(11, BreakMatAtt);
-		ConvertNode->ClearCoat.Connect(12, BreakMatAtt);
-		ConvertNode->ClearCoatRoughness.Connect(13, BreakMatAtt);
-		ConvertNode->Opacity.Connect(6, BreakMatAtt);
-		ConvertNode->SubsurfaceProfile = bRequireNoSubsurfaceProfile ? nullptr : SubsurfaceProfile;
-		bRelinkCustomOutputNodes = true;
 
 		// * Remove support for material attribute
 		// * explicitly connect the Substrate node to the root node
 		// * Forward inputs to the root node (Do not reconnect the Opacity as we handle the opacity by internally within the conversion node)
 		// * Always forward masked opacity because this is required when the blend mode is overriden to masked on a material instance.
 		bUseMaterialAttributes = false;
-		EditorOnly->FrontMaterial.Connect(0, ConvertNode);
-		EditorOnly->Opacity.Connect(6, BreakMatAtt);			// For alpha composite blend mode, Opacity on the root node in case BLEND_AlphaComposite is selected.
-		EditorOnly->OpacityMask.Connect(7, BreakMatAtt);
-		EditorOnly->WorldPositionOffset.Connect(10, BreakMatAtt);
-		EditorOnly->AmbientOcclusion.Connect(14, BreakMatAtt);
-		EditorOnly->PixelDepthOffset.Connect(24, BreakMatAtt);
-		EditorOnly->Refraction.Connect(15, BreakMatAtt);
+		EditorOnly->FrontMaterial.Connect(0, ConvertAttributeNode);
+		EditorOnly->Opacity.Connect(4, ConvertAttributeNode);
+		EditorOnly->OpacityMask.Connect(5, ConvertAttributeNode);
+		EditorOnly->WorldPositionOffset.Connect(3, ConvertAttributeNode);
+		EditorOnly->AmbientOcclusion.Connect(2, ConvertAttributeNode);
+		EditorOnly->PixelDepthOffset.Connect(1, ConvertAttributeNode);
+		EditorOnly->Refraction.Connect(6, ConvertAttributeNode);
+		
 
+		// Shading Model
+		// * either use the shader graph expression 
+		// * or add a constant shading model
 		if (ShadingModel == MSM_FromMaterialExpression)
 		{
-			check(ShadingModels.CountShadingModels() >= 1);
-			ConvertNode->ShadingModel.Connect(25, BreakMatAtt);
+			ConvertAttributeNode->ShadingModelOverride = MSM_FromMaterialExpression;
 		}
 		else
 		{
 			// Store Substrate shading model of the converted material. 
 			check(ShadingModels.CountShadingModels() == 1);
-			ConvertNode->ShadingModelOverride = ShadingModel;
+			ConvertAttributeNode->ShadingModelOverride = ShadingModel;
 		}
 
 		if (MaterialDomain == MD_DeferredDecal)
@@ -3364,8 +3332,8 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 
 			// Now pass through the convert to decal node, which flag the material as SSM_Decal, which will set the domain to Decal.
 			UMaterialExpressionSubstrateConvertToDecal* ConvertToDecalNode = NewObject<UMaterialExpressionSubstrateConvertToDecal>(this);
-			ReplaceNodeAndMoveToTheRight(ConvertNode, ConvertToDecalNode);
-			ConvertToDecalNode->DecalMaterial.Connect(0, ConvertNode);
+			ReplaceNodeAndMoveToTheRight(ConvertAttributeNode, ConvertToDecalNode);
+			ConvertToDecalNode->DecalMaterial.Connect(0, ConvertAttributeNode);
 
 			EditorOnly->FrontMaterial.Connect(0, ConvertToDecalNode);
 		}

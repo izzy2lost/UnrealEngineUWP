@@ -821,7 +821,82 @@ class UMaterialExpressionSubstrateConvertToDecal : public UMaterialExpressionSub
 	//~ End UMaterialExpression Interface
 };
 
+UCLASS(collapsecategories, hidecategories=Object, MinimalAPI)
+class UMaterialExpressionSubstrateConvertMaterialAttributes : public UMaterialExpressionSubstrateBSDF
+{
+	GENERATED_UCLASS_BODY()
 
+	UPROPERTY()
+	FMaterialAttributesInput MaterialAttributes;
+
+	/**
+	 * The amount of transmitted light from the back side of the surface to the front side of the surface (type = float3, unit = unitless, defaults to 1)
+	 */
+	UPROPERTY()
+	FExpressionInput TransmittanceColor;
+
+		/**
+	* The single scattering Albedo defining the overall color of the Material (type = float3, unit = unitless, default = 0)
+	 */
+	UPROPERTY()
+	FExpressionInput WaterScatteringCoefficients;
+
+	/**
+	 * The rate at which light is absorbed or out-scattered by the medium. Mean Free Path = 1 / Extinction. (type = float3, unit = 1/cm, default = 0)
+	 */
+	UPROPERTY()
+	FExpressionInput WaterAbsorptionCoefficients;
+
+	/**
+	 * Anisotropy of the volume with values lower than 0 representing back-scattering, equal 0 representing isotropic scattering and greater than 0 representing forward scattering. (type = float, unit = unitless, defaults to 0)
+	 */
+	UPROPERTY()
+	FExpressionInput WaterPhaseG;
+
+	/**
+	 * A scale to apply on the scene color behind the water surface. It can be used to approximate caustics for instance. (type = float3, unit = unitless, defaults to 1)
+	 */
+	UPROPERTY()
+	FExpressionInput ColorScaleBehindWater;
+
+	/**
+	 * Take the bottom clear coat surface normal as input. The normal is considered tangent or world space according to the space properties on the main material node. (type = float3, unit = unitless, defaults to vertex normal)
+	 */
+	UPROPERTY()
+	FExpressionInput ClearCoatNormal;
+
+	/**
+	 * Take the tangent output node as input. The tangent is considered tangent or world space according to the space properties on the main material node. (type = float3, unit = unitless, defaults to vertex tangent)
+	 */
+	UPROPERTY()
+	FExpressionInput CustomTangent;
+
+	/** SubsurfaceProfile, for Screen Space Subsurface Scattering. The profile needs to be set up on both the Substrate diffuse node, and the material node at the moment. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Material, meta = (DisplayName = "Subsurface Profile"))
+	TObjectPtr<class USubsurfaceProfile> SubsurfaceProfile;
+
+	UPROPERTY(EditAnywhere, Category = ShadingModel, meta = (ShowAsInputPin = "Primary", DisplayName = "Single Shading Model"))
+	TEnumAsByte<enum EMaterialShadingModel> ShadingModelOverride = MSM_DefaultLit;
+
+	//~ Begin UMaterialExpression Interface
+#if WITH_EDITOR
+	virtual int32 Compile(class FMaterialCompiler* Compiler, int32 OutputIndex) override;
+	virtual void GetCaption(TArray<FString>& OutCaptions) const override;
+	virtual uint32 GetOutputType(int32 OutputIndex) override;
+	virtual uint32 GetInputType(int32 InputIndex) override;
+	virtual FName GetInputName(int32 InputIndex) const override;
+	virtual bool IsResultSubstrateMaterial(int32 OutputIndex) override;
+	virtual void GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex) override;
+	virtual FSubstrateOperator* SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex) override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void GetConnectorToolTip(int32 InputIndex, int32 OutputIndex, TArray<FString>& OutToolTip) override;
+	virtual bool IsInputConnectionRequired(int32 InputIndex) const override {return true;}
+	
+	bool HasSSS() const;
+
+#endif // WITH_EDITOR
+	//~ End UMaterialExpression Interface
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 // Operator nodes
@@ -1127,4 +1202,3 @@ class UMaterialExpressionSubstrateThinFilm : public UMaterialExpressionSubstrate
 #endif
 	//~ End UMaterialExpression Interface
 };
-

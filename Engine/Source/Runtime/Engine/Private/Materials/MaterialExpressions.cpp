@@ -6753,6 +6753,33 @@ void UMaterialExpressionMakeMaterialAttributes::Serialize(FStructuredArchive::FR
 }
 
 #if WITH_EDITOR
+
+// Return a conservative list of connected inputs
+uint64 UMaterialExpressionMakeMaterialAttributes::GetConnectedInputs() const
+{
+	uint64 Out = 0ull;
+	if (BaseColor.Expression != nullptr) 				Out |= (1ull << uint64(MP_BaseColor));
+	if (Metallic.Expression != nullptr) 				Out |= (1ull << uint64(MP_Metallic));
+	if (Specular.Expression != nullptr) 				Out |= (1ull << uint64(MP_Specular));
+	if (Roughness.Expression != nullptr) 				Out |= (1ull << uint64(MP_Roughness));
+	if (Anisotropy.Expression != nullptr) 				Out |= (1ull << uint64(MP_Anisotropy));
+	if (EmissiveColor.Expression != nullptr) 			Out |= (1ull << uint64(MP_EmissiveColor));
+	if (Opacity.Expression != nullptr) 					Out |= (1ull << uint64(MP_Opacity));
+	if (OpacityMask.Expression != nullptr) 				Out |= (1ull << uint64(MP_OpacityMask));
+	if (Normal.Expression != nullptr) 					Out |= (1ull << uint64(MP_Normal));
+	if (Tangent.Expression != nullptr) 					Out |= (1ull << uint64(MP_Tangent));
+	if (WorldPositionOffset.Expression != nullptr) 		Out |= (1ull << uint64(MP_WorldPositionOffset));
+	if (Displacement.Expression != nullptr) 			Out |= (1ull << uint64(MP_Displacement));
+	if (SubsurfaceColor.Expression != nullptr) 			Out |= (1ull << uint64(MP_SubsurfaceColor));
+	if (ClearCoat.Expression != nullptr) 				Out |= (1ull << uint64(MP_CustomData0));
+	if (ClearCoatRoughness.Expression != nullptr) 		Out |= (1ull << uint64(MP_CustomData1));
+	if (AmbientOcclusion.Expression != nullptr) 		Out |= (1ull << uint64(MP_AmbientOcclusion));
+	if (Refraction.Expression != nullptr) 				Out |= (1ull << uint64(MP_Refraction));
+	if (PixelDepthOffset.Expression != nullptr) 		Out |= (1ull << uint64(MP_PixelDepthOffset));
+	if (ShadingModel.Expression != nullptr) 			Out |= (1ull << uint64(MP_ShadingModel));
+	return Out;
+}
+
 int32 UMaterialExpressionMakeMaterialAttributes::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex) 
 {
 	int32 Ret = INDEX_NONE;
@@ -7278,6 +7305,21 @@ UMaterialExpressionSetMaterialAttributes::UMaterialExpressionSetMaterialAttribut
 }
 
 #if WITH_EDITOR
+uint64 UMaterialExpressionSetMaterialAttributes::GetConnectedInputs() const
+{
+	uint64 Out = 0ull;
+	const int32 NumInputPins = AttributeSetTypes.Num();
+	for (int32 i = 0; i < NumInputPins; ++i)
+	{
+		const EMaterialProperty Property = FMaterialAttributeDefinitionMap::GetProperty(AttributeSetTypes[i]);
+		if (Property != MP_MAX)
+		{
+			Out |= 1ull << uint64(Property);
+		}
+	}
+	return Out;
+}
+
 int32 UMaterialExpressionSetMaterialAttributes::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex) 
 {
 	// Verify setup
@@ -23227,7 +23269,6 @@ int32 UMaterialExpressionSubstrateShadingModels::Compile(class FMaterialCompiler
 {
 	int32 RoughnessCodeChunk = CompileWithDefaultFloat1(Compiler, Roughness, 0.5f);
 	int32 AnisotropyCodeChunk = CompileWithDefaultFloat1(Compiler, Anisotropy, 0.0f);
-	// As long as both roughness are potentially different, we must take it into account in our encoding.
 	// We also cannot ignore the tangent when using the default Tangent because GetTangentBasis
 	// used in SubstrateGetBSDFSharedBasis cannot be relied on for smooth tangent used for lighting on any mesh.
 	const bool bHasAnisotropy = HasAnisotropy();
@@ -23304,7 +23345,6 @@ int32 UMaterialExpressionSubstrateShadingModels::Compile(class FMaterialCompiler
 	int32 ShadingModelCodeChunk = ShadingModel.IsConnected() ? CompileWithDefaultFloat1(Compiler, ShadingModel, float(MSM_DefaultLit)) : Compiler->Constant(float(ShadingModelOverride));
 	int32 ShadingModelCount = Compiler->GetMaterialShadingModels().CountShadingModels();
 	const bool bHasDynamicShadingModels = ShadingModelCount > 1;
-	// We probably need to do something along these line as well :::
 	int32 OutputCodeChunk = Compiler->SubstrateConversionFromLegacy(
 		bHasDynamicShadingModels,
 		// Metalness workflow
@@ -23673,8 +23713,6 @@ int32 UMaterialExpressionSubstrateSlabBSDF::Compile(class FMaterialCompiler* Com
 {
 	FSubstrateOperator& SubstrateOperator = Compiler->SubstrateCompilationGetOperator(Compiler->SubstrateTreeStackGetPathUniqueId());
 
-
-	// As long as both roughness are potentially different, we must take it into account in our encoding.
 	// We also cannot ignore the tangent when using the default Tangent because GetTangentBasis
 	// used in SubstrateGetBSDFSharedBasis cannot be relied on for smooth tangent used for lighting on any mesh.
 	const bool bHasAnisotropy		= SubstrateOperator.bBSDFHasAnisotropy > 0;
@@ -26279,6 +26317,474 @@ void UMaterialExpressionSubstrateThinFilm::GetExpressionToolTip(TArray<FString>&
 }
 #endif // WITH_EDITOR
 
+// Return a conservative list of connected material attribute inputs
+#if WITH_EDITOR
+static uint64 GetConnectedMaterialAttributesInputs(const UMaterial* InMaterial)
+{
+	if (!InMaterial) return 0;
+
+	uint64 Out = 0ull;
+	for (const UMaterialExpression* Expression : InMaterial->GetExpressions())
+	{
+		if (Expression)
+		{
+			if (Expression->IsA(UMaterialExpressionSetMaterialAttributes::StaticClass()))
+			{
+				const UMaterialExpressionSetMaterialAttributes* Attr = Cast<UMaterialExpressionSetMaterialAttributes>(Expression);
+				Out |= Attr->GetConnectedInputs();
+			}
+			else if (Expression->IsA(UMaterialExpressionMakeMaterialAttributes::StaticClass()))
+			{
+				const UMaterialExpressionMakeMaterialAttributes* Attr = Cast<UMaterialExpressionMakeMaterialAttributes>(Expression);
+				Out |= Attr->GetConnectedInputs();
+			}
+		}
+	}
+	return Out;
+}
+
+static bool IsMaterialAttributeInputConnected(uint64 InCache, EMaterialProperty InProperty)
+{
+	return !!(InCache & (1ull << uint64(InProperty)));
+}
+#endif
+
+UMaterialExpressionSubstrateConvertMaterialAttributes::UMaterialExpressionSubstrateConvertMaterialAttributes(const FObjectInitializer& ObjectInitializer)
+: Super(ObjectInitializer)
+{
+	struct FConstructorStatics
+	{
+		FText NAME_Strata;
+		FConstructorStatics() : NAME_Strata(LOCTEXT("Substrate Conversion", "Substrate Conversion")) { }
+	};
+	static FConstructorStatics ConstructorStatics;
+#if WITH_EDITORONLY_DATA
+	MenuCategories.Add(ConstructorStatics.NAME_Strata);
+#endif
+	// Cache some material attribute inputs?
+#if WITH_EDITOR
+	CachedInputs.Empty();
+	CachedInputs.Reserve(1);
+	CachedInputs.Add(&MaterialAttributes);
+	CachedInputs.Add(&TransmittanceColor); 
+	CachedInputs.Add(&WaterScatteringCoefficients); 
+	CachedInputs.Add(&WaterAbsorptionCoefficients);
+	CachedInputs.Add(&WaterPhaseG);
+	CachedInputs.Add(&ColorScaleBehindWater); 
+	CachedInputs.Add(&ClearCoatNormal);
+	CachedInputs.Add(&CustomTangent);
+#endif
+
+#if WITH_EDITORONLY_DATA
+	Outputs.Reset();
+	Outputs.Add(FExpressionOutput(TEXT(""))); // Substrate
+	Outputs.Add(FExpressionOutput(TEXT("PixelDepthOffset")));
+	Outputs.Add(FExpressionOutput(TEXT("AmbientOcclusion")));
+	Outputs.Add(FExpressionOutput(TEXT("WorldPositionOffset")));
+	Outputs.Add(FExpressionOutput(TEXT("Opacity")));
+	Outputs.Add(FExpressionOutput(TEXT("OpacityMask")));
+	Outputs.Add(FExpressionOutput(TEXT("Refraction")));
+	bShowOutputNameOnPin = true;
+#endif
+}
+
+#if WITH_EDITOR
+int32 UMaterialExpressionSubstrateConvertMaterialAttributes::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	if (OutputIndex == 1)
+	{
+		return MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_PixelDepthOffset));
+	}
+	else if (OutputIndex == 2)
+	{
+		return MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_AmbientOcclusion));
+	}
+	else if (OutputIndex == 3)
+	{
+		return MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_WorldPositionOffset));
+	}
+	else if (OutputIndex == 4)
+	{
+		return MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_Opacity));
+	}
+	else if (OutputIndex == 5)
+	{
+		return MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_OpacityMask));
+	}
+	else if (OutputIndex == 6)
+	{
+		return MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_Refraction));
+	}
+	else if (OutputIndex != 0)
+	{
+		return Compiler->Error(TEXT("Output pin index error"));
+	}
+		
+	// We also cannot ignore the tangent when using the default Tangent because GetTangentBasis
+	// used in StrataGetBSDFSharedBasis cannot be relied on for smooth tangent used for lighting on any mesh.
+
+	const uint64 Cached = GetConnectedMaterialAttributesInputs(Material);
+	const bool bHasAnisotropy = IsMaterialAttributeInputConnected(Cached, MP_Anisotropy);
+
+	// Regular normal basis
+	int32 NormalCodeChunk = Compiler->TransformNormalFromRequestedBasisToWorld(MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_Normal)));
+
+	// When computing NormalCodeChunk, we invoke TransformNormalFromRequestedBasisToWorld which requires input to be float or float3.
+	// Certain material do not respect this requirement. We handle here a simple recovery when source material doesn't have a valid 
+	// normal (e.g., vec2 normal), and avoid crashing the material compilation. The error will still be reported by the compiler up 
+	// to the user, but the compilation will succeed.
+	if (NormalCodeChunk == INDEX_NONE) { NormalCodeChunk = Compiler->VertexNormal(); } 
+
+	int32 TangentCodeChunk = bHasAnisotropy ? Compiler->TransformNormalFromRequestedBasisToWorld(MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_Tangent))) : INDEX_NONE;
+	const FSubstrateRegisteredSharedLocalBasis NewRegisteredSharedLocalBasis = SubstrateCompilationInfoCreateSharedLocalBasis(Compiler, NormalCodeChunk, TangentCodeChunk);
+	const FString BasisIndexMacro = Compiler->GetSubstrateSharedLocalBasisIndexMacro(NewRegisteredSharedLocalBasis);
+
+	const bool bHasCoatNormal = ClearCoatNormal.IsConnected();
+	// Clear coat normal basis
+	int32 ClearCoat_NormalCodeChunk = INDEX_NONE;
+	int32 ClearCoat_TangentCodeChunk = INDEX_NONE;
+	FString ClearCoat_BasisIndexMacro;
+	FSubstrateRegisteredSharedLocalBasis ClearCoat_NewRegisteredSharedLocalBasis;
+	if (bHasCoatNormal)
+	{
+		ClearCoat_NormalCodeChunk = CompileWithDefaultNormalWS(Compiler, ClearCoatNormal);
+		ClearCoat_TangentCodeChunk = TangentCodeChunk;
+		ClearCoat_NewRegisteredSharedLocalBasis = SubstrateCompilationInfoCreateSharedLocalBasis(Compiler, ClearCoat_NormalCodeChunk, ClearCoat_TangentCodeChunk);
+		ClearCoat_BasisIndexMacro = Compiler->GetSubstrateSharedLocalBasisIndexMacro(ClearCoat_NewRegisteredSharedLocalBasis);
+	}
+	else
+	{
+		ClearCoat_NormalCodeChunk = NormalCodeChunk;
+		ClearCoat_TangentCodeChunk = TangentCodeChunk;
+		ClearCoat_NewRegisteredSharedLocalBasis = NewRegisteredSharedLocalBasis;
+		ClearCoat_BasisIndexMacro = BasisIndexMacro;
+	}
+
+	// Custom tangent. No need to register it as a local basis, as it is only used for eye shading internal conversion
+	int32 CustomTangent_TangentCodeChunk = INDEX_NONE;
+
+	const bool bHasCustomTangent = CustomTangent.IsConnected();
+	if (bHasCustomTangent)
+	{
+		// Legacy code doesn't do tangent <-> world basis conversion on tangent output, when provided.
+		CustomTangent_TangentCodeChunk = CompileWithDefaultNormalWS(Compiler, CustomTangent, false /*bConvertToRequestedSpace*/);
+	}
+	else
+	{
+		CustomTangent_TangentCodeChunk = NormalCodeChunk;
+	}
+
+	// Need to handle this by looking at the material instead of the node?
+	int32 SSSProfileCodeChunk = INDEX_NONE;
+	const bool bHasSSS = HasSSS();
+	if (bHasSSS)
+	{
+		SSSProfileCodeChunk = Compiler->ForceCast(Compiler->ScalarParameter(GetSubsurfaceProfileParameterName(), 1.0f), MCT_Float1);
+	}
+	SSSProfileCodeChunk = SSSProfileCodeChunk != INDEX_NONE ? SSSProfileCodeChunk : Compiler->Constant(0.0f);
+
+	FSubstrateOperator& SubstrateOperator = Compiler->SubstrateCompilationGetOperator(Compiler->SubstrateTreeStackGetPathUniqueId());
+	SubstrateOperator.BSDFRegisteredSharedLocalBasis = NewRegisteredSharedLocalBasis;
+
+	int32 OpacityCodeChunk = INDEX_NONE;
+	if (!Compiler->SubstrateSkipsOpacityEvaluation())
+	{
+		// We evaluate opacity only for shading models and blending mode requiring it.
+		// For instance, a translucent shader reading depth for soft fading should no evaluate opacity when an instance forces an opaque mode.
+		OpacityCodeChunk = MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_Opacity));
+	}
+	else
+	{
+		OpacityCodeChunk = Compiler->Constant(1.0f);
+	}
+
+	int32 ShadingModelCodeChunk = MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_ShadingModel));
+	const bool bHasShadingModelExpression = IsMaterialAttributeInputConnected(Cached, MP_ShadingModel);
+	if (!bHasShadingModelExpression)
+	{
+		ShadingModelCodeChunk = Compiler->Constant(float(ShadingModelOverride));
+	}
+	int32 ShadingModelCount = Compiler->GetMaterialShadingModels().CountShadingModels();
+	const bool bHasDynamicShadingModels = ShadingModelCount > 1;
+	int32 OutputCodeChunk = Compiler->SubstrateConversionFromLegacy(
+		bHasDynamicShadingModels,
+		// Metalness workflow
+		MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_BaseColor)),
+		MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_Specular)),
+		MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_Metallic)),
+		// Roughness
+		MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_Roughness)),
+		MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_Anisotropy)),
+		// SSS
+		MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_SubsurfaceColor)),
+		SSSProfileCodeChunk,
+		// Clear Coat / Custom
+		MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_CustomData0)),// Clear coat
+		MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_CustomData1)),// Clear coat roughness
+		// Misc
+		MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_EmissiveColor)),
+		OpacityCodeChunk,
+		CompileWithDefaultFloat3(Compiler, TransmittanceColor, 0.5f, 0.5f, 0.5f),
+		// Water
+		CompileWithDefaultFloat3(Compiler, WaterScatteringCoefficients, 0.0f, 0.0f, 0.0f),
+		CompileWithDefaultFloat3(Compiler, WaterAbsorptionCoefficients, 0.0f, 0.0f, 0.0f),
+		CompileWithDefaultFloat1(Compiler, WaterPhaseG, 0.0f),
+		CompileWithDefaultFloat3(Compiler, ColorScaleBehindWater, 1.0f, 1.0f, 1.0f),
+		// Shading model
+		ShadingModelCodeChunk,
+		NormalCodeChunk,
+		TangentCodeChunk,
+		BasisIndexMacro,
+		ClearCoat_NormalCodeChunk,
+		ClearCoat_TangentCodeChunk,
+		ClearCoat_BasisIndexMacro,
+		CustomTangent_TangentCodeChunk,
+		!SubstrateOperator.bUseParameterBlending || (SubstrateOperator.bUseParameterBlending && SubstrateOperator.bRootOfParameterBlendingSubTree) ? &SubstrateOperator : nullptr);
+
+	return OutputCodeChunk;
+}
+
+void UMaterialExpressionSubstrateConvertMaterialAttributes::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (GraphNode)
+	{
+		GraphNode->ReconstructNode();
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+void UMaterialExpressionSubstrateConvertMaterialAttributes::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(TEXT("Substrate Convert Material Attributes"));
+}
+
+uint32 UMaterialExpressionSubstrateConvertMaterialAttributes::GetOutputType(int32 OutputIndex)
+{
+	switch (OutputIndex)
+	{
+		case 0: return MCT_Substrate;	// Substrata data
+		case 1: return MCT_Float1;		// PixelDepthOffset
+		case 2: return MCT_Float1; 		// AmbientOcclusion
+		case 3: return MCT_Float3; 		// WorldPositionOffset
+		case 4: return MCT_Float1; 		// Opacity
+		case 5: return MCT_Float1; 		// OpacityMask
+		case 6: return MCT_Float; 		// Refraction
+	}
+	check(false);
+	return MCT_Float1;
+}
+
+uint32 UMaterialExpressionSubstrateConvertMaterialAttributes::GetInputType(int32 InputIndex)
+{
+	if (InputIndex == 0)	  return MCT_MaterialAttributes; // MaterialAttributes
+	else if (InputIndex == 1) return MCT_Float3; // TransmittanceColor
+	else if (InputIndex == 2) return MCT_Float3; // WaterScatteringCoefficients
+	else if (InputIndex == 3) return MCT_Float3; // WaterAbsorptionCoefficients
+	else if (InputIndex == 4) return MCT_Float1; // WaterPhaseG
+	else if (InputIndex == 5) return MCT_Float3; // ColorScaleBehindWater
+	else if (InputIndex == 6) return MCT_Float3; // ClearCoatNormal
+	else if (InputIndex == 7) return MCT_Float3; // CustomTangent
+	else if (InputIndex == 8) return MCT_ShadingModel; // ShadingModelOverride (as it uses 'ShowAsInputPin' metadata)
+	
+	check(false);
+	return MCT_Float1;
+}
+
+FName UMaterialExpressionSubstrateConvertMaterialAttributes::GetInputName(int32 InputIndex) const
+{
+	if (InputIndex == 0)		return TEXT("Attributes");
+	else if (InputIndex == 1)	return TEXT("TransmittanceColor (ThinTranslucent)");
+	else if (InputIndex == 2)	return TEXT("Water Scattering Coefficients (Water)");
+	else if (InputIndex == 3)	return TEXT("Water Absorption Coefficients (Water)");
+	else if (InputIndex == 4)	return TEXT("Water Phase G (Water)");
+	else if (InputIndex == 5)	return TEXT("Color Scale BehindWater (Water)");
+	else if (InputIndex == 6)	return TEXT("Clear Coat Normal (Coat/Eye)");
+	else if (InputIndex == 7)	return TEXT("Custom Tangent (Eye)");
+	else if (InputIndex == 8)	return TEXT("Shading Model From Expression");
+	return NAME_None;
+}
+
+void UMaterialExpressionSubstrateConvertMaterialAttributes::GetConnectorToolTip(int32 InputIndex, int32 OutputIndex, TArray<FString>& OutToolTip)
+{
+	switch (OutputIndex)
+	{
+		case 0: OutToolTip.Add(TEXT("TT Ouput")); break;
+		case 1: OutToolTip.Add(TEXT("TT PixelDepthOffset")); break;
+		case 2: OutToolTip.Add(TEXT("TT AmbientOcclusion")); break;
+		case 3: OutToolTip.Add(TEXT("TT WorldPositionOffset")); break;
+		case 4: OutToolTip.Add(TEXT("TT Opacity")); break;
+		case 5: OutToolTip.Add(TEXT("TT OpacityMask")); break;
+		case 6: OutToolTip.Add(TEXT("TT Refraction")); break;
+	}
+	Super::GetConnectorToolTip(InputIndex, INDEX_NONE, OutToolTip);
+}
+
+bool UMaterialExpressionSubstrateConvertMaterialAttributes::IsResultSubstrateMaterial(int32 OutputIndex)
+{
+	return OutputIndex == 0;
+}
+
+void UMaterialExpressionSubstrateConvertMaterialAttributes::GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex)
+{
+	const uint64 Cached = GetConnectedMaterialAttributesInputs(Material);
+
+	if (IsMaterialAttributeInputConnected(Cached, MP_BaseColor)) 		{ SubstrateMaterialInfo.AddPropertyConnected(MP_BaseColor); }
+	if (IsMaterialAttributeInputConnected(Cached, MP_Metallic)) 		{ SubstrateMaterialInfo.AddPropertyConnected(MP_Metallic); }
+	if (IsMaterialAttributeInputConnected(Cached, MP_Specular)) 		{ SubstrateMaterialInfo.AddPropertyConnected(MP_Specular); }
+	if (IsMaterialAttributeInputConnected(Cached, MP_Roughness)) 		{ SubstrateMaterialInfo.AddPropertyConnected(MP_Roughness); }
+	if (IsMaterialAttributeInputConnected(Cached, MP_Anisotropy)) 		{ SubstrateMaterialInfo.AddPropertyConnected(MP_Anisotropy); }
+	if (IsMaterialAttributeInputConnected(Cached, MP_EmissiveColor)) 	{ SubstrateMaterialInfo.AddPropertyConnected(MP_EmissiveColor); }
+	if (IsMaterialAttributeInputConnected(Cached, MP_Normal)) 			{ SubstrateMaterialInfo.AddPropertyConnected(MP_Normal); }
+	if (IsMaterialAttributeInputConnected(Cached, MP_Tangent)) 			{ SubstrateMaterialInfo.AddPropertyConnected(MP_Tangent); }
+	if (IsMaterialAttributeInputConnected(Cached, MP_SubsurfaceColor)) 	{ SubstrateMaterialInfo.AddPropertyConnected(MP_SubsurfaceColor); }
+	if (IsMaterialAttributeInputConnected(Cached, MP_CustomData0)) 		{ SubstrateMaterialInfo.AddPropertyConnected(MP_CustomData0); }
+	if (IsMaterialAttributeInputConnected(Cached, MP_CustomData1)) 		{ SubstrateMaterialInfo.AddPropertyConnected(MP_CustomData1); }
+	if (IsMaterialAttributeInputConnected(Cached, MP_Opacity)) 			{ SubstrateMaterialInfo.AddPropertyConnected(MP_Opacity); }
+
+	if (IsMaterialAttributeInputConnected(Cached, MP_ShadingModel))
+	{
+		SubstrateMaterialInfo.AddPropertyConnected(MP_ShadingModel);
+
+		// If the ShadingModel pin is plugged in, we must use a shading model from expression path.
+		SubstrateMaterialInfo.SetShadingModelFromExpression(true);
+	}
+	else
+	{
+		// If the ShadingModel pin is NOT plugged in, we simply use the shading model selected on the root node drop box.
+		if (ShadingModelOverride == MSM_Unlit)					{ SubstrateMaterialInfo.AddShadingModel(ESubstrateShadingModel::SSM_Unlit); }
+		if (ShadingModelOverride == MSM_DefaultLit)				{ SubstrateMaterialInfo.AddShadingModel(ESubstrateShadingModel::SSM_DefaultLit); }
+		if (ShadingModelOverride == MSM_Subsurface)				{ SubstrateMaterialInfo.AddShadingModel(ESubstrateShadingModel::SSM_SubsurfaceWrap); }
+		if (ShadingModelOverride == MSM_PreintegratedSkin)		{ SubstrateMaterialInfo.AddShadingModel(ESubstrateShadingModel::SSM_SubsurfaceWrap); }
+		if (ShadingModelOverride == MSM_ClearCoat)				{ SubstrateMaterialInfo.AddShadingModel(ESubstrateShadingModel::SSM_ClearCoat); }
+		if (ShadingModelOverride == MSM_SubsurfaceProfile)		{ SubstrateMaterialInfo.AddShadingModel(ESubstrateShadingModel::SSM_SubsurfaceProfile); }
+		if (ShadingModelOverride == MSM_TwoSidedFoliage)		{ SubstrateMaterialInfo.AddShadingModel(ESubstrateShadingModel::SSM_SubsurfaceThinTwoSided); }
+		if (ShadingModelOverride == MSM_Hair)					{ SubstrateMaterialInfo.AddShadingModel(ESubstrateShadingModel::SSM_Hair); }
+		if (ShadingModelOverride == MSM_Cloth)					{ SubstrateMaterialInfo.AddShadingModel(ESubstrateShadingModel::SSM_Cloth); }
+		if (ShadingModelOverride == MSM_Eye)					{ SubstrateMaterialInfo.AddShadingModel(ESubstrateShadingModel::SSM_Eye); }
+		if (ShadingModelOverride == MSM_SingleLayerWater)		{ SubstrateMaterialInfo.AddShadingModel(ESubstrateShadingModel::SSM_SingleLayerWater); }
+		if (ShadingModelOverride == MSM_ThinTranslucent)		{ SubstrateMaterialInfo.AddShadingModel(ESubstrateShadingModel::SSM_ThinTranslucent); }
+	}
+
+	if (SubsurfaceProfile)
+	{
+		SubstrateMaterialInfo.AddSubsurfaceProfile(SubsurfaceProfile);
+	}
+}
+
+FSubstrateOperator* UMaterialExpressionSubstrateConvertMaterialAttributes::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
+{
+	const uint64 Cached = GetConnectedMaterialAttributesInputs(Material);
+
+	// Note Thickness has no meaning/usage in the context of StrataLegacyConversionNode
+	int32 ThicknessIndex = Compiler->SubstrateThicknessStackGetThicknessIndex();
+
+	const bool bHasAnisotropy = IsMaterialAttributeInputConnected(Cached, MP_Anisotropy);
+
+	auto AddDefaultWorstCase = [&](bool bSSS, bool bFuzz)
+	{
+
+		FSubstrateOperator& SlabOperator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF_LEGACY, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
+		SlabOperator.BSDFType = SUBSTRATE_BSDF_TYPE_SLAB;
+		SlabOperator.bBSDFHasSSS = bSSS;
+		SlabOperator.bBSDFHasMFPPluggedIn = bSSS;
+		SlabOperator.bBSDFHasFuzz = bFuzz;
+		SlabOperator.bBSDFHasAnisotropy = bHasAnisotropy;
+		SlabOperator.ThicknessIndex = ThicknessIndex;
+
+		return &SlabOperator;
+	};
+
+	// Get the shading models resulting from the UMaterial::RebuildShadingModelField().
+	FMaterialShadingModelField ShadingModels = Compiler->GetMaterialShadingModels();
+
+	// Logic about shading models and complexity should match UMaterialExpressionSubstrateConvertMaterialAttributes::Compile.
+	const bool bHasShadingModelFromExpression = IsMaterialAttributeInputConnected(Cached, MP_ShadingModel); // We keep HasShadingModelFromExpression in case all shading models cannot be safely recovered from material functions.
+	if ((ShadingModels.CountShadingModels() > 1) || bHasShadingModelFromExpression) 
+	{
+		return AddDefaultWorstCase(true, true);
+	}
+	else
+	{
+		check(ShadingModels.CountShadingModels() == 1);
+
+		if (ShadingModels.HasShadingModel(MSM_Unlit))
+		{
+			FSubstrateOperator& Operator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF_LEGACY, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
+			Operator.BSDFType = SUBSTRATE_BSDF_TYPE_UNLIT;
+			Operator.ThicknessIndex = ThicknessIndex;
+			return &Operator;
+		}
+		else if (ShadingModels.HasShadingModel(MSM_DefaultLit))
+		{
+			return AddDefaultWorstCase(false, false);
+		}
+		else if (ShadingModels.HasShadingModel(MSM_ThinTranslucent))
+		{
+			return AddDefaultWorstCase(false, false);
+		}
+		else if (ShadingModels.HasShadingModel(MSM_SubsurfaceProfile))
+		{
+			return AddDefaultWorstCase(true, false);
+		}
+		else if (ShadingModels.HasShadingModel(MSM_Subsurface))
+		{
+			return AddDefaultWorstCase(true, false);
+		}
+		else if (ShadingModels.HasShadingModel(MSM_TwoSidedFoliage))
+		{
+			return AddDefaultWorstCase(true, false);
+		}
+		else if (ShadingModels.HasShadingModel(MSM_PreintegratedSkin))
+		{
+			return AddDefaultWorstCase(true, false);
+		}
+		else if (ShadingModels.HasShadingModel(MSM_Cloth))
+		{
+			return AddDefaultWorstCase(false, true);
+		}
+		else if (ShadingModels.HasShadingModel(MSM_ClearCoat))
+		{
+			FSubstrateOperator& Operator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF_LEGACY, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
+			Operator.BSDFType = SUBSTRATE_BSDF_TYPE_SLAB;
+			Operator.ThicknessIndex = ThicknessIndex;
+			Operator.bBSDFHasSecondRoughnessOrSimpleClearCoat = true;
+			Operator.bBSDFHasAnisotropy = bHasAnisotropy;
+			return &Operator;
+		}
+		else if (ShadingModels.HasShadingModel(MSM_Hair))
+		{
+			FSubstrateOperator& Operator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF_LEGACY, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
+			Operator.BSDFType = SUBSTRATE_BSDF_TYPE_HAIR;
+			Operator.ThicknessIndex = ThicknessIndex;
+			return &Operator;
+		}
+		else if (ShadingModels.HasShadingModel(MSM_Eye))
+		{
+			FSubstrateOperator& Operator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF_LEGACY, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
+			Operator.BSDFType = SUBSTRATE_BSDF_TYPE_EYE;
+			Operator.ThicknessIndex = ThicknessIndex;
+			return &Operator;
+		}
+		else if (ShadingModels.HasShadingModel(MSM_SingleLayerWater))
+		{
+			FSubstrateOperator& Operator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF_LEGACY, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
+			Operator.BSDFType = SUBSTRATE_BSDF_TYPE_SINGLELAYERWATER;
+			Operator.ThicknessIndex = ThicknessIndex;
+			return &Operator;
+		}
+
+		check(false);
+		static FSubstrateOperator DefaultOperatorOnError;
+		return &DefaultOperatorOnError;
+	}
+}
+
+bool UMaterialExpressionSubstrateConvertMaterialAttributes::HasSSS() const
+{
+	return SubsurfaceProfile != nullptr;
+}
+
+#endif // WITH_EDITOR
 
 UMaterialExpressionExecBegin::UMaterialExpressionExecBegin(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
