@@ -8,7 +8,6 @@
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAsset.h"
 #include "Engine/SkinnedAssetCommon.h"
-#include "Engine/SkeletalMeshLODSettings.h"
 #include "GameFramework/PlayerController.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "MuCO/CustomizableInstanceLODManagement.h"
@@ -19,6 +18,7 @@
 #include "MuCO/ICustomizableObjectModule.h"
 #include "MuCO/LogBenchmarkUtil.h"
 #include "MuCO/LogInformationUtil.h"
+#include "MuCO/UnrealBakeHelpers.h"
 #include "MuCO/UnrealExtensionDataStreamer.h"
 #include "MuCO/UnrealMutableImageProvider.h"
 #include "MuCO/UnrealMutableModelDiskStreamer.h"
@@ -45,6 +45,12 @@
 
 class AActor;
 class UAnimInstance;
+
+namespace impl
+{
+	void Task_Game_Callbacks_Work(UCustomizableObjectInstance* CustomizableObjectInstance);
+}
+
 
 DECLARE_CYCLE_STAT(TEXT("MutablePendingRelease Time"), STAT_MutablePendingRelease, STATGROUP_Game);
 DECLARE_CYCLE_STAT(TEXT("MutableTask"), STAT_MutableTask, STATGROUP_Game);
@@ -727,7 +733,7 @@ void UpdateSkeletalMesh(UCustomizableObjectInstance& CustomizableObjectInstance,
 		if (TObjectPtr<USkeletalMesh> SkeletalMesh = CustomizableObjectInstance.SkeletalMeshes[ComponentIndex])
 		{
 #if WITH_EDITOR
-			UCustomizableInstancePrivateData::RegenerateImportedModel(SkeletalMesh);
+			FUnrealBakeHelpers::BakeHelper_RegenerateImportedModel(SkeletalMesh);
 #else
 			SkeletalMesh->RebuildSocketMap();
 #endif
@@ -1326,11 +1332,6 @@ namespace impl
 
 		check(OperationData->InstanceID != 0);
 
-		if (OperationData->PixelFormatOverride)
-		{
-			System->SetImagePixelConversionOverride( OperationData->PixelFormatOverride );
-		}
-
 		// Main instance generation step
 		// LOD mask, set to all ones to build  all LODs
 		const mu::Instance* Instance = System->BeginUpdate(OperationData->InstanceID, MutableParameters, State, mu::System::AllLODs);
@@ -1919,11 +1920,11 @@ namespace impl
 		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_ReleaseInstance)
 
 		check(OperationData);
-		check(MutableSystem);
 
 		if (OperationData->InstanceID > 0)
 		{
 			MUTABLE_CPUPROFILER_SCOPE(EndUpdate);
+			check(MutableSystem);
 			MutableSystem->EndUpdate(OperationData->InstanceID);
 			OperationData->InstanceUpdateData.Clear();
 
@@ -1933,8 +1934,6 @@ namespace impl
 				OperationData->InstanceID = 0;
 			}
 		}
-
-		MutableSystem->SetImagePixelConversionOverride(nullptr);
 
 		if (CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread())
 		{
@@ -2514,9 +2513,6 @@ namespace impl
 		CurrentOperationData->UpdateResult = EUpdateResult::Success;
 		CurrentOperationData->UpdateCallback = Operation->UpdateCallback;
 		CurrentOperationData->bBuildParameterRelevancy = Operation->IsBuildParameterRelevancy();
-#if WITH_EDITOR
-		CurrentOperationData->PixelFormatOverride = SystemPrivateData->ImageFormatOverrideFunc;
-#endif
 
 		if (!CandidateInstancePrivateData->HasCOInstanceFlags(ForceGenerateMipTail))
 		{
@@ -3162,17 +3158,6 @@ void UCustomizableObjectSystem::SetOnlyGenerateRequestedLODsEnabled(bool bIsEnab
 {
 	GetPrivateChecked()->EnableOnlyGenerateRequestedLODs = bIsEnabled ? 1 : 0;
 }
-
-
-#if WITH_EDITOR
-void UCustomizableObjectSystem::SetImagePixelFormatOverride(const mu::FImageOperator::FImagePixelFormatFunc& InFunc)
-{
-	if (Private != nullptr)
-	{
-		Private->ImageFormatOverrideFunc = InFunc;
-	}
-}
-#endif
 
 
 void UCustomizableObjectSystem::AddUncompiledCOWarning(const UCustomizableObject& InObject, FString const* OptionalLogInfo)

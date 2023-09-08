@@ -10,8 +10,9 @@ class USkeletalMesh;
 class UTexture2D;
 class UTexture;
 
+//-------------------------------------------------------------------------------------------------
 
-class CUSTOMIZABLEOBJECTEDITOR_API FUnrealBakeHelpers
+class CUSTOMIZABLEOBJECT_API FUnrealBakeHelpers
 {
 public:
 
@@ -24,5 +25,8 @@ public:
 	 */
 	static UTexture2D* BakeHelper_CreateAssetTexture(UTexture2D* SrcTex, const FString& TexObjName, const FString& TexPkgName, const UTexture* OrgTex, bool ResetDuplicatedFlags, TMap<UObject*, UObject*>& ReplacementMap, bool OverwritePackage);
 
+
+	static void BakeHelper_RegenerateImportedModel(USkeletalMesh* SkeletalMesh);
 };
 
+//-------------------------------------------------------------------------------------------------

@@ -266,7 +266,7 @@ void SMutableImageViewer::Tick(const FGeometry& AllottedGeometry, const double I
 				&&
 				MutableImage->GetFormat() <= mu::EImageFormat::IF_ASTC_10x10_RG_LDR)
 			{
-				mu::FImageOperator ImOp = mu::FImageOperator::GetDefault(mu::FImageOperator::FImagePixelFormatFunc());
+				mu::FImageOperator ImOp = mu::FImageOperator::GetDefault();
 				int32 Quality = 4;
 				ImageToConvert = ImOp.ImagePixelFormat(Quality, MutableImage.get(), mu::GetUncompressedFormat(MutableImage->GetFormat()) );
 			}

@@ -68,16 +68,6 @@ void FImageOperator::ImagePixelFormat( bool& bOutSuccess, int32 CompressionQuali
 {
 	MUTABLE_CPUPROFILER_SCOPE(ImagePixelFormatInPlace);
 
-	if (FormatImageOverride)
-	{
-		MUTABLE_CPUPROFILER_SCOPE(ImagePixelFormatOverride);
-		FormatImageOverride(bOutSuccess, CompressionQuality, pResult, Base, OnlyLOD);
-		if (bOutSuccess)
-		{
-			return;
-		}
-	}
-
 	bOutSuccess = true;
 
 	FIntVector2 resultSize;

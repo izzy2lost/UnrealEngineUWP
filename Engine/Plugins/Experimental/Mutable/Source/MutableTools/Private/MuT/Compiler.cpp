@@ -111,7 +111,7 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    void CompilerOptions::SetOptimisationMaxIteration( int32 maxIterations )
+    void CompilerOptions::SetOptimisationMaxIteration( int maxIterations )
     {
         m_pD->OptimisationOptions.MaxOptimisationLoopCount = maxIterations;
     }
@@ -153,17 +153,10 @@ namespace mu
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	void CompilerOptions::SetImagePixelFormatOverride(const FImageOperator::FImagePixelFormatFunc& InFunc)
-	{
-		m_pD->ImageFormatFunc = InFunc;
-	}
-
-
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
-    Compiler::Compiler( Ptr<CompilerOptions> options )
+    Compiler::Compiler( CompilerOptionsPtr options )
     {
         m_pD = new Private();
         m_pD->m_options = options;
@@ -235,8 +228,7 @@ namespace mu
 
 		// Keep the link options outside the scope because it is also used to cache constant data that has already been 
 		// added and could be reused across states.
-		FImageOperator ImOp = FImageOperator::GetDefault(m_pD->m_options->GetPrivate()->ImageFormatFunc);
-		FLinkerOptions LinkerOptions(ImOp);
+		FLinkerOptions LinkerOptions;
 
 		for( STATE_COMPILATION_DATA& s: states )
         {

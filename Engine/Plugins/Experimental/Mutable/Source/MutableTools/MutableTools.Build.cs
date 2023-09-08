@@ -27,11 +27,8 @@ namespace UnrealBuildTool.Rules
 					"MutableRuntime", 
 					"Core",
 					"GeometryCore",
-					"ImageCore",
-					"TextureCompressor",
-					"TextureBuildUtilities",
 				}
-			);
+            );
 		}
 	}
 }

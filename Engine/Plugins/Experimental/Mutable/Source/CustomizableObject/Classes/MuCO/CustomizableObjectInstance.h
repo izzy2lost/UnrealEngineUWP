@@ -842,6 +842,10 @@ private:
 };
 
 
+#if WITH_EDITOR
+CUSTOMIZABLEOBJECT_API void CopyTextureProperties(UTexture2D* Texture, const UTexture2D* SourceTexture);
+#endif	
+
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "Async/TaskGraphInterfaces.h"
 #include "MuCO/CustomizableObjectParameterTypeDefinitions.h"
