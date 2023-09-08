@@ -539,6 +539,9 @@ public:
 
 	FReply OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
 	{
+		// clear row selection so that delete key can't cause the selected row to be deleted
+		ChooserEditor->ClearSelectedRows();
+		
 		TSharedRef<FChooserRowDragDropOp> DragDropOp = FChooserRowDragDropOp::New(ChooserEditor, RowIndex);
 		return FReply::Handled().BeginDragDrop(DragDropOp);
 	}
@@ -698,14 +701,17 @@ public:
 		{
 			if (Chooser == Operation->ChooserEditor->GetChooser())
 			{
+				int NewRowIndex;
 				if (bDropAbove)
 				{
-					Editor->MoveRow(Operation->RowIndex, RowIndex->RowIndex);
+					NewRowIndex = Editor->MoveRow(Operation->RowIndex, RowIndex->RowIndex);
 				}
 				else
 				{
-					Editor->MoveRow(Operation->RowIndex, RowIndex->RowIndex+1);
+					NewRowIndex = Editor->MoveRow(Operation->RowIndex, RowIndex->RowIndex+1);
 				}
+				Editor->SelectRow(NewRowIndex);
+				
 				return FReply::Handled();		
 			}
 		}
@@ -739,7 +745,7 @@ void FChooserTableEditor::SelectRootProperties()
 	}
 }
 
-void FChooserTableEditor::MoveRow(int SourceRowIndex, int TargetRowIndex)
+int FChooserTableEditor::MoveRow(int SourceRowIndex, int TargetRowIndex)
 {
 	UChooserTable* Chooser = Cast<UChooserTable>(EditingObjects[0]);
 	TargetRowIndex = FMath::Min(TargetRowIndex,Chooser->ResultsStructs.Num());
@@ -763,9 +769,11 @@ void FChooserTableEditor::MoveRow(int SourceRowIndex, int TargetRowIndex)
 	Chooser->ResultsStructs.Insert(Result, TargetRowIndex);
 
 	UpdateTableRows();
+
+	return TargetRowIndex;
 }
 	
-void FChooserTableEditor::SelectRow(int32 RowIndex) const
+void FChooserTableEditor::SelectRow(int32 RowIndex)
 {
 	if (TableRows.IsValidIndex(RowIndex))
 	{
@@ -775,6 +783,13 @@ void FChooserTableEditor::SelectRow(int32 RowIndex) const
 			TableView->SetItemSelection(TableRows[RowIndex], true, ESelectInfo::OnMouseClick);
 		}
 	}
+}
+	
+void FChooserTableEditor::ClearSelectedRows() 
+{
+	SelectedRows.SetNum(0);
+	TableView->ClearSelection();
+	SelectRootProperties();
 }
 
 void FChooserTableEditor::UpdateTableColumns()
@@ -1046,6 +1061,7 @@ TSharedRef<SDockTab> FChooserTableEditor::SpawnTableTab( const FSpawnTabArgs& Ar
     			.ListItemsSource(&TableRows)
 				.OnKeyDownHandler_Lambda([this](const FGeometry&, const FKeyEvent& Event)
 				{
+					
 					if (Event.GetKey() == EKeys::Delete)
 					{
 						const FScopedTransaction Transaction(LOCTEXT("Delete Row Transaction", "Delete Row"));
@@ -1378,7 +1394,7 @@ void FChooserRowDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 	UChooserRowDetails* Row = Cast<UChooserRowDetails>(Objects[0]);
 	UChooserTable* Chooser = Row->Chooser;
 	
-	if (Chooser->ResultsStructs.Num() > Row->Row)
+	if (Chooser->ResultsStructs.IsValidIndex(Row->Row))
 	{
 		IDetailCategoryBuilder& PropertiesCategory = DetailBuilder.EditCategory("Row Properties");
 

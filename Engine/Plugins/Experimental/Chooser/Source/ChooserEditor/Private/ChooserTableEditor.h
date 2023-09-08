@@ -103,7 +103,9 @@ namespace UE::ChooserEditor
 		void ClearSelectedColumn();
 		void DeleteColumn(int Index);
 		void AddColumn(const UScriptStruct* ColumnType);
-		void MoveRow(int SourceRowIndex, int TargetIndex);
+		int MoveRow(int SourceRowIndex, int TargetIndex);
+		void SelectRow(int32 RowIndex);
+		void ClearSelectedRows(); 
 	private:
 
 		void SelectRootProperties();
@@ -146,8 +148,7 @@ namespace UE::ChooserEditor
 		TSharedPtr<SHeaderRow> HeaderRow;
 		TSharedPtr<SListView<TSharedPtr<FChooserTableRow>>> TableView;
 	public:
-		void SelectRow(int32 RowIndex) const;
-		
+
 		TSharedPtr<SComboButton>& GetCreateRowComboButton() { return CreateRowComboButton; };
 
 		/** The name given to all instances of this type of editor */
