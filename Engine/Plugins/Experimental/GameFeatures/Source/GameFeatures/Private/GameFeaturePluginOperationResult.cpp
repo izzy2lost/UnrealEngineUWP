@@ -19,6 +19,19 @@ namespace UE::GameFeatures
 
 	FString ToString(const FResult& Result)
 	{
-		return Result.HasValue() ? FString(TEXT("Success")) : (FString(TEXT("Failure, ErrorCode=")) + Result.GetError() + FString(TEXT(", OptionalErrorText=")) + Result.OptionalErrorText.ToString());
+		TStringBuilder<512> Out;
+		if (Result.HasValue())
+		{
+			Out << TEXT("Success");
+		}
+		else
+		{
+			Out << TEXT("ErrorCode=") << Result.GetError();
+			if (!Result.OptionalErrorText.IsEmpty())
+			{
+				Out << TEXT(", ErrorText=") << Result.OptionalErrorText.ToString();
+			}
+		}
+		return Out.ToString();
 	}
 }	// namespace UE::GameFeatures

@@ -137,6 +137,7 @@ namespace UE::GameFeatures
 		const FText Generic_MountError = NSLOCTEXT("GameFeatures", "ErrorCodes.MountGenericError", "An error has occurred loading data for this game feature. Please try again later.");
 
 		const FText BundleResult_NeedsUpdate = NSLOCTEXT("GameFeatures", "ErrorCodes.BundleResult.NeedsUpdate", "An application update is required to install this game feature. Please restart the application after downloading any required updates.");
+		const FText BundleResult_NeedsCacheSpace = NSLOCTEXT("GameFeatures", "ErrorCodes.BundleResult.NeedsCacheSpace", "Unable to allocate enough space in the cache to install this game feature.");
 		const FText BundleResult_NeedsDiskSpace = NSLOCTEXT("GameFeatures", "ErrorCodes.BundleResult.NeedsDiskSpace", "You do not have enough disk space to install this game feature. Please try again after clearing up disk space.");
 		const FText BundleResult_DownloadCancelled = NSLOCTEXT("GameFeatures", "ErrorCodes.BundleResult.DownloadCancelled", "This game feature download was canceled.");
 
@@ -157,12 +158,17 @@ namespace UE::GameFeatures
 
 				//These are generally unrecoverable and mean something is seriously wrong with the data for this build
 				case EInstallBundleResult::InitializationError:
-				case EInstallBundleResult::FailedCacheReserve:
 				{
 					return Generic_FatalError;
 				}
 
-				//All of these are indicative of not having enough space to install the required files
+				//Not enough space in cache to install the files
+				case EInstallBundleResult::FailedCacheReserve:
+				{
+					return BundleResult_NeedsCacheSpace;
+				}
+
+				//All of these are indicative of not having enough disk space to install the required files
 				case EInstallBundleResult::InstallerOutOfDiskSpaceError:
 				case EInstallBundleResult::ManifestArchiveError:
 				{
