@@ -41,6 +41,61 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Total size of data to copy
 		/// </summary>
 		long TotalSize { get; }
+
+		/// <summary>
+		/// Download speed, in bytes per second
+		/// </summary>
+		double DownloadSpeed { get; }
+	}
+
+	/// <summary>
+	/// Reports progress info back to callers
+	/// </summary>
+	class CopyStats : ICopyStats
+	{
+		readonly object _lockObject = new object();
+		readonly Stopwatch _timer = Stopwatch.StartNew();
+		readonly IProgress<ICopyStats> _progress;
+		long _lastTotalSize;
+
+		public int CopiedCount { get; set; }
+		public long CopiedSize { get; set; }
+		public int TotalCount { get; }
+		public long TotalSize { get; }
+		public double DownloadSpeed { get; set; }
+
+		public CopyStats(int totalCount, long totalSize, IProgress<ICopyStats> progress)
+		{
+			TotalCount = totalCount;
+			TotalSize = totalSize;
+			_progress = progress;
+		}
+
+		public void Update(int count, long size)
+		{
+			lock (_lockObject)
+			{
+				CopiedCount += count;
+				CopiedSize += size;
+				if (_timer.Elapsed > TimeSpan.FromSeconds(10.0) || CopiedCount == count || CopiedSize == TotalSize)
+				{
+					DownloadSpeed = (CopiedSize - _lastTotalSize) / _timer.Elapsed.TotalSeconds;
+					_lastTotalSize = CopiedSize;
+
+					_progress.Report(this);
+					_timer.Restart();
+				}
+			}
+		}
+
+		public void Flush()
+		{
+			lock (_lockObject)
+			{
+				_progress.Report(this);
+				_timer.Restart();
+			}
+		}
 	}
 
 	/// <summary>
@@ -60,11 +115,11 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			if (stats.TotalCount == 0)
 			{
-				_logger.LogInformation("Copied {NumFiles:n0} files ({Size:n1}/{TotalSize:n1}mb, {Pct}%)", stats.CopiedCount, stats.CopiedSize / (1024.0 * 1024.0), stats.TotalSize / (1024.0 * 1024.0), (int)((Math.Max(stats.CopiedCount, 1) * 100) / Math.Max(stats.TotalCount, 1)));
+				_logger.LogInformation("Copied {NumFiles:n0} files ({Size:n1}/{TotalSize:n1}mb, {Rate:n1}mb/s, {Pct}%)", stats.CopiedCount, stats.CopiedSize / (1024.0 * 1024.0), stats.TotalSize / (1024.0 * 1024.0), stats.DownloadSpeed / (1024.0 * 1024.0), (int)((Math.Max(stats.CopiedSize, 1) * 100) / Math.Max(stats.TotalSize, 1)));
 			}
 			else
 			{
-				_logger.LogInformation("Copied {NumFiles:n0}/{TotalFiles:n0} files ({Size:n1}/{TotalSize:n1}mb, {Pct}%)", stats.CopiedCount, stats.TotalCount, stats.CopiedSize / (1024.0 * 1024.0), stats.TotalSize / (1024.0 * 1024.0), (int)((Math.Max(stats.CopiedCount, 1) * 100) / Math.Max(stats.TotalCount, 1)));
+				_logger.LogInformation("Copied {NumFiles:n0}/{TotalFiles:n0} files ({Size:n1}/{TotalSize:n1}mb, {Rate:n1}mb/s, {Pct}%)", stats.CopiedCount, stats.TotalCount, stats.CopiedSize / (1024.0 * 1024.0), stats.TotalSize / (1024.0 * 1024.0), stats.DownloadSpeed / (1024.0 * 1024.0), (int)((Math.Max(stats.CopiedSize, 1) * 100) / Math.Max(stats.TotalSize, 1)));
 			}
 		}
 	}
@@ -451,51 +506,6 @@ namespace EpicGames.Horde.Storage.Nodes
 		#endregion
 
 		/// <summary>
-		/// Reports progress info back to callers
-		/// </summary>
-		class CopyStats : ICopyStats
-		{
-			readonly object _lockObject = new object();
-			readonly Stopwatch _timer = Stopwatch.StartNew();
-			readonly IProgress<ICopyStats> _progress;
-
-			public int CopiedCount { get; set; }
-			public long CopiedSize { get; set; }
-			public int TotalCount { get; }
-			public long TotalSize { get; }
-
-			public CopyStats(int totalCount, long totalSize, IProgress<ICopyStats> progress)
-			{
-				TotalCount = totalCount;
-				TotalSize = totalSize;
-				_progress = progress;
-			}
-
-			public void Update(int count, long size)
-			{
-				lock (_lockObject)
-				{
-					CopiedCount += count;
-					CopiedSize += size;
-					if (_timer.Elapsed > TimeSpan.FromSeconds(10.0) || CopiedCount == count)
-					{
-						_progress.Report(this);
-						_timer.Restart();
-					}
-				}
-			}
-
-			public void Flush()
-			{
-				lock (_lockObject)
-				{
-					_progress.Report(this);
-					_timer.Restart();
-				}
-			}
-		}
-
-		/// <summary>
 		/// Adds files from a flat list of paths
 		/// </summary>
 		/// <param name="baseDir">Base directory to base paths relative to</param>
@@ -631,9 +641,8 @@ namespace EpicGames.Horde.Storage.Nodes
 				FileInfo file = files[idx];
 				using (Stream stream = file.OpenRead())
 				{
-					leafChunks[idx] = await LeafChunkedDataNode.CreateFromStreamAsync(writerFork, stream, options.LeafOptions, cancellationToken);
+					leafChunks[idx] = await LeafChunkedDataNode.CreateFromStreamAsync(writerFork, stream, options.LeafOptions, copyStats, cancellationToken);
 				}
-				copyStats?.Update(1, file.Length);
 			}
 			await writerFork.FlushAsync(cancellationToken);
 		}

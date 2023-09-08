@@ -161,7 +161,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			using (FileStream stream = FileReference.Open(file, FileMode.Open, FileAccess.Read, FileShare.Read))
 			{
-				return await CreateFromStreamAsync(writer, stream, options, cancellationToken);
+				return await CreateFromStreamAsync(writer, stream, options, null, cancellationToken);
 			}
 		}
 
@@ -177,7 +177,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			using (FileStream stream = file.Open(FileMode.Open, FileAccess.Read, FileShare.Read))
 			{
-				return await CreateFromStreamAsync(writer, stream, options, cancellationToken);
+				return await CreateFromStreamAsync(writer, stream, options, null, cancellationToken);
 			}
 		}
 
@@ -189,7 +189,21 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="options">Options for finding chunk boundaries</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Hash of the full file data</returns>
-		public static async Task<LeafChunkedData> CreateFromStreamAsync(IStorageWriter writer, Stream stream, LeafChunkedDataNodeOptions options, CancellationToken cancellationToken)
+		public static Task<LeafChunkedData> CreateFromStreamAsync(IStorageWriter writer, Stream stream, LeafChunkedDataNodeOptions options, CancellationToken cancellationToken)
+		{
+			return CreateFromStreamAsync(writer, stream, options, null, cancellationToken);
+		}
+
+		/// <summary>
+		/// Creates nodes from the given file
+		/// </summary>
+		/// <param name="writer">Writer for output nodes</param>
+		/// <param name="stream">Stream to read from</param>
+		/// <param name="options">Options for finding chunk boundaries</param>
+		/// <param name="copyStats">Stats for the copy operation</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Hash of the full file data</returns>
+		internal static async Task<LeafChunkedData> CreateFromStreamAsync(IStorageWriter writer, Stream stream, LeafChunkedDataNodeOptions options, CopyStats? copyStats, CancellationToken cancellationToken)
 		{
 			using Blake3.Hasher hasher = Blake3.Hasher.New();
 			using IMemoryOwner<byte> readBuffer = MemoryPool<byte>.Shared.Rent(options.MaxSize);
@@ -197,6 +211,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			List<NodeRef<ChunkedDataNode>> handles = new List<NodeRef<ChunkedDataNode>>();
 
 			int size = 0;
+			int sizeSinceProgressUpdate = 0;
 			for (; ; )
 			{
 				size += await stream.ReadGreedyAsync(readBuffer.Memory.Slice(size), cancellationToken);
@@ -211,12 +226,21 @@ namespace EpicGames.Horde.Storage.Nodes
 				readBuffer.Memory.Slice(0, nextLength).CopyTo(outputBuffer);
 				hasher.Update(outputBuffer.Span);
 
+				sizeSinceProgressUpdate += nextLength;
+				if (sizeSinceProgressUpdate > 512 * 1024)
+				{
+					copyStats?.Update(0, sizeSinceProgressUpdate);
+					sizeSinceProgressUpdate = 0;
+				}
+
 				BlobHandle handle = await writer.WriteNodeAsync(nextLength, Array.Empty<BlobHandle>(), GetNodeType<LeafChunkedDataNode>(), cancellationToken);
 				handles.Add(new NodeRef<ChunkedDataNode>(handle));
 
 				readBuffer.Memory.Slice(nextLength, size - nextLength).CopyTo(readBuffer.Memory);
 				size -= nextLength;
 			}
+
+			copyStats?.Update(1, sizeSinceProgressUpdate);
 
 			IoHash hash = IoHash.FromBlake3(hasher);
 			return new LeafChunkedData(hash, handles);
