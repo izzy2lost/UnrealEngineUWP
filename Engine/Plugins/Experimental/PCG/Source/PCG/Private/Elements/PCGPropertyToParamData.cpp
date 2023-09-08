@@ -171,29 +171,38 @@ bool FPCGPropertyToParamDataElement::ExecuteInternal(FPCGContext* Context) const
 		return true;
 	}
 
-	using ExtractablePropertyTuple = TTuple<FName, const void*, const FProperty*>;
+	// If the property is an array, we will work on the underlying property, and extract each element as an entry in the param data
+	FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property);
+	if (ArrayProperty)
+	{
+		Property = ArrayProperty->Inner;
+	}
+
+	using GetAddressFunc = TFunction<const void* (const void*)>;
+	using ExtractablePropertyTuple = TTuple<FName, const FProperty*>;
 	TArray<ExtractablePropertyTuple> ExtractableProperties;
 
+	GetAddressFunc AddressFunc;
+
 	// Special case where the property is a struct/object, that is not supported by our metadata, we will try to break it down to multiple attributes in the resulting param data, if asked.
-	if (!PCGAttributeAccessorHelpers::IsPropertyAccessorSupported(Property) && (Property->IsA<FStructProperty>() || Property->IsA<FObjectProperty>()) && Settings->bExtractObjectAndStruct)
+	if ((Property->IsA<FStructProperty>() || Property->IsA<FObjectProperty>()) && Settings->bExtractObjectAndStruct)
 	{
 		UScriptStruct* UnderlyingStruct = nullptr;
 		UClass* UnderlyingClass = nullptr;
-		const void* ObjectAddress = nullptr;
 
 		if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
 		{
 			UnderlyingStruct = StructProperty->Struct;
-			ObjectAddress = StructProperty->ContainerPtrToValuePtr<void>(ObjectToInspect);
+			AddressFunc = [StructProperty](const void* InAddress) { return StructProperty->ContainerPtrToValuePtr<void>(InAddress); };
 		}
 		else if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
 		{
 			UnderlyingClass = ObjectProperty->PropertyClass;
-			ObjectAddress = ObjectProperty->GetObjectPropertyValue_InContainer(ObjectToInspect);
+			AddressFunc = [ObjectProperty](const void* InAddress) { return ObjectProperty->GetObjectPropertyValue_InContainer(InAddress); };
 		}
-		
+
 		check(UnderlyingStruct || UnderlyingClass);
-		check(ObjectAddress);
+		check(!!AddressFunc);
 
 		// Re-use code from overridable params
 		// Limit ourselves to not recurse into more structs.
@@ -216,7 +225,7 @@ bool FPCGPropertyToParamDataElement::ExecuteInternal(FPCGContext* Context) const
 					// We use authored name as attribute name to avoid issue with noisy property names, like in UUserDefinedStructs, where some random number is appended to the property name.
 					// By default, it will just return the property name anyway.
 					const FString AuthoredName = UnderlyingStruct ? UnderlyingStruct->GetAuthoredNameForField(ChildProperty) : UnderlyingClass->GetAuthoredNameForField(ChildProperty);
-					ExtractableProperties.Emplace(FName(AuthoredName), ObjectAddress, ChildProperty);
+					ExtractableProperties.Emplace(FName(AuthoredName), ChildProperty);
 				}
 			}
 		}
@@ -224,7 +233,9 @@ bool FPCGPropertyToParamDataElement::ExecuteInternal(FPCGContext* Context) const
 	else
 	{
 		const FName AttributeName = (Settings->OutputAttributeName == PCGMetadataAttributeConstants::SourceNameAttributeName) ? Property->GetFName() : Settings->OutputAttributeName;
-		ExtractableProperties.Emplace(AttributeName, ObjectToInspect, Property);
+		ExtractableProperties.Emplace(AttributeName, Property);
+		// Identity
+		AddressFunc = [](const void* InAddress) { return InAddress; };
 	}
 
 	if (ExtractableProperties.IsEmpty())
@@ -233,26 +244,54 @@ bool FPCGPropertyToParamDataElement::ExecuteInternal(FPCGContext* Context) const
 		return true;
 	}
 
+	// Before we need to compute all the addresses for each entry in our array (or just a single entry if there is no array)
+	TArray<const void*, TInlineAllocator<16>> ElementAddresses;
+	if (ArrayProperty)
+	{
+		FScriptArrayHelper_InContainer Helper(ArrayProperty, ObjectToInspect);
+		ElementAddresses.Reserve(Helper.Num());
+		for (int32 DynamicIndex = 0; DynamicIndex < Helper.Num(); ++DynamicIndex)
+		{
+			ElementAddresses.Add(Helper.GetRawPtr(DynamicIndex));
+		}
+	}
+	else
+	{
+		ElementAddresses.Add(ObjectToInspect);
+	}
+
 	// From there, we should be able to create the data.
 	UPCGParamData* ParamData = NewObject<UPCGParamData>();
 	UPCGMetadata* Metadata = ParamData->MutableMetadata();
 	check(Metadata);
-	PCGMetadataEntryKey EntryKey = Metadata->AddEntry();
-	bool bValidOperation = false;
 
-	for (ExtractablePropertyTuple& ExtractableProperty : ExtractableProperties)
+	bool bValidOperation = true;
+
+	for (const void* ElementAddress : ElementAddresses)
 	{
-		const FName AttributeName = ExtractableProperty.Get<0>();
-		const void* ContainerPtr = ExtractableProperty.Get<1>();
-		const FProperty* FinalProperty = ExtractableProperty.Get<2>();
-
-		if (!Metadata->SetAttributeFromDataProperty(AttributeName, EntryKey, ContainerPtr, FinalProperty, /*bCreate=*/ true))
+		if (!bValidOperation)
 		{
-			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("ErrorCreatingAttribute", "Error while creating an attribute for property '{0}'. Either the property type is not supported by PCG or attribute creation failed."), FText::FromString(FinalProperty->GetName())));
-			continue;
+			break;
 		}
 
-		bValidOperation = true;
+		// Add a new entry for all elements
+		PCGMetadataEntryKey EntryKey = Metadata->AddEntry();
+
+		for (ExtractablePropertyTuple& ExtractableProperty : ExtractableProperties)
+		{
+			const FName AttributeName = ExtractableProperty.Get<0>();
+			const FProperty* FinalProperty = ExtractableProperty.Get<1>();
+
+			// Offset the address if needed
+			const void* ContainerPtr = AddressFunc(ElementAddress);
+
+			if (!Metadata->SetAttributeFromDataProperty(AttributeName, EntryKey, ContainerPtr, FinalProperty, /*bCreate=*/ true))
+			{
+				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("ErrorCreatingAttribute", "Error while creating an attribute for property '{0}'. Either the property type is not supported by PCG or attribute creation failed."), FText::FromString(FinalProperty->GetName())));
+				bValidOperation = false;
+				break;
+			}
+		}
 	}
 
 	if (bValidOperation)
