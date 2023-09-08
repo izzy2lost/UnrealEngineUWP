@@ -68,9 +68,19 @@ namespace EpicGames.Horde.Storage.Bundles
 	public class Bundle
 	{
 		/// <summary>
+		/// Maximum size for a section
+		/// </summary>
+		public const int MaxSectionSize = 0x1000000;
+
+		/// <summary>
 		/// Maximum number of exports from a single bundle
 		/// </summary>
-		public const int MaxExports = 60000;
+		public const int MaxExports = 65535;
+
+		/// <summary>
+		/// Maximum number of export refs from a single bundle
+		/// </summary>
+		public const int MaxExportRefs = MaxSectionSize / BundleExportRef.NumBytes;
 
 		/// <summary>
 		/// Header for the bundle
