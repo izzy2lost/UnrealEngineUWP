@@ -160,7 +160,14 @@ constexpr bool IntFitsIn(InType In)
 template<typename OutType, typename InType>
 OutType IntCastChecked(InType In)
 {
-	checkf(IntFitsIn<OutType>(In), TEXT("Loss of data caused by narrowing conversion"));
+	if constexpr (std::is_signed_v<InType>)
+	{
+		checkf(IntFitsIn<OutType>(In), TEXT("Loss of data caused by narrowing conversion, In = %" INT64_FMT), (int64)In);
+	}
+	else
+	{
+		checkf(IntFitsIn<OutType>(In), TEXT("Loss of data caused by narrowing conversion, In = %" UINT64_FMT), (uint64)In);
+	}
 	return static_cast<OutType>(In);
 }
 
