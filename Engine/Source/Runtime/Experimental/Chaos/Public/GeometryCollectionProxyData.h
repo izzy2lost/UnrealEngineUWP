@@ -352,7 +352,7 @@ class FGeometryCollectionResults: public FRefCountedObject
 public:
 	FGeometryCollectionResults();
 
-	int32 GetNumEntries() const { return Transforms.Num(); }
+	int32 GetNumEntries() const { return States.Num(); }
 
 	void Reset();
 
@@ -442,11 +442,6 @@ public:
 		return Velocities[EntryIndex];
 	}
 
-	inline const FTransform& GetTransform(FEntryIndex EntryIndex) const
-	{
-		return Transforms[EntryIndex];
-	}
-
 	inline void SetSolverDt(const Chaos::FReal SolverDtIn)
 	{
 		SolverDt = SolverDtIn;
@@ -464,7 +459,6 @@ public:
 		ensure(GetEntryIndexByTransformIndex(TransformIndex) == EntryIndex);
 		Positions.AddDefaulted();
 		Velocities.AddDefaulted();
-		Transforms.AddDefaulted();
 		return EntryIndex;
 	}
 
@@ -476,11 +470,6 @@ public:
 	inline void SetVelocities(FEntryIndex EntryIndex, const FVelocityData& VelocityData)
 	{
 		Velocities[EntryIndex] = VelocityData;
-	}
-
-	inline void SetTransform(FEntryIndex EntryIndex, const FTransform& Transform)
-	{
-		Transforms[EntryIndex] = Transform;
 	}
 
 	inline const TBitArray<>& GetModifiedTransformIndices() const
@@ -498,7 +487,6 @@ private:
 	TArray<FStateData> States;
 	TArray<FPositionData> Positions;
 	TArray<FVelocityData> Velocities;
-	TArray<FTransform> Transforms;
 
 #if WITH_EDITORONLY_DATA
 	// use to display impulse statistics in editor
