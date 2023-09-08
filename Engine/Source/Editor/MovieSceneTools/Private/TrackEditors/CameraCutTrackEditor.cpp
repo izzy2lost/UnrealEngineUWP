@@ -101,6 +101,12 @@ void FCameraCutTrackEditor::BindCommands(TSharedRef<FUICommandList> SequencerCom
 		Commands.ToggleLockCamera,
 		FExecuteAction::CreateSP( this, &FCameraCutTrackEditor::ToggleLockCamera) );
 
+	TSharedPtr<FUICommandList> CurveEditorSharedBindings = GetSequencer()->GetCommandBindings(ESequencerCommandBindings::CurveEditor);
+	if (CurveEditorSharedBindings)
+	{	
+		CurveEditorSharedBindings->MapAction(Commands.ToggleLockCamera, *SequencerCommandBindings->GetActionForCommand(Commands.ToggleLockCamera));
+	}
+
 	Commands.BindingCount++;
 }
 
