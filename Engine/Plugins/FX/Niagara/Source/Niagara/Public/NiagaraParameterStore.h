@@ -467,8 +467,13 @@ public:
 	/** Returns a struct converter for the given variable, if the store contains the variable and it's a LWC type. */
 	NIAGARA_API FNiagaraLwcStructConverter GetStructConverter(const FNiagaraVariable& Parameter) const;
 
+	UE_DEPRECATED(5.4, "FindVariable has been replaced by FindVariableFromDataInterface.")
+	NIAGARA_API const FNiagaraVariableBase* FindVariable(const UNiagaraDataInterface* Interface) const { return FindVariableFromDataInterface(Interface); }
+
+	/** Returns the associated FNiagaraVariable for the passed data interface index if it exists in the store. Null if not.*/
+	NIAGARA_API const FNiagaraVariableBase* FindVariableFromDataInterfaceIndex(int32 DataInterfaceIndex) const;
 	/** Returns the associated FNiagaraVariable for the passed data interface if it exists in the store. Null if not.*/
-	NIAGARA_API const FNiagaraVariableBase* FindVariable(const UNiagaraDataInterface* Interface) const;
+	NIAGARA_API const FNiagaraVariableBase* FindVariableFromDataInterface(const UNiagaraDataInterface* Interface) const;
 
 	NIAGARA_API virtual const int32* FindParameterOffset(const FNiagaraVariableBase& Parameter, bool IgnoreType = false) const;
 

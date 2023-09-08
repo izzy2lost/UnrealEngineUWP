@@ -26,7 +26,7 @@ void ForEachVMFunctionImpl(class UNiagaraDataInterface* RuntimeResolvedDataInter
 	{
 		if (OverrideDI != nullptr && OverrideDI == RuntimeResolvedDataInterface)
 		{
-			if (const FNiagaraVariableBase* Variable = ParameterStore.FindVariable(OverrideDI))
+			if (const FNiagaraVariableBase* Variable = ParameterStore.FindVariableFromDataInterface(OverrideDI))
 			{
 				DataInterfaceUserVariable = *Variable;
 				break;
@@ -87,7 +87,7 @@ void ForEachGpuFunctionImpl(class UNiagaraDataInterface* RuntimeResolvedDataInte
 	{
 		if (OverrideDI != nullptr && OverrideDI == RuntimeResolvedDataInterface)
 		{
-			if (const FNiagaraVariableBase* Variable = ParameterStore.FindVariable(OverrideDI))
+			if (const FNiagaraVariableBase* Variable = ParameterStore.FindVariableFromDataInterface(OverrideDI))
 			{
 				DataInterfaceUserVariable = *Variable;
 				break;

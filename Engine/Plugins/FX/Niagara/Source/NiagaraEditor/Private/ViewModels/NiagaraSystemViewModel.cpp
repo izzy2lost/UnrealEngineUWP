@@ -2465,7 +2465,7 @@ void FNiagaraSystemViewModel::UpdateCompiledDataInterfaces(UNiagaraDataInterface
 	else
 	{
 		// If the data interface wasn't owned by a script, try to find it in the exposed parameter data interfaces.
-		const FNiagaraVariableBase* FoundExposedDataInterface = GetSystem().GetExposedParameters().FindVariable(ChangedDataInterface);
+		const FNiagaraVariableBase* FoundExposedDataInterface = GetSystem().GetExposedParameters().FindVariableFromDataInterface(ChangedDataInterface);
 		if (FoundExposedDataInterface != nullptr)
 		{
 			GetSystem().GetExposedParameters().OnInterfaceChange();

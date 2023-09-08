@@ -236,7 +236,7 @@ void UNiagaraDataInterfaceVectorField::GetFeedback(UNiagaraSystem* InAsset, UNia
 			{
 				if (DI == this || DI->Equals(this))
 				{
-					const FNiagaraVariableBase* Var = InComponent->GetOverrideParameters().FindVariable(DI);
+					const FNiagaraVariableBase* Var = InComponent->GetOverrideParameters().FindVariableFromDataInterface(DI);
 					if (Var)
 					{
 						DIAliases.AddUnique(Var->GetName());
@@ -253,7 +253,7 @@ void UNiagaraDataInterfaceVectorField::GetFeedback(UNiagaraSystem* InAsset, UNia
 			{
 				if (DI == this || DI->Equals(this))
 				{
-					const FNiagaraVariableBase* Var = InAsset->GetExposedParameters().FindVariable(DI);
+					const FNiagaraVariableBase* Var = InAsset->GetExposedParameters().FindVariableFromDataInterface(DI);
 					if (Var)
 					{
 						DIAliases.AddUnique(Var->GetName());
