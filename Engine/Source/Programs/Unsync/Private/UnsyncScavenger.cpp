@@ -366,7 +366,7 @@ BuildTargetFromScavengedData(FIOWriter&						Output,
 
 		const FFileManifest& ScavengeFileManifest = ScavengeDatabase.GetFileManifest(PossibleSource);
 
-		NativeFile LocalSourceFile = NativeFile(PossibleSource.FullSourceFilePath, EFileMode::ReadOnlyUnbuffered);
+		FNativeFile LocalSourceFile = FNativeFile(PossibleSource.FullSourceFilePath, EFileMode::ReadOnlyUnbuffered);
 		if (LocalSourceFile.IsValid())
 		{
 			THashMap<FGenericHash, uint64> BlockOffsetMap;

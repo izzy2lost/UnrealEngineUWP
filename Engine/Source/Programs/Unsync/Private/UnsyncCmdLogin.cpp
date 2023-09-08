@@ -79,7 +79,16 @@ CmdLogin(const FCmdLoginOptions& Options)
 			}
 			else
 			{
-				LogPrintf(ELogLevel::MachineReadable, L"%hs\n", AuthTokenResult->Raw.c_str());
+				if (Options.bPrintHttpHeader)
+				{
+					std::string HttpHeader = "Authorization: Bearer " + AuthTokenResult->Access;
+					LogPrintf(ELogLevel::MachineReadable, L"%hs\n", HttpHeader.c_str());
+				}
+				else
+				{
+					LogPrintf(ELogLevel::MachineReadable, L"%hs\n", AuthTokenResult->Raw.c_str());
+				}
+				
 			}
 		}
 

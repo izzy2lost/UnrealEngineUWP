@@ -1816,7 +1816,7 @@ CreateDirectoryManifest(const FPath& Root, uint32 BlockSize, FAlgorithmOptions A
 		if (BlockSize)
 		{
 			FPath FilePath = Root / RelativePath;
-			auto  File	   = std::make_shared<NativeFile>(FilePath, EFileMode::ReadOnlyUnbuffered);
+			auto  File	   = std::make_shared<FNativeFile>(FilePath, EFileMode::ReadOnlyUnbuffered);
 			if (File->IsValid())
 			{
 				UNSYNC_VERBOSE(L"Computing blocks for '%ls' (%.2f MB)", FilePath.wstring().c_str(), double(File->GetSize()) / (1 << 20));
@@ -1962,7 +1962,7 @@ UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, uin
 		++NumProcessedFiles;
 
 		FPath FilePath = Root / It.first;
-		auto  File	   = std::make_shared<NativeFile>(FilePath, EFileMode::ReadOnlyUnbuffered);
+		auto  File	   = std::make_shared<FNativeFile>(FilePath, EFileMode::ReadOnlyUnbuffered);
 		if (File->IsValid())
 		{
 			UNSYNC_VERBOSE(L"Computing blocks for '%ls' (%.2f MB)", FilePath.wstring().c_str(), double(File->GetSize()) / (1 << 20));
@@ -2364,7 +2364,7 @@ SyncFile(const FNeedList&		   NeedList,
 				CreateDirectories(TargetFileParent);
 			}
 
-			auto TargetFile = NativeFile(TargetFilePath, EFileMode::CreateWriteOnly, 0);
+			auto TargetFile = FNativeFile(TargetFilePath, EFileMode::CreateWriteOnly, 0);
 			if (TargetFile.IsValid())
 			{
 				Result.Status = EFileSyncStatus::Ok;
@@ -2406,7 +2406,7 @@ SyncFile(const FNeedList&		   NeedList,
 				CreateDirectories(TargetFileParent);
 			}
 
-			TargetFile = std::make_unique<NativeFile>(TempTargetFilePath, EFileMode::CreateWriteOnly, TargetFileSizeInfo.TotalBytes);
+			TargetFile = std::make_unique<FNativeFile>(TempTargetFilePath, EFileMode::CreateWriteOnly, TargetFileSizeInfo.TotalBytes);
 			if (TargetFile->GetError() != 0)
 			{
 				UNSYNC_ERROR(L"Failed to create output file '%ls'. Error code %d.",
@@ -2420,7 +2420,7 @@ SyncFile(const FNeedList&		   NeedList,
 		FDeferredOpenReader SourceFile([SourceFilePath, TargetFilePath] {
 			UNSYNC_VERBOSE(L"Opening source file '%ls'", SourceFilePath.wstring().c_str());
 			LogStatus(TargetFilePath.wstring().c_str(), L"Opening source file");
-			return std::unique_ptr<NativeFile>(new NativeFile(SourceFilePath, EFileMode::ReadOnlyUnbuffered));
+			return std::unique_ptr<FNativeFile>(new FNativeFile(SourceFilePath, EFileMode::ReadOnlyUnbuffered));
 		});
 
 		FBuildTargetResult BuildResult = BuildTarget(*TargetFile,
@@ -2445,7 +2445,7 @@ SyncFile(const FNeedList&		   NeedList,
 			{
 				// Reopen the file in unuffered read mode for optimal reading performance
 				TargetFile = nullptr;
-				TargetFile = std::make_unique<NativeFile>(TempTargetFilePath, EFileMode::ReadOnlyUnbuffered);
+				TargetFile = std::make_unique<FNativeFile>(TempTargetFilePath, EFileMode::ReadOnlyUnbuffered);
 			}
 
 			if (!ValidateTarget(*TargetFile, NeedList, Options.Algorithm.StrongHashAlgorithmId))
@@ -2546,7 +2546,7 @@ SyncFile(const FPath& SourceFilePath, const FPath& BaseFilePath, const FPath& Ta
 
 	FFileSyncResult Result;
 
-	NativeFile BaseFile(BaseFilePath, EFileMode::ReadOnlyUnbuffered);
+	FNativeFile BaseFile(BaseFilePath, EFileMode::ReadOnlyUnbuffered);
 	if (!BaseFile.IsValid())
 	{
 		BaseFile.Close();
@@ -3036,8 +3036,15 @@ LoadAndMergeSourceManifest(FDirectoryManifest& Output,
 
 	if (bDownloadManifestFromProxy)
 	{
+		// TODO: add a mechanism to suppress dry run in a scope in a thread-safe way
+		const bool bPrevDryRun = GDryRun;
+		GDryRun				   = false;
+
 		UNSYNC_LOG_INDENT;
 		bool bDownloadedOk = DownloadFileIfNewer(ProxyPool.RemoteDesc, SourceManifestPath, SourceManifestTempPath);
+
+		GDryRun = bPrevDryRun;
+
 		if (!bDownloadedOk)
 		{
 			UNSYNC_ERROR(L"Failed to download manifest file '%ls'", SourceManifestPath.wstring().c_str());
@@ -3588,7 +3595,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 			if (Item.IsBaseValid() && PathExists(Item.BaseFilePath))
 			{
-				NativeFile BaseFile(Item.BaseFilePath, EFileMode::ReadOnlyUnbuffered);
+				FNativeFile BaseFile(Item.BaseFilePath, EFileMode::ReadOnlyUnbuffered);
 				uint32	   SourceBlockSize = Item.SourceManifest->BlockSize;
 				UNSYNC_VERBOSE(L"Computing difference for target '%ls' (base size: %.2f MB)",
 							   Item.BaseFilePath.wstring().c_str(),
@@ -3816,10 +3823,10 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 								 &ProxyPool](const FFileSyncTask& Item, FBlockCache* BlockCache, bool bBackground) {
 			UNSYNC_VERBOSE(L"Copy '%ls' (%ls)", Item.TargetFilePath.wstring().c_str(), (Item.NeedBytesFromBase) ? L"partial" : L"full");
 
-			std::unique_ptr<NativeFile> BaseFile;
+			std::unique_ptr<FNativeFile> BaseFile;
 			if (Item.IsBaseValid())
 			{
-				BaseFile = std::make_unique<NativeFile>(Item.BaseFilePath, EFileMode::ReadOnlyUnbuffered);
+				BaseFile = std::make_unique<FNativeFile>(Item.BaseFilePath, EFileMode::ReadOnlyUnbuffered);
 			}
 
 			const FGenericBlockArray& SourceBlocks	  = Item.SourceManifest->Blocks;

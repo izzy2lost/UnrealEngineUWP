@@ -89,6 +89,7 @@ InnerMain(int Argc, char** Argv)
 	bool					 bInteractive		 = false;
 	bool					 bDecode			 = false;
 	bool					 bPrint				 = false;
+	bool					 bPrintHttpHeader	 = false;
 	bool					 bShouldLogin		 = false;
 	bool					 bQuickLogin		 = false;
 	bool					 bForceRefreshAuth	 = false;
@@ -285,6 +286,7 @@ InnerMain(int Argc, char** Argv)
 	SubLogin->add_flag("--interactive", bInteractive, "Allow user interaction through modal dialogs");
 	SubLogin->add_flag("--decode", bDecode, "Decode authentication token (implies --print)");
 	SubLogin->add_flag("--print", bPrint, "Print authentication token to standard output");
+	SubLogin->add_flag("--print-http-header", bPrintHttpHeader, "Print authentication token to standard output as HTTP Authorization header that could be used with curl, etc.");
 	SubLogin->add_flag("--refresh", bForceRefreshAuth, "Force authentication refresh even if access token has not yet expired");
 	SubLogin->add_flag("--quick", bQuickLogin, "Skip token validation using remote server (fast path when cached acess token is expected to be valid)");
 	AddTlsOptions(SubLogin);
@@ -825,7 +827,7 @@ InnerMain(int Argc, char** Argv)
 	}
 	else if (Cli.got_subcommand(SubLogin))
 	{
-		if (bDecode)
+		if (bDecode || bPrintHttpHeader)
 		{
 			bPrint = true;
 		}
@@ -835,6 +837,7 @@ InnerMain(int Argc, char** Argv)
 		LoginOptions.bInteractive  = bInteractive;
 		LoginOptions.bDecode	   = bDecode;
 		LoginOptions.bPrint		   = bPrint;
+		LoginOptions.bPrintHttpHeader = bPrintHttpHeader;
 		LoginOptions.bForceRefresh = bForceRefreshAuth;
 		LoginOptions.bQuick		   = bQuickLogin;
 		return CmdLogin(LoginOptions);

@@ -59,7 +59,7 @@ CmdHash(const FCmdHashOptions& Options)
 	{
 		UNSYNC_VERBOSE(L"'%ls' is a file", Options.Input.wstring().c_str());
 
-		NativeFile OverlappedFile(Options.Input);
+		FNativeFile OverlappedFile(Options.Input);
 		if (OverlappedFile.IsValid())
 		{
 			UNSYNC_VERBOSE(L"Computing blocks for '%ls' (%.2f MB)", Options.Input.wstring().c_str(), SizeMb(OverlappedFile.GetSize()));

@@ -14,6 +14,8 @@ class FBuffer;
 struct FBufferView;
 using FSocketHandle = uintptr_t;
 
+extern const FSocketHandle InvalidSocketHandle;
+
 struct FSocketAddress  // opaque buffer that holds socket address
 {
 	FSocketAddress()

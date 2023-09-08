@@ -41,6 +41,8 @@ namespace unsync {
 static_assert(sizeof(FSocketAddress) >= sizeof(sockaddr), "SocketAddress is too small");
 static_assert(sizeof(FSocketAddress) >= sizeof(sockaddr_in), "SocketAddress is too small");
 
+const FSocketHandle InvalidSocketHandle = INVALID_SOCKET;
+
 struct FSocketInitHelper
 {
 	FSocketInitHelper()
@@ -103,10 +105,10 @@ SocketListenTcp(const char* Address, uint16 Port)
 
 	SOCKET ListenSocket = socket(AF_INET, SOCK_STREAM, 0);
 
-	if (ListenSocket == INVALID_SOCKET)
+	if (ListenSocket == InvalidSocketHandle)
 	{
 		UNSYNC_ERROR(L"Failed to create TCP socket (error code %d)", GetLastSocketError());
-		return 0;
+		return InvalidSocketHandle;
 	}
 
 	sockaddr_in Service;
@@ -119,7 +121,7 @@ SocketListenTcp(const char* Address, uint16 Port)
 	{
 		UNSYNC_ERROR(L"Failed to bind TCP socket (error code %d)", GetLastSocketError());
 		SocketClose(ListenSocket);
-		return 0;
+		return InvalidSocketHandle;
 	}
 
 	int32 ListenResult = listen(ListenSocket, 1);
@@ -127,7 +129,7 @@ SocketListenTcp(const char* Address, uint16 Port)
 	{
 		UNSYNC_ERROR(L"Failed to listen on TCP socket (error code %d)", GetLastSocketError());
 		SocketClose(ListenSocket);
-		return 0;
+		return InvalidSocketHandle;
 	}
 
 	return ListenSocket;
@@ -137,10 +139,10 @@ FSocketHandle
 SocketAccept(FSocketHandle ListenSocket)
 {
 	SOCKET AcceptSocket = accept(ListenSocket, nullptr, nullptr);
-	if (AcceptSocket == INVALID_SOCKET)
+	if (AcceptSocket == InvalidSocketHandle)
 	{
 		UNSYNC_ERROR(L"Failed to accept connection on TCP socket (error code %d)", GetLastSocketError());
-		return 0;
+		return InvalidSocketHandle;
 	}
 	return AcceptSocket;
 }
@@ -152,10 +154,10 @@ SocketConnectTcp(const char* DestAddress, uint16 Port)
 
 	SOCKET Sock = socket(AF_INET, SOCK_STREAM, 0);
 
-	if (Sock == INVALID_SOCKET)
+	if (Sock == InvalidSocketHandle)
 	{
 		UNSYNC_ERROR(L"Failed to create TCP socket (error code %d)", GetLastSocketError());
-		return 0;
+		return InvalidSocketHandle;
 	}
 
 	sockaddr_in SockAddr = {};
@@ -193,7 +195,7 @@ SocketConnectTcp(const char* DestAddress, uint16 Port)
 	else
 	{
 		UNSYNC_ERROR(L"Invalid address '%hs'", DestAddress);
-		return 0;
+		return InvalidSocketHandle;
 	}
 
 	if (Addr)
@@ -204,13 +206,15 @@ SocketConnectTcp(const char* DestAddress, uint16 Port)
 	if (inet_pton(SockAddr.sin_family, DestAddress, &SockAddr.sin_addr) <= 0)
 	{
 		UNSYNC_ERROR(L"Invalid address '%hs'", DestAddress);
-		return 0;
+		return InvalidSocketHandle;
 	}
 
-	if (connect(Sock, (struct sockaddr*)&SockAddr, sizeof(SockAddr)) < 0)
+	int32 ConnectResult = connect(Sock, (struct sockaddr*)&SockAddr, sizeof(SockAddr));
+	if (ConnectResult < 0)
 	{
+		closesocket(Sock);
 		UNSYNC_LOG(L"Warning: Failed to connect to '%hs' on port %d", DestAddress, Port);
-		return 0;
+		return InvalidSocketHandle;
 	}
 
 	return Sock;
@@ -219,7 +223,7 @@ SocketConnectTcp(const char* DestAddress, uint16 Port)
 void
 SocketClose(FSocketHandle Socket)
 {
-	if (Socket)
+	if (Socket != InvalidSocketHandle)
 	{
 		closesocket(Socket);
 	}

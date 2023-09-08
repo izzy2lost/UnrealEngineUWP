@@ -120,7 +120,7 @@ SaveBlocks(const std::vector<FBlock128>& Blocks, uint32 BlockSize, const FPath& 
 {
 	const uint64 OutputSize = sizeof(FBlockFileHeader) + sizeof(FBlock128) * Blocks.size();
 
-	NativeFile File(Filename, EFileMode::CreateReadWrite, OutputSize);
+	FNativeFile File(Filename, EFileMode::CreateReadWrite, OutputSize);
 
 	if (File.IsValid())
 	{
@@ -516,7 +516,7 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, const 
 	UNSYNC_LOG_INDENT;
 	UNSYNC_VERBOSE(L"Loading directory manifest from '%ls'", ManifestFilename.wstring().c_str());
 
-	// NativeFile manifest_file(manifest_filename, FileMode::ReadOnly);
+	// FNativeFile manifest_file(manifest_filename, FileMode::ReadOnly);
 	FBuffer ManifestBuffer = ReadFileToBuffer(ManifestFilename);
 
 	if (ManifestBuffer.Size() != 0)
@@ -646,7 +646,7 @@ SaveDirectoryManifest(const FDirectoryManifest& Manifest, const FPath& Filename)
 	bool bSerialized = SaveDirectoryManifest(Manifest, OutputStream);
 	UNSYNC_ASSERT(bSerialized);
 
-	NativeFile OutputFile(Filename, EFileMode::CreateWriteOnly, OutputBuffer.Size());
+	FNativeFile OutputFile(Filename, EFileMode::CreateWriteOnly, OutputBuffer.Size());
 	if (OutputFile.IsValid())
 	{
 		uint64 WroteBytes = OutputFile.Write(OutputBuffer.Data(), 0, OutputBuffer.Size());

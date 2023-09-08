@@ -43,8 +43,13 @@ struct FHttpParser
 {
 	static FHttpParser* ToThis(http_parser* Parser) { return (FHttpParser*)(Parser->data); }
 
-	FHttpParser(HttpMessageCallback InResponseCallback, uint8* InScratchBuffer, uint64 InScratchSize, http_parser_type Type)
+	FHttpParser(HttpMessageCallback InResponseCallback,
+				uint8*				InScratchBuffer,
+				uint64				InScratchSize,
+				http_parser_type	Type,
+				EHttpMethod			InMethod)
 	: ResponseCallback(InResponseCallback)
+	, Method(InMethod)
 	, ScratchBuffer(InScratchBuffer)
 	, ScratchSize(InScratchSize)
 	{
@@ -112,7 +117,8 @@ struct FHttpParser
 
 		if (MatchUncased(PendingHeader, "content-length"))
 		{
-			ContentLength = atoi(Data);
+			ContentLength		   = strtoull(Data, nullptr, 10);
+			Response.ContentLength = uint64(ContentLength);
 			Response.Buffer.Reserve(ContentLength);
 		}
 		else if (MatchUncased(PendingHeader, "content-type"))
@@ -150,7 +156,14 @@ struct FHttpParser
 		Response.Code	= Parser.status_code;
 		bHeaderComplete = true;
 
-		return 0;
+		if (Method == EHttpMethod::HEAD)
+		{
+			return 1;
+		}
+		else
+		{
+			return 0;
+		}
 	}
 
 	int OnStatus(const char* Data, size_t Size) { return 0; }
@@ -203,6 +216,8 @@ struct FHttpParser
 	HttpMessageCallback ResponseCallback;
 	FHttpResponse		Response;
 
+	EHttpMethod Method = EHttpMethod::GET;
+
 	http_parser_settings Settings;
 	http_parser			 Parser;
 
@@ -216,7 +231,7 @@ struct FHttpParser
 	std::string_view PendingHeader = {};
 	std::string_view PendingValue  = {};
 
-	int32 ContentLength = 0;
+	uint64 ContentLength = 0;
 
 	uint64 TotalReceivedBytes = 0;
 	uint64 TotalParsedBytes	  = 0;
@@ -275,6 +290,14 @@ HttpRequestBegin(FHttpConnection& Connection, const FHttpRequest& Request)
 		return false;
 	}
 
+	if (Connection.NumActiveRequests > 0 && Connection.Method != Request.Method)
+	{
+		UNSYNC_ERROR(L"HTTP connection must not have outstanding requests when request method is changed");
+		return false;
+	}
+
+	Connection.Method = Request.Method;
+
 	// TODO: use a string builder
 	std::string HttpHeader;
 	switch (Request.Method)
@@ -285,9 +308,9 @@ HttpRequestBegin(FHttpConnection& Connection, const FHttpRequest& Request)
 		case EHttpMethod::GET:
 			HttpHeader = "GET ";
 			break;
-			// 	case HttpMethod::HEAD: // < TODO: support requests that don't return a body
-			// 		http_header = "HEAD";
-			// 		break;
+		case EHttpMethod::HEAD:
+			HttpHeader = "HEAD ";
+			break;
 		case EHttpMethod::POST:
 			HttpHeader = "POST ";
 			break;
@@ -439,7 +462,7 @@ HttpRequestEnd(FHttpConnection& Connection)
 	// TODO: user-provided scratch buffer
 	uint8 ScratchBuffer[256_KB];
 	ScratchBuffer[0] = 0;
-	FHttpParser Parser(MessageCallback, ScratchBuffer, sizeof(ScratchBuffer), HTTP_RESPONSE);
+	FHttpParser Parser(MessageCallback, ScratchBuffer, sizeof(ScratchBuffer), HTTP_RESPONSE, Connection.Method);
 
 	while (!Parser.bComplete)
 	{
@@ -526,7 +549,7 @@ FHttpConnection::Open()
 
 	FSocketHandle RawSocketHandle = SocketConnectTcp(HostAddress.c_str(), HostPort);
 
-	if (RawSocketHandle < 0)
+	if (RawSocketHandle == InvalidSocketHandle)
 	{
 		return false;
 	}

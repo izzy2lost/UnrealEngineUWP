@@ -472,7 +472,7 @@ TestFiles()
 
 	{
 		// overlapped file writing
-		NativeFile TestFile(TestFilename, EFileMode::CreateReadWrite, TestFileSize);
+		FNativeFile TestFile(TestFilename, EFileMode::CreateReadWrite, TestFileSize);
 		UNSYNC_ASSERT(TestFile.IsValid());
 
 		FillRandomBytes(TempBuffer.get(), TestFileSize, 321);
@@ -489,7 +489,7 @@ TestFiles()
 	{
 		memset(TempBuffer.get(), 0, TestFileSize);
 
-		NativeFile TestFile(TestFilename, EFileMode::ReadOnly);
+		FNativeFile TestFile(TestFilename, EFileMode::ReadOnly);
 		UNSYNC_ASSERT(TestFile.IsValid());
 		UNSYNC_ASSERT(TestFile.GetSize() == TestFileSize);
 		TestFile.Read(TempBuffer.get(), 0, TestFileSize);

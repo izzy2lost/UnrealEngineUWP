@@ -263,7 +263,7 @@ FWindowsFile::CompleteReadCommand(Command& Cmd)
 		}
 		else
 		{
-			UNSYNC_WARNING(L"NativeFile expected to read %lld bytes, but read %lld. Last error code: %d.",
+			UNSYNC_WARNING(L"FNativeFile expected to read %lld bytes, but read %lld. Last error code: %d.",
 						   (uint64)ExpectedReadBytes,
 						   (uint64)ReadBytes,
 						   LastError);
@@ -854,7 +854,7 @@ FBuffer
 ReadFileToBuffer(const FPath& Filename)
 {
 	FBuffer	   Result;
-	NativeFile File(Filename, EFileMode::ReadOnly);
+	FNativeFile File(Filename, EFileMode::ReadOnly);
 	if (File.IsValid())
 	{
 		Result.Resize(File.GetSize());
@@ -872,7 +872,7 @@ WriteBufferToFile(const FPath& Filename, const uint8* Data, uint64 Size)
 	UNSYNC_ASSERT(Size);
 	UNSYNC_ASSERT(!GDryRun);
 
-	NativeFile File(Filename, EFileMode::CreateReadWrite, Size);
+	FNativeFile File(Filename, EFileMode::CreateReadWrite, Size);
 
 	if (File.IsValid())
 	{

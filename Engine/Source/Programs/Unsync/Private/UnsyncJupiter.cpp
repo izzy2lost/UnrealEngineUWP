@@ -538,7 +538,7 @@ JupiterPush(const FDirectoryManifest& Manifest, const FRemoteDesc& RemoteDesc, F
 
 		const FFileManifest& FileManifest = It.second;
 
-		NativeFile File(FileManifest.CurrentPath, EFileMode::ReadOnlyUnbuffered);
+		FNativeFile File(FileManifest.CurrentPath, EFileMode::ReadOnlyUnbuffered);
 		if (!File.IsValid())
 		{
 			UNSYNC_ERROR(L"Failed to open input file '%ls'", FileManifest.CurrentPath.wstring().c_str());

@@ -205,7 +205,7 @@ private:
 private:
 	EFileMode Mode;
 };
-using NativeFile = FWindowsFile;
+using FNativeFile = FWindowsFile;
 #endif	// UNSYNC_PLATFORM_WINDOWS
 
 #if UNSYNC_PLATFORM_UNIX
@@ -244,7 +244,7 @@ private:
 	FILE*	  FileHandle	 = nullptr;
 	int		  FileDescriptor = 0;
 };
-using NativeFile = FUnixFile;
+using FNativeFile = FUnixFile;
 #endif	// UNSYNC_PLATFORM_UNIX
 
 struct FVectorStreamOut

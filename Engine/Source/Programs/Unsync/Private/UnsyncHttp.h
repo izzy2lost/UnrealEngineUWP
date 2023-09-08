@@ -29,7 +29,7 @@ enum class EHttpContentType
 enum class EHttpMethod
 {
 	GET,
-	// HEAD, // < TODO: support requests that don't return a body
+	HEAD,
 	POST,
 	PUT,
 };
@@ -50,6 +50,7 @@ struct FHttpRequest
 struct FHttpResponse
 {
 	FBuffer Buffer;	 // TODO: use pooled IOBuffer
+	uint64	ContentLength = 0;
 	int32	Code = 0;
 
 	EHttpContentType ContentType = EHttpContentType::Unknown;
@@ -85,6 +86,8 @@ struct FHttpConnection
 
 	// TODO: use single memory allocation for multiple reponse objects (perhaps a ring buffer)
 	std::deque<FHttpResponse> ResponseQueue;  // Contains HTTP responses for pipelined requests
+
+	EHttpMethod Method = EHttpMethod::GET;
 
 	FTimePoint LastUsed = {};
 
