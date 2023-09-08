@@ -87,6 +87,13 @@ namespace EpicGames.Horde.Storage.Nodes
 	}
 
 	/// <summary>
+	/// Stores the flat list of chunks produced from chunking a single data stream
+	/// </summary>
+	/// <param name="Hash">Hash of the data</param>
+	/// <param name="LeafHandles">Handles to the leaf chunks</param>
+	public record class LeafChunkedData(IoHash Hash, List<NodeRef<ChunkedDataNode>> LeafHandles);
+
+	/// <summary>
 	/// File node that contains a chunk of data
 	/// </summary>
 	[NodeType("{B27AFB68-9E20-4A4B-A4D8-788A4098D439}", 1)]
@@ -145,12 +152,12 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Creates nodes from the given file
 		/// </summary>
-		/// <param name="writer"></param>
-		/// <param name="file"></param>
-		/// <param name="options"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static async Task<List<NodeRef<ChunkedDataNode>>> CreateFromFileAsync(IStorageWriter writer, FileReference file, LeafChunkedDataNodeOptions options, CancellationToken cancellationToken)
+		/// <param name="writer">Writer for output nodes</param>
+		/// <param name="file">File info</param>
+		/// <param name="options">Options for finding chunk boundaries</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Hash of the full file data</returns>
+		public static async Task<LeafChunkedData> CreateFromFileAsync(IStorageWriter writer, FileReference file, LeafChunkedDataNodeOptions options, CancellationToken cancellationToken)
 		{
 			using (FileStream stream = FileReference.Open(file, FileMode.Open, FileAccess.Read, FileShare.Read))
 			{
@@ -161,12 +168,12 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Creates nodes from the given file
 		/// </summary>
-		/// <param name="writer"></param>
-		/// <param name="file"></param>
-		/// <param name="options"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static async Task<List<NodeRef<ChunkedDataNode>>> CreateFromFileAsync(IStorageWriter writer, FileInfo file, LeafChunkedDataNodeOptions options, CancellationToken cancellationToken)
+		/// <param name="writer">Writer for output nodes</param>
+		/// <param name="file">File info</param>
+		/// <param name="options">Options for finding chunk boundaries</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Hash of the full file data</returns>
+		public static async Task<LeafChunkedData> CreateFromFileAsync(IStorageWriter writer, FileInfo file, LeafChunkedDataNodeOptions options, CancellationToken cancellationToken)
 		{
 			using (FileStream stream = file.Open(FileMode.Open, FileAccess.Read, FileShare.Read))
 			{
@@ -177,16 +184,17 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Creates nodes from the given file
 		/// </summary>
-		/// <param name="writer"></param>
-		/// <param name="stream"></param>
-		/// <param name="options"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static async Task<List<NodeRef<ChunkedDataNode>>> CreateFromStreamAsync(IStorageWriter writer, Stream stream, LeafChunkedDataNodeOptions options, CancellationToken cancellationToken)
+		/// <param name="writer">Writer for output nodes</param>
+		/// <param name="stream">Stream to read from</param>
+		/// <param name="options">Options for finding chunk boundaries</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Hash of the full file data</returns>
+		public static async Task<LeafChunkedData> CreateFromStreamAsync(IStorageWriter writer, Stream stream, LeafChunkedDataNodeOptions options, CancellationToken cancellationToken)
 		{
-			List<NodeRef<ChunkedDataNode>> handles = new List<NodeRef<ChunkedDataNode>>();
-
+			using Blake3.Hasher hasher = Blake3.Hasher.New();
 			using IMemoryOwner<byte> readBuffer = MemoryPool<byte>.Shared.Rent(options.MaxSize);
+
+			List<NodeRef<ChunkedDataNode>> handles = new List<NodeRef<ChunkedDataNode>>();
 
 			int size = 0;
 			for (; ; )
@@ -201,6 +209,7 @@ namespace EpicGames.Horde.Storage.Nodes
 
 				Memory<byte> outputBuffer = writer.GetOutputBuffer(0, nextLength);
 				readBuffer.Memory.Slice(0, nextLength).CopyTo(outputBuffer);
+				hasher.Update(outputBuffer.Span);
 
 				BlobHandle handle = await writer.WriteNodeAsync(nextLength, Array.Empty<BlobHandle>(), GetNodeType<LeafChunkedDataNode>(), cancellationToken);
 				handles.Add(new NodeRef<ChunkedDataNode>(handle));
@@ -209,7 +218,8 @@ namespace EpicGames.Horde.Storage.Nodes
 				size -= nextLength;
 			}
 
-			return handles;
+			IoHash hash = IoHash.FromBlake3(hasher);
+			return new LeafChunkedData(hash, handles);
 		}
 
 		/// <summary>
@@ -328,6 +338,20 @@ namespace EpicGames.Horde.Storage.Nodes
 			{
 				writer.WriteNodeRef(child);
 			}
+		}
+
+		/// <summary>
+		/// Create a tree of nodes from the given list of handles, splitting nodes in each layer based on the hash of the last node.
+		/// </summary>
+		/// <param name="leafChunkedData">List of leaf handles</param>
+		/// <param name="options">Options for splitting the tree</param>
+		/// <param name="writer">Output writer for new interior nodes</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Handle to the root node of the tree</returns>
+		public static async Task<ChunkedData> CreateTreeAsync(LeafChunkedData leafChunkedData, InteriorChunkedDataNodeOptions options, IStorageWriter writer, CancellationToken cancellationToken)
+		{
+			NodeRef<ChunkedDataNode> rootRef = await CreateTreeAsync(leafChunkedData.LeafHandles, options, writer, cancellationToken);
+			return new ChunkedData(leafChunkedData.Hash, rootRef);
 		}
 
 		/// <summary>

@@ -60,7 +60,7 @@ namespace Horde.Server.Commands.Bundles
 			long length = 0;
 			double nextTime = 2.0;
 
-			ChunkedDataWriter fileNodeWriter = new ChunkedDataWriter(writer, chunkingOptions);
+			using ChunkedDataWriter fileNodeWriter = new ChunkedDataWriter(writer, chunkingOptions);
 			for (; ; )
 			{
 				await fileNodeWriter.AppendAsync(buffer, default);

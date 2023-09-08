@@ -81,13 +81,14 @@ namespace UnrealBuildTool.Artifacts
 			InteriorChunkedDataNodeOptions interiorOptions = new(1, 10, 20);
 			ChunkingOptions options = new() { LeafOptions = leafOptions, InteriorOptions = interiorOptions };
 
-			ChunkedDataWriter fileWriter = new(writer, options);
+			using ChunkedDataWriter fileWriter = new(writer, options);
 			int index = 0;
 			foreach (ArtifactFile artifact in ArtifactAction.Outputs)
 			{
 				string outputName = artifact.GetFullPath(ArtifactAction.DirectoryMapping);
 				using FileStream stream = new(outputName, FileMode.Open, FileAccess.Read, FileShare.Read);
-				OutputRefs[index++] = new NodeRef<ChunkedDataNode>(await fileWriter.CreateAsync(stream, leafOptions.TargetSize, cancellationToken));
+				ChunkedData chunkedData = await fileWriter.CreateAsync(stream, leafOptions.TargetSize, cancellationToken);
+				OutputRefs[index++] = new NodeRef<ChunkedDataNode>(chunkedData.Root);
 			}
 		}
 	}

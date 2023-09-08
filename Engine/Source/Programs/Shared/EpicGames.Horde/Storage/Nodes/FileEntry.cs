@@ -80,13 +80,13 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FileEntry(Utf8String name, FileEntryFlags flags, long length, NodeRef<ChunkedDataNode> node)
-			: base(node)
+		public FileEntry(Utf8String name, FileEntryFlags flags, long length, ChunkedData data)
+			: base(data.Root)
 		{
 			Name = name;
 			Flags = flags;
 			Length = length;
-			Hash = node.Handle.Hash;
+			Hash = data.Hash;
 		}
 
 		/// <summary>

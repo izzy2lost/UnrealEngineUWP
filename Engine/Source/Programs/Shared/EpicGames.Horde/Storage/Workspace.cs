@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -696,7 +697,7 @@ namespace EpicGames.Horde.Storage
 				FileInfo fileInfo = FileReference.Combine(dirRef, fileEntry.Name.ToString()).ToFileInfo();
 
 				fileState = TryMoveCachedDataAsync(fileEntry.Hash, dirState, fileEntry.Name);
-				if(fileState == null)
+				if (fileState == null)
 				{
 					fileState = dirState.FindOrAddFile(fileEntry.Name);
 
@@ -704,15 +705,26 @@ namespace EpicGames.Horde.Storage
 					using (FileStream stream = fileInfo.Open(FileMode.Create, FileAccess.Write, FileShare.Read))
 					{
 						await ExtractDataAsync(fileEntry, stream, cancellationToken);
+						if (stream.Length != fileEntry.Length)
+						{
+							throw new EndOfStreamException($"Incorrect length for extracted file {fileInfo.FullName}");
+						}
 					}
 
 					fileState.Hash = fileEntry.Hash;
+
+					fileInfo.Refresh();
+					fileState.Update(fileInfo);
+
 					AddFileToHashLookup(fileState);
+				}
+				else
+				{
+					fileInfo.Refresh();
+					fileState.Update(fileInfo);
 				}
 
 				fileState.LayerFlags |= flag;
-				fileInfo.Refresh();
-				fileState.Update(fileInfo);
 			}
 		}
 
@@ -796,6 +808,8 @@ namespace EpicGames.Horde.Storage
 			FileInfo fileInfo = GetFileInfo(file);
 			if (fileInfo.Exists)
 			{
+				long initialPosition = outputStream.Position;
+
 				using FileStream inputStream = fileInfo.OpenRead();
 				inputStream.Seek(offset, SeekOrigin.Begin);
 
@@ -803,7 +817,15 @@ namespace EpicGames.Horde.Storage
 				while (length > 0)
 				{
 					int readSize = await inputStream.ReadAsync(tempBuffer.AsMemory(0, (int)Math.Min(length, tempBuffer.Length)), cancellationToken);
+					if (readSize == 0)
+					{
+						outputStream.Seek(initialPosition, SeekOrigin.Begin);
+						outputStream.SetLength(initialPosition);
+						return false;
+					}
+
 					await outputStream.WriteAsync(tempBuffer.AsMemory(0, readSize), cancellationToken);
+					length -= readSize;
 				}
 			}
 			return true;

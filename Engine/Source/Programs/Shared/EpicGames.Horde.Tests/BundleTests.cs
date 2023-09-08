@@ -75,25 +75,25 @@ namespace EpicGames.Horde.Tests
 			ChunkingOptions options = new ChunkingOptions();
 			options.LeafOptions = new LeafChunkedDataNodeOptions(8, 8, 8);
 
-			ChunkedDataWriter fileNodeWriter = new ChunkedDataWriter(writer, options);
+			using ChunkedDataWriter fileNodeWriter = new ChunkedDataWriter(writer, options);
 
 			ChunkedDataNode node;
 			NodeRef<ChunkedDataNode> nodeRef;
 			byte[] data = CreateBuffer(1024);
 
-			nodeRef = await fileNodeWriter.CreateAsync(data.AsMemory(0, 7), CancellationToken.None);
+			nodeRef = (await fileNodeWriter.CreateAsync(data.AsMemory(0, 7), CancellationToken.None)).Root;
 			node = await nodeRef.ExpandAsync();
 			Assert.IsTrue(node is LeafChunkedDataNode);
 			Assert.AreEqual(7, ((LeafChunkedDataNode)node).Data.Length);
 			await TestBufferlessReadsAsync(nodeRef, data.AsMemory(0, 7));
 
-			nodeRef = await fileNodeWriter.CreateAsync(data.AsMemory(0, 8), CancellationToken.None);
+			nodeRef = (await fileNodeWriter.CreateAsync(data.AsMemory(0, 8), CancellationToken.None)).Root;
 			node = await nodeRef.ExpandAsync();
 			Assert.IsTrue(node is LeafChunkedDataNode);
 			Assert.AreEqual(8, ((LeafChunkedDataNode)node).Data.Length);
 			await TestBufferlessReadsAsync(nodeRef, data.AsMemory(0, 8));
 
-			nodeRef = await fileNodeWriter.CreateAsync(data.AsMemory(0, 9), CancellationToken.None);
+			nodeRef = (await fileNodeWriter.CreateAsync(data.AsMemory(0, 9), CancellationToken.None)).Root;
 			node = await nodeRef.ExpandAsync();
 			Assert.IsTrue(node is InteriorChunkedDataNode);
 			Assert.AreEqual(2, ((InteriorChunkedDataNode)node).Children.Count);
@@ -109,7 +109,7 @@ namespace EpicGames.Horde.Tests
 			Assert.IsTrue(childNode2 is LeafChunkedDataNode);
 			Assert.AreEqual(1, ((LeafChunkedDataNode)childNode2!).Data.Length);
 
-			nodeRef = await fileNodeWriter.CreateAsync(data, CancellationToken.None);
+			nodeRef = (await fileNodeWriter.CreateAsync(data, CancellationToken.None)).Root;
 			node = await nodeRef.ExpandAsync();
 			Assert.IsTrue(node is InteriorChunkedDataNode);
 			await TestBufferlessReadsAsync(nodeRef, data);

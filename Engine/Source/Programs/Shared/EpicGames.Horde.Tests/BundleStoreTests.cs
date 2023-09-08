@@ -265,8 +265,8 @@ namespace EpicGames.Horde.Tests
 			{
 				await using IStorageWriter writer = store.CreateWriter();
 
-				ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, new ChunkingOptions());
-				NodeRef<ChunkedDataNode> fileHandle = await fileWriter.CreateAsync(Encoding.UTF8.GetBytes("world"), CancellationToken.None);
+				using ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, new ChunkingOptions());
+				ChunkedData fileHandle = await fileWriter.CreateAsync(Encoding.UTF8.GetBytes("world"), CancellationToken.None);
 
 				List<FileUpdate> fileUpdates = new List<FileUpdate>();
 				fileUpdates.Add(new FileUpdate("hello/world", FileEntryFlags.None, fileWriter.Length, fileHandle));
@@ -321,13 +321,13 @@ namespace EpicGames.Horde.Tests
 				ChunkingOptions options = new ChunkingOptions();
 				options.LeafOptions = new LeafChunkedDataNodeOptions(128, 256, 64 * 1024);
 
-				ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, options);
+				using ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, options);
 				for (int idx = 0; idx < chunk.Length / 16; idx++)
 				{
 					await fileWriter.AppendAsync(chunk.AsMemory(idx * 16, 16), CancellationToken.None);
 				}
 
-				nodeRef = await fileWriter.FlushAsync(CancellationToken.None);
+				nodeRef = (await fileWriter.FlushAsync(CancellationToken.None)).Root;
 			}
 
 			// Check we can read it back in
@@ -368,11 +368,11 @@ namespace EpicGames.Horde.Tests
 				ChunkingOptions options = new ChunkingOptions();
 				options.LeafOptions = new LeafChunkedDataNodeOptions(128, 256, 64 * 1024);
 
-				ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, options);
-				NodeRef<ChunkedDataNode> nodeRef = await fileWriter.CreateAsync(data, CancellationToken.None);
+				using ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, options);
+				ChunkedData chunkedData = await fileWriter.CreateAsync(data, CancellationToken.None);
 
 				root = new DirectoryNode(DirectoryFlags.None);
-				root.AddFile("test", FileEntryFlags.None, fileWriter.Length, nodeRef);
+				root.AddFile("test", FileEntryFlags.None, fileWriter.Length, chunkedData);
 
 				NodeRef<DirectoryNode> rootRef = await writer.WriteNodeAsync(root);
 				await store.WriteRefTargetAsync(new RefName("test"), rootRef);

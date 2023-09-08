@@ -102,22 +102,29 @@ namespace Horde.Server.Perforce
 			}
 		}
 
-		record class FileInfo(Utf8String Path, FileEntryFlags Flags, long Length, byte[] Md5, NodeRef<ChunkedDataNode> NodeRef);
+		record class FileInfo(Utf8String Path, FileEntryFlags Flags, long Length, byte[] Md5, ChunkedData ChunkedData);
 
 		class FileWriter : IDisposable
 		{
-			class Handle
+			class Handle : IDisposable
 			{
 				public Utf8String _path;
 				public FileEntryFlags _flags;
 				public readonly ChunkedDataWriter _fileWriter;
 				public long _size;
 				public long _sizeWritten;
-				public readonly IncrementalHash _hash = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
+				public readonly IncrementalHash _hash;
 
 				public Handle(IStorageWriter writer, ChunkingOptions options)
 				{
+					_hash = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
 					_fileWriter = new ChunkedDataWriter(writer, options);
+				}
+
+				public void Dispose()
+				{
+					_hash.Dispose();
+					_fileWriter.Dispose();
 				}
 			}
 
@@ -136,11 +143,11 @@ namespace Horde.Server.Perforce
 			{
 				foreach (Handle handle in _freeHandles)
 				{
-					handle._hash.Dispose();
+					handle.Dispose();
 				}
 				foreach (Handle handle in _openHandles.Values)
 				{
-					handle._hash.Dispose();
+					handle.Dispose();
 				}
 			}
 
@@ -178,9 +185,9 @@ namespace Horde.Server.Perforce
 					throw new ReplicationException($"Invalid size for replicated file '{handle._path}'. Expected {handle._size}, got {handle._sizeWritten}.");
 				}
 
-				NodeRef<ChunkedDataNode> nodeRef = await handle._fileWriter.FlushAsync(cancellationToken);
+				ChunkedData chunkedData = await handle._fileWriter.FlushAsync(cancellationToken);
 				byte[] hash = handle._hash.GetHashAndReset();
-				FileInfo info = new FileInfo(handle._path, handle._flags, handle._size, hash, nodeRef);
+				FileInfo info = new FileInfo(handle._path, handle._flags, handle._size, hash, chunkedData);
 
 				_openHandles.Remove(fd);
 				_freeHandles.Push(handle);
@@ -486,7 +493,7 @@ namespace Horde.Server.Perforce
 						else if (io.Command == PerforceIoCommand.Close)
 						{
 							FileInfo info = await fileWriter.CloseAsync(io.File, cancellationToken);
-							FileEntry entry = rootUpdate.AddFile(info.Path.ToString(), info.Flags, info.Length, info.NodeRef);
+							FileEntry entry = rootUpdate.AddFile(info.Path.ToString(), info.Flags, info.Length, info.ChunkedData);
 							entry.CustomData = info.Md5;
 						}
 						else if (io.Command == PerforceIoCommand.Unlink)

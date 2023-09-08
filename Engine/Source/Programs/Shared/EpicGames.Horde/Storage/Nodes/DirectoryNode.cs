@@ -205,11 +205,11 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="name">Name of the new directory</param>
 		/// <param name="flags">Flags for the new file</param>
 		/// <param name="length">Length of the file</param>
-		/// <param name="dataRef">Handle to the file data</param>
+		/// <param name="data">Chunked data for the file</param>
 		/// <returns>The new directory object</returns>
-		public FileEntry AddFile(Utf8String name, FileEntryFlags flags, long length, NodeRef<ChunkedDataNode> dataRef)
+		public FileEntry AddFile(Utf8String name, FileEntryFlags flags, long length, ChunkedData data)
 		{
-			FileEntry entry = new FileEntry(name, flags, length, dataRef);
+			FileEntry entry = new FileEntry(name, flags, length, data);
 			AddFile(entry);
 			return entry;
 		}
@@ -549,11 +549,11 @@ namespace EpicGames.Horde.Storage.Nodes
 
 			// Partition them into blocks for parallel writers to process asynchronously
 			List<(int Start, int Count)> partitions = ComputePartitions(files, totalSize);
-			List<NodeRef<ChunkedDataNode>>[] leafChunks = new List<NodeRef<ChunkedDataNode>>[files.Count];
-			await Parallel.ForEachAsync(partitions, cancellationToken, (filePartition, ctx) => CreateLeafChunkNodesAsync(writer, files, leafChunks, filePartition.Start, filePartition.Count, copyStats, options, cancellationToken));
+			LeafChunkedData[] leafChunkedFiles = new LeafChunkedData[files.Count];
+			await Parallel.ForEachAsync(partitions, cancellationToken, (filePartition, ctx) => CreateLeafChunkNodesAsync(writer, files, leafChunkedFiles, filePartition.Start, filePartition.Count, copyStats, options, cancellationToken));
 
 			// Create interior nodes for all the leaf chunks
-			NodeRef<ChunkedDataNode>[] chunks = await CreateInteriorChunkNodesAsync(leafChunks, options.InteriorOptions, writer, cancellationToken);
+			ChunkedData[] chunkedFiles = await CreateInteriorChunkNodesAsync(leafChunkedFiles, options.InteriorOptions, writer, cancellationToken);
 
 			// Write all the interior nodes and generate the directory update
 			DirectoryUpdate update = new DirectoryUpdate();
@@ -579,7 +579,7 @@ namespace EpicGames.Horde.Storage.Nodes
 					}
 				}
 
-				FileEntry entry = new FileEntry(file.Name, flags, file.Length, chunks[idx]);
+				FileEntry entry = new FileEntry(file.Name, flags, file.Length, chunkedFiles[idx]);
 				update.AddFile(new FileReference(file).MakeRelativeTo(baseDir), entry);
 			}
 
@@ -623,7 +623,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			return partitions;
 		}
 
-		static async ValueTask CreateLeafChunkNodesAsync(IStorageWriter writer, IReadOnlyList<FileInfo> files, List<NodeRef<ChunkedDataNode>>[] leafChunks, int start, int count, CopyStats? copyStats, ChunkingOptions options, CancellationToken cancellationToken)
+		static async ValueTask CreateLeafChunkNodesAsync(IStorageWriter writer, IReadOnlyList<FileInfo> files, LeafChunkedData[] leafChunks, int start, int count, CopyStats? copyStats, ChunkingOptions options, CancellationToken cancellationToken)
 		{
 			await using IStorageWriter writerFork = writer.Fork();
 			for (int idx = start; idx < start + count; idx++)
@@ -638,14 +638,14 @@ namespace EpicGames.Horde.Storage.Nodes
 			await writerFork.FlushAsync(cancellationToken);
 		}
 
-		static async Task<NodeRef<ChunkedDataNode>[]> CreateInteriorChunkNodesAsync(List<NodeRef<ChunkedDataNode>>[] chunks, InteriorChunkedDataNodeOptions options, IStorageWriter writer, CancellationToken cancellationToken)
+		static async Task<ChunkedData[]> CreateInteriorChunkNodesAsync(LeafChunkedData[] leafChunkedFiles, InteriorChunkedDataNodeOptions options, IStorageWriter writer, CancellationToken cancellationToken)
 		{
-			NodeRef<ChunkedDataNode>[] nodes = new NodeRef<ChunkedDataNode>[chunks.Length];
-			for (int idx = 0; idx < chunks.Length; idx++)
+			ChunkedData[] chunkedFiles = new ChunkedData[leafChunkedFiles.Length];
+			for (int idx = 0; idx < leafChunkedFiles.Length; idx++)
 			{
-				nodes[idx] = await InteriorChunkedDataNode.CreateTreeAsync(chunks[idx], options, writer, cancellationToken);
+				chunkedFiles[idx] = await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedFiles[idx], options, writer, cancellationToken);
 			}
-			return nodes;
+			return chunkedFiles;
 		}
 
 		/// <summary>
@@ -707,7 +707,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		public async Task CopyFromZipStreamAsync(Stream stream, IStorageWriter writer, ChunkingOptions options, CancellationToken cancellationToken = default)
 		{
 			// Create all the leaf nodes
-			List<(ZipArchiveEntry, List<NodeRef<ChunkedDataNode>>)> entries = new List<(ZipArchiveEntry, List<NodeRef<ChunkedDataNode>>)>();
+			List<(ZipArchiveEntry, LeafChunkedData)> entries = new List<(ZipArchiveEntry, LeafChunkedData)>();
 			using (ZipArchive archive = new ZipArchive(stream, ZipArchiveMode.Read, true))
 			{
 				foreach (ZipArchiveEntry entry in archive.Entries)
@@ -716,8 +716,8 @@ namespace EpicGames.Horde.Storage.Nodes
 					{
 						using (Stream entryStream = entry.Open())
 						{
-							List<NodeRef<ChunkedDataNode>> chunks = await LeafChunkedDataNode.CreateFromStreamAsync(writer, entryStream, options.LeafOptions, cancellationToken);
-							entries.Add((entry, chunks));
+							LeafChunkedData leafChunkedData = await LeafChunkedDataNode.CreateFromStreamAsync(writer, entryStream, options.LeafOptions, cancellationToken);
+							entries.Add((entry, leafChunkedData));
 						}
 					}
 				}
@@ -725,7 +725,7 @@ namespace EpicGames.Horde.Storage.Nodes
 
 			// Create all the interior nodes
 			List<FileUpdate> updates = new List<FileUpdate>();
-			foreach ((ZipArchiveEntry entry, List<NodeRef<ChunkedDataNode>> chunks) in entries)
+			foreach ((ZipArchiveEntry entry, LeafChunkedData leafChunkedFile) in entries)
 			{
 				FileEntryFlags flags = FileEntryFlags.None;
 				if ((entry.ExternalAttributes & (0b_001_001_001 << 16)) != 0)
@@ -733,8 +733,8 @@ namespace EpicGames.Horde.Storage.Nodes
 					flags |= FileEntryFlags.Executable;
 				}
 
-				NodeRef<ChunkedDataNode> chunk = await InteriorChunkedDataNode.CreateTreeAsync(chunks, options.InteriorOptions, writer, cancellationToken);
-				updates.Add(new FileUpdate(entry.FullName, flags, entry.Length, chunk));
+				ChunkedData chunkedFile = await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedFile, options.InteriorOptions, writer, cancellationToken);
+				updates.Add(new FileUpdate(entry.FullName, flags, entry.Length, chunkedFile));
 			}
 
 			// Update the tree
@@ -841,8 +841,8 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <param name="Path">Path to the file</param>
 	/// <param name="Length">Length of the file data</param>
 	/// <param name="Flags">Flags for the new file entry</param>
-	/// <param name="DataRef">Reference to the root data node</param>
-	public record class FileUpdate(string Path, FileEntryFlags Flags, long Length, NodeRef<ChunkedDataNode> DataRef);
+	/// <param name="Data">Chunked data for the file</param>
+	public record class FileUpdate(string Path, FileEntryFlags Flags, long Length, ChunkedData Data);
 
 	/// <summary>
 	/// Describes an update to a directory node
@@ -903,8 +903,8 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="path">Path to the file</param>
 		/// <param name="flags">Flags for the new file entry</param>
 		/// <param name="length">Length of the file</param>
-		/// <param name="dataRef">Reference to the file data</param>
-		public FileEntry AddFile(string path, FileEntryFlags flags, long length, NodeRef<ChunkedDataNode> dataRef)
+		/// <param name="chunkedData">Chunked data instance</param>
+		public FileEntry AddFile(string path, FileEntryFlags flags, long length, ChunkedData chunkedData)
 		{
 			string name = path;
 			for (int idx = path.Length - 1; idx >= 0; idx--)
@@ -916,7 +916,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				}
 			}
 
-			FileEntry entry = new FileEntry(name, flags, length, dataRef);
+			FileEntry entry = new FileEntry(name, flags, length, chunkedData);
 			AddFile(path, entry);
 			return entry;
 		}
@@ -948,7 +948,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				if (nextDirLength == -1)
 				{
 					string fileName = fileUpdate.Path.Substring(prefix.Length);
-					Files[fileName] = new FileEntry(fileName, fileUpdate.Flags, fileUpdate.Length, fileUpdate.DataRef);
+					Files[fileName] = new FileEntry(fileName, fileUpdate.Flags, fileUpdate.Length, fileUpdate.Data);
 
 					if (!files.MoveNext())
 					{

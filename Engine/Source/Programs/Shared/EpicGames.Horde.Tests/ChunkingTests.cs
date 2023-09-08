@@ -60,11 +60,11 @@ namespace EpicGames.Horde.Tests
 				options.InteriorOptions = new InteriorChunkedDataNodeOptions(4, 4, 4);
 
 				using MemoryStream emptyStream = new MemoryStream();
-				List<NodeRef<ChunkedDataNode>> leafNodes = await LeafChunkedDataNode.CreateFromStreamAsync(writer, emptyStream, new LeafChunkedDataNodeOptions(64, 64, 64), CancellationToken.None);
-				NodeRef<ChunkedDataNode> dataNode = await InteriorChunkedDataNode.CreateTreeAsync(leafNodes, new InteriorChunkedDataNodeOptions(4, 4, 4), writer, CancellationToken.None); 
+				LeafChunkedData leafChunkedData = await LeafChunkedDataNode.CreateFromStreamAsync(writer, emptyStream, new LeafChunkedDataNodeOptions(64, 64, 64), CancellationToken.None);
+				ChunkedData chunkedData = await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedData, new InteriorChunkedDataNodeOptions(4, 4, 4), writer, CancellationToken.None); 
 
 				DirectoryNode directory = new DirectoryNode();
-				directory.AddFile("test.foo", FileEntryFlags.None, 0, dataNode);
+				directory.AddFile("test.foo", FileEntryFlags.None, 0, chunkedData);
 
 				NodeRef<DirectoryNode> directoryRef = await writer.WriteNodeAsync(directory);
 				await writer.WriteRefAsync(directoryRef.Handle);
@@ -111,14 +111,14 @@ namespace EpicGames.Horde.Tests
 
 			const int NumIterations = 100;
 			{
-				ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, options);
+				using ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, options);
 
 				for (int idx = 0; idx < NumIterations; idx++)
 				{
 					await fileWriter.AppendAsync(data, CancellationToken.None);
 				}
 
-				handle = await fileWriter.FlushAsync(CancellationToken.None);
+				handle = (await fileWriter.FlushAsync(CancellationToken.None)).Root;
 			}
 
 			ChunkedDataNode root = await handle.ExpandAsync();

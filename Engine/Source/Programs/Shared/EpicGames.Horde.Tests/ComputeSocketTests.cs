@@ -156,11 +156,11 @@ namespace EpicGames.Horde.Tests
 
 						byte[] data = Encoding.UTF8.GetBytes("Hello world");
 
-						ChunkedDataWriter writer = new ChunkedDataWriter(treeWriter, new ChunkingOptions());
-						NodeRef<ChunkedDataNode> nodeRef = await writer.CreateAsync(data, CancellationToken.None);
+						using ChunkedDataWriter writer = new ChunkedDataWriter(treeWriter, new ChunkingOptions());
+						ChunkedData chunkedData = await writer.CreateAsync(data, CancellationToken.None);
 
 						DirectoryNode directory = new DirectoryNode();
-						directory.AddFile("hello.txt", FileEntryFlags.None, data.Length, nodeRef);
+						directory.AddFile("hello.txt", FileEntryFlags.None, data.Length, chunkedData);
 
 						NodeRef<DirectoryNode> directoryRef = await treeWriter.WriteNodeAsync(directory);
 
