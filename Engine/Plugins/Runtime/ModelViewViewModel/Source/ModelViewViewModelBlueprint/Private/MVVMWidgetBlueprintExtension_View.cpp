@@ -60,10 +60,7 @@ void UMVVMWidgetBlueprintExtension_View::HandlePreloadObjectsForCompilation(UBlu
 			if (AvailableViewModel.InstancedViewModel)
 			{
 				UBlueprint::ForceLoad(AvailableViewModel.InstancedViewModel);
-				if (AvailableViewModel.InstancedViewModel->GetGeneratedClass())
-				{
-					AvailableViewModel.InstancedViewModel->GetGeneratedClass()->ConditionalPostLoad();
-				}
+				AvailableViewModel.InstancedViewModel->GenerateClass(true);
 			}
 			if (AvailableViewModel.GetViewModelClass())
 			{
@@ -91,7 +88,7 @@ void UMVVMWidgetBlueprintExtension_View::HandleBeginCompilation(FWidgetBlueprint
 	{
 		if (AvailableViewModel.InstancedViewModel)
 		{
-			AvailableViewModel.InstancedViewModel->GenerateClass();
+			AvailableViewModel.InstancedViewModel->GenerateClass(false);
 		}
 	}
 

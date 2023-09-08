@@ -204,9 +204,9 @@ FGuid UMVVMEditorSubsystem::AddInstancedViewModel(UWidgetBlueprint* WidgetBluepr
 
 	FGuid Result;
 
-	FName UniqueName = MakeUniqueObjectName(View, UMVVMBlueprintInstancedViewModel::StaticClass(), "InstancedViewmodel");
-	UMVVMBlueprintInstancedViewModel* NewInstancedViewModel = NewObject<UMVVMBlueprintInstancedViewModel>(View, UniqueName);
-	NewInstancedViewModel->GenerateClass();
+	FName UniqueName = MakeUniqueObjectName(View, UMVVMBlueprintInstancedViewModel_PropertyBag::StaticClass(), "InstancedViewmodel");
+	UMVVMBlueprintInstancedViewModel_PropertyBag* NewInstancedViewModel = NewObject<UMVVMBlueprintInstancedViewModel_PropertyBag>(View, UniqueName);
+	NewInstancedViewModel->GenerateClass(true);
 	FMVVMBlueprintViewModelContext Context = FMVVMBlueprintViewModelContext(NewInstancedViewModel->GetGeneratedClass(), UniqueName);
 	if (Context.IsValid())
 	{

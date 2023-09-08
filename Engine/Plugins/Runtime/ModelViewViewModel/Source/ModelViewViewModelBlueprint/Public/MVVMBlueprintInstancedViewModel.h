@@ -20,42 +20,42 @@ class MODELVIEWVIEWMODELBLUEPRINT_API UMVVMBlueprintInstancedViewModelBase : pub
 public:
 	UMVVMBlueprintInstancedViewModelBase();
 
-	void GenerateClass();
+	void GenerateClass(bool bForceGeneration);
 
 	UClass* GetGeneratedClass() const
 	{
 		return GeneratedClass;
 	}
 
-	virtual const UStruct* GetSourceStruct() const PURE_VIRTUAL(GetSourceStruct, return nullptr;);
-	virtual const uint8* GetSourceDefaults() const PURE_VIRTUAL(GetSourceDefaults, return nullptr;);
-
 protected:
-	virtual void PreAddProperties();
-	virtual void AddProperty(const FProperty* FromProperty);
-	virtual void PostAddProperties();
-
-	virtual void PreSetDefaultValues();
-	virtual void SetDefaultValue(const FProperty* FromProperty, void const* SourceValuePtr);
-	virtual void PostSetDefaultValues();
-
-	virtual bool IsValidFieldName(const FName NewPropertyName) const;
+	virtual void PreloadObjectsForCompilation();
+	virtual bool IsClassDirty() const;
+	virtual void CleanClass();
+	virtual void AddProperties();
+	virtual void ConstructClass();
+	virtual void SetDefaultValues();
+	virtual void ClassGenerated();
 
 protected:
 	struct FInitializePropertyArgs
 	{
 		FName PropertyName;
-		FString DisplayName;
-		bool bFieldNotify = true;
+		bool bFieldNotify = false;
 		bool bReadOnly = false;
 		bool bNetwork = false;
 		bool bPrivate = false;
 	};
-	void InitializeProperty(FProperty* NewProperty, FInitializePropertyArgs& Args);
-	void LinkProperty(FProperty* NewProperty);
-	FName AddOnRepFunction(FName PropertyName);
 
-	TMap<const FProperty*, FProperty*> FromPropertyToCreatedProperty;
+	bool IsValidFieldName(const FName NewPropertyName) const;
+	bool IsValidFieldName(const FName NewPropertyName, UStruct* NewOwner) const;
+	FProperty* CreateProperty(const FProperty* FromProperty, UStruct* NewOwner);
+	FProperty* CreateProperty(const FProperty* FromProperty, UStruct* NewOwner, FName NewPropertyName);
+	void InitializeProperty(FProperty* NewProperty, FInitializePropertyArgs& Args);
+	void LinkProperty(FProperty* NewProperty) const;
+	void LinkProperty(FProperty* NewProperty, UStruct* NewOwner) const;
+	FName AddOnRepFunction(FName PropertyName);
+	void SafeRename(UObject* Object);
+	void SetDefaultValue(const FProperty* SourceProperty, void const* SourceValuePtr, const FProperty* DestinationProperty);
 
 public:
 	/** The base object of the generated class. */
@@ -75,25 +75,36 @@ protected:
  *
  */
 UCLASS()
-class MODELVIEWVIEWMODELBLUEPRINT_API UMVVMBlueprintInstancedViewModel : public UMVVMBlueprintInstancedViewModelBase
+class MODELVIEWVIEWMODELBLUEPRINT_API UMVVMBlueprintInstancedViewModel_PropertyBag : public UMVVMBlueprintInstancedViewModelBase
 {
 	GENERATED_BODY()
 
 public:
-	virtual const UStruct* GetSourceStruct() const
+	const UStruct* GetSourceStruct() const
 	{
 		return Variables.GetValue().GetScriptStruct();
 }
 
-	virtual const uint8* GetSourceDefaults() const
+	const uint8* GetSourceDefaults() const
 	{
 		return Variables.GetValue().GetMemory();
 	}
 
-public:
-	UPROPERTY(EditAnywhere, Category = "Viewmodel")
-	FInstancedPropertyBag Variables;	// todo, this should be a base and we have 2 implementation, one for the normal with a struct builder, and one for verse with the class ptr
+protected:
+	virtual bool IsClassDirty() const override;
+	virtual void CleanClass() override;
+	virtual void AddProperties() override;
+	virtual void SetDefaultValues() override;
+	virtual void ClassGenerated() override;
 
+private:
+	UPROPERTY(EditAnywhere, Category = "Viewmodel")
+	FInstancedPropertyBag Variables;
+
+	UPROPERTY()
+	uint64 PropertiesHash = 0;
+
+	TMap<const FProperty*, FProperty*> FromPropertyToCreatedProperty;
 
 public:
 #if WITH_EDITOR
