@@ -30,6 +30,7 @@
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "ObjectPropertyNode.h"
+#include "PropertyEditorConstants.h"
 
 #include "Math/UnitConversion.h"
 #include "Widgets/Input/NumericUnitTypeInterface.inl"
@@ -183,7 +184,7 @@ public:
 				}
 				else
 				{
-					return LOCTEXT("MultipleValues", "Multiple Values");
+					return PropertyEditorConstants::DefaultUndeterminedText;
 				}
 			};
 
@@ -345,7 +346,7 @@ public:
 				.LinearDeltaSensitivity(NumericPropertyParams.GetLinearDeltaSensitivityAttribute())
 				.AllowWheel(bAllowSpin)
 				.WheelStep(NumericPropertyParams.WheelStep)
-				.UndeterminedString(LOCTEXT("MultipleValues", "Multiple Values"))
+				.UndeterminedString(PropertyEditorConstants::DefaultUndeterminedText)
 				.OnValueChanged(this, &SPropertyEditorNumeric<NumericType>::OnValueChanged)
 				.OnValueCommitted(this, &SPropertyEditorNumeric<NumericType>::OnValueCommitted)
 				.OnUndeterminedValueCommitted(this, &SPropertyEditorNumeric<NumericType>::OnUndeterminedValueCommitted)
@@ -547,7 +548,8 @@ private:
 		{
 			NumericType OldNumericValue;
 			TTypeFromString<NumericType>::FromString(OldNumericValue, *Value);
-			TOptional<NumericType> NewNumericValue = TypeInterface->FromString(NewValueString, OldNumericValue);
+			const FString ReplacedNewValueString = NewValueString.Replace(*PropertyEditorConstants::DefaultUndeterminedText.ToString(), *Value);
+			TOptional<NumericType> NewNumericValue = TypeInterface->FromString(ReplacedNewValueString, OldNumericValue);
 
 			if (NewNumericValue.IsSet())
 			{

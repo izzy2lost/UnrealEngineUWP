@@ -36,6 +36,7 @@
 #include "AssetThumbnail.h"
 #include "DetailWidgetRow.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "PropertyEditorConstants.h"
 
 #define LOCTEXT_NAMESPACE "PropertyEditor"
 
@@ -823,7 +824,7 @@ FText SPropertyEditorAsset::OnGetAssetName() const
 	}
 	else if( Result == FPropertyAccess::MultipleValues )
 	{
-		Name = LOCTEXT("MultipleValues", "Multiple Values");
+		Name = PropertyEditorConstants::DefaultUndeterminedText;
 	}
 
 	return Name;
@@ -887,7 +888,7 @@ FText SPropertyEditorAsset::OnGetToolTip() const
 	}
 	else if( Result == FPropertyAccess::MultipleValues )
 	{
-		ToolTipText = LOCTEXT("MultipleValues", "Multiple Values");
+		ToolTipText = PropertyEditorConstants::DefaultUndeterminedText;
 	}
 
 	if( ToolTipText.IsEmpty() )
