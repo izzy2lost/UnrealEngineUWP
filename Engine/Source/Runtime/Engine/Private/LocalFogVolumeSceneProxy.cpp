@@ -10,8 +10,7 @@
 
 
 FLocalFogVolumeSceneProxy::FLocalFogVolumeSceneProxy(const ULocalFogVolumeComponent* InComponent)
-	: FogTransform(InComponent->GetComponentTransform())
-	, FogDensity(InComponent->FogDensity)
+	: FogDensity(InComponent->FogDensity)
 	, FogHeightFalloff(InComponent->FogHeightFalloff)
 	, FogHeightOffset(InComponent->FogHeightOffset)
 	, FogRadialAttenuation(InComponent->FogRadialAttenuation)
@@ -21,10 +20,17 @@ FLocalFogVolumeSceneProxy::FLocalFogVolumeSceneProxy(const ULocalFogVolumeCompon
 	, FogAlbedo(InComponent->FogAlbedo)
 	, FogEmissive(InComponent->FogEmissive)
 {
+	UpdateComponentTransform(InComponent->GetComponentTransform());
 }
 
 FLocalFogVolumeSceneProxy::~FLocalFogVolumeSceneProxy()
 {
 }
 
+void FLocalFogVolumeSceneProxy::UpdateComponentTransform(const FTransform& Transform)
+{
+	FogTransform = Transform;
+	const float MaximumAxisScale = FogTransform.GetMaximumAxisScale();
+	FogTransform.SetScale3D(FVector(MaximumAxisScale, MaximumAxisScale, MaximumAxisScale));
+}
 

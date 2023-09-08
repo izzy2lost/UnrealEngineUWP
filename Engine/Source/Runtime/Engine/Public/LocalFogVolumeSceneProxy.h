@@ -16,6 +16,8 @@ public:
 	ENGINE_API FLocalFogVolumeSceneProxy(const ULocalFogVolumeComponent* InComponent);
 	ENGINE_API ~FLocalFogVolumeSceneProxy();
 
+	void UpdateComponentTransform(const FTransform& Transform);
+
 	FTransform FogTransform;
 
 	float FogDensity;

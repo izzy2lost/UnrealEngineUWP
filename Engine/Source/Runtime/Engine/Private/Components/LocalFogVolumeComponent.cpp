@@ -41,10 +41,7 @@ void ULocalFogVolumeComponent::SendRenderTransformCommand()
 			[SceneProxy, ComponentTransform, HeightOffset](FRHICommandList& RHICmdList)
 			{
 				// Nothing else is needed so that command could actually go.
-				SceneProxy->FogTransform = ComponentTransform;
-
-				const float MaximumAxisScale = SceneProxy->FogTransform.GetMaximumAxisScale();
-				SceneProxy->FogTransform.SetScale3D(FVector(MaximumAxisScale, MaximumAxisScale, MaximumAxisScale));
+				SceneProxy->UpdateComponentTransform(ComponentTransform);
 			});
 	}
 }
