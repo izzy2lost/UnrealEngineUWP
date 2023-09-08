@@ -2505,7 +2505,7 @@ bool FPluginManager::TryLoadModulesForPlugin( const FPlugin& Plugin, const ELoad
 	{
 		if (bAllPluginsEnabledViaCommandLine)
 		{
-			UE_LOG(LogPluginManager, Warning, TEXT("%s"), *FailureMessage.ToString());
+			UE_LOG(LogPluginManager, Display, TEXT("%s"), *FailureMessage.ToString());
 		}
 		else
 		{
