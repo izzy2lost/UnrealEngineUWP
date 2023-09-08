@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if 0 // changes backed out for now until issues are resolved.
-
 #include "SplineMeshSceneResources.h"
 #include "SplineMeshShaderParams.h"
 #include "SplineMeshSceneProxy.h"
@@ -15,34 +13,34 @@
 #include "RHIStaticStates.h"
 #include "RenderCaptureInterface.h"
 
-static TAutoConsoleVariable<int32> CVarSplineMeshSceneTexture(
-	TEXT("r.SplineMesh.SceneTexture"),
+static TAutoConsoleVariable<int32> CVarSplineMeshSceneTextures(
+	TEXT("r.SplineMesh.SceneTextures"),
 	1,
-	TEXT("Whether to cache all spline mesh splines in the scene to a texture (performance optimization)."),
+	TEXT("Whether to cache all spline mesh splines in the scene to textures (performance optimization)."),
 	ECVF_ReadOnly
 );
 
-static TAutoConsoleVariable<int32> CVarSplineMeshSceneTextureForceUpdate(
-	TEXT("r.SplineMesh.SceneTexture.ForceUpdate"),
+static TAutoConsoleVariable<int32> CVarSplineMeshSceneTexturesForceUpdate(
+	TEXT("r.SplineMesh.SceneTextures.ForceUpdate"),
 	0,
 	TEXT("When true, will force an update of the whole spline mesh scene texture each frame (for debugging)."),
 	ECVF_RenderThreadSafe
 );
 
-int32 GSplineMeshSceneTextureCaptureNextUpdate = 0;
-static FAutoConsoleVariableRef CVarSplineMeshSceneTextureCaptureNextUpdate(
-	TEXT("r.SplineMesh.SceneTexture.CaptureNextUpdate"),
-	GSplineMeshSceneTextureCaptureNextUpdate,
+int32 GSplineMeshSceneTexturesCaptureNextUpdate = 0;
+static FAutoConsoleVariableRef CVarSplineMeshSceneTexturesCaptureNextUpdate(
+	TEXT("r.SplineMesh.SceneTextures.CaptureNextUpdate"),
+	GSplineMeshSceneTexturesCaptureNextUpdate,
 	TEXT("Set to 1 to perform a capture of the next spline mesh texture update. ")
 	TEXT("Set to > 1 to capture the next N updates."),
 	ECVF_RenderThreadSafe
 );
 
 BEGIN_SHADER_PARAMETER_STRUCT(FSplineMeshSceneResourceParameters, RENDERER_API)
-	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float4>, SplineTexture)
-	SHADER_PARAMETER_SAMPLER(SamplerState, SplineSampler)
 	SHADER_PARAMETER(FVector2f, SplineTextureInvExtent)
-	SHADER_PARAMETER(float, SplineWidthU)
+	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float4>, SplinePosTexture)
+	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float4>, SplineRotTexture)
+	SHADER_PARAMETER_SAMPLER(SamplerState, SplineSampler)
 END_SHADER_PARAMETER_STRUCT()
 
 DECLARE_SCENE_UB_STRUCT(FSplineMeshSceneResourceParameters, SplineMesh, RENDERER_API)
@@ -84,10 +82,13 @@ namespace SplineMesh
 
 	static void GetDefaultResourceParameters(FSplineMeshSceneResourceParameters& ShaderParams, FRDGBuilder& GraphBuilder)
 	{
-		ShaderParams.SplineTexture = GraphBuilder.CreateSRV(GSystemTextures.GetBlackDummy(GraphBuilder));
+		// Initialize global system textures (pass-through if already initialized).
+		GSystemTextures.InitializeTextures(GraphBuilder.RHICmdList, GMaxRHIFeatureLevel);
+
+		ShaderParams.SplinePosTexture = GraphBuilder.CreateSRV(GSystemTextures.GetBlackDummy(GraphBuilder));
+		ShaderParams.SplineRotTexture = GraphBuilder.CreateSRV(GSystemTextures.GetBlackDummy(GraphBuilder));
 		ShaderParams.SplineSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 		ShaderParams.SplineTextureInvExtent = FVector2f::One();
-		ShaderParams.SplineWidthU = 0.0f;
 	}
 }
 
@@ -100,7 +101,8 @@ class FSplineMeshTextureFillCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, SplineTextureOut)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, SplinePosTextureOut)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, SplineRotTextureOut)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, InstanceIdLookup)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, UpdateRequests)
 		SHADER_PARAMETER(uint32, NumUpdateRequests)
@@ -178,7 +180,8 @@ void FSplineMeshSceneResources::PostSceneUpdate(FRDGBuilder& GraphBuilder, const
 	else
 	{
 		// No active splines, clear all cache and bail
-		SavedTexture = nullptr;
+		SavedPosTexture = nullptr;
+		SavedRotTexture = nullptr;
 		SavedIdLookup = nullptr;
 		UpdateRequests.Reset();
 	}
@@ -193,7 +196,7 @@ void FSplineMeshSceneResources::Update(FRDGBuilder& GraphBuilder, FSceneUniformB
 
 	// Check if we need to re-size the texture
 	uint32 NeededSize = SplineMesh::CalcTextureSize(SlotAllocator.GetMaxSize());
-	const uint32 CurSize = SavedTexture.IsValid() ? SavedTexture->GetDesc().Extent.X : 0;
+	const uint32 CurSize = SavedPosTexture.IsValid() ? SavedPosTexture->GetDesc().Extent.X : 0;
 
 	// Clamp to the max dimension and check to report an error about over-sizing the spline mesh texture
 	if (NeededSize > SPLINE_MESH_TEXTURE_MAX_DIMENSION)
@@ -211,35 +214,59 @@ void FSplineMeshSceneResources::Update(FRDGBuilder& GraphBuilder, FSceneUniformB
 	}
 
 	// Check if we are forcing a full update because we have no cache or are debugging
-	const bool bForceUpdate = CVarSplineMeshSceneTextureForceUpdate.GetValueOnRenderThread() != 0;
-	bool bFullUpdate = !SavedTexture.IsValid() || bForceUpdate;
+	const bool bForceUpdate = CVarSplineMeshSceneTexturesForceUpdate.GetValueOnRenderThread() != 0;
+	bool bFullUpdate = !SavedPosTexture.IsValid() || bForceUpdate;
 
 	// Register or create the spline texture
-	FRDGTextureRef SplineTexture = nullptr;
+	FRDGTextureRef PosTexture = nullptr;
+	FRDGTextureRef RotTexture = nullptr;
 	if (NeededSize != CurSize)
 	{
-		SplineTexture = GraphBuilder.CreateTexture(
+		PosTexture = GraphBuilder.CreateTexture(
 			FRDGTextureDesc::Create2D(
 				FIntPoint(NeededSize, NeededSize),
 				PF_A32B32G32R32F,
 				EClearBinding::ENoneBound,
 				TexCreate_UAV | TexCreate_ShaderResource
 			),
-			TEXT("SplineMesh.SplineTexture")
+			TEXT("SplineMesh.SplinePosTexture")
+		);
+		RotTexture = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(
+				FIntPoint(NeededSize, NeededSize),
+				PF_R16G16B16A16_SNORM, // Optimal format for normalized quaternions
+				EClearBinding::ENoneBound,
+				TexCreate_UAV | TexCreate_ShaderResource
+			),
+			TEXT("SplineMesh.SplineRotTexture")
 		);
 
 		if (!bFullUpdate)
 		{
 			// We are resizing, so copy the previous contents to this frame
-			FRDGTextureRef CopySrc = GraphBuilder.RegisterExternalTexture(
-				SavedTexture,
-				TEXT("SplineMesh.PrevSplineTexture")
-			);
 			const uint32 CopyExtent = FMath::Min(NeededSize, CurSize);
+
+			FRDGTextureRef CopySrc = GraphBuilder.RegisterExternalTexture(
+				SavedPosTexture,
+				TEXT("SplineMesh.PrevSplinePosTexture")
+			);
 			AddCopyTexturePass(
 				GraphBuilder,
 				CopySrc,
-				SplineTexture,
+				PosTexture,
+				FIntPoint::ZeroValue, // InputPosition
+				FIntPoint::ZeroValue, // OutputPosition
+				FIntPoint(CopyExtent, CopyExtent) // Size
+			);
+			
+			CopySrc = GraphBuilder.RegisterExternalTexture(
+				SavedRotTexture,
+				TEXT("SplineMesh.PrevSplineRotTexture")
+			);
+			AddCopyTexturePass(
+				GraphBuilder,
+				CopySrc,
+				RotTexture,
 				FIntPoint::ZeroValue, // InputPosition
 				FIntPoint::ZeroValue, // OutputPosition
 				FIntPoint(CopyExtent, CopyExtent) // Size
@@ -247,12 +274,16 @@ void FSplineMeshSceneResources::Update(FRDGBuilder& GraphBuilder, FSceneUniformB
 		}
 
 		// Don't store off the texture if we're updating every frame (keeps it transient, otherwise)
-		SavedTexture = bForceUpdate ? nullptr : GraphBuilder.ConvertToExternalTexture(SplineTexture);
+		SavedPosTexture = bForceUpdate ? nullptr : GraphBuilder.ConvertToExternalTexture(PosTexture);
+		SavedRotTexture = bForceUpdate ? nullptr : GraphBuilder.ConvertToExternalTexture(RotTexture);
 	}
 	else
 	{
-		check(SavedTexture.IsValid());
-		SplineTexture = GraphBuilder.RegisterExternalTexture(SavedTexture, TEXT("SplineMesh.SplineTexture"));
+		check(SavedPosTexture.IsValid());
+		PosTexture = GraphBuilder.RegisterExternalTexture(SavedPosTexture, TEXT("SplineMesh.SplinePosTexture"));
+
+		check(SavedRotTexture.IsValid());
+		RotTexture = GraphBuilder.RegisterExternalTexture(SavedRotTexture, TEXT("SplineMesh.SplineRotTexture"));
 	}
 
 	// Perform the update and clear pending requests
@@ -260,23 +291,24 @@ void FSplineMeshSceneResources::Update(FRDGBuilder& GraphBuilder, FSceneUniformB
 	const FVector2f InvExtent = FVector2f(1.0f / Extent.X, 1.0f / Extent.Y);
 	if (bFullUpdate || UpdateRequests.Num() > 0)
 	{
-		AddUpdatePass(GraphBuilder, SplineTexture, SceneUniforms, Extent, InvExtent, bFullUpdate, bForceUpdate);
+		AddUpdatePass(GraphBuilder, PosTexture, RotTexture, SceneUniforms, Extent, InvExtent, bFullUpdate, bForceUpdate);
 	}
 	UpdateRequests.Reset();
 
 	// Lastly, set up the scene uniforms for spline meshes
 	FSplineMeshSceneResourceParameters ShaderParams;
-	ShaderParams.SplineTexture = GraphBuilder.CreateSRV(SplineTexture);
+	ShaderParams.SplinePosTexture = GraphBuilder.CreateSRV(PosTexture);
+	ShaderParams.SplineRotTexture = GraphBuilder.CreateSRV(RotTexture);
 	ShaderParams.SplineSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	ShaderParams.SplineTextureInvExtent = InvExtent;
-	ShaderParams.SplineWidthU = InvExtent.X * float(SPLINE_MESH_TEXEL_WIDTH - 1); // from first texel center to last texel center
 
 	SceneUniforms.Set(SceneUB::SplineMesh, ShaderParams);
 }
 
 void FSplineMeshSceneResources::AddUpdatePass(
 	FRDGBuilder& GraphBuilder,
-	FRDGTextureRef SplineTexture,
+	FRDGTextureRef PosTexture,
+	FRDGTextureRef RotTexture,
 	FSceneUniformBuffer& SceneUniforms,
 	FVector2f Extent,
 	FVector2f InvExtent,
@@ -284,20 +316,22 @@ void FSplineMeshSceneResources::AddUpdatePass(
 	bool bForceUpdate)
 {
 	RenderCaptureInterface::FScopedCapture Capture(
-		GSplineMeshSceneTextureCaptureNextUpdate > 0,
+		GSplineMeshSceneTexturesCaptureNextUpdate > 0,
 		GraphBuilder,
 		TEXT("Spline Mesh Texture Update")
 	);
-	if (GSplineMeshSceneTextureCaptureNextUpdate > 0)
+	if (GSplineMeshSceneTexturesCaptureNextUpdate > 0)
 	{
-		--GSplineMeshSceneTextureCaptureNextUpdate;
+		--GSplineMeshSceneTexturesCaptureNextUpdate;
 	}
 
-	FRDGTextureUAVRef SplineTextureUAV = GraphBuilder.CreateUAV(SplineTexture);
+	FRDGTextureUAVRef PosTextureUAV = GraphBuilder.CreateUAV(PosTexture);
+	FRDGTextureUAVRef RotTextureUAV = GraphBuilder.CreateUAV(RotTexture);
 	if (bForceUpdate)
 	{
 		// If we're debugging, clear the texture first so we can catch bugs
-		AddClearUAVPass(GraphBuilder, SplineTextureUAV, FLinearColor::Black);
+		AddClearUAVPass(GraphBuilder, PosTextureUAV, FLinearColor::Black);
+		AddClearUAVPass(GraphBuilder, RotTextureUAV, FLinearColor::Black);
 	}
 
 	FRDGBufferRef UpdateRequestBuffer = nullptr;
@@ -319,7 +353,8 @@ void FSplineMeshSceneResources::AddUpdatePass(
 
 	auto* PassParameters = GraphBuilder.AllocParameters<FSplineMeshTextureFillCS::FParameters>();
 	PassParameters->Scene = SceneUniforms.GetBuffer(GraphBuilder);
-	PassParameters->SplineTextureOut = SplineTextureUAV;
+	PassParameters->SplinePosTextureOut = PosTextureUAV;
+	PassParameters->SplineRotTextureOut = RotTextureUAV;
 	PassParameters->InstanceIdLookup = GetInstanceIdLookupSRV(GraphBuilder, bForceUpdate);
 	PassParameters->UpdateRequests = GraphBuilder.CreateSRV(UpdateRequestBuffer);
 	PassParameters->NumUpdateRequests = NumUpdateRequests;
@@ -457,7 +492,8 @@ void FSplineMeshSceneResources::DefragTexture()
 {
 	// NOTE: Currently not attempting to reduce motions to a minimal set, we're just ditching our cache
 	// and re-assigning space in the new texture that will be created next update
-	SavedTexture = nullptr;
+	SavedPosTexture = nullptr;
+	SavedRotTexture = nullptr;
 	SlotAllocator.Reset();
 	RegisteredInstanceIds.Reset();
 	for (auto& Pair : RegisteredPrimitives)
@@ -502,5 +538,3 @@ FRDGBufferSRVRef FSplineMeshSceneResources::GetInstanceIdLookupSRV(FRDGBuilder& 
 	bInstanceLookupDirty = false;
 	return GraphBuilder.CreateSRV(InstanceIdLookup);
 }
-
-#endif 

@@ -340,7 +340,7 @@ static FRDGBufferRef PerformPicking(
 		8 * 2			// 2 OBBs - Instance + Cluster
 		+ 3				// Instance origin axis
 		+ 32 * 3		// (Cluster domain) Cluster LOD bounds sphere
-		+ 5 * 4			// (Cluster domain, Spline mesh) Rect slices used to generate deformed cluster AABB
+		+ 8 * 16 * 3	// (Cluster domain, Spline mesh) Slice spheres used to generate deformed cluster AABB
 	;
 	ShaderPrint::RequestSpaceForLines(NumDebugLines);
 

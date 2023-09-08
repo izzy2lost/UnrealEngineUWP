@@ -1583,6 +1583,20 @@ bool IsStaticLightingAllowed()
 	return (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnAnyThread() != 0);
 }
 
+bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform)
+{
+	// This feature currently requires GPU Scene to be supported and enabled.
+	// NOTE: Mobile GPU can't currently support this feature because it doesn't include the payload extension in its instance data
+	if (UseGPUScene(Platform) && !IsMobilePlatform(Platform))
+	{
+		static const auto AllowSceneTexture = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.SplineMesh.SceneTextures"));
+		static const bool bAllowSceneTexture = (AllowSceneTexture && AllowSceneTexture->GetValueOnAnyThread() != 0);
+		return bAllowSceneTexture;
+	}
+
+	return false;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Substrate settings interface
 

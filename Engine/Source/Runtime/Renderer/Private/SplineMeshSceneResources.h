@@ -53,7 +53,8 @@ private:
 
 	void AddUpdatePass(
 		FRDGBuilder& GraphBuilder,
-		FRDGTextureRef SplineTexture,
+		FRDGTextureRef PosTexture,
+		FRDGTextureRef RotTexture,
 		FSceneUniformBuffer& SceneUniforms,
 		FVector2f Extent,
 		FVector2f InvExtent,
@@ -77,7 +78,8 @@ private:
 	TArray<uint32> RegisteredInstanceIds;
 	TArray<uint32> UpdateRequests;
 	FSpanAllocator SlotAllocator;
-	TRefCountPtr<IPooledRenderTarget> SavedTexture;
+	TRefCountPtr<IPooledRenderTarget> SavedPosTexture;
+	TRefCountPtr<IPooledRenderTarget> SavedRotTexture;
 	TRefCountPtr<FRDGPooledBuffer> SavedIdLookup;
 	bool bInstanceLookupDirty = true;
 	bool bOverflowError = false;

@@ -21,6 +21,7 @@
 #include "RenderCaptureInterface.h"
 #include "SimpleMeshDrawCommandPass.h"
 #include "StaticMeshBatch.h"
+#include "SplineMeshSceneResources.h"
 
 namespace RuntimeVirtualTexture
 {
@@ -1526,6 +1527,10 @@ namespace RuntimeVirtualTexture
 		FSceneUniformBuffer SceneUB {};
 		FRDGExternalAccessQueue ExternalAccessQueue;
 		InDesc.Scene->GPUScene.Update(GraphBuilder, SceneUB, *InDesc.Scene, ExternalAccessQueue);
+		if (InDesc.Scene->SplineMeshSceneResources)
+		{
+			InDesc.Scene->SplineMeshSceneResources->Update(GraphBuilder, SceneUB);
+		}
 		ExternalAccessQueue.Submit(GraphBuilder);
 
 		RenderPagesInternal(GraphBuilder, InDesc, SceneUB);
@@ -1538,7 +1543,10 @@ namespace RuntimeVirtualTexture
 			// TODO: this should be replaced by piping through a reference to the scene renderer rather than just the scene, such that we can get at the already populated scene UB.
 			FSceneUniformBuffer SceneUB{};
 			InDesc.Scene->GPUScene.FillSceneUniformBuffer(GraphBuilder, SceneUB);
-
+			if (InDesc.Scene->SplineMeshSceneResources)
+			{
+				InDesc.Scene->SplineMeshSceneResources->Update(GraphBuilder, SceneUB);
+			}
 			RenderPagesInternal(GraphBuilder, InDesc, SceneUB);
 		}
 		else

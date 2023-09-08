@@ -4,8 +4,8 @@
 #include "SplineMeshCommon.ush"
 #include "ComputeShaderUtils.ush"
 
-
-RWTexture2D<float4> SplineTextureOut;
+RWTexture2D<float4> SplinePosTextureOut;
+RWTexture2D<float4> SplineRotTextureOut;
 StructuredBuffer<uint> InstanceIdLookup;
 StructuredBuffer<uint> UpdateRequests;
 uint NumUpdateRequests;
@@ -38,10 +38,11 @@ void FillTexture(uint3 GroupId : SV_GroupID, uint GroupThreadId : SV_GroupThread
 		return;
 	}
 
-	FSplineMeshShaderParams SplineMeshParams = SplineMeshLoadParamsFromInstancePayload(InstanceData);
-
-	// determine the coord of the first texel of the spline and fill the row of texels with the spline positions
+	// Determine the coord of the first texel of the spline and fill the row of texels with slice parameters
+	const FSplineMeshShaderParams SplineMeshParams = SplineMeshLoadParamsFromInstancePayload(InstanceData);
+	const float SplineDist = (GroupThreadId.x - SplineMeshParams.SplineDistToTexelOffset) / SplineMeshParams.SplineDistToTexelScale;
+	const FSplineMeshSlice Slice = SplineMeshCalcSlice(SplineMeshParams, SplineDist);
 	const uint2 PixelPos = SplineMeshParams.TextureCoord + uint2(GroupThreadId.x, 0);
-	const float SplineDist = float(GroupThreadId.x) * rcp(SPLINE_MESH_TEXEL_WIDTH - 1);
-	SplineTextureOut[PixelPos] = float4(SplineMeshEvalPos(SplineMeshParams, SplineDist), 1);
+	SplinePosTextureOut[PixelPos] = float4(Slice.Pos, 1.0f);
+	SplineRotTextureOut[PixelPos] = Slice.Quat;
 }

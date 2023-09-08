@@ -350,6 +350,9 @@ public:
 
 		OutEnvironment.SetDefine(TEXT("NANITE_TESSELLATION"), NaniteTessellationSupported() ? 1 : 0);
 
+		// Use the spline mesh texture when possible for performance
+		OutEnvironment.SetDefine(TEXT("USE_SPLINE_MESH_SCENE_RESOURCES"), UseSplineMeshSceneResources(Parameters.Platform));
+
 		// Force shader model 6.0+
 		OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
 		OutEnvironment.CompilerFlags.Add(CFLAG_HLSL2021);
@@ -480,6 +483,9 @@ public:
 
 		OutEnvironment.SetDefine(TEXT("ALWAYS_EVALUATE_WORLD_POSITION_OFFSET"),
 			Parameters.MaterialParameters.bAlwaysEvaluateWorldPositionOffset ? 1 : 0);
+		
+		// Use the spline mesh texture when possible for performance
+		OutEnvironment.SetDefine(TEXT("USE_SPLINE_MESH_SCENE_RESOURCES"), UseSplineMeshSceneResources(Parameters.Platform));
 	}
 };
 

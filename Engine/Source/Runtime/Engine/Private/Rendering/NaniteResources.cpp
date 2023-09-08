@@ -80,8 +80,8 @@ static TAutoConsoleVariable<int32> CVarNaniteAllowTessellation(
 
 static TAutoConsoleVariable<int32> CVarNaniteAllowSplineMeshes(
 	TEXT("r.Nanite.AllowSplineMeshes"),
-	0, // Off by default
-	TEXT("Whether to enable support for (highly experimental) Nanite spline meshes"),
+	1,
+	TEXT("Whether to enable support for Nanite spline meshes"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
 int32 GNaniteAllowMaskedMaterials = 1;
@@ -467,6 +467,7 @@ void FVertexFactory::ModifyCompilationEnvironment(const FVertexFactoryShaderPerm
 			// frequently causes occupancy issues, we may want to consider ways to split the spline meshes into their own
 			// shading bin and permute the PS.
 			OutEnvironment.SetDefine(TEXT("USE_SPLINEDEFORM"), 1);
+			OutEnvironment.SetDefine(TEXT("USE_SPLINE_MESH_SCENE_RESOURCES"), UseSplineMeshSceneResources(Parameters.Platform));
 		}
 	}
 }
@@ -2535,6 +2536,7 @@ void FNaniteVertexFactory::ModifyCompilationEnvironment(const FVertexFactoryShad
 			// frequently causes occupancy issues, we may want to consider ways to split the spline meshes into their own
 			// shading bin and permute the CS.
 			OutEnvironment.SetDefine(TEXT("USE_SPLINEDEFORM"), 1);
+			OutEnvironment.SetDefine(TEXT("USE_SPLINE_MESH_SCENE_RESOURCES"), UseSplineMeshSceneResources(Parameters.Platform));
 		}
 	}
 

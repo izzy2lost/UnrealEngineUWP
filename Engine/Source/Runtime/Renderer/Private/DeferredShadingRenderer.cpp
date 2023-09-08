@@ -94,6 +94,7 @@
 #include "Lumen/LumenHardwareRayTracingCommon.h"
 #include "SparseVolumeTexture/ISparseVolumeTextureStreamingManager.h"
 #include "WaterInfoTextureRendering.h"
+#include "SplineMeshSceneResources.h"
 
 #if !UE_BUILD_SHIPPING
 #include "RenderCaptureInterface.h"
@@ -3181,6 +3182,11 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	check(!UseNanite(ShaderPlatform) || bNeedsPrePass);
 
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
+
+	if (Scene->SplineMeshSceneResources)
+	{
+		Scene->SplineMeshSceneResources->Update(GraphBuilder, GetSceneUniforms());
+	}
 
 	// Substrate initialisation is always run even when not enabled.
 	const bool bSubstrateEnabled = Substrate::IsSubstrateEnabled();
