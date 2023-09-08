@@ -49,6 +49,9 @@ private:
 	/** Number of reachability analysis iterations performed during reachability analysis */
 	int32 NumIterations = 0;
 
+	/** Number of reachability analysis iterations to skip when running with gc.DelayReachabilityIterations */
+	int32 NumRechabilityIterationsToSkip = 0;
+
 	alignas (PLATFORM_CACHE_LINE_SIZE) double IterationStartTime = 0.0;
 	alignas (PLATFORM_CACHE_LINE_SIZE) double IterationTimeLimit = 0.0;
 

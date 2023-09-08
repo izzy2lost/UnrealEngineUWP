@@ -225,12 +225,21 @@ FConsoleCommandWithOutputDeviceDelegate::CreateStatic(&UnlinkReachabilityStressD
 
 #if UE_BUILD_SHIPPING
 static constexpr int32 GGarbageReferenceTrackingEnabled = 0;
+static constexpr int32 GDelayReachabilityIterations = 0;
 #else
 int32 GGarbageReferenceTrackingEnabled = 0;
 static FAutoConsoleVariableRef CGarbageReferenceTrackingEnabled(
 	TEXT("gc.GarbageReferenceTrackingEnabled"),
 	GGarbageReferenceTrackingEnabled,
 	TEXT("Causes the Garbage Collector to track and log unreleased garbage objects. If 1, will dump every reference. If 2, will dump a sample of the references to highlight problematic properties."),
+	ECVF_Default
+);
+
+int32 GDelayReachabilityIterations = 0;
+static FAutoConsoleVariableRef CDelayReachabilityIterations(
+	TEXT("gc.DelayReachabilityIterations"),
+	GDelayReachabilityIterations,
+	TEXT("Causes the Garbage Collector to delay incremental reachability iterations by the provided number of frames."),
 	ECVF_Default
 );
 #endif // UE_BUILD_SHIPPING
@@ -5169,15 +5178,20 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysis()
 	if (!bIsSuspended)
 	{
 		Init();
+		NumRechabilityIterationsToSkip = FMath::Max(0, GDelayReachabilityIterations);
 	}
 
 	if (bPerformFullPurge)
 	{
 		UE::GC::CollectGarbageFull(ObjectKeepFlags);
 	}
-	else
+	else if (NumRechabilityIterationsToSkip == 0 || !bIsSuspended)
 	{
 		UE::GC::CollectGarbageIncremental(ObjectKeepFlags);
+	}
+	else
+	{
+		--NumRechabilityIterationsToSkip;
 	}
 
 	FinishIteration();
