@@ -80,10 +80,15 @@ void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& C
 		NewAsset = ChooseAsset(Context);
 	}
 
-	if (bJustBecameRelevant || NewAsset != CurrentAsset)
-	{
-		const FChooserPlayerSettings& Settings = ChooserContext.Params[1].Get<FChooserPlayerSettings>();
-			
+	const FChooserPlayerSettings& Settings = ChooserContext.Params[1].Get<FChooserPlayerSettings>();
+
+	// Restart the animation:
+	// - if this node just became relevant
+	// - if we chose a new animation
+	// - for playback rate of 0, when the start time changes - for choosing poses as frames of an animation sequence
+	if (bJustBecameRelevant || NewAsset != CurrentAsset ||
+		(CurrentStartTime != Settings.StartTime && Settings.PlaybackRate == 0.0f)) 
+	{			
 		CurveOverridesIndex = (CurveOverridesIndex + 1) % 2;
 		OverrideCurves[CurveOverridesIndex].Empty();
 		if (!Settings.CurveOverrides.Values.IsEmpty())
@@ -116,6 +121,7 @@ void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& C
 			GetGroupName(), GetGroupRole(), GetGroupMethod());
 		
 		CurrentAsset = NewAsset;
+		CurrentStartTime = Settings.StartTime;
 	}
 
 	// Update blend space parameters

@@ -189,6 +189,7 @@ private:
 	UAnimationAsset* ChooseAsset(const FAnimationUpdateContext& Context);
 	FChooserEvaluationContext ChooserContext;
 	UAnimationAsset* CurrentAsset = nullptr;
+	float CurrentStartTime = 0;
 	uint32 CurveOverridesIndex = 0;
 	TBaseBlendedCurve<FDefaultAllocator, UE::Anim::FCurveElement> OverrideCurves[2]; 
 	
