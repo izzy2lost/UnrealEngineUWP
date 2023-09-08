@@ -445,7 +445,7 @@ public:
 	 *
 	 * @param DeltaTime	The distance in time to move the curve
 	 */
-	MOVIESCENE_API void MoveSection(FFrameNumber DeltaTime);
+	MOVIESCENE_API virtual void MoveSection(FFrameNumber DeltaTime);
 
 	/**
 	 * Return the range within which this section is effective. Used for automatic calculation of sequence bounds.
@@ -703,6 +703,7 @@ private:
 	 */
 	MOVIESCENE_API virtual EMovieSceneChannelProxyType CacheChannelProxy();
 
+	void MoveSectionImpl(FFrameNumber DeltaTime);
 
 public:
 

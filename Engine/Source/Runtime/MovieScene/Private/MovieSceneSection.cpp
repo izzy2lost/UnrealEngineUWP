@@ -215,7 +215,7 @@ TSharedPtr<FStructOnScope> UMovieSceneSection::GetKeyStruct(TArrayView<const FKe
 	return nullptr;
 }
 
-void UMovieSceneSection::MoveSection(FFrameNumber DeltaFrame)
+void UMovieSceneSection::MoveSectionImpl(FFrameNumber DeltaFrame)
 {
 	if (TryModify())
 	{
@@ -237,6 +237,11 @@ void UMovieSceneSection::MoveSection(FFrameNumber DeltaFrame)
 			}
 		}
 	}
+}
+
+void UMovieSceneSection::MoveSection(FFrameNumber DeltaFrame)
+{
+	MoveSectionImpl(DeltaFrame);
 }
 
 TRange<FFrameNumber> UMovieSceneSection::ComputeEffectiveRange() const
@@ -527,7 +532,7 @@ void UMovieSceneSection::InitialPlacement(const TArray<UMovieSceneSection*>& Sec
 			TRange<FFrameNumber> OtherRange = OverlappedSection->GetRange();
 			if (OtherRange.GetUpperBound().IsClosed())
 			{
-				MoveSection(OtherRange.GetUpperBoundValue() - InStartTime);
+				MoveSectionImpl(OtherRange.GetUpperBoundValue() - InStartTime);
 			}
 			else
 			{
