@@ -84,11 +84,11 @@ namespace UE::CoreUObject
 	{
 		COREUOBJECT_API std::atomic<int32> HandleReadCallbackQuantity = 0;
 
-		struct ObjectHandleCallbacks
+		struct FObjectHandleCallbacks
 		{
-			static ObjectHandleCallbacks& Get()
+			static FObjectHandleCallbacks& Get()
 			{
-				static ObjectHandleCallbacks Callbacks;
+				static FObjectHandleCallbacks Callbacks;
 				return Callbacks;
 			}
 
@@ -97,6 +97,19 @@ namespace UE::CoreUObject
 				UE_AUTORTFM_OPEN(
 				{
 					FLightweightReadScopeLock _(HandleLock);
+					for (auto&& Pair : ReadHandleCallbacks)
+					{
+						Pair.Value(Objects);
+					}
+				});
+			}
+
+			void OnHandleRead(const UObject* Object)
+			{
+				UE_AUTORTFM_OPEN(
+				{
+					FLightweightReadScopeLock _(HandleLock);
+					TArrayView<const UObject* const> Objects(&Object, 1);
 					for (auto&& Pair : ReadHandleCallbacks)
 					{
 						Pair.Value(Objects);
@@ -271,22 +284,27 @@ namespace UE::CoreUObject
 
 		void OnHandleReadInternal(TArrayView<const UObject* const> Objects)
 		{
-			ObjectHandleCallbacks::Get().OnHandleRead(Objects);
+			FObjectHandleCallbacks::Get().OnHandleRead(Objects);
+		}
+
+		void OnHandleReadInternal(const UObject* Object)
+		{
+			FObjectHandleCallbacks::Get().OnHandleRead(Object);
 		}
 
 		void OnClassReferenceResolved(const FObjectRef& ObjectRef, UPackage* Package, UClass* Class)
 		{
-			ObjectHandleCallbacks::Get().OnClassReferenceResolved(ObjectRef, Package, Class);
+			FObjectHandleCallbacks::Get().OnClassReferenceResolved(ObjectRef, Package, Class);
 		}
 
 		void OnReferenceResolved(const FObjectRef& ObjectRef, UPackage* Package, UObject* Object)
 		{
-			ObjectHandleCallbacks::Get().OnReferenceResolved(ObjectRef, Package, Object);
+			FObjectHandleCallbacks::Get().OnReferenceResolved(ObjectRef, Package, Object);
 		}
 
 		void OnReferenceLoaded(const FObjectRef& ObjectRef, UPackage* Package, UObject* Object)
 		{
-			ObjectHandleCallbacks::Get().OnReferenceLoaded(ObjectRef, Package, Object);
+			FObjectHandleCallbacks::Get().OnReferenceLoaded(ObjectRef, Package, Object);
 		}
 
 	}
@@ -294,49 +312,49 @@ namespace UE::CoreUObject
 	FObjectHandleTrackingCallbackId AddObjectHandleReadCallback(FObjectHandleReadFunc Func)
 	{
 		using namespace UE::CoreUObject::Private;
-		return ObjectHandleCallbacks::Get().AddObjectHandleReadCallback(Func);
+		return FObjectHandleCallbacks::Get().AddObjectHandleReadCallback(Func);
 	}
 
 	void RemoveObjectHandleReadCallback(FObjectHandleTrackingCallbackId Handle)
 	{
 		using namespace UE::CoreUObject::Private;
-		ObjectHandleCallbacks::Get().RemoveObjectHandleReadCallback(Handle);
+		FObjectHandleCallbacks::Get().RemoveObjectHandleReadCallback(Handle);
 	}
 
 	FObjectHandleTrackingCallbackId AddObjectHandleClassResolvedCallback(FObjectHandleClassResolvedFunc Func)
 	{
 		using namespace UE::CoreUObject::Private;
-		return ObjectHandleCallbacks::Get().AddObjectHandleClassResolvedCallback(Func);
+		return FObjectHandleCallbacks::Get().AddObjectHandleClassResolvedCallback(Func);
 	}
 
 	void RemoveObjectHandleClassResolvedCallback(FObjectHandleTrackingCallbackId Handle)
 	{
 		using namespace UE::CoreUObject::Private;
-		ObjectHandleCallbacks::Get().RemoveObjectHandleClassResolvedCallback(Handle);
+		FObjectHandleCallbacks::Get().RemoveObjectHandleClassResolvedCallback(Handle);
 	}
 
 	FObjectHandleTrackingCallbackId AddObjectHandleReferenceResolvedCallback(FObjectHandleReferenceResolvedFunc Func)
 	{
 		using namespace UE::CoreUObject::Private;
-		return ObjectHandleCallbacks::Get().AddObjectHandleReferenceResolvedCallback(Func);
+		return FObjectHandleCallbacks::Get().AddObjectHandleReferenceResolvedCallback(Func);
 	}
 
 	void RemoveObjectHandleReferenceResolvedCallback(FObjectHandleTrackingCallbackId Handle)
 	{
 		using namespace UE::CoreUObject::Private;
-		ObjectHandleCallbacks::Get().RemoveObjectHandleReferenceResolvedCallback(Handle);
+		FObjectHandleCallbacks::Get().RemoveObjectHandleReferenceResolvedCallback(Handle);
 	}
 
 	FObjectHandleTrackingCallbackId AddObjectHandleReferenceLoadedCallback(FObjectHandleReferenceLoadedFunc Func)
 	{
 		using namespace UE::CoreUObject::Private;
-		return ObjectHandleCallbacks::Get().AddObjectHandleReferenceLoadedCallback(Func);
+		return FObjectHandleCallbacks::Get().AddObjectHandleReferenceLoadedCallback(Func);
 	}
 
 	void RemoveObjectHandleReferenceLoadedCallback(FObjectHandleTrackingCallbackId Handle)
 	{
 		using namespace UE::CoreUObject::Private;
-		ObjectHandleCallbacks::Get().RemoveObjectHandleReferenceLoadedCallback(Handle);
+		FObjectHandleCallbacks::Get().RemoveObjectHandleReferenceLoadedCallback(Handle);
 	}
 }
 #endif // UE_WITH_OBJECT_HANDLE_TRACKING

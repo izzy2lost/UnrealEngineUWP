@@ -796,7 +796,7 @@ void TestArrayConversion()
 #if UE_WITH_OBJECT_HANDLE_TRACKING
 	int ResolveCount = 0;
 	uint32 ObjCount = 0;
-	auto ResolveDelegate = [&](TArrayView<const UObject* const> Objects)
+	auto ResolveDelegate = [&](const TArrayView<const UObject* const>& Objects)
 	{
 		++ResolveCount;
 		ObjCount = Objects.Num();
@@ -988,7 +988,7 @@ TEST_CASE("CoreUObject::TObjectPtr::ArrayConversionReferenceForSet")
 #if UE_WITH_OBJECT_HANDLE_TRACKING
 	int ResolveCount = 0;
 	uint32 ObjCount = 0;
-	auto ResolveDelegate = [&](TArrayView<const UObject* const> Objects)
+	auto ResolveDelegate = [&](const TArrayView<const UObject* const>& Objects)
 	{
 		++ResolveCount;
 		ObjCount = Objects.Num();
@@ -1042,7 +1042,7 @@ TEST_CASE("CoreUObject::TObjectPtr::ConstArrayViewConversion")
 
 #if UE_WITH_OBJECT_HANDLE_TRACKING
 	int ResolveCount = 0;
-	auto ResolveDelegate = [&](TArrayView<const UObject* const> Objects)
+	auto ResolveDelegate = [&](const TArrayView<const UObject* const>& Objects)
 	{
 		++ResolveCount;
 		CHECK(Objects.Num() == 3);

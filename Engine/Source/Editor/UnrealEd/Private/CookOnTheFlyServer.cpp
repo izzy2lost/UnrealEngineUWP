@@ -11679,7 +11679,7 @@ void UCookOnTheFlyServer::RegisterCookByTheBookDelegates()
 	if (bHiddenDependenciesDebug)
 	{
 		ObjectHandleReadHandle = UE::CoreUObject::AddObjectHandleReadCallback(
-			[this](TArrayView<const UObject*const> ReadObjects) { UCookOnTheFlyServer::OnObjectHandleReadDebug(ReadObjects); });
+			[this](const TArrayView<const UObject*const>& ReadObjects) { UCookOnTheFlyServer::OnObjectHandleReadDebug(ReadObjects); });
 	}
 }
 
@@ -12527,7 +12527,7 @@ void UCookOnTheFlyServer::OnDiscoveredPackageDebug(FName PackageName, const UE::
 
 FName EngineTransientName(TEXT("/Engine/Transient"));
 
-void UCookOnTheFlyServer::OnObjectHandleReadDebug(TArrayView<const UObject*const> ReadObjects)
+void UCookOnTheFlyServer::OnObjectHandleReadDebug(const TArrayView<const UObject*const>& ReadObjects)
 {
 	using namespace UE::Cook;
 #if UE_WITH_PACKAGE_ACCESS_TRACKING

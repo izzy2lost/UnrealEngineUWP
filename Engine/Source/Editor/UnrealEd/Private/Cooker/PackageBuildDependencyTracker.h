@@ -42,7 +42,7 @@ private:
 	virtual ~FPackageBuildDependencyTracker();
 
 	/** Track object reference reads */
-	static void StaticOnObjectHandleRead(TArrayView<const UObject* const> Objects);
+	static void StaticOnObjectHandleRead(const TArrayView<const UObject* const>& Objects);
 
 	// Use a mutex rather than a critical section for synchronization.  Calls into system libraries, such as windows critical section
 	// functions, are 50 times more expensive on build farm VMs, radically affecting cook times, which this avoids.  Saves 5% of total

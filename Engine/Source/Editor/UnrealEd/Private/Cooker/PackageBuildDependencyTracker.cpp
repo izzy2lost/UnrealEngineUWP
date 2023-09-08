@@ -95,7 +95,7 @@ static bool ShouldSkipDependency(const UObject* Object)
 		(Object->GetClass() == UClass::StaticClass());
 }
 
-void FPackageBuildDependencyTracker::StaticOnObjectHandleRead(TArrayView<const UObject* const> Objects)
+void FPackageBuildDependencyTracker::StaticOnObjectHandleRead(const TArrayView<const UObject* const>& Objects)
 {
 	int Count = Objects.Num();
 	if(Count == 0 || (Count == 1 && ShouldSkipDependency(Objects[0])))

@@ -1409,7 +1409,7 @@ private:
 	/** Callback for analytics when a new UPackage is loaded. */
 	UNREALED_API void OnDiscoveredPackageDebug(FName PackageName, const UE::Cook::FInstigator& Instigator);
 	/** Callback for analytics when a TObjectPtr is read. */
-	UNREALED_API void OnObjectHandleReadDebug(TArrayView<const UObject*const> ReadObjects);
+	UNREALED_API void OnObjectHandleReadDebug(const TArrayView<const UObject*const>& ReadObjects);
 	/** Send warnings/telemetry when a discovered or read package is found to be a hidden dependency. */
 	UNREALED_API void ReportHiddenDependency(FName Referencer, FName Dependency);
 
