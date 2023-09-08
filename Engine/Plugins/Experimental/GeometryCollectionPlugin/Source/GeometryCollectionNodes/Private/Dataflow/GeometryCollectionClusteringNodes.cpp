@@ -108,15 +108,28 @@ void FClusterFlattenDataflowNode::Evaluate(Dataflow::FContext& Context, const FD
 				Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(*GeomCollection);
 				HierarchyFacade.GenerateLevelAttribute();
 
-				// Populate Selected Bones in an Array
-				// @todo(harsha) Implement with Selection
-				// For every bone in selected array: [RootClusterIndex]
-				const int32 RootClusterIndex = HierarchyFacade.GetRootIndex();
-				TArray<int32> LeafBones;
-				FGeometryCollectionClusteringUtility::GetLeafBones(GeomCollection.Get(), RootClusterIndex, true, LeafBones);
-				FGeometryCollectionClusteringUtility::ClusterBonesUnderExistingNode(GeomCollection.Get(), RootClusterIndex, LeafBones);
+				TArray<int32> ToFlatten;
+				if (IsConnected(&OptionalTransformSelection))
+				{
+					const FDataflowTransformSelection& InTransformSelection = GetValue(Context, &OptionalTransformSelection);
+					ToFlatten = InTransformSelection.AsArray();
+					GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(*GeomCollection);
+					SelectionFacade.ConvertSelectionToClusterNodes(ToFlatten, false);
+				}
+				else
+				{
+					const int32 RootClusterIndex = HierarchyFacade.GetRootIndex();
+					ToFlatten.Add(RootClusterIndex);
+				}
+
+				for (int32 ToFlattenIdx : ToFlatten)
+				{
+					TArray<int32> LeafBones;
+					FGeometryCollectionClusteringUtility::GetLeafBones(GeomCollection.Get(), ToFlattenIdx, true, LeafBones);
+					FGeometryCollectionClusteringUtility::ClusterBonesUnderExistingNode(GeomCollection.Get(), ToFlattenIdx, LeafBones);
+				}
+
 				FGeometryCollectionClusteringUtility::RemoveDanglingClusters(GeomCollection.Get());
-				// End for
 
 				HierarchyFacade.GenerateLevelAttribute();
 				SetValue(Context, (const FManagedArrayCollection&)(*GeomCollection), &Collection);

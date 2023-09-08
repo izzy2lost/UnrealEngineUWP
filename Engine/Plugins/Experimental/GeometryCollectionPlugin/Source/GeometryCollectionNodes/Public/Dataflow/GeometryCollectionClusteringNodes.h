@@ -115,7 +115,7 @@ public:
 
 /**
  *
- * Flattens all bones to level 1
+ * Flattens selected bones. If no selection is provided, flattens all bones to level 1
  *
  */
 USTRUCT(meta = (DataflowGeometryCollection))
@@ -125,16 +125,21 @@ struct FClusterFlattenDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FClusterFlattenDataflowNode, "Flatten", "GeometryCollection|Cluster", "")
 
 public:
-	// @todo(harsha) Support Selections
 
 	/** Fractured GeometryCollection to flatten */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
+	/** If connected, clusters under the selected bones will be flattened. If no selection is provided, all bones will be flattened to level 1. */
+	UPROPERTY(meta = (DataflowInput))
+	FDataflowTransformSelection OptionalTransformSelection;
+
 	FClusterFlattenDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&OptionalTransformSelection);
+		
 		RegisterOutputConnection(&Collection, &Collection);
 	}
 
