@@ -440,6 +440,12 @@ void RHIPostInit(const TArray<uint32>& InPixelFormatByteWidth)
 	check(GDynamicRHI);
 	GDynamicRHI->InitPixelFormatInfo(InPixelFormatByteWidth);
 	GDynamicRHI->PostInit();
+
+#if PLATFORM_ANDROID
+	// The Android HW window is locked during init to prevent it being destroyed asynch during app backgrounding
+	// It is unlocked after the RHI is initialized as it is able to handle backgrounding.
+	FAndroidMisc::UnlockAndroidWindow();
+#endif
 }
 
 void RHIExit()

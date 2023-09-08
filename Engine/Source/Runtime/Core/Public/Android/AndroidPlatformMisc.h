@@ -286,7 +286,7 @@ public:
 
 	static void SaveDeviceOrientation(EDeviceScreenOrientation NewDeviceOrentation) { DeviceOrientation = NewDeviceOrentation; }
 
-	// Window access is locked by the game thread before preinit and unlocked here after RHIInit (PlatformCreateDynamicRHI). 
+	// Window access is locked by the game thread before preinit and unlocked here after RHIInit
 	static CORE_API void UnlockAndroidWindow();
 	
 	static CORE_API TArray<int32> GetSupportedNativeDisplayRefreshRates();
