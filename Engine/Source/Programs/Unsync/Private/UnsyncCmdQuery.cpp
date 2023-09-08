@@ -110,7 +110,7 @@ CmdQueryMirrors(const FCmdQueryOptions& Options)
 
 	std::vector<FMirrorInfo> Mirrors = MirrorsResult.GetData();
 
-	ParallelForEach(Mirrors.begin(), Mirrors.end(), [](FMirrorInfo& Mirror) { Mirror.Ping = RunHttpPing(Mirror.Address, Mirror.Port); });
+	ParallelForEach(Mirrors, [](FMirrorInfo& Mirror) { Mirror.Ping = RunHttpPing(Mirror.Address, Mirror.Port); });
 
 	std::sort(Mirrors.begin(), Mirrors.end(), [](const FMirrorInfo& InA, const FMirrorInfo& InB) {
 		double A = InA.Ping > 0 ? InA.Ping : FLT_MAX;
@@ -178,28 +178,22 @@ CmdQueryList(const FCmdQueryOptions& Options)
 int32
 CmdQueryFile(const FCmdQueryOptions& Options)
 {
-	TResult<FBuffer> Response = ProxyQuery::DownloadFile(Options.Remote, Options.Args);
-
 	UNSYNC_LOG(L"Downloading file: '%hs'", Options.Args.c_str());
+	UNSYNC_LOG_INDENT;
+
+	std::unique_ptr<FNativeFile> ResultWriter;
+
+	auto OutputCallback = [&ResultWriter, &Options](uint64 Size) -> FIOWriter& {
+		UNSYNC_LOG(L"Size: %llu bytes (%.3f MB)", llu(Size), SizeMb(Size));
+		ResultWriter = std::make_unique<FNativeFile>(Options.OutputPath, EFileMode::CreateWriteOnly, Size);
+		return *ResultWriter;
+	};
+
+	TResult<> Response = ProxyQuery::DownloadFile(Options.Remote, Options.Args, OutputCallback);
 
 	if (Response.IsOk())
 	{
-		FBuffer& Buffer = Response.GetData();
-
-		UNSYNC_LOG(L"Downloaded file size: %llu bytes", llu(Buffer.Size()));
-
-		if (!Options.OutputPath.empty())
-		{
-			bool bWriteOk = WriteBufferToFile(Options.OutputPath, Buffer);
-			if (bWriteOk)
-			{
-				UNSYNC_LOG(L"Output written to file '%s'", Options.OutputPath.wstring().c_str());
-			}
-			else
-			{
-				UNSYNC_ERROR(L"Failed to write output file '%s'", Options.OutputPath.wstring().c_str());
-			}
-		}
+		UNSYNC_LOG(L"Output written to file '%s'", Options.OutputPath.wstring().c_str());
 	}
 	else
 	{
@@ -241,7 +235,7 @@ FindClosestMirror(const FRemoteDesc& Remote)
 	}
 
 	std::vector<FMirrorInfo> Mirrors = MirrorsResult.GetData();
-	ParallelForEach(Mirrors.begin(), Mirrors.end(), [](FMirrorInfo& Mirror) { Mirror.Ping = RunHttpPing(Mirror.Address, Mirror.Port); });
+	ParallelForEach(Mirrors, [](FMirrorInfo& Mirror) { Mirror.Ping = RunHttpPing(Mirror.Address, Mirror.Port); });
 
 	std::sort(Mirrors.begin(), Mirrors.end(), [](const FMirrorInfo& InA, const FMirrorInfo& InB) {
 		double A = InA.Ping > 0 ? InA.Ping : FLT_MAX;

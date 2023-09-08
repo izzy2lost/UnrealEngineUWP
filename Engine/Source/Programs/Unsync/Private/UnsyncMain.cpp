@@ -649,8 +649,7 @@ InnerMain(int Argc, char** Argv)
 
 	if (bUseTls)
 	{
-		RemoteDesc.bTlsEnable			 = true;
-		RemoteDesc.bTlsVerifyCertificate = true;
+		RemoteDesc.bTlsEnable = true;
 	}
 
 	if (bAllowInsecureTls)
@@ -658,6 +657,10 @@ InnerMain(int Argc, char** Argv)
 		RemoteDesc.bTlsVerifyCertificate = false;
 		RemoteDesc.TlsSubject			 = {};
 		UNSYNC_WARNING(L"Remote server certificate verification is disabled.");
+	}
+	else
+	{
+		RemoteDesc.bTlsVerifyCertificate = true;
 	}
 
 	if (bNoOutputValidation)

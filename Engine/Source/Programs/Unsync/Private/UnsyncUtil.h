@@ -74,6 +74,12 @@ MakeU64(uint32 H, uint32 L)
 	return uint64(L) | (uint64(H) << 32);
 }
 
+struct FRange
+{
+	uint64 Offset = 0;
+	uint64 Size = 0;
+};
+
 struct FTimingLogger
 {
 	bool		Enabled	  = false;

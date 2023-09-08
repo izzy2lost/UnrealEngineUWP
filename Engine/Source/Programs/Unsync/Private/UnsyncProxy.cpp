@@ -1,19 +1,25 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UnsyncProxy.h"
+#include "UnsyncAuth.h"
 #include "UnsyncCompression.h"
 #include "UnsyncFile.h"
 #include "UnsyncJupiter.h"
-#include "UnsyncAuth.h"
+#include "UnsyncPool.h"
+#include "UnsyncProgress.h"
 
-#include <json11.hpp>
 #include <fmt/format.h>
+#include <atomic>
+#include <json11.hpp>
 
 namespace unsync {
 
 struct FUnsyncProtocolImpl : FRemoteProtocolBase
 {
-	FUnsyncProtocolImpl(const FRemoteDesc& InRemoteDesc, const FRemoteProtocolFeatures& InFeatures, const FBlockRequestMap* InRequestMap, const FTlsClientSettings* TlsSettings);
+	FUnsyncProtocolImpl(const FRemoteDesc&			   InRemoteDesc,
+						const FRemoteProtocolFeatures& InFeatures,
+						const FBlockRequestMap*		   InRequestMap,
+						const FTlsClientSettings*	   TlsSettings);
 	virtual ~FUnsyncProtocolImpl() override;
 	virtual bool			 IsValid() const override;
 	virtual FDownloadResult	 Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback) override;
@@ -94,7 +100,8 @@ FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 
 	if (SocketHandle)
 	{
-		bIsConnetedToHost = [this]() {
+		bIsConnetedToHost = [this]()
+		{
 			FHandshakePacket HandshakePacketTx;
 			if (!SocketSendT(*SocketHandle, HandshakePacketTx))
 			{
@@ -328,7 +335,7 @@ FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBl
 
 		bOk &= (SocketRecvAll(*SocketHandle, BlockPacket.CompressedData.Data(), BlockPacket.CompressedData.Size()) == CompressedDataSize);
 
-		static const FHash128 TerminatorHash = FHash128{}; // response is always terminated with an empty packet
+		static const FHash128 TerminatorHash = FHash128{};	// response is always terminated with an empty packet
 
 		if (BlockPacket.Hash == TerminatorHash)
 		{
@@ -377,8 +384,8 @@ FUnsyncProtocolImpl::GetSocketSecurity() const
 	}
 }
 
-namespace ProxyQuery {
-TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc, bool bAnonymous)
+TResult<ProxyQuery::FHelloResponse>
+ProxyQuery::Hello(const FRemoteDesc& RemoteDesc, bool bAnonymous)
 {
 	const char* Url = "/api/v1/hello";
 
@@ -391,7 +398,7 @@ TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc, bool bAnonymous)
 			BearerToken = std::move(AuthTokenResult.GetData().Access);
 		}
 	}
-	
+
 	FHttpResponse Response = HttpRequest(RemoteDesc, EHttpMethod::GET, Url, BearerToken);
 
 	if (!Response.Success())
@@ -486,7 +493,8 @@ TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc, bool bAnonymous)
 	return ResultOk(std::move(Result));
 }
 
-TResult<FDirectoryListing> ListDirectory(const FRemoteDesc& Remote, const std::string& Path)
+TResult<ProxyQuery::FDirectoryListing>
+ProxyQuery::ListDirectory(const FRemoteDesc& Remote, const std::string& Path)
 {
 	FDirectoryListing Result;
 
@@ -550,33 +558,161 @@ TResult<FDirectoryListing> ListDirectory(const FRemoteDesc& Remote, const std::s
 	return ResultOk(std::move(Result));
 }
 
-TResult<FBuffer> DownloadFile(const FRemoteDesc& Remote, const std::string& Path)
+TResult<>
+ProxyQuery::DownloadFile(const FRemoteDesc& Remote, const std::string& Path, ProxyQuery::FDownloadOutputCallback OutputCallback)
 {
-	TResult<FAuthToken> AuthToken = Authenticate(Remote, 5 * 60);
-	if (!AuthToken.IsOk())
+	auto CreateConnection = [Remote]
 	{
-		return MoveError<FBuffer>(AuthToken);
-	}
+		FTlsClientSettings TlsSettings;
+		TlsSettings.Subject			   = Remote.HostAddress.data();
+		TlsSettings.bVerifyCertificate = Remote.bTlsVerifyCertificate;
+		return new FHttpConnection(Remote.HostAddress, Remote.HostPort, &TlsSettings);
+	};
 
-	FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Remote);
+	TObjectPool<FHttpConnection> ConnectionPool(CreateConnection);
 
 	std::string Url = fmt::format("/api/v1/file?{}", Path);
 
-	FHttpRequest Request;
-	Request.Url			   = Url;
-	Request.Method		   = EHttpMethod::GET;
-	Request.BearerToken	   = AuthToken->Access;
-	FHttpResponse Response = HttpRequest(Connection, Request);
+	uint64 FileSize = 0;
 
-	if (!Response.Success())
 	{
-		return HttpError(Response.Code);
+		std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
+
+		TResult<FAuthToken> AuthToken = Authenticate(Remote, 5 * 60);
+		if (!AuthToken.IsOk())
+		{
+			return std::move(AuthToken.GetError());
+		}
+
+		FHttpRequest HeadRequest;
+		HeadRequest.Url			   = Url;
+		HeadRequest.Method		   = EHttpMethod::HEAD;
+		HeadRequest.BearerToken	   = AuthToken->Access;
+		FHttpResponse HeadResponse = HttpRequest(*Connection, HeadRequest);
+		if (!HeadResponse.Success())
+		{
+			return HttpError(HeadResponse.Code);
+		}
+
+		FileSize = HeadResponse.ContentLength;
+		UNSYNC_VERBOSE(L"File size: %llu bytes (%.3f MB)", llu(FileSize), SizeMb(FileSize));
+
+		ConnectionPool.Release(std::move(Connection));
 	}
 
-	return ResultOk(std::move(Response.Buffer));
+	const uint64 MaxChunkSize = 16_MB;
+
+	FIOWriter& Result = OutputCallback(FileSize);
+	if (!Result.IsValid())
+	{
+		return AppError(L"Failed to create download output stream");
+	}
+
+	const uint64		NumChunks = DivUp(FileSize, MaxChunkSize);
+	std::vector<FRange> Chunks;
+	Chunks.reserve(NumChunks);
+
+	for (uint64 i = 0; i < NumChunks; ++i)
+	{
+		FRange Range;
+		Range.Offset = i * MaxChunkSize;
+		Range.Size	 = CalcChunkSize(i, MaxChunkSize, FileSize);
+		Chunks.push_back(Range);
+	}
+
+	FAtomicError Error;
+	FSemaphore	 DownloadSempahore(4);	// up to 4 concurrent connections
+
+	FLogProgressScope DownloadProgress(FileSize, ELogProgressUnits::MB);
+
+	auto ProcessChunk =
+		[&Error, &Result, &Url, &Remote, &ConnectionPool, &DownloadSempahore, &DownloadProgress](
+			const FRange& Range)
+	{
+		FLogIndentScope	   IndentScope(DownloadProgress.ParentThreadIndent, true);
+		FLogVerbosityScope VerbosityScope(DownloadProgress.bParentThreadVerbose);
+
+		if (Error.Test())
+		{
+			return;
+		}
+
+		DownloadSempahore.Acquire();
+
+		TResult<FAuthToken> AuthToken = Authenticate(Remote, 5 * 60);
+		if (!AuthToken.IsOk())
+		{
+			Error.Set(std::move(AuthToken.GetError()));
+			return;
+		}
+
+		std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
+
+		std::string RequestHeaders = fmt::format("Range: bytes={}-{}", Range.Offset, Range.Offset + Range.Size - 1);
+
+		FHttpRequest Request;
+		Request.Url			   = Url;
+		Request.Method		   = EHttpMethod::GET;
+		Request.BearerToken	   = AuthToken->Access;
+		Request.CustomHeaders  = RequestHeaders;
+		FHttpResponse Response = HttpRequest(*Connection, Request);
+
+		if (!Response.Success())
+		{
+			Error.Set(HttpError(Response.Code));
+			return;
+		}
+
+		if (Range.Size != Response.Buffer.Size())
+		{
+			Error.Set(AppError(L"Downloaded file chunk size mismatch"));
+		}
+
+		uint64 WrittenBytes = Result.Write(Response.Buffer.Data(), Range.Offset, Range.Size);
+
+		DownloadProgress.Add(WrittenBytes);
+
+		ConnectionPool.Release(std::move(Connection));
+
+		DownloadSempahore.Release();
+	};
+
+	ParallelForEach(Chunks, ProcessChunk);
+
+	DownloadProgress.Complete();
+
+	if (Error.Test())
+	{
+		return std::move(*Error.Data);
+	}
+
+	return ResultOk();
 }
 
-}  // namespace ProxyQuery
+TResult<FBuffer>
+ProxyQuery::DownloadFile(const FRemoteDesc& Remote, const std::string& Path)
+{
+	FBuffer Result;
+
+	std::unique_ptr<FMemReaderWriter> ResultWriter;
+
+	auto OutputCallback = [&Result, &ResultWriter](uint64 Size) -> FIOWriter&
+	{
+		Result.Resize(Size);
+		ResultWriter = std::make_unique<FMemReaderWriter>(Result.Data(), Result.Size());
+		return *ResultWriter;
+	};
+
+	TResult<> DownloadResult = DownloadFile(Remote, Path, OutputCallback);
+	if (DownloadResult.IsOk())
+	{
+		return ResultOk(std::move(Result));
+	}
+	else
+	{
+		return MoveError<FBuffer>(DownloadResult);
+	}
+}
 
 void
 FUnsyncProtocolImpl::SendTelemetryEvent(const FRemoteDesc& RemoteDesc, const FTelemetryEventSyncComplete& Event)
@@ -735,8 +871,7 @@ FBlockRequestMap::GetMacroBlockRequest(const FGenericHash& BlockHash) const
 	return Result;
 }
 
-FProxyPool::FProxyPool()
-: FProxyPool(FRemoteDesc())
+FProxyPool::FProxyPool() : FProxyPool(FRemoteDesc())
 {
 }
 

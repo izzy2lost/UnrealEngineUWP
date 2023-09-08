@@ -8,6 +8,8 @@
 #include <string>
 #include <type_traits>
 #include <variant>
+#include <optional>
+#include <atomic>
 
 namespace unsync {
 
@@ -148,5 +150,25 @@ ResultOk()
 {
 	return TResult<FEmpty, E>(FEmpty());
 }
+
+struct FAtomicError
+{
+	std::atomic_flag	  Flag;
+	std::optional<FError> Data;
+
+	bool Test() const { return Flag.test(); }
+	bool Set(FError&& InData)
+	{
+		if (Flag.test_and_set() == false)
+		{
+			Data = std::move(InData);
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+};
 
 }  // namespace unsync

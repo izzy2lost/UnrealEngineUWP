@@ -75,7 +75,7 @@ FScavengeDatabase::BuildFromFileSyncTasks(const FSyncDirectoryOptions& SyncOptio
 
 	UNSYNC_VERBOSE(L"Loading scavenged manifests: %llu", llu(Result->Manifests.size()));
 
-	ParallelForEach(Result->Manifests.begin(), Result->Manifests.end(), [](FScavengedManifest& Entry) {
+	ParallelForEach(Result->Manifests, [](FScavengedManifest& Entry) {
 		FLogVerbosityScope VerbosityScope(false);  // turn off logging from threads
 		Entry.bValid = LoadDirectoryManifest(Entry.Manifest, Entry.Root, Entry.ManifestPath);
 		if (Entry.bValid)

@@ -48,6 +48,9 @@ struct FLogProgressScope
 
 	void Add(uint64 X, bool bForceComplete = false);
 
+	const bool	 bParentThreadVerbose;
+	const uint32 ParentThreadIndent;
+
 	std::mutex				Mutex;
 	std::atomic<uint64>		Current;
 	const uint64			Total;

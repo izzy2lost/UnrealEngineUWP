@@ -23,7 +23,9 @@ AddGlobalProgress(uint64 Size, EBlockListType ListType)
 }
 
 FLogProgressScope::FLogProgressScope(uint64 InTotal, ELogProgressUnits InUnits, uint64 InPeriodMilliseconds)
-: Current(0)
+: bParentThreadVerbose(GLogVerbose)
+, ParentThreadIndent(GLogIndent)
+, Current(0)
 , Total(InTotal)
 , PeriodMilliseconds(InPeriodMilliseconds)
 , Units(InUnits)

@@ -27,7 +27,7 @@ UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <md5-sse2.h>
 UNSYNC_THIRD_PARTY_INCLUDES_END
 
-#define UNSYNC_VERSION_STR "1.0.53-dev"
+#define UNSYNC_VERSION_STR "1.0.54"
 
 namespace unsync {
 
@@ -3646,7 +3646,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 			UNSYNC_ASSERT(Item.NeedBytesFromSource + Item.NeedBytesFromBase == Item.TotalSizeBytes);
 		};
 
-		ParallelForEach(AllFileTasks.begin(), AllFileTasks.end(), DiffTask);
+		ParallelForEach(AllFileTasks, DiffTask);
 
 		auto TimeDiffEnd = TimePointNow();
 

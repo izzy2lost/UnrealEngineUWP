@@ -201,4 +201,11 @@ ParallelForEach(IT ItBegin, IT ItEnd, FT F)
 
 #endif	// UNSYNC_USE_CONCRT
 
+template<typename T, typename FT>
+inline void
+ParallelForEach(T Container, FT F)
+{
+	ParallelForEach(std::begin(Container), std::end(Container), F);
+}
+
 }  // namespace unsync

@@ -222,6 +222,9 @@ struct FDirectoryListing
 TResult<FDirectoryListing> ListDirectory(const FRemoteDesc& Remote, const std::string& Path);
 TResult<FBuffer>		   DownloadFile(const FRemoteDesc& Remote, const std::string& Path);
 
+using FDownloadOutputCallback = std::function<FIOWriter&(uint64 Size)>;
+TResult<> DownloadFile(const FRemoteDesc& Remote, const std::string& Path, FDownloadOutputCallback OutputCallback);
+
 } 
 
 }  // namespace unsync
