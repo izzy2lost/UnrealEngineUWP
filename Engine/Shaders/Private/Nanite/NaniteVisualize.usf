@@ -379,14 +379,9 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		{
 			const uint PackedFlags = ShadingBinMeta[UnpackedMask.ShadingBin].MaterialFlags;
 			FNaniteMaterialFlags MaterialFlags = UnpackNaniteMaterialFlags(PackedFlags);
-			if (MaterialFlags.bNoDerivativeOps)
-			{
-				Result = float3(0, 0.7, 0.6);
-			}
-			else
-			{
-				Result = float3(0.31, 0.43, 0.37);
-			}
+
+			const uint ModeValue = select(MaterialFlags.bNoDerivativeOps, 2, 1);
+			Result = (IntToColor(ModeValue) * 0.75 + 0.25) * (IntToColor(TriIndex).x * 0.5 + 0.5);
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_NANITE_MASK)
 		{
