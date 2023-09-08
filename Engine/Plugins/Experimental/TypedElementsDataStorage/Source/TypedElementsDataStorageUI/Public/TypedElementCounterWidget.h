@@ -28,8 +28,13 @@ public:
 	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
 
+	static void EnableCounterWidgets();
+
 private:
 	static void SetupMainWindowIntegrations(TSharedPtr<SWindow> ParentWindow, bool bIsRunningStartupDialog);
+
+	static bool bAreCounterWidgetsEnabled;
+	static bool bHasBeenSetup;
 };
 
 /**
