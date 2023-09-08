@@ -22,6 +22,14 @@ enum class EPCGLandscapeCacheSerializationMode : uint8
 	AlwaysSerialize
 };
 
+UENUM()
+enum class EPCGLandscapeCacheSerializationContents : uint8
+{
+	SerializeOnlyPositionsAndNormals,
+	SerializeOnlyLayerData,
+	SerializeAll
+};
+
 USTRUCT(BlueprintType)
 struct FPCGLandscapeLayerWeight
 {
@@ -78,10 +86,10 @@ private:
 #endif
 
 	// Serialize called from the landscape cache
-	void Serialize(FArchive& Ar, UObject* Owner, int32 BulkIndex);
+	void Serialize(FArchive& Ar, UObject* Owner, int32 BulkIndex, EPCGLandscapeCacheSerializationContents SerializationContents);
 
 	// Internal usage methods
-	void SerializeToBulkData();
+	void SerializeToBulkData(EPCGLandscapeCacheSerializationContents SerializationContents);
 	void SerializeFromBulkData() const;
 
 	// Serialized data
@@ -138,6 +146,9 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Cache")
 	EPCGLandscapeCacheSerializationMode SerializationMode = EPCGLandscapeCacheSerializationMode::SerializeOnlyAtCook;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Cache")
+	EPCGLandscapeCacheSerializationContents CookedSerializedContents = EPCGLandscapeCacheSerializationContents::SerializeAll;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(Transient, BlueprintReadOnly, VisibleAnywhere, Category = "Cache")
