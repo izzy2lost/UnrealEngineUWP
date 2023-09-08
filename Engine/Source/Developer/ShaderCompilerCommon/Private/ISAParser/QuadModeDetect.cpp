@@ -712,6 +712,9 @@ bool ISAParser::HasDerivativeOps(bool& bHasDerivativeOps, const char* Code, uint
 
 	if (InstructionSet == EInstructionSet::RDNA1)
 	{
+		//FDebugParserRDNA1 PrintParser;
+		//PerformParsing(PrintParser, ReadPtr, EndPtr);
+
 		FQuadModeParserRDNA1 Parser;
 		if (PerformParsing(Parser, ReadPtr, EndPtr))
 		{
@@ -724,6 +727,9 @@ bool ISAParser::HasDerivativeOps(bool& bHasDerivativeOps, const char* Code, uint
 	}
 	else if (InstructionSet == EInstructionSet::RDNA2)
 	{
+		//FDebugParserRDNA2 PrintParser;
+		//PerformParsing(PrintParser, ReadPtr, EndPtr);
+
 		FQuadModeParserRDNA2 Parser;
 		if (PerformParsing(Parser, ReadPtr, EndPtr))
 		{

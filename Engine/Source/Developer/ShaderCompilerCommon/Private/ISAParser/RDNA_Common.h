@@ -478,7 +478,7 @@ bool IsVOP3(const uint32* Code, uint32& AdvanceAmount)
 	if (bMatch)
 	{
 		AdvanceAmount = GetAdvanceAmount(EInstructionType::VOP3);
-		if (VOP3.SRC0 == Operand_DPP8 || VOP3.SRC0 == Operand_DPP8FI || VOP3.SRC0 == Operand_DPP16 || VOP3.SRC0 == Operand_SDWA || VOP3.SRC0 == Operand_Literal)
+		if (VOP3.SRC0 == Operand_DPP8 || VOP3.SRC0 == Operand_DPP8FI || VOP3.SRC0 == Operand_DPP16 || VOP3.SRC0 == Operand_SDWA || VOP3.SRC0 == Operand_Literal || VOP3.SRC2 == Operand_Literal)
 		{
 			AdvanceAmount++;
 		}
