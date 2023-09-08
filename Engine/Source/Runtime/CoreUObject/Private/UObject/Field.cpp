@@ -418,7 +418,7 @@ void FField::Serialize(FArchive& Ar)
 	if (!Ar.IsCooking())
 	{
 		UPackage* Package = GetOutermost();
-		if (!Package || !Package->bIsCookedForEditor)
+		if (!Package || !Package->HasAnyPackageFlags(PKG_Cooked))
 		{
 			bool bHasMetaData = false;
 			if (Ar.IsLoading())
