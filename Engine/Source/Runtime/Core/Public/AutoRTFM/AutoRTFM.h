@@ -71,7 +71,8 @@ typedef enum
     autortfm_aborted_by_language,
     autortfm_committed,
 	autortfm_aborted_by_transact_in_open_commit,
-	autortfm_aborted_by_transact_in_open_abort
+	autortfm_aborted_by_transact_in_open_abort,
+	autortfm_aborted_by_cascade
 } autortfm_result;
 
 // This must match AutoRTFM::EContextStatus.
@@ -82,7 +83,8 @@ typedef enum
 	autortfm_status_aborted_by_failed_lock_aquisition,
 	autortfm_status_aborted_by_language,
 	autortfm_status_aborted_by_request,
-	autortfm_status_committing
+	autortfm_status_committing,
+	autortfm_status_aborted_by_cascade
 } autortfm_status;
 
 // Tells if we are currently running in a transaction. This will return true in an
@@ -179,6 +181,17 @@ UE_AUTORTFM_API autortfm_result autortfm_abort_transaction();
 UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_abort_transaction()
 {
 	return autortfm_aborted_by_request;
+}
+#endif
+
+// End a transaction, discard all changes, and cause all parent transactions of
+// the current transaction to do the same.
+#if UE_AUTORTFM
+UE_AUTORTFM_API autortfm_result autortfm_cascading_abort_transaction();
+#else
+UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_cascading_abort_transaction()
+{
+	return autortfm_aborted_by_cascade;
 }
 #endif
 
@@ -375,7 +388,8 @@ enum class ETransactionResult
     AbortedByLanguage = autortfm_aborted_by_language,
     Committed = autortfm_committed,
 	AbortedByTransactInOpenCommit = autortfm_aborted_by_transact_in_open_commit,
-	AbortedByTransactInOpenAbort = autortfm_aborted_by_transact_in_open_abort
+	AbortedByTransactInOpenAbort = autortfm_aborted_by_transact_in_open_abort,
+	AbortedByCascade = autortfm_aborted_by_cascade
 };
 
 enum class EContextStatus
@@ -386,6 +400,7 @@ enum class EContextStatus
 	AbortedByLanguage = autortfm_status_aborted_by_language,
 	AbortedByRequest = autortfm_status_aborted_by_request,
 	Committing = autortfm_status_committing,
+	AbortedByCascade = autortfm_status_aborted_by_cascade
 };
 
 UE_AUTORTFM_FORCEINLINE bool IsTransactional() { return autortfm_is_transactional(); }
@@ -432,6 +447,11 @@ UE_AUTORTFM_FORCEINLINE ETransactionResult CommitTransaction()
 UE_AUTORTFM_FORCEINLINE ETransactionResult AbortTransaction()
 {
 	return static_cast<ETransactionResult>(autortfm_abort_transaction());
+}
+
+UE_AUTORTFM_FORCEINLINE ETransactionResult CascadingAbortTransaction()
+{
+	return static_cast<ETransactionResult>(autortfm_cascading_abort_transaction());
 }
 
 UE_AUTORTFM_FORCEINLINE void ClearTransactionStatus()

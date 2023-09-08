@@ -118,13 +118,13 @@ ETransactionResult FContext::CommitTransaction()
 	return Result;
 }
 
-ETransactionResult FContext::AbortTransaction(bool bIsClosed)
+ETransactionResult FContext::AbortTransaction(bool bIsClosed, bool bIsCascading)
 {
 	ETransactionResult Result = ETransactionResult::AbortedByRequest;
 	ASSERT(Status == EContextStatus::OnTrack);
-	Status = EContextStatus::AbortedByRequest;
+	Status = bIsCascading ? EContextStatus::AbortedByCascade : EContextStatus::AbortedByRequest;
 
-	ASSERT(CurrentTransaction != nullptr);
+	ASSERT(nullptr != CurrentTransaction);
 
 	// Sort out how aborts work
 	CurrentTransaction->AbortWithoutThrowing();
@@ -224,8 +224,11 @@ void FContext::ClearTransactionStatus()
 	case EContextStatus::AbortedByRequest:
 		Status = EContextStatus::OnTrack;
 		break;
+	case EContextStatus::AbortedByCascade:
+		Status = EContextStatus::OnTrack;
+		break;
 	default:
-		ASSERT(!"Should not be reached");
+		AutoRTFM::Unreachable();
 	}
 }
 
@@ -250,9 +253,10 @@ ETransactionResult FContext::ResolveNestedTransaction(FTransaction* NewTransacti
 		return ETransactionResult::AbortedByRequest;
 	case EContextStatus::AbortedByLanguage:
 		return ETransactionResult::AbortedByLanguage;
+	case EContextStatus::AbortedByCascade:
+		return ETransactionResult::AbortedByCascade;
 	default:
-		ASSERT(!"Should not be reached");
-		return ETransactionResult::AbortedByLanguage;
+		AutoRTFM::Unreachable();
 	}
 }
 
@@ -339,6 +343,12 @@ ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
                 break;
             }
 
+            if (Status == EContextStatus::AbortedByCascade)
+            {
+                Result = ETransactionResult::AbortedByCascade;
+                break;
+            }
+
             ASSERT(Status == EContextStatus::AbortedByFailedLockAcquisition);
         }
 
@@ -367,10 +377,17 @@ ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
 		
 		PopCallNest();
 		PopTransaction();
-		ClearTransactionStatus();
 
 		ASSERT(CurrentNest != nullptr);
 		ASSERT(CurrentTransaction != nullptr);
+
+		// A cascading abort should cause all transactions to abort!
+		if (ETransactionResult::AbortedByCascade == Result)
+		{
+			CurrentTransaction->AbortAndThrow();
+		}
+
+		ClearTransactionStatus();
 	}
 
 	return Result;

@@ -31,7 +31,7 @@ public:
 	bool StartTransaction();
 
 	ETransactionResult CommitTransaction();
-	ETransactionResult AbortTransaction(bool bIsClosed);
+	ETransactionResult AbortTransaction(bool bIsClosed, bool bIsCascading);
 	void ClearTransactionStatus();
 	bool IsAborting() const;
 

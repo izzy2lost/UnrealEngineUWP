@@ -106,7 +106,15 @@ extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_commit_transaction") autortfm_res
 extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_abort_transaction") autortfm_result autortfm_abort_transaction()
 {
 	UE_CLOG(!FContext::IsTransactional(), LogAutoRTFM, Fatal, TEXT("The function `autortfm_abort_transaction` was called from outside a transact."));
-	return static_cast<autortfm_result>(FContext::Get()->AbortTransaction(false));
+	FContext* const Context = FContext::Get();
+	return static_cast<autortfm_result>(Context->AbortTransaction(false, false));
+}
+
+extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_cascading_abort_transaction") autortfm_result autortfm_cascading_abort_transaction()
+{
+	UE_CLOG(!FContext::IsTransactional(), LogAutoRTFM, Fatal, TEXT("The function `autortfm_cascading_abort_transaction` was called from outside a transact."));
+	FContext* const Context = FContext::Get();
+	return static_cast<autortfm_result>(Context->AbortTransaction(false, true));
 }
 
 extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_clear_transaction_status") void autortfm_clear_transaction_status()
@@ -333,14 +341,20 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_commit_transaction()
 
 extern "C" UE_AUTORTFM_NOAUTORTFM autortfm_result RTFM_autortfm_abort_transaction()
 {
-	UE_CLOG(!FContext::IsTransactional(), LogAutoRTFM, Fatal, TEXT("The function `autortfm_abort_transaction` was called from outside a transaction"));
-	FContext* Context = FContext::Get();
-	return static_cast<autortfm_result>(Context->AbortTransaction(true));
+	FContext* const Context = FContext::Get();
+	return static_cast<autortfm_result>(Context->AbortTransaction(true, false));
+}
+
+extern "C" UE_AUTORTFM_NOAUTORTFM autortfm_result RTFM_autortfm_cascading_abort_transaction()
+{
+	FContext* const Context = FContext::Get();
+	return static_cast<autortfm_result>(Context->AbortTransaction(true, true));
 }
 
 extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_clear_transaction_status()
 {
 	UE_LOG(LogAutoRTFM, Fatal, TEXT("The function `autortfm_clear_transaction_status` was called from closed code."));
+	AutoRTFM::Unreachable();
 }
 
 extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_abort_if_transactional()
