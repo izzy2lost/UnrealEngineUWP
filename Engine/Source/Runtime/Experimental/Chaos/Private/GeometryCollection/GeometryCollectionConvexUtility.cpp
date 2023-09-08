@@ -2412,13 +2412,13 @@ Chaos::FConvexPtr FGeometryCollectionConvexUtility::GetConvexHull(const FGeometr
 }
 
 
-void FGeometryCollectionConvexUtility::RemoveConvexHulls(FGeometryCollection* GeometryCollection, const TArray<int32>& SortedTransformDeletes)
+void FGeometryCollectionConvexUtility::RemoveConvexHulls(FManagedArrayCollection* GeometryCollection, const TArray<int32>& TransformsToClearHullsFrom)
 {
 	if (GeometryCollection->HasGroup(FGeometryCollection::ConvexGroup) && GeometryCollection->HasAttribute("TransformToConvexIndices", FTransformCollection::TransformGroup))
 	{
 		TManagedArray<TSet<int32>>& TransformToConvexIndices = GeometryCollection->ModifyAttribute<TSet<int32>>("TransformToConvexIndices", FTransformCollection::TransformGroup);
 		TArray<int32> ConvexIndices;
-		for (int32 TransformIdx : SortedTransformDeletes)
+		for (int32 TransformIdx : TransformsToClearHullsFrom)
 		{
 			if (TransformToConvexIndices[TransformIdx].Num() > 0)
 			{

@@ -236,7 +236,7 @@ public:
 	}
 
 	/** Delete the convex hulls pointed at by the transform indices provided. */
-	static CHAOS_API void RemoveConvexHulls(FGeometryCollection* GeometryCollection, const TArray<int32>& SortedTransformDeletes);
+	static CHAOS_API void RemoveConvexHulls(FManagedArrayCollection* GeometryCollection, const TArray<int32>& TransformsToClearHullsFrom);
 
 	/** Delete the convex hulls that are null */
 	static CHAOS_API void RemoveEmptyConvexHulls(FManagedArrayCollection& GeometryCollection);

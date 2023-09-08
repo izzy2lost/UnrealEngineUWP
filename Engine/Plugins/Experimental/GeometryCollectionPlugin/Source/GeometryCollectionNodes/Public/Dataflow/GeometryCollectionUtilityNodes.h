@@ -114,7 +114,7 @@ public:
 	FManagedArrayCollection Collection;
 
 	/** Optional transform selection to compute leaf hulls on -- if not provided, all leaf hulls will be computed. */
-	UPROPERTY(meta = (DataflowInput, DataflowIntrinsic))
+	UPROPERTY(meta = (DataflowInput))
 	FDataflowTransformSelection OptionalSelectionFilter;
 
 	/** How convex hulls are generated -- computed from geometry, imported from external collision shapes, or an intersection of both options. */
@@ -156,7 +156,7 @@ public:
 	FManagedArrayCollection Collection;
 
 	/** Optional transform selection to compute leaf hulls on -- if not provided, all leaf hulls will be computed. */
-	UPROPERTY(meta = (DataflowInput, DataflowIntrinsic))
+	UPROPERTY(meta = (DataflowInput))
 	FDataflowTransformSelection OptionalSelectionFilter;
 
 	UPROPERTY(EditAnywhere, Category = "Convex")
@@ -287,7 +287,7 @@ public:
 	EAllowConvexMergeMethod AllowMerges = EAllowConvexMergeMethod::ByProximity;
 
 	/** Optional transform selection to compute cluster hulls on -- if not provided, all cluster hulls will be computed. */
-	UPROPERTY(meta = (DataflowInput, DataflowIntrinsic))
+	UPROPERTY(meta = (DataflowInput))
 	FDataflowTransformSelection OptionalSelectionFilter;
 
 	/** Whether to use a sphere cover to define negative space that should not be covered by convex hulls */
@@ -360,7 +360,7 @@ public:
 	bool bPreferExternalCollisionShapes = true;
 
 	/** Optional transform selection to compute cluster hulls on -- if not provided, all cluster hulls will be computed. */
-	UPROPERTY(meta = (DataflowInput, DataflowIntrinsic))
+	UPROPERTY(meta = (DataflowInput))
 	FDataflowTransformSelection OptionalSelectionFilter;
 
 	/** Whether to use a sphere cover to define negative space that should not be covered by convex hulls */
@@ -398,6 +398,34 @@ public:
 };
 
 
+/** Clear convex hulls from the selected transforms */
+USTRUCT(meta = (DataflowGeometryCollection))
+struct FClearConvexHullsDataflowNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FClearConvexHullsDataflowNode, "ClearConvexHulls", "GeometryCollection|Utilities", "")
+
+public:
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
+	FManagedArrayCollection Collection;
+
+	/** Convex hulls will be cleared from these transforms */
+	UPROPERTY(meta = (DataflowInput, DataflowIntrinsic))
+	FDataflowTransformSelection TransformSelection;
+
+	FClearConvexHullsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&TransformSelection);
+
+		RegisterOutputConnection(&Collection, &Collection);
+	}
+
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};
+
+
 /** Merge convex hulls on transforms with multiple hulls */
 USTRUCT(meta = (DataflowGeometryCollection))
 struct FMergeConvexHullsDataflowNode : public FDataflowNode
@@ -426,7 +454,7 @@ public:
 	double ErrorTolerance = 0.0;
 
 	/** Optional transform selection to compute cluster hulls on -- if not provided, all cluster hulls will be computed. */
-	UPROPERTY(meta = (DataflowInput, DataflowIntrinsic))
+	UPROPERTY(meta = (DataflowInput))
 	FDataflowTransformSelection OptionalSelectionFilter;
 
 	/** Whether to use a sphere cover to define negative space that should not be covered by convex hulls */
