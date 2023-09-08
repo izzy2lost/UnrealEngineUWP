@@ -4336,7 +4336,7 @@ static void DebugPoisonVertexAttributes(TArray< FCluster >& Clusters)
 				*(uint32*)&Normal.Z = RandDword();
 			}
 
-			if(Cluster.bHasColors)
+			if(Cluster.Settings.bHasColors)
 			{
 				FLinearColor& Color = Cluster.GetColor(VertexIndex);
 				*(uint32*)&Color.R = RandDword();
@@ -4345,7 +4345,7 @@ static void DebugPoisonVertexAttributes(TArray< FCluster >& Clusters)
 				*(uint32*)&Color.A = RandDword();
 			}
 
-			for (uint32 UvIndex = 0; UvIndex < Cluster.NumTexCoords; UvIndex++)
+			for (uint32 UvIndex = 0; UvIndex < Cluster.Settings.NumTexCoords; UvIndex++)
 			{
 				FVector2f& UV = Cluster.GetUVs(VertexIndex)[UvIndex];
 				*(uint32*)&UV.X = RandDword();

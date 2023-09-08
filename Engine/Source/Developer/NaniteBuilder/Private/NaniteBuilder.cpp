@@ -225,12 +225,16 @@ static float BuildCoarseRepresentation(
 	FCluster CoarseRepresentation( MergeList );
 	// FindDAGCut also produces error when TargetError is non-zero but this only happens for LOD0 whose MaxDeviation is always zero.
 	// Don't use the old weights for LOD0 since they change the error calculation and hence, change the meaning of TargetError.
-	float OutError = CoarseRepresentation.Simplify( TargetNumTris, TargetError, FMath::Min( TargetNumTris, 256u ), FallbackLODIndex > 0 );
+	float OutError;
+	if( FallbackLODIndex > 0 )
+		OutError = CoarseRepresentation.SimplifyFallback( TargetNumTris, TargetError, FMath::Min( TargetNumTris, 256u ) );
+	else
+		OutError = CoarseRepresentation.Simplify( TargetNumTris, TargetError, FMath::Min( TargetNumTris, 256u ) );
 
 	TArray< FStaticMeshSection, TInlineAllocator<1> > OldSections = Sections;
 
 	// Need to update coarse representation UV count to match new data.
-	NumTexCoords = CoarseRepresentation.NumTexCoords;
+	NumTexCoords = CoarseRepresentation.Settings.NumTexCoords;
 
 	// Rebuild vertex data
 	Verts.Empty(CoarseRepresentation.NumVerts, NumTexCoords);
@@ -248,7 +252,7 @@ static float BuildCoarseRepresentation(
 			Verts.UVs[UVIndex].Emplace(UVs[UVIndex].ContainsNaN() ? FVector2f::ZeroVector : UVs[UVIndex]);
 		}
 		
-		if (CoarseRepresentation.bHasColors)
+		if (CoarseRepresentation.Settings.bHasColors)
 		{
 			Verts.Color.Emplace(CoarseRepresentation.GetColor(Iter).ToFColor(false /* sRGB */));
 		}
@@ -325,10 +329,7 @@ static void ClusterTriangles(
 	const TConstArrayView< const int32 >& MaterialIndexes,
 	TArray< FCluster >& Clusters,	// Append
 	const FBounds3f& MeshBounds,
-	uint32 NumTexCoords,
-	bool bHasTangents,
-	bool bHasColors,
-	bool bPreserveArea )
+	FBuilderSettings& Settings )
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::Build::ClusterTriangles);
 
@@ -407,9 +408,9 @@ static void ClusterTriangles(
 		TEXT("Adjacency [%.2fs], tris: %i, UVs %i%s%s"),
 		FPlatformTime::ToMilliseconds( BoundaryTime - Time0 ) / 1000.0f,
 		Indexes.Num() / 3,
-		NumTexCoords,
-		bHasTangents ? TEXT(", Tangents") : TEXT(""),
-		bHasColors ? TEXT(", Color") : TEXT("") );
+		Settings.NumTexCoords,
+		Settings.bHasTangents ? TEXT(", Tangents") : TEXT(""),
+		Settings.bHasColors ? TEXT(", Color") : TEXT("") );
 
 	FGraphPartitioner Partitioner( NumTriangles );
 
@@ -474,7 +475,7 @@ static void ClusterTriangles(
 					Verts,
 					Indexes,
 					MaterialIndexes,
-					NumTexCoords, bHasTangents, bHasColors, bPreserveArea,
+					Settings,
 					Range.Begin, Range.End, Partitioner, Adjacency );
 
 				// Negative notes it's a leaf
@@ -568,6 +569,13 @@ bool FBuilderModule::Build(
 	}
 #endif
 
+	FBuilderSettings BuilderSettings;
+	BuilderSettings.NumTexCoords	= InputMeshData.NumTexCoords;
+	BuilderSettings.bHasTangents	= Settings.bExplicitTangents;
+	BuilderSettings.bHasColors		= bHasVertexColor;
+	BuilderSettings.bPreserveArea	= Settings.bPreserveArea;
+	BuilderSettings.bLerpUVs		= Settings.bLerpUVs;
+
 	TArray< uint32 > ClusterCountPerMesh;
 	TArray< FCluster > Clusters;
 	{
@@ -583,7 +591,7 @@ bool FBuilderModule::Build(
 					VertexView,
 					TConstArrayView<const uint32>( &InputMeshData.TriangleIndices[BaseTriangle * 3], NumTriangles * 3 ),
 					TConstArrayView<const int32>( &InputMeshData.MaterialIndices[BaseTriangle], NumTriangles ),
-					Clusters, InputMeshData.VertexBounds, InputMeshData.NumTexCoords, Settings.bExplicitTangents, bHasVertexColor, Settings.bPreserveArea );
+					Clusters, InputMeshData.VertexBounds, BuilderSettings );
 			}
 			ClusterCountPerMesh.Add(Clusters.Num() - NumClustersBefore);
 			BaseTriangle += NumTriangles;

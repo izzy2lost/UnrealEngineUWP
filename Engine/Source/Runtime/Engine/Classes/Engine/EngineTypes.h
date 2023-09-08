@@ -2846,6 +2846,19 @@ struct FMeshNaniteSettings
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NaniteSettings)
 	uint8 bExplicitTangents : 1;
 
+	/** Whether to interpolate UVs when simplifying.
+	 * Should be enabled whenever possible.
+	 * For real UV coordinates this allows calculating the lowest error optimal UVs for new vertices when simplifying,
+	 * assuming the UVs are used as normal texture coordinates and will interpolate across the face of the triangles.
+	 *
+	 * Disable if data stored in UVs isn't valid to interpolate, for example if indexes are stored in UVs.
+	 * Lerping an index doesn't make sense and would break the shader trying to use it.
+	 * Note: If disabled, error from UVs is no longer accounted for when Nanite selects the LOD to render because
+	 * error due to arbitary vertex attributes that aren't interpolatable can't be generally reasoned about.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NaniteSettings)
+	uint8 bLerpUVs : 1;
+
 	/** Position Precision. Step size is 2^(-PositionPrecision) cm. MIN_int32 is auto. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NaniteSettings)
 	int32 PositionPrecision = MIN_int32;
@@ -2893,6 +2906,7 @@ struct FMeshNaniteSettings
 	: bEnabled(false)
 	, bPreserveArea(false)
 	, bExplicitTangents(false) // TODO: Should this be the default?
+	, bLerpUVs(true)
 	{}
 
 
@@ -2911,6 +2925,7 @@ struct FMeshNaniteSettings
 		return bEnabled == Other.bEnabled
 			&& bPreserveArea == Other.bPreserveArea
 			&& bExplicitTangents == Other.bExplicitTangents
+			&& bLerpUVs == Other.bLerpUVs
 			&& PositionPrecision == Other.PositionPrecision
 			&& NormalPrecision == Other.NormalPrecision
 			&& TangentPrecision == Other.TangentPrecision
