@@ -387,15 +387,15 @@ bool ULandscapeNaniteComponent::InitializeForLandscape(ALandscapeProxy* Landscap
 bool ULandscapeNaniteComponent::InitializePlatformForLandscape(ALandscapeProxy* Landscape, const ITargetPlatform* TargetPlatform)
 {
 	
-	UE_LOG(LogLandscape, Display, TEXT("InitializePlatformForLandscape '%s' package:'%s'"), *Landscape->GetActorNameOrLabel(), *Landscape->GetPackage()->GetName());
+	UE_LOG(LogLandscape, Verbose, TEXT("InitializePlatformForLandscape '%s' package:'%s'"), *Landscape->GetActorNameOrLabel(), *Landscape->GetPackage()->GetName());
 
 	// This is a workaround. IsCachedCookedPlatformDataLoaded needs to return true to ensure that StreamablePages are loaded from DDC
 	if (TargetPlatform)
 	{
-		UE_LOG(LogLandscape, Display, TEXT("InitializePlatformForLandscape '%s' platform:'%s'"), *Landscape->GetActorNameOrLabel(), *TargetPlatform->DisplayName().ToString());
+		UE_LOG(LogLandscape, Verbose, TEXT("InitializePlatformForLandscape '%s' platform:'%s'"), *Landscape->GetActorNameOrLabel(), *TargetPlatform->DisplayName().ToString());
 		if (UStaticMesh* NaniteStaticMesh = GetStaticMesh())
 		{
-			UE_LOG(LogLandscape, Display, TEXT("InitializePlatformForLandscape '%s' mesh:'%p'"), *Landscape->GetActorNameOrLabel(), NaniteStaticMesh);
+			UE_LOG(LogLandscape, Verbose, TEXT("InitializePlatformForLandscape '%s' mesh:'%p'"), *Landscape->GetActorNameOrLabel(), NaniteStaticMesh);
 			NaniteStaticMesh->BeginCacheForCookedPlatformData(TargetPlatform);
 			FStaticMeshCompilingManager::Get().FinishCompilation({ NaniteStaticMesh });
 
@@ -413,7 +413,7 @@ bool ULandscapeNaniteComponent::InitializePlatformForLandscape(ALandscapeProxy* 
 					return false;
 				}
 			}
-			UE_LOG(LogLandscape, Display, TEXT("InitializePlatformForLandscape '%s' Finished in %f"), *Landscape->GetActorNameOrLabel(), FPlatformTime::Seconds() - StartTime);
+			UE_LOG(LogLandscape, Verbose, TEXT("InitializePlatformForLandscape '%s' Finished in %f"), *Landscape->GetActorNameOrLabel(), FPlatformTime::Seconds() - StartTime);
 		}	
 	}
 
