@@ -11,22 +11,49 @@ UClass* UMVVMInstancedViewModelGeneratedClass::GetAuthoritativeClass()
 {
 	return this;
 }
+
+void UMVVMInstancedViewModelGeneratedClass::PurgeClass(bool bRecompilingOnLoad)
+{
+	Super::PurgeClass(bRecompilingOnLoad);
+	PurgeNativeRepNotifyFunctions();
+
+}
+
+void UMVVMInstancedViewModelGeneratedClass::AddNativeRepNotifyFunction(UFunction* Function, const FProperty* Property)
+{
+	if (Property && Function && Property->RepNotifyFunc == Function->GetFName())
+	{
+		OnRepFunctionToLink.Add(Function);
+		OnRepToPropertyMap.Add(Function, Property);
+	}
+}
+
+void UMVVMInstancedViewModelGeneratedClass::PurgeNativeRepNotifyFunctions()
+{
+	OnRepFunctionToLink.Empty();
+	OnRepToPropertyMap.Empty();
+}
 #endif
 
 void UMVVMInstancedViewModelGeneratedClass::Link(FArchive& Ar, bool bRelinkExistingProperties)
 {
 	Super::Link(Ar, bRelinkExistingProperties);
 
+	for (UFunction* OnRep : OnRepFunctionToLink)
+	{
+		NativeFunctionLookupTable.Emplace(OnRep->GetFName(), &UMVVMInstancedViewModelGeneratedClass::K2_CallNativeOnRep);
+	}
+	OnRepToPropertyMap.Empty();
+
 	for (TFieldIterator<FProperty> PropertyIter(this, EFieldIteratorFlags::ExcludeSuper); PropertyIter; ++PropertyIter)
 	{
 		if (!PropertyIter->RepNotifyFunc.IsNone())
 		{
-			if (!NativeFunctionLookupTable.ContainsByPredicate([ToFind = PropertyIter->RepNotifyFunc](const FNativeFunctionLookup& Other) { return Other.Name == ToFind; }))
+			TObjectPtr<UFunction>* FoundFunction = OnRepFunctionToLink.FindByPredicate([FunctionName = PropertyIter->RepNotifyFunc](const UFunction* Other){ return Other->GetFName() == FunctionName; });
+			if (FoundFunction)
 			{
-				NativeFunctionLookupTable.Emplace(PropertyIter->RepNotifyFunc, &UMVVMInstancedViewModelGeneratedClass::K2_CallNativeOnRep);
+				OnRepToPropertyMap.Add(FoundFunction->Get(), *PropertyIter);
 			}
-			//NewFunction->RPCId = Params.RPCId;
-			//NewFunction->RPCResponseId = Params.RPCResponseId;
 		}
 	}
 }
@@ -34,6 +61,9 @@ void UMVVMInstancedViewModelGeneratedClass::Link(FArchive& Ar, bool bRelinkExist
 DEFINE_FUNCTION(UMVVMInstancedViewModelGeneratedClass::K2_CallNativeOnRep)
 {
 	UObject* CallingObject = P_THIS_OBJECT;
+
+	P_NATIVE_BEGIN;
+
 	if (CallingObject == nullptr || !CallingObject->GetClass()->ImplementsInterface(UNotifyFieldValueChanged::StaticClass()))
 	{
 		return;
@@ -46,24 +76,18 @@ DEFINE_FUNCTION(UMVVMInstancedViewModelGeneratedClass::K2_CallNativeOnRep)
 
 	FName PropertyName;
 	{
-		const UFunction* Func = Stack.CurrentNativeFunction;
-		FString FunctionName = Func->GetName();
-		if (FunctionName.RemoveFromStart(TEXT("__OnRep_")))
+		const UFunction* Function = Stack.CurrentNativeFunction;
+		const FProperty* const* FoundProperty = GeneratedClass->OnRepToPropertyMap.Find(TObjectKey<UFunction>(Function));
+		if (FoundProperty)
 		{
-			PropertyName = FName(*FunctionName, EFindName::FNAME_Find);
-			if (!PropertyName.IsNone())
-			{
-				FProperty* FoundProperty = CallingObject->GetClass()->FindPropertyByName(PropertyName);
-				if (FoundProperty)
-				{
-					GeneratedClass->OnPropertyReplicated(CallingObject, FoundProperty);
-				}
-			}
+			GeneratedClass->OnPropertyReplicated(CallingObject, *FoundProperty);
 		}
 	}
+
+	P_NATIVE_END;
 }
 
-void UMVVMInstancedViewModelGeneratedClass::OnPropertyReplicated(UObject* Object, const FProperty* Property)
+void UMVVMInstancedViewModelGeneratedClass::BroadcastFieldValueChanged(UObject* Object, const FProperty* Property)
 {
 	TScriptInterface<INotifyFieldValueChanged> CallingInterface = Object;
 	UE::FieldNotification::FFieldId FieldId = CallingInterface->GetFieldNotificationDescriptor().GetField(Object->GetClass(), Property->GetFName());
@@ -71,4 +95,9 @@ void UMVVMInstancedViewModelGeneratedClass::OnPropertyReplicated(UObject* Object
 	{
 		CallingInterface->BroadcastFieldValueChanged(FieldId);
 	}
+}
+
+void UMVVMInstancedViewModelGeneratedClass::OnPropertyReplicated(UObject* Object, const FProperty* Property)
+{
+	BroadcastFieldValueChanged(Object, Property);
 }

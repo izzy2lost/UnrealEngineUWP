@@ -233,7 +233,7 @@ void UMVVMBlueprintInstancedViewModelBase::InitializeProperty(FProperty* NewProp
 {
 	if (Args.bNetwork)
 	{
-		NewProperty->RepNotifyFunc = AddOnRepFunction(Args.PropertyName);
+		AddOnRepFunction(NewProperty);
 	}
 
 	EPropertyFlags NewFlags = NewProperty->GetPropertyFlags() | EPropertyFlags::CPF_Edit;
@@ -244,7 +244,7 @@ void UMVVMBlueprintInstancedViewModelBase::InitializeProperty(FProperty* NewProp
 	if (Args.bFieldNotify)
 	{
 		NewProperty->SetMetaData(FBlueprintMetadata::MD_FieldNotify, TEXT(""));
-		GeneratedClass->FieldNotifies.Add(FFieldNotificationId(Args.PropertyName));
+		GeneratedClass->FieldNotifies.Add(FFieldNotificationId(NewProperty->GetFName()));
 	}
 }
 
@@ -258,25 +258,30 @@ void UMVVMBlueprintInstancedViewModelBase::LinkProperty(FProperty* NewProperty, 
 	NewOwner->AddCppProperty(NewProperty);
 }
 
-FName UMVVMBlueprintInstancedViewModelBase::AddOnRepFunction(FName PropertyName)
+void UMVVMBlueprintInstancedViewModelBase::AddOnRepFunction(FProperty* NewProperty)
 {
-	FString OnRepCallFunctionName = FString::Printf(TEXT("__OnRep_%s"), *PropertyName.ToString());
+	FString OnRepCallFunctionName = FString::Printf(TEXT("__OnRep_%s"), *NewProperty->GetName());
 	FName Name_OnRepCallFunctionName = *OnRepCallFunctionName;
 	UObject* PreviousObj = StaticFindObjectFastInternal(nullptr, GeneratedClass, Name_OnRepCallFunctionName, true);
-	if (PreviousObj)
+	if (ensure(PreviousObj))
 	{
 		// The function or property already exist. Something is wrong.
-		return FName();
+		return;
 	}
+
 	UFunction* Func = NewObject<UFunction>(GeneratedClass, Name_OnRepCallFunctionName);
 	Func->FunctionFlags |= FUNC_Native | FUNC_Event | FUNC_BlueprintEvent | FUNC_BlueprintCallable;
 	GeneratedClass->AddNativeFunction(*OnRepCallFunctionName, &UMVVMInstancedViewModelGeneratedClass::K2_CallNativeOnRep);
 	GeneratedClass->AddFunctionToFunctionMap(Func, Func->GetFName());
 	Func->Bind();
 	Func->StaticLink(true);
+
 	Func->Next = GeneratedClass->Children;
 	GeneratedClass->Children = Func;
-	return Func->GetFName();
+
+	NewProperty->RepNotifyFunc = Func->GetFName();
+
+	GeneratedClass->AddNativeRepNotifyFunction(Func, NewProperty);
 }
 
 void UMVVMBlueprintInstancedViewModelBase::SafeRename(UObject* Object)
@@ -362,9 +367,7 @@ void UMVVMBlueprintInstancedViewModel_PropertyBag::AddProperties()
 		if (NewProperty)
 		{
 			FInitializePropertyArgs Args;
-			Args.PropertyName = NewProperty->GetFName();
 			Args.bFieldNotify = true;
-			//Args.bNetwork = true;
 			InitializeProperty(NewProperty, Args);
 
 			LinkProperty(NewProperty);

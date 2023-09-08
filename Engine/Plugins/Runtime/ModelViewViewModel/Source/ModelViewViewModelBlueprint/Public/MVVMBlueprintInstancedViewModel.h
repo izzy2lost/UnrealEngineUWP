@@ -39,7 +39,6 @@ protected:
 protected:
 	struct FInitializePropertyArgs
 	{
-		FName PropertyName;
 		bool bFieldNotify = false;
 		bool bReadOnly = false;
 		bool bNetwork = false;
@@ -53,7 +52,7 @@ protected:
 	void InitializeProperty(FProperty* NewProperty, FInitializePropertyArgs& Args);
 	void LinkProperty(FProperty* NewProperty) const;
 	void LinkProperty(FProperty* NewProperty, UStruct* NewOwner) const;
-	FName AddOnRepFunction(FName PropertyName);
+	void AddOnRepFunction(FProperty* NewProperty);
 	void SafeRename(UObject* Object);
 	void SetDefaultValue(const FProperty* SourceProperty, void const* SourceValuePtr, const FProperty* DestinationProperty);
 
