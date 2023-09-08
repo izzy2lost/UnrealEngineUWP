@@ -39,6 +39,9 @@ IWorldPartitionActorLoaderInterface::ILoaderAdapter::ILoaderAdapter(UWorld* InWo
 IWorldPartitionActorLoaderInterface::ILoaderAdapter::~ILoaderAdapter()
 {
 	UnregisterDelegates();
+
+	FWorldPartitionLoadingContext::FDeferred LoadingContext;
+	ContainerActorReferences.Empty();
 }
 
 void IWorldPartitionActorLoaderInterface::ILoaderAdapter::Load()
