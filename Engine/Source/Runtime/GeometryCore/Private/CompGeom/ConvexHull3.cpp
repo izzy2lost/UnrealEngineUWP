@@ -812,25 +812,26 @@ bool TConvexHull3<RealType>::Solve(int32 NumPoints, TFunctionRef<TVector<RealTyp
 	Hull.Add(FIndex3i(InitialTet.Extreme[0], InitialTet.Extreme[2], InitialTet.Extreme[1]));
 
 	NumHullPoints = 4;
-	bool bHasPointBudget = MaxHullVertices > 0;
+	bool bHasPointBudget = SimplificationSettings.MaxHullVertices > 0;
+	int32 UseMaxHullVertices = SimplificationSettings.MaxHullVertices;
 	if (!bHasPointBudget)
 	{
-		MaxHullVertices = NumPoints;
+		UseMaxHullVertices = NumPoints;
 	}
 
-	RealType DegenerateEdgeToleranceSq = DegenerateEdgeTolerance * DegenerateEdgeTolerance;
+	RealType DegenerateEdgeToleranceSq = SimplificationSettings.DegenerateEdgeTolerance * SimplificationSettings.DegenerateEdgeTolerance;
 
 	FHullConnectivity<RealType> Connectivity;
-	double UseSkipAtHullDistance = SkipAtHullDistanceAbsolute;
-	if (SkipAtHullDistanceAsFraction > 0)
+	double UseSkipAtHullDistance = SimplificationSettings.SkipAtHullDistanceAbsolute;
+	if (SimplificationSettings.SkipAtHullDistanceAsFraction > 0)
 	{
 		double Extent = (GetPointFunc(InitialTet.Extreme[0]) - GetPointFunc(InitialTet.Extreme[1])).Length();
-		UseSkipAtHullDistance = FMathd::Max(UseSkipAtHullDistance, Extent * SkipAtHullDistanceAsFraction);
+		UseSkipAtHullDistance = FMathd::Max(UseSkipAtHullDistance, Extent * SimplificationSettings.SkipAtHullDistanceAsFraction);
 	}
 	Connectivity.VisibleDistanceThreshold = UseSkipAtHullDistance;
 	Connectivity.BuildNeighbors(Hull);
 	Connectivity.InitVisibility(Hull, NumPoints, GetPointFunc, FilterFunc);
-	while (NumHullPoints < MaxHullVertices)
+	while (NumHullPoints < UseMaxHullVertices)
 	{
 		if (Progress && (NumHullPoints % 100) == 0 && Progress->Cancelled())
 		{
@@ -1398,7 +1399,7 @@ void TConvexHull3<RealType>::GetSimplifiedFaces(TArray<FPolygonFace>& OutPolygon
 		}
 		TConvexHull3<RealType> FallbackHull;
 		FallbackHull.bSaveTriangleNeighbors = true;
-		FallbackHull.DegenerateEdgeTolerance = DegenerateEdgeTolerance;
+		// Note: We do not need the FallbackHull to use the original simplification settings, because the filter will guarantee we only use a subset of on-hull vertices in this pass
 
 		bool bFallbackSolveSuccess = FallbackHull.Solve(MaxVertexNum, GetPointFunc, VertexTouchesAtLeastThreeGroups);
 		if (bFallbackSolveSuccess)

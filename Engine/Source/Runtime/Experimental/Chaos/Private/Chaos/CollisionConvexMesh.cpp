@@ -50,7 +50,7 @@ namespace Chaos
 			if (bUseSimplifier)
 			{
 				HullCompute.bSaveTriangleNeighbors = true;
-				HullCompute.DegenerateEdgeTolerance = (FRealType)UE_DOUBLE_SMALL_NUMBER;
+				HullCompute.SimplificationSettings.DegenerateEdgeTolerance = (FRealType)UE_DOUBLE_SMALL_NUMBER;
 			}
 			if (HullCompute.Solve<FVec3Type>(InVertices))
 			{
@@ -176,7 +176,7 @@ namespace Chaos
 				HullCompute.bSaveTriangleNeighbors = true;
 				if (bUseSimplifier)
 				{
-					HullCompute.DegenerateEdgeTolerance = (FRealType)UE_DOUBLE_SMALL_NUMBER;
+					HullCompute.SimplificationSettings.DegenerateEdgeTolerance = (FRealType)UE_DOUBLE_SMALL_NUMBER;
 				}
 				if (HullCompute.Solve<FVec3Type>(*VerticesToUse))
 				{

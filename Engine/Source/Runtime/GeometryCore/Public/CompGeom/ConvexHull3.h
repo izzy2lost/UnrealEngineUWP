@@ -52,18 +52,9 @@ private:
 	GEOMETRYCORE_API void Init(int32 NumPoints, TFunctionRef<TVector<RealType>(int32)> GetPointFunc, TFunctionRef<bool(int32)> FilterFunc, RealType Epsilon = TMathUtil<RealType>::Epsilon);
 };
 
-/**
- * Calculate the Convex Hull of a 3D point set as a Triangle Mesh
- */
 template<typename RealType>
-class TConvexHull3
+struct TConvexHullSimplificationSettings
 {
-public:
-
-	/// Whether neighbors for the hull triangles should be computed/saved.
-	/// If true, can call GetTriangleNeighbors() after Solve().
-	bool bSaveTriangleNeighbors = false;
-
 	/// Points will not be added to the hull if doing so would create an edge smaller than this distance tolerance.
 	/// If zero, no points will be skipped.
 	RealType DegenerateEdgeTolerance = (RealType)0;
@@ -76,6 +67,22 @@ public:
 	/// If positive, skip adding points that are closer than this threshold to the in-progress hull -- expressed as a fraction of the overall hull extent.
 	/// Note if both the Absolute and Fraction MinPlaneDistance thresholds are set, they will both apply (i.e., the larger of the two will be used)
 	RealType SkipAtHullDistanceAsFraction = -TMathUtil<RealType>::MaxReal;
+};
+
+/**
+ * Calculate the Convex Hull of a 3D point set as a Triangle Mesh
+ */
+template<typename RealType>
+class TConvexHull3
+{
+public:
+
+	/// Whether neighbors for the hull triangles should be computed/saved.
+	/// If true, can call GetTriangleNeighbors() after Solve().
+	bool bSaveTriangleNeighbors = false;
+
+	// Settings controlling whether and how to generate a simpler hull
+	TConvexHullSimplificationSettings<RealType> SimplificationSettings;
 
 	/**
 	 * Generate convex hull as long as input is not degenerate
