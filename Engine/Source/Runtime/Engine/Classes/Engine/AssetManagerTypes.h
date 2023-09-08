@@ -162,7 +162,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = AssetType)
 	bool bHasBlueprintClasses;
 
-	/** True if this type is editor only. Disable this to consider content that is part of the engine or engine plugins. */
+	/**
+	 * If true this type will not cause anything to be cooked; the AssetManager will use instances of this type to
+	 * define chunk assignments and NeverCook rules, but will ignore AlwaysCook rules. Assets labeled by instances
+	 * of this type will need to be reference by another PrimaryAsset, or by something outside the AssetManager,
+	 * to be cooked.
+	 */
 	UPROPERTY(EditAnywhere, Category = AssetType)
 	bool bIsEditorOnly;
 
