@@ -87,10 +87,10 @@ bool HTranslucentActor::AlwaysAllowsTranslucentPrimitives() const
 #if !UE_BUILD_SHIPPING
 FContentComparisonHelper::FContentComparisonHelper()
 {
-	FConfigSection* RefTypes = GConfig->GetSectionPrivate(TEXT("ContentComparisonReferenceTypes"), false, true, GEngineIni);
+	const FConfigSection* RefTypes = GConfig->GetSection(TEXT("ContentComparisonReferenceTypes"), false, GEngineIni);
 	if (RefTypes != NULL)
 	{
-		for( FConfigSectionMap::TIterator It(*RefTypes); It; ++It )
+		for( FConfigSectionMap::TConstIterator It(*RefTypes); It; ++It )
 		{
 			const FString& RefType = It.Value().GetValue();
 			ReferenceClassesOfInterest.Add(RefType, true);

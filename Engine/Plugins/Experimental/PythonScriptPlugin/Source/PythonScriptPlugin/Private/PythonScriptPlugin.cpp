@@ -337,7 +337,7 @@ private:
 
 		GConfig->GetString(STR_ConfigSection, STR_ConfigDirectoryKey, LastDirectory, GEditorPerProjectIni);
 
-		FConfigSection* Sec = GConfig->GetSectionPrivate(STR_ConfigSection, false, true, GEditorPerProjectIni);
+		const FConfigSection* Sec = GConfig->GetSection(STR_ConfigSection, false, GEditorPerProjectIni);
 		if (Sec)
 		{
 			TArray<FConfigValue> List;
@@ -357,14 +357,10 @@ private:
 	{
 		GConfig->SetString(STR_ConfigSection, STR_ConfigDirectoryKey, *LastDirectory, GEditorPerProjectIni);
 
-		FConfigSection* Sec = GConfig->GetSectionPrivate(STR_ConfigSection, true, false, GEditorPerProjectIni);
-		if (Sec)
+		GConfig->RemoveKeyFromSection(STR_ConfigSection, NAME_ConfigRecentsFilesyKey, GEditorPerProjectIni);
+		for (int32 Index = RecentsFiles.Num() - 1; Index >= 0; --Index)
 		{
-			Sec->Remove(NAME_ConfigRecentsFilesyKey);
-			for (int32 Index = RecentsFiles.Num() - 1; Index >= 0; --Index)
-			{
-				Sec->Add(NAME_ConfigRecentsFilesyKey, *RecentsFiles[Index]);
-			}
+			GConfig->AddToSection(STR_ConfigSection, NAME_ConfigRecentsFilesyKey, RecentsFiles[Index], GEditorPerProjectIni);
 		}
 
 		GConfig->Flush(false);

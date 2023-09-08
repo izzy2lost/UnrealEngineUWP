@@ -1214,7 +1214,7 @@ void LaunchCheckForCommandLineAliases(const FConfigFile& Config, TArray<FString>
 {
 	bChanged = false;
 
-	if (const FConfigSection* Section = Config.Find(TEXT("CommandLineAliases")))
+	if (const FConfigSection* Section = Config.FindSection(TEXT("CommandLineAliases")))
 	{
 		TArray<FString> Tokens;
 		{

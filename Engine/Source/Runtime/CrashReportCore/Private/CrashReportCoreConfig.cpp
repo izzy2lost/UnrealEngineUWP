@@ -100,7 +100,7 @@ void FCrashReportCoreConfig::SetSendLogFile( bool bNewValue )
 
 void FCrashReportCoreConfig::SetProjectConfigOverrides(const FConfigFile& InConfigFile)
 {
-	const FConfigSection* Section = InConfigFile.Find(FGenericCrashContext::ConfigSectionName);
+	const FConfigSection* Section = InConfigFile.FindSection(FGenericCrashContext::ConfigSectionName);
 
 	// Default to false (show the option) when config is missing.
 	bHideLogFilesOption = false;

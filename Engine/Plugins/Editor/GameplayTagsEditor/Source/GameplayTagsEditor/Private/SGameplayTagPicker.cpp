@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SGameplayTagPicker.h"
 #include "Misc/ConfigCacheIni.h"
@@ -1499,19 +1499,17 @@ const FString& SGameplayTagPicker::GetGameplayTagsEditorStateIni()
 
 void SGameplayTagPicker::MigrateSettings()
 {
-	if (FConfigSection* EditorPerProjectIniSection = GConfig->GetSectionPrivate(*SettingsIniSection, /*Force=*/false, /*Const=*/true, GEditorPerProjectIni))
+	if (const FConfigSection* EditorPerProjectIniSection = GConfig->GetSection(*SettingsIniSection, /*Force=*/false, GEditorPerProjectIni))
 	{
 		if (EditorPerProjectIniSection->Num() > 0)
 		{
-			FConfigSection* DestinationSection = GConfig->GetSectionPrivate(*SettingsIniSection, /*Force=*/true, /*Const=*/false, GetGameplayTagsEditorStateIni());
-
-			DestinationSection->Reserve(DestinationSection->Num() + EditorPerProjectIniSection->Num());
+			FString DestFilename = GetGameplayTagsEditorStateIni();
 			for (const auto& It : *EditorPerProjectIniSection)
 			{
-				DestinationSection->FindOrAdd(It.Key, It.Value);
+				GConfig->AddUniqueToSection(*SettingsIniSection, It.Key, It.Value.GetSavedValue(), DestFilename);
 			}
 
-			GConfig->Flush(false, GetGameplayTagsEditorStateIni());
+			GConfig->Flush(false, DestFilename);
 		}
 
 		GConfig->EmptySection(*SettingsIniSection, GEditorPerProjectIni);

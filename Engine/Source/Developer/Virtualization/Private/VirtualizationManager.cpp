@@ -1188,7 +1188,7 @@ void FVirtualizationManager::ApplySettingsFromConfigFiles(const FConfigFile& Con
 		static const TArray<FString> AllowedEntries = { TEXT("SystemName") , TEXT("LazyInit"), TEXT("InitPreSlate") };
 		
 		TArray<FString> LegacyEntries;	
-		if (const FConfigSection* LegacySection = ConfigFile.Find(LegacyConfigSection))
+		if (const FConfigSection* LegacySection = ConfigFile.FindSection(LegacyConfigSection))
 		{
 			for (const TPair<FName, FConfigValue>& It : *LegacySection)
 			{

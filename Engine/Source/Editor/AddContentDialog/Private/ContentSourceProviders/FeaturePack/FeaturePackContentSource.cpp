@@ -445,7 +445,7 @@ bool FFeaturePackContentSource::ExtractListOfAdditionalFiles(const FString& InCo
 {
 	FConfigFile PackConfig;
 	PackConfig.ProcessInputFileContents(InConfigFileAsString, TEXT("Uknown, see FFeaturePackContentSource::ExtractListOfAdditionalFiles"));
-	FConfigSection* AdditionalFilesSection = PackConfig.Find("AdditionalFilesToAdd");
+	const FConfigSection* AdditionalFilesSection = PackConfig.FindSection("AdditionalFilesToAdd");
 	
 	bContainsSource = false;
 	bool bParsedAdditionFiles = false;

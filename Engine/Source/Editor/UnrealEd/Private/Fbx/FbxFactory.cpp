@@ -1876,7 +1876,7 @@ void UFbxImportUI::LoadOptions(UObject* ObjectToLoadOptions)
 		FArrayProperty* Array = CastField<FArrayProperty>(Property);
 		if (Array)
 		{
-			FConfigSection* Sec = GConfig->GetSectionPrivate(*Section, 0, 1, *GEditorPerProjectIni);
+			const FConfigSection* Sec = GConfig->GetSection(*Section, 0, *GEditorPerProjectIni);
 			if (Sec != nullptr)
 			{
 				TArray<FConfigValue> List;
@@ -1969,16 +1969,14 @@ void UFbxImportUI::SaveOptions(UObject* ObjectToSaveOptions)
 		FArrayProperty* Array = CastField<FArrayProperty>(Property);
 		if (Array)
 		{
-			FConfigSection* Sec = GConfig->GetSectionPrivate(*Section, 1, 0, *GEditorPerProjectIni);
-			check(Sec);
-			Sec->Remove(*Key);
+			GConfig->RemoveKeyFromSection(*Section, *Key, GEditorPerProjectIni);
 
 			FScriptArrayHelper_InContainer ArrayHelper(Array, ObjectToSaveOptions);
 			for (int32 i = 0; i < ArrayHelper.Num(); i++)
 			{
 				FString	Buffer;
 				Array->Inner->ExportTextItem_Direct(Buffer, ArrayHelper.GetRawPtr(i), ArrayHelper.GetRawPtr(i), ObjectToSaveOptions, PortFlags);
-				Sec->Add(*Key, *Buffer);
+				GConfig->AddToSection(*Section, *Key, Buffer, GEditorPerProjectIni);
 			}
 		}
 		else

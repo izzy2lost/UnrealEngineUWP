@@ -62,10 +62,10 @@ void UInternationalizationConditioningCommandlet::FLocalizationFile::CompareToCo
 	check(LocFile != NULL);
 
 	// Iterate through all sections in the loc file
-	for ( FConfigFile::TIterator SectionIt(*LocFile); SectionIt; ++SectionIt )
+	for ( const auto& Pair : *(const FConfigFile*)OtherFile )
 	{
-		const FString& LocSectionName = SectionIt.Key();
-		FConfigSection& MySection = SectionIt.Value();
+		const FString& LocSectionName = Pair.Key;
+		const FConfigSection& MySection = Pair.Value;
 
 		// Skip the [Language] and [Public] sections
 		if( LocSectionName == TEXT("Language") || LocSectionName == TEXT("Public") )
@@ -74,11 +74,11 @@ void UInternationalizationConditioningCommandlet::FLocalizationFile::CompareToCo
 		}
 
 		// Find this section in the counterpart loc file
-		FConfigSection* OtherSection = OtherFile->Find(LocSectionName);
+		const FConfigSection* OtherSection = OtherFile->FindSection(LocSectionName);
 		if ( OtherSection != NULL )
 		{
 			// Iterate through all keys in this section
-			for ( FConfigSection::TIterator It(MySection); It; ++It )
+			for ( FConfigSection::TConstIterator It(MySection); It; ++It )
 			{
 				const FName Propname = It.Key();
 				const FString& PropValue = It.Value().GetValue();
@@ -86,7 +86,7 @@ void UInternationalizationConditioningCommandlet::FLocalizationFile::CompareToCo
 				FString EscapedPropValue = PropValue.ReplaceQuotesWithEscapedQuotes();
 
 				// Find this key in the counterpart loc file
-				FConfigValue* OtherValue = OtherSection->Find(Propname);
+				const FConfigValue* OtherValue = OtherSection->Find(Propname);
 				if ( OtherValue != NULL )
 				{
 					FString EscapedOtherValue = OtherValue->GetValue().ReplaceQuotesWithEscapedQuotes();

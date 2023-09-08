@@ -1857,10 +1857,10 @@ bool FAudioDevice::HandleAudioMemoryInfo(const TCHAR* Cmd, FOutputDevice& Ar)
 	TArray<FString> SoundWaveGroupFolders;
 
 	// Grab the list of folders to specifically track memory usage for
-	FConfigSection* TrackedFolders = GConfig->GetSectionPrivate(TEXT("AudioMemReportFolders"), 0, 1, GEngineIni);
+	const FConfigSection* TrackedFolders = GConfig->GetSection(TEXT("AudioMemReportFolders"), 0, GEngineIni);
 	if (TrackedFolders)
 	{
-		for (FConfigSectionMap::TIterator It(*TrackedFolders); It; ++It)
+		for (FConfigSectionMap::TConstIterator It(*TrackedFolders); It; ++It)
 		{
 			const FString& SoundFolder = *It.Value().GetValue();
 			SoundWaveGroupSizes.Add(SoundFolder, FSoundWaveGroupInfo());

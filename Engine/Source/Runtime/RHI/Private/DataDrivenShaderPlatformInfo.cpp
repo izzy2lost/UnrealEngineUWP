@@ -331,7 +331,7 @@ void FGenericDataDrivenShaderPlatformInfo::Initialize()
 		FDataDrivenPlatformInfoRegistry::LoadDataDrivenIniFile(Index, IniFile, PlatformName);
 
 		// now walk over the file, looking for ShaderPlatformInfo sections
-		for (auto Section : IniFile)
+		for (auto Section : (const FConfigFile)IniFile)
 		{
 			if (Section.Key.StartsWith(TEXT("ShaderPlatform ")))
 			{

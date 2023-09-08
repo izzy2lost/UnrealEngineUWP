@@ -981,12 +981,12 @@ bool FCoreRedirects::ReadRedirectsFromIni(const FString& IniName)
 
 	if (GConfig)
 	{
-		FConfigSection* RedirectSection = GConfig->GetSectionPrivate(TEXT("CoreRedirects"), false, true, IniName);
+		const FConfigSection* RedirectSection = GConfig->GetSection(TEXT("CoreRedirects"), false, IniName);
 		if (RedirectSection)
 		{
 			TArray<FCoreRedirect> NewRedirects;
 
-			for (FConfigSection::TIterator It(*RedirectSection); It; ++It)
+			for (FConfigSection::TConstIterator It(*RedirectSection); It; ++It)
 			{
 				FString OldName, NewName, OverrideClassName;
 

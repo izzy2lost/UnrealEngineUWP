@@ -675,11 +675,9 @@ void FURL::RemoveOption( const TCHAR* Key, const TCHAR* Section, const FString& 
 	{
 		if ( Op[i].Left(FCString::Strlen(Key)) == Key )
 		{
-			FConfigSection* Sec = GConfig->GetSectionPrivate( Section ? Section : TEXT("DefaultPlayer"), 0, 0, Filename );
-			if ( Sec )
+			if (GConfig->RemoveKeyFromSection(Section ? Section : TEXT("DefaultPlayer"), Key, Filename))
 			{
-				if (Sec->Remove( Key ) > 0)
-					GConfig->Flush( 0, Filename );
+				GConfig->Flush( 0, Filename );
 			}
 
 			Op.RemoveAt(i);

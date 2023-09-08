@@ -221,7 +221,7 @@ TArray<TTuple<FName, FString>> GetRequestedAssetGroups(const ERequestedCultureOv
 		// Once the language has been overridden we stop parsing out new asset groups
 		if (InLanguageOverrideLevel <= InConfigOverrideLevel)
 		{
-			if (const FConfigSection* AssetGroupCulturesSection = GConfig->GetSectionPrivate(TEXT("Internationalization.AssetGroupCultures"), false, true, InConfigFilename))
+			if (const FConfigSection* AssetGroupCulturesSection = GConfig->GetSection(TEXT("Internationalization.AssetGroupCultures"), false, InConfigFilename))
 			{
 				for (const auto& SectionEntryPair : *AssetGroupCulturesSection)
 				{

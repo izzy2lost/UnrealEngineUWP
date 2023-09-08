@@ -820,13 +820,8 @@ bool FGenericPlatformMisc::SetStoredValue(const FString& InStoreId, const FStrin
 		
 	FConfigFile ConfigFile;
 	ConfigFile.Read(ConfigPath);
-
-	FConfigSection& Section = ConfigFile.FindOrAdd(InSectionName);
-
-	FConfigValue& KeyValue = Section.FindOrAdd(*InKeyName);
-	KeyValue = FConfigValue(InValue);
-
-	ConfigFile.Dirty = true;
+	// update one entry
+	ConfigFile.SetString(*InSectionName, *InKeyName, *InValue);
 	return ConfigFile.Write(ConfigPath);
 }
 
@@ -842,18 +837,7 @@ bool FGenericPlatformMisc::GetStoredValue(const FString& InStoreId, const FStrin
 	FConfigFile ConfigFile;
 	ConfigFile.Read(ConfigPath);
 
-	const FConfigSection* const Section = ConfigFile.Find(InSectionName);
-	if(Section)
-	{
-		const FConfigValue* const KeyValue = Section->Find(*InKeyName);
-		if(KeyValue)
-		{
-			OutValue = KeyValue->GetValue();
-			return true;
-		}
-	}
-
-	return false;
+	return ConfigFile.GetString(*InSectionName, *InKeyName, OutValue);
 }
 
 bool FGenericPlatformMisc::DeleteStoredValue(const FString& InStoreId, const FString& InSectionName, const FString& InKeyName)
@@ -868,13 +852,9 @@ bool FGenericPlatformMisc::DeleteStoredValue(const FString& InStoreId, const FSt
 	FConfigFile ConfigFile;
 	ConfigFile.Read(ConfigPath);
 
-	FConfigSection* const Section = ConfigFile.Find(InSectionName);
-	if (Section)
+	if (ConfigFile.RemoveKeyFromSection(*InSectionName, *InKeyName))
 	{
-		int32 RemovedNum = Section->Remove(*InKeyName);
-
-		ConfigFile.Dirty = true;
-		return ConfigFile.Write(ConfigPath) && RemovedNum == 1;
+		return ConfigFile.Write(ConfigPath);
 	}
 
 	return false;

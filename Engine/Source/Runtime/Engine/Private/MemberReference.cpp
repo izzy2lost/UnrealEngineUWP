@@ -202,8 +202,8 @@ void FMemberReference::InitFieldRedirectMap()
 		{
 			TArray<FCoreRedirect> NewRedirects;
 
-			FConfigSection* PackageRedirects = GConfig->GetSectionPrivate( TEXT("/Script/Engine.Engine"), false, true, GEngineIni );
-			for (FConfigSection::TIterator It(*PackageRedirects); It; ++It)
+			const FConfigSection* PackageRedirects = GConfig->GetSection( TEXT("/Script/Engine.Engine"), false, GEngineIni );
+			for (FConfigSection::TConstIterator It(*PackageRedirects); It; ++It)
 			{
 				if (It.Key() == TEXT("K2FieldRedirects"))
 				{

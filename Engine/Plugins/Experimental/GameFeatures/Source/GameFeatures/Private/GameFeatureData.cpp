@@ -179,7 +179,7 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 	{
 		TMap<FString, FConfigSection> ConfigSectionsToAdd;
 
-		for (auto& Section : PluginConfig)
+		for (auto& Section : (const FConfigFile)PluginConfig)
 		{
 			FString RuleName, ParentClass;
 			if (Section.Key.Split(TEXT(" "), &RuleName, &ParentClass))
@@ -197,7 +197,7 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 				// @todo: we cannot use hotfixes to remove CVars because HF happens way before GFPs have a chance to load.
 				// The hotfix process is destructive and doesn't leave us an opportunity to read the hotfix delta when loading GFPs.
 				TArray<FConfigValue> HotfixCVars;
-				if (const FConfigSection* HotfixSection = ExistingConfig.Find(Section.Key))
+				if (const FConfigSection* HotfixSection = ExistingConfig.FindSection(Section.Key))
 				{
 					HotfixSection->MultiFind("CVars", HotfixCVars);
 				}
@@ -314,7 +314,7 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 						if (CVar.Value.GetValue().Split(TEXT("="), &CVarKey, &CVarValue) && !ShouldKeepCVar(CVarKey, CVarValue))
 						{
 							UE_LOG(LogGameFeatures, Verbose, TEXT(" Removed CVar: %s=%s"), *CVarKey, *CVarValue);
-							Section.Value.Remove(CVar.Key);
+							PluginConfig.RemoveKeyFromSection(*Section.Key, CVar.Key);
 						}
 						else
 						{
@@ -329,7 +329,7 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 						if (CVar.GetValue().Split(TEXT("="), &CVarKey, &CVarValue) && !PluginCVars.Contains(FName(*CVarKey)))
 						{
 							UE_LOG(LogGameFeatures, Verbose, TEXT(" Added CVar: %s=%s"), *CVarKey, *CVarValue);
-							Section.Value.Add(FName(*CVarKey), FConfigValue(CVarKey + "=" + CVarValue));
+							PluginConfig.AddToSection(*Section.Key, *CVarKey, CVarKey + "=" + CVarValue);
 						}
 					}
 				}
@@ -427,7 +427,7 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 void UGameFeatureData::ReloadConfigs(FConfigFile& PluginConfig) const
 {
 	// Reload configs so objects get the changes
-	for (const auto& ConfigEntry : PluginConfig)
+	for (const auto& ConfigEntry : (const FConfigFile&)PluginConfig)
 	{
 		// Skip out if someone put a config section in the INI without any actual data
 		if (ConfigEntry.Value.Num() == 0)
