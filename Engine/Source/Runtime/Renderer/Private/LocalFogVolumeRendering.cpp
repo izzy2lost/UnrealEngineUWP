@@ -138,6 +138,7 @@ void CreateViewLocalFogVolumeBufferSRV(FViewInfo& View, FRDGBuilder& GraphBuilde
 	if (SortingData.LocalFogVolumeInstanceCountFinal == 0)
 	{
 		SetDummyLocalFogVolumeForView(GraphBuilder, View);
+		return;
 	}
 
 	// 1. Sort all the volumes
