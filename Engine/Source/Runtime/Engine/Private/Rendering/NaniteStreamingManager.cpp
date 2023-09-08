@@ -1814,7 +1814,7 @@ uint32 FStreamingManager::DetermineReadyPages(uint32& TotalPageSize)
 		{
 			uint32 PendingPageIndex = ( StartPendingPageIndex + i ) % MaxPendingPages;
 			FPendingPage& PendingPage = PendingPages[ PendingPageIndex ];
-			
+			bool bFreePageFromStagingAllocator = false;
 #if WITH_EDITOR
 			if (PendingPage.State == FPendingPage::EState::DDC_Ready)
 			{
@@ -1885,7 +1885,7 @@ uint32 FStreamingManager::DetermineReadyPages(uint32& TotalPageSize)
 					}
 
 				#if !DEBUG_TRANSCODE_PAGES_REPEATEDLY
-					PendingPageStagingAllocator.Free(PendingPage.RequestBuffer.DataSize());
+					bFreePageFromStagingAllocator = true;
 				#endif
 				}
 				else
@@ -1902,6 +1902,12 @@ uint32 FStreamingManager::DetermineReadyPages(uint32& TotalPageSize)
 				SimulatedBytesRemaining -= SimulatedBytesRead;
 				if(PendingPage.BytesLeftToStream > 0)
 					break;
+			}
+
+
+			if(bFreePageFromStagingAllocator)
+			{
+				PendingPageStagingAllocator.Free(PendingPage.RequestBuffer.DataSize());
 			}
 
 			FResources* Resources = GetResources(PendingPage.InstallKey.RuntimeResourceID);
