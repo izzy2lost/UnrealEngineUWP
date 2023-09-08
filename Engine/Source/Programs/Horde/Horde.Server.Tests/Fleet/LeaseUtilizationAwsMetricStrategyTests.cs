@@ -79,6 +79,19 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
+		public async Task NoAgents()
+		{
+			// Arrange
+			await CreateAgentsAsync(_pool, 4);
+
+			// Act
+			await _strategy.CalculatePoolSizeAsync(_pool, new List<IAgent>());
+
+			// Assert
+			Assert.AreEqual(0.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
+		}
+		
+		[TestMethod]
 		public async Task UtilizationHalf()
 		{
 			// Arrange
