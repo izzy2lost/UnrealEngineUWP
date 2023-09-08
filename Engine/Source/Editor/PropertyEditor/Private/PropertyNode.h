@@ -1070,6 +1070,14 @@ public:
 	/** Queries whether the node would like to ignore CPF_InstancedReference semantics */
 	bool IsIgnoringInstancedReference() const;
 
+	/** Return true if DestroyTree() has been called on this node. */
+	bool IsDestroyed() const;
+
+	/**
+	 * Sets bIsDestroyed on all nodes within the hierarchy
+	 */
+	void MarkDestroyedRecursive();
+
 protected:
 	TSharedRef<FEditPropertyChain> BuildPropertyChain( FProperty* PropertyAboutToChange ) const;
 	TSharedRef<FEditPropertyChain> BuildPropertyChain( FProperty* PropertyAboutToChange, const TSet<UObject*>& InAffectedArchetypeInstances ) const;
@@ -1236,6 +1244,9 @@ protected:
 	/** Set to true when we want to ignore CPF_InstancedReference */
 	bool bIgnoreInstancedReference;
 
+	/** If true, DestroyTree() has been called on the node. */
+	bool bIsDestroyed = false;
+	
 	/** An array of restrictions limiting this property's potential values in property editors.*/
 	TArray<TSharedRef<const FPropertyRestriction>> Restrictions;
 

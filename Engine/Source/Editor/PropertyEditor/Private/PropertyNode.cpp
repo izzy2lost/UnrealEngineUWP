@@ -90,7 +90,7 @@ FPropertyNode::~FPropertyNode()
 void FPropertyNode::InitNode(const FPropertyNodeInitParams& InitParams)
 {
 	//Dismantle the previous tree
-	DestroyTree();
+	DestroyTree(/*bInDestroySelf*/false);
 
 	//tree hierarchy
 	check(InitParams.ParentNode.Get() != this);
@@ -2667,7 +2667,31 @@ bool FPropertyNode::IsChildOfFavorite (void) const
  */
 void FPropertyNode::DestroyTree(const bool bInDestroySelf)
 {
+	if (bInDestroySelf)
+	{
+		bIsDestroyed = true;
+	}
+
+	// Marks all the child nodes as destroyed.
+	// We cannot call DestroyTree() recursively since some UI code that gets executed
+	// on the destroyed nodes (due to unfortunate update order) assume that child nodes are always available.
+	for (TSharedPtr<FPropertyNode>& ChildNode : ChildNodes)
+	{
+		ChildNode->MarkDestroyedRecursive();
+	}
+	
 	ChildNodes.Empty();
+}
+
+void FPropertyNode::MarkDestroyedRecursive()
+{
+	bIsDestroyed = true;
+	
+	for (TSharedPtr<FPropertyNode>& ChildNode : ChildNodes)
+	{
+		check(ChildNode.IsValid());
+		ChildNode->MarkDestroyedRecursive();
+	}
 }
 
 /**
@@ -3235,6 +3259,11 @@ void FPropertyNode::SetIgnoreInstancedReference()
 bool FPropertyNode::IsIgnoringInstancedReference() const
 {
 	return bIgnoreInstancedReference;
+}
+
+bool FPropertyNode::IsDestroyed() const
+{
+	return bIsDestroyed;
 }
 
 FDelegateHandle FPropertyNode::SetOnRebuildChildren(const FSimpleDelegate& InOnRebuildChildren)

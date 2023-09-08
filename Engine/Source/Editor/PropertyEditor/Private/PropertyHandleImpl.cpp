@@ -2148,7 +2148,7 @@ void FPropertyValueImpl::DuplicateChild( TSharedPtr<FPropertyNode> ChildNodeToDu
 
 bool FPropertyValueImpl::HasValidPropertyNode() const
 {
-	return PropertyNode.IsValid();
+	return PropertyNode.IsValid() && !PropertyNode.Pin()->IsDestroyed();
 }
 
 FText FPropertyValueImpl::GetDisplayName() const

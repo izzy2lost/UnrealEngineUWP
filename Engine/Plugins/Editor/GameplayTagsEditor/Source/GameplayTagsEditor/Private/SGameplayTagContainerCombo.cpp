@@ -35,14 +35,6 @@ SGameplayTagContainerCombo::SGameplayTagContainerCombo()
 {
 }
 
-SGameplayTagContainerCombo::~SGameplayTagContainerCombo()
-{
-	if (bRegisteredForUndo)
-	{
-		GEditor->UnregisterForUndo(this);
-	}
-}
-
 void SGameplayTagContainerCombo::Construct(const FArguments& InArgs)
 {
 	Filter = InArgs._Filter;
@@ -55,8 +47,6 @@ void SGameplayTagContainerCombo::Construct(const FArguments& InArgs)
 	{
 		PropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &SGameplayTagContainerCombo::RefreshTagContainers));
 		RefreshTagContainers();
-		GEditor->RegisterForUndo(this);
-		bRegisteredForUndo = true;
 
 		if (Filter.IsEmpty())
 		{
@@ -511,17 +501,37 @@ FReply SGameplayTagContainerCombo::OnClearTagClicked(const FGameplayTag TagToCle
 	return FReply::Handled();
 }
 
-void SGameplayTagContainerCombo::PostUndo(bool bSuccess)
+void SGameplayTagContainerCombo::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
-	if (bSuccess)
+	if (!PropertyHandle.IsValid()
+		|| !PropertyHandle->IsValidHandle())
 	{
-		RefreshTagContainers();
+		return;
 	}
-}
 
-void SGameplayTagContainerCombo::PostRedo(bool bSuccess)
-{
-	if (bSuccess)
+	// Check if cached data has changed, and update it.
+	bool bShouldUpdate = false;
+		
+	TArray<const void*> RawStructData;
+	PropertyHandle->AccessRawData(RawStructData);
+
+	if (RawStructData.Num() == CachedTagContainers.Num())
+	{
+		for (int32 Idx = 0; Idx < RawStructData.Num(); ++Idx)
+		{
+			if (RawStructData[Idx])
+			{
+				const FGameplayTagContainer& TagContainer = *(FGameplayTagContainer*)RawStructData[Idx];
+				if (TagContainer != CachedTagContainers[Idx])
+				{
+					bShouldUpdate = true;
+					break;
+				}
+			}
+		}
+	}
+
+	if (bShouldUpdate)
 	{
 		RefreshTagContainers();
 	}
@@ -534,30 +544,33 @@ void SGameplayTagContainerCombo::RefreshTagContainers()
 
 	if (PropertyHandle.IsValid())
 	{
-		// From property
-		SGameplayTagPicker::EnumerateEditableTagContainersFromPropertyHandle(PropertyHandle.ToSharedRef(), [this](const FGameplayTagContainer& InTagContainer)
+		if (PropertyHandle->IsValidHandle())
 		{
-			CachedTagContainers.Add(InTagContainer);
-
-			for (auto It = InTagContainer.CreateConstIterator(); It; ++It)
+			// From property
+			SGameplayTagPicker::EnumerateEditableTagContainersFromPropertyHandle(PropertyHandle.ToSharedRef(), [this](const FGameplayTagContainer& InTagContainer)
 			{
-				const FGameplayTag Tag = *It;
-				const int32 ExistingItemIndex = TagsToEdit.IndexOfByPredicate([Tag](const TSharedPtr<FEditableItem>& Item)
+				CachedTagContainers.Add(InTagContainer);
+
+				for (auto It = InTagContainer.CreateConstIterator(); It; ++It)
 				{
-					return Item.IsValid() && Item->Tag == Tag;
-				});
-				if (ExistingItemIndex != INDEX_NONE)
-				{
-					TagsToEdit[ExistingItemIndex]->Count++;
+					const FGameplayTag Tag = *It;
+					const int32 ExistingItemIndex = TagsToEdit.IndexOfByPredicate([Tag](const TSharedPtr<FEditableItem>& Item)
+					{
+						return Item.IsValid() && Item->Tag == Tag;
+					});
+					if (ExistingItemIndex != INDEX_NONE)
+					{
+						TagsToEdit[ExistingItemIndex]->Count++;
+					}
+					else
+					{
+						TagsToEdit.Add(MakeShared<FEditableItem>(Tag));
+					}
 				}
-				else
-				{
-					TagsToEdit.Add(MakeShared<FEditableItem>(Tag));
-				}
-			}
-			
-			return true;
-		});
+				
+				return true;
+			});
+		}
 	}
 	else
 	{

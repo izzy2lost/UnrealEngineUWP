@@ -31,14 +31,6 @@ SGameplayTagQueryEntryBox::SGameplayTagQueryEntryBox()
 {
 }
 
-SGameplayTagQueryEntryBox::~SGameplayTagQueryEntryBox()
-{
-	if (bRegisteredForUndo)
-	{
-		GEditor->UnregisterForUndo(this);
-	}
-}
-
 void SGameplayTagQueryEntryBox::Construct(const FArguments& InArgs)
 {
 	bIsReadOnly = InArgs._ReadOnly;
@@ -48,8 +40,6 @@ void SGameplayTagQueryEntryBox::Construct(const FArguments& InArgs)
 	if (PropertyHandle.IsValid())
 	{
 		PropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &SGameplayTagQueryEntryBox::CacheQueryList));
-		GEditor->RegisterForUndo(this);
-		bRegisteredForUndo = true;
 		bIsReadOnly = PropertyHandle->IsEditConst();
 
 		if (Filter.IsEmpty())
@@ -128,16 +118,6 @@ void SGameplayTagQueryEntryBox::Construct(const FArguments& InArgs)
 			]
 		]
 	];
-}
-
-void SGameplayTagQueryEntryBox::PostUndo(bool bSuccess)
-{
-	CacheQueryList();
-}
-
-void SGameplayTagQueryEntryBox::PostRedo(bool bSuccess)
-{
-	CacheQueryList();
 }
 
 FText SGameplayTagQueryEntryBox::GetQueryDescText() const
@@ -252,22 +232,61 @@ FReply SGameplayTagQueryEntryBox::OnEditButtonClicked()
 	return FReply::Handled();
 }
 
+void SGameplayTagQueryEntryBox::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	if (!PropertyHandle.IsValid()
+		|| !PropertyHandle->IsValidHandle())
+	{
+		return;
+	}
+
+	// Check if cached data has changed, and update it.
+	bool bShouldUpdate = false;
+	
+	TArray<const void*> RawStructData;
+	PropertyHandle->AccessRawData(RawStructData);
+
+	if (RawStructData.Num() == CachedQueries.Num())
+	{
+		for (int32 Idx = 0; Idx < RawStructData.Num(); ++Idx)
+		{
+			if (RawStructData[Idx])
+			{
+				const FGameplayTagQuery& Query = *(FGameplayTagQuery*)RawStructData[Idx];
+				if (Query != CachedQueries[Idx])
+				{
+					bShouldUpdate = true;
+					break;
+				}
+			}
+		}
+	}
+
+	if (bShouldUpdate)
+	{
+		CacheQueryList();
+	}
+}
+
 void SGameplayTagQueryEntryBox::CacheQueryList()
 {
 	CachedQueries.Empty();
 
 	if (PropertyHandle.IsValid())
 	{
-		// Cache queries from the property handle. Add empty queries even if the instance data is null so that the indices match with the property handle.
-		TArray<void*> RawStructData;
-		PropertyHandle->AccessRawData(RawStructData);
-		
-		for (int32 Idx = 0; Idx < RawStructData.Num(); ++Idx)
+		if (PropertyHandle->IsValidHandle())
 		{
-			FGameplayTagQuery& Query = CachedQueries.AddDefaulted_GetRef();
-			if (RawStructData[Idx])
+			// Cache queries from the property handle. Add empty queries even if the instance data is null so that the indices match with the property handle.
+			TArray<void*> RawStructData;
+			PropertyHandle->AccessRawData(RawStructData);
+			
+			for (int32 Idx = 0; Idx < RawStructData.Num(); ++Idx)
 			{
-				Query = *(FGameplayTagQuery*)RawStructData[Idx]; 
+				FGameplayTagQuery& Query = CachedQueries.AddDefaulted_GetRef();
+				if (RawStructData[Idx])
+				{
+					Query = *(FGameplayTagQuery*)RawStructData[Idx]; 
+				}
 			}
 		}
 	}

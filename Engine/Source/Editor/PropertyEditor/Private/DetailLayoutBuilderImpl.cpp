@@ -969,7 +969,21 @@ void FDetailLayoutBuilderImpl::Tick( float DeltaTime )
 {
 	for( auto It = TickableNodes.CreateIterator(); It; ++It )
 	{
-		(*It)->Tick( DeltaTime );
+		FDetailTreeNode* Node = *It;
+
+		// Skip ticking tree nodes which point to destroyed property nodes.
+		// This can happen when because the update order is this:
+		//	- update property nodes, calling DestroyTree(), and creating new nodes
+		//	- update layout builders (but old ones might still be referenced by the tree view) 
+		//  - tick layout builders, which includes the stale builders
+		//  - refresh tree view, which finally gets rid of the stale builders
+		TSharedPtr<FPropertyNode> PropertyNode = Node->GetPropertyNode();
+		if (PropertyNode.IsValid() && PropertyNode->IsDestroyed())
+		{
+			continue;
+		}
+		
+		Node->Tick( DeltaTime );
 	}
 }
 
