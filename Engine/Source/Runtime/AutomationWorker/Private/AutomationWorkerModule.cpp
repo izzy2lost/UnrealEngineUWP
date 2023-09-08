@@ -187,8 +187,6 @@ void FAutomationWorkerModule::ReportTestComplete()
 		//see if there are any more network commands left to execute
 		bool bAllLatentCommandsComplete = FAutomationTestFramework::Get().ExecuteLatentCommands();
 
-		FString TestFullName = FAutomationTestFramework::Get().GetCurrentTest()->GetTestFullName();
-
 		//structure to track error/warning/log messages
 		FAutomationTestExecutionInfo ExecutionInfo;
 
@@ -224,7 +222,7 @@ void FAutomationWorkerModule::ReportTestComplete()
 
 			if (ExecutionInfo.TelemetryItems.Num() > 0)
 			{
-				HandleTelemetryData(ExecutionInfo.TelemetryStorage, TestFullName, ExecutionInfo.TelemetryItems);
+				HandleTelemetryData(ExecutionInfo.TelemetryStorage, FullTestPath, ExecutionInfo.TelemetryItems);
 			}
 
 			MessageEndpoint->Send(Message, TestRequesterAddress);
@@ -235,6 +233,8 @@ void FAutomationWorkerModule::ReportTestComplete()
 		TestRequesterAddress.Invalidate();
 		ExecutionCount = INDEX_NONE;
 		TestName.Empty();
+		FullTestPath.Empty();
+		BeautifiedTestName.Empty();
 		StopTestEvent.Unbind();
 	}
 }
@@ -623,6 +623,7 @@ void FAutomationWorkerModule::HandleRunTestsMessage( const FAutomationWorkerRunT
 	ExecutionCount = Message.ExecutionCount;
 	TestName = Message.TestName;
 	BeautifiedTestName = Message.BeautifiedTestName;
+	FullTestPath = Message.FullTestPath;
 	bSendAnalytics = Message.bSendAnalytics;
 	TestRequesterAddress = Context->GetSender();
 
@@ -632,7 +633,7 @@ void FAutomationWorkerModule::HandleRunTestsMessage( const FAutomationWorkerRunT
 	// We are not executing network command sub-commands right now
 	bExecutingNetworkCommandResults = false;
 
-	FAutomationTestFramework::Get().StartTestByName(Message.TestName, Message.RoleIndex);
+	FAutomationTestFramework::Get().StartTestByName(Message.TestName, Message.RoleIndex, Message.FullTestPath);
 }
 
 

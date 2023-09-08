@@ -976,8 +976,9 @@ public:
 	 *
 	 * @param	InTestToRun			Name of the test that should be run
 	 * @param	InRoleIndex			Identifier for which worker in this group that should execute a command
+	 * @param	InFullTestPath		Full test path
 	 */
-	CORE_API void StartTestByName( const FString& InTestToRun, const int32 InRoleIndex );
+	CORE_API void StartTestByName( const FString& InTestToRun, const int32 InRoleIndex, const FString& InFullTestPath = FString() );
 
 	/**
 	 * Stop the current test and return the results of execution
@@ -1255,9 +1256,9 @@ private:
 	 * Internal helper method designed to simply start the provided test name.
 	 *
 	 * @param	InTestToRun			Name of the test that should be run
-	 * @param	OutExecutionInfo	Results of executing the test
+	 * @param	InFullTestPath		Full test path
 	 */
-	CORE_API void InternalStartTest( const FString& InTestToRun );
+	CORE_API void InternalStartTest( const FString& InTestToRun, const FString& InFullTestPath );
 
 	/**
 	 * Internal helper method designed to stop current executing test and return the results of execution.
@@ -1308,6 +1309,9 @@ private:
 
 	/** Copy of the parameters for the active test */
 	FString Parameters;
+
+	/** Full test path as given by the automation controller of the active test */
+	FString FullTestPath;
 
 	/** Whether we want to run automation tests on content within the Developer Directories */
 	bool bDeveloperDirectoryIncluded;

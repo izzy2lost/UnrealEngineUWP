@@ -700,27 +700,25 @@ namespace UE
 											LogEntryPrefix.Length,
 											LogEntry.Message.Length - LogEntryPrefix.Length - LogEntrySuffix.Length);
 
-										if (LastTestInProgress.FullTestPath == StartedTestFullName)
+										if (LastTestInProgress.FullTestPath != StartedTestFullName)
 										{
-											LastTestInProgress.State = TestStateType.Fail;
-											JsonTestPassResults.Failed++;
-											JsonTestPassResults.InProcess--;
-											ErrorMessage = FatalError.FormatForLog();
-										}
-										else
-										{
-											LastTestInProgress.State = TestStateType.NotRun;
-											JsonTestPassResults.NotRun++;
-											JsonTestPassResults.InProcess--;
-
-											// We have to find another test that has been crashed and set it as the last test with critical failure
-											LastTestInProgress = JsonTestPassResults.Tests.FirstOrDefault((T => T.FullTestPath == StartedTestFullName));
-											if (LastTestInProgress == null)
+											// We have to find the test that has last started. Find that test result in the json report.
+											UnrealAutomatedTestResult LastStartedTestFromLog = JsonTestPassResults.Tests.FirstOrDefault((T => T.FullTestPath == StartedTestFullName));
+											if (LastStartedTestFromLog == null)
 											{
-												Log.Warning("Failed to find test for the test state log entry '{0}'", LogEntry.Message);
+												Log.Warning("Failed to find the test from the test state log entry '{0}'", LogEntry.Message);
+												// We revert to the standard approached as the json report seems inconsistent with the log.
+												// The test in-progress from the json report will get the callstack attached.
 											}
 											else
 											{
+												// The last known running test needs to be rescheduled
+												LastTestInProgress.State = TestStateType.NotRun;
+												JsonTestPassResults.NotRun++;
+												JsonTestPassResults.InProcess--;
+												// Then the last started test according to the log gets flagged as failed
+												LastTestInProgress = LastStartedTestFromLog;
+
 												if (LastTestInProgress.State != TestStateType.Fail)
 												{
 													switch (LastTestInProgress.State)
@@ -744,9 +742,9 @@ namespace UE
 													LastTestInProgress.State = TestStateType.Fail;
 													JsonTestPassResults.Failed++;
 												}
-												ErrorMessage = FatalError.FormatForLog();
 											}
 										}
+										ErrorMessage = FatalError.FormatForLog();
 									}
 									else
 									{
@@ -768,18 +766,21 @@ namespace UE
 								ErrorMessage = "No callstack found in the log.";
 							}
 						}
-						if ((LastTestInProgress != null) && !String.IsNullOrEmpty(ErrorMessage))
+						if (LastTestInProgress != null)
 						{
-							LastTestInProgress.AddError(ErrorMessage, !HasTimeout);
-						}
-						if (!CanRetry() || JsonTestPassResults.NotRun == 0)
-						{
-							// Setting the test as fail because no retry will be done anymore.
-							// The InProcess state won't be used for pass resume
-							LastTestInProgress.State = TestStateType.Fail;
-							if (!CanRetry())
+							if (!String.IsNullOrEmpty(ErrorMessage))
 							{
-								LastTestInProgress.AddWarning(string.Format("Session reached maximum of retries({0}) to resume on critical failure!", Retries));
+								LastTestInProgress.AddError(ErrorMessage, !HasTimeout);
+							}
+							if (!CanRetry() || JsonTestPassResults.NotRun == 0)
+							{
+								// Setting the test as fail because no retry will be done anymore.
+								// The InProcess state won't be used for pass resume
+								LastTestInProgress.State = TestStateType.Fail;
+								if (!CanRetry())
+								{
+									LastTestInProgress.AddWarning(string.Format("Session reached maximum of retries({0}) to resume on critical failure!", Retries));
+								}
 							}
 						}
 						JsonTestPassResults.WriteToJson();

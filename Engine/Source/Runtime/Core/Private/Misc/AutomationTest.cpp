@@ -468,7 +468,7 @@ void FAutomationTestFramework::ResetTests()
 	IFileManager::Get().DeleteDirectory(*FPaths::AutomationTransientDir(), bEnsureExists, bDeleteEntireTree);
 }
 
-void FAutomationTestFramework::StartTestByName( const FString& InTestToRun, const int32 InRoleIndex )
+void FAutomationTestFramework::StartTestByName( const FString& InTestToRun, const int32 InRoleIndex, const FString& InFullTestPath )
 {
 	if (GIsAutomationTesting)
 	{
@@ -492,6 +492,7 @@ void FAutomationTestFramework::StartTestByName( const FString& InTestToRun, cons
 	{
 		TestName = InTestToRun;
 	}
+	FString TestPath = InFullTestPath.IsEmpty() ? InTestToRun : InFullTestPath;
 
 	NetworkRoleIndex = InRoleIndex;
 
@@ -504,16 +505,16 @@ void FAutomationTestFramework::StartTestByName( const FString& InTestToRun, cons
 			// Make any setting changes that have to occur to support unit testing
 			PrepForAutomationTests();
 
-			InternalStartTest( InTestToRun );
+			InternalStartTest( InTestToRun, TestPath);
 		}
 		else
 		{
-			UE_LOG(LogAutomationTest, Error, TEXT("Test %s does not exist and could not be run."), *InTestToRun);
+			UE_LOG(LogAutomationTest, Error, TEXT("Test %s does not exist and could not be run."), *TestPath);
 		}
 	}
 	else
 	{
-		UE_LOG(LogAutomationTest, Error, TEXT("Test %s is too slow and could not be run."), *InTestToRun);
+		UE_LOG(LogAutomationTest, Error, TEXT("Test %s is too slow and could not be run."), *TestPath);
 	}
 }
 
@@ -855,9 +856,10 @@ void FAutomationTestFramework::DumpAutomationTestExecutionInfo( const TMap<FStri
 	}
 }
 
-void FAutomationTestFramework::InternalStartTest( const FString& InTestToRun )
+void FAutomationTestFramework::InternalStartTest( const FString& InTestToRun, const FString& InFullTestPath)
 {
 	Parameters.Empty();
+	FullTestPath.Empty();
 
 	FString TestName;
 	if (!InTestToRun.Split(TEXT(" "), &TestName, &Parameters, ESearchCase::CaseSensitive))
@@ -879,18 +881,19 @@ void FAutomationTestFramework::InternalStartTest( const FString& InTestToRun )
 
 		StartTime = FPlatformTime::Seconds();
 
+		CurrentTest->SetTestContext(Parameters);
+		FullTestPath = InFullTestPath;
+
 		// If not a smoke test, log the test has started.
 		uint32 NonSmokeTestFlags = (EAutomationTestFlags::FilterMask & (~EAutomationTestFlags::SmokeFilter));
 		if (RequestedTestFilter & NonSmokeTestFlags)
 		{
 			if (AutomationTest::bLogTestStateTrace)
 			{
-				UE_LOG(LogAutomationTestStateTrace, Log, TEXT("Test is about to start. Name={%s}"), *CurrentTest->GetTestFullName());
+				UE_LOG(LogAutomationTestStateTrace, Log, TEXT("Test is about to start. Name={%s}"), *FullTestPath);
 			}
 			UE_LOG(LogAutomationTest, Log, TEXT("%s %s is starting at %f"), *CurrentTest->GetBeautifiedTestName(), *Parameters, StartTime);
 		}
-
-		CurrentTest->SetTestContext(Parameters);
 
 		OnTestStartEvent.Broadcast(CurrentTest);
 
@@ -931,7 +934,7 @@ bool FAutomationTestFramework::InternalStopTest(FAutomationTestExecutionInfo& Ou
 		UE_LOG(LogAutomationTest, Log, TEXT("%s %s ran in %f"), *CurrentTest->GetBeautifiedTestName(), *Parameters, TimeForTest);
 		if (AutomationTest::bLogTestStateTrace)
 		{
-			UE_LOG(LogAutomationTestStateTrace, Log, TEXT("Test has stopped execution. Name={%s}"), *CurrentTest->GetTestFullName());
+			UE_LOG(LogAutomationTestStateTrace, Log, TEXT("Test has stopped execution. Name={%s}"), *FullTestPath);
 		}
 	}
 

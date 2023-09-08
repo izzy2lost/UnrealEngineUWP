@@ -158,6 +158,9 @@ private:
 	/** Beautified name of the test */
 	FString BeautifiedTestName;
 
+	/** Full path of the test */
+	FString FullTestPath;
+
 	/** Whether to send analytics events to the backend - sent from controller */
 	bool bSendAnalytics;
 
