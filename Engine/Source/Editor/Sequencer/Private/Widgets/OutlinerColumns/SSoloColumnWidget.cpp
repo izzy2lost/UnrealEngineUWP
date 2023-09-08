@@ -53,7 +53,7 @@ void SSoloColumnWidget::SetIsActive(const bool bInIsActive)
 		return;
 	}
 
-	const FScopedTransaction Transaction(NSLOCTEXT("Sequencer", "SetNodeMuted", "Set Node Soloed"));
+	const FScopedTransaction Transaction(NSLOCTEXT("Sequencer", "SetNodeSoloed", "Set Node Soloed"));
 
 	if (OutlinerItem->GetSelectionState() == EOutlinerSelectionState::SelectedDirectly)
 	{
