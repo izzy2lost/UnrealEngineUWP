@@ -23513,6 +23513,11 @@ void UMaterialExpressionSubstrateShadingModels::GatherSubstrateMaterialInfo(FSub
 		if (ShadingModelOverride == MSM_SingleLayerWater)	{ SubstrateMaterialInfo.AddShadingModel(ESubstrateShadingModel::SSM_SingleLayerWater); }
 		if (ShadingModelOverride == MSM_ThinTranslucent)	{ SubstrateMaterialInfo.AddShadingModel(ESubstrateShadingModel::SSM_ThinTranslucent); }
 	}
+
+	if (SubsurfaceProfile)
+	{
+		SubstrateMaterialInfo.AddSubsurfaceProfile(SubsurfaceProfile);
+	}
 }
 
 FSubstrateOperator* UMaterialExpressionSubstrateShadingModels::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
