@@ -21,10 +21,10 @@ public:
 class FOnlineAccountIdRegistryNull : public IOnlineAccountIdRegistry
 {
 public:
-	static FOnlineAccountIdRegistryNull& Get();
+	ONLINESERVICESNULL_API static FOnlineAccountIdRegistryNull& Get();
 
-	FAccountId Find(const FString& AccountId) const;
-	FAccountId FindOrAddAccountId(const FString& AccountId);
+	ONLINESERVICESNULL_API FAccountId Find(const FString& AccountId) const;
+	ONLINESERVICESNULL_API FAccountId FindOrAddAccountId(const FString& AccountId);
 
 	// Begin IOnlineAccountIdRegistry
 	virtual FString ToString(const FAccountId& AccountId) const override;
