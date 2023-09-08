@@ -38,7 +38,6 @@
 #include "IOSPlatformEditorModule.h"
 #include "HAL/PlatformFileManager.h"
 #include "UEFreeImage.h"
-#include "XcodeProjectSettings.h"
 
 #define LOCTEXT_NAMESPACE "IOSTargetSettings"
 DEFINE_LOG_CATEGORY_STATIC(LogIOSTargetSettings, Log, All);
@@ -338,7 +337,6 @@ void FIOSTargetSettingsCustomization::BuildPListSection(IDetailLayoutBuilder& De
 	BuildCategory.AddProperty(IOSTeamIDHandle)
 		.Visibility(EVisibility::Hidden);
 		BuildCategory.AddCustomRow(LOCTEXT("IOSTeamID", "IOSTeamID"), false)
-            .EditCondition(!UXcodeProjectSettings::IsUsingModernXcode(), nullptr)
 #if !PLATFORM_MAC
 			.Visibility(EVisibility::Hidden)
 #endif // PLATFORM_MAC
@@ -402,20 +400,7 @@ void FIOSTargetSettingsCustomization::BuildPListSection(IDetailLayoutBuilder& De
 			]
 		];*/
 
-    ProvisionCategory.AddCustomRow(LOCTEXT("ModernXcodeSigningLabel", "ModernXcodeSigning"), false)
-        .Visibility(UXcodeProjectSettings::IsUsingModernXcode() ? EVisibility::Visible : EVisibility::Hidden)
-        .WholeRowWidget
-        .MinDesiredWidth(0.f)
-        .MaxDesiredWidth(0.f)
-        .HAlign(HAlign_Fill)
-        [
-            SNew( STextBlock )
-            .Text( LOCTEXT( "ModernXcodeSigningText", "While Modern Xcode is enabled, code signing is handled by \"Xcode Projects\" section") )
-            .AutoWrapText( true )
-        ];
-    
 	ProvisionCategory.AddCustomRow(LOCTEXT("ProvisionLabel", "Provision"), false)
-        .EditCondition(!UXcodeProjectSettings::IsUsingModernXcode(), nullptr)
 		.WholeRowWidget
 		.MinDesiredWidth(0.f)
 		.MaxDesiredWidth(0.f)
@@ -573,7 +558,6 @@ void FIOSTargetSettingsCustomization::BuildPListSection(IDetailLayoutBuilder& De
 		];
 
 	ProvisionCategory.AddCustomRow(LOCTEXT("CertificateLabel", "Certificate"), false)
-        .EditCondition(!UXcodeProjectSettings::IsUsingModernXcode(), nullptr)
 		.WholeRowWidget
 		.MinDesiredWidth(0.f)
 		.MaxDesiredWidth(0.f)
@@ -754,7 +738,6 @@ void FIOSTargetSettingsCustomization::BuildPListSection(IDetailLayoutBuilder& De
 		Category.AddProperty(PropertyHandle) \
 		.Visibility(EVisibility::Hidden); \
 		Category.AddCustomRow(LOCTEXT("BundleIdentifier", "BundleIdentifier"), false) \
-        .EditCondition(!UXcodeProjectSettings::IsUsingModernXcode(), nullptr) \
 		.NameContent() \
 		[ \
 			SNew(SHorizontalBox) \
@@ -1293,7 +1276,6 @@ void FIOSTargetSettingsCustomization::BuildImageRow(IDetailLayoutBuilder& Detail
     if (Info.RequiredState == FPlatformIconInfo::Required)
     {
         Category.AddCustomRow(Info.IconName)
-            .EditCondition(!UXcodeProjectSettings::IsUsingModernXcode(), nullptr)
             .NameContent()
             [
                 SNew(SHorizontalBox)
@@ -1331,7 +1313,6 @@ void FIOSTargetSettingsCustomization::BuildImageRow(IDetailLayoutBuilder& Detail
     else
     {
         Category.AddCustomRow(Info.IconName)
-            .EditCondition(!UXcodeProjectSettings::IsUsingModernXcode(), nullptr)
             .NameContent()
             [
                 SNew(SHorizontalBox)

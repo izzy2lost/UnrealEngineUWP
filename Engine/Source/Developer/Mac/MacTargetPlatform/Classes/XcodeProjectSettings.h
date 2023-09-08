@@ -23,24 +23,9 @@ public:
 	
 	/**
 	 * Enable modernized Xcode, when building from Xcode, use native Xcode for bundle generation and archiving instead of UBT
-     * Restart required to apply this setting
 	 */
-	UPROPERTY(EditAnywhere, config, Category=Xcode, meta = (DisplayName = "Modernized Xcode", ConfigRestartRequired = true))
+	UPROPERTY(EditAnywhere, config, Category=Xcode, meta = (DisplayName = "Modernized Xcode"))
 	bool bUseModernXcode;
-    
-    UFUNCTION()
-    static bool IsUsingModernXcode()
-    {
-        auto DefaultObject = Cast<UXcodeProjectSettings>(UXcodeProjectSettings::StaticClass()->GetDefaultObject());
-        if (DefaultObject)
-        {
-            return DefaultObject->bUseModernXcode;
-        }
-        else
-        {
-            return false;
-        }
-    }
 	
 	/**
 	 * Team ID used for native Xcode code signing. This must be the 10 letters/numbers ID found in Membership Details tab found in https://developer.apple.com/account
