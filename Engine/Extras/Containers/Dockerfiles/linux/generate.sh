@@ -42,8 +42,8 @@ function generateDockerfile {
 		# This strips out the image labels that are ordinarily used to facilitate cleanup and inspection of images built by ue4-docker
 		--opt disable-labels
 		
-		# This enables the glibc DSO sorting patch, which significantly improves Editor startup times
-		--opt enable-dso-patch
+		# This disables the glibc DSO sorting patch, since it is not needed under Ubuntu 22.04
+		--opt enable_dso_patch=false
 	)
 	
 	# Invoke ue4-docker to generate the Dockerfile
