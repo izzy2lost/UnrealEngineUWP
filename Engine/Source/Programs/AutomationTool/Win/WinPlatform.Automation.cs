@@ -56,8 +56,17 @@ public class Win64Platform : Platform
 		{
 			if (SC.CustomDeployment == null)
 			{			
+				string CustomDeploymentName = null;
+
 				ConfigHierarchy EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, Params.RawProjectPath.Directory, PlatformType, SC.CustomConfig);
-				if (EngineIni.GetString("/Script/WindowsTargetPlatform.WindowsTargetSettings", "CustomDeployment", out string CustomDeploymentName))
+				EngineIni.GetString("/Script/WindowsTargetPlatform.WindowsTargetSettings", "CustomDeployment", out CustomDeploymentName);
+
+				if (string.IsNullOrEmpty(CustomDeploymentName))
+				{
+					CustomDeploymentName = Params.CustomDeploymentHandler;
+				}
+
+				if (!string.IsNullOrEmpty(CustomDeploymentName))
 				{
 					SC.CustomDeployment = CustomDeploymentHandler.Create(CustomDeploymentName, this);
 				}
