@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreTypes.h"
+#include "Misc/OutputDevice.h"
 #include "HAL/CriticalSection.h"
 #include "HAL/PlatformMemory.h"
 
