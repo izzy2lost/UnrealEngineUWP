@@ -766,6 +766,7 @@ namespace UnrealBuildTool
 		/// This will get baked into the game executable as CUSTOM_CONFIG and used when staging to filter files and settings
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
+		[CommandLine("-CustomConfig")]
 		public string CustomConfig = String.Empty;
 
 		/// <summary>
