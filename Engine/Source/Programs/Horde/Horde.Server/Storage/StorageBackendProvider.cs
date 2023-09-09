@@ -7,6 +7,8 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Backends;
 using Horde.Server.Storage.Backends;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -166,7 +168,7 @@ namespace Horde.Server.Storage
 			switch (config.Type ?? StorageBackendType.FileSystem)
 			{
 				case StorageBackendType.FileSystem:
-					return new FileSystemStorageBackend(config);
+					return new FileStorageBackend(DirectoryReference.Combine(Program.DataDir, config.BaseDir ?? "Storage"));
 				case StorageBackendType.Aws:
 					return new AwsStorageBackend(_serviceProvider.GetRequiredService<IConfiguration>(), config, _serviceProvider.GetRequiredService<ILogger<AwsStorageBackend>>());
 				case StorageBackendType.Memory:

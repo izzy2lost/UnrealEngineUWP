@@ -55,8 +55,13 @@ namespace Horde.Server
 	/// <summary>
 	/// Common settings for different storage backends
 	/// </summary>
-	public interface IStorageBackendOptions : IFileSystemStorageOptions, IAwsStorageOptions
+	public interface IStorageBackendOptions : IAwsStorageOptions
 	{
+		/// <summary>
+		/// Base directory for filesystem storage
+		/// </summary>
+		string? BaseDir { get; }
+
 		/// <summary>
 		/// The type of storage backend to use
 		/// </summary>

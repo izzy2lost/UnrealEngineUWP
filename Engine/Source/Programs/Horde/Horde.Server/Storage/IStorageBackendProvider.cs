@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Storage;
+
 namespace Horde.Server.Storage
 {
 	/// <summary>

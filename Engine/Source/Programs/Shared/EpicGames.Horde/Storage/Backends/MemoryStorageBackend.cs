@@ -9,10 +9,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 
-namespace Horde.Server.Storage.Backends
+namespace EpicGames.Horde.Storage.Backends
 {
 	/// <summary>
-	/// In-memory implementation of ILogFileStorage
+	/// In-memory implementation of a storage backend
 	/// </summary>
 	public sealed class MemoryStorageBackend : IStorageBackend
 	{

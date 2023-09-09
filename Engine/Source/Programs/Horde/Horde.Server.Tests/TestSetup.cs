@@ -14,6 +14,7 @@ using Datadog.Trace;
 using EpicGames.Core;
 using EpicGames.Horde.Api;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Backends;
 using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;

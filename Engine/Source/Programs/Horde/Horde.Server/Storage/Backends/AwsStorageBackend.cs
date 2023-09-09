@@ -18,6 +18,7 @@ using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using EpicGames.Horde.Storage;
 using OpenTelemetry.Trace;
 
 namespace Horde.Server.Storage.Backends

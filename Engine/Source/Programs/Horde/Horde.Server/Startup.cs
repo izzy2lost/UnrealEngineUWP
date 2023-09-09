@@ -22,6 +22,7 @@ using Amazon.SQS;
 using EpicGames.AspNet;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Backends;
 using Grpc.Core;
 using Grpc.Core.Interceptors;
 using Horde.Server.Acls;
@@ -31,7 +32,6 @@ using Horde.Server.Agents.Fleet;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
-using Horde.Server.Agents.Software;
 using Horde.Server.Agents.Telemetry;
 using Horde.Server.Configuration;
 using Horde.Server.Dashboard;
@@ -112,7 +112,6 @@ using StackExchange.Redis;
 
 namespace Horde.Server
 {
-	using IStorageBackend = Horde.Server.Storage.IStorageBackend;
 	using ContentHash = EpicGames.Core.ContentHash;
 	using ReferenceResolver = Horde.Server.Ddc.ReferenceResolver;
 
@@ -287,7 +286,7 @@ namespace Horde.Server
 			switch (options.Type ?? StorageBackendType.FileSystem)
 			{
 				case StorageBackendType.FileSystem:
-					return new FileSystemStorageBackend(options);
+					return new FileStorageBackend(DirectoryReference.Combine(Program.DataDir, options.BaseDir ?? "Storage"));
 				case StorageBackendType.Aws:
 					return new AwsStorageBackend(sp.GetRequiredService<IConfiguration>(), options, sp.GetRequiredService<ILogger<AwsStorageBackend>>());
 				case StorageBackendType.Memory:
