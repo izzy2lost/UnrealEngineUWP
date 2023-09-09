@@ -116,12 +116,13 @@ enum class EVertexFactoryFlags : uint32
 	SupportsRayTracingDynamicGeometry     = 1u << 10,
 	SupportsRayTracingProceduralPrimitive = 1u << 11,
 	SupportsLightmapBaking                = 1u << 12,
-	SupportsPSOPrecaching				  = 1u << 13,
-	SupportsManualVertexFetch			  = 1u << 14,
-	DoesNotSupportNullPixelShader		  = 1u << 15,
-	SupportsGPUSkinPassThrough			  = 1u << 16,
+	SupportsPSOPrecaching                 = 1u << 13,
+	SupportsManualVertexFetch             = 1u << 14,
+	DoesNotSupportNullPixelShader         = 1u << 15,
+	SupportsGPUSkinPassThrough            = 1u << 16,
 	SupportsComputeShading                = 1u << 17,
-	SupportsLumenMeshCards				  = 1u << 18
+	SupportsLumenMeshCards                = 1u << 18,
+	SupportsLandscape                     = 1u << 19,
 };
 ENUM_CLASS_FLAGS(EVertexFactoryFlags);
 
@@ -377,10 +378,11 @@ public:
 	bool SupportsRayTracingProceduralPrimitive() const { return HasFlags(EVertexFactoryFlags::SupportsRayTracingProceduralPrimitive); }
 	bool SupportsLightmapBaking() const                { return HasFlags(EVertexFactoryFlags::SupportsLightmapBaking); }
 	bool SupportsPSOPrecaching() const                 { return HasFlags(EVertexFactoryFlags::SupportsPSOPrecaching); }
-	bool SupportsNullPixelShader() const			   { return !HasFlags(EVertexFactoryFlags::DoesNotSupportNullPixelShader); }
-	bool SupportsGPUSkinPassThrough() const			   { return HasFlags(EVertexFactoryFlags::SupportsGPUSkinPassThrough); }
+	bool SupportsNullPixelShader() const               { return !HasFlags(EVertexFactoryFlags::DoesNotSupportNullPixelShader); }
+	bool SupportsGPUSkinPassThrough() const            { return HasFlags(EVertexFactoryFlags::SupportsGPUSkinPassThrough); }
 	bool SupportsComputeShading() const                { return HasFlags(EVertexFactoryFlags::SupportsComputeShading); }
-	bool SupportsLumenMeshCards() const				   { return HasFlags(EVertexFactoryFlags::SupportsLumenMeshCards); }
+	bool SupportsLumenMeshCards() const                { return HasFlags(EVertexFactoryFlags::SupportsLumenMeshCards); }
+	bool SupportsLandscape() const                     { return HasFlags(EVertexFactoryFlags::SupportsLandscape); }
 
 	bool SupportsManualVertexFetch(ERHIFeatureLevel::Type InFeatureLevel) const 
 	{

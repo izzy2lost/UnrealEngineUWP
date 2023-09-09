@@ -485,6 +485,7 @@ IMPLEMENT_VERTEX_FACTORY_TYPE(Nanite::FVertexFactory, "/Engine/Private/Nanite/Na
 	| EVertexFactoryFlags::SupportsPSOPrecaching
 	| EVertexFactoryFlags::SupportsRayTracing
 	| EVertexFactoryFlags::SupportsLumenMeshCards
+	| EVertexFactoryFlags::SupportsLandscape
 );
 
 void FSceneProxyBase::FMaterialSection::ResetToDefaultMaterial(bool bShading, bool bRaster)
@@ -2546,13 +2547,14 @@ void FNaniteVertexFactory::ModifyCompilationEnvironment(const FVertexFactoryShad
 }
 
 IMPLEMENT_VERTEX_FACTORY_TYPE(FNaniteVertexFactory, "/Engine/Private/Nanite/NaniteVertexFactory.ush",
-	EVertexFactoryFlags::UsedWithMaterials
+	  EVertexFactoryFlags::UsedWithMaterials
 	| EVertexFactoryFlags::SupportsStaticLighting
 	| EVertexFactoryFlags::SupportsPrimitiveIdStream
 	| EVertexFactoryFlags::SupportsNaniteRendering
 	| EVertexFactoryFlags::SupportsComputeShading
 	| EVertexFactoryFlags::SupportsManualVertexFetch
 	| EVertexFactoryFlags::SupportsLumenMeshCards
+	| EVertexFactoryFlags::SupportsLandscape
 );
 
 void ClearNaniteResources(Nanite::FResources& InResources)

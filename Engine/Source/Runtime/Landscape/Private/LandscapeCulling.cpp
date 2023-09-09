@@ -130,11 +130,12 @@ IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FLandscapeTileVertexFactory, SF_Vertex, 
 IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FLandscapeTileVertexFactory, SF_Pixel, FLandscapeVertexFactoryPixelShaderParameters);
 
 IMPLEMENT_VERTEX_FACTORY_TYPE(FLandscapeTileVertexFactory, "/Engine/Private/LandscapeVertexFactory.ush",
-	EVertexFactoryFlags::UsedWithMaterials
+	  EVertexFactoryFlags::UsedWithMaterials
 	| EVertexFactoryFlags::SupportsStaticLighting
 	| EVertexFactoryFlags::SupportsDynamicLighting
 	| EVertexFactoryFlags::SupportsLightmapBaking
 	| EVertexFactoryFlags::SupportsPSOPrecaching
+	| EVertexFactoryFlags::SupportsLandscape
 );
 
 
