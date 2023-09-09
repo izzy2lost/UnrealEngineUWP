@@ -51,17 +51,17 @@ bool FStaticMeshSelector::IsLocked() const
 {
 	if (CVarEnableModelingSelectionStaticMeshLocking.GetValueOnGameThread())
 	{
-		return StaticMesh != nullptr && (UEGlobal::UnlockedStaticMeshes.Contains(StaticMesh) == false);
+		return WeakStaticMesh != nullptr && (UEGlobal::UnlockedStaticMeshes.Contains(WeakStaticMesh.Get()) == false);
 	}
 	else
 	{
-		return (StaticMesh == nullptr);
+		return (WeakStaticMesh == nullptr);
 	}
 }
 
 void FStaticMeshSelector::SetLockedState(bool bLocked)
 {
-	if (StaticMesh != nullptr)
+	if (UStaticMesh* StaticMesh = WeakStaticMesh.Get())
 	{
 		if (bLocked)
 		{
@@ -106,16 +106,19 @@ bool FStaticMeshSelector::Initialize(
 	{
 		return false;
 	}
-	StaticMeshComponent = Cast<UStaticMeshComponent>(SourceGeometryIdentifierIn.TargetObject);
+	UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(SourceGeometryIdentifierIn.TargetObject); 
 	if (StaticMeshComponent == nullptr)
 	{
 		return false;
 	}
-	StaticMesh = StaticMeshComponent->GetStaticMesh();
+	WeakStaticMeshComponent = StaticMeshComponent;
+	
+	UStaticMesh* StaticMesh = StaticMeshComponent->GetStaticMesh();
 	if (StaticMesh == nullptr)
 	{
 		return false;
 	}
+	WeakStaticMesh = StaticMesh;
 
 	// To know if the static mesh changed, we will listen to this OnMeshChanged event.
 	// It is currently a very large hammer, though...
@@ -137,14 +140,25 @@ bool FStaticMeshSelector::Initialize(
 	}
 
 	FBaseDynamicMeshSelector::Initialize(SourceGeometryIdentifierIn, LocalTargetMesh.Get(), 
-		[this]() { return IsValid(this->StaticMeshComponent) ? (UE::Geometry::FTransformSRT3d)this->StaticMeshComponent->GetComponentTransform() : FTransformSRT3d::Identity(); });
+		[this]()
+		{
+			FTransformSRT3d Result = FTransformSRT3d::Identity();
+			if (const UStaticMeshComponent* StaticMeshComponent = this->WeakStaticMeshComponent.Get())
+			{
+				Result = StaticMeshComponent->GetComponentTransform();
+			}
+			return Result;
+		});
 
 	return true;
 }
 
 void FStaticMeshSelector::Shutdown()
 {
-	StaticMesh->OnMeshChanged.Remove(StaticMesh_OnMeshChangedHandle);
+	if (UStaticMesh* StaticMesh = WeakStaticMesh.Get())
+	{
+		StaticMesh->OnMeshChanged.Remove(StaticMesh_OnMeshChangedHandle);
+	}
 	StaticMesh_OnMeshChangedHandle.Reset();
 
 	LocalTargetMesh.Reset();
@@ -204,7 +218,12 @@ void FStaticMeshSelector::UpdateAfterGeometryEdit(
 void FStaticMeshSelector::CopyFromStaticMesh()
 {
 	int32 UseLODIndex = 0;
-	const FMeshDescription* SourceMesh = StaticMesh->GetMeshDescription(UseLODIndex);
+	const FMeshDescription* SourceMesh = nullptr;
+	if (const UStaticMesh* StaticMesh = WeakStaticMesh.Get())
+	{
+		SourceMesh = StaticMesh->GetMeshDescription(UseLODIndex);
+	}
+	
 	if (SourceMesh != nullptr)
 	{
 		FDynamicMesh3 NewMesh;
@@ -229,28 +248,31 @@ void FStaticMeshSelector::CommitMeshTransform()
 	FlushRenderingCommands();
 
 	// emit transaction here??
-
-	// make sure transactional flag is on for this asset
-	StaticMesh->SetFlags(RF_Transactional);
-	// mark as modified
-	StaticMesh->Modify();
-
-	FMeshDescription* MeshDescription = StaticMesh->GetMeshDescription(UseLODIndex);
-	if (MeshDescription == nullptr)
+	
+	if (UStaticMesh* StaticMesh = WeakStaticMesh.Get())
 	{
-		MeshDescription = StaticMesh->CreateMeshDescription(UseLODIndex);
+		// make sure transactional flag is on for this asset
+		StaticMesh->SetFlags(RF_Transactional);
+		// mark as modified
+		StaticMesh->Modify();
+
+		FMeshDescription* MeshDescription = StaticMesh->GetMeshDescription(UseLODIndex);
+		if (MeshDescription == nullptr)
+		{
+			MeshDescription = StaticMesh->CreateMeshDescription(UseLODIndex);
+		}
+		StaticMesh->ModifyMeshDescription(UseLODIndex);
+
+		FConversionToMeshDescriptionOptions ConversionOptions;
+		FDynamicMeshToMeshDescription Converter(ConversionOptions);
+		TargetMesh->ProcessMesh([&](const FDynamicMesh3& ReadMesh)
+		{
+			Converter.Convert(&ReadMesh, *MeshDescription, false /*bCopyTangents*/ );
+		});
+
+		StaticMesh->CommitMeshDescription(UseLODIndex);
+		StaticMesh->PostEditChange();
 	}
-	StaticMesh->ModifyMeshDescription(UseLODIndex);
-
-	FConversionToMeshDescriptionOptions ConversionOptions;
-	FDynamicMeshToMeshDescription Converter(ConversionOptions);
-	TargetMesh->ProcessMesh([&](const FDynamicMesh3& ReadMesh)
-	{
-		Converter.Convert(&ReadMesh, *MeshDescription, false /*bCopyTangents*/ );
-	});
-
-	StaticMesh->CommitMeshDescription(UseLODIndex);
-	StaticMesh->PostEditChange();
 }
 
 
