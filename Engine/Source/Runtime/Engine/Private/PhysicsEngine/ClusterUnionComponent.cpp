@@ -944,7 +944,7 @@ void UClusterUnionComponent::HandleAddOrModifiedClusteredComponent(UPrimitiveCom
 
 	const TSet<int32> OldBoneIds{ ComponentData.BoneIds };
 	PerBoneChildToParent.GetKeys(ComponentData.BoneIds);
-	OnComponentAddedEvent.Broadcast(ChangedComponent, ComponentData.BoneIds, bIsNew);
+	BroadcastComponentAddedEvents(ChangedComponent, ComponentData.BoneIds, bIsNew);
 
 	if (IsAuthority() && ComponentData.ReplicatedProxyComponent.IsValid())
 	{
@@ -1047,12 +1047,36 @@ void UClusterUnionComponent::HandleRemovedClusteredComponent(TObjectKey<UPrimiti
 
 		if (UPrimitiveComponent* ChangedComponent = RemovedComponent.ResolveObjectPtr())
 		{
-			OnComponentRemovedEvent.Broadcast(ChangedComponent);
+			BroadcastComponentRemovedEvents(ChangedComponent);
 		}
 		PerComponentData.Remove(RemovedComponent);
 	}
 	PendingComponentsToAdd.Remove(RemovedComponent);
 	PendingComponentSync.Remove(RemovedComponent);
+}
+
+void UClusterUnionComponent::BroadcastComponentAddedEvents(UPrimitiveComponent* ChangedComponent, const TSet<int32>& BoneIds, bool bIsNew)
+{
+	if (OnComponentAddedEvent.IsBound())
+	{
+		OnComponentAddedEvent.Broadcast(ChangedComponent, BoneIds, bIsNew);
+	}
+	if (OnComponentAddedNativeEvent.IsBound())
+	{
+		OnComponentAddedNativeEvent.Broadcast(ChangedComponent, BoneIds, bIsNew);
+	}
+}
+
+void UClusterUnionComponent::BroadcastComponentRemovedEvents(UPrimitiveComponent* ChangedComponent)
+{
+	if (OnComponentRemovedEvent.IsBound())
+	{
+		OnComponentRemovedEvent.Broadcast(ChangedComponent);
+	}
+	if (OnComponentRemovedNativeEvent.IsBound())
+	{
+		OnComponentRemovedNativeEvent.Broadcast(ChangedComponent);
+	}
 }
 
 void UClusterUnionComponent::OnRep_RigidState()

@@ -3396,11 +3396,13 @@ void UGeometryCollectionComponent::SetPerLevelCollisionProfileNames(const TArray
 	LoadCollisionProfiles();
 }
 
-void UGeometryCollectionComponent::SetPerParticleCollisionProfileName(const TArray<int32>& BoneIds, FName ProfileName)
+// return true if anything was cahnged
+template <typename TIteratableBoneContainerType>
+static bool SetPerParticleCollisionProfileNameFromIterable(const UGeometryCollection* RestCollection, const TIteratableBoneContainerType& BoneIds, FName ProfileName, TArray<FName>& CollisionProfilePerParticle)
 {
 	if (!RestCollection)
 	{
-		return;
+		return false;
 	}
 
 	bool bHasChanged = false;
@@ -3424,6 +3426,21 @@ void UGeometryCollectionComponent::SetPerParticleCollisionProfileName(const TArr
 		}
 	}
 
+	return bHasChanged;
+}
+
+void UGeometryCollectionComponent::SetPerParticleCollisionProfileName(const TSet<int32>& BoneIds, FName ProfileName)
+{
+	const bool bHasChanged = SetPerParticleCollisionProfileNameFromIterable(RestCollection, BoneIds, ProfileName, CollisionProfilePerParticle);
+	if (bHasChanged)
+	{
+		LoadCollisionProfiles();
+	}
+}
+
+void UGeometryCollectionComponent::SetPerParticleCollisionProfileName(const TArray<int32>& BoneIds, FName ProfileName)
+{
+	const bool bHasChanged = SetPerParticleCollisionProfileNameFromIterable(RestCollection, BoneIds, ProfileName, CollisionProfilePerParticle);
 	if (bHasChanged)
 	{
 		LoadCollisionProfiles();

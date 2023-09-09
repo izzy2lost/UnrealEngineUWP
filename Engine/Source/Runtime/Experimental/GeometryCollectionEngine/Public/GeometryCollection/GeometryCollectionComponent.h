@@ -716,6 +716,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
 	GEOMETRYCOLLECTIONENGINE_API void SetPerParticleCollisionProfileName(const TArray<int32>& BoneIds, FName ProfileName);
 
+	GEOMETRYCOLLECTIONENGINE_API void SetPerParticleCollisionProfileName(const TSet<int32>& BoneIds, FName ProfileName);
+
 	/** API for getting at geometry collection data */
 	GEOMETRYCOLLECTIONENGINE_API int32 GetNumElements(FName Group) const;
 

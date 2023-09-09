@@ -93,7 +93,11 @@ struct FClusterUnionPendingAddData
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnClusterUnionAddedComponent, UPrimitiveComponent*, Component, const TSet<int32>&, BoneIds, bool, bIsNew);
+DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnClusterUnionAddedComponentNative, UPrimitiveComponent*, const TSet<int32>& /*BoneIds*/, bool /*bIsNew*/);
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnClusterUnionRemovedComponent, UPrimitiveComponent*, Component);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnClusterUnionRemovedComponentNative, UPrimitiveComponent*);
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnClusterUnionBoundsChanged, UClusterUnionComponent*, Component, const FBoxSphereBounds&, Bounds);
 
 /**
@@ -166,6 +170,10 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnClusterUnionBoundsChanged OnComponentBoundsChangedEvent;
 
+	// native (fast, low overhead) versions 
+	FOnClusterUnionAddedComponentNative OnComponentAddedNativeEvent;
+	FOnClusterUnionRemovedComponentNative OnComponentRemovedNativeEvent;
+
 	// Lambda returns whether or not iteration should continue;
 	ENGINE_API void VisitAllCurrentChildComponents(const TFunction<bool(UPrimitiveComponent*)>& Lambda) const;
 	ENGINE_API void VisitAllCurrentActors(const TFunction<bool(AActor*)>& Lambda) const;
@@ -187,6 +195,9 @@ protected:
 	ENGINE_API void ForceSetChildToParent(UPrimitiveComponent* InComponent, const TArray<int32>& BoneIds, const TArray<FTransform>& ChildToParent);
 
 	ENGINE_API TArray<int32> GetAddedBoneIdsForComponent(UPrimitiveComponent* Component) const;
+
+	ENGINE_API void BroadcastComponentAddedEvents(UPrimitiveComponent* ChangedComponent, const TSet<int32>& BoneIds, bool bIsNew);
+	ENGINE_API void BroadcastComponentRemovedEvents(UPrimitiveComponent* ChangedComponent);
 
 	Chaos::FClusterUnionPhysicsProxy* GetPhysicsProxy() const { return PhysicsProxy; }
 	Chaos::FClusterUnionPhysicsProxy* GetPhysicsProxy() { return PhysicsProxy; }
