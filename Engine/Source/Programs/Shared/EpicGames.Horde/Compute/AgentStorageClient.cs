@@ -9,6 +9,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.Clients;
 
 namespace EpicGames.Horde.Compute
 {

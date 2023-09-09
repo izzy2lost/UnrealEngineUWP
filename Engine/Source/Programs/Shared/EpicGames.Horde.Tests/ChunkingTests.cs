@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using System.IO;
 using System.Threading;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Backends;
+using EpicGames.Horde.Storage.Clients;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Collections.Generic;

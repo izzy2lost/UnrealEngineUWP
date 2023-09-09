@@ -20,7 +20,7 @@ using Polly.Extensions.Http;
 using Polly;
 using Polly.Retry;
 
-namespace EpicGames.Horde.Storage.Backends
+namespace EpicGames.Horde.Storage.Clients
 {
 	/// <summary>
 	/// Implementation of <see cref="IStorageClient"/> which communicates with an upstream Horde instance via HTTP.

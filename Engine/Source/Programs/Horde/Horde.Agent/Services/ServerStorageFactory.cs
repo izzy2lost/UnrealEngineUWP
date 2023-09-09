@@ -4,8 +4,8 @@ using System;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.Clients;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 

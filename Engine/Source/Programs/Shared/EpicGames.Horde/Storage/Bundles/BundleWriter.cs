@@ -9,6 +9,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Storage.Clients;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage.Bundles

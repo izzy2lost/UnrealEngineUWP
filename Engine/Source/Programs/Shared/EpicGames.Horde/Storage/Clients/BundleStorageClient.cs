@@ -6,9 +6,10 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Storage.Bundles;
 using Microsoft.Extensions.Logging;
 
-namespace EpicGames.Horde.Storage.Bundles
+namespace EpicGames.Horde.Storage.Clients
 {
 	/// <summary>
 	/// Base class for an implementation of <see cref="IStorageClient"/>, providing implementations for some common functionality using bundles.

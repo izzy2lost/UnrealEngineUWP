@@ -5,7 +5,7 @@ using System.Net.Http.Headers;
 using System.Net.Http;
 using EpicGames.Horde.Storage;
 using Microsoft.Extensions.Logging;
-using EpicGames.Horde.Storage.Backends;
+using EpicGames.Horde.Storage.Clients;
 using Microsoft.Extensions.Options;
 using EpicGames.Core;
 using System.Threading;
