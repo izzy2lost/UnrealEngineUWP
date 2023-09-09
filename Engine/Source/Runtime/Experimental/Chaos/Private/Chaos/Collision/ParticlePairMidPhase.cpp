@@ -477,6 +477,8 @@ namespace Chaos
 			// don't know in advance whether we will pass the Phi check (deferred narrow phase is used with RBAN)
 			if (Constraint->GetPhi() <= CullDistance || Context.GetSettings().bDeferNarrowPhase)
 			{
+				Constraint->SetIsInitialContact(!bWasUpdatedLastTick);
+
 				if (Context.GetAllocator()->ActivateConstraint(Constraint.Get()))
 				{
 					LastUsedEpoch = CurrentEpoch;
@@ -582,9 +584,14 @@ namespace Chaos
 
 			if (bShouldActivate)
 			{
+				const int32 CurrentEpoch = Context.GetAllocator()->GetCurrentEpoch();
+				const int32 LastEpoch = CurrentEpoch - 1;
+				const bool bWasUpdatedLastTick = IsUsedSince(LastEpoch);
+				Constraint->SetIsInitialContact(!bWasUpdatedLastTick);
+
 				if (Context.GetAllocator()->ActivateConstraint(Constraint.Get()))
 				{
-					LastUsedEpoch = Context.GetAllocator()->GetCurrentEpoch();
+					LastUsedEpoch = CurrentEpoch;
 				}
 			}
 
@@ -1734,9 +1741,14 @@ namespace Chaos
 		// If we have a valid contact, add it to the active list
 		// We also add it to the active list if collision detection is deferred because the data will be filled in later and we
 		// don't know in advance whether we will pass the Phi check (deferred narrow phase is used with RBAN)
-		const bool bIsActive = (Constraint->GetPhi() <= CullDistance || Context.GetSettings().bDeferNarrowPhase);
+		const bool bShouldActivate = (Constraint->GetPhi() <= CullDistance || Context.GetSettings().bDeferNarrowPhase);
 
-		return bIsActive;
+		if (bShouldActivate)
+		{
+			Constraint->SetIsInitialContact(!bWasUpdatedLastTick);
+		}
+
+		return bShouldActivate;
 	}
 
 
@@ -1749,9 +1761,6 @@ namespace Chaos
 		// @todo(chaos): share this code with FSingleShapePairCollisionDetector
 
 		check(Constraint->GetCCDSweepEnabled());
-
-		Constraint->ResetManifold();
-		Constraint->ResetActiveManifoldContacts();
 
 		const FRigidTransform3 ShapeWorldTransform0 = Constraint->GetShapeRelativeTransform0() * FConstGenericParticleHandle(Constraint->GetParticle0())->GetTransformPQ();
 		const FRigidTransform3 ShapeWorldTransform1 = Constraint->GetShapeRelativeTransform1() * FConstGenericParticleHandle(Constraint->GetParticle1())->GetTransformPQ();
@@ -1806,6 +1815,14 @@ namespace Chaos
 			Collisions::UpdateConstraint(*Constraint, Constraint->GetShapeWorldTransform0(), Constraint->GetShapeWorldTransform1(), Dt);
 			Constraint->SetCCDSweepEnabled(false);
 			bShouldActivate = Constraint->GetPhi() < CullDistance;
+		}
+
+		if (bShouldActivate)
+		{
+			const int32 CurrentEpoch = Context.GetAllocator()->GetCurrentEpoch();
+			const int32 LastEpoch = CurrentEpoch - 1;
+			const bool bWasUpdatedLastTick = IsUsedSince(LastEpoch);
+			Constraint->SetIsInitialContact(!bWasUpdatedLastTick);
 		}
 
 		return bShouldActivate;

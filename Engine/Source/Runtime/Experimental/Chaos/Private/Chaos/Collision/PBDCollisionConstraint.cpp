@@ -72,7 +72,7 @@ namespace Chaos
 	};
 
 	// @todo(chaos): put these tolerances on cvars
-	// @todo(chaos): tune the tolerances used in FPBDCollisionConstraint::UpdateAndTryRestoreManifold
+	// @todo(chaos): tune the tolerances used in FPBDCollisionConstraint::TryRestoreManifold
 	FCollisionTolerances Chaos_Manifold_Tolerances;
 
 	FString FPBDCollisionConstraint::ToString() const
@@ -200,6 +200,7 @@ namespace Chaos
 		, ShapesType(EContactShapesType::Unknown)
 		, SavedManifoldPoints()
 		, ManifoldPoints()
+		, MinInitialPhi(0)
 		, CCDTimeOfImpact(0)
 		, SolverBodies{ nullptr, nullptr }
 		, CCDEnablePenetration(0)
@@ -238,6 +239,7 @@ namespace Chaos
 		, ShapesType(EContactShapesType::Unknown)
 		, SavedManifoldPoints()
 		, ManifoldPoints()
+		, MinInitialPhi(0)
 		, CCDTimeOfImpact(0)
 		, SolverBodies{ nullptr, nullptr }
 		, CCDEnablePenetration(0)
@@ -426,10 +428,16 @@ namespace Chaos
 		Flags.bIsCurrent = true;
 		Flags.bDisabled = false;
 
+		// If we have data from the previous tick, update the maximum allowed initial penetration
+		CalculateMinInitialPhi();
+
+		// Match new manifold points with data from previous tick
 		AssignSavedManifoldPoints();
 
+		// If any materials were changed, update the friction etc
 		UpdateMaterialProperties();
 
+		// Undo any temporary modifications from user callbacks
 		ResetModifications();
 
 		AccumulatedImpulse = FVec3(0);
@@ -760,19 +768,9 @@ namespace Chaos
 					ManifoldPoint.ContactPoint.ShapeContactPoints[1] = ShapeContactPoint1;
 					ManifoldPoint.ContactPoint.Phi = FRealSingle(ContactPhi);
 
-					// Set the friction anchors.
-					// In principle we should always have the same number of saved manifold points as manifold points 
-					// from the previous frame, but there are ways to break this. E.g., Contact modification resets
-					// friction if positions are changed.
-					if (ManifoldPointIndex < SavedManifoldPoints.Num())
-					{
-						FSavedManifoldPoint& SavedManifoldPoint = SavedManifoldPoints[ManifoldPointIndex];
-						ManifoldPoint.ShapeAnchorPoints[0] = SavedManifoldPoint.ShapeContactPoints[0];
-						ManifoldPoint.ShapeAnchorPoints[1] = SavedManifoldPoint.ShapeContactPoints[1];
-					}
-
 					ManifoldPoint.Flags.bWasRestored = true;
 					ManifoldPoint.Flags.bWasReplaced = false;
+					ManifoldPoint.Flags.bInitialContact = false;
 
 					if (ManifoldPoint.ContactPoint.Phi < GetPhi())
 					{
@@ -785,6 +783,7 @@ namespace Chaos
 					ManifoldPoint.Flags.bDisabled = true;
 					ManifoldPoint.Flags.bWasRestored = false;
 					ManifoldPoint.Flags.bWasReplaced = false;
+					ManifoldPoint.Flags.bInitialContact = false;
 					--NumActiveManifoldPoints;
 				}
 			}
@@ -1009,7 +1008,7 @@ namespace Chaos
 		return true;
 	}
 
-	FReal FPBDCollisionConstraint::CalculateSavedManifoldPointScore(const FSavedManifoldPoint& SavedManifoldPoint, const FManifoldPoint& ManifoldPoint, const FReal DistanceToleranceSq) const
+	FReal FPBDCollisionConstraint::CalculateSavedManifoldDistanceSq(const FSavedManifoldPoint& SavedManifoldPoint, const FManifoldPoint& ManifoldPoint, const FReal DistanceToleranceSq) const
 	{
 		// If we have a vertex-plane (or vertex-vertex) contact, we want to know if we have the same vertex(es).
 		// If we have and edge-edge contact, we want to know if we have the same edges.
@@ -1049,42 +1048,56 @@ namespace Chaos
 
 	int32 FPBDCollisionConstraint::FindSavedManifoldPoint(const int32 ManifoldPointIndex, int32* InOutAllowedSavedPointIndices, int32& InOutNumAllowedSavedPoints) const
 	{
-		int32 MatchIndex = INDEX_NONE;
-
 		if (bChaos_Manifold_EnableFrictionRestore)
 		{
 			const FManifoldPoint& ManifoldPoint = ManifoldPoints[ManifoldPointIndex];
 			if (!ManifoldPoint.Flags.bDisabled)
 			{
 				const FReal DistanceToleranceSq = FMath::Square(Chaos_Manifold_FrictionPositionTolerance);
-				FReal BestScore = DistanceToleranceSq;
+				const FReal ExactDistanceToleranceSq = 0.2f * DistanceToleranceSq;
+				FReal BestDistanceSq = DistanceToleranceSq;
 
+				int32 MatchAllowedPointIndex = INDEX_NONE;
 				for (int32 AllowedPointIndex = 0; AllowedPointIndex < InOutNumAllowedSavedPoints; ++AllowedPointIndex)
 				{
 					const int32 SavedPointIndex = InOutAllowedSavedPointIndices[AllowedPointIndex];
 					const FSavedManifoldPoint& SavedManifoldPoint = SavedManifoldPoints[SavedPointIndex];
 
-					const FReal Score = CalculateSavedManifoldPointScore(SavedManifoldPoint, ManifoldPoint, DistanceToleranceSq);
-					if (Score < BestScore)
+					const FReal DistanceSq = CalculateSavedManifoldDistanceSq(SavedManifoldPoint, ManifoldPoint, DistanceToleranceSq);
+
+					// If this is an exact match, take the point without searching further
+					if (DistanceSq < ExactDistanceToleranceSq)
 					{
-						BestScore = Score;
-						MatchIndex = SavedPointIndex;
-
-						// RemoveAtSwap
-						--InOutNumAllowedSavedPoints;
-						if (AllowedPointIndex < InOutNumAllowedSavedPoints)
-						{
-							InOutAllowedSavedPointIndices[AllowedPointIndex] = InOutAllowedSavedPointIndices[InOutNumAllowedSavedPoints];
-						}
-
-						// Just take the first match we find that meets our tolerance
+						BestDistanceSq = DistanceSq;
+						MatchAllowedPointIndex = AllowedPointIndex;
 						break;
 					}
+
+					// If this is a close match, we may use it if we can't find a better one
+					if (DistanceSq < BestDistanceSq)
+					{
+						BestDistanceSq = DistanceSq;
+						MatchAllowedPointIndex = AllowedPointIndex;
+					}
+				}
+
+				// If we selected a point, remove it from the set
+				if (MatchAllowedPointIndex != INDEX_NONE)
+				{
+					// RemoveAtSwap
+					const int32 MatchIndex = InOutAllowedSavedPointIndices[MatchAllowedPointIndex];
+					--InOutNumAllowedSavedPoints;
+					if (MatchAllowedPointIndex < InOutNumAllowedSavedPoints)
+					{
+						InOutAllowedSavedPointIndices[MatchAllowedPointIndex] = InOutAllowedSavedPointIndices[InOutNumAllowedSavedPoints];
+					}
+
+					return MatchIndex;
 				}
 			}
 		}
 
-		return MatchIndex;
+		return INDEX_NONE;
 	}
 
 	void FPBDCollisionConstraint::AssignSavedManifoldPoints()
@@ -1099,16 +1112,37 @@ namespace Chaos
 		int32 NumAllowedPointIndices = AllowedPointIndices.Num();
 		for (int32 PointIndex = 0, PointEndIndex = ManifoldPoints.Num(); PointIndex < PointEndIndex; ++PointIndex)
 		{
-			const int32 SavedManifoldPointIndex = FindSavedManifoldPoint(PointIndex, AllowedPointIndices.GetData(), NumAllowedPointIndices);
-
-			if (SavedManifoldPointIndex != INDEX_NONE)
+			// @todo(chaos): ideally we would skip this step for restored manifold points but for now we need to 
+			// extract InitialPhi from the results
+			// @see UpdateCollisionSolverContactPointFromConstraint
+			//if (!ManifoldPoints[PointIndex].Flags.bWasRestored)
 			{
-				ManifoldPoints[PointIndex].Flags.bHasStaticFrictionAnchor = true;
-				ManifoldPoints[PointIndex].ShapeAnchorPoints[0] = SavedManifoldPoints[SavedManifoldPointIndex].ShapeContactPoints[0];
-				ManifoldPoints[PointIndex].ShapeAnchorPoints[1] = SavedManifoldPoints[SavedManifoldPointIndex].ShapeContactPoints[1];
+				// Assume this is a new contact
+				ManifoldPoints[PointIndex].Flags.bInitialContact = true;
+
+				// See if we have saved data for this contact
+				const int32 SavedManifoldPointIndex = FindSavedManifoldPoint(PointIndex, AllowedPointIndices.GetData(), NumAllowedPointIndices);
+				if (SavedManifoldPointIndex != INDEX_NONE)
+				{
+					ManifoldPoints[PointIndex].Flags.bHasStaticFrictionAnchor = true;
+					ManifoldPoints[PointIndex].ShapeAnchorPoints[0] = SavedManifoldPoints[SavedManifoldPointIndex].ShapeContactPoints[0];
+					ManifoldPoints[PointIndex].ShapeAnchorPoints[1] = SavedManifoldPoints[SavedManifoldPointIndex].ShapeContactPoints[1];
+					ManifoldPoints[PointIndex].InitialPhi = SavedManifoldPoints[SavedManifoldPointIndex].InitialPhi;
+					ManifoldPoints[PointIndex].Flags.bInitialContact = false;
+				}
+				// Nothing to do if no saved friction point because we already set the achor to the most recently detected contact point
+				// (See InitManifoldPoint, And TryRestoreManifold)
 			}
-			// Nothing to do if no saved friction point because we already set the achor to the most recently detected contact point
-			// (See InitManifoldPoint, And UpdateAndTryRestoreManifold)
+		}
+	}
+
+	void FPBDCollisionConstraint::CalculateMinInitialPhi()
+	{
+		MinInitialPhi = 0;
+
+		for (const FSavedManifoldPoint& SavedManifoldPoint : SavedManifoldPoints)
+		{
+			MinInitialPhi = FMath::Min(MinInitialPhi, SavedManifoldPoint.InitialPhi);
 		}
 	}
 

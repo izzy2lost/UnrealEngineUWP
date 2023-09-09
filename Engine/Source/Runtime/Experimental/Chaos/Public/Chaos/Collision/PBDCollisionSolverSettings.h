@@ -15,6 +15,7 @@ namespace Chaos
 
 		FPBDCollisionSolverSettings()
 			: MaxPushOutVelocity(0)
+			, DepenetrationVelocity(0)
 			, NumPositionFrictionIterations(4)
 			, NumVelocityFrictionIterations(1)
 			, NumPositionShockPropagationIterations(3)
@@ -24,7 +25,11 @@ namespace Chaos
 
 		// Maximum speed at which two objects can depenetrate (actually, how much relative velocity can be added
 		// to a contact per frame when depentrating. Stacks and deep penetrations can lead to larger velocities)
+		// A value of zero means unlimited.
 		FReal MaxPushOutVelocity;
+
+		// The speed at which initially-overlapping objects depentrate
+		FRealSingle DepenetrationVelocity;
 
 		// How many of the position iterations should run static/dynamic friction
 		int32 NumPositionFrictionIterations;

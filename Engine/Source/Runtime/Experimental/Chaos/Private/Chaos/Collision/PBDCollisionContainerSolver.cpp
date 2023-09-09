@@ -51,6 +51,10 @@ namespace Chaos
 		// @todo(chaos): to be tuned
 		FRealSingle Chaos_PBDCollisionSolver_JacobiRotationTolerance = 1.e-8f;
 		FAutoConsoleVariableRef CVarChaosPBDCollisionSolverJacobiRotationTolerance(TEXT("p.Chaos.PBDCollisionSolver.JacobiRotationTolerance"), Chaos_PBDCollisionSolver_JacobiRotationTolerance, TEXT(""));
+
+		// Whether to enable the new initial overlap depentration system
+		bool bChaos_Collision_EnableInitialDepenetration = false;
+		FAutoConsoleVariableRef CVarChaosCollisionEnableInitialDepentration(TEXT("p.Chaos.PBDCollisionSolver.EnableInitialDepenetration"), bChaos_Collision_EnableInitialDepenetration, TEXT(""));
 	}
 
 
@@ -63,13 +67,14 @@ namespace Chaos
 	void UpdateCollisionSolverContactPointFromConstraint(
 		Private::FPBDCollisionSolver& Solver, 
 		const int32 SolverPointIndex, 
-		const FPBDCollisionConstraint* Constraint, 
+		FPBDCollisionConstraint* Constraint, 
 		const int32 ConstraintPointIndex, 
 		const FRealSingle Dt, 
+		const FRealSingle MaxDepentrationVelocity,
 		const FConstraintSolverBody& Body0,
 		const FConstraintSolverBody& Body1)
 	{
-		const FManifoldPoint& ManifoldPoint = Constraint->GetManifoldPoint(ConstraintPointIndex);
+		FManifoldPoint& ManifoldPoint = Constraint->GetManifoldPoint(ConstraintPointIndex);
 
 		const FRealSingle Restitution = FRealSingle(Constraint->GetRestitution());
 		const FRealSingle RestitutionVelocityThreshold = FRealSingle(Constraint->GetRestitutionThreshold()) * Dt;
@@ -97,14 +102,17 @@ namespace Chaos
 		}
 		const FVec3f WorldContactTangentV = FVec3f::CrossProduct(WorldContactNormal, WorldContactTangentU);
 
-		// Calculate contact velocity if we will need it below (restitution and/or frist-contact friction)
-		const bool bNeedContactVelocity = (!ManifoldPoint.Flags.bHasStaticFrictionAnchor) || (Restitution > FRealSingle(0));
+
+		// Calculate contact velocity if we will need it below (restitution and/or first-contact for friction or initial depenetration)
+		const bool bNeedContactVelocity = (!ManifoldPoint.Flags.bHasStaticFrictionAnchor) || (Restitution > FRealSingle(0)) || ManifoldPoint.Flags.bInitialContact;
 		FVec3f ContactVel = FVec3(0);
+		FRealSingle ContactVelocityNormal = FRealSingle(0);
 		if (bNeedContactVelocity)
 		{
 			const FVec3f ContactVel0 = Body0.V() + FVec3f::CrossProduct(Body0.W(), WorldRelativeContact0);
 			const FVec3f ContactVel1 = Body1.V() + FVec3f::CrossProduct(Body1.W(), WorldRelativeContact1);
 			ContactVel = ContactVel0 - ContactVel1;
+			ContactVelocityNormal = FVec3f::DotProduct(ContactVel, WorldContactNormal);
 		}
 
 		// If we have contact data from a previous tick, use it to calculate the lateral position delta we need
@@ -125,9 +133,8 @@ namespace Chaos
 		}
 
 		// The contact point error we are trying to correct in this solver
-		const FRealSingle TargetPhi = ManifoldPoint.TargetPhi;
 		const FVec3f WorldContactDelta = FVec3f(WorldContact0 - WorldContact1);
-		const FRealSingle WorldContactDeltaNormal = FVec3f::DotProduct(WorldContactDelta, WorldContactNormal) - TargetPhi;
+		FRealSingle WorldContactDeltaNormal = FVec3f::DotProduct(WorldContactDelta, WorldContactNormal);
 		const FRealSingle WorldContactDeltaTangentU = FVec3f::DotProduct(WorldContactDelta + WorldFrictionDelta, WorldContactTangentU);
 		const FRealSingle WorldContactDeltaTangentV = FVec3f::DotProduct(WorldContactDelta + WorldFrictionDelta, WorldContactTangentV);
 
@@ -135,12 +142,60 @@ namespace Chaos
 		FRealSingle WorldContactTargetVelocityNormal = FRealSingle(0);
 		if (Restitution > FRealSingle(0))
 		{
-			const FRealSingle ContactVelocityNormal = FVec3f::DotProduct(ContactVel, WorldContactNormal);
 			if (ContactVelocityNormal < -RestitutionVelocityThreshold)
 			{
 				WorldContactTargetVelocityNormal = -Restitution * ContactVelocityNormal;
 			}
 		}
+
+		// Initial Phi for initial-overlap depenetration.
+		// If we have an initial contact, calculate the initial overlap. This will get saved in SetSolverResults
+		FRealSingle WorldContactInitialPhi = 0;
+		if (CVars::bChaos_Collision_EnableInitialDepenetration)
+		{
+			if (ManifoldPoint.Flags.bInitialContact)
+			{
+				// This is a new manifold point, capture current Phi as the initial Phi
+				WorldContactInitialPhi = FMath::Min(WorldContactDeltaNormal, FRealSingle(0));
+
+				// Reduce initial penetration depth by any movement towards each other this tick
+				WorldContactInitialPhi -= FMath::Min(ContactVelocityNormal * Dt, FRealSingle(0));
+
+				// If this is a new manifold point on a pre-existing manifold, we limit the initial depth.
+				// This is so that as we are depenetrating and new points are added to the manifold, we don't suddenly pop out, which would
+				// happen if we set InitialPhi=0. But also want to ensure that if we are nearly done handling initial overlap, we don't treat
+				// new deeper manifold points as full initial overlaps.
+				// NOTE: here we are checking IsInitialContact on the constraint, which is only set when we first make contact, as opposed 
+				// to the bInitialContact on the manifold point which is true for any new manifold point, regardless of the constraint age.
+				if (!Constraint->IsInitialContact())
+				{
+					WorldContactInitialPhi = FMath::Max(WorldContactInitialPhi, Constraint->GetMinInitialPhi());
+				}
+
+			}
+			else if (ManifoldPoint.InitialPhi < 0)
+			{
+				// This is a pre-existing manifold point with some initial penetration to resolve.
+				// If we are currently penetrating less than the inital overlap, reduce the initial overlap
+				// Also resolve initial overlap over time by reducing allowed penetration by MaxDepentrationVelocity
+				WorldContactInitialPhi = FMath::Max(ManifoldPoint.InitialPhi + MaxDepentrationVelocity * Dt, WorldContactDeltaNormal);
+			}
+
+			// InitialPhi is only for tracking penetration - cannot be positive
+			WorldContactInitialPhi = FMath::Min(WorldContactInitialPhi, FRealSingle(0));
+
+			// Apply initial penetration allowance to depth correction
+			WorldContactDeltaNormal -= WorldContactInitialPhi;
+
+			// @todo(chaos): InitialPhi should probably be updated prior to Gather, but this is where we calculate
+			// the depth and contact velocity so it's convenient for now. Not great that we have to write back to
+			// the constraint here though...
+			ManifoldPoint.InitialPhi = WorldContactInitialPhi;
+		}
+
+		// Adjust depth to account for target penetration from user
+		const FRealSingle TargetPhi = ManifoldPoint.TargetPhi;
+		WorldContactDeltaNormal -= TargetPhi;
 
 		Solver.InitManifoldPoint(
 			SolverPointIndex,
@@ -158,9 +213,10 @@ namespace Chaos
 
 	void UpdateCollisionSolverManifoldFromConstraint(
 		Private::FPBDCollisionSolver& Solver, 
-		const FPBDCollisionConstraint* Constraint, 
+		FPBDCollisionConstraint* Constraint, 
 		const FSolverReal Dt, 
-		const int32 ConstraintPointBeginIndex, 
+		const FRealSingle MaxDepentrationVelocity,
+		const int32 ConstraintPointBeginIndex,
 		const int32 ConstraintPointEndIndex)
 	{
 		const FConstraintSolverBody& Body0 = Solver.SolverBody0();
@@ -177,7 +233,7 @@ namespace Chaos
 				{
 					// Transform the constraint contact data into world space for use by the solver
 					// We build this data directly into the solver's world-space contact data which looks a bit odd with "Init" called after but there you go
-					UpdateCollisionSolverContactPointFromConstraint(Solver, SolverManifoldPointIndex, Constraint, ConstraintManifoldPointIndex, Dt, Body0, Body1);
+					UpdateCollisionSolverContactPointFromConstraint(Solver, SolverManifoldPointIndex, Constraint, ConstraintManifoldPointIndex, Dt, MaxDepentrationVelocity, Body0, Body1);
 				}
 			}
 		}
@@ -187,7 +243,7 @@ namespace Chaos
 
 	void UpdateCollisionSolverFromConstraint(
 		Private::FPBDCollisionSolver& Solver, 
-		const FPBDCollisionConstraint* Constraint, 
+		FPBDCollisionConstraint* Constraint, 
 		const FSolverReal Dt, 
 		const FPBDCollisionSolverSettings& SolverSettings, 
 		bool& bOutPerIterationCollision)
@@ -233,7 +289,7 @@ namespace Chaos
 
 		bOutPerIterationCollision = (!Constraint->GetUseManifold() || Constraint->GetUseIncrementalCollisionDetection());
 
-		UpdateCollisionSolverManifoldFromConstraint(Solver, Constraint, Dt, 0, Constraint->NumManifoldPoints());
+		UpdateCollisionSolverManifoldFromConstraint(Solver, Constraint, Dt, SolverSettings.DepenetrationVelocity, 0, Constraint->NumManifoldPoints());
 	}
 
 	FORCEINLINE_DEBUGGABLE void UpdateCollisionConstraintFromSolver(FPBDCollisionConstraint* Constraint, const Private::FPBDCollisionSolver& Solver, const FSolverReal Dt)
@@ -686,7 +742,10 @@ namespace Chaos
 				Collisions::UpdateConstraint(*Constraint, CorrectedShapeWorldTransform0, CorrectedShapeWorldTransform1, Dt);
 
 				// Update the manifold based on the new or updated contacts
-				UpdateCollisionSolverManifoldFromConstraint(CollisionSolver, Constraint, Dt, BeginPointIndex, Constraint->NumManifoldPoints());
+				UpdateCollisionSolverManifoldFromConstraint(
+					CollisionSolver, Constraint, 
+					Dt, ConstraintContainer.GetSolverSettings().DepenetrationVelocity, 
+					BeginPointIndex, Constraint->NumManifoldPoints());
 
 				Constraint->SetSolverBodies(nullptr, nullptr);
 			}

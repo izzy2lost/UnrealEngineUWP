@@ -233,7 +233,12 @@ public:
 
 	void SetMaxPushOutVelocity(const FReal InMaxPushOutVelocity)
 	{
-		SolverSettings.MaxPushOutVelocity = InMaxPushOutVelocity;
+		SolverSettings.MaxPushOutVelocity = FMath::Max(InMaxPushOutVelocity, FReal(0));
+	}
+
+	void SetDepenetrationVelocity(const FRealSingle InVel)
+	{
+		SolverSettings.DepenetrationVelocity = FMath::Max(InVel, FRealSingle(0));
 	}
 
 	void SetPositionFrictionIterations(const int32 InNumIterations)

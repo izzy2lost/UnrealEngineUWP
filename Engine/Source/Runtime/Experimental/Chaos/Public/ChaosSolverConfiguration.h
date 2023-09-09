@@ -63,6 +63,12 @@ struct FChaosSolverConfiguration
 	UPROPERTY(EditAnywhere, Category = "SolverConfiguration|Collision", meta = (ClampMin = "0.0"))
 	float CollisionMaxPushOutVelocity;
 
+	// If two bodies start off in overaapping each other, they will depentrate at this speed when they wake.
+	// NOTE: this is the setting for the new Initial Penetration Handling system. This is currently enabled with the 
+	// cvar p.Chaos.PBDCollisionSolver.EnableInitialDepenetration but will eventually be on by default.
+	UPROPERTY(EditAnywhere, Category = "SolverConfiguration|Collision", meta = (ClampMin = "0.0"))
+	float CollisionInitialOverlapDepenetrationVelocity;
+
 	UPROPERTY(EditAnywhere, Category = "SolverConfiguration|Clustering")
 	float ClusterConnectionFactor;
 

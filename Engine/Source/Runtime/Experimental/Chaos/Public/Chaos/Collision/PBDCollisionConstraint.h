@@ -376,6 +376,11 @@ namespace Chaos
 		void SetIsProbe(bool bInProbe) { Flags.bIsProbe = bInProbe; }
 		bool GetIsProbe() const { return Flags.bIsProbe; }
 
+		// Is this considered an initial contact (i.e., contact was activated this tick, but not last)
+		void SetIsInitialContact(const bool bInIsInitialContact) { Flags.bInitialContact = bInIsInitialContact; }
+		bool IsInitialContact() const { return Flags.bInitialContact; }
+		FRealSingle GetMinInitialPhi() const { return MinInitialPhi; }
+
 		virtual bool SupportsSleeping() const override final { return true; }
 		CHAOS_API virtual bool IsSleeping() const override final;
 		CHAOS_API virtual void SetIsSleeping(const bool bInIsSleeping) override final;
@@ -600,7 +605,7 @@ namespace Chaos
 		}
 
 		// Set the transforms when we last ran collision detection. This also sets the bCanRestoreManifold flag which
-		// allows the use of UpdateAndTryRestoreManifold on the next tick.
+		// allows the use of TryRestoreManifold on the next tick.
 		void SetLastShapeWorldTransforms(const FRigidTransform3& InShapeWorldTransform0, const FRigidTransform3& InShapeWorldTransform1)
 		{
 			LastShapeWorldPositionDelta = InShapeWorldTransform0.GetTranslation() - InShapeWorldTransform1.GetTranslation();
@@ -672,7 +677,7 @@ namespace Chaos
 
 		FORCEINLINE void ResetSolverResults()
 		{
-			// NOTE: does not initalize any data. All properties will be written to in SetSolverResults
+			// NOTE: does not initalize any manifold point data. All properties will be written to in SetSolverResults
 			//SavedManifoldPoints.SetNum(ManifoldPoints.Num());
 			SavedManifoldPoints.Reset(ManifoldPoints.Num());
 			ManifoldPointResults.SetNum(ManifoldPoints.Num());
@@ -690,26 +695,20 @@ namespace Chaos
 		{
 			FManifoldPoint& ManifoldPoint = ManifoldPoints[ManifoldPointIndex];
 			FManifoldPointResult& ManifoldPointResult = ManifoldPointResults[ManifoldPointIndex];
+			FSavedManifoldPoint* SavedManifoldPoint = nullptr;
 
-			ManifoldPointResult.NetPushOut = NetPushOut;
-			ManifoldPointResult.NetImpulse = NetImpulse;
-			ManifoldPointResult.bIsValid = true;
-			ManifoldPointResult.bInsideStaticFrictionCone = false;
-
-			AccumulatedImpulse += NetImpulse + (NetPushOut / Dt);
-
-			// Save contact data for friction\
-			// NOTE: We also write the anchors back to the manifold point for use if the point gets restored next tick
-			// in which case it skips the saved point search etc
-			if (StaticFrictionRatio >= FReal(1.0f - UE_KINDA_SMALL_NUMBER))
+			// Save contact data for friction
+			FVec3f Anchor0, Anchor1;
+			bool bInsideStaticFrictionCone = false;
+			if (StaticFrictionRatio >= FRealSingle(1.0f - UE_KINDA_SMALL_NUMBER))
 			{
 				// StaticFrictionRatio ~= 1: Static friction held - we keep the same contacts points as-is for use next frame
-				FSavedManifoldPoint& SavedManifoldPoint = SavedManifoldPoints[SavedManifoldPoints.AddUninitialized()];
-				SavedManifoldPoint.ShapeContactPoints[0] = ManifoldPoint.ShapeAnchorPoints[0];
-				SavedManifoldPoint.ShapeContactPoints[1] = ManifoldPoint.ShapeAnchorPoints[1];
-				ManifoldPointResult.bInsideStaticFrictionCone = true;
+				SavedManifoldPoint = &SavedManifoldPoints[SavedManifoldPoints.AddUninitialized()];
+				Anchor0 = ManifoldPoint.ShapeAnchorPoints[0];
+				Anchor1 = ManifoldPoint.ShapeAnchorPoints[1];
+				bInsideStaticFrictionCone = true;
 			}
-			else if (StaticFrictionRatio < FReal(UE_KINDA_SMALL_NUMBER))
+			else if (StaticFrictionRatio < FRealSingle(UE_KINDA_SMALL_NUMBER))
 			{
 				// StaticFrictionRatio ~= 0: No friction (or no contact/impulse) - discard the friction anchors
 				// If we have a lot of manifold points, we don't store the previous position for these contacts because we assume
@@ -718,22 +717,32 @@ namespace Chaos
 				const int32 SmallNumManifoldPoints = 8;
 				if (ManifoldPoints.Num() < SmallNumManifoldPoints)
 				{
-					const FVec3 Anchor0 = ManifoldPoint.ContactPoint.ShapeContactPoints[0];
-					const FVec3 Anchor1 = ManifoldPoint.ContactPoint.ShapeContactPoints[1];
-					FSavedManifoldPoint& SavedManifoldPoint = SavedManifoldPoints[SavedManifoldPoints.AddUninitialized()];
-					SavedManifoldPoint.ShapeContactPoints[0] = Anchor0;
-					SavedManifoldPoint.ShapeContactPoints[1] = Anchor1;
+					SavedManifoldPoint = &SavedManifoldPoints[SavedManifoldPoints.AddUninitialized()];
+					Anchor0 = ManifoldPoint.ContactPoint.ShapeContactPoints[0];
+					Anchor1 = ManifoldPoint.ContactPoint.ShapeContactPoints[1];
 				}
 			}
 			else
 			{
 				// 0 < StaticFrictionRatio < 1: We exceeded the friction cone. Slide the friction anchor 
 				// toward the last-detected contact position so that it sits at the edge of the friction cone.
-				const FVec3 Anchor0 = FVec3::Lerp(ManifoldPoint.ContactPoint.ShapeContactPoints[0], ManifoldPoint.ShapeAnchorPoints[0], StaticFrictionRatio);
-				const FVec3 Anchor1 = FVec3::Lerp(ManifoldPoint.ContactPoint.ShapeContactPoints[1], ManifoldPoint.ShapeAnchorPoints[1], StaticFrictionRatio);
-				FSavedManifoldPoint& SavedManifoldPoint = SavedManifoldPoints[SavedManifoldPoints.AddUninitialized()];
-				SavedManifoldPoint.ShapeContactPoints[0] = Anchor0;
-				SavedManifoldPoint.ShapeContactPoints[1] = Anchor1;
+				SavedManifoldPoint = &SavedManifoldPoints[SavedManifoldPoints.AddUninitialized()];
+				Anchor0 = FVec3f::Lerp(ManifoldPoint.ContactPoint.ShapeContactPoints[0], ManifoldPoint.ShapeAnchorPoints[0], StaticFrictionRatio);
+				Anchor1 = FVec3f::Lerp(ManifoldPoint.ContactPoint.ShapeContactPoints[1], ManifoldPoint.ShapeAnchorPoints[1], StaticFrictionRatio);
+			}
+
+			AccumulatedImpulse += NetImpulse + (NetPushOut / Dt);
+
+			ManifoldPointResult.NetPushOut = NetPushOut;
+			ManifoldPointResult.NetImpulse = NetImpulse;
+			ManifoldPointResult.bIsValid = true;
+			ManifoldPointResult.bInsideStaticFrictionCone = bInsideStaticFrictionCone;
+
+			if (SavedManifoldPoint != nullptr)
+			{
+				SavedManifoldPoint->ShapeContactPoints[0] = Anchor0;
+				SavedManifoldPoint->ShapeContactPoints[1] = Anchor1;
+				SavedManifoldPoint->InitialPhi = ManifoldPoint.InitialPhi;
 			}
 		}
 
@@ -801,6 +810,7 @@ namespace Chaos
 
 		CHAOS_API int32 FindSavedManifoldPoint(const int32 ManifoldPointIndex, int32* InOutAllowedSavedPointIndices, int32& InOutNumAllowedSavedPoints) const;
 		CHAOS_API void AssignSavedManifoldPoints();
+		CHAOS_API void CalculateMinInitialPhi();
 
 		inline void InitManifoldPoint(const int32 ManifoldPointIndex, const FContactPoint& ContactPoint)
 		{
@@ -810,7 +820,8 @@ namespace Chaos
 			ManifoldPoint.ShapeAnchorPoints[1] = ContactPoint.ShapeContactPoints[1];
 			ManifoldPoint.InitialShapeContactPoints[0] = ContactPoint.ShapeContactPoints[0];
 			ManifoldPoint.InitialShapeContactPoints[1] = ContactPoint.ShapeContactPoints[1];
-			ManifoldPoint.TargetPhi = FReal(0);
+			ManifoldPoint.TargetPhi = FRealSingle(0);
+			ManifoldPoint.InitialPhi = FRealSingle(0);
 			ManifoldPoint.Flags.Reset();
 		}
 
@@ -832,7 +843,7 @@ namespace Chaos
 		CHAOS_API void UpdateMaterialPropertiesImpl();
 
 	private:
-		CHAOS_API FReal CalculateSavedManifoldPointScore(const FSavedManifoldPoint& SavedManifoldPoint, const FManifoldPoint& ManifoldPoint, const FReal DistanceToleranceSq) const;
+		CHAOS_API FReal CalculateSavedManifoldDistanceSq(const FSavedManifoldPoint& SavedManifoldPoint, const FManifoldPoint& ManifoldPoint, const FReal DistanceToleranceSq) const;
 
 		union FFlags
 		{
@@ -852,6 +863,7 @@ namespace Chaos
 				uint16 bCCDSweepEnabled: 1;				// If this is a CCD constraint, do we want to enable the sweep/rewind phase?
 				uint16 bModifierApplied : 1;			// Was a constraint modifier applied this tick
 				uint16 bMaterialSet : 1;				// Has the material been set (or does it need to be reset)
+				uint16 bInitialContact : 1;				// Is this contact considered an initial contact
 			};
 			uint16 Bits;
 		};
@@ -889,7 +901,7 @@ namespace Chaos
 		// The shape transforms at the current particle transforms
 		FRigidTransform3 ShapeWorldTransforms[2];
 
-		// Used by manifold point injection to see how many points were in the manifold before UpdateAndTryRestore
+		// Used by manifold point injection to see how many points were in the manifold before TryRestoreManifold
 		int32 ExpectedNumManifoldPoints;
 
 		// Relative transform the last time we ran the narrow phase
@@ -913,6 +925,12 @@ namespace Chaos
 		TManifoldPointArray<FSavedManifoldPoint> SavedManifoldPoints;
 		TManifoldPointArray<FManifoldPoint> ManifoldPoints;
 		TManifoldPointArray<FManifoldPointResult> ManifoldPointResults;
+
+		// The lowest InitialPhi value of all saved manifold points. This is used when we add new points to
+		// the manifold but are still in the depenetrating phase to limit the initial overlap. 
+		// We don't want the new point to cause a pop but also don't want all new contacts to be initial overlaps
+		// when we were already separated at some point in the past.
+		FRealSingle MinInitialPhi;
 
 		// Value in range [0,1] used to interpolate P between [X,P] that we will rollback to when solving at time of impact.
 		FRealSingle CCDTimeOfImpact;
