@@ -36,6 +36,7 @@ MSVC_PRAGMA(warning(disable : 4191)) // warning C4191: 'type cast': unsafe conve
 #include <dxc/dxcapi.h>
 #include <dxc/Support/dxcapi.use.h>
 #include <dxc/Support/ErrorCodes.h>
+#include <dxc/DXIL/DxilConstants.h>
 #include <d3d12shader.h>
 MSVC_PRAGMA(warning(pop))
 
@@ -977,6 +978,37 @@ bool CompileAndProcessD3DShaderDXC(const FShaderPreprocessOutput& PreprocessOutp
 			bRootConstants = true;
 		}
 
+		bool bHasNoDerivativeOps = false;
+
+		if (Input.Target.GetFrequency() == SF_Compute && Input.Environment.CompilerFlags.Contains(CFLAG_CheckForDerivativeOps))
+		{
+			TRefCountPtr<IDxcContainerReflection> ContainerRefl;
+			VERIFYHRESULT(DxcDllHelper.CreateInstance2(GetDxcMalloc(), CLSID_DxcContainerReflection, ContainerRefl.GetInitReference()));
+			VERIFYHRESULT(ContainerRefl->Load(ShaderBlob));
+
+			uint32 PartCount = 0;
+			VERIFYHRESULT(ContainerRefl->GetPartCount(&PartCount));
+
+			for (uint32 PartIndex = 0; PartIndex < PartCount; ++PartIndex)
+			{
+				uint32 PartKind;
+				VERIFYHRESULT(ContainerRefl->GetPartKind(PartIndex, &PartKind));
+
+				//if (PartKind == DXC_PART_USER_INFO)
+				if (PartKind == DXC_PART_RESOURCE_DEF) // HACK TODO: Use ResourceDef for now (pass validation)
+				{
+					TRefCountPtr<IDxcBlob> UserPartBlob;
+					ContainerRefl->GetPartContent(PartIndex, UserPartBlob.GetInitReference());
+					if (UserPartBlob->GetBufferSize() == sizeof(uint64))
+					{
+						uint64 UserFlags = *(uint64*)UserPartBlob->GetBufferPointer();
+						bHasNoDerivativeOps = (UserFlags & hlsl::DXIL::kNoDerivativeOps) != 0;
+					}
+					break;
+				}
+			}
+		}
+
 		if (bIsRayTracingShader)
 		{
 			TRefCountPtr<ID3D12LibraryReflection> LibraryReflection;
@@ -1143,6 +1175,11 @@ bool CompileAndProcessD3DShaderDXC(const FShaderPreprocessOutput& PreprocessOutp
 			if (ShaderRequiresFlags & D3D_SHADER_REQUIRES_SAMPLER_DESCRIPTOR_HEAP_INDEXING)
 			{
 				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::BindlessSamplers;
+			}
+
+			if (bHasNoDerivativeOps)
+			{
+				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::NoDerivativeOps;
 			}
 
 			PackedResourceCounts.NumSamplers = static_cast<uint8>(NumSamplers);
