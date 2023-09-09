@@ -83,7 +83,7 @@ namespace Horde.Server.Tests
 
 			GlobalConfig globalConfig = new GlobalConfig { Projects = new List<ProjectConfig> { projectConfig } };
 			globalConfig.PostLoad(serverSettings);
-			configService.Set(IoHash.Zero, globalConfig);
+			configService.OverrideConfig(globalConfig);
 
 			StreamId = streamId;
 			StreamConfig = streamConfig;

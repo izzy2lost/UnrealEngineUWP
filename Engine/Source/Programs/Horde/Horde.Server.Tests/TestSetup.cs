@@ -152,7 +152,7 @@ namespace Horde.Server.Tests
 		protected void SetConfig(GlobalConfig globalConfig)
 		{
 			globalConfig.PostLoad(ServerSettings);
-			ConfigService.Set(IoHash.Zero, globalConfig);
+			ConfigService.OverrideConfig(globalConfig);
 		}
 
 		protected void UpdateConfig(Action<GlobalConfig> action)
@@ -160,7 +160,7 @@ namespace Horde.Server.Tests
 			GlobalConfig globalConfig = GlobalConfig.CurrentValue;
 			action(globalConfig);
 			globalConfig.PostLoad(ServerSettings);
-			ConfigService.Set(IoHash.Zero, globalConfig);
+			ConfigService.OverrideConfig(globalConfig);
 		}
 
 		protected override void ConfigureSettings(ServerSettings settings)

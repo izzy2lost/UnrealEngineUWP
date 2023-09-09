@@ -294,9 +294,18 @@ namespace Horde.Server.Configuration
 		/// <summary>
 		/// Accessor for tests to update the global config
 		/// </summary>
+		/// <param name="globalConfig">New config value</param>
+		public void OverrideConfig(GlobalConfig globalConfig)
+		{
+			Set(IoHash.Zero, globalConfig);
+		}
+
+		/// <summary>
+		/// Updates the current config
+		/// </summary>
 		/// <param name="hash">Hash for the config data</param>
 		/// <param name="globalConfig">New config value</param>
-		public void Set(IoHash hash, GlobalConfig globalConfig)
+		void Set(IoHash hash, GlobalConfig globalConfig)
 		{
 			// Set the new state
 			_stateTask = Task.FromResult(new ConfigState(hash, globalConfig));
@@ -596,10 +605,10 @@ namespace Horde.Server.Configuration
 
 			// Hash the data and only update if it changes; this prevents any double-updates due to time between initialization and the hosted service starting.
 			IoHash hash = IoHash.Compute(data.Span);
-			if (hash != state.Hash)
+			if (hash != state.Hash && state.Hash != IoHash.Zero) // Don't replace any explicit config override
 			{
-				_logger.LogInformation("Updating config state from Redis (hash: {OldHash} -> {NewHash}, new size: {Size})", state.Hash, hash, data.Length);
 				GlobalConfig globalConfig = CreateGlobalConfig(data);
+				_logger.LogInformation("Updating config state from Redis (hash: {OldHash} -> {NewHash}, new size: {Size})", state.Hash, hash, data.Length);
 				Set(hash, globalConfig);
 			}
 		}

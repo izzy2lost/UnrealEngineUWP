@@ -77,7 +77,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 			globalConfig.PostLoad(serverSettings);
 
 			ConfigService configService = ServiceProvider.GetRequiredService<ConfigService>();
-			configService.Set(IoHash.Zero, globalConfig);
+			configService.OverrideConfig(globalConfig);
 		}
 
 		[TestMethod]

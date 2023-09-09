@@ -53,7 +53,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 			globalConfig.PostLoad(serverSettings);
 
 			ConfigService configService = ServiceProvider.GetRequiredService<ConfigService>();
-			configService.Set(IoHash.Zero, globalConfig);
+			configService.OverrideConfig(globalConfig);
 		}
 
 		[TestMethod]
