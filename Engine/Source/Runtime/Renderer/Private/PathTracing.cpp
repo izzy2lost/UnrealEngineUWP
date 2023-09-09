@@ -2291,7 +2291,7 @@ IMPLEMENT_SHADER_TYPE(, FPathTracingCompositorPS, TEXT("/Engine/Private/PathTrac
 static FPathTracingRG::FPermutationDomain GetPathTracingRGPermutation(const FScene& Scene)
 {
 	const bool bUseExperimental = CVarPathTracingExperimental.GetValueOnRenderThread() != 0;
-	const bool bUseCompaction = bUseExperimental && CVarPathTracingCompaction.GetValueOnRenderThread() != 0;
+	const bool bUseCompaction = (bUseExperimental == false) || CVarPathTracingCompaction.GetValueOnRenderThread() != 0;
 	const bool bUseAdaptiveSampling = bUseExperimental && CVarPathTracingAdaptiveSampling.GetValueOnRenderThread() != 0;
 	const bool bHasComplexSpecialRenderPath = Substrate::IsSubstrateEnabled() && Scene.SubstrateSceneData.bUsesComplexSpecialRenderPath;
 
@@ -2319,6 +2319,47 @@ void FDeferredShadingSceneRenderer::PreparePathTracing(const FSceneViewFamily& V
 			OutRayGenShaders.Add(RayGenShader.GetRayTracingShader());
 		}		
 	}
+}
+
+void PreparePathTracingRTPSO()
+{
+	ENQUEUE_RENDER_COMMAND(PreparePathTracingRTPSO)([](FRHICommandListImmediate& RHICmdList)
+		{
+			int NumValidPermutations = 0;
+			for (int PermutationId = 0; PermutationId < FPathTracingRG::FPermutationDomain::PermutationCount; PermutationId++)
+			{
+				FGlobalShaderPermutationParameters Parameters(FPathTracingRG::GetStaticType().GetFName(), GMaxRHIShaderPlatform, PermutationId);
+				if (!FPathTracingRG::ShouldCompilePermutation(Parameters))
+				{
+					// Permutation is not enabled, nothing to pre-compile
+					continue;
+				}
+				FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
+
+				FPathTracingRG::FPermutationDomain PermutationVector(PermutationId);
+				
+				FRHIRayTracingShader* RayGenShaderTable[] = {
+					ShaderMap->GetShader<FPathTracingRG>(PermutationVector).GetRayTracingShader(),
+					ShaderMap->GetShader<FPathTracingInitExtinctionCoefficientRG>().GetRayTracingShader(),
+				};
+				FRHIRayTracingShader* MissShaderTable[] = {
+					GetPathTracingDefaultMissShader(ShaderMap),
+				};
+				FRHIRayTracingShader* HitGroupTable[] = {
+					GetPathTracingDefaultOpaqueHitShader(ShaderMap),
+				};
+				FRayTracingPipelineStateInitializer Initializer;
+				Initializer.bPartial = true; // TODO: getting a crash in nvidia driver when false
+				Initializer.SetRayGenShaderTable(RayGenShaderTable);
+				Initializer.SetMissShaderTable(MissShaderTable);
+				Initializer.SetHitGroupTable(HitGroupTable);
+				Initializer.MaxPayloadSizeInBytes = RayGenShaderTable[0]->RayTracingPayloadSize;
+				FRayTracingPipelineState* PipelineState = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
+				NumValidPermutations++;
+			}
+			UE_LOG(LogRenderer, Log, TEXT("Requested compilation of Path Tracing RTPSOs (%d permutations)."), NumValidPermutations);
+		}
+	);
 }
 
 void FSceneViewState::PathTracingInvalidate(bool InvalidateAnimationStates)
@@ -2727,7 +2768,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			bNeedsTextureExtract = true;
 
 			// should we use path compaction?
-			const bool bUseCompaction = bUseExperimental && CVarPathTracingCompaction.GetValueOnRenderThread() != 0;
+			const bool bUseCompaction = (bUseExperimental == false) || CVarPathTracingCompaction.GetValueOnRenderThread() != 0;
 			const bool bUseIndirectDispatch = GRHISupportsRayTracingDispatchIndirect && CVarPathTracingIndirectDispatch.GetValueOnRenderThread() != 0;
 			const int FlushRenderingCommands = CVarPathTracingFlushDispatch.GetValueOnRenderThread();
 

@@ -45,6 +45,7 @@
 #include "PrimitiveSceneShaderData.h"
 #include "MeshDrawCommandStats.h"
 #include "LocalFogVolumeRendering.h"
+#include "PathTracing.h"
 
 DEFINE_LOG_CATEGORY(LogRenderer);
 
@@ -86,6 +87,19 @@ void FRendererModule::StartupModule()
 	GIdentityPrimitiveUniformBuffer.InitContents();
 	GDistanceCullFadedInUniformBuffer.InitContents();
 	GDitherFadedInUniformBuffer.InitContents();
+
+#if RHI_RAYTRACING && WITH_EDITOR
+	if (FApp::CanEverRender() && !FApp::IsUnattended())
+	{
+		FCoreDelegates::OnPostEngineInit.AddLambda([]() {
+			// We add this step via the PostEngineInit delegate so that it can run after PostInitRHI has run,
+			// and the rendering thread has been started so that we are able to create RTPSOs.
+			// For now, we only attempt to create the PathTracer RTPSO as it is the most expensive to compile by far.
+			// See UE-190955 for example timings.
+			PreparePathTracingRTPSO();
+		});
+	}
+#endif
 }
 
 void FRendererModule::ShutdownModule()

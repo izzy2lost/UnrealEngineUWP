@@ -994,6 +994,7 @@ public:
 		void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 		{
 			SCOPE_CYCLE_COUNTER(STAT_RTPSO_CompileShader);
+			TRACE_CPUPROFILER_EVENT_SCOPE(ShaderCompileTask);
 
 			uint64 CompileTimeCycles = 0;
 			CompileTimeCycles -= FPlatformTime::Cycles64();
@@ -1095,6 +1096,12 @@ public:
 			CompileTimeCycles += FPlatformTime::Cycles64();
 
 			Entry.CompileTimeMS = float(FPlatformTime::ToMilliseconds64(CompileTimeCycles));
+
+			if (Entry.CompileTimeMS >= 1000.0f)
+			{
+				// Log compilations of individual shaders that took more than 1 second
+				UE_LOG(LogD3D12RHI, Log, TEXT("Compiled %s for RTPSO in %.2f ms."), OriginalEntryPoints[0], Entry.CompileTimeMS);
+			}
 		}
 
 		FORCEINLINE TStatId GetStatId() const
@@ -1932,6 +1939,7 @@ public:
 	FD3D12RayTracingPipelineState(FD3D12Device* Device, const FRayTracingPipelineStateInitializer& Initializer)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_RTPSO_CreatePipeline);
+		TRACE_CPUPROFILER_EVENT_SCOPE(RTPSO_CreatePipeline);
 
 		checkf(Initializer.GetRayGenTable().Num() > 0 || Initializer.bPartial, TEXT("Ray tracing pipelines must have at leat one ray generation shader."));
 
@@ -2281,7 +2289,7 @@ public:
 		{
 			const double CompileTimeMS = 1000.0 * FPlatformTime::ToSeconds64(CompileTime);
 			const double LinkTimeMS = 1000.0 * FPlatformTime::ToSeconds64(LinkTime);
-			uint32 NumUniqueShaders = UniqueShaderCollections.Num();
+			const uint32 NumUniqueShaders = UniqueShaderCollections.Num();
 			UE_LOG(LogD3D12RHI, Log,
 				TEXT("Creating RTPSO with %d shaders (%d cached, %d new) took %.2f ms. Compile time %.2f ms, link time %.2f ms."),
 				PipelineShaderHashes.Num(), NumCacheHits, NumUniqueShaders - NumCacheHits, (float)TotalCreationTimeMS, (float)CompileTimeMS, (float)LinkTimeMS);

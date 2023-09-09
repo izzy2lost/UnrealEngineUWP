@@ -29,6 +29,8 @@ RENDERER_API FRHIRayTracingShader* GetGPULightmassDefaultMissShader(const FGloba
 RENDERER_API FRHIRayTracingShader* GetGPULightmassDefaultOpaqueHitShader(const FGlobalShaderMap* ShaderMap);
 RENDERER_API FRHIRayTracingShader* GetGPULightmassDefaultHiddenHitShader(const FGlobalShaderMap* ShaderMap);
 
+void PreparePathTracingRTPSO();
+
 class FRDGTexture;
 
 struct FPathTracingResources
