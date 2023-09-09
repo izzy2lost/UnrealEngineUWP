@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -12,13 +11,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using EpicGames.Core;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage.Bundles;
 using Microsoft.Extensions.Http;
 using Polly.Extensions.Http;
 using Polly;
 using Polly.Retry;
+using EpicGames.Horde.Storage.Backends;
 
 namespace EpicGames.Horde.Storage.Clients
 {
@@ -59,9 +58,7 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		readonly Func<HttpClient> _createClient;
-		readonly Func<HttpClient> _createRedirectClient;
 		readonly ILogger _logger;
-		bool _supportsUploadRedirects = true;
 
 		static readonly HttpMessageHandler s_defaultHttpMessageHandler = CreateDefaultHttpMessageHandler();
 
@@ -77,10 +74,9 @@ namespace EpicGames.Horde.Storage.Clients
 		/// Constructor
 		/// </summary>
 		public HttpStorageClient(Func<HttpClient> createClient, Func<HttpClient> createRedirectClient, StorageCache cache, ILogger logger) 
-			: base(cache, logger)
+			: base(new HttpStorageBackend(createClient, createRedirectClient, logger), cache, logger)
 		{
 			_createClient = createClient;
-			_createRedirectClient = createRedirectClient;
 			_logger = logger;
 		}
 
@@ -130,105 +126,6 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 			return httpClient;
 		}
-
-		#region Blobs
-
-		/// <inheritdoc/>
-		public override async Task<Stream> OpenAsync(BundleLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
-		{
-			if (offset == 0 && length == null)
-			{
-				_logger.LogDebug("Reading {Locator}", locator);
-			}
-			else if (length == null)
-			{
-				_logger.LogDebug("Reading {Locator} ({Offset}..)", locator, offset);
-			}
-			else
-			{
-				_logger.LogDebug("Reading {Locator} ({Offset}+{Length})", locator, offset, length);
-			}
-
-			if (length.HasValue && length.Value == 0)
-			{
-				return new MemoryStream(Array.Empty<byte>());
-			}
-
-			using (HttpClient httpClient = _createClient())
-			{
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"blobs/{locator}"))
-				{
-					if (offset != 0 || length != null)
-					{
-						request.Headers.Range = new RangeHeaderValue(offset, (length == null) ? null : (offset + (length - 1)));
-					}
-
-					HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
-					response.EnsureSuccessStatusCode();
-					return await response.Content.ReadAsStreamAsync(cancellationToken);
-				}
-			}
-		}
-
-		/// <inheritdoc/>
-		public override async Task<BundleLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
-		{
-			using StreamContent streamContent = new StreamContent(new ReadOnlySequenceStream(bundle.AsSequence()));
-
-			if (_supportsUploadRedirects)
-			{
-				using (HttpClient redirectHttpClient = _createRedirectClient())
-				{
-					WriteBlobResponse redirectResponse = await SendWriteRequestAsync(null, prefix, cancellationToken);
-					if (redirectResponse.UploadUrl != null)
-					{
-						using (HttpResponseMessage uploadResponse = await redirectHttpClient.PutAsync(redirectResponse.UploadUrl, streamContent, cancellationToken))
-						{
-							if (!uploadResponse.IsSuccessStatusCode)
-							{
-								string body = await uploadResponse.Content.ReadAsStringAsync(cancellationToken);
-								throw new StorageException($"Unable to upload data to redirected URL: {body}");
-							}
-						}
-						_logger.LogDebug("Written {Locator} (using redirect)", redirectResponse.Blob);
-						return redirectResponse.Blob;
-					}
-				}
-			}
-
-			WriteBlobResponse response = await SendWriteRequestAsync(streamContent, prefix, cancellationToken);
-			_supportsUploadRedirects = response.SupportsRedirects ?? false;
-			_logger.LogDebug("Written {Locator} (direct)", response.Blob);
-			return response.Blob;
-		}
-
-		async Task<WriteBlobResponse> SendWriteRequestAsync(StreamContent? streamContent, Utf8String prefix = default, CancellationToken cancellationToken = default)
-		{
-			using (HttpClient httpClient = _createClient())
-			{
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"blobs"))
-				{
-					using StringContent stringContent = new StringContent(prefix.ToString());
-
-					MultipartFormDataContent form = new MultipartFormDataContent();
-					if (streamContent != null)
-					{
-						form.Add(streamContent, "file", "filename");
-					}
-					form.Add(stringContent, "prefix");
-
-					request.Content = form;
-					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
-					{
-						response.EnsureSuccessStatusCode();
-						WriteBlobResponse? data = await response.Content.ReadFromJsonAsync<WriteBlobResponse>(cancellationToken: cancellationToken);
-						return data!;
-					}
-				}
-			}
-		}
-
-		#endregion
 
 		#region Nodes
 

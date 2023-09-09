@@ -13,6 +13,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.Backends;
 
 namespace EpicGames.Horde.Storage.Clients
 {
@@ -48,33 +49,9 @@ namespace EpicGames.Horde.Storage.Clients
 		/// Constructor
 		/// </summary>
 		public MemoryStorageClient() 
-			: base(StorageCache.None, NullLogger.Instance)
+			: base(new MemoryStorageBackend(), StorageCache.None, NullLogger.Instance)
 		{
 		}
-
-		#region Blobs
-
-		/// <inheritdoc/>
-		public override Task<Stream> OpenAsync(BundleLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
-		{
-			ReadOnlySequence<byte> sequence = _bundles[locator].AsSequence().Slice(offset);
-			if (length != null && sequence.Length > length)
-			{
-				sequence = sequence.Slice(0, length.Value);
-			}
-			return Task.FromResult<Stream>(new ReadOnlySequenceStream(sequence));
-		}
-
-		/// <inheritdoc/>
-		public override async Task<BundleLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
-		{
-			BundleLocator locator = BundleLocator.CreateUnique(prefix);
-			using ReadOnlySequenceStream stream = new ReadOnlySequenceStream(bundle.AsSequence());
-			_bundles[locator] = await Bundle.FromStreamAsync(stream, cancellationToken);
-			return locator;
-		}
-
-		#endregion
 
 		#region Aliases
 

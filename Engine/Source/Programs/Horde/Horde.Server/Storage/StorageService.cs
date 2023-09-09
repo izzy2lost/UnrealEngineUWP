@@ -78,7 +78,7 @@ namespace Horde.Server.Storage
 		/// <param name="storageCache">Storage cache</param>
 		/// <param name="logger">Logger instance</param>
 		protected StorageClient(NamespaceConfig config, IStorageBackend backend, StorageCache storageCache, ILogger logger)
-			: base(storageCache, logger)
+			: base(backend, storageCache, logger)
 		{
 			Config = config;
 			Backend = backend;
@@ -93,22 +93,6 @@ namespace Horde.Server.Storage
 
 		/// <inheritdoc cref="IStorageClient.WriteRefTargetAsync(RefName, BlobHandle, RefOptions?, CancellationToken)"/>
 		public abstract Task WriteRefTargetAsync(RefName name, BundleNodeLocator handle, RefOptions? options = null, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Gets a redirect for a read request
-		/// </summary>
-		/// <param name="locator">Locator for the blob</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Path to upload the data to</returns>
-		public abstract ValueTask<Uri?> GetReadRedirectAsync(BundleLocator locator, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Gets a redirect for a write request
-		/// </summary>
-		/// <param name="prefix">Prefix for the new blob locator</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Locator and path to upload the data to</returns>
-		public abstract ValueTask<(BundleLocator, Uri)?> GetWriteRedirectAsync(Utf8String prefix = default, CancellationToken cancellationToken = default);
 	}
 
 	/// <summary>
@@ -116,39 +100,38 @@ namespace Horde.Server.Storage
 	/// </summary>
 	public sealed class StorageService : IHostedService, IDisposable, IStorageClientFactory
 	{
-		sealed class StorageClientImpl : StorageClient
+		sealed class StorageBackendImpl : IStorageBackend
 		{
 			readonly StorageService _outer;
+			readonly NamespaceId _namespaceId;
 			readonly string _prefix;
+			readonly IStorageBackend _inner;
 			readonly Tracer _tracer;
-			readonly ILogger _logger;
 
-			public StorageClientImpl(StorageService outer, NamespaceConfig config, IStorageBackend backend, StorageCache storageCache, Tracer tracer, ILogger logger)
-				: base(config, backend, storageCache, logger)
+			public StorageBackendImpl(StorageService outer, NamespaceId namespaceId, string prefix, IStorageBackend inner, Tracer tracer)
 			{
 				_outer = outer;
+				_namespaceId = namespaceId;
+				_prefix = prefix;
+				_inner = inner;
 				_tracer = tracer;
-				_logger = logger;
-
-				_prefix = config.Prefix;
-				if (_prefix.Length > 0 && !_prefix.EndsWith("/", StringComparison.Ordinal))
-				{
-					_prefix += "/";
-				}
 			}
 
-			string GetBlobPath(BundleLocator locator) => $"{_prefix}{locator.Path}";
-
-			#region Blobs
-
-			/// <inheritdoc/>
-			public override ValueTask<Uri?> GetReadRedirectAsync(BundleLocator locator, CancellationToken cancellationToken = default) => Backend.TryGetReadRedirectAsync(GetBlobPath(locator), cancellationToken);
-
-			/// <inheritdoc/>
-			public override async Task<Stream> OpenAsync(BundleLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
+			public void Dispose()
 			{
-				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(StorageClientImpl)}.{nameof(OpenAsync)}");
-				span.SetAttribute("locator", locator.ToString());
+				_inner.Dispose();
+			}
+
+			/// <inheritdoc/>
+			public bool SupportsRedirects => _inner.SupportsRedirects;
+
+			/// <inheritdoc/>
+			public async Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+			{
+				string fullPath = $"{_prefix}{path}";
+
+				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(StorageClientImpl)}.{nameof(ReadAsync)}");
+				span.SetAttribute("path", fullPath);
 				span.SetAttribute("offset", offset);
 				span.SetAttribute("length", length);
 
@@ -157,50 +140,83 @@ namespace Horde.Server.Storage
 					return new MemoryStream(Array.Empty<byte>());
 				}
 
-				string path = GetBlobPath(locator);
-				return await Backend.ReadAsync(path, offset, length, cancellationToken);
+				return await _inner.ReadAsync(fullPath, offset, length, cancellationToken);
 			}
 
 			/// <inheritdoc/>
-			public override async Task<BundleLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
+			public async Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default)
 			{
-				using ReadOnlySequenceStream memoryStream = new ReadOnlySequenceStream(bundle.AsSequence());
-				string path = await Backend.WriteAsync(memoryStream, prefix.IsEmpty? null : prefix.ToString(), cancellationToken);
+				string path = await _inner.WriteAsync(stream, $"{_prefix}{prefix}", cancellationToken);
 
-				// Add the blob record
 				BundleLocator locator = new BundleLocator(path);
-				await _outer.AddBlobAsync(NamespaceId, locator, null, cancellationToken);
+				await _outer.AddBlobAsync(_namespaceId, locator, null, cancellationToken);
 
-				return locator;
+				return path;
 			}
 
 			/// <inheritdoc/>
-			public override async ValueTask<(BundleLocator, Uri)?> GetWriteRedirectAsync(Utf8String prefix = default, CancellationToken cancellationToken = default)
+			public Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+			/// <inheritdoc/>
+			public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default) => _inner.ExistsAsync($"{_prefix}{path}", cancellationToken);
+
+			/// <inheritdoc/>
+			public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => _inner.DeleteAsync($"{_prefix}{path}", cancellationToken);
+
+			/// <inheritdoc/>
+			public async IAsyncEnumerable<string> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
 			{
-				if (!Backend.SupportsRedirects)
+				await foreach (string path in _inner.EnumerateAsync(cancellationToken))
+				{
+					if (path.StartsWith(_prefix, StringComparison.Ordinal))
+					{
+						yield return path.Substring(_prefix.Length);
+					}
+				}
+			}
+
+			/// <inheritdoc/>
+			public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default)
+			{
+				return _inner.TryGetReadRedirectAsync($"{_prefix}{path}", cancellationToken);
+			}
+
+			/// <inheritdoc/>
+			public async ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default)
+			{
+				if (!_inner.SupportsRedirects)
 				{
 					return null;
 				}
 
-				(string Path, Uri Url)? redirect = await Backend.TryGetWriteRedirectAsync(prefix.IsEmpty? null : prefix.ToString(), cancellationToken);
+				(string Path, Uri Url)? redirect = await _inner.TryGetWriteRedirectAsync(prefix, cancellationToken);
 				if (redirect == null)
 				{
 					return null;
 				}
 
 				BundleLocator locator = new BundleLocator(redirect.Value.Path);
-				await _outer.AddBlobAsync(NamespaceId, locator, null, cancellationToken);
+				await _outer.AddBlobAsync(_namespaceId, locator, null, cancellationToken);
 
-				return (locator, redirect.Value.Url);
+				return redirect;
 			}
+		}
 
-			public async Task DeleteBlobAsync(BundleLocator locator, CancellationToken cancellationToken = default)
+		sealed class StorageClientImpl : StorageClient
+		{
+			readonly StorageService _outer;
+			readonly string _prefix;
+			readonly Tracer _tracer;
+			readonly ILogger _logger;
+
+			public StorageClientImpl(StorageService outer, NamespaceConfig config, StorageBackendImpl backend, string prefix, StorageCache storageCache, Tracer tracer, ILogger logger)
+				: base(config, backend, storageCache, logger)
 			{
-				string path = GetBlobPath(locator);
-				await Backend.DeleteAsync(path, cancellationToken);
+				_outer = outer;
+				_tracer = tracer;
+				_logger = logger;
+				_prefix = prefix;
 			}
-
-			#endregion
 
 			#region Nodes
 
@@ -583,9 +599,17 @@ namespace Horde.Server.Storage
 				{
 					foreach (NamespaceConfig namespaceConfig in storageConfig.Namespaces)
 					{
+						string prefix = namespaceConfig.Prefix;
+						if (prefix.Length > 0 && !prefix.EndsWith("/", StringComparison.Ordinal))
+						{
+							prefix += "/";
+						}
+
 						IStorageBackend backend = _storageBackendProvider.CreateBackend(namespaceConfig.BackendConfig);
-						StorageClientImpl client = new StorageClientImpl(this, namespaceConfig, backend, _storageCache, _tracer, _logger);
-						nextState.Namespaces.Add(namespaceConfig.Id, new NamespaceInfo(namespaceConfig, client, backend));
+
+						StorageBackendImpl backendImpl = new StorageBackendImpl(this, namespaceConfig.Id, prefix, backend, _tracer);
+						StorageClientImpl clientImpl = new StorageClientImpl(this, namespaceConfig, backendImpl, prefix, _storageCache, _tracer, _logger);
+						nextState.Namespaces.Add(namespaceConfig.Id, new NamespaceInfo(namespaceConfig, clientImpl, backend));
 					}
 				}
 				catch
@@ -1038,7 +1062,7 @@ namespace Horde.Server.Storage
 							_ = _redisService.GetDatabase().SortedSetAddAsync(checkSet, entries, flags: CommandFlags.FireAndForget);
 							score = Math.BitIncrement(score);
 						}
-						await namespaceInfo.Client.DeleteBlobAsync(info.Locator, cancellationToken);
+						await namespaceInfo.Client.Backend.DeleteAsync(info.Locator.ToString(), cancellationToken);
 					}
 				}
 				_ = _redisService.GetDatabase().SortedSetRemoveAsync(checkSet, values[0], CommandFlags.FireAndForget);

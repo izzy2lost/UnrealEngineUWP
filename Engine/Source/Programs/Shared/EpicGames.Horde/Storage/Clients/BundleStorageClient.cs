@@ -16,6 +16,8 @@ namespace EpicGames.Horde.Storage.Clients
 	/// </summary>
 	public abstract class BundleStorageClient : IStorageClient
 	{
+		readonly IStorageBackend _backend;
+
 		/// <summary>
 		/// Reader for node data
 		/// </summary>
@@ -24,8 +26,9 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		protected BundleStorageClient(StorageCache cache, ILogger logger)
+		protected BundleStorageClient(IStorageBackend backend, StorageCache cache, ILogger logger)
 		{
+			_backend = backend;
 			BundleReader = new BundleReader(this, cache, logger);
 		}
 
@@ -40,7 +43,10 @@ namespace EpicGames.Horde.Storage.Clients
 		public Task<Stream> OpenAsync(BundleLocator locator, CancellationToken cancellationToken = default) => OpenAsync(locator, 0, null, cancellationToken);
 
 		/// <inheritdoc/>
-		public abstract Task<Stream> OpenAsync(BundleLocator locator, int offset, int? length = null, CancellationToken cancellationToken = default);
+		public async Task<Stream> OpenAsync(BundleLocator locator, int offset, int? length = null, CancellationToken cancellationToken = default)
+		{
+			return await _backend.ReadAsync(locator.Path.ToString(), offset, length, cancellationToken);
+		}
 
 		/// <summary>
 		/// Reads an entire bundle into memory
@@ -55,7 +61,12 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public abstract Task<BundleLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default);
+		public async Task<BundleLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
+		{
+			using ReadOnlySequenceStream stream = new ReadOnlySequenceStream(bundle.AsSequence());
+			string path = await _backend.WriteAsync(stream, prefix.IsEmpty? null : prefix.ToString(), cancellationToken);
+			return new BundleLocator(path);
+		}
 
 		#endregion
 

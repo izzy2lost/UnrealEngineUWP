@@ -38,10 +38,15 @@ namespace EpicGames.Horde.Storage.Backends
 		{
 		}
 
+		/// <summary>
+		/// Gets the path for storing a file on disk
+		/// </summary>
+		FileReference GetBlobFile(string path) => FileReference.Combine(_baseDir, $"{path}.blob");
+	
 		/// <inheritdoc/>
 		public Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
 		{
-			FileReference location = FileReference.Combine(_baseDir, path);
+			FileReference location = GetBlobFile(path);
 			Stream stream = FileReference.Open(location, FileMode.Open, FileAccess.Read, FileShare.Read);
 			stream.Seek(offset, SeekOrigin.Begin);
 			return Task.FromResult(stream);
@@ -58,7 +63,7 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <inheritdoc/>
 		public async Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default)
 		{
-			FileReference finalLocation = FileReference.Combine(_baseDir, path);
+			FileReference finalLocation = GetBlobFile(path);
 			DirectoryReference.CreateDirectory(finalLocation.Directory);
 			FileReference tempLocation = new FileReference($"{finalLocation}.tmp");
 		
@@ -88,14 +93,14 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <inheritdoc/>
 		public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken)
 		{
-			FileReference location = FileReference.Combine(_baseDir, path);
+			FileReference location = GetBlobFile(path);
 			return Task.FromResult(FileReference.Exists(location));
 		}
 
 		/// <inheritdoc/>
 		public Task DeleteAsync(string path, CancellationToken cancellationToken)
 		{
-			FileReference location = FileReference.Combine(_baseDir, path);
+			FileReference location = GetBlobFile(path);
 			FileReference.Delete(location);
 			return Task.CompletedTask;
 		}
@@ -118,10 +123,10 @@ namespace EpicGames.Horde.Storage.Backends
 					}
 
 					DirectoryInfo current = top.Current;
-					foreach (FileInfo fileInfo in current.EnumerateFiles("*"))
+					foreach (FileInfo fileInfo in current.EnumerateFiles("*.blob"))
 					{
 						string path = fileInfo.FullName.Substring(_baseDir.FullName.Length + 1).Replace(Path.DirectorySeparatorChar, '/');
-						yield return path;
+						yield return path.Substring(0, path.Length - 5);
 					}
 
 					queue.Push(current.EnumerateDirectories().GetEnumerator());

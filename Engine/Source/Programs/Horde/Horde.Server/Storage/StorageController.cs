@@ -37,9 +37,9 @@ namespace Horde.Server.Storage
 	public class WriteBlobResponse
 	{
 		/// <summary>
-		/// Locator for the uploaded bundle
+		/// Path to the uploaded blob
 		/// </summary>
-		public BundleLocator Blob { get; set; }
+		public string Blob { get; set; } = String.Empty;
 
 		/// <summary>
 		/// URL to upload the blob to.
@@ -223,13 +223,13 @@ namespace Horde.Server.Storage
 					return new WriteBlobResponse { SupportsRedirects = false };
 				}
 
-				(BundleLocator Locator, Uri UploadUrl)? result = await storageClientImpl.GetWriteRedirectAsync(prefix ?? String.Empty, cancellationToken);
+				(string Path, Uri UploadUrl)? result = await storageClientImpl.Backend.TryGetWriteRedirectAsync(prefix ?? String.Empty, cancellationToken);
 				if (result == null)
 				{
 					return new WriteBlobResponse { SupportsRedirects = false };
 				}
 
-				return new WriteBlobResponse { Blob = result.Value.Locator, UploadUrl = result.Value.UploadUrl };
+				return new WriteBlobResponse { Blob = result.Value.Path, UploadUrl = result.Value.UploadUrl };
 			}
 			else
 			{
@@ -240,7 +240,7 @@ namespace Horde.Server.Storage
 				}
 
 				BundleLocator locator = await storageClient.WriteBundleAsync(bundle, prefix: (prefix == null) ? Utf8String.Empty : new Utf8String(prefix), cancellationToken: cancellationToken);
-				return new WriteBlobResponse { Blob = locator, SupportsRedirects = storageClientImpl?.SupportsRedirects };
+				return new WriteBlobResponse { Blob = locator.ToString(), SupportsRedirects = storageClientImpl?.SupportsRedirects };
 			}
 		}
 
@@ -277,7 +277,7 @@ namespace Horde.Server.Storage
 		{
 			if (storageClient is StorageClient storageClientImpl)
 			{
-				Uri? redirectUrl = await storageClientImpl.GetReadRedirectAsync(locator, cancellationToken);
+				Uri? redirectUrl = await storageClientImpl.Backend.TryGetReadRedirectAsync(locator.ToString(), cancellationToken);
 				if (redirectUrl != null)
 				{
 					return new RedirectResult(redirectUrl.ToString());

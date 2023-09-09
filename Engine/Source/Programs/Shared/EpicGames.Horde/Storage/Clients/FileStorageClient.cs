@@ -11,6 +11,7 @@ using System.Runtime.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Storage.Backends;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage.Bundles;
@@ -32,7 +33,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <param name="cache">Memory cache for read data</param>
 		/// <param name="logger">Logger interface</param>
 		public FileStorageClient(DirectoryReference rootDir, StorageCache cache, ILogger logger)
-			: base(cache, logger)
+			: base(new FileStorageBackend(rootDir), cache, logger)
 		{
 			_rootDir = rootDir;
 			_logger = logger;
@@ -50,44 +51,6 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		FileReference GetRefFile(RefName name) => FileReference.Combine(_rootDir, name.ToString() + ".ref");
-		FileReference GetBlobFile(BundleLocator id) => FileReference.Combine(_rootDir, id.Path.ToString() + ".blob");
-
-		#region Blobs
-
-		/// <inheritdoc/>
-		public override Task<Stream> OpenAsync(BundleLocator id, int offset, int? length, CancellationToken cancellationToken = default)
-		{
-			FileReference file = GetBlobFile(id);
-			_logger.LogInformation("Reading {File} ({Offset}-{Length})", file, offset, length);
-
-			Stream stream = FileReference.Open(file, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
-			if (offset > 0)
-			{
-				stream.Seek(offset, SeekOrigin.Begin);
-			}
-			return Task.FromResult(stream);
-		}
-
-		/// <inheritdoc/>
-		public override async Task<BundleLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
-		{
-			BundleLocator id = BundleLocator.CreateUnique(prefix);
-			FileReference file = GetBlobFile(id);
-			DirectoryReference.CreateDirectory(file.Directory);
-			_logger.LogInformation("Writing {File}", file);
-
-			using (FileStream fileStream = FileReference.Open(file, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
-			{
-				foreach (ReadOnlyMemory<byte> segment in bundle.AsSequence())
-				{
-					await fileStream.WriteAsync(segment, cancellationToken);
-				}
-			}
-
-			return id;
-		}
-
-		#endregion
 
 		#region Aliases
 

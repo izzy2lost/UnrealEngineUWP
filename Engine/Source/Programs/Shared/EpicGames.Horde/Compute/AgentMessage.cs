@@ -573,16 +573,16 @@ namespace EpicGames.Horde.Compute
 		/// Reads a blob from the remote
 		/// </summary>
 		/// <param name="channel">Channel to write to</param>
-		/// <param name="locator">Locator for the blob</param>
+		/// <param name="path">Path for the blob</param>
 		/// <param name="offset">Offset within the blob</param>
 		/// <param name="length">Length of data to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Stream containing the blob data</returns>
-		public static async Task<ReadOnlyMemory<byte>> ReadBlobAsync(this AgentMessageChannel channel, BundleLocator locator, int offset, int length, CancellationToken cancellationToken = default)
+		public static async Task<ReadOnlyMemory<byte>> ReadBlobAsync(this AgentMessageChannel channel, string path, int offset, int length, CancellationToken cancellationToken = default)
 		{
 			using (IAgentMessageBuilder request = await channel.CreateMessageAsync(AgentMessageType.ReadBlob, cancellationToken))
 			{
-				request.WriteBlobLocator(locator);
+				request.WriteString(path);
 				request.WriteUnsignedVarInt(offset);
 				request.WriteUnsignedVarInt(length);
 				request.Send();
