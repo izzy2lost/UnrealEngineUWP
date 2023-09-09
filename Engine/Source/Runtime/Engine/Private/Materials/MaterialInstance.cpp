@@ -3126,7 +3126,7 @@ void UMaterialInstance::PostLoad()
 	{
 		SCOPE_SECONDS_COUNTER(MaterialLoadTime);
 
-		const bool bSkipCompilationOnPostLoad = IsShaderJobCacheDDCEnabled();
+		const bool bSkipCompilationOnPostLoad = IsMaterialMapDDCEnabled() == false;
 
 		// Make sure static parameters are up to date and shaders are cached for the current platform
 		if (bSkipCompilationOnPostLoad)

@@ -46,6 +46,7 @@ struct FAnalyticsEventAttribute;
 #define DEBUG_INFINITESHADERCOMPILE 0
 
 extern ENGINE_API bool IsShaderJobCacheDDCEnabled();
+extern ENGINE_API bool IsMaterialMapDDCEnabled();
 
 struct FShaderJobCacheStoredOutput;
 class FShaderJobCache;
@@ -480,6 +481,12 @@ private:
 		/** Total number of hits in the job cache (i.e. input hashes seen >1 time) */
 		uint64 TotalCacheHits = 0;
 
+		/** Total number of duplicate jobs (input hash matches an in-flight job, processed when in-flight job completes) */
+		uint32 TotalCacheDuplicates = 0;
+
+		/** Total number of DDC queries in the job cache (per-shader DDC). */
+		uint32 TotalCacheDDCQueries = 0;
+
 		/** Total number of DDC hits in the job cache (per shader DDC, as opposed to shader map DDC stats above). */
 		uint32 TotalCacheDDCHits = 0;
 
@@ -526,6 +533,8 @@ private:
 			ShaderMapDDCHits += Other.ShaderMapDDCHits;
 			TotalCacheSearchAttempts += Other.TotalCacheSearchAttempts;
 			TotalCacheHits += Other.TotalCacheHits;
+			TotalCacheDuplicates += Other.TotalCacheDuplicates;
+			TotalCacheDDCQueries += Other.TotalCacheDDCQueries;
 			TotalCacheDDCHits += Other.TotalCacheDDCHits;
 			UniqueCacheInputHashes += Other.UniqueCacheInputHashes;
 			UniqueCacheOutputs += Other.UniqueCacheOutputs;

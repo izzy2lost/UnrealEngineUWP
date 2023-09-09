@@ -2697,7 +2697,7 @@ bool FMaterial::CacheShaders(const FMaterialShaderMapId& ShaderMapId, EShaderPla
 			}
 
 			// If we are loading individual shaders from the shader job cache don't attempt to load full maps.
-			const bool bSkipCompilationOnPostLoad = IsShaderJobCacheDDCEnabled();
+			const bool bSkipCompilationOnPostLoad = IsMaterialMapDDCEnabled() == false;
 
 			// Attempt to load from the derived data cache if we are uncooked and don't have any shadermap.
 			// If we have an incomplete shadermap, continue with it to prevent creation of duplicate shadermaps for the same ShaderMapId
@@ -2815,8 +2815,8 @@ bool FMaterial::CacheShaders(const FMaterialShaderMapId& ShaderMapId, EShaderPla
 		}
 		else
 		{
-			const bool bSkipCompilationForODSC = !RequiresSynchronousCompilation() && (GShaderCompilingManager->IsShaderCompilationSkipped() || IsShaderJobCacheDDCEnabled());
-			// If we aren't actually compiling shaders don't print the debug message that we are compiling shaders.
+			const bool bSkipCompilationForODSC = !RequiresSynchronousCompilation() && (GShaderCompilingManager->IsShaderCompilationSkipped() || (IsMaterialMapDDCEnabled() == false));
+			// If we aren't actually generating shadermaps, don't print the debug message that we are generating shadermaps.
 			if (!bSkipCompilationForODSC)
 			{
 				const TCHAR* ShaderMapCondition;

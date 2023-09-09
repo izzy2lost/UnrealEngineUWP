@@ -4071,7 +4071,7 @@ void UMaterial::PostLoad()
 				}
 			}
 
-			const bool bSkipCompilationOnPostLoad = IsShaderJobCacheDDCEnabled();
+			const bool bSkipCompilationOnPostLoad = IsMaterialMapDDCEnabled() == false;
 			if (bSkipCompilationOnPostLoad)
 			{
 				CacheResourceShadersForRendering(false, EMaterialShaderPrecompileMode::None);

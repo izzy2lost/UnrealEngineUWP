@@ -216,6 +216,12 @@ bool IsShaderJobCacheDDCEnabled()
 	return false;
 }
 
+bool IsMaterialMapDDCEnabled()
+{
+	// If we are loading individual shaders from the shader job cache for ODSC, don't attempt to load full material maps.  Always load/cache material maps in cooks.
+	return (IsShaderJobCacheDDCEnabled() == false) || IsRunningCookCommandlet();
+}
+
 int32 GShaderCompilerAllowDistributedCompilation = 1;
 static FAutoConsoleVariableRef CVarShaderCompilerAllowDistributedCompilation(
 	TEXT("r.ShaderCompiler.AllowDistributedCompilation"),
@@ -908,6 +914,12 @@ private:
 
 	/** Statistics - total number of times we succeded in Find()ing output for some input hash */
 	uint64 TotalCacheHits = 0;
+
+	/** Statistics - total number of times a duplicate job was added (duplicate jobs are processed when the original finishes compiling) */
+	uint64 TotalCacheDuplicates = 0;
+
+	/** Statistics - total number of times a per-shader DDC query was issued */
+	uint64 TotalCacheDDCQueries = 0;
 
 	/** Statistics - total number of times a per-shader DDC query succeeded for some input hash */
 	uint64 TotalCacheDDCHits = 0;
@@ -1609,6 +1621,8 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJob* Job)
 				{
 					*WaitListHead = Job;
 				}
+				++TotalCacheDuplicates;
+
 				AddDuplicateJob(Job);
 				JobLock.WriteUnlock();
 				bNewJob = false;
@@ -4426,12 +4440,14 @@ void FShaderCompilerStats::WriteStatSummary()
 	if (Counters.TotalCacheSearchAttempts > 0)
 	{
 		UE_LOG(LogShaderCompilers, Display, TEXT("=== FShaderJobCache stats%s ==="), AggregatedSuffix);
-		UE_LOG(LogShaderCompilers, Display, TEXT("Total job queries %s, among them cache hits %s (%.2f%%), DDC hits %s (%.2f%%)"),
+		UE_LOG(LogShaderCompilers, Display, TEXT("Total job queries %s, among them cache hits %s (%.2f%%), DDC hits %s (%.2f%%), Duplicates %s (%.2f%%)"),
 			*FormatNumber(Counters.TotalCacheSearchAttempts),
 			*FormatNumber(Counters.TotalCacheHits),
 			100.0 * static_cast<double>(Counters.TotalCacheHits) / static_cast<double>(Counters.TotalCacheSearchAttempts),
 			*FormatNumber(Counters.TotalCacheDDCHits),
-			100.0 * static_cast<double>(Counters.TotalCacheDDCHits) / static_cast<double>(Counters.TotalCacheSearchAttempts));
+			100.0 * static_cast<double>(Counters.TotalCacheDDCHits) / static_cast<double>(Counters.TotalCacheSearchAttempts),
+			*FormatNumber(Counters.TotalCacheDuplicates),
+			100.0 * static_cast<double>(Counters.TotalCacheDuplicates) / static_cast<double>(Counters.TotalCacheSearchAttempts));
 
 		UE_LOG(LogShaderCompilers, Display, TEXT("Tracking %s distinct input hashes that result in %s distinct outputs (%.2f%%)"),
 			*FormatNumber(Counters.UniqueCacheInputHashes),
@@ -10183,6 +10199,8 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FJobInputHash& Hash, EShader
 		{
 			TRACE_COUNTER_INCREMENT(Shaders_JobCacheDDCRequests);
 
+			++TotalCacheDDCQueries;
+
 			UE::DerivedData::EPriority DerivedDataPriority;
 			UE::DerivedData::FRequestOwner* RequestOwner;
 
@@ -10620,6 +10638,8 @@ void FShaderJobCache::GetStats(FShaderCompilerStats& OutStats) const
 	FReadScopeLock Locker(JobLock);
 	OutStats.Counters.TotalCacheSearchAttempts = TotalSearchAttempts;
 	OutStats.Counters.TotalCacheHits = TotalCacheHits;
+	OutStats.Counters.TotalCacheDuplicates = TotalCacheDuplicates;
+	OutStats.Counters.TotalCacheDDCQueries = TotalCacheDDCQueries;
 	OutStats.Counters.TotalCacheDDCHits = TotalCacheDDCHits;
 	OutStats.Counters.UniqueCacheInputHashes = InputHashToJobData.Num();
 	OutStats.Counters.UniqueCacheOutputs = Outputs.Num();
