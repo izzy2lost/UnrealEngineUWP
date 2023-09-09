@@ -20,16 +20,6 @@ namespace EpicGames.Horde.Storage.Backends
 		/// </summary>
 		private readonly DirectoryReference _baseDir;
 
-		/// <summary>
-		/// Unique identifier for this instance
-		/// </summary>
-		private readonly string _instanceId;
-
-		/// <summary>
-		/// Unique id for each write
-		/// </summary>
-		private int _uniqueId;
-
 		/// <inheritdoc/>
 		public bool SupportsRedirects => false;
 
@@ -40,7 +30,6 @@ namespace EpicGames.Horde.Storage.Backends
 		public FileStorageBackend(DirectoryReference baseDir)
 		{
 			_baseDir = baseDir;
-			_instanceId = Guid.NewGuid().ToString("N");
 			DirectoryReference.CreateDirectory(_baseDir);
 		}
 
@@ -50,52 +39,48 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public Task<Stream> ReadAsync(string path, CancellationToken cancellationToken)
+		public Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
 		{
 			FileReference location = FileReference.Combine(_baseDir, path);
-			return Task.FromResult<Stream>(FileReference.Open(location, FileMode.Open, FileAccess.Read, FileShare.Read));
-		}
-
-		/// <inheritdoc/>
-		public async Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
-		{
-			Stream stream = await ReadAsync(path, cancellationToken);
+			Stream stream = FileReference.Open(location, FileMode.Open, FileAccess.Read, FileShare.Read);
 			stream.Seek(offset, SeekOrigin.Begin);
-			return stream;
+			return Task.FromResult(stream);
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteAsync(string path, Stream stream, CancellationToken cancellationToken)
+		public async Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default)
+		{
+			string path = StorageHelpers.CreateUniqueName(prefix);
+			await WriteExplicitPathAsync(path, stream, cancellationToken);
+			return path;
+		}
+
+		/// <inheritdoc/>
+		public async Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default)
 		{
 			FileReference finalLocation = FileReference.Combine(_baseDir, path);
-			if (!FileReference.Exists(finalLocation))
+			DirectoryReference.CreateDirectory(finalLocation.Directory);
+			FileReference tempLocation = new FileReference($"{finalLocation}.tmp");
+		
+			using (Stream outputStream = FileReference.Open(tempLocation, FileMode.Create, FileAccess.Write, FileShare.Read))
 			{
-				// Write to a temp file first
-				int newUniqueId = Interlocked.Increment(ref _uniqueId);
+				await stream.CopyToAsync(outputStream, cancellationToken);
+			}
 
-				DirectoryReference.CreateDirectory(finalLocation.Directory);
-				FileReference tempLocation = new FileReference($"{finalLocation}.{_instanceId}.{newUniqueId:x8}");
-
-				using (Stream outputStream = FileReference.Open(tempLocation, FileMode.Create, FileAccess.Write, FileShare.Read))
+			// Move the temp file into place
+			try
+			{
+				FileReference.Move(tempLocation, finalLocation, true);
+			}
+			catch (IOException) // Already exists
+			{
+				if (FileReference.Exists(finalLocation))
 				{
-					await stream.CopyToAsync(outputStream, cancellationToken);
+					FileReference.Delete(tempLocation);
 				}
-
-				// Move the temp file into place
-				try
+				else
 				{
-					FileReference.Move(tempLocation, finalLocation, true);
-				}
-				catch (IOException) // Already exists
-				{
-					if (FileReference.Exists(finalLocation))
-					{
-						FileReference.Delete(tempLocation);
-					}
-					else
-					{
-						throw;
-					}
+					throw;
 				}
 			}
 		}
@@ -158,6 +143,6 @@ namespace EpicGames.Horde.Storage.Backends
 		public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => default;
 
 		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetWriteRedirectAsync(string path, CancellationToken cancellationToken = default) => default;
+		public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => default;
 	}
 }

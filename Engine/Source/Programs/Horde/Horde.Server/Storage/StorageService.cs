@@ -137,7 +137,7 @@ namespace Horde.Server.Storage
 				}
 			}
 
-			string GetBlobPath(BundleLocator locator) => $"{_prefix}{locator.Path}.blob";
+			string GetBlobPath(BundleLocator locator) => $"{_prefix}{locator.Path}";
 
 			#region Blobs
 
@@ -164,16 +164,12 @@ namespace Horde.Server.Storage
 			/// <inheritdoc/>
 			public override async Task<BundleLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
 			{
-				// Add the blob record
-				BundleLocator locator = await _outer.AddBlobAsync(NamespaceId, prefix, null, cancellationToken);
-
-				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(StorageClientImpl)}.{nameof(WriteBundleAsync)}");
-				span.SetAttribute("locator", locator.ToString());
-
-				// Write it to the backend
-				string path = GetBlobPath(locator);
 				using ReadOnlySequenceStream memoryStream = new ReadOnlySequenceStream(bundle.AsSequence());
-				await Backend.WriteAsync(path, memoryStream, cancellationToken);
+				string path = await Backend.WriteAsync(memoryStream, prefix.IsEmpty? null : prefix.ToString(), cancellationToken);
+
+				// Add the blob record
+				BundleLocator locator = new BundleLocator(path);
+				await _outer.AddBlobAsync(NamespaceId, locator, null, cancellationToken);
 
 				return locator;
 			}
@@ -186,16 +182,16 @@ namespace Horde.Server.Storage
 					return null;
 				}
 
-				BundleLocator locator = await _outer.AddBlobAsync(NamespaceId, prefix, null, cancellationToken);
-				string path = GetBlobPath(locator);
-
-				Uri? url = await Backend.TryGetWriteRedirectAsync(path, cancellationToken);
-				if (url == null)
+				(string Path, Uri Url)? redirect = await Backend.TryGetWriteRedirectAsync(prefix.IsEmpty? null : prefix.ToString(), cancellationToken);
+				if (redirect == null)
 				{
 					return null;
 				}
 
-				return (locator, url);
+				BundleLocator locator = new BundleLocator(redirect.Value.Path);
+				await _outer.AddBlobAsync(NamespaceId, locator, null, cancellationToken);
+
+				return (locator, redirect.Value.Url);
 			}
 
 			public async Task DeleteBlobAsync(BundleLocator locator, CancellationToken cancellationToken = default)
@@ -611,20 +607,16 @@ namespace Horde.Server.Storage
 		#region Blobs
 
 		/// <inheritdoc/>
-		async Task<BundleLocator> AddBlobAsync(NamespaceId namespaceId, Utf8String prefix = default, List<AliasInfo>? exports = null, CancellationToken cancellationToken = default)
+		async Task AddBlobAsync(NamespaceId namespaceId, BundleLocator locator, List<AliasInfo>? exports = null, CancellationToken cancellationToken = default)
 		{
 			ObjectId id = ObjectId.GenerateNewId(_clock.UtcNow);
-			BundleLocator blobId = (prefix.Length > 0) ? new BundleLocator($"{prefix}/{id}") : new BundleLocator(id.ToString());
-
-			BlobInfo blobInfo = new BlobInfo(id, namespaceId, blobId);
+			BlobInfo blobInfo = new BlobInfo(id, namespaceId, locator);
 			blobInfo.Aliases = exports;
 			await _blobCollection.InsertOneAsync(blobInfo, new InsertOneOptions { }, cancellationToken);
-
-			return blobId;
 		}
 
 		/// <inheritdoc/>
-		async Task<bool> IsBlobReferenced(ObjectId blobInfoId, CancellationToken cancellationToken = default)
+		async Task<bool> IsBlobReferencedAsync(ObjectId blobInfoId, CancellationToken cancellationToken = default)
 		{
 			FilterDefinition<BlobInfo> blobFilter = Builders<BlobInfo>.Filter.AnyEq(x => x.Imports, blobInfoId);
 			if (await _blobCollection.Find(blobFilter).AnyAsync(cancellationToken))
@@ -1035,7 +1027,7 @@ namespace Horde.Server.Storage
 				}
 
 				ObjectId blobInfoId = new ObjectId(((byte[]?)values[0])!);
-				if (blobInfoId < lastImportBlobInfoId && !await IsBlobReferenced(blobInfoId, cancellationToken))
+				if (blobInfoId < lastImportBlobInfoId && !await IsBlobReferencedAsync(blobInfoId, cancellationToken))
 				{
 					BlobInfo? info = await _blobCollection.FindOneAndDeleteAsync(x => x.Id == blobInfoId, cancellationToken: cancellationToken);
 					if (info != null)

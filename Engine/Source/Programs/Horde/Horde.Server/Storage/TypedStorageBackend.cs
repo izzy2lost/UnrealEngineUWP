@@ -47,7 +47,12 @@ namespace Horde.Server.Storage
 			public Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken) => _inner.ReadAsync(path, offset, length, cancellationToken);
 
 			/// <inheritdoc/>
-			public Task WriteAsync(string path, Stream stream, CancellationToken cancellationToken) => _inner.WriteAsync(path, stream, cancellationToken);
+			public Task<string> WriteAsync(Stream stream, string? prefix, CancellationToken cancellationToken) => _inner.WriteAsync(stream, prefix, cancellationToken);
+
+#pragma warning disable CS0618
+			/// <inheritdoc/>
+			public Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken) => _inner.WriteExplicitPathAsync(path, stream, cancellationToken);
+#pragma warning restore CS0618
 
 			/// <inheritdoc/>
 			public Task DeleteAsync(string path, CancellationToken cancellationToken) => _inner.DeleteAsync(path, cancellationToken);
@@ -62,54 +67,7 @@ namespace Horde.Server.Storage
 			public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync(path, cancellationToken);
 
 			/// <inheritdoc/>
-			public ValueTask<Uri?> TryGetWriteRedirectAsync(string path, CancellationToken cancellationToken = default) => _inner.TryGetWriteRedirectAsync(path, cancellationToken);
-		}
-
-		/// <summary>
-		/// Extension for blob files
-		/// </summary>
-		public const string BlobExtension = ".blob";
-
-		/// <summary>
-		/// Gets the blob id from a path
-		/// </summary>
-		/// <param name="path">Path to the blob</param>
-		/// <returns>Path to the blob</returns>
-		public static Utf8String GetBlobPathFromFileName(string path)
-		{
-			Utf8String blobPath;
-			if (!TryGetBlobPathFromFileName(path, out blobPath))
-			{
-				throw new ArgumentException("Path is not a valid blob identifier", nameof(path));
-			}
-			return blobPath;
-		}
-
-		/// <summary>
-		/// Gets the path to a blob
-		/// </summary>
-		/// <param name="blobPath">Blob identifier</param>
-		/// <returns>Path to the blob</returns>
-		public static string GetBlobFileName(Utf8String blobPath) => $"{blobPath}{BlobExtension}";
-
-		/// <summary>
-		/// Gets a blob id from a path within the storage backend
-		/// </summary>
-		/// <param name="path">Path to the file</param>
-		/// <param name="blobPath">Receives the blob id on success</param>
-		/// <returns>True on success</returns>
-		public static bool TryGetBlobPathFromFileName(string path, out Utf8String blobPath)
-		{
-			if (path.EndsWith(BlobExtension, StringComparison.Ordinal))
-			{
-				blobPath = new Utf8String(path.Substring(0, path.Length - BlobExtension.Length));
-				return true;
-			}
-			else
-			{
-				blobPath = default;
-				return false;
-			}
+			public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => _inner.TryGetWriteRedirectAsync(prefix, cancellationToken);
 		}
 
 		/// <summary>

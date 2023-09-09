@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -30,12 +31,23 @@ namespace EpicGames.Horde.Storage
 		Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Writes a stream to the given path. If the stream throws an exception during read, the write will be aborted.
+		/// Writes a stream to the storage backend. If the stream throws an exception during read, the write will be aborted.
 		/// </summary>
-		/// <param name="path">Relative path within the bucket</param>
+		/// <param name="stream">Stream to write</param>
+		/// <param name="prefix">Path prefix for the uploaded data</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Path to the uploaded object</returns>
+		Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Writes a stream to the storage backend. This overload is deprecated; prefer passing a prefix to allow the server to determine a unique path.
+		/// </summary>
+		/// <param name="path"></param>
 		/// <param name="stream">Stream to write</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task WriteAsync(string path, Stream stream, CancellationToken cancellationToken = default);
+		/// <returns>Path to the uploaded object</returns>
+		[Obsolete("Use WriteAsync() instead. Ability to specify an explicit path is deprecated and will be removed in a future release.")]
+		Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Tests whether the given path exists
@@ -71,10 +83,47 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Gets a HTTP redirect for a write request
 		/// </summary>
-		/// <param name="path">Path to write to</param>
+		/// <param name="prefix">Prefix for the uploaded data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Path to upload the data to</returns>
-		ValueTask<Uri?> TryGetWriteRedirectAsync(string path, CancellationToken cancellationToken = default);
+		/// <returns>Path for retrieval, and URI to upload the data to</returns>
+		ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default);
+	}
+
+	/// <summary>
+	/// Utility methods for storage backend implementations
+	/// </summary>
+	public static class StorageHelpers
+	{
+		/// <summary>
+		/// Unique session id used for unique ids
+		/// </summary>
+		static readonly string s_sessionPrefix = $"{Guid.NewGuid():n}_";
+
+		/// <summary>
+		/// Incremented value used for each supplied id
+		/// </summary>
+		static int _increment;
+
+		/// <summary>
+		/// Creates a unique name with a given prefix
+		/// </summary>
+		/// <param name="prefix">The prefix to use</param>
+		/// <returns>Unique name generated with the given prefix</returns>
+		public static string CreateUniqueName(string? prefix)
+		{
+			StringBuilder builder = new StringBuilder(prefix);
+			if (!String.IsNullOrEmpty(prefix))
+			{
+				builder.Append(prefix);
+				if (!prefix.EndsWith('/'))
+				{
+					builder.Append('/');
+				}
+			}
+			builder.Append(s_sessionPrefix);
+			builder.Append(Interlocked.Increment(ref _increment));
+			return builder.ToString();
+		}
 	}
 
 	/// <summary>
@@ -114,14 +163,14 @@ namespace EpicGames.Horde.Storage
 		/// Writes a block of memory to storage
 		/// </summary>
 		/// <param name="storageBackend">Backend to read from</param>
-		/// <param name="path">Object name within the store</param>
 		/// <param name="data">Data to be written</param>
+		/// <param name="prefix">Prefix for the uploaded data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async Task WriteBytesAsync(this IStorageBackend storageBackend, string path, ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
+		public static async Task<string> WriteBytesAsync(this IStorageBackend storageBackend, ReadOnlyMemory<byte> data, string? prefix = null, CancellationToken cancellationToken = default)
 		{
 			using (ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(data))
 			{
-				await storageBackend.WriteAsync(path, stream, cancellationToken);
+				return await storageBackend.WriteAsync(stream, prefix, cancellationToken);
 			}
 		}
 	}

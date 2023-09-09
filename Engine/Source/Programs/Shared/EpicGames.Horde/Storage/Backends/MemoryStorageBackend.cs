@@ -30,9 +30,6 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public Task<Stream> ReadAsync(string path, CancellationToken cancellationToken) => ReadAsync(path, 0, null, cancellationToken);
-
-		/// <inheritdoc/>
 		public Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
 		{
 			ReadOnlyMemory<byte> data = _pathToData[path].AsMemory(offset);
@@ -44,7 +41,15 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteAsync(string path, Stream stream, CancellationToken cancellationToken)
+		public async Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default)
+		{
+			string path = StorageHelpers.CreateUniqueName(prefix);
+			await WriteExplicitPathAsync(path, stream, cancellationToken);
+			return path;
+		}
+
+		/// <inheritdoc/>
+		public async Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default)
 		{
 			using (MemoryStream buffer = new MemoryStream())
 			{
@@ -81,6 +86,6 @@ namespace EpicGames.Horde.Storage.Backends
 		public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => default;
 
 		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetWriteRedirectAsync(string path, CancellationToken cancellationToken = default) => default;
+		public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => default;
 	}
 }

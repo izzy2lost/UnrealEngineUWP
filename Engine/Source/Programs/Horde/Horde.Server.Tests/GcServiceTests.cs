@@ -52,7 +52,7 @@ namespace Horde.Server.Tests
 
 			await Clock.AdvanceAsync(TimeSpan.FromDays(1.0));
 
-			BundleLocator[] remaining = await store.Backend.EnumerateAsync().Select(x => new BundleLocator(StorageBackend.GetBlobPathFromFileName(x))).ToArrayAsync();
+			BundleLocator[] remaining = await store.Backend.EnumerateAsync().Select(x => new BundleLocator(x)).ToArrayAsync();
 			Assert.AreEqual(nodes.Count, remaining.Length);
 			Assert.IsTrue(remaining.All(x => nodes.Contains(x)));
 		}

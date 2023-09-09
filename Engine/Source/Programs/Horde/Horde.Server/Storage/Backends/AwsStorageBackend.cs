@@ -331,7 +331,20 @@ namespace Horde.Server.Storage.Backends
 		public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => new ValueTask<Uri?>(GetPresignedUrl(path, HttpVerb.GET));
 
 		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetWriteRedirectAsync(string path, CancellationToken cancellationToken = default) => new ValueTask<Uri?>(GetPresignedUrl(path, HttpVerb.PUT));
+		public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix, CancellationToken cancellationToken = default)
+		{
+			string path = StorageHelpers.CreateUniqueName(prefix);
+
+			Uri? url = GetPresignedUrl(path, HttpVerb.PUT);
+			if (url == null)
+			{
+				return default;
+			}
+			else
+			{
+				return new ValueTask<(string, Uri)?>((path, url));
+			}
+		}
 
 		/// <summary>
 		/// Helper method to generate a presigned URL for a request
@@ -363,7 +376,15 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteAsync(string path, Stream inputStream, CancellationToken cancellationToken)
+		public async Task<string> WriteAsync(Stream inputStream, string? prefix = null, CancellationToken cancellationToken = default)
+		{
+			string path = StorageHelpers.CreateUniqueName(prefix);
+			await WriteExplicitPathAsync(path, inputStream, cancellationToken);
+			return path;
+		}
+
+		/// <inheritdoc/>
+		public async Task WriteExplicitPathAsync(string path, Stream inputStream, CancellationToken cancellationToken = default)
 		{
 			TimeSpan[] retryTimes =
 			{

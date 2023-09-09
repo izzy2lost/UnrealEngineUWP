@@ -87,7 +87,9 @@ namespace Horde.Server.Jobs.Artifacts
 		{
 			// upload first
 			string artifactName = ValidateName(name);
-			await _storageBackend.WriteAsync(GetPath(jobId, stepId, artifactName), data);
+#pragma warning disable CS0618
+			await _storageBackend.WriteExplicitPathAsync(GetPath(jobId, stepId, artifactName), data);
+#pragma warning restore CS0618
 
 			// then create entry
 			Artifact newArtifact = new Artifact(jobId, stepId, artifactName, data.Length, mimeType);
@@ -179,7 +181,9 @@ namespace Horde.Server.Jobs.Artifacts
 
 				// re-upload the data to external
 				string artifactName = ValidateName(artifact.Name);
-				await _storageBackend.WriteAsync(GetPath(artifact.JobId, artifact.StepId, artifactName), newData);
+#pragma warning disable CS0618
+				await _storageBackend.WriteExplicitPathAsync(GetPath(artifact.JobId, artifact.StepId, artifactName), newData);
+#pragma warning restore CS0618
 
 				if (await TryUpdateArtifactAsync((Artifact)artifact, updateBuilder.Combine(updates)))
 				{

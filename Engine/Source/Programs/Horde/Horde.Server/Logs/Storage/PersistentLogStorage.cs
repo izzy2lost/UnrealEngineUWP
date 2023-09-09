@@ -6,7 +6,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using Horde.Server.Logs.Data;
 using Horde.Server.Storage;
-using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Logs.Storage
@@ -16,14 +15,7 @@ namespace Horde.Server.Logs.Storage
 	/// </summary>
 	class PersistentLogStorage : ILogStorage
 	{
-		/// <summary>
-		/// The bulk storage provider to use
-		/// </summary>
 		readonly IStorageBackend _storageProvider;
-
-		/// <summary>
-		/// Log provider
-		/// </summary>
 		readonly ILogger _logger;
 
 		/// <summary>
@@ -53,13 +45,16 @@ namespace Horde.Server.Logs.Storage
 		}
 
 		/// <inheritdoc/>
-		public Task WriteIndexAsync(LogId logId, long length, LogIndexData indexData)
+		public async Task WriteIndexAsync(LogId logId, long length, LogIndexData indexData)
 		{
 			_logger.LogDebug("Writing log {LogId} index length {Length} to persistent storage", logId, length);
 
 			string path = $"{logId}/index_{length}";
-			ReadOnlyMemory<byte> data = indexData.ToByteArray();
-			return _storageProvider.WriteBytesAsync(path, data);
+			using ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(indexData.ToByteArray());
+
+#pragma warning disable CS0618
+			await _storageProvider.WriteExplicitPathAsync(path, stream);
+#pragma warning restore CS0618
 		}
 
 		/// <inheritdoc/>
@@ -82,7 +77,7 @@ namespace Horde.Server.Logs.Storage
 		}
 
 		/// <inheritdoc/>
-		public Task WriteChunkAsync(LogId logId, long offset, LogChunkData chunkData)
+		public async Task WriteChunkAsync(LogId logId, long offset, LogChunkData chunkData)
 		{
 			_logger.LogDebug("Writing log {LogId} chunk offset {Offset} to persistent storage", logId, offset);
 
@@ -92,7 +87,10 @@ namespace Horde.Server.Logs.Storage
 			writer.WriteLogChunkData(chunkData, _logger);
 			writer.CheckEmpty();
 
-			return _storageProvider.WriteBytesAsync(path, data);
+			using ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(data);
+#pragma warning disable CS0618
+			await _storageProvider.WriteExplicitPathAsync(path, stream);
+#pragma warning restore CS0618
 		}
 	}
 }

@@ -89,13 +89,18 @@ namespace Horde.Server.Storage
 			}
 
 			/// <inheritdoc/>
-			public Task WriteAsync(string path, Stream stream, CancellationToken cancellationToken = default) => _backend.WriteAsync(path, stream, cancellationToken);
+			public Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default) => _backend.WriteAsync(stream, prefix, cancellationToken);
+
+#pragma warning disable CS0618
+			/// <inheritdoc/>
+			public Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default) => _backend.WriteExplicitPathAsync(path, stream, cancellationToken);
+#pragma warning restore CS0618
 
 			/// <inheritdoc/>
 			public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => _backend.TryGetReadRedirectAsync(path, cancellationToken);
 
 			/// <inheritdoc/>
-			public ValueTask<Uri?> TryGetWriteRedirectAsync(string path, CancellationToken cancellationToken = default) => _backend.TryGetWriteRedirectAsync(path, cancellationToken);
+			public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => _backend.TryGetWriteRedirectAsync(prefix, cancellationToken);
 
 			#endregion
 		}
