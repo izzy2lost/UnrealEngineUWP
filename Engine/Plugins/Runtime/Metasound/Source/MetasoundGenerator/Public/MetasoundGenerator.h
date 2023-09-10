@@ -3,7 +3,6 @@
 
 #include "MetasoundExecutableOperator.h"
 #include "MetasoundGraphOperator.h"
-#include "MetasoundInstanceCounter.h"
 #include "MetasoundOperatorBuilder.h"
 #include "MetasoundOperatorInterface.h"
 #include "MetasoundParameterPack.h"
@@ -238,7 +237,6 @@ namespace Metasound
 
 		virtual TUniquePtr<IOperator> ReleaseGraphOperator();
 		FInputVertexInterfaceData ReleaseInputVertexData();
-		FConcurrentMetasoundInstanceCounter InstanceCounter;
 
 		/** Release the graph operator and remove any references to data owned by
 		 * the graph operator.

@@ -20,7 +20,6 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"Serialization",
 					"SignalProcessing",
-					"TraceLog",
 					"MetasoundGraphCore"
 
 				}

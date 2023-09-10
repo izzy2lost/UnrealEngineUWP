@@ -301,7 +301,6 @@ namespace Metasound
 
 	void FMetasoundGenerator::InitBase(const FMetasoundGeneratorInitParams& InInitParams)
 	{
-		InstanceCounter.Init(FName(InInitParams.MetaSoundName));
 		MetasoundName = InInitParams.MetaSoundName;
 		NumChannels = InInitParams.AudioOutputNames.Num();
 		NumSamplesPerExecute = NumChannels * NumFramesPerExecute;
