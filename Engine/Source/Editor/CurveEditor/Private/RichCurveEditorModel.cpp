@@ -373,9 +373,6 @@ void FRichCurveEditorModel::GetKeyAttributes(TArrayView<const FKeyHandle> InKeys
 				return;
 			}
 
-			const FRichCurveKey* FirstKey = &AllKeys[0];
-			const FRichCurveKey* LastKey  = &AllKeys.Last();
-
 			for (int32 Index = 0; Index < InKeys.Num(); ++Index)
 			{
 				if (RichCurve.IsKeyHandleValid(InKeys[Index]))
@@ -390,24 +387,15 @@ void FRichCurveEditorModel::GetKeyAttributes(TArrayView<const FKeyHandle> InKeys
 					const bool bGetArriveTangent = RichCurve.IsKeyHandleValid(PreviousKeyHandle) && RichCurve.GetKeyRef(PreviousKeyHandle).InterpMode == RCIM_Cubic;
 					if (bGetArriveTangent)
 					{
-						if (&ThisKey != FirstKey)
-						{
-							Attributes.SetArriveTangent(ThisKey.ArriveTangent);
-						}
+						Attributes.SetArriveTangent(ThisKey.ArriveTangent);
 					}
 
 					if (ThisKey.InterpMode != RCIM_Constant && ThisKey.InterpMode != RCIM_Linear)
 					{
 						Attributes.SetTangentMode(ThisKey.TangentMode);
-						if (&ThisKey != FirstKey)
-						{
-							Attributes.SetArriveTangent(ThisKey.ArriveTangent);
-						}
+						Attributes.SetArriveTangent(ThisKey.ArriveTangent);
+						Attributes.SetLeaveTangent(ThisKey.LeaveTangent);
 
-						if (&ThisKey != LastKey)
-						{
-							Attributes.SetLeaveTangent(ThisKey.LeaveTangent);
-						}
 						if (ThisKey.InterpMode == RCIM_Cubic)
 						{
 							Attributes.SetTangentWeightMode(ThisKey.TangentWeightMode);

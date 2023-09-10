@@ -222,24 +222,15 @@ void FBezierChannelCurveModel<ChannelType, ChannelValue, KeyType>::GetKeyAttribu
 				const bool bGetArriveTangent = Values.IsValidIndex(PreviousKeyIndex) && Values[PreviousKeyIndex].InterpMode == RCIM_Cubic;
 				if (bGetArriveTangent)
 				{
-					if (KeyIndex != 0)
-					{
-						Attributes.SetArriveTangent(KeyValue.Tangent.ArriveTangent / TimeInterval);
-					}
+					Attributes.SetArriveTangent(KeyValue.Tangent.ArriveTangent / TimeInterval);
 				}
 
 				if ((KeyValue.InterpMode != RCIM_Constant && KeyValue.InterpMode != RCIM_Linear))
 				{
 					Attributes.SetTangentMode(KeyValue.TangentMode);
-					if (KeyIndex != 0)
-					{
-						Attributes.SetArriveTangent(KeyValue.Tangent.ArriveTangent / TimeInterval);
-					}
+					Attributes.SetArriveTangent(KeyValue.Tangent.ArriveTangent / TimeInterval);
+					Attributes.SetLeaveTangent(KeyValue.Tangent.LeaveTangent / TimeInterval);
 
-					if (KeyIndex != Times.Num()-1)
-					{
-						Attributes.SetLeaveTangent(KeyValue.Tangent.LeaveTangent / TimeInterval);
-					}
 					if (KeyValue.InterpMode == RCIM_Cubic)
 					{
 						Attributes.SetTangentWeightMode(KeyValue.Tangent.TangentWeightMode);
