@@ -115,8 +115,12 @@ class VideoViewController : BaseViewController {
         //self.demoModeBlurView.isHidden = !self.demoMode
         showReconnecting(false, animated: false)
         
-        let config = ARWorldTrackingConfiguration()
+        // Create a ARKit tracking config for purely tracking device transform (we don't care about the computer vision features)
+        let config = ARPositionalTrackingConfiguration()
         config.worldAlignment = .gravity
+        config.planeDetection = []
+        config.isLightEstimationEnabled = false
+        config.providesAudioData = false
         
         arSession = ARSession()
         arSession?.delegate = self
