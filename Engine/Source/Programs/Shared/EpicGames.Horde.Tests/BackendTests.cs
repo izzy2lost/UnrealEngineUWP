@@ -1,0 +1,124 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography.X509Certificates;
+using System.Text;
+using System.Threading.Tasks;
+using EpicGames.Core;
+using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Backends;
+using JetBrains.Annotations;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+namespace EpicGames.Horde.Tests
+{
+	[TestClass]
+	public class BackendTests
+	{
+		class TempDir : IDisposable
+		{
+			readonly DirectoryReference _cacheDir;
+
+			public DirectoryReference Location => _cacheDir;
+
+			public TempDir(string name)
+			{
+				_cacheDir = new DirectoryReference(name);
+				DirectoryReference.CreateDirectory(_cacheDir);
+				FileUtils.ForceDeleteDirectoryContents(_cacheDir);
+			}
+
+			public void Dispose()
+			{
+				FileUtils.ForceDeleteDirectoryContents(_cacheDir);
+				DirectoryReference.Delete(_cacheDir);
+			}
+		}
+
+		[TestMethod]
+		public async Task TestMemoryBackend()
+		{
+			using MemoryStorageBackend backend = new MemoryStorageBackend();
+			await TestBackendAsync(backend);
+		}
+
+		[TestMethod]
+		public async Task TestFileBackend()
+		{
+			using (TempDir tempDir = new TempDir("Cache"))
+			{
+				using FileStorageBackend backend = new FileStorageBackend(tempDir.Location);
+				await TestBackendAsync(backend);
+			}
+		}
+
+		[TestMethod]
+		public async Task TestCacheBackend()
+		{
+			using (TempDir tempDir = new TempDir("Cache"))
+			{
+				using MemoryStorageBackend memoryBackend = new MemoryStorageBackend();
+
+				using CacheStorageBackend cacheBackend = new CacheStorageBackend(tempDir.Location, 12, memoryBackend);
+				await TestBackendAsync(cacheBackend);
+
+				Assert.AreEqual(1, cacheBackend.Items.Count());
+				byte[] value = await cacheBackend.ReadBytesAsync(cacheBackend.Items.First());
+				Assert.IsTrue(value.SequenceEqual(Encoding.UTF8.GetBytes("item 2")));
+
+				byte[] data3 = Encoding.UTF8.GetBytes("3");
+				string path3 = await cacheBackend.WriteBytesAsync(data3);
+				await cacheBackend.ReadBytesAsync(path3);
+
+				byte[] data4 = Encoding.UTF8.GetBytes("4");
+				string path4 = await cacheBackend.WriteBytesAsync(data4);
+				await cacheBackend.ReadBytesAsync(path4);
+
+				byte[] data5 = Encoding.UTF8.GetBytes("5");
+				string path5 = await cacheBackend.WriteBytesAsync(data5);
+				await cacheBackend.ReadBytesAsync(path5);
+
+				HashSet<string> paths = new HashSet<string>(cacheBackend.Items);
+				Assert.AreEqual(4, paths.Count);
+				Assert.IsTrue(paths.Contains(path3));
+				Assert.IsTrue(paths.Contains(path4));
+				Assert.IsTrue(paths.Contains(path5));
+
+				byte[] data6 = Encoding.UTF8.GetBytes("12345678901");
+				string path6 = await cacheBackend.WriteBytesAsync(data6);
+				await cacheBackend.ReadBytesAsync(path6);
+
+				paths = new HashSet<string>(cacheBackend.Items);
+				Assert.AreEqual(2, paths.Count);
+				Assert.IsTrue(paths.Contains(path5));
+				Assert.IsTrue(paths.Contains(path6));
+
+				await cacheBackend.ReadBytesAsync(path3);
+				await cacheBackend.ReadBytesAsync(path4);
+
+				paths = new HashSet<string>(cacheBackend.Items);
+				Assert.AreEqual(2, paths.Count);
+				Assert.IsTrue(paths.Contains(path3));
+				Assert.IsTrue(paths.Contains(path4));
+			}
+		}
+
+		static async Task TestBackendAsync(IStorageBackend backend)
+		{
+			byte[] data1 = Encoding.UTF8.GetBytes("hello world");
+			byte[] data2 = Encoding.UTF8.GetBytes("item 2");
+
+			string path1 = await backend.WriteBytesAsync(data1);
+			byte[] outputData1 = await backend.ReadBytesAsync(path1);
+
+			string path2 = await backend.WriteBytesAsync(data2);
+			byte[] outputData2 = await backend.ReadBytesAsync(path2);
+
+			Assert.IsTrue(data1.SequenceEqual(outputData1));
+			Assert.IsTrue(data2.SequenceEqual(outputData2));
+		}
+	}
+}
