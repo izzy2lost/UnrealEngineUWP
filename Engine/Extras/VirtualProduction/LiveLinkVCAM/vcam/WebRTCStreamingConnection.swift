@@ -582,6 +582,8 @@ extension WebRTCStreamingConnection: WebRTCClientDelegate {
                 case .LatencyTest:
                     fallthrough
                 case .InitialSettings:
+                    // Do nothing with initial settings, but use it to send device resolution as this is a convenient time as we are guaranteed datachannel is working
+                    self.webRTCClient?.sendDeviceResolution()
                     fallthrough
                 case .FileExtension:
                     fallthrough
