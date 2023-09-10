@@ -18,6 +18,18 @@ class WebRTCStatsView: UIView {
     private var graphHeaderYPadding : Int = 30
     private var graphLeftMargin : Int = 100;
     private var graphRightMargin : Int = 100;
+    
+    override var isHidden: Bool {
+        set {
+            super.isHidden = newValue
+            for graphKV in statsGraphs {
+                graphKV.value.isHidden = newValue
+            }
+        }
+        get {
+            return super.isHidden
+        }
+    }
 
     // Graphs will be displayed in a grid layout, rowsxcols, where nRows and nCols are determined by frameWidth/graphWidth
     // When graphs exceed nCols on a single row then a new row will begin
@@ -54,6 +66,9 @@ class WebRTCStatsView: UIView {
         let graphY : Int = rowIdx * (self.graphHeight + self.graphPadding) + self.graphHeaderYPadding
         let graphFrame : CGRect = CGRect(x: graphX, y: graphY, width: self.graphWidth, height: self.graphHeight)
         let graph : LineGraphView = LineGraphView(frame: graphFrame)
+
+        // Graph inherits parents hidden property
+        graph.isHidden = self.isHidden
 
         // Add the graph the be drawn under this view
         self.addSubview(graph)

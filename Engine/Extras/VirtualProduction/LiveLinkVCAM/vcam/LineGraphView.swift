@@ -98,7 +98,9 @@ class LineGraphView: UIView {
         
         // Triggers a redraw (need to do this from main thread)
         DispatchQueue.main.async {
-            self.setNeedsDisplay();
+            if !self.isHidden && self.window != nil {
+                self.setNeedsDisplay()
+            }
         }
     }
     
