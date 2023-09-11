@@ -10,6 +10,7 @@ DEFINE_LOG_CATEGORY(AudioGameplayLog);
 
 void FAudioGameplayModule::StartupModule()
 {
+	UE_LOG(AudioGameplayLog, Log, TEXT("%s"), ANSI_TO_TCHAR(__FUNCTION__));
 }
 
 void FAudioGameplayModule::ShutdownModule()
