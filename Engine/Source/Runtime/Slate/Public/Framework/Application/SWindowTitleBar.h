@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "HAL/PlatformMisc.h"
 #include "Misc/Attribute.h"
 #include "Layout/Visibility.h"
 #include "Styling/SlateColor.h"
@@ -272,6 +273,8 @@ protected:
 
 		const bool bHasWindowButtons = OwnerWindow->HasCloseBox() || OwnerWindow->HasMinimizeBox() || OwnerWindow->HasMaximizeBox();
 
+// We don't need these on the Mac where the system adds the "traffic light" buttons (close, minimize, and maximize).
+#if !PLATFORM_MAC
 		if (bHasWindowButtons)
 		{
 			MinimizeButton = SNew(SButton)
@@ -322,17 +325,24 @@ protected:
 					]
 				;
 		}
+#endif //!PLATFORM_MAC
 
-#if PLATFORM_MAC
-	// The Mac has no need for custom content on the left side of the title bar as there is no main menu and the close, minimize, and maximize buttons are drawn by macOS.
-		OutLeftContent = SNew(SSpacer);
-		WindowMenuSlot = nullptr;
-#else // PLATFORM_MAC
-		// Windows UI layout
-		if (ShowAppIcon && bHasWindowButtons)
+		if (ShowAppIcon && bHasWindowButtons && FPlatformMisc::CanShowMenusInWindows())
 		{
 			OutLeftContent = 
 				SNew(SHorizontalBox)
+#if PLATFORM_MAC
+				// The Mac has traffic-light buttons to the left, so we need some empty space under them (but no icon).
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Top)
+				[
+					// This leaves spaces for the macOS "traffic light" close/minimize/maximize buttons. Without this space, the traffic lights would render on top of the main menu on the Mac.
+					SNew(SSpacer)
+					.Size(FVector2D(64, 10))
+				]
+#else
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				.HAlign(HAlign_Left)
@@ -341,9 +351,14 @@ protected:
 					SAssignNew(AppIconWidget, SAppIconWidget)
 					.IconColorAndOpacity(this, &SWindowTitleBar::GetWindowTitleContentColor)
 				]
+#endif //PLATFORM_MAC
 				+ SHorizontalBox::Slot()
 				.VAlign(VAlign_Top)
 				.FillWidth(1)
+#if PLATFORM_MAC
+				// Align the main menu with the macOS "traffic light" buttons (close, minimize, and maximize).
+				.Padding(FMargin(0, 3.0f, 0, 0))
+#endif // PLATFORM_MAC
 				.Expose(WindowMenuSlot);
 
 			// Default everything to use the small icon unless specifically set to use the large icon.
@@ -355,7 +370,6 @@ protected:
 
 			OutLeftContent = SNew(SSpacer);
 		}
-#endif //PLATFORM_MAC
 
 		if (bHasWindowButtons)
 		{

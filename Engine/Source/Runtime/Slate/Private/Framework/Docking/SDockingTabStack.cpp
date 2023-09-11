@@ -3,6 +3,7 @@
 #include "Framework/Docking/SDockingTabStack.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/Commands/UICommandList.h"
+#include "HAL/PlatformMisc.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Layout/WidgetPath.h"
@@ -867,8 +868,21 @@ void SDockingTabStack::ClearReservedSpace()
 void SDockingTabStack::ReserveSpaceForWindowChrome(EChromeElement Element, bool bIncludePaddingForMenuBar, bool bOnlyMinorTabs)
 {
 	#if PLATFORM_MAC
-		static const FMargin ControlsPadding = FMargin(64, 0, 0, 0);
+		FMargin ControlsPadding;
 		static const FMargin IconPadding = FMargin(0);
+
+		if (FPlatformMisc::CanShowMenusInWindows() && bIncludePaddingForMenuBar)
+		{
+			static const float TopPaddingForTrafficLightsAndMenuBar = 30.0f;
+			// Always add padding on top, because on the Mac there is always either a main menu bar or the "traffic light" buttons (close, minimize, and maximize) above controls.
+			// Always add padding to the left, because on the Mac there's no Unreal icon to the left of controls, only the window edge, so we need some space.
+			ControlsPadding = FMargin(8.0f, TopPaddingForTrafficLightsAndMenuBar, 0, 0);
+		}
+		else
+		{
+			// Without a main menu bar in the title bar, we just need to pad on the left to avoid overlapping with the "traffic light" buttons (close, minimize, and maximize).
+			ControlsPadding = FMargin(67.0f, 0, 0, 0);
+		}
 	#else
 		static const float TopPaddingForMenuBar = 27.0f;
 		static const float LeftPaddingForIcon = FSlateApplication::Get().GetAppIcon()->GetImageSize().X;
@@ -915,10 +929,6 @@ TSharedRef< SDockingTabStack > SDockingTabStack::CreateNewTabStackBySplitting( c
 void SDockingTabStack::SetParentNode( TSharedRef<class SDockingSplitter> InParent )
 {
 	SDockingNode::SetParentNode(InParent);
-
-	// OK, if this docking area has a parent window, we'll assume the window was created with no title bar, and we'll
-	// place the title bar widgets into our content instead!
-	const TSharedPtr<SDockingArea>& DockArea = GetDockArea();
 
 	TitleBarSlot->AttachWidget(TitleBarContent.ToSharedRef());
 }

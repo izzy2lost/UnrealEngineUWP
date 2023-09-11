@@ -43,6 +43,7 @@ struct CORE_API FMacPlatformMisc : public FApplePlatformMisc
 	static void GetOSVersions( FString& out_OSVersionLabel, FString& out_OSSubVersionLabel );
 	static FString GetOSVersion();
 	static NSOperatingSystemVersion GetNSOperatingSystemVersion();
+	static bool CanShowMenusInWindows();
 	static bool HasPlatformFeature(const TCHAR* FeatureName);
 	static bool GetDiskTotalAndFreeSpace(const FString& InPath, uint64& TotalNumberOfBytes, uint64& NumberOfFreeBytes);
 	static bool HasSeparateChannelForDebugOutput();

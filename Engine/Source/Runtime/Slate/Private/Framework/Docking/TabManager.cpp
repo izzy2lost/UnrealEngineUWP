@@ -21,6 +21,7 @@
 #include "Misc/NamePermissionList.h"
 #include "Trace/SlateMemoryTags.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "HAL/PlatformMisc.h"
 #if PLATFORM_MAC
 #include "Framework/MultiBox/Mac/MacMenu.h"
 #endif
@@ -789,48 +790,48 @@ void FTabManager::UpdateMainMenu(TSharedPtr<SDockTab> ForTab, const bool bForce)
 		ParentWindowOfOwningTab = MainNonCloseableTabPinned->GetParentWindow();
 	}
 
-	// We only use the platform native global menu bar on Mac
 #if PLATFORM_MAC
-	if (MenuMultiBox.IsValid())
+	if (!FPlatformMisc::CanShowMenusInWindows())
 	{
-		bool bUpdate = bForce;
-		// On OS X opening the tab will set the multi-box and take key focus, but not seemingly send a keyboard focus event into Slate.
-		if (ParentWindowOfOwningTab.IsValid())
+		if (MenuMultiBox.IsValid())
 		{
-			bUpdate |= ParentWindowOfOwningTab->GetNativeWindow()->IsForegroundWindow();
-		}
+			bool bUpdate = bForce;
+			// On OS X opening the tab will set the multi-box and take key focus, but not seemingly send a keyboard focus event into Slate.
+			if (ParentWindowOfOwningTab.IsValid())
+			{
+				bUpdate |= ParentWindowOfOwningTab->GetNativeWindow()->IsForegroundWindow();
+			}
 
-		if (bUpdate)
+			if (bUpdate)
+			{
+				FSlateMacMenu::UpdateWithMultiBox(MenuMultiBox.ToSharedRef());
+			}
+		}
+		else
 		{
-			FSlateMacMenu::UpdateWithMultiBox(MenuMultiBox.ToSharedRef());
+			FSlateMacMenu::UpdateWithMultiBox(nullptr);
 		}
 	}
 	else
+#endif // PLATFORM_MAC
 	{
-		FSlateMacMenu::UpdateWithMultiBox(nullptr);
-	}
-#else
-
-
-	if (bAllowPerWindowMenu)
-	{
-		if (ParentWindowOfOwningTab)
-		{	
-			ParentWindowOfOwningTab->GetTitleBar()->UpdateWindowMenu(MenuWidget);
-		}
-	}
-	else
-	{
-		MenuMultiBox.Reset();
-		MenuWidget.Reset();
-		if (ParentWindowOfOwningTab)
+		if (bAllowPerWindowMenu)
 		{
-			ParentWindowOfOwningTab->GetTitleBar()->UpdateWindowMenu(nullptr);
+			if (ParentWindowOfOwningTab)
+			{
+				ParentWindowOfOwningTab->GetTitleBar()->UpdateWindowMenu(MenuWidget);
+			}
+		}
+		else
+		{
+			MenuMultiBox.Reset();
+			MenuWidget.Reset();
+			if (ParentWindowOfOwningTab)
+			{
+				ParentWindowOfOwningTab->GetTitleBar()->UpdateWindowMenu(nullptr);
+			}
 		}
 	}
-
-
-#endif
 }
 
 void FTabManager::SetMainTab(const FTabId& InMainTabID)

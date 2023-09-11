@@ -77,6 +77,14 @@ static TAutoConsoleVariable<int32> CVarMacPlatformDumpAllThreadsOnHang(
 	TEXT("Mac.DumpAllThreadsOnHang"),
 	1,
 	TEXT("If > 0, then when reporting a hang generate a backtrace for all threads."));
+static bool GMacMainMenuInsideUnrealWindow = false;
+static FAutoConsoleVariableRef CVarMacMainMenuInsideUnrealWindow(
+	TEXT("Slate.MacMainMenuInsideUnrealWindow"),
+	GMacMainMenuInsideUnrealWindow,
+	TEXT("When enabled, will draw the main menu inside the Unreal windows on the Mac.\n")
+	TEXT("When disabled (default, old behavior) use the macOS system menu for all main menus."),
+	ECVF_Default
+);
 
 /*------------------------------------------------------------------------------
  Platform property discovery.
@@ -2661,6 +2669,11 @@ void ReportHang(const TCHAR* ErrorMessage, const uint64* StackFrames, int32 NumS
 		bReentranceGuard = false;
 	}
 	EnsureLock.Unlock();
+}
+
+bool FMacPlatformMisc::CanShowMenusInWindows()
+{
+	return GMacMainMenuInsideUnrealWindow;
 }
 
 typedef NSArray* (*MTLCopyAllDevices)(void);
