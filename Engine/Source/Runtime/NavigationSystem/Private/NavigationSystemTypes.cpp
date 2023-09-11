@@ -41,14 +41,14 @@ namespace
 
 namespace NavigationHelper
 {
-	void GatherCollision(UBodySetup* RigidBody, TNavStatArray<FVector>& OutVertexBuffer, TNavStatArray<int32>& OutIndexBuffer, const FTransform& LocalToWorld)
+	void GatherCollision(UBodySetup* RigidBody, TNavStatArray<FVector>& OutVertexBuffer, TNavStatArray<int32>& OutIndexBuffer, const FTransform& LocalToWorld, FBox& OutBounds)
 	{
 		if (RigidBody == NULL)
 		{
 			return;
 		}
 #if WITH_RECAST
-		FRecastNavMeshGenerator::ExportRigidBodyGeometry(*RigidBody, OutVertexBuffer, OutIndexBuffer, LocalToWorld);
+		FRecastNavMeshGenerator::ExportRigidBodyGeometry(*RigidBody, OutVertexBuffer, OutIndexBuffer, OutBounds, LocalToWorld);
 #endif // WITH_RECAST
 	}
 
@@ -62,14 +62,20 @@ namespace NavigationHelper
 		FRecastNavMeshGenerator::ExportRigidBodyGeometry(*RigidBody
 			, NavCollision->GetMutableTriMeshCollision().VertexBuffer, NavCollision->GetMutableTriMeshCollision().IndexBuffer
 			, NavCollision->GetMutableConvexCollision().VertexBuffer, NavCollision->GetMutableConvexCollision().IndexBuffer
-			, NavCollision->ConvexShapeIndices);
+			, NavCollision->ConvexShapeIndices
+			, NavCollision->Bounds);
 #endif // WITH_RECAST
 	}
 
 	void GatherCollision(const FKAggregateGeom& AggGeom, UNavCollision& NavCollision)
 	{
 #if WITH_RECAST
-		FRecastNavMeshGenerator::ExportAggregatedGeometry(AggGeom, NavCollision.GetMutableConvexCollision().VertexBuffer, NavCollision.GetMutableConvexCollision().IndexBuffer, NavCollision.ConvexShapeIndices);
+		FRecastNavMeshGenerator::ExportAggregatedGeometry(
+			AggGeom,
+			NavCollision.GetMutableConvexCollision().VertexBuffer,
+			 NavCollision.GetMutableConvexCollision().IndexBuffer,
+			 NavCollision.ConvexShapeIndices,
+			 NavCollision.Bounds);
 #endif // WITH_RECAST
 	}
 

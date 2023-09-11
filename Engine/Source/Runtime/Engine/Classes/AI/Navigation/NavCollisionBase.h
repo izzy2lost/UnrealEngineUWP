@@ -50,6 +50,8 @@ public:
 	*	collision data, stores it and uploads to DDC */
 	ENGINE_API virtual void Setup(class UBodySetup* BodySetup) PURE_VIRTUAL(UNavCollisionBase::Setup, );
 
+	[[nodiscard]] ENGINE_API virtual FBox GetBounds() const PURE_VIRTUAL(UNavCollisionBase::GetBounds, static FBox InvalidBox; return InvalidBox; );
+
 	/** Export collision data */
 	ENGINE_API virtual bool ExportGeometry(const FTransform& LocalToWorld, FNavigableGeometryExport& GeoExport) const PURE_VIRTUAL(UNavCollisionBase::ExportGeometry, return false; );
 

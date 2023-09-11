@@ -307,7 +307,6 @@ protected:
 	ENGINE_API virtual void GetNavigationPerInstanceTransforms(const FBox& AreaBox, TArray<FTransform>& InstanceData) const override;
 	ENGINE_API virtual void PartialNavigationUpdate(int32 InstanceIdx) override;
 	virtual bool SupportsPartialNavigationUpdate() const override { return true; }
-	ENGINE_API virtual FBox GetNavigationBounds() const override;
 	ENGINE_API void FlushAccumulatedNavigationUpdates();
 	mutable FBox AccumulatedNavigationDirtyArea;
 

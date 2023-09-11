@@ -3150,16 +3150,19 @@ bool UInstancedStaticMeshComponent::CanEditSimulatePhysics()
 
 FBoxSphereBounds UInstancedStaticMeshComponent::CalcBounds(const FTransform& BoundTransform) const
 {
-	if(GetStaticMesh() && PerInstanceSMData.Num() > 0)
+	return CalcBoundsImpl(BoundTransform, /*bForNavigation*/false);
+}
+
+FBoxSphereBounds UInstancedStaticMeshComponent::CalcBoundsImpl(const FTransform& BoundTransform, bool bForNavigation) const
+{
+	const FBox InstanceBounds = GetInstanceNavigationBounds();
+	if (InstanceBounds.IsValid && PerInstanceSMData.Num() > 0)
 	{
-		FMatrix BoundTransformMatrix = BoundTransform.ToMatrixWithScale();
-
-		FBoxSphereBounds RenderBounds = GetStaticMesh()->GetBounds();
-
+		const FMatrix BoundTransformMatrix = BoundTransform.ToMatrixWithScale();
 		FBoxSphereBounds::Builder BoundsBuilder;
 		for (int32 InstanceIndex = 0; InstanceIndex < PerInstanceSMData.Num(); InstanceIndex++)
 		{
-			BoundsBuilder += RenderBounds.TransformBy(PerInstanceSMData[InstanceIndex].Transform * BoundTransformMatrix);
+			BoundsBuilder += InstanceBounds.TransformBy(PerInstanceSMData[InstanceIndex].Transform * BoundTransformMatrix);
 		}
 
 		return BoundsBuilder;
@@ -5235,23 +5238,16 @@ void UInstancedStaticMeshComponent::PartialNavigationUpdate(int32 InstanceIdx)
 	{
 		return;
 	}
-	
-	if (!InstanceBodies.IsValidIndex(InstanceIdx))
-	{
-		// The physics state might not be created and InstanceBodies might not be populated yet.
-		// This flow can occur from PostEditChangeChainProperty then AddInstanceInternal. 
-		return;
-	}
 
-	const FBodyInstance* const InstanceBodyInstance = InstanceBodies[InstanceIdx];
-	// Not having a body is a valid case when our physics state cannot be created (see CreateAllInstanceBodies)
-	if (!InstanceBodyInstance)
+	const FBox InstanceBounds = GetInstanceNavigationBounds();
+	if (InstanceBounds.IsValid)
 	{
-		return;
+		FTransform InstanceTransform;
+		if (GetInstanceTransform(InstanceIdx, InstanceTransform, /*bWorldSpace*/true))
+		{
+			FNavigationSystem::OnComponentBoundsChanged(*this, GetNavigationBounds(), InstanceBounds.TransformBy(InstanceTransform));
+		}
 	}
-	
-	const FBox InstanceBounds = InstanceBodyInstance->GetBodyBounds();
-	FNavigationSystem::OnComponentBoundsChanged(*this, GetNavigationBounds(),InstanceBounds);
 }
 
 bool UInstancedStaticMeshComponent::DoCustomNavigableGeometryExport(FNavigableGeometryExport& GeomExport) const
@@ -5266,11 +5262,7 @@ bool UInstancedStaticMeshComponent::DoCustomNavigableGeometryExport(FNavigableGe
 		
 		if (NavCollision->HasConvexGeometry())
 		{
-			GeomExport.ExportCustomMesh(NavCollision->GetConvexCollision().VertexBuffer.GetData(), NavCollision->GetConvexCollision().VertexBuffer.Num(),
-				NavCollision->GetConvexCollision().IndexBuffer.GetData(), NavCollision->GetConvexCollision().IndexBuffer.Num(), FTransform::Identity);
-
-			GeomExport.ExportCustomMesh(NavCollision->GetTriMeshCollision().VertexBuffer.GetData(), NavCollision->GetTriMeshCollision().VertexBuffer.Num(),
-				NavCollision->GetTriMeshCollision().IndexBuffer.GetData(), NavCollision->GetTriMeshCollision().IndexBuffer.Num(), FTransform::Identity);
+			NavCollision->ExportGeometry(FTransform::Identity, GeomExport);
 		}
 		else
 		{
@@ -5450,7 +5442,7 @@ void UInstancedStaticMeshComponent::GetNavigationData(FNavigationRelevantData& D
 
 FBox UInstancedStaticMeshComponent::GetNavigationBounds() const
 {
-	return CalcBounds(GetComponentTransform()).GetBox();
+	return CalcBoundsImpl(GetComponentTransform(), /*bForNavigation*/true).GetBox();
 }
 
 bool UInstancedStaticMeshComponent::IsNavigationRelevant() const
@@ -5458,19 +5450,29 @@ bool UInstancedStaticMeshComponent::IsNavigationRelevant() const
 	return GetInstanceCount() > 0 && Super::IsNavigationRelevant();
 }
 
+FBox UInstancedStaticMeshComponent::GetInstanceNavigationBounds() const
+{
+	if (const UStaticMesh* Mesh = GetStaticMesh())
+	{
+		const UNavCollisionBase* NavCollision = Mesh->GetNavCollision();
+		return NavCollision ? NavCollision->GetBounds() : Mesh->GetBounds().GetBox();
+	}
+
+	return FBox();
+}
+
 void UInstancedStaticMeshComponent::GetNavigationPerInstanceTransforms(const FBox& AreaBox, TArray<FTransform>& InstanceData) const
 {
-	if (GetStaticMesh())
+	const FBox InstanceBounds = GetInstanceNavigationBounds();
+	if (InstanceBounds.IsValid)
 	{
-		const FBox LocalAreaBox =  AreaBox.InverseTransformBy(GetComponentTransform());
-		const FBoxSphereBounds RenderBounds = GetStaticMesh()->GetBounds();
-
+		const FBox LocalAreaBox = AreaBox.InverseTransformBy(GetComponentTransform());
 		for (const auto& InstancedData : PerInstanceSMData)
 		{
 			const FTransform InstanceToComponent(InstancedData.Transform);
 			if (!InstanceToComponent.GetScale3D().IsZero())
 			{
-				const FBoxSphereBounds TransformedInstanceBounds = RenderBounds.TransformBy(InstancedData.Transform);
+				const FBoxSphereBounds TransformedInstanceBounds = InstanceBounds.TransformBy(InstancedData.Transform);
 				if (LocalAreaBox.Intersect(TransformedInstanceBounds.GetBox()))
 				{
 					InstanceData.Add(InstanceToComponent*GetComponentTransform());

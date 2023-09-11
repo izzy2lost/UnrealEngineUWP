@@ -522,6 +522,12 @@ protected:
 	/** Request to navigation system to update for the bounds of the ISM. */
 	ENGINE_API virtual void FullNavigationUpdate();
 
+	/**
+	 * Calculates bounds from all instances.
+	 * @param bForNavigation Indicates if NavCollision must be used if available, using static mesh bounds otherwise.
+	 */
+	FBoxSphereBounds CalcBoundsImpl(const FTransform& BoundTransform, bool bForNavigation) const;
+	
 	/** Does this component support partial navigation updates */
 	virtual bool SupportsPartialNavigationUpdate() const { return true; }
 
@@ -534,6 +540,13 @@ protected:
 	/** Internal version of RemoveInstance */	
 	ENGINE_API bool RemoveInstanceInternal(int32 InstanceIndex, bool InstanceAlreadyRemoved);
 
+	/**
+	 * Returns the bounds of a single instance in local space. It uses the NavCollision if available,
+	 * then the StaticMesh bounds if available or an invalid box otherwise.
+	 * @return The bounds of a single instance in local space 
+	 */
+	FBox GetInstanceNavigationBounds() const;
+	
 	/** Handles request from navigation system to gather instance transforms in a specific area box. */
 	ENGINE_API virtual void GetNavigationPerInstanceTransforms(const FBox& AreaBox, TArray<FTransform>& InstanceData) const;
 

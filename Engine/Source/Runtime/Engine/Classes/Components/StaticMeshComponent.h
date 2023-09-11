@@ -566,6 +566,7 @@ public:
 
 	//~ Begin INavRelevantInterface Interface.
 	ENGINE_API virtual bool IsNavigationRelevant() const override;
+	ENGINE_API virtual FBox GetNavigationBounds() const override;
 	ENGINE_API virtual void GetNavigationData(FNavigationRelevantData& Data) const override;
 	//~ End INavRelevantInterface Interface.
 	/**

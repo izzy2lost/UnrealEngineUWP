@@ -3079,6 +3079,25 @@ bool UStaticMeshComponent::IsNavigationRelevant() const
 	return GetStaticMesh() != nullptr && GetStaticMesh()->IsNavigationRelevant() && Super::IsNavigationRelevant();
 }
 
+FBox UStaticMeshComponent::GetNavigationBounds() const
+{
+	if (GetStaticMesh())
+	{
+		if (GetStaticMesh()->IsCompiling())
+		{
+			// Navigation bounds will get queried again once async static mesh compilation finishes
+			return FBox();
+		}
+
+		if (const UNavCollisionBase* NavCollision = GetStaticMesh()->GetNavCollision())
+		{
+			return NavCollision->GetBounds().TransformBy(GetComponentTransform());
+		}
+	}
+
+	return Super::GetNavigationBounds();
+}
+
 void UStaticMeshComponent::GetNavigationData(FNavigationRelevantData& Data) const
 {
 	Super::GetNavigationData(Data);

@@ -11,6 +11,7 @@
 #include "EngineStats.h"
 #include "Engine/Level.h"
 #include "AI/NavigationSystemBase.h"
+#include "AI/Navigation/NavCollisionBase.h"
 #include "Engine/MapBuildDataRegistry.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialRenderProxy.h"
@@ -3569,28 +3570,26 @@ void UHierarchicalInstancedStaticMeshComponent::GetNavigationPerInstanceTransfor
 	}
 }
 
-void UHierarchicalInstancedStaticMeshComponent::PartialNavigationUpdate(int32 InstanceIdx)
+void UHierarchicalInstancedStaticMeshComponent::PartialNavigationUpdate(const int32 InstanceIdx)
 {
 	if (InstanceIdx == INDEX_NONE)
 	{
 		AccumulatedNavigationDirtyArea.Init();
 		FNavigationSystem::UpdateComponentData(*this);
 	}
-	else if (GetStaticMesh())
+	else if (GetStaticMesh() && FNavigationSystem::HasComponentData(*this))
 	{
 		// Accumulate dirty areas and send them to navigation system once cluster tree is rebuilt
-		if (FNavigationSystem::HasComponentData(*this))
+		FTransform InstanceTransformInWorldSpace;
+		if (GetInstanceTransform(InstanceIdx, InstanceTransformInWorldSpace, /*bWorldSpace*/true))
 		{
-			const FTransform InstanceTransform(PerInstanceSMData[InstanceIdx].Transform);
-			const FBox InstanceBox = GetStaticMesh()->GetBounds().TransformBy(InstanceTransform*GetComponentTransform()).GetBox(); // in world space
-			AccumulatedNavigationDirtyArea += InstanceBox;
+			const FBox InstanceBounds = GetInstanceNavigationBounds();
+			if (InstanceBounds.IsValid)
+			{
+				AccumulatedNavigationDirtyArea += InstanceBounds.TransformBy(InstanceTransformInWorldSpace);
+			}
 		}
 	}
-}
-
-FBox UHierarchicalInstancedStaticMeshComponent::GetNavigationBounds() const
-{
-	return CalcBounds(GetComponentTransform()).GetBox();
 }
 
 void UHierarchicalInstancedStaticMeshComponent::FlushAccumulatedNavigationUpdates()
