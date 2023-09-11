@@ -12,7 +12,7 @@ struct FSubstrateMaterialCompilationOutput;
 struct GRAPHEDITOR_API FSubstrateWidget
 {
 	static const TSharedRef<SWidget> ProcessOperator(const FSubstrateMaterialCompilationOutput& CompilationOutput);
-	static const TSharedRef<SWidget> ProcessOperator(const FSubstrateMaterialCompilationOutput& CompilationOutput, const FGuid& InGuid);
+	static const TSharedRef<SWidget> ProcessOperator(const FSubstrateMaterialCompilationOutput& CompilationOutput, const TArray<FGuid>& InGuid);
 	static void GetPinColor(TSharedPtr<SGraphPin>& Out, const UMaterialGraphNode* InNode);
 	static FLinearColor GetConnectionColor();
 	static bool HasInputSubstrateType(const UEdGraphPin* InPin);

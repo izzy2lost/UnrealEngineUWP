@@ -717,7 +717,7 @@ static_assert(SSM_NUM <= 32, "Do not exceed 32 shading models without expanding 
 struct FSubstrateMaterialInfo
 {
 public:
-	FSubstrateMaterialInfo() {}
+	FSubstrateMaterialInfo(bool bGatherGuids = false) { bGatherMaterialExpressionGuids = bGatherGuids; }
 	FSubstrateMaterialInfo(ESubstrateShadingModel InShadingModel) { AddShadingModel(InShadingModel); }
 
 	// Shading model
@@ -741,6 +741,10 @@ public:
 	// Shading model from expression
 	void SetShadingModelFromExpression(bool bIn) { bHasShadingModelFromExpression = bIn ? 1u : 0u; }
 	bool HasShadingModelFromExpression() const { return bHasShadingModelFromExpression > 0u; }
+
+	// Substrate material expression GUIDs
+	void AddGuid(const FGuid& In) { if (bGatherMaterialExpressionGuids) { MaterialExpressionGuids.Add(In); } }
+	const TArray<FGuid>& GetGuids() const { return MaterialExpressionGuids; }
 
 	uint64 GetPropertyConnected() const { return ConnectedPropertyMask; }
 	void AddPropertyConnected(uint64 In) { ConnectedPropertyMask |= (1ull << In); }
@@ -782,6 +786,10 @@ private:
 	TArray<TObjectPtr<USubsurfaceProfile>> SubsurfaceProfiles;
 
 	TArray<TObjectPtr<USpecularProfile>> SpecularProfiles;
+	
+	/* Material expression GUIDs for all the traversed Substrate nodes */
+	bool bGatherMaterialExpressionGuids = false;
+	TArray<FGuid> MaterialExpressionGuids;
 
 #if WITH_EDITOR
 	// A simple way to detect and prevent node re-entry due to cycling graph; stop the compilation and avoid crashing.

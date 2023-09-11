@@ -24097,6 +24097,8 @@ void UMaterialExpressionSubstrateSlabBSDF::GatherSubstrateMaterialInfo(FSubstrat
 	{
 		SubstrateMaterialInfo.AddSpecularProfile(SpecularProfile);
 	}
+
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 }
 
 FSubstrateOperator* UMaterialExpressionSubstrateSlabBSDF::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
@@ -24329,6 +24331,7 @@ void UMaterialExpressionSubstrateSimpleClearCoatBSDF::GatherSubstrateMaterialInf
 	if (EmissiveColor.IsConnected()) { SubstrateMaterialInfo.AddPropertyConnected(MP_EmissiveColor); }
 
 	SubstrateMaterialInfo.AddShadingModel(SSM_DefaultLit);
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 }
 
 FSubstrateOperator* UMaterialExpressionSubstrateSimpleClearCoatBSDF::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
@@ -24416,6 +24419,7 @@ bool UMaterialExpressionSubstrateVolumetricFogCloudBSDF::IsResultSubstrateMateri
 void UMaterialExpressionSubstrateVolumetricFogCloudBSDF::GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex)
 {
 	SubstrateMaterialInfo.AddShadingModel(SSM_VolumetricFogCloud);
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 }
 
 FSubstrateOperator* UMaterialExpressionSubstrateVolumetricFogCloudBSDF::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
@@ -24486,6 +24490,7 @@ bool UMaterialExpressionSubstrateLightFunction::IsResultSubstrateMaterial(int32 
 void UMaterialExpressionSubstrateLightFunction::GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex)
 {
 	SubstrateMaterialInfo.AddShadingModel(SSM_LightFunction);
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 }
 
 FSubstrateOperator* UMaterialExpressionSubstrateLightFunction::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
@@ -24562,6 +24567,7 @@ bool UMaterialExpressionSubstratePostProcess::IsResultSubstrateMaterial(int32 Ou
 void UMaterialExpressionSubstratePostProcess::GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex)
 {
 	SubstrateMaterialInfo.AddShadingModel(SSM_PostProcess);
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 }
 
 FSubstrateOperator* UMaterialExpressionSubstratePostProcess::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
@@ -24638,6 +24644,7 @@ bool UMaterialExpressionSubstrateUI::IsResultSubstrateMaterial(int32 OutputIndex
 void UMaterialExpressionSubstrateUI::GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex)
 {
 	SubstrateMaterialInfo.AddShadingModel(SSM_UI);
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 }
 
 FSubstrateOperator* UMaterialExpressionSubstrateUI::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
@@ -24744,6 +24751,7 @@ void UMaterialExpressionSubstrateConvertToDecal::GatherSubstrateMaterialInfo(FSu
 		TracedInput.Expression->GatherSubstrateMaterialInfo(SubstrateMaterialInfo, TracedInput.OutputIndex);
 	}
 	SubstrateMaterialInfo.AddShadingModel(SSM_Decal);
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 
 	SubstrateMaterialInfo.PopSubstrateTreeStack();
 }
@@ -24839,6 +24847,7 @@ void UMaterialExpressionSubstrateUnlitBSDF::GatherSubstrateMaterialInfo(FSubstra
 {
 	if (EmissiveColor.IsConnected()) { SubstrateMaterialInfo.AddPropertyConnected(MP_EmissiveColor); }
 	SubstrateMaterialInfo.AddShadingModel(SSM_Unlit);
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 }
 
 FSubstrateOperator* UMaterialExpressionSubstrateUnlitBSDF::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
@@ -24955,6 +24964,7 @@ void UMaterialExpressionSubstrateHairBSDF::GatherSubstrateMaterialInfo(FSubstrat
 	if (Tangent.IsConnected())			{ SubstrateMaterialInfo.AddPropertyConnected(MP_Tangent); }
 
 	SubstrateMaterialInfo.AddShadingModel(SSM_Hair);
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 }
 
 FSubstrateOperator* UMaterialExpressionSubstrateHairBSDF::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
@@ -25069,6 +25079,7 @@ void UMaterialExpressionSubstrateEyeBSDF::GatherSubstrateMaterialInfo(FSubstrate
 		SubstrateMaterialInfo.AddSubsurfaceProfile(SubsurfaceProfile);
 	}
 	SubstrateMaterialInfo.AddShadingModel(SSM_Eye);
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 }
 
 FSubstrateOperator* UMaterialExpressionSubstrateEyeBSDF::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
@@ -25200,6 +25211,7 @@ void UMaterialExpressionSubstrateSingleLayerWaterBSDF::GatherSubstrateMaterialIn
 	if (Normal.IsConnected())			{ SubstrateMaterialInfo.AddPropertyConnected(MP_Normal); }
 
 	SubstrateMaterialInfo.AddShadingModel(SSM_SingleLayerWater);
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 }
 
 FSubstrateOperator* UMaterialExpressionSubstrateSingleLayerWaterBSDF::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
@@ -25352,6 +25364,7 @@ void UMaterialExpressionSubstrateHorizontalMixing::GatherSubstrateMaterialInfo(F
 	{
 		TracedInputB.Expression->GatherSubstrateMaterialInfo(SubstrateMaterialInfo, TracedInputB.OutputIndex);
 	}
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 
 	SubstrateMaterialInfo.PopSubstrateTreeStack();
 }
@@ -25550,6 +25563,7 @@ void UMaterialExpressionSubstrateVerticalLayering::GatherSubstrateMaterialInfo(F
 	{
 		TracedInputBase.Expression->GatherSubstrateMaterialInfo(SubstrateMaterialInfo, TracedInputBase.OutputIndex);
 	}
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 
 	SubstrateMaterialInfo.PopSubstrateTreeStack();
 }
@@ -25727,6 +25741,7 @@ void UMaterialExpressionSubstrateAdd::GatherSubstrateMaterialInfo(FSubstrateMate
 	{
 		TracedInputB.Expression->GatherSubstrateMaterialInfo(SubstrateMaterialInfo, TracedInputB.OutputIndex);
 	}
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 
 	SubstrateMaterialInfo.PopSubstrateTreeStack();
 }
@@ -25864,6 +25879,7 @@ void UMaterialExpressionSubstrateWeight::GatherSubstrateMaterialInfo(FSubstrateM
 	{
 		TracedInputA.Expression->GatherSubstrateMaterialInfo(SubstrateMaterialInfo, TracedInputA.OutputIndex);
 	}
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 
 	SubstrateMaterialInfo.PopSubstrateTreeStack();
 }
@@ -26677,6 +26693,7 @@ void UMaterialExpressionSubstrateConvertMaterialAttributes::GatherSubstrateMater
 	{
 		SubstrateMaterialInfo.AddSubsurfaceProfile(SubsurfaceProfile);
 	}
+	SubstrateMaterialInfo.AddGuid(MaterialExpressionGuid);
 }
 
 FSubstrateOperator* UMaterialExpressionSubstrateConvertMaterialAttributes::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)

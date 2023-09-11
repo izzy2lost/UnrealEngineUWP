@@ -3265,9 +3265,9 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 	if (bUseMaterialAttributes && EditorOnly->MaterialAttributes.Expression && !EditorOnly->MaterialAttributes.Expression->IsResultSubstrateMaterial(EditorOnly->MaterialAttributes.OutputIndex)) // M_Rifle cause issues there
 	{
 		UMaterialExpressionSubstrateConvertMaterialAttributes* ConvertAttributeNode = NewObject<UMaterialExpressionSubstrateConvertMaterialAttributes>(this);
+		ConvertAttributeNode->Material = this;
 		SetPosXAndMoveReferenceToTheRight(ConvertAttributeNode);
 		ConvertAttributeNode->SubsurfaceProfile = bRequireNoSubsurfaceProfile ? nullptr : SubsurfaceProfile;
-		ConvertAttributeNode->Material = this;
 
 		MoveConnectionTo(EditorOnly->MaterialAttributes, ConvertAttributeNode, 0);
 
@@ -3332,6 +3332,7 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 
 			// Now pass through the convert to decal node, which flag the material as SSM_Decal, which will set the domain to Decal.
 			UMaterialExpressionSubstrateConvertToDecal* ConvertToDecalNode = NewObject<UMaterialExpressionSubstrateConvertToDecal>(this);
+			ConvertAttributeNode->Material = this;
 			ReplaceNodeAndMoveToTheRight(ConvertAttributeNode, ConvertToDecalNode);
 			ConvertToDecalNode->DecalMaterial.Connect(0, ConvertAttributeNode);
 
@@ -3370,6 +3371,7 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 		{
 			// Or if it cannot be found, a slab node
 			UMaterialExpressionSubstrateSlabBSDF* SlabNode = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
+			SlabNode->Material = this;
 			SetPosXAndMoveReferenceToTheRight(SlabNode);
 			EditorOnly->FrontMaterial.Connect(0, SlabNode);
 		}
@@ -3397,6 +3399,7 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 					
 					// Top slab BSDF as a simple Disney material
 					UMaterialExpressionSubstrateSlabBSDF* BottomSlabBSDF = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
+					BottomSlabBSDF->Material = this;
 					SetPosXAndMoveReferenceToTheRight(BottomSlabBSDF);
 					BottomSlabBSDF->GetInput(0)->Connect(0, SubstrateMetalnessToDiffuseAlbedoF0);
 					BottomSlabBSDF->GetInput(1)->Connect(1, SubstrateMetalnessToDiffuseAlbedoF0);
@@ -3410,6 +3413,7 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 
 					// Now weight the top base material by opacity.
 					UMaterialExpressionSubstrateSlabBSDF* TopSlabBSDF = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
+					TopSlabBSDF->Material = this;
 					TopSlabBSDF->MaterialExpressionEditorX = BottomSlabBSDF->MaterialExpressionEditorX;
 					TopSlabBSDF->MaterialExpressionEditorY = BottomSlabBSDF->MaterialExpressionEditorY + 650;
 					MoveConnectionTo(EditorOnly->EmissiveColor, TopSlabBSDF, 10);				// Emissive
@@ -3460,6 +3464,7 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 			if (!bClearCoatConversionDone)
 			{
 				ConvertNode = NewObject<UMaterialExpressionSubstrateShadingModels>(this);
+				ConvertNode->Material = this;
 				SetPosXAndMoveReferenceToTheRight(ConvertNode);
 				ConvertNode->SubsurfaceProfile = bRequireNoSubsurfaceProfile ? nullptr : SubsurfaceProfile;
 				MoveConnectionTo(EditorOnly->BaseColor, ConvertNode, 0);
@@ -3515,6 +3520,7 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 		else if (MaterialDomain == MD_Volume)
 		{
 			UMaterialExpressionSubstrateVolumetricFogCloudBSDF* VolBSDF = NewObject<UMaterialExpressionSubstrateVolumetricFogCloudBSDF>(this);
+			VolBSDF->Material = this;
 			SetPosXAndMoveReferenceToTheRight(VolBSDF);
 			MoveConnectionTo(EditorOnly->BaseColor, VolBSDF, 0);		// Albedo
 			MoveConnectionTo(EditorOnly->SubsurfaceColor, VolBSDF, 1);	// Extinction
@@ -3534,6 +3540,7 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 
 			// Only Emissive & Opacity are valid input for PostProcess material
 			UMaterialExpressionSubstrateLightFunction* LightFunctionNode = NewObject<UMaterialExpressionSubstrateLightFunction>(this);
+			LightFunctionNode->Material = this;
 			SetPosXAndMoveReferenceToTheRight(LightFunctionNode);
 			MoveConnectionTo(EditorOnly->EmissiveColor, LightFunctionNode, 0);
 
@@ -3553,6 +3560,7 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 			}
 
 			UMaterialExpressionSubstratePostProcess* PostProcNode = NewObject<UMaterialExpressionSubstratePostProcess>(this);
+			PostProcNode->Material = this;
 			SetPosXAndMoveReferenceToTheRight(PostProcNode);
 
 			MoveConnectionTo(EditorOnly->EmissiveColor, PostProcNode, 0);
@@ -3569,6 +3577,7 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 			ShadingModels.AddShadingModel(MSM_DefaultLit);
 
 			ConvertNode = NewObject<UMaterialExpressionSubstrateShadingModels>(this);
+			ConvertNode->Material = this;
 			SetPosXAndMoveReferenceToTheRight(ConvertNode);
 			MoveConnectionTo(EditorOnly->BaseColor, ConvertNode, 0);
 			MoveConnectionTo(EditorOnly->Metallic, ConvertNode, 1);
@@ -3589,6 +3598,7 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 
 			// Now pass through the convert to decal node, which flag the material as SSM_Decal, which will set the domain to Decal.
 			UMaterialExpressionSubstrateConvertToDecal* ConvertToDecalNode= NewObject<UMaterialExpressionSubstrateConvertToDecal>(this);
+			ConvertToDecalNode->Material = this;
 			ReplaceNodeAndMoveToTheRight(ConvertNode, ConvertToDecalNode);
 			ConvertToDecalNode->DecalMaterial.Connect(0, ConvertNode);
 
@@ -3603,6 +3613,7 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 			ShadingModels.AddShadingModel(MSM_Unlit);
 
 			UMaterialExpressionSubstrateUI* UINode = NewObject<UMaterialExpressionSubstrateUI>(this);
+			UINode->Material = this;
 			SetPosXAndMoveReferenceToTheRight(UINode);
 			MoveConnectionTo(EditorOnly->EmissiveColor, UINode, 0);
 			CopyConnectionTo(EditorOnly->Opacity, UINode, 1);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.

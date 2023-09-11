@@ -483,32 +483,57 @@ void SGraphNodeMaterialBase::CreateBelowPinControls(TSharedPtr<SVerticalBox> Mai
 	}
 
 	// Preview of Substrate nodes topology
-	if (Substrate::IsSubstrateEnabled() && MaterialNode && MaterialNode->MaterialExpression->IsA(UMaterialExpressionSubstrateBSDF::StaticClass()))
+	if (Substrate::IsSubstrateEnabled() && MaterialNode)
 	{
-		if (const UMaterialExpressionSubstrateBSDF* SubstrateExpression = (const UMaterialExpressionSubstrateBSDF*)MaterialNode->MaterialExpression)
-		{		
-			if (UMaterial* MaterialForStats = SubstrateExpression->Material)
+		TArray<FGuid> Guids;
+		if (MaterialNode->MaterialExpression->IsA(UMaterialExpressionSubstrateBSDF::StaticClass()))
+		{
+			const UMaterialExpression* SubstrateExpression = (const UMaterialExpression*)MaterialNode->MaterialExpression;
+			Guids.Add(SubstrateExpression->MaterialExpressionGuid);
+		}
+		else if (MaterialNode->MaterialExpression->IsA(UMaterialExpressionMaterialFunctionCall::StaticClass()))
+		{
+			UMaterialExpressionMaterialFunctionCall* FunctionCall = (UMaterialExpressionMaterialFunctionCall*)MaterialNode->MaterialExpression;
+			const uint32 OutputCount = FunctionCall->FunctionOutputs.Num();
+			for (uint32 OutputIndex = 0; OutputIndex < OutputCount; ++OutputIndex)
 			{
-				if (const FMaterialResource* MaterialResource = MaterialForStats->GetMaterialResource(GMaxRHIFeatureLevel))
+				if (FunctionCall->IsResultSubstrateMaterial(OutputIndex))
 				{
-					if (FMaterialShaderMap* ShaderMap = MaterialResource->GetGameThreadShaderMap())
-					{
-						const FSubstrateMaterialCompilationOutput& CompilationOutput = ShaderMap->GetSubstrateMaterialCompilationOutput();
-						MainBox->AddSlot()
-						.Padding(Settings->GetNonPinNodeBodyPadding())
-						.AutoHeight()
-						[
-							SNew(SHorizontalBox)
-							+SHorizontalBox::Slot()
-							.VAlign(VAlign_Center)
-							.HAlign(HAlign_Center)
-							[							
-								FSubstrateWidget::ProcessOperator(CompilationOutput, SubstrateExpression->MaterialExpressionGuid)
-							]
-						];
-					}
+					FSubstrateMaterialInfo SubstrateMaterialInfo(true/*bGatherGuids*/);
+					FunctionCall->GatherSubstrateMaterialInfo(SubstrateMaterialInfo, OutputIndex);
+					Guids = SubstrateMaterialInfo.GetGuids();
+					break;
 				}
+			}
+		}
+
+		if (Guids.Num() > 0)
+		{
+			if (const UMaterialExpression* SubstrateExpression = (const UMaterialExpression*)MaterialNode->MaterialExpression)
+			{		
+				if (UMaterial* MaterialForStats = SubstrateExpression->Material)
+				{
+					if (const FMaterialResource* MaterialResource = MaterialForStats->GetMaterialResource(GMaxRHIFeatureLevel))
+					{
+						if (FMaterialShaderMap* ShaderMap = MaterialResource->GetGameThreadShaderMap())
+						{
+							const FSubstrateMaterialCompilationOutput& CompilationOutput = ShaderMap->GetSubstrateMaterialCompilationOutput();
+							MainBox->AddSlot()
+							.Padding(Settings->GetNonPinNodeBodyPadding())
+							.AutoHeight()
+							[
+								SNew(SHorizontalBox)
+								+SHorizontalBox::Slot()
+								.VAlign(VAlign_Center)
+								.HAlign(HAlign_Center)
+								[							
+									FSubstrateWidget::ProcessOperator(CompilationOutput, Guids)
+								]
+							];
+						}
+					}
 	
+				}
 			}
 		}
 	}
