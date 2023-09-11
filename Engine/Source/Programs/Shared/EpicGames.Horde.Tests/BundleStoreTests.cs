@@ -95,7 +95,7 @@ namespace EpicGames.Horde.Tests
 			MemoryStorageClient blobStore = new MemoryStorageClient();
 			await TestTreeAsync(blobStore, new BundleOptions { MaxBlobSize = 1024 * 1024 });
 
-			Assert.AreEqual(1, blobStore.Bundles.Count);
+			Assert.AreEqual(1, blobStore.Blobs.Count);
 			Assert.AreEqual(1, blobStore.Refs.Count);
 		}
 
@@ -107,7 +107,7 @@ namespace EpicGames.Horde.Tests
 			MemoryStorageClient blobStore = new MemoryStorageClient();
 			await TestTreeAsync(blobStore, new BundleOptions { MaxBlobSize = 1 });
 
-			Assert.AreEqual(5, blobStore.Bundles.Count);
+			Assert.AreEqual(5, blobStore.Blobs.Count);
 			Assert.AreEqual(1, blobStore.Refs.Count);
 		}
 
@@ -388,7 +388,7 @@ namespace EpicGames.Horde.Tests
 
 				NodeRef<ChunkedDataNode> file = root.GetFileEntry("test");
 
-				long uniqueSize = store.Bundles.Values.SelectMany(x => x.Header.Packets).Sum(x => x.DecodedLength);
+				long uniqueSize = store.Blobs.Values.Select(x => Bundle.FromMemory(x)).SelectMany(x => x.Header.Packets).Sum(x => x.DecodedLength);
 				Assert.IsTrue(uniqueSize < data.Length / 3); // random fraction meaning "lots of dedupe happened"
 			}
 		}

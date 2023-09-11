@@ -102,6 +102,17 @@ namespace EpicGames.Horde.Storage.Bundles
 		}
 
 		/// <summary>
+		/// Reads a bundle from the given memory
+		/// </summary>
+		/// <param name="data">Data to read from</param>
+		/// <returns>Bundle that was read</returns>
+		public static Bundle FromMemory(ReadOnlyMemory<byte> data)
+		{
+			using ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(data);
+			return FromStreamAsync(stream).Result;
+		}
+
+		/// <summary>
 		/// Reads a bundle from the given stream
 		/// </summary>
 		/// <param name="stream">Stream to read from</param>

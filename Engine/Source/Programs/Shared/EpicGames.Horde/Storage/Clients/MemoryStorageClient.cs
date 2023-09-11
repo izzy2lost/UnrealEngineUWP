@@ -25,9 +25,9 @@ namespace EpicGames.Horde.Storage.Clients
 		record class ExportEntry(BundleNodeHandle Handle, int Rank, ExportEntry? Next);
 
 		/// <summary>
-		/// Map of blob id to blob data
+		/// Backend instance
 		/// </summary>
-		readonly ConcurrentDictionary<BundleLocator, Bundle> _bundles = new ConcurrentDictionary<BundleLocator, Bundle>();
+		readonly MemoryStorageBackend _backend;
 
 		/// <summary>
 		/// Map of ref name to ref data
@@ -39,8 +39,10 @@ namespace EpicGames.Horde.Storage.Clients
 		/// </summary>
 		readonly ConcurrentDictionary<Utf8String, ExportEntry> _exports = new ConcurrentDictionary<Utf8String, ExportEntry>();
 
-		/// <inheritdoc cref="_bundles"/>
-		public IReadOnlyDictionary<BundleLocator, Bundle> Bundles => _bundles;
+		/// <summary>
+		/// All data stored by the client
+		/// </summary>
+		public IReadOnlyDictionary<string, byte[]> Blobs => _backend.Blobs;
 
 		/// <inheritdoc cref="_refs"/>
 		public IReadOnlyDictionary<RefName, BundleNodeLocator> Refs => _refs;
@@ -49,8 +51,17 @@ namespace EpicGames.Horde.Storage.Clients
 		/// Constructor
 		/// </summary>
 		public MemoryStorageClient() 
-			: base(new MemoryStorageBackend(), StorageCache.None, NullLogger.Instance)
+			: this(new MemoryStorageBackend())
 		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		private MemoryStorageClient(MemoryStorageBackend backend)
+			: base(backend, StorageCache.None, NullLogger.Instance)
+		{
+			_backend = backend;
 		}
 
 		#region Aliases

@@ -21,6 +21,11 @@ namespace EpicGames.Horde.Storage.Backends
 		/// </summary>
 		readonly ConcurrentDictionary<string, byte[]> _pathToData = new ConcurrentDictionary<string, byte[]>();
 
+		/// <summary>
+		/// Read only access to the stored blobs
+		/// </summary>
+		public IReadOnlyDictionary<string, byte[]> Blobs => _pathToData; 
+
 		/// <inheritdoc/>
 		public bool SupportsRedirects => false;
 
