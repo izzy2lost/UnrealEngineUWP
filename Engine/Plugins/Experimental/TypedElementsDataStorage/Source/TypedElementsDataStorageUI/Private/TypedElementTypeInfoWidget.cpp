@@ -3,7 +3,10 @@
 #include "TypedElementTypeInfoWidget.h"
 
 #include "MassActorSubsystem.h"
+#include "SceneOutlinerHelpers.h"
+#include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
+#include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Styling/SlateIconFinder.h"
 #include "Widgets/Text/STextBlock.h"
@@ -44,20 +47,16 @@ TSharedPtr<SWidget> FTypedElementTypeInfoWidgetConstructor::CreateWidget(
 		bUseIcon = *MetaDataEntryView.TryGetExact<bool>();
 	}
 
-	// Can't do this in one line because slate doesn't like multiple SNew in one line
-	TSharedPtr<SWidget> TypeWidget;
 	if(bUseIcon)
 	{
-		TypeWidget = SNew(SImage)
+		return SNew(SImage)
 					.DesiredSizeOverride(FVector2D(16.f, 16.f))
 					.ColorAndOpacity(FSlateColor::UseForeground());
 	}
 	else
 	{
-		TypeWidget = SNew(STextBlock);
+		return SNew(SHorizontalBox);
 	}
-	
-	return TypeWidget;
 }
 
 bool FTypedElementTypeInfoWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage,
@@ -84,14 +83,37 @@ bool FTypedElementTypeInfoWidgetConstructor::FinalizeWidget(ITypedElementDataSto
 		}
 		else
 		{
-			checkf(Widget->GetType() == STextBlock::StaticWidgetClass().GetWidgetType(),
+			checkf(Widget->GetType() == SHorizontalBox::StaticWidgetClass().GetWidgetType(),
 				TEXT("Stored widget with FTypedElementLabelWidgetConstructor doesn't match type %s, but was a %s."),
-				*(STextBlock::StaticWidgetClass().GetWidgetType().ToString()),
+				*(SHorizontalBox::StaticWidgetClass().GetWidgetType().ToString()),
 				*(Widget->GetTypeAsString()));
 				
-			STextBlock* WidgetInstance = static_cast<STextBlock*>(Widget.Get());
+			SHorizontalBox* WidgetInstance = static_cast<SHorizontalBox*>(Widget.Get());
 
-			WidgetInstance->SetText(FText::FromString(TypeInfoColumn->TypeInfo.Get()->GetName()));
+			TSharedPtr<SWidget> ActualWidget;
+
+			// Check if we have a hyperlink for this object
+			if (const FTypedElementUObjectColumn* ObjectColumn = DataStorage->GetColumn<FTypedElementUObjectColumn>(TargetRow))
+			{
+				ActualWidget = SceneOutliner::FSceneOutlinerHelpers::GetClassHyperlink(ObjectColumn->Object.Get());
+			}
+
+			// If not, we simply show a text block with the type
+			if(!ActualWidget)
+			{
+				ActualWidget = SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+								.Text(FText::FromString(TypeInfoColumn->TypeInfo.Get()->GetName()));
+			}
+
+
+			WidgetInstance->AddSlot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.Padding(8, 0, 0, 0)
+						[
+							ActualWidget.ToSharedRef()
+						];
 		}
 	}
 
@@ -100,7 +122,6 @@ bool FTypedElementTypeInfoWidgetConstructor::FinalizeWidget(ITypedElementDataSto
 
 const FSlateBrush* FTypedElementTypeInfoWidgetConstructor::GetIconForRow(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row, const FTypedElementClassTypeInfoColumn* TypeInfoColumn)
 {
-
 	/* The logic here is very similar to SActorTreeLabel::GetIcon in ActorTreeItem.cpp which allows the actor to specify
 	 * an override for the icon, and has a fallback to the class icon if not.
 	 */

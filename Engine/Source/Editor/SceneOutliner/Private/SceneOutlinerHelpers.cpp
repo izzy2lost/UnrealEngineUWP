@@ -4,6 +4,10 @@
 #include "ActorTreeItem.h"
 #include "ActorDescTreeItem.h"
 #include "ActorFolderTreeItem.h"
+#include "EditorClassUtils.h"
+#include "Engine/Blueprint.h"
+#include "Misc/PackageName.h"
+#include "Modules/ModuleManager.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "UObject/Package.h"
 
@@ -77,4 +81,42 @@ namespace SceneOutliner
 
 		return nullptr;
 	}
+
+TSharedPtr<SWidget> FSceneOutlinerHelpers::GetClassHyperlink(UObject* InObject)
+	{
+		if (InObject)
+		{
+			if (UClass* Class = InObject->GetClass())
+			{
+				// Always show blueprints
+				const bool bIsBlueprintClass = UBlueprint::GetBlueprintFromClass(Class) != nullptr;
+
+				// Also show game or game plugin native classes (but not engine classes as that makes the scene outliner pretty noisy)
+				bool bIsGameClass = false;
+				if (!bIsBlueprintClass)
+				{
+					UPackage* Package = Class->GetOutermost();
+					const FString ModuleName = FPackageName::GetShortName(Package->GetFName());
+
+					FModuleStatus PackageModuleStatus;
+					if (FModuleManager::Get().QueryModule(*ModuleName, /*out*/ PackageModuleStatus))
+					{
+						bIsGameClass = PackageModuleStatus.bIsGameModule;
+					}
+				}
+
+				if (bIsBlueprintClass || bIsGameClass)
+				{
+					FEditorClassUtils::FSourceLinkParams SourceLinkParams;
+					SourceLinkParams.Object = InObject;
+					SourceLinkParams.bUseDefaultFormat = true;
+
+					return FEditorClassUtils::GetSourceLink(Class, SourceLinkParams);
+				}
+			}
+		}
+
+		return nullptr;
+	}
+
 ;}

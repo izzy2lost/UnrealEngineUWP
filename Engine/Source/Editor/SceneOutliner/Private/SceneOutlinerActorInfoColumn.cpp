@@ -19,6 +19,7 @@
 #include "ComponentTreeItem.h"
 #include "FolderTreeItem.h"
 #include "LevelTreeItem.h"
+#include "SceneOutlinerHelpers.h"
 #include "WorldTreeItem.h"
 #include "WorldPartition/DataLayer/DataLayerInstance.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
@@ -157,34 +158,7 @@ TSharedPtr<SWidget> FTypeInfoColumn::ConstructClassHyperlink( ISceneOutlinerTree
 	{
 		if (AActor* Actor = ActorItem->Actor.Get())
 		{
-			if (UClass* ActorClass = Actor->GetClass())
-			{
-				// Always show blueprints
-				const bool bIsBlueprintClass = UBlueprint::GetBlueprintFromClass(ActorClass) != nullptr;
-
-				// Also show game or game plugin native classes (but not engine classes as that makes the scene outliner pretty noisy)
-				bool bIsGameClass = false;
-				if (!bIsBlueprintClass)
-				{
-					UPackage* Package = ActorClass->GetOutermost();
-					const FString ModuleName = FPackageName::GetShortName(Package->GetFName());
-
-					FModuleStatus PackageModuleStatus;
-					if (FModuleManager::Get().QueryModule(*ModuleName, /*out*/ PackageModuleStatus))
-					{
-						bIsGameClass = PackageModuleStatus.bIsGameModule;
-					}
-				}
-
-				if (bIsBlueprintClass || bIsGameClass)
-				{
-					FEditorClassUtils::FSourceLinkParams SourceLinkParams;
-					SourceLinkParams.Object = Actor;
-					SourceLinkParams.bUseDefaultFormat = true;
-
-					return FEditorClassUtils::GetSourceLink(ActorClass, SourceLinkParams);
-				}
-			}
+			return SceneOutliner::FSceneOutlinerHelpers::GetClassHyperlink(Actor);
 		}
 	}
 
