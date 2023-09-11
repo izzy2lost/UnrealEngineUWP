@@ -321,11 +321,6 @@ void UEditorInteractiveToolsContext::Shutdown()
 {
 	bIsActive = false;
 
-	if (UContextObjectStore* ContextStore = GizmoManager ? GizmoManager->GetContextObjectStore() : nullptr)
-	{
-		ContextStore->RemoveContextObject(this);
-	}
-	
 	// auto-accept any in-progress tools
 	DeactivateAllActiveTools(EToolShutdownType::Accept);
 
@@ -344,10 +339,6 @@ void UEditorInteractiveToolsContext::InitializeContextWithEditorModeManager(FEdi
 	SetCreateGizmoManagerFunc([this](const FContextInitInfo& ContextInfo)
 	{
 		UEditorInteractiveGizmoManager* NewGizmoManager = NewObject<UEditorInteractiveGizmoManager>(ContextInfo.ToolsContext);
-		if (UContextObjectStore* ContextStore = NewGizmoManager->GetContextObjectStore())
-		{
-			ContextStore->AddContextObject(this);
-		}
 		NewGizmoManager->InitializeWithEditorModeManager(ContextInfo.QueriesAPI, ContextInfo.TransactionsAPI, ContextInfo.InputRouter, EditorModeManager);
 		NewGizmoManager->RegisterDefaultGizmos();
 		return NewGizmoManager;
