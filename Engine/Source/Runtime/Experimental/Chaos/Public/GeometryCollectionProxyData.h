@@ -79,7 +79,6 @@ public:
 	
 	TManagedArray<int32> DynamicState;
 	TManagedArray<Chaos::FImplicitObjectPtr> Implicits;
-	TManagedArray<FTransform> MassToLocal;
 	TManagedArray<TUniquePtr<FCollisionStructureManager::FSimplicial>> Simplicials;
 	TManagedArray<bool> SimulatableParticles;
 

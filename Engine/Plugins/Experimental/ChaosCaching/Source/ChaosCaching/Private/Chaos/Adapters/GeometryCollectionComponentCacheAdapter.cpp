@@ -87,7 +87,7 @@ namespace Chaos
 		}
 
 		FGeometryDynamicCollection&            Collection       = Proxy->GetPhysicsCollection();
-		const TManagedArray<FTransform>&       MassToLocal		= Collection.MassToLocal;
+		const TManagedArray<FTransform>&       MassToLocal      = RestCollection->GetAttribute<FTransform>("MassToLocal", FGeometryCollection::TransformGroup);
 		const TManagedArray<int32>&            Parents			= RestCollection->Parent;
 		const TManagedArray<TSet<int32>>&	   Children         = RestCollection->Children;
 		const TArray<FBreakingData>&		   Breaks           = Solver->GetEvolution()->GetRigidClustering().GetAllClusterBreakings();
@@ -262,7 +262,7 @@ namespace Chaos
 		}
 
 		FGeometryDynamicCollection&      Collection       = Proxy->GetPhysicsCollection();
-		const TManagedArray<FTransform>& MassToLocal	  = Collection.MassToLocal;
+		const TManagedArray<FTransform>& MassToLocal      = RestCollection->GetAttribute<FTransform>("MassToLocal", FGeometryCollection::TransformGroup);
 		TArray<FClusterParticle*>        Particles        = Proxy->GetParticles();
 
 		FCacheEvaluationContext Context(TickRecord);

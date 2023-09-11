@@ -3306,6 +3306,8 @@ void UGeometryCollectionComponent::UpdateNavigationDataIfNeeded(bool bDynamicCol
 
 void UGeometryCollectionComponent::UpdateRemovalIfNeeded()
 {
+	static FName MassToLocalAttributeName = "MassToLocal";
+
 	// if removal is enabled, update the dynamic collection transform based on the decay 
 	// todo: we could optimize this using a list of transform to update from when we update the decay values
 	if (DynamicCollection && bAllowRemovalOnBreak && bAllowRemovalOnSleep)
@@ -3316,6 +3318,8 @@ void UGeometryCollectionComponent::UpdateRemovalIfNeeded()
 			const FTransform ZeroScaleTransform(FQuat::Identity, FVector::Zero(), FVector(0, 0, 0));
 
 			const FTransform InverseComponentTransform = (RestCollection->bScaleOnRemoval) ? GetComponentTransform().Inverse() : FTransform::Identity;
+
+			const TManagedArray<FTransform>& MassToLocal = RestCollection->GetGeometryCollection()->GetAttribute<FTransform>(MassToLocalAttributeName, FGeometryCollection::TransformGroup);
 
 			const int32 NumTransforms = DecayFacade.GetDecayAttributeSize();
 			for (int32 TransformIndex = 0; TransformIndex < NumTransforms; ++TransformIndex)
@@ -3342,7 +3346,7 @@ void UGeometryCollectionComponent::UpdateRemovalIfNeeded()
 
 						const FQuat LocalRotation = (InverseComponentTransform * ComponentSpaceTransforms[TransformIndex].Inverse()).GetRotation();
 						const FVector LocalDown = LocalRotation.RotateVector(FVector(0.f, 0.f, ShrinkRadius));
-						const FVector CenterOfMass = DynamicCollection->MassToLocal[TransformIndex].GetTranslation();
+						const FVector CenterOfMass = MassToLocal[TransformIndex].GetTranslation();
 						const FVector ScaleCenter = LocalDown + CenterOfMass;
 						const FTransform ScaleTransform(FQuat::Identity, ScaleCenter * FVector::FReal(1.f - Scale), FVector(Scale));
 						DynamicCollection->Transform[TransformIndex] = ScaleTransform * DynamicCollection->Transform[TransformIndex];
