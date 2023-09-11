@@ -295,6 +295,9 @@ enum class ERenderCommandPipeFlags : uint8
 ENUM_CLASS_FLAGS(ERenderCommandPipeFlags);
 
 class FRenderCommandPipe;
+using FRenderCommandPipeBitArrayAllocator = TInlineAllocator<1, FConcurrentLinearArrayAllocator>;
+using FRenderCommandPipeBitArray = TBitArray<FRenderCommandPipeBitArrayAllocator>;
+using FRenderCommandPipeSetBitIterator = TConstSetBitIterator<FRenderCommandPipeBitArrayAllocator>;
 
 namespace UE::RenderCommandPipe
 {
@@ -309,11 +312,11 @@ namespace UE::RenderCommandPipe
 
 	// [Game Thread] Starts recording render commands into pipes. Returns whether the operation succeeded.
 	extern RENDERCORE_API void StartRecording();
-	extern RENDERCORE_API void StartRecording(TConstArrayView<FRenderCommandPipe*> Pipes);
+	extern RENDERCORE_API void StartRecording(const FRenderCommandPipeBitArray& PipeBits);
 
 	// [Game Thread] Stops recording commands into pipes and syncs all remaining pipe work to the render thread. Returns whether the operation succeeded.
-	extern RENDERCORE_API void StopRecording();
-	extern RENDERCORE_API void StopRecording(TConstArrayView<FRenderCommandPipe*> Pipes);
+	extern RENDERCORE_API FRenderCommandPipeBitArray StopRecording();
+	extern RENDERCORE_API FRenderCommandPipeBitArray StopRecording(TConstArrayView<FRenderCommandPipe*> Pipes);
 
 	// [Game Thread] Stops render command pipe recording during the duration of the scope and restarts recording once the scope is complete.
 	class FSyncScope
@@ -321,29 +324,21 @@ namespace UE::RenderCommandPipe
 	public:
 		FSyncScope()
 		{
-			StopRecording();
+			PipeBits = StopRecording();
 		}
 
-		FSyncScope(TConstArrayView<FRenderCommandPipe*> InPipes)
-			: Pipes(InPipes)
+		FSyncScope(TConstArrayView<FRenderCommandPipe*> Pipes)
 		{
-			StopRecording(Pipes);
+			PipeBits = StopRecording(Pipes);
 		}
 
 		~FSyncScope()
 		{
-			if (!Pipes.IsEmpty())
-			{
-				StartRecording(Pipes);
-			}
-			else
-			{
-				StartRecording();
-			}
+			StartRecording(PipeBits);
 		}
 
 	private:
-		TConstArrayView<FRenderCommandPipe*> Pipes;
+		FRenderCommandPipeBitArray PipeBits;
 	};
 }
 

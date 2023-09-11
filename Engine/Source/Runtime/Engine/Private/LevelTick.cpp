@@ -1019,8 +1019,6 @@ void UWorld::SendAllEndOfFrameUpdates()
 		return;
 	}
 
-	UE::RenderCommandPipe::StartRecording();
-
 	// Wait for tasks that are generating data for the render proxies, but are not awaited in any TickFunctions 
 	// E.g., see cloth USkeletalMeshComponent::UpdateClothStateAndSimulate
 	for (UActorComponent* Component : ComponentsThatNeedPreEndOfFrameSync)
@@ -1163,8 +1161,6 @@ void UWorld::SendAllEndOfFrameUpdates()
 	LocalComponentsThatNeedEndOfFrameUpdate.Reset();
 
 	EndSendEndOfFrameUpdatesDrawEvent(SendAllEndOfFrameUpdates);
-
-	UE::RenderCommandPipe::StopRecording();
 }
 
 /**

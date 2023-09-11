@@ -1595,7 +1595,7 @@ void FRenderThreadCommandPipe::EnqueueAndLaunch(const TCHAR* Name, uint32& SpecI
 class FRenderCommandPipeRegistry
 {
 public:
-	TLinkedList<FRenderCommandPipe*>*& GetGlobalList()
+	static TLinkedList<FRenderCommandPipe*>*& GetGlobalList()
 	{
 		static TLinkedList<FRenderCommandPipe*>* GlobalList = nullptr;
 		return GlobalList;
@@ -1617,38 +1617,37 @@ public:
 		GRenderCommandPipeMode = GetValidatedRenderCommandPipeMode(CVarRenderCommandPipeMode->GetInt());
 	}
 
-	void StartRecording(TConstArrayView<FRenderCommandPipe*> Pipes)
+	void StartRecording()
 	{
+		if (GRenderCommandPipeMode != ERenderCommandPipeMode::All || !GIsThreadedRendering)
+		{
+			return;
+		}
+
+		FRenderCommandPipeBitArray PipeBits;
+		PipeBits.Init(true, AllPipes.Num());
+		StartRecording(PipeBits);
+	}
+
+	void StartRecording(const FRenderCommandPipeBitArray& PipeBits)
+	{
+		if (GRenderCommandPipeMode != ERenderCommandPipeMode::All || !GIsThreadedRendering || PipeBits.IsEmpty())
+		{
+			return;
+		}
+
 		SCOPED_NAMED_EVENT(FRenderCommandPipe_StartRecording, FColor::Magenta);
 
-		if (GRenderCommandPipeMode != ERenderCommandPipeMode::All)
-		{
-			return;
-		}
-
-		bool bAllPipes = false;
-		if (Pipes.IsEmpty())
-		{
-			bAllPipes = true;
-			Pipes = AllPipes;
-		}
-
-		if (Pipes.IsEmpty() || !ShouldExecuteOnRenderThread())
-		{
-			return;
-		}
+		check(PipeBits.Num() == AllPipes.Num());
 
 		UE::TScopeLock Lock(Mutex);
 
-		if (!bAllPipes)
-		{
-			CheckUnique(Pipes);
-		}
-
 		bool bAnyPipesToStartRecording = false;
 
-		for (FRenderCommandPipe* Pipe : Pipes)
+		for (FRenderCommandPipeSetBitIterator BitIt(PipeBits); BitIt; ++BitIt)
 		{
+			FRenderCommandPipe* Pipe = AllPipes[BitIt.GetIndex()];
+
 			if (Pipe->bEnabled && !Pipe->bRecording)
 			{
 				bAnyPipesToStartRecording = true;
@@ -1675,10 +1674,12 @@ public:
 		};
 
 		TArray<FPipeToStartRecording, FConcurrentLinearArrayAllocator> PipesToStartRecording;
-		PipesToStartRecording.Reserve(Pipes.Num());
+		PipesToStartRecording.Reserve(AllPipes.Num());
 
-		for (FRenderCommandPipe* Pipe : Pipes)
+		for (FRenderCommandPipeSetBitIterator BitIt(PipeBits); BitIt; ++BitIt)
 		{
+			FRenderCommandPipe* Pipe = AllPipes[BitIt.GetIndex()];
+
 			if (Pipe->bEnabled && !Pipe->bRecording)
 			{
 				Pipe->bRecording = true;
@@ -1707,89 +1708,62 @@ public:
 		});
 	}
 
-	void StopRecording(TConstArrayView<FRenderCommandPipe*> Pipes)
+	FRenderCommandPipeBitArray StopRecording()
 	{
-		SCOPED_NAMED_EVENT(FRenderCommandPipe_StopRecording, FColor::Magenta);
-
-		bool bAllPipes = false;
-
-		if (Pipes.IsEmpty())
+		UE::TScopeLock Lock(Mutex);
+		if (!NumPipesRecording)
 		{
-			bAllPipes = true;
-			Pipes = AllPipes;
+			return {};
 		}
 
+		FRenderCommandPipeBitArray PipeBits;
+		PipeBits.Init(false, AllPipes.Num());
+
+		for (int32 PipeIndex = 0; PipeIndex < AllPipes.Num(); ++PipeIndex)
+		{
+			if (FRenderCommandPipe* Pipe = AllPipes[PipeIndex]; Pipe->bRecording)
+			{
+				PipeBits[PipeIndex] = true;
+			}
+		}
+
+		StopRecording(PipeBits);
+		return PipeBits;
+	}
+
+	FRenderCommandPipeBitArray StopRecording(TConstArrayView<FRenderCommandPipe*> Pipes)
+	{
 		if (Pipes.IsEmpty())
 		{
-			return;
+			return {};
 		}
 
 		UE::TScopeLock Lock(Mutex);
-
-		if (!bAllPipes)
+		if (!NumPipesRecording)
 		{
-			CheckUnique(Pipes);
+			return {};
 		}
 
 		bool bAnyPipesToStopRecording = false;
+		FRenderCommandPipeBitArray PipeBits;
+		PipeBits.Init(false, AllPipes.Num());
 
 		for (FRenderCommandPipe* Pipe : Pipes)
 		{
 			if (Pipe->bRecording)
 			{
+				PipeBits[Pipe->Index] = true;
 				bAnyPipesToStopRecording = true;
-				break;
 			}
 		}
 
 		if (!bAnyPipesToStopRecording)
 		{
-			return;
+			return {};
 		}
 
-		TArray<FRenderCommandPipe*, FConcurrentLinearArrayAllocator> PipesToStopRecording;
-		PipesToStopRecording.Reserve(Pipes.Num());
-
-		for (FRenderCommandPipe* Pipe : Pipes)
-		{
-			if (Pipe->bRecording)
-			{
-				Pipe->bRecording = false;
-				PipesToStopRecording.Emplace(Pipe);
-
-				UE::TScopeLock PipeLock(Pipe->Mutex);
-				Pipe->Frame_GameThread = nullptr;
-			}
-		}
-
-		NumPipesRecording -= PipesToStopRecording.Num();
-
-		ENQUEUE_RENDER_COMMAND(RenderCommandPipe_Stop)([this, PipesToStopRecording = MoveTemp(PipesToStopRecording)](FRHICommandListImmediate& RHICmdList)
-		{
-			TArray<FRHICommandListImmediate::FQueuedCommandList, FConcurrentLinearArrayAllocator> QueuedCommandLists;
-			QueuedCommandLists.Reserve(PipesToStopRecording.Num());
-
-			for (FRenderCommandPipe* Pipe : PipesToStopRecording)
-			{
-				FRenderCommandPipe::FFrame*& Frame_RenderThread = Pipe->Frame_RenderThread;
-				check(Frame_RenderThread);
-				Frame_RenderThread->Pipe.WaitUntilEmpty();
-
-				if (Frame_RenderThread->RHICmdList)
-				{
-					Frame_RenderThread->RHICmdList->FinishRecording();
-					QueuedCommandLists.Emplace(Frame_RenderThread->RHICmdList);
-				}
-
-				delete Frame_RenderThread;
-				Frame_RenderThread = nullptr;
-			}
-
-			NumPipesReplaying -= PipesToStopRecording.Num();
-
-			RHICmdList.QueueAsyncCommandListSubmit(QueuedCommandLists);
-			RHIResourceLifetimeReleaseRef(RHICmdList, PipesToStopRecording.Num());
-		});
+		StopRecording(PipeBits);
+		return PipeBits;
 	}
 
 	bool IsRecording() const
@@ -1807,28 +1781,58 @@ public:
 	}
 
 private:
-	void CheckUnique(TConstArrayView<FRenderCommandPipe*> Pipes)
+	void StopRecording(const FRenderCommandPipeBitArray& PipeBits)
 	{
-#if DO_CHECK
-		CheckUniqueBits.Init(false, Pipes.Num());
-		for (FRenderCommandPipe* Pipe : Pipes)
+		SCOPED_NAMED_EVENT(FRenderCommandPipe_StopRecording, FColor::Magenta);
+
+		uint32 NumPipesToStopRecording = 0;
+
+		for (FRenderCommandPipeSetBitIterator BitIt(PipeBits); BitIt; ++BitIt)
 		{
-			checkf(Pipe->Index < AllPipes.Num(), TEXT("RenderCommandPipe %s has an invalid index and was likely constructed after system initialization."), Pipe->Name);
-			checkf(!CheckUniqueBits[Pipe->Index], TEXT("RenderCommandPipe %s was supplied more than once. This is invalid. Only a unique set of pipes is allowed."), Pipe->Name);
-			CheckUniqueBits[Pipe->Index] = true;
+			FRenderCommandPipe* Pipe = AllPipes[BitIt.GetIndex()];
+			check(Pipe->bRecording);
+			Pipe->bRecording = false;
+			NumPipesToStopRecording++;
+
+			UE::TScopeLock PipeLock(Pipe->Mutex);
+			Pipe->Frame_GameThread = nullptr;
 		}
-		CheckUniqueBits.Reset();
-#endif
+
+		NumPipesRecording -= NumPipesToStopRecording;
+
+		ENQUEUE_RENDER_COMMAND(RenderCommandPipe_Stop)([this, PipeBits, NumPipesToStopRecording](FRHICommandListImmediate& RHICmdList)
+		{
+			TArray<FRHICommandListImmediate::FQueuedCommandList, FConcurrentLinearArrayAllocator> QueuedCommandLists;
+			QueuedCommandLists.Reserve(NumPipesToStopRecording);
+
+			for (FRenderCommandPipeSetBitIterator BitIt(PipeBits); BitIt; ++BitIt)
+			{
+				FRenderCommandPipe* Pipe = AllPipes[BitIt.GetIndex()];
+				FRenderCommandPipe::FFrame*& Frame_RenderThread = Pipe->Frame_RenderThread;
+				check(Frame_RenderThread);
+				Frame_RenderThread->Pipe.WaitUntilEmpty();
+
+				if (Frame_RenderThread->RHICmdList)
+				{
+					Frame_RenderThread->RHICmdList->FinishRecording();
+					QueuedCommandLists.Emplace(Frame_RenderThread->RHICmdList);
+				}
+
+				delete Frame_RenderThread;
+				Frame_RenderThread = nullptr;
+			}
+
+			NumPipesReplaying -= NumPipesToStopRecording;
+
+			RHICmdList.QueueAsyncCommandListSubmit(QueuedCommandLists);
+			RHIResourceLifetimeReleaseRef(RHICmdList, NumPipesToStopRecording);
+		});
 	}
 
 	UE::FMutex Mutex;
 	TArray<FRenderCommandPipe*> AllPipes;
-	std::atomic_uint32_t NumPipesRecording = 0;
+	uint32 NumPipesRecording = 0;
 	uint32 NumPipesReplaying = 0;
-
-#if DO_CHECK
-	TBitArray<> CheckUniqueBits;
-#endif
 };
 
 static FRenderCommandPipeRegistry GRenderCommandPipeRegistry;
@@ -1865,28 +1869,28 @@ namespace UE::RenderCommandPipe
 	void StartRecording()
 	{
 #if !UE_SERVER
-		GRenderCommandPipeRegistry.StartRecording({});
+		GRenderCommandPipeRegistry.StartRecording();
 #endif
 	}
 
-	void StartRecording(TConstArrayView<FRenderCommandPipe*> Pipes)
+	void StartRecording(const FRenderCommandPipeBitArray& PipeBits)
 	{
 #if !UE_SERVER
-		GRenderCommandPipeRegistry.StartRecording(Pipes);
+		GRenderCommandPipeRegistry.StartRecording(PipeBits);
 #endif
 	}
 
-	void StopRecording()
+	FRenderCommandPipeBitArray StopRecording()
 	{
 #if !UE_SERVER
-		GRenderCommandPipeRegistry.StopRecording({});
+		return GRenderCommandPipeRegistry.StopRecording();
 #endif
 	}
 
-	void StopRecording(TConstArrayView<FRenderCommandPipe*> Pipes)
+	FRenderCommandPipeBitArray StopRecording(TConstArrayView<FRenderCommandPipe*> Pipes)
 	{
 #if !UE_SERVER
-		GRenderCommandPipeRegistry.StopRecording(Pipes);
+		return GRenderCommandPipeRegistry.StopRecording(Pipes);
 #endif
 	}
 }
@@ -1900,7 +1904,7 @@ FRenderCommandPipe::FRenderCommandPipe(const TCHAR* InName, ERenderCommandPipeFl
 	}))
 {
 #if !UE_SERVER
-	GlobalListLink.LinkHead(GRenderCommandPipeRegistry.GetGlobalList());
+	GlobalListLink.LinkHead(FRenderCommandPipeRegistry::GetGlobalList());
 #endif
 }
 
