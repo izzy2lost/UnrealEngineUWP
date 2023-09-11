@@ -295,11 +295,10 @@ bool UTransformGizmo::VerifyPartIdentifier(uint32 InPartIdentifier) const
 
 void UTransformGizmo::SetModeLastHitPart(const EGizmoTransformMode InMode, const ETransformGizmoPartIdentifier InIdentifier)
 {
-	if (InMode < EGizmoTransformMode::None || InMode > EGizmoTransformMode::Max)
+	if (InMode >= EGizmoTransformMode::None && InMode < EGizmoTransformMode::Max)
 	{
-		return;
+		LastHitPartPerMode[static_cast<uint8>(InMode)] = InIdentifier;
 	}
-	LastHitPartPerMode[static_cast<uint8>(InMode)] = InIdentifier;
 }
 
 ETransformGizmoPartIdentifier UTransformGizmo::GetCurrentModeLastHitPart() const
