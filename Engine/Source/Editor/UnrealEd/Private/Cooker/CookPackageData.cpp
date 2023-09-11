@@ -1126,7 +1126,7 @@ void FPackageData::CheckPreloadEmpty()
 	check(!GetIsPreloaded());
 }
 
-TArray<FWeakObjectPtr>& FPackageData::GetCachedObjectsInOuter()
+TArray<FCachedObjectInOuter>& FPackageData::GetCachedObjectsInOuter()
 {
 	return CachedObjectsInOuter;
 }
@@ -1157,7 +1157,7 @@ void FPackageData::CreateObjectCache()
 		{
 			FWeakObjectPtr ObjectWeakPointer(Object);
 			check(ObjectWeakPointer.Get()); // GetObjectsWithOuter with Garbage filtered out should only return valid-for-weakptr objects
-			CachedObjectsInOuter.Emplace(MoveTemp(ObjectWeakPointer));
+			CachedObjectsInOuter.Emplace(ObjectWeakPointer);
 		}
 
 		for (TPair<const ITargetPlatform*, FPackagePlatformData>& Pair : PlatformDatas)
@@ -1224,9 +1224,9 @@ EPollStatus FPackageData::RefreshObjectCache(bool& bOutFoundNewObjects)
 
 	TArray<UObject*> OldObjects;
 	OldObjects.Reserve(CachedObjectsInOuter.Num());
-	for (FWeakObjectPtr& Object : CachedObjectsInOuter)
+	for (FCachedObjectInOuter& Object : CachedObjectsInOuter)
 	{
-		UObject* ObjectPtr = Object.Get();
+		UObject* ObjectPtr = Object.Object.Get();
 		if (ObjectPtr)
 		{
 			OldObjects.Add(ObjectPtr);
@@ -1381,19 +1381,28 @@ void FPackageData::UpdateSaveAfterGarbageCollect(bool& bOutDemote)
 		return;
 	}
 
-	if (GetPackage() == nullptr || !GetPackage()->IsFullyLoaded() ||
-		Algo::AnyOf(CachedObjectsInOuter, [](const FWeakObjectPtr& WeakPtr)
-			{
-				// TODO: Keep track of which objects were public, and only invalidate the save if the object
-				// that has been deleted or marked pending kill was public
-				// Until we make that change, we will unnecessarily invalidate and demote some packages after a
-				// garbage collect
-				return WeakPtr.Get() == nullptr;
-			}))
+	// Reexecute PrepareSave if we already completed it; we need to refresh our CachedObjectsInOuter list
+	// and call BeginCacheOnCookedPlatformData on any new objects.
+	SetCookedPlatformDataComplete(false);
+
+	if (GetPackage() == nullptr || !GetPackage()->IsFullyLoaded())
 	{
 		bOutDemote = true;
-		return;
 	}
+	else
+	{
+		for (FCachedObjectInOuter& CachedObjectInOuter : CachedObjectsInOuter)
+		{
+			if (CachedObjectInOuter.Object.Get() == nullptr)
+			{
+				// Deleting a public object puts the package in an invalid state; demote back to request
+				// and load/save it again
+				bool bPublicDeleted = !!(CachedObjectInOuter.ObjectFlags & RF_Public);;
+				bOutDemote |= bPublicDeleted;
+			}
+		}
+	}
+
 	if (GeneratorPackage)
 	{
 		GeneratorPackage->UpdateSaveAfterGarbageCollect(*this, bOutDemote);
@@ -1803,9 +1812,9 @@ void FGeneratorPackage::PreGarbageCollect(FCookGenerationInfo& Info, TArray<TObj
 				GCKeepPackageDatas.Add(Info.PackageData);
 			}
 			GCKeepPackages.Append(Info.KeepReferencedPackages);
-			for (FWeakObjectPtr& WeakObjectPtr : Info.PackageData->GetCachedObjectsInOuter())
+			for (FCachedObjectInOuter& CachedObjectInOuter : Info.PackageData->GetCachedObjectsInOuter())
 			{
-				UObject* Object = WeakObjectPtr.Get();
+				UObject* Object = CachedObjectInOuter.Object.Get();
 				if (Object)
 				{
 					GCKeepObjects.Add(Object);
@@ -1836,8 +1845,8 @@ void FGeneratorPackage::PostGarbageCollect()
 	else
 	{
 		// After the Generator Package is saved, we drop our references to it and it can be garbage collected
-		// If we have any packages left to populate, our splitter contract requires that it be garbage collected;
-		// we promise that the package is not partially GC'd during calls to TryPopulateGeneratedPackage
+		// If we have any packages left to populate, our splitter contract requires that it be garbage collected
+		// because we promise that the package is not partially GC'd during calls to TryPopulateGeneratedPackage
 		// The splitter can opt-out of this contract and keep it referenced itself if it desires.
 		UPackage* LocalOwnerPackage = FindObject<UPackage>(nullptr, *Owner.GetPackageName().ToString());
 		if (LocalOwnerPackage)
@@ -2030,39 +2039,29 @@ void FGeneratorPackage::UpdateSaveAfterGarbageCollect(const FPackageData& Packag
 		}
 	}
 
-	TSet<UObject*> CachedObjectsInOuterSet;
-	TArray<FWeakObjectPtr>& CachedObjectsInOuter = Info->PackageData->GetCachedObjectsInOuter();
-	int32& NextIndexToBeginCache = Info->PackageData->GetCookedPlatformDataNextIndex();
-	for (int32 Index = 0; Index < CachedObjectsInOuter.Num(); ++Index)
+	if (bInOutDemote && 
+		GetCookPackageSplitterInstance()->UseInternalReferenceToAvoidGarbageCollect() &&
+		Info->HasTakenOverCachedCookedPlatformData())
 	{
-		FWeakObjectPtr& WeakObjectPtr = CachedObjectsInOuter[Index];
-		UObject* Object = WeakObjectPtr.Get();
-		if (!Object)
-		{
-			if (GetCookPackageSplitterInstance()->UseInternalReferenceToAvoidGarbageCollect())
-			{
-				// No objects should be allowed to be deleted; we are supposed to keep them referenced
-				// But allowing demotion will break things for sure.
-				// Log a cook error but remove the invalidated object.
-				UE_LOG(LogCook, Error, TEXT("PackageSplitter found an object returned from %s that was removed from memory during garbage collection. This will cause errors during save of the package.")
-					TEXT("\n\tSplitter=%s%s."),
-					Info->IsGenerator() ? TEXT("PopulateGeneratorPackage") : TEXT("PopulateGeneratedPackage"),
-					*GetSplitDataObjectName().ToString(),
-					Info->IsGenerator() ? TEXT("") : *FString::Printf(TEXT(", Generated=%s."), *Info->PackageData->GetPackageName().ToString()));
+		// No public objects should have been deleted; we are supposed to keep them referenced by keeping the package
+		// referenced in UCookOnTheFlyServer::PreGarbageCollect, and the package keeping its public objects referenced
+		// by UPackage::AddReferencedObjects. Since no public objects were deleted, our caller should not have
+		// set bInOutDemote=true.
+		// Allowing demotion after the splitter has started moving objects breaks our contract with the splitter
+		// and can cause a crash. So log this as an error.
+		UE_LOG(LogCook, Error, TEXT("A %s package had some of its UObjects deleted during garbage collection after it started generating. This will cause errors during save of the package.")
+			TEXT("\n\tSplitter=%s%s."),
+			Info->IsGenerator() ? TEXT("Generator") : TEXT("Generated"),
+			*GetSplitDataObjectName().ToString(),
+			Info->IsGenerator() ? TEXT("") : *FString::Printf(TEXT(", Generated=%s."), *Info->PackageData->GetPackageName().ToString()));
+	}
 
-				CachedObjectsInOuter.RemoveAt(Index);
-				if (NextIndexToBeginCache > Index)
-				{
-					--NextIndexToBeginCache;
-				}
-				--Index;
-			}
-			else
-			{
-				bInOutDemote = true;
-			}
-		}
-		else
+	// Remove raw pointers from RootMovedObjects if they no longer exist in the weakpointers in CachedObjectsInOuter
+	TSet<UObject*> CachedObjectsInOuterSet;
+	for (FCachedObjectInOuter& CachedObjectInOuter : Info->PackageData->GetCachedObjectsInOuter())
+	{
+		UObject* Object = CachedObjectInOuter.Object.Get();
+		if (Object)
 		{
 			CachedObjectsInOuterSet.Add(Object);
 		}
@@ -2094,14 +2093,14 @@ void FCookGenerationInfo::SetSaveStateComplete(ESaveState CompletedState)
 }
 
 void FCookGenerationInfo::TakeOverCachedObjectsAndAddMoved(FGeneratorPackage& Generator,
-	TArray<FWeakObjectPtr>& CachedObjectsInOuter, TArray<UObject*>& MovedObjects)
+	TArray<FCachedObjectInOuter>& CachedObjectsInOuter, TArray<UObject*>& MovedObjects)
 {
 	RootMovedObjects.Reset();
 
 	TSet<UObject*> ObjectSet;
-	for (FWeakObjectPtr& ObjectInOuter : CachedObjectsInOuter)
+	for (FCachedObjectInOuter& ObjectInOuter : CachedObjectsInOuter)
 	{
-		UObject* Object = ObjectInOuter.Get();
+		UObject* Object = ObjectInOuter.Object.Get();
 		if (Object)
 		{
 			ObjectSet.Add(Object);
@@ -2125,7 +2124,7 @@ void FCookGenerationInfo::TakeOverCachedObjectsAndAddMoved(FGeneratorPackage& Ge
 		if (!bAlreadyExists)
 		{
 			RootMovedObjects.Add(Object);
-			CachedObjectsInOuter.Add(Object);
+			CachedObjectsInOuter.Emplace(Object);
 			GetObjectsWithOuter(Object, ChildrenOfMovedObjects, true /* bIncludeNestedObjects */, RF_NoFlags, EInternalObjectFlags::Garbage);
 		}
 	}
@@ -2137,7 +2136,7 @@ void FCookGenerationInfo::TakeOverCachedObjectsAndAddMoved(FGeneratorPackage& Ge
 		ObjectSet.Add(Object, &bAlreadyExists);
 		if (!bAlreadyExists)
 		{
-			CachedObjectsInOuter.Add(Object);
+			CachedObjectsInOuter.Emplace(Object);
 		}
 	}
 
@@ -2153,11 +2152,11 @@ EPollStatus FCookGenerationInfo::RefreshPackageObjects(FGeneratorPackage& Genera
 
 	TSet<UObject*> ObjectSet;
 	check(PackageData); // RefreshPackageObjects is only called when there is a PackageData
-	TArray<FWeakObjectPtr>& CachedObjectsInOuter = PackageData->GetCachedObjectsInOuter();
+	TArray<FCachedObjectInOuter>& CachedObjectsInOuter = PackageData->GetCachedObjectsInOuter();
 	ObjectSet.Reserve(CachedObjectsInOuter.Num());
-	for (FWeakObjectPtr& ExistingObject : CachedObjectsInOuter)
+	for (FCachedObjectInOuter& ExistingObject : CachedObjectsInOuter)
 	{
-		UObject* Object = ExistingObject.Get();
+		UObject* Object = ExistingObject.Object.Get();
 		if (Object)
 		{
 			bool bAlreadyExists;
@@ -2176,7 +2175,7 @@ EPollStatus FCookGenerationInfo::RefreshPackageObjects(FGeneratorPackage& Genera
 		ObjectSet.Add(Object, &bAlreadyExists);
 		if (!bAlreadyExists)
 		{
-			CachedObjectsInOuter.Add(Object);
+			CachedObjectsInOuter.Emplace(Object);
 			if (!FirstNewObject )
 			{
 				FirstNewObject  = Object;

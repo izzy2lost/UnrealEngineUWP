@@ -89,6 +89,36 @@ struct FCachedCookedPlatformDataState
 	TMap<const ITargetPlatform*, ECachedCookedPlatformDataEvent> PlatformStates;
 };
 
+/**
+ * Objects we searched for in the Package being saved; we need to execute various operations on
+ * all of these objects, most notably BeginCacheForCookedPlatformData family of functions.
+ * We keep track of a WeakPtr to the object along with its flags in case it gets deleted and we
+ * need to decide how to respond to the deletion it based on what its flags were.
+ */
+struct FCachedObjectInOuter
+{
+	FWeakObjectPtr Object;
+	EObjectFlags ObjectFlags;
+
+	FCachedObjectInOuter(UObject* InObject = nullptr)
+	{
+		Object = InObject;
+		ObjectFlags = InObject ? InObject->GetFlags() : RF_NoFlags;
+	}
+	FCachedObjectInOuter(FWeakObjectPtr&& InObject)
+	{
+		Object = MoveTemp(InObject);
+		UObject* Ptr = Object.Get(true /* bEvenIfPendingKill */);
+		ObjectFlags = Ptr ? Ptr->GetFlags() : RF_NoFlags;
+	}
+	FCachedObjectInOuter(const FWeakObjectPtr& InObject)
+	{
+		Object = InObject;
+		UObject* Ptr = Object.Get(true /* bEvenIfPendingKill */);
+		ObjectFlags = Ptr ? Ptr->GetFlags() : RF_NoFlags;
+	}
+};
+
 /** Flags specifying the behavior of FPackageData::SendToState */
 enum class ESendFlags : uint8
 {
@@ -466,7 +496,7 @@ public:
 	 * The list of objects inside the package.  Only non-empty during saving; it is populated on demand by
 	 * TryCreateObjectCache and is cleared when leaving the save state.
 	 */
-	TArray<FWeakObjectPtr>& GetCachedObjectsInOuter();
+	TArray<FCachedObjectInOuter>& GetCachedObjectsInOuter();
 	template <typename ArrayType>
 	/** The list of platforms that were recorded as needscooking when CachedObjeObjectsInOuter was recorded. */
 	void GetCachedObjectsInOuterPlatforms(ArrayType& OutPlatforms) const;
@@ -691,7 +721,8 @@ private:
 	FGeneratorPackage* GeneratedOwner;
 	/** Data for each platform that has been interacted with by *this. */
 	TSortedMap<const ITargetPlatform*, FPackagePlatformData, TInlineAllocator<1>> PlatformDatas;
-	TArray<FWeakObjectPtr> CachedObjectsInOuter;
+
+	TArray<FCachedObjectInOuter> CachedObjectsInOuter;
 	FCompletionCallback CompletionCallback;
 	TUniquePtr<TMap<FPackageData*, EInstigator>> Unsolicited;
 	FName PackageName;
@@ -802,7 +833,7 @@ public:
 	 * and add them to this. Also add the list of NewObjects reported by the splitter that will be moved into the package.
 	 */
 	void TakeOverCachedObjectsAndAddMoved(FGeneratorPackage& Generator, 
-		TArray<FWeakObjectPtr>& CachedObjectsInOuter, TArray<UObject*>& MovedObjects);
+		TArray<FCachedObjectInOuter>& CachedObjectsInOuter, TArray<UObject*>& MovedObjects);
 	/**
 	 * Fetch all the objects currently in the package and add them the list of objects that need BeginCacheForCookedPlatformData.
 	 * Reports whether new objects were found. If DemotionState is not ESaveState::Last, will SetState back to DemotionState
