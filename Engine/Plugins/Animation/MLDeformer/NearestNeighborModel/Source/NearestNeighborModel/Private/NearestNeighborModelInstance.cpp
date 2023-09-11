@@ -280,7 +280,10 @@ void UNearestNeighborModelInstance::RunNearestNeighborModel(float DeltaTime, flo
 
 					const TArray<float>& NeighborCoeffs = NearestNeighborModel->NeighborCoeffs(PartId);
 					const int32 NumNeighbors = NearestNeighborModel->GetNumNeighbors(PartId);
-					check(NeighborCoeffs.Num() == NumPCACoeffs * NumNeighbors);
+					if(!ensureMsgf(NeighborCoeffs.Num() == NumPCACoeffs * NumNeighbors, TEXT("Nearest Neigbbor Data is out-of-date, please hit Update button")))
+					{
+						continue;
+					}
 
 					TArrayView<float> MorphWeightsView(WeightData->Weights.GetData() + NeighborOffset, NumPCACoeffs);
 					TArrayView<float> PreviousWeightsView(PreviousWeights.GetData() + NeighborOffset, NumPCACoeffs);
