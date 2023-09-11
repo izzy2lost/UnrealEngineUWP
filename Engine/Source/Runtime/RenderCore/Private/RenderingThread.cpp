@@ -1884,6 +1884,8 @@ namespace UE::RenderCommandPipe
 	{
 #if !UE_SERVER
 		return GRenderCommandPipeRegistry.StopRecording();
+#else
+		return {};
 #endif
 	}
 
@@ -1891,6 +1893,8 @@ namespace UE::RenderCommandPipe
 	{
 #if !UE_SERVER
 		return GRenderCommandPipeRegistry.StopRecording(Pipes);
+#else
+		return {};
 #endif
 	}
 }
