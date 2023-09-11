@@ -174,8 +174,12 @@ void UMovieScenePropertyInstantiatorSystem::OnUnlink()
 
 void UMovieScenePropertyInstantiatorSystem::OnCleanTaggedGarbage()
 {
+	using namespace UE::MovieScene;
+
 	// Only process expired properties for this GC pass to ensure we don't end up creating any new entities
 	DiscoverExpiredProperties(PendingInvalidatedProperties);
+
+	TArrayView<const FPropertyDefinition> Properties = this->BuiltInComponents->PropertyRegistry.GetProperties();
 
 	bool bAnyDestroyed = false;
 	// Look through our resolved properties to detect any outputs that have been destroyed
@@ -188,14 +192,61 @@ void UMovieScenePropertyInstantiatorSystem::OnCleanTaggedGarbage()
 
 		FObjectPropertyInfo& PropertyInfo = ResolvedProperties[Index];
 
-		// If the final output entity is being destroyed, clean up the property info and blender so it can be re-created next time if necessary
-		if (
-			(PropertyInfo.FinalBlendOutputID && Linker->EntityManager.HasComponent(PropertyInfo.FinalBlendOutputID, BuiltInComponents->Tags.NeedsUnlink)) ||
-			(PropertyInfo.PreviousFastPathID && Linker->EntityManager.HasComponent(PropertyInfo.PreviousFastPathID, BuiltInComponents->Tags.NeedsUnlink))
-			)
+		FContributorKey ContributorKey(Index);
+
+		const bool bFastPathOutputBeingDestroyed = PropertyInfo.PreviousFastPathID && Linker->EntityManager.HasComponent(PropertyInfo.PreviousFastPathID, BuiltInComponents->Tags.NeedsUnlink);
+
+		// If the fast path is being destroyed, we need to copy over any initial values from that fast path entity to
+		// any additional contributors that might still be alive. This can happen if a sequence gets GC'd and removes its entities while another is still alive animating the same thing.
+		if (bFastPathOutputBeingDestroyed)
 		{
-			// Really we shouldn't have any contributors any more if the output is being destroyed
-			ensure(!Contributors.Contains(FContributorKey(Index)));
+			FMovieSceneEntityID TemporaryFastPathEntity;
+			for (auto It = Contributors.CreateConstKeyIterator(ContributorKey); It; ++It)
+			{
+				Linker->EntityManager.AddComponent(It->Value, BuiltInComponents->Tags.NeedsLink);
+				TemporaryFastPathEntity = It->Value;
+			}
+
+			if (TemporaryFastPathEntity)
+			{
+				const FPropertyDefinition& PropertyDefinition = Properties[PropertyInfo.PropertyDefinitionIndex];
+				FComponentMask CopyMask;
+				CopyMask.Set(PropertyDefinition.InitialValueType);
+				CopyMask.Set(BuiltInComponents->Tags.HasAssignedInitialValue);
+				for (FComponentTypeID Component : PropertyDefinition.MetaDataTypes)
+				{
+					CopyMask.Set(Component);
+				}
+
+				Linker->EntityManager.CopyComponents(PropertyInfo.PreviousFastPathID, TemporaryFastPathEntity, CopyMask);
+				PropertyInfo.PreviousFastPathID = TemporaryFastPathEntity;
+			}
+			else
+			{
+				// There is nothing else animating this - destroy the property entirely
+				DestroyStaleProperty(Index);
+				bAnyDestroyed = true;
+
+				if (PendingInvalidatedProperties.IsValidIndex(Index) && PendingInvalidatedProperties[Index] == true)
+				{
+					// This property index is no longer valid at all
+					PendingInvalidatedProperties[Index] = false;
+				}
+			}
+		}
+		else if (PropertyInfo.FinalBlendOutputID && Linker->EntityManager.HasComponent(PropertyInfo.FinalBlendOutputID, BuiltInComponents->Tags.NeedsUnlink))
+		{
+			// Really we shouldn't have any contributors any more if the output is being destroyed since the target object must be going away
+			//    (which means all the contributors that reference that target object must also be going away)
+			if (!ensureMsgf(!Contributors.Contains(ContributorKey), TEXT("Blend output is being destroyed while there are still contributors.")))
+			{
+				// We still have contributors?? Shouldn't happen, but it's recoverable by just re-resolving all the contributors
+				for (auto It = Contributors.CreateKeyIterator(ContributorKey); It; ++It)
+				{
+					Linker->EntityManager.AddComponent(It->Value, BuiltInComponents->Tags.NeedsLink);
+					It.RemoveCurrent();
+				}
+			}
 
 			DestroyStaleProperty(Index);
 			bAnyDestroyed = true;
