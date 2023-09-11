@@ -641,6 +641,11 @@ FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRe
 	return CreateResult;
 }
 
+void UObjectReplicationBridge::SubObjectCreatedFromReplication(FNetRefHandle Handle)
+{
+	OnSubObjectCreatedFromReplication(Handle);
+}
+
 void UObjectReplicationBridge::PostApplyInitialState(FNetRefHandle Handle)
 {
 	EndInstantiateFromRemote(Handle);

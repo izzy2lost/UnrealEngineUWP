@@ -670,8 +670,8 @@ FObjectReplicationBridgeInstantiateResult UActorReplicationBridge::BeginInstanti
 				checkf(SubObj->IsIn(ObjOuter), TEXT("UActorReplicationBridge::BeginInstantiateFromRemote: Subobject is not in Outer. SubObject: %s, Actor: %s Outer: %s"), *SubObj->GetName(), *Owner->GetName(), *ObjOuter->GetName());
 				checkf(Cast<AActor>(SubObj) == nullptr, TEXT("UActorReplicationBridge::BeginInstantiateFromRemote: Subobject is an Actor. SubObject: %s, Actor: %s"), *SubObj->GetName(), *Owner->GetName());
 
-				// Notify actor that we created a component from replication
-				Owner->OnSubobjectCreatedFromReplication(SubObj);
+				// We must defer call OnSubObjectCreatedFromReplication after the state has been applied to the owning actor in order to behave like old system.
+				InstantiateResult.Flags |= EReplicationBridgeCreateNetRefHandleResultFlags::ShouldCallSubObjectCreatedFromReplication;
 
 				// Created objects may be destroyed.
 				InstantiateResult.Flags |= EReplicationBridgeCreateNetRefHandleResultFlags::AllowDestroyInstanceFromRemote;
@@ -740,6 +740,16 @@ void UActorReplicationBridge::EndInstantiateFromRemote(FNetRefHandle Handle)
 		//Actor->NetHandle = Handle;
 
 		Actor->PostNetInit();
+	}
+}
+
+void UActorReplicationBridge::OnSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle)
+{
+	AActor* Owner = Cast<AActor>(GetReplicatedObject(InternalGetSubObjectOwner(SubObjectHandle)));
+	UObject* SubObject = GetReplicatedObject(SubObjectHandle);
+	if (IsValid(Owner) && IsValid(SubObject))
+	{
+		Owner->OnSubobjectCreatedFromReplication(SubObject);
 	}
 }
 

@@ -64,6 +64,10 @@ void UReplicationBridge::UpdateInstancesWorldLocation()
 {
 }
 
+void UReplicationBridge::SubObjectCreatedFromReplication(FNetRefHandle SubObjectRefHandle)
+{
+}
+
 void UReplicationBridge::PostApplyInitialState(FNetRefHandle Handle)
 {
 }
@@ -257,6 +261,11 @@ void UReplicationBridge::ReadAndExecuteDestructionInfoFromRemote(FReplicationBri
 		const EReplicationBridgeDestroyInstanceFlags DestroyFlags = IsAllowedToDestroyInstance(Instance) ? EReplicationBridgeDestroyInstanceFlags::AllowDestroyInstanceFromRemote : EReplicationBridgeDestroyInstanceFlags::None;
 		CallDetachInstanceFromRemote(ReferenceToDestroy.GetRefHandle(), DestroyReason, DestroyFlags);
 	}
+}
+
+void UReplicationBridge::CallSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle)
+{
+	SubObjectCreatedFromReplication(SubObjectHandle);
 }
 
 void UReplicationBridge::CallPostApplyInitialState(FNetRefHandle Handle)

@@ -82,6 +82,7 @@ enum class EReplicationBridgeCreateNetRefHandleResultFlags : unsigned
 	None = 0U,
 	/** Whether the instance may be destroyed due to the remote peer requesting the object to be destroyed. If not then the object itself must not be destroyed. */
 	AllowDestroyInstanceFromRemote = 1U << 0U,
+	ShouldCallSubObjectCreatedFromReplication = AllowDestroyInstanceFromRemote << 1U,
 };
 ENUM_CLASS_FLAGS(EReplicationBridgeCreateNetRefHandleResultFlags);
 
@@ -181,6 +182,9 @@ protected:
 	/** Read data required to instantiate NetObject from bitstream. */
 	IRISCORE_API virtual FReplicationBridgeCreateNetRefHandleResult CreateNetRefHandleFromRemote(FNetRefHandle SubObjectOwnerNetHandle, FNetRefHandle WantedNetHandle, FReplicationBridgeSerializationContext& Context);
 
+	/** Invoked right before we apply the state for a new received subobject but after we have applied state for owning/root object in order to behave like old replication system */
+	IRISCORE_API virtual void SubObjectCreatedFromReplication(FNetRefHandle SubObjectRefHandle);
+
 	/** Invoke after we have applied the initial state for an object.*/
 	IRISCORE_API virtual void PostApplyInitialState(FNetRefHandle Handle);
 
@@ -261,6 +265,7 @@ private:
 	void CallPreSendUpdateSingleHandle(FNetRefHandle Handle);
 	void CallUpdateInstancesWorldLocation();
 	bool CallWriteNetRefHandleCreationInfo(FReplicationBridgeSerializationContext& Context, FNetRefHandle Handle);
+	void CallSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle);
 	void CallPostApplyInitialState(FNetRefHandle Handle);
 	void CallPruneStaleObjects();
 	void CallGetInitialDependencies(FNetRefHandle Handle, FNetDependencyInfoArray& OutDependencies) const;

@@ -115,6 +115,7 @@ private:
 		uint32 bDestroy : 1;
 		uint32 bTearOff : 1;
 		uint32 bDeferredEndReplication : 1;
+		uint32 bShouldCallSubObjectCreatedFromReplication : 1;
 	};
 
 

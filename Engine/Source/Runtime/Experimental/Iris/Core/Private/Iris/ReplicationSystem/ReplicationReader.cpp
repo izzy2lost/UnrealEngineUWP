@@ -316,6 +316,7 @@ uint32 FReplicationReader::ReadObjectsPendingDestroy(FNetSerializationContext& C
 						Info.bIsInitialState = 0U;
 						Info.bHasState = 0U;
 						Info.bHasAttachments = 0U;
+						Info.bShouldCallSubObjectCreatedFromReplication = 0U;
 
 						// Mark for dispatch
 						ObjectsToDispatchArray->CommitPendingDispatchObjectInfo();
@@ -757,6 +758,7 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 	uint32 NewBaselineIndex = FDeltaCompressionBaselineManager::InvalidBaselineIndex;
 
 	const bool bIsInitialState = bHasState && Reader.ReadBool();
+	bool bShouldCallSubObjectCreatedFromReplication = false;
 	uint32 InternalIndex = ObjectIndexForOOBAttachment;
 
 	UE_NET_TRACE_OBJECT_SCOPE(IncompleteHandle, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
@@ -825,7 +827,8 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 		InternalIndex = NetRefHandleManager->GetInternalIndex(NetRefHandle);
 		FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalIndex);
 		ObjectData.bAllowDestroyInstanceFromRemote = EnumHasAnyFlags(CreateResult.Flags, EReplicationBridgeCreateNetRefHandleResultFlags::AllowDestroyInstanceFromRemote);
-
+		bShouldCallSubObjectCreatedFromReplication = EnumHasAnyFlags(CreateResult.Flags, EReplicationBridgeCreateNetRefHandleResultFlags::ShouldCallSubObjectCreatedFromReplication);
+		
 		FReplicatedObjectInfo& ObjectInfo = StartReplication(InternalIndex);
 
 		ObjectInfo.bIsDeltaCompressionEnabled = bIsDeltaCompressed;
@@ -867,6 +870,7 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 		Info.bDestroy = !!(ReplicatedDestroyHeaderFlags & (ReplicatedDestroyHeaderFlags_TearOff | ReplicatedDestroyHeaderFlags_DestroyInstance));
 		Info.bTearOff = !!(ReplicatedDestroyHeaderFlags & ReplicatedDestroyHeaderFlags_TearOff);
 		Info.bDeferredEndReplication = !!(ReplicatedDestroyHeaderFlags & (ReplicatedDestroyHeaderFlags_TearOff | ReplicatedDestroyHeaderFlags_EndReplication));
+		Info.bShouldCallSubObjectCreatedFromReplication = bShouldCallSubObjectCreatedFromReplication;
 
 		if (bHasState)
 		{
@@ -1438,6 +1442,16 @@ void FReplicationReader::DispatchStateData(FNetSerializationContext& Context)
 		PostDispatchObjectInfo.Info = &Info;
 		PostDispatchObjectInfo.DequantizeAndApplyContext = nullptr;
 		PostDispatchObjectInfo.AttachmentDispatchedFlags = ENetObjectAttachmentDispatchFlags::None;
+
+		// For SubObjects we call must call this method after applying state data for the owner, in order to remain backwards compatible.
+		if (Info.bShouldCallSubObjectCreatedFromReplication)
+		{
+			const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(Info.InternalIndex);
+			if (ObjectData.SubObjectRootIndex != FNetRefHandleManager::InvalidInternalIndex)
+			{
+				ReplicationBridge->CallSubObjectCreatedFromReplication(ObjectData.RefHandle);
+			}
+		}
 
 		// If we have any object references we want to update any unresolved ones, including previously unresolved references
 		if (Info.bHasState)
