@@ -3570,7 +3570,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			CompositionLighting.ProcessBeforeBasePass(GraphBuilder, DBufferTextures);
 		}
 		
-		if (IsForwardShadingEnabled(ShaderPlatform) && bAllowStaticLighting)
+		if (IsForwardShadingEnabled(ShaderPlatform))
 		{
 			RenderIndirectCapsuleShadows(GraphBuilder, SceneTextures);
 		}
@@ -3918,10 +3918,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				AsyncLumenIndirectLightingOutputs);
 
 			// These modulate the scenecolor output from the basepass, which is assumed to be indirect lighting
-			if (bAllowStaticLighting)
-			{
-				RenderIndirectCapsuleShadows(GraphBuilder, SceneTextures);
-			}
+			RenderIndirectCapsuleShadows(GraphBuilder, SceneTextures);
 
 			// These modulate the scene color output from the base pass, which is assumed to be indirect lighting
 			RenderDFAOAsIndirectShadowing(GraphBuilder, SceneTextures, DynamicBentNormalAOTextures);

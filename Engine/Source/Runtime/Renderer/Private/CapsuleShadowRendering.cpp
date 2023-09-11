@@ -496,8 +496,8 @@ bool FDeferredShadingSceneRenderer::RenderCapsuleDirectShadows(
 
 	{
 		const FIntPoint BufferSize = GetBufferSizeForCapsuleShadows(Views[0]);
-		const FRDGTextureDesc Desc(FRDGTextureDesc::Create2D(BufferSize, PF_G16R16F, FClearValueBinding::None, TexCreate_RenderTargetable | TexCreate_UAV));
-		RayTracedShadowsRT = GraphBuilder.CreateTexture(Desc, TEXT("RayTracedShadows"));
+		const FRDGTextureDesc Desc(FRDGTextureDesc::Create2D(BufferSize, PF_G16R16F, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV));
+		RayTracedShadowsRT = GraphBuilder.CreateTexture(Desc, TEXT("CapsuleShadows.ShadowFactors"));
 	}
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
@@ -982,9 +982,8 @@ void FDeferredShadingSceneRenderer::RenderIndirectCapsuleShadows(FRDGBuilder& Gr
 
 	{
 		const FIntPoint BufferSize = GetBufferSizeForCapsuleShadows(Views[0]);
-		const FRDGTextureDesc Desc(FRDGTextureDesc::Create2D(BufferSize, PF_G16R16F, FClearValueBinding::None, TexCreate_RenderTargetable | TexCreate_UAV));
-		// Reuse temporary target from RTDF shadows
-		RayTracedShadowsRT = GraphBuilder.CreateTexture(Desc, TEXT("RayTracedShadows"));
+		const FRDGTextureDesc Desc(FRDGTextureDesc::Create2D(BufferSize, PF_G16R16F, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV));
+		RayTracedShadowsRT = GraphBuilder.CreateTexture(Desc, TEXT("CapsuleShadows.ShadowFactors"));
 	}
 
 	TArray<FRDGTextureRef, TInlineAllocator<2>> RenderTargets;
