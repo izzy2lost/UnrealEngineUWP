@@ -7,8 +7,7 @@
 class UDisplayClusterConfigurationViewport;
 class UDisplayClusterCameraComponent;
 
-class ADisplayClusterRootActor;
-class FDisplayClusterViewportManager;
+class FDisplayClusterViewportConfiguration;
 class FDisplayClusterViewport;
 class IDisplayClusterWarpPolicy;
 
@@ -17,23 +16,23 @@ struct FDisplayClusterRenderFrameSettings;
 /**
  * Container with information related to viewport: configuration and references to some class instances.
  */
-struct FDisplayClusterViewportConfigurationInstanceData
+struct FDisplayClusterViewportConfiguration_Viewport
 {
-	FDisplayClusterViewportConfigurationInstanceData(const FString& InClusterNodeId, const FString& InViewportId, const UDisplayClusterConfigurationViewport& InConfiguration)
+	FDisplayClusterViewportConfiguration_Viewport(const FString& InClusterNodeId, const FString& InViewportId, const UDisplayClusterConfigurationViewport& InConfigurationViewport)
 		: ClusterNodeId(InClusterNodeId)
 		, ViewportId(InViewportId)
-		, Configuration(InConfiguration)
+		, ConfigurationViewport(InConfigurationViewport)
 	{ }
 
 	/**
 	 * Create or update DC viewport instance from configuration
 	 */
-	void CreateOrUpdateViewportInstance(ADisplayClusterRootActor& RootActor, FDisplayClusterViewportManager& ViewportManager, FDisplayClusterRenderFrameSettings& RenderFrameSettings);
+	void CreateOrUpdateViewportInstance(FDisplayClusterViewportConfiguration& InOutConfiguration);
 
 	/**
 	 * Update exists viewport runtime settings from configuration
 	 */
-	static bool UpdateViewportConfiguration(FDisplayClusterViewport& DstViewport, FDisplayClusterViewportManager& ViewportManager, ADisplayClusterRootActor& RootActor, const UDisplayClusterConfigurationViewport& InConfigurationViewport);
+	static bool UpdateViewportConfiguration(FDisplayClusterViewport& DstViewport, const UDisplayClusterConfigurationViewport& InConfigurationViewport);
 
 	/**
 	 * Assign warp policy instance to given viewport
@@ -48,7 +47,7 @@ public:
 	const FString& ViewportId;
 
 	// Reference to the configuration used to create or update the viewport instance
-	const UDisplayClusterConfigurationViewport& Configuration;
+	const UDisplayClusterConfigurationViewport& ConfigurationViewport;
 
 	// The viewport instance
 	TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe> Viewport;

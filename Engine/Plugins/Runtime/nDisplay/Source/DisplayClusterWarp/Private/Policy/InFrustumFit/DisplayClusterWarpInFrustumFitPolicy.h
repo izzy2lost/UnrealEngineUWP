@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Policy/DisplayClusterWarpPolicyBase.h"
+#include "Render/Viewport/IDisplayClusterViewportConfiguration.h"
 #include "Blueprints/DisplayClusterWarpBlueprint_Enums.h"
 
 #include "Containers/DisplayClusterWarpContext.h"
@@ -12,7 +13,7 @@ class UDisplayClusterInFrustumFitCameraComponent;
 class FDisplayClusterWarpEye;
 
 /**
- * FurstumFit warp policy
+ * InFrustumFit warp policy
  */
 class FDisplayClusterWarpInFrustumFitPolicy
 	: public FDisplayClusterWarpPolicyBase
@@ -28,14 +29,19 @@ public:
 
 	virtual void BeginCalcFrustum(IDisplayClusterViewport* InViewport, const uint32 ContextNum) override;
 	virtual void EndCalcFrustum(IDisplayClusterViewport* InViewport, const uint32 ContextNum) override;
+
+	virtual bool HasPreviewMovableMesh(IDisplayClusterViewport* InViewport) override;
 	//~~ End IDisplayClusterWarpPolicy
 
 private:
+	/** Return camera component that used for configuration.. */
+	const UDisplayClusterInFrustumFitCameraComponent* GetConfigurationInFrustumFitCameraComponent(IDisplayClusterViewport* InViewport) const;
+
 	/** Converts an asymmetric group frustum to a symmetric group frustum and computes the correction rotator to the view forward vector needed for a symmetric frustum  */
 	void MakeGroupFrustumSymmetrical(bool bFixedViewTarget);
 
 	/** Apply frustum fit to the specified warp projection */
-	FDisplayClusterWarpProjection ApplyInFrustumFit(UDisplayClusterInFrustumFitCameraComponent* InComponent, const FTransform& World2OriginTransform, const FDisplayClusterWarpProjection& InWarpProjection);
+	FDisplayClusterWarpProjection ApplyInFrustumFit(IDisplayClusterViewport* InViewport, const FTransform& World2OriginTransform, const FDisplayClusterWarpProjection& InWarpProjection);
 
 	/** Find final projection scale.*/
 	FVector2D FindFrustumFit(const EDisplayClusterWarpCameraProjectionMode InProjectionMode, const FVector2D& InCameraFOV, const FVector2D& InGeometryFOV);
@@ -51,12 +57,6 @@ private:
 private:
 	// Warp projection data
 	FDisplayClusterWarpProjection GroupGeometryWarpProjection;
-
-	/**
-	 * Due to the piecemeal nature of the viewport rendering, not all viewports will have a valid warp projection every tick. This list
-	 * stores the viewports that have been fitted since the last frame was started.
-	 */
-	TSet<FString> FittedViewports;
 
 	/** The AABB of the group computed in DCRA space */
 	FDisplayClusterWarpAABB GroupAABBox;

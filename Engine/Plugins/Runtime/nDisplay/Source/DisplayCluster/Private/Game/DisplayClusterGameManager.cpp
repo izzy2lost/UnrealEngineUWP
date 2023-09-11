@@ -194,7 +194,7 @@ ADisplayClusterRootActor* FDisplayClusterGameManager::GetRootActor() const
 //////////////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterGameManager
 //////////////////////////////////////////////////////////////////////////////////////////////
-ADisplayClusterRootActor* FDisplayClusterGameManager::FindRootActor(UWorld* InWorld, UDisplayClusterConfigurationData* InConfigData)
+TArray<ADisplayClusterRootActor*> FDisplayClusterGameManager::GetAllRootActorsFromWorld(UWorld* InWorld)
 {
 	TArray<ADisplayClusterRootActor*> FoundActors;
 	FoundActors.Reserve(16);
@@ -214,6 +214,13 @@ ADisplayClusterRootActor* FDisplayClusterGameManager::FindRootActor(UWorld* InWo
 		}
 	}
 
+	return FoundActors;
+}
+
+ADisplayClusterRootActor* FDisplayClusterGameManager::FindRootActor(UWorld* InWorld, UDisplayClusterConfigurationData* InConfigData)
+{
+	TArray<ADisplayClusterRootActor*> FoundActors = FDisplayClusterGameManager::GetAllRootActorsFromWorld(InWorld);
+	
 #if WITH_EDITOR
 	if (InWorld->IsPlayInEditor())
 	{
@@ -286,7 +293,7 @@ void FDisplayClusterGameManager::FindRootActorsInWorld(UWorld* InWorld, TArray<A
 				ADisplayClusterRootActor* RootActor = Cast<ADisplayClusterRootActor>(*It);
 				if (RootActor != nullptr && !RootActor->IsTemplate())
 				{
-					UE_LOG(LogDisplayClusterGame, Log, TEXT("Found root actor - %s"), *RootActor->GetName());
+					UE_LOG(LogDisplayClusterGame, VeryVerbose, TEXT("Found root actor - %s"), *RootActor->GetName());
 					OutActors.Add(RootActor);
 				}
 			}

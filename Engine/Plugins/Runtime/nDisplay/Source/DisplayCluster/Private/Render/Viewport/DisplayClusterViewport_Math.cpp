@@ -2,26 +2,24 @@
 
 #include "Render/Viewport/DisplayClusterViewport.h"
 #include "Render/Viewport/DisplayClusterViewportManager.h"
+#include "Render/Viewport/DisplayClusterViewportStereoscopicPass.h"
 
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_PostRenderSettings.h"
 
 #include "Render/Projection/IDisplayClusterProjectionPolicy.h"
 
-#include "Render/Viewport/DisplayClusterViewportStereoscopicPass.h"
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrame.h"
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
 #include "Render/Viewport/RenderTarget/DisplayClusterRenderTargetResource.h"
 
-#include "Render/Viewport/Containers/DisplayClusterViewport_PostRenderSettings.h"
+#include "DisplayClusterSceneViewExtensions.h"
 
 #include "Components/DisplayClusterCameraComponent.h"
+#include "Misc/DisplayClusterLog.h"
 
 #include "EngineUtils.h"
 #include "SceneView.h"
-
-#include "DisplayClusterSceneViewExtensions.h"
-
-#include "Misc/DisplayClusterLog.h"
 
 namespace UE::DisplayCluster::Viewport::Math
 {
@@ -69,10 +67,10 @@ FVector2D FDisplayClusterViewport::GetClippingPlanes() const
 bool FDisplayClusterViewport::GetViewPointCameraEye(const uint32 InContextNum, FVector& OutViewLocation, FRotator& OutViewRotation, FVector& OutViewOffset)
 {
 	// Here we use the ViewPoint component as the eye position
-	if (UDisplayClusterCameraComponent* ViewPoint = GetViewPointCameraComponent())
+	if (UDisplayClusterCameraComponent* SceneCameraComponent = GetViewPointCameraComponent(EDisplayClusterRootActorType::Scene))
 	{
-		OutViewLocation = ViewPoint->GetComponentLocation();
-		OutViewRotation = ViewPoint->GetComponentRotation();
+		OutViewLocation = SceneCameraComponent->GetComponentLocation();
+		OutViewRotation = SceneCameraComponent->GetComponentRotation();
 
 		// Calculate stereo ViewOffset:
 		OutViewOffset = ImplGetViewOffset(GetStereoEyeOffsetDistance(InContextNum), OutViewLocation, OutViewRotation);

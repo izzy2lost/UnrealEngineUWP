@@ -35,21 +35,15 @@ FDisplayClusterViewportResourceSettings::FDisplayClusterViewportResourceSettings
 		// Always use srgb for preview rendering
 		EnumAddFlags(ResourceFlags, EDisplayClusterViewportResourceSettingsFlags::ShouldUseSRGB);
 
-		switch (InRenderFrameSettings.RenderMode)
+		if (InRenderFrameSettings.ShouldUseLinearGamma())
 		{
-		case EDisplayClusterRenderFrameMode::PreviewInScene:
-			Format = FDisplayClusterViewportHelpers::GetPreviewDefaultPixelFormat();
-
-			// Preview display gamma
-			if (InRenderFrameSettings.bPreviewEnablePostProcess == false)
-			{
-				// Disable postprocess for preview. Use Gamma 1.f
 				DisplayGamma = 1.f;
 			}
-			break;
 
-		default:
-			break;
+		if(InRenderFrameSettings.IsPreviewRendering())
+		{
+			// for preview rendering use custom pixel format
+			Format = FDisplayClusterViewportHelpers::GetPreviewDefaultPixelFormat();
 		}
 	}
 }

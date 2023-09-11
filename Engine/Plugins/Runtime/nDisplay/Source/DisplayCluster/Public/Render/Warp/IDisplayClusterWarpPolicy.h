@@ -104,4 +104,14 @@ public:
 	 */
 	virtual void EndCalcFrustum(IDisplayClusterViewport* InViewport, const uint32 ContextNum)
 	{ }
+
+	/**
+	* Ask warp  policy instance if it has any movable mesh based preview
+	* @param InViewport - a owner viewport
+	* @return - True if mesh based preview is available
+	*/
+	virtual bool HasPreviewMovableMesh(IDisplayClusterViewport* InViewport)
+	{
+		return false;
+	}
 };

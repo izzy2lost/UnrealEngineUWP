@@ -131,3 +131,30 @@ enum class EDisplayClusterViewport_FrustumUnit: uint8
 	// 1 unit = 1 per cent
 	Percent
 };
+
+/**
+ * Special flags for nDisplay Viewport context
+ */
+enum class EDisplayClusterViewportContextState : uint8
+{
+	None = 0,
+
+	// The FDisplayClusterViewport::CalculateView() function can be called several times per frame.
+	// Each time it must return the same values. For optimization purposes, after the first call this function
+	// stores the result in the context variables 'ViewLocation' and 'ViewRotation'.
+	// Finally, raises this flag for subsequent calls in the current frame.
+	HasCalculatedViewPoint = 1 << 0,
+
+	// Viewpoint is not valid for this viewport (cannot be calculated)
+	InvalidViewPoint = 1 << 1,
+
+	// The FDisplayClusterViewport::GetProjectionMatrix() function can also be called several times per frame.
+	// stores the result in the context variables 'ProjectionMatrix' and 'OverscanProjectionMatrix'.
+	// Finally, raises this flag for subsequent calls in the current frame.
+	HasCalculatedProjectionMatrix = 1 << 2,
+	HasCalculatedOverscanProjectionMatrix = 1 << 3,
+
+	// The projection matrix is not valid (cannot be calculated)
+	InvalidProjectionMatrix = 1 << 4,
+};
+ENUM_CLASS_FLAGS(EDisplayClusterViewportContextState);

@@ -61,31 +61,6 @@
 #include "LevelEditor.h"
 
 //////////////////////////////////////////////////////////////////////////////////////////////
-int32 GDisplayClusterPreviewAllowMultiGPURendering = 0;
-static FAutoConsoleVariableRef CVarDisplayClusterPreviewAllowMultiGPURendering(
-	TEXT("DC.Preview.AllowMultiGPURendering"),
-	GDisplayClusterPreviewAllowMultiGPURendering,
-	TEXT("Allow mGPU for preview rendering (0 == disabled)"),
-	ECVF_RenderThreadSafe
-);
-
-int32 GDisplayClusterPreviewMultiGPURenderingMinIndex = 0;
-static FAutoConsoleVariableRef CVarDisplayClusterPreviewMultiGPURenderingMinIndex(
-	TEXT("DC.Preview.MultiGPURenderingMinIndex"),
-	GDisplayClusterPreviewMultiGPURenderingMinIndex,
-	TEXT("Distribute mGPU render on GPU from #min to #max indices"),
-	ECVF_RenderThreadSafe
-);
-
-int32 GDisplayClusterPreviewMultiGPURenderingMaxIndex = 0;
-static FAutoConsoleVariableRef CVarDisplayClusterPreviewMultiGPURenderingMaxIndex(
-	TEXT("DC.Preview.MultiGPURenderingMaxIndex"),
-	GDisplayClusterPreviewMultiGPURenderingMaxIndex,
-	TEXT("Distribute mGPU render on GPU from #min to #max indices"),
-	ECVF_RenderThreadSafe
-);
-
-//////////////////////////////////////////////////////////////////////////////////////////////
 // ADisplayClusterRootActor
 //////////////////////////////////////////////////////////////////////////////////////////////
 void ADisplayClusterRootActor::ResetPreviewInternals_Editor()
@@ -184,7 +159,7 @@ void ADisplayClusterRootActor::RenderPreview_Editor()
 		ResetPreviewInternals_Editor();
 		if (ViewportManager.IsValid())
 		{
-			if(ViewportManager->GetRenderMode() == EDisplayClusterRenderFrameMode::PreviewInScene)
+			if(ViewportManager->GetConfiguration().IsPreviewRendering())
 			{
 				// Release viewport manager with resources immediatelly for preview in scene
 				RemoveViewportManagerImpl();
@@ -386,6 +361,13 @@ IDisplayClusterViewport* ADisplayClusterRootActor::FindPreviewViewport(const FSt
 	return nullptr;
 }
 
+EDisplayClusterRenderFrameMode ADisplayClusterRootActor::GetPreviewRenderMode_Editor() const
+{
+	// Todo: we can add HitProxy rendering support to this function with EDisplayClusterRenderFrameMode::PreviewProxyHitInScene
+	
+	return EDisplayClusterRenderFrameMode::PreviewInScene;
+}
+
 bool ADisplayClusterRootActor::ImplUpdatePreviewConfiguration_Editor(const FString& InClusterNodeId)
 {
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("ADisplayClusterRootActor::ImplUpdatePreviewConfiguration_Editor"), STAT_ImplUpdatePreviewConfiguration_Editor, STATGROUP_NDisplay);
@@ -399,19 +381,12 @@ bool ADisplayClusterRootActor::ImplUpdatePreviewConfiguration_Editor(const FStri
 		// Now we render this node
 		PreviewRenderFrameClusterNodeId = InClusterNodeId;
 
-		FDisplayClusterPreviewSettings PreviewSettings;
-		PreviewSettings.PreviewRenderTargetRatioMult = PreviewRenderTargetRatioMult;
+		// Update current world from scene DCRA
+		ADisplayClusterRootActor* SceneRootActor = ViewportManager->GetConfiguration().GetRootActor(EDisplayClusterRootActorType::Scene);
+		ViewportManager->GetConfiguration().SetCurrentWorld(SceneRootActor ? SceneRootActor->GetWorld() : GetWorld());
 
-		PreviewSettings.bFreezePreviewRender = bFreezePreviewRender;
-		PreviewSettings.bPreviewEnablePostProcess = ShouldThisFrameOutputPreviewToPostProcessRenderTarget();
-
-		PreviewSettings.PreviewMaxTextureDimension = PreviewMaxTextureDimension;
-		
-		PreviewSettings.bAllowMultiGPURenderingInEditor = GDisplayClusterPreviewAllowMultiGPURendering != 0;
-		PreviewSettings.MinGPUIndex = FMath::Max(0, GDisplayClusterPreviewMultiGPURenderingMinIndex);
-		PreviewSettings.MaxGPUIndex = FMath::Max(0, GDisplayClusterPreviewMultiGPURenderingMaxIndex);
-
-		return ViewportManager->UpdateConfiguration(EDisplayClusterRenderFrameMode::PreviewInScene, InClusterNodeId, this, &PreviewSettings);
+		// Update local node viewports (update\create\delete) and build new render frame
+		return ViewportManager->GetConfiguration().UpdateConfigurationForClusterNode(GetPreviewRenderMode_Editor(), InClusterNodeId);
 	}
 
 	return false;
@@ -445,11 +420,7 @@ bool ADisplayClusterRootActor::ImplUpdatePreviewRenderFrame_Editor(const FString
 
 	if (!PreviewRenderFrame.IsValid())
 	{
-		// Now always use RootActor world to preview.
-		UWorld* CurrentPreviewWorld = GetWorld();
-
-		// Begin render new frame for cluster node
-		if (CurrentPreviewWorld == nullptr || !ImplUpdatePreviewConfiguration_Editor(InClusterNodeId))
+		if (!ImplUpdatePreviewConfiguration_Editor(InClusterNodeId))
 		{
 			return false;
 		}
@@ -466,7 +437,7 @@ bool ADisplayClusterRootActor::ImplUpdatePreviewRenderFrame_Editor(const FString
 		PreviewRenderFrame = MakeUnique<FDisplayClusterRenderFrame>();
 
 		// Update preview viewports from settings
-		if (!ViewportManager->BeginNewFrame(nullptr, CurrentPreviewWorld, *PreviewRenderFrame))
+		if (!ViewportManager->BeginNewFrame(nullptr, *PreviewRenderFrame))
 		{
 			PreviewRenderFrame.Reset();
 
@@ -632,22 +603,12 @@ void ADisplayClusterRootActor::ImplRenderPreviewFrustums_Editor()
 	// collect incameras
 	if (bPreviewICVFXFrustums)
 	{
-		for (UActorComponent* ActorComponentIt : GetComponents())
+		// Iterate over rendered inner camera viewports (whole cluster)
+		for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& InnerCameraViewportIt : FDisplayClusterViewportConfigurationHelpers_ICVFX::GetAllVisibleInnerCameraViewports(*ViewportManager->Configuration))
 		{
-			if (ActorComponentIt)
+			if (InnerCameraViewportIt.IsValid())
 			{
-				UDisplayClusterICVFXCameraComponent* CineCameraComponent = Cast<UDisplayClusterICVFXCameraComponent>(ActorComponentIt);
-				if (CineCameraComponent && CineCameraComponent->IsICVFXEnabled())
-				{
-					// Iterate over rendered incamera viewports (whole cluster)
-					for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& InCameraViewportIt : FDisplayClusterViewportConfigurationHelpers_ICVFX::PreviewGetRenderedInCameraViewports(*this, *CineCameraComponent))
-					{
-						if (InCameraViewportIt.IsValid())
-						{
-							FrustumPreviewViewports.Add(InCameraViewportIt.Get());
-						}
-					}
-				}
+				FrustumPreviewViewports.Add(InnerCameraViewportIt.Get());
 			}
 		}
 	}

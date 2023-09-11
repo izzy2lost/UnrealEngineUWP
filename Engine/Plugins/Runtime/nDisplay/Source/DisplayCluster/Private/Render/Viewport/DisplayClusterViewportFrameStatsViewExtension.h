@@ -2,8 +2,7 @@
 
 #pragma once
 #include "SceneViewExtension.h"
-
-class FDisplayClusterViewportManager;
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
 
 #define DISPLAYCLUSTER_SCENE_DEBUG_VIEW_EXTENSION_PRIORITY 999
 
@@ -13,8 +12,8 @@ class FDisplayClusterViewportManager;
 class FDisplayClusterViewportFrameStatsViewExtension : public FSceneViewExtensionBase
 {
 public:
-	FDisplayClusterViewportFrameStatsViewExtension(const FAutoRegister& AutoRegister, const FDisplayClusterViewportManager* InViewportManager);
-	virtual ~FDisplayClusterViewportFrameStatsViewExtension();
+	FDisplayClusterViewportFrameStatsViewExtension(const FAutoRegister& AutoRegister, const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe>& InConfiguration);
+	virtual ~FDisplayClusterViewportFrameStatsViewExtension() = default;
 
 public:
 	//~ Begin ISceneViewExtension interface
@@ -30,19 +29,15 @@ public:
 protected:
 	virtual bool IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const override;
 
-private:
-	/** Get viewport manager ptr. */
-	inline const FDisplayClusterViewportManager* GetViewportManager() const
-	{
-		return ViewportManagerWeakPtr.IsValid() ? ViewportManagerWeakPtr.Pin().Get() : nullptr;
-	}
+public:
+	// Configuration of the current cluster node
+	const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe> Configuration;
 
+private:
 	/** True, if VE can be used at the moment. */
 	bool IsActive() const;
 
 private:
 	std::atomic<uint32> FrameCount;
 	std::atomic<uint32> EncodedTimecode;
-
-	TWeakPtr<const FDisplayClusterViewportManager, ESPMode::ThreadSafe> ViewportManagerWeakPtr;
 };

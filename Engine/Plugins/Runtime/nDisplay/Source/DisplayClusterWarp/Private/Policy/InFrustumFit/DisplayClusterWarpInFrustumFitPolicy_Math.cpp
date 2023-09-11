@@ -2,6 +2,7 @@
 
 #include "Policy/InFrustumFit/DisplayClusterWarpInFrustumFitPolicy.h"
 
+#include "Render/Viewport/IDisplayClusterViewport.h"
 #include "Components/DisplayClusterInFrustumFitCameraComponent.h"
 #include "Camera/CameraTypes.h"
 #include "HAL/IConsoleManager.h"
@@ -71,14 +72,23 @@ void FDisplayClusterWarpInFrustumFitPolicy::MakeGroupFrustumSymmetrical(bool bFi
 	}
 }
 
-FDisplayClusterWarpProjection FDisplayClusterWarpInFrustumFitPolicy::ApplyInFrustumFit(UDisplayClusterInFrustumFitCameraComponent* InComponent, const FTransform& World2OriginTransform, const FDisplayClusterWarpProjection& InWarpProjection)
+FDisplayClusterWarpProjection FDisplayClusterWarpInFrustumFitPolicy::ApplyInFrustumFit(IDisplayClusterViewport* InViewport, const FTransform& World2OriginTransform, const FDisplayClusterWarpProjection& InWarpProjection)
 {
-	check(InComponent);
+	UDisplayClusterInFrustumFitCameraComponent* SceneCameraComponent = Cast<UDisplayClusterInFrustumFitCameraComponent>(InViewport->GetViewPointCameraComponent(EDisplayClusterRootActorType::Scene));
+	if (!SceneCameraComponent)
+	{
+		// By default, this structure has invalid values.
+		return FDisplayClusterWarpProjection();
+	}
+
+	// Get the configuration in use
+	const UDisplayClusterInFrustumFitCameraComponent& ConfigurationCameraComponent = SceneCameraComponent->GetConfigurationInFrustumFitCameraComponent(InViewport->GetConfiguration());
 
 	FDisplayClusterWarpProjection OutWarpProjection(InWarpProjection);
 
+	// Get location from scene component
 	FMinimalViewInfo CameraViewInfo;
-	InComponent->GetDesiredView(CameraViewInfo);
+	SceneCameraComponent->GetDesiredView(InViewport->GetConfiguration(), CameraViewInfo);
 
 	// Use camera position to render:
 	if (GDisplayClusterWarpInFrustumFitPolicyEnableCameraPositionFit)
@@ -104,7 +114,8 @@ FDisplayClusterWarpProjection FDisplayClusterWarpInFrustumFitPolicy::ApplyInFrus
 	const FVector2D CameraHalfFOV(CameraHalfFOVProjection, CameraHalfFOVProjection / CameraViewInfo.AspectRatio);
 	const FVector2D GeometryHalfFOV = GeometryFOV * 0.5;
 
-	const FVector2D FinalHalfFOV = FindFrustumFit(InComponent->CameraProjectionMode, CameraHalfFOV, GeometryHalfFOV);
+	// Receive configuration from InCfgComponent
+	const FVector2D FinalHalfFOV = FindFrustumFit(ConfigurationCameraComponent.CameraProjectionMode, CameraHalfFOV, GeometryHalfFOV);
 
 	// Sample code: convert back to projection angles
 	if (GDisplayClusterWarpInFrustumFitPolicyEnableProjectionAnglesFit)

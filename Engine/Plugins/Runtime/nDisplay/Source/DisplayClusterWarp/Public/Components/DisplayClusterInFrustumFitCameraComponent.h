@@ -30,25 +30,25 @@ public:
 	//~~~End UActorComponent
 
 	//~Begin UDisplayClusterCameraComponent
-	virtual void GetDesiredView(FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane = nullptr) override;
+	virtual void GetDesiredView(IDisplayClusterViewportConfiguration& InViewportConfiguration, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane = nullptr) override;
 	virtual bool ShouldUseEntireClusterViewports(IDisplayClusterViewportManager* InViewportManager) const override;
 	virtual IDisplayClusterWarpPolicy* GetWarpPolicy(IDisplayClusterViewportManager* InViewportManager) override;
 	//~~End UDisplayClusterCameraComponent
 
 #if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual bool GetEditorPreviewInfo(float DeltaTime, FMinimalViewInfo& ViewOut) override;
 	virtual TSharedPtr<SWidget> GetCustomEditorPreviewWidget() override;
-
-	void InvalidatePreviewState() { bRefreshPreviewState = true; }
 #endif
 
-public:
-	/** true, if camera projection is used. */
-	bool IsEnabled() const;
+	/** Return component that used for configuration. */
+	const UDisplayClusterInFrustumFitCameraComponent& GetConfigurationInFrustumFitCameraComponent(IDisplayClusterViewportConfiguration& InViewportConfiguration) const;
 
+private:
 	/** Return external camera component. */
 	UCameraComponent* GetExternalCameraComponent() const;
+
+	/** true, if camera projection is used. */
+	bool IsEnabled() const;
 
 public:
 	/** Camera projection mode is used. */
@@ -80,9 +80,4 @@ private:
 	// a unique type of warp policy for this component
 	// this policy class knows the properties of the component and implements the corresponding logic
 	TSharedPtr<IDisplayClusterWarpPolicy, ESPMode::ThreadSafe> WarpPolicy;
-
-#if WITH_EDITOR
-	/** Indicates that the state of the preview meshes for the frustum fit are invalid and need to be refreshed on the next tick */
-	bool bRefreshPreviewState = true;
-#endif
 };

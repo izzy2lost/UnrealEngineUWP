@@ -3,8 +3,8 @@
 #include "DisplayClusterRenderTargetResourcesPool.h"
 #include "DisplayClusterRenderTargetResource.h"
 
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
 #include "Render/Viewport/Resource/DisplayClusterViewportPreviewResource.h"
-
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
 #include "Render/Viewport/DisplayClusterViewportHelpers.h"
 #include "Render/Viewport/DisplayClusterViewportManagerProxy.h"
@@ -16,10 +16,6 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// FDisplayClusterRenderTargetResourcesPool
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-FDisplayClusterRenderTargetResourcesPool::FDisplayClusterRenderTargetResourcesPool(FDisplayClusterViewportManagerProxy* InViewportManagerProxy)
-	: ViewportManagerProxyWeakPtr(InViewportManagerProxy ? InViewportManagerProxy->AsWeak() : nullptr)
-{ }
-
 FDisplayClusterRenderTargetResourcesPool::~FDisplayClusterRenderTargetResourcesPool()
 {
 	Release();
@@ -83,7 +79,7 @@ void FDisplayClusterRenderTargetResourcesPool::ImplUpdateResources(TArray<TShare
 	InOutViewportResources.Empty();
 }
 
-bool FDisplayClusterRenderTargetResourcesPool::BeginReallocateResources(const FDisplayClusterRenderFrameSettings& InRenderFrameSettings, FViewport* InViewport)
+bool FDisplayClusterRenderTargetResourcesPool::BeginReallocateResources(FViewport* InViewport, const FDisplayClusterRenderFrameSettings& InRenderFrameSettings)
 {
 	check(ResourceSettings == nullptr);
 

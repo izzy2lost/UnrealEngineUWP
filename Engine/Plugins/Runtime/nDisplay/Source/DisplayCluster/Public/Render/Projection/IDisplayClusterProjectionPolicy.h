@@ -85,12 +85,16 @@ public:
 	/**
 	 * Called before FDisplayClusterViewport::UpdateFrameContexts()
 	 * From this function, the policy can override any viewport settings (custom overscan, etc).
+	 * 
+	 * @param InViewport - a owner viewport
 	 */
 	virtual void BeginUpdateFrameContexts(IDisplayClusterViewport* InViewport) const
 	{ }
 
 	/**
 	 * Called after FDisplayClusterViewport::UpdateFrameContexts()
+	 * 
+	 * @param InViewport - a owner viewport
 	 */
 	virtual void EndUpdateFrameContexts(IDisplayClusterViewport* InViewport) const
 	{ }
@@ -136,13 +140,6 @@ public:
 		return false;
 	}
 
-	// This policy can support ICVFX rendering
-	UE_DEPRECATED(5.3, "This function has been deprecated. Please use 'ShouldSupportICVFX(IDisplayClusterViewport*)'.")
-	virtual bool ShouldSupportICVFX() const
-	{
-		return false;
-	}
-
 	/** Returns true if this policy supports ICVFX rendering
 	 * 
 	 * @param InViewport - a owner viewport
@@ -170,7 +167,7 @@ public:
 
 	/** Override view from this projection policy
 	 *
-	 * @param InViewport                 - the viewport of this projection policy
+	 * @param InViewport                 - a owner viewport
 	 * @param InDeltaTime                - delta time in current frame
 	 * @param InOutViewInfo              - ViewInfo data
 	 * @param OutCustomNearClippingPlane - Custom NCP, or a value less than zero if not defined.
@@ -178,11 +175,16 @@ public:
 	virtual void SetupProjectionViewPoint(IDisplayClusterViewport* InViewport, const float InDeltaTime, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane = nullptr)
 	{ }
 
-	/** Projection policy can override PP */
+	/** Projection policy can override PP
+	* 
+	* @param InViewport - a owner viewport
+	*/
 	virtual void UpdatePostProcessSettings(IDisplayClusterViewport* InViewport)
 	{ }
 
-	/**
+	/** Calculate view projection data
+	* 
+	* @param InViewport        - a owner viewport
 	* @param ViewIdx           - Index of view that is being processed for this viewport
 	* @param InOutViewLocation - (in/out) View location with ViewOffset (i.e. left eye pre-computed location)
 	* @param InOutViewRotation - (in/out) View rotation
@@ -195,7 +197,9 @@ public:
 	*/
 	virtual bool CalculateView(IDisplayClusterViewport* InViewport, const uint32 InContextNum, FVector& InOutViewLocation, FRotator& InOutViewRotation, const FVector& ViewOffset, const float WorldToMeters, const float NCP, const float FCP) = 0;
 
-	/**
+	/** Gets projection matrix
+	* 
+	* @param InViewport   - a owner viewport
 	* @param ViewIdx      - Index of view that is being processed for this viewport
 	* @param OutPrjMatrix - (out) projection matrix
 	*
@@ -287,9 +291,10 @@ public:
 	/**
 	* Ask projection policy instance if it has any mesh based preview
 	*
+	* @param InViewport - a owner viewport
 	* @return - True if mesh based preview is available
 	*/
-	virtual bool HasPreviewMesh()
+	virtual bool HasPreviewMesh(IDisplayClusterViewport* InViewport)
 	{
 		return false;
 	}
@@ -309,11 +314,22 @@ public:
 	}
 
 	/**
+	 * Return Origin point component used by preview mesh
+	 * 
+	 * @param InViewport - a owner viewport
+	 */
+	virtual USceneComponent* const GetPreviewMeshOriginComponent(IDisplayClusterViewport* InViewport) const
+	{
+		return nullptr;
+	}
+
+	/**
 	* Ask projection policy instance if it has any movable mesh based preview
-	*
+	* 
+	* @param InViewport - a owner viewport
 	* @return - True if mesh based preview is available
 	*/
-	virtual bool HasPreviewMovableMesh()
+	virtual bool HasPreviewMovableMesh(IDisplayClusterViewport* InViewport)
 	{
 		return false;
 	}
@@ -322,10 +338,42 @@ public:
 	* Build preview movable mesh
 	* This MeshComponent is a copy of the preview mesh and can be moved freely with the UI visualization.
 	*
-	* @param InViewport - Projection specific parameters.
+	* @param InViewport - a owner viewport
 	*/
 	virtual UMeshComponent* GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport)
 	{
 		return nullptr;
+	}
+
+	/**
+	 * Return Origin point component used by preview movable mesh
+	 * 
+	 * @param InViewport - a owner viewport
+	 */
+	virtual USceneComponent* const GetPreviewMovableMeshOriginComponent(IDisplayClusterViewport* InViewport) const
+	{
+		return nullptr;
+	}
+
+	//////////// UE_DEPRECATED 5.3 ////////////
+
+	// This policy can support ICVFX rendering
+	UE_DEPRECATED(5.3, "This function has been deprecated. Please use 'ShouldSupportICVFX(IDisplayClusterViewport*)'.")
+		virtual bool ShouldSupportICVFX() const
+	{
+		return false;
+	}
+
+	//////////// UE_DEPRECATED 5.4 ////////////
+
+	/**
+	* Ask projection policy instance if it has any mesh based preview
+	*
+	* @return - True if mesh based preview is available
+	*/
+	UE_DEPRECATED(5.4, "This function has been deprecated. Please use 'HasPreviewMesh(IDisplayClusterViewport*)'.")
+	virtual bool HasPreviewMesh()
+	{
+		return false;
 	}
 };

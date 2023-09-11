@@ -68,13 +68,11 @@ public:
 	/** Return InCamera OCIO configuration for the specified cluster node. Return nullptr if no OCIO. */
 	const FOpenColorIOColorConversionSettings* FindOCIOConfiguration(const FString& InClusterNodeId) const;
 
-#if WITH_EDITOR
 	/** Returns true if the InCamera OCIO configuration is the same for the input nodes. */
-	bool IsInnerFrustumViewportSettingsEqual_Editor(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const;
+	bool IsInnerFrustumViewportSettingsEqual(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const;
 
 	/** Returns true if the Chromakey OCIO configuration is the same for the input nodes. */
-	bool IsChromakeyViewportSettingsEqual_Editor(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const;
-#endif
+	bool IsChromakeyViewportSettingsEqual(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const;
 
 public:
 	/** OCIO Display look configuration for all nodes */
@@ -648,6 +646,16 @@ struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationICVFX_CameraS
 	GENERATED_BODY()
 
 public:
+	/**
+	* Returns true if this camera is active
+	* @param InConfigurationData - cluster configuration data
+	* @param InClusterNodeId     - current cluster node name
+	* 
+	* @return - true if this camera can be used
+	**/
+	bool IsICVFXEnabled(const class UDisplayClusterConfigurationData& InConfigurationData, const FString& InClusterNodeId) const;
+
+public:
 	FDisplayClusterConfigurationICVFX_CameraSettings();
 
 	/** Return InCamera OCIO configuration for the specified cluster node. Return nullptr if no OCIO. */
@@ -656,10 +664,8 @@ public:
 	/** Return Chromakey OCIO configuration for the specified cluster node. Return nullptr if no OCIO. */
 	const FOpenColorIOColorConversionSettings* FindChromakeyOCIOConfiguration(const FString& InClusterNodeId) const;
 
-#if WITH_EDITOR
-	bool IsInnerFrustumViewportSettingsEqual_Editor(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const;
-	bool IsChromakeyViewportSettingsEqual_Editor(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const;
-#endif
+	bool IsInnerFrustumViewportSettingsEqual(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const;
+	bool IsChromakeyViewportSettingsEqual(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const;
 
 	/** Return calculated soft edges values. */
 	FVector4 GetCameraSoftEdge(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;

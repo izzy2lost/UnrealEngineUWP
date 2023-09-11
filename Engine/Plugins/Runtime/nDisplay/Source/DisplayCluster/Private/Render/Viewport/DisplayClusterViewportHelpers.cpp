@@ -68,22 +68,13 @@ int32 FDisplayClusterViewportHelpers::GetMaxTextureNumMips(const FDisplayCluster
 {
 	int32 NumMips = InNumMips;
 
-#if WITH_EDITOR
-	switch (InRenderFrameSettings.RenderMode)
+	if(GDisplayClusterPreviewDefaultPixelFormat != 0 && InRenderFrameSettings.IsPreviewRendering())
 	{
-	case EDisplayClusterRenderFrameMode::PreviewInScene:
-		if (GDisplayClusterPreviewDefaultPixelFormat != 0)
-		{
-			//@todo: now UE support mips generation only for fixed point textures (8bit RGBA)
-			// Remove this hack latter
-			// Disable preview mips generation in case of unsupported RTT texture format.
-			NumMips = 0;
-		}
-		break;
-	default:
-		break;
+		//@todo: now UE support mips generation only for fixed point textures (8bit RGBA)
+		// Remove this hack latter
+		// Disable preview mips generation in case of unsupported RTT texture format.
+		NumMips = 0;
 	}
-#endif
 
 	if (GDisplayClusterMaxNumMips >= 0)
 	{

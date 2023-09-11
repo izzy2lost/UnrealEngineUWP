@@ -54,7 +54,11 @@ public:
 	UCineCameraComponent* GetActualCineCameraComponent();
 
 	// Returns true if this camera is active
-	bool IsICVFXEnabled() const;
+	UE_DEPRECATED(5.4, "This function has been deprecated. Please use 'GetCameraSettingsICVFX().IsICVFXEnabled()'.")
+	bool IsICVFXEnabled() const
+	{
+		return false;
+	}
 
 	// Return unique camera name
 	FString GetCameraUniqueId() const;

@@ -37,19 +37,19 @@ void FDisplayClusterViewportManager::ImplUpdatePreviewRTTResources()
 	check(IsInGameThread());
 
 	// Only for preview modes:
-	if(GetRenderMode() != EDisplayClusterRenderFrameMode::PreviewInScene)
+	if(!Configuration->IsPreviewRendering())
 	{
 		return;
 	}
 
 	// The preview RTT created inside root actor
-	ADisplayClusterRootActor* RootActor = GetRootActor();
-	if (RootActor == nullptr)
+	ADisplayClusterRootActor* PreviewRootActor = Configuration->GetRootActor(EDisplayClusterRootActorType::Preview);
+	if (PreviewRootActor == nullptr)
 	{
 		return;
 	}
 
-	const FString& ClusterNodeId = GetRenderFrameSettings().ClusterNodeId;
+	const FString& ClusterNodeId = Configuration->GetRenderFrameSettings().ClusterNodeId;
 
 	TArray<FString>        PreviewViewportNames;
 	TArray<FTextureRHIRef> PreviewRenderTargetableTextures;
@@ -63,7 +63,7 @@ void FDisplayClusterViewportManager::ImplUpdatePreviewRTTResources()
 		// update only current cluster node
 		if (ViewportIt.IsValid() && (ClusterNodeId.IsEmpty() || ViewportIt->GetClusterNodeId() == ClusterNodeId))
 		{
-			if (ViewportIt->RenderSettings.bEnable && ViewportIt->RenderSettings.bVisible)
+			if (ViewportIt->GetRenderSettings().bEnable && ViewportIt->GetRenderSettings().bVisible)
 			{
 				PreviewViewportNames.Add(ViewportIt->GetId());
 				PreviewRenderTargetableTextures.AddDefaulted();
@@ -72,7 +72,7 @@ void FDisplayClusterViewportManager::ImplUpdatePreviewRTTResources()
 	}
 
 	// Get all supported preview rtt resources from root actor
-	RootActor->GetPreviewRenderTargetableTextures(PreviewViewportNames, PreviewRenderTargetableTextures);
+	PreviewRootActor->GetPreviewRenderTargetableTextures(PreviewViewportNames, PreviewRenderTargetableTextures);
 
 	// Configure preview RTT to viwports:
 	for (int32 ViewportIndex = 0; ViewportIndex < PreviewViewportNames.Num(); ViewportIndex++)
@@ -82,16 +82,19 @@ void FDisplayClusterViewportManager::ImplUpdatePreviewRTTResources()
 		{
 			FTextureRHIRef& PreviewRTT = PreviewRenderTargetableTextures[ViewportIndex];
 			if (PreviewRTT.IsValid()
-				&& !DesiredViewport->Resources[EDisplayClusterViewportResource::OutputPreviewTargetableResources].IsEmpty()
-				&& DesiredViewport->Resources[EDisplayClusterViewportResource::OutputPreviewTargetableResources][0].IsValid())
+				&& !DesiredViewport->GetViewportResources(EDisplayClusterViewportResource::OutputPreviewTargetableResources).IsEmpty()
+				&& DesiredViewport->GetViewportResources(EDisplayClusterViewportResource::OutputPreviewTargetableResources)[0].IsValid())
 			{
 				// Use mapped preview viewport
-				DesiredViewport->Resources[EDisplayClusterViewportResource::OutputPreviewTargetableResources][0]->SetExternalViewportResourceRHI(PreviewRTT);
+				DesiredViewport->GetViewportResources(EDisplayClusterViewportResource::OutputPreviewTargetableResources)[0]->SetExternalViewportResourceRHI(PreviewRTT);
 			}
 			else
 			{
+				// Gain direct access to internal settings of the viewport:
+				FDisplayClusterViewport_RenderSettings& InOutDesiredViewportRenderSettings = DesiredViewport->GetRenderSettingsImpl();
+
 				// disable visible, but unused by root actor viewports
-				DesiredViewport->RenderSettings.bEnable = false;
+				InOutDesiredViewportRenderSettings.bEnable = false;
 			}
 		}
 	}
@@ -115,16 +118,15 @@ bool FDisplayClusterViewportManager::RenderInEditor(FDisplayClusterRenderFrame& 
 	bOutFrameRendered = false;
 	OutViewportsAmount = 0;
 
-	UWorld* CurrentWorld = GetCurrentWorld();
-	if (CurrentWorld == nullptr)
+	UWorld* CurrentWorld = Configuration->GetCurrentWorld();
+	const ADisplayClusterRootActor* PreviewRootActor = Configuration->GetRootActor(EDisplayClusterRootActorType::Preview);
+	if (!CurrentWorld || !PreviewRootActor)
 	{
 		return false;
 	}
 
-	const ADisplayClusterRootActor* RootActor = GetRootActor();
-
 #if WITH_EDITOR
-	if (RootActor && !RootActor->IsEditorRenderEnabled())
+	if (!PreviewRootActor->IsEditorRenderEnabled())
 	{
 		bOutFrameRendered = true;
 		return true;
@@ -175,11 +177,8 @@ bool FDisplayClusterViewportManager::RenderInEditor(FDisplayClusterRenderFrame& 
 				ConfigureViewFamily(RenderTargetIt, ViewFamiliesIt, ViewFamily);
 
 				if (RenderTargetIt.CaptureMode == EDisplayClusterViewportCaptureMode::Default
-#if WITH_EDITOR
-					&& RootActor
-					&& !RootActor->bPreviewEnablePostProcess
-					&& RootActor->DoObserversNeedPostProcessRenderTarget()
-#endif
+					&& PreviewRootActor
+					&& !PreviewRootActor->bPreviewEnablePostProcess
 				)
 				{
 					if (ViewFamily.EngineShowFlags.TemporalAA)

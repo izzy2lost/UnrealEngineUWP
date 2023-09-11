@@ -4,6 +4,8 @@
 #include "DisplayClusterViewportConfigurationHelpers_OpenColorIO.h"
 #include "DisplayClusterViewportConfigurationHelpers_Postprocess.h"
 
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
+
 #include "Render/Viewport/DisplayClusterViewport.h"
 #include "Render/Viewport/DisplayClusterViewportManager.h"
 #include "Render/Viewport/DisplayClusterViewportHelpers.h"
@@ -31,139 +33,23 @@
 #include "Render/Projection/IDisplayClusterProjectionPolicy.h"
 
 #include "DisplayClusterSceneViewExtensions.h"
-#include "OpenColorIODisplayExtension.h"
 
 #include "Misc/DisplayClusterLog.h"
 #include "TextureResource.h"
 
 #include "HAL/IConsoleManager.h"
 
-
-void FDisplayClusterViewportConfigurationHelpers::UpdateViewportStereoMode(FDisplayClusterViewport& DstViewport, const EDisplayClusterConfigurationViewport_StereoMode StereoMode)
+bool FDisplayClusterViewportConfigurationHelpers::IsForceMonoscopicRendering(const EDisplayClusterConfigurationViewport_StereoMode StereoMode)
 {
-	switch (StereoMode)
-	{
-	case EDisplayClusterConfigurationViewport_StereoMode::ForceMono:
-		DstViewport.RenderSettings.bForceMono = true;
-		break;
-	default:
-		DstViewport.RenderSettings.bForceMono = false;
-		break;
-	}
+	return StereoMode == EDisplayClusterConfigurationViewport_StereoMode::ForceMono;
 }
 
-void FDisplayClusterViewportConfigurationHelpers::UpdateViewportSetting_OverlayRenderSettings(FDisplayClusterViewport& DstViewport, const FDisplayClusterConfigurationICVFX_OverlayAdvancedRenderSettings& InOverlaySettings)
+void FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(FDisplayClusterViewport& DstViewport, const UDisplayClusterConfigurationViewport& InConfigurationViewport)
 {
-	DstViewport.SetViewportBufferRatio(InOverlaySettings.BufferRatio);
-	DstViewport.RenderSettings.RenderTargetRatio = InOverlaySettings.RenderTargetRatio;
+	// Gain direct access to internal settings of the viewport:
+	FDisplayClusterViewport_RenderSettings&           InOutRenderSettings = DstViewport.GetRenderSettingsImpl();
+	FDisplayClusterViewport_RenderSettingsICVFX& InOutRenderSettingsICVFX = DstViewport.GetRenderSettingsICVFXImpl();
 
-	DstViewport.RenderSettings.GPUIndex = InOverlaySettings.GPUIndex;
-	DstViewport.RenderSettings.StereoGPUIndex = InOverlaySettings.StereoGPUIndex;
-
-	UpdateViewportStereoMode(DstViewport, InOverlaySettings.StereoMode);
-
-	DstViewport.RenderSettings.RenderFamilyGroup = InOverlaySettings.RenderFamilyGroup;
-};
-
-void FDisplayClusterViewportConfigurationHelpers::UpdateViewportSetting_Override(FDisplayClusterViewport& DstViewport, const FDisplayClusterConfigurationPostRender_Override& InOverride)
-{
-	DstViewport.PostRenderSettings.Replace.TextureRHI.SafeRelease();
-
-	if (InOverride.bAllowReplace && InOverride.SourceTexture != nullptr)
-	{
-		FTextureResource* TextureResource = InOverride.SourceTexture->GetResource();
-		if(TextureResource)
-		{
-			FTextureRHIRef& TextureRHI = TextureResource->TextureRHI;
-
-			if (TextureRHI.IsValid())
-			{
-				DstViewport.PostRenderSettings.Replace.TextureRHI = TextureRHI;
-				FIntVector Size = TextureRHI->GetSizeXYZ();
-
-				DstViewport.PostRenderSettings.Replace.Rect = FDisplayClusterViewportHelpers::GetValidViewportRect((InOverride.bShouldUseTextureRegion) ? InOverride.TextureRegion.ToRect() : FIntRect(FIntPoint(0, 0), FIntPoint(Size.X, Size.Y)), DstViewport.GetId(), TEXT("Configuration Override"));
-			}
-		}
-	}
-};
-
-void FDisplayClusterViewportConfigurationHelpers::UpdateViewportSetting_PostprocessBlur(FDisplayClusterViewport& DstViewport, const FDisplayClusterConfigurationPostRender_BlurPostprocess& InBlurPostprocess)
-{
-	switch (InBlurPostprocess.Mode)
-	{
-	case EDisplayClusterConfiguration_PostRenderBlur::Gaussian:
-		DstViewport.PostRenderSettings.PostprocessBlur.Mode = EDisplayClusterShaderParameters_PostprocessBlur::Gaussian;
-		break;
-	case EDisplayClusterConfiguration_PostRenderBlur::Dilate:
-		DstViewport.PostRenderSettings.PostprocessBlur.Mode = EDisplayClusterShaderParameters_PostprocessBlur::Dilate;
-		break;
-	default:
-		DstViewport.PostRenderSettings.PostprocessBlur.Mode = EDisplayClusterShaderParameters_PostprocessBlur::None;
-		break;
-	}
-
-	DstViewport.PostRenderSettings.PostprocessBlur.KernelRadius = InBlurPostprocess.KernelRadius;
-	DstViewport.PostRenderSettings.PostprocessBlur.KernelScale = InBlurPostprocess.KernelScale;
-};
-
-void FDisplayClusterViewportConfigurationHelpers::UpdateViewportSetting_Overscan(const FDisplayClusterConfigurationViewport_Overscan& InOverscan, FDisplayClusterViewport_OverscanSettings& OutOverscanSettings)
-{
-	OutOverscanSettings.bEnabled = false;
-	OutOverscanSettings.bOversize = InOverscan.bOversize;
-	
-	if (InOverscan.bEnabled)
-	{
-		switch (InOverscan.Mode)
-		{
-		case EDisplayClusterConfigurationViewportOverscanMode::Percent:
-			OutOverscanSettings.bEnabled = InOverscan.bEnabled;
-			OutOverscanSettings.Unit = EDisplayClusterViewport_FrustumUnit::Percent;
-
-			// Scale 0..100% to 0..1 range
-			OutOverscanSettings.Left = .01f * InOverscan.Left;
-			OutOverscanSettings.Right = .01f * InOverscan.Right;
-			OutOverscanSettings.Top = .01f * InOverscan.Top;
-			OutOverscanSettings.Bottom = .01f * InOverscan.Bottom;
-			break;
-
-		case EDisplayClusterConfigurationViewportOverscanMode::Pixels:
-			OutOverscanSettings.bEnabled = InOverscan.bEnabled;
-			OutOverscanSettings.Unit = EDisplayClusterViewport_FrustumUnit::Pixels;
-
-			OutOverscanSettings.Left = InOverscan.Left;
-			OutOverscanSettings.Right = InOverscan.Right;
-			OutOverscanSettings.Top = InOverscan.Top;
-			OutOverscanSettings.Bottom = InOverscan.Bottom;
-			break;
-
-		default:
-			break;
-		}
-	}
-};
-
-void FDisplayClusterViewportConfigurationHelpers::UpdateViewportSetting_GenerateMips(FDisplayClusterViewport& DstViewport, const FDisplayClusterConfigurationPostRender_GenerateMips& InGenerateMips)
-{
-	if (InGenerateMips.bAutoGenerateMips)
-	{
-		DstViewport.PostRenderSettings.GenerateMips.bAutoGenerateMips = true;
-
-		DstViewport.PostRenderSettings.GenerateMips.MipsSamplerFilter = InGenerateMips.MipsSamplerFilter;
-
-		DstViewport.PostRenderSettings.GenerateMips.MipsAddressU = InGenerateMips.MipsAddressU;
-		DstViewport.PostRenderSettings.GenerateMips.MipsAddressV = InGenerateMips.MipsAddressV;
-
-		DstViewport.PostRenderSettings.GenerateMips.MaxNumMipsLimit = (InGenerateMips.bEnabledMaxNumMips) ? InGenerateMips.MaxNumMips : -1;
-	}
-	else
-	{
-		// Disable mips
-		DstViewport.PostRenderSettings.GenerateMips.bAutoGenerateMips = false;
-	}
-}
-
-void FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(FDisplayClusterViewport& DstViewport, ADisplayClusterRootActor& RootActor, const UDisplayClusterConfigurationViewport& InConfigurationViewport)
-{
 	// Reset runtime flags from prev frame:
 	DstViewport.ResetRuntimeParameters();
 
@@ -171,44 +57,43 @@ void FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(FDis
 	{
 		if (InConfigurationViewport.bAllowRendering == false)
 		{
-			DstViewport.RenderSettings.bEnable = false;
+			InOutRenderSettings.bEnable = false;
 		}
 
-		DstViewport.RenderSettings.CameraId = InConfigurationViewport.Camera;
-		DstViewport.RenderSettings.Rect = FDisplayClusterViewportHelpers::GetValidViewportRect(InConfigurationViewport.Region.ToRect(), DstViewport.GetId(), TEXT("Configuration Region"));
+		InOutRenderSettings.CameraId = InConfigurationViewport.Camera;
+		InOutRenderSettings.Rect = FDisplayClusterViewportHelpers::GetValidViewportRect(InConfigurationViewport.Region.ToRect(), DstViewport.GetId(), TEXT("Configuration Region"));
 
-		DstViewport.RenderSettings.bEnableCrossGPUTransfer = InConfigurationViewport.RenderSettings.bEnableCrossGPUTransfer;
+		InOutRenderSettings.bEnableCrossGPUTransfer = InConfigurationViewport.RenderSettings.bEnableCrossGPUTransfer;
 
-		DstViewport.RenderSettings.GPUIndex = InConfigurationViewport.GPUIndex;
-		DstViewport.RenderSettings.OverlapOrder = InConfigurationViewport.OverlapOrder;
+		InOutRenderSettings.GPUIndex = InConfigurationViewport.GPUIndex;
+		InOutRenderSettings.OverlapOrder = InConfigurationViewport.OverlapOrder;
 
 		// update viewport remap data
-		DstViewport.ViewportRemap.UpdateConfiguration(DstViewport, InConfigurationViewport.ViewportRemap);
+		DstViewport.UpdateConfiguration_ViewportRemap(InConfigurationViewport.ViewportRemap);
 	}
 
 	const FDisplayClusterConfigurationViewport_RenderSettings& InRenderSettings = InConfigurationViewport.RenderSettings;
 
 	// Update OCIO for Viewport
-	FDisplayClusterViewportConfigurationHelpers_OpenColorIO::UpdateBaseViewport(DstViewport, RootActor, InConfigurationViewport);
+	FDisplayClusterViewportConfigurationHelpers_OpenColorIO::UpdateBaseViewportOCIO(DstViewport, InConfigurationViewport);
 
 	// Additional per-viewport PostProcess
-	FDisplayClusterViewportConfigurationHelpers_Postprocess::UpdateCustomPostProcessSettings(DstViewport, RootActor, InRenderSettings.CustomPostprocess);
-	FDisplayClusterViewportConfigurationHelpers_Postprocess::UpdatePerViewportPostProcessSettings(DstViewport, RootActor);
+	FDisplayClusterViewportConfigurationHelpers_Postprocess::UpdateCustomPostProcessSettings(DstViewport, InRenderSettings.CustomPostprocess);
+	FDisplayClusterViewportConfigurationHelpers_Postprocess::UpdatePerViewportPostProcessSettings(DstViewport);
 
 	{
 		DstViewport.SetViewportBufferRatio(InRenderSettings.BufferRatio);
 
-		UpdateViewportSetting_Overscan(InRenderSettings.Overscan, DstViewport.RenderSettings.OverscanSettings);
+		DstViewport.UpdateConfiguration_Overscan(InRenderSettings.Overscan);
 
-		UpdateViewportSetting_Override(DstViewport, InRenderSettings.Replace);
-		UpdateViewportSetting_PostprocessBlur(DstViewport, InRenderSettings.PostprocessBlur);
-		UpdateViewportSetting_GenerateMips(DstViewport, InRenderSettings.GenerateMips);
+		DstViewport.UpdateConfiguration_PostRenderOverride(InRenderSettings.Replace);
+		DstViewport.UpdateConfiguration_PostRenderBlur(InRenderSettings.PostprocessBlur);
+		DstViewport.UpdateConfiguration_PostRenderGenerateMips(InRenderSettings.GenerateMips);
 
-		UpdateViewportStereoMode(DstViewport, InRenderSettings.StereoMode);
+		InOutRenderSettings.bForceMono = FDisplayClusterViewportConfigurationHelpers::IsForceMonoscopicRendering(InRenderSettings.StereoMode);
 
-		DstViewport.RenderSettings.StereoGPUIndex = InRenderSettings.StereoGPUIndex;
-		DstViewport.RenderSettings.RenderTargetRatio = InRenderSettings.RenderTargetRatio;
-		DstViewport.RenderSettings.RenderFamilyGroup = InRenderSettings.RenderFamilyGroup;
+		InOutRenderSettings.StereoGPUIndex = InRenderSettings.StereoGPUIndex;
+		InOutRenderSettings.RenderTargetRatio = InRenderSettings.RenderTargetRatio;
 	}
 
 	// Set media related configuration (runtime only for now)
@@ -223,48 +108,18 @@ void FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(FDis
 			if (MediaSettings.bEnable)
 			{
 				// Don't render the viewport if media input assigned
-				DstViewport.RenderSettings.bSkipSceneRenderingButLeaveResourcesAvailable = MediaSettings.IsMediaInputAssigned();
+				InOutRenderSettings.bSkipSceneRenderingButLeaveResourcesAvailable = MediaSettings.IsMediaInputAssigned();
 
 				// Mark this viewport is going to be captured by a capture device
-				DstViewport.RenderSettings.bIsBeingCaptured = MediaSettings.IsMediaOutputAssigned();
+				InOutRenderSettings.bIsBeingCaptured = MediaSettings.IsMediaOutputAssigned();
 			}
 		}
 	}
-
 
 	// FDisplayClusterConfigurationViewport_ICVFX property:
+	if(const FDisplayClusterConfigurationICVFX_StageSettings* StageSettings = DstViewport.Configuration->GetStageSettings())
 	{
-		const FDisplayClusterConfigurationICVFX_StageSettings& StageSettings = RootActor.GetStageSettings();
-
-		DstViewport.RenderSettingsICVFX.Flags = InConfigurationViewport.ICVFX.GetViewportICVFXFlags(StageSettings);
-		DstViewport.RenderSettingsICVFX.ICVFX.LightCardMode = InConfigurationViewport.ICVFX.GetLightCardRenderMode(StageSettings);
+		InOutRenderSettingsICVFX.Flags = InConfigurationViewport.ICVFX.GetViewportICVFXFlags(*StageSettings);
+		InOutRenderSettingsICVFX.ICVFX.LightCardMode = InConfigurationViewport.ICVFX.GetLightCardRenderMode(*StageSettings);
 	}
 }
-
-void FDisplayClusterViewportConfigurationHelpers::UpdateProjectionPolicy(FDisplayClusterViewport& DstViewport, const FDisplayClusterConfigurationProjection* InConfigurationProjectionPolicy)
-{
-	// Runtime update projection policy
-	const bool bNeedUpdateProjectionPolicy = InConfigurationProjectionPolicy && (
-			(DstViewport.ProjectionPolicy.IsValid() && DstViewport.ProjectionPolicy->IsConfigurationChanged(InConfigurationProjectionPolicy))
-		||  (DstViewport.UninitializedProjectionPolicy.IsValid() && DstViewport.UninitializedProjectionPolicy->IsConfigurationChanged(InConfigurationProjectionPolicy))
-		);
-
-	if (bNeedUpdateProjectionPolicy)
-	{
-		UE_LOG(LogDisplayClusterViewport, Verbose, TEXT("Update projection policy for viewport '%s'."), *DstViewport.GetId());
-
-		// Release current projection
-		DstViewport.HandleEndScene();
-		DstViewport.UninitializedProjectionPolicy.Reset();
-
-		// Create new projection type interface
-		DstViewport.UninitializedProjectionPolicy = FDisplayClusterViewportManager::CreateProjectionPolicy(DstViewport.GetId(), InConfigurationProjectionPolicy);
-	}
-
-	// If the projection policy is not initialized and the scene is open, initialize it immediately
-	if (!DstViewport.ProjectionPolicy.IsValid() && DstViewport.IsSceneOpened())
-			{
-				// Try initialize proj policy every tick (mesh deferred load, etc)
-				DstViewport.HandleStartScene();
-			}
-		}

@@ -109,11 +109,19 @@ bool FDisplayClusterProjectionMPCDIPolicy_ConfigParser::ImplGetMPCDIConfig()
 	{
 		if (!ScreenComponentName.IsEmpty())
 		{
-			if (ADisplayClusterRootActor* RootActorPtr = Viewport->GetRootActor())
+			if (ADisplayClusterRootActor* SceneRootActor = Viewport->GetConfiguration().GetRootActor(EDisplayClusterRootActorType::Scene))
 			{
-				if (UDisplayClusterScreenComponent* ScreenComp = RootActorPtr->GetComponentByName<UDisplayClusterScreenComponent>(ScreenComponentName))
+				if (UDisplayClusterScreenComponent* ScreenComp = SceneRootActor->GetComponentByName<UDisplayClusterScreenComponent>(ScreenComponentName))
 				{
 					ScreenComponent = ScreenComp;
+				}
+			}
+
+			if (ADisplayClusterRootActor* PreviewRootActor = Viewport->GetConfiguration().GetRootActor(EDisplayClusterRootActorType::Preview))
+			{
+				if (UDisplayClusterScreenComponent* PreviewScreenComp = PreviewRootActor->GetComponentByName<UDisplayClusterScreenComponent>(ScreenComponentName))
+				{
+					PreviewScreenComponent = PreviewScreenComp;
 				}
 			}
 		}

@@ -19,6 +19,8 @@
 #include "Stats/Stats.h"
 #include "Engine/Engine.h"
 
+#include "ProceduralMeshComponent.h"
+
 //---------------------------------------------------------------------
 // FDisplayClusterWarpBlendLoader_MeshComponent
 //---------------------------------------------------------------------
@@ -31,7 +33,7 @@ TSharedPtr<IDisplayClusterRender_MeshComponent, ESPMode::ThreadSafe> FDisplayClu
 
 TSharedPtr<FDisplayClusterWarpBlend, ESPMode::ThreadSafe> FDisplayClusterWarpBlendLoader_MeshComponent::Create(const FDisplayClusterWarpInitializer_StaticMesh& InConstructParameters)
 {
-	if (InConstructParameters.StaticMeshComponent != nullptr)
+	if (InConstructParameters.WarpMeshComponent != nullptr)
 	{
 		//ok, Create and initialize warpblend interface:
 		TSharedPtr<FDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlend = MakeShared<FDisplayClusterWarpBlend, ESPMode::ThreadSafe>();
@@ -42,8 +44,10 @@ TSharedPtr<FDisplayClusterWarpBlend, ESPMode::ThreadSafe> FDisplayClusterWarpBle
 
 		FDisplayClusterMeshUVs MeshUVs(InConstructParameters.BaseUVIndex, InConstructParameters.ChromakeyUVIndex);
 
-		Proxy.MeshComponent = CreateMeshComponent();
-		Proxy.MeshComponent->AssignStaticMeshComponentRefs(InConstructParameters.StaticMeshComponent, MeshUVs, InConstructParameters.OriginComponent, InConstructParameters.StaticMeshComponentLODIndex);
+		Proxy.PreviewMeshComponentRef.SetSceneComponent(InConstructParameters.PreviewMeshComponent);
+
+		Proxy.WarpMeshComponent = CreateMeshComponent();
+		Proxy.WarpMeshComponent->AssignStaticMeshComponentRefs(InConstructParameters.WarpMeshComponent, MeshUVs, InConstructParameters.OriginComponent, InConstructParameters.StaticMeshComponentLODIndex);
 
 		Proxy.StaticMeshComponentLODIndex = InConstructParameters.StaticMeshComponentLODIndex;
 		Proxy.WarpMeshUVs = MeshUVs;
@@ -59,7 +63,7 @@ TSharedPtr<FDisplayClusterWarpBlend, ESPMode::ThreadSafe> FDisplayClusterWarpBle
 
 TSharedPtr<FDisplayClusterWarpBlend, ESPMode::ThreadSafe> FDisplayClusterWarpBlendLoader_MeshComponent::Create(const FDisplayClusterWarpInitializer_ProceduralMesh& InConstructParameters)
 {
-	if (InConstructParameters.ProceduralMeshComponent != nullptr)
+	if (InConstructParameters.WarpMeshComponent != nullptr)
 	{
 		//ok, Create and initialize warpblend interface:
 		TSharedPtr<FDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlend = MakeShared<FDisplayClusterWarpBlend, ESPMode::ThreadSafe>();
@@ -70,9 +74,11 @@ TSharedPtr<FDisplayClusterWarpBlend, ESPMode::ThreadSafe> FDisplayClusterWarpBle
 
 		FDisplayClusterMeshUVs MeshUVs(InConstructParameters.BaseUVIndex, InConstructParameters.ChromakeyUVIndex);
 
+		Proxy.PreviewMeshComponentRef.SetSceneComponent(InConstructParameters.PreviewMeshComponent);
+
 		// Assign procedural mesh
-		Proxy.MeshComponent = CreateMeshComponent();
-		Proxy.MeshComponent->AssignProceduralMeshComponentRefs(InConstructParameters.ProceduralMeshComponent, MeshUVs, InConstructParameters.OriginComponent, InConstructParameters.ProceduralMeshComponentSectionIndex);
+		Proxy.WarpMeshComponent = CreateMeshComponent();
+		Proxy.WarpMeshComponent->AssignProceduralMeshComponentRefs(InConstructParameters.WarpMeshComponent, MeshUVs, InConstructParameters.OriginComponent, InConstructParameters.ProceduralMeshComponentSectionIndex);
 
 		Proxy.ProceduralMeshComponentSectionIndex = InConstructParameters.ProceduralMeshComponentSectionIndex;
 		Proxy.WarpMeshUVs = MeshUVs;

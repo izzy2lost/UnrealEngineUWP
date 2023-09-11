@@ -478,10 +478,9 @@ bool UDisplayClusterMoviePipelineViewportPassBase::InitializeDisplayCluster()
 			IDisplayClusterViewportManager* ViewportManager = DCRootActor->GetViewportManager();
 			check(ViewportManager);
 
-			const EDisplayClusterRenderFrameMode RenderFrameMode = EDisplayClusterRenderFrameMode::Mono;
-
 			// Update local node viewports (update\create\delete) and build new render frame
-			if (ViewportManager->UpdateCustomConfiguration(RenderFrameMode, DisplayClusterViewports, DCRootActor))
+			const EDisplayClusterRenderFrameMode RenderFrameMode = EDisplayClusterRenderFrameMode::Mono;
+			if (ViewportManager->GetConfiguration().UpdateConfigurationForViewportsList(RenderFrameMode, DisplayClusterViewports))
 			{
 				return true;
 			}
@@ -547,8 +546,10 @@ IDisplayClusterViewport* UDisplayClusterMoviePipelineViewportPassBase::GetAndCal
 			DCViewport->SetRenderSettings(RenderSettings);
 		}
 
+		ViewportManager->GetConfiguration().SetCurrentWorld(CurrentWorld);
+
 		FDisplayClusterRenderFrame RenderFrame;
-		if (ViewportManager->BeginNewFrame(GameViewportClient->Viewport, CurrentWorld, RenderFrame))
+		if (ViewportManager->BeginNewFrame(GameViewportClient->Viewport, RenderFrame))
 		{
 			// Obtaining the internal viewpoint for a given viewport with stereo eye offset distance.
 			FMinimalViewInfo ViewInfo;
@@ -570,7 +571,7 @@ IDisplayClusterViewport* UDisplayClusterMoviePipelineViewportPassBase::GetAndCal
 			{
 				OutView.ProjectionMatrix = FMatrix::Identity;
 
-				bResult = ViewportManager->IsSceneOpened() && DCViewport->GetProjectionMatrix(InContextNum, OutView.ProjectionMatrix);
+				bResult = ViewportManager->GetConfiguration().IsSceneOpened() && DCViewport->GetProjectionMatrix(InContextNum, OutView.ProjectionMatrix);
 			}
 
 			if (bFrameWarpBlend)

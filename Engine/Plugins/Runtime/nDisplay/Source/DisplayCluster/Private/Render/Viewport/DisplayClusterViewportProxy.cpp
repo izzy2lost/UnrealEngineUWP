@@ -1,14 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Render/Viewport/DisplayClusterViewportProxy.h"
-
 #include "Render/Viewport/DisplayClusterViewportManagerProxy.h"
 #include "Render/Viewport/DisplayClusterViewport.h"
 #include "Render/Viewport/DisplayClusterViewportManager.h"
 #include "Render/Viewport/DisplayClusterViewportManagerViewExtension.h"
 
 #include "Render/Viewport/Containers/DisplayClusterViewport_PostRenderSettings.h"
-#include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
+#include "Render/Viewport/Containers/DisplayClusterViewportProxyData.h"
 
 #include "Render/Viewport/RenderTarget/DisplayClusterRenderTargetResource.h"
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
@@ -24,11 +23,6 @@
 #include "IDisplayClusterCallbacks.h"
 #include "IDisplayClusterShaders.h"
 #include "TextureResource.h"
-
-#if WITH_EDITOR
-#include "DisplayClusterRootActor.h"
-#include "Render/Viewport/Containers/DisplayClusterViewportReadPixels.h"
-#endif
 
 #include "RHIStaticStates.h"
 
@@ -136,18 +130,50 @@ namespace UE::DisplayCluster::ViewportProxy
 using namespace UE::DisplayCluster::ViewportProxy;
 
 ///////////////////////////////////////////////////////////////////////////////////////
-FDisplayClusterViewportProxy::FDisplayClusterViewportProxy(const FDisplayClusterViewport& RenderViewport)
-	: ViewportId(RenderViewport.ViewportId)
-	, ClusterNodeId(RenderViewport.ClusterNodeId)
-	, RenderSettings(RenderViewport.RenderSettings)
-	, ProjectionPolicy(RenderViewport.UninitializedProjectionPolicy)
-	, ViewportManagerProxyWeakRef(RenderViewport.GetViewportManagerProxyRefImpl())
+FDisplayClusterViewportProxy::FDisplayClusterViewportProxy(const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe>& InConfiguration, const FString& InViewportId, const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe>& InProjectionPolicy)
+	: ConfigurationProxy(InConfiguration->Proxy)
+	, ViewportId(InViewportId)
+	, ClusterNodeId(InConfiguration->GetClusterNodeId())
+	, ProjectionPolicy(InProjectionPolicy)
 {
 	check(ProjectionPolicy.IsValid());
 }
 
 FDisplayClusterViewportProxy::~FDisplayClusterViewportProxy()
 {
+}
+
+void FDisplayClusterViewportProxy::UpdateViewportProxyData_RenderThread(const FDisplayClusterViewportProxyData& InViewportProxyData)
+{
+	OpenColorIO = InViewportProxyData.OpenColorIO;
+
+	OverscanRuntimeSettings = InViewportProxyData.OverscanRuntimeSettings;
+
+	RemapMesh = InViewportProxyData.RemapMesh;
+
+	RenderSettings = InViewportProxyData.RenderSettings;
+
+	RenderSettingsICVFX.SetParameters(InViewportProxyData.RenderSettingsICVFX);
+	PostRenderSettings.SetParameters(InViewportProxyData.PostRenderSettings);
+
+	ProjectionPolicy = InViewportProxyData.ProjectionPolicy;
+
+	// The RenderThreadData for DstViewportProxy has been updated in DisplayClusterViewportManagerViewExtension on the rendering thread.
+	// Therefore, the RenderThreadData values from the game thread must be overridden by current data from the render thread.
+	{
+		const TArray<FDisplayClusterViewport_Context> CurrentContexts = Contexts;
+		Contexts = InViewportProxyData.Contexts;
+
+		int32 ContextAmmount = FMath::Min(CurrentContexts.Num(), Contexts.Num());
+		for (int32 ContextIndex = 0; ContextIndex < ContextAmmount; ContextIndex++)
+		{
+			Contexts[ContextIndex].RenderThreadData = CurrentContexts[ContextIndex].RenderThreadData;
+		}
+	}
+
+	// Update viewport proxy resources from container
+	Resources = InViewportProxyData.Resources;
+	ViewStates = InViewportProxyData.ViewStates;
 }
 
 EDisplayClusterViewportResourceType FDisplayClusterViewportProxy::GetResourceType_RenderThread(const EDisplayClusterViewportResourceType& InResourceType) const
@@ -167,7 +193,7 @@ EDisplayClusterViewportResourceType FDisplayClusterViewportProxy::GetResourceTyp
 		/**
 		* Output textures for preview rendering.
 		*/
-		if (GetRenderMode() == EDisplayClusterRenderFrameMode::PreviewInScene)
+		if (ConfigurationProxy->IsPreviewRendering_RenderThread())
 		{
 			// [warp] -> OutputPreviewTargetableResource
 			return EDisplayClusterViewportResourceType::OutputPreviewTargetableResource;
@@ -213,49 +239,13 @@ bool FDisplayClusterViewportProxy::ShouldApplyWarpBlend_RenderThread() const
 		return false;
 	}
 
-	const FDisplayClusterRenderFrameSettings* RenderFrameSettings = GetRenderFrameSettings_RenderThread();
-	if (!RenderFrameSettings || !RenderFrameSettings->bAllowWarpBlend)
+	if (!ConfigurationProxy->GetRenderFrameSettings().bAllowWarpBlend)
 	{
 		return false;
 	}
 
 	// Ask current projection policy if it's warp&blend compatible
 	return ProjectionPolicy.IsValid() && ProjectionPolicy->IsWarpBlendSupported();
-}
-
-const FDisplayClusterRenderFrameSettings* FDisplayClusterViewportProxy::GetRenderFrameSettings_RenderThread() const
-{
-	if (FDisplayClusterViewportManagerProxy* ViewportManagerProxy = GetViewportManagerProxyImpl_RenderThread())
-	{
-		return &ViewportManagerProxy->GetRenderFrameSettings_RenderThread();
-	}
-
-	return nullptr;
-}
-
-const IDisplayClusterViewportManagerProxy* FDisplayClusterViewportProxy::GetViewportManagerProxy_RenderThread() const
-{
-	return GetViewportManagerProxyRefImpl_RenderThread().Get();
-}
-
-FDisplayClusterViewportManagerProxy* FDisplayClusterViewportProxy::GetViewportManagerProxyImpl_RenderThread() const
-{
-	return GetViewportManagerProxyRefImpl_RenderThread().Get();
-}
-
-TSharedPtr<FDisplayClusterViewportManagerProxy, ESPMode::ThreadSafe> FDisplayClusterViewportProxy::GetViewportManagerProxyRefImpl_RenderThread() const
-{
-	return ViewportManagerProxyWeakRef.IsValid() ? ViewportManagerProxyWeakRef.Pin() : nullptr;
-}
-
-EDisplayClusterRenderFrameMode FDisplayClusterViewportProxy::GetRenderMode() const
-{
-	if (FDisplayClusterViewportManagerProxy* ViewportManagerProxy = GetViewportManagerProxyImpl_RenderThread())
-	{
-		return ViewportManagerProxy->GetRenderMode();
-	}
-
-	return EDisplayClusterRenderFrameMode::Unknown;
 }
 
 bool FDisplayClusterViewportProxy::ShouldOverrideViewportResource(const EDisplayClusterViewportResourceType InExtResourceType) const
@@ -314,7 +304,7 @@ const FDisplayClusterViewportProxy& FDisplayClusterViewportProxy::GetRenderingVi
 	{
 	case EDisplayClusterViewportOverrideMode::All:
 	case EDisplayClusterViewportOverrideMode::InernalRTT:
-		if (FDisplayClusterViewportManagerProxy* ViewportManagerProxy = GetViewportManagerProxyImpl_RenderThread())
+		if (FDisplayClusterViewportManagerProxy* ViewportManagerProxy = ConfigurationProxy->GetViewportManagerProxyImpl())
 		{
 			if (FDisplayClusterViewportProxy const* OverrideViewportProxy = ViewportManagerProxy->ImplFindViewportProxy_RenderThread(RenderSettings.GetViewportOverrideId()))
 			{
@@ -394,7 +384,7 @@ bool FDisplayClusterViewportProxy::ImplGetResources_RenderThread(const EDisplayC
 				bResult = true;
 				
 				// Get resources from external UV LightCard manager
-				if (FDisplayClusterViewportManagerProxy* ViewportManagerProxy = GetViewportManagerProxyImpl_RenderThread())
+				if (FDisplayClusterViewportManagerProxy* ViewportManagerProxy = ConfigurationProxy->GetViewportManagerProxyImpl())
 				{
 					TSharedPtr<FDisplayClusterViewportLightCardManagerProxy, ESPMode::ThreadSafe> LightCardManager = ViewportManagerProxy->GetLightCardManagerProxy_RenderThread();
 					if (LightCardManager.IsValid())
@@ -473,15 +463,12 @@ void FDisplayClusterViewportProxy::PostResolveViewport_RenderThread(FRHICommandL
 
 	// Implement ViewportRemap feature
 	ImplViewportRemap_RenderThread(RHICmdList);
-
-	// Implement read pixels for preview DCRA
-	ImplPreviewReadPixels_RenderThread(RHICmdList);
 }
 
 void FDisplayClusterViewportProxy::ImplViewportRemap_RenderThread(FRHICommandListImmediate& RHICmdList) const
 {
 	// Preview in editor not support this feature
-	if (GetRenderMode() == EDisplayClusterRenderFrameMode::PreviewInScene)
+	if (ConfigurationProxy->IsPreviewRendering_RenderThread())
 	{
 		return;
 	}
@@ -513,70 +500,6 @@ void FDisplayClusterViewportProxy::ImplViewportRemap_RenderThread(FRHICommandLis
 		}
 	}
 }
-
-void FDisplayClusterViewportProxy::ImplPreviewReadPixels_RenderThread(FRHICommandListImmediate& RHICmdList) const
-{
-#if WITH_EDITOR
-	if (RenderSettings.bPreviewReadPixels)
-	{
-		bPreviewReadPixels = true;
-	}
-
-	// Now try to read until success:
-	if (bPreviewReadPixels && Contexts.Num() > 0 && !Resources[EDisplayClusterViewportResource::OutputPreviewTargetableResources].IsEmpty() && Resources[EDisplayClusterViewportResource::OutputPreviewTargetableResources][0].IsValid())
-	{
-		const FDisplayClusterRenderFrameSettings* RenderFrameSettings = GetRenderFrameSettings_RenderThread();
-		check(RenderFrameSettings && RenderFrameSettings->RenderMode == EDisplayClusterRenderFrameMode::PreviewInScene);
-
-		// We should synchronize thread for preview read
-		FScopeLock Lock(&PreviewPixelsCSGuard);
-
-		if (PreviewPixels.IsValid() == false)
-		{
-			// Read pixels from this texture
-			if (FRHITexture2D* Texture2D = Resources[EDisplayClusterViewportResource::OutputPreviewTargetableResources][0]->GetViewportResourceRHI())
-			{
-				
-				// Clear deferred read flag
-				bPreviewReadPixels = false;
-
-				TSharedPtr<FDisplayClusterViewportReadPixelsData, ESPMode::ThreadSafe> ReadData = MakeShared<FDisplayClusterViewportReadPixelsData, ESPMode::ThreadSafe>();
-
-				RHICmdList.ReadSurfaceData(
-					Texture2D,
-					FIntRect(FIntPoint(0, 0), Texture2D->GetSizeXY()),
-					ReadData->Pixels,
-					FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX)
-				);
-
-				ReadData->Size = Texture2D->GetSizeXY();
-
-				// Expose result:
-				PreviewPixels = ReadData;
-			}
-		}
-	}
-#endif
-}
-
-#if WITH_EDITOR
-bool FDisplayClusterViewportProxy::GetPreviewPixels_GameThread(TSharedPtr<FDisplayClusterViewportReadPixelsData, ESPMode::ThreadSafe>& OutPixelsData) const
-{
-	check(IsInGameThread());
-
-	// We should synchronize thread for preview read
-	FScopeLock Lock(&PreviewPixelsCSGuard);
-
-	if (PreviewPixels.IsValid())
-	{
-		OutPixelsData = PreviewPixels;
-		PreviewPixels.Reset();
-		return true;
-	}
-
-	return false;
-}
-#endif
 
 bool FDisplayClusterViewportProxy::GetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InExtResourceType, TArray<FRHITexture2D*>& OutResources, TArray<FIntRect>& OutResourceRects) const
 {
@@ -1069,10 +992,7 @@ bool FDisplayClusterViewportProxy::ShouldUsePostProcessPassAfterSSRInput() const
 {	
 	if (ShouldUseAlphaChannel_RenderThread())
 	{
-		if (const FDisplayClusterRenderFrameSettings* RenderFrameSettings = GetRenderFrameSettings_RenderThread())
-		{
-			return RenderFrameSettings->AlphaChannelCaptureMode == EDisplayClusterRenderFrameAlphaChannelCaptureMode::ThroughTonemapper;
-		}
+		return ConfigurationProxy->GetRenderFrameSettings().AlphaChannelCaptureMode == EDisplayClusterRenderFrameAlphaChannelCaptureMode::ThroughTonemapper;
 	}
 
 	return false;
@@ -1082,10 +1002,7 @@ bool FDisplayClusterViewportProxy::ShouldUsePostProcessPassAfterFXAA() const
 {
 	if (ShouldUseAlphaChannel_RenderThread())
 	{
-		if (const FDisplayClusterRenderFrameSettings* RenderFrameSettings = GetRenderFrameSettings_RenderThread())
-		{
-			return RenderFrameSettings->AlphaChannelCaptureMode == EDisplayClusterRenderFrameAlphaChannelCaptureMode::ThroughTonemapper;
-		}
+		return ConfigurationProxy->GetRenderFrameSettings().AlphaChannelCaptureMode == EDisplayClusterRenderFrameAlphaChannelCaptureMode::ThroughTonemapper;
 	}
 
 	return false;
@@ -1106,23 +1023,20 @@ void FDisplayClusterViewportProxy::OnResolvedSceneColor_RenderThread(FRDGBuilder
 	const uint32 InContextNum = InProxyContext.ContextNum;
 	if (ShouldUseAlphaChannel_RenderThread())
 	{
-		if (const FDisplayClusterRenderFrameSettings* RenderFrameSettings = GetRenderFrameSettings_RenderThread())
+		switch (ConfigurationProxy->GetRenderFrameSettings().AlphaChannelCaptureMode)
 		{
-			switch (RenderFrameSettings->AlphaChannelCaptureMode)
-			{
-			case EDisplayClusterRenderFrameAlphaChannelCaptureMode::FXAA:
-			case EDisplayClusterRenderFrameAlphaChannelCaptureMode::Copy:
-			case EDisplayClusterRenderFrameAlphaChannelCaptureMode::CopyAA:
-			{
-				const FIntRect SrcRect = GetFinalContextRect(EDisplayClusterViewportResourceType::InternalRenderTargetResource, Contexts[InContextNum].RenderTargetRect);
-				// Copy alpha channel from 'SceneTextures.Color.Resolve' to 'InputShaderResource'
-				CopyResource_RenderThread(GraphBuilder, EDisplayClusterTextureCopyMode::Alpha, InContextNum, SceneTextures.Color.Resolve, SrcRect, EDisplayClusterViewportResourceType::InputShaderResource);
-			}
-			break;
+		case EDisplayClusterRenderFrameAlphaChannelCaptureMode::FXAA:
+		case EDisplayClusterRenderFrameAlphaChannelCaptureMode::Copy:
+		case EDisplayClusterRenderFrameAlphaChannelCaptureMode::CopyAA:
+		{
+			const FIntRect SrcRect = GetFinalContextRect(EDisplayClusterViewportResourceType::InternalRenderTargetResource, Contexts[InContextNum].RenderTargetRect);
+			// Copy alpha channel from 'SceneTextures.Color.Resolve' to 'InputShaderResource'
+			CopyResource_RenderThread(GraphBuilder, EDisplayClusterTextureCopyMode::Alpha, InContextNum, SceneTextures.Color.Resolve, SrcRect, EDisplayClusterViewportResourceType::InputShaderResource);
+		}
+		break;
 
-			default:
-				break;
-			}
+		default:
+			break;
 		}
 	}
 }
@@ -1197,10 +1111,9 @@ void FDisplayClusterViewportProxy::OnPostRenderViewFamily_RenderThread(FRDGBuild
 		}
 	}
 
-	const FDisplayClusterRenderFrameSettings* RenderFrameSettings = GetRenderFrameSettings_RenderThread();
-	if (ShouldUseAlphaChannel_RenderThread() && RenderFrameSettings)
+	if (ShouldUseAlphaChannel_RenderThread())
 	{
-		switch (RenderFrameSettings->AlphaChannelCaptureMode)
+		switch (ConfigurationProxy->GetRenderFrameSettings().AlphaChannelCaptureMode)
 		{
 		case EDisplayClusterRenderFrameAlphaChannelCaptureMode::FXAA:
 		{

@@ -23,36 +23,30 @@ using namespace UE::DisplayCluster::ViewportManagerViewExtension;
 ///////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewportManagerViewExtension
 ///////////////////////////////////////////////////////////////////////////////////////
-FDisplayClusterViewportManagerViewExtension::FDisplayClusterViewportManagerViewExtension(const FAutoRegister& AutoRegister, const FDisplayClusterViewportManager* InViewportManager)
+FDisplayClusterViewportManagerViewExtension::FDisplayClusterViewportManagerViewExtension(const FAutoRegister& AutoRegister, const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe>& InConfiguration)
 	: FSceneViewExtensionBase(AutoRegister)
-	, ViewportManagerWeakPtr(InViewportManager->AsWeak())
-	, ViewportManagerProxyWeakPtr(InViewportManager->GetViewportManagerProxy()->AsWeak())
+	, Configuration(InConfiguration)
 {
 	RegisterCallbacks();
 }
 
 FDisplayClusterViewportManagerViewExtension::~FDisplayClusterViewportManagerViewExtension()
 {
-	ViewportManagerWeakPtr.Reset();
-	ViewportManagerProxyWeakPtr.Reset();
-
 	UnregisterCallbacks();
 }
 
 bool FDisplayClusterViewportManagerViewExtension::IsActive() const
 {
-	return ViewportManagerProxyWeakPtr.IsValid() && ViewportManagerProxyWeakPtr.Pin().IsValid();
+	return !bReleased && (Configuration->Proxy->GetViewportManagerProxyImpl() != nullptr);
 }
 
 void FDisplayClusterViewportManagerViewExtension::Release_RenderThread()
 {
 	check(IsInRenderingThread());
 
-	ViewportManagerWeakPtr.Reset();
-	ViewportManagerProxyWeakPtr.Reset();
+	bReleased = true;
 
 	ViewportProxies.Empty();
-
 	UnregisterCallbacks();
 }
 
@@ -128,7 +122,7 @@ FScreenPassTexture FDisplayClusterViewportManagerViewExtension::PostProcessPassA
 		return ReturnUntouchedSceneColorForPostProcessing(Inputs);
 	}
 
-	if (const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = GetViewportManagerProxy())
+	if (const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = Configuration->Proxy->GetViewportManagerProxyImpl())
 	{
 		uint32 ContextNum = 0;
 		if (FDisplayClusterViewportProxy* ViewportProxyPtr = ViewportManagerProxy->ImplFindViewportProxy_RenderThread(View.StereoViewIndex, &ContextNum))
@@ -150,7 +144,7 @@ FScreenPassTexture FDisplayClusterViewportManagerViewExtension::PostProcessPassA
 		return ReturnUntouchedSceneColorForPostProcessing(Inputs);
 	}
 
-	if (const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = GetViewportManagerProxy())
+	if (const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = Configuration->Proxy->GetViewportManagerProxyImpl())
 	{
 		uint32 ContextNum = 0;
 		if (FDisplayClusterViewportProxy* ViewportProxyPtr = ViewportManagerProxy->ImplFindViewportProxy_RenderThread(View.StereoViewIndex, &ContextNum))
@@ -172,7 +166,7 @@ FScreenPassTexture FDisplayClusterViewportManagerViewExtension::PostProcessPassA
 		return ReturnUntouchedSceneColorForPostProcessing(Inputs);
 	}
 
-	if (const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = GetViewportManagerProxy())
+	if (const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = Configuration->Proxy->GetViewportManagerProxyImpl())
 	{
 		uint32 ContextNum = 0;
 		if (FDisplayClusterViewportProxy* ViewportProxyPtr = ViewportManagerProxy->ImplFindViewportProxy_RenderThread(View.StereoViewIndex, &ContextNum))
@@ -215,7 +209,7 @@ bool FDisplayClusterViewportManagerViewExtension::IsActiveThisFrame_Internal(con
 	if (Context.IsA(MoveTempIfPossible(DCViewExtensionContext)))
 	{
 		const FDisplayClusterSceneViewExtensionContext& DisplayContext = static_cast<const FDisplayClusterSceneViewExtensionContext&>(Context);
-		if (DisplayContext.GetViewportManager() == GetViewportManager())
+		if (DisplayContext.Configuration == Configuration)
 		{
 			// Apply only for DC viewports
 			return true;
@@ -241,7 +235,7 @@ void FDisplayClusterViewportManagerViewExtension::PreRenderViewFamily_RenderThre
 		{
 			FViewportProxy NewViewportProxy;
 
-			if (const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = GetViewportManagerProxy())
+			if (const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = Configuration->Proxy->GetViewportManagerProxyImpl())
 			{
 				if (FDisplayClusterViewportProxy* ViewportProxyPtr = static_cast<FDisplayClusterViewportProxy*>(ViewportManagerProxy->FindViewport_RenderThread(SceneView->StereoViewIndex, &NewViewportProxy.ViewportProxyContext.ContextNum)))
 				{

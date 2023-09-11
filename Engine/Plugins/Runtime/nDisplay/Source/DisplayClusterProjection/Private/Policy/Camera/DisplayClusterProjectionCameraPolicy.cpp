@@ -40,9 +40,9 @@ void FDisplayClusterProjectionCameraPolicy::UpdatePostProcessSettings(IDisplayCl
 	if (InViewport && !EnumHasAnyFlags(InViewport->GetRenderSettingsICVFX().RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::InCamera))
 	{
 		float DeltaTime = 0.0f;
-		if (ADisplayClusterRootActor* RootActor = InViewport->GetRootActor())
+		if (ADisplayClusterRootActor* SceneRootActor = InViewport->GetConfiguration().GetRootActor(EDisplayClusterRootActorType::Scene))
 		{
-			DeltaTime = RootActor->GetWorldDeltaSeconds();
+			DeltaTime = SceneRootActor->GetWorldDeltaSeconds();
 		}
 
 		FMinimalViewInfo ViewInfo;
@@ -150,7 +150,7 @@ bool FDisplayClusterProjectionCameraPolicy::ImplSetupProjectionViewPoint(IDispla
 		// Store CustomNearClippingPlane locally, and then use that value for the projection matrix
 		bResult = IDisplayClusterViewport::GetCameraComponentView(CameraComponent, InDeltaTime, CameraSettings.bUseCameraPostprocess, InOutViewInfo, OutCustomNearClippingPlane);
 	}
-	else if (UWorld* CurrentWorld = InViewport ? InViewport->GetCurrentWorld() : nullptr)
+	else if (UWorld* CurrentWorld = InViewport ? InViewport->GetConfiguration().GetCurrentWorld() : nullptr)
 	{
 		// Get active player camera
 		bResult = IDisplayClusterViewport::GetPlayerCameraView(CurrentWorld, CameraSettings.bUseCameraPostprocess, InOutViewInfo);

@@ -2,10 +2,9 @@
 
 #pragma once
 #include "SceneViewExtension.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
 #include "Render/Viewport/Containers/DisplayClusterViewportProxy_Context.h"
 
-class FDisplayClusterViewportManager;
-class FDisplayClusterViewportManagerProxy;
 class FDisplayClusterViewportProxy;
 
 #define DISPLAYCLUSTER_SCENE_VIEW_EXTENSION_PRIORITY -1
@@ -16,7 +15,7 @@ class FDisplayClusterViewportProxy;
 class FDisplayClusterViewportManagerViewExtension : public FSceneViewExtensionBase
 {
 public:
-	FDisplayClusterViewportManagerViewExtension(const FAutoRegister& AutoRegister, const FDisplayClusterViewportManager* InViewportManager);
+	FDisplayClusterViewportManagerViewExtension(const FAutoRegister& AutoRegister, const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe>& InConfiguration);
 	virtual ~FDisplayClusterViewportManagerViewExtension();
 
 public:
@@ -105,23 +104,12 @@ private:
 	/** Return true if the VE is safe to use. */
 	bool IsActive() const;
 
-protected:
-	inline const FDisplayClusterViewportManager* GetViewportManager() const
-	{
-		return ViewportManagerWeakPtr.IsValid() ? ViewportManagerWeakPtr.Pin().Get() : nullptr;
-	}
-
-	inline const FDisplayClusterViewportManagerProxy* GetViewportManagerProxy() const
-	{
-		return ViewportManagerProxyWeakPtr.IsValid() ? ViewportManagerProxyWeakPtr.Pin().Get() : nullptr;
-	}
+public:
+	// Configuration of the current cluster node
+	const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe> Configuration;
 
 private:
 	FDelegateHandle ResolvedSceneColorCallbackHandle;
-
-private:
-	TWeakPtr<const FDisplayClusterViewportManager, ESPMode::ThreadSafe> ViewportManagerWeakPtr;
-	TWeakPtr<const FDisplayClusterViewportManagerProxy, ESPMode::ThreadSafe> ViewportManagerProxyWeakPtr;
 
 	struct FViewportProxy
 	{
@@ -142,4 +130,7 @@ private:
 
 	/** RenderThreadData:. Viewport proxies from rendered view family. */
 	TArray<FViewportProxy> ViewportProxies;
+
+	// Is this VE released
+	bool bReleased = false;
 };

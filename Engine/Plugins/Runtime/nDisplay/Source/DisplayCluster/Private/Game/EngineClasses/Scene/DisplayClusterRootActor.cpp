@@ -59,7 +59,9 @@
 #include "AssetToolsModule.h"
 #endif
 
-
+//////////////////////////////////////////////////////////////////////////////////////////////
+// ADisplayClusterRootActor
+//////////////////////////////////////////////////////////////////////////////////////////////
 ADisplayClusterRootActor::ADisplayClusterRootActor(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, OperationMode(EDisplayClusterOperationMode::Disabled)
@@ -125,12 +127,22 @@ IDisplayClusterViewportManager* ADisplayClusterRootActor::GetViewportManager() c
 	return ViewportManager.Get();
 }
 
+IDisplayClusterViewportConfiguration* ADisplayClusterRootActor::GetViewportConfiguration() const
+{
+	return ViewportManager.IsValid() ? &ViewportManager->GetConfiguration() : nullptr;
+}
+
 void ADisplayClusterRootActor::CreateViewportManagerImpl()
 {
 	if (!ViewportManager.IsValid())
 	{
 		ViewportManager = MakeShared<FDisplayClusterViewportManager, ESPMode::ThreadSafe>();
+
+		// After the constructor, we should always call this function to initialize internal references.
 		ViewportManager->Initialize();
+
+		// Set the owner's DCRA to the newly created viewport manager.
+		ViewportManager->GetConfiguration().SetRootActor(this, EDisplayClusterRootActorType::Any);
 
 		// Preview rendering depends on the DC VM
 		FDisplayClusterRootActorPreviewRenderingManager::HandleEvent(EDisplayClusterRootActorPreviewEvent::Create, this);
@@ -173,35 +185,6 @@ const FDisplayClusterConfigurationRenderFrame& ADisplayClusterRootActor::GetRend
 	check(CurrentConfigData);
 
 	return CurrentConfigData->RenderFrameSettings;
-}
-
-EDisplayClusterRenderFrameMode ADisplayClusterRootActor::GetRenderMode() const
-{
-	if (ViewportManager.IsValid())
-	{
-		return ViewportManager->GetRenderMode();
-	}
-
-	return EDisplayClusterRenderFrameMode::Unknown;
-}
-
-EDisplayClusterRenderFrameMode ADisplayClusterRootActor::GetPreviewRenderMode() const
-{
-#if WITH_EDITOR
-	switch (RenderMode)
-	{
-	case EDisplayClusterConfigurationRenderMode::SideBySide:
-		return EDisplayClusterRenderFrameMode::SideBySide;
-
-	case EDisplayClusterConfigurationRenderMode::TopBottom:
-		return EDisplayClusterRenderFrameMode::TopBottom;
-
-	default:
-		break;
-	}
-#endif
-
-	return EDisplayClusterRenderFrameMode::Mono;
 }
 
 void ADisplayClusterRootActor::InitializeFromConfig(UDisplayClusterConfigurationData* ConfigData)

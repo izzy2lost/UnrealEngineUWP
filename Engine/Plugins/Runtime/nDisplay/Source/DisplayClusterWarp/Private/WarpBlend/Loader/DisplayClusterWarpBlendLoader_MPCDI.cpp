@@ -82,8 +82,10 @@ TSharedPtr<FDisplayClusterWarpBlend, ESPMode::ThreadSafe> FDisplayClusterWarpBle
 
 		FDisplayClusterMeshUVs MeshUVs;
 
-		Proxy.MeshComponent = FDisplayClusterWarpBlendLoader_MeshComponent::CreateMeshComponent();
-		Proxy.MeshComponent->AssignStaticMeshComponentRefs(InConstructParameters.StaticMeshComponent, MeshUVs, InConstructParameters.OriginComponent, 0);
+		Proxy.PreviewMeshComponentRef.SetSceneComponent(InConstructParameters.PreviewMeshComponent);
+
+		Proxy.WarpMeshComponent = FDisplayClusterWarpBlendLoader_MeshComponent::CreateMeshComponent();
+		Proxy.WarpMeshComponent->AssignStaticMeshComponentRefs(InConstructParameters.WarpMeshComponent, MeshUVs, InConstructParameters.OriginComponent, 0);
 
 		Proxy.WarpMeshUVs = MeshUVs;
 

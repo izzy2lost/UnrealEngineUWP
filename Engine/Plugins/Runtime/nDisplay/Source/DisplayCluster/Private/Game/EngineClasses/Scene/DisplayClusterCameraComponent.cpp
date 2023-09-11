@@ -3,6 +3,8 @@
 #include "Components/DisplayClusterCameraComponent.h"
 #include "Components/BillboardComponent.h"
 
+#include "DisplayClusterRootActor.h"
+
 #include "Engine/CollisionProfile.h"
 #include "Engine/Texture2D.h"
 #include "UObject/ConstructorHelpers.h"
@@ -30,7 +32,7 @@ UDisplayClusterCameraComponent::UDisplayClusterCameraComponent(const FObjectInit
 #endif
 }
 
-void UDisplayClusterCameraComponent::GetDesiredView(FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane)
+void UDisplayClusterCameraComponent::GetDesiredView(IDisplayClusterViewportConfiguration& InViewportConfiguration, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane)
 {
 	// Use this component as a camera
 	InOutViewInfo.Location = GetComponentLocation();

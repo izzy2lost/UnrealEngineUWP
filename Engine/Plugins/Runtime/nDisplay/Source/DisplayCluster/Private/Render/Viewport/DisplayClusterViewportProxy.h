@@ -3,24 +3,19 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Render/Viewport/IDisplayClusterViewportProxy.h"
+#include "Render/Viewport/DisplayClusterViewportResources.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_OverscanRuntimeSettings.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationProxy.h"
 
 #include "EngineUtils.h"
 #include "ScreenRendering.h"
 #include "SceneView.h"
 #include "Templates/SharedPointer.h"
 
-#include "Render/Viewport/IDisplayClusterViewportProxy.h"
-#include "Render/Viewport/DisplayClusterViewportResources.h"
-#include "Render/Viewport/Containers/DisplayClusterViewport_OverscanRuntimeSettings.h"
-
-class FDisplayClusterViewportProxyData;
-class IDisplayClusterViewportManagerProxy;
-class FDisplayClusterViewportManagerProxy;
 class FDisplayClusterViewport;
-class IDisplayClusterShaders;
 class IDisplayClusterProjectionPolicy;
 class IDisplayClusterRender_MeshComponent;
-class FDisplayClusterViewportReadPixelsData;
 class FDisplayClusterViewport_OpenColorIO;
 
 class FRDGBuilder;
@@ -61,13 +56,11 @@ class FDisplayClusterViewportProxy
 	, public TSharedFromThis<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>
 {
 public:
-	FDisplayClusterViewportProxy(const FDisplayClusterViewport& RenderViewport);
+	FDisplayClusterViewportProxy(const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe>& InConfiguration, const FString& InViewportId, const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe>& InProjectionPolicy);
 	virtual ~FDisplayClusterViewportProxy();
 
 public:
-	///////////////////////////////
-	// IDisplayClusterViewportProxy
-	///////////////////////////////
+	//~~ BEGIN IDisplayClusterViewportProxy
 	virtual TSharedPtr<IDisplayClusterViewportProxy, ESPMode::ThreadSafe> ToSharedPtr() override
 	{
 		return AsShared();
@@ -78,7 +71,10 @@ public:
 		return AsShared();
 	}
 
-	virtual EDisplayClusterRenderFrameMode GetRenderMode() const override;
+	virtual const IDisplayClusterViewportConfigurationProxy& GetConfigurationProxy() const override
+	{
+		return *ConfigurationProxy;
+	}
 
 	virtual FString GetId() const override
 	{
@@ -143,14 +139,9 @@ public:
 	virtual bool ResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, const EDisplayClusterViewportResourceType InputResourceType, const EDisplayClusterViewportResourceType OutputResourceType, const int32 InContextNum = INDEX_NONE) const override;
 	virtual bool ResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, IDisplayClusterViewportProxy* InputResourceViewportProxy, const EDisplayClusterViewportResourceType InputResourceType, const EDisplayClusterViewportResourceType OutputResourceType, const int32 InContextNum = INDEX_NONE) const override;
 
-	virtual const class IDisplayClusterViewportManagerProxy* GetViewportManagerProxy_RenderThread() const override;
+	//~~ END IDisplayClusterViewportProxy
 
-	virtual const FDisplayClusterRenderFrameSettings* GetRenderFrameSettings_RenderThread() const override;
-
-	///////////////////////////////
-	// ~IDisplayClusterViewportProxy
-	///////////////////////////////
-
+public:
 	/** Get valid resource type
 	 * 
 	 * @param InResourceType - the requested resource type from the entire namespace
@@ -250,10 +241,6 @@ public:
 	 */
 	void PostResolveViewport_RenderThread(FRHICommandListImmediate& RHICmdList) const;
 
-#if WITH_EDITOR
-	bool GetPreviewPixels_GameThread(TSharedPtr<FDisplayClusterViewportReadPixelsData, ESPMode::ThreadSafe>& OutPixelsData) const;
-#endif
-
 	inline bool FindContext_RenderThread(const int32 ViewIndex, uint32* OutContextNum)
 	{
 		check(IsInRenderingThread());
@@ -278,12 +265,18 @@ public:
 	/* Returns true if the warp can be applied to this viewport. */
 	bool ShouldApplyWarpBlend_RenderThread() const;
 
+	const FDisplayClusterViewportResources& GetResources_RenderThread() const
+	{
+		return Resources;
+	}
+
+	void UpdateViewportProxyData_RenderThread(const class FDisplayClusterViewportProxyData& InViewportProxyData);
+
 private:
 	bool ImplGetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InResourceType, TArray<FRHITexture2D*>& OutResources, TArray<FIntRect>& OutResourceRects, const int32 InRecursionDepth) const;
 	bool ImplGetResources_RenderThread(const EDisplayClusterViewportResourceType InResourceType, TArray<FRHITexture2D*>& OutResources, const int32 InRecursionDepth) const;
 
 	void ImplViewportRemap_RenderThread(FRHICommandListImmediate& RHICmdList) const;
-	void ImplPreviewReadPixels_RenderThread(FRHICommandListImmediate& RHICmdList) const;
 
 	bool ImplResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, FDisplayClusterViewportProxy const* SourceProxy, const EDisplayClusterViewportResourceType InputResourceType, const EDisplayClusterViewportResourceType OutputResourceType, const int32 InContextNum = INDEX_NONE) const;
 
@@ -342,12 +335,9 @@ private:
 	/** Returns the OCIO rendering type for the given viewport. */
 	EDisplayClusterViewportOpenColorIOMode GetOpenColorIOMode() const;
 
-	FDisplayClusterViewportManagerProxy* GetViewportManagerProxyImpl_RenderThread() const;
-	TSharedPtr<FDisplayClusterViewportManagerProxy, ESPMode::ThreadSafe> GetViewportManagerProxyRefImpl_RenderThread() const;
-
-protected:
-	friend FDisplayClusterViewportProxyData;
-	friend FDisplayClusterViewportManagerProxy;
+public:
+	// Configuration for proxy
+	const TSharedRef<FDisplayClusterViewportConfigurationProxy, ESPMode::ThreadSafe> ConfigurationProxy;
 
 	/** Unique viewport name. */
 	const FString ViewportId;
@@ -355,11 +345,13 @@ protected:
 	/** Cluster node name. */
 	const FString ClusterNodeId;
 
+protected:
 	/** OpenColorIO nDisplay interface ref. */
 	TSharedPtr<FDisplayClusterViewport_OpenColorIO, ESPMode::ThreadSafe> OpenColorIO;
 
 	// Viewport render params
-	mutable FDisplayClusterViewport_RenderSettings       RenderSettings;
+	mutable FDisplayClusterViewport_RenderSettings RenderSettings;
+
 	FDisplayClusterViewport_RenderSettingsICVFX  RenderSettingsICVFX;
 	FDisplayClusterViewport_PostRenderSettings   PostRenderSettings;
 
@@ -379,12 +371,4 @@ protected:
 
 	// Used ViewStates
 	TArray<TSharedPtr<FSceneViewStateReference, ESPMode::ThreadSafe>> ViewStates;
-	
-#if WITH_EDITOR
-	mutable bool bPreviewReadPixels = false;
-	mutable FCriticalSection PreviewPixelsCSGuard;
-	mutable TSharedPtr<FDisplayClusterViewportReadPixelsData, ESPMode::ThreadSafe> PreviewPixels;
-#endif
-
-	TWeakPtr<FDisplayClusterViewportManagerProxy, ESPMode::ThreadSafe> ViewportManagerProxyWeakRef;
 };

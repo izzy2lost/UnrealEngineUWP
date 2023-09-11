@@ -30,7 +30,7 @@ const FString& FDisplayClusterProjectionLinkPolicy::GetType() const
 void FDisplayClusterProjectionLinkPolicy::SetupProjectionViewPoint(IDisplayClusterViewport* InViewport, const float InDeltaTime, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane)
 {
 	// Getting the right data from a parent
-	if (IDisplayClusterViewportManager* ViewportManager = InViewport->GetViewportManager())
+	if (IDisplayClusterViewportManager* ViewportManager = InViewport->GetConfiguration().GetViewportManager())
 	{
 		if (IDisplayClusterViewport* ParentViewport = ViewportManager->FindViewport(InViewport->GetRenderSettings().GetParentViewportId()))
 		{
@@ -47,7 +47,7 @@ bool FDisplayClusterProjectionLinkPolicy::CalculateView(IDisplayClusterViewport*
 	check(IsInGameThread());
 	check(InViewport);
 
-	if (IDisplayClusterViewportManager* ViewportManager = InViewport->GetViewportManager())
+	if (IDisplayClusterViewportManager* ViewportManager = InViewport->GetConfiguration().GetViewportManager())
 	{
 		if (IDisplayClusterViewport* ParentViewport = ViewportManager->FindViewport(InViewport->GetRenderSettings().GetParentViewportId()))
 		{
@@ -78,7 +78,7 @@ bool FDisplayClusterProjectionLinkPolicy::GetProjectionMatrix(IDisplayClusterVie
 	check(IsInGameThread());
 	check(InViewport);
 
-	if (IDisplayClusterViewportManager* ViewportManager = InViewport->GetViewportManager())
+	if (IDisplayClusterViewportManager* ViewportManager = InViewport->GetConfiguration().GetViewportManager())
 	{
 		if (IDisplayClusterViewport* ParentViewport = ViewportManager->FindViewport(InViewport->GetRenderSettings().GetParentViewportId()))
 		{

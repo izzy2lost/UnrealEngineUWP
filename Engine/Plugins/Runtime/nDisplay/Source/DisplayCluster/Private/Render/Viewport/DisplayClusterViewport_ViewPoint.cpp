@@ -108,12 +108,12 @@ bool IDisplayClusterViewport::GetPlayerCameraView(UWorld* InWorld, const bool bU
 ///////////////////////////////////////////////////////////////////////////////////////
 //          FDisplayClusterViewport
 ///////////////////////////////////////////////////////////////////////////////////////
-UDisplayClusterCameraComponent* FDisplayClusterViewport::GetViewPointCameraComponent() const
+UDisplayClusterCameraComponent* FDisplayClusterViewport::GetViewPointCameraComponent(const EDisplayClusterRootActorType InRootActorType) const
 {
-	ADisplayClusterRootActor* RootActor = GetRootActor();
+	ADisplayClusterRootActor* RootActor = Configuration->GetRootActor(InRootActorType);
 	if (!RootActor)
 	{
-		UE_LOG(LogDisplayClusterViewport, Warning, TEXT("Viewport '%s' has no root actor found in game manager"), *GetId());
+		UE_LOG(LogDisplayClusterViewport, Warning, TEXT("Viewport '%s' has no root actor found"), *GetId());
 
 		return nullptr;
 	}
@@ -124,8 +124,7 @@ UDisplayClusterCameraComponent* FDisplayClusterViewport::GetViewPointCameraCompo
 		return nullptr;
 	}
 
-	FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl();
-	if (!ViewportManager || !ViewportManager->IsSceneOpened())
+	if (!Configuration->IsSceneOpened())
 	{
 		return nullptr;
 	}
@@ -152,20 +151,19 @@ UDisplayClusterCameraComponent* FDisplayClusterViewport::GetViewPointCameraCompo
 
 bool FDisplayClusterViewport::SetupViewPoint(FMinimalViewInfo& InOutViewInfo)
 {
-	if (UDisplayClusterCameraComponent* ViewCamera = GetViewPointCameraComponent())
+	if (UDisplayClusterCameraComponent* SceneCameraComponent = GetViewPointCameraComponent(EDisplayClusterRootActorType::Scene))
 	{
 		// Get ViewPoint from DCRA component
-		ViewCamera->GetDesiredView(InOutViewInfo, &CustomNearClippingPlane);
+		SceneCameraComponent->GetDesiredView(*Configuration, InOutViewInfo, &CustomNearClippingPlane);
 
 		// The projection policy can override these ViewPoint data.
 		if (ProjectionPolicy.IsValid())
 		{
-			float DeltaTime = 0.0f;
-			if (ADisplayClusterRootActor* RootActor = GetRootActor())
+			if (ADisplayClusterRootActor* SceneRootActor = Configuration->GetRootActor(EDisplayClusterRootActorType::Scene))
 			{
-				DeltaTime = RootActor->GetWorldDeltaSeconds();
+				const float DeltaTime = SceneRootActor->GetWorldDeltaSeconds();
+				ProjectionPolicy->SetupProjectionViewPoint(this, DeltaTime, InOutViewInfo, &CustomNearClippingPlane);
 			}
-			ProjectionPolicy->SetupProjectionViewPoint(this, DeltaTime, InOutViewInfo, &CustomNearClippingPlane);
 		}
 
 		return true;
@@ -178,10 +176,10 @@ float FDisplayClusterViewport::GetStereoEyeOffsetDistance(const uint32 InContext
 {
 	float StereoEyeOffsetDistance = 0.f;
 
-	if (UDisplayClusterCameraComponent* ViewCamera = GetViewPointCameraComponent())
+	if (UDisplayClusterCameraComponent* ConfigurationCameraComponent = GetViewPointCameraComponent(EDisplayClusterRootActorType::Configuration))
 	{
 		// Calculate eye offset considering the world scale
-		const float CfgEyeDist = ViewCamera->GetInterpupillaryDistance();
+		const float CfgEyeDist = ConfigurationCameraComponent->GetInterpupillaryDistance();
 		const float EyeOffset = CfgEyeDist / 2.f;
 		const float EyeOffsetValues[] = { -EyeOffset, 0.f, EyeOffset };
 
@@ -198,7 +196,7 @@ float FDisplayClusterViewport::GetStereoEyeOffsetDistance(const uint32 InContext
 			// * Force left (-1) ==> 0 left eye
 			// * Force right (1) ==> 2 right eye
 			// * Default (0) ==> 1 mono
-			const EDisplayClusterEyeStereoOffset CfgEyeOffset = ViewCamera->GetStereoOffset();
+			const EDisplayClusterEyeStereoOffset CfgEyeOffset = ConfigurationCameraComponent->GetStereoOffset();
 			const int32 EyeOffsetIdx =
 				(CfgEyeOffset == EDisplayClusterEyeStereoOffset::None ? 0 :
 					(CfgEyeOffset == EDisplayClusterEyeStereoOffset::Left ? -1 : 1));
@@ -213,7 +211,7 @@ float FDisplayClusterViewport::GetStereoEyeOffsetDistance(const uint32 InContext
 			PassOffset = EyeOffsetValues[EyeType];
 
 			// Apply eye swap
-			const bool  CfgEyeSwap = ViewCamera->GetSwapEyes();
+			const bool  CfgEyeSwap = ConfigurationCameraComponent->GetSwapEyes();
 			StereoEyeOffsetDistance = (CfgEyeSwap ? -PassOffset : PassOffset);
 		}
 	}

@@ -12,6 +12,7 @@ class UBillboardComponent;
 class UTexture2D;
 class IDisplayClusterViewportManager;
 class IDisplayClusterWarpPolicy;
+class IDisplayClusterViewportConfiguration;
 struct FMinimalViewInfo;
 
 UENUM()
@@ -38,11 +39,21 @@ public:
 
 	/** Return ViewPoint for this component
 	 * If the component logic supports postprocess, it will also be in the ViewInfo structure.
-	 * 
+	 *
 	 * @param InOutViewInfo - ViewInfo data
 	 * @param OutCustomNearClippingPlane - Custom NCP, or a value less than zero if not defined.
 	 */
-	virtual void GetDesiredView(FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane = nullptr);
+	UE_DEPRECATED(5.4, "This function has been deprecated. Please use 'GetDesiredView()'.")
+	virtual void GetDesiredView(FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane = nullptr)
+	{ }
+
+	/** Return ViewPoint for this component
+	 * If the component logic supports postprocess, it will also be in the ViewInfo structure.
+	 *
+	 * @param InOutViewInfo - ViewInfo data
+	 * @param OutCustomNearClippingPlane - Custom NCP, or a value less than zero if not defined.
+	 */
+	virtual void GetDesiredView(IDisplayClusterViewportConfiguration& InViewportConfiguration, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane = nullptr);
 
 	/**
 	 * All cluster viewports that reference this component will be created in the background on the current cluster node if the function returns true.

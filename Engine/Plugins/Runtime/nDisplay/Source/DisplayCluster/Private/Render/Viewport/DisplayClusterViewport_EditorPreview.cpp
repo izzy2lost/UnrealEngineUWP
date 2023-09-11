@@ -63,7 +63,7 @@ void FDisplayClusterViewport::CleanupViewState()
 
 FSceneViewStateInterface* FDisplayClusterViewport::GetViewState(uint32 ViewIndex)
 {
-	if (GDisplayClusterPreviewEnableViewState == 0 || (GDisplayClusterPreviewEnableConfiguratorViewState == 0 && IsCurrentWorldHasAnyType(EWorldType::EditorPreview)))
+	if (GDisplayClusterPreviewEnableViewState == 0 || (GDisplayClusterPreviewEnableConfiguratorViewState == 0 && Configuration->IsCurrentWorldHasAnyType(EWorldType::EditorPreview)))
 	{
 		// Disable ViewState
 		ViewStates.Empty();
@@ -84,7 +84,7 @@ FSceneViewStateInterface* FDisplayClusterViewport::GetViewState(uint32 ViewIndex
 
 	if (ViewStates[ViewIndex]->GetReference() == NULL)
 	{
-		const UWorld* CurrentWorld = GetCurrentWorld();
+		const UWorld* CurrentWorld = Configuration->GetCurrentWorld();
 		const ERHIFeatureLevel::Type FeatureLevel = CurrentWorld ? CurrentWorld->GetFeatureLevel() : GMaxRHIFeatureLevel;
 
 		ViewStates[ViewIndex]->Allocate(FeatureLevel);
@@ -145,12 +145,9 @@ FSceneView* FDisplayClusterViewport::ImplCalcScenePreview(FSceneViewFamilyContex
 
 		ViewInitOptions.BackgroundColor = FLinearColor::Black;
 
-		if (const FDisplayClusterRenderFrameSettings* RenderFrameSettings = GetRenderFrameSettings())
+		if (Configuration->GetRenderFrameSettings().IsPostProcessDisabled())
 		{
-			if (RenderFrameSettings->bPreviewEnablePostProcess == false)
-			{
-				ViewInitOptions.OverlayColor = FLinearColor::Black;
-			}
+			ViewInitOptions.OverlayColor = FLinearColor::Black;
 		}
 
 		ViewInitOptions.bSceneCaptureUsesRayTracing = false;
@@ -244,24 +241,10 @@ FMatrix FDisplayClusterViewport::ImplPreview_GetStereoProjectionMatrix(const uin
 	check(IsInGameThread());
 
 	FMatrix PrjMatrix = FMatrix::Identity;
-
-	if (IsSceneOpened())
+	if (Configuration->IsSceneOpened() && GetProjectionMatrix(InContextNum, PrjMatrix) == false)
 	{
-		if (GetProjectionMatrix(InContextNum, PrjMatrix) == false)
-		{
-			UE_LOG(LogDisplayClusterViewport, Verbose, TEXT("Got invalid projection matrix: Viewport %s, ViewIdx: %d"), *GetId(), InContextNum);
-		}
+		UE_LOG(LogDisplayClusterViewport, Verbose, TEXT("Got invalid projection matrix: Viewport %s, ViewIdx: %d"), *GetId(), InContextNum);
 	}
 
 	return PrjMatrix;
 }
-
-#if WITH_EDITOR
-
-bool FDisplayClusterViewport::GetPreviewPixels(TSharedPtr<FDisplayClusterViewportReadPixelsData, ESPMode::ThreadSafe>& OutPixelsData) const
-{
-	check(IsInGameThread());
-
-	return (ViewportProxy != nullptr) && ViewportProxy->GetPreviewPixels_GameThread(OutPixelsData);
-}
-#endif

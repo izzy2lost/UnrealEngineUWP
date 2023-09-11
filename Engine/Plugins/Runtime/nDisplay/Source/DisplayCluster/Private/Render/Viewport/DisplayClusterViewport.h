@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Render/Viewport/IDisplayClusterViewport.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
 
 #include "Render/Viewport/Containers/ImplDisplayClusterViewport_CameraMotionBlur.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_CustomFrustumRuntimeSettings.h"
@@ -22,33 +23,19 @@
 
 class FDisplayClusterViewportManager;
 class FDisplayClusterViewportManagerProxy;
-class FDisplayClusterRenderTargetManager;
-class FDisplayClusterRenderFrameManager;
-class FDisplayClusterViewportProxyData;
 class FDisplayClusterViewportProxy;
+
 struct FDisplayClusterRenderFrameSettings;
-class FDisplayClusterViewportConfigurationCameraViewport;
-class FDisplayClusterViewportConfigurationCameraICVFX;
-class FDisplayClusterViewportConfigurationICVFX;
-
-class FDisplayClusterViewportConfigurationHelpers;
-class FDisplayClusterViewportConfigurationHelpers_ICVFX;
-class FDisplayClusterViewportConfigurationHelpers_OpenColorIO;
-class FDisplayClusterViewportConfigurationHelpers_Postprocess;
-
-struct FDisplayClusterViewportConfigurationProjectionPolicy;
 
 /**
  * Rendering viewport (sub-region of the main viewport)
  */
-
 class FDisplayClusterViewport
 	: public IDisplayClusterViewport
 	, public TSharedFromThis<FDisplayClusterViewport, ESPMode::ThreadSafe>
 {
 public:
-	FDisplayClusterViewport(FDisplayClusterViewportManager& Owner, const FString& ClusterNodeId, const FString& ViewportId, const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe>& InProjectionPolicy);
-	
+	FDisplayClusterViewport(const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe>& InConfiguration, const FString& ViewportId, const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe>& InProjectionPolicy);
 	virtual ~FDisplayClusterViewport();
 
 public:
@@ -65,7 +52,15 @@ public:
 		return AsShared();
 	}
 
-	virtual EDisplayClusterRenderFrameMode GetRenderMode() const override;
+	virtual IDisplayClusterViewportConfiguration& GetConfiguration() override
+	{
+		return Configuration.Get();
+	}
+
+	virtual const IDisplayClusterViewportConfiguration& GetConfiguration() const override
+	{
+		return Configuration.Get();
+	}
 
 	virtual FString GetId() const override
 	{ 
@@ -107,7 +102,7 @@ public:
 
 	virtual bool SetupViewPoint(FMinimalViewInfo& InOutViewInfo) override;
 	virtual float GetStereoEyeOffsetDistance(const uint32 InContextNum) override;
-	virtual class UDisplayClusterCameraComponent* GetViewPointCameraComponent() const override;
+	virtual class UDisplayClusterCameraComponent* GetViewPointCameraComponent(const EDisplayClusterRootActorType InRootActorType) const override;
 	virtual bool GetViewPointCameraEye(const uint32 InContextNum, FVector& OutViewLocation, FRotator& OutViewRotation, FVector& OutViewOffset) override;
 
 	virtual const FDisplayClusterViewport_RenderSettingsICVFX& GetRenderSettingsICVFX() const override
@@ -149,32 +144,13 @@ public:
 	// Setup scene view for rendering specified Context
 	virtual void SetupSceneView(uint32 ContextNum, class UWorld* World, class FSceneViewFamily& InViewFamily, FSceneView& InView) const override;
 
-	virtual class IDisplayClusterViewportManager* GetViewportManager() const override;
-	virtual class ADisplayClusterRootActor* GetRootActor() const override;
-	virtual class UWorld* GetCurrentWorld() const override;
-	virtual bool IsSceneOpened() const override;
-
-	// Return true, if current world type equal to InWorldType
-	virtual bool IsCurrentWorldHasAnyType(const EWorldType::Type InWorldType1, const EWorldType::Type InWorldType2 = EWorldType::None, const EWorldType::Type InWorldType3 = EWorldType::None) const override;
-
 	//////////////////////////////////////////////////////
 	/// ~IDisplayClusterViewport
 	//////////////////////////////////////////////////////
 
-	TSharedPtr<FDisplayClusterViewportManager, ESPMode::ThreadSafe> GetViewportManagerRefImpl() const;
-	TSharedPtr<FDisplayClusterViewportManagerProxy, ESPMode::ThreadSafe> GetViewportManagerProxyRefImpl() const;
-
-	FDisplayClusterViewportManager* GetViewportManagerImpl() const;
-	FDisplayClusterViewportManagerProxy* GetViewportManagerProxyImpl() const;
-
 	FSceneView* ImplCalcScenePreview(class FSceneViewFamilyContext& InOutViewFamily, uint32 ContextNum);
 	bool    ImplPreview_CalculateStereoViewOffset(const uint32 InContextNum, FRotator& ViewRotation, const float WorldToMeters, FVector& ViewLocation);
 	FMatrix ImplPreview_GetStereoProjectionMatrix(const uint32 InContextNum);
-
-#if WITH_EDITOR
-	bool GetPreviewPixels(TSharedPtr<class FDisplayClusterViewportReadPixelsData, ESPMode::ThreadSafe>& OutPixelsData) const;
-#endif //WITH_EDITOR
-
 
 	// Get from logic request for additional targetable resource
 	bool ShouldUseAdditionalTargetableResource() const;
@@ -182,8 +158,6 @@ public:
 	bool ShouldUseFullSizeFrameTargetableResource() const;
 
 	void SetViewportBufferRatio(const float InBufferRatio);
-
-	const FDisplayClusterRenderFrameSettings* GetRenderFrameSettings() const;
 
 	inline bool FindContext(const int32 ViewIndex, uint32* OutContextNum)
 	{
@@ -205,7 +179,7 @@ public:
 		return false;
 	}
 
-	bool HandleStartScene();
+	void HandleStartScene();
 	void HandleEndScene();
 
 	void AddReferencedObjects(FReferenceCollector& Collector);
@@ -216,8 +190,8 @@ public:
 		RenderSettings.BeginUpdateSettings();
 		RenderSettingsICVFX.BeginUpdateSettings();
 		PostRenderSettings.BeginUpdateSettings();
-		VisibilitySettings.ResetConfiguration();
-		CameraMotionBlur.ResetConfiguration();
+		VisibilitySettings.BeginUpdateSettings();
+		CameraMotionBlur.BeginUpdateSettings();
 
 		OverscanRuntimeSettings = FDisplayClusterViewport_OverscanRuntimeSettings();
 		CustomFrustumRuntimeSettings = FDisplayClusterViewport_CustomFrustumRuntimeSettings();
@@ -229,11 +203,10 @@ public:
 	/** Initialize viewport contexts and resources for new frame
 	 *
 	 * @param InStereoViewIndex - initial StereoViewIndex for this viewport
-	 * @param InFrameSettings   - New settings for current frame
 	 *
 	 * @return - true, if success
 	 */
-	bool UpdateFrameContexts(const uint32 InStereoViewIndex, const FDisplayClusterRenderFrameSettings& InFrameSettings);
+	bool UpdateFrameContexts(const uint32 InStereoViewIndex);
 
 	/** Reset viewport contexts and resources. */
 	void ResetFrameContexts();
@@ -241,70 +214,156 @@ public:
 	/** Compare OCIO with another viewport, return true if they are equal. */
 	bool IsOpenColorIOEquals(const FDisplayClusterViewport& InViewport) const;
 
+	/** Get viewport OCIO instance. */
+	const TSharedPtr<FDisplayClusterViewport_OpenColorIO, ESPMode::ThreadSafe>& GetOpenColorIO() const
+	{
+		check(IsInGameThread());
+		return OpenColorIO;
+	}
+
+	/** Set viewport OCIO instance. */
+	void SetOpenColorIO(const TSharedPtr<FDisplayClusterViewport_OpenColorIO, ESPMode::ThreadSafe>& InOpenColorIO)
+	{
+		check(IsInGameThread());
+
+		OpenColorIO = InOpenColorIO;
+	}
+
+	/** Get viewport const resources for all contexts by type. */
+	const TArray<TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>>& GetViewportResources(const EDisplayClusterViewportResource InResourceType) const
+	{
+		check(IsInGameThread());
+		return Resources[InResourceType];
+	}
+
+	/** Get viewport const resources for all contexts by type. */
+	TArray<TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>>& GetViewportResourcesImpl(const EDisplayClusterViewportResource InResourceType)
+	{
+		check(IsInGameThread());
+		return Resources[InResourceType];
+	}
+
+	/** Create proxy data from this viewport internals.*/
+	class FDisplayClusterViewportProxyData* CreateViewportProxyData();
+
+
+	/** Gain direct access to internal data of the viewport. */
+	FDisplayClusterViewport_RenderSettings& GetRenderSettingsImpl()
+	{
+		check(IsInGameThread());
+		return RenderSettings;
+	}
+
+	/** Gain direct access to internal data of the viewport. */
+	FDisplayClusterViewport_RenderSettingsICVFX& GetRenderSettingsICVFXImpl()
+	{
+		check(IsInGameThread());
+		return RenderSettingsICVFX;
+	}
+
+	/** Gain direct access to internal data of the viewport. */
+	FDisplayClusterViewport_PostRenderSettings& GetPostRenderSettingsImpl()
+	{
+		check(IsInGameThread());
+		return PostRenderSettings;
+	}
+
+	/** Gain direct access to internal data of the viewport. */
+	FDisplayClusterViewport_VisibilitySettings& GetVisibilitySettingsImpl()
+	{
+		check(IsInGameThread());
+		return VisibilitySettings;
+	}
+
+	/** Start a new frame with the specified size. The associated objects and geometries will be updated accordingly. */
+	void BeginNewFrame(const FIntPoint& InRenderFrameSize);
+
+	/** Finalize new frame . */
+	void FinalizeNewFrame();
+
+	/** Release the projection policy assigned to this viewport. */
+	void ReleaseProjectionPolicy()
+	{
+		ProjectionPolicy.Reset();
+		UninitializedProjectionPolicy.Reset();
+	}
+
+	/** Update projection policy from configuration. */
+	void UpdateConfiguration_ProjectionPolicy(const struct FDisplayClusterConfigurationProjection* InConfigurationProjectionPolicy = nullptr);
+
+	/** setup overlay configuration for this viewport. */
+	void UpdateConfiguration_OverlayRenderSettings(const struct FDisplayClusterConfigurationICVFX_OverlayAdvancedRenderSettings& InOverlaySettings);
+
+	/** setup overscan configuration for this viewport. */
+	void UpdateConfiguration_Overscan(const struct FDisplayClusterConfigurationViewport_Overscan& InOverscan);
+
+	/** setup CameraMotionBlur configuration for this viewport. */
+	void UpdateConfiguration_CameraMotionBlur(const struct FDisplayClusterViewport_CameraMotionBlur& InCameraMotionBlur);
+
+	/** setup PostRender mips configuration for this viewport. */
+	void UpdateConfiguration_PostRenderGenerateMips(const struct FDisplayClusterConfigurationPostRender_GenerateMips& InGenerateMips);
+
+	/** setup PostRender override configuration for this viewport. */
+	void UpdateConfiguration_PostRenderOverride(const struct FDisplayClusterConfigurationPostRender_Override& InOverride);
+
+	/** setup PostRender blur configuration for this viewport. */
+	void UpdateConfiguration_PostRenderBlur(const struct FDisplayClusterConfigurationPostRender_BlurPostprocess& InBlurPostprocess);
+
+	/** setup viewport remap configuration for this viewport. */
+	bool UpdateConfiguration_ViewportRemap(const struct FDisplayClusterConfigurationViewport_Remap& InRemapConfiguration);
+
+	/** Support view states for preview. */
+	FSceneViewStateInterface* GetViewState(uint32 ViewIndex);
+
+	/** Cleanup view states. */
+	void CleanupViewState();
+
 private:
 	float GetClusterRenderTargetRatioMult(const FDisplayClusterRenderFrameSettings& InFrameSettings) const;
 	FIntPoint GetDesiredContextSize(const FIntPoint& InSize, const FDisplayClusterRenderFrameSettings& InFrameSettings) const;
 	float GetCustomBufferRatio(const FDisplayClusterRenderFrameSettings& InFrameSettings) const;
 
-private:
-	// Support view states for preview
-	FSceneViewStateInterface* GetViewState(uint32 ViewIndex);
-
 public:
-	void CleanupViewState();
+	// Configuration of the current cluster node
+	const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe> Configuration;
 
-public:
-	/** nDisplay OpenColorIO object. */
-	TSharedPtr<FDisplayClusterViewport_OpenColorIO, ESPMode::ThreadSafe> OpenColorIO;
-
-public:
-	// Projection policy instance that serves this viewport
-	TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe> ProjectionPolicy;
-	TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe> UninitializedProjectionPolicy;
-
-	// Game thread only settings:
-	FDisplayClusterViewport_CustomPostProcessSettings CustomPostProcessSettings;
-	FDisplayClusterViewport_VisibilitySettings        VisibilitySettings;
-
-	// Additional features:
-	FImplDisplayClusterViewport_CameraMotionBlur CameraMotionBlur;
-
-	FDisplayClusterViewport_OverscanRuntimeSettings      OverscanRuntimeSettings;
-	FDisplayClusterViewport_CustomFrustumRuntimeSettings CustomFrustumRuntimeSettings;
-
-	// viewport OutputRemap feature
-	FDisplayClusterViewportRemap ViewportRemap;
-
-	// Unified repository of viewport resources
-	FDisplayClusterViewportResources Resources;
-
-protected:
-	friend FDisplayClusterViewportProxy;
-	friend FDisplayClusterViewportProxyData;
-	friend FDisplayClusterViewportManager;
-	friend FDisplayClusterRenderTargetManager;
-	friend FDisplayClusterRenderFrameManager;
-	friend FDisplayClusterViewportConfigurationCameraViewport;
-	friend FDisplayClusterViewportConfigurationCameraICVFX;
-
-	friend FDisplayClusterViewportConfigurationICVFX;
-
-	friend FDisplayClusterViewportConfigurationHelpers;
-	friend FDisplayClusterViewportConfigurationHelpers_ICVFX;
-	friend FDisplayClusterViewportConfigurationHelpers_OpenColorIO;
-	friend FDisplayClusterViewportConfigurationHelpers_Postprocess;
-	friend FDisplayClusterViewportConfigurationProjectionPolicy;
-
-	friend FDisplayClusterViewportRemap;
-
-	// viewport render thread data
-	TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe> ViewportProxy;
+	// viewport proxy (render thread data)
+	const TSharedRef<FDisplayClusterViewportProxy, ESPMode::ThreadSafe> ViewportProxy;
 
 	// Unique viewport name
 	const FString ViewportId;
 
 	// Owner cluster node name
 	const FString ClusterNodeId;
+
+private:
+	// Unified repository of viewport resources
+	FDisplayClusterViewportResources Resources;
+
+	/** nDisplay OpenColorIO object. */
+	TSharedPtr<FDisplayClusterViewport_OpenColorIO, ESPMode::ThreadSafe> OpenColorIO;
+
+	// Projection policy instance that serves this viewport
+	TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe> ProjectionPolicy;
+	TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe> UninitializedProjectionPolicy;
+
+	// Postprocess
+	FDisplayClusterViewport_CustomPostProcessSettings CustomPostProcessSettings;
+
+	// Visibility settings
+	FDisplayClusterViewport_VisibilitySettings        VisibilitySettings;
+
+	// Additional features
+	FImplDisplayClusterViewport_CameraMotionBlur CameraMotionBlur;
+
+	// Overscan rendering feature
+	FDisplayClusterViewport_OverscanRuntimeSettings      OverscanRuntimeSettings;
+
+	// Custom frustum rendering feature
+	FDisplayClusterViewport_CustomFrustumRuntimeSettings CustomFrustumRuntimeSettings;
+
+	// viewport OutputRemap feature
+	FDisplayClusterViewportRemap ViewportRemap;
 
 	// Viewport render params
 	FDisplayClusterViewport_RenderSettings       RenderSettings;
@@ -314,11 +373,6 @@ protected:
 	// Viewport contexts (left/center/right eyes)
 	TArray<FDisplayClusterViewport_Context> Contexts;
 
-	// viewport owners
-	TWeakPtr<FDisplayClusterViewportManager, ESPMode::ThreadSafe> ViewportManagerWeakPtr;
-	TWeakPtr<FDisplayClusterViewportManagerProxy, ESPMode::ThreadSafe> ViewportManagerProxyWeakPtr;
-
-private:
 	// View states (preview only)
 	TArray<TSharedPtr<FSceneViewStateReference, ESPMode::ThreadSafe>> ViewStates;
 

@@ -68,6 +68,13 @@ struct FDisplayClusterWarpData
 	// Control projection type
 	bool bFindBestProjectionType = false;
 	EDisplayClusterWarpBlendProjectionType ProjectionType = EDisplayClusterWarpBlendProjectionType::DynamicAABBCenter;
+
+	// After successful warpdata calculation, this value is set to true.
+	bool bValid = false;
+
+	// The warp policy Tick() function uses warp data, and it must be sure that this data is updated in the previous frame.
+	// This value must be set to true from the EndCalcFrustum() warp policy function when changes are made to this structure.
+	bool bHasWarpPolicyChanges = false;
 };
 
 struct FDisplayClusterWarpGeometryContext

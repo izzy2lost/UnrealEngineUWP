@@ -17,7 +17,6 @@
 
 #include "Render/Viewport/DisplayClusterViewport.h"
 #include "Render/Viewport/DisplayClusterViewportManager.h"
-#include "Render/Viewport/Containers/DisplayClusterViewportReadPixels.h"
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
 #include "Render/Viewport/DisplayClusterViewportHelpers.h"
 #include "Render/Viewport/Resource/DisplayClusterViewportResourceSettings.h"
@@ -221,6 +220,21 @@ void UDisplayClusterPreviewComponent::UpdatePreviewMeshReference()
 		// TODO: See if we can remove this hack
 		ReleasePreviewMesh();
 	}
+
+	// And search for new mesh reference
+	if (IDisplayClusterViewport* Viewport = GetCurrentViewport())
+	{
+		// Handle movable preview mesh:
+		if (!Viewport->GetProjectionPolicy()->HasPreviewMovableMesh(Viewport))
+		{
+			ReleaseMovablePreviewMesh();
+		}
+
+		if (!Viewport->GetProjectionPolicy()->HasPreviewMesh(Viewport))
+		{
+			ReleasePreviewMesh();
+		}
+	}
 }
 
 bool UDisplayClusterPreviewComponent::UpdatePreviewMesh()
@@ -248,7 +262,7 @@ bool UDisplayClusterPreviewComponent::UpdatePreviewMesh()
 		if (bOutputToPreviewMesh)
 		{
 			// Handle preview mesh:
-			if (Viewport->GetProjectionPolicy()->HasPreviewMesh())
+			if (Viewport->GetProjectionPolicy()->HasPreviewMesh(Viewport))
 			{
 				// create warp mesh or update changes
 				if (PreviewMesh != nullptr)
@@ -265,20 +279,14 @@ bool UDisplayClusterPreviewComponent::UpdatePreviewMesh()
 					// Get new mesh ptr
 					PreviewMesh = Viewport->GetProjectionPolicy()->GetOrCreatePreviewMeshComponent(Viewport, bIsRootActorPreviewMesh);
 
-					if (Viewport->GetProjectionPolicy()->HasPreviewMovableMesh())
-					{
-						// Get new movable mesh ptr
-						MovablePreviewMesh = Viewport->GetProjectionPolicy()->GetOrCreatePreviewMovableMeshComponent(Viewport);
-
-						if (MovablePreviewMesh)
-						{
-							// Make the movable preview mesh invisible by default
-							MovablePreviewMesh->SetVisibility(false);
-						}
-					}
-
 					// Update saved proj policy parameters
 					WarpMeshSavedProjectionPolicy = ViewportConfig->ProjectionPolicy;
+				}
+
+				if (MovablePreviewMesh == nullptr)
+				{
+					// Get new movable mesh ptr
+					MovablePreviewMesh = Viewport->GetProjectionPolicy()->GetOrCreatePreviewMovableMeshComponent(Viewport);
 				}
 
 				// disable shadow rendering for preview meshes
@@ -325,14 +333,27 @@ bool UDisplayClusterPreviewComponent::UpdatePreviewMesh()
 	return false;
 }
 
+void UDisplayClusterPreviewComponent::ReleaseMovablePreviewMesh()
+{
+	// Release the movable mesh component of the preview
+	if (MovablePreviewMesh)
+	{
+		MovablePreviewMesh->UnregisterComponent();
+		MovablePreviewMesh->DestroyComponent();
+	}
+}
+
 void UDisplayClusterPreviewComponent::ReleasePreviewMesh()
 {
+	// Release the mesh component of the preview
 	if (!bIsRootActorPreviewMesh && PreviewMesh)
 	{
 		PreviewMesh->UnregisterComponent();
 		PreviewMesh->DestroyComponent();
 	}
 
+	ReleaseMovablePreviewMesh();
+	
 	// Forget old mesh with material
 	PreviewMesh = nullptr;
 	MovablePreviewMesh = nullptr;
@@ -555,12 +576,12 @@ bool UDisplayClusterPreviewComponent::GetPreviewTextureSettings(FIntPoint& OutSi
 {
 	if (FDisplayClusterViewport* Viewport = static_cast<FDisplayClusterViewport*>(GetCurrentViewport()))
 	{
-		if (FDisplayClusterViewportManager* ViewportManager = Viewport->GetViewportManagerImpl())
+		if (FDisplayClusterViewportManager* ViewportManager = Viewport->Configuration->GetViewportManagerImpl())
 		{
 			// The viewport size is already capped for RenderSettings
 			if (!Viewport->GetContexts().IsEmpty())
 			{
-				FDisplayClusterViewportResourceSettings DefaultResourceSettings(ViewportManager->GetRenderFrameSettings(), nullptr);
+				FDisplayClusterViewportResourceSettings DefaultResourceSettings(ViewportManager->Configuration->GetRenderFrameSettings(), nullptr);
 
 				OutSize = Viewport->GetContexts()[0].FrameTargetRect.Size();
 				OutTextureFormat = DefaultResourceSettings.GetFormat();

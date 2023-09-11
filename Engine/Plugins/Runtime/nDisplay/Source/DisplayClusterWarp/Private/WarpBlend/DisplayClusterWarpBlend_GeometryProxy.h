@@ -4,6 +4,7 @@
 #include "Containers/DisplayClusterWarpContainers.h"
 #include "Render/Containers/IDisplayClusterRender_MeshComponent.h"
 #include "Render/Containers/IDisplayClusterRender_Texture.h"
+#include "Misc/DisplayClusterObjectRef.h"
 
 class IDisplayClusterRender_MeshComponentProxy;
 struct FStaticMeshLODResources;
@@ -81,7 +82,8 @@ public:
 	TSharedPtr<IDisplayClusterRender_Texture, ESPMode::ThreadSafe> AlphaMapTexture;
 	TSharedPtr<IDisplayClusterRender_Texture, ESPMode::ThreadSafe> BetaMapTexture;
 
-	TSharedPtr<IDisplayClusterRender_MeshComponent, ESPMode::ThreadSafe> MeshComponent;
+	TSharedPtr<IDisplayClusterRender_MeshComponent, ESPMode::ThreadSafe> WarpMeshComponent;
+	FDisplayClusterSceneComponentRef PreviewMeshComponentRef;
 
 	FDisplayClusterMeshUVs WarpMeshUVs;
 

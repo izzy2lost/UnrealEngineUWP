@@ -102,5 +102,13 @@ public:
 	* 
 	* @return - ptr to the mesh component with the geometry, or nullptr in case of failure
 	*/
-	virtual UMeshComponent* GetOrCreateMeshComponent(IDisplayClusterViewport* InViewport, bool& bExistingComponent) const = 0;
+	virtual UMeshComponent* GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bExistingComponent) const = 0;
+
+	/**
+	* Build preview movable mesh
+	* This MeshComponent is a copy of the preview mesh and can be moved freely with the UI visualization.
+	*
+	* @param InViewport - Projection specific parameters.
+	*/
+	virtual UMeshComponent* GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport) const = 0;
 };

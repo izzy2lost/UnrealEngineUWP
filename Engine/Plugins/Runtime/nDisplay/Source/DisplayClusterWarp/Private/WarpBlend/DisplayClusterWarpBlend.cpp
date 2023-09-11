@@ -75,15 +75,20 @@ const FDisplayClusterWarpGeometryContext& FDisplayClusterWarpBlend::GetGeometryC
 
 bool FDisplayClusterWarpBlend::CalcFrustumContext(const TSharedPtr<FDisplayClusterWarpEye, ESPMode::ThreadSafe>& InWarpEye)
 {
+	check(WarpData.IsValidIndex(InWarpEye->ContextNum));
+
+	// Update current warp data
+	FDisplayClusterWarpData& CurrentWarpData = WarpData[InWarpEye->ContextNum];
+
+	CurrentWarpData.WarpEye = InWarpEye;
+
+	CurrentWarpData.bValid = false;
+	CurrentWarpData.bHasWarpPolicyChanges = false;
+
 	if(!InWarpEye.IsValid())
 	{
 		return false;
 	}
-
-	// Update current warp data
-	check(WarpData.IsValidIndex(InWarpEye->ContextNum));
-	FDisplayClusterWarpData& CurrentWarpData = WarpData[InWarpEye->ContextNum];
-	CurrentWarpData.WarpEye = InWarpEye;
 
 	FDisplayClusterWarpBlendMath_Frustum Frustum(CurrentWarpData, GeometryContext);
 
@@ -103,6 +108,9 @@ bool FDisplayClusterWarpBlend::CalcFrustumContext(const TSharedPtr<FDisplayClust
 	{
 		return false;
 	}
+
+	// Now this data becomes valid.
+	CurrentWarpData.bValid = true;
 
 	return true;
 }
@@ -136,7 +144,18 @@ const FDisplayClusterWarpData& FDisplayClusterWarpBlend::GetWarpData(const uint3
 
 }
 
-UMeshComponent* FDisplayClusterWarpBlend::GetOrCreateMeshComponent(IDisplayClusterViewport* InViewport, bool& bExistingComponent) const
+UMeshComponent* FDisplayClusterWarpBlend::GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bExistingComponent) const
+{
+	return GetOrCreatePreviewMeshComponentImpl(InViewport, false, bExistingComponent);
+}
+
+UMeshComponent* FDisplayClusterWarpBlend::GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport) const
+{
+	bool bExistingComponentDummy;
+	return GetOrCreatePreviewMeshComponentImpl(InViewport, true, bExistingComponentDummy);
+}
+
+UMeshComponent* FDisplayClusterWarpBlend::GetOrCreatePreviewMeshComponentImpl(IDisplayClusterViewport* InViewport, bool bMovableMesh, bool& bExistingComponent) const
 {
 	const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe> ProjectionPolicy = InViewport ? InViewport->GetProjectionPolicy() : nullptr;
 
@@ -145,9 +164,46 @@ UMeshComponent* FDisplayClusterWarpBlend::GetOrCreateMeshComponent(IDisplayClust
 	case EDisplayClusterWarpGeometryType::WarpMesh:
 	case EDisplayClusterWarpGeometryType::WarpProceduralMesh:
 		// use the existing DCRA component
-		bExistingComponent = true;
+		if (USceneComponent* PreviewMeshComponent = GeometryContext.GeometryProxy.PreviewMeshComponentRef.GetOrFindSceneComponent())
+		{
+			if (PreviewMeshComponent->IsA<UMeshComponent>())
+			{
+				UMeshComponent* ExistMeshComponent = static_cast<UMeshComponent*>(PreviewMeshComponent);
 
-		return GeometryContext.GeometryProxy.MeshComponent.IsValid() ? GeometryContext.GeometryProxy.MeshComponent->GetMeshComponent() : nullptr;
+				if (bMovableMesh)
+				{
+					// create a mesh component copy
+					bExistingComponent = false;
+
+					// Get movable mesh root
+					USceneComponent* SceneOriginComp = ProjectionPolicy->GetPreviewMovableMeshOriginComponent(InViewport);
+
+					const FString CompName = FString::Printf(TEXT("DCWarpBlend_MovableMesh_%s"), *ProjectionPolicy->GetId());
+					const EObjectFlags ObjectFlags = EObjectFlags::RF_DuplicateTransient | RF_Transient | RF_TextExportTransient;
+					if (UMeshComponent* PreviewMeshComponentCopy = NewObject<UMeshComponent>(SceneOriginComp, ExistMeshComponent->GetClass(), *CompName, ObjectFlags, ExistMeshComponent))
+					{
+						PreviewMeshComponentCopy->RegisterComponent();
+						PreviewMeshComponentCopy->AttachToComponent(SceneOriginComp, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false));
+						PreviewMeshComponentCopy->SetHiddenInGame(true);
+
+#if WITH_EDITOR
+						PreviewMeshComponentCopy->SetIsVisualizationComponent(true);
+#endif
+
+						return PreviewMeshComponentCopy;
+					}
+				}
+				else
+				{
+					bExistingComponent = true;
+
+					return ExistMeshComponent;
+				}
+				
+			}
+		}
+
+		return nullptr;
 
 	case EDisplayClusterWarpGeometryType::WarpMap:
 		if (ProjectionPolicy.IsValid())
@@ -158,20 +214,20 @@ UMeshComponent* FDisplayClusterWarpBlend::GetOrCreateMeshComponent(IDisplayClust
 			// Downscale preview mesh dimension to max limit
 			const uint32 PreviewGeometryDimLimit = 128;
 
-			USceneComponent* OriginComp = ProjectionPolicy->GetOriginComponent();
+			USceneComponent* PreviewOriginComp = bMovableMesh ? ProjectionPolicy->GetPreviewMovableMeshOriginComponent(InViewport) : ProjectionPolicy->GetPreviewMeshOriginComponent(InViewport);
 
 			// Create new WarpMesh component
 			FDisplayClusterWarpGeometryOBJ MeshData;
-			if (OriginComp && ExportWarpMapGeometry(MeshData, PreviewGeometryDimLimit))
+			if (PreviewOriginComp && ExportWarpMapGeometry(MeshData, PreviewGeometryDimLimit))
 			{
-				const FString CompName = FString::Printf(TEXT("ExportPFM_%s"), *ProjectionPolicy->GetId());
+				const FString CompName = FString::Printf(TEXT("DCWarpBlend_PFM_%s_mesh"), *ProjectionPolicy->GetId());
 
 				// Creta new object
-				UProceduralMeshComponent* MeshComp = NewObject<UProceduralMeshComponent>(OriginComp, FName(*CompName), EObjectFlags::RF_DuplicateTransient | RF_Transient | RF_TextExportTransient);
+				UProceduralMeshComponent* MeshComp = NewObject<UProceduralMeshComponent>(PreviewOriginComp, FName(*CompName), EObjectFlags::RF_DuplicateTransient | RF_Transient | RF_TextExportTransient);
 				if (MeshComp)
 				{
 					MeshComp->RegisterComponent();
-					MeshComp->AttachToComponent(OriginComp, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false));
+					MeshComp->AttachToComponent(PreviewOriginComp, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false));
 					MeshComp->CreateMeshSection(0, MeshData.Vertices, MeshData.Triangles, MeshData.Normal, MeshData.UV, TArray<FColor>(), TArray<FProcMeshTangent>(), false);
 #if WITH_EDITOR
 					MeshComp->SetIsVisualizationComponent(true);

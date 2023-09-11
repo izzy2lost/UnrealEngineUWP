@@ -8,6 +8,7 @@
 
 class IDisplayClusterViewport;
 class UStaticMeshComponent;
+class UDisplayClusterScreenComponent;
 
 /**
  * MPCDI projection policy configuration parser
@@ -30,7 +31,10 @@ struct FDisplayClusterProjectionMPCDIPolicy_ConfigParser
 	FDisplayClusterWarpMPCDIAttributes MPCDIAttributes;
 
 	// Screen component with source geometry
-	UStaticMeshComponent* ScreenComponent = nullptr;
+	UDisplayClusterScreenComponent* ScreenComponent = nullptr;
+
+	// Screen component with source geometry used as a preview mesh
+	UDisplayClusterScreenComponent* PreviewScreenComponent = nullptr;
 
 	// Name of the PFM file that is used as the data source
 	FString PFMFile;

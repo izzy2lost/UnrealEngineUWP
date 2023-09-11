@@ -233,7 +233,7 @@ bool FDisplayClusterWarpBlendMath_Frustum::ImplCalcFrustumProjection_WarpMap(con
 
 bool FDisplayClusterWarpBlendMath_Frustum::ImplCalcFrustumProjection_WarpMesh(const FMatrix& InGeometryToFrustumMatrix)
 {
-	if (!GeometryContext.GeometryProxy.MeshComponent.IsValid())
+	if (!GeometryContext.GeometryProxy.WarpMeshComponent.IsValid())
 	{
 		return false;
 	}
@@ -266,7 +266,7 @@ bool FDisplayClusterWarpBlendMath_Frustum::ImplCalcFrustumProjection_WarpMesh(co
 
 bool FDisplayClusterWarpBlendMath_Frustum::ImplCalcFrustumProjection_WarpProceduralMesh(const FMatrix& InGeometryToFrustumMatrix)
 {
-	if (!GeometryContext.GeometryProxy.MeshComponent.IsValid())
+	if (!GeometryContext.GeometryProxy.WarpMeshComponent.IsValid())
 	{
 		return false;
 	}
@@ -279,7 +279,7 @@ bool FDisplayClusterWarpBlendMath_Frustum::ImplCalcFrustumProjection_WarpProcedu
 
 	bool bAllPointsInFrustum = true;
 
-	const FProcMeshSection* ProcMeshSection = GeometryContext.GeometryProxy.MeshComponent->GetProceduralMeshComponentSection();
+	const FProcMeshSection* ProcMeshSection = GeometryContext.GeometryProxy.WarpMeshComponent->GetProceduralMeshComponentSection();
 	if (ProcMeshSection == nullptr)
 	{
 		return false;

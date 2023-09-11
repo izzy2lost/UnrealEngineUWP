@@ -2,15 +2,22 @@
 
 #include "DisplayClusterViewportConfiguration.h"
 
+#include "DisplayClusterViewportConfiguration_Viewport.h"
+#include "DisplayClusterViewportConfiguration_ViewportManager.h"
+#include "DisplayClusterViewportConfiguration_Postprocess.h"
+#include "DisplayClusterViewportConfiguration_ProjectionPolicy.h"
+#include "DisplayClusterViewportConfiguration_ICVFX.h"
+#include "DisplayClusterViewportConfiguration_ICVFXCamera.h"
+
+#include "DisplayClusterViewportConfigurationHelpers_RenderFrameSettings.h"
+
 #include "DisplayClusterConfigurationStrings.h"
-#include "DisplayClusterViewportConfigurationBase.h"
-#include "DisplayClusterViewportConfigurationICVFX.h"
-#include "DisplayClusterViewportConfigurationProjectionPolicy.h"
 
 #include "DisplayClusterRootActor.h"
 
 #include "Render/Viewport/DisplayClusterViewport.h"
 #include "Render/Viewport/DisplayClusterViewportManager.h"
+#include "Render/Viewport/DisplayClusterViewportManagerProxy.h"
 #include "Render/Viewport/Postprocess/DisplayClusterViewportPostProcessManager.h"
 
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
@@ -19,368 +26,324 @@
 #include "DisplayClusterConfigurationTypes_Viewport.h"
 
 #include "Render/IPDisplayClusterRenderManager.h"
-#include "Misc/DisplayClusterGlobals.h"
 #include "Misc/DisplayClusterLog.h"
 
 #include "Engine/RendererSettings.h"
 
-
-///////////////////////////////////////////////////////////////////
-int32 GDisplayClusterCrossGPUTransferEnable = 0;
-static FAutoConsoleVariableRef CDisplayClusterCrossGPUTransferEnable(
-	TEXT("nDisplay.render.CrossGPUTransfer.Enable"),
-	GDisplayClusterCrossGPUTransferEnable,
-	TEXT("Enable cross-GPU transfers using nDisplay implementation (0 - disable, default) \n")
-	TEXT("That replaces the default cross-GPU transfers using UE Core for the nDisplay viewports viewfamilies.\n"),
-	ECVF_RenderThreadSafe
-);
-
-int32 GDisplayClusterCrossGPUTransferLockSteps = 1;
-static FAutoConsoleVariableRef CDisplayClusterCrossGPUTransferLockSteps(
-	TEXT("nDisplay.render.CrossGPUTransfer.LockSteps"),
-	GDisplayClusterCrossGPUTransferLockSteps,
-	TEXT("The bLockSteps parameter is simply passed to the FTransferResourceParams structure. (0 - disable)\n")
-	TEXT("Whether the GPUs must handshake before and after the transfer. Required if the texture rect is being written to in several render passes.\n")
-	TEXT("Otherwise, minimal synchronization will be used.\n"),
-	ECVF_RenderThreadSafe
-);
-
-int32 GDisplayClusterCrossGPUTransferPullData = 1;
-static FAutoConsoleVariableRef CVarDisplayClusterCrossGPUTransferPullData(
-	TEXT("nDisplay.render.CrossGPUTransfer.PullData"),
-	GDisplayClusterCrossGPUTransferPullData,
-	TEXT("The bPullData parameter is simply passed to the FTransferResourceParams structure. (0 - disable)\n")
-	TEXT("Whether the data is read by the dest GPU, or written by the src GPU (not allowed if the texture is a backbuffer)\n"),
-	ECVF_RenderThreadSafe
-);
-
-/**
-* This enum is for CVar values only and is used to process the logic that converts the values to the runtime enum in GetAlphaChannelCaptureMode().
-*/
-enum class ECVarDisplayClusterAlphaChannelCaptureMode : uint8
+namespace UE::DisplayCluster::ConfigurationHelpers
 {
-	/** [Disabled]
-	 * Disable alpha channel saving.
-	 */
-	Disabled,
+	static inline ADisplayClusterRootActor* ImplGetRootActor(const FDisplayClusterActorRef& InConfigurationRootActorRef)
+	{
+		if (AActor* ActorPtr = InConfigurationRootActorRef.GetOrFindSceneActor())
+		{
+			if (ActorPtr->IsA<ADisplayClusterRootActor>())
+			{
+				return static_cast<ADisplayClusterRootActor*>(ActorPtr);
+			}
+		}
 
-	/** [ThroughTonemapper]
-	 * When rendering with the PropagateAlpha experimental mode turned on, the alpha channel is forwarded to post-processes.
-	 * In this case, the alpha channel is anti-aliased along with the color.
-	 * Since some post-processing may change the alpha, it is copied at the beginning of the PP and restored after all post-processing is completed.
-	 */
-	ThroughTonemapper,
+		return nullptr;
+	}
 
-	/** [FXAA]
-	 * Otherwise, if the PropagateAlpha mode is disabled in the project settings, we need to save the alpha before it becomes invalid.
-	 * The alpha is valid until the scene color is resolved (on the ResolvedSceneColor callback). Therefore, it is copied to a temporary resource on this cb.
-	 * Since we need to remove AA jittering (because alpha copied before AA), anti-aliasing is turned off for this viewport.
-	 * And finally the FXAA is used for smoothing.
-	 */
-	FXAA,
+	static inline bool ImplSetRootActor(ADisplayClusterRootActor* InRootActor, FDisplayClusterActorRef& InOutConfigurationRootActorRef)
+	{
+		if (ImplGetRootActor(InOutConfigurationRootActorRef) != InRootActor)
+		{
+			InOutConfigurationRootActorRef.SetSceneActor(InRootActor);
 
-	/** [Copy]
-	 * Disable AA and TAA, Copy alpha from scenecolor texture to final.
-	 * These experimental (temporary) modes for the performance tests.
-	 */
-	 Copy,
+			return true;
+		}
 
-	/** [CopyAA]
-	 * Use AA, disable TAA, Copy alpha from scenecolor texture to final.
-	 * These experimental (temporary) modes for the performance tests.
-	 */
-	 CopyAA,
-
-	COUNT
+		return false;
+	}
 };
-
-/**
- *Choose method to preserve alpha channel
- */
-int32 GDisplayClusterAlphaChannelCaptureMode = (uint8)ECVarDisplayClusterAlphaChannelCaptureMode::FXAA;
-static FAutoConsoleVariableRef CVarDisplayClusterAlphaChannelCaptureMode(
-	TEXT("nDisplay.render.AlphaChannelCaptureMode"),
-	GDisplayClusterAlphaChannelCaptureMode,
-	TEXT("Alpha channel capture mode (FXAA - default)\n")
-	TEXT("0 - Disabled\n")
-	TEXT("1 - ThroughTonemapper\n")
-	TEXT("2 - FXAA\n")
-	TEXT("3 - Copy [experimental]\n")
-	TEXT("4 - CopyAA [experimental]\n"),
-	ECVF_RenderThreadSafe
-);
+using namespace UE::DisplayCluster;
 
 ///////////////////////////////////////////////////////////////////
 // FDisplayClusterViewportConfiguration
 ///////////////////////////////////////////////////////////////////
-FDisplayClusterViewportConfiguration::FDisplayClusterViewportConfiguration(FDisplayClusterViewportManager& InViewportManager)
-	: ViewportManagerWeakPtr(InViewportManager.AsShared())
+FDisplayClusterViewportConfiguration::FDisplayClusterViewportConfiguration()
+	: Proxy(MakeShared<FDisplayClusterViewportConfigurationProxy, ESPMode::ThreadSafe>())
 { }
 
 FDisplayClusterViewportConfiguration::~FDisplayClusterViewportConfiguration()
 { }
 
-EDisplayClusterRenderFrameAlphaChannelCaptureMode FDisplayClusterViewportConfiguration::GetAlphaChannelCaptureMode() const
+void FDisplayClusterViewportConfiguration::Initialize(FDisplayClusterViewportManager& InViewportManager)
 {
-	ECVarDisplayClusterAlphaChannelCaptureMode AlphaChannelCaptureMode = (ECVarDisplayClusterAlphaChannelCaptureMode)FMath::Clamp(GDisplayClusterAlphaChannelCaptureMode, 0, (int32)ECVarDisplayClusterAlphaChannelCaptureMode::COUNT - 1);
+	// Set weak refs to viewport manager and proxy
+	ViewportManagerWeakPtr = InViewportManager.AsShared();
+	Proxy->Initialize_GameThread(InViewportManager.GetViewportManagerProxy());
+}
 
-	static const auto CVarPropagateAlpha = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PostProcessing.PropagateAlpha"));
-	const EAlphaChannelMode::Type PropagateAlpha = EAlphaChannelMode::FromInt(CVarPropagateAlpha->GetValueOnGameThread());
-	const bool bAllowThroughTonemapper = PropagateAlpha == EAlphaChannelMode::AllowThroughTonemapper;
+void FDisplayClusterViewportConfiguration::SetRootActor(ADisplayClusterRootActor* InRootActor, const EDisplayClusterRootActorType InRootActorType)
+{
+	check(IsInGameThread());
 
-	switch (AlphaChannelCaptureMode)
+	switch (InRootActorType)
 	{
-	case ECVarDisplayClusterAlphaChannelCaptureMode::ThroughTonemapper:
-		// Disable alpha capture if PropagateAlpha not valid
-		return bAllowThroughTonemapper ? EDisplayClusterRenderFrameAlphaChannelCaptureMode::ThroughTonemapper : EDisplayClusterRenderFrameAlphaChannelCaptureMode::None;
+	case EDisplayClusterRootActorType::Preview:
+		bCurrentSceneNeedsToBeUpdated |= ConfigurationHelpers::ImplSetRootActor(InRootActor, PreviewRootActorRef);
+		break;
 
-	case ECVarDisplayClusterAlphaChannelCaptureMode::FXAA:
-		return EDisplayClusterRenderFrameAlphaChannelCaptureMode::FXAA;
+	case EDisplayClusterRootActorType::Scene:
+		bCurrentSceneNeedsToBeUpdated |= ConfigurationHelpers::ImplSetRootActor(InRootActor, SceneRootActorRef);
+		break;
 
-	case ECVarDisplayClusterAlphaChannelCaptureMode::Copy:
-		return EDisplayClusterRenderFrameAlphaChannelCaptureMode::Copy;
+	case EDisplayClusterRootActorType::Configuration:
+		ConfigurationHelpers::ImplSetRootActor(InRootActor, ConfigurationRootActorRef);
+		break;
 
-	case ECVarDisplayClusterAlphaChannelCaptureMode::CopyAA:
-		return EDisplayClusterRenderFrameAlphaChannelCaptureMode::CopyAA;
+	case EDisplayClusterRootActorType::Any:
+		bCurrentSceneNeedsToBeUpdated |= ConfigurationHelpers::ImplSetRootActor(InRootActor, PreviewRootActorRef);
+		bCurrentSceneNeedsToBeUpdated |= ConfigurationHelpers::ImplSetRootActor(InRootActor, SceneRootActorRef);
 
-	case ECVarDisplayClusterAlphaChannelCaptureMode::Disabled:
+		ConfigurationHelpers::ImplSetRootActor(InRootActor, ConfigurationRootActorRef);
+		break;
+
 	default:
 		break;
 	}
-
-	return EDisplayClusterRenderFrameAlphaChannelCaptureMode::None;
 }
 
-bool FDisplayClusterViewportConfiguration::SetRootActor(ADisplayClusterRootActor* InRootActorPtr)
+ADisplayClusterRootActor* FDisplayClusterViewportConfiguration::GetRootActor(const EDisplayClusterRootActorType InRootActorType) const
 {
-	check(IsInGameThread());
-	check(InRootActorPtr);
-
-	if (!RootActorRef.IsDefinedSceneActor() || GetRootActor() != InRootActorPtr)
+	switch (InRootActorType)
 	{
-		// Update root actor reference:
-		RootActorRef.ResetSceneActor();
-		RootActorRef.SetSceneActor(InRootActorPtr);
+	case EDisplayClusterRootActorType::Preview:
+		return ConfigurationHelpers::ImplGetRootActor(PreviewRootActorRef);
 
-		// return true, if changed
-		return true;
+	case EDisplayClusterRootActorType::Scene:
+		return ConfigurationHelpers::ImplGetRootActor(SceneRootActorRef);
+
+	case EDisplayClusterRootActorType::Configuration:
+		return ConfigurationHelpers::ImplGetRootActor(ConfigurationRootActorRef);
+
+	case EDisplayClusterRootActorType::Any:
+	{
+		ADisplayClusterRootActor* OutRootActor = ConfigurationHelpers::ImplGetRootActor(PreviewRootActorRef);
+		if (!OutRootActor)
+		{
+			OutRootActor = ConfigurationHelpers::ImplGetRootActor(SceneRootActorRef);
+			if (!OutRootActor)
+			{
+				OutRootActor = ConfigurationHelpers::ImplGetRootActor(ConfigurationRootActorRef);
+			}
+		}
+
+		return OutRootActor;
 	}
 
-	return false;
-}
-
-ADisplayClusterRootActor* FDisplayClusterViewportConfiguration::GetRootActor() const
-{
-	check(IsInGameThread());
-
-	AActor* ActorPtr = RootActorRef.GetOrFindSceneActor();
-	if (ActorPtr)
-	{
-		return static_cast<ADisplayClusterRootActor*>(ActorPtr);
+	default:
+		break;
 	}
 
 	return nullptr;
 }
 
-bool FDisplayClusterViewportConfiguration::ImplUpdateConfiguration(EDisplayClusterRenderFrameMode InRenderMode, const FString& InClusterNodeId, const FDisplayClusterPreviewSettings* InPreviewSettings, const TArray<FString>* InViewportNames)
+void FDisplayClusterViewportConfiguration::SetCurrentWorld(UWorld* InWorld)
+{
+	if (GetCurrentWorld() != InWorld)
+	{
+		if (FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl())
+		{
+			const bool bNeedRestartScene = bCurrentSceneActive;
+
+			ViewportManager->HandleEndScene();
+			CurrentWorldRef.Reset();
+
+			if (InWorld)
+			{
+				CurrentWorldRef = TWeakObjectPtr<UWorld>(InWorld);
+
+				if (bNeedRestartScene)
+				{
+					ViewportManager->HandleStartScene();
+				}
+			}
+		}
+		else
+		{
+			CurrentWorldRef.Reset();
+		}
+	}
+}
+
+UWorld* FDisplayClusterViewportConfiguration::GetCurrentWorld() const
 {
 	check(IsInGameThread());
 
-
-	ADisplayClusterRootActor* RootActor = GetRootActor();
-	if (RootActor)
+	if (!CurrentWorldRef.IsValid() || CurrentWorldRef.IsStale())
 	{
-		const UDisplayClusterConfigurationData* ConfigurationData = RootActor->GetConfigData();
-		FDisplayClusterViewportManager* ViewportManager = GetViewportManager();
-		if (ConfigurationData && ViewportManager)
+		return nullptr;
+	}
+
+	return CurrentWorldRef.Get();
+}
+
+const UDisplayClusterConfigurationData* FDisplayClusterViewportConfiguration::GetConfigurationData() const
+{
+	ADisplayClusterRootActor* ConfigurationRootActor = GetRootActor(EDisplayClusterRootActorType::Configuration);
+
+	return ConfigurationRootActor ? ConfigurationRootActor->GetConfigData() : nullptr;
+}
+
+const FDisplayClusterConfigurationICVFX_StageSettings* FDisplayClusterViewportConfiguration::GetStageSettings() const
+{
+	if (const UDisplayClusterConfigurationData* ConfigurationData = GetConfigurationData())
+	{
+		return &ConfigurationData->StageSettings;
+	}
+
+	return nullptr;
+}
+
+const FDisplayClusterConfigurationRenderFrame* FDisplayClusterViewportConfiguration::GetConfigurationRenderFrameSettings() const
+{
+	if (const UDisplayClusterConfigurationData* ConfigurationData = GetConfigurationData())
+	{
+		return &ConfigurationData->RenderFrameSettings;
+	}
+
+	return nullptr;
+}
+
+bool FDisplayClusterViewportConfiguration::IsCurrentWorldHasAnyType(const EWorldType::Type InWorldType1, const EWorldType::Type InWorldType2, const EWorldType::Type InWorldType3) const
+{
+	if (UWorld* CurrentWorld = GetCurrentWorld())
+	{
+		return (CurrentWorld->WorldType == InWorldType1 && InWorldType1 != EWorldType::None)
+			|| (CurrentWorld->WorldType == InWorldType2 && InWorldType2 != EWorldType::None)
+			|| (CurrentWorld->WorldType == InWorldType3 && InWorldType3 != EWorldType::None);
+	}
+
+	return false;
+}
+
+bool FDisplayClusterViewportConfiguration::IsRootActorWorldHasAnyType(const EDisplayClusterRootActorType InRootActorType, const EWorldType::Type InWorldType1, const EWorldType::Type InWorldType2, const EWorldType::Type InWorldType3) const
+{
+	if (ADisplayClusterRootActor* RootActor = GetRootActor(InRootActorType))
+	{
+		if (UWorld* CurrentWorld = RootActor->GetWorld())
 		{
-			FDisplayClusterViewportConfigurationBase ConfigurationBase(*ViewportManager, *RootActor, *ConfigurationData, RenderFrameSettings);
-			FDisplayClusterViewportConfigurationICVFX ConfigurationICVFX(*RootActor);
-			FDisplayClusterViewportConfigurationProjectionPolicy ConfigurationProjectionPolicy(*ViewportManager, *RootActor, *ConfigurationData);
-
-			ImplUpdateRenderFrameConfiguration(RootActor->GetRenderFrameSettings());
-
-			// Set current rendering mode
-			RenderFrameSettings.RenderMode = InRenderMode;
-
-			// Support alpha channel capture
-			RenderFrameSettings.AlphaChannelCaptureMode = GetAlphaChannelCaptureMode();
-
-			if (InPreviewSettings != nullptr)
-			{
-				// Downscale resources with PreviewDownscaleRatio
-				RenderFrameSettings.PreviewRenderTargetRatioMult = InPreviewSettings->PreviewRenderTargetRatioMult;
-
-				// Limit preview textures max size
-				RenderFrameSettings.PreviewMaxTextureDimension = InPreviewSettings->PreviewMaxTextureDimension;
-
-				// Hack preview gamma.
-				// In a scene, PostProcess always renders on top of the preview textures.
-				// But in it, PostProcess is also rendered with the flag turned off.
-				RenderFrameSettings.bPreviewEnablePostProcess = InPreviewSettings->bPreviewEnablePostProcess;
-
-				// Support mGPU for preview rendering
-				RenderFrameSettings.bAllowMultiGPURenderingInEditor = InPreviewSettings->bAllowMultiGPURenderingInEditor;
-				RenderFrameSettings.PreviewMinGPUIndex = InPreviewSettings->MinGPUIndex;
-				RenderFrameSettings.PreviewMaxGPUIndex = InPreviewSettings->MaxGPUIndex;
-
-				RenderFrameSettings.bIsRenderingInEditor = true;
-				RenderFrameSettings.bIsPreviewRendering = true;
-				RenderFrameSettings.bFreezePreviewRender = InPreviewSettings->bFreezePreviewRender;
-				
-				if (InPreviewSettings->bIsPIE)
-				{
-					// Allow TextureShare+nDisplay from PIE
-					RenderFrameSettings.bIsPreviewRendering = false;
-				}
-			}
-			else
-			{
-				RenderFrameSettings.bPreviewEnablePostProcess = false;
-				RenderFrameSettings.bAllowMultiGPURenderingInEditor = false;
-				RenderFrameSettings.bIsRenderingInEditor = false;
-				RenderFrameSettings.bIsPreviewRendering = false;
-			}
-
-			if (InViewportNames)
-			{
-				ConfigurationBase.UpdateCustomViewports(*InViewportNames);
-			}
-			else
-			{
-				ConfigurationBase.UpdateClusterNodeViewports(InClusterNodeId);
-			}
-
-			ConfigurationICVFX.Update();
-			ConfigurationProjectionPolicy.Update();
-			ConfigurationICVFX.PostUpdate();
-
-#if WITH_EDITOR
-			if (RenderFrameSettings.bIsPreviewRendering)
-			{
-				ConfigurationICVFX.PostUpdatePreview_Editor(*InPreviewSettings);
-			}
-#endif
-
-			ImplUpdateConfigurationVisibility(*RootActor, *ConfigurationData);
-
-			if (!InViewportNames)
-			{
-				// Update postprocess for current cluster node
-				ConfigurationBase.UpdateClusterNodePostProcess(InClusterNodeId);
-			}
-
-			ImplPostUpdateRenderFrameConfiguration();
-
-			return true;
+			return (CurrentWorld->WorldType == InWorldType1 && InWorldType1 != EWorldType::None)
+				|| (CurrentWorld->WorldType == InWorldType2 && InWorldType2 != EWorldType::None)
+				|| (CurrentWorld->WorldType == InWorldType3 && InWorldType3 != EWorldType::None);
 		}
 	}
 
 	return false;
 }
 
-bool FDisplayClusterViewportConfiguration::UpdateConfiguration(EDisplayClusterRenderFrameMode InRenderMode, const FString& InClusterNodeId)
+EDisplayClusterRenderFrameMode FDisplayClusterViewportConfiguration::GetRenderModeForPIE() const
 {
-	return ImplUpdateConfiguration(InRenderMode, InClusterNodeId, nullptr, nullptr);
-}
-
-bool FDisplayClusterViewportConfiguration::UpdateCustomConfiguration(EDisplayClusterRenderFrameMode InRenderMode, const TArray<FString>& InViewportNames)
-{
-	return ImplUpdateConfiguration(InRenderMode, TEXT(""), nullptr, &InViewportNames);
-}
-
 #if WITH_EDITOR
-bool FDisplayClusterViewportConfiguration::UpdatePreviewConfiguration(EDisplayClusterRenderFrameMode InRenderMode, const FString& InClusterNodeId, const FDisplayClusterPreviewSettings& InPreviewSettings)
-{
-	// Special cluster node names are now supported in the lower classes.
-	// Therefore, we don't need to go through the cluster nodes to initialize the whole cluster.
-	return ImplUpdateConfiguration(InRenderMode, InClusterNodeId, &InPreviewSettings, nullptr);
-}
+	if (ADisplayClusterRootActor* PreviewRootActor = GetRootActor(EDisplayClusterRootActorType::Preview))
+	{
+		switch (PreviewRootActor->RenderMode)
+		{
+		case EDisplayClusterConfigurationRenderMode::SideBySide:
+			return EDisplayClusterRenderFrameMode::SideBySide;
+
+		case EDisplayClusterConfigurationRenderMode::TopBottom:
+			return EDisplayClusterRenderFrameMode::TopBottom;
+
+		default:
+			break;
+		}
+	}
 #endif
 
-void FDisplayClusterViewportConfiguration::ImplUpdateConfigurationVisibility(ADisplayClusterRootActor& RootActor, const UDisplayClusterConfigurationData& ConfigurationData) const
-{
-	// Hide root actor components for all viewports
-	FDisplayClusterViewportManager* ViewportManager = GetViewportManager();
+	return EDisplayClusterRenderFrameMode::Mono;
+}
 
+IDisplayClusterViewportManager* FDisplayClusterViewportConfiguration::GetViewportManager() const
+{
+	return GetViewportManagerImpl();
+}
+
+bool FDisplayClusterViewportConfiguration::ImplUpdateConfiguration(EDisplayClusterRenderFrameMode InRenderMode, const FString& InClusterNodeId, const TArray<FString>* InViewportNames)
+{
+	check(IsInGameThread());
+	
+	FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl();
+	if (!ViewportManager || !FDisplayClusterViewportConfigurationHelpers_RenderFrameSettings::UpdateRenderFrameConfiguration(InRenderMode, *this))
+	{
+		return false;
+	}
+
+	if (bCurrentSceneNeedsToBeUpdated)
+	{
+		// When the root actor changes, we have to ResetScene() to reinitialize the internal references of the projection policy.
+		ViewportManager->HandleEndScene();
+		ViewportManager->HandleStartScene();
+	}
+
+	FDisplayClusterViewportConfiguration_ViewportManager  ConfigurationViewportManager(*this);
+	FDisplayClusterViewportConfiguration_Postprocess      ConfigurationPostprocess(*this);
+	FDisplayClusterViewportConfiguration_ProjectionPolicy ConfigurationProjectionPolicy(*this);
+	FDisplayClusterViewportConfiguration_ICVFX            ConfigurationICVFX(*this);
+
+	// when InClusterNodeId==PreviewNodeAll, means that it is an undefined cluster node
+	const FString ClusterNodeId = InClusterNodeId == DisplayClusterConfigurationStrings::gui::preview::PreviewNodeAll ? TEXT("") : InClusterNodeId;
+
+	if (InViewportNames)
+	{
+		ConfigurationViewportManager.UpdateCustomViewports(*InViewportNames);
+
+		// Do not use the cluster node name for this pass type
+		SetClusterNodeId(FString());
+	}
+	else
+	{
+		ConfigurationViewportManager.UpdateClusterNodeViewports(ClusterNodeId);
+		// Use only valid values of cluster node id
+		SetClusterNodeId(ClusterNodeId);
+
+	}
+
+	ConfigurationICVFX.Update();
+	ConfigurationProjectionPolicy.Update();
+	ConfigurationICVFX.PostUpdate();
+
+	ImplUpdateConfigurationVisibility();
+
+	if (!InViewportNames)
+	{
+		// Update postprocess for current cluster node
+		ConfigurationPostprocess.UpdateClusterNodePostProcess(ClusterNodeId);
+	}
+
+	FDisplayClusterViewportConfigurationHelpers_RenderFrameSettings::PostUpdateRenderFrameConfiguration(*this);
+
+	return true;
+}
+
+bool FDisplayClusterViewportConfiguration::UpdateConfigurationForClusterNode(EDisplayClusterRenderFrameMode InRenderMode, const FString& InClusterNodeId)
+{
+	return ImplUpdateConfiguration(InRenderMode, InClusterNodeId, nullptr);
+}
+
+bool FDisplayClusterViewportConfiguration::UpdateConfigurationForViewportsList(EDisplayClusterRenderFrameMode InRenderMode, const TArray<FString>& InViewportNames)
+{
+	return ImplUpdateConfiguration(InRenderMode, TEXT(""), &InViewportNames);
+}
+
+void FDisplayClusterViewportConfiguration::ImplUpdateConfigurationVisibility() const
+{
+	ADisplayClusterRootActor* SceneRootActor = GetRootActor(EDisplayClusterRootActorType::Scene);
+	FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl();
+
+	// Hide root actor components for all viewports
 	TSet<FPrimitiveComponentId> RootActorHidePrimitivesList;
-	if (ViewportManager && RootActor.GetHiddenInGamePrimitives(RootActorHidePrimitivesList))
+	if (ViewportManager && SceneRootActor && SceneRootActor->GetHiddenInGamePrimitives(RootActorHidePrimitivesList))
 	{
 		for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& ViewportIt : ViewportManager->ImplGetCurrentRenderFrameViewports())
 		{
 			if (ViewportIt.IsValid())
 			{
-				ViewportIt->VisibilitySettings.SetRootActorHideList(RootActorHidePrimitivesList);
+				ViewportIt->GetVisibilitySettingsImpl().SetRootActorHideList(RootActorHidePrimitivesList);
 			}
 		}
 	}
-}
-
-void FDisplayClusterViewportConfiguration::ImplPostUpdateRenderFrameConfiguration()
-{
-	if (FDisplayClusterViewportManager* ViewportManager = GetViewportManager())
-	{
-		// Some frame postprocess require additional render targetable resources
-		RenderFrameSettings.bShouldUseAdditionalFrameTargetableResource = ViewportManager->ShouldUseAdditionalFrameTargetableResource();
-		RenderFrameSettings.bShouldUseFullSizeFrameTargetableResource = ViewportManager->ShouldUseFullSizeFrameTargetableResource();
-	}
-}
-
-void FDisplayClusterViewportConfiguration::ImplUpdateRenderFrameConfiguration(const FDisplayClusterConfigurationRenderFrame& InRenderFrameConfiguration)
-{
-	// Global RTT sizes mults
-	RenderFrameSettings.ClusterRenderTargetRatioMult = InRenderFrameConfiguration.ClusterRenderTargetRatioMult;
-	RenderFrameSettings.ClusterICVFXInnerViewportRenderTargetRatioMult = InRenderFrameConfiguration.ClusterICVFXInnerViewportRenderTargetRatioMult;
-	RenderFrameSettings.ClusterICVFXOuterViewportRenderTargetRatioMult = InRenderFrameConfiguration.ClusterICVFXOuterViewportRenderTargetRatioMult;
-
-	// Global Buffer ratio mults
-	RenderFrameSettings.ClusterBufferRatioMult = InRenderFrameConfiguration.ClusterBufferRatioMult;
-	RenderFrameSettings.ClusterICVFXInnerFrustumBufferRatioMult = InRenderFrameConfiguration.ClusterICVFXInnerFrustumBufferRatioMult;
-	RenderFrameSettings.ClusterICVFXOuterViewportBufferRatioMult = InRenderFrameConfiguration.ClusterICVFXOuterViewportBufferRatioMult;
-
-	// Allow warpblend render
-	RenderFrameSettings.bAllowWarpBlend = InRenderFrameConfiguration.bAllowWarpBlend;
-
-	// Performance: Allow merge multiple viewports on single RTT with atlasing (required for bAllowViewFamilyMergeOptimization)
-	RenderFrameSettings.bAllowRenderTargetAtlasing = InRenderFrameConfiguration.bAllowRenderTargetAtlasing;
-
-	// Performance: Allow viewfamily merge optimization (render multiple viewports contexts within single family)
-	// [not implemented yet] Experimental
-	switch (InRenderFrameConfiguration.ViewFamilyMode)
-	{
-	case EDisplayClusterConfigurationRenderFamilyMode::AllowMergeForGroups:
-		RenderFrameSettings.ViewFamilyMode = EDisplayClusterRenderFamilyMode::AllowMergeForGroups;
-		break;
-	case EDisplayClusterConfigurationRenderFamilyMode::AllowMergeForGroupsAndStereo:
-		RenderFrameSettings.ViewFamilyMode = EDisplayClusterRenderFamilyMode::AllowMergeForGroupsAndStereo;
-		break;
-	case EDisplayClusterConfigurationRenderFamilyMode::MergeAnyPossible:
-		RenderFrameSettings.ViewFamilyMode = EDisplayClusterRenderFamilyMode::MergeAnyPossible;
-		break;
-	case EDisplayClusterConfigurationRenderFamilyMode::None:
-	default:
-		RenderFrameSettings.ViewFamilyMode = EDisplayClusterRenderFamilyMode::None;
-		break;
-	}
-
-	// Performance: nDisplay has its own implementation of cross-GPU transfer.
-	RenderFrameSettings.CrossGPUTransfer.bEnable    = GDisplayClusterCrossGPUTransferEnable != 0;
-	RenderFrameSettings.CrossGPUTransfer.bLockSteps = GDisplayClusterCrossGPUTransferLockSteps != 0;
-	RenderFrameSettings.CrossGPUTransfer.bPullData  = GDisplayClusterCrossGPUTransferPullData != 0;
-
-	// Performance: Allow to use parent ViewFamily from parent viewport 
-	// (icvfx has child viewports: lightcard and chromakey with prj_view matrices copied from parent viewport. May sense to use same viewfamily?)
-	// [not implemented yet] Experimental
-	RenderFrameSettings.bShouldUseParentViewportRenderFamily = InRenderFrameConfiguration.bShouldUseParentViewportRenderFamily;
-
-	RenderFrameSettings.bIsRenderingInEditor = false;
-
-#if WITH_EDITOR
-	// Use special renderin mode, if DCRenderDevice not used right now
-	const bool bIsNDisplayClusterMode = (GEngine->StereoRenderingDevice.IsValid() && GDisplayCluster->GetOperationMode() == EDisplayClusterOperationMode::Cluster);
-	if (bIsNDisplayClusterMode == false)
-	{
-		RenderFrameSettings.bIsRenderingInEditor = true;
-	}
-#endif /*WITH_EDITOR*/
 }

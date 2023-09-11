@@ -4,13 +4,14 @@
 
 #include "CoreMinimal.h"
 
-#include "OpenColorIOColorSpace.h"
-#include "OpenColorIORendering.h"
-
 #include "RHI.h"
 #include "RHICommandList.h"
 #include "RHIResources.h"
+#include "TextureResource.h"
 #include "Templates/SharedPointer.h"
+
+#include "OpenColorIOColorSpace.h"
+#include "OpenColorIORendering.h"
 
 class FSceneView;
 class FSceneViewFamily;

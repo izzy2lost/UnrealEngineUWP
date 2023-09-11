@@ -30,7 +30,7 @@
 #include "Blueprints/DisplayClusterWarpGeometry.h"
 
 #include "DisplayClusterRootActor.h"
-
+#include "Components/DisplayClusterScreenComponent.h"
 
 namespace UE::DisplayClusterProjection::MPCDIPolicy
 {
@@ -71,11 +71,11 @@ void FDisplayClusterProjectionMPCDIPolicy::SetWarpPolicy(IDisplayClusterWarpPoli
 }
 
 IDisplayClusterWarpPolicy* FDisplayClusterProjectionMPCDIPolicy::GetWarpPolicy() const
-			{
+{
 	check(IsInGameThread());
 
 	return WarpPolicyInterface.Get();
-		}
+}
 
 IDisplayClusterWarpPolicy* FDisplayClusterProjectionMPCDIPolicy::GetWarpPolicy_RenderThread() const
 {
@@ -110,9 +110,9 @@ void FDisplayClusterProjectionMPCDIPolicy::UpdateProxyData(IDisplayClusterViewpo
 
 	ENQUEUE_RENDER_COMMAND(DisplayClusterProjectionMPCDIPolicy_UpdateProxyData)(
 		[ProjectionPolicy = InViewport->GetProjectionPolicy(), WarpBlendInterfacePtr = WarpBlendInterface, WarPolicyInterfacePtr = WarpPolicyInterface, Contexts = WarpBlendContexts](FRHICommandListImmediate& RHICmdList)
-{
+	{
 		if (ProjectionPolicy.IsValid())
-{
+		{
 			FDisplayClusterProjectionMPCDIPolicy* MPCDIPolicy = static_cast<FDisplayClusterProjectionMPCDIPolicy*>(ProjectionPolicy.Get());
 			if (MPCDIPolicy)
 			{
@@ -122,9 +122,6 @@ void FDisplayClusterProjectionMPCDIPolicy::UpdateProxyData(IDisplayClusterViewpo
 			}
 		}
 	});
-
-	// reset warp policy after game thread is done
-	WarpPolicyInterface.Reset();
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -304,7 +301,7 @@ void FDisplayClusterProjectionMPCDIPolicy::ApplyWarpBlend_RenderThread(FRHIComma
 		return;
 	}
 
-	const IDisplayClusterViewportManagerProxy* ViewportManagerProxyPtr = InViewportProxy->GetViewportManagerProxy_RenderThread();
+	const IDisplayClusterViewportManagerProxy* ViewportManagerProxyPtr = InViewportProxy->GetConfigurationProxy().GetViewportManagerProxy_RenderThread();
 	if (!ViewportManagerProxyPtr)
 	{
 		return;
@@ -444,43 +441,90 @@ void FDisplayClusterProjectionMPCDIPolicy::ApplyWarpBlend_RenderThread(FRHIComma
 	}
 }
 
+bool FDisplayClusterProjectionMPCDIPolicy::HasPreviewMesh(IDisplayClusterViewport* InViewport)
+{
+	if (bIsPreviewMeshEnabled)
+	{
+		return true;
+	}
+
+	PreviewMeshComponentRef.ResetSceneComponent();
+
+	return false;
+}
+
 UMeshComponent* FDisplayClusterProjectionMPCDIPolicy::GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent)
 {
-	return (bIsPreviewMeshEnabled && WarpBlendInterface.IsValid()) ? WarpBlendInterface->GetOrCreateMeshComponent(InViewport, bOutIsRootActorComponent) : nullptr;
+	if (!HasPreviewMesh(InViewport))
+	{
+		return nullptr;
+	}
+
+	// If we have already created a preview mesh component before, return that component
+	if (UMeshComponent* ExistsPreviewMeshComp = Cast<UMeshComponent>(PreviewMeshComponentRef.GetOrFindSceneComponent()))
+	{
+		return ExistsPreviewMeshComp;
+	}
+
+	// Get a new one
+	if (UMeshComponent* PreviewMeshComp = WarpBlendInterface.IsValid() ? WarpBlendInterface->GetOrCreatePreviewMeshComponent(InViewport, bOutIsRootActorComponent) : nullptr)
+	{
+		// Store reference to mesh component
+		PreviewMeshComponentRef.SetSceneComponent(PreviewMeshComp);
+
+		return PreviewMeshComp;
+	}
+
+	return nullptr;
+}
+
+USceneComponent* const FDisplayClusterProjectionMPCDIPolicy::GetPreviewMovableMeshOriginComponent(IDisplayClusterViewport* InViewport) const
+{
+	// Note: currently for the movable mesh component we expect it to be used only in the scene,
+	// so we use the root component from the scene all the time.
+	// But if other use cases are found, we need to refine this logic.
+
+	return GetOriginComponent();
+}
+
+bool FDisplayClusterProjectionMPCDIPolicy::HasPreviewMovableMesh(IDisplayClusterViewport* InViewport)
+{
+	if (InViewport)
+	{
+		// The movable preview grid is a feature for the warp policy, so we must request permission to use it.
+		const bool bWarpPolicyUseMovableMesh = WarpPolicyInterface.IsValid() && WarpPolicyInterface->HasPreviewMovableMesh(InViewport);
+		if (bIsPreviewMeshEnabled && bWarpPolicyUseMovableMesh)
+		{
+			return true;
+		}
+	}
+
+	PreviewMovableMeshComponentRef.ResetSceneComponent();
+
+	return false;
 }
 
 UMeshComponent* FDisplayClusterProjectionMPCDIPolicy::GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport)
 {
-#if WITH_EDITOR
+	if (!HasPreviewMovableMesh(InViewport))
+	{
+		return nullptr;
+	}
+
 	// If we have already created a preview mesh component before, return that component
-	if (UMeshComponent* MovableMeshComp = Cast<UMeshComponent>(MovablePreviewMeshComponentRef.GetOrFindSceneComponent()))
+	if (UMeshComponent* ExistsPreviewMovableMeshComp = Cast<UMeshComponent>(PreviewMovableMeshComponentRef.GetOrFindSceneComponent()))
 	{
-		return MovableMeshComp;
+		return ExistsPreviewMovableMeshComp;
 	}
-	// Create a new mesh component. Best option is to simply create a duplicate of the static preview component by passing a template into NewObject
-	// Attach the movable mesh component to the DCRA's root component, since we don't care about hierarchy here
-	if (ADisplayClusterRootActor* RootActor = InViewport->GetRootActor())
+
+	// Get a new one
+	if (UMeshComponent* PreviewMovableMeshComp = WarpBlendInterface.IsValid() ? WarpBlendInterface->GetOrCreatePreviewMovableMeshComponent(InViewport) : nullptr)
 	{
-		USceneComponent* RootComponent = RootActor->GetRootComponent();
-		bool bIsRootActorComponent = false;
-		if (UMeshComponent* PreviewMeshComponent = GetOrCreatePreviewMeshComponent(InViewport, bIsRootActorComponent))
-		{
-			const FString CompName = FString::Printf(TEXT("MPCDI_%s_movable_impl"), *GetId());
-			const EObjectFlags ObjectFlags = EObjectFlags::RF_DuplicateTransient | RF_Transient | RF_TextExportTransient;
-			UMeshComponent* NewMovableMeshComp = NewObject<UMeshComponent>(RootComponent, PreviewMeshComponent->GetClass(), *CompName, ObjectFlags, PreviewMeshComponent);
-			if (NewMovableMeshComp)
-			{
-				NewMovableMeshComp->RegisterComponent();
-				NewMovableMeshComp->AttachToComponent(RootComponent, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false));
-				NewMovableMeshComp->SetIsVisualizationComponent(true);
-				NewMovableMeshComp->SetHiddenInGame(true);
-				// Store reference to mesh component
-				MovablePreviewMeshComponentRef.SetSceneComponent(NewMovableMeshComp);
-				return NewMovableMeshComp;
-			}
-		}
+		// Store reference to mesh component
+		PreviewMovableMeshComponentRef.SetSceneComponent(PreviewMovableMeshComp);
+
+		return PreviewMovableMeshComp;
 	}
-#endif
 
 	return nullptr;
 }
@@ -519,22 +563,27 @@ bool FDisplayClusterProjectionMPCDIPolicy::CreateWarpBlendFromConfig(IDisplayClu
 				return false;
 			}
 
-			if (CfgData.ScreenComponent == nullptr)
+			// Using the screen component as the "region" for the MPCDI 2d profile.
+			const bool bUseScreenComponentForMPCDIProfile2D = CfgData.ScreenComponent && CfgData.MPCDIAttributes.ProfileType == EDisplayClusterWarpProfileType::warp_2D;
+			if (!bUseScreenComponentForMPCDIProfile2D)
 			{
 				FDisplayClusterWarpInitializer_MPCDIFile CreateParameters;
-			CreateParameters.MPCDIFileName = CfgData.MPCDIFileName;
-			CreateParameters.BufferId = CfgData.BufferId;
-			CreateParameters.RegionId = CfgData.RegionId;
+				CreateParameters.MPCDIFileName = CfgData.MPCDIFileName;
+				CreateParameters.BufferId = CfgData.BufferId;
+				CreateParameters.RegionId = CfgData.RegionId;
 
 				WarpBlendInterface = GetWarpAPI().Create(CreateParameters);
 			}
 			else
 			{
 				FDisplayClusterWarpInitializer_MPCDIFile_Profile2DScreen CreateParameters;
-			CreateParameters.MPCDIFileName = CfgData.MPCDIFileName;
-			CreateParameters.BufferId = CfgData.BufferId;
-			CreateParameters.RegionId = CfgData.RegionId;
-				CreateParameters.StaticMeshComponent = CfgData.ScreenComponent;
+				CreateParameters.MPCDIFileName = CfgData.MPCDIFileName;
+				CreateParameters.BufferId = CfgData.BufferId;
+				CreateParameters.RegionId = CfgData.RegionId;
+
+				// Using the screen component as the "region" for the MPCDI 2d profile.
+				CreateParameters.WarpMeshComponent = CfgData.ScreenComponent;
+				CreateParameters.PreviewMeshComponent = CfgData.PreviewScreenComponent;
 
 				WarpBlendInterface = GetWarpAPI().Create(CreateParameters);
 			}
@@ -576,4 +625,3 @@ bool FDisplayClusterProjectionMPCDIPolicy::CreateWarpBlendFromConfig(IDisplayClu
 
 	return false;
 }
-

@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DisplayClusterConfigurationTypes_ICVFX.h"
+#include "DisplayClusterConfigurationTypes.h"
+#include "IDisplayCluster.h"
 
 namespace UE::DisplayClusterConfiguration::ICVFX
 {
@@ -95,13 +97,12 @@ const FOpenColorIOColorConversionSettings* FDisplayClusterConfigurationICVFX_Cam
 	return nullptr;
 }
 
-#if WITH_EDITOR
-bool FDisplayClusterConfigurationICVFX_CameraOCIO::IsChromakeyViewportSettingsEqual_Editor(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const
+bool FDisplayClusterConfigurationICVFX_CameraOCIO::IsChromakeyViewportSettingsEqual(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const
 {
-	return IsInnerFrustumViewportSettingsEqual_Editor(InClusterNodeId1, InClusterNodeId2);
+	return IsInnerFrustumViewportSettingsEqual(InClusterNodeId1, InClusterNodeId2);
 }
 
-bool FDisplayClusterConfigurationICVFX_CameraOCIO::IsInnerFrustumViewportSettingsEqual_Editor(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const
+bool FDisplayClusterConfigurationICVFX_CameraOCIO::IsInnerFrustumViewportSettingsEqual(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const
 {
 	if (AllNodesOCIOConfiguration.bIsEnabled)
 	{
@@ -136,7 +137,6 @@ bool FDisplayClusterConfigurationICVFX_CameraOCIO::IsInnerFrustumViewportSetting
 
 	return true;
 }
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterConfigurationICVFX_LightcardOCIO
@@ -169,6 +169,39 @@ FDisplayClusterConfigurationICVFX_CameraSettings::FDisplayClusterConfigurationIC
 	AllNodesColorGrading.bEnableEntireClusterColorGrading = true;
 }
 
+bool FDisplayClusterConfigurationICVFX_CameraSettings::IsICVFXEnabled(const UDisplayClusterConfigurationData& InConfigurationData, const FString& InClusterNodeId) const
+{
+	if (bEnable)
+	{
+		// When rendering offscreen, we have an extended logic for camera rendering activation
+		static const bool bIsRunningClusterModeOffscreen =
+			(IDisplayCluster::Get().GetOperationMode() == EDisplayClusterOperationMode::Cluster) &&
+			FParse::Param(FCommandLine::Get(), TEXT("RenderOffscreen"));
+
+		// If cluster mode + rendering offscreen, discover media output settings
+		if (bIsRunningClusterModeOffscreen)
+		{
+			// First condition to render offscreen: it has media output assigned
+			const bool bUsesMediaOutput = (RenderSettings.Media.bEnable && RenderSettings.Media.IsMediaOutputAssigned(InClusterNodeId));
+
+			// Get backbuffer media settings
+			const UDisplayClusterConfigurationClusterNode* const NodeCfg = InConfigurationData.Cluster->GetNode(InClusterNodeId);
+			const FDisplayClusterConfigurationMedia* BackbufferMediaSettings = NodeCfg ? &NodeCfg->Media : nullptr;
+
+			// Second condition to render offscreen: the backbuffer has media output assigned.
+			// This means the whole frame including ICVFX cameras need to be rendered.
+			const bool bIsBackbufferBeingCaptured = BackbufferMediaSettings ? BackbufferMediaSettings->bEnable && BackbufferMediaSettings->IsMediaOutputAssigned() : false;
+
+			// Finally make a decision if the camera should be rendered
+			return bUsesMediaOutput && bIsBackbufferBeingCaptured;
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
 const FOpenColorIOColorConversionSettings* FDisplayClusterConfigurationICVFX_CameraSettings::FindInnerFrustumOCIOConfiguration(const FString& InClusterNodeId) const
 {
 	return CameraOCIO.FindOCIOConfiguration(InClusterNodeId);
@@ -180,17 +213,15 @@ const FOpenColorIOColorConversionSettings* FDisplayClusterConfigurationICVFX_Cam
 	return CameraOCIO.FindOCIOConfiguration(InClusterNodeId);
 }
 
-#if WITH_EDITOR
-bool FDisplayClusterConfigurationICVFX_CameraSettings::IsInnerFrustumViewportSettingsEqual_Editor(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const
+bool FDisplayClusterConfigurationICVFX_CameraSettings::IsInnerFrustumViewportSettingsEqual(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const
 {
-	return CameraOCIO.IsInnerFrustumViewportSettingsEqual_Editor(InClusterNodeId1, InClusterNodeId2);
+	return CameraOCIO.IsInnerFrustumViewportSettingsEqual(InClusterNodeId1, InClusterNodeId2);
 }
 
-bool FDisplayClusterConfigurationICVFX_CameraSettings::IsChromakeyViewportSettingsEqual_Editor(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const
+bool FDisplayClusterConfigurationICVFX_CameraSettings::IsChromakeyViewportSettingsEqual(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const
 {
-	return CameraOCIO.IsChromakeyViewportSettingsEqual_Editor(InClusterNodeId1, InClusterNodeId2);
+	return CameraOCIO.IsChromakeyViewportSettingsEqual(InClusterNodeId1, InClusterNodeId2);
 }
-#endif
 
 float FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraFieldOfViewMultiplier(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
 {

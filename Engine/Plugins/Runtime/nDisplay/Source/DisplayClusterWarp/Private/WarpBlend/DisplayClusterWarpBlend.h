@@ -82,11 +82,22 @@ public:
 	virtual FDisplayClusterWarpData& GetWarpData(const uint32 ContextNum) override;
 	virtual const FDisplayClusterWarpData& GetWarpData(const uint32 ContextNum) const override;
 
-	virtual UMeshComponent* GetOrCreateMeshComponent(IDisplayClusterViewport* InViewport, bool& bExistingComponent) const override;
+	virtual UMeshComponent* GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bExistingComponent) const override;
+	virtual UMeshComponent* GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport) const override;
 
 	//~!IDisplayClusterWarpBlend
 
 private:
+	/**
+	* Get or create a mesh component for previewing
+	* 
+	* @param InViewport - The viewport that do this request 
+	* @param bCreateCopy - true to always create a copy of the mesh
+	* @param bExistingComponent - (out) true if the mesh component is not a copy
+	*/
+	UMeshComponent* GetOrCreatePreviewMeshComponentImpl(IDisplayClusterViewport* InViewport, bool bMovableMesh, bool& bExistingComponent) const;
+
+	/** Begin frustum calc. */
 	void BeginCalcFrustum(const TSharedPtr<FDisplayClusterWarpEye, ESPMode::ThreadSafe>& InWarpEye);
 
 public:

@@ -94,7 +94,6 @@ void FDisplayClusterWarpInFrustumFitPolicy::HandleNewFrame(const TArray<TSharedP
 
 	// Recalculate warp projection angles
 	GroupGeometryWarpProjection.ResetProjectionAngles();
-	FittedViewports.Empty();
 	SymmetricForwardCorrection.Reset();
 
 	bool bCanCalcFrustumContext = true;
@@ -117,9 +116,9 @@ void FDisplayClusterWarpInFrustumFitPolicy::HandleNewFrame(const TArray<TSharedP
 				continue;
 			}
 
-			if (UDisplayClusterInFrustumFitCameraComponent* WarpViewPointComponent = Cast<UDisplayClusterInFrustumFitCameraComponent>(Viewport->GetViewPointCameraComponent()))
+			if (UDisplayClusterInFrustumFitCameraComponent* ConfigurationCameraComponent = Cast<UDisplayClusterInFrustumFitCameraComponent>(Viewport->GetViewPointCameraComponent(EDisplayClusterRootActorType::Configuration)))
 			{
-				bHasFixedViewDirection = WarpViewPointComponent->CameraViewTarget == EDisplayClusterWarpCameraViewTarget::MatchViewOrigin;
+				bHasFixedViewDirection = ConfigurationCameraComponent->CameraViewTarget == EDisplayClusterWarpCameraViewTarget::MatchViewOrigin;
 			}
 
 			TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlend;
@@ -162,68 +161,109 @@ void FDisplayClusterWarpInFrustumFitPolicy::HandleNewFrame(const TArray<TSharedP
 void FDisplayClusterWarpInFrustumFitPolicy::Tick(IDisplayClusterViewportManager* InViewportManager, float DeltaSeconds)
 {
 #if WITH_EDITOR
-	bool bHasDrawnDebugFrustum = false;
-
-	TArray<TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>> Viewports = InViewportManager->GetViewportsForWarpPolicy(SharedThis(this));
-	for (const TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>& Viewport : Viewports)
+	UDisplayClusterInFrustumFitCameraComponent* SceneCameraComponent = nullptr;
+	for (const TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>& Viewport : InViewportManager->GetEntireClusterViewportsForWarpPolicy(SharedThis(this)))
 	{
-		// If the viewport doesn't have a valid warp projection yet, skip it
-		if (!FittedViewports.Contains(Viewport->GetId()))
-		{
-			continue;
-		}
-
+		// Process only viewports with a projection policy based on the warpblend interface.
 		TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlend;
-		if (Viewport->GetProjectionPolicy()->GetWarpBlendInterface(WarpBlend))
+		if (HasPreviewMovableMesh(Viewport.Get()) && Viewport->GetProjectionPolicy()->GetWarpBlendInterface(WarpBlend))
 		{
 			FDisplayClusterWarpData& WarpData = WarpBlend->GetWarpData(0);
-
-			const FTransform CameraTransform(WarpData.WarpProjection.CameraRotation.Quaternion(), WarpData.WarpProjection.CameraLocation);
-
-			const float HScale = (WarpData.WarpProjection.Left - WarpData.WarpProjection.Right) / (WarpData.GeometryWarpProjection.Left - WarpData.GeometryWarpProjection.Right);
-			const float VScale = (WarpData.WarpProjection.Top - WarpData.WarpProjection.Bottom) / (WarpData.GeometryWarpProjection.Top - WarpData.GeometryWarpProjection.Bottom);
-
-			checkf(FMath::IsNearlyEqual(HScale, VScale), TEXT("Streching the stage geometry to fit a different aspect ratio is not supported!"));
-
-			const FVector Scale = FVector(1, HScale, HScale);
-
-			// Compute the relative transform from the view origin to the geometry
-			FTransform RelativeTransform(WarpData.WarpContext.MeshToStageMatrix * WarpData.Local2World.Inverse());
-			RelativeTransform.ScaleTranslation(Scale);
-
-			// Final transform is computed from the relative transform of the geometry to the view point, the frustum fit transform
-			// which will scale and position the geometry based on the fitted frustum, and the camera transform
-			const FTransform FinalTransform = RelativeTransform * CameraTransform;
-
 			UMeshComponent* MovableMeshComponent = Viewport->GetProjectionPolicy()->GetOrCreatePreviewMovableMeshComponent(Viewport.Get());
-			MovableMeshComponent->SetRelativeTransform(FinalTransform);
 
-			// Since the mesh needs to be skewed to scale appropriately, and since Unreal Engine does not support a skew transform
-			// through FTransform, the mesh needs to be skewed through the vertex shader using WorldPositionOffset,
-			// so pass in the "global" scale to the preview mesh's material instance
-			if (UMaterialInstanceDynamic* MaterialInstance = Cast<UMaterialInstanceDynamic>(MovableMeshComponent->GetMaterial(0)))
+			// Not all projection policies support a movable mesh.
+			if (MovableMeshComponent && WarpData.bValid && WarpData.bHasWarpPolicyChanges)
 			{
-				FMatrix CameraBasis = FRotationMatrix::Make(WarpData.WarpProjection.CameraRotation).Inverse();
+				const FTransform CameraTransform(WarpData.WarpProjection.CameraRotation.Quaternion(), WarpData.WarpProjection.CameraLocation);
 
-				MaterialInstance->SetVectorParameterValue(TEXT("GlobalScale"), Scale);
-				MaterialInstance->SetVectorParameterValue(TEXT("GlobalForward"), CameraBasis.GetUnitAxis(EAxis::X));
-				MaterialInstance->SetVectorParameterValue(TEXT("GlobalRight"), CameraBasis.GetUnitAxis(EAxis::Y));
-				MaterialInstance->SetVectorParameterValue(TEXT("GlobalUp"), CameraBasis.GetUnitAxis(EAxis::Z));
-			}
+				const float HScale = (WarpData.WarpProjection.Left - WarpData.WarpProjection.Right) / (WarpData.GeometryWarpProjection.Left - WarpData.GeometryWarpProjection.Right);
+				const float VScale = (WarpData.WarpProjection.Top - WarpData.WarpProjection.Bottom) / (WarpData.GeometryWarpProjection.Top - WarpData.GeometryWarpProjection.Bottom);
 
-			if (GDisplayClusterWarpInFrustumFitPolicyDrawFrustum && !bHasDrawnDebugFrustum)
-			{
-				DrawDebugGroupFrustum(InViewportManager->GetRootActor(), Cast<UDisplayClusterInFrustumFitCameraComponent>(Viewport->GetViewPointCameraComponent()), FColor::Blue);
-				bHasDrawnDebugFrustum = true;
+				checkf(FMath::IsNearlyEqual(HScale, VScale), TEXT("Streching the stage geometry to fit a different aspect ratio is not supported!"));
+
+				const FVector Scale = FVector(1, HScale, HScale);
+
+				// Compute the relative transform from the view origin to the geometry
+				FTransform RelativeTransform(WarpData.WarpContext.MeshToStageMatrix * WarpData.Local2World.Inverse());
+				RelativeTransform.ScaleTranslation(Scale);
+
+				// Final transform is computed from the relative transform of the geometry to the view point, the frustum fit transform
+				// which will scale and position the geometry based on the fitted frustum, and the camera transform
+				const FTransform FinalTransform = RelativeTransform * CameraTransform;
+
+				MovableMeshComponent->SetRelativeTransform(FinalTransform);
+
+				// Since the mesh needs to be skewed to scale appropriately, and since Unreal Engine does not support a skew transform
+				// through FTransform, the mesh needs to be skewed through the vertex shader using WorldPositionOffset,
+				// so pass in the "global" scale to the preview mesh's material instance
+				UMaterialInterface* MovableMeshMaterial = MovableMeshComponent->GetMaterial(0);
+				if (UMaterialInstanceDynamic* MaterialInstance = (MovableMeshMaterial && MovableMeshMaterial->IsA<UMaterialInstanceDynamic>()) ? Cast<UMaterialInstanceDynamic>(MovableMeshMaterial) : nullptr)
+				{
+					FMatrix CameraBasis = FRotationMatrix::Make(WarpData.WarpProjection.CameraRotation).Inverse();
+
+					MaterialInstance->SetVectorParameterValue(TEXT("GlobalScale"), Scale);
+					MaterialInstance->SetVectorParameterValue(TEXT("GlobalForward"), CameraBasis.GetUnitAxis(EAxis::X));
+					MaterialInstance->SetVectorParameterValue(TEXT("GlobalRight"), CameraBasis.GetUnitAxis(EAxis::Y));
+					MaterialInstance->SetVectorParameterValue(TEXT("GlobalUp"), CameraBasis.GetUnitAxis(EAxis::Z));
+				}
+
+				if (!SceneCameraComponent)
+				{
+					SceneCameraComponent = Cast<UDisplayClusterInFrustumFitCameraComponent>(Viewport->GetViewPointCameraComponent(EDisplayClusterRootActorType::Scene));
+				}
 			}
 		}
 	}
 
 	if (GDisplayClusterWarpInFrustumFitPolicyDrawFrustum)
 	{
-		DrawDebugGroupBoundingBox(InViewportManager->GetRootActor(), FColor::Red);
+		if (ADisplayClusterRootActor* SceneRootActor = InViewportManager->GetConfiguration().GetRootActor(EDisplayClusterRootActorType::Scene))
+		{
+			if (SceneCameraComponent)
+			{
+				DrawDebugGroupFrustum(SceneRootActor, SceneCameraComponent, FColor::Blue);
+			}
+
+			DrawDebugGroupBoundingBox(SceneRootActor, FColor::Red);
+		}
 	}
 #endif
+}
+
+bool FDisplayClusterWarpInFrustumFitPolicy::HasPreviewMovableMesh(IDisplayClusterViewport* InViewport)
+{
+#if WITH_EDITOR
+	// This warp policy is based on IDisplayClusterWarpBlend only.
+	// Process only viewports with a projection policy based on the warpblend interface.
+	TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlend;
+	if (!InViewport || !InViewport->GetProjectionPolicy().IsValid() || !InViewport->GetProjectionPolicy()->GetWarpBlendInterface(WarpBlend))
+	{
+		return false;
+	}
+
+	// If the preview is not used in this configuration
+	if (!InViewport->GetConfiguration().IsPreviewRendering() || InViewport->GetConfiguration().GetRootActor(EDisplayClusterRootActorType::Preview) == nullptr)
+	{
+		return false;
+	}
+
+	// If owner DCRA world is EditorPreview dont show movable mesh (Configurator, ICVFX Panel, etc)
+	if (InViewport->GetConfiguration().IsRootActorWorldHasAnyType(EDisplayClusterRootActorType::Preview, EWorldType::EditorPreview))
+	{
+		return false;
+	}
+
+	// The movable mesh is an option for the UDisplayClusterInFrustumFitCameraComponent.
+	if (UDisplayClusterInFrustumFitCameraComponent* ConfigurationCameraComponent = Cast<UDisplayClusterInFrustumFitCameraComponent>(InViewport->GetViewPointCameraComponent(EDisplayClusterRootActorType::Configuration)))
+	{
+		if (ConfigurationCameraComponent->bShowPreviewFrustumFit)
+		{
+			return true;
+		}
+	}
+#endif
+
+	return false;
 }
 
 void FDisplayClusterWarpInFrustumFitPolicy::BeginCalcFrustum(IDisplayClusterViewport* InViewport, const uint32 ContextNum)
@@ -233,7 +273,7 @@ void FDisplayClusterWarpInFrustumFitPolicy::BeginCalcFrustum(IDisplayClusterView
 		TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlend;
 		if (InViewport->GetProjectionPolicy()->GetWarpBlendInterface(WarpBlend))
 		{
-			if (UDisplayClusterInFrustumFitCameraComponent* WarpViewPointComponent = Cast<UDisplayClusterInFrustumFitCameraComponent>(InViewport->GetViewPointCameraComponent()))
+			if (UDisplayClusterInFrustumFitCameraComponent* ConfigurationCameraComponent = Cast<UDisplayClusterInFrustumFitCameraComponent>(InViewport->GetViewPointCameraComponent(EDisplayClusterRootActorType::Configuration)))
 			{
 				FDisplayClusterWarpData& WarpData = WarpBlend->GetWarpData(ContextNum);
 				if (WarpData.WarpEye.IsValid())
@@ -241,7 +281,7 @@ void FDisplayClusterWarpInFrustumFitPolicy::BeginCalcFrustum(IDisplayClusterView
 					// geometry context already updated.
 					WarpData.WarpEye->bUpdateGeometryContext = !bGeometryContextsUpdated;
 
-					if (WarpViewPointComponent->CameraViewTarget == EDisplayClusterWarpCameraViewTarget::MatchViewOrigin)
+					if (ConfigurationCameraComponent->CameraViewTarget == EDisplayClusterWarpCameraViewTarget::MatchViewOrigin)
 					{
 						WarpData.WarpEye->OverrideViewDirection = WarpData.WarpEye->ViewPoint.Rotation.RotateVector(FVector::XAxisVector);
 					}
@@ -287,23 +327,18 @@ void FDisplayClusterWarpInFrustumFitPolicy::EndCalcFrustum(IDisplayClusterViewpo
 		TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlend;
 		if (InViewport->GetProjectionPolicy()->GetWarpBlendInterface(WarpBlend))
 		{
-			if (UDisplayClusterCameraComponent* ViewPointComponent = InViewport->GetViewPointCameraComponent())
+			// Change warp settings:
+			FDisplayClusterWarpData& WarpData = WarpBlend->GetWarpData(ContextNum);
+
+			// Apply camera frustum fitting:
+			FDisplayClusterWarpProjection NewWarpProjection = ApplyInFrustumFit(InViewport, WarpData.WarpEye->World2LocalTransform, WarpData.WarpProjection);
+			if (NewWarpProjection.IsValidProjection())
 			{
-				if (ViewPointComponent->IsA<UDisplayClusterInFrustumFitCameraComponent>())
-				{
-					if (UDisplayClusterInFrustumFitCameraComponent* WarpViewPointComponent = CastChecked<UDisplayClusterInFrustumFitCameraComponent>(ViewPointComponent))
-					{
-						// Change warp settings:
-						FDisplayClusterWarpData& WarpData = WarpBlend->GetWarpData(ContextNum);
+				WarpData.WarpProjection = NewWarpProjection;
 
-						// Apply camera frustum fitting:
-						FDisplayClusterWarpProjection NewWarpProjection = ApplyInFrustumFit(WarpViewPointComponent, WarpData.WarpEye->World2LocalTransform, WarpData.WarpProjection);
-
-						WarpData.WarpProjection = NewWarpProjection;
-
-						FittedViewports.Add(InViewport->GetId());
-					}
-				}
+				// The warp policy Tick() function uses warp data, and it must be sure that this data is updated in the previous frame.
+				//.This value must be set to true from the EndCalcFrustum() warp policy function when changes are made to this structure.
+				WarpData.bHasWarpPolicyChanges = true;
 			}
 		}
 	}
@@ -327,15 +362,20 @@ void FDisplayClusterWarpInFrustumFitPolicy::DrawDebugGroupFrustum(ADisplayCluste
 {
 	if (RootActor && CameraComponent)
 	{
-		if (UWorld* World = RootActor->GetWorld())
+		UWorld* World = RootActor->GetWorld();
+		IDisplayClusterViewportConfiguration* ViewportConfiguration = RootActor->GetViewportConfiguration();
+		if (ViewportConfiguration && World)
 		{
+			// Get the configuration in use
+			const UDisplayClusterInFrustumFitCameraComponent& ConfigurationCameraComponent = CameraComponent->GetConfigurationInFrustumFitCameraComponent(*ViewportConfiguration);
+
 			const float NearPlane = 10;
 			const float FarPlane = 1000;
 
 			const FVector CameraLoc = CameraComponent->GetComponentLocation();
 			FVector ViewDirection;
 
-			if (CameraComponent->CameraViewTarget == EDisplayClusterWarpCameraViewTarget::MatchViewOrigin)
+			if (ConfigurationCameraComponent.CameraViewTarget == EDisplayClusterWarpCameraViewTarget::MatchViewOrigin)
 			{
 				ViewDirection = CameraComponent->GetComponentRotation().RotateVector(FVector::XAxisVector);
 			}

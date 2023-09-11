@@ -29,7 +29,7 @@ public:
 	virtual bool CalculateView(IDisplayClusterViewport* InViewport, const uint32 InContextNum, FVector& InOutViewLocation, FRotator& InOutViewRotation, const FVector& ViewOffset, const float WorldToMeters, const float NCP, const float FCP) override;
 	virtual bool GetProjectionMatrix(IDisplayClusterViewport* InViewport, const uint32 InContextNum, FMatrix& OutPrjMatrix) override;
 
-	virtual bool HasPreviewMesh() override
+	virtual bool HasPreviewMesh(IDisplayClusterViewport* InViewport) override
 	{
 		return true;
 	}
@@ -66,6 +66,9 @@ private:
 
 	// Weak ptr screen component
 	FDisplayClusterSceneComponentRef ScreenCompRef;
+
+	// Weak ptr to preview screen component
+	FDisplayClusterSceneComponentRef PreviewScreenCompRef;
 
 	struct FViewData
 	{

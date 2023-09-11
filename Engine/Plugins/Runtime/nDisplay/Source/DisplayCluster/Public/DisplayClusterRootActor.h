@@ -104,10 +104,18 @@ public:
 	/** Returns the current rendering mode of this DCRA (not a value from configuration).
 	 * This value can be overridden from DCRenderDevice or other rendering subsystems (e.g. Preview).
 	 */
-	EDisplayClusterRenderFrameMode GetRenderMode() const;
+	UE_DEPRECATED(5.4, "This function has been deprecated.")
+	EDisplayClusterRenderFrameMode GetRenderMode() const
+	{
+		return EDisplayClusterRenderFrameMode::Unknown;
+	}
 
 	/** Returns the preview rendering mode of this DCRA. */
-	EDisplayClusterRenderFrameMode GetPreviewRenderMode() const;
+	UE_DEPRECATED(5.4, "This function has been deprecated.")
+	EDisplayClusterRenderFrameMode GetPreviewRenderMode() const
+	{
+		return EDisplayClusterRenderFrameMode::Unknown;
+	}
 
 protected:
 	//////////////////////////////////////////////////////////////////////////////////////////////
@@ -199,6 +207,9 @@ public:
 public:
 	/** Get ViewportManager API. */
 	IDisplayClusterViewportManager* GetViewportManager() const;
+
+	/** Get ViewportConfiguration API.*/
+	IDisplayClusterViewportConfiguration* GetViewportConfiguration() const;
 	
 	static FName GetCurrentConfigDataMemberName()
 	{
@@ -372,6 +383,9 @@ public:
 	UPROPERTY()
 	bool bMoviePipelineRenderPass = false;
 
+#endif
+	// Some preview settings have been opened be available for Standalone/Package builds:
+
 	/** Render the scene and display it as a preview on the nDisplay root actor in the editor.  This will impact editor performance. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", meta = (DisplayName = "Enable Editor Preview"))
 	bool bPreviewEnable = true;
@@ -384,6 +398,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", meta = (DisplayName = "Enable Post Process"), BlueprintSetter = SetPreviewEnablePostProcess)
 	bool bPreviewEnablePostProcess = false;
 
+#if WITH_EDITORONLY_DATA
 	/** Configure the root actor for tech viz rendering with preview components. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview")
 	bool bEnablePreviewTechViz = true;
@@ -407,6 +422,9 @@ public:
 	/** Render Mode */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", meta = (DisplayName = "Render Mode"))
 	EDisplayClusterConfigurationRenderMode RenderMode = EDisplayClusterConfigurationRenderMode::Mono;
+#endif
+
+	// Some preview settings have been opened be available for Standalone/Package builds:
 
 	/** Tick Per Frame */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", AdvancedDisplay, meta = (DisplayName = "Tick Per Frame", ClampMin = "1", UIMin = "1", ClampMax = "200", UIMax = "200"))
@@ -420,6 +438,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", AdvancedDisplay, meta = (DisplayName = "Preview Texture Max Size", ClampMin = "64", UIMin = "64", ClampMax = "4096", UIMax = "4096"))
 	int PreviewMaxTextureDimension = 2048;
 
+//////////////////////////////////////////////////////////////////////////////////////////////
+// EDITOR RELATED SETTINGS
+//////////////////////////////////////////////////////////////////////////////////////////////
+#if WITH_EDITORONLY_DATA
 private:
 	UPROPERTY(Transient)
 	TMap<FString, TObjectPtr<UDisplayClusterPreviewComponent>> PreviewComponents;
@@ -568,6 +590,9 @@ protected:
 	void ConfigureTechViz_Editor();
 
 	bool ImplUpdatePreviewConfiguration_Editor(const FString& InClusterNodeId);
+
+	/** Gets a preview rendering mode for this root actor. */
+	EDisplayClusterRenderFrameMode GetPreviewRenderMode_Editor() const;
 
 	void ImplRenderPreview_Editor();
 	bool ImplRenderPassPreviewClusterNode_Editor(const FString& InClusterNodeId);

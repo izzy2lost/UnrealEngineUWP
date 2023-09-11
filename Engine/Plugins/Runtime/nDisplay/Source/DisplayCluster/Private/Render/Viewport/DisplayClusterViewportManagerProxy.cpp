@@ -2,6 +2,10 @@
 
 #include "Render/Viewport/DisplayClusterViewportManagerProxy.h"
 
+#include "Render/Viewport/DisplayClusterViewportManager.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationProxy.h"
+
 #include "ClearQuad.h"
 #include "Misc/DisplayClusterLog.h"
 
@@ -40,16 +44,16 @@ static TAutoConsoleVariable<int32> CVarClearFrameRTTEnabled(
 ///////////////////////////////////////////////////////////////////////////////////////
 //          FDisplayClusterViewportManagerProxy
 ///////////////////////////////////////////////////////////////////////////////////////
-FDisplayClusterViewportManagerProxy::FDisplayClusterViewportManagerProxy()
+FDisplayClusterViewportManagerProxy::FDisplayClusterViewportManagerProxy(const FDisplayClusterViewportManager& InViewportManager)
+	: ConfigurationProxy(InViewportManager.Configuration->Proxy)
+	, RenderTargetManager(InViewportManager.RenderTargetManager)
+	, PostProcessManager(InViewportManager.PostProcessManager)
+	, LightCardManagerProxy(InViewportManager.LightCardManager->LightCardManagerProxy)
+	, ViewportManagerViewExtension(InViewportManager.GetViewportManagerViewExtension())
 { }
 
 FDisplayClusterViewportManagerProxy::~FDisplayClusterViewportManagerProxy()
 { }
-
-EDisplayClusterRenderFrameMode FDisplayClusterViewportManagerProxy::GetRenderMode() const
-{
-	return RenderFrameSettings.RenderMode;
-}
 
 void FDisplayClusterViewportManagerProxy::Release_RenderThread()
 {
@@ -59,19 +63,8 @@ void FDisplayClusterViewportManagerProxy::Release_RenderThread()
 	EntireClusterViewportProxies.Empty();
 	CurrentRenderFrameViewportProxies.Empty();
 
-	if (RenderTargetManager.IsValid())
-	{
-		RenderTargetManager->Release();
-		RenderTargetManager.Reset();
-	}
-
-	if (PostProcessManager.IsValid())
-	{
-		PostProcessManager->Release();
-		PostProcessManager.Reset();
-	}
-
-	LightCardManagerProxy.Reset();
+	RenderTargetManager->Release();
+	PostProcessManager->Release();
 
 	if (ViewportManagerViewExtension.IsValid())
 	{
@@ -82,18 +75,10 @@ void FDisplayClusterViewportManagerProxy::Release_RenderThread()
 	}
 }
 
-void FDisplayClusterViewportManagerProxy::Initialize(FDisplayClusterViewportManager& InViewportManager)
-{
-	RenderTargetManager = InViewportManager.RenderTargetManager;
-	PostProcessManager = InViewportManager.PostProcessManager;
-	LightCardManagerProxy = InViewportManager.LightCardManager->GetLightCardManagerProxy();
-	ViewportManagerViewExtension = InViewportManager.ViewportManagerViewExtension;
-}
-
 void FDisplayClusterViewportManagerProxy::ImplUpdateClusterNodeViewportProxies_RenderThread()
 {
 	// Get viewports used to rendering of the current frame
-	if (RenderFrameSettings.ClusterNodeId.IsEmpty())
+	if (ConfigurationProxy->GetClusterNodeId_RenderThread().IsEmpty())
 	{
 		// When a cluster node name is empty, we render without the cluster nodes
 		CurrentRenderFrameViewportProxies = ImplGetEntireClusterViewportProxies_RenderThread();
@@ -104,7 +89,7 @@ void FDisplayClusterViewportManagerProxy::ImplUpdateClusterNodeViewportProxies_R
 		CurrentRenderFrameViewportProxies.Reset();
 		for (const TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>& ViewportProxyIt : ImplGetEntireClusterViewportProxies_RenderThread())
 		{
-			if (ViewportProxyIt.IsValid() && (ViewportProxyIt->GetClusterNodeId() == RenderFrameSettings.ClusterNodeId))
+			if (ViewportProxyIt.IsValid() && (ViewportProxyIt->GetClusterNodeId() == ConfigurationProxy->GetClusterNodeId_RenderThread()))
 			{
 				CurrentRenderFrameViewportProxies.Add(ViewportProxyIt);
 			}
@@ -139,25 +124,25 @@ void FDisplayClusterViewportManagerProxy::DeleteViewport_RenderThread(const TSha
 	}
 }
 
-DECLARE_GPU_STAT_NAMED(nDisplay_ViewportManager_UpdateRenderFrameSettings, TEXT("nDisplay ViewportManager::UpdateRenderFrameSettings"));
+DECLARE_GPU_STAT_NAMED(nDisplay_ViewportManager_UpdateViewportManagerProxy, TEXT("nDisplay ViewportManager::UpdateProxy"));
 
-void FDisplayClusterViewportManagerProxy::ImplUpdateRenderFrameSettings(const FDisplayClusterRenderFrameSettings& InRenderFrameSettings,
-	const TSharedPtr<FDisplayClusterViewportManagerViewExtension, ESPMode::ThreadSafe>& InViewportManagerViewExtension)
+void FDisplayClusterViewportManagerProxy::ImplUpdateViewportManagerProxy_GameThread(const FDisplayClusterViewportManager& InViewportManager)
 {
 	check(IsInGameThread());
 
-	FDisplayClusterRenderFrameSettings* Settings = new FDisplayClusterRenderFrameSettings(InRenderFrameSettings);
+	// Update configuration proxy:
+	ConfigurationProxy->UpdateConfigurationProxy_GameThread(*InViewportManager.Configuration);
 
-	// Send frame settings to renderthread
-	ENQUEUE_RENDER_COMMAND(DisplayClusterUpdateRenderFrameSettings)(
-		[ViewportManagerProxy = SharedThis(this), Settings, InViewportManagerViewExtension](FRHICommandListImmediate& RHICmdList)
+	// Send viewport manager data to proxy
+	ENQUEUE_RENDER_COMMAND(DisplayClusterUpdateViewportManagerProxy)(
+		[ ViewportManagerProxy = SharedThis(this)
+		, ViewExtension = InViewportManager.GetViewportManagerViewExtension()
+		](FRHICommandListImmediate& RHICmdList)
 	{
-		SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportManager_UpdateRenderFrameSettings);
-		SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportManager_UpdateRenderFrameSettings);
+		SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportManager_UpdateViewportManagerProxy);
+		SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportManager_UpdateViewportManagerProxy);
 
-		ViewportManagerProxy->RenderFrameSettings = *Settings;
-		ViewportManagerProxy->ViewportManagerViewExtension = InViewportManagerViewExtension;
-		delete Settings;
+		ViewportManagerProxy->ViewportManagerViewExtension = ViewExtension;
 
 		// After updated settings we need update cluster node viewports
 		ViewportManagerProxy->ImplUpdateClusterNodeViewportProxies_RenderThread();
@@ -173,9 +158,9 @@ void FDisplayClusterViewportManagerProxy::ImplUpdateViewportProxies_GameThread(c
 	TArray<FDisplayClusterViewportProxyData*> ViewportProxiesData;
 	for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& ViewportIt : InCurrentRenderFrameViewports)
 	{
-		if (ViewportIt.IsValid())
+		if(FDisplayClusterViewportProxyData* NewData = ViewportIt.IsValid() ? ViewportIt->CreateViewportProxyData() : nullptr)
 		{
-			ViewportProxiesData.Add(new FDisplayClusterViewportProxyData(ViewportIt));
+			ViewportProxiesData.Add(NewData);
 		}
 	}
 
@@ -186,14 +171,14 @@ void FDisplayClusterViewportManagerProxy::ImplUpdateViewportProxies_GameThread(c
 		SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportManager_UpdateViewports);
 		SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportManager_UpdateViewports);
 
-		for (FDisplayClusterViewportProxyData* It : ProxiesData)
+		// Update game on rendering thread:
+		for (FDisplayClusterViewportProxyData* ProxyDataIt : ProxiesData)
 		{
-			It->UpdateProxy_RenderThread();
-			delete It;
+			ProxyDataIt->DestViewportProxy->UpdateViewportProxyData_RenderThread(*ProxyDataIt);
+			delete ProxyDataIt;
 		}
 	});
 }
-
 
 DECLARE_GPU_STAT_NAMED(nDisplay_ViewportManager_RenderFrame, TEXT("nDisplay ViewportManager::RenderFrame"));
 DECLARE_GPU_STAT_NAMED(nDisplay_ViewportManager_CrossGPUTransfer, TEXT("nDisplay ViewportManager::CrossGPUTransfer"));
@@ -211,10 +196,7 @@ void FDisplayClusterViewportManagerProxy::ImplRenderFrame_GameThread(FViewport* 
 		const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = &InViewportManagerProxy.Get();
 
 		// Handle render setup
-		if (ViewportManagerProxy->PostProcessManager.IsValid())
-		{
-			ViewportManagerProxy->PostProcessManager->HandleRenderFrameSetup_RenderThread(RHICmdList, ViewportManagerProxy);
-		}
+		ViewportManagerProxy->PostProcessManager->HandleRenderFrameSetup_RenderThread(RHICmdList, ViewportManagerProxy);
 	});
 
 	ENQUEUE_RENDER_COMMAND(DisplayClusterRenderFrame_CrossGPUTransfer)(
@@ -226,7 +208,7 @@ void FDisplayClusterViewportManagerProxy::ImplRenderFrame_GameThread(FViewport* 
 		const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = &InViewportManagerProxy.Get();
 
 		// mGPU not used for in-editor rendering
-		if(ViewportManagerProxy->RenderFrameSettings.bIsRenderingInEditor == false || ViewportManagerProxy->RenderFrameSettings.bAllowMultiGPURenderingInEditor)
+		if(ViewportManagerProxy->ConfigurationProxy->GetRenderFrameSettings().ShouldUseCrossGPUTransfers())
 		{
 			// Move all render target cross gpu
 			ViewportManagerProxy->DoCrossGPUTransfers_RenderThread(RHICmdList);
@@ -257,18 +239,12 @@ void FDisplayClusterViewportManagerProxy::ImplRenderFrame_GameThread(FViewport* 
 
 		const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = &InViewportManagerProxy.Get();
 
-		if (ViewportManagerProxy->PostProcessManager.IsValid())
-		{
-			ViewportManagerProxy->PostProcessManager->HandleBeginUpdateFrameResources_RenderThread(RHICmdList, ViewportManagerProxy);
-		}
+		ViewportManagerProxy->PostProcessManager->HandleBeginUpdateFrameResources_RenderThread(RHICmdList, ViewportManagerProxy);
 
 		// Update the frame resources: post-processing, warping, and finally resolving everything to the frame resource
 		ViewportManagerProxy->UpdateFrameResources_RenderThread(RHICmdList);
 
-		if (ViewportManagerProxy->PostProcessManager.IsValid())
-		{
-			ViewportManagerProxy->PostProcessManager->HandleEndUpdateFrameResources_RenderThread(RHICmdList, ViewportManagerProxy);
-		}
+		ViewportManagerProxy->PostProcessManager->HandleEndUpdateFrameResources_RenderThread(RHICmdList, ViewportManagerProxy);
 
 		// Postrender notification before copying final image to the backbuffer
 		IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostFrameRender_RenderThread().Broadcast(RHICmdList, ViewportManagerProxy, InViewport);
@@ -280,7 +256,7 @@ void FDisplayClusterViewportManagerProxy::ImplRenderFrame_GameThread(FViewport* 
 				// For quadbuf stereo copy only left eye, right copy from OutputFrameTarget
 				//@todo Copy QuadBuf_LeftEye/(mono,sbs,tp) to separate rtt, before UI and debug rendering
 				//@todo QuadBuf_LeftEye copied latter, before present
-				switch (ViewportManagerProxy->GetRenderMode())
+				switch (ViewportManagerProxy->GetConfigurationProxy().GetRenderMode_RenderThread())
 				{
 				case EDisplayClusterRenderFrameMode::SideBySide:
 				case EDisplayClusterRenderFrameMode::TopBottom:
@@ -311,7 +287,7 @@ void FDisplayClusterViewportManagerProxy::UpdateDeferredResources_RenderThread(F
 
 	for (const TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>& ViewportProxy : ImplGetCurrentRenderFrameViewportProxies_RenderThread())
 	{
-		if (!ViewportProxy->RenderSettings.IsViewportOverridden())
+		if (!ViewportProxy->GetRenderSettings_RenderThread().IsViewportOverridden())
 		{
 			ViewportProxy->UpdateDeferredResources(RHICmdList);
 		}
@@ -373,10 +349,7 @@ void FDisplayClusterViewportManagerProxy::UpdateFrameResources_RenderThread(FRHI
 	check(IsInRenderingThread());
 
 	// Do postprocess before warp&blend
-	if (PostProcessManager.IsValid())
-	{
-		PostProcessManager->PerformPostProcessViewBeforeWarpBlend_RenderThread(RHICmdList, this);
-	}
+	PostProcessManager->PerformPostProcessViewBeforeWarpBlend_RenderThread(RHICmdList, this);
 
 	// Support viewport overlap order sorting:
 	TArray<TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>> SortedViewportProxy = ImplGetCurrentRenderFrameViewportProxies_RenderThread();
@@ -432,14 +405,11 @@ void FDisplayClusterViewportManagerProxy::UpdateFrameResources_RenderThread(FRHI
 		}
 	}
 
-	if (PostProcessManager.IsValid())
-	{
-		// per-frame handle
-		PostProcessManager->HandleUpdateFrameResourcesAfterWarpBlend_RenderThread(RHICmdList, this);
+	// per-frame handle
+	PostProcessManager->HandleUpdateFrameResourcesAfterWarpBlend_RenderThread(RHICmdList, this);
 
-		// Per-view postprocess
-		PostProcessManager->PerformPostProcessViewAfterWarpBlend_RenderThread(RHICmdList, this);
-	}
+	// Per-view postprocess
+	PostProcessManager->PerformPostProcessViewAfterWarpBlend_RenderThread(RHICmdList, this);
 
 	// Post resolve to Frame RTT
 	// All warp&blend results are now inside AdditionalTargetableResource. Viewport images of other projection policies are still stored in the InputShaderResource.
@@ -458,10 +428,7 @@ void FDisplayClusterViewportManagerProxy::UpdateFrameResources_RenderThread(FRHI
 
 	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostWarp_RenderThread().Broadcast(RHICmdList, this);
 
-	if (PostProcessManager.IsValid())
-	{
-		PostProcessManager->PerformPostProcessFrameAfterWarpBlend_RenderThread(RHICmdList, this);
-	}
+	PostProcessManager->PerformPostProcessFrameAfterWarpBlend_RenderThread(RHICmdList, this);
 }
 
 void FDisplayClusterViewportManagerProxy::DoCrossGPUTransfers_RenderThread(FRHICommandListImmediate& RHICmdList) const
@@ -485,7 +452,7 @@ void FDisplayClusterViewportManagerProxy::DoCrossGPUTransfers_RenderThread(FRHIC
 			continue;
 		}
 
-		if (!ViewportProxyIt->RenderSettings.bEnableCrossGPUTransfer || ViewportProxyIt->Resources[EDisplayClusterViewportResource::RenderTargets].IsEmpty())
+		if (!ViewportProxyIt->GetRenderSettings_RenderThread().bEnableCrossGPUTransfer || ViewportProxyIt->GetResources_RenderThread()[EDisplayClusterViewportResource::RenderTargets].IsEmpty())
 		{
 			// Skip a frozen viewport that has already been transferred between GPUs
 			// The first time freezing should do the transfer (RenderTargets must be assigned on the first pass)
@@ -493,7 +460,7 @@ void FDisplayClusterViewportManagerProxy::DoCrossGPUTransfers_RenderThread(FRHIC
 		}
 
 		// Do cross GPU trasfers for all viewport contexts
-		for (const FDisplayClusterViewport_Context& ViewportContext : ViewportProxyIt->Contexts)
+		for (const FDisplayClusterViewport_Context& ViewportContext : ViewportProxyIt->GetContexts_RenderThread())
 		{
 			if (!ViewportContext.bOverrideCrossGPUTransfer)
 			{
@@ -508,7 +475,7 @@ void FDisplayClusterViewportManagerProxy::DoCrossGPUTransfers_RenderThread(FRHIC
 				continue;
 			}
 
-			if (!ViewportProxyIt->Resources[EDisplayClusterViewportResource::RenderTargets].IsValidIndex(ViewportContext.ContextNum))
+			if (!ViewportProxyIt->GetResources_RenderThread()[EDisplayClusterViewportResource::RenderTargets].IsValidIndex(ViewportContext.ContextNum))
 			{
 				// RTT does not exist for this context
 				continue;
@@ -522,8 +489,10 @@ void FDisplayClusterViewportManagerProxy::DoCrossGPUTransfers_RenderThread(FRHIC
 				continue;
 			}
 
+			const FDisplayClusterRenderFrameSettings& RenderFrameSettings = ConfigurationProxy->GetRenderFrameSettings();
+
 			// Perform an MGPU transfer for a specific viewport context:
-			TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe> ViewportRenderTargetResource = ViewportProxyIt->Resources[EDisplayClusterViewportResource::RenderTargets][ViewportContext.ContextNum];
+			TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe> ViewportRenderTargetResource = ViewportProxyIt->GetResources_RenderThread()[EDisplayClusterViewportResource::RenderTargets][ViewportContext.ContextNum];
 			{
 				if (FRenderTarget* RenderTarget = ViewportRenderTargetResource.IsValid() ? ViewportRenderTargetResource->GetViewportResourceRenderTarget() : nullptr)
 				{
@@ -565,10 +534,10 @@ bool FDisplayClusterViewportManagerProxy::GetFrameTargets_RenderThread(TArray<FR
 	for (const TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>& ViewportProxyIt : ImplGetCurrentRenderFrameViewportProxies_RenderThread())
 	{
 		// Process only valid viewports with output frame resources
-		if (ViewportProxyIt.IsValid() && !ViewportProxyIt->Resources[EDisplayClusterViewportResource::OutputFrameTargetableResources].IsEmpty())
+		if (ViewportProxyIt.IsValid() && !ViewportProxyIt->GetResources_RenderThread()[EDisplayClusterViewportResource::OutputFrameTargetableResources].IsEmpty())
 		{
-			const TArray<TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>>& Frames = ViewportProxyIt->Resources[EDisplayClusterViewportResource::OutputFrameTargetableResources];
-			const TArray<TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>>& AdditionalFrames = ViewportProxyIt->Resources[EDisplayClusterViewportResource::AdditionalFrameTargetableResources];
+			const TArray<TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>>& Frames = ViewportProxyIt->GetResources_RenderThread()[EDisplayClusterViewportResource::OutputFrameTargetableResources];
+			const TArray<TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>>& AdditionalFrames = ViewportProxyIt->GetResources_RenderThread()[EDisplayClusterViewportResource::AdditionalFrameTargetableResources];
 
 			for (int32 FrameIt = 0; FrameIt < Frames.Num(); FrameIt++)
 			{

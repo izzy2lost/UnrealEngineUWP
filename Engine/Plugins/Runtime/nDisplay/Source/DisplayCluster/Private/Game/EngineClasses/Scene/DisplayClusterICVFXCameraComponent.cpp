@@ -112,49 +112,6 @@ FString UDisplayClusterICVFXCameraComponent::GetCameraUniqueId() const
 	return GetFName().ToString();
 }
 
-bool UDisplayClusterICVFXCameraComponent::IsICVFXEnabled() const
-{
-	// When rendering offscreen, we have an extended logic for camera rendering activation
-	static const bool bIsRunningClusterModeOffscreen =
-		(GDisplayCluster->GetOperationMode() == EDisplayClusterOperationMode::Cluster) &&
-		FParse::Param(FCommandLine::Get(), TEXT("RenderOffscreen"));
-
-	// If cluster mode + rendering offscreen, discover media output settings
-	if (bIsRunningClusterModeOffscreen)
-	{
-		// This cluster node ID
-		static const FString NodeId = GDisplayCluster->GetPrivateClusterMgr()->GetNodeId();
-
-		// First condition to render offscreen: it has media output assigned
-		const bool bUsesMediaOutput = (CameraSettings.RenderSettings.Media.bEnable && CameraSettings.RenderSettings.Media.IsMediaOutputAssigned(NodeId));
-
-		// Get backbuffer media settings
-		const FDisplayClusterConfigurationMedia* BackbufferMediaSettings = nullptr;
-		if (const ADisplayClusterRootActor* const RootActor = Cast<ADisplayClusterRootActor>(GetOwner()))
-		{
-			if (const UDisplayClusterConfigurationData* const ConfigData = RootActor->GetConfigData())
-			{
-				if (const UDisplayClusterConfigurationClusterNode* const NodeCfg = ConfigData->Cluster->GetNode(NodeId))
-				{
-					BackbufferMediaSettings = &NodeCfg->Media;
-				}
-			}
-		}
-
-		// Second condition to render offscreen: the backbuffer has media output assigned.
-		// This means the whole frame including ICVFX cameras need to be rendered.
-		const bool bIsBackbufferBeingCaptured = BackbufferMediaSettings ?
-			BackbufferMediaSettings->bEnable && BackbufferMediaSettings->IsMediaOutputAssigned() :
-			false;
-
-		// Finally make a decision if the camera should be rendered
-		return CameraSettings.bEnable && (bUsesMediaOutput || bIsBackbufferBeingCaptured);
-	}
-
-	// Otherwise the on/off condition only
-	return CameraSettings.bEnable;
-}
-
 #if WITH_EDITOR
 bool UDisplayClusterICVFXCameraComponent::GetEditorPreviewInfo(float DeltaTime, FMinimalViewInfo& ViewOut)
 {

@@ -55,36 +55,39 @@ UDisplayClusterInFrustumFitCameraComponent::UDisplayClusterInFrustumFitCameraCom
 	bAutoActivate = true;
 }
 
-void UDisplayClusterInFrustumFitCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+const UDisplayClusterInFrustumFitCameraComponent& UDisplayClusterInFrustumFitCameraComponent::GetConfigurationInFrustumFitCameraComponent(IDisplayClusterViewportConfiguration& InViewportConfiguration) const
 {
-	// todo: render preview
-
-#if WITH_EDITOR
-	if (WarpPolicy.IsValid())
+	if (ADisplayClusterRootActor* ConfigurationRootActor = InViewportConfiguration.GetRootActor(EDisplayClusterRootActorType::Configuration))
 	{
-		if (bRefreshPreviewState)
+		if (ConfigurationRootActor != GetOwner())
 		{
-			// Set the preview mesh visibility state to match the bShowPreviewFrustumFit flag
-			if (ADisplayClusterRootActor* ParentRootActor = Cast<ADisplayClusterRootActor>(GetOwner()))
+			if (UDisplayClusterInFrustumFitCameraComponent* ConfigurationCameraComponent = ConfigurationRootActor->GetComponentByName<UDisplayClusterInFrustumFitCameraComponent>(GetName()))
 			{
-				if (IDisplayClusterViewportManager* ViewportManager = ParentRootActor->GetViewportManager())
-				{
-					TArray<TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>> Viewports = ViewportManager->GetViewportsForWarpPolicy(WarpPolicy);
-					for (const TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>& Viewport : Viewports)
-					{
-						if (UMeshComponent* MovableMeshComponent = Viewport->GetProjectionPolicy()->GetOrCreatePreviewMovableMeshComponent(Viewport.Get()))
-						{
-							MovableMeshComponent->SetVisibility(bShowPreviewFrustumFit);
-						}
-					}
-				}
+				return *ConfigurationCameraComponent;
 			}
-
-			bRefreshPreviewState = false;
 		}
 	}
-#endif
 
+	return *this;
+}
+
+bool UDisplayClusterInFrustumFitCameraComponent::IsEnabled() const
+{
+	return bEnableCameraProjection;
+}
+
+UCameraComponent* UDisplayClusterInFrustumFitCameraComponent::GetExternalCameraComponent() const
+{
+	if (ACineCameraActor* CineCamera = ExternalCameraActor.Get())
+	{
+		return CineCamera->GetCameraComponent();
+	}
+
+	return nullptr;
+}
+
+void UDisplayClusterInFrustumFitCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
 	// Tick warp policy instance
 	if (WarpPolicy.IsValid())
 	{
@@ -98,37 +101,37 @@ void UDisplayClusterInFrustumFitCameraComponent::TickComponent(float DeltaTime, 
 	}
 }
 
-void UDisplayClusterInFrustumFitCameraComponent::GetDesiredView(FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane)
+void UDisplayClusterInFrustumFitCameraComponent::GetDesiredView(IDisplayClusterViewportConfiguration& InViewportConfiguration, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane)
 {
-	if (IsEnabled())
+	const UDisplayClusterInFrustumFitCameraComponent& ConfigurationCameraComponent = GetConfigurationInFrustumFitCameraComponent(InViewportConfiguration);
+	if (ConfigurationCameraComponent.IsEnabled())
 	{
-		if (ADisplayClusterRootActor* ParentRootActor = Cast<ADisplayClusterRootActor>(GetOwner()))
+		if (ADisplayClusterRootActor* SceneRootActor = InViewportConfiguration.GetRootActor(EDisplayClusterRootActorType::Scene))
 		{
-			if (IDisplayClusterViewport::GetCameraComponentView(GetExternalCameraComponent(), ParentRootActor->GetWorldDeltaSeconds(), bUseCameraPostprocess, InOutViewInfo, OutCustomNearClippingPlane))
+			if (IDisplayClusterViewport::GetCameraComponentView(ConfigurationCameraComponent.GetExternalCameraComponent(), SceneRootActor->GetWorldDeltaSeconds(), ConfigurationCameraComponent.bUseCameraPostprocess, InOutViewInfo, OutCustomNearClippingPlane))
 			{
 				// 1. Use external camera for rendering
 				return;
 			}
+		}
 
-			if(IDisplayClusterViewportManager* ViewportManager = ParentRootActor->GetViewportManager())
-			{
-				if (IDisplayClusterViewport::GetPlayerCameraView(ViewportManager->GetCurrentWorld(), bUseCameraPostprocess, InOutViewInfo))
-				{
-					// 2. Use active game camera
-					return;
-				}
-			}
+		if (IDisplayClusterViewport::GetPlayerCameraView(InViewportConfiguration.GetCurrentWorld(), ConfigurationCameraComponent.bUseCameraPostprocess, InOutViewInfo))
+		{
+			// 2. Use active game camera
+			return;
 		}
 	}
 
 	// use default logic
-	return UDisplayClusterCameraComponent::GetDesiredView(InOutViewInfo, OutCustomNearClippingPlane);
+	return UDisplayClusterCameraComponent::GetDesiredView(InViewportConfiguration, InOutViewInfo, OutCustomNearClippingPlane);
 }
 
 bool UDisplayClusterInFrustumFitCameraComponent::ShouldUseEntireClusterViewports(IDisplayClusterViewportManager* InViewportManager) const
 {
+	 const UDisplayClusterInFrustumFitCameraComponent& ConfigurationCameraComponent = InViewportManager ? GetConfigurationInFrustumFitCameraComponent(InViewportManager->GetConfiguration()) : *this;
+
 	// Only when this component is enabled should viewports be created for the entire cluster that accesses this component.
-	return IsEnabled();
+	return ConfigurationCameraComponent.IsEnabled();
 }
 
 IDisplayClusterWarpPolicy* UDisplayClusterInFrustumFitCameraComponent::GetWarpPolicy(IDisplayClusterViewportManager* InViewportManager)
@@ -170,32 +173,7 @@ void UDisplayClusterInFrustumFitCameraComponent::OnRegister()
 
 }
 
-bool UDisplayClusterInFrustumFitCameraComponent::IsEnabled() const
-{
-	return bEnableCameraProjection;
-}
-
-UCameraComponent* UDisplayClusterInFrustumFitCameraComponent::GetExternalCameraComponent() const
-{
-	if (ACineCameraActor* CineCamera = ExternalCameraActor.Get())
-	{
-		return CineCamera->GetCameraComponent();
-	}
-
-	return nullptr;
-}
-
 #if WITH_EDITOR
-void UDisplayClusterInFrustumFitCameraComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-
-	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UDisplayClusterInFrustumFitCameraComponent, bShowPreviewFrustumFit))
-	{
-		InvalidatePreviewState();
-	}
-}
-
 bool UDisplayClusterInFrustumFitCameraComponent::GetEditorPreviewInfo(float DeltaTime, FMinimalViewInfo& ViewOut)
 {
 	if (UCameraComponent* CameraComponent = GetExternalCameraComponent())
@@ -215,5 +193,4 @@ TSharedPtr<SWidget> UDisplayClusterInFrustumFitCameraComponent::GetCustomEditorP
 
 	return nullptr;
 }
-
 #endif

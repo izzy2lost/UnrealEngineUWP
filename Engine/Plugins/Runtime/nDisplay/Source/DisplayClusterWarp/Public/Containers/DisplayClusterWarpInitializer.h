@@ -33,7 +33,10 @@ struct FDisplayClusterWarpInitializer_MPCDIFile_Profile2DScreen
 	USceneComponent* OriginComponent = nullptr;
 
 	// StaticMesh component ptr (warp geometry data source)
-	UStaticMeshComponent* StaticMeshComponent = nullptr;
+	UStaticMeshComponent* WarpMeshComponent = nullptr;
+
+	// Preview StaticMesh component ptr (warp geometry data source)
+	UStaticMeshComponent* PreviewMeshComponent = nullptr;
 };
 
 /**
@@ -83,7 +86,10 @@ struct FDisplayClusterWarpInitializer_StaticMesh
 	: public FDisplayClusterWarpInitializer_BaseMesh
 {
 	// StaticMesh component ptr (warp geometry data source)
-	UStaticMeshComponent* StaticMeshComponent = nullptr;
+	UStaticMeshComponent* WarpMeshComponent = nullptr;
+
+	// Preview StaticMesh component ptr (warp geometry data source)
+	UStaticMeshComponent* PreviewMeshComponent = nullptr;
 
 	// (optional) get geometry data from specified LOD index
 	int32 StaticMeshComponentLODIndex = 0;
@@ -96,7 +102,10 @@ struct FDisplayClusterWarpInitializer_ProceduralMesh
 	: public FDisplayClusterWarpInitializer_BaseMesh
 {
 	// ProceduralMesh component ptr (warp geometry data source)
-	UProceduralMeshComponent* ProceduralMeshComponent = nullptr;
+	UProceduralMeshComponent* WarpMeshComponent = nullptr;
+
+	// Preview ProceduralMesh component ptr (warp geometry data source)
+	UProceduralMeshComponent* PreviewMeshComponent = nullptr;
 
 	// (optional) get geometry data from specified SectionIndex
 	int32 ProceduralMeshComponentSectionIndex = 0;

@@ -5,16 +5,12 @@
 #include "CoreMinimal.h"
 #include "Render/Viewport/Resource/DisplayClusterViewportResource.h"
 
-class FDisplayClusterViewportManagerProxy;
-struct FDisplayClusterRenderFrameSettings;
-
 /**
  * DC viewport resources pool
  */
 class FDisplayClusterRenderTargetResourcesPool
 {
 public:
-	FDisplayClusterRenderTargetResourcesPool(FDisplayClusterViewportManagerProxy* InViewportManagerProxy);
 	~FDisplayClusterRenderTargetResourcesPool();
 
 	void Release();
@@ -27,7 +23,7 @@ public:
 	* 
 	* @return true, if success
 	*/
-	bool BeginReallocateResources(const FDisplayClusterRenderFrameSettings& InRenderFrameSettings, class FViewport* InViewport);
+	bool BeginReallocateResources(class FViewport* InViewport, const struct FDisplayClusterRenderFrameSettings& InRenderFrameSettings);
 	
 	/** Allocate a new resource or reuse exists
 	* 
@@ -60,19 +56,10 @@ private:
 	*/
 	void ImplUpdateResources(TArray<TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>>& InOutViewportResources, const EResourceUpdateMode InUpdateMode);
 
-	/** Retrieving a ViewportManager instance. */
-	inline FDisplayClusterViewportManagerProxy* GetViewportManagerProxy() const
-	{
-		return ViewportManagerProxyWeakPtr.IsValid() ? ViewportManagerProxyWeakPtr.Pin().Get() : nullptr;
-	}
-
 private:
 	// Current render resource settings
 	FDisplayClusterViewportResourceSettings* ResourceSettings = nullptr;
 
 	// Viewport render resources
 	TArray<TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>> ViewportResources;
-
-	// Weak ref to the viewport manager
-	TWeakPtr<FDisplayClusterViewportManagerProxy, ESPMode::ThreadSafe> ViewportManagerProxyWeakPtr;
 };

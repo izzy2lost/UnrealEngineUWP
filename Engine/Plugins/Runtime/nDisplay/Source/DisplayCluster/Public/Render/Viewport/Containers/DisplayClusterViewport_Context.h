@@ -6,32 +6,7 @@
 #include "StereoRendering.h"
 #include "ShowFlags.h"
 
-/**
- * Special flags for nDisplay Viewport context
- */
-enum class EDisplayClusterViewportContextState : uint8
-{
-	None = 0,
-
-	// The FDisplayClusterViewport::CalculateView() function can be called several times per frame.
-	// Each time it must return the same values. For optimization purposes, after the first call this function
-	// stores the result in the context variables 'ViewLocation' and 'ViewRotation'.
-	// Finally, raises this flag for subsequent calls in the current frame.
-	HasCalculatedViewPoint = 1 << 0,
-
-	// Viewpoint is not valid for this viewport (cannot be calculated)
-	InvalidViewPoint = 1 << 1,
-
-	// The FDisplayClusterViewport::GetProjectionMatrix() function can also be called several times per frame.
-	// stores the result in the context variables 'ProjectionMatrix' and 'OverscanProjectionMatrix'.
-	// Finally, raises this flag for subsequent calls in the current frame.
-	HasCalculatedProjectionMatrix = 1 << 2,
-	HasCalculatedOverscanProjectionMatrix = 1 << 3,
-
-	// The projection matrix is not valid (cannot be calculated)
-	InvalidProjectionMatrix = 1 << 4,
-};
-ENUM_CLASS_FLAGS(EDisplayClusterViewportContextState);
+#include "Render/Viewport/Containers/DisplayClusterViewport_Enums.h"
 
 /**
  * Viewport context with cahched data and states
@@ -43,11 +18,13 @@ public:
 		: ContextNum(InContextNum)
 		, StereoscopicPass(InStereoscopicPass)
 		, StereoViewIndex(InStereoViewIndex)
-	{}
+	{ }
 
 public:
+	// Index of context (eye #)
 	const uint32            ContextNum;
 
+	// References to IStereoRendering
 	EStereoscopicPass StereoscopicPass;
 	int32             StereoViewIndex;
 
@@ -67,14 +44,11 @@ public:
 	// World scale
 	float WorldToMeters = 100.f;
 
-	//////////////////
-	// Rendering data, for internal usage
-
 	// GPU index for this context render target
 	int32 GPUIndex = INDEX_NONE;
 
-	/* Enables nDisplay's native implementation of cross-GPU transfer.
-	 * This disables cross-GPU transfer by default for nDisplay viewports in FSceneViewFamily structure. **/
+	// Enables nDisplay's native implementation of cross-GPU transfer.
+	// This disables cross-GPU transfer by default for nDisplay viewports in FSceneViewFamily structure.
 	bool bOverrideCrossGPUTransfer = false;
 
 	// Location and size on a render target texture
@@ -95,6 +69,9 @@ public:
 	// Disable render for this viewport (Overlay)
 	bool bDisableRender = false;
 
+	/**
+	* Viewport context data for rendering thread
+	*/
 	struct FRenderThreadData
 	{
 		FRenderThreadData()

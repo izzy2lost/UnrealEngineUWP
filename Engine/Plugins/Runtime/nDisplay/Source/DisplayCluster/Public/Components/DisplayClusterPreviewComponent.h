@@ -124,6 +124,10 @@ private:
 protected:
 	bool UpdatePreviewMesh();
 	void ReleasePreviewMesh();
+
+	/** Releases the MovablePreviewMesh property if it exists. */
+	void ReleaseMovablePreviewMesh();
+
 	void UpdatePreviewMeshReference();
 
 	void ReleasePreviewMaterial();

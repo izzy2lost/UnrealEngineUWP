@@ -222,8 +222,7 @@ UMeshComponent* FDisplayClusterProjectionVIOSOPolicy::GetOrCreatePreviewMeshComp
 	// Create a new DCRA mesh component
 	bOutIsRootActorComponent = false;
 
-	// Get geometry data
-	USceneComponent* OriginComp = GetOriginComponent();
+	USceneComponent* OriginComp = GetPreviewMeshOriginComponent(InViewport);
 	TSharedPtr<FDisplayClusterProjectionVIOSOGeometryExportData, ESPMode::ThreadSafe> GeometryExportData = FDisplayClusterProjectionVIOSOGeometryExportData::Create(VIOSOLibrary, ViosoConfigData);
 	if (OriginComp && GeometryExportData.IsValid())
 	{

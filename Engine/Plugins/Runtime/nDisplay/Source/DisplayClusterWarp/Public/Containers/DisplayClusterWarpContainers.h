@@ -17,6 +17,11 @@ struct FDisplayClusterWarpProjection
 		Bottom = DBL_MAX;
 	}
 
+	inline bool IsValidProjection() const
+	{
+		return Left < Right && Bottom < Top;
+	}
+
 	inline void ExpandProjectionAngles(const FDisplayClusterWarpProjection& In)
 	{
 		Left   = FMath::Min(Left,   In.Left);

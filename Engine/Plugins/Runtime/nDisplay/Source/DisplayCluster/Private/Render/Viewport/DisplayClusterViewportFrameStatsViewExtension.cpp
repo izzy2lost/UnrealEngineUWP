@@ -78,19 +78,14 @@ namespace UE::DisplayClusterViewExtension
 ///////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewportFrameStatsViewExtension
 ///////////////////////////////////////////////////////////////////////////////////////
-FDisplayClusterViewportFrameStatsViewExtension::FDisplayClusterViewportFrameStatsViewExtension(const FAutoRegister& AutoRegister, const FDisplayClusterViewportManager* InViewportManager)
+FDisplayClusterViewportFrameStatsViewExtension::FDisplayClusterViewportFrameStatsViewExtension(const FAutoRegister& AutoRegister, const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe>& InConfiguration)
 	: FSceneViewExtensionBase(AutoRegister)
-	, ViewportManagerWeakPtr(InViewportManager->AsShared())
+	, Configuration(InConfiguration)
 { }
-
-FDisplayClusterViewportFrameStatsViewExtension::~FDisplayClusterViewportFrameStatsViewExtension()
-{
-	ViewportManagerWeakPtr.Reset();
-}
 
 void FDisplayClusterViewportFrameStatsViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass PassId, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled)
 {
-	if (PassId == EPostProcessingPass::Tonemap)
+	if (IsActive() && PassId == EPostProcessingPass::Tonemap)
 	{
 		InOutPassCallbacks.Add(FAfterPassCallbackDelegate::CreateRaw(this, &FDisplayClusterViewportFrameStatsViewExtension::PostProcessPassAfterTonemap_RenderThread));
 	}
@@ -98,10 +93,13 @@ void FDisplayClusterViewportFrameStatsViewExtension::SubscribeToPostProcessingPa
 
 void FDisplayClusterViewportFrameStatsViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 {
-	const FTimecode CurrentTimecode = FApp::GetTimecode();
+	if (IsActive())
+	{
+		const FTimecode CurrentTimecode = FApp::GetTimecode();
 
-	EncodedTimecode = (static_cast<uint8>(CurrentTimecode.Hours) << 24u) | (static_cast<uint8>(CurrentTimecode.Minutes) << 16u) | (static_cast<uint8>(CurrentTimecode.Seconds) << 8u) | static_cast<uint8>(CurrentTimecode.Frames);
-	FrameCount = GFrameCounter;
+		EncodedTimecode = (static_cast<uint8>(CurrentTimecode.Hours) << 24u) | (static_cast<uint8>(CurrentTimecode.Minutes) << 16u) | (static_cast<uint8>(CurrentTimecode.Seconds) << 8u) | static_cast<uint8>(CurrentTimecode.Frames);
+		FrameCount = GFrameCounter;
+	}
 }
 
 FScreenPassTexture FDisplayClusterViewportFrameStatsViewExtension::PostProcessPassAfterTonemap_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessMaterialInputs& Inputs)
@@ -165,7 +163,7 @@ bool FDisplayClusterViewportFrameStatsViewExtension::IsActiveThisFrame_Internal(
 		if (Context.IsA(MoveTempIfPossible(DCViewExtensionContext)))
 		{
 			const FDisplayClusterSceneViewExtensionContext& DisplayContext = static_cast<const FDisplayClusterSceneViewExtensionContext&>(Context);
-			if (DisplayContext.GetViewportManager() == GetViewportManager())
+			if (DisplayContext.Configuration == Configuration)
 			{
 				// Apply only for DC viewports
 				return true;
@@ -178,5 +176,6 @@ bool FDisplayClusterViewportFrameStatsViewExtension::IsActiveThisFrame_Internal(
 
 bool FDisplayClusterViewportFrameStatsViewExtension::IsActive() const
 {
-	return GetViewportManager() != nullptr && GDisplayClusterShowFrameStats > 0;
+	// VE is active as long as the viewport manager proxy still exists.
+	return Configuration->Proxy->GetViewportManagerProxyImpl() != nullptr && GDisplayClusterShowFrameStats > 0;
 }

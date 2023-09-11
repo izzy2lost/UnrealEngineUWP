@@ -206,7 +206,7 @@ public:
 	// For killed object ptr, reset and find component new object ptr by name and save to [mutable] ComponentPtr
 	USceneComponent* GetOrFindSceneComponent() const;
 
-	bool SetSceneComponent(USceneComponent* InComponent)
+	bool SetSceneComponent(USceneComponent* const InComponent)
 	{
 		FScopeLock lock(&DataGuard);
 

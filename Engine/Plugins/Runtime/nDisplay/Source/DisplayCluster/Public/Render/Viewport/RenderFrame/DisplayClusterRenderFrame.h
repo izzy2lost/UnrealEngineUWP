@@ -66,6 +66,8 @@ struct FDisplayClusterRenderFrameTarget
 	// required Render target size (resource can be bigger)
 	FIntPoint RenderTargetSize;
 
+	// Viewport capture mode
+	// This mode affects many viewport rendering settings.
 	EDisplayClusterViewportCaptureMode CaptureMode = EDisplayClusterViewportCaptureMode::Default;
 
 	// Render target resource ref

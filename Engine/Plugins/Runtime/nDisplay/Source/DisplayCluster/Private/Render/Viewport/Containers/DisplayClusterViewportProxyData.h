@@ -17,20 +17,23 @@ class IDisplayClusterRender_MeshComponent;
 class FDisplayClusterViewport_OpenColorIO;
 class FSceneViewStateReference;
 
-//
-// Container for data exchange game->render threads
-//
+/**
+ *  Container for data exchange game->render threads
+ */
 class FDisplayClusterViewportProxyData
 {
 public:
-	FDisplayClusterViewportProxyData(const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& SrcViewport);
+	FDisplayClusterViewportProxyData(const TSharedRef<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>& InDestViewportProxy)
+		: DestViewportProxy(InDestViewportProxy)
+	{ }
 	~FDisplayClusterViewportProxyData() = default;
 
-	void UpdateProxy_RenderThread() const;
+public:
+	// Dest viewport proxy
+	const TSharedRef<FDisplayClusterViewportProxy, ESPMode::ThreadSafe> DestViewportProxy;
 
-private:
-	TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe> DstViewportProxy;
-
+	// This data is stored and copied from the game thread to the rendering thread:
+public:
 	TSharedPtr<IDisplayClusterRender_MeshComponent, ESPMode::ThreadSafe> RemapMesh;
 
 	FDisplayClusterViewport_OverscanRuntimeSettings OverscanRuntimeSettings;

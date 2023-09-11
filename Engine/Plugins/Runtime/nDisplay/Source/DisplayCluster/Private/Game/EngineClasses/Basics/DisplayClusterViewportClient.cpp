@@ -1029,19 +1029,18 @@ bool UDisplayClusterViewportClient::Draw_PIE(FViewport* InViewport, FCanvas* Sce
 		return false;
 	}
 
-	FDisplayClusterPreviewSettings PreviewSettings;
-	PreviewSettings.bPreviewEnablePostProcess = true;
-	PreviewSettings.bIsPIE = true;
+	// update current world
+	ViewportManager->GetConfiguration().SetCurrentWorld(MyWorld);
 
 	// Update local node viewports (update\create\delete) and build new render frame
-	const EDisplayClusterRenderFrameMode PreviewRenderMode = RootActor->GetPreviewRenderMode();
-	if (ViewportManager->UpdateConfiguration(PreviewRenderMode, LocalNodeId, RootActor, &PreviewSettings) == false)
+	const EDisplayClusterRenderFrameMode RenderModeForPIE = ViewportManager->GetConfiguration().GetRenderModeForPIE();
+	if (ViewportManager->GetConfiguration().UpdateConfigurationForClusterNode(RenderModeForPIE, LocalNodeId) == false)
 	{
 		return false;
 	}
 
 	FDisplayClusterRenderFrame RenderFrame;
-	if (ViewportManager->BeginNewFrame(InViewport, MyWorld, RenderFrame) == false)
+	if (ViewportManager->BeginNewFrame(InViewport, RenderFrame) == false)
 	{
 		return false;
 	}
@@ -1056,4 +1055,3 @@ bool UDisplayClusterViewportClient::Draw_PIE(FViewport* InViewport, FCanvas* Sce
 	return true;
 }
 #endif /*WITH_EDITOR*/
-

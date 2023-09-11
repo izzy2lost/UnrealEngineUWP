@@ -6,6 +6,8 @@
 #include "Containers/DisplayClusterWarpContext.h"
 #include "IDisplayClusterWarpBlend.h"
 
+class UMeshComponent;
+
 /**
  * MPCDI projection policy
  * Supported load from 'MPCDI' and 'PFM' files
@@ -55,6 +57,13 @@ public:
 	virtual IDisplayClusterWarpPolicy* GetWarpPolicy() const override;
 	virtual IDisplayClusterWarpPolicy* GetWarpPolicy_RenderThread() const override;
 
+	virtual bool HasPreviewMesh(IDisplayClusterViewport* InViewport) override;
+	virtual UMeshComponent* GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent) override;
+
+	virtual bool HasPreviewMovableMesh(IDisplayClusterViewport* InViewport) override;
+	virtual UMeshComponent* GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport) override;
+	virtual USceneComponent* const GetPreviewMovableMeshOriginComponent(IDisplayClusterViewport* InViewport) const override;
+
 	//~~End IDisplayClusterProjectionPolicy
 
 protected:
@@ -74,21 +83,10 @@ protected:
 	TArray<FDisplayClusterWarpContext> WarpBlendContexts;
 	TArray<FDisplayClusterWarpContext> WarpBlendContexts_Proxy;
 
-protected:
 	bool bInvalidConfiguration = false;
 	bool bIsPreviewMeshEnabled = false;
 
-protected:
-	virtual bool HasPreviewMesh() override
-	{
-		return true;
-	}
-
-	virtual bool HasPreviewMovableMesh() override { return true; }
-
-	virtual class UMeshComponent* GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent) override;
-	virtual class UMeshComponent* GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport) override;
-
 private:
-	FDisplayClusterSceneComponentRef MovablePreviewMeshComponentRef;
+	FDisplayClusterSceneComponentRef PreviewMeshComponentRef;
+	FDisplayClusterSceneComponentRef PreviewMovableMeshComponentRef;
 };
