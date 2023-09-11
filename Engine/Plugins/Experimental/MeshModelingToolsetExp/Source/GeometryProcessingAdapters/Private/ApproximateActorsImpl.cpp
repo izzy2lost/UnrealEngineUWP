@@ -111,6 +111,10 @@ static TUniquePtr<FSceneCapturePhotoSet> CapturePhotoSet(
 		SceneCapture->SetCaptureTypeEnabled(ERenderCaptureType::Specular, bSpecular);
 	}
 
+	// These capture types aren't yet supported by the Approximate Actors interface
+	SceneCapture->SetCaptureTypeEnabled(ERenderCaptureType::Opacity, false);
+	SceneCapture->SetCaptureTypeEnabled(ERenderCaptureType::SubsurfaceColor, false);
+
 	UWorld* World = Input.Actors.IsEmpty() ? (Input.Components.IsEmpty() ? nullptr : Input.Components[0]->GetWorld()) : Input.Actors[0]->GetWorld();
 
 	SceneCapture->SetCaptureSceneActorsAndComponents(World, Input.Actors, Input.Components);
@@ -1275,7 +1279,10 @@ void FApproximateActorsImpl::GenerateApproximationForActorSet(const FInput& Inpu
 
 	// force material update now that we have updated texture parameters
 	// (does this do that? Let calling code do it?)
-	NewMaterial->PostEditChange();
+	if (NewMaterial != nullptr)
+	{
+		NewMaterial->PostEditChange();
+	}
 
 	EmitGeneratedMeshAsset(Options, ResultsOut, &FinalMesh, NewMaterial, WriteDebugMesh);
 	ResultsOut.ResultCode = EResultCode::Success;
