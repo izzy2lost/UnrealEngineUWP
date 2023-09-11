@@ -1477,29 +1477,6 @@ const FMetasoundFrontendVertex* FMetaSoundFrontendDocumentBuilder::FindNodeInput
 	return NodeCache.FindInputVertex(InNodeID, InVertexName);
 }
 
-const FMetasoundFrontendClassInput* FMetaSoundFrontendDocumentBuilder::FindNodeInputClassInput(const FGuid& InNodeID, const FName& InVertexName) const
-{
-	using namespace Metasound::Frontend;
-
-	const FMetasoundFrontendDocument& Document = GetDocument();
-	const IDocumentGraphNodeCache& NodeCache = DocumentCache->GetNodeCache();
-
-	if (const FMetasoundFrontendNode* Node = NodeCache.FindNode(InNodeID))
-	{
-		if (const FMetasoundFrontendClass* Class = DocumentCache->FindDependency(Node->ClassID))
-		{
-			if (const FMetasoundFrontendVertex* Vertex = NodeCache.FindInputVertex(InNodeID, InVertexName))
-			{
-				const FName VertexName = Vertex->Name;
-				auto InputMatchesVertexName = [&VertexName](const FMetasoundFrontendClassVertex& ClassVertex) { return ClassVertex.Name == VertexName; };
-				return Class->Interface.Inputs.FindByPredicate(InputMatchesVertexName);
-			}
-		}
-	}
-
-	return nullptr;
-}
-
 TArray<const FMetasoundFrontendVertex*> FMetaSoundFrontendDocumentBuilder::FindNodeInputs(const FGuid& InNodeID, FName TypeName) const
 {
 	return DocumentCache->GetNodeCache().FindNodeInputs(InNodeID, TypeName);
@@ -1540,29 +1517,6 @@ const FMetasoundFrontendVertex* FMetaSoundFrontendDocumentBuilder::FindNodeOutpu
 	using namespace Metasound::Frontend;
 	const IDocumentGraphNodeCache& NodeCache = DocumentCache->GetNodeCache();
 	return NodeCache.FindOutputVertex(InNodeID, InVertexName);
-}
-
-const FMetasoundFrontendClassOutput* FMetaSoundFrontendDocumentBuilder::FindNodeOutputClassOutput(const FGuid& InNodeID, const FName& InVertexName) const
-{
-	using namespace Metasound::Frontend;
-
-	const FMetasoundFrontendDocument& Document = GetDocument();
-	const IDocumentGraphNodeCache& NodeCache = DocumentCache->GetNodeCache();
-
-	if (const FMetasoundFrontendNode* Node = NodeCache.FindNode(InNodeID))
-	{
-		if (const FMetasoundFrontendClass* Class = DocumentCache->FindDependency(Node->ClassID))
-		{
-			if (const FMetasoundFrontendVertex* Vertex = NodeCache.FindOutputVertex(InNodeID, InVertexName))
-			{
-				const FName VertexName = Vertex->Name;
-				auto OutputMatchesVertexName = [&VertexName](const FMetasoundFrontendClassVertex& ClassVertex) { return ClassVertex.Name == VertexName; };
-				return Class->Interface.Outputs.FindByPredicate(OutputMatchesVertexName);
-			}
-		}
-	}
-
-	return nullptr;
 }
 
 TArray<const FMetasoundFrontendVertex*> FMetaSoundFrontendDocumentBuilder::FindNodeOutputs(const FGuid& InNodeID, FName TypeName) const
@@ -1708,10 +1662,27 @@ const FMetasoundFrontendLiteral* FMetaSoundFrontendDocumentBuilder::GetNodeInput
 		{
 			if (const FMetasoundFrontendClass* Class = DocumentCache->FindDependency(Node.ClassID))
 			{
-				auto IsClassInput = [VertexName = Vertex->Name](const FMetasoundFrontendClassInput& Input) { return Input.Name == VertexName; };
-				if (const FMetasoundFrontendClassInput* ClassInput = Class->Interface.Inputs.FindByPredicate(IsClassInput))
+				const EMetasoundFrontendClassType ClassType = Class->Metadata.GetType();
+				switch (ClassType)
 				{
-					return &ClassInput->DefaultLiteral;
+					case EMetasoundFrontendClassType::Output:
+					{
+						const FMetasoundFrontendClassInput& ClassInput = Class->Interface.Inputs.Last();
+						return &ClassInput.DefaultLiteral;
+					}
+					break;
+
+					default:
+					{
+						auto IsClassInput = [VertexName = Vertex->Name](const FMetasoundFrontendClassInput& Input) { return Input.Name == VertexName; };
+						if (const FMetasoundFrontendClassInput* ClassInput = Class->Interface.Inputs.FindByPredicate(IsClassInput))
+						{
+							return &ClassInput->DefaultLiteral;
+						}
+						static_assert(static_cast<uint32>(EMetasoundFrontendClassType::Invalid) == 10, "Potential missing case coverage for EMetasoundFrontendClassType "
+							"(default may not be sufficient for newly added class types)");
+					}
+					break;
 				}
 			}
 		}

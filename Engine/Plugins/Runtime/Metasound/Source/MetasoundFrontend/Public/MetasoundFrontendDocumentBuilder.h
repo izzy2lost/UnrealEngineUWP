@@ -259,8 +259,6 @@ private:
 	FMetasoundFrontendNode* AddNodeInternal(const FMetasoundFrontendClassMetadata& InClassMetadata, Metasound::Frontend::FFinalizeNodeFunctionRef FinalizeNode, FGuid InNodeID = FGuid::NewGuid());
 
 	const TSet<FMetasoundFrontendVersion>* FindNodeClassInterfaces(const FGuid& InNodeID) const;
-	const FMetasoundFrontendClassInput* FindNodeInputClassInput(const FGuid& InNodeID, const FName& InVertexName) const;
-	const FMetasoundFrontendClassOutput* FindNodeOutputClassOutput(const FGuid& InNodeID, const FName& InVertexName) const;
 
 	void ReloadCacheInternal();
 
