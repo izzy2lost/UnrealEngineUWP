@@ -1164,7 +1164,7 @@ void FDisplayClusterConfiguratorSCSEditorViewportClient::SetPreviewResolutionSca
 	{
 		if (ADisplayClusterRootActor* CDO = BlueprintEditor->GetDefaultRootActor())
 		{
-			DisplayClusterConfiguratorPropertyUtils::SetPropertyHandleValue(
+			UE::DisplayClusterConfiguratorPropertyUtils::SetPropertyHandleValue(
 				CDO, GET_MEMBER_NAME_CHECKED(ADisplayClusterRootActor, PreviewRenderTargetRatioMult), InScale);
 		}
 	}

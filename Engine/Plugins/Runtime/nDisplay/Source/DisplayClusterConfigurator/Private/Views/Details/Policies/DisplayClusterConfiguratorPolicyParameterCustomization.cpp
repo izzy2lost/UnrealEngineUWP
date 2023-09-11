@@ -163,7 +163,7 @@ void FPolicyParameterInfo::UpdateCustomParameterValueText(const FString& NewValu
 		FStructProperty* StructProperty = FindFProperty<FStructProperty>(ConfigurationViewport->GetClass(), GET_MEMBER_NAME_CHECKED(UDisplayClusterConfigurationViewport, ProjectionPolicy));
 		check(StructProperty);
 
-		const TSharedPtr<ISinglePropertyView> ProjectionPolicyView = DisplayClusterConfiguratorPropertyUtils::GetPropertyView(
+		const TSharedPtr<ISinglePropertyView> ProjectionPolicyView = UE::DisplayClusterConfiguratorPropertyUtils::GetPropertyView(
 			ConfigurationViewport, GET_MEMBER_NAME_CHECKED(UDisplayClusterConfigurationViewport, ProjectionPolicy));
 
 		check(ProjectionPolicyView.IsValid());
@@ -172,7 +172,7 @@ void FPolicyParameterInfo::UpdateCustomParameterValueText(const FString& NewValu
 		check(PropertyHandle.IsValid());
 		
 		uint8* MapContainer = StructProperty->ContainerPtrToValuePtr<uint8>(ConfigurationViewport);
-		DisplayClusterConfiguratorPropertyUtils::AddKeyValueToMap(MapContainer, PropertyHandle, Key, NewValue);
+		UE::DisplayClusterConfiguratorPropertyUtils::AddKeyValueToMap(MapContainer, PropertyHandle, Key, NewValue);
 	}
 
 	if (bNotify && bHasChanged)

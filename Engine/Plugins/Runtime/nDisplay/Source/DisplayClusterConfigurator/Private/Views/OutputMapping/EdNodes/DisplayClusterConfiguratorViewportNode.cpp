@@ -97,7 +97,7 @@ void UDisplayClusterConfiguratorViewportNode::DeleteObject()
 	}
 
 	UDisplayClusterConfigurationViewport* Viewport = GetObjectChecked<UDisplayClusterConfigurationViewport>();
-	FDisplayClusterConfiguratorClusterUtils::RemoveViewportFromClusterNode(Viewport);
+	UE::DisplayClusterConfiguratorClusterUtils::RemoveViewportFromClusterNode(Viewport);
 }
 
 void UDisplayClusterConfiguratorViewportNode::WriteNodeStateToObject()

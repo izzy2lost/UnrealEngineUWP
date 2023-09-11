@@ -796,7 +796,7 @@ void FDisplayClusterConfiguratorBlueprintEditor::OnRenameVariable(UBlueprint* Bl
 					TMap<FString, FString> PolicyCopy = Viewport->ProjectionPolicy.Parameters;
 
 					const TSharedPtr<ISinglePropertyView> ProjectPolicyView =
-						DisplayClusterConfiguratorPropertyUtils::GetPropertyView(
+						UE::DisplayClusterConfiguratorPropertyUtils::GetPropertyView(
 							Viewport, GET_MEMBER_NAME_CHECKED(UDisplayClusterConfigurationViewport, ProjectionPolicy));
 					check(ProjectPolicyView);
 					
@@ -811,20 +811,20 @@ void FDisplayClusterConfiguratorBlueprintEditor::OnRenameVariable(UBlueprint* Bl
 					{
 						if (PolicyParameters.Value == OldVariableName.ToString())
 						{
-							DisplayClusterConfiguratorPropertyUtils::RemoveKeyFromMap(MapContainer, ParametersHandle, PolicyParameters.Key);
-							DisplayClusterConfiguratorPropertyUtils::AddKeyValueToMap(MapContainer, ParametersHandle, PolicyParameters.Key, NewVariableName.ToString());
+							UE::DisplayClusterConfiguratorPropertyUtils::RemoveKeyFromMap(MapContainer, ParametersHandle, PolicyParameters.Key);
+							UE::DisplayClusterConfiguratorPropertyUtils::AddKeyValueToMap(MapContainer, ParametersHandle, PolicyParameters.Key, NewVariableName.ToString());
 						}
 					}
 				}
 
 				if (Viewport->Camera == OldVariableName.ToString())
 				{
-					DisplayClusterConfiguratorPropertyUtils::SetPropertyHandleValue(Viewport, GET_MEMBER_NAME_CHECKED(UDisplayClusterConfigurationViewport, Camera), NewVariableName.ToString());
+					UE::DisplayClusterConfiguratorPropertyUtils::SetPropertyHandleValue(Viewport, GET_MEMBER_NAME_CHECKED(UDisplayClusterConfigurationViewport, Camera), NewVariableName.ToString());
 				}
 
 				if (Viewport->DisplayDeviceName == OldVariableName.ToString())
 				{
-					DisplayClusterConfiguratorPropertyUtils::SetPropertyHandleValue(Viewport, GET_MEMBER_NAME_CHECKED(UDisplayClusterConfigurationViewport, DisplayDeviceName), NewVariableName.ToString());
+					UE::DisplayClusterConfiguratorPropertyUtils::SetPropertyHandleValue(Viewport, GET_MEMBER_NAME_CHECKED(UDisplayClusterConfigurationViewport, DisplayDeviceName), NewVariableName.ToString());
 				}
 			}
 		}
@@ -1150,7 +1150,7 @@ void FDisplayClusterConfiguratorBlueprintEditor::OnClose()
 	if (UDisplayClusterConfigurationData* Config = GetConfig())
 	{
 		bool bIsDirty = LoadedBlueprint->GetOutermost()->IsDirty();
-		bool bHostDataRemoved = FDisplayClusterConfiguratorClusterUtils::RemoveUnusedHostDisplayData(Config->Cluster);
+		bool bHostDataRemoved = UE::DisplayClusterConfiguratorClusterUtils::RemoveUnusedHostDisplayData(Config->Cluster);
 
 		// If the blueprint wasn't dirty before, removing the unused host display data will have make it dirty, which is confusing to the user.
 		// In this case, immediately save the host display data removal to the blueprint.

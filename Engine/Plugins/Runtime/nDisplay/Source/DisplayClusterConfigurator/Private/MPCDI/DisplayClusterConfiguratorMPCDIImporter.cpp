@@ -207,10 +207,10 @@ UDisplayClusterConfigurationViewport* FDisplayClusterConfiguratorMPCDIImporter::
 	{
 		const FString NodeName = GetClusterNodeNameForRegion(RegionId);
 		UDisplayClusterConfigurationClusterNode* ClusterNodeTemplate = NewObject<UDisplayClusterConfigurationClusterNode>(InBlueprint, NAME_None, RF_Transactional | RF_ArchetypeObject | RF_Public);
-		UDisplayClusterConfigurationClusterNode* NewClusterNode = FDisplayClusterConfiguratorClusterUtils::AddClusterNodeToCluster(ClusterNodeTemplate, Cluster, NodeName);
+		UDisplayClusterConfigurationClusterNode* NewClusterNode = UE::DisplayClusterConfiguratorClusterUtils::AddClusterNodeToCluster(ClusterNodeTemplate, Cluster, NodeName);
 
 		UDisplayClusterConfigurationViewport* ViewportTemplate = NewObject<UDisplayClusterConfigurationViewport>(InBlueprint, NAME_None, RF_Transactional | RF_ArchetypeObject | RF_Public);
-		Viewport = FDisplayClusterConfiguratorClusterUtils::AddViewportToClusterNode(ViewportTemplate, NewClusterNode, ViewportName);
+		Viewport = UE::DisplayClusterConfiguratorClusterUtils::AddViewportToClusterNode(ViewportTemplate, NewClusterNode, ViewportName);
 	}
 
 	return Viewport;

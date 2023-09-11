@@ -1269,7 +1269,7 @@ void FDisplayClusterConfiguratorRenderSyncPolicyCustomization::AddToParameterMap
 	check(RenderStructProperty);
 
 	uint8* MapContainer = RenderStructProperty->ContainerPtrToValuePtr<uint8>(&ConfigurationCluster->Sync);
-	DisplayClusterConfiguratorPropertyUtils::AddKeyValueToMap(MapContainer, ParametersHandle, Key, Value);
+	UE::DisplayClusterConfiguratorPropertyUtils::AddKeyValueToMap(MapContainer, ParametersHandle, Key, Value);
 }
 
 void FDisplayClusterConfiguratorRenderSyncPolicyCustomization::RemoveFromParameterMap(const FString& Key)
@@ -1284,7 +1284,7 @@ void FDisplayClusterConfiguratorRenderSyncPolicyCustomization::RemoveFromParamet
 	check(RenderStructProperty);
 
 	uint8* MapContainer = RenderStructProperty->ContainerPtrToValuePtr<uint8>(&ConfigurationCluster->Sync);
-	DisplayClusterConfiguratorPropertyUtils::RemoveKeyFromMap(MapContainer, ParametersHandle, Key);
+	UE::DisplayClusterConfiguratorPropertyUtils::RemoveKeyFromMap(MapContainer, ParametersHandle, Key);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
