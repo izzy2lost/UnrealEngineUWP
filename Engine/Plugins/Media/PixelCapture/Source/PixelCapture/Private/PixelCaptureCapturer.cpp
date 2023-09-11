@@ -44,7 +44,7 @@ void FPixelCaptureCapturer::Capture(const IPixelCaptureInputFrame& InputFrame)
 	}
 
 	InitMetadata(InputFrame.Metadata.Copy());
-	StartTime = FPlatformTime::Cycles64();
+	StartTime = rtc::TimeMillis();
 	CPUStartTime = 0;
 	GPUEnqueueTime = 0;
 	GPUStartTime = 0;
@@ -68,16 +68,16 @@ void FPixelCaptureCapturer::MarkCPUWorkStart()
 	{
 		MarkCPUWorkEnd();
 	}
-	CPUStartTime = FPlatformTime::Cycles64();
+	CPUStartTime = rtc::TimeMillis();
 }
 
 void FPixelCaptureCapturer::MarkCPUWorkEnd()
 {
 	check(CurrentOutputBuffer != nullptr);
-	CurrentOutputBuffer->Metadata.CaptureProcessCPUTime += FPlatformTime::Cycles64() - CPUStartTime;
+	CurrentOutputBuffer->Metadata.CaptureProcessCPUTime += rtc::TimeMillis() - CPUStartTime;
 	CPUStartTime = 0;
 
-	GPUEnqueueTime = FPlatformTime::Cycles64();
+	GPUEnqueueTime = rtc::TimeMillis();
 }
 
 void FPixelCaptureCapturer::MarkGPUWorkStart()
@@ -86,7 +86,7 @@ void FPixelCaptureCapturer::MarkGPUWorkStart()
 	{
 		MarkGPUWorkEnd();
 	}
-	GPUStartTime = FPlatformTime::Cycles64();
+	GPUStartTime = rtc::TimeMillis();
 	
 	CurrentOutputBuffer->Metadata.CaptureProcessGPUDelay += GPUStartTime - GPUEnqueueTime;
 	GPUEnqueueTime = 0;
@@ -94,7 +94,7 @@ void FPixelCaptureCapturer::MarkGPUWorkStart()
 
 void FPixelCaptureCapturer::MarkGPUWorkEnd()
 {
-	CurrentOutputBuffer->Metadata.CaptureProcessGPUTime += FPlatformTime::Cycles64() - GPUStartTime;
+	CurrentOutputBuffer->Metadata.CaptureProcessGPUTime += rtc::TimeMillis() - GPUStartTime;
 	GPUStartTime = 0;
 }
 
@@ -119,7 +119,7 @@ void FPixelCaptureCapturer::FinalizeMetadata()
 		MarkGPUWorkEnd();
 	}
 
-	CurrentOutputBuffer->Metadata.CaptureTime += FPlatformTime::Cycles64() - StartTime;
+	CurrentOutputBuffer->Metadata.CaptureTime += rtc::TimeMillis() - StartTime;
 }
 
 void FPixelCaptureCapturer::EndProcess()

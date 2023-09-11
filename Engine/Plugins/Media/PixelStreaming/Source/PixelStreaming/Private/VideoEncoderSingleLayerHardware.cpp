@@ -98,7 +98,7 @@ namespace UE::PixelStreaming
 	{
 		FPixelCaptureFrameMetadata& FrameMetadata = Frame.Metadata;
 		FrameMetadata.UseCount++;
-		FrameMetadata.LastEncodeStartTime = FPlatformTime::Cycles64();
+		FrameMetadata.LastEncodeStartTime = rtc::TimeMillis();
 		if (FrameMetadata.UseCount == 1)
 		{
 			FrameMetadata.FirstEncodeStartTime = FrameMetadata.LastEncodeStartTime;
@@ -108,7 +108,7 @@ namespace UE::PixelStreaming
 	void FVideoEncoderSingleLayerHardware::UpdateFrameMetadataPostEncode(IPixelCaptureOutputFrame& Frame)
 	{
 		FPixelCaptureFrameMetadata& FrameMetadata = Frame.Metadata;
-		FrameMetadata.LastEncodeEndTime = FPlatformTime::Cycles64();
+		FrameMetadata.LastEncodeEndTime = rtc::TimeMillis();
 
 		FStats::Get()->AddFrameTimingStats(FrameMetadata);
 	}
@@ -116,7 +116,7 @@ namespace UE::PixelStreaming
 	void FVideoEncoderSingleLayerHardware::UpdateFrameMetadataPrePacketization(IPixelCaptureOutputFrame& Frame)
 	{
 		FPixelCaptureFrameMetadata& FrameMetadata = Frame.Metadata;
-		FrameMetadata.LastPacketizationStartTime = FPlatformTime::Cycles64();
+		FrameMetadata.LastPacketizationStartTime = rtc::TimeMillis();
 		if (FrameMetadata.UseCount == 1)
 		{
 			FrameMetadata.FirstPacketizationStartTime = FrameMetadata.LastPacketizationStartTime;
@@ -126,7 +126,7 @@ namespace UE::PixelStreaming
 	void FVideoEncoderSingleLayerHardware::UpdateFrameMetadataPostPacketization(IPixelCaptureOutputFrame& Frame)
 	{
 		FPixelCaptureFrameMetadata& FrameMetadata = Frame.Metadata;
-		FrameMetadata.LastPacketizationEndTime = FPlatformTime::Cycles64();
+		FrameMetadata.LastPacketizationEndTime = rtc::TimeMillis();
 
 		FStats::Get()->AddFrameTimingStats(FrameMetadata);
 	}
@@ -243,7 +243,7 @@ namespace UE::PixelStreaming
 				Image.SetSpatialIndex(0);
 				Image.rotation_ = webrtc::VideoRotation::kVideoRotation_0;
 				Image.SetTimestamp(frame.timestamp());
-				Image.capture_time_ms_ = Packet.Timestamp / 1000.0;
+				Image.capture_time_ms_ = frame.timestamp_us() / 1000.0;
 
 				webrtc::CodecSpecificInfo CodecInfo;
 				switch (Codec)

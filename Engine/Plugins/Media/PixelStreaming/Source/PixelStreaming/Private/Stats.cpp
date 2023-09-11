@@ -492,11 +492,11 @@ namespace UE::PixelStreaming
 		return DeltaMs;
 	}
 
-	double FStats::AddTimeDeltaStat(uint64 Cycles1, uint64 Cycles2, const FString& Label)
+	double FStats::AddTimeDeltaStat(uint64 Millis1, uint64 Millis2, const FString& Label)
 	{
-		const uint64 MaxCycles = FGenericPlatformMath::Max(Cycles1, Cycles2);
-		const uint64 MinCycles = FGenericPlatformMath::Min(Cycles1, Cycles2);
-		const double DeltaMs = FPlatformTime::ToMilliseconds64(MaxCycles - MinCycles) * ((Cycles1 > Cycles2) ? 1.0 : -1.0);
+		const uint64 MaxMillis = FGenericPlatformMath::Max(Millis1, Millis2);
+		const uint64 MinMillis = FGenericPlatformMath::Min(Millis1, Millis2);
+		const double DeltaMs = (MaxMillis - MinMillis) * ((Millis1 > Millis2) ? 1.0 : -1.0);
 		const FStatData TimeData{ FName(*Label), DeltaMs, 2, true };
 		StoreApplicationStat(TimeData);
 		return DeltaMs;
