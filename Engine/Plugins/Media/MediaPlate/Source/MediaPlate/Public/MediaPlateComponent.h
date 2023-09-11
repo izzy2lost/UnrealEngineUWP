@@ -53,7 +53,7 @@ struct FMediaTextureResourceSettings
 
 	/** Current number of mips to be generated as output */
 	UPROPERTY(EditAnywhere, Category = "Media Texture Resource Settings")
-	uint8 CurrentNumMips = 0;
+	uint8 CurrentNumMips = 1;
 };
 
 
