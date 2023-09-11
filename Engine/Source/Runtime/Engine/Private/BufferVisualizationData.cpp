@@ -35,11 +35,11 @@ void FBufferVisualizationData::Initialize()
 			check(MaterialMap.Num() == 0);
 			check(MaterialMapFromMaterialName.Num() == 0);
 
-			const FConfigSection* MaterialSection = GConfig->GetSection( TEXT("Engine.BufferVisualizationMaterials"), false, GEngineIni );
+			FConfigSection* MaterialSection = GConfig->GetSectionPrivate( TEXT("Engine.BufferVisualizationMaterials"), false, true, GEngineIni );
 
 			if (MaterialSection != NULL)
 			{
-				for (FConfigSection::TConstIterator It(*MaterialSection); It; ++It)
+				for (FConfigSection::TIterator It(*MaterialSection); It; ++It)
 				{
 					FString EnabledCVar;
 					if (FParse::Value(*It.Value().GetValue(), TEXT("Display="), EnabledCVar, true))

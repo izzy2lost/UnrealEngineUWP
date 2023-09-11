@@ -143,7 +143,7 @@ static void ExpandScalabilityCVar(FConfigCacheIni* ConfigSystem, const FString& 
 	// if the DP had sg.ResolutionQuality=3, we would read [ResolutionQuality@3]
 	FString SectionName = FString::Printf(TEXT("%s@%s"), *CVarKey.Mid(3), *CVarValue);
 	// walk over the scalability section and add them in, unless already done
-	const FConfigSection* ScalabilitySection = ConfigSystem->GetSection(*SectionName, false, GScalabilityIni);
+	FConfigSection* ScalabilitySection = ConfigSystem->GetSectionPrivate(*SectionName, false, true, GScalabilityIni);
 	if (ScalabilitySection != nullptr)
 	{
 		for (const auto& Pair : *ScalabilitySection)
@@ -250,7 +250,7 @@ TMap<FName, FString> UDeviceProfileManager::GatherDeviceProfileCVars(const FStri
 		FString CurrentSectionName = BaseDeviceProfileName + SectionSuffix;
 
 		// check if there is a section named for the DeviceProfile
-		const FConfigSection* CurrentSection = ConfigSystem->GetSection(*CurrentSectionName, false, GDeviceProfilesIni);
+		FConfigSection* CurrentSection = ConfigSystem->GetSectionPrivate(*CurrentSectionName, false, true, GDeviceProfilesIni);
 		if (CurrentSection != nullptr)
 		{
 			// put this up in some shared code somewhere in FGenericPlatformMemory
@@ -407,7 +407,7 @@ void UDeviceProfileManager::SetDeviceProfileCVars(const FString& DeviceProfileNa
 	check(PushedSettings.Num() == 0);
 
 	// Preload a cvar we rely on in the loop below
-	if (const FConfigSection* Section = GConfig->GetSection(TEXT("ConsoleVariables"), false, *GEngineIni))
+	if (FConfigSection* Section = GConfig->GetSectionPrivate(TEXT("ConsoleVariables"), false, true, *GEngineIni))
 	{
 		static FName AllowScalabilityAtRuntimeName = TEXT("dp.AllowScalabilityGroupsToChangeAtRuntime");
 		if (const FConfigValue* Value = Section->Find(AllowScalabilityAtRuntimeName))

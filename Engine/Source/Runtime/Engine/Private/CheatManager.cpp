@@ -1215,7 +1215,7 @@ void UCheatManager::CheatScript(FString ScriptName)
 	UConsole* ConsoleToDisplayResults = (LocalPlayer && LocalPlayer->ViewportClient) ? LocalPlayer->ViewportClient->ViewportConsole : nullptr;
 
 	// Run commands from the ini
-	const FConfigSection* CommandsToRun = GConfig->GetSection(*FString::Printf(TEXT("CheatScript.%s"), *ScriptName), 0, GGameIni);
+	FConfigSection const* const CommandsToRun = GConfig->GetSectionPrivate(*FString::Printf(TEXT("CheatScript.%s"), *ScriptName), 0, 1, GGameIni);
 
 	if (CommandsToRun)
 	{

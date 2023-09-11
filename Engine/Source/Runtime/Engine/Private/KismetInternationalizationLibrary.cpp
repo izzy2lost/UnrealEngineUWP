@@ -92,8 +92,11 @@ bool UKismetInternationalizationLibrary::SetCurrentAssetGroupCulture(const FName
 	{
 		if (!GIsEditor && SaveToConfig)
 		{
-			GConfig->RemoveKeyFromSection(TEXT("Internationalization.AssetGroupCultures"), AssetGroup, GGameUserSettingsIni);
-			GConfig->AddToSection(TEXT("Internationalization.AssetGroupCultures"), AssetGroup, Culture, GGameUserSettingsIni);
+			if (FConfigSection* AssetGroupCulturesSection = GConfig->GetSectionPrivate(TEXT("Internationalization.AssetGroupCultures"), false, false, GGameUserSettingsIni))
+			{
+				AssetGroupCulturesSection->Remove(AssetGroup);
+				AssetGroupCulturesSection->Add(AssetGroup, Culture);
+			}
 			GConfig->Flush(false, GGameUserSettingsIni);
 		}
 		return true;
@@ -113,7 +116,10 @@ void UKismetInternationalizationLibrary::ClearCurrentAssetGroupCulture(const FNa
 
 	if (!GIsEditor && SaveToConfig)
 	{
-		GConfig->RemoveKeyFromSection(TEXT("Internationalization.AssetGroupCultures"), AssetGroup, GGameUserSettingsIni);
+		if (FConfigSection* AssetGroupCulturesSection = GConfig->GetSectionPrivate(TEXT("Internationalization.AssetGroupCultures"), false, false, GGameUserSettingsIni))
+		{
+			AssetGroupCulturesSection->Remove(AssetGroup);
+		}
 		GConfig->Flush(false, GGameUserSettingsIni);
 	}
 }

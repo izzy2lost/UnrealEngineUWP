@@ -227,14 +227,14 @@ void FLinkerLoad::CreateActiveRedirectsMap(const FString& GEngineIniName)
 
 	if (GConfig)
 	{
-		const FConfigSection* PackageRedirects = GConfig->GetSection( TEXT("/Script/Engine.Engine"), false, GEngineIniName );
+		FConfigSection* PackageRedirects = GConfig->GetSectionPrivate( TEXT("/Script/Engine.Engine"), false, true, GEngineIniName );
 		if (PackageRedirects)
 		{
 			TArray<FCoreRedirect> NewRedirects;
 			FDeferredMessageLog RedirectErrors(NAME_LoadErrors);
 
 			static FName ActiveClassRedirectsKey(TEXT("ActiveClassRedirects"));
-			for( FConfigSection::TConstIterator It(*PackageRedirects); It; ++It )
+			for( FConfigSection::TIterator It(*PackageRedirects); It; ++It )
 			{
 				if (It.Key() == ActiveClassRedirectsKey)
 				{

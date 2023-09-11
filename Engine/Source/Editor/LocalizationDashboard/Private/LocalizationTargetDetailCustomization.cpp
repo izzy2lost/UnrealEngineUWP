@@ -655,19 +655,25 @@ void FLocalizationTargetDetailCustomization::SetLoadingPolicy(const ELocalizatio
 		FConfigFile IniFile;
 		FConfigCacheIni::LoadLocalIniFile(IniFile, *LoadingPolicyConfig.DefaultConfigName, /*bIsBaseIniName*/false);
 
+		FConfigSection* IniSection = IniFile.Find(*LoadingPolicyConfig.SectionName);
+		if (!IniSection)
+		{
+			IniSection = &IniFile.Add(*LoadingPolicyConfig.SectionName);
+		}
+
 		switch (OperationToPerform)
 		{
 		case EDefaultConfigOperation::AddExclusion:
-			IniFile.AddToSection(*LoadingPolicyConfig.SectionName, *FString::Printf(TEXT("-%s"), *LoadingPolicyConfig.KeyName), *CollapsedDataDirectory);
+			IniSection->Add(*FString::Printf(TEXT("-%s"), *LoadingPolicyConfig.KeyName), FConfigValue(*CollapsedDataDirectory));
 			break;
 		case EDefaultConfigOperation::RemoveExclusion:
-			IniFile.RemoveFromSection(*LoadingPolicyConfig.SectionName, *FString::Printf(TEXT("-%s"), *LoadingPolicyConfig.KeyName), *CollapsedDataDirectory);
+			IniSection->RemoveSingle(*FString::Printf(TEXT("-%s"), *LoadingPolicyConfig.KeyName), FConfigValue(*CollapsedDataDirectory));
 			break;
 		case EDefaultConfigOperation::AddAddition:
-			IniFile.AddToSection(*LoadingPolicyConfig.SectionName, *FString::Printf(TEXT("+%s"), *LoadingPolicyConfig.KeyName), *CollapsedDataDirectory);
+			IniSection->Add(*FString::Printf(TEXT("+%s"), *LoadingPolicyConfig.KeyName), FConfigValue(*CollapsedDataDirectory));
 			break;
 		case EDefaultConfigOperation::RemoveAddition:
-			IniFile.RemoveFromSection(*LoadingPolicyConfig.SectionName, *FString::Printf(TEXT("+%s"), *LoadingPolicyConfig.KeyName), *CollapsedDataDirectory);
+			IniSection->RemoveSingle(*FString::Printf(TEXT("+%s"), *LoadingPolicyConfig.KeyName), FConfigValue(*CollapsedDataDirectory));
 			break;
 		default:
 			break;

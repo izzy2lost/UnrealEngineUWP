@@ -222,7 +222,11 @@ void FXcodeGPUDebuggerPluginModule::BeginFrameCapture(const FString& InCaptureFi
 
 void FXcodeGPUDebuggerPluginModule::InjectDebugExecKeybind()
 {
-	GConfig->AddUniqueToSection(TEXT("/Script/Engine.PlayerInput"), TEXT("DebugExecBindings"), TEXT("(Key=E,Command=\"Xcode.CaptureFrame\", Shift=true)"), GInputIni);
+	FConfigSection* Section = GConfig->GetSectionPrivate(TEXT("/Script/Engine.PlayerInput"), false, false, GInputIni);
+	if (Section != nullptr)
+	{
+		Section->HandleAddCommand(TEXT("DebugExecBindings"), TEXT("(Key=E,Command=\"Xcode.CaptureFrame\", Shift=true)"), false);
+	}
 }
 
 void FXcodeGPUDebuggerPluginModule::EndFrameCapture(void* HWnd, uint32 Flags, const FString& DestFileName)

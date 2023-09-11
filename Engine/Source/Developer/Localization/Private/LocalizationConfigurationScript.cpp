@@ -264,7 +264,7 @@ namespace LocalizationConfigurationScript
 
 		// CommonSettings
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.CommonSettings();
 
 			TArray<ULocalizationTarget*> AllLocalizationTargets;
 
@@ -320,15 +320,13 @@ namespace LocalizationConfigurationScript
 			{
 				ConfigSection.Add( TEXT("CulturesToGenerate"), CultureStatistics.CultureName );
 			}
-			
-			Script.AddCommonSettings(MoveTemp(ConfigSection));
 		}
 
 		uint32 GatherTextStepIndex = 0;
 		// GatherTextFromSource
 		if (Target->Settings.GatherFromTextFiles.IsEnabled)
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.GatherTextStep(GatherTextStepIndex++);
 
 			// CommandletClass
 			ConfigSection.Add( TEXT("CommandletClass"), TEXT("GatherTextFromSource") );
@@ -353,14 +351,12 @@ namespace LocalizationConfigurationScript
 			}
 
 			ConfigSection.Add( TEXT("ShouldGatherFromEditorOnlyData"), Target->Settings.GatherFromTextFiles.ShouldGatherFromEditorOnlyData ? TEXT("true") : TEXT("false") );
-			
-			Script.AddGatherTextStep(GatherTextStepIndex++, MoveTemp(ConfigSection));
 		}
 
 		// GatherTextFromAssets
 		if (Target->Settings.GatherFromPackages.IsEnabled)
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.GatherTextStep(GatherTextStepIndex++);
 
 			// CommandletClass
 			ConfigSection.Add( TEXT("CommandletClass"), TEXT("GatherTextFromAssets") );
@@ -401,14 +397,12 @@ namespace LocalizationConfigurationScript
 
 			ConfigSection.Add( TEXT("ShouldGatherFromEditorOnlyData"), Target->Settings.GatherFromPackages.ShouldGatherFromEditorOnlyData ? TEXT("true") : TEXT("false") );
 			ConfigSection.Add( TEXT("SkipGatherCache"), Target->Settings.GatherFromPackages.SkipGatherCache ? TEXT("true") : TEXT("false") );
-
-			Script.AddGatherTextStep(GatherTextStepIndex++, MoveTemp(ConfigSection));
 		}
 
 		// GatherTextFromMetadata
 		if (Target->Settings.GatherFromMetaData.IsEnabled)
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.GatherTextStep(GatherTextStepIndex++);
 
 			// CommandletClass
 			ConfigSection.Add( TEXT("CommandletClass"), TEXT("GatherTextFromMetadata") );
@@ -454,33 +448,27 @@ namespace LocalizationConfigurationScript
 			}
 
 			ConfigSection.Add( TEXT("ShouldGatherFromEditorOnlyData"), Target->Settings.GatherFromMetaData.ShouldGatherFromEditorOnlyData ? TEXT("true") : TEXT("false") );
-
-			Script.AddGatherTextStep(GatherTextStepIndex++, MoveTemp(ConfigSection));
 		}
 
 		// GenerateGatherManifest
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.GatherTextStep(GatherTextStepIndex++);
 
 			// CommandletClass
 			ConfigSection.Add( TEXT("CommandletClass"), TEXT("GenerateGatherManifest") );
-
-			Script.AddGatherTextStep(GatherTextStepIndex++, MoveTemp(ConfigSection));
 		}
 
 		// GenerateGatherArchive
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.GatherTextStep(GatherTextStepIndex++);
 
 			// CommandletClass
 			ConfigSection.Add( TEXT("CommandletClass"), TEXT("GenerateGatherArchive") );
-
-			Script.AddGatherTextStep(GatherTextStepIndex++, MoveTemp(ConfigSection));
 		}
 
 		// GenerateTextLocalizationReport
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.GatherTextStep(GatherTextStepIndex++);
 
 			// CommandletClass
 			ConfigSection.Add( TEXT("CommandletClass"), TEXT("GenerateTextLocalizationReport") );
@@ -490,8 +478,6 @@ namespace LocalizationConfigurationScript
 
 			ConfigSection.Add( TEXT("bConflictReport"), TEXT("true") );
 			ConfigSection.Add( TEXT("ConflictReportName"), GetConflictReportFileName(Target) );
-
-			Script.AddGatherTextStep(GatherTextStepIndex++, MoveTemp(ConfigSection));
 		}
 
 		Script.Dirty = true;
@@ -513,7 +499,7 @@ namespace LocalizationConfigurationScript
 
 		// CommonSettings
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.CommonSettings();
 
 			FString SourcePath;
 			// Overriding output path changes the source directory for the PO file.
@@ -585,13 +571,11 @@ namespace LocalizationConfigurationScript
 				POFileName = GetDefaultPOFileName( Target );
 			}
 			ConfigSection.Add( TEXT("PortableObjectName"), POFileName );
-			
-			Script.AddCommonSettings(MoveTemp(ConfigSection));
 		}
 
 		// GatherTextStep0 - InternationalizationExport
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.GatherTextStep(0);
 
 			// CommandletClass
 			ConfigSection.Add( TEXT("CommandletClass"), TEXT("InternationalizationExport") );
@@ -608,8 +592,6 @@ namespace LocalizationConfigurationScript
 				const FName POFormatName = POFormatEnum->GetNameByValue((int64)Target->Settings.ExportSettings.POFormat);
 				ConfigSection.Add(TEXT("POFormat"), POFormatName.ToString());
 			}
-			
-			Script.AddGatherTextStep(0, MoveTemp(ConfigSection));
 		}
 
 		Script.Dirty = true;
@@ -641,7 +623,7 @@ namespace LocalizationConfigurationScript
 
 		// CommonSettings
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.CommonSettings();
 
 			const FString SourcePath = ContentDirRelativeToGameDir / TEXT("Localization") / Target->Settings.Name;
 			ConfigSection.Add( TEXT("SourcePath"), SourcePath );
@@ -714,13 +696,11 @@ namespace LocalizationConfigurationScript
 				POFileName = GetDefaultPOFileName(Target);
 			}
 			ConfigSection.Add( TEXT("PortableObjectName"), POFileName );
-			
-			Script.AddCommonSettings(MoveTemp(ConfigSection));
 		}
 
 		// GatherTextStep0 - InternationalizationExport
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.GatherTextStep(0);
 
 			// CommandletClass
 			ConfigSection.Add( TEXT("CommandletClass"), TEXT("InternationalizationExport") );
@@ -740,8 +720,6 @@ namespace LocalizationConfigurationScript
 				ConfigSection.Add(TEXT("ShouldPersistCommentsOnExport"), Target->Settings.ExportSettings.ShouldPersistCommentsOnExport ? TEXT("true") : TEXT("false"));
 				ConfigSection.Add(TEXT("ShouldAddSourceLocationsAsComments"), Target->Settings.ExportSettings.ShouldAddSourceLocationsAsComments ? TEXT("true") : TEXT("false"));
 			}
-			
-			Script.AddGatherTextStep(0, MoveTemp(ConfigSection));
 		}
 
 		Script.Dirty = true;
@@ -773,7 +751,7 @@ namespace LocalizationConfigurationScript
 
 		// CommonSettings
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.CommonSettings();
 
 			FString SourcePath;
 			// Overriding import path changes the source directory for the dialogue script file.
@@ -845,18 +823,14 @@ namespace LocalizationConfigurationScript
 				DialogueScriptFileName = GetDefaultDialogueScriptFileName(Target);
 			}
 			ConfigSection.Add(TEXT("DialogueScriptName"), DialogueScriptFileName);
-			
-			Script.AddCommonSettings(MoveTemp(ConfigSection));
 		}
 
 		// GatherTextStep0 - ImportDialogueScript
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.GatherTextStep(0);
 
 			// CommandletClass
 			ConfigSection.Add(TEXT("CommandletClass"), TEXT("ImportDialogueScript"));
-			
-			Script.AddGatherTextStep(0, MoveTemp(ConfigSection));
 		}
 
 		Script.Dirty = true;
@@ -888,7 +862,7 @@ namespace LocalizationConfigurationScript
 
 		// CommonSettings
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.CommonSettings();
 
 			const FString SourcePath = ContentDirRelativeToGameDir / TEXT("Localization") / Target->Settings.Name;
 			ConfigSection.Add(TEXT("SourcePath"), SourcePath);
@@ -961,18 +935,14 @@ namespace LocalizationConfigurationScript
 				DialogueScriptFileName = GetDefaultDialogueScriptFileName(Target);
 			}
 			ConfigSection.Add(TEXT("DialogueScriptName"), DialogueScriptFileName);
-			
-			Script.AddCommonSettings(MoveTemp(ConfigSection));
 		}
 
 		// GatherTextStep0 - ExportDialogueScript
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.GatherTextStep(0);
 
 			// CommandletClass
 			ConfigSection.Add(TEXT("CommandletClass"), TEXT("ExportDialogueScript"));
-			
-			Script.AddGatherTextStep(0, MoveTemp(ConfigSection));
 		}
 
 		Script.Dirty = true;
@@ -1004,7 +974,7 @@ namespace LocalizationConfigurationScript
 
 		// CommonSettings
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.CommonSettings();
 
 			const FString SourcePath = ContentDirRelativeToGameDir / TEXT("Localization") / Target->Settings.Name;
 			ConfigSection.Add(TEXT("SourcePath"), SourcePath);
@@ -1034,13 +1004,11 @@ namespace LocalizationConfigurationScript
 					AddCultureToGenerate(CultureIndex);
 				}
 			}
-			
-			Script.AddCommonSettings(MoveTemp(ConfigSection));
 		}
 
 		// GatherTextStep0 - ImportLocalizedDialogue
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.GatherTextStep(0);
 
 			// CommandletClass
 			ConfigSection.Add(TEXT("CommandletClass"), TEXT("ImportLocalizedDialogue"));
@@ -1048,8 +1016,6 @@ namespace LocalizationConfigurationScript
 			ConfigSection.Add(TEXT("RawAudioPath"), Target->Settings.ImportDialogueSettings.RawAudioPath.Path);
 			ConfigSection.Add(TEXT("ImportedDialogueFolder"), Target->Settings.ImportDialogueSettings.ImportedDialogueFolder);
 			ConfigSection.Add(TEXT("bImportNativeAsSource"), Target->Settings.ImportDialogueSettings.bImportNativeAsSource ? TEXT("true") : TEXT("false"));
-
-			Script.AddGatherTextStep(0, MoveTemp(ConfigSection));
 		}
 
 		Script.Dirty = true;
@@ -1081,7 +1047,7 @@ namespace LocalizationConfigurationScript
 
 		// CommonSettings
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.CommonSettings();
 
 			const FString SourcePath = ContentDirRelativeToGameDir / TEXT("Localization") / Target->Settings.Name;
 			ConfigSection.Add( TEXT("SourcePath"), SourcePath );
@@ -1095,13 +1061,11 @@ namespace LocalizationConfigurationScript
 			{
 				ConfigSection.Add( TEXT("CulturesToGenerate"), CultureStatistics.CultureName );
 			}
-
-			Script.AddCommonSettings(MoveTemp(ConfigSection));
 		}
 
 		// GatherTextStep0 - GenerateTextLocalizationReport
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.GatherTextStep(0);
 
 			// CommandletClass
 			ConfigSection.Add( TEXT("CommandletClass"), TEXT("GenerateTextLocalizationReport") );
@@ -1109,8 +1073,6 @@ namespace LocalizationConfigurationScript
 			ConfigSection.Add( TEXT("bWordCountReport"), TEXT("true") );
 
 			ConfigSection.Add( TEXT("WordCountReportName"), GetWordCountCSVFileName(Target) );
-
-			Script.AddGatherTextStep(0, MoveTemp(ConfigSection));
 		}
 
 		Script.Dirty = true;
@@ -1132,7 +1094,7 @@ namespace LocalizationConfigurationScript
 
 		// CommonSettings
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.CommonSettings();
 
 			const FString SourcePath = ContentDirRelativeToGameDir / TEXT("Localization") / Target->Settings.Name;
 			ConfigSection.Add( TEXT("SourcePath"), SourcePath );
@@ -1171,18 +1133,14 @@ namespace LocalizationConfigurationScript
 					AddCultureToGenerate(CultureIndex);
 				}
 			}
-			
-			Script.AddCommonSettings(MoveTemp(ConfigSection));
 		}
 
 		// GatherTextStep0 - GenerateTextLocalizationResource
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.GatherTextStep(0);
 
 			// CommandletClass
 			ConfigSection.Add( TEXT("CommandletClass"), TEXT("GenerateTextLocalizationResource") );
-			
-			Script.AddGatherTextStep(0, MoveTemp(ConfigSection));
 		}
 
 		Script.Dirty = true;
@@ -1214,7 +1172,7 @@ namespace LocalizationConfigurationScript
 
 		// RegenerateResources
 		{
-			FConfigSection ConfigSection;
+			FConfigSection& ConfigSection = Script.FindOrAdd("RegenerateResources");;
 
 			if (Target->Settings.SupportedCulturesStatistics.IsValidIndex(Target->Settings.NativeCultureIndex))
 			{
@@ -1230,7 +1188,6 @@ namespace LocalizationConfigurationScript
 			ConfigSection.Add(TEXT("ArchiveName"), GetArchiveFileName(Target));
 			ConfigSection.Add(TEXT("ResourceName"), GetLocResFileName(Target));
 
-			Script.Add(TEXT("RegenerateResources"), MoveTemp(ConfigSection));
 		}
 
 		Script.Dirty = true;

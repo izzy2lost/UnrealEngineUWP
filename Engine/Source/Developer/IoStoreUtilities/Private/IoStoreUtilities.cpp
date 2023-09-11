@@ -6576,21 +6576,21 @@ int32 ValidateCrossContainerRefs(
 		return -1;
 	}
 
-	if (const FConfigSection* EdgesSection = ConfigFile.FindSection(TEXT("Edges")))
+	if (FConfigSection* EdgesSection = ConfigFile.Find(TEXT("Edges")))
 	{
-		for (auto It = EdgesSection->CreateConstIterator(); It; ++It)
+		for (auto It = EdgesSection->CreateIterator(); It; ++It)
 		{
 			ValidEdges.Add(It.Key().ToString(), It.Value().GetValue());
 		}
 	}
-	if (const FConfigSection* DefaultEdgesSection = ConfigFile.FindSection(TEXT("DefaultEdges")))
+	if (FConfigSection* DefaultEdgesSection = ConfigFile.Find(TEXT("DefaultEdges")))
 	{
-		for (auto It = DefaultEdgesSection->CreateConstIterator(); It; ++It)
+		for (auto It = DefaultEdgesSection->CreateIterator(); It; ++It)
 		{
 			ValidEdges.Add(FString(), It.Key().ToString());
 		}
 	}
-	if (const FConfigSection* IgnoreSection = ConfigFile.FindSection(TEXT("Ignore")))
+	if (FConfigSection* IgnoreSection = ConfigFile.Find(TEXT("Ignore")))
 	{
 		IgnoreSection->MultiFind(TEXT("IgnoreRefsFrom"), IgnoreRefsFromAssets);
 		IgnoreSection->MultiFind(TEXT("IgnoreRefsTo"), IgnoreRefsToAssets);

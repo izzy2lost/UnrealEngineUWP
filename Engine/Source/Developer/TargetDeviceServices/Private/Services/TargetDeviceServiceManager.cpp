@@ -182,7 +182,7 @@ void FTargetDeviceServiceManager::LoadSettings()
 		return;
 	}
 
-	const FConfigSection* OwnedDevices = GConfig->GetSection(TEXT("TargetDeviceServices"), false, GEngineIni);
+	FConfigSection* OwnedDevices = GConfig->GetSectionPrivate(TEXT("TargetDeviceServices"), false, true, GEngineIni);
 	
 	if (OwnedDevices == nullptr)
 	{
@@ -190,7 +190,7 @@ void FTargetDeviceServiceManager::LoadSettings()
 	}
 
 	// for each entry in the INI file...
-	for (FConfigSection::TConstIterator It(*OwnedDevices); It; ++It)
+	for (FConfigSection::TIterator It(*OwnedDevices); It; ++It)
 	{
 		if (It.Key() != TEXT("StartupServices"))
 		{

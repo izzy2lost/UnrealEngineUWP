@@ -300,7 +300,7 @@ FS3CredentialsProfileStore FS3CredentialsProfileStore::FromFile(const FString& F
 
 	FConfigFile Config;
 	Config.Read(FileName);
-	for (auto KV : (const FConfigFile)Config)
+	for (auto KV : Config)
 	{
 		const FString& ProfileName = KV.Key;
 		const FConfigSection& Section = KV.Value;

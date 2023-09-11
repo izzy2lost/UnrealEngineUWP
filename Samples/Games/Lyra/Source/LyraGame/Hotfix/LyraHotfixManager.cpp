@@ -98,7 +98,7 @@ bool ULyraHotfixManager::HotfixIniFile(const FString& FileName, const FString& I
 		FConfigFile DeviceProfileHotfixConfig;
 		DeviceProfileHotfixConfig.CombineFromBuffer(IniData, FileName);
 		TSet<FString> Keys;
-		for (const auto& DPSection : (const FConfigFile)DeviceProfileHotfixConfig)
+		for (const auto& DPSection : DeviceProfileHotfixConfig)
 		{
 			FString DeviceProfileName, DeviceProfileClass;
 			if (DPSection.Key.Split(TEXT(" "), &DeviceProfileName, &DeviceProfileClass) && DeviceProfileClass == *UDeviceProfile::StaticClass()->GetName())

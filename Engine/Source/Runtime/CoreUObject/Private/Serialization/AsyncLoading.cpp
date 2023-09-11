@@ -290,11 +290,11 @@ struct FEDLBootNotificationManager
 			FFixedBootOrder()
 			{
 				// look for any packages that we want to force preload at startup
-				const FConfigSection* BootObjects = GConfig->GetSection(TEXT("/Script/Engine.StreamingSettings"), false, GEngineIni);
+				FConfigSection* BootObjects = GConfig->GetSectionPrivate(TEXT("/Script/Engine.StreamingSettings"), false, true, GEngineIni);
 				if (BootObjects)
 				{
 					// go through list and add to the array
-					for (FConfigSectionMap::TConstIterator It(*BootObjects); It; ++It)
+					for (FConfigSectionMap::TIterator It(*BootObjects); It; ++It)
 					{
 						if (It.Key() == TEXT("FixedBootOrder"))
 						{

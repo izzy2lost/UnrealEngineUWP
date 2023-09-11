@@ -487,7 +487,8 @@ void FGenericCrashContext::InitializeFromConfig()
 	PurgeOldCrashConfig();
 
 	const bool bForceGetSection = false;
-	const FConfigSection* CRCConfigSection = GConfig->GetSection(ConfigSectionName, bForceGetSection, GEngineIni);
+	const bool bConstSection = true;
+	FConfigSection* CRCConfigSection = GConfig->GetSectionPrivate(ConfigSectionName, bForceGetSection, bConstSection, GEngineIni);
 
 	if (CRCConfigSection != nullptr)
 	{

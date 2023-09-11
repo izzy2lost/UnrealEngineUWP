@@ -568,10 +568,10 @@ void FStringTableRedirects::InitStringTableRedirects()
 {
 	check(GConfig);
 
-	const FConfigSection* CoreStringTableSection = GConfig->GetSection(TEXT("Core.StringTable"), false, GEngineIni);
+	FConfigSection* CoreStringTableSection = GConfig->GetSectionPrivate(TEXT("Core.StringTable"), false, true, GEngineIni);
 	if (CoreStringTableSection)
 	{
-		for (FConfigSection::TConstIterator It(*CoreStringTableSection); It; ++It)
+		for (FConfigSection::TIterator It(*CoreStringTableSection); It; ++It)
 		{
 			static const FName StringTableRedirectsName = TEXT("StringTableRedirects");
 			if (It.Key() == StringTableRedirectsName)

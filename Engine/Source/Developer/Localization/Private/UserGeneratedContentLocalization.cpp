@@ -239,7 +239,7 @@ bool ExportLocalization(TArrayView<const TSharedRef<IPlugin>> Plugins, const FEx
 
 			// Common
 			{
-				FConfigSection ConfigSection;
+				FConfigSection& ConfigSection = GatherConfig.CommonSettings();
 
 				ConfigSection.Add(TEXT("SourcePath"), FPaths::ConvertRelativePathToFull(PluginLocalizationScratchDirectory));
 				ConfigSection.Add(TEXT("DestinationPath"), FPaths::ConvertRelativePathToFull(PluginLocalizationScratchDirectory));
@@ -257,8 +257,6 @@ bool ExportLocalization(TArrayView<const TSharedRef<IPlugin>> Plugins, const FEx
 				{
 					ConfigSection.Add(TEXT("CulturesToGenerate"), *CultureToGenerate);
 				}
-				
-				GatherConfig.AddCommonSettings(MoveTemp(ConfigSection));
 			}
 
 			// Gather source
@@ -280,7 +278,7 @@ bool ExportLocalization(TArrayView<const TSharedRef<IPlugin>> Plugins, const FEx
 				// Only gather from source if there's valid paths to gather from, as otherwise the commandlet will error
 				if (SearchDirectoryPaths.Num() > 0)
 				{
-					FConfigSection ConfigSection;
+					FConfigSection& ConfigSection = GatherConfig.GatherTextStep(GatherStepIndex++);
 					ConfigSection.Add(TEXT("CommandletClass"), TEXT("GatherTextFromSource"));
 
 					ConfigSection.Add(TEXT("FileNameFilters"), TEXT("*.h"));
@@ -292,15 +290,13 @@ bool ExportLocalization(TArrayView<const TSharedRef<IPlugin>> Plugins, const FEx
 					{
 						ConfigSection.Add(TEXT("SearchDirectoryPaths"), SearchDirectoryPath);
 					}
-					
-					GatherConfig.AddGatherTextStep(GatherStepIndex++, MoveTemp(ConfigSection));
 				}
 			}
 
 			// Gather assets
 			if (ExportOptions.bGatherAssets && Plugin->CanContainContent())
 			{
-				FConfigSection ConfigSection;
+				FConfigSection& ConfigSection = GatherConfig.GatherTextStep(GatherStepIndex++);
 				ConfigSection.Add(TEXT("CommandletClass"), TEXT("GatherTextFromAssets"));
 
 				ConfigSection.Add(TEXT("PackageFileNameFilters"), TEXT("*.uasset"));
@@ -315,36 +311,30 @@ bool ExportLocalization(TArrayView<const TSharedRef<IPlugin>> Plugins, const FEx
 				{
 					ConfigSection.Add(TEXT("CollectionFilters"), *CollectionFilter);
 				}
-				
-				GatherConfig.AddGatherTextStep(GatherStepIndex++, MoveTemp(ConfigSection));
 			}
 
 			// Gather Verse
 			if (ExportOptions.bGatherVerse && Plugin->CanContainVerse())
 			{
-				FConfigSection ConfigSection;
+				FConfigSection& ConfigSection = GatherConfig.GatherTextStep(GatherStepIndex++);
 				ConfigSection.Add(TEXT("CommandletClass"), TEXT("GatherTextFromVerse"));
 
 				ConfigSection.Add(TEXT("IncludePathFilters"), FPaths::ConvertRelativePathToFull(FPaths::Combine(Plugin->GetBaseDir(), TEXT("*"))));
 
 				ConfigSection.Add(TEXT("ExcludePathFilters"), FPaths::ConvertRelativePathToFull(FPaths::Combine(Plugin->GetContentDir(), TEXT("Localization"), TEXT("*"))));
 				ConfigSection.Add(TEXT("ExcludePathFilters"), FPaths::ConvertRelativePathToFull(FPaths::Combine(Plugin->GetContentDir(), TEXT("L10N"), TEXT("*"))));
-				
-				GatherConfig.AddGatherTextStep(GatherStepIndex++, MoveTemp(ConfigSection));
 			}
 
 			// Generate manifest
 			{
-				FConfigSection ConfigSection;
+				FConfigSection& ConfigSection = GatherConfig.GatherTextStep(GatherStepIndex++);
 				ConfigSection.Add(TEXT("CommandletClass"), TEXT("GenerateGatherManifest"));
-				GatherConfig.AddGatherTextStep(GatherStepIndex++, MoveTemp(ConfigSection));
 			}
 
 			// Generate archive
 			{
-				FConfigSection ConfigSection;
+				FConfigSection& ConfigSection = GatherConfig.GatherTextStep(GatherStepIndex++);
 				ConfigSection.Add(TEXT("CommandletClass"), TEXT("GenerateGatherArchive"));
-				GatherConfig.AddGatherTextStep(GatherStepIndex++, MoveTemp(ConfigSection));
 			}
 
 			// Import PO
@@ -359,19 +349,17 @@ bool ExportLocalization(TArrayView<const TSharedRef<IPlugin>> Plugins, const FEx
 					}
 				}
 
-				FConfigSection ConfigSection;
+				FConfigSection& ConfigSection = GatherConfig.GatherTextStep(GatherStepIndex++);
 				ConfigSection.Add(TEXT("CommandletClass"), TEXT("InternationalizationExport"));
 
 				ConfigSection.Add(TEXT("bImportLoc"), TEXT("true"));
 
 				ConfigSection.Add(TEXT("POFormat"), StaticEnum<EPortableObjectFormat>()->GetNameStringByValue((int64)UGCLocDescriptorForImport.PoFormat));
-
-				GatherConfig.AddGatherTextStep(GatherStepIndex++, MoveTemp(ConfigSection));
 			}
 
 			// Export PO
 			{
-				FConfigSection ConfigSection;
+				FConfigSection& ConfigSection = GatherConfig.GatherTextStep(GatherStepIndex++);
 				ConfigSection.Add(TEXT("CommandletClass"), TEXT("InternationalizationExport"));
 
 				ConfigSection.Add(TEXT("bExportLoc"), TEXT("true"));
@@ -379,8 +367,6 @@ bool ExportLocalization(TArrayView<const TSharedRef<IPlugin>> Plugins, const FEx
 				ConfigSection.Add(TEXT("POFormat"), StaticEnum<EPortableObjectFormat>()->GetNameStringByValue((int64)ExportOptions.UGCLocDescriptor.PoFormat));
 
 				ConfigSection.Add(TEXT("ShouldPersistCommentsOnExport"), TEXT("true"));
-
-				GatherConfig.AddGatherTextStep(GatherStepIndex++, MoveTemp(ConfigSection));
 			}
 
 			// Write config

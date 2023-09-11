@@ -247,7 +247,7 @@ namespace PackFactoryHelper
 		UInputSettings* InputSettingsCDO = GetMutableDefault<UInputSettings>();
 		bool bCheckedOut = false;
 
-		const FConfigSection* InputSettingsSection = PackConfig.FindSection("InputSettings");
+		FConfigSection* InputSettingsSection = PackConfig.Find("InputSettings");
 		if (InputSettingsSection)
 		{
 			TArray<FInputActionKeyMapping> ActionMappingsToAdd;
@@ -306,16 +306,16 @@ namespace PackFactoryHelper
 			}
 		}
 
-		const FConfigSection* RedirectsSection = PackConfig.FindSection("Redirects");
+		FConfigSection* RedirectsSection = PackConfig.Find("Redirects");
 		if (RedirectsSection)
 		{	
-			if (const FConfigValue* GameName = RedirectsSection->Find("GameName"))
+			if (FConfigValue* GameName = RedirectsSection->Find("GameName"))
 			{
 				ConfigParameters.GameName = GameName->GetValue();
 			}
 		}
 
-		const FConfigSection* AdditionalFilesSection = PackConfig.FindSection("AdditionalFilesToAdd");
+		FConfigSection* AdditionalFilesSection = PackConfig.Find("AdditionalFilesToAdd");
 		if (AdditionalFilesSection)
 		{
 			for (auto FilePair : *AdditionalFilesSection)
@@ -356,14 +356,14 @@ namespace PackFactoryHelper
 			}
 		}
 
-		const FConfigSection* FeaturePackSettingsSection = PackConfig.FindSection("FeaturePackSettings");
+		FConfigSection* FeaturePackSettingsSection = PackConfig.Find("FeaturePackSettings");
 		if (FeaturePackSettingsSection)
 		{
-			if (const FConfigValue* CompileSource = FeaturePackSettingsSection->Find("CompileSource"))
+			if (FConfigValue* CompileSource = FeaturePackSettingsSection->Find("CompileSource"))
 			{
 				ConfigParameters.bCompileSource = FCString::ToBool(*CompileSource->GetValue());
 			}
-			if (const FConfigValue* InstallMessage = FeaturePackSettingsSection->Find("InstallMessage"))
+			if (FConfigValue* InstallMessage = FeaturePackSettingsSection->Find("InstallMessage"))
 			{
 				ConfigParameters.InstallMessage = InstallMessage->GetValue();
 			}
@@ -496,9 +496,10 @@ UObject* UPackFactory::FactoryCreateBinary
 						FConfigCacheIni Config(EConfigCacheType::Temporary);
 						FConfigFile& NewFile = Config.Add(EngineIniFilename, FConfigFile());
 						FConfigCacheIni::LoadLocalIniFile(NewFile, TEXT("DefaultEngine"), false);
+						FConfigSection* PackageRedirects = Config.GetSectionPrivate(*RedirectsSection, true, false, EngineIniFilename);
 
-						NewFile.AddToSection(*RedirectsSection, TEXT("+ActiveGameNameRedirects"), FString::Printf(TEXT("(OldGameName=\"%s\",NewGameName=\"%s\")"), *LongOldGameName, *LongNewGameName));
-						NewFile.AddToSection(*RedirectsSection, TEXT("+ActiveGameNameRedirects"), FString::Printf(TEXT("(OldGameName=\"%s\",NewGameName=\"%s\")"), *ConfigParameters.GameName, *LongNewGameName));
+						PackageRedirects->Add(TEXT("+ActiveGameNameRedirects"), FString::Printf(TEXT("(OldGameName=\"%s\",NewGameName=\"%s\")"), *LongOldGameName, *LongNewGameName));
+						PackageRedirects->Add(TEXT("+ActiveGameNameRedirects"), FString::Printf(TEXT("(OldGameName=\"%s\",NewGameName=\"%s\")"), *ConfigParameters.GameName, *LongNewGameName));
 
 						NewFile.UpdateSections(*EngineIniFilename, *RedirectsSection);
 

@@ -1098,17 +1098,19 @@ const FString& SGameplayTagWidget::GetGameplayTagsEditorStateIni()
 
 void SGameplayTagWidget::MigrateSettings()
 {
-	if (const FConfigSection* EditorPerProjectIniSection = GConfig->GetSection(*SettingsIniSection, /*Force=*/false, GEditorPerProjectIni))
+	if (FConfigSection* EditorPerProjectIniSection = GConfig->GetSectionPrivate(*SettingsIniSection, /*Force=*/false, /*Const=*/true, GEditorPerProjectIni))
 	{
 		if (EditorPerProjectIniSection->Num() > 0)
 		{
-			FString DestFilename = GetGameplayTagsEditorStateIni();
+			FConfigSection* DestinationSection = GConfig->GetSectionPrivate(*SettingsIniSection, /*Force=*/true, /*Const=*/false, GetGameplayTagsEditorStateIni());
+
+			DestinationSection->Reserve(DestinationSection->Num() + EditorPerProjectIniSection->Num());
 			for (const auto& It : *EditorPerProjectIniSection)
 			{
-				GConfig->AddUniqueToSection(*SettingsIniSection, It.Key, It.Value.GetSavedValue(), DestFilename);
+				DestinationSection->FindOrAdd(It.Key, It.Value);
 			}
 
-			GConfig->Flush(false, DestFilename);
+			GConfig->Flush(false, GetGameplayTagsEditorStateIni());
 		}
 
 		GConfig->EmptySection(*SettingsIniSection, GEditorPerProjectIni);

@@ -15,14 +15,14 @@ struct LOCALIZATION_API FLocalizationConfigurationScript : public FConfigFile
 {
 	bool WriteWithSCC(const FString& InConfigFilename);
 
-	void AddCommonSettings(FConfigSection&& Section)
+	FConfigSection& CommonSettings()
 	{
-		Add(TEXT("CommonSettings"), Section);
+		return FindOrAdd(TEXT("CommonSettings"));
 	}
 
-	void AddGatherTextStep(const uint32 Index, FConfigSection&& Section)
+	FConfigSection& GatherTextStep(const uint32 Index)
 	{
-		Add(FString::Printf( TEXT("GatherTextStep%u"), Index), MoveTemp(Section));
+		return FindOrAdd( FString::Printf( TEXT("GatherTextStep%u"), Index) );
 	}
 };
 

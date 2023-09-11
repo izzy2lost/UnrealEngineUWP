@@ -262,17 +262,17 @@ EConfigManifestVersion FConfigManifest::UpgradeFromVersion(EConfigManifestVersio
 
 void FConfigManifest::MigrateConfigSection(FConfigFile& ConfigFile, const TCHAR* OldSectionName, const TCHAR* NewSectionName)
 {
-	const FConfigSection* OldSection = ConfigFile.FindSection(OldSectionName);
+	const FConfigSection* OldSection = ConfigFile.Find(OldSectionName);
 	if (OldSection)
 	{
-		const FConfigSection* NewSection = ConfigFile.FindSection(NewSectionName);
+		FConfigSection* NewSection = ConfigFile.Find(NewSectionName);
 		if (NewSection)
 		{
 			for (auto& Setting : *OldSection)
 			{
 				if (!NewSection->Contains(Setting.Key))
 				{
-					ConfigFile.AddToSection(NewSectionName, Setting.Key, Setting.Value.GetSavedValue());
+					NewSection->Add(Setting.Key, Setting.Value);
 				}
 			}
 		}

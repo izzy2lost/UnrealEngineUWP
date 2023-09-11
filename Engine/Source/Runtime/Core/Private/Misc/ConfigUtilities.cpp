@@ -236,7 +236,7 @@ void ApplyCVarSettingsFromIni(const TCHAR* InSectionName, const TCHAR* InIniFile
 
 	UE_LOG(LogConfig,Log,TEXT("Applying CVar settings from Section [%s] File [%s]"),InSectionName,InIniFilename);
 
-	if(const FConfigSection* Section = GConfig->GetSection(InSectionName, false, InIniFilename))
+	if(FConfigSection* Section = GConfig->GetSectionPrivate(InSectionName, false, true, InIniFilename))
 	{
 		for(FConfigSectionMap::TConstIterator It(*Section); It; ++It)
 		{
@@ -250,7 +250,7 @@ void ApplyCVarSettingsFromIni(const TCHAR* InSectionName, const TCHAR* InIniFile
 
 void ForEachCVarInSectionFromIni(const TCHAR* InSectionName, const TCHAR* InIniFilename, TFunction<void(IConsoleVariable* CVar, const FString& KeyString, const FString& ValueString)> InEvaluationFunction)
 {
-	if (const FConfigSection* Section = GConfig->GetSection(InSectionName, false, InIniFilename))
+	if (FConfigSection* Section = GConfig->GetSectionPrivate(InSectionName, false, true, InIniFilename))
 	{
 		for (FConfigSectionMap::TConstIterator It(*Section); It; ++It)
 		{
@@ -315,7 +315,7 @@ public:
 			const FString& SectionName = IniHistory.SectionName;
 			const FString& IniFilename = IniHistory.FileName;
 			const uint32& SetBy = IniHistory.SetBy;
-			if (const FConfigSection* Section = GConfig->GetSection(*SectionName, false, *IniFilename))
+			if (FConfigSection* Section = GConfig->GetSectionPrivate(*SectionName, false, true, *IniFilename))
 			{
 				for (FConfigSectionMap::TConstIterator It(*Section); It; ++It)
 				{

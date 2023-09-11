@@ -232,7 +232,15 @@ bool UWorldPartitionHLODsBuilder::ValidateParams() const
 
 		FConfigFile ConfigFile;
 		ConfigFile.Read(BuildManifest);
-		ConfigFile.GetString(TEXT("General"), TEXT("EngineVersion"), ManifestEngineVersion);
+		const FConfigSection* ConfigSection = ConfigFile.Find(TEXT("General"));
+		if (ConfigSection)
+		{
+			const FConfigValue* ConfigValue = ConfigSection->Find(TEXT("EngineVersion"));
+			if (ConfigValue)
+			{
+				ManifestEngineVersion = ConfigValue->GetValue();
+			}
+		}
 		if (ManifestEngineVersion != CurrentEngineVersion)
 		{
 			UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Build manifest engine version doesn't match current engine version (%s vs %s), exiting..."), *ManifestEngineVersion, *CurrentEngineVersion);
@@ -265,7 +273,7 @@ bool UWorldPartitionHLODsBuilder::ShouldProcessWorld(UWorld* InWorld) const
 
 		FString SectionName = GetHLODBuilderFolderName(BuilderIdx);
 
-		const FConfigSection* ConfigSection = ConfigFile.FindSection(SectionName);
+		const FConfigSection* ConfigSection = ConfigFile.Find(SectionName);
 		if (!ConfigSection || ConfigSection->IsEmpty())
 		{
 			bShouldProcessWorld = false;
@@ -681,7 +689,7 @@ bool UWorldPartitionHLODsBuilder::GetHLODActorsToBuild(TArray<FGuid>& HLODActors
 
 		FString SectionName = GetHLODBuilderFolderName(BuilderIdx);
 
-		const FConfigSection* ConfigSection = ConfigFile.FindSection(SectionName);
+		const FConfigSection* ConfigSection = ConfigFile.Find(SectionName);
 		if (ConfigSection)
 		{
 			TArray<FString> HLODActorGuidStrings;
@@ -847,8 +855,10 @@ bool UWorldPartitionHLODsBuilder::GenerateBuildManifest(TMap<FString, int32>& Fi
 	TArray<TArray<FGuid>> BuildersWorkload = GetHLODWorkloads(BuilderCount);
 
 	FConfigFile ConfigFile;
-	ConfigFile.SetInt64(TEXT("General"), TEXT("BuilderCount"), BuilderCount);
-	ConfigFile.SetString(TEXT("General"), TEXT("EngineVersion"), *FEngineVersion::Current().ToString());
+
+	FConfigSection& GeneralSection = ConfigFile.Add("General");
+	GeneralSection.Add(TEXT("BuilderCount"), FString::FromInt(BuilderCount));
+	GeneralSection.Add(TEXT("EngineVersion"), FEngineVersion::Current().ToString());
 
 	// When processing multiple maps, ensure that the worldload is distributed evenly between builders.
 	// Otherwise, maps with a single HLOD would all end up being processed by the first builder, while the others would have no work.
@@ -865,10 +875,11 @@ bool UWorldPartitionHLODsBuilder::GenerateBuildManifest(TMap<FString, int32>& Fi
 		}
 
 		FString SectionName = GetHLODBuilderFolderName(BuilderIndex);
+		FConfigSection& Section = ConfigFile.Add(SectionName);
 
 		for(const FGuid& ActorGuid : BuildersWorkload[WorkloadIndex])
 		{
-			ConfigFile.AddToSection(TEXT("General"), TEXT("+HLODActorGuid"), ActorGuid.ToString(EGuidFormats::Digits));
+			Section.Add(TEXT("+HLODActorGuid"), ActorGuid.ToString(EGuidFormats::Digits));
 
 			if (WorldPartition)
 			{

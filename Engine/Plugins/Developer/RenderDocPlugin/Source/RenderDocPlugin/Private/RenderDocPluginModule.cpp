@@ -375,7 +375,11 @@ void FRenderDocPluginModule::ShowNotification(const FText& Message, bool bForceN
 void FRenderDocPluginModule::InjectDebugExecKeybind()
 {
 	// Inject our key bind into the debug execs
-	GConfig->AddUniqueToSection(TEXT("/Script/Engine.PlayerInput"), TEXT("DebugExecBindings"), TEXT("(Key=F12,Command=\"RenderDoc.CaptureFrame\", Alt=true)"), GInputIni);
+	FConfigSection* Section = GConfig->GetSectionPrivate(TEXT("/Script/Engine.PlayerInput"), false, false, GInputIni);
+	if (Section != nullptr)
+	{
+		Section->HandleAddCommand(TEXT("DebugExecBindings"), TEXT("(Key=F12,Command=\"RenderDoc.CaptureFrame\", Alt=true)"), false);
+	}
 }
 
 void FRenderDocPluginModule::EndFrameCapture(void* HWnd, uint32 Flags, const FString& DestFileName)

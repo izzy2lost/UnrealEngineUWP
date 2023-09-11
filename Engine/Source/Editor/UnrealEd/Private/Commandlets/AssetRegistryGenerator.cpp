@@ -117,7 +117,7 @@ public:
 		// Schema is defined in Engine\Config\BasePakFileRules.ini, see also GetPakFileRules in CopyBuildToStaging.Automation.cs
 
 		FString IniPlatformName = TargetPlatform->IniPlatformName();
-		for (const TPair<FString, FConfigSection>& Pair : (const FConfigFile)ConfigFile)
+		for (TPair<FString, FConfigSection>& Pair : ConfigFile)
 		{
 			const FString& SectionName = Pair.Key;
 			bool bMatchesAllPlatforms = true;

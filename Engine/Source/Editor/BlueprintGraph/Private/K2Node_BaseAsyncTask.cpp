@@ -674,8 +674,8 @@ UK2Node::ERedirectType UK2Node_BaseAsyncTask::DoPinsMatchForReconstruction(const
 		if (!bAsyncTaskPinRedirectMapInitialized)
 		{
 			bAsyncTaskPinRedirectMapInitialized = true;
-			const FConfigSection* PackageRedirects = GConfig->GetSection(TEXT("/Script/Engine.Engine"), false, GEngineIni);
-			for (FConfigSection::TConstIterator It(*PackageRedirects); It; ++It)
+			FConfigSection* PackageRedirects = GConfig->GetSectionPrivate(TEXT("/Script/Engine.Engine"), false, true, GEngineIni);
+			for (FConfigSection::TIterator It(*PackageRedirects); It; ++It)
 			{
 				if (It.Key() == TEXT("K2AsyncTaskPinRedirects"))
 				{

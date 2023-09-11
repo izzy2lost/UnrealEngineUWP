@@ -146,7 +146,8 @@ void UInterchangePipelineBase::LoadSettingsInternal(const FName PipelineStackNam
 		if (Array)
 		{
 			const bool bForce = false;
-			const FConfigSection* Section = GConfig->GetSection(*SectionName, bForce, ConfigFilename);
+			const bool bConst = true;
+			FConfigSection* Section = GConfig->GetSectionPrivate(*SectionName, bForce, bConst, ConfigFilename);
 			if (Section != nullptr)
 			{
 				TArray<FConfigValue> List;
@@ -252,14 +253,18 @@ void UInterchangePipelineBase::SaveSettingsInternal(const FName PipelineStackNam
 		FArrayProperty* Array = CastField<FArrayProperty>(Property);
 		if (Array)
 		{
-			GConfig->RemoveKeyFromSection(*SectionName, *Key, ConfigFilename);
+			const bool bForce = true;
+			const bool bConst = false;
+			FConfigSection* Section = GConfig->GetSectionPrivate(*SectionName, bForce, bConst, ConfigFilename);
+			check(Section);
+			Section->Remove(*Key);
 
 			FScriptArrayHelper_InContainer ArrayHelper(Array, this);
 			for (int32 i = 0; i < ArrayHelper.Num(); i++)
 			{
 				FString	Buffer;
 				Array->Inner->ExportTextItem_Direct(Buffer, ArrayHelper.GetRawPtr(i), ArrayHelper.GetRawPtr(i), this, PortFlags);
-				GConfig->AddToSection(*SectionName, *Key, Buffer, ConfigFilename);
+				Section->Add(*Key, *Buffer);
 			}
 		}
 		else if (UInterchangePipelineBase* SubPipeline = SubObject ? Cast<UInterchangePipelineBase>(SubObject->GetObjectPropertyValue_InContainer(this)) : nullptr)

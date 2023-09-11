@@ -372,7 +372,7 @@ static void ExpandScalabilityCVar(FConfigCacheIni* ConfigSystem, const FString& 
 	// if the DP had sg.ResolutionQuality=3, we would read [ResolutionQuality@3]
 	FString SectionName = FString::Printf(TEXT("%s@%s"), *CVarKey.Mid(3), *CVarValue);
 	// walk over the scalability section and add them in, unless already done
-	const FConfigSection* ScalabilitySection = ConfigSystem->GetSection(*SectionName, false, GScalabilityIni);
+	FConfigSection* ScalabilitySection = ConfigSystem->GetSectionPrivate(*SectionName, false, true, GScalabilityIni);
 	if (ScalabilitySection != nullptr)
 	{
 		for (const auto& Pair : *ScalabilitySection)
@@ -485,7 +485,7 @@ bool IConsoleManager::VisitPlatformCVarsForEmulation(FName PlatformName, const F
 	for (const FSectionPair& SectionPair : Sections)
 	{
 		bool bDeleteSection = false;
-		const FConfigSection* Section;
+		FConfigSection* Section;
 		bool bIsDeviceProfile = FCString::Strcmp(SectionPair.Name, DeviceProfileTag) == 0;
 		bool bIsScalabilityLevel = FCString::Strcmp(SectionPair.Name, ScalabilityTag) == 0;
 
@@ -503,16 +503,14 @@ bool IConsoleManager::VisitPlatformCVarsForEmulation(FName PlatformName, const F
 			}
 
 			// make a fake section of the dp cvars - this will let the expansion happen as normal below
-			FConfigSection* NewSection = new FConfigSection();
+			Section = new FConfigSection();
 			bDeleteSection = true;
 
 			// run the delegate (this code can't get into DP code directly, so we use a delegate), and walk over the results
 			for (TPair<FName, FString>& Pair : FCoreDelegates::GatherDeviceProfileCVars.Execute(DeviceProfileName))
 			{
-				NewSection->Add(Pair);
+				Section->Add(Pair);
 			}
-            
-            Section = NewSection;
 		}
 		else if (bIsScalabilityLevel)
 		{
@@ -520,24 +518,22 @@ bool IConsoleManager::VisitPlatformCVarsForEmulation(FName PlatformName, const F
 			FString DefaultLevel = FString::Printf(TEXT("%d"), DefaultScalabilityLevel);
 
 			// make a fake section of the sg. vars - this will let the expansion happen as normal below
-            FConfigSection* NewSection = new FConfigSection();
+			Section = new FConfigSection();
 			bDeleteSection = true;
-			IConsoleManager::Get().ForEachConsoleObjectThatStartsWith(FConsoleObjectVisitor::CreateLambda([&DefaultLevel, NewSection](const TCHAR* Name, IConsoleObject* Obj)
+			IConsoleManager::Get().ForEachConsoleObjectThatStartsWith(FConsoleObjectVisitor::CreateLambda([&DefaultLevel, Section](const TCHAR* Name, IConsoleObject* Obj)
 				{
 					if (Obj->TestFlags(ECVF_ScalabilityGroup))
 					{
-						NewSection->Add(Name, FConfigValue(DefaultLevel));
+						Section->Add(Name, FConfigValue(DefaultLevel));
 					}
 				}
 			));
-            
-            Section = NewSection;
 		}
 		else
 		{
 			static const FString ConsoleVariablesIni = FPaths::EngineDir() + TEXT("Config/ConsoleVariables.ini");
 			const FString& IniFile = (SectionPair.SetBy == ECVF_SetByConsoleVariablesIni) ? ConsoleVariablesIni : GEngineIni;
-			Section = ConfigSystem->GetSection(SectionPair.Name, false, IniFile);
+			Section = ConfigSystem->GetSectionPrivate(SectionPair.Name, false, true, IniFile);
 		}
 
 
@@ -1716,7 +1712,7 @@ void FConsoleManager::LoadHistoryIfNeeded()
 	const FString SectionName = TEXT("ConsoleHistory");
 	const FName KeyName = TEXT("History");
 
-	for (const auto& ConfigPair : (const FConfigFile)Ini)
+	for (const auto& ConfigPair : Ini)
 	{
 		FString HistoryKey;
 		if (ConfigPair.Key == SectionName)
@@ -1752,10 +1748,10 @@ void FConsoleManager::SaveHistory()
 
 	for (const auto& HistoryPair : HistoryEntriesMap)
 	{
-		FString ConfigSectionName = FString::Printf(TEXT("%s%s"), *SectionName, *HistoryPair.Key);
+		FConfigSection& Section = Ini.Add(FString::Printf(TEXT("%s%s"), *SectionName, *HistoryPair.Key));
 		for (const auto& HistoryEntry : HistoryPair.Value)
 		{
-			Ini.AddToSection(*ConfigSectionName, KeyName, HistoryEntry);
+			Section.Add(KeyName, HistoryEntry);
 		}
 	}
 

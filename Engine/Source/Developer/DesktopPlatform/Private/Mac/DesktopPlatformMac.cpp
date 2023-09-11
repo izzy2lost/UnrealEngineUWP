@@ -493,9 +493,11 @@ bool FDesktopPlatformMac::RegisterEngineInstallation(const FString &RootDir, FSt
 		FString ConfigPath = FString(FPlatformProcess::ApplicationSettingsDir()) / FString(TEXT("UnrealEngine")) / FString(TEXT("Install.ini"));
 		ConfigFile.Read(ConfigPath);
 
+		FConfigSection &Section = ConfigFile.FindOrAdd(TEXT("Installations"));
 		OutIdentifier = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensInBraces);
-		ConfigFile.AddToSection(TEXT("Installations"), *OutIdentifier, RootDir);
+		Section.AddUnique(*OutIdentifier, RootDir);
 
+		ConfigFile.Dirty = true;
 		ConfigFile.Write(ConfigPath);
 	}
 	return bRes;
@@ -523,10 +525,10 @@ void FDesktopPlatformMac::EnumerateEngineInstallations(TMap<FString, FString> &O
 	FString ConfigPath = FString(FPlatformProcess::ApplicationSettingsDir()) / FString(TEXT("UnrealEngine")) / FString(TEXT("Install.ini"));
 	ConfigFile.Read(ConfigPath);
 
-	const FConfigSection *Section = ConfigFile.FindOrAddConfigSection(TEXT("Installations"));
+	FConfigSection &Section = ConfigFile.FindOrAdd(TEXT("Installations"));
 	// Remove invalid entries
 	TArray<FName> KeysToRemove;
-	for (auto It : *Section)
+	for (auto It : Section)
 	{
 		const FString& EngineDir = It.Value.GetValue();
 		if (EngineDir.Contains("Unreal Engine.app/Contents/") || EngineDir.Contains("Epic Games Launcher.app/Contents/") || EngineDir.Contains("/Users/Shared/UnrealEngine/Launcher") || !IFileManager::Get().DirectoryExists(*EngineDir))
@@ -536,7 +538,7 @@ void FDesktopPlatformMac::EnumerateEngineInstallations(TMap<FString, FString> &O
 	}
 	for (auto Key : KeysToRemove)
 	{
-		ConfigFile.RemoveKeyFromSection(TEXT("Installations"), Key);
+		Section.Remove(Key);
 	}
 
 	CFArrayRef AllApps = LSCopyApplicationURLsForURL((__bridge CFURLRef)[NSURL fileURLWithPath:UProjectPath.GetNSString()], kLSRolesAll);
@@ -552,7 +554,7 @@ void FDesktopPlatformMac::EnumerateEngineInstallations(TMap<FString, FString> &O
 				&& EngineDir.RemoveFromEnd(TEXT("/Engine/Binaries/Mac")) && !EngineDir.Contains("Unreal Engine.app/Contents/") && !EngineDir.Contains("Epic Games Launcher.app/Contents/") && !EngineDir.Contains("/Users/Shared/UnrealEngine/Launcher"))
 			{
 				FString EngineId;
-				const FName* Key = Section->FindKey(EngineDir);
+				const FName* Key = Section.FindKey(EngineDir);
 				if (Key)
 				{
 					FGuid IdGuid;
@@ -564,7 +566,8 @@ void FDesktopPlatformMac::EnumerateEngineInstallations(TMap<FString, FString> &O
 					if (!OutInstallations.FindKey(EngineDir))
 					{
 						EngineId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensInBraces);
-						ConfigFile.AddToSection(TEXT("Installations"), *EngineId, EngineDir);
+						Section.AddUnique(*EngineId, EngineDir);
+						ConfigFile.Dirty = true;
 					}
 				}
 				if (!EngineId.IsEmpty() && !OutInstallations.Find(EngineId))

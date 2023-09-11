@@ -650,13 +650,13 @@ void FScreenShotManager::BuildFallbackPlatformsListFromConfig()
 	{
 		for (const FString& ConfigFilename : GConfig->GetFilenames())
 		{
-			const FConfigSection* FallbackSection = GConfig->GetSection(TEXT("AutomationTestFallbackHierarchy"), false, ConfigFilename);
+			FConfigSection* FallbackSection = GConfig->GetSectionPrivate(TEXT("AutomationTestFallbackHierarchy"), false, true, ConfigFilename);
 			if (FallbackSection)
 			{
 				UE_LOG(LogScreenShotManager, Warning, TEXT("Please move FallbackPlatform entries in [AutomationTestFallbackHierarchy] to +ScreenshotFallbackPlatforms= under[/Script/ScreenShotComparisonTools.ScreenShotComparisonSettings] in DefaultEngine.ini"));
 
 				// Parse all fallback definitions of the format "FallbackPlatform=(Child=/Platform/RHI, Parent=/Platform/RHI)"
-				for (FConfigSection::TConstIterator Section(*FallbackSection); Section; ++Section)
+				for (FConfigSection::TIterator Section(*FallbackSection); Section; ++Section)
 				{
 					if (Section.Key() == TEXT("FallbackPlatform"))
 					{

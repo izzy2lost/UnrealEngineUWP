@@ -501,10 +501,10 @@ class FLogSuppressionImplementation: public FLogSuppressionInterface, private FS
 		PendingAssociations.Empty();
 
 		// first we do the config values
-		const FConfigSection* RefTypes = GConfig->GetSection(TEXT("Core.Log"), false, GEngineIni);
+		FConfigSection* RefTypes = GConfig->GetSectionPrivate(TEXT("Core.Log"), false, true, GEngineIni);
 		if (RefTypes != NULL)
 		{
-			for( FConfigSectionMap::TConstIterator It(*RefTypes); It; ++It )
+			for( FConfigSectionMap::TIterator It(*RefTypes); It; ++It )
 			{
 				ProcessCmdString(It.Key().ToString() + TEXT(" ") + It.Value().GetValue(), true);
 			}

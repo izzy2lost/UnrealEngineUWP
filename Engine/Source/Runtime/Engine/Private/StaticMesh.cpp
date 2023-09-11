@@ -2180,7 +2180,7 @@ void FStaticMeshLODSettings::Initialize(const ITargetPlatform* TargetPlatform)
 
 	// Read individual entries from a config file.
 	const TCHAR* IniSection = TEXT("StaticMeshLODSettings");
-	const FConfigSection* Section = TargetPlatform->GetConfigSystem()->GetSection(IniSection, false, GEngineIni);
+	const FConfigSection* Section = TargetPlatform->GetConfigSystem()->GetSectionPrivate(IniSection, false, false, GEngineIni);
 	if (Section)
 	{
 		for (TMultiMap<FName,FConfigValue>::TConstIterator It(*Section); It; ++It)

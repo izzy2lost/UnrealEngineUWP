@@ -6664,7 +6664,7 @@ void FInitializeConfigSettings::LoadLocal(const FString& InOutputDirectoryOverri
 		bUseSoftGC ? TEXT("true") : TEXT("false"),
 		bUseSoftGC ? *FString::Printf(TEXT(" (%d/%d)"), SoftGCStartNumerator, SoftGCDenominator) : TEXT(""));
 
-	const FConfigSection* CacheSettings = GConfig->GetSection(TEXT("CookPlatformDataCacheSettings"), false, GEditorIni);
+	const FConfigSection* CacheSettings = GConfig->GetSectionPrivate(TEXT("CookPlatformDataCacheSettings"), false, true, GEditorIni);
 	if (CacheSettings)
 	{
 		for (const auto& CacheSetting : *CacheSettings)
@@ -7437,16 +7437,16 @@ bool UCookOnTheFlyServer::GetCookedIniVersionStrings(const ITargetPlatform* Targ
 
 	
 
-	const static FString NAME_UsedSettings(TEXT("UsedSettings"));
-	const FConfigSection* UsedSettings = ConfigFile.FindSection(NAME_UsedSettings);
+	const static FName NAME_UsedSettings(TEXT("UsedSettings")); 
+	const FConfigSection* UsedSettings = ConfigFile.Find(NAME_UsedSettings.ToString());
 	if (UsedSettings == nullptr)
 	{
 		return false;
 	}
 
 
-	const static FString NAME_AdditionalSettings(TEXT("AdditionalSettings"));
-	const FConfigSection* AdditionalSettings = ConfigFile.FindSection(NAME_AdditionalSettings);
+	const static FName NAME_AdditionalSettings(TEXT("AdditionalSettings"));
+	const FConfigSection* AdditionalSettings = ConfigFile.Find(NAME_AdditionalSettings.ToString());
 	if (AdditionalSettings == nullptr)
 	{
 		return false;
@@ -7732,7 +7732,7 @@ bool UCookOnTheFlyServer::ArePreviousCookSettingsCompatible(const TMap<FName, FS
 	FConfigFile ConfigFile;
 	ConfigFile.Read(GetCookSettingsFileName(TargetPlatform));
 
-	const FConfigSection* CookSettings = ConfigFile.FindSection(TEXT_CookSettings);
+	const FConfigSection* CookSettings = ConfigFile.Find(TEXT_CookSettings);
 	if (CookSettings == nullptr)
 	{
 		UE_LOG(LogCook, Display, TEXT("Cook invalidated for CookSettings file %s is invalid. Clearing all cooked content."),
@@ -7799,9 +7799,10 @@ bool UCookOnTheFlyServer::ArePreviousCookSettingsCompatible(const TMap<FName, FS
 void UCookOnTheFlyServer::SaveCookSettings(const TMap<FName, FString>& CurrentCookSettings, const ITargetPlatform* TargetPlatform)
 {
 	FConfigFile ConfigFile;
+	FConfigSection& SavedSettings = *ConfigFile.FindOrAddSection(TEXT_CookSettings);
 	for (const TPair<FName, FString>& CurrentSetting : CurrentCookSettings)
 	{
-		ConfigFile.AddToSection(TEXT_CookSettings, CurrentSetting.Key, CurrentSetting.Value);
+		SavedSettings.Add(CurrentSetting.Key, CurrentSetting.Value);
 	}
 	ConfigFile.Dirty = true; // Writing to a section does not set the dirty flag, so set it manually to make Write work
 	ConfigFile.Write(GetCookSettingsFileName(TargetPlatform));
@@ -7904,7 +7905,7 @@ bool UCookOnTheFlyServer::IniSettingsOutOfDate(const ITargetPlatform* TargetPlat
 		for ( const auto& OldIniSection : OldIniFile.Value )
 		{
 			const FName& SectionName = OldIniSection.Key;
-			const FConfigSection* IniSection = ConfigFile->FindSection( SectionName.ToString() );
+			const FConfigSection* IniSection = ConfigFile->Find( SectionName.ToString() );
 			const FString DenyListSetting = FString::Printf(TEXT("%s%s%s:%s"), *PlatformName, bFoundPlatformName ? TEXT(".") : TEXT(""), *Filename, *SectionName.ToString());
 
 			if ( IniSection == nullptr )
@@ -7970,8 +7971,10 @@ bool UCookOnTheFlyServer::SaveCurrentIniSettings(const ITargetPlatform* TargetPl
 	// ConfigFile.Read(*PlatformSandboxEditorIni);
 
 	ConfigFile.Dirty = true;
-	const static TCHAR* NAME_UsedSettings =TEXT("UsedSettings");
-	ConfigFile.Remove(NAME_UsedSettings);
+	const static FName NAME_UsedSettings(TEXT("UsedSettings"));
+	ConfigFile.Remove(NAME_UsedSettings.ToString());
+	FConfigSection& UsedSettings = ConfigFile.FindOrAdd(NAME_UsedSettings.ToString());
+
 
 	{
 		UE_SCOPED_HIERARCHICAL_COOKTIMER(ProcessingAccessedStrings)
@@ -7989,7 +7992,7 @@ bool UCookOnTheFlyServer::SaveCurrentIniSettings(const ITargetPlatform* TargetPl
 					for ( int Index = 0; Index < Values.Num(); ++Index )
 					{
 						FString NewKey = FString::Printf(TEXT("%s:%s:%s:%d"), *Filename.ToString(), *Section.ToString(), *ValueName.ToString(), Index);
-						ConfigFile.AddToSection(NAME_UsedSettings, *NewKey, Values[Index]);
+						UsedSettings.Add(FName(*NewKey), Values[Index]);
 					}
 				}
 			}
@@ -7997,11 +8000,13 @@ bool UCookOnTheFlyServer::SaveCurrentIniSettings(const ITargetPlatform* TargetPl
 	}
 
 
-	const static FString NAME_AdditionalSettings(TEXT("AdditionalSettings"));
-	ConfigFile.Remove(NAME_AdditionalSettings);
+	const static FName NAME_AdditionalSettings(TEXT("AdditionalSettings"));
+	ConfigFile.Remove(NAME_AdditionalSettings.ToString());
+	FConfigSection& AdditionalSettings = ConfigFile.FindOrAdd(NAME_AdditionalSettings.ToString());
+
 	for (const auto& AdditionalIniSetting : AdditionalIniSettings)
 	{
-		ConfigFile.AddToSection(*NAME_AdditionalSettings, FName(*AdditionalIniSetting.Key), AdditionalIniSetting.Value);
+		AdditionalSettings.Add( FName(*AdditionalIniSetting.Key), AdditionalIniSetting.Value );
 	}
 
 	ConfigFile.Write(PlatformSandboxEditorIni);
@@ -8863,7 +8868,7 @@ void UCookOnTheFlyServer::GetGameDefaultObjects(const TArray<ITargetPlatform*>& 
 		FConfigFile PlatformEngineIni;
 		FConfigCacheIni::LoadLocalIniFile(PlatformEngineIni, TEXT("Engine"), true, *TargetPlatform->IniPlatformName());
 
-		const FConfigSection* MapSettingsSection = PlatformEngineIni.FindSection(TEXT("/Script/EngineSettings.GameMapsSettings"));
+		FConfigSection* MapSettingsSection = PlatformEngineIni.Find(TEXT("/Script/EngineSettings.GameMapsSettings"));
 
 		if (MapSettingsSection == nullptr)
 		{
