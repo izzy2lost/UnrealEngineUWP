@@ -2,6 +2,7 @@
 
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Horde.Commands
 {
@@ -11,15 +12,23 @@ namespace Horde.Commands
 		[CommandLine("-Server=", Description = "Updates the server URL")]
 		public string? Server { get; set; }
 
+		readonly CmdConfig _config;
+
+		public ConfigCommand(IOptions<CmdConfig> config)
+		{
+			_config = config.Value;
+		}
+
 		/// <inheritdoc/>
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
 			if (Server != null)
 			{
-				await Settings.SetServerAsync(Server);
+				_config.Server = new Uri(Server);
+				await _config.WriteAsync();
 			}
 
-			logger.LogInformation("Server: {Server}", await Settings.GetServerAsync());
+			logger.LogInformation("Server: {Server}", _config.Server);
 			return 0;
 		}
 	}

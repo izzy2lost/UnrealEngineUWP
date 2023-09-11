@@ -10,6 +10,7 @@ using Serilog.Sinks.SystemConsole.Themes;
 using Serilog;
 using Serilog.Formatting.Json;
 using EpicGames.Horde.Storage;
+using Microsoft.Extensions.Options;
 
 namespace Horde
 {
@@ -34,6 +35,7 @@ namespace Horde
 			services.AddLogging();
 			services.AddMemoryCache();
 			services.AddSingleton<StorageCache>();
+			services.AddSingleton(sp => Options.Create(CmdConfig.Read()));
 
 			// Execute all the commands
 			await using ServiceProvider serviceProvider = services.BuildServiceProvider();

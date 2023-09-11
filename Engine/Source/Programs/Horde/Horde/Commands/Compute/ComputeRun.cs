@@ -11,6 +11,7 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Horde.Commands.Compute
 {
@@ -50,10 +51,20 @@ namespace Horde.Commands.Compute
 		[CommandLine("-Task=", Required = true)]
 		FileReference TaskFile { get; set; } = null!;
 
+		readonly CmdConfig _config;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public ComputeRun(IOptions<CmdConfig> config)
+		{
+			_config = config.Value;
+		}
+
 		/// <inheritdoc/>
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			await using IComputeClient client = CreateClient(logger);
+			await using IComputeClient client = await CreateClientAsync(logger);
 
 			Requirements? requirements = null;
 			if (Requirements != null)
@@ -71,7 +82,7 @@ namespace Horde.Commands.Compute
 			return result ? 0 : 1;
 		}
 
-		IComputeClient CreateClient(ILogger logger)
+		async Task<IComputeClient> CreateClientAsync(ILogger logger)
 		{
 			if (Local)
 			{
@@ -83,16 +94,9 @@ namespace Horde.Commands.Compute
 			}
 			else
 			{
-				return new ServerComputeClient(async ctx => await CreateHttpClientAsync(logger, ctx), logger);
+				string? accessToken = await _config.GetAccessTokenAsync(logger);
+				return new ServerComputeClient(_config.Server, new AuthenticationHeaderValue("Bearer", accessToken), logger);
 			}
-		}
-
-		static async Task<HttpClient> CreateHttpClientAsync(ILogger logger, CancellationToken cancellationToken)
-		{
-			HttpClient client = new HttpClient();
-			client.BaseAddress = await Settings.GetServerAsync(cancellationToken);
-			client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await Settings.GetAccessTokenAsync(logger, cancellationToken));
-			return client;
 		}
 
 		/// <inheritdoc/>

@@ -2,6 +2,7 @@
 
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Horde.Commands
 {
@@ -19,21 +20,23 @@ namespace Horde.Commands
 		[CommandLine("-Server=")]
 		public string? Server { get; set; }
 
+		readonly CmdConfig _config;
+
+		public LoginCommand(IOptions<CmdConfig> config)
+		{
+			_config = config.Value;
+		}
+
 		/// <inheritdoc/>
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
 			if (Server != null)
 			{
-				await Settings.SetServerAsync(Server);
+				_config.Server = new Uri(Server);
+				await _config.WriteAsync();
 			}
 
-			if(await Settings.GetServerAsync() == null)
-			{
-				logger.LogError("No Horde server is configured. Specify -Server=... to configure one.");
-				return 1;
-			}
-
-			if (await Settings.GetAccessTokenAsync(logger) == null)
+			if (await _config.GetAccessTokenAsync(logger) == null)
 			{
 				logger.LogError("Unable to log in to server");
 				return 1;

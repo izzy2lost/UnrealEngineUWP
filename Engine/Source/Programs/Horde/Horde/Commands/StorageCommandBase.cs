@@ -4,6 +4,7 @@ using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Storage;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Horde.Commands
 {
@@ -32,11 +33,17 @@ namespace Horde.Commands
 		public StorageCache StorageCache { get; }
 
 		/// <summary>
+		/// Configuration for the tool
+		/// </summary>
+		public CmdConfig Config { get; }
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageCommandBase(StorageCache storageCache)
+		public StorageCommandBase(StorageCache storageCache, IOptions<CmdConfig> config)
 		{
 			StorageCache = storageCache;
+			Config = config.Value;
 		}
 
 		/// <inheritdoc/>
@@ -52,7 +59,7 @@ namespace Horde.Commands
 		/// <param name="cancellationToken"></param>
 		public async Task<IStorageClient> CreateStorageClientAsync(ILogger logger, CancellationToken cancellationToken = default)
 		{
-			_hordeHttpClient ??= await Settings.GetHttpClientAsync(logger, cancellationToken);
+			_hordeHttpClient ??= await Config.GetHttpClientAsync(logger, cancellationToken);
 			if (String.IsNullOrEmpty(Path))
 			{
 				return _hordeHttpClient.CreateStorageClient(Namespace, StorageCache);

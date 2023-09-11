@@ -7,6 +7,7 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Horde.Commands.Bundles
 {
@@ -28,8 +29,8 @@ namespace Horde.Commands.Bundles
 		[CommandLine("-OutputDir=", Required = true)]
 		public DirectoryReference OutputDir { get; set; } = null!;
 
-		public BundleExtract(StorageCache storageCache)
-			: base(storageCache)
+		public BundleExtract(StorageCache storageCache, IOptions<CmdConfig> config)
+			: base(storageCache, config)
 		{
 		}
 

@@ -7,6 +7,7 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Horde.Commands.Workspace
 {
@@ -33,8 +34,8 @@ namespace Horde.Commands.Workspace
 		[CommandLine("-Stats")]
 		public bool Stats { get; set; }
 
-		public WorkspaceSync(StorageCache storageCache)
-			: base(storageCache)
+		public WorkspaceSync(StorageCache storageCache, IOptions<CmdConfig> config)
+			: base(storageCache, config)
 		{
 		}
 

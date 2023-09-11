@@ -3,10 +3,10 @@
 using System.Diagnostics;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Horde.Commands.Bundles
 {
@@ -25,8 +25,8 @@ namespace Horde.Commands.Bundles
 		[CommandLine("-Filter=", Description = "Filter for files to include, in P4 syntax (eg. Foo/...).")]
 		public string Filter { get; set; } = "...";
 
-		public BundleCreate(StorageCache storageCache)
-			: base(storageCache)
+		public BundleCreate(StorageCache storageCache, IOptions<CmdConfig> config)
+			: base(storageCache, config)
 		{
 		}
 
