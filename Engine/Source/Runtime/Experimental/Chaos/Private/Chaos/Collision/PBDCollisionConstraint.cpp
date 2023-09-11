@@ -53,6 +53,11 @@ namespace Chaos
 	bool bChaos_Collision_EnableBoundsChecks = true;
 	FAutoConsoleVariableRef CVarChaos_Collision_EnableBoundsChecks(TEXT("p.Chaos.Collision.EnableBoundsChecks"), bChaos_Collision_EnableBoundsChecks, TEXT(""));
 
+	// Maximum number of manifold points per contact (-1 for unlimited)
+	int32 Chaos_Collision_MaxManifoldPoints = -1;
+	FAutoConsoleVariableRef CVarChaos_Collision_MaxManifoldPoints(TEXT("p.Chaos.Collision.MaxManifoldPoints"), Chaos_Collision_MaxManifoldPoints, TEXT(""));
+
+
 	struct FCollisionTolerances
 	{
 		// Multiplied by the contact margin to produce a distance within which contacts are considered to be the same point
@@ -1204,5 +1209,10 @@ namespace Chaos
 		{
 			return NoRestingDependency;
 		}
+	}
+
+	void FPBDCollisionConstraint::LogOneShotManifoldError(const int32 MaxManifoldPoints, const TArrayView<const FContactPoint>& ContactPoints)
+	{
+		UE_LOG(LogChaos, Error, TEXT("FPBDCollisionConstraint: exceeded per-constraint manifold point limit at %d / %d. Particles %s -:- %s"), ContactPoints.Num(), MaxManifoldPoints, *GetParticle0()->GetDebugName(), *GetParticle1()->GetDebugName());
 	}
 }

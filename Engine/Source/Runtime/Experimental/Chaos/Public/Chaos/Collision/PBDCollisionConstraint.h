@@ -39,6 +39,8 @@ namespace Chaos
 
 	CHAOS_API bool ContactConstraintSortPredicate(const FPBDCollisionConstraint& L, const FPBDCollisionConstraint& R);
 
+	extern int32 Chaos_Collision_MaxManifoldPoints;
+
 	/*
 	 * @brief Material properties for a collision constraint
 	*/
@@ -556,7 +558,16 @@ namespace Chaos
 
 			FReal MinPhi = TNumericLimits<FReal>::Max();
 			
-			const int32 NumContacts = ContactPoints.Num();
+			int32 NumContacts = ContactPoints.Num();
+
+			// If we have too many manifold points, clip the array. This is considered and error but
+			// is important for avoiding OOM or massive slowdowns when something goes wrong
+			const int32 MaxManifoldPoints = Chaos_Collision_MaxManifoldPoints;
+			if ((MaxManifoldPoints >= 0) && (NumContacts > MaxManifoldPoints))
+			{
+				NumContacts = MaxManifoldPoints;
+				LogOneShotManifoldError(MaxManifoldPoints, ContactPoints);
+			}
 			
 			ManifoldPoints.Reserve(NumContacts);
 
@@ -844,6 +855,8 @@ namespace Chaos
 
 	private:
 		CHAOS_API FReal CalculateSavedManifoldDistanceSq(const FSavedManifoldPoint& SavedManifoldPoint, const FManifoldPoint& ManifoldPoint, const FReal DistanceToleranceSq) const;
+
+		CHAOS_API void LogOneShotManifoldError(const int32 MaxManifoldPoints, const TArrayView<const FContactPoint>& ContactPoints);
 
 		union FFlags
 		{

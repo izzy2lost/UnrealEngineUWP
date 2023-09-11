@@ -621,7 +621,8 @@ public:
 	const TSharedPtr<FString, ESPMode::ThreadSafe>& DebugName() const { return GeometryParticles->DebugName(ParticleIdx); }
 	void SetDebugName(const TSharedPtr<FString, ESPMode::ThreadSafe>& InDebugName) { GeometryParticles->DebugName(ParticleIdx) = InDebugName; }
 #endif
-	
+	const FString& GetDebugName() const { return GeometryParticles->GetDebugName(ParticleIdx); }
+
 	EObjectStateType ObjectState() const;
 
 	TGeometryParticle<T, d>* GTGeometryParticle() const { return GeometryParticles->GTGeometryParticle(ParticleIdx); }
@@ -2212,6 +2213,12 @@ public:
 		return MHandle->DebugName();
 	}
 #endif
+
+	const FString& GetDebugName() const
+	{
+		return MHandle->GetDebugName();
+	}
+
 
 	FORCEINLINE bool IsInConstraintGraph() const
 	{

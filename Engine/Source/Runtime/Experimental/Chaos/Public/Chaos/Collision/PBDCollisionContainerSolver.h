@@ -27,7 +27,7 @@ namespace Chaos
 		FPBDCollisionContainerSolver(const FPBDCollisionConstraints& InConstraintContainer, const int32 InPriority);
 		~FPBDCollisionContainerSolver();
 
-		int32 NumSolvers() const { return CollisionConstraints.Num(); }
+		int32 NumSolvers() const { return NumCollisionSolvers; }
 
 		virtual void Reset(const int32 InMaxCollisions) override final;
 
@@ -80,6 +80,7 @@ namespace Chaos
 
 		// The start of the solver array in the scratch buffer
 		Private::FPBDCollisionSolver* CollisionSolvers;
+		int32 NumCollisionSolvers;
 
 		// The start of the manifold points array in the scratch buffer
 		Private::FPBDCollisionSolverManifoldPoint* CollisionSolverManifoldPoints;

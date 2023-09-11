@@ -41,6 +41,8 @@ namespace Chaos
 	namespace Private
 	{
 		class FPBDIslandParticle;
+
+		CHAOS_API extern FString EmptyParticleName;
 	}
 
 	/**
@@ -431,6 +433,17 @@ namespace Chaos
 			return MDebugName[Index];
 		}
 #endif
+
+		const FString& GetDebugName(const int32 Index) const
+		{
+#if CHAOS_DEBUG_NAME
+			if (MDebugName[Index].IsValid())
+			{
+				return *(MDebugName[Index].Get());
+			}
+#endif
+			return Private::EmptyParticleName;
+		}
 
 		const TAABB<T, d>& WorldSpaceInflatedBounds(const int32 Index) const
 		{

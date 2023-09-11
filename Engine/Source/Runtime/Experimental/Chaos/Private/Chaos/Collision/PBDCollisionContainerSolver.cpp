@@ -55,6 +55,10 @@ namespace Chaos
 		// Whether to enable the new initial overlap depentration system
 		bool bChaos_Collision_EnableInitialDepenetration = false;
 		FAutoConsoleVariableRef CVarChaosCollisionEnableInitialDepentration(TEXT("p.Chaos.PBDCollisionSolver.EnableInitialDepenetration"), bChaos_Collision_EnableInitialDepenetration, TEXT(""));
+
+		// The maximum number of constraints we will attempt to solve (-1 for unlimited)
+		int32 Chaos_Collision_MaxSolverManifoldPoints = -1;
+		FAutoConsoleVariableRef CVarChaosCollisionMaxSolverManifoldPoints(TEXT("p.Chaos.PBDCollisionSolver.MaxManifoldPoints"), Chaos_Collision_MaxSolverManifoldPoints, TEXT(""));
 	}
 
 
@@ -405,30 +409,58 @@ namespace Chaos
 	{
 		NumCollisionSolverManifoldPoints = 0;
 		MaxCollisionSolverManifoldPoints = 0;
+		NumCollisionSolvers = 0;
 		CollisionSolvers = nullptr;
 		CollisionSolverManifoldPoints = nullptr;
 
+		// We have one solver per constraint, unless we have too manu constraints...
+		NumCollisionSolvers = CollisionConstraints.Num();
+
 		// Count the manifold points
 		// @todo(chaos): can we avoid this?
-		const int32 NumCollisionsConstraints = CollisionConstraints.Num();
-		for (int32 ConstraintIndex = 0; ConstraintIndex < NumCollisionsConstraints; ++ConstraintIndex)
+		const int32 ManifoldPointLimit = CVars::Chaos_Collision_MaxSolverManifoldPoints;
+		for (int32 ConstraintIndex = 0; ConstraintIndex < CollisionConstraints.Num(); ++ConstraintIndex)
 		{
-			MaxCollisionSolverManifoldPoints += CalculateConstraintMaxManifoldPoints(GetConstraint(ConstraintIndex));
+			const int32 MaxManifoldPoints = CalculateConstraintMaxManifoldPoints(GetConstraint(ConstraintIndex));
+			
+			// Drop some of the constraints if we exceed some tunable maximum. This is purely to prevent massive 
+			// slowdowns or excessive scratch allocations when too many collisions are generated.
+			if ((ManifoldPointLimit >= 0) && (MaxCollisionSolverManifoldPoints + MaxManifoldPoints > ManifoldPointLimit))
+			{
+				// At this point something is assumed to have gone wrong, so this is an error condition.
+				UE_LOG(LogChaos, Error, TEXT("FPBDCollisionContainerSolver: exceeded solver manifold point limit %d at constraint %d of %d. This and remaining constraints will not be solved"), ManifoldPointLimit, ConstraintIndex, CollisionConstraints.Num());
+				NumCollisionSolvers = ConstraintIndex;
+				break;
+			}
+
+			MaxCollisionSolverManifoldPoints += MaxManifoldPoints;
+		}
+
+		// If we have no manifold points, there's no point creating any solvers
+		if (MaxCollisionSolverManifoldPoints == 0)
+		{
+			NumCollisionSolvers = 0;
 		}
 
 		// Set up the solver buffers
-		if (NumCollisionsConstraints > 0)
+		if (NumCollisionSolvers > 0)
 		{
 			// Resize the scratch buffer (up to 25% slack)
 			constexpr size_t AlignedSolverSize = Align(sizeof(Private::FPBDCollisionSolver), alignof(Private::FPBDCollisionSolver));
 			constexpr size_t AlignedPointSize = Align(sizeof(Private::FPBDCollisionSolverManifoldPoint), alignof(Private::FPBDCollisionSolverManifoldPoint));
-			const size_t ScratchSize = NumCollisionsConstraints * AlignedSolverSize + MaxCollisionSolverManifoldPoints * AlignedPointSize;
+			const size_t ScratchSize = NumCollisionSolvers * AlignedSolverSize + MaxCollisionSolverManifoldPoints * AlignedPointSize;
 			const size_t ScratchBufferSize = CalculateCollisionBufferNum(ScratchSize, Scratch.BufferSize());
 			Scratch.Reset(ScratchBufferSize);
+			
+			if (Scratch.BufferSize() == 0)
+			{
+				UE_LOG(LogChaos, Error, TEXT("FPBDCollisionContainerSolver: failed to allocate scratch buffer of size %lld bytes. NumCollisions=%d, NumManifoldPoints=%d. Collisions will be lost."), ScratchBufferSize, NumCollisionSolvers, MaxCollisionSolverManifoldPoints);
+				NumCollisionSolvers = 0;
+				return;
+			}
 
 			// Allocate scratch space for the collision solvers and manifold points
-			// NOTE: scratch return a valid pointer even for 0 size so CollisionSolverManifoldPoints is always a valid pointer in the scratch (but may have no space)
-			CollisionSolvers = Scratch.AllocArray<Private::FPBDCollisionSolver>(NumCollisionsConstraints);
+			CollisionSolvers = Scratch.AllocArray<Private::FPBDCollisionSolver>(NumCollisionSolvers);
 			CollisionSolverManifoldPoints = Scratch.AllocArray<Private::FPBDCollisionSolverManifoldPoint>(MaxCollisionSolverManifoldPoints);
 		}
 	}
@@ -468,10 +500,10 @@ namespace Chaos
 		// All constarints are now added. We can allocate the solver buffers.
 		PrepareSolverBuffer();
 
-		// Make sure have a valid manifold point buffer if we have constraints (it may be zero size, but we want the pointer to be valid)
-		check((CollisionSolverManifoldPoints != nullptr) || (GetNumConstraints() == 0));
+		// Make sure have a valid manifold point buffer if we have constraints
+		check((CollisionSolverManifoldPoints != nullptr) || (NumSolvers() == 0));
 
-		for (int32 ConstraintIndex = 0, ConstraintEndIndex = GetNumConstraints(); ConstraintIndex < ConstraintEndIndex; ++ConstraintIndex)
+		for (int32 ConstraintIndex = 0, ConstraintEndIndex = NumSolvers(); ConstraintIndex < ConstraintEndIndex; ++ConstraintIndex)
 		{
 			Private::FPBDCollisionSolver& CollisionSolver = GetSolver(ConstraintIndex);
 			FPBDCollisionConstraint* Constraint = GetConstraint(ConstraintIndex);
@@ -508,12 +540,16 @@ namespace Chaos
 		}
 	}
 
-	void FPBDCollisionContainerSolver::GatherInput(const FReal InDt, const int32 BeginIndex, const int32 EndIndex)
+	void FPBDCollisionContainerSolver::GatherInput(const FReal InDt, const int32 ConstraintBeginIndex, const int32 ConstraintEndIndex)
 	{
 		// NOTE: may be called in parallel. Should not change the container or any elements outside of [BeginIndex, EndIndex)
 
-		check(BeginIndex >= 0);
-		check(EndIndex <= NumSolvers());
+		check(ConstraintBeginIndex >= 0);
+		check(ConstraintEndIndex <= CollisionConstraints.Num());
+
+		// Handle the case where we dropped some constraints because there were too  many
+		const int32 BeginIndex = FMath::Min(ConstraintBeginIndex, NumCollisionSolvers);
+		const int32 EndIndex = FMath::Min(ConstraintEndIndex, NumCollisionSolvers);
 
 		const FSolverReal Dt = FSolverReal(InDt);
 
@@ -550,12 +586,16 @@ namespace Chaos
 		ScatterOutput(Dt, 0, NumSolvers());
 	}
 
-	void FPBDCollisionContainerSolver::ScatterOutput(const FReal InDt, const int32 BeginIndex, const int32 EndIndex)
+	void FPBDCollisionContainerSolver::ScatterOutput(const FReal InDt, const int32 ConstraintBeginIndex, const int32 ConstraintEndIndex)
 	{
 		// NOTE: may be called in parallel. Should not change the container or any elements outside of [BeginIndex, EndIndex)
 
-		check(BeginIndex >= 0);
-		check(EndIndex <= NumSolvers());
+		check(ConstraintBeginIndex >= 0);
+		check(ConstraintEndIndex <= CollisionConstraints.Num());
+
+		// Handle the case where we dropped some constraints because there were too  many
+		const int32 BeginIndex = FMath::Min(ConstraintBeginIndex, NumCollisionSolvers);
+		const int32 EndIndex = FMath::Min(ConstraintEndIndex, NumCollisionSolvers);
 
 		const FSolverReal Dt = FSolverReal(InDt);
 
