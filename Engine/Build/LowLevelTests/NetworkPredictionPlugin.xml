@@ -39,4 +39,12 @@
   <Property Name="VisionOSNetworkPredictionPluginTags" Value="" />
   <Property Name="VisionOSNetworkPredictionPluginExtraCompilationArgs" Value="" />
   <Property Name="VisionOSNetworkPredictionPluginRunSupported" Value="False" />
+  <Property Name="Win64NetworkPredictionPluginRunContainerized" Value="False" />
+  <Property Name="MacNetworkPredictionPluginRunContainerized" Value="False" />
+  <Property Name="IOSNetworkPredictionPluginRunContainerized" Value="False" />
+  <Property Name="AndroidNetworkPredictionPluginRunContainerized" Value="False" />
+  <Property Name="LinuxNetworkPredictionPluginRunContainerized" Value="False" />
+  <Property Name="LinuxArm64NetworkPredictionPluginRunContainerized" Value="False" />
+  <Property Name="TVOSNetworkPredictionPluginRunContainerized" Value="False" />
+  <Property Name="VisionOSNetworkPredictionPluginRunContainerized" Value="False" />
 </BuildGraph>

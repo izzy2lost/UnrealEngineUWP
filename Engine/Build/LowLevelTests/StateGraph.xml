@@ -37,4 +37,12 @@
   <Property Name="VisionOSStateGraphTags" Value="" />
   <Property Name="VisionOSStateGraphExtraCompilationArgs" Value="" />
   <Property Name="VisionOSStateGraphRunSupported" Value="False" />
+  <Property Name="Win64StateGraphRunContainerized" Value="False" />
+  <Property Name="MacStateGraphRunContainerized" Value="False" />
+  <Property Name="IOSStateGraphRunContainerized" Value="False" />
+  <Property Name="AndroidStateGraphRunContainerized" Value="False" />
+  <Property Name="LinuxStateGraphRunContainerized" Value="False" />
+  <Property Name="LinuxArm64StateGraphRunContainerized" Value="False" />
+  <Property Name="TVOSStateGraphRunContainerized" Value="False" />
+  <Property Name="VisionOSStateGraphRunContainerized" Value="False" />
 </BuildGraph>

@@ -457,6 +457,9 @@ namespace AutomationTool
 					case "Regex":
 						await ReadRegexAsync(childElement);
 						break;
+					case "StringOp":
+						await ReadStringOpAsync(childElement);
+						break;
 					case "EnvVar":
 						await ReadEnvVarAsync(childElement);
 						break;
@@ -856,6 +859,47 @@ namespace AutomationTool
 		}
 
 		/// <summary>
+		/// Reads a StringOp element and applies string method.
+		/// </summary>
+		/// <param name="element">Xml element to read the definition from</param>
+		async Task ReadStringOpAsync(BgScriptElement element)
+		{
+			if (await EvaluateConditionAsync(element))
+			{
+				string input = ReadAttribute(element, "Input");
+				string method = ReadAttribute(element, "Method");
+				string output = ReadAttribute(element, "Output");
+
+				string operationResult = string.Empty;
+
+				string[] arguments = { };
+
+				const string ArgumentsName = "Arguments";
+
+				if (element.HasAttribute(ArgumentsName))
+				{
+					arguments = ReadAttribute(element, ArgumentsName).Split(';');
+				}
+
+				// Supply more string operations here
+				switch(method)
+				{
+					case "ToLower": operationResult = input.ToLower(); break;
+					case "ToUpper": operationResult = input.ToUpper(); break;
+					case "Replace":
+						if (arguments.Length != 2)
+						{
+							throw new AutomationException($"String operation 'Replace' requires exactly 2 arguments.");
+						}
+						operationResult = input.Replace(arguments[0], arguments[1]);
+						break;
+					default: throw new AutomationException($"String operation '{method}' not available.");
+				}
+				SetPropertyValue(element, output, operationResult);
+			}
+		}
+
+		/// <summary>
 		/// Reads a property assignment from an environment variable.
 		/// </summary>
 		/// <param name="element">Xml element to read the definition from</param>
@@ -1006,6 +1050,9 @@ namespace AutomationTool
 						break;
 					case "Regex":
 						await ReadRegexAsync(childElement);
+						break;
+					case "StringOp":
+						await ReadStringOpAsync(childElement);
 						break;
 					case "Node":
 						await ReadNodeAsync(childElement);
@@ -1359,6 +1406,9 @@ namespace AutomationTool
 						break;
 					case "Regex":
 						await ReadRegexAsync(childElement);
+						break;
+					case "StringOp":
+						await ReadStringOpAsync(childElement);
 						break;
 					case "Trace":
 						await ReadDiagnosticAsync(childElement, LogLevel.Information);

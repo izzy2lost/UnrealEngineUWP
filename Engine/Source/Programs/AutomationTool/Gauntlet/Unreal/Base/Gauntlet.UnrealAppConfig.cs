@@ -59,6 +59,11 @@ namespace Gauntlet
 		private bool CanAlterCommandArgsPrivate = true;
 
 		/// <summary>
+		/// Set this property when the application is executed through a Docker container.
+		/// </summary>
+		public ContainerInfo ContainerInfo { get; set; }
+
+		/// <summary>
 		/// Arguments for this instance
 		/// </summary>
 		public string CommandLine

@@ -39,4 +39,12 @@
   <Property Name="VisionOSHeadlessChaosTags" Value="" />
   <Property Name="VisionOSHeadlessChaosExtraCompilationArgs" Value="" />
   <Property Name="VisionOSHeadlessChaosRunSupported" Value="False" />
+  <Property Name="Win64HeadlessChaosRunContainerized" Value="False" />
+  <Property Name="MacHeadlessChaosRunContainerized" Value="False" />
+  <Property Name="IOSHeadlessChaosRunContainerized" Value="False" />
+  <Property Name="AndroidHeadlessChaosRunContainerized" Value="False" />
+  <Property Name="LinuxHeadlessChaosRunContainerized" Value="False" />
+  <Property Name="LinuxArm64HeadlessChaosRunContainerized" Value="False" />
+  <Property Name="TVOSHeadlessChaosRunContainerized" Value="False" />
+  <Property Name="VisionOSHeadlessChaosRunContainerized" Value="False" />
 </BuildGraph>

@@ -857,6 +857,16 @@ class MakefileTargetPlatform_Linux : MakefileTargetPlatform_Unix
 	}
 }
 
+class MakefileTargetPlatform_LinuxArm64 : MakefileTargetPlatform_Unix
+{
+	public override string PlatformOrGroupName => nameof(UnrealTargetPlatform.LinuxArm64);
+
+	public MakefileTargetPlatform_LinuxArm64(string Architecture)
+		: base(Architecture)
+	{
+	}
+}
+
 class XcodeTargetPlatform_Mac : BuildCMakeLib.XcodeTargetPlatform
 {
 	public override string PlatformOrGroupName => nameof(UnrealTargetPlatform.Mac);

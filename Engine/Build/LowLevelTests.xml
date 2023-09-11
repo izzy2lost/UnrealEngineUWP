@@ -1,15 +1,15 @@
 <?xml version='1.0' ?>
-<BuildGraph xmlns="http://www.epicgames.com/BuildGraph" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.epicgames.com/BuildGraph ../../../Build/Graph/Schema.xsd" >
+<BuildGraph xmlns="http://www.epicgames.com/BuildGraph" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.epicgames.com/BuildGraph ./Graph/Schema.xsd" >
 	<EnvVar Name="UE_HORDE_JOBID"/>
 
 	<Property Name="TestNames" Value=""/>
 
-	<Property Name="AllTestablePlatforms" Value="Win64;Mac;Linux;Android;IOS"/>
+	<Property Name="AllTestablePlatforms" Value="Win64;Mac;Linux;LinuxArm64;Android;IOS"/>
 	<Property Name="MobilePlatforms" Value="Android;IOS"/>
 	<Property Name="BuildPlatforms" Value="Win64;Mac;Linux"/>
 	<Property Name="PlatformsBuiltFromWin64" Value="Win64;Android"/>
 	<Property Name="PlatformsBuiltFromMac" Value="Mac;IOS"/>
-	<Property Name="PlatformsBuiltFromLinux" Value="Linux"/>
+	<Property Name="PlatformsBuiltFromLinux" Value="Linux;LinuxArm64"/>
 
 	<Property Name="AlternateDevicePoolPlatformsProperty" Value=""/>
 
@@ -71,6 +71,7 @@
 	<Option Name="TestAllSupportedPlatforms" DefaultValue="true" Description="Test All Supported Platforms"/>
 	<Option Name="TestPlatformWin64" DefaultValue="false" Description="Test Platform Win64"/>
 	<Option Name="TestPlatformLinux" DefaultValue="false" Description="Test Platform Linux"/>
+	<Option Name="TestPlatformLinuxArm64" DefaultValue="false" Description="Test Platform LinuxArm64"/>
 	<Option Name="TestPlatformMac" DefaultValue="false" Description="Test Platform Mac"/>
 	<Option Name="TestPlatformAndroid" DefaultValue="false" Description="Test Platform Android"/>
 	<Option Name="TestPlatformIOS" DefaultValue="false" Description="Test Platform IOS"/>
@@ -150,10 +151,33 @@
 		</Do>
 
 		<Property Name="TestArgsExt" Value="$(TestArgsExt) -SkipStage -Build=&quot;$(RootDir)\$($(TestName)Target)\$(PlatformStageDirName)&quot;" If="'$($(TestName)StagesWithProjectFile)' == 'True'"/>
-		<Property Name="TestArgsExt" Value="$(TestArgsExt) -build=&quot;$($(TestName)BinariesRelative)\$(Platform)\$($(TestName)Target)$(TestModeSuffix)&quot;" If="'$($(TestName)StagesWithProjectFile)' != 'True'"/>
+		<Property Name="TestArgsExt" Value="$(TestArgsExt) -build=&quot;$($(TestName)BinariesRelative)/$(Platform)/$($(TestName)Target)$(TestModeSuffix)&quot;" If="'$($(TestName)StagesWithProjectFile)' != 'True'"/>
+
+		<Property Name="AppRunsContainerized" Value="$($(Platform)$(TestName)RunContainerized)"/>
+
+		<Do If="'$(AppRunsContainerized)' == 'True'">
+			<Property Name="TestTargetLowercase" Value=""/>
+			<StringOp Input="$($(TestName)Target)" Method="ToLower" Output="TestTargetLowercase"/>
+
+			<Property Name="BinariesRelativeForwardSlash" Value=""/>
+			<StringOp Input="$($(TestName)BinariesRelative)" Method="Replace" Arguments="\;/" Output="BinariesRelativeForwardSlash"/>
+
+			<!-- Builds docker image -->
+			<Expand Name="$(Platform)DockerCleanup" AppNameLowercase="$(TestTargetLowercase)"/>
+			<Expand Name="$(Platform)DockerSetup" AppNameLowercase="$(TestTargetLowercase)" AppDir="$(BinariesRelativeForwardSlash)/$(Platform)/$($(TestName)Target)$(TestModeSuffix)"/>
+			<Property Name="TestArgsExt" Value="$(TestArgsExt) -containerized"/>
+		</Do>
 		
 		<Command Name="RunLowLevelTests"
 				Arguments="-test=LowLevelTests -testapp=$($(TestName)Target)$(TestModeSuffix) -platform=$(Platform) -configuration=$(Configuration) $(TestArgsExt) -VeryVerbose"/>
+
+		<Do If="'$(AppRunsContainerized)' == 'True'">
+			<Property Name="TestTargetLowercase" Value=""/>
+			<StringOp Input="$($(TestName)Target)" Method="ToLower" Output="TestTargetLowercase"/>
+
+			<!-- Stop any running docker container and remove image -->
+			<Expand Name="$(Platform)DockerCleanup" AppNameLowercase="$(TestTargetLowercase)"/>
+		</Do>
 	</Macro>
 
 	<ForEach Name="BuildPlatform" Values="$(BuildPlatforms)">
@@ -161,7 +185,7 @@
 			<Property Name="AgentType" Value="$(BuildPlatform)"/>
 			<Expand Name="SelectAgentType" Platform="$(Platform)" BuildPlatform="$(BuildPlatform)" />
 			<Property Name="BuildAgentType" Value="$(AgentType)"/>
-			<Do If="'$(Platform)' == 'Linux'">
+			<Do If="'$(Platform)' == 'Linux' Or '$(Platform)' == 'LinuxArm64'">
 				<Property Name="BuildAgentType" Value="Win64"/>
 			</Do>
 			<Agent Name="Catch2 Build $(Platform)" Type="$(BuildAgentType)">
@@ -177,6 +201,10 @@
 					</Do>
 					<Do If="'$(Platform)' == 'Linux'">
 						<Property Name="ExtraCMakeArgs" Value="-TargetArchitecture=x86_64-unknown-linux-gnu -CMakeAdditionalArguments=&quot;$(CommonExtraCmakeArgs)-DBUILD_WITH_LIBCXX=ON&quot;"/>
+					</Do>
+					<Do If="'$(Platform)' == 'LinuxArm64'">
+						<Property Name="TargetPlatform" Value="Linux"/>
+						<Property Name="ExtraCMakeArgs" Value="-TargetArchitecture=aarch64-unknown-linux-gnueabi -CMakeAdditionalArguments=&quot;$(CommonExtraCmakeArgs)-DBUILD_WITH_LIBCXX=ON&quot;"/>
 					</Do>
 					<Do If="'$(Platform)' == 'Win64'">
 						<Property Name="Generator" Value="VS2019"/>

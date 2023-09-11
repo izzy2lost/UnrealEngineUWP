@@ -61,6 +61,11 @@ public class Catch2 : ModuleRules
 			{
 				Arch = "x86_64-unknown-linux-gnu";
 			}
+			else if (Target.Platform == UnrealTargetPlatform.LinuxArm64)
+			{
+				RelativeLibPath = UnrealTargetPlatform.Linux.ToString();
+				Arch = "aarch64-unknown-linux-gnueabi";
+			}
 			else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
 			{
 				RelativeLibPath = "Win64";

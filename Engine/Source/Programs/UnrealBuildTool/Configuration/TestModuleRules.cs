@@ -313,6 +313,9 @@ namespace UnrealBuildTool
 				string RunSupportedValue = TestMetadata.PlatformsRunUnsupported.Contains(ValidPlatform) ? "False" : "True";
 				AppendOrUpdateTestFlagProperty(ref XInitPlatformFile, TestMetadata.TestName, ValidPlatform.ToString(), "RunSupported", RunSupportedValue);
 
+				string RunContainerizedValue = TestMetadata.PlatformRunContainerized.ContainsKey(ValidPlatform) ? "True" : "False";
+				AppendOrUpdateTestFlagProperty(ref XInitPlatformFile, TestMetadata.TestName, ValidPlatform.ToString(), "RunContainerized", RunContainerizedValue);
+
 				XInitPlatformFile.Save(GeneratedPropertiesPlatformFile);
 			}
 		}
@@ -538,6 +541,17 @@ namespace UnrealBuildTool
 				get => PlatformsRunUnsupportedPrivate;
 				set => PlatformsRunUnsupportedPrivate = value;
 			}
+
+			private Dictionary<UnrealTargetPlatform, bool> PlatformRunContainerizedPrivate = new Dictionary<UnrealTargetPlatform, bool>();
+			/// <summary>
+			/// Whether or not the test is run inside a Docker container for a given platform.
+			/// </summary>
+			public Dictionary<UnrealTargetPlatform, bool> PlatformRunContainerized
+			{
+				get { return PlatformRunContainerizedPrivate; }
+				set { PlatformRunContainerizedPrivate = value; }
+			}
+
 		}
 #pragma warning restore 8618
 	}

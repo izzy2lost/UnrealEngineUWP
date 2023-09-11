@@ -807,15 +807,18 @@ namespace Gauntlet
 
 		public void AddLocalDevices(int MaxCount)
 		{
-			UnrealTargetPlatform LocalPlat = BuildHostPlatform.Current.Platform;
+			AddLocalDevices(MaxCount, BuildHostPlatform.Current.Platform);
+		}
 
-			int NumDevices = GetAvailableDeviceCount(new UnrealDeviceTargetConstraint(LocalPlat));
+		public void AddLocalDevices(int MaxCount, UnrealTargetPlatform LocalPlatform)
+		{
+			int NumDevices = GetAvailableDeviceCount(new UnrealDeviceTargetConstraint(LocalPlatform));
 
 			for (int i = NumDevices; i < MaxCount; i++)
 			{
 				DeviceDefinition Def = new DeviceDefinition();
 				Def.Name = string.Format("LocalDevice{0}", i);
-				Def.Platform = LocalPlat;
+				Def.Platform = LocalPlatform;
 				UnprovisionedDevices.Add(Def);
 			}
 		}

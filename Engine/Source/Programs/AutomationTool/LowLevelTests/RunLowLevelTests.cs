@@ -8,7 +8,6 @@ using AutomationTool;
 using UnrealBuildTool;
 using UnrealBuildBase;
 using Gauntlet;
-using System.Text.RegularExpressions;
 using AutomationTool.DeviceReservation;
 using Microsoft.Extensions.Logging;
 
@@ -193,6 +192,8 @@ namespace LowLevelTests
 		public UnrealTargetPlatform Platform;
 		public string Device;
 
+		public bool Containerized;
+
 		public LowLevelTestExecutorOptions()
 		{
 			BuildSourceType = typeof(LowLevelTestsBuildSource);
@@ -246,6 +247,8 @@ namespace LowLevelTests
 			string DeviceArgString = Params.ParseValue("device=", null);
 			Device = string.IsNullOrEmpty(PlatformArgString) ? "default" : DeviceArgString;
 
+			Containerized = Params.ParseParam("containerized");
+
 			string[] CleanArgs = Params.AllArguments
 				.Where(Arg => !Arg.StartsWith("test=", StringComparison.OrdinalIgnoreCase)
 					&& !Arg.StartsWith("platform=", StringComparison.OrdinalIgnoreCase)
@@ -270,9 +273,11 @@ namespace LowLevelTests
 		private int PerTestTimeout { get; set; }
 		private string TestExtraArgs { get; set; }
 
+		private bool Containerized { get;set; }
+
 		public UnrealDeviceReservation UnrealDeviceReservation { get; private set; }
 
-		public LowLevelTestsSession(LowLevelTestsBuildSource InBuildSource, string InTags, int InSleep, bool InAttachToDebugger, string InReportType, int InPerTestTimeout = 0, string InTestExtraArgs = null)
+		public LowLevelTestsSession(LowLevelTestsBuildSource InBuildSource, string InTags, int InSleep, bool InAttachToDebugger, string InReportType, int InPerTestTimeout = 0, string InTestExtraArgs = null, bool InContainerized = false)
 		{
 			BuildSource = InBuildSource;
 			Tags = InTags;
@@ -282,13 +287,32 @@ namespace LowLevelTests
 			PerTestTimeout = InPerTestTimeout;
 			UnrealDeviceReservation = new UnrealDeviceReservation();
 			TestExtraArgs = InTestExtraArgs;
+			Containerized = InContainerized;
 		}
 
 		public bool TryReserveDevices()
 		{
-			Dictionary<UnrealDeviceTargetConstraint, int> RequiredDeviceTypes = new Dictionary<UnrealDeviceTargetConstraint, int>();
-			// Only one device required.
-			RequiredDeviceTypes.Add(new UnrealDeviceTargetConstraint(BuildSource.Platform), 1);
+			// Low level tests require exactly one device of the build source's platform.
+			Dictionary<UnrealDeviceTargetConstraint, int> RequiredDeviceTypes = new Dictionary<UnrealDeviceTargetConstraint, int>
+			{
+				{ new UnrealDeviceTargetConstraint(BuildSource.Platform), 1 }
+			};
+
+
+			if (Containerized)
+			{
+				// Linux platforms, including arm64, can be run through Docker on Windows machines.
+				// Add a Linux device on Windows hosts when running locally.
+				// Add a local LinuxArm64 device when running on the build system: the device service can't provision devices for this platform.
+				string IsBuildMachineEnvVar = Environment.GetEnvironmentVariable("IsBuildMachine") ?? string.Empty;
+				bool IsBuildMachine = (IsBuildMachineEnvVar != null && IsBuildMachineEnvVar == "1");
+				if ((!IsBuildMachine && BuildSource.Platform.IsInGroup(UnrealPlatformGroup.Linux) && BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Win64) ||
+					(IsBuildMachine && BuildSource.Platform == UnrealTargetPlatform.LinuxArm64))
+				{
+					DevicePool.Instance.AddLocalDevices(1, BuildSource.Platform);
+				}
+			}
+
 			return UnrealDeviceReservation.TryReserveDevices(RequiredDeviceTypes, 1);
 		}
 
@@ -304,7 +328,7 @@ namespace LowLevelTests
 
 			// TargetDevice<Platform> classes have a hard dependency on UnrealAppConfig instead of IAppConfig.
 			// More refactoring needed to support non-packaged applications that can be run natively from a path on the device.
-			UnrealAppConfig AppConfig = BuildSource.GetUnrealAppConfig(Tags, Sleep, AttachToDebugger, ReportType, PerTestTimeout, TestExtraArgs);
+			UnrealAppConfig AppConfig = BuildSource.GetUnrealAppConfig(Tags, Sleep, AttachToDebugger, ReportType, PerTestTimeout, TestExtraArgs, Containerized);
 
 			IEnumerable<ITargetDevice> DevicesToInstallOn = UnrealDeviceReservation.ReservedDevices.ToArray();
 			ITargetDevice Device = DevicesToInstallOn.Where(D => D.IsConnected && D.Platform == BuildSource.Platform).First();
@@ -603,7 +627,9 @@ namespace LowLevelTests
 			{
 				return @"\w+(Tests)?(?:-\w+)?(?:-\w+)?.exe$";
 			}
-			else if (InPlatform == UnrealTargetPlatform.Linux || InPlatform == UnrealTargetPlatform.Mac)
+			else if (InPlatform == UnrealTargetPlatform.Linux ||
+					 InPlatform == UnrealTargetPlatform.LinuxArm64 ||
+					 InPlatform == UnrealTargetPlatform.Mac)
 			{
 				return @"\w+(Tests)?$";
 			}
@@ -633,7 +659,16 @@ namespace LowLevelTests
 			string ExpectedLocalPath = Path.Combine(InTargetDirectory, ReportRelativePath);
 			if (!ExpectedLocalPath.Equals(ReportPath))
 			{
-				File.Copy(ReportPath, ExpectedLocalPath, true);
+				if (InAppInstall is IContainerized)
+				{
+					ContainerInfo Container = ((IContainerized)InAppInstall).ContainerInfo;
+					string ReportPathInContainer = Container.WorkingDir + "/" + Path.GetRelativePath(Globals.UnrealRootDir, ReportPath).Replace("\\", "/");
+					CommandUtils.Run("docker", $"cp {Container.ContainerName}:{ReportPathInContainer} {ExpectedLocalPath}");
+				}
+				else
+				{
+					File.Copy(ReportPath, ExpectedLocalPath, true);
+				}
 			}
 			return ExpectedLocalPath;
 		}
@@ -684,7 +719,7 @@ namespace LowLevelTests
 				.ToArray();
 		}
 
-		public UnrealAppConfig GetUnrealAppConfig(string InTags, int InSleep, bool InAttachToDebugger, string InReportType, int InPerTestTimeout = 0, string TestExtraArgs = null)
+		public UnrealAppConfig GetUnrealAppConfig(string InTags, int InSleep, bool InAttachToDebugger, string InReportType, int InPerTestTimeout = 0, string InTestExtraArgs = null, bool InContainerized = false)
 		{
 			if (CachedConfig == null)
 			{
@@ -697,6 +732,18 @@ namespace LowLevelTests
 				CachedConfig.Build = DiscoveredBuild;
 				CachedConfig.Sandbox = "LowLevelTests";
 				CachedConfig.FilesToCopy = new List<UnrealFileToCopy>();
+				if (InContainerized)
+				{
+					CachedConfig.ContainerInfo = new ContainerInfo();
+					CachedConfig.ContainerInfo.ImageName = $"{TestApp}-{Platform}-Image".ToLower();
+					CachedConfig.ContainerInfo.ContainerName = $"{TestApp}-{Platform}-Container".ToLower();
+					// LinuxArm64 runs through emulator in container
+					if (Platform == UnrealTargetPlatform.LinuxArm64)
+					{
+						CachedConfig.ContainerInfo.RunCommandPrepend = "qemu-aarch64 -L /usr/aarch64-linux-gnu";
+						CachedConfig.ContainerInfo.WorkingDir = "/app";
+					}
+				}
 
 				//Tags needs to be the first argument, if any are provided via --tags=
 				if (!string.IsNullOrEmpty(InTags))
@@ -709,7 +756,12 @@ namespace LowLevelTests
 				if (!string.IsNullOrEmpty(InReportType))
 				{
 					CachedConfig.CommandLineParams.AddRawCommandline(string.Format("--reporter={0}", InReportType));
-					CachedConfig.CommandLineParams.AddRawCommandline(string.Format("--out={0}", LowLevelTestsReporting.GetTargetReportPath(Platform, TestApp, BuildPath)));
+					string ReportPath = LowLevelTestsReporting.GetTargetReportPath(Platform, TestApp, BuildPath);
+					if (InContainerized)
+					{
+						ReportPath = CachedConfig.ContainerInfo.WorkingDir + "/" + Path.GetRelativePath(Globals.UnrealRootDir, ReportPath).Replace("\\", "/");
+					}
+					CachedConfig.CommandLineParams.AddRawCommandline(string.Format("--out={0}", ReportPath));
 				}
 				CachedConfig.CommandLineParams.AddRawCommandline("--filenames-as-tags");
 				if (InSleep > 0)
@@ -743,9 +795,9 @@ namespace LowLevelTests
 					}
 				}
 
-				if (TestExtraArgs != null)
+				if (InTestExtraArgs != null)
 				{
-					ExtraCmd += string.Format(" {0}", TestExtraArgs);
+					ExtraCmd += string.Format(" {0}", InTestExtraArgs);
 				}
 
 				if (!string.IsNullOrEmpty(ExtraCmd))

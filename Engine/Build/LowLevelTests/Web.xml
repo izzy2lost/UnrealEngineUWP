@@ -38,4 +38,12 @@
 	<Property Name="VisionOSWebTags" Value="" />
 	<Property Name="VisionOSWebExtraCompilationArgs" Value="" />
 	<Property Name="VisionOSWebRunSupported" Value="True" />
+	<Property Name="Win64WebRunContainerized" Value="False" />
+	<Property Name="MacWebRunContainerized" Value="False" />
+	<Property Name="IOSWebRunContainerized" Value="False" />
+	<Property Name="AndroidWebRunContainerized" Value="False" />
+	<Property Name="LinuxWebRunContainerized" Value="False" />
+	<Property Name="LinuxArm64WebRunContainerized" Value="False" />
+	<Property Name="TVOSWebRunContainerized" Value="False" />
+	<Property Name="VisionOSWebRunContainerized" Value="False" />
 </BuildGraph>

@@ -38,4 +38,12 @@
   <Property Name="VisionOSEventLoopTags" Value="" />
   <Property Name="VisionOSEventLoopExtraCompilationArgs" Value="" />
   <Property Name="VisionOSEventLoopRunSupported" Value="False" />
+  <Property Name="Win64EventLoopRunContainerized" Value="False" />
+  <Property Name="MacEventLoopRunContainerized" Value="False" />
+  <Property Name="IOSEventLoopRunContainerized" Value="False" />
+  <Property Name="AndroidEventLoopRunContainerized" Value="False" />
+  <Property Name="LinuxEventLoopRunContainerized" Value="False" />
+  <Property Name="LinuxArm64EventLoopRunContainerized" Value="False" />
+  <Property Name="TVOSEventLoopRunContainerized" Value="False" />
+  <Property Name="VisionOSEventLoopRunContainerized" Value="False" />
 </BuildGraph>

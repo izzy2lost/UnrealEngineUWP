@@ -40,6 +40,15 @@ namespace Gauntlet
 		}
 	}
 
+	class LinuxAppContainerInstall : LinuxAppInstall, IContainerized
+	{
+		public ContainerInfo ContainerInfo { get; set; }
+
+		public LinuxAppContainerInstall(string InName, string InProjectName, ContainerInfo InContainerInfo, TargetDeviceLinux InDevice) : base(InName, InProjectName, InDevice)
+		{
+			ContainerInfo = InContainerInfo;
+		}
+	}
 
 	class LinuxAppInstall : IAppInstall
 	{
@@ -130,6 +139,19 @@ namespace Gauntlet
 		}
 	}
 
+	public class LinuxArm64DeviceFactory : IDeviceFactory
+	{
+		public bool CanSupportPlatform(UnrealTargetPlatform? Platform)
+		{
+			return Platform == UnrealTargetPlatform.LinuxArm64;
+		}
+
+		public ITargetDevice CreateDevice(string InRef, string InCachePath, string InParam = null)
+		{
+			return new TargetDeviceLinux(InRef, InCachePath) { IsArm64 = true };
+		}
+	}
+
 	/// <summary>
 	/// Linux implementation of a device to run applications
 	/// </summary>
@@ -138,6 +160,8 @@ namespace Gauntlet
 		public string Name { get; protected set; }
 
 		protected string UserDir { get; set; }
+
+		public bool IsArm64 { get; set; }
 
 		/// <summary>
 		/// Our mappings of Intended directories to where they actually represent on this platform.
@@ -229,7 +253,17 @@ namespace Gauntlet
 
 				bool bAllowSpew = LinuxApp.RunOptions.HasFlag(CommandUtils.ERunOptions.AllowSpew);
 
-				Result = CommandUtils.Run(LinuxApp.ExecutablePath,
+				bool bAppContainerized = LinuxApp is IContainerized;
+
+				// Forward command to Docker container if running containerized
+				if (bAppContainerized)
+				{
+					ContainerInfo Container = ((IContainerized)LinuxApp).ContainerInfo;
+					string ContainerApp = Container.WorkingDir + "/" + Path.GetRelativePath(Globals.UnrealRootDir, LinuxApp.ExecutablePath).Replace('\\', '/');
+					CmdLine = $"run --name {Container.ContainerName} {Container.ImageName} {Container.RunCommandPrepend} {ContainerApp} {CmdLine}";
+				}
+
+				Result = CommandUtils.Run(bAppContainerized ? "docker" : LinuxApp.ExecutablePath,
 					CmdLine,
 					Options: LinuxApp.RunOptions,
 					SpewFilterCallback: new SpewFilterCallbackType(delegate(string M) { return bAllowSpew ? M : null; }) /* make sure stderr does not spew in the stdout */,
@@ -280,7 +314,16 @@ namespace Gauntlet
 
 		protected IAppInstall InstallNativeStagedBuild(UnrealAppConfig AppConfig, NativeStagedBuild InBuild)
 		{
-			LinuxAppInstall LinuxApp = new LinuxAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
+			LinuxAppInstall LinuxApp;
+			if (AppConfig.ContainerInfo != null)
+			{
+				LinuxApp = new LinuxAppContainerInstall(AppConfig.Name, AppConfig.ProjectName, AppConfig.ContainerInfo, this);
+			}
+			else
+			{
+				LinuxApp = new LinuxAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
+			}
+
 			LinuxApp.RunOptions = RunOptions;
 			if (Log.IsVeryVerbose)
 			{
@@ -434,7 +477,7 @@ namespace Gauntlet
 			return !Utils.SystemHelpers.IsNetworkPath(InPath);
 		}
 
-		public UnrealTargetPlatform? Platform { get { return UnrealTargetPlatform.Linux; } }
+		public UnrealTargetPlatform? Platform { get { return IsArm64 ? UnrealTargetPlatform.LinuxArm64 : UnrealTargetPlatform.Linux; } }
 
 		public string LocalCachePath { get; private set; }
 		public bool IsAvailable { get { return true; } }
