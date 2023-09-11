@@ -90,6 +90,30 @@ static int32 GetNumSkeletonBones(const FBoneContainer& BoneContainer)
 
 }}	// namespace UE::Anim
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+FInertializationRequest::FInertializationRequest() = default;
+
+FInertializationRequest::FInertializationRequest(float InDuration, const UBlendProfile* InBlendProfile)
+	: Duration(InDuration)
+	, BlendProfile(InBlendProfile) {}
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+void FInertializationRequest::Clear()
+{
+	Duration = -1.0f;
+	BlendProfile = nullptr;
+	bUseBlendMode = false;
+	BlendMode = EAlphaBlendOption::Linear;
+	CustomBlendCurve = nullptr;
+
+#if ANIM_TRACE_ENABLED 
+	DescriptionString.Empty();
+	NodeId = INDEX_NONE;
+	AnimInstance = nullptr;
+#endif
+}
 
 FAnimNode_Inertialization::FAnimNode_Inertialization()
 	: DeltaTime(0.0f)
@@ -286,10 +310,11 @@ void FAnimNode_Inertialization::Evaluate_AnyThread(FPoseContext& Output)
 		// Handle the first inertialization request in the queue
 		InertializationDuration = FMath::Max(RequestQueue[0].Duration - AppliedDeficit, 0.0f);
 #if ANIM_TRACE_ENABLED
-		InertializationRequestDescription = RequestQueue[0].Description;
+		InertializationRequestDescription = RequestQueue[0].DescriptionString;
 		InertializationRequestNodeId = RequestQueue[0].NodeId;
 		InertializationRequestAnimInstance = RequestQueue[0].AnimInstance;
 #endif
+
 		FillSkeletonBoneDurationsArray(InertializationDurationPerBone, InertializationDuration, RequestQueue[0].BlendProfile);
 
 		// Handle all subsequent inertialization requests (often there will be only a single request)
@@ -306,7 +331,7 @@ void FAnimNode_Inertialization::Evaluate_AnyThread(FPoseContext& Output)
 				{
 					InertializationDuration = RequestDuration;
 #if ANIM_TRACE_ENABLED
-					InertializationRequestDescription = Request.Description;
+					InertializationRequestDescription = Request.DescriptionString;
 					InertializationRequestNodeId = Request.NodeId;
 					InertializationRequestAnimInstance = Request.AnimInstance;
 #endif
@@ -461,7 +486,7 @@ void FAnimNode_Inertialization::Evaluate_AnyThread(FPoseContext& Output)
 	TRACE_ANIM_NODE_VALUE_WITH_ID(Output, GetNodeIndex(), TEXT("Max Duration"), InertializationMaxDuration);
 	TRACE_ANIM_NODE_VALUE_WITH_ID(Output, GetNodeIndex(), TEXT("Normalized Time"), InertializationDuration > UE_KINDA_SMALL_NUMBER ? (InertializationElapsedTime / InertializationDuration) : 0.0f);
 	TRACE_ANIM_NODE_VALUE_WITH_ID(Output, GetNodeIndex(), TEXT("Inertialization Weight"), InertializationWeight);
-	TRACE_ANIM_NODE_VALUE_WITH_ID(Output, GetNodeIndex(), TEXT("Request Description"), *InertializationRequestDescription.ToString());
+	TRACE_ANIM_NODE_VALUE_WITH_ID(Output, GetNodeIndex(), TEXT("Request Description"), *InertializationRequestDescription);
 	TRACE_ANIM_NODE_VALUE_WITH_ID_ANIM_NODE(Output, GetNodeIndex(), TEXT("Request Node"), InertializationRequestNodeId, InertializationRequestAnimInstance);
 }
 

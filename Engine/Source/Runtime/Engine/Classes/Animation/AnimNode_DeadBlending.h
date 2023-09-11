@@ -257,16 +257,6 @@ private:
 	// Current inertialization duration (used for curves).
 	float InertializationDuration = 0.0f;
 
-	// Description for the current inertialization request - used for debugging
-	FText InertializationRequestDescription;
-
-	// Node Id for the current inertialization request - used for debugging
-	int32 InertializationRequestNodeId = INDEX_NONE;
-
-	// Anim Instance for the current inertialization request - used for debugging
-	UPROPERTY(Transient)
-	TObjectPtr<UObject> InertializationRequestAnimInstance = nullptr;
-
 	// Current inertialization durations for each bone, indexed by skeleton bone index (used for per-bone blending).
 	TCustomBoneIndexArray<float, FSkeletonPoseBoneIndex> InertializationDurationPerBone;
 
@@ -279,4 +269,19 @@ private:
 	// Custom blend curve being used by the current blend mode.
 	UPROPERTY(Transient)
 	TObjectPtr<UCurveFloat> InertializationCustomBlendCurve = nullptr;
+
+
+// if ANIM_TRACE_ENABLED - these properties are only used for debugging when ANIM_TRACE_ENABLED == 1
+
+	// Description for the current inertialization request
+	FString InertializationRequestDescription;
+
+	// Node Id for the current inertialization request
+	int32 InertializationRequestNodeId = INDEX_NONE;
+
+	// Anim Instance for the current inertialization request
+	UPROPERTY(Transient)
+	TObjectPtr<UObject> InertializationRequestAnimInstance = nullptr;
+
+// endif ANIM_TRACE_ENABLED
 };

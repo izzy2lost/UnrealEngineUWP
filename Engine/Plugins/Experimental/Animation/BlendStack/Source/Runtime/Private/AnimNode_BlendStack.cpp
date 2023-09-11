@@ -655,7 +655,6 @@ static void RequestInertialBlend(const FAnimationUpdateContext& Context, float B
 			Request.bUseBlendMode = true;
 			Request.BlendMode = BlendOption;
 #if ANIM_TRACE_ENABLED
-			Request.Description = LOCTEXT("InertializationRequestDescription", "Blend Stack");
 			Request.NodeId = Context.GetCurrentNodeId();
 			Request.AnimInstance = Context.AnimInstanceProxy->GetAnimInstanceObject();
 #endif

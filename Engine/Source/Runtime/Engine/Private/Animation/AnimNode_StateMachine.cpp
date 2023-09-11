@@ -1257,11 +1257,11 @@ void FAnimNode_StateMachine::TransitionToState(const FAnimationUpdateContext& Co
 				Request.BlendMode = TransitionInfo.BlendMode;
 				Request.CustomBlendCurve = TransitionInfo.CustomCurve;
 #if ANIM_TRACE_ENABLED
-				Request.Description = FText::Format(LOCTEXT("InertializationRequestDescription", 
+				Request.DescriptionString = FText::Format(LOCTEXT("InertializationRequestDescription", 
 					"\"{0}\" Transition from \"{1}\" to \"{2}\""), 
 					FText::FromName(GetMachineDescription()->MachineName),
 					FText::FromName(GetStateInfo(TransitionInfo.PreviousState).StateName),
-					FText::FromName(GetStateInfo(TransitionInfo.NextState).StateName));
+					FText::FromName(GetStateInfo(TransitionInfo.NextState).StateName)).ToString();
 				Request.NodeId = Context.GetCurrentNodeId();
 				Request.AnimInstance = Context.AnimInstanceProxy->GetAnimInstanceObject();
 #endif

@@ -113,26 +113,23 @@ struct FInertializationRequest
 {
 	GENERATED_BODY()
 
-	FInertializationRequest() {}
+	ENGINE_API FInertializationRequest();
+	ENGINE_API FInertializationRequest(float InDuration, const UBlendProfile* InBlendProfile);
 
-	FInertializationRequest(float InDuration, const UBlendProfile* InBlendProfile)
-		: Duration(InDuration)
-		, BlendProfile(InBlendProfile)
-	{
-	}
+	// Note: We need to explicitly disable warnings on these constructors/operators for clang to be happy with deprecated variables
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	~FInertializationRequest() = default;
+	FInertializationRequest(const FInertializationRequest&) = default;
+	FInertializationRequest(FInertializationRequest&&) = default;
+	FInertializationRequest& operator=(const FInertializationRequest&) = default;
+	FInertializationRequest& operator=(FInertializationRequest&&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	void Clear()
-	{
-		Duration = -1.0f;
-		BlendProfile = nullptr;
-		bUseBlendMode = false;
-		BlendMode = EAlphaBlendOption::Linear;
-		CustomBlendCurve = nullptr;
-		Description = FText::GetEmpty();
-		NodeId = INDEX_NONE;
-		AnimInstance = nullptr;
-	}
+	ENGINE_API void Clear();
 
+	// Comparison operator used to test for equality in the array of animation requests to that
+	// only unique requests are added. This does not take into account the properties that are 
+	// used only for debugging and only used when ANIM_TRACE_ENABLED
 	friend bool operator==(const FInertializationRequest& A, const FInertializationRequest& B)
 	{
 		return
@@ -140,10 +137,7 @@ struct FInertializationRequest
 			(A.BlendProfile == B.BlendProfile) &&
 			(A.bUseBlendMode == B.bUseBlendMode) &&
 			(A.BlendMode == B.BlendMode) &&
-			(A.CustomBlendCurve == B.CustomBlendCurve) &&
-			(A.Description.EqualTo(B.Description) &&
-			(A.NodeId == B.NodeId) &&
-			(A.AnimInstance == B.AnimInstance));
+			(A.CustomBlendCurve == B.CustomBlendCurve);
 	}
 
 	friend bool operator!=(const FInertializationRequest& A, const FInertializationRequest& B)
@@ -171,9 +165,15 @@ struct FInertializationRequest
 	UPROPERTY(Transient)
 	TObjectPtr<UCurveFloat> CustomBlendCurve = nullptr;
 
-	// Description of the request - used for debugging.
+// if ANIM_TRACE_ENABLED - these properties are only used for debugging when ANIM_TRACE_ENABLED == 1
+	
+	UE_DEPRECATED(5.4, "Use DescriptionString instead.")
+	UPROPERTY(Transient, meta = (DeprecatedProperty, DeprecationMessage = "Use DescriptionString instead."))
+	FText Description_DEPRECATED;
+
+	// Description of the request
 	UPROPERTY(Transient)
-	FText Description;
+	FString DescriptionString;
 
 	// Node id from which this request was made.
 	UPROPERTY(Transient)
@@ -182,6 +182,8 @@ struct FInertializationRequest
 	// Anim instance from which this request was made.
 	UPROPERTY(Transient)
 	TObjectPtr<UObject> AnimInstance = nullptr;
+
+// endif ANIM_TRACE_ENABLED
 };
 
 
@@ -445,20 +447,12 @@ private:
 
 	// Inertialization state
 	EInertializationState InertializationState;
+
+	// Amount of time elapsed during the Inertialization
 	float InertializationElapsedTime;
 
 	// Inertialization duration for the main inertialization request (used for curve blending and deficit tracking)
 	float InertializationDuration;
-
-	// Description for the current inertialization request - used for debugging
-	FText InertializationRequestDescription;
-
-	// Node Id for the current inertialization request - used for debugging
-	int32 InertializationRequestNodeId = INDEX_NONE;
-
-	// Anim Instance for the current inertialization request - used for debugging
-	UPROPERTY(Transient)
-	TObjectPtr<UObject> InertializationRequestAnimInstance = nullptr;
 
 	// Inertialization durations indexed by skeleton bone index (used for per-bone blending)
 	TCustomBoneIndexArray<float, FSkeletonPoseBoneIndex> InertializationDurationPerBone;
@@ -477,4 +471,20 @@ private:
 	
 	// Reset inertialization timing and state
 	void Deactivate();
+
+
+// if ANIM_TRACE_ENABLED - these properties are only used for debugging when ANIM_TRACE_ENABLED == 1
+
+	// Description for the current inertialization request
+	FString InertializationRequestDescription;
+
+	// Node Id for the current inertialization request
+	int32 InertializationRequestNodeId = INDEX_NONE;
+
+	// Anim Instance for the current inertialization request
+	UPROPERTY(Transient)
+	TObjectPtr<UObject> InertializationRequestAnimInstance = nullptr;
+
+// endif ANIM_TRACE_ENABLED
+
 };

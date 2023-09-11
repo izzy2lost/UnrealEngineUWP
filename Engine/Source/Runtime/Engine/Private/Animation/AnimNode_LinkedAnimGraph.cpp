@@ -123,7 +123,7 @@ void FAnimNode_LinkedAnimGraph::Update_AnyThread(const FAnimationUpdateContext& 
 				Request.Duration = PendingBlendOutDuration;
 				Request.BlendProfile = PendingBlendOutProfile;
 #if ANIM_TRACE_ENABLED
-				Request.Description = NSLOCTEXT("AnimNode_LinkedAnimGraph", "InertializationRequestDescriptionOut", "Out");
+				Request.DescriptionString = NSLOCTEXT("AnimNode_LinkedAnimGraph", "InertializationRequestDescriptionOut", "Out").ToString();
 				Request.NodeId = InContext.GetCurrentNodeId();
 				Request.AnimInstance = InContext.AnimInstanceProxy->GetAnimInstanceObject();
 #endif
@@ -137,7 +137,7 @@ void FAnimNode_LinkedAnimGraph::Update_AnyThread(const FAnimationUpdateContext& 
 				Request.Duration = PendingBlendInDuration;
 				Request.BlendProfile = PendingBlendInProfile;
 #if ANIM_TRACE_ENABLED
-				Request.Description = NSLOCTEXT("AnimNode_LinkedAnimGraph", "InertializationRequestDescriptionIn", "In");
+				Request.DescriptionString = NSLOCTEXT("AnimNode_LinkedAnimGraph", "InertializationRequestDescriptionIn", "In").ToString();
 				Request.NodeId = InContext.GetCurrentNodeId();
 				Request.AnimInstance = InContext.AnimInstanceProxy->GetAnimInstanceObject();
 #endif
