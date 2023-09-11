@@ -139,6 +139,18 @@ final class WebRTCClient: NSObject {
         }
     }
     
+    func sendRequestQualityControl() {
+        let bytes: [UInt8] = [PixelStreamingToStreamerMessage.RequestQualityControl.rawValue]
+        Log.info("Sending quality control request")
+        self.sendData(Data(bytes))
+    }
+    
+    func sendRequestKeyFrame(){
+        let bytes: [UInt8] = [PixelStreamingToStreamerMessage.IFrameRequest.rawValue]
+        Log.info("Sending keyframe request")
+        self.sendData(Data(bytes))
+    }
+    
     func sendDeviceResolution() {
         let bounds = UIScreen.main.nativeBounds
         

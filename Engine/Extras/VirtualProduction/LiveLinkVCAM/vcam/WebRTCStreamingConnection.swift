@@ -572,7 +572,13 @@ extension WebRTCStreamingConnection: WebRTCClientDelegate {
                         }
                     }
                 case .QualityControlOwnership:
-                    fallthrough
+                    // Log quality control ownership (are we the controller or not?)
+                    let isQualityController : Bool = (data[1] == 1) ? true : false
+                    Log.info("VCam is quality controller: \(isQualityController ? "true" : "false")")
+                    if !isQualityController {
+                        self.webRTCClient?.sendRequestQualityControl()
+                        self.webRTCClient?.sendRequestKeyFrame()
+                    }
                 case .Response:
                     fallthrough
                 case .FreezeFrame:
