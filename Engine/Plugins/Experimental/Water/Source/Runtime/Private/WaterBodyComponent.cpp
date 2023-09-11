@@ -1497,11 +1497,12 @@ void UWaterBodyComponent::UpdateSplineComponent()
 	}
 }
 
-void UWaterBodyComponent::OnWaterBodyChanged(bool bShapeOrPositionChanged, bool bWeightmapSettingsChanged)
+void UWaterBodyComponent::OnWaterBodyChanged(bool bShapeOrPositionChanged, bool bWeightmapSettingsChanged, bool bUserTriggeredChange)
 {
 	FOnWaterBodyChangedParams Params;
 	Params.bShapeOrPositionChanged = bShapeOrPositionChanged;
 	Params.bWeightmapSettingsChanged = bWeightmapSettingsChanged;
+	Params.bUserTriggered = bUserTriggeredChange;
 	OnWaterBodyChanged(Params);
 }
 

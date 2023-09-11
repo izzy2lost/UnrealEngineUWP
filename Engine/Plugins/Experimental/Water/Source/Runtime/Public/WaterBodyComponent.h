@@ -415,7 +415,7 @@ public:
 
 	UE_DEPRECATED(5.2, "Use version which takes FOnWaterBodyChangedParams")
 	UFUNCTION(BlueprintCallable, Category=Water, meta=(Deprecated = "5.2"))
-	void OnWaterBodyChanged(bool bShapeOrPositionChanged, bool bWeightmapSettingsChanged = false);
+	void OnWaterBodyChanged(bool bShapeOrPositionChanged, bool bWeightmapSettingsChanged = false, bool bUserTriggeredChanged = false);
 
 	UE_DEPRECATED(5.3, "Renamed to GetWaterStaticMeshMaterial")
 	UMaterialInterface* GetWaterLODMaterial() const { return GetWaterStaticMeshMaterial(); }
