@@ -162,12 +162,12 @@ struct FD3D12ConstantBufferCache : public FD3D12ResourceCache<CBVSlotMask>
 
 		FMemory::Memzero(CurrentGPUVirtualAddress, sizeof(CurrentGPUVirtualAddress));
 		FMemory::Memzero(ResidencyHandles, sizeof(ResidencyHandles));
-#if USE_STATIC_ROOT_SIGNATURE
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 		FMemory::Memzero(CBHandles, sizeof(CBHandles));
 #endif
 	}
 
-#if USE_STATIC_ROOT_SIGNATURE
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 	D3D12_CPU_DESCRIPTOR_HANDLE CBHandles[SF_NumStandardFrequencies][MAX_CBS];
 #endif
 	D3D12_GPU_VIRTUAL_ADDRESS CurrentGPUVirtualAddress[SF_NumStandardFrequencies][MAX_CBS];
@@ -526,7 +526,7 @@ public:
 				FD3D12ConstantBufferCache::DirtySlot(CBVCache.DirtySlotMask[ShaderFrequency], SlotIndex);
 			}
 
-#if USE_STATIC_ROOT_SIGNATURE
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 			CBVCache.CBHandles[ShaderFrequency][SlotIndex] = UniformBuffer->View->GetOfflineCpuHandle();
 #endif
 		}
@@ -535,13 +535,13 @@ public:
 			CurrentGPUVirtualAddress = 0;
 			CBVCache.ResidencyHandles[ShaderFrequency][SlotIndex] = nullptr;
 			FD3D12ConstantBufferCache::DirtySlot(CBVCache.DirtySlotMask[ShaderFrequency], SlotIndex);
-#if USE_STATIC_ROOT_SIGNATURE
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 			CBVCache.CBHandles[ShaderFrequency][SlotIndex].ptr = 0;
 #endif
 		}
 		else
 		{
-#if USE_STATIC_ROOT_SIGNATURE
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 			CBVCache.CBHandles[ShaderFrequency][SlotIndex].ptr = 0;
 #endif
 		}
@@ -563,7 +563,7 @@ public:
 			CBVCache.ResidencyHandles[ShaderFrequency][SlotIndex] = &Location.GetResource()->GetResidencyHandle();
 			FD3D12ConstantBufferCache::DirtySlot(CBVCache.DirtySlotMask[ShaderFrequency], SlotIndex);
 
-#if USE_STATIC_ROOT_SIGNATURE
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 			CBVCache.CBHandles[ShaderFrequency][SlotIndex] = Buffer.GetOfflineCpuHandle();
 #endif
 		}

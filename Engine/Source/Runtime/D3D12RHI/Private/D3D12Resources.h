@@ -821,8 +821,8 @@ public:
 class FD3D12UniformBuffer : public FRHIUniformBuffer, public FD3D12DeviceChild, public FD3D12LinkedAdapterObject<FD3D12UniformBuffer>
 {
 public:
-#if USE_STATIC_ROOT_SIGNATURE
-	class FD3D12ConstantBufferView* View;
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
+	class FD3D12ConstantBufferView* View = nullptr;
 #endif
 
 	/** The D3D12 constant buffer resource */
@@ -834,9 +834,6 @@ public:
 	FD3D12UniformBuffer(class FD3D12Device* InParent, const FRHIUniformBufferLayout* InLayout, EUniformBufferUsage InUniformBufferUsage)
 		: FRHIUniformBuffer(InLayout)
 		, FD3D12DeviceChild(InParent)
-#if USE_STATIC_ROOT_SIGNATURE
-		, View(nullptr)
-#endif
 		, ResourceLocation(InParent)
 		, UniformBufferUsage(InUniformBufferUsage)
 	{

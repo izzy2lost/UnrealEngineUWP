@@ -1298,7 +1298,7 @@ public:
 	~FD3D12RayTracingShaderTable()
 	{
 		delete DescriptorCache;
-	#if USE_STATIC_ROOT_SIGNATURE
+	#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 		for (FWorkerThreadData& ThisWorkerData : WorkerData)
 		{
 			for (FD3D12ConstantBufferView* CBV : ThisWorkerData.TransientCBVs)
@@ -1306,7 +1306,7 @@ public:
 				delete CBV;
 			}
 		}
-	#endif // USE_STATIC_ROOT_SIGNATURE
+	#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 	}
 
 	void Init(const FInitializer& Initializer, FD3D12Device* Device, const TArrayView<const FD3D12ShaderIdentifier>& RaygenIdentifiers, const FD3D12ShaderIdentifier& DefaultHitGroupIdentifier)
@@ -1764,9 +1764,9 @@ public:
 		TArray<FD3D12ShaderResourceView*> TransitionSRVs;
 		TArray<FD3D12UnorderedAccessView*> TransitionUAVs;
 
-#if USE_STATIC_ROOT_SIGNATURE
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 		TArray<FD3D12ConstantBufferView*> TransientCBVs;
-#endif // USE_STATIC_ROOT_SIGNATURE
+#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 	};
 
 	FWorkerThreadData WorkerData[MaxBindingWorkers];
@@ -4141,12 +4141,12 @@ struct FD3D12RayTracingLocalResourceBinder
 		// caching constant buffer blocks inside ShaderTable and linearly sub-allocate from them.
 		// If the amount of data is relatively small, it may also be possible to use root constants and avoid extra allocations entirely.
 
-	#if USE_STATIC_ROOT_SIGNATURE
+	#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 		FD3D12ConstantBufferView* ConstantBufferView = new FD3D12ConstantBufferView(GetDevice());
 		ShaderTable.WorkerData[WorkerIndex].TransientCBVs.Add(ConstantBufferView);
-	#else // USE_STATIC_ROOT_SIGNATURE
+	#else // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 		FD3D12ConstantBufferView* ConstantBufferView = nullptr;
-	#endif // USE_STATIC_ROOT_SIGNATURE
+	#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 
 		FD3D12FastConstantAllocator& Allocator = Device.GetParentAdapter()->GetTransientUniformBufferAllocator();
 		void* MappedData = Allocator.Allocate(DataSize, ResourceLocation, ConstantBufferView);
@@ -4212,11 +4212,11 @@ static bool SetRayTracingShaderResources(
 		ResourceBinderType& Binder;
 		uint32 GPUIndex;
 
-#if USE_STATIC_ROOT_SIGNATURE
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 		D3D12_CPU_DESCRIPTOR_HANDLE LocalCBVs[MAX_CBS];
-#else // USE_STATIC_ROOT_SIGNATURE
+#else // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 		D3D12_GPU_VIRTUAL_ADDRESS LocalCBVs[MAX_CBS];
-#endif // USE_STATIC_ROOT_SIGNATURE
+#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 
 		D3D12_CPU_DESCRIPTOR_HANDLE LocalSRVs[MAX_SRVS];
 		D3D12_CPU_DESCRIPTOR_HANDLE LocalUAVs[MAX_UAVS];
@@ -4321,14 +4321,14 @@ static bool SetRayTracingShaderResources(
 		if (Resource)
 		{
 			FD3D12UniformBuffer* CBV = FD3D12CommandContext::RetrieveObject<FD3D12UniformBuffer>(Resource, Bindings.GPUIndex);
-		#if USE_STATIC_ROOT_SIGNATURE
+		#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 			FD3D12OfflineDescriptor Descriptor = CBV->View->GetOfflineCpuHandle();
 			Bindings.LocalCBVs[CBVIndex] = Descriptor;
 			Bindings.CBVVersions[CBVIndex] = Descriptor.GetVersion();
-		#else // USE_STATIC_ROOT_SIGNATURE
+		#else // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 			Bindings.LocalCBVs[CBVIndex] = CBV->ResourceLocation.GetGPUVirtualAddress();
 			Bindings.CBVVersions[CBVIndex] = 0; // not available with GPU address path
-		#endif // USE_STATIC_ROOT_SIGNATURE
+		#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 			Bindings.BoundCBVMask |= 1ull << CBVIndex;
 
 			Bindings.ReferencedResources.Add(CBV->ResourceLocation.GetResource());
@@ -4381,11 +4381,11 @@ static bool SetRayTracingShaderResources(
 		FD3D12ResourceLocation ResourceLocation(Binder.GetDevice());
 		FD3D12ConstantBufferView* ConstantBufferView = Binder.CreateTransientConstantBuffer(ResourceLocation, InLooseParameterData, InLooseParameterDataSize);
 
-	#if USE_STATIC_ROOT_SIGNATURE
+	#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 		Bindings.LocalCBVs[CBVIndex] = ConstantBufferView->GetOfflineCpuHandle();
-	#else // USE_STATIC_ROOT_SIGNATURE
+	#else // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 		Bindings.LocalCBVs[CBVIndex] = ResourceLocation.GetGPUVirtualAddress();
-	#endif // USE_STATIC_ROOT_SIGNATURE
+	#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 
 		Bindings.BoundCBVMask |= 1ull << CBVIndex;
 	}
@@ -4443,7 +4443,7 @@ static bool SetRayTracingShaderResources(
 	const uint32 NumCBVs = Shader->ResourceCounts.NumCBs;
 	if (Shader->ResourceCounts.NumCBs)
 	{
-	#if USE_STATIC_ROOT_SIGNATURE
+	#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 
 		const uint32 DescriptorTableBaseIndex = DescriptorCache.AllocateDescriptorTable(Bindings.CBVVersions, Bindings.LocalCBVs, NumCBVs, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, WorkerIndex);
 		const uint32 BindSlot = RootSignature->CBVRDTBindSlot(SF_Compute);
@@ -4452,7 +4452,7 @@ static bool SetRayTracingShaderResources(
 		const D3D12_GPU_DESCRIPTOR_HANDLE ResourceDescriptorTableBaseGPU = DescriptorCache.ViewHeap.GetDescriptorGPU(DescriptorTableBaseIndex);
 		Binder.SetRootDescriptorTable(BindSlot, ResourceDescriptorTableBaseGPU);
 
-	#else // USE_STATIC_ROOT_SIGNATURE
+	#else // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 
 		checkf(RootSignature->CBVRDTBindSlot(SF_Compute) == 0xFF, TEXT("Root CBV descriptor tables are not implemented for ray tracing shaders."));
 
@@ -4466,7 +4466,7 @@ static bool SetRayTracingShaderResources(
 			Binder.SetRootCBV(BindSlot, i, BufferAddress);
 		}
 
-	#endif // USE_STATIC_ROOT_SIGNATURE
+	#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 	}
 
 	// Bind samplers

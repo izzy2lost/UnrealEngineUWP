@@ -555,7 +555,7 @@ void FD3D12DescriptorCache::PrepareBindlessViews(EShaderFrequency ShaderStage, T
 
 void FD3D12DescriptorCache::SetConstantBufferViews(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12ConstantBufferCache& Cache, CBVSlotMask SlotsNeededMask, uint32 SlotsNeeded, uint32& HeapSlot)
 {
-#if USE_STATIC_ROOT_SIGNATURE
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 	CBVSlotMask& CurrentDirtySlotMask = Cache.DirtySlotMask[ShaderStage];
 	check(CurrentDirtySlotMask != 0);	// All dirty slots for the current shader stage.
 	check(SlotsNeededMask != 0);		// All dirty slots for the current shader stage AND used by the current shader stage.
@@ -625,7 +625,7 @@ void FD3D12DescriptorCache::SetConstantBufferViews(EShaderFrequency ShaderStage,
 	FMsg::Logf(__FILE__, __LINE__, TEXT("DescriptorCache"), ELogVerbosity::Log, TEXT("SetShaderResourceViewTable [STAGE %d] to slots %d - %d"), (int32)ShaderStage, FirstSlotIndex, FirstSlotIndex + SlotsNeeded - 1);
 #endif
 
-#endif // USE_STATIC_ROOT_SIGNATURE
+#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 }
 
 void FD3D12DescriptorCache::SetRootConstantBuffers(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12ConstantBufferCache& Cache, CBVSlotMask SlotsNeededMask)

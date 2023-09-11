@@ -202,7 +202,7 @@ static uint32 GetOfflineDescriptorHeapDefaultSize(ERHIDescriptorHeapType InHeapT
 	switch (InHeapType)
 	{
 	default: checkNoEntry();
-#if USE_STATIC_ROOT_SIGNATURE
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 	case ERHIDescriptorHeapType::Standard:     return 4096;
 #else
 	case ERHIDescriptorHeapType::Standard:     return 2048;

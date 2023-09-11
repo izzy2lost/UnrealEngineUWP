@@ -593,13 +593,13 @@ void FD3D12StateCache::ApplyResources(const FD3D12RootSignature* const pRootSign
 	// Determine what resource bind slots are dirty for the current shaders and how many descriptor table slots we need.
 	// We only set dirty resources that can be used for the upcoming Draw/Dispatch.
 	SRVSlotMask CurrentShaderDirtySRVSlots[SF_NumStandardFrequencies] = {};
-#if USE_STATIC_ROOT_SIGNATURE
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 	CBVSlotMask CurrentShaderDirtyCBVSlots[SF_NumStandardFrequencies] = {};
 #endif
 	UAVSlotMask CurrentShaderDirtyUAVSlots = 0;
 	uint32 NumUAVs = 0;
 	uint32 NumSRVs[SF_NumStandardFrequencies] = {};
-#if USE_STATIC_ROOT_SIGNATURE
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 	uint32 NumCBVs[SF_NumStandardFrequencies] ={};
 #endif
 	uint32 NumViews = 0;
@@ -652,7 +652,7 @@ void FD3D12StateCache::ApplyResources(const FD3D12RootSignature* const pRootSign
 				NumViews += NumSRVs[Stage];
 			}
 
-#if USE_STATIC_ROOT_SIGNATURE
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 			const CBVSlotMask CurrentShaderCBVRegisterMask = BitMask<CBVSlotMask>(PipelineState.Common.CurrentShaderCBCounts[Stage]);
 			CurrentShaderDirtyCBVSlots[Stage] = CurrentShaderCBVRegisterMask & PipelineState.Common.CBVCache.DirtySlotMask[Stage];
 			if (CurrentShaderDirtyCBVSlots[Stage])
@@ -715,7 +715,7 @@ void FD3D12StateCache::ApplyResources(const FD3D12RootSignature* const pRootSign
 		}
 	}
 
-#if USE_STATIC_ROOT_SIGNATURE
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 	// Constant buffers
 	{
 		//SCOPE_CYCLE_COUNTER(STAT_D3D12ApplyStateSetConstantBufferTime);
@@ -729,7 +729,7 @@ void FD3D12StateCache::ApplyResources(const FD3D12RootSignature* const pRootSign
 			}
 		}
 	}
-#endif // USE_STATIC_ROOT_SIGNATURE
+#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 }
 
 void FD3D12StateCache::ApplyBindlessResources(const FD3D12RootSignature* const pRootSignature, uint32 StartStage, uint32 EndStage)
@@ -748,7 +748,7 @@ void FD3D12StateCache::ApplyBindlessResources(const FD3D12RootSignature* const p
 
 void FD3D12StateCache::ApplyConstants(const FD3D12RootSignature* const pRootSignature, uint32 StartStage, uint32 EndStage)
 {
-#if !USE_STATIC_ROOT_SIGNATURE
+#if !D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 	// Determine what resource bind slots are dirty for the current shaders and how many descriptor table slots we need.
 	// We only set dirty resources that can be used for the upcoming Draw/Dispatch.
 	CBVSlotMask CurrentShaderDirtyCBVSlots[SF_NumStandardFrequencies] = {};
@@ -778,7 +778,7 @@ void FD3D12StateCache::ApplyConstants(const FD3D12RootSignature* const pRootSign
 			}
 		}
 	}
-#endif // !USE_STATIC_ROOT_SIGNATURE
+#endif // !D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 }
 
 
