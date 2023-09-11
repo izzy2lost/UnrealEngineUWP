@@ -418,7 +418,7 @@ void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::Remov
 	TypedElementRowHandle* RowHandleIt = ReservedRowHandles.GetData();
 	while (AddressIt != AddressEnd)
 	{
-		if (Validator(*AddressIt))
+		if (StorageInterface.IsRowAvailable(*RowHandleIt) && Validator(*AddressIt))
 		{
 			++AddressIt;
 			++RowHandleIt;
@@ -430,8 +430,8 @@ void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::Remov
 			// loop to avoid many resizes happening.
 			constexpr bool bAllowToShrink = false;
 			Addresses.RemoveAtSwap(AddressIt - AddressBegin, 1, bAllowToShrink);
-			StorageInterface.RemoveRow(*RowHandleIt);
 			ReservedRowHandles.RemoveAtSwap(RowHandleIt - RowHandleBegin, 1, bAllowToShrink);
+			StorageInterface.RemoveRow(*RowHandleIt);
 			--AddressEnd;
 		}
 	}
@@ -518,10 +518,9 @@ void UTypedElementDatabaseCompatibility::TickPendingUObjectRegistration()
 		for (auto It = UObjectsPendingRegistration.CreateIterator(); It; ++It)
 		{
 			It->Value.RemoveInvalidEntries(*Storage,
-				[this](const TWeakObjectPtr<UObject>& Object)
+				[](const TWeakObjectPtr<UObject>& Object)
 				{
-					UObject* Instance = Object.Get();
-					return Instance && Storage->IsRowAvailable(FindRowWithCompatibleObjectExplicit(Instance));
+					return Object.Get() != nullptr;
 				});
 		}
 
@@ -559,9 +558,9 @@ void UTypedElementDatabaseCompatibility::TickPendingExternalObjectRegistration()
 		for (auto It = ExternalObjectsPendingRegistration.CreateIterator(); It; ++It)
 		{
 			It->Value.RemoveInvalidEntries(*Storage,
-				[this](const ExternalObjectRegistration& Object)
+				[](const ExternalObjectRegistration& Object)
 				{
-					return Object.Object && Storage->IsRowAvailable(FindRowWithCompatibleObjectExplicit(Object.Object));
+					return Object.Object != nullptr;
 				});
 		}
 
