@@ -15,12 +15,6 @@ public class DMXControlConsoleEditor : ModuleRules
 			}
 		);
 
-		PrivateIncludePaths.AddRange(
-			new string[] {
-				System.IO.Path.Combine(GetModuleDirectory("DMXControlConsole"), "Private"),
-			}
-		);
-
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{              
