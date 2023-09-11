@@ -3397,6 +3397,9 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder, FG
 {
 	check(!FDeferredUpdateResource::IsUpdateNeeded());
 
+	// This is called prior to scene update to avoid a race condition with the MDC caching task.
+	FVirtualTextureSystem::Get().CallPendingCallbacks();
+
 	EUpdateAllPrimitiveSceneInfosAsyncOps AsyncOps = EUpdateAllPrimitiveSceneInfosAsyncOps::None;
 
 	if (GAsyncCreateLightPrimitiveInteractions > 0)

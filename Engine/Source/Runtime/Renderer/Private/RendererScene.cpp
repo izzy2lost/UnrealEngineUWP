@@ -6314,9 +6314,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 
 	GPUSkinCacheTask.Wait();
 
-	// Must run prior to static mesh gathering as callbacks can evaluate uniform expression caches.
-	FVirtualTextureSystem::Get().CallPendingCallbacks();
-
 	if (SceneInfosWithStaticDrawListUpdate.Num() > 0)
 	{
 		FPrimitiveSceneInfo::AddStaticMeshes(this, SceneInfosWithStaticDrawListUpdate, false);
