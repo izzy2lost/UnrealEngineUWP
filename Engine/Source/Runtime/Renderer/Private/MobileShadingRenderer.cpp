@@ -753,6 +753,7 @@ void FMobileSceneRenderer::RenderFullDepthPrepass(FRDGBuilder& GraphBuilder, TAr
 	for (FRenderViewContext& ViewContext : RenderViews)
 	{
 		FViewInfo& View = *ViewContext.ViewInfo;
+		SetDummyLocalFogVolumeForView(GraphBuilder, View);
 
 		if (!ViewContext.bIsFirstView)
 		{
