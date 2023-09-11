@@ -30,7 +30,9 @@
 #include "WorldPartition/HLOD/HLODActor.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
+#include "WorldPartition/WorldPartitionRuntimeContainerResolving.h"
 #include "HAL/FileManager.h"
+#include "Misc/EditorPathHelper.h"
 
 #define LOCTEXT_NAMESPACE "WorldPartition"
 
@@ -93,6 +95,12 @@ class FWorldPartitionStreamingGenerator
 			// Create the dataset required for IStreamingGenerationContext interface
 			MainWorldActorSetContainerIndex = INDEX_NONE;
 			ActorSetContainers.Empty(StreamingGenerator->ContainerCollectionDescriptorsMap.Num());
+			
+			const bool bBuildContainerResolver = FEditorPathHelper::IsEnabled();
+			if (bBuildContainerResolver)
+			{
+				ContainerResolver.SetMainContainerPackage(TopLevelActorDescCollection.GetMainContainerPackageName());
+			}
 
 			TMap<TWeakPtr<FStreamingGenerationActorDescCollection>, int32> ActorSetContainerMap;
 			for (const auto& [LevelName, ContainerDescriptor] : StreamingGenerator->ContainerCollectionDescriptorsMap)
@@ -116,6 +124,20 @@ class FWorldPartitionStreamingGenerator
 					check(MainWorldActorSetContainerIndex == INDEX_NONE);
 					MainWorldActorSetContainerIndex = ContainerIndex;
 				}
+
+				if (bBuildContainerResolver)
+				{
+					auto& Container = ContainerResolver.AddContainer(ContainerDescriptor.ActorDescCollection->GetMainContainerPackageName());
+					for (const FWorldPartitionActorDescView& ActorDescView : ContainerDescriptor.ContainerCollectionInstanceViews)
+					{
+						Container.AddContainerInstance(ActorDescView.GetActorName(), { ActorDescView.GetGuid(), ActorDescView.GetContainerPackage() });
+					}
+				}
+			}
+
+			if (bBuildContainerResolver)
+			{
+				ContainerResolver.BuildContainerIDToEditorPathMap();
 			}
 
 			ActorSetInstances.Empty();
@@ -203,6 +225,8 @@ class FWorldPartitionStreamingGenerator
 				Func(ActorSetContainer);
 			}
 		}
+
+		virtual const FWorldPartitionRuntimeContainerResolver& GetContainerResolver() const override { return ContainerResolver; }
 		//~End IStreamingGenerationContext interface};
 
 	private:
@@ -210,6 +234,7 @@ class FWorldPartitionStreamingGenerator
 		int32 MainWorldActorSetContainerIndex;
 		TArray<FActorSetContainer> ActorSetContainers;
 		TArray<FActorSetInstance> ActorSetInstances;
+		FWorldPartitionRuntimeContainerResolver ContainerResolver;
 	};
 
 	/** 
@@ -1356,13 +1381,16 @@ bool UWorldPartition::GenerateContainerStreaming(const FGenerateStreamingParams&
 	StreamingPolicy = NewObject<UWorldPartitionStreamingPolicy>(const_cast<UWorldPartition*>(this), WorldPartitionStreamingPolicyClass.Get(), NAME_None, bIsPIE ? RF_Transient : RF_NoFlags);
 
 	check(RuntimeHash);
-	if (RuntimeHash->GenerateStreaming(StreamingPolicy, StreamingGenerator.GetStreamingGenerationContext(InParams.ActorDescCollection), InContext.PackagesToGenerate))
+	const IStreamingGenerationContext* StreamingGenerationContext = StreamingGenerator.GetStreamingGenerationContext(InParams.ActorDescCollection);
+	check(StreamingGenerationContext);
+	if (RuntimeHash->GenerateStreaming(StreamingPolicy, StreamingGenerationContext, InContext.PackagesToGenerate))
 	{
 		if (HierarchicalLogAr.IsValid())
 		{
 			RuntimeHash->DumpStateLog(*HierarchicalLogAr);
 		}
 
+		StreamingPolicy->SetContainerResolver(StreamingGenerationContext->GetContainerResolver());
 		StreamingPolicy->PrepareActorToCellRemapping();
 		return true;
 	}

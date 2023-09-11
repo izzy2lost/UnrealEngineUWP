@@ -4225,19 +4225,31 @@ void ULevel::FixupForPIE(int32 InPIEInstanceID)
 
 bool ULevel::ResolveSubobject(const TCHAR* SubObjectPath, UObject*& OutObject, bool bLoadIfExists)
 {
+	// First check if we can find the sub object through relative path of this level
 	OutObject = StaticFindObject(nullptr, this, SubObjectPath);
-
-	if (!OutObject)
+	if (OutObject)
 	{
-		if (UWorldPartition* WorldPartition = GetWorldPartition())
-		{
-			return WorldPartition->ResolveSubobject(SubObjectPath, OutObject, bLoadIfExists);
-		}
-
-		return false;
+		return true;
 	}
 
-	return true;
+	// Then check if we can resolve through a top level actor (Editor Path)
+	FString SubObjectName;
+	FString SubObjectContext(SubObjectPath);
+	if (FString(SubObjectPath).Split(TEXT("."), &SubObjectContext, &SubObjectName))
+	{
+		if (UObject* SubObject = StaticFindObject(nullptr, this, *SubObjectContext))
+		{
+			return SubObject->ResolveSubobject(*SubObjectName, OutObject, bLoadIfExists);
+		}
+	}
+	
+	// Lastly forward to world partition
+	if (UWorldPartition* WorldPartition = GetWorldPartition())
+	{
+		return WorldPartition->ResolveSubobject(SubObjectPath, OutObject, bLoadIfExists);
+	}
+	
+	return false;
 }
 
 bool ULevel::IsPersistentLevel() const

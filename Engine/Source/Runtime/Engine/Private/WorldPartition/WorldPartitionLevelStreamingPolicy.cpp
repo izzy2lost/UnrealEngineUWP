@@ -124,10 +124,58 @@ bool UWorldPartitionLevelStreamingPolicy::StoreToExternalStreamingObject(URuntim
 	if (Super::StoreToExternalStreamingObject(OutExternalStreamingObject))
 	{
 		OutExternalStreamingObject.SubObjectsToCellRemapping = MoveTemp(SubObjectsToCellRemapping);
+		OutExternalStreamingObject.ContainerResolver = MoveTemp(ContainerResolver);
 		return true;
 	}
 
 	return false;
+}
+
+bool UWorldPartitionLevelStreamingPolicy::ConvertContainerPathToEditorPath(const FActorContainerID& InContainerID, const FSoftObjectPath& InPath, FSoftObjectPath& OutPath) const
+{
+	if (ContainerResolver.IsValid())
+	{
+		FString SubObjectString;
+		FString SubObjectContext;
+		if (InPath.GetSubPathString().Split(TEXT("."), &SubObjectContext, &SubObjectString))
+		{
+			if (SubObjectContext == TEXT("PersistentLevel"))
+			{
+				const FString* FoundEditorPath = ContainerResolver.FindContainerEditorPath(InContainerID);
+				if (!FoundEditorPath)
+				{
+					for (const TWeakObjectPtr<URuntimeHashExternalStreamingObjectBase>& ExternalStreamingObject : ExternalStreamingObjects)
+					{
+						if (URuntimeHashExternalStreamingObjectBase* ExternalStreamingObjectPtr = ExternalStreamingObject.Get())
+						{
+							FoundEditorPath = ExternalStreamingObjectPtr->ContainerResolver.FindContainerEditorPath(InContainerID);
+							if (FoundEditorPath)
+							{
+								break;
+							}
+						}
+					}
+				}
+
+				if (FoundEditorPath)
+				{
+					FString SubPathString = TEXT("PersistentLevel.") + *FoundEditorPath;
+					if (!SubObjectString.IsEmpty())
+					{
+						SubPathString += TEXT(".") + SubObjectString;
+					}
+					OutPath = FSoftObjectPath(SourceWorldAssetPath, SubPathString);
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+	
+	// Previous behavior (remap container path to source world path + container id)
+	OutPath = FWorldPartitionLevelHelper::RemapActorPath(InContainerID, SourceWorldAssetPath.ToString(), InPath);
+	return true;
 }
 
 #endif
@@ -176,32 +224,30 @@ bool UWorldPartitionLevelStreamingPolicy::ConvertEditorPathToRuntimePath(const F
 		}
 	}
 
-	FString SubAssetName;
-	FString SubAssetContext;
-	if (SrcObjectPath.GetSubPathString().Split(TEXT("."), &SubAssetContext, &SubAssetName))
+	FString SubObjectString;
+	FString SubObjectContext;
+	if (SrcObjectPath.GetSubPathString().Split(TEXT("."), &SubObjectContext, &SubObjectString))
 	{
-		if (SubAssetContext == TEXT("PersistentLevel"))
+		if (SubObjectContext == TEXT("PersistentLevel"))
 		{
-			FString SubObjectName;
-			FString SubObjectContext(SubAssetName);
-			SubAssetName.Split(TEXT("."), &SubObjectContext, &SubObjectName);
+			FString OutSubObjectString;
+			const FName* CellName = FindCellNameForSubObject(SubObjectString, true, OutSubObjectString);
+			FString SubPathString = SubObjectContext + TEXT(".") + OutSubObjectString;
 
-			// Try to find the corresponding streaming cell, if it doesn't exists the actor must be in the persistent level.
-			const FName* CellName = FindCellNameForSubObject(*SubObjectContext);
 			if (!CellName)
 			{
-				OutPath = FSoftObjectPath(WorldAssetPath, InPath.GetSubPathString());
+				OutPath = FSoftObjectPath(WorldAssetPath, SubPathString);
 			}
 #if WITH_EDITOR
 			else if (OuterWorld->IsGameWorld())
 			{
 				const FString PackagePath = UWorldPartitionLevelStreamingPolicy::GetCellPackagePath(*CellName, OuterWorld);
-				OutPath = FString::Printf(TEXT("%s.%s:%s"), *PackagePath, *OuterWorld->GetName(), *InPath.GetSubPathString());
+				OutPath = FString::Printf(TEXT("%s.%s:%s"), *PackagePath, *OuterWorld->GetName(), *SubPathString);
 			}
 #endif
 			else
 			{
-				OutPath = FString::Printf(TEXT("%s%s/_Generated_/%s%s.%s:%s"), *LevelInstancePrefix, *SourceWorldAssetPackageName, *(CellName->ToString()), *LevelInstanceSuffix, *WorldAssetPath.GetAssetName().ToString(), *InPath.GetSubPathString());
+				OutPath = FString::Printf(TEXT("%s%s/_Generated_/%s%s.%s:%s"), *LevelInstancePrefix, *SourceWorldAssetPackageName, *(CellName->ToString()), *LevelInstanceSuffix, *WorldAssetPath.GetAssetName().ToString(), *SubPathString);
 			}
 
 #if WITH_EDITOR
@@ -261,6 +307,13 @@ bool UWorldPartitionLevelStreamingPolicy::RemoveExternalStreamingObject(URuntime
 	return bSuccess;
 }
 
+void UWorldPartitionLevelStreamingPolicy::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
+{
+	Super::GetResourceSizeEx(CumulativeResourceSize);
+	SIZE_T AllocatedSize = SubObjectsToCellRemapping.GetAllocatedSize();
+	AllocatedSize += ContainerResolver.GetAllocatedSize();
+	CumulativeResourceSize.AddDedicatedSystemMemoryBytes(AllocatedSize);
+}
 
 void UWorldPartitionLevelStreamingPolicy::DrawRuntimeCellsDetails(UCanvas* Canvas, FVector2D& Offset)
 {
@@ -329,9 +382,16 @@ void UWorldPartitionLevelStreamingPolicy::DrawRuntimeCellsDetails(UCanvas* Canva
 	Offset.Y = MaxPosY;
 }
 
-const FName* UWorldPartitionLevelStreamingPolicy::FindCellNameForSubObject(FName SubObjectName) const
+const FName* UWorldPartitionLevelStreamingPolicy::FindCellNameForSubObject(const FString& InSubObjectString, bool bInResolveContainers, FString& OutSubPathString) const
 {
-	if (const FName* CellName = SubObjectsToCellRemapping.Find(SubObjectName))
+	FString SubObjectString;
+	FString SubObjectContext(InSubObjectString);
+	InSubObjectString.Split(TEXT("."), &SubObjectContext, &SubObjectString);
+	
+	// Initialize to received value
+	OutSubPathString = InSubObjectString;
+
+	if (const FName* CellName = SubObjectsToCellRemapping.Find(*SubObjectContext))
 	{
 		return CellName;
 	}
@@ -340,13 +400,33 @@ const FName* UWorldPartitionLevelStreamingPolicy::FindCellNameForSubObject(FName
 	{
 		if (ExternalStreamingObject.IsValid())
 		{
-			if (const FName* CellName = ExternalStreamingObject.Get()->SubObjectsToCellRemapping.Find(SubObjectName))
+			if (const FName* CellName = ExternalStreamingObject.Get()->SubObjectsToCellRemapping.Find(*SubObjectContext))
 			{
 				return CellName;
 			}
 		}
 	}
 	
+	FString OutResolvedSubPathString;
+	if (bInResolveContainers)
+	{
+		if (ContainerResolver.ResolveContainerPath(InSubObjectString, OutResolvedSubPathString))
+		{
+			return FindCellNameForSubObject(OutResolvedSubPathString, false, OutSubPathString);
+		}
+
+		for (const TWeakObjectPtr<URuntimeHashExternalStreamingObjectBase>& ExternalStreamingObject : ExternalStreamingObjects)
+		{
+			if (ExternalStreamingObject.IsValid())
+			{
+				if (ExternalStreamingObject.Get()->ContainerResolver.ResolveContainerPath(InSubObjectString, OutResolvedSubPathString))
+				{
+					return FindCellNameForSubObject(OutResolvedSubPathString, false, OutSubPathString);
+				}
+			}
+		}
+	}
+			
 	return nullptr;
 }
 

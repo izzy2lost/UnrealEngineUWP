@@ -1365,6 +1365,9 @@ void ULevelStreaming::PrepareLoadedLevel(ULevel* InLevel, UPackage* InLevelPacka
 	UWorld* LevelOwningWorld = InLevel->OwningWorld;
 
 	InLevel->bGarbageCollectionClusteringEnabled = bGarbageCollectionClusteringEnabled;
+#if WITH_EDITOR
+	InLevel->SetEditorPathOwner(EditorPathOwner.Get());
+#endif
 
 	if (ensure(LevelOwningWorld))
 	{
@@ -2598,7 +2601,9 @@ ULevelStreamingDynamic* ULevelStreamingDynamic::LoadLevelInstance_Internal(const
     StreamingLevel->LevelTransform = Params.LevelTransform;
 	// Map to Load
     StreamingLevel->PackageNameToLoad = FName(*OnDiskPackageName);
-          
+#if WITH_EDITOR
+	StreamingLevel->EditorPathOwner = Params.EditorPathOwner;
+#endif
     // Add the new level to world.
     Params.World->AddStreamingLevel(StreamingLevel);
       

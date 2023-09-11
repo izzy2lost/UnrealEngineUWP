@@ -161,6 +161,8 @@ void ULevelStreamingLevelInstanceEditor::OnLevelLoadedChanged(ULevel* InLevel)
 		NewLoadedLevel->bPromptWhenAddingToLevelBeforeCheckout = false;
 		NewLoadedLevel->bPromptWhenAddingToLevelOutsideBounds = false;
 
+		NewLoadedLevel->SetEditorPathOwner(Cast<AActor>(GetLevelInstance()));
+
 		check(!NewLoadedLevel->bAlreadyMovedActors);
 		if (AWorldSettings* WorldSettings = NewLoadedLevel->GetWorldSettings())
 		{
@@ -169,13 +171,11 @@ void ULevelStreamingLevelInstanceEditor::OnLevelLoadedChanged(ULevel* InLevel)
 
 		if (ULevelInstanceSubsystem* LevelInstanceSubsystem = GetWorld()->GetSubsystem<ULevelInstanceSubsystem>())
 		{
-#if WITH_EDITOR
 			if (UWorldPartition* OuterWorldPartition = NewLoadedLevel->GetWorldPartition())
 			{
 				check(!OuterWorldPartition->IsInitialized());
 				OuterWorldPartition->bOverrideEnableStreamingInEditor = false;
 			}
-#endif
 
 			LevelInstanceSubsystem->RegisterLoadedLevelStreamingLevelInstanceEditor(this);
 		}

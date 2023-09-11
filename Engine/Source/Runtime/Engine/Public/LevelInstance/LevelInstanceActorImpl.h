@@ -53,6 +53,7 @@ public:
 
 	ENGINE_API virtual void RegisterLevelInstance();
 	ENGINE_API virtual void UnregisterLevelInstance();
+	ENGINE_API virtual bool ResolveSubobject(const TCHAR* SubObjectPath, UObject*& OutObject, bool bLoadIfExists);
 
 	/**
 	 * Begin ILevelInstanceInterface Implementaion 

@@ -20,6 +20,7 @@ class FWorldPartitionLevelHelper
 {
 public:
 	static FString AddActorContainerIDToSubPathString(const FActorContainerID& InContainerID, const FString& InSubPathString);
+	static FString AddActorContainerID(const FActorContainerID& InContainerID, const FString& InActorName);
 #if WITH_EDITOR
 public:
 	static FWorldPartitionLevelHelper& Get();

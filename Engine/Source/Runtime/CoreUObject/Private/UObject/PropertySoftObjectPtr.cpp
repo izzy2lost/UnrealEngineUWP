@@ -6,6 +6,9 @@
 #include "UObject/PropertyPortFlags.h"
 #include "UObject/UnrealType.h"
 #include "UObject/LinkerLoad.h"
+#if WITH_EDITOR
+#include "Misc/EditorPathHelper.h"
+#endif
 
 /*-----------------------------------------------------------------------------
 	FSoftObjectProperty.
@@ -116,8 +119,13 @@ void FSoftObjectProperty::ExportText_Internal( FString& ValueStr, const void* Pr
 
 	if (Object)
 	{
+#if WITH_EDITOR
+		// Use object in case name has changed. Export editor path if feature is enabled.
+		SoftObjectPath = FEditorPathHelper::GetEditorPathFromReferencer(Object, Parent);
+#else
 		// Use object in case name has changed.
 		SoftObjectPath = FSoftObjectPath(Object);
+#endif
 	}
 	else
 	{
@@ -146,6 +154,17 @@ const TCHAR* FSoftObjectProperty::ImportText_Internal( const TCHAR* InBuffer, vo
 
 	if (bImportTextSuccess)
 	{
+#if WITH_EDITOR
+		// If EditorPath feature is enabled. Make sure we import a proper Editor Path if Object has a EditorPathOwner
+		if (FEditorPathHelper::IsEnabled())
+		{
+			if (UObject* Object = SoftObjectPath.ResolveObject())
+			{
+				SoftObjectPath = FEditorPathHelper::GetEditorPathFromReferencer(Object, Parent);
+			}
+		}
+#endif
+
 		if (PropertyPointerType == EPropertyPointerType::Container && HasSetter())
 		{
 			FSoftObjectPtr SoftObjectPtr(SoftObjectPath);

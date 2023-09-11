@@ -15,6 +15,7 @@
 #include "Misc/WorldCompositionUtility.h"
 #include "Engine/MaterialMerging.h"
 #include "Engine/TextureStreamingTypes.h"
+#include "Misc/EditorPathObjectInterface.h"
 #include <atomic>
 
 #include "Level.generated.h"
@@ -397,7 +398,7 @@ enum class EActorPackagingScheme : uint8
  * @see UActor
  */
 UCLASS(MinimalAPI)
-class ULevel : public UObject, public IInterface_AssetUserData, public ITextureStreamingContainer
+class ULevel : public UObject, public IInterface_AssetUserData, public ITextureStreamingContainer, public IEditorPathObjectInterface
 {
 	GENERATED_BODY()
 
@@ -729,6 +730,9 @@ public:
 
 	ENGINE_API bool GetPromptWhenAddingToLevelOutsideBounds() const;
 	ENGINE_API bool GetPromptWhenAddingToLevelBeforeCheckout() const;
+
+	ENGINE_API void SetEditorPathOwner(UObject* InEditorPathOwner) { EditorPathOwner = InEditorPathOwner; }
+	ENGINE_API virtual UObject* GetEditorPathOwner() const override { return EditorPathOwner.Get(); }
 #endif
 
 private:
@@ -776,6 +780,9 @@ private:
 	/** Temporary array containing actor folder objects manually loaded from their external packages (only used while loading the level). */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UActorFolder>> LoadedExternalActorFolders;
+
+	UPROPERTY(Transient)
+	TWeakObjectPtr<UObject> EditorPathOwner;
 #endif // #if WITH_EDITORONLY_DATA
 
 	enum class ERouteActorInitializationState : uint8

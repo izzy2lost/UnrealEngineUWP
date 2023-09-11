@@ -224,6 +224,11 @@ bool ALevelInstance::CanEditChange(const FProperty* Property) const
 	return Super::CanEditChange(Property) && LevelInstanceActorImpl.CanEditChange(Property);
 }
 
+bool ALevelInstance::ResolveSubobject(const TCHAR* SubObjectPath, UObject*& OutObject, bool bLoadIfExists)
+{
+	return LevelInstanceActorImpl.ResolveSubobject(SubObjectPath, OutObject, bLoadIfExists);
+}
+
 void ALevelInstance::PostEditImport()
 {
 	LevelInstanceActorImpl.PostEditImport([this]() { Super::PostEditImport(); });

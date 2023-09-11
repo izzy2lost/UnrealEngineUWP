@@ -10,6 +10,7 @@ class FStreamingGenerationActorDescCollection;
 class FWorldPartitionActorDescView;
 class UActorDescContainer;
 class UDataLayerInstance;
+struct FWorldPartitionRuntimeContainerResolver;
 
 #if WITH_EDITOR
 class IStreamingGenerationContext
@@ -88,5 +89,6 @@ public:
 	virtual const FActorSetContainer* GetMainWorldContainer() const = 0;
 	virtual void ForEachActorSetInstance(TFunctionRef<void(const FActorSetInstance&)> Func) const = 0;
 	virtual void ForEachActorSetContainer(TFunctionRef<void(const FActorSetContainer&)> Func) const = 0;
+	virtual const FWorldPartitionRuntimeContainerResolver& GetContainerResolver() const = 0;
 };
 #endif

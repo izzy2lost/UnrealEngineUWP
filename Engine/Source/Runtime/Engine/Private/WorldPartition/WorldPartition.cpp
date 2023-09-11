@@ -2216,6 +2216,11 @@ void UWorldPartition::RemapSoftObjectPath(FSoftObjectPath& ObjectPath) const
 	}
 }
 
+bool UWorldPartition::ConvertContainerPathToEditorPath(const FActorContainerID& InContainerID, const FSoftObjectPath& InPath, FSoftObjectPath& OutPath) const
+{
+	return StreamingPolicy ? StreamingPolicy->ConvertContainerPathToEditorPath(InContainerID, InPath, OutPath) : false;
+}
+
 FBox UWorldPartition::GetEditorWorldBounds() const
 {
 	check(EditorHash);

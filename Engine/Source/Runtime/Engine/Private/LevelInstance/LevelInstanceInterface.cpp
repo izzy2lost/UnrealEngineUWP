@@ -140,7 +140,6 @@ void ILevelInstanceInterface::UpdateLevelInstanceFromWorldAsset()
 	}
 }
 
-#if WITH_EDITOR
 ULevel* ILevelInstanceInterface::GetLoadedLevel() const
 {
 	if (ULevelInstanceSubsystem* LevelInstanceSubsystem = GetLevelInstanceSubsystem())
@@ -150,6 +149,8 @@ ULevel* ILevelInstanceInterface::GetLoadedLevel() const
 
 	return nullptr;
 }
+
+#if WITH_EDITOR
 
 bool ILevelInstanceInterface::IsEditing() const
 {

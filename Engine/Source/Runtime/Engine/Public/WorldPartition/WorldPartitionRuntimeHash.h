@@ -12,6 +12,7 @@
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
 #include "WorldPartition/WorldPartitionStreamingGeneration.h"
 #include "WorldPartition/WorldPartitionStreamingGenerationContext.h"
+#include "WorldPartition/WorldPartitionRuntimeContainerResolving.h"
 #if WITH_EDITOR
 #include "CookPackageSplitter.h"
 #include "Misc/HierarchicalLogArchive.h"
@@ -57,6 +58,9 @@ public:
 
 	UPROPERTY();
 	TMap<FName, FName> SubObjectsToCellRemapping;
+
+	UPROPERTY()
+	FWorldPartitionRuntimeContainerResolver ContainerResolver;
 
 protected:
 	UPROPERTY();

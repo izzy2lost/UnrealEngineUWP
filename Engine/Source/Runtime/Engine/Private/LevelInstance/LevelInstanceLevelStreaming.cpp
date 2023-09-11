@@ -245,6 +245,9 @@ ULevelStreamingLevelInstance* ULevelStreamingLevelInstance::LoadInstance(ILevelI
 	Params.OptionalLevelNameOverride = &Suffix;
 	Params.OptionalLevelStreamingClass = LevelInstance->GetLevelStreamingClass();
 	Params.bLoadAsTempPackage = true;
+#if WITH_EDITOR
+	Params.EditorPathOwner = LevelInstanceActor;
+#endif
 	
 	if (World->IsGameWorld())
 	{

@@ -60,6 +60,9 @@ class ULevelStreamingDynamic : public ULevelStreaming
 
 		/** Set whether we allow to reuse an existing level streaming. */
 		bool bAllowReuseExitingLevelStreaming = false;
+
+		/** Set EditorPath Owner */
+		UObject* EditorPathOwner = nullptr;
 	};
 
 	/**  

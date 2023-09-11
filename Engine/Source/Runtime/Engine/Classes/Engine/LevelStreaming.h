@@ -225,6 +225,12 @@ public:
 	UPROPERTY()
 	bool bClientOnlyVisible;
 
+#if WITH_EDITORONLY_DATA
+	/** Applied to LoadedLevel */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<UObject> EditorPathOwner;
+#endif
+
 private:
 
 	/** Requested LOD. Non LOD sub-levels have Index = -1  */

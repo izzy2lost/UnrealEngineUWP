@@ -83,11 +83,10 @@ class ILevelInstanceInterface
 
 	ENGINE_API virtual TSubclassOf<ULevelStreamingLevelInstance> GetLevelStreamingClass() const;
 
-#if WITH_EDITOR
 	UFUNCTION(BlueprintCallable, Category = Default)
 	ENGINE_API virtual ULevel* GetLoadedLevel() const;
 
-
+#if WITH_EDITOR
 	ENGINE_API virtual void OnEdit();
 
 	virtual void OnEditChild() {}

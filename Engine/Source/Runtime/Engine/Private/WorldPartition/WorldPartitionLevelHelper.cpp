@@ -45,6 +45,11 @@ bool FWorldPartitionResolveData::ResolveObject(UWorld* InWorld, const FSoftObjec
 	return false;
 }
 
+FString FWorldPartitionLevelHelper::AddActorContainerID(const FActorContainerID& InContainerID, const FString& InActorName)
+{
+	return InActorName + TEXT("_") + InContainerID.ToShortString();
+}
+
 FString FWorldPartitionLevelHelper::AddActorContainerIDToSubPathString(const FActorContainerID& InContainerID, const FString& InSubPathString)
 {
 	if (!InContainerID.IsMainContainer())
@@ -56,11 +61,11 @@ FString FWorldPartitionLevelHelper::AddActorContainerIDToSubPathString(const FAc
 			const int32 SubObjectPos = InSubPathString.Find(TEXT("."), ESearchCase::IgnoreCase, ESearchDir::FromStart, DotPos);
 			if (SubObjectPos == INDEX_NONE)
 			{
-				return InSubPathString + TEXT("_") + InContainerID.ToShortString();
+				return AddActorContainerID(InContainerID, InSubPathString);
 			}
 			else
 			{
-				return InSubPathString.Mid(0, SubObjectPos) + TEXT("_") + InContainerID.ToShortString() + InSubPathString.Mid(SubObjectPos);
+				return AddActorContainerID(InContainerID, InSubPathString.Mid(0, SubObjectPos)) + InSubPathString.Mid(SubObjectPos);
 			}
 		}
 	}
@@ -551,7 +556,7 @@ bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDest
 					{
 						if (!Value.IsNull() && Value.GetAssetPathString().Equals(SourceWorldPath, ESearchCase::IgnoreCase))
 						{
-							Value = RemapActorPath(PackageObjectMapping->ContainerID, SourceOuterWorldPath, Value);
+							InOuterWorld->GetWorldPartition()->ConvertContainerPathToEditorPath(PackageObjectMapping->ContainerID, FSoftObjectPath(Value), Value);
 						}
 					});
 					FixupArchive.Fixup(Actor);
