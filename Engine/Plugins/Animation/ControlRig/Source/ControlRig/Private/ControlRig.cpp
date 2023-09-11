@@ -409,6 +409,23 @@ void UControlRig::Evaluate_AnyThread()
 	}
 }
 
+bool UControlRig::EvaluateSkeletalMeshComponent(double InDeltaTime)
+{
+	if (USkeletalMeshComponent* SkelMeshComp = Cast<USkeletalMeshComponent>(GetObjectBinding()->GetBoundObject()))
+	{
+		SkelMeshComp->TickAnimation(InDeltaTime, false);
+
+		SkelMeshComp->RefreshBoneTransforms();
+		SkelMeshComp->RefreshFollowerComponents();
+		SkelMeshComp->UpdateComponentToWorld();
+		SkelMeshComp->FinalizeBoneTransform();
+		SkelMeshComp->MarkRenderTransformDirty();
+		SkelMeshComp->MarkRenderDynamicDataDirty();
+		return true;
+	}
+	return false;
+}
+
 void UControlRig::ResetControlValues()
 {
 	ControlValues.Reset();

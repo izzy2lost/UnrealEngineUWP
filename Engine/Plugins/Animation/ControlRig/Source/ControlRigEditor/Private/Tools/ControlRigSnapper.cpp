@@ -130,20 +130,30 @@ static bool LocalGetControlRigControlTransforms(IMovieScenePlayer* Player, const
 
 		FFrameRate TickResolution = MovieScene->GetTickResolution();
 		FFrameRate DisplayRate = MovieScene->GetDisplayRate();
-
+		
 		OutTransforms.SetNum(Frames.Num());
 		for (int32 Index = 0; Index < Frames.Num(); ++Index)
 		{
 			const FFrameNumber& FrameNumber = Frames[Index];
+			double DeltaTime = 0.0;
 			if (CurrentFrame.IsSet() == false || CurrentFrame.GetValue() != FrameNumber)
 			{
 				FFrameTime GlobalTime(FrameNumber);
 				GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping(); //player evals in root time so need to go back to it.
 
 				FMovieSceneContext Context = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Player->GetPlaybackStatus()).SetHasJumped(true);
+
+				DeltaTime = 1.0/Context.GetFrameRate().AsDecimal();
 				Player->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context, *Player);
 			}
-			ControlRig->Evaluate_AnyThread();
+			if (ControlRig->IsAdditive())
+			{
+				ControlRig->EvaluateSkeletalMeshComponent(DeltaTime);
+			}
+			else
+			{
+				ControlRig->Evaluate_AnyThread();
+			}
 			OutTransforms[Index] = ControlRig->GetControlGlobalTransform(ControlName) * ParentTransforms[Index];
 		}
 	}

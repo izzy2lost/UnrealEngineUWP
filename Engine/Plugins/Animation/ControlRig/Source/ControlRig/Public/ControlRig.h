@@ -107,6 +107,9 @@ public:
 	/** Evaluates the ControlRig */
 	virtual void Evaluate_AnyThread() override;
 
+	/** Ticks animation of the skeletal mesh component bound to this control rig */
+	bool EvaluateSkeletalMeshComponent(double InDeltaTime);
+
 	/** Removes any stored additive control values */
 	void ResetControlValues();
 
