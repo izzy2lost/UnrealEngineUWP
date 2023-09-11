@@ -108,12 +108,12 @@ protected:
 	 * @param OptionalTextureCompression - Set the texture compression for all textures along the path of an input
 	 */
 	template<typename T>
-	bool ConnectNodeOutputToInput(const char* InputName, UInterchangeShaderNode* ShaderNode, const FString& InputShaderName, T DefaultValue, const TOptional<TextureCompressionSettings>& OptionalTextureCompression = TOptional<TextureCompressionSettings>{})
+	bool ConnectNodeOutputToInput(const char* InputName, UInterchangeShaderNode* ShaderNode, const FString& InputShaderName, T DefaultValue, bool bIsTangentSpaceInput = false)
 	{
 		MaterialX::DocumentPtr Document = SurfaceShaderNode->getDocument();
 		MaterialX::InputPtr Input = GetInput(SurfaceShaderNode, InputName);
 
-		TGuardValue<TOptional<TextureCompressionSettings>> InputTypeBeingProcessedGuard(TextureCompression, OptionalTextureCompression);
+		TGuardValue<bool>InputTypeBeingProcessedGuard(bTangentSpaceInput, bIsTangentSpaceInput);
 
 		bool bIsConnected = ConnectNodeGraphOutputToInput(Input, ShaderNode, InputShaderName);
 
@@ -370,9 +370,9 @@ protected:
 					TextureNode->SetCustomWrapV(WrapModeV);
 
 					// Encode the compression in the payloadKey
-					if(TextureCompression.IsSet())
+					if(bTangentSpaceInput)
 					{
-						TextureNode->SetPayLoadKey(TextureNode->GetPayLoadKey().GetValue() + FMaterialXManager::TexturePayloadSeparator + FString::FromInt(TextureCompression.GetValue()));
+						TextureNode->SetPayLoadKey(TextureNode->GetPayLoadKey().GetValue() + FMaterialXManager::TexturePayloadSeparator + FString::FromInt(TextureCompressionSettings::TC_Normalmap));
 					}
 				}
 			}
@@ -443,6 +443,9 @@ protected:
 	 */
 	void SetAttributeNewName(MaterialX::InputPtr Input, const char* NewName) const;
 
+private:
+	
+	UInterchangeShaderNode* ConnectGeometryInputToOutput(const FConnectNode& Connect, const FString& ShaderType, const FString& TransformShaderType, const FString& TransformInput, const FString& TransformSourceType, int32 TransformSource, const FString& TransformType, int32 TransformSDestination, bool bIsVector = true);
 
 protected:
 
@@ -464,6 +467,7 @@ protected:
 	/** Initialized by the material shader (e.g: surfacematerial), the derived class should only set the ShaderType */
 	UInterchangeShaderGraphNode* ShaderGraphNode;
 
-	TOptional<TextureCompressionSettings> TextureCompression;
+	/** Used for texture compression and transform to tangent space nodes coming from inputs such as coat_normal  */
+	bool bTangentSpaceInput;
 };
 #endif

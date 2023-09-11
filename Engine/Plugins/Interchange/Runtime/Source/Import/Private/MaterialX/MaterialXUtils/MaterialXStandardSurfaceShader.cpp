@@ -40,6 +40,7 @@ void FMaterialXStandardSurfaceShader::ConnectToStandardSurface()
 {
 	using namespace UE::Interchange::Materials;
 	using namespace mx::StandardSurface;
+	constexpr bool bInputInTangentSpace = true;
 
 	UInterchangeFunctionCallShaderNode* StandardSurfaceShaderNode = CreateFunctionCallShaderNode(SurfaceShaderNode->getName().c_str(), TEXT("/Interchange/Functions/MX_StandardSurface.MX_StandardSurface"));
 
@@ -102,7 +103,7 @@ void FMaterialXStandardSurfaceShader::ConnectToStandardSurface()
 	ConnectNodeOutputToInput(Input::CoatRoughness, StandardSurfaceShaderNode, StandardSurface::Parameters::CoatRoughness.ToString(), DefaultValue::Float::CoatRoughness);
 
 	//Coat Normal: No need to take the default input if there is no CoatNormal input
-	ConnectNodeOutputToInput(Input::CoatNormal, StandardSurfaceShaderNode, StandardSurface::Parameters::CoatNormal.ToString(), nullptr, TextureCompressionSettings::TC_Normalmap);
+	ConnectNodeOutputToInput(Input::CoatNormal, StandardSurfaceShaderNode, StandardSurface::Parameters::CoatNormal.ToString(), nullptr, bInputInTangentSpace);
 
 	//Thin Film Thickness
 	ConnectNodeOutputToInput(Input::ThinFilmThickness, StandardSurfaceShaderNode, StandardSurface::Parameters::ThinFilmThickness.ToString(), DefaultValue::Float::ThinFilmThickness);
@@ -114,10 +115,10 @@ void FMaterialXStandardSurfaceShader::ConnectToStandardSurface()
 	ConnectNodeOutputToInput(Input::EmissionColor, StandardSurfaceShaderNode, StandardSurface::Parameters::EmissionColor.ToString(), DefaultValue::Color3::EmissionColor);
 
 	//Normal: No need to take the default input if there is no Normal input
-	ConnectNodeOutputToInput(Input::Normal, StandardSurfaceShaderNode, StandardSurface::Parameters::Normal.ToString(), nullptr, TextureCompressionSettings::TC_Normalmap);
+	ConnectNodeOutputToInput(Input::Normal, StandardSurfaceShaderNode, StandardSurface::Parameters::Normal.ToString(), nullptr, bInputInTangentSpace);
 
 	//Tangent: No need to take the default input if there is no Tangent input
-	ConnectNodeOutputToInput(Input::Tangent, StandardSurfaceShaderNode, StandardSurface::Parameters::Tangent.ToString(), nullptr, TextureCompressionSettings::TC_Normalmap);
+	ConnectNodeOutputToInput(Input::Tangent, StandardSurfaceShaderNode, StandardSurface::Parameters::Tangent.ToString(), nullptr, bInputInTangentSpace);
 
 	//Transmission
 	ConnectNodeOutputToInput(Input::Transmission, StandardSurfaceShaderNode, StandardSurface::Parameters::Transmission.ToString(), DefaultValue::Float::Transmission);
@@ -180,6 +181,7 @@ void FMaterialXStandardSurfaceShader::ConnectToSubstrateStandardSurface()
 {
 	using namespace UE::Interchange::Materials;
 	using namespace mx::StandardSurface;
+	constexpr bool bInputInTangentSpace = true;
 
 	UInterchangeFunctionCallShaderNode* StandardSurfaceShaderNode = CreateFunctionCallShaderNode(SurfaceShaderNode->getName().c_str(), TEXT("/Interchange/Substrate/MX_StandardSurface.MX_StandardSurface"));
 
@@ -257,7 +259,7 @@ void FMaterialXStandardSurfaceShader::ConnectToSubstrateStandardSurface()
 	ConnectNodeOutputToInput(Input::CoatRotation, StandardSurfaceShaderNode, StandardSurface::Parameters::CoatRotation.ToString(), DefaultValue::Float::CoatAnisotropy);
 
 	//Coat Normal: No need to take the default input if there is no CoatNormal input
-	ConnectNodeOutputToInput(Input::CoatNormal, StandardSurfaceShaderNode, StandardSurface::Parameters::CoatNormal.ToString(), nullptr, TextureCompressionSettings::TC_Normalmap);
+	ConnectNodeOutputToInput(Input::CoatNormal, StandardSurfaceShaderNode, StandardSurface::Parameters::CoatNormal.ToString(), nullptr, bInputInTangentSpace);
 
 	//Thin Film Thickness
 	ConnectNodeOutputToInput(Input::ThinFilmThickness, StandardSurfaceShaderNode, StandardSurface::Parameters::ThinFilmThickness.ToString(), DefaultValue::Float::ThinFilmThickness);
@@ -272,10 +274,10 @@ void FMaterialXStandardSurfaceShader::ConnectToSubstrateStandardSurface()
 	ConnectNodeOutputToInput(Input::EmissionColor, StandardSurfaceShaderNode, StandardSurface::Parameters::EmissionColor.ToString(), DefaultValue::Color3::EmissionColor);
 
 	//Normal: No need to take the default input if there is no Normal input
-	ConnectNodeOutputToInput(Input::Normal, StandardSurfaceShaderNode, StandardSurface::Parameters::Normal.ToString(), nullptr, TextureCompressionSettings::TC_Normalmap);
+	ConnectNodeOutputToInput(Input::Normal, StandardSurfaceShaderNode, StandardSurface::Parameters::Normal.ToString(), nullptr, bInputInTangentSpace);
 
 	//Tangent: No need to take the default input if there is no Tangent input
-	ConnectNodeOutputToInput(Input::Tangent, StandardSurfaceShaderNode, StandardSurface::Parameters::Tangent.ToString(), nullptr, TextureCompressionSettings::TC_Normalmap);
+	ConnectNodeOutputToInput(Input::Tangent, StandardSurfaceShaderNode, StandardSurface::Parameters::Tangent.ToString(), nullptr, bInputInTangentSpace);
 
 	//Opacity
 	ConnectNodeOutputToInput(Input::Opacity, StandardSurfaceShaderNode, StandardSurface::Parameters::Opacity.ToString(), DefaultValue::Color3::Opacity);
