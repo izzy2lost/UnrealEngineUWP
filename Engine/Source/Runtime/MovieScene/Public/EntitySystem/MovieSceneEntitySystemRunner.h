@@ -32,19 +32,14 @@ enum class ERunnerFlushState
 	Start                = 1 << 0,		// Sets up initial evaluation flags for external players and listeners
 	ConditionalRecompile = 1 << 1,		// Conditional recompile of dirtied sequences.
 	Import               = 1 << 2,		// Update sequence instances and import entities into the entity manager
-	Spawn                = 1 << 3,		// Perform the Spawn phase in the Entity System Graph
-	Instantiation        = 1 << 4,		// Perform the Instantiation phase in the Entity System Graph
-	Evaluation           = 1 << 5,		// Perform the Evaluation phase in the Entity System Graph
-	Finalization         = 1 << 6,		// Perform the Finalization phase in the Entity System Graph and trigger any external events
-	EventTriggers        = 1 << 7,		// (re-entrant) Triggers any bound event triggers - skipped by Finalization if the delegate is not bound
-	PostEvaluation       = 1 << 8,		// (re-entrant) Call post evaluation callbacks on sequence instances
-	End                  = 1 << 9,		// Counterpart for Start - resets external players and listeners
-
-	// Signifies that, during the Finalization task, there were still outstanding tasks and we need to perform another iteration
-	LoopEval       = ConditionalRecompile | Import | Spawn | Instantiation | Evaluation | Finalization | EventTriggers | PostEvaluation | End,
-
-	// Initial flush state
-	Everything     = Start | LoopEval,
+	ReimportAfterCompile = 1 << 3,		// Re-update sequence instances after a recompile occurred on a partially evaluated sequence. Not normally run.
+	Spawn                = 1 << 4,		// Perform the Spawn phase in the Entity System Graph
+	Instantiation        = 1 << 5,		// Perform the Instantiation phase in the Entity System Graph
+	Evaluation           = 1 << 6,		// Perform the Evaluation phase in the Entity System Graph
+	Finalization         = 1 << 7,		// Perform the Finalization phase in the Entity System Graph and trigger any external events
+	EventTriggers        = 1 << 8,		// (re-entrant) Triggers any bound event triggers - skipped by Finalization if the delegate is not bound
+	PostEvaluation       = 1 << 9,		// (re-entrant) Call post evaluation callbacks on sequence instances
+	End                  = 1 << 10,		// Counterpart for Start - resets external players and listeners
 };
 ENUM_CLASS_FLAGS(ERunnerFlushState)
 
@@ -197,6 +192,8 @@ private:
 	MOVIESCENE_API bool GameThread_ConditionalRecompile(UMovieSceneEntitySystemLinker* Linker);
 	/** Update sequence instances based on currently queued update requests, or outstanding dissected updates */
 	MOVIESCENE_API bool GameThread_UpdateSequenceInstances(UMovieSceneEntitySystemLinker* Linker);
+	/** Re-update sequence instances after a recompile on a partially evaluated sequence */
+	MOVIESCENE_API bool GameThread_ReimportSequenceInstances(UMovieSceneEntitySystemLinker* Linker);
 	/** Execute the spawn phase of the entity system graph, if there is anything to do */
 	MOVIESCENE_API bool GameThread_SpawnPhase(UMovieSceneEntitySystemLinker* Linker);
 	/** Execute the instantiation phase of the entity system graph, if there is anything to do */

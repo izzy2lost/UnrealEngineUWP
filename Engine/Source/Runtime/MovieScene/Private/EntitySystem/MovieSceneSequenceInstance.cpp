@@ -198,7 +198,7 @@ void FSequenceInstance::InvalidateCachedData(UMovieSceneEntitySystemLinker* Link
 	}
 }
 
-void FSequenceInstance::ConditionalRecompile(UMovieSceneEntitySystemLinker* Linker)
+bool FSequenceInstance::ConditionalRecompile(UMovieSceneEntitySystemLinker* Linker)
 {
 	if (VolatilityManager)
 	{
@@ -210,8 +210,11 @@ void FSequenceInstance::ConditionalRecompile(UMovieSceneEntitySystemLinker* Link
 		if (VolatilityManager->ConditionalRecompile(*Player, RootCompiledDataID, CompiledDataManager))
 		{
 			InvalidateCachedData(Linker);
+			return true;
 		}
 	}
+
+	return false;
 }
 
 void FSequenceInstance::DissectContext(UMovieSceneEntitySystemLinker* Linker, const FMovieSceneContext& InContext, TArray<TRange<FFrameTime>>& OutDissections)

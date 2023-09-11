@@ -59,8 +59,9 @@ public:
 	 * Conditionally recompile this sequence if it needs to be
 	 *
 	 * @param Linker     The linker that owns this sequence instance
+	 * @return true if a recompile has ocurred, false otherwise
 	 */
-	MOVIESCENE_API void ConditionalRecompile(UMovieSceneEntitySystemLinker* Linker);
+	MOVIESCENE_API bool ConditionalRecompile(UMovieSceneEntitySystemLinker* Linker);
 
 	/**
 	 * Called only for top-level sequence instances before any updates to it with the specified context.
