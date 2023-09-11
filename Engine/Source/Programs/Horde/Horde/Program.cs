@@ -34,12 +34,37 @@ namespace Horde
 			services.AddSingleton(loggerFactory);
 			services.AddLogging();
 			services.AddMemoryCache();
-			services.AddSingleton<StorageCache>();
+			services.AddSingleton<StorageCache>(CreateStorageClientCache);
+			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
 			services.AddSingleton(sp => Options.Create(CmdConfig.Read()));
 
 			// Execute all the commands
 			await using ServiceProvider serviceProvider = services.BuildServiceProvider();
 			return await CommandHost.RunAsync(arguments, serviceProvider, null);
+		}
+
+		static StorageCache CreateStorageClientCache(IServiceProvider serviceProvider)
+		{
+			CmdConfig cmdConfig = serviceProvider.GetRequiredService<IOptions<CmdConfig>>().Value;
+
+			StorageCacheOptions options = new StorageCacheOptions();
+			if (cmdConfig.Cache.HeaderCacheSize.HasValue)
+			{
+				options.HeaderCacheSize = cmdConfig.Cache.HeaderCacheSize.Value * 1024 * 1024;
+			}
+			if (cmdConfig.Cache.PacketCacheSize.HasValue)
+			{
+				options.PacketCacheSize = cmdConfig.Cache.PacketCacheSize.Value * 1024 * 1024;
+			}
+
+			return new StorageCache(options);
+		}
+
+		static StorageBackendCache CreateStorageBackendCache(IServiceProvider serviceProvider)
+		{
+			CmdConfig cmdConfig = serviceProvider.GetRequiredService<IOptions<CmdConfig>>().Value;
+			DirectoryReference cacheDir = DirectoryReference.Combine(GetDataDir(), String.IsNullOrEmpty(cmdConfig.Cache.CacheDir)? "Cache" : cmdConfig.Cache.CacheDir);
+			return new StorageBackendCache(cacheDir, cmdConfig.Cache.CacheSize * 1024 * 1024);
 		}
 
 		static DirectoryReference GetAppDir()
