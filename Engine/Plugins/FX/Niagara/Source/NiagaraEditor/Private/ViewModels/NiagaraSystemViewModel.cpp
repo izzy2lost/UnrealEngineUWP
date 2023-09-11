@@ -3275,7 +3275,7 @@ TSharedPtr<FNiagaraOverviewGraphViewModel> FNiagaraSystemViewModel::GetOverviewG
 
 bool FNiagaraSystemViewModel::CanImpactCompileForEdit() const
 {
-	return bSupportCompileForEdit && !bIsForDataProcessingOnly && EditMode == ENiagaraSystemViewModelEditMode::SystemAsset;
+	return bSupportCompileForEdit && !bIsForDataProcessingOnly && (EditMode == ENiagaraSystemViewModelEditMode::SystemAsset || EditMode == ENiagaraSystemViewModelEditMode::EmitterAsset);
 }
 
 #undef LOCTEXT_NAMESPACE // NiagaraSystemViewModel
