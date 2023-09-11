@@ -57,14 +57,14 @@ namespace EpicGames.Horde.Tests
 		{
 			using (TempDir tempDir = new TempDir("Cache"))
 			{
-				CacheStorageBackendDetail cacheBackendDetail = new CacheStorageBackendDetail(tempDir.Location, 12);
+				StorageBackendCache cache = new StorageBackendCache(tempDir.Location, 12);
 
 				using MemoryStorageBackend memoryBackend = new MemoryStorageBackend();
-				using CacheStorageBackend cacheBackend = new CacheStorageBackend("", cacheBackendDetail, memoryBackend);
+				using IStorageBackend cacheBackend = StorageBackendCache.Wrap(memoryBackend, cache);
 				await TestBackendAsync(cacheBackend);
 
-				Assert.AreEqual(1, cacheBackendDetail.Items.Count());
-				byte[] value = await cacheBackend.ReadBytesAsync(cacheBackendDetail.Items.First());
+				Assert.AreEqual(1, cache.Items.Count());
+				byte[] value = await cacheBackend.ReadBytesAsync(cache.Items.First());
 				Assert.IsTrue(value.SequenceEqual(Encoding.UTF8.GetBytes("item 2")));
 
 				byte[] data3 = Encoding.UTF8.GetBytes("3");
@@ -79,7 +79,7 @@ namespace EpicGames.Horde.Tests
 				string path5 = await cacheBackend.WriteBytesAsync(data5);
 				await cacheBackend.ReadBytesAsync(path5);
 
-				HashSet<string> paths = new HashSet<string>(cacheBackendDetail.Items);
+				HashSet<string> paths = new HashSet<string>(cache.Items);
 				Assert.AreEqual(4, paths.Count);
 				Assert.IsTrue(paths.Contains(path3));
 				Assert.IsTrue(paths.Contains(path4));
@@ -89,7 +89,7 @@ namespace EpicGames.Horde.Tests
 				string path6 = await cacheBackend.WriteBytesAsync(data6);
 				await cacheBackend.ReadBytesAsync(path6);
 
-				paths = new HashSet<string>(cacheBackendDetail.Items);
+				paths = new HashSet<string>(cache.Items);
 				Assert.AreEqual(2, paths.Count);
 				Assert.IsTrue(paths.Contains(path5));
 				Assert.IsTrue(paths.Contains(path6));
@@ -97,7 +97,7 @@ namespace EpicGames.Horde.Tests
 				await cacheBackend.ReadBytesAsync(path3);
 				await cacheBackend.ReadBytesAsync(path4);
 
-				paths = new HashSet<string>(cacheBackendDetail.Items);
+				paths = new HashSet<string>(cache.Items);
 				Assert.AreEqual(2, paths.Count);
 				Assert.IsTrue(paths.Contains(path3));
 				Assert.IsTrue(paths.Contains(path4));

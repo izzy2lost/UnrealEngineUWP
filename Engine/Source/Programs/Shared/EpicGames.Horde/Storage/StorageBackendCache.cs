@@ -1,79 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Core;
 
-namespace EpicGames.Horde.Storage.Backends
+namespace EpicGames.Horde.Storage
 {
-	/// <summary>
-	/// Storage backend that utilizes the local filesystem
-	/// </summary>
-	public sealed class CacheStorageBackend : IStorageBackend
-	{
-		readonly string _keyPrefix;
-		readonly CacheStorageBackendDetail _cacheStorage;
-		readonly IStorageBackend _inner;
-
-		/// <inheritdoc/>
-		public bool SupportsRedirects => _inner.SupportsRedirects;
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public CacheStorageBackend(string keyPrefix, CacheStorageBackendDetail cacheStorage, IStorageBackend inner)
-		{
-			_keyPrefix = keyPrefix;
-			_cacheStorage = cacheStorage;
-			_inner = inner;
-		}
-
-		/// <inheritdoc/>
-		public void Dispose() => _inner.Dispose();
-
-		/// <inheritdoc/>
-		public async Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
-		{
-			Stream stream = await _cacheStorage.ReadAsync($"{_keyPrefix}{path}", ctx => _inner.ReadAsync(path, ctx), cancellationToken);
-			if (offset != 0)
-			{
-				stream.Seek(offset, SeekOrigin.Begin);
-			}
-			return stream;
-		}
-
-		/// <inheritdoc/>
-		public Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default) => _inner.WriteAsync(stream, prefix, cancellationToken);
-
-#pragma warning disable CS0618 // Type or member is obsolete
-		/// <inheritdoc/>
-		public Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default) => _inner.WriteExplicitPathAsync(path, stream, cancellationToken);
-#pragma warning restore CS0618 // Type or member is obsolete
-
-		/// <inheritdoc/>
-		public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => _inner.DeleteAsync(path, cancellationToken);
-
-		/// <inheritdoc/>
-		public IAsyncEnumerable<string> EnumerateAsync(CancellationToken cancellationToken = default) => _inner.EnumerateAsync(cancellationToken);
-
-		/// <inheritdoc/>
-		public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default) => _inner.ExistsAsync(path, cancellationToken);
-
-		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync(path, cancellationToken);
-
-		/// <inheritdoc/>
-		public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => _inner.TryGetWriteRedirectAsync(prefix, cancellationToken);
-	}
-
 	/// <summary>
 	/// Implementation of a local disk cache which can be shared by multiple backends
 	/// </summary>
-	public sealed class CacheStorageBackendDetail
+	public sealed class StorageBackendCache
 	{
 		class Item
 		{
@@ -108,6 +48,46 @@ namespace EpicGames.Horde.Storage.Backends
 			public Task WaitAsync(CancellationToken cancellationToken) => _readTask.Task.WaitAsync(cancellationToken);
 		}
 
+		sealed class BackendWrapper : IStorageBackend
+		{
+			readonly string _keyPrefix;
+			readonly StorageBackendCache _cacheStorage;
+			readonly IStorageBackend _inner;
+
+			public bool SupportsRedirects => _inner.SupportsRedirects;
+
+			public BackendWrapper(string keyPrefix, StorageBackendCache cacheStorage, IStorageBackend inner)
+			{
+				_keyPrefix = keyPrefix;
+				_cacheStorage = cacheStorage;
+				_inner = inner;
+			}
+
+			public void Dispose() => _inner.Dispose();
+
+			public async Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+			{
+				Stream stream = await _cacheStorage.ReadAsync($"{_keyPrefix}{path}", ctx => _inner.ReadAsync(path, ctx), cancellationToken);
+				if (offset != 0)
+				{
+					stream.Seek(offset, SeekOrigin.Begin);
+				}
+				return stream;
+			}
+
+			public Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default) => _inner.WriteAsync(stream, prefix, cancellationToken);
+
+#pragma warning disable CS0618 // Type or member is obsolete
+			public Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default) => _inner.WriteExplicitPathAsync(path, stream, cancellationToken);
+#pragma warning restore CS0618 // Type or member is obsolete
+
+			public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => _inner.DeleteAsync(path, cancellationToken);
+			public IAsyncEnumerable<string> EnumerateAsync(CancellationToken cancellationToken = default) => _inner.EnumerateAsync(cancellationToken);
+			public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default) => _inner.ExistsAsync(path, cancellationToken);
+			public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync(path, cancellationToken);
+			public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => _inner.TryGetWriteRedirectAsync(prefix, cancellationToken);
+		}
+
 		object LockObject => _items;
 
 		readonly DirectoryReference _cacheDir;
@@ -124,16 +104,33 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public CacheStorageBackendDetail(DirectoryReference cacheDir, long maxSize)
+		public StorageBackendCache(DirectoryReference cacheDir, long maxSize)
 		{
 			_cacheDir = cacheDir;
 			_maxSize = maxSize;
 		}
 
+		/// <summary>
+		/// Wraps a storage backend in another backend that routes requests through the cache
+		/// </summary>
+		/// <param name="backend">Backend to wrap</param>
+		/// <param name="cache">The cache instance. May be null.</param>
+		public static IStorageBackend Wrap(IStorageBackend backend, StorageBackendCache? cache)
+		{
+			if (cache == null)
+			{
+				return backend;
+			}
+			else
+			{
+				return new BackendWrapper("", cache, backend);
+			}
+		}
+
 		/// <inheritdoc/>
 		public async Task<Stream> ReadAsync(string key, Func<CancellationToken, Task<Stream>> createStreamAsync, CancellationToken cancellationToken = default)
 		{
-			for(; ;)
+			for (; ; )
 			{
 				PendingItem? pendingItem;
 				lock (LockObject)
