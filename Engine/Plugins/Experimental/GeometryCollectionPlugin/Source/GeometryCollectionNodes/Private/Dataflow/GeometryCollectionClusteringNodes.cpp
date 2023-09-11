@@ -114,7 +114,8 @@ void FClusterFlattenDataflowNode::Evaluate(Dataflow::FContext& Context, const FD
 					const FDataflowTransformSelection& InTransformSelection = GetValue(Context, &OptionalTransformSelection);
 					ToFlatten = InTransformSelection.AsArray();
 					GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(*GeomCollection);
-					SelectionFacade.ConvertSelectionToClusterNodes(ToFlatten, false);
+					SelectionFacade.Sanitize(ToFlatten);
+					SelectionFacade.FilterSelectionBySimulationType(ToFlatten, FGeometryCollection::FST_Clustered);
 				}
 				else
 				{

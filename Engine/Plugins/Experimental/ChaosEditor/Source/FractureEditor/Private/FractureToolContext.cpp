@@ -5,6 +5,8 @@
 #include "GeometryCollection/GeometryCollectionClusteringUtility.h"
 #include "GeometryCollection/GeometryCollectionUtility.h"
 
+#include "GeometryCollection/Facades/CollectionTransformSelectionFacade.h"
+
 #include "Algo/RemoveIf.h"
 
 
@@ -300,6 +302,12 @@ void FFractureToolContext::ConvertSelectionToClusterNodes()
 	SelectedBones.Append(AddedClusterSelections);
 	
 	Sanitize();
+}
+
+void FFractureToolContext::FilterSelectionBySimulationType(FGeometryCollection::ESimulationTypes KeepSimulationType)
+{
+	GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(*GeometryCollection);
+	SelectionFacade.FilterSelectionBySimulationType(SelectedBones, KeepSimulationType);
 }
 
 

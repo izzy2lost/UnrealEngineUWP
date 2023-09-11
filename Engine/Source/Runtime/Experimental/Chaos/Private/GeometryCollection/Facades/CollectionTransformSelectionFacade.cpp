@@ -258,6 +258,16 @@ namespace GeometryCollection::Facades
 		}
 	}
 
+	void FCollectionTransformSelectionFacade::FilterSelectionBySimulationType(TArray<int32>& InOutSelection, FGeometryCollection::ESimulationTypes KeepSimulationType) const
+	{
+		const TManagedArray<int32>& SimulationType = SimulationTypeAttribute.Get();
+
+		InOutSelection.SetNum(Algo::RemoveIf(InOutSelection, [&](int32 BoneIdx)
+			{
+				return SimulationType[BoneIdx] != KeepSimulationType;
+			}));
+	}
+
 	void FCollectionTransformSelectionFacade::ConvertSelectionToClusterNodes(TArray<int32>& InOutSelection, bool bLeaveRigidRoots) const
 	{
 		const TManagedArray<int32>& Parents = ParentAttribute.Get();
