@@ -120,6 +120,9 @@ private:
 	static uint64 MeasureLogicalRecordSize(const FCacheRecord& Record);
 	static uint64 MeasureLogicalValueSize(const FValue& Value);
 
+	static const FCacheKey& GetKey(const FCachePutRequest& Request) { return Request.Record.GetKey(); }
+	static const FCacheKey& GetKey(const FCachePutValueRequest& Request) { return Request.Key; }
+
 	struct FCacheStoreNode
 	{
 		ILegacyCacheStore* Cache{};
@@ -285,7 +288,7 @@ void FCacheStoreHierarchy::Add(ILegacyCacheStore* CacheStore, ECacheStoreFlags F
 	FWriteScopeLock Lock(NodesLock);
 	checkf(!Algo::FindBy(Nodes, CacheStore, &FCacheStoreNode::Cache),
 		TEXT("Attempting to add a cache store that was previously registered to the hierarchy."));
-	TUniquePtr<ILegacyCacheStore> AsyncCacheStore(CreateCacheStoreAsync(CacheStore, MemoryCache, /*bDeleteInnerCache*/ false));
+	TUniquePtr<ILegacyCacheStore> AsyncCacheStore(CreateCacheStoreAsync(CacheStore, /*MemoryCache*/ nullptr, /*bDeleteInnerCache*/ false));
 	Nodes.Add({CacheStore, Flags, {}, MoveTemp(AsyncCacheStore)});
 	UpdateNodeFlags();
 }
@@ -580,6 +583,7 @@ private:
 	{
 		bool bOk = false;
 		bool bStop = false;
+		bool bFinished = false;
 	};
 
 	FCacheStoreHierarchy& Hierarchy;
@@ -629,9 +633,10 @@ void FCacheStoreHierarchy::TPutBatch<Params>::DispatchRequests()
 	for (const FPutRequest& Request : Requests)
 	{
 		const FRequestState& State = States[RequestIndex];
-		if (!State.bOk && !State.bStop)
+		if (!State.bFinished)
 		{
-			FinishRequest(Request.MakeResponse(BatchOwner.IsCanceled() ? EStatus::Canceled : EStatus::Error), Request);
+			const EStatus Status = BatchOwner.IsCanceled() ? EStatus::Canceled : (State.bOk ? EStatus::Ok : EStatus::Error);
+			FinishRequest(Request.MakeResponse(Status), Request);
 		}
 		++RequestIndex;
 	}
@@ -689,8 +694,9 @@ void FCacheStoreHierarchy::TPutBatch<Params>::CompleteGetRequest(FGetResponse&& 
 		FRequestState& State = States[RequestIndex];
 		check(!State.bStop);
 		State.bStop = true;
-		if (!State.bOk)
+		if (!State.bFinished)
 		{
+			State.bFinished = true;
 			const FPutRequest& Request = Requests[RequestIndex];
 			FinishRequest(Request.MakeResponse(Response.Status), Request);
 		}
@@ -723,7 +729,7 @@ bool FCacheStoreHierarchy::TPutBatch<Params>::DispatchPutRequests()
 		const FRequestState& State = States[RequestIndex];
 		if (!State.bStop && CanStore(GetCombinedPolicy(Request.Policy), Node.CacheFlags))
 		{
-			(State.bOk ? AsyncNodeRequests : NodeRequests).Add_GetRef(Request).UserData = uint64(RequestIndex);
+			(State.bFinished ? AsyncNodeRequests : NodeRequests).Add_GetRef(Request).UserData = uint64(RequestIndex);
 		}
 		++RequestIndex;
 	}
@@ -755,11 +761,20 @@ void FCacheStoreHierarchy::TPutBatch<Params>::CompletePutRequest(FPutResponse&& 
 	{
 		const int32 RequestIndex = int32(Response.UserData);
 		FRequestState& State = States[RequestIndex];
-		check(!State.bOk && !State.bStop);
 		State.bOk = true;
-		const FPutRequest& Request = Requests[RequestIndex];
-		Response.UserData = Request.UserData;
-		FinishRequest(MoveTemp(Response), Request);
+		check(!State.bFinished);
+		bool bCanQuery;
+		{
+			FReadScopeLock Lock(Hierarchy.NodesLock);
+			bCanQuery = EnumHasAnyFlags(Hierarchy.Nodes[NodePutIndex].CacheFlags, ECacheStoreFlags::Query);
+		}
+		if (bCanQuery)
+		{
+			State.bFinished = true;
+			const FPutRequest& Request = Requests[RequestIndex];
+			Response.UserData = Request.UserData;
+			FinishRequest(MoveTemp(Response), Request);
+		}
 	}
 	if (RemainingRequestCount.Signal())
 	{

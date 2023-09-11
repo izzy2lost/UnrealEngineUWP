@@ -1242,7 +1242,7 @@ int64 PutDerivedDataInCache(FTexturePlatformData* DerivedData, const FString& De
 		FCbObject MetadataObject = BuildMetadata.ToCompactBinaryWithDefaults();
 		UE::DerivedData::FValue Value = UE::DerivedData::FValue::Compress(MetadataObject.GetBuffer());
 
-		const UE::DerivedData::FSharedString Name = TextureName;
+		const UE::DerivedData::FSharedString Name(WriteToString<256>(TextureName, TEXTVIEW(" [Meta]")));
 		UE::DerivedData::FRequestOwner AsyncOwner(UE::DerivedData::EPriority::Normal);
 		const UE::DerivedData::ECachePolicy Policy = bReplaceExistingDDC ? UE::DerivedData::ECachePolicy::Store : UE::DerivedData::ECachePolicy::Default;
 		UE::DerivedData::GetCache().PutValue({ {Name, GetTextureDerivedMetadataKeyFromSuffix(DerivedDataKeySuffix), MoveTemp(Value), Policy} }, AsyncOwner);

@@ -602,7 +602,7 @@ public:
 		else
 		{
 			// This is unconditionally added to the hierarchy and will be deleted by the hierarchy.
-			CreateMemoryCacheStore(OutCache, TEXT("Memory"), TEXT("-ReadOnly -NoStats"), this);
+			CreateMemoryCacheStore(OutCache, TEXT("Memory"), TEXT("-ReadOnly -StopGetStore -NoStats"), this);
 			MemoryCache = OutCache;
 		}
 	}
