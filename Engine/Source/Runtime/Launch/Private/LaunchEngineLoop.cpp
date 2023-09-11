@@ -6153,6 +6153,7 @@ void FEngineLoop::Tick()
 
 void FEngineLoop::ClearPendingCleanupObjects()
 {
+	FlushRenderingCommands();
 	delete PendingCleanupObjects;
 	PendingCleanupObjects = nullptr;
 }
