@@ -171,14 +171,27 @@ public:
 
 	FPCGPointDataPartitionBase::Element* SelectPoint(const FPCGPoint& Point, int32 PointIndex)
 	{
-		FString ActorPathString;
-		if (!SpawnAttributeAccessor->Get<FString>(ActorPathString, PointIndex, *SpawnAttributeKeys))
+		FSoftClassPath ActorPath;
+		TSoftClassPtr<AActor> ActorClassSoftPtr;
+
+		if (SpawnAttributeAccessor->Get<FSoftClassPath>(ActorPath, PointIndex, *SpawnAttributeKeys))
+		{
+			ActorClassSoftPtr = TSoftClassPtr<AActor>(ActorPath);
+		}
+		else
+		{
+			FString ActorPathString;
+			if (SpawnAttributeAccessor->Get<FString>(ActorPathString, PointIndex, *SpawnAttributeKeys))
+			{
+				ActorPath = FSoftClassPath(ActorPathString);
+				ActorClassSoftPtr = TSoftClassPtr<AActor>(ActorPath);
+			}
+		}
+
+		if (!ActorPath.IsValid())
 		{
 			return nullptr;
 		}
-
-		FSoftObjectPath ActorPath(ActorPathString);
-		TSoftClassPtr<AActor> ActorClassSoftPtr(ActorPath);
 
 		UClass* ActorClass = ActorClassSoftPtr.LoadSynchronous();
 

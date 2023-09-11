@@ -293,7 +293,7 @@ bool FPCGCreateTargetActorElement::ExecuteInternal(FPCGContext* Context) const
 	// Create param data output with reference to actor
 	UPCGParamData* ParamData = NewObject<UPCGParamData>();
 	check(ParamData && ParamData->Metadata);
-	ParamData->Metadata->CreateAttribute<FString>(NAME_None, FSoftObjectPath(GeneratedActor).ToString(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false);
+	ParamData->Metadata->CreateAttribute<FSoftObjectPath>(NAME_None, FSoftObjectPath(GeneratedActor), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false);
 
 	// Add param data to output and we're done
 	Context->OutputData.TaggedData.Emplace_GetRef().Data = ParamData;

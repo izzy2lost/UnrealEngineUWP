@@ -71,8 +71,8 @@ public:
 	EPCGMetadataTypes SetTargetType = EPCGMetadataTypes::Double;
 
 	/** For string types, the subtype is used to cleanup the UI. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bSetTargetIsAttribute && SetTargetType == EPCGMetadataTypes::String", EditConditionHides))
-	EPCGMetadataTypesConstantStructStringMode SetTargetStringMode = EPCGMetadataTypesConstantStructStringMode::String;
+	UPROPERTY()
+	EPCGMetadataTypesConstantStructStringMode SetTargetStringMode_DEPRECATED;
 
 private:
 #if WITH_EDITORONLY_DATA

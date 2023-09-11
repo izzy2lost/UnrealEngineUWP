@@ -260,18 +260,17 @@ private:
 };
 
 /**
-* Templated accessor class for soft object/class ptr properties.
+* Templated accessor class for soft object ptr properties - produces soft object path.
 * Do not instantiate it manually, use PCGAttributeAccessorHelpers::CreatePropertyAccessor.
-* Will always convert to FString for PCG
 * Key supported: Generic object
 */
-class FPCGPropertySoftPtrAccessor : public IPCGAttributeAccessorT<FPCGPropertySoftPtrAccessor>
+class FPCGPropertySoftObjectPathAccessor : public IPCGAttributeAccessorT<FPCGPropertySoftObjectPathAccessor>
 {
 public:
-	using Type = FString;
-	using Super = IPCGAttributeAccessorT<FPCGPropertySoftPtrAccessor>;
+	using Type = FSoftObjectPath;
+	using Super = IPCGAttributeAccessorT<FPCGPropertySoftObjectPathAccessor>;
 
-	FPCGPropertySoftPtrAccessor(const FSoftObjectProperty* InProperty)
+	FPCGPropertySoftObjectPathAccessor(const FSoftObjectProperty* InProperty)
 		: Super(/*bInReadOnly=*/ false)
 		, Property(InProperty)
 	{
@@ -282,7 +281,7 @@ public:
 	{
 		return PCGPropertyAccessor::IterateGet(Property, OutValues, Index, Keys, [this](const void* PropertyAddressData) -> Type
 		{
-			return Property->GetPropertyValue(PropertyAddressData).ToString();
+			return Property->GetPropertyValue(PropertyAddressData).ToSoftObjectPath();
 		});
 	}
 
@@ -290,12 +289,50 @@ public:
 	{
 		return PCGPropertyAccessor::IterateSet(Property, InValues, Index, Keys, [this](void* PropertyAddressData, const Type& Value) -> void
 		{
-			Property->SetPropertyValue(PropertyAddressData, FSoftObjectPtr(FSoftObjectPath(Value)));
+			Property->SetPropertyValue(PropertyAddressData, FSoftObjectPtr(Value));
 		});
 	}
 
 private:
 	const FSoftObjectProperty* Property = nullptr;
+};
+
+/**
+* Templated accessor class for soft class ptr properties - produces soft class path.
+* Do not instantiate it manually, use PCGAttributeAccessorHelpers::CreatePropertyAccessor.
+* Key supported: Generic object
+*/
+class FPCGPropertySoftClassPathAccessor : public IPCGAttributeAccessorT<FPCGPropertySoftClassPathAccessor>
+{
+public:
+	using Type = FSoftClassPath;
+	using Super = IPCGAttributeAccessorT<FPCGPropertySoftClassPathAccessor>;
+
+	FPCGPropertySoftClassPathAccessor(const FSoftClassProperty* InProperty)
+		: Super(/*bInReadOnly=*/ false)
+		, Property(InProperty)
+	{
+		check(Property);
+	}
+
+	bool GetRangeImpl(TArrayView<Type> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
+	{
+		return PCGPropertyAccessor::IterateGet(Property, OutValues, Index, Keys, [this](const void* PropertyAddressData) -> Type
+		{
+			return FSoftClassPath(Property->GetPropertyValue(PropertyAddressData).ToString());
+		});
+	}
+
+	bool SetRangeImpl(TArrayView<const Type> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags)
+	{
+		return PCGPropertyAccessor::IterateSet(Property, InValues, Index, Keys, [this](void* PropertyAddressData, const Type& Value) -> void
+		{
+			Property->SetPropertyValue(PropertyAddressData, FSoftObjectPtr(Value));
+		});
+	}
+
+private:
+	const FSoftClassProperty* Property = nullptr;
 };
 
 /**

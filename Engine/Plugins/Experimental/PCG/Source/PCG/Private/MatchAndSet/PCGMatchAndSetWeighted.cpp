@@ -20,15 +20,21 @@ FPCGMatchAndSetWeightedEntry::FPCGMatchAndSetWeightedEntry()
 	Value.bAllowsTypeChange = false;
 }
 
-void UPCGMatchAndSetWeighted::SetType(EPCGMetadataTypes InType, EPCGMetadataTypesConstantStructStringMode InStringMode)
+#if WITH_EDITOR
+void FPCGMatchAndSetWeightedEntry::OnPostLoad()
+{
+	Value.OnPostLoad();
+}
+#endif
+
+void UPCGMatchAndSetWeighted::SetType(EPCGMetadataTypes InType)
 {
 	for (FPCGMatchAndSetWeightedEntry& Entry : Entries)
 	{
 		Entry.Value.Type = InType;
-		Entry.Value.StringMode = InStringMode;
 	}
 
-	Super::SetType(InType, InStringMode);
+	Super::SetType(InType);
 }
 
 #if WITH_EDITOR
@@ -41,11 +47,21 @@ void UPCGMatchAndSetWeighted::PostEditChangeProperty(FPropertyChangedEvent& Prop
 		if (PropertyName == GET_MEMBER_NAME_CHECKED(UPCGMatchAndSetWeighted, Entries))
 		{
 			// Some changes in the array might (such as insert or new) might require us to re-set the type
-			SetType(Type, StringMode);
+			SetType(Type);
 		}
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+void UPCGMatchAndSetWeighted::PostLoad()
+{
+	Super::PostLoad();
+
+	for (FPCGMatchAndSetWeightedEntry& Entry : Entries)
+	{
+		Entry.OnPostLoad();
+	}
 }
 #endif // WITH_EDITOR
 

@@ -14,6 +14,10 @@ struct PCG_API FPCGMatchAndSetWeightedEntry
 {
 	GENERATED_BODY()
 
+#if WITH_EDITOR
+	void OnPostLoad();
+#endif
+
 	FPCGMatchAndSetWeightedEntry();
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ShowOnlyInnerProperties))
@@ -36,7 +40,7 @@ class PCG_API UPCGMatchAndSetWeighted : public UPCGMatchAndSetBase
 public:
 	virtual bool UsesRandomProcess() const { return true; }
 	virtual bool ShouldMutateSeed() const { return bShouldMutateSeed; }
-	virtual void SetType(EPCGMetadataTypes InType, EPCGMetadataTypesConstantStructStringMode InStringMode) override;
+	virtual void SetType(EPCGMetadataTypes InType) override;
 
 	virtual void MatchAndSet_Implementation(
 		FPCGContext& Context,
@@ -44,9 +48,12 @@ public:
 		const UPCGPointData* InPointData,
 		UPCGPointData* OutPointData) const override;
 
+	//~Begin UObject interface
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostLoad() override;
 #endif
+	//~End UObject interface
 
 public:
 	/** Values and their respective weights */

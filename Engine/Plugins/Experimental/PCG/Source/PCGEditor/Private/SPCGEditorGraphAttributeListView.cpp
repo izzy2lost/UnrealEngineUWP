@@ -233,6 +233,14 @@ TSharedRef<SWidget> SPCGListViewItemRow::GenerateWidgetForColumn(const FName& Co
 					{
 						RowText = FText::AsNumber(Value);
 					}
+					else if constexpr (PCG::Private::IsOfTypes<ValueType, FSoftObjectPath>())
+					{
+						RowText = FText::FromString(Value.ToString());
+					}
+					else if constexpr (PCG::Private::IsOfTypes<ValueType, FSoftClassPath>())
+					{
+						RowText = FText::FromString(Value.ToString());
+					}
 					else
 					{
 						ensureMsgf(false, TEXT("Unsupported Data Type"));
@@ -984,6 +992,8 @@ void SPCGEditorGraphAttributeListView::GenerateColumnsFromMetadata(const UPCGDat
 		case EPCGMetadataTypes::Boolean:
 		case EPCGMetadataTypes::String:
 		case EPCGMetadataTypes::Name:
+		case EPCGMetadataTypes::SoftObjectPath:
+		case EPCGMetadataTypes::SoftClassPath:
 			{
 				AddMetadataColumn(InPCGData, ColumnName, AttributeType);
 				break;

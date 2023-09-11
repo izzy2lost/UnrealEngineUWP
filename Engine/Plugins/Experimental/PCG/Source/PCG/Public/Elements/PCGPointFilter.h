@@ -54,6 +54,10 @@ struct PCG_API FPCGPointFilterThresholdSettings
 {
 	GENERATED_BODY()
 
+#if WITH_EDITOR
+	void OnPostLoad();
+#endif
+
 	/** If the threshold in included or excluded from the range. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bInclusive = true;
@@ -193,6 +197,11 @@ class PCG_API UPCGPointFilterRangeSettings : public UPCGSettings
 public:
 	UPCGPointFilterRangeSettings();
 
+	//~Begin UObject interface
+#if WITH_EDITOR
+	virtual void PostLoad() override;
+#endif
+	//~End UObject interface
 
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR

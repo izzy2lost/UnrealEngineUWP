@@ -3,6 +3,7 @@
 #pragma once
 
 #include "MatchAndSet/PCGMatchAndSetBase.h"
+#include "MatchAndSet/PCGMatchAndSetWeighted.h"
 
 #include "PCGMatchAndSetWeightedByCategory.generated.h"
 
@@ -16,7 +17,11 @@ struct PCG_API FPCGMatchAndSetWeightedByCategoryEntryList
 
 	FPCGMatchAndSetWeightedByCategoryEntryList();
 
-	void SetType(EPCGMetadataTypes InType, EPCGMetadataTypesConstantStructStringMode InStringMode);
+#if WITH_EDITOR
+	void OnPostLoad();
+#endif
+
+	void SetType(EPCGMetadataTypes InType);
 	int GetTotalWeight() const;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ShowOnlyInnerProperties))
@@ -39,9 +44,9 @@ class PCG_API UPCGMatchAndSetWeightedByCategory : public UPCGMatchAndSetBase
 public:
 	virtual bool UsesRandomProcess() const { return true; }
 	virtual bool ShouldMutateSeed() const { return bShouldMutateSeed; }
-	virtual void SetType(EPCGMetadataTypes InType, EPCGMetadataTypesConstantStructStringMode InStringMode) override;
+	virtual void SetType(EPCGMetadataTypes InType) override;
 	/** Propagates (does not set) category (e.g. Match) type to entries. */
-	virtual void SetCategoryType(EPCGMetadataTypes InType, EPCGMetadataTypesConstantStructStringMode InStringMode);
+	virtual void SetCategoryType(EPCGMetadataTypes InType);
 
 	virtual void MatchAndSet_Implementation(
 		FPCGContext& Context,
@@ -51,9 +56,12 @@ public:
 
 	virtual bool ValidatePreconditions_Implementation(const UPCGPointData* InPointData) const override;
 
+	//~Begin UObject interface
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostLoad() override;
 #endif
+	//~End UObject interface
 
 public:
 	/** Attribute to match against */
@@ -64,9 +72,8 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ValidEnumValues = "Float, Double, Integer32, Integer64, Vector2, Vector, Vector4, Quaternion, Transform, String, Boolean, Rotator, Name"))
 	EPCGMetadataTypes CategoryType = EPCGMetadataTypes::Double;
 
-	/** String subtype of the attribute to match against (if required). */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "CategoryType == EPCGMetadataTypes::String", EditConditionHides))
-	EPCGMetadataTypesConstantStructStringMode CategoryStringMode = EPCGMetadataTypesConstantStructStringMode::String;
+	UPROPERTY()
+	EPCGMetadataTypesConstantStructStringMode CategoryStringMode_DEPRECATED;
 
 	/** Lookup entries (key -> weighted list) */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)

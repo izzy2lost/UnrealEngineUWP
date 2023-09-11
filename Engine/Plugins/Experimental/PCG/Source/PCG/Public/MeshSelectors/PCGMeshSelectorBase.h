@@ -77,7 +77,7 @@ struct FPCGMeshMaterialOverrideHelper
 
 private:
 	// Cached data
-	TArray<const FPCGMetadataAttribute<FString>*> MaterialAttributes;
+	TArray<const FPCGMetadataAttributeBase*> MaterialAttributes;
 	TArray<TMap<PCGMetadataValueKey, TSoftObjectPtr<UMaterialInterface>>> ValueKeyToOverrideMaterials;
 	TArray<TSoftObjectPtr<UMaterialInterface>> WorkingMaterialOverrides;
 

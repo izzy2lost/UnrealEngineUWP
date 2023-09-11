@@ -4,6 +4,7 @@
 
 #include "Math/Transform.h" // IWYU pragma: keep
 #include "UObject/Class.h"
+#include "UObject/SoftObjectPath.h"
 
 #include "PCGMetadataAttributeTraits.generated.h"
 
@@ -23,6 +24,8 @@ enum class EPCGMetadataTypes : uint8
 	Boolean,
 	Rotator,
 	Name,
+	SoftObjectPath,
+	SoftClassPath,
 
 	Count UMETA(Hidden),
 
@@ -31,19 +34,21 @@ enum class EPCGMetadataTypes : uint8
 
 // Convenient macro to avoid duplicating a lot of code with all our supported types.
 #define PCG_FOREACH_SUPPORTEDTYPES(MACRO) \
-	MACRO(int32)      \
-	MACRO(int64)      \
-	MACRO(float)      \
-	MACRO(double)     \
-	MACRO(FVector2D)  \
-	MACRO(FVector)    \
-	MACRO(FVector4)   \
-	MACRO(FQuat)      \
-	MACRO(FTransform) \
-	MACRO(FString)    \
-	MACRO(bool)       \
-	MACRO(FRotator)   \
-	MACRO(FName)
+	MACRO(int32)           \
+	MACRO(int64)           \
+	MACRO(float)           \
+	MACRO(double)          \
+	MACRO(FVector2D)       \
+	MACRO(FVector)         \
+	MACRO(FVector4)        \
+	MACRO(FQuat)           \
+	MACRO(FTransform)      \
+	MACRO(FString)         \
+	MACRO(bool)            \
+	MACRO(FRotator)        \
+	MACRO(FName)           \
+	MACRO(FSoftObjectPath) \
+	MACRO(FSoftClassPath)
 
 namespace PCG
 {
@@ -70,6 +75,8 @@ namespace PCG
 		PCGMetadataGenerateDataTypes(bool, Boolean);
 		PCGMetadataGenerateDataTypes(FRotator, Rotator);
 		PCGMetadataGenerateDataTypes(FName, Name);
+		PCGMetadataGenerateDataTypes(FSoftObjectPath, SoftObjectPath);
+		PCGMetadataGenerateDataTypes(FSoftClassPath, SoftClassPath);
 
 #undef PCGMetadataGenerateDataTypes
 
@@ -122,6 +129,26 @@ namespace PCG
 		FText GetTypeNameText()
 		{
 			return FText::FromString(GetTypeName<T>());
+		}
+
+		template <typename T>
+		void Serialize(FArchive& Ar, const T& A)
+		{
+			ensure(!Ar.IsLoading());
+			Serialize(Ar, const_cast<T&>(A));
+		}
+
+		template <typename T>
+		void Serialize(FArchive& Ar, T& A)
+		{
+			Ar << A;
+		}
+
+		// Serialize must be called on FSoftObjectPath, and this also covers FSoftClassPath.
+		template <>
+		inline void Serialize<FSoftObjectPath>(FArchive& Ar, FSoftObjectPath& A)
+		{
+			A.Serialize(Ar);
 		}
 
 		// Wrapper around a standard 2-dimensional CArray that is constexpr, to know if a type is broadcastable to another.
@@ -182,6 +209,9 @@ namespace PCG
 				PCGMetadataBroadcastable(Name, String);
 				PCGMetadataBroadcastable(String, Name);
 
+				PCGMetadataBroadcastable(SoftObjectPath, String);
+				PCGMetadataBroadcastable(SoftClassPath, String);
+
 #undef PCGMetadataBroadcastable
 			}
 
@@ -227,6 +257,14 @@ namespace PCG
 		{
 			return IsMoreComplexType(MetadataTypes<FirstType>::Id, MetadataTypes<SecondType>::Id);
 		}
+
+		/**
+		* Traits
+		* - CanCompare: Supports less than, greater than etc for ordering.
+		* - CanSearchString: Can do string search operations like matching substrings.
+		* - CompressData: Uses value keys, so if two values are identical, we only store one.
+		* - NeedsConstruction: Whether type requires constructor for valid state (i.e. can't simply be zero initialized).
+		*/
 
 		template<typename T>
 		struct DefaultStringTraits
@@ -810,6 +848,72 @@ namespace PCG
 			{
 				return A.ToString().MatchesWildcard(B.ToString());
 			}
+		};
+
+		template<typename T>
+		struct SoftObjectPathTraits
+		{
+			enum { CompressData = true };
+			enum { CanMinMax = false };
+			enum { CanSubAdd = false };
+			enum { CanMulDiv = false };
+			enum { CanInterpolate = false };
+			enum { CanSearchString = true };
+			// Contains FString objects
+			enum { NeedsConstruction = true };
+			enum { CanCompare = true };
+
+			static bool Equal(const T& A, const T& B)
+			{
+				return A == B;
+			}
+
+			static T ZeroValue()
+			{
+				return T();
+			}
+
+			static bool Substring(const T& A, const T& B)
+			{
+				return A.ToString().Contains(B.ToString());
+			}
+
+			static bool Matches(const T& A, const T& B)
+			{
+				return A.ToString().MatchesWildcard(B.ToString());
+			}
+
+			static bool Less(const T& A, const T& B)
+			{
+				return A.ToString() < B.ToString();
+			}
+
+			static bool Greater(const T& A, const T& B)
+			{
+				return A.ToString() > B.ToString();
+			}
+
+			static bool LessOrEqual(const T& A, const T& B)
+			{
+				return A.ToString() <= B.ToString();
+			}
+
+			static bool GreaterOrEqual(const FSoftObjectPath& A, const FSoftObjectPath& B)
+			{
+				return A.ToString() >= B.ToString();
+			}
+		};
+
+		// Soft object paths
+		template<>
+		struct MetadataTraits<FSoftObjectPath> : SoftObjectPathTraits<FSoftObjectPath>, DefaultStringTraits<FSoftObjectPath>
+		{
+		};
+
+		// Soft class paths
+		template<>
+		struct MetadataTraits<FSoftClassPath> : SoftObjectPathTraits<FSoftClassPath>, DefaultStringTraits<FSoftClassPath>
+		{
 		};
 
 		/**

@@ -60,7 +60,7 @@ bool UPCGWorldVolumetricData::SamplePoint(const FTransform& InTransform, const F
 
 	check(World.IsValid());
 
-	FPCGMetadataAttribute<FString>* ActorOverlappedAttribute = ((OutMetadata && QueryParams.bGetReferenceToActorHit) ? OutMetadata->GetMutableTypedAttribute<FString>(PCGPointDataConstants::ActorReferenceAttribute) : nullptr);
+	FPCGMetadataAttribute<FSoftObjectPath>* ActorOverlappedAttribute = ((OutMetadata && QueryParams.bGetReferenceToActorHit) ? OutMetadata->GetMutableTypedAttribute<FSoftObjectPath>(PCGPointDataConstants::ActorReferenceAttribute) : nullptr);
 
 	FCollisionObjectQueryParams ObjectQueryParams(QueryParams.CollisionChannel);
 	FCollisionShape CollisionShape = FCollisionShape::MakeBox(InBounds.GetExtent() * InTransform.GetScale3D());
@@ -143,7 +143,7 @@ bool UPCGWorldVolumetricData::SamplePoint(const FTransform& InTransform, const F
 			if (ActorOverlappedAttribute && OverlappedComponent->GetOwner())
 			{
 				OutMetadata->InitializeOnSet(OutPoint.MetadataEntry);
-				ActorOverlappedAttribute->SetValue(OutPoint.MetadataEntry, FSoftObjectPath(OverlappedComponent->GetOwner()).ToString());
+				ActorOverlappedAttribute->SetValue(OutPoint.MetadataEntry, FSoftObjectPath(OverlappedComponent->GetOwner()));
 			}
 
 			return true;
@@ -235,8 +235,8 @@ bool UPCGWorldRayHitData::SamplePoint(const FTransform& InTransform, const FBox&
 	// TODO: This seems to be a projection - along a direction. I suspect that UPCGWorldVolumetricData is the SamplePoint(), and this is the ProjectPoint() (in a direction)?
 	check(World.IsValid());
 
-	FPCGMetadataAttribute<FString>* ActorHitAttribute = ((OutMetadata && QueryParams.bGetReferenceToActorHit) ? OutMetadata->GetMutableTypedAttribute<FString>(PCGPointDataConstants::ActorReferenceAttribute) : nullptr);
-	FPCGMetadataAttribute<FString>* PhysicalMaterialAttribute = ((OutMetadata && QueryParams.bGetReferenceToPhysicalMaterial) ? OutMetadata->GetMutableTypedAttribute<FString>(PCGWorldRayHitConstants::PhysicalMaterialReferenceAttribute) : nullptr);
+	FPCGMetadataAttribute<FSoftObjectPath>* ActorHitAttribute = ((OutMetadata && QueryParams.bGetReferenceToActorHit) ? OutMetadata->GetMutableTypedAttribute<FSoftObjectPath>(PCGPointDataConstants::ActorReferenceAttribute) : nullptr);
+	FPCGMetadataAttribute<FSoftObjectPath>* PhysicalMaterialAttribute = ((OutMetadata && QueryParams.bGetReferenceToPhysicalMaterial) ? OutMetadata->GetMutableTypedAttribute<FSoftObjectPath>(PCGWorldRayHitConstants::PhysicalMaterialReferenceAttribute) : nullptr);
 
 	// Todo: consider prebuilding this
 	FCollisionObjectQueryParams ObjectQueryParams(QueryParams.CollisionChannel);
@@ -347,13 +347,13 @@ bool UPCGWorldRayHitData::SamplePoint(const FTransform& InTransform, const FBox&
 		if (ActorHitAttribute && HitComponent->GetOwner())
 		{
 			OutMetadata->InitializeOnSet(OutPoint.MetadataEntry);
-			ActorHitAttribute->SetValue(OutPoint.MetadataEntry, FSoftObjectPath(HitComponent->GetOwner()).ToString());
+			ActorHitAttribute->SetValue(OutPoint.MetadataEntry, FSoftObjectPath(HitComponent->GetOwner()));
 		}
 
 		if (PhysicalMaterialAttribute && Hit.PhysMaterial.Get())
 		{
 			OutMetadata->InitializeOnSet(OutPoint.MetadataEntry);
-			PhysicalMaterialAttribute->SetValue(OutPoint.MetadataEntry, FSoftObjectPath(Hit.PhysMaterial.Get()).ToString());
+			PhysicalMaterialAttribute->SetValue(OutPoint.MetadataEntry, FSoftObjectPath(Hit.PhysMaterial.Get()));
 		}
 
 		return true;

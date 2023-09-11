@@ -288,9 +288,13 @@ namespace PCGAttributeAccessorHelpers
 		{
 			return Functor(Signature<FPCGEnumPropertyAccessor>{}, EnumProperty);
 		}
+		else if (const FSoftClassProperty* SoftClassProperty = CastField<FSoftClassProperty>(InProperty))
+		{
+			return Functor(Signature<FPCGPropertySoftClassPathAccessor>{}, SoftClassProperty);
+		}
 		else if (const FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(InProperty))
 		{
-			return Functor(Signature<FPCGPropertySoftPtrAccessor>{}, SoftObjectProperty);
+			return Functor(Signature<FPCGPropertySoftObjectPathAccessor>{}, SoftObjectProperty);
 		}
 		else if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(InProperty))
 		{
@@ -324,11 +328,11 @@ namespace PCGAttributeAccessorHelpers
 			}
 			else if (StructProperty->Struct == TBaseStructure<FSoftObjectPath>::Get())
 			{
-				return Functor(Signature<FPCGPropertyPathAccessor<FSoftObjectPath>>{}, InProperty);
+				return Functor(Signature<FPCGPropertyStructAccessor<FSoftObjectPath>>{}, StructProperty);
 			}
 			else if (StructProperty->Struct == TBaseStructure<FSoftClassPath>::Get())
 			{
-				return Functor(Signature<FPCGPropertyPathAccessor<FSoftClassPath>>{}, InProperty);
+				return Functor(Signature<FPCGPropertyStructAccessor<FSoftClassPath>>{}, StructProperty);
 			}
 			else if (StructProperty->Struct && StructProperty->Struct->IsChildOf(FPCGAttributePropertySelector::StaticStruct()))
 			{

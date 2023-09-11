@@ -55,4 +55,73 @@ namespace PCGMetadataHelpers
 			return nullptr;
 		}
 	}
+
+	bool CreateObjectPathGetter(const FPCGMetadataAttributeBase* InAttributeBase, TFunction<void(int64, FSoftObjectPath&)>& OutGetter)
+	{
+		if (!InAttributeBase)
+		{
+			return false;
+		}
+
+		if (InAttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FString>::Id)
+		{
+			OutGetter = [InAttributeBase](int64 InMetadataKey, FSoftObjectPath& OutSoftObjectPath)
+			{
+				FString Path = static_cast<const FPCGMetadataAttribute<FString>*>(InAttributeBase)->GetValueFromItemKey(InMetadataKey);
+				OutSoftObjectPath = FSoftObjectPath(Path);
+			};
+
+			return true;
+		}
+		else if (InAttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FSoftObjectPath>::Id)
+		{
+			OutGetter = [InAttributeBase](int64 InMetadataKey, FSoftObjectPath& OutSoftObjectPath)
+			{
+				OutSoftObjectPath = static_cast<const FPCGMetadataAttribute<FSoftObjectPath>*>(InAttributeBase)->GetValueFromItemKey(InMetadataKey);
+			};
+
+			return true;
+		}
+
+		return false;
+	}
+
+	bool CreateObjectOrClassPathGetter(const FPCGMetadataAttributeBase* InAttributeBase, TFunction<void(int64, FSoftObjectPath&)>& OutGetter)
+	{
+		if (!InAttributeBase)
+		{
+			return false;
+		}
+
+		if (InAttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FString>::Id)
+		{
+			OutGetter = [InAttributeBase](int64 InMetadataKey, FSoftObjectPath& OutSoftObjectPath)
+			{
+				FString Path = static_cast<const FPCGMetadataAttribute<FString>*>(InAttributeBase)->GetValueFromItemKey(InMetadataKey);
+				OutSoftObjectPath = FSoftObjectPath(Path);
+			};
+
+			return true;
+		}
+		else if (InAttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FSoftObjectPath>::Id)
+		{
+			OutGetter = [InAttributeBase](int64 InMetadataKey, FSoftObjectPath& OutSoftObjectPath)
+			{
+				OutSoftObjectPath = static_cast<const FPCGMetadataAttribute<FSoftObjectPath>*>(InAttributeBase)->GetValueFromItemKey(InMetadataKey);
+			};
+
+			return true;
+		}
+		else if (InAttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FSoftClassPath>::Id)
+		{
+			OutGetter = [InAttributeBase](int64 InMetadataKey, FSoftObjectPath& OutSoftObjectPath)
+			{
+				OutSoftObjectPath = static_cast<const FPCGMetadataAttribute<FSoftClassPath>*>(InAttributeBase)->GetValueFromItemKey(InMetadataKey);
+			};
+
+			return true;
+		}
+
+		return false;
+	}
 }

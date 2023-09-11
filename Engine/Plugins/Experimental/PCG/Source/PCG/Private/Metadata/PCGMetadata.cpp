@@ -518,6 +518,16 @@ void UPCGMetadata::CreateBoolAttribute(FName AttributeName, bool DefaultValue, b
 	CreateAttribute<bool>(AttributeName, DefaultValue, bAllowsInterpolation, bOverrideParent);
 }
 
+void UPCGMetadata::CreateSoftObjectPathAttribute(FName AttributeName, const FSoftObjectPath& DefaultValue, bool bAllowsInterpolation, bool bOverrideParent)
+{
+	CreateAttribute<FSoftObjectPath>(AttributeName, DefaultValue, bAllowsInterpolation, bOverrideParent);
+}
+
+void UPCGMetadata::CreateSoftClassPathAttribute(FName AttributeName, const FSoftClassPath& DefaultValue, bool bAllowsInterpolation, bool bOverrideParent)
+{
+	CreateAttribute<FSoftClassPath>(AttributeName, DefaultValue, bAllowsInterpolation, bOverrideParent);
+}
+
 namespace PCGMetadata
 {
 	template<typename DataType>
@@ -576,13 +586,16 @@ namespace PCGMetadata
 					using AttributeType = decltype(AttributeValue);
 					FPCGMetadataAttribute<AttributeType>* Attribute = static_cast<FPCGMetadataAttribute<AttributeType>*>(BaseAttribute);
 
+					// Special cased because FSoftObjectPath currently has a deprecated constructor from FName which generates compile warnings.
+					constexpr bool bAssigningNameToSoftObjectPath = std::is_same_v<AttributeType, FSoftObjectPath> && std::is_same_v<PropertyType, FName>;
+
 					if constexpr (std::is_same_v<AttributeType, PropertyType>)
 					{
 						Metadata->InitializeOnSet(EntryKey);
 						Attribute->SetValue(EntryKey, PropertyValue);
 						return true;
 					}
-					else if constexpr (std::is_constructible_v<AttributeType, PropertyType>)
+					else if constexpr (std::is_constructible_v<AttributeType, PropertyType> && !bAssigningNameToSoftObjectPath)
 					{
 						Metadata->InitializeOnSet(EntryKey);
 						Attribute->SetValue(EntryKey, AttributeType(PropertyValue));

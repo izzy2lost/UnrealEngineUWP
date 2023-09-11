@@ -15,19 +15,7 @@ FString FPCGMetadataTypesConstantStruct::ToString() const
 	case EPCGMetadataTypes::Double:
 		return FString::Printf(TEXT("%.2f"), DoubleValue);
 	case EPCGMetadataTypes::String:
-	{
-		switch (StringMode)
-		{
-		case EPCGMetadataTypesConstantStructStringMode::String:
-			return FString::Printf(TEXT("\"%s\""), *StringValue);
-		case EPCGMetadataTypesConstantStructStringMode::SoftObjectPath:
-			return FString::Printf(TEXT("\"%s\""), *(SoftObjectPathValue.GetAssetName()));
-		case EPCGMetadataTypesConstantStructStringMode::SoftClassPath:
-			return FString::Printf(TEXT("\"%s\""), *(SoftClassPathValue.GetAssetName()));
-		default:
-			break;
-		}
-	}
+		return FString::Printf(TEXT("\"%s\""), *StringValue);
 	case EPCGMetadataTypes::Name:
 		return FString::Printf(TEXT("N(\"%s\")"), *NameValue.ToString());
 	case EPCGMetadataTypes::Vector2:
@@ -44,9 +32,31 @@ FString FPCGMetadataTypesConstantStruct::ToString() const
 		return FString::Printf(TEXT("Transform"));
 	case EPCGMetadataTypes::Boolean:
 		return FString::Printf(TEXT("%s"), (BoolValue ? TEXT("True") : TEXT("False")));
+	case EPCGMetadataTypes::SoftObjectPath:
+		return FString::Printf(TEXT("%s"), *SoftObjectPathValue.ToString());
+	case EPCGMetadataTypes::SoftClassPath:
+		return FString::Printf(TEXT("%s"), *SoftClassPathValue.ToString());
 	default:
 		break;
 	}
 
 	return FString();
 }
+
+#if WITH_EDITOR
+void FPCGMetadataTypesConstantStruct::OnPostLoad()
+{
+	// We used to represent soft object/class paths as strings, but now we support them natively.
+	if (Type == EPCGMetadataTypes::String)
+	{
+		if (StringMode_DEPRECATED == EPCGMetadataTypesConstantStructStringMode::SoftObjectPath)
+		{
+			Type = EPCGMetadataTypes::SoftObjectPath;
+		}
+		if (StringMode_DEPRECATED == EPCGMetadataTypesConstantStructStringMode::SoftClassPath)
+		{
+			Type = EPCGMetadataTypes::SoftClassPath;
+		}
+	}
+}
+#endif

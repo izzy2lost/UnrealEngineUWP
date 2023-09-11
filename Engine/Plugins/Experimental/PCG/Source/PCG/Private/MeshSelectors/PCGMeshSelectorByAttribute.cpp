@@ -124,13 +124,34 @@ bool UPCGMeshSelectorByAttribute::SelectInstances(
 	const FPCGMetadataAttributeBase* AttributeBase = InPointData->Metadata->GetConstAttribute(AttributeName);
 	check(AttributeBase);
 
-	if (AttributeBase->GetTypeId() != PCG::Private::MetadataTypes<FString>::Id)
+	// Set up a getter lambda to retrieve the mesh asset in the selection loop below. Returns true if path was valid.
+	TFunction<void(PCGMetadataValueKey, FSoftObjectPath&)> MeshPathGetter;
+	if (PCG::Private::IsOfTypes<FSoftObjectPath>(AttributeBase->GetTypeId()))
 	{
-		PCGE_LOG_C(Error, GraphAndLog, &Context, FText::Format(LOCTEXT("AttributeInvalidType", "Attribute '{0}' is not of valid type FString"), FText::FromName(AttributeName)));
+		MeshPathGetter = [AttributeBase](PCGMetadataValueKey InValueKey, FSoftObjectPath& OutMeshPath)
+		{
+			const FPCGMetadataAttribute<FSoftObjectPath>* Attribute = static_cast<const FPCGMetadataAttribute<FSoftObjectPath>*>(AttributeBase);
+			OutMeshPath = Attribute->GetValue(InValueKey);
+		};
+	}
+	else if (PCG::Private::IsOfTypes<FString>(AttributeBase->GetTypeId()))
+	{
+		MeshPathGetter = [AttributeBase, &Context](PCGMetadataValueKey InValueKey, FSoftObjectPath& OutMeshPath)
+		{
+			const FPCGMetadataAttribute<FString>* Attribute = static_cast<const FPCGMetadataAttribute<FString>*>(AttributeBase);
+
+			const FString Path = Attribute->GetValue(InValueKey);
+			if (!Path.IsEmpty() && Path != TEXT("None"))
+			{
+				OutMeshPath = FSoftObjectPath(Path);
+			}
+		};
+	}
+	else
+	{
+		PCGE_LOG_C(Error, GraphAndLog, &Context, FText::Format(LOCTEXT("AttributeInvalidType", "Attribute '{0}' is not of valid type (must be FString or FSoftObjectPath)"), FText::FromName(AttributeName)));
 		return true;
 	}
-
-	const FPCGMetadataAttribute<FString>* Attribute = static_cast<const FPCGMetadataAttribute<FString>*>(AttributeBase);
 
 	FPCGMeshMaterialOverrideHelper& MaterialOverrideHelper = Context.MaterialOverrideHelper;
 	if (!MaterialOverrideHelper.IsInitialized())
@@ -168,28 +189,28 @@ bool UPCGMeshSelectorByAttribute::SelectInstances(
 	{
 		const FPCGPoint& Point = Points[CurrentPointIndex++];
 		
-		PCGMetadataValueKey ValueKey = Attribute->GetValueKey(Point.MetadataEntry);
+		const PCGMetadataValueKey ValueKey = AttributeBase->GetValueKey(Point.MetadataEntry);
 		TSoftObjectPtr<UStaticMesh>* NewMesh = ValueKeyToMesh.Find(ValueKey);
 		TSoftObjectPtr<UStaticMesh> Mesh = nullptr;
 
-		// if this ValueKey has not been seen before, let's cache it for the future
+		// If this ValueKey has not been seen before, let's cache it for the future
 		if (!NewMesh)
 		{
-			FString MeshSoftObjectPath = Attribute->GetValue(ValueKey);
+			FSoftObjectPath MeshPath;
+			MeshPathGetter(ValueKey, MeshPath);
 
-			if (!MeshSoftObjectPath.IsEmpty() && MeshSoftObjectPath != TEXT("None"))
+			if (!MeshPath.IsNull())
 			{
-				const FSoftObjectPath MeshPath(MeshSoftObjectPath);
 				Mesh = TSoftObjectPtr<UStaticMesh>(MeshPath);
 
 				if (Mesh.IsNull())
 				{
-					PCGE_LOG_C(Error, GraphAndLog, &Context, FText::Format(LOCTEXT("InvalidMeshPath", "Invalid mesh path: '{0}'."), FText::FromString(MeshSoftObjectPath)));
+					PCGE_LOG_C(Error, GraphAndLog, &Context, FText::Format(LOCTEXT("InvalidMeshPath", "Invalid mesh path: '{0}'."), FText::FromString(MeshPath.ToString())));
 				}
 			}
 			else
 			{
-				PCGE_LOG_C(Warning, LogOnly, &Context, FText::Format(LOCTEXT("TrivialInvalidMeshPath", "Trivially invalid mesh path used: '{0}'"), FText::FromString(MeshSoftObjectPath)));
+				PCGE_LOG_C(Warning, LogOnly, &Context, LOCTEXT("TrivialInvalidMeshPath", "Trivially invalid mesh path used."));
 			}
 
 			ValueKeyToMesh.Add(ValueKey, Mesh);

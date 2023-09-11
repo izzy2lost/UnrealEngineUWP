@@ -55,6 +55,8 @@ void UPCGCreateAttributeBaseSettings::PostLoad()
 		InputSource.SetAttributeName(SourceParamAttributeName_DEPRECATED);
 		SourceParamAttributeName_DEPRECATED = NAME_None;
 	}
+
+	AttributeTypes.OnPostLoad();
 #endif // WITH_EDITOR
 }
 

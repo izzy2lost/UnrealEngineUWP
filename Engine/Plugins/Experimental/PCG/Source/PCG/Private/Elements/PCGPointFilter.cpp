@@ -251,6 +251,13 @@ namespace PCGPointFilterHelpers
 	}
 }
 
+#if WITH_EDITOR
+void FPCGPointFilterThresholdSettings::OnPostLoad()
+{
+	AttributeTypes.OnPostLoad();
+}
+#endif
+
 TArray<FPCGPinProperties> UPCGPointFilterSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
@@ -365,8 +372,20 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	ThresholdConstantType_DEPRECATED = EPCGPointFilterConstantType::Float;
 	FloatConstant_DEPRECATED = 0.0f;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
+	AttributeTypes.OnPostLoad();
 #endif // WITH_EDITOR
 }
+
+#if WITH_EDITOR
+void UPCGPointFilterRangeSettings::PostLoad()
+{
+	Super::PostLoad();
+
+	MinThreshold.OnPostLoad();
+	MaxThreshold.OnPostLoad();
+}
+#endif
 
 FPCGElementPtr UPCGPointFilterRangeSettings::CreateElement() const
 {

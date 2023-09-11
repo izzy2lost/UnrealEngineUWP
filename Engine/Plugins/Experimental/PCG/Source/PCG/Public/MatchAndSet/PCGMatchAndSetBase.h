@@ -26,6 +26,12 @@ class PCG_API UPCGMatchAndSetBase : public UObject
 	GENERATED_BODY()
 
 public:
+	//~Begin UObject interface
+#if WITH_EDITOR
+	virtual void PostLoad() override;
+#endif
+	//~End UObject interface
+
 	/** Queries whether this object uses a random process - note that this is expected to be static through the life of the object */
 	virtual bool UsesRandomProcess() const { return false; }
 
@@ -33,7 +39,7 @@ public:
 	virtual bool ShouldMutateSeed() const { return false; }
 
 	/** Sets & propagates type change from the owner settings object */
-	virtual void SetType(EPCGMetadataTypes InType, EPCGMetadataTypesConstantStructStringMode InStringMode);
+	virtual void SetType(EPCGMetadataTypes InType);
 
 	/** Early check to prevent issues when the data does not contain the required information to perform the operation */
 	UFUNCTION(BlueprintNativeEvent, Category = Selection)
@@ -68,7 +74,7 @@ protected:
 	EPCGMetadataTypes Type = EPCGMetadataTypes::Double;
 
 	UPROPERTY()
-	EPCGMetadataTypesConstantStructStringMode StringMode = EPCGMetadataTypesConstantStructStringMode::String;
+	EPCGMetadataTypesConstantStructStringMode StringMode_DEPRECATED;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

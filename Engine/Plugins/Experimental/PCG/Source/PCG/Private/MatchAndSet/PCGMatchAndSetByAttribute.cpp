@@ -19,23 +19,29 @@ FPCGMatchAndSetByAttributeEntry::FPCGMatchAndSetByAttributeEntry()
 	Value.bAllowsTypeChange = false;
 }
 
-void UPCGMatchAndSetByAttribute::SetType(EPCGMetadataTypes InType, EPCGMetadataTypesConstantStructStringMode InStringMode)
+#if WITH_EDITOR
+void FPCGMatchAndSetByAttributeEntry::OnPostLoad()
+{
+	ValueToMatch.OnPostLoad();
+	Value.OnPostLoad();
+}
+#endif
+
+void UPCGMatchAndSetByAttribute::SetType(EPCGMetadataTypes InType)
 {
 	for (FPCGMatchAndSetByAttributeEntry& Entry : Entries)
 	{
 		Entry.Value.Type = InType;
-		Entry.Value.StringMode = InStringMode;
 	}
 
-	Super::SetType(InType, InStringMode);
+	Super::SetType(InType);
 }
 
-void UPCGMatchAndSetByAttribute::SetSourceType(EPCGMetadataTypes InType, EPCGMetadataTypesConstantStructStringMode InStringMode)
+void UPCGMatchAndSetByAttribute::SetSourceType(EPCGMetadataTypes InType)
 {
 	for (FPCGMatchAndSetByAttributeEntry& Entry : Entries)
 	{
 		Entry.ValueToMatch.Type = InType;
-		Entry.ValueToMatch.StringMode = InStringMode;
 	}
 }
 
@@ -46,20 +52,41 @@ void UPCGMatchAndSetByAttribute::PostEditChangeProperty(FPropertyChangedEvent& P
 	{
 		const FName& PropertyName = PropertyChangedEvent.Property->GetFName();
 
-		if (PropertyName == GET_MEMBER_NAME_CHECKED(UPCGMatchAndSetByAttribute, MatchSourceType) ||
-			PropertyName == GET_MEMBER_NAME_CHECKED(UPCGMatchAndSetByAttribute, MatchSourceStringMode))
+		if (PropertyName == GET_MEMBER_NAME_CHECKED(UPCGMatchAndSetByAttribute, MatchSourceType))
 		{
-			SetSourceType(MatchSourceType, MatchSourceStringMode);
+			SetSourceType(MatchSourceType);
 		}
 		else if (PropertyName == GET_MEMBER_NAME_CHECKED(UPCGMatchAndSetByAttribute, Entries))
 		{
 			// Some changes in the entries (add, insert) might require us to re-set the type
-			SetType(Type, StringMode);
-			SetSourceType(MatchSourceType, MatchSourceStringMode);
+			SetType(Type);
+			SetSourceType(MatchSourceType);
 		}
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+void UPCGMatchAndSetByAttribute::PostLoad()
+{
+	Super::PostLoad();
+
+	if (MatchSourceType == EPCGMetadataTypes::String)
+	{
+		if (MatchSourceStringMode_DEPRECATED == EPCGMetadataTypesConstantStructStringMode::SoftObjectPath)
+		{
+			MatchSourceType = EPCGMetadataTypes::SoftObjectPath;
+		}
+		else if (MatchSourceStringMode_DEPRECATED == EPCGMetadataTypesConstantStructStringMode::SoftClassPath)
+		{
+			MatchSourceType = EPCGMetadataTypes::SoftClassPath;
+		}
+	}
+
+	for (FPCGMatchAndSetByAttributeEntry& Entry : Entries)
+	{
+		Entry.OnPostLoad();
+	}
 }
 #endif // WITH_EDITOR
 

@@ -15,6 +15,10 @@ struct PCG_API FPCGMatchAndSetByAttributeEntry
 
 	FPCGMatchAndSetByAttributeEntry();
 
+#if WITH_EDITOR
+	void OnPostLoad();
+#endif
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ShowOnlyInnerProperties))
 	FPCGMetadataTypesConstantStruct ValueToMatch;
 
@@ -32,10 +36,10 @@ class PCG_API UPCGMatchAndSetByAttribute : public UPCGMatchAndSetBase
 	GENERATED_BODY()
 
 public:
-	virtual void SetType(EPCGMetadataTypes InType, EPCGMetadataTypesConstantStructStringMode InStringMode) override;
+	virtual void SetType(EPCGMetadataTypes InType) override;
 
 	/** Propagates (does not set) the Match type to the entries */
-	virtual void SetSourceType(EPCGMetadataTypes InType, EPCGMetadataTypesConstantStructStringMode InStringMode);
+	virtual void SetSourceType(EPCGMetadataTypes InType);
 
 	virtual void MatchAndSet_Implementation(
 		FPCGContext& Context,
@@ -45,9 +49,12 @@ public:
 
 	virtual bool ValidatePreconditions_Implementation(const UPCGPointData* InPointData) const override;
 
+	//~Begin UObject interface
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostLoad() override;
 #endif
+	//~End UObject interface
 
 public:
 	/** Attribute to match on the data */
@@ -59,8 +66,8 @@ public:
 	EPCGMetadataTypes MatchSourceType = EPCGMetadataTypes::Double;
 
 	/** String type of the attribute to match against (if required). */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "MatchSourceType == EPCGMetadataTypes::String", EditConditionHides))
-	EPCGMetadataTypesConstantStructStringMode MatchSourceStringMode = EPCGMetadataTypesConstantStructStringMode::String;
+	UPROPERTY()
+	EPCGMetadataTypesConstantStructStringMode MatchSourceStringMode_DEPRECATED;
 
 	/** Lookup entries (key-value pairs) */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)

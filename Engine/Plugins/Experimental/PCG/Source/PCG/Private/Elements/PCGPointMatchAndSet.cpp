@@ -87,6 +87,20 @@ void UPCGPointMatchAndSetSettings::PostLoad()
 		MatchAndSetInstance->SetFlags(Flags);
 		bUseSeed = MatchAndSetInstance->UsesRandomProcess();
 	}
+
+#if WITH_EDITOR
+	if (SetTargetType == EPCGMetadataTypes::String)
+	{
+		if (SetTargetStringMode_DEPRECATED == EPCGMetadataTypesConstantStructStringMode::SoftObjectPath)
+		{
+			SetTargetType = EPCGMetadataTypes::SoftObjectPath;
+		}
+		else if (SetTargetStringMode_DEPRECATED == EPCGMetadataTypesConstantStructStringMode::SoftClassPath)
+		{
+			SetTargetType = EPCGMetadataTypes::SoftClassPath;
+		}
+	}
+#endif
 }
 
 #if WITH_EDITOR
@@ -115,17 +129,16 @@ void UPCGPointMatchAndSetSettings::PostEditChangeProperty(FPropertyChangedEvent&
 
 					if (MatchAndSetInstance)
 					{
-						MatchAndSetInstance->SetType(SetTargetType, SetTargetStringMode);
+						MatchAndSetInstance->SetType(SetTargetType);
 					}
 				}
 			}
 		}
-		else if (PropertyName == GET_MEMBER_NAME_CHECKED(UPCGPointMatchAndSetSettings, SetTargetType) ||
-			PropertyName == GET_MEMBER_NAME_CHECKED(UPCGPointMatchAndSetSettings, SetTargetStringMode))
+		else if (PropertyName == GET_MEMBER_NAME_CHECKED(UPCGPointMatchAndSetSettings, SetTargetType))
 		{
 			if (MatchAndSetInstance)
 			{
-				MatchAndSetInstance->SetType(SetTargetType, SetTargetStringMode);
+				MatchAndSetInstance->SetType(SetTargetType);
 			}
 		}
 	}
@@ -159,7 +172,7 @@ void UPCGPointMatchAndSetSettings::RefreshMatchAndSet()
 		const EObjectFlags Flags = GetMaskedFlags(RF_PropagateToSubObjects);
 		MatchAndSetInstance = NewObject<UPCGMatchAndSetBase>(this, MatchAndSetType, NAME_None, Flags);
 		check(MatchAndSetInstance);
-		MatchAndSetInstance->SetType(SetTargetType, SetTargetStringMode);
+		MatchAndSetInstance->SetType(SetTargetType);
 	}
 	else
 	{

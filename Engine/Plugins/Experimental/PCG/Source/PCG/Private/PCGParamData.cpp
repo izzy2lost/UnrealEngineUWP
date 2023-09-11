@@ -54,7 +54,7 @@ void UPCGParamData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 			for (AttributeType Value : Values)
 			{
 				// Add value to Crc
-				Ar << Value;
+				PCG::Private::Serialize(Ar, Value);
 			}
 		};
 

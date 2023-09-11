@@ -28,7 +28,7 @@ namespace PCGMetadataAccessorHelpers
 	}
 }
 
-/** Key-based implmentations */
+/** Key-based implementations */
 template<typename T>
 T UPCGMetadataAccessorHelpers::GetAttribute(PCGMetadataEntryKey Key, const UPCGMetadata* Metadata, FName AttributeName)
 {
@@ -38,21 +38,37 @@ T UPCGMetadataAccessorHelpers::GetAttribute(PCGMetadataEntryKey Key, const UPCGM
 		return T{};
 	}
 
-	const FPCGMetadataAttribute<T>* Attribute = static_cast<const FPCGMetadataAttribute<T>*>(Metadata->GetConstAttribute(AttributeName));
-	if (Attribute && Attribute->GetTypeId() == PCG::Private::MetadataTypes<T>::Id)
-	{
-		return Attribute->GetValueFromItemKey(Key);
-	}
-	else if (Attribute)
-	{
-		PCGMetadataAccessorHelpers::OnException(FText::Format(PCGMetadataAccessorHelpers::InvalidTypeFormat, FText::FromName(AttributeName), FText::FromString(PCG::Private::GetTypeName(Attribute->GetTypeId())), FText::FromString(PCG::Private::GetTypeName(PCG::Private::MetadataTypes<T>::Id))));
-		return T{};
-	}
-	else
+	const FPCGMetadataAttributeBase* AttributeBase = Metadata->GetConstAttribute(AttributeName);
+	if (!AttributeBase)
 	{
 		PCGMetadataAccessorHelpers::OnException(FText::Format(PCGMetadataAccessorHelpers::InvalidAttributeNameFormat, FText::FromName(AttributeName)));
 		return T{};
 	}
+
+	if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<T>::Id)
+	{
+		return static_cast<const FPCGMetadataAttribute<T>*>(AttributeBase)->GetValueFromItemKey(Key);
+	}
+	else if constexpr (std::is_same_v<T, FString>)
+	{
+		// Legacy path - allow reading soft object/class paths using string accessor.
+		if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FSoftObjectPath>::Id)
+		{
+			return static_cast<const FPCGMetadataAttribute<FSoftObjectPath>*>(AttributeBase)->GetValueFromItemKey(Key).ToString();
+		}
+		else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FSoftClassPath>::Id)
+		{
+			return static_cast<const FPCGMetadataAttribute<FSoftClassPath>*>(AttributeBase)->GetValueFromItemKey(Key).ToString();
+		}
+	}
+
+	PCGMetadataAccessorHelpers::OnException(FText::Format(
+		PCGMetadataAccessorHelpers::InvalidTypeFormat,
+		FText::FromName(AttributeName),
+		FText::FromString(PCG::Private::GetTypeName(AttributeBase->GetTypeId())),
+		FText::FromString(PCG::Private::GetTypeName(PCG::Private::MetadataTypes<T>::Id))));
+
+	return T{};
 }
 
 template<typename T>
@@ -228,6 +244,26 @@ bool UPCGMetadataAccessorHelpers::GetBoolAttributeByMetadataKey(int64 Key, const
 }
 
 void UPCGMetadataAccessorHelpers::SetBoolAttributeByMetadataKey(int64& Key, UPCGMetadata* Metadata, FName AttributeName, bool Value)
+{
+	SetAttribute(Key, Metadata, AttributeName, Value);
+}
+
+FSoftObjectPath UPCGMetadataAccessorHelpers::GetSoftObjectPathAttributeByMetadataKey(int64 Key, const UPCGMetadata* Metadata, FName AttributeName)
+{
+	return GetAttribute<FSoftObjectPath>(Key, Metadata, AttributeName);
+}
+
+void UPCGMetadataAccessorHelpers::SetSoftObjectPathAttributeByMetadataKey(int64& Key, UPCGMetadata* Metadata, FName AttributeName, const FSoftObjectPath& Value)
+{
+	SetAttribute(Key, Metadata, AttributeName, Value);
+}
+
+FSoftClassPath UPCGMetadataAccessorHelpers::GetSoftClassPathAttributeByMetadataKey(int64 Key, const UPCGMetadata* Metadata, FName AttributeName)
+{
+	return GetAttribute<FSoftClassPath>(Key, Metadata, AttributeName);
+}
+
+void UPCGMetadataAccessorHelpers::SetSoftClassPathAttributeByMetadataKey(int64& Key, UPCGMetadata* Metadata, FName AttributeName, const FSoftClassPath& Value)
 {
 	SetAttribute(Key, Metadata, AttributeName, Value);
 }
@@ -423,6 +459,26 @@ bool UPCGMetadataAccessorHelpers::GetBoolAttribute(const FPCGPoint& Point, const
 }
 
 void UPCGMetadataAccessorHelpers::SetBoolAttribute(FPCGPoint& Point, UPCGMetadata* Metadata, FName AttributeName, bool Value)
+{
+	SetAttribute(Point.MetadataEntry, Metadata, AttributeName, Value);
+}
+
+FSoftObjectPath UPCGMetadataAccessorHelpers::GetSoftObjectPathAttribute(const FPCGPoint& Point, const UPCGMetadata* Metadata, FName AttributeName)
+{
+	return GetAttribute<FSoftObjectPath>(Point.MetadataEntry, Metadata, AttributeName);
+}
+
+void UPCGMetadataAccessorHelpers::SetSoftObjectPathAttribute(FPCGPoint& Point, UPCGMetadata* Metadata, FName AttributeName, const FSoftObjectPath& Value)
+{
+	SetAttribute(Point.MetadataEntry, Metadata, AttributeName, Value);
+}
+
+FSoftClassPath UPCGMetadataAccessorHelpers::GetSoftClassPathAttribute(const FPCGPoint& Point, const UPCGMetadata* Metadata, FName AttributeName)
+{
+	return GetAttribute<FSoftClassPath>(Point.MetadataEntry, Metadata, AttributeName);
+}
+
+void UPCGMetadataAccessorHelpers::SetSoftClassPathAttribute(FPCGPoint& Point, UPCGMetadata* Metadata, FName AttributeName, const FSoftClassPath& Value)
 {
 	SetAttribute(Point.MetadataEntry, Metadata, AttributeName, Value);
 }

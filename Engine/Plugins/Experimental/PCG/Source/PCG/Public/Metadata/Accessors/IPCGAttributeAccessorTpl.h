@@ -45,9 +45,15 @@ private:
 		}
 		else
 		{
+			// Special case'd because FSoftObjectPath currently has a deprecated constructor from FName which generates compile warnings.
+			constexpr bool bNameToSoftObjectPath = std::is_same_v<U, FSoftObjectPath> && std::is_same_v<T, FName>;
+
 			if constexpr (PCG::Private::IsBroadcastable<T, U>())
 			{
-				if (!!(Flags & EPCGAttributeAccessorFlags::AllowBroadcast))
+				// Special case - always allow broadcasting from soft object path to string, so that legacy code that grabbed soft path attributes
+				// as FStrings will still work.
+				constexpr bool bSoftReferenceToString = (std::is_same_v<T, FSoftObjectPath> || std::is_same_v<T, FSoftClassPath>) && std::is_same_v<U, FString>;
+				if (!!(Flags & EPCGAttributeAccessorFlags::AllowBroadcast) || bSoftReferenceToString)
 				{
 					TArray<T, TInlineAllocator<4>> InValues;
 					InValues.SetNum(OutValues.Num());
@@ -62,7 +68,7 @@ private:
 					}
 				}
 			}
-			else if constexpr (std::is_constructible_v<U, T>)
+			else if constexpr (std::is_constructible_v<U, T> && !bNameToSoftObjectPath)
 			{
 				if (!!(Flags & EPCGAttributeAccessorFlags::AllowConstructible))
 				{
@@ -104,6 +110,9 @@ private:
 		}
 		else
 		{
+			// Special case'd because FSoftObjectPath currently has a deprecated constructor from FName which generates compile warnings.
+			constexpr bool bNameToSoftObjectPath = std::is_same_v<T, FSoftObjectPath> && std::is_same_v<U, FName>;
+
 			if constexpr (PCG::Private::IsBroadcastable<U, T>())
 			{
 				if (!!(Flags & EPCGAttributeAccessorFlags::AllowBroadcast))
@@ -118,7 +127,7 @@ private:
 					return This->SetRangeImpl(OutValues, Index, Keys, Flags);
 				}
 			}
-			else if constexpr (std::is_constructible_v<T, U>)
+			else if constexpr (std::is_constructible_v<T, U> && !bNameToSoftObjectPath)
 			{
 				if (!!(Flags & EPCGAttributeAccessorFlags::AllowConstructible))
 				{

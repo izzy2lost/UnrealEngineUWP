@@ -11,10 +11,28 @@
 
 #define LOCTEXT_NAMESPACE "PCGMatchAndSetBase"
 
-void UPCGMatchAndSetBase::SetType(EPCGMetadataTypes InType, EPCGMetadataTypesConstantStructStringMode InStringMode)
+#if WITH_EDITOR
+void UPCGMatchAndSetBase::PostLoad()
+{
+	Super::PostLoad();
+
+	if (Type == EPCGMetadataTypes::String)
+	{
+		if (StringMode_DEPRECATED == EPCGMetadataTypesConstantStructStringMode::SoftObjectPath)
+		{
+			Type = EPCGMetadataTypes::SoftObjectPath;
+		}
+		else if (StringMode_DEPRECATED == EPCGMetadataTypesConstantStructStringMode::SoftClassPath)
+		{
+			Type = EPCGMetadataTypes::SoftClassPath;
+		}
+	}
+}
+#endif
+
+void UPCGMatchAndSetBase::SetType(EPCGMetadataTypes InType)
 {
 	Type = InType;
-	StringMode = InStringMode;
 }
 
 void UPCGMatchAndSetBase::MatchAndSet_Implementation(

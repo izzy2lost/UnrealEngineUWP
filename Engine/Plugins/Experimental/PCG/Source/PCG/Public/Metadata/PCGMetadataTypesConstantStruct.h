@@ -4,16 +4,19 @@
 
 #include "Metadata/PCGMetadataAttributeTraits.h"
 
+#include "UObject/SoftObjectPath.h"
+
 #include "PCGMetadataTypesConstantStruct.generated.h"
 
 class UPCGParamData;
 
+// Deprecated: we support the path types natively now.
 UENUM()
 enum class EPCGMetadataTypesConstantStructStringMode
 {
 	String,
-	SoftObjectPath,
-	SoftClassPath,
+	SoftObjectPath UMETA(Hidden),
+	SoftClassPath UMETA(Hidden),
 };
 
 /**
@@ -30,11 +33,16 @@ public:
 
 	FString ToString() const;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bAllowsTypeChange", EditConditionHides, HideEditConditionToggle, ValidEnumValues = "Float, Double, Integer32, Integer64, Vector2, Vector, Vector4, Quaternion, Transform, String, Boolean, Rotator, Name"))
+#if WITH_EDITOR
+	/** This is not called by the engine because this is a USTRUCT, but it can be called from usages to perform deprecation. */
+	void OnPostLoad();
+#endif
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bAllowsTypeChange", EditConditionHides, HideEditConditionToggle, ValidEnumValues = "Float, Double, Integer32, Integer64, Vector2, Vector, Vector4, Quaternion, Transform, String, Boolean, Rotator, Name, SoftObjectPath, SoftClassPath"))
 	EPCGMetadataTypes Type = EPCGMetadataTypes::Double;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bAllowsTypeChange && Type == EPCGMetadataTypes::String", EditConditionHides))
-	EPCGMetadataTypesConstantStructStringMode StringMode = EPCGMetadataTypesConstantStructStringMode::String;
+	UPROPERTY()
+	EPCGMetadataTypesConstantStructStringMode StringMode_DEPRECATED;
 
 	// All different types
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Type == EPCGMetadataTypes::Float", EditConditionHides))
@@ -64,7 +72,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Type == EPCGMetadataTypes::Transform", EditConditionHides))
 	FTransform TransformValue = FTransform::Identity;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Type == EPCGMetadataTypes::String && StringMode == EPCGMetadataTypesConstantStructStringMode::String", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Type == EPCGMetadataTypes::String", EditConditionHides))
 	FString StringValue = "";
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Type == EPCGMetadataTypes::Boolean", EditConditionHides))
@@ -76,10 +84,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Type == EPCGMetadataTypes::Name", EditConditionHides))
 	FName NameValue = NAME_None;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Type == EPCGMetadataTypes::String && StringMode == EPCGMetadataTypesConstantStructStringMode::SoftClassPath", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Type == EPCGMetadataTypes::SoftClassPath", EditConditionHides))
 	FSoftClassPath SoftClassPathValue;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Type == EPCGMetadataTypes::String && StringMode == EPCGMetadataTypesConstantStructStringMode::SoftObjectPath", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Type == EPCGMetadataTypes::SoftObjectPath", EditConditionHides))
 	FSoftObjectPath SoftObjectPathValue;
 
 	UPROPERTY()
@@ -112,25 +120,17 @@ decltype(auto) FPCGMetadataTypesConstantStruct::Dispatcher(Func Callback) const
 	case EPCGMetadataTypes::Transform:
 		return Callback(TransformValue);
 	case EPCGMetadataTypes::String:
-	{
-		switch (StringMode)
-		{
-		case EPCGMetadataTypesConstantStructStringMode::String:
-			return Callback(StringValue);
-		case EPCGMetadataTypesConstantStructStringMode::SoftObjectPath:
-			return Callback(SoftObjectPathValue.ToString());
-		case EPCGMetadataTypesConstantStructStringMode::SoftClassPath:
-			return Callback(SoftClassPathValue.ToString());
-		default:
-			break;
-		}
-	}
+		return Callback(StringValue);
 	case EPCGMetadataTypes::Boolean:
 		return Callback(BoolValue);
 	case EPCGMetadataTypes::Rotator:
 		return Callback(RotatorValue);
 	case EPCGMetadataTypes::Name:
 		return Callback(NameValue);
+	case EPCGMetadataTypes::SoftObjectPath:
+		return Callback(SoftObjectPathValue);
+	case EPCGMetadataTypes::SoftClassPath:
+		return Callback(SoftClassPathValue);
 	default:
 		break;
 	}

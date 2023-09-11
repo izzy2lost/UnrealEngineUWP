@@ -326,7 +326,7 @@ void UPCGPointData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 						if (const FPCGMetadataAttribute<AttributeType>* TypedAttribute = static_cast<const FPCGMetadataAttribute<AttributeType>*>(Attribute))
 						{
 							ValueWithType = TypedAttribute->GetValueFromItemKey(Point.MetadataEntry);
-							Ar << ValueWithType;
+							PCG::Private::Serialize(Ar, ValueWithType);
 						}
 					};
 
@@ -413,10 +413,10 @@ void UPCGPointData::AddSinglePointFromActor(AActor* InActor)
 
 	Point.MetadataEntry = Metadata->AddEntry();
 
-	FPCGMetadataAttribute<FString>* ActorReferenceAttribute = Metadata->FindOrCreateAttribute(PCGPointDataConstants::ActorReferenceAttribute, FString(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/false);
+	FPCGMetadataAttribute<FSoftObjectPath>* ActorReferenceAttribute = Metadata->FindOrCreateAttribute(PCGPointDataConstants::ActorReferenceAttribute, FSoftObjectPath(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/false);
 	if (ActorReferenceAttribute)
 	{
-		ActorReferenceAttribute->SetValue(Point.MetadataEntry, FSoftObjectPath(InActor).ToString());
+		ActorReferenceAttribute->SetValue(Point.MetadataEntry, FSoftObjectPath(InActor));
 	}
 
 	// Parse tags as well

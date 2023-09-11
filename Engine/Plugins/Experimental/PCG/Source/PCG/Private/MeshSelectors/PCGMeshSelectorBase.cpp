@@ -68,14 +68,14 @@ void FPCGMeshMaterialOverrideHelper::Initialize(FPCGContext& InContext)
 
 			const FPCGMetadataAttributeBase* MaterialAttributeBase = Metadata->GetConstAttribute(MaterialOverrideAttributeName);
 			check(MaterialAttributeBase);
-
-			if (MaterialAttributeBase->GetTypeId() != PCG::Private::MetadataTypes<FString>::Id)
+			
+			if (!PCG::Private::IsOfTypes<FSoftObjectPath, FString>(MaterialAttributeBase->GetTypeId()))
 			{
-				PCGE_LOG_C(Error, GraphAndLog, &InContext, LOCTEXT("AttributeInvalidType", "Material override attribute is not of valid type"));
+				PCGE_LOG_C(Error, GraphAndLog, &InContext, LOCTEXT("AttributeInvalidType", "Material override attribute is not of valid type (FSoftObjectPath or FString)."));
 				return;
 			}
 
-			MaterialAttributes.Add(static_cast<const FPCGMetadataAttribute<FString>*>(MaterialAttributeBase));
+			MaterialAttributes.Add(MaterialAttributeBase);
 		}
 
 		ValueKeyToOverrideMaterials.SetNum(MaterialOverrideAttributeNames.Num());
@@ -107,14 +107,28 @@ const TArray<TSoftObjectPtr<UMaterialInterface>>& FPCGMeshMaterialOverrideHelper
 
 		for (int32 MaterialIndex = 0; MaterialIndex < MaterialAttributes.Num(); ++MaterialIndex)
 		{
-			const FPCGMetadataAttribute<FString>* MaterialAttribute = MaterialAttributes[MaterialIndex];
+			const FPCGMetadataAttributeBase* MaterialAttribute = MaterialAttributes[MaterialIndex];
 			PCGMetadataValueKey MaterialValueKey = MaterialAttribute->GetValueKey(EntryKey);
 			TSoftObjectPtr<UMaterialInterface>* NewMaterial = ValueKeyToOverrideMaterials[MaterialIndex].Find(MaterialValueKey);
 			TSoftObjectPtr<UMaterialInterface> Material = nullptr;
 
 			if (!NewMaterial)
 			{
-				FSoftObjectPath MaterialPath(MaterialAttribute->GetValue(MaterialValueKey));
+				FSoftObjectPath MaterialPath;
+				if (MaterialAttribute->GetTypeId() == PCG::Private::MetadataTypes<FSoftObjectPath>::Id)
+				{
+					MaterialPath = static_cast<const FPCGMetadataAttribute<FSoftObjectPath>*>(MaterialAttribute)->GetValue(MaterialValueKey);
+				}
+				else if (MaterialAttribute->GetTypeId() == PCG::Private::MetadataTypes<FString>::Id)
+				{
+					MaterialPath = FSoftObjectPath(static_cast<const FPCGMetadataAttribute<FString>*>(MaterialAttribute)->GetValue(MaterialValueKey));
+				}
+				else
+				{
+					ensure(false);
+					continue;
+				}
+
 				Material = TSoftObjectPtr<UMaterialInterface>(MaterialPath);
 				ValueKeyToOverrideMaterials[MaterialIndex].Add(MaterialValueKey, Material);
 			}

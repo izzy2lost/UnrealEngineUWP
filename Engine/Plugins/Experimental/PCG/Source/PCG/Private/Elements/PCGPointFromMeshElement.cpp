@@ -60,7 +60,7 @@ bool FPCGPointFromMeshElement::ExecuteInternal(FPCGContext* Context) const
 
 	// Write StaticMesh path to MeshPathAttribute
 	check(OutPointData->Metadata);
-	OutPointData->Metadata->CreateStringAttribute(Settings->MeshPathAttributeName, Settings->StaticMesh.ToString(), /*bAllowsInterpolation=*/false);
+	OutPointData->Metadata->CreateSoftObjectPathAttribute(Settings->MeshPathAttributeName, Settings->StaticMesh.ToSoftObjectPath(), /*bAllowsInterpolation=*/false);
 
 	return true;
 }

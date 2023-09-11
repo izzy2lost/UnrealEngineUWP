@@ -21,12 +21,23 @@ FPCGMatchAndSetWeightedByCategoryEntryList::FPCGMatchAndSetWeightedByCategoryEnt
 	CategoryValue.bAllowsTypeChange = false;
 }
 
-void FPCGMatchAndSetWeightedByCategoryEntryList::SetType(EPCGMetadataTypes InType, EPCGMetadataTypesConstantStructStringMode InStringMode)
+#if WITH_EDITOR
+void FPCGMatchAndSetWeightedByCategoryEntryList::OnPostLoad()
+{
+	CategoryValue.OnPostLoad();
+
+	for (FPCGMatchAndSetWeightedEntry& Entry : WeightedEntries)
+	{
+		Entry.OnPostLoad();
+	}
+} 
+#endif
+
+void FPCGMatchAndSetWeightedByCategoryEntryList::SetType(EPCGMetadataTypes InType)
 {
 	for (FPCGMatchAndSetWeightedEntry& Entry : WeightedEntries)
 	{
 		Entry.Value.Type = InType;
-		Entry.Value.StringMode = InStringMode;
 	}
 }
 
@@ -42,22 +53,21 @@ int FPCGMatchAndSetWeightedByCategoryEntryList::GetTotalWeight() const
 	return TotalWeight;
 }
 
-void UPCGMatchAndSetWeightedByCategory::SetType(EPCGMetadataTypes InType, EPCGMetadataTypesConstantStructStringMode InStringMode)
+void UPCGMatchAndSetWeightedByCategory::SetType(EPCGMetadataTypes InType)
 {
 	for (FPCGMatchAndSetWeightedByCategoryEntryList& Category : Categories)
 	{
-		Category.SetType(InType, InStringMode);
+		Category.SetType(InType);
 	}
 
-	Super::SetType(InType, InStringMode);
+	Super::SetType(InType);
 }
 
-void UPCGMatchAndSetWeightedByCategory::SetCategoryType(EPCGMetadataTypes InType, EPCGMetadataTypesConstantStructStringMode InStringMode)
+void UPCGMatchAndSetWeightedByCategory::SetCategoryType(EPCGMetadataTypes InType)
 {
 	for (FPCGMatchAndSetWeightedByCategoryEntryList& Category : Categories)
 	{
 		Category.CategoryValue.Type = InType;
-		Category.CategoryValue.StringMode = InStringMode;
 	}
 }
 
@@ -68,24 +78,45 @@ void UPCGMatchAndSetWeightedByCategory::PostEditChangeProperty(FPropertyChangedE
 	{
 		const FName& PropertyName = PropertyChangedEvent.Property->GetFName();
 
-		if (PropertyName == GET_MEMBER_NAME_CHECKED(UPCGMatchAndSetWeightedByCategory, CategoryType) ||
-			PropertyName == GET_MEMBER_NAME_CHECKED(UPCGMatchAndSetWeightedByCategory, CategoryStringMode))
+		if (PropertyName == GET_MEMBER_NAME_CHECKED(UPCGMatchAndSetWeightedByCategory, CategoryType))
 		{
-			SetCategoryType(CategoryType, CategoryStringMode);
+			SetCategoryType(CategoryType);
 		}
 		else if (PropertyName == GET_MEMBER_NAME_CHECKED(FPCGMatchAndSetWeightedByCategoryEntryList, WeightedEntries))
 		{
 			// Changes in any weighted entries (which store the end values) - due to add or insert - need to update type
-			SetType(Type, StringMode);
+			SetType(Type);
 		}
 		else if (PropertyName == GET_MEMBER_NAME_CHECKED(UPCGMatchAndSetWeightedByCategory, Categories))
 		{
-			SetCategoryType(CategoryType, CategoryStringMode);
-			SetType(Type, StringMode);
+			SetCategoryType(CategoryType);
+			SetType(Type);
 		}
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+void UPCGMatchAndSetWeightedByCategory::PostLoad()
+{
+	Super::PostLoad();
+
+	if (CategoryType == EPCGMetadataTypes::String)
+	{
+		if (CategoryStringMode_DEPRECATED == EPCGMetadataTypesConstantStructStringMode::SoftObjectPath)
+		{
+			CategoryType = EPCGMetadataTypes::SoftObjectPath;
+		}
+		else if (CategoryStringMode_DEPRECATED == EPCGMetadataTypesConstantStructStringMode::SoftClassPath)
+		{
+			CategoryType = EPCGMetadataTypes::SoftClassPath;
+		}
+	}
+
+	for (FPCGMatchAndSetWeightedByCategoryEntryList& Category : Categories)
+	{
+		Category.OnPostLoad();
+	}
 }
 #endif // WITH_EDITOR
 
