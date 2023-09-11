@@ -32,6 +32,7 @@ UMassRepresentationProcessor::UMassRepresentationProcessor()
 	bAutoRegisterWithProcessingPhases = false;
 
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Representation;
+	ExecutionOrder.ExecuteAfter.Add(UE::Mass::ProcessorGroupNames::LOD);
 }
 
 void UMassRepresentationProcessor::ConfigureQueries()
