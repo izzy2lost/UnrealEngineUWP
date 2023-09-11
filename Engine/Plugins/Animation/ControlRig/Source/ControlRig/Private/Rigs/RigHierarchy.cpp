@@ -327,6 +327,11 @@ void URigHierarchy::PostLoad()
 
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
 
+	for(FRigBaseElement* Element: Elements)
+	{
+		Element->PostLoad();
+	}
+
 	CleanupInvalidCaches();
 }
 
