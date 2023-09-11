@@ -2323,6 +2323,10 @@ void FDeferredShadingSceneRenderer::PreparePathTracing(const FSceneViewFamily& V
 
 void PreparePathTracingRTPSO()
 {
+	if (!IsRayTracingEnabled())
+	{
+		return;
+	}
 	ENQUEUE_RENDER_COMMAND(PreparePathTracingRTPSO)([](FRHICommandListImmediate& RHICmdList)
 		{
 			int NumValidPermutations = 0;
