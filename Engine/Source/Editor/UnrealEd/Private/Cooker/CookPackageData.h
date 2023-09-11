@@ -119,6 +119,29 @@ struct FCachedObjectInOuter
 	}
 };
 
+/**
+ * Extra information about CachedObjectsInOuter that a generator needs to know for diagnostics.
+ * The generator constructs an associated array (aka TMap) of these structures when it takes
+ * over the CachedObjectsInOuter.
+ */
+struct FCachedObjectInOuterGeneratorInfo
+{
+public:
+	/** Object->GetFullName() before it was deleted. */
+	FString FullName;
+	/** Has Initialize been called on *this. */
+	bool bInitialized = false;
+	/** Object->GetFlags() had RF_Public when the info was initialized. */
+	bool bPublic = false;
+	/** bMovedRoot is true, or this is a child object of such a moved object. */
+	bool bMoved = false;
+	/** Splitter informed us that object was moved into this package from another package. */
+	bool bMovedRoot = false;
+
+public:
+	void Initialize(UObject* Object);
+};
+
 /** Flags specifying the behavior of FPackageData::SendToState */
 enum class ESendFlags : uint8
 {
@@ -497,6 +520,7 @@ public:
 	 * TryCreateObjectCache and is cleared when leaving the save state.
 	 */
 	TArray<FCachedObjectInOuter>& GetCachedObjectsInOuter();
+	const TArray<FCachedObjectInOuter>& GetCachedObjectsInOuter() const;
 	template <typename ArrayType>
 	/** The list of platforms that were recorded as needscooking when CachedObjeObjectsInOuter was recorded. */
 	void GetCachedObjectsInOuterPlatforms(ArrayType& OutPlatforms) const;
@@ -868,7 +892,7 @@ public:
 	TArray<FAssetDependency> PackageDependencies;
 	FPackageData* PackageData = nullptr;
 	TArray<UPackage*> KeepReferencedPackages;
-	TSet<UObject*> RootMovedObjects;
+	TMap<UObject*, FCachedObjectInOuterGeneratorInfo> CachedObjectsInOuterInfo;
 private:
 	ESaveState GeneratorSaveState = ESaveState::StartGenerate;
 	bool bCreateAsMap : 1;
