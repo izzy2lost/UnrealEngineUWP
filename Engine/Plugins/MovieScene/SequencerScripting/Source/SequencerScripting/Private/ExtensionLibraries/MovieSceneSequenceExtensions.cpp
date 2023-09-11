@@ -680,7 +680,7 @@ FMovieSceneBindingProxy UMovieSceneSequenceExtensions::FindBindingById(UMovieSce
 	UMovieScene* MovieScene = GetMovieScene(Sequence);
 	if (MovieScene)
 	{
-		const FMovieSceneBinding* Binding = Algo::FindBy(MovieScene->GetBindings(), BindingId, &FMovieSceneBinding::GetObjectGuid);
+		const FMovieSceneBinding* Binding = MovieScene->FindBinding(BindingId);
 		if (Binding)
 		{
 			return FMovieSceneBindingProxy(Binding->GetObjectGuid(), Sequence);

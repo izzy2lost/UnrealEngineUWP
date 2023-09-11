@@ -118,14 +118,9 @@ namespace UsdLevelSequenceHelperImpl
 			return nullptr;
 		}
 
-		for (const FMovieSceneBinding& Binding : MovieScene->GetBindings())
+		if (const FMovieSceneBinding* Binding = MovieScene->FindBinding(Guid))
 		{
-			if (Binding.GetObjectGuid() != Guid)
-			{
-				continue;
-			}
-
-			for (UMovieSceneTrack* Track : Binding.GetTracks())
+			for (UMovieSceneTrack* Track : Binding->GetTracks())
 			{
 				if (TrackType* CastTrack = Cast<TrackType>(Track))
 				{

@@ -237,6 +237,11 @@ public:
 	 */
 	MOVIESCENE_API void AutoSetNetAddressableName();
 
+	/* For sorts and BinarySearch so we can search quickly by Guid */
+	FORCEINLINE bool operator<(const FMovieSceneSpawnable& RHS) const { return Guid < RHS.Guid; }
+	FORCEINLINE friend bool operator<(const FGuid& InGuid, const FMovieSceneSpawnable& RHS) { return InGuid < RHS.GetGuid(); }
+	FORCEINLINE bool operator<(const FGuid& InGuid) const { return Guid < InGuid; }
+
 	/** Array of tags that can be used for grouping and categorizing. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category=Actor)
 	TArray<FName> Tags;

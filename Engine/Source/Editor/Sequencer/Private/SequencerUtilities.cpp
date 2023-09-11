@@ -541,7 +541,7 @@ TArray<FGuid> ExpandMultiplePossessableBindings(TSharedRef<ISequencer> Sequencer
 	Sequence->Modify();
 	MovieScene->Modify();
 
-	FMovieSceneBinding* PossessableBinding = (FMovieSceneBinding*)MovieScene->GetBindings().FindByPredicate([&](FMovieSceneBinding& Binding) { return Binding.GetObjectGuid() == PossessableGuid; });
+	FMovieSceneBinding* PossessableBinding = MovieScene->FindBinding(PossessableGuid);
 
 	// First gather the children
 	TArray<FGuid> ChildPossessableGuids;
@@ -587,7 +587,7 @@ TArray<FGuid> ExpandMultiplePossessableBindings(TSharedRef<ISequencer> Sequencer
 		FMovieScenePossessable* NewPossessable = MovieScene->FindPossessable(NewPossessableGuid);
 		if (NewPossessable)
 		{
-			FMovieSceneBinding* NewPossessableBinding = (FMovieSceneBinding*)MovieScene->GetBindings().FindByPredicate([&](FMovieSceneBinding& Binding) { return Binding.GetObjectGuid() == NewPossessableGuid; });
+			FMovieSceneBinding* NewPossessableBinding = MovieScene->FindBinding(NewPossessableGuid);
 
 			if (ParentObject)
 			{
@@ -1070,7 +1070,7 @@ TArray<FMovieSceneSpawnable*> FSequencerUtilities::ConvertToSpawnable(TSharedRef
 			// Remap all the spawnable's tracks and child bindings onto the new possessable
 			MovieScene->MoveBindingContents(PossessableGuid, SpawnableGuid);
 
-			FMovieSceneBinding* PossessableBinding = (FMovieSceneBinding*)MovieScene->GetBindings().FindByPredicate([&](FMovieSceneBinding& Binding) { return Binding.GetObjectGuid() == PossessableGuid; });
+			FMovieSceneBinding* PossessableBinding = MovieScene->FindBinding(PossessableGuid);
 			check(PossessableBinding);
 
 			for (UMovieSceneFolder* Folder : MovieScene->GetRootFolders())
@@ -1087,7 +1087,7 @@ TArray<FMovieSceneSpawnable*> FSequencerUtilities::ConvertToSpawnable(TSharedRef
 			{
 				Sequence->UnbindPossessableObjects(PossessableGuid);
 
-				FMovieSceneBinding* SpawnableBinding = (FMovieSceneBinding*)MovieScene->GetBindings().FindByPredicate([&](FMovieSceneBinding& Binding) { return Binding.GetObjectGuid() == SpawnableGuid; });
+				FMovieSceneBinding* SpawnableBinding = MovieScene->FindBinding(SpawnableGuid);
 				check(SpawnableBinding);
 
 				SpawnableBinding->SetSortingOrder(SortingOrder);
@@ -1558,19 +1558,15 @@ bool FSequencerUtilities::PasteTracks(const FString& TextToImport, FMovieScenePa
 				ResetCopiedTracksFlags(NewTrack);
 
 				// Remove tracks with the same name before adding
-				for (const FMovieSceneBinding& Binding : MovieScene->GetBindings())
+				if (const FMovieSceneBinding* Binding = MovieScene->FindBinding(ObjectBinding.BindingID))
 				{
-					if (Binding.GetObjectGuid() == ObjectBinding.BindingID)
+					for (UMovieSceneTrack* Track : Binding->GetTracks())
 					{
-						// Tracks of the same class should be unique per name.
-						for (UMovieSceneTrack* Track : Binding.GetTracks())
+						if (Track->GetClass() == NewTrack->GetClass() && Track->GetTrackName() == NewTrack->GetTrackName() && Track->GetDisplayName().IdenticalTo(NewTrack->GetDisplayName()))
 						{
-							if (Track->GetClass() == NewTrack->GetClass() && Track->GetTrackName() == NewTrack->GetTrackName() && Track->GetDisplayName().IdenticalTo(NewTrack->GetDisplayName()))
-							{
-								// If a track of the same class and name exists, remove it so the new track replaces it
-								MovieScene->RemoveTrack(*Track);
-								break;
-							}
+							// If a track of the same class and name exists, remove it so the new track replaces it
+							MovieScene->RemoveTrack(*Track);
+							break;
 						}
 					}
 				}

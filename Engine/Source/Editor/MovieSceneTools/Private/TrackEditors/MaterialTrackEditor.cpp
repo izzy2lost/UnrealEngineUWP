@@ -509,7 +509,7 @@ void FComponentMaterialTrackEditor::ConstructObjectBindingTrackMenu(FMenuBuilder
 	}
 
 	const UMovieScene* MovieScene = GetFocusedMovieScene();
-	const FMovieSceneBinding* Binding = Algo::FindBy(MovieScene->GetBindings(), ObjectBindings[0], &FMovieSceneBinding::GetObjectGuid);
+	const FMovieSceneBinding* Binding = MovieScene->FindBinding(ObjectBindings[0]);
 
 	if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(SceneComponent))
 	{
@@ -623,7 +623,7 @@ void FComponentMaterialTrackEditor::HandleAddComponentMaterialActionExecute(USce
 	for (UActorComponent* ActorComponent : ActorComponents)
 	{
 		FGuid ObjectHandle = SequencerPtr->GetHandleToObject(ActorComponent);
-		const FMovieSceneBinding* Binding = Algo::FindBy(MovieScene->GetBindings(), ObjectHandle, &FMovieSceneBinding::GetObjectGuid);
+		const FMovieSceneBinding* Binding = MovieScene->FindBinding(ObjectHandle);
 
 		const bool bAlreadyExists = Algo::FindBy(Binding->GetTracks(), MaterialInfo, GetMaterialInfoForTrack) != nullptr;
 		if (!bAlreadyExists)

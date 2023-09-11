@@ -163,6 +163,11 @@ public:
 	/* Bind the potential spawnable object to this possessable by setting the ObjectBindingID */
 	MOVIESCENE_API bool BindSpawnableObject(FMovieSceneSequenceID SequenceID, UObject* Object, IMovieScenePlayer* Player);
 
+	/* For sorts so we can search quickly by Guid */
+	FORCEINLINE bool operator<(const FMovieScenePossessable& RHS) const { return Guid < RHS.Guid; }
+	FORCEINLINE friend bool operator<(const FGuid& InGuid, const FMovieScenePossessable& RHS) { return InGuid < RHS.GetGuid(); }
+	bool operator<(const FGuid& InGuid) const { return Guid < InGuid; }
+
 private:
 
 	/** Unique identifier of the possessable object. */

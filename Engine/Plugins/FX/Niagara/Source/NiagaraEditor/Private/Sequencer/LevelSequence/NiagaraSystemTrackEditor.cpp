@@ -41,16 +41,13 @@ bool FNiagaraSystemTrackEditor::SupportsType(TSubclassOf<UMovieSceneTrack> Type)
 
 bool HasLifeCycleTrack(UMovieScene& MovieScene, FGuid ObjectBinding)
 {
-	for (const FMovieSceneBinding& Binding : MovieScene.GetBindings())
+	if (const FMovieSceneBinding* Binding = MovieScene.FindBinding(ObjectBinding))
 	{
-		if (Binding.GetObjectGuid() == ObjectBinding)
+		for (const UMovieSceneTrack* Track : Binding->GetTracks())
 		{
-			for (UMovieSceneTrack* Track : Binding.GetTracks())
+			if (Track->IsA<UMovieSceneNiagaraSystemTrack>())
 			{
-				if (Track->IsA<UMovieSceneNiagaraSystemTrack>())
-				{
-					return true;
-				}
+				return true;
 			}
 		}
 	}
@@ -59,19 +56,15 @@ bool HasLifeCycleTrack(UMovieScene& MovieScene, FGuid ObjectBinding)
 
 void GetAnimatedParameterNames(UMovieScene& MovieScene, FGuid ObjectBinding, TSet<FName>& AnimatedParameterNames)
 {
-	for (const FMovieSceneBinding& Binding : MovieScene.GetBindings())
+	if (const FMovieSceneBinding* Binding = MovieScene.FindBinding(ObjectBinding))
 	{
-		if (Binding.GetObjectGuid() == ObjectBinding)
+		for (const UMovieSceneTrack* Track : Binding->GetTracks())
 		{
-			for (UMovieSceneTrack* Track : Binding.GetTracks())
+			const UMovieSceneNiagaraParameterTrack* ParameterTrack = Cast<UMovieSceneNiagaraParameterTrack>(Track);
+			if (ParameterTrack != nullptr)
 			{
-				UMovieSceneNiagaraParameterTrack* ParameterTrack = Cast<UMovieSceneNiagaraParameterTrack>(Track);
-				if (ParameterTrack != nullptr)
-				{
-					AnimatedParameterNames.Add(ParameterTrack->GetParameter().GetName());
-				}
+				AnimatedParameterNames.Add(ParameterTrack->GetParameter().GetName());
 			}
-			break;
 		}
 	}
 }

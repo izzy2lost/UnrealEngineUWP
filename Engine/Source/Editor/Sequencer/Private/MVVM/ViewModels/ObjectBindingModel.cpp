@@ -1126,10 +1126,7 @@ FSortingKey FObjectBindingModel::GetSortingKey() const
 	if (OwnerModel)
 	{
 		UMovieScene* MovieScene = OwnerModel->GetMovieScene();
-		const FMovieSceneBinding* MovieSceneBinding = MovieScene->GetBindings().FindByPredicate([&](FMovieSceneBinding& Binding)
-		{
-			return Binding.GetObjectGuid() == ObjectBindingID;
-		});
+		const FMovieSceneBinding* MovieSceneBinding = MovieScene->FindBinding(ObjectBindingID);
 
 		if (MovieSceneBinding)
 		{

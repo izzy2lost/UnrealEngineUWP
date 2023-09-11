@@ -366,6 +366,9 @@ struct FFortniteMainBranchObjectVersion
 		// World partition actor data layers activation logic operator support defaults for old maps
 		WorldPartitionDataLayersLogicOperatorAdded,
 
+		// Started sorting Possessables, Spawnables, and MovieSceneBindings for better search performance.
+		MovieSceneSortedBindings,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

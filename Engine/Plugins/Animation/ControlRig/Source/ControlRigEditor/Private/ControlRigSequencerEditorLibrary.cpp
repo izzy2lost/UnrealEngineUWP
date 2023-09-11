@@ -276,54 +276,50 @@ UMovieSceneTrack* UControlRigSequencerEditorLibrary::FindOrCreateControlRigTrack
 	UMovieSceneTrack* BaseTrack = nullptr;
 	if (LevelSequence && MovieScene && InBinding.BindingID.IsValid())
 	{
-		const TArray<FMovieSceneBinding>& Bindings = MovieScene->GetBindings();
-		for (const FMovieSceneBinding& Binding : Bindings)
+		if (const FMovieSceneBinding* Binding = MovieScene->FindBinding(InBinding.BindingID))
 		{
-			if (Binding.GetObjectGuid() == InBinding.BindingID)
+			TArray<UMovieSceneTrack*> Tracks = MovieScene->FindTracks(UMovieSceneControlRigParameterTrack::StaticClass(), Binding->GetObjectGuid(), NAME_None);
+			for (UMovieSceneTrack* AnyOleTrack : Tracks)
 			{
-				TArray<UMovieSceneTrack*> Tracks = MovieScene->FindTracks(UMovieSceneControlRigParameterTrack::StaticClass(), Binding.GetObjectGuid(), NAME_None);
-				for (UMovieSceneTrack* AnyOleTrack : Tracks)
+				UMovieSceneControlRigParameterTrack* Track = Cast<UMovieSceneControlRigParameterTrack>(AnyOleTrack);
+				if (Track && Track->GetControlRig() && Track->GetControlRig()->GetClass() == ControlRigClass)
 				{
-					UMovieSceneControlRigParameterTrack* Track = Cast<UMovieSceneControlRigParameterTrack>(AnyOleTrack);
-					if (Track && Track->GetControlRig() && Track->GetControlRig()->GetClass() == ControlRigClass)
+					return Track;
+				}
+			}
+
+			TArray<UObject*, TInlineAllocator<1>> Result;
+			UObject* Context = nullptr;
+			ALevelSequenceActor* OutActor = nullptr;
+			ULevelSequencePlayer* OutPlayer = nullptr;
+			Result = GetBoundObjects(World, LevelSequence, InBinding, &OutPlayer, &OutActor);
+			if (Result.Num() > 0 && Result[0])
+			{
+				UObject* BoundObject = Result[0];
+				USkeleton* Skeleton = nullptr;
+				USkeletalMeshComponent* SkeletalMeshComponent = nullptr;
+				AcquireSkeletonAndSkelMeshCompFromObject(BoundObject, &Skeleton, &SkeletalMeshComponent);
+
+				UControlRig* ControlRig = nullptr;
+				if (Skeleton && SkeletalMeshComponent)
+				{
+					UMovieSceneControlRigParameterTrack* Track = AddControlRig(LevelSequence, ControlRigClass, SkeletalMeshComponent, InBinding.BindingID, nullptr);
+
+					if (Track)
 					{
-						return Track;
+						BaseTrack = Track;								
 					}
 				}
+			}
 
-				TArray<UObject*, TInlineAllocator<1>> Result;
-				UObject* Context = nullptr;
-				ALevelSequenceActor* OutActor = nullptr;
-				ULevelSequencePlayer* OutPlayer = nullptr;
-				Result = GetBoundObjects(World, LevelSequence, InBinding, &OutPlayer, &OutActor);
-				if (Result.Num() > 0 && Result[0])
-				{
-					UObject* BoundObject = Result[0];
-					USkeleton* Skeleton = nullptr;
-					USkeletalMeshComponent* SkeletalMeshComponent = nullptr;
-					AcquireSkeletonAndSkelMeshCompFromObject(BoundObject, &Skeleton, &SkeletalMeshComponent);
+			if (OutPlayer)
+			{
+				OutPlayer->Stop();
+			}
 
-					UControlRig* ControlRig = nullptr;
-					if (Skeleton && SkeletalMeshComponent)
-					{
-						UMovieSceneControlRigParameterTrack* Track = AddControlRig(LevelSequence, ControlRigClass, SkeletalMeshComponent, InBinding.BindingID, nullptr);
-
-						if (Track)
-						{
-							BaseTrack = Track;								
-						}
-					}
-				}
-
-				if (OutPlayer)
-				{
-					OutPlayer->Stop();
-				}
-
-				if (OutActor)
-				{
-					World->DestroyActor(OutActor);
-				}
+			if (OutActor)
+			{
+				World->DestroyActor(OutActor);
 			}
 		}
 	}

@@ -515,7 +515,7 @@ void FCustomPrimitiveDataTrackEditor::HandleAddCustomPrimitiveDataTrackExecute(U
 	for (UActorComponent* ActorComponent : ActorComponents)
 	{
 		FGuid ObjectHandle = SequencerPtr->GetHandleToObject(ActorComponent);
-		const FMovieSceneBinding* Binding = Algo::FindBy(MovieScene->GetBindings(), ObjectHandle, &FMovieSceneBinding::GetObjectGuid);
+		const FMovieSceneBinding* Binding = MovieScene->FindBinding(ObjectHandle);
 		
 		const bool bAlreadyExists = MovieScene->FindTrack<UMovieSceneCustomPrimitiveDataTrack>(ObjectHandle) != nullptr;
 		if (!bAlreadyExists)

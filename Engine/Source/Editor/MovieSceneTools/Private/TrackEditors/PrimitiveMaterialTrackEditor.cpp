@@ -52,7 +52,7 @@ void FPrimitiveMaterialTrackEditor::ConstructObjectBindingTrackMenu(FMenuBuilder
 	}	
 
 	const UMovieScene* MovieScene = GetFocusedMovieScene();
-	const FMovieSceneBinding* Binding = Algo::FindBy(MovieScene->GetBindings(), ObjectBindings[0], &FMovieSceneBinding::GetObjectGuid);
+	const FMovieSceneBinding* Binding = MovieScene->FindBinding(ObjectBindings[0]);
 
 	if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(SceneComponent))
 	{
