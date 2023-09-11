@@ -28,6 +28,7 @@
 #include "Shadows/ShadowSceneRenderer.h"
 #include "RenderCore.h"
 #include "BasePassRendering.h"
+#include "MobileBasePassRendering.h"
 #include "TranslucentLighting.h"
 
 // ENABLE_DEBUG_DISCARD_PROP is used to test the lighting code by allowing to discard lights to see how performance scales
@@ -382,7 +383,7 @@ bool FDeferredLightVS::ShouldCompilePermutation(const FGlobalShaderPermutationPa
 	FPermutationDomain PermutationVector(Parameters.PermutationId);
 	if (PermutationVector.Get<FRadialLight>())
 	{
-		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5) || IsMobileDeferredShadingEnabled(Parameters.Platform);
+		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5) || IsMobileDeferredShadingEnabled(Parameters.Platform) || MobileLocalLightsBufferEnabled(Parameters.Platform);
 	}
 	// used with FPrefilterPlanarReflectionPS on mobile
 	return true;

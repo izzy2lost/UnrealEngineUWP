@@ -8,8 +8,11 @@
 #include "RendererPrivateUtils.h"
 #include "GlobalRenderResources.h"
 #include "ScenePrivate.h"
+#include "LightRendering.h"
+#include "LightFunctionRendering.h"
+#include "Materials/MaterialRenderProxy.h"
 
-bool MobileLocalLighsBufferEnabled(const FStaticShaderPlatform Platform)
+static bool CompileShaderPermutationsForMobileLocalLightsBuffer(const FStaticShaderPlatform Platform)
 {
 	return !IsMobileDeferredShadingEnabled(Platform) && 
 			IsMobilePlatform(Platform) && 
@@ -31,7 +34,7 @@ public:
  
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MobileLocalLighsBufferEnabled(Parameters.Platform);
+		return CompileShaderPermutationsForMobileLocalLightsBuffer(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -39,6 +42,7 @@ public:
 		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEX"), GLocalLightPrepassTileSizeX);
 		OutEnvironment.SetDefine(TEXT("COMPUTE_SHADER"), 1);
+		OutEnvironment.SetDefine(TEXT("LIGHT_FUNCTION"), 0);
 	}
 };
 
@@ -57,7 +61,7 @@ class FLocalLightBufferVS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MobileLocalLighsBufferEnabled(Parameters.Platform);
+		return CompileShaderPermutationsForMobileLocalLightsBuffer(Parameters.Platform);
 	}
 };
 
@@ -75,12 +79,13 @@ class FLocalLightBufferPS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MobileLocalLighsBufferEnabled(Parameters.Platform);
+		return CompileShaderPermutationsForMobileLocalLightsBuffer(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("LIGHT_FUNCTION"), 0);
 
 		if (MobileLocalLightsBufferPrepassEnabled(Parameters.Platform))
 		{
@@ -105,9 +110,100 @@ SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureShaderParameters, SceneTextures)
 RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 
-void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures, bool bIsPrepass)
+/**
+ * A pixel shader for projecting a light function onto the scene and blending with the color from the previously calculated lights in the prepass. 
+ */
+class FMobileLocalLightFunctionPS : public FMaterialShader
 {
-	if (!MobileLocalLighsBufferEnabled(ShaderPlatform) || 
+	DECLARE_SHADER_TYPE(FMobileLocalLightFunctionPS, Material);
+	SHADER_USE_PARAMETER_STRUCT_WITH_LEGACY_BASE(FMobileLocalLightFunctionPS, FMaterialShader)
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(FMatrix44f, SvPositionToLight)
+		SHADER_PARAMETER(FVector4f, LightFunctionParameters)
+		SHADER_PARAMETER(FVector2f, LightFunctionParameters2)
+		SHADER_PARAMETER_STRUCT_REF(FDeferredLightUniformStruct, DeferredLightUniforms)
+	END_SHADER_PARAMETER_STRUCT()
+
+public:
+	/**
+	  * Makes sure only shaders for materials that are explicitly flagged
+	  * as 'UsedAsLightFunction' in the Material Editor gets compiled into
+	  * the shader cache.
+	**/  
+	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
+	{
+		return Parameters.MaterialParameters.MaterialDomain == MD_LightFunction && CompileShaderPermutationsForMobileLocalLightsBuffer(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("LIGHT_FUNCTION"), 1);
+		OutEnvironment.SetDefine(TEXT("COMPUTE_SHADER"), 0);
+		
+		if (MobileLocalLightsBufferPrepassEnabled(Parameters.Platform))
+		{
+			OutEnvironment.SetRenderTargetOutputFormat(0, PF_FloatR11G11B10);
+			OutEnvironment.SetRenderTargetOutputFormat(1, PF_A2B10G10R10);
+			OutEnvironment.SetDefine(TEXT("POST_PROCESS_LOCAL_LIGHTS"), 0);
+		}
+		else
+		{
+			OutEnvironment.SetRenderTargetOutputFormat(0, PF_FloatR11G11B10);
+			OutEnvironment.SetDefine(TEXT("POST_PROCESS_LOCAL_LIGHTS"), 1);
+		}
+	}
+
+	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FViewInfo& View, const FMaterialRenderProxy* MaterialProxy, const FMaterial& Material)
+	{
+		FMaterialShader::SetViewParameters(BatchedParameters, View, View.ViewUniformBuffer);
+		FMaterialShader::SetParameters(BatchedParameters, MaterialProxy, Material, View);
+	}
+
+	FParameters GetParameters(const FViewInfo& View, const FLightSceneInfo* LightSceneInfo, const float FadeAlpha)
+	{
+		FParameters PS;
+		
+		LightFunctionSvPositionToLightTransform(PS.SvPositionToLight, View, *LightSceneInfo);
+		PS.LightFunctionParameters = FLightFunctionSharedParameters::GetLightFunctionSharedParameters(LightSceneInfo, FadeAlpha);
+		PS.LightFunctionParameters2 = FVector2f(LightSceneInfo->Proxy->GetLightFunctionFadeDistance(), LightSceneInfo->Proxy->GetLightFunctionDisabledBrightness());
+		PS.DeferredLightUniforms = TUniformBufferRef<FDeferredLightUniformStruct>::CreateUniformBufferImmediate(GetDeferredLightParameters(View, *LightSceneInfo), EUniformBufferUsage::UniformBuffer_SingleFrame);
+
+		return PS;
+	}
+};
+
+IMPLEMENT_MATERIAL_SHADER_TYPE(, FMobileLocalLightFunctionPS, TEXT("/Engine/Private/MobileLocalLightsBuffer.usf"), TEXT("MainLightFunction"), SF_Pixel);
+
+BEGIN_SHADER_PARAMETER_STRUCT(FLocalLightFunctionParameters, )
+	SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureShaderParameters, SceneTextures)
+	RENDER_TARGET_BINDING_SLOTS()
+END_SHADER_PARAMETER_STRUCT()
+
+static bool TryGetLightFunctionShaders(FMaterialRenderProxy const*& OutMaterialProxy, FMaterial const*& OutMaterial, FMaterialShaders& OutShaders)
+{
+	while (OutMaterialProxy)
+	{
+		OutMaterial = OutMaterialProxy->GetMaterialNoFallback(ERHIFeatureLevel::ES3_1);
+		if (OutMaterial && OutMaterial->IsLightFunction())
+		{
+			FMaterialShaderTypes ShaderTypes;
+			ShaderTypes.AddShaderType<FMobileLocalLightFunctionPS>();
+			if (OutMaterial->TryGetShaders(ShaderTypes, nullptr, OutShaders))
+			{
+				return true;
+			}
+		}
+		OutMaterialProxy = OutMaterialProxy->GetFallback(ERHIFeatureLevel::ES3_1);
+	}
+	return false;
+}
+
+
+void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures, bool bIsPrepass, const FSortedLightSetSceneInfo& SortedLights)
+{
+	if (!CompileShaderPermutationsForMobileLocalLightsBuffer(ShaderPlatform) ||
 		(bIsPrepass != MobileLocalLightsBufferPrepassEnabled(ShaderPlatform)) || 
 		IsMobileDeferredShadingEnabled(ShaderPlatform))
 	{
@@ -181,7 +277,7 @@ void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuild
 				RDG_EVENT_NAME("RenderMobileLocalLightsBuffer %s", bIsPrepass ? TEXT("Prepass") : TEXT("PostProcess")),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[PassParameters, VertexShader, PixelShader, &View, GroupSize, bIsPrepass](FRHICommandList& RHICmdList)
+				[PassParameters, VertexShader, PixelShader, &View, GroupSize, bIsPrepass, &SortedLights](FRHICommandList& RHICmdList)
 				{
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
 					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -216,6 +312,83 @@ void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuild
 						0,
 						2,
 						GroupSize.X * GroupSize.Y);
+
+
+					// Draws a pass for each visible light with a light function and blends on top of the color texture 
+					// generated by last pass
+					for (const FSortedLightSceneInfo& SortedLightSceneInfo : SortedLights.SortedLights)
+					{
+						 // Directional lights are currently not supported
+						if (SortedLightSceneInfo.SortKey.Fields.LightType == LightType_Directional)
+						{
+							continue;
+						}
+
+						if (!SortedLightSceneInfo.SortKey.Fields.bLightFunction)
+						{
+							continue;
+						}
+
+						const FLightSceneInfo* const LightSceneInfo = SortedLightSceneInfo.LightSceneInfo;
+						const FSphere LightBounds = LightSceneInfo->Proxy->GetBoundingSphere();
+
+						const float FadeAlpha = GetLightFunctionFadeFraction(View, LightBounds);
+						// Don't draw the light function if it has completely faded out
+						if (FadeAlpha < 1.0f / 256.0f)
+						{
+							continue;
+						}
+
+						FMaterialShaders MaterialShaders;
+						const FMaterialRenderProxy* MaterialProxyForRendering = LightSceneInfo->Proxy->GetLightFunctionMaterial();
+						const FMaterial* MaterialForRendering = nullptr;
+						if (!TryGetLightFunctionShaders(MaterialProxyForRendering, MaterialForRendering, MaterialShaders))
+						{
+							UE_LOG(LogTemp, Error, TEXT("Light function shader for light %d not found."), LightSceneInfo->Id);
+							continue;
+						}
+
+						FDeferredLightVS::FPermutationDomain PermutationVectorVS;
+						PermutationVectorVS.Set<FDeferredLightVS::FRadialLight>(true);
+						TShaderMapRef<FDeferredLightVS> LightFunctionVertexShader(View.ShaderMap, PermutationVectorVS);
+						FDeferredLightVS::FParameters ParametersVS = FDeferredLightVS::GetParameters(View, LightSceneInfo, false);
+						ParametersVS.View = TUniformBufferBinding(View.ViewUniformBuffer, EUniformBufferBindingFlags::Shader);
+						TShaderRef<FMobileLocalLightFunctionPS> LightFunctionPixelShader;
+						MaterialShaders.TryGetPixelShader(LightFunctionPixelShader);
+						FMobileLocalLightFunctionPS::FParameters ParametersPS = LightFunctionPixelShader->GetParameters(View, LightSceneInfo, FadeAlpha);
+
+						// Directional RT was already generated in main pass
+						GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_One, BO_Add, BF_One, BF_Zero, CW_NONE>::GetRHI(); 
+
+						GraphicsPSOInit.PrimitiveType = PT_TriangleList;
+						GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector4();
+						GraphicsPSOInit.BoundShaderState.VertexShaderRHI = LightFunctionVertexShader.GetVertexShader();
+						GraphicsPSOInit.BoundShaderState.PixelShaderRHI = LightFunctionPixelShader.GetPixelShader();
+
+						if (((FVector)View.ViewMatrices.GetViewOrigin() - LightBounds.Center).SizeSquared() < FMath::Square(LightBounds.W * 1.05f + View.NearClippingDistance * 2.0f))
+						{
+							// Render backfaces with depth tests disabled since the camera is inside (or close to inside) the light function geometry
+							GraphicsPSOInit.RasterizerState = View.bReverseCulling ? TStaticRasterizerState<FM_Solid, CM_CW>::GetRHI() : TStaticRasterizerState<FM_Solid, CM_CCW>::GetRHI();
+						}
+
+						// Set the light's scissor rectangle.
+						LightSceneInfo->Proxy->SetScissorRect(RHICmdList, View, View.ViewRect);
+
+						SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+
+						SetShaderParameters(RHICmdList, LightFunctionVertexShader, LightFunctionVertexShader.GetVertexShader(), ParametersVS);
+						SetShaderParametersMixedPS(RHICmdList, LightFunctionPixelShader, ParametersPS, View, MaterialProxyForRendering, *MaterialForRendering);
+
+						// Project the light function using a sphere around the light
+						if (SortedLightSceneInfo.SortKey.Fields.LightType == LightType_Spot)
+						{
+							StencilingGeometry::DrawCone(RHICmdList);
+						}
+						else
+						{
+							StencilingGeometry::DrawSphere(RHICmdList);
+						}
+					}
 				});
 		}
 	}

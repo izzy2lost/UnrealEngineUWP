@@ -2,11 +2,18 @@
 
 #define SUPPORT_CONTACT_SHADOWS 0
 
-#include "LightGridCommon.ush"
 #if !COMPUTE_SHADER
 #include "Common.ush"
 #include "SceneTextureParameters.ush"
 #include "DeferredLightingCommon.ush"
+#endif
+
+#if LIGHT_FUNCTION
+#include "/Engine/Generated/Material.ush"
+#include "LightDataUniforms.ush"
+#include "LightFunctionCommon.ush"
+#else
+#include "LightGridCommon.ush"
 #endif
 
 #if COMPUTE_SHADER
@@ -55,7 +62,9 @@ void MainCS(
 	}
 }
 
-#else
+#else // COMPUTE_SHADER
+
+#if !LIGHT_FUNCTION
 
 int LightGridPixelSize;
 Buffer<int> TileInfo;
@@ -113,6 +122,7 @@ void Main(float4 SvPosition : SV_POSITION
 		// appears useless
 		float InvLightRadiusSq = LocalLight.LightPositionAndInvRadius.w * LocalLight.LightPositionAndInvRadius.w;
 		float DistLight = length2(TranslatedWorldPosition - LocalLight.LightPositionAndInvRadius.xyz) * InvLightRadiusSq;
+		
 		if (DistLight > 1.0f)
 		{
 			continue;
@@ -134,7 +144,13 @@ void Main(float4 SvPosition : SV_POSITION
 		if( LightMask > 0)
 		{
 			TotalWeight += WeightLight;
-			Color += MaskedLightColor;
+			// For lights with light functions we only only use the compute the direction (OutColorB)
+			// The Color is added in additional draws using MainLightFunction()
+			if (!UnpackHasLightFunction(LocalLight))
+			{
+				Color += MaskedLightColor;
+			}
+
 			SavedL += L *  WeightLight;
 		}
 	}
@@ -168,4 +184,57 @@ void Main(float4 SvPosition : SV_POSITION
 #endif
 }
 
+
+#else // !LIGHT_FUNCTION
+
+
+float4x4 SvPositionToLight;
+/** Fade distance in x, disabled brightness in y */
+float2 LightFunctionParameters2;
+
+void MainLightFunction(
+	float4 InScreenPosition : TEXCOORD0,
+	float4 SvPosition : SV_POSITION, 
+	out float3 OutColorA : SV_Target0
+)
+{
+	float2 ScreenUV = SvPositionToBufferUV(SvPosition);
+	SvPosition.z = LookupDeviceZ(ScreenUV);
+	float3 TranslatedWorldPosition = SvPositionToTranslatedWorld(SvPosition);
+	float ViewDistance = length(GetPrimaryView().TranslatedWorldCameraOrigin - TranslatedWorldPosition);
+	float GreyScale;
+	{
+		float4 Hom = mul(float4(SvPosition.xyz, 1), SvPositionToLight);
+		float3 LightVector = Hom.xyz / Hom.w;
+		float3 Color = GetLightFunctionColor(LightVector, TranslatedWorldPosition);
+		GreyScale = dot(Color, .3333f);
+	}
+	float DistanceFadeAlpha = saturate((LightFunctionParameters2.x - ViewDistance) / (LightFunctionParameters2.x * .2f));
+	GreyScale = lerp(LightFunctionParameters2.y, GreyScale, DistanceFadeAlpha);
+	GreyScale = lerp(LightFunctionParameters2.y, GreyScale, LightFunctionParameters.y); 
+	float EncodedLightAttenuation = EncodeLightAttenuation(GreyScale);
+
+	FDeferredLightData LightData = InitDeferredLightFromUniforms();
+	float3 L = LightData.Direction;	// Already normalized
+	float3 ToLight = LightData.TranslatedWorldPosition - TranslatedWorldPosition;
+	float LightMask = 1;
+	// At the moment directional lights are not supported
+	// if (LightData.bRadialLight)
+	{
+		LightMask = GetLocalLightAttenuation( TranslatedWorldPosition, LightData, ToLight, L );
+	}
+
+	float3 Color = LightData.Color * LightMask * EncodedLightAttenuation;
+
+#if POST_PROCESS_LOCAL_LIGHTS == 0
+	OutColorA = Color;
+#else
+	float3 N = normalize(cross(ddx(TranslatedWorldPosition.xyz), ddy(TranslatedWorldPosition.xyz)));
+	float NoL = max(0, dot(N, L));
+	float3 Diffuse =  (1 / PI) * NoL * Color;
+	OutColorA = Diffuse;
 #endif
+}
+#endif // !LIGHT_FUNCTION
+
+#endif // COMPUTE_SHADER

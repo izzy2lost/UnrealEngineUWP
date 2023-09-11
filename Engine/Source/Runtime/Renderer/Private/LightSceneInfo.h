@@ -313,7 +313,7 @@ public:
 
 	bool ShouldRecordShadowSubjectsForMobile() const;
 
-	uint32 PackLightTypeAndShadowMapChannelMask(bool bAllowStaticLighting) const;
+	uint32 PackLightTypeAndShadowMapChannelMask(bool bAllowStaticLighting, bool bLightFunction = false) const;
 };
 
 /** Defines how the light is stored in the scene's light octree. */

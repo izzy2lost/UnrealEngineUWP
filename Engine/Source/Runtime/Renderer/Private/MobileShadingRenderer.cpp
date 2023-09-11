@@ -1081,7 +1081,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		if (bRendererOutputFinalSceneColor)
 		{
-			RenderMobileLocalLightsBuffer(GraphBuilder, SceneTextures, true);
+			RenderMobileLocalLightsBuffer(GraphBuilder, SceneTextures, true, SortedLightSet);
 		}
 	}
 
@@ -1122,7 +1122,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	
 		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_Post));
 
-		RenderMobileLocalLightsBuffer(GraphBuilder, SceneTextures, false);
+		RenderMobileLocalLightsBuffer(GraphBuilder, SceneTextures, false, SortedLightSet);
 
 		FRendererModule& RendererModule = static_cast<FRendererModule&>(GetRendererModule());
 		RendererModule.RenderPostOpaqueExtensions(GraphBuilder, Views, SceneTextures);

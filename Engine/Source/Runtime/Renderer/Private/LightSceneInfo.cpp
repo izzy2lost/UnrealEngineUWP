@@ -354,7 +354,7 @@ bool FLightSceneInfo::ShouldRecordShadowSubjectsForMobile() const
 	return bShouldRecordShadowSubjectsForMobile;
 }
 
-uint32 FLightSceneInfo::PackLightTypeAndShadowMapChannelMask(bool bAllowStaticLighting) const
+uint32 FLightSceneInfo::PackLightTypeAndShadowMapChannelMask(bool bAllowStaticLighting, bool bLightFunction) const
 {
 	uint32 Result = 0;
 
@@ -383,6 +383,8 @@ uint32 FLightSceneInfo::PackLightTypeAndShadowMapChannelMask(bool bAllowStaticLi
 	Result |= ((uint32)Proxy->GetLightType()) << 16;
 	const uint32 CastShadows = Proxy->CastsDynamicShadow() ? 1 : 0;
 	Result |= CastShadows << (16 + LightType_NumBits);
+	uint32 HasLightFunction = bLightFunction ? 1 : 0;;
+	Result |= HasLightFunction << (16 + LightType_NumBits + 1);
 
 	return Result;
 }
