@@ -1818,7 +1818,7 @@ int32 SWorldPartitionEditorGrid2D::OnPaint(const FPaintArgs& Args, const FGeomet
 
 		if (bResetView)
 		{
-			const_cast<SWorldPartitionEditorGrid2D*>(this)->FocusSelection();
+			const_cast<SWorldPartitionEditorGrid2D*>(this)->FocusWorld();
 		}
 
 		UpdateTransform();
