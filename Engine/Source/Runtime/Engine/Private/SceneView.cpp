@@ -2677,11 +2677,15 @@ const FSceneView* FSceneView::GetPrimarySceneView() const
 
 const FSceneView* FSceneView::GetInstancedSceneView() const
 {
-	// If called on the first secondary view it'll return itself.
-	if (Family && Family->Views.IsValidIndex(PrimaryViewIndex + 1))
+	// if we don't have ISR (or MMV) enabled, we don't have instanced views
+	if (bIsMultiViewportEnabled || bIsMobileMultiViewEnabled)
 	{
-		const FSceneView* SecondaryView = Family->Views[PrimaryViewIndex + 1];
-		return IStereoRendering::IsASecondaryView(*SecondaryView) ? SecondaryView : nullptr;
+		// If called on the first secondary view it'll return itself.
+		if (Family && Family->Views.IsValidIndex(PrimaryViewIndex + 1))
+		{
+			const FSceneView* SecondaryView = Family->Views[PrimaryViewIndex + 1];
+			return IStereoRendering::IsASecondaryView(*SecondaryView) ? SecondaryView : nullptr;
+		}
 	}
 	return nullptr;
 }

@@ -1941,7 +1941,8 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 
 	if (LumenScreenProbeGather::UseRadianceCache(View))
 	{
-		if (!ShouldUseStereoLumenOptimizations() || View.ShouldRenderView())
+		// Using !View.IsInstancedSceneView() to skip actual secondary stereo views only, View.ShouldRenderView() returns false for empty views as well
+		if (!ShouldUseStereoLumenOptimizations() || !View.IsInstancedSceneView())
 		{
 			FMarkUsedRadianceCacheProbes GraphicsMarkUsedRadianceCacheProbesCallbacks;
 			FMarkUsedRadianceCacheProbes ComputeMarkUsedRadianceCacheProbesCallbacks;
