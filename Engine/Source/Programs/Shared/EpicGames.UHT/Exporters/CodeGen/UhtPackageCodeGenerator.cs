@@ -21,7 +21,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		public static string DisableDeprecationWarnings = "PRAGMA_DISABLE_DEPRECATION_WARNINGS";
 
 		public static string BeginEditorOnlyGuard = "#if WITH_EDITOR\r\n";
-		public static string EndEditorOnlyGuard = "#endif //WITH_EDITOR\r\n"; //COMPATIBILITY-TODO - This does not match UhtMacroBlockEmitter
+		public static string EndEditorOnlyGuard = "#endif // WITH_EDITOR\r\n";
 
 		public readonly UhtCodeGenerator CodeGenerator;
 		public readonly UhtPackage Package;
@@ -73,28 +73,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		public string GetExternalDecl(int objectIndex, bool registered)
 		{
 			return CodeGenerator.GetExternalDecl(objectIndex, registered);
-		}
-
-		/// <summary>
-		/// Return the cross reference for an object
-		/// </summary>
-		/// <param name="obj">The object in question.</param>
-		/// <param name="registered">If true, return the registered cross reference.  Otherwise return the unregistered.</param>
-		/// <returns>Cross reference</returns>
-		public string GetCrossReference(UhtObject obj, bool registered)
-		{
-			return CodeGenerator.GetCrossReference(obj, registered);
-		}
-
-		/// <summary>
-		/// Return the cross reference for an object
-		/// </summary>
-		/// <param name="objectIndex">The object in question.</param>
-		/// <param name="registered">If true, return the registered cross reference.  Otherwise return the unregistered.</param>
-		/// <returns>Cross reference</returns>
-		public string GetCrossReference(int objectIndex, bool registered)
-		{
-			return CodeGenerator.GetCrossReference(objectIndex, registered);
 		}
 
 		/// <summary>

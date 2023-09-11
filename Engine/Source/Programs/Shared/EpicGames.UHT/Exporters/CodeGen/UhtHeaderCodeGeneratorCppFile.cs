@@ -136,7 +136,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				if (HeaderFile.References.CrossModule.References.Count > 0)
 				{
 					ReadOnlyMemory<string> sorted = HeaderFile.References.CrossModule.GetSortedReferences(
-						(int objectIndex, bool registered) => GetCrossReference(objectIndex, registered));
+						(int objectIndex, bool registered) => GetExternalDecl(objectIndex, registered));
 					builder.Append("// Cross Module References\r\n");
 					foreach (string crossReference in sorted.Span)
 					{
@@ -808,8 +808,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					}
 					if (wroteLine)
 					{
-						//COMPATIBILITY-TODO - Remove the tab
-						builder.Append("\t\r\n");
+						builder.Append("\r\n");
 					}
 					
 					foreach (UhtRigVMMethodInfo predicateInfo in scriptStruct.RigVMStructInfo.Methods)
@@ -820,7 +819,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						}
 					}
 
-					//COMPATIBILITY-TODO - Replace spaces with \t
 					builder.Append('\t').Append(methodInfo.ReturnPrefix()).Append("Static").Append(methodInfo.Name).Append("(\r\n");
 					builder.Append("\t\tInExecuteContext");
 					builder.AppendParameterNames(scriptStruct.RigVMStructInfo.Members, true, ",\r\n\t\t", true);

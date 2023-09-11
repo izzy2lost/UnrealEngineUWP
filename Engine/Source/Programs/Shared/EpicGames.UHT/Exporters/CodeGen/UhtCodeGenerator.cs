@@ -46,8 +46,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		{
 			public string RegisteredSingletonName { get; set; }
 			public string UnregisteredSingletonName { get; set; }
-			public string RegsiteredCrossReference { get; set; }
-			public string UnregsiteredCrossReference { get; set; }
 			public string RegsiteredExternalDecl { get; set; }
 			public string UnregisteredExternalDecl { get; set; }
 			public UhtClass? NativeInterface { get; set; }
@@ -209,28 +207,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		{
 			return registered ? ObjectInfos[objectIndex].RegsiteredExternalDecl : ObjectInfos[objectIndex].UnregisteredExternalDecl;
 		}
-
-		/// <summary>
-		/// Return the cross reference for an object
-		/// </summary>
-		/// <param name="obj">The object in question.</param>
-		/// <param name="registered">If true, return the registered cross reference.  Otherwise return the unregistered.</param>
-		/// <returns>Cross reference</returns>
-		public string GetCrossReference(UhtObject obj, bool registered)
-		{
-			return GetCrossReference(obj.ObjectTypeIndex, registered);
-		}
-
-		/// <summary>
-		/// Return the cross reference for an object
-		/// </summary>
-		/// <param name="objectIndex">The object in question.</param>
-		/// <param name="registered">If true, return the registered cross reference.  Otherwise return the unregistered.</param>
-		/// <returns>Cross reference</returns>
-		public string GetCrossReference(int objectIndex, bool registered)
-		{
-			return registered ? ObjectInfos[objectIndex].RegsiteredCrossReference : ObjectInfos[objectIndex].UnregsiteredCrossReference;
-		}
 		#endregion
 
 		#region Information initialization
@@ -247,8 +223,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			builder.Append("Z_Construct_UPackage_");
 			builder.Append(packageInfo.StrippedName);
 			objectInfo.UnregisteredSingletonName = objectInfo.RegisteredSingletonName = builder.ToString();
-			objectInfo.UnregisteredExternalDecl = objectInfo.RegsiteredExternalDecl = $"\t{packageInfo.Api}_API UPackage* {objectInfo.RegisteredSingletonName}();\r\n"; //COMPATIBILITY-TODO remove the extra _API
-			objectInfo.UnregsiteredCrossReference = objectInfo.RegsiteredCrossReference = $"\tUPackage* {objectInfo.RegisteredSingletonName}();\r\n";
+			objectInfo.UnregisteredExternalDecl = objectInfo.RegsiteredExternalDecl = $"\tUPackage* {objectInfo.RegisteredSingletonName}();\r\n";
 
 			foreach (UhtType packageChild in package.Children)
 			{
@@ -391,10 +366,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				objectInfo.UnregisteredSingletonName = objectInfo.RegisteredSingletonName = builder.ToString();
 				objectInfo.UnregisteredExternalDecl = objectInfo.RegsiteredExternalDecl = $"\t{packageInfo.Api}U{engineClassName}* {objectInfo.RegisteredSingletonName}();\r\n";
 			}
-
-			//COMPATIBILITY-TODO - The cross reference string should match the extern decl string always.  But currently, it is different for packages.
-			objectInfo.UnregsiteredCrossReference = objectInfo.UnregisteredExternalDecl;
-			objectInfo.RegsiteredCrossReference = objectInfo.RegsiteredExternalDecl;
 
 			// Init the children
 			foreach (UhtType child in obj.Children)

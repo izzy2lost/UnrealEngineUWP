@@ -1034,7 +1034,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 		private static StringBuilder AppendRpcWrappers(StringBuilder builder, List<UhtFunction> reversedFunctions, bool editorOnly)
 		{
-			bool first = true;
 			foreach (UhtFunction function in reversedFunctions)
 			{
 				if (!IsRpcFunction(function, editorOnly))
@@ -1044,12 +1043,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				if (!ShouldExportFunction(function))
 				{
 					continue;
-				}
-				//COMPATIBILITY-TODO - Remove once we transition to C# version
-				if (first)
-				{
-					builder.Append(" \\\r\n");
-					first = false;
 				}
 				builder.Append("\tDECLARE_FUNCTION(").Append(function.UnMarshalAndCallName).Append("); \\\r\n");
 			}
