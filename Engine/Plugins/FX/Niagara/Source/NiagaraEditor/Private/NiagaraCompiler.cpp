@@ -2123,6 +2123,7 @@ TOptional<FNiagaraCompileResults> FHlslNiagaraCompiler::GetCompileResult(int32 J
 		}
 
 		Results.Data->InternalParameters.Empty();
+		bool bAllFloatsFinite = true;
 		for (int32 i = 0; i < CompilationOutput.InternalConstantOffsets.Num(); ++i)
 		{
 			const FName ConstantName(TEXT("InternalConstant"), i);
@@ -2134,6 +2135,7 @@ TOptional<FNiagaraCompileResults> FHlslNiagaraCompiler::GetCompileResult(int32 J
 			{
 				float Val = *(float*)(CompilationOutput.InternalConstantData.GetData() + Offset);
 				Results.Data->InternalParameters.SetOrAdd(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), ConstantName))->SetValue(Val);
+				bAllFloatsFinite &= FMath::IsFinite(Val);
 			}
 			break;
 			case EVectorVMBaseTypes::Int:
@@ -2149,6 +2151,11 @@ TOptional<FNiagaraCompileResults> FHlslNiagaraCompiler::GetCompileResult(int32 J
 			}
 			break;
 			}
+		}
+
+		if (!bAllFloatsFinite)
+		{
+			Warning(LOCTEXT("FloatConstantsNanOrInf", "Float constant table contains NaN or Inf, this may result in invalid simulation results."));
 		}
 
 		Results.CompilerWallTime = (float)(FPlatformTime::Seconds() - CompilationJob->StartTime);
