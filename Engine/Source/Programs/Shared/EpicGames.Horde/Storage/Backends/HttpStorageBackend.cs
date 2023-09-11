@@ -134,10 +134,7 @@ namespace EpicGames.Horde.Storage.Backends
 					{
 						form.Add(streamContent, "file", "filename");
 					}
-					if (prefix != null)
-					{
-						form.Add(stringContent, "prefix");
-					}
+					form.Add(stringContent, "prefix");
 
 					request.Content = form;
 					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
