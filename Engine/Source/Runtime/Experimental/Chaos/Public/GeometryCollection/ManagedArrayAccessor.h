@@ -171,7 +171,9 @@ public:
 
 	int32 Num() const
 	{
-		return ConstCollection.NumElements(Group);
+		return ConstAttributeArray
+			? ConstAttributeArray->Num()
+			: ConstCollection.NumElements(Group); // more expensive to fetch
 	}
 
 private:
