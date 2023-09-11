@@ -2866,7 +2866,11 @@ bool FLevelEditorViewportClient::InputWidgetDelta(FViewport* InViewport, EAxisLi
 				}
 
 				// We do not want actors updated if we are holding down the middle mouse button.
-				if(!MiddleMouseButtonDown)
+				// enable MMB for New TRS Gizmos
+				static IConsoleVariable* const UseLegacyWidgetCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Gizmos.UseLegacyWidget"));
+				const bool bEnableMMB = UseLegacyWidgetCVar ? !UseLegacyWidgetCVar->GetBool() && !bDraggingByHandle : false;
+				
+				if(!MiddleMouseButtonDown || bEnableMMB)
 				{
 					bool bSnapped = FSnappingUtils::SnapActorsToNearestActor( Drag, this );
 					bSnapped = bSnapped || FSnappingUtils::SnapDraggedActorsToNearestVertex( Drag, this );

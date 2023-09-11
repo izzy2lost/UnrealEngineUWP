@@ -321,6 +321,11 @@ void UEditorInteractiveToolsContext::Shutdown()
 {
 	bIsActive = false;
 
+	if (UContextObjectStore* ContextStore = GizmoManager ? GizmoManager->GetContextObjectStore() : nullptr)
+	{
+		ContextStore->RemoveContextObject(this);
+	}
+	
 	// auto-accept any in-progress tools
 	DeactivateAllActiveTools(EToolShutdownType::Accept);
 
@@ -339,6 +344,10 @@ void UEditorInteractiveToolsContext::InitializeContextWithEditorModeManager(FEdi
 	SetCreateGizmoManagerFunc([this](const FContextInitInfo& ContextInfo)
 	{
 		UEditorInteractiveGizmoManager* NewGizmoManager = NewObject<UEditorInteractiveGizmoManager>(ContextInfo.ToolsContext);
+		if (UContextObjectStore* ContextStore = NewGizmoManager->GetContextObjectStore())
+		{
+			ContextStore->AddContextObject(this);
+		}
 		NewGizmoManager->InitializeWithEditorModeManager(ContextInfo.QueriesAPI, ContextInfo.TransactionsAPI, ContextInfo.InputRouter, EditorModeManager);
 		NewGizmoManager->RegisterDefaultGizmos();
 		return NewGizmoManager;
@@ -364,16 +373,6 @@ void UEditorInteractiveToolsContext::InitializeContextWithEditorModeManager(FEdi
 
 	// set up standard materials
 	StandardVertexColorMaterial = GEngine->VertexColorMaterial;
-
-	if (UTypedElementSelectionSet* TypedElementSelectionSet = EditorModeManager->GetEditorSelectionSet())
-	{
-		TypedElementSelectionSet->OnChanged().AddUObject(this, &UEditorInteractiveToolsContext::OnEditorSelectionSetChanged);
-	}
-	else
-	{
-		FLevelEditorModule& LevelEditor = FModuleManager::Get().LoadModuleChecked<FLevelEditorModule>("LevelEditor");
-		LevelEditor.OnLevelEditorCreated().AddUObject(this, &UEditorInteractiveToolsContext::OnLevelEditorCreated);
-	}
 }
 
 
@@ -851,25 +850,6 @@ void UEditorInteractiveToolsContext::SetAbsoluteWorldSnappingEnabled(bool bEnabl
 {
 	bEnableAbsoluteWorldSnapping = bEnabled;
 }
-
-void UEditorInteractiveToolsContext::OnLevelEditorCreated(TSharedPtr<ILevelEditor> InLevelEditor)
-{
-	if (UTypedElementSelectionSet* TypedElementSelectionSet = EditorModeManager->GetEditorSelectionSet())
-	{
-		TypedElementSelectionSet->OnChanged().AddUObject(this, &UEdModeInteractiveToolsContext::OnEditorSelectionSetChanged);
-	}
-}
-
-void UEditorInteractiveToolsContext::OnEditorSelectionSetChanged(const UTypedElementSelectionSet* InSelectionSet)
-{
-	if (UEditorInteractiveGizmoManager* EditorGizmoManager = Cast<UEditorInteractiveGizmoManager>(GizmoManager))
-	{
-		EditorGizmoManager->HandleEditorSelectionSetChanged(InSelectionSet);
-	}
-}
-
-
-
 
 void UModeManagerInteractiveToolsContext::Tick(FEditorViewportClient* ViewportClient, float DeltaTime)
 {

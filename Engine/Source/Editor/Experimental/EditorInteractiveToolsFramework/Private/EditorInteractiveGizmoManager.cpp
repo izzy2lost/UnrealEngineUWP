@@ -21,6 +21,7 @@
 #include "ShowFlags.h"
 #include "Templates/Casts.h"
 #include "ToolContextInterfaces.h"
+#include "EditorGizmos/TransformGizmo.h"
 
 class FCanvas;
 
@@ -39,6 +40,7 @@ UEditorInteractiveGizmoManager::UEditorInteractiveGizmoManager() :
 	UInteractiveGizmoManager()
 {
 	Registry = NewObject<UEditorInteractiveGizmoRegistry>();
+	bShowEditorGizmos = (CVarUseLegacyWidget.GetValueOnGameThread() == 0);
 }
 
 
@@ -84,68 +86,9 @@ void UEditorInteractiveGizmoManager::GetQualifiedEditorGizmoBuilders(EEditorGizm
 	}
 }
 
-TArray<UInteractiveGizmo*> UEditorInteractiveGizmoManager::CreateGizmosForCurrentSelectionSet()
+UTransformGizmo* UEditorInteractiveGizmoManager::FindDefaultTransformGizmo() const
 {
-	if (bShowEditorGizmos)
-	{
-		FToolBuilderState CurrentSceneState;
-		QueriesAPI->GetCurrentSelectionState(CurrentSceneState);
-
-		TArray<TObjectPtr<UInteractiveGizmoBuilder>> FoundBuilders;
-		GetQualifiedEditorGizmoBuilders(EEditorGizmoCategory::Primary, CurrentSceneState, MutableView(FoundBuilders));
-
-		bool bHasPrimaryBuilder = (FoundBuilders.Num() > 0);
-
-		if (!bHasPrimaryBuilder)
-		{
-			GetQualifiedEditorGizmoBuilders(EEditorGizmoCategory::Accessory, CurrentSceneState, MutableView(FoundBuilders));
-
-			UInteractiveGizmoBuilder* TransformBuilder = GetTransformGizmoBuilder();
-
-			FoundBuilders.Add(TransformBuilder);
-		}
-
-		TArray<TObjectPtr<UInteractiveGizmo>> NewGizmos;
-
-		for (UInteractiveGizmoBuilder* FoundBuilder : FoundBuilders)
-		{
-			if (UInteractiveGizmo* NewGizmo = FoundBuilder->BuildGizmo(CurrentSceneState))
-			{
-				if (IEditorInteractiveGizmoSelectionBuilder* SelectionBuilder = Cast<IEditorInteractiveGizmoSelectionBuilder>(FoundBuilder))
-				{
-					SelectionBuilder->UpdateGizmoForSelection(NewGizmo, CurrentSceneState);
-				}
-
-				// register new active input behaviors
-				InputRouter->RegisterSource(NewGizmo);
-
-				NewGizmos.Add(NewGizmo);
-			}
-		}
-
-		PostInvalidation();
-
-		for (UInteractiveGizmo* NewGizmo : NewGizmos)
-		{
-			FActiveEditorGizmo ActiveGizmo = { NewGizmo, nullptr };
-			ActiveEditorGizmos.Add(ActiveGizmo);
-		}
-
-		return NewGizmos;
-	}
-
-	return TArray<UInteractiveGizmo*>();
-}
-
-UInteractiveGizmoBuilder* UEditorInteractiveGizmoManager::GetTransformGizmoBuilder()
-{
-	UEditorInteractiveGizmoSubsystem* GizmoSubsystem = GEditor->GetEditorSubsystem<UEditorInteractiveGizmoSubsystem>();
-	if (ensure(GizmoSubsystem))
-	{
-		return GizmoSubsystem->GetTransformGizmoBuilder();
-	}
-
-	return nullptr;
+	return Cast<UTransformGizmo>( FindGizmoByInstanceIdentifier(TransformInstanceIdentifier()) );
 }
 
 bool UEditorInteractiveGizmoManager::DestroyEditorGizmo(UInteractiveGizmo* Gizmo)
@@ -185,14 +128,35 @@ void UEditorInteractiveGizmoManager::DestroyAllEditorGizmos()
 	PostInvalidation();
 }
 
-void UEditorInteractiveGizmoManager::HandleEditorSelectionSetChanged(const UTypedElementSelectionSet* InSelectionSet)
+UInteractiveGizmo* UEditorInteractiveGizmoManager::CreateGizmo(const FString& BuilderIdentifier, const FString& InstanceIdentifier, void* Owner)
 {
-	DestroyAllEditorGizmos();
-
-	if (InSelectionSet && InSelectionSet->HasSelectedElements())
+	if (BuilderIdentifier == TransformBuilderIdentifier() && InstanceIdentifier == TransformInstanceIdentifier())
 	{
-		CreateGizmosForCurrentSelectionSet();
+		// return the default transform gizmo if it already exists.
+		if (UTransformGizmo* ExistingGizmo = FindDefaultTransformGizmo())
+		{
+			return ExistingGizmo;
+		}
+
+		// create a new one
+		UInteractiveGizmo* NewGizmo = Super::CreateGizmo(BuilderIdentifier, InstanceIdentifier, Owner);
+		if (!NewGizmo)
+		{
+			return nullptr;
+		}
+		
+		if (IEditorInteractiveGizmoSelectionBuilder* SelectionBuilder = Cast<IEditorInteractiveGizmoSelectionBuilder>(GizmoBuilders[BuilderIdentifier]))
+		{
+			FToolBuilderState CurrentSceneState;
+			QueriesAPI->GetCurrentSelectionState(CurrentSceneState);
+			
+			SelectionBuilder->UpdateGizmoForSelection(NewGizmo, CurrentSceneState);
+		}
+
+		return NewGizmo;
 	}
+	
+	return Super::CreateGizmo(BuilderIdentifier, InstanceIdentifier, Owner);
 }
 
 // @todo move this to a gizmo context object
@@ -218,11 +182,18 @@ void UEditorInteractiveGizmoManager::UpdateActiveEditorGizmos()
 	if (bShowEditorGizmos != bNewShowEditorGizmos)
 	{
 		bShowEditorGizmos = bNewShowEditorGizmos;
-		if (bShowEditorGizmos)
+
+		if (UTransformGizmo* Gizmo = FindDefaultTransformGizmo())
 		{
-			CreateGizmosForCurrentSelectionSet();
+			Gizmo->SetVisibility(bShowEditorGizmos ? bEditorModeToolsSupportsWidgetDrawing : false);
+
+			if (!bEnableEditorGizmos)
+			{
+				DestroyGizmo(Gizmo);	
+			}
 		}
-		else
+
+		if (!bShowEditorGizmos)
 		{
 			DestroyAllEditorGizmos();
 		}
@@ -231,9 +202,9 @@ void UEditorInteractiveGizmoManager::UpdateActiveEditorGizmos()
 
 void UEditorInteractiveGizmoManager::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
-
 	UpdateActiveEditorGizmos();
+	
+	Super::Tick(DeltaTime);
 
 	for (FActiveEditorGizmo& ActiveEditorGizmo : ActiveEditorGizmos)
 	{
@@ -266,6 +237,18 @@ void UEditorInteractiveGizmoManager::DrawHUD(FCanvas* Canvas, IToolsContextRende
 			ActiveEditorGizmo.Gizmo->DrawHUD(Canvas, RenderAPI);
 		}
 	}
+}
+
+const FString& UEditorInteractiveGizmoManager::TransformInstanceIdentifier()
+{
+	static const FString Identifier(TEXT("EditorTransformGizmoInstance"));
+	return Identifier;	
+}
+
+const FString& UEditorInteractiveGizmoManager::TransformBuilderIdentifier()
+{
+	static const FString Identifier(TEXT("EditorTransformGizmoBuilder"));
+	return Identifier;
 }
 
 #undef LOCTEXT_NAMESPACE

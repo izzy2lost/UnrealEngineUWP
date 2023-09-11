@@ -1769,7 +1769,15 @@ bool FControlRigEditMode::InputDelta(FEditorViewportClient* InViewportClient, FV
 	const bool bShiftDown = InViewport->KeyState(EKeys::LeftShift) || InViewport->KeyState(EKeys::RightShift);
 
 	//button down if left and ctrl and right is down, needed for indirect posting
-	const bool bMouseButtonDown = InViewport->KeyState(EKeys::LeftMouseButton) || (bCtrlDown && InViewport->KeyState(EKeys::RightMouseButton));
+
+	// enable MMB with the new TRS gizmos
+	static IConsoleVariable* const UseLegacyWidgetCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Gizmos.UseLegacyWidget"));
+	const bool bEnableMMB = UseLegacyWidgetCVar ? !UseLegacyWidgetCVar->GetBool() : false;
+	
+	const bool bMouseButtonDown =
+		InViewport->KeyState(EKeys::LeftMouseButton) ||
+		(bCtrlDown && InViewport->KeyState(EKeys::RightMouseButton)) ||
+		bEnableMMB;
 
 	const UE::Widget::EWidgetMode WidgetMode = InViewportClient->GetWidgetMode();
 	const EAxisList::Type CurrentAxis = InViewportClient->GetCurrentWidgetAxis();

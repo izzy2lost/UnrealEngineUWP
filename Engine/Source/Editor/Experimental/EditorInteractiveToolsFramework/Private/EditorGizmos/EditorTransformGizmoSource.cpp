@@ -5,6 +5,7 @@
 #include "Editor.h"
 #include "EditorModeManager.h"
 #include "EditorViewportClient.h"
+#include "EditorGizmos/EditorTransformGizmoUtil.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/Platform.h"
 #include "Misc/AssertionMacros.h"
@@ -16,6 +17,7 @@ EGizmoTransformMode FEditorTransformGizmoUtil::GetGizmoMode(UE::Widget::EWidgetM
 		case UE::Widget::EWidgetMode::WM_Translate: return EGizmoTransformMode::Translate;
 		case UE::Widget::EWidgetMode::WM_Rotate: return EGizmoTransformMode::Rotate;
 		case UE::Widget::EWidgetMode::WM_Scale: return EGizmoTransformMode::Scale;
+		default: return EGizmoTransformMode::None;
 	}
 	return EGizmoTransformMode::None;
 }
@@ -27,15 +29,16 @@ UE::Widget::EWidgetMode FEditorTransformGizmoUtil::GetWidgetMode(EGizmoTransform
 		case EGizmoTransformMode::Translate: return UE::Widget::EWidgetMode::WM_Translate;
 		case EGizmoTransformMode::Rotate: return UE::Widget::EWidgetMode::WM_Rotate;
 		case EGizmoTransformMode::Scale: return UE::Widget::EWidgetMode::WM_Scale;
+		default: return UE::Widget::EWidgetMode::WM_None;
 	}
 	return UE::Widget::EWidgetMode::WM_None;
 }
 
 EGizmoTransformMode UEditorTransformGizmoSource::GetGizmoMode() const
 {
-	if (FEditorViewportClient* ViewportClient = GetViewportClient())
+	if (const FEditorViewportClient* ViewportClient = GetViewportClient())
 	{
-		UE::Widget::EWidgetMode WidgetMode = ViewportClient->GetWidgetMode();
+		const UE::Widget::EWidgetMode WidgetMode = ViewportClient->GetWidgetMode();
 		return FEditorTransformGizmoUtil::GetGizmoMode(WidgetMode);
 	}
 	return EGizmoTransformMode::None;
@@ -43,9 +46,9 @@ EGizmoTransformMode UEditorTransformGizmoSource::GetGizmoMode() const
 
 EAxisList::Type UEditorTransformGizmoSource::GetGizmoAxisToDraw(EGizmoTransformMode InGizmoMode) const
 { 
-	if (FEditorViewportClient* ViewportClient = GetViewportClient())
+	if (const FEditorViewportClient* ViewportClient = GetViewportClient())
 	{
-		UE::Widget::EWidgetMode WidgetMode = ViewportClient->GetWidgetMode();
+		const UE::Widget::EWidgetMode WidgetMode = ViewportClient->GetWidgetMode();
 		return GetModeTools().GetWidgetAxisToDraw(WidgetMode);
 	}
 	return EAxisList::None;
@@ -53,15 +56,13 @@ EAxisList::Type UEditorTransformGizmoSource::GetGizmoAxisToDraw(EGizmoTransformM
 
 EToolContextCoordinateSystem UEditorTransformGizmoSource::GetGizmoCoordSystemSpace() const
 {
-	FEditorViewportClient* ViewportClient = GetViewportClient();
+	const FEditorViewportClient* ViewportClient = GetViewportClient();
 	if (ViewportClient && ViewportClient->GetWidgetCoordSystemSpace() == ECoordSystem::COORD_Local)
 	{
 		return EToolContextCoordinateSystem::Local;
 	}
-	else
-	{
-		return EToolContextCoordinateSystem::World;
-	}
+	
+	return EToolContextCoordinateSystem::World;
 }
 
 float UEditorTransformGizmoSource::GetGizmoScale() const
@@ -69,14 +70,14 @@ float UEditorTransformGizmoSource::GetGizmoScale() const
 	return GetModeTools().GetWidgetScale();
 }
 
-
 bool UEditorTransformGizmoSource::GetVisible() const
 {
-	if (FEditorViewportClient* ViewportClient = GetViewportClient()) 
+	if (const FEditorViewportClient* ViewportClient = GetViewportClient()) 
 	{
-		if (GetModeTools().GetShowWidget() && GetModeTools().UsesTransformWidget())
+		const FEditorModeTools& ModeTools = GetModeTools();
+		if (ModeTools.GetShowWidget() && ModeTools.UsesTransformWidget())
 		{
-			UE::Widget::EWidgetMode WidgetMode = ViewportClient->GetWidgetMode();
+			const UE::Widget::EWidgetMode WidgetMode = ViewportClient->GetWidgetMode();
 			bool bUseLegacyWidget = (WidgetMode == UE::Widget::WM_TranslateRotateZ || WidgetMode == UE::Widget::WM_2D);
 			if (!bUseLegacyWidget)
 			{
@@ -104,12 +105,23 @@ EGizmoTransformScaleType UEditorTransformGizmoSource::GetScaleType() const
 	return EGizmoTransformScaleType::Default;
 }
 
-FEditorModeTools& UEditorTransformGizmoSource::GetModeTools() const
+UEditorTransformGizmoSource* UEditorTransformGizmoSource::CreateNew(UObject* Outer, const UEditorTransformGizmoContextObject* InContext)
 {
+	UEditorTransformGizmoSource* NewSource = NewObject<UEditorTransformGizmoSource>(Outer);
+	NewSource->WeakContext = InContext;
+	return NewSource;
+}
+
+const FEditorModeTools& UEditorTransformGizmoSource::GetModeTools() const
+{
+	if (WeakContext.IsValid())
+	{
+		return *WeakContext->GetModeTools();
+	}
 	return GLevelEditorModeTools();
 }
 
-FEditorViewportClient* UEditorTransformGizmoSource::GetViewportClient() const
+const FEditorViewportClient* UEditorTransformGizmoSource::GetViewportClient() const
 {
 	return GetModeTools().GetFocusedViewportClient();
 }

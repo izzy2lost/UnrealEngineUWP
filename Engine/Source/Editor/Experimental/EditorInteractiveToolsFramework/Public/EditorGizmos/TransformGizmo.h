@@ -84,7 +84,6 @@ enum class ETransformGizmoPartIdentifier
 	RotateZAxis,
 	RotateScreenSpace,
 	RotateArcball,
-	RotateArcballInnerCircle,
 	ScaleAll,
 	ScaleXAxis,
 	ScaleYAxis,
@@ -118,8 +117,6 @@ public:
 	static constexpr float TranslateScreenSpaceHandleSize = 14.0f;
 
 	// Rotate constants
-	static constexpr float RotateArcballInnerRadius = 8.0f;
-	static constexpr float RotateArcballOuterRadius = 10.0f;
 	static constexpr float RotateArcballSphereRadius = 70.0f;
 	static constexpr float RotateAxisOuterRadius = 73.0f;
 	static constexpr float RotateAxisInnerRadius = 1.25f;
@@ -148,7 +145,7 @@ public:
 
 	static constexpr FLinearColor RotateScreenSpaceCircleColor = WhiteColor;
 	static constexpr FLinearColor RotateOuterCircleColor = GreyColor;
-	static constexpr FLinearColor RotateArcballCircleColor = WhiteColor;
+	static constexpr FLinearColor RotateArcballCircleColor = FLinearColor(0.50f, 0.50f, 0.50f, 0.1f);
 
 	static constexpr float LargeOuterAlpha = 0.5f;
 
@@ -166,7 +163,7 @@ public:
 	// UInteractiveGizmo overrides
 	virtual void Setup() override;
 	virtual void Shutdown() override;
-	virtual void Render(IToolsContextRenderAPI* RenderAPI);
+	virtual void Render(IToolsContextRenderAPI* RenderAPI) override;
 	virtual void Tick(float DeltaTime) override;
 
 	// IHoverBehaviorTarget implementation
@@ -186,6 +183,7 @@ public:
 	 * Set the active target object for the Gizmo
 	 * @param Target active target
 	 * @param TransactionProvider optional IToolContextTransactionProvider implementation to use - by default uses GizmoManager
+	 * @param InStateTarget optional IGizmoStateTarget implementation to use - will create a new UGizmoObjectModifyStateTarget none provided
 	 */
 	virtual void SetActiveTarget(UTransformProxy* Target, IToolContextTransactionProvider* TransactionProvider = nullptr, IGizmoStateTarget* InStateTarget = nullptr);
 
@@ -320,13 +318,9 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UGizmoElementCircle> RotateOuterCircleElement;
 
-	/** Rotate arcball outer circle */
-	UPROPERTY()
-	TObjectPtr<UGizmoElementCircle> RotateArcballOuterElement;
-
 	/** Rotate arcball inner circle */
 	UPROPERTY()
-	TObjectPtr<UGizmoElementCircle> RotateArcballInnerElement;
+	TObjectPtr<UGizmoElementCircle> RotateArcballElement;
 
 	/** Rotate screen space circle */
 	UPROPERTY()
@@ -451,8 +445,14 @@ protected:
 	virtual void UpdateHoverState(bool bInHover, ETransformGizmoPartIdentifier InPartId);
 
 	/** Update interacting state for given part id */
-	virtual void UpdateInteractingState(bool bInInteracting, ETransformGizmoPartIdentifier InPartId);
+	virtual void UpdateInteractingState(bool bInInteracting, ETransformGizmoPartIdentifier InPartId, const bool bIdOnly = false);
 
+	/** Called at the start of a sequence of gizmo transform edits */
+	virtual void BeginTransformEditSequence();
+
+	/** Called at the end of a sequence of gizmo transform edits. */
+	virtual void EndTransformEditSequence();
+	
 	/**
 	 * Translate axis click-drag handling methods 
 	 */ 
@@ -556,6 +556,25 @@ protected:
 
 	/** Compute rotate delta based on start/end angles */
 	virtual FQuat ComputeAngularRotateDelta(double InStartAngle, double InEndAngle);
+	
+	/**
+	 * Arc ball rotate interaction methods
+	 */
+
+	/** Handle click press for arc ball rotate */
+	virtual void OnClickPressArcBallRotate(const FInputDeviceRay& PressPos);
+
+	/** Handle click drag for arc ball rotate */
+	virtual void OnClickDragArcBallRotate(const FInputDeviceRay& DragPos);
+
+	/** Handle click release for arc ball rotate */
+	virtual void OnClickReleaseArcBallRotate(const FInputDeviceRay& ReleasePos);
+
+	/** Get the arc ball sphere world radius */
+	float GetArcBallWorldRadius() const;
+
+	/** */
+	float GetSizeCoefficient() const;
 
 	/**
 	* Scale click-drag handling methods
@@ -614,7 +633,7 @@ protected:
 	 */
 
 	/** Returns 2D vector projection of input axis onto input view plane */
-	FVector2D GetScreenProjectedAxis(const UGizmoViewContext* View, const FVector& InLocalAxis, const FTransform& InLocalToWorld = FTransform::Identity) const;
+	static FVector2D GetScreenProjectedAxis(const UGizmoViewContext* View, const FVector& InLocalAxis, const FTransform& InLocalToWorld = FTransform::Identity);
 
 	/**
 	 * Apply transform delta methods
@@ -699,6 +718,12 @@ protected:
 	UPROPERTY()
 	ETransformGizmoPartIdentifier LastHitPart = ETransformGizmoPartIdentifier::Default;
 
+	/** Last hit part per mode */
+	ETransformGizmoPartIdentifier LastHitPartPerMode[static_cast<uint8>(EGizmoTransformMode::Max)];
+	
+	ETransformGizmoPartIdentifier GetCurrentModeLastHitPart() const;
+	void SetModeLastHitPart(const EGizmoTransformMode InMode, const ETransformGizmoPartIdentifier InIdentifier);
+	
 	//
 	// The values below are used in the context of a single click-drag interaction, ie if bInInteraction = true
 	// They otherwise should be considered uninitialized
@@ -772,4 +797,29 @@ protected:
 	UPROPERTY()
 	FVector2D InteractionScreenCurrPos;
 
+	/** Active interaction arc ball start point */
+	UPROPERTY()
+	FVector InteractionArcBallStartPoint;
+
+	/** Active interaction arc ball current point */
+	UPROPERTY()
+	FVector InteractionArcBallCurrPoint;
+
+	/** Arc ball start rotation */
+	UPROPERTY()
+	FQuat StartRotation = FQuat::Identity;
+
+	/** Arc ball current rotation */
+	FQuat CurrentRotation = FQuat::Identity;
+
+	/** Indirect manipulation */
+	UPROPERTY()
+	bool bIndirectManipulation;
+
+	/** Defer drag function on tick to avoid firing too many drag moves */
+	UPROPERTY()
+	bool bDeferDrag = true;
+
+	/** Pending drag function to be called if bDeferDrag is true */
+	TFunction<void()> PendingDragFunction;
 };

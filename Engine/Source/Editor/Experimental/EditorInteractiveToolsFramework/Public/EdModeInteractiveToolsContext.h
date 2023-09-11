@@ -173,18 +173,6 @@ public:
 	bool GetAbsoluteWorldSnappingEnabled() const { return bEnableAbsoluteWorldSnapping; }
 
 protected:
-	/**
-	 * Called upon Level Editor Created in order to bind to EditorElementSelectionPtr changed
-	 * event since global selection set is not initialized before the tools context.
-	 * @param InSelectionSet - typed element selection set which invoked this selection changed call
-	 */
-	virtual void OnLevelEditorCreated(TSharedPtr<ILevelEditor> InLevelEditor);
-
-	/**
-	 * Handle Editor selection changes
-	 * @param InSelectionSet - typed element selection set which invoked this selection changed call
-	 */
-	virtual void OnEditorSelectionSetChanged(const UTypedElementSelectionSet* InSelectionSet);
 
 	// we hide these 
 	virtual void Initialize(IToolsContextQueriesAPI* QueriesAPI, IToolsContextTransactionsAPI* TransactionsAPI) override;

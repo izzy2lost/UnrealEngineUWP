@@ -51,6 +51,7 @@
 
 #include "Elements/Interfaces/TypedElementWorldInterface.h"
 #include "TextureResource.h"
+#include "EditorGizmos/EditorTransformGizmoUtil.h"
 #include "Toolkits/ToolkitManager.h"
 
 /*------------------------------------------------------------------------------
@@ -102,6 +103,8 @@ FEditorModeTools::FEditorModeTools()
 		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OnEditorModeUnregistered().AddRaw(this, &FEditorModeTools::OnModeUnregistered);
 	}
 
+	UE::EditorTransformGizmoUtil::RegisterTransformGizmoContextObject(this);
+
 	FWorldDelegates::OnWorldCleanup.AddRaw(this, &FEditorModeTools::OnWorldCleanup);
 }
 
@@ -119,6 +122,7 @@ FEditorModeTools::~FEditorModeTools()
 	// which would mean that this instances will be garbage
 	if (UObjectInitialized())
 	{
+		UE::EditorTransformGizmoUtil::UnregisterTransformGizmoContextObject(this);
 		InteractiveToolsContext->Deactivate();
 		InteractiveToolsContext->ShutdownContext();
 		InteractiveToolsContext = nullptr;
