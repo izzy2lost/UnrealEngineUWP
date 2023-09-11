@@ -259,7 +259,7 @@ void FIKRetargetEditor::ExtendToolbar()
 
 void FIKRetargetEditor::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 {
-	ToolbarBuilder.BeginSection("Show Retarget Pose");
+	ToolbarBuilder.BeginSection("Retarget Modes");
 	{
 		ToolbarBuilder.AddToolBarButton(
 			FExecuteAction::CreateLambda([this]{ EditorController->SetRetargetModeToPreviousMode(); }),
@@ -276,6 +276,10 @@ void FIKRetargetEditor::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 			LOCTEXT("RetargetMode_ToolTip", "Choose which mode to display in the viewport."),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Recompile"),
 			true);
+
+		ToolbarBuilder.AddSeparator();
+		const TSharedPtr<SHorizontalBox> RetargetPhaseButtons = GenerateRetargetPhaseButtons();
+		ToolbarBuilder.AddWidget(RetargetPhaseButtons.ToSharedRef());
 	}
 	ToolbarBuilder.EndSection();
 
@@ -306,118 +310,6 @@ void FIKRetargetEditor::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 		FSlateIcon(FIKRetargetEditorStyle::Get().GetStyleSetName(),"IKRetarget.PostSettings"));
 	}
 	ToolbarBuilder.EndSection();
-
-	ToolbarBuilder.AddSeparator();
-
-	FLinearColor OffColor = FLinearColor::White;
-	FLinearColor OnColor = FLinearColor(.32f, .66f, .32f, 1.f);
-	
-	TSharedPtr<SVerticalBox> Box = SNew(SVerticalBox)
-	+ SVerticalBox::Slot()
-	.VAlign(VAlign_Center)
-	.HAlign(HAlign_Center)
-	.AutoHeight()
-	[
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.FillWidth(1.f)
-		.HAlign(HAlign_Center)
-		[
-			SNew(STextBlock)
-			.Font(FCoreStyle::Get().GetFontStyle("SmallFont"))
-			.Text(FText::FromString("Toggle Retarget Phases"))
-		]
-	]
-	+ SVerticalBox::Slot()
-	.AutoHeight()
-	[
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.HAlign(HAlign_Center)
-		[
-			SNew(SButton)
-			.OnClicked_Lambda([this]()
-			{
-				FRetargetGlobalSettings& GlobalSettings = EditorController->GetGlobalSettings();
-				GlobalSettings.bEnableRoot = !GlobalSettings.bEnableRoot;
-				return FReply::Handled();
-			})
-			.ButtonColorAndOpacity_Lambda([this, OffColor, OnColor]() -> FLinearColor
-			{
-				return EditorController->GetGlobalSettings().bEnableRoot ? OnColor : OffColor;
-			})
-			[
-				SNew(STextBlock).Text(FText::FromString("Root"))
-			]
-		]
-
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.HAlign(HAlign_Center)
-		[
-			SNew(SButton)
-			.OnClicked_Lambda([this]()
-			{
-				FRetargetGlobalSettings& GlobalSettings = EditorController->GetGlobalSettings();
-				GlobalSettings.bEnableFK = !GlobalSettings.bEnableFK;
-				return FReply::Handled();
-			})
-			.ButtonColorAndOpacity_Lambda([this, OffColor, OnColor]() -> FLinearColor
-			{
-				return EditorController->GetGlobalSettings().bEnableFK ? OnColor : OffColor;
-			})
-			[
-				SNew(STextBlock).Text(FText::FromString("FK"))
-			]
-		]
-		
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.HAlign(HAlign_Center)
-		[
-			SNew(SButton)
-			.OnClicked_Lambda([this]()
-			{
-				FRetargetGlobalSettings& GlobalSettings = EditorController->GetGlobalSettings();
-				GlobalSettings.bEnableIK = !GlobalSettings.bEnableIK;
-				return FReply::Handled();
-			})
-			.ButtonColorAndOpacity_Lambda([this, OffColor, OnColor]() -> FLinearColor
-			{
-				return EditorController->GetGlobalSettings().bEnableIK ? OnColor : OffColor;
-			})
-			[
-				SNew(STextBlock).Text(FText::FromString("IK"))
-			]
-		]
-
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.HAlign(HAlign_Center)
-		[
-			SNew(SButton)
-			.OnClicked_Lambda([this]()
-			{
-				FRetargetGlobalSettings& GlobalSettings = EditorController->GetGlobalSettings();
-				GlobalSettings.bEnablePost = !GlobalSettings.bEnablePost;
-				return FReply::Handled();
-			})
-			.ButtonColorAndOpacity_Lambda([this, OffColor, OnColor]() -> FLinearColor
-			{
-				return EditorController->GetGlobalSettings().bEnablePost ? OnColor : OffColor;
-			})
-			[
-				SNew(STextBlock).Text(FText::FromString("Post"))
-			]
-		]
-	];
-
-	ToolbarBuilder.BeginSection("Toggle Retarget Passes");
-	{
-		ToolbarBuilder.AddWidget(Box.ToSharedRef());
-	}
-	ToolbarBuilder.EndSection();
 }
 
 TSharedRef<SWidget> FIKRetargetEditor::GenerateRetargetModesMenu()
@@ -431,6 +323,121 @@ TSharedRef<SWidget> FIKRetargetEditor::GenerateRetargetModesMenu()
 	MenuBuilder.EndSection();
 	
 	return MenuBuilder.MakeWidget();
+}
+
+TSharedPtr<SHorizontalBox> FIKRetargetEditor::GenerateRetargetPhaseButtons() const
+{
+	constexpr float PhaseButtonMargin = 2.f;
+	
+	TSharedPtr<SHorizontalBox> Box = SNew(SHorizontalBox)
+	+ SHorizontalBox::Slot()
+	.VAlign(VAlign_Center)
+	.HAlign(HAlign_Center)
+	.AutoWidth()
+	[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.FillWidth(1.f)
+		.HAlign(HAlign_Center)
+		[
+			SNew(STextBlock).Text(FText::FromString("Retarget Phases: "))
+		]
+	]
+	+ SHorizontalBox::Slot()
+	.AutoWidth()
+	[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(FMargin(PhaseButtonMargin))
+		[
+			SNew(SCheckBox)
+			.Style(FAppStyle::Get(), "ToggleButtonCheckbox")
+			.IsChecked_Lambda([this]()
+			{
+				const bool bIsOn =  EditorController->GetGlobalSettings().bEnableRoot;
+				return bIsOn ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+			})
+			.OnCheckStateChanged_Lambda([this](ECheckBoxState InCheckBoxState)
+			{
+				FRetargetGlobalSettings& GlobalSettings = EditorController->GetGlobalSettings();
+				GlobalSettings.bEnableRoot = !GlobalSettings.bEnableRoot;
+			})
+			[
+				SNew(STextBlock).Text(FText::FromString("Root"))
+			]
+		]
+
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(FMargin(PhaseButtonMargin))
+		[
+			SNew(SCheckBox)
+			.Style(FAppStyle::Get(), "ToggleButtonCheckbox")
+			.IsChecked_Lambda([this]()
+			{
+				const bool bIsOn =  EditorController->GetGlobalSettings().bEnableFK;
+				return bIsOn ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+			})
+			.OnCheckStateChanged_Lambda([this](ECheckBoxState InCheckBoxState)
+			{
+				FRetargetGlobalSettings& GlobalSettings = EditorController->GetGlobalSettings();
+				GlobalSettings.bEnableFK = !GlobalSettings.bEnableFK;
+			})
+			[
+				SNew(STextBlock).Text(FText::FromString("FK"))
+			]
+		]
+		
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(FMargin(PhaseButtonMargin))
+		[
+
+			SNew(SCheckBox)
+			.Style(FAppStyle::Get(), "ToggleButtonCheckbox")
+			.IsChecked_Lambda([this]()
+			{
+				const bool bIsOn =  EditorController->GetGlobalSettings().bEnableIK;
+				return bIsOn ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+			})
+			.OnCheckStateChanged_Lambda([this](ECheckBoxState InCheckBoxState)
+			{
+				FRetargetGlobalSettings& GlobalSettings = EditorController->GetGlobalSettings();
+				GlobalSettings.bEnableIK = !GlobalSettings.bEnableIK;
+			})
+			[
+				SNew(STextBlock).Text(FText::FromString("IK"))
+			]
+		]
+
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(FMargin(PhaseButtonMargin))
+		[
+			SNew(SCheckBox)
+			.Style(FAppStyle::Get(), "ToggleButtonCheckbox")
+			.IsChecked_Lambda([this]()
+			{
+				const bool bIsOn =  EditorController->GetGlobalSettings().bEnablePost;
+				return bIsOn ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+			})
+			.OnCheckStateChanged_Lambda([this](ECheckBoxState InCheckBoxState)
+			{
+				FRetargetGlobalSettings& GlobalSettings = EditorController->GetGlobalSettings();
+				GlobalSettings.bEnablePost = !GlobalSettings.bEnablePost;
+			})
+			[
+				SNew(STextBlock).Text(FText::FromString("Post"))
+			]
+		]
+	];
+	
+	return Box;
 }
 
 FName FIKRetargetEditor::GetToolkitFName() const

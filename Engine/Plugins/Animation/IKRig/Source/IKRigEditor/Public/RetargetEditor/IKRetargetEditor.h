@@ -89,6 +89,7 @@ private:
 	void ExtendToolbar();
 	void FillToolbar(FToolBarBuilder& ToolbarBuilder);
 	TSharedRef<SWidget> GenerateRetargetModesMenu();
+	TSharedPtr<SHorizontalBox> GenerateRetargetPhaseButtons() const;
 	/** END toolbar */
 	
 	/** preview scene setup */
