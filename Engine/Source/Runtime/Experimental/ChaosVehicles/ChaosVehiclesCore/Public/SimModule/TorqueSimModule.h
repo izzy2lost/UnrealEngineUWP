@@ -63,6 +63,15 @@ public:
 	 * Is Module of a specific type - used for casting
 	 */
 	virtual bool IsBehaviourType(eSimModuleTypeFlags InType) const { return (InType & TorqueBased); }
+	virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
+	{
+		return MakeShared<FTorqueSimModuleDatas>(
+			SimArrayIndex
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+			, GetDebugName()
+#endif			
+		);
+	}
 
 	virtual eSimType GetSimType() const { return eSimType::TorqueSim; }
 

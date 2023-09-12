@@ -40,19 +40,7 @@ namespace Chaos
 		float LastDisplacement = 0.0f;
 	};
 
-	struct CHAOSVEHICLESCORE_API FSuspensionOutputData : public FSimOutputData
-	{
-		virtual FSimOutputData* MakeNewData() override { return FSuspensionOutputData::MakeNew(); }
-		static FSimOutputData* MakeNew() { return new FSuspensionOutputData(); }
 
-		virtual void FillOutputState(const ISimulationModuleBase* SimModule) override;
-		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) override;
-
-		virtual FString ToString() override;
-
-		float SpringDisplacement;
-		float SpringSpeed;
-	};
 
 	struct CHAOSVEHICLESCORE_API FSuspensionSettings
 	{
@@ -110,7 +98,6 @@ namespace Chaos
 	class CHAOSVEHICLESCORE_API FSuspensionSimModule : public ISimulationModuleBase, public TSimModuleSettings<FSuspensionSettings>
 	{
 		friend FSuspensionSimModuleDatas;
-		friend FSuspensionOutputData;
 
 	public:
 
@@ -125,11 +112,6 @@ namespace Chaos
 				, GetDebugName()
 #endif			
 			);
-		}
-
-		virtual FSimOutputData* GenerateOutputData() const override
-		{
-			return FSuspensionOutputData::MakeNew();
 		}
 
 		virtual eSimType GetSimType() const { return eSimType::Suspension; }
@@ -153,7 +135,6 @@ namespace Chaos
 
 		float SpringDisplacement;
 		float LastDisplacement;
-		float SpringSpeed;
 		int WheelSimTreeIndex;
 	};
 

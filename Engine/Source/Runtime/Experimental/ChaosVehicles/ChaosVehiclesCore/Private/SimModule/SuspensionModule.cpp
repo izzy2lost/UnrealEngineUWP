@@ -16,7 +16,6 @@ namespace Chaos
 		: TSimModuleSettings<FSuspensionSettings>(Settings)
 		, SpringDisplacement(0.f)
 		, LastDisplacement(0.f)
-		, SpringSpeed(0.f)
 		, WheelSimTreeIndex(INVALID_IDX)
 	{
 		AccessSetup().MaxLength = FMath::Abs(Settings.MaxRaise + Settings.MaxDrop);
@@ -52,7 +51,7 @@ namespace Chaos
 		if (SpringDisplacement > 0)
 		{
 			float Damping = (SpringDisplacement < LastDisplacement) ? Setup().CompressionDamping : Setup().ReboundDamping;
-			SpringSpeed = (LastDisplacement - SpringDisplacement) / DeltaTime;
+			float SpringSpeed = (LastDisplacement - SpringDisplacement) / DeltaTime;
 
 			float StiffnessForce = SpringDisplacement * Setup().SpringRate;
 			float DampingForce = SpringSpeed * Damping;
@@ -97,7 +96,6 @@ namespace Chaos
 
 	void FSuspensionSimModuleDatas::FillSimState(ISimulationModuleBase* SimModule)
 	{
-		check(SimModule->GetSimType() == eSimType::Suspension);
 		if (FSuspensionSimModule* Sim = static_cast<FSuspensionSimModule*>(SimModule))
 		{
 			Sim->SpringDisplacement = SpringDisplacement;
@@ -107,7 +105,6 @@ namespace Chaos
 
 	void FSuspensionSimModuleDatas::FillNetState(const ISimulationModuleBase* SimModule)
 	{
-		check(SimModule->GetSimType() == eSimType::Suspension);
 		if (const FSuspensionSimModule* Sim = static_cast<const FSuspensionSimModule*>(SimModule))
 		{
 			SpringDisplacement = Sim->SpringDisplacement;
@@ -131,30 +128,6 @@ namespace Chaos
 			*DebugString, SpringDisplacement, LastDisplacement);
 	}
 #endif
-
-	void FSuspensionOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
-	{
-		check(SimModule->GetSimType() == eSimType::Suspension);
-		if (const FSuspensionSimModule* Sim = static_cast<const FSuspensionSimModule*>(SimModule))
-		{
-			SpringDisplacement = Sim->SpringDisplacement;
-			SpringSpeed = Sim->SpringSpeed;
-		}
-	}
-
-	void FSuspensionOutputData::Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha)
-	{
-		const FSuspensionOutputData& Current = static_cast<const FSuspensionOutputData&>(InCurrent);
-		const FSuspensionOutputData& Next = static_cast<const FSuspensionOutputData&>(InNext);
-
-		SpringDisplacement = FMath::Lerp(Current.SpringDisplacement, Next.SpringDisplacement, Alpha);
-		SpringSpeed = FMath::Lerp(Current.SpringSpeed, Next.SpringSpeed, Alpha);
-	}
-
-	FString FSuspensionOutputData::ToString()
-	{
-		return FString::Printf(TEXT("SpringDisplacement=%3.3f, SpringSpeed=%3.3f"), SpringDisplacement, SpringSpeed);
-	}
 
 } // namespace Chaos
 
