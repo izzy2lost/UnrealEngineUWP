@@ -163,7 +163,13 @@ static void FillTensorInfo(GraphTensorInfo& info, const NodeArg* arg) {
 		info.shapeLen = 0;
 	}
 
-    info.dataType = (Ort::GraphTensorDataType)arg->TypeAsProto()->tensor_type().elem_type();
+	const ONNX_NAMESPACE::TypeProto* proto = arg->TypeAsProto();
+
+	if (proto) {
+		info.dataType = (Ort::GraphTensorDataType)proto->tensor_type().elem_type();
+	} else {
+		info.dataType = GraphTensorDataType::kUndefined;
+	}
 }
 
 //

@@ -44,7 +44,7 @@ bool FModelInstanceRDG::LoadModel(TConstArrayView<uint8> ModelData, FNNERuntimeF
 
 		AllSymbolicTensorDescs.Emplace(SymbolicTensor);
 
-		if (FormatTensorDesc.Type == ENNEFormatTensorType::Input)
+		if (FormatTensorDesc.Type == ENNEFormatTensorType::Input || FormatTensorDesc.Type == ENNEFormatTensorType::Empty)
 		{
 			InputTensorIndices.Emplace(Idx);
 			InputSymbolicTensors.Emplace(SymbolicTensor);

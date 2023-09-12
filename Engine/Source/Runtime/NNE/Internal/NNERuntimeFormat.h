@@ -16,6 +16,7 @@ enum class ENNEFormatTensorType : uint8
 	Output,
 	Intermediate,
 	Initializer,
+	Empty,
 
 	NUM
 };

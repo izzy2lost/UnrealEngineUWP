@@ -270,6 +270,13 @@ private:
 					FMemory::Memcpy(Format.TensorData.GetData() + Desc.DataOffset, Data, DataSize);
 				}
 			}
+			else
+			{
+				if (Desc.DataType == ENNETensorDataType::None && InName.IsEmpty())
+				{
+					Desc.Type = ENNEFormatTensorType::Empty;
+				}
+			}
 
 			Format.Tensors.Add(Desc);
 			Idx = Format.Tensors.Num() - 1;
