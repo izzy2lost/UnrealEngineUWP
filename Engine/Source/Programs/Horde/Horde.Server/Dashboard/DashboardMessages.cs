@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using Amazon.EC2.Model;
 
 namespace Horde.Server.Dashboard
 {
@@ -128,7 +127,6 @@ namespace Horde.Server.Dashboard
 			Id = 0;
 		}
 	}
-
 
 	/// <summary>
 	/// 

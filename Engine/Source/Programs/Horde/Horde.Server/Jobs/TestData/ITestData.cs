@@ -3,9 +3,7 @@
 using System.Collections.Generic;
 using System;
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
 using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
 
 namespace Horde.Server.Jobs.TestData
 {
@@ -70,7 +68,6 @@ namespace Horde.Server.Jobs.TestData
 		/// The variation of the meta data, for example address sanitizing
 		/// </summary>
 		string Variation { get; }
-
 	}
 
 	/// <summary>
@@ -164,7 +161,6 @@ namespace Horde.Server.Jobs.TestData
 		/// The number of errors
 		/// </summary>
 		int? ErrorCount { get; }
-
 	}
 
 	/// <summary>
@@ -239,7 +235,6 @@ namespace Horde.Server.Jobs.TestData
 		/// Suite test successes
 		/// </summary>
 		int? SuiteSuccessCount { get; }
-
 	}
 
 	/// <summary>
@@ -261,7 +256,6 @@ namespace Horde.Server.Jobs.TestData
 		IReadOnlyList<ISuiteTestData>? SuiteTests { get; } 
 	}
 
-
 	/// <summary>
 	/// The tests and suites running in a given stream
 	/// </summary>
@@ -282,7 +276,6 @@ namespace Horde.Server.Jobs.TestData
 		/// </summary>
 		IReadOnlyList<TestSuiteId> TestSuites { get; } 
 	}
-
 
 	/// <summary>
 	/// Stores information about the results of a test

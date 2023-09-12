@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Agents.Leases;
-using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

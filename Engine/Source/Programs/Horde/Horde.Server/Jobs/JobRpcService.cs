@@ -37,7 +37,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Horde.Server.Jobs
 {
@@ -186,12 +185,11 @@ namespace Horde.Server.Jobs
 		public override Task<UploadArtifactResponse> UploadArtifact(IAsyncStreamReader<UploadArtifactRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadArtifactAsync(reader, context);
 
 		/// <inheritdoc/>
-		public override Task<UploadTestDataResponse> UploadTestData(IAsyncStreamReader<UploadTestDataRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadTestDataAsync(reader, context);
+		public override Task<UploadTestDataResponse> UploadTestData(IAsyncStreamReader<UploadTestDataRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadTestDataAsync(reader);
 
 		/// <inheritdoc/>
 		public override Task<CreateReportResponse> CreateReport(CreateReportRequest request, ServerCallContext context) => _jobRpcCommon.CreateReportAsync(request, context);
 	}
-
 
 	/// <summary>
 	/// Common methods between HordeRpc and JobRpc.
@@ -878,9 +876,8 @@ namespace Horde.Server.Jobs
 		/// Uploads new test data
 		/// </summary>
 		/// <param name="reader">Request arguments</param>
-		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public async Task<UploadTestDataResponse> UploadTestDataAsync(IAsyncStreamReader<UploadTestDataRequest> reader, ServerCallContext context)
+		public async Task<UploadTestDataResponse> UploadTestDataAsync(IAsyncStreamReader<UploadTestDataRequest> reader)
 		{
 			IJob? job = null;
 			IJobStep? jobStep = null;
@@ -904,7 +901,6 @@ namespace Horde.Server.Jobs
 				{
 					throw new StructuredRpcException(StatusCode.InvalidArgument, "Job {JobId} does not match previous Job {JobId} in request", jobId, job.Id);
 				}
-
 
 				SubResourceId jobStepId = request.JobStepId.ToSubResourceId();
 

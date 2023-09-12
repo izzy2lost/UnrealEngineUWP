@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
-using Horde.Server.Users;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
@@ -22,12 +21,9 @@ namespace Horde.Server.Authentication
 	{
 		public const string AuthenticationScheme = "Anonymous";
 
-		readonly IOptionsMonitor<ServerSettings> _settings;
-
-		public AnonymousAuthenticationHandler(IOptionsMonitor<AnonymousAuthenticationOptions> options, IOptionsMonitor<ServerSettings> settings, ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock)
+		public AnonymousAuthenticationHandler(IOptionsMonitor<AnonymousAuthenticationOptions> options, ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock)
 			: base(options, logger, encoder, clock)
 		{
-			_settings = settings;
 		}
 
 		protected override Task<AuthenticateResult> HandleAuthenticateAsync()

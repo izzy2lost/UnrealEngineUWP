@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Utilities;
 
 namespace Horde.Server.Issues
 {

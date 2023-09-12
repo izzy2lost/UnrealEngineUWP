@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using Horde.Server.Perforce;
 using Horde.Server.Server;
 using Horde.Server.Streams;
-using Horde.Server.Users;
 using Horde.Server.Utilities;
 using HordeCommon;
 using MongoDB.Bson;
@@ -166,7 +165,6 @@ namespace Horde.Server.Jobs.Bisect
 				filter &= filterBuilder.In(x => x.Id, taskIds);
 			}
 
-
 			if (jobId != null)
 			{
 				filter &= filterBuilder.Eq(x => x.InitialJobId, jobId);
@@ -188,7 +186,6 @@ namespace Horde.Server.Jobs.Bisect
 				BisectTaskId maxTime = new BisectTaskId(ObjectId.GenerateNewId(maxCreateTime.Value));
 				filter &= filterBuilder.Lte(x => x.Id!, maxTime);
 			}
-
 
 			List<BisectTaskDoc> steps = await _bisectTasks.Find(filter).SortByDescending(x => x.InitialChange).Range(index, count).ToListAsync(cancellationToken);
 			return steps.ConvertAll<IBisectTask>(x => x);

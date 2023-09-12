@@ -1113,7 +1113,6 @@ namespace Horde.Server.Issues
 				updates.Add(Builders<Issue>.Update.Set(x => x.WorkflowThreadUrl, newWorkflowThreadUrl.ToString().Length == 0 ? null : newWorkflowThreadUrl));
 			}
 
-
 			if (updates.Count == 0)
 			{
 				return issueDocument;

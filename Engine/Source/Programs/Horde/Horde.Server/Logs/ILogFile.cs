@@ -5,11 +5,8 @@ using System.Collections.Generic;
 using EpicGames.Core;
 using EpicGames.Horde.Api;
 using EpicGames.Horde.Storage;
-using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Jobs;
-using Horde.Server.Storage;
-using Horde.Server.Utilities;
 
 namespace Horde.Server.Logs
 {

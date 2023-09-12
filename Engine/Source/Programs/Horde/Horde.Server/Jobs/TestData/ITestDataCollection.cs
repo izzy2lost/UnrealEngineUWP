@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
 using MongoDB.Bson;
 
 namespace Horde.Server.Jobs.TestData
@@ -34,7 +33,6 @@ namespace Horde.Server.Jobs.TestData
 		/// <param name="maxChange"></param>
 		/// <returns></returns>
 		Task<List<ITestDataRef>> FindTestRefs(StreamId[] streamIds, TestMetaId[]? metaIds = null, TestId[]? testIds = null, TestSuiteId[]? suiteIds = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, int? minChange = null, int? maxChange = null);
-
 
 		/// <summary>
 		/// Find test details
@@ -86,7 +84,6 @@ namespace Horde.Server.Jobs.TestData
 		/// <param name="count">Number of results to return</param>
 		/// <returns>The stream document</returns>
 		Task<List<ITestData>> FindAsync(StreamId? streamId, int? minChange, int? maxChange, JobId? jobId, SubResourceId? stepId, string? key = null, int index = 0, int count = 10);
-
 
 		/// <summary>
 		/// Find test meta data

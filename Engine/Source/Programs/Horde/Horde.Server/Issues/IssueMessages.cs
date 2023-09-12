@@ -8,7 +8,6 @@ using EpicGames.Horde.Api;
 using Horde.Server.Issues.External;
 using Horde.Server.Streams;
 using Horde.Server.Users;
-using Horde.Server.Utilities;
 using MongoDB.Bson;
 
 namespace Horde.Server.Issues
@@ -893,7 +892,6 @@ namespace Horde.Server.Issues
 		/// Id of user who is forcibly closing this issue, skipping verification checks.  This is useful for when a failing step has been removed for example
 		/// </summary>
 		public string? ForceClosedById { get; set; }
-
 	}
 
 	/// <summary>

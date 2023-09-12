@@ -393,7 +393,6 @@ namespace Horde.Server.Streams
 				return NotFound(streamId);
 			}
 
-
 			IStream stream = await _streamCollection.GetAsync(streamConfig);
 			if (!stream.Templates.ContainsKey(templateRefId))
 			{

@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using EpicGames.Horde.Logs;
-using Horde.Server.Logs.Data;
 
 namespace Horde.Server.Logs
 {

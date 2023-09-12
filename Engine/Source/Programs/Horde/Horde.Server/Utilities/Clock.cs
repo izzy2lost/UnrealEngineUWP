@@ -11,7 +11,6 @@ using Horde.Server.Server;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
-using OpenTracing;
 using StackExchange.Redis;
 using TimeZoneConverter;
 

@@ -76,7 +76,6 @@ namespace Horde.Server.Issues
 	public class IssueReportService : IHostedService
 	{
 		readonly SingletonDocument<IssueReportState> _state;
-		readonly IStreamCollection _streamCollection;
 		readonly IIssueCollection _issueCollection;
 		readonly IGraphCollection _graphCollection;
 		readonly IJobCollection _jobCollection;
@@ -89,10 +88,9 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public IssueReportService(MongoService mongoService, IStreamCollection streamCollection, IIssueCollection issueCollection, IGraphCollection graphCollection, IJobCollection jobCollection, INotificationService notificationService, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<IssueReportService> logger)
+		public IssueReportService(MongoService mongoService, IIssueCollection issueCollection, IGraphCollection graphCollection, IJobCollection jobCollection, INotificationService notificationService, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<IssueReportService> logger)
 		{
 			_state = new SingletonDocument<IssueReportState>(mongoService);
-			_streamCollection = streamCollection;
 			_issueCollection = issueCollection;
 			_graphCollection = graphCollection;
 			_jobCollection = jobCollection;

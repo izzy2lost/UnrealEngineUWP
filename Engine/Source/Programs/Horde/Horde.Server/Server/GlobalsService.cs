@@ -1,17 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
-using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Horde.Common;
-using EpicGames.Perforce;
-using Horde.Server.Acls;
-using Horde.Server.Configuration;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;

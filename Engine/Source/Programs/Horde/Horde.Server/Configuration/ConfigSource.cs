@@ -334,6 +334,8 @@ namespace Horde.Server.Configuration
 
 		async Task<IPerforceConnection> ConnectAsync(string host, CancellationToken cancellationToken)
 		{
+			_ = cancellationToken;
+
 			ServerSettings settings = _settings.CurrentValue;
 
 			PerforceConnectionId connectionId = new PerforceConnectionId();

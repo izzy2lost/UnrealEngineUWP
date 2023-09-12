@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Horde.Server.Agents;
-using Horde.Server.Configuration;
 using Horde.Server.Devices;
 using Horde.Server.Issues;
 using Horde.Server.Jobs;

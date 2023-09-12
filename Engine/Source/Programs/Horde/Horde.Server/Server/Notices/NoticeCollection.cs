@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Horde.Server.Utilities;
 using MongoDB.Bson;
-using Horde.Server.Users;
 using EpicGames.Horde.Api;
 
 namespace Horde.Server.Server.Notices

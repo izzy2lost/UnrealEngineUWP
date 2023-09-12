@@ -168,7 +168,7 @@ namespace Horde.Server.Configuration
 			Dictionary<TKey, TValue> handledValues = new Dictionary<TKey, TValue>();
 			foreach ((TKey key, TKey? baseKey, TValue value) in objects)
 			{
-				if (baseKey == null || Object.Equals(baseKey, default(TKey)))
+				if (baseKey == null)
 				{
 					handledValues.Add(key, value);
 				}

@@ -608,7 +608,6 @@ namespace Horde.Server.Issues
 			{
 				await _jobStepRefs.UpdateAsync(job.Id, batchId, stepId, issues.Select(i => i.Id).ToList());
 			}
-
 		}
 
 		/// <summary>

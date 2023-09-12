@@ -122,7 +122,6 @@ namespace Horde.Server.Users
 		public IReadOnlyList<string> Arguments { get; set; } = new List<string>();
 	}
 
-
 	/// <summary>
 	/// User settings document
 	/// </summary>

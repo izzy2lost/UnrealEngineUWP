@@ -53,17 +53,32 @@ namespace Horde.Server.Notifications
 		/// <inheritdoc />
 		public bool Equals(JobScheduledNotification? other)
 		{
-			if (ReferenceEquals(null, other)) { return false; }
-			if (ReferenceEquals(this, other)) { return true; }
+			if (ReferenceEquals(null, other))
+			{
+				return false;
+			}
+			if (ReferenceEquals(this, other))
+			{
+				return true;
+			}
 			return JobId == other.JobId && JobName == other.JobName && PoolName == other.PoolName;
 		}
 
 		/// <inheritdoc />
 		public override bool Equals(object? obj)
 		{
-			if (ReferenceEquals(null, obj)) { return false; }
-			if (ReferenceEquals(this, obj)) { return true; }
-			if (obj.GetType() != GetType()) { return false; }
+			if (ReferenceEquals(null, obj))
+			{
+				return false;
+			}
+			if (ReferenceEquals(this, obj))
+			{
+				return true;
+			}
+			if (obj.GetType() != GetType())
+			{
+				return false;
+			}
 			return Equals((JobScheduledNotification)obj);
 		}
 

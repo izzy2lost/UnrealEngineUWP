@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
 
 namespace Horde.Server.Notifications
 {

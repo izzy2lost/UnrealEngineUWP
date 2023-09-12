@@ -1,8 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
 using MongoDB.Bson;
 using EpicGames.Horde.Api;
 

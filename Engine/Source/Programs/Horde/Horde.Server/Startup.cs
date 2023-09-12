@@ -86,7 +86,6 @@ using Serilog.Events;
 using Status = Grpc.Core.Status;
 using Horde.Server.Users;
 using Horde.Server.Perforce;
-using Horde.Server.Projects;
 using Horde.Server.Streams;
 using Horde.Server.Telemetry;
 using Horde.Server.Ugs;
@@ -100,7 +99,6 @@ using OpenTelemetry.Trace;
 using Polly;
 using Polly.Extensions.Http;
 using Horde.Server.Jobs.Bisect;
-using Microsoft.AspNetCore.Diagnostics;
 using EpicGames.Horde;
 using EpicGames.Horde.Api;
 using EpicGames.Horde.Storage.Bundles;
@@ -302,7 +300,6 @@ namespace Horde.Server
 		}
 
 		public IConfiguration Configuration { get; }
-
 
 		/// <summary>
 		/// Bind config to concrete subclasses of BaseTelemetryConfig

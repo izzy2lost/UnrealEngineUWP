@@ -1,7 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 using Horde.Server.Acls;
-using Horde.Server.Agents;
 using Horde.Server.Agents.Sessions;
 using EpicGames.Horde.Api;
 

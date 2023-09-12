@@ -4,17 +4,13 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
-using System.Security.Claims;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 using Horde.Server.Acls;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Configuration;
-using Horde.Server.Jobs.Templates;
 using Horde.Server.Server;
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
-using Horde.Common;
 using HordeCommon.Rpc.Tasks;
 using EpicGames.Horde.Api;
 

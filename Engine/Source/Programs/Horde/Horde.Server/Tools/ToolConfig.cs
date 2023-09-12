@@ -7,7 +7,6 @@ using System.Security.Claims;
 using System.Text.Json.Serialization;
 using Horde.Server.Acls;
 using Horde.Server.Server;
-using Horde.Server.Utilities;
 
 namespace Horde.Server.Tools
 {

@@ -8,7 +8,6 @@ using EpicGames.Horde.Common;
 using Horde.Server.Agents.Fleet;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
-using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
@@ -183,8 +182,14 @@ namespace Horde.Server.Agents.Pools
 			pool.LeaseUtilizationSettings = options.LeaseUtilizationSettings;
 			pool.JobQueueSettings = options.JobQueueSettings;
 			pool.ComputeQueueAwsMetricSettings = options.ComputeQueueAwsMetricSettings;
-			if (options.SizeStrategies != null) { pool.SizeStrategies = options.SizeStrategies; }
-			if (options.FleetManagers != null) { pool.FleetManagers = options.FleetManagers; }
+			if (options.SizeStrategies != null)
+			{
+				pool.SizeStrategies = options.SizeStrategies;
+			}
+			if (options.FleetManagers != null)
+			{
+				pool.FleetManagers = options.FleetManagers;
+			}
 			
 			await _pools.InsertOneAsync(pool);
 			return pool;

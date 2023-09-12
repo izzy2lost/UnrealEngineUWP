@@ -13,7 +13,6 @@ using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Extensions.Http;
 using Horde.Server.Utilities;
-using Horde.Server.Configuration;
 using Microsoft.Extensions.Hosting;
 using HordeCommon;
 using System.Threading;
@@ -111,11 +110,6 @@ namespace Horde.Server.Issues.External
 		readonly ConcurrentDictionary<string, JiraCacheValue> _issueCache = new ConcurrentDictionary<string, JiraCacheValue>();
 
 		/// <summary>
-		/// Singleton instance of the stream service
-		/// </summary>
-		readonly IStreamCollection _streamCollection;
-
-		/// <summary>
 		/// Singleton instance of the project service
 		/// </summary>
 		readonly IssueService _issueService;
@@ -132,16 +126,14 @@ namespace Horde.Server.Issues.External
 		/// Jira service constructor
 		/// </summary>
 		/// <param name="settings"></param>
-		/// <param name="streamCollection"></param>
 		/// <param name="issueService"></param>
 		/// <param name="clock"></param>
 		/// <param name="globalConfig"></param>
 		/// <param name="logger"></param>
-		public JiraService(IOptions<ServerSettings> settings, IStreamCollection streamCollection, IssueService issueService, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<JiraService> logger)
+		public JiraService(IOptions<ServerSettings> settings, IssueService issueService, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<JiraService> logger)
 		{
 			_settings = settings.Value;
 			_logger = logger;
-			_streamCollection = streamCollection;
 			_issueService = issueService;
 			_ticker = clock.AddTicker<JiraService>(TimeSpan.FromMinutes(2.0), TickAsync, logger);
 			_jiraUrl = _settings.JiraUrl!;

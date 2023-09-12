@@ -23,10 +23,8 @@ namespace Horde.Server.Server.Notices
 	[Route("[controller]")]
 	public class NoticesController : ControllerBase
 	{
-		private readonly AclService _aclService;
 		private readonly IUserCollection _userCollection;
 		private readonly NoticeService _noticeService;
-		private readonly LazyCachedValue<Task<IGlobals>> _cachedGlobals;
 		private readonly LazyCachedValue<Task<List<INotice>>> _cachedNotices;
 		private readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		private readonly IClock _clock;
@@ -34,12 +32,10 @@ namespace Horde.Server.Server.Notices
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public NoticesController(GlobalsService globalsService, NoticeService noticeService, AclService aclService, IUserCollection userCollection, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public NoticesController(NoticeService noticeService, IUserCollection userCollection, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{			
-			_aclService = aclService;
 			_userCollection = userCollection;
 			_noticeService = noticeService;
-			_cachedGlobals = new LazyCachedValue<Task<IGlobals>>(async () => await globalsService.GetAsync(), TimeSpan.FromSeconds(30.0));
 			_cachedNotices = new LazyCachedValue<Task<List<INotice>>>(() => noticeService.GetNoticesAsync(), TimeSpan.FromMinutes(1));
 			_clock = clock;
 			_globalConfig = globalConfig;

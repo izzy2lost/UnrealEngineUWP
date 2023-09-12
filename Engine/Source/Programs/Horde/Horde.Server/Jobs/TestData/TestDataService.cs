@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -78,7 +77,6 @@ namespace Horde.Server.Jobs.TestData
 				{
 					_logger.LogError(ex, "Exception while ticking test data collection: {Message}", ex.Message);
 				}
-
 			}
 		}
 

@@ -4,7 +4,6 @@ using System;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using MongoDB.Bson.Serialization.Attributes;
 
 namespace Horde.Server.Acls
 {

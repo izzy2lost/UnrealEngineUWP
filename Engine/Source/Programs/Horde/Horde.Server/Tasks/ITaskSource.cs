@@ -13,7 +13,6 @@ using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
-using Horde.Server.Agents.Leases;
 using HordeCommon;
 using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Api;

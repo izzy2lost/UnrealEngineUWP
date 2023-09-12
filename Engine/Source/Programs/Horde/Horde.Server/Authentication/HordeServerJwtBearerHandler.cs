@@ -3,7 +3,6 @@
 using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Encodings.Web;
-using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
@@ -11,7 +10,6 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Protocols;
 
 namespace Horde.Server.Authentication
 {

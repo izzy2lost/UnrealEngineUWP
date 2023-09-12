@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using Horde.Server.Perforce;
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
 
 namespace Horde.Server.Jobs.Schedules
 {
@@ -114,7 +113,6 @@ namespace Horde.Server.Jobs.Schedules
 				curTime = nextTime.Value;
 				NextTriggerTimesUTC.Add(curTime);
 			}
-
 		}
 	}
 

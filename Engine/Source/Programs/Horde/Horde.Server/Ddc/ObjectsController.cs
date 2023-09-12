@@ -16,7 +16,6 @@ using Horde.Server.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using OpenTelemetry.Trace;
 
 #pragma warning disable CS1591
 
@@ -35,17 +34,15 @@ namespace Horde.Server.Ddc
 		private readonly IRequestHelper _requestHelper;
 		private readonly IReferenceResolver _referenceResolver;
 		private readonly BufferedPayloadFactory _bufferedPayloadFactory;
-		private readonly Tracer _tracer;
 		private readonly ILogger _logger;
 
-		public ObjectsController(IBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, IReferenceResolver referenceResolver, BufferedPayloadFactory bufferedPayloadFactory, Tracer tracer, ILogger<ObjectsController> logger)
+		public ObjectsController(IBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, IReferenceResolver referenceResolver, BufferedPayloadFactory bufferedPayloadFactory, ILogger<ObjectsController> logger)
 		{
 			_storage = storage;
 			_diagnosticContext = diagnosticContext;
 			_requestHelper = requestHelper;
 			_referenceResolver = referenceResolver;
 			_bufferedPayloadFactory = bufferedPayloadFactory;
-			_tracer = tracer;
 			_logger = logger;
 		}
 

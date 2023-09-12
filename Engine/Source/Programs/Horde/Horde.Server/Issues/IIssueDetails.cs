@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Horde.Server.Users;
-using Horde.Server.Utilities;
 using EpicGames.Horde.Api;
 
 namespace Horde.Server.Issues
@@ -73,7 +72,6 @@ namespace Horde.Server.Issues
 		/// User who force closed the issue
 		/// </summary>
 		IUser? ForceClosedBy { get; }
-
 
 		/// <summary>
 		/// Determines whether the given user should be notified about the given issue

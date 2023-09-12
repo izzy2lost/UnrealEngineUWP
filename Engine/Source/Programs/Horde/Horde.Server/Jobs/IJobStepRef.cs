@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Jobs.Bisect;
 using Horde.Server.Logs;

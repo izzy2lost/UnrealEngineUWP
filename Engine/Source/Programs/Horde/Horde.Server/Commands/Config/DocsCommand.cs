@@ -14,7 +14,6 @@ using Horde.Server.Acls;
 using Horde.Server.Projects;
 using Horde.Server.Server;
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Commands.Config
@@ -314,7 +313,6 @@ namespace Horde.Server.Commands.Config
 			anchor = Regex.Replace(anchor, @"[^a-z0-9]+", "-");
 			return "#" + anchor.Trim('-');
 		}
-
 
 		async Task WriteAclDocAsync(Assembly assembly, ILogger logger)
 		{

@@ -1092,6 +1092,7 @@ namespace Horde.Server.Devices
 
 			await _deviceService.UpdateDeviceAsync(device.Id, newProblem: true);
 
+			/*
 			string message = $"Device problem, {device.Name} : {device.PoolId.ToString().ToUpperInvariant()}";
 
 			IDeviceReservation? reservation = await _deviceService.TryGetDeviceReservation(device.Id);
@@ -1115,9 +1116,9 @@ namespace Horde.Server.Devices
 					}
 				}
 			}			
+			*/
 
 			return Ok();
-
 		}
 	}
 }

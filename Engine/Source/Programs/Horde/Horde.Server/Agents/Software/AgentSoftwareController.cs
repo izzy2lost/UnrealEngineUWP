@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using Horde.Server.Acls;
 using Horde.Server.Server;
 using Horde.Server.Tools;
-using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

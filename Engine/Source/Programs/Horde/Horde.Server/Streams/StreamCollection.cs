@@ -8,9 +8,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Api;
 using Horde.Server.Jobs;
-using Horde.Server.Projects;
 using Horde.Server.Server;
-using Horde.Server.Users;
 using Horde.Server.Utilities;
 using HordeCommon;
 using MongoDB.Bson.Serialization.Attributes;
@@ -482,7 +480,6 @@ namespace Horde.Server.Streams
 							undefinedTemplates.Add(templateId);
 						}
 					}
-					
 				}
 			}
 			if (remainingTemplates.Count > 0)

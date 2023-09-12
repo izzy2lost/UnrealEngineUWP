@@ -7,7 +7,6 @@ using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Logs;
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
 using HordeCommon;
 using EpicGames.Horde.Api;
 

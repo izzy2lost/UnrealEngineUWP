@@ -5,8 +5,6 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
-using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 
 namespace Horde.Server.Jobs.TestData

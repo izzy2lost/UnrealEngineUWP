@@ -91,7 +91,10 @@ namespace Horde.Server.Agents.Fleet.Providers
 				InstanceType newInstanceType = InstanceType.FindValue(Settings.InstanceTypes[0]);
 				foreach (Instance stoppedInstance in stoppedInstances)
 				{
-					if (stoppedInstance.InstanceType == newInstanceType) { continue; }
+					if (stoppedInstance.InstanceType == newInstanceType)
+					{
+						continue;
+					}
 					using TelemetrySpan modifySpan = _tracer.StartActiveSpan("ModifyInstanceAttribute");
 
 					ModifyInstanceAttributeRequest request = new () { InstanceId = stoppedInstance.InstanceId, InstanceType = newInstanceType };
@@ -134,8 +137,14 @@ namespace Horde.Server.Agents.Fleet.Providers
 				if (startRequest.InstanceIds.Count < requestedInstancesCount)
 				{
 					string reason = "";
-					if (stoppedInstancesCount < requestedInstancesCount) { reason += " Not enough stopped instances to accommodate the pool expansion."; }
-					if (startedInstancesCount < stoppedInstancesCount) { reason += " Not all instances were able to start."; }
+					if (stoppedInstancesCount < requestedInstancesCount)
+					{
+						reason += " Not enough stopped instances to accommodate the pool expansion.";
+					}
+					if (startedInstancesCount < stoppedInstancesCount)
+					{
+						reason += " Not all instances were able to start.";
+					}
 
 					_logger.LogInformation("Unable to expand pool {PoolName}.\n" + 
 					                       "Reason={Reason}\n" +  

@@ -461,7 +461,7 @@ public sealed class AwsRecyclingFleetManager : IFleetManager
 			.SelectMany(x => x.Instances)
 			.GroupBy(x => x.Placement.AvailabilityZone).ToList();
 		
-		return azInstancePairs.ToDictionary(x => x.Key, y => y.ToList());;
+		return azInstancePairs.ToDictionary(x => x.Key, y => y.ToList());
 	}
 
 	/// <inheritdoc/>

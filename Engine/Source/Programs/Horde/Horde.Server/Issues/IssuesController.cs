@@ -33,12 +33,10 @@ namespace Horde.Server.Issues
 	[Route("[controller]")]
 	public class IssuesController : HordeControllerBase
 	{
-		private readonly AclService _aclService;
 		private readonly IIssueCollection _issueCollection;
 		private readonly IssueService _issueService;
 		private readonly IExternalIssueService _externalIssueService;
 		private readonly JobService _jobService;
-		private readonly IStreamCollection _streamCollection;
 		private readonly IUserCollection _userCollection;
 		private readonly ILogFileService _logFileService;
 		private readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
@@ -47,13 +45,11 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public IssuesController(AclService aclService, IIssueCollection issueCollection, IssueService issueService, JobService jobService, IStreamCollection streamCollection, IUserCollection userCollection, ILogFileService logFileService, IExternalIssueService externalIssueService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<IssuesController> logger)
+		public IssuesController(IIssueCollection issueCollection, IssueService issueService, JobService jobService, IUserCollection userCollection, ILogFileService logFileService, IExternalIssueService externalIssueService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<IssuesController> logger)
 		{
-			_aclService = aclService;
 			_issueCollection = issueCollection;
 			_issueService = issueService;
 			_jobService = jobService;
-			_streamCollection = streamCollection;
 			_userCollection = userCollection;
 			_logFileService = logFileService;
 			_externalIssueService = externalIssueService;
@@ -583,7 +579,6 @@ namespace Horde.Server.Issues
 				newForceClosedById = request.ForceClosedById.Length > 0 ? UserId.Parse(request.ForceClosedById) : UserId.Empty;
 			}
 
-
 			List<ObjectId>? addSpans = null;
 			if (request.AddSpans != null && request.AddSpans.Count > 0)
 			{
@@ -664,7 +659,6 @@ namespace Horde.Server.Issues
 			{
 				return Forbid(StreamAclAction.ViewStream, streamIdValue);
 			}
-
 
 			IUser? user = await _userCollection.GetUserAsync(User);
 

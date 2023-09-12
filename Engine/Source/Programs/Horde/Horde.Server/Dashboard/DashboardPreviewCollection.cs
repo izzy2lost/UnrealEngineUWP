@@ -56,7 +56,6 @@ namespace Horde.Server.Dashboard
 		/// Optional Link for discussing the preview item
 		/// </summary>
 		public string? TrackingLink { get; }
-
 	}
 
 	/// <summary>
@@ -100,7 +99,6 @@ namespace Horde.Server.Dashboard
 		{
 			public int NextId { get; set; }
 		}
-
 
 		internal class PreviewDocument : IDashboardPreview
 		{
@@ -167,7 +165,6 @@ namespace Horde.Server.Dashboard
 			PreviewDocument newPreview = new PreviewDocument(ledger.NextId, summary);
 			await _previews.InsertOneAsync(newPreview);
 
-
 			return newPreview;
 		}
 
@@ -217,7 +214,6 @@ namespace Horde.Server.Dashboard
 			}
 
 			return await _previews.Find(x => x.Id == previewId).FirstOrDefaultAsync();
-
 		}
 
 		public async Task<List<IDashboardPreview>> FindPreviewsAsync(bool? open = null)
@@ -231,8 +227,6 @@ namespace Horde.Server.Dashboard
 			List<PreviewDocument> results = await _previews.Find(filter).ToListAsync();
 			return results.Select<PreviewDocument, IDashboardPreview>(x => x).ToList();
 		}
-
 	}
-
 }
 

@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -66,7 +65,6 @@ namespace Horde.Server.Issues.Handlers
 			{ KnownLogEvents.Gauntlet_BuildDropEvent, AccessPrefix},
 			{ KnownLogEvents.Gauntlet_FatalEvent, FatalPrefix}
 		};
-
 
 		/// <summary>
 		/// Determines if the given event id matches

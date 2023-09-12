@@ -3,7 +3,6 @@
 using System.Collections.Generic;
 using Horde.Server.Perforce;
 using Horde.Server.Streams;
-using Horde.Server.Users;
 using HordeCommon;
 using EpicGames.Horde.Api;
 

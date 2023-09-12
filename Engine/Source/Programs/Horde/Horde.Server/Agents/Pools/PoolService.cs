@@ -17,11 +17,6 @@ namespace Horde.Server.Agents.Pools
 	public class PoolService
 	{
 		/// <summary>
-		/// The globals service instance
-		/// </summary>
-		readonly GlobalsService _globalsService;
-
-		/// <summary>
 		/// Collection of pool documents
 		/// </summary>
 		readonly IPoolCollection _pools;
@@ -39,12 +34,10 @@ namespace Horde.Server.Agents.Pools
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="globalsService"></param>
 		/// <param name="pools">Collection of pool documents</param>
 		/// <param name="clock"></param>
-		public PoolService(GlobalsService globalsService, IPoolCollection pools, IClock clock)
+		public PoolService(IPoolCollection pools, IClock clock)
 		{
-			_globalsService = globalsService;
 			_pools = pools;
 			_clock = clock;
 		}
@@ -195,9 +188,8 @@ namespace Horde.Server.Agents.Pools
 		/// </summary>
 		/// <param name="agent"></param>
 		/// <param name="cluster"></param>
-		/// <param name="globalConfig"></param>
 		/// <returns></returns>
-		public async Task<AgentWorkspace?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster cluster, GlobalConfig globalConfig)
+		public async Task<AgentWorkspace?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster cluster)
 		{
 			List<IPool> pools = await GetPoolsAsync(agent, DateTime.UtcNow - TimeSpan.FromSeconds(10.0));
 
@@ -216,9 +208,8 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="agent">The agent to return workspaces for</param>
 		/// <param name="perforceCluster">The P4 cluster to find a workspace for</param>
 		/// <param name="validAtTime">Absolute time at which we expect the results to be valid. Values may be cached as long as they are after this time.</param>
-		/// <param name="globalConfig">Current configuration</param>
 		/// <returns>List of workspaces</returns>
-		public async Task<AgentWorkspace?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster perforceCluster, DateTime validAtTime, GlobalConfig globalConfig)
+		public async Task<AgentWorkspace?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster perforceCluster, DateTime validAtTime)
 		{
 			AutoSdkConfig? autoSdkConfig = null;
 

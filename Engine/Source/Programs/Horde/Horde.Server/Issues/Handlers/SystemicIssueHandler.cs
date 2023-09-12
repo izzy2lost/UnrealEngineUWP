@@ -77,7 +77,6 @@ namespace Horde.Server.Issues.Handlers
 						// We've seen a non-systemic error event, so ignore this systemic event to prevent superfluous issues from being created
 						nonSystemicError = true;
 					}
-					
 				}
 			}
 		}

@@ -4,17 +4,13 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Core;
-using Horde.Server.Acls;
 using Horde.Server.Jobs.Templates;
 using Horde.Server.Jobs.Schedules;
 using Horde.Server.Users;
-using Horde.Server.Utilities;
 using Horde.Server.Issues;
 using Horde.Server.Perforce;
 using Horde.Server.Projects;
 using Horde.Server.Jobs;
-using Microsoft.AspNetCore.DataProtection;
-using System.Linq;
 using EpicGames.Horde.Api;
 
 namespace Horde.Server.Streams

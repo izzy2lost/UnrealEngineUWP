@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,9 +11,7 @@ using EpicGames.Horde.Storage.Nodes;
 using Horde.Server.Server;
 using Horde.Server.Storage;
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
 using HordeCommon;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -36,11 +33,9 @@ namespace Horde.Server.Perforce
 	/// </summary>
 	sealed class ReplicationService : IHostedService
 	{
-		readonly IStreamCollection _streamCollection;
 		readonly IPerforceService _perforceService;
 		readonly PerforceReplicator _replicator;
 		readonly StorageService _storageService;
-		readonly IMemoryCache _memoryCache;
 		readonly ITicker _ticker;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly ILogger _logger;
@@ -48,13 +43,11 @@ namespace Horde.Server.Perforce
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ReplicationService(IStreamCollection streamCollection, IPerforceService perforceService, PerforceReplicator replicator, StorageService storageService, IMemoryCache memoryCache, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<ReplicationService> logger)
+		public ReplicationService(IPerforceService perforceService, PerforceReplicator replicator, StorageService storageService, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<ReplicationService> logger)
 		{
-			_streamCollection = streamCollection;
 			_perforceService = perforceService;
 			_replicator = replicator;
 			_storageService = storageService;
-			_memoryCache = memoryCache;
 			_ticker = clock.AddSharedTicker<ReplicationService>(TimeSpan.FromSeconds(20.0), TickSharedAsync, logger);
 			_globalConfig = globalConfig;
 			_logger = logger;

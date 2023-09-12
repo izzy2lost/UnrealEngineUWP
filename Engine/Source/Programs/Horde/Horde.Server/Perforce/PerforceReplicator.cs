@@ -13,11 +13,8 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Perforce;
-using EpicGames.Perforce.Managed;
 using Horde.Server.Storage;
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Perforce
@@ -218,19 +215,17 @@ namespace Horde.Server.Perforce
 
 		readonly IPerforceService _perforceService;
 		readonly StorageService _storageService;
-		readonly IMemoryCache _memoryCache;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PerforceReplicator(IPerforceService perforceService, StorageService storageService, IMemoryCache memoryCache, ILogger<PerforceReplicator> logger)
+		public PerforceReplicator(IPerforceService perforceService, StorageService storageService, ILogger<PerforceReplicator> logger)
 		{
 			Node.RegisterType<SyncNode>();
 
 			_perforceService = perforceService;
 			_storageService = storageService;
-			_memoryCache = memoryCache;
 			_logger = logger;
 		}
 

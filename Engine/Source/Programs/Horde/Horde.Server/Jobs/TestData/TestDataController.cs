@@ -11,10 +11,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MongoDB.Bson;
 using EpicGames.Core;
-using System.Text;
-using System.Text.Json.Serialization;
-using System.Text.Json;
-using System.Threading;
 using Microsoft.Extensions.Options;
 using Horde.Server.Server;
 
@@ -39,20 +35,17 @@ namespace Horde.Server.Jobs.TestData
 		private readonly ITestDataCollection _testDataCollection;
 
 		readonly TestDataService _testDataService;
-
-		readonly IStreamCollection _streamCollection;
 	
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public TestDataController(TestDataService testDataService, IStreamCollection streamCollection, JobService jobService, ITestDataCollection testDataCollection, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public TestDataController(TestDataService testDataService, JobService jobService, ITestDataCollection testDataCollection, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_jobService = jobService;
 			_testDataCollection = testDataCollection;
 			_testDataService = testDataService;
-			_streamCollection = streamCollection;
 			_globalConfig = globalConfig;
 		}
 

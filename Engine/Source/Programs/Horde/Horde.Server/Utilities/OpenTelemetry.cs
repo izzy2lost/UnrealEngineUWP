@@ -316,6 +316,8 @@ public static class OpenTelemetrySpanExtensions
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static TelemetrySpan StartMongoDbSpan<T>(this Tracer tracer, string spanName, IMongoCollection<T>? collection = null, FilterDefinition<T>? filter = null, UpdateDefinition<T>? update = null, T? document = default)
 	{
+		_ = tracer;
+
 		string name = "mongodb." + spanName;
 		TelemetrySpan span = OpenTelemetryTracers.MongoDb
 			.StartActiveSpan(name, parentContext: Tracer.CurrentSpan.Context)

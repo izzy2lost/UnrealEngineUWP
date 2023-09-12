@@ -3,7 +3,6 @@
 using System;
 using System.Threading.Tasks;
 using Horde.Server.Logs.Data;
-using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 

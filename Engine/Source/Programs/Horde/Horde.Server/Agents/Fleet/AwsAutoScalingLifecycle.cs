@@ -224,7 +224,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IDisposable
 
 	private IAmazonSQS GetSqs()
 	{
-		return _awsSqs ?? throw new Exception("AWS SQS client is not set. Make sure AWS is configured in settings.");;
+		return _awsSqs ?? throw new Exception("AWS SQS client is not set. Make sure AWS is configured in settings.");
 	}
 	
 	/// <summary>
@@ -472,7 +472,6 @@ public class AwsAutoScalingLifecycleController : HordeControllerBase
 		return new JsonResult(instanceIds);
 	}
 }
-
 
 /// <summary>
 /// Lifecycle action event from AWS auto-scaling group

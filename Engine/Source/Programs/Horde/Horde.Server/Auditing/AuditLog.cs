@@ -2,12 +2,10 @@
 
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using Amazon.S3.Model;
 using EpicGames.Core;
 using Horde.Server.Server;
 using Horde.Server.Utilities;

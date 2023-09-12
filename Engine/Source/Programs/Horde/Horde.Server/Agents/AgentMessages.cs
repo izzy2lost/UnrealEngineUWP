@@ -4,14 +4,14 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using Horde.Server.Acls;
 using EpicGames.Core;
 using HordeCommon;
 using Horde.Server.Agents.Leases;
-using Horde.Server.Agents.Sessions;
 
 namespace Horde.Server.Agents
 {
+	using ISession = Horde.Server.Agents.Sessions.ISession;
+
 	/// <summary>
 	/// Parameters to update an agent
 	/// </summary>

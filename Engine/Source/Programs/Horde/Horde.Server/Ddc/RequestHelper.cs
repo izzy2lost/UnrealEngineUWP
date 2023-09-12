@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;

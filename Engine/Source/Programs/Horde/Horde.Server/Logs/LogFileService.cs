@@ -15,7 +15,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using Horde.Server.Acls;
-using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Jobs;
 using Horde.Server.Logs.Data;
@@ -625,7 +624,6 @@ namespace Horde.Server.Logs
 			_logFileCache.Set(logFile.Id, logFile, options);
 		}
 
-
 		/// <inheritdoc />
 		public async Task<ILogFile?> GetCachedLogFileAsync(LogId logFileId, CancellationToken cancellationToken)
 		{
@@ -831,6 +829,8 @@ namespace Horde.Server.Logs
 		/// <returns>True if data was appended to </returns>
 		private async Task<bool> WriteLogChunkDataAsync(ILogFile logFile, ILogChunk chunk, WriteState state, List<long> completeOffsets, int maxChunkLength, int maxSubChunkLineCount, CancellationToken cancellationToken)
 		{
+			_ = cancellationToken;
+
 			// Don't allow data to be appended if the chunk is complete
 			if(chunk.Length > 0)
 			{
@@ -1935,6 +1935,8 @@ namespace Horde.Server.Logs
 
 		async Task<Utf8String[]> ReadTailAsync(ILogFile logFile, int index, CancellationToken cancellationToken)
 		{
+			_ = cancellationToken;
+
 			const int BatchSize = 128;
 
 			if (logFile.Complete)

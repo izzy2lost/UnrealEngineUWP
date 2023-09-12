@@ -205,17 +205,11 @@ namespace Horde.Server.Storage
 		sealed class StorageClientImpl : StorageClient
 		{
 			readonly StorageService _outer;
-			readonly string _prefix;
-			readonly Tracer _tracer;
-			readonly ILogger _logger;
 
-			public StorageClientImpl(StorageService outer, NamespaceConfig config, StorageBackendImpl backend, string prefix, StorageCache storageCache, Tracer tracer, ILogger logger)
+			public StorageClientImpl(StorageService outer, NamespaceConfig config, StorageBackendImpl backend, StorageCache storageCache, ILogger logger)
 				: base(config, backend, storageCache, logger)
 			{
 				_outer = outer;
-				_tracer = tracer;
-				_logger = logger;
-				_prefix = prefix;
 			}
 
 			#region Nodes
@@ -608,7 +602,7 @@ namespace Horde.Server.Storage
 						IStorageBackend backend = _storageBackendProvider.CreateBackend(namespaceConfig.BackendConfig);
 
 						StorageBackendImpl backendImpl = new StorageBackendImpl(this, namespaceConfig.Id, prefix, backend, _tracer);
-						StorageClientImpl clientImpl = new StorageClientImpl(this, namespaceConfig, backendImpl, prefix, _storageCache, _tracer, _logger);
+						StorageClientImpl clientImpl = new StorageClientImpl(this, namespaceConfig, backendImpl, _storageCache, _logger);
 						nextState.Namespaces.Add(namespaceConfig.Id, new NamespaceInfo(namespaceConfig, clientImpl, backend));
 					}
 				}

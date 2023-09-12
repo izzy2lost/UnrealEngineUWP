@@ -5,8 +5,6 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Security.Claims;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using EpicGames.Core;
@@ -21,13 +19,8 @@ using Horde.Server.Jobs.Templates;
 using Horde.Server.Perforce;
 using Horde.Server.Projects;
 using Horde.Server.Server;
-using Horde.Server.Utilities;
-using Horde.Common;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
-using System.Reflection;
-using System.ComponentModel;
-using EpicGames.Serialization;
 using System.Diagnostics;
 
 namespace Horde.Server.Streams

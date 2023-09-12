@@ -7,7 +7,6 @@ using System.Text.Json.Serialization;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
 using Horde.Server.Agents.Fleet;
-using Horde.Server.Utilities;
 
 namespace Horde.Server.Agents.Pools
 {

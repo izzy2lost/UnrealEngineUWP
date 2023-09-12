@@ -27,7 +27,6 @@ using Horde.Server.Streams;
 using Horde.Server.Telemetry;
 using Horde.Server.Tools;
 using Horde.Server.Utilities;
-using Serilog.Events;
 
 namespace Horde.Server
 {

@@ -4,8 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Horde.Server.Streams;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
 using MongoDB.Bson;
 using EpicGames.Horde.Api;
 
@@ -176,7 +174,6 @@ namespace Horde.Server.Issues
 		/// The workflow thread url created for this issue
 		/// </summary>
 		public Uri? WorkflowThreadUrl { get; set; }
-
 	}
 
 	/// <summary>

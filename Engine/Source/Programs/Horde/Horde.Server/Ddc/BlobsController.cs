@@ -8,11 +8,9 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Mime;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
-using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
 using Horde.Server.Acls;
@@ -20,7 +18,6 @@ using Horde.Server.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using OpenTelemetry.Trace;
 
 #pragma warning disable CS1591
 
@@ -39,16 +36,14 @@ namespace Horde.Server.Ddc
 		private readonly IRequestHelper _requestHelper;
 		private readonly BufferedPayloadFactory _bufferedPayloadFactory;
 		private readonly NginxRedirectHelper _nginxRedirectHelper;
-		private readonly Tracer _tracer;
 
-		public BlobsController(IBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, BufferedPayloadFactory bufferedPayloadFactory, NginxRedirectHelper nginxRedirectHelper, Tracer tracer)
+		public BlobsController(IBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, BufferedPayloadFactory bufferedPayloadFactory, NginxRedirectHelper nginxRedirectHelper)
 		{
 			_storage = storage;
 			_diagnosticContext = diagnosticContext;
 			_requestHelper = requestHelper;
 			_bufferedPayloadFactory = bufferedPayloadFactory;
 			_nginxRedirectHelper = nginxRedirectHelper;
-			_tracer = tracer;
 		}
 
 		[HttpGet("{ns}/{id}")]
@@ -233,7 +228,7 @@ namespace Horde.Server.Ddc
 				await using Stream stream = payload.GetStream();
 
 				BlobId id = await BlobId.FromStreamAsync(stream, cancellationToken);
-				await _storage.PutObjectKnownHashAsync(ns, payload, id);
+				await _storage.PutObjectKnownHashAsync(ns, payload, id, cancellationToken);
 
 				return Ok(new
 				{
@@ -342,7 +337,7 @@ namespace Horde.Server.Ddc
 							return BadRequest();
 						}
 
-						tasks[index] = _storage.ExistsAsync(op.Namespace.Value, op.Id.Value)
+						tasks[index] = _storage.ExistsAsync(op.Namespace.Value, op.Id.Value, cancellationToken: cancellationToken)
 							.ContinueWith((t, _) => t.Result ? (object?)null : op.Id, null, TaskScheduler.Current);
 						break;
 					case BatchOp.Operation.PUT:

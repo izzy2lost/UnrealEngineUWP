@@ -3,27 +3,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Core;
-using EpicGames.Slack;
-using Horde.Server.Issues;
 using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
 using Horde.Server.Notifications;
 using Horde.Server.Server;
-using Horde.Server.Streams;
 using Horde.Server.Utilities;
 using HordeCommon;
-using Microsoft.AspNetCore.DataProtection.KeyManagement;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MongoDB.Bson.Serialization.Attributes;
-using MongoDB.Bson.Serialization.Options;
-using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace Horde.Server.Devices
 {
@@ -54,7 +43,6 @@ namespace Horde.Server.Devices
 		/// The last problem encountered
 		/// </summary>
 		public string? LastProblemURL { get; set; }
-
 
 		public List<IDeviceTelemetry> Telemetry { get; }
 
@@ -311,6 +299,5 @@ namespace Horde.Server.Devices
 		}
 	}
 }
-
 
 // CL 22278596 - Has the device channel notification stuff

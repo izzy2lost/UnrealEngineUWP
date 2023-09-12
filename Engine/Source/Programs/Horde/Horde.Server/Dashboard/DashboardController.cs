@@ -11,7 +11,6 @@ using Microsoft.Extensions.Options;
 using Horde.Server.Server;
 using System.Collections.Generic;
 using System.Linq;
-using Horde.Server.Agents;
 using Horde.Server.Acls;
 
 namespace Horde.Server.Dashboard

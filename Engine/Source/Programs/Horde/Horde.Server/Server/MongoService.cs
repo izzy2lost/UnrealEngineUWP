@@ -15,14 +15,11 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Redis.Utility;
-using Horde.Server.Secrets;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
@@ -369,6 +366,7 @@ namespace Horde.Server.Server
 				_mongoProcessGroup.Dispose();
 				_mongoProcessGroup = null;
 			}
+			_upgradeSema.Dispose();
 		}
 
 		/// <summary>

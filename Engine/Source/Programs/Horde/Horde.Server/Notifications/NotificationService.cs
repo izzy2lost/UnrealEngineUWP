@@ -70,11 +70,6 @@ namespace Horde.Server.Notifications
 		private readonly JobService _jobService;
 
 		/// <summary>
-		/// Instance of the <see cref="IStreamCollection"/>.
-		/// </summary>
-		private readonly IStreamCollection _streamCollection;
-
-		/// <summary>
 		/// 
 		/// </summary>
 		private readonly IssueService _issueService;
@@ -130,8 +125,6 @@ namespace Horde.Server.Notifications
 		/// </summary>
 		internal TimeSpan _notificationBatchInterval = TimeSpan.FromHours(12);
 
-		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
-
 		readonly Counter<int> _jobCounter;
 		readonly Histogram<double> _jobDurationHistogram;
 
@@ -149,14 +142,12 @@ namespace Horde.Server.Notifications
 			INotificationTriggerCollection triggerCollection,
 			IUserCollection userCollection,
 			JobService jobService,
-			IStreamCollection streamCollection,
 			IssueService issueService,
 			ILogFileService logFileService,
 			Meter meter,
 			IMemoryCache cache,
 			RedisService redisService,
 			ConfigService configService,
-			IOptionsMonitor<GlobalConfig> globalConfig,
 			IClock clock)
 		{
 			_sinks = sinks.ToList();
@@ -167,12 +158,10 @@ namespace Horde.Server.Notifications
 			_triggerCollection = triggerCollection;
 			_userCollection = userCollection;
 			_jobService = jobService;
-			_streamCollection = streamCollection;
 			_issueService = issueService;
 			_logFileService = logFileService;
 			_cache = cache;
 			_redisConnectionPool = redisService.ConnectionPool;
-			_globalConfig = globalConfig;
 
 			issueService.OnIssueUpdated += NotifyIssueUpdated;
 			jobService.OnJobStepComplete += NotifyJobStepComplete;
@@ -315,7 +304,6 @@ namespace Horde.Server.Notifications
 				}
 			}
 		}
-
 
 		/// <summary>
 		/// Enqueues an async task

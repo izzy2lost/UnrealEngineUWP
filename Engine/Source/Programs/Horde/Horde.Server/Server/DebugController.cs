@@ -3,14 +3,12 @@
 //#define ENABLE_PUBLIC_DEBUG_CONTROLLER
 #define ENABLE_SECURE_DEBUG_CONTROLLER
 
-
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
@@ -19,7 +17,6 @@ using Horde.Server.Acls;
 using Horde.Server.Configuration;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Templates;
 using Horde.Server.Logs;
 using Horde.Server.Projects;
 using Horde.Server.Utilities;
@@ -253,7 +250,6 @@ namespace Horde.Server.Server
 		private readonly JobTaskSource _jobTaskSource;
 		private readonly IGraphCollection _graphCollection;
 		private readonly ILogFileCollection _logFileCollection;
-		private readonly IOptions<ServerSettings> _settings;
 		private readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		private readonly ILogger<SecureDebugController> _logger;
 
@@ -262,7 +258,7 @@ namespace Horde.Server.Server
 		/// </summary>
 		public SecureDebugController(MongoService mongoService, ConfigService configService, JobService jobService, JobTaskSource jobTaskSource,
 			IGraphCollection graphCollection,
-			ILogFileCollection logFileCollection, IOptions<ServerSettings> settings, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<SecureDebugController> logger)
+			ILogFileCollection logFileCollection, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<SecureDebugController> logger)
 		{
 			_mongoService = mongoService;
 			_configService = configService;
@@ -270,7 +266,6 @@ namespace Horde.Server.Server
 			_jobTaskSource = jobTaskSource;
 			_graphCollection = graphCollection;
 			_logFileCollection = logFileCollection;
-			_settings = settings;
 			_globalConfig = globalConfig;
 			_logger = logger;
 		}

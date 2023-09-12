@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Horde.Server.Logs.Data;
-using Horde.Server.Utilities;
 
 namespace Horde.Server.Logs
 {

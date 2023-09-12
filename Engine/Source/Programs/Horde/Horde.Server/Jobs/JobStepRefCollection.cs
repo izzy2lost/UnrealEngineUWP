@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Jobs.Bisect;
 using Horde.Server.Logs;

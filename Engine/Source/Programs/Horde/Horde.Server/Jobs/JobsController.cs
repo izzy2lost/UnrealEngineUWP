@@ -23,7 +23,6 @@ using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 
@@ -40,7 +39,6 @@ namespace Horde.Server.Jobs
 		private readonly IGraphCollection _graphs;
 		private readonly ICommitService _commitService;
 		private readonly IPerforceService _perforce;
-		private readonly IStreamCollection _streamCollection;
 		private readonly JobService _jobService;
 		private readonly ITemplateCollection _templateCollection;
 		private readonly IArtifactCollectionV1 _artifactCollection;
@@ -48,17 +46,15 @@ namespace Horde.Server.Jobs
 		private readonly INotificationService _notificationService;
 		private readonly AgentService _agentService;
 		private readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
-		private readonly ILogger<JobsController> _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobsController(IGraphCollection graphs, ICommitService commitService, IPerforceService perforce, IStreamCollection streamCollection, JobService jobService, ITemplateCollection templateCollection, IArtifactCollectionV1 artifactCollection, IUserCollection userCollection, INotificationService notificationService, AgentService agentService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<JobsController> logger)
+		public JobsController(IGraphCollection graphs, ICommitService commitService, IPerforceService perforce, JobService jobService, ITemplateCollection templateCollection, IArtifactCollectionV1 artifactCollection, IUserCollection userCollection, INotificationService notificationService, AgentService agentService, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_graphs = graphs;
 			_commitService = commitService;
 			_perforce = perforce;
-			_streamCollection = streamCollection;
 			_jobService = jobService;
 			_templateCollection = templateCollection;
 			_artifactCollection = artifactCollection;
@@ -66,7 +62,6 @@ namespace Horde.Server.Jobs
 			_notificationService = notificationService;
 			_agentService = agentService;
 			_globalConfig = globalConfig;
-			_logger = logger;
 		}
 
 		/// <summary>

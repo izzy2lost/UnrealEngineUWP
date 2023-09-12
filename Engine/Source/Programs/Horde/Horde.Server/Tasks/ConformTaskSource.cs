@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
-using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Jobs;
 using Horde.Server.Logs;
@@ -35,8 +34,6 @@ namespace Horde.Server.Tasks
 		/// <inheritdoc/>
 		public override TaskSourceFlags Flags => TaskSourceFlags.AllowWhenDisabled;
 
-		readonly MongoService _mongoService;
-		readonly GlobalsService _globalsService;
 		readonly IAgentCollection _agentCollection;
 		readonly PoolService _poolService;
 		readonly SingletonDocument<ConformList> _conformList;
@@ -50,10 +47,8 @@ namespace Horde.Server.Tasks
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ConformTaskSource(MongoService mongoService, GlobalsService globalsService, IAgentCollection agentCollection, PoolService poolService, ILogFileService logService, PerforceLoadBalancer perforceLoadBalancer, IClock clock, IOptionsMonitor<ServerSettings> settings, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<ConformTaskSource> logger)
+		public ConformTaskSource(MongoService mongoService, IAgentCollection agentCollection, PoolService poolService, ILogFileService logService, PerforceLoadBalancer perforceLoadBalancer, IClock clock, IOptionsMonitor<ServerSettings> settings, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<ConformTaskSource> logger)
 		{
-			_mongoService = mongoService;
-			_globalsService = globalsService;
 			_agentCollection = agentCollection;
 			_poolService = poolService;
 			_conformList = new SingletonDocument<ConformList>(mongoService);

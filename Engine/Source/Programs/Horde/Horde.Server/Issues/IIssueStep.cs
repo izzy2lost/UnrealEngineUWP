@@ -4,7 +4,6 @@ using System;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Logs;
-using Horde.Server.Utilities;
 using MongoDB.Bson;
 
 namespace Horde.Server.Issues

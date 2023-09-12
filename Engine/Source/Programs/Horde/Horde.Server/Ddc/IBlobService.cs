@@ -11,7 +11,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Trace;
-using OpenTracing.Util;
 
 #pragma warning disable CS1591
 

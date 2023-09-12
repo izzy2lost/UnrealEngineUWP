@@ -10,7 +10,6 @@ using Horde.Server.Jobs.Templates;
 using Horde.Server.Server;
 using HordeCommon;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Bson.Serialization.Options;
@@ -368,15 +367,13 @@ namespace Horde.Server.Jobs.Graphs
 		/// Use a non-shared cache to ensure enough space for graphs
 		/// </summary>
 		private readonly MemoryCache _memoryCache = new MemoryCache(new MemoryCacheOptions() { SizeLimit = MaxGraphs });
-		private readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GraphCollection(MongoService mongoService, ILogger<GraphCollection> logger)
+		public GraphCollection(MongoService mongoService)
 		{
 			_graphs = mongoService.GetCollection<GraphDocument>("Graphs");
-			_logger = logger;
 		}
 		
 		/// <inheritdoc/>

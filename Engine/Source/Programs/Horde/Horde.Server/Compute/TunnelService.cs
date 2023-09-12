@@ -10,7 +10,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using EpicGames.Core;
-using EpicGames.Horde.Compute;
 using System.IO;
 using System.Buffers;
 using System.Buffers.Binary;

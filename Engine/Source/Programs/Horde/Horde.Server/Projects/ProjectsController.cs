@@ -177,7 +177,6 @@ namespace Horde.Server.Projects
 			return response;
 		}
 
-
 		internal static GetProjectCategoryResponse CreateGetProjectCategoryResponse(ProjectCategoryConfig streamCategory)
 		{
 			GetProjectCategoryResponse response = new GetProjectCategoryResponse(streamCategory.Name, streamCategory.Row);

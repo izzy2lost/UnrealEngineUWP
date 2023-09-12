@@ -212,7 +212,6 @@ namespace Horde.Server.Devices
 					{
 						_logger.LogError(ex, "Exception while upgrading device collection: {Message}", ex.Message);
 					}
-
 				}
 
 				try

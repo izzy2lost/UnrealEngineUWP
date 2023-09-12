@@ -2,18 +2,9 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Text.RegularExpressions;
-using EpicGames.Core;
 using EpicGames.Horde.Api;
-using Horde.Server.Acls;
-using Horde.Server.Agents;
 using Horde.Server.Jobs;
-using Horde.Server.Perforce;
-using Horde.Server.Projects;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
 
 namespace Horde.Server.Streams
 {

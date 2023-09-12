@@ -232,7 +232,7 @@ namespace Horde.Server.Ddc
 			}
 
 			// not using the buffered payload as we transfer the ownership to the caller of this method
-			FilesystemBufferedPayload finalizedBufferedPayload = bufferedPayloadWriter.Done();
+			using FilesystemBufferedPayload finalizedBufferedPayload = bufferedPayloadWriter.Done();
 
 			if (header.TotalRawSize != (ulong)finalizedBufferedPayload.Length)
 			{

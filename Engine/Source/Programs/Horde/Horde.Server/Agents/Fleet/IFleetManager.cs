@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Agents.Fleet.Providers;
 using Horde.Server.Agents.Pools;
 
 namespace Horde.Server.Agents.Fleet
@@ -120,9 +119,18 @@ namespace Horde.Server.Agents.Fleet
 		/// <inheritdoc/>
 		public override bool Equals(object? obj)
 		{
-			if (ReferenceEquals(null, obj)) { return false; }
-			if (ReferenceEquals(this, obj)) { return true; }
-			if (obj.GetType() != GetType()) { return false; }
+			if (ReferenceEquals(null, obj))
+			{
+				return false;
+			}
+			if (ReferenceEquals(this, obj))
+			{
+				return true;
+			}
+			if (obj.GetType() != GetType())
+			{
+				return false; 
+			}
 			return Equals((ScaleResult)obj);
 		}
 

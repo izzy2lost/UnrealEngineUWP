@@ -715,7 +715,9 @@ namespace Horde.Server.Ddc
 					}
 					if (entry.Flags.HasFlag(CbPackageAttachmentFlags.IsCompressed))
 					{
+#pragma warning disable CA2000 // False positive for not disposing payload
 						using MemoryBufferedPayload payload = new MemoryBufferedPayload(blob);
+#pragma warning restore CA2000
 						await _blobStore.PutCompressedObjectAsync(ns, payload, ContentId.FromIoHash(entry.AttachmentHash), HttpContext.RequestServices, cancellationToken);
 					}
 					else

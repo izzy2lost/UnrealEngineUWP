@@ -8,7 +8,6 @@ using Horde.Server.Acls;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
-using Horde.Server.Agents.Software;
 using Horde.Server.Auditing;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
