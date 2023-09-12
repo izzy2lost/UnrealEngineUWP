@@ -89,6 +89,9 @@ private:
 	void HandleAddTrackSubMenu(FMenuBuilder& MenuBuilder, TArray<FGuid> ObjectBindings, UMovieSceneTrack* Track);
 	void HandleAddControlRigSubMenu(FMenuBuilder& MenuBuilder, TArray<FGuid> ObjectBindings, UMovieSceneTrack* Track);
 
+	void ToggleIsAdditiveControlRig();
+	bool IsToggleIsAdditiveControlRig();
+	
 	void ToggleFilterAssetBySkeleton();
 	bool IsToggleFilterAssetBySkeleton();
 
@@ -100,7 +103,6 @@ private:
 	void AddControlRig(UClass* InClass, UObject* BoundActor, FGuid ObjectBinding);
 	void AddControlRig(UClass* InClass, UObject* BoundActor, FGuid ObjectBinding, UControlRig* InExistingControlRig);
 	void AddControlRigFromComponent(FGuid InGuid);
-	void AddFKControlRig(TArray<FGuid> ObjectBindings);
 	
 	/** Delegate for Selection Changed Event */
 	void OnSelectionChanged(TArray<UMovieSceneTrack*> InTracks);
@@ -188,15 +190,6 @@ private:
 	/** Toggle FK Control Rig*/
 	void ToggleFKControlRig(UMovieSceneControlRigParameterTrack* Track, UFKControlRig* FKControlRig);
 
-	/** Convert to FK Control Rig*/
-	void ConvertToFKControlRig(FGuid ObjectBinding, UObject* BoundObject, USkeletalMeshComponent* SkelMeshComp, USkeleton* Skeleton);
-
-	/** Add additive Control Rig*/
-	void AddAdditiveControlRig(FGuid ObjectBinding, UObject* BoundObject, USkeletalMeshComponent* SkelMeshComp, USkeleton* Skeleton);
-
-	/** Returns true if an additive control rig can be added to the sequence */
-	bool CanAddAdditiveConrolRig();
-
 	/** Bake To Control Rig Sub Menu*/
 	void BakeToControlRigSubMenu(FMenuBuilder& MenuBuilder, FGuid ObjectBinding, UObject* BoundObject, USkeletalMeshComponent* SkelMeshComp,USkeleton* Skeleton);
 	
@@ -268,6 +261,8 @@ private:
 
 	/** A flag to determine if the next update coming from the timer should be skipped */
 	bool bSkipNextSelectionFromTimer;
+
+	bool bIsAdditiveControlRig;
 
 	/** Whether or not we should check Skeleton when filtering*/
 	bool bFilterAssetBySkeleton;
