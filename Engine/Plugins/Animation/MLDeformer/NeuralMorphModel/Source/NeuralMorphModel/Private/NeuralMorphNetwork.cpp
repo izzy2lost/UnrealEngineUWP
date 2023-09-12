@@ -322,6 +322,8 @@ void UNeuralMorphNetwork::PostLoad()
 
 	if (MainMLP_DEPRECATED)
 	{
+		MainMLP_DEPRECATED->ConditionalPostLoad();
+
 		// If we are in Global mode and loading the legacy network format we need to Load NumMorphs 
 		// from old network data output size since it was not stored directly in the object before.
 		if (Mode == ENeuralMorphMode::Global)
@@ -344,6 +346,8 @@ void UNeuralMorphNetwork::PostLoad()
 
 	if (GroupMLP_DEPRECATED)
 	{
+		GroupMLP_DEPRECATED->ConditionalPostLoad();
+
 		TArray<uint8> FileData;
 		UE::NeuralMorphModel::Private::ConvertMLPToFileData(FileData, GroupMLP_DEPRECATED);
 
