@@ -706,7 +706,10 @@ void FS3UploadQueue::ThreadEntry()
 		}
 		else
 		{
-			UE_LOG(LogIas, Warning, TEXT("Failed to upload chunk '%s/%s/%s', StatusCode: %u"), *Client.GetConfig().ServiceUrl, *Bucket, *Entry.Key, Response.StatusCode);
+			TStringBuilder<256> ErrorResponse;
+			Response.GetErrorMsg(ErrorResponse);
+
+			UE_LOG(LogIas, Warning, TEXT("Failed to upload chunk '%s/%s/%s', StatusCode: %u, Error: %s"), *Client.GetConfig().ServiceUrl, *Bucket, *Entry.Key, Response.StatusCode, ErrorResponse.ToString());
 			ErrorCount++;
 			break;
 		}

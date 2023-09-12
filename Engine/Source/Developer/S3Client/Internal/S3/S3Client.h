@@ -105,6 +105,8 @@ struct FS3Response
 	/** Returns the body as text. */
 	FString ToString() const { return FString(reinterpret_cast<const ANSICHAR*>(Body.GetData())); }
 
+	UE_API void GetErrorMsg(FStringBuilderBase& OutErrorMsg) const;
+
 	/** HTTP status code. */
 	uint32 StatusCode = 0;
 	/** HTTP response body. */

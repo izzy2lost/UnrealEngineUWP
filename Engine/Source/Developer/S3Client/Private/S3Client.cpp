@@ -327,6 +327,50 @@ FS3CredentialsProfileStore FS3CredentialsProfileStore::FromFile(const FString& F
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void FS3Response::GetErrorMsg(FStringBuilderBase& OutErrorMsg) const
+{
+	OutErrorMsg.Reset();
+
+	if (IsOk())
+	{
+		OutErrorMsg << TEXT("Successs");
+		return;
+	}
+
+	const FString BodyResponseString = ToString();
+
+	FXmlFile XmlFile;
+	if (!XmlFile.LoadFile(BodyResponseString, EConstructMethod::ConstructFromBuffer))
+	{
+		OutErrorMsg << TEXT("Unknown");
+		return;
+	}
+
+	const FXmlNode* RootNode = XmlFile.GetRootNode();
+	if (!RootNode)
+	{
+		OutErrorMsg << TEXT("Unknown");
+		return;
+	}
+
+	const FXmlNode* CodeNode = RootNode->FindChildNode(TEXT("Code"));
+	if (!CodeNode)
+	{
+		OutErrorMsg << TEXT("Unknown");
+		return;
+	}
+
+	const FXmlNode* MessageNode = RootNode->FindChildNode(TEXT("Message"));
+	if (!MessageNode)
+	{
+		OutErrorMsg << TEXT("Unknown");
+		return;
+	}
+
+	OutErrorMsg << CodeNode->GetContent() << TEXT(": ") << MessageNode->GetContent();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 class FS3Client::FConnectionPool
 {
 public:
