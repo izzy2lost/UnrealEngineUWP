@@ -8,6 +8,7 @@
 #include "Engine/EngineTypes.h"
 #include "MovieRenderPipelineSettings.generated.h"
 
+class UMovieGraphConfig;
 class UMoviePipelineExecutorBase;
 class UMoviePipeline;
 class UMoviePipelinePrimaryConfig;
@@ -70,6 +71,10 @@ public:
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, meta = (MetaClass = "/Script/MovieRenderPipelineCore.MoviePipelineBase"), Category="Movie Render Pipeline")
 	FSoftClassPath DefaultPipeline;
 
+	/** The graph that newly-created graph assets will be based off of. */
+	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category="Movie Render Pipeline")
+	TSoftObjectPtr<UMovieGraphConfig> DefaultGraph;
+
 	/**
 	* The settings specified here will automatically be added to a Movie Pipeline Primary Configuration when using the UI. 
 	* This does not apply to scripting and does not apply to runtime. It is only a convenience function so that when a job is
@@ -80,4 +85,8 @@ public:
 	* add settings by hand for each job you create. */
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Movie Render Pipeline", meta = (MetaClass = "/Script/MovieRenderPipelineCore.MoviePipelineSetting"), DisplayName = "Default Job Settings Classes")
 	TArray<FSoftClassPath> DefaultClasses;
+
+public:
+	/** Gets the path to the default graph asset supplied by MRQ. */
+	static FSoftObjectPath GetDefaultGraphPath();
 };
