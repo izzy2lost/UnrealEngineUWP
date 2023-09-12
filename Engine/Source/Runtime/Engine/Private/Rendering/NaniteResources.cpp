@@ -843,7 +843,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 	if (IsRayTracingAllowed())
 	{
 		CoarseMeshStreamingHandle = (Nanite::CoarseMeshStreamingHandle)ProxyDesc.GetStaticMesh()->GetStreamingIndex();
-		if (MeshResources.GetNumVertices())
+		if (RenderData->LODResources[ClampedMinLOD].GetNumVertices())
 		{
 			bHasRayTracingInstances = true;
 		}
