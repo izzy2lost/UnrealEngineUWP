@@ -962,8 +962,8 @@ void FMetasoundAssetBase::UpdateAssetRegistry()
 	FNodeClassName ClassName = DocumentClassMetadata.GetClassName().ToNodeClassName();
 	FMetasoundFrontendClass GraphClass;
 
+	AssetClassInfo.bIsPreset = DocumentClassGraph.PresetOptions.bIsPreset;
 	AssetClassInfo.Version = DocumentClassMetadata.GetVersion();
-
 	AssetClassInfo.InputTypes.Reset();
 	Algo::Transform(GraphClass.Interface.Inputs, AssetClassInfo.InputTypes, [] (const FMetasoundFrontendClassInput& Input) { return Input.TypeName; });
 

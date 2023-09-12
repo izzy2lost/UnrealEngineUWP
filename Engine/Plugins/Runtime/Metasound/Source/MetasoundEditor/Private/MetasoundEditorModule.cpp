@@ -15,7 +15,6 @@
 #include "ISettingsModule.h"
 #include "Metasound.h"
 #include "MetasoundAssetSubsystem.h"
-#include "MetasoundAssetTypeActions.h"
 #include "MetasoundAudioBuffer.h"
 #include "MetasoundBuilderSubsystem.h"
 #include "MetasoundDetailCustomization.h"
@@ -731,9 +730,6 @@ namespace Metasound
 				// Register Metasound asset type actions
 				IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>(AssetToolName).Get();
 
-				AddAssetAction<FAssetTypeActions_MetaSoundPatch>(AssetTools, AssetActions);
-				AddAssetAction<FAssetTypeActions_MetaSoundSource>(AssetTools, AssetActions);
-
 				FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 				
 				PropertyModule.RegisterCustomClassLayout(
@@ -797,9 +793,6 @@ namespace Metasound
 					NSLOCTEXT("MetaSoundsEditor", "MetaSoundEditorSettingsDescription", "Customize MetaSound Editor."),
 					GetMutableDefault<UMetasoundEditorSettings>()
 				);
-
-				FAssetTypeActions_MetaSoundPatch::RegisterMenuActions();
-				FAssetTypeActions_MetaSoundSource::RegisterMenuActions();
 
 				FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 				if (AssetRegistryModule.Get().IsLoadingAssets())
