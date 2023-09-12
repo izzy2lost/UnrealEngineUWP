@@ -14,7 +14,7 @@
 #include "Containers/Array.h"
 #include "Math/UnrealMathUtility.h"
 
-namespace ArrayViewPrivate
+namespace UE::Core::ArrayView::Private
 {
 	/**
 	 * Trait testing whether a type is compatible with the view type
@@ -63,7 +63,7 @@ namespace ArrayViewPrivate
 		template <typename T>
 		static decltype(auto) GetData(T&& Arg)
 		{
-			return ArrayViewPrivate::GetDataHelper(Forward<T>(Arg));
+			return UE::Core::ArrayView::Private::GetDataHelper(Forward<T>(Arg));
 		}
 	};
 
@@ -90,7 +90,7 @@ namespace ArrayViewPrivate
 		template <typename T>
 		static decltype(auto) GetData(T&& Arg)
 		{
-			return ArrayViewPrivate::GetReinterpretedDataHelper(Forward<T>(Arg));
+			return UE::Core::ArrayView::Private::GetReinterpretedDataHelper(Forward<T>(Arg));
 		}
 	};
 }
@@ -156,13 +156,13 @@ public:
 
 private:
 	template <typename T>
-	using TIsCompatibleElementType = ArrayViewPrivate::TIsCompatibleElementType<T, ElementType>;
+	using TIsCompatibleElementType = UE::Core::ArrayView::Private::TIsCompatibleElementType<T, ElementType>;
 
 	template <typename T>
-	using TIsCompatibleRangeType = ArrayViewPrivate::TIsCompatibleRangeType<T, ElementType>;
+	using TIsCompatibleRangeType = UE::Core::ArrayView::Private::TIsCompatibleRangeType<T, ElementType>;
 
 	template <typename T>
-	using TIsReinterpretableRangeType = ArrayViewPrivate::TIsReinterpretableRangeType<T, ElementType>;
+	using TIsReinterpretableRangeType = UE::Core::ArrayView::Private::TIsReinterpretableRangeType<T, ElementType>;
 
 public:
 	/**
@@ -257,7 +257,7 @@ public:
 	 * The caller is responsible for ensuring that the view does not outlive the initializer list.
 	 */
 	FORCEINLINE TArrayView(std::initializer_list<ElementType> List UE_LIFETIMEBOUND)
-		: DataPtr(ArrayViewPrivate::GetDataHelper(List))
+		: DataPtr(UE::Core::ArrayView::Private::GetDataHelper(List))
 		, ArrayNum(GetNum(List))
 	{
 		static_assert(std::is_const_v<ElementType>, "Only views of const elements can bind to initializer lists");
