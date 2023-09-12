@@ -2514,6 +2514,22 @@ void FDeferredShadingSceneRenderer::RenderNanite(FRDGBuilder& GraphBuilder, cons
 
 		// Nanite::VisBuffer (Visibility Buffer Clear)
 		{
+			const FNaniteVisualizationData& VisualizationData = GetNaniteVisualizationData();
+
+			bool bVisualizeActive = VisualizationData.IsActive() && ViewFamily.EngineShowFlags.VisualizeNanite;
+			bool bVisualizeOverdraw = false;
+			if (bVisualizeActive)
+			{
+				if (VisualizationData.GetActiveModeID() == 0) // Overview
+				{
+					bVisualizeOverdraw = VisualizationData.GetOverviewModeIDs().Contains(NANITE_VISUALIZE_OVERDRAW);
+				}
+				else
+				{
+					bVisualizeOverdraw = (VisualizationData.GetActiveModeID() == NANITE_VISUALIZE_OVERDRAW);
+				}
+			}
+
 			RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteVisBuffer);
 			RasterContext = Nanite::InitRasterContext(
 				GraphBuilder,
@@ -2521,7 +2537,13 @@ void FDeferredShadingSceneRenderer::RenderNanite(FRDGBuilder& GraphBuilder, cons
 				ViewFamily,
 				RasterTextureSize,
 				RasterTextureRect,
-				ViewFamily.EngineShowFlags.VisualizeNanite
+				Nanite::EOutputBufferMode::VisBuffer,
+				true, // bClearTarget
+				nullptr, 0, // Rect buffers
+				nullptr, // ExternalDepthBuffer
+				false, // bCustomPass
+				bVisualizeActive,
+				bVisualizeOverdraw
 			);
 		}
 
@@ -2727,7 +2749,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			// NOTE: Must be done after  system texture initialization
 			// TODO: This doesn't take into account the potential for split screen views with separate shadow caches
 			const bool bEnableVirtualShadowMaps = UseVirtualShadowMaps(ShaderPlatform, FeatureLevel) && ViewFamily.EngineShowFlags.DynamicShadows;
-			VirtualShadowMapArray.Initialize(GraphBuilder, Scene->GetVirtualShadowMapCache(), bEnableVirtualShadowMaps);
+			VirtualShadowMapArray.Initialize(GraphBuilder, Scene->GetVirtualShadowMapCache(), bEnableVirtualShadowMaps, ViewFamily.EngineShowFlags);
 
 			if (InitViewTaskDatas.LumenFrameTemporaries)
 			{
@@ -3782,7 +3804,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 					FFrontLayerTranslucencyData FrontLayerTranslucencyData = RenderFrontLayerTranslucency(GraphBuilder, Views, SceneTextures, true /*VSM page marking*/);
 
-					VirtualShadowMapArray.BuildPageAllocations(GraphBuilder, GetActiveSceneTextures(), Views, ViewFamily.EngineShowFlags, SortedLightSet, VisibleLightInfos, SingleLayerWaterPrePassResult, FrontLayerTranslucencyData);
+					VirtualShadowMapArray.BuildPageAllocations(GraphBuilder, GetActiveSceneTextures(), Views, SortedLightSet, VisibleLightInfos, SingleLayerWaterPrePassResult, FrontLayerTranslucencyData);
 				}
 
 				RenderShadowDepthMaps(GraphBuilder, InstanceCullingManager, ExternalAccessQueue);

@@ -268,7 +268,6 @@ bool FSceneRenderer::RenderCustomDepthPass(
 			ViewFamily,
 			RasterTextureSize,
 			RasterTextureRect,
-			false, // bVisualize
 			Nanite::EOutputBufferMode::VisBuffer,
 			true, // bClearTarget
 			nullptr, // RectMinMaxBufferSRV

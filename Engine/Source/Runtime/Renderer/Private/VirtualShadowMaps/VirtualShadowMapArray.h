@@ -213,7 +213,11 @@ public:
 	FVirtualShadowMapArray(FScene& InScene);
 	~FVirtualShadowMapArray();
 
-	void Initialize(FRDGBuilder& GraphBuilder, FVirtualShadowMapArrayCacheManager* InCacheManager, bool bInEnabled);
+	void Initialize(
+		FRDGBuilder& GraphBuilder,
+		FVirtualShadowMapArrayCacheManager* InCacheManager,
+		bool bInEnabled,
+		const FEngineShowFlags& EngineShowFlags);
 
 	// Returns true if virtual shadow maps are enabled
 	bool IsEnabled() const
@@ -279,7 +283,6 @@ public:
 		FRDGBuilder& GraphBuilder,
 		const FMinimalSceneTextures& SceneTextures,
 		const TConstArrayView<FViewInfo> &Views,
-		const FEngineShowFlags& EngineShowFlags,
 		const FSortedLightSetSceneInfo& SortedLights, 
 		const TConstArrayView<FVisibleLightInfo>& VisibleLightInfos,
 		const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult,
@@ -393,6 +396,8 @@ public:
 	// Debug visualization
 	TArray<FRDGTextureRef> DebugVisualizationOutput;
 	TArray<FVirtualShadowMapVisualizeLightSearch> VisualizeLight;
+	bool bEnableVisualization = false;
+	bool bEnableNaniteVisualization = false;
 
 private:
 	void UpdateVisualizeLight(

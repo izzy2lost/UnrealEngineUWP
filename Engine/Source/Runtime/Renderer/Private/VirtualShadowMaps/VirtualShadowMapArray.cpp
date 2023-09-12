@@ -387,7 +387,11 @@ void FVirtualShadowMapArray::UpdateNextData(int32 PrevVirtualShadowMapId, int32 
 	NextData[PrevVirtualShadowMapId].PageAddressOffset = FIntVector2(PageOffset.X, PageOffset.Y);
 }
 
-void FVirtualShadowMapArray::Initialize(FRDGBuilder& GraphBuilder, FVirtualShadowMapArrayCacheManager* InCacheManager, bool bInEnabled)
+void FVirtualShadowMapArray::Initialize(
+	FRDGBuilder& GraphBuilder,
+	FVirtualShadowMapArrayCacheManager* InCacheManager,
+	bool bInEnabled,
+	const FEngineShowFlags& EngineShowFlags)
 {
 	bInitialized = true;
 	bEnabled = bInEnabled;
@@ -464,9 +468,22 @@ void FVirtualShadowMapArray::Initialize(FRDGBuilder& GraphBuilder, FVirtualShado
 		// when there are fewer lights in the scene and/or clustered shading settings differ.
 		UniformParameters.PackedShadowMaskMaxLightCount = FMath::Min(CVarVirtualShadowOnePassProjectionMaxLights.GetValueOnRenderThread(), 32);
 
+		// Set up nanite visualization if enabled. We use an extra array slice in the physical page pool for debug output
+		// so need to set this up in advance.
+		if (EngineShowFlags.VisualizeVirtualShadowMap)
+		{
+			bEnableVisualization = true;
+
+			FVirtualShadowMapVisualizationData& VisualizationData = GetVirtualShadowMapVisualizationData();
+			if (VisualizationData.GetActiveModeID() == VIRTUAL_SHADOW_MAP_VISUALIZE_NANITE_OVERDRAW)
+			{
+				bEnableNaniteVisualization = true;
+			}
+		}
+
 		// If enabled, ensure we have a properly-sized physical page pool
 		// We can do this here since the pool is independent of the number of shadow maps
-		const int PoolArraySize = ShouldCacheStaticSeparately() ? 2 : 1;
+		const int PoolArraySize = bEnableNaniteVisualization ? 3 : (ShouldCacheStaticSeparately() ? 2 : 1);
 		CacheManager->SetPhysicalPoolSize(GraphBuilder, GetPhysicalPoolSize(), PoolArraySize, GetMaxPhysicalPages());
 		PhysicalPagePoolRDG = GraphBuilder.RegisterExternalTexture(CacheManager->GetPhysicalPagePool());
 		PhysicalPageMetaDataRDG = GraphBuilder.RegisterExternalBuffer(CacheManager->GetPhysicalPageMetaData());
@@ -1243,7 +1260,6 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
 	const TConstArrayView<FViewInfo>& Views,
-	const FEngineShowFlags& EngineShowFlags,
 	const FSortedLightSetSceneInfo& SortedLightsInfo,
 	const TConstArrayView<FVisibleLightInfo>& VisibleLightInfos,
 	const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult,
@@ -1269,35 +1285,27 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(StaticInvalidatingPrimitivesRDG), 0);
 	}
 
-	bool bDebugOutputEnabled = false;
 	VisualizeLight.Reset();
 	VisualizeLight.AddDefaulted(Views.Num());
 
 #if !UE_BUILD_SHIPPING
 	if (GDumpVSMLightNames)
 	{
-		bDebugOutputEnabled = true;
 		UE_LOG(LogRenderer, Display, TEXT("Lights with Virtual Shadow Maps:"));
 	}
 
-	// Setup debug visualization/output if enabled
+	// Setup debug visualization output if enabled
+	if (bEnableVisualization)
 	{
 		FVirtualShadowMapVisualizationData& VisualizationData = GetVirtualShadowMapVisualizationData();
 	
 		for (const FViewInfo& View : Views)
 		{
-			const FName& VisualizationMode = View.CurrentVirtualShadowMapVisualizationMode;
-			// for stereo views that aren't multi-view, don't account for the left
-			FIntPoint Extent = View.ViewRect.Max - View.ViewRect.Min;
-			if (VisualizationData.Update(VisualizationMode))
+			VisualizationData.Update(View.CurrentVirtualShadowMapVisualizationMode);
+			if (VisualizationData.IsActive())
 			{
-				// TODO - automatically enable the show flag when set from command line?
-				//EngineShowFlags.SetVisualizeVirtualShadowMap(true);
-			}
-
-			if (VisualizationData.IsActive() && EngineShowFlags.VisualizeVirtualShadowMap)
-			{
-				bDebugOutputEnabled = true;
+				// for stereo views that aren't multi-view, don't account for the left
+				FIntPoint Extent = View.ViewRect.Max - View.ViewRect.Min;
 				DebugVisualizationOutput.Add(CreateDebugVisualizationTexture(GraphBuilder, Extent));
 			}
 		}
@@ -1755,6 +1763,16 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 				0
 			);
 		}
+	}
+
+	// If present, we always clear the entire third slice of the array as that is used for visualization for the current render
+	// TODO: There are potentially interesting cases where we allow the visualization to live along with cached data as well, but
+	// for current performance debug purposes this is more directly in line with the cost of that page on a given frame.
+	if (PhysicalPagePoolRDG->Desc.ArraySize >= 3)
+	{
+		// Clear only array slice 2
+		FRDGTextureUAVDesc Desc(PhysicalPagePoolRDG, 0 /* MipLevel */, PF_Unknown, 2, 1);
+		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(Desc), 0U);
 	}
 
 	UniformParameters.PageTable = GraphBuilder.CreateSRV(PageTableRDG);
@@ -2612,11 +2630,14 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNanite(FRDGBuilder& GraphBui
 		SceneRenderer.ViewFamily,
 		VirtualShadowSize,
 		VirtualShadowViewRect,
-		false,
 		Nanite::EOutputBufferMode::DepthOnly,
 		false,	// Clear entire texture
 		nullptr, 0,
-		PhysicalPagePoolRDG);
+		PhysicalPagePoolRDG,
+		false, // Custom pass
+		bEnableNaniteVisualization,
+		bEnableNaniteVisualization	// Overdraw is the only currently supported mode
+	);
 
 	const FViewInfo& SceneView = SceneRenderer.Views[0];
 

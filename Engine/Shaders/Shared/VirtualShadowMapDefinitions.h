@@ -18,6 +18,7 @@ VirtualShadowMapDefinitions.h: used in virtual shadow map shaders and C++ code t
 #define VIRTUAL_SHADOW_MAP_VISUALIZE_DIRTY_PAGE					(1 << 7)
 #define VIRTUAL_SHADOW_MAP_VISUALIZE_GPU_INVALIDATED_PAGE		(1 << 8)
 #define VIRTUAL_SHADOW_MAP_VISUALIZE_MERGED_PAGE				(1 << 9)
+#define VIRTUAL_SHADOW_MAP_VISUALIZE_NANITE_OVERDRAW			(1 << 10)
 
 
 #define VSM_PROJ_FLAG_CURRENT_DISTANT_LIGHT (1U << 0)

@@ -42,6 +42,13 @@ void FVirtualShadowMapVisualizationData::Initialize()
 			VIRTUAL_SHADOW_MAP_VISUALIZE_CACHED_PAGE);
 
 		AddVisualizationMode(
+			TEXT("naniteoverdraw"),
+			LOCTEXT("NaniteOverdraw", "Nanite Overdraw"),
+			LOCTEXT("NaniteOverdrawDesc", "Nanite overdraw into mapped pages"),
+			FModeType::Standard,
+			VIRTUAL_SHADOW_MAP_VISUALIZE_NANITE_OVERDRAW);
+
+		AddVisualizationMode(
 			TEXT("raycount"),
 			LOCTEXT("SMRTRayCount", "SMRT Ray Count"),
 			LOCTEXT("SMRTRayCountDesc", "Rays evaluated per pixel: red is more, green is fewer. Penumbra regions require more rays and are more expensive."),

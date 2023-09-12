@@ -909,8 +909,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		// Important that this uses consistent logic throughout the frame, so evaluate once and pass in the flag from here
 		// NOTE: Must be done after  system texture initialization
-		// TODO: This doesn't take into account the potential for split screen views with separate shadow caches
-		VirtualShadowMapArray.Initialize(GraphBuilder, Scene->GetVirtualShadowMapCache(), UseVirtualShadowMaps(ShaderPlatform, FeatureLevel));
+		VirtualShadowMapArray.Initialize(GraphBuilder, Scene->GetVirtualShadowMapCache(), UseVirtualShadowMaps(ShaderPlatform, FeatureLevel), ViewFamily.EngineShowFlags);
 	}
 
 	FInitViewTaskDatas InitViewTaskDatas(VisibilityTaskData);

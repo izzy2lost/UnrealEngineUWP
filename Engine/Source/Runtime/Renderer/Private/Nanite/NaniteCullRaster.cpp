@@ -1154,9 +1154,10 @@ class FMicropolyRasterizeCS : public FNaniteMaterialShader
 			return false;
 		}
 
-		if (PermutationVector.Get<FDepthOnlyDim>() && PermutationVector.Get<FVisualizeDim>())
+		if (PermutationVector.Get<FVisualizeDim>() &&
+			(PermutationVector.Get<FDepthOnlyDim>() && !PermutationVector.Get<FVirtualTextureTargetDim>()))
 		{
-			// Visualization not supported with depth only
+			// Visualization not supported with standard depth only, but is with VSM
 			return false;
 		}
 
@@ -1484,9 +1485,10 @@ public:
 			return false;
 		}
 
-		if (PermutationVector.Get<FDepthOnlyDim>() && PermutationVector.Get<FVisualizeDim>())
+		if (PermutationVector.Get<FVisualizeDim>() &&
+			(PermutationVector.Get<FDepthOnlyDim>() && !PermutationVector.Get<FVirtualTextureTargetDim>()))
 		{
-			// Visualization not supported with depth only
+			// Visualization not supported with standard depth only, but is with VSM
 			return false;
 		}
 
@@ -1574,22 +1576,25 @@ void SetupProgrammableRasterizePermutationVectors(
 	FHWRasterizePS::FPermutationDomain& PermutationVectorPS,
 	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorCS)
 {
-	PermutationVectorVS.Set<FHWRasterizeVS::FDepthOnlyDim>(RasterMode == EOutputBufferMode::DepthOnly);
+	bool bDepthOnly = RasterMode == EOutputBufferMode::DepthOnly;
+	bool bEnableVisualize = bVisualizeActive && (!bDepthOnly || bHasVirtualShadowMapArray);
+
+	PermutationVectorVS.Set<FHWRasterizeVS::FDepthOnlyDim>(bDepthOnly);
 	PermutationVectorVS.Set<FHWRasterizeVS::FPrimShaderDim>(bUsePrimitiveShader);
 	PermutationVectorVS.Set<FHWRasterizeVS::FVirtualTextureTargetDim>(bHasVirtualShadowMapArray);
 
-	PermutationVectorMS.Set<FHWRasterizeMS::FDepthOnlyDim>(RasterMode == EOutputBufferMode::DepthOnly);
+	PermutationVectorMS.Set<FHWRasterizeMS::FDepthOnlyDim>(bDepthOnly);
 	PermutationVectorMS.Set<FHWRasterizeMS::FVirtualTextureTargetDim>(bHasVirtualShadowMapArray);
 
-	PermutationVectorPS.Set<FHWRasterizePS::FDepthOnlyDim>(RasterMode == EOutputBufferMode::DepthOnly);
+	PermutationVectorPS.Set<FHWRasterizePS::FDepthOnlyDim>(bDepthOnly);
 	PermutationVectorPS.Set<FHWRasterizePS::FMeshShaderDim>(bUseMeshShader);
 	PermutationVectorPS.Set<FHWRasterizePS::FPrimShaderDim>(bUsePrimitiveShader);
-	PermutationVectorPS.Set<FHWRasterizePS::FVisualizeDim>(bVisualizeActive && RasterMode != EOutputBufferMode::DepthOnly);
+	PermutationVectorPS.Set<FHWRasterizePS::FVisualizeDim>(bEnableVisualize);
 	PermutationVectorPS.Set<FHWRasterizePS::FVirtualTextureTargetDim>(bHasVirtualShadowMapArray);
 
 	// SW Rasterize
-	PermutationVectorCS.Set<FMicropolyRasterizeCS::FDepthOnlyDim>(RasterMode == EOutputBufferMode::DepthOnly);
-	PermutationVectorCS.Set<FMicropolyRasterizeCS::FVisualizeDim>(bVisualizeActive && RasterMode != EOutputBufferMode::DepthOnly);
+	PermutationVectorCS.Set<FMicropolyRasterizeCS::FDepthOnlyDim>(bDepthOnly);
+	PermutationVectorCS.Set<FMicropolyRasterizeCS::FVisualizeDim>(bEnableVisualize);
 	PermutationVectorCS.Set<FMicropolyRasterizeCS::FVirtualTextureTargetDim>(bHasVirtualShadowMapArray);
 }
 
@@ -3906,13 +3911,14 @@ FRasterContext InitRasterContext(
 	const FViewFamilyInfo& ViewFamily,
 	FIntPoint TextureSize,
 	FIntRect TextureRect,
-	bool bVisualize,
 	EOutputBufferMode RasterMode,
 	bool bClearTarget,
 	FRDGBufferSRVRef RectMinMaxBufferSRV,
 	uint32 NumRects,
 	FRDGTextureRef ExternalDepthBuffer,
-	bool bCustomPass
+	bool bCustomPass,
+	bool bVisualize,
+	bool bVisualizeOverdraw
 )
 {
 	// If an external depth buffer is provided, it must match the context size
@@ -3922,24 +3928,11 @@ FRasterContext InitRasterContext(
 	LLM_SCOPE_BYTAG(Nanite);
 	RDG_EVENT_SCOPE(GraphBuilder, "Nanite::InitContext");
 
-	const FNaniteVisualizationData& VisualizationData = GetNaniteVisualizationData();
-
 	FRasterContext RasterContext{};
 
 	RasterContext.bCustomPass = bCustomPass;
-	RasterContext.VisualizeActive = VisualizationData.IsActive() && bVisualize;
-	if (RasterContext.VisualizeActive)
-	{
-		if (VisualizationData.GetActiveModeID() == 0) // Overview
-		{
-			RasterContext.VisualizeModeOverdraw = VisualizationData.GetOverviewModeIDs().Contains(NANITE_VISUALIZE_OVERDRAW);
-		}
-		else
-		{
-			RasterContext.VisualizeModeOverdraw = (VisualizationData.GetActiveModeID() == NANITE_VISUALIZE_OVERDRAW);
-		}
-	}
-
+	RasterContext.VisualizeActive = bVisualize;
+	RasterContext.VisualizeModeOverdraw = bVisualize && bVisualizeOverdraw;
 	RasterContext.TextureSize = TextureSize;
 
 	// Set rasterizer scheduling based on config and platform capabilities.

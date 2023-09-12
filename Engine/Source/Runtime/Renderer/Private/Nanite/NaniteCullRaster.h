@@ -118,13 +118,14 @@ FRasterContext InitRasterContext(
 	const FViewFamilyInfo& ViewFamily,
 	FIntPoint TextureSize,
 	FIntRect TextureRect,
-	bool bVisualize,
 	EOutputBufferMode RasterMode = EOutputBufferMode::VisBuffer,
 	bool bClearTarget = true,
 	FRDGBufferSRVRef RectMinMaxBufferSRV = nullptr,
 	uint32 NumRects = 0,
 	FRDGTextureRef ExternalDepthBuffer = nullptr,
-	bool bCustomPass = false
+	bool bCustomPass = false,
+	bool bVisualize = false,
+	bool bVisualizeOverdraw = false
 );
 
 struct FConfiguration

@@ -701,7 +701,7 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 
 		FIntRect HitProxyTextureRect(0, 0, HitProxyTextureSize.X, HitProxyTextureSize.Y);
 
-		Nanite::FRasterContext RasterContext = Nanite::InitRasterContext(GraphBuilder, SharedContext, ViewFamily, HitProxyTextureSize, HitProxyTextureRect, false);
+		Nanite::FRasterContext RasterContext = Nanite::InitRasterContext(GraphBuilder, SharedContext, ViewFamily, HitProxyTextureSize, HitProxyTextureRect);
 
 		Nanite::FConfiguration CullingConfig = {0};
 

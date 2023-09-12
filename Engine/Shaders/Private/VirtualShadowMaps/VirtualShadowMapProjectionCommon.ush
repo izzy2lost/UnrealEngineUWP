@@ -478,16 +478,3 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapTranslatedWorld(int VirtualS
 	FLWCVector3 WorldPosition = LWCSubtract(TranslatedWorldPosition, PrimaryView.PreViewTranslation);
 	return SampleVirtualShadowMapInner(VirtualShadowMapId, WorldPosition, RayStartDistance, false, float3(0, 0, 0));
 }
-
-// LWC_TODO: Provided for compatibility with other systems that have not yet been updated to use the FLWCVector3 or
-// PrimaryView TranslatedWorldPosition versions below.
-FVirtualShadowMapSampleResult SampleVirtualShadowMapLWCHack(int VirtualShadowMapId, float3 WorldPosition, float RayStartDistance, float3 EstimatedGeoWorldNormal)
-{
-	FLWCVector3 WorldPositionLWC = LWCPromote(WorldPosition);
-	return SampleVirtualShadowMapInner(VirtualShadowMapId, WorldPositionLWC, RayStartDistance, true, EstimatedGeoWorldNormal);
-}
-FVirtualShadowMapSampleResult SampleVirtualShadowMapLWCHack(int VirtualShadowMapId, float3 WorldPosition, float RayStartDistance = 0.0f)
-{
-	FLWCVector3 WorldPositionLWC = LWCPromote(WorldPosition);
-	return SampleVirtualShadowMapInner(VirtualShadowMapId, WorldPositionLWC, RayStartDistance, false, float3(0, 0, 0));
-}

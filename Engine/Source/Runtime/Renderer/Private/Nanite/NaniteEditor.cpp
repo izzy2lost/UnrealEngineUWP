@@ -156,7 +156,6 @@ static void GetEditorSelectionVisBuffer(
 		*(const FViewFamilyInfo*)SceneView.Family,
 		RasterTextureSize,
 		RasterViewRect,
-		false, // bVisualize
 		Nanite::EOutputBufferMode::VisBuffer,
 		true // bClearTarget
 	);

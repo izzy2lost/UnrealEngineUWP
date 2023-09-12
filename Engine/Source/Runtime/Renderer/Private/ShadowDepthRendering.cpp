@@ -1461,7 +1461,7 @@ static void RenderShadowDepthAtlasNanite(
 				CullingConfig.bExtractStats = Nanite::IsStatFilterActive(AtlasFilterName);
 			}
 	
-			Nanite::FRasterContext RasterContext = Nanite::InitRasterContext(GraphBuilder, SharedContext, ViewFamily, AtlasSize, FullAtlasViewRect, false, Nanite::EOutputBufferMode::DepthOnly);
+			Nanite::FRasterContext RasterContext = Nanite::InitRasterContext(GraphBuilder, SharedContext, ViewFamily, AtlasSize, FullAtlasViewRect, Nanite::EOutputBufferMode::DepthOnly);
 	
 			TUniquePtr<Nanite::IRenderer> NaniteRenderer = Nanite::IRenderer::Create(
 				GraphBuilder,
@@ -1799,7 +1799,7 @@ void FSceneRenderer::RenderShadowDepthMaps(FRDGBuilder& GraphBuilder, FInstanceC
 						CullingConfig.bExtractStats = Nanite::IsStatFilterActive(CubeFaceFilterName);
 					}
 
-					Nanite::FRasterContext RasterContext = Nanite::InitRasterContext(GraphBuilder, SharedContext, ViewFamily, TargetSize, ShadowViewRect, false, Nanite::EOutputBufferMode::DepthOnly);
+					Nanite::FRasterContext RasterContext = Nanite::InitRasterContext(GraphBuilder, SharedContext, ViewFamily, TargetSize, ShadowViewRect, Nanite::EOutputBufferMode::DepthOnly);
 
 					auto NaniteRenderer = Nanite::IRenderer::Create(
 						GraphBuilder,
