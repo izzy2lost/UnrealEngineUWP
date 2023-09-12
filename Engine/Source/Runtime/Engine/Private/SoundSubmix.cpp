@@ -621,6 +621,113 @@ void USoundSubmixBase::PostLoad()
 	}
 }
 
+
+TObjectPtr<USoundSubmixBase> USoundSubmixWithParentBase::GetParent(Audio::FDeviceId InDeviceId) const
+{
+	// Dynamic parent?
+	if (const TObjectPtr<USoundSubmixBase>* pFound = DynamicParentSubmix.Find(InDeviceId))
+	{
+		return *pFound;
+	}
+	return ParentSubmix;
+}
+
+bool USoundSubmixWithParentBase::DynamicConnect(const UObject* WorldContextObject, USoundSubmixBase* InParent)
+{	
+	if (!WorldContextObject)
+	{
+		UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicConnect): World Context is null for [%s]"), *GetName());
+		return false;
+	}
+		
+	const UWorld* World = WorldContextObject->GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicConnect): World is null for [%s]"), *GetName());		
+		return false;
+	}
+
+	FAudioDeviceHandle Handle = World->GetAudioDevice();
+	if (!Handle.IsValid())
+	{
+		UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicConnect): No valid audio device in this world for [%s]"), *GetName());				
+		return false;
+	}
+
+	const Audio::DeviceID Id = Handle.GetDeviceID();
+	
+	TObjectPtr<USoundSubmixBase>& CurrentParent = DynamicParentSubmix.FindOrAdd(Id);
+
+	if (CurrentParent != InParent)
+	{
+		if (CurrentParent)
+		{
+			CurrentParent->DynamicChildSubmixes.FindOrAdd(Id).ChildSubmixes.Remove(this);
+			UE_LOG(LogAudio, Verbose, TEXT("Submix (DynamicConnect): Reparenting [%s] and removing from it's parent [%s]"), *GetName(), *CurrentParent->GetName());
+		}
+
+		CurrentParent = InParent;
+
+		if (CurrentParent)
+		{
+			CurrentParent->DynamicChildSubmixes.FindOrAdd(Id).ChildSubmixes.AddUnique(this);
+			UE_LOG(LogAudio, Verbose, TEXT("Submix (DynamicConnect): Reparenting [%s] and adding to it's new parent [%s]"), *GetName(), *CurrentParent->GetName());
+		}
+
+		Handle->RegisterSoundSubmix(this, true);
+		UE_LOG(LogAudio, Verbose, TEXT("Submix (DynamicConnect): Registering [%s] with World's [%s] AudioDevice [%u]"), *GetName(), *World->GetName(), Handle.GetDeviceID());
+
+		return CurrentParent != nullptr;
+	}
+
+	UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicConnect): Submix [%s] was already connected to [%s]"), *GetName(), *GetNameSafe(CurrentParent));
+	return false;
+}
+bool USoundSubmixWithParentBase::DynamicDisconnect(const UObject* WorldContextObject)
+{
+	if (!WorldContextObject)
+	{
+		UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicDisconnect): World Context is null for [%s]"), *GetName());
+		return false;
+	}
+		
+	const UWorld* World = WorldContextObject->GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicDisconnect): World is null for [%s]"), *GetName());		
+		return false;
+	}
+
+	FAudioDeviceHandle Handle = World->GetAudioDevice();
+	if (!Handle.IsValid())
+	{
+		UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicDisconnect): No valid audio device in this world for [%s]"), *GetName());				
+		return false;
+	}
+
+	const Audio::DeviceID Id = Handle.GetDeviceID();
+
+	TObjectPtr<USoundSubmixBase>& CurrentParent = DynamicParentSubmix.FindOrAdd(Id);
+
+	if (CurrentParent)
+	{
+		UE_LOG(LogAudio, Verbose, TEXT("Submix (DynamicDisconnect): Removing [%s] from it's parent [%s]"), *GetName(), *CurrentParent->GetName());
+		
+		CurrentParent->DynamicChildSubmixes.FindOrAdd(Id).ChildSubmixes.Remove(this);
+		CurrentParent = nullptr;
+
+		Handle->UnregisterSoundSubmix(this);
+
+		UE_LOG(LogAudio, Verbose, TEXT("Submix (DynamicDisconnect): Unregistering [%s] with World's [%s] AudioDevice [%u]"), 
+		       *GetName(), *World->GetName(), Handle.GetDeviceID());
+
+		return true;
+	}
+
+	UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicDisconnect): Submix was not connected to any dynamic parent [%s]"), *GetName());
+	return false;
+}
+
 #if WITH_EDITOR
 
 void USoundSubmixBase::PostDuplicate(EDuplicateMode::Type DuplicateMode)
@@ -743,6 +850,7 @@ void USoundSubmixWithParentBase::SetParentSubmix(USoundSubmixBase* InParentSubmi
 		}
 	}
 }
+
 
 #if WITH_EDITOR
 void USoundSubmixWithParentBase::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)

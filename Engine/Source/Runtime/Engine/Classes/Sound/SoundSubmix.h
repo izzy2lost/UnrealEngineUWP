@@ -159,6 +159,15 @@ public:
 };
 #endif
 
+USTRUCT()
+struct FDynamicChildSubmix  
+{
+	GENERATED_USTRUCT_BODY()
+	
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USoundSubmixBase>> ChildSubmixes;
+};
+
 UCLASS(config = Engine, abstract, hidecategories = Object, editinlinenew, BlueprintType, MinimalAPI)
 class USoundSubmixBase : public UObject
 {
@@ -182,6 +191,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = SoundSubmix)
 	TArray<TObjectPtr<USoundSubmixBase>> ChildSubmixes;
 
+	// Dynamic Child submixes
+	UPROPERTY(Transient)
+	TMap<uint32, FDynamicChildSubmix> DynamicChildSubmixes;
+	
 protected:
 	//~ Begin UObject Interface.
 	ENGINE_API virtual FString GetDesc() override;
@@ -228,9 +241,26 @@ class USoundSubmixWithParentBase : public USoundSubmixBase
 	GENERATED_UCLASS_BODY()
 public:
 
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = SoundSubmix)
 	TObjectPtr<USoundSubmixBase> ParentSubmix;
 
+	/**
+	* Holds the dynamic (not serialized) parent for this Submix.
+	* Overrides the serialized one.
+	*/
+	
+	ENGINE_API TObjectPtr<USoundSubmixBase> GetParent(Audio::FDeviceId InDeviceId) const;
+	
+	UPROPERTY(Transient)
+	TMap<uint32, TObjectPtr<USoundSubmixBase>> DynamicParentSubmix;
+
+	UFUNCTION(BlueprintCallable, Category = "Audio", meta = (WorldContext = "WorldContextObject", DisplayName = "Connect"))
+	ENGINE_API bool DynamicConnect(const UObject* WorldContextObject, USoundSubmixBase* Parent);
+	
+	UFUNCTION(BlueprintCallable, Category = "Audio", meta = (WorldContext = "WorldContextObject", DisplayName = "Disconnect"))
+	ENGINE_API bool DynamicDisconnect(const UObject* WorldContextObject);
+	
 	/**
 	* Set the parent submix of this SoundSubmix, removing it as a child from its previous owner
 	*

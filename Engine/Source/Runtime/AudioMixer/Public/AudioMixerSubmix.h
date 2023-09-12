@@ -337,6 +337,9 @@ namespace Audio
 
 		AUDIOMIXER_API FSoundfieldSpeakerPositionalData GetDefaultPositionalDataForAudioDevice();
 
+		AUDIOMIXER_API TWeakPtr<FMixerSubmix, ESPMode::ThreadSafe>  GetParent() const { return ParentSubmix; }
+		AUDIOMIXER_API const TMap<uint32, FChildSubmixInfo>& GetChildren() const { return ChildSubmixes; }
+
 	protected:
 		// Initialize the submix internal
 		AUDIOMIXER_API void InitInternal();
