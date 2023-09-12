@@ -15,67 +15,92 @@ enum class EPCGUnitTestDummyEnum : int64
 };
 
 UCLASS(MinimalAPI, NotBlueprintable, NotPlaceable, NotBlueprintType, Transient, HideDropdown, meta = (Hidden))
+class UPCGDummyGetPropertyTest : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	int64 Int64Property = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	double DoubleProperty = 0.0;
+};
+
+UCLASS(MinimalAPI, NotBlueprintable, NotPlaceable, NotBlueprintType, Transient, HideDropdown, meta = (Hidden))
 class APCGUnitTestDummyActor : public AActor
 {
 	GENERATED_BODY()
 
 public:
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category="")
 	int IntProperty = 0;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	float FloatProperty = 0.0f;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	int64 Int64Property = 0;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	double DoubleProperty = 0.0;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	bool BoolProperty = false;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	FName NameProperty = NAME_None;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	FString StringProperty = "";
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	EPCGUnitTestDummyEnum EnumProperty = EPCGUnitTestDummyEnum::One;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	FVector VectorProperty;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	FVector4 Vector4Property;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	FTransform TransformProperty;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	FRotator RotatorProperty;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	FQuat QuatProperty;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	FSoftObjectPath SoftObjectPathProperty;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	FSoftClassPath SoftClassPathProperty;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	TSubclassOf<AActor> ClassProperty = AActor::StaticClass();
 
-	UPROPERTY()
-	TObjectPtr<UObject> ObjectProperty = nullptr;
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	TObjectPtr<UPCGDummyGetPropertyTest> ObjectProperty = nullptr;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	FVector2D Vector2Property;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	FColor ColorProperty;
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	TArray<int32> ArrayOfIntsProperty;
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	TArray<FVector> ArrayOfVectorsProperty;
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	TArray<FColor> ArrayOfStructsProperty;
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	TArray<TObjectPtr<UPCGDummyGetPropertyTest>> ArrayOfObjectsProperty;
 };
 
 UCLASS(MinimalAPI, NotBlueprintable, NotPlaceable, NotBlueprintType, Transient, HideDropdown, meta = (Hidden))
@@ -84,6 +109,6 @@ class UPCGUnitTestDummyComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	int IntProperty = 0;
 };
