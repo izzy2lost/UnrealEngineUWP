@@ -1754,6 +1754,7 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 			switch (ControlElement->Settings.ControlType)
 			{
 				case ERigControlType::Float:
+				case ERigControlType::ScaleFloat:
 				{
 					for (FScalarParameterNameAndCurve& Scalar : GetScalarParameterNamesAndCurves())
 					{
@@ -2507,6 +2508,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 		switch (ControlElement->Settings.ControlType)
 		{
 		case ERigControlType::Float:
+		case ERigControlType::ScaleFloat:
 		{
 			TOptional<float> DefaultValue;
 			if (bSetDefault)
@@ -2971,6 +2973,7 @@ void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber Fra
 					break;
 				}
 				case ERigControlType::Float:
+				case ERigControlType::ScaleFloat:
 				{
 					float Val = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<float>();
 					if (bSetDefault)

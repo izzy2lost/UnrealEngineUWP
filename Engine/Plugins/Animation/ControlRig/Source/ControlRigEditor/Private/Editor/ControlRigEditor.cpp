@@ -3621,6 +3621,7 @@ void FControlRigEditor::HandleMakeElementGetterSetter(ERigElementGetterSetterTyp
 						break;
 					}
 					case ERigControlType::Float:
+					case ERigControlType::ScaleFloat:
 					{
 						if(bIsGetter)
 						{
@@ -3742,6 +3743,7 @@ void FControlRigEditor::HandleMakeElementGetterSetter(ERigElementGetterSetterTyp
 								break;
 							}
 							case ERigControlType::Float:
+							case ERigControlType::ScaleFloat:
 							{
 								NamePins.Add(TEXT("Control"));
 								StructTemplate = FRigUnit_GetControlFloat::StaticStruct();
@@ -3830,6 +3832,7 @@ void FControlRigEditor::HandleMakeElementGetterSetter(ERigElementGetterSetterTyp
 								break;
 							}
 							case ERigControlType::Float:
+							case ERigControlType::ScaleFloat:
 							{
 								NamePins.Add(TEXT("Control"));
 								StructTemplate = FRigUnit_SetControlFloat::StaticStruct();

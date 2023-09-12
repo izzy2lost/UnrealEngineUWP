@@ -80,7 +80,7 @@ FRigUnit_GetFloatAnimationChannel_Execute()
 
 	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
 	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Float)
+		if(ChannelElement->Settings.ControlType == ERigControlType::Float || ChannelElement->Settings.ControlType == ERigControlType::ScaleFloat)
 		{
 			const FRigControlValue StoredValue = ExecuteContext.Hierarchy->GetControlValueByIndex(ChannelElement->GetIndex(), bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
 			Value = StoredValue.Get<float>();
@@ -242,7 +242,7 @@ FRigUnit_SetFloatAnimationChannel_Execute()
 
 	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
 	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Float)
+		if(ChannelElement->Settings.ControlType == ERigControlType::Float || ChannelElement->Settings.ControlType == ERigControlType::ScaleFloat)
 		{
 			const FRigControlValue ValueToStore = FRigControlValue::Make<float>(Value);
 			ExecuteContext.Hierarchy->SetControlValueByIndex(ChannelElement->GetIndex(), ValueToStore, bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);

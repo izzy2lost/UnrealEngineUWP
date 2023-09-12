@@ -395,6 +395,7 @@ bool FAnimSliderObjectSelection::Setup(const TArray<UControlRig*>& SelectedContr
 							switch (ControlElement->Settings.ControlType)
 							{
 								case ERigControlType::Float:
+								case ERigControlType::ScaleFloat:
 								{
 									NumChannels = 1;
 								}

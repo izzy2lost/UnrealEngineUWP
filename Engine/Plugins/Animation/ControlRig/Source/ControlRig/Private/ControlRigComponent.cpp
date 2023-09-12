@@ -902,7 +902,7 @@ float UControlRigComponent::GetControlFloat(FName ControlName)
 	{
 		if(FRigControlElement* ControlElement = CR->GetHierarchy()->Find<FRigControlElement>(FRigElementKey(ControlName, ERigElementType::Control)))
 		{
-			if (ControlElement->Settings.ControlType == ERigControlType::Float)
+			if (ControlElement->Settings.ControlType == ERigControlType::Float || ControlElement->Settings.ControlType == ERigControlType::ScaleFloat)
 			{
 				return CR->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<float>();
 			}

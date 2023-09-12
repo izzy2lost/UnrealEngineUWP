@@ -99,7 +99,8 @@ void FControlRigEditModeGenericDetails::CustomizeDetails(class IDetailLayoutBuil
 		}
 
 		FName ValuePropertyName = TEXT("Transform");
-		if (ControlElement->Settings.ControlType == ERigControlType::Float)
+		if (ControlElement->Settings.ControlType == ERigControlType::Float ||
+			ControlElement->Settings.ControlType == ERigControlType::ScaleFloat)
 		{
 			ValuePropertyName = TEXT("Float");
 		}
@@ -168,6 +169,7 @@ void FControlRigEditModeGenericDetails::CustomizeDetails(class IDetailLayoutBuil
 								break;
 							}
 							case ERigControlType::Float:
+							case ERigControlType::ScaleFloat:
 							{
 								PropertyName = TEXT("Float");
 								break;

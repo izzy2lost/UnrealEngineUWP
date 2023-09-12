@@ -415,7 +415,7 @@ void FRigUnit_HierarchyAddControlFloat_Settings::Configure(FRigControlSettings& 
 {
 	Super::Configure(OutSettings);
 	
-	OutSettings.ControlType = ERigControlType::Float;
+	OutSettings.ControlType = bIsScale ? ERigControlType::ScaleFloat : ERigControlType::Float;
 	OutSettings.PrimaryAxis = PrimaryAxis;
 
 	Proxy.Configure(OutSettings);
@@ -814,6 +814,45 @@ FRigUnit_HierarchyAddAnimationChannelFloat_Execute()
 	}
 }
 
+FRigUnit_HierarchyAddAnimationChannelScaleFloat_Execute()
+{
+	FString ErrorMessage;
+	if(!FRigUnit_DynamicHierarchyBase::IsValidToRunInContext(ExecuteContext, true, &ErrorMessage))
+	{
+		if(!ErrorMessage.IsEmpty())
+		{
+			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("%s"), *ErrorMessage);
+		}
+		return;
+	}
+
+	Item.Reset();
+
+	if(URigHierarchyController* Controller = ExecuteContext.Hierarchy->GetController(true))
+	{
+		FRigControlSettings ControlSettings;
+		ControlSettings.ControlType = ERigControlType::ScaleFloat;
+		ControlSettings.SetupLimitArrayForType(true, true, true);
+		ControlSettings.MinimumValue = FRigControlValue::Make<float>(MinimumValue);
+		ControlSettings.MaximumValue = FRigControlValue::Make<float>(MaximumValue);
+		ControlSettings.DisplayName = Controller->GetHierarchy()->GetSafeNewDisplayName(Parent, Name);
+		const FRigControlValue Value = FRigControlValue::Make<float>(InitialValue);
+		
+		FRigHierarchyControllerInstructionBracket InstructionBracket(Controller, ExecuteContext.GetInstructionIndex());
+		Item = Controller->AddAnimationChannel(Name, Parent, ControlSettings, false, false);
+
+		if(Item.IsValid())
+		{
+			ExecuteContext.Hierarchy->SetControlValue(Item, Value, ERigControlValueType::Initial, false, false);
+			ExecuteContext.Hierarchy->SetControlValue(Item, Value, ERigControlValueType::Current, false, false);
+		}
+		else
+		{
+			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel could not be added. Is Parent valid?"));
+		}
+	}
+}
+
 FRigUnit_HierarchyAddAnimationChannelInteger_Execute()
 {
 	FString ErrorMessage;
@@ -910,6 +949,45 @@ FRigUnit_HierarchyAddAnimationChannelVector_Execute()
 	{
 		FRigControlSettings ControlSettings;
 		ControlSettings.ControlType = ERigControlType::Position;
+		ControlSettings.SetupLimitArrayForType(true, true, true);
+		ControlSettings.MinimumValue = FRigControlValue::Make<FVector3f>(FVector3f(MinimumValue));
+		ControlSettings.MaximumValue = FRigControlValue::Make<FVector3f>(FVector3f(MaximumValue));
+		ControlSettings.DisplayName = Controller->GetHierarchy()->GetSafeNewDisplayName(Parent, Name);
+		const FRigControlValue Value = FRigControlValue::Make<FVector3f>(FVector3f(InitialValue));
+		
+		FRigHierarchyControllerInstructionBracket InstructionBracket(Controller, ExecuteContext.GetInstructionIndex());
+		Item = Controller->AddAnimationChannel(Name, Parent, ControlSettings, false, false);
+
+		if(Item.IsValid())
+		{
+			ExecuteContext.Hierarchy->SetControlValue(Item, Value, ERigControlValueType::Initial, false, false);
+			ExecuteContext.Hierarchy->SetControlValue(Item, Value, ERigControlValueType::Current, false, false);
+		}
+		else
+		{
+			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel could not be added. Is Parent valid?"));
+		}
+	}
+}
+
+FRigUnit_HierarchyAddAnimationChannelScaleVector_Execute()
+{
+	FString ErrorMessage;
+	if(!FRigUnit_DynamicHierarchyBase::IsValidToRunInContext(ExecuteContext, true, &ErrorMessage))
+	{
+		if(!ErrorMessage.IsEmpty())
+		{
+			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("%s"), *ErrorMessage);
+		}
+		return;
+	}
+
+	Item.Reset();
+
+	if(URigHierarchyController* Controller = ExecuteContext.Hierarchy->GetController(true))
+	{
+		FRigControlSettings ControlSettings;
+		ControlSettings.ControlType = ERigControlType::Scale;
 		ControlSettings.SetupLimitArrayForType(true, true, true);
 		ControlSettings.MinimumValue = FRigControlValue::Make<FVector3f>(FVector3f(MinimumValue));
 		ControlSettings.MaximumValue = FRigControlValue::Make<FVector3f>(FVector3f(MaximumValue));

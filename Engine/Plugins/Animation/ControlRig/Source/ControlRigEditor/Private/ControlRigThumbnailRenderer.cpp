@@ -112,6 +112,7 @@ void UControlRigThumbnailRenderer::AddAdditionalPreviewSceneContent(UObject* Obj
 				switch (ControlElement->Settings.ControlType)
 				{
 					case ERigControlType::Float:
+					case ERigControlType::ScaleFloat:
 					case ERigControlType::Integer:
 					case ERigControlType::Vector2D:
 					case ERigControlType::Position:

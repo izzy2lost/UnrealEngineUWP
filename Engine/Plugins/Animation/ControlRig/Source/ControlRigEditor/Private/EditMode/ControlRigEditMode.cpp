@@ -624,6 +624,7 @@ void FControlRigEditMode::Tick(FEditorViewportClient* ViewportClient, float Delt
 										break;
 									}
 									case ERigControlType::Scale:
+									case ERigControlType::ScaleFloat:
 									{
 										ViewportClient->SetWidgetMode(UE::Widget::WM_Scale);
 										break;
@@ -3233,6 +3234,7 @@ static bool IsSupportedControlType(const ERigControlType ControlType)
 	switch (ControlType)
 	{
 	case ERigControlType::Float:
+	case ERigControlType::ScaleFloat:
 	case ERigControlType::Integer:
 	case ERigControlType::Vector2D:
 	case ERigControlType::Position:
@@ -4288,6 +4290,7 @@ bool FControlRigEditMode::ModeSupportedByShapeActor(const AControlRigShapeActor*
 						switch (ControlElement->Settings.ControlType)
 						{
 							case ERigControlType::Scale:
+							case ERigControlType::ScaleFloat:
 							case ERigControlType::Transform:
 							case ERigControlType::EulerTransform:
 							{

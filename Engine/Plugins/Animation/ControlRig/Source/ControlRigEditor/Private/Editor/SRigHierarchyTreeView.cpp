@@ -894,6 +894,7 @@ FLinearColor SRigHierarchyItem::GetColorForControlType(ERigControlType InControl
 			break;
 		}
 		case ERigControlType::Float:
+		case ERigControlType::ScaleFloat:
 		{
 			PinType = RigVMTypeUtils::PinTypeFromCPPType(RigVMTypeUtils::FloatTypeName, nullptr);
 			break;

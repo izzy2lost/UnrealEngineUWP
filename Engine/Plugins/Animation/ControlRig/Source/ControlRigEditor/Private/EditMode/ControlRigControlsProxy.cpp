@@ -870,6 +870,7 @@ void UControlRigDetailPanelControlProxies::AddProxy(UControlRig* ControlRig, con
 				break;
 			}
 			case ERigControlType::Float:
+			case ERigControlType::ScaleFloat:
 			{
 				Proxy = NewObject<UControlRigFloatControlProxy>(GetTransientPackage(), NAME_None);
 				break;

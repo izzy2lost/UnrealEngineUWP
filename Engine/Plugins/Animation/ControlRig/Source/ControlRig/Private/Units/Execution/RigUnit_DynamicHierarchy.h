@@ -520,6 +520,9 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlFloat_Settings : public FRigUn
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	ERigControlAxis PrimaryAxis;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	bool bIsScale;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	FRigUnit_HierarchyAddControlFloat_LimitSettings Limits;;
@@ -581,7 +584,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlFloat : public FRigUnit_Hierar
 		InitialValue = 0.f;
 	}
 
-	virtual ERigControlType GetControlTypeToSpawn() const override { return ERigControlType::Float; }
+	virtual ERigControlType GetControlTypeToSpawn() const override { return Settings.bIsScale ? ERigControlType::ScaleFloat : ERigControlType::Float; }
 
 	/*
 	 * The initial value of the new control
@@ -1132,6 +1135,45 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelFloat : public FRigUn
  * Adds a new animation channel to the hierarchy
  * Note: This node only runs as part of the construction event.
  */
+USTRUCT(meta=(DisplayName="Spawn Scale Float Animation Channel", TemplateName="SpawnScaleAnimationChannel", Keywords="Construction,Create,New,AddAnimationChannel,NewAnimationChannel,CreateAnimationChannel,AddChannel,NewChannel,CreateChannel,SpawnChannel", Varying))
+struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelScaleFloat : public FRigUnit_HierarchyAddElement
+{
+	GENERATED_BODY()
+
+	FRigUnit_HierarchyAddAnimationChannelScaleFloat()
+	{
+		Name = TEXT("NewChannel");
+		InitialValue = 1.f;
+		MinimumValue = 0.f;
+		MaximumValue = 10.f;
+	}
+
+	/*
+	 * The initial value of the new animation channel
+	 */
+	UPROPERTY(meta = (Input))
+	float InitialValue;
+
+	/*
+	 * The initial value of the new animation channel
+	 */
+	UPROPERTY(meta = (Input))
+	float MinimumValue;
+
+	/*
+	 * The maximum value for the animation channel
+	 */
+	UPROPERTY(meta = (Input))
+	float MaximumValue;
+
+	RIGVM_METHOD()
+	virtual void Execute() override;
+};
+
+/**
+ * Adds a new animation channel to the hierarchy
+ * Note: This node only runs as part of the construction event.
+ */
 USTRUCT(meta=(DisplayName="Spawn Integer Animation Channel", TemplateName="SpawnAnimationChannel", Keywords="Construction,Create,New,AddAnimationChannel,NewAnimationChannel,CreateAnimationChannel,AddChannel,NewChannel,CreateChannel,SpawnChannel", Varying))
 struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelInteger : public FRigUnit_HierarchyAddElement
 {
@@ -1221,6 +1263,45 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelVector : public FRigU
 		InitialValue = FVector::ZeroVector;
 		MinimumValue = FVector::ZeroVector;
 		MaximumValue = FVector(1.f, 1.f, 1.f);
+	}
+
+	/*
+	 * The initial value of the new animation channel
+	 */
+	UPROPERTY(meta = (Input))
+	FVector InitialValue;
+
+	/*
+	 * The initial value of the new animation channel
+	 */
+	UPROPERTY(meta = (Input))
+	FVector MinimumValue;
+
+	/*
+	 * The maximum value for the animation channel
+	 */
+	UPROPERTY(meta = (Input))
+	FVector MaximumValue;
+
+	RIGVM_METHOD()
+	virtual void Execute() override;
+};
+
+/**
+ * Adds a new animation channel to the hierarchy
+ * Note: This node only runs as part of the construction event.
+ */
+USTRUCT(meta=(DisplayName="Spawn Vector Animation Channel", TemplateName="SpawnScaleAnimationChannel", Keywords="Construction,Create,New,AddAnimationChannel,NewAnimationChannel,CreateAnimationChannel,AddChannel,NewChannel,CreateChannel,SpawnChannel", Varying))
+struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelScaleVector : public FRigUnit_HierarchyAddElement
+{
+	GENERATED_BODY()
+
+	FRigUnit_HierarchyAddAnimationChannelScaleVector()
+	{
+		Name = TEXT("NewChannel");
+		InitialValue = FVector::OneVector;
+		MinimumValue = FVector::ZeroVector;
+		MaximumValue = FVector(10.f, 10.f, 10.f);
 	}
 
 	/*

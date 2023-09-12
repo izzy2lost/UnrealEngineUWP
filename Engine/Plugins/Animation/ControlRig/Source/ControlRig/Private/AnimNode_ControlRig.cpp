@@ -407,6 +407,7 @@ void FAnimNode_ControlRig::PropagateInputProperties(const UObject* InSourceInsta
 						break;
 					}
 					case ERigControlType::Float:
+					case ERigControlType::ScaleFloat:
 					{
 						if(ensure(CastField<FFloatProperty>(CallerProperty)))
 						{

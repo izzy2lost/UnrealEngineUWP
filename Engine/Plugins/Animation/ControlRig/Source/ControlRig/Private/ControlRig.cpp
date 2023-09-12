@@ -988,6 +988,7 @@ bool UControlRig::Execute(const FName& InEventName)
 				switch (Settings.ControlType)
 				{
 					case ERigControlType::Float:
+					case ERigControlType::ScaleFloat:
 					{
 						if(Settings.LimitEnabled[0].IsOff())
 						{
@@ -2930,6 +2931,7 @@ UTransformableControlHandle* UControlRig::CreateTransformableControlHandle(
 		const FRigControlSettings& ControlSettings = ControlElement->Settings;
 		if (ControlSettings.ControlType == ERigControlType::Bool ||
 			ControlSettings.ControlType == ERigControlType::Float ||
+			ControlSettings.ControlType == ERigControlType::ScaleFloat ||
 			ControlSettings.ControlType == ERigControlType::Integer)
 		{
 			return false;

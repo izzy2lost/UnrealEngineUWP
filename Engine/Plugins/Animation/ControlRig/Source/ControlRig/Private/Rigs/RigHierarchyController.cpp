@@ -1393,6 +1393,7 @@ TArray<FRigElementKey> URigHierarchyController::ImportFromHierarchyContainer(con
 		Settings.bGroupWithParentControl = Settings.IsAnimatable() && (
 			Settings.ControlType == ERigControlType::Bool ||
 			Settings.ControlType == ERigControlType::Float ||
+			Settings.ControlType == ERigControlType::ScaleFloat ||
 			Settings.ControlType == ERigControlType::Integer ||
 			Settings.ControlType == ERigControlType::Vector2D
 		);

@@ -425,7 +425,7 @@ bool UAnimGraphNode_ControlRig::IsAvailableToMapToCurve(const FName& PropertyNam
 
 	if(const FRigControlElement* ControlElement = FindControlElement(PropertyName))
 	{
-		return ControlElement->Settings.ControlType == ERigControlType::Float;
+		return (ControlElement->Settings.ControlType == ERigControlType::Float || ControlElement->Settings.ControlType == ERigControlType::ScaleFloat);
 	}
 
 	return ensure(false);

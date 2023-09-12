@@ -1764,6 +1764,7 @@ static void EvaluateThisControl(UMovieSceneControlRigParameterSection* Section, 
 
 			}
 			case ERigControlType::Float:
+			case ERigControlType::ScaleFloat:
 			{
 				TOptional <float> Value = Section->EvaluateScalarParameter(FrameTime, ControlName);
 				if (Value.IsSet())
@@ -2215,6 +2216,7 @@ void FControlRigParameterTrackEditor::SelectRigsAndControls(UControlRig* Control
 						
 							if (ControlElement->Settings.ControlType == ERigControlType::Bool ||
 								ControlElement->Settings.ControlType == ERigControlType::Float ||
+								ControlElement->Settings.ControlType == ERigControlType::ScaleFloat ||
 								ControlElement->Settings.ControlType == ERigControlType::Integer)
 							{
 								if (ControlElement->Settings.SupportsShape() || !Hierarchy->IsAnimatable(ControlElement))
@@ -3012,6 +3014,7 @@ void FControlRigParameterTrackEditor::HandleControlSelected(UControlRig* Subject
 				{
 					if (OtherControlElement->Settings.ControlType == ERigControlType::Bool ||
 						OtherControlElement->Settings.ControlType == ERigControlType::Float ||
+						OtherControlElement->Settings.ControlType == ERigControlType::ScaleFloat ||
 						OtherControlElement->Settings.ControlType == ERigControlType::Integer)
 					{
 						if(OtherControlElement->Settings.SupportsShape() || !Hierarchy->IsAnimatable(OtherControlElement))
@@ -3347,6 +3350,7 @@ void FControlRigParameterTrackEditor::GetControlRigKeys(
 				break;
 			}
 			case ERigControlType::Float:
+			case ERigControlType::ScaleFloat:
 			{
 				float Val = ControlValue.Get<float>();
 				pChannelIndex->GeneratedKeyIndex = OutGeneratedKeys.Num();
@@ -3749,6 +3753,7 @@ bool FControlRigParameterTrackEditor::ModifyOurGeneratedKeysByCurrentAndWeight(U
 		switch (ControlElement->Settings.ControlType)
 		{
 		case ERigControlType::Float:
+		case ERigControlType::ScaleFloat:
 		{
 			for (const FFloatInterrogationData& Val : InterrogationData.Iterate<FFloatInterrogationData>(UMovieSceneControlRigParameterSection::GetFloatInterrogationKey()))
 			{

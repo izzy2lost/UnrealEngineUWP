@@ -2763,6 +2763,7 @@ void FRigControlElementDetails::CustomizeValue(IDetailLayoutBuilder& DetailBuild
 				break;
 			}
 			case ERigControlType::Float:
+			case ERigControlType::ScaleFloat:
 			{
 				CreateFloatValueWidgetRow(Keys, ValueCategory, Labels[Index], Tooltips[Index], ValueType, VisibilityAttribute);
 				break;
@@ -2917,6 +2918,7 @@ void FRigControlElementDetails::CustomizeControl(IDetailLayoutBuilder& DetailBui
 					ControlElement->Settings.bGroupWithParentControl =
 						ControlElement->Settings.ControlType == ERigControlType::Bool ||
 						ControlElement->Settings.ControlType == ERigControlType::Float ||
+						ControlElement->Settings.ControlType == ERigControlType::ScaleFloat ||
 						ControlElement->Settings.ControlType == ERigControlType::Integer ||
 						ControlElement->Settings.ControlType == ERigControlType::Vector2D;
 
@@ -3023,6 +3025,7 @@ void FRigControlElementDetails::CustomizeControl(IDetailLayoutBuilder& DetailBui
 	if(bSupportsShape &&
 		!(IsAnyControlNotOfValueType(ERigControlType::Integer) &&
 		IsAnyControlNotOfValueType(ERigControlType::Float) &&
+		IsAnyControlNotOfValueType(ERigControlType::ScaleFloat) &&
 		IsAnyControlNotOfValueType(ERigControlType::Vector2D)))
 	{
 		const TSharedPtr<IPropertyHandle> PrimaryAxisHandle = SettingsHandle->GetChildHandle(TEXT("PrimaryAxis"));
@@ -3328,6 +3331,7 @@ void FRigControlElementDetails::CustomizeAnimationChannels(IDetailLayoutBuilder&
 						break;
 					}
 					case ERigControlType::Float:
+					case ERigControlType::ScaleFloat:
 					{
 						WidgetRow = &CreateFloatValueWidgetRow(ChildElementKeys, Category, Label, FText(), ERigControlValueType::Current, Visibility, NameContent);
 						break;
@@ -3600,6 +3604,15 @@ void FRigControlElementDetails::HandleControlTypeChanged(ERigControlType Control
 				ControlElement->Settings.SetupLimitArrayForType(true);
 				ControlElement->Settings.MinimumValue = FRigControlValue::Make<float>(0.f);
 				ControlElement->Settings.MaximumValue = FRigControlValue::Make<float>(100.f);
+				ControlElement->Settings.bGroupWithParentControl = ControlElement->Settings.IsAnimatable();
+				break;
+			}
+			case ERigControlType::ScaleFloat:
+			{
+				ValueToSet = FRigControlValue::Make<float>(1.f);
+				ControlElement->Settings.SetupLimitArrayForType(false);
+				ControlElement->Settings.MinimumValue = FRigControlValue::Make<float>(0.f);
+				ControlElement->Settings.MaximumValue = FRigControlValue::Make<float>(10.f);
 				ControlElement->Settings.bGroupWithParentControl = ControlElement->Settings.IsAnimatable();
 				break;
 			}

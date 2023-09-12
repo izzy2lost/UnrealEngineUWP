@@ -244,6 +244,7 @@ void SRigSpacePickerWidget::SetControls(
 			}
 			if (ControlElement->Settings.ControlType == ERigControlType::Bool ||
 				ControlElement->Settings.ControlType == ERigControlType::Float ||
+				ControlElement->Settings.ControlType == ERigControlType::ScaleFloat ||
 				ControlElement->Settings.ControlType == ERigControlType::Integer)
 			{
 				//if it has a channel and has a parent bail

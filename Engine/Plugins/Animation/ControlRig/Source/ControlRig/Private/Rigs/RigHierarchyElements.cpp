@@ -1002,6 +1002,7 @@ void FRigControlSettings::Load(FArchive& Ar)
 		bGroupWithParentControl = IsAnimatable() && (
 			ControlType == ERigControlType::Bool ||
 			ControlType == ERigControlType::Float ||
+			ControlType == ERigControlType::ScaleFloat ||
 			ControlType == ERigControlType::Integer ||
 			ControlType == ERigControlType::Vector2D
 		);
@@ -1190,6 +1191,12 @@ void FRigControlSettings::SetupLimitArrayForType(bool bLimitTranslation, bool bL
 		{
 			LimitEnabled.SetNum(1);
 			LimitEnabled[0].Set(bLimitTranslation);
+			break;
+		}
+		case ERigControlType::ScaleFloat:
+		{
+			LimitEnabled.SetNum(1);
+			LimitEnabled[0].Set(bLimitScale);
 			break;
 		}
 		case ERigControlType::Vector2D:

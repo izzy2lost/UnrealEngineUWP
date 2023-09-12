@@ -635,6 +635,7 @@ void USequencerPivotTool::GizmoTransformStarted(UTransformProxy* Proxy)
 							if (ControlRig->IsControlSelected(ParentControlElement->GetFName()) && (
 								ControlElement->Settings.ControlType == ERigControlType::Bool || 
 								ControlElement->Settings.ControlType == ERigControlType::Float || 
+								ControlElement->Settings.ControlType == ERigControlType::ScaleFloat || 
 								ControlElement->Settings.ControlType == ERigControlType::Integer)
 								)
 							{

@@ -137,6 +137,7 @@ enum class ERigControlType : uint8
     Transform UMETA(Hidden),
     TransformNoScale UMETA(Hidden),
     EulerTransform,
+	ScaleFloat,
 };
 
 UENUM(BlueprintType)
@@ -456,14 +457,16 @@ public:
 		switch (InControlType)
 		{
 			case ERigControlType::Bool: ValueStr = FString::Printf(TEXT("unreal.RigHierarchy.make_control_value_from_bool(%s)"), Get<bool>() ? TEXT("True") : TEXT("False")); break;							
-			case ERigControlType::Float: ValueStr = FString::Printf(TEXT("unreal.RigHierarchy.make_control_value_from_float(%.6f)"), Get<float>()); break;
+			case ERigControlType::Float:
+			case ERigControlType::ScaleFloat:
+				ValueStr = FString::Printf(TEXT("unreal.RigHierarchy.make_control_value_from_float(%.6f)"), Get<float>()); break;
 			case ERigControlType::Integer: ValueStr = FString::Printf(TEXT("unreal.RigHierarchy.make_control_value_from_int(%d)"), Get<int>()); break;
-			case ERigControlType::Position: ValueStr = FString::Printf(TEXT("unreal.RigHierarchy.make_control_value_from_vector(unreal.Vector(%.6f, %.6f, %.6f))"),
-				Get<FVector3f>().X, Get<FVector3f>().Y, Get<FVector3f>().Z); break;
+			case ERigControlType::Position:
+			case ERigControlType::Scale:
+				ValueStr = FString::Printf(TEXT("unreal.RigHierarchy.make_control_value_from_vector(unreal.Vector(%.6f, %.6f, %.6f))"),
+					Get<FVector3f>().X, Get<FVector3f>().Y, Get<FVector3f>().Z); break;
 			case ERigControlType::Rotator: ValueStr = FString::Printf(TEXT("unreal.RigHierarchy.make_control_value_from_rotator(unreal.Rotator(pitch=%.6f, roll=%.6f, yaw=%.6f))"),
 				Get<FVector3f>().X, Get<FVector3f>().Z, Get<FVector3f>().Y); break;
-			case ERigControlType::Scale: ValueStr = FString::Printf(TEXT("unreal.RigHierarchy.make_control_value_from_vector(unreal.Vector(%.6f, %.6f, %.6f))"),
-				Get<FVector3f>().X, Get<FVector3f>().Y, Get<FVector3f>().Z); break;
 			case ERigControlType::Transform: ValueStr = FString::Printf(TEXT("unreal.RigHierarchy.make_control_value_from_euler_transform(unreal.EulerTransform(location=[%.6f,%.6f,%.6f],rotation=[%.6f,%.6f,%.6f],scale=[%.6f,%.6f,%.6f]))"),
 				Get<FTransform_Float>().TranslationX,
 				Get<FTransform_Float>().TranslationY,
@@ -539,6 +542,13 @@ public:
 						break;
 					}
 				}
+				break;
+			}
+			case ERigControlType::ScaleFloat:
+			{
+				const float ValueToGet = Get<float>();
+				const FVector ScaleVector(ValueToGet, ValueToGet, ValueToGet);
+				Transform.SetScale3D(ScaleVector);
 				break;
 			}
 			case ERigControlType::Integer:
@@ -663,6 +673,11 @@ public:
 				}
 				break;
 			}
+			case ERigControlType::ScaleFloat:
+			{
+				Set<float>(InTransform.GetScale3D().X);
+				break;
+			}
 			case ERigControlType::Integer:
 			{
 				switch (InPrimaryAxis)
@@ -785,6 +800,7 @@ public:
 		switch(InControlType)
 		{
 			case ERigControlType::Float:
+			case ERigControlType::ScaleFloat:
 			{
 				if (LimitEnabled[0].IsOn())
 				{

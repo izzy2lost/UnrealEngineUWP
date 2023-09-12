@@ -1322,6 +1322,7 @@ FEdGraphPinType URigHierarchy::GetControlPinType(FRigControlElement* InControlEl
 			break;
 		}
 		case ERigControlType::Float:
+		case ERigControlType::ScaleFloat:
 		{
 			PinType.PinCategory = PC_Real;
 			PinType.PinSubCategory = PC_Float;
@@ -1377,6 +1378,7 @@ FString URigHierarchy::GetControlPinDefaultValue(FRigControlElement* InControlEl
 			return Value.ToString<bool>();
 		}
 		case ERigControlType::Float:
+		case ERigControlType::ScaleFloat:
 		{
 			return Value.ToString<float>();
 		}
