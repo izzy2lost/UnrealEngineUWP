@@ -34,9 +34,14 @@ public:
 
 	TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
 
+	TSharedPtr<SWidget> Construct(
+		TypedElementRowHandle Row, 
+		ITypedElementDataStorageInterface* DataStorage,
+		ITypedElementDataStorageUiInterface* DataStorageUi,
+		const TypedElementDataStorage::FMetaDataView& Arguments) override;
+
 protected:
 	explicit FTypedElementLabelWidgetConstructor(const UScriptStruct* InTypeInfo);
-	TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
 	bool SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row) override;
 	bool FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
 		TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget) override;
@@ -62,5 +67,5 @@ struct TYPEDELEMENTSDATASTORAGEUI_API FTypedElementLabelWidgetColumn : public FT
 {
 	GENERATED_BODY()
 
-	bool bShowHashInTooltip{ false };
+	bool bShowHashInTooltip : 1{ false };
 };

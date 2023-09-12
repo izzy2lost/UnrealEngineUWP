@@ -2,6 +2,7 @@
 
 #include "Compatibility/TypedElementActorLabelQueries.h"
 
+#include "Editor/EditorEngine.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
@@ -10,6 +11,9 @@
 #include "Hash/CityHash.h"
 #include "MassActorSubsystem.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
+#include "ScopedTransaction.h"
+
+#define LOCTEXT_NAMESPACE "TypedElementDataStorage"
 
 FAutoConsoleCommandWithOutputDevice PrintActorLabelsConsoleCommand(
 	TEXT("TEDS.PrintActorLabels"),
@@ -123,7 +127,8 @@ void UTypedElementActorLabelFactory::RegisterLabelColumnToActorQuery(ITypedEleme
 					uint64 ActorLabelHash = CityHash64(reinterpret_cast<const char*>(*ActorLabel), ActorLabel.Len() * sizeof(**ActorLabel));
 					if (LabelHash.LabelHash != ActorLabelHash)
 					{
-						ActorInstance->SetActorLabel(Label.Label);
+						const FScopedTransaction Transaction(LOCTEXT("RenameActorTransaction", "Rename Actor"));
+						FActorLabelUtilities::RenameExistingActor(ActorInstance, Label.Label);
 					}
 				}
 			}
@@ -133,3 +138,5 @@ void UTypedElementActorLabelFactory::RegisterLabelColumnToActorQuery(ITypedEleme
 		.Compile()
 	);
 }
+
+#undef LOCTEXT_NAMESPACE
