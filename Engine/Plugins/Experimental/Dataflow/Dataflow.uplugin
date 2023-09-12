@@ -34,6 +34,11 @@
 	],
 	"Plugins": [
 		{
+			"Name": "BaseCharacterFXEditor",
+			"Enabled": true,
+			"TargetAllowList": [ "Editor" ]
+		},
+		{
 			"Name": "ProceduralMeshComponent",
 			"Enabled": true
 		},

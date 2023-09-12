@@ -2,15 +2,17 @@
 
 #include "Dataflow/DataflowEditorModule.h"
 #include "Dataflow/DataflowEditorStyle.h"
+#include "Dataflow/DataflowEditorMode.h"
 
 #include "AssetToolsModule.h"
 #include "CoreMinimal.h"
 #include "EdGraphUtilities.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "Dataflow/DataflowNodeFactory.h"
-#include "Dataflow/DataflowAssetActions.h"
+#include "Dataflow/AssetDefinition_DataflowAsset.h"
 #include "Dataflow/DataflowSNodeFactories.h"
 #include "PropertyEditorModule.h"
+#include "EditorModeRegistry.h"
 
 #define LOCTEXT_NAMESPACE "DataflowEditor"
 
@@ -20,12 +22,6 @@
 void FDataflowEditorModule::StartupModule()
 {
 	FDataflowEditorStyle::Get();
-
-	DataflowAssetActions = new FDataflowAssetActions();
-
-	FAssetToolsModule& AssetToolsModule = FAssetToolsModule::GetModule();
-	IAssetTools& AssetTools = AssetToolsModule.Get();
-	AssetTools.RegisterAssetTypeActions(MakeShareable(DataflowAssetActions));
 
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
 
@@ -37,22 +33,11 @@ void FDataflowEditorModule::ShutdownModule()
 {
 	if (UObjectInitialized())
 	{
-		FAssetToolsModule& AssetToolsModule = FAssetToolsModule::GetModule();
-		IAssetTools& AssetTools = AssetToolsModule.Get();
-
-		AssetTools.UnregisterAssetTypeActions(DataflowAssetActions->AsShared());
-
 		FEdGraphUtilities::UnregisterVisualNodeFactory(DataflowSNodeFactory);
 	}
-}
+	FEditorModeRegistry::Get().UnregisterMode(UDataflowEditorMode::EM_DataflowEditorModeId);
 
-TSharedRef<FAssetEditorToolkit> FDataflowEditorModule::CreateDataflowAssetEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UObject* Asset)
-{
-	TSharedPtr<FDataflowEditorToolkit> NewDataflowAssetEditor = MakeShared<FDataflowEditorToolkit>();
-	NewDataflowAssetEditor->InitializeEditor(Mode, InitToolkitHost, Asset);
-	return StaticCastSharedPtr<FAssetEditorToolkit>(NewDataflowAssetEditor).ToSharedRef();
 }
-
 
 IMPLEMENT_MODULE(FDataflowEditorModule, DataflowEditor)
 

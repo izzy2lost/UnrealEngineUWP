@@ -2,16 +2,17 @@
 
 #pragma once
 
+#include "BaseCharacterFXEditorToolkit.h"
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowObjectInterface.h"
-#include "Toolkits/SimpleAssetEditor.h"
 #include "Misc/NotifyHook.h"
 #include "GraphEditor.h"
 #include "TickableEditorObject.h"
-#include "Dataflow/DataflowSelectionView.h"
-#include "Dataflow/SelectionViewWidget.h"
-#include "Dataflow/DataflowCollectionSpreadSheet.h"
 #include "Dataflow/CollectionSpreadSheetWidget.h"
+#include "Dataflow/DataflowSelectionView.h"
+#include "Dataflow/DataflowCollectionSpreadSheet.h"
+#include "Dataflow/DataflowEditorViewport.h"
+#include "Dataflow/SelectionViewWidget.h"
 
 class FEditorViewportTabContent;
 class IDetailsView;
@@ -35,14 +36,17 @@ namespace Dataflow
 	};
 }
 
-class DATAFLOWEDITOR_API FDataflowEditorToolkit : public FAssetEditorToolkit, public FTickableEditorObject, public FNotifyHook, public FGCObject
+class DATAFLOWEDITOR_API FDataflowEditorToolkit final : public FBaseCharacterFXEditorToolkit, public FTickableEditorObject, public FNotifyHook
 {
+
+	using FBaseCharacterFXEditorToolkit::ObjectScene;
+
 public:
+
+	explicit FDataflowEditorToolkit(UAssetEditor* InOwningAssetEditor);
 	~FDataflowEditorToolkit();
 
 	static bool CanOpenDataflowEditor(UObject* ObjectToEdit);
-
-	virtual void InitializeEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UObject* ObjectToEdit);
 
 	// IToolkit Interface
 	virtual FName GetToolkitFName() const override;
@@ -52,20 +56,10 @@ public:
 	virtual FString GetWorldCentricTabPrefix() const override;
 	virtual FLinearColor GetWorldCentricTabColorScale() const override;
 
-	// FTickableEditorObject interface
-	virtual void Tick(float DeltaTime) override;
-	virtual bool IsTickable() const override { return true; }
-	virtual TStatId GetStatId() const override;
-
-	// FGCObject Interface
-	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	virtual FString GetReferencerName() const override; 
-
 	// Tab spawners 
 	virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& TabManager) override;
 	virtual void UnregisterTabSpawners(const TSharedRef<class FTabManager>& TabManager) override;
 
-	TSharedRef<SDockTab> SpawnTab_Viewport(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_GraphCanvas(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_AssetDetails(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_NodeDetails(const FSpawnTabArgs& Args);
@@ -77,8 +71,7 @@ public:
 	void OnTabClosed(TSharedRef<SDockTab> Tab);
 
 	// Member Access
-	UObject* GetAsset() { return Asset; }
-	const UObject* GetAsset() const { return Asset; }
+	UObject* GetAsset() const;
 
 	UDataflow* GetDataflow() { return Dataflow; }
 	const UDataflow* GetDataflow() const { return Dataflow; }
@@ -108,12 +101,34 @@ protected:
 
 private:
 
+	// FTickableEditorObject interface
+	virtual void Tick(float DeltaTime) override;
+	virtual bool IsTickable() const override { return true; }
+	virtual TStatId GetStatId() const override;
+
+	// FBaseCharacterFXEditorToolkit
+	virtual FEditorModeID GetEditorModeId() const override;
+	virtual void InitializeEdMode(UBaseCharacterFXEditorMode* EdMode) override;
+	virtual void CreateEditorModeUILayer() override;
+
+	// FAssetEditorToolkit
+	virtual bool OnRequestClose(EAssetEditorCloseReason InCloseReason) override;
+	virtual void PostInitAssetEditor() override;
+	virtual void GetSaveableObjects(TArray<UObject*>& OutObjects) const override;
+
+
+	// FBaseAssetToolkit
+	virtual void CreateWidgets() override;
+	virtual AssetEditorViewportFactoryFunction GetViewportDelegate() override;
+	virtual TSharedPtr<FEditorViewportClient> CreateEditorViewportClient() const override;
+
 	TObjectPtr<UObject> Asset = nullptr;
 	TObjectPtr<UDataflow> Dataflow = nullptr;
-	FString TerminalPath = "";
+	FString DataflowTerminalPath = "";
 
 	static const FName ViewportTabId;
-	TSharedPtr<FEditorViewportTabContent> ViewportEditor;
+	TSharedPtr<SDataflowEditorViewport> DataflowEditorViewport;
+
 
 	static const FName GraphCanvasTabId;
 	TSharedPtr<SDataflowGraphEditor> GraphEditor;

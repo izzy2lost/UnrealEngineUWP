@@ -1,41 +1,58 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "Dataflow/DataflowEditorViewport.h"
 
 #include "AdvancedPreviewScene.h"
 #include "Dataflow/DataflowActor.h"
 #include "Dataflow/DataflowEditorCommands.h"
-#include "Dataflow/DataflowEditorViewportToolbar.h"
+#include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowEditorViewportClient.h"
-#include "EditorViewportClient.h"
-#include "Framework/Application/SlateApplication.h"
-#include "PreviewScene.h"
+#include "EditorModeManager.h"
+#include "SViewportToolBar.h"
+
+#define LOCTEXT_NAMESPACE "SDataflowEditorViewport"
+
 
 SDataflowEditorViewport::SDataflowEditorViewport()
 {
-	PreviewScene = MakeShareable(new FAdvancedPreviewScene(FPreviewScene::ConstructionValues()));
-	PreviewScene->SetFloorVisibility(false);
 }
 
-void SDataflowEditorViewport::Construct(const FArguments& InArgs)
+void SDataflowEditorViewport::Construct(const FArguments& InArgs, const FAssetEditorViewportConstructionArgs& InViewportConstructionArgs)
 {
-	DataflowEditorToolkitPtr = InArgs._DataflowEditorToolkit;
-	TSharedPtr<FDataflowEditorToolkit> DataflowEditorToolkit = DataflowEditorToolkitPtr.Pin();
-	check(DataflowEditorToolkitPtr.IsValid());
-
-	SEditorViewport::Construct(SEditorViewport::FArguments());
-
-	FBoxSphereBounds SphereBounds = FBoxSphereBounds(EForceInit::ForceInitToZero);
-	CustomDataflowActor = CastChecked<ADataflowActor>(PreviewScene->GetWorld()->SpawnActor(ADataflowActor::StaticClass()));
-
-	ViewportClient->SetDataflowActor(CustomDataflowActor);
-	ViewportClient->FocusViewportOnBox( SphereBounds.GetBox());
+	SAssetEditorViewport::FArguments ParentArgs;
+	ParentArgs._EditorViewportClient = InArgs._ViewportClient;
+	SAssetEditorViewport::Construct(ParentArgs, InViewportConstructionArgs);
+	Client->VisibilityDelegate.BindSP(this, &SDataflowEditorViewport::IsVisible);
 }
 
-TSharedRef<SEditorViewport> SDataflowEditorViewport::GetViewportWidget()
+UDataflowEditorMode* SDataflowEditorViewport::GetEdMode() const
+{
+	if (const FEditorModeTools* const EditorModeTools = Client->GetModeTools())
+	{
+		if (UDataflowEditorMode* const DataflowEdMode = Cast<UDataflowEditorMode>(EditorModeTools->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId)))
+		{
+			return DataflowEdMode;
+		}
+	}
+	return nullptr;
+}
+
+void SDataflowEditorViewport::BindCommands()
+{
+	SAssetEditorViewport::BindCommands();
+}
+
+
+bool SDataflowEditorViewport::IsVisible() const
+{
+	// Intentionally not calling SEditorViewport::IsVisible because it will return false if our simulation is more than 250ms.
+	return ViewportWidget.IsValid();
+}
+
+TSharedRef<class SEditorViewport> SDataflowEditorViewport::GetViewportWidget()
 {
 	return SharedThis(this);
 }
-
 
 TSharedPtr<FExtender> SDataflowEditorViewport::GetExtenders() const
 {
@@ -47,51 +64,4 @@ void SDataflowEditorViewport::OnFloatingButtonClicked()
 {
 }
 
-void SDataflowEditorViewport::AddReferencedObjects(FReferenceCollector& Collector)
-{
-	Collector.AddReferencedObject(CustomDataflowActor);
-}
-
-TSharedRef<FEditorViewportClient> SDataflowEditorViewport::MakeEditorViewportClient()
-{
-	ViewportClient = MakeShareable(new FDataflowEditorViewportClient(PreviewScene.Get(), SharedThis(this), DataflowEditorToolkitPtr));
-	return ViewportClient.ToSharedRef();
-}
-
-TSharedPtr<SWidget> SDataflowEditorViewport::MakeViewportToolbar()
-{
-	return
-		SNew(SDataflowViewportSelectionToolBar)
-		.EditorViewport(SharedThis(this))
-		.IsEnabled(FSlateApplication::Get().GetNormalExecutionAttribute());
-}
-
-void SDataflowEditorViewport::BindCommands()
-{
-	SEditorViewport::BindCommands();
-	{
-		const FDataflowEditorCommandsImpl& Commands = FDataflowEditorCommands::Get();
-		TSharedRef<FDataflowEditorViewportClient> ClientRef = ViewportClient.ToSharedRef();
-
-		CommandList->MapAction(
-			Commands.ToggleObjectSelection,
-			FExecuteAction::CreateSP(ClientRef, &FDataflowEditorViewportClient::SetSelectionMode, FDataflowSelectionState::EMode::DSS_Dataflow_Object)
-			,FCanExecuteAction::CreateSP(ClientRef, &FDataflowEditorViewportClient::CanSetSelectionMode, FDataflowSelectionState::EMode::DSS_Dataflow_Object)
-			,FIsActionChecked::CreateSP(ClientRef, &FDataflowEditorViewportClient::IsSelectionModeActive, FDataflowSelectionState::EMode::DSS_Dataflow_Object)
-		);
-
-		CommandList->MapAction(
-			Commands.ToggleFaceSelection,
-			FExecuteAction::CreateSP(ClientRef, &FDataflowEditorViewportClient::SetSelectionMode, FDataflowSelectionState::EMode::DSS_Dataflow_Face)
-			, FCanExecuteAction::CreateSP(ClientRef, &FDataflowEditorViewportClient::CanSetSelectionMode, FDataflowSelectionState::EMode::DSS_Dataflow_Face)
-			, FIsActionChecked::CreateSP(ClientRef, &FDataflowEditorViewportClient::IsSelectionModeActive, FDataflowSelectionState::EMode::DSS_Dataflow_Face)
-		);
-
-		CommandList->MapAction(
-			Commands.ToggleVertexSelection,
-			FExecuteAction::CreateSP(ClientRef, &FDataflowEditorViewportClient::SetSelectionMode, FDataflowSelectionState::EMode::DSS_Dataflow_Vertex)
-			, FCanExecuteAction::CreateSP(ClientRef, &FDataflowEditorViewportClient::CanSetSelectionMode, FDataflowSelectionState::EMode::DSS_Dataflow_Vertex)
-			, FIsActionChecked::CreateSP(ClientRef, &FDataflowEditorViewportClient::IsSelectionModeActive, FDataflowSelectionState::EMode::DSS_Dataflow_Vertex)
-		);
-	}
-}
+#undef LOCTEXT_NAMESPACE

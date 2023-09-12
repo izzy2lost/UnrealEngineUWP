@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowObjectInterface.h"
-#include "Framework/Commands/Commands.h"
+#include "BaseCharacterFXEditorCommands.h"
 #include "Styling/AppStyle.h"
 
 class FDragDropEvent;
@@ -23,20 +23,17 @@ typedef TSet<class UObject*> FGraphPanelSelectionSet;
 * FDataflowEditorCommandsImpl
 * 
 */
-class FDataflowEditorCommandsImpl : public TCommands<FDataflowEditorCommandsImpl>
+class DATAFLOWEDITOR_API FDataflowEditorCommandsImpl : public TBaseCharacterFXEditorCommands<FDataflowEditorCommandsImpl>
 {
 public:
 
-	FDataflowEditorCommandsImpl()
-		: TCommands<FDataflowEditorCommandsImpl>( TEXT("DataflowEditor"), NSLOCTEXT("Contexts", "DataflowEditor", "Scene Graph Editor"), NAME_None, FAppStyle::GetAppStyleSetName() )
-	{
-	}	
+	FDataflowEditorCommandsImpl();
 
-	virtual ~FDataflowEditorCommandsImpl()
-	{
-	}
+	// TBaseCharacterFXEditorCommands<> interface
+	 virtual void RegisterCommands() override;
 
-	DATAFLOWEDITOR_API virtual void RegisterCommands() override;
+	// TInteractiveToolCommands<>
+	 virtual void GetToolDefaultObjectList(TArray<UInteractiveTool*>& ToolCDOs) override;
 
 	TSharedPtr< FUICommandInfo > EvaluateNode;
 	TSharedPtr< FUICommandInfo > CreateComment;

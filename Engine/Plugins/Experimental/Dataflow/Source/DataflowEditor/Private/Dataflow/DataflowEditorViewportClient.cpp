@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Dataflow/DataflowEditorViewportClient.h"
 
+#include "AdvancedPreviewScene.h"
+#include "Components/DirectionalLightComponent.h"
 #include "Dataflow/DataflowActor.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "Dataflow/DataflowEngineSceneHitProxies.h"
@@ -8,23 +10,26 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "PreviewScene.h"
 
-FDataflowEditorViewportClient::FDataflowEditorViewportClient(FPreviewScene* InPreviewScene, 
-	const TWeakPtr<SEditorViewport> InEditorViewportWidget,
-	TWeakPtr<FDataflowEditorToolkit> InDataflowEditorToolkitPtr)
-	: 
-	FEditorViewportClient(nullptr, InPreviewScene, InEditorViewportWidget)
-	, DataflowEditorToolkitPtr(InDataflowEditorToolkitPtr)
+FDataflowEditorViewportClient::FDataflowEditorViewportClient(FEditorModeTools* InModeTools,
+															 FPreviewScene* InPreviewScene,
+															 const TWeakPtr<SEditorViewport> InEditorViewportWidget)
+	: FEditorViewportClient(InModeTools, InPreviewScene, InEditorViewportWidget)
 {
-	SetRealtime(true);
-	SetViewModes(VMI_Lit, VMI_Lit);
-	bSetListenerPosition = false;
-	EngineShowFlags.Grid = false;
+	// @todo(DataflowMode) : Move this to the Mode as a Component only (see UChaosClothAssetEditorMode)
+	DataflowActor = CastChecked<ADataflowActor>(PreviewScene->GetWorld()->SpawnActor(ADataflowActor::StaticClass()));
+	((FAdvancedPreviewScene*)InPreviewScene)->SetFloorVisibility(false, true);
 }
+
+void FDataflowEditorViewportClient::SetDataflowEditorToolkit(TWeakPtr<FDataflowEditorToolkit> InDataflowEditorToolkitPtr)
+{
+	DataflowEditorToolkitPtr = InDataflowEditorToolkitPtr;
+}
+
 
 void FDataflowEditorViewportClient::SetSelectionMode(FDataflowSelectionState::EMode InState)
 {
 	FDataflowSelectionState State = DataflowActor->DataflowComponent->GetSelectionState();
-		
+
 	if (SelectionMode == InState)
 	{
 		SelectionMode = FDataflowSelectionState::EMode::DSS_Dataflow_None;
@@ -70,18 +75,18 @@ bool FDataflowEditorViewportClient::CanSetSelectionMode(FDataflowSelectionState:
 
 	return false;
 }
-bool FDataflowEditorViewportClient::IsSelectionModeActive(FDataflowSelectionState::EMode InState) 
-{ 
+bool FDataflowEditorViewportClient::IsSelectionModeActive(FDataflowSelectionState::EMode InState)
+{
 	return SelectionMode == InState;
 }
 
-Dataflow::FTimestamp FDataflowEditorViewportClient::LatestTimestamp(const UDataflow* Dataflow, const Dataflow::FContext* Context)
+::Dataflow::FTimestamp FDataflowEditorViewportClient::LatestTimestamp(const UDataflow* Dataflow, const ::Dataflow::FContext* Context)
 {
 	if (Dataflow && Context)
 	{
 		return FMath::Max(Dataflow->GetRenderingTimestamp().Value, Context->GetTimestamp().Value);
 	}
-	return Dataflow::FTimestamp::Invalid;
+	return ::Dataflow::FTimestamp::Invalid;
 }
 
 bool FDataflowEditorViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
@@ -242,6 +247,6 @@ void FDataflowEditorViewportClient::Tick(float DeltaSeconds)
 void FDataflowEditorViewportClient::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Super::AddReferencedObjects(Collector);
+	Collector.AddReferencedObject(DataflowActor);
 }
-
 

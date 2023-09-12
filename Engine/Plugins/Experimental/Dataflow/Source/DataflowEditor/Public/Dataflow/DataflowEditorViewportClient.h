@@ -9,19 +9,20 @@
 class FDataflowEditorToolkit;
 class ADataflowActor;
 
-// ----------------------------------------------------------------------------------
 
-class FDataflowEditorViewportClient : public FEditorViewportClient
+
+class DATAFLOWEDITOR_API FDataflowEditorViewportClient : public FEditorViewportClient
 {
 public:
 	using Super = FEditorViewportClient;
-	
-	FDataflowEditorViewportClient(FPreviewScene* InPreviewScene,
-		const TWeakPtr<SEditorViewport> InEditorViewportWidget = nullptr,
-		TWeakPtr<FDataflowEditorToolkit> InDataflowEditorToolkitPtr = nullptr);
 
-	Dataflow::FTimestamp LatestTimestamp(const UDataflow* Dataflow, const Dataflow::FContext* Context);
-	void SetDataflowActor(ADataflowActor* InActor) { DataflowActor = InActor; }
+	FDataflowEditorViewportClient(FEditorModeTools* InModeTools, FPreviewScene* InPreviewScene,
+								  const TWeakPtr<SEditorViewport> InEditorViewportWidget = nullptr);
+
+	void SetDataflowEditorToolkit(TWeakPtr<FDataflowEditorToolkit> DataflowToolkit);
+
+
+	::Dataflow::FTimestamp LatestTimestamp(const UDataflow* Dataflow, const ::Dataflow::FContext* Context);
 
 	void SetSelectionMode(FDataflowSelectionState::EMode InState);
 	bool CanSetSelectionMode(FDataflowSelectionState::EMode InState);
@@ -42,8 +43,8 @@ public:
 private:
 
 	TWeakPtr<FDataflowEditorToolkit> DataflowEditorToolkitPtr = nullptr;
-	Dataflow::FTimestamp LastModifiedTimestamp = Dataflow::FTimestamp::Invalid;
-	ADataflowActor* DataflowActor = nullptr;
+	::Dataflow::FTimestamp LastModifiedTimestamp = ::Dataflow::FTimestamp::Invalid;
+	TObjectPtr<ADataflowActor> DataflowActor = nullptr;
 
 	//
 	// Selection

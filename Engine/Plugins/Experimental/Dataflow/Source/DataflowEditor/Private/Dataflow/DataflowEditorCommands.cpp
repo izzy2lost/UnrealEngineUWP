@@ -16,6 +16,15 @@
 
 #define LOCTEXT_NAMESPACE "DataflowEditorCommands"
 
+FDataflowEditorCommandsImpl::FDataflowEditorCommandsImpl()
+	: TBaseCharacterFXEditorCommands<FDataflowEditorCommandsImpl>("DataflowEditor", 
+		LOCTEXT("ContextDescription", "Dataflow Editor"), 
+		NAME_None,
+		FAppStyle::GetAppStyleSetName())
+{
+}
+
+
 void FDataflowEditorCommandsImpl::RegisterCommands()
 {
 	UI_COMMAND(EvaluateNode, "Evaluate", "Trigger an evaluation of the selected node.", EUserInterfaceActionType::Button, FInputChord());
@@ -46,9 +55,11 @@ void FDataflowEditorCommandsImpl::RegisterCommands()
 			);
 			CreateNodesMap.Add(Parameters.TypeName, AddNode);
 		}
-	}
+	}		
+}
 
-		
+void FDataflowEditorCommandsImpl::GetToolDefaultObjectList(TArray<UInteractiveTool*>& ToolCDOs)
+{
 }
 
 const FDataflowEditorCommandsImpl& FDataflowEditorCommands::Get()
