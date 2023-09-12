@@ -263,10 +263,10 @@ FWindowsFile::CompleteReadCommand(Command& Cmd)
 		}
 		else
 		{
-			UNSYNC_WARNING(L"FNativeFile expected to read %lld bytes, but read %lld. Last error code: %d.",
+			UNSYNC_WARNING(L"FNativeFile expected to read %lld bytes, but read %lld. %hs",
 						   (uint64)ExpectedReadBytes,
 						   (uint64)ReadBytes,
-						   LastError);
+						   FormatSystemErrorMessage(LastError).c_str());
 
 			UNSYNC_LOG(L"Trying to recover from error (attempt %d of %d)", Attempt + 1, MaxAttempts);
 
@@ -288,7 +288,7 @@ FWindowsFile::CompleteReadCommand(Command& Cmd)
 			if (!bOpenedOk)
 			{
 				LastError = GetLastError();
-				UNSYNC_ERROR(L"Failed to re-open the file. Last error: %d.", LastError);
+				UNSYNC_ERROR(L"Failed to re-open the file. %hs", FormatSystemErrorMessage(LastError).c_str());
 				break;
 			}
 
@@ -881,7 +881,9 @@ WriteBufferToFile(const FPath& Filename, const uint8* Data, uint64 Size)
 	}
 	else
 	{
-		UNSYNC_ERROR(L"Failed to open file '%ls' for writing (%d)", Filename.wstring().c_str(), File.GetError());
+		UNSYNC_ERROR(L"Failed to open file '%ls' for writing. %hs",
+					 Filename.wstring().c_str(),
+					 FormatSystemErrorMessage(File.GetError()).c_str());
 		return false;
 	}
 }

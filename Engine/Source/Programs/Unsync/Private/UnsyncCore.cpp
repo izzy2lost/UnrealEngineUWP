@@ -550,15 +550,15 @@ GetVersionString()
 
 		if (strlen(GitBranch) && strlen(GitRev))
 		{
-			snprintf(Str, sizeof(Str), "v" UNSYNC_VERSION_STR " [%s:%s]", GitBranch, GitRev);
+			snprintf(Str, sizeof(Str), UNSYNC_VERSION_STR " [%s:%s]", GitBranch, GitRev);
 		}
 		else if (strlen(GitRev))
 		{
-			snprintf(Str, sizeof(Str), "v" UNSYNC_VERSION_STR " [%s]", GitRev);
+			snprintf(Str, sizeof(Str), UNSYNC_VERSION_STR " [%s]", GitRev);
 		}
 		else
 		{
-			snprintf(Str, sizeof(Str), "v" UNSYNC_VERSION_STR);
+			snprintf(Str, sizeof(Str), UNSYNC_VERSION_STR);
 		}
 
 		return std::string(Str);
@@ -1304,7 +1304,7 @@ BuildTarget(FIOWriter&			   Output,
 
 		if (DataProvider.GetError())
 		{
-			UNSYNC_ERROR(L"Failed to read blocks from %ls. Error code: %d.", ListName, DataProvider.GetError());
+			UNSYNC_ERROR(L"Failed to read blocks from %ls. %hs", ListName, FormatSystemErrorMessage(DataProvider.GetError()).c_str());
 			bGotError = true;
 			return;
 		}
@@ -1844,9 +1844,9 @@ CreateDirectoryManifest(const FPath& Root, uint32 BlockSize, FAlgorithmOptions A
 			}
 			else
 			{
-				UNSYNC_FATAL(L"Failed to open file '%ls' while computing manifest blocks. System error code: %d.",
+				UNSYNC_FATAL(L"Failed to open file '%ls' while computing manifest blocks. %hs",
 							 FilePath.wstring().c_str(),
-							 File->GetError());
+							 FormatSystemErrorMessage(File->GetError()).c_str());
 			}
 		}
 	}
@@ -1987,9 +1987,9 @@ UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, uin
 		}
 		else
 		{
-			UNSYNC_FATAL(L"Failed to open file '%ls' while computing manifest blocks. System error code: %d.",
+			UNSYNC_FATAL(L"Failed to open file '%ls' while computing manifest blocks. %hs",
 						 FilePath.wstring().c_str(),
-						 File->GetError());
+						 FormatSystemErrorMessage(File->GetError()).c_str());
 		}
 	}
 
@@ -2409,9 +2409,9 @@ SyncFile(const FNeedList&		   NeedList,
 			TargetFile = std::make_unique<FNativeFile>(TempTargetFilePath, EFileMode::CreateWriteOnly, TargetFileSizeInfo.TotalBytes);
 			if (TargetFile->GetError() != 0)
 			{
-				UNSYNC_ERROR(L"Failed to create output file '%ls'. Error code %d.",
+				UNSYNC_FATAL(L"Failed to create output file '%ls'. %hs",
 							 TempTargetFilePath.wstring().c_str(),
-							 TargetFile->GetError());
+							 FormatSystemErrorMessage(TargetFile->GetError()).c_str());
 			}
 		}
 
@@ -3868,11 +3868,12 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 			if (!SyncResult.Succeeded())
 			{
-				UNSYNC_ERROR(L"Sync failed from '%ls' to '%ls'. Status: %ls, system error code: %d",
+				UNSYNC_ERROR(L"Sync failed from '%ls' to '%ls'. Status: %ls, system error code: %d %hs",
 							 Item.ResolvedSourceFilePath.wstring().c_str(),
 							 Item.TargetFilePath.wstring().c_str(),
 							 ToString(SyncResult.Status),
-							 SyncResult.SystemErrorCode.value());
+							 SyncResult.SystemErrorCode.value(),
+							 SyncResult.SystemErrorCode.message().c_str());
 
 				NumFailedTasks++;
 			}
@@ -4013,10 +4014,11 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 			{
 				if (!Item.SyncResult.Succeeded())
 				{
-					UNSYNC_ERROR(L"Failed to copy file '%ls' on background task. Status: %ls, system error code: %d",
+					UNSYNC_ERROR(L"Failed to copy file '%ls' on background task. Status: %ls, system error code: %d %hs",
 								 Item.TargetFilePath.wstring().c_str(),
 								 ToString(Item.SyncResult.Status),
-								 Item.SyncResult.SystemErrorCode.value());
+								 Item.SyncResult.SystemErrorCode.value(),
+								 Item.SyncResult.SystemErrorCode.message().c_str());
 				}
 			}
 			UNSYNC_ERROR(L"Background file copy process failed!");

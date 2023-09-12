@@ -23,6 +23,8 @@
 #include <mutex>
 #include <sstream>
 #include <unordered_set>
+#include <system_error>
+#include <fmt/format.h>
 
 namespace unsync {
 
@@ -452,5 +454,12 @@ GetUserHomeDirectory()
 	}
 }
 #endif // UNSYNC_PLATFORM_WINDOWS
+
+std::string
+FormatSystemErrorMessage(int32 ErrorCode)
+{
+	std::string ErrorMessage = std::system_category().message(ErrorCode);
+	return fmt::format("Error code {}: {}", ErrorCode, ErrorMessage);
+}
 
 }  // namespace unsync

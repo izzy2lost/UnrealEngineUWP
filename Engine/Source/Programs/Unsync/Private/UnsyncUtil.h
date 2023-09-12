@@ -327,4 +327,7 @@ void OpenUrlInDefaultBrowser(const char* Address);
 
 FPath GetUserHomeDirectory();
 
+// Returns string in format 'Error code 123: Some description.`
+std::string FormatSystemErrorMessage(int32 ErrorCode);
+
 }  // namespace unsync

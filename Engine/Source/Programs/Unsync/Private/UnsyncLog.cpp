@@ -144,7 +144,7 @@ FLogFileScope::FLogFileScope(const wchar_t* Filename)
 		LogSetFileInternal(Filename);
 	}
 
-	UNSYNC_VERBOSE2(L"UNSYNC %hs started logging to file '%ls'", GetVersionString().c_str(), Filename);
+	UNSYNC_VERBOSE2(L"UNSYNC v%hs started logging to file '%ls'", GetVersionString().c_str(), Filename);
 }
 
 FLogFileScope::~FLogFileScope()
@@ -407,8 +407,9 @@ LogWriteCrashDump(void* InExceptionPointers)
 		CreateFileW(CrashDumpFilename.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_WRITE | FILE_SHARE_READ, 0, CREATE_ALWAYS, 0, 0);
 	if (DumpFile != INVALID_HANDLE_VALUE)
 	{
-		BOOL Ok =
+		const BOOL Ok =
 			MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), DumpFile, MiniDumpWithDataSegs, &ExceptionInfo, nullptr, nullptr);
+
 		if (Ok)
 		{
 			LogPrintf(ELogLevel::Info, L"!!! Crash dump file written.\n");
@@ -416,12 +417,12 @@ LogWriteCrashDump(void* InExceptionPointers)
 		}
 		else
 		{
-			LogPrintf(ELogLevel::Error, L"!!! Failed to generate crash dump. Error code: %d.\n", GetLastError());
+			LogPrintf(ELogLevel::Error, L"!!! Failed to generate crash dump. %hs\n", FormatSystemErrorMessage(GetLastError()).c_str());
 		}
 	}
 	else
 	{
-		LogPrintf(ELogLevel::Error, L"!!! Failed to open output file. Error code: %d.\n", GetLastError());
+		LogPrintf(ELogLevel::Error, L"!!! Failed to open output file. %hs\n", FormatSystemErrorMessage(GetLastError()).c_str());
 	}
 
 	LogPrintf(ELogLevel::Error, L"!!! Failed to write dump file.\n");

@@ -39,7 +39,7 @@ InnerMain(int Argc, char** Argv)
 {
 	FTimingLogger TimingLogger("Total time");
 
-	std::string AppDescription = "UNSYNC ";
+	std::string AppDescription = "UNSYNC v";
 	AppDescription += GetVersionString();
 	AppDescription +=
 		" -- Differential binary synchronization tool.\n"
@@ -47,6 +47,7 @@ InnerMain(int Argc, char** Argv)
 
 	CLI::App Cli(AppDescription, "unsync");
 	Cli.allow_windows_style_options(true);
+	Cli.set_version_flag("--version", GetVersionString());
 
 	std::vector<CLI::App*> SubCommands;
 
@@ -317,20 +318,23 @@ InnerMain(int Argc, char** Argv)
 
 	// Run the command
 
-#if UNSYNC_PLATFORM_WINDOWS
-	_setmode(_fileno(stdout), _O_TEXT);
-#endif	// UNSYNC_PLATFORM_WINDOWS
-
-	CLI11_PARSE(Cli, Argc, Argv);
+	try
+	{
+		Cli.parse(Argc, Argv);
+	}
+	catch (CLI::Error& E)
+	{
+		std::stringstream OutputStream;
+		const int32		  ReturnCode = Cli.exit(E, OutputStream, OutputStream);
+		std::wstring	  Output	 = ConvertUtf8ToWide(OutputStream.str());
+		wprintf(L"%s", Output.c_str());
+		return ReturnCode;
+	}
 
 	if (Cli.get_subcommands().size() == 0)
 	{
-		printf("%s", Cli.help().c_str());
+		wprintf(L"%hs", Cli.help().c_str());
 	}
-
-#if UNSYNC_PLATFORM_WINDOWS
-	_setmode(_fileno(stdout), _O_U8TEXT);
-#endif	// UNSYNC_PLATFORM_WINDOWS
 
 	// Configure default output mehtod based on subcommand.
 	// In machine-readable mode, all verbose logging is directed to stderr.
@@ -340,7 +344,7 @@ InnerMain(int Argc, char** Argv)
 		GLogMachineReadable = true;
 	}
 
-	UNSYNC_VERBOSE(L"UNSYNC %hs", GetVersionString().c_str());
+	UNSYNC_VERBOSE(L"UNSYNC v%hs", GetVersionString().c_str());
 
 	UnsyncMallocInit(bUseDebugMode ? EMallocType::Debug : EMallocType::Default);
 
