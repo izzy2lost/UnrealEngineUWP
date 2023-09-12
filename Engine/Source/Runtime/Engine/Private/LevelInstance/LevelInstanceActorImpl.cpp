@@ -56,16 +56,6 @@ void FLevelInstanceActorImpl::UnregisterLevelInstance()
 	}
 }
 
-bool FLevelInstanceActorImpl::ResolveSubobject(const TCHAR* SubObjectPath, UObject*& OutObject, bool bLoadIfExists)
-{
-	if (ULevel* Level = LevelInstance->GetLoadedLevel())
-	{
-		return Level->ResolveSubobject(SubObjectPath, OutObject, bLoadIfExists);
-	}
-
-	return false;
-}
-
 const FLevelInstanceID& FLevelInstanceActorImpl::GetLevelInstanceID() const
 {
 	check(HasValidLevelInstanceID());
@@ -111,6 +101,16 @@ void FLevelInstanceActorImpl::OnLevelInstanceLoaded()
 }
 
 #if WITH_EDITOR
+bool FLevelInstanceActorImpl::ResolveSubobject(const TCHAR* SubObjectPath, UObject*& OutObject, bool bLoadIfExists)
+{
+	if (ULevel* Level = LevelInstance->GetLoadedLevel())
+	{
+		return Level->ResolveSubobject(SubObjectPath, OutObject, bLoadIfExists);
+	}
+
+	return false;
+}
+
 bool FLevelInstanceActorImpl::SupportsPartialEditorLoading() const
 {
 	return bAllowPartialLoading;
