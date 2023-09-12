@@ -139,7 +139,7 @@ namespace EpicGames.Horde.Tests
 			await CheckSizes(root, options, true);
 		}
 
-		async Task CheckSizes(ChunkedDataNode node, ChunkingOptions options, bool rightmost)
+		static async Task CheckSizes(ChunkedDataNode node, ChunkingOptions options, bool rightmost)
 		{
 			if (node is LeafChunkedDataNode leafNode)
 			{

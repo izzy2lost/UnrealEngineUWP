@@ -77,7 +77,7 @@ namespace Horde.Agent.Execution
 				}
 
 				FileReference syncFile = FileReference.Combine(_autoSdkWorkspace.MetadataDir, "Synced.txt");
-				if (!FileReference.Exists(syncFile) || FileReference.ReadAllText(syncFile) != syncText)
+				if (!FileReference.Exists(syncFile) || (await FileReference.ReadAllTextAsync(syncFile, cancellationToken)) != syncText)
 				{
 					FileReference.Delete(syncFile);
 

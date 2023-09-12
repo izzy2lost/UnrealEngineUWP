@@ -878,7 +878,7 @@ namespace Horde.Server.Jobs
 					(CheckShelfResult result, _) = await _perforceService.CheckShelfAsync(streamConfig, job.PreflightChange);
 					if (result != CheckShelfResult.Ok)
 					{
-						_logger.LogWarning("Job {JobId} is no longer valid - check shelf returned {Result}", result);
+						_logger.LogWarning("Job {JobId} is no longer valid - check shelf returned {Result}", job.Id, result);
 						return JobStepBatchError.UnknownShelf;
 					}
 				}

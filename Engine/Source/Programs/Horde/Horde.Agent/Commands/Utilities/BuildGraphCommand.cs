@@ -144,7 +144,7 @@ namespace Horde.Agent.Commands.Utilities
 							using (ManagedProcess process = new ManagedProcess(processGroup, fileName, commandLine, runUatBat.Directory.FullName, newEnvironment, null, ProcessPriorityClass.Normal))
 							{
 								await process.CopyToAsync((buffer, offset, length) => filter.WriteData(buffer.AsMemory(offset, length)), 4096, CancellationToken.None);
-								process.WaitForExit();
+								await process.WaitForExitAsync(CancellationToken.None);
 							}
 						}
 						filter.Flush();

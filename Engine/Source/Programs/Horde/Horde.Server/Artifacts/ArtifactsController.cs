@@ -173,7 +173,7 @@ namespace Horde.Server.Artifacts
 			return PropertyFilter.Apply(response, filter);
 		}
 
-		async Task ExpandDirectoriesAsync(DirectoryNode directoryNode, int depth, GetArtifactDirectoryResponse response, CancellationToken cancellationToken)
+		static async Task ExpandDirectoriesAsync(DirectoryNode directoryNode, int depth, GetArtifactDirectoryResponse response, CancellationToken cancellationToken)
 		{
 			if (directoryNode.Directories.Count > 0)
 			{

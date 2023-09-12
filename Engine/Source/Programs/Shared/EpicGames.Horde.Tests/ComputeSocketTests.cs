@@ -167,7 +167,7 @@ namespace EpicGames.Horde.Tests
 						await channel.UploadFilesAsync("", handle.GetLocator(), storage);
 
 						Assert.IsTrue(FileReference.Exists(file));
-						byte[] readData = FileReference.ReadAllBytes(file);
+						byte[] readData = await FileReference.ReadAllBytesAsync(file);
 						Assert.IsTrue(readData.SequenceEqual(data));
 
 						await channel.DeleteFilesAsync(new[] { "subdir/hello.txt" }, CancellationToken.None);

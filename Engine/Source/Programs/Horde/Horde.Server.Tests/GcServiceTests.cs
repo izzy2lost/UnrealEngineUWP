@@ -56,14 +56,14 @@ namespace Horde.Server.Tests
 			Assert.IsTrue(remaining.All(x => nodes.Contains(x)));
 		}
 
-		async Task<HashSet<BundleLocator>> FindNodesAsync(BundleStorageClient store, IEnumerable<BundleLocator> roots)
+		static async Task<HashSet<BundleLocator>> FindNodesAsync(BundleStorageClient store, IEnumerable<BundleLocator> roots)
 		{
 			HashSet<BundleLocator> nodes = new HashSet<BundleLocator>();
 			await FindNodesAsync(store, roots, nodes);
 			return nodes;
 		}
 
-		async Task FindNodesAsync(BundleStorageClient store, IEnumerable<BundleLocator> roots, HashSet<BundleLocator> nodes)
+		static async Task FindNodesAsync(BundleStorageClient store, IEnumerable<BundleLocator> roots, HashSet<BundleLocator> nodes)
 		{
 			foreach (BundleLocator root in roots)
 			{

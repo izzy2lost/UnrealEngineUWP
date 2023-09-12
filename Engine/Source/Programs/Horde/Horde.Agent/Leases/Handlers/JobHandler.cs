@@ -110,7 +110,7 @@ namespace Horde.Agent.Leases.Handlers
 								}
 							}
 
-							process.WaitForExit();
+							await process.WaitForExitAsync(CancellationToken.None);
 
 							if (process.ExitCode != 0)
 							{

@@ -46,7 +46,7 @@ namespace Horde.Agent.Commands.Parse
 				}
 
 				// Read all the ignore patterns
-				string[] lines = FileReference.ReadAllLines(IgnorePatternsFile);
+				string[] lines = await FileReference.ReadAllLinesAsync(IgnorePatternsFile);
 				foreach (string line in lines)
 				{
 					string trimLine = line.Trim();

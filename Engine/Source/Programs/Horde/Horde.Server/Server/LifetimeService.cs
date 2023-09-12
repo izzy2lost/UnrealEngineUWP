@@ -151,7 +151,7 @@ namespace Horde.Server.Server
 			}
 			catch (Exception e)
 			{
-				_logger.LogError("MongoDB call failed during health check", e);
+				_logger.LogError(e, "MongoDB call failed during health check");
 			}
 
 			return isHealthy;

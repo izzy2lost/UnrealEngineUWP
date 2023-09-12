@@ -1738,7 +1738,7 @@ namespace Horde.Agent.Execution
 			await RpcConnection.InvokeAsync((JobRpc.JobRpcClient x) => x.CreateReportAsync(request), CancellationToken.None);
 		}
 
-		private ISpan CreateTracingData(ISpan parent, TraceSpan span)
+		private static ISpan CreateTracingData(ISpan parent, TraceSpan span)
 		{
 			ISpan newSpan = GlobalTracer.Instance.BuildSpan(span.Name)
 				.AsChildOf(parent)
