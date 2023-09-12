@@ -449,11 +449,6 @@ void FLinkerDiff::GenerateSearchableNameMapDiff(FLinker* LHSLinker, FLinker* RHS
 	}
 }
 
-FString LexToString(EObjectFlags Flags)
-{
-	return LexToString((int32)Flags);
-}
-
 void FLinkerDiff::GenerateExportDiff(FLinker* LHSLinker, const FLinkerExportObject& LHSExport, const FLinkerExportObject& RHSExport)
 {
 	TArray<FString> Diffs;

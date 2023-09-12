@@ -9,6 +9,7 @@
 #include "HAL/FileManager.h"
 #include "Logging/StructuredLog.h"
 #include "Misc/AsciiSet.h"
+#include "Misc/EnumRange.h"
 #include "Misc/PackageAccessTrackingOps.h"
 #include "Misc/Paths.h"
 #include "Misc/ITransaction.h"
@@ -306,6 +307,61 @@ namespace
 
 		return MatchingObject;
 	}
+}
+
+FString LexToString(EObjectFlags Flags)
+{
+	if (Flags == RF_NoFlags)
+	{
+		return TEXT("None");
+	}	
+	
+	static const TCHAR* Names[] = {
+		TEXT("Public"),
+		TEXT("Standalone"),
+		TEXT("MarkAsNative"),
+		TEXT("Transactional"),
+		TEXT("ClassDefaultObject"),
+		TEXT("ArchetypeObject"),
+		TEXT("Transient"),
+		TEXT("MarkAsRootSet"),
+		TEXT("TagGarbageTemp"),
+		TEXT("NeedInitialization"),
+		TEXT("NeedLoad"),
+		TEXT("KeepForCooker"),
+		TEXT("NeedPostLoad"),
+		TEXT("NeedPostLoadSubobjects"),
+		TEXT("NewerVersionExists"),
+		TEXT("BeginDestroyed"),
+		TEXT("FinishDestroyed"),
+		TEXT("BeingRegenerated"),
+		TEXT("DefaultSubObject"),
+		TEXT("WasLoaded"),
+		TEXT("TextExportTransient"),
+		TEXT("LoadCompleted"),
+		TEXT("InheritableComponentTemplate"),
+		TEXT("DuplicateTransient"),
+		TEXT("StrongRefOnFrame"),
+		TEXT("NonPIEDuplicateTransient"),
+		TEXT("Dynamic"),
+		TEXT("WillBeLoaded"),
+		TEXT("HasExternalPackage"),
+		TEXT("PendingKill"),
+		TEXT("Garbage"),
+		TEXT("AllocatedInSharedPage"),
+	};
+
+	TStringBuilder<1024> Builder;
+	for (EObjectFlags Flag : MakeFlagsRange(Flags))
+	{
+		int32 Index = FMath::FloorLog2((uint32)Flag);	
+		if (Builder.Len() > 0)
+		{
+			Builder << TEXT(" | ");
+		}	
+		Builder << Names[Index];
+	}
+	return Builder.ToString();
 }
 
 /** Object annotation used to keep track of the number suffixes  */

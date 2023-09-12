@@ -519,6 +519,7 @@ COREUOBJECT_API const TCHAR* LexToString(EPropertyObjectReferenceType Type);
 
 /**
  * Flags describing an object instance
+ * When modifying this enum, update the LexToString implementation! 
  */
 enum EObjectFlags
 {
@@ -590,6 +591,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #define RF_PropagateToSubObjects	((EObjectFlags)(RF_Public | RF_ArchetypeObject | RF_Transactional | RF_Transient))
 
 ENUM_CLASS_FLAGS(EObjectFlags);
+
+COREUOBJECT_API FString LexToString(EObjectFlags Flags);
 
 /** 
  * Objects flags for internal use (GC, low level UObject code)
