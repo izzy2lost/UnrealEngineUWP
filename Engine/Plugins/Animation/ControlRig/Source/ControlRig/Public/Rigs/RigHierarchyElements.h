@@ -627,7 +627,6 @@ public:
 	void Serialize(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase);
 	virtual void Save(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase);
 	virtual void Load(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase);
-	virtual void PostLoad() {};
 
 	const FName& GetFName() const { return Key.Name; }
 	const FString& GetName() const
@@ -1141,7 +1140,6 @@ struct CONTROLRIG_API FRigControlSettings
 
 	void Save(FArchive& Ar);
 	void Load(FArchive& Ar);
-	void PostLoad();
 
 	friend uint32 GetTypeHash(const FRigControlSettings& Settings);
 
@@ -1252,11 +1250,6 @@ struct CONTROLRIG_API FRigControlSettings
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Animation)
 	bool bUsePreferredRotationOrder;
 
-private:
-	/** The object path of the enum to load into ControlEnum in PostLoad */ 
-	FString ControlEnumToLoadPathName;
-	
-public:
 	/**
 	* The euler rotation order this control prefers for animation if it is active. If not set then we use the default UE rotator.
 	*/
@@ -1433,7 +1426,6 @@ struct CONTROLRIG_API FRigControlElement : public FRigMultiParentElement
 
 	virtual void Save(FArchive& A, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase) override;
 	virtual void Load(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase) override;
-	virtual void PostLoad() override;
 
 private:
 
@@ -1452,7 +1444,7 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = RigElement)
 	FRigPreferredEulerAngles PreferredEulerAngles;
-
+	
 protected:
 
 	static bool IsClassOf(const FRigBaseElement* InElement)

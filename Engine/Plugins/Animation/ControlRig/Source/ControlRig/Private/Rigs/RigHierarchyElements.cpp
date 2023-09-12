@@ -880,6 +880,7 @@ void FRigControlSettings::Load(FArchive& Ar)
 	static const UEnum* ControlAxisEnum = StaticEnum<ERigControlAxis>();
 
 	FName AnimationTypeName, ControlTypeName, ShapeVisibilityName, PrimaryAxisName;
+	FString ControlEnumPathName;
 
 	bool bLimitTranslation_DEPRECATED = false;
 	bool bLimitRotation_DEPRECATED = false;
@@ -954,7 +955,7 @@ void FRigControlSettings::Load(FArchive& Ar)
 	
 	Ar << ShapeColor;
 	Ar << bIsTransientControl;
-	Ar << ControlEnumToLoadPathName;
+	Ar << ControlEnumPathName;
 
 	AnimationType = (ERigControlAnimationType)AnimationTypeEnum->GetValueByName(AnimationTypeName);
 	PrimaryAxis = (ERigControlAxis)ControlAxisEnum->GetValueByName(PrimaryAxisName);
@@ -967,6 +968,17 @@ void FRigControlSettings::Load(FArchive& Ar)
 	}
 
 	ControlEnum = nullptr;
+	if(!ControlEnumPathName.IsEmpty())
+	{
+		if (IsInGameThread())
+		{
+			ControlEnum = LoadObject<UEnum>(nullptr, *ControlEnumPathName);
+		}
+		else
+		{			
+			ControlEnum = FindObject<UEnum>(nullptr, *ControlEnumPathName);
+		}
+	}
 
 	if (Ar.CustomVer(FControlRigObjectVersion::GUID) >= FControlRigObjectVersion::RigHierarchyControlSpaceFavorites)
 	{
@@ -1045,16 +1057,6 @@ void FRigControlSettings::Load(FArchive& Ar)
 	}
 
 }
-
-
-void FRigControlSettings::PostLoad()
-{
-	if(!ControlEnumToLoadPathName.IsEmpty())
-	{
-		ControlEnum = LoadObject<UEnum>(nullptr, *ControlEnumToLoadPathName);
-	}
-}
-
 
 uint32 GetTypeHash(const FRigControlSettings& Settings)
 {
@@ -1287,13 +1289,6 @@ void FRigControlElement::Load(FArchive& Ar, URigHierarchy* Hierarchy, ESerializa
 		}
 		PreferredEulerAngles.SetRotationOrder(Settings.PreferredRotationOrder);
 	}
-}
-
-void FRigControlElement::PostLoad()
-{
-	Super::PostLoad();
-
-	Settings.PostLoad();
 }
 
 void FRigControlElement::CopyFrom(URigHierarchy* InHierarchy, FRigBaseElement* InOther, URigHierarchy* InOtherHierarchy)
