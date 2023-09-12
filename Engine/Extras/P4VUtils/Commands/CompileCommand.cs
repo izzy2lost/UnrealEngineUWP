@@ -144,9 +144,6 @@ namespace P4VUtils.Commands
 				Arguments.AppendFormat(" {0}", AdditionalArgument.QuoteArgument());
 			}
 
-			// Enable checking of pure virtuals
-			Arguments.Append(" -Define:CHECK_PUREVIRTUALS=1");
-
 			Logger.LogInformation("Running {Arguments}", Arguments);
 			Logger.LogInformation("");
 
