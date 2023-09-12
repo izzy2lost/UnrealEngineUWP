@@ -165,6 +165,7 @@ void FNiagaraSimCacheViewModel::SetFrameIndex(const int32 InFrameIndex)
 		const float NormalizedFrame = FMath::Clamp( NumFrames == 0 ? 0.0f : float(InFrameIndex) / float(NumFrames - 1), 0.0f, 1.0f );
 		const float DesiredAge = FMath::Clamp(StartSeconds + (Duration * NormalizedFrame), StartSeconds, StartSeconds + Duration);
 		
+		PreviewComponent->Activate();
 		PreviewComponent->SetDesiredAge(DesiredAge);
 	}
 	OnViewDataChangedDelegate.Broadcast(false);
