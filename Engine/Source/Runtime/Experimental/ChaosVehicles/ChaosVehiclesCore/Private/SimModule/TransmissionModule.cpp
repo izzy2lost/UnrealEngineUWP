@@ -135,6 +135,7 @@ namespace Chaos
 
 	void FTransmissionSimModuleDatas::FillSimState(ISimulationModuleBase* SimModule)
 	{
+		check(SimModule->GetSimType() == eSimType::Transmission);
 		if(FTransmissionSimModule* Sim = static_cast<FTransmissionSimModule*>(SimModule))
 		{
 			Sim->CurrentGear = CurrentGear;
@@ -145,6 +146,7 @@ namespace Chaos
 
 	void FTransmissionSimModuleDatas::FillNetState(const ISimulationModuleBase* SimModule)
 	{
+		check(SimModule->GetSimType() == eSimType::Transmission);
 		if (const FTransmissionSimModule* Sim = static_cast<const FTransmissionSimModule*>(SimModule))
 		{
 			CurrentGear = Sim->CurrentGear;
@@ -171,6 +173,28 @@ namespace Chaos
 	}
 #endif
 
+	void FTransmissionOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
+	{
+		check(SimModule->GetSimType() == eSimType::Transmission);
+		if (const FTransmissionSimModule* Sim = static_cast<const FTransmissionSimModule*>(SimModule))
+		{
+			CurrentGear = Sim->CurrentGear;
+		}
+	}
+
+	void FTransmissionOutputData::Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha)
+	{
+		const FTransmissionOutputData& Current = static_cast<const FTransmissionOutputData&>(InCurrent);
+		const FTransmissionOutputData& Next = static_cast<const FTransmissionOutputData&>(InNext);
+
+		CurrentGear = Current.CurrentGear;
+	}
+
+	FString FTransmissionOutputData::ToString()
+	{
+		return  FString::Printf(TEXT("CurrentGear=%d")
+			, CurrentGear);
+	}
 
 } // namespace Chaos
 

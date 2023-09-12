@@ -22,6 +22,7 @@ namespace Chaos
 {
 	class FSimModuleTree;
 	struct FModuleNetData;
+	struct FSimOutputData;
 	class FClusterUnionPhysicsProxy;
 
 	struct CHAOSVEHICLESCORE_API FControlInputs
@@ -295,6 +296,8 @@ namespace Chaos
 		// this is the replication datas
 		virtual TSharedPtr<FModuleNetData> GenerateNetData(int NodeArrayIndex) const = 0;
 
+		virtual FSimOutputData* GenerateOutputData() const { return nullptr; }
+
 		//void SetClusterParticle(FPBDRigidClusteredParticleHandle* ParticleIn) { ClusterParticle = ParticleIn; }
 		Chaos::FPBDRigidClusteredParticleHandle* GetClusterParticle(Chaos::FClusterUnionPhysicsProxy* Proxy);
 
@@ -352,6 +355,18 @@ namespace Chaos
 	};
 
 	using FModuleNetDataArray = TArray<TSharedPtr<FModuleNetData>>;
+
+	struct CHAOSVEHICLESCORE_API FSimOutputData
+	{
+		FSimOutputData() = default;
+		virtual ~FSimOutputData() {}
+
+		virtual FSimOutputData* MakeNewData() = 0;
+		virtual void FillOutputState(const ISimulationModuleBase* SimModule) = 0;
+		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) = 0;
+		virtual FString ToString() { return FString(); }
+	};
+
 
 } // namespace Chaos
 
