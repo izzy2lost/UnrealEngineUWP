@@ -52,13 +52,15 @@ namespace UE::GameFeatures
 		ShouldLogMountedFiles,
 		TEXT("Should the newly mounted files be logged."));
 
-
 	static FString GVerifyPluginSkipList;
 	static FAutoConsoleVariableRef CVarVerifyPluginSkipList(TEXT("PluginManager.VerifyUnload.SkipList"),
 		GVerifyPluginSkipList,
 		TEXT("Comma-separated list of names of plugins for which to skip verification."),
-		ECVF_Default
-		);
+		ECVF_Default);
+
+	static TAutoConsoleVariable<bool> CVarAsyncLoad(TEXT("GameFeaturePlugin.AsyncLoad"),
+		false,
+		TEXT("Enable to use aysnc loading"));
 
 	#define GAME_FEATURE_PLUGIN_STATE_TO_STRING(inEnum, inText) case EGameFeaturePluginState::inEnum: return TEXT(#inEnum);
 	FString ToString(EGameFeaturePluginState InType)
@@ -575,6 +577,11 @@ bool FGameFeaturePluginState::AllowIniLoading() const
 		return true;
 	}
 	}
+}
+
+bool FGameFeaturePluginState::UseAsyncLoading() const
+{
+	return UE::GameFeatures::CVarAsyncLoad.GetValueOnGameThread();
 }
 
 /*
@@ -1895,7 +1902,7 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 		const TArray<FName>& InstallBundles = MetaData.InstallBundles;
 
 		const FInstallBundlePluginProtocolOptions& Options = StateProperties.ProtocolOptions.GetSubtype<FInstallBundlePluginProtocolOptions>();
-		const EInstallBundleRequestFlags InstallFlags = Options.InstallBundleFlags;
+		const EInstallBundleRequestFlags InstallFlags = Options.InstallBundleFlags /*| EInstallBundleRequestFlags::AsyncMount*/;
 
 		// Make bundle manager use verbose log level for most logs.
 		// We are already done with downloading, so we don't care about logging too much here unless mounting fails.
@@ -2006,6 +2013,7 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 					IPluginManager::Get().MountExplicitlyLoadedPlugin(StateProperties.PluginName);
 				}
 
+				// @TODO: Load AR Data async?
 				// After the new plugin is mounted add the asset registry for that plugin.
 				if (StateProperties.GetPluginProtocol() == EGameFeaturePluginProtocol::InstallBundle)
 				{
@@ -2175,32 +2183,100 @@ struct FGameFeaturePluginState_Unregistering : public FGameFeaturePluginState
 
 struct FGameFeaturePluginState_Registering : public FGameFeaturePluginState
 {
-	FGameFeaturePluginState_Registering(FGameFeaturePluginStateMachineProperties& InStateProperties) : FGameFeaturePluginState(InStateProperties) {}
+	enum class ELoadGFDState : uint8
+	{
+		Pending = 0,
+		Success,
+		Cancelled,
+		Failed
+	};
 
+	TSharedPtr<FStreamableHandle> GameFeatureDataHandle;
+	TArray<FString, TInlineAllocator<2>> GameFeatureDataSearchPaths;
+	ELoadGFDState LoadGFDState = ELoadGFDState::Pending;
 	bool bCheckedRealtimeMode = false;
 
-	virtual void BeginState() override
+	FGameFeaturePluginState_Registering(FGameFeaturePluginStateMachineProperties& InStateProperties) : FGameFeaturePluginState(InStateProperties) {}
+	
+	void TryAsyncLoadGameFeatureData(int32 Attempt = 0)
 	{
-		bCheckedRealtimeMode = false;
-	}
-
-	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
-	{
-		if (!bCheckedRealtimeMode)
+		if (!GameFeatureDataSearchPaths.IsValidIndex(Attempt))
 		{
-			bCheckedRealtimeMode = true;
-			if (UE::GameFeatures::RealtimeMode)
+			LoadGFDState = ELoadGFDState::Failed;
+			UpdateStateMachineDeferred();
+			return;
+		}
+
+		check(LoadGFDState == ELoadGFDState::Pending);
+
+		bool bIsLoading = false;
+
+		const FString& Path = GameFeatureDataSearchPaths[Attempt];
+		if (FPackageName::DoesPackageExist(Path))
+		{
+			GameFeatureDataHandle = UGameFeaturesSubsystem::LoadGameFeatureData(Path, true /*bStartStalled*/);
+			if (GameFeatureDataHandle && GameFeatureDataHandle->IsLoadingInProgress())
 			{
-				UE::GameFeatures::RealtimeMode->AddUpdateRequest(StateProperties.OnRequestUpdateStateMachine);
-				return;
+				GameFeatureDataHandle->BindCancelDelegate(FStreamableDelegate::CreateLambda([this]
+				{
+					const FStringView ShortUrl = StateProperties.PluginIdentifier.GetIdentifyingString();
+					UE_LOG(LogGameFeatures, Error, TEXT("Game Feature Data loading was cancelled for URL %.*s"), ShortUrl.Len(), ShortUrl.GetData());
+
+					LoadGFDState = ELoadGFDState::Cancelled;
+					UpdateStateMachineDeferred();
+				}));
+
+				GameFeatureDataHandle->BindCompleteDelegate(FStreamableDelegate::CreateLambda([this, Attempt]
+				{
+					StateProperties.GameFeatureData = Cast<UGameFeatureData>(GameFeatureDataHandle->GetLoadedAsset());
+					if (!StateProperties.GameFeatureData)
+					{
+						TryAsyncLoadGameFeatureData(Attempt + 1);
+						return;
+					}
+
+					LoadGFDState = ELoadGFDState::Success;
+					UpdateStateMachineDeferred();
+				}));
+
+				bIsLoading = true;
+				GameFeatureDataHandle->StartStalledHandle();
 			}
 		}
 
-		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Registering);
-		const FString PluginFolder = FPaths::GetPath(StateProperties.PluginInstalledFilename);
-		UGameplayTagsManager::Get().AddTagIniSearchPath(PluginFolder / TEXT("Config") / TEXT("Tags"));
+		if (!bIsLoading)
+		{
+			TryAsyncLoadGameFeatureData(Attempt + 1);
+		}
+	}
 
-		const FString BackupGameFeatureDataPath = FString::Printf(TEXT("/%s/%s.%s"), *StateProperties.PluginName, *StateProperties.PluginName, *StateProperties.PluginName);
+	virtual void BeginState() override
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Registering_Begin);
+
+		bCheckedRealtimeMode = false;
+
+		const FString PluginFolder = FPaths::GetPath(StateProperties.PluginInstalledFilename);
+
+		if (AllowIniLoading())
+		{
+			UGameplayTagsManager::Get().AddTagIniSearchPath(PluginFolder / TEXT("Config") / TEXT("Tags"));
+		}
+
+		LoadGFDState = ELoadGFDState::Pending;
+
+		TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(StateProperties.PluginName);
+		ensure(Plugin.IsValid());
+
+		// If the plugin contains content then load the GameFeatureData otherwise procedurally create one that is transient.
+		if (!Plugin->GetDescriptor().bCanContainContent)
+		{
+			StateProperties.GameFeatureData = NewObject<UGameFeatureData>(GetTransientPackage(), FName(*StateProperties.PluginName), RF_Transient);
+			LoadGFDState = ELoadGFDState::Success;
+			return;
+		}
+
+		FString BackupGameFeatureDataPath = FString::Printf(TEXT("/%s/%s.%s"), *StateProperties.PluginName, *StateProperties.PluginName, *StateProperties.PluginName);
 
 		FString PreferredGameFeatureDataPath = TEXT("/") + StateProperties.PluginName + TEXT("/GameFeatureData.GameFeatureData");
 
@@ -2221,46 +2297,81 @@ struct FGameFeaturePluginState_Registering : public FGameFeaturePluginState
 			}
 			if (!OverridePath.IsEmpty())
 			{
-				PreferredGameFeatureDataPath = OverridePath;
+				PreferredGameFeatureDataPath = MoveTemp(OverridePath);
 			}
 		}
-		
-		auto LoadGameFeatureData = [](const FString& Path) -> UGameFeatureData*
-		{
-			TSharedPtr<FStreamableHandle> GameFeatureDataHandle;
-			if (FPackageName::DoesPackageExist(Path))
-			{
-				GameFeatureDataHandle = UGameFeaturesSubsystem::LoadGameFeatureData(Path);
-				// @todo make this async. For now we just wait
-				if (GameFeatureDataHandle.IsValid())
-				{
-					GameFeatureDataHandle->WaitUntilComplete(0.0f, false);
-					return Cast<UGameFeatureData>(GameFeatureDataHandle->GetLoadedAsset());
-				}
-			}
 
-			return nullptr;
-		};
+		GameFeatureDataSearchPaths.Empty();
+		GameFeatureDataSearchPaths.Emplace(MoveTemp(PreferredGameFeatureDataPath));
+		GameFeatureDataSearchPaths.Emplace(MoveTemp(BackupGameFeatureDataPath));
 
-		TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(StateProperties.PluginName);
-		ensure(Plugin.IsValid());
-		
-		// If the plugin contains content then load the GameFeatureData otherwise procedurally create one that is transient.
-		if (Plugin->GetDescriptor().bCanContainContent)
+		if (UseAsyncLoading())
 		{
-			StateProperties.GameFeatureData = LoadGameFeatureData(PreferredGameFeatureDataPath);
-			if (!StateProperties.GameFeatureData)
-			{
-				StateProperties.GameFeatureData = LoadGameFeatureData(BackupGameFeatureDataPath);
-			}
+			TryAsyncLoadGameFeatureData();
 		}
 		else
 		{
-			StateProperties.GameFeatureData = NewObject<UGameFeatureData>(GetTransientPackage(), FName(*StateProperties.PluginName), RF_Transient);
+			for (const FString& Path : GameFeatureDataSearchPaths)
+			{
+				if (FPackageName::DoesPackageExist(Path))
+				{
+					GameFeatureDataHandle = UGameFeaturesSubsystem::LoadGameFeatureData(Path);
+					if (GameFeatureDataHandle)
+					{
+						GameFeatureDataHandle->WaitUntilComplete(0.0f, false);
+						StateProperties.GameFeatureData = Cast<UGameFeatureData>(GameFeatureDataHandle->GetLoadedAsset());
+					}
+				}
+
+				if (StateProperties.GameFeatureData)
+				{
+					break;
+				}
+			}
+
+			LoadGFDState = StateProperties.GameFeatureData ? ELoadGFDState::Success : ELoadGFDState::Failed;
+		}
+	}
+
+	virtual void EndState() override
+	{
+		GameFeatureDataHandle = nullptr;
+	}
+
+	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Registering_Update);
+
+		if (!bCheckedRealtimeMode)
+		{
+			bCheckedRealtimeMode = true;
+			if (UE::GameFeatures::RealtimeMode)
+			{
+				UE::GameFeatures::RealtimeMode->AddUpdateRequest(StateProperties.OnRequestUpdateStateMachine);
+				return;
+			}
+		}
+
+		if (!StateProperties.GameFeatureData)
+		{
+			check(LoadGFDState != ELoadGFDState::Success);
+
+			if (LoadGFDState == ELoadGFDState::Pending)
+			{
+				return;
+			}
+
+			if (LoadGFDState == ELoadGFDState::Cancelled)
+			{
+				StateStatus.SetTransitionError(EGameFeaturePluginState::ErrorRegistering, GetErrorResult(TEXT("Load_Cancelled_GameFeatureData")));
+				return;
+			}
 		}
 
 		if (StateProperties.GameFeatureData)
 		{
+			check(LoadGFDState == ELoadGFDState::Success);
+
 			if (AllowIniLoading())
 			{
 				StateProperties.GameFeatureData->InitializeBasePluginIniFile(StateProperties.PluginInstalledFilename);
@@ -2275,6 +2386,8 @@ struct FGameFeaturePluginState_Registering : public FGameFeaturePluginState
 		}
 		else
 		{
+			check(LoadGFDState == ELoadGFDState::Failed);
+
 			// The gamefeaturedata does not exist. The pak file may not be openable or this is a builtin plugin where the pak file does not exist.
 			StateStatus.SetTransitionError(EGameFeaturePluginState::ErrorRegistering, GetErrorResult(TEXT("Plugin_Missing_GameFeatureData")));
 		}
@@ -2294,6 +2407,23 @@ struct FGameFeaturePluginState_Registered : public FDestinationGameFeaturePlugin
 		else if (StateProperties.Destination < EGameFeaturePluginState::Registered)
 		{
 			StateStatus.SetTransition( EGameFeaturePluginState::Unregistering);
+		}
+	}
+};
+
+struct FGameFeaturePluginState_ErrorLoading : public FErrorGameFeaturePluginState
+{
+	FGameFeaturePluginState_ErrorLoading(FGameFeaturePluginStateMachineProperties& InStateProperties) : FErrorGameFeaturePluginState(InStateProperties) {}
+
+	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
+	{
+		if (StateProperties.Destination < EGameFeaturePluginState::ErrorLoading)
+		{
+			StateStatus.SetTransition(EGameFeaturePluginState::Registered);
+		}
+		else if (StateProperties.Destination > EGameFeaturePluginState::ErrorLoading)
+		{
+			StateStatus.SetTransition(EGameFeaturePluginState::Loading);
 		}
 	}
 };
@@ -2363,17 +2493,57 @@ struct FGameFeaturePluginState_Loading : public FGameFeaturePluginState
 {
 	FGameFeaturePluginState_Loading(FGameFeaturePluginStateMachineProperties& InStateProperties) : FGameFeaturePluginState(InStateProperties) {}
 
-	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
+	TSharedPtr<FStreamableHandle> BundleHandle;
+
+	virtual void BeginState() override
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Loading);
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Loading_Begin);
 		check(StateProperties.GameFeatureData);
 
-		// AssetManager
-		TSharedPtr<FStreamableHandle> BundleHandle = LoadGameFeatureBundles(StateProperties.GameFeatureData);
-		// @todo make this async. For now we just wait
-		if (BundleHandle.IsValid())
+		BundleHandle = LoadGameFeatureBundles(StateProperties.GameFeatureData);
+		if (BundleHandle)
 		{
-			BundleHandle->WaitUntilComplete(0.0f, false);
+			// This will only bind if a load is in progress
+			BundleHandle->BindCancelDelegate(FStreamableDelegate::CreateLambda([this]
+			{
+				const FStringView ShortUrl = StateProperties.PluginIdentifier.GetIdentifyingString();
+				UE_LOG(LogGameFeatures, Error, TEXT("Game Feature preloading was cancelled for URL %.*s"), ShortUrl.Len(), ShortUrl.GetData());
+				UpdateStateMachineDeferred();
+			}));
+
+			// This will only bind if a load is in progress
+			BundleHandle->BindCompleteDelegate(FStreamableDelegate::CreateRaw(this, &FGameFeaturePluginState_Registering::UpdateStateMachineDeferred, 0.0f));
+		}
+	}
+
+	virtual void EndState() override
+	{
+		BundleHandle = nullptr;
+	}
+
+	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Loading_Update);
+		check(StateProperties.GameFeatureData);
+
+		if (BundleHandle)
+		{
+			if (!UseAsyncLoading())
+			{
+				BundleHandle->WaitUntilComplete(0.0f, false);
+			}
+
+			if (BundleHandle->IsLoadingInProgress())
+			{
+				return;
+			}
+
+			if (BundleHandle->WasCanceled())
+			{
+				BundleHandle.Reset();
+				StateStatus.SetTransitionError(EGameFeaturePluginState::ErrorLoading, GetErrorResult(TEXT("Load_Cancelled_Preload")));
+				return;
+			}
 		}
 
 		UGameFeaturesSubsystem::Get().OnGameFeatureLoading(StateProperties.GameFeatureData, StateProperties.PluginIdentifier);
@@ -2582,6 +2752,7 @@ struct FGameFeaturePluginState_Activating : public FGameFeaturePluginState
 
 		UGameFeaturesSubsystem::Get().OnGameFeatureActivating(StateProperties.GameFeatureData, StateProperties.PluginName, Context, StateProperties.PluginIdentifier);
 
+		// @TODO: non-blocking wait here?
 		// If this plugin caused localization data to load, wait for that here before marking it as active
 		if (TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(StateProperties.PluginName);
 			Plugin && Plugin->GetDescriptor().bExplicitlyLoaded && Plugin->GetDescriptor().LocalizationTargets.Num() > 0)
@@ -2958,6 +3129,8 @@ void UGameFeaturePluginStateMachine::UpdateStateMachine()
 		UE_LOG(LogGameFeatures, Verbose, TEXT("Game feature state machine skipping update for %s in ::UpdateStateMachine. Current State: %s"), *GetGameFeatureName(), *UE::GameFeatures::ToString(CurrentState));
 		return;
 	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(GFP_UpdateStateMachine);
 
 	TOptional<TGuardValue<bool>> ScopeGuard(InPlace, bInUpdateStateMachine, true);
 	

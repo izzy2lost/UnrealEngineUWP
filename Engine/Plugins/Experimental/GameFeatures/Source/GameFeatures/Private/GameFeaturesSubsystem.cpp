@@ -491,9 +491,15 @@ void UGameFeaturesSubsystem::OnAssetManagerCreated()
 	bInitializedPolicyManager = true;
 }
 
-TSharedPtr<FStreamableHandle> UGameFeaturesSubsystem::LoadGameFeatureData(const FString& GameFeatureToLoad)
+TSharedPtr<FStreamableHandle> UGameFeaturesSubsystem::LoadGameFeatureData(const FString& GameFeatureToLoad, bool bStartStalled /*= false*/)
 {
-	return UAssetManager::Get().GetStreamableManager().RequestAsyncLoad(FSoftObjectPath(GameFeatureToLoad));
+	return UAssetManager::Get().GetStreamableManager().RequestAsyncLoad(
+		FSoftObjectPath(GameFeatureToLoad), 
+		FStreamableDelegate(), 
+		FStreamableManager::DefaultAsyncLoadPriority, 
+		false, 
+		bStartStalled, 
+		TEXT("LoadGameFeatureData"));
 }
 
 void UGameFeaturesSubsystem::UnloadGameFeatureData(const UGameFeatureData* GameFeatureToUnload)

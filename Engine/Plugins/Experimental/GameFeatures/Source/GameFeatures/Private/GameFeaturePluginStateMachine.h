@@ -80,12 +80,12 @@ Transition states are expected to transition the machine to another state after 
       +--+---------+      +-------------------+       +------v-------+   |
       |            |      |         !         |       |              |   |
       | Releasing  <------> ErrorManagingData <-------> Downloading  |   |
-      |            |      |                   |       |              |   |  
-      +--^---------+      +-------------------+       +-------+------+   |  
-         |                                                   |           | 
-         |                                                   |           | 
-         |     +-------------+                               |           |   
-         |     |      *      |                               v           |    
+      |            |      |                   |       |              |   |
+      +--^---------+      +-------------------+       +-------+------+   |
+         |                                                   |           |
+         |                                                   |           |
+         |     +-------------+                               |           |
+         |     |      *      |                               v           |
          ------+ Installed   <--------------------------------------------
                |             |
                +-^---------+-+
@@ -120,13 +120,13 @@ Transition states are expected to transition the machine to another state after 
                |            |
                +-^--------+-+
                  |        |
-           ------~--------~------------------------------
-           |     |        |                             |
-        +--v-----+--+  +--v--------+                    |
-        |           |  |           |                    |
-        | Unloading |  |  Loading  |                    |
-        |           |  |           |                    |
-        +--------^--+  +--+--------+                    |
+           ------~--------~-------------------------------------
+           |     |        |                             ^      |
+        +--v-----+--+  +--v--------+                    |    +-+------------+
+        |           |  |           |                    |    |      !       |
+        | Unloading |  |  Loading  <--------------------~----> ErrorLoading |
+        |           |  |           |                    |    |              |
+        +--------^--+  +--+--------+                    |    +--------------+
                  |        |                             |
                +-+--------v-+                           |
                |      *     |                           |
@@ -397,6 +397,8 @@ protected:
 	bool ShouldVisitUninstallStateBeforeTerminal() const;
 
 	bool AllowIniLoading() const;
+
+	bool UseAsyncLoading() const;
 
 private:
 	void CleanupDeferredUpdateCallbacks() const;

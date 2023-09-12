@@ -65,7 +65,7 @@ FText SGameFeatureStateWidget::GetDisplayNameOfState(EGameFeaturePluginState Sta
 
 FText SGameFeatureStateWidget::GetTooltipOfState(EGameFeaturePluginState State)
 {
-	static_assert((int32)EGameFeaturePluginState::MAX == 31, "");
+	static_assert((int32)EGameFeaturePluginState::MAX == 32, "");
 
 	switch (State)
 	{
@@ -115,6 +115,8 @@ FText SGameFeatureStateWidget::GetTooltipOfState(EGameFeaturePluginState State)
 		return LOCTEXT("StateTooltip_Registering", "Transition state Installed -> Registered. Discovering assets in the plugin, but not loading them, except a few for discovery reasons.");
 	case EGameFeaturePluginState::Registered:
 		return LOCTEXT("StateTooltip_Registered", "The assets in the plugin are known, but have not yet been loaded, except a few for discovery reasons.");
+	case EGameFeaturePluginState::ErrorLoading:
+		return LOCTEXT("StateTooltip_ErrorLoading", "Error state for Loading -> Loaded transition.");
 	case EGameFeaturePluginState::Unloading:
 		return LOCTEXT("StateTooltip_Unloading", "Transition state Loaded -> Registered. In the process of removing code/content from memory.");
 	case EGameFeaturePluginState::Loading:
