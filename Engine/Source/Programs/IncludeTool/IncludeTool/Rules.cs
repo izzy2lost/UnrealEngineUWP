@@ -99,7 +99,6 @@ namespace IncludeTool
 			"include/internal/cef_",
 			"opus.h",
 			"opus_multistream.h",
-			"openvr.h",
 			"libyuv/",
 			"openssl/",
 			"vpx/",
