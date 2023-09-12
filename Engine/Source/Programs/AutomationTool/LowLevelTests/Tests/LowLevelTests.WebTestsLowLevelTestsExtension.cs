@@ -7,6 +7,7 @@ using EpicGames.Core;
 using UnrealBuildTool;
 using Gauntlet;
 using UnrealBuildBase;
+using System.Net.Sockets;
 
 namespace LowLevelTests
 {
@@ -27,7 +28,9 @@ namespace LowLevelTests
 		public void PreRunTests()
 		{
 			InstallWebServer();
-			RunWebServer();
+			AsyncLaunchWebServerProcess();
+			// If start WebTests right after launching web server process without waiting, it could get refused to connect, especially on Linux
+			WaitUntilWebServerPortOpen();
 		}
 
 		private string WebTestsServerDir()
@@ -39,8 +42,8 @@ namespace LowLevelTests
 		{
 			ProcessStartInfo StartInfo = new ProcessStartInfo();
 			StartInfo.WorkingDirectory = WebTestsServerDir();
-			StartInfo.FileName = RuntimePlatform.IsWindows ? "cmd.exe" : "/bind/sh";
-			StartInfo.Arguments = RuntimePlatform.IsWindows ? "/c createenv.bat" : "-c 'createenv.sh'";
+			StartInfo.FileName = RuntimePlatform.IsWindows ? "cmd.exe" : "/bin/sh";
+			StartInfo.Arguments = RuntimePlatform.IsWindows ? "/c createenv.bat" : "-c './createenv.sh'";
 			StartInfo.UseShellExecute = false;
 			StartInfo.CreateNoWindow = true;
 
@@ -52,10 +55,10 @@ namespace LowLevelTests
 			Console.WriteLine("Requirements installed.");
 		}
 
-		private void RunWebServer()
+		private void AsyncLaunchWebServerProcess()
 		{
 			string WorkingDir = WebTestsServerDir();
-			string PythonFile = Path.Combine(WorkingDir, "env", "Scripts", RuntimePlatform.IsWindows ? "python.exe" : "python");
+			string PythonFile = Path.Combine(WorkingDir, "env", RuntimePlatform.IsWindows ? "Scripts" : "bin", RuntimePlatform.IsWindows ? "python.exe" : "python");
 
 			ProcessStartInfo StartInfo = new ProcessStartInfo();
 			StartInfo.WorkingDirectory = WorkingDir;
@@ -69,10 +72,51 @@ namespace LowLevelTests
 			ServerProcess.StartInfo = StartInfo;
 			ServerProcess.Start();
 
-			Console.WriteLine("Web server is now running.");
+			Console.WriteLine("Web server process is now running.");
+		}
+
+		private void WaitUntilWebServerPortOpen()
+		{
+			Stopwatch sw = new Stopwatch();
+			sw.Start();
+
+			while (!IsServerPortOpen(UnrealHelpers.GetHostIpAddress(), 8000))
+			{
+				if (sw.ElapsedMilliseconds > 60000)
+				{
+					sw.Stop();
+					throw new TimeoutException("Server port did not open within the specified time.");
+				}
+				System.Threading.Thread.Sleep(1000);
+			}
+
+			sw.Stop();
+
+			Console.WriteLine("Web server port is now open.");
+		}
+
+		private bool IsServerPortOpen(string ipAddress, int port)
+		{
+			using (TcpClient client = new TcpClient())
+			{
+				try
+				{
+					client.Connect(ipAddress, port);
+					return true;
+				}
+				catch
+				{
+					return false;
+				}
+			}
 		}
 
 		public void PostRunTests()
+		{
+			CloseWebServer();
+		}
+
+		private void CloseWebServer()
 		{
 			if (ServerProcess != null)
 			{

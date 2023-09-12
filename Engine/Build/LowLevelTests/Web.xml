@@ -13,7 +13,7 @@
 	<Property Name="WebHasAfterSteps" Value="True" />
 	<Property Name="WebUsesCatch2" Value="True" />
 	<Option Name="RunWebTests" DefaultValue="False" Description="Run Web Tests" />
-	<Property Name="WebSupportedPlatforms" Value="Win64" />
+	<Property Name="WebSupportedPlatforms" Value="Win64;Linux;Android" />
 	<Property Name="Win64WebTags" Value="" />
 	<Property Name="MacWebTags" Value="" />
 	<Property Name="IOSWebTags" Value="" />
