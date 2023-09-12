@@ -31,6 +31,7 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Widgets/Testing/SStarshipSuite.h"
 #include "Widgets/Text/STextBlock.h"
@@ -55,6 +56,13 @@
 
 // Driver
 #include "Framework/MetaData/DriverMetaData.h"
+
+#if PLATFORM_WINDOWS
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include <handleapi.h> // for CreateEvent
+#include <synchapi.h> // for CloseHandle
+#include "Windows/HideWindowsPlatformTypes.h"
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1069,6 +1077,11 @@ void STraceStoreWindow::Construct(const FArguments& InArgs)
 
 	RefreshTraceList();
 
+	if (AutoConnect_IsChecked() == ECheckBoxState::Checked)
+	{
+		EnableAutoConnect();
+	}
+
 	bSetKeyboardFocusOnNextTick = true;
 }
 
@@ -1831,7 +1844,7 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructTraceStoreDirectoryPanel()
 
 TSharedRef<SWidget> STraceStoreWindow::ConstructAutoStartPanel()
 {
-	TSharedRef<SWidget> Widget = SNew(SHorizontalBox)
+	TSharedRef<SHorizontalBox> Box = SNew(SHorizontalBox)
 
 	+ SHorizontalBox::Slot()
 	.AutoWidth()
@@ -1879,7 +1892,35 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructAutoStartPanel()
 		]
 	];
 
-	return Widget;
+#if PLATFORM_WINDOWS
+	Box->AddSlot()
+		.AutoWidth()
+		.Padding(6.0f, 0.0f, 0.0f, 0.0f)
+		.HAlign(HAlign_Left)
+		.VAlign(VAlign_Center)
+		[
+			SNew(SSeparator)
+			.Orientation(Orient_Vertical)
+		];
+
+	Box->AddSlot()
+		.AutoWidth()
+		.Padding(6.0f, 0.0f, 0.0f, 0.0f)
+		.HAlign(HAlign_Left)
+		.VAlign(VAlign_Center)
+		[
+			SNew(SCheckBox)
+			.ToolTipText(LOCTEXT("AutoConnect_Tooltip", "Signal to an UE application to auto-connect and start tracing if Insights is running."))
+			.IsChecked(this, &STraceStoreWindow::AutoConnect_IsChecked)
+			.OnCheckStateChanged(this, &STraceStoreWindow::AutoConnect_OnCheckStateChanged)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("AutoConnect_Text", "Auto-connect"))
+			]
+		];
+#endif // PLATFORM_WINDOWS
+
+	return Box;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2490,6 +2531,64 @@ ECheckBoxState STraceStoreWindow::AutoStart_IsChecked() const
 void STraceStoreWindow::AutoStart_OnCheckStateChanged(ECheckBoxState NewState)
 {
 	bAutoStartAnalysisForLiveSessions = (NewState == ECheckBoxState::Checked);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+ECheckBoxState STraceStoreWindow::AutoConnect_IsChecked() const
+{
+	return FInsightsManager::Get()->GetSessionBrowserSettings().IsAutoConnectEnabled() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STraceStoreWindow::AutoConnect_OnCheckStateChanged(ECheckBoxState NewState)
+{
+	if (AutoConnect_IsChecked() == NewState)
+	{
+		return;
+	}
+
+	FInsightsManager::Get()->GetSessionBrowserSettings().SetAndSaveAutoConnect(!FInsightsManager::Get()->GetSessionBrowserSettings().IsAutoConnectEnabled());
+
+	if (FInsightsManager::Get()->GetSessionBrowserSettings().IsAutoConnectEnabled())
+	{
+		EnableAutoConnect();
+	}
+	else
+	{
+		DisableAutoConnect();
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STraceStoreWindow::EnableAutoConnect()
+{
+#if PLATFORM_WINDOWS
+	ensure(AutoConnectEvent == nullptr);
+	// The event is used by runtime to choose when to try to auto-connect.
+	// See FTraceAuxiliary::TryAutoConnect() in \Runtime\Core\Private\ProfilingDebugging\TraceAuxiliary.cpp
+	AutoConnectEvent = CreateEvent(NULL, true, false, TEXT("Local\\UnrealInsightsAutoConnect"));
+	if (AutoConnectEvent == nullptr || GetLastError() != ERROR_SUCCESS)
+	{
+		UE_LOG(TraceInsights, Warning, TEXT("[TraceStore] Failed to create AutoConnect event."));
+
+	}
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STraceStoreWindow::DisableAutoConnect()
+{
+#if PLATFORM_WINDOWS
+	if (AutoConnectEvent != nullptr)
+	{
+		CloseHandle(AutoConnectEvent);
+		AutoConnectEvent = nullptr;
+	}
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

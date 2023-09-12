@@ -11,6 +11,12 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/Views/SListView.h"
 
+#if PLATFORM_WINDOWS
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include <winnt.h> // for HANDLE
+#include "Windows/HideWindowsPlatformTypes.h"
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class FActiveTimerHandle;
@@ -363,6 +369,12 @@ private:
 	void AutoStart_OnCheckStateChanged(ECheckBoxState NewState);
 
 	//////////////////////////////////////////////////
+	// Auto Connect
+	
+	ECheckBoxState AutoConnect_IsChecked() const;
+	void AutoConnect_OnCheckStateChanged(ECheckBoxState NewState);
+
+	//////////////////////////////////////////////////
 	// Trace Store Directory
 
 	FText GetTraceStoreDirectory() const;
@@ -493,6 +505,9 @@ private:
 	void ShowSuccessMessage(FText& InMessage);
 	void ShowFailMessage(FText& InMessage);
 
+	void EnableAutoConnect();
+	void DisableAutoConnect();
+
 public:
 	/** Parameter that controls the visibility of the confirmation window in case the trace is deleted. */
 	bool bIsDeleteTraceConfirmWindowVisible = true;
@@ -576,6 +591,10 @@ private:
 	bool bStartProcessWithStompMalloc = false;
 
 	bool bSetKeyboardFocusOnNextTick = false;
+
+#if PLATFORM_WINDOWS
+	HANDLE AutoConnectEvent = nullptr;
+#endif
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

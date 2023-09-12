@@ -79,8 +79,6 @@ bool CheckSessionBrowserSingleInstance()
 #if PLATFORM_WINDOWS
 	// Create a named event that other processes can detect.
 	// It allows only a single instance of Unreal Insights (Browser Mode).
-	// The event is also used by runtime to choose when to try to auto-connect.
-	// See FTraceAuxiliary::TryAutoConnect() in \Runtime\Core\Private\ProfilingDebugging\TraceAuxiliary.cpp
 	HANDLE SessionBrowserEvent = CreateEvent(NULL, true, false, TEXT("Local\\UnrealInsightsBrowser"));
 	if (SessionBrowserEvent == NULL || GetLastError() == ERROR_ALREADY_EXISTS)
 	{

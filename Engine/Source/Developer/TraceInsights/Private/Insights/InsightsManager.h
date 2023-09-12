@@ -11,6 +11,7 @@
 #include "Insights/Common/Stopwatch.h"
 #include "Insights/InsightsCommands.h"
 #include "Insights/InsightsSettings.h"
+#include "Insights/InsightsSessionBrowserSettings.h"
 #include "Insights/IUnrealInsightsModule.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -151,6 +152,9 @@ public:
 
 	/** @return an instance of the main settings. */
 	static FInsightsSettings& GetSettings();
+
+	/** @return an instance of the session browser settings. */
+	static FInsightsSessionBrowserSettings& GetSessionBrowserSettings();
 
 	//////////////////////////////////////////////////
 	// Trace Store
@@ -447,6 +451,9 @@ private:
 
 	/** An instance of the main settings. */
 	FInsightsSettings Settings;
+
+	/** An instance of the session browser settings. */
+	FInsightsSessionBrowserSettings SessionBrowserSettings;
 
 	/** A weak pointer to the Trace Store window. */
 	TWeakPtr<class STraceStoreWindow> TraceStoreWindow;

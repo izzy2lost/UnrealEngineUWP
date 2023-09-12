@@ -513,6 +513,12 @@ FInsightsActionManager& FInsightsManager::GetActionManager()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+FInsightsSessionBrowserSettings& FInsightsManager::GetSessionBrowserSettings()
+{
+	return FInsightsManager::Instance->SessionBrowserSettings;
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 FInsightsSettings& FInsightsManager::GetSettings()
 {
 	return FInsightsManager::Instance->Settings;
