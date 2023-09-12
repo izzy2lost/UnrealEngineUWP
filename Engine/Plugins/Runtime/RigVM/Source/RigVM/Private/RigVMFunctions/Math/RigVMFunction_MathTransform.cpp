@@ -178,7 +178,7 @@ FRigVMFunction_MathTransformArrayToSRT_Execute()
 FRigVMFunction_MathTransformClampSpatially_Execute()
 {
 	FVector Position;
-	FRigVMFunction_MathVectorClampSpatially::StaticExecute(ExecuteContext, Value.GetTranslation(), Axis, Type, Minimum, Maximum, Space, bDrawDebug, DebugColor, DebugThickness, Position);
+	FRigVMFunction_MathVectorClampSpatially::StaticExecute(ExecuteContext, Value.GetTranslation(), Axis, Type, Minimum, Maximum, Space, bDrawDebug, DebugColor, DebugThickness, DebugScale, Position);
 	Result = Value;
 	Result.SetTranslation(Position);
 }

@@ -3,6 +3,8 @@
 #include "RigVMFunctions/Math/RigVMFunction_MathVector.h"
 #include "RigVMFunctions/Math/RigVMFunction_MathTransform.h"
 #include "RigVMFunctions/RigVMDispatch_Core.h"
+#include "Engine/Engine.h"
+#include "Materials/MaterialInstanceDynamic.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMFunction_MathVector)
 
@@ -397,33 +399,46 @@ FRigVMFunction_MathVectorClampSpatially_Execute()
 		{
 			case ERigVMClampSpatialMode::Plane:
 			{
-				TArray<FVector> Points;
-				Points.SetNumUninitialized(2);
+				FVector A, B, Normal;
 					
 				switch (Axis)
 				{
 					case EAxis::X:
 					{
-						Points[0] = FVector(Minimum, 0.f, 0.f);
-						Points[1] = FVector(Maximum, 0.f, 0.f);
+						A = FVector::YAxisVector;
+						B = FVector::ZAxisVector;
+						Normal = FVector::XAxisVector;
 						break;
 					}
 					case EAxis::Y:
 					{
-						Points[0] = FVector(0.f, Minimum, 0.f);
-						Points[1] = FVector(0.f, Maximum, 0.f);
+						A = FVector::XAxisVector;
+						B = FVector::ZAxisVector;
+						Normal = FVector::YAxisVector;
 						break;
 					}
 					default:
 					{
-						Points[0] = FVector(0.f, 0.f, Minimum);
-						Points[1] = FVector(0.f, 0.f, Maximum);
+						A = FVector::XAxisVector;
+						B = FVector::YAxisVector;
+						Normal = FVector::ZAxisVector;
 						break;
 					}
 				}
 
-				ExecuteContext.GetDrawInterface()->DrawLine(Space, Points[0], Points[1], DebugColor, DebugThickness);
-				ExecuteContext.GetDrawInterface()->DrawPoints(Space, Points, DebugThickness * 8.f, DebugColor);
+				FTransform PlaneOffset = FTransform::Identity;
+				PlaneOffset.SetRotation(FMatrix(A, Normal.Cross(A), Normal, FVector::ZeroVector).ToQuat());
+
+				const FTransform MinimumWorldTransform = FTransform(Normal * Minimum) * Space;
+				ExecuteContext.GetDrawInterface()->DrawPlane(PlaneOffset * MinimumWorldTransform, FVector2D(1, 1) * DebugScale, FLinearColor::Yellow, true, FLinearColor::Yellow, GEngine->ConstraintLimitMaterialPrismatic->GetRenderProxy());
+				ExecuteContext.GetDrawInterface()->DrawArrow(MinimumWorldTransform, Normal * DebugScale * 0.25f, A * DebugScale * 0.08f, FLinearColor::Yellow, 0.f);
+
+				if (Maximum > SMALL_NUMBER)
+				{
+					const FTransform MaximumWorldTransform = FTransform(Normal * Maximum) * Space;
+					ExecuteContext.GetDrawInterface()->DrawPlane(PlaneOffset * MaximumWorldTransform, FVector2D(1, 1) * DebugScale, FLinearColor::Yellow, true, FLinearColor::Yellow, GEngine->ConstraintLimitMaterialPrismatic->GetRenderProxy());
+					ExecuteContext.GetDrawInterface()->DrawArrow(MaximumWorldTransform, -Normal * DebugScale * 0.25f, A * DebugScale * 0.08f, FLinearColor::Yellow, 0.f);
+				}
 
 				break;
 			}
@@ -447,11 +462,24 @@ FRigVMFunction_MathVectorClampSpatially_Execute()
 						break;
 					}
 				}
+
+				const FTransform ArrowTransform = CircleTransform * Space;
 				if (Minimum > SMALL_NUMBER)
 				{
-					ExecuteContext.GetDrawInterface()->DrawArc(Space, CircleTransform, Minimum, 0.f, PI * 2.f, DebugColor, DebugThickness, 16);
+					ExecuteContext.GetDrawInterface()->DrawCircle(Space, CircleTransform, Minimum, FLinearColor::Yellow, 0.f, 32);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::XAxisVector * Minimum) * ArrowTransform, FVector::XAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::XAxisVector * Minimum) * ArrowTransform, -FVector::XAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::YAxisVector * Minimum) * ArrowTransform, FVector::YAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::YAxisVector * Minimum) * ArrowTransform, -FVector::YAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
 				}
-				ExecuteContext.GetDrawInterface()->DrawArc(Space, CircleTransform, Maximum, 0.f, PI * 2.f, DebugColor, DebugThickness, 16);
+				if (Maximum > SMALL_NUMBER)
+				{
+					ExecuteContext.GetDrawInterface()->DrawCircle(Space, CircleTransform, Maximum, FLinearColor::Yellow, 0.f, 32);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::XAxisVector * Maximum) * ArrowTransform, FVector::XAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::XAxisVector * Maximum) * ArrowTransform, -FVector::XAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::YAxisVector * Maximum) * ArrowTransform, FVector::YAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::YAxisVector * Maximum) * ArrowTransform, -FVector::YAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+				}
 				break;
 			}
 			default:
@@ -460,25 +488,64 @@ FRigVMFunction_MathVectorClampSpatially_Execute()
 				FTransform CircleTransform = FTransform::Identity;
 				if (Minimum > SMALL_NUMBER)
 				{
-					ExecuteContext.GetDrawInterface()->DrawArc(Space, CircleTransform, Minimum, 0.f, PI * 2.f, DebugColor, DebugThickness, 16);
+					ExecuteContext.GetDrawInterface()->DrawCircle(Space, CircleTransform, Minimum, FLinearColor::Yellow, 0.f, 32);
+					const FTransform ArrowTransform = CircleTransform * Space;
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::XAxisVector * Minimum) * ArrowTransform, FVector::XAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::XAxisVector * Minimum) * ArrowTransform, -FVector::XAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::YAxisVector * Minimum) * ArrowTransform, FVector::YAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::YAxisVector * Minimum) * ArrowTransform, -FVector::YAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
 				}
-				ExecuteContext.GetDrawInterface()->DrawArc(Space, CircleTransform, Maximum, 0.f, PI * 2.f, DebugColor, DebugThickness, 16);
+				if(Maximum > SMALL_NUMBER)
+				{
+					ExecuteContext.GetDrawInterface()->DrawCircle(Space, CircleTransform, Maximum, FLinearColor::Yellow, 0.f, 32);
+					const FTransform ArrowTransform = CircleTransform * Space;
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::XAxisVector * Maximum) * ArrowTransform, FVector::XAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::XAxisVector * Maximum) * ArrowTransform, -FVector::XAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::YAxisVector * Maximum) * ArrowTransform, FVector::YAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::YAxisVector * Maximum) * ArrowTransform, -FVector::YAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+				}
 				CircleTransform.SetRotation(FQuat(FVector(0.f, 1.f, 0.f), PI * 0.5f));
 				if (Minimum > SMALL_NUMBER)
 				{
-					ExecuteContext.GetDrawInterface()->DrawArc(Space, CircleTransform, Minimum, 0.f, PI * 2.f, DebugColor, DebugThickness, 16);
+					ExecuteContext.GetDrawInterface()->DrawCircle(Space, CircleTransform, Minimum, FLinearColor::Yellow, 0.f, 32);
+					const FTransform ArrowTransform = CircleTransform * Space;
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::XAxisVector * Minimum) * ArrowTransform, FVector::XAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::XAxisVector * Minimum) * ArrowTransform, -FVector::XAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::YAxisVector * Minimum) * ArrowTransform, FVector::YAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::YAxisVector * Minimum) * ArrowTransform, -FVector::YAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
 				}
-				ExecuteContext.GetDrawInterface()->DrawArc(Space, CircleTransform, Maximum, 0.f, PI * 2.f, DebugColor, DebugThickness, 16);
+				if(Maximum > SMALL_NUMBER)
+				{
+					ExecuteContext.GetDrawInterface()->DrawCircle(Space, CircleTransform, Maximum, FLinearColor::Yellow, 0.f, 32);
+					const FTransform ArrowTransform = CircleTransform * Space;
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::XAxisVector * Maximum) * ArrowTransform, FVector::XAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::XAxisVector * Maximum) * ArrowTransform, -FVector::XAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::YAxisVector * Maximum) * ArrowTransform, FVector::YAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::YAxisVector * Maximum) * ArrowTransform, -FVector::YAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+				}
 				CircleTransform.SetRotation(FQuat(FVector(1.f, 0.f, 0.f), PI * 0.5f));
 				if (Minimum > SMALL_NUMBER)
 				{
-					ExecuteContext.GetDrawInterface()->DrawArc(Space, CircleTransform, Minimum, 0.f, PI * 2.f, DebugColor, DebugThickness, 16);
+					ExecuteContext.GetDrawInterface()->DrawCircle(Space, CircleTransform, Minimum, FLinearColor::Yellow, 0.f, 32);
+					const FTransform ArrowTransform = CircleTransform * Space;
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::XAxisVector * Minimum) * ArrowTransform, FVector::XAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::XAxisVector * Minimum) * ArrowTransform, -FVector::XAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::YAxisVector * Minimum) * ArrowTransform, FVector::YAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::YAxisVector * Minimum) * ArrowTransform, -FVector::YAxisVector * Minimum * 0.25f, FVector::ZAxisVector * Minimum * 0.08f, FLinearColor::Yellow, 0.f);
 				}
-				ExecuteContext.GetDrawInterface()->DrawArc(Space, CircleTransform, Maximum, 0.f, PI * 2.f, DebugColor, DebugThickness, 16);
+				if(Maximum > SMALL_NUMBER)
+				{
+					ExecuteContext.GetDrawInterface()->DrawCircle(Space, CircleTransform, Maximum, FLinearColor::Yellow, 0.f, 32);
+					const FTransform ArrowTransform = CircleTransform * Space;
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::XAxisVector * Maximum) * ArrowTransform, FVector::XAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::XAxisVector * Maximum) * ArrowTransform, -FVector::XAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(-FVector::YAxisVector * Maximum) * ArrowTransform, FVector::YAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+					ExecuteContext.GetDrawInterface()->DrawArrow(FTransform(FVector::YAxisVector * Maximum) * ArrowTransform, -FVector::YAxisVector * Maximum * 0.25f, FVector::ZAxisVector * Maximum * 0.08f, FLinearColor::Yellow, 0.f);
+				}
 				break;
 			}
-
 		}
+		ExecuteContext.GetDrawInterface()->DrawPoint(FTransform::Identity, Result, DebugThickness * 8.f, DebugColor);
 	}
 }
 

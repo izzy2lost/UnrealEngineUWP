@@ -504,6 +504,7 @@ struct RIGVM_API FRigVMFunction_MathTransformClampSpatially : public FRigVMFunct
 		bDrawDebug = false;
 		DebugColor = FLinearColor::Red;
 		DebugThickness = 1.f;
+		DebugScale = 50.f;
 	}
 
 	RIGVM_METHOD()
@@ -518,9 +519,14 @@ struct RIGVM_API FRigVMFunction_MathTransformClampSpatially : public FRigVMFunct
 	UPROPERTY(meta = (Input))
 	TEnumAsByte<ERigVMClampSpatialMode::Type> Type;
 
+	// The minimum allowed distance at which a collision occurs. 
+	// Disable by setting to 0.0.
 	UPROPERTY(meta = (Input))
 	float Minimum;
 
+	// This maximum allowed distance.
+	// A collision will occur towards the center at this wall.
+	// Disable by setting to 0.0.
 	UPROPERTY(meta = (Input))
 	float Maximum;
 
@@ -537,6 +543,10 @@ struct RIGVM_API FRigVMFunction_MathTransformClampSpatially : public FRigVMFunct
 
 	UPROPERTY(meta = (Input))
 	float DebugThickness;
+
+	// Size of debug plane to draw
+	UPROPERTY(meta = (Input))
+	float DebugScale;
 
 	UPROPERTY(meta = (Output))
 	FTransform Result;

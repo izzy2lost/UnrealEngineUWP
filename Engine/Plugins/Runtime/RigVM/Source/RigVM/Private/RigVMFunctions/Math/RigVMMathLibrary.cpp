@@ -263,6 +263,15 @@ FVector FRigVMMathLibrary::ClampSpatially(const FVector& Value, EAxis::Type Axis
 {
 	FVector Local = Space.InverseTransformPosition(Value);
 
+	auto Clamp = [](float InValue, float InMinimum, float InMaximum)
+	{
+		if(InMaximum <= InMinimum || InMaximum < SMALL_NUMBER)
+		{
+			return FMath::Max<float>(InValue, InMinimum);
+		}
+		return FMath::Clamp<float>(InValue, InMinimum, InMaximum);
+	};
+
 	switch (Type)
 	{
 		case ERigVMClampSpatialMode::Plane:
@@ -271,17 +280,17 @@ FVector FRigVMMathLibrary::ClampSpatially(const FVector& Value, EAxis::Type Axis
 			{
 				case EAxis::X:
 				{
-					Local.X = FMath::Clamp<float>(Local.X, Minimum, Maximum);
+					Local.X = Clamp((float)Local.X, Minimum, Maximum);
 					break;
 				}
 				case EAxis::Y:
 				{
-					Local.Y = FMath::Clamp<float>(Local.Y, Minimum, Maximum);
+					Local.Y = Clamp((float)Local.Y, Minimum, Maximum);
 					break;
 				}
 				default:
 				{
-					Local.Z = FMath::Clamp<float>(Local.Z, Minimum, Maximum);
+					Local.Z = Clamp((float)Local.Z, Minimum, Maximum);
 					break;
 				}
 			}
@@ -296,8 +305,8 @@ FVector FRigVMMathLibrary::ClampSpatially(const FVector& Value, EAxis::Type Axis
 					FVector OnPlane = Local * FVector(0.f, 1.f, 1.f);
 					if (!OnPlane.IsNearlyZero())
 					{
-						float Length = OnPlane.Size();
-						OnPlane = OnPlane * FMath::Clamp<float>(Length, Minimum, Maximum) / Length;
+						const float Length = (float)OnPlane.Size();
+						OnPlane = OnPlane * Clamp(Length, Minimum, Maximum) / Length;
 						Local.Y = OnPlane.Y;
 						Local.Z = OnPlane.Z;
 					}
@@ -308,8 +317,8 @@ FVector FRigVMMathLibrary::ClampSpatially(const FVector& Value, EAxis::Type Axis
 					FVector OnPlane = Local * FVector(1.f, 0.f, 1.f);
 					if (!OnPlane.IsNearlyZero())
 					{
-						float Length = OnPlane.Size();
-						OnPlane = OnPlane * FMath::Clamp<float>(Length, Minimum, Maximum) / Length;
+						const float Length = (float)OnPlane.Size();
+						OnPlane = OnPlane * Clamp(Length, Minimum, Maximum) / Length;
 						Local.X = OnPlane.X;
 						Local.Z = OnPlane.Z;
 					}
@@ -320,8 +329,8 @@ FVector FRigVMMathLibrary::ClampSpatially(const FVector& Value, EAxis::Type Axis
 					FVector OnPlane = Local * FVector(1.f, 1.f, 0.f);
 					if (!OnPlane.IsNearlyZero())
 					{
-						float Length = OnPlane.Size();
-						OnPlane = OnPlane * FMath::Clamp<float>(Length, Minimum, Maximum) / Length;
+						const float Length = (float)OnPlane.Size();
+						OnPlane = OnPlane * Clamp(Length, Minimum, Maximum) / Length;
 						Local.X = OnPlane.X;
 						Local.Y = OnPlane.Y;
 					}
@@ -335,8 +344,8 @@ FVector FRigVMMathLibrary::ClampSpatially(const FVector& Value, EAxis::Type Axis
 		{
 			if (!Local.IsNearlyZero())
 			{
-				float Length = Local.Size();
-				Local = Local * FMath::Clamp<float>(Length, Minimum, Maximum) / Length;
+				const float Length = (float)Local.Size();
+				Local = Local * Clamp(Length, Minimum, Maximum) / Length;
 			}
 			break;
 		}
