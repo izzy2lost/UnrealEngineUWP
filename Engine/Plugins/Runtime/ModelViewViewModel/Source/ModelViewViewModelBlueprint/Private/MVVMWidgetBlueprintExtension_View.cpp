@@ -174,6 +174,7 @@ void UMVVMWidgetBlueprintExtension_View::HandleFinishCompilingClass(UWidgetBluep
 					UFunction* Function = *FunctionIter;
 					Function->SetFlags(RF_Transient);
 				}
+				Class->Children = nullptr; // clear all functions (including those that the user generated).
 			}
 
 			// Does it have any bindings

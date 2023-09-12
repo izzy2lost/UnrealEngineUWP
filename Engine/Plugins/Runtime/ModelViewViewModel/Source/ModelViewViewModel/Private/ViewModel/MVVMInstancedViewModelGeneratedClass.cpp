@@ -16,7 +16,6 @@ void UMVVMInstancedViewModelGeneratedClass::PurgeClass(bool bRecompilingOnLoad)
 {
 	Super::PurgeClass(bRecompilingOnLoad);
 	PurgeNativeRepNotifyFunctions();
-
 }
 
 void UMVVMInstancedViewModelGeneratedClass::AddNativeRepNotifyFunction(UFunction* Function, const FProperty* Property)
@@ -43,8 +42,8 @@ void UMVVMInstancedViewModelGeneratedClass::Link(FArchive& Ar, bool bRelinkExist
 	{
 		NativeFunctionLookupTable.Emplace(OnRep->GetFName(), &UMVVMInstancedViewModelGeneratedClass::K2_CallNativeOnRep);
 	}
-	OnRepToPropertyMap.Empty();
 
+	OnRepToPropertyMap.Empty();
 	for (TFieldIterator<FProperty> PropertyIter(this, EFieldIteratorFlags::ExcludeSuper); PropertyIter; ++PropertyIter)
 	{
 		if (!PropertyIter->RepNotifyFunc.IsNone())
