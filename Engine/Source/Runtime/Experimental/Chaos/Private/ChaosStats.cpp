@@ -24,6 +24,8 @@ DEFINE_STAT(STAT_GCSweep);
 DEFINE_STAT(STAT_GCCUpdateBounds);
 DEFINE_STAT(STAT_GCUpdateFilterData);
 DEFINE_STAT(STAT_GCCUGlobalMatrices);
+DEFINE_STAT(STAT_GCPostPhysicsSync);
+DEFINE_STAT(STAT_GCFullyDecayedBroadcast);
 DEFINE_STAT(STAT_GCInitDynamicData);
 DEFINE_STAT(STAT_GCTotalTransforms);
 DEFINE_STAT(STAT_GCChangedTransforms);

@@ -2750,7 +2750,11 @@ void UGeometryCollectionComponent::CheckFullyDecayed()
 			if (bFullyDecayed)
 			{
 				bAlreadyFullyDecayed = true;
-				OnFullyDecayedEvent.Broadcast();
+				if (OnFullyDecayedEvent.IsBound())
+				{
+					SCOPE_CYCLE_COUNTER(STAT_GCFullyDecayedBroadcast);
+					OnFullyDecayedEvent.Broadcast();
+				}
 			}
 		}
 	}
@@ -3209,6 +3213,8 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 
 void UGeometryCollectionComponent::OnPostPhysicsSync()
 {
+	SCOPE_CYCLE_COUNTER(STAT_GCPostPhysicsSync);
+
 	UpdateAttachedChildrenTransform();
 
 	if (GetIsReplicated() && GetNetMode() != ENetMode::NM_Client)
@@ -3319,7 +3325,11 @@ void UGeometryCollectionComponent::UpdateRemovalIfNeeded()
 
 			const FTransform InverseComponentTransform = (RestCollection->bScaleOnRemoval) ? GetComponentTransform().Inverse() : FTransform::Identity;
 
-			const TManagedArray<FTransform>& MassToLocal = RestCollection->GetGeometryCollection()->GetAttribute<FTransform>(MassToLocalAttributeName, FGeometryCollection::TransformGroup);
+			const TManagedArray<FTransform>* MassToLocal = nullptr;
+			if (RestCollection->bScaleOnRemoval)
+			{
+				MassToLocal = RestCollection->GetGeometryCollection()->FindAttribute<FTransform>(MassToLocalAttributeName, FGeometryCollection::TransformGroup);
+			}
 
 			const int32 NumTransforms = DecayFacade.GetDecayAttributeSize();
 			for (int32 TransformIndex = 0; TransformIndex < NumTransforms; ++TransformIndex)
@@ -3334,7 +3344,7 @@ void UGeometryCollectionComponent::UpdateRemovalIfNeeded()
 						DynamicCollection->Transform[TransformIndex].SetScale3D(FVector::ZeroVector);
 					}
 					// do not try to get this condition out of the loop as this may cause some optimizer related issues
-					else if (RestCollection->bScaleOnRemoval) 
+					else if (RestCollection->bScaleOnRemoval && MassToLocal)
 					{
 						float ShrinkRadius = 0.0f;
 						UE::Math::TSphere<double> AccumulatedSphere;
@@ -3346,7 +3356,7 @@ void UGeometryCollectionComponent::UpdateRemovalIfNeeded()
 
 						const FQuat LocalRotation = (InverseComponentTransform * ComponentSpaceTransforms[TransformIndex].Inverse()).GetRotation();
 						const FVector LocalDown = LocalRotation.RotateVector(FVector(0.f, 0.f, ShrinkRadius));
-						const FVector CenterOfMass = MassToLocal[TransformIndex].GetTranslation();
+						const FVector CenterOfMass = (*MassToLocal)[TransformIndex].GetTranslation();
 						const FVector ScaleCenter = LocalDown + CenterOfMass;
 						const FTransform ScaleTransform(FQuat::Identity, ScaleCenter * FVector::FReal(1.f - Scale), FVector(Scale));
 						DynamicCollection->Transform[TransformIndex] = ScaleTransform * DynamicCollection->Transform[TransformIndex];
