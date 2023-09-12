@@ -249,7 +249,7 @@ FMaterialXManager::FMaterialXManager()
 			MatchingInputNames.Add({ TEXT(""), TEXT("base") }, TEXT("Bottom"));
 			MaterialExpressionInputs.Add(TEXT("Top"));
 			MaterialExpressionInputs.Add(TEXT("Bottom"));
-			MatchingMaterialExpressions.Add({ MaterialX::Category::Layer }, TEXT("StrataVerticalLayering"));
+			MatchingMaterialExpressions.Add({ MaterialX::Category::Layer }, TEXT("SubstrateVerticalLayering"));
 
 			// Horizontal Layering, MaterialX names it mix so we have to be careful not to take the lerp expression
 			MatchingInputNames.Add({ FKeyCategoryNodegroup{MaterialX::Category::Mix, MaterialX::NodeGroup::PBR}, TEXT("bg") }, TEXT("Background"));
@@ -258,15 +258,15 @@ FMaterialXManager::FMaterialXManager()
 			MaterialExpressionInputs.Add(TEXT("Background"));
 			MaterialExpressionInputs.Add(TEXT("Foreground"));
 			MaterialExpressionInputs.Add(TEXT("Mix"));
-			MatchingMaterialExpressions.Add({ MaterialX::Category::Mix, MaterialX::NodeGroup::PBR }, TEXT("StrataHorizontalMixing"));
+			MatchingMaterialExpressions.Add({ MaterialX::Category::Mix, MaterialX::NodeGroup::PBR }, TEXT("SubstrateHorizontalMixing"));
 
 			// Add
-			MatchingMaterialExpressions.Add({ MaterialX::Category::Add, MaterialX::NodeGroup::PBR }, TEXT("StrataAdd"));
+			MatchingMaterialExpressions.Add({ MaterialX::Category::Add, MaterialX::NodeGroup::PBR }, TEXT("SubstrateAdd"));
 
 			// Multiply
 			MatchingInputNames.Add({ FKeyCategoryNodegroup{MaterialX::Category::Multiply, MaterialX::NodeGroup::PBR}, TEXT("in2") }, TEXT("Weight"));
 			MaterialExpressionInputs.Add(TEXT("Weight"));
-			MatchingMaterialExpressions.Add({ MaterialX::Category::Multiply, MaterialX::NodeGroup::PBR }, TEXT("StrataWeight"));
+			MatchingMaterialExpressions.Add({ MaterialX::Category::Multiply, MaterialX::NodeGroup::PBR }, TEXT("SubstrateWeight"));
 		}
 	}
 
