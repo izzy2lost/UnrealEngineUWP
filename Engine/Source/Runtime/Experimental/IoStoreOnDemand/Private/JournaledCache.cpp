@@ -1146,6 +1146,7 @@ public:
 					FCache(FConfig&& Config);
 	uint32			GetAilments() const;
 	bool			Load();
+	void			Drop();
 	uint32			GetDemand() const;
 	FEntry			Get(uint64 Key) const;
 	bool			Put(uint64 Key, FIoBuffer& Data);
@@ -1210,6 +1211,13 @@ bool FCache::Load()
 {
 	FWriteAccess _(FsLock);
 	return LoadCache(DiskCache);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void FCache::Drop()
+{
+	FWriteAccess _(FsLock);
+	DiskCache.Drop();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1468,6 +1476,7 @@ public:
 
 								FJournaledCache() = default;
 	bool						Initialize(const TCHAR* RootDir, const FIasCacheConfig& Config);
+	virtual void				Abandon() override;
 	virtual bool				ContainsChunk(const FIoHash& Key) const override;
 	virtual GetRetType			Get(const FIoHash& Key, const FIoReadOptions& Options, const FIoCancellationToken* CancellationToken) override;
 	virtual FIoStatus			Put(const FIoHash& Key, FIoBuffer& Data) override;
@@ -1536,6 +1545,16 @@ bool FJournaledCache::Initialize(const TCHAR* RootDir, const FIasCacheConfig& Co
 	StartThread();
 
 	return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void FJournaledCache::Abandon()
+{
+	LLM_SCOPE_BYTAG(Ias);
+
+	Thread.Reset();
+	Cache->Drop();
+	delete this;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

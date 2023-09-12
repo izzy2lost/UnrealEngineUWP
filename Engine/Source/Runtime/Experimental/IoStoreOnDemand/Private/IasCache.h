@@ -21,6 +21,12 @@ class IIasCache
 public:
 	virtual ~IIasCache() = default;
 
+	/** Deletes the IAS object, dropping all data persisted to disk and releasing
+	OS resources. As this also deletes the object thus any unique pointers should
+	be released prior to abandonment; TUniquePtr->Release()->Abandon(). Be sure
+	to cancel and collect any Get() tasks beforehand. */
+	virtual void Abandon() = 0;
+
 	/** Returns whether the specified cache key is present in the cache. */
 	virtual bool ContainsChunk(const FIoHash& Key) const = 0;
 
