@@ -21,6 +21,7 @@
 #include "GameFramework/InputSettings.h"
 #include "ILiveLinkClient.h"
 #include "InputMappingContext.h"
+#include "VCamBlueprintAssetUserData.h"
 #include "Roles/LiveLinkCameraRole.h"
 #include "Roles/LiveLinkTransformRole.h"
 #include "UserSettings/EnhancedInputUserSettings.h"
@@ -107,6 +108,12 @@ namespace UE::VCamCore::Private
 			Subobject->Rename(nullptr, NewOuter);
 		}
 	}
+
+	static bool IsBlueprintCreated(UVCamComponent* Component)
+	{
+		return Component->CreationMethod == EComponentCreationMethod::SimpleConstructionScript
+			|| Component->CreationMethod == EComponentCreationMethod::UserConstructionScript;
+	}
 }
 
 void UVCamComponent::OnComponentCreated()
@@ -122,12 +129,22 @@ void UVCamComponent::OnComponentCreated()
 	}
 
 	// ApplyComponentInstanceData will handle initialization if the construction script is being re-run on a Blueprint created component.
-	const bool bIsBlueprintCreatedComponent = CreationMethod == EComponentCreationMethod::SimpleConstructionScript || CreationMethod == EComponentCreationMethod::UserConstructionScript;
+	const bool bIsBlueprintCreatedComponent = UE::VCamCore::Private::IsBlueprintCreated(this);
 	if (!bIsBlueprintCreatedComponent || !GIsReconstructingBlueprintInstances)
 	{
 		SetupVCamSystemsIfNeeded();
 		EnsureInitializedIfAllowed();
 	}
+
+#if WITH_EDITOR
+	if (GUndo)
+	{
+		// If we're construction scripted (SC) created (i.e. added via Blueprints), we need to be able to listen to Undo operations
+		// that destroy the owning actor to clean up the viewport.
+		// PostEditUndo is not called on SC-created components since they're not RF_Transactional.
+		AddAssetUserDataConditionally();
+	}
+#endif
 }
 
 void UVCamComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
@@ -136,7 +153,7 @@ void UVCamComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 
 	// Components that are being destroyed as part of re-running the construction script should not Deinitialize because ApplyComponentInstanceData may want to re-apply the display state later.
 	// Deinitializing here would kill any remote connections.
-	const bool bIsBlueprintCreatedComponent = CreationMethod == EComponentCreationMethod::SimpleConstructionScript || CreationMethod == EComponentCreationMethod::UserConstructionScript;
+	const bool bIsBlueprintCreatedComponent = UE::VCamCore::Private::IsBlueprintCreated(this);
 	if (bIsBlueprintCreatedComponent && GIsReconstructingBlueprintInstances)
 	{
 		// GetComponentInstanceData has saved our internal state and ApplyComponentInstanceData will steal it later. For safety, let's not reference the to be stolen objects anymore.
@@ -317,7 +334,6 @@ void UVCamComponent::PreEditChange(FEditPropertyChain& PropertyAboutToChange)
 	{
 		static FName NAME_OutputProviders = GET_MEMBER_NAME_CHECKED(UVCamComponent, OutputProviders);
 		static FName NAME_ModifierStack = GET_MEMBER_NAME_CHECKED(UVCamComponent, ModifierStack);
-		static FName NAME_Enabled = GET_MEMBER_NAME_CHECKED(UVCamComponent, bEnabled);
 
 		const FName MemberPropertyName = MemberProperty->GetFName();
 
@@ -1070,7 +1086,7 @@ bool UVCamComponent::GetLiveLinkDataForCurrentFrame(FLiveLinkCameraBlueprintData
 		const bool bIncludeDisabledSubjects = false;
 		const bool bIncludeVirtualSubjects = true;
 		TArray<FLiveLinkSubjectKey> AllEnabledSubjectKeys = LiveLinkClient.GetSubjects(bIncludeDisabledSubjects, bIncludeVirtualSubjects);
-		const FLiveLinkSubjectKey* FoundSubjectKey = AllEnabledSubjectKeys.FindByPredicate([this, LiveLinkData](FLiveLinkSubjectKey& InSubjectKey) { return InSubjectKey.SubjectName == LiveLinkSubject; } );
+		const FLiveLinkSubjectKey* FoundSubjectKey = AllEnabledSubjectKeys.FindByPredicate([this](FLiveLinkSubjectKey& InSubjectKey) { return InSubjectKey.SubjectName == LiveLinkSubject; } );
 
 		if (FoundSubjectKey)
 		{
@@ -1234,6 +1250,14 @@ void UVCamComponent::SetupVCamSystemsIfNeeded()
 		{
 			FEditorDelegates::EndPIE.AddUObject(this, &UVCamComponent::OnEndPIE);
 		}
+		if (!FEditorDelegates::PreSaveWorldWithContext.IsBoundToObject(this))
+		{
+			FEditorDelegates::PreSaveWorldWithContext.AddUObject(this, &UVCamComponent::OnPreSaveWorld);
+		}
+		if (!FEditorDelegates::PostSaveWorldWithContext.IsBoundToObject(this))
+		{
+			FEditorDelegates::PostSaveWorldWithContext.AddUObject(this, &UVCamComponent::OnPostSaveWorld);
+		}
 
 		MultiUserStartup();
 		if (!FCoreUObjectDelegates::OnObjectsReplaced.IsBoundToObject(this))
@@ -1262,6 +1286,8 @@ void UVCamComponent::CleanupRegisteredDelegates()
 
 	FEditorDelegates::BeginPIE.RemoveAll(this);
 	FEditorDelegates::EndPIE.RemoveAll(this);
+	FEditorDelegates::PreSaveWorldWithContext.RemoveAll(this);
+	FEditorDelegates::PostSaveWorldWithContext.RemoveAll(this);
 
 	MultiUserShutdown();
 	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
@@ -1937,3 +1963,41 @@ void UVCamComponent::RefreshInitializationState()
 		SetEnabled(false);
 	}
 }
+
+#if WITH_EDITOR
+
+void UVCamComponent::OnPreSaveWorld(UWorld* World, FObjectPreSaveContext ObjectPreSaveContext)
+{
+	RemoveAssetUserData();
+}
+
+void UVCamComponent::OnPostSaveWorld(UWorld* World, FObjectPostSaveContext ObjectPostSaveContext)
+{
+	AddAssetUserDataConditionally();
+}
+
+void UVCamComponent::AddAssetUserDataConditionally()
+{
+	if (UE::VCamCore::Private::CanInitVCamInstance(this)
+		&& UE::VCamCore::Private::IsBlueprintCreated(this) 
+		&& GetAssetUserData<UVCamBlueprintAssetUserData>() == nullptr)
+	{
+		UVCamBlueprintAssetUserData* UserData = NewObject<UVCamBlueprintAssetUserData>(this, NAME_None, RF_Transactional | RF_Transient);
+		AddAssetUserData(UserData);
+	}
+}
+
+void UVCamComponent::RemoveAssetUserData()
+{
+	RemoveUserDataOfClass(UVCamBlueprintAssetUserData::StaticClass());
+}
+void UVCamComponent::OnAssetUserDataPostEditUndo()
+{
+	// Check validity on owner instead of ourselves: construction script components will not be marked pending kill on undo but the owning actor will be.
+	if (!IsValid(GetOwner()))
+	{
+		CleanupRegisteredDelegates();
+		Deinitialize();
+	}
+}
+#endif

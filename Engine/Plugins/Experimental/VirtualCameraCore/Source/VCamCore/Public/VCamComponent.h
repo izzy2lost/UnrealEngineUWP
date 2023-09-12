@@ -36,6 +36,8 @@ struct FVCamComponentInstanceData;
 
 #if WITH_EDITOR
 class FLevelEditorViewportClient;
+class FObjectPreSaveContext;
+class FObjectPostSaveContext;
 class IConcertClientSession;
 struct FConcertSessionContext;
 struct FMultiUserVCamCameraComponentEvent;
@@ -68,6 +70,7 @@ class VCAMCORE_API UVCamComponent : public USceneComponent
 {
 	GENERATED_BODY()
 	friend class UVCamModifier;
+	friend class UVCamBlueprintAssetUserData;
 	friend struct FVCamComponentInstanceData;
 public:
 
@@ -577,4 +580,19 @@ private:
 
 	/** Called after an undo, or applying instance cache. Calls Initialize or Deinitialize if needed based on bEnabled. */
 	void RefreshInitializationState();
+
+	// Special support for undoing placement of Blueprint created VCam
+#if WITH_EDITOR
+	/** Removes the transient asset users data so it is not saved into the map. */
+	void OnPreSaveWorld(UWorld* World, FObjectPreSaveContext ObjectPreSaveContext);
+	/** Adds back the transient asset users data that was removed in OnPreSaveWorld. */
+	void OnPostSaveWorld(UWorld* World, FObjectPostSaveContext ObjectPostSaveContext);
+
+	/** Adds UVCamBlueprintAssetUserData to this component if it was created by Blueprints. Allows detection of undoing placing the owning actor. */
+	void AddAssetUserDataConditionally();
+	void RemoveAssetUserData();
+
+	/** Deinitializes this VCam if the owning actor was removed by an undo operation. */
+	void OnAssetUserDataPostEditUndo();
+#endif
 };
