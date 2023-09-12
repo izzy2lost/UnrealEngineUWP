@@ -1933,7 +1933,7 @@ void SAssetTableTreeView::RefreshAssets()
 			}
 
 			const int32 PluginIndex = AssetTable->GetIndexForPlugin(StoredPluginName);
-			for (uint16 DependencyIndexInMetadata = PluginEntry.DependencyIndexStart; DependencyIndexInMetadata < PluginEntry.DependencyIndexEnd; DependencyIndexInMetadata++)
+			for (uint32 DependencyIndexInMetadata = PluginEntry.DependencyIndexStart; DependencyIndexInMetadata < PluginEntry.DependencyIndexEnd; DependencyIndexInMetadata++)
 			{
 				const UE::Cook::FCookMetadataPluginEntry& DependentPluginEntry = PluginHierarchy.PluginsEnabledAtCook[PluginHierarchy.PluginDependencies[DependencyIndexInMetadata]];
 				const TCHAR* StoredReferencePluginName = AssetTable->StoreStr(DependentPluginEntry.Name);

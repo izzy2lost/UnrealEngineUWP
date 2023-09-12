@@ -9521,9 +9521,17 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 
 		// Add the /Engine and /Game pseudo plugins. These are placeholders for holding size information when unrealpak runs.
 		const uint16 EnginePluginIndex = (uint16)PluginsToAdd.Num();
-		PluginsToAdd.AddDefaulted_GetRef().Name = TEXT("Engine");
+		{
+			UE::Cook::FCookMetadataPluginEntry& EnginePseudoPlugin = PluginsToAdd.AddDefaulted_GetRef();
+			EnginePseudoPlugin.Name = TEXT("Engine");
+			EnginePseudoPlugin.Type = UE::Cook::ECookMetadataPluginType::EnginePseudo;
+		}
 		const uint16 GamePluginIndex = (uint16)PluginsToAdd.Num();
-		PluginsToAdd.AddDefaulted_GetRef().Name = TEXT("Game");
+		{
+			UE::Cook::FCookMetadataPluginEntry& GamePseudoPlugin = PluginsToAdd.AddDefaulted_GetRef();
+			GamePseudoPlugin.Name = TEXT("Game");
+			GamePseudoPlugin.Type = UE::Cook::ECookMetadataPluginType::GamePseudo;
+		}
 
 		// Construct the dependency list.
 		TArray<uint16> RootPlugins;
@@ -9531,16 +9539,18 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 		{
 			uint16 SelfIndex = IndexForPlugin[EnabledPlugin->GetName()];
 			UE::Cook::FCookMetadataPluginEntry& Entry = PluginsToAdd[SelfIndex];
+			Entry.Type = UE::Cook::ECookMetadataPluginType::Normal;
 
 			// We detect if this would overflow below and cancel the write - so while this could store
 			// bogus data, it won't get saved.
-			Entry.DependencyIndexStart = (uint16)PluginChildArray.Num();
+			Entry.DependencyIndexStart = (uint32)PluginChildArray.Num();
 
 			const FPluginDescriptor& Descriptor = EnabledPlugin->GetDescriptor();
 
 			// Root plugins are sealed && no code
 			if (Descriptor.bIsSealed && Descriptor.bNoCode)
 			{
+				Entry.Type = UE::Cook::ECookMetadataPluginType::Root;
 				RootPlugins.Add(SelfIndex);
 			}
 
@@ -9677,36 +9687,30 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 				PluginChildArray.Add(GamePluginIndex);
 			}
 
-			Entry.DependencyIndexEnd = PluginChildArray.Num();
+			Entry.DependencyIndexEnd = (uint32)PluginChildArray.Num();
 		}
 
 		// Also ensure Game depends on Engine.
-		PluginsToAdd[GamePluginIndex].DependencyIndexStart = PluginChildArray.Num();
+		PluginsToAdd[GamePluginIndex].DependencyIndexStart = (uint32)PluginChildArray.Num();
 		PluginChildArray.Add(EnginePluginIndex);
-		PluginsToAdd[GamePluginIndex].DependencyIndexEnd = PluginChildArray.Num();
+		PluginsToAdd[GamePluginIndex].DependencyIndexEnd = (uint32)PluginChildArray.Num();
 
-		if (IntFitsIn<uint16>(PluginChildArray.Num()) == false)
-		{
-			UE_LOG(LogCook, Warning, TEXT("Number of child plugins exceeds 64k, unable to write cook metadata file (count = %d)"), PluginChildArray.Num());
-		}
-		else
-		{
-			UE::Cook::FCookMetadataState MetadataState;
-			UE::Cook::FCookMetadataPluginHierarchy PluginHierarchy;
+		UE::Cook::FCookMetadataState MetadataState;
+		UE::Cook::FCookMetadataPluginHierarchy PluginHierarchy;
 
-			PluginHierarchy.PluginsEnabledAtCook = MoveTemp(PluginsToAdd);
-			PluginHierarchy.PluginDependencies = MoveTemp(PluginChildArray);
-			PluginHierarchy.RootPlugins = MoveTemp(RootPlugins);
-			PluginHierarchy.CustomFieldNames = MoveTemp(CustomFieldNames);
+		PluginHierarchy.PluginsEnabledAtCook = MoveTemp(PluginsToAdd);
+		PluginHierarchy.PluginDependencies = MoveTemp(PluginChildArray);
+		PluginHierarchy.RootPlugins = MoveTemp(RootPlugins);
+		PluginHierarchy.CustomFieldNames = MoveTemp(CustomFieldNames);
 
-			MetadataState.SetPluginHierarchyInfo(MoveTemp(PluginHierarchy));
-			MetadataState.SetAssociatedDevelopmentAssetRegistryHash(InDevelopmentAssetRegistryHash);
+		MetadataState.SetPluginHierarchyInfo(MoveTemp(PluginHierarchy));
+		MetadataState.SetAssociatedDevelopmentAssetRegistryHash(InDevelopmentAssetRegistryHash);
 
-			MetadataState.SetPlatformAndBuildVersion(PlatformNameString, FApp::GetBuildVersion());
-			MetadataState.SetHordeJobId(FPlatformMisc::GetEnvironmentVariable(TEXT("UE_HORDE_JOBID")));
+		MetadataState.SetPlatformAndBuildVersion(PlatformNameString, FApp::GetBuildVersion());
+		MetadataState.SetHordeJobId(FPlatformMisc::GetEnvironmentVariable(TEXT("UE_HORDE_JOBID")));
 
 			MetadataState.SaveToFile(GetCookedCookMetadataFilename(PlatformNameString));
-		}
+
 	}
 }
 

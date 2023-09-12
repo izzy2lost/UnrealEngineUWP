@@ -7,6 +7,7 @@
 #include "Containers/UnrealString.h"
 #include "CoreTypes.h"
 #include "Memory/MemoryFwd.h"
+#include "UObject/NameTypes.h"
 
 
 namespace UE::Cook
@@ -19,6 +20,7 @@ enum class ECookMetadataStateVersion : uint8
 	PostWritebackHash = 2,
 	FixSerialization = 3,
 	AddedCustomFields = 4,
+	AddedShaderPseudoHierarchy = 5,
 
 	// Add new versions above this.
 	VersionCount,
@@ -115,10 +117,31 @@ enum class ECookMetadataSizesPresent
 	Count
 };
 
+enum class ECookMetadataPluginType
+{
+	Normal,
+
+	// Root plugins are used to separate and classify game "modes" within a single project.
+	Root,
+
+	// For assets under /Engine
+	EnginePseudo,
+
+	// For assets under /Game
+	GamePseudo,
+
+	// When a shader is referenced by multiple plugins then it has no natural home for assigning
+	// its size. Instead we create a set of shader pseudo plugins based on the set of root plugins
+	// referencing the shader, including possibly an "Unrooted" plugin.
+	ShaderPseudo
+};
+
 /** The name and dependency information for a plugin that was enabled during cooking. */
 struct COOKMETADATA_API FCookMetadataPluginEntry
 {
 	FString Name;
+
+	ECookMetadataPluginType Type;
 
 	// These contain values pulled from the uplugin json file and hold fields that are not
 	// part of the engine FPluginDescriptor. They are for per-project values. The keys for the maps
@@ -130,13 +153,13 @@ struct COOKMETADATA_API FCookMetadataPluginEntry
 	// and this is an index into it. From there you can get a further index into PluginsEnabledAtCook
 	// to get the plugin information.
 	// Example:
-	//	for (uint16 DependencyIndex = Plugin->DependencyIndexStart; DependencyIndex < Plugin->DependencyIndexEnd; DependencyIndex++)
+	//	for (uint32 DependencyIndex = Plugin->DependencyIndexStart; DependencyIndex < Plugin->DependencyIndexEnd; DependencyIndex++)
 	//	{
 	//		const UE::Cook::FCookMetadataPluginEntry& DependentPlugin = PluginHierarchy.PluginsEnabledAtCook[PluginHierarchy.PluginDependencies[DependencyIndex]];
 	//	}
 	//
-	uint16 DependencyIndexStart = 0;
-	uint16 DependencyIndexEnd = 0;
+	uint32 DependencyIndexStart = 0;
+	uint32 DependencyIndexEnd = 0;
 
 	//
 	// Theses sizes are set during staging by unrealpak if the option in project packaging is set.
@@ -146,7 +169,7 @@ struct COOKMETADATA_API FCookMetadataPluginEntry
 	FPluginSizeInfo InclusiveSizes;
 	FPluginSizeInfo ExclusiveSizes;
 
-	uint16 DependencyCount() const { return DependencyIndexEnd - DependencyIndexStart; }
+	uint32 DependencyCount() const { return DependencyIndexEnd - DependencyIndexStart; }
 
 	friend FArchive& operator<<(FArchive& Ar, FCookMetadataPluginEntry& Entry)
 	{
@@ -208,6 +231,39 @@ struct COOKMETADATA_API FCookMetadataPluginHierarchy
 		Ar << Hierarchy.RootPlugins << Hierarchy.CustomFieldNames;
 		return Ar;
 	}
+};
+
+/**
+*	After staging when sizes are written back we assign the sizes of shaders
+*	to these fake assets and we expose a dependency list for "normal" packages
+*	that use them. This can be used to determine an inclusive size for packages
+*	that also considers shader sizes.
+*/
+struct COOKMETADATA_API FCookMetadataShaderPseudoAsset
+{
+	// This is artificially generated based on the chunk the shader belongs to
+	// and its hash. It should be consistent across builds. The plugin the shader
+	// is assigned to is based on the packages that reference the shader. If the
+	// shader is only referenced by packages within a single plugin, the shader asset
+	// will be assigned to that plugin. Otherwise, it will be assigned to a shader
+	// pseudo plugin.
+	FString Name;
+
+	// Shaders are always compressed, independent of what GetSizesPresent() says.
+	uint32 CompressedSize = 0;
+};
+
+struct COOKMETADATA_API FCookMetadataShaderPseudoHierarchy
+{
+	TArray<FCookMetadataShaderPseudoAsset> ShaderAssets;
+
+	// Entries in this are indices in to ShaderAssets. Use PackageShaderDependencyMap to
+	// get a package's shaders.
+	TArray<int32> DependencyList;
+
+	// Keyed off a PackageName in the project, returns a [start, end) pair of indices
+	// into DependencyList for the shaders that package depends on.
+	TMap<FName, TPair<int32, int32>> PackageShaderDependencyMap;
 };
 
 /**
@@ -278,10 +334,15 @@ public:
 	FText GetSizesPresentAsText() const;
 	ECookMetadataSizesPresent GetSizesPresent() const { return SizesPresent; }
 	void SetSizesPresent(ECookMetadataSizesPresent InSizesPresent) { SizesPresent = InSizesPresent; }
+
+	void SetShaderPseudoHieararchy(FCookMetadataShaderPseudoHierarchy&& InHierarchy) { ShaderPseudoHierarchy = MoveTemp(InHierarchy); }
+	const FCookMetadataShaderPseudoHierarchy& GetShaderPseudoHierarchy() const { return ShaderPseudoHierarchy; }
 private:
 
 	ECookMetadataStateVersion Version = ECookMetadataStateVersion::InvalidVersion;
 	FCookMetadataPluginHierarchy PluginHierarchy;
+
+	FCookMetadataShaderPseudoHierarchy ShaderPseudoHierarchy;
 
 	uint64 AssociatedDevelopmentAssetRegistryHash = 0;
 
