@@ -178,7 +178,7 @@ void SNiagaraStackNote::Rebuild()
 				.OnClicked(this, &SNiagaraStackNote::OnEditBodyButtonClicked)
 				.ButtonStyle(&FAppStyle::GetWidgetStyle<FButtonStyle>("HoverHintOnly"))
 				.Visibility(this, &SNiagaraStackNote::GetEditNoteBodyButtonVisibility)
-				.ToolTipText(LOCTEXT("EditHeaderButtonTooltip", "Edit the message of this note."))
+				.ToolTipText(LOCTEXT("EditMessageButtonTooltip", "Edit the message of this note."))
 				[
 					SNew(SImage)
 					.Image(FAppStyle::GetBrush("Icons.Edit"))
