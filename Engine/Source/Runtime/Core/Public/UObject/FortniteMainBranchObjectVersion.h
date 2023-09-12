@@ -369,6 +369,9 @@ struct FFortniteMainBranchObjectVersion
 		// Started sorting Possessables, Spawnables, and MovieSceneBindings for better search performance.
 		MovieSceneSortedBindings,
 
+		// Remove the UAnimCurveCompressionCodec::InstanceGuid which causes cook determinism issues
+		RemoveAnimCurveCompressionCodecInstanceGuid,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
