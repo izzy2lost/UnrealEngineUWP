@@ -88,7 +88,7 @@ void FRandomizeColumn::Filter(FChooserEvaluationContext& Context, const TArray<u
 
 void FRandomizeColumn::SetOutputs(FChooserEvaluationContext& Context, int RowIndex) const
 {
-	if (InputValue.IsValid())
+	if (InputValue.IsValid() && RowValues.IsValidIndex((RowIndex)))
 	{
 		const FChooserRandomizationContext* ConstRandomizationContext = nullptr;
 		InputValue.Get<FChooserParameterRandomizeBase>().GetValue(Context,ConstRandomizationContext);

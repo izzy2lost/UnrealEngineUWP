@@ -25,12 +25,16 @@ struct CHOOSER_API FOutputBoolColumn : public FChooserColumnBase
 	mutable bool TestValue=false;
 #endif
 	
+	// FallbackValue will be used as the output value if the all rows in the chooser fail, and the FallbackResult from the chooser is used.
+	UPROPERTY(EditAnywhere, Category=Data);
+	bool bFallbackValue = false;
+	
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Category=Runtime);
-	bool DefaultRowValue = 0;
+	UPROPERTY(EditAnywhere, Category=Data);
+	bool DefaultRowValue = false;
 #endif
 	
-	UPROPERTY(EditAnywhere, Category=Runtime);
+	UPROPERTY(EditAnywhere, Category=Data);
 	TArray<bool> RowValues; 
 
 	CHOOSER_COLUMN_BOILERPLATE(FChooserParameterBoolBase);

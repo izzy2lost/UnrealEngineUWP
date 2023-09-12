@@ -239,29 +239,31 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 		}
 	}
 	
-	// of the rows that passed all column filters, iterate through them calling the callback until it returns Stop
 	bool bSetOutputs = false;
-	for (uint32 SelectedIndex : *IndicesOut)
+	if (IndicesOut->IsEmpty())
 	{
-		if (Chooser->ResultsStructs.Num() > (int32)SelectedIndex)
+		// if no rows passed the filter columns then return the FallbackResult and output the FallbackValue from each output column
+		
+		#if WITH_EDITOR
+		if (Context.DebuggingInfo.bCurrentDebugTarget)
 		{
-			const FObjectChooserBase& SelectedResult = Chooser->ResultsStructs[SelectedIndex].Get<FObjectChooserBase>();
+			Chooser->SetDebugSelectedRow(-1);
+		}
+		#endif
+		
+		if (Chooser->FallbackResult.IsValid())
+		{
+			const FObjectChooserBase& SelectedResult = Chooser->FallbackResult.Get<FObjectChooserBase>();
 			FObjectChooserBase::EIteratorStatus Status = SelectedResult.ChooseMulti(Context, Callback);
 			if (Status != FObjectChooserBase::EIteratorStatus::Continue)
 			{
 				bSetOutputs = true;
-				// trigger all output columns
+				// trigger all output columns to set their default output value
 				for (const FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
 				{
 					const FChooserColumnBase& Column = ColumnData.Get<FChooserColumnBase>();
-					Column.SetOutputs(Context, SelectedIndex);
+					Column.SetOutputs(Context, -1);
 				}
-#if WITH_EDITOR
-				if (Context.DebuggingInfo.bCurrentDebugTarget)
-				{
-					Chooser->SetDebugSelectedRow(SelectedIndex);
-				}
-#endif
 			}
 			if (Status == FObjectChooserBase::EIteratorStatus::Stop)
 			{
@@ -269,8 +271,39 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 			}
 		}
 	}
-
-	// If this is a nested chooser make sure the parent also sets the output vales from the row that contained this chooser
+	else
+	{
+		// of the rows that passed all column filters, iterate through them calling the callback until it returns Stop
+		for (uint32 SelectedIndex : *IndicesOut)
+		{
+			if (Chooser->ResultsStructs.Num() > (int32)SelectedIndex)
+			{
+				const FObjectChooserBase& SelectedResult = Chooser->ResultsStructs[SelectedIndex].Get<FObjectChooserBase>();
+				FObjectChooserBase::EIteratorStatus Status = SelectedResult.ChooseMulti(Context, Callback);
+				if (Status != FObjectChooserBase::EIteratorStatus::Continue)
+				{
+					bSetOutputs = true;
+					// trigger all output columns
+					for (const FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
+					{
+						const FChooserColumnBase& Column = ColumnData.Get<FChooserColumnBase>();
+						Column.SetOutputs(Context, SelectedIndex);
+					}
+	#if WITH_EDITOR
+					if (Context.DebuggingInfo.bCurrentDebugTarget)
+					{
+						Chooser->SetDebugSelectedRow(SelectedIndex);
+					}
+	#endif
+				}
+				if (Status == FObjectChooserBase::EIteratorStatus::Stop)
+				{
+					return FObjectChooserBase::EIteratorStatus::Stop;
+				}
+			}
+		}
+	}
+	// If this is a nested chooser make sure the parent also sets the output values from the row that contained this chooser
 	return bSetOutputs ? FObjectChooserBase::EIteratorStatus::ContinueWithOutputs : FObjectChooserBase::EIteratorStatus::Continue;
 }
 

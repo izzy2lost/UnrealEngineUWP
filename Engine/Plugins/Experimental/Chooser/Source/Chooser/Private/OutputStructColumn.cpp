@@ -31,6 +31,11 @@ void FOutputStructColumn::StructTypeChanged()
 			DefaultRowValue.InitializeAs(Struct);
 		}
 
+		if (FallbackValue.GetScriptStruct() != Struct)
+		{
+			FallbackValue.InitializeAs(Struct);
+		}
+
 		for (FInstancedStruct& RowValue : RowValues)
 		{
 			if (RowValue.GetScriptStruct() != Struct)
@@ -52,7 +57,16 @@ void FOutputStructColumn::SetOutputs(FChooserEvaluationContext& Context, int Row
 {
 	if (InputValue.IsValid())
 	{
-		InputValue.Get<FChooserParameterStructBase>().SetValue(Context, RowValues[RowIndex]);
+		const FInstancedStruct* OutputValue = &FallbackValue;
+		if (RowValues.IsValidIndex(RowIndex))
+		{
+			OutputValue = &RowValues[RowIndex];
+		}
+
+		if (OutputValue && OutputValue->IsValid())
+		{
+			InputValue.Get<FChooserParameterStructBase>().SetValue(Context, *OutputValue);
+		}
 	}
 	
 #if WITH_EDITOR

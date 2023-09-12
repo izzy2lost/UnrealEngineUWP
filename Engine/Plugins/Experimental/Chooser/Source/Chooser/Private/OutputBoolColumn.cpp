@@ -12,7 +12,13 @@ void FOutputBoolColumn::SetOutputs(FChooserEvaluationContext& Context, int RowIn
 {
 	if (InputValue.IsValid())
 	{
-		InputValue.Get<FChooserParameterBoolBase>().SetValue(Context, RowValues[RowIndex]);
+		bool bOutputValue = bFallbackValue;
+		if (RowValues.IsValidIndex(RowIndex))
+		{
+			bOutputValue = RowValues[RowIndex];
+		}
+		
+		InputValue.Get<FChooserParameterBoolBase>().SetValue(Context, bOutputValue);
 	}
 	
 #if WITH_EDITOR

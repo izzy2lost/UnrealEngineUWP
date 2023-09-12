@@ -60,12 +60,16 @@ struct CHOOSER_API FOutputStructColumn : public FChooserColumnBase
 	mutable FInstancedStruct TestValue;
 #endif
 	
+	// FallbackValue will be used as the output value if the all rows in the chooser fail, and the FallbackResult from the chooser is used.
+	UPROPERTY(EditAnywhere, Meta = (StructTypeConst), Category=Data);
+   	FInstancedStruct FallbackValue;
+	
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Meta = (StructTypeConst), Category=Runtime);
+	UPROPERTY(EditAnywhere, Meta = (StructTypeConst), Category=Data);
 	FInstancedStruct DefaultRowValue;
 #endif
 	
-	UPROPERTY(EditAnywhere, Meta = (StructTypeConst), Category=Runtime);
+	UPROPERTY(EditAnywhere, Meta = (StructTypeConst), Category=Data);
 	TArray<FInstancedStruct> RowValues; 
 
 	CHOOSER_COLUMN_BOILERPLATE(FChooserParameterStructBase);

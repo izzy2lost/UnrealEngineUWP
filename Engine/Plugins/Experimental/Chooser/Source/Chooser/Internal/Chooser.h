@@ -76,6 +76,11 @@ public:
 	TArray<TScriptInterface<IChooserColumn>> Columns_DEPRECATED;
 #endif
 
+	
+	// FallbackResult will be used as the Result if there are no rows in the chooser which pass all filters.  If FallbackResult is not assigned, then the Chooser will return null in that case.
+	UPROPERTY(EditAnywhere, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ObjectChooserBase"), Category = "Fallback")
+	FInstancedStruct FallbackResult;
+	
 	// Each possible Result (Rows of chooser table)
 	UPROPERTY(EditAnywhere, NoClear, DisplayName = "Results", Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ObjectChooserBase"), Category = "Hidden")
 	TArray<FInstancedStruct> ResultsStructs;

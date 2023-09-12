@@ -14,7 +14,12 @@ void FOutputEnumColumn::SetOutputs(FChooserEvaluationContext& Context, int RowIn
 {
 	if (InputValue.IsValid())
 	{
-		InputValue.Get<FChooserParameterEnumBase>().SetValue(Context, RowValues[RowIndex].Value);
+		uint8 OutputValue = FallbackValue.Value;
+		if (RowValues.IsValidIndex(RowIndex))
+		{
+			OutputValue = RowValues[RowIndex].Value;
+		}
+		InputValue.Get<FChooserParameterEnumBase>().SetValue(Context, OutputValue);
 	}
 	
 #if WITH_EDITOR
