@@ -11,7 +11,9 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.Clients;
 using EpicGames.Serialization;
+using Jupiter.Common.Implementation;
 using Jupiter.Implementation.Blob;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -40,49 +42,58 @@ public class StorageService : IStorageService
 	}
 }
 
-public class StorageClient : BundleStorageClient
+public sealed class JupiterStorageBackend : EpicGames.Horde.Storage.IStorageBackend
 {
 	private readonly NamespaceId _namespaceId;
 	private readonly IBlobService _blobService;
-	private readonly IReferencesStore _refStore;
 	private readonly IBlobIndex _blobIndex;
-	private readonly BucketId _defaultBucket = new BucketId("bundles");
-	private readonly BundleReader _treeReader;
 
-	public bool SupportsRedirects { get; set; } = true;
+	public bool SupportsRedirects => true;
 
-	public StorageClient(NamespaceId namespaceId, IBlobService blobService, IReferencesStore refStore, IBlobIndex blobIndex)
-		: base(null, NullLogger.Instance)
+	public JupiterStorageBackend(NamespaceId namespaceId, IBlobService blobService, IBlobIndex blobIndex)
 	{
 		_namespaceId = namespaceId;
 		_blobService = blobService;
-		_refStore = refStore;
 		_blobIndex = blobIndex;
-		_treeReader = new BundleReader(this, null, NullLogger.Instance);
 	}
 
-#pragma warning disable IDE0060
-	public async Task<(BundleLocator Locator, Uri UploadUrl)?> GetWriteRedirectAsync(string prefix, CancellationToken cancellationToken)
-#pragma warning restore IDE0060
+	public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+	public void Dispose()
 	{
-		BundleLocator locator = BundleLocator.CreateUnique(prefix);
-		BlobId blobIdentifier = BlobId.FromBlobLocator(locator);
-		Uri? redirectUri = await _blobService.MaybePutObjectWithRedirectAsync(_namespaceId, blobIdentifier);
-		if (redirectUri == null)
+	}
+
+	public IAsyncEnumerable<string> EnumerateAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+	public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+	public async Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+	{
+		BlobId blobIdentifier = BlobId.FromBlobLocator(new BundleLocator(path));
+		BlobContents blobContents = await _blobService.GetObjectAsync(_namespaceId, blobIdentifier);
+		if (offset != 0)
 		{
-			return null;
+			blobContents.Stream.Seek(offset, SeekOrigin.Begin);
 		}
-		return (locator, redirectUri);
+		return blobContents.Stream;
 	}
 
-	public override async Task<BundleLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix, CancellationToken cancellationToken)
+	public async ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default)
 	{
-		BundleLocator locator = BundleLocator.CreateUnique(prefix);
-		BlobId blobIdentifier = BlobId.FromBlobLocator(locator);
-		await _blobService.PutObjectAsync(_namespaceId, bundle.AsSequence().ToArray(), blobIdentifier);
+		BlobId blobIdentifier = BlobId.FromBlobLocator(new BundleLocator(path));
+		Uri? redirectUri = await _blobService.GetObjectWithRedirectAsync(_namespaceId, blobIdentifier);
+		return redirectUri;
+	}
 
-		await using ReadOnlySequenceStream bundleStream = new ReadOnlySequenceStream(bundle.AsSequence());
-		BundleHeader bundleHeader = await BundleHeader.FromStreamAsync(bundleStream, cancellationToken);
+	public async Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default)
+	{
+		byte[] data = await stream.ReadAllBytesAsync(cancellationToken);
+
+		string locator = StorageHelpers.CreateUniqueName(prefix);
+		BlobId blobIdentifier = BlobId.FromBlobLocator(new BundleLocator(locator));
+		await _blobService.PutObjectAsync(_namespaceId, data, blobIdentifier);
+
+		BundleHeader bundleHeader = BundleHeader.Read(data);
 		List<Task> addReferencesTasks = new List<Task>();
 		foreach (BundleLocator import in bundleHeader.Imports)
 		{
@@ -91,8 +102,50 @@ public class StorageClient : BundleStorageClient
 		}
 
 		await Task.WhenAll(addReferencesTasks);
-		
+
 		return locator;
+	}
+
+	public async ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default)
+	{
+		string locator = StorageHelpers.CreateUniqueName(prefix);
+		BlobId blobIdentifier = BlobId.FromBlobLocator(new BundleLocator(locator));
+		Uri? redirectUri = await _blobService.MaybePutObjectWithRedirectAsync(_namespaceId, blobIdentifier);
+		if (redirectUri == null)
+		{
+			return null;
+		}
+		return (locator, redirectUri);
+	}
+
+	public Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+}
+
+public class StorageClient : BundleStorageClient
+{
+	private readonly NamespaceId _namespaceId;
+	private readonly IReferencesStore _refStore;
+	private readonly IBlobIndex _blobIndex;
+	private readonly BucketId _defaultBucket = new BucketId("bundles");
+
+	public JupiterStorageBackend Backend { get; }
+	public bool SupportsRedirects { get; set; } = true;
+
+	public StorageClient(NamespaceId namespaceId, IBlobService blobService, IReferencesStore refStore, IBlobIndex blobIndex)
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		: this(new JupiterStorageBackend(namespaceId, blobService, blobIndex), namespaceId, refStore, blobIndex)
+#pragma warning restore CA2000 // Dispose objects before losing scope
+	{
+	}
+
+	private StorageClient(JupiterStorageBackend backend, NamespaceId namespaceId, IReferencesStore refStore, IBlobIndex blobIndex)
+		: base(backend, StorageCache.None, NullLogger.Instance)
+	{
+		Backend = backend;
+
+		_namespaceId = namespaceId;
+		_refStore = refStore;
+		_blobIndex = blobIndex;
 	}
 
 	public override async Task AddAliasAsync(Utf8String name, BundleNodeHandle handle, int rank, CancellationToken cancellationToken = default)
@@ -114,22 +167,6 @@ public class StorageClient : BundleStorageClient
 		yield break;
 	}
 
-#pragma warning disable IDE0060
-	public async Task<Uri?> GetReadRedirectAsync(BundleLocator locator, CancellationToken cancellationToken)
-#pragma warning restore IDE0060
-	{
-		BlobId blobIdentifier = BlobId.FromBlobLocator(locator);
-		Uri? redirectUri = await _blobService.GetObjectWithRedirectAsync(_namespaceId, blobIdentifier);
-		return redirectUri;
-	}
-
-	public override async Task<Stream> OpenAsync(BundleLocator locator, int offset, int length = 0, CancellationToken cancellationToken = default)
-	{
-		BlobId blobIdentifier = BlobId.FromBlobLocator(locator);
-		BlobContents blobContents = await _blobService.GetObjectAsync(_namespaceId, blobIdentifier);
-		return blobContents.Stream;
-	}
-
 	public override async Task<BundleNodeHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 	{
 		// TODO: Cache time is ignored
@@ -147,7 +184,7 @@ public class StorageClient : BundleStorageClient
 			BundleLocator blobLocator = new BundleLocator(inlinePayload.BlobLocator);
 			int exportId = inlinePayload.ExportId;
 
-			return new FlushedNodeHandle(_treeReader, new BundleNodeLocator(nodeHash, blobLocator, exportId));
+			return new FlushedNodeHandle(BundleReader, new BundleNodeLocator(nodeHash, blobLocator, exportId));
 		}
 		catch (RefNotFoundException )
 		{
@@ -158,7 +195,7 @@ public class StorageClient : BundleStorageClient
 	public async Task<BlobHandle> WriteRefAsync(RefName name, Bundle bundle, int exportIdx, Utf8String prefix = default, RefOptions? options = null, CancellationToken cancellationToken = default)
 	{
 		BundleLocator locator = await WriteBundleAsync(bundle, prefix, cancellationToken);
-		BlobHandle target = new FlushedNodeHandle(_treeReader, new BundleNodeLocator(bundle.Header.Exports[exportIdx].Hash, locator, exportIdx));
+		BlobHandle target = new FlushedNodeHandle(BundleReader, new BundleNodeLocator(bundle.Header.Exports[exportIdx].Hash, locator, exportIdx));
 		await WriteRefTargetAsync(name, target, options, cancellationToken);
 
 		return target;

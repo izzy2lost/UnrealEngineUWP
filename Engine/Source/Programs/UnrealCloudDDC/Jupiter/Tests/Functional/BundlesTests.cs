@@ -27,6 +27,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Serilog;
 using Serilog.Core;
+using EpicGames.Horde.Storage.Clients;
 
 namespace Jupiter.FunctionalTests.Storage;
 
@@ -314,7 +315,7 @@ public abstract class BundlesTests
 		RefName leafRefName = new RefName("leaf");
 		HttpMessageHandler httpMessageHandler = Server!.CreateHandler();
 
-		HttpStorageClient blobStore = new HttpStorageClient(() => new HttpClient(httpMessageHandler) {BaseAddress = new Uri(Server.BaseAddress, $"api/v1/storage/{TestNamespaceName}/")}!, () => null!, null, NullLogger.Instance);
+		HttpStorageClient blobStore = new HttpStorageClient(() => new HttpClient(httpMessageHandler) {BaseAddress = new Uri(Server.BaseAddress, $"api/v1/storage/{TestNamespaceName}/")}!, () => null!, StorageCache.None, NullLogger.Instance);
 		await SeedTreeAsync(blobStore, rootRefName, leafRefName, new BundleOptions { MaxBlobSize = 1 });
 
 		IBlobIndex blobIndex = Server.Services.GetService<IBlobIndex>()!;
@@ -368,7 +369,7 @@ public abstract class BundlesTests
 		List<BundlePacket> packets = new List<BundlePacket>();
 		packets.Add(new BundlePacket(BundleCompressionFormat.None, 0, payload.Length, payload.Length));
 
-		BundleHeader header = BundleHeader.Create(types, Array.Empty<BundleLocator>(), exports, packets);
+		BundleHeader header = new BundleHeader(types.ToArray(), Array.Empty<BundleLocator>(), exports.ToArray(), packets.ToArray());
 		return new Bundle(header, new List<ReadOnlyMemory<byte>> { payload });
 	}
 

@@ -169,7 +169,6 @@ namespace Jupiter.Controllers
 	{
 		readonly IStorageService _storageService;
 		private readonly IRequestHelper _requestHelper;
-		readonly IMemoryCache _memoryCache;
 		readonly ILogger<StorageController> _logger;
 
 		/// <summary>
@@ -177,13 +176,11 @@ namespace Jupiter.Controllers
 		/// </summary>
 		/// <param name="storageService"></param>
 		/// <param name="requestHelper"></param>
-		/// <param name="memoryCache"></param>
 		/// <param name="logger"></param>
-		public StorageController(IStorageService storageService, IRequestHelper requestHelper, IMemoryCache memoryCache, ILogger<StorageController> logger)
+		public StorageController(IStorageService storageService, IRequestHelper requestHelper, ILogger<StorageController> logger)
 		{
 			_storageService = storageService;
 			_requestHelper = requestHelper;
-			_memoryCache = memoryCache;
 			_logger = logger;
 		}
 
@@ -254,7 +251,7 @@ namespace Jupiter.Controllers
 
 			StorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 
-			Uri? redirectUrl = await client.GetReadRedirectAsync(locator, cancellationToken);
+			Uri? redirectUrl = await client.Backend.TryGetReadRedirectAsync(locator.ToString(), cancellationToken);
 			if (redirectUrl != null)
 			{
 				return Redirect(redirectUrl.ToString());
@@ -385,9 +382,9 @@ namespace Jupiter.Controllers
 
 			StorageClient storageClient = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 
-			BundleReader reader = new BundleReader(storageClient, _memoryCache, _logger);
+			BundleReader reader = new BundleReader(storageClient, StorageCache.None, _logger);
 
-			BundleHeader header = await reader.ReadBundleHeaderAsync(locator, cancellationToken);
+			BundleHeader header = await reader.ReadHeaderAsync(locator, cancellationToken);
 
 			List<object>? responseImports = null;
 			if (includeImports)
@@ -460,9 +457,9 @@ namespace Jupiter.Controllers
 			}
 
 			StorageClient storageClient = await _storageService.GetClientAsync(namespaceId, cancellationToken);
-			BundleReader reader = new BundleReader(storageClient, _memoryCache, _logger);
+			BundleReader reader = new BundleReader(storageClient, StorageCache.None, _logger);
 
-			BundleHeader header = await reader.ReadBundleHeaderAsync(locator, cancellationToken);
+			BundleHeader header = await reader.ReadHeaderAsync(locator, cancellationToken);
 			BundleExport export = header.Exports[exportIdx];
 
 			object content;

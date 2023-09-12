@@ -36,7 +36,7 @@ using Serilog.Core;
 using ContentHash = Jupiter.Implementation.ContentHash;
 using IBlobStore = Jupiter.Implementation.IBlobStore;
 using EpicGames.AspNet;
-using EpicGames.Horde.Storage.Backends;
+using EpicGames.Horde.Storage.Clients;
 using Jupiter.Tests.Functional;
 using Azure;
 
