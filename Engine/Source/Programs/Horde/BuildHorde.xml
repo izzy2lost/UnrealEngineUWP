@@ -1,5 +1,5 @@
 <?xml version='1.0' ?>
-<BuildGraph xmlns="http://www.epicgames.com/BuildGraph" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.epicgames.com/BuildGraph ../../../Engine/Build/Graph/Schema.xsd" >
+<BuildGraph xmlns="http://www.epicgames.com/BuildGraph" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.epicgames.com/BuildGraph ../../../../Engine/Build/Graph/Schema.xsd" >
 
 	<Option Name="PreflightChange" DefaultValue="" Description="Preflight changelist number"/>
 	<Option Name="Configuration" DefaultValue="release" Description="Configuration to build"/>
@@ -15,9 +15,12 @@
 
 	<Agent Name="HordeServer" Type="Linux;Win64_Docker">
 		<Property Name="StagingDir" Value="$(RootDir)/Engine/Saved/Horde.Server"/>
-		
-		<Node Name="Check HordeServer Licenses">
-			<DotNet Arguments="build &quot;$(RootDir)/Engine/Source/Programs/Horde/Horde.Server/Horde.Server.csproj&quot; $(VersionArguments)"/>
+
+		<Node Name="Analyze HordeServer">
+			<DotNet Arguments="build &quot;$(RootDir)/Engine/Source/Programs/Horde/Horde.Server/Horde.Server.csproj&quot; /p:Configuration=Analyze /p:TreatWarningsAsErrors=True $(VersionArguments)"/>
+		</Node>
+
+		<Node Name="Check HordeServer Licenses" Requires="Analyze HordeServer">
 			<Property Name="IgnorePackages">
 				NETStandard.Library@2.0.0
 				Serilog.Enrichers.OpenTracing@0.0.2

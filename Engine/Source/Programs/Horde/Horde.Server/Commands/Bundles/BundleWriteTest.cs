@@ -24,17 +24,19 @@ namespace Horde.Server.Commands.Bundles
 			}
 
 			public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default) => Task.FromResult(true);
-			public Task<Bundle> ReadBundleAsync(BundleLocator locator, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-			public Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator locator, int offset, int length, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 			public Task AddAliasAsync(Utf8String name, BlobHandle handle, int rank = 0, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 			public Task RemoveAliasAsync(Utf8String name, BlobHandle handle, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 			public IAsyncEnumerable<BlobHandle> FindAliasAsync(Utf8String alias, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 			public Task<BlobHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 			public Task WriteRefTargetAsync(RefName name, BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-			public BundleWriter CreateWriter(RefName refName = default, BundleOptions? options = null) => throw new NotImplementedException();// new BundleWriter(this, _reader, refName, options);
+			public BundleWriter CreateWriter(RefName refName = default, BundleOptions? options = null)
+			{
+				_ = (this, refName, options);
+				throw new NotImplementedException();// new BundleWriter(this, _reader, refName, options);
+			}
 
-			IStorageWriter IStorageClient.CreateWriter(EpicGames.Horde.Storage.RefName refName) => CreateWriter(refName);
+			IStorageWriter IStorageClient.CreateWriter(RefName refName) => CreateWriter(refName);
 		}
 
 		public override async Task<int> ExecuteAsync(ILogger logger)

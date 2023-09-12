@@ -175,7 +175,7 @@ namespace Horde.Server.Server
 			}
 			catch (Exception e)
 			{
-				_logger.LogError("Redis call failed during health check", e);
+				_logger.LogError(e, "Redis call failed during health check");
 			}
 
 			return isHealthy;
