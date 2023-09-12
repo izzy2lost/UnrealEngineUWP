@@ -172,51 +172,6 @@ void URCActionContainer::PostEditUndo()
 }
 #endif
 
-void URCActionContainer::ExecuteActionsOnLoad()
-{
-	// In some cases, external resources are referenced, so we need to execute Controllers actions while loading
-	if (URCBehaviour* ParentBehaviour = GetParentBehaviour())
-	{
-		if (URCController* Controller = ParentBehaviour->ControllerWeakPtr.Get())
-		{
-			if (UE::RCCustomControllers::CustomControllerExecutesOnLoad(Controller))
-			{
-				Controller->ExecuteBehaviours();
-				return;
-			}
-		}
-
-		if (URCSetAssetByPathBehaviour* AssetPathBehaviour = Cast<URCSetAssetByPathBehaviour>(ParentBehaviour))
-		{
-			if (!AssetPathBehaviour->bInternal)
-			{
-				// Target entity might not be set up yet, we need it to be set in order for execution to work
-				AssetPathBehaviour->UpdateTargetEntity();
-				ParentBehaviour->Execute();
-			}
-		}
-	}
-}
-
-void URCActionContainer::PostLoad()
-{
-	UObject::PostLoad();
-
-	TWeakObjectPtr<URCActionContainer> ThisWeak(this);
-
-	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
-		[ThisWeak](float InDeltaTime)->bool
-		{
-			if (URCActionContainer* const This = ThisWeak.Get())
-			{
-				This->ExecuteActionsOnLoad();
-			}
-
-			// Return false for one time execution
-			return false;
-		}));
-}
-
 URCAction* URCActionContainer::FindActionByFieldId(const FGuid InId) const
 {
 	for (URCAction* Action :  Actions)
