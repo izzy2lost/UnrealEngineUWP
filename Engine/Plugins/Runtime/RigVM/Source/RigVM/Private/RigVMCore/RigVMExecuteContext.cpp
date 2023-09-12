@@ -51,6 +51,14 @@ bool FRigVMExecuteContext::SerializeFromMismatchedTag(const FPropertyTag& Tag, F
 	return false;
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+FRigVMExtendedExecuteContext::~FRigVMExtendedExecuteContext()
+{
+	Reset();
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+
 void FRigVMExtendedExecuteContext::Reset()
 {
 	VMHash = 0;
@@ -60,11 +68,13 @@ void FRigVMExtendedExecuteContext::Reset()
 	WorkMemoryStorageObject = nullptr;
 	DebugMemoryStorageObject = nullptr;
 
-	CurrentMemory = TArrayView<URigVMMemoryStorage*>();
+	WorkMemoryStorage = FRigVMMemoryStorageStruct();
+	DebugMemoryStorage = FRigVMMemoryStorageStruct();
+
+	CurrentVMMemory = TArrayView<TRigVMMemoryStorage*>();
 	ExecutionReachedExit().Clear();
 
 	CachedMemoryHandles.Reset();
-	CachedMemory.Reset();
 
 #if WITH_EDITOR
 	DebugInfo = nullptr;
@@ -120,8 +130,13 @@ void FRigVMExtendedExecuteContext::ResetExecutionState()
 
 void FRigVMExtendedExecuteContext::CopyMemoryStorage(const FRigVMExtendedExecuteContext& Other, UObject* Outer)
 {
+#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+	WorkMemoryStorage = Other.WorkMemoryStorage;
+	DebugMemoryStorage = Other.DebugMemoryStorage;
+#else
 	CopyMemoryStorage(WorkMemoryStorageObject, Other.WorkMemoryStorageObject, Outer);
 	CopyMemoryStorage(DebugMemoryStorageObject, Other.DebugMemoryStorageObject, Outer);
+#endif // UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 }
 
 void FRigVMExtendedExecuteContext::CopyMemoryStorage(TObjectPtr<URigVMMemoryStorage>& TargetMemory, const TObjectPtr <URigVMMemoryStorage>& SourceMemory, UObject* Outer)

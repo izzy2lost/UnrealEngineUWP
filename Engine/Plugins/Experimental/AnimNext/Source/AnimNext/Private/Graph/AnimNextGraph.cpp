@@ -54,7 +54,7 @@ void UAnimNextGraph::Run(const UE::AnimNext::FContext& Context, UE::AnimNext::FW
 		AnimNextContext.InitializeWithGraph(SharedDataBuffer, GraphInstancePtr);
 		AnimNextContext.SetSimulationSteps(SimulationSteps);
 
-		RigVM->Execute(RigVMExtendedExecuteContext, TArray<URigVMMemoryStorage*>(), FRigUnit_AnimNextGraphRoot::EventName);
+		RigVM->Execute(RigVMExtendedExecuteContext, TArray<TRigVMMemoryStorage*>(), FRigUnit_AnimNextGraphRoot::EventName);
 	}
 }
 

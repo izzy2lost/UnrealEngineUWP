@@ -17,6 +17,7 @@
 #include "SBlueprintEditorToolbar.h"
 #include "BlueprintEditorModes.h"
 #include "AssetEditorModeManager.h"
+#include "RigVMCore/RigVMMemoryStorageStruct.h"
 #include "RigVMBlueprintUtils.h"
 #include "RigVMPythonUtils.h"
 #include "EulerTransform.h"
@@ -172,6 +173,7 @@ void FRigVMEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSharedP
 	InRigVMBlueprint->OnModified().AddSP(this, &FRigVMEditor::HandleModifiedEvent);
 	InRigVMBlueprint->OnVMCompiled().AddSP(this, &FRigVMEditor::HandleVMCompiledEvent);
 	InRigVMBlueprint->OnRequestInspectObject().AddSP(this, &FRigVMEditor::SetDetailObjects);
+	InRigVMBlueprint->OnRequestInspectMemoryStorage().AddSP(this, &FRigVMEditor::SetMemoryStorageDetails);
 
 	BindCommands();
 
@@ -1707,7 +1709,7 @@ void FRigVMEditor::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM
 	}
 
 	RefreshDetailView();
-	
+
 	TArray<FName> TabIds;
 	TabIds.Add(*FString::Printf(TEXT("RigVMMemoryDetails_%d"), (int32)ERigVMMemoryType::Literal));
 	TabIds.Add(*FString::Printf(TEXT("RigVMMemoryDetails_%d"), (int32)ERigVMMemoryType::Work));
@@ -1720,9 +1722,26 @@ void FRigVMEditor::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM
 		{
 			if(ActiveTab->GetMetaData<FMemoryTypeMetaData>().IsValid())
 			{
-				ERigVMMemoryType MemoryType = ActiveTab->GetMetaData<FMemoryTypeMetaData>()->MemoryType;			
+				ERigVMMemoryType MemoryType = ActiveTab->GetMetaData<FMemoryTypeMetaData>()->MemoryType;
+				// TODO zzz : UE-195014 - Fix memory tab losing values on VM recompile
+				TRigVMMemoryStorage* Memory = InVM->GetMemoryByType(InContext, MemoryType);
+
+#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+
+			#if 1
+				ActiveTab->RequestCloseTab();
+				const TArray<FRigVMMemoryStorageStruct*> MemoryStorage = { Memory };
+				SetMemoryStorageDetails(MemoryStorage);
+			#else
+				// TODO zzz : This does not compile, IStructureDetailsView does not inherit from SCompoundWidget, like IDetailsView
+				TSharedRef<IStructureDetailsView> StructDetailsView = StaticCastSharedRef<IStructureDetailsView>(ActiveTab->GetContent());
+				TSharedPtr<FStructOnScope> StructOnScope = MakeShareable(new FStructOnScope(Memory->GetPropertyBagStruct(), (uint8*)Memory->GetContainerPtr()));
+				StructDetailsView->SetStructureData(StructOnScope);
+			#endif
+#else
 				TSharedRef<IDetailsView> DetailsView = StaticCastSharedRef<IDetailsView>(ActiveTab->GetContent());
-				DetailsView->SetObject(InVM->GetMemoryByType(InContext, MemoryType));
+				DetailsView->SetObject(Memory);
+#endif // UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 			}
 		}
 	}
@@ -2457,14 +2476,14 @@ void FRigVMEditor::SetDetailObjects(const TArray<UObject*>& InObjects, bool bCha
 
 			TSharedRef<IDetailsView> DetailsView = EditModule.CreateDetailView( DetailsViewArgs );
 			TSharedRef<SDockTab> DockTab = SNew(SDockTab)
-			.Label( LOCTEXT("ControlRigMemoryDetails", "Control Rig Memory Details") )
+			.Label( LOCTEXT("RigVMMemoryDetails", "RigVM Memory Details") )
 			.AddMetaData<FMemoryTypeMetaData>(FMemoryTypeMetaData(Memory->GetMemoryType()))
 			.TabRole(ETabRole::NomadTab)
 			[
 				DetailsView
 			];
 
-			FName TabId = *FString::Printf(TEXT("ControlRigMemoryDetails_%d"), (int32)Memory->GetMemoryType());
+			FName TabId = *FString::Printf(TEXT("RigVMMemoryDetails_%d"), (int32)Memory->GetMemoryType());
 			if(TSharedPtr<SDockTab> ActiveTab = GetTabManager()->FindExistingLiveTab(TabId))
 			{
 				ActiveTab->RequestCloseTab();
@@ -2473,7 +2492,7 @@ void FRigVMEditor::SetDetailObjects(const TArray<UObject*>& InObjects, bool bCha
 			GetTabManager()->InsertNewDocumentTab(
 				FBlueprintEditorTabs::DetailsID,
 				TabId,
-				FTabManager::FLastMajorOrNomadTab(TEXT("ControlRigMemoryDetails")),
+				FTabManager::FLastMajorOrNomadTab(TEXT("RigVMMemoryDetails")),
 				DockTab
 			);
 
@@ -2583,6 +2602,54 @@ void FRigVMEditor::SetDetailObjects(const TArray<UObject*>& InObjects, bool bCha
 	SKismetInspector::FShowDetailsOptions Options;
 	Options.bForceRefresh = true;
 	Inspector->ShowDetailsForObjects(FilteredObjects, Options);
+}
+
+void FRigVMEditor::SetMemoryStorageDetails(const TArray<FRigVMMemoryStorageStruct*>& InStructs)
+{
+	if (bSuspendDetailsPanelRefresh)
+	{
+		return;
+	}
+
+	if (InStructs.Num() == 1)
+	{
+		if (const FRigVMMemoryStorageStruct* Memory = InStructs[0])
+		{
+			FPropertyEditorModule& EditModule = FModuleManager::Get().GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+			FDetailsViewArgs DetailsViewArgs;
+			DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+			DetailsViewArgs.bHideSelectionTip = true;
+
+			FStructureDetailsViewArgs StructureViewArgs;
+
+			TSharedRef<IStructureDetailsView> DetailsView = EditModule.CreateStructureDetailView(DetailsViewArgs, StructureViewArgs, TSharedPtr<FStructOnScope>());
+			TSharedPtr<FStructOnScope> StructOnScope = MakeShareable(new FStructOnScope(Memory->GetPropertyBagStruct(), (uint8*)Memory->GetContainerPtr()));
+			DetailsView->SetStructureData(StructOnScope);
+
+			TSharedRef<SDockTab> DockTab = SNew(SDockTab)
+				.Label(LOCTEXT("RigVMMemoryDetails", "RigVM Memory Details"))
+				.AddMetaData<FMemoryTypeMetaData>(FMemoryTypeMetaData(Memory->GetMemoryType()))
+				.TabRole(ETabRole::NomadTab)
+				[
+					DetailsView->GetWidget().ToSharedRef()
+				];
+
+			FName TabId = *FString::Printf(TEXT("RigVMMemoryDetails_%d"), (int32)Memory->GetMemoryType());
+			if (TSharedPtr<SDockTab> ActiveTab = GetTabManager()->FindExistingLiveTab(TabId))
+			{
+				ActiveTab->RequestCloseTab();
+			}
+
+			GetTabManager()->InsertNewDocumentTab(
+				FBlueprintEditorTabs::DetailsID,
+				TabId,
+				FTabManager::FLastMajorOrNomadTab(TEXT("RigVMMemoryDetails")),
+				DockTab
+			);
+			return;
+		}
+	}
 }
 
 void FRigVMEditor::SetDetailViewForGraph(URigVMGraph* InGraph)

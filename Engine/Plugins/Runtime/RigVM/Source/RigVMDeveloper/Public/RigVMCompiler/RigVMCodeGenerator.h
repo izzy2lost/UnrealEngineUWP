@@ -105,8 +105,8 @@ private:
 		int32 InMaxInstructionsPerFunction);
 	void ParseInclude(UStruct* InDependency, const FName& InMethodName = NAME_None);
 	void ParseRequiredUProperties(const FRigVMExtendedExecuteContext& Context);
-	void ParseMemory(const FRigVMExtendedExecuteContext& Context, URigVMMemoryStorage* InMemory);
-	void ParseProperty(const FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType, const FProperty* InProperty, URigVMMemoryStorage* InMemory);
+	void ParseMemory(const FRigVMExtendedExecuteContext& Context, TRigVMMemoryStorage* InMemory);
+	void ParseProperty(const FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType, const FProperty* InProperty, TRigVMMemoryStorage* InMemory);
 	void ParseInstructionGroups(const FRigVMExtendedExecuteContext& Context);
 	FString DumpInstructions(const FRigVMExtendedExecuteContext& Context, const FString& InPrefix, int32 InFirstInstruction, int32 InLastInstruction, const FInstructionGroup& InGroup, bool bLog = false);
 	FString DumpInstructions(const FRigVMExtendedExecuteContext& Context, const FString& InPrefix, const TArray<int32> InInstructionIndices, const FInstructionGroup& InGroup, bool bLog = false);

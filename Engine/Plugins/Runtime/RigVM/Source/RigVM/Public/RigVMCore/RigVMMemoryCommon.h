@@ -9,6 +9,7 @@
 #include "RigVMTraits.h"
 #include "Templates/TypeHash.h"
 #include "UObject/ObjectMacros.h"
+#include "Misc/OutputDevice.h"
 
 #include "RigVMMemoryCommon.generated.h"
 
@@ -148,3 +149,24 @@ private:
 };
 
 typedef TArrayView<const FRigVMOperand> FRigVMOperandArray;
+
+
+/**
+ * Helper class to catch default value import errors on properties
+ */
+class RIGVM_API FRigVMMemoryStorageImportErrorContext : public FOutputDevice
+{
+public:
+
+	bool bLogErrors;
+	int32 NumErrors;
+
+	explicit FRigVMMemoryStorageImportErrorContext(bool InLogErrors = true)
+		: FOutputDevice()
+		, bLogErrors(InLogErrors)
+		, NumErrors(0)
+	{
+	}
+
+	void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category) override;
+};

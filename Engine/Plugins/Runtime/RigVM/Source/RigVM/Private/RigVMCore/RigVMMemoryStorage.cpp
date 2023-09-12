@@ -376,34 +376,6 @@ FString FRigVMPropertyDescription::GetTailCPPType() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FRigVMMemoryStorageImportErrorContext : public FOutputDevice
-{
-public:
-
-	bool bLogErrors;
-	int32 NumErrors;
-
-	FRigVMMemoryStorageImportErrorContext(bool InLogErrors = true)
-		: FOutputDevice()
-		, bLogErrors(InLogErrors)
-		, NumErrors(0)
-	{
-	}
-
-	void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category) override
-	{
-		if(bLogErrors)
-		{
-#if WITH_EDITOR
-			UE_LOG(LogRigVM, Display, TEXT("Skipping Importing To MemoryStorage: %s"), V);
-#else
-			UE_LOG(LogRigVM, Error, TEXT("Error Importing To MemoryStorage: %s"), V);
-#endif
-		}
-		NumErrors++;
-	}
-};
-
 void URigVMMemoryStorageGeneratorClass::PurgeClass(bool bRecompilingOnLoad)
 {
 	Super::PurgeClass(bRecompilingOnLoad);

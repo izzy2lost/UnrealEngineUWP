@@ -226,20 +226,20 @@ public:
 #endif
 
 	// Returns a VM memory storage by type
-	virtual URigVMMemoryStorage* GetMemoryByType(ERigVMMemoryType InMemoryType);
-	virtual const URigVMMemoryStorage* GetMemoryByType(ERigVMMemoryType InMemoryType) const;
+	virtual TRigVMMemoryStorage* GetMemoryByType(ERigVMMemoryType InMemoryType);
+	virtual const TRigVMMemoryStorage* GetMemoryByType(ERigVMMemoryType InMemoryType) const;
 
 	// The default mutable work memory
-	URigVMMemoryStorage* GetWorkMemory() { return GetMemoryByType(ERigVMMemoryType::Work); }
-	const URigVMMemoryStorage* GetWorkMemory() const { return GetMemoryByType(ERigVMMemoryType::Work); }
+	TRigVMMemoryStorage* GetWorkMemory() { return GetMemoryByType(ERigVMMemoryType::Work); }
+	const TRigVMMemoryStorage* GetWorkMemory() const { return GetMemoryByType(ERigVMMemoryType::Work); }
 
 	// The default const literal memory
-	URigVMMemoryStorage* GetLiteralMemory() { return GetMemoryByType(ERigVMMemoryType::Literal); }
-	const URigVMMemoryStorage* GetLiteralMemory() const { return GetMemoryByType(ERigVMMemoryType::Literal); }
+	TRigVMMemoryStorage* GetLiteralMemory() { return GetMemoryByType(ERigVMMemoryType::Literal); }
+	const TRigVMMemoryStorage* GetLiteralMemory() const { return GetMemoryByType(ERigVMMemoryType::Literal); }
 
 	// The default debug watch memory
-	URigVMMemoryStorage* GetDebugMemory() { return GetMemoryByType(ERigVMMemoryType::Debug); }
-	const URigVMMemoryStorage* GetDebugMemory() const { return GetMemoryByType(ERigVMMemoryType::Debug); }
+	TRigVMMemoryStorage* GetDebugMemory() { return GetMemoryByType(ERigVMMemoryType::Debug); }
+	const TRigVMMemoryStorage* GetDebugMemory() const { return GetMemoryByType(ERigVMMemoryType::Debug); }
 
 	DECLARE_EVENT_TwoParams(URigVM, FRigVMExecutedEvent, class URigVMHost*, const FName&);
 	FRigVMExecutedEvent& OnInitialized_AnyThread() { return InitializedEvent; }
@@ -308,7 +308,7 @@ protected:
 #endif
 
 	void GenerateUserDefinedDependenciesData(FRigVMExtendedExecuteContext& Context);
-	TArray<const UObject*> GetUserDefinedDependencies(const TArray<const URigVMMemoryStorage*> InMemory);
+	TArray<const UObject*> GetUserDefinedDependencies(const TArray<const TRigVMMemoryStorage*> InMemory);
 
 	UPROPERTY()
 	TMap<FString, FSoftObjectPath> UserDefinedStructGuidToPathName;

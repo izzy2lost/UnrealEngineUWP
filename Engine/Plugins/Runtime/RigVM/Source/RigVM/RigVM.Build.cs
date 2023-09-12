@@ -17,8 +17,9 @@ public class RigVM : ModuleRules
                 "AnimationCore",
                 "AnimGraphRuntime",
                 "DeveloperSettings",
-            }
-        );
+				"StructUtils",
+			}
+		);
 
         if (Target.bBuildEditor == true)
         {
@@ -27,7 +28,8 @@ public class RigVM : ModuleRules
                 {
                     "UnrealEd",
                     "BlueprintGraph",
-                }
+					"StructUtilsEditor",
+				}
             );
         }
     }

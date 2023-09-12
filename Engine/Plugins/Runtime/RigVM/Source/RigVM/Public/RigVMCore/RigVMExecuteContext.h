@@ -6,6 +6,8 @@
 #include "Containers/ArrayView.h"
 #include "Containers/UnrealString.h"
 #include "CoreMinimal.h"
+#include "Components/SceneComponent.h"
+#include "GameFramework/Actor.h"
 #include "Logging/LogCategory.h"
 #include "Logging/LogMacros.h"
 #include "Logging/TokenizedMessage.h"
@@ -14,20 +16,19 @@
 #include "RigVMDefines.h"
 #include "RigVMExternalVariable.h"
 #include "RigVMModule.h"
+#include "RigVMCore/RigVMDebugInfo.h"
+#include "RigVMCore/RigVMNameCache.h"
+#include "RigVMCore/RigVMMemoryStorageStruct.h"
+#include "RigVMLog.h"
+#include "RigVMDrawInterface.h"
+#include "RigVMDrawContainer.h"
 #include "Templates/SharedPointer.h"
 #include "Trace/Detail/Channel.h"
 #include "UObject/NameTypes.h"
 #include "UObject/ObjectMacros.h"
+#include "UObject/StructOnScope.h"
 #include "UObject/UnrealNames.h"
 #include "UObject/UnrealType.h"
-#include "RigVMCore/RigVMDebugInfo.h"
-#include "RigVMCore/RigVMNameCache.h"
-#include "UObject/StructOnScope.h"
-#include "RigVMLog.h"
-#include "RigVMDrawInterface.h"
-#include "RigVMDrawContainer.h"
-#include "GameFramework/Actor.h"
-#include "Components/SceneComponent.h"
 
 #include "RigVMExecuteContext.generated.h"
 
@@ -540,10 +541,7 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 		*this = InOther;
 	}
 
-	virtual ~FRigVMExtendedExecuteContext()
-	{
-		Reset();
-	}
+	virtual ~FRigVMExtendedExecuteContext();
 
 	// /** Full context reset */
 	void Reset();
@@ -693,7 +691,6 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 
 	void InvalidateCachedMemory()
 	{
-		CachedMemory.Reset();
 		CachedMemoryHandles.Reset();
 		LazyBranchInstanceData.Reset();
 	}
@@ -716,6 +713,12 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 	UPROPERTY(transient)
 	TObjectPtr<URigVMMemoryStorage> DebugMemoryStorageObject;
 
+	UPROPERTY()
+	FRigVMMemoryStorageStruct WorkMemoryStorage;
+
+	UPROPERTY()
+	FRigVMMemoryStorageStruct DebugMemoryStorage;
+
 	FStructOnScope PublicDataScope;
 	URigVM* VM = nullptr;
 	TArray<FRigVMSlice> Slices;
@@ -725,9 +728,7 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 	FRigVMNameCache NameCache;
 
 	TArray<FRigVMMemoryHandle> CachedMemoryHandles;
-	// changes to the layout of cached memory array should be reflected in GetContainerIndex()
-	TArray<URigVMMemoryStorage*> CachedMemory;
-
+	
 	int32 ExecutingThreadId = INDEX_NONE;
 
 	TArray<int32> EntriesBeingExecuted;
@@ -735,12 +736,18 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 	ERigVMExecuteResult CurrentExecuteResult = ERigVMExecuteResult::Failed;
 	FName CurrentEntryName = NAME_None;
 	bool bCurrentlyRunningRootEntry = false;
-	TArrayView<URigVMMemoryStorage*> CurrentMemory;
+
+	TArrayView<TRigVMMemoryStorage*> CurrentVMMemory;
 
 #if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.4, "DeferredVMToCopy has been deprecated. Please update your code.")
+	// changes to the layout of cached memory array should be reflected in GetContainerIndex()
+	UE_DEPRECATED(5.4, "CachedMemory has been deprecated.")
+	TArray<URigVMMemoryStorage*> CachedMemory;
+	UE_DEPRECATED(5.4, "CurrentMemory has been deprecated, please use CurrentVMMemory with TRigVMMemoryStorage.")
+	TArrayView<TRigVMMemoryStorageDeprecatedType*> CurrentMemory;
+	UE_DEPRECATED(5.4, "DeferredVMToCopy has been deprecated.")
 	TObjectPtr<URigVM> DeferredVMToCopy = nullptr;
-	UE_DEPRECATED(5.4, "DeferredVMContextToCopy has been deprecated. Please update your code.")
+	UE_DEPRECATED(5.4, "DeferredVMContextToCopy has been deprecated.")
 	const FRigVMExtendedExecuteContext* DeferredVMContextToCopy = nullptr;
 #endif
 

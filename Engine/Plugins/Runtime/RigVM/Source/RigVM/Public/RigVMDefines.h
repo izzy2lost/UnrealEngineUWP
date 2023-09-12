@@ -35,5 +35,17 @@
 #endif
 
 #ifndef UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
-#define UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED 0
+#define UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED 1
+#endif
+
+#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+	using TRigVMMemoryStorage = struct FRigVMMemoryStorageStruct;
+	using TRigVMMemoryStorageDeprecatedType = class URigVMMemoryStorage;
+#else
+	struct URigVMMemoryStorageDummy
+	{
+	};
+
+	using TRigVMMemoryStorage = class URigVMMemoryStorage;
+	using TRigVMMemoryStorageDeprecatedType = struct URigVMMemoryStorageDummy;
 #endif

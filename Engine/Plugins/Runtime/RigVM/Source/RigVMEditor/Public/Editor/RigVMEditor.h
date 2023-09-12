@@ -222,6 +222,7 @@ protected:
 	bool& GetSuspendDetailsPanelRefreshFlag() { return bSuspendDetailsPanelRefresh; }
 	virtual void SetDetailObjects(const TArray<UObject*>& InObjects);
 	virtual void SetDetailObjects(const TArray<UObject*>& InObjects, bool bChangeUISelectionState);
+	virtual void SetMemoryStorageDetails(const TArray<FRigVMMemoryStorageStruct*>& InStructs);
 	virtual void SetDetailViewForGraph(URigVMGraph* InGraph);
 	virtual void SetDetailViewForFocusedGraph();
 	virtual void SetDetailViewForLocalVariable();

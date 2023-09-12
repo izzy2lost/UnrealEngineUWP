@@ -837,7 +837,7 @@ void SRigVMGraphNode::GetNodeInfoPopups(FNodeInfoContext* Context, TArray<FGraph
 							FString PinHash = URigVMCompiler::GetPinHash(ModelPin, nullptr, true);
 							if (const FRigVMOperand* WatchOperand = RigBlueprint->PinToOperandMap.Find(PinHash))
 							{
-								URigVMMemoryStorage* Memory = ActiveObject->GetDebugMemory();
+								TRigVMMemoryStorage* Memory = ActiveObject->GetDebugMemory();
 								// We mark PPF_ExternalEditor so that default values are also printed
 								const FString DebugValue = Memory->GetDataAsStringSafe(WatchOperand->GetRegisterIndex(), PPF_ExternalEditor | STRUCT_ExportTextItemNative);
 								if(!DebugValue.IsEmpty())

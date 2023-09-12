@@ -1228,13 +1228,16 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 		else
 		{
 			// sanity check the validity of the VM to ensure stability.
-			if(!VM->IsContextValidForExecution(Context) ||
-				!IsValidLowLevel() ||
-				!VM->IsValidLowLevel() ||
-				!GetLiteralMemory() ||
-				!GetLiteralMemory()->IsValidLowLevel() ||
-				!GetWorkMemory() ||
-				!GetWorkMemory()->IsValidLowLevel())
+			if(!VM->IsContextValidForExecution(Context)
+				|| !IsValidLowLevel()
+				|| !VM->IsValidLowLevel()
+#if !UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+				|| !GetLiteralMemory()
+				|| !GetLiteralMemory()->IsValidLowLevel()
+				|| !GetWorkMemory()
+				||!GetWorkMemory()->IsValidLowLevel()
+#endif // !UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+			)
 			{
 				UE_LOG(LogControlRig, Warning, InvalidatedVMFormat, *GetClass()->GetName());
 				return false;
@@ -1297,7 +1300,7 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 #endif
 		FRigHierarchyExecuteContextBracket HierarchyContextGuard(Hierarchy, &Context);
 
-		TArray<URigVMMemoryStorage*> LocalMemory = VM->GetLocalMemoryArray(Context);
+		TArray<TRigVMMemoryStorage*> LocalMemory = VM->GetLocalMemoryArray(Context);
 		const bool bSuccess = VM->Execute(Context, LocalMemory, InEventName) != ERigVMExecuteResult::Failed;
 
 #if UE_RIGVM_PROFILE_EXECUTE_UNITS_NUM

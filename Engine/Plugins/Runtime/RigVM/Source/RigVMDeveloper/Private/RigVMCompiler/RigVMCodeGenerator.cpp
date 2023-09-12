@@ -98,12 +98,12 @@ static constexpr TCHAR RigVM_GetVMHashFormat[] = TEXT("\tvirtual uint32 GetVMHas
 static constexpr TCHAR RigVM_GetEntryNamesFormat[] = TEXT("\tvirtual const TArray<FName>& GetEntryNames() const override\r\n\t{\r\n\t\tstatic const TArray<FName> StaticEntryNames = { {0} };\r\n\t\treturn StaticEntryNames;\r\n\t}");
 static constexpr TCHAR RigVM_DeclareUpdateExternalVariablesFormat[] = TEXT("\tvirtual void UpdateExternalVariables(FRigVMExtendedExecuteContext& Context) override;");
 static constexpr TCHAR RigVM_DeclareInvokeEntryByNameFormat[] = TEXT("\tERigVMExecuteResult InvokeEntryByName(FRigVMExtendedExecuteContext& Context, const FName& InEntryName{0});");
-static constexpr TCHAR RigVM_DeclareInitializeFormat[] = TEXT("\tvirtual bool Initialize(FRigVMExtendedExecuteContext& Context, TArrayView<URigVMMemoryStorage*> Memory) override;");
-static constexpr TCHAR RigVM_DefineInitializeFormat[] = TEXT("bool U{0}::Initialize(FRigVMExtendedExecuteContext& Context, TArrayView<URigVMMemoryStorage*> Memory)\r\n{");
-static constexpr TCHAR RigVM_DeclareExecuteFormat[] = TEXT("\tvirtual ERigVMExecuteResult Execute(FRigVMExtendedExecuteContext& Context, TArrayView<URigVMMemoryStorage*> Memory, const FName& InEntryName) override;");
+static constexpr TCHAR RigVM_DeclareInitializeFormat[] = TEXT("\tvirtual bool Initialize(FRigVMExtendedExecuteContext& Context, TArrayView<TRigVMMemoryStorage*> Memory) override;");
+static constexpr TCHAR RigVM_DefineInitializeFormat[] = TEXT("bool U{0}::Initialize(FRigVMExtendedExecuteContext& Context, TArrayView<TRigVMMemoryStorage*> Memory)\r\n{");
+static constexpr TCHAR RigVM_DeclareExecuteFormat[] = TEXT("\tvirtual ERigVMExecuteResult Execute(FRigVMExtendedExecuteContext& Context, TArrayView<TRigVMMemoryStorage*> Memory, const FName& InEntryName) override;");
 static constexpr TCHAR RigVM_DefineUpdateExternalVariablesFormat[] = TEXT("void U{0}::UpdateExternalVariables(FRigVMExtendedExecuteContext& Context)\r\n{");
 static constexpr TCHAR RigVM_DefineInvokeEntryByNameFormat[] = TEXT("ERigVMExecuteResult U{0}::InvokeEntryByName(FRigVMExtendedExecuteContext& Context, const FName& InEntryName{1})\r\n{");
-static constexpr TCHAR RigVM_DefineExecuteFormat[] = TEXT("ERigVMExecuteResult U{0}::Execute(FRigVMExtendedExecuteContext& Context, TArrayView<URigVMMemoryStorage*> Memory, const FName& InEntryName)\r\n{");
+static constexpr TCHAR RigVM_DefineExecuteFormat[] = TEXT("ERigVMExecuteResult U{0}::Execute(FRigVMExtendedExecuteContext& Context, TArrayView<TRigVMMemoryStorage*> Memory, const FName& InEntryName)\r\n{");
 static constexpr TCHAR RigVM_DeclareExecuteEntryFormat[] = TEXT("\tERigVMExecuteResult ExecuteEntry_{0}(FRigVMExtendedExecuteContext& Context, {1});");
 static constexpr TCHAR RigVM_DefineExecuteEntryFormat[] = TEXT("ERigVMExecuteResult U{0}::ExecuteEntry_{1}(FRigVMExtendedExecuteContext& Context, {2})\r\n{");
 static constexpr TCHAR RigVM_DeclareExecuteGroupFormat[] = TEXT("\tERigVMExecuteResult ExecuteGroup_{0}_{1}({2});");
@@ -1241,13 +1241,19 @@ void FRigVMCodeGenerator::ParseRequiredUProperties(const FRigVMExtendedExecuteCo
 	}
 }
 
-void FRigVMCodeGenerator::ParseMemory(const FRigVMExtendedExecuteContext& Context, URigVMMemoryStorage* InMemory)
+void FRigVMCodeGenerator::ParseMemory(const FRigVMExtendedExecuteContext& Context, TRigVMMemoryStorage* InMemory)
 {
 	if (InMemory == nullptr)
 	{
 		return;
 	}
-	if (InMemory->GetClass() == URigVMMemoryStorage::StaticClass())
+#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+	for (const FProperty* Property : InMemory->GetProperties())
+	{
+		ParseProperty(Context, InMemory->GetMemoryType(), Property, InMemory);
+	}
+#else
+	if (InMemory->GetClass() == TRigVMMemoryStorage::StaticClass())
 	{
 		return;
 	}
@@ -1257,11 +1263,14 @@ void FRigVMCodeGenerator::ParseMemory(const FRigVMExtendedExecuteContext& Contex
 		const FProperty* Property = *PropertyIt;
 		ParseProperty(Context, InMemory->GetMemoryType(), Property, InMemory);
 	}
+#endif // UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 }
 
-void FRigVMCodeGenerator::ParseProperty(const FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType, const FProperty* InProperty, URigVMMemoryStorage* InMemory)
+void FRigVMCodeGenerator::ParseProperty(const FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType, const FProperty* InProperty, TRigVMMemoryStorage* InMemory)
 {
+#if !UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 	if (URigVMMemoryStorageGeneratorClass* MemoryClass = Cast<URigVMMemoryStorageGeneratorClass>(InMemory->GetClass()))
+#endif
 	{
 		const int32 PropertyIndex = InMemory->GetPropertyIndex(InProperty);
 		const FRigVMOperand Operand(InMemoryType, PropertyIndex);
@@ -1975,7 +1984,7 @@ FRigVMPropertyDescription FRigVMCodeGenerator::GetPropertyDescForOperand(const F
 	}
 	else
 	{
-		if (const URigVMMemoryStorage* MemoryStorage = VM->GetMemoryByType(Context, InOperand.GetMemoryType()))
+		if (const TRigVMMemoryStorage* MemoryStorage = VM->GetMemoryByType(Context, InOperand.GetMemoryType()))
 		{
 			Property = MemoryStorage->GetProperty(InOperand.GetRegisterIndex());
 		}
@@ -2000,12 +2009,16 @@ FRigVMPropertyDescription FRigVMCodeGenerator::GetPropertyForOperand(const FRigV
 	}
 	else
 	{
-		if (const URigVMMemoryStorage* MemoryStorage = VM->GetMemoryByType(Context, InOperand.GetMemoryType()))
+		if (const TRigVMMemoryStorage* MemoryStorage = VM->GetMemoryByType(Context, InOperand.GetMemoryType()))
 		{
 			Property = MemoryStorage->GetProperty(InOperand.GetRegisterIndex());
 			if (Property)
 			{
+#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+				Memory = Property->ContainerPtrToValuePtr<uint8>(MemoryStorage->GetContainerPtr());
+#else
 				Memory = Property->ContainerPtrToValuePtr<uint8>(MemoryStorage);
+#endif // UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 			}
 		}
 	}
@@ -2049,15 +2062,22 @@ const FRigVMPropertyPathDescription& FRigVMCodeGenerator::GetPropertyPathForOper
 		}
 		else
 		{
-			if (const URigVMMemoryStorage* MemoryStorage = VM->GetMemoryByType(Context, InOperand.GetMemoryType()))
+			if (const TRigVMMemoryStorage* MemoryStorage = VM->GetMemoryByType(Context, InOperand.GetMemoryType()))
 			{
+#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+				if (MemoryStorage->IsValidPropertyPathDescriptionIndex((RegisterOffsetIndex)))
+				{
+					return *MemoryStorage->GetPropertyPathDescriptionByIndex(RegisterOffsetIndex);
+				}
+#else
 				if (const URigVMMemoryStorageGeneratorClass* MemoryClass = Cast<URigVMMemoryStorageGeneratorClass>(MemoryStorage->GetClass()))
 				{
-					if (MemoryClass->PropertyPathDescriptions.IsValidIndex(RegisterOffsetIndex))
+					if (MemoryClass->IsValidPropertyPathDescriptionIndex((RegisterOffsetIndex)))
 					{
-						return MemoryClass->PropertyPathDescriptions[RegisterOffsetIndex];
+						return *MemoryClass->GetPropertyPathDescriptionByIndex(RegisterOffsetIndex);
 					}
 				}
+#endif // UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 			}
 		}
 	}
@@ -2113,15 +2133,17 @@ void FRigVMCodeGenerator::CheckOperand(const FRigVMExtendedExecuteContext& Conte
 	}
 	else
 	{
-		const URigVMMemoryStorage* Memory = VM->GetMemoryByType(Context, InOperand.GetMemoryType());
+		const TRigVMMemoryStorage* Memory = VM->GetMemoryByType(Context, InOperand.GetMemoryType());
 		check(Memory);
 
 		ensure(Memory->GetProperties().IsValidIndex(InOperand.GetRegisterIndex()));
 		if (InOperand.GetRegisterOffset() != INDEX_NONE)
 		{
 			ensure(Memory->GetPropertyPaths().IsValidIndex(InOperand.GetRegisterOffset()));
+#if !UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 			URigVMMemoryStorageGeneratorClass* Class = CastChecked<URigVMMemoryStorageGeneratorClass>(Memory->GetClass()); 
 			ensure(Class->PropertyPathDescriptions.IsValidIndex(InOperand.GetRegisterOffset()));
+#endif // UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 		}
 	}
 }

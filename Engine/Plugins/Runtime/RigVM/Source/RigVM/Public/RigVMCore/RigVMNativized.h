@@ -12,6 +12,7 @@
 #include "Math/UnrealMathSSE.h"
 #include "Math/Vector.h"
 #include "Misc/OutputDevice.h"
+#include "RigVMDefines.h"
 #include "RigVM.h"
 #include "RigVMCore/RigVMExecuteContext.h"
 #include "RigVMCore/RigVMExternalVariable.h"
@@ -30,7 +31,6 @@
 
 class FArchive;
 class UObject;
-class URigVMMemoryStorage;
 struct FRigVMInstructionArray;
 
 UCLASS(BlueprintType, Abstract)
@@ -50,11 +50,11 @@ public:
 	virtual bool IsNativized() const override { return true; }
 	virtual void Empty(FRigVMExtendedExecuteContext& Context) override { return; }
 	virtual void CopyFrom(URigVM* InVM, bool bDeferCopy = false, bool bReferenceLiteralMemory = false, bool bReferenceByteCode = false, bool bCopyExternalVariables = false, bool bCopyDynamicRegisters = false) override { return; }
-	virtual bool Initialize(FRigVMExtendedExecuteContext& Context, TArrayView<URigVMMemoryStorage*> Memory) override;
-	virtual ERigVMExecuteResult Execute(FRigVMExtendedExecuteContext& Context, TArrayView<URigVMMemoryStorage*> Memory, const FName& InEntryName = NAME_None) override;
+	virtual bool Initialize(FRigVMExtendedExecuteContext& Context, TArrayView<TRigVMMemoryStorage*> Memory) override;
+	virtual ERigVMExecuteResult Execute(FRigVMExtendedExecuteContext& Context, TArrayView<TRigVMMemoryStorage*> Memory, const FName& InEntryName = NAME_None) override;
 	virtual int32 AddRigVMFunction(UScriptStruct* InRigVMStruct, const FName& InMethodName) override { return INDEX_NONE; }
 	virtual FString GetRigVMFunctionName(int32 InFunctionIndex) const override { return FString(); }
-	virtual URigVMMemoryStorage* GetMemoryByType(ERigVMMemoryType InMemoryType, bool bCreateIfNeeded = false) override { return nullptr; }
+	virtual TRigVMMemoryStorage* GetMemoryByType(FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType) override { return nullptr; }
 	virtual void ClearMemory() override { return; }
 	virtual const FRigVMInstructionArray& GetInstructions() override;
 	virtual bool ContainsEntry(const FName& InEntryName) const override { return GetEntryNames().Contains(InEntryName); }
@@ -73,8 +73,14 @@ public:
 	virtual void Empty() override {}
 	UE_DEPRECATED(5.3, "Please, use Initialize with Context param")
 	virtual bool Initialize(TArrayView<URigVMMemoryStorage*> Memory) override { return false; }
+	UE_DEPRECATED(5.4, "Please, use Execute with TRigVMMemoryStorage param")
+	virtual bool Initialize(FRigVMExtendedExecuteContext& Context, TArrayView<TRigVMMemoryStorageDeprecatedType*> Memory) override { return false; }
+	UE_DEPRECATED(5.4, "GetMemoryByType has been deprecated from the VM. Please, use GetWorkMemory from VMHost or the new GetMemoryByType with a TRigVMMemoryStorage and Context parameter.")
+	virtual TRigVMMemoryStorageDeprecatedType* GetMemoryByType(ERigVMMemoryType InMemoryType, bool bCreateIfNeeded = false) override { return nullptr; }
 	UE_DEPRECATED(5.3, "Please, use Execute with Context param")
 	virtual ERigVMExecuteResult Execute(TArrayView<URigVMMemoryStorage*> Memory, const FName& InEntryName = NAME_None) override { return ERigVMExecuteResult::Failed; }
+	UE_DEPRECATED(5.4, "Please, use Execute with TRigVMMemoryStorage param")
+	virtual ERigVMExecuteResult Execute(FRigVMExtendedExecuteContext& Context, TArrayView<TRigVMMemoryStorageDeprecatedType*> Memory, const FName& InEntryName = NAME_None) override { return ERigVMExecuteResult::Failed; }
 	UE_DEPRECATED(5.3, "Please, use SetInstructionIndex with Context param")
 	virtual void SetInstructionIndex(uint16 InInstructionIndex) {}
 

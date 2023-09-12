@@ -27,6 +27,9 @@ struct RIGVM_API FRigVMObjectVersion
 		// Storing paths to user defined enums map
 		HostStoringUserDefinedData,
 
+		// VM Memory Storage Struct serialized
+		VMMemoryStorageStructSerialized,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

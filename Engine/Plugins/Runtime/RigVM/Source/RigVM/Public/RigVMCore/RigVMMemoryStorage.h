@@ -791,15 +791,55 @@ private:
 	{
 		if(InSliceIndex != INDEX_NONE)
 		{
-			// sliced memory cannot be accessed
-			// using a property path.
-			// it refers to opaque memory only
+			// Sliced memory cannot be accessed using a property path.
+			// It refers to opaque memory only
 			check(PropertyPath == nullptr);
 			check(!bFollowPropertyPath);
 
 			const FArrayProperty* ArrayProperty = CastFieldChecked<FArrayProperty>(Property);
 			FScriptArrayHelper ArrayHelper(ArrayProperty, Ptr);
-			if(ArrayHelper.Num() <= InSliceIndex)
+
+#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+			if (InSliceIndex >= ArrayHelper.Num() - 1)
+			{
+				// For each slice we copy the default value to the next slice index
+				// The Index 0 has the initial default value, we carry it over the next slice on each call
+				const int32 NumValuesToAdd = FMath::Max(InSliceIndex + 1 - FMath::Max(ArrayHelper.Num() - 1, 0), 0);
+				if (NumValuesToAdd > 0)
+				{
+					const int32 FirstAddedIndex = ArrayHelper.AddValues(NumValuesToAdd);
+					if (FirstAddedIndex > 0)
+					{
+						if (const uint8* SourceElementMemory = ArrayHelper.GetRawPtr(FirstAddedIndex - 1))
+						{
+							const FProperty* ElementProperty = ArrayProperty->Inner;
+							for (int32 i = FirstAddedIndex; i < ArrayHelper.Num(); ++i)
+							{
+#if UE_RIGVM_DEBUG_EXECUTION
+								FString DefaultValue;
+								ElementProperty->ExportText_Direct(
+									DefaultValue,
+									SourceElementMemory,
+									SourceElementMemory,
+									nullptr,
+									PPF_None,
+									nullptr);
+
+								UE_LOG(LogRigVM, Display, TEXT("Adding slice %d for Property '%s', defaulting to '%s'."),
+									InSliceIndex,
+									*ArrayProperty->GetName(),
+									*DefaultValue
+								);
+#endif // UE_RIGVM_DEBUG_EXECUTION
+								uint8* DestMemory = ArrayHelper.GetRawPtr(i);
+								ElementProperty->CopyCompleteValue(DestMemory, SourceElementMemory);
+							}
+						}
+					}
+				}
+			}
+#else // !UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+			if (ArrayHelper.Num() <= InSliceIndex)
 			{
 				const int32 NumValuesToAdd = 1 + InSliceIndex - ArrayHelper.Num();
 				const int32 FirstAddedIndex = ArrayHelper.AddValues(NumValuesToAdd);
@@ -817,20 +857,20 @@ private:
 						for (int32 i=FirstAddedIndex; i<ArrayHelper.Num(); ++i)
 						{
 #if UE_RIGVM_DEBUG_EXECUTION
-							// FString DefaultValue;
-							// ElementProperty->ExportText_Direct(
-							// 	DefaultValue,
-							// 	DefaultElementMemory,
-							// 	DefaultElementMemory,
-							// 	nullptr,
-							// 	PPF_None,
-							// 	nullptr);
-							//
-							// UE_LOG(LogRigVM, Display, TEXT("Adding slice %d for Property '%s', defaulting to '%s'."),
-							// 	InSliceIndex,
-							// 	*ArrayProperty->GetName(),
-							// 	*DefaultValue
-							// );
+							 FString DefaultValue;
+							 ElementProperty->ExportText_Direct(
+							 	DefaultValue,
+							 	DefaultElementMemory,
+							 	DefaultElementMemory,
+							 	nullptr,
+							 	PPF_None,
+							 	nullptr);
+							
+							 UE_LOG(LogRigVM, Display, TEXT("Adding slice %d for Property '%s', defaulting to '%s'."),
+							 	InSliceIndex,
+							 	*ArrayProperty->GetName(),
+							 	*DefaultValue
+							 );
 #endif
 
 							uint8* DestMemory = ArrayHelper.GetRawPtr(i);
@@ -839,6 +879,7 @@ private:
 					}
 				}
 			}
+#endif // UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 
 #if UE_RIGVM_DEBUG_EXECUTION
 			// const FProperty* ElementProperty = ArrayProperty->Inner;
@@ -1127,6 +1168,16 @@ public:
 
 	void RefreshLinkedProperties();
 	void RefreshPropertyPaths();
+
+	bool IsValidPropertyPathDescriptionIndex(int32 Index) const
+	{
+		return PropertyPathDescriptions.IsValidIndex(Index);
+	}
+
+	const FRigVMPropertyPathDescription* GetPropertyPathDescriptionByIndex(int32 Index) const
+	{
+		return &PropertyPathDescriptions[Index];
+	}
 
 private:
 

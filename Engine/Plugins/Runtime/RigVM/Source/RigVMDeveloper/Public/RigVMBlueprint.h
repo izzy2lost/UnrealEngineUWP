@@ -25,6 +25,7 @@ class URigVMBlueprintGeneratedClass;
 class IRigVMEditorModule;
 #endif
 struct FEndLoadPackageContext;
+struct FRigVMMemoryStorageStruct;
 
 DECLARE_EVENT_ThreeParams(URigVMBlueprint, FOnRigVMCompiledEvent, UObject*, URigVM*, FRigVMExtendedExecuteContext&);
 DECLARE_EVENT_OneParam(URigVMBlueprint, FOnRigVMRefreshEditorEvent, URigVMBlueprint*);
@@ -40,6 +41,7 @@ DECLARE_DELEGATE_RetVal_OneParam(bool, FRigVMOnBreakLinksDialogRequestedDelegate
 DECLARE_DELEGATE_RetVal_OneParam(TRigVMTypeIndex, FRigVMOnPinTypeSelectionRequestedDelegate, const TArray<TRigVMTypeIndex>&);
 DECLARE_EVENT(URigVMBlueprint, FOnRigVMBreakpointAdded);
 DECLARE_EVENT_OneParam(URigVMBlueprint, FOnRigVMRequestInspectObject, const TArray<UObject*>& );
+DECLARE_EVENT_OneParam(URigVMBlueprint, FOnRigVMRequestInspectMemoryStorage, const TArray<FRigVMMemoryStorageStruct*>&);
 DECLARE_DELEGATE_RetVal(URigVMGraph*, FRigVMBlueprintGetFocusedGraph);
 
 USTRUCT()
@@ -315,6 +317,9 @@ public:
 
 	FOnRigVMRequestInspectObject& OnRequestInspectObject() { return OnRequestInspectObjectEvent; }
 	void RequestInspectObject(const TArray<UObject*>& InObjects) { OnRequestInspectObjectEvent.Broadcast(InObjects); }
+
+	FOnRigVMRequestInspectMemoryStorage& OnRequestInspectMemoryStorage() { return OnRequestInspectMemoryStorageEvent; }
+	void RequestInspectMemoryStorage(const TArray<FRigVMMemoryStorageStruct*>& InMemoryStorageStructs) { OnRequestInspectMemoryStorageEvent.Broadcast(InMemoryStorageStructs); }
 
 #endif	// #if WITH_EDITOR
 
@@ -693,6 +698,7 @@ private:
 	TArray<URigVMNode*> RigVMBreakpointNodes;
 
 	FOnRigVMRequestInspectObject OnRequestInspectObjectEvent;
+	FOnRigVMRequestInspectMemoryStorage OnRequestInspectMemoryStorageEvent;
 	FRigVMBlueprintGetFocusedGraph OnGetFocusedGraphDelegate;
 		
 public:

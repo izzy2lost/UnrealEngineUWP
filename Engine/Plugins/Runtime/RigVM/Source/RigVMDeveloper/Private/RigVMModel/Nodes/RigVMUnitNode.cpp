@@ -455,11 +455,15 @@ void URigVMUnitNode::EnumeratePropertiesOnHostAndStructInstance(URigVMHost* InHo
 				}
 			case ERigVMMemoryType::Literal:
 				{
-					if(URigVMMemoryStorage* LiteralMemory = InHost->GetLiteralMemory())
+					if(TRigVMMemoryStorage* LiteralMemory = InHost->GetLiteralMemory())
 					{
 						if(const FProperty* Property = LiteralMemory->GetProperty(Operand.GetRegisterIndex()))
 						{
+#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+							HostMemory = Property->ContainerPtrToValuePtr<uint8>(LiteralMemory->GetContainerPtr());
+#else
 							HostMemory = Property->ContainerPtrToValuePtr<uint8>(LiteralMemory);
+#endif // UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 							HostProperty = Property;
 						}
 					}
@@ -467,11 +471,15 @@ void URigVMUnitNode::EnumeratePropertiesOnHostAndStructInstance(URigVMHost* InHo
 				}
 			case ERigVMMemoryType::Work:
 				{
-					if(URigVMMemoryStorage* WorkMemory = InHost->GetWorkMemory())
+					if(TRigVMMemoryStorage* WorkMemory = InHost->GetWorkMemory())
 					{
 						if(const FProperty* Property = WorkMemory->GetProperty(Operand.GetRegisterIndex()))
 						{
+#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+							HostMemory = Property->ContainerPtrToValuePtr<uint8>(WorkMemory->GetContainerPtr());
+#else
 							HostMemory = Property->ContainerPtrToValuePtr<uint8>(WorkMemory);
+#endif // UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 							HostProperty = Property;
 						}
 					}
@@ -570,7 +578,7 @@ bool URigVMUnitNode::UpdateHostFromStructInstance(URigVMHost* InHost, TSharedPtr
 		}
 
 		// copy the memory back to the host
-		URigVMMemoryStorage::CopyProperty(HostProperty, HostMemory, InstanceProperty, InstanceMemory);
+		TRigVMMemoryStorage::CopyProperty(HostProperty, HostMemory, InstanceProperty, InstanceMemory);
 		bChangedSomething = true;
 
 	}, InSliceIndex);
