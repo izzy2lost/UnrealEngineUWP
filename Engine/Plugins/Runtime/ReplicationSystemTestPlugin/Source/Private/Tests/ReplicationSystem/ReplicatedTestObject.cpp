@@ -155,7 +155,7 @@ UObjectReplicationBridge::FCreationHeader* UReplicatedTestObjectBridge::ReadCrea
 	return Header.Release();
 }
 
-FObjectReplicationBridgeInstantiateResult UReplicatedTestObjectBridge::BeginInstantiateFromRemote(FNetRefHandle SubObjectOwnerHandle, const UE::Net::FNetObjectResolveContext& ResolveContext, const FCreationHeader* InHeader)
+FObjectReplicationBridgeInstantiateResult UReplicatedTestObjectBridge::BeginInstantiateFromRemote(FNetRefHandle RootObjectOfSubObject, const UE::Net::FNetObjectResolveContext& ResolveContext, const FCreationHeader* InHeader)
 {
 	const FReplicationTestObjectCreationHeader* Header = static_cast<const FReplicationTestObjectCreationHeader*>(InHeader);
 
@@ -202,25 +202,25 @@ void UReplicatedTestObjectBridge::EndInstantiateFromRemote(FNetRefHandle Handle)
 	Instance->NetRefHandle = Handle;
 }
 
-void UReplicatedTestObjectBridge::DestroyInstanceFromRemote(UObject* Instance, EReplicationBridgeDestroyInstanceReason DestroyReason, EReplicationBridgeDestroyInstanceFlags DestroyFlags)
+void UReplicatedTestObjectBridge::DestroyInstanceFromRemote(const FDestroyInstanceParams& Params)
 {
-	if (!Instance)
+	if (!Params.Instance)
 	{
 		return;
 	}
 
-	if (DestroyReason == EReplicationBridgeDestroyInstanceReason::Destroy)
+	if (Params.DestroyReason == EReplicationBridgeDestroyInstanceReason::Destroy)
 	{
-		if (EnumHasAnyFlags(DestroyFlags, EReplicationBridgeDestroyInstanceFlags::AllowDestroyInstanceFromRemote))
+		if (EnumHasAnyFlags(Params.DestroyFlags, EReplicationBridgeDestroyInstanceFlags::AllowDestroyInstanceFromRemote))
 		{
 			// Remove the object from the created objects on the node
 			if (CreatedObjectsOnNode)
 			{
-				CreatedObjectsOnNode->Remove(TStrongObjectPtr<UObject>(Instance));
+				CreatedObjectsOnNode->Remove(TStrongObjectPtr<UObject>(Params.Instance));
 			}
 
-			Instance->PreDestroyFromReplication();
-			Instance->MarkAsGarbage();
+			Params.Instance->PreDestroyFromReplication();
+			Params.Instance->MarkAsGarbage();
 		}
 	}
 }

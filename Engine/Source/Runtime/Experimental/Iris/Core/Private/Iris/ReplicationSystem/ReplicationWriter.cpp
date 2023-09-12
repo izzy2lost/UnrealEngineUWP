@@ -2024,10 +2024,21 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 						Writer.WriteBits(CreatedBaselineIndex, FDeltaCompressionBaselineManager::BaselineIndexBitCount);
 					}
 
-					FReplicationBridgeSerializationContext BridgeContext(Context, Parameters.ConnectionId, Info.IsDestructionInfo == 1U);
+					const bool bIsDestructionInfo = (Info.IsDestructionInfo == 1U);					
+					FReplicationBridgeSerializationContext BridgeContext(Context, Parameters.ConnectionId, bIsDestructionInfo);
 
-					// We need to send creation info, if we fail, we skip this object for now
-					if (!ReplicationBridge->CallWriteNetRefHandleCreationInfo(BridgeContext, NetRefHandle))
+					bool bWriteSuccess = false;
+					if (Info.IsDestructionInfo)
+					{
+						bWriteSuccess = ReplicationBridge->CallWriteNetRefHandleDestructionInfo(BridgeContext, NetRefHandle);
+					}
+					else
+					{
+						bWriteSuccess = ReplicationBridge->CallWriteNetRefHandleCreationInfo(BridgeContext, NetRefHandle);
+					}
+
+					// We need to send creation info, so if we fail we skip this object for now
+					if (!bWriteSuccess)
 					{
 						return BridgeContext.SerializationContext.HasError() ? EWriteObjectStatus::Error : EWriteObjectStatus::BitStreamOverflow;
 					}
@@ -2572,11 +2583,12 @@ int FReplicationWriter::WriteDestructionInfo(FNetSerializationContext& Context, 
 	// Special case for static objects that should be destroyed on the client but we have not replicated
 	Writer.WriteBool(true);
 
-	FReplicationBridgeSerializationContext BridgeContext(Context, Parameters.ConnectionId, true);
+	constexpr bool bIsDestructionInfo = true;
+	FReplicationBridgeSerializationContext BridgeContext(Context, Parameters.ConnectionId, bIsDestructionInfo);
 
 	// Push ForceInlineExportScope to inline exports instead of writing exports later.
 	FForceInlineExportScope ForceInlineExportScope(Context.GetInternalContext());
-	if (!ReplicationBridge->CallWriteNetRefHandleCreationInfo(BridgeContext, ObjectData.RefHandle))
+	if (!ReplicationBridge->CallWriteNetRefHandleDestructionInfo(BridgeContext, ObjectData.RefHandle))
 	{
 		// Trigger Rollback
 		Writer.DoOverflow();

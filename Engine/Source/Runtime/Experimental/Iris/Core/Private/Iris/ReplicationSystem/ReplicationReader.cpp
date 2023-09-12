@@ -774,14 +774,14 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 		UE_NET_TRACE_SCOPE(CreationInfo, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 
 		// SubObject data for initial state
-		FNetRefHandle SubObjectOwnerHandle;
+		FNetRefHandle RootObjectOfSubObject;
 		if (bIsSubObject)
 		{
 			// The owner is the same as the Batch owner
 			const FNetRefHandle IncompleteOwnerHandle = BatchHandle;
 				
-			FInternalNetRefIndex SubObjectOwnerInternalIndex = NetRefHandleManager->GetInternalIndex(IncompleteOwnerHandle);
-			if (Reader.IsOverflown() || SubObjectOwnerInternalIndex == FNetRefHandleManager::InvalidInternalIndex)
+			FInternalNetRefIndex RootObjectInternalIndex = NetRefHandleManager->GetInternalIndex(IncompleteOwnerHandle);
+			if (Reader.IsOverflown() || RootObjectInternalIndex == FNetRefHandleManager::InvalidInternalIndex)
 			{
 				UE_LOG_REPLICATIONREADER_ERROR(TEXT("FReplicationReader::ReadObject Invalid subobjectowner handle. %s"), ToCStr(IncompleteOwnerHandle.ToString()));
 				const FName& NetError = (Reader.IsOverflown() ? GNetError_BitStreamOverflow : GNetError_InvalidNetHandle);
@@ -789,7 +789,7 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 				return;			
 			}
 
-			SubObjectOwnerHandle = NetRefHandleManager->GetReplicatedObjectDataNoCheck(SubObjectOwnerInternalIndex).RefHandle;
+			RootObjectOfSubObject = NetRefHandleManager->GetReplicatedObjectDataNoCheck(RootObjectInternalIndex).RefHandle;
 		}
 
 		const bool bIsDeltaCompressed = Reader.ReadBool();
@@ -811,7 +811,7 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 		// Get Bridge
 		FReplicationBridgeSerializationContext BridgeContext(Context, Parameters.ConnectionId);
 
-		const FReplicationBridgeCreateNetRefHandleResult CreateResult = ReplicationBridge->CallCreateNetRefHandleFromRemote(SubObjectOwnerHandle, IncompleteHandle, BridgeContext);
+		const FReplicationBridgeCreateNetRefHandleResult CreateResult = ReplicationBridge->CallCreateNetRefHandleFromRemote(RootObjectOfSubObject, IncompleteHandle, BridgeContext);
 		FNetRefHandle NetRefHandle = CreateResult.NetRefHandle;
 		if (!NetRefHandle.IsValid())
 		{	

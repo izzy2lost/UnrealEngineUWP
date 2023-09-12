@@ -481,9 +481,11 @@ bool UActorReplicationBridge::WriteCreationHeader(UE::Net::FNetSerializationCont
 	}
 	else if (Object)
 	{
+		const UObject* RootObject = GetReplicatedObject(InternalGetRootObjectOfSubObject(Handle));
+
 		// Get Header
 		FSubObjectCreationHeader Header;
-		GetSubObjectCreationHeader(Object, Header);
+		GetSubObjectCreationHeader(Object, RootObject, Header);
 
 		// Serialize the data
 		// Indicate that this is a SubObject
@@ -529,7 +531,7 @@ UObjectReplicationBridge::FCreationHeader* UActorReplicationBridge::ReadCreation
 	return nullptr;
 }
 
-FObjectReplicationBridgeInstantiateResult UActorReplicationBridge::BeginInstantiateFromRemote(FNetRefHandle SubObjectOwnerNetHandle, const UE::Net::FNetObjectResolveContext& ResolveContext, const UObjectReplicationBridge::FCreationHeader* InHeader)
+FObjectReplicationBridgeInstantiateResult UActorReplicationBridge::BeginInstantiateFromRemote(FNetRefHandle RootObjectOfSubObject, const UE::Net::FNetObjectResolveContext& ResolveContext, const UObjectReplicationBridge::FCreationHeader* InHeader)
 {
 	using namespace UE::Net::Private;
 
@@ -636,11 +638,9 @@ FObjectReplicationBridgeInstantiateResult UActorReplicationBridge::BeginInstanti
 		// Spawn sub object
 		if (Header->bIsDynamic)
 		{
-			// Resolve owner
-			UObject* ResolvedOwnerObject = GetReplicatedObject(SubObjectOwnerNetHandle);
-			AActor* Owner = Cast<AActor>(ResolvedOwnerObject);
-
-			check(Owner);
+			// Resolve root object
+			UObject* RootObject = GetReplicatedObject(RootObjectOfSubObject);
+			AActor* RootActor = CastChecked<AActor>(RootObject);
 			
 			UObject* SubObj = nullptr;
 
@@ -651,24 +651,45 @@ FObjectReplicationBridgeInstantiateResult UActorReplicationBridge::BeginInstanti
 
 				if (!SubObj)
 				{
-					UE_LOG_ACTORREPLICATIONBRIDGE(Error, TEXT("BeginInstantiateFromRemote Failed to find subobjectReference for dynamic SubObject %s, Owner %s (%s)"), *DescribeObjectReference(Header->ObjectReference, ResolveContext), *SubObjectOwnerNetHandle.ToString(), *GetPathNameSafe(GetReplicatedObject(SubObjectOwnerNetHandle)));
+					UE_LOG_ACTORREPLICATIONBRIDGE(Error, TEXT("BeginInstantiateFromRemote Failed to find subobjectReference for dynamic SubObject %s, Owner %s, RootObject %s"), *DescribeObjectReference(Header->ObjectReference, ResolveContext), *RootObjectOfSubObject.ToString(), *GetPathNameSafe(RootActor));
 				}
 			}
 			else
 			{
-				UObject* ObjOuter = Owner;
+				// Find the proper Outer
+				UObject* OuterObject = nullptr;
+				if (Header->bOuterIsTransientLevel)
+				{
+					OuterObject = GetTransientPackage();
+				}
+				else if (Header->bOuterIsRootObject)
+				{
+					OuterObject = RootActor;
+				}				
+				else
+				{
+					OuterObject = ResolveObjectReference(Header->OuterReference, ResolveContext);
+
+					if (!OuterObject)
+					{
+						UE_LOG_ACTORREPLICATIONBRIDGE(Error, TEXT("BeginInstantiateFromRemote Failed to find Outer %s for dynamic subobject %s"), *DescribeObjectReference(Header->OuterReference, ResolveContext), *DescribeObjectReference(Header->ObjectReference, ResolveContext))
+
+						// Fallback to the rootobject instead
+						OuterObject = RootActor;
+					}
+				}
 
 				// We need to spawn the subobject
 				UObject* SubObjClassObj = ResolveObjectReference(Header->ObjectClassReference, ResolveContext);
 				UClass * SubObjClass = Cast<UClass>(SubObjClassObj);
 
 				// Try to spawn SubObject
- 				SubObj = NewObject<UObject>(Owner, SubObjClass);
+ 				SubObj = NewObject<UObject>(OuterObject, SubObjClass);
 
 				// Sanity check some things
-				checkf(SubObj != nullptr, TEXT("UActorReplicationBridge::BeginInstantiateFromRemote: Subobject is NULL after instantiating. Class: %s, Actor %s"), *GetNameSafe(SubObjClass), *Owner->GetName());
-				checkf(SubObj->IsIn(ObjOuter), TEXT("UActorReplicationBridge::BeginInstantiateFromRemote: Subobject is not in Outer. SubObject: %s, Actor: %s Outer: %s"), *SubObj->GetName(), *Owner->GetName(), *ObjOuter->GetName());
-				checkf(Cast<AActor>(SubObj) == nullptr, TEXT("UActorReplicationBridge::BeginInstantiateFromRemote: Subobject is an Actor. SubObject: %s, Actor: %s"), *SubObj->GetName(), *Owner->GetName());
+				checkf(SubObj != nullptr, TEXT("UActorReplicationBridge::BeginInstantiateFromRemote: Subobject is NULL after instantiating. Class: %s, Outer %s, Actor %s"), *GetNameSafe(SubObjClass), *GetNameSafe(OuterObject), *GetNameSafe(RootActor));
+				checkf(!OuterObject || SubObj->IsIn(OuterObject), TEXT("UActorReplicationBridge::BeginInstantiateFromRemote: Subobject is not in Outer. SubObject: %s, Outer %s, Actor %s"), *SubObj->GetName(), *GetNameSafe(OuterObject), *GetNameSafe(RootActor));
+				checkf(Cast<AActor>(SubObj) == nullptr, TEXT("UActorReplicationBridge::BeginInstantiateFromRemote: Subobject is an Actor. SubObject: %s, Outer %s, Actor %s"), *SubObj->GetName(), *GetNameSafe(OuterObject), *GetNameSafe(RootActor));
 
 				// We must defer call OnSubObjectCreatedFromReplication after the state has been applied to the owning actor in order to behave like old system.
 				InstantiateResult.Flags |= EReplicationBridgeCreateNetRefHandleResultFlags::ShouldCallSubObjectCreatedFromReplication;
@@ -692,7 +713,8 @@ FObjectReplicationBridgeInstantiateResult UActorReplicationBridge::BeginInstanti
 			}
 			else
 			{
-				UE_LOG_ACTORREPLICATIONBRIDGE(Error, TEXT("BeginInstantiateFromRemote Failed to find Resolve SubObjectReference for static SubObject %s, Owner %s (%s)"), *DescribeObjectReference(Header->ObjectReference, ResolveContext), *SubObjectOwnerNetHandle.ToString(), *GetPathNameSafe(GetReplicatedObject(SubObjectOwnerNetHandle)));
+				UE_LOG_ACTORREPLICATIONBRIDGE(Error, TEXT("BeginInstantiateFromRemote Failed to find Resolve SubObjectReference for static SubObject %s, Owner %s (%s)"), 
+				*DescribeObjectReference(Header->ObjectReference, ResolveContext), *RootObjectOfSubObject.ToString(), *GetPathNameSafe(GetReplicatedObject(RootObjectOfSubObject)));
 			}			
 		}
 	}
@@ -745,28 +767,28 @@ void UActorReplicationBridge::EndInstantiateFromRemote(FNetRefHandle Handle)
 
 void UActorReplicationBridge::OnSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle)
 {
-	AActor* Owner = Cast<AActor>(GetReplicatedObject(InternalGetSubObjectOwner(SubObjectHandle)));
+	AActor* RootObject = Cast<AActor>(GetReplicatedObject(InternalGetRootObjectOfSubObject(SubObjectHandle)));
 	UObject* SubObject = GetReplicatedObject(SubObjectHandle);
-	if (IsValid(Owner) && IsValid(SubObject))
+	if (IsValid(RootObject) && IsValid(SubObject))
 	{
-		Owner->OnSubobjectCreatedFromReplication(SubObject);
+		RootObject->OnSubobjectCreatedFromReplication(SubObject);
 	}
 }
 
-void UActorReplicationBridge::DestroyInstanceFromRemote(UObject* Instance, EReplicationBridgeDestroyInstanceReason DestroyReason, EReplicationBridgeDestroyInstanceFlags DestroyFlags)
+void UActorReplicationBridge::DestroyInstanceFromRemote(const FDestroyInstanceParams& Params)
 {
-	if (DestroyReason == EReplicationBridgeDestroyInstanceReason::DoNotDestroy)
+	if (Params.DestroyReason == EReplicationBridgeDestroyInstanceReason::DoNotDestroy)
 	{
 		return;
 	}
 
-	if (AActor* Actor = Cast<AActor>(Instance))
+	if (AActor* Actor = Cast<AActor>(Params.Instance))
 	{
-		if ((DestroyReason == EReplicationBridgeDestroyInstanceReason::TearOff) && !NetDriver->ShouldClientDestroyTearOffActors())
+		if ((Params.DestroyReason == EReplicationBridgeDestroyInstanceReason::TearOff) && !NetDriver->ShouldClientDestroyTearOffActors())
 		{
 			NetDriver->ClientSetActorTornOff(Actor);
 		}
-		else if (EnumHasAnyFlags(DestroyFlags, EReplicationBridgeDestroyInstanceFlags::AllowDestroyInstanceFromRemote))
+		else if (EnumHasAnyFlags(Params.DestroyFlags, EReplicationBridgeDestroyInstanceFlags::AllowDestroyInstanceFromRemote))
 		{
 			// Any subobjects have already been detached from ReplicationBridge
 			Actor->PreDestroyFromReplication();
@@ -776,24 +798,24 @@ void UActorReplicationBridge::DestroyInstanceFromRemote(UObject* Instance, ERepl
 	else
 	{
 		// If the SubObject is being torn off it is up to owning actor to clean it up properly
-		if (DestroyReason == EReplicationBridgeDestroyInstanceReason::TearOff)
+		if (Params.DestroyReason == EReplicationBridgeDestroyInstanceReason::TearOff)
 		{
 			return;
 		}
 
-		if (!EnumHasAnyFlags(DestroyFlags, EReplicationBridgeDestroyInstanceFlags::AllowDestroyInstanceFromRemote))
+		if (!EnumHasAnyFlags(Params.DestroyFlags, EReplicationBridgeDestroyInstanceFlags::AllowDestroyInstanceFromRemote))
 		{
 			return;
 		}
 
-		AActor* Owner = Cast<AActor>(Instance->GetOuter());
-		if (ensureMsgf(IsValid(Owner) && !Owner->IsUnreachable(), TEXT("UActorReplicationBridge::DestroyInstanceFromRemote Destroyed subobject after owner %s"), *Instance->GetPathName()))
+		AActor* Owner = Cast<AActor>(Params.RootObject);
+		if (ensureMsgf(IsValid(Owner) && !Owner->IsUnreachable(), TEXT("UActorReplicationBridge::DestroyInstanceFromRemote Destroyed subobject: %s has an invalid owner: %s"), *GetNameSafe(Params.Instance), *GetPathNameSafe(Params.RootObject)))
 		{
-			Owner->OnSubobjectDestroyFromReplication(Instance);
+			Owner->OnSubobjectDestroyFromReplication(Params.Instance);
 		}
 
-		Instance->PreDestroyFromReplication();
-		Instance->MarkAsGarbage();
+		Params.Instance->PreDestroyFromReplication();
+		Params.Instance->MarkAsGarbage();
 	}
 }
 
@@ -987,12 +1009,20 @@ void UActorReplicationBridge::GetActorCreationHeader(const AActor* Actor, UE::Ne
 	}
 }
 
-void UActorReplicationBridge::GetSubObjectCreationHeader(const UObject* Object, UE::Net::Private::FSubObjectCreationHeader& Header) const
+void UActorReplicationBridge::GetSubObjectCreationHeader(const UObject* Object, const UObject* RootObject, UE::Net::Private::FSubObjectCreationHeader& Header) const
 {
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
 	// SubObject
-	UE::Net::FNetObjectReference ObjectRef = GetOrCreateObjectReference(Object);
+	FNetObjectReference ObjectRef = GetOrCreateObjectReference(Object);
+
+	// It's Outer
+	UObject* OuterObject = Object->GetOuter();
 
 	Header.bIsActor = false;
+	Header.bOuterIsTransientLevel = false;
+	Header.bOuterIsRootObject = false;
 	Header.bIsDynamic = ObjectRef.GetRefHandle().IsDynamic();
 	Header.bUsePersistentLevel = false;
 	Header.bIsNameStableForNetworking = Object->IsNameStableForNetworking();
@@ -1006,6 +1036,25 @@ void UActorReplicationBridge::GetSubObjectCreationHeader(const UObject* Object, 
 		if (!Header.bIsNameStableForNetworking)
 		{
 			Header.ObjectClassReference = GetOrCreateObjectReference(Object->GetClass());
+
+			// Find the Outer
+			if (OuterObject == GetTransientPackage())
+			{
+				Header.bOuterIsTransientLevel = true;
+			}
+			else if (OuterObject == RootObject)
+			{
+				Header.bOuterIsRootObject = true;
+			}
+			else
+			{
+				Header.OuterReference = GetOrCreateObjectReference(OuterObject);
+
+				if (!ensure(Header.OuterReference.IsValid()))
+				{
+					UE_LOG_ACTORREPLICATIONBRIDGE(Error, TEXT("Could not create NetReference to Outer %s of subobject %s"), *GetNameSafe(OuterObject), *GetNameSafe(Object));
+				}
+			}
 		}
 	}
 

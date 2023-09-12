@@ -83,8 +83,10 @@ public:
 		const FReplicationProtocol* Protocol;
 		const FReplicationInstanceProtocol* InstanceProtocol;
 		uint8* ReceiveStateBuffer;
-		uint32 SubObjectRootIndex;
-		uint32 SubObjectParentIndex;
+		/** Subobjects only: Internal index of the RootObject of this subobject */
+		FInternalNetRefIndex SubObjectRootIndex;
+		/** Subobjects only: Internal index of the ParentObject of this subobject */
+		FInternalNetRefIndex SubObjectParentIndex;
 
 		union
 		{

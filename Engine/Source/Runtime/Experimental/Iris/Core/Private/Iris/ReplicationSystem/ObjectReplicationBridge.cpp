@@ -510,15 +510,28 @@ void UObjectReplicationBridge::EndReplication(UObject* Instance, EEndReplication
 void UObjectReplicationBridge::DetachInstanceFromRemote(FNetRefHandle Handle, EReplicationBridgeDestroyInstanceReason DestroyReason, EReplicationBridgeDestroyInstanceFlags DestroyFlags)
 {
 	UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("DetachInstanceFromRemote %s DestroyReason: %s DestroyFlags: %u"), *Handle.ToString(), ToCStr(LexToString(DestroyReason)), unsigned(DestroyFlags));
+
+	using namespace UE::Net::Private;
+
+	FDestroyInstanceParams DestroyInstanceParams;
 	
-	UObject* Instance = GetObjectFromReferenceHandle(Handle);
+	DestroyInstanceParams.Instance = GetObjectFromReferenceHandle(Handle);
+	DestroyInstanceParams.DestroyReason = DestroyReason;
+	DestroyInstanceParams.DestroyFlags = DestroyFlags;
+
+	if (DestroyReason != EReplicationBridgeDestroyInstanceReason::DoNotDestroy)
+	{
+		const FInternalNetRefIndex ObjectNetIndex = NetRefHandleManager->GetInternalIndex(Handle);
+		const FNetRefHandleManager::FReplicatedObjectData& RepObjectData = NetRefHandleManager->GetReplicatedObjectData(ObjectNetIndex);
+		DestroyInstanceParams.RootObject = RepObjectData.SubObjectRootIndex != FNetRefHandleManager::InvalidInternalIndex ? NetRefHandleManager->GetReplicatedObjectInstance(RepObjectData.SubObjectRootIndex) : nullptr;
+	}
 	
 	UnregisterInstance(Handle);
 
 	// Destroy instance if requested
-	if (Instance && DestroyReason != EReplicationBridgeDestroyInstanceReason::DoNotDestroy)
+	if (DestroyInstanceParams.Instance && DestroyReason != EReplicationBridgeDestroyInstanceReason::DoNotDestroy)
 	{
-		DestroyInstanceFromRemote(Instance, DestroyReason, DestroyFlags);
+		DestroyInstanceFromRemote(DestroyInstanceParams);
 	}
 
 	// $IRIS TODO: Cleanup any pending creation data if we have not yet instantiated the instance.
@@ -553,7 +566,7 @@ void UObjectReplicationBridge::RegisterRemoteInstance(FNetRefHandle RefHandle, U
 	UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("RegisterRemoteInstance %s %s with ProtocolId:0x%" UINT64_x_FMT), *RefHandle.ToString(), ToCStr(Instance->GetName()), Protocol->ProtocolIdentifier);
 }
 
-FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRefHandleFromRemote(FNetRefHandle SubObjectOwnerNetHandle, FNetRefHandle WantedNetHandle, FReplicationBridgeSerializationContext& Context)
+FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRefHandleFromRemote(FNetRefHandle RootObjectOfSubObject, FNetRefHandle WantedNetHandle, FReplicationBridgeSerializationContext& Context)
 {
 	LLM_SCOPE_BYTAG(IrisState);
 
@@ -585,7 +598,7 @@ FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRe
 
 	// Currently we need to always instantiate remote objects, moving forward we want to make this optional so that can be deferred until it is time to apply received state data.
 	// https://jira.it.epicgames.com/browse/UE-127369	
-	FObjectReplicationBridgeInstantiateResult InstantiateResult = BeginInstantiateFromRemote(SubObjectOwnerNetHandle, Context.SerializationContext.GetInternalContext()->ResolveContext, Header.Get());
+	FObjectReplicationBridgeInstantiateResult InstantiateResult = BeginInstantiateFromRemote(RootObjectOfSubObject, Context.SerializationContext.GetInternalContext()->ResolveContext, Header.Get());
 	UObject* InstancePtr = InstantiateResult.Object;
 	if (!InstancePtr)
 	{

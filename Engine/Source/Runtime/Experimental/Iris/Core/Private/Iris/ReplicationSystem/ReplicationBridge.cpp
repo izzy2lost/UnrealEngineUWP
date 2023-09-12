@@ -47,7 +47,7 @@ bool UReplicationBridge::WriteNetRefHandleCreationInfo(FReplicationBridgeSeriali
 	return true;
 }
 
-FReplicationBridgeCreateNetRefHandleResult UReplicationBridge::CreateNetRefHandleFromRemote(FNetRefHandle SubObjectOwnerNetHandle, FNetRefHandle WantedNetHandle, FReplicationBridgeSerializationContext& Context)
+FReplicationBridgeCreateNetRefHandleResult UReplicationBridge::CreateNetRefHandleFromRemote(FNetRefHandle RootObjectOfSubObject, FNetRefHandle WantedNetHandle, FReplicationBridgeSerializationContext& Context)
 {
 	return FReplicationBridgeCreateNetRefHandleResult();
 };
@@ -197,40 +197,44 @@ bool UReplicationBridge::CallWriteNetRefHandleCreationInfo(FReplicationBridgeSer
 {
 	using namespace UE::Net;
 
-	// Special path for destruction info
-	if (Context.bIsDestructionInfo)
-	{
-		UE_NET_TRACE_SCOPE(DestructionInfo, *Context.SerializationContext.GetBitStreamWriter(), Context.SerializationContext.GetTraceCollector(), ENetTraceVerbosity::Trace);
+	check(!Context.bIsDestructionInfo);
 
-		const FDestructionInfo* Info = StaticObjectsPendingDestroy.Find(Handle);
-		if (ensureAlwaysMsgf(Info, TEXT("Failed to write destructionInfo for %s"), *Handle.ToString()))
-		{
-			// Write destruction info
-			WriteFullNetObjectReference(Context.SerializationContext, Info->StaticRef);
-		}
-		else
-		{
-			// Write invalid reference
-			WriteFullNetObjectReference(Context.SerializationContext, FNetObjectReference());
-		}
-		return !Context.SerializationContext.HasErrorOrOverflow();	
+	return WriteNetRefHandleCreationInfo(Context, Handle);
+}
+
+bool UReplicationBridge::CallWriteNetRefHandleDestructionInfo(FReplicationBridgeSerializationContext& Context, FNetRefHandle Handle)
+{
+	using namespace UE::Net;
+
+	check(Context.bIsDestructionInfo);
+	UE_NET_TRACE_SCOPE(DestructionInfo, *Context.SerializationContext.GetBitStreamWriter(), Context.SerializationContext.GetTraceCollector(), ENetTraceVerbosity::Trace);
+
+	const FDestructionInfo* Info = StaticObjectsPendingDestroy.Find(Handle);
+	if (ensure(Info))
+	{
+		// Write destruction info
+		WriteFullNetObjectReference(Context.SerializationContext, Info->StaticRef);
 	}
 	else
 	{
-		return WriteNetRefHandleCreationInfo(Context, Handle);
+		UE_LOG_REPLICATIONBRIDGE(Error, TEXT("Failed to write destructionInfo for %s"), *Handle.ToString());
+		// Write invalid reference
+		WriteFullNetObjectReference(Context.SerializationContext, FNetObjectReference());
 	}
+
+	return !Context.SerializationContext.HasErrorOrOverflow();
 }
 
-FReplicationBridgeCreateNetRefHandleResult UReplicationBridge::CallCreateNetRefHandleFromRemote(FNetRefHandle SubObjectOwnerHandle, FNetRefHandle WantedNetHandle, FReplicationBridgeSerializationContext& Context)
+FReplicationBridgeCreateNetRefHandleResult UReplicationBridge::CallCreateNetRefHandleFromRemote(FNetRefHandle RootObjectOfSubObject, FNetRefHandle WantedNetHandle, FReplicationBridgeSerializationContext& Context)
 {
 	check(!Context.bIsDestructionInfo);
 
-	FReplicationBridgeCreateNetRefHandleResult CreateResult = CreateNetRefHandleFromRemote(SubObjectOwnerHandle, WantedNetHandle, Context);
+	FReplicationBridgeCreateNetRefHandleResult CreateResult = CreateNetRefHandleFromRemote(RootObjectOfSubObject, WantedNetHandle, Context);
 
 	// Track subobjects on clients
-	if (CreateResult.NetRefHandle.IsValid() && SubObjectOwnerHandle.IsValid())
+	if (CreateResult.NetRefHandle.IsValid() && RootObjectOfSubObject.IsValid())
 	{
-		NetRefHandleManager->AddSubObject(SubObjectOwnerHandle, CreateResult.NetRefHandle);
+		NetRefHandleManager->AddSubObject(RootObjectOfSubObject, CreateResult.NetRefHandle);
 	}
 
 	return CreateResult;
@@ -445,7 +449,7 @@ void UReplicationBridge::DestroyLocalNetHandle(FNetRefHandle Handle, EEndReplica
 	UE_LOG_REPLICATIONBRIDGE(Verbose, TEXT("DestroyLocalNetHandle Local %s"), *Handle.ToString());
 }
 
-UE::Net::FNetRefHandle UReplicationBridge::InternalGetSubObjectOwner(FNetRefHandle SubObjectHandle) const
+UE::Net::FNetRefHandle UReplicationBridge::InternalGetRootObjectOfSubObject(FNetRefHandle SubObjectHandle) const
 {
 	using namespace UE::Net::Private;
 
