@@ -238,22 +238,19 @@ public:
 			}
 
 			FLocalVertexFactory* VertexFactoryPtr = &VertexFactory;
-			const FMaterialSpriteSceneProxy* Self = this;
-			ENQUEUE_RENDER_COMMAND(FMaterialSpriteSceneProxyLegacyInit)(
-				[VertexFactoryPtr, Self](FRHICommandListImmediate& RHICmdList)
-			{
-				Self->StaticMeshVertexBuffers.PositionVertexBuffer.UpdateRHI(RHICmdList);
-				Self->StaticMeshVertexBuffers.StaticMeshVertexBuffer.UpdateRHI(RHICmdList);
-				Self->StaticMeshVertexBuffers.ColorVertexBuffer.UpdateRHI(RHICmdList);
+			FRHICommandListBase& RHICmdList = Collector.GetRHICommandList();
 
-				FLocalVertexFactory::FDataType Data;
-				Self->StaticMeshVertexBuffers.PositionVertexBuffer.BindPositionVertexBuffer(VertexFactoryPtr, Data);
-				Self->StaticMeshVertexBuffers.StaticMeshVertexBuffer.BindTangentVertexBuffer(VertexFactoryPtr, Data);
-				Self->StaticMeshVertexBuffers.StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(VertexFactoryPtr, Data);
-				Self->StaticMeshVertexBuffers.StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactoryPtr, Data, 0);
-				Self->StaticMeshVertexBuffers.ColorVertexBuffer.BindColorVertexBuffer(VertexFactoryPtr, Data);
-				VertexFactoryPtr->SetData(RHICmdList, Data);
-			});
+			StaticMeshVertexBuffers.PositionVertexBuffer.UpdateRHI(RHICmdList);
+			StaticMeshVertexBuffers.StaticMeshVertexBuffer.UpdateRHI(RHICmdList);
+			StaticMeshVertexBuffers.ColorVertexBuffer.UpdateRHI(RHICmdList);
+
+			FLocalVertexFactory::FDataType Data;
+			StaticMeshVertexBuffers.PositionVertexBuffer.BindPositionVertexBuffer(VertexFactoryPtr, Data);
+			StaticMeshVertexBuffers.StaticMeshVertexBuffer.BindTangentVertexBuffer(VertexFactoryPtr, Data);
+			StaticMeshVertexBuffers.StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(VertexFactoryPtr, Data);
+			StaticMeshVertexBuffers.StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactoryPtr, Data, 0);
+			StaticMeshVertexBuffers.ColorVertexBuffer.BindColorVertexBuffer(VertexFactoryPtr, Data);
+			VertexFactoryPtr->SetData(RHICmdList, Data);
 		}
 	}
 

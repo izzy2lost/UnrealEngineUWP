@@ -309,10 +309,8 @@ const FVector3f& FNiagaraSceneProxy::GetLWCRenderTile() const
 	return RenderData ? RenderData->LWCRenderTile : FVector3f::ZeroVector;
 }
 
-TUniformBuffer<FPrimitiveUniformShaderParameters>* FNiagaraSceneProxy::GetCustomUniformBufferResource(bool bHasVelocity, const FBox& InstanceBounds) const
+TUniformBuffer<FPrimitiveUniformShaderParameters>* FNiagaraSceneProxy::GetCustomUniformBufferResource(FRHICommandListBase& RHICmdList, bool bHasVelocity, const FBox& InstanceBounds) const
 {
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
-
 	// Use a hash to determine if we can re-use any uniform buffer
 	uint32 KeyHash = HashCombine(bHasVelocity, InstanceBounds.IsValid);
 
@@ -389,7 +387,12 @@ TUniformBuffer<FPrimitiveUniformShaderParameters>* FNiagaraSceneProxy::GetCustom
 	return CustomUBRef;
 }
 
-FRHIUniformBuffer* FNiagaraSceneProxy::GetCustomUniformBuffer(bool bHasVelocity, const FBox& InstanceBounds) const
+TUniformBuffer<FPrimitiveUniformShaderParameters>* FNiagaraSceneProxy::GetCustomUniformBufferResource(bool bHasVelocity, const FBox& InstanceBounds) const
+{
+	return GetCustomUniformBufferResource(FRHICommandListImmediate::Get(), bHasVelocity, InstanceBounds);
+}
+
+FRHIUniformBuffer* FNiagaraSceneProxy::GetCustomUniformBuffer(FRHICommandListBase& RHICmdList, bool bHasVelocity, const FBox& InstanceBounds) const
 {
 	// Default UB we create for the primitive
 	if (bHasVelocity && !InstanceBounds.IsValid)
@@ -397,7 +400,12 @@ FRHIUniformBuffer* FNiagaraSceneProxy::GetCustomUniformBuffer(bool bHasVelocity,
 		return GetUniformBuffer();
 	}
 
-	return GetCustomUniformBufferResource(bHasVelocity, InstanceBounds)->GetUniformBufferRHI();
+	return GetCustomUniformBufferResource(RHICmdList, bHasVelocity, InstanceBounds)->GetUniformBufferRHI();
+}
+
+FRHIUniformBuffer* FNiagaraSceneProxy::GetCustomUniformBuffer(bool bHasVelocity, const FBox& InstanceBounds) const
+{
+	return GetCustomUniformBuffer(FRHICommandListImmediate::Get(), bHasVelocity, InstanceBounds);
 }
 
 uint32 FNiagaraSceneProxy::GetMemoryFootprint() const
@@ -457,9 +465,11 @@ void FNiagaraSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>&
 		bEndTraceEvent = true;
 		FCpuProfilerTrace::OutputBeginDynamicEvent(GetResourceName());
 	}
-	else
 #endif //CPUPROFILERTRACE_ENABLED
 #if ENABLE_STATNAMEDEVENTS
+#if CPUPROFILERTRACE_ENABLED
+	else
+#endif
 	{
 		bEndPlatformEvent = true;
 		FPlatformMisc::BeginNamedEvent(FColor(0), *SystemStatString);

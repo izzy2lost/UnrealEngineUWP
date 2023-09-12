@@ -158,7 +158,7 @@ public:
 	/**
 	* An implementation of the interface used by TSynchronizedResource to update the resource with new data from the game thread.
 	*/
-	NIAGARAVERTEXFACTORIES_API void SetData(const FStaticMeshDataType& InData);
+	NIAGARAVERTEXFACTORIES_API void SetData(FRHICommandListBase& RHICmdList, const FStaticMeshDataType& InData);
 
 	/**
 	* Set the uniform buffer for this vertex factory.

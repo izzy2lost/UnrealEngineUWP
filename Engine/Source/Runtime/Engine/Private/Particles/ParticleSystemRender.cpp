@@ -845,7 +845,7 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(const FParticleSys
 
 	const auto FeatureLevel = View->GetFeatureLevel();
 
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+	FRHICommandListBase& RHICmdList = Collector.GetRHICommandList();
 
 	// Sort and generate particles for this view.
 	const FDynamicSpriteEmitterReplayDataBase* SourceData = GetSourceData();
@@ -1318,7 +1318,6 @@ public:
 uint32 FDynamicMeshEmitterData::GetMeshLODIndexFromProxy(const FParticleSystemSceneProxy *InOwnerProxy) const
 {
 	// Determine first available LOD level, top level can be stripped per platform
-	check(IsInRenderingThread());
 	int32 FirstAvailableLOD = StaticMesh->GetRenderData()->CurrentFirstLODIdx;
 	for (; FirstAvailableLOD < StaticMesh->GetRenderData()->LODResources.Num(); FirstAvailableLOD++)
 	{
@@ -1347,7 +1346,7 @@ void FDynamicMeshEmitterData::GetDynamicMeshElementsEmitter(const FParticleSyste
 	{
 		if (Source.EmitterRenderMode == ERM_Normal)
 		{
-			FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+			FRHICommandListBase& RHICmdList = Collector.GetRHICommandList();
 
 			const auto FeatureLevel = ViewFamily.GetFeatureLevel();
 			const auto ShaderPlatform = GShaderPlatformForFeatureLevel[FeatureLevel];
@@ -1371,10 +1370,10 @@ void FDynamicMeshEmitterData::GetDynamicMeshElementsEmitter(const FParticleSyste
 
 			FDynamicMeshEmitterCollectorResources& CollectorResources = Collector.AllocateOneFrameResource<FDynamicMeshEmitterCollectorResources>(FeatureLevel);
 			FMeshParticleVertexFactory* MeshVertexFactory = &CollectorResources.VertexFactory;
-			SetupVertexFactory(MeshVertexFactory, LODModel, ChosenLODIdx);
+			SetupVertexFactory(RHICmdList, MeshVertexFactory, LODModel, ChosenLODIdx);
 
 			MeshVertexFactory->SetStrides(InstanceVertexStride, bUsesDynamicParameter ? DynamicParameterVertexStride : 0);
-			MeshVertexFactory->InitResource(FRHICommandListImmediate::Get());
+			MeshVertexFactory->InitResource(RHICmdList);
 
 			const FDynamicSpriteEmitterReplayDataBase* SourceData = GetSourceData();
 			FMeshParticleUniformParameters UniformParameters;
@@ -2283,11 +2282,11 @@ void InitMeshParticleVertexFactoryComponents(FMeshParticleVertexFactory* InVerte
 	Data.bInitialized = true;
 }
 
-void FDynamicMeshEmitterData::SetupVertexFactory( FMeshParticleVertexFactory* InVertexFactory, const FStaticMeshLODResources& LODResources, uint32 LODIdx) const
+void FDynamicMeshEmitterData::SetupVertexFactory( FRHICommandListBase& RHICmdList, FMeshParticleVertexFactory* InVertexFactory, const FStaticMeshLODResources& LODResources, uint32 LODIdx) const
 {
 	FMeshParticleVertexFactory::FDataType Data;
 	InitMeshParticleVertexFactoryComponents(InVertexFactory, LODResources, Data);
-	InVertexFactory->SetData(Data);
+	InVertexFactory->SetData(RHICmdList, Data);
 	InVertexFactory->SetLODIdx((uint8)LODIdx);
 }
 
@@ -2409,7 +2408,7 @@ void FDynamicBeam2EmitterData::GetDynamicMeshElementsEmitter(const FParticleSyst
 		return;
 	}
 
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+	FRHICommandListBase& RHICmdList = Collector.GetRHICommandList();
 
 	FIndexBuffer* IndexBuffer = nullptr;
 	uint32 FirstIndex = 0;
@@ -5171,7 +5170,7 @@ void FDynamicTrailsEmitterData::GetDynamicMeshElementsEmitter(const FParticleSys
 		return;
 	}
 
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+	FRHICommandListBase& RHICmdList = Collector.GetRHICommandList();
 
 	const bool bIsWireframe = ViewFamily.EngineShowFlags.Wireframe;
 	FIndexBuffer* IndexBuffer = nullptr;

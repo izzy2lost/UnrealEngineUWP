@@ -145,7 +145,7 @@ public:
 protected:
 	virtual void GetDynamicMeshElementsForView(const FSceneView* View, int32 ViewIndex, FMeshElementCollector& Collector) const;
 
-	bool GetMeshElement(int32 SectionIndex, uint8 DepthPriorityGroup, bool bIsSelected, FMeshBatch& OutMeshBatch) const;
+	bool GetMeshElement(FMeshElementCollector& Collector, int32 SectionIndex, uint8 DepthPriorityGroup, bool bIsSelected, FMeshBatch& OutMeshBatch) const;
 
 	void GetNewBatchMeshes(const FSceneView* View, int32 ViewIndex, FMeshElementCollector& Collector) const;
 	void GetNewBatchMeshesPrebuilt(const FSceneView* View, int32 ViewIndex, FMeshElementCollector& Collector) const;
@@ -158,7 +158,7 @@ protected:
 	// Call this if you modify BatchedSections or Vertices after the proxy has already been created
 	void RecreateCachedRenderData(FRHICommandListBase& RHICmdList);
 
-	FSpriteTextureOverrideRenderProxy* GetCachedMaterialProxyForSection(int32 SectionIndex, FMaterialRenderProxy* ParentMaterialProxy) const;
+	FSpriteTextureOverrideRenderProxy* GetCachedMaterialProxyForSection(FMeshElementCollector& Collector, int32 SectionIndex, FMaterialRenderProxy* ParentMaterialProxy) const;
 
 protected:
 	TArray<FSpriteRenderSection> BatchedSections;

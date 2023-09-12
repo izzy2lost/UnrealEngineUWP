@@ -124,7 +124,6 @@ void FDataflowEngineSceneProxy::GetDynamicMeshElements(const TArray<const FScene
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_OverlaySceneProxy_GetDynamicMeshElements);
 
 	check(RenderMaterial);
-	check(IsInRenderingThread());
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
@@ -268,7 +267,7 @@ void FDataflowEngineSceneProxy::GetMeshDynamicMeshElements(int32 ViewIndex, FMes
 	for (const FDataflowTriangleSetMeshBatchData& MeshBatchData : MeshBatchDatas)
 	{
 		FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Collector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
-		DynamicPrimitiveUniformBuffer.Set(GetLocalToWorld(), GetLocalToWorld(), GetBounds(), GetLocalBounds(), true, false, AlwaysHasVelocity());
+		DynamicPrimitiveUniformBuffer.Set(Collector.GetRHICommandList(), GetLocalToWorld(), GetLocalToWorld(), GetBounds(), GetLocalBounds(), true, false, AlwaysHasVelocity());
 
 		FMeshBatch& Mesh = Collector.AllocateMesh();
 		Mesh.bWireframe = false;
@@ -401,7 +400,6 @@ void FDataflowEngineSceneProxy::CreateInstancedVertexRenderThreadResources(FRHIC
 
 void FDataflowEngineSceneProxy::DestroyInstancedVertexRenderThreadResources()
 {
-	check(IsInRenderingThread());
 	if (NumRenderedVerts)
 	{
 		BoxVertexBuffers.PositionVertexBuffer.ReleaseResource();
@@ -427,7 +425,7 @@ void FDataflowEngineSceneProxy::GetDynamicInstancedVertexMeshElements(int32 View
 			for (const FDataflowVertexBatchData& VertexBatchData : VertexBatchDatas)
 			{
 				FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Collector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
-				DynamicPrimitiveUniformBuffer.Set(GetLocalToWorld(), GetLocalToWorld(), GetBounds(), GetLocalBounds(), true, false, AlwaysHasVelocity());
+				DynamicPrimitiveUniformBuffer.Set(Collector.GetRHICommandList(), GetLocalToWorld(), GetLocalToWorld(), GetBounds(), GetLocalBounds(), true, false, AlwaysHasVelocity());
 
 				FMeshBatch& Mesh = Collector.AllocateMesh();
 				Mesh.CastShadow = false;

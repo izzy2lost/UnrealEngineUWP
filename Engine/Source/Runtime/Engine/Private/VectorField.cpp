@@ -748,7 +748,7 @@ public:
 				if (IsSelected() || View->Family->EngineShowFlags.VectorFields)
 				{
 					FVectorFieldCollectorResources& CollectorResources = Collector.AllocateOneFrameResource<FVectorFieldCollectorResources>(View->GetFeatureLevel());
-					CollectorResources.VisualizationVertexFactory.InitResource(FRHICommandListImmediate::Get());
+					CollectorResources.VisualizationVertexFactory.InitResource(Collector.GetRHICommandList());
 
 					GetVectorFieldMesh(&CollectorResources.VisualizationVertexFactory, VectorFieldInstance, ViewIndex, Collector);
 				}

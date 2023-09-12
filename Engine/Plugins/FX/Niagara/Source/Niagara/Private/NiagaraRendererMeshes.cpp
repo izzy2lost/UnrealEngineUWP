@@ -712,7 +712,7 @@ uint32 FNiagaraRendererMeshes::PerformSortAndCull(FRHICommandListBase& RHICmdLis
 		if (ParticleMeshRenderData.bSortCullOnGpu)
 		{
 			SortInfo.CulledGPUParticleCountOffset = ParticleMeshRenderData.bNeedsCull ? ComputeDispatchInterface->GetGPUInstanceCounterManager().AcquireCulledEntry() : INDEX_NONE;
-			if (ComputeDispatchInterface->AddSortedGPUSimulation(SortInfo))
+			if (ComputeDispatchInterface->AddSortedGPUSimulation(RHICmdList, SortInfo))
 			{
 				ParticleMeshRenderData.ParticleSortedIndicesSRV = SortInfo.AllocationInfo.BufferSRV;
 				ParticleMeshRenderData.ParticleSortedIndicesOffset = SortInfo.AllocationInfo.BufferOffset;
@@ -1187,11 +1187,11 @@ void FNiagaraRendererMeshes::CreateMeshBatchForSection(
 	FMeshBatchElement& BatchElement = MeshBatch.Elements[0];
 	if (ParticleMeshRenderData.bUseGPUScene)
 	{
-		BatchElement.PrimitiveUniformBufferResource = SceneProxy.GetCustomUniformBufferResource(IsMotionBlurEnabled(), LocalBounds);
+		BatchElement.PrimitiveUniformBufferResource = SceneProxy.GetCustomUniformBufferResource(RHICmdList, IsMotionBlurEnabled(), LocalBounds);
 	}
 	else
 	{
-		BatchElement.PrimitiveUniformBuffer = SceneProxy.GetCustomUniformBuffer(IsMotionBlurEnabled(), LocalBounds);
+		BatchElement.PrimitiveUniformBuffer = SceneProxy.GetCustomUniformBuffer(RHICmdList, IsMotionBlurEnabled(), LocalBounds);
 	}
 	BatchElement.FirstIndex = 0;
 	BatchElement.MinVertexIndex = 0;
@@ -1275,7 +1275,7 @@ void FNiagaraRendererMeshes::GetDynamicMeshElements(const TArray<const FSceneVie
 {
 	check(SceneProxy);
 	PARTICLE_PERF_STAT_CYCLES_RT(SceneProxy->GetProxyDynamicData().PerfStatsContext, GetDynamicMeshElements);
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+	FRHICommandListBase& RHICmdList = Collector.GetRHICommandList();
 
 	// Prepare our particle render data
 	// This will also determine if we have anything to render
@@ -1390,8 +1390,8 @@ void FNiagaraRendererMeshes::GetDynamicMeshElements(const TArray<const FSceneVie
 					VertexFactory.SetNiagaraMeshFeatureLevel(ViewFamily.Scene->GetFeatureLevel());
 				}
 				VertexFactory.EnablePrimitiveIDElement(ParticleMeshRenderData.bUseGPUScene);
-				VertexFactory.InitResource(FRHICommandListImmediate::Get());
-				MeshData.RenderableMesh->SetupVertexFactory(VertexFactory, LODModel);
+				VertexFactory.InitResource(RHICmdList);
+				MeshData.RenderableMesh->SetupVertexFactory(RHICmdList, VertexFactory, LODModel);
 
 				PreparePerMeshData(ParticleMeshRenderData, VertexFactory, *SceneProxy, MeshData);
 
@@ -1562,8 +1562,8 @@ void FNiagaraRendererMeshes::GetDynamicRayTracingInstances(FRayTracingMaterialGa
 			VertexFactory.SetNiagaraMeshFeatureLevel(View->Family->Scene->GetFeatureLevel());
 		}
 		VertexFactory.EnablePrimitiveIDElement(ParticleMeshRenderData.bUseGPUScene);
-		VertexFactory.InitResource(Context.GraphBuilder.RHICmdList);
-		MeshData.RenderableMesh->SetupVertexFactory(VertexFactory, LODModel);
+		VertexFactory.InitResource(RHICmdList);
+		MeshData.RenderableMesh->SetupVertexFactory(RHICmdList, VertexFactory, LODModel);
 
 		PreparePerMeshData(ParticleMeshRenderData, VertexFactory, *SceneProxy, MeshData);
 

@@ -2188,7 +2188,7 @@ public:
 		bool bHasPrecomputedVolumetricLightmap,
 		bool bOutputVelocity);
 
-	//UE_DEPRECATED(5.4, "Set requires a command list")
+	UE_DEPRECATED(5.4, "Set requires a command list")
 	ENGINE_API void Set(
 		const FMatrix& LocalToWorld,
 		const FMatrix& PreviousLocalToWorld,
@@ -2201,7 +2201,7 @@ public:
 		bool bOutputVelocity,
 		const FCustomPrimitiveData* CustomPrimitiveData);
 
-	//UE_DEPRECATED(5.4, "Set requires a command list")
+	UE_DEPRECATED(5.4, "Set requires a command list")
 	ENGINE_API void Set(
 		const FMatrix& LocalToWorld,
 		const FMatrix& PreviousLocalToWorld,
@@ -2213,7 +2213,7 @@ public:
 		bool bOutputVelocity,
 		const FCustomPrimitiveData* CustomPrimitiveData);
 
-	//UE_DEPRECATED(5.4, "Set requires a command list")
+	UE_DEPRECATED(5.4, "Set requires a command list")
 	ENGINE_API void Set(
 		const FMatrix& LocalToWorld,
 		const FMatrix& PreviousLocalToWorld,
@@ -2225,7 +2225,7 @@ public:
 		bool bOutputVelocity);
 
 	/** Pass-through implementation which calls the overloaded Set function with LocalBounds for PreSkinnedLocalBounds. */
-	//UE_DEPRECATED(5.4, "Set requires a command list")
+	UE_DEPRECATED(5.4, "Set requires a command list")
 	ENGINE_API void Set(
 		const FMatrix& LocalToWorld,
 		const FMatrix& PreviousLocalToWorld,

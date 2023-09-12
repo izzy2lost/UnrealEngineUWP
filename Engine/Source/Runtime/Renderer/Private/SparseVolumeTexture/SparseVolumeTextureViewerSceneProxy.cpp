@@ -54,8 +54,6 @@ SIZE_T FSparseVolumeTextureViewerSceneProxy::GetTypeHash() const
 
 void FSparseVolumeTextureViewerSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const
 {
-	check(IsInRenderingThread());
-
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
 		const FSceneView* View = Views[ViewIndex];

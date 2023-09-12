@@ -45,7 +45,11 @@ public:
 	// Gather all the relevant mesh data to render the mesh
 	virtual void GetLODModelData(FLODModelData& OutLODModelData, int32 LODLevel) const = 0;
 	// Setup the vertex factory for the mesh
-	virtual void SetupVertexFactory(class FNiagaraMeshVertexFactory& InVertexFactory, const FLODModelData& LODModelData) const = 0;
+	virtual void SetupVertexFactory(FRHICommandListBase& RHICmdList, class FNiagaraMeshVertexFactory& InVertexFactory, const FLODModelData& LODModelData) const = 0;
+
+	UE_DEPRECATED(5.4, "SetupVertexFactory requires an RHI command list.")
+	virtual void SetupVertexFactory(class FNiagaraMeshVertexFactory& InVertexFactory, const FLODModelData& LODModelData) const final {}
+
 	// Gather a list of used materials
 	virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials) const = 0;
 

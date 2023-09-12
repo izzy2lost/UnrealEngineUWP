@@ -53,6 +53,8 @@ FNavTestSceneProxy::FNavTestSceneProxy(const UNavTestRenderingComponent* InCompo
 
 void FNavTestSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const
 {
+	FRHICommandList& RHICmdList = Collector.GetRHICommandList();
+
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
 		if (VisibilityMap & (1 << ViewIndex))

@@ -1088,7 +1088,9 @@ void FKAggregateGeom::GetAggGeom(const FTransform& Transform, const FColor Color
 		else
 			SphylElems[i].DrawElemWire(Collector.GetPDI(ViewIndex), ElemTM, Scale3D, Color);
 	}
-	
+
+	FRHICommandListBase& RHICmdList = Collector.GetRHICommandList();
+
 	if(ConvexElems.Num() > 0)
 	{
 		if(bDrawSolid)
@@ -1116,10 +1118,10 @@ void FKAggregateGeom::GetAggGeom(const FTransform& Transform, const FColor Color
 					&& OutVerts.Num() > 0
 					&& ThisGeom.RenderInfo->IndexBuffer->Indices.Num() > 0)
 				{
-					ThisGeom.RenderInfo->IndexBuffer->InitResource(FRHICommandListImmediate::Get());
+					ThisGeom.RenderInfo->IndexBuffer->InitResource(RHICmdList);
 
 					ThisGeom.RenderInfo->CollisionVertexFactory = new FLocalVertexFactory(Collector.GetFeatureLevel(), "FKAggregateGeom");
-					ThisGeom.RenderInfo->VertexBuffers->InitFromDynamicVertex(ThisGeom.RenderInfo->CollisionVertexFactory, OutVerts);
+					ThisGeom.RenderInfo->VertexBuffers->InitFromDynamicVertex(RHICmdList, ThisGeom.RenderInfo->CollisionVertexFactory, OutVerts);
 
 				}
 			}
@@ -1141,7 +1143,7 @@ void FKAggregateGeom::GetAggGeom(const FTransform& Transform, const FColor Color
 				CalcBoxSphereBounds(LocalBounds, FTransform::Identity);
 
 				FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Collector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
-				DynamicPrimitiveUniformBuffer.Set(LocalToWorld.ToMatrixWithScale(), LocalToWorld.ToMatrixWithScale(), WorldBounds, LocalBounds, true, false, bOutputVelocity);
+				DynamicPrimitiveUniformBuffer.Set(Collector.GetRHICommandList(), LocalToWorld.ToMatrixWithScale(), LocalToWorld.ToMatrixWithScale(), WorldBounds, LocalBounds, true, false, bOutputVelocity);
 				BatchElement.PrimitiveUniformBufferResource = &DynamicPrimitiveUniformBuffer.UniformBuffer;
 
 			 	// previous l2w not used so treat as static

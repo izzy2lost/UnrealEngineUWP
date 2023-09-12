@@ -1271,6 +1271,8 @@ SIZE_T FDebugSkelMeshSceneProxy::GetTypeHash() const
 
 void FDebugSkelMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const
 {
+	FRHICommandListBase& RHICmdList = Collector.GetRHICommandList();
+
 	if(!DynamicData || DynamicData->bDrawMesh)
 	{
 		GetMeshElementsConditionallySelectable(Views, ViewFamily, bSelectable, VisibilityMap, Collector);

@@ -623,7 +623,7 @@ namespace NDIDynamicMeshLocal
 			}
 		}
 
-		virtual void SetupVertexFactory(class FNiagaraMeshVertexFactory& VertexFactory, const FLODModelData& LODModelData) const override
+		virtual void SetupVertexFactory(FRHICommandListBase& RHICmdList, class FNiagaraMeshVertexFactory& VertexFactory, const FLODModelData& LODModelData) const override
 		{
 			const FNDIInstanceData_RenderThread* InstanceData = &OwnerProxy->InstanceData_RT.FindChecked(SystemInstanceID);
 
@@ -686,7 +686,7 @@ namespace NDIDynamicMeshLocal
 				StaticMeshData.ColorComponentsSRV = GNullColorVertexBuffer.VertexBufferSRV;
 			}
 
-			VertexFactory.SetData(StaticMeshData);
+			VertexFactory.SetData(RHICmdList, StaticMeshData);
 		}
 
 		virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials) const override

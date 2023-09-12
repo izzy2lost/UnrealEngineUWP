@@ -164,8 +164,6 @@ void FHeterogeneousVolumeSceneProxy::GetDynamicMeshElements(
 	uint32 VisibilityMap,
 	FMeshElementCollector& Collector) const
 {
-	check(IsInRenderingThread());
-
 	// Create a dummy MeshBatch to make the system happy..
 	if (MaterialInterface)
 	{

@@ -120,12 +120,12 @@ public:
 		VertexBuffers.ColorVertexBuffer.BindColorVertexBuffer(VertexFactory, OutData);
 	}
 
-	void SetupVertexFactory(FNiagaraMeshVertexFactory& InVertexFactory, const FLODModelData& LODModelData) const override
+	void SetupVertexFactory(FRHICommandListBase& RHICmdList, FNiagaraMeshVertexFactory& InVertexFactory, const FLODModelData& LODModelData) const override
 	{
 		FStaticMeshDataType Data;
 		const FStaticMeshLODResources& LODResources = RenderData->LODResources[LODModelData.LODIndex];
 		InitVertexFactoryComponents(LODResources.VertexBuffers, &InVertexFactory, Data);
-		InVertexFactory.SetData(Data);
+		InVertexFactory.SetData(RHICmdList, Data);
 	}
 
 	void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials) const override

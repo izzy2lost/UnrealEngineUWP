@@ -29,6 +29,7 @@ struct FRWBuffer;
 class FGPUSkinCacheEntry;
 class FMeshDeformerGeometry;
 class FRayTracingGeometry;
+class FRHICommandList;
 
 /** data for a single skinned skeletal mesh vertex */
 struct FFinalSkinVertex
@@ -93,7 +94,7 @@ public:
 	 * Called by FSkeletalMeshObject prior to GDME. This allows the GPU skin version to update bones etc now that we know we are going to render
 	 * @param FrameNumber from GFrameNumber
 	 */
-	virtual void PreGDMECallback(class FGPUSkinCache* GPUSkinCache, uint32 FrameNumber)
+	virtual void PreGDMECallback(FRHICommandList& RHICmdList, class FGPUSkinCache* GPUSkinCache, uint32 FrameNumber)
 	{
 	}
 

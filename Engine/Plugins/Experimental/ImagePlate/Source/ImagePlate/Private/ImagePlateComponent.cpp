@@ -108,7 +108,7 @@ namespace
 
 		virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override
 		{
-			BuildMesh();
+			BuildMesh(RHICmdList);
 			IndexBuffer.InitResource(RHICmdList);
 #if RHI_RAYTRACING
 			if (IsRayTracingEnabled())
@@ -134,7 +134,7 @@ namespace
 #endif
 		}
 
-		void BuildMesh()
+		void BuildMesh(FRHICommandListBase& RHICmdList)
 		{
 			TArray<FDynamicMeshVertex> Vertices;
 			Vertices.Empty(4);
@@ -151,7 +151,7 @@ namespace
 			Vertices[2].TextureCoordinate[0] = FVector2f(1,0);
 			Vertices[3].TextureCoordinate[0] = FVector2f(1,1);
 
-			VertexBuffers.InitFromDynamicVertex(&VertexFactory, Vertices);
+			VertexBuffers.InitFromDynamicVertex(RHICmdList, &VertexFactory, Vertices);
 
 			IndexBuffer.Indices.Empty(6);
 			IndexBuffer.Indices.AddUninitialized(6);
@@ -314,7 +314,7 @@ namespace
 				bOutputVelocity |= AlwaysHasVelocity();
 
 				FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Context.RayTracingMeshResourceCollector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
-				DynamicPrimitiveUniformBuffer.Set(GetLocalToWorld(), PreviousLocalToWorld, GetBounds(), GetLocalBounds(), GetLocalBounds(), true, bHasPrecomputedVolumetricLightmap, bOutputVelocity, GetCustomPrimitiveData());
+				DynamicPrimitiveUniformBuffer.Set(Context.RHICmdList, GetLocalToWorld(), PreviousLocalToWorld, GetBounds(), GetLocalBounds(), GetLocalBounds(), true, bHasPrecomputedVolumetricLightmap, bOutputVelocity, GetCustomPrimitiveData());
 				BatchElement.PrimitiveUniformBufferResource = &DynamicPrimitiveUniformBuffer.UniformBuffer;
 
 				BatchElement.FirstIndex = 0;

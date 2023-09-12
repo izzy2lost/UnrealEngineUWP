@@ -2662,7 +2662,7 @@ public:
 	{
 		auto FeatureLevel = ViewFamily.GetFeatureLevel();
 
-		FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+		FRHICommandListBase& RHICmdList = Collector.GetRHICommandList();
 
 		if (RHISupportsGPUParticles() && GFXCascadeGpuSpriteRenderingEnabled)
 		{
@@ -2708,7 +2708,7 @@ public:
 					// accumulate all GPU particle emitters that need to be sorted. That is so they can be sorted in one big radix
 					// sort for efficiency. Ideally that state is per-scene renderer but the renderer doesn't know anything about particles.
 					FGPUSortManager::FAllocationInfo SortedIndicesInfo;
-					if (FXSystem->AddSortedGPUSimulation(Simulation, View->ViewMatrices.GetViewOrigin(), bTranslucent, SortedIndicesInfo))
+					if (FXSystem->AddSortedGPUSimulation(RHICmdList, Simulation, View->ViewMatrices.GetViewOrigin(), bTranslucent, SortedIndicesInfo))
 					{
 						MeshBatchUserData = &Collector.AllocateOneFrameResource<FGPUSpriteMeshDataUserData>();
 						MeshBatchUserData->SortedOffset = SortedIndicesInfo.BufferOffset;
@@ -4270,7 +4270,7 @@ void FFXSystem::RemoveGPUSimulation(FParticleSimulationGPU* Simulation)
 	}
 }
 
-bool FFXSystem::AddSortedGPUSimulation(FParticleSimulationGPU* Simulation, const FVector& ViewOrigin, bool bIsTranslucent, FGPUSortManager::FAllocationInfo& OutInfo)
+bool FFXSystem::AddSortedGPUSimulation(FRHICommandListBase& RHICmdList, FParticleSimulationGPU* Simulation, const FVector& ViewOrigin, bool bIsTranslucent, FGPUSortManager::FAllocationInfo& OutInfo)
 {
 	LLM_SCOPE(ELLMTag::Particles);
 
@@ -4281,7 +4281,7 @@ bool FFXSystem::AddSortedGPUSimulation(FParticleSimulationGPU* Simulation, const
 		EGPUSortFlags::SortAfterPostRenderOpaque;
 
 	// Currently opaque materials would need SortAfterPreRender but this is incompatible with KeyGenAfterPostRenderOpaque
-	if (bIsTranslucent && GPUSortManager && GPUSortManager->AddTask(OutInfo, Simulation->VertexBuffer.ParticleCount, SortFlags))
+	if (bIsTranslucent && GPUSortManager && GPUSortManager->AddTask(RHICmdList, OutInfo, Simulation->VertexBuffer.ParticleCount, SortFlags))
 	{
 		SimulationsToSort.Emplace(Simulation->VertexBuffer.VertexBufferSRV, ViewOrigin, (uint32)Simulation->VertexBuffer.ParticleCount, OutInfo);
 		return true;

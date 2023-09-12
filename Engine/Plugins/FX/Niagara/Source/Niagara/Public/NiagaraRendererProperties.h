@@ -146,9 +146,9 @@ struct FNiagaraRendererLayout
 	NIAGARA_API void Finalize();
 
 	TConstArrayView<FNiagaraRendererVariableInfo> GetVFVariables_GameThread() const { check(IsInGameThread() || IsInParallelGameThread()); return MakeArrayView(VFVariables_GT); }
-	TConstArrayView<FNiagaraRendererVariableInfo> GetVFVariables_RenderThread() const { check(IsInRenderingThread()); return MakeArrayView(VFVariables_RT); }
-	int32 GetTotalFloatComponents_RenderThread() const { check(IsInRenderingThread()); return TotalFloatComponents_RT; }
-	int32 GetTotalHalfComponents_RenderThread() const { check(IsInRenderingThread()); return TotalHalfComponents_RT; }
+	TConstArrayView<FNiagaraRendererVariableInfo> GetVFVariables_RenderThread() const { check(IsInParallelRenderingThread()); return MakeArrayView(VFVariables_RT); }
+	int32 GetTotalFloatComponents_RenderThread() const { check(IsInParallelRenderingThread()); return TotalFloatComponents_RT; }
+	int32 GetTotalHalfComponents_RenderThread() const { check(IsInParallelRenderingThread()); return TotalHalfComponents_RT; }
 
 	SIZE_T GetAllocatedSize() const { return VFVariables_GT.GetAllocatedSize() + VFVariables_RT.GetAllocatedSize(); }
 

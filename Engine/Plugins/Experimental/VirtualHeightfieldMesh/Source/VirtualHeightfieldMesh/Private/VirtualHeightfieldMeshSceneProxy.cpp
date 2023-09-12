@@ -21,6 +21,7 @@
 #include "VirtualHeightfieldMeshVertexFactory.h"
 #include "VT/RuntimeVirtualTexture.h"
 #include "VT/VirtualTextureFeedbackBuffer.h"
+#include "Async/Mutex.h"
 
 DECLARE_STATS_GROUP(TEXT("VirtualHeightfieldMesh"), STATGROUP_VirtualHeightfieldMesh, STATCAT_Advanced);
 DECLARE_CYCLE_STAT(TEXT("VirtualHeightfieldMesh SubmitWork"), STAT_VirtualHeightfieldMesh_SubmitWork, STATGROUP_VirtualHeightfieldMesh);
@@ -99,7 +100,7 @@ namespace VirtualHeightfieldMesh
 	};
 
 	/** Initialize the FDrawInstanceBuffers objects. */
-	void InitializeInstanceBuffers(FRHICommandListImmediate& InRHICmdList, FDrawInstanceBuffers& InBuffers);
+	void InitializeInstanceBuffers(FRHICommandListBase& InRHICmdList, FDrawInstanceBuffers& InBuffers);
 
 	/** Release the FDrawInstanceBuffers objects. */
 	void ReleaseInstanceBuffers(FDrawInstanceBuffers& InBuffers)
@@ -183,7 +184,7 @@ public:
 	bool IsInFrame() { return bInFrame; }
 
 	/** Call once per frame for each mesh/view that has relevance. This allocates the buffers to use for the frame and adds the work to fill the buffers to the queue. */
-	VirtualHeightfieldMesh::FDrawInstanceBuffers& AddWork(FVirtualHeightfieldMeshSceneProxy const* InProxy, FSceneView const* InMainView, FSceneView const* InCullView);
+	VirtualHeightfieldMesh::FDrawInstanceBuffers& AddWork(FRHICommandListBase& RHICmdList, FVirtualHeightfieldMeshSceneProxy const* InProxy, FSceneView const* InMainView, FSceneView const* InCullView);
 	/** Submit all the work added by AddWork(). The work fills all of the buffers ready for use by the referencing mesh batches. */
 	void SubmitWork(FRDGBuilder& GraphBuilder);
 
@@ -201,6 +202,8 @@ private:
 
 	/** Flag for frame validation. */
 	bool bInFrame;
+
+	UE::FMutex Mutex;
 
 	/** Buffers to fill. Resources can persist between frames to reduce allocation cost, but contents don't persist. */
 	TArray<VirtualHeightfieldMesh::FDrawInstanceBuffers> Buffers;
@@ -262,8 +265,10 @@ void FVirtualHeightfieldMeshRendererExtension::ReleaseRHI()
 	Buffers.Empty();
 }
 
-VirtualHeightfieldMesh::FDrawInstanceBuffers& FVirtualHeightfieldMeshRendererExtension::AddWork(FVirtualHeightfieldMeshSceneProxy const* InProxy, FSceneView const* InMainView, FSceneView const* InCullView)
+VirtualHeightfieldMesh::FDrawInstanceBuffers& FVirtualHeightfieldMeshRendererExtension::AddWork(FRHICommandListBase& RHICmdList, FVirtualHeightfieldMeshSceneProxy const* InProxy, FSceneView const* InMainView, FSceneView const* InCullView)
 {
+	UE::TScopeLock Lock(Mutex);
+
 	// If we hit this then BegineFrame()/EndFrame() logic needs fixing in the Scene Renderer.
 	if (!ensure(!bInFrame))
 	{
@@ -308,7 +313,7 @@ VirtualHeightfieldMesh::FDrawInstanceBuffers& FVirtualHeightfieldMeshRendererExt
 		DiscardIds.Add(DiscardId);
 		WorkDesc.BufferIndex = Buffers.AddDefaulted();
 		WorkDescs.Add(WorkDesc);
-		VirtualHeightfieldMesh::InitializeInstanceBuffers(GetImmediateCommandList_ForRenderCommand(), Buffers[WorkDesc.BufferIndex]);
+		VirtualHeightfieldMesh::InitializeInstanceBuffers(RHICmdList, Buffers[WorkDesc.BufferIndex]);
 	}
 
 	return Buffers[WorkDesc.BufferIndex];
@@ -316,6 +321,7 @@ VirtualHeightfieldMesh::FDrawInstanceBuffers& FVirtualHeightfieldMeshRendererExt
 
 void FVirtualHeightfieldMeshRendererExtension::BeginFrame(FRDGBuilder& GraphBuilder)
 {
+	UE::TScopeLock Lock(Mutex);
 	// If we hit this then BegineFrame()/EndFrame() logic needs fixing in the Scene Renderer.
 	if (!ensure(!bInFrame))
 	{
@@ -331,6 +337,7 @@ void FVirtualHeightfieldMeshRendererExtension::BeginFrame(FRDGBuilder& GraphBuil
 
 void FVirtualHeightfieldMeshRendererExtension::EndFrame()
 {
+	UE::TScopeLock Lock(Mutex);
 	ensure(bInFrame);
 	bInFrame = false;
 
@@ -537,7 +544,6 @@ FPrimitiveViewRelevance FVirtualHeightfieldMeshSceneProxy::GetViewRelevance(cons
 
 void FVirtualHeightfieldMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const
 {
-	check(IsInRenderingThread());
 	check(AllocatedVirtualTexture != nullptr);
 
 	if (GVirtualHeightfieldMeshViewRendererExtension.IsInFrame())
@@ -554,7 +560,7 @@ void FVirtualHeightfieldMeshSceneProxy::GetDynamicMeshElements(const TArray<cons
 	{
 		if (VisibilityMap & (1 << ViewIndex))
 		{
-			VirtualHeightfieldMesh::FDrawInstanceBuffers& Buffers = GVirtualHeightfieldMeshViewRendererExtension.AddWork(this, ViewFamily.Views[0], Views[ViewIndex]);
+			VirtualHeightfieldMesh::FDrawInstanceBuffers& Buffers = GVirtualHeightfieldMeshViewRendererExtension.AddWork(Collector.GetRHICommandList(), this, ViewFamily.Views[0], Views[ViewIndex]);
 
 			FMeshBatch& Mesh = Collector.AllocateMesh();
 			Mesh.bWireframe = AllowDebugViewmodes() && ViewFamily.EngineShowFlags.Wireframe;
@@ -981,7 +987,7 @@ namespace VirtualHeightfieldMesh
 	};
 
 	/** Initialize the FDrawInstanceBuffers objects. */
-	void InitializeInstanceBuffers(FRHICommandListImmediate& RHICmdList, FDrawInstanceBuffers& InBuffers)
+	void InitializeInstanceBuffers(FRHICommandListBase& RHICmdList, FDrawInstanceBuffers& InBuffers)
 	{
 		{
 			FRHIResourceCreateInfo CreateInfo(TEXT("VirtualHeightfieldMesh.InstanceBuffer"));
