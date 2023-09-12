@@ -11,6 +11,18 @@
 
 #define LOCTEXT_NAMESPACE "SourceControlCheckInPromptModule"
 
+TAutoConsoleVariable<bool> CVarSourceControlEnablePeriodicCheckInPrompt(
+	TEXT("SourceControl.CheckInPrompt.EnablePeriodic"),
+	false,
+	TEXT("Enables a periodic check-in prompt, reminding the user to check-in to avoid losing work."),
+	ECVF_Default);
+
+TAutoConsoleVariable<bool> CVarSourceControlEnableOnPublishCheckInPrompt(
+	TEXT("SourceControl.CheckInPrompt.EnableOnPublish"),
+	false,
+	TEXT("Enables a check-in prompt on publish game, reminding the user to check-in to avoid losing work."),
+	ECVF_Default);
+
 FSourceControlCheckInPromptModule::FSourceControlCheckInPromptModule()
 {
 }

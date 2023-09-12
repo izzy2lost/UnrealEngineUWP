@@ -17,11 +17,7 @@ static const FTimespan IntervalNoCheckins = FTimespan::FromDays(1);
 static const FTimespan IntervalBetweenPrompts = FTimespan::FromDays(1);
 static const FTimespan IntervalBetweenGetSubmittedChangelists = FTimespan::FromMinutes(10);
 
-TAutoConsoleVariable<bool> CVarSourceControlEnablePeriodicCheckInPrompt(
-	TEXT("SourceControl.CheckInPrompt.EnablePeriodic"),
-	false,
-	TEXT("Enables a periodic check-in prompt, reminding the user to check-in to avoid losing work."),
-	ECVF_Default);
+extern TAutoConsoleVariable<bool> CVarSourceControlEnablePeriodicCheckInPrompt;
 
 static FString GetEditorMapName()
 {
