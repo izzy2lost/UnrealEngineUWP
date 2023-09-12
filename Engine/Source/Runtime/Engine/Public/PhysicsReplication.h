@@ -92,6 +92,7 @@ struct FReplicatedPhysicsTargetAsync
 {
 	FReplicatedPhysicsTargetAsync()
 		: AccumulatedErrorSeconds(0.0f)
+		, TickCount(0)
 		, ServerFrame(INDEX_NONE)
 		, ReceiveFrame(INDEX_NONE)
 		, ReceiveInterval(5)
@@ -160,6 +161,7 @@ private:
 private:
 	void UpdateAsyncTarget(const FPhysicsRepAsyncInputData& Input, Chaos::FPBDRigidsSolver* RigidsSolver);
 	void UpdateRewindDataTarget(const FPhysicsRepAsyncInputData& Input);
+	void ExtrapolateTarget(FReplicatedPhysicsTargetAsync& Target, const int32 ExtrapolateFrames, const float DeltaSeconds);
 
 public:
 	void Setup(FRigidBodyErrorCorrection ErrorCorrection)
