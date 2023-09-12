@@ -82,6 +82,19 @@ namespace Horde.Server.Agents
 		/// </summary>
 		/// <returns>List of agents</returns>
 		Task<List<IAgent>> FindDeletedAsync();
+		
+		/// <summary>
+		/// Finds all active agent lease IDs
+		/// </summary>
+		/// <returns>List of agent lease IDs</returns>
+		Task<List<LeaseId>> FindActiveLeaseIdsAsync();
+		
+		/// <summary>
+		/// Get all child lease IDs
+		/// </summary>
+		/// <param name="id">Lease ID</param>
+		/// <returns>List of agent lease IDs</returns>
+		Task<List<LeaseId>> GetChildLeaseIds(LeaseId id);
 
 		/// <summary>
 		/// Update an agent's settings
