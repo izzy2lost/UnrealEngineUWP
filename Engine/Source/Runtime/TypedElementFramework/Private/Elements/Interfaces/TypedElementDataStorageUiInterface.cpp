@@ -45,6 +45,11 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::Construct(
 	return nullptr;
 }
 
+TSharedPtr<SWidget> FTypedElementWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+{
+	return nullptr;
+}
+
 bool FTypedElementWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row)
 {
 	return true;
