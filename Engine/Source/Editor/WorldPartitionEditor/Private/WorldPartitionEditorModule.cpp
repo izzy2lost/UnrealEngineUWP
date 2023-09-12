@@ -8,6 +8,7 @@
 #include "WorldPartition/WorldPartitionLandscapeSplineMeshesBuilder.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 #include "WorldPartition/HLOD/HLODLayerAssetTypeActions.h"
+#include "WorldPartition/DataLayers/DataLayerAssetTypeActions.h"
 #include "WorldPartition/SWorldPartitionEditor.h"
 #include "WorldPartition/SWorldPartitionEditorGridSpatialHash.h"
 #include "WorldPartition/Customizations/WorldPartitionDetailsCustomization.h"
@@ -174,6 +175,8 @@ void FWorldPartitionEditorModule::StartupModule()
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 	HLODLayerAssetTypeActions = MakeShareable(new FHLODLayerAssetTypeActions);
 	AssetTools.RegisterAssetTypeActions(HLODLayerAssetTypeActions.ToSharedRef());
+	DataLayerAssetTypeActions = MakeShareable(new FDataLayerAssetTypeActions);
+	AssetTools.RegisterAssetTypeActions(DataLayerAssetTypeActions.ToSharedRef());
 
 	FPropertyEditorModule& PropertyEditor = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyEditor.RegisterCustomClassLayout("WorldPartition", FOnGetDetailCustomizationInstance::CreateStatic(&FWorldPartitionDetails::MakeInstance));
@@ -210,16 +213,25 @@ void FWorldPartitionEditorModule::ShutdownModule()
 		UToolMenus::UnregisterOwner(this);
 	}
 
-	// Unregister the HLODLayer asset type actions
-	if (HLODLayerAssetTypeActions.IsValid())
+	if (FModuleManager::Get().IsModuleLoaded("AssetTools"))
 	{
-		if (FModuleManager::Get().IsModuleLoaded("AssetTools"))
+		IAssetTools& AssetTools = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools").Get();
+
+		// Unregister the HLODLayer asset type actions
+		if (HLODLayerAssetTypeActions.IsValid())
 		{
-			IAssetTools& AssetTools = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools").Get();
 			AssetTools.UnregisterAssetTypeActions(HLODLayerAssetTypeActions.ToSharedRef());
 		}
-		HLODLayerAssetTypeActions.Reset();
+
+		// Unregister the DataLayer asset type actions
+		if (DataLayerAssetTypeActions.IsValid())
+		{
+			AssetTools.UnregisterAssetTypeActions(DataLayerAssetTypeActions.ToSharedRef());
+		}
 	}
+
+	HLODLayerAssetTypeActions.Reset();
+	DataLayerAssetTypeActions.Reset();
 
 	if (FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
 	{

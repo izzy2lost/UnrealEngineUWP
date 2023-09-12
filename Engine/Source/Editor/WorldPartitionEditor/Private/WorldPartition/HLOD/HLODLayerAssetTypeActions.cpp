@@ -20,7 +20,7 @@ UClass* FHLODLayerAssetTypeActions::GetSupportedClass() const
 
 uint32 FHLODLayerAssetTypeActions::GetCategories()
 {
-	return EAssetTypeCategories::Misc;
+	return EAssetTypeCategories::World;
 }
 
 bool FHLODLayerAssetTypeActions::CanLocalize() const
