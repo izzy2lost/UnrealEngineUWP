@@ -20,6 +20,9 @@ USTRUCT(BlueprintType)
 struct FMovieSceneDynamicBindingPayloadVariable
 {
 	GENERATED_BODY()
+		
+	UPROPERTY()
+	TObjectPtr<UObject> ObjectValue;
 
 	UPROPERTY(EditAnywhere, Category = "Sequencer|Dynamic Binding")
 	FString Value;

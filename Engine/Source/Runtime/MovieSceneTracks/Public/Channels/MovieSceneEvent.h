@@ -33,6 +33,10 @@ struct FMovieSceneEventPayloadVariable
 {
 	GENERATED_BODY()
 
+	UPROPERTY()
+	/** If the value for this pin should be an object, we store a pointer to it */
+	TObjectPtr<class UObject> ObjectValue;
+
 	UPROPERTY(EditAnywhere, Category="Sequencer|Event")
 	FString Value;
 };

@@ -255,7 +255,7 @@ UK2Node_FunctionEntry* FMovieSceneEventUtils::GenerateEntryPoint(FMovieSceneEven
 	FMovieSceneDirectorBlueprintEndpointCall EndpointCall;
 	for (const TPair<FName, FMovieSceneEventPayloadVariable>& Pair : EntrypointDefinition->PayloadVariables)
 	{
-		EndpointCall.PayloadVariables.Add(Pair.Key, Pair.Value.Value);
+		EndpointCall.PayloadVariables.Add(Pair.Key, FMovieSceneDirectorBlueprintVariableValue{ Pair.Value.ObjectValue, Pair.Value.Value });
 	}
 	if (!EntrypointDefinition->BoundObjectPinName.IsNone())
 	{
