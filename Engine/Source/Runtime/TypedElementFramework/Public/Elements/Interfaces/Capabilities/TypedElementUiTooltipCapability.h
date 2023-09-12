@@ -10,12 +10,12 @@
 /**
  * Interface to provide access to tool tips on widgets.
  */
-class ITypedElementUiToolTipCapability : public ITypedElementUiCapability
+class ITypedElementUiTooltipCapability : public ITypedElementUiCapability
 {
 public:
-	SLATE_METADATA_TYPE(ITypedElementUiToolTipCapability, ITypedElementUiCapability)
+	SLATE_METADATA_TYPE(ITypedElementUiTooltipCapability, ITypedElementUiCapability)
 
-	~ITypedElementUiToolTipCapability() override = default;
+	~ITypedElementUiTooltipCapability() override = default;
 
 	virtual void SetToolTipText(const TAttribute<FText>& ToolTipText) = 0;
 	virtual void SetToolTipText(const FText& ToolTipText) = 0;
@@ -27,10 +27,10 @@ public:
 };
 
 template<typename WidgetType>
-class TTypedElementUiToolTipCapability : public ITypedElementUiToolTipCapability
+class TTypedElementUiTooltipCapability : public ITypedElementUiTooltipCapability
 {
 public:
-	explicit TTypedElementUiToolTipCapability(WidgetType& InWidget) : Widget(InWidget){}
+	explicit TTypedElementUiTooltipCapability(WidgetType& InWidget) : Widget(InWidget){}
 
 	void SetToolTipText(const TAttribute<FText>& ToolTipText) override
 	{

@@ -10,7 +10,7 @@
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Interfaces/Capabilities/TypedElementUiEditableCapability.h"
 #include "Elements/Interfaces/Capabilities/TypedElementUiTextCapability.h"
-#include "Elements/Interfaces/Capabilities/TypedElementUiToolTipCapability.h"
+#include "Elements/Interfaces/Capabilities/TypedElementUiTooltipCapability.h"
 #include "TypedElementSubsystems.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
@@ -33,7 +33,7 @@ static void UpdateTextWidget(const TWeakPtr<SWidget>& Widget, const FTypedElemen
 			Text->SetText(FText::FromString(Label.Label));
 		}
 
-		if (TSharedPtr<ITypedElementUiToolTipCapability> ToolTip = WidgetPointer->GetMetaData<ITypedElementUiToolTipCapability>())
+		if (TSharedPtr<ITypedElementUiTooltipCapability> ToolTip = WidgetPointer->GetMetaData<ITypedElementUiTooltipCapability>())
 		{
 			if (!HashValue)
 			{
@@ -197,7 +197,7 @@ TSharedPtr<SWidget> FTypedElementLabelWidgetConstructor::Construct(
 					});
 			TextBlock->AddMetadata(MakeShared<TTypedElementUiEditableCapability<SInlineEditableTextBlock>>(*TextBlock));
 			TextBlock->AddMetadata(MakeShared<TTypedElementUiTextCapability<SInlineEditableTextBlock>>(*TextBlock));
-			TextBlock->AddMetadata(MakeShared<TTypedElementUiToolTipCapability<SInlineEditableTextBlock>>(*TextBlock));
+			TextBlock->AddMetadata(MakeShared<TTypedElementUiTooltipCapability<SInlineEditableTextBlock>>(*TextBlock));
 			Result = TextBlock;
 		}
 	}
@@ -206,7 +206,7 @@ TSharedPtr<SWidget> FTypedElementLabelWidgetConstructor::Construct(
 		TSharedPtr<STextBlock> TextBlock = SNew(STextBlock)
 			.IsEnabled(false);
 		TextBlock->AddMetadata(MakeShared<TTypedElementUiTextCapability<STextBlock>>(*TextBlock));
-		TextBlock->AddMetadata(MakeShared<TTypedElementUiToolTipCapability<STextBlock>>(*TextBlock));
+		TextBlock->AddMetadata(MakeShared<TTypedElementUiTooltipCapability<STextBlock>>(*TextBlock));
 		Result = TextBlock;
 	}
 	
