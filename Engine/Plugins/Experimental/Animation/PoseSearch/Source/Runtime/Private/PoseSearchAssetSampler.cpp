@@ -35,7 +35,7 @@ static FTransform ExtrapolateRootMotion(FTransform SampleToExtrapolate, float Sa
 
 	// adding full samples to the extrapolated root motion
 	FTransform ExtrapolatedRootMotion = FTransform::Identity;
-	for (int i = 0; i < NumSamples; ++i)
+	for (int32 i = 0; i < NumSamples; ++i)
 	{
 		ExtrapolatedRootMotion = AbsTimeSampleToExtrapolate * ExtrapolatedRootMotion;
 	}

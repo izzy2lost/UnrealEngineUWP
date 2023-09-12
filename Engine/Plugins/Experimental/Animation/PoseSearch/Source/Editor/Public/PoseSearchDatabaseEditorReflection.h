@@ -247,6 +247,10 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Memory Information")
 	FText KDTreeSize;
 
+	// partial memory size used by the vptree.
+	UPROPERTY(VisibleAnywhere, Category = "Memory Information")
+	FText VPTreeSize;
+		
 	// partial memory size used to store database metadata.
 	UPROPERTY(VisibleAnywhere, Category = "Memory Information")
 	FText PoseMetadataSize;

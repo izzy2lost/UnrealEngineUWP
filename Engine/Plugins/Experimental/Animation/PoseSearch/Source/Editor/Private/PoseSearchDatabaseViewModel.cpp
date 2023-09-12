@@ -381,7 +381,7 @@ namespace UE::PoseSearch
 
 	int32 FDatabaseViewModel::SetSelectedNode(int32 PoseIdx, bool bClearSelection, bool bDrawQuery, TConstArrayView<float> InQueryVector)
 	{
-		int32 SelectedSourceAssetIdx = -1;
+		int32 SelectedSourceAssetIdx = INDEX_NONE;
 
 		if (bClearSelection)
 		{

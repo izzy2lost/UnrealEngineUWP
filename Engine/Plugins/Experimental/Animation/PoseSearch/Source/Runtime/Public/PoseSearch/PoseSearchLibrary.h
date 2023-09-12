@@ -164,6 +164,6 @@ public:
 		const UAnimationAsset* FutureAnimation = nullptr,
 		float FutureAnimationStartTime = 0.f,
 		float TimeToFutureAnimationStart = 0.f,
-		const int DebugSessionUniqueIdentifier = 6174);
+		const int32 DebugSessionUniqueIdentifier = 6174);
 };
 

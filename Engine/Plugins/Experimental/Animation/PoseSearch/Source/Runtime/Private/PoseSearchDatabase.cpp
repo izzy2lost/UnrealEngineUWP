@@ -23,11 +23,16 @@
 DECLARE_STATS_GROUP(TEXT("PoseSearch"), STATGROUP_PoseSearch, STATCAT_Advanced);
 DECLARE_CYCLE_STAT_EXTERN(TEXT("Search Brute Force"), STAT_PoseSearch_BruteForce, STATGROUP_PoseSearch, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("Search PCA/KNN"), STAT_PoseSearch_PCAKNN, STATGROUP_PoseSearch, );
+DECLARE_CYCLE_STAT_EXTERN(TEXT("Search VPTree"), STAT_PoseSearch_VPTree, STATGROUP_PoseSearch, );
 DEFINE_STAT(STAT_PoseSearch_BruteForce);
 DEFINE_STAT(STAT_PoseSearch_PCAKNN);
+DEFINE_STAT(STAT_PoseSearch_VPTree);
 
 namespace UE::PoseSearch
 {
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG
+static TAutoConsoleVariable<bool> CVarMotionMatchCompareAgainstBruteForce(TEXT("a.MotionMatch.CompareAgainstBruteForce"), false, TEXT("Compare optimized search against brute force search"));
+#endif
 
 typedef TArray<size_t, TInlineAllocator<256>> FNonSelectableIdx;
 static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearchContext& SearchContext, const UPoseSearchDatabase* Database
@@ -139,7 +144,7 @@ struct FSearchFilters
 		}
 	}
 
-	bool AreFiltersValid(const FSearchIndex& SearchIndex, TConstArrayView<float> PoseValues, TConstArrayView<float> QueryValues, int32 PoseIdx, const FPoseMetadata& Metadata
+	bool AreFiltersValid(const FSearchIndex& SearchIndex, TConstArrayView<float> PoseValues, TConstArrayView<float> QueryValues, int32 PoseIdx
 #if UE_POSE_SEARCH_TRACE_ENABLED
 		, UE::PoseSearch::FSearchContext& SearchContext, const UPoseSearchDatabase* Database
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
@@ -147,7 +152,7 @@ struct FSearchFilters
 	{
 		for (const IPoseSearchFilter* Filter : Filters)
 		{
-			if (!Filter->IsFilterValid(PoseValues, QueryValues, PoseIdx, Metadata))
+			if (!Filter->IsFilterValid(PoseValues, QueryValues, PoseIdx, SearchIndex.PoseMetadata[PoseIdx]))
 			{
 #if UE_POSE_SEARCH_TRACE_ENABLED
 				if (Filter == &NonSelectableIdxFilter)
@@ -501,12 +506,12 @@ int32 UPoseSearchDatabase::GetNumberOfPrincipalComponents() const
 
 bool UPoseSearchDatabase::GetSkipSearchIfPossible() const
 {
-#if WITH_EDITOR
-	if (PoseSearchMode == EPoseSearchMode::PCAKDTree_Validate || PoseSearchMode == EPoseSearchMode::PCAKDTree_Compare)
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG
+	if (UE::PoseSearch::CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
 	{
 		return false;
 	}
-#endif // WITH_EDITOR
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
 	return bSkipSearchIfPossible;
 }
 
@@ -642,25 +647,38 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::Search(UE::PoseSearch::FSearc
 #endif // WITH_EDITOR
 
 	if (PoseSearchMode == EPoseSearchMode::BruteForce
-#if WITH_EDITOR
-		|| PoseSearchMode == EPoseSearchMode::PCAKDTree_Compare
-#endif // WITH_EDITOR
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG
+		|| CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread()
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
 		)
 	{
 		Result = SearchBruteForce(SearchContext);
 	}
 
-	if (PoseSearchMode != EPoseSearchMode::BruteForce)
-	{
-#if UE_POSE_SEARCH_TRACE_ENABLED
-		FPoseSearchCost BruteForcePoseCost = Result.BruteForcePoseCost;
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG
+	const FPoseSearchCost BruteForcePoseCost = Result.BruteForcePoseCost;
+	const int32 BruteForcePoseIdx = Result.PoseIdx;
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
 
+	if (PoseSearchMode == EPoseSearchMode::VPTree)
+	{
+		Result = SearchVPTree(SearchContext);
+
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG
+		Result.BruteForcePoseCost = BruteForcePoseCost;
+		if (Result.PoseIdx != BruteForcePoseIdx && CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
+		{
+			UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchDatabase::Search - VPTree search PoseIdx %d differs from BruteForce search PoseIdx %d"), Result.PoseIdx, BruteForcePoseIdx);
+		}
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+	}
+	else if (PoseSearchMode == EPoseSearchMode::PCAKDTree)
+	{
 		Result = SearchPCAKDTree(SearchContext);
 
-#if UE_POSE_SEARCH_TRACE_ENABLED
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG
 		Result.BruteForcePoseCost = BruteForcePoseCost;
-		if (PoseSearchMode == EPoseSearchMode::PCAKDTree_Compare)
+		if (CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
 		{
 			const float BruteForceTotalCost = Result.BruteForcePoseCost.GetTotalCost();
 			const float PCAKDTreeTotalCost = Result.PoseCost.GetTotalCost();
@@ -668,12 +686,12 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::Search(UE::PoseSearch::FSearc
 
 			if (!FMath::IsNearlyEqual(BruteForceTotalCost, PCAKDTreeTotalCost))
 			{
-				UE_LOG(LogPoseSearch, Warning, TEXT("PCAKDTree_Compare %f (PCAKDTreeTotalCost %f, BruteForceTotalCost %f)"), PCAKDTreeTotalCost - BruteForceTotalCost, PCAKDTreeTotalCost, BruteForceTotalCost);
+				UE_LOG(LogPoseSearch, Warning, TEXT("UPoseSearchDatabase::Search - PCAKDTree cost comparison %f (PCAKDTreeTotalCost %f, BruteForceTotalCost %f)"), PCAKDTreeTotalCost - BruteForceTotalCost, PCAKDTreeTotalCost, BruteForceTotalCost);
 			}
 		}
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
 	}
-	
+
 	return Result;
 }
 
@@ -685,7 +703,7 @@ static inline void EvaluatePoseKernel(UE::PoseSearch::FSearchResult& Result, con
 
 	const TConstArrayView<float> PoseValues = bReconstructPoseValues ? SearchIndex.GetReconstructedPoseValues(PoseIdx, ReconstructedPoseValuesBuffer) : SearchIndex.GetPoseValues(PoseIdx);
 
-	if (SearchFilters.AreFiltersValid(SearchIndex, PoseValues, QueryValues, PoseIdx, SearchIndex.PoseMetadata[PoseIdx]
+	if (SearchFilters.AreFiltersValid(SearchIndex, PoseValues, QueryValues, PoseIdx
 #if UE_POSE_SEARCH_TRACE_ENABLED
 		, SearchContext, Database
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
@@ -828,7 +846,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 
 		check(QueryValues.Num() == NumDimensions);
 		// projecting QueryValues into the PCA space ProjectedQueryValues and query the KDTree
-		SearchIndex.KDTree.FindNeighbors(ResultSet, SearchIndex.PCAProject(QueryValues, ProjectedQueryValues).GetData());
+		SearchIndex.KDTree.FindNeighbors(ResultSet, SearchIndex.PCAProject(QueryValues, ProjectedQueryValues));
 
 		// NonSelectableIdx are already filtered out inside the kdtree search
 		const FSearchFilters SearchFilters(Schema, bArePCAValuesPruned ? NonSelectableIdx : TConstArrayView<size_t>(), SearchIndex.bAnyBlockTransition);
@@ -847,7 +865,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 				for (size_t ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
 				{
 					const TConstArrayView<uint32> PoseIndexes = SearchIndex.PCAValuesVectorToPoseIndexes[ResultIndexes[ResultIndex]];
-					for (int Index = 0; Index < PoseIndexes.Num() && NumEvaluatePoseKernelCalls < MaxNumEvaluatePoseKernelCalls; ++Index, ++NumEvaluatePoseKernelCalls)
+					for (int32 Index = 0; Index < PoseIndexes.Num() && NumEvaluatePoseKernelCalls < MaxNumEvaluatePoseKernelCalls; ++Index, ++NumEvaluatePoseKernelCalls)
 					{
 						EvaluatePoseKernel<false, true>(Result, SearchIndex, QueryValues, TArrayView<float>(), PoseIndexes[Index], SearchFilters, SearchContext, this, true, ResultIndex);
 					}
@@ -859,7 +877,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 				for (size_t ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
 				{
 					const TConstArrayView<uint32> PoseIndexes = SearchIndex.PCAValuesVectorToPoseIndexes[ResultIndexes[ResultIndex]];
-					for (int Index = 0; Index < PoseIndexes.Num() && NumEvaluatePoseKernelCalls < MaxNumEvaluatePoseKernelCalls; ++Index, ++NumEvaluatePoseKernelCalls)
+					for (int32 Index = 0; Index < PoseIndexes.Num() && NumEvaluatePoseKernelCalls < MaxNumEvaluatePoseKernelCalls; ++Index, ++NumEvaluatePoseKernelCalls)
 					{
 						EvaluatePoseKernel<false, false>(Result, SearchIndex, QueryValues, TArrayView<float>(), PoseIndexes[Index], SearchFilters, SearchContext, this, true, ResultIndex);
 					}
@@ -891,6 +909,95 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 			for (size_t ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
 			{
 				EvaluatePoseKernel<false, false>(Result, SearchIndex, QueryValues, TArrayView<float>(), ResultIndexes[ResultIndex], SearchFilters, SearchContext, this, true, ResultIndex);
+			}
+		}
+	}
+	else
+	{
+#if UE_POSE_SEARCH_TRACE_ENABLED
+		// calling just for reporting non selectable poses
+		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema).GetValues();
+		FNonSelectableIdx NonSelectableIdx;
+		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this, QueryValues);
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+	}
+
+#if UE_POSE_SEARCH_TRACE_ENABLED
+	SearchContext.BestCandidates.Add(this);
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+
+	// finalizing Result properties
+	if (Result.PoseIdx != INDEX_NONE)
+	{
+		Result.AssetTime = GetNormalizedAssetTime(Result.PoseIdx);
+		Result.Database = this;
+	}
+
+	return Result;
+}
+
+UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchVPTree(UE::PoseSearch::FSearchContext& SearchContext) const
+{
+	SCOPE_CYCLE_COUNTER(STAT_PoseSearch_VPTree);
+
+	using namespace UE::PoseSearch;
+
+	FSearchResult Result;
+
+	const FSearchIndex& SearchIndex = GetSearchIndex();
+
+	// since any PoseCost calculated here is at least SearchIndex.MinCostAddend,
+	// there's no point in performing the search if CurrentBestTotalCost is already better than that
+	if (!GetSkipSearchIfPossible() || SearchContext.GetCurrentBestTotalCost() > SearchIndex.MinCostAddend)
+	{
+		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema).GetValues();
+
+		// @todo: implement filtering within the VPTree as KDTree does
+		FNonSelectableIdx NonSelectableIdx;
+		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this
+#if UE_POSE_SEARCH_TRACE_ENABLED
+			, QueryValues
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+		);
+		check(Algo::IsSorted(NonSelectableIdx));
+
+		const int32 NumDimensions = Schema->SchemaCardinality;
+		check(QueryValues.Num() == NumDimensions);
+		
+		const FSearchFilters SearchFilters(Schema, NonSelectableIdx, SearchIndex.bAnyBlockTransition);
+
+		// @todo: implement a FVPTreeDataSource for aligned and padded features vector like CompareAlignedPoses does 
+		FVPTreeDataSource DataSource(SearchIndex);
+		FVPTreeResultSet ResultSet(KDTreeQueryNumNeighbors);
+		SearchIndex.VPTree.FindNeighbors(QueryValues, ResultSet, DataSource);
+		
+		int32 NumEvaluatePoseKernelCalls = 0;
+		const TArray<FIndexDistance>& UnsortedResults = ResultSet.GetUnsortedResults();
+
+		const bool bAreValuesPruned = SearchIndex.ValuesVectorToPoseIndexes.Num() > 0;
+		if (bAreValuesPruned)
+		{
+			const int32 MaxNumEvaluatePoseKernelCalls = KDTreeQueryNumNeighborsWithDuplicates > 0 ? KDTreeQueryNumNeighborsWithDuplicates : INT32_MAX;
+			for (int32 ResultIndex = 0; ResultIndex < UnsortedResults.Num(); ++ResultIndex)
+			{
+				const FIndexDistance& IndexDistance = UnsortedResults[ResultIndex];
+
+				// @todo: IndexDistance.Distance is the Sqrt(DissimilarityCost), so there's no need to calculate it again in SearchIndex.ComparePoses
+				const TConstArrayView<uint32> PoseIndexes = SearchIndex.ValuesVectorToPoseIndexes[IndexDistance.Index];
+				for (int32 Index = 0; Index < PoseIndexes.Num() && NumEvaluatePoseKernelCalls < MaxNumEvaluatePoseKernelCalls; ++Index, ++NumEvaluatePoseKernelCalls)
+				{
+					EvaluatePoseKernel<false, false>(Result, SearchIndex, QueryValues, TArrayView<float>(), PoseIndexes[Index], SearchFilters, SearchContext, this, true, ResultIndex);
+				}
+			}
+		}
+		else
+		{
+			for (int32 ResultIndex = 0; ResultIndex < UnsortedResults.Num(); ++ResultIndex)
+			{
+				const FIndexDistance& IndexDistance = UnsortedResults[ResultIndex];
+
+				// @todo: IndexDistance.Distance is the Sqrt(DissimilarityCost), so there's no need to calculate it again in SearchIndex.ComparePoses
+				EvaluatePoseKernel<false, false>(Result, SearchIndex, QueryValues, TArrayView<float>(), IndexDistance.Index, SearchFilters, SearchContext, this, true, ResultIndex);
 			}
 		}
 	}

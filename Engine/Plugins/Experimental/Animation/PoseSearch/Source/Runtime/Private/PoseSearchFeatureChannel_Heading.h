@@ -33,7 +33,7 @@ public:
 	// UAnimNotifyState_PoseSearchSamplingAttribute notify state with a matching SamplingAttributeId, and the UAnimNotifyState_PoseSearchSamplingAttribute properties
 	// will be used as source of data instead of this channel "Bone".
 	UPROPERTY(EditAnywhere, Category = "Settings")
-	int32 SamplingAttributeId = -1;
+	int32 SamplingAttributeId = INDEX_NONE;
 
 	// the data relative to the sampling time associated to this channel will be offsetted by SampleTimeOffset seconds.
 	// For example, if Bone is the head bone, and SampleTimeOffset is 0.5, this channel will try to match the future heading of the character head bone 0.5 seconds ahead

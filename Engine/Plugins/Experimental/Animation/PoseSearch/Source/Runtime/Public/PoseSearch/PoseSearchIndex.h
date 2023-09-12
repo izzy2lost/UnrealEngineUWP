@@ -5,6 +5,7 @@
 #include "PoseSearch/KDTree.h"
 #include "PoseSearch/PoseSearchCost.h"
 #include "PoseSearch/PoseSearchDefines.h"
+#include "PoseSearch/VPTree.h"
 
 namespace UE::PoseSearch
 {
@@ -235,7 +236,7 @@ struct FSparsePoseMultiMap
 		{
 			// checking for overflow
 			check((DataValues.Num() + 1 + Values.Num()) < (1 << (sizeof(Type) * 4 - 1)));
-			check(int(MaxKey) <= DataValues.Num());
+			check(int32(MaxKey) <= DataValues.Num());
 
 			// adding DeltaKeyValue to DataValues.Num() to making sure DataValues[Key] > MaxValue
 			DataValues[Key] = DataValues.Num() + DeltaKeyValue;
@@ -308,6 +309,7 @@ struct FSparsePoseMultiMap
 struct FSearchIndexBase
 {
 	TAlignedArray<float> Values;
+	FSparsePoseMultiMap<uint32> ValuesVectorToPoseIndexes;
 	TAlignedArray<FPoseMetadata> PoseMetadata;
 	bool bAnyBlockTransition = false;
 	TAlignedArray<FSearchIndexAsset> Assets;
@@ -338,13 +340,20 @@ struct FSearchIndexBase
 
 	void Reset();
 	
-	void PruneDuplicateValues(float SimilarityThreshold, int32 DataCardinality);
+	void PruneDuplicateValues(float SimilarityThreshold, int32 DataCardinality, bool bDoNotGenerateValuesVectorToPoseIndexes);
 
 	TConstArrayView<float> GetPoseValuesBase(int32 PoseIdx, int32 DataCardinality) const
 	{
 		check(!IsValuesEmpty() && PoseIdx >= 0 && PoseIdx < GetNumPoses());
 		check(Values.Num() % DataCardinality == 0);
 		const int32 ValueOffset = PoseMetadata[PoseIdx].GetValueOffset();
+		return MakeArrayView(&Values[ValueOffset], DataCardinality);
+	}
+
+	TConstArrayView<float> GetValuesVector(int32 ValuesVectorIdx, int32 DataCardinality) const
+	{
+		check(!IsValuesEmpty() && ValuesVectorIdx >= 0 && ValuesVectorIdx < GetNumValuesVectors(DataCardinality));
+		const int32 ValueOffset = ValuesVectorIdx * DataCardinality;
 		return MakeArrayView(&Values[ValueOffset], DataCardinality);
 	}
 
@@ -371,6 +380,7 @@ struct FSearchIndex : public FSearchIndexBase
 	TAlignedArray<float> Mean;
 
 	FKDTree KDTree;
+	FVPTree VPTree;
 
 	// @todo: this property should be editor only
 	float PCAExplainedVariance = 0.f;
@@ -393,6 +403,14 @@ struct FSearchIndex : public FSearchIndexBase
 	// that in the case of GetPoseValuesSafe it's stored in PoseMetadata[PoseIdx].GetValueOffset(), but missing for the PCAValues, so this API input is NOT a PoseIdx
 	// mapping between PoseIdx to PCAValuesVectorIdx can be reconstructed by inverting the PCAValuesVectorToPoseIndexes via GetPoseToPCAValuesVectorIndexes
 	POSESEARCH_API TConstArrayView<float> GetPCAPoseValues(int32 PCAValuesVectorIdx) const;
+
+	int32 GetNumPCAValuesVectors(int32 DataCardinality) const
+	{
+		check(DataCardinality > 0);
+		check(PCAValues.Num() % DataCardinality == 0);
+		return PCAValues.Num() / DataCardinality;
+	}
+
 	POSESEARCH_API FPoseSearchCost ComparePoses(int32 PoseIdx, float ContinuingPoseCostBias, TConstArrayView<float> PoseValues, TConstArrayView<float> QueryValues) const;
 	POSESEARCH_API FPoseSearchCost CompareAlignedPoses(int32 PoseIdx, float ContinuingPoseCostBias, TConstArrayView<float> PoseValues, TConstArrayView<float> QueryValues) const;
 
@@ -403,6 +421,35 @@ struct FSearchIndex : public FSearchIndexBase
 
 	bool operator==(const FSearchIndex& Other) const;
 	friend FArchive& operator<<(FArchive& Ar, FSearchIndex& Index);
+};
+
+struct FVPTreeDataSource
+{
+	explicit FVPTreeDataSource(const FSearchIndex& InSearchIndex)
+		: SearchIndex(InSearchIndex)
+	{
+	}
+
+    const TConstArrayView<float> operator[](int32 Index) const
+    {
+		const int32 DataCardinality = SearchIndex.WeightsSqrt.Num();
+        return SearchIndex.GetValuesVector(Index, DataCardinality);
+    }
+
+    int32 Num() const
+    {
+		const int32 DataCardinality = SearchIndex.WeightsSqrt.Num();
+        return SearchIndex.GetNumValuesVectors(DataCardinality);
+    }
+
+    static float GetDistance(const TConstArrayView<float> A, const TConstArrayView<float> B)
+    {
+		// Estracting the Sqrt to satisfy the triangle inequality metric space requirements, since a <= b+c doesn't imply a^2 <= b^2 + c^2
+		return FMath::Sqrt(CompareFeatureVectors(A, B));
+    }
+
+private:
+	const FSearchIndex& SearchIndex;
 };
 
 } // namespace UE::PoseSearch

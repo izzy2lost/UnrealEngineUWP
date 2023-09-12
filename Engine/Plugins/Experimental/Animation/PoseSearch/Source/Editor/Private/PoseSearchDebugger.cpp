@@ -184,11 +184,11 @@ FReply SCostTimelineView::OnMouseMove(const FGeometry& MyGeometry, const FPointe
 
 		// Get curve value at given time
 		const TArray<FCurvePoint>& CurvePoints = BestCostData->Points;
-		const int NumPoints = CurvePoints.Num();
+		const int32 NumPoints = CurvePoints.Num();
 
 		if (NumPoints > 0)
 		{
-			for (int i = 1; i < NumPoints; ++i)
+			for (int32 i = 1; i < NumPoints; ++i)
 			{
 				const FCurvePoint& Point1 = CurvePoints[i - 1];
 				const FCurvePoint& Point2 = CurvePoints[i];
@@ -201,7 +201,7 @@ FReply SCostTimelineView::OnMouseMove(const FGeometry& MyGeometry, const FPointe
 					const float Delta2 = abs(TargetTime - Point2.Time);
 
 					// Get closest point index
-					const int TargetPointIndex = Delta1 < Delta2 ? i - 1 : i;
+					const int32 TargetPointIndex = Delta1 < Delta2 ? i - 1 : i;
 
 					const float Time = CurvePoints[TargetPointIndex].Time;
 					const float BestCost = CurvePoints[TargetPointIndex].Value;
@@ -331,7 +331,7 @@ void FDebugger::Update(float DeltaTime, IRewindDebugger* InRewindDebugger)
 void FDebugger::OnViewClosed(uint64 InAnimInstanceId)
 {
 	TArray<TSharedRef<FDebuggerViewModel>>& Models = Debugger->ViewModels;
-	for (int i = 0; i < Models.Num(); ++i)
+	for (int32 i = 0; i < Models.Num(); ++i)
 	{
 		if (Models[i]->AnimInstanceId == InAnimInstanceId)
 		{
@@ -346,7 +346,7 @@ void FDebugger::OnViewClosed(uint64 InAnimInstanceId)
 TSharedPtr<FDebuggerViewModel> FDebugger::GetViewModel(uint64 InAnimInstanceId)
 {
 	TArray<TSharedRef<FDebuggerViewModel>>& Models = Debugger->ViewModels;
-	for (int i = 0; i < Models.Num(); ++i)
+	for (int32 i = 0; i < Models.Num(); ++i)
 	{
 		if (Models[i]->AnimInstanceId == InAnimInstanceId)
 		{

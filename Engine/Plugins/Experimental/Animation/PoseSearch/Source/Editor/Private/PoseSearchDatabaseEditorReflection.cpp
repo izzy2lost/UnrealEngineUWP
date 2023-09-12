@@ -135,7 +135,7 @@ void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSe
 
 		if (ConfigCardinality > 0)
 		{
-			const int32 TotalAnimationFeatureVectors = SearchIndex.Values.Num() / ConfigCardinality;
+			const int32 TotalAnimationFeatureVectors = SearchIndex.GetNumValuesVectors(ConfigCardinality);
 			PrunedFrames = TotalAnimationPosesInFrames - TotalAnimationFeatureVectors;
 		}
 		else
@@ -145,7 +145,7 @@ void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSe
 
 		if (PoseSearchDatabase->GetNumberOfPrincipalComponents() > 0)
 		{
-			const int32 TotalAnimationPCAFeatureVectors = SearchIndex.PCAValues.Num() / PoseSearchDatabase->GetNumberOfPrincipalComponents();
+			const int32 TotalAnimationPCAFeatureVectors = SearchIndex.GetNumPCAValuesVectors(PoseSearchDatabase->GetNumberOfPrincipalComponents());
 			PrunedPCAFrames = TotalAnimationPosesInFrames - TotalAnimationPCAFeatureVectors;
 		}
 		else
@@ -171,16 +171,19 @@ void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSe
 			const uint32 ValuesBytesSize = SearchIndex.Values.GetAllocatedSize();
 			const uint32 PCAValuesBytesSize = SearchIndex.PCAValues.GetAllocatedSize();
 			const uint32 KDTreeBytesSize = SearchIndex.KDTree.GetAllocatedSize();
+			const uint32 VPTreeBytesSize = SearchIndex.VPTree.GetAllocatedSize();
+			const uint32 ValuesVectorToPoseIndexesBytesSize = SearchIndex.ValuesVectorToPoseIndexes.GetAllocatedSize();
 			const uint32 PCAValuesVectorToPoseIndexesBytesSize = SearchIndex.PCAValuesVectorToPoseIndexes.GetAllocatedSize();
 
 			const uint32 PoseMetadataBytesSize = SearchIndex.PoseMetadata.GetAllocatedSize();
 			const uint32 AssetsBytesSize = SearchIndex.Assets.GetAllocatedSize();
 			const uint32 OtherBytesSize = SearchIndex.PCAProjectionMatrix.GetAllocatedSize() + SearchIndex.Mean.GetAllocatedSize() + SearchIndex.WeightsSqrt.GetAllocatedSize();
-			const uint32 EstimatedDatabaseBytesSize = ValuesBytesSize + PCAValuesBytesSize + KDTreeBytesSize + PCAValuesVectorToPoseIndexesBytesSize + PoseMetadataBytesSize + AssetsBytesSize + OtherBytesSize;
+			const uint32 EstimatedDatabaseBytesSize = ValuesBytesSize + PCAValuesBytesSize + KDTreeBytesSize + VPTreeBytesSize + ValuesVectorToPoseIndexesBytesSize + PCAValuesVectorToPoseIndexesBytesSize + PoseMetadataBytesSize + AssetsBytesSize + OtherBytesSize;
 				
 			ValuesSize = FText::AsMemory(ValuesBytesSize);
 			PCAValuesSize = FText::AsMemory(PCAValuesBytesSize);
 			KDTreeSize = FText::AsMemory(KDTreeBytesSize);
+			VPTreeSize = FText::AsMemory(VPTreeBytesSize);
 			PoseMetadataSize = FText::AsMemory(PoseMetadataBytesSize);
 			AssetsSize = FText::AsMemory(AssetsBytesSize);
 			EstimatedDatabaseSize = FText::AsMemory(EstimatedDatabaseBytesSize);

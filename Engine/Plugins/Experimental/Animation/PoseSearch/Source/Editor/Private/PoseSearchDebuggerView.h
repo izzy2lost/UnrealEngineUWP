@@ -113,7 +113,7 @@ private:
 	FOnViewClosed OnViewClosed;
 
 	/** Active node being debugged */
-	int32 SelectedNodeId = -1;
+	int32 SelectedNodeId = INDEX_NONE;
 
 	/** Database view of the motion matching node */
 	TSharedPtr<SDebuggerDatabaseView> DatabaseView;

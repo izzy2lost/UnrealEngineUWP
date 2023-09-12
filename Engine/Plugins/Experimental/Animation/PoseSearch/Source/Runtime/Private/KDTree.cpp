@@ -294,18 +294,19 @@ void FKDTree::Construct(int32 Count, int32 Dim, const float* Data, int32 MaxLeaf
 	new(this)FKDTree(Count, Dim, Data, MaxLeafSize);
 }
 
-bool FKDTree::FindNeighbors(FKNNResultSet& Result, const float* Query) const
+bool FKDTree::FindNeighbors(FKNNResultSet& Result, TConstArrayView<float> Query) const
 {
 #if UE_POSE_SEARCH_USE_NANOFLANN
 
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FKDTree_FindNeighbors);
 
-	check(Query && Impl->root_node);
+	check(Query.GetData() && Query.Num() == Impl->dim && Impl->root_node);
+
 	const nanoflann::SearchParams SearchParams(
 		32,			// Ignored parameter (Kept for compatibility with the FLANN interface).
 		0.f,		// search for eps-approximate neighbours (default: 0)
 		false);		// only for radius search, require neighbours sorted by
-	return Impl->findNeighbors(Result, Query, SearchParams);
+	return Impl->findNeighbors(Result, Query.GetData(), SearchParams);
 
 #else // UE_POSE_SEARCH_USE_NANOFLANN
 
@@ -315,18 +316,19 @@ bool FKDTree::FindNeighbors(FKNNResultSet& Result, const float* Query) const
 #endif // UE_POSE_SEARCH_USE_NANOFLANN
 }
 
-bool FKDTree::FindNeighbors(FRadiusResultSet& Result, const float* Query) const
+bool FKDTree::FindNeighbors(FRadiusResultSet& Result, TConstArrayView<float> Query) const
 {
 #if UE_POSE_SEARCH_USE_NANOFLANN
 
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FKDTree_FindNeighbors);
 
-	check(Query && Impl->root_node);
+	check(Query.GetData() && Query.Num() == Impl->dim && Impl->root_node);
+
 	const nanoflann::SearchParams SearchParams(
 		32,			// Ignored parameter (Kept for compatibility with the FLANN interface).
 		0.f,		// search for eps-approximate neighbours (default: 0)
 		false);		// only for radius search, require neighbours sorted by
-	return Impl->findNeighbors(Result, Query, SearchParams);
+	return Impl->findNeighbors(Result, Query.GetData(), SearchParams);
 
 #else // UE_POSE_SEARCH_USE_NANOFLANN
 

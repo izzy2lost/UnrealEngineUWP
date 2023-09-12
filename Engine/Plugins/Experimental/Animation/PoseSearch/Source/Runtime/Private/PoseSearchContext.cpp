@@ -275,7 +275,7 @@ void FDebugDrawParams::DrawCentripetalCatmullRomSpline(TConstArrayView<FVector> 
 		};
 
 		FVector PrevPoint = Points[0];
-		for (int i = 0; i < NumPoints - 1; ++i)
+		for (int32 i = 0; i < NumPoints - 1; ++i)
 		{
 			const FVector& P0 = Points[FMath::Max(i - 1, 0)];
 			const FVector& P1 = Points[i];
@@ -302,7 +302,7 @@ void FDebugDrawParams::DrawCentripetalCatmullRomSpline(TConstArrayView<FVector> 
 			const FColor Color1 = Colors[FMath::Min(i, NumColors - 1)];
 			const FColor Color2 = Colors[FMath::Min(i + 1, NumColors - 1)];
 
-			for (int SampleIndex = 1; SampleIndex < NumSamplesPerSegment; ++SampleIndex)
+			for (int32 SampleIndex = 1; SampleIndex < NumSamplesPerSegment; ++SampleIndex)
 			{
 				const float ParametricDistance = float(SampleIndex) / float(NumSamplesPerSegment - 1);
 

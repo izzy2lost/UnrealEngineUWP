@@ -127,7 +127,7 @@ void FDebuggerViewModel::OnUpdateNodeSelection(int32 InNodeId)
 
 	// Find node in all motion matching states this frame
 	const int32 NodesNum = NodeIds.Num();
-	for (int i = 0; i < NodesNum; ++i)
+	for (int32 i = 0; i < NodesNum; ++i)
 	{
 		if (NodeIds[i] == InNodeId)
 		{

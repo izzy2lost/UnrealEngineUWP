@@ -12,7 +12,7 @@ namespace UE::PoseSearch
 {
 struct FKDTreeImplementation;
 
-struct POSESEARCH_API FKDTree
+struct FKDTree
 {
 	struct FDataSource
 	{
@@ -222,9 +222,9 @@ struct POSESEARCH_API FKDTree
 	
 	void Reset();
 	void Construct(int32 Count, int32 Dim, const float* Data, int32 MaxLeafSize = 16);
-	bool FindNeighbors(FKNNResultSet& Result, const float* Query) const;
-	bool FindNeighbors(FRadiusResultSet& Result, const float* Query) const;
-	SIZE_T GetAllocatedSize() const;
+	bool FindNeighbors(FKNNResultSet& Result, TConstArrayView<float> Query) const;
+	bool FindNeighbors(FRadiusResultSet& Result, TConstArrayView<float> Query) const;
+	POSESEARCH_API SIZE_T GetAllocatedSize() const;
 
 	FDataSource DataSource;
 	FKDTreeImplementation* Impl = nullptr;

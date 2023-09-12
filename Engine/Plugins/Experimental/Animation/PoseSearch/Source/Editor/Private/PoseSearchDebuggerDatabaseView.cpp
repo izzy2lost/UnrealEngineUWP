@@ -138,7 +138,7 @@ private:
 	{
 		float Sum = 0.f;
 		const int32 EndIndex = StartIndex + Offset;
-		for (int i = StartIndex; i < EndIndex; ++i)
+		for (int32 i = StartIndex; i < EndIndex; ++i)
 		{
 			Sum += View[i];
 		}
@@ -269,7 +269,7 @@ void SDebuggerDatabaseView::Update(const FTraceMotionMatchingStateMessage& State
 			SharedData->DatabasePath = Database->GetPathName();
 			SharedData->QueryVector = DbEntry.QueryVector;
 
-			if (Database->PoseSearchMode != EPoseSearchMode::BruteForce)
+			if (Database->PoseSearchMode == EPoseSearchMode::PCAKDTree)
 			{
 				SharedData->PCAQueryVector.SetNumZeroed(Database->GetNumberOfPrincipalComponents());
 				Database->GetSearchIndex().PCAProject(DbEntry.QueryVector, SharedData->PCAQueryVector);
@@ -331,7 +331,7 @@ void SDebuggerDatabaseView::Update(const FTraceMotionMatchingStateMessage& State
 				MinPCACost = FMath::Min(MinPCACost, PCACost);
 				MaxPCACost = FMath::Max(MaxPCACost, PCACost);
 
-				for (int Index = 0; Index < CostBreakdownsCardinality; ++Index)
+				for (int32 Index = 0; Index < CostBreakdownsCardinality; ++Index)
 				{
 					const float Value = UnfilteredRow->CostBreakdowns[Index];
 					if (Value != UE_MAX_FLT)
@@ -365,7 +365,7 @@ void SDebuggerDatabaseView::Update(const FTraceMotionMatchingStateMessage& State
 				UnfilteredRow->PCACostColor = BestScoreRowColor + (WorstScoreRowColor - BestScoreRowColor) * PCACostBlend;
 
 				UnfilteredRow->CostBreakdownsColors.SetNumUninitialized(CostBreakdownsCardinality);
-				for (int Index = 0; Index < CostBreakdownsCardinality; ++Index)
+				for (int32 Index = 0; Index < CostBreakdownsCardinality; ++Index)
 				{
 					const float CostBreakdownBlend = (UnfilteredRow->CostBreakdowns[Index] - MinCostBreakdowns[Index]) / DeltaCostBreakdowns[Index];
 					UnfilteredRow->CostBreakdownsColors[Index] = BestScoreRowColor + (WorstScoreRowColor - BestScoreRowColor) * CostBreakdownBlend;

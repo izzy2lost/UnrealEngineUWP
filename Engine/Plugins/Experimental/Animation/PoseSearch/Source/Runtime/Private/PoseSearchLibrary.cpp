@@ -163,7 +163,7 @@ void UPoseSearchLibrary::TraceMotionMatchingState(
 				break;
 			}
 		}
-		if (DbEntryIdx == -1)
+		if (DbEntryIdx == INDEX_NONE)
 		{
 			DbEntryIdx = DatabaseEntries.Add({ DatabaseId });
 
@@ -174,7 +174,7 @@ void UPoseSearchLibrary::TraceMotionMatchingState(
 		return DbEntryIdx;
 	};
 
-	const int32 CurrentPoseIdx = bSearch && CurrentResult.PoseCost.IsValid() ? CurrentResult.PoseIdx : -1;
+	const int32 CurrentPoseIdx = bSearch && CurrentResult.PoseCost.IsValid() ? CurrentResult.PoseIdx : INDEX_NONE;
 	FTraceMotionMatchingState TraceState;
 
 	for (const UPoseSearchDatabase* SearchedDatabase : SearchContext.BestCandidates.GetSearchedDatabases())
@@ -426,7 +426,7 @@ void UPoseSearchLibrary::MotionMatch(
 	const UAnimationAsset* FutureAnimation,
 	float FutureAnimationStartTime,
 	float TimeToFutureAnimationStart,
-	const int DebugSessionUniqueIdentifier)
+	const int32 DebugSessionUniqueIdentifier)
 {
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 	class UAnimInstanceProxyProvider : public UAnimInstance
@@ -505,7 +505,7 @@ void UPoseSearchLibrary::MotionMatch(
 			}
 
 			// extracting 2 poses to be able to calculate velocities
-			for (int i = 0; i < 2; ++i)
+			for (int32 i = 0; i < 2; ++i)
 			{
 				const float ExtractionTime = FutureAnimationStartTime + (i - 1) * FiniteDelta;
 				const float FutureAnimationTime = TimeToFutureAnimationStart + (i - 1) * FiniteDelta;

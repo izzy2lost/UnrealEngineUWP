@@ -48,14 +48,26 @@ enum EMotionMatchTestFlags
 	// test KDTree Construct determinism
 	TestKDTreeConstructDeterminism = 0x8,
 
+	// validating the kdtree construction
+	ValidateKDTreeConstruct = 0x10,
+
+	// test VPTree Construct determinism
+	TestVPTreeConstructDeterminism = 0x20,
+
+	// validating the vptree construction
+	ValidateVPTreeConstruct = 0x40,
+
 	// test IndexDatabase determinism
-	TestIndexDatabaseDeterminism = 0x10,
+	TestIndexDatabaseDeterminism = 0x80,
 
 	// test PruneDuplicateValues determinism
-	TestPruneDuplicateValuesDeterminism = 0x20,
+	TestPruneDuplicateValuesDeterminism = 0x100,
+
+	// test PruneDuplicatePCAValues determinism
+	TestPruneDuplicatePCAValuesDeterminism = 0x200,
 
 	// validating the data we gave to DDC is stored correctly
-	ValidateDDC = 0x40,
+	ValidateDDC = 0x400,
 };
 static TAutoConsoleVariable<int32> CVarMotionMatchTestFlags(TEXT("a.MotionMatch.TestFlags"), EMotionMatchTestFlags::None, TEXT("Test Motion Matching using EMotionMatchTestFlags"));
 static TAutoConsoleVariable<int32> CVarMotionMatchTestNumIterations(TEXT("a.MotionMatch.TestNumIterations"), 10, TEXT("Test Motion Matching Num Iterations"));
@@ -79,7 +91,7 @@ struct FMeanDeviationCalculator
 private:
 	struct FEntry
 	{
-		int32 SchemaIndex = -1; // index of the Channel associated Schemas / SearchIndexBases index
+		int32 SchemaIndex = INDEX_NONE; // index of the Channel associated Schemas / SearchIndexBases index
 		const UPoseSearchFeatureChannel* Channel;
 	};
 
@@ -293,7 +305,7 @@ static void FindValidSequenceIntervals(const UAnimSequenceBase* SequenceBase, FF
 
 				// Split every valid range based on the exclusion range just found. Because this might increase the 
 				// number of ranges in ValidRanges, the algorithm iterates from end to start.
-				for (int RangeIdx = ValidRanges.Num() - 1; RangeIdx >= 0; --RangeIdx)
+				for (int32 RangeIdx = ValidRanges.Num() - 1; RangeIdx >= 0; --RangeIdx)
 				{
 					FFloatRange EvaluatedRange = ValidRanges[RangeIdx];
 					ValidRanges.RemoveAt(RangeIdx);
@@ -462,7 +474,7 @@ static void PreprocessSearchIndexPCAData(FSearchIndex& SearchIndex, int32 NumDim
 	SearchIndex.Mean.Reset();
 	SearchIndex.PCAProjectionMatrix.Reset();
 
-	if (PoseSearchMode != EPoseSearchMode::BruteForce && NumDimensions > 0 && NumPoses > 0 && NumberOfPrincipalComponents > 0)
+	if (PoseSearchMode == EPoseSearchMode::PCAKDTree && NumDimensions > 0 && NumPoses > 0 && NumberOfPrincipalComponents > 0)
 	{
 		SearchIndex.PCAValues.AddZeroed(NumPoses * NumberOfPrincipalComponents);
 		SearchIndex.Mean.AddZeroed(NumDimensions);
@@ -499,7 +511,7 @@ static void PreprocessSearchIndexPCAData(FSearchIndex& SearchIndex, int32 NumDim
 		// validating EigenSolver results
 		const ColMajorMatrix EigenVectors = EigenSolver.eigenvectors().real();
 
-		if (PoseSearchMode == EPoseSearchMode::PCAKDTree_Validate && NumberOfPrincipalComponents == NumDimensions)
+		if (AnyTestFlags(EMotionMatchTestFlags::ValidateKDTreeConstruct) && NumberOfPrincipalComponents == NumDimensions)
 		{
 			const RowMajorVector ReciprocalWeightsSqrt = MapWeightsSqrt.cwiseInverse();
 			const RowMajorMatrix ProjectedValues = CenteredValues * EigenVectors;
@@ -541,7 +553,7 @@ static void PreprocessSearchIndexPCAData(FSearchIndex& SearchIndex, int32 NumDim
 
 		MapPCAValues = CenteredValues * PCAProjectionMatrix;
 
-		if (PoseSearchMode == EPoseSearchMode::PCAKDTree_Validate && NumberOfPrincipalComponents == NumDimensions)
+		if (AnyTestFlags(EMotionMatchTestFlags::ValidateKDTreeConstruct) && NumberOfPrincipalComponents == NumDimensions)
 		{
 			const RowMajorVector ReciprocalWeightsSqrt = MapWeightsSqrt.cwiseInverse();
 			for (Eigen::Index RowIndex = 0; RowIndex < MapValues.rows(); ++RowIndex)
@@ -576,14 +588,12 @@ static void PreprocessSearchIndexKDTree(FSearchIndex& SearchIndex, const UPoseSe
 	const EPoseSearchMode PoseSearchMode = Database->PoseSearchMode;
 
 	SearchIndex.KDTree.Reset();
-	if (PoseSearchMode != EPoseSearchMode::BruteForce && NumDimensions > 0)
+	if (NumDimensions > 0 && PoseSearchMode == EPoseSearchMode::PCAKDTree)
 	{
 		const uint32 NumberOfPrincipalComponents = Database->GetNumberOfPrincipalComponents();
 		const int32 KDTreeMaxLeafSize = Database->KDTreeMaxLeafSize;
 
-		check(SearchIndex.PCAValues.Num() % NumberOfPrincipalComponents == 0);
-
-		const int32 NumPCAValuesVectors = SearchIndex.PCAValues.Num() / NumberOfPrincipalComponents;
+		const int32 NumPCAValuesVectors = SearchIndex.GetNumPCAValuesVectors(NumberOfPrincipalComponents);
 		SearchIndex.KDTree.Construct(NumPCAValuesVectors, NumberOfPrincipalComponents, SearchIndex.PCAValues.GetData(), KDTreeMaxLeafSize);
 
 #if ENABLE_ANIM_DEBUG
@@ -606,72 +616,156 @@ static void PreprocessSearchIndexKDTree(FSearchIndex& SearchIndex, const UPoseSe
 			}
 		}
 
-		// testing the KDTree is returning the proper searches for all the points in pca space
-		const int32 KDTreeQueryNumNeighbors = Database->KDTreeQueryNumNeighbors;
-
-		TArray<size_t> ResultIndexes;
-		TArray<float> ResultDistanceSqr;
-		ResultIndexes.SetNum(NumPCAValuesVectors + 1);
-		ResultDistanceSqr.SetNum(NumPCAValuesVectors + 1);
-
-		size_t MaxNumNeighborToFindAPoint = 0;
-		for (size_t PointIndex = 0; PointIndex < NumPCAValuesVectors; ++PointIndex)
+		if (AnyTestFlags(EMotionMatchTestFlags::ValidateKDTreeConstruct))
 		{
-			// searching the kdtree for PointIndex
-			FKDTree::FRadiusResultSet ResultSet(UE_SMALL_NUMBER, NumPCAValuesVectors, ResultIndexes, ResultDistanceSqr);
-			SearchIndex.KDTree.FindNeighbors(ResultSet, &SearchIndex.PCAValues[PointIndex * NumberOfPrincipalComponents]);
+			// testing the KDTree is returning the proper searches for all the points in pca space
+			const int32 KDTreeQueryNumNeighbors = Database->KDTreeQueryNumNeighbors;
 
-			bool bFound = false;
-			for (size_t ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
-			{
-				if (PointIndex == ResultIndexes[ResultIndex])
-				{
-					// PointIndex is the ResultIndex-th candidates out of the kdtree. if ResultIndex-th is greater than KDTreeQueryNumNeighbors,
-					// we wouldn't have found it in a runtime search, so we log the errot (later on only once, with the worst case scenario)
-					check(ResultDistanceSqr[ResultIndex] < UE_KINDA_SMALL_NUMBER);
-					MaxNumNeighborToFindAPoint = FMath::Max(MaxNumNeighborToFindAPoint, ResultIndex);
-					bFound = true;
-					break;
-				}
-			}
-			check(bFound);
-		}
+			TArray<size_t> ResultIndexes;
+			TArray<float> ResultDistanceSqr;
+			ResultIndexes.SetNum(NumPCAValuesVectors + 1);
+			ResultDistanceSqr.SetNum(NumPCAValuesVectors + 1);
 
-		if (MaxNumNeighborToFindAPoint >= KDTreeQueryNumNeighbors)
-		{
-			UE_LOG(LogPoseSearch, Warning, TEXT("Not enough 'KDTreeQueryNumNeighbors' (%d) for database '%s'. Pose values projected in PCA space have too many duplicates, so try to prune duplicates by tuning 'PCAValuesPruningSimilarityThreshold' or increase 'KDTreeQueryNumNeighbors' at least to %d"), KDTreeQueryNumNeighbors, *Database->GetName(), MaxNumNeighborToFindAPoint);
-		}
-
-		// if bArePCAValuesPruned PointIndex is the index of the point in the kdtree, NOT necessary the pose index, so doing the PCAProject would lead to the wrong data
-		const bool bArePCAValuesPruned = SearchIndex.PCAValuesVectorToPoseIndexes.Num() > 0;
-		if (!bArePCAValuesPruned && PoseSearchMode == EPoseSearchMode::PCAKDTree_Validate)
-		{
-			// testing the KDTree is returning the proper searches for all the original points transformed in pca space
-			int32 NumberOfFailingPoints = 0;
-			TArrayView<float> ProjectedValues((float*)FMemory_Alloca(NumberOfPrincipalComponents * sizeof(float)), NumberOfPrincipalComponents);
+			size_t MaxNumNeighborToFindAPoint = 0;
 			for (size_t PointIndex = 0; PointIndex < NumPCAValuesVectors; ++PointIndex)
 			{
-				FKDTree::FKNNResultSet ResultSet(KDTreeQueryNumNeighbors, ResultIndexes, ResultDistanceSqr);
-				SearchIndex.KDTree.FindNeighbors(ResultSet, SearchIndex.PCAProject(SearchIndex.GetPoseValuesBase(PointIndex, NumDimensions), ProjectedValues).GetData());
+				// searching the kdtree for PointIndex
+				FKDTree::FRadiusResultSet ResultSet(UE_SMALL_NUMBER, NumPCAValuesVectors, ResultIndexes, ResultDistanceSqr);
+				SearchIndex.KDTree.FindNeighbors(ResultSet, MakeArrayView(&SearchIndex.PCAValues[PointIndex * NumberOfPrincipalComponents], NumberOfPrincipalComponents));
 
-				size_t ResultIndex = 0;
-				for (; ResultIndex < ResultSet.Num(); ++ResultIndex)
+				bool bFound = false;
+				for (size_t ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
 				{
 					if (PointIndex == ResultIndexes[ResultIndex])
 					{
+						// PointIndex is the ResultIndex-th candidates out of the kdtree. if ResultIndex-th is greater than KDTreeQueryNumNeighbors,
+						// we wouldn't have found it in a runtime search, so we log the errot (later on only once, with the worst case scenario)
 						check(ResultDistanceSqr[ResultIndex] < UE_KINDA_SMALL_NUMBER);
+						MaxNumNeighborToFindAPoint = FMath::Max(MaxNumNeighborToFindAPoint, ResultIndex);
+						bFound = true;
 						break;
 					}
 				}
-				if (ResultIndex == ResultSet.Num())
+				
+				if (!bFound)
 				{
-					++NumberOfFailingPoints;
+					UE_LOG(LogPoseSearch, Error, TEXT("PreprocessSearchIndexKDTree - kdtree for %s is not properly constructed! Couldn't find the Point %d in it"), *Database->GetName(), PointIndex);
 				}
 			}
 
-			check(NumberOfFailingPoints == 0);
+			if (MaxNumNeighborToFindAPoint >= KDTreeQueryNumNeighbors)
+			{
+				UE_LOG(LogPoseSearch, Warning, TEXT("Not enough 'KDTreeQueryNumNeighbors' (%d) for database '%s'. Pose values projected in PCA space have too many duplicates, so try to prune duplicates by tuning 'PCAValuesPruningSimilarityThreshold' or increase 'KDTreeQueryNumNeighbors' at least to %d"), KDTreeQueryNumNeighbors, *Database->GetName(), MaxNumNeighborToFindAPoint);
+			}
+
+			// if bArePCAValuesPruned PointIndex is the index of the point in the kdtree, NOT necessary the pose index, so doing the PCAProject would lead to the wrong data
+			const bool bArePCAValuesPruned = SearchIndex.PCAValuesVectorToPoseIndexes.Num() > 0;
+			if (!bArePCAValuesPruned)
+			{
+				// testing the KDTree is returning the proper searches for all the original points transformed in pca space
+				TArrayView<float> ProjectedValues((float*)FMemory_Alloca(NumberOfPrincipalComponents * sizeof(float)), NumberOfPrincipalComponents);
+				for (size_t PointIndex = 0; PointIndex < NumPCAValuesVectors; ++PointIndex)
+				{
+					FKDTree::FKNNResultSet ResultSet(KDTreeQueryNumNeighbors, ResultIndexes, ResultDistanceSqr);
+					SearchIndex.KDTree.FindNeighbors(ResultSet, SearchIndex.PCAProject(SearchIndex.GetPoseValuesBase(PointIndex, NumDimensions), ProjectedValues));
+
+					size_t ResultIndex = 0;
+					for (; ResultIndex < ResultSet.Num(); ++ResultIndex)
+					{
+						if (PointIndex == ResultIndexes[ResultIndex])
+						{
+							if (ResultDistanceSqr[ResultIndex] > UE_KINDA_SMALL_NUMBER)
+							{
+								UE_LOG(LogPoseSearch, Error, TEXT("PreprocessSearchIndexKDTree - kdtree for %s is not properly constructed! Couldn't find the Point %d in it within UE_KINDA_SMALL_NUMBER tolerance, after PCA projection"), *Database->GetName(), PointIndex);
+							}
+							break;
+						}
+					}
+					if (ResultIndex == ResultSet.Num())
+					{
+						UE_LOG(LogPoseSearch, Error, TEXT("PreprocessSearchIndexKDTree - kdtree for %s is not properly constructed! Couldn't find the Point %d in it, after PCA projection"), *Database->GetName(), PointIndex);
+					}
+				}
+			}
+		}
+#endif // ENABLE_ANIM_DEBUG
+	}
+}
+
+// creating a vantage point tree
+static void PreprocessSearchIndexVPTree(FSearchIndex& SearchIndex, const UPoseSearchDatabase* Database, int32 RandomSeed)
+{
+	const int32 NumDimensions = Database->Schema->SchemaCardinality;
+	const int32 NumValuesVectors = SearchIndex.GetNumValuesVectors(NumDimensions);
+	const EPoseSearchMode PoseSearchMode = Database->PoseSearchMode;
+
+	SearchIndex.VPTree.Reset();
+	if (PoseSearchMode == EPoseSearchMode::VPTree && NumValuesVectors > 0)
+	{
+		const FVPTreeDataSource DataSource(SearchIndex);
+		FRandomStream RandStream(RandomSeed);
+		SearchIndex.VPTree.Construct(DataSource, RandStream);
+
+#if ENABLE_ANIM_DEBUG
+
+		if (AnyTestFlags(EMotionMatchTestFlags::TestVPTreeConstructDeterminism))
+		{
+			if (!SearchIndex.VPTree.TestConstruct(DataSource))
+			{
+				UE_LOG(LogPoseSearch, Error, TEXT("PreprocessSearchIndexVPTree - FVPTree construction failed"));
+			}
+
+			const int32 NumIterations = CVarMotionMatchTestNumIterations.GetValueOnAnyThread();
+			for (int32 Iteration = 0; Iteration < NumIterations; ++Iteration)
+			{
+				FVPTree VPTreeTest;
+				FRandomStream RandStreamTest(RandomSeed);
+				VPTreeTest.Construct(DataSource, RandStreamTest);
+
+				if (VPTreeTest != SearchIndex.VPTree)
+				{
+					UE_LOG(LogPoseSearch, Warning, TEXT("PreprocessSearchIndexVPTree - FVPTree construction is not deterministic"));
+				}
+			}
 		}
 
+		if (AnyTestFlags(EMotionMatchTestFlags::ValidateVPTreeConstruct))
+		{
+			// we can validate vantage point tree only if there are no duplicates poses (points)
+			if (Database->PosePruningSimilarityThreshold > 0.f)
+			{
+				// testing the VPTree is returning the proper searches for all the points
+				for (int32 PointIndex = 0; PointIndex < NumValuesVectors; ++PointIndex)
+				{
+					FVPTreeResultSet ResultSet(Database->KDTreeQueryNumNeighbors);
+					SearchIndex.VPTree.FindNeighbors(SearchIndex.GetValuesVector(PointIndex, NumDimensions), ResultSet, DataSource);
+		
+					bool bFound = false;
+					for (const FIndexDistance& Result : ResultSet.GetUnsortedResults())
+					{
+						if (Result.Index == PointIndex)
+						{
+							if (!FMath::IsNearlyZero(Result.Distance))
+							{
+								UE_LOG(LogPoseSearch, Error, TEXT("PreprocessSearchIndexVPTree - VPTree for %s is malformed because foud PointIndex %d distance %f from itself (distance should be zero)!"), *Database->GetName(), PointIndex, Result.Distance);
+							}
+
+							bFound = true;
+							break;
+						}
+					}
+
+					if (!bFound)
+					{
+						UE_LOG(LogPoseSearch, Error, TEXT("PreprocessSearchIndexVPTree - VPTree for %s is malformed and couldn't find PointIndex %d"), *Database->GetName(), PointIndex);
+					}
+				}
+			}
+			else
+			{
+				UE_LOG(LogPoseSearch, Warning, TEXT("PreprocessSearchIndexVPTree - cannot ValidateVPTreeConstruct for %s if there could be potential duplicate poses: set PosePruningSimilarityThreshold > 0 to enforce duplicate pruning"), *Database->GetName());
+			}
+		}
 #endif // ENABLE_ANIM_DEBUG
 	}
 }
@@ -908,6 +1002,11 @@ static void CompareSearchIndexBase(const FSearchIndexBase& A, const FSearchIndex
 		}
 	}
 
+	if (A.ValuesVectorToPoseIndexes != B.ValuesVectorToPoseIndexes)
+	{
+		StringBuilder.Append(TEXT("ValuesVectorToPoseIndexes mismatch\n"));
+	}
+
 	if (A.PoseMetadata != B.PoseMetadata)
 	{
 		StringBuilder.Append(TEXT("PoseMetadata mismatch\n"));
@@ -971,6 +1070,11 @@ static void CompareSearchIndex(const FSearchIndex& A, const FSearchIndex& B, con
 	if (A.KDTree != B.KDTree)
 	{
 		StringBuilder.Append(TEXT("KDTree mismatch\n"));
+	}
+
+	if (A.VPTree != B.VPTree)
+	{
+		StringBuilder.Append(TEXT("VPTree mismatch\n"));
 	}
 }
 
@@ -1415,21 +1519,28 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 					const int32 NumIterations = CVarMotionMatchTestNumIterations.GetValueOnAnyThread();
 
 					FSearchIndex TestSearchIndexA = SearchIndex;
-					TestSearchIndexA.PruneDuplicateValues(IndexBaseDatabases[0]->PosePruningSimilarityThreshold, IndexBaseDatabases[0]->Schema->SchemaCardinality);
+					TestSearchIndexA.PruneDuplicateValues(IndexBaseDatabases[0]->PosePruningSimilarityThreshold, IndexBaseDatabases[0]->Schema->SchemaCardinality, false);
 					for (int32 Iteration = 0; Iteration < NumIterations; ++Iteration)
 					{
 						FSearchIndex TestSearchIndexB = SearchIndex;
-						TestSearchIndexB.PruneDuplicateValues(IndexBaseDatabases[0]->PosePruningSimilarityThreshold, IndexBaseDatabases[0]->Schema->SchemaCardinality);
+						TestSearchIndexB.PruneDuplicateValues(IndexBaseDatabases[0]->PosePruningSimilarityThreshold, IndexBaseDatabases[0]->Schema->SchemaCardinality, false);
 
 						if (TestSearchIndexA.Values != TestSearchIndexB.Values)
 						{
 							UE_LOG(LogPoseSearch, Warning, TEXT("OnGetComplete - PruneDuplicateValues is not deterministic"));
 						}
+
+						if (TestSearchIndexA.ValuesVectorToPoseIndexes != TestSearchIndexB.ValuesVectorToPoseIndexes)
+						{
+							UE_LOG(LogPoseSearch, Warning, TEXT("OnGetComplete - PruneDuplicateValues ValuesVectorToPoseIndexes generation is not deterministic"));
+						}
 					}
 				}
 #endif // ENABLE_ANIM_DEBUG
 
-				SearchIndex.PruneDuplicateValues(IndexBaseDatabases[0]->PosePruningSimilarityThreshold, IndexBaseDatabases[0]->Schema->SchemaCardinality);
+				// VPTree requires ValuesVectorToPoseIndexes if there's any Values pruning
+				const bool bDoNotGenerateValuesVectorToPoseIndexes = IndexBaseDatabases[0]->PoseSearchMode != EPoseSearchMode::VPTree;
+				SearchIndex.PruneDuplicateValues(IndexBaseDatabases[0]->PosePruningSimilarityThreshold, IndexBaseDatabases[0]->Schema->SchemaCardinality, bDoNotGenerateValuesVectorToPoseIndexes);
 
 				TArray<float> Deviation = FMeanDeviationCalculator::Calculate(SearchIndexBases, Schemas);
 
@@ -1455,6 +1566,32 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 #endif //ENABLE_ANIM_DEBUG
 					return;
 				}
+
+#if ENABLE_ANIM_DEBUG
+				// testing PruneDuplicatePCAValues determinism
+				if (AnyTestFlags(EMotionMatchTestFlags::TestPruneDuplicatePCAValuesDeterminism))
+				{
+					const int32 NumIterations = CVarMotionMatchTestNumIterations.GetValueOnAnyThread();
+
+					FSearchIndex TestSearchIndexA = SearchIndex;
+					TestSearchIndexA.PruneDuplicatePCAValues(IndexBaseDatabases[0]->PCAValuesPruningSimilarityThreshold, IndexBaseDatabases[0]->GetNumberOfPrincipalComponents());
+					for (int32 Iteration = 0; Iteration < NumIterations; ++Iteration)
+					{
+						FSearchIndex TestSearchIndexB = SearchIndex;
+						TestSearchIndexB.PruneDuplicatePCAValues(IndexBaseDatabases[0]->PCAValuesPruningSimilarityThreshold, IndexBaseDatabases[0]->GetNumberOfPrincipalComponents());
+
+						if (TestSearchIndexA.PCAValues != TestSearchIndexB.PCAValues)
+						{
+							UE_LOG(LogPoseSearch, Warning, TEXT("OnGetComplete - PruneDuplicatePCAValues is not deterministic"));
+						}
+
+						if (TestSearchIndexA.PCAValuesVectorToPoseIndexes != TestSearchIndexB.PCAValuesVectorToPoseIndexes)
+						{
+							UE_LOG(LogPoseSearch, Warning, TEXT("OnGetComplete - PruneDuplicatePCAValues PCAValuesVectorToPoseIndexes generation is not deterministic"));
+						}
+					}
+				}
+#endif // ENABLE_ANIM_DEBUG
 
 				SearchIndex.PruneDuplicatePCAValues(IndexBaseDatabases[0]->PCAValuesPruningSimilarityThreshold, IndexBaseDatabases[0]->GetNumberOfPrincipalComponents());
 				if (Owner.IsCanceled())
@@ -1482,6 +1619,18 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 				if (IndexBaseDatabases[0]->PoseSearchMode == EPoseSearchMode::PCAKDTree && IndexBaseDatabases[0]->KDTreeQueryNumNeighbors <= 1)
 				{
 					SearchIndex.ResetValues();
+				}
+
+				const int32 RandomSeed = GetTypeHash(FullIndexKey.Hash);
+				PreprocessSearchIndexVPTree(SearchIndex, IndexBaseDatabases[0].Get(), RandomSeed);
+				if (Owner.IsCanceled())
+				{
+					UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
+					SearchIndex.Reset();
+#if ENABLE_ANIM_DEBUG
+					SearchIndexCompare.Reset();
+#endif //ENABLE_ANIM_DEBUG
+					return;
 				}
 
 				UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Succeeded"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
