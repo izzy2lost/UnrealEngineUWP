@@ -317,6 +317,20 @@ namespace PropertyCustomizationHelpers
 			SNew( SPropertyMenuActorPicker )
 			.InitialActor(InitialActor)
 			.AllowClear(AllowClear)
+			.AllowPickingLevelInstanceContent(false)
+			.ActorFilter(ActorFilter)
+			.OnSet(OnSet)
+			.OnClose(OnClose)
+			.OnUseSelected(OnUseSelected);
+	}
+
+	TSharedRef<SWidget> MakeActorPickerWithMenu(AActor* const InitialActor, const bool AllowClear, const bool AllowPickingLevelInstanceContent, FOnShouldFilterActor ActorFilter, FOnActorSelected OnSet, FSimpleDelegate OnClose, FSimpleDelegate OnUseSelected)
+	{
+		return
+			SNew(SPropertyMenuActorPicker)
+			.InitialActor(InitialActor)
+			.AllowClear(AllowClear)
+			.AllowPickingLevelInstanceContent(AllowPickingLevelInstanceContent)
 			.ActorFilter(ActorFilter)
 			.OnSet(OnSet)
 			.OnClose(OnClose)

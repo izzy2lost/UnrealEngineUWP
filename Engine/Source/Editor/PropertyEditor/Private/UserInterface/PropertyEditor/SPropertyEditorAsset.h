@@ -111,23 +111,21 @@ private:
 		UObject* Object;
 		FSoftObjectPath ObjectPath;
 		FAssetData AssetData;
+		UObject* EditorPathOwner;
 
-		FObjectOrAssetData( UObject* InObject = nullptr )
-			: Object( InObject )
-			, ObjectPath( Object )
-		{
-			AssetData = InObject != nullptr && !InObject->IsA<AActor>() ? FAssetData( InObject ) : FAssetData();
-		}
+		FObjectOrAssetData(UObject* InObject = nullptr, UObject* EditorPathOwner = nullptr);
 
 		FObjectOrAssetData( const FSoftObjectPath& InObjectPath )
 			: Object(nullptr)
 			, ObjectPath(InObjectPath)
+			, EditorPathOwner(nullptr)
 		{}
 
 		FObjectOrAssetData( const FAssetData& InAssetData )
-			: Object( nullptr )
+			: Object(nullptr)
 			, ObjectPath( InAssetData.ToSoftObjectPath() )
 			, AssetData( InAssetData )
+			, EditorPathOwner(nullptr)
 		{}
 
 		bool IsValid() const
@@ -405,6 +403,12 @@ private:
 
 	/** Whether the classes in the AllowedClassFilters list are exact or whether valid classes can be derived. */
 	bool bExactClass;
+
+	/** Wheter the property is a soft reference */
+	bool bIsSoftObjectPath;
+
+	/** Editor Path context if any */
+	UObject* EditorPathOwner;
 
 	/** The number of additional buttons this picker has. */
 	int32 NumButtons;

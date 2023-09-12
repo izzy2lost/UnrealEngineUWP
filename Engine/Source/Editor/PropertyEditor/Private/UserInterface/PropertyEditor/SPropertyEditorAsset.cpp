@@ -37,6 +37,7 @@
 #include "DetailWidgetRow.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "PropertyEditorConstants.h"
+#include "Misc/EditorPathHelper.h"
 
 #define LOCTEXT_NAMESPACE "PropertyEditor"
 
@@ -81,6 +82,66 @@ static bool GetTagOrBoolMetadata(const FProperty* Property, FName TagName, bool 
 	}
 
 	return bResult;
+}
+
+static bool GetEditorPathOwnerFromPropertyHandle(const TSharedPtr<IPropertyHandle>& PropertyHandle, UObject*& OutEditorPathOwner)
+{
+	// If we don't get a proper Handle then consider the context null and valid
+	OutEditorPathOwner = nullptr;
+
+	if(PropertyHandle.IsValid())
+	{ 
+		TArray<UObject*> OuterObjects;
+		PropertyHandle->GetOuterObjects(OuterObjects);
+
+		if (OuterObjects.Num() > 0)
+		{
+			UObject* OutReferencer = OuterObjects[0];
+			OutEditorPathOwner = FEditorPathHelper::GetEditorPathOwner(OutReferencer);
+			for (int32 i = 1; i < OuterObjects.Num(); ++i)
+			{
+				if (OutEditorPathOwner != FEditorPathHelper::GetEditorPathOwner(OuterObjects[i]))
+				{
+					OutEditorPathOwner = nullptr;
+					return false;
+				}
+			}
+		}
+	}
+
+	return true;
+}
+
+static FString GetActorEditorPathLabel(const AActor* InActor)
+{
+	check(InActor);
+	
+	TArray<FString> EditorPathOwners;
+	EditorPathOwners.Add(InActor->GetActorLabel());
+	const UObject* Context = InActor;
+
+	while (UObject* EditorPathOwner = FEditorPathHelper::GetEditorPathOwner(Context))
+	{
+		if (AActor* ActorEditorPathOwner = Cast<AActor>(EditorPathOwner))
+		{
+			EditorPathOwners.Add(ActorEditorPathOwner->GetActorLabel());
+		}
+		else
+		{
+			EditorPathOwners.Add(EditorPathOwner->GetName());
+		}
+		Context = EditorPathOwner;
+	}
+
+	TStringBuilder<256> LabelBuilder;
+	LabelBuilder.Append(EditorPathOwners[EditorPathOwners.Num()-1]);
+	for (int32 i = EditorPathOwners.Num() - 2; i >= 0; --i)
+	{
+		LabelBuilder.Append(TEXT("."));
+		LabelBuilder.Append(EditorPathOwners[i]);
+	}
+
+	return LabelBuilder.ToString();
 }
 
 bool SPropertyEditorAsset::ShouldDisplayThumbnail(const FArguments& InArgs, const UClass* InObjectClass) const
@@ -281,7 +342,8 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 	ObjectClass = InArgs._Class != nullptr ? InArgs._Class : GetObjectPropertyClass(Property);
 	bAllowClear = InArgs._AllowClear.IsSet() ? InArgs._AllowClear.GetValue() : (Property ? !(Property->PropertyFlags & CPF_NoClear) : true);
 	bAllowCreate = InArgs._AllowCreate.IsSet() ? InArgs._AllowCreate.GetValue() : (Property ? !Property->HasMetaData("NoCreate") : true);
-
+	bIsSoftObjectPath = CastField<FSoftObjectProperty>(Property) != nullptr;
+	
 	InitializeAssetDataTags(Property);
 	if (DisallowedAssetDataTags.IsValid() || RequiredAssetDataTags.IsValid())
 	{
@@ -337,6 +399,16 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 
 	TAttribute<bool> IsEnabledAttribute(this, &SPropertyEditorAsset::CanEdit);
 	TAttribute<FText> TooltipAttribute(this, &SPropertyEditorAsset::OnGetToolTip);
+
+	EditorPathOwner = nullptr;
+	if (bIsActor && bIsSoftObjectPath && FEditorPathHelper::IsEnabled())
+	{
+		if (!GetEditorPathOwnerFromPropertyHandle(GetMostSpecificPropertyHandle(), EditorPathOwner))
+		{
+			IsEnabledAttribute.Set(false);
+			TooltipAttribute.Set(LOCTEXT("InvalidActorEditorPathOwner", "Editing this value with different referencing context is not allowed"));
+		}
+	}
 
 	if (Property)
 	{
@@ -730,6 +802,7 @@ TSharedRef<SWidget> SPropertyEditorAsset::OnGetMenuContent()
 	{
 		return PropertyCustomizationHelpers::MakeActorPickerWithMenu(Cast<AActor>(Value.Object),
 																	 bAllowClear,
+																	 bIsSoftObjectPath && FEditorPathHelper::IsEnabled(),
 																	 FOnShouldFilterActor::CreateSP( this, &SPropertyEditorAsset::IsFilteredActor ),
 																	 FOnActorSelected::CreateSP( this, &SPropertyEditorAsset::OnActorSelected),
 																	 FSimpleDelegate::CreateSP( this, &SPropertyEditorAsset::CloseComboButton ),
@@ -761,6 +834,13 @@ void SPropertyEditorAsset::OnMenuOpenChanged(bool bOpen)
 bool SPropertyEditorAsset::IsFilteredActor( const AActor* const Actor ) const
 {
 	bool IsAllowed = Actor != nullptr && Actor->IsA(ObjectClass) && !Actor->IsChildActor() && IsClassAllowed(Actor->GetClass());
+
+	if (IsAllowed)
+	{
+		// If we have an EditorPathOwner referenced actor needs to be in same EditorPathOwner
+		IsAllowed = !EditorPathOwner || FEditorPathHelper::IsInEditorPath(EditorPathOwner, Actor);
+	}
+
 	if (IsAllowed && OnShouldFilterActor.IsBound())
 	{
 		IsAllowed = OnShouldFilterActor.Execute(Actor);
@@ -797,7 +877,7 @@ FText SPropertyEditorAsset::OnGetAssetName() const
 
 				if (Actor)
 				{
-					Name = FText::AsCultureInvariant(Actor->GetActorLabel());
+					Name = FText::AsCultureInvariant(GetActorEditorPathLabel(Actor));
 				}
 				else
 				{
@@ -987,7 +1067,7 @@ FPropertyAccess::Result SPropertyEditorAsset::GetValue( FObjectOrAssetData& OutV
 		}
 #endif
 
-		OutValue = FObjectOrAssetData( Object );
+		OutValue = FObjectOrAssetData( Object, EditorPathOwner );
 	}
 	else
 	{
@@ -1094,8 +1174,33 @@ void SPropertyEditorAsset::OnAssetSelected( const struct FAssetData& AssetData )
 	SetValue(AssetData);
 }
 
+SPropertyEditorAsset::FObjectOrAssetData::FObjectOrAssetData(UObject* InObject, UObject* InEditorPathOwner)
+	: Object(InObject)
+{
+	if (AActor* Actor = Cast<AActor>(InObject))
+	{
+		ObjectPath = FEditorPathHelper::GetEditorPathFromEditorPathOwner(Actor, InEditorPathOwner);
+	}
+	else if(InObject != nullptr)
+	{
+		AssetData = FAssetData(InObject);
+		ObjectPath = InObject;
+	}
+}
+
 void SPropertyEditorAsset::OnActorSelected( AActor* InActor )
 {
+	if (FEditorPathHelper::IsEnabled() && bIsSoftObjectPath)
+	{
+		// Even if SetValue ends up calling FSoftObjectProperty::ImportText_Internal the FAssetData validation needs to validate the reference domain which is /Temp when referencing Level Instance objects. So we convert the FAssetData to the EditorPath version to pass validation.
+		FSoftObjectPath EditorPath = FEditorPathHelper::GetEditorPathFromEditorPathOwner(InActor, EditorPathOwner);
+		if (FSoftObjectPath(InActor) != EditorPath)
+		{
+			FAssetData EditorAssetData(EditorPath.GetLongPackageName(), EditorPath.ToString(), FTopLevelAssetPath(InActor->GetClass()->GetPathName()));
+			SetValue(EditorAssetData);
+			return;
+		}
+	}
 	SetValue(InActor);
 }
 
