@@ -16,6 +16,7 @@
 #include "MovieSceneTimeHelpers.h"
 #include "ObjectTools.h"
 #include "Recorder/TakeRecorderBlueprintLibrary.h"
+#include "Recorder/TakeRecorderSubsystem.h"
 #include "TakeMetaData.h"
 #include "TakePreset.h"
 #include "TakeRecorderOverlayWidget.h"
@@ -453,6 +454,10 @@ bool UTakeRecorder::Initialize ( ULevelSequence* LevelSequenceBase, UTakeRecorde
 	OnRecordingPreInitializeEvent.Broadcast(this);
 
 	UTakeRecorderBlueprintLibrary::OnTakeRecorderPreInitialize();
+	if (UTakeRecorderSubsystem* TakeRecorderSubsystem = GEngine->GetEngineSubsystem<UTakeRecorderSubsystem>())
+	{
+		TakeRecorderSubsystem->TakeRecorderPreInitialize.Broadcast();
+	}
 
 	FTakeRecorderParameters FinalParameters = TakeInitHelper::AccumulateParamsOverride(InParameters);
 	if (FinalParameters.TakeRecorderMode == ETakeRecorderMode::RecordNewSequence)
@@ -969,6 +974,10 @@ void UTakeRecorder::Start()
 	OnRecordingStartedEvent.Broadcast(this);
 
 	UTakeRecorderBlueprintLibrary::OnTakeRecorderStarted();
+	if (UTakeRecorderSubsystem* TakeRecorderSubsystem = GEngine->GetEngineSubsystem<UTakeRecorderSubsystem>())
+	{
+		TakeRecorderSubsystem->TakeRecorderStarted.Broadcast();
+	}
 }
 
 void UTakeRecorder::Stop()
@@ -1046,7 +1055,12 @@ void UTakeRecorder::StopInternal(const bool bCancelled)
 		}
 
 		OnRecordingStoppedEvent.Broadcast(this);
+
 		UTakeRecorderBlueprintLibrary::OnTakeRecorderStopped();
+		if (UTakeRecorderSubsystem* TakeRecorderSubsystem = GEngine->GetEngineSubsystem<UTakeRecorderSubsystem>())
+		{
+			TakeRecorderSubsystem->TakeRecorderStopped.Broadcast();
+		}
 
 		if (MovieScene)
 		{
@@ -1146,11 +1160,19 @@ void UTakeRecorder::StopInternal(const bool bCancelled)
 		{
 			OnRecordingFinishedEvent.Broadcast(this);
 			UTakeRecorderBlueprintLibrary::OnTakeRecorderFinished(SequenceAsset);
+			if (UTakeRecorderSubsystem* TakeRecorderSubsystem = GEngine->GetEngineSubsystem<UTakeRecorderSubsystem>())
+			{
+				TakeRecorderSubsystem->TakeRecorderFinished.Broadcast(SequenceAsset);
+			}
 		}
 		else
 		{
 			OnRecordingCancelledEvent.Broadcast(this);
 			UTakeRecorderBlueprintLibrary::OnTakeRecorderCancelled();
+			if (UTakeRecorderSubsystem* TakeRecorderSubsystem = GEngine->GetEngineSubsystem<UTakeRecorderSubsystem>())
+			{
+				TakeRecorderSubsystem->TakeRecorderCancelled.Broadcast();
+			}
 		}
 	}
 

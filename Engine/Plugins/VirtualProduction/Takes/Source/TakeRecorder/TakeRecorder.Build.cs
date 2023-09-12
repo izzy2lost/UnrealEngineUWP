@@ -40,6 +40,7 @@ public class TakeRecorder : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(
 			new string[] {
+				"EditorSubsystem",
 				"UMG",
                 "TakeTrackRecorders",
                 "SerializedRecorderInterface",
