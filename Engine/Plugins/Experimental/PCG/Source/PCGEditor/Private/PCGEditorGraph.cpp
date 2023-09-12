@@ -119,19 +119,19 @@ void UPCGEditorGraph::OnClose()
 void UPCGEditorGraph::CreateLinks(UPCGEditorGraphNodeBase* GraphNode, bool bCreateInbound, bool bCreateOutbound)
 {
 	check(GraphNode);
-	// Build graph node to pcg node map
-	TMap<UPCGNode*, UPCGEditorGraphNodeBase*> GraphNodeToPCGNodeMap;
 
+	// Build pcg node to pcg editor graph node map
+	TMap<UPCGNode*, UPCGEditorGraphNodeBase*> PCGNodeToPCGEditorNodeMap;
 	for (const TObjectPtr<UEdGraphNode>& EdGraphNode : Nodes)
 	{
 		if (UPCGEditorGraphNodeBase* SomeGraphNode = Cast<UPCGEditorGraphNodeBase>(EdGraphNode))
 		{
-			GraphNodeToPCGNodeMap.Add(SomeGraphNode->GetPCGNode(), SomeGraphNode);
+			PCGNodeToPCGEditorNodeMap.Add(SomeGraphNode->GetPCGNode(), SomeGraphNode);
 		}
 	}
 
 	// Forward the call
-	CreateLinks(GraphNode, bCreateInbound, bCreateOutbound, GraphNodeToPCGNodeMap);
+	CreateLinks(GraphNode, bCreateInbound, bCreateOutbound, PCGNodeToPCGEditorNodeMap);
 }
 
 void UPCGEditorGraph::UpdateGridSizeVisualization(UPCGComponent* InPCGComponentBeingInspected)
@@ -146,7 +146,7 @@ void UPCGEditorGraph::UpdateGridSizeVisualization(UPCGComponent* InPCGComponentB
 	}
 }
 
-void UPCGEditorGraph::CreateLinks(UPCGEditorGraphNodeBase* GraphNode, bool bCreateInbound, bool bCreateOutbound, const TMap<UPCGNode*, UPCGEditorGraphNodeBase*>& GraphNodeToPCGNodeMap)
+void UPCGEditorGraph::CreateLinks(UPCGEditorGraphNodeBase* GraphNode, bool bCreateInbound, bool bCreateOutbound, const TMap<UPCGNode*, UPCGEditorGraphNodeBase*>& InPCGNodeToPCGEditorNodeMap)
 {
 	check(GraphNode);
 	const UPCGNode* PCGNode = GraphNode->GetPCGNode();
@@ -154,15 +154,15 @@ void UPCGEditorGraph::CreateLinks(UPCGEditorGraphNodeBase* GraphNode, bool bCrea
 
 	if (bCreateInbound)
 	{
-		for (const UPCGPin* InputPin : PCGNode->GetInputPins())
+		for (UPCGPin* InputPin : PCGNode->GetInputPins())
 		{
 			UEdGraphPin* InPin = GraphNode->FindPin(InputPin->Properties.Label, EEdGraphPinDirection::EGPD_Input);
-
 			if (!InPin)
 			{
 				if (!Cast<UPCGEditorGraphNodeInput>(GraphNode))
 				{
 					UE_LOG(LogPCGEditor, Error, TEXT("Invalid InputPin for %s"), *InputPin->Properties.Label.ToString());
+					ensure(false);
 				}
 
 				continue;
@@ -170,24 +170,24 @@ void UPCGEditorGraph::CreateLinks(UPCGEditorGraphNodeBase* GraphNode, bool bCrea
 
 			for (const UPCGEdge* InboundEdge : InputPin->Edges)
 			{
-				if (!InboundEdge->IsValid())
+				if (!InboundEdge || !InboundEdge->IsValid())
 				{
 					UE_LOG(LogPCGEditor, Error, TEXT("Invalid inbound edge for %s"), *InputPin->Properties.Label.ToString());
+					ensure(false);
 					continue;
 				}
 
-				const UPCGNode* InboundNode = InboundEdge->InputPin->Node;
-				if (UPCGEditorGraphNodeBase* const* ConnectedGraphNode = GraphNodeToPCGNodeMap.Find(InboundNode))
+				const UPCGNode* InboundNode = InboundEdge->InputPin ? InboundEdge->InputPin->Node : nullptr;
+				UPCGEditorGraphNodeBase* const* ConnectedGraphNode = InboundNode ? InPCGNodeToPCGEditorNodeMap.Find(InboundNode) : nullptr;
+				UEdGraphPin* OutPin = ConnectedGraphNode ? (*ConnectedGraphNode)->FindPin(InboundEdge->InputPin->Properties.Label, EEdGraphPinDirection::EGPD_Output) : nullptr;
+				if (OutPin)
 				{
-					if (UEdGraphPin* OutPin = (*ConnectedGraphNode)->FindPin(InboundEdge->InputPin->Properties.Label, EEdGraphPinDirection::EGPD_Output))
-					{
-						OutPin->MakeLinkTo(InPin);
-					}
-					else
-					{
-						UE_LOG(LogPCGEditor, Error, TEXT("Could not create link to InputPin %s from Node %s"), *InputPin->Properties.Label.ToString(), *InboundNode->GetFName().ToString());
-						continue;
-					}
+					OutPin->MakeLinkTo(InPin);
+				}
+				else
+				{
+					UE_LOG(LogPCGEditor, Error, TEXT("Could not create link to InputPin %s from Node %s"), *InputPin->Properties.Label.ToString(), *InboundNode->GetFName().ToString());
+					ensure(false);
 				}
 			}
 		}
@@ -195,10 +195,9 @@ void UPCGEditorGraph::CreateLinks(UPCGEditorGraphNodeBase* GraphNode, bool bCrea
 
 	if (bCreateOutbound)
 	{
-		for (const UPCGPin* OutputPin : PCGNode->GetOutputPins())
+		for (UPCGPin* OutputPin : PCGNode->GetOutputPins())
 		{
 			UEdGraphPin* OutPin = GraphNode->FindPin(OutputPin->Properties.Label, EEdGraphPinDirection::EGPD_Output);
-
 			if (!OutPin)
 			{
 				if (!Cast<UPCGEditorGraphNodeOutput>(GraphNode))
@@ -211,24 +210,24 @@ void UPCGEditorGraph::CreateLinks(UPCGEditorGraphNodeBase* GraphNode, bool bCrea
 
 			for (const UPCGEdge* OutboundEdge : OutputPin->Edges)
 			{
-				if (!OutboundEdge->IsValid())
+				if (!OutboundEdge || !OutboundEdge->IsValid())
 				{
 					UE_LOG(LogPCGEditor, Error, TEXT("Invalid outbound edge for %s"), *OutputPin->Properties.Label.ToString());
+					ensure(false);
 					continue;
 				}
 
-				const UPCGNode* OutboundNode = OutboundEdge->OutputPin->Node;
-				if (UPCGEditorGraphNodeBase* const* ConnectedGraphNode = GraphNodeToPCGNodeMap.Find(OutboundNode))
+				const UPCGNode* OutboundNode = OutboundEdge->OutputPin ? OutboundEdge->OutputPin->Node : nullptr;
+				UPCGEditorGraphNodeBase* const* ConnectedGraphNode = OutboundNode ? InPCGNodeToPCGEditorNodeMap.Find(OutboundNode) : nullptr;
+				UEdGraphPin* InPin = ConnectedGraphNode ? (*ConnectedGraphNode)->FindPin(OutboundEdge->OutputPin->Properties.Label, EEdGraphPinDirection::EGPD_Input) : nullptr;
+				if (InPin)
 				{
-					if (UEdGraphPin* InPin = (*ConnectedGraphNode)->FindPin(OutboundEdge->OutputPin->Properties.Label, EEdGraphPinDirection::EGPD_Input))
-					{
-						OutPin->MakeLinkTo(InPin);
-					}
-					else
-					{
-						UE_LOG(LogPCGEditor, Error, TEXT("Could not create link from OutputPin %s to Node %s"), *OutputPin->Properties.Label.ToString(), *OutboundNode->GetFName().ToString());
-						continue;
-					}
+					OutPin->MakeLinkTo(InPin);
+				}
+				else
+				{
+					UE_LOG(LogPCGEditor, Error, TEXT("Could not create link from OutputPin %s to Node %s"), *OutputPin->Properties.Label.ToString(), *OutboundNode->GetFName().ToString());
+					ensure(false);
 				}
 			}
 		}

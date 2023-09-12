@@ -26,6 +26,14 @@
 
 #define LOCTEXT_NAMESPACE "PCGGraph"
 
+namespace PCGGraph
+{
+	static TAutoConsoleVariable<bool> CVarFixInvalidEdgesOnPostLoad(
+		TEXT("pcg.Graph.FixInvalidEdgesOnPostLoad"),
+		true,
+		TEXT("Validates all edges are connected to valid pins/nodes and removes any invalid edges"));
+}
+
 namespace PCGGraphUtils
 {
 	/** Returns true if the two descriptors are valid and compatible */
@@ -315,6 +323,11 @@ void UPCGGraph::PostLoad()
 		{
 			OnNodeAdded(Nodes[i]);
 		}
+	}
+
+	if (PCGGraph::CVarFixInvalidEdgesOnPostLoad.GetValueOnAnyThread())
+	{
+		FixInvalidEdges();
 	}
 #endif
 }
@@ -1040,6 +1053,49 @@ void UPCGGraph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEve
 	}
 
 	NumberOfUserParametersPreEdit = 0;
+}
+
+void UPCGGraph::FixInvalidEdges()
+{
+	auto ValidatePins = [this](const TArray<TObjectPtr<UPCGPin>>& Pins, bool bPinsAreInputs)
+	{
+		for (UPCGPin* Pin : Pins)
+		{
+			if (!Pin)
+			{
+				continue;
+			}
+
+			for (int32 i = Pin->Edges.Num() - 1; i >= 0; --i)
+			{
+				UPCGPin* OtherPin = Pin->Edges[i] ? (bPinsAreInputs ? Pin->Edges[i]->InputPin : Pin->Edges[i]->OutputPin) : nullptr;
+
+				// Remove trivially invalid edges.
+				if (!OtherPin || !OtherPin->Node)
+				{
+					UE_LOG(LogPCG, Error, TEXT("Removed edge to a missing pin or pin that has no node."));
+					ensure(false);
+					Pin->Edges.RemoveAt(i);
+					continue;
+				}
+
+				// Remove edges to nodes that are not present in the graph.
+				UPCGNode* ConnectedNode = OtherPin->Node;
+				if (!ConnectedNode || (GetInputNode() != ConnectedNode && GetOutputNode() != ConnectedNode && !Nodes.Contains(ConnectedNode)))
+				{
+					UE_LOG(LogPCG, Error, TEXT("Removed edge to a node '%s' that is not registered in the graph."), ConnectedNode ? *ConnectedNode->GetFName().ToString() : TEXT("NULL"));
+					ensure(false);
+					Pin->Edges.RemoveAt(i);
+				}
+			}
+		}
+	};
+
+	ForEachNode([&ValidatePins](UPCGNode* InNode)
+	{
+		ValidatePins(InNode->GetInputPins(), /*bPinsAreInputs=*/true);
+		ValidatePins(InNode->GetOutputPins(), /*bPinsAreInputs=*/false);
+	});
 }
 
 bool UPCGGraph::UserParametersCanRemoveProperty(FGuid InPropertyID, FName InPropertyName)

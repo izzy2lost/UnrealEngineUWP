@@ -384,6 +384,9 @@ private:
 
 	void NotifyGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName);
 
+	/** Remove invalid edges and edges to nodes that are not present in the node array. */
+	void FixInvalidEdges();
+
 	int32 GraphChangeNotificationsDisableCounter = 0;
 	bool bDelayedChangeNotification = false;
 	EPCGChangeType DelayedChangeType = EPCGChangeType::None;
