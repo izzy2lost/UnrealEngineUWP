@@ -7,6 +7,7 @@
 #include "NiagaraSystem.h"
 #include "PrimitiveViewRelevance.h"
 #include "SceneView.h"
+#include "Rendering/RenderCommandPipes.h"
 
 DECLARE_RENDER_COMMAND_PIPE(NiagaraDynamicData, );
 
@@ -310,8 +311,8 @@ void FNiagaraSystemRenderData::RecacheRenderers(const FNiagaraSystemInstance& Sy
 
 	// NOTE: Since this object and its render thread resources may be concurrently accessed on the render thread, we have to create the renderers and pass them off to
 	// replace the current ones on the render thread's time line
-	ENQUEUE_RENDER_COMMAND(NiagaraRecacheRenderers)(
-		[this, EmitterRenderers_Copy=EmitterRenderers_GT, TaskEvent = MoveTemp(TaskEvent)](FRHICommandListImmediate& RHICmdList) mutable
+	ENQUEUE_RENDER_COMMAND(NiagaraRecacheRenderers)(UE::RenderCommandPipe::Scene,
+		[this, EmitterRenderers_Copy=EmitterRenderers_GT, TaskEvent = MoveTemp(TaskEvent)](FRHICommandListBase& RHICmdList) mutable
 		{
 			TaskEvent.Wait();
 

@@ -1336,6 +1336,9 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 #endif
 
 	UpdateVisibleInLumenScene();
+
+	// Force OnTransformChanged and {Create, Destroy}RenderThreadResources onto the render thread.
+	bConstrainToRenderThread = true;
 }
 
 void FLandscapeComponentSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
@@ -4230,6 +4233,9 @@ FLandscapeMeshProxySceneProxy::FLandscapeMeshProxySceneProxy(UStaticMeshComponen
 	{
 		ProxySectionsInfos.Emplace(MakeUnique<FLandscapeProxySectionInfo>(InComponent->GetWorld(), InLandscapeGuid, SectionBase, InProxyLOD, InLODGroupKey));
 	}
+
+	// Force OnTransformChanged and {Create, Destroy}RenderThreadResources onto the render thread.
+	bConstrainToRenderThread = true;
 }
 
 void FLandscapeMeshProxySceneProxy::RegisterSections()

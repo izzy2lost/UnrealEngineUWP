@@ -520,7 +520,6 @@ void FStaticMeshSceneProxy::AddSpeedTreeWind()
 
 void FStaticMeshSceneProxy::RemoveSpeedTreeWind()
 {
-	check(IsInRenderingThread());
 	if (StaticMesh && RenderData && StaticMesh->SpeedTreeWind.IsValid())
 	{
 		for (int32 LODIndex = 0; LODIndex < RenderData->LODVertexFactories.Num(); ++LODIndex)

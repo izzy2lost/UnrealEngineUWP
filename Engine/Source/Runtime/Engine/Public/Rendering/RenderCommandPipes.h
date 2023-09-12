@@ -5,3 +5,4 @@
 #include "RenderingThread.h"
 
 DECLARE_RENDER_COMMAND_PIPE(SkeletalMesh, ENGINE_API);
+DECLARE_RENDER_COMMAND_PIPE(Scene, ENGINE_API);

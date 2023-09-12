@@ -433,6 +433,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 ,	bForceHidden(false)
 ,	bCollisionEnabled(InProxyDesc.IsCollisionEnabled())
 ,	bTreatAsBackgroundForOcclusion(InProxyDesc.bTreatAsBackgroundForOcclusion)
+,	bConstrainToRenderThread(false)
 ,	bVisibleInLumenScene(false)
 ,	bCanSkipRedundantTransformUpdates(true)
 ,	bGoodCandidateForCachedShadowmap(true)

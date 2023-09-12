@@ -15,6 +15,7 @@
 #include "RHIContext.h"
 #include "RenderingThread.h"
 #include "SceneInterface.h"
+#include "Rendering/RenderCommandPipes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PhysicsFieldComponent)
 
@@ -527,7 +528,7 @@ void FPhysicsFieldResource::UpdateBounds(const TArray<FVector>& TargetsMin, cons
 	}
 }
 
-void FPhysicsFieldResource::UpdateResource(FRHICommandListImmediate& RHICmdList, 
+void FPhysicsFieldResource::UpdateResource(FRHICommandList& RHICmdList, 
 	const TStaticArray<int32, EFieldPhysicsType::Field_PhysicsType_Max + 1>& TargetsOffsetsDatas, const TArray<int32>& NodesOffsetsDatas, const TArray<float>& NodesParamsDatas,
 	const TArray<FVector>& TargetsMinDatas, const TArray<FVector>& TargetsMaxDatas, const float TimeSeconds,
 	const TArray<FVector4>& BoundsMinDatas, const TArray<FVector4>& BoundsMaxDatas, const TStaticArray<int32, EFieldPhysicsType::Field_PhysicsType_Max + 1>& BoundsOffsetsDatas)
@@ -650,7 +651,7 @@ void FPhysicsFieldInstance::InitInstance( const TArray<EFieldPhysicsType>& Targe
 		FieldResource = new FPhysicsFieldResource(TargetCount, TargetTypes, VectorTargets, ScalarTargets, IntegerTargets, PhysicsTargets, PhysicsBounds, bBuildClipmap);
 
 		FPhysicsFieldResource* LocalFieldResource = FieldResource;
-		ENQUEUE_RENDER_COMMAND(FInitPhysicsFieldResourceCommand)(
+		ENQUEUE_RENDER_COMMAND(FInitPhysicsFieldResourceCommand)(UE::RenderCommandPipe::Scene,
 			[LocalFieldResource](FRHICommandList& RHICmdList)
 			{
 				LocalFieldResource->InitResource(RHICmdList);
@@ -663,12 +664,12 @@ void FPhysicsFieldInstance::ReleaseInstance()
 	if (FieldResource)
 	{
 		FPhysicsFieldResource* LocalFieldResource = FieldResource;
-		ENQUEUE_RENDER_COMMAND(FDestroyPhysicsFieldResourceCommand)(
-			[LocalFieldResource](FRHICommandList& RHICmdList)
-			{
-				LocalFieldResource->ReleaseResource();
-				delete LocalFieldResource;
-			});
+		ENQUEUE_RENDER_COMMAND(FDestroyPhysicsFieldResourceCommand)(UE::RenderCommandPipe::Scene,
+			[LocalFieldResource]
+		{
+			LocalFieldResource->ReleaseResource();
+			delete LocalFieldResource;
+		});
 		FieldResource = nullptr;
 	}
 
@@ -793,12 +794,12 @@ void FPhysicsFieldInstance::UpdateInstance(const float TimeSeconds, const bool b
 			const float LocalTimeSeconds = TimeSeconds;
 
 			FPhysicsFieldResource* LocalFieldResource = FieldResource;
-			ENQUEUE_RENDER_COMMAND(FUpdateFieldInstanceCommand)(
-				[LocalFieldResource, LocalNodesParams, LocalNodesOffsets, LocalTargetsOffsets, LocalTargetsMin, LocalTargetsMax, LocalTimeSeconds, LocalBoundsOffsets, LocalBoundsMin, LocalBoundsMax](FRHICommandListImmediate& RHICmdList)
-				{
-					LocalFieldResource->UpdateResource(RHICmdList, 
-						LocalTargetsOffsets, LocalNodesOffsets, LocalNodesParams, LocalTargetsMin, LocalTargetsMax, LocalTimeSeconds, LocalBoundsMin, LocalBoundsMax, LocalBoundsOffsets);
-				});
+			ENQUEUE_RENDER_COMMAND(FUpdateFieldInstanceCommand)(UE::RenderCommandPipe::Scene,
+				[LocalFieldResource, LocalNodesParams, LocalNodesOffsets, LocalTargetsOffsets, LocalTargetsMin, LocalTargetsMax, LocalTimeSeconds, LocalBoundsOffsets, LocalBoundsMin, LocalBoundsMax](FRHICommandList& RHICmdList)
+			{
+				LocalFieldResource->UpdateResource(RHICmdList, 
+				LocalTargetsOffsets, LocalNodesOffsets, LocalNodesParams, LocalTargetsMin, LocalTargetsMax, LocalTimeSeconds, LocalBoundsMin, LocalBoundsMax, LocalBoundsOffsets);
+			});
 		}
 	}
 }
@@ -840,11 +841,11 @@ void UPhysicsFieldComponent::DestroyRenderState_Concurrent()
 		GetWorld()->Scene->ResetPhysicsField();
 
 		FPhysicsFieldSceneProxy* SceneProxy = FieldProxy;
-		ENQUEUE_RENDER_COMMAND(FDestroySkyLightCommand)(
+		ENQUEUE_RENDER_COMMAND(FDestroySkyLightCommand)(UE::RenderCommandPipe::Scene,
 			[SceneProxy](FRHICommandList& RHICmdList)
-			{
-				delete SceneProxy;
-			});
+		{
+			delete SceneProxy;
+		});
 
 		FieldProxy = nullptr;
 	}
@@ -949,7 +950,7 @@ void UPhysicsFieldComponent::OnUnregister()
 			LocalInstance->ReleaseInstance();
 
 			FPhysicsFieldInstance* LocalFieldInstance = LocalInstance;
-			ENQUEUE_RENDER_COMMAND(FDestroyPhysicsFieldInstanceCommand)(
+			ENQUEUE_RENDER_COMMAND(FDestroyPhysicsFieldInstanceCommand)(UE::RenderCommandPipe::Scene,
 				[LocalFieldInstance](FRHICommandList& RHICmdList)
 				{
 					delete LocalFieldInstance;

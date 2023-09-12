@@ -285,7 +285,7 @@ void FGeometryCollectionSceneProxy::SetupVertexFactory(FRHICommandListBase& RHIC
 		Data.BonePrevTransformSRV = GNullColorVertexBuffer.VertexBufferSRV;
 	}
 
-	GeometryCollectionVertexFactory.SetData(Data);
+	GeometryCollectionVertexFactory.SetData(RHICmdList, Data);
 
 	if (!GeometryCollectionVertexFactory.IsInitialized())
 	{

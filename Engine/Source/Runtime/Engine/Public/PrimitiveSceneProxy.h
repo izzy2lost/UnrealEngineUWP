@@ -683,6 +683,7 @@ public:
 	inline bool IsVisibleInLumenScene() const { return bVisibleInLumenScene; }
 	inline bool ShouldRenderInMainPass() const { return bRenderInMainPass; }
 	inline bool ShouldRenderInDepthPass() const { return bRenderInMainPass || bRenderInDepthPass; }
+	inline bool ShouldConstrainToRenderThread() const { return bConstrainToRenderThread; }
 	inline bool IsCollisionEnabled() const { return bCollisionEnabled; }
 	inline bool IsHovered() const { return bHovered; }
 	inline bool IsOwnedBy(const AActor* Actor) const { return Owners.Find(Actor) != INDEX_NONE; }
@@ -1288,6 +1289,9 @@ private:
 	friend class FLightPrimitiveInteraction;
 
 protected:
+
+	/** Whether to force legacy render thread commands for OnTransformChanged / CreateRenderThreadResources / DestroyRenderThreadResources. By default, commands can run asynchronously. */
+	uint8 bConstrainToRenderThread : 1;
 
 	/** Whether this component should be tracked by Lumen Scene. Turning this off will remove it from Lumen Scene and Lumen won't generate surface cache for it. */
 	uint8 bVisibleInLumenScene : 1;

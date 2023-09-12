@@ -435,6 +435,7 @@ private:
 	/**
 	 * Called to update the PerInstanceBounds/PerInstanceTransforms arrays whenever the instance array is modified
 	 */
+	void UpdateBoundsTransforms_RenderThread();
 	void UpdateBoundsTransforms_Concurrent();
 	void UpdateBoundsTransforms();
 	void EnsureInstanceDataUpdated(bool bForceUpdate = false);

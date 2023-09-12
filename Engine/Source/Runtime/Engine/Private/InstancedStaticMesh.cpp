@@ -44,6 +44,7 @@
 #include "Elements/Interfaces/TypedElementWorldInterface.h"
 #include "UObject/UObjectIterator.h"
 #include "GenericPlatform/ICursor.h"
+#include "Rendering/RenderCommandPipes.h"
 
 #include "InstancedStaticMeshSceneProxyDesc.h"
 
@@ -572,8 +573,8 @@ void FStaticMeshInstanceBuffer::UpdateFromCommandBuffer_Concurrent(FInstanceUpda
 	// Any query of number of render instances on game thread should use this instead of InstanceData->GetNumInstances();
 	CmdBuffer.NumEditInstances = NewCmdBuffer->NumAdds + InstanceData->GetNumInstances();
 		
-	ENQUEUE_RENDER_COMMAND(InstanceBuffer_UpdateFromPreallocatedData)(
-		[InstanceBuffer, NewCmdBuffer](FRHICommandListImmediate& RHICmdList)
+	ENQUEUE_RENDER_COMMAND(InstanceBuffer_UpdateFromPreallocatedData)(UE::RenderCommandPipe::Scene,
+		[InstanceBuffer, NewCmdBuffer](FRHICommandListBase& RHICmdList)
 		{
 			InstanceBuffer->UpdateFromCommandBuffer_RenderThread(RHICmdList, *NewCmdBuffer);
 			delete NewCmdBuffer;
@@ -961,8 +962,8 @@ void FInstancedStaticMeshVertexFactory::Copy(const FInstancedStaticMeshVertexFac
 	FInstancedStaticMeshVertexFactory* VertexFactory = this;
 	const FLocalVertexFactory::FDataType* DataCopy = &Other.Data;
 	const FInstancedStaticMeshDataType* InstanceDataCopy = &Other.InstanceData;
-	ENQUEUE_RENDER_COMMAND(FInstancedStaticMeshVertexFactoryCopyData)(
-	[VertexFactory, DataCopy, InstanceDataCopy](FRHICommandListImmediate& RHICmdList)
+	ENQUEUE_RENDER_COMMAND(FInstancedStaticMeshVertexFactoryCopyData)(UE::RenderCommandPipe::Scene,
+	[VertexFactory, DataCopy, InstanceDataCopy]
 	{
 		VertexFactory->Data = *DataCopy;
 		VertexFactory->InstanceData = *InstanceDataCopy;
@@ -1254,12 +1255,6 @@ void FInstancedStaticMeshRenderData::InitVertexFactories()
 	{
 		VertexFactories.Add(new FInstancedStaticMeshVertexFactory(FeatureLevel));
 	}
-
-	ENQUEUE_RENDER_COMMAND(InstancedStaticMeshRenderData_InitVertexFactories)(
-		[this](FRHICommandListBase& RHICmdList)
-		{
-			BindBuffersToVertexFactories(RHICmdList);
-		});
 }
 
 void FInstancedStaticMeshRenderData::RegisterSpeedTreeWind(const FInstancedStaticMeshSceneProxyDesc* InProxyDesc)
@@ -1314,8 +1309,8 @@ void FPerInstanceRenderData::UpdateFromPreallocatedData(FStaticMeshInstanceData&
 
 	FStaticMeshInstanceDataPtr InInstanceBufferDataPtr = InstanceBuffer_GameThread;
 	FStaticMeshInstanceBuffer* InInstanceBuffer = &InstanceBuffer;
-	ENQUEUE_RENDER_COMMAND(FInstanceBuffer_UpdateFromPreallocatedData)(
-		[InInstanceBufferDataPtr, InInstanceBuffer, this](FRHICommandListImmediate& RHICmdList)
+	ENQUEUE_RENDER_COMMAND(FInstanceBuffer_UpdateFromPreallocatedData)(UE::RenderCommandPipe::Scene,
+		[InInstanceBufferDataPtr, InInstanceBuffer, this](FRHICommandListBase& RHICmdList)
 		{
 			// The assignment to InstanceData shared pointer kills the old data
 			// If UpdateBoundsTask is in-flight it will crash
@@ -1325,43 +1320,44 @@ void FPerInstanceRenderData::UpdateFromPreallocatedData(FStaticMeshInstanceData&
 			{
 				InInstanceBuffer->UpdateRHI(RHICmdList);
 			}
-			UpdateBoundsTransforms_Concurrent();
+			UpdateBoundsTransforms_RenderThread();
 		}
 	);
 }
 
 void FPerInstanceRenderData::UpdateBoundsTransforms_Concurrent()
 {
-	// Enqueue a render command to create a task to update the buffer data.
-	// Yes double-wrapping a lambda looks a little silly, but the only safe way to update the render data
-	// is to issue this task from the rendering thread.
-	ENQUEUE_RENDER_COMMAND(FInstanceBuffer_UpdateBoundsTransforms)(
-		[this](FRHICommandListImmediate& RHICmdList)
-		{
-			bBoundsTransformsDirty = true;
-			if (!IsRayTracingEnabled() || !CVarRayTracingRenderInstances.GetValueOnRenderThread())
-			{
-				return;
-			}
+	ENQUEUE_RENDER_COMMAND(FInstanceBuffer_UpdateBoundsTransforms)(UE::RenderCommandPipe::Scene,
+		[this](FRHICommandListBase& RHICmdList)
+	{
+		UpdateBoundsTransforms_RenderThread();
+	});
+}
 
-			FGraphEventArray Prerequisites{};
-			if (UpdateBoundsTask.IsValid())
-			{
-				// There's already a task either in flight or unconsumed, but the instance data has now changed so its result might be incorrect.
-				// This new task should run after the first one completes, so make the old one a prerequisite of the new one.
-				Prerequisites = FGraphEventArray{ UpdateBoundsTask };
-				UE_LOG(LogStaticMesh, Warning, TEXT("Unconsumed ISM bounds/transforms update task, we did more work than necessary"));
-			}
+void FPerInstanceRenderData::UpdateBoundsTransforms_RenderThread()
+{
+	bBoundsTransformsDirty = true;
+	if (!IsRayTracingEnabled() || !CVarRayTracingRenderInstances.GetValueOnRenderThread())
+	{
+		return;
+	}
 
-			UpdateBoundsTask = FFunctionGraphTask::CreateAndDispatchWhenReady(
-			[this]()
-			{
-				UpdateBoundsTransforms();
-			},
-			TStatId(),
-			&Prerequisites
-			);
-		}
+	FGraphEventArray Prerequisites{};
+	if (UpdateBoundsTask.IsValid())
+	{
+		// There's already a task either in flight or unconsumed, but the instance data has now changed so its result might be incorrect.
+		// This new task should run after the first one completes, so make the old one a prerequisite of the new one.
+		Prerequisites = FGraphEventArray{ UpdateBoundsTask };
+		UE_LOG(LogStaticMesh, Warning, TEXT("Unconsumed ISM bounds/transforms update task, we did more work than necessary"));
+	}
+
+	UpdateBoundsTask = FFunctionGraphTask::CreateAndDispatchWhenReady(
+	[this]()
+	{
+		UpdateBoundsTransforms();
+	},
+	TStatId(),
+	&Prerequisites
 	);
 }
 
@@ -1409,12 +1405,12 @@ void FPerInstanceRenderData::UpdateBoundsTransforms()
 
 void FPerInstanceRenderData::EnsureInstanceDataUpdated(bool bForceUpdate)
 {
-	check(IsInRenderingThread());
+	check(IsInParallelRenderingThread());
 
 	// wait for bounds/transforms update to complete
 	if (UpdateBoundsTask.IsValid())
 	{
-		UpdateBoundsTask->Wait(ENamedThreads::GetRenderThread_Local());
+		UpdateBoundsTask->Wait();
 		UpdateBoundsTask.SafeRelease();
 		bBoundsTransformsDirty = false;
 	}
@@ -1453,7 +1449,7 @@ void FPerInstanceRenderData::UpdateFromCommandBuffer(FInstanceUpdateCmdBuffer& C
 {
 	// UpdateFromCommandBuffer reallocates InstanceData in InstanceBuffer
 	// If UpdateBoundsTask is in-flight it will crash
-	ENQUEUE_RENDER_COMMAND(EnsureInstanceDataUpdatedCmd)(
+	ENQUEUE_RENDER_COMMAND(EnsureInstanceDataUpdatedCmd)(UE::RenderCommandPipe::Scene,
 		[this](FRHICommandList&) {
 		EnsureInstanceDataUpdated();
 	});
@@ -1974,6 +1970,8 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(const FInstancedStaticMeshSceneP
 void FInstancedStaticMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 	FStaticMeshSceneProxy::CreateRenderThreadResources(RHICmdList);
+
+	InstancedRenderData.BindBuffersToVertexFactories(RHICmdList);
 
 	const bool bCanUseGPUScene = UseGPUScene(GetScene().GetShaderPlatform(), GetScene().GetFeatureLevel());
 	
@@ -3396,8 +3394,8 @@ void UInstancedStaticMeshComponent::ReleasePerInstanceRenderData()
 		PerInstanceRenderData.Reset();
 
 		FPerInstanceRenderDataPtr* InCleanupRenderDataPtr = CleanupRenderDataPtr;
-		ENQUEUE_RENDER_COMMAND(FReleasePerInstanceRenderData)(
-			[InCleanupRenderDataPtr](FRHICommandList& RHICmdList)
+		ENQUEUE_RENDER_COMMAND(FReleasePerInstanceRenderData)(UE::RenderCommandPipe::Scene,
+			[InCleanupRenderDataPtr]
 			{
 				// Destroy the shared pointer object we allocated on the heap.
 				// Resource will either be released here or by scene proxy on the render thread, whoever gets executed last
