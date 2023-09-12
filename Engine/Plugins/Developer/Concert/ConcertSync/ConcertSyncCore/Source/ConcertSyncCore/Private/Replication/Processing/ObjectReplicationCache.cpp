@@ -2,7 +2,7 @@
 
 #include "Replication/Processing/ObjectReplicationCache.h"
 
-#include "Replication/ReplicationStreamObjectID.h"
+#include "Replication/Data/ObjectIds.h"
 #include "Replication/Formats/IObjectReplicationFormat.h"
 #include "Replication/Messages/ConcertReplicationEvents.h"
 
@@ -16,7 +16,7 @@ namespace UE::ConcertSyncCore
 	{
 		int32 NumAccepted = 0;
 		
-		const FReplicatedObjectInfo ObjectId{ { OriginStreamId, ObjectReplicationEvent.ReplicatedObject }, SendingEndpointId };
+		const FReplicatedObjectId ObjectId{ { OriginStreamId, ObjectReplicationEvent.ReplicatedObject }, SendingEndpointId };
 		FObjectCache* ObjectCacheBeforeAddition = Cache.Find(ObjectId);
 		if (ObjectCacheBeforeAddition)
 		{
@@ -66,7 +66,7 @@ namespace UE::ConcertSyncCore
 					}
 
 					// ObjectCache may not be found because cache user was unregistered and then destroyed: UnregisterDataCacheUser removes cache users.
-					const FStreamedObjectID ObjectId{ OriginStreamId, LazilyCopiedEventPtr->ReplicatedObject };
+					const FObjectInStreamID ObjectId{ OriginStreamId, LazilyCopiedEventPtr->ReplicatedObject };
 					FObjectCache* ObjectCache = This->Cache.Find(ObjectId);
 					if (!ObjectCache)
 					{

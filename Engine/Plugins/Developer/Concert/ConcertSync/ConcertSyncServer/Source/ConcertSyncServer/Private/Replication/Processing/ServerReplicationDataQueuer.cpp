@@ -17,7 +17,7 @@ namespace UE::ConcertSyncServer::Replication
 		return Result;
 	}
 
-	bool FServerReplicationDataQueuer::WantsToAcceptObject(const ConcertSyncCore::FReplicatedObjectInfo& Object) const
+	bool FServerReplicationDataQueuer::WantsToAcceptObject(const FReplicatedObjectId& Object) const
 	{
 		// Do not send back the data to the client that generated it
 		const bool bWasSentByThisClient = OwningClientEndpointId == Object.SenderEndpointId;

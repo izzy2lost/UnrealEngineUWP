@@ -6,7 +6,7 @@
 #include "Replication/Formats/IObjectReplicationFormat.h"
 #include "Replication/IConcertClientReplicationBridge.h"
 #include "Replication/ReplicationPropertyFilter.h"
-#include "Replication/ReplicationStreamObjectID.h"
+#include "Replication/Data/ObjectIds.h"
 
 namespace UE::ConcertSyncClient::Replication
 {
@@ -54,7 +54,7 @@ namespace UE::ConcertSyncClient::Replication
 		}
 	}
 
-	void FClientReplicationDataCollector::ForEachPendingObject(TFunctionRef<void(const ConcertSyncCore::FStreamedObjectID&)> ProcessItemFunc) const
+	void FClientReplicationDataCollector::ForEachPendingObject(TFunctionRef<void(const FObjectInStreamID&)> ProcessItemFunc) const
 	{
 		for (const TPair<FSoftObjectPath, TArray<FObjectInfo>>& Pair : ObjectsToReplicate)
 		{
@@ -69,7 +69,7 @@ namespace UE::ConcertSyncClient::Replication
 	}
 
 	bool FClientReplicationDataCollector::ExtractReplicationDataForObject(
-		const ConcertSyncCore::FStreamedObjectID& ObjectToProcess,
+		const FObjectInStreamID& ObjectToProcess,
 		TFunctionRef<void(const FConcertSessionSerializedPayload& Payload)> ProcessCopyable,
 		TFunctionRef<void(FConcertSessionSerializedPayload&& Payload)> ProcessMoveable
 		)

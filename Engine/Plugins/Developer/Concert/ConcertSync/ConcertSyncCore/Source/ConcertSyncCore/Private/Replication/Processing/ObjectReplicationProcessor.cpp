@@ -14,7 +14,7 @@ namespace UE::ConcertSyncCore
 	void FObjectReplicationProcessor::ProcessObjects(float TimeBudget)
 	{
 		// TODO: Respect time budget and prioritize objects
-		DataSource->ForEachPendingObject([this](const FStreamedObjectID& ObjectInfo)
+		DataSource->ForEachPendingObject([this](const FObjectInStreamID& ObjectInfo)
 		{
 			ProcessObject({ ObjectInfo });
 		});

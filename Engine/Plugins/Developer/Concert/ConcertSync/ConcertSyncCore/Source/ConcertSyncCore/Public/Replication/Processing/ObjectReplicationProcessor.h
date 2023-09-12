@@ -3,7 +3,7 @@
 #pragma once
 
 #include "IReplicationDataSource.h"
-#include "Replication/ReplicationStreamObjectID.h"
+#include "Replication/Data/ObjectIds.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/SoftObjectPath.h"
 
@@ -37,7 +37,7 @@ namespace UE::ConcertSyncCore
 		struct FObjectProcessArgs
 		{
 			/** Info about the object to process */
-			FStreamedObjectID ObjectInfo;
+			FObjectInStreamID ObjectInfo;
 		};
 
 		FORCEINLINE IReplicationDataSource& GetDataSource() const { return DataSource.Get(); }

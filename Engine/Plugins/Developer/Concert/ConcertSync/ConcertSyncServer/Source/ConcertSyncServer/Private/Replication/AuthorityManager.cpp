@@ -4,7 +4,7 @@
 
 #include "ConcertLogGlobal.h"
 #include "IConcertSession.h"
-#include "Replication/ReplicationStreamObjectID.h"
+#include "Replication/Data/ObjectIds.h"
 #include "Replication/Data/ReplicationStreamDescription.h"
 #include "Replication/Messages/ConcertReplicationEvents.h"
 
@@ -39,7 +39,7 @@ namespace UE::ConcertSyncServer::Replication
 		Session->UnregisterCustomRequestHandler<FConcertChangeAuthority_Request>();
 	}
 
-	bool FAuthorityManager::IsObjectChangeAllowed(const ConcertSyncCore::FReplicatedObjectInfo& ObjectChange) const
+	bool FAuthorityManager::IsObjectChangeAllowed(const FReplicatedObjectId& ObjectChange) const
 	{
 		const FClientAuthorityData* AuthorityData = ClientAuthorityData.Find(ObjectChange.SenderEndpointId);
 		const TSet<FSoftObjectPath>* OwnedObjects = AuthorityData ? AuthorityData->OwnedObjects.Find(ObjectChange.StreamId) : nullptr;
@@ -110,7 +110,7 @@ namespace UE::ConcertSyncServer::Replication
 		return EConcertSessionResponseCode::Success;
 	}
 
-	bool FAuthorityManager::CanTakeAuthority(const FClientAuthorityData& ClientData, const FClientId& ClientId, const ConcertSyncCore::FStreamedObjectID& Object) const
+	bool FAuthorityManager::CanTakeAuthority(const FClientAuthorityData& ClientData, const FClientId& ClientId, const FObjectInStreamID& Object) const
 	{
 		/*
 		 * This function is unoptimized: it repeatedly iterates through every client's registered streams and properties.

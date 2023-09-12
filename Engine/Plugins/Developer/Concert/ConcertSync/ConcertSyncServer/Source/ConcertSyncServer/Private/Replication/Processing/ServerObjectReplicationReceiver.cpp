@@ -4,7 +4,7 @@
 
 #include "IConcertSessionHandler.h"
 #include "Replication/AuthorityManager.h"
-#include "Replication/ReplicationStreamObjectID.h"
+#include "Replication/Data/ObjectIds.h"
 #include "Replication/Messages/ConcertReplicationEvents.h"
 
 namespace UE::ConcertSyncServer::Replication
@@ -24,7 +24,7 @@ namespace UE::ConcertSyncServer::Replication
 		const FConcertObjectReplicationEvent& ObjectEvent
 		) const
 	{
-		const ConcertSyncCore::FReplicatedObjectInfo ReplicatedObjectInfo { { StreamEvent.StreamId, ObjectEvent.ReplicatedObject }, SessionContext.SourceEndpointId };
+		const FReplicatedObjectId ReplicatedObjectInfo { { StreamEvent.StreamId, ObjectEvent.ReplicatedObject }, SessionContext.SourceEndpointId };
 		return AuthorityManager->IsObjectChangeAllowed(ReplicatedObjectInfo);
 	}
 }

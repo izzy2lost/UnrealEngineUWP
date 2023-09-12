@@ -182,7 +182,7 @@ namespace UE::ConcertSyncServer::Replication
 			
 			for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& Pair : Description.BaseDescription.ReplicationMap.ReplicatedObjects)
 			{
-				ConcertSyncCore::FReplicatedObjectInfo ObjectInfo;
+				FReplicatedObjectId ObjectInfo;
 				ObjectInfo.SenderEndpointId = Client.GetClientEndpointId();
 				ObjectInfo.Object = Pair.Key;
 				ObjectInfo.StreamId = StreamId;

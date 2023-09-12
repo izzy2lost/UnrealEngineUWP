@@ -1,0 +1,55 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "Misc/Guid.h"
+#include "UObject/SoftObjectPath.h"
+#include "ObjectIds.generated.h"
+
+/** Utility for identifying an object part of a replication stream definition.*/
+USTRUCT()
+struct FObjectInStreamID
+{
+	GENERATED_BODY()
+	
+	/** The replication stream that produces data for this object. */
+	UPROPERTY()
+	FGuid StreamId;
+	/** The object to process */
+	UPROPERTY()
+	FSoftObjectPath Object;
+		
+	friend bool operator==(const FObjectInStreamID& Left, const FObjectInStreamID& Right)
+	{
+		return Left.StreamId == Right.StreamId && Left.Object == Right.Object;
+	}
+
+	friend bool operator!=(const FObjectInStreamID& Left, const FObjectInStreamID& Right)
+	{
+		return !(Left == Right);
+	}
+};
+
+/** Identifies an object that was replicated by a client based on an underlying stream. */
+USTRUCT()
+struct FReplicatedObjectId : public FObjectInStreamID
+{
+	GENERATED_BODY()
+	
+	/** The ID of the endpoint that sent this object. This can be the client or server endpoint depending on who receives it. */
+	FGuid SenderEndpointId;
+		
+	friend bool operator==(const FReplicatedObjectId& Left, const FReplicatedObjectId& Right)
+	{
+		return Left.SenderEndpointId == Right.SenderEndpointId
+			&& static_cast<const FObjectInStreamID&>(Left) == static_cast<const FObjectInStreamID&>(Right);
+	}
+
+	friend bool operator!=(const FReplicatedObjectId& Left, const FReplicatedObjectId& Right)
+	{
+		return !(Left == Right);
+	}
+};
+
+CONCERTSYNCCORE_API uint32 GetTypeHash(const FObjectInStreamID& StreamObject);
+CONCERTSYNCCORE_API uint32 GetTypeHash(const FReplicatedObjectId& StreamObject);

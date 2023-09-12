@@ -4,7 +4,7 @@
 
 #include "Containers/Array.h"
 #include "Delegates/DelegateCombinations.h"
-#include "Replication/ReplicationStreamObjectID.h"
+#include "Replication/Data/ObjectIds.h"
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
 
@@ -25,7 +25,7 @@ namespace UE::ConcertSyncCore
 	public:
 
 		/** @return Whether this user is interested in data from this object. */
-		virtual bool WantsToAcceptObject(const FReplicatedObjectInfo& Object) const = 0;
+		virtual bool WantsToAcceptObject(const FReplicatedObjectId& Object) const = 0;
 
 		/**
 		 * Called when data that is interesting to this user becomes available.
@@ -33,7 +33,7 @@ namespace UE::ConcertSyncCore
 		 * The user can keep hold of Data until it is used, at which point it just let's Data get out of scope.
 		 * If new data is received while this user is referencing Data, Data will be combined to contain any new data.
 		 */
-		virtual void OnDataCached(const FReplicatedObjectInfo& Object, TSharedRef<const FConcertObjectReplicationEvent> Data) = 0;
+		virtual void OnDataCached(const FReplicatedObjectId& Object, TSharedRef<const FConcertObjectReplicationEvent> Data) = 0;
 
 		virtual ~IReplicationCacheUser() = default;
 	};
@@ -92,6 +92,6 @@ namespace UE::ConcertSyncCore
 			TMap<TWeakPtr<IReplicationCacheUser>, TWeakPtr<FConcertObjectReplicationEvent>> DataInUse;
 		};
 		/** Maps every object to the events cached for it. */
-		TMap<FStreamedObjectID, FObjectCache> Cache; 
+		TMap<FObjectInStreamID, FObjectCache> Cache; 
 	};
 }

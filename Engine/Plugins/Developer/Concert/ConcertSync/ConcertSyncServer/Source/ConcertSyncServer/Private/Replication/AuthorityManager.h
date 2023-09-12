@@ -12,13 +12,9 @@ struct FConcertChangeAuthority_Response;
 struct FConcertChangeAuthority_Request;
 struct FConcertPropertySelection;
 struct FConcertSessionContext;
+struct FObjectInStreamID;
+struct FReplicatedObjectId;
 struct FReplicationStreamDescription;
-
-namespace UE::ConcertSyncCore
-{
-	struct FStreamedObjectID;
-	struct FReplicatedObjectInfo;
-}
 
 namespace UE::ConcertSyncServer::Replication
 {
@@ -53,7 +49,7 @@ namespace UE::ConcertSyncServer::Replication
 		 * Checks whether the client that sent the identified object had authority to send it.
 		 * @return Whether the server should process the object change.
 		 */
-		bool IsObjectChangeAllowed(const ConcertSyncCore::FReplicatedObjectInfo& ObjectChange) const;
+		bool IsObjectChangeAllowed(const FReplicatedObjectId& ObjectChange) const;
 
 		/** Notifies this manager that the client has left, which means all their authority is now gone. */
 		void OnClientLeft(const FClientId& ClientEndpointId);
@@ -80,7 +76,7 @@ namespace UE::ConcertSyncServer::Replication
 			);
 
 		/** Whether it is legal for this the client identified by ClientId to take control over the object given the stream the client has registered. */
-		bool CanTakeAuthority(const FClientAuthorityData& ClientData, const FClientId& ClientId, const ConcertSyncCore::FStreamedObjectID& Object) const;
+		bool CanTakeAuthority(const FClientAuthorityData& ClientData, const FClientId& ClientId, const FObjectInStreamID& Object) const;
 
 		/** Finds a stream registered with the client by its ID. */
 		const FReplicationStreamDescription* FindClientStreamById(const FClientId& ClientId, const FStreamId& StreamId) const;
