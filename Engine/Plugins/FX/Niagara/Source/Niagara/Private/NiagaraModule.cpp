@@ -121,6 +121,13 @@ static FAutoConsoleVariableRef CVarDataChannelEnabled(
 
 void INiagaraModule::OnDataChannelsEnabledChanged(IConsoleVariable* Variable)
 {
+	if(IsRunningCookCommandlet())
+	{
+		//Never allow NDCs when cooking.
+		INiagaraModule::bDataChannelsEnabled = false;
+		return;
+	}
+
 	if(DataChannelsEnabled())
 	{
 		ENiagaraTypeRegistryFlags Flags = ENiagaraTypeRegistryFlags::AllowAnyVariable | ENiagaraTypeRegistryFlags::AllowParameter;
@@ -276,6 +283,12 @@ void INiagaraModule::StartupModule()
 
 	LLM_SCOPE(ELLMTag::Niagara);
 	FNiagaraTypeDefinition::Init();
+
+	if (IsRunningCookCommandlet())
+	{
+		//Never allow NDCs when cooking.
+		INiagaraModule::bDataChannelsEnabled = false;
+	}
 
 #if UE_USE_OPENVDB
 	// Global registration of  the vdb types.
