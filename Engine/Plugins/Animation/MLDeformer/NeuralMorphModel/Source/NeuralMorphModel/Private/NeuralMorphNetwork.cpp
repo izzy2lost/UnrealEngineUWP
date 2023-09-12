@@ -299,7 +299,6 @@ namespace UE::NeuralMorphModel::Private
 			Builder.AddELU();
 		}
 
-		MLP->ConditionalBeginDestroy();
 		MLP = nullptr;
 
 		OutBytes.SetNumUninitialized(Builder.GetWriteByteNum());
