@@ -51,6 +51,7 @@ namespace EpicGames.Core
 		public DirectoryReference(string fullName, Sanitize sanitize)
 			: base(fullName)
 		{
+			_ = sanitize;
 		}
 
 		/// <summary>

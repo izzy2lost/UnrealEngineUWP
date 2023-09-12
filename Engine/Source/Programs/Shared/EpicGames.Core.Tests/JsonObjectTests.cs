@@ -22,6 +22,7 @@ namespace EpicGames.Core.Tests
 		[ClassInitialize]
 		public static void Setup(TestContext testContext)
 		{
+			_ = testContext;
 			JsonObjectTests.s_tempDirectory = CreateTempDir();
 		}
 

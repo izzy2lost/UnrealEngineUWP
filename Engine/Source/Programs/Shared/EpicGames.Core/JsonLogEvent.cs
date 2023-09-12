@@ -242,7 +242,11 @@ namespace EpicGames.Core
 		/// <param name="state"></param>
 		/// <param name="ex"></param>
 		/// <returns></returns>
-		public static string Format(JsonLogEvent state, Exception? ex) => LogEvent.Read(state.Data.Span).ToString();
+		public static string Format(JsonLogEvent state, Exception? ex)
+		{
+			_ = ex;
+			return LogEvent.Read(state.Data.Span).ToString();
+		}
 
 		/// <inheritdoc/>
 		public override string ToString() => Encoding.UTF8.GetString(Data.ToArray());

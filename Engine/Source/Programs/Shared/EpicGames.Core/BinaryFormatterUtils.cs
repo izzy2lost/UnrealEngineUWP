@@ -2,6 +2,7 @@
 
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Threading.Tasks;
 
 #pragma warning disable SYSLIB0011
 #pragma warning disable CA2300 // Do not use insecure deserializer BinaryFormatter
