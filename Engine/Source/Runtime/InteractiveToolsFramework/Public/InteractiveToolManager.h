@@ -223,7 +223,7 @@ public:
 	/**
 	 * Forward an FChange object to the Context
 	 */
-	INTERACTIVETOOLSFRAMEWORK_API virtual bool RequestSelectionChange(const FSelectedOjectsChangeList& SelectionChange);
+	INTERACTIVETOOLSFRAMEWORK_API virtual bool RequestSelectionChange(const FSelectedObjectsChangeList& SelectionChange);
 
 	//
 	// State control  (@todo: have the Context call these? not safe for anyone to call)

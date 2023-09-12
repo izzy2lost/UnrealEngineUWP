@@ -449,7 +449,7 @@ void UInteractiveToolManager::EmitObjectChange(UObject* TargetObject, TUniquePtr
 	}
 }
 
-bool UInteractiveToolManager::RequestSelectionChange(const FSelectedOjectsChangeList& SelectionChange)
+bool UInteractiveToolManager::RequestSelectionChange(const FSelectedObjectsChangeList& SelectionChange)
 {
 	return TransactionsAPI->RequestSelectionChange(SelectionChange);
 }

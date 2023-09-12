@@ -24,7 +24,7 @@ using namespace UE::Geometry;
 
 void ToolSelectionUtil::SetNewActorSelection(UInteractiveToolManager* ToolManager, AActor* Actor)
 {
-	FSelectedOjectsChangeList NewSelection;
+	FSelectedObjectsChangeList NewSelection;
 	NewSelection.ModificationType = ESelectedObjectsModificationType::Replace;
 	NewSelection.Actors.Add(Actor);
 	ToolManager->RequestSelectionChange(NewSelection);
@@ -33,7 +33,7 @@ void ToolSelectionUtil::SetNewActorSelection(UInteractiveToolManager* ToolManage
 
 void ToolSelectionUtil::SetNewActorSelection(UInteractiveToolManager* ToolManager, const TArray<AActor*>& Actors)
 {
-	FSelectedOjectsChangeList NewSelection;
+	FSelectedObjectsChangeList NewSelection;
 	NewSelection.ModificationType = ESelectedObjectsModificationType::Replace;
 	for (AActor* Actor : Actors)
 	{

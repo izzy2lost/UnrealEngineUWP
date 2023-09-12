@@ -259,7 +259,7 @@ public:
 	}
 
 
-	virtual bool RequestSelectionChange(const FSelectedOjectsChangeList& SelectionChange) override
+	virtual bool RequestSelectionChange(const FSelectedObjectsChangeList& SelectionChange) override
 	{
 		checkf(SelectionChange.Components.Num() == 0, TEXT("FEdModeToolsContextTransactionImpl::RequestSelectionChange - Component selection not supported yet"));
 

@@ -284,7 +284,7 @@ public:
 		}
 	}
 
-	virtual bool RequestSelectionChange(const FSelectedOjectsChangeList& SelectionChange) override
+	virtual bool RequestSelectionChange(const FSelectedObjectsChangeList& SelectionChange) override
 	{
 		if (UTypedElementSelectionSet* SelectionSet = WeakSelectionSet.Get())
 		{

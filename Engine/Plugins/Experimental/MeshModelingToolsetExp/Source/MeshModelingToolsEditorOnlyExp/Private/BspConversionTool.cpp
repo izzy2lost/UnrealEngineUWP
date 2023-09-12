@@ -672,7 +672,7 @@ void UBspConversionTool::ApplyAction(EBspConversionToolAction ActionType)
 	{
 		FScopedTransaction Transaction(LOCTEXT("SelectAllValidBrushes", "Select All Valid Brushes"));
 
-		FSelectedOjectsChangeList NewSelection;
+		FSelectedObjectsChangeList NewSelection;
 		NewSelection.ModificationType = ESelectedObjectsModificationType::Replace;
 
 		// Accumulate all actors in the current level that are valid brushes
@@ -692,7 +692,7 @@ void UBspConversionTool::ApplyAction(EBspConversionToolAction ActionType)
 	{
 		FScopedTransaction Transaction(LOCTEXT("DeselectVolumes", "Deselect Volumes"));
 
-		FSelectedOjectsChangeList NewSelection;
+		FSelectedObjectsChangeList NewSelection;
 		NewSelection.ModificationType = ESelectedObjectsModificationType::Replace;
 
 		// Out of the current selection, keep anything except volume brushes
@@ -715,7 +715,7 @@ void UBspConversionTool::ApplyAction(EBspConversionToolAction ActionType)
 		// Normally, "GEditor->SelectNone(true, false, false)" would deselect all brushes, but
 		// it does not deselect volumes, which we want to do depending on the settings.
 
-		FSelectedOjectsChangeList NewSelection;
+		FSelectedObjectsChangeList NewSelection;
 		NewSelection.ModificationType = ESelectedObjectsModificationType::Replace;
 
 		// From current selection, select everything that is valid given current settings

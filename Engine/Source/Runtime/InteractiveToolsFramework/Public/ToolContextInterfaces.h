@@ -264,7 +264,7 @@ enum class ESelectedObjectsModificationType
 
 
 /** Represents a change to a set of selected Actors and Components */
-struct FSelectedOjectsChangeList
+struct FSelectedObjectsChangeList
 {
 	/** How should this list be interpreted in the context of a larger selection set */
 	ESelectedObjectsModificationType ModificationType;
@@ -273,6 +273,9 @@ struct FSelectedOjectsChangeList
 	/** List of Componets */
 	TArray<UActorComponent*> Components;
 };
+
+UE_DEPRECATED(5.4, "Use FSelectedObjectsChangeList instead")
+typedef FSelectedObjectsChangeList FSelectedOjectsChangeList;
 
 
 /**
@@ -329,7 +332,7 @@ public:
 	 * @param SelectionChange desired modification to current selection
 	 * @return true if the selection change could be applied
 	 */
-	virtual bool RequestSelectionChange(const FSelectedOjectsChangeList& SelectionChange) = 0;
+	virtual bool RequestSelectionChange(const FSelectedObjectsChangeList& SelectionChange) = 0;
 
 };
 
