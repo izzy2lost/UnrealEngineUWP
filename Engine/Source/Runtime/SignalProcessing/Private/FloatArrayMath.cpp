@@ -2347,6 +2347,89 @@ namespace Audio
 		}
 	}
 
+	void ArrayInterpolate(const float* InBuffer, float* OutBuffer, const int32 NumInSamples, const int32 NumOutSamples)
+	{
+		if (NumOutSamples <= 0 || NumInSamples <= 0)
+		{
+			return;
+		}
+
+		const float SampleStride = (float)NumInSamples / (float)NumOutSamples;
+
+		const int32 NumToSimd = NumOutSamples & MathIntrinsics::SimdMask;
+		const int32 NumNotToSimd = NumOutSamples & MathIntrinsics::NotSimdMask;
+
+		if(NumToSimd)
+		{
+			VectorRegister4Float Strides = VectorSet(
+				4.f * SampleStride,
+				4.f * SampleStride,
+				4.f * SampleStride,
+				4.f * SampleStride
+			);
+		
+			VectorRegister4Float Indeces = VectorSet(
+				0.f * SampleStride,
+				1.f * SampleStride,
+				2.f * SampleStride,
+				3.f * SampleStride
+			);
+			
+			for (int32 OutputIndex = 0; OutputIndex < NumToSimd; OutputIndex += AUDIO_NUM_FLOATS_PER_VECTOR_REGISTER)
+			{
+				alignas(16) int32 LeftIndecesRaw[4];
+				alignas(16) int32 RightIndecesRaw[4];
+			
+				VectorRegister4Float LeftIndeces = VectorFloor(Indeces);
+				VectorRegister4Float Fractions = VectorSubtract(Indeces, LeftIndeces);
+				VectorRegister4Float InvFractions = VectorSubtract(GlobalVectorConstants::FloatOne, Fractions);
+
+				VectorRegister4Int LeftIndecesInt = VectorFloatToInt(LeftIndeces);
+
+				// Lookup samples for interpolation
+				VectorIntStoreAligned(LeftIndecesInt, LeftIndecesRaw);
+				VectorIntStoreAligned(VectorIntAdd(LeftIndecesInt, GlobalVectorConstants::IntOne), RightIndecesRaw);
+
+				VectorRegister4Float LowerSamples = VectorSet(
+					InBuffer[LeftIndecesRaw[0]],
+					InBuffer[LeftIndecesRaw[1]],
+					InBuffer[LeftIndecesRaw[2]],
+					InBuffer[LeftIndecesRaw[3]]
+				);
+				VectorRegister4Float UpperSamples = VectorSet(
+					InBuffer[RightIndecesRaw[0]],
+					InBuffer[RightIndecesRaw[1]],
+					InBuffer[RightIndecesRaw[2]],
+					InBuffer[RightIndecesRaw[3]]
+				);
+			
+				VectorRegister4Float VOut = VectorMultiplyAdd(
+					LowerSamples,
+					Fractions,
+					VectorMultiply(UpperSamples, InvFractions));
+				VectorStore(VOut, &OutBuffer[OutputIndex]);
+
+				Indeces = VectorAdd(Indeces, Strides);
+			}
+		}
+
+		if(NumNotToSimd)
+		{
+			float SampleIndex = (float)(NumToSimd) * SampleStride;
+
+			for (int32 OutputIndex = NumToSimd; OutputIndex < NumOutSamples; OutputIndex++)
+            {
+            	const int32 LeftSample = FMath::FloorToInt32(SampleIndex);
+            	int32 RightSample = FMath::CeilToInt32(SampleIndex);
+            	
+            	const float Frac = SampleIndex - LeftSample;
+            	OutBuffer[OutputIndex] = (Frac * InBuffer[LeftSample]) + ((1.f - Frac) * InBuffer[RightSample]);
+            	
+            	SampleIndex += SampleStride;
+            }
+		}
+	}
+
 	FContiguousSparse2DKernelTransform::FContiguousSparse2DKernelTransform(const int32 NumInElements, const int32 NumOutElements)
 	:	NumIn(NumInElements)
 	,	NumOut(NumOutElements)
