@@ -15,6 +15,17 @@ struct FReplicatedObjectInfo
 	
 	UPROPERTY()
 	FConcertPropertySelection PropertySelection;
+
+	friend bool operator==(const FReplicatedObjectInfo& Left, const FReplicatedObjectInfo& Right)
+	{
+		return Left.ClassPath == Right.ClassPath
+			&& Left.PropertySelection == Right.PropertySelection;
+	}
+
+	friend bool operator!=(const FReplicatedObjectInfo& Left, const FReplicatedObjectInfo& Right)
+	{
+		return !(Left == Right);
+	}
 };
 
 /** Maps objects to their replicated properties. */
@@ -31,4 +42,13 @@ struct FObjectReplicationMap
 	 */
 	UPROPERTY()
 	TMap<FSoftObjectPath, FReplicatedObjectInfo> ReplicatedObjects;
+
+	friend bool operator==(const FObjectReplicationMap& Left, const FObjectReplicationMap& Right)
+	{
+		return Left.ReplicatedObjects.OrderIndependentCompareEqual(Right.ReplicatedObjects);
+	}
+	friend bool operator!=(const FObjectReplicationMap& Left, const FObjectReplicationMap& Right)
+	{
+		return !(Left == Right);
+	}
 };

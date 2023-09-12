@@ -183,6 +183,15 @@ struct CONCERTSYNCCORE_API FConcertPropertySelection
 
 	/** @return Whether this and Other contain at least one property that is the same. This algorithm is strictly O(n^2) but runs O(n) on average. */
 	bool OverlapsWith(const FConcertPropertySelection& Other) const;
+
+	friend bool operator==(const FConcertPropertySelection& Left, const FConcertPropertySelection& Right)
+	{
+		return Left.ReplicatedProperties == Right.ReplicatedProperties;
+	}
+	friend bool operator!=(const FConcertPropertySelection& Left, const FConcertPropertySelection& Right)
+	{
+		return !(Left == Right);
+	}
 };
 
 CONCERTSYNCCORE_API uint32 GetTypeHash(const FConcertPropertyChain& Chain);

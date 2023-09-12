@@ -57,7 +57,7 @@ namespace UE::ConcertSyncTests::Replication
 		void SetDifferentValues(UTestReflectionObject& Object);
 		void TestEqualTestValues(UTestReflectionObject& Object, FAutomationTestBase& Test);
 		
-	private:
+	protected:
 		
 		const float SentFloat = 42.f;
 		const FVector SentVector = { 21.f, 84.f, -1.f };

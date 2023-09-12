@@ -79,6 +79,21 @@ namespace UE::ConcertSyncClient::Replication
 			});
 	}
 
+	TFuture<FClientQueryResponse> FReplicationManagerState_Connected::QueryClientInfo(FClientQueryRequest Args)
+	{
+		if (EnumHasAllFlags(Args.QueryFlags, EConcertQueryClientStreamFlags::SkipAuthority | EConcertQueryClientStreamFlags::SkipStreamInfo))
+		{
+			UE_LOG(LogConcert, Warning, TEXT("Request QueryClientInfo is pointless because SkipAuthority and SkipStreamInfo are both set. Returning immediately..."));
+			return MakeFulfilledPromise<FClientQueryResponse>().GetFuture();
+		}
+		
+		return LiveSession->SendCustomRequest<FConcertQueryReplicationInfo_Request, FConcertQueryReplicationInfo_Response>(Args, LiveSession->GetSessionServerEndpointId())
+			.Next([](FConcertQueryReplicationInfo_Response&& Response)
+			{
+				return FClientQueryResponse { MoveTemp(Response) };
+			});
+	}
+
 	void FReplicationManagerState_Connected::OnEnterState()
 	{
 		LiveSession->OnTick().AddSP(this, &FReplicationManagerState_Connected::Tick);

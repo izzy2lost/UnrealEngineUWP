@@ -21,6 +21,7 @@ namespace UE::ConcertSyncServer::Replication
 		, ReplicationDataReceiver(AuthorityManager, Session, ReplicationCache)
 	{
 		Session->RegisterCustomRequestHandler<FConcertReplication_Join_Request, FConcertReplication_Join_Response>(this, &FConcertServerReplicationManager::HandleJoinReplicationSessionRequest);
+		Session->RegisterCustomRequestHandler<FConcertQueryReplicationInfo_Request, FConcertQueryReplicationInfo_Response>(this, &FConcertServerReplicationManager::HandleQueryReplicationInfoRequest);
 		Session->RegisterCustomEventHandler<FConcertReplication_LeaveEvent>(this, &FConcertServerReplicationManager::HandleLeaveReplicationSessionRequest);
 		Session->OnSessionClientChanged().AddRaw(this, &FConcertServerReplicationManager::OnConnectionChanged);
 
@@ -30,6 +31,7 @@ namespace UE::ConcertSyncServer::Replication
 	FConcertServerReplicationManager::~FConcertServerReplicationManager()
 	{
 		Session->UnregisterCustomRequestHandler<FConcertReplication_Join_Response>();
+		Session->UnregisterCustomRequestHandler<FConcertQueryReplicationInfo_Response>();
 		Session->UnregisterCustomEventHandler<FConcertReplication_LeaveEvent>(this);
 
 		Session->OnTick().RemoveAll(this);
@@ -110,6 +112,94 @@ namespace UE::ConcertSyncServer::Replication
 		Clients.Emplace(ClientId, MakeShared<FConcertReplicationClient>(MoveTemp(StreamDescriptions), ClientId, Session, ReplicationCache));
 		Response = { EJoinReplicationErrorCode::Success };
 		return EConcertSessionResponseCode::Success;
+	}
+
+	EConcertSessionResponseCode FConcertServerReplicationManager::HandleQueryReplicationInfoRequest(
+		const FConcertSessionContext& ConcertSessionContext,
+		const FConcertQueryReplicationInfo_Request& Request,
+		FConcertQueryReplicationInfo_Response& Response
+		)
+	{
+		for (const FGuid& EndpointId : Request.ClientEndpointIds)
+		{
+			const TSharedRef<FConcertReplicationClient>* Client = Clients.Find(EndpointId);
+			if (!Client)
+			{
+				// This could happen if the client left the replication session before this request was answered
+				continue;
+			}
+			
+			FReplicationClientQueriedInfo& EndpointInfo = Response.ClientInfo.Add(EndpointId);
+			if (!EnumHasAnyFlags(Request.QueryFlags, EConcertQueryClientStreamFlags::SkipStreamInfo))
+			{
+				const bool bSkipProperties = EnumHasAnyFlags(Request.QueryFlags, EConcertQueryClientStreamFlags::SkipProperties);
+				EndpointInfo.Streams = BuildClientStreamInfo(Client->Get(), bSkipProperties);
+			}
+			if (!EnumHasAnyFlags(Request.QueryFlags, EConcertQueryClientStreamFlags::SkipAuthority))
+			{
+				EndpointInfo.Authority = BuildClientAuthorityInfo(Client->Get());
+			}
+		}
+
+		return EConcertSessionResponseCode::Success;
+	}
+
+	TArray<FSharedReplicationStreamDescription> FConcertServerReplicationManager::BuildClientStreamInfo(const FConcertReplicationClient& Client, bool bSkipProperties) const
+	{
+		TArray<FSharedReplicationStreamDescription> Result;
+		Algo::Transform(Client.GetStreamDescriptions(), Result, [bSkipProperties](const FReplicationStreamDescription& Description)
+		{
+			if (!bSkipProperties)
+			{
+				return Description.BaseDescription;
+			}
+
+			const FSharedReplicationStreamDescription& CopiedDescription = Description.BaseDescription;
+			const FObjectReplicationMap& CopiedReplicationMap = CopiedDescription.ReplicationMap;
+
+			// It was requested to skip sending the properties (saves network bandwidth)
+			FSharedReplicationStreamDescription StrippedResult;
+			StrippedResult.Identifier = CopiedDescription.Identifier;
+			StrippedResult.ReplicationMap.ReplicatedObjects.Reserve(CopiedReplicationMap.ReplicatedObjects.Num());
+			for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& ObjectInfo : CopiedReplicationMap.ReplicatedObjects)
+			{
+				StrippedResult.ReplicationMap.ReplicatedObjects.Add(ObjectInfo.Key, { ObjectInfo.Value.ClassPath });
+			}
+			return StrippedResult;
+		});
+
+		return Result;
+	}
+
+	TArray<FReplicationAuthorityInfo> FConcertServerReplicationManager::BuildClientAuthorityInfo(const FConcertReplicationClient& Client) const
+	{
+		TArray<FReplicationAuthorityInfo> Result;
+		for (const FReplicationStreamDescription& Description : Client.GetStreamDescriptions())
+		{
+			const FGuid StreamId = Description.BaseDescription.Identifier;
+			FReplicationAuthorityInfo Info;
+			Info.StreamId = StreamId;
+			
+			for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& Pair : Description.BaseDescription.ReplicationMap.ReplicatedObjects)
+			{
+				ConcertSyncCore::FReplicatedObjectInfo ObjectInfo;
+				ObjectInfo.SenderEndpointId = Client.GetClientEndpointId();
+				ObjectInfo.Object = Pair.Key;
+				ObjectInfo.StreamId = StreamId;
+				
+				if (AuthorityManager->IsObjectChangeAllowed(ObjectInfo))
+				{
+					Info.AuthoredObjects.Add(Pair.Key);
+				}
+			}
+
+			// There is no point in sending empty data
+			if (!Info.AuthoredObjects.IsEmpty())
+			{
+				Result.Add(Info);
+			}
+		}
+		return Result;
 	}
 
 	void FConcertServerReplicationManager::HandleLeaveReplicationSessionRequest(

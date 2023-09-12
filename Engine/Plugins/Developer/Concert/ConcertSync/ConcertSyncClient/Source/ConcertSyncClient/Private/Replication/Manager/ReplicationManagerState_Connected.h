@@ -49,6 +49,7 @@ namespace UE::ConcertSyncClient::Replication
 		virtual bool IsConnectedToReplicationSession() override { return true; }
 		virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const override;
 		virtual TFuture<FAuthorityChangeResponse> RequestAuthorityChange(FAuthorityChangeRequest Args) override;
+		virtual TFuture<FClientQueryResponse> QueryClientInfo(FClientQueryRequest Args) override;
 		//~ End IConcertClientReplicationManager Interface
 
 	private:

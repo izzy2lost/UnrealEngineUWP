@@ -36,11 +36,11 @@ namespace UE::ConcertSyncClient::Replication
 		{}
 	};
 
-	// The intention here is to wrap the request in case there are some more specific meta data we want to add in the future.
-	struct FAuthorityChangeRequest : FConcertChangeAuthority_Request
-	{};
-	struct FAuthorityChangeResponse : FConcertChangeAuthority_Response
-	{};
+	// The intention here is to wrap the request in case there is some more specific meta data we want to add in the future.
+	struct FAuthorityChangeRequest : FConcertChangeAuthority_Request {};
+	struct FAuthorityChangeResponse : FConcertChangeAuthority_Response {};
+	struct FClientQueryRequest : FConcertQueryReplicationInfo_Request {};
+	struct FClientQueryResponse : FConcertQueryReplicationInfo_Response {};
 }
 
 /**
@@ -57,7 +57,7 @@ public:
 	 * Joins a replication session.
 	 * Subsequent calls to JoinReplicationSession will fail until either the resulting TFuture returns or LeaveReplicationSession is called.
 	 *
-	 * @note This may execute on any thread. Take care to synchronize correctly with the game thread if needed.
+	 * @note The future may execute on any thread. Take care to synchronize correctly with the game thread if needed.
 	 */
 	virtual TFuture<UE::ConcertSyncClient::Replication::FJoinReplicatedSessionResult> JoinReplicationSession(UE::ConcertSyncClient::Replication::FJoinReplicatedSessionArgs Args) = 0;
 	/** Leaves the current replication session. */
@@ -83,13 +83,19 @@ public:
 	
 	/**
 	 * Requests from the server to change the authority over some objects.
-	 * @note This may execute on any thread. Take care of synchronize correctly with the game thread if needed.
+	 * @note The future may execute on any thread. Take care of synchronize correctly with the game thread if needed.
 	 */
 	virtual TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> RequestAuthorityChange(UE::ConcertSyncClient::Replication::FAuthorityChangeRequest Args) = 0;
 	/** Util function that will request authority for all streams for the given objects. */
 	TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> TakeAuthorityOver(TArrayView<const FSoftObjectPath> Objects);
 	/** Util function that will let go over all authority of the given objects. */
 	TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> ReleaseAuthorityOf(TArrayView<const FSoftObjectPath> Objects);
+
+	/**
+	 * Requests replication info about other clients, including the streams registered and which objects they have authority over (i.e. are sending).
+	 * @note The future may execute on any thread. Take care to synchronize correctly with the game thread if needed.
+	 */
+	virtual TFuture<UE::ConcertSyncClient::Replication::FClientQueryResponse> QueryClientInfo(UE::ConcertSyncClient::Replication::FClientQueryRequest Args) = 0; 
 	
 	virtual ~IConcertClientReplicationManager() = default;
 };
