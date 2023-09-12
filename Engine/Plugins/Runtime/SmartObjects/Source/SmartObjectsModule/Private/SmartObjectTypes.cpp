@@ -59,15 +59,29 @@ bool FSmartObjectSlotValidationParams::GetUserCapsuleForActor(const AActor& User
 		
 		const FNavAgentProperties& NavAgentProps = NavAgent->GetNavAgentPropertiesRef();
 		if (NavAgentProps.AgentRadius < 0.0f
-			|| NavAgentProps.AgentHeight < 0.0f
-			|| NavAgentProps.AgentStepHeight < 0.0f)
+			|| NavAgentProps.AgentHeight < 0.0f)
 		{
 			return false;
 		}
 		
 		OutCapsule.Radius = NavAgentProps.AgentRadius;
 		OutCapsule.Height = NavAgentProps.AgentHeight;
-		OutCapsule.StepHeight = NavAgentProps.AgentStepHeight;
+		if (NavAgentProps.HasStepHeightOverride())
+		{
+			OutCapsule.StepHeight = NavAgentProps.AgentStepHeight;
+		}
+		else
+		{
+			// Get the default step height value from nav data.
+			const UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(UserActor.GetWorld());
+			const ANavigationData* NavData = NavSys ? NavSys->GetNavDataForProps(NavAgentProps, NavAgent->GetNavAgentLocation()) : nullptr;
+			if (!NavData)
+			{
+				return false;
+			}
+			const FNavDataConfig& Config = NavData->GetConfig();
+			OutCapsule.StepHeight = FMath::Max(0.0f, Config.AgentStepHeight);
+		}
 	}
 	else
 	{
