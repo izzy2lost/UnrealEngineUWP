@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "Common.ush"
+#include "../Common.ush"
 
 #if SHADING_PATH_MOBILE
 #define MobileSceneTextures MobileBasePass.SceneTextures 
 #endif
 
-#include "SceneTexturesCommon.ush"
+#include "../SceneTexturesCommon.ush"
 
 #define LFV_CAN_CLIP 1
 #include "LocalFogVolumeCommon.ush"

@@ -118,6 +118,8 @@ bool FScene::HasAnyLocalFogVolume() const
 
 void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& Out)
 {
+	check(Scene->LocalFogVolumes.Num() > 0); // We should not get there if there is not any local fog volume.
+
 	// No culling as of today
 	Out.LocalFogVolumeInstanceCount = Scene->LocalFogVolumes.Num();
 	Out.LocalFogVolumeInstanceCountFinal = 0;
@@ -243,10 +245,10 @@ void InitLocalFogVolumesForViews(
 	Local height fog rendering - non mobile
 =============================================================================*/
 
-class FLocalFogVolumeVS : public FGlobalShader
+class FLocalFogVolumeSplatVS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FLocalFogVolumeVS);
-	SHADER_USE_PARAMETER_STRUCT(FLocalFogVolumeVS, FGlobalShader);
+	DECLARE_GLOBAL_SHADER(FLocalFogVolumeSplatVS);
+	SHADER_USE_PARAMETER_STRUCT(FLocalFogVolumeSplatVS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
@@ -265,12 +267,12 @@ class FLocalFogVolumeVS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FLocalFogVolumeVS, "/Engine/Private/LocalFogVolume.usf", "LocalFogVolumeSplatVS", SF_Vertex);
+IMPLEMENT_GLOBAL_SHADER(FLocalFogVolumeSplatVS, "/Engine/Private/LocalFogVolumes/LocalFogVolumeSplat.usf", "LocalFogVolumeSplatVS", SF_Vertex);
 
-class FLocalFogVolumePS : public FGlobalShader
+class FLocalFogVolumeSplatPS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FLocalFogVolumePS);
-	SHADER_USE_PARAMETER_STRUCT(FLocalFogVolumePS, FGlobalShader);
+	DECLARE_GLOBAL_SHADER(FLocalFogVolumeSplatPS);
+	SHADER_USE_PARAMETER_STRUCT(FLocalFogVolumeSplatPS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
@@ -289,11 +291,11 @@ class FLocalFogVolumePS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FLocalFogVolumePS, "/Engine/Private/LocalFogVolume.usf", "LocalFogVolumeSplatPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FLocalFogVolumeSplatPS, "/Engine/Private/LocalFogVolumes/LocalFogVolumeSplat.usf", "LocalFogVolumeSplatPS", SF_Pixel);
 
 BEGIN_SHADER_PARAMETER_STRUCT(FLocalFogVolumePassParameters, )
-	SHADER_PARAMETER_STRUCT_INCLUDE(FLocalFogVolumeVS::FParameters, VS)
-	SHADER_PARAMETER_STRUCT_INCLUDE(FLocalFogVolumePS::FParameters, PS)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FLocalFogVolumeSplatVS::FParameters, VS)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FLocalFogVolumeSplatPS::FParameters, PS)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTextures)
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
@@ -331,11 +333,11 @@ void RenderLocalFogVolume(
 			PassParameters->SceneTextures = SceneTextures.UniformBuffer;
 			PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorTexture, ERenderTargetLoadAction::ENoAction);
 
-			FLocalFogVolumeVS::FPermutationDomain VSPermutationVector;
-			auto VertexShader = View.ShaderMap->GetShader< FLocalFogVolumeVS >(VSPermutationVector);
+			FLocalFogVolumeSplatVS::FPermutationDomain VSPermutationVector;
+			auto VertexShader = View.ShaderMap->GetShader< FLocalFogVolumeSplatVS >(VSPermutationVector);
 
-			FLocalFogVolumePS::FPermutationDomain PsPermutationVector;
-			auto PixelShader = View.ShaderMap->GetShader< FLocalFogVolumePS >(PsPermutationVector);
+			FLocalFogVolumeSplatPS::FPermutationDomain PsPermutationVector;
+			auto PixelShader = View.ShaderMap->GetShader< FLocalFogVolumeSplatPS >(PsPermutationVector);
 
 			const FIntRect ViewRect = View.ViewRect;
 
@@ -389,10 +391,10 @@ void RenderLocalFogVolume(
 =============================================================================*/
 	
 
-class FMobileLocalFogVolumeVS : public FGlobalShader
+class FMobileLocalFogVolumeSplatVS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FMobileLocalFogVolumeVS);
-	SHADER_USE_PARAMETER_STRUCT(FMobileLocalFogVolumeVS, FGlobalShader);
+	DECLARE_GLOBAL_SHADER(FMobileLocalFogVolumeSplatVS);
+	SHADER_USE_PARAMETER_STRUCT(FMobileLocalFogVolumeSplatVS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
@@ -418,12 +420,12 @@ class FMobileLocalFogVolumeVS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FMobileLocalFogVolumeVS, "/Engine/Private/LocalFogVolume.usf", "LocalFogVolumeSplatVS", SF_Vertex);
+IMPLEMENT_GLOBAL_SHADER(FMobileLocalFogVolumeSplatVS, "/Engine/Private/LocalFogVolumes/LocalFogVolumeSplat.usf", "LocalFogVolumeSplatVS", SF_Vertex);
 
-class FMobileLocalFogVolumePS : public FGlobalShader
+class FMobileLocalFogVolumeSplatPS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FMobileLocalFogVolumePS);
-	SHADER_USE_PARAMETER_STRUCT(FMobileLocalFogVolumePS, FGlobalShader);
+	DECLARE_GLOBAL_SHADER(FMobileLocalFogVolumeSplatPS);
+	SHADER_USE_PARAMETER_STRUCT(FMobileLocalFogVolumeSplatPS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
@@ -450,7 +452,7 @@ class FMobileLocalFogVolumePS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FMobileLocalFogVolumePS, "/Engine/Private/LocalFogVolume.usf", "LocalFogVolumeSplatPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FMobileLocalFogVolumeSplatPS, "/Engine/Private/LocalFogVolumes/LocalFogVolumeSplat.usf", "LocalFogVolumeSplatPS", SF_Pixel);
 
 void RenderLocalFogVolumeMobile(
 	FRHICommandList& RHICmdList,
@@ -463,11 +465,11 @@ void RenderLocalFogVolumeMobile(
 
 	SCOPED_DRAW_EVENT(RHICmdList, LocalFogVolumeVolumes);
 
-	FMobileLocalFogVolumeVS::FPermutationDomain VSPermutationVector;
-	auto VertexShader = View.ShaderMap->GetShader< FMobileLocalFogVolumeVS >(VSPermutationVector);
+	FMobileLocalFogVolumeSplatVS::FPermutationDomain VSPermutationVector;
+	auto VertexShader = View.ShaderMap->GetShader< FMobileLocalFogVolumeSplatVS >(VSPermutationVector);
 
-	FMobileLocalFogVolumePS::FPermutationDomain PsPermutationVector;
-	auto PixelShader = View.ShaderMap->GetShader< FMobileLocalFogVolumePS >(PsPermutationVector);
+	FMobileLocalFogVolumeSplatPS::FPermutationDomain PsPermutationVector;
+	auto PixelShader = View.ShaderMap->GetShader< FMobileLocalFogVolumeSplatPS >(PsPermutationVector);
 
 	const FIntRect ViewRect = View.ViewRect;
 
@@ -488,12 +490,12 @@ void RenderLocalFogVolumeMobile(
 
 	SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 
-	FMobileLocalFogVolumeVS::FParameters VSParameters;
+	FMobileLocalFogVolumeSplatVS::FParameters VSParameters;
 	VSParameters.View = View.GetShaderParameters();
 	VSParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
 	SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), VSParameters);
 
-	FMobileLocalFogVolumePS::FParameters PSParameters;
+	FMobileLocalFogVolumeSplatPS::FParameters PSParameters;
 	PSParameters.View = View.GetShaderParameters();
 	PSParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
 	// PSParameters.MobileBasePass filled up by the RDG pass parameters.

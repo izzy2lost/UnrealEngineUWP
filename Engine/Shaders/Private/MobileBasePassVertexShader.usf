@@ -21,7 +21,7 @@
 #endif
 
 #if LOCAL_FOG_VOLUME_ON_TRANSLUCENT
-#include "LocalFogVolumeCommon.ush"
+#include "LocalFogVolumes/LocalFogVolumeCommon.ush"
 #endif
 
 struct FMobileShadingBasePassVSToPS

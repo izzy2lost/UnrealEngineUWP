@@ -1273,8 +1273,8 @@ void FMobileSceneRenderer::RenderForward(FRDGBuilder& GraphBuilder, FRDGTextureR
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 
-	FLocalFogVolumeSortingData SortingData;
-	GetLocalFogVolumeSortingData(Scene, GraphBuilder, SortingData);
+	// Run local fog volume initialization before base pass for when data is needed in forward
+	InitLocalFogVolumesForViews(Scene, Views, ViewFamily, GraphBuilder);
 
 	FRenderViewContextArray RenderViews;
 	GetRenderViews(Views, RenderViews);
@@ -1301,7 +1301,6 @@ void FMobileSceneRenderer::RenderForward(FRDGBuilder& GraphBuilder, FRDGTextureR
 		View.BeginRenderView();
 
 		UpdateDirectionalLightUniformBuffers(GraphBuilder, View);
-		CreateViewLocalFogVolumeBufferSRV(View, GraphBuilder, SortingData);
 
 		FMobileBasePassTextures MobileBasePassTextures{};
 		MobileBasePassTextures.ScreenSpaceAO = bRequiresAmbientOcclusionPass ? SceneTextures.ScreenSpaceAO : SystemTextures.White;
@@ -1610,8 +1609,8 @@ void FMobileSceneRenderer::RenderDeferred(FRDGBuilder& GraphBuilder, const FSort
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 
-	FLocalFogVolumeSortingData SortingData;
-	GetLocalFogVolumeSortingData(Scene, GraphBuilder, SortingData);
+	// Run local fog volume initialization before base pass for when data is needed in forward
+	InitLocalFogVolumesForViews(Scene, Views, ViewFamily, GraphBuilder);
 
 	FRenderViewContextArray RenderViews;
 	GetRenderViews(Views, RenderViews);
@@ -1638,7 +1637,6 @@ void FMobileSceneRenderer::RenderDeferred(FRDGBuilder& GraphBuilder, const FSort
 		View.BeginRenderView();
 
 		UpdateDirectionalLightUniformBuffers(GraphBuilder, View);
-		CreateViewLocalFogVolumeBufferSRV(View, GraphBuilder, SortingData);
 
 		FMobileBasePassTextures MobileBasePassTextures{};
 		MobileBasePassTextures.ScreenSpaceAO = bRequiresAmbientOcclusionPass ? SceneTextures.ScreenSpaceAO : SystemTextures.White;

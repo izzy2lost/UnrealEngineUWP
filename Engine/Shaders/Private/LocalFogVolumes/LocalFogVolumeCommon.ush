@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "Common.ush"
+#include "../Common.ush"
 
-#include "ParticipatingMediaCommon.ush"
+#include "../ParticipatingMediaCommon.ush"
 
 
 
