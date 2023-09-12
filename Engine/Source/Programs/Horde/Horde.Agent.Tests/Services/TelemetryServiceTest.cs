@@ -25,7 +25,7 @@ public sealed class TelemetryServiceTest : IDisposable
 		AgentSettings settings = new() { Server = "Test", ServerProfiles = { new ServerProfile() { Name = "Test", Url = new Uri("http://localhost:1234") } }};
 		OptionsWrapper<AgentSettings> settingsOpt = new (settings);
 		
-		using WorkerService workerService = new (settingsOpt, null!, null!, null!, new List<LeaseHandler>(), null!, null!);
+		using WorkerService workerService = new (null!, null!, null!, new List<LeaseHandler>(), null!, null!);
 		JobHandler jobHandler = new (new List<IJobExecutorFactory>(), settingsOpt, null!, null!, NullLogger<JobHandler>.Instance);
 		GrpcService grpcService = new (settingsOpt, NullLogger<GrpcService>.Instance, _loggerFactory);
 		

@@ -1,24 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Net;
-using System.Net.Http;
-using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading;
-using System.Threading.Tasks;
 using Datadog.Trace;
 using Datadog.Trace.Configuration;
 using Datadog.Trace.OpenTracing;
 using EpicGames.Core;
-using EpicGames.Horde.Compute;
-using EpicGames.Horde.Compute.Buffers;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
 using Horde.Agent.Execution;
@@ -271,7 +261,6 @@ namespace Horde.Agent
 			ITracer openTracer = OpenTracingTracerFactory.WrapTracer(Tracer.Instance);
 			GlobalTracer.Register(openTracer);
 		}
-
 
 		/// <summary>
 		/// Gets the version of the current assembly

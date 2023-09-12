@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Drawing;
+using System.Windows.Forms;
+
 namespace Horde.Agent.TrayApp.Forms
 {
 	partial class IdleForm

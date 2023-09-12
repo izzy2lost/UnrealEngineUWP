@@ -1,8 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO.Pipes;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 using EpicGames.Core;
 using Horde.Agent.TrayApp.Forms;
 using Horde.Agent.TrayApp.Properties;
@@ -85,7 +91,7 @@ namespace Horde.Agent.TrayApp
 		}
 	}
 
-	public class CustomApplicationContext : ApplicationContext, IAsyncDisposable
+	class CustomApplicationContext : ApplicationContext, IAsyncDisposable
 	{
 		readonly NotifyIcon _trayIcon;
 		readonly BackgroundTask _clientTask;

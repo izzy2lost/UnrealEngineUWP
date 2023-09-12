@@ -1,16 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Net.Http.Headers;
-using System.Net.Http;
 using EpicGames.Horde.Storage;
 using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage.Clients;
 using Microsoft.Extensions.Options;
 using EpicGames.Core;
-using System.Threading;
-using System.Threading.Tasks;
-using EpicGames.Horde.Storage.Bundles;
 
 namespace Horde.Agent.Utility
 {

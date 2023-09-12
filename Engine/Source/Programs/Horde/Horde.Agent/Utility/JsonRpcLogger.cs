@@ -1,17 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Buffers;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using System.Threading;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using Google.Protobuf;
 using HordeCommon;
@@ -21,7 +11,6 @@ using Microsoft.Extensions.Logging;
 namespace Horde.Agent.Utility
 {
 	using ByteString = Google.Protobuf.ByteString;
-	using JsonObject = System.Text.Json.Nodes.JsonObject;
 
 	/// <summary>
 	/// Interface for a log device

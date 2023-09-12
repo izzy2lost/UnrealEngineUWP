@@ -1,13 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Web;
 using EpicGames.Core;
 using EpicGames.Perforce;
@@ -299,9 +294,18 @@ namespace Horde.Agent.Utility
 				return defaultOptions;
 			}
 
-			if (Int32.TryParse(nameValues[NumParallelSyncThreadsKey], out int v)) { numParallelSyncThreads = v; }
-			if (Int32.TryParse(nameValues[MaxFileConcurrencyKey], out v)) { maxFileConcurrency = v; }
-			if (Int32.TryParse(nameValues[MinScratchSpaceKey], out v)) { minScratchSpace = v; }
+			if (Int32.TryParse(nameValues[NumParallelSyncThreadsKey], out int v))
+			{ 
+				numParallelSyncThreads = v; 
+			}
+			if (Int32.TryParse(nameValues[MaxFileConcurrencyKey], out v))
+			{ 
+				maxFileConcurrency = v; 
+			}
+			if (Int32.TryParse(nameValues[MinScratchSpaceKey], out v))
+			{
+				minScratchSpace = v;
+			}
 			
 			if (String.Equals(nameValues[UseHaveTableKey], "false", StringComparison.OrdinalIgnoreCase))
 			{
