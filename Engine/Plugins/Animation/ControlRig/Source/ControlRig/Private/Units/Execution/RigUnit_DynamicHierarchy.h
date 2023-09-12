@@ -513,6 +513,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlFloat_Settings : public FRigUn
 	FRigUnit_HierarchyAddControlFloat_Settings()
 		: FRigUnit_HierarchyAddControl_Settings()
 		, PrimaryAxis(ERigControlAxis::X)
+		, bIsScale(false)
 	{}
 	virtual ~FRigUnit_HierarchyAddControlFloat_Settings() override {}
 
