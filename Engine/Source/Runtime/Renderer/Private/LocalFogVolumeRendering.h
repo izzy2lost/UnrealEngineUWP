@@ -21,7 +21,9 @@ struct FMinimalSceneTextures;
 
 BEGIN_SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, LocalFogVolumeInstances)
+	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray<uint>, LocalFogVolumeCullDataTexture)
 	SHADER_PARAMETER(uint32, LocalFogVolumeInstanceCount)
+	SHADER_PARAMETER(uint32, LocalFogVolumeTilePixelSize)
 END_SHADER_PARAMETER_STRUCT()
 
 /*=============================================================================
@@ -93,7 +95,9 @@ struct FLocalFogVolumeViewData
 
 	FLocalFogVolumeUniformParameters UniformParametersStruct;
 
-	FRDGTextureRef TileInstanceIndexTextureArray; // First slice is the instance count, later slices are instance indices.
+	FRDGTextureRef CullDataTextureArray;		// First slice is the instance count, later slices are instance indices.
+	FRDGTextureSRVRef CullDataTextureArraySRV;
+	FRDGTextureUAVRef CullDataTextureArrayUAV;
 };
 
 

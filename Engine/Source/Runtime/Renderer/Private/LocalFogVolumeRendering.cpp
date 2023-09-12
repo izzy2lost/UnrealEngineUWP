@@ -64,18 +64,24 @@ void SetDummyLocalFogVolumeForView(FRDGBuilder& GraphBuilder, FViewInfo& View)
 	// The size of the structure must be a multiple of FUintVector4.
 	static_assert(sizeof(FLocalFogVolumeGPUInstanceData) == UintVec4CountInLocalFogVolumeGPUInstanceData * SizeOfUintVec4);
 
-	View.LocalFogVolumeViewData.GPUInstanceCount = 0;
+	View.LocalFogVolumeViewData.GPUInstanceCount			= 0;
 
 	static FLocalFogVolumeGPUInstanceData DummyData;
-	View.LocalFogVolumeViewData.GPUInstanceDataBuffer = CreateVertexBuffer(GraphBuilder, TEXT("DUMMYLocalFogVolumeGPUInstanceDataBuffer"),
+	View.LocalFogVolumeViewData.GPUInstanceDataBuffer		= CreateVertexBuffer(GraphBuilder, TEXT("DUMMYLocalFogVolumeGPUInstanceDataBuffer"),
 		FRDGBufferDesc::CreateBufferDesc(SizeOfUintVec4, UintVec4CountInLocalFogVolumeGPUInstanceData), &DummyData, sizeof(FLocalFogVolumeGPUInstanceData) * 1, ERDGInitialDataFlags::NoCopy);
 
-	View.LocalFogVolumeViewData.GPUInstanceDataBufferSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.GPUInstanceDataBuffer, PF_A32B32G32R32F);
+	View.LocalFogVolumeViewData.GPUInstanceDataBufferSRV	= GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.GPUInstanceDataBuffer, PF_A32B32G32R32F);
 
-	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeInstanceCount = View.LocalFogVolumeViewData.GPUInstanceCount;
-	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeInstances = View.LocalFogVolumeViewData.GPUInstanceDataBufferSRV;
-	View.LocalFogVolumeViewData.UniformBuffer = GraphBuilder.CreateUniformBuffer(&View.LocalFogVolumeViewData.UniformParametersStruct);
-};
+	View.LocalFogVolumeViewData.CullDataTextureArray		= GSystemTextures.GetZeroUIntArrayDummy(GraphBuilder);
+	View.LocalFogVolumeViewData.CullDataTextureArraySRV		= GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.CullDataTextureArray);
+	View.LocalFogVolumeViewData.CullDataTextureArrayUAV		= nullptr;	// Should never be written by culling passes if there are no instances.
+
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeInstanceCount		= View.LocalFogVolumeViewData.GPUInstanceCount;
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeTilePixelSize		= GetLocalFogVolumeTilePixelSize();
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeInstances			= View.LocalFogVolumeViewData.GPUInstanceDataBufferSRV;
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCullDataTexture	= View.LocalFogVolumeViewData.CullDataTextureArraySRV;
+	View.LocalFogVolumeViewData.UniformBuffer											= GraphBuilder.CreateUniformBuffer(&View.LocalFogVolumeViewData.UniformParametersStruct);
+}
 
 
 /*=============================================================================
@@ -200,15 +206,35 @@ void CreateViewLocalFogVolumeBufferSRV(FViewInfo& View, FRDGBuilder& GraphBuilde
 	// 3. Allocate buffer and initialize with sorted data to upload to GPU
 	const uint32 AllLocalFogVolumeInstanceBytesFinal = sizeof(FLocalFogVolumeGPUInstanceData) * SortingData.LocalFogVolumeInstanceCountFinal;
 
-	View.LocalFogVolumeViewData.GPUInstanceCount = SortingData.LocalFogVolumeInstanceCountFinal;
-	View.LocalFogVolumeViewData.GPUInstanceDataBuffer = CreateVertexBuffer(
-		GraphBuilder, TEXT("LocalFogVolumeGPUInstanceDataBuffer"),
+	View.LocalFogVolumeViewData.GPUInstanceCount			= SortingData.LocalFogVolumeInstanceCountFinal;
+	View.LocalFogVolumeViewData.GPUInstanceDataBuffer		= CreateVertexBuffer(
+		GraphBuilder, TEXT("LocalFogVolume.GPUInstanceDataBuffer"),
 		FRDGBufferDesc::CreateBufferDesc(SizeOfUintVec4, SortingData.LocalFogVolumeInstanceCountFinal * UintVec4CountInLocalFogVolumeGPUInstanceData),
 		LocalFogVolumeGPUSortedInstanceData, AllLocalFogVolumeInstanceBytesFinal, ERDGInitialDataFlags::NoCopy);
-	View.LocalFogVolumeViewData.GPUInstanceDataBufferSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.GPUInstanceDataBuffer, PF_A32B32G32R32F);
+	View.LocalFogVolumeViewData.GPUInstanceDataBufferSRV	= GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.GPUInstanceDataBuffer, PF_A32B32G32R32F);
 
-	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeInstanceCount = View.LocalFogVolumeViewData.GPUInstanceCount;
-	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeInstances = View.LocalFogVolumeViewData.GPUInstanceDataBufferSRV;
+	// Create the texture that will contain the tiled culled result: count in the first slice and indices in the remaining slices
+	const uint32 LocalFogVolumeTilePixelSize				= GetLocalFogVolumeTilePixelSize();
+#if 1
+	// Allocate dummy resource while this is not yet used without the tile culling pass.
+	View.LocalFogVolumeViewData.CullDataTextureArray = GSystemTextures.GetZeroUIntArrayDummy(GraphBuilder);
+	View.LocalFogVolumeViewData.CullDataTextureArraySRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.CullDataTextureArray);
+	View.LocalFogVolumeViewData.CullDataTextureArrayUAV = nullptr;	// Should never be written by culling passes if there are no instances.
+#else
+	const FIntPoint CullDataTextureResolution				= FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), FIntPoint(LocalFogVolumeTilePixelSize, LocalFogVolumeTilePixelSize));
+	const uint32 CullDataTextureSliceCount					= LocalFogVolumeTileMaxInstanceCount + 1; // +1 because the first slice is the culled instance count
+	FRDGTextureDesc Texture2DArrayDesc(FRDGTextureDesc::Create2DArray(CullDataTextureResolution, PF_R8_UINT, FClearValueBinding(EClearBinding::ENoneBound), TexCreate_ShaderResource | TexCreate_UAV | TexCreate_ReduceMemoryWithTilingMode | TexCreate_3DTiling, CullDataTextureSliceCount));
+	// LFV TODO, consider FFastVramConfig onto Texture2DArrayDesc
+
+	View.LocalFogVolumeViewData.CullDataTextureArray		= GraphBuilder.CreateTexture(Texture2DArrayDesc, TEXT("LocalFogVolume.CullingDataTexture"));
+	View.LocalFogVolumeViewData.CullDataTextureArraySRV		= GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(View.LocalFogVolumeViewData.CullDataTextureArray));
+	View.LocalFogVolumeViewData.CullDataTextureArrayUAV		= GraphBuilder.CreateUAV(FRDGTextureUAVDesc(View.LocalFogVolumeViewData.CullDataTextureArray));
+#endif
+
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeInstanceCount		= View.LocalFogVolumeViewData.GPUInstanceCount;
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeTilePixelSize		= LocalFogVolumeTilePixelSize;
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeInstances			= View.LocalFogVolumeViewData.GPUInstanceDataBufferSRV;
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCullDataTexture	= View.LocalFogVolumeViewData.CullDataTextureArraySRV;
 	View.LocalFogVolumeViewData.UniformBuffer = GraphBuilder.CreateUniformBuffer(&View.LocalFogVolumeViewData.UniformParametersStruct);
 }
 

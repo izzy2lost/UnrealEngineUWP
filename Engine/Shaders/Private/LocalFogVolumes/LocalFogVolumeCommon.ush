@@ -37,15 +37,23 @@ struct FLocalFogVolumeGPUInstanceData
 #if defined(LFVStruct)
 
 #define LFVInsts LFVStruct.LFV.LocalFogVolumeInstances
+#define LFVCullDataTex LFVStruct.LFV.LocalFogVolumeCullDataTexture
+
 #define LFVInstcount LFVStruct.LFV.LocalFogVolumeInstanceCount
+#define LFVTilePixelSize LFVStruct.LFV.LocalFogVolumeTilePixelSize
 
 #else
 
 uint LFV_LocalFogVolumeInstanceCount;
+uint LFV_LocalFogVolumeTilePixelSize;
 Buffer<float4> LFV_LocalFogVolumeInstances;
+Texture2DArray<uint> LFV_LocalFogVolumeCullDataTexture;
 
 #define LFVInsts LFV_LocalFogVolumeInstances
+#define LFVCullDataTex LFV_LocalFogVolumeCullDataTexture
+
 #define LFVInstcount LFV_LocalFogVolumeInstanceCount
+#define LFVTilePixelSize LFV_LocalFogVolumeTilePixelSize
 
 #endif
 
