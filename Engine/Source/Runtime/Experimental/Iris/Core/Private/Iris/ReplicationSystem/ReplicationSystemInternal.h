@@ -103,6 +103,11 @@ public:
 		return SendStats;
 	}
 
+	FForwardNetRPCCallMulticastDelegate& GetForwardNetRPCCallMulticastDelegate()
+	{
+		return ForwardNetRPCCallMulticastDelegate;
+	}
+
 private:
 	FReplicationProtocolManager ReplicationProtocolManager;
 	FNetRefHandleManager NetRefHandleManager;
@@ -126,6 +131,7 @@ private:
 	FDeltaCompressionBaselineManager DeltaCompressionBaselineManager;
 	FDeltaCompressionBaselineInvalidationTracker DeltaCompressionBaselineInvalidationTracker;
 	FNetSendStats SendStats;
+	FForwardNetRPCCallMulticastDelegate ForwardNetRPCCallMulticastDelegate;
 	uint32 Id;
 };
 

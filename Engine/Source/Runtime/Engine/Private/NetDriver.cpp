@@ -141,6 +141,7 @@ DECLARE_CYCLE_STAT(TEXT("Process Prioritized Actors Time"), STAT_NetProcessPrior
 DECLARE_CYCLE_STAT(TEXT("NetDriver TickFlush"), STAT_NetTickFlush, STATGROUP_Game);
 DECLARE_CYCLE_STAT(TEXT("NetDriver TickFlush GatherStats"), STAT_NetTickFlushGatherStats, STATGROUP_Game);
 DECLARE_CYCLE_STAT(TEXT("NetDriver TickFlush GatherStatsPerfCounters"), STAT_NetTickFlushGatherStatsPerfCounters, STATGROUP_Game);
+DECLARE_CYCLE_STAT(TEXT("ReceiveRPC_ProcessRemoteFunction"), STAT_NetReceiveRPC_ProcessRemoteFunction, STATGROUP_Game);
 
 DEFINE_LOG_CATEGORY_STATIC(LogNetSyncLoads, Log, All);
 
@@ -6367,6 +6368,7 @@ void UNetDriver::CreateReplicationSystem(bool bInitAsClient)
 		Params.ReplicationBridge = ReplicationBridge;
 		Params.bIsServer = !bInitAsClient;
 		Params.bAllowObjectReplication = !bInitAsClient;
+		Params.ForwardNetRPCCallDelegate.BindUObject(this, &UNetDriver::ForwardRemoteFunction);
 
 		UE::Net::Private::ApplyReplicationSystemConfig(ReplicationSystemConfig, Params);
 
@@ -6924,6 +6926,32 @@ bool UNetDriver::ShouldReplicateFunction(AActor* Actor, UFunction* Function) con
 bool UNetDriver::ShouldForwardFunction(AActor* Actor, UFunction* Function, void* Parms) const
 {
 	return !IsServer();
+}
+
+void UNetDriver::ForwardRemoteFunction(UObject* RootObject, UObject* SubObject, UFunction* Function, void* Parms)
+{
+	AActor* OwningActor = Cast<AActor>(RootObject);
+	if (!ensure(OwningActor != nullptr))
+	{
+		return;
+	}
+
+	if (!ShouldForwardFunction(OwningActor, Function, Parms))
+	{
+		return;
+	}
+
+	if (FWorldContext* Context = GEngine->GetWorldContextFromWorld(GetWorld()))
+	{
+		for (FNamedNetDriver& Driver : Context->ActiveNetDrivers)
+		{
+			if (Driver.NetDriver != nullptr && Driver.NetDriver != this && Driver.NetDriver->ShouldReplicateFunction(OwningActor, Function))
+			{
+				SCOPE_CYCLE_COUNTER(STAT_NetReceiveRPC_ProcessRemoteFunction);
+				Driver.NetDriver->ProcessRemoteFunction(OwningActor, Function, Parms, static_cast<FOutParmRec*>(nullptr), static_cast<FFrame*>(nullptr), SubObject);
+			}
+		}
+	}
 }
 
 bool UNetDriver::ShouldReplicateActor(AActor* Actor) const

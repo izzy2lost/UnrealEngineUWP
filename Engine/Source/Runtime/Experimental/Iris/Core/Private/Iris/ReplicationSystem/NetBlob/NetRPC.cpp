@@ -5,6 +5,7 @@
 #include "Iris/Core/BitTwiddling.h"
 #include "Net/Core/Trace/NetTrace.h"
 #include "Net/Core/Misc/NetContext.h"
+#include "Iris/ReplicationSystem/NetBlob/NetRPCHandler.h"
 #include "Iris/ReplicationSystem/ObjectReferenceCache.h"
 #include "Iris/ReplicationSystem/ObjectReplicationBridge.h"
 #include "Iris/Serialization/NetReferenceCollector.h"
@@ -12,6 +13,7 @@
 #include "Iris/ReplicationSystem/ReplicationOperationsInternal.h"
 #include "Iris/ReplicationSystem/ReplicationProtocol.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
+#include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
 #include "Iris/Serialization/InternalNetSerializationContext.h"
 #include "Iris/Serialization/NetBitStreamReader.h"
 #include "Iris/Serialization/NetBitStreamWriter.h"
@@ -30,7 +32,8 @@ namespace UE::Net::Private
 static bool NetRPC_GetFunctionLocator(const UReplicationSystem* ReplicationSystem, const FNetObjectReference& ObjectReference, const UFunction* Function, FNetRPC::FFunctionLocator& OutFunctionLocator, const FReplicationStateMemberFunctionDescriptor*& OutFunctionDescriptor);
 
 static UObject* NetRPC_GetObject(FNetSerializationContext& Context, const FNetObjectReference& ObjectReference);
-static UObject* NetRPC_GetObject(FNetSerializationContext& Context, const FNetObjectReference& RootObjectReference, const FNetObjectReference& SubObjectReference);							                
+static UObject* NetRPC_GetObject(FNetSerializationContext& Context, const FNetObjectReference& RootObjectReference, const FNetObjectReference& SubObjectReference);
+static UObject* NetRPC_GetRootObject(FNetSerializationContext& Context, const FNetObjectReference& ObjectReference);
 
 static bool NetRPC_GetFunctionAndObject(FNetSerializationContext& Context, const FNetObjectReference& RootObjectReference, const FNetObjectReference& SubObjectReferece, const FNetRPC::FFunctionLocator& FunctionLocator, const FReplicationStateMemberFunctionDescriptor*& OutFunctionDescriptor, TWeakObjectPtr<UObject>& OutObject);
 
@@ -418,11 +421,13 @@ FNetRPC* FNetRPC::Create(UReplicationSystem* ReplicationSystem, const FNetBlobCr
 	return NetRPC;
 }
 
-void FNetRPC::CallFunction(FNetSerializationContext& Context)
+void FNetRPC::CallFunction(FNetRPCCallContext& CallContext)
 {
 #if UE_NET_IRIS_CSV_STATS
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(HandleRPC);
 #endif
+
+	FNetSerializationContext& Context = CallContext.GetNetSerializationContext();
 
 	const UReplicationSystem* ReplicationSystem = Context.GetInternalContext()->ReplicationSystem;
 
@@ -483,26 +488,24 @@ void FNetRPC::CallFunction(FNetSerializationContext& Context)
 		bool bLogRpc = true;
 
 		// Suppress spammy engine RPCs. This could be made a configable list in the future.
-		if (Function->GetName().Contains(TEXT("ServerUpdateCamera"))) bLogRpc = false;
-		if (Function->GetName().Contains(TEXT("ClientAckGoodMove"))) bLogRpc = false;
-		if (Function->GetName().Contains(TEXT("ServerMove"))) bLogRpc = false;
-		
-		if (bLogRpc)
+		const FString& FunctionName = Function->GetName();
+		if (   FunctionName.Contains(TEXT("ServerUpdateCamera"))
+			|| FunctionName.Contains(TEXT("ClientAckGoodMove"))
+			|| FunctionName.Contains(TEXT("ServerMove")))
 		{
-			UE_LOG(LogIrisRpc, Verbose, TEXT("Calling %s RPC function %s for %s : %s"), (Function->FunctionFlags & FUNC_NetReliable ? TEXT("reliable") : TEXT("unreliable")), ToCStr(Function->GetName()), *NetObjectReference.ToString(), *Object->GetFullName());
+			bLogRpc = false;
 		}
+		
+		UE_CLOG(bLogRpc, LogIrisRpc, Verbose, TEXT("Calling %hs RPC function %s for %s : %s"), (Function->FunctionFlags & FUNC_NetReliable ? "reliable" : "unreliable"), ToCStr(Function->GetName()), *NetObjectReference.ToString(), *Object->GetFullName());
 	}
-	// Call the function
-	if (Function->ParmsSize == 0)
-	{
-		UE::Net::FScopedNetContextRPC CallingRPC;
-		Object->ProcessEvent(const_cast<UFunction*>(Function), nullptr);
-	}
-	else
+
+	// Setup function parameters
+	uint8* FunctionParameters = nullptr;
+	if (Function->ParmsSize > 0)
 	{
 		check(BlobDescriptor.IsValid());
 
-		uint8* FunctionParameters = static_cast<uint8*>(FMemory_Alloca(Function->ParmsSize));
+		FunctionParameters = static_cast<uint8*>(FMemory_Alloca(Function->ParmsSize));
 		FMemory::Memzero(FunctionParameters, Function->ParmsSize);
 		if (!EnumHasAnyFlags(BlobDescriptor->Traits, EReplicationStateTraits::IsSourceTriviallyConstructible))
 		{
@@ -529,10 +532,25 @@ void FNetRPC::CallFunction(FNetSerializationContext& Context)
 		}
 		
 		FReplicationStateOperations::Dequantize(Context, FunctionParameters, QuantizedBlobState.Get(), BlobDescriptor);
-		{
-			UE::Net::FScopedNetContextRPC CallingRPC;
-			Object->ProcessEvent(const_cast<UFunction*>(Function), FunctionParameters);
-		}
+	}
+
+	// Forward function
+	if (const FForwardNetRPCCallMulticastDelegate& Delegate = CallContext.GetForwardNetRPCCallDelegate(); Delegate.IsBound())
+	{
+		UObject* RootObject = NetRPC_GetRootObject(Context, NetObjectReference);
+		UObject* SubObject = (Object != RootObject ? Object : static_cast<UObject*>(nullptr));
+		Delegate.Broadcast(RootObject, SubObject, const_cast<UFunction*>(Function), FunctionParameters);
+	}
+
+	// Call function
+	{
+		UE::Net::FScopedNetContextRPC CallingRPC;
+		Object->ProcessEvent(const_cast<UFunction*>(Function), FunctionParameters);
+	}
+
+	// Deinitialize function parameters
+	if (FunctionParameters != nullptr)
+	{
 
 		if (!EnumHasAnyFlags(BlobDescriptor->Traits, EReplicationStateTraits::IsSourceTriviallyDestructible))
 		{
@@ -595,6 +613,29 @@ static UObject* NetRPC_GetObject(FNetSerializationContext& Context, const FNetOb
 {
 	FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
 	return InternalContext->ObjectReferenceCache->ResolveObjectReference(ObjectReference, InternalContext->ResolveContext);
+}
+
+static UObject* NetRPC_GetRootObject(FNetSerializationContext& Context, const FNetObjectReference& ObjectReference)
+{
+	FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
+	const FNetRefHandleManager& NetRefHandleManager = InternalContext->ReplicationSystem->GetReplicationSystemInternal()->GetNetRefHandleManager();
+	
+	FNetRefHandle OwnerRefHandle = ObjectReference.GetRefHandle();
+	const FInternalNetRefIndex InternalIndex = NetRefHandleManager.GetInternalIndex(OwnerRefHandle);
+	if (!ensureMsgf(InternalIndex != FNetRefHandleManager::InvalidInternalIndex, TEXT("Unable to find InternalIndex for object reference %s"), ToCStr(ObjectReference.ToString())))
+	{
+		return nullptr;
+	}
+
+	const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager.GetReplicatedObjectDataNoCheck(InternalIndex);
+	if (ObjectData.SubObjectRootIndex != FNetRefHandleManager::InvalidInternalIndex)
+	{
+		const FNetRefHandleManager::FReplicatedObjectData& RootObjectData = NetRefHandleManager.GetReplicatedObjectDataNoCheck(ObjectData.SubObjectRootIndex);
+		OwnerRefHandle = RootObjectData.RefHandle;
+	}
+
+	UObject* RootObject = InternalContext->ObjectReferenceCache->ResolveObjectReferenceHandle(OwnerRefHandle, InternalContext->ResolveContext);
+	return RootObject;
 }
 
 static bool NetRPC_GetFunctionAndObject(FNetSerializationContext& Context, const FNetObjectReference& ObjectReference, const FNetObjectReference& SubObjectReference, const FNetRPC::FFunctionLocator& FunctionLocator, const FReplicationStateMemberFunctionDescriptor*& OutFunctionDescriptor, TWeakObjectPtr<UObject>& OutObject)

@@ -2095,6 +2095,8 @@ protected:
 	void NotifyGameInstanceUpdated();
 
 private:
+	// Only for ForwardRemoteFunction
+	friend FObjectReplicator;
 
 	ENGINE_API virtual ECreateReplicationChangelistMgrFlags GetCreateReplicationChangelistMgrFlags() const;
 
@@ -2128,6 +2130,9 @@ private:
 #endif
 
 	void InitNetTraceId();
+
+	/** Called from RPC processing code to forward RPC to other NetDrivers if ShouldForwardFunction returns true. */
+	void ForwardRemoteFunction(UObject* RootObject, UObject* SubObject, UFunction* Function, void* Parms);
 
 	UPROPERTY(transient)
 	TObjectPtr<UReplicationDriver> ReplicationDriver;
@@ -2174,7 +2179,6 @@ private:
 
 	/** Stat tracking for the total number of out of order packets that were duplicates */
 	int32 TotalOutOfOrderPacketsDuplicate = 0;
-
 
 	/** Cached value for UEngine.GlobalNetTravelCount, at the time of NetDriver initialization */
 	uint32 CachedGlobalNetTravelCount = 0;

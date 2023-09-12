@@ -9,6 +9,7 @@
 #include "Iris/IrisConfig.h"
 #include "Iris/ReplicationSystem/NetRefHandle.h"
 #include "Iris/ReplicationSystem/NetObjectGroupHandle.h"
+#include "Iris/ReplicationSystem/ReplicationSystemTypes.h"
 #include "Net/Core/NetHandle/NetHandle.h"
 
 #include "ReplicationSystem.generated.h"
@@ -64,6 +65,7 @@ public:
 		uint32 MaxNetObjectGroupCount = 2048U;
 		bool bIsServer = false;
 		bool bAllowObjectReplication = false;
+		UE::Net::FForwardNetRPCCallDelegate ForwardNetRPCCallDelegate;
 	};
 
 	/** @return The unique ID of the ReplicationSystem. */
@@ -533,7 +535,6 @@ public:
 
 public:
 	// For internal use and not exported.
-
 	UE::Net::Private::FReplicationSystemInternal* GetReplicationSystemInternal();
 	const UE::Net::Private::FReplicationSystemInternal* GetReplicationSystemInternal() const;
 

@@ -2,9 +2,10 @@
 
 #include "Iris/ReplicationSystem/NetBlob/NetRPCHandler.h"
 #include "Iris/ReplicationSystem/NetBlob/NetRPC.h"
+#include "Iris/ReplicationSystem/ReplicationSystem.h"
+#include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
 
 UNetRPCHandler::UNetRPCHandler()
-: ReplicationSystem(nullptr)
 {
 }
 
@@ -32,8 +33,10 @@ TRefCountPtr<UE::Net::FNetBlob> UNetRPCHandler::CreateNetBlob(const FNetBlobCrea
 	return RPC;
 }
 
-void UNetRPCHandler::OnNetBlobReceived(UE::Net::FNetSerializationContext& Context, const TRefCountPtr<FNetBlob>& NetBlob)
+void UNetRPCHandler::OnNetBlobReceived(UE::Net::FNetSerializationContext& NetContext, const TRefCountPtr<FNetBlob>& NetBlob)
 {
+	const UE::Net::FForwardNetRPCCallMulticastDelegate& ForwardNetRPCCallDelegate = ReplicationSystem->GetReplicationSystemInternal()->GetForwardNetRPCCallMulticastDelegate();
+	UE::Net::FNetRPCCallContext CallContext(NetContext, ForwardNetRPCCallDelegate);
 	FNetRPC* RPC = static_cast<FNetRPC*>(NetBlob.GetReference());
-	RPC->CallFunction(Context);
+	RPC->CallFunction(CallContext);
 }

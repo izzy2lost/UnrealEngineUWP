@@ -219,6 +219,11 @@ public:
 			InitParams.bSendAttachmentsWithObject = ReplicationSystem->IsServer();
 			BlobManager.Init(InitParams);
 		}
+
+		if (Params.ForwardNetRPCCallDelegate.IsBound())
+		{
+			ReplicationSystemInternal.GetForwardNetRPCCallMulticastDelegate().Add(Params.ForwardNetRPCCallDelegate);
+		}
 	}
 
 	void Deinit()
