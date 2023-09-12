@@ -4,23 +4,18 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using Amazon.EC2.Model;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using Grpc.Net.Client;
 using Horde.Agent.Execution;
 using Horde.Agent.Leases;
 using Horde.Agent.Leases.Handlers;
-using Horde.Agent.Parser;
 using Horde.Agent.Services;
 using Horde.Agent.Utility;
-using Horde.Common;
 using Horde.Common.Rpc;
 using HordeCommon;
 using HordeCommon.Rpc;
@@ -29,7 +24,6 @@ using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 
@@ -285,12 +279,11 @@ namespace Horde.Agent.Tests
 	internal class FakeHordeRpcServer : IAsyncDisposable
 	{
 		private readonly string _serverName;
-		private bool _isStopping = false;
-		private Dictionary<string, Lease> _leases = new();
+		private readonly bool _isStopping = false;
+		private readonly Dictionary<string, Lease> _leases = new();
 
 		private readonly Dictionary<string, GetStreamResponse> _streamIdToStreamResponse = new();
 		private readonly Dictionary<string, GetJobResponse> _jobIdToJobResponse = new();
-		private readonly Mock<HordeRpc.HordeRpcClient> _mockClient;
 		private readonly Mock<IRpcClientRef<HordeRpc.HordeRpcClient>> _mockClientRef;
 		private readonly Mock<IRpcConnection> _mockConnection;
 		private readonly ILogger<FakeHordeRpcServer> _logger;
@@ -348,7 +341,6 @@ namespace Horde.Agent.Tests
 		public FakeHordeRpcServer()
 		{
 			_serverName = "FakeServer";
-			_mockClient = new (MockBehavior.Strict);
 			_logger = NullLogger<FakeHordeRpcServer>.Instance;
 			FakeHordeRpcClient hordeClient = new FakeHordeRpcClient(this);
 			_client = new FakeJobRpcClient(this);
@@ -546,7 +538,7 @@ namespace Horde.Agent.Tests
 	{
 		private readonly Channel<T> _channel = System.Threading.Channels.Channel.CreateUnbounded<T>();
 		private T? _current;
-		private CancellationToken? _cancellationTokenOverride;
+		private readonly CancellationToken? _cancellationTokenOverride;
 
 		public FakeAsyncStreamReader(CancellationToken? cancellationTokenOverride = null)
 		{

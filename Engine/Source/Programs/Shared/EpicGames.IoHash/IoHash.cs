@@ -151,6 +151,7 @@ namespace EpicGames.Core
 		/// Creates the IoHash for a stream asynchronously. 
 		/// </summary>
 		/// <param name="stream">Data to compute the hash for</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New content hash instance containing the hash of the data</returns>
 		public static async Task<IoHash> ComputeAsync(Stream stream, CancellationToken cancellationToken = default) => await ComputeAsync(stream, -1, cancellationToken);
 

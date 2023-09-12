@@ -2,7 +2,6 @@
 
 using StackExchange.Redis;
 using System;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace EpicGames.Redis

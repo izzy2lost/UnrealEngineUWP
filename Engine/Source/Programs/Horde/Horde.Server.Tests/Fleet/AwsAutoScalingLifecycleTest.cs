@@ -11,14 +11,12 @@ using Amazon.AutoScaling;
 using Amazon.AutoScaling.Model;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Fleet;
-using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using MongoDB.Bson;
 using Moq;
 using EpicGames.Horde.Api;
 
@@ -126,6 +124,8 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 		// Trigger lifecycle update tick once again and no further updates should have been sent
 		await Clock.AdvanceAsync(_asgLifecycleService.LifecycleUpdaterInterval + extraMargin);
 		Assert.AreEqual(3, _lifecycleUpdates.Count);
+
+		_ = agent;
 	}
 	
 	[TestMethod]
@@ -145,7 +145,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	public async Task GetInstancesAvailableForTermination_IdleAgent_ReturnsInstanceId()
 	{
 		// Arrange
-		IAgent agent = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-1000");
+		_ = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-1000");
 		TerminationPolicyEvent e = CreateTerminationPolicyEvent("i-1000");
 
 		// Act
@@ -159,8 +159,8 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	public async Task GetInstancesAvailableForTermination_IdleAgentsInMixedAsgs_OnlyReturnInstanceIdFromSameAsg()
 	{
 		// Arrange
-		IAgent agent1 = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-1000");
-		IAgent agent2 = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-2000");
+		_ = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-1000");
+		_ = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-2000");
 		TerminationPolicyEvent e = CreateTerminationPolicyEvent("i-1000");
 
 		// Act
@@ -175,7 +175,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	{
 		// Arrange
 		AgentLease lease = new(new LeaseId(BinaryIdUtils.CreateNew()), null, "test-lease", null, null, null, LeaseState.Active, null, false, null);
-		IAgent agent = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-1000", lease: lease);
+		_ = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-1000", lease: lease);
 		TerminationPolicyEvent e = CreateTerminationPolicyEvent("i-1000");
 
 		// Act

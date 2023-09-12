@@ -97,6 +97,8 @@ namespace EpicGames.Horde.Tests
 
 		static async Task TestProducerConsumerAsync(Func<int, ComputeBuffer> createBuffer, CancellationToken cancellationToken)
 		{
+			_ = cancellationToken;
+
 			const int Length = 8000;
 
 			Pipe sourceToTargetPipe = new Pipe();

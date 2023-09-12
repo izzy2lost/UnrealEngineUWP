@@ -2,7 +2,6 @@
 
 using System.Collections.Generic;
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests.Streams

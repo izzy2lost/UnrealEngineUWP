@@ -11,12 +11,10 @@ using Horde.Server.Agents;
 using Horde.Server.Agents.Fleet;
 using Horde.Server.Agents.Fleet.Providers;
 using Horde.Server.Agents.Pools;
-using Horde.Server.Utilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OpenTelemetry.Trace;
 
 namespace Horde.Server.Tests.Fleet
 {

@@ -208,8 +208,6 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task TestReservationPerfModel()
 		{
-
-
 			List<string> deviceModels = new List<string>() { "TestDevicePlatform1:TestDevicePlatform1_Model2", "TestDevicePlatform1_Model3" };
 			LegacyCreateReservationRequest request = await SetupReservationTest("TestDevicePool1", String.Join(';', deviceModels));
 
@@ -240,7 +238,6 @@ namespace Horde.Server.Tests
 			string? secondModel = device.Model;
 			Assert.IsTrue(secondModel != firstModel && (secondModel == "TestDevicePlatform1_Model2" || secondModel == "TestDevicePlatform1_Model3"));
 		}
-
 
 		[TestMethod]
 		public async Task TestProblemDevice()

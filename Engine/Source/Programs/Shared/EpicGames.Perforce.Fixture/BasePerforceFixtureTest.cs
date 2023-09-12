@@ -78,7 +78,8 @@ public abstract class BasePerforceFixtureTest : IDisposable
 			// Remove the read-only flags set by the P4 client
 			foreach (string filePath in Directory.EnumerateFiles(TempDir.FullName, "*", SearchOption.AllDirectories))
 			{
-				FileInfo fileInfo = new (filePath) { IsReadOnly = false };
+				FileInfo fileInfo = new FileInfo(filePath);
+				fileInfo.IsReadOnly = false;
 			}
 			
 			Directory.Delete(TempDir.FullName, true);

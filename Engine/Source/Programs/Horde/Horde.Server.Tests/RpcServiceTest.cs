@@ -13,7 +13,6 @@ using Google.Protobuf;
 using Grpc.Core;
 using Horde.Server.Utilities;
 using Horde.Server.Agents.Pools;
-using Horde.Server.Agents.Leases;
 using Horde.Server.Logs;
 using Horde.Server.Server;
 using HordeCommon.Rpc;

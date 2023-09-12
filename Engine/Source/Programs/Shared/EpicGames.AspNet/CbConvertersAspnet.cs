@@ -7,8 +7,14 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EpicGames.AspNet
 {
+	/// <summary>
+	/// 
+	/// </summary>
 	public static class CbConvertersAspNet
 	{
+		/// <summary>
+		/// 
+		/// </summary>
 		public static void AddAspnetConverters()
 		{
 			CbConverter.TypeToConverter[typeof(ProblemDetails)] = new CbProblemDetailsConverter();
@@ -18,7 +24,6 @@ namespace EpicGames.AspNet
 	/// <summary>
 	/// Converter for asp.net problem details type
 	/// </summary>
-	/// <typeparam name="T"></typeparam>
 	class CbProblemDetailsConverter : CbConverterBase<ProblemDetails>
 	{
 		/// <inheritdoc/>

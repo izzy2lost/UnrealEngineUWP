@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Horde.Storage;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.IO;

@@ -17,7 +17,6 @@ using Horde.Server.Utilities;
 using HordeCommon;
 using HordeCommon.Rpc.Messages;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests;
@@ -89,7 +88,7 @@ public class AgentServiceTest : TestSetup
 	}
 
 	private static int s_agentId = 1;
-	private async Task<IAgent> CreateAgentSessionAsync(bool enabled = true)
+	private async Task<IAgent> CreateAgentSessionAsync()
 	{
 		IAgent agent = await AgentService.CreateAgentAsync("agentServiceTest-" + s_agentId++, true, null);
 		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new List<string>(), new Dictionary<string, int>(), "v1");
@@ -164,7 +163,6 @@ public class AgentServiceTest : TestSetup
 		{
 			new AgentRateConfig() { Condition = "aws-instance-type == 'c5.24xlarge' && osfamily == 'windows'", Rate = 200, },
 			new AgentRateConfig() { Condition = "aws-instance-type == 'c4.4xlarge' && osfamily == 'windows'", Rate = 300 }
-			
 		};
 		await AgentService.UpdateRateTableAsync(agentRateConfigs);
 		

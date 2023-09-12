@@ -5,12 +5,10 @@ using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 using System.Security.Claims;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Amazon.AutoScaling;
 using Amazon.CloudWatch;
 using Amazon.EC2;
-using Datadog.Trace;
 using EpicGames.Core;
 using EpicGames.Horde.Api;
 using EpicGames.Horde.Storage;
@@ -20,7 +18,6 @@ using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Sessions;
-using Horde.Server.Projects;
 using Horde.Server.Streams;
 using Horde.Server.Issues;
 using Horde.Server.Jobs;
@@ -43,7 +40,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Horde.Server.Users;
-using Horde.Server.Agents.Software;
 using Horde.Server.Ugs;
 using Horde.Server.Jobs.Timing;
 using Horde.Server.Configuration;
@@ -51,17 +47,13 @@ using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.TestData;
 using Horde.Server.Jobs.Templates;
 using Horde.Server.Jobs.Artifacts;
-using Horde.Server.Secrets;
 using Horde.Server.Jobs.Schedules;
 using Horde.Server.Perforce;
-using Horde.Server.Agents.Fleet.Providers;
 using Horde.Server.Agents.Fleet;
 using Horde.Server.Agents.Telemetry;
 using Horde.Server.Logs.Storage;
 using Horde.Server.Tasks;
 using Horde.Server.Auditing;
-using Horde.Server.Storage.Backends;
-using Horde.Server.Compute;
 using Horde.Server.Devices;
 using Moq;
 using Horde.Server.Telemetry;
@@ -291,9 +283,8 @@ namespace Horde.Server.Tests
 
 		private JobsController GetJobsController()
         {
-			ILogger<JobsController> logger = ServiceProvider.GetRequiredService<ILogger<JobsController>>();
-			JobsController jobsCtrl = new JobsController(GraphCollection, CommitService, PerforceService, StreamCollection, JobService,
-		        TemplateCollection, ArtifactCollection, UserCollection, NotificationService, AgentService, GlobalConfigSnapshot, logger);
+			JobsController jobsCtrl = new JobsController(GraphCollection, CommitService, PerforceService, JobService,
+		        TemplateCollection, ArtifactCollection, UserCollection, NotificationService, AgentService, GlobalConfigSnapshot);
 	        jobsCtrl.ControllerContext = GetControllerContext();
 	        return jobsCtrl;
         }
@@ -315,7 +306,7 @@ namespace Horde.Server.Tests
 
 		private TestDataController GetTestDataController()
 		{
-			TestDataController dataCtrl = new TestDataController(TestDataService, StreamCollection, JobService, TestDataCollection, GlobalConfigSnapshot);
+			TestDataController dataCtrl = new TestDataController(TestDataService, JobService, TestDataCollection, GlobalConfigSnapshot);
 			dataCtrl.ControllerContext = GetControllerContext();
 			return dataCtrl;
 		}

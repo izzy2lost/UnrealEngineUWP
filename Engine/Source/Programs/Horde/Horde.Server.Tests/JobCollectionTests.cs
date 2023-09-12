@@ -8,19 +8,15 @@ using EpicGames.Core;
 using EpicGames.Horde.Api;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Agents;
 using Horde.Server.Logs;
-using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Streams;
 using Horde.Server.Jobs.Templates;
 using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using MongoDB.Bson;
 using Moq;
 using Horde.Server.Agents.Sessions;
-using Horde.Server.Users;
 
 namespace Horde.Server.Tests
 {

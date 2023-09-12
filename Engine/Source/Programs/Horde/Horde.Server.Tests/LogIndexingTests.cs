@@ -12,13 +12,11 @@ using Horde.Server.Logs;
 using Horde.Server.Logs.Builder;
 using Horde.Server.Logs.Storage;
 using Horde.Server.Jobs;
-using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Horde.Server.Logs.Data;
 using EpicGames.Horde.Logs;
 using OpenTelemetry.Trace;
 

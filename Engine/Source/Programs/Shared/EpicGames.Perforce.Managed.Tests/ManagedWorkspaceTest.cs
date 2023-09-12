@@ -299,15 +299,7 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 		await ws.SetupAsync(PerforceConnection, StreamName, CancellationToken.None);
 		return ws;
 	}
-	
-	private async Task<ManagedWorkspace> LoadManagedWorkspace(bool useHaveTable)
-	{
-		ManagedWorkspaceOptions options = new() { UseHaveTable = useHaveTable };
-		ManagedWorkspace ws = await ManagedWorkspace.LoadAsync(Environment.MachineName, TempDir, options, _mwLogger, CancellationToken.None);
-		await ws.SetupAsync(PerforceConnection, StreamName, CancellationToken.None);
-		return ws;
-	}
-	
+		
 	private async Task SyncAsync(ManagedWorkspace managedWorkspace, int changeNumber, FileReference? cacheFile = null, bool removeUntracked = true)
 	{
 		await managedWorkspace.SyncAsync(PerforceConnection, StreamName, changeNumber, Array.Empty<string>(), removeUntracked, false, cacheFile, CancellationToken.None);
@@ -325,15 +317,6 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 				Console.WriteLine(haveRecord.DepotFile + "#" + haveRecord.HaveRev);
 			}
 			Assert.Fail($"Actual have table file count does not match expected count. Actual={haveRecords.Count} Expected={expected}");
-		}
-	}
-
-	private void DumpMetaDir()
-	{
-		Console.WriteLine("Meta dir: --------------------------");
-		foreach (string path in Directory.GetFiles(TempDir.FullName, "*", SearchOption.AllDirectories))
-		{
-			Console.WriteLine(Path.GetRelativePath(TempDir.FullName, path));
 		}
 	}
 }

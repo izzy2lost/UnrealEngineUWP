@@ -12,7 +12,6 @@ using EpicGames.Horde.Storage.Clients;
 using Horde.Server.Storage;
 using System.Threading;
 using Horde.Server.Server;
-using Horde.Server.Utilities;
 
 namespace Horde.Server.Tests
 {

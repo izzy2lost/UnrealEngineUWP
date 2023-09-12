@@ -12,15 +12,10 @@ using System.Text;
 using System.Threading.Tasks;
 using Blake3;
 using Horde.Server.Ddc;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EpicGames.AspNet;
 using EpicGames.Core;
-using Horde.Server.Tests;
-using Horde.Server;
 using Horde.Server.Server;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -345,7 +340,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 				CollectionAssert.AreEqual(payload, blobContent);
 			}
 		}
-
 
 		[TestMethod]
 		public async Task GetUncompressedContentAsCompressedBufferAsync()

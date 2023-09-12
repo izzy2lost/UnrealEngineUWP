@@ -9,11 +9,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Threading.Tasks;
 using System.Linq;
 using EpicGames.Core;
-using Moq;
-using Horde.Server.Perforce;
-using EpicGames.Perforce;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.IO;
 using Horde.Server.Server;
 
 namespace Horde.Server.Tests
@@ -37,7 +33,7 @@ namespace Horde.Server.Tests
 			public SubObject? TestObject { get; set; }
 		}
 
-		JsonSerializerOptions _jsonOptions = new JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault };
+		readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault };
 
 		[TestMethod]
 		public async Task IncludeTestAsync()

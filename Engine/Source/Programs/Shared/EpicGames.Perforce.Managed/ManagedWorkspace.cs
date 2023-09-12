@@ -94,24 +94,37 @@ namespace EpicGames.Perforce.Managed
 		/// </summary>
 		public bool UseHaveTable { get; init; } = true;
 
+		/// <inheritdoc/>
 		protected bool Equals(ManagedWorkspaceOptions other)
 		{
 			return NumParallelSyncThreads == other.NumParallelSyncThreads && MaxFileConcurrency == other.MaxFileConcurrency && MinScratchSpace == other.MinScratchSpace && UseHaveTable == other.UseHaveTable;
 		}
 
+		/// <inheritdoc/>
 		public override bool Equals(object? obj)
 		{
-			if (ReferenceEquals(null, obj)) { return false; }
-			if (ReferenceEquals(this, obj)) { return true; }
-			if (obj.GetType() != GetType()) { return false; }
+			if (ReferenceEquals(null, obj))
+			{ 
+				return false; 
+			}
+			if (ReferenceEquals(this, obj))
+			{ 
+				return true;
+			}
+			if (obj.GetType() != GetType())
+			{
+				return false;
+			}
 			return Equals((ManagedWorkspaceOptions)obj);
 		}
 
+		/// <inheritdoc/>
 		public override int GetHashCode()
 		{
 			return HashCode.Combine(NumParallelSyncThreads, MaxFileConcurrency, MinScratchSpace, UseHaveTable);
 		}
 
+		/// <inheritdoc/>
 		public override string ToString()
 		{
 			return $"{nameof(NumParallelSyncThreads)}={NumParallelSyncThreads} {nameof(MaxFileConcurrency)}={MaxFileConcurrency} {nameof(MinScratchSpace)}={MinScratchSpace} {nameof(UseHaveTable)}={UseHaveTable}";

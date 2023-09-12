@@ -234,7 +234,6 @@ namespace Horde.Server.Tests
 			public List<string>? testIds { get; set; }
 		}
 
-
 		[TestMethod]
 		public async Task SessionReportTest()
 		{

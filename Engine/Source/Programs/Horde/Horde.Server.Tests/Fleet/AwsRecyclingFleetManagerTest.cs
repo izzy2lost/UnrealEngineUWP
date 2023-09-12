@@ -12,7 +12,6 @@ using Horde.Server.Agents.Fleet;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Fleet.Providers;
-using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.Logging;
 using JsonSerializer = System.Text.Json.JsonSerializer;
@@ -148,6 +147,10 @@ namespace Horde.Server.Tests.Fleet
 			Instance i4 = ec2.AddInstance(FakeAmazonEc2.StateStopped, InstanceType.M5Large, launchTime: DateTime.Parse("Aug 28, 2018"));
 			Instance i5 = ec2.AddInstance(FakeAmazonEc2.StateStopped, InstanceType.M5Large, launchTime: DateTime.Parse("Aug 1, 2018"));
 			ec2.SetCapacity(FakeAmazonEc2.AzUsEast1A, InstanceType.M5Large, 2);
+
+			_ = i1;
+			_ = i3;
+			_ = i5;
 
 			await ExpandPoolAsync(ec2.Get(), 2, new(new List<string>()));
 			Assert.AreEqual(3, ec2.GetStoppedInstanceCount());

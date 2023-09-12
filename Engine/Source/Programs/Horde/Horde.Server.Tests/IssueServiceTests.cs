@@ -1546,7 +1546,6 @@ namespace Horde.Server.Tests
 			}
 		}
 
-
 		[TestMethod]
 		public async Task LinkerIssueTest2()
 		{
@@ -2087,7 +2086,6 @@ namespace Horde.Server.Tests
 				await UpdateCompleteStep(job, 0, 0, JobStepOutcome.Success);
 			}
 
-
 			// #2
 			// Scenario: Warning in first step
 			// Expected: Default issue is created
@@ -2175,7 +2173,6 @@ namespace Horde.Server.Tests
 				Assert.AreEqual(0, issues.Count);
 												
 			}
-
 		}
 
 		[TestMethod]
@@ -2244,7 +2241,6 @@ namespace Horde.Server.Tests
 
 				Assert.AreEqual(2, issues[0].Id);
 			}
-
 		}
 
 		[TestMethod]
@@ -2317,14 +2313,11 @@ namespace Horde.Server.Tests
 				Assert.AreEqual(1, issues[0].Id);
 				Assert.AreEqual(IssueSeverity.Error, issues[0].Severity);
 			}
-
-
 		}
 
 		[TestMethod]
 		public async Task MultipleStreamIssueTest()
 		{
-
 			int hours = 0;
 
 			IUser bob = await UserCollection.FindOrAddUserByLoginAsync("Bob");
@@ -2391,7 +2384,6 @@ namespace Horde.Server.Tests
 				Assert.AreEqual(0, issues.Count);
 			}
 
-
 			// #3
 			// Scenario: Job step encounters a hashed issue at CL 22145160
 			// Expected: Hashed issue type is created
@@ -2399,7 +2391,6 @@ namespace Horde.Server.Tests
 				IJob job = CreateJob(_mainStreamId, 22145160, "Test Build", _graph, TimeSpan.FromHours(hours++));				
 				await ParseEventsAsync(job, 0, 0, breakage1);
 				await UpdateCompleteStep(job, 0, 0, JobStepOutcome.Failure);
-
 
 				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
@@ -2451,9 +2442,7 @@ namespace Horde.Server.Tests
 				// Check that new issue was created
 				Assert.AreEqual(2, issues[0].Id);
 				Assert.AreEqual("Errors in Update Version Files and Compile UnrealHeaderTool Win64", issues[0].Summary);
-
 			}
-
 		}
 
 		[TestMethod]
@@ -2506,25 +2495,6 @@ namespace Horde.Server.Tests
 				Assert.AreEqual(IssueSeverity.Error, issue.Severity);
 				Assert.AreEqual(1, issue.Fingerprints.Count);
 				Assert.AreEqual("Hashed", issue.Fingerprints[0].Type);
-			}
-		}
-
-
-
-		private async Task ParseAsync(LogId logId, string[] lines)
-		{
-			await using (TestJsonLogger logger = new TestJsonLogger(LogFileService, logId))
-			{
-				PerforceLogger perforceLogger = new PerforceLogger(logger);
-				perforceLogger.AddClientView(DirectoryReference.GetCurrentDirectory(), "//UE4/Main/...", 12345);
-
-				using (LogParser parser = new LogParser(perforceLogger, new List<string>()))
-				{
-					for (int idx = 0; idx < lines.Length; idx++)
-					{
-						parser.WriteLine(lines[idx]);
-					}
-				}
 			}
 		}
 

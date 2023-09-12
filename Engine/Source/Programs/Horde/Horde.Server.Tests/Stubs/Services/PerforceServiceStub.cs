@@ -8,7 +8,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Api;
-using EpicGames.Perforce;
 using Horde.Server.Perforce;
 using Horde.Server.Streams;
 using Horde.Server.Users;
@@ -129,6 +128,8 @@ namespace Horde.Server.Tests.Stubs.Services
 
 		public Task<List<ICommit>> GetChangesAsync(StreamConfig stream, int? minChange, int? maxChange, int? numResults, CancellationToken cancellationToken)
 		{
+			_ = cancellationToken;
+
 			List<ICommit> results = new List<ICommit>();
 
 			SortedDictionary<int, Commit>? streamChanges;
@@ -161,6 +162,8 @@ namespace Horde.Server.Tests.Stubs.Services
 
 		public Task<List<ICommit>> GetChangeDetailsAsync(StreamConfig stream, IReadOnlyList<int> changeNumbers, CancellationToken cancellationToken)
 		{
+			_ = cancellationToken;
+
 			List<ICommit> results = new List<ICommit>();
 			foreach (int changeNumber in changeNumbers)
 			{
@@ -203,12 +206,12 @@ namespace Horde.Server.Tests.Stubs.Services
 		{
 			throw new NotImplementedException();
 		}
-
+/*
 		public Task<ICommit> GetChangeDetailsAsync(IStream stream, int changeNumber, CancellationToken cancellationToken)
 		{
 			return Task.FromResult<ICommit>(Changes[stream.Id][changeNumber]);
 		}
-
+*/
 		class CommitCollection : ICommitCollection
 		{
 			readonly PerforceServiceStub _owner;

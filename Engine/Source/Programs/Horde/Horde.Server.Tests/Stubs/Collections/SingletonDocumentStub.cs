@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Threading.Tasks;
-using Horde.Server.Server;
 using Horde.Server.Utilities;
 
 namespace Horde.Server.Tests.Stubs.Collections

@@ -12,7 +12,6 @@ using Horde.Server.Streams;
 using Horde.Server.Jobs.Templates;
 using Horde.Server.Jobs.Schedules;
 using Horde.Server.Users;
-using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
