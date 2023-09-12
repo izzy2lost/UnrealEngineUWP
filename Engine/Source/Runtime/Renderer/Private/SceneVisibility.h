@@ -11,25 +11,6 @@ class FVisibilityTaskData;
 class FSceneRenderer;
 class FInstanceCullingManager;
 class FVirtualTextureUpdater;
-class FGlobalDynamicIndexBuffer;
-class FGlobalDynamicVertexBuffer;
-class FGlobalDynamicReadBuffer;
-
-struct FGlobalDynamicBuffers
-{
-	FGlobalDynamicBuffers(
-		FGlobalDynamicIndexBuffer& InDynamicIndexBuffer,
-		FGlobalDynamicVertexBuffer& InDynamicVertexBuffer,
-		FGlobalDynamicReadBuffer& InDynamicReadBuffer)
-		: Index(&InDynamicIndexBuffer)
-		, Vertex(&InDynamicVertexBuffer)
-		, Read(&InDynamicReadBuffer)
-	{}
-
-	FGlobalDynamicIndexBuffer* Index;
-	FGlobalDynamicVertexBuffer* Vertex;
-	FGlobalDynamicReadBuffer* Read;
-};
 
 class FViewCommands
 {
@@ -80,4 +61,4 @@ public:
 	//////////////////////////////////////////////////////////////////////////////
 };
 
-extern IVisibilityTaskData* LaunchVisibilityTasks(FRHICommandListImmediate& RHICmdList, FSceneRenderer& SceneRenderer, FGlobalDynamicBuffers GlobalDynamicBuffers);
+extern IVisibilityTaskData* LaunchVisibilityTasks(FRHICommandListImmediate& RHICmdList, FSceneRenderer& SceneRenderer);

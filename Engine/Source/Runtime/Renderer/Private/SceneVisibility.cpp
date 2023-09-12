@@ -368,9 +368,9 @@ TRACE_DECLARE_INT_COUNTER(Scene_Visibility_Relevance_NumPrimitivesProcessed, TEX
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IVisibilityTaskData* LaunchVisibilityTasks(FRHICommandListImmediate& RHICmdList, FSceneRenderer& SceneRenderer, FGlobalDynamicBuffers GlobalDynamicBuffers)
+IVisibilityTaskData* LaunchVisibilityTasks(FRHICommandListImmediate& RHICmdList, FSceneRenderer& SceneRenderer)
 {
-	FVisibilityTaskData* TaskData = SceneRenderer.Allocator.Create<FVisibilityTaskData>(RHICmdList, SceneRenderer, GlobalDynamicBuffers);
+	FVisibilityTaskData* TaskData = SceneRenderer.Allocator.Create<FVisibilityTaskData>(RHICmdList, SceneRenderer);
 	TaskData->LaunchVisibilityTasks();
 	return TaskData;
 }
@@ -2625,11 +2625,11 @@ void FGPUOcclusionPacket::FProcessVisitor::AddOcclusionQuery(const FOcclusionQue
 
 	if (Query.bGroupedQuery)
 	{
-		RenderQuery = Packet.View.GroupedOcclusionQueries.BatchPrimitive(RHICmdList, Query.Bounds.Origin, Query.Bounds.Extent, DynamicVertexBuffer);
+		RenderQuery = Packet.View.GroupedOcclusionQueries.BatchPrimitive(Query.Bounds.Origin, Query.Bounds.Extent, DynamicVertexBuffer);
 	}
 	else
 	{
-		RenderQuery = Packet.View.IndividualOcclusionQueries.BatchPrimitive(RHICmdList, Query.Bounds.Origin, Query.Bounds.Extent, DynamicVertexBuffer);
+		RenderQuery = Packet.View.IndividualOcclusionQueries.BatchPrimitive(Query.Bounds.Origin, Query.Bounds.Extent, DynamicVertexBuffer);
 	}
 
 	Packet.ViewState.Occlusion.LastOcclusionQuery = RenderQuery;
@@ -2690,7 +2690,7 @@ void FGPUOcclusionPacket::FProcessVisitor::SubmitThrottledOcclusionQueries()
 		FThrottledOcclusionQuery* Query = SortedQueries[Index];
 		FPrimitiveOcclusionHistory* PrimitiveOcclusionHistory = PrimitiveOcclusionHistorySet.Find(Query->PrimitiveOcclusionHistoryKey);
 
-		FRHIRenderQuery* RenderQuery = Packet.View.IndividualOcclusionQueries.BatchPrimitive(RHICmdList, Query->Bounds.Origin, Query->Bounds.Extent, DynamicVertexBuffer);
+		FRHIRenderQuery* RenderQuery = Packet.View.IndividualOcclusionQueries.BatchPrimitive(Query->Bounds.Origin, Query->Bounds.Extent, DynamicVertexBuffer);
 
 		Packet.ViewState.Occlusion.LastOcclusionQuery = RenderQuery;
 		Packet.ViewState.Occlusion.NumRequestedQueries++;
@@ -2982,7 +2982,7 @@ void FGPUOcclusionParallel::Finalize()
 	}
 
 	Packets.Empty();
-	DynamicVertexBuffer.Commit(*RHICmdList);
+	DynamicVertexBuffer.Commit();
 	RHICmdList->FinishRecording();
 	FinalizeTask.Trigger();
 }
@@ -2992,6 +2992,7 @@ void FGPUOcclusionParallel::Map(FRHICommandListImmediate& RHICmdListImmediate)
 	FGPUOcclusion::Map(RHICmdListImmediate);
 	RHICmdList = new FRHICommandList(RHICmdListImmediate.GetGPUMask());
 	RHICmdList->SwitchPipeline(ERHIPipeline::Graphics);
+	DynamicVertexBuffer.Init(*RHICmdList);
 }
 
 void FGPUOcclusionParallel::Unmap(FRHICommandListImmediate& RHICmdListImmediate)
@@ -3018,8 +3019,15 @@ void FGPUOcclusionSerial::AddPrimitives(FPrimitiveRange PrimitiveRange)
 	}
 }
 
+void FGPUOcclusionSerial::Map(FRHICommandListImmediate& RHICmdListImmediate)
+{
+	FGPUOcclusion::Map(RHICmdListImmediate);
+	DynamicVertexBuffer.Init(RHICmdListImmediate);
+}
+
 void FGPUOcclusionSerial::Unmap(FRHICommandListImmediate& RHICmdListImmediate)
 {
+	DynamicVertexBuffer.Commit();
 	ProcessVisitor.SubmitThrottledOcclusionQueries();
 	Packet.RecordOcclusionCullResult(OcclusionCullResult);
 	FGPUOcclusion::Unmap(RHICmdListImmediate);
@@ -3446,14 +3454,13 @@ void FVisibilityViewPacket::BeginInitVisibility()
 
 ///////////////////////////////////////////////////////////////////////////////
 
-FVisibilityTaskData::FVisibilityTaskData(FRHICommandListImmediate& InRHICmdList, FSceneRenderer& InSceneRenderer, FGlobalDynamicBuffers InGlobalDynamicBuffers)
+FVisibilityTaskData::FVisibilityTaskData(FRHICommandListImmediate& InRHICmdList, FSceneRenderer& InSceneRenderer)
 	: RHICmdList(InRHICmdList)
 	, SceneRenderer(InSceneRenderer)
 	, Scene(*SceneRenderer.Scene)
 	, Views(SceneRenderer.AllViews)
 	, ViewFamily(SceneRenderer.ViewFamily)
 	, ShadingPath(Scene.GetShadingPath())
-	, GlobalDynamicBuffers(InGlobalDynamicBuffers)
 	, MeshCollector(SceneRenderer.MeshCollector)
 	, EditorMeshCollector(SceneRenderer.EditorMeshCollector)
 	, TaskConfig(Scene, Views)
@@ -3563,7 +3570,15 @@ void FVisibilityTaskData::LaunchVisibilityTasks()
 	DynamicMeshElements.ViewCommandsPerView.SetNum(Views.Num());
 	DynamicMeshElements.LastElementPerView.SetNum(Views.Num());
 
-	MeshCollector.ClearViewMeshArrays();
+	DynamicMeshElements.DynamicVertexBuffer.Init(RHICmdList);
+	DynamicMeshElements.DynamicIndexBuffer.Init(RHICmdList);
+
+	MeshCollector.Start(
+		RHICmdList,
+		DynamicMeshElements.DynamicVertexBuffer,
+		DynamicMeshElements.DynamicIndexBuffer,
+		SceneRenderer.DynamicReadBufferForInitViews
+	);
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
@@ -3571,11 +3586,7 @@ void FVisibilityTaskData::LaunchVisibilityTasks()
 			Views[ViewIndex],
 			&Views[ViewIndex]->DynamicMeshElements,
 			&Views[ViewIndex]->SimpleElementCollector,
-			&Views[ViewIndex]->DynamicPrimitiveCollector,
-			Scene.GetFeatureLevel(),
-			GlobalDynamicBuffers.Index,
-			GlobalDynamicBuffers.Vertex,
-			GlobalDynamicBuffers.Read
+			&Views[ViewIndex]->DynamicPrimitiveCollector
 #if UE_ENABLE_DEBUG_DRAWING
 			, &Views[ViewIndex]->DebugSimpleElementCollector
 #endif
@@ -3584,7 +3595,12 @@ void FVisibilityTaskData::LaunchVisibilityTasks()
 
 	if (GIsEditor)
 	{
-		EditorMeshCollector.ClearViewMeshArrays();
+		EditorMeshCollector.Start(
+			RHICmdList,
+			DynamicMeshElements.DynamicVertexBuffer,
+			DynamicMeshElements.DynamicIndexBuffer,
+			SceneRenderer.DynamicReadBufferForInitViews
+		);
 
 		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 		{
@@ -3592,11 +3608,7 @@ void FVisibilityTaskData::LaunchVisibilityTasks()
 				Views[ViewIndex],
 				&Views[ViewIndex]->DynamicEditorMeshElements,
 				&Views[ViewIndex]->EditorSimpleElementCollector,
-				&Views[ViewIndex]->DynamicPrimitiveCollector,
-				Scene.GetFeatureLevel(),
-				GlobalDynamicBuffers.Index,
-				GlobalDynamicBuffers.Vertex,
-				GlobalDynamicBuffers.Read
+				&Views[ViewIndex]->DynamicPrimitiveCollector
 #if UE_ENABLE_DEBUG_DRAWING
 				, &Views[ViewIndex]->DebugSimpleElementCollector
 #endif
@@ -3676,7 +3688,7 @@ void FVisibilityTaskData::MergeSecondaryViewVisibility()
 	}
 }
 
-void FVisibilityTaskData::GatherDynamicMeshElements()
+void FVisibilityTaskData::FinishGatherDynamicMeshElements(FVirtualTextureUpdater* VirtualTextureUpdater)
 {
 	check(IsInRenderingThread());
 
@@ -3692,10 +3704,27 @@ void FVisibilityTaskData::GatherDynamicMeshElements()
 		check(DynamicMeshElements.PrimitiveViewMasks);
 		GatherDynamicMeshElements(*DynamicMeshElements.PrimitiveViewMasks);
 	}
+
+	// Sync the virtual texture update task before finishing the mesh collectors. Render proxies can register new
+	// materials which require evaluating uniform expression caches, which can contain virtual textures. Newly allocated
+	// virtual textures are processed later.
+	FVirtualTextureSystem::Get().WaitForTasks(VirtualTextureUpdater);
+
+	MeshCollector.Finish();
+
+	if (GIsEditor)
+	{
+		EditorMeshCollector.Finish();
+	}
+
+	DynamicMeshElements.DynamicVertexBuffer.Commit();
+	DynamicMeshElements.DynamicIndexBuffer.Commit();
 }
 
 void FVisibilityTaskData::GatherDynamicMeshElementsForPrimitive(int32 PrimitiveIndex, uint8 ViewMask)
 {
+	SCOPED_NAMED_EVENT(DynamicPrimitive, FColor::Magenta);
+
 	TArray<int32, TInlineAllocator<4>> MeshBatchCountBefore;
 	MeshBatchCountBefore.SetNumUninitialized(Views.Num());
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
@@ -3777,11 +3806,11 @@ void FVisibilityTaskData::GatherDynamicMeshElements(const FDynamicPrimitiveViewM
 
 	for (int32 PrimitiveIndex = 0; PrimitiveIndex < NumPrimitives; ++PrimitiveIndex)
 	{
-		const uint8 ViewMask = GetPrimaryViewMask(DynamicPrimitiveViewMasks.Primitives[PrimitiveIndex]);
+		const uint8 ViewMask = DynamicPrimitiveViewMasks.Primitives[PrimitiveIndex];
 
 		if (ViewMask != 0)
 		{
-			GatherDynamicMeshElementsForPrimitive(PrimitiveIndex, ViewMask);
+			GatherDynamicMeshElementsForPrimitive(PrimitiveIndex, GetPrimaryViewMask(ViewMask));
 		}
 	}
 
@@ -3790,11 +3819,11 @@ void FVisibilityTaskData::GatherDynamicMeshElements(const FDynamicPrimitiveViewM
 	{
 		for (int32 PrimitiveIndex = 0; PrimitiveIndex < NumPrimitives; ++PrimitiveIndex)
 		{
-			const uint8 ViewMask = GetPrimaryViewMask(DynamicPrimitiveViewMasks.EditorPrimitives[PrimitiveIndex]);
+			const uint8 ViewMask = DynamicPrimitiveViewMasks.EditorPrimitives[PrimitiveIndex];
 
 			if (ViewMask != 0)
 			{
-				GatherDynamicMeshElementsForEditorPrimitive(PrimitiveIndex, ViewMask);
+				GatherDynamicMeshElementsForEditorPrimitive(PrimitiveIndex, GetPrimaryViewMask(ViewMask));
 			}
 		}
 	}
@@ -3927,15 +3956,7 @@ void FVisibilityTaskData::ProcessRenderThreadTasks(FExclusiveDepthStencil::Type 
 		Tasks.bWaitingAllowed = true;
 	}
 
-	if (VirtualTextureUpdater)
-	{
-		// Sync the virtual texture update task before gathering dynamic mesh elements. Render proxies can register new
-		// materials which require evaluating uniform expression caches, which can contain virtual textures. Newly allocated
-		// virtual textures are processed later.
-		FVirtualTextureSystem::Get().WaitForTasks(VirtualTextureUpdater);
-	}
-
-	GatherDynamicMeshElements();
+	FinishGatherDynamicMeshElements(VirtualTextureUpdater);
 
 	if (TaskConfig.Schedule == EVisibilityTaskSchedule::Parallel)
 	{

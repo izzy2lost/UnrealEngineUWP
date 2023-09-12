@@ -29,6 +29,7 @@
 #include "DynamicBufferAllocator.h"
 #include "Rendering/SkyAtmosphereCommonData.h"
 #include "Math/SHMath.h"
+#include "GlobalRenderResources.h"
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "Engine/TextureLightProfile.h"
@@ -1898,6 +1899,13 @@ public:
 		return *DynamicReadBuffer;
 	}
 
+	/** Return the current RHI command list used to initialize resources. */
+	FRHICommandList& GetRHICommandList()
+	{
+		check(RHICmdList);
+		return *RHICmdList;
+	}
+
 	// @return number of MeshBatches collected (so far) for a given view
 	uint32 GetMeshBatchCount(uint32 ViewIndex) const
 	{
@@ -1918,7 +1926,15 @@ public:
 	/** Add a material render proxy that will be cleaned up automatically */
 	void RegisterOneFrameMaterialProxy(FMaterialRenderProxy* Proxy)
 	{
-		TemporaryProxies.Add(Proxy);
+		check(Proxy);
+		MaterialProxiesToDelete.Add(Proxy);
+	}
+
+	/** Adds a request to force caching of uniform expressions for a material render proxy. */
+	void CacheUniformExpressions(FMaterialRenderProxy* Proxy, bool bRecreateUniformBuffer)
+	{
+		check(Proxy);
+		MaterialProxiesToInvalidate.Emplace(Proxy, bRecreateUniformBuffer);
 	}
 
 	/** Allocates a temporary resource that is safe to be referenced by an FMeshBatch added to the collector. */
@@ -1954,25 +1970,29 @@ protected:
 
 	ENGINE_API ~FMeshElementCollector();
 
-	ENGINE_API void DeleteTemporaryProxies();
-
 	ENGINE_API void SetPrimitive(const FPrimitiveSceneProxy* InPrimitiveSceneProxy, FHitProxyId DefaultHitProxyId);
 
-	ENGINE_API void ClearViewMeshArrays();
+	ENGINE_API void Start(
+		FRHICommandList& RHICmdList,
+		FGlobalDynamicVertexBuffer& DynamicVertexBuffer,
+		FGlobalDynamicIndexBuffer& DynamicIndexBuffer,
+		FGlobalDynamicReadBuffer& DynamicReadBuffer);
 
 	ENGINE_API void AddViewMeshArrays(
 		FSceneView* InView,
 		TArray<FMeshBatchAndRelevance, SceneRenderingAllocator>* ViewMeshes,
 		FSimpleElementCollector* ViewSimpleElementCollector,
-		FGPUScenePrimitiveCollector* InDynamicPrimitiveCollector,
-		ERHIFeatureLevel::Type InFeatureLevel,
-		FGlobalDynamicIndexBuffer* InDynamicIndexBuffer,
-		FGlobalDynamicVertexBuffer* InDynamicVertexBuffer,
-		FGlobalDynamicReadBuffer* InDynamicReadBuffer
+		FGPUScenePrimitiveCollector* DynamicPrimitiveCollector
 #if UE_ENABLE_DEBUG_DRAWING
-		,FSimpleElementCollector* InDebugSimpleElementCollector = nullptr
+		, FSimpleElementCollector* DebugSimpleElementCollector = nullptr
 #endif
-	);
+		);
+
+	ENGINE_API void ClearViewMeshArrays();
+
+	ENGINE_API void Commit();
+
+	ENGINE_API void Finish();
 
 	/** 
 	 * Using TChunkedArray which will never realloc as new elements are added
@@ -2000,7 +2020,16 @@ protected:
 	TArray<uint16, TInlineAllocator<2, SceneRenderingAllocator>> MeshIdInPrimitivePerView;
 
 	/** Material proxies that will be deleted at the end of the frame. */
-	TArray<FMaterialRenderProxy*, SceneRenderingAllocator> TemporaryProxies;
+	TArray<FMaterialRenderProxy*, SceneRenderingAllocator> MaterialProxiesToDelete;
+
+	/** Material proxies to force uniform expression evaluation. */
+	TArray<TPair<FMaterialRenderProxy*, bool>, SceneRenderingAllocator> MaterialProxiesToInvalidate;
+
+	/** Material proxies to force uniform expression evaluation. */
+	TArray<const FMaterialRenderProxy*, SceneRenderingAllocator> MaterialProxiesToUpdate;
+
+	/** List of mesh batches that require GPU scene updates. */
+	TArray<TPair<FGPUScenePrimitiveCollector*, FMeshBatch*>, SceneRenderingAllocator> MeshBatchesForGPUScene;
 
 	/** Resources that will be deleted at the end of the frame. */
 	FSceneRenderingBulkObjectAllocator& OneFrameResources;
@@ -2009,11 +2038,14 @@ protected:
 	const FPrimitiveSceneProxy* PrimitiveSceneProxy;
 
 	/** Dynamic buffer pools. */
-	FGlobalDynamicIndexBuffer* DynamicIndexBuffer;
-	FGlobalDynamicVertexBuffer* DynamicVertexBuffer;
-	FGlobalDynamicReadBuffer* DynamicReadBuffer;
+	FGlobalDynamicIndexBuffer* DynamicIndexBuffer = nullptr;
+	FGlobalDynamicVertexBuffer* DynamicVertexBuffer = nullptr;
+	FGlobalDynamicReadBuffer* DynamicReadBuffer = nullptr;
 
-	ERHIFeatureLevel::Type FeatureLevel;
+	FRHICommandList* RHICmdList = nullptr;
+
+	const ERHIFeatureLevel::Type FeatureLevel;
+	const bool bUseGPUScene;
 
 	/** Tracks dynamic primitive data for upload to GPU Scene for every view, when enabled. */
 	TArray<FGPUScenePrimitiveCollector*, TInlineAllocator<2, SceneRenderingAllocator>> DynamicPrimitiveCollectorPerView;
@@ -2024,6 +2056,8 @@ protected:
 	friend class FProjectedShadowInfo;
 	friend class FCardPageRenderData;
 	friend class FViewFamilyInfo;
+	friend class FShadowMeshCollector;
+	friend struct FRayTracingMaterialGatheringContext;
 };
 
 #if RHI_RAYTRACING
@@ -2042,16 +2076,9 @@ public:
 
 	FRayTracingMeshResourceCollector(
 		ERHIFeatureLevel::Type InFeatureLevel,
-		FSceneRenderingBulkObjectAllocator& InBulkAllocator,
-		FGlobalDynamicIndexBuffer* InDynamicIndexBuffer,
-		FGlobalDynamicVertexBuffer* InDynamicVertexBuffer,
-		FGlobalDynamicReadBuffer* InDynamicReadBuffer)
+		FSceneRenderingBulkObjectAllocator& InBulkAllocator)
 		: FMeshElementCollector(InFeatureLevel, InBulkAllocator)
-	{
-		DynamicIndexBuffer = InDynamicIndexBuffer;
-		DynamicVertexBuffer = InDynamicVertexBuffer;
-		DynamicReadBuffer = InDynamicReadBuffer;
-	}
+	{}
 };
 
 struct FRayTracingDynamicGeometryUpdateParams
@@ -2084,17 +2111,22 @@ struct FRayTracingMaterialGatheringContext
 	const FSceneViewFamily& ReferenceViewFamily;
 
 	FRDGBuilder& GraphBuilder;
+	FRHICommandList& RHICmdList;
 	FRayTracingMeshResourceCollector& RayTracingMeshResourceCollector;
 	TArray<FRayTracingDynamicGeometryUpdateParams> DynamicRayTracingGeometriesToUpdate;
+	FGlobalDynamicVertexBuffer DynamicVertexBuffer;
+	FGlobalDynamicIndexBuffer DynamicIndexBuffer;
 
-	FRayTracingMaterialGatheringContext(const FScene* InScene, const FSceneView* InReferenceView, const FSceneViewFamily& InReferenceViewFamily, FRDGBuilder& InGraphBuilder, FRayTracingMeshResourceCollector& InRayTracingMeshResourceCollector)
-	:Scene(InScene),
-	ReferenceView(InReferenceView),
-	ReferenceViewFamily(InReferenceViewFamily),
-	GraphBuilder(InGraphBuilder),
-	RayTracingMeshResourceCollector(InRayTracingMeshResourceCollector){}
+	ENGINE_API FRayTracingMaterialGatheringContext(
+		const FScene* InScene,
+		const FSceneView* InReferenceView,
+		const FSceneViewFamily& InReferenceViewFamily,
+		FRDGBuilder& InGraphBuilder,
+		FRayTracingMeshResourceCollector& InRayTracingMeshResourceCollector,
+		FGlobalDynamicReadBuffer& InGlobalDynamicReadBuffer);
 
-	virtual ~FRayTracingMaterialGatheringContext() {}
+	ENGINE_API virtual ~FRayTracingMaterialGatheringContext();
+
 	virtual FRayTracingMaskAndFlags BuildInstanceMaskAndFlags(const FRayTracingInstance& Instance, const FPrimitiveSceneProxy& ScenePrimitive) = 0;
 };
 #endif
@@ -2110,6 +2142,7 @@ public:
 	TUniformBuffer<FPrimitiveUniformShaderParameters> UniformBuffer;
 
 	ENGINE_API void Set(
+		FRHICommandListBase& RHICmdList,
 		const FMatrix& LocalToWorld,
 		const FMatrix& PreviousLocalToWorld,
 		const FVector& ActorPositionWS, 
@@ -2122,6 +2155,7 @@ public:
 		const FCustomPrimitiveData* CustomPrimitiveData);
 
 	ENGINE_API void Set(
+		FRHICommandListBase& RHICmdList,
 		const FMatrix& LocalToWorld,
 		const FMatrix& PreviousLocalToWorld,
 		const FBoxSphereBounds& WorldBounds,
@@ -2133,6 +2167,7 @@ public:
 		const FCustomPrimitiveData* CustomPrimitiveData);
 
 	ENGINE_API void Set(
+		FRHICommandListBase& RHICmdList,
 		const FMatrix& LocalToWorld,
 		const FMatrix& PreviousLocalToWorld,
 		const FBoxSphereBounds& WorldBounds,
@@ -2144,6 +2179,7 @@ public:
 
 	/** Pass-through implementation which calls the overloaded Set function with LocalBounds for PreSkinnedLocalBounds. */
 	ENGINE_API void Set(
+		FRHICommandListBase& RHICmdList,
 		const FMatrix& LocalToWorld,
 		const FMatrix& PreviousLocalToWorld,
 		const FBoxSphereBounds& WorldBounds,
@@ -2152,29 +2188,52 @@ public:
 		bool bHasPrecomputedVolumetricLightmap,
 		bool bOutputVelocity);
 
-	UE_DEPRECATED(5.1, "Use version without bDrawsVelocity instead.")
-	void Set(
-		const FMatrix& LocalToWorld, const FMatrix& PreviousLocalToWorld, const FBoxSphereBounds& WorldBounds, const FBoxSphereBounds& LocalBounds, const FBoxSphereBounds& PreSkinnedLocalBounds,
-		bool bReceivesDecals, bool bHasPrecomputedVolumetricLightmap, bool bDrawsVelocity, bool bOutputVelocity, const FCustomPrimitiveData* CustomPrimitiveData)
-	{
-		Set(LocalToWorld, PreviousLocalToWorld, WorldBounds, LocalBounds, PreSkinnedLocalBounds, bReceivesDecals, bHasPrecomputedVolumetricLightmap, bOutputVelocity, CustomPrimitiveData);
-	}
+	//UE_DEPRECATED(5.4, "Set requires a command list")
+	ENGINE_API void Set(
+		const FMatrix& LocalToWorld,
+		const FMatrix& PreviousLocalToWorld,
+		const FVector& ActorPositionWS, 
+		const FBoxSphereBounds& WorldBounds,
+		const FBoxSphereBounds& LocalBounds,
+		const FBoxSphereBounds& PreSkinnedLocalBounds,
+		bool bReceivesDecals,
+		bool bHasPrecomputedVolumetricLightmap,
+		bool bOutputVelocity,
+		const FCustomPrimitiveData* CustomPrimitiveData);
 
-	UE_DEPRECATED(5.1, "Use version without bDrawsVelocity instead.")
-	void Set(
-		const FMatrix& LocalToWorld, const FMatrix& PreviousLocalToWorld, const FBoxSphereBounds& WorldBounds, const FBoxSphereBounds& LocalBounds, const FBoxSphereBounds& PreSkinnedLocalBounds,
-		bool bReceivesDecals, bool bHasPrecomputedVolumetricLightmap, bool bDrawsVelocity, bool bOutputVelocity)
-	{
-		Set(LocalToWorld, PreviousLocalToWorld, WorldBounds, LocalBounds, PreSkinnedLocalBounds, bReceivesDecals, bHasPrecomputedVolumetricLightmap, bOutputVelocity);
-	}
+	//UE_DEPRECATED(5.4, "Set requires a command list")
+	ENGINE_API void Set(
+		const FMatrix& LocalToWorld,
+		const FMatrix& PreviousLocalToWorld,
+		const FBoxSphereBounds& WorldBounds,
+		const FBoxSphereBounds& LocalBounds,
+		const FBoxSphereBounds& PreSkinnedLocalBounds,
+		bool bReceivesDecals,
+		bool bHasPrecomputedVolumetricLightmap,
+		bool bOutputVelocity,
+		const FCustomPrimitiveData* CustomPrimitiveData);
 
-	UE_DEPRECATED(5.1, "Use version without bDrawsVelocity instead.")
-	void Set(
-		const FMatrix& LocalToWorld, const FMatrix& PreviousLocalToWorld, const FBoxSphereBounds& WorldBounds, const FBoxSphereBounds& LocalBounds, 
-		bool bReceivesDecals, bool bHasPrecomputedVolumetricLightmap, bool bDrawsVelocity, bool bOutputVelocity)
-	{
-		Set(LocalToWorld, PreviousLocalToWorld, WorldBounds, LocalBounds, bReceivesDecals, bHasPrecomputedVolumetricLightmap, bOutputVelocity);
-	}
+	//UE_DEPRECATED(5.4, "Set requires a command list")
+	ENGINE_API void Set(
+		const FMatrix& LocalToWorld,
+		const FMatrix& PreviousLocalToWorld,
+		const FBoxSphereBounds& WorldBounds,
+		const FBoxSphereBounds& LocalBounds,
+		const FBoxSphereBounds& PreSkinnedLocalBounds,
+		bool bReceivesDecals,
+		bool bHasPrecomputedVolumetricLightmap,
+		bool bOutputVelocity);
+
+	/** Pass-through implementation which calls the overloaded Set function with LocalBounds for PreSkinnedLocalBounds. */
+	//UE_DEPRECATED(5.4, "Set requires a command list")
+	ENGINE_API void Set(
+		const FMatrix& LocalToWorld,
+		const FMatrix& PreviousLocalToWorld,
+		const FBoxSphereBounds& WorldBounds,
+		const FBoxSphereBounds& LocalBounds,
+		bool bReceivesDecals,
+		bool bHasPrecomputedVolumetricLightmap,
+		bool bOutputVelocity);
 };
 
 //

@@ -2486,6 +2486,9 @@ FViewFamilyInfo::~FViewFamilyInfo()
 {
 }
 
+TGlobalResource<FGlobalDynamicReadBuffer> FSceneRenderer::DynamicReadBufferForInitViews;
+TGlobalResource<FGlobalDynamicReadBuffer> FSceneRenderer::DynamicReadBufferForShadows;
+
 /*-----------------------------------------------------------------------------
 	FSceneRenderer
 -----------------------------------------------------------------------------*/
@@ -2494,7 +2497,6 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 ,	ViewFamily(*CheckPointer(InViewFamily))
 ,	MeshCollector(InViewFamily->GetFeatureLevel(), Allocator)
 ,	EditorMeshCollector(InViewFamily->GetFeatureLevel(), Allocator)
-,	RayTracingCollector(InViewFamily->GetFeatureLevel(), Allocator)
 ,	VirtualShadowMapArray(*CheckPointer(Scene))
 ,	bHasRequestedToggleFreeze(false)
 ,	bUsedPrecomputedVisibility(false)
@@ -3393,7 +3395,7 @@ FSceneRenderer::~FSceneRenderer()
 	SortedShadowsForShadowDepthPass.Release();
 }
 
-IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder, FGlobalDynamicBuffers GlobalDynamicBuffers)
+IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)
 {
 	check(!FDeferredUpdateResource::IsUpdateNeeded());
 
@@ -3443,7 +3445,7 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder, FG
 
 	GraphBuilder.RHICmdList.BeginScene();
 
-	return LaunchVisibilityTasks(GraphBuilder.RHICmdList, *this, GlobalDynamicBuffers);
+	return LaunchVisibilityTasks(GraphBuilder.RHICmdList, *this);
 }
 
 /** 
@@ -4430,16 +4432,6 @@ void FSceneRenderer::RenderThreadEnd(FRHICommandListImmediate& RHICmdList, const
 				{
 					FTaskGraphInterface::Get().WaitUntilTasksComplete(SetupTasks, ENamedThreads::GetRenderThread_Local());
 				}
-			}
-
-			// The temporary proxies would normally be deleted by the scene renderer destructors, but this needs to happen on the render thread, so
-			// we will do it now, before destroying the renderers on a background thread. It's important to do this after the above wait, since the
-			// setup tasks use these temporary proxies.
-			for (FSceneRenderer* SceneRenderer : SceneRenderers)
-			{
-				SceneRenderer->MeshCollector.DeleteTemporaryProxies();
-				SceneRenderer->EditorMeshCollector.DeleteTemporaryProxies();
-				SceneRenderer->RayTracingCollector.DeleteTemporaryProxies();
 			}
 
 			FGraphEventArray CommandListTasks = MoveTemp(RHICmdList.GetRenderThreadTaskArray());

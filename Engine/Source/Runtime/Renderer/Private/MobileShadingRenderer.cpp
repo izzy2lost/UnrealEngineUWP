@@ -111,10 +111,6 @@ DECLARE_CYCLE_STAT(TEXT("PrePass"), STAT_CLM_MobilePrePass, STATGROUP_CommandLis
 DECLARE_CYCLE_STAT(TEXT("Velocity"), STAT_CLMM_Velocity, STATGROUP_CommandListMarkers);
 DECLARE_CYCLE_STAT(TEXT("TranslucentVelocity"), STAT_CLMM_TranslucentVelocity, STATGROUP_CommandListMarkers);
 
-FGlobalDynamicIndexBuffer FMobileSceneRenderer::DynamicIndexBuffer;
-FGlobalDynamicVertexBuffer FMobileSceneRenderer::DynamicVertexBuffer;
-TGlobalResource<FGlobalDynamicReadBuffer> FMobileSceneRenderer::DynamicReadBuffer;
-
 extern bool IsMobileEyeAdaptationEnabled(const FViewInfo& View);
 
 struct FMobileCustomDepthStencilUsage
@@ -817,7 +813,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	RDG_RHI_EVENT_SCOPE(GraphBuilder, MobileSceneRender);
 	RDG_RHI_GPU_STAT_SCOPE(GraphBuilder, MobileSceneRender);
 
-	IVisibilityTaskData* VisibilityTaskData = OnRenderBegin(GraphBuilder, FGlobalDynamicBuffers(DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer));
+	IVisibilityTaskData* VisibilityTaskData = OnRenderBegin(GraphBuilder);
 
 	FRDGExternalAccessQueue ExternalAccessQueue;
 
@@ -930,9 +926,8 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
 
 	// Global dynamic buffers need to be committed before rendering.
-	DynamicIndexBuffer.Commit(GraphBuilder.RHICmdList);
-	DynamicVertexBuffer.Commit(GraphBuilder.RHICmdList);
-	DynamicReadBuffer.Commit(GraphBuilder.RHICmdList);
+	DynamicReadBufferForInitViews.Commit(GraphBuilder.RHICmdList);
+	DynamicReadBufferForShadows.Commit(GraphBuilder.RHICmdList);
 	
 	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_SceneSim));
 

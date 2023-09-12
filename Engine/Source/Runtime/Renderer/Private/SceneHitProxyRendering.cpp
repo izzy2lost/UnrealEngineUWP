@@ -557,7 +557,7 @@ static void DoRenderHitProxies(
 
 void FMobileSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 {
-	IVisibilityTaskData* VisibilityTaskData = OnRenderBegin(GraphBuilder, FGlobalDynamicBuffers(DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer));
+	IVisibilityTaskData* VisibilityTaskData = OnRenderBegin(GraphBuilder);
 
 	GPU_MESSAGE_SCOPE(GraphBuilder);
 
@@ -579,9 +579,8 @@ void FMobileSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
 
 	// Global dynamic buffers need to be committed before rendering.
-	DynamicIndexBuffer.Commit(GraphBuilder.RHICmdList);
-	DynamicVertexBuffer.Commit(GraphBuilder.RHICmdList);
-	DynamicReadBuffer.Commit(GraphBuilder.RHICmdList);
+	DynamicReadBufferForInitViews.Commit(GraphBuilder.RHICmdList);
+	DynamicReadBufferForShadows.Commit(GraphBuilder.RHICmdList);
 
 	InstanceCullingManager.FlushRegisteredViews(GraphBuilder);
 
@@ -600,7 +599,7 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 
 	CommitFinalPipelineState();
 
-	IVisibilityTaskData* VisibilityTaskData = OnRenderBegin(GraphBuilder, FGlobalDynamicBuffers(DynamicIndexBufferForInitViews, DynamicVertexBufferForInitViews, DynamicReadBufferForInitViews));
+	IVisibilityTaskData* VisibilityTaskData = OnRenderBegin(GraphBuilder);
 
 	GPU_MESSAGE_SCOPE(GraphBuilder);
 
@@ -667,9 +666,8 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 	}
 
 	// Global dynamic buffers need to be committed before rendering.
-	DynamicIndexBufferForInitViews.Commit(GraphBuilder.RHICmdList);
-	DynamicVertexBufferForInitViews.Commit(GraphBuilder.RHICmdList);
 	DynamicReadBufferForInitViews.Commit(GraphBuilder.RHICmdList);
+	DynamicReadBufferForShadows.Commit(GraphBuilder.RHICmdList);
 
 	// Notify the FX system that the scene is about to be rendered.
 	if (FXSystem && Views.IsValidIndex(0))

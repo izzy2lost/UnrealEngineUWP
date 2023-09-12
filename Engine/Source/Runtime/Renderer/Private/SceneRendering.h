@@ -441,7 +441,7 @@ public:
 	 * Batches a primitive's occlusion query for rendering.
 	 * @param Bounds - The primitive's bounds.
 	 */
-	FRHIRenderQuery* BatchPrimitive(FRHICommandList& RHICmdList, const FVector& BoundsOrigin, const FVector& BoundsBoxExtent, FGlobalDynamicVertexBuffer& DynamicVertexBuffer);
+	FRHIRenderQuery* BatchPrimitive(const FVector& BoundsOrigin, const FVector& BoundsBoxExtent, FGlobalDynamicVertexBuffer& DynamicVertexBuffer);
 	inline int32 GetNumBatchOcclusionQueries() const
 	{
 		return BatchOcclusionQueries.Num();
@@ -2040,7 +2040,6 @@ public:
 
 	FMeshElementCollector MeshCollector;
 	FMeshElementCollector EditorMeshCollector;
-	FMeshElementCollector RayTracingCollector;
 
 	/** Information about the visible lights. */
 	TArray<FVisibleLightInfo, SceneRenderingAllocator> VisibleLightInfos;
@@ -2267,6 +2266,9 @@ public:
 
 	inline TConstStridedView<FSceneView> GetSceneViews() const { return MakeStridedViewOfBase<const FSceneView>(MakeArrayView(Views)); }
 
+	static TGlobalResource<FGlobalDynamicReadBuffer> DynamicReadBufferForInitViews;
+	static TGlobalResource<FGlobalDynamicReadBuffer> DynamicReadBufferForShadows;
+
 protected:
 
 	/** Size of the family. */
@@ -2303,9 +2305,9 @@ protected:
 
 	ERendererOutput GetRendererOutput() const;
 
-	FDynamicShadowsTaskData* BeginInitDynamicShadows(bool bRunningEarly, IVisibilityTaskData* VisibilityTaskData);
-	void FinishInitDynamicShadows(FRDGBuilder& GraphBuilder, FDynamicShadowsTaskData* TaskData, FGlobalDynamicIndexBuffer& DynamicIndexBuffer, FGlobalDynamicVertexBuffer& DynamicVertexBuffer, FGlobalDynamicReadBuffer& DynamicReadBuffer, FInstanceCullingManager& InstanceCullingManager, FRDGExternalAccessQueue& ExternalAccessQueue);
-	FDynamicShadowsTaskData* InitDynamicShadows(FRDGBuilder& GraphBuilder, FGlobalDynamicIndexBuffer& DynamicIndexBuffer, FGlobalDynamicVertexBuffer& DynamicVertexBuffer, FGlobalDynamicReadBuffer& DynamicReadBuffer, FInstanceCullingManager& InstanceCullingManager, FRDGExternalAccessQueue& ExternalAccessQueue);
+	FDynamicShadowsTaskData* BeginInitDynamicShadows( bool bRunningEarly, IVisibilityTaskData* VisibilityTaskData);
+	void FinishInitDynamicShadows(FRDGBuilder& GraphBuilder, FDynamicShadowsTaskData* TaskData, FInstanceCullingManager& InstanceCullingManager, FRDGExternalAccessQueue& ExternalAccessQueue);
+	FDynamicShadowsTaskData* InitDynamicShadows(FRDGBuilder& GraphBuilder, FInstanceCullingManager& InstanceCullingManager, FRDGExternalAccessQueue& ExternalAccessQueue);
 
 	void CreateDynamicShadows(FDynamicShadowsTaskData& TaskData);
 	void FilterDynamicShadows(FDynamicShadowsTaskData& TaskData);
@@ -2419,7 +2421,7 @@ protected:
 	void DrawDebugShadowFrustum(FViewInfo& View, FProjectedShadowInfo& ProjectedShadowInfo);
 
 	/** Gathers dynamic mesh elements for all shadows. */
-	void GatherShadowDynamicMeshElements(FGlobalDynamicIndexBuffer& DynamicIndexBuffer, FGlobalDynamicVertexBuffer& DynamicVertexBuffer, FGlobalDynamicReadBuffer& DynamicReadBuffer, FInstanceCullingManager& InstanceCullingManager);
+	void GatherShadowDynamicMeshElements(FRHICommandList& RHICmdList, FInstanceCullingManager& InstanceCullingManager);
 
 	/** Performs once per frame setup prior to visibility determination. */
 	void PreVisibilityFrameSetup(FRDGBuilder& GraphBuilder);
@@ -2437,7 +2439,7 @@ protected:
 	bool ShouldRenderTranslucency(ETranslucencyPass::Type TranslucencyPass) const;
 
 	/** Called at the begin / finish of the scene render. */
-	IVisibilityTaskData* OnRenderBegin(FRDGBuilder& GraphBuilder, FGlobalDynamicBuffers GlobalDynamicBuffers);
+	IVisibilityTaskData* OnRenderBegin(FRDGBuilder& GraphBuilder);
 	void OnRenderFinish(FRDGBuilder& GraphBuilder, FRDGTextureRef ViewFamilyTexture);
 
 	bool RenderCustomDepthPass(
@@ -2741,10 +2743,6 @@ private:
 	FInstanceCullingDrawParams SkyPassInstanceCullingDrawParams;
 	FInstanceCullingDrawParams DebugViewModeInstanceCullingDrawParams;
 	FInstanceCullingDrawParams TranslucencyInstanceCullingDrawParams;
-
-	static FGlobalDynamicIndexBuffer DynamicIndexBuffer;
-	static FGlobalDynamicVertexBuffer DynamicVertexBuffer;
-	static TGlobalResource<FGlobalDynamicReadBuffer> DynamicReadBuffer;
 
 	const FViewInfo* CachedView = nullptr;
 };

@@ -854,16 +854,13 @@ static TGlobalResource<TDynamicBufferPool<FDynamicVertexBuffer>, FRenderResource
 
 FGlobalDynamicVertexBuffer::FAllocation FGlobalDynamicVertexBuffer::Allocate(uint32 SizeInBytes)
 {
-	return Allocate(FRHICommandListImmediate::Get(), SizeInBytes);
-}
+	checkf(RHICmdList, TEXT("FGlobalDynamicVertexBuffer was not initialized prior to calling Allocate."));
 
-FGlobalDynamicVertexBuffer::FAllocation FGlobalDynamicVertexBuffer::Allocate(FRHICommandListBase& RHICmdList, uint32 SizeInBytes)
-{
 	FAllocation Allocation;
 
 	if (VertexBuffers.IsEmpty() || VertexBuffers.Last()->AllocatedByteCount + SizeInBytes > VertexBuffers.Last()->BufferSize)
 	{
-		VertexBuffers.Emplace(GDynamicVertexBufferPool.Acquire(RHICmdList, SizeInBytes, 0));
+		VertexBuffers.Emplace(GDynamicVertexBufferPool.Acquire(*RHICmdList, SizeInBytes, 0));
 	}
 
 	FDynamicVertexBuffer* VertexBuffer = VertexBuffers.Last();
@@ -881,26 +878,21 @@ bool FGlobalDynamicVertexBuffer::IsRenderAlarmLoggingEnabled() const
 	return GDynamicVertexBufferPool.IsRenderAlarmLoggingEnabled();
 }
 
-void FGlobalDynamicVertexBuffer::Commit(FRHICommandListBase& RHICmdList)
-{
-	GDynamicVertexBufferPool.Forfeit(RHICmdList, VertexBuffers);
-	VertexBuffers.Reset();
-}
-
 void FGlobalDynamicVertexBuffer::Commit()
 {
-	Commit(FRHICommandListImmediate::Get());
-}
-
-FGlobalDynamicIndexBuffer::FAllocation FGlobalDynamicIndexBuffer::Allocate(uint32 NumIndices, uint32 IndexStride)
-{
-	return Allocate(FRHICommandListImmediate::Get(), NumIndices, IndexStride);
+	if (RHICmdList)
+	{
+		GDynamicVertexBufferPool.Forfeit(*RHICmdList, VertexBuffers);
+		VertexBuffers.Reset();
+	}
 }
 
 static TGlobalResource<TDynamicBufferPool<FDynamicIndexBuffer>, FRenderResource::EInitPhase::Pre> GDynamicIndexBufferPool;
 
-FGlobalDynamicIndexBuffer::FAllocation FGlobalDynamicIndexBuffer::Allocate(FRHICommandListBase& RHICmdList, uint32 NumIndices, uint32 IndexStride)
+FGlobalDynamicIndexBuffer::FAllocation FGlobalDynamicIndexBuffer::Allocate(uint32 NumIndices, uint32 IndexStride)
 {
+	checkf(RHICmdList, TEXT("FGlobalDynamicIndexBuffer was not initialized prior to calling Allocate."));
+
 	FAllocation Allocation;
 
 	if (IndexStride != 2 && IndexStride != 4)
@@ -916,7 +908,7 @@ FGlobalDynamicIndexBuffer::FAllocation FGlobalDynamicIndexBuffer::Allocate(FRHIC
 
 	if (IndexBuffers.IsEmpty() || IndexBuffers.Last()->AllocatedByteCount + SizeInBytes > IndexBuffers.Last()->BufferSize)
 	{
-		IndexBuffers.Emplace(GDynamicIndexBufferPool.Acquire(RHICmdList, SizeInBytes, IndexStride));
+		IndexBuffers.Emplace(GDynamicIndexBufferPool.Acquire(*RHICmdList, SizeInBytes, IndexStride));
 	}
 
 	FDynamicIndexBuffer* IndexBuffer = IndexBuffers.Last();
@@ -929,17 +921,15 @@ FGlobalDynamicIndexBuffer::FAllocation FGlobalDynamicIndexBuffer::Allocate(FRHIC
 	return Allocation;
 }
 
-void FGlobalDynamicIndexBuffer::Commit(FRHICommandListBase& RHICmdList)
-{
-	GDynamicIndexBufferPool.Forfeit(RHICmdList, IndexBuffers16);
-	GDynamicIndexBufferPool.Forfeit(RHICmdList, IndexBuffers32);
-	IndexBuffers16.Reset();
-	IndexBuffers32.Reset();
-}
-
 void FGlobalDynamicIndexBuffer::Commit()
 {
-	Commit(FRHICommandListImmediate::Get());
+	if (RHICmdList)
+	{
+		GDynamicIndexBufferPool.Forfeit(*RHICmdList, IndexBuffers16);
+		GDynamicIndexBufferPool.Forfeit(*RHICmdList, IndexBuffers32);
+		IndexBuffers16.Reset();
+		IndexBuffers32.Reset();
+	}
 }
 
 namespace GlobalDynamicBuffer

@@ -540,12 +540,8 @@ DECLARE_CYCLE_STAT(TEXT("RenderFinish"), STAT_CLM_RenderFinish, STATGROUP_Comman
 DECLARE_CYCLE_STAT(TEXT("AfterFrame"), STAT_CLM_AfterFrame, STATGROUP_CommandListMarkers);
 DECLARE_CYCLE_STAT(TEXT("Wait RayTracing Add Mesh Batch"), STAT_WaitRayTracingAddMesh, STATGROUP_SceneRendering);
 
-FGlobalDynamicIndexBuffer FDeferredShadingSceneRenderer::DynamicIndexBufferForInitViews;
 FGlobalDynamicIndexBuffer FDeferredShadingSceneRenderer::DynamicIndexBufferForInitShadows;
-FGlobalDynamicVertexBuffer FDeferredShadingSceneRenderer::DynamicVertexBufferForInitViews;
 FGlobalDynamicVertexBuffer FDeferredShadingSceneRenderer::DynamicVertexBufferForInitShadows;
-TGlobalResource<FGlobalDynamicReadBuffer> FDeferredShadingSceneRenderer::DynamicReadBufferForInitShadows;
-TGlobalResource<FGlobalDynamicReadBuffer> FDeferredShadingSceneRenderer::DynamicReadBufferForInitViews;
 
 /**
  * Returns true if the depth Prepass needs to run
@@ -1016,8 +1012,9 @@ struct FDeferredShadingRayTracingMaterialGatheringContext : public FRayTracingMa
 		const FSceneView* InReferenceView,
 		const FSceneViewFamily& InReferenceViewFamily,
 		FRDGBuilder& InGraphBuilder,
-		FRayTracingMeshResourceCollector& InRayTracingMeshResourceCollector)
-		:FRayTracingMaterialGatheringContext(InScene, InReferenceView, InReferenceViewFamily, InGraphBuilder, InRayTracingMeshResourceCollector){}
+		FRayTracingMeshResourceCollector& InRayTracingMeshResourceCollector,
+		FGlobalDynamicReadBuffer& InDynamicReadBuffer)
+		:FRayTracingMaterialGatheringContext(InScene, InReferenceView, InReferenceViewFamily, InGraphBuilder, InRayTracingMeshResourceCollector, InDynamicReadBuffer){}
 
 	virtual FRayTracingMaskAndFlags BuildInstanceMaskAndFlags(const FRayTracingInstance& Instance, const FPrimitiveSceneProxy& ScenePrimitive) override
 	{
@@ -1061,20 +1058,7 @@ bool FDeferredShadingSceneRenderer::GatherRayTracingWorldInstancesForView(FRDGBu
 	// is done on task threads, therefore all work must be done here up-front as UpdateUniformExpressionCacheIfNeeded is not free-threaded.
 	check(!FMaterialRenderProxy::HasDeferredUniformExpressionCacheRequests());
 
-	RayTracingCollector.ClearViewMeshArrays();
-
 	FGPUScenePrimitiveCollector DummyDynamicPrimitiveCollector;
-
-	RayTracingCollector.AddViewMeshArrays(
-		&View,
-		&View.RayTracedDynamicMeshElements,
-		&View.SimpleElementCollector,
-		&DummyDynamicPrimitiveCollector,
-		ViewFamily.GetFeatureLevel(),
-		&DynamicIndexBufferForInitViews,
-		&DynamicVertexBufferForInitViews,
-		&DynamicReadBufferForInitViews
-	);
 
 	View.DynamicRayTracingMeshCommandStorage.Reserve(Scene->Primitives.Num());
 	View.VisibleRayTracingMeshCommands.Reserve(Scene->Primitives.Num());
@@ -1086,12 +1070,7 @@ bool FDeferredShadingSceneRenderer::GatherRayTracingWorldInstancesForView(FRDGBu
 		Extension->BeginRenderView(&View);
 	}
 
-	View.RayTracingMeshResourceCollector = MakeUnique<FRayTracingMeshResourceCollector>(
-		Scene->GetFeatureLevel(),
-		Allocator,
-		&DynamicIndexBufferForInitViews,
-		&DynamicVertexBufferForInitViews,
-		&DynamicReadBufferForInitViews);
+	View.RayTracingMeshResourceCollector = MakeUnique<FRayTracingMeshResourceCollector>(Scene->GetFeatureLevel(), Allocator);
 
 	View.RayTracingCullingParameters.Init(View);
 
@@ -1101,7 +1080,8 @@ bool FDeferredShadingSceneRenderer::GatherRayTracingWorldInstancesForView(FRDGBu
 		&View,
 		ViewFamily,
 		GraphBuilder,
-		*View.RayTracingMeshResourceCollector
+		*View.RayTracingMeshResourceCollector,
+		DynamicReadBufferForInitViews
 	);
 
 	const float CurrentWorldTime = View.Family->Time.GetWorldTimeSeconds();
@@ -2384,17 +2364,15 @@ void FDeferredShadingSceneRenderer::FinishInitDynamicShadows(FRDGBuilder& GraphB
 		// Setup dynamic shadows.
 		if (TaskData)
 		{
-			FSceneRenderer::FinishInitDynamicShadows(GraphBuilder, TaskData, DynamicIndexBufferForInitShadows, DynamicVertexBufferForInitShadows, DynamicReadBufferForInitShadows, InstanceCullingManager, ExternalAccessQueue);
+			FSceneRenderer::FinishInitDynamicShadows(GraphBuilder, TaskData, InstanceCullingManager, ExternalAccessQueue);
 		}
 		else
 		{
-			TaskData = InitDynamicShadows(GraphBuilder, DynamicIndexBufferForInitShadows, DynamicVertexBufferForInitShadows, DynamicReadBufferForInitShadows, InstanceCullingManager, ExternalAccessQueue);
+			TaskData = InitDynamicShadows(GraphBuilder, InstanceCullingManager, ExternalAccessQueue);
 		}
 
 		SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_FGlobalDynamicVertexBuffer_Commit);
-		DynamicVertexBufferForInitShadows.Commit(GraphBuilder.RHICmdList);
-		DynamicIndexBufferForInitShadows.Commit(GraphBuilder.RHICmdList);
-		DynamicReadBufferForInitShadows.Commit(GraphBuilder.RHICmdList);
+		DynamicReadBufferForShadows.Commit(GraphBuilder.RHICmdList);
 	}
 }
 
@@ -2715,7 +2693,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	GPU_MESSAGE_SCOPE(GraphBuilder);
 
-	FInitViewTaskDatas InitViewTaskDatas = OnRenderBegin(GraphBuilder, FGlobalDynamicBuffers(DynamicIndexBufferForInitViews, DynamicVertexBufferForInitViews, DynamicReadBufferForInitViews));
+	FInitViewTaskDatas InitViewTaskDatas = OnRenderBegin(GraphBuilder);
 
 	FRDGExternalAccessQueue ExternalAccessQueue;
 	TUniquePtr<FVirtualTextureUpdater> VirtualTextureUpdater;
@@ -3237,18 +3215,11 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	}
 
 	{
-		{
-			RDG_RHI_GPU_STAT_SCOPE(GraphBuilder, VisibilityCommands);
-			EndInitViews(GraphBuilder, LumenFrameTemporaries, InstanceCullingManager, ExternalAccessQueue, InitViewTaskDatas);
-		}
+		RDG_RHI_GPU_STAT_SCOPE(GraphBuilder, VisibilityCommands);
+		EndInitViews(GraphBuilder, LumenFrameTemporaries, InstanceCullingManager, ExternalAccessQueue, InitViewTaskDatas);
 
-		// Dynamic vertex and index buffers need to be committed before rendering.
-		{
-			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_FGlobalDynamicVertexBuffer_Commit);
-			DynamicIndexBufferForInitViews.Commit(GraphBuilder.RHICmdList);
-			DynamicVertexBufferForInitViews.Commit(GraphBuilder.RHICmdList);
-			DynamicReadBufferForInitViews.Commit(GraphBuilder.RHICmdList);
-		}
+		SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_FGlobalDynamicVertexBuffer_Commit);
+		DynamicReadBufferForInitViews.Commit(GraphBuilder.RHICmdList);
 	}
 
 	UE::SVT::GetStreamingManager().EndAsyncUpdate(GraphBuilder);

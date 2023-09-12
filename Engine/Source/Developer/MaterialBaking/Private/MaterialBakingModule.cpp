@@ -114,7 +114,7 @@ namespace
 			return Ref;
 		}
 
-		virtual FBufferRHIRef AllocIndexBuffer(uint32 NumElements) override
+		virtual FBufferRHIRef AllocIndexBuffer(FRHICommandListBase& RHICmdList, uint32 NumElements) override
 		{
 			uint32 BufferSize = GetIndexBufferSize(NumElements);
 			if (BufferSize > SmallestPooledBufferSize)
@@ -126,7 +126,7 @@ namespace
 				}
 			}
 
-			return FDynamicMeshBufferAllocator::AllocIndexBuffer(NumElements);
+			return FDynamicMeshBufferAllocator::AllocIndexBuffer(RHICmdList, NumElements);
 		}
 
 		virtual void ReleaseIndexBuffer(FBufferRHIRef& IndexBufferRHI) override
@@ -139,7 +139,7 @@ namespace
 			IndexBufferRHI = nullptr;
 		}
 
-		virtual FBufferRHIRef AllocVertexBuffer(uint32 Stride, uint32 NumElements) override
+		virtual FBufferRHIRef AllocVertexBuffer(FRHICommandListBase& RHICmdList, uint32 Stride, uint32 NumElements) override
 		{
 			uint32 BufferSize = GetVertexBufferSize(Stride, NumElements);
 			if (BufferSize > SmallestPooledBufferSize)
@@ -151,7 +151,7 @@ namespace
 				}
 			}
 
-			return FDynamicMeshBufferAllocator::AllocVertexBuffer(Stride, NumElements);
+			return FDynamicMeshBufferAllocator::AllocVertexBuffer(RHICmdList, Stride, NumElements);
 		}
 
 		virtual void ReleaseVertexBuffer(FBufferRHIRef& VertexBufferRHI) override

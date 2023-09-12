@@ -22,6 +22,7 @@
 #include "StaticMeshBatch.h"
 #include "PrimitiveUniformShaderParametersBuilder.h"
 #include "PrimitiveSceneShaderData.h"
+#include "RenderGraphBuilder.h"
 
 static TAutoConsoleVariable<float> CVarLODTemporalLag(
 	TEXT("lod.TemporalLag"),
@@ -320,29 +321,50 @@ FMeshBatchAndRelevance::FMeshBatchAndRelevance(const FMeshBatch& InMesh, const F
 	bRenderInMainPass = PrimitiveSceneProxy->ShouldRenderInMainPass();
 }
 
+#if RHI_RAYTRACING
+
+FRayTracingMaterialGatheringContext::FRayTracingMaterialGatheringContext(
+	const FScene* InScene,
+	const FSceneView* InReferenceView,
+	const FSceneViewFamily& InReferenceViewFamily,
+	FRDGBuilder& InGraphBuilder,
+	FRayTracingMeshResourceCollector& InRayTracingMeshResourceCollector,
+	FGlobalDynamicReadBuffer& DynamicReadBuffer)
+	: Scene(InScene)
+	, ReferenceView(InReferenceView)
+	, ReferenceViewFamily(InReferenceViewFamily)
+	, GraphBuilder(InGraphBuilder)
+	, RHICmdList(GraphBuilder.RHICmdList)
+	, RayTracingMeshResourceCollector(InRayTracingMeshResourceCollector)
+	, DynamicVertexBuffer(GraphBuilder.RHICmdList)
+	, DynamicIndexBuffer(GraphBuilder.RHICmdList)
+{
+	RayTracingMeshResourceCollector.Start(RHICmdList, DynamicVertexBuffer, DynamicIndexBuffer, DynamicReadBuffer);
+}
+
+FRayTracingMaterialGatheringContext::~FRayTracingMaterialGatheringContext()
+{
+	RayTracingMeshResourceCollector.Finish();
+}
+
+#endif
+
 FMeshElementCollector::FMeshElementCollector(ERHIFeatureLevel::Type InFeatureLevel, FSceneRenderingBulkObjectAllocator& InBulkAllocator) :
 	OneFrameResources(InBulkAllocator),
 	PrimitiveSceneProxy(NULL),
-	DynamicIndexBuffer(nullptr),
-	DynamicVertexBuffer(nullptr),
 	DynamicReadBuffer(nullptr),
-	FeatureLevel(InFeatureLevel)
-{	
+	FeatureLevel(InFeatureLevel),
+	bUseGPUScene(UseGPUScene(GMaxRHIShaderPlatform, FeatureLevel))
+{
 }
 
 FMeshElementCollector::~FMeshElementCollector()
 {
-	DeleteTemporaryProxies();
-}
-
-void FMeshElementCollector::DeleteTemporaryProxies()
-{
-	for (int32 ProxyIndex = 0; ProxyIndex < TemporaryProxies.Num(); ProxyIndex++)
+	for (FMaterialRenderProxy* Proxy : MaterialProxiesToDelete)
 	{
-		delete TemporaryProxies[ProxyIndex];
+		delete Proxy;
 	}
-
-	TemporaryProxies.Empty();
+	MaterialProxiesToDelete.Empty();
 }
 
 void FMeshElementCollector::SetPrimitive(const FPrimitiveSceneProxy* InPrimitiveSceneProxy, FHitProxyId DefaultHitProxyId)
@@ -369,55 +391,95 @@ void FMeshElementCollector::SetPrimitive(const FPrimitiveSceneProxy* InPrimitive
 #endif
 }
 
-void FMeshElementCollector::ClearViewMeshArrays()
+void FMeshElementCollector::Start(
+	FRHICommandList& InRHICmdList,
+	FGlobalDynamicVertexBuffer& InDynamicVertexBuffer,
+	FGlobalDynamicIndexBuffer& InDynamicIndexBuffer,
+	FGlobalDynamicReadBuffer& InDynamicReadBuffer)
 {
-	Views.Empty();
-	MeshBatches.Empty();
-	SimpleElementCollectors.Empty();
-#if UE_ENABLE_DEBUG_DRAWING
-	DebugSimpleElementCollectors.Empty();
-#endif
-	MeshIdInPrimitivePerView.Empty();
-	DynamicPrimitiveCollectorPerView.Empty();
-	NumMeshBatchElementsPerView.Empty();
-	DynamicIndexBuffer = nullptr;
-	DynamicVertexBuffer = nullptr;
-	DynamicReadBuffer = nullptr;
+	check(!RHICmdList);
+	RHICmdList = &InRHICmdList;
+	DynamicVertexBuffer = &InDynamicVertexBuffer;
+	DynamicIndexBuffer = &InDynamicIndexBuffer;
+	DynamicReadBuffer = &InDynamicReadBuffer;
 }
 
 void FMeshElementCollector::AddViewMeshArrays(
 	FSceneView* InView,
 	TArray<FMeshBatchAndRelevance, SceneRenderingAllocator>* ViewMeshes,
 	FSimpleElementCollector* ViewSimpleElementCollector,
-	FGPUScenePrimitiveCollector* InDynamicPrimitiveCollector,
-	ERHIFeatureLevel::Type InFeatureLevel,
-	FGlobalDynamicIndexBuffer* InDynamicIndexBuffer,
-	FGlobalDynamicVertexBuffer* InDynamicVertexBuffer,
-	FGlobalDynamicReadBuffer* InDynamicReadBuffer
+	FGPUScenePrimitiveCollector* DynamicPrimitiveCollector
 #if UE_ENABLE_DEBUG_DRAWING
-	,FSimpleElementCollector* InDebugSimpleElementCollector
+	, FSimpleElementCollector* DebugSimpleElementCollector
 #endif
 )
 {
+	check(RHICmdList);
+
 	Views.Add(InView);
 	MeshIdInPrimitivePerView.Add(0);
 	MeshBatches.Add(ViewMeshes);
 	NumMeshBatchElementsPerView.Add(0);
 	SimpleElementCollectors.Add(ViewSimpleElementCollector);
-	DynamicPrimitiveCollectorPerView.Add(InDynamicPrimitiveCollector);
-
-	check(InDynamicIndexBuffer && InDynamicVertexBuffer && InDynamicReadBuffer);
-	DynamicIndexBuffer = InDynamicIndexBuffer;
-	DynamicVertexBuffer = InDynamicVertexBuffer;
-	DynamicReadBuffer = InDynamicReadBuffer;
+	DynamicPrimitiveCollectorPerView.Add(DynamicPrimitiveCollector);
 
 #if UE_ENABLE_DEBUG_DRAWING
 	//Assign the debug draw only simple element collector per view	
-	if (InDebugSimpleElementCollector)
+	if (DebugSimpleElementCollector)
 	{
-		DebugSimpleElementCollectors.Add(InDebugSimpleElementCollector);
+		DebugSimpleElementCollectors.Add(DebugSimpleElementCollector);
 	}
 #endif
+}
+
+void FMeshElementCollector::ClearViewMeshArrays()
+{
+	Views.Reset();
+	MeshIdInPrimitivePerView.Reset();
+	MeshBatches.Reset();
+	NumMeshBatchElementsPerView.Reset();
+	SimpleElementCollectors.Reset();
+	DynamicPrimitiveCollectorPerView.Reset();
+#if UE_ENABLE_DEBUG_DRAWING
+	DebugSimpleElementCollectors.Reset();
+#endif
+}
+
+void FMeshElementCollector::Commit()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FMeshElementCollector::Commit);
+	check(RHICmdList);
+
+	for (TPair<FGPUScenePrimitiveCollector*, FMeshBatch*> Pair : MeshBatchesForGPUScene)
+	{
+		GetRendererModule().AddMeshBatchToGPUScene(Pair.Key, *Pair.Value);
+	}
+
+	for (TPair<FMaterialRenderProxy*, bool> Parameters : MaterialProxiesToInvalidate)
+	{
+		Parameters.Key->InvalidateUniformExpressionCache(Parameters.Value);
+	}
+
+	for (const FMaterialRenderProxy* Proxy : MaterialProxiesToUpdate)
+	{
+		Proxy->UpdateUniformExpressionCacheIfNeeded(*RHICmdList, FeatureLevel);
+	}
+
+	MeshBatchesForGPUScene.Empty();
+	MaterialProxiesToInvalidate.Empty();
+	MaterialProxiesToUpdate.Empty();
+}
+
+void FMeshElementCollector::Finish()
+{
+	SCOPED_NAMED_EVENT(FMeshElementCollector_Finish, FColor::Magenta);
+
+	Commit();
+	ClearViewMeshArrays();
+	DynamicIndexBuffer = nullptr;
+	DynamicVertexBuffer = nullptr;
+	DynamicReadBuffer = nullptr;
+	RHICmdList = nullptr;
 }
 
 void FMeshElementCollector::AddMesh(int32 ViewIndex, FMeshBatch& MeshBatch)
@@ -445,21 +507,19 @@ void FMeshElementCollector::AddMesh(int32 ViewIndex, FMeshBatch& MeshBatch)
 
 	MeshBatch.PreparePrimitiveUniformBuffer(PrimitiveSceneProxy, FeatureLevel);
 
-	// If we are maintaining primitive scene data on the GPU, copy the primitive uniform buffer data to a unified array so it can be uploaded later
-	if (UseGPUScene(GMaxRHIShaderPlatform, FeatureLevel) && MeshBatch.VertexFactory->GetPrimitiveIdStreamIndex(FeatureLevel, EVertexInputStreamType::Default) >= 0)
+	if (bUseGPUScene && MeshBatch.VertexFactory->GetPrimitiveIdStreamIndex(FeatureLevel, EVertexInputStreamType::Default) >= 0)
 	{
-		GetRendererModule().AddMeshBatchToGPUScene(DynamicPrimitiveCollectorPerView[ViewIndex], MeshBatch);
+		MeshBatchesForGPUScene.Emplace(DynamicPrimitiveCollectorPerView[ViewIndex], &MeshBatch);
 	}
 
-	MeshBatch.MaterialRenderProxy->UpdateUniformExpressionCacheIfNeeded(Views[ViewIndex]->GetFeatureLevel());
+	MaterialProxiesToUpdate.Emplace(MeshBatch.MaterialRenderProxy);
 
 	MeshBatch.MeshIdInPrimitive = MeshIdInPrimitivePerView[ViewIndex];
 	++MeshIdInPrimitivePerView[ViewIndex];
 
 	NumMeshBatchElementsPerView[ViewIndex] += MeshBatch.Elements.Num();
 
-	TArray<FMeshBatchAndRelevance,SceneRenderingAllocator>& ViewMeshBatches = *MeshBatches[ViewIndex];
-	new (ViewMeshBatches) FMeshBatchAndRelevance(MeshBatch, PrimitiveSceneProxy, FeatureLevel);	
+	MeshBatches[ViewIndex]->Emplace(MeshBatch, PrimitiveSceneProxy, FeatureLevel);
 }
 
 FDynamicPrimitiveUniformBuffer::FDynamicPrimitiveUniformBuffer() = default;
@@ -469,6 +529,7 @@ FDynamicPrimitiveUniformBuffer::~FDynamicPrimitiveUniformBuffer()
 }
 
 void FDynamicPrimitiveUniformBuffer::Set(
+	FRHICommandListBase& RHICmdList,
 	const FMatrix& LocalToWorld,
 	const FMatrix& PreviousLocalToWorld,
 	const FVector& ActorPositionWS,
@@ -480,7 +541,7 @@ void FDynamicPrimitiveUniformBuffer::Set(
 	bool bOutputVelocity,
 	const FCustomPrimitiveData* CustomPrimitiveData)
 {
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+	UniformBuffer.BufferUsage = UniformBuffer_SingleFrame;
 	UniformBuffer.SetContents(
 		RHICmdList,
 		FPrimitiveUniformShaderParametersBuilder{}
@@ -501,6 +562,7 @@ void FDynamicPrimitiveUniformBuffer::Set(
 }
 
 void FDynamicPrimitiveUniformBuffer::Set(
+	FRHICommandListBase& RHICmdList,
 	const FMatrix& LocalToWorld,
 	const FMatrix& PreviousLocalToWorld,
 	const FBoxSphereBounds& WorldBounds,
@@ -511,7 +573,63 @@ void FDynamicPrimitiveUniformBuffer::Set(
 	bool bOutputVelocity,
 	const FCustomPrimitiveData* CustomPrimitiveData)
 {
-	Set(LocalToWorld, PreviousLocalToWorld, WorldBounds.Origin, WorldBounds, LocalBounds, PreSkinnedLocalBounds, bReceivesDecals, bHasPrecomputedVolumetricLightmap, bOutputVelocity, CustomPrimitiveData);
+	Set(RHICmdList, LocalToWorld, PreviousLocalToWorld, WorldBounds.Origin, WorldBounds, LocalBounds, PreSkinnedLocalBounds, bReceivesDecals, bHasPrecomputedVolumetricLightmap, bOutputVelocity, CustomPrimitiveData);
+}
+
+void FDynamicPrimitiveUniformBuffer::Set(
+	FRHICommandListBase& RHICmdList,
+	const FMatrix& LocalToWorld,
+	const FMatrix& PreviousLocalToWorld,
+	const FBoxSphereBounds& WorldBounds,
+	const FBoxSphereBounds& LocalBounds,
+	const FBoxSphereBounds& PreSkinnedLocalBounds,
+	bool bReceivesDecals,
+	bool bHasPrecomputedVolumetricLightmap,
+	bool bOutputVelocity)
+{
+	Set(RHICmdList, LocalToWorld, PreviousLocalToWorld, WorldBounds, LocalBounds, PreSkinnedLocalBounds, bReceivesDecals, bHasPrecomputedVolumetricLightmap, bOutputVelocity, nullptr);
+}
+
+void FDynamicPrimitiveUniformBuffer::Set(
+	FRHICommandListBase& RHICmdList,
+	const FMatrix& LocalToWorld,
+	const FMatrix& PreviousLocalToWorld,
+	const FBoxSphereBounds& WorldBounds,
+	const FBoxSphereBounds& LocalBounds,
+	bool bReceivesDecals,
+	bool bHasPrecomputedVolumetricLightmap,
+	bool bOutputVelocity)
+{
+	Set(RHICmdList, LocalToWorld, PreviousLocalToWorld, WorldBounds, LocalBounds, LocalBounds, bReceivesDecals, bHasPrecomputedVolumetricLightmap, bOutputVelocity, nullptr);
+}
+
+void FDynamicPrimitiveUniformBuffer::Set(
+	const FMatrix& LocalToWorld,
+	const FMatrix& PreviousLocalToWorld,
+	const FVector& ActorPositionWS,
+	const FBoxSphereBounds& WorldBounds,
+	const FBoxSphereBounds& LocalBounds,
+	const FBoxSphereBounds& PreSkinnedLocalBounds,
+	bool bReceivesDecals,
+	bool bHasPrecomputedVolumetricLightmap,
+	bool bOutputVelocity,
+	const FCustomPrimitiveData* CustomPrimitiveData)
+{
+	Set(FRHICommandListImmediate::Get(), LocalToWorld, PreviousLocalToWorld, ActorPositionWS, WorldBounds, LocalBounds, PreSkinnedLocalBounds, bReceivesDecals, bHasPrecomputedVolumetricLightmap, bOutputVelocity, CustomPrimitiveData);
+}
+
+void FDynamicPrimitiveUniformBuffer::Set(
+	const FMatrix& LocalToWorld,
+	const FMatrix& PreviousLocalToWorld,
+	const FBoxSphereBounds& WorldBounds,
+	const FBoxSphereBounds& LocalBounds,
+	const FBoxSphereBounds& PreSkinnedLocalBounds,
+	bool bReceivesDecals,
+	bool bHasPrecomputedVolumetricLightmap,
+	bool bOutputVelocity,
+	const FCustomPrimitiveData* CustomPrimitiveData)
+{
+	Set(FRHICommandListImmediate::Get(), LocalToWorld, PreviousLocalToWorld, WorldBounds.Origin, WorldBounds, LocalBounds, PreSkinnedLocalBounds, bReceivesDecals, bHasPrecomputedVolumetricLightmap, bOutputVelocity, CustomPrimitiveData);
 }
 
 void FDynamicPrimitiveUniformBuffer::Set(
@@ -524,7 +642,7 @@ void FDynamicPrimitiveUniformBuffer::Set(
 	bool bHasPrecomputedVolumetricLightmap,
 	bool bOutputVelocity)
 {
-	Set(LocalToWorld, PreviousLocalToWorld, WorldBounds, LocalBounds, PreSkinnedLocalBounds, bReceivesDecals, bHasPrecomputedVolumetricLightmap, bOutputVelocity, nullptr);
+	Set(FRHICommandListImmediate::Get(), LocalToWorld, PreviousLocalToWorld, WorldBounds, LocalBounds, PreSkinnedLocalBounds, bReceivesDecals, bHasPrecomputedVolumetricLightmap, bOutputVelocity, nullptr);
 }
 
 void FDynamicPrimitiveUniformBuffer::Set(
@@ -536,7 +654,7 @@ void FDynamicPrimitiveUniformBuffer::Set(
 	bool bHasPrecomputedVolumetricLightmap,
 	bool bOutputVelocity)
 {
-	Set(LocalToWorld, PreviousLocalToWorld, WorldBounds, LocalBounds, LocalBounds, bReceivesDecals, bHasPrecomputedVolumetricLightmap, bOutputVelocity, nullptr);
+	Set(FRHICommandListImmediate::Get(), LocalToWorld, PreviousLocalToWorld, WorldBounds, LocalBounds, LocalBounds, bReceivesDecals, bHasPrecomputedVolumetricLightmap, bOutputVelocity, nullptr);
 }
 
 FLightMapInteraction FLightMapInteraction::Texture(
@@ -1417,7 +1535,7 @@ void FMeshBatch::PreparePrimitiveUniformBuffer(const FPrimitiveSceneProxy* Primi
 
 #if USE_MESH_BATCH_VALIDATION
 bool FMeshBatch::Validate(const FPrimitiveSceneProxy* PrimitiveSceneProxy, ERHIFeatureLevel::Type FeatureLevel) const
-		{
+{
 	check(PrimitiveSceneProxy);
 
 	const auto LogMeshError = [&](const FString& Error) -> bool

@@ -2034,6 +2034,7 @@ FGPUScenePrimitiveCollector::FUploadData* FGPUSceneDynamicContext::AllocateDynam
 	LLM_SCOPE_BYTAG(GPUScene);
 
 	FGPUScenePrimitiveCollector::FUploadData* UploadData = new FGPUScenePrimitiveCollector::FUploadData;
+	UE::TScopeLock ScopeLock(DymamicPrimitiveUploadDataMutex);
 	DymamicPrimitiveUploadData.Add(UploadData);
 	return UploadData;
 }

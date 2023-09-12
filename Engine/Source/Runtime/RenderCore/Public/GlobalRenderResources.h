@@ -188,12 +188,28 @@ class FGlobalDynamicVertexBuffer
 public:
 	using FAllocation = FGlobalDynamicVertexBufferAllocation;
 
+	FGlobalDynamicVertexBuffer() = default;
+
+	FGlobalDynamicVertexBuffer(FRHICommandListBase& InRHICmdList)
+		: RHICmdList(&InRHICmdList)
+	{}
+
+	~FGlobalDynamicVertexBuffer()
+	{
+		Commit();
+	}
+
+	void Init(FRHICommandListBase& InRHICmdList)
+	{
+		check(VertexBuffers.IsEmpty());
+		RHICmdList = &InRHICmdList;
+	}
+
 	/**
 	 * Allocates space in the global vertex buffer.
 	 * @param SizeInBytes - The amount of memory to allocate in bytes.
 	 * @returns An FAllocation with information regarding the allocated memory.
 	 */
-	RENDERCORE_API FAllocation Allocate(FRHICommandListBase& RHICmdList, uint32 SizeInBytes);
 	RENDERCORE_API FAllocation Allocate(uint32 SizeInBytes);
 
 	/**
@@ -201,9 +217,6 @@ public:
 	 *		WARNING: Once this buffer has been committed to the GPU, allocations
 	 *		remain valid only until the next call to Allocate!
 	 */
-	RENDERCORE_API void Commit(FRHICommandListBase& RHICmdList);
-
-	UE_DEPRECATED(5.4, "Commit requires a command list.")
 	RENDERCORE_API void Commit();
 
 	UE_DEPRECATED(5.4, "Use GlobalDynamicBuffer::GarbageCollect instead.")
@@ -213,6 +226,7 @@ public:
 	RENDERCORE_API bool IsRenderAlarmLoggingEnabled() const;
 
 private:
+	FRHICommandListBase* RHICmdList = nullptr;
 	TArray<FDynamicVertexBuffer*> VertexBuffers;
 };
 
@@ -259,13 +273,29 @@ public:
 	using FAllocation = FGlobalDynamicIndexBufferAllocation;
 	using FAllocationEx = FGlobalDynamicIndexBufferAllocationEx;
 
+	FGlobalDynamicIndexBuffer() = default;
+
+	FGlobalDynamicIndexBuffer(FRHICommandListBase& InRHICmdList)
+		: RHICmdList(&InRHICmdList)
+	{}
+
+	~FGlobalDynamicIndexBuffer()
+	{
+		Commit();
+	}
+
+	void Init(FRHICommandListBase& InRHICmdList)
+	{
+		check(IndexBuffers16.IsEmpty() && IndexBuffers32.IsEmpty());
+		RHICmdList = &InRHICmdList;
+	}
+
 	/**
 	 * Allocates space in the global index buffer.
 	 * @param NumIndices - The number of indices to allocate.
 	 * @param IndexStride - The size of an index (2 or 4 bytes).
 	 * @returns An FAllocation with information regarding the allocated memory.
 	 */
-	RENDERCORE_API FAllocation Allocate(FRHICommandListBase& RHICmdList, uint32 NumIndices, uint32 IndexStride);
 	RENDERCORE_API FAllocation Allocate(uint32 NumIndices, uint32 IndexStride);
 
 	/**
@@ -279,23 +309,15 @@ public:
 		return FAllocationEx(Allocate(NumIndices, sizeof(IndexType)), NumIndices, sizeof(IndexType));
 	}
 
-	template <typename IndexType>
-	FORCEINLINE FAllocationEx Allocate(FRHICommandListBase& RHICmdList, uint32 NumIndices)
-	{
-		return FAllocationEx(Allocate(RHICmdList, NumIndices, sizeof(IndexType)), NumIndices, sizeof(IndexType));
-	}
-
 	/**
 	 * Commits allocated memory to the GPU.
 	 *		WARNING: Once this buffer has been committed to the GPU, allocations
 	 *		remain valid only until the next call to Allocate!
 	 */
-	RENDERCORE_API void Commit(FRHICommandListBase& RHICmdList);
-
-	UE_DEPRECATED(5.4, "Commit requires a command list.")
 	RENDERCORE_API void Commit();
 
 private:
+	FRHICommandListBase* RHICmdList = nullptr;
 	TArray<FDynamicIndexBuffer*> IndexBuffers16;
 	TArray<FDynamicIndexBuffer*> IndexBuffers32;
 };

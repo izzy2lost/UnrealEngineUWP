@@ -217,9 +217,9 @@ FParticleRenderData FNiagaraRenderer::TransferDataToGPU(FRHICommandListBase& RHI
 	const int32 TotalIntSize = IntComponents.Num() * NumInstances;
 
 	FParticleRenderData Allocation;
-	Allocation.FloatData = TotalFloatSize ? DynamicReadBuffer.AllocateFloat(RHICmdList, TotalFloatSize) : FGlobalDynamicReadBuffer::FAllocation();
-	Allocation.HalfData = TotalHalfSize ? DynamicReadBuffer.AllocateHalf(RHICmdList, TotalHalfSize) : FGlobalDynamicReadBuffer::FAllocation();
-	Allocation.IntData = TotalIntSize ? DynamicReadBuffer.AllocateInt32(RHICmdList, TotalIntSize) : FGlobalDynamicReadBuffer::FAllocation();
+	Allocation.FloatData = TotalFloatSize ? DynamicReadBuffer.AllocateFloat(TotalFloatSize) : FGlobalDynamicReadBuffer::FAllocation();
+	Allocation.HalfData = TotalHalfSize ? DynamicReadBuffer.AllocateHalf(TotalHalfSize) : FGlobalDynamicReadBuffer::FAllocation();
+	Allocation.IntData = TotalIntSize ? DynamicReadBuffer.AllocateInt32(TotalIntSize) : FGlobalDynamicReadBuffer::FAllocation();
 
 	Allocation.FloatStride = TotalFloatSize ? NumInstances * sizeof(float) : 0;
 	Allocation.HalfStride = TotalHalfSize ? NumInstances * sizeof(FFloat16) : 0;

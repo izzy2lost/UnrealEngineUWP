@@ -18,15 +18,7 @@ class FGPUOcclusionParallel;
 class FGPUOcclusionParallelPacket;
 class FRelevancePacket;
 class FVisibilityTaskData;
-
-enum class ECommandPipeFlushMode : uint8
-{
-	// Launches tasks onto the pipe immediately.
-	Automatic,
-
-	// Requires an explicit call to Flush to process elements.
-	Manual
-};
+class FVirtualTextureUpdater;
 
 /** An async MPSC queue that can schedule serialized tasks onto the render thread or a task thread. When a new command is enqueued into an empty queue, a
  *  task is launched to process all pending elements in the queue as soon as possible. Each command must be reserved with AddNumCommands,
@@ -394,7 +386,7 @@ class FVisibilityTaskData : public IVisibilityTaskData
 	friend FRelevancePacket;
 	friend FComputeAndMarkRelevance;
 public:
-	FVisibilityTaskData(FRHICommandListImmediate& RHICmdList, FSceneRenderer& SceneRenderer, FGlobalDynamicBuffers GlobalDynamicBuffers);
+	FVisibilityTaskData(FRHICommandListImmediate& RHICmdList, FSceneRenderer& SceneRenderer);
 
 	~FVisibilityTaskData() override
 	{
@@ -430,15 +422,10 @@ public:
 		return Tasks.bWaitingAllowed;
 	}
 
-	inline FGlobalDynamicVertexBuffer* GetDynamicVertexBuffer()
-	{
-		return GlobalDynamicBuffers.Vertex;
-	}
-
 private:
 	void MergeSecondaryViewVisibility();
 
-	void GatherDynamicMeshElements();
+	void FinishGatherDynamicMeshElements(FVirtualTextureUpdater* VirtualTextureUpdater);
 
 	void GatherDynamicMeshElements(const FDynamicPrimitiveIndexList& Primitives);
 	void GatherDynamicMeshElements(const FDynamicPrimitiveViewMasks& Primitives);
@@ -454,7 +441,6 @@ private:
 	TArrayView<FViewInfo*> Views;
 	FViewFamilyInfo& ViewFamily;
 	EShadingPath ShadingPath;
-	FGlobalDynamicBuffers GlobalDynamicBuffers;
 	FMeshElementCollector& MeshCollector;
 	FMeshElementCollector& EditorMeshCollector;
 	FSceneRenderingBulkObjectAllocator Allocator;
@@ -468,6 +454,9 @@ private:
 
 		// Primitive view masks are only non-null when in multi-view mode.
 		FDynamicPrimitiveViewMasks* PrimitiveViewMasks = nullptr;
+
+		FGlobalDynamicVertexBuffer DynamicVertexBuffer;
+		FGlobalDynamicIndexBuffer DynamicIndexBuffer;
 
 		TArray<FViewCommands, TInlineAllocator<4>> ViewCommandsPerView;
 		TArray<uint32, TInlineAllocator<4, SceneRenderingAllocator>> LastElementPerView;
@@ -896,7 +885,7 @@ public:
 
 		void AddOcclusionFeedback(const FOcclusionFeedbackEntry& Entry)
 		{
-			Packet.OcclusionFeedback.AddPrimitive(RHICmdList, Entry.PrimitiveKey, Entry.Bounds.Origin, Entry.Bounds.Extent, DynamicVertexBuffer);
+			Packet.OcclusionFeedback.AddPrimitive(Entry.PrimitiveKey, Entry.Bounds.Origin, Entry.Bounds.Extent, DynamicVertexBuffer);
 		}
 
 		void AddVisualizeQuery(const FBox& Box)
@@ -984,6 +973,7 @@ public:
 protected:
 	void WaitForLastOcclusionQuery();
 
+	FGlobalDynamicVertexBuffer DynamicVertexBuffer;
 	FVisibilityViewPacket& ViewPacket;
 	const FScene& Scene;
 	FViewInfo& View;
@@ -1059,7 +1049,6 @@ private:
 	const uint32 MaxNonOccludedPrimitives;
 	TArray<FGPUOcclusionParallelPacket*, SceneRenderingAllocator> Packets;
 	FPrimitiveIndexList NonOccludedPrimitives;
-	FGlobalDynamicVertexBuffer DynamicVertexBuffer;
 	FRHICommandList* RHICmdList = nullptr;
 	UE::Tasks::FTaskEvent FinalizeTask{ UE_SOURCE_LOCATION };
 	bool bFinished = false;
@@ -1072,10 +1061,11 @@ public:
 	FGPUOcclusionSerial(FVisibilityViewPacket& InViewPacket)
 		: FGPUOcclusion(InViewPacket)
 		, Packet(InViewPacket, State)
-		, ProcessVisitor(Packet, FRHICommandListExecutor::GetImmediateCommandList(), *InViewPacket.TaskData.GetDynamicVertexBuffer())
+		, ProcessVisitor(Packet, FRHICommandListExecutor::GetImmediateCommandList(), DynamicVertexBuffer)
 	{}
 
 	void AddPrimitives(FPrimitiveRange PrimitiveRange) override;
+	void Map(FRHICommandListImmediate& RHICmdListImmediate) override;
 	void Unmap(FRHICommandListImmediate& RHICmdListImmediate) override;
 
 private:

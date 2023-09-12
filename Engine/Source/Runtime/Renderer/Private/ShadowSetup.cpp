@@ -1245,6 +1245,45 @@ struct FFilteredShadowArrays
 #endif
 };
 
+class FShadowMeshCollector
+{
+public:
+	static FShadowMeshCollector* Create(FRHICommandList& RHICmdList, FSceneRenderer& SceneRenderer)
+	{
+		return SceneRenderer.Allocator.Create<FShadowMeshCollector>(RHICmdList, SceneRenderer);
+	}
+
+	FMeshElementCollector& GetCollector()
+	{
+		return Collector;
+	}
+
+	void Finish()
+	{
+		Collector.Finish();
+
+		DynamicVertexBuffer.Commit();
+		DynamicIndexBuffer.Commit();
+	}
+
+private:
+	FShadowMeshCollector(FRHICommandList& RHICmdList, FSceneRenderer& SceneRenderer)
+		: Collector(SceneRenderer.FeatureLevel, SceneRenderer.Allocator)
+	{
+		DynamicVertexBuffer.Init(RHICmdList);
+		DynamicIndexBuffer.Init(RHICmdList);
+
+		Collector.Start(RHICmdList, DynamicVertexBuffer, DynamicIndexBuffer, SceneRenderer.DynamicReadBufferForShadows);
+	}
+
+	FMeshElementCollector Collector;
+	FGlobalDynamicVertexBuffer DynamicVertexBuffer;
+	FGlobalDynamicIndexBuffer DynamicIndexBuffer;
+
+	template <typename T>
+	friend class TConcurrentLinearBulkObjectAllocator;
+};
+
 // Common setup and working data for all GatherShadowPrimitives Tasks
 struct FDynamicShadowsTaskData
 {
@@ -2516,12 +2555,11 @@ void FProjectedShadowInfo::SetupMeshDrawCommandsForProjectionStenciling(FSceneRe
 	}
 }
 
-void FProjectedShadowInfo::GatherDynamicMeshElements(FSceneRenderer& Renderer, FVisibleLightInfo& VisibleLightInfo, TArray<const FSceneView*>& ReusedViewsArray,
-	FGlobalDynamicIndexBuffer& DynamicIndexBuffer, FGlobalDynamicVertexBuffer& DynamicVertexBuffer, FGlobalDynamicReadBuffer& DynamicReadBuffer, FInstanceCullingManager &InstanceCullingManager)
+void FProjectedShadowInfo::GatherDynamicMeshElements(FMeshElementCollector& MeshCollector, FSceneRenderer& Renderer, FVisibleLightInfo& VisibleLightInfo, TArray<const FSceneView*>& ReusedViewsArray, FInstanceCullingManager& InstanceCullingManager)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_Shadow_GatherDynamicMeshElements);
 
-	check(ShadowDepthView && IsInRenderingThread());
+	check(ShadowDepthView);
 
 	if (DynamicSubjectPrimitives.Num() > 0 || ReceiverPrimitives.Num() > 0 || SubjectTranslucentPrimitives.Num() > 0)
 	{
@@ -2547,60 +2585,52 @@ void FProjectedShadowInfo::GatherDynamicMeshElements(FSceneRenderer& Renderer, F
 		{
 			ShadowDepthView->SetPreShadowTranslation(FVector(0, 0, 0));
 			ShadowDepthView->SetDynamicMeshElementsShadowCullFrustum(&CascadeSettings.ShadowBoundsAccurate);
-			GatherDynamicMeshElementsArray(Renderer, DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer, 
-				DynamicSubjectPrimitives, ReusedViewsArray, DynamicSubjectMeshElements, NumDynamicSubjectMeshElements);
+			GatherDynamicMeshElementsArray(MeshCollector, DynamicSubjectPrimitives, ReusedViewsArray, Renderer.ViewFamily, DynamicSubjectMeshElements, NumDynamicSubjectMeshElements);
 			ShadowDepthView->SetPreShadowTranslation(PreShadowTranslation);
 		}
 		else
 		{
 			ShadowDepthView->SetPreShadowTranslation(PreShadowTranslation);
 			ShadowDepthView->SetDynamicMeshElementsShadowCullFrustum(&CasterOuterFrustum);
-			GatherDynamicMeshElementsArray(Renderer, DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer, 
-				DynamicSubjectPrimitives, ReusedViewsArray, DynamicSubjectMeshElements, NumDynamicSubjectMeshElements);
+			GatherDynamicMeshElementsArray(MeshCollector, DynamicSubjectPrimitives, ReusedViewsArray, Renderer.ViewFamily, DynamicSubjectMeshElements, NumDynamicSubjectMeshElements);
 		}
 
 		ShadowDepthView->DrawDynamicFlags = EDrawDynamicFlags::None;
 
 		int32 NumDynamicSubjectTranslucentMeshElements = 0;
 		ShadowDepthView->SetDynamicMeshElementsShadowCullFrustum(&CasterOuterFrustum);
-		GatherDynamicMeshElementsArray(Renderer, DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer, 
-			SubjectTranslucentPrimitives, ReusedViewsArray, DynamicSubjectTranslucentMeshElements, NumDynamicSubjectTranslucentMeshElements);
+		GatherDynamicMeshElementsArray(MeshCollector, SubjectTranslucentPrimitives, ReusedViewsArray, Renderer.ViewFamily, DynamicSubjectTranslucentMeshElements, NumDynamicSubjectTranslucentMeshElements);
 	}
+
+	MeshCollector.Commit();
 
 	SetupMeshDrawCommandsForProjectionStenciling(Renderer, InstanceCullingManager);
 	SetupMeshDrawCommandsForShadowDepth(Renderer, InstanceCullingManager);
 }
 
 void FProjectedShadowInfo::GatherDynamicMeshElementsArray(
-	FSceneRenderer& Renderer, 
-	FGlobalDynamicIndexBuffer& DynamicIndexBuffer,
-	FGlobalDynamicVertexBuffer& DynamicVertexBuffer,
-	FGlobalDynamicReadBuffer& DynamicReadBuffer,
-	const PrimitiveArrayType& PrimitiveArray, 
-	const TArray<const FSceneView*>& ReusedViewsArray,
+	FMeshElementCollector& MeshCollector,
+	const PrimitiveArrayType& Primitives,
+	const TArray<const FSceneView*>& Views,
+	const FSceneViewFamily& ViewFamily,
 	TArray<FMeshBatchAndRelevance,SceneRenderingAllocator>& OutDynamicMeshElements,
 	int32& OutNumDynamicSubjectMeshElements)
 {
 	// Simple elements not supported in shadow passes
 	FSimpleElementCollector DynamicSubjectSimpleElements;
 
-	Renderer.MeshCollector.ClearViewMeshArrays();
-	Renderer.MeshCollector.AddViewMeshArrays(
+	MeshCollector.AddViewMeshArrays(
 		ShadowDepthView,
 		&OutDynamicMeshElements, 
 		&DynamicSubjectSimpleElements, 
-		&ShadowDepthView->DynamicPrimitiveCollector,
-		Renderer.ViewFamily.GetFeatureLevel(),
-		&DynamicIndexBuffer,
-		&DynamicVertexBuffer,
-		&DynamicReadBuffer
-		);
+		&ShadowDepthView->DynamicPrimitiveCollector);
 
-	const uint32 PrimitiveCount = PrimitiveArray.Num();
+	const uint32 PrimitiveCount = Primitives.Num();
 
 	for (uint32 PrimitiveIndex = 0; PrimitiveIndex < PrimitiveCount; ++PrimitiveIndex)
 	{
-		const FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveArray[PrimitiveIndex];
+		TRACE_CPUPROFILER_EVENT_SCOPE(DynamicPrimitive);
+		const FPrimitiveSceneInfo* PrimitiveSceneInfo = Primitives[PrimitiveIndex];
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy = PrimitiveSceneInfo->Proxy;
 
 		// Lookup the primitive's cached view relevance
@@ -2609,19 +2639,20 @@ void FProjectedShadowInfo::GatherDynamicMeshElementsArray(
 		if (!ViewRelevance.bInitializedThisFrame)
 		{
 			// Compute the subject primitive's view relevance since it wasn't cached
-			ViewRelevance = PrimitiveSceneInfo->Proxy->GetViewRelevance(ShadowDepthView);
+			ViewRelevance = PrimitiveSceneProxy->GetViewRelevance(ShadowDepthView);
 		}
 
 		// Only draw if the subject primitive is shadow relevant.
 		if (ViewRelevance.bShadowRelevance && ViewRelevance.bDynamicRelevance)
 		{
-			Renderer.MeshCollector.SetPrimitive(PrimitiveSceneInfo->Proxy, PrimitiveSceneInfo->DefaultDynamicHitProxyId);
+			MeshCollector.SetPrimitive(PrimitiveSceneProxy, PrimitiveSceneInfo->DefaultDynamicHitProxyId);
 
-			PrimitiveSceneInfo->Proxy->GetDynamicMeshElements(ReusedViewsArray, Renderer.ViewFamily, 0x1, Renderer.MeshCollector);
+			PrimitiveSceneProxy->GetDynamicMeshElements(Views, ViewFamily, 0x1, MeshCollector);
 		}
 	}
 
-	OutNumDynamicSubjectMeshElements = Renderer.MeshCollector.GetMeshElementCount(0);
+	OutNumDynamicSubjectMeshElements = MeshCollector.GetMeshElementCount(0);
+	MeshCollector.ClearViewMeshArrays();
 }
 
 /** 
@@ -4368,8 +4399,10 @@ void FSceneRenderer::DrawDebugShadowFrustum(FViewInfo& View, FProjectedShadowInf
 	}
 }
 
-void FSceneRenderer::GatherShadowDynamicMeshElements(FGlobalDynamicIndexBuffer& DynamicIndexBuffer, FGlobalDynamicVertexBuffer& DynamicVertexBuffer, FGlobalDynamicReadBuffer& DynamicReadBuffer, FInstanceCullingManager& InstanceCullingManager)
+void FSceneRenderer::GatherShadowDynamicMeshElements(FRHICommandList& RHICmdList, FInstanceCullingManager& InstanceCullingManager)
 {
+	FShadowMeshCollector* ShadowMeshCollector = FShadowMeshCollector::Create(RHICmdList, *this);
+
 	TArray<const FSceneView*> ReusedViewsArray;
 	ReusedViewsArray.AddZeroed(1);
 
@@ -4381,7 +4414,7 @@ void FSceneRenderer::GatherShadowDynamicMeshElements(FGlobalDynamicIndexBuffer& 
 		{
 			FProjectedShadowInfo* ProjectedShadowInfo = Atlas.Shadows[ShadowIndex];
 			FVisibleLightInfo& VisibleLightInfo = VisibleLightInfos[ProjectedShadowInfo->GetLightSceneInfo().Id];
-			ProjectedShadowInfo->GatherDynamicMeshElements(*this, VisibleLightInfo, ReusedViewsArray, DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer, InstanceCullingManager);
+			ProjectedShadowInfo->GatherDynamicMeshElements(ShadowMeshCollector->GetCollector(), *this, VisibleLightInfo, ReusedViewsArray, InstanceCullingManager);
 		}
 	}
 
@@ -4393,7 +4426,7 @@ void FSceneRenderer::GatherShadowDynamicMeshElements(FGlobalDynamicIndexBuffer& 
 		{
 			FProjectedShadowInfo* ProjectedShadowInfo = Atlas.Shadows[ShadowIndex];
 			FVisibleLightInfo& VisibleLightInfo = VisibleLightInfos[ProjectedShadowInfo->GetLightSceneInfo().Id];
-			ProjectedShadowInfo->GatherDynamicMeshElements(*this, VisibleLightInfo, ReusedViewsArray, DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer, InstanceCullingManager);
+			ProjectedShadowInfo->GatherDynamicMeshElements(ShadowMeshCollector->GetCollector(), *this, VisibleLightInfo, ReusedViewsArray, InstanceCullingManager);
 		}
 	}
 
@@ -4401,7 +4434,7 @@ void FSceneRenderer::GatherShadowDynamicMeshElements(FGlobalDynamicIndexBuffer& 
 	{
 		FProjectedShadowInfo* ProjectedShadowInfo = SortedShadowsForShadowDepthPass.PreshadowCache.Shadows[ShadowIndex];
 		FVisibleLightInfo& VisibleLightInfo = VisibleLightInfos[ProjectedShadowInfo->GetLightSceneInfo().Id];
-		ProjectedShadowInfo->GatherDynamicMeshElements(*this, VisibleLightInfo, ReusedViewsArray, DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer, InstanceCullingManager);
+		ProjectedShadowInfo->GatherDynamicMeshElements(ShadowMeshCollector->GetCollector(), *this, VisibleLightInfo, ReusedViewsArray, InstanceCullingManager);
 	}
 
 	for (int32 AtlasIndex = 0; AtlasIndex < SortedShadowsForShadowDepthPass.TranslucencyShadowMapAtlases.Num(); AtlasIndex++)
@@ -4412,7 +4445,7 @@ void FSceneRenderer::GatherShadowDynamicMeshElements(FGlobalDynamicIndexBuffer& 
 		{
 			FProjectedShadowInfo* ProjectedShadowInfo = Atlas.Shadows[ShadowIndex];
 			FVisibleLightInfo& VisibleLightInfo = VisibleLightInfos[ProjectedShadowInfo->GetLightSceneInfo().Id];
-			ProjectedShadowInfo->GatherDynamicMeshElements(*this, VisibleLightInfo, ReusedViewsArray, DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer, InstanceCullingManager);
+			ProjectedShadowInfo->GatherDynamicMeshElements(ShadowMeshCollector->GetCollector(), *this, VisibleLightInfo, ReusedViewsArray, InstanceCullingManager);
 		}
 	}
 
@@ -4424,10 +4457,12 @@ void FSceneRenderer::GatherShadowDynamicMeshElements(FGlobalDynamicIndexBuffer& 
 			if (ProjectedShadowInfo->bShouldRenderVSM)
 			{
 				FVisibleLightInfo& VisibleLightInfo = VisibleLightInfos[ProjectedShadowInfo->GetLightSceneInfo().Id];
-				ProjectedShadowInfo->GatherDynamicMeshElements(*this, VisibleLightInfo, ReusedViewsArray, DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer, InstanceCullingManager);
+				ProjectedShadowInfo->GatherDynamicMeshElements(ShadowMeshCollector->GetCollector(), *this, VisibleLightInfo, ReusedViewsArray, InstanceCullingManager);
 			}
 		}
 	}
+
+	ShadowMeshCollector->Finish();
 }
 
 FAutoConsoleTaskPriority CPrio_GatherShadowPrimitives(
@@ -6206,7 +6241,7 @@ FDynamicShadowsTaskData* FSceneRenderer::BeginInitDynamicShadows(bool bRunningEa
 }
 
 
-void FSceneRenderer::FinishInitDynamicShadows(FRDGBuilder& GraphBuilder, FDynamicShadowsTaskData* TaskData, FGlobalDynamicIndexBuffer& DynamicIndexBuffer, FGlobalDynamicVertexBuffer& DynamicVertexBuffer, FGlobalDynamicReadBuffer& DynamicReadBuffer, FInstanceCullingManager& InstanceCullingManager, FRDGExternalAccessQueue& ExternalAccessQueue)
+void FSceneRenderer::FinishInitDynamicShadows(FRDGBuilder& GraphBuilder, FDynamicShadowsTaskData* TaskData, FInstanceCullingManager& InstanceCullingManager, FRDGExternalAccessQueue& ExternalAccessQueue)
 {
 	SCOPED_NAMED_EVENT_TEXT("FSceneRenderer::FinishInitDynamicShadows", FColor::Magenta);
 	SCOPE_CYCLE_COUNTER(STAT_InitDynamicShadowsTime);
@@ -6226,7 +6261,7 @@ void FSceneRenderer::FinishInitDynamicShadows(FRDGBuilder& GraphBuilder, FDynami
 	AllocateShadowDepthTargets(GraphBuilder.RHICmdList, *TaskData);
 
 	// Generate mesh element arrays from shadow primitive arrays
-	GatherShadowDynamicMeshElements(DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer, InstanceCullingManager);
+	GatherShadowDynamicMeshElements(GraphBuilder.RHICmdList, InstanceCullingManager);
 
 	// Ensure all shadow view dynamic primitives are uploaded before shadow-culling batching pass.
 	// TODO: automate this such that:
@@ -6267,10 +6302,10 @@ void FSceneRenderer::FinishInitDynamicShadows(FRDGBuilder& GraphBuilder, FDynami
 	}
 }
 
-FDynamicShadowsTaskData* FSceneRenderer::InitDynamicShadows(FRDGBuilder& GraphBuilder, FGlobalDynamicIndexBuffer& DynamicIndexBuffer, FGlobalDynamicVertexBuffer& DynamicVertexBuffer, FGlobalDynamicReadBuffer& DynamicReadBuffer, FInstanceCullingManager& InstanceCullingManager, FRDGExternalAccessQueue& ExternalAccessQueue)
+FDynamicShadowsTaskData* FSceneRenderer::InitDynamicShadows(FRDGBuilder& GraphBuilder, FInstanceCullingManager& InstanceCullingManager, FRDGExternalAccessQueue& ExternalAccessQueue)
 {
 	FDynamicShadowsTaskData* TaskData = BeginInitDynamicShadows(false, nullptr);
-	FinishInitDynamicShadows(GraphBuilder, TaskData, DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer, InstanceCullingManager, ExternalAccessQueue);
+	FinishInitDynamicShadows(GraphBuilder, TaskData, InstanceCullingManager, ExternalAccessQueue);
 	return TaskData;
 }
 

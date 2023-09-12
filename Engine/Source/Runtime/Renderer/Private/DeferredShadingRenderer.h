@@ -521,7 +521,6 @@ private:
 	static FGlobalDynamicIndexBuffer DynamicIndexBufferForInitShadows;
 	static FGlobalDynamicVertexBuffer DynamicVertexBufferForInitViews;
 	static FGlobalDynamicVertexBuffer DynamicVertexBufferForInitShadows;
-	static TGlobalResource<FGlobalDynamicReadBuffer> DynamicReadBufferForInitViews;
 	static TGlobalResource<FGlobalDynamicReadBuffer> DynamicReadBufferForInitShadows;
 
 	FSeparateTranslucencyDimensions SeparateTranslucencyDimensions;

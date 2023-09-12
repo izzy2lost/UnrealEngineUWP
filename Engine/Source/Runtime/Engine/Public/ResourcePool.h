@@ -219,6 +219,7 @@ public:
 		}
 	}
 
+	UE_DEPRECATED(5.4, "CreatePooledResource requires an RHI command list.")
 	ResourceType CreatePooledResource(ResourceCreationArguments Args)
 	{
 		if (IsInitialized())

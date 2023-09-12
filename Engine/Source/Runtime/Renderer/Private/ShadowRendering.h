@@ -688,8 +688,7 @@ public:
 	void AddReceiverPrimitive(FPrimitiveSceneInfo* PrimitiveSceneInfo);
 
 	/** Gathers dynamic mesh elements for all the shadow's primitives arrays. */
-	void GatherDynamicMeshElements(FSceneRenderer& Renderer, class FVisibleLightInfo& VisibleLightInfo, TArray<const FSceneView*>& ReusedViewsArray, 
-		FGlobalDynamicIndexBuffer& DynamicIndexBuffer, FGlobalDynamicVertexBuffer& DynamicVertexBuffer, FGlobalDynamicReadBuffer& DynamicReadBuffer, FInstanceCullingManager& InstanceCullingManager);
+	void GatherDynamicMeshElements(FMeshElementCollector& MeshCollector, FSceneRenderer& Renderer, class FVisibleLightInfo& VisibleLightInfo, TArray<const FSceneView*>& ReusedViewsArray, FInstanceCullingManager& InstanceCullingManager);
 
 	void SetupMeshDrawCommandsForShadowDepth(FSceneRenderer& Renderer, FInstanceCullingManager& InstanceCullingManager);
 
@@ -925,12 +924,10 @@ private:
 
 	/** Gathers dynamic mesh elements for the given primitive array. */
 	void GatherDynamicMeshElementsArray(
-		FSceneRenderer& Renderer, 
-		FGlobalDynamicIndexBuffer& DynamicIndexBuffer,
-		FGlobalDynamicVertexBuffer& DynamicVertexBuffer,
-		FGlobalDynamicReadBuffer& DynamicReadBuffer,
+		FMeshElementCollector& Collector,
 		const PrimitiveArrayType& PrimitiveArray, 
-		const TArray<const FSceneView*>& ReusedViewsArray,
+		const TArray<const FSceneView*>& Views,
+		const FSceneViewFamily& ViewFamily,
 		TArray<FMeshBatchAndRelevance,SceneRenderingAllocator>& OutDynamicMeshElements,
 		int32& OutNumDynamicSubjectMeshElements);
 
