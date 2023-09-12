@@ -8,6 +8,8 @@
 #include "Helpers/PCGBlueprintHelpers.h"
 #include "Helpers/PCGSettingsHelpers.h"
 
+#include "GameFramework/Actor.h"
+
 #define LOCTEXT_NAMESPACE "PCGCreatePointsElement"
 
 UPCGCreatePointsSettings::UPCGCreatePointsSettings()
