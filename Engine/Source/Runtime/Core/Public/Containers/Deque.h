@@ -96,10 +96,10 @@ public:
 	using SizeType = typename InAllocatorType::SizeType;
 	using ElementType = InElementType;
 
-	using ElementAllocatorType = typename TChooseClass<
+	using ElementAllocatorType = std::conditional_t<
 		AllocatorType::NeedsElementType,
 		typename AllocatorType::template ForElementType<ElementType>,
-		typename AllocatorType::ForAnyElementType>::Result;
+		typename AllocatorType::ForAnyElementType>;
 
 	using ConstIteratorType = UE::Deque::Private::TIterator<const ElementType, SizeType>;
 	using IteratorType = UE::Deque::Private::TIterator<ElementType, SizeType>;

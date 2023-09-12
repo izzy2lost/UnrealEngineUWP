@@ -30,7 +30,7 @@ class TMemoryView
 {
 	static_assert(std::is_void_v<DataType>, "DataType must be cv-qualified void");
 
-	using ByteType = typename TChooseClass<TIsConst<DataType>::Value, const uint8, uint8>::Result;
+	using ByteType = std::conditional_t<TIsConst<DataType>::Value, const uint8, uint8>;
 
 public:
 	/** Construct an empty view. */
@@ -296,6 +296,6 @@ UE_NODISCARD constexpr inline auto MakeMemoryView(ContainerType&& Container)
 {
 	using ElementType = typename TRemovePointer<decltype(GetData(DeclVal<ContainerType>()))>::Type;
 	constexpr bool bIsConst = TIsConst<ElementType>::Value;
-	using DataType = typename TChooseClass<bIsConst, const void, void>::Result;
+	using DataType = std::conditional_t<bIsConst, const void, void>;
 	return TMemoryView<DataType>(GetData(Container), GetNum(Container) * sizeof(ElementType));
 }

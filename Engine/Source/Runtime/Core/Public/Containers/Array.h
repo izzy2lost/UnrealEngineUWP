@@ -393,11 +393,11 @@ public:
 	UE_DEPRECATED(5.0, "TArray::Allocator type is deprecated, please use TArray::AllocatorType instead.")
 	typedef InAllocatorType Allocator;
 
-	typedef typename TChooseClass<
+	using ElementAllocatorType = std::conditional_t<
 		AllocatorType::NeedsElementType,
 		typename AllocatorType::template ForElementType<ElementType>,
 		typename AllocatorType::ForAnyElementType
-	>::Result ElementAllocatorType;
+	>;
 
 	static_assert(TIsSigned<SizeType>::Value, "TArray only supports signed index types");
 

@@ -16,7 +16,7 @@ bool DoGuardedIntTestForType(FAutomationTestBase& Test)
 	static_assert(std::is_same_v<IntType, int8> || std::is_same_v<IntType, uint8>);
 
 	constexpr bool bIsSigned = std::is_signed_v<IntType>;
-	using IntType32 = typename TChooseClass<bIsSigned, int32, uint32>::Result;
+	using IntType32 = std::conditional_t<bIsSigned, int32, uint32>;
 	constexpr IntType32 IntTypeMin = std::numeric_limits<IntType>::min();
 	constexpr IntType32 IntTypeMax = std::numeric_limits<IntType>::max();
 

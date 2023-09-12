@@ -775,16 +775,16 @@ protected:
 	class TBaseIterator
 	{
 	public:
-		typedef typename TChooseClass<
+		typedef std::conditional_t<
 			bConst,
-			typename TChooseClass<bRangedFor, typename ElementSetType::TRangedForConstIterator, typename ElementSetType::TConstIterator>::Result,
-			typename TChooseClass<bRangedFor, typename ElementSetType::TRangedForIterator, typename ElementSetType::TIterator     >::Result
-		>::Result PairItType;
+			std::conditional_t<bRangedFor, typename ElementSetType::TRangedForConstIterator, typename ElementSetType::TConstIterator>,
+			std::conditional_t<bRangedFor, typename ElementSetType::TRangedForIterator, typename ElementSetType::TIterator     >
+		> PairItType;
 	private:
-		typedef typename TChooseClass<bConst, const TMapBase, TMapBase>::Result MapType;
-		typedef typename TChooseClass<bConst, const KeyType, KeyType>::Result ItKeyType;
-		typedef typename TChooseClass<bConst, const ValueType, ValueType>::Result ItValueType;
-		typedef typename TChooseClass<bConst, const typename ElementSetType::ElementType, typename ElementSetType::ElementType>::Result PairType;
+		typedef std::conditional_t<bConst, const TMapBase, TMapBase> MapType;
+		typedef std::conditional_t<bConst, const KeyType, KeyType> ItKeyType;
+		typedef std::conditional_t<bConst, const ValueType, ValueType> ItValueType;
+		typedef std::conditional_t<bConst, const typename ElementSetType::ElementType, typename ElementSetType::ElementType> PairType;
 
 	public:
 		FORCEINLINE TBaseIterator(const PairItType& InElementIt)
@@ -832,9 +832,9 @@ protected:
 	class TBaseKeyIterator
 	{
 	private:
-		typedef typename TChooseClass<bConst, typename ElementSetType::TConstKeyIterator, typename ElementSetType::TKeyIterator>::Result SetItType;
-		typedef typename TChooseClass<bConst, const KeyType, KeyType>::Result ItKeyType;
-		typedef typename TChooseClass<bConst, const ValueType, ValueType>::Result ItValueType;
+		typedef std::conditional_t<bConst, typename ElementSetType::TConstKeyIterator, typename ElementSetType::TKeyIterator> SetItType;
+		typedef std::conditional_t<bConst, const KeyType, KeyType> ItKeyType;
+		typedef std::conditional_t<bConst, const ValueType, ValueType> ItValueType;
 
 	public:
 		/** Initialization constructor. */
@@ -1693,7 +1693,7 @@ struct FScriptMapLayout
 template <typename AllocatorType, typename InDerivedType>
 class TScriptMap
 {
-	using DerivedType = typename TChooseClass<std::is_void_v<InDerivedType>, TScriptMap, InDerivedType>::Result;
+	using DerivedType = std::conditional_t<std::is_void_v<InDerivedType>, TScriptMap, InDerivedType>;
 
 public:
 	static FScriptMapLayout GetScriptLayout(int32 KeySize, int32 KeyAlignment, int32 ValueSize, int32 ValueAlignment)

@@ -92,11 +92,11 @@ public:
 	protected:
 		typedef UActorDescContainer ContainerType;
 		typedef TArray<ActorDescContPtrType> ContainerCollectionType;
-		typedef typename TChooseClass<bConst, typename ContainerCollectionType::TConstIterator, typename ContainerCollectionType::TIterator>::Result ContainerIteratorType;
-		typedef typename TChooseClass<bConst, typename ContainerType::TConstIterator<ActorType>, typename ContainerType::TIterator<ActorType>>::Result ActDescIteratorType;
+		typedef std::conditional_t<bConst, typename ContainerCollectionType::TConstIterator, typename ContainerCollectionType::TIterator> ContainerIteratorType;
+		typedef std::conditional_t<bConst, typename ContainerType::TConstIterator<ActorType>, typename ContainerType::TIterator<ActorType>> ActDescIteratorType;
 
 		typedef typename FWorldPartitionActorDescType<ActorType>::Type ValueType;
-		typedef typename TChooseClass<bConst, const ValueType*, ValueType*>::Result ReturnType;
+		typedef std::conditional_t<bConst, const ValueType*, ValueType*> ReturnType;
 
 	public:
 		template<class T>

@@ -68,16 +68,16 @@ public:
 	static constexpr bool bIsRestrict = bInIsRestrict;
 	using SizeType = typename InAllocatorType::SizeType;
 
-	using PointerType = typename TChooseClass<
+	using PointerType = std::conditional_t<
 		bIsRestrict,
 		ElementType* RESTRICT,
-		ElementType*>::Result;
+		ElementType*>;
 
-	using ElementAllocatorType = typename TChooseClass<
+	using ElementAllocatorType = std::conditional_t<
 		AllocatorType::NeedsElementType,
 		typename AllocatorType::template ForElementType<ElementType>,
 		typename AllocatorType::ForAnyElementType
-	>::Result;
+	>;
 
 	static_assert(DimNum > 1, "TMultiArray requires a positive, non-zero number of dimensions");
 	static_assert(TIsSigned<SizeType>::Value, "TMultiArray only supports signed index types");
@@ -833,16 +833,16 @@ public:
 	static constexpr bool bIsRestrict = bInIsRestrict;
 	using SizeType = typename InAllocatorType::SizeType;
 
-	using PointerType = typename TChooseClass<
+	using PointerType = std::conditional_t<
 		bIsRestrict,
 		ElementType* RESTRICT,
-		ElementType*>::Result;
+		ElementType*>;
 
-	using ElementAllocatorType = typename TChooseClass<
+	using ElementAllocatorType = std::conditional_t<
 		AllocatorType::NeedsElementType,
 		typename AllocatorType::template ForElementType<ElementType>,
 		typename AllocatorType::ForAnyElementType
-	>::Result;
+	>;
 
 	static_assert(TIsSigned<SizeType>::Value, "TMultiArray only supports signed index types");
 

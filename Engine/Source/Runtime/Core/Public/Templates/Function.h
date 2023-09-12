@@ -182,7 +182,7 @@ namespace UE::Core::Private::Function
 	template <typename T, bool bOnHeap>
 	struct TFunction_OwnedObject : public
 #if TFUNCTION_USES_INLINE_STORAGE
-		TChooseClass<bOnHeap, IFunction_OwnedObject_OnHeap<T>, IFunction_OwnedObject_Inline<T>>::Result
+		std::conditional_t<bOnHeap, IFunction_OwnedObject_OnHeap<T>, IFunction_OwnedObject_Inline<T>>
 #else
 		IFunction_OwnedObject_OnHeap<T>
 #endif

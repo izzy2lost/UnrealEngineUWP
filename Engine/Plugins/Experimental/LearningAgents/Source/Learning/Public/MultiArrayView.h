@@ -180,10 +180,10 @@ public:
 	static constexpr bool bIsRestrict = bInIsRestrict;
 	using SizeType = InSizeType;
 
-	using PointerType = typename TChooseClass<
+	using PointerType = std::conditional_t<
 		bIsRestrict,
 		ElementType* RESTRICT,
-		ElementType*>::Result;
+		ElementType*>;
 
 	static_assert(DimNum > 1, "TMultiArrayView requires a positive, non-zero number of dimensions");
 	static_assert(TIsSigned<SizeType>::Value, "TMultiArrayView only supports signed index types");
@@ -612,10 +612,10 @@ public:
 	static constexpr bool bIsRestrict = bInIsRestrict;
 	using SizeType = InSizeType;
 
-	using PointerType = typename TChooseClass<
+	using PointerType = std::conditional_t<
 		bIsRestrict,
 		ElementType* RESTRICT,
-		ElementType*>::Result;
+		ElementType*>;
 
 	static_assert(TIsSigned<SizeType>::Value, "TMultiArrayView only supports signed index types");
 
@@ -654,11 +654,11 @@ public:
 		>::Type
 	>
 		FORCEINLINE TMultiArrayView(OtherRangeType&& Other)
-		: DataPtr(TChooseClass<
+		: DataPtr(std::conditional_t<
 			TIsCompatibleRangeType<OtherRangeType>::Value,
 			TIsCompatibleRangeType<OtherRangeType>,
 			TIsReinterpretableRangeType<OtherRangeType>
-		>::Result::GetData(Forward<OtherRangeType>(Other)))
+		>::GetData(Forward<OtherRangeType>(Other)))
 	{
 		const auto InCount = GetNum(Forward<OtherRangeType>(Other));
 		check((InCount >= 0) && ((sizeof(InCount) < sizeof(SizeType)) || (InCount <= static_cast<decltype(InCount)>(TNumericLimits<SizeType>::Max()))));

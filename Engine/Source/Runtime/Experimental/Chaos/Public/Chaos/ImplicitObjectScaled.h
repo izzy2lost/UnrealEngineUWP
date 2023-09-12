@@ -421,7 +421,7 @@ public:
 	using ObjectType = TRefCountPtr<TConcrete>;
 	using FImplicitObject::GetTypeName;
 	
-	using ObjectTypeDeprecated = typename TChooseClass<bInstanced, TSerializablePtr<TConcrete>, TUniquePtr<TConcrete>>::Result;
+	using ObjectTypeDeprecated = std::conditional_t<bInstanced, TSerializablePtr<TConcrete>, TUniquePtr<TConcrete>>;
 
 	UE_DEPRECATED(5.4, "Constructor no longer used anymore")
 	TImplicitObjectScaled(ObjectTypeDeprecated Object, const TSharedPtr<TConcrete, ESPMode::ThreadSafe>& SharedPtrForRefCount, const FVec3& Scale, FReal InMargin = 0)

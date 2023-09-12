@@ -877,8 +877,8 @@ private:
 		typedef TConstSetBitIterator<typename Allocator::BitArrayAllocator> BitArrayItType;
 
 	private:
-		typedef typename TChooseClass<bConst,const TSparseArray,TSparseArray>::Result ArrayType;
-		typedef typename TChooseClass<bConst,const ElementType,ElementType>::Result ItElementType;
+		typedef std::conditional_t<bConst,const TSparseArray,TSparseArray> ArrayType;
+		typedef std::conditional_t<bConst,const ElementType,ElementType> ItElementType;
 
 	public:
 		explicit TBaseIterator(ArrayType& InArray, const BitArrayItType& InBitArrayIt)
@@ -1270,7 +1270,7 @@ struct FScriptSparseArrayLayout
 template <typename AllocatorType, typename InDerivedType>
 class TScriptSparseArray
 {
-	using DerivedType = typename TChooseClass<std::is_void_v<InDerivedType>, TScriptSparseArray, InDerivedType>::Result;
+	using DerivedType = std::conditional_t<std::is_void_v<InDerivedType>, TScriptSparseArray, InDerivedType>;
 
 public:
 	static FScriptSparseArrayLayout GetScriptLayout(int32 ElementSize, int32 ElementAlignment)

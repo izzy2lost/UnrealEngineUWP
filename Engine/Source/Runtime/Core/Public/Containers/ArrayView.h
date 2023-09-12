@@ -192,11 +192,11 @@ public:
 		std::enable_if_t<TIsTArrayView_V<std::decay_t<OtherRangeType>> && !std::is_same_v<std::decay_t<OtherRangeType>, TArrayView>>* = nullptr
 	>
 	FORCEINLINE TArrayView(OtherRangeType&& Other)
-		: DataPtr(TChooseClass<
+		: DataPtr(std::conditional_t<
 						TIsCompatibleRangeType<OtherRangeType>::Value,
 						TIsCompatibleRangeType<OtherRangeType>,
 						TIsReinterpretableRangeType<OtherRangeType>
-					>::Result::GetData(Forward<OtherRangeType>(Other)))
+					>::GetData(Forward<OtherRangeType>(Other)))
 	{
 		const auto InCount = GetNum(Forward<OtherRangeType>(Other));
 		using InCountType = decltype(InCount);
@@ -224,11 +224,11 @@ public:
 		std::enable_if_t<!TIsTArrayView_V<std::decay_t<OtherRangeType>>>* = nullptr
 	>
 	FORCEINLINE TArrayView(OtherRangeType&& Other UE_LIFETIMEBOUND)
-		: DataPtr(TChooseClass<
+		: DataPtr(std::conditional_t<
 			TIsCompatibleRangeType<OtherRangeType>::Value,
 			TIsCompatibleRangeType<OtherRangeType>,
 			TIsReinterpretableRangeType<OtherRangeType>
-		>::Result::GetData(Forward<OtherRangeType>(Other)))
+		>::GetData(Forward<OtherRangeType>(Other)))
 	{
 		const auto InCount = GetNum(Forward<OtherRangeType>(Other));
 		using InCountType = decltype(InCount);

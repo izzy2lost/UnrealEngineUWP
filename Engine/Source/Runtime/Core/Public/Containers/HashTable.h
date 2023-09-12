@@ -412,11 +412,11 @@ class THashTable
 public:
 	using Allocator = InAllocator;
 
-	using ElementAllocatorType = typename TChooseClass<
+	using ElementAllocatorType = std::conditional_t<
 		Allocator::NeedsElementType,
 		typename Allocator::template ForElementType<uint32>,
 		typename Allocator::ForAnyElementType
-	>::Result;
+	>;
 
 	explicit THashTable(uint32 InHashSize = 1024, uint32 InIndexSize = 0);
 	THashTable(const THashTable& Other) = delete;

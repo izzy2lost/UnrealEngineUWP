@@ -731,7 +731,7 @@ template <typename T>
 struct TMeshAttributesRefTypeBase
 {
 	using AttributeType = T;
-	using RealAttributeType = typename TChooseClass<TIsDerivedFrom<AttributeType, FElementID>::Value, int32, AttributeType>::Result;
+	using RealAttributeType = std::conditional_t<TIsDerivedFrom<AttributeType, FElementID>::Value, int32, AttributeType>;
 };
 
 template <typename T>

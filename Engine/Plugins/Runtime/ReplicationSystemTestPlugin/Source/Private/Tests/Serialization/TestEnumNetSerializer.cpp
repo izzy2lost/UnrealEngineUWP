@@ -114,7 +114,7 @@ void FTestEnumIntNetSerializer<SerializerConfig, SourceType, EnumType>::SetUp()
 		// NumEnums actually also contain the generated _MAX enum value which might not even be a valid value by the backed type. Skip it!
 		const int32 EnumValueCount = Enum->NumEnums() - 1;
 
-		using LargeIntegerType = typename TChooseClass<TIsSigned<SourceType>::Value, int64, uint64>::Result;
+		using LargeIntegerType = std::conditional_t<TIsSigned<SourceType>::Value, int64, uint64>;
 
 		// Valid values
 		TArray<SourceType> TempValues;

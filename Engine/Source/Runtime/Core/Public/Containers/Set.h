@@ -1569,14 +1569,14 @@ private:
 	private:
 		friend class TSet;
 
-		typedef typename TChooseClass<bConst,const ElementType,ElementType>::Result ItElementType;
+		typedef std::conditional_t<bConst,const ElementType,ElementType> ItElementType;
 
 	public:
-		typedef typename TChooseClass<
+		typedef std::conditional_t<
 			bConst,
-			typename TChooseClass<bRangedFor, typename ElementArrayType::TRangedForConstIterator, typename ElementArrayType::TConstIterator>::Result,
-			typename TChooseClass<bRangedFor, typename ElementArrayType::TRangedForIterator,      typename ElementArrayType::TIterator     >::Result
-		>::Result ElementItType;
+			std::conditional_t<bRangedFor, typename ElementArrayType::TRangedForConstIterator, typename ElementArrayType::TConstIterator>,
+			std::conditional_t<bRangedFor, typename ElementArrayType::TRangedForIterator,      typename ElementArrayType::TIterator     >
+		> ElementItType;
 
 		FORCEINLINE TBaseIterator(const ElementItType& InElementIt)
 			: ElementIt(InElementIt)
@@ -1626,8 +1626,8 @@ private:
 	class TBaseKeyIterator
 	{
 	private:
-		typedef typename TChooseClass<bConst,const TSet,TSet>::Result SetType;
-		typedef typename TChooseClass<bConst,const ElementType,ElementType>::Result ItElementType;
+		typedef std::conditional_t<bConst, const TSet, TSet> SetType;
+		typedef std::conditional_t<bConst,const ElementType,ElementType> ItElementType;
 		typedef typename TTypeTraits<typename KeyFuncs::KeyType>::ConstPointerType ReferenceOrValueType;
 
 	public:
@@ -1846,7 +1846,7 @@ struct FScriptSetLayout
 template <typename Allocator, typename InDerivedType>
 class TScriptSet
 {
-	using DerivedType = typename TChooseClass<std::is_void_v<InDerivedType>, TScriptSet, InDerivedType>::Result;
+	using DerivedType = std::conditional_t<std::is_void_v<InDerivedType>, TScriptSet, InDerivedType>;
 
 public:
 	static FScriptSetLayout GetScriptLayout(int32 ElementSize, int32 ElementAlignment)

@@ -274,7 +274,7 @@ struct FNetTrace
 	template<uint32 Verbosity, typename StreamType>
 	struct TChooseTraceEventScope
 	{
-		typedef typename TChooseClass<FNetTrace::GetNetTraceVerbosityEnabled(Verbosity), FNetTraceEventScope<StreamType>, FNetTraceNullEventScope<StreamType> >::Result Type;
+		typedef std::conditional_t<FNetTrace::GetNetTraceVerbosityEnabled(Verbosity), FNetTraceEventScope<StreamType>, FNetTraceNullEventScope<StreamType> > Type;
 	};
 };
 

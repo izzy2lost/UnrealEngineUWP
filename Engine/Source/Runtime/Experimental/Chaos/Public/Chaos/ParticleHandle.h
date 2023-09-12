@@ -814,7 +814,7 @@ protected:
 	friend TGeometryParticleHandles<T, d>;
 	
 	struct FInvalidFromTransient {};
-	typename TChooseClass<bPersistent, int32, FInvalidFromTransient>::Result HandleIdx;	//Index into the handles array. This is useful for binding external attributes. Note the index can change
+	std::conditional_t<bPersistent, int32, FInvalidFromTransient> HandleIdx;	//Index into the handles array. This is useful for binding external attributes. Note the index can change
 };
 
 template<>

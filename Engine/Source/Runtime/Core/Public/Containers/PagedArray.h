@@ -167,10 +167,10 @@ public:
 	using AllocatorType = InAllocatorType;
 	using SizeType = typename InAllocatorType::SizeType;
 	using ElementType = InElementType;
-	using ElementAllocatorType = typename TChooseClass<
+	using ElementAllocatorType = std::conditional_t<
 		AllocatorType::NeedsElementType,
 		typename AllocatorType::template ForElementType<ElementType>,
-		typename AllocatorType::ForAnyElementType>::Result;
+		typename AllocatorType::ForAnyElementType>;
 
 private:
 	static constexpr SizeType GetPageIndex(SizeType Index)

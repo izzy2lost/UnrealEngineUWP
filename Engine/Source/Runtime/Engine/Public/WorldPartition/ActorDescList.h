@@ -50,9 +50,9 @@ public:
 	protected:
 		using MapType = FGuidActorDescMap;
 		using ValueType = typename FWorldPartitionActorDescType<ActorType>::Type;
-		using IteratorType = typename TChooseClass<bConst, MapType::TConstIterator, MapType::TIterator>::Result;
-		using ListType = typename TChooseClass<bConst, const FActorDescList*, FActorDescList*>::Result;
-		using ReturnType = typename TChooseClass<bConst, const ValueType*, ValueType*>::Result;
+		using IteratorType = std::conditional_t<bConst, MapType::TConstIterator, MapType::TIterator>;
+		using ListType = std::conditional_t<bConst, const FActorDescList*, FActorDescList*>;
+		using ReturnType = std::conditional_t<bConst, const ValueType*, ValueType*>;
 
 	public:
 		TBaseIterator(ListType InActorDescList, UClass* InActorClass)

@@ -565,12 +565,12 @@ private:
 	class TBaseIterator
 	{
 	public:
-		typedef typename TChooseClass<bConst,typename ElementArrayType::TConstIterator,typename ElementArrayType::TIterator>::Result PairItType;
+		typedef std::conditional_t<bConst,typename ElementArrayType::TConstIterator,typename ElementArrayType::TIterator> PairItType;
 	private:
-		typedef typename TChooseClass<bConst,const TSortedMap,TSortedMap>::Result MapType;
-		typedef typename TChooseClass<bConst,const KeyType,KeyType>::Result ItKeyType;
-		typedef typename TChooseClass<bConst,const ValueType,ValueType>::Result ItValueType;
-		typedef typename TChooseClass<bConst,const typename ElementArrayType::ElementType, typename ElementArrayType::ElementType>::Result PairType;
+		typedef std::conditional_t<bConst,const TSortedMap,TSortedMap> MapType;
+		typedef std::conditional_t<bConst,const KeyType,KeyType> ItKeyType;
+		typedef std::conditional_t<bConst,const ValueType,ValueType> ItValueType;
+		typedef std::conditional_t<bConst,const typename ElementArrayType::ElementType, typename ElementArrayType::ElementType> PairType;
 
 	protected:
 		FORCEINLINE TBaseIterator(const PairItType& InElementIt)
@@ -615,13 +615,13 @@ private:
 	{
 		// Once we add reverse iterator to TArray, this class and TBaseIterator could be merged with a template parameter for forward vs reverse.
 	private:
-		typedef typename TChooseClass<bConst, const TSortedMap, TSortedMap>::Result MapType;
-		typedef typename TChooseClass<bConst, const KeyType, KeyType>::Result ItKeyType;
-		typedef typename TChooseClass<bConst, const ValueType, ValueType>::Result ItValueType;
+		typedef std::conditional_t<bConst, const TSortedMap, TSortedMap> MapType;
+		typedef std::conditional_t<bConst, const KeyType, KeyType> ItKeyType;
+		typedef std::conditional_t<bConst, const ValueType, ValueType> ItValueType;
 		typedef typename ElementArrayType::SizeType SizeType;
 
 	public:
-		typedef typename TChooseClass<bConst, const typename ElementArrayType::ElementType, typename ElementArrayType::ElementType>::Result PairType;
+		typedef std::conditional_t<bConst, const typename ElementArrayType::ElementType, typename ElementArrayType::ElementType> PairType;
 
 	protected:
 		FORCEINLINE TBaseReverseIterator(PairType* InData, SizeType InNum)

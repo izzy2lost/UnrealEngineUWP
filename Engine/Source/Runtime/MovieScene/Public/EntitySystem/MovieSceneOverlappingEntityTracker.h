@@ -664,11 +664,11 @@ protected:
 
 
 template<typename OutputType, typename... KeyType>
-using TOverlappingEntityTracker = typename TChooseClass<
+using TOverlappingEntityTracker = std::conditional_t<
 	(THasAddReferencedObjectForComponent<KeyType>::Value || ...) || THasAddReferencedObjectForComponent<OutputType>::Value,
 	TOverlappingEntityTracker_WithGarbage<OutputType, KeyType...>,
 	TOverlappingEntityTracker_NoGarbage<OutputType, KeyType...>
->::Result;
+>;
 
 } // namespace MovieScene
 } // namespace UE
