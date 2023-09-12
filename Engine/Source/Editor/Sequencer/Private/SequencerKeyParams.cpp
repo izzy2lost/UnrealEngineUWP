@@ -88,6 +88,11 @@ void FKeyOperation::Populate(UMovieSceneTrack* InTrack, TSharedPtr<ISequencerSec
 		return;
 	}
 
+	if (!MovieSceneHelpers::IsSectionKeyable(SectionObject))
+	{
+		return;
+	}
+
 	FSectionCandidates&   Candidates        = CandidatesByTrack.FindOrAdd(InTrack);
 	FKeySectionOperation* ExistingOperation = Algo::FindBy(Candidates.Operations, InSection, &FKeySectionOperation::Section);
 	if (ExistingOperation)
