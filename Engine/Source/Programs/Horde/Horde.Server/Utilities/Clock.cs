@@ -157,9 +157,9 @@ namespace HordeCommon
 	/// <summary>
 	/// Implementation of <see cref="IClock"/> which returns the current time
 	/// </summary>
-	public class Clock : IClock
+	public sealed class Clock : IClock, IAsyncDisposable
 	{
-		sealed class TickerImpl : ITicker, IDisposable
+		sealed class TickerImpl : ITicker, IAsyncDisposable
 		{
 			readonly string _name;
 			readonly CancellationTokenSource _cancellationSource;
@@ -186,11 +186,21 @@ namespace HordeCommon
 				{
 					_cancellationSource.Cancel();
 					await _backgroundTask;
+					_backgroundTask = null;
 				}
 			}
 
 			public void Dispose()
 			{
+				_cancellationSource.Dispose();
+			}
+
+			public async ValueTask DisposeAsync()
+			{
+				if (_backgroundTask != null)
+				{
+					await StopAsync();
+				}
 				_cancellationSource.Dispose();
 			}
 
@@ -234,6 +244,7 @@ namespace HordeCommon
 		readonly RedisService _redis;
 		readonly Tracer _tracer;
 		readonly TimeZoneInfo _timeZone;
+		readonly List<TickerImpl> _tickers = new List<TickerImpl>();
 
 		/// <inheritdoc/>
 		public DateTime UtcNow => DateTime.UtcNow;
@@ -254,9 +265,23 @@ namespace HordeCommon
 		}
 
 		/// <inheritdoc/>
+		public async ValueTask DisposeAsync()
+		{
+			foreach (TickerImpl ticker in _tickers)
+			{
+				await ticker.DisposeAsync();
+			}
+		}
+
+		/// <inheritdoc/>
 		public ITicker AddTicker(string name, TimeSpan delay, Func<CancellationToken, ValueTask<TimeSpan?>> tickAsync, ILogger logger)
 		{
-			return new TickerImpl(name, delay, tickAsync, logger);
+			TickerImpl ticker = new TickerImpl(name, delay, tickAsync, logger);
+			lock (_tickers)
+			{
+				_tickers.Add(ticker);
+			}
+			return ticker;
 		}
 
 		/// <inheritdoc/>
