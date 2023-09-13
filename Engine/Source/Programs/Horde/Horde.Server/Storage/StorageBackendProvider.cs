@@ -79,13 +79,13 @@ namespace Horde.Server.Storage
 			public IAsyncEnumerable<string> EnumerateAsync(CancellationToken cancellationToken = default) => _backend.EnumerateAsync(cancellationToken);
 
 			/// <inheritdoc/>
-			public Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+			public Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
 			{
 				if (_backend == null)
 				{
 					throw new InvalidOperationException("Backend has already been disposed");
 				}
-				return _backend.ReadAsync(path, offset, length, cancellationToken);
+				return _backend.OpenAsync(path, offset, length, cancellationToken);
 			}
 
 			/// <inheritdoc/>

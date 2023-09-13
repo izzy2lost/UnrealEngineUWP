@@ -126,11 +126,11 @@ namespace Horde.Server.Storage
 			public bool SupportsRedirects => _inner.SupportsRedirects;
 
 			/// <inheritdoc/>
-			public async Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+			public async Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
 			{
 				string fullPath = $"{_prefix}{path}";
 
-				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(StorageClientImpl)}.{nameof(ReadAsync)}");
+				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(StorageClientImpl)}.{nameof(OpenAsync)}");
 				span.SetAttribute("path", fullPath);
 				span.SetAttribute("offset", offset);
 				span.SetAttribute("length", length);
@@ -140,7 +140,7 @@ namespace Horde.Server.Storage
 					return new MemoryStream(Array.Empty<byte>());
 				}
 
-				return await _inner.ReadAsync(fullPath, offset, length, cancellationToken);
+				return await _inner.OpenAsync(fullPath, offset, length, cancellationToken);
 			}
 
 			/// <inheritdoc/>

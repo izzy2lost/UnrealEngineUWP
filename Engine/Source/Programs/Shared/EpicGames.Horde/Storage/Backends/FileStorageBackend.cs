@@ -44,7 +44,7 @@ namespace EpicGames.Horde.Storage.Backends
 		FileReference GetBlobFile(string path) => FileReference.Combine(_baseDir, $"{path}.blob");
 	
 		/// <inheritdoc/>
-		public Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
+		public Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken)
 		{
 			FileReference location = GetBlobFile(path);
 			Stream stream = FileReference.Open(location, FileMode.Open, FileAccess.Read, FileShare.Read);

@@ -50,7 +50,7 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Blobs
 
 		/// <inheritdoc/>
-		public async Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+		public async Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
 		{
 			if (offset == 0 && length == null)
 			{

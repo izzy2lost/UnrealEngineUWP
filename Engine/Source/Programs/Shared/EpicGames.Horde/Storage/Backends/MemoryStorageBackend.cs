@@ -35,7 +35,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
+		public Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken)
 		{
 			ReadOnlyMemory<byte> data = _pathToData[path].AsMemory(offset);
 			if (length != null && length.Value < data.Length)

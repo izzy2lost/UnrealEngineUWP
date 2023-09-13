@@ -262,13 +262,7 @@ namespace Horde.Server.Storage.Backends
 		string GetFullPath(string path) => _pathPrefix + path;
 
 		/// <inheritdoc/>
-		public Task<Stream> ReadAsync(string path, CancellationToken cancellationToken)
-		{
-			return ReadAsync(path, null, cancellationToken);
-		}
-
-		/// <inheritdoc/>
-		public Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
+		public Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken)
 		{
 			string range;
 			if (length == null)

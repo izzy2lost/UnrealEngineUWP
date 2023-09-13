@@ -28,7 +28,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="length">Length of data to read</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default);
+		Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Writes a stream to the storage backend. If the stream throws an exception during read, the write will be aborted.
@@ -134,7 +134,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="path">Object name within the store</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Stream for the object</returns>
-		public static Task<Stream> ReadAsync(this IStorageBackend storageBackend, string path, CancellationToken cancellationToken = default) => storageBackend.ReadAsync(path, 0, null, cancellationToken);
+		public static Task<Stream> OpenAsync(this IStorageBackend storageBackend, string path, CancellationToken cancellationToken = default) => storageBackend.OpenAsync(path, 0, null, cancellationToken);
 
 		/// <summary>
 		/// Reads an object as an array of bytes
@@ -145,7 +145,7 @@ namespace EpicGames.Horde.Storage
 		/// <returns>Contents of the object</returns>
 		public static async Task<byte[]> ReadBytesAsync(this IStorageBackend storageBackend, string path, CancellationToken cancellationToken = default)
 		{
-			using (Stream inputStream = await storageBackend.ReadAsync(path, cancellationToken))
+			using (Stream inputStream = await storageBackend.OpenAsync(path, cancellationToken))
 			{
 				using (MemoryStream outputStream = new MemoryStream())
 				{

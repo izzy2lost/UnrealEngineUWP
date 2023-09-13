@@ -45,7 +45,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <inheritdoc/>
 		public async Task<Stream> OpenAsync(BundleLocator locator, int offset, int? length = null, CancellationToken cancellationToken = default)
 		{
-			return await _backend.ReadAsync(locator.Path.ToString(), offset, length, cancellationToken);
+			return await _backend.OpenAsync(locator.Path.ToString(), offset, length, cancellationToken);
 		}
 
 		/// <summary>

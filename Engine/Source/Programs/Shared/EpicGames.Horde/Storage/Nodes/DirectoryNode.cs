@@ -530,7 +530,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <inheritdoc cref="AddFilesAsync(DirectoryReference, IReadOnlyList{FileInfo}, ChunkingOptions, IStorageWriter, IProgress{ICopyStats}?, CancellationToken)"/>
 		public Task AddFilesAsync(DirectoryInfo baseDir, IEnumerable<FileInfo> files, ChunkingOptions options, IStorageWriter writer, IProgress<ICopyStats>? progress, CancellationToken cancellationToken)
 		{
-			return AddFilesAsync(baseDir, files.ToList(), options, writer, progress, cancellationToken);
+			return AddFilesAsync(new DirectoryReference(baseDir), files.ToList(), options, writer, progress, cancellationToken);
 		}
 
 		/// <summary>

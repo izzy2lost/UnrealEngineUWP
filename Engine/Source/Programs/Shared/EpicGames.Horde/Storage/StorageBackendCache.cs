@@ -65,9 +65,9 @@ namespace EpicGames.Horde.Storage
 
 			public void Dispose() => _inner.Dispose();
 
-			public async Task<Stream> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+			public async Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
 			{
-				Stream stream = await _cacheStorage.ReadAsync($"{_keyPrefix}{path}", ctx => _inner.ReadAsync(path, ctx), cancellationToken);
+				Stream stream = await _cacheStorage.ReadAsync($"{_keyPrefix}{path}", ctx => _inner.OpenAsync(path, ctx), cancellationToken);
 				if (offset != 0)
 				{
 					stream.Seek(offset, SeekOrigin.Begin);
