@@ -99,6 +99,7 @@ public class ControllerIntegrationTest : IDisposable
 
 	protected virtual void Dispose(bool disposing)
 	{
+		Factory.Dispose();
 		MongoDbInstance.Dispose();
 	}
 
