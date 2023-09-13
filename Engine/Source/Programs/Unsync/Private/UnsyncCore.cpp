@@ -4640,7 +4640,7 @@ LogManifestFiles(ELogLevel LogLevel, const FDirectoryManifest& Manifest)
 	for (const std::wstring& Filename : Files)
 	{
 		const FFileManifest& Info = Manifest.Files.at(Filename);
-		LogPrintf(LogLevel, L"%s : %llu\n", Filename.c_str(), Info.Size);
+		LogPrintf(LogLevel, L"%ls : %llu\n", Filename.c_str(), Info.Size);
 	}
 }
 

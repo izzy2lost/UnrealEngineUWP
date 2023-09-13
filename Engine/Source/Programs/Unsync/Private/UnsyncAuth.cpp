@@ -812,7 +812,7 @@ Authenticate(const FRemoteDesc& RemoteDesc, int32 RefreshThreshold)
 
 		if (bSaved)
 		{
-			UNSYNC_VERBOSE2(L"Saved authentication token to file: %s", TokenCachePath->wstring().c_str());
+			UNSYNC_VERBOSE2(L"Saved authentication token to file: %ls", TokenCachePath->wstring().c_str());
 		}
 	}
 

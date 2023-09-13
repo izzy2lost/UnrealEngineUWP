@@ -654,7 +654,7 @@ SaveDirectoryManifest(const FDirectoryManifest& Manifest, const FPath& Filename)
 	}
 	else
 	{
-		UNSYNC_ERROR(L"Failed to open manifest output file '%ls'", Filename.wstring().c_str());
+		UNSYNC_ERROR(L"Failed to open manifest output file '%ls' for writing", Filename.wstring().c_str());
 		return false;
 	}
 }

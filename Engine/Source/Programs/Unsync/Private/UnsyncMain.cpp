@@ -327,7 +327,7 @@ InnerMain(int Argc, char** Argv)
 		std::stringstream OutputStream;
 		const int32		  ReturnCode = Cli.exit(E, OutputStream, OutputStream);
 		std::wstring	  Output	 = ConvertUtf8ToWide(OutputStream.str());
-		wprintf(L"%s", Output.c_str());
+		wprintf(L"%ls", Output.c_str());
 		return ReturnCode;
 	}
 

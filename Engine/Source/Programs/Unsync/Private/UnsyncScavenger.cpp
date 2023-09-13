@@ -160,7 +160,7 @@ FScavengeDatabase::BuildFromFileSyncTasks(const FSyncDirectoryOptions& SyncOptio
 
 			FPath FilePath = Manifest.Root / RelativeFilePath;
 
-			UNSYNC_VERBOSE(L"- %s: %llu", FilePath.wstring().c_str(), Item.Count);
+			UNSYNC_VERBOSE(L"- %ls: %llu", FilePath.wstring().c_str(), Item.Count);
 		}
 	}
 #endif
@@ -392,7 +392,7 @@ BuildTargetFromScavengedData(FIOWriter&						Output,
 				continue;
 			}
 
-			UNSYNC_VERBOSE(L"Scavenging data from '%s'", PossibleSource.FullSourceFilePath.wstring().c_str());
+			UNSYNC_VERBOSE(L"Scavenging data from '%ls'", PossibleSource.FullSourceFilePath.wstring().c_str());
 
 			std::sort(LocalNeedList.begin(), LocalNeedList.end(), FNeedBlock::FCompareBySourceOffset());
 

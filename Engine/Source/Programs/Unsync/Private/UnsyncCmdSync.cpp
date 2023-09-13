@@ -41,7 +41,7 @@ CmdSync(const FCmdSyncOptions& Options)
 		UNSYNC_LOG_INDENT;
 		for( const std::wstring& include : Options.Filter->SyncIncludedWords)
 		{ 
-			UNSYNC_VERBOSE(L" %s", include.c_str());
+			UNSYNC_VERBOSE(L" %ls", include.c_str());
 		}
 	}
 	if(!Options.Filter->SyncExcludedWords.empty())
@@ -50,7 +50,7 @@ CmdSync(const FCmdSyncOptions& Options)
 		UNSYNC_LOG_INDENT;
 		for( const std::wstring& exclude : Options.Filter->SyncExcludedWords)
 		{ 
-			UNSYNC_VERBOSE(L"%s", exclude.c_str());
+			UNSYNC_VERBOSE(L"%ls", exclude.c_str());
 		}
 	}
 

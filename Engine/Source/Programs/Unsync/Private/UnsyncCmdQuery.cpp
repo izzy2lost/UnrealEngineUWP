@@ -193,7 +193,7 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 
 	if (Response.IsOk())
 	{
-		UNSYNC_LOG(L"Output written to file '%s'", Options.OutputPath.wstring().c_str());
+		UNSYNC_LOG(L"Output written to file '%ls'", Options.OutputPath.wstring().c_str());
 	}
 	else
 	{

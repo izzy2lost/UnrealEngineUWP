@@ -317,8 +317,10 @@ NormalizeFilenameUtf8(const std::string& InFilename)
 	}
 
 	FPath FilenameAsPath = ConvertUtf8ToWide(Filename);
-	FPath NormalPath = FilenameAsPath.lexically_normal();
+
+	FPath NormalPath		 = std::filesystem::weakly_canonical(FilenameAsPath.lexically_normal());
 	FPath AbsoluteNormalPath = std::filesystem::absolute(NormalPath);
+
 	return AbsoluteNormalPath;
 }
 
