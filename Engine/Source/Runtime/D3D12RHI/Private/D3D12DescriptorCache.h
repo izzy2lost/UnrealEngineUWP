@@ -83,7 +83,7 @@ uint32 GetTypeHash(const D3D12_SAMPLER_DESC& Desc);
 struct FD3D12SamplerArrayDesc
 {
 	uint32 Count;
-	uint16 SamplerID[16];
+	uint16 SamplerID[MAX_SAMPLERS];
 	inline bool operator==(const FD3D12SamplerArrayDesc& rhs) const
 	{
 		check(Count <= UE_ARRAY_COUNT(SamplerID));

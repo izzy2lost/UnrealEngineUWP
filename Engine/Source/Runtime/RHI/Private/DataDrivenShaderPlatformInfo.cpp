@@ -147,6 +147,7 @@ void FGenericDataDrivenShaderPlatformInfo::SetDefaultValues()
 	bSupportsVolumeTextureAtomics = true;
 	bSupportsClipDistance = true;
 	bSupportsShaderPipelines = true;
+	MaxSamplers = 16;
 }
 
 void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConfigSection& Section, uint32 Index)
@@ -290,6 +291,7 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 	GET_SECTION_BOOL_HELPER(bSupportsShaderPipelines);
 	GET_SECTION_BOOL_HELPER(bSupportsUniformBufferObjects);
 	GET_SECTION_BOOL_HELPER(bRequiresBindfulUtilityShaders);
+	GET_SECTION_INT_HELPER(MaxSamplers);
 #undef GET_SECTION_BOOL_HELPER
 #undef GET_SECTION_INT_HELPER
 #undef GET_SECTION_SUPPORT_HELPER
@@ -365,10 +367,9 @@ void FGenericDataDrivenShaderPlatformInfo::Initialize()
 						if (Item.ShaderPlatformToPreview == PreviewPlatformName)
 						{
 							const EShaderPlatform PreviewShaderPlatform = EShaderPlatform(CustomShaderPlatform++);
-							ParseDataDrivenShaderInfo(Section.Value, PreviewShaderPlatform);
-
 							FGenericDataDrivenShaderPlatformInfo& PreviewInfo = Infos[PreviewShaderPlatform];
 							PreviewInfo.Name = Item.PreviewShaderPlatformName;
+							ParseDataDrivenShaderInfo(Section.Value, PreviewShaderPlatform);
 							PreviewInfo.bIsPreviewPlatform = true;
 							PreviewInfo.bContainsValidPlatformInfo = true;
 
@@ -406,6 +407,7 @@ void FGenericDataDrivenShaderPlatformInfo::UpdatePreviewPlatforms()
 				Infos[ShaderPlatform].bIsHlslcc = Infos[EditorSPForPreviewMaxFeatureLevel].bIsHlslcc;
 				Infos[ShaderPlatform].bSupportsDxc = Infos[EditorSPForPreviewMaxFeatureLevel].bSupportsDxc;
 				Infos[ShaderPlatform].bSupportsGPUScene = Infos[EditorSPForPreviewMaxFeatureLevel].bSupportsGPUScene;
+				Infos[ShaderPlatform].MaxMeshShaderThreadGroupSize = Infos[EditorSPForPreviewMaxFeatureLevel].MaxMeshShaderThreadGroupSize;
 				Infos[ShaderPlatform].bIsPC = true;
 				Infos[ShaderPlatform].bSupportsDebugViewShaders = true;
 				Infos[ShaderPlatform].bIsConsole = false;
@@ -443,6 +445,10 @@ void FGenericDataDrivenShaderPlatformInfo::UpdatePreviewPlatforms()
 				Infos[ShaderPlatform].bSupports4ComponentUAVReadWrite = false;
 				Infos[ShaderPlatform].bSupportsUniformBufferObjects = Infos[EditorSPForPreviewMaxFeatureLevel].bSupportsUniformBufferObjects;
 				Infos[ShaderPlatform].bContainsValidPlatformInfo = true;
+
+				// Seeing as we are merging the two shader platforms merge the hash key as well, this way
+				// any changes in the editor feature level shader platform will dirty the preview key.
+				Infos[ShaderPlatform].ShaderPropertiesHash = HashCombine(Infos[ShaderPlatform].ShaderPropertiesHash, Infos[EditorSPForPreviewMaxFeatureLevel].ShaderPropertiesHash);
 			}
 		}
 	}

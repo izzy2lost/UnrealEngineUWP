@@ -244,7 +244,7 @@ struct FRayTracingShaderBindings
 	FRHITexture* Textures[64] = {};
 	FRHIShaderResourceView* SRVs[64] = {};
 	FRHIUniformBuffer* UniformBuffers[16] = {};
-	FRHISamplerState* Samplers[16] = {};
+	FRHISamplerState* Samplers[32] = {};
 	FRHIUnorderedAccessView* UAVs[16] = {};
 };
 

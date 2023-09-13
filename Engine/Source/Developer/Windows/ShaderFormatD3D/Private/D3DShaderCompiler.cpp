@@ -1110,7 +1110,8 @@ inline bool ShouldUseDXC(const FShaderCompilerInput& Input, ELanguage Language)
 		|| Input.IsRayTracingShader()
 		|| Input.Environment.CompilerFlags.Contains(CFLAG_WaveOperations)
 		|| Input.Environment.CompilerFlags.Contains(CFLAG_ForceDXC)
-		|| Input.Environment.CompilerFlags.Contains(CFLAG_InlineRayTracing);
+		|| Input.Environment.CompilerFlags.Contains(CFLAG_InlineRayTracing)
+		|| Input.Environment.GetIntegerValue(TEXT("PLATFORM_MAX_SAMPLERS")) > 16;
 }
 
 bool PreprocessD3DShader(

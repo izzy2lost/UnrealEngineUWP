@@ -101,6 +101,7 @@
 #include "Materials/MaterialExpressionEyeAdaptationInverse.h"
 #include "Materials/MaterialExpressionFeatureLevelSwitch.h"
 #include "Materials/MaterialExpressionDataDrivenShaderPlatformInfoSwitch.h"
+#include "Materials/MaterialExpressionRequiredSamplersSwitch.h"
 #include "Materials/MaterialExpressionFloor.h"	
 #include "Materials/MaterialExpressionFmod.h"
 #include "Materials/MaterialExpressionFontSample.h"
@@ -9938,6 +9939,73 @@ void UMaterialExpressionDataDrivenShaderPlatformInfoSwitch::PostEditChangeProper
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
+#endif // WITH_EDITOR
+
+//
+//	UMaterialExpressionRequiredSamplersSwitch
+//
+
+UMaterialExpressionRequiredSamplersSwitch::UMaterialExpressionRequiredSamplersSwitch(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer),
+	RequiredSamplers(16)
+{
+}
+
+#if WITH_EDITOR
+
+int32 UMaterialExpressionRequiredSamplersSwitch::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	const EShaderPlatform ShaderPlatform = Compiler->GetShaderPlatform();
+	check(FDataDrivenShaderPlatformInfo::IsValid(ShaderPlatform));
+	const bool bCheck = RequiredSamplers <= FDataDrivenShaderPlatformInfo::GetMaxSamplers(ShaderPlatform);
+	if (bCheck)
+	{
+		return InputTrue.Compile(Compiler);
+	}
+	else
+	{
+		return InputFalse.Compile(Compiler);
+	}
+}
+
+void UMaterialExpressionRequiredSamplersSwitch::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(FString(TEXT("Required Samplers Switch")));
+}
+
+bool UMaterialExpressionRequiredSamplersSwitch::IsInputConnectionRequired(int32 InputIndex) const
+{
+	return true;
+}
+
+FName UMaterialExpressionRequiredSamplersSwitch::GetInputName(int32 InputIndex) const
+{
+	if (InputIndex == 0)
+	{
+		return TEXT("Within platform limit");
+	}
+	else if (InputIndex == 1)
+	{
+		return TEXT("Over platform limit");
+	}
+	return NAME_None;
+}
+
+bool UMaterialExpressionRequiredSamplersSwitch::IsResultMaterialAttributes(int32 OutputIndex)
+{
+	check(OutputIndex == 0);
+	for (FExpressionInput* ExpressionInput : GetInputsView())
+	{
+		// If there is a loop anywhere in this expression's inputs then we can't risk checking them
+		if (ExpressionInput->Expression && ExpressionInput->Expression->IsResultMaterialAttributes(ExpressionInput->OutputIndex))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 #endif // WITH_EDITOR
 
 //

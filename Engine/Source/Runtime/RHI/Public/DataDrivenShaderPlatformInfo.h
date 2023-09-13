@@ -120,6 +120,7 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 bRequiresBindfulUtilityShaders : 1;
 	// NOTE: When adding fields, you must also add to ParseDataDrivenShaderInfo!
 	uint32 bContainsValidPlatformInfo : 1;
+	uint32 MaxSamplers : 8;
 
 	FGenericDataDrivenShaderPlatformInfo()
 	{
@@ -759,6 +760,12 @@ public:
 		return Infos[Platform].bRequiresBindfulUtilityShaders;
 	}
 	
+	static FORCEINLINE_DEBUGGABLE const uint32 GetMaxSamplers(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].MaxSamplers;
+	}
+
 	static FORCEINLINE_DEBUGGABLE const bool IsValid(const FStaticShaderPlatform Platform)
 	{
 		return Infos[Platform].bContainsValidPlatformInfo;

@@ -1002,15 +1002,22 @@ namespace D3D12RHI
 	}
 }
 
-void FD3D12QuantizedBoundShaderState::InitShaderRegisterCounts(D3D12_RESOURCE_BINDING_TIER ResourceBindingTier, const FShaderCodePackedResourceCounts& Counts, FShaderRegisterCounts& Shader, bool bAllowUAVs)
+void FD3D12QuantizedBoundShaderState::InitShaderRegisterCounts(const D3D12_RESOURCE_BINDING_TIER ResourceBindingTier, const FShaderCodePackedResourceCounts& Counts, FShaderRegisterCounts& Shader, bool bAllowUAVs)
 {
-	static const uint32 MaxSamplerCount = MAX_SAMPLERS;
-	static const uint32 MaxConstantBufferCount = MAX_CBS;
-	static const uint32 MaxShaderResourceCount = MAX_SRVS;
-	static const uint32 MaxUnorderedAccessCount = MAX_UAVS;
+	uint32 MaxSRVs = MAX_SRVS;
+	uint32 MaxSamplers = MAX_SAMPLERS;
+	uint32 MaxUAVs = MAX_UAVS;
+	uint32 MaxCBs = MAX_CBS;
 
-	// Round up and clamp values to their max
-	// Note: Rounding and setting counts based on binding tier allows us to create fewer root signatures.
+	// On tier 1 & 2 HW the actual descriptor table size used during the draw/dispatch must match that of the
+	// root signature so we round the size up to the closest power of 2 to accomplish 2 goals: 1) keep the size of
+	// the table closer to the required size to limit descriptor heap usage due to required empty descriptors,
+	// 2) encourage root signature reuse by having other shader root signature table sizes fall within the size rounding.
+	// Sampler and Shader resouce view table sizes must match signature on Tier 1 hardware and Constant buffer and
+	// Unorded access views table sizes must match signature on tier 2 hardware. On hardware > tier 2 the actual descriptor
+	// table size used during the draw/dispatch doesn't need to match the root signature size so we encourage reuse by using
+	// the max size. More info here: https://learn.microsoft.com/en-us/windows/win32/direct3d12/hardware-support,
+	// https://en.wikipedia.org/wiki/Feature_levels_in_Direct3D
 
 	// To reduce the size of the root signature, we only allow UAVs for certain shaders. 
 	// This code makes the assumption that the engine only uses UAVs at the PS or CS shader stages.
@@ -1018,24 +1025,24 @@ void FD3D12QuantizedBoundShaderState::InitShaderRegisterCounts(D3D12_RESOURCE_BI
 
 	if (ResourceBindingTier <= D3D12_RESOURCE_BINDING_TIER_1)
 	{
-		Shader.SamplerCount = (Counts.NumSamplers > 0) ? FMath::Min(MaxSamplerCount, FMath::RoundUpToPowerOfTwo(Counts.NumSamplers)) : Counts.NumSamplers;
-		Shader.ShaderResourceCount = (Counts.NumSRVs > 0) ? FMath::Min(MaxShaderResourceCount, FMath::RoundUpToPowerOfTwo(Counts.NumSRVs)) : Counts.NumSRVs;
+		Shader.SamplerCount = (Counts.NumSamplers > 0) ? FMath::Min(MaxSamplers, FMath::RoundUpToPowerOfTwo(Counts.NumSamplers)) : Counts.NumSamplers;
+		Shader.ShaderResourceCount = (Counts.NumSRVs > 0) ? FMath::Min(MaxSRVs, FMath::RoundUpToPowerOfTwo(Counts.NumSRVs)) : Counts.NumSRVs;
 	}
 	else
 	{
-		Shader.SamplerCount = Counts.NumSamplers > 0 ? MaxSamplerCount : 0;
-		Shader.ShaderResourceCount = Counts.NumSRVs > 0 ? MaxShaderResourceCount : 0;
+		Shader.SamplerCount = Counts.NumSamplers > 0 ? MaxSamplers : 0;
+		Shader.ShaderResourceCount = Counts.NumSRVs > 0 ? MaxSRVs : 0;
 	}
 
 	if (ResourceBindingTier <= D3D12_RESOURCE_BINDING_TIER_2)
 	{
-		Shader.ConstantBufferCount = (Counts.NumCBs > MAX_ROOT_CBVS) ? FMath::Min(MaxConstantBufferCount, FMath::RoundUpToPowerOfTwo(Counts.NumCBs)) : Counts.NumCBs;
-		Shader.UnorderedAccessCount = (Counts.NumUAVs > 0 && bAllowUAVs) ? FMath::Min(MaxUnorderedAccessCount, FMath::RoundUpToPowerOfTwo(Counts.NumUAVs)) : 0;
+		Shader.ConstantBufferCount = (Counts.NumCBs > MAX_ROOT_CBVS) ? FMath::Min(MaxCBs, FMath::RoundUpToPowerOfTwo(Counts.NumCBs)) : Counts.NumCBs;
+		Shader.UnorderedAccessCount = (Counts.NumUAVs > 0 && bAllowUAVs) ? FMath::Min(MaxUAVs, FMath::RoundUpToPowerOfTwo(Counts.NumUAVs)) : 0;
 	}
 	else
 	{
-		Shader.ConstantBufferCount = (Counts.NumCBs > MAX_ROOT_CBVS) ? MaxConstantBufferCount : Counts.NumCBs;
-		Shader.UnorderedAccessCount = Counts.NumUAVs > 0 && bAllowUAVs ? MaxUnorderedAccessCount : 0;
+		Shader.ConstantBufferCount = (Counts.NumCBs > MAX_ROOT_CBVS) ? MaxCBs : Counts.NumCBs;
+		Shader.UnorderedAccessCount = (Counts.NumUAVs > 0 && bAllowUAVs) ? MaxUAVs : 0;
 	}
 }
 

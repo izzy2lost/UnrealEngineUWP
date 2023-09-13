@@ -718,6 +718,21 @@ bool FLevelEditorActionCallbacks::CanExecutePreviewPlatform(FPreviewPlatformInfo
 		}
 	}
 
+	// When the preview platform's DDSPI MaxSamplers is > 16 and the current RHI device has support
+	// for > 16 samplers we rely on the shader compiler being able to choose an appropriate profile for the
+	// preview feature level that supports > 16 samplers. On D3D12 SM5 the D3D shader compiler will use Dxc and
+	// sm6.0. Vulkan SM5 also appears to handle > 16 samplers fine.
+	// TODO: Look into support for Metal (MacOS).
+	if (FDataDrivenShaderPlatformInfo::IsValid(NewPreviewPlatform.ShaderPlatform) &&
+		FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(NewPreviewPlatform.ShaderPlatform))
+	{
+		const EShaderPlatform ParentShaderPlatform = FDataDrivenShaderPlatformInfo::GetPreviewShaderPlatformParent(NewPreviewPlatform.ShaderPlatform);
+		if (GMaxTextureSamplers < (int32)FDataDrivenShaderPlatformInfo::GetMaxSamplers(ParentShaderPlatform))
+		{
+			return false;
+		}
+	}
+
 	return true;
 }
 
