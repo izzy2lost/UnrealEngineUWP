@@ -25,12 +25,13 @@ namespace UE
 
 		/**
 		 * Detect if input Mesh is a meshed box, and if so return analytic box in BoxOut.
-		 * Clusters face normals, looking to find 6 unique normals grouped into 3 opposite-direction pairs.
+		 * Clusters face planes, looking to find 6 unique planes with normals grouped into 3 opposite-direction pairs.
 		 * If this configuraiton is found, computing minimal box is trivial.
 		 * @param AngleToleranceDeg normals are allowed to deviate by this amount and still be considered coplanar
+		 * @param PlaneDistanceTolerance planes with the same normal are allowed to be this far apart and still be considered coplanar
 		 * @return true if mesh is a Box and BoxOut is initialized
 		 */
-		bool DYNAMICMESH_API IsBoxMesh(const FDynamicMesh3& Mesh, FOrientedBox3d& BoxOut, double AngleToleranceDeg = 0.1);
+		bool DYNAMICMESH_API IsBoxMesh(const FDynamicMesh3& Mesh, FOrientedBox3d& BoxOut, double AngleToleranceDeg = 0.1, double PlaneDistanceTolerance = 1e-2);
 
 
 		/**
