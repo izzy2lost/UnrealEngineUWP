@@ -995,7 +995,7 @@ bool CompileAndProcessD3DShaderDXC(const FShaderPreprocessOutput& PreprocessOutp
 				VERIFYHRESULT(ContainerRefl->GetPartKind(PartIndex, &PartKind));
 
 				//if (PartKind == DXC_PART_USER_INFO)
-				if (PartKind == DXC_PART_RESOURCE_DEF) // HACK TODO: Use ResourceDef for now (pass validation)
+				if (PartKind == DXC_PART_PRIVATE_DATA) // HACK TODO: Use PrivateData for now (pass validation)
 				{
 					TRefCountPtr<IDxcBlob> UserPartBlob;
 					ContainerRefl->GetPartContent(PartIndex, UserPartBlob.GetInitReference());

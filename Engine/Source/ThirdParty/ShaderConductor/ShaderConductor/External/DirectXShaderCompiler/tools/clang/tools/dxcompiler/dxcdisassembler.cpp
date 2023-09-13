@@ -1612,7 +1612,7 @@ HRESULT Disassemble(IDxcBlob *pProgram, raw_string_ostream &Stream) {
 
     // UE Change Begin: Added UserInfo container and check for derivative ops
     it = std::find_if(begin(pContainer), end(pContainer),
-                      DxilPartIsType(DFCC_ResourceDef));//DFCC_UserInfo)); // HACK TODO: Use ResourceDef for now (pass validation)
+                      DxilPartIsType(DFCC_PrivateData));//DFCC_UserInfo)); // HACK TODO: Use PrivateData for now (pass validation)
     if (it != end(pContainer)) {
       PrintUserInfo(
           reinterpret_cast<const DxilUserInfo *>(GetDxilPartData(*it)),

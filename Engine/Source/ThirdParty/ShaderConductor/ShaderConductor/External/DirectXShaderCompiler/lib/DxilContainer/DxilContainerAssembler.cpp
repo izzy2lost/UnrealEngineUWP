@@ -444,7 +444,7 @@ DxilPartWriter *hlsl::NewFeatureInfoWriter(const DxilModule &M) {
 
 // UE Change Begin: Added UserInfo container and check for derivative ops
 class DxilUserInfoWriter : public DxilPartWriter  {
-private:
+public:
   // Only save the user info after create class for it.
   DxilUserInfo userInfo;
 public:
@@ -1630,9 +1630,13 @@ void hlsl::SerializeDxilContainerForModule(
   // UE Change Begin: Added UserInfo container and check for derivative ops
   // Write the user info part.
   DxilUserInfoWriter userInfoWriter(*pModule);
-  writer.AddPart(DFCC_ResourceDef /* TEMP HACK: Official validator will fail on ValidationRule::ContainerPartInvalid =(  DFCC_UserInfo*/, userInfoWriter.size(), [&](AbstractMemoryStream *pStream) {
-    userInfoWriter.write(pStream);
-  });
+  // TEMP HACK: Official validator will fail on ValidationRule::ContainerPartInvalid
+  // Use PrivateData / PRIV container for now.
+  pPrivateData = &userInfoWriter.userInfo;
+  PrivateDataSize = userInfoWriter.size();
+  //writer.AddPart(DFCC_UserInfo, userInfoWriter.size(), [&](AbstractMemoryStream *pStream) {
+  //  userInfoWriter.write(pStream);
+  //});
   // UE Change End: Added UserInfo container and check for derivative ops
 
   std::unique_ptr<DxilProgramSignatureWriter> pInputSigWriter = nullptr;
@@ -1873,7 +1877,7 @@ void hlsl::SerializeDxilContainerForModule(
     WriteProgramPart(pModule->GetShaderModel(), pProgramStream, pStream);
   });
 
-  // Private data part should be added last when assembling the container becasue there is no garuntee of aligned size
+  // Private data part should be added last when assembling the container because there is no guarantee of aligned size
   if (pPrivateData) {
     writer.AddPart(
         hlsl::DFCC_PrivateData, PrivateDataSize,
