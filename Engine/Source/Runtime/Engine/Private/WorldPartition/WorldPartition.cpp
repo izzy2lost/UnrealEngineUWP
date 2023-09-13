@@ -1762,6 +1762,7 @@ bool UWorldPartition::IsStreamingCompleted(const TArray<FWorldPartitionStreaming
 {
 	if (GetWorld()->IsGameWorld() && StreamingPolicy)
 	{
+		++StreamingStateEpoch; // Update streaming state epoch to make sure we reevaluate streaming sources
 		return StreamingPolicy->IsStreamingCompleted(InStreamingSources);
 	}
 	return true;
@@ -1771,6 +1772,7 @@ bool UWorldPartition::IsStreamingCompleted(EWorldPartitionRuntimeCellState Query
 {
 	if (GetWorld()->IsGameWorld() && StreamingPolicy)
 	{
+		++StreamingStateEpoch; // Update streaming state epoch to make sure we reevaluate streaming sources
 		return StreamingPolicy->IsStreamingCompleted(QueryState, QuerySources, bExactState);
 	}
 

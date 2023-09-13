@@ -543,7 +543,7 @@ private:
 	static ENGINE_API FAutoConsoleVariableRef CVarDebugDedicatedServerStreaming;
 #endif
 
-	int32 StreamingStateEpoch;
+	mutable int32 StreamingStateEpoch;
 	static ENGINE_API int32 GlobalEnableServerStreaming;
 	static ENGINE_API bool bGlobalEnableServerStreamingOut;
 	static ENGINE_API bool bUseMakingVisibleTransactionRequests;
