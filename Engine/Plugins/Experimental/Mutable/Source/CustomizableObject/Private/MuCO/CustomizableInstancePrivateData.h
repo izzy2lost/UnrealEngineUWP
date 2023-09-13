@@ -78,8 +78,19 @@ struct FGeneratedMaterial
 {
 	GENERATED_USTRUCT_BODY();
 
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> MaterialInterface;
+
 	UPROPERTY(Category = CustomizedMaterial, VisibleAnywhere)
 	TArray< FGeneratedTexture > Textures;
+
+	// Surface or SharedSurface Id
+	uint32 SurfaceId = 0;
+
+	// Index of the material to instantiate (UCustomizableObject::ReferencedMaterials)
+	uint32 MaterialIndex = 0;
+
+	bool operator==(const FGeneratedMaterial& Other) const { return SurfaceId == Other.SurfaceId && MaterialIndex == Other.MaterialIndex; };
 };
 
 

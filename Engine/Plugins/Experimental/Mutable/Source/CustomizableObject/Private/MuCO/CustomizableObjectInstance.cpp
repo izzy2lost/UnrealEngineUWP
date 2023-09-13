@@ -5617,6 +5617,11 @@ void UCustomizableInstancePrivateData::ReuseTexture(UTexture2D* Texture)
 	}
 }
 
+static bool bReuseMaterialInstances = true;
+FAutoConsoleVariableRef CVarMutableReuseMaterialInstances(
+	TEXT("Mutable.ReuseMaterialInstances"),
+	bReuseMaterialInstances,
+	TEXT("If true, allow reuse of MaterialInstances between updates."));
 
 void UCustomizableInstancePrivateData::BuildMaterials(const TSharedPtr<FMutableOperationData>& OperationData, UCustomizableObjectInstance* Public)
 {
@@ -5630,6 +5635,13 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedPtr<FMutableO
 
 	TArray<FGeneratedTexture> NewGeneratedTextures;
 
+	// Temp copy to allow reuse of MaterialInstances
+	TArray<FGeneratedMaterial> OldGeneratedMaterials;
+	if (bReuseMaterialInstances)
+	{
+		Exchange(OldGeneratedMaterials, GeneratedMaterials);
+	}
+	
 	GeneratedMaterials.Reset();
 
 	// Prepare the data to store in order to regenerate resources for this instance (usually texture mips).
@@ -6065,13 +6077,23 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedPtr<FMutableO
 					SharedSurfacesCache.Add(Surface.SurfaceId, MaterialPlaceholderSerialization);
 
 					FGeneratedMaterial Material;
-					UMaterialInstanceDynamic* MaterialInstance = nullptr;
-					UMaterialInterface* ActualMaterialInterface = MaterialTemplate;
+					Material.SurfaceId = Surface.SurfaceId;
+					Material.MaterialIndex = Surface.MaterialIndex;
+					Material.MaterialInterface = MaterialTemplate;
 
-					if (MutableMaterialPlaceholder.Params.Num() != 0)
+					UMaterialInstanceDynamic* MaterialInstance = nullptr;
+					
+					if (const int32 OldMaterialIndex = OldGeneratedMaterials.Find(Material); bReuseMaterialInstances && OldMaterialIndex != INDEX_NONE)
+					{
+						const FGeneratedMaterial& OldMaterial = OldGeneratedMaterials[OldMaterialIndex];
+						MaterialInstance = Cast<UMaterialInstanceDynamic>(OldMaterial.MaterialInterface);
+						Material.MaterialInterface = OldMaterial.MaterialInterface;
+					}
+					
+					if (!MaterialInstance && MutableMaterialPlaceholder.Params.Num() != 0)
 					{
 						MaterialInstance = UMaterialInstanceDynamic::Create(MaterialTemplate, GetTransientPackage());
-						ActualMaterialInterface = MaterialInstance;
+						Material.MaterialInterface = MaterialInstance;
 					}
 
 					if (SkeletalMesh)
@@ -6080,7 +6102,7 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedPtr<FMutableO
 						MutableMaterialPlaceholder.MatIndex = MatIndex;
 
 						// Set up SkeletalMaterial data
-						FSkeletalMaterial& SkeletalMaterial = SkeletalMesh->GetMaterials().Add_GetRef(ActualMaterialInterface);
+						FSkeletalMaterial& SkeletalMaterial = SkeletalMesh->GetMaterials().Add_GetRef(Material.MaterialInterface.Get());
 						SkeletalMaterial.MaterialSlotName = CustomizableObject->ReferencedMaterialSlotNames[Surface.MaterialIndex];
 						SetMeshUVChannelDensity(SkeletalMaterial.UVChannelData, RefSkeletalMeshData->Settings.DefaultUVChannelDensity);
 					}
