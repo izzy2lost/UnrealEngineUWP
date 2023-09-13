@@ -2801,14 +2801,14 @@ void FOpenGLDynamicRHI::PrepareGFXBoundShaderState(const FGraphicsPipelineStateI
 	// precaching on the RHIT will cause severe hitching.
 	const bool bCanCreateExternally = CanCreateExternally(bIsPreCachePSO);
 
-	{
-		static bool bOneTime = true;
-		UE_CLOG(bOneTime && !bCanCreateExternally, LogRHI, Warning, TEXT("Ignoring precache PSO, external compiler not active."));
-		bOneTime = bOneTime && bCanCreateExternally;
-	}
-
 	if (!bIsPreCachePSO || !FOpenGLProgramBinaryCache::IsEnabled() || !bCanCreateExternally)
 	{
+		static bool bOneTime = true;
+		if(bOneTime && bIsPreCachePSO && FOpenGLProgramBinaryCache::IsEnabled())
+		{
+			UE_LOG(LogRHI, Warning, TEXT("Ignoring precache PSO, external compiler not active."));
+			bOneTime = false;
+		}
 		return;
 	}
 

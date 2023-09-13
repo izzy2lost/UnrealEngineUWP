@@ -80,6 +80,13 @@ static TAutoConsoleVariable<bool> CVarEnablePSOFileCacheWhenPrecachingActive(
 	TEXT("true: GL RHI Allows both PSO file cache and precaching."),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
+static TAutoConsoleVariable<bool> CVarAllowPSOPrecaching(
+	TEXT("r.OpenGL.AllowPSOPrecaching"),
+	true,
+	TEXT("true: if r.PSOPrecaching=1 GL RHI will use precaching. (default)\n")
+	TEXT("false: GL RHI will disable precaching (even if r.PSOPrecaching=1). "),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+
 void OnQueryCreation( FOpenGLRenderQuery* Query )
 {
 	check(PrivateOpenGLDevicePtr);
@@ -1246,7 +1253,7 @@ static void InitRHICapabilitiesForGL()
 	GRHINeedsUnatlasedCSMDepthsWorkaround = true;
 
 	static const auto CVarPSOPrecaching = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PSOPrecaching"));
-	if (CVarPSOPrecaching && CVarPSOPrecaching->GetInt() != 0)
+	if (CVarPSOPrecaching && CVarPSOPrecaching->GetInt() != 0 && CVarAllowPSOPrecaching.GetValueOnAnyThread())
 	{
 		GRHISupportsPSOPrecaching = true;
 	}
