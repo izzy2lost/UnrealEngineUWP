@@ -73,6 +73,27 @@ TOptional<FAutomationScreenshotMetadata> FScreenComparisonModel::GetMetadata()
 	return Metadata;
 }
 
+FString FScreenComparisonModel::GetName()
+{
+	if (Name.IsEmpty())
+	{
+		auto LoadedMetadata = GetMetadata();
+		if (LoadedMetadata.IsSet())
+		{
+			FString NameString = FString::Printf(TEXT("%s.%s"), *LoadedMetadata->Context, *LoadedMetadata->ScreenShotName);
+			if ((LoadedMetadata->Context.Len() && LoadedMetadata->TestName.Len())
+				|| !LoadedMetadata->ScreenShotName.Len())
+			{
+				NameString = FString::Printf(TEXT("%s.%s"), *LoadedMetadata->Context, *LoadedMetadata->TestName);
+			}
+
+			Name = NameString;
+		}
+	}
+
+	return Name;
+}
+
 bool FScreenComparisonModel::AddNew()
 {
 	bool bSuccess = true;

@@ -66,11 +66,11 @@ private:
 	/**
 	* Checks whether or not the information is valid against the report filtering criteria.
 	*
-	* @param ItemName - The name of the item for the string filtering to be checked against.
+	* @param ComparisonName - The name of the item to be checked against.
 	* @param ComparisonResult - The ImageComparisonResult used to be checked against the display criteria.
 	* @return true if the passed in information matches the current filtering criteria
 	*/
-	bool MatchesReportFilterCriteria(const FString& ItemName, const FImageComparisonResult& ComparisonResult) const;
+	bool MatchesReportFilterCriteria(const FString& ComparisonName, const FImageComparisonResult& ComparisonResult) const;
 
 	/**
 	* Apply the current report filter to the widgets of comparison view.
@@ -88,8 +88,11 @@ private:
 	/** The imported screenshot results */
 	TArray<FComparisonReport> CurrentReports;
 
-	/** The imported screenshot results copied into an array usable by the list view */
+	/** The imported screenshot results copied into an array to be filtered */
 	TArray<TSharedPtr<FScreenComparisonModel>> ComparisonList;
+
+	/** The filtered screenshot results copied into an array usable by the list view */
+	TArray<TSharedPtr<FScreenComparisonModel>> FilteredComparisonList;
 
 	/**  */
 	TSharedPtr< SListView< TSharedPtr<FScreenComparisonModel> > > ComparisonView;

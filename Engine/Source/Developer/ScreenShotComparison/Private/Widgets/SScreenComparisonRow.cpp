@@ -652,17 +652,10 @@ FText SScreenComparisonRow::GetName() const
 {
 	if (!Name.IsSet())
 	{
-		auto ModelMetaData = Model->GetMetadata();
-		if (ModelMetaData.IsSet())
+		FString ModelName = Model->GetName();
+		if (!ModelName.IsEmpty())
 		{
-			FString NameString = FString::Printf(TEXT("%s.%s"), *ModelMetaData->Context, *ModelMetaData->ScreenShotName);
-			if ((ModelMetaData->Context.Len() && ModelMetaData->TestName.Len())
-				|| !ModelMetaData->ScreenShotName.Len())
-			{
-				NameString = FString::Printf(TEXT("%s.%s"), *ModelMetaData->Context, *ModelMetaData->TestName);
-			}
-
-			Name = FText::FromString(NameString);
+			Name = FText::FromString(ModelName);
 		}
 		else
 		{

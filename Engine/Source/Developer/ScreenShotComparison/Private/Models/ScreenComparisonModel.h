@@ -27,6 +27,7 @@ public:
 	bool AddAlternative();
 
 	TOptional<FAutomationScreenshotMetadata> GetMetadata();
+	FString GetName();
 
 private:
 
@@ -36,6 +37,7 @@ private:
 	bool bComplete;
 
 	TOptional<FAutomationScreenshotMetadata> Metadata;
+	FString Name;
 
 	struct FFileMapping
 	{
