@@ -741,6 +741,7 @@ void FNiagaraAttributeTrimmerHelper<GraphBridge>::TrimAttributes_Aggressive(cons
 			for (const auto& CustomHlslInfo : ResolvedChain.CustomNodes)
 			{
 				// go through all of the variables in the attributes to see if they are referenced by any encountered CustomNodes
+				TArray<FName> VariableNames;
 				for (const FNiagaraVariableBase& Variable : UnifiedVariables)
 				{
 					// skip searching through the hlsl code if we're already included
@@ -748,11 +749,18 @@ void FNiagaraAttributeTrimmerHelper<GraphBridge>::TrimAttributes_Aggressive(cons
 					{
 						continue;
 					}
+					VariableNames.Push(Variable.GetName());
+				}
 
-					FNameBuilder VariableName(Variable.GetName());
-					if (GraphBridge::CustomHlslReferencesTokens(CustomHlslInfo.Key, { VariableName.ToView() }))
+				const int32 VariableCount = VariableNames.Num();
+				TArray<bool> VariableReferenced;
+				VariableReferenced.SetNumZeroed(VariableCount);
+				GraphBridge::CustomHlslReferencesTokens(CustomHlslInfo.Key, VariableNames, VariableReferenced);
+				for (int32 VariableIt = 0; VariableIt < VariableCount; ++VariableIt)
+				{
+					if (VariableReferenced[VariableIt])
 					{
-						ConditionalAddAttribute(Variable.GetName());
+						ConditionalAddAttribute(VariableNames[VariableIt]);
 					}
 				}
 			}

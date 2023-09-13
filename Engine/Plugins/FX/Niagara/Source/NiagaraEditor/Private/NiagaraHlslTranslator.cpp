@@ -8025,8 +8025,14 @@ template<typename GraphBridge>
 void TNiagaraHlslTranslator<GraphBridge>::ProcessCustomHlsl(const FString& InCustomHlsl, ENiagaraScriptUsage InUsage, const FNiagaraFunctionSignature& InSignature, const TArray<int32>& Inputs, const FNode* InNodeForErrorReporting, FString& OutCustomHlsl, FNiagaraFunctionSignature& OutSignature)
 {
 	// Split up the hlsl into constituent tokens
+	TArray<FStringView> TokenViews;
+	UNiagaraNodeCustomHlsl::GetTokensFromString(InCustomHlsl, TokenViews);
 	TArray<FString> Tokens;
-	UNiagaraNodeCustomHlsl::GetTokensFromString(InCustomHlsl, Tokens);
+	Tokens.Reset(TokenViews.Num());
+	for (const FStringView View : TokenViews)
+	{
+		Tokens.Push(FString(View));
+	}
 
 	// Check for any access to LWC values in the View uniform buffer, and convert to float for backwards compat
 	// Newly written code can access the LWC values directly using PrimaryView.X if desired

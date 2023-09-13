@@ -142,6 +142,7 @@ struct FNiagaraCompilationGraphBridge
 	static FNode* GetMutableOwningNode(const FPin* Pin);
 	static const FGraph* GetOwningGraph(const FNode* Node);
 	static bool CustomHlslReferencesTokens(const FCustomHlslNode* CustomNode, TConstArrayView<FStringView> TokenStrings);
+	static void CustomHlslReferencesTokens(const FCustomHlslNode* CustomNode, TConstArrayView<FName> TokenStrings, TArrayView<bool> Results);
 	static ENiagaraScriptUsage GetCustomHlslUsage(const FCustomHlslNode* CustomNode);
 	static FString GetCustomHlslString(const FCustomHlslNode* CustomNode);
 	static void GetCustomHlslIncludePaths(const FCustomHlslNode* CustomNode, TArray<FNiagaraCustomHlslInclude>& Includes);
@@ -269,6 +270,7 @@ struct FNiagaraCompilationDigestBridge
 	static FNode* GetMutableOwningNode(const FPin* Pin);
 	static const FGraph* GetOwningGraph(const FNode* Node);
 	static bool CustomHlslReferencesTokens(const FCustomHlslNode* CustomNode, TConstArrayView<FStringView> TokenStrings);
+	static void CustomHlslReferencesTokens(const FCustomHlslNode* CustomNode, TConstArrayView<FName> TokenStrings, TArrayView<bool> Results);
 	static ENiagaraScriptUsage GetCustomHlslUsage(const FCustomHlslNode* CustomNode);
 	static FString GetCustomHlslString(const FCustomHlslNode* CustomNode);
 	static void GetCustomHlslIncludePaths(const FCustomHlslNode* CustomNode, TArray<FNiagaraCustomHlslInclude>& Includes);

@@ -2940,7 +2940,13 @@ FNiagaraCompilationNodeCustomHlsl::FNiagaraCompilationNodeCustomHlsl(const UNiag
 	CustomScriptUsage = InNode->ScriptUsage;
 	Signature = InNode->Signature;
 	CustomHlsl = InNode->GetCustomHlsl();
-	InNode->GetTokens(Tokens, false, false);
+	TArray<FStringView> TokenViews;
+	InNode->GetTokens(TokenViews, false, false);
+	Tokens.Reserve(TokenViews.Num());
+	for (const FStringView View : TokenViews)
+	{
+		Tokens.Push(FString(View));
+	}
 	InNode->GetIncludeFilePaths(CustomIncludePaths);
 }
 

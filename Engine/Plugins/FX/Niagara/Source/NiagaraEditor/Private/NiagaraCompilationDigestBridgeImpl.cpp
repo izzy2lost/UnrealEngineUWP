@@ -47,6 +47,25 @@ bool FNiagaraCompilationDigestBridge::CustomHlslReferencesTokens(const FCustomHl
 	return false;
 }
 
+void FNiagaraCompilationDigestBridge::CustomHlslReferencesTokens(const FCustomHlslNode* CustomNode, TConstArrayView<FName> TokenStrings, TArrayView<bool> Results)
+{
+	checkf(TokenStrings.Num() == Results.Num(), TEXT("Number of results must match the number of tokens queried for"));
+	if (TokenStrings.Num() == 0)
+	{
+		return;
+	}
+
+	for (SIZE_T i = 0; i < TokenStrings.Num(); i++)
+	{
+		FNameBuilder NameBuilder(TokenStrings[i]);
+		FStringView NameString(NameBuilder.ToView());
+		Results[i] = CustomNode->Tokens.ContainsByPredicate([NameString](const FString& Token) -> bool
+			{
+				return Token.Contains(NameString);
+			});
+	}
+}
+
 ENiagaraScriptUsage FNiagaraCompilationDigestBridge::GetCustomHlslUsage(const FCustomHlslNode* CustomNode)
 {
 	return CustomNode->CustomScriptUsage;

@@ -35,7 +35,7 @@ public:
 	FText GetHlslText() const;
 	void OnCustomHlslTextCommitted(const FText& InText, ETextCommit::Type InType);
 
-	bool GetTokens(TArray<FString>& OutTokens, bool IncludeComments = true, bool IncludeWhitespace = true) const;
+	bool GetTokens(TArray<FStringView>& OutTokens, bool IncludeComments = true, bool IncludeWhitespace = true) const;
 
 	virtual void BuildParameterMapHistory(FNiagaraParameterMapHistoryBuilder& OutHistory, bool bRecursive = true, bool bFilterForCompilation = true) const override;
 	virtual void GatherExternalDependencyData(ENiagaraScriptUsage InUsage, const FGuid& InUsageId, TArray<FNiagaraCompileHash>& InReferencedCompileHashes, TArray<FString>& InReferencedObjs) const override;
@@ -48,7 +48,7 @@ public:
 
 	virtual bool ReferencesVariable(const FNiagaraVariableBase& InVar) const;
 
-	static bool GetTokensFromString(const FString& InHlsl, TArray<FString>& OutTokens, bool IncludeComments = true, bool IncludeWhitespace = true);
+	static bool GetTokensFromString(const FString& InHlsl, TArray<FStringView>& OutTokens, bool IncludeComments = true, bool IncludeWhitespace = true);
 
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 
