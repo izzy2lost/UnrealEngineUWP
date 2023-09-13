@@ -197,7 +197,7 @@ Retargeting::FRetargetingScope::FRetargetingScope(const USkeleton* InSourceSkele
 	RetargetPose(ToRetargetPose),
 	EvaluationContext(InEvaluationContext),
 	RetargetTracking(FBuildRawPoseScratchArea::Get().RetargetTracking),
-	bShouldRetarget(!ToRetargetPose.GetBoneContainer().GetDisableRetargeting() && EvaluationContext.RetargetTransforms.Num())
+	bShouldRetarget((!ToRetargetPose.GetBoneContainer().GetDisableRetargeting() && EvaluationContext.RetargetTransforms.Num()) || (SourceSkeleton != ToRetargetPose.GetBoneContainer().GetSkeletonAsset()))
 {
 	check(SourceSkeleton);
 	RetargetTracking.Reset();
