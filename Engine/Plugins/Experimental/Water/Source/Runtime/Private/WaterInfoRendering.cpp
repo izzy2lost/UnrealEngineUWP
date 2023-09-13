@@ -28,12 +28,6 @@
 #include "ScenePrivate.h"
 #include "SceneRendering.h"
 
-static int32 RenderCaptureNextWaterInfoDraws = 0;
-static FAutoConsoleVariableRef CVarRenderCaptureNextWaterInfoDraws(
-	TEXT("r.Water.WaterInfo.RenderCaptureNextWaterInfoDraws"),
-	RenderCaptureNextWaterInfoDraws,
-	TEXT("Enable capturing of the water info texture for the next N draws"));
-
 static int32 WaterInfoRenderLandscapeMinimumMipLevel = 0;
 static FAutoConsoleVariableRef CVarWaterInfoRenderLandscapeMinimumMipLevel(
 	TEXT("r.Water.WaterInfo.LandscapeMinimumMipLevel"),
@@ -719,9 +713,15 @@ void UpdateWaterInfoRendering(
 	const WaterInfo::FRenderingContext& Context)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(WaterInfo::UpdateWaterInfoRendering);
-	
+
+	static auto* CVarRenderCaptureNextWaterInfoDraws = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Water.WaterInfo.RenderCaptureNextWaterInfoDraws"));
+	int32 RenderCaptureNextWaterInfoDraws = CVarRenderCaptureNextWaterInfoDraws ? CVarRenderCaptureNextWaterInfoDraws->AsVariableInt()->GetValueOnGameThread() : 0;
 	RenderCaptureInterface::FScopedCapture RenderCapture((RenderCaptureNextWaterInfoDraws != 0), TEXT("RenderWaterInfo"));
-	RenderCaptureNextWaterInfoDraws = FMath::Max(0, RenderCaptureNextWaterInfoDraws - 1);
+	if (RenderCaptureNextWaterInfoDraws != 0)
+	{
+		RenderCaptureNextWaterInfoDraws = FMath::Max(0, RenderCaptureNextWaterInfoDraws - 1);
+		CVarRenderCaptureNextWaterInfoDraws->Set(RenderCaptureNextWaterInfoDraws);
+	}
 
 	if (!IsValid(Context.TextureRenderTarget) || Scene == nullptr)
 	{
@@ -830,9 +830,6 @@ void UpdateWaterInfoRendering2(FSceneView& InView, const TMap<AWaterZone*, UE::W
 	for (const TPair<AWaterZone*, UE::WaterInfo::FRenderingContext>& Pair : WaterInfoContexts)
 	{
 		const UE::WaterInfo::FRenderingContext& Context(Pair.Value);
-
-		RenderCaptureInterface::FScopedCapture RenderCapture((RenderCaptureNextWaterInfoDraws != 0), TEXT("RenderWaterInfo"));
-		RenderCaptureNextWaterInfoDraws = FMath::Max(0, RenderCaptureNextWaterInfoDraws - 1);
 
 		if (!IsValid(Context.TextureRenderTarget))
 		{

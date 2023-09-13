@@ -13,6 +13,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "WaterViewExtension.h"
 #include "Algo/AnyOf.h"
+#include "Engine/GameViewportClient.h"
 #include "WaterBodyInfoMeshComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WaterZoneActor)
@@ -560,6 +561,14 @@ bool AWaterZone::UpdateWaterInfoTexture()
 			return false;
 		}
 #endif // WITH_EDITOR
+
+		// The render path for rendering the water info texture without scene captures is executed within the scene renderer.
+		// If world rendering is disabled like in a loading screen, the scene renderer is not called and the water info texture will not be drawn.
+		UGameViewportClient* GameViewport = World->GetGameViewport();
+		if (GameViewport && GameViewport->bDisableWorldRendering)
+		{
+			return false;
+		}
 
 		const ETextureRenderTargetFormat Format = bHalfPrecisionTexture ? ETextureRenderTargetFormat::RTF_RGBA16f : RTF_RGBA32f;
 		UTextureRenderTarget2D* OldTexture = WaterInfoTexture;

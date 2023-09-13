@@ -10,6 +10,7 @@
 #include "PixelShaderUtils.h"
 #include "BasePassRendering.h"
 #include "MobileBasePassRendering.h"
+#include "RenderCaptureInterface.h"
 
 DECLARE_GPU_DRAWCALL_STAT(WaterInfoTexture);
 
@@ -23,6 +24,12 @@ static TAutoConsoleVariable<float> CVarWaterInfoDilationOverwriteMinimumDistance
 	TEXT("r.Water.WaterInfo.DilationOverwriteMinimumDistance"),
 	128.f,
 	TEXT("The minimum distance below the ground when we allow dilation to write on top of water"),
+	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarRenderCaptureNextWaterInfoDraws(
+	TEXT("r.Water.WaterInfo.RenderCaptureNextWaterInfoDraws"),
+	0,
+	TEXT("Enable capturing of the water info texture for the next N draws"),
 	ECVF_RenderThreadSafe);
 
 BEGIN_SHADER_PARAMETER_STRUCT(FWaterInfoTexturePassParameters, )
@@ -770,6 +777,15 @@ void RenderWaterInfoTexture(
 		return;
 	}
 
+	int32 RenderCaptureNextWaterInfoDraws = CVarRenderCaptureNextWaterInfoDraws.GetValueOnRenderThread();
+	RenderCaptureInterface::FScopedCapture RenderCapture((RenderCaptureNextWaterInfoDraws != 0), GraphBuilder, TEXT("RenderWaterInfo"));
+	if (RenderCaptureNextWaterInfoDraws != 0)
+	{
+		RenderCaptureNextWaterInfoDraws = FMath::Max(0, RenderCaptureNextWaterInfoDraws - 1);
+		CVarRenderCaptureNextWaterInfoDraws->Set(RenderCaptureNextWaterInfoDraws);
+	}
+	
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(WaterInfo::RenderWaterInfoTexture);
 	RDG_EVENT_SCOPE(GraphBuilder, "WaterInfoTexture");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, WaterInfoTexture);
@@ -939,8 +955,6 @@ void RenderWaterInfoTexture(
 
 		// Merge terrain depth, dilated water body depth, water body depth and velocity into a single texture
 		{
-			RDG_EVENT_SCOPE(GraphBuilder, "WaterInfoTextureMerge");
-
 			FWaterInfoTextureMergePS::FPermutationDomain PixelPermutationVector;
 			// The output format depends on the user configurable format of the passed in render target. Since we store depth data in the texture,
 			// it is sometimes desirable to have full 32bit float precision.
@@ -972,8 +986,6 @@ void RenderWaterInfoTexture(
 
 		// Blur the velocity component in the water info texture to get a smooth gradient between water body transitions
 		{
-			RDG_EVENT_SCOPE(GraphBuilder, "WaterInfoTextureBlur");
-
 			FWaterInfoTextureBlurPS::FPermutationDomain PixelPermutationVector;
 			// The output format depends on the user configurable format of the passed in render target. Since we store depth data in the texture,
 			// it is sometimes desirable to have full 32bit float precision.

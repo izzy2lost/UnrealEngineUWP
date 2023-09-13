@@ -27,7 +27,7 @@ static TAutoConsoleVariable<float> CVarLocalTessellationUpdateMargin(
 
 static TAutoConsoleVariable<int32> CVarWaterInfoRenderMethod(
 	TEXT("r.Water.WaterInfo.RenderMethod"),
-	0,
+	1,
 	TEXT("0: SceneCaptures, 1: Custom"),
 	ECVF_Default);
 
