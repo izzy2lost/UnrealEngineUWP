@@ -31,13 +31,13 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Serialize to a byte span
 		/// </summary>
-		public void Write(Span<byte> data)
+		public readonly void Write(Span<byte> data)
 		{
 			Guid.TryWriteBytes(data.Slice(0, 16));
 			BinaryPrimitives.WriteInt32LittleEndian(data.Slice(16), Version);
 		}
 
 		/// <inheritdoc/>
-		public override string ToString() => $"{Guid}#{Version}";
+		public override readonly string ToString() => $"{Guid}#{Version}";
 	}
 }

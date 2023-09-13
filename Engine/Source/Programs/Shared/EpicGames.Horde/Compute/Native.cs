@@ -11,6 +11,7 @@ namespace EpicGames.Horde.Compute
 {
 	internal class Native
 	{
+#pragma warning disable IDE1006 // Naming Styles
 		[StructLayout(LayoutKind.Sequential)]
 		public class SECURITY_ATTRIBUTES
 		{
@@ -18,6 +19,7 @@ namespace EpicGames.Horde.Compute
 			public IntPtr lpSecurityDescriptor;
 			public int bInheritHandle;
 		}
+#pragma warning restore IDE1006 // Naming Styles
 
 		[DllImport("kernel32.dll")]
 		public static extern SafeWaitHandle CreateEvent(SECURITY_ATTRIBUTES lpEventAttributes, bool bManualReset, bool bInitialState, string? lpName);

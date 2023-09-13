@@ -80,9 +80,7 @@ namespace EpicGames.Horde.Compute
 		// Can lock chunked memory writer to acquire pointer
 		readonly ILogger _logger;
 
-#pragma warning disable CA2213
 		MessageBuilder? _currentBuilder;
-#pragma warning restore CA2213
 
 		/// <summary>
 		/// Constructor

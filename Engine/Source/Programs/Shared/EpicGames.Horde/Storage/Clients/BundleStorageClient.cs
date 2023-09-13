@@ -125,11 +125,7 @@ namespace EpicGames.Horde.Storage.Clients
 		public async Task<BundleNodeHandle> ReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
 			BundleNodeHandle? refTarget = await TryReadRefTargetAsync(name, cacheTime, cancellationToken);
-			if (refTarget == null)
-			{
-				throw new RefNameNotFoundException(name);
-			}
-			return refTarget;
+			return refTarget ?? throw new RefNameNotFoundException(name);
 		}
 
 		/// <inheritdoc/>

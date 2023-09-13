@@ -248,16 +248,16 @@ namespace EpicGames.Core
 		public int CompareTo(FileReference? other) => Comparer.Compare(FullName, other?.FullName);
 
 		/// <inheritdoc/>
-		public static bool operator <(FileReference left, FileReference right) => ReferenceEquals(left, null) ? !ReferenceEquals(right, null) : left.CompareTo(right) < 0;
+		public static bool operator <(FileReference left, FileReference right) => left is null ? right is not null : left.CompareTo(right) < 0;
 
 		/// <inheritdoc/>
-		public static bool operator <=(FileReference left, FileReference right) => ReferenceEquals(left, null) || left.CompareTo(right) <= 0;
+		public static bool operator <=(FileReference left, FileReference right) => left is null || left.CompareTo(right) <= 0;
 
 		/// <inheritdoc/>
-		public static bool operator >(FileReference left, FileReference right) => !ReferenceEquals(left, null) && left.CompareTo(right) > 0;
+		public static bool operator >(FileReference left, FileReference right) => left is not null && left.CompareTo(right) > 0;
 
 		/// <inheritdoc/>
-		public static bool operator >=(FileReference left, FileReference right) => ReferenceEquals(left, null) ? ReferenceEquals(right, null) : left.CompareTo(right) >= 0;
+		public static bool operator >=(FileReference left, FileReference right) => left is null ? right is null : left.CompareTo(right) >= 0;
 
 		/// <summary>
 		/// Helper function to create a remote file reference. Unlike normal FileReference objects, these aren't converted to a full path in the local filesystem, but are
@@ -464,20 +464,19 @@ namespace EpicGames.Core
 			{
 				using (StreamReader sr = new StreamReader(fs, Encoding.UTF8, true))
 				{
-
 					// Try to read the whole file into a buffer created by hand.  This avoids a LOT of memory allocations which in turn reduces the
 					// GC stress on the system.  Removing the StreamReader would be nice in the future.
-					long RawFileLength = fs.Length;
-					char[] InitialBuffer = new char[RawFileLength];
-					int ReadLength = sr.Read(InitialBuffer, 0, (int)RawFileLength);
+					long rawFileLength = fs.Length;
+					char[] initialBuffer = new char[rawFileLength];
+					int readLength = sr.Read(initialBuffer, 0, (int)rawFileLength);
 					if (sr.EndOfStream)
 					{
-						return new String(InitialBuffer, 0, ReadLength);
+						return new string(initialBuffer, 0, readLength);
 					}
 					else
 					{
-						string Remaining = sr.ReadToEnd();
-						return String.Concat(new ReadOnlySpan<char>(InitialBuffer, 0, ReadLength), Remaining);
+						string remaining = sr.ReadToEnd();
+						return String.Concat(new ReadOnlySpan<char>(initialBuffer, 0, readLength), remaining);
 					}
 				}
 			}

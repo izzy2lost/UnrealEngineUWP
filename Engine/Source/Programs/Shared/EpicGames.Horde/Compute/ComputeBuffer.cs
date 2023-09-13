@@ -279,22 +279,22 @@ namespace EpicGames.Horde.Compute
 		protected internal record struct ChunkState(ulong Value)
 		{
 			// Written length of this chunk
-			public int Length => (int)(Value & 0x7fffffff);
+			public readonly int Length => (int)(Value & 0x7fffffff);
 
 			// Set of flags which are set for each reader that still has to read from a chunk
-			public int ReaderFlags => (int)((Value >> 31) & 0x7fffffff);
+			public readonly int ReaderFlags => (int)((Value >> 31) & 0x7fffffff);
 
 			// State of the writer
-			public WriteState WriteState => (WriteState)(Value >> 62);
+			public readonly WriteState WriteState => (WriteState)(Value >> 62);
 
 			// Constructor
 			public ChunkState(WriteState writerState, int readerFlags, int length) : this(((ulong)writerState << 62) | ((ulong)readerFlags << 31) | (uint)length) { }
 
 			// Test whether a particular reader is still referencing the chunk
-			public bool HasReaderFlag(int readerIdx) => (Value & (1UL << (31 + readerIdx))) != 0;
+			public readonly bool HasReaderFlag(int readerIdx) => (Value & (1UL << (31 + readerIdx))) != 0;
 
 			/// <inheritdoc/>
-			public override string ToString() => $"{WriteState}, Length: {Length}, Readers: {ReaderFlags}";
+			public override readonly string ToString() => $"{WriteState}, Length: {Length}, Readers: {ReaderFlags}";
 		}
 
 		/// <summary>
@@ -343,13 +343,13 @@ namespace EpicGames.Horde.Compute
 				: this((ulong)(uint)offset | ((ulong)(uint)chunkIdx << 32) | ((ulong)(uint)refCount << 40) | ((ulong)((detached? (1UL << 63) : 0))))
 			{ }
 
-			public int Offset => (int)(Value & 0xffffffff);
-			public int ChunkIdx => (int)((Value >> 32) & 0xff);
-			public int RefCount => (int)((Value >> 40) & 0x7fff);
-			public bool Detached => (Value & (1UL << 63)) != 0;
+			public readonly int Offset => (int)(Value & 0xffffffff);
+			public readonly int ChunkIdx => (int)((Value >> 32) & 0xff);
+			public readonly int RefCount => (int)((Value >> 40) & 0x7fff);
+			public readonly bool Detached => (Value & (1UL << 63)) != 0;
 
 			/// <inheritdoc/>
-			public override string ToString() => $"Chunk: {ChunkIdx}, Offset: {Offset}, RefCount: {RefCount}, Detached: {Detached}";
+			public override readonly string ToString() => $"Chunk: {ChunkIdx}, Offset: {Offset}, RefCount: {RefCount}, Detached: {Detached}";
 		}
 
 		/// <summary>
@@ -380,13 +380,13 @@ namespace EpicGames.Horde.Compute
 				: this((ulong)(uint)chunkIdx | ((ulong)(uint)readerFlags << 32) | ((ulong)(uint)refCount << 48) | (hasWrapped ? (1UL << 63) : 0))
 			{ }
 
-			public int ChunkIdx => (int)(Value & 0x7fffffff);
-			public int ReaderFlags => (int)(Value >> 32) & 0xffff;
-			public int RefCount => (int)(Value >> 48) & 0x7fff;
-			public bool HasWrapped => (Value & (1UL << 63)) != 0;
+			public readonly int ChunkIdx => (int)(Value & 0x7fffffff);
+			public readonly int ReaderFlags => (int)(Value >> 32) & 0xffff;
+			public readonly int RefCount => (int)(Value >> 48) & 0x7fff;
+			public readonly bool HasWrapped => (Value & (1UL << 63)) != 0;
 
 			/// <inheritdoc/>
-			public override string ToString() => $"Chunk: {ChunkIdx}, ReaderFlags: {ReaderFlags}, RefCount: {RefCount}, HasWrapped: {HasWrapped}";
+			public override readonly string ToString() => $"Chunk: {ChunkIdx}, ReaderFlags: {ReaderFlags}, RefCount: {RefCount}, HasWrapped: {HasWrapped}";
 		}
 
 		/// <summary>
@@ -402,7 +402,7 @@ namespace EpicGames.Horde.Compute
 			public WriterState Get() => new WriterState(Interlocked.CompareExchange(ref *_data, 0, 0));
 
 			// Set the current value
-			public void Set(WriterState State) => Interlocked.Exchange(ref *_data, State.Value);
+			public void Set(WriterState state) => Interlocked.Exchange(ref *_data, state.Value);
 
 			// Compare and swap
 			public bool TryUpdate(WriterState prevState, WriterState nextState) => Interlocked.CompareExchange(ref *_data, nextState.Value, prevState.Value) == prevState.Value;
@@ -573,9 +573,9 @@ namespace EpicGames.Horde.Compute
 							}
 							if (writerStatePtr.TryUpdate(writerState, new WriterState(writerState.ChunkIdx, writerState.ReaderFlags | (1 << readerIdx), writerState.RefCount, writerState.HasWrapped)))
 							{
-								for (int WriteChunkIdx = 0; WriteChunkIdx <= writerState.ChunkIdx; WriteChunkIdx++)
+								for (int writeChunkIdx = 0; writeChunkIdx <= writerState.ChunkIdx; writeChunkIdx++)
 								{
-									_headerPtr.GetChunkStatePtr(WriteChunkIdx).StartReading(readerIdx);
+									_headerPtr.GetChunkStatePtr(writeChunkIdx).StartReading(readerIdx);
 								}
 								return readerIdx;
 							}
@@ -616,9 +616,9 @@ namespace EpicGames.Horde.Compute
 
 				if (readerState.RefCount == 1)
 				{
-					for (int Idx = 0; Idx < _headerPtr.NumChunks; Idx++)
+					for (int idx = 0; idx < _headerPtr.NumChunks; idx++)
 					{
-						_headerPtr.GetChunkStatePtr(Idx).FinishReading(readerIdx);
+						_headerPtr.GetChunkStatePtr(idx).FinishReading(readerIdx);
 					}
 				}
 

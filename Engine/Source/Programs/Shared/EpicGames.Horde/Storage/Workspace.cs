@@ -584,11 +584,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public async Task SyncAsync(WorkspaceLayerId layerId, DirectoryNode? contents, CancellationToken cancellationToken = default)
 		{
-			LayerState? layerState = GetLayerState(layerId);
-			if (layerState == null)
-			{
-				throw new InvalidOperationException($"Layer '{layerId}' does not exist");
-			}
+			LayerState layerState = GetLayerState(layerId) ?? throw new InvalidOperationException($"Layer '{layerId}' does not exist");
 
 			DirectoryState hordeDirState = _rootDirState.FindOrAddDirectory(HordeDirName);
 			hordeDirState.LayerFlags |= CacheLayerFlag;

@@ -210,7 +210,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Maximum age for a cached value to be returned
 		/// </summary>
-		public TimeSpan MaxAge => DateTime.UtcNow - Utc;
+		public readonly TimeSpan MaxAge => DateTime.UtcNow - Utc;
 
 		/// <summary>
 		/// Sets the earliest time at which the entry must have been valid
@@ -221,7 +221,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Tests whether this value is set
 		/// </summary>
-		public bool IsSet() => Utc != default;
+		public readonly bool IsSet() => Utc != default;
 
 		/// <summary>
 		/// Determines if this cache time deems a particular cache entry stale
@@ -273,11 +273,7 @@ namespace EpicGames.Horde.Storage
 		public static async Task<BlobHandle> ReadRefTargetAsync(this IStorageClient store, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
 			BlobHandle? refTarget = await store.TryReadRefTargetAsync(name, cacheTime, cancellationToken);
-			if (refTarget == null)
-			{
-				throw new RefNameNotFoundException(name);
-			}
-			return refTarget;
+			return refTarget ?? throw new RefNameNotFoundException(name);
 		}
 
 		#endregion

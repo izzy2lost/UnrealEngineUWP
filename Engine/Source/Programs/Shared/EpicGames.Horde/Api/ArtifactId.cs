@@ -16,7 +16,7 @@ namespace EpicGames.Horde.Api
 		public static ArtifactId Parse(string text) => new ArtifactId(BinaryId.Parse(text));
 
 		/// <inheritdoc/>
-		public override string ToString() => Id.ToString();
+		public override readonly string ToString() => Id.ToString();
 	}
 
 	/// <summary>

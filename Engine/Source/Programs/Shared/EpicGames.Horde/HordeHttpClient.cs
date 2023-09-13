@@ -16,8 +16,6 @@ using Polly;
 using Polly.Extensions.Http;
 using Polly.Retry;
 
-#pragma warning disable CA2234 // Pass system uri objects instead of strings
-
 namespace EpicGames.Horde
 {
 	/// <summary>

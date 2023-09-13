@@ -43,7 +43,7 @@ namespace EpicGames.Horde.Api
 		}
 
 		/// <inheritdoc/>
-		public override string ToString() => Id.ToString();
+		public override readonly string ToString() => Id.ToString();
 	}
 
 	/// <summary>
