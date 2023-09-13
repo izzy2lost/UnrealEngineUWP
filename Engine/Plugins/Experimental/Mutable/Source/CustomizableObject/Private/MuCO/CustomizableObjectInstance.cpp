@@ -6970,11 +6970,14 @@ void UCustomizableInstancePrivateData::RegenerateImportedModel(USkeletalMesh* Sk
 		ImportedModel->LODModels[LODIndex].NumVertices = LODModel.GetNumVertices();
 
 		// Indices
-		int indexCount = LODModel.MultiSizeIndexContainer.GetIndexBuffer()->Num();
-		ImportedModel->LODModels[LODIndex].IndexBuffer.SetNum(indexCount);
-		for (int i = 0; i < indexCount; ++i)
+		if (LODModel.MultiSizeIndexContainer.IsIndexBufferValid())
 		{
-			ImportedModel->LODModels[LODIndex].IndexBuffer[i] = LODModel.MultiSizeIndexContainer.GetIndexBuffer()->Get(i);
+			const int32 NumIndices = LODModel.MultiSizeIndexContainer.GetIndexBuffer()->Num();
+			ImportedModel->LODModels[LODIndex].IndexBuffer.SetNum(NumIndices);
+			for (int32 Index = 0; Index < NumIndices; ++Index)
+			{
+				ImportedModel->LODModels[LODIndex].IndexBuffer[Index] = LODModel.MultiSizeIndexContainer.GetIndexBuffer()->Get(Index);
+			}
 		}
 
 		ImportedModel->LODModels[LODIndex].Sections.SetNum(LODModel.RenderSections.Num());
