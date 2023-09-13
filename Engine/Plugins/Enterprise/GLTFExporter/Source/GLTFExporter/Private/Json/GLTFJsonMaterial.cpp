@@ -133,6 +133,14 @@ void FGLTFJsonSpecularExtension::WriteObject(IGLTFJsonWriter& Writer) const
 	}
 }
 
+void FGLTFJsonIORExtension::WriteObject(IGLTFJsonWriter& Writer) const
+{
+	if (!FMath::IsNearlyEqual(Value, 1.5, Writer.DefaultTolerance))
+	{
+		Writer.Write(TEXT("ior"), Value);
+	}
+}
+
 void FGLTFJsonMaterial::WriteObject(IGLTFJsonWriter& Writer) const
 {
 	if (!Name.IsEmpty())
@@ -181,13 +189,18 @@ void FGLTFJsonMaterial::WriteObject(IGLTFJsonWriter& Writer) const
 	}
 
 	const bool HasEmissiveStrength = !FMath::IsNearlyEqual(EmissiveStrength, 1.0f, Writer.DefaultTolerance);
-	if (ShadingModel == EGLTFJsonShadingModel::Unlit || ShadingModel == EGLTFJsonShadingModel::ClearCoat || HasEmissiveStrength || Specular.HasValue())
+	if (ShadingModel == EGLTFJsonShadingModel::Unlit || ShadingModel == EGLTFJsonShadingModel::ClearCoat || HasEmissiveStrength || Specular.HasValue() || IOR.HasValue())
 	{
 		Writer.StartExtensions();
 
 		if (ShadingModel != EGLTFJsonShadingModel::Unlit /*&& !KHR_materials_pbrSpecularGlossiness*/ && Specular.HasValue())
 		{
 			Writer.Write(EGLTFJsonExtension::KHR_MaterialsSpecular, Specular);
+		}
+
+		if (ShadingModel != EGLTFJsonShadingModel::Unlit /*&& !KHR_materials_pbrSpecularGlossiness*/ && IOR.HasValue())
+		{
+			Writer.Write(EGLTFJsonExtension::KHR_MaterialsIOR, IOR);
 		}
 
 		if (ShadingModel == EGLTFJsonShadingModel::Unlit)

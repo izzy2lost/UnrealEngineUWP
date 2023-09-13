@@ -9,6 +9,7 @@ enum class EGLTFJsonExtension
 	KHR_MaterialsEmissiveStrength,
 	KHR_MaterialsUnlit,
 	KHR_MaterialsVariants,
+	KHR_MaterialsIOR,
 	KHR_MeshQuantization,
 	KHR_TextureTransform,
 	KHR_MaterialsSpecular

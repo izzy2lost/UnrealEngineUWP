@@ -150,6 +150,21 @@ void FGLTFDelayedMaterialTask::Process()
 				}
 			}
 
+			if (JsonMaterial->AlphaMode == EGLTFJsonAlphaMode::Blend)
+			{
+				if (BaseMaterial->RefractionMethod == ERefractionMode::RM_IndexOfRefraction)
+				{
+					const FMaterialPropertyEx RefractionProperty = MP_Refraction;
+					if (IsPropertyNonDefault(RefractionProperty))
+					{
+						if (!TryGetRefraction(*JsonMaterial, RefractionProperty))
+						{
+							Builder.LogWarning(FString::Printf(TEXT("Failed to export %s for material %s"), *RefractionProperty.ToString(), *Material->GetName()));
+						}
+					}
+				}
+			}
+
 			if (JsonMaterial->ShadingModel == EGLTFJsonShadingModel::ClearCoat)
 			{
 				const FMaterialPropertyEx ClearCoatProperty = MP_CustomData0;
@@ -1056,6 +1071,56 @@ bool FGLTFDelayedMaterialTask::TryGetSpecular(FGLTFJsonMaterial& OutMaterial, co
 		}
 	}
 
+
+	return true;
+}
+
+bool FGLTFDelayedMaterialTask::TryGetRefraction(FGLTFJsonMaterial& OutMaterial, const FMaterialPropertyEx& RefractionProperty)
+{
+	if (!TryGetConstantScalar(OutMaterial.IOR.Value, RefractionProperty))
+	{
+		if (Builder.ExportOptions->BakeMaterialInputs == EGLTFMaterialBakeMode::Disabled)
+		{
+			Builder.LogWarning(FString::Printf(
+				TEXT("%s for material %s needs to bake, but material baking is disabled by export options"),
+				*RefractionProperty.ToString(),
+				*Material->GetName()));
+			return false;
+		}
+
+		int32 TempTexCoord;
+		FGLTFJsonTextureTransform TempTransform;
+		const FIntPoint TextureSize(128);
+		//Note: Refraction baking limits range to [1, Infinity]
+		FGLTFPropertyBakeOutput PropertyBakeOutput = BakeMaterialProperty(RefractionProperty, TempTexCoord, TempTransform, TextureSize, false);
+		if (PropertyBakeOutput.bIsConstant)
+		{
+			OutMaterial.IOR.Value = PropertyBakeOutput.ConstantValue.R;
+		}
+		else
+		{
+			//Calculate an avarage constant value from baked texture:
+			Builder.LogWarning(FString::Printf(
+				TEXT("In material %s : The %s property is using non const value. Avarage const value approximation is used as the glTF 2.0 standard only supports const value for said property (via khr_materials_ior). "),
+				*Material->GetName(),
+				*RefractionProperty.ToString()));
+
+			uint64 Red, Green, Blue;
+			Red = Green = Blue = 0;
+			for (const FColor& Pixel : *PropertyBakeOutput.Pixels)
+			{
+				Red += Pixel.R;
+				Green += Pixel.G;
+				Blue += Pixel.B;
+			}
+
+			OutMaterial.IOR.Value = (Red + Green + Blue) / (3 * PropertyBakeOutput.Pixels.Get().Num() * 255.);
+		}
+
+		//Baking shifts the Range of Refraction from, to:
+		// [1,Infinity] -> [1,0]
+		OutMaterial.IOR.Value = 1. / OutMaterial.IOR.Value;
+	}
 
 	return true;
 }

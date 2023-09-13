@@ -97,7 +97,21 @@ struct GLTFEXPORTER_API FGLTFJsonSpecularExtension : IGLTFJsonObject
 	}
 
 	//UE's default Specular value is 0.5, while glTF's is 1.
-	bool HasValue() const { return ((Factor != 0.5f && Factor != 1.0f) || Texture.Index != nullptr); }
+	bool HasValue() const { return ((!FMath::IsNearlyEqual(Factor, 0.5f) && !FMath::IsNearlyEqual(Factor, 1.0f)) || Texture.Index != nullptr); }
+
+	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
+};
+
+struct GLTFEXPORTER_API FGLTFJsonIORExtension : IGLTFJsonObject
+{
+	float Value;
+
+	FGLTFJsonIORExtension()
+		: Value(1.5)
+	{
+	}
+
+	bool HasValue() const { return !FMath::IsNearlyEqual(Value, 1.5f); }
 
 	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
 };
@@ -123,6 +137,7 @@ struct GLTFEXPORTER_API FGLTFJsonMaterial : IGLTFJsonIndexedObject
 	bool DoubleSided;
 
 	FGLTFJsonClearCoatExtension ClearCoat;
+	FGLTFJsonIORExtension IOR;
 
 	FGLTFJsonSpecularExtension Specular;
 
