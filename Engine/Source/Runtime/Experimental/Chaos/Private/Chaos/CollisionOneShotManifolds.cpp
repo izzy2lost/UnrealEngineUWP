@@ -1162,7 +1162,7 @@ namespace Chaos
 				// but only if the cylinder is not standing vertically on the face
 				const FReal CapsuleCylinderTolerance = FReal(0.707);	// about 45 deg
 				const FReal CapsuleAxisDotConvexNormal = FVec3::DotProduct(ConvexPlaneNormal, CapsuleAxisSegment.GetAxis());
-				if (CapsuleAxisDotConvexNormal < CapsuleCylinderTolerance)
+				if (FMath::Abs(CapsuleAxisDotConvexNormal) < CapsuleCylinderTolerance)
 				{
 					// The line segment on the surface of the cylinder closest to the contact
 					const FVec3 CapsuleCylinderNormal = (ConvexPlaneNormal - CapsuleAxisDotConvexNormal * CapsuleAxisSegment.GetAxis()).GetUnsafeNormal();
