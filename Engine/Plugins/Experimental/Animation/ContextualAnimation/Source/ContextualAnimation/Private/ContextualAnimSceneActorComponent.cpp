@@ -325,7 +325,7 @@ void UContextualAnimSceneActorComponent::LateJoinScene(const FContextualAnimScen
 
 		AddOrUpdateWarpTargets(SectionIdx, AnimSetIdx, WarpPoints, ExternalWarpTargets);
 
-		SetIgnoreCollisionWithOtherActors(true);
+		SetCollisionState();
 
 		SetMovementState(AnimTrack->bRequireFlyingMode);
 	}
@@ -833,75 +833,71 @@ void UContextualAnimSceneActorComponent::SetIgnoreCollisionWithOtherActors(bool 
 	}
 }
 
+void UContextualAnimSceneActorComponent::SetCollisionState()
+{
+	if (const UContextualAnimSceneAsset* Asset = Bindings.GetSceneAsset())
+	{
+		const EContextualAnimCollisionBehavior CollisionBehavior = Asset->GetCollisionBehavior();
+		if (CollisionBehavior == EContextualAnimCollisionBehavior::IgnoreActorWhenMoving)
+		{
+			SetIgnoreCollisionWithOtherActors(true);
+		}
+		else if (CollisionBehavior == EContextualAnimCollisionBehavior::IgnoreChannels)
+		{
+			if (UPrimitiveComponent* RootPrimitiveComponent = Cast<UPrimitiveComponent>(GetOwner()->GetRootComponent()))
+			{
+				if (const FContextualAnimSceneBinding* Binding = Bindings.FindBindingByActor(GetOwner()))
+				{
+					const TArray<TEnumAsByte<ECollisionChannel>>& ChannelsToIgnore = Asset->GetCollisionChannelsToIgnoreForRole(Bindings.GetRoleFromBinding(*Binding));
+					if (ChannelsToIgnore.Num() > 0)
+					{
+						CharacterPropertiesBackup.CollisionResponses.Reset(ChannelsToIgnore.Num());
+						for (ECollisionChannel Channel : ChannelsToIgnore)
+						{
+							ECollisionResponse Response = RootPrimitiveComponent->GetCollisionResponseToChannel(Channel);
+							CharacterPropertiesBackup.CollisionResponses.Add(MakeTuple(Channel, Response));
+
+							RootPrimitiveComponent->SetCollisionResponseToChannel(Channel, ECR_Ignore);
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+void UContextualAnimSceneActorComponent::RestoreCollisionState()
+{
+	if (const UContextualAnimSceneAsset* Asset = Bindings.GetSceneAsset())
+	{
+		const EContextualAnimCollisionBehavior CollisionBehavior = Asset->GetCollisionBehavior();
+		if (CollisionBehavior == EContextualAnimCollisionBehavior::IgnoreActorWhenMoving)
+		{
+			SetIgnoreCollisionWithOtherActors(false);
+		}
+		else if (CollisionBehavior == EContextualAnimCollisionBehavior::IgnoreChannels)
+		{
+			if (UPrimitiveComponent* RootPrimitiveComponent = Cast<UPrimitiveComponent>(GetOwner()->GetRootComponent()))
+			{
+				for (const TTuple<ECollisionChannel, ECollisionResponse>& Response : CharacterPropertiesBackup.CollisionResponses)
+				{
+					RootPrimitiveComponent->SetCollisionResponseToChannel(Response.Get<0>(), Response.Get<1>());
+				}
+
+				CharacterPropertiesBackup.CollisionResponses.Reset();
+			}
+		}
+	}
+}
+
 void UContextualAnimSceneActorComponent::OnJoinedScene(const FContextualAnimSceneBindings& InBindings)
 {
-	UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::OnJoinedScene Actor: %s InBindings Id: %d"),
-		*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), InBindings.GetID());
-
-	if (Bindings.IsValid())
-	{
-		OnLeftScene();
-	}
-
-	if (const FContextualAnimSceneBinding* Binding = InBindings.FindBindingByActor(GetOwner()))
-	{
-		Bindings = InBindings;
-
-		USkeletalMeshComponent* SkelMeshComp = UContextualAnimUtilities::TryGetSkeletalMeshComponent(GetOwner());
-		if (SkelMeshComp && !SkelMeshComp->OnTickPose.IsBoundToObject(this))
-		{
-			SkelMeshComp->OnTickPose.AddUObject(this, &UContextualAnimSceneActorComponent::OnTickPose);
-		}
-
-		// Disable collision between actors so they can align perfectly
-		SetIgnoreCollisionWithOtherActors(true);
-
-		// Prevent physics rotation. During the interaction we want to be fully root motion driven
-		if (UCharacterMovementComponent* MovementComp = GetOwner()->FindComponentByClass<UCharacterMovementComponent>())
-		{
-			CharacterPropertiesBackup.bAllowPhysicsRotationDuringAnimRootMotion = MovementComp->bAllowPhysicsRotationDuringAnimRootMotion;
-			CharacterPropertiesBackup.bUseControllerDesiredRotation = MovementComp->bUseControllerDesiredRotation;
-			CharacterPropertiesBackup.bOrientRotationToMovement = MovementComp->bOrientRotationToMovement;
-			MovementComp->bAllowPhysicsRotationDuringAnimRootMotion = false;
-			MovementComp->bUseControllerDesiredRotation = false;
-			MovementComp->bOrientRotationToMovement = false;
-		}
-
-		OnJoinedSceneDelegate.Broadcast(this);
-	}
+	// This function will be removed
 }
 
 void UContextualAnimSceneActorComponent::OnLeftScene()
 {
-	UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::OnLeftScene Actor: %s Current Bindings Id: %d"),
-		*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), Bindings.GetID());
-
-	if (const FContextualAnimSceneBinding* Binding = Bindings.FindBindingByActor(GetOwner()))
-	{
-		// Stop listening to TickPose if we were
-		USkeletalMeshComponent* SkelMeshComp = UContextualAnimUtilities::TryGetSkeletalMeshComponent(GetOwner());
-		if (SkelMeshComp && SkelMeshComp->OnTickPose.IsBoundToObject(this))
-		{
-			SkelMeshComp->OnTickPose.RemoveAll(this);
-		}
-
-		// Restore collision between actors
-		// Note that this assumes that we are the only one disabling the collision between these actors. 
-		// We might want to add a more robust mechanism to avoid overriding a request to disable collision that may have been set by another system
-		SetIgnoreCollisionWithOtherActors(false);
-
-		// Restore bAllowPhysicsRotationDuringAnimRootMotion
-		if (UCharacterMovementComponent* MovementComp = GetOwner()->FindComponentByClass<UCharacterMovementComponent>())
-		{
-			MovementComp->bAllowPhysicsRotationDuringAnimRootMotion = CharacterPropertiesBackup.bAllowPhysicsRotationDuringAnimRootMotion;
-			MovementComp->bUseControllerDesiredRotation = CharacterPropertiesBackup.bUseControllerDesiredRotation;
-			MovementComp->bOrientRotationToMovement = CharacterPropertiesBackup.bOrientRotationToMovement;
-		}
-
-		OnLeftSceneDelegate.Broadcast(this);
-
-		Bindings.Reset();
-	}
+	// This function will be removed
 }
 
 void UContextualAnimSceneActorComponent::JoinScene(const FContextualAnimSceneBindings& InBindings, const TArray<FContextualAnimWarpPoint> WarpPoints, const TArray<FContextualAnimWarpTarget>& ExternalWarpTargets)
@@ -923,8 +919,7 @@ void UContextualAnimSceneActorComponent::JoinScene(const FContextualAnimSceneBin
 
 		AddOrUpdateWarpTargets(AnimTrack.SectionIdx, AnimTrack.AnimSetIdx, WarpPoints, ExternalWarpTargets);
 
-		// Disable collision between actors so they can align perfectly
-		SetIgnoreCollisionWithOtherActors(true);
+		SetCollisionState();
 
 		SetMovementState(AnimTrack.bRequireFlyingMode);
 
@@ -961,10 +956,7 @@ void UContextualAnimSceneActorComponent::LeaveScene()
 			SkelMeshComp->OnTickPose.RemoveAll(this);
 		}
 		
-		// Restore collision between actors
-		// Note that this assumes that we are the only one disabling the collision between these actors. 
-		// We might want to add a more robust mechanism to avoid overriding a request to disable collision that may have been set by another system
-		SetIgnoreCollisionWithOtherActors(false);
+		RestoreCollisionState();
 
 		const FContextualAnimTrack& AnimTrack = Bindings.GetAnimTrackFromBinding(*Binding);
 		RestoreMovementState(AnimTrack.bRequireFlyingMode);

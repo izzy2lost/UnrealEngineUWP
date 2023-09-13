@@ -9,6 +9,26 @@
 class UContextualAnimSceneInstance;
 class UContextualAnimSceneAsset;
 
+UENUM(BlueprintType)
+enum class EContextualAnimCollisionBehavior : uint8
+{
+	None,
+	IgnoreActorWhenMoving,
+	IgnoreChannels
+};
+
+USTRUCT(BlueprintType)
+struct FContextualAnimIgnoreChannelsParam
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Defaults")
+	FName Role = NAME_None;
+
+	UPROPERTY(EditAnywhere, Category = "Defaults")
+	TArray<TEnumAsByte<ECollisionChannel>> Channels;
+};
+
 UCLASS(Blueprintable)
 class CONTEXTUALANIMATION_API UContextualAnimRolesAsset : public UDataAsset
 {
@@ -195,12 +215,13 @@ public:
 	void ForEachAnimTrack(FForEachAnimTrackFunction Function) const;
 
 	FORCEINLINE const FName& GetPrimaryRole() const { return PrimaryRole; }
-	
-	FORCEINLINE bool GetDisableCollisionBetweenActors() const { return bDisableCollisionBetweenActors; }
+	FORCEINLINE EContextualAnimCollisionBehavior GetCollisionBehavior() const { return CollisionBehavior; }
 	FORCEINLINE const TSubclassOf<UContextualAnimSceneInstance>& GetSceneInstanceClass() const { return SceneInstanceClass; }
 	FORCEINLINE int32 GetSampleRate() const { return SampleRate; }
 	FORCEINLINE float GetRadius() const { return Radius; }
 	FORCEINLINE bool ShouldPrecomputeAlignmentTracks() const { return bPrecomputeAlignmentTracks; }
+
+	const TArray<TEnumAsByte<ECollisionChannel>>& GetCollisionChannelsToIgnoreForRole(FName Role) const;
 
 	bool HasValidData() const { return RolesAsset != nullptr && Sections.Num() > 0 && Sections[0].AnimSets.Num() > 0; }
 
@@ -299,7 +320,10 @@ protected:
 	TSubclassOf<UContextualAnimSceneInstance> SceneInstanceClass;
 
 	UPROPERTY(EditAnywhere, Category = "Settings")
-	bool bDisableCollisionBetweenActors = true;
+	EContextualAnimCollisionBehavior CollisionBehavior = EContextualAnimCollisionBehavior::IgnoreActorWhenMoving;
+
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (EditCondition = "CollisionBehavior==EContextualAnimCollisionBehavior::IgnoreChannels", EditConditionHides))
+	TArray<FContextualAnimIgnoreChannelsParam> CollisionChannelsToIgnoreParams;
 
 	/** Whether we should extract and cache alignment tracks off line. */
 	UPROPERTY(EditAnywhere, Category = "Settings", AdvancedDisplay)

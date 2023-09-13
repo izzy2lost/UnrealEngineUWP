@@ -252,6 +252,7 @@ protected:
 		bool bAllowPhysicsRotationDuringAnimRootMotion = false;
 		bool bUseControllerDesiredRotation = false;
 		bool bOrientRotationToMovement = false;
+		TArray<TTuple<ECollisionChannel, ECollisionResponse>> CollisionResponses;
 	};
 	FCharacterProperties CharacterPropertiesBackup;
 
@@ -277,6 +278,8 @@ protected:
 	void OnRep_TransitionData();
 
 	void SetIgnoreCollisionWithOtherActors(bool bValue) const;
+	void SetCollisionState();
+	void RestoreCollisionState();
 
 	void SetMovementState(bool bRequireFlyingMode);
 	void RestoreMovementState(bool bRequireFlyingMode);

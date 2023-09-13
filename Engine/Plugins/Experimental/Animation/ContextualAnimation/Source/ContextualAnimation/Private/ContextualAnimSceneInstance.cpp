@@ -133,7 +133,7 @@ float UContextualAnimSceneInstance::Join(FContextualAnimSceneBinding& Binding)
 		}
 	}
 
-	if (SceneAsset->GetDisableCollisionBetweenActors())
+	if (SceneAsset->GetCollisionBehavior() == EContextualAnimCollisionBehavior::IgnoreActorWhenMoving)
 	{
 		SetIgnoreCollisionWithOtherActors(Actor, true);
 	}
@@ -299,7 +299,7 @@ void UContextualAnimSceneInstance::OnMontageBlendingOut(UAnimMontage* Montage, b
 					}
 				}
 
-				if (SceneAsset->GetDisableCollisionBetweenActors())
+				if (SceneAsset->GetCollisionBehavior() == EContextualAnimCollisionBehavior::IgnoreActorWhenMoving)
 				{
 					SetIgnoreCollisionWithOtherActors(Actor, false);
 				}
