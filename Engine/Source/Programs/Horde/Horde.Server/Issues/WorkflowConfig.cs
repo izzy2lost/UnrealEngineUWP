@@ -106,7 +106,6 @@ namespace Horde.Server.Issues
 		/// Additional issue handlers enabled for this workflow
 		/// </summary>
 		public List<string>? IssueHandlers { get; set; }
-
 	}
 
 	/// <summary>
