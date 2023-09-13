@@ -2178,6 +2178,11 @@ bool FBodyInstance::UpdateBodyScale(const FVector& InScale3D, bool bForceUpdate)
 
 					break;
 				}
+				case ImplicitObjectType::HeightField:
+				{
+					// HeightField is only used by Landscape, which does different code path from other primitives
+					break;
+				}
 				default:
 				{
 					CHAOS_ENSURE(false);
