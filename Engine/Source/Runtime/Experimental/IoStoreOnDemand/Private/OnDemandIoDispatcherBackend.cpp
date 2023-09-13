@@ -39,6 +39,10 @@
 
 #include <atomic>
 
+#if !UE_BUILD_SHIPPING
+#include "Modules/ModuleManager.h"
+#endif 
+
 namespace UE::IO::IAS
 {
 
