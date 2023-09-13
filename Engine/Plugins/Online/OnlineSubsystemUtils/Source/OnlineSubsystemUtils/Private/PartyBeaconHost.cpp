@@ -667,7 +667,7 @@ EPartyReservationResult::Type APartyBeaconHost::AddPartyReservation(const FParty
 
 					if (bContinue)
 					{
-						if (State->AreTeamsAvailable(ReservationRequest))
+						if (!ShouldRespectCompetitiveIntegrity() || State->AreTeamsAvailable(ReservationRequest))
 						{
 							if (State->CrossPlayAllowed(ReservationRequest))
 							{
