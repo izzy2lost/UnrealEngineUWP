@@ -182,6 +182,7 @@ public:
 
 	// Force a rebuild of the GT geometry. This needs to happen immediately when we add/remove on the GT so that the SQ is up to date
 	// and doesn't need to wait for the next OnSyncBodies.
+	UE_DEPRECATED(5.4, "Cluster unions now incrementally update their geometry. A force rebuild should never be needed - this function will no longer book-keep properly either.")
 	ENGINE_API void ForceRebuildGTParticleGeometry();
 
 	ENGINE_API const FSpatialAcceleration* GetSpatialAcceleration() const;
@@ -276,10 +277,10 @@ private:
 	ENGINE_API bool IsAuthority() const;
 
 	// Merge all the physics objects geometries into the cluster union
-	ENGINE_API void AddGTParticleGeometry(const TArray<Chaos::FPhysicsObjectHandle>& PhysicsObjects) const;
+	ENGINE_API void AddGTParticleGeometry(const TArray<Chaos::FPhysicsObjectHandle>& PhysicsObjects);
 
 	// Remove all the physics objects geometries from the cluster union
-	ENGINE_API void RemoveGTParticleGeometry(const TSet<Chaos::FPhysicsObjectHandle>& PhysicsObjects) const;
+	ENGINE_API void RemoveGTParticleGeometry(const TSet<Chaos::FPhysicsObjectHandle>& PhysicsObjects);
 
 	//~ Begin UActorComponent Interface
 public:

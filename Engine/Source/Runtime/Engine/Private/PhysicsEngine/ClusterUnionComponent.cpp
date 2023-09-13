@@ -25,9 +25,6 @@ namespace
 	bool bUseClusterUnionAccelerationStructure = true;
 	FAutoConsoleVariableRef CVarUseClusterUnionAccelerationStructure(TEXT("ClusterUnion.UseAccelerationStructure"), bUseClusterUnionAccelerationStructure, TEXT("Whether component level sweeps and overlaps against cluster unions should use an acceleration structure instead."));
 
-	bool bIncrementalUnionBuild = false;
-	FAutoConsoleVariableRef CVarIncrementalUnionBuild(TEXT("ClusterUnion.IncrementalUnionBuild"), bIncrementalUnionBuild , TEXT("Cvar to incrementally build the union."));
-	
 	template<typename PayloadType>
 	struct TClusterUnionAABBTreeStorageTraits
 	{
@@ -194,22 +191,15 @@ void UClusterUnionComponent::AddComponentToCluster(UPrimitiveComponent* InCompon
 	// This technically is giving us a false sense of security because when we get this notification, the primitive component will already have no physics proxy on it so we can't actually grab physics objects/particles from it.
 	InComponent->OnComponentPhysicsStateChanged.AddUniqueDynamic(this, &UClusterUnionComponent::HandleComponentPhysicsStateChangePostAddIntoClusterUnion);
 
+	if (bRebuildGeometry)
+	{
+		AddGTParticleGeometry(Objects);
+	}
+
 	PendingComponentSync.Add(InComponent, PendingData);
 
 	PhysicsProxy->AddPhysicsObjects_External(Objects);
 	ForceSetChildToParent(InComponent, PendingData.BoneIds, ChildToParents);
-
-	if (bRebuildGeometry)
-	{
-		if(!bIncrementalUnionBuild)
-		{
-			ForceRebuildGTParticleGeometry();
-		}
-		else
-		{
-			AddGTParticleGeometry(Objects);
-		}
-	}
 }
 
 void UClusterUnionComponent::RemoveComponentFromCluster(UPrimitiveComponent* InComponent)
@@ -280,20 +270,12 @@ void UClusterUnionComponent::RemoveComponentFromCluster(UPrimitiveComponent* InC
 			}
 			ComponentData->CachedAccelerationPayloads.Reset();
 		}
-	}
 
-	// If PhysicsObjectsToRemove is empty, it either means that BoneIds is empty OR the component's physics state is already destroyed.
-	// In the case of the latter, we rely on the physics thread to cleanup the cluster union manager properly and to sync back.
-	if (!PhysicsObjectsToRemove.IsEmpty())
-	{
-		PhysicsProxy->RemovePhysicsObjects_External(PhysicsObjectsToRemove);
-		
-		if(!bIncrementalUnionBuild)
-        {
-			ForceRebuildGTParticleGeometry();
-		}
-		else
+		// If PhysicsObjectsToRemove is empty, it either means that BoneIds is empty OR the component's physics state is already destroyed.
+		// In the case of the latter, we rely on the physics thread to cleanup the cluster union manager properly and to sync back.
+		if (!PhysicsObjectsToRemove.IsEmpty())
 		{
+			PhysicsProxy->RemovePhysicsObjects_External(PhysicsObjectsToRemove);
 			RemoveGTParticleGeometry(PhysicsObjectsToRemove);
 		}
 	}
@@ -378,6 +360,14 @@ void UClusterUnionComponent::RemoveComponentBonesFromCluster(UPrimitiveComponent
 			PhysicsObjectsToRemove = TSet<Chaos::FPhysicsObjectHandle>{ GetAllPhysicsObjectsById(InComponent, RemoveBoneIdsSet.Array()) };
 		}
 
+		// If PhysicsObjectsToRemove is empty, it either means that BoneIds is empty OR the component's physics state is already destroyed.
+		// In the case of the latter, we rely on the physics thread to cleanup the cluster union manager properly and to sync back.
+		if (!PhysicsObjectsToRemove.IsEmpty())
+		{
+			PhysicsProxy->RemovePhysicsObjects_External(PhysicsObjectsToRemove);
+			RemoveGTParticleGeometry(PhysicsObjectsToRemove);
+		}
+
 		if (ComponentData->BoneIds.IsEmpty())
 		{
 			// We need to mark the replicated proxy as pending deletion.
@@ -395,18 +385,11 @@ void UClusterUnionComponent::RemoveComponentBonesFromCluster(UPrimitiveComponent
 
 			PerComponentData.Remove(InComponent);
 		}
-	}
 
-	// If PhysicsObjectsToRemove is empty, it either means that BoneIds is empty OR the component's physics state is already destroyed.
-	// In the case of the latter, we rely on the physics thread to cleanup the cluster union manager properly and to sync back.
-	if (!PhysicsObjectsToRemove.IsEmpty())
-	{
-		PhysicsProxy->RemovePhysicsObjects_External(PhysicsObjectsToRemove);
-		ForceRebuildGTParticleGeometry();
 	}
 }
 
-void UClusterUnionComponent::AddGTParticleGeometry(const TArray<Chaos::FPhysicsObjectHandle>& PhysicsObjects) const
+void UClusterUnionComponent::AddGTParticleGeometry(const TArray<Chaos::FPhysicsObjectHandle>& PhysicsObjects)
 {
 	if (!PhysicsProxy)
 	{
@@ -420,8 +403,15 @@ void UClusterUnionComponent::AddGTParticleGeometry(const TArray<Chaos::FPhysicsO
 	TArray<Chaos::FPBDRigidParticle*> ShapeParticles;
 	
 	const FTransform ClusterWorldTM = GetComponentTransform();
-	for (Chaos::FPBDRigidParticle* RigidParticle : Interface->GetAllRigidParticles(PhysicsObjects))
+	for (Chaos::FPhysicsObjectHandle PhysicsObject : PhysicsObjects)
 	{
+		const int32 BoneId = Chaos::FPhysicsObjectInterface::GetId(PhysicsObject);
+		if (BoneId == INDEX_NONE)
+		{
+			continue;
+		}
+
+		Chaos::FPBDRigidParticle* RigidParticle = Interface->GetRigidParticle(PhysicsObject);
 		if (RigidParticle && RigidParticle->GetGeometry())
 		{
 			const FTransform ChildWorldTM{ RigidParticle->R(), RigidParticle->X() };
@@ -432,7 +422,8 @@ void UClusterUnionComponent::AddGTParticleGeometry(const TArray<Chaos::FPhysicsO
 	}
 	if(!ImplicitObjects.IsEmpty() && PhysicsProxy->GetParticle_External())
 	{
-		if(PhysicsProxy->GetParticle_External()->GetGeometry() == nullptr)
+		const Chaos::FImplicitObjectRef ExistingGeometry = PhysicsProxy->GetParticle_External()->GetGeometry();
+		if(ExistingGeometry == nullptr || ExistingGeometry->GetType() != Chaos::ImplicitObjectType::Union)
 		{
 			Chaos::FImplicitObjectUnion* NewGeometry = ImplicitObjects.IsEmpty() ? new Chaos::FImplicitObjectUnionClustered() : new Chaos::FImplicitObjectUnion(MoveTemp(ImplicitObjects));
 			NewGeometry->SetAllowBVH(true);
@@ -446,7 +437,7 @@ void UClusterUnionComponent::AddGTParticleGeometry(const TArray<Chaos::FPhysicsO
 	}
 }
 
-void UClusterUnionComponent::RemoveGTParticleGeometry(const TSet<Chaos::FPhysicsObjectHandle>& PhysicsObjects) const
+void UClusterUnionComponent::RemoveGTParticleGeometry(const TSet<Chaos::FPhysicsObjectHandle>& PhysicsObjects)
 {
 	if (!PhysicsProxy)
 	{
@@ -464,11 +455,19 @@ void UClusterUnionComponent::RemoveGTParticleGeometry(const TSet<Chaos::FPhysics
 	FLockedReadPhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockRead(GetWorld()->GetPhysicsScene());
 
 	TArray<Chaos::FPBDRigidParticle*> ShapeParticles;
-	for (Chaos::FPBDRigidParticle* RigidParticle : Interface->GetAllRigidParticles(ArrayObjects))
+	for (Chaos::FPhysicsObjectHandle PhysicsObject : PhysicsObjects)
 	{
+		const int32 BoneId = Chaos::FPhysicsObjectInterface::GetId(PhysicsObject);
+		if (BoneId == INDEX_NONE)
+		{
+			continue;
+		}
+
+		Chaos::FPBDRigidParticle* RigidParticle = Interface->GetRigidParticle(PhysicsObject);
 		if (RigidParticle && RigidParticle->GetGeometry())
 		{
 			ShapeParticles.Add(RigidParticle);
+
 		}
 	}
 	if(!ShapeParticles.IsEmpty() && PhysicsProxy->GetParticle_External())
@@ -476,7 +475,6 @@ void UClusterUnionComponent::RemoveGTParticleGeometry(const TSet<Chaos::FPhysics
 		PhysicsProxy->RemoveShapes_External(ShapeParticles);
 	}
 }
-
 
 void UClusterUnionComponent::ForceRebuildGTParticleGeometry()
 {
@@ -824,18 +822,35 @@ void UClusterUnionComponent::SyncClusterUnionFromProxy()
 	}
 	
 	const Chaos::FClusterUnionSyncedData& FullData = PhysicsProxy->GetSyncedData_External();
+
+	TArray<Chaos::FPBDRigidParticle*> ChildParticles;
+	ChildParticles.Reserve(FullData.ChildParticles.Num());
+
 	// Note that at the UClusterUnionComponent level we really only want to be dealing with components.
 	// Hence why we need to modify each of the particles that we synced from the game thread into a
 	// component + bone id combination for identification. 
 	TMap<TObjectKey<UPrimitiveComponent>, TMap<int32, FTransform>> MappedData;
-	for (const Chaos::FClusterUnionChildData& ChildData : FullData.ChildParticles)
+
 	{
-		// Using the scene's proxy to component mapping let's us detect a component physics state was destroyed.
-		if (UPrimitiveComponent* Component = Scene->GetOwningComponent<UPrimitiveComponent>(ChildData.Proxy))
+		FLockedReadPhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockRead(GetWorld()->GetPhysicsScene());
+		for (const Chaos::FClusterUnionChildData& ChildData : FullData.ChildParticles)
 		{
-			MappedData.FindOrAdd(Component).Add(ChildData.BoneId, ChildData.ChildToParent);
+			// Using the scene's proxy to component mapping let's us detect a component physics state was destroyed.
+			if (UPrimitiveComponent* Component = Scene->GetOwningComponent<UPrimitiveComponent>(ChildData.Proxy))
+			{
+				MappedData.FindOrAdd(Component).Add(ChildData.BoneId, ChildData.ChildToParent);
+	
+				Chaos::FPhysicsObjectHandle Handle = Component->GetPhysicsObjectById(ChildData.BoneId);
+				ChildParticles.Add(Interface->GetRigidParticle(Handle));
+			}
+			else
+			{
+				ChildParticles.Add(nullptr);
+			}
 		}
 	}
+
+	PhysicsProxy->ForceSetGeometryChildParticles_External(MoveTemp(ChildParticles));
 
 	// We need to handle any additions, deletions, and modifications to any child in the cluster union here.
 	// If a component lives in MappedData but not in PerComponentData, new component!

@@ -7,7 +7,6 @@
 
 namespace Chaos
 {
-	class FImplicitObjectUnionClustered;
 
 /** 
  * Used within the clustering system to describe the clustering hierarchy. The ClusterId

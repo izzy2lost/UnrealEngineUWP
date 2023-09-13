@@ -43,6 +43,7 @@ namespace Chaos
 			BufferData.V = Particle->V();
 			BufferData.W = Particle->W();
 			BufferData.ObjectState = Particle->ObjectState();
+			BufferData.Geometry = nullptr;
 
 			const FShapesArray& ShapeArray = Particle->ShapesArray();
 			BufferData.CollisionData.Empty(ShapeArray.Num());
@@ -59,11 +60,6 @@ namespace Chaos
 			if constexpr (std::is_base_of_v<FClusterUnionPhysicsProxy::FInternalParticle, TParticle>)
 			{
 				BufferData.bIsAnchored = Particle->IsAnchored();
-				BufferData.Geometry = Particle->GetGeometry();
-			}
-			else if constexpr (std::is_base_of_v<FClusterUnionPhysicsProxy::FExternalParticle, TParticle>)
-			{
-				BufferData.Geometry = Particle->GetGeometry();
 			}
 		}
 	}
@@ -263,26 +259,10 @@ namespace Chaos
 			}
 		);
 	}
-	void FClusterUnionPhysicsProxy::UpdateShapes_External(const TArray<FPBDRigidParticle*>& ShapeParticles)
-	{
-		FImplicitObjectUnion* ImplicitUnion = Particle_External->GetGeometry()->AsA<FImplicitObjectUnion>();
-		const int32 NumSimpleShapes = ImplicitUnion ? ImplicitUnion->GetConvexes().Num() : 0;
-		
-		UpdateShapesDatas(ShapeParticles, Particle_External->ShapesArray(),
-			InitData.ActorId, InitData.ComponentId, NumSimpleShapes);
-	}
-	
-	void FClusterUnionPhysicsProxy::RemoveShapes_External(const TArray<FPBDRigidParticle*>& ShapeParticles) const
+
+	void FClusterUnionPhysicsProxy::RemoveShapes_External(const TArray<FPBDRigidParticle*>& ShapeParticles)
     {
-		if (!ensure(Particle_External))
-		{
-			return;
-		}
-		for(FPBDRigidParticle* ShapeParticle : ShapeParticles)
-		{
-			const TUniquePtr<Chaos::FPerShapeData>& TemplateShape = ShapeParticle->ShapesArray()[0];
-			Particle_External->RemoveShape(TemplateShape.Get(), false);
-		}
+		RemoveParticlesFromClusterUnionGeometry(Particle_External.Get(), ShapeParticles, GeometryChildParticles_External);
     }
 	
 	void FClusterUnionPhysicsProxy::MergeGeometry_External(TArray<Chaos::FImplicitObjectPtr>&& ImplicitGeometries, const TArray<FPBDRigidParticle*>& ShapeParticles)
@@ -293,10 +273,18 @@ namespace Chaos
 		}
 		
 		// In the cases where this is necessary, the SQ should have a valid state - it's just the geometry itself that isn't valid.
-		Particle_External->MergeGeometry(MoveTemp(ImplicitGeometries));
+		ModifyAdditionOfChildrenToClusterUnionGeometry(
+			Particle_External.Get(),
+			ShapeParticles,
+			InitData.ActorId,
+			InitData.ComponentId,
+			[this, ImplicitGeometries=MoveTemp(ImplicitGeometries)]() mutable
+			{
+				Particle_External->MergeGeometry(MoveTemp(ImplicitGeometries));
+			}
+		);
 
-		// Update shapes datas (Collision/Query/Sim)
-		UpdateShapes_External(ShapeParticles);
+		GeometryChildParticles_External.Append(ShapeParticles);
 	}
 
 	void FClusterUnionPhysicsProxy::SetGeometry_External(const Chaos::FImplicitObjectPtr& Geometry, const TArray<FPBDRigidParticle*>& ShapeParticles)
@@ -307,10 +295,18 @@ namespace Chaos
 		}
 
 		// In the cases where this is necessary, the SQ should have a valid state - it's just the geometry itself that isn't valid.
-		Particle_External->SetGeometry(Geometry);
+		ModifyAdditionOfChildrenToClusterUnionGeometry(
+			Particle_External.Get(),
+			ShapeParticles,
+			InitData.ActorId,
+			InitData.ComponentId,
+			[this, &Geometry]()
+			{
+				Particle_External->SetGeometry(Geometry);
+			}
+		);
 
-		// Update shapes datas (Collision/Query/Sim)
-		UpdateShapes_External(ShapeParticles);
+		GeometryChildParticles_External = ShapeParticles;
 	}
 
 	DECLARE_CYCLE_STAT(TEXT("FClusterUnionPhysicsProxy::PushToPhysicsState"), STAT_ClusterUnionPhysicsProxyPushToPhysicsState, STATGROUP_Chaos);
@@ -413,7 +409,10 @@ namespace Chaos
 			SyncedData_External.ChildParticles.Add(ConvertedData);
 		}
 
-		Particle_External->SetGeometry(CurrentPullData.Geometry);
+		if (CurrentPullData.Geometry)
+		{
+			Particle_External->SetGeometry(CurrentPullData.Geometry);
+		}
 		Particle_External->SetObjectState(CurrentPullData.ObjectState, true, /*bInvalidate=*/false);
 
 		const FShapesArray& ShapeArray = Particle_External->ShapesArray();
@@ -547,7 +546,11 @@ namespace Chaos
 				}
 			}
 
-			BufferData.Geometry = ClusterUnion->Geometry;
+			// TODO: Probably only want to do this when something about the geometry changes.
+			if (!ClusterUnion->ChildParticles.IsEmpty())
+			{
+				BufferData.Geometry = ClusterUnion->Geometry->DeepCopyGeometry();
+			}
 		}
 	}
 

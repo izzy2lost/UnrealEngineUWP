@@ -556,6 +556,7 @@ public:
 
 	const FImplicitObjectRef GetGeometry() const { return GeometryParticles->GetGeometry(ParticleIdx).GetReference(); }
 	void SetGeometry(const FImplicitObjectPtr& InGeometry) { GeometryParticles->SetGeometry(ParticleIdx, InGeometry); }
+	void MergeGeometry(TArray<Chaos::FImplicitObjectPtr>&& Objects);
 
 	UE_DEPRECATED(5.4, "Use GetGeometry instead")
 	TSerializablePtr<FImplicitObject> Geometry() const { check(false); return TSerializablePtr<FImplicitObject>(); }
@@ -579,7 +580,11 @@ public:
 	void SetDynamicGeometry(TUniquePtr<FImplicitObject>&& Unique) { check(false); }
 
 	const FShapesArray& ShapesArray() const { return GeometryParticles->ShapesArray(ParticleIdx); }
+
 	const FShapeInstanceArray& ShapeInstances() const { return GeometryParticles->ShapeInstances(ParticleIdx); }
+
+	void RemoveShape(FPerShapeData* InShape);
+	void RemoveShapeAtIndex(int32 InIndex);
 
 	const TAABB<T, d>& LocalBounds() const { return GeometryParticles->LocalBounds(ParticleIdx); }
 	void SetLocalBounds(const TAABB<T, d>& NewBounds) { GeometryParticles->LocalBounds(ParticleIdx) = NewBounds; }
@@ -2529,6 +2534,7 @@ public:
 	TSerializablePtr<FImplicitObject> Geometry() const { check(false); return TSerializablePtr<FImplicitObject>(); }
 
 	CHAOS_API void RemoveShape(FPerShapeData* InShape, bool bWakeTouching);
+	CHAOS_API void RemoveShapeAtIndex(int32 InIndex);
 
 	void* UserData() const { return MUserData; }
 	void SetUserData(void* InUserData)

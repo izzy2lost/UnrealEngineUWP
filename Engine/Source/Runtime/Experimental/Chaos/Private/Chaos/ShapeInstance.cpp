@@ -8,6 +8,7 @@ namespace Chaos
 {
 	static_assert(sizeof(FShapeInstanceProxy) <= 192, "FShapeInstanceProxy was optimized to fit into 192b bin of MB3 to prevent excess memory waste");
 
+	DECLARE_CYCLE_STAT(TEXT("UpdateShapesArrayFromGeometryImpl"), STAT_UpdateShapesArrayFromGeometryImpl, STATGROUP_Chaos);
 	// Create or reuse the shapes in the shapes array and populate them with the Geometry.
 	// If we have a Union it will be unpacked into the ShapesArray.
 	// On the Physics Thread we set bAllowCachedLeafInfo which caches the shapes world space state to optimize collision detection,
@@ -20,6 +21,7 @@ namespace Chaos
 		const FRigidTransform3& ActorTM,
 		IPhysicsProxyBase* Proxy)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_UpdateShapesArrayFromGeometryImpl);
 		// TShapesArrayType = TArray<TUniquePtr<T>>
 		using FShapePtrType = typename TShapesArrayType::ElementType;	// TUniquePtr<T>
 		using FShapeType = typename FShapePtrType::ElementType;			// T
@@ -27,7 +29,7 @@ namespace Chaos
 		if (Geometry)
 		{
 			const int32 OldShapeNum = ShapesArray.Num();
-			if (const auto* Union = Geometry->template GetObject<FImplicitObjectUnion>())
+			if (const FImplicitObjectUnion* Union = Geometry->template GetObject<FImplicitObjectUnion>())
 			{
 				const int32 NumImplicits = Union->NumImplicits();
 				ShapesArray.Reserve(NumImplicits);
@@ -46,6 +48,7 @@ namespace Chaos
 					{
 						// Update geometry pointer if it changed
 						FShapeType::UpdateGeometry(ShapesArray[ShapeIndex], ShapeGeometry);
+						ShapesArray[ShapeIndex]->ModifyShapeIndex(ShapeIndex);
 					}
 				}
 			}

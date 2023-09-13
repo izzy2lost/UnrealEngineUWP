@@ -252,6 +252,7 @@ namespace Chaos
 		bool& HasCollision(const int32 Index) { return MHasCollision[Index]; }
 
 		const FShapesArray& ShapesArray(const int32 Index) const { return reinterpret_cast<const FShapesArray&>(MShapesArray[Index]); }
+		void RemoveShapeAtIndex(const int32 ParticleIndex, const int32 Index);
 
 		const FShapeInstanceArray& ShapeInstances(const int32 Index) const { return MShapesArray[Index]; }
 

@@ -40,7 +40,9 @@ namespace Chaos
 		ForceGenerateConnectionGraph = 1 << 1,
 		IncrementalGenerateConnectionGraph = 1 << 2,
 		UpdateKinematicProperties = 1 << 3,
-		All = RecomputeMassOrientation | ForceGenerateConnectionGraph | UpdateKinematicProperties
+		ForceGenerateGeometry = 1 << 4,
+		IncrementalGenerateGeometry = 1 << 5,
+		All = RecomputeMassOrientation | ForceGenerateConnectionGraph | UpdateKinematicProperties | ForceGenerateGeometry
 	};
 	ENUM_CLASS_FLAGS(EUpdateClusterUnionPropertiesFlags);
 
@@ -48,6 +50,13 @@ namespace Chaos
 	{
 		Add,
 		Remove
+	};
+
+	enum class EClusterUnionGeometryOperation : int8
+	{
+		Add,
+		Remove,
+		Refresh
 	};
 
 	struct FClusterUnionCreationParameters
@@ -74,6 +83,10 @@ namespace Chaos
 
 		// All the particles that belong to this cluster.
 		TArray<FPBDRigidParticleHandle*> ChildParticles;
+
+		// All the particles that belong to this cluster that are currently in the implicit object geometry. There is a delay between removal from ChildParticles and its subsequent
+		// removal from GeometryChildParticles.
+		TArray<FPBDRigidParticleHandle*> GeometryChildParticles;
 
 		// Additional properties that are only relevant for particles that have been added into a cluster union.
 		TMap<FPBDRigidParticleHandle*, FClusterUnionParticleProperties> ChildProperties;
@@ -104,6 +117,16 @@ namespace Chaos
 
 		// Pending particles that need to be added into the connectivity graph.
 		TArray<TPair<FPBDRigidParticleHandle*, EClusterUnionConnectivityOperation>> PendingConnectivityOperations;
+
+		const TArray<FPBDRigidParticleHandle*>& GetPendingGeometryOperationParticles(EClusterUnionGeometryOperation Op) const;
+		void AddPendingGeometryOperation(EClusterUnionGeometryOperation Op, FPBDRigidParticleHandle* Particle);
+		void ClearAllPendingGeometryOperations();
+		void ClearPendingGeometryOperations(EClusterUnionGeometryOperation Op);
+
+	private:
+		// Pending particles that need to be added into/removed from the cluster union's geometry.
+		// These need to be arrays to be able to maintain ordering.
+		TMap<EClusterUnionGeometryOperation, TArray<FPBDRigidParticleHandle*>> PendingGeometryOperations;
 	};
 
 	struct FClusterUnionChildToParentUpdate
@@ -246,61 +269,168 @@ namespace Chaos
 
 		// Flush the cluster union's incremental connectivity operations
 		CHAOS_API void FlushIncrementalConnectivityGraphOperations(FClusterUnion& ClusterUnion);
+
+		// Flush the cluster union's incremental geometry operations.
+		void FlushIncrementalGeometryOperations(FClusterUnion& ClusterUnion);
 	};
 
-	// Update all the shapes datas including the simplified ones
-	template<typename ParticleType>
-	void UpdateShapesDatas(const TArray<ParticleType*>& ShapesParticles,
-		const FShapesArray& ShapesArray, const int32 ActorId, const int32 ComponentID, const int32 NumSimpleShapes)
+	template<typename TParticle>
+	void TransferClusterUnionShapeData(const TUniquePtr<Chaos::FPerShapeData>& ShapeData, TParticle* TemplateParticle, const TUniquePtr<Chaos::FPerShapeData>& TemplateShape, int32 ActorId, int32 ComponentId)
 	{
-		auto TransferShapeData = [&ActorId, &ComponentID](const TUniquePtr<Chaos::FPerShapeData>& ShapeData, const TUniquePtr<Chaos::FPerShapeData>& TemplateShape)
+		if (ShapeData && TemplateShape)
 		{
-			if (ShapeData && TemplateShape)
 			{
-				{
-					FCollisionData Data = TemplateShape->GetCollisionData();
-					Data.UserData = nullptr;
-					ShapeData->SetCollisionData(Data);
-				}
-
-				{
-					FCollisionFilterData Data = TemplateShape->GetQueryData();
-					Data.Word0 = ActorId;
-					ShapeData->SetQueryData(Data);
-				}
-
-				{
-					FCollisionFilterData Data = TemplateShape->GetSimData();
-					Data.Word0 = 0;
-					Data.Word2 = ComponentID;
-					ShapeData->SetSimData(Data);
-				}
+				FCollisionData Data = TemplateShape->GetCollisionData();
+				Data.UserData = nullptr;
+				ShapeData->SetCollisionData(Data);
 			}
-		};
-		if (!ShapesParticles.IsEmpty() && (ShapesParticles.Num() <= (ShapesArray.Num()-NumSimpleShapes)))
-		{
-			const int32 ShapesOffset = ShapesArray.Num() - ShapesParticles.Num();
-			for (int32 ParticleIndex = 0; ParticleIndex < ShapesParticles.Num(); ++ParticleIndex)
+
 			{
-				const TUniquePtr<Chaos::FPerShapeData>& ShapeData = ShapesArray[ShapesOffset+ParticleIndex];
-				const TUniquePtr<Chaos::FPerShapeData>& TemplateShape = ShapesParticles[ParticleIndex]->ShapesArray()[0];
-				TransferShapeData(ShapeData, TemplateShape);
-				
-				if(ShapeData && NumSimpleShapes > 0)
+				FCollisionFilterData Data = TemplateShape->GetQueryData();
+				Data.Word0 = ActorId;
+				ShapeData->SetQueryData(Data);
+			}
+
+			{
+				FCollisionFilterData Data = TemplateShape->GetSimData();
+				Data.Word0 = 0;
+				Data.Word2 = ComponentId;
+				ShapeData->SetSimData(Data);
+			}
+		}
+	}
+
+	/**
+	 * Wraps any additions to the cluster union geometry. We assume that the input lambda Func
+	 * will modify the cluster union particle's geometry *and* shapes with the input particles.
+	 * This function will make sure the newly added shapes are setup properly with the expected
+     * properties (sim data, query data, user data etc.).
+	 */
+	template<typename TClusterParticle, typename TParticle, typename TLambda>
+	void ModifyAdditionOfChildrenToClusterUnionGeometry(TClusterParticle* ClusterParticle, const TArray<TParticle*>& Particles, int32 ActorId, int32 ComponentId, TLambda&& Func)
+	{
+		if (!ClusterParticle || Particles.IsEmpty())
+		{
+			return;
+		}
+
+		FImplicitObjectUnion* ImplicitUnion = ClusterParticle->GetGeometry() ? ClusterParticle->GetGeometry()->template AsA<FImplicitObjectUnion>() : nullptr;
+		const int32 OldNumSimpleShapes = ImplicitUnion ? ImplicitUnion->GetConvexes().Num() : 0;
+		const int32 OldNumChildShapes = ImplicitUnion ? ImplicitUnion->GetNumRootObjects() : 0;
+
+		Func();
+
+		// We must have a union at this point since the contract is that Func is adding a shape
+		// which means we must be in a union already.
+		check(ClusterParticle->GetGeometry() != nullptr);
+		ImplicitUnion = ClusterParticle->GetGeometry()->template AsA<FImplicitObjectUnion>();
+		check(ImplicitUnion != nullptr);
+
+		const int32 NewNumSimpleShapes = ImplicitUnion->GetConvexes().Num();
+		const int32 NewNumChildShapes = ImplicitUnion->GetNumRootObjects();
+		const FShapesArray& ShapeArray = ClusterParticle->ShapesArray();
+		check(ShapeArray.Num() == (NewNumChildShapes + NewNumSimpleShapes));
+		check(Particles.Num() == (NewNumChildShapes - OldNumChildShapes));
+	
+		for (int32 Index = 0; Index < Particles.Num(); ++Index)
+		{
+			TParticle* Particle = Particles[Index];
+			if (!Particle)
+			{
+				continue;
+			}
+
+			const TUniquePtr<Chaos::FPerShapeData>& TemplateShape = Particle->ShapesArray()[0];
+			if (!TemplateShape)
+			{
+				continue;
+			}
+
+			const int32 ShapeIndex = NewNumSimpleShapes + OldNumChildShapes + Index;
+			if (const TUniquePtr<Chaos::FPerShapeData>& ShapeData = ShapeArray[ShapeIndex])
+			{
+				TransferClusterUnionShapeData(ShapeData, Particle, TemplateShape, ActorId, ComponentId);
+
+				if (NewNumSimpleShapes > 0)
 				{
 					ShapeData->SetSimEnabled(false);
 				}
 			}
-			for (int32 ShapeIndex = 0; ShapeIndex < NumSimpleShapes; ++ShapeIndex)
+		}
+
+		for (int32 Index = OldNumSimpleShapes; Index < NewNumSimpleShapes; ++Index)
+		{
+			const TUniquePtr<Chaos::FPerShapeData>& ShapeData = ShapeArray[Index];
+			const TUniquePtr<Chaos::FPerShapeData>& TemplateShape = Particles[0]->ShapesArray()[0];
+
+			if (ShapeData && TemplateShape)
 			{
-				const TUniquePtr<Chaos::FPerShapeData>& ShapeData = ShapesArray[ShapeIndex];
-				const TUniquePtr<Chaos::FPerShapeData>& TemplateShape = ShapesParticles[0]->ShapesArray()[0];
-				TransferShapeData(ShapeData, TemplateShape);
-				
+				TransferClusterUnionShapeData<TParticle>(ShapeData, nullptr, TemplateShape, ActorId, ComponentId);
 				ShapeData->SetQueryEnabled(false);
 			}
 		}
 	}
-	
 
+	/**
+	 * Utility function to remove particles from a cluster union's geometry incrementally.
+	 */
+	template<typename TClusterParticle, typename TParticle>
+	void RemoveParticlesFromClusterUnionGeometry(TClusterParticle* ClusterParticle, const TArray<TParticle*>& ShapeParticles, TArray<TParticle*>& AllChildParticles)
+	{
+		if (!ensure(ClusterParticle))
+		{
+			return;
+		}
+
+		const Chaos::FShapesArray& ShapesArray = ClusterParticle->ShapesArray();
+		const Chaos::FImplicitObjectRef Geometry = ClusterParticle->GetGeometry();
+		check(Geometry != nullptr);
+
+		const Chaos::FImplicitObjectUnion& GeometryUnion = Geometry->GetObjectChecked<Chaos::FImplicitObjectUnion>();
+		const int32 NumSimpleShapes = GeometryUnion.GetConvexes().Num();
+		check(AllChildParticles.Num() == (ShapesArray.Num() - NumSimpleShapes));
+		
+		TArray<int32> ShapeIndicesToRemove;
+		ShapeIndicesToRemove.Reserve(ShapeParticles.Num());
+		for(TParticle* ShapeParticle : ShapeParticles)
+		{
+			check(ShapeParticle != nullptr);
+			const int32 Index = AllChildParticles.Find(ShapeParticle);
+			if (Index != INDEX_NONE)
+			{
+				ShapeIndicesToRemove.Add(Index + NumSimpleShapes);
+			}
+		}
+
+		// To make sure we preserve the index as we remove shapes one-by-one, we need to order
+		// shape removal based on their index.
+		ShapeIndicesToRemove.Sort(
+			[](const int32 A, const int32 B)
+			{
+				// This way we guarantee descending order.
+				return A > B;
+			}
+		);
+
+		int32 LastIndex = INDEX_NONE;
+		// TODO: Can we batch this to remove all shapes at once?
+		// We're going to need to do that so we don't do multiple iterations through the shapes array.
+		for (int32 ToRemoveIndex : ShapeIndicesToRemove)
+		{
+			// This is a good cheap way of preventing us from trying to remove the same shape (index)
+			// multiple times.
+			if (ToRemoveIndex == LastIndex)
+			{
+				// Probably a good indication of a failure if we end up trying to remove the same shape more than once.
+				check(false);
+				continue;
+			}
+
+			ClusterParticle->RemoveShapeAtIndex(ToRemoveIndex);
+			AllChildParticles.RemoveAt(ToRemoveIndex - NumSimpleShapes);
+			LastIndex = ToRemoveIndex;
+		}
+
+		check(AllChildParticles.Num() == (ShapesArray.Num() - NumSimpleShapes));
+	}
 }

@@ -83,6 +83,26 @@ namespace Chaos
 		}
 	}
 
+	template <typename T, int d, bool bPersistent>
+	void Chaos::TGeometryParticleHandleImp<T, d, bPersistent>::MergeGeometry(TArray<Chaos::FImplicitObjectPtr>&& Objects)
+	{
+		if (Objects.IsEmpty())
+		{
+			return;
+		}
+
+		const FImplicitObjectRef CurrentGeometry = GetGeometry();
+		ensure(CurrentGeometry != nullptr);
+		if (ensure(CurrentGeometry->GetType() == FImplicitObjectUnion::StaticType()))
+		{
+			FImplicitObjectUnion& Union = CurrentGeometry->GetObjectChecked<FImplicitObjectUnion>();
+			Union.Combine(Objects);
+
+			// Needed to update the shapes array.
+			SetGeometry(GeometryParticles->GetGeometry(ParticleIdx));
+		}
+	}
+
 	template <typename T, int d>
 	void Chaos::TGeometryParticle<T, d>::RemoveShape(FPerShapeData* InShape, bool bWakeTouching)
 	{
@@ -94,24 +114,89 @@ namespace Chaos
 		{
 			if (InShape == MShapesArray[Index].Get())
 			{
-				MShapesArray.RemoveAt(Index);
 				FoundIndex = Index;
 				break;
 			}
 		}
 
+		RemoveShapeAtIndex(FoundIndex);
+	}
+
+	template <typename T, int d>
+	void Chaos::TGeometryParticle<T, d>::RemoveShapeAtIndex(int32 InIndex)
+	{
+		// NOTE: only intended use is to remove objects from inside a FImplicitObjectUnion
+		CHAOS_ENSURE(MNonFrequentData.Read().GetGeometry()->GetType() == FImplicitObjectUnion::StaticType());
+
+		if (InIndex == INDEX_NONE)
+		{
+			return;
+		}
+
+		check(MShapesArray.IsValidIndex(InIndex));
+		MShapesArray.RemoveAt(InIndex);
+
 		if (MNonFrequentData.Read().GetGeometry()->GetType() == FImplicitObjectUnion::StaticType())
 		{
 			// if we are currently a union then remove geometry from this union
-			ModifyGeometry([FoundIndex](FImplicitObject& GeomToModify)
+			ModifyGeometry([InIndex](FImplicitObject& GeomToModify)
 			{
 				if (FImplicitObjectUnion* Union = GeomToModify.template GetObject<FImplicitObjectUnion>())
 				{
-					Union->RemoveAt(FoundIndex);
+					Union->RemoveAt(InIndex);
 				}
 			});
 		}
+	}
 
+	template <typename T, int d, bool bPersistent>
+	void Chaos::TGeometryParticleHandleImp<T, d, bPersistent>::RemoveShape(FPerShapeData* InShape)
+	{
+		// NOTE: only intended use is to remove objects from inside a FImplicitObjectUnion
+		const FImplicitObjectRef CurrentGeometry = GetGeometry();
+		ensure(CurrentGeometry != nullptr);
+		if (ensure(CurrentGeometry->GetType() == FImplicitObjectUnion::StaticType()))
+		{
+			const FShapesArray& CurrentShapesArray = ShapesArray();
+
+			int32 FoundIndex = INDEX_NONE;
+			for (int32 Index = 0; Index < CurrentShapesArray.Num(); Index++)
+			{
+				if (InShape == CurrentShapesArray[Index].Get())
+				{
+					FoundIndex = Index;
+					break;
+				}
+			}
+
+			RemoveShapeAtIndex(FoundIndex);
+		}
+	}
+
+	template <typename T, int d, bool bPersistent>
+	void Chaos::TGeometryParticleHandleImp<T, d, bPersistent>::RemoveShapeAtIndex(int32 InIndex)
+	{
+		if (InIndex == INDEX_NONE)
+		{
+			return;
+		}
+
+		// NOTE: only intended use is to remove objects from inside a FImplicitObjectUnion
+		const FImplicitObjectRef CurrentGeometry = GetGeometry();
+		ensure(CurrentGeometry != nullptr);
+		if (!ensure(CurrentGeometry->GetType() == FImplicitObjectUnion::StaticType()))
+		{
+			return;
+		}
+
+		GeometryParticles->RemoveShapeAtIndex(ParticleIdx, InIndex);
+
+		// if we are currently a union then remove geometry from this union
+		FImplicitObjectUnion& Union = CurrentGeometry->GetObjectChecked<FImplicitObjectUnion>();
+		Union.RemoveAt(InIndex);
+
+		// Needed to update the shapes array.
+		SetGeometry(GeometryParticles->GetGeometry(ParticleIdx));
 	}
 
 	template <typename T, int d>

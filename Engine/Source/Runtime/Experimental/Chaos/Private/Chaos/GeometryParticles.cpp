@@ -50,6 +50,13 @@ namespace Chaos
 	}
 
 	template <typename T, int d, EGeometryParticlesSimType SimType>
+	void TGeometryParticlesImp<T, d, SimType>::RemoveShapeAtIndex(const int32 ParticleIndex, const int32 Index)
+	{
+		check(MShapesArray.IsValidIndex(ParticleIndex));
+		MShapesArray[ParticleIndex].RemoveAt(Index);
+	}
+
+	template <typename T, int d, EGeometryParticlesSimType SimType>
 	void TGeometryParticlesImp<T, d, SimType>::UpdateShapesArray(const int32 Index)
 	{
 		UpdateShapesArrayFromGeometry(MShapesArray[Index], MGeometry[Index], FRigidTransform3(X(Index), R(Index)));

@@ -81,7 +81,7 @@ namespace Chaos
 		CHAOS_API void MergeGeometry_External(TArray<Chaos::FImplicitObjectPtr>&& ImplicitGeometries, const TArray<FPBDRigidParticle*>& ShapeParticles);
 
 		// Remove GT shapes from the existing unions
-		CHAOS_API void RemoveShapes_External(const TArray<FPBDRigidParticle*>& ShapeParticles) const;
+		CHAOS_API void RemoveShapes_External(const TArray<FPBDRigidParticle*>& ShapeParticles);
 		
 		UE_DEPRECATED(5.4, "Please use SetGeometry_External instead")
 		CHAOS_API void SetSharedGeometry_External(const TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>& Geometry, const TArray<FPBDRigidParticle*>& ShapeParticles)
@@ -132,9 +132,9 @@ namespace Chaos
 
 		FClusterUnionIndex GetClusterUnionIndex() const { return ClusterUnionIndex; }
 
+		void ForceSetGeometryChildParticles_External(TArray<FExternalParticle*>&& InParticles) { GeometryChildParticles_External = InParticles; }
+
 	private:
-		void UpdateShapes_External(const TArray<FPBDRigidParticle*>& ShapeParticles);
-		
 		bool bIsInitializedOnPhysicsThread = false;
 		FClusterCreationParameters ClusterParameters;
 		const FClusterUnionInitData InitData;
@@ -147,6 +147,11 @@ namespace Chaos
 		FClusterUnionIndex ClusterUnionIndex = INDEX_NONE;
 
 		FProxyInterpolationBase InterpolationData;
+
+		// An array of a particles that exist in the external implicit object union.
+		// Note that this array should only be used for book-keeping. It is generally
+		// unsafe to try and access the particles within this array.
+		TArray<FExternalParticle*> GeometryChildParticles_External;
 
 		//~ Begin TPhysicsProxy Interface
 	public:
