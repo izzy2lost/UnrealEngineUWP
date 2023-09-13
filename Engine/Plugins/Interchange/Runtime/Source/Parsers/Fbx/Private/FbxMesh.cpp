@@ -576,9 +576,11 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 		}
 	}
 
-	if (!Mesh->IsTriangleMesh())
+	//Mesh must be triangulate when creating the payload context, we cannot change the Mesh pointer after
+	if(!Mesh->IsTriangleMesh())
 	{
-		const bool bReplace = true;
+		//Since we want to avoid deleting the pointer, we set the bReplace to false
+		constexpr bool bReplace = false;
 		FbxNodeAttribute* ConvertedNode = SDKGeometryConverter->Triangulate(Mesh, bReplace);
 
 		if (ConvertedNode != NULL && ConvertedNode->GetAttributeType() == FbxNodeAttribute::eMesh)
@@ -1570,6 +1572,35 @@ void GetMaterialIndex(FbxMesh* Mesh, TArray<int32>& MaterialIndexes)
 void FFbxMesh::AddAllMeshes(FbxScene* SDKScene, FbxGeometryConverter* SDKGeometryConverter, UInterchangeBaseNodeContainer& NodeContainer, TMap<FString, TSharedPtr<FPayloadContextBase>>& PayloadContexts)
 {
 	int32 GeometryCount = SDKScene->GetGeometryCount();
+	//Triangulate meshes
+	{
+		TArray<FbxMesh*> ToTriangulateMeshes;
+		ToTriangulateMeshes.Reserve(GeometryCount);
+		for (int32 GeometryIndex = 0; GeometryIndex < GeometryCount; ++GeometryIndex)
+		{
+			FbxGeometry* Geometry = SDKScene->GetGeometry(GeometryIndex);
+			if (Geometry->GetAttributeType() != FbxNodeAttribute::eMesh)
+			{
+				continue;
+			}
+			FbxMesh* Mesh = static_cast<FbxMesh*>(Geometry);
+			if (!Mesh)
+			{
+				continue;
+			}
+			if (!Mesh->IsTriangleMesh())
+			{
+				ToTriangulateMeshes.Add(Mesh);
+			}
+		}
+		for (FbxMesh* ToTriangulateMesh : ToTriangulateMeshes)
+		{
+			const bool bReplace = true;
+			SDKGeometryConverter->Triangulate(ToTriangulateMesh, bReplace);
+		}
+	}
+	//Now requery the triangulated geometries
+	GeometryCount = SDKScene->GetGeometryCount();
 	for (int32 GeometryIndex = 0; GeometryIndex < GeometryCount; ++GeometryIndex)
 	{
 		FbxGeometry* Geometry = SDKScene->GetGeometry(GeometryIndex);
@@ -1578,10 +1609,11 @@ void FFbxMesh::AddAllMeshes(FbxScene* SDKScene, FbxGeometryConverter* SDKGeometr
 			continue;
 		}
 		FbxMesh* Mesh = static_cast<FbxMesh*>(Geometry);
-		if (!Mesh)
+		if (!Mesh || !Mesh->IsTriangleMesh())
 		{
 			continue;
 		}
+
 		FString MeshName = Parser.GetFbxHelper()->GetMeshName(Mesh);
 		FString MeshUniqueID = Parser.GetFbxHelper()->GetMeshUniqueID(Mesh);
 		const UInterchangeMeshNode* ExistingMeshNode = Cast<UInterchangeMeshNode>(NodeContainer.GetNode(MeshUniqueID));

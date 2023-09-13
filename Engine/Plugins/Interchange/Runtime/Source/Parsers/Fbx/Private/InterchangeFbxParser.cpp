@@ -104,14 +104,21 @@ namespace UE::Interchange
 		}
 	}
 
-	void FInterchangeFbxParser::FetchMeshPayload(const FString& PayloadKey, const FTransform& MeshGlobalTransform, const FString& ResultFolder)
+	FString FInterchangeFbxParser::FetchMeshPayload(const FString& PayloadKey, const FTransform& MeshGlobalTransform, const FString& ResultFolder)
 	{
 		check(FbxParserPrivate.IsValid());
 		ResultsContainer->Empty();
 		FString PayloadFilepathCopy;
+		FString ResultPayloadUniqueId = PayloadKey + MeshGlobalTransform.ToString();
+		//If we already have extract this mesh, no need to extract again
+		if (ResultPayloads.Contains(ResultPayloadUniqueId))
+		{
+			return ResultPayloadUniqueId;
+		}
+
 		{
 			FScopeLock Lock(&ResultPayloadsCriticalSection);
-			FString& PayloadFilepath = ResultPayloads.FindOrAdd(PayloadKey);
+			FString& PayloadFilepath = ResultPayloads.FindOrAdd(ResultPayloadUniqueId);
 			//To avoid file path with too many character, we hash the payloadKey so we have a deterministic length for the file path.
 			FString PayloadKeyHash = Private::HashString(PayloadKey);
 			PayloadFilepath = ResultFolder + TEXT("/") + PayloadKeyHash + FString::FromInt(UniqueIdCounter.IncrementExchange()) + TEXT(".payload");
@@ -124,18 +131,25 @@ namespace UE::Interchange
 			UInterchangeResultError_Generic* Error = AddMessage<UInterchangeResultError_Generic>();
 			Error->SourceAssetName = SourceFilename;
 			Error->Text = LOCTEXT("CantFetchPayload", "Cannot fetch FBX payload data.");
-			return;
 		}
+		return ResultPayloadUniqueId;
 	}
 
-	void FInterchangeFbxParser::FetchAnimationBakeTransformPayload(const FString& PayloadKey, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& ResultFolder)
+	FString FInterchangeFbxParser::FetchAnimationBakeTransformPayload(const FString& PayloadKey, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& ResultFolder)
 	{
 		check(FbxParserPrivate.IsValid());
 		ResultsContainer->Empty();
 		FString PayloadFilepathCopy;
+		FString ResultPayloadUniqueId = PayloadKey + FString::FromInt(static_cast<int32>(BakeFrequency*1000.0)) + FString::FromInt(static_cast<int32>(RangeStartTime * 1000.0)) + FString::FromInt(static_cast<int32>(RangeEndTime * 1000.0));
+		//If we already have extract this mesh, no need to extract again
+		if (ResultPayloads.Contains(ResultPayloadUniqueId))
+		{
+			return ResultPayloadUniqueId;
+		}
+
 		{
 			FScopeLock Lock(&ResultPayloadsCriticalSection);
-			FString& PayloadFilepath = ResultPayloads.FindOrAdd(PayloadKey);
+			FString& PayloadFilepath = ResultPayloads.FindOrAdd(ResultPayloadUniqueId);
 			//To avoid file path with too many character, we hash the payloadKey so we have a deterministic length for the file path.
 			FString PayloadKeyHash = Private::HashString(PayloadKey);
 			PayloadFilepath = ResultFolder + TEXT("/") + PayloadKeyHash + FString::FromInt(UniqueIdCounter.IncrementExchange()) + TEXT(".payload");
@@ -148,8 +162,8 @@ namespace UE::Interchange
 			UInterchangeResultError_Generic* Error = AddMessage<UInterchangeResultError_Generic>();
 			Error->SourceAssetName = SourceFilename;
 			Error->Text = LOCTEXT("CantFetchPayload", "Cannot fetch FBX payload data.");
-			return;
 		}
+		return ResultPayloadUniqueId;
 	}
 
 	TArray<FString> FInterchangeFbxParser::GetJsonLoadMessages() const

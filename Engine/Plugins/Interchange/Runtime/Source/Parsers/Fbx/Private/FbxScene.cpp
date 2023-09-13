@@ -239,8 +239,9 @@ namespace UE
 						{
 							if (!DoesTheParentHierarchyContainJoints(Node->GetParent()))
 							{
-								//eNull node will be set has a transform and a joint specialized type
+								//eNull node not under any joint will be set has a transform
 								UnrealNode->AddSpecializedType(FSceneNodeStaticData::GetTransformSpecializeTypeString());
+								break;
 							}
 						}
 						//No break since the eNull act has a skeleton if possible
@@ -293,7 +294,6 @@ namespace UE
 				//If there is no attribute, make sure to threat the node like a joint if it's in the ForcejointNodes array
 				if (!bIsNodeContainJointAttribute && ForceJointNodes.Contains(Node))
 				{
-					UnrealNode->AddSpecializedType(FSceneNodeStaticData::GetTransformSpecializeTypeString());
 					ApplySkeletonAttribute();
 				}
 
@@ -655,6 +655,11 @@ namespace UE
 						switch (NodeAttribute->GetAttributeType())
 						{
 						case FbxNodeAttribute::eNull:
+							if (!DoesTheParentHierarchyContainJoints(Node->GetParent()))
+							{
+								//eNull node not under any joint are not joint
+								break;
+							}
 						case FbxNodeAttribute::eSkeleton:
 							bIsNodeContainJointAttribute = true;
 							ApplySkeletonAttribute();

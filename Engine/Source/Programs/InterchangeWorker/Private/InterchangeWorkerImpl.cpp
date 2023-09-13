@@ -317,9 +317,9 @@ ETaskState FInterchangeWorkerImpl::FetchFbxPayload(const FJsonFetchMeshPayloadCm
 	ETaskState ResultState = ETaskState::Unknown;
 	FString PayloadKey = FetchMeshPayloadCommand.GetPayloadKey();
 	FTransform MeshGlobalTransform = FetchMeshPayloadCommand.GetMeshGlobalTransform();
-	FbxParser.FetchMeshPayload(PayloadKey, MeshGlobalTransform, ResultFolder);
+	FString ResultPayloadsUniqueId = FbxParser.FetchMeshPayload(PayloadKey, MeshGlobalTransform, ResultFolder);
 	FJsonLoadSourceCmd::JsonResultParser ResultParser;
-	ResultParser.SetResultFilename(FbxParser.GetResultPayloadFilepath(PayloadKey));
+	ResultParser.SetResultFilename(FbxParser.GetResultPayloadFilepath(ResultPayloadsUniqueId));
 	OutJSonMessages = FbxParser.GetJsonLoadMessages();
 	OutJSonResult = ResultParser.ToJson();
 	ResultState = ETaskState::ProcessOk;
@@ -331,13 +331,13 @@ ETaskState FInterchangeWorkerImpl::FetchFbxPayload(const FJsonFetchAnimationBake
 	ETaskState ResultState = ETaskState::Unknown;
 	FString PayloadKey = FetchAnimationBakeTransformPayloadCommand.GetPayloadKey();
 
-	FbxParser.FetchAnimationBakeTransformPayload(PayloadKey
+	FString ResultPayloadsUniqueId = FbxParser.FetchAnimationBakeTransformPayload(PayloadKey
 		, FetchAnimationBakeTransformPayloadCommand.GetBakeFrequency()
 		, FetchAnimationBakeTransformPayloadCommand.GetRangeStartTime()
 		, FetchAnimationBakeTransformPayloadCommand.GetRangeEndTime()
 		, ResultFolder);
 	FJsonLoadSourceCmd::JsonResultParser ResultParser;
-	ResultParser.SetResultFilename(FbxParser.GetResultPayloadFilepath(PayloadKey));
+	ResultParser.SetResultFilename(FbxParser.GetResultPayloadFilepath(ResultPayloadsUniqueId));
 	OutJSonMessages = FbxParser.GetJsonLoadMessages();
 	OutJSonResult = ResultParser.ToJson();
 	ResultState = ETaskState::ProcessOk;

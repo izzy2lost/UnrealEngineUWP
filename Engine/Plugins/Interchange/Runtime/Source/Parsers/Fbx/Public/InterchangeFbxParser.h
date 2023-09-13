@@ -43,8 +43,9 @@ namespace UE
 			 * @param - PayloadKey is the key that describe the payload data to extract from the fbx file
 			 * @param - MeshGlobalTransform is the transform we want to apply to the mesh vertex
 			 * @param - ResultFolder is the folder where we must put any result file
+			 * @return - Return the 'ResultPayloads' key unique id. We cannot use only the payload key because the mesh global transform can be different.
 			 */
-			void FetchMeshPayload(const FString& PayloadKey, const FTransform& MeshGlobalTransform, const FString& ResultFolder);
+			FString FetchMeshPayload(const FString& PayloadKey, const FTransform& MeshGlobalTransform, const FString& ResultFolder);
 
 			/**
 			 * Extract bake transform animation payload data from the fbx, the key tell the translator what payload the client ask
@@ -53,8 +54,9 @@ namespace UE
 			 * @param - RangeStartTime is the start time of the bake
 			 * @param - RangeEndTime is the end time of the bake
 			 * @param - ResultFolder is the folder where we must put any result file
+			 * @return - Return the 'ResultPayloads' key unique id. We cannot use only the payload key because the bake parameter can be different.
 			 */
-			void FetchAnimationBakeTransformPayload(const FString& PayloadKey, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& ResultFolder);
+			FString FetchAnimationBakeTransformPayload(const FString& PayloadKey, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& ResultFolder);
 
 			FString GetResultFilepath() const { return ResultFilepath; }
 			FString GetResultPayloadFilepath(const FString& PayloadKey) const

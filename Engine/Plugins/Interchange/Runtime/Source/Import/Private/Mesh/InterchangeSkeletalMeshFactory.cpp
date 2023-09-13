@@ -67,6 +67,15 @@ namespace UE
 				const UInterchangeSceneNode* SceneNode = nullptr;
 				TOptional<FTransform> SceneGlobalTransform;
 				FInterchangeMeshPayLoadKey TranslatorPayloadKey;
+				FString GetUniqueId() const
+				{
+					FString UniqueId = TranslatorPayloadKey.UniqueId;
+					if (SceneGlobalTransform.IsSet())
+					{
+						UniqueId += SceneGlobalTransform->ToString();
+					}
+					return UniqueId;
+				}
 			};
 
 			void FillMorphTargetMeshDescriptionsPerMorphTargetName(const FMeshNodeContext& MeshNodeContext
@@ -431,7 +440,7 @@ namespace UE
 				bool bImportMorphTarget = true;
 				SkeletalMeshFactoryNode->GetCustomImportMorphTarget(bImportMorphTarget);
 
-				TMap<FString, TFuture<TOptional<UE::Interchange::FMeshPayloadData>>> LodMeshPayloadPerTranslatorPayloadKey;
+				TMap<const FMeshNodeContext*, TFuture<TOptional<UE::Interchange::FMeshPayloadData>>> LodMeshPayloadPerTranslatorPayloadKey;
 				LodMeshPayloadPerTranslatorPayloadKey.Reserve(MeshReferences.Num());
 
 				TMap<FString, TOptional<UE::Interchange::FMeshPayloadData>> MorphTargetMeshDescriptionsPerMorphTargetName;
@@ -439,26 +448,50 @@ namespace UE
 
 				bool bImportVertexAttributes = false;
 				SkeletalMeshFactoryNode->GetCustomImportVertexAttributes(bImportVertexAttributes);
+				struct FInternalInstanceData
+				{
+					bool ScaleGreaterThenOne = false;
+					int32 Count = 0;
+					bool ShouldFetchWithTransform() const
+					{
+						return Count == 1 || ScaleGreaterThenOne;
+					}
+				};
+				TMap<FString, FInternalInstanceData> MeshInstancesDatas;
+				for (const FMeshNodeContext& MeshNodeContext : MeshReferences)
+				{
+					FInternalInstanceData& InstanceData = MeshInstancesDatas.FindOrAdd(MeshNodeContext.TranslatorPayloadKey.UniqueId);
+					InstanceData.Count++;
+					InstanceData.ScaleGreaterThenOne |= MeshNodeContext.SceneGlobalTransform->GetScale3D().GetAbs().GetMax() > 1.0;
+				}
 
 				for (const FMeshNodeContext& MeshNodeContext : MeshReferences)
 				{
+					const FInternalInstanceData& InstanceData = MeshInstancesDatas.FindChecked(MeshNodeContext.TranslatorPayloadKey.UniqueId);
+					FTransform ApplyTransformWhenFetchPayload = InstanceData.ShouldFetchWithTransform() ? MeshNodeContext.SceneGlobalTransform.Get(FTransform::Identity) : FTransform::Identity;
 					//Add the payload entry key, the payload data will be fill later in bulk by the translator
-					LodMeshPayloadPerTranslatorPayloadKey.Add(MeshNodeContext.TranslatorPayloadKey.UniqueId, MeshTranslatorPayloadInterface->GetMeshPayloadData(MeshNodeContext.TranslatorPayloadKey, MeshNodeContext.SceneGlobalTransform.Get(FTransform::Identity)));
+					LodMeshPayloadPerTranslatorPayloadKey.Add(&MeshNodeContext, MeshTranslatorPayloadInterface->GetMeshPayloadData(MeshNodeContext.TranslatorPayloadKey, ApplyTransformWhenFetchPayload));
 					//Count the morph target dependencies so we can reserve the right amount
 					MorphTargetCount += (bImportMorphTarget && MeshNodeContext.MeshNode) ? MeshNodeContext.MeshNode->GetMorphTargetDependeciesCount() : 0;
 				}
 				MorphTargetMeshDescriptionsPerMorphTargetName.Reserve(MorphTargetCount);
 
 				//Fill the lod mesh description using all combined mesh part
-				for (const FMeshNodeContext& MeshNodeContext : MeshReferences)
+				for(TPair<const FMeshNodeContext*, TFuture<TOptional<UE::Interchange::FMeshPayloadData>>>& MeshNodeContextAndFuture: LodMeshPayloadPerTranslatorPayloadKey)
 				{
+					if (!MeshNodeContextAndFuture.Key)
+					{
+						continue;
+					}
+					const FMeshNodeContext& MeshNodeContext = *MeshNodeContextAndFuture.Key;
 					TRACE_CPUPROFILER_EVENT_SCOPE("RetrieveAllSkeletalMeshPayloadsAndFillImportData::GetPayload")
-					TOptional<UE::Interchange::FMeshPayloadData> LodMeshPayload = LodMeshPayloadPerTranslatorPayloadKey.FindChecked(MeshNodeContext.TranslatorPayloadKey.UniqueId).Get();
+					TOptional<UE::Interchange::FMeshPayloadData> LodMeshPayload = MeshNodeContextAndFuture.Value.Get();
 					if (!LodMeshPayload.IsSet())
 					{
 						UE_LOG(LogInterchangeImport, Warning, TEXT("Invalid Skeletal mesh payload key [%s] SkeletalMesh asset %s"), *MeshNodeContext.TranslatorPayloadKey.UniqueId, *Arguments.AssetName);
 						continue;
 					}
+					
 					const int32 VertexOffset = LodMeshDescription.Vertices().Num();
 
 					FSkeletalMeshOperations::FSkeletalMeshAppendSettings SkeletalMeshAppendSettings;
@@ -475,8 +508,7 @@ namespace UE
 					{
 						//We need to rebind the mesh at time 0. Skeleton joint have the time zero transform, so we need to apply the skinning to the mesh
 						//With the skeleton transform at time zero
-						FTransform MeshGlobalTransform;
-						MeshGlobalTransform.SetIdentity();
+						FTransform MeshGlobalTransform = FTransform::Identity;
 						if (MeshNodeContext.SceneGlobalTransform.IsSet())
 						{
 							MeshGlobalTransform = MeshNodeContext.SceneGlobalTransform.GetValue();
@@ -539,8 +571,9 @@ namespace UE
 						}
 					}
 					
-					//The Mesh node parent bake transform was pass to the payload request.
-					AppendSettings.MeshTransform.Reset();
+					//The Mesh node parent bake transform can be pass to the payload request or not, it depend on the count of instance and the scale of the transform.
+					const FInternalInstanceData & InstanceData = MeshInstancesDatas.FindChecked(MeshNodeContext.TranslatorPayloadKey.UniqueId);
+					AppendSettings.MeshTransform = InstanceData.ShouldFetchWithTransform() ? FTransform::Identity : MeshNodeContext.SceneGlobalTransform.Get(FTransform::Identity);
 
 					FStaticMeshOperations::AppendMeshDescription(LodMeshPayload->MeshDescription, LodMeshDescription, AppendSettings);
 					if (MeshNodeContext.MeshNode->IsSkinnedMesh() || bIsRigidMesh)
