@@ -3082,8 +3082,8 @@ void FPyWrapperTypeRegistry::GenerateStubCodeForWrappedType(PyTypeObject* PyType
 			}
 			else
 			{
-				FStructOnScope FuncParams(InTypeMethod.MethodFunc.Func);
-				MethodReturnValueStr = GetFunctionReturnValue(FuncParams.GetStructMemory(), InTypeMethod.MethodFunc.OutputParams);
+				PY_UFUNCTION_STACK(FuncParams, InTypeMethod.MethodFunc.Func);
+				MethodReturnValueStr = GetFunctionReturnValue(FuncParams.GetMemory(), InTypeMethod.MethodFunc.OutputParams);
 			}
 		}
 		else
@@ -3120,8 +3120,8 @@ void FPyWrapperTypeRegistry::GenerateStubCodeForWrappedType(PyTypeObject* PyType
 			UClass* Class = InTypeConstant.ConstantFunc.Func->GetOwnerClass();
 			UObject* Obj = Class->GetDefaultObject();
 
-			FStructOnScope FuncParams(InTypeConstant.ConstantFunc.Func);
-			PyUtil::InvokeFunctionCall(Obj, InTypeConstant.ConstantFunc.Func, FuncParams.GetStructMemory(), TEXT("export generated constant"));
+			PY_UFUNCTION_STACK(FuncParams, InTypeConstant.ConstantFunc.Func);
+			PyUtil::InvokeFunctionCall(Obj, InTypeConstant.ConstantFunc.Func, FuncParams.GetMemory(), TEXT("export generated constant"));
 			PyErr_Clear(); // Clear any errors in case InvokeFunctionCall failed
 
 			if (PyGenUtil::IsTypeHintingEnabled())
@@ -3131,7 +3131,7 @@ void FPyWrapperTypeRegistry::GenerateStubCodeForWrappedType(PyTypeObject* PyType
 			}
 			else
 			{
-				ConstantValueStr = GetFunctionReturnValue(FuncParams.GetStructMemory(), InTypeConstant.ConstantFunc.OutputParams);
+				ConstantValueStr = GetFunctionReturnValue(FuncParams.GetMemory(), InTypeConstant.ConstantFunc.OutputParams);
 			}
 		}
 		else // Cannot resove type/value.

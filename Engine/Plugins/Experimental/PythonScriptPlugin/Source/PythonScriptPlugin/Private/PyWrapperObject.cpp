@@ -175,16 +175,16 @@ int FPyWrapperObject::CallSetterFunction(FPyWrapperObject* InSelf, PyObject* InV
 			return -1;
 		}
 
-		FStructOnScope FuncParams(InFuncDef.Func);
+		PY_UFUNCTION_STACK(FuncParams, InFuncDef.Func);
 		if (InValue)
 		{
-			if (!PyConversion::NativizeProperty_InContainer(InValue, InFuncDef.InputParams[0].ParamProp, FuncParams.GetStructMemory(), 0))
+			if (!PyConversion::NativizeProperty_InContainer(InValue, InFuncDef.InputParams[0].ParamProp, FuncParams.GetMemory(), 0))
 			{
 				PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Failed to convert input parameter when calling function '%s.%s' on '%s'"), *InFuncDef.Func->GetOwnerClass()->GetName(), *InFuncDef.Func->GetName(), *InSelf->ObjectInstance->GetName()));
 				return -1;
 			}
 		}
-		if (!PyUtil::InvokeFunctionCall(InSelf->ObjectInstance, InFuncDef.Func, FuncParams.GetStructMemory(), *PyUtil::GetErrorContext(InSelf)))
+		if (!PyUtil::InvokeFunctionCall(InSelf->ObjectInstance, InFuncDef.Func, FuncParams.GetMemory(), *PyUtil::GetErrorContext(InSelf)))
 		{
 			return -1;
 		}
@@ -252,12 +252,12 @@ PyObject* FPyWrapperObject::CallFunction_Impl(UObject* InObj, const PyGenUtil::F
 		else
 		{
 			// Return value requires that we create a params struct to hold the result
-			FStructOnScope FuncParams(InFuncDef.Func);
-			if (!PyUtil::InvokeFunctionCall(InObj, InFuncDef.Func, FuncParams.GetStructMemory(), InErrorCtxt))
+			PY_UFUNCTION_STACK(FuncParams, InFuncDef.Func);
+			if (!PyUtil::InvokeFunctionCall(InObj, InFuncDef.Func, FuncParams.GetMemory(), InErrorCtxt))
 			{
 				return nullptr;
 			}
-			return PyGenUtil::PackReturnValues(FuncParams.GetStructMemory(), InFuncDef.OutputParams, InErrorCtxt, *FString::Printf(TEXT("function '%s.%s' on '%s'"), *InFuncDef.Func->GetOwnerClass()->GetName(), *InFuncDef.Func->GetName(), *InObj->GetName()));
+			return PyGenUtil::PackReturnValues(FuncParams.GetMemory(), InFuncDef.OutputParams, InErrorCtxt, *FString::Printf(TEXT("function '%s.%s' on '%s'"), *InFuncDef.Func->GetOwnerClass()->GetName(), *InFuncDef.Func->GetName(), *InObj->GetName()));
 		}
 	}
 
@@ -284,8 +284,8 @@ PyObject* FPyWrapperObject::CallFunction_Impl(UObject* InObj, PyObject* InArgs, 
 			}
 		}
 
-		FStructOnScope FuncParams(InFuncDef.Func);
-		PyGenUtil::ApplyParamDefaults(FuncParams.GetStructMemory(), InFuncDef.InputParams);
+		PY_UFUNCTION_STACK(FuncParams, InFuncDef.Func);
+		PyGenUtil::ApplyParamDefaults(FuncParams.GetMemory(), InFuncDef.InputParams);
 		for (int32 ParamIndex = 0; ParamIndex < Params.Num(); ++ParamIndex)
 		{
 			const PyGenUtil::FGeneratedWrappedMethodParameter& ParamDef = InFuncDef.InputParams[ParamIndex];
@@ -293,18 +293,18 @@ PyObject* FPyWrapperObject::CallFunction_Impl(UObject* InObj, PyObject* InArgs, 
 			PyObject* PyValue = Params[ParamIndex];
 			if (PyValue)
 			{
-				if (!PyConversion::NativizeProperty_InContainer(PyValue, ParamDef.ParamProp, FuncParams.GetStructMemory(), 0))
+				if (!PyConversion::NativizeProperty_InContainer(PyValue, ParamDef.ParamProp, FuncParams.GetMemory(), 0))
 				{
 					PyUtil::SetPythonError(PyExc_TypeError, InErrorCtxt, *FString::Printf(TEXT("Failed to convert parameter '%s' when calling function '%s.%s' on '%s'"), UTF8_TO_TCHAR(ParamDef.ParamName.GetData()), *InFuncDef.Func->GetOwnerClass()->GetName(), *InFuncDef.Func->GetName(), *InObj->GetName()));
 					return nullptr;
 				}
 			}
 		}
-		if (!PyUtil::InvokeFunctionCall(InObj, InFuncDef.Func, FuncParams.GetStructMemory(), InErrorCtxt))
+		if (!PyUtil::InvokeFunctionCall(InObj, InFuncDef.Func, FuncParams.GetMemory(), InErrorCtxt))
 		{
 			return nullptr;
 		}
-		return PyGenUtil::PackReturnValues(FuncParams.GetStructMemory(), InFuncDef.OutputParams, InErrorCtxt, *FString::Printf(TEXT("function '%s.%s' on '%s'"), *InFuncDef.Func->GetOwnerClass()->GetName(), *InFuncDef.Func->GetName(), *InObj->GetName()));
+		return PyGenUtil::PackReturnValues(FuncParams.GetMemory(), InFuncDef.OutputParams, InErrorCtxt, *FString::Printf(TEXT("function '%s.%s' on '%s'"), *InFuncDef.Func->GetOwnerClass()->GetName(), *InFuncDef.Func->GetName(), *InObj->GetName()));
 	}
 
 	Py_RETURN_NONE;
@@ -357,11 +357,11 @@ PyObject* FPyWrapperObject::CallDynamicFunction_Impl(FPyWrapperObject* InSelf, P
 			}
 		}
 
-		FStructOnScope FuncParams(InFuncDef.Func);
-		PyGenUtil::ApplyParamDefaults(FuncParams.GetStructMemory(), InFuncDef.InputParams);
+		PY_UFUNCTION_STACK(FuncParams, InFuncDef.Func);
+		PyGenUtil::ApplyParamDefaults(FuncParams.GetMemory(), InFuncDef.InputParams);
 		if (ensureAlways(CastField<FObjectPropertyBase>(InSelfParam.ParamProp)))
 		{
-			void* SelfArgInstance = InSelfParam.ParamProp->ContainerPtrToValuePtr<void>(FuncParams.GetStructMemory());
+			void* SelfArgInstance = InSelfParam.ParamProp->ContainerPtrToValuePtr<void>(FuncParams.GetMemory());
 			CastField<FObjectPropertyBase>(InSelfParam.ParamProp)->SetObjectPropertyValue(SelfArgInstance, InSelf->ObjectInstance);
 		}
 		for (int32 ParamIndex = 0; ParamIndex < Params.Num(); ++ParamIndex)
@@ -371,7 +371,7 @@ PyObject* FPyWrapperObject::CallDynamicFunction_Impl(FPyWrapperObject* InSelf, P
 			PyObject* PyValue = Params[ParamIndex];
 			if (PyValue)
 			{
-				if (!PyConversion::NativizeProperty_InContainer(PyValue, ParamDef.ParamProp, FuncParams.GetStructMemory(), 0))
+				if (!PyConversion::NativizeProperty_InContainer(PyValue, ParamDef.ParamProp, FuncParams.GetMemory(), 0))
 				{
 					PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Failed to convert parameter '%s' when calling function '%s.%s' on '%s'"), UTF8_TO_TCHAR(ParamDef.ParamName.GetData()), *Class->GetName(), *InFuncDef.Func->GetName(), *Obj->GetName()));
 					return nullptr;
@@ -379,11 +379,11 @@ PyObject* FPyWrapperObject::CallDynamicFunction_Impl(FPyWrapperObject* InSelf, P
 			}
 		}
 		const FString ErrorCtxt = PyUtil::GetErrorContext(InSelf);
-		if (!PyUtil::InvokeFunctionCall(Obj, InFuncDef.Func, FuncParams.GetStructMemory(), *ErrorCtxt))
+		if (!PyUtil::InvokeFunctionCall(Obj, InFuncDef.Func, FuncParams.GetMemory(), *ErrorCtxt))
 		{
 			return nullptr;
 		}
-		return PyGenUtil::PackReturnValues(FuncParams.GetStructMemory(), InFuncDef.OutputParams, *ErrorCtxt, *FString::Printf(TEXT("function '%s.%s' on '%s'"), *Class->GetName(), *InFuncDef.Func->GetName(), *Obj->GetName()));
+		return PyGenUtil::PackReturnValues(FuncParams.GetMemory(), InFuncDef.OutputParams, *ErrorCtxt, *FString::Printf(TEXT("function '%s.%s' on '%s'"), *Class->GetName(), *InFuncDef.Func->GetName(), *Obj->GetName()));
 	}
 
 	Py_RETURN_NONE;

@@ -448,12 +448,12 @@ void FGeneratedWrappedConstant::ToPython(FPyConstantDef& OutPyConstant) const
 			}
 	
 			// Return value requires that we create a params struct to hold the result
-			FStructOnScope FuncParams(This->ConstantFunc.Func);
-			if (!PyUtil::InvokeFunctionCall(Obj, This->ConstantFunc.Func, FuncParams.GetStructMemory(), *ErrorCtxt))
+			PY_UFUNCTION_STACK(FuncParams, This->ConstantFunc.Func);
+			if (!PyUtil::InvokeFunctionCall(Obj, This->ConstantFunc.Func, FuncParams.GetMemory(), *ErrorCtxt))
 			{
 				return nullptr;
 			}
-			return PyGenUtil::PackReturnValues(FuncParams.GetStructMemory(), This->ConstantFunc.OutputParams, *ErrorCtxt, *FString::Printf(TEXT("constant '%s' on '%s'"), UTF8_TO_TCHAR(This->ConstantName.GetData()), *PyUtil::GetCleanTypename(InType)));
+			return PyGenUtil::PackReturnValues(FuncParams.GetMemory(), This->ConstantFunc.OutputParams, *ErrorCtxt, *FString::Printf(TEXT("constant '%s' on '%s'"), UTF8_TO_TCHAR(This->ConstantName.GetData()), *PyUtil::GetCleanTypename(InType)));
 		}
 	
 		Py_RETURN_NONE;
@@ -2412,17 +2412,17 @@ void PythonizeStructValueImpl(const UScriptStruct* InStruct, const void* InStruc
 			if (BreakFuncDef.OutputParams.Num() <= 255)
 			{
 				// Call the break function using the instance we were given
-				FStructOnScope FuncParams(BreakFuncDef.Func);
+				PY_UFUNCTION_STACK(FuncParams, BreakFuncDef.Func);
 				if (BreakFuncDef.InputParams.Num() == 1 && CastField<FStructProperty>(BreakFuncDef.InputParams[0].ParamProp) && InStruct->IsChildOf(CastFieldChecked<const FStructProperty>(BreakFuncDef.InputParams[0].ParamProp)->Struct))
 				{
 					// Copy the given instance as the 'self' argument
 					const FGeneratedWrappedMethodParameter& SelfParam = BreakFuncDef.InputParams[0];
-					void* SelfArgInstance = SelfParam.ParamProp->ContainerPtrToValuePtr<void>(FuncParams.GetStructMemory());
+					void* SelfArgInstance = SelfParam.ParamProp->ContainerPtrToValuePtr<void>(FuncParams.GetMemory());
 					CastFieldChecked<const FStructProperty>(SelfParam.ParamProp)->Struct->CopyScriptStruct(SelfArgInstance, InStructValue);
 				}
 				{
 					FPyScopedGIL GIL;
-					PyUtil::InvokeFunctionCall(Obj, BreakFuncDef.Func, FuncParams.GetStructMemory(), TEXT("pythonize default struct value"));
+					PyUtil::InvokeFunctionCall(Obj, BreakFuncDef.Func, FuncParams.GetMemory(), TEXT("pythonize default struct value"));
 					PyErr_Clear(); // Clear any errors in case InvokeFunctionCall failed
 				}
 
@@ -2434,7 +2434,7 @@ void PythonizeStructValueImpl(const UScriptStruct* InStruct, const void* InStruc
 					{
 						OutPythonDefaultValue += TEXT(", ");
 					}
-					PythonizeValueImpl(OutputParam.ParamProp, OutputParam.ParamProp->ContainerPtrToValuePtr<void>(FuncParams.GetStructMemory()), InFlags, OutPythonDefaultValue);
+					PythonizeValueImpl(OutputParam.ParamProp, OutputParam.ParamProp->ContainerPtrToValuePtr<void>(FuncParams.GetMemory()), InFlags, OutPythonDefaultValue);
 				}
 			}
 		}
