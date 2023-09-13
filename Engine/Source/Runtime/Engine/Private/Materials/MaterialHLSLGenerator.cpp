@@ -455,8 +455,15 @@ const UE::HLSLTree::FExpression* FMaterialHLSLGenerator::AcquireExpression(UE::H
 
 			for (int32 FunctionInputIndex = 0; FunctionInputIndex < FunctionCall->ConnectedInputs.Num(); ++FunctionInputIndex)
 			{
-				const FExpression* InputExpression = FunctionCall->ConnectedInputs[FunctionInputIndex];
-				Hasher.AppendData(&InputExpression, sizeof(InputExpression));
+				const FConnectedInput& ConnectedInput = FunctionCall->ConnectedInputs[FunctionInputIndex];
+				if (ConnectedInput.Input)
+				{
+					Hasher.AppendData(&ConnectedInput.Input, sizeof(ConnectedInput.Input));
+				}
+				else
+				{
+					Hasher.AppendData(&ConnectedInput.Expression, sizeof(ConnectedInput.Expression));
+				}
 			}
 		}
 
@@ -496,17 +503,25 @@ const UE::HLSLTree::FExpression* FMaterialHLSLGenerator::AcquireExpression(UE::H
 const UE::HLSLTree::FExpression* FMaterialHLSLGenerator::AcquireFunctionInputExpression(UE::HLSLTree::FScope& Scope, const UMaterialExpressionFunctionInput* MaterialExpression)
 {
 	using namespace UE::HLSLTree;
-	const FFunctionCallEntry* FunctionEntry = FunctionCallStack.Last();
+	
+	// Need to pop because we are going out of the function when processing expressions connected to the inputs
+	FFunctionCallEntry* FunctionEntry = FunctionCallStack.Pop(false);
 	const FExpression* InputExpression = nullptr;
 	int32 InputIndex = INDEX_NONE;
+
 	if (FunctionEntry->MaterialFunction)
 	{
 		for (int32 Index = 0; Index < FunctionEntry->FunctionInputs.Num(); ++Index)
 		{
 			if (FunctionEntry->FunctionInputs[Index] == MaterialExpression)
 			{
-				InputIndex = Index;;
-				InputExpression = FunctionEntry->ConnectedInputs[Index];
+				InputIndex = Index;
+				FConnectedInput& ConnectedInput = FunctionEntry->ConnectedInputs[Index];
+				if (!ConnectedInput.Expression && ConnectedInput.Input)
+				{
+					ConnectedInput.Expression = ConnectedInput.Input->TryAcquireHLSLExpression(*this, *ConnectedInput.Scope);
+				}
+				InputExpression = ConnectedInput.Expression;
 				break;
 			}
 		}
@@ -518,6 +533,8 @@ const UE::HLSLTree::FExpression* FMaterialHLSLGenerator::AcquireFunctionInputExp
 			return nullptr;
 		}
 	}
+
+	FunctionCallStack.Push(FunctionEntry);
 
 	if (!InputExpression && (MaterialExpression->bUsePreviewValueAsDefault || !FunctionEntry->MaterialFunction))
 	{
@@ -627,7 +644,7 @@ const UE::HLSLTree::FExpression* FMaterialHLSLGenerator::GenerateFunctionCall(UE
 	UMaterialFunctionInterface* MaterialFunction,
 	EMaterialParameterAssociation InParameterAssociation,
 	int32 InParameterIndex,
-	TArrayView<const UE::HLSLTree::FExpression*> ConnectedInputs,
+	TArrayView<FConnectedInput> ConnectedInputs,
 	int32 OutputIndex)
 {
 	using namespace UE::HLSLTree;
@@ -677,13 +694,19 @@ const UE::HLSLTree::FExpression* FMaterialHLSLGenerator::GenerateFunctionCall(UE
 		{
 			// FunctionInputs are the inputs from the UMaterialFunction object
 			const FFunctionExpressionInput& FunctionInput = FunctionInputs[InputIndex];
+			LocalFunctionInputs.Add(FunctionInput.ExpressionInput);
 
 			// ConnectedInputs are the inputs from the UMaterialFunctionCall object
 			// We want to connect the UMaterialExpressionFunctionInput from the UMaterialFunction to whatever UMaterialExpression is passed to the UMaterialFunctionCall
-			const FExpression* ConnectedInput = ConnectedInputs[InputIndex];
-
-			LocalFunctionInputs.Add(FunctionInput.ExpressionInput);
-			Hasher.Update((uint8*)&ConnectedInput, sizeof(ConnectedInput));
+			const FConnectedInput& ConnectedInput = ConnectedInputs[InputIndex];
+			if (ConnectedInput.Input)
+			{
+				Hasher.Update(&ConnectedInput.Input, sizeof(ConnectedInput.Input));
+			}
+			else
+			{
+				Hasher.Update(&ConnectedInput.Expression, sizeof(ConnectedInput.Expression));
+			}
 		}
 		Hash = Hasher.Finalize();
 	}

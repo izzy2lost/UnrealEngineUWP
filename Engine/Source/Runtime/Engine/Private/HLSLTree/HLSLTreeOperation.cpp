@@ -659,7 +659,7 @@ bool FExpressionOperation::PrepareValue(FEmitContext& Context, FEmitScope& Scope
 	{
 		if (Context.bMarkLiveValues)
 		{
-			InputPreparedType[Index] = Context.GetPreparedType(Inputs[Index]);
+			InputPreparedType[Index] = Context.GetPreparedType(Inputs[Index], RequestedTypes.InputType[Index]);
 			bMarkLiveInput[Index] = true;
 		}
 		else
@@ -737,13 +737,14 @@ bool FExpressionOperation::PrepareValue(FEmitContext& Context, FEmitScope& Scope
 void FExpressionOperation::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
 {
 	const FOperationDescription OpDesc = GetOperationDescription(Op);
+	const Private::FOperationRequestedTypes RequestedTypes = Private::GetOperationRequestedTypes(Op, RequestedType);
+
 	FPreparedType InputPreparedType[MaxInputs];
 	for (int32 Index = 0; Index < OpDesc.NumInputs; ++Index)
 	{
-		InputPreparedType[Index] = Context.GetPreparedType(Inputs[Index]);
+		InputPreparedType[Index] = Context.GetPreparedType(Inputs[Index], RequestedTypes.InputType[Index]);
 	}
 
-	const Private::FOperationRequestedTypes RequestedTypes = Private::GetOperationRequestedTypes(Op, RequestedType);
 	const Private::FOperationTypes Types = Private::GetOperationTypes(Op, MakeArrayView(InputPreparedType, OpDesc.NumInputs));
 	FEmitShaderExpression* InputValue[MaxInputs] = { nullptr };
 	for (int32 Index = 0; Index < OpDesc.NumInputs; ++Index)
@@ -850,13 +851,14 @@ void FExpressionOperation::EmitValueShader(FEmitContext& Context, FEmitScope& Sc
 void FExpressionOperation::EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const
 {
 	const FOperationDescription OpDesc = GetOperationDescription(Op);
+	const Private::FOperationRequestedTypes RequestedTypes = Private::GetOperationRequestedTypes(Op, RequestedType);
+
 	FPreparedType InputPreparedType[MaxInputs];
 	for (int32 Index = 0; Index < OpDesc.NumInputs; ++Index)
 	{
-		InputPreparedType[Index] = Context.GetPreparedType(Inputs[Index]);
+		InputPreparedType[Index] = Context.GetPreparedType(Inputs[Index], RequestedTypes.InputType[Index]);
 	}
 
-	const Private::FOperationRequestedTypes RequestedTypes = Private::GetOperationRequestedTypes(Op, RequestedType);
 	const Private::FOperationTypes Types = Private::GetOperationTypes(Op, MakeArrayView(InputPreparedType, OpDesc.NumInputs));
 	check(OpDesc.PreshaderOpcode != Shader::EPreshaderOpcode::Nop);
 

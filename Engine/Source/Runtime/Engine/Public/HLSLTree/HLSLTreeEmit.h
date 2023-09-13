@@ -370,9 +370,9 @@ public:
 
 	ENGINE_API void EmitDeclarationsCode(FStringBuilderBase& OutCode);
 
-	ENGINE_API const FPreparedType& GetPreparedType(const FExpression* Expression) const;
-	ENGINE_API FRequestedType GetRequestedType(const FExpression* Expression) const;
-	ENGINE_API Shader::FType GetType(const FExpression* Expression) const;
+	ENGINE_API FPreparedType GetPreparedType(const FExpression* Expression, const FRequestedType& RequestedType) const;
+	ENGINE_API Shader::FType GetResultType(const FExpression* Expression, const FRequestedType& RequestedType) const;
+	ENGINE_API Shader::FType GetTypeForPinColoring(const FExpression* Expression) const;
 	ENGINE_API EExpressionEvaluation GetEvaluation(const FExpression* Expression, const FEmitScope& Scope, const FRequestedType& RequestedType) const;
 
 	ENGINE_API FPreparedType PrepareExpression(const FExpression* InExpression, FEmitScope& Scope, const FRequestedType& RequestedType);
@@ -583,10 +583,12 @@ public:
 
 	uint32 DynamicParticleParameterMask = 0u;
 
+	FActiveStructFieldStack ActiveStructFieldStack;
+
 	TArray<const FOwnedNode*, TInlineAllocator<32>> OwnerStack;
 	TArray<FEmitShaderNode*> EmitNodes;
 	TMap<const FScope*, FEmitScope*> EmitScopeMap;
-	TMap<const FExpression*, FPrepareValueResult*> PrepareValueMap;
+	TMap<FXxHash64, FPrepareValueResult*> PrepareValueMap;
 	TMap<FXxHash64, FRequestedType*> RequestedTypeTracker;
 	TMap<const FExpression*, FEmitScope*> PrepareLocalPHIMap;
 	TMap<const FExpression*, FEmitShaderExpression*> EmitLocalPHIMap;

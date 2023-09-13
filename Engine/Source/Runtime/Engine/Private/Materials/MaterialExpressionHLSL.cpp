@@ -53,6 +53,7 @@
 #include "Materials/MaterialExpressionVertexNormalWS.h"
 #include "Materials/MaterialExpressionVertexTangentWS.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
+#include "Materials/MaterialExpressionTextureProperty.h"
 #include "Materials/MaterialExpressionLightmapUVs.h"
 #include "Materials/MaterialExpressionEyeAdaptation.h"
 #include "Materials/MaterialExpressionEyeAdaptationInverse.h"
@@ -64,6 +65,7 @@
 #include "Materials/MaterialExpressionParticleRelativeTime.h"
 #include "Materials/MaterialExpressionParticleRandom.h"
 #include "Materials/MaterialExpressionParticleSize.h"
+#include "Materials/MaterialExpressionParticleMacroUV.h"
 #include "Materials/MaterialExpressionSkyLightEnvMapSample.h"
 #include "Materials/MaterialExpressionTextureSample.h"
 #include "Materials/MaterialExpressionTextureSampleParameter.h"
@@ -656,7 +658,7 @@ bool UMaterialExpressionCurveAtlasRowParameter::GenerateHLSLExpression(FMaterial
 	}
 
 	FTree& Tree = Generator.GetTree();
-	const FExpression* ExpressionTextureSize = Tree.NewExpression<Material::FExpressionTextureSize>(ExpressionTexture);
+	const FExpression* ExpressionTextureSize = Tree.NewExpression<Material::FExpressionTextureProperty>(ExpressionTexture, TMTM_TextureSize);
 	const FExpression* ExpressionTextureHeight = Tree.NewExpression<FExpressionSwizzle>(MakeSwizzleMask(false, true, false, false), ExpressionTextureSize);
 	const FExpression* ExpressionCoordU = InputTime.AcquireHLSLExpressionOrConstant(Generator, Scope, 0.0f);
 	const FExpression* ExpressionCoordV = Tree.NewMul(Tree.NewAdd(ExpressionSlot, Tree.NewConstant(0.5f)), Tree.NewRcp(ExpressionTextureHeight));
@@ -1004,6 +1006,25 @@ bool UMaterialExpressionTextureCoordinate::GenerateHLSLExpression(FMaterialHLSLG
 	return true;
 }
 
+bool UMaterialExpressionTextureProperty::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	if (Property < 0 || Property >= TMTM_MAX)
+	{
+		return Generator.Errorf(TEXT("Invalid texture property %d"), Property);
+	}
+
+	const FExpression* TextureExpression = TextureObject.AcquireHLSLExpression(Generator, Scope);
+	if (!TextureExpression)
+	{
+		return false;
+	}
+
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionTextureProperty>(TextureExpression, (EMaterialExposedTextureProperty)Property);
+	return true;
+}
+
 bool UMaterialExpressionLightmapUVs::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	using namespace UE::HLSLTree::Material;
@@ -1092,6 +1113,13 @@ bool UMaterialExpressionParticleSize::GenerateHLSLExpression(FMaterialHLSLGenera
 {
 	using namespace UE::HLSLTree::Material;
 	OutExpression = Generator.NewExternalInput(EExternalInput::ParticleSize);
+	return true;
+}
+
+bool UMaterialExpressionParticleMacroUV::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float2, TEXT("GetParticleMacroUV(Parameters)"));
 	return true;
 }
 
@@ -2525,14 +2553,16 @@ bool UMaterialExpressionFunctionInput::GenerateHLSLExpression(FMaterialHLSLGener
 bool UMaterialExpressionMaterialFunctionCall::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	using namespace UE::HLSLTree;
-	TArray<const FExpression*, TInlineAllocator<16>> ConnectedInputs;
-	ConnectedInputs.Reserve(FunctionInputs.Num());
+
+	TArray<FMaterialHLSLGenerator::FConnectedInput> ConnectedInputs;
+	ConnectedInputs.Empty(FunctionInputs.Num());
+
 	for (int32 InputIndex = 0; InputIndex < FunctionInputs.Num(); ++InputIndex)
 	{
-		// ConnectedInputs are the inputs from the UMaterialFunctionCall object
-		// We want to connect the UMaterialExpressionFunctionInput from the UMaterialFunction to whatever UMaterialExpression is passed to the UMaterialFunctionCall
-		const FExpression* ConnectedInput = FunctionInputs[InputIndex].Input.TryAcquireHLSLExpression(Generator, Scope);
-		ConnectedInputs.Add(ConnectedInput);
+		// We cannot call AcquireExpression on the FExpressionInput now because it will form an infinite loop if at least one input
+		// is directly or indirectly connected to another output of this function call. Instead, we store a reference to the FExpressionInput
+		// and process it later when we GenerateHLSLExpression for the corresponding UMaterialExpressionFunctionInput inside the material function.
+		ConnectedInputs.Emplace(&FunctionInputs[InputIndex].Input, &Scope);
 	}
 
 	OutExpression = Generator.GenerateFunctionCall(Scope, MaterialFunction, GlobalParameter, INDEX_NONE, ConnectedInputs, OutputIndex);
@@ -2554,7 +2584,7 @@ bool UMaterialExpressionMaterialAttributeLayers::GenerateHLSLExpression(FMateria
 	TArray<FFunctionExpressionOutput> FunctionOutputs;
 
 	const FExpression* ExpressionLayerInput = Input.AcquireHLSLExpressionOrConstant(Generator, Scope, Generator.GetMaterialAttributesDefaultValue());
-	TArray<const FExpression*, TInlineAllocator<1>> LayerInputExpressions;
+	TArray<FMaterialHLSLGenerator::FConnectedInput, TInlineAllocator<1>> LayerInputExpressions;
 
 	TArray<const FExpression*, TInlineAllocator<16>> LayerExpressions;
 	LayerExpressions.Reserve(MaterialLayers.Layers.Num());
@@ -2583,7 +2613,7 @@ bool UMaterialExpressionMaterialAttributeLayers::GenerateHLSLExpression(FMateria
 			LayerInputExpressions.Empty(1);
 			if (FunctionInputs.Num() == 1)
 			{
-				LayerInputExpressions.Add(ExpressionLayerInput);
+				LayerInputExpressions.Emplace(ExpressionLayerInput);
 			}
 			LayerExpression = Generator.GenerateFunctionCall(Scope, LayerFunction, LayerParameter, LayerIndex, LayerInputExpressions, 0);
 		}
@@ -2596,7 +2626,7 @@ bool UMaterialExpressionMaterialAttributeLayers::GenerateHLSLExpression(FMateria
 		return Generator.Error(TEXT("No layers"));
 	}
 
-	TArray<const FExpression*, TInlineAllocator<2>> BlendInputExpressions;
+	TArray<FMaterialHLSLGenerator::FConnectedInput, TInlineAllocator<2>> BlendInputExpressions;
 	for (int32 BlendIndex = 0; BlendIndex < MaterialLayers.Blends.Num(); ++BlendIndex)
 	{
 		const int32 LayerIndex = BlendIndex + 1;
@@ -2633,8 +2663,8 @@ bool UMaterialExpressionMaterialAttributeLayers::GenerateHLSLExpression(FMateria
 				}
 
 				BlendInputExpressions.Empty(2);
-				BlendInputExpressions.Add(BottomLayerExpression);
-				BlendInputExpressions.Add(LayerExpression);
+				BlendInputExpressions.Emplace(BottomLayerExpression);
+				BlendInputExpressions.Emplace(LayerExpression);
 				BottomLayerExpression = Generator.GenerateFunctionCall(Scope, BlendFunction, BlendParameter, BlendIndex, BlendInputExpressions, 0);
 			}
 			else

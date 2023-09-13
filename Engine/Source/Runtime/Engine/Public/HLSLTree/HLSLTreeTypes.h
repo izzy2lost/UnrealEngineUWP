@@ -180,6 +180,25 @@ struct FCustomHLSLInput
 	const FExpression* Expression = nullptr;
 };
 
+typedef TArray<const Shader::FStructField*> FActiveStructFieldStack;
+
+class FScopedActiveStructField
+{
+	FActiveStructFieldStack& Stack;
+
+public:
+	FScopedActiveStructField(FActiveStructFieldStack& InStack, const Shader::FStructField* Field)
+		: Stack(InStack)
+	{
+		Stack.Push(Field);
+	}
+
+	~FScopedActiveStructField()
+	{
+		Stack.Pop(false);
+	}
+};
+
 } // namespace UE::HLSLTree
 
 #endif // WITH_EDITOR

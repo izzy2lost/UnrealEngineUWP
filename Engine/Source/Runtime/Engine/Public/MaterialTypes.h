@@ -310,6 +310,7 @@ struct FMaterialTextureValue
 	static FName GetTypeName() { return TEXT("FMaterialTextureValue"); }
 
 	UTexture* Texture = nullptr;
+	URuntimeVirtualTexture* RuntimeVirtualTexture = nullptr;
 	FGuid ExternalTextureGuid;
 	EMaterialSamplerType SamplerType = SAMPLERTYPE_Color;
 	FMaterialParameterInfo ParameterInfo;

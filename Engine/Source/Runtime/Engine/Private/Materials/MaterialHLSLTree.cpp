@@ -578,17 +578,25 @@ void FExpressionParameter::EmitValuePreshader(FEmitContext& Context, FEmitScope&
 
 bool FExpressionParameter::EmitValueObject(FEmitContext& Context, FEmitScope& Scope, const FName& ObjectTypeName, void* OutObjectBase) const
 {
-	UTexture* Texture = Cast<UTexture>(ParameterMeta.Value.AsTextureObject());
-	if (Texture && ObjectTypeName == FMaterialTextureValue::GetTypeName())
+	if (ObjectTypeName != FMaterialTextureValue::GetTypeName())
 	{
-		FMaterialTextureValue& OutObject = *static_cast<FMaterialTextureValue*>(OutObjectBase);
-		OutObject.ParameterInfo = ParameterInfo;
-		OutObject.Texture = Texture;
-		OutObject.SamplerType = TextureSamplerType;
-		OutObject.ExternalTextureGuid = ExternalTextureGuid;
-		return true;
+		return false;
 	}
-	return false;
+
+	UObject* TextureObject = ParameterMeta.Value.AsTextureObject();
+	FMaterialTextureValue& OutObject = *static_cast<FMaterialTextureValue*>(OutObjectBase);
+
+	OutObject.Texture = Cast<UTexture>(TextureObject);
+	OutObject.RuntimeVirtualTexture = Cast<URuntimeVirtualTexture>(TextureObject);
+	if (!OutObject.Texture && !OutObject.RuntimeVirtualTexture)
+	{
+		return false;
+	}
+
+	OutObject.SamplerType = TextureSamplerType;
+	OutObject.ExternalTextureGuid = ExternalTextureGuid;
+	OutObject.ParameterInfo = ParameterInfo;
+	return true;
 }
 
 bool FExpressionParameter::EmitCustomHLSLParameter(FEmitContext& Context, FEmitScope& Scope, const FName& ObjectTypeName, const TCHAR* ParameterName, FEmitCustomHLSLParameterResult& OutResult) const
@@ -726,7 +734,15 @@ bool FExpressionTextureSample::PrepareValue(FEmitContext& Context, FEmitScope& S
 		return Context.Error(TEXT("Expected texture"));
 	}
 
-	const EMaterialValueType TextureMaterialType = TextureValue.Texture->GetMaterialType();
+	EMaterialValueType TextureMaterialType = MCT_Unknown;
+	if (TextureValue.Texture)
+	{
+		TextureMaterialType = TextureValue.Texture->GetMaterialType();
+	}
+	else if (TextureValue.RuntimeVirtualTexture)
+	{
+		TextureMaterialType = MCT_TextureVirtual;
+	}
 	const FRequestedType RequestedTexCoordType = Private::GetTexCoordType(TextureMaterialType);
 	const FPreparedType& TexCoordType = Context.PrepareExpression(TexCoordExpression, Scope, RequestedTexCoordType);
 	if (TexCoordType.IsVoid())
@@ -918,15 +934,27 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 	FMaterialTextureValue TextureValue;
 	verify(TextureExpression->GetValueObject(Context, Scope, TextureValue));
 	UTexture* Texture = TextureValue.Texture;
-	check(Texture);
+	URuntimeVirtualTexture* RuntimeVirtualTexture = TextureValue.RuntimeVirtualTexture;
 
-	const EMaterialValueType TextureType = Texture->GetMaterialType();
+	UObject* TextureObject = nullptr;
+	EMaterialValueType TextureType = MCT_Unknown;
+	if (Texture)
+	{
+		TextureObject = Texture;
+		TextureType = Texture->GetMaterialType();
+	}
+	else if (RuntimeVirtualTexture)
+	{
+		TextureObject = RuntimeVirtualTexture;
+		TextureType = MCT_TextureVirtual;
+	}
+
 	const Shader::EValueType TexCoordType = Private::GetTexCoordType(TextureType);
 
 	TextureAddress StaticAddressX = TA_Wrap;
 	TextureAddress StaticAddressY = TA_Wrap;
 	TextureAddress StaticAddressZ = TA_Wrap;
-	if (Texture->Source.GetNumBlocks() > 1)
+	if (Texture && Texture->Source.GetNumBlocks() > 1)
 	{
 		// UDIM (multi-block) texture are forced to use wrap address mode
 		// This is important for supporting VT stacks made from UDIMs with differing number of blocks, as this requires wrapping vAddress for certain layers
@@ -939,9 +967,12 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 		switch (SamplerSource)
 		{
 		case SSM_FromTextureAsset:
-			StaticAddressX = Texture->GetTextureAddressX();
-			StaticAddressY = Texture->GetTextureAddressY();
-			StaticAddressZ = Texture->GetTextureAddressZ();
+			if (Texture)
+			{
+				StaticAddressX = Texture->GetTextureAddressX();
+				StaticAddressY = Texture->GetTextureAddressY();
+				StaticAddressZ = Texture->GetTextureAddressZ();
+			}
 			break;
 		case SSM_Wrap_WorldGroupSettings:
 			StaticAddressX = TA_Wrap;
@@ -989,7 +1020,7 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 
 		FMaterialTextureParameterInfo TextureParameterInfo;
 		TextureParameterInfo.ParameterInfo = TextureValue.ParameterInfo;
-		TextureParameterInfo.TextureIndex = Context.Material->GetReferencedTextures().Find(TextureValue.Texture);
+		TextureParameterInfo.TextureIndex = Context.Material->GetReferencedTextures().Find(TextureObject);
 		TextureParameterInfo.SamplerSource = SamplerSource;
 		check(TextureParameterInfo.TextureIndex != INDEX_NONE);
 		const int32 TextureParameterIndex = Context.MaterialCompilationOutput->UniformExpressionSet.FindOrAddTextureParameter(EMaterialTextureParameterType::Virtual, TextureParameterInfo);
@@ -1021,6 +1052,7 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 		}
 		else
 		{
+			check(Texture);
 			// Using Source size because we care about the aspect ratio of each block (each block of multi-block texture must have same aspect ratio)
 			// We can still combine multi-block textures of different block aspect ratios, as long as each block has the same ratio
 			// This is because we only need to overlay VT pages from within a given block
@@ -1174,7 +1206,7 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 	OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("ApplyMaterialSamplerType(%, %)"), EmitTextureResult, TextureValue.SamplerType);
 }
 
-bool FExpressionTextureSize::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+bool FExpressionTextureProperty::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
 	const FPreparedType& TextureType = Context.PrepareExpression(TextureExpression, Scope, FMaterialTextureValue::GetTypeName());
 	if (TextureType.Type.ObjectType != FMaterialTextureValue::GetTypeName())
@@ -1182,20 +1214,32 @@ bool FExpressionTextureSize::PrepareValue(FEmitContext& Context, FEmitScope& Sco
 		return Context.Error(TEXT("Expected texture"));
 	}
 
-	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Preshader, Shader::EValueType::Float2);
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Preshader, Shader::EValueType::Float3);
 }
 
-void FExpressionTextureSize::EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const
+void FExpressionTextureProperty::EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const
 {
 	FMaterialTextureValue TextureValue;
 	TextureExpression->GetValueObject(Context, Scope, TextureValue);
 
-	const int32 TextureIndex = Context.Material->GetReferencedTextures().Find(TextureValue.Texture);
+	UObject* TextureObejct = nullptr;
+	if (TextureValue.Texture)
+	{
+		TextureObejct = TextureValue.Texture;
+	}
+	else if (TextureValue.RuntimeVirtualTexture)
+	{
+		TextureObejct = TextureValue.RuntimeVirtualTexture;
+	}
+
+	const int32 TextureIndex = Context.Material->GetReferencedTextures().Find(TextureObejct);
 	check(TextureIndex != INDEX_NONE);
 	
+	const Shader::EPreshaderOpcode Op = (TextureProperty == TMTM_TextureSize ? Shader::EPreshaderOpcode::TextureSize : Shader::EPreshaderOpcode::TexelSize);
+
 	Context.PreshaderStackPosition++;
-	OutResult.Type = Shader::EValueType::Float2;
-	OutResult.Preshader.WriteOpcode(Shader::EPreshaderOpcode::TextureSize).Write<FMemoryImageMaterialParameterInfo>(TextureValue.ParameterInfo).Write(TextureIndex);
+	OutResult.Type = Shader::EValueType::Float3;
+	OutResult.Preshader.WriteOpcode(Op).Write<FMemoryImageMaterialParameterInfo>(TextureValue.ParameterInfo).Write(TextureIndex);
 }
 
 bool FExpressionRuntimeVirtualTextureUniform::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
@@ -1214,7 +1258,17 @@ void FExpressionRuntimeVirtualTextureUniform::EmitValuePreshader(FEmitContext& C
 	FMaterialTextureValue TextureValue;
 	TextureExpression->GetValueObject(Context, Scope, TextureValue);
 
-	const int32 TextureIndex = Context.Material->GetReferencedTextures().Find(TextureValue.Texture);
+	UObject* TextureObejct = nullptr;
+	if (TextureValue.Texture)
+	{
+		TextureObejct = TextureValue.Texture;
+	}
+	else if (TextureValue.RuntimeVirtualTexture)
+	{
+		TextureObejct = TextureValue.RuntimeVirtualTexture;
+	}
+
+	const int32 TextureIndex = Context.Material->GetReferencedTextures().Find(TextureObejct);
 	check(TextureIndex != INDEX_NONE);
 	const int32 VectorIndex = (int32)UniformType;
 
@@ -1575,7 +1629,7 @@ bool FExpressionNoise::PrepareValue(FEmitContext& Context, FEmitScope& Scope, co
 
 void FExpressionNoise::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
 {
-	const FPreparedType& PreparedType = Context.GetPreparedType(PositionExpression);
+	const FPreparedType& PreparedType = Context.GetPreparedType(PositionExpression, Shader::EValueType::Float3);
 	bool bIsLWC = Shader::IsLWCType(PreparedType.Type);
 	FEmitShaderExpression* EmitPosition = PositionExpression->GetValueShader(Context, Scope, bIsLWC ? Shader::EValueType::Double3 : Shader::EValueType::Float3);
 	FEmitShaderExpression* EmitFilterWidth = FilterWidthExpression->GetValueShader(Context, Scope, Shader::EValueType::Float1);

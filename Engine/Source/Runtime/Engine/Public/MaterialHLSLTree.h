@@ -373,14 +373,16 @@ public:
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
 
-class FExpressionTextureSize : public FExpression
+class FExpressionTextureProperty : public FExpression
 {
 public:
-	explicit FExpressionTextureSize(const FExpression* InTextureExpression)
+	explicit FExpressionTextureProperty(const FExpression* InTextureExpression, EMaterialExposedTextureProperty InTextureProperty)
 		: TextureExpression(InTextureExpression)
+		, TextureProperty(InTextureProperty)
 	{}
 
 	const FExpression* TextureExpression;
+	EMaterialExposedTextureProperty TextureProperty;
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const override;

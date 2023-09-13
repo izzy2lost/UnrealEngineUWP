@@ -105,8 +105,8 @@ public:
 
 	UE::HLSLTree::FScope* NewJoinedScope(UE::HLSLTree::FScope& Scope);
 
-	const UE::HLSLTree::FExpression* NewConstant(const UE::Shader::FValue& Value);
-	const UE::HLSLTree::FExpression* NewTexCoord(int32 Index);
+	ENGINE_API const UE::HLSLTree::FExpression* NewConstant(const UE::Shader::FValue& Value);
+	ENGINE_API const UE::HLSLTree::FExpression* NewTexCoord(int32 Index);
 	const UE::HLSLTree::FExpression* NewExternalInput(UE::HLSLTree::Material::EExternalInput Input);
 	const UE::HLSLTree::FExpression* NewSwizzle(const UE::HLSLTree::FSwizzleParameters& Params, const UE::HLSLTree::FExpression* Input);
 
@@ -149,11 +149,30 @@ public:
 		EMaterialSamplerType InSamplerType = SAMPLERTYPE_Color,
 		const FGuid& InExternalTextureGuid = FGuid());
 
+	struct FConnectedInput
+	{
+		const UE::HLSLTree::FExpression* Expression;
+		const FExpressionInput* Input;
+		UE::HLSLTree::FScope* Scope;
+
+		explicit FConnectedInput(const UE::HLSLTree::FExpression* InExpression)
+			: Expression(InExpression)
+			, Input(nullptr)
+			, Scope(nullptr)
+		{}
+
+		FConnectedInput(const FExpressionInput* InInput, UE::HLSLTree::FScope* InScope)
+			: Expression(nullptr)
+			, Input(InInput)
+			, Scope(InScope)
+		{}
+	};
+
 	const UE::HLSLTree::FExpression* GenerateFunctionCall(UE::HLSLTree::FScope& Scope,
 		UMaterialFunctionInterface* Function,
 		EMaterialParameterAssociation ParameterAssociation,
 		int32 ParameterIndex,
-		TArrayView<const UE::HLSLTree::FExpression*> ConnectedInputs,
+		TArrayView<FConnectedInput> ConnectedInputs,
 		int32 OutputIndex);
 
 	const UE::HLSLTree::FExpression* GenerateBranch(UE::HLSLTree::FScope& Scope,
@@ -217,7 +236,7 @@ private:
 
 	using FFunctionInputArray = TArray<const UMaterialExpressionFunctionInput*, TInlineAllocator<4>>;
 	using FFunctionOutputArray = TArray<UMaterialExpressionFunctionOutput*, TInlineAllocator<4>>;
-	using FConnectedInputArray = TArray<const UE::HLSLTree::FExpression*, TInlineAllocator<4>>;
+	using FConnectedInputArray = TArray<FConnectedInput, TInlineAllocator<4>>;
 
 	struct FFunctionCallEntry
 	{

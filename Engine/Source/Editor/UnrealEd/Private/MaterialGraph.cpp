@@ -183,7 +183,7 @@ void UMaterialGraph::UpdatePinTypes()
 	{
 		const FMaterialConnectionKey& Key = It.Key;
 		const FExpression* OutputExpression = It.Value;
-		const UE::Shader::FType OutputType = EmitContext.GetType(OutputExpression);
+		const UE::Shader::FType OutputType = EmitContext.GetTypeForPinColoring(OutputExpression);
 		if (!OutputType.IsVoid())
 		{
 			const FConnectionKey InputKey(Key.InputObject, OutputExpression);

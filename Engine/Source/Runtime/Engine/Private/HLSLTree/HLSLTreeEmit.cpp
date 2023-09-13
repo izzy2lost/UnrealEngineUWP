@@ -208,7 +208,7 @@ FEmitContext::~FEmitContext()
 	{
 		delete It.Value;
 	}
-	for (TMap<const FExpression*, FPrepareValueResult*>::TIterator It(PrepareValueMap); It; ++It)
+	for (TMap<FXxHash64, FPrepareValueResult*>::TIterator It(PrepareValueMap); It; ++It)
 	{
 		FPrepareValueResult* Value = It.Value();
 		if (Value)
@@ -341,6 +341,19 @@ void EmitCustomHLSL(const FEmitCustomHLSL& EmitCustomHLSL, const TCHAR* Paramete
 	OutCode.Append(TEXT("\treturn Result;\n"));
 	OutCode.Append(TEXT("}\n"));
 }
+
+FXxHash64 GetPrepareValueHash(const FExpression* Expression, bool bRequestedStruct)
+{
+	FXxHash64Builder Hasher;
+	Hasher.Update(&Expression, sizeof(Expression));
+	Hasher.Update(&bRequestedStruct, sizeof(bRequestedStruct));
+	return Hasher.Finalize();
+}
+
+FXxHash64 GetPrepareValueHash(const FExpression* Expression, const FRequestedType& RequestedType)
+{
+	return GetPrepareValueHash(Expression, RequestedType.IsStruct());
+}
 } // namespace Private
 
 void FEmitContext::EmitDeclarationsCode(FStringBuilderBase& OutCode)
@@ -363,31 +376,33 @@ void FEmitContext::EmitDeclarationsCode(FStringBuilderBase& OutCode)
 	}
 }
 
-const FPreparedType& FEmitContext::GetPreparedType(const FExpression* Expression) const
+FPreparedType FEmitContext::GetPreparedType(const FExpression* Expression, const FRequestedType& RequestedType) const
 {
-	static const FPreparedType VoidType;
-	FPrepareValueResult const* const* PrevResult = PrepareValueMap.Find(Expression);
-	const FPrepareValueResult* Result = PrevResult ? *PrevResult : nullptr;
-	if (Result)
+	const FXxHash64 Hash = Private::GetPrepareValueHash(Expression, RequestedType);
+	FPrepareValueResult const* const* PrevResult = PrepareValueMap.Find(Hash);
+	return PrevResult ? (*PrevResult)->PreparedType : FPreparedType();
+}
+
+Shader::FType FEmitContext::GetResultType(const FExpression* Expression, const FRequestedType& RequestedType) const
+{
+	return GetPreparedType(Expression, RequestedType).GetResultType();
+}
+
+Shader::FType FEmitContext::GetTypeForPinColoring(const FExpression* Expression) const
+{
+	FXxHash64 Hash = Private::GetPrepareValueHash(Expression, true);
+	FPrepareValueResult const* const* Found = PrepareValueMap.Find(Hash);
+	if (!Found)
 	{
-		return Result->PreparedType;
+		Hash = Private::GetPrepareValueHash(Expression, false);
+		Found = PrepareValueMap.Find(Hash);
 	}
-	return VoidType;
-}
-
-FRequestedType FEmitContext::GetRequestedType(const FExpression* Expression) const
-{
-	return GetPreparedType(Expression).GetRequestedType();
-}
-
-Shader::FType FEmitContext::GetType(const FExpression* Expression) const
-{
-	return GetPreparedType(Expression).GetResultType();
+	return Found ? (*Found)->PreparedType.GetResultType() : Shader::FType();
 }
 
 EExpressionEvaluation FEmitContext::GetEvaluation(const FExpression* Expression, const FEmitScope& Scope, const FRequestedType& RequestedType) const
 {
-	return GetPreparedType(Expression).GetEvaluation(Scope, RequestedType);
+	return GetPreparedType(Expression, RequestedType).GetEvaluation(Scope, RequestedType);
 }
 
 bool AllComponentsRequestedInPast(const FRequestedType& RequestedType, const FRequestedType& PastRequestedType)
@@ -421,13 +436,14 @@ FPreparedType FEmitContext::PrepareExpression(const FExpression* InExpression, F
 		return FPreparedType();
 	}
 
-	FPrepareValueResult** PrevResult = PrepareValueMap.Find(InExpression);
+	FXxHash64 Hash = Private::GetPrepareValueHash(InExpression, RequestedType);
+	FPrepareValueResult** PrevResult = PrepareValueMap.Find(Hash);
 	FPrepareValueResult* Result = PrevResult ? *PrevResult : nullptr;
 	if (!Result)
 	{
 		check(!bMarkLiveValues); // value should already be prepared at this point
 		Result = new(*Allocator) FPrepareValueResult();
-		PrepareValueMap.Add(InExpression, Result);
+		PrepareValueMap.Add(Hash, Result);
 	}
 
 	if (RequestedType.IsEmpty() && !Result->PreparedType.IsVoid())
@@ -450,10 +466,14 @@ FPreparedType FEmitContext::PrepareExpression(const FExpression* InExpression, F
 		return Result->PreparedType;
 	}
 
-	FXxHash64Builder Hasher;
-	Hasher.Update(&InExpression, sizeof(InExpression));
-	Hasher.Update(&bMarkLiveValues, sizeof(bMarkLiveValues));
-	const FXxHash64 Hash = Hasher.Finalize();
+	{
+		FXxHash64Builder Hasher;
+		Hasher.Update(&InExpression, sizeof(InExpression));
+		Hasher.Update(&bMarkLiveValues, sizeof(bMarkLiveValues));
+		const bool bRequestedStruct = RequestedType.IsStruct();
+		Hasher.Update(&bRequestedStruct, sizeof(bRequestedStruct));
+		Hash = Hasher.Finalize();
+	}
 
 	FRequestedType** PastRequestedTypePtr = RequestedTypeTracker.Find(Hash);
 	if (PastRequestedTypePtr)
@@ -488,7 +508,6 @@ FPreparedType FEmitContext::PrepareExpression(const FExpression* InExpression, F
 	}
 	else
 	{
-		check(Result->PreparedType.IsVoid() || bMarkLiveValues);
 		FRequestedType* StackRequestedType = new (*Allocator) FRequestedType(RequestedType);
 		// Turn Bool into Int
 		StackRequestedType->Type = Shader::CombineTypes(StackRequestedType->Type, StackRequestedType->Type);
@@ -1016,7 +1035,7 @@ FEmitShaderExpression* FEmitContext::EmitPreshaderOrConstant(FEmitScope& Scope, 
 		return ShaderValue;
 	}
 
-	const FPreparedType& PreparedType = GetPreparedType(Expression);
+	const FPreparedType& PreparedType = GetPreparedType(Expression, RequestedType);
 
 	Shader::FPreshaderStack Stack;
 	const Shader::FPreshaderValue PreshaderConstantValue = LocalPreshader.EvaluateConstant(*Material, Stack);
@@ -1378,7 +1397,7 @@ FEmitShaderExpression* FEmitContext::EmitCustomHLSL(FEmitScope& Scope, FStringVi
 	FHasher Hasher;
 	for (const FCustomHLSLInput& Input : Inputs)
 	{
-		const Shader::FType InputType = GetType(Input.Expression);
+		const Shader::FType InputType = GetResultType(Input.Expression, Shader::EValueType::Any);
 		AppendHash(Hasher, Input.Name);
 		AppendHash(Hasher, InputType);
 
@@ -1423,9 +1442,10 @@ FEmitShaderExpression* FEmitContext::EmitCustomHLSL(FEmitScope& Scope, FStringVi
 
 	TStringBuilder<1024> FormattedCode;
 	FormattedCode.Appendf(TEXT("CustomExpression%d(Parameters"), EmitCustomHLSL->Index);
-	for (const FCustomHLSLInput& Input : Inputs)
+	for (int32 InputIndex = 0; InputIndex < Inputs.Num(); ++InputIndex)
 	{
-		FEmitShaderExpression* EmitInputExpression = Input.Expression->GetValueShader(*this, Scope);
+		const FCustomHLSLInput& Input = Inputs[InputIndex];
+		FEmitShaderExpression* EmitInputExpression = Input.Expression->GetValueShader(*this, Scope, EmitInputs[InputIndex].Type);
 		FormattedCode.Appendf(TEXT(", %s"), EmitInputExpression->Reference);
 		Dependencies.Add(EmitInputExpression);
 	}
@@ -1445,7 +1465,7 @@ void FEmitContext::Finalize()
 	
 	// Don't reset Expression/Preshader maps, allow future passes to share matching preshaders/expressions
 
-	for (TMap<const FExpression*, FPrepareValueResult*>::TIterator It(PrepareValueMap); It; ++It)
+	for (TMap<FXxHash64, FPrepareValueResult*>::TIterator It(PrepareValueMap); It; ++It)
 	{
 		FPrepareValueResult* Value = It.Value();
 		if (Value)

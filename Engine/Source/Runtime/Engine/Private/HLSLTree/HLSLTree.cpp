@@ -371,7 +371,7 @@ void FExpressionLocalPHI::EmitValueShader(FEmitContext& Context, FEmitScope& Sco
 
 		if (LiveScopes.bCanForwardValue)
 		{
-			EmitExpression = LiveScopes.LiveValues[0]->GetValueShader(Context, Scope);
+			EmitExpression = LiveScopes.LiveValues[0]->GetValueShader(Context, Scope, RequestedType);
 			Context.EmitLocalPHIMap.Add(this, EmitExpression);
 		}
 		else
@@ -379,7 +379,7 @@ void FExpressionLocalPHI::EmitValueShader(FEmitContext& Context, FEmitScope& Sco
 			// This is the first time we've emitted shader code for this PHI
 			// Create an expression and add it to the map first, so if this is called recursively this path will only be taken the first time
 			const int32 LocalPHIIndex = Context.NumExpressionLocalPHIs++;
-			const Shader::FType LocalType = Context.GetType(this);
+			const Shader::FType LocalType = Context.GetResultType(this, RequestedType);
 
 			EmitExpression = OutResult.Code = Context.EmitInlineExpression(Scope,
 				LocalType,
@@ -443,7 +443,7 @@ void FExpressionLocalPHI::EmitValuePreshader(FEmitContext& Context, FEmitScope& 
 		}
 	}
 
-	OutResult.Type = Context.GetType(this);
+	OutResult.Type = Context.GetResultType(this, RequestedType);
 	if (ValueStackPosition == INDEX_NONE)
 	{
 		Private::FLocalPHILiveScopes LiveScopes;
@@ -1195,13 +1195,13 @@ FEmitShaderExpression* FExpression::GetValueShader(FEmitContext& Context, FEmitS
 
 FEmitShaderExpression* FExpression::GetValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, const Shader::FType& ResultType) const
 {
-	const FPreparedType& PreparedType = Context.GetPreparedType(this);
+	const FPreparedType& PreparedType = Context.GetPreparedType(this, RequestedType);
 	return GetValueShader(Context, Scope, RequestedType, PreparedType, ResultType);
 }
 
 FEmitShaderExpression* FExpression::GetValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType) const
 {
-	const FPreparedType& PreparedType = Context.GetPreparedType(this);
+	const FPreparedType& PreparedType = Context.GetPreparedType(this, RequestedType);
 	return GetValueShader(Context, Scope, RequestedType, PreparedType, PreparedType.GetResultType());
 }
 
@@ -1213,12 +1213,6 @@ FEmitShaderExpression* FExpression::GetValueShader(FEmitContext& Context, FEmitS
 FEmitShaderExpression* FExpression::GetValueShader(FEmitContext& Context, FEmitScope& Scope, Shader::EValueType ResultType) const
 {
 	return GetValueShader(Context, Scope, ResultType, ResultType);
-}
-
-FEmitShaderExpression* FExpression::GetValueShader(FEmitContext& Context, FEmitScope& Scope) const
-{
-	const FPreparedType& PreparedType = Context.GetPreparedType(this);
-	return GetValueShader(Context, Scope, PreparedType.GetRequestedType(), PreparedType, PreparedType.GetResultType());
 }
 
 Shader::FType FExpression::GetValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, const FPreparedType& PreparedType, const Shader::FType& ResultType, Shader::FPreshaderData& OutPreshader) const
@@ -1255,13 +1249,13 @@ Shader::FType FExpression::GetValuePreshader(FEmitContext& Context, FEmitScope& 
 
 Shader::FType FExpression::GetValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, const Shader::FType& ResultType, Shader::FPreshaderData& OutPreshader) const
 {
-	const FPreparedType& PreparedType = Context.GetPreparedType(this);
+	const FPreparedType& PreparedType = Context.GetPreparedType(this, RequestedType);
 	return GetValuePreshader(Context, Scope, RequestedType, PreparedType, ResultType, OutPreshader);
 }
 
 Shader::FType FExpression::GetValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, Shader::FPreshaderData& OutPreshader) const
 {
-	const FPreparedType& PreparedType = Context.GetPreparedType(this);
+	const FPreparedType& PreparedType = Context.GetPreparedType(this, RequestedType);
 	return GetValuePreshader(Context, Scope, RequestedType, PreparedType, PreparedType.GetResultType(), OutPreshader);
 }
 
@@ -1311,13 +1305,13 @@ Shader::FValue FExpression::GetValueConstant(FEmitContext& Context, FEmitScope& 
 
 Shader::FValue FExpression::GetValueConstant(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, const Shader::FType& ResultType) const
 {
-	const FPreparedType PreparedType = Context.GetPreparedType(this);
+	const FPreparedType PreparedType = Context.GetPreparedType(this, RequestedType);
 	return GetValueConstant(Context, Scope, RequestedType, PreparedType, ResultType);
 }
 
 Shader::FValue FExpression::GetValueConstant(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType) const
 {
-	const FPreparedType PreparedType = Context.GetPreparedType(this);
+	const FPreparedType PreparedType = Context.GetPreparedType(this, RequestedType);
 	return GetValueConstant(Context, Scope, RequestedType, PreparedType, PreparedType.GetResultType());
 }
 
@@ -1333,14 +1327,14 @@ Shader::FValue FExpression::GetValueConstant(FEmitContext& Context, FEmitScope& 
 
 bool FExpression::GetValueObject(FEmitContext& Context, FEmitScope& Scope, const FName& ObjectTypeName, void* OutObjectBase) const
 {
-	const FPreparedType PreparedType = Context.GetPreparedType(this);
+	const FPreparedType PreparedType = Context.GetPreparedType(this, FRequestedType(ObjectTypeName));
 	check(PreparedType.Type.ObjectType == ObjectTypeName);
 	return EmitValueObject(Context, Scope, ObjectTypeName, OutObjectBase);
 }
 
 bool FExpression::CheckObjectSupportsCustomHLSL(FEmitContext& Context, FEmitScope& Scope, const FName& ObjectTypeName) const
 {
-	const FPreparedType PreparedType = Context.GetPreparedType(this);
+	const FPreparedType PreparedType = Context.GetPreparedType(this, FRequestedType(ObjectTypeName));
 	check(PreparedType.Type.ObjectType == ObjectTypeName);
 
 	FEmitCustomHLSLParameterResult UnusedResult;
