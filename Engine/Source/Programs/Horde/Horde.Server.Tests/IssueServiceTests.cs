@@ -137,12 +137,17 @@ namespace Horde.Server.Tests
 
 			static StreamConfig CreateStream(StreamId streamId, string streamName)
 			{
+				TemplateRefConfig templateConfig = new TemplateRefConfig { Id = new TemplateId("test-template") };
+				templateConfig.Annotations = new NodeAnnotations();
+				templateConfig.Annotations.WorkflowId = new WorkflowId("test-workflow-id");
+
 				return new StreamConfig
 				{
 					Id = streamId,
 					Name = streamName,
 					Tabs = new List<TabConfig> { new JobsTabConfig { Title = "General", Templates = new List<TemplateId> { new TemplateId("test-template") } } },
-					Templates = new List<TemplateRefConfig> { new TemplateRefConfig { Id = new TemplateId("test-template") } }
+					Templates = new List<TemplateRefConfig> { templateConfig },
+					Workflows = new List<WorkflowConfig> { new WorkflowConfig { Id = new WorkflowId("test-workflow-id"), IssueHandlers = new List<string> { "Scoped" } } }
 				};
 			}
 
@@ -168,10 +173,14 @@ namespace Horde.Server.Tests
 			_perforce.AddChange(_mainStreamId, 135, jerry, "Description", new string[] { "a/g.cpp" });
 
 			List<INode> nodes = new List<INode>();
-			nodes.Add(MockNode("Update Version Files", NodeAnnotations.Empty));
-			nodes.Add(MockNode("Compile UnrealHeaderTool Win64", NodeAnnotations.Empty));
-			nodes.Add(MockNode("Compile ShooterGameEditor Win64", NodeAnnotations.Empty));
-			nodes.Add(MockNode("Cook ShooterGame Win64", NodeAnnotations.Empty));
+
+			NodeAnnotations workflowAnnotations = new NodeAnnotations();
+			workflowAnnotations.WorkflowId = new WorkflowId("test-workflow-id");
+			
+			nodes.Add(MockNode("Update Version Files", workflowAnnotations));
+			nodes.Add(MockNode("Compile UnrealHeaderTool Win64", workflowAnnotations));
+			nodes.Add(MockNode("Compile ShooterGameEditor Win64", workflowAnnotations));
+			nodes.Add(MockNode("Cook ShooterGame Win64", workflowAnnotations));
 
 			NodeAnnotations staticAnalysisAnnotations = new NodeAnnotations();
 			staticAnalysisAnnotations.Add("CompileType", "Static analysis");
@@ -1261,10 +1270,10 @@ namespace Horde.Server.Tests
 		{
 			IJob job = CreateJob(_mainStreamId, 120, "Compile Test", _graph);
 
-			await ParseEventsAsync(job, 0, 0, new[] { "LogSomething: Warning: This is a warning from the editor" });
+			await ParseEventsAsync(job, 0, 0, new[] { "Warning: This is a warning from the editor" });
 			await UpdateCompleteStep(job, 0, 0, JobStepOutcome.Failure);
 
-			await ParseEventsAsync(job, 0, 1, new[] { "LogSomething: Warning: This is a warning from the editor" });
+			await ParseEventsAsync(job, 0, 1, new[] { "Warning: This is a warning from the editor" });
 			await UpdateCompleteStep(job, 0, 1, JobStepOutcome.Failure);
 
 			List<IIssue> issues = await IssueCollection.FindIssuesAsync();
@@ -1279,10 +1288,10 @@ namespace Horde.Server.Tests
 		{
 			IJob job = CreateJob(_mainStreamId, 120, "Compile Test", _graph);
 
-			await ParseEventsAsync(job, 0, 0, new[] { "LogSomething: Warning: This is a warning from the editor" });
+			await ParseEventsAsync(job, 0, 0, new[] { "Warning: This is a warning from the editor" });
 			await UpdateCompleteStep(job, 0, 0, JobStepOutcome.Failure);
 
-			await ParseEventsAsync(job, 0, 1, new[] { "LogSomething: Warning: This is a warning from the editor2" });
+			await ParseEventsAsync(job, 0, 1, new[] { "Warning: This is a warning from the editor2" });
 			await UpdateCompleteStep(job, 0, 1, JobStepOutcome.Failure);
 
 			List<IIssue> issues = await IssueCollection.FindIssuesAsync();
@@ -1298,24 +1307,6 @@ namespace Horde.Server.Tests
 		{
 			IJob job = CreateJob(_mainStreamId, 120, "Compile Test", _graph);
 
-			await ParseEventsAsync(job, 0, 0, new[] { "LogSomething: Warning: This is a warning from the editor", "warning: some generic thing that will be ignored" });
-			await UpdateCompleteStep(job, 0, 0, JobStepOutcome.Failure);
-
-			await ParseEventsAsync(job, 0, 1, new[] { "LogSomething: Warning: This is a warning from the editor" });
-			await UpdateCompleteStep(job, 0, 1, JobStepOutcome.Failure);
-
-			List<IIssue> issues = await IssueCollection.FindIssuesAsync();
-			Assert.AreEqual(1, issues.Count);
-
-			IIssue issue = issues[0];
-			Assert.AreEqual("Warnings in Update Version Files and Compile UnrealHeaderTool Win64", issue.Summary);
-		}
-
-		[TestMethod]
-		public async Task HashedIssueTest4()
-		{
-			IJob job = CreateJob(_mainStreamId, 120, "Compile Test", _graph);
-
 			await ParseEventsAsync(job, 0, 0, new[] { "Assertion failed: 1 == 2 [File:D:\\build\\++UE5\\Sync\\Engine\\Source\\Runtime\\Core\\Tests\\Misc\\AssertionMacrosTest.cpp] [Line: 119]" });
 			await UpdateCompleteStep(job, 0, 0, JobStepOutcome.Failure);
 
@@ -1325,8 +1316,120 @@ namespace Horde.Server.Tests
 			List<IIssue> issues = await IssueCollection.FindIssuesAsync();
 			Assert.AreEqual(1, issues.Count);
 
-			IIssue issue = issues[0];
+			IIssue issue = issues[0];			
 			Assert.AreEqual("Errors in Update Version Files and Compile UnrealHeaderTool Win64", issue.Summary);
+		}
+
+		[TestMethod]
+		public async Task ScopedIssueTest1Async()
+		{
+			IJob job = CreateJob(_mainStreamId, 120, "Compile Test", _graph);
+
+			await ParseEventsAsync(job, 0, 0, new[] { "LogSomething: Warning: This is a warning from the editor", "warning: some generic thing that will use fallback issue matcher" });
+			await UpdateCompleteStep(job, 0, 0, JobStepOutcome.Failure);
+
+			await ParseEventsAsync(job, 0, 1, new[] { "LogSomething: Warning: This is a warning from the editor" });
+			await UpdateCompleteStep(job, 0, 1, JobStepOutcome.Failure);
+
+			List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+			Assert.AreEqual(2, issues.Count);
+
+			Assert.AreEqual("Hashed", issues[0].Fingerprints[0].Type);
+			Assert.AreEqual("Warnings in Update Version Files", issues[0].Summary);
+			Assert.AreEqual("Scoped:LogSomething", issues[1].Fingerprints[0].Type);
+			Assert.AreEqual("Warnings in Update Version Files and Compile UnrealHeaderTool Win64 - LogSomething", issues[1].Summary);
+		}
+
+		[TestMethod]
+		public async Task ScopedIssueTest2Async()
+		{
+			// #1
+			// Scenario: Job step completes successfully at CL 105
+			// Expected: No issues are created
+			{
+				IJob job = CreateJob(_mainStreamId, 105, "Test Build", _graph);
+				await UpdateCompleteStep(job, 0, 0, JobStepOutcome.Success);
+
+				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				Assert.AreEqual(0, issues.Count);
+			}
+
+			// #2
+			// Scenario: Job step fails at CL 120 on different platforms
+			// Expected: Creates single issue
+			{
+				IJob job;
+				List<IIssue> issues;
+
+				string[] lines1 =
+				{
+					@"LogAnalytics: Warning: EventCache either took too long to flush (0.005 ms) or had a very large payload (111.788 KB, 1 events). Listing events in the payload for investigation:",
+					@"LogAnalytics: Warning:     Editor.AssetRegistry.SynchronousScan,114458"
+				};
+
+				string[] lines2 =
+				{
+					@"LogAnalytics: Warning: EventCache either took too long to flush (0.005 ms) or had a very large payload (111.788 KB, 1 events). Listing events in the payload for investigation:",
+					@"LogAnalytics: Warning:     Editor.AssetRegistry.SynchronousScan,114458",
+					@"Some other log",
+					@"LogSavePackage: Warning: /ChallengeSystem/Data/ChallengePool_Default imported Serialize:/ChallengeSystem/Data/Quests/Quest_Challenge_Resource_T1.Quest_Challenge_Resource_T1, but it was never saved as an export.",
+					@"LogSavePackage: Warning: /ChallengeSystem/Data/ChallengePool_Default imported Serialize:/ChallengeSystem/Data/Quests/Quest__Challenge_Resource_T1_S, but it was never saved as an export.",
+					@"Some other log",
+					@"warning: some generic thing that will use fallback issue matcher",
+					@"Some other log",
+					@"LogSavePackage: Warning: /ChallengeSystem/Data/ChallengePool_Default imported Serialize:/ChallengeSystem/Data/Quests/Quest__Challenge_Resource_T1_M.Quest__Challenge_Resource_T1_M, but it was never saved as an export.",
+					@"LogSavePackage: Warning: /ChallengeSystem/Data/ChallengePool_Default imported Serialize:/ChallengeSystem/Data/Quests/Quest__Challenge_Resource_T1_M, but it was never saved as an export."
+				};
+
+				string[] lines3 =
+				{
+					@"LogSavePackage: Warning: /ChallengeSystem/Data/ChallengePool_Default imported Serialize:/ChallengeSystem/Data/Quests/Quest_Challenge_Resource_T1.Quest_Challenge_Resource_T1, but it was never saved as an export.",
+					@"LogSavePackage: Warning: /ChallengeSystem/Data/ChallengePool_Default imported Serialize:/ChallengeSystem/Data/Quests/Quest__Challenge_Resource_T1_S, but it was never saved as an export.",
+					@"Some other log",
+					@"LogUObjectLinker: Error: [CookWorker 0]: Detaching from existing linker /Game/Characters/Player/Male/Large/Bodies/M_LRG_Person_Mashup/Meshes/MLD/M_LRG_Person while object /Game/Characters/Player/Male/Large/Bodies/M_LRG_Person_Mashup/Meshes/MLD/M_LRG_Person.M_LRG_Person needs loading. Setting linker to nullptr.",
+					@"LogSkeletalMesh: Display: [CookWorker 0]: Waiting for skinned assets to be ready 0/1 (M_LRG_Person) ...",
+					@"LogUObjectLinker: Error: [CookWorker 0]: Detaching from existing linker /Game/Characters/Player/Male/Large/Bodies/M_LRG_Person/Meshes/MLD/M_LRG_Person_MLD while object /Game/Characters/Player/Male/Large/Bodies/M_LRG_Person/Meshes/MLD/M_LRG_Person_MLD.M_LRG_Person_MLD needs loading. Setting linker to nullptr."
+				};
+
+				int[] commits = { 105, 120, 125 };
+				for (int i = 0; i < 3; i++)
+				{
+
+					job = CreateJob(_mainStreamId, commits[i], "Test Build", _graph);
+
+					await ParseEventsAsync(job, 0, 0, lines1);
+					await UpdateCompleteStep(job, 0, 0, JobStepOutcome.Warnings);
+
+					await ParseEventsAsync(job, 0, 1, lines2);
+					await UpdateCompleteStep(job, 0, 1, JobStepOutcome.Warnings);
+
+					await ParseEventsAsync(job, 0, 2, lines3);
+					await UpdateCompleteStep(job, 0, 2, JobStepOutcome.Failure);
+
+					string[] lines4 = lines1.Concat(lines2).Concat(lines3).ToArray();
+					await ParseEventsAsync(job, 0, 3, lines4);
+					await UpdateCompleteStep(job, 0, 3, JobStepOutcome.Failure);
+
+					issues = await IssueCollection.FindIssuesAsync();
+					Assert.AreEqual(4, issues.Count);
+				}
+
+				job = CreateJob(_mainStreamId, 130, "Test Build", _graph);
+
+				await ParseEventsAsync(job, 0, 0, lines1);
+				await UpdateCompleteStep(job, 0, 0, JobStepOutcome.Warnings);
+
+				await ParseEventsAsync(job, 0, 1, lines1);
+				await UpdateCompleteStep(job, 0, 1, JobStepOutcome.Warnings);
+
+				await UpdateCompleteStep(job, 0, 2, JobStepOutcome.Success);
+				await UpdateCompleteStep(job, 0, 3, JobStepOutcome.Success);
+
+				issues = await IssueCollection.FindIssuesAsync();
+				Assert.AreEqual(1, issues.Count);
+
+
+			}
 		}
 
 		[TestMethod]

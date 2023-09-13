@@ -568,7 +568,7 @@ namespace Horde.Server.Issues
 			}
 
 			// Gets the events for this step grouped by fingerprint
-			HashSet<IssueEventGroup> eventGroups = await GetEventGroupsForStepAsync(job, batch, step, node, annotations);
+			HashSet<IssueEventGroup> eventGroups = await GetEventGroupsForStepAsync(job, batch, step, node, annotations, workflow);
 
 			// Try to update all the events. We may need to restart this due to optimistic transactions, so keep track of any existing spans we do not need to check against.
 			await using(IAsyncDisposable issueLock = await _issueCollection.EnterCriticalSectionAsync())
@@ -618,8 +618,9 @@ namespace Horde.Server.Issues
 		/// <param name="step">Unique id of the step</param>
 		/// <param name="node">The node corresponding to the step</param>
 		/// <param name="annotations">Annotations for this node</param>
+		/// <param name="workflow">The current workflow if any</param>
 		/// <returns>Set of new events</returns>
-		async Task<HashSet<IssueEventGroup>> GetEventGroupsForStepAsync(IJob job, IJobStepBatch batch, IJobStep step, INode node, IReadOnlyNodeAnnotations annotations)
+		async Task<HashSet<IssueEventGroup>> GetEventGroupsForStepAsync(IJob job, IJobStepBatch batch, IJobStep step, INode node, IReadOnlyNodeAnnotations annotations, WorkflowConfig? workflow)
 		{
 			// Make sure the step has a log file
 			if (step.LogId == null)
@@ -646,8 +647,14 @@ namespace Horde.Server.Issues
 
 			// Pass all the events to each matcher in turn, and allow it to tag any events it can handle
 			List<IssueEvent> remainingEvents = new List<IssueEvent>(issueEvents);
+
 			foreach (IssueHandler handler in _handlers)
 			{
+				if (handler.RequiresWorkflow && (workflow?.IssueHandlers == null || !workflow.IssueHandlers.Any(h => h == handler.Type)))
+				{
+					continue;
+				}
+
 				handler.TagEvents(job, node, annotations, remainingEvents);
 				remainingEvents.RemoveAll(x => x.Ignored || x.Fingerprint != null);
 			}

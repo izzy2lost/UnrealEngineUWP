@@ -22,6 +22,11 @@ namespace Horde.Server.Issues
 		public abstract int Priority { get; }
 
 		/// <summary>
+		/// Whether this handler requires being enabled by a workflow
+		/// </summary>
+		public virtual bool RequiresWorkflow { get; } = false;
+
+		/// <summary>
 		/// Tag all thethe events for a step completing
 		/// </summary>
 		/// <param name="job">The job that spawned the event</param>

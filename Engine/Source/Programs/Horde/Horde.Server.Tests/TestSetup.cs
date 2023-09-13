@@ -181,7 +181,7 @@ namespace Horde.Server.Tests
 
 			services.AddHttpClient<RpcService>();
 
-			services.AddLogging(builder => builder.AddConsole());
+			services.AddLogging(builder => { builder.AddConsole().SetMinimumLevel(LogLevel.Debug); });
 			services.AddSingleton<IMemoryCache>(sp => new MemoryCache(new MemoryCacheOptions { }));
 
 			services.AddSingleton(typeof(IAuditLogFactory<>), typeof(AuditLogFactory<>));

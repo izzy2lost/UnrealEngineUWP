@@ -101,6 +101,12 @@ namespace Horde.Server.Issues
 		/// External issue tracking configuration for this workflow
 		/// </summary>
 		public ExternalIssueConfig? ExternalIssues { get; set; }
+
+		/// <summary>
+		/// Additional issue handlers enabled for this workflow
+		/// </summary>
+		public List<string>? IssueHandlers { get; set; }
+
 	}
 
 	/// <summary>
