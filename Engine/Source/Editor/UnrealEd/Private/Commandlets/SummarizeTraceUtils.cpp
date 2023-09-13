@@ -20,7 +20,6 @@
 #include "Misc/Parse.h"
 #include "Misc/Timespan.h"
 #include "Model/MonotonicTimeline.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/Tuple.h"

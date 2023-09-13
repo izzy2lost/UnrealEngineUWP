@@ -65,7 +65,6 @@
 #include "Styling/SlateColor.h"
 #include "Styling/WidgetStyle.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Textures/SlateIcon.h"
 #include "TimeToPixel.h"
 #include "Tracks/MovieSceneCameraShakeSourceShakeTrack.h"

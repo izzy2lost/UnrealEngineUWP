@@ -60,7 +60,6 @@
 #include "Styling/SlateTypes.h"
 #include "Styling/StyleColors.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/SubclassOf.h"
 #include "Trace/Detail/Channel.h"
 #include "Types/SlateConstants.h"

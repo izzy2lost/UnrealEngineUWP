@@ -94,7 +94,6 @@
 #include "Styling/SlateIconFinder.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Subsystems/PanelExtensionSubsystem.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/Function.h"
 #include "Textures/SlateIcon.h"
 #include "ThumbnailRendering/ThumbnailManager.h"

@@ -65,7 +65,6 @@
 #include "Selection.h"
 #include "SlotBase.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/Tuple.h"
 #include "Templates/TypeHash.h"
 #include "Templates/UnrealTemplate.h"

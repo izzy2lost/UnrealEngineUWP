@@ -47,7 +47,6 @@
 #include "Slate/SceneViewport.h"
 #include "SlotBase.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/SubclassOf.h"
 #include "UObject/Field.h"
 #include "UObject/UObjectGlobals.h"

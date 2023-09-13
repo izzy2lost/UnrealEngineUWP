@@ -21,7 +21,6 @@
 #include "SNodePanel.h"
 #include "ScopedTransaction.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 #include "Textures/SlateIcon.h"

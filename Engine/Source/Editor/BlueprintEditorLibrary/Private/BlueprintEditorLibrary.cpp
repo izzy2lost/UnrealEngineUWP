@@ -33,7 +33,6 @@
 #include "Misc/AssertionMacros.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/SubclassOf.h"
 #include "Trace/Detail/Channel.h"
 #include "UObject/Class.h"

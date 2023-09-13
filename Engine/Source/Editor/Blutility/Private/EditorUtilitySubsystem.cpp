@@ -30,7 +30,6 @@
 #include "Misc/PackageName.h"
 #include "Modules/ModuleManager.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/SubclassOf.h"
 #include "Templates/Tuple.h"
 #include "Trace/Detail/Channel.h"

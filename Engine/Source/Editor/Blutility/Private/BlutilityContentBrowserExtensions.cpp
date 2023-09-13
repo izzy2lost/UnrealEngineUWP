@@ -24,7 +24,6 @@
 #include "Misc/NamePermissionList.h"
 #include "Modules/ModuleManager.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/SubclassOf.h"
 #include "Templates/UnrealTemplate.h"

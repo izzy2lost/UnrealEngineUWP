@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "Templates/ChooseClass.h"
 #include "Templates/EnableIf.h"
 #include "Templates/IsPODType.h"
 #include "Iris/Serialization/NetBitStreamReader.h"

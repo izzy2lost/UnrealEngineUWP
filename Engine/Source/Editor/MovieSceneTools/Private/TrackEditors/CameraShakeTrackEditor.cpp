@@ -44,7 +44,6 @@
 #include "SequencerUtilities.h"
 #include "SlotBase.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Tracks/MovieSceneCameraShakeTrack.h"
 #include "Types/SlateEnums.h"
 #include "Types/SlateStructs.h"

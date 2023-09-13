@@ -29,7 +29,6 @@
 #include "SCurveEditorView.h"
 #include "Styling/AppStyle.h"
 #include "Styling/ISlateStyle.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/Tuple.h"
 #include "Templates/UniquePtr.h"
 

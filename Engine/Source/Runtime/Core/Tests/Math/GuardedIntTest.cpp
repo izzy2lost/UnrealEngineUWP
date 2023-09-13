@@ -2,7 +2,6 @@
 
 #include "Math/GuardedInt.h"
 #include "Misc/AutomationTest.h"
-#include "Templates/ChooseClass.h"
 #include <limits>
 #include <type_traits>
 

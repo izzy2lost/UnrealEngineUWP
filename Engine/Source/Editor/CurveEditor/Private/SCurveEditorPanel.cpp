@@ -67,7 +67,6 @@
 #include "Styling/ISlateStyle.h"
 #include "Styling/SlateColor.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/Tuple.h"
 #include "Templates/TypeHash.h"
 #include "Types/SlateEnums.h"

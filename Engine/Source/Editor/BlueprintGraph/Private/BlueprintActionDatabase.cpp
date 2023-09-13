@@ -87,7 +87,6 @@
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "PropertyPermissionList.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/SubclassOf.h"
 #include "Templates/Tuple.h"
 #include "Templates/UnrealTemplate.h"

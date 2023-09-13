@@ -43,7 +43,6 @@
 #include "Modules/ModuleManager.h"
 #include "Styling/AppStyle.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/SubclassOf.h"
 #include "Textures/SlateIcon.h"

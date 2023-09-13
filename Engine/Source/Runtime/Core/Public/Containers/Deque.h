@@ -7,7 +7,6 @@
 #include "IteratorAdapter.h"
 #include "Math/UnrealMathUtility.h"
 #include "Misc/AssertionMacros.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/MemoryOps.h"
 
 #include <initializer_list>

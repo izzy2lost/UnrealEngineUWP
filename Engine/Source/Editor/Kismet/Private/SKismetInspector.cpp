@@ -58,7 +58,6 @@
 #include "Styling/AppStyle.h"
 #include "Styling/ISlateStyle.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/SubclassOf.h"
 #include "Templates/UnrealTemplate.h"
 #include "Types/ISlateMetaData.h"

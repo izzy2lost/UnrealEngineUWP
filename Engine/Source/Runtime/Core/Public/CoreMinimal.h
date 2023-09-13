@@ -40,7 +40,6 @@
 #include "Templates/UnrealTypeTraits.h"
 #include "Templates/EnableIf.h"
 #include "Templates/RemoveReference.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/IntegralConstant.h"
 #include "Templates/IsClass.h"
 #include "Templates/TypeCompatibleBytes.h"

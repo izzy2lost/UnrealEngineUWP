@@ -10,7 +10,6 @@
 #include "Layout/Children.h"
 #include "Misc/StringBuilder.h"
 #include "Rendering/SlateLayoutTransform.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/IsConst.h"
 #include "Templates/Tuple.h"
 #include "Types/ReflectionMetadata.h"

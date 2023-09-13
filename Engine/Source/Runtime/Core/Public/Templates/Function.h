@@ -7,7 +7,6 @@
 #include "Misc/IntrusiveUnsetOptionalState.h"
 #include "HAL/UnrealMemory.h"
 #include "Templates/AndOrNot.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/UnrealTypeTraits.h"
 #include "Templates/RemoveReference.h"
 #include "Templates/Decay.h"

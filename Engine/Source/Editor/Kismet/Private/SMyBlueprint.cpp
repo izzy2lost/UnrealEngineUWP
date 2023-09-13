@@ -87,7 +87,6 @@
 #include "Styling/SlateTypes.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/Less.h"
 #include "Templates/SubclassOf.h"
 #include "Templates/Tuple.h"

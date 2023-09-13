@@ -22,7 +22,6 @@
 #include "SlotBase.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateColor.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/SubclassOf.h"
 #include "Templates/UnrealTemplate.h"
 #include "Types/SlateConstants.h"

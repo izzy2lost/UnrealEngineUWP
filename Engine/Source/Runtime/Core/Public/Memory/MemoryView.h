@@ -8,7 +8,6 @@
 #include "Math/UnrealMathUtility.h"
 #include "Memory/MemoryFwd.h"
 #include "Templates/AndOrNot.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/EnableIf.h"
 #include "Templates/Identity.h"
 #include "Templates/IsConst.h"

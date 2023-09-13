@@ -35,7 +35,6 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Parse.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Trace/Detail/Channel.h"
 #include "UObject/Class.h"
 #include "UObject/Field.h"

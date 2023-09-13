@@ -150,7 +150,6 @@
 #include "StaticMeshComponentDetails.h"
 #include "SupportedRangeTypes.h"	// StructsSupportingRangeVisibility
 #include "TemplateStringStructCustomization.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/SharedPointer.h"
 #include "TextCustomization.h"
 #include "TimecodeDetailsCustomization.h"

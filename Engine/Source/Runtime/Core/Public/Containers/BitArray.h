@@ -12,7 +12,6 @@
 #include "Serialization/Archive.h"
 #include "Serialization/MemoryImageWriter.h"
 #include "Serialization/MemoryLayout.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/EnableIf.h"
 #include "Templates/Invoke.h"
 #include "Templates/UnrealTemplate.h"

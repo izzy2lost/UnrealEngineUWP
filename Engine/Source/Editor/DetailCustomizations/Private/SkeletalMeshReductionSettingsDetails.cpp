@@ -26,7 +26,6 @@
 #include "SkeletalMeshReductionSettings.h"
 #include "SkeletalRenderPublic.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "UObject/NameTypes.h"
 #include "UObject/UnrealType.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"

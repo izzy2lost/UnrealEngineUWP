@@ -12,7 +12,6 @@
 #include "CoreTypes.h"
 #include "Misc/NetworkGuid.h"
 #include "Net/Core/Trace/NetDebugName.h"
-#include "Templates/ChooseClass.h"
 #include "UObject/NameTypes.h"
 
 class FNetTraceCollector;

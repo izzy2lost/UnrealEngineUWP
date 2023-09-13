@@ -31,7 +31,6 @@
 #include "Serialization/Archive.h"
 #include "Styling/AppStyle.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/UnrealTemplate.h"
 #include "Trace/Detail/Channel.h"
 #include "UObject/BlueprintsObjectVersion.h"

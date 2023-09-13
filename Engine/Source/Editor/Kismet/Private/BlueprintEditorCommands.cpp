@@ -36,7 +36,6 @@
 #include "Misc/Parse.h"
 #include "Selection.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/SubclassOf.h"
 #include "Textures/SlateIcon.h"
 #include "Trace/Detail/Channel.h"

@@ -45,7 +45,6 @@
 #include "ScopedTransaction.h"
 #include "Sections/MovieSceneEventSectionBase.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/SubclassOf.h"
 #include "Trace/Detail/Channel.h"
 #include "Tracks/MovieSceneEventTrack.h"

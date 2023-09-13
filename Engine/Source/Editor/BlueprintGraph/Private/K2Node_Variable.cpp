@@ -33,7 +33,6 @@
 #include "Styling/AppStyle.h"
 #include "Styling/SlateIconFinder.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/Class.h"
 #include "UObject/Object.h"

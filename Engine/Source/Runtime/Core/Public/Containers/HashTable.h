@@ -13,7 +13,6 @@
 #include "Serialization/MemoryImageWriter.h"
 #include "Serialization/MemoryImageWriter.h"
 #include "Serialization/MemoryLayout.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/UnrealTemplate.h"
 
 #include <initializer_list>

@@ -117,7 +117,6 @@
 #include "SubobjectDataSubsystem.h"
 #include "SupportedRangeTypes.h"	// StructsSupportingRangeVisibility
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/SubclassOf.h"
 #include "Textures/SlateIcon.h"
 #include "Tools/LegacyEdModeWidgetHelpers.h"

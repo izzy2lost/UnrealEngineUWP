@@ -23,7 +23,6 @@
 #include "Misc/AssertionMacros.h"
 #include "Misc/MessageDialog.h"
 #include "Modules/ModuleManager.h"
-#include "Templates/ChooseClass.h"
 #include "UObject/Class.h"
 #include "Widgets/SWindow.h"
 

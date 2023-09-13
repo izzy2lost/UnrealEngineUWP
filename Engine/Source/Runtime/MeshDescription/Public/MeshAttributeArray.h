@@ -23,7 +23,6 @@
 #include "Misc/TVariant.h"
 #include "Serialization/Archive.h"
 #include "Serialization/StructuredArchiveAdapters.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/CopyQualifiersFromTo.h"
 #include "Templates/EnableIf.h"
 #include "Templates/IsArray.h"

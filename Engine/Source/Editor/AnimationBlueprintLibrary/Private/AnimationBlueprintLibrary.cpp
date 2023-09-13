@@ -55,7 +55,6 @@
 #include "ReferenceSkeleton.h"
 #include "Serialization/StructuredArchiveAdapters.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/UnrealTemplate.h"
 #include "Trace/Detail/Channel.h"
 #include "UObject/Class.h"

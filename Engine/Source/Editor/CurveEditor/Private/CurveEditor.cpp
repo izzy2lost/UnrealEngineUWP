@@ -42,7 +42,6 @@
 #include "SCurveEditorView.h"
 #include "ScopedTransaction.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/Tuple.h"
 #include "Templates/UnrealTemplate.h"
 #include "Trace/Detail/Channel.h"

@@ -9,7 +9,6 @@
 #include "Chaos/Transform.h"
 #include "Chaos/Utilities.h"	// For ScaleInertia - pull that into mass utils
 #include "ChaosArchive.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/EnableIf.h"
 #include "Math/NumericLimits.h"
 #include "ChaosCheck.h"

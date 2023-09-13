@@ -20,7 +20,6 @@
 #include "Kismet2/CompilerResultsLog.h"
 #include "Misc/AssertionMacros.h"
 #include "Templates/Casts.h"
-#include "Templates/ChooseClass.h"
 #include "Templates/SubclassOf.h"
 #include "UObject/Class.h"
 #include "UObject/Object.h"
