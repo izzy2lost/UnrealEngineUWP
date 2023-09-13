@@ -108,6 +108,11 @@ IsTrivialAsciiString(const T& Input)
 	return true;
 }
 
+#ifdef __clang__
+#	pragma clang diagnostic push
+#	pragma clang diagnostic ignored "-Wdeprecated-declarations" // codecvt_utf8 is deprecated, but there is no trivial replacement
+#endif	// __clang__
+
 std::wstring
 ConvertUtf8ToWide(std::string_view StringUtf8)
 {
@@ -151,6 +156,10 @@ ConvertWideToUtf8(std::wstring_view StringWide)
 
 	return Result;
 }
+
+#ifdef __clang__
+#	pragma clang diagnostic pop
+#endif	// __clang__
 
 const bool
 FFileAttributeCache::Exists(const FPath& Path) const

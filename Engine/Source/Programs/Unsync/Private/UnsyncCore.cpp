@@ -1822,7 +1822,7 @@ CreateDirectoryManifest(const FPath& Root, uint32 BlockSize, FAlgorithmOptions A
 				UNSYNC_VERBOSE(L"Computing blocks for '%ls' (%.2f MB)", FilePath.wstring().c_str(), double(File->GetSize()) / (1 << 20));
 
 				Semaphore.Acquire();
-				TaskGroup.run([&Semaphore, &ResultMutex, &Result, File = std::move(File), Key = move(Key), BlockSize, Algorithm]() {
+				TaskGroup.run([&Semaphore, &ResultMutex, &Result, File = std::move(File), Key = std::move(Key), BlockSize, Algorithm]() {
 					FComputeMacroBlockParams MacroBlocks;
 
 					// TODO: macro block generation is only implemented for variable chunk mode

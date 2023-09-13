@@ -116,7 +116,7 @@ SocketListenTcp(const char* Address, uint16 Port)
 	Service.sin_addr.s_addr = inet_addr(Address);
 	Service.sin_port		= htons(Port);
 
-	int32 BindResult = bind(ListenSocket, (SOCKADDR*)&Service, sizeof(Service));
+	int32 BindResult = bind(ListenSocket, (sockaddr*)&Service, sizeof(Service));
 	if (BindResult == SOCKET_ERROR)
 	{
 		UNSYNC_ERROR(L"Failed to bind TCP socket (error code %d)", GetLastSocketError());

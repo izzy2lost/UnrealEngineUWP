@@ -179,7 +179,10 @@ template<typename T>
 TArrayView<T>
 MakeView(const T* Ptr, size_t Count)
 {
-	return TArrayView{Ptr, Ptr + Count};
+	TArrayView<T> Result;
+	Result.BeginPtr = Ptr;
+	Result.EndPtr	= Ptr + Count;
+	return Result;
 }
 
 template<typename T>

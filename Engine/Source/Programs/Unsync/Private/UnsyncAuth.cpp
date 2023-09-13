@@ -177,7 +177,7 @@ StartHttpCallbackServer(FSocketHandle	   CallbackListenSocket,
 
 		std::string_view RequestStr(RecvBuffer, ReceivedBytes);
 
-		std::string ExpectedCallbackPrefix = std::format("GET /{}", ExpectedPath);
+		std::string ExpectedCallbackPrefix = fmt::format("GET /{}", ExpectedPath);
 
 		if (RequestStr.starts_with(ExpectedCallbackPrefix))
 		{
