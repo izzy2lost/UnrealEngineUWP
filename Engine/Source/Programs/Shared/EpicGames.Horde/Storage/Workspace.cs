@@ -893,7 +893,7 @@ namespace EpicGames.Horde.Storage
 			}
 			hashInfo.Files.Add(file);
 		}
-
+		/*
 		void RemoveFileFromHashLookup(FileState file)
 		{
 			HashInfo? hashInfo;
@@ -902,7 +902,7 @@ namespace EpicGames.Horde.Storage
 				hashInfo.Files.Remove(file);
 			}
 		}
-
+		*/
 		void MoveFileToCache(FileState fileState, DirectoryState cacheDirState)
 		{
 			Utf8String name = fileState.Hash.ToUtf8String();

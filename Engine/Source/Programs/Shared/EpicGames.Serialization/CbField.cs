@@ -194,7 +194,7 @@ namespace EpicGames.Serialization
 	[DebuggerDisplay("{Hash}")]
 	[JsonConverter(typeof(CbBinaryAttachmentJsonConverter))]
 	[TypeConverter(typeof(CbBinaryAttachmentTypeConverter))]
-	public struct CbBinaryAttachment : IEquatable<CbBinaryAttachment>
+	public readonly struct CbBinaryAttachment : IEquatable<CbBinaryAttachment>
 	{
 		/// <summary>
 		/// Attachment with a hash of zero
@@ -276,7 +276,7 @@ namespace EpicGames.Serialization
 	[DebuggerDisplay("{Hash}")]
 	[JsonConverter(typeof(CbObjectAttachmentJsonConverter))]
 	[TypeConverter(typeof(CbObjectAttachmentTypeConverter))]
-	public struct CbObjectAttachment : IEquatable<CbObjectAttachment>
+	public readonly struct CbObjectAttachment : IEquatable<CbObjectAttachment>
 	{
 		/// <summary>
 		/// Attachment with a hash of zero
