@@ -182,14 +182,16 @@ namespace UE
 
 		bool HasFramesPerSecond() const;
 		double GetFramesPerSecond() const;
-		void RemoveSubLayerPath( int32 Index );
 		void SetFramesPerSecond( double FramesPerSecond );
 
+		TArray<FString> GetSubLayerPaths() const;
+		void SetSubLayerPaths(const TArray<FString>& NewPaths);
 		int64 GetNumSubLayerPaths() const;
-		TArray< FString > GetSubLayerPaths() const;
-		TArray< FSdfLayerOffset > GetSubLayerOffsets() const;
-
-		void SetSubLayerOffset( const FSdfLayerOffset& LayerOffset, int32 Index );
+		void InsertSubLayerPath(const FString& Path, int32 Index = -1);
+		void RemoveSubLayerPath(int32 Index);
+		TArray<FSdfLayerOffset> GetSubLayerOffsets() const;
+		FSdfLayerOffset GetSubLayerOffset(int32 Index) const;
+		void SetSubLayerOffset(const FSdfLayerOffset& Offset, int32 Index);
 
 		bool HasSpec( const FSdfPath& Path ) const;
 

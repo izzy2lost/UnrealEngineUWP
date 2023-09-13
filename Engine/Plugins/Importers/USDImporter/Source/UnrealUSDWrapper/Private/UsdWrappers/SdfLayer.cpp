@@ -498,19 +498,6 @@ namespace UE
 	}
 
 	template<typename PtrType>
-	int64 FSdfLayerBase<PtrType>::GetNumSubLayerPaths() const
-	{
-#if USE_USD_SDK
-		if ( const PtrType& Ptr = Impl->GetInner() )
-		{
-			return ( int64 ) Ptr->GetNumSubLayerPaths();
-		}
-#endif // #if USE_USD_SDK
-
-		return 0;
-	}
-
-	template<typename PtrType>
 	double FSdfLayerBase<PtrType>::GetStartTimeCode() const
 	{
 #if USE_USD_SDK
@@ -628,17 +615,6 @@ namespace UE
 	}
 
 	template<typename PtrType>
-	void FSdfLayerBase<PtrType>::RemoveSubLayerPath( int32 Index )
-	{
-#if USE_USD_SDK
-		if ( const PtrType& Ptr = Impl->GetInner() )
-		{
-			Ptr->RemoveSubLayerPath( Index );
-		}
-#endif // #if USE_USD_SDK
-	}
-
-	template<typename PtrType>
 	void FSdfLayerBase<PtrType>::SetFramesPerSecond( double FramesPerSecond )
 	{
 #if USE_USD_SDK
@@ -650,18 +626,19 @@ namespace UE
 	}
 
 	template<typename PtrType>
-	TArray< FString > FSdfLayerBase<PtrType>::GetSubLayerPaths() const
+	TArray<FString> FSdfLayerBase<PtrType>::GetSubLayerPaths() const
 	{
-		TArray< FString > SubLayerPaths;
+		TArray<FString> SubLayerPaths;
 
 #if USE_USD_SDK
-		if ( const PtrType& Ptr = Impl->GetInner() )
+		if (const PtrType& Ptr = Impl->GetInner())
 		{
 			FScopedUsdAllocs UsdAllocs;
 
-			for ( const std::string& SubLayerPath : Ptr->GetSubLayerPaths() )
+			for (const std::string& SubLayerPath : Ptr->GetSubLayerPaths())
 			{
-				SubLayerPaths.Emplace( ANSI_TO_TCHAR( SubLayerPath.c_str() ) );
+				const auto ConvertedPath = StringCast<TCHAR>(reinterpret_cast<const UTF8CHAR*>(SubLayerPath.c_str()));
+				SubLayerPaths.Emplace(ConvertedPath.Get());
 			}
 		}
 #endif // #if USE_USD_SDK
@@ -670,20 +647,82 @@ namespace UE
 	}
 
 	template<typename PtrType>
-	TArray< FSdfLayerOffset > FSdfLayerBase<PtrType>::GetSubLayerOffsets() const
+	void FSdfLayerBase<PtrType>::SetSubLayerPaths(const TArray<FString>& NewPaths)
 	{
-		TArray< FSdfLayerOffset > SubLayerOffsets;
-
 #if USE_USD_SDK
-		if ( const PtrType& Ptr = Impl->GetInner() )
+		if (const PtrType& Ptr = Impl->GetInner())
 		{
 			FScopedUsdAllocs UsdAllocs;
 
-			for ( const pxr::SdfLayerOffset& SubLayerOffset : Ptr->GetSubLayerOffsets() )
+			std::vector<std::string> SubLayerPaths;
+			SubLayerPaths.reserve(NewPaths.Num());
+
+			for (const FString& NewPath : NewPaths)
 			{
-				if ( SubLayerOffset.IsValid() )
+				const auto ConvertedPath = StringCast<UTF8CHAR>(*NewPath);
+				std::string SubLayerPath = reinterpret_cast<const char*>(ConvertedPath.Get());
+				SubLayerPaths.push_back(MoveTemp(SubLayerPath));
+			}
+
+			Ptr->SetSubLayerPaths(SubLayerPaths);
+		}
+#endif // #if USE_USD_SDK
+	}
+
+	template<typename PtrType>
+	int64 FSdfLayerBase<PtrType>::GetNumSubLayerPaths() const
+	{
+#if USE_USD_SDK
+		if (const PtrType& Ptr = Impl->GetInner())
+		{
+			return (int64)Ptr->GetNumSubLayerPaths();
+		}
+#endif // #if USE_USD_SDK
+
+		return 0;
+	}
+
+	template<typename PtrType>
+	void FSdfLayerBase<PtrType>::InsertSubLayerPath(const FString& Path, int32 Index)
+	{
+#if USE_USD_SDK
+		if (const PtrType& Ptr = Impl->GetInner())
+		{
+			FScopedUsdAllocs UsdAllocs;
+
+			const auto ConvertedPath = StringCast<UTF8CHAR>(*Path);
+			std::string SubLayerPath = reinterpret_cast<const char*>(ConvertedPath.Get());
+			Ptr->InsertSubLayerPath(MoveTemp(SubLayerPath), Index);
+		}
+#endif // #if USE_USD_SDK
+	}
+
+	template<typename PtrType>
+	void FSdfLayerBase<PtrType>::RemoveSubLayerPath(int32 Index)
+	{
+#if USE_USD_SDK
+		if (const PtrType& Ptr = Impl->GetInner())
+		{
+			Ptr->RemoveSubLayerPath(Index);
+		}
+#endif // #if USE_USD_SDK
+	}
+
+	template<typename PtrType>
+	TArray<FSdfLayerOffset> FSdfLayerBase<PtrType>::GetSubLayerOffsets() const
+	{
+		TArray<FSdfLayerOffset> SubLayerOffsets;
+
+#if USE_USD_SDK
+		if (const PtrType& Ptr = Impl->GetInner())
+		{
+			FScopedUsdAllocs UsdAllocs;
+
+			for (const pxr::SdfLayerOffset& SubLayerOffset : Ptr->GetSubLayerOffsets())
+			{
+				if (SubLayerOffset.IsValid())
 				{
-					SubLayerOffsets.Emplace( SubLayerOffset.GetOffset(), SubLayerOffset.GetScale() );
+					SubLayerOffsets.Emplace(SubLayerOffset.GetOffset(), SubLayerOffset.GetScale());
 				}
 				else
 				{
@@ -697,15 +736,34 @@ namespace UE
 	}
 
 	template<typename PtrType>
-	void FSdfLayerBase<PtrType>::SetSubLayerOffset( const FSdfLayerOffset& LayerOffset, int32 Index )
+	FSdfLayerOffset FSdfLayerBase<PtrType>::GetSubLayerOffset(int32 Index) const
 	{
 #if USE_USD_SDK
-		if ( PtrType& Ptr = Impl->GetInner() )
+		if (const PtrType& Ptr = Impl->GetInner())
 		{
 			FScopedUsdAllocs UsdAllocs;
 
-			pxr::SdfLayerOffset UsdLayerOffset( LayerOffset.Offset, LayerOffset.Scale );
-			Ptr->SetSubLayerOffset( MoveTemp( UsdLayerOffset ), Index );
+			const pxr::SdfLayerOffset& SubLayerOffset = Ptr->GetSubLayerOffset(Index);
+			if (SubLayerOffset.IsValid())
+			{
+				return FSdfLayerOffset(SubLayerOffset.GetOffset(), SubLayerOffset.GetScale());
+			}
+		}
+#endif // #if USE_USD_SDK
+
+		return FSdfLayerOffset{};
+	}
+
+	template<typename PtrType>
+	void FSdfLayerBase<PtrType>::SetSubLayerOffset(const FSdfLayerOffset& Offset, int32 Index)
+	{
+#if USE_USD_SDK
+		if (PtrType& Ptr = Impl->GetInner())
+		{
+			FScopedUsdAllocs UsdAllocs;
+
+			pxr::SdfLayerOffset UsdLayerOffset(Offset.Offset, Offset.Scale);
+			Ptr->SetSubLayerOffset(MoveTemp(UsdLayerOffset), Index);
 		}
 #endif // #if USE_USD_SDK
 	}
