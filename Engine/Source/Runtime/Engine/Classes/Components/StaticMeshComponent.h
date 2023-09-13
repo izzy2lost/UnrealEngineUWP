@@ -30,6 +30,7 @@ class FStaticMeshStaticLightingMesh;
 class ULightComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
+class UNavCollisionBase;
 struct FConvexVolume;
 struct FEngineShowFlags;
 struct FNavigableGeometryExport;
@@ -726,6 +727,8 @@ protected:
 
 	// Overload this in child implementations that wish to extend Static Mesh or Nanite scene proxy implementations
 	ENGINE_API virtual FPrimitiveSceneProxy* CreateStaticMeshSceneProxy(Nanite::FMaterialAudit& NaniteMaterials, bool bCreateNanite);
+
+	ENGINE_API bool ShouldExportAsObstacle(const UNavCollisionBase& InNavCollision) const;
 
 public:
 

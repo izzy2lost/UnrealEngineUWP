@@ -5253,7 +5253,7 @@ bool UInstancedStaticMeshComponent::DoCustomNavigableGeometryExport(FNavigableGe
 	if (GetStaticMesh() && GetStaticMesh()->GetNavCollision())
 	{
 		UNavCollisionBase* NavCollision = GetStaticMesh()->GetNavCollision();
-		if (NavCollision->IsDynamicObstacle())
+		if (ShouldExportAsObstacle(*NavCollision))
 		{
 			return false;
 		}
@@ -5427,7 +5427,7 @@ void UInstancedStaticMeshComponent::GetNavigationData(FNavigationRelevantData& D
 	if (GetStaticMesh() && !GetStaticMesh()->IsCompiling() && GetStaticMesh()->GetNavCollision())
 	{
 		UNavCollisionBase* NavCollision = GetStaticMesh()->GetNavCollision();
-		if (NavCollision->IsDynamicObstacle())
+		if (ShouldExportAsObstacle(*NavCollision))
 		{
 			Data.Modifiers.MarkAsPerInstanceModifier();
 			NavCollision->GetNavigationModifier(Data.Modifiers, FTransform::Identity);

@@ -3014,9 +3014,7 @@ bool UStaticMeshComponent::DoCustomNavigableGeometryExport(FNavigableGeometryExp
 	if (!Scale3D.IsZero() && GetStaticMesh() && !GetStaticMesh()->IsCompiling() && GetStaticMesh()->GetNavCollision())
 	{
 		const UNavCollisionBase* NavCollision = GetStaticMesh()->GetNavCollision();
-		const bool bExportAsObstacle = bOverrideNavigationExport ? bForceNavigationObstacle : NavCollision->IsDynamicObstacle();
-
-		if (bExportAsObstacle)
+		if (ShouldExportAsObstacle(*NavCollision))
 		{
 			// skip default export
 			return false;
@@ -3108,13 +3106,16 @@ void UStaticMeshComponent::GetNavigationData(FNavigationRelevantData& Data) cons
 	if (!Scale3D.IsZero() && GetStaticMesh() && !GetStaticMesh()->IsCompiling() && GetStaticMesh()->GetNavCollision())
 	{
 		UNavCollisionBase* NavCollision = GetStaticMesh()->GetNavCollision();
-		const bool bExportAsObstacle = bOverrideNavigationExport ? bForceNavigationObstacle : NavCollision->IsDynamicObstacle();
-
-		if (bExportAsObstacle)
+		if (ShouldExportAsObstacle(*NavCollision))
 		{
 			NavCollision->GetNavigationModifier(Data.Modifiers, GetComponentTransform());
 		}
 	}
+}
+
+bool UStaticMeshComponent::ShouldExportAsObstacle(const UNavCollisionBase& InNavCollision) const
+{
+	return bOverrideNavigationExport ? bForceNavigationObstacle : InNavCollision.IsDynamicObstacle();
 }
 
 bool UStaticMeshComponent::IsShown(const FEngineShowFlags& ShowFlags) const
