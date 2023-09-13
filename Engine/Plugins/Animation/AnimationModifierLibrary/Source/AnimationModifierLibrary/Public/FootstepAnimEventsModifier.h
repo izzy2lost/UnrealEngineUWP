@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AnimationModifier.h"
+#include "AnimPose.h"
 #include "FootstepAnimEventsModifier.generated.h"
 
 class UAnimNotify;
@@ -25,6 +26,14 @@ enum class EDetectionTechnique : uint8
 	 * WITHIN the ground threshold.
 	 */
 	FootBoneReachesGround,
+
+	/**
+	 * Create anim event when foot bone translation speed is below a given threshold and nearly zero.
+	 *
+	 * Note that the foot bone translation speed is normalize therefore when a footstep occurs
+	 * the speed will be very close to zero.
+	 */
+	FootBoneSpeed
 };
 
 USTRUCT(BlueprintType)
@@ -71,14 +80,25 @@ class UFootstepAnimEventsModifier : public UAnimationModifier
 
 public:
 
-	/** Delta of each sampling step */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
-	float SampleStep;
+	UFootstepAnimEventsModifier();
+	
+	/** Rate used to sample the animation */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings", meta = (Units="Hz", UIMin=1))
+	int SampleRate;
 
 	/** Threshold for determining if a foot bone position can be considered to be on the ground level */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
 	float GroundThreshold;
 
+	/**
+	 * Threshold to start finding the smallest foot bone translation speed.
+	 *
+	 * Note that the foot bone translation speed is normalize therefore when a footstep occurs
+	 * the speed will be very close to zero, thus for most cases this value won't need to be changed.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings", meta = (ClampMin=0.0f, ClampMax=1.0f))
+	float SpeedThreshold;
+	
 	/** Foot bone(s) to be processed */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings", meta = (TitleProperty = "FootBoneName"))
 	TArray<FFootDefinition> FootDefinitions;
@@ -90,11 +110,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings", DisplayName="Remove Pre Existing Notifies or Sync Markers")
 	bool bShouldRemovePreExistingNotifiesOrSyncMarkers;
 
-
-	UFootstepAnimEventsModifier();
-
+	/** Begin UAnimationModifier interface */
 	virtual void OnApply_Implementation(UAnimSequence* InAnimation) override;
 	virtual void OnRevert_Implementation(UAnimSequence* InAnimation) override;
+	/** End UAnimationModifier interface */
 
 private:
 
@@ -106,6 +125,11 @@ private:
 		double PrevRefBoneTranslationDotRefBoneToFootBoneVec = 0.0;
 		bool bIsFootBoneInGround = false;
 		bool bWasFootBoneInGround = false; 
+		float FootBoneSpeed = 0.0f;
+		float PrevFootBoneSpeed = 0.0f;
+		float MaxFootSpeed = -MAX_FLT;
+		float MinFootSpeedBelowThreshold = MAX_FLT;
+		float TimeAtMinFootSpeedBelowThreshold = MAX_FLT;
 	};
 	
 	/** Keep track of to be generated tracks during modifier application */
@@ -126,8 +150,8 @@ private:
 	void PrepareNotifyTrack(UAnimSequence* InAnimation, FName InRequestedNotifyTrackName);
 
 	/** Test if we can place anim event at given sample */
-	static bool CanWePlaceEventAtSample(const FFootSampleState & InTestLegSampleState, EDetectionTechnique DetectionTechnique);
+	bool CanWePlaceEventAtSample(const FFootSampleState & InTestLegSampleState, EDetectionTechnique DetectionTechnique) const;
 
-	/** Used to keep track of state of locked root motion before applying modifier */
-	bool bIsRootMotionLocked;
+	/** Get a bone translation speed */
+	float ComputeBoneSpeed(const FAnimPose& InPose, const FAnimPose &InFuturePose, float InDelta, FName InFootBoneName) const;
 };
