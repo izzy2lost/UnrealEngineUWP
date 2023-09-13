@@ -46,6 +46,7 @@ namespace
 	const TArray<FLinearColor> OcclusionInputMasks = { OcclusionMask };
 	const TArray<FLinearColor> ClearCoatInputMasks = { ClearCoatMask };
 	const TArray<FLinearColor> ClearCoatRoughnessInputMasks = { ClearCoatRoughnessMask };
+	const TArray<FLinearColor> SpecularMasks = { RedMask, GreenMask, BlueMask, AlphaMask };
 }
 
 void FGLTFDelayedMaterialTask::Process()
@@ -137,6 +138,15 @@ void FGLTFDelayedMaterialTask::Process()
 					{
 						Builder.LogWarning(FString::Printf(TEXT("Failed to export %s for material %s"), *AmbientOcclusionProperty.ToString(), *Material->GetName()));
 					}
+				}
+			}
+
+			const FMaterialPropertyEx SpecularProperty = MP_Specular;
+			if (IsPropertyNonDefault(SpecularProperty))
+			{
+				if (!TryGetSpecular(*JsonMaterial, SpecularProperty))
+				{
+					Builder.LogWarning(FString::Printf(TEXT("Failed to export %s for material %s"), *SpecularProperty.ToString(), *Material->GetName()));
 				}
 			}
 
@@ -256,6 +266,12 @@ void FGLTFDelayedMaterialTask::GetProxyParameters(FGLTFJsonMaterial& OutMaterial
 			GetProxyParameter(FGLTFProxyMaterialInfo::ClearCoatNormal, OutMaterial.ClearCoat.ClearCoatNormalTexture);
 			GetProxyParameter(FGLTFProxyMaterialInfo::ClearCoatNormalScale, OutMaterial.ClearCoat.ClearCoatNormalTexture.Scale);
 		}
+	}
+
+	if (OutMaterial.ShadingModel != EGLTFJsonShadingModel::Unlit)
+	{
+		GetProxyParameter(FGLTFProxyMaterialInfo::SpecularFactor, OutMaterial.Specular.Factor);
+		GetProxyParameter(FGLTFProxyMaterialInfo::SpecularTexture, OutMaterial.Specular.Texture);
 	}
 }
 
@@ -694,7 +710,7 @@ bool FGLTFDelayedMaterialTask::TryGetMetallicAndRoughness(FGLTFJsonPBRMetallicRo
 		Builder,
 		CombinedPixels,
 		TextureSize,
-		true, // NOTE: we can ignore alpha in everything but TryGetBaseColorAndOpacity
+		true, // NOTE: we can ignore alpha in everything but TryGetBaseColorAndOpacity and TryGetSpecular
 		false,
 		GetBakedTextureName(TEXT("MetallicRoughness")),
 		TextureAddress,
@@ -908,6 +924,138 @@ bool FGLTFDelayedMaterialTask::TryGetEmissive(FGLTFJsonMaterial& OutMaterial, co
 		// TODO: add warning about clamping emissive strength?
 		OutMaterial.EmissiveStrength = 1.0f;
 	}
+
+	return true;
+}
+
+bool FGLTFDelayedMaterialTask::TryGetSpecular(FGLTFJsonMaterial& OutMaterial, const FMaterialPropertyEx& SpecularProperty)
+{
+	float Factor;
+	if (TryGetConstantScalar(Factor, MP_Specular))
+	{
+		OutMaterial.Specular.Factor = Factor;
+	}
+	else if (TryGetSourceTexture(OutMaterial.Specular.Texture, SpecularProperty, { AlphaMask }))
+	{
+		OutMaterial.Specular.Factor = 1.0f;
+	}
+	else
+	{
+		if (Builder.ExportOptions->BakeMaterialInputs == EGLTFMaterialBakeMode::Disabled)
+		{
+			Builder.LogWarning(FString::Printf(
+				TEXT("%s for material %s needs to bake, but material baking is disabled by export options"),
+				*SpecularProperty.ToString(),
+				*Material->GetName()));
+			return false;
+		}
+
+		FGLTFPropertyBakeOutput PropertyBakeOutput = BakeMaterialProperty(SpecularProperty, OutMaterial.Specular.Texture.TexCoord, OutMaterial.Specular.Texture.Transform);
+
+		if (PropertyBakeOutput.bIsConstant)
+		{
+			OutMaterial.Specular.Factor = PropertyBakeOutput.ConstantValue.R;
+		}
+		else
+		{
+			if (Builder.ExportOptions->TextureImageFormat == EGLTFTextureImageFormat::None)
+			{
+				OutMaterial.Specular.Texture.Index = nullptr;
+				return true;
+			}
+
+			//Move Value to Alpha per documentation:
+			//
+			{
+				const FExpressionInput* MaterialInput = FGLTFMaterialUtilities::GetInputForProperty(Material, SpecularProperty);
+				if (MaterialInput == nullptr)
+				{
+					// TODO: report error
+					return false;
+				}
+				const FLinearColor Mask = FGLTFMaterialUtilities::GetMask(*MaterialInput);
+
+				enum ERGBMask
+				{
+					RED = 0,
+					GREEN = 1,
+					BLUE = 2,
+					ALPHA = 3
+				};
+
+				ERGBMask IndexOfMask = ERGBMask(0);
+
+				if (SpecularMasks.Contains(Mask))
+				{
+					IndexOfMask = ERGBMask(SpecularMasks.IndexOfByKey(Mask));
+				}
+
+				auto SwapValues = [](FColor& Color) {};
+
+				switch (IndexOfMask)
+				{
+					case RED:
+						for (FColor& Pixel : *PropertyBakeOutput.Pixels)
+						{
+							Pixel.A = Pixel.R;
+
+							Pixel.R = 255;
+							Pixel.G = 255;
+							Pixel.B = 255;
+						}
+						break;
+
+					case GREEN:
+						for (FColor& Pixel : *PropertyBakeOutput.Pixels)
+						{
+							Pixel.A = Pixel.G;
+
+							Pixel.R = 255;
+							Pixel.G = 255;
+							Pixel.B = 255;
+						}
+						break;
+
+					case BLUE:
+						for (FColor& Pixel : *PropertyBakeOutput.Pixels)
+						{
+							Pixel.A = Pixel.B;
+
+							Pixel.R = 255;
+							Pixel.G = 255;
+							Pixel.B = 255;
+						}
+						break;
+
+					case ALPHA:
+					default:
+						break;
+				}
+			}
+
+			const EGLTFMaterialPropertyGroup PropertyGroup = GetPropertyGroup(SpecularProperty);
+			const TextureAddress TextureAddress = Builder.GetBakeTilingForMaterialProperty(Material, PropertyGroup);
+			const TextureFilter TextureFilter = Builder.GetBakeFilterForMaterialProperty(Material, PropertyGroup);
+
+			FGLTFJsonTexture* Texture = FGLTFMaterialUtilities::AddTexture(
+				Builder,
+				PropertyBakeOutput.Pixels,
+				PropertyBakeOutput.Size,
+				false,
+				FGLTFMaterialUtilities::IsNormalMap(SpecularProperty),
+				GetBakedTextureName(TEXT("Specular")),
+				TextureAddress,
+				TextureFilter);
+
+			OutMaterial.Specular.Texture.Index = Texture;
+
+			if (!PropertyBakeOutput.bIsConstant)
+			{
+				OutMaterial.Specular.Factor = 1.0f;
+			}
+		}
+	}
+
 
 	return true;
 }
@@ -1188,7 +1336,7 @@ bool FGLTFDelayedMaterialTask::TryGetSourceTexture(FGLTFJsonTextureInfo& OutTexI
 
 	if (TryGetSourceTexture(Texture, TexCoord, Transform, Property, AllowedMasks))
 	{
-		OutTexInfo.Index = Builder.AddUniqueTexture(Texture, FGLTFMaterialUtilities::IsSRGB(Property));
+		OutTexInfo.Index = Builder.AddUniqueTexture(Texture, FGLTFMaterialUtilities::IsSRGB(Property) || (Property == MP_Specular && Texture->SRGB));
 		OutTexInfo.TexCoord = TexCoord;
 		OutTexInfo.Transform = Transform;
 		return true;

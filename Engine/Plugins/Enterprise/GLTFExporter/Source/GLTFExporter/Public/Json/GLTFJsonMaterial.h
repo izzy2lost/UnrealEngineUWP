@@ -83,6 +83,25 @@ struct GLTFEXPORTER_API FGLTFJsonClearCoatExtension : IGLTFJsonObject
 	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
 };
 
+/*
+* Only taking advantage of SpecularFactor and SpecularMaps
+*/
+struct GLTFEXPORTER_API FGLTFJsonSpecularExtension : IGLTFJsonObject
+{
+	float Factor; //SpecularFactor
+	FGLTFJsonTextureInfo Texture; //SpecularMap
+
+	FGLTFJsonSpecularExtension()
+		: Factor(0.5)
+	{
+	}
+
+	//UE's default Specular value is 0.5, while glTF's is 1.
+	bool HasValue() const { return ((Factor != 0.5f && Factor != 1.0f) || Texture.Index != nullptr); }
+
+	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
+};
+
 struct GLTFEXPORTER_API FGLTFJsonMaterial : IGLTFJsonIndexedObject
 {
 	FString Name;
@@ -104,6 +123,8 @@ struct GLTFEXPORTER_API FGLTFJsonMaterial : IGLTFJsonIndexedObject
 	bool DoubleSided;
 
 	FGLTFJsonClearCoatExtension ClearCoat;
+
+	FGLTFJsonSpecularExtension Specular;
 
 	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
 

@@ -120,6 +120,19 @@ void FGLTFJsonClearCoatExtension::WriteObject(IGLTFJsonWriter& Writer) const
 	}
 }
 
+void FGLTFJsonSpecularExtension::WriteObject(IGLTFJsonWriter& Writer) const
+{
+	if (!FMath::IsNearlyEqual(Factor, 1, Writer.DefaultTolerance))
+	{
+		Writer.Write(TEXT("specularFactor"), Factor);
+	}
+
+	if (Texture.Index != nullptr)
+	{
+		Writer.Write(TEXT("specularTexture"), Texture);
+	}
+}
+
 void FGLTFJsonMaterial::WriteObject(IGLTFJsonWriter& Writer) const
 {
 	if (!Name.IsEmpty())
@@ -168,9 +181,14 @@ void FGLTFJsonMaterial::WriteObject(IGLTFJsonWriter& Writer) const
 	}
 
 	const bool HasEmissiveStrength = !FMath::IsNearlyEqual(EmissiveStrength, 1.0f, Writer.DefaultTolerance);
-	if (ShadingModel == EGLTFJsonShadingModel::Unlit || ShadingModel == EGLTFJsonShadingModel::ClearCoat || HasEmissiveStrength)
+	if (ShadingModel == EGLTFJsonShadingModel::Unlit || ShadingModel == EGLTFJsonShadingModel::ClearCoat || HasEmissiveStrength || Specular.HasValue())
 	{
 		Writer.StartExtensions();
+
+		if (ShadingModel != EGLTFJsonShadingModel::Unlit /*&& !KHR_materials_pbrSpecularGlossiness*/ && Specular.HasValue())
+		{
+			Writer.Write(EGLTFJsonExtension::KHR_MaterialsSpecular, Specular);
+		}
 
 		if (ShadingModel == EGLTFJsonShadingModel::Unlit)
 		{

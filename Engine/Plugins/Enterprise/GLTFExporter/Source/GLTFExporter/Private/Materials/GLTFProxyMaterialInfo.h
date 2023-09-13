@@ -33,4 +33,7 @@ public:
 
 	static const FGLTFProxyMaterialTextureParameterInfo ClearCoatNormal;
 	static const TGLTFProxyMaterialParameterInfo<float> ClearCoatNormalScale;
+	
+	static const TGLTFProxyMaterialParameterInfo<float> SpecularFactor;
+	static const FGLTFProxyMaterialTextureParameterInfo SpecularTexture; //Only using Alpha Channel
 };

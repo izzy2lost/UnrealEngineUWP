@@ -130,6 +130,12 @@ void FGLTFMaterialProxyFactory::SetProxyParameters(UMaterialInstanceConstant* Pr
 			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::ClearCoatNormalScale, JsonMaterial.ClearCoat.ClearCoatNormalTexture.Scale);
 		}
 	}
+
+	if (JsonMaterial.ShadingModel != EGLTFJsonShadingModel::Unlit) //&& != SpecularGlossiness
+	{
+		SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::SpecularFactor, JsonMaterial.Specular.Factor);
+		SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::SpecularTexture, JsonMaterial.Specular.Texture);
+	}
 }
 
 void FGLTFMaterialProxyFactory::SetProxyParameter(UMaterialInstanceConstant* ProxyMaterial, const TGLTFProxyMaterialParameterInfo<float>& ParameterInfo, float Scalar)

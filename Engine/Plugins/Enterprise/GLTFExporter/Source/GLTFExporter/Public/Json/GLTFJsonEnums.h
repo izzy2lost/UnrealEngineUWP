@@ -10,7 +10,8 @@ enum class EGLTFJsonExtension
 	KHR_MaterialsUnlit,
 	KHR_MaterialsVariants,
 	KHR_MeshQuantization,
-	KHR_TextureTransform
+	KHR_TextureTransform,
+	KHR_MaterialsSpecular
 };
 
 enum class EGLTFJsonShadingModel
