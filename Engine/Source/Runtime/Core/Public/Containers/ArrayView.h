@@ -179,17 +179,17 @@ public:
 	 */
 	template <
 		typename OtherRangeType,
-		typename CVUnqualifiedOtherRangeType = std::remove_cv_t<std::remove_reference_t<OtherRangeType>>,
-		typename = typename TEnableIf<
+		typename CVUnqualifiedOtherRangeType = std::remove_cv_t<std::remove_reference_t<OtherRangeType>>
+		UE_REQUIRES(
 			TAnd<
 				TIsContiguousContainer<CVUnqualifiedOtherRangeType>,
 				TOr<
 					TIsCompatibleRangeType<OtherRangeType>,
 					TIsReinterpretableRangeType<OtherRangeType>
 				>
-			>::Value
-		>::Type,
-		std::enable_if_t<TIsTArrayView_V<std::decay_t<OtherRangeType>> && !std::is_same_v<std::decay_t<OtherRangeType>, TArrayView>>* = nullptr
+			>::Value && 
+			TIsTArrayView_V<CVUnqualifiedOtherRangeType> && !std::is_same_v<CVUnqualifiedOtherRangeType, TArrayView>
+		)
 	>
 	FORCEINLINE TArrayView(OtherRangeType&& Other)
 		: DataPtr(std::conditional_t<
@@ -211,17 +211,17 @@ public:
 	}
 	template <
 		typename OtherRangeType,
-		typename CVUnqualifiedOtherRangeType = std::remove_cv_t<std::remove_reference_t<OtherRangeType>>,
-		typename = typename TEnableIf<
+		typename CVUnqualifiedOtherRangeType = std::remove_cv_t<std::remove_reference_t<OtherRangeType>>
+		UE_REQUIRES(
 			TAnd<
 				TIsContiguousContainer<CVUnqualifiedOtherRangeType>,
 				TOr<
 					TIsCompatibleRangeType<OtherRangeType>,
 					TIsReinterpretableRangeType<OtherRangeType>
 				>
-			>::Value
-		>::Type,
-		std::enable_if_t<!TIsTArrayView_V<std::decay_t<OtherRangeType>>>* = nullptr
+			>::Value &&
+			!TIsTArrayView_V<CVUnqualifiedOtherRangeType>
+		)
 	>
 	FORCEINLINE TArrayView(OtherRangeType&& Other UE_LIFETIMEBOUND)
 		: DataPtr(std::conditional_t<
@@ -249,8 +249,10 @@ public:
 	 * @param InData	The data to view
 	 * @param InCount	The number of elements
 	 */
-	template <typename OtherElementType,
-		typename = typename TEnableIf<TIsCompatibleElementType<OtherElementType>::Value>::Type>
+	template <
+		typename OtherElementType
+		UE_REQUIRES(TIsCompatibleElementType<OtherElementType>::Value)
+	>
 	FORCEINLINE TArrayView(OtherElementType* InData UE_LIFETIMEBOUND, SizeType InCount)
 		: DataPtr(InData)
 		, ArrayNum(InCount)
@@ -804,9 +806,8 @@ struct TIsContiguousContainer<TArrayView<T, SizeType>>
 
 template <
 	typename OtherRangeType,
-	typename CVUnqualifiedOtherRangeType = std::remove_cv_t<std::remove_reference_t<OtherRangeType>>,
-	typename = typename TEnableIf<TIsContiguousContainer<CVUnqualifiedOtherRangeType>::Value>::Type,
-	std::enable_if_t<TIsTArrayView_V<std::decay_t<OtherRangeType>>>* = nullptr
+	typename CVUnqualifiedOtherRangeType = std::remove_cv_t<std::remove_reference_t<OtherRangeType>>
+	UE_REQUIRES(TIsContiguousContainer<CVUnqualifiedOtherRangeType>::Value && TIsTArrayView_V<CVUnqualifiedOtherRangeType>)
 >
 auto MakeArrayView(OtherRangeType&& Other)
 {
@@ -814,9 +815,8 @@ auto MakeArrayView(OtherRangeType&& Other)
 }
 template <
 	typename OtherRangeType,
-	typename CVUnqualifiedOtherRangeType = std::remove_cv_t<std::remove_reference_t<OtherRangeType>>,
-	typename = typename TEnableIf<TIsContiguousContainer<CVUnqualifiedOtherRangeType>::Value>::Type,
-	std::enable_if_t<!TIsTArrayView_V<std::decay_t<OtherRangeType>>>* = nullptr
+	typename CVUnqualifiedOtherRangeType = std::remove_cv_t<std::remove_reference_t<OtherRangeType>>
+	UE_REQUIRES(TIsContiguousContainer<CVUnqualifiedOtherRangeType>::Value && !TIsTArrayView_V<CVUnqualifiedOtherRangeType>)
 >
 auto MakeArrayView(OtherRangeType&& Other UE_LIFETIMEBOUND)
 {
