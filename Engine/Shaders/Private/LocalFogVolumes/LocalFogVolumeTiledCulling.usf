@@ -1,0 +1,29 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+#include "../Common.ush"
+
+#include "LocalFogVolumeCommon.ush"
+
+
+
+uint2 CullDataTextureResolution;
+
+RWTexture2DArray<uint> LocalFogVolumeCullDataTextureUAV;
+
+#ifndef THREADGROUP_SIZE
+#error THREADGROUP_SIZE must be defined
+#endif
+
+[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
+void LocalFogVolumeTiledCullingCS(uint3 ThreadId : SV_DispatchThreadID)
+{
+	uint2 TilePos = uint2(ThreadId.xy);
+
+	if (any(TilePos >= CullDataTextureResolution))
+	{
+		return; // Skip out of bound texture tile data
+	}
+
+	LocalFogVolumeCullDataTextureUAV[uint3(TilePos, 0)] = TilePos.x; // DEBUG
+}
+
+

@@ -19,11 +19,15 @@ struct FMinimalSceneTextures;
 	Local height fog rendering GPU data
 =============================================================================*/
 
-BEGIN_SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, )
+BEGIN_SHADER_PARAMETER_STRUCT(FLocalFogVolumeCommonParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, LocalFogVolumeInstances)
-	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray<uint>, LocalFogVolumeCullDataTexture)
 	SHADER_PARAMETER(uint32, LocalFogVolumeInstanceCount)
 	SHADER_PARAMETER(uint32, LocalFogVolumeTilePixelSize)
+END_SHADER_PARAMETER_STRUCT()
+
+BEGIN_SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, )
+	SHADER_PARAMETER_STRUCT_INCLUDE(FLocalFogVolumeCommonParameters, LocalFogVolumeCommon)
+	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray<uint>, LocalFogVolumeCullDataTexture)
 END_SHADER_PARAMETER_STRUCT()
 
 /*=============================================================================
