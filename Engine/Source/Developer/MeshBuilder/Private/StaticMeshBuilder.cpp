@@ -381,46 +381,22 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, USta
 	{
 		SlowTask.EnterProgressFrame(1);
 
-		auto IsHiresMeshDescriptionValid = [&StaticMesh]()
-			{
-				if (const FMeshDescription* BaseLodMeshDescription = StaticMesh->GetSourceModel(0).GetOrCacheMeshDescription())
-				{
-					if (const FMeshDescription* HiResMeshDescription = StaticMesh->GetHiResSourceModel().GetOrCacheMeshDescription())
-					{
-						//Validate the number of sections
-						if (HiResMeshDescription->PolygonGroups().Num() == BaseLodMeshDescription->PolygonGroups().Num())
-						{
-							return true;
-						}
-						else
-						{
-							UE_LOG(LogStaticMeshBuilder, Error, TEXT("Invalid hi-res mesh description during Nanite build [%s]. The number of sections from the hires mesh differ from the LOD 0 mesh, this is not supported and LOD 0 will be use as a fallback to build nanite data."), *StaticMesh->GetFullName());
-						}
-					}
-				}
-				//No need to log if we miss a mesh description, this was handle before
-				return false;
-			};
+		FBoxSphereBounds NaniteBounds;
 
-		//Make sure hires mesh data has the same amount of sections. If not rendering bugs and issues will show up because the nanite render must use the LOD 0 sections.
-		if (IsHiresMeshDescriptionValid())
+		bool bBuildSuccess = BuildNanite(
+			StaticMesh,
+			StaticMesh->GetHiResSourceModel(),
+			StaticMeshRenderData.LODResources,
+			StaticMeshRenderData.LODVertexFactories,
+			NaniteResources,
+			NaniteSettings,
+			TArrayView< float >(),
+			NaniteBounds);
+
+		if( bBuildSuccess )
 		{
-			FBoxSphereBounds NaniteBounds;
-			bool bBuildSuccess = BuildNanite(
-				StaticMesh,
-				StaticMesh->GetHiResSourceModel(),
-				StaticMeshRenderData.LODResources,
-				StaticMeshRenderData.LODVertexFactories,
-				NaniteResources,
-				NaniteSettings,
-				TArrayView< float >(),
-				NaniteBounds);
-
-			if (bBuildSuccess)
-			{
-				MeshBoundsBuilder += NaniteBounds;
-				bNaniteDataBuilt = true;
-			}
+			MeshBoundsBuilder += NaniteBounds;
+			bNaniteDataBuilt = true;
 		}
 	}
 
