@@ -196,6 +196,7 @@ namespace EpicGames.Compression
 
 #pragma warning restore CA1712 // Do not prefix enum values with type name
 
+#pragma warning disable IDE1006
 		[StructLayout(LayoutKind.Sequential)]
 		class OodleConfigValues
 		{
@@ -209,6 +210,7 @@ namespace EpicGames.Compression
 
 			public int m_oodle_header_version;
 		}
+#pragma warning restore IDE1006
 
 		[DllImport("oo2core")]
 		static extern unsafe long OodleLZ_Compress(OodleCompressorType compressor, byte* rawBuf, long rawLen, byte* compBuf, OodleCompressionLevel level, long pOptions, byte[]? dictionaryBase, byte[]? lrm, byte* scratchMem, long scratchSize);

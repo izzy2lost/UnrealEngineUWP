@@ -519,12 +519,7 @@ namespace EpicGames.OIDC
 
 		public async Task<OidcTokenInfo> GetAccessTokenAsync(CancellationToken cancellationToken)
 		{
-			OidcTokenInfo? tokenInfo = await TryGetAccessTokenAsync(cancellationToken);
-			if (tokenInfo == null)
-			{
-				throw new NotLoggedInException();
-			}
-			return tokenInfo;
+			return await TryGetAccessTokenAsync(cancellationToken) ?? throw new NotLoggedInException();
 		}
 
 		public async Task<OidcTokenInfo?> TryGetAccessTokenAsync(CancellationToken cancellationToken)

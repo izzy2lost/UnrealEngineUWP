@@ -125,11 +125,7 @@ namespace EpicGames.Serialization.Converters
 					{
 						if (baseType == classType)
 						{
-							CbDiscriminatorAttribute? discriminator = knownType.GetCustomAttribute<CbDiscriminatorAttribute>();
-							if (discriminator == null)
-							{
-								throw new NotSupportedException();
-							}
+							CbDiscriminatorAttribute discriminator = knownType.GetCustomAttribute<CbDiscriminatorAttribute>() ?? throw new NotSupportedException();
 							discriminatorToKnownType[discriminator.Name] = knownType;
 						}
 					}
@@ -304,11 +300,8 @@ namespace EpicGames.Serialization.Converters
 		static void CreateConcreteObjectReader(Type type, ILGenerator generator)
 		{
 			// Construct the object
-			ConstructorInfo? constructor = type.GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, Type.EmptyTypes, null);
-			if (constructor == null)
-			{
-				throw new CbException($"Unable to find default constructor for {type}");
-			}
+			ConstructorInfo? constructor = 
+				type.GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, Type.EmptyTypes, null) ?? throw new CbException($"Unable to find default constructor for {type}");
 
 			// Find the reflected properties from this type
 			(Utf8String Name, PropertyInfo Property)[] properties = GetProperties(type);
