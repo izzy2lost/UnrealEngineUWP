@@ -457,7 +457,6 @@ void FOnDemandIoBackendStats::OnHttpGet(uint64 SizeBytes, uint64 DurationMs)
 
 void FOnDemandIoBackendStats::OnHttpRetry()
 {
-	GHttpPendingCount.Add(-1);
 	GHttpInflightCount.Add(-1);
 	GHttpRetryCount.Add(1);
 }
