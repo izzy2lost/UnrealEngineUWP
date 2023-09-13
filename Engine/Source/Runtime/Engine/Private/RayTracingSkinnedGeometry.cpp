@@ -34,23 +34,25 @@ FAutoConsoleVariableRef CVarSkinnedGeometryMaxRayTracingPrimitivesPerCmdList(
 	ECVF_RenderThreadSafe
 );
 
-void FRayTracingSkinnedGeometryUpdateQueue::Add(FRayTracingGeometry* InRayTracingGeometry, const FRayTracingAccelerationStructureSize& StructureSize, EAccelerationStructureBuildMode InBuildMode)
+void FRayTracingSkinnedGeometryUpdateQueue::Add(FRayTracingGeometry* InRayTracingGeometry, const FRayTracingAccelerationStructureSize& StructureSize)
 {
 	FScopeLock Lock(&CS);
 	FRayTracingUpdateInfo* CurrentUpdateInfo = ToUpdate.Find(InRayTracingGeometry);
 	if (CurrentUpdateInfo == nullptr)
 	{
 		FRayTracingUpdateInfo UpdateInfo;
-		UpdateInfo.BuildMode = InBuildMode;
-		UpdateInfo.ScratchSize = InBuildMode == EAccelerationStructureBuildMode::Build ? StructureSize.BuildScratchSize : StructureSize.UpdateScratchSize;
+		UpdateInfo.BuildMode = InRayTracingGeometry->GetRequiresBuild() ? EAccelerationStructureBuildMode::Build : EAccelerationStructureBuildMode::Update;
+		UpdateInfo.ScratchSize = InRayTracingGeometry->GetRequiresBuild() ? StructureSize.BuildScratchSize : StructureSize.UpdateScratchSize;
 		ToUpdate.Add(InRayTracingGeometry, UpdateInfo);
 	}
 	// If currently updating but need full rebuild then update the stored build mode
-	else if (CurrentUpdateInfo->BuildMode == EAccelerationStructureBuildMode::Update && InBuildMode == EAccelerationStructureBuildMode::Build)
+	else if (CurrentUpdateInfo->BuildMode == EAccelerationStructureBuildMode::Update && InRayTracingGeometry->GetRequiresBuild())
 	{
-		CurrentUpdateInfo->BuildMode = InBuildMode;
+		CurrentUpdateInfo->BuildMode = EAccelerationStructureBuildMode::Build;
 		CurrentUpdateInfo->ScratchSize = StructureSize.BuildScratchSize;
 	}
+
+	InRayTracingGeometry->SetRequiresBuild(false);
 }
 
 void FRayTracingSkinnedGeometryUpdateQueue::Remove(FRayTracingGeometry* RayTracingGeometry, uint32 EstimatedMemory)

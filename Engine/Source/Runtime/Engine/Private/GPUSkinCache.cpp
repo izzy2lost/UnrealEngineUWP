@@ -1891,15 +1891,15 @@ void FGPUSkinCache::ProcessRayTracingGeometryToUpdate(FRHICommandList& RHICmdLis
 {
 	if (IsGPUSkinCacheRayTracingSupported() && SkinCacheEntry && SkinCacheEntry->GPUSkin && SkinCacheEntry->GPUSkin->bSupportRayTracing)
 	{
- 		TArray<FBufferRHIRef> VertexBufffers;
- 		SkinCacheEntry->GetRayTracingSegmentVertexBuffers(VertexBufffers);
+ 		TArray<FBufferRHIRef> VertexBuffers;
+ 		SkinCacheEntry->GetRayTracingSegmentVertexBuffers(VertexBuffers);
 
 		const int32 LODIndex = SkinCacheEntry->LOD;
 		FSkeletalMeshRenderData& SkelMeshRenderData = SkinCacheEntry->GPUSkin->GetSkeletalMeshRenderData();
 		check(LODIndex < SkelMeshRenderData.LODRenderData.Num());
 		FSkeletalMeshLODRenderData& LODModel = SkelMeshRenderData.LODRenderData[LODIndex];
 
- 		SkinCacheEntry->GPUSkin->UpdateRayTracingGeometry(RHICmdList, LODModel, LODIndex, VertexBufffers);
+ 		SkinCacheEntry->GPUSkin->UpdateRayTracingGeometry(RHICmdList, LODModel, LODIndex, VertexBuffers);
 	}
 }
 

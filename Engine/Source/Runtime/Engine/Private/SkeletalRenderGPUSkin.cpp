@@ -772,7 +772,7 @@ void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(EGPUSkinCacheEntryMod
 
 #if RHI_RAYTRACING
 
-void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandList& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBufffers)
+void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandList& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers)
 {
 	if (IsRayTracingEnabled() && bSupportRayTracing)
 	{
@@ -842,7 +842,7 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandList& RHICm
 				const FSkelMeshRenderSection& Section = LODModel.RenderSections[SectionIndex];
 
 				FRayTracingGeometrySegment Segment;
-				Segment.VertexBuffer = VertexBufffers[SectionIndex];
+				Segment.VertexBuffer = VertexBuffers[SectionIndex];
 				Segment.VertexBufferElementType = VET_Float3;
 				Segment.VertexBufferStride = VertexBufferStride;
 				Segment.VertexBufferOffset = 0;
@@ -869,13 +869,13 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandList& RHICm
 
 			Initializer.SourceGeometry = LODModel.SourceRayTracingGeometry.RayTracingGeometryRHI;
 
+			// Get the scratch sizes used for build & update
+			RayTracingGeometryStructureSize = RHICmdList.CalcRayTracingGeometrySize(Initializer);
+
 			RayTracingGeometry.LODIndex = LODIndex;
 
 			// Update the new init data
-			RayTracingGeometry.SetInitializer(Initializer);
-
-			// Get the scratch sizes used for build & update
-			RayTracingGeometryStructureSize = RHICmdList.CalcRayTracingGeometrySize(Initializer);
+			RayTracingGeometry.SetInitializer(MoveTemp(Initializer));
 
 			// Only create RHI object but enqueue actual BLAS creation so they can be accumulated
 			RayTracingGeometry.CreateRayTracingGeometry(RHICmdList, ERTAccelerationStructureBuildPriority::Skip);
@@ -888,7 +888,7 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandList& RHICm
 			for (int32 SectionIndex = 0; SectionIndex < LODModel.RenderSections.Num(); ++SectionIndex)
 			{
 				FRayTracingGeometrySegment& Segment = RayTracingGeometry.Initializer.Segments[SectionIndex];
-				Segment.VertexBuffer = VertexBufffers[SectionIndex];
+				Segment.VertexBuffer = VertexBuffers[SectionIndex];
 				Segment.VertexBufferOffset = 0;
 			}
 		}
@@ -896,9 +896,8 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandList& RHICm
 		// If we are not using world position offset in material, handle BLAS build/refit here
 		if (!bAnySegmentUsesWorldPositionOffset)
 		{
-			EAccelerationStructureBuildMode BuildMode = bRequireRecreatingRayTracingGeometry ? EAccelerationStructureBuildMode::Build : EAccelerationStructureBuildMode::Update;
-			RayTracingUpdateQueue->Add(&RayTracingGeometry, RayTracingGeometryStructureSize, BuildMode);
-			RayTracingGeometry.SetRequiresBuild(false);
+			check(bRequireRecreatingRayTracingGeometry == RayTracingGeometry.GetRequiresBuild());
+			RayTracingUpdateQueue->Add(&RayTracingGeometry, RayTracingGeometryStructureSize);
 		}
 		else
 		{
