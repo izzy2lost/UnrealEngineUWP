@@ -55,6 +55,11 @@ namespace UE::NearestNeighborModel
 		virtual int32 GetNumTrainingFrames() const override;
 		// ~END FMLDeformerGeomCacheEditorModel overrides.
 
+		// UMLDeformerMorphModelEditorModel overrides.
+		virtual bool IsMorphWeightClampingSupported() const override	{ return false; }	// We already do input clamping, so output clamping really isn't needed.
+		// ~END UMLDeformerMorphModelEditorModel overrides.
+
+
 		friend class FNearestNeighborModelSampler;
 		friend class FNearestNeighborModelDetails;
 		friend class ::UNearestNeighborTrainingModel;

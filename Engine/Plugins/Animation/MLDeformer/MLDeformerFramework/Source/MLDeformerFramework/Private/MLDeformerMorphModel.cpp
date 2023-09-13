@@ -130,14 +130,37 @@ void UMLDeformerMorphModel::UpdateStatistics()
 	UncompressedMorphDataSizeInBytes = GetMorphTargetDeltas().Num() * GetMorphTargetDeltas().GetTypeSize();
 }
 
-void UMLDeformerMorphModel::SetMorphTargetsMaxWeights(const TArray<float>& MaxWeights)
+void UMLDeformerMorphModel::SetMorphTargetsMinMaxWeights(const TArray<FFloatInterval>& MinMaxValues)
 {
-	MaxMorphWeights = MaxWeights;
+	MorphTargetsMinMaxWeights = MinMaxValues;
 }
 
-TArrayView<const float> UMLDeformerMorphModel::GetMorphTargetMaxWeights() const
+void UMLDeformerMorphModel::SetMorphTargetsMinMaxWeights(const TArray<float>& MinValues, const TArray<float>& MaxValues)
 {
-	return MaxMorphWeights;
+	check(MinValues.Num() == MaxValues.Num());
+	const int32 NumWeights = MinValues.Num();
+
+	MorphTargetsMinMaxWeights.Reset();
+	MorphTargetsMinMaxWeights.AddUninitialized(NumWeights);
+	for (int32 Index = 0; Index < MinValues.Num(); ++Index)
+	{
+		MorphTargetsMinMaxWeights[Index].Min = MinValues[Index];
+		MorphTargetsMinMaxWeights[Index].Max = MaxValues[Index];
+	}
+}
+
+void UMLDeformerMorphModel::ClampMorphTargetWeights(TArrayView<float> WeightsArray)
+{
+	if (MorphTargetsMinMaxWeights.Num() != WeightsArray.Num())
+	{
+		return;
+	}
+
+	for (int32 MorphIndex = 0; MorphIndex < WeightsArray.Num(); ++MorphIndex)
+	{
+		const FFloatInterval& MorphMinMax = MorphTargetsMinMaxWeights[MorphIndex];
+		WeightsArray[MorphIndex] = FMath::Clamp(WeightsArray[MorphIndex], MorphMinMax.Min, MorphMinMax.Max);;
+	}
 }
 
 TArrayView<const float> UMLDeformerMorphModel::GetMorphTargetErrorValues() const

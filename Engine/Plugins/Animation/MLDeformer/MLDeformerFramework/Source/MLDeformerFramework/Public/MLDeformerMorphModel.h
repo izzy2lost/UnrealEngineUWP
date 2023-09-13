@@ -59,6 +59,7 @@ public:
 	void SetIncludeMorphTargetNormals(bool bInclude)				{ bIncludeNormals = bInclude; }
 	void SetMaskChannel(EMLDeformerMaskChannel Channel)				{ MaskChannel = Channel; }
 	void SetInvertMaskChannel(bool bInvert)							{ bInvertMaskChannel = bInvert; }
+	void SetClampMorphTargetsWeights(bool bEnabled)					{ bClampMorphWeights = bEnabled; }
 
 	UE_DEPRECATED(5.3, "Use SetMaskChannel instead.")
 	void SetWeightMask(EMLDeformerMaskChannel Channel)				{ MaskChannel = Channel; }
@@ -85,6 +86,7 @@ public:
 	static FName GetCompressedMorphDataSizeInBytesPropertyName()	{ return GET_MEMBER_NAME_CHECKED(UMLDeformerMorphModel, CompressedMorphDataSizeInBytes); }
 	static FName GetUncompressedMorphDataSizeInBytesPropertyName()	{ return GET_MEMBER_NAME_CHECKED(UMLDeformerMorphModel, UncompressedMorphDataSizeInBytes); }
 	static FName GetQualityLevelsPropertyName()						{ return GET_MEMBER_NAME_CHECKED(UMLDeformerMorphModel, QualityLevels); }
+	static FName GetClampMorphTargetWeightsPropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerMorphModel, bClampMorphWeights); }
 
 	UE_DEPRECATED(5.2, "Please use GetMorphDeltaZeroThresholdPropertyName instead.")
 	static FName GetMorphTargetDeltaThresholdPropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerMorphModel, MorphDeltaZeroThreshold); }
@@ -137,15 +139,61 @@ public:
 	 * Training python scripts mostly will call this function to set the values.
 	 * @param MaxWeights The maximum of the absolute weight values.
 	 */
+	UE_DEPRECATED(5.4, "This method will be removed.")
 	UFUNCTION(BlueprintCallable, Category = "MLDeformerMorphModel")
-	void SetMorphTargetsMaxWeights(const TArray<float>& MaxWeights);
+	void SetMorphTargetsMaxWeights(const TArray<float>& MaxWeights) {}
+
+	/** 
+	 * Set the minimum and maximum values that the morph targets weights have seen during training.
+	 * We can clamp the network output weights within these ranges to try to make sure that the output doesn't go wild
+	 * when we give inputs that are far outside of the range we have seen during training.
+	 * The size of the array must equal the number of morph targets, or empty. In case it is empty, clamping will be ignored, even when enabled.
+	 * @param MinValues The minimum weigth values, one for each morph target.
+	 * @param MaxValues The maximum weight values, one for each morph target.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "MLDeformerMorphModel")
+	void SetMorphTargetsMinMaxWeights(const TArray<float>& MinValues, const TArray<float>& MaxValues);
+
+	/**
+	 * Set the minimum and maximum values that the morph targets weights have seen during training.
+	 * We can clamp the network output weights within these ranges to try to make sure that the output doesn't go wild
+	 * when we give inputs that are far outside of the range we have seen during training.
+	 * The size of the array must equal the number of morph targets, or empty. In case it is empty, clamping will be ignored, even when enabled.
+	 * @param MinMaxValues The array of float intervals that contain the min and max values, one for each morph target.
+	 */
+	void SetMorphTargetsMinMaxWeights(const TArray<FFloatInterval>& MinMaxValues);
 
 	/**
 	 * Get the estimated maximum weight values that the morph targets will ever have. It is not guaranteed that the weights will never be larger than these values though.
 	 * These values are used to estimate the importance levels of the morph targets.
 	 * @see SetMorphTargetsMaxWeights.
 	 */
-	TArrayView<const float> GetMorphTargetMaxWeights() const;
+	UE_DEPRECATED(5.4, "This method will be removed, use GetMorphTargetsMinMaxWeights instead, and take the max of the absolute value of both min and max.")
+	TArrayView<const float> GetMorphTargetMaxWeights() const { return TArrayView<const float>(); }
+
+	/**
+	 * Get the min and max morph target weight values that we seen on the output of the training data set.
+	 * These min and max values can be used to clamp the morph targets within this range.
+	 * This can be used to prevent weights from getting very different values on unseen input data, and thus can prevent visually 'exploding' correctives.
+	 */
+	const TArray<FFloatInterval>& GetMorphTargetsMinMaxWeights() const	{ return MorphTargetsMinMaxWeights; }
+
+	/**
+	 * Check whether clamping of morph target weights is enabled.
+	 * If enabled, the weights that are output will be clamped to the minimum and maximum values that are defined in the values returned by
+	 * GetMorphTargetsMinMaxWeights().
+	 * It is up to the model to actually call the ClampMorphTargetWeights method though.
+	 * You can check if a model supports weight clamping by calling FMLDeformerMorphModelEditorModel::IsMorphWeightClampingSupported().
+	 * If that would return false, even enabling clamping using SetClampMorphTargetsWeights(true) will not do anything.
+	 * @return Returns true when clamping is enabled, otherwise false is returned.
+	 */
+	bool IsMorphWeightClampingEnabled() const							{ return bClampMorphWeights; }
+
+	/**
+	 * Perform the actual weight clamping to the values as set inside the MorphTargetsMinMaxWeights member.
+	 * @param WeightsArray The array of input weights, that will be clamped. This method will modify the array values.
+	 */
+	void ClampMorphTargetWeights(TArrayView<float> WeightsArray);
 
 	/**
 	 * Get the morph target delta vectors array.
@@ -225,6 +273,16 @@ private:
 	/** The compressed morph target data, ready for the GPU. */
 	TSharedPtr<FExternalMorphSet> MorphTargetSet;
 
+	/** 
+	 * Should we enable morph target weight clamping?
+	 * The minimum and maximum values that it will be clamped against will be the min/max morph target weight values
+	 * that have been seen when running the training dataset through the network.
+	 * The advantage of clamping is that it can make deformations more stable when we have input poses that have not been seen during training.
+	 * We basically prevent the weights from 'exploding' and getting very large values, which could make the mesh look very bad.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Morph Targets")
+	bool bClampMorphWeights = true;
+
 	/**
 	 * The entire set of uncompressed morph target deltas, 3 per vertex, for each morph target, as one flattened buffer.
 	 * So the size of this buffer is: (NumVertsPerMorphTarget * 3 * NumMorphTargets).
@@ -257,7 +315,17 @@ private:
 
 	/** The maximum absolute weight values of the morph targets, during training. One value for each morph target. */
 	UPROPERTY()
-	TArray<float> MaxMorphWeights;
+	TArray<float> MaxMorphWeights_DEPRECATED;
+
+	/** 
+	 * The minimum and maximum weight values that the morph targets weights have seen during training.
+	 * We can clamp the network output weights within these ranges to try to make sure that the output doesn't go wild
+	 * when we give inputs that are far outside of the range we have seen during training.
+	 * It is possible that this array is empty, in which case this clamping isn't supported.
+	 * The size of the array equals the number of morph targets.
+	 */
+	UPROPERTY()
+	TArray<FFloatInterval> MorphTargetsMinMaxWeights;
 
 	/** 
 	 * The list of quality levels, where the first item represents the highest quality and the last element the lowest quality level.

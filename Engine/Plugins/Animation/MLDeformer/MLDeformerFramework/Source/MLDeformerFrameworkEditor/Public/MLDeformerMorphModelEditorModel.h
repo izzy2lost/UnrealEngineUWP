@@ -36,6 +36,15 @@ namespace UE::MLDeformer
 		// ~END FMLDeformerEditorModel overrides.
 
 		/**
+		 * Returns whether this model supports morph output weight clamping or not.
+		 * This is used to make sure the morph target weights are within valid ranges.
+		 * Some models might choose not to do this, because they might already clamp input values.
+		 * When this returns false, the "Clamp morph weights" option in the UI will also be hidden.
+		 * @return Returns true when the model supports morph weight clamping, otherwise false is returned.
+		 */
+		virtual bool IsMorphWeightClampingSupported() const		{ return true; }
+
+		/**
 		 * Get the mask buffer for a given morph target.
 		 * @param MorphTargetIndex The morph target index, excluding the first 'means' morph target that we always have, so 0 would mean the actual first real morph target.
 		 */
@@ -279,6 +288,9 @@ namespace UE::MLDeformer
 		 * So the size of this buffer is: (NumVertsPerMorphTarget * NumMorphTargets).
 		 */
 		TArray<FVector3f> MorphTargetDeltasBackup;
+
+		/** The backup of the minimum and maximum weights for each morph target. */
+		TArray<FFloatInterval> MorphTargetsMinMaxWeightsBackup;
 
 		/** The backup of the input item mask buffer. This contains all the bone and bone group masks. */
 		TArray<float> InputItemMaskBufferBackup;

@@ -35,8 +35,6 @@ namespace UE::MLDeformer
 		virtual int32 GetNumTrainingInputAnims() const override;
 		virtual FMLDeformerTrainingInputAnim* GetTrainingInputAnim(int32 Index) const override;
 		virtual void UpdateNumTrainingFrames() override;
-		virtual double GetTestTimeAtFrame(int32 FrameNumber) const override;
-		virtual int32 GetTestFrameAtTime(double TimeInSeconds) const override;
 		virtual void UpdateIsReadyForTrainingState() override;
 		virtual void OnPropertyChanged(FPropertyChangedEvent& PropertyChangedEvent) override;
 		virtual void OnInputAssetsChanged() override;

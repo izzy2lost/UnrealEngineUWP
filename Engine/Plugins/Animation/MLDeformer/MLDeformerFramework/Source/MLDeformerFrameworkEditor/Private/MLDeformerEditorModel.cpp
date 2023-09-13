@@ -229,6 +229,10 @@ namespace UE::MLDeformer
 		SkelMeshComponent->SetVisibility(false);
 		SkelMeshComponent->MarkRenderStateDirty();
 		Actor->SetRootComponent(SkelMeshComponent);
+		if (SkelMeshComponent->GetAnimInstance())
+		{
+			SkelMeshComponent->GetAnimInstance()->GetRequiredBones().SetUseRAWData(true);
+		}
 
 		// Register the editor actor.
 		const FLinearColor LabelColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.BaseMesh.LabelColor");
@@ -261,6 +265,10 @@ namespace UE::MLDeformer
 		SkelMeshComponent->SetWireframeMeshOverlayColor(MLDeformedWireColor);
 		SkelMeshComponent->SetVisibility(false);
 		SkelMeshComponent->MarkRenderStateDirty();
+		if (SkelMeshComponent->GetAnimInstance())
+		{
+			SkelMeshComponent->GetAnimInstance()->GetRequiredBones().SetUseRAWData(true);
+		}
 
 		// Create the ML Deformer component.
 		UMLDeformerAsset* DeformerAsset = Model->GetDeformerAsset();
@@ -633,11 +641,11 @@ namespace UE::MLDeformer
 		if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TrainingData)
 		{
 			const int32 TargetFrame = GetTrainingFrameAtTime(NewScrubTime);
+			PlayOffset = GetTrainingTimeAtFrame(TargetFrame);
 			for (FMLDeformerEditorActor* EditorActor : EditorActors)
 			{
 				if (EditorActor && EditorActor->IsTrainingActor())
 				{
-					PlayOffset = GetTrainingTimeAtFrame(TargetFrame);
 					EditorActor->SetPlayPosition(PlayOffset);
 				}
 			}
@@ -646,14 +654,11 @@ namespace UE::MLDeformer
 		else if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TestData)
 		{
 			const int32 TargetFrame = GetTestFrameAtTime(NewScrubTime);
+			PlayOffset = GetTestTimeAtFrame(TargetFrame);
 			for (FMLDeformerEditorActor* EditorActor : EditorActors)
 			{
 				if (EditorActor && EditorActor->IsTestActor())
 				{
-					if (Model->GetVizSettings()->HasTestGroundTruth())
-					{
-						PlayOffset = GetTestTimeAtFrame(TargetFrame);
-					}
 					EditorActor->SetPlayPosition(PlayOffset);
 				}
 			}
@@ -697,7 +702,15 @@ namespace UE::MLDeformer
 
 	double FMLDeformerEditorModel::GetTestTimeAtFrame(int32 FrameNumber) const
 	{
-		return Model->GetVizSettings()->GetTestAnimSequence() ? Model->GetVizSettings()->GetTestAnimSequence()->GetTimeAtFrame(FrameNumber) : 0.0;
+		UAnimSequence* AnimSequence = Model->GetVizSettings()->GetTestAnimSequence();
+		if (AnimSequence)
+		{
+			const FFrameRate FrameRate = AnimSequence->GetSamplingFrameRate();
+			const float UncorrectedTime = AnimSequence->GetTimeAtFrame(FrameNumber);
+			// due to floating point errors, return a double that when converted to a float cleanly maps to the value
+			return CorrectedFrameTime(FrameNumber, UncorrectedTime, FrameRate);
+		}
+		return 0.0; 
 	}
 
 	int32 FMLDeformerEditorModel::GetTestFrameAtTime(double TimeInSeconds) const

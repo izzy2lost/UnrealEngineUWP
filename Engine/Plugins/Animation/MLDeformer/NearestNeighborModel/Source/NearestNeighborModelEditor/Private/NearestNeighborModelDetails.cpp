@@ -3,6 +3,7 @@
 #include "NearestNeighborModelDetails.h"
 #include "NearestNeighborEditorModel.h"
 #include "NearestNeighborModel.h"
+#include "MLDeformerMorphModelDetails.h"
 #include "MLDeformerEditorToolkit.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
@@ -34,7 +35,7 @@ namespace UE::NearestNeighborModel
 
 	bool FNearestNeighborModelDetails::UpdateMemberPointers(const TArray<TWeakObjectPtr<UObject>>& Objects)
 	{
-		if (!FMLDeformerGeomCacheModelDetails::UpdateMemberPointers(Objects))
+		if (!FMLDeformerMorphModelDetails::UpdateMemberPointers(Objects))
 		{
 			return false;
 		}
@@ -48,12 +49,11 @@ namespace UE::NearestNeighborModel
 
 	void FNearestNeighborModelDetails::CreateCategories()
 	{
-		FMLDeformerGeomCacheModelDetails::CreateCategories();
+		FMLDeformerMorphModelDetails::CreateCategories();
 
 		FileCacheCategoryBuilder = &DetailLayoutBuilder->EditCategory("File Cache", FText::GetEmpty(), ECategoryPriority::Important);
 		ClothPartCategoryBuilder = &DetailLayoutBuilder->EditCategory("Cloth Parts", FText::GetEmpty(), ECategoryPriority::Important);
 		NearestNeighborCategoryBuilder = &DetailLayoutBuilder->EditCategory("Nearest Neighbors", FText::GetEmpty(), ECategoryPriority::Important);
-		MorphTargetCategoryBuilder = &DetailLayoutBuilder->EditCategory("Morph Targets", FText::GetEmpty(), ECategoryPriority::Important);
 		KMeansCategoryBuilder = &DetailLayoutBuilder->EditCategory("KMeans Pose Generator", FText::GetEmpty(), ECategoryPriority::Important);
 
 		// Add warning in CreateCategories so that the warning appears at the top of the details panel.
@@ -174,8 +174,13 @@ namespace UE::NearestNeighborModel
 	void FNearestNeighborModelDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 	{
 		// Create all the detail categories and add the properties of the base class.
-		FMLDeformerGeomCacheModelDetails::CustomizeDetails(DetailBuilder);
+		FMLDeformerMorphModelDetails::CustomizeDetails(DetailBuilder);
 
+		if (NearestNeighborModel == nullptr)
+		{
+			return;
+		}
+		
 		// Training settings.
 		TrainingSettingsCategoryBuilder->AddProperty(UNearestNeighborModel::GetInputDimPropertyName());
 		TrainingSettingsCategoryBuilder->AddProperty(UNearestNeighborModel::GetHiddenLayerDimsPropertyName());
@@ -191,11 +196,6 @@ namespace UE::NearestNeighborModel
 		Group->AddPropertyRow(DetailBuilder.GetProperty(UNearestNeighborModel::GetFileCacheDirectoryPropertyName()));
 		Group->AddPropertyRow(DetailBuilder.GetProperty(UNearestNeighborModel::GetRecomputeDeltasPropertyName()));
 		Group->AddPropertyRow(DetailBuilder.GetProperty(UNearestNeighborModel::GetRecomputePCAPropertyName()));
-
-		if (NearestNeighborModel == nullptr)
-		{
-			return;
-		}
 
 		BuildSubMeshNames();
 		const int32 MaxPartMeshIndex = NearestNeighborModel->GetMaxPartMeshIndex();

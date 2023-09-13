@@ -113,6 +113,7 @@ namespace UE::MLDeformer
 	{
 		// Backup the morph target deltas in case we abort training.
 		MorphTargetDeltasBackup = GetMorphModel()->GetMorphTargetDeltas();
+		MorphTargetsMinMaxWeightsBackup = GetMorphModel()->GetMorphTargetsMinMaxWeights();
 	}
 
 	void FMLDeformerMorphModelEditorModel::OnPostTraining(ETrainingResult TrainingResult, bool bUsePartiallyTrainedWhenAborted)
@@ -122,6 +123,7 @@ namespace UE::MLDeformer
 		{
 			// Restore the morph target vertex deltas backup.
 			GetMorphModel()->SetMorphTargetDeltas(MorphTargetDeltasBackup);
+			GetMorphModel()->SetMorphTargetsMinMaxWeights(MorphTargetsMinMaxWeightsBackup);
 		}
 		else if (TrainingResult == ETrainingResult::Success || (TrainingResult == ETrainingResult::Aborted && bUsePartiallyTrainedWhenAborted))
 		{
@@ -171,7 +173,7 @@ namespace UE::MLDeformer
 		// Check if we have max morph weight information.
 		// If we do not have this yet, we have to initialize the weights to 1.
 		UMLDeformerMorphModel* MorphModel = GetMorphModel();
-		TArrayView<const float> MaxMorphWeights = MorphModel->GetMorphTargetMaxWeights();
+		const TArray<FFloatInterval>& MinMaxMorphWeights = MorphModel->GetMorphTargetsMinMaxWeights();
 
 		// Preallocate space for the standard deviation of each morph target.
 		TArray<float> ErrorValues;
@@ -182,7 +184,10 @@ namespace UE::MLDeformer
 		for (int32 MorphIndex = 0; MorphIndex < MorphTargets.Num() - 1; ++MorphIndex)	// We have one extra morph for the means, skip that one.
 		{
 			const UMorphTarget* MorphTarget = MorphTargets[MorphIndex + 1];
-			const float MaxWeight = !MaxMorphWeights.IsEmpty() ? MaxMorphWeights[MorphIndex] : 1.0f;
+
+			// Calculate the maximum of the absolute values of the min and max weight we saw during training.
+			// We will multiply this with the length of the deltas later on to get an estimate of the maximum deformation for all deltas.
+			const float MaxWeight = !MinMaxMorphWeights.IsEmpty() ? FMath::Max(FMath::Abs(MinMaxMorphWeights[MorphIndex].Min), FMath::Abs(MinMaxMorphWeights[MorphIndex].Min)) : 1.0f;
 
 			// Get the array of deltas.
 			int32 NumDeltas = 0;

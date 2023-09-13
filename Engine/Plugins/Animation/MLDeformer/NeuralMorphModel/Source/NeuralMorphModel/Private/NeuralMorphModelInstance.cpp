@@ -291,4 +291,15 @@ void UNeuralMorphModelInstance::Execute(float ModelWeight)
 			WeightData->Weights[MorphIndex + 1] = NetworkOutputs[MorphIndex] * ModelWeight;
 		}
 	}
+
+	// Clamp morph target weights to be within the bounds we seen on the training data set.
+	// This can prevent 'exploding' weight values when we have network inputs that are far away from inputs we seen during training.
+	if (MorphModel->IsMorphWeightClampingEnabled())
+	{
+		// Start at weights[1], because the first item contains the morph weight that represents the mean.
+		// And we don't want to clamp that one as it cannot go out of bounds, as it is basically always 1.0 if the deformer is fully active.
+		// The ClampMorphTargetWeights method will modify the values in the array.
+		TArrayView<float> WeightsArray(&WeightData->Weights[1], NumNetworkWeights);
+		MorphModel->ClampMorphTargetWeights(WeightsArray);
+	}
 }
