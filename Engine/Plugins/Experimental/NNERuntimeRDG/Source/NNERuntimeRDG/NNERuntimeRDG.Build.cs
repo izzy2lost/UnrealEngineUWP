@@ -12,8 +12,6 @@ public class NNERuntimeRDG : ModuleRules
 
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PrivateIncludePaths.AddRange(new string[] { Path.Combine(EngineDirectory, "Source/Runtime/Renderer/Private") });
-
 		PublicDependencyModuleNames.AddRange(new string[] 
 		{ 
 			"Core", 
