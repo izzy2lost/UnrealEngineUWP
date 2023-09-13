@@ -18,7 +18,7 @@ static FAutoConsoleVariableRef CVar_GIasHttpRateLimitKiBPerSecond(
 	TEXT("Http throttle limit in KiBPerSecond")
 );
 
-int32 GIasHttpPollTimeoutMs = 0;
+int32 GIasHttpPollTimeoutMs = 17;
 static FAutoConsoleVariableRef CVar_GIasHttpPollTimeoutMs(
 	TEXT("ias.HttpPollTimeoutMs"),
 	GIasHttpPollTimeoutMs,
