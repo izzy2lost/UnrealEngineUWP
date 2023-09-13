@@ -89,7 +89,7 @@ namespace EpicGames.Horde.Tests
 			await TestChunkingAsync(options);
 		}
 
-		async Task TestChunkingAsync(ChunkingOptions options)
+		static async Task TestChunkingAsync(ChunkingOptions options)
 		{
 			using MemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 
