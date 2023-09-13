@@ -15,6 +15,7 @@
 class UInterchangeGenericAssetsPipeline;
 class UInterchangeMeshNode;
 class UInterchangePipelineMeshesUtilities;
+class UInterchangeSceneNode;
 class UInterchangeSkeletalMeshFactoryNode;
 class UInterchangeSkeletalMeshLodDataNode;
 class UInterchangeSkeletonFactoryNode;
@@ -205,7 +206,9 @@ public:
 	virtual bool GetPropertyPossibleValues(const FName PropertyPath, TArray<FString>& PossibleValues) override;
 #endif
 
-	static UInterchangePipelineMeshesUtilities* CreateMeshPipelineUtilities(UInterchangeBaseNodeContainer* InBaseNodeContainer, const UInterchangeGenericMeshPipeline* Pipeline);
+	static UInterchangePipelineMeshesUtilities* CreateMeshPipelineUtilities(UInterchangeBaseNodeContainer* InBaseNodeContainer
+		, const UInterchangeGenericMeshPipeline* Pipeline
+		, const bool bAutoDetectType);
 
 protected:
 	virtual void ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas) override;
@@ -235,6 +238,11 @@ private:
 
 	/* Meshes utilities, to parse the translated graph and extract the meshes informations. */
 	TObjectPtr<UInterchangePipelineMeshesUtilities> PipelineMeshesUtilities = nullptr;
+
+	static bool IsImpactingAnyMeshesRecursive(const UInterchangeSceneNode* SceneNode
+		, const UInterchangeBaseNodeContainer* InBaseNodeContainer
+		, const TArray<FString>& StaticMeshNodeUids
+		, TMap<const UInterchangeSceneNode*, bool>& CacheProcessSceneNodes);
 
 	/************************************************************************/
 	/* Skeletal mesh API BEGIN                                              */

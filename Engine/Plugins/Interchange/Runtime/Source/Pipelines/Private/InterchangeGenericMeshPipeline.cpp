@@ -5,10 +5,12 @@
 #include "Animation/Skeleton.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
+#include "InterchangeAnimationTrackSetNode.h"
 #include "InterchangeGenericAssetsPipeline.h"
 #include "InterchangeMeshNode.h"
 #include "InterchangePipelineLog.h"
 #include "InterchangePipelineMeshesUtilities.h"
+#include "InterchangeSceneNode.h"
 #include "InterchangeSkeletalMeshFactoryNode.h"
 #include "InterchangeStaticMeshFactoryNode.h"
 #include "InterchangeSourceData.h"
@@ -149,13 +151,53 @@ bool UInterchangeGenericMeshPipeline::GetPropertyPossibleValues(const FName Prop
 
 #endif
 
-UInterchangePipelineMeshesUtilities* UInterchangeGenericMeshPipeline::CreateMeshPipelineUtilities(UInterchangeBaseNodeContainer* InBaseNodeContainer, const UInterchangeGenericMeshPipeline* Pipeline)
+UInterchangePipelineMeshesUtilities* UInterchangeGenericMeshPipeline::CreateMeshPipelineUtilities(UInterchangeBaseNodeContainer* InBaseNodeContainer
+	, const UInterchangeGenericMeshPipeline* Pipeline
+	, const bool bAutoDetectType)
 {
 	UInterchangePipelineMeshesUtilities* CreatedPipelineMeshesUtilities = UInterchangePipelineMeshesUtilities::CreateInterchangePipelineMeshesUtilities(InBaseNodeContainer);
 
+	bool bAutoDetectConvertStaticMeshToSkeletalMesh = false;
+	if (bAutoDetectType && Pipeline->CommonMeshesProperties->ForceAllMeshAsType == EInterchangeForceMeshType::IFMT_None)
+	{
+		TArray<FString> StaticMeshNodeUids;
+		bool bContainSkeletalMesh = false;
+		InBaseNodeContainer->IterateNodesOfType<UInterchangeMeshNode>([&bContainSkeletalMesh, &StaticMeshNodeUids](const FString& NodeUid, UInterchangeMeshNode* MeshNode)
+			{
+				if (!MeshNode->IsMorphTarget())
+				{
+					MeshNode->IsSkinnedMesh() ? bContainSkeletalMesh = true : StaticMeshNodeUids.Add(NodeUid);
+				}
+			});
+		
+		bool bContainAnimationNode = false;
+		if (!bContainSkeletalMesh && StaticMeshNodeUids.Num() > 0)
+		{
+			TMap<const UInterchangeSceneNode*, bool> CacheProcessSceneNodes;
+			InBaseNodeContainer->BreakableIterateNodesOfType<UInterchangeTransformAnimationTrackNode>([&InBaseNodeContainer, &bContainAnimationNode, &StaticMeshNodeUids, &CacheProcessSceneNodes](const FString& NodeUid, UInterchangeTransformAnimationTrackNode* AnimationNode)
+				{
+					FString SceneNodeUid;
+					if (AnimationNode->GetCustomActorDependencyUid(SceneNodeUid))
+					{
+						if (const UInterchangeSceneNode* SceneNode = Cast<UInterchangeSceneNode>(InBaseNodeContainer->GetNode(SceneNodeUid)))
+						{
+							if (IsImpactingAnyMeshesRecursive(SceneNode, InBaseNodeContainer, StaticMeshNodeUids, CacheProcessSceneNodes))
+							{
+								bContainAnimationNode = true;
+							}
+						}
+					}
+					return bContainAnimationNode;
+				});
+		}
+
+		//Auto detect some static mesh transform animations, we need to force the skeletal mesh type and recompute
+		bAutoDetectConvertStaticMeshToSkeletalMesh = bContainAnimationNode;
+	}
+
 	//Set the context option to use when querying the pipeline mesh utilities
 	FInterchangePipelineMeshesUtilitiesContext DataContext;
-	DataContext.bConvertStaticMeshToSkeletalMesh = (Pipeline->CommonMeshesProperties->ForceAllMeshAsType == EInterchangeForceMeshType::IFMT_SkeletalMesh);
+	DataContext.bConvertStaticMeshToSkeletalMesh = bAutoDetectConvertStaticMeshToSkeletalMesh || (Pipeline->CommonMeshesProperties->ForceAllMeshAsType == EInterchangeForceMeshType::IFMT_SkeletalMesh);
 	DataContext.bConvertSkeletalMeshToStaticMesh = (Pipeline->CommonMeshesProperties->ForceAllMeshAsType == EInterchangeForceMeshType::IFMT_StaticMesh);
 	DataContext.bConvertStaticsWithMorphTargetsToSkeletals = Pipeline->CommonSkeletalMeshesAndAnimationsProperties->bConvertStaticsWithMorphTargetsToSkeletals;
 	DataContext.bImportMeshesInBoneHierarchy = Pipeline->CommonSkeletalMeshesAndAnimationsProperties->bImportMeshesInBoneHierarchy;
@@ -178,7 +220,7 @@ void UInterchangeGenericMeshPipeline::ExecutePipeline(UInterchangeBaseNodeContai
 	{
 		SourceDatas.Add(SourceData);
 	}
-	PipelineMeshesUtilities = CreateMeshPipelineUtilities(BaseNodeContainer, this);
+	PipelineMeshesUtilities = CreateMeshPipelineUtilities(BaseNodeContainer, this, CommonMeshesProperties->bAutoDetectMeshType);
 
 	//Create skeletalmesh factory nodes
 	ExecutePreImportPipelineSkeletalMesh();
@@ -294,3 +336,36 @@ bool UInterchangeGenericMeshPipeline::DoClassesIncludeAllEditableStructPropertie
 	return bResult;
 }
 #endif
+
+bool UInterchangeGenericMeshPipeline::IsImpactingAnyMeshesRecursive(const UInterchangeSceneNode* SceneNode
+	, const UInterchangeBaseNodeContainer* InBaseNodeContainer
+	, const TArray<FString>& StaticMeshNodeUids
+	, TMap<const UInterchangeSceneNode*, bool>& CacheProcessSceneNodes)
+{
+	bool& bIsImpactingCache = CacheProcessSceneNodes.FindOrAdd(SceneNode, false);
+	if (bIsImpactingCache)
+	{
+		return bIsImpactingCache;
+	}
+	FString AssetUid;
+	if (SceneNode->GetCustomAssetInstanceUid(AssetUid))
+	{
+		if (StaticMeshNodeUids.Contains(AssetUid))
+		{
+			bIsImpactingCache = true;
+			return true;
+		}
+	}
+	TArray<FString> Children = InBaseNodeContainer->GetNodeChildrenUids(SceneNode->GetUniqueID());
+	for (const FString& ChildUid : Children)
+	{
+		if (const UInterchangeSceneNode* ChildSceneNode = Cast<UInterchangeSceneNode>(InBaseNodeContainer->GetNode(ChildUid)))
+		{
+			if (IsImpactingAnyMeshesRecursive(ChildSceneNode, InBaseNodeContainer, StaticMeshNodeUids, CacheProcessSceneNodes))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}

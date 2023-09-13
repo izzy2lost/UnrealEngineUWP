@@ -138,7 +138,7 @@ void UInterchangeGenericAssetsPipeline::FilterPropertiesFromTranslatedData(UInte
 		MeshPipeline->FilterPropertiesFromTranslatedData(InBaseNodeContainer);
 		AnimationPipeline->FilterPropertiesFromTranslatedData(InBaseNodeContainer);
 
-		UInterchangePipelineMeshesUtilities* PipelineMeshesUtilities = UInterchangeGenericMeshPipeline::CreateMeshPipelineUtilities(InBaseNodeContainer, MeshPipeline);
+		UInterchangePipelineMeshesUtilities* PipelineMeshesUtilities = UInterchangeGenericMeshPipeline::CreateMeshPipelineUtilities(InBaseNodeContainer, MeshPipeline, CommonMeshesProperties->bAutoDetectMeshType);
 
 		TArray<FString> SkeletalMeshes;
 		PipelineMeshesUtilities->GetAllSkinnedMeshInstance(SkeletalMeshes);
