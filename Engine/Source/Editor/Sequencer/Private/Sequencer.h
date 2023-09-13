@@ -307,9 +307,10 @@ public:
 	void InvalidateGlobalMarkedFramesCache() { bGlobalMarkedFramesCached = false; }
 	void UpdateGlobalMarkedFramesCache();
 
-	/** 
-	  * Disables all global marked frames from all sub-sequences
-	  */
+	/** Toggle whether to show marked frames globally */
+	void ToggleShowMarkedFramesGlobally();
+
+	/** Disables all global marked frames from all sub-sequences */
 	void ClearGlobalMarkedFrames();
 
 protected:

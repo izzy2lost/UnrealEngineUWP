@@ -295,6 +295,12 @@ public:
 	/** Toggle locking marks */
 	TSharedPtr< FUICommandInfo > ToggleMarksLocked;
 
+	/** Toggle show marked frames globally */
+	TSharedPtr< FUICommandInfo > ToggleShowMarkedFramesGlobally;
+
+	/** Clear global marked frames */
+	TSharedPtr< FUICommandInfo > ClearGlobalMarkedFrames;
+
 	/** Rotates through the supported formats for displaying times/frames/timecode. */
 	TSharedPtr< FUICommandInfo > ChangeTimeDisplayFormat;
 

@@ -9737,6 +9737,32 @@ void FSequencer::UpdateGlobalMarkedFramesCache()
 	bGlobalMarkedFramesCached = true;
 }
 
+void FSequencer::ToggleShowMarkedFramesGlobally()
+{
+	UMovieSceneSequence* FocusedMovieSequence = GetFocusedMovieSceneSequence();
+	if (!FocusedMovieSequence)
+	{
+		return;
+	}
+
+	UMovieScene* FocusedMovieScene = FocusedMovieSequence->GetMovieScene();
+	if (!FocusedMovieScene)
+	{
+		return;
+	}
+
+	if (FocusedMovieScene->IsReadOnly())
+	{
+		FSequencerUtilities::ShowReadOnlyError();
+		return;
+	}
+
+	const FScopedTransaction Transaction(LOCTEXT("ToggleShowMarkedFramesGlobally", "Toggle Show Marked Frames Globally"));
+	FocusedMovieScene->Modify();
+	FocusedMovieScene->ToggleGloballyShowMarkedFrames();
+	InvalidateGlobalMarkedFramesCache();
+}
+
 void FSequencer::ClearGlobalMarkedFrames()
 {
 	FSequencerMarkedFrameHelper::ClearGlobalMarkedFrames(*this);
@@ -10504,6 +10530,16 @@ void FSequencer::BindCommands()
 	SequencerCommandBindings->MapAction(
 		Commands.SortAllNodesAndDescendants,
 		FExecuteAction::CreateSP(this, &FSequencer::SortAllNodesAndDescendants));
+
+	SequencerCommandBindings->MapAction(
+		Commands.ToggleShowMarkedFramesGlobally,
+		FExecuteAction::CreateSP(this, &FSequencer::ToggleShowMarkedFramesGlobally),
+		FCanExecuteAction::CreateLambda([this] { return GetFocusedMovieSceneSequence() != nullptr; }),
+		FIsActionChecked::CreateLambda([this] { return GetFocusedMovieSceneSequence()->GetMovieScene()->GetGloballyShowMarkedFrames(); }) );
+
+	SequencerCommandBindings->MapAction(
+		Commands.ClearGlobalMarkedFrames,
+		FExecuteAction::CreateSP(this, &FSequencer::ClearGlobalMarkedFrames));
 
 	SequencerCommandBindings->MapAction(
 		Commands.ToggleAutoExpandNodesOnSelection,

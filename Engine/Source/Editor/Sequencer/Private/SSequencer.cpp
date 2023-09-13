@@ -2214,44 +2214,8 @@ TSharedRef<SWidget> SSequencer::MakeViewMenu()
 
 	MenuBuilder.BeginSection("MarkedFrames", LOCTEXT("MarkedFramesHeader", "Marked Frames"));
 	{
-		UMovieSceneSequence* FocusedMovieSequence = Sequencer->GetFocusedMovieSceneSequence();
-		UMovieScene* FocusedMovieScene = nullptr;
-		if (FocusedMovieSequence != nullptr)
-		{
-			FocusedMovieScene = FocusedMovieSequence->GetMovieScene();
-		}
-
-		MenuBuilder.AddMenuEntry(
-			LOCTEXT("ToggleShowMarkedFrameGlobal", "Show Marked Frames Globally"),
-			LOCTEXT("ToggleShowMarkedFrameGlobalTooltip", "Makes marked frames in this sub-sequence visible in parent/sibling sequences for the current editor session"),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateLambda([FocusedMovieScene, this]() {
-					if (FocusedMovieScene != nullptr)
-					{
-						const FScopedTransaction Transaction(LOCTEXT("ToggleShowMarkedFramesGlobally", "Toggle Show Marked Frames Globally"));
-						FocusedMovieScene->Modify();
-						FocusedMovieScene->ToggleGloballyShowMarkedFrames();
-						SequencerPtr.Pin()->InvalidateGlobalMarkedFramesCache();
-					}
-				}),
-				FCanExecuteAction::CreateLambda([FocusedMovieScene]() { return FocusedMovieScene != nullptr; }),
-				FIsActionChecked::CreateLambda([FocusedMovieScene]() {
-					if (FocusedMovieScene != nullptr)
-					{
-						return FocusedMovieScene->GetGloballyShowMarkedFrames();
-					}
-					return false;
-				})),
-			NAME_None,
-			EUserInterfaceActionType::ToggleButton
-		);
-		MenuBuilder.AddMenuEntry(
-			LOCTEXT("ClearMarkedFramesGlobal", "Clear Global Marked Frames"),
-			LOCTEXT("ClearMarkedFramesGlobalTooltip", "Set all marked frames in all sub-sequences to not be globally displayed."),
-			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateLambda([this]() { SequencerPtr.Pin()->ClearGlobalMarkedFrames(); }))
-		);
+		MenuBuilder.AddMenuEntry(FSequencerCommands::Get().ToggleShowMarkedFramesGlobally);
+		MenuBuilder.AddMenuEntry(FSequencerCommands::Get().ClearGlobalMarkedFrames);
 	}
 	MenuBuilder.EndSection();
 
