@@ -334,7 +334,7 @@ void MainPS(
 #endif
 )
 {
-	const uint2 PixelPos = SvPosition.xy;
+	const uint2 PixelPos = uint2(SvPosition.xy);
 	const float2 SceneBufferUV = SvPositionToBufferUV(SvPosition);
 	const float2 ScreenPosition = SvPositionToScreenPosition(SvPosition).xy;
 

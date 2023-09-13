@@ -2734,9 +2734,9 @@ void FSubstrateBSDF::SubstrateSanitizeBSDF()
 			SLAB_ROUGHNESS(this) = SanitizeRoughness(SLAB_ROUGHNESS(this));
 			if (BSDF_GETHASHAZINESS(this))
 			{
-				FHaziness Haziness = UnpackHaziness(SLAB_HAZINESS(this));
-				Haziness.Roughness = SanitizeRoughness(Haziness.Roughness);
-				SLAB_HAZINESS(this) = PackHaziness(Haziness);
+				FHaziness LocalHaziness = UnpackHaziness(SLAB_HAZINESS(this));
+				LocalHaziness.Roughness = SanitizeRoughness(LocalHaziness.Roughness);
+				SLAB_HAZINESS(this) = PackHaziness(LocalHaziness);
 			}
 			SLAB_ROUGHNESS(this) = SanitizeRoughness(SLAB_ROUGHNESS(this)); // 
 			SLAB_ANISOTROPY(this) = clamp(SLAB_ANISOTROPY(this), -1.f, 1.f);

@@ -298,8 +298,8 @@ FLumenMaterialData InternalReadMaterialData_Substrate(uint2 InCoord, uint InBSDF
 			}
 
 			const FSubstrateSubsurfaceHeader SSSHeader			= SubstrateLoadSubsurfaceHeader(Substrate.MaterialTextureArray, Substrate.FirstSliceStoringSubstrateSSSData, InCoord);
-			const FSubstrateBSDF BSDF							= UnpackSubstrateBSDFIn(Substrate.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
-			const FSubstrateIrradianceAndOcclusion IrradianceAO= SubstrateGetIrradianceAndAO(SubstratePixelHeader);
+			FSubstrateBSDF BSDF									= UnpackSubstrateBSDFIn(Substrate.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
+			const FSubstrateIrradianceAndOcclusion IrradianceAO	= SubstrateGetIrradianceAndAO(SubstratePixelHeader);
 
 			const uint BSDFType = SubstrateGetBSDFType(BSDF);
 
