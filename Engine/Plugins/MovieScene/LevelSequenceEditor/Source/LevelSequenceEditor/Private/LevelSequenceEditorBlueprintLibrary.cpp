@@ -126,7 +126,15 @@ void ULevelSequenceEditorBlueprintLibrary::SetCurrentTime(int32 NewFrame)
 		FFrameRate DisplayRate = CurrentSequencer.Pin()->GetFocusedDisplayRate();
 		FFrameRate TickResolution = CurrentSequencer.Pin()->GetFocusedTickResolution();
 
-		CurrentSequencer.Pin()->SetGlobalTime(ConvertFrameTime(NewFrame, DisplayRate, TickResolution));
+		FFrameTime GlobalTime = ConvertFrameTime(NewFrame, DisplayRate, TickResolution);
+		if (GlobalTime == CurrentSequencer.Pin()->GetGlobalTime().Time)
+		{
+			CurrentSequencer.Pin()->ForceEvaluate();
+		}
+		else
+		{
+			CurrentSequencer.Pin()->SetGlobalTime(GlobalTime);
+		}
 	}
 }
 
@@ -149,7 +157,15 @@ void ULevelSequenceEditorBlueprintLibrary::SetCurrentLocalTime(int32 NewFrame)
 		FFrameRate DisplayRate = CurrentSequencer.Pin()->GetFocusedDisplayRate();
 		FFrameRate TickResolution = CurrentSequencer.Pin()->GetFocusedTickResolution();
 
-		CurrentSequencer.Pin()->SetLocalTime(ConvertFrameTime(NewFrame, DisplayRate, TickResolution));
+		FFrameTime LocalTime = ConvertFrameTime(NewFrame, DisplayRate, TickResolution);
+		if (LocalTime == CurrentSequencer.Pin()->GetLocalTime().Time)
+		{
+			CurrentSequencer.Pin()->ForceEvaluate();
+		}
+		else
+		{
+			CurrentSequencer.Pin()->SetLocalTime(LocalTime);
+		}
 	}
 }
 

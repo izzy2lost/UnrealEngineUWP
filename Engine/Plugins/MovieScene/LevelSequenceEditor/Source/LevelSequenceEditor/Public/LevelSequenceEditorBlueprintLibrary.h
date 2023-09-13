@@ -102,7 +102,7 @@ public:
 public:
 
 	/**
-	 * Set global playback position for the current level sequence in frames
+	 * Set global playback position for the current level sequence in frames. If the requested time is the same as the current time, an evaluation will be forced.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	static void SetCurrentTime(int32 NewFrame);
@@ -114,7 +114,7 @@ public:
 	static int32 GetCurrentTime();
 
 	/**
-	 * Set local playback position for the current level sequence in frames
+	 * Set local playback position for the current level sequence in frames. If the requested time is the same as the current time, an evaluation will be forced.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	static void SetCurrentLocalTime(int32 NewFrame);
