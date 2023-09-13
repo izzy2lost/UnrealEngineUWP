@@ -95,6 +95,8 @@ void FAnimationModifiersModule::ShutdownModule()
 	UToolMenus::UnregisterOwner(this);
 	FCoreDelegates::OnPostEngineInit.Remove(DelegateHandle);
 
+	UObject::FAssetRegistryTag::OnGetExtraObjectTags.Remove(OnGetExtraObjectTagsHandle);
+	
 	// Remove extender delegate
 	FWorkflowCentricApplication::GetModeExtenderList().RemoveAll([this](FWorkflowApplicationModeExtender& StoredExtender) { return StoredExtender.GetHandle() == Extender.GetHandle(); });
 
@@ -229,6 +231,18 @@ void FAnimationModifiersModule::RegisterMenus()
 						ApplyAnimationModifiers(AnimSequences, false);
 					}))
 				);
+
+				MenuBuilder.AddMenuEntry(
+					LOCTEXT("AnimSequence_RemoveAnimationModifier", "Remove Modifiers"),
+					LOCTEXT("AnimSequence_RemoveAnimationModifierTooltip", "Remove animation modifier(s)"),
+					FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.AnimationModifier"),
+					FUIAction(FExecuteAction::CreateLambda([GetAnimSequences, this]()
+					{
+						TArray<UAnimSequence*> AnimSequences;
+						GetAnimSequences(AnimSequences);
+
+						ShowRemoveAnimationModifierWindow(AnimSequences);
+					})));
 			});
 
 			IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
@@ -320,7 +334,33 @@ void FAnimationModifiersModule::ShowAddAnimationModifierWindow(const TArray<UAni
 	}
 
 	FSlateApplication::Get().AddModalWindow(Window, ParentWindow, false);
-	UObject::FAssetRegistryTag::OnGetExtraObjectTags.Remove(OnGetExtraObjectTagsHandle);
+}
+
+void FAnimationModifiersModule::ShowRemoveAnimationModifierWindow(const TArray<UAnimSequence*>& InSequences)
+{
+	TSharedPtr<SRemoveAnimationModifierContentBrowserWindow> WindowContent;
+
+	TSharedRef<SWindow> Window = SNew(SWindow)
+		.Title(LOCTEXT("WindowTitle", "Remove Animation Modifier(s)"))
+		.SizingRule(ESizingRule::UserSized)
+		.ClientSize(FVector2D(500, 500));
+
+	Window->SetContent
+	(
+		SAssignNew(WindowContent, SRemoveAnimationModifierContentBrowserWindow)
+		.WidgetWindow(Window)
+		.AnimSequences(InSequences)
+	);
+
+	TSharedPtr<SWindow> ParentWindow;
+
+	if (FModuleManager::Get().IsModuleLoaded("MainFrame"))
+	{
+		IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
+		ParentWindow = MainFrame.GetParentWindow();
+	}
+
+	FSlateApplication::Get().AddModalWindow(Window, ParentWindow, false);
 }
 
 void FAnimationModifiersModule::ApplyAnimationModifiers(const TArray<UAnimSequence*>& InSequences, bool bForceApply /*= true*/)
