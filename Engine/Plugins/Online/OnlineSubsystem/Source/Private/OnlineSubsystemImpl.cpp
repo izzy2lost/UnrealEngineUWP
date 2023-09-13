@@ -50,7 +50,6 @@ FOnlineSubsystemImpl::FOnlineSubsystemImpl(FName InSubsystemName, FName InInstan
 
 FOnlineSubsystemImpl::~FOnlineSubsystemImpl()
 {
-	FCoreDelegates::TSOnConfigSectionsChanged().RemoveAll(this);
 }
 
 void FOnlineSubsystemImpl::PreUnload()
@@ -59,6 +58,7 @@ void FOnlineSubsystemImpl::PreUnload()
 
 bool FOnlineSubsystemImpl::Shutdown()
 {
+	FCoreDelegates::TSOnConfigSectionsChanged().RemoveAll(this);
 	OnNamedInterfaceCleanup();
 	StopTicker();
 	return true;
