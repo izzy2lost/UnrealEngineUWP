@@ -278,7 +278,16 @@ void FLandscapeEditorDetailCustomization_NewLandscape::CustomizeDetails(IDetailL
 	TSharedRef<IPropertyHandle> PropertyHandle_Location_X = PropertyHandle_Location->GetChildHandle("X").ToSharedRef();
 	TSharedRef<IPropertyHandle> PropertyHandle_Location_Y = PropertyHandle_Location->GetChildHandle("Y").ToSharedRef();
 	TSharedRef<IPropertyHandle> PropertyHandle_Location_Z = PropertyHandle_Location->GetChildHandle("Z").ToSharedRef();
-	NewLandscapeCategory.AddProperty(PropertyHandle_Location)
+	
+	IDetailPropertyRow& LocationPropertyRow = NewLandscapeCategory.AddProperty(PropertyHandle_Location);
+
+	FIsResetToDefaultVisible IsResetLocationVisible = FIsResetToDefaultVisible::CreateSP(this, &FLandscapeEditorDetailCustomization_NewLandscape::ShouldShowResetLocationlToDefault);
+	FResetToDefaultHandler ResetLocationHandler = FResetToDefaultHandler::CreateSP(this, &FLandscapeEditorDetailCustomization_NewLandscape::ResetLocationToDefault);
+	FResetToDefaultOverride ResetLocationOverride = FResetToDefaultOverride::Create(IsResetLocationVisible, ResetLocationHandler);
+
+	LocationPropertyRow.OverrideResetToDefault(ResetLocationOverride);
+
+	LocationPropertyRow
 	.CustomWidget()
 	.NameContent()
 	[
@@ -307,7 +316,16 @@ void FLandscapeEditorDetailCustomization_NewLandscape::CustomizeDetails(IDetailL
 	TSharedRef<IPropertyHandle> PropertyHandle_Rotation_Roll  = PropertyHandle_Rotation->GetChildHandle("Roll").ToSharedRef();
 	TSharedRef<IPropertyHandle> PropertyHandle_Rotation_Pitch = PropertyHandle_Rotation->GetChildHandle("Pitch").ToSharedRef();
 	TSharedRef<IPropertyHandle> PropertyHandle_Rotation_Yaw   = PropertyHandle_Rotation->GetChildHandle("Yaw").ToSharedRef();
-	NewLandscapeCategory.AddProperty(PropertyHandle_Rotation)
+
+	IDetailPropertyRow& RotationPropertyRow = NewLandscapeCategory.AddProperty(PropertyHandle_Rotation);
+
+	FIsResetToDefaultVisible IsResetRotationVisible = FIsResetToDefaultVisible::CreateSP(this, &FLandscapeEditorDetailCustomization_NewLandscape::ShouldShowResetRotationToDefault);
+	FResetToDefaultHandler ResetRotationHandler = FResetToDefaultHandler::CreateSP(this, &FLandscapeEditorDetailCustomization_NewLandscape::ResetRotationToDefault);
+	FResetToDefaultOverride ResetRotationOverride = FResetToDefaultOverride::Create(IsResetRotationVisible, ResetRotationHandler);
+
+	RotationPropertyRow.OverrideResetToDefault(ResetRotationOverride);
+
+	RotationPropertyRow
 	.CustomWidget()
 	.NameContent()
 	[
@@ -332,7 +350,16 @@ void FLandscapeEditorDetailCustomization_NewLandscape::CustomizeDetails(IDetailL
 	TSharedRef<IPropertyHandle> PropertyHandle_Scale_X = PropertyHandle_Scale->GetChildHandle("X").ToSharedRef();
 	TSharedRef<IPropertyHandle> PropertyHandle_Scale_Y = PropertyHandle_Scale->GetChildHandle("Y").ToSharedRef();
 	TSharedRef<IPropertyHandle> PropertyHandle_Scale_Z = PropertyHandle_Scale->GetChildHandle("Z").ToSharedRef();
-	NewLandscapeCategory.AddProperty(PropertyHandle_Scale)
+	
+	IDetailPropertyRow& ScalePropertyRow = NewLandscapeCategory.AddProperty(PropertyHandle_Scale);
+
+	FIsResetToDefaultVisible IsResetScaleVisible = FIsResetToDefaultVisible::CreateSP(this, &FLandscapeEditorDetailCustomization_NewLandscape::ShouldShowResetScaleToDefault);
+	FResetToDefaultHandler ResetScaleHandler = FResetToDefaultHandler::CreateSP(this, &FLandscapeEditorDetailCustomization_NewLandscape::ResetScaleToDefault);
+	FResetToDefaultOverride ResetScaleOverride = FResetToDefaultOverride::Create(IsResetScaleVisible, ResetScaleHandler);
+
+	ScalePropertyRow.OverrideResetToDefault(ResetScaleOverride);
+
+	ScalePropertyRow
 	.CustomWidget()
 	.NameContent()
 	[
@@ -1504,6 +1531,45 @@ bool FLandscapeEditorDetailCustomization_NewLandscape::ShouldShowResetMaterialTo
 	InPropertyHandle->GetValue(Object);
 
 	return DefaultMaterial.Get() != Object;
+}
+
+void FLandscapeEditorDetailCustomization_NewLandscape::ResetLocationToDefault(TSharedPtr<IPropertyHandle> InPropertyHandle)
+{
+	InPropertyHandle->SetValue(ULandscapeEditorObject::NewLandscape_DefaultLocation);
+}
+
+bool FLandscapeEditorDetailCustomization_NewLandscape::ShouldShowResetLocationlToDefault(TSharedPtr<IPropertyHandle> InPropertyHandle)
+{
+	FVector Location;
+	InPropertyHandle->GetValue(Location);
+
+	return Location != ULandscapeEditorObject::NewLandscape_DefaultLocation;
+}
+
+void FLandscapeEditorDetailCustomization_NewLandscape::ResetRotationToDefault(TSharedPtr<IPropertyHandle> InPropertyHandle)
+{
+	InPropertyHandle->SetValue(ULandscapeEditorObject::NewLandscape_DefaultRotation);
+}
+
+bool FLandscapeEditorDetailCustomization_NewLandscape::ShouldShowResetRotationToDefault(TSharedPtr<IPropertyHandle> InPropertyHandle)
+{
+	FRotator Rotation;
+	InPropertyHandle->GetValue(Rotation);
+
+	return Rotation != ULandscapeEditorObject::NewLandscape_DefaultRotation;
+}
+
+void FLandscapeEditorDetailCustomization_NewLandscape::ResetScaleToDefault(TSharedPtr<IPropertyHandle> InPropertyHandle)
+{
+	InPropertyHandle->SetValue(ULandscapeEditorObject::NewLandscape_DefaultScale);
+}
+
+bool FLandscapeEditorDetailCustomization_NewLandscape::ShouldShowResetScaleToDefault(TSharedPtr<IPropertyHandle> InPropertyHandle)
+{
+	FVector Scale;
+	InPropertyHandle->GetValue(Scale);
+
+	return Scale != ULandscapeEditorObject::NewLandscape_DefaultScale;
 }
 
 #undef LOCTEXT_NAMESPACE

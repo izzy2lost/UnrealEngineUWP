@@ -541,13 +541,19 @@ class ULandscapeEditorObject : public UObject
 	UPROPERTY(Category="New Landscape", EditAnywhere, meta=(DisplayName="Number of Components", ShowForTools="NewLandscape"))
 	FIntPoint NewLandscape_ComponentCount;
 
+	static const FVector NewLandscape_DefaultLocation;
+
 	// The location of the new landscape
 	UPROPERTY(Category="New Landscape", EditAnywhere, meta=(DisplayName="Location", ShowForTools="NewLandscape"))
 	FVector NewLandscape_Location;
 
+	static const FRotator NewLandscape_DefaultRotation;
+
 	// The rotation of the new landscape
 	UPROPERTY(Category="New Landscape", EditAnywhere, meta=(DisplayName="Rotation", ShowForTools="NewLandscape"))
 	FRotator NewLandscape_Rotation;
+
+	static const FVector NewLandscape_DefaultScale;
 
 	// The scale of the new landscape. This is the distance between each vertex on the landscape, defaulting to 100 units.
 	UPROPERTY(Category="New Landscape", EditAnywhere, meta=(DisplayName="Scale", ShowForTools="NewLandscape"))
