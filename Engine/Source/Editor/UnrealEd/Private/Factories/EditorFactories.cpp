@@ -2930,7 +2930,7 @@ bool UTextureFactory::ImportImage(const uint8* Buffer, int64 Length, FFeedbackCo
 			// branch for JPEG, if retaining the jpeg compressed data
 			// this is inside the DecompressImage branch even though we don't use the LoadedImage at all
 			//	 just to ensure that the jpeg will decode successfully
-			if (ImageFormat == EImageFormat::JPEG)
+			if (ImageFormat == EImageFormat::JPEG || ImageFormat == EImageFormat::OOJPEG)
 			{
 				// unusual loader, retains jpeg
 				bool bRetainJpegFormat = false;
@@ -2942,7 +2942,7 @@ bool UTextureFactory::ImportImage(const uint8* Buffer, int64 Length, FFeedbackCo
 				if ( bRetainJpegFormat)
 				{
 					// does not decode jpeg, just to get width/height :
-					TSharedPtr<IImageWrapper> JpegImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::JPEG);
+					TSharedPtr<IImageWrapper> JpegImageWrapper = ImageWrapperModule.CreateImageWrapper(ImageFormat);
 					if (JpegImageWrapper.IsValid() && JpegImageWrapper->SetCompressed(Buffer, Length))
 					{
 						check( JpegImageWrapper->GetWidth() == LoadedImage.SizeX );
@@ -2961,9 +2961,17 @@ bool UTextureFactory::ImportImage(const uint8* Buffer, int64 Length, FFeedbackCo
 						);
 
 						OutImage.RawData.Append(Buffer, Length);
-						OutImage.RawDataCompressionFormat = ETextureSourceCompressionFormat::TSCF_JPEG;
 
-						UE_LOG(LogEditorFactories,Display,TEXT("JPEG imported and retained as JPEG in uasset."));
+						if (ImageFormat == EImageFormat::JPEG) 
+						{
+							OutImage.RawDataCompressionFormat = ETextureSourceCompressionFormat::TSCF_JPEG;
+							UE_LOG(LogEditorFactories,Display,TEXT("JPEG imported and retained as JPEG in uasset."));
+						}
+						else
+						{
+							OutImage.RawDataCompressionFormat = ETextureSourceCompressionFormat::TSCF_OOJPEG;
+							UE_LOG(LogEditorFactories,Display,TEXT("OOJPEG imported and retained as OOJPEG in uasset."));
+						}
 
 						return true;
 					}
@@ -5192,7 +5200,7 @@ bool UTextureExporterJPEG::SupportsObject(UObject* Object) const
 			}
 
 			// Check it has JPEG BulkData :
-			if ( Texture->Source.GetSourceCompression() == TSCF_JPEG &&
+			if ( (Texture->Source.GetSourceCompression() == TSCF_JPEG || Texture->Source.GetSourceCompression() == TSCF_OOJPEG) &&
 				Texture->Source.GetSizeOnDisk() > 0 )
 			{
 				ETextureSourceFormat TSF = Texture->Source.GetFormat();
@@ -5206,12 +5214,12 @@ bool UTextureExporterJPEG::SupportsObject(UObject* Object) const
 	return false;
 }
 
-bool UTextureExporterJPEG::ExportBinary( UObject* Object, const TCHAR* Type, FArchive& Ar, FFeedbackContext* Warn, int32 FileIndex, uint32 PortFlags )
+bool UTextureExporterJPEG::ExportBinary(UObject* Object, const TCHAR* Type, FArchive& Ar, FFeedbackContext* Warn, int32 FileIndex, uint32 PortFlags)
 {
 	UTexture2D* Texture = Cast<UTexture2D>(Object);
-	check( Texture != nullptr );
+	check(Texture != nullptr);
 
-	check( Texture->Source.GetSourceCompression() == TSCF_JPEG &&
+	check((Texture->Source.GetSourceCompression() == TSCF_JPEG || Texture->Source.GetSourceCompression() == TSCF_OOJPEG) &&
 			Texture->Source.GetSizeOnDisk() > 0 );
 
 	// just write the JPEG data we already have :
@@ -5219,9 +5227,19 @@ bool UTextureExporterJPEG::ExportBinary( UObject* Object, const TCHAR* Type, FAr
 	UE_LOG(LogEditorFactories, Display, TEXT("Exporting Texture as JPEG stored bits (no lossy decompress or recompress)."));
 
 	Texture->Source.OperateOnLoadedBulkData( [&](const FSharedBuffer& BulkDataBuffer) {
-		Ar.Serialize( const_cast<void *>(BulkDataBuffer.GetData()), BulkDataBuffer.GetSize());
+		if (Texture->Source.GetSourceCompression() == TSCF_JPEG)
+		{
+			Ar.Serialize(const_cast<void*>(BulkDataBuffer.GetData()), BulkDataBuffer.GetSize());
+		}
+		else
+		{
+			IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
+			TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::OOJPEG);
+			ImageWrapper->SetCompressed(BulkDataBuffer.GetData(), BulkDataBuffer.GetSize());
+			TArray64<uint8> ExportData = ImageWrapper->GetExportData();
+			Ar.Serialize(ExportData.GetData(), ExportData.Num());
+		}
 	} );
-
 	return true;
 }
 

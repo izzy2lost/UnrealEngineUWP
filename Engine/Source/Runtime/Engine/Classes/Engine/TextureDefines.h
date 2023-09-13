@@ -318,6 +318,7 @@ enum ETextureSourceCompressionFormat : int
 	TSCF_None	UMETA(DisplayName = "None"),
 	TSCF_PNG	UMETA(DisplayName = "PNG"),
 	TSCF_JPEG	UMETA(DisplayName = "JPEG"),
+	TSCF_OOJPEG	UMETA(DisplayName = "Oodle JPEG"),
 
 	TSCF_MAX
 };

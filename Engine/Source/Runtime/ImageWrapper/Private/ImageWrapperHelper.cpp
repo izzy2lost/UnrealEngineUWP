@@ -19,6 +19,12 @@ FStringView ImageWrapperHelper::GetFormatExtension(EImageFormat InImageFormat, b
 	case EImageFormat::GrayscaleJPEG:
 		StringExtension = TEXT(".jpg");
 		break;
+	case EImageFormat::OOJPEG:
+		StringExtension = TEXT(".ooj");
+		break;
+	case EImageFormat::GrayscaleOOJPEG:
+		StringExtension = TEXT(".ooj");
+		break;
 	case EImageFormat::BMP:
 		StringExtension = TEXT(".bmp");
 		break;
@@ -70,7 +76,11 @@ EImageFormat ImageWrapperHelper::GetImageFormat(FStringView StringExtention)
 	}
 	if (StringExtention.Equals(TEXT("jpg"), ESearchCase::IgnoreCase))
 	{
-		return EImageFormat::GrayscaleJPEG;
+		return EImageFormat::GrayscaleJPEG; // Note: This looks like a bug?
+	}
+	if (StringExtention.Equals(TEXT("ooj"), ESearchCase::IgnoreCase))
+	{
+		return EImageFormat::OOJPEG;
 	}
 	if (StringExtention.Equals(TEXT("bmp"), ESearchCase::IgnoreCase))
 	{
@@ -102,6 +112,6 @@ EImageFormat ImageWrapperHelper::GetImageFormat(FStringView StringExtention)
 const FStringView ImageWrapperHelper::GetImageFilesFilterString(bool bIncludeAllFiles)
 {
 	return (bIncludeAllFiles)
-		? TEXT("Image files (*.jpg; *.png; *.bmp; *.ico; *.exr; *.icns; *.jpeg; *.tga; *.hdr)|*.jpg; *.png; *.bmp; *.ico; *.exr; *.icns; *.jpeg; *.tga; *.hdr|All files (*.*)|*.*")
-		: TEXT("Image files (*.jpg; *.png; *.bmp; *.ico; *.exr; *.icns; *.jpeg; *.tga; *.hdr)|*.jpg; *.png; *.bmp; *.ico; *.exr; *.icns; *.jpeg; *.tga; *.hdr");
+		? TEXT("Image files (*.jpg; *.png; *.bmp; *.ico; *.exr; *.icns; *.jpeg; *.tga; *.hdr; *.ooj)|*.jpg; *.png; *.bmp; *.ico; *.exr; *.icns; *.jpeg; *.tga; *.hdr; *.ooj|All files (*.*)|*.*")
+		: TEXT("Image files (*.jpg; *.png; *.bmp; *.ico; *.exr; *.icns; *.jpeg; *.tga; *.hdr; *.ooj)|*.jpg; *.png; *.bmp; *.ico; *.exr; *.icns; *.jpeg; *.tga; *.hdr; *.ooj");
 }
