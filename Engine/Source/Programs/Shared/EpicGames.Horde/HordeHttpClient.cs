@@ -105,16 +105,6 @@ namespace EpicGames.Horde
 			options.Converters.Add(new BinaryIdJsonConverterFactory());
 		}
 
-		static HttpMessageHandler CreateDefaultHttpMessageHandler()
-		{
-			AsyncRetryPolicy<HttpResponseMessage> retryPolicy = HttpPolicyExtensions
-				.HandleTransientHttpError()
-				.WaitAndRetryAsync(new[] { TimeSpan.FromSeconds(2.0), TimeSpan.FromSeconds(5.0), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) });
-
-			SocketsHttpHandler socketsHandler = new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(15) };
-			return new PolicyHttpMessageHandler(retryPolicy) { InnerHandler = socketsHandler };
-		}
-
 		/// <summary>
 		/// Creates a storage client for this Horde instance
 		/// </summary>

@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.ComponentModel;
-using System.Text.Json.Serialization;
 
 namespace EpicGames.Horde.Api
 {

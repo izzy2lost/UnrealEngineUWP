@@ -2,10 +2,7 @@
 
 using EpicGames.Core;
 using EpicGames.Serialization;
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Reflection.Metadata;
 
 namespace EpicGames.Horde.Storage.Nodes
 {
