@@ -1502,6 +1502,14 @@ void FIoStoreOnDemandModule::SetEnabled(bool bInEnabled)
 	}
 }
 
+void FIoStoreOnDemandModule::AbandonCache()
+{
+	if (Backend.IsValid())
+	{
+		Backend->AbandonCache();
+	}
+}
+
 void FIoStoreOnDemandModule::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const
 {
 	if (Backend.IsValid())
@@ -1571,12 +1579,12 @@ void FIoStoreOnDemandModule::StartupModule()
 
 	Endpoint.EndpointType = EOnDemandEndpointType::CDN;
 
-	TSharedPtr<IIasCache> Cache;
+	TUniquePtr<IIasCache> Cache;
 	FIasCacheConfig CacheConfig = GetIasCacheConfig(CommandLine);
 	if (CacheConfig.DiskQuota > 0)
 	{
 		FString CacheDir = FPaths::ProjectPersistentDownloadDir();
-		Cache = MakeShareable(MakeIasCache(*CacheDir, CacheConfig).Release());
+		Cache = MakeIasCache(*CacheDir, CacheConfig);
 	}
 	if (!Cache.IsValid())
 	{
@@ -1584,7 +1592,7 @@ void FIoStoreOnDemandModule::StartupModule()
 			(CacheConfig.DiskQuota > 0) ? TEXT("init-fail") : TEXT("zero-quota"));
 	}
 
-	Backend = MakeOnDemandIoDispatcherBackend(Cache);
+	Backend = MakeOnDemandIoDispatcherBackend(MoveTemp(Cache));
 	Backend->Mount(Endpoint);
 	int32 BackendPriority = -10;
 #if !UE_BUILD_SHIPPING

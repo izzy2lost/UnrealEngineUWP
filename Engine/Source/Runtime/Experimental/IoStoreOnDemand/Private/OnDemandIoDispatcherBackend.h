@@ -3,7 +3,7 @@
 #pragma once
 
 #include "IO/IoDispatcherBackend.h"
-#include "Templates/SharedPointer.h"
+#include "Templates/UniquePtr.h"
 
 class IIasCache;
 struct FAnalyticsEventAttribute;
@@ -39,9 +39,10 @@ public:
 	virtual void Mount(const FOnDemandEndpoint& Endpoint) = 0;
 	virtual void SetBulkOptionalEnabled(bool bInEnabled) = 0;
 	virtual void SetEnabled(bool bInEnabled) = 0;
+	virtual void AbandonCache() = 0;
 	virtual void ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const = 0;
 };
 
-TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(TSharedPtr<IIasCache> Cache);
+TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(TUniquePtr<IIasCache>&& Cache);
 
 } // namespace UE::IO::IAS
