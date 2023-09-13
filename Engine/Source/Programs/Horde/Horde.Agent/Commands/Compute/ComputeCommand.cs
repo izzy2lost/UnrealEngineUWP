@@ -58,7 +58,7 @@ namespace Horde.Agent.Commands.Compute
 				requirements = new Requirements(Condition.Parse(Requirements));
 			}
 
-			await using IComputeLease? lease = await client.TryAssignWorkerAsync(new ClusterId(ClusterId), requirements, CancellationToken.None);
+			await using IComputeLease? lease = await client.TryAssignWorkerAsync(new ClusterId(ClusterId), requirements, null, CancellationToken.None);
 			if (lease == null)
 			{
 				throw new Exception("Unable to create lease");

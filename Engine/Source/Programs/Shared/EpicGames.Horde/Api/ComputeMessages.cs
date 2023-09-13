@@ -17,6 +17,12 @@ namespace EpicGames.Horde.Api
 		/// Condition to identify machines that can execute the request
 		/// </summary>
 		public Requirements? Requirements { get; set; }
+		
+		/// <summary>
+		/// Arbitrary ID to correlate the same request over multiple calls.
+		/// It's recommended to pick something globally unique, such as a UUID.
+		/// </summary>
+		public string? RequestId { get; set; }
 	}
 
 	/// <summary>

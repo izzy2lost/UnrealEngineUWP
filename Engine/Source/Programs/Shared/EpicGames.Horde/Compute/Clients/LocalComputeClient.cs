@@ -120,9 +120,15 @@ namespace EpicGames.Horde.Compute.Clients
 				await socket.CloseAsync(cancellationToken);
 			}
 		}
-
+		
 		/// <inheritdoc/>
 		public Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, CancellationToken cancellationToken)
+		{
+			return TryAssignWorkerAsync(clusterId, requirements, null, cancellationToken);
+		}
+
+		/// <inheritdoc/>
+		public Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, CancellationToken cancellationToken)
 		{
 #pragma warning disable CA2000 // Dispose objects before losing scope
 			RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(_socket), new PrefixLogger("CLIENT", _logger));
