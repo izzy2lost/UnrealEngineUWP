@@ -486,6 +486,18 @@ namespace UnrealBuildTool
 		public int DefaultStackSizeCommit;
 
 		/// <summary>
+		/// Max number of slots FWindowsPlatformTLS::AllocTlsSlot can allocate.
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsRuntimeSettings.WindowsRuntimeSettings")]
+		public int MaxNumTlsSlots = 0;
+
+		/// <summary>
+		/// Max number threads that can use FWindowsPlatformTLS at one time.
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsRuntimeSettings.WindowsRuntimeSettings")]
+		public int MaxNumThreadsWithTlsSlots = 0;
+
+		/// <summary>
 		/// Determines the amount of memory that the compiler allocates to construct precompiled headers (/Zm).
 		/// </summary>
 		[XmlConfigFile(Category = "WindowsPlatform")]
@@ -821,6 +833,11 @@ namespace UnrealBuildTool
 		public string DirectXLibDir => Inner.DirectXLibDir;
 
 		public string DirectXDllDir => Inner.DirectXDllDir;
+
+		public int MaxNumTlsSlots => Inner.MaxNumTlsSlots;
+
+		public int MaxNumThreadsWithTlsSlots => Inner.MaxNumThreadsWithTlsSlots;
+
 
 #pragma warning restore CS1591
 		#endregion
@@ -1599,6 +1616,9 @@ namespace UnrealBuildTool
 				LinkEnvironment.PGODirectory = CompileEnvironment.PGODirectory;
 				LinkEnvironment.PGOFilenamePrefix = CompileEnvironment.PGOFilenamePrefix;
 			}
+
+			CompileEnvironment.Definitions.Add("WINDOWS_MAX_NUM_TLS_SLOTS=" + Target.WindowsPlatform.MaxNumTlsSlots.ToString());
+			CompileEnvironment.Definitions.Add("WINDOWS_MAX_NUM_THREADS_WITH_TLS_SLOTS=" + Target.WindowsPlatform.MaxNumThreadsWithTlsSlots.ToString());
 		}
 
 		/// <summary>
