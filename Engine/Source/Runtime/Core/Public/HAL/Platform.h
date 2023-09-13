@@ -1140,10 +1140,44 @@ namespace UE::Core::Private
 	{
 		return (UTF8CHAR)Ch;
 	}
+
+	template <typename CharType>
+	void CharTextStaticAssert()
+	{
+		static_assert(sizeof(CharType) == 0, "Unsupported char type passed to CHARTEXT");
+	}
 }
 
 #define UTF8TEXT(x) (UE::Core::Private::ToUTF8Literal(UTF8TEXT_PASTE(x)))
 #define UTF16TEXT(x) UTF16TEXT_PASTE(x)
 #define WIDETEXT(str) WIDETEXT_PASTE(str)
+
+// Expands out to x, TEXT(x) or UTF8TEXT(x) depending on CharType
+#define CHARTEXT(CharType, x) \
+	( \
+		[]() -> decltype(auto) \
+		{ \
+			/* We expect <type_traits> to already have been included any time the CHARTEXT macro is used */ \
+			using UnqualifiedCharType = std::remove_cv_t<CharType>; \
+			if constexpr (std::is_same_v<UnqualifiedCharType, ANSICHAR>) \
+			{ \
+				return x; \
+			} \
+			else if constexpr (std::is_same_v<UnqualifiedCharType, TCHAR>) \
+			{ \
+				return TEXT(x); \
+			} \
+			else if constexpr (std::is_same_v<UnqualifiedCharType, UTF8CHAR>) \
+			{ \
+				return UTF8TEXT(x); \
+			} \
+			else \
+			{ \
+				/* We want a compile error, so forward to a templated function because of the static_assert(false) problem */ \
+				UE::Core::Private::CharTextStaticAssert<CharType>(); \
+				return x; \
+			} \
+		}() \
+	)
 
 // IWYU pragma: end_exports

@@ -32,9 +32,6 @@
 
 #include <type_traits>
 
-#define UE_STRING_COMPILING_UTF8 0
-#define UE_STRING_TEXT(x) TEXT(x)
-
 struct FStringFormatArg;
 template<typename InKeyType,typename InValueType,typename SetAllocator ,typename KeyFuncs > class TMap;
 
@@ -330,7 +327,7 @@ public:
 	 */
 	UE_NODISCARD FORCEINLINE const ElementType* operator*() const UE_LIFETIMEBOUND
 	{
-		return Data.Num() ? Data.GetData() : UE_STRING_TEXT("");
+		return Data.Num() ? Data.GetData() : CHARTEXT(ElementType, "");
 	}
 
 	/** 
@@ -2595,6 +2592,3 @@ struct FTextRange
 };
 
 #include "Misc/StringFormatArg.h"
-
-#undef UE_STRING_TEXT
-#undef UE_STRING_COMPILING_UTF8
