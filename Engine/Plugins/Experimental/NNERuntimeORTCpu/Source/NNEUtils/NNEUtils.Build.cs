@@ -11,12 +11,6 @@ public class NNEUtils : ModuleRules
 		ShortName = "NNEUtils"; // Shorten to avoid path-too-long errors
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicIncludePaths.AddRange(
-			new string[] {
-				Path.GetFullPath(Path.Combine(EngineDirectory, "Source/Runtime/NNE/Private")),
-			}
-		);
-
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{

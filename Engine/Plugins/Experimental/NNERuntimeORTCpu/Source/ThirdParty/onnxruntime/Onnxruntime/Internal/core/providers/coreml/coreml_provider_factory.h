@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 #pragma once
 
-#include "onnxruntime_c_api.h"
+#include "core/session/onnxruntime_c_api.h"
 
 // COREMLFlags are bool options we want to set for CoreML EP
 // This enum is defined as bit flags, and cannot have negative value

@@ -1,4 +1,4 @@
-#include "ort_model_optimizer_api.h"
+#include "core/session/ort_model_optimizer_api.h"
 
 #include "core/common/logging/logging.h"
 #include "core/common/logging/isink.h"

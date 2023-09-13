@@ -1,6 +1,6 @@
 // Copyright 2020 rock-chips.com Inc.
 
-#include "onnxruntime_c_api.h"
+#include "core/session/onnxruntime_c_api.h"
 
 #ifdef __cplusplus
 extern "C" {

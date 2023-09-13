@@ -1,7 +1,7 @@
 #include "custom_op_library.h"
 
 #define ORT_API_MANUAL_INIT
-#include "onnxruntime_cxx_api.h"
+#include "core/session/onnxruntime_cxx_api.h"
 #undef ORT_API_MANUAL_INIT
 
 #include <vector>

@@ -4,7 +4,7 @@
 #ifndef TVM_EXECUTION_PROVIDER_FACTORY_H
 #define TVM_EXECUTION_PROVIDER_FACTORY_H
 
-#include "onnxruntime_c_api.h"
+#include "core/session/onnxruntime_c_api.h"
 
 #ifdef __cplusplus
 extern "C" {

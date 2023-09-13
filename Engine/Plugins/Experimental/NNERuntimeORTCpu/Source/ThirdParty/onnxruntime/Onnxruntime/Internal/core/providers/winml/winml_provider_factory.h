@@ -5,7 +5,7 @@
 // It is placed here as an execution provider to facilitate the export of the WinMLAdapter API
 // via the OrtGetWinMLAdapter method.
 
-#include "onnxruntime_c_api.h"
+#include "core/session/onnxruntime_c_api.h"
 
 struct OrtWinApi;
 typedef struct OrtWinApi OrtWinApi;

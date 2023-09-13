@@ -23,12 +23,6 @@ public class NNEOnnxruntime : ModuleRules
 			PCHUsage = ModuleRules.PCHUsageMode.NoPCHs;
 		}
 
-		PublicIncludePaths.AddRange(
-			new string[] {
-				System.IO.Path.Combine(ModuleDirectory, "./Internal/core/session"),
-			}
-		);
-
 		// ThirdParty includes
 		string DependenciesDirectory = System.IO.Path.Combine(ModuleDirectory, "../Dependencies");
 		PrivateIncludePaths.AddRange(

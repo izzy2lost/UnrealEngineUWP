@@ -24,7 +24,7 @@
 // Windows pollutes the macro space, causing a build break in constants.h.
 #undef OPTIONAL
 
-#include "onnxruntime_c_api.h"
+#include "core/session/onnxruntime_c_api.h"
 
 #ifdef __cplusplus
 extern "C" {

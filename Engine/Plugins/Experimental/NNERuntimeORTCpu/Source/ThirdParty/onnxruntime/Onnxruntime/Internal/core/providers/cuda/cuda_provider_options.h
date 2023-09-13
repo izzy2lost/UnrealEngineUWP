@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "onnxruntime_c_api.h"
+#include "core/session/onnxruntime_c_api.h"
 #include "core/framework/arena_extend_strategy.h"
 
 /// <summary>
