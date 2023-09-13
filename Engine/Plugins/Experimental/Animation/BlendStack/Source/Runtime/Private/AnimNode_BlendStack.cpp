@@ -24,8 +24,10 @@ static constexpr FBoneIndexType RootBoneIndexType = 0;
 
 /////////////////////////////////////////////////////
 // FBlendStackAnimPlayer
-void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop, bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, FVector BlendParameters, float PlayRate, int32 InPoseLinkIdx,
-										FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod)
+void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop,
+	bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, float MaxTimeBeforeFreezingInnerBlends, 
+	const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, FVector BlendParameters, float PlayRate, int32 InPoseLinkIdx,
+	FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod)
 {
 	if (bMirrored && !MirrorDataTable)
 	{
@@ -79,7 +81,9 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 	BlendOption = InBlendOption;
 
 	TotalBlendInTime = BlendTime;
-	CurrentBlendInTime = 0.f;
+	MaxBlendInTimeAsSecondaryPlayer = MaxTimeBeforeFreezingInnerBlends >= 0 ? MaxTimeBeforeFreezingInnerBlends : BlendTime;
+	CurrentBlendInTimeAsMainPlayer = 0.f;
+	CurrentBlendInTimeAsSecondaryPlayer = 0.f;
 
 	MirrorNode.SetMirrorDataTable(MirrorDataTable);
 	MirrorNode.SetMirror(bMirrored);
@@ -267,6 +271,18 @@ float FBlendStackAnimPlayer::GetPlayRate() const
 	return 0.f;
 }
 
+void FBlendStackAnimPlayer::AdvanceBlendInTime(const float DeltaTime, bool bIsMainPlayer)
+{
+	if (bIsMainPlayer)
+	{
+		CurrentBlendInTimeAsMainPlayer += DeltaTime;
+	}
+	else
+	{
+		CurrentBlendInTimeAsSecondaryPlayer = FMath::Min(CurrentBlendInTimeAsSecondaryPlayer + DeltaTime, MaxBlendInTimeAsSecondaryPlayer);
+	}
+}
+
 FVector FBlendStackAnimPlayer::GetBlendParameters() const
 {
 	if (BlendSpacePlayerNode.GetBlendSpace())
@@ -316,7 +332,7 @@ float FBlendStackAnimPlayer::GetBlendInPercentage() const
 		return 1.f;
 	}
 
-	return FMath::Clamp(CurrentBlendInTime / TotalBlendInTime, 0.f, 1.f);
+	return FMath::Clamp(GetCurrentBlendInTime() / TotalBlendInTime, 0.f, 1.f);
 }
 
 bool FBlendStackAnimPlayer::GetBlendInWeights(TArray<float>& Weights) const
@@ -334,7 +350,7 @@ bool FBlendStackAnimPlayer::GetBlendInWeights(TArray<float>& Weights) const
 			}
 			else
 			{
-				const float UnclampedLinearWeight = CurrentBlendInTime / TotalBlendInTimeBoneIdx;
+				const float UnclampedLinearWeight = GetCurrentBlendInTime() / TotalBlendInTimeBoneIdx;
 				Weights[BoneIdx] = FAlphaBlend::AlphaToBlendOption(UnclampedLinearWeight, BlendOption);
 			}
 		}
@@ -607,7 +623,7 @@ void FAnimNode_BlendStack_Standalone::UpdateSample(const FAnimationUpdateContext
 	}
 
 	// Advance the blend-in time regardless of whether or not the player was updated.
-	SamplePlayer.AdvanceBlendInTime(Context.GetDeltaTime());
+	SamplePlayer.AdvanceBlendInTime(Context.GetDeltaTime(), PlayerIndex == 0);
 }
 
 void FAnimNode_BlendStack_Standalone::CacheBonesForSample(const FAnimationCacheBonesContext& Context, const int32 PlayerIndex)
@@ -668,8 +684,11 @@ static void RequestInertialBlend(const FAnimationUpdateContext& Context, float B
 	}
 }
 
-void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop, bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption, bool bUseInertialBlend, FVector BlendParameters, float PlayRate,
-											FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod)
+void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop,
+	bool bMirrored, UMirrorDataTable* MirrorDataTable,
+	float BlendTime, float RootBoneBlendTime, float MaxTimeBeforeFreezingInnerBlends, const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption,
+	bool bUseInertialBlend, FVector BlendParameters, float PlayRate,
+	FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod)
 {
 	if (bUseInertialBlend)
 	{
@@ -681,7 +700,7 @@ void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Con
 	FBlendStackAnimPlayer& AnimPlayer = AnimPlayers.First();
 
 	FAnimationInitializeContext InitContext(Context.AnimInstanceProxy, Context.SharedContext);
-	AnimPlayer.Initialize(InitContext, AnimationAsset, AccumulatedTime, bLoop, bMirrored, MirrorDataTable, BlendTime, RootBoneBlendTime, BlendProfile, BlendOption, BlendParameters, PlayRate, GetNextPoseLinkIndex(), GroupName, GroupRole, GroupMethod);
+	AnimPlayer.Initialize(InitContext, AnimationAsset, AccumulatedTime, bLoop, bMirrored, MirrorDataTable, BlendTime, RootBoneBlendTime, MaxTimeBeforeFreezingInnerBlends, BlendProfile, BlendOption, BlendParameters, PlayRate, GetNextPoseLinkIndex(), GroupName, GroupRole, GroupMethod);
 	InitializeSample(InitContext, AnimPlayer);
 }
 
@@ -786,7 +805,9 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 
 	if (bExecuteBlendTo)
 	{
-		BlendTo(Context, AnimationAsset, AnimationTime, bLoop, bMirrored, MirrorDataTable.Get(), BlendTime, RootBoneBlendTime, BlendProfile, BlendOption, bUseInertialBlend, BlendParameters, WantedPlayRate);
+		BlendTo(Context, AnimationAsset, AnimationTime, bLoop, bMirrored, MirrorDataTable.Get(),
+			BlendTime, RootBoneBlendTime, MaxTimeBeforeFreezingInnerBlends, 
+			BlendProfile, BlendOption, bUseInertialBlend, BlendParameters, WantedPlayRate);
 	}
 	
 	UpdatePlayRate(WantedPlayRate);

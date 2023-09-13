@@ -193,7 +193,8 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 				const float RootBoneBlendTime = YawFromAnimationBlendRate < 0.f ? BlendTime : 0.f;
 				FAnimNode_BlendStack_Standalone::BlendTo(Context, DatabaseAsset->GetAnimationAsset(), MotionMatchingState.CurrentSearchResult.AssetTime,
 					DatabaseAsset->IsLooping(), SearchIndexAsset->bMirrored, CurrentResultDatabase->Schema->MirrorDataTable.Get(),
-					BlendTime, RootBoneBlendTime, BlendProfile, BlendOption, bUseInertialBlend, SearchIndexAsset->BlendParameters, MotionMatchingState.WantedPlayRate);
+					BlendTime, RootBoneBlendTime, MaxTimeBeforeFreezingInnerBlends,
+					BlendProfile, BlendOption, bUseInertialBlend, SearchIndexAsset->BlendParameters, MotionMatchingState.WantedPlayRate);
 			}
 		}
 	}
