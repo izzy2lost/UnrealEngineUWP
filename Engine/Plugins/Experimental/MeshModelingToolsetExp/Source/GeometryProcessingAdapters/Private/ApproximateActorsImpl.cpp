@@ -1060,7 +1060,7 @@ void FApproximateActorsImpl::GenerateApproximationForActorSet(const FInput& Inpu
 
 	if (!Scene->IsValid())
 	{
-		UE_LOG(LogApproximateActors, Error, TEXT("No valid input actors/components - unable to generate mesh"));
+		UE_LOG(LogApproximateActors, Warning, TEXT("No valid input actors/components - unable to generate mesh"));
 		ResultsOut.ResultCode = EResultCode::MeshGenerationFailed;
 		return;
 	}
