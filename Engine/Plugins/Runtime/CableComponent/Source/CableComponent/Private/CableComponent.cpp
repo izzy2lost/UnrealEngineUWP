@@ -137,11 +137,8 @@ public:
 		VertexFactory.ReleaseResource();
 
 #if RHI_RAYTRACING
-		if (IsRayTracingEnabled())
-		{
-			ReleaseStaticRayTracingGeometries();
-			ReleaseDynamicRayTracingGeometries();
-		}
+		StaticRayTracingGeometry.ReleaseResource();
+		DynamicRayTracingGeometry.ReleaseResource();
 #endif
 	}
 
@@ -594,22 +591,6 @@ private:
 
 		DynamicRayTracingGeometry.SetInitializer(MoveTemp(Initializer));
 		DynamicRayTracingGeometry.InitResource(RHICmdList);
-	}
-
-	void ReleaseDynamicRayTracingGeometries()
-	{
-		if (DynamicRayTracingGeometry.IsValid())
-		{
-			DynamicRayTracingGeometry.ReleaseResource();
-		}
-	}
-
-	void ReleaseStaticRayTracingGeometries()
-	{
-		if (StaticRayTracingGeometry.IsValid())
-		{
-			StaticRayTracingGeometry.ReleaseResource();
-		}
 	}
 
 	FRayTracingMaskAndFlags CachedRayTracingInstanceMaskAndFlags;
