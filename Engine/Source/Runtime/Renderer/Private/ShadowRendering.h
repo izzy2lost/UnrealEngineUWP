@@ -856,6 +856,8 @@ private:
 		const FRenderTargetBindingSlots& RenderTargets,
 		const FMeshPassProcessorRenderState& DrawRenderState);
 
+	float GetLODDistanceFactor() const;
+
 	/**
 	* Modifies the passed in view for this shadow
 	*/

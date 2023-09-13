@@ -1619,19 +1619,27 @@ void FProjectedShadowInfo::AddCachedMeshDrawCommands_AnyThread(
 
 FLODMask FProjectedShadowInfo::CalcAndUpdateLODToRender(FViewInfo& CurrentView, const FBoxSphereBounds& Bounds, const FPrimitiveSceneInfo* PrimitiveSceneInfo, int32 ForcedLOD) const
 {
-	int32 PrimitiveId = PrimitiveSceneInfo->GetIndex();
+	// must match logic in FProjectedShadowInfo::ModifyViewForShadow(...)
+	const float ShadowLODDistanceFactor = GetLODDistanceFactor();
+	const float bShadowLODDistanceFactorEnabled = ShadowLODDistanceFactor != 1.0f;
+
+	const int32 PrimitiveId = PrimitiveSceneInfo->GetIndex();
 
 	FLODMask ShadowLODToRender = CurrentView.PrimitivesLODMask[PrimitiveId];
 	// calculate it it's not set OR if LOD is overridden
-	if (ForcedLOD > -1 || !ShadowLODToRender.IsValid())
+	if (ForcedLOD > -1 || !ShadowLODToRender.IsValid() || bShadowLODDistanceFactorEnabled)
 	{
 		float MeshScreenSizeSquared = 0;
 		const int8 CurFirstLODIdx = PrimitiveSceneInfo->Proxy->GetCurrentFirstLODIdx_RenderThread();
 
-		const float LODScale = CurrentView.LODDistanceFactor * GetCachedScalabilityCVars().StaticMeshLODDistanceScale;
+		const float LODScale = ShadowLODDistanceFactor * CurrentView.LODDistanceFactor * GetCachedScalabilityCVars().StaticMeshLODDistanceScale;
 		ShadowLODToRender = ComputeLODForMeshes(PrimitiveSceneInfo->StaticMeshRelevances, CurrentView, Bounds.Origin, Bounds.SphereRadius, PrimitiveSceneInfo->GpuLodInstanceRadius, ForcedLOD, MeshScreenSizeSquared, CurFirstLODIdx, LODScale);
 
-		CurrentView.PrimitivesLODMask[PrimitiveId] = ShadowLODToRender;
+		// TODO: support caching when ShadowLODDistanceFactorEnabled (cascades of the same type (regular/far) could reuse results)
+		if (!bShadowLODDistanceFactorEnabled)
+		{
+			CurrentView.PrimitivesLODMask[PrimitiveId] = ShadowLODToRender;
+		}
 	}
 
 	// Use lowest LOD for PreShadow

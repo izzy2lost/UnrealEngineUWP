@@ -51,6 +51,20 @@
 #include "ShaderPlatformCachedIniValue.h"
 #include "UnrealEngine.h"
 
+static float GShadowLODDistanceFactor = 1;
+static FAutoConsoleVariableRef CVarShadowScreenMultiple(
+	TEXT("r.Shadow.LODDistanceFactor"),
+	GShadowLODDistanceFactor,
+	TEXT("Multiplier for LOD selection distance when rendering regular shadows"),
+	ECVF_RenderThreadSafe);
+
+static float GFarShadowLODDistanceFactor = 1;
+static FAutoConsoleVariableRef CVarFarShadowScreenMultiple(
+	TEXT("r.Shadow.FarShadow.LODDistanceFactor"),
+	GFarShadowLODDistanceFactor,
+	TEXT("Multiplier for LOD selection distance when rendering far shadows"),
+	ECVF_RenderThreadSafe);
+
 DEFINE_GPU_DRAWCALL_STAT(ShadowDepths);
 
 IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FShadowDepthPassUniformParameters, "ShadowDepthPass", SceneTextures);
@@ -1188,6 +1202,11 @@ void FProjectedShadowInfo::RenderDepth(
 	}
 }
 
+float FProjectedShadowInfo::GetLODDistanceFactor() const
+{
+	return CascadeSettings.bFarShadowCascade ? GFarShadowLODDistanceFactor : GShadowLODDistanceFactor;
+}
+
 void FProjectedShadowInfo::ModifyViewForShadow(FViewInfo* FoundView) const
 {
 	FIntRect OriginalViewRect = FoundView->ViewRect;
@@ -1199,6 +1218,9 @@ void FProjectedShadowInfo::ModifyViewForShadow(FViewInfo* FoundView) const
 	{
 		(int32&)FoundView->DrawDynamicFlags |= (int32)EDrawDynamicFlags::FarShadowCascade;
 	}
+
+	// must match logic in FProjectedShadowInfo::CalcAndUpdateLODToRender(...)
+	FoundView->LODDistanceFactor *= GetLODDistanceFactor();
 
 	// Don't do material texture mip biasing in shadow maps.
 	FoundView->MaterialTextureMipBias = 0;
