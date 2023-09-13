@@ -3777,7 +3777,7 @@ private:
 				TileOffset.Y = FMath::Fractional(FMath::TruncToFloat((float)TileIndex / (float)GParticleSimulationTileCountX) / (float)GParticleSimulationTileCountY);
 				FreeParticlesInTile = GParticlesPerTile;
 			}
-			FNewParticle& Particle = *new(InNewParticles) FNewParticle();
+			FNewParticle& Particle = InNewParticles.AddDefaulted_GetRef();
 			const int32 SubTileIndex = GParticlesPerTile - FreeParticlesInTile;
 			const int32 SubTileX = SubTileIndex % GParticleSimulationTileSize;
 			const int32 SubTileY = SubTileIndex / GParticleSimulationTileSize;
@@ -4560,7 +4560,7 @@ void FFXSystem::SimulateGPUParticles(
 		check(Simulation);
 		if (Simulation->SimulationPhase == Phase && Simulation->TileVertexBuffer.TileCount > 0 && Simulation->bEnabled)
 		{
-			FSimulationCommandGPU* SimulationCommand = new(SimulationCommands) FSimulationCommandGPU(
+			FSimulationCommandGPU& SimulationCommand = SimulationCommands.Emplace_GetRef(
 				Simulation->TileVertexBuffer.GetShaderParam(),
 				Simulation->TileVertexBuffer.VertexBufferRHI,
 				Simulation->EmitterSimulationResources->SimulationUniformBuffer,
@@ -4585,7 +4585,7 @@ void FFXSystem::SimulateGPUParticles(
 					if (FMath::Abs(LocalIntensity) > 0.0f)
 					{
 						Simulation->LocalVectorField.Resource->Update(RHICmdList, Simulation->PerFrameSimulationParameters.DeltaSeconds);
-						SimulationCommand->VectorFieldTexturesRHI[0] = Simulation->LocalVectorField.Resource->VolumeTextureRHI;
+						SimulationCommand.VectorFieldTexturesRHI[0] = Simulation->LocalVectorField.Resource->VolumeTextureRHI;
 						SetParametersForVectorField(VectorFieldParameters, &Simulation->LocalVectorField, /*EmitterScale=*/ 1.0f, /*EmitterTightness=*/ -1, VectorFieldParameters.Count++);
 					}
 				}
@@ -4604,7 +4604,7 @@ void FFXSystem::SimulateGPUParticles(
 						if (SimulationBounds.Intersect(Instance->WorldBounds) &&
 							FMath::Abs(Intensity) > 0.0f)
 						{
-							SimulationCommand->VectorFieldTexturesRHI[VectorFieldParameters.Count] = Instance->Resource->VolumeTextureRHI;
+							SimulationCommand.VectorFieldTexturesRHI[VectorFieldParameters.Count] = Instance->Resource->VolumeTextureRHI;
 							SetParametersForVectorField(VectorFieldParameters, Instance, GlobalVectorFieldScale, GlobalVectorFieldTightness, VectorFieldParameters.Count++);
 						}
 					}
@@ -4634,9 +4634,9 @@ void FFXSystem::SimulateGPUParticles(
 						Simulation->LocalVectorFieldUniformBuffer = FVectorFieldUniformBufferRef::CreateUniformBufferImmediate(VectorFieldParameters, UniformBuffer_MultiFrame);
 						Simulation->LocalIntensity = LocalIntensity;
 					}
-					SimulationCommand->VectorFieldsUniformBuffer = Simulation->LocalVectorFieldUniformBuffer;
+					SimulationCommand.VectorFieldsUniformBuffer = Simulation->LocalVectorFieldUniformBuffer;
 #else
-					SimulationCommand->VectorFieldsUniformBuffer = FVectorFieldUniformBufferRef::CreateUniformBufferImmediate(VectorFieldParameters, UniformBuffer_SingleFrame);
+					SimulationCommand.VectorFieldsUniformBuffer = FVectorFieldUniformBufferRef::CreateUniformBufferImmediate(VectorFieldParameters, UniformBuffer_SingleFrame);
 #endif
 				}
 			}

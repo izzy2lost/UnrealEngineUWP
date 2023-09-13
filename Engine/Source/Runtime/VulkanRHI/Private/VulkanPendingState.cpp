@@ -31,10 +31,10 @@ FVulkanDescriptorPool::FVulkanDescriptorPool(FVulkanDevice* InDevice, const FVul
 		uint32 NumTypesUsed = Layout.GetTypesUsed(DescriptorType);
 		if (NumTypesUsed > 0)
 		{
-			VkDescriptorPoolSize* Type = new(Types) VkDescriptorPoolSize;
-			FMemory::Memzero(*Type);
-			Type->type = DescriptorType;
-			Type->descriptorCount = NumTypesUsed * MaxSetsAllocations;
+			VkDescriptorPoolSize& Type = Types.AddDefaulted_GetRef();
+			FMemory::Memzero(Type);
+			Type.type = DescriptorType;
+			Type.descriptorCount = NumTypesUsed * MaxSetsAllocations;
 		}
 	}
 
@@ -43,10 +43,10 @@ FVulkanDescriptorPool::FVulkanDescriptorPool(FVulkanDevice* InDevice, const FVul
 		uint32 NumTypesUsed = Layout.GetTypesUsed(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
 		if (NumTypesUsed > 0)
 		{
-			VkDescriptorPoolSize* Type = new(Types) VkDescriptorPoolSize;
-			FMemory::Memzero(*Type);
-			Type->type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-			Type->descriptorCount = NumTypesUsed * MaxSetsAllocations;
+			VkDescriptorPoolSize& Type = Types.AddDefaulted_GetRef();
+			FMemory::Memzero(Type);
+			Type.type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+			Type.descriptorCount = NumTypesUsed * MaxSetsAllocations;
 		}
 	}
 #endif

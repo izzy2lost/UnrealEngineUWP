@@ -1019,8 +1019,8 @@ void FGfxPipelineDesc::FRenderTargets::ReadFrom(const FVulkanRenderTargetLayout&
 	{
 		for (uint32 Index = 0; Index < Count; ++Index)
 		{
-			FGfxPipelineDesc::FRenderTargets::FAttachmentRef* New = new(Dest) FGfxPipelineDesc::FRenderTargets::FAttachmentRef;
-			New->ReadFrom(Source[Index]);
+			FGfxPipelineDesc::FRenderTargets::FAttachmentRef& New = Dest.AddDefaulted_GetRef();
+			New.ReadFrom(Source[Index]);
 		}
 	};
 	CopyAttachmentRefs(ColorAttachments, RTLayout.ColorReferences, UE_ARRAY_COUNT(RTLayout.ColorReferences));
@@ -1303,16 +1303,16 @@ bool FVulkanPipelineStateCacheManager::CreateGfxPipelineFromEntry(FVulkanRHIGrap
 	TArray<VkVertexInputBindingDescription, TInlineAllocator<32>> VBBindings;
 	for (const FGfxPipelineDesc::FVertexBinding& SourceBinding : GfxEntry->VertexBindings)
 	{
-		VkVertexInputBindingDescription* Binding = new(VBBindings) VkVertexInputBindingDescription;
-		SourceBinding.WriteInto(*Binding);
+		VkVertexInputBindingDescription& Binding = VBBindings.AddDefaulted_GetRef();
+		SourceBinding.WriteInto(Binding);
 	}
 	VBInfo.vertexBindingDescriptionCount = VBBindings.Num();
 	VBInfo.pVertexBindingDescriptions = VBBindings.GetData();
 	TArray<VkVertexInputAttributeDescription, TInlineAllocator<32>> VBAttributes;
 	for (const FGfxPipelineDesc::FVertexAttribute& SourceAttr : GfxEntry->VertexAttributes)
 	{
-		VkVertexInputAttributeDescription* Attr = new(VBAttributes) VkVertexInputAttributeDescription;
-		SourceAttr.WriteInto(*Attr);
+		VkVertexInputAttributeDescription& Attr = VBAttributes.AddDefaulted_GetRef();
+		SourceAttr.WriteInto(Attr);
 	}
 	VBInfo.vertexAttributeDescriptionCount = VBAttributes.Num();
 	VBInfo.pVertexAttributeDescriptions = VBAttributes.GetData();
@@ -1759,8 +1759,8 @@ void FVulkanPipelineStateCacheManager::CreateGfxEntry(const FGraphicsPipelineSta
 	{
 		for (int32 SubIndex = 0; SubIndex < Layouts[Index].LayoutBindings.Num(); ++SubIndex)
 		{
-			FDescriptorSetLayoutBinding* Binding = new(OutGfxEntry->DescriptorSetLayoutBindings[Index]) FDescriptorSetLayoutBinding;
-			Binding->ReadFrom(Layouts[Index].LayoutBindings[SubIndex]);
+			FDescriptorSetLayoutBinding& Binding = OutGfxEntry->DescriptorSetLayoutBindings[Index].AddDefaulted_GetRef();
+			Binding.ReadFrom(Layouts[Index].LayoutBindings[SubIndex]);
 		}
 	}
 

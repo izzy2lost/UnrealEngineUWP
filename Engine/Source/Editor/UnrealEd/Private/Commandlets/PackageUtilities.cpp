@@ -73,7 +73,7 @@ void SearchDirectoryRecursive( const FString& SearchPathMask, TArray<FString>& o
 	{
 		for ( int32 PkgIndex = 0; PkgIndex < PackageNames.Num(); PkgIndex++ )
 		{
-			new(out_PackageFilenames) FString( SearchPath / PackageNames[PkgIndex] );
+			out_PackageFilenames.Add( SearchPath / PackageNames[PkgIndex] );
 		}
 
 		out_PackageNames += PackageNames;
@@ -1138,7 +1138,7 @@ void FPkgInfoReporter_Log::GeneratePackageReport( FLinkerLoad* InLinker /*=nullp
 		SortedExportMap.Empty(Linker->ExportMap.Num());
 		for( int32 i = 0; i < Linker->ExportMap.Num(); ++i )
 		{
-			new(SortedExportMap) FExportInfo(Linker, i);
+			SortedExportMap.Emplace(Linker, i);
 		}
 
 		FString SortingParms;

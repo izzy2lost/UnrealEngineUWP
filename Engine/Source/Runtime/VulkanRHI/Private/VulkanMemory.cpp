@@ -4369,9 +4369,9 @@ namespace VulkanRHI
 			}
 		}
 
-		FPendingItemsPerCmdBuffer* New = new(PendingFreeStagingBuffers) FPendingItemsPerCmdBuffer;
-		New->CmdBuffer = CmdBuffer;
-		return New;
+		FPendingItemsPerCmdBuffer& New = PendingFreeStagingBuffers.AddDefaulted_GetRef();
+		New.CmdBuffer = CmdBuffer;
+		return &New;
 	}
 
 	inline FStagingManager::FPendingItemsPerCmdBuffer::FPendingItems* FStagingManager::FPendingItemsPerCmdBuffer::FindOrAddItemsForFence(uint64 Fence)
@@ -4384,9 +4384,9 @@ namespace VulkanRHI
 			}
 		}
 
-		FPendingItems* New = new(PendingItems) FPendingItems;
-		New->FenceCounter = Fence;
-		return New;
+		FPendingItems& New = PendingItems.AddDefaulted_GetRef();
+		New.FenceCounter = Fence;
+		return &New;
 	}
 
 	void FStagingManager::ReleaseBuffer(FVulkanCmdBuffer* CmdBuffer, FStagingBuffer*& StagingBuffer)
