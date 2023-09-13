@@ -10,38 +10,52 @@
 
 #define LOCTEXT_NAMESPACE "FLoaderAdapterPinnedActors"
 
+namespace LoaderAdapterPinnedActorsUtils
+{
+	static bool SupportsPinning(FWorldPartitionActorDesc* InActorDesc, bool bCheckIsMainWorldPartition)
+	{
+		if (!InActorDesc)
+		{
+			return false;
+		}
+
+		// Only Spatially loaded actors can be pinned with the exception of non spatially loaded runtime only actors (ex: HLODs)
+		if (!InActorDesc->GetIsSpatiallyLoaded() && !InActorDesc->GetActorIsRuntimeOnly())
+		{
+			return false;
+		}
+
+		// This allows skipping actors that can never be loaded in current context: ex: bActorShouldSkipLevelInstance
+		if (!InActorDesc->IsEditorRelevant() && !InActorDesc->GetActorIsRuntimeOnly())
+		{
+			return false;
+		}
+
+		if (UActorDescContainer* Container = InActorDesc->GetContainer())
+		{
+			const UWorldPartition* ContainerWorldPartition = Container->GetWorldPartition();
+			return ContainerWorldPartition && (ContainerWorldPartition->IsMainWorldPartition() || !bCheckIsMainWorldPartition);
+		}
+
+		return false;
+	}
+}
+
 bool FLoaderAdapterPinnedActors::PassActorDescFilter(const FWorldPartitionHandle& ActorHandle) const
 {
 	// We want to be able to pin any type of actors (HLODs, etc).
-	return ActorHandle.IsValid() && !ActorsToRemove.Contains(ActorHandle) && SupportsPinning(ActorHandle.Get());
+	// Allow recursive pinning by setting bCheckIsMainWorldPartition = false
+	const bool bCheckIsMainWorldPartition = false;
+	return ActorHandle.IsValid() && !ActorsToRemove.Contains(ActorHandle) && LoaderAdapterPinnedActorsUtils::SupportsPinning(ActorHandle.Get(), bCheckIsMainWorldPartition);
 }
+
+
 
 bool FLoaderAdapterPinnedActors::SupportsPinning(FWorldPartitionActorDesc* InActorDesc)
 {
-	if (!InActorDesc)
-	{
-		return false;
-	}
-
-	// Only Spatially loaded actors can be pinned with the exception of non spatially loaded, runtime only actors (ex: HLODs)
-	if (!InActorDesc->GetIsSpatiallyLoaded() && !InActorDesc->GetActorIsRuntimeOnly())
-	{
-		return false;
-	}
-
-	// This allows skipping actors that can never be loaded in current context: ex: bActorShouldSkipLevelInstance
-	if (!InActorDesc->IsEditorRelevant() && !InActorDesc->GetActorIsRuntimeOnly())
-	{
-		return false;
-	}
-
-	if (UActorDescContainer* Container = InActorDesc->GetContainer())
-	{
-		const UWorldPartition* ContainerWorldPartition = Container->GetWorldPartition();
-		return ContainerWorldPartition && ContainerWorldPartition->IsMainWorldPartition();
-	}
-
-	return false;
+	// Public api doesn't allow pinning of non main world partition actors
+	const bool bCheckIsMainWorldPartition = true;
+	return LoaderAdapterPinnedActorsUtils::SupportsPinning(InActorDesc, bCheckIsMainWorldPartition);
 }
 
 bool FLoaderAdapterPinnedActors::SupportsPinning(AActor* InActor)
