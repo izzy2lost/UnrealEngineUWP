@@ -191,7 +191,7 @@ namespace UnrealBuildTool.Matchers
 
 		static readonly Regex s_xcodeRebuildPCHPattern = new Regex(@"(?<severity>(?:[Ff]atal )?[Ee]rror): file '(?<file>.*)' has been modified since the precompiled header '(?<pch>.*)' was built");
 
-		bool TryMatchXcodeCppEvent(LogEventBuilder builder, [NotNullWhen(true)] out LogEventMatch? outEvent)
+		static bool TryMatchXcodeCppEvent(LogEventBuilder builder, [NotNullWhen(true)] out LogEventMatch? outEvent)
 		{
 			Match? match;
 			if (builder.Current.TryMatch(s_xcodeRebuildPCHPattern, out match))
