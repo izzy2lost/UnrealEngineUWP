@@ -103,6 +103,7 @@ public class LeaseUtilizationAwsMetricStrategy : IPoolSizeStrategy
 		double leaseUtilization = leases.Count / (double)agents.Count;
 		leaseUtilization = Double.IsNaN(leaseUtilization) ? 0.0 : leaseUtilization;
 		leaseUtilization = Math.Min(leaseUtilization, 1.0); // Clamp as agents cannot be more utilized than 100%
+		leaseUtilization *= 100.0; // Normalize value to 0-100
 		
 		span.SetAttribute("cloudWatchNs", Settings.CloudWatchNamespace);
 		span.SetAttribute("samplePeriodSec", Settings.SamplePeriodSec);

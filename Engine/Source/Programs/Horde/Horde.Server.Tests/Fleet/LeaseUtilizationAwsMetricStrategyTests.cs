@@ -103,7 +103,7 @@ namespace Horde.Server.Tests.Fleet
 			await _strategy.CalculatePoolSizeAsync(_pool, agents);
 
 			// Assert
-			Assert.AreEqual(0.5, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
+			Assert.AreEqual(50.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
 		}
 		
 		[TestMethod]
@@ -120,7 +120,7 @@ namespace Horde.Server.Tests.Fleet
 			await _strategy.CalculatePoolSizeAsync(_pool, agents);
 
 			// Assert
-			Assert.AreEqual(1.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
+			Assert.AreEqual(100.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
 		}
 		
 		[TestMethod]
@@ -138,7 +138,7 @@ namespace Horde.Server.Tests.Fleet
 			await _strategy.CalculatePoolSizeAsync(_pool, oneMissingAgent);
 
 			// Assert
-			Assert.AreEqual(1.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
+			Assert.AreEqual(100.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
 		}
 		
 		[TestMethod]
@@ -157,7 +157,7 @@ namespace Horde.Server.Tests.Fleet
 			await _strategy.CalculatePoolSizeAsync(_pool, agents);
 
 			// Assert
-			Assert.AreEqual(0.5, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
+			Assert.AreEqual(50.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
 		}
 		
 		[TestMethod]
@@ -177,7 +177,7 @@ namespace Horde.Server.Tests.Fleet
 			await _strategy.CalculatePoolSizeAsync(_pool, agents);
 
 			// Assert
-			Assert.AreEqual(1.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
+			Assert.AreEqual(100.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
 		}
 		
 		[TestMethod]
@@ -193,7 +193,7 @@ namespace Horde.Server.Tests.Fleet
 			await _strategy.CalculatePoolSizeAsync(_pool, agents);
 
 			// Assert
-			Assert.AreEqual(0.75, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
+			Assert.AreEqual(75.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
 		}
 
 		private DateTime OneMinuteAgo()
