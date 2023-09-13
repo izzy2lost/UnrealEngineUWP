@@ -24,5 +24,9 @@ UObject* UDataLayerFactory::FactoryCreateNew(UClass* Class, UObject* InParent, F
 {
 	UDataLayerAsset* DataLayerAsset = NewObject<UDataLayerAsset>(InParent, InName, Flags);
 	DataLayerAsset->SetDebugColor(FColor::MakeRandomSeededColor(GetTypeHash(DataLayerAsset->GetFullName())));
+	if (!DataLayerAsset->IsPrivate())
+	{
+		DataLayerAsset->SetType(EDataLayerType::Runtime);
+	}
 	return DataLayerAsset;
 }
