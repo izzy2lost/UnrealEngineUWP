@@ -20,7 +20,7 @@ namespace Chaos
 
 		// TODO: Engine braking effect
 		DriveTorque = GetEngineTorque(Inputs.ControlInputs.Throttle, GetRPM());
-		
+
 		float BrakeTorque = 0.f;
 		TransmitTorque(VehicleModuleSystem, DriveTorque, BrakeTorque);
 		IntegrateAngularVelocity(DeltaTime, Setup().EngineInertia);
@@ -69,6 +69,29 @@ namespace Chaos
 		}
 
 		return Setup().TorqueCurve.GetValue(RPM, Setup().MaxRPM, Setup().MaxTorque);
+	}
+
+	void FEngineOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
+	{
+		check(SimModule->GetSimType() == eSimType::Engine);
+		if (const FEngineSimModule* Sim = static_cast<const FEngineSimModule*>(SimModule))
+		{
+			RPM = Sim->GetRPM();
+		}
+	}
+
+	void FEngineOutputData::Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha)
+	{
+		const FEngineOutputData& Current = static_cast<const FEngineOutputData&>(InCurrent);
+		const FEngineOutputData& Next = static_cast<const FEngineOutputData&>(InNext);
+
+		RPM = FMath::Lerp(Current.RPM, Next.RPM, Alpha);
+	}
+
+	FString FEngineOutputData::ToString()
+	{
+		return  FString::Printf(TEXT("RPM=%3.3f")
+			, RPM);
 	}
 
 } // namespace Chaos

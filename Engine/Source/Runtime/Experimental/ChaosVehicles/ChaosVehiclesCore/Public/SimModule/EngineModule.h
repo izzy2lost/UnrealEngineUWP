@@ -3,11 +3,48 @@
 #pragma once
 
 #include "SimModule/TorqueSimModule.h"
+#include "SimModule/SimulationModuleBase.h"
 
 namespace Chaos
 {
 	struct FAllInputs;
 	class FSimModuleTree;
+
+	struct CHAOSVEHICLESCORE_API FEngineSimModuleDatas : public FTorqueSimModuleDatas
+	{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		FEngineSimModuleDatas(int NodeArrayIndex, const FString& InDebugString) : FTorqueSimModuleDatas(NodeArrayIndex, InDebugString) {}
+#else
+		FEngineSimModuleDatas(int NodeArrayIndex) : FTorqueSimModuleDatas(NodeArrayIndex) {}
+#endif
+
+		virtual eSimType GetType() override { return eSimType::Engine; }
+
+		virtual void FillSimState(ISimulationModuleBase* SimModule) override
+		{
+			check(SimModule->GetSimType() == eSimType::Engine);
+			FTorqueSimModuleDatas::FillSimState(SimModule);
+		}
+
+		virtual void FillNetState(const ISimulationModuleBase* SimModule) override
+		{
+			check(SimModule->GetSimType() == eSimType::Engine);
+			FTorqueSimModuleDatas::FillNetState(SimModule);
+		}
+
+	};
+
+	struct CHAOSVEHICLESCORE_API FEngineOutputData : public FSimOutputData
+	{
+		virtual FSimOutputData* MakeNewData() override { return FEngineOutputData::MakeNew(); }
+		static FSimOutputData* MakeNew() { return new FEngineOutputData(); }
+
+		virtual void FillOutputState(const ISimulationModuleBase* SimModule) override;
+		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) override;
+		virtual FString ToString() override;
+
+		float RPM;
+	};
 
 	struct CHAOSVEHICLESCORE_API FEngineSettings
 	{
@@ -53,6 +90,20 @@ namespace Chaos
 		}
 
 		virtual ~FEngineSimModule() {}
+
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
+		{
+			return MakeShared<FEngineSimModuleDatas>(
+				SimArrayIndex
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+				, GetDebugName()
+#endif			
+			);
+		}
+		virtual FSimOutputData* GenerateOutputData() const override
+		{
+			return FEngineOutputData::MakeNew();
+		}
 
 		virtual eSimType GetSimType() const { return eSimType::Engine; }
 

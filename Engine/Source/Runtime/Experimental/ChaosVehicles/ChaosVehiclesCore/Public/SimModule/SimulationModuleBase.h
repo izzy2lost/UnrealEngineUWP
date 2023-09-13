@@ -22,6 +22,7 @@ namespace Chaos
 {
 	class FSimModuleTree;
 	struct FModuleNetData;
+	struct FSimOutputData;
 	class FClusterUnionPhysicsProxy;
 
 	struct CHAOSVEHICLESCORE_API FControlInputs
@@ -112,10 +113,10 @@ namespace Chaos
 
 	enum eSimModuleTypeFlags
 	{
-		NonFunctional	= (1 << 0),	// bitmask 1,2,4,8
-		Raycast			= (1 << 1),	// requires raycast data
-		TorqueBased		= (1 << 2),	// performs torque calculations
-		Velocity		= (1 << 3),	// requires velocity data
+		NonFunctional = (1 << 0),	// bitmask 1,2,4,8
+		Raycast = (1 << 1),	// requires raycast data
+		TorqueBased = (1 << 2),	// performs torque calculations
+		Velocity = (1 << 3),	// requires velocity data
 	};
 
 	enum eSimType
@@ -257,7 +258,7 @@ namespace Chaos
 		/**
 		 * Set the COM relative transform of module when it is clustered, so relative to parent COM
 		 */
-		void SetClusteredTransform(const FTransform& TransformIn) { ClusteredCOMRelativeTransform  = TransformIn; }
+		void SetClusteredTransform(const FTransform& TransformIn) { ClusteredCOMRelativeTransform = TransformIn; }
 		const FTransform& GetClusteredTransform() const { return ClusteredCOMRelativeTransform; }
 
 		void SetInitialParticleTransform(const FTransform& TransformIn) { InitialParticleTransform = TransformIn; }
@@ -294,6 +295,8 @@ namespace Chaos
 
 		// this is the replication datas
 		virtual TSharedPtr<FModuleNetData> GenerateNetData(int NodeArrayIndex) const = 0;
+
+		virtual FSimOutputData* GenerateOutputData() const { return nullptr; }
 
 		//void SetClusterParticle(FPBDRigidClusteredParticleHandle* ParticleIn) { ClusterParticle = ParticleIn; }
 		Chaos::FPBDRigidClusteredParticleHandle* GetClusterParticle(Chaos::FClusterUnionPhysicsProxy* Proxy);
@@ -352,6 +355,18 @@ namespace Chaos
 	};
 
 	using FModuleNetDataArray = TArray<TSharedPtr<FModuleNetData>>;
+
+	struct CHAOSVEHICLESCORE_API FSimOutputData
+	{
+		FSimOutputData() = default;
+		virtual ~FSimOutputData() {}
+
+		virtual FSimOutputData* MakeNewData() = 0;
+		virtual void FillOutputState(const ISimulationModuleBase* SimModule) = 0;
+		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) = 0;
+		virtual FString ToString() { return FString(); }
+	};
+
 
 } // namespace Chaos
 

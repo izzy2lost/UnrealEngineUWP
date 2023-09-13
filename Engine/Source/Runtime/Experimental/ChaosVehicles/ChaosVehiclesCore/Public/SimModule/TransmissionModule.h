@@ -10,7 +10,6 @@ namespace Chaos
 	struct FAllInputs;
 	class FSimModuleTree;
 
-
 	struct CHAOSVEHICLESCORE_API FTransmissionSimModuleDatas : public FModuleNetData
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -43,6 +42,17 @@ namespace Chaos
 		float CurrentGearChangeTime = 0.0f;
 	};
 
+	struct CHAOSVEHICLESCORE_API FTransmissionOutputData : public FSimOutputData
+	{
+		virtual FSimOutputData* MakeNewData() override { return FTransmissionOutputData::MakeNew(); }
+		static FSimOutputData* MakeNew() { return new FTransmissionOutputData(); }
+
+		virtual void FillOutputState(const ISimulationModuleBase* SimModule) override;
+		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) override;
+		virtual FString ToString() override;
+
+		int32 CurrentGear;
+	};
 
 	struct CHAOSVEHICLESCORE_API FTransmissionSettings
 	{
@@ -87,6 +97,7 @@ namespace Chaos
 	class CHAOSVEHICLESCORE_API FTransmissionSimModule : public FTorqueSimModule, public TSimModuleSettings<FTransmissionSettings>
 	{
 		friend FTransmissionSimModuleDatas;
+		friend FTransmissionOutputData;
 
 	public:
 
@@ -107,6 +118,11 @@ namespace Chaos
 				, GetDebugName()
 #endif			
 			);
+		}
+
+		virtual FSimOutputData* GenerateOutputData() const override
+		{
+			return FTransmissionOutputData::MakeNew();
 		}
 
 		virtual eSimType GetSimType() const { return eSimType::Transmission; }

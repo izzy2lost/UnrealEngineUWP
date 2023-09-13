@@ -18,14 +18,14 @@ namespace Chaos
 		, SurfaceFriction(1.0f)
 		, SuspensionSimTreeIndex(INVALID_IDX)
 		, ForceFromFriction(FVector::ZeroVector)
-		, MassPerWheel(500.0f*0.25f)
+		, MassPerWheel(500.0f * 0.25f)
 		, SteerAngleDegrees(0.0f)
 	{
 
 	}
 
 	void FWheelSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
-	{	
+	{
 		float Re = Setup().Radius;
 		float K = 0.4f;
 		float TorqueScaling = 1.0f;
@@ -43,7 +43,7 @@ namespace Chaos
 			BrakeTorque = Setup().HandbrakeTorque;
 		}
 
-		bool bTouchingGround = ForceIntoSurface > SMALL_NUMBER;
+		bTouchingGround = ForceIntoSurface > SMALL_NUMBER;
 
 		if (bTouchingGround)
 		{
@@ -57,7 +57,7 @@ namespace Chaos
 			float TorqueFromGroundInteraction = Delta * Setup().WheelInertia / DeltaTime; // torque from wheels moving over terrain
 
 			// X is longitudinal direction, Y is lateral
-			float SlipAngle = FVehicleUtility::CalculateSlipAngle(LocalWheelVelocity.Y, LocalWheelVelocity.X);
+			SlipAngle = FVehicleUtility::CalculateSlipAngle(LocalWheelVelocity.Y, LocalWheelVelocity.X);
 
 			float AppliedLinearDriveForce = DriveTorque / Re;
 			float AppliedLinearBrakeForce = FMath::Abs(BrakeTorque) / Re;
@@ -179,7 +179,7 @@ namespace Chaos
 				ForceFromFriction = -ForceFromFriction;
 			}
 
- 			AddLocalForce(SteeringRotator.RotateVector(ForceFromFriction));
+			AddLocalForce(SteeringRotator.RotateVector(ForceFromFriction));
 			TransmitTorque(VehicleModuleSystem, DriveTorque, BrakeTorque);
 
 			DriveTorque -= AvailableGrip;
@@ -223,6 +223,36 @@ namespace Chaos
 		StringOut += FString::Format(TEXT("Drive {0}, Brake {1}, Load {2} RPM {3}  AngVel {4} LongitudinalForce {5}")
 			, { DriveTorque, BrakingTorque, LoadTorque, GetRPM(), AngularVelocity, ForceFromFriction.X });
 		return true;
+	}
+
+
+	inline void FWheelOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
+	{
+		check(SimModule->GetSimType() == eSimType::Wheel);
+		if (const FWheelSimModule* Sim = static_cast<const FWheelSimModule*>(SimModule))
+		{
+			bTouchingGround = Sim->bTouchingGround;
+			ForceIntoSurface = Sim->ForceIntoSurface;
+			SlipAngle = Sim->SlipAngle;
+			RPM = Sim->GetRPM();
+		}
+	}
+
+	void FWheelOutputData::Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha)
+	{
+		const FWheelOutputData& Current = static_cast<const FWheelOutputData&>(InCurrent);
+		const FWheelOutputData& Next = static_cast<const FWheelOutputData&>(InNext);
+
+		bTouchingGround = Current.bTouchingGround;
+		ForceIntoSurface = FMath::Lerp(Current.ForceIntoSurface, Next.ForceIntoSurface, Alpha);
+		SlipAngle = FMath::Lerp(Current.SlipAngle, Next.SlipAngle, Alpha);
+		RPM = FMath::Lerp(Current.RPM, Next.RPM, Alpha);
+	}
+
+	FString FWheelOutputData::ToString()
+	{
+		return  FString::Printf(TEXT("bTouchingGround=%d, ForceIntoSurface=%3.3f, SlipAngle=%3.3f, RPM=%3.3f")
+			, bTouchingGround, ForceIntoSurface, SlipAngle, RPM);
 	}
 
 

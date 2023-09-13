@@ -40,7 +40,19 @@ namespace Chaos
 		float LastDisplacement = 0.0f;
 	};
 
+	struct CHAOSVEHICLESCORE_API FSuspensionOutputData : public FSimOutputData
+	{
+		virtual FSimOutputData* MakeNewData() override { return FSuspensionOutputData::MakeNew(); }
+		static FSimOutputData* MakeNew() { return new FSuspensionOutputData(); }
 
+		virtual void FillOutputState(const ISimulationModuleBase* SimModule) override;
+		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) override;
+
+		virtual FString ToString() override;
+
+		float SpringDisplacement;
+		float SpringSpeed;
+	};
 
 	struct CHAOSVEHICLESCORE_API FSuspensionSettings
 	{
@@ -54,14 +66,14 @@ namespace Chaos
 			, SpringPreload(0.5f)
 			, CompressionDamping(0.9f)
 			, ReboundDamping(0.9f)
-		//	, SwaybarEffect(0.5f)
-		//	, DampingRatio(0.3f)
+			//	, SwaybarEffect(0.5f)
+			//	, DampingRatio(0.3f)
 		{
 
 		}
 
 		FVector SuspensionAxis;		// local axis, direction of suspension force raycast traces
-		FVector RestOffset;	
+		FVector RestOffset;
 		float MaxRaise;				// distance [cm]
 		float MaxDrop;				// distance [cm]
 		float MaxLength;			// distance [cm]
@@ -71,9 +83,9 @@ namespace Chaos
 		float CompressionDamping;	// limit compression speed
 		float ReboundDamping;		// limit rebound speed
 
-	//	float Swaybar;				// Anti-roll bar
+		//	float Swaybar;				// Anti-roll bar
 
-	//	float DampingRatio;			// value between (0-no damping) and (1-critical damping)
+		//	float DampingRatio;			// value between (0-no damping) and (1-critical damping)
 	};
 
 	/** Suspension world ray/shape trace start and end positions */
@@ -98,6 +110,7 @@ namespace Chaos
 	class CHAOSVEHICLESCORE_API FSuspensionSimModule : public ISimulationModuleBase, public TSimModuleSettings<FSuspensionSettings>
 	{
 		friend FSuspensionSimModuleDatas;
+		friend FSuspensionOutputData;
 
 	public:
 
@@ -112,6 +125,11 @@ namespace Chaos
 				, GetDebugName()
 #endif			
 			);
+		}
+
+		virtual FSimOutputData* GenerateOutputData() const override
+		{
+			return FSuspensionOutputData::MakeNew();
 		}
 
 		virtual eSimType GetSimType() const { return eSimType::Suspension; }
@@ -135,6 +153,7 @@ namespace Chaos
 
 		float SpringDisplacement;
 		float LastDisplacement;
+		float SpringSpeed;
 		int WheelSimTreeIndex;
 	};
 

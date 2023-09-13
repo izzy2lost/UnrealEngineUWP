@@ -16,6 +16,48 @@ namespace Chaos
 		Y	// Y forward
 	};
 
+	struct CHAOSVEHICLESCORE_API FWheelSimModuleDatas : public FTorqueSimModuleDatas
+	{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		FWheelSimModuleDatas(int NodeArrayIndex, const FString& InDebugString) : FTorqueSimModuleDatas(NodeArrayIndex, InDebugString) {}
+#else
+		FWheelSimModuleDatas(int NodeArrayIndex) : FTorqueSimModuleDatas(NodeArrayIndex) {}
+#endif
+
+		virtual eSimType GetType() override { return eSimType::Wheel; }
+
+		virtual void FillSimState(ISimulationModuleBase* SimModule) override
+		{
+			check(SimModule->GetSimType() == eSimType::Wheel);
+			FTorqueSimModuleDatas::FillSimState(SimModule);
+		}
+
+		virtual void FillNetState(const ISimulationModuleBase* SimModule) override
+		{
+			check(SimModule->GetSimType() == eSimType::Wheel);
+			FTorqueSimModuleDatas::FillNetState(SimModule);
+		}
+
+	};
+
+	struct CHAOSVEHICLESCORE_API FWheelOutputData : public FSimOutputData
+	{
+		virtual FSimOutputData* MakeNewData() override { return FWheelOutputData::MakeNew(); }
+		static FSimOutputData* MakeNew() { return new FWheelOutputData(); }
+
+		virtual void FillOutputState(const ISimulationModuleBase* SimModule) override;
+		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) override;
+		virtual FString ToString() override;
+
+		bool bTouchingGround;
+		float ForceIntoSurface;
+		float SlipAngle;
+		float RPM;
+
+		//HitLocation
+		//PhysMaterial
+	};
+
 	struct CHAOSVEHICLESCORE_API FWheelSettings
 	{
 		FWheelSettings()
@@ -68,9 +110,26 @@ namespace Chaos
 
 	class CHAOSVEHICLESCORE_API FWheelSimModule : public FTorqueSimModule, public TSimModuleSettings<FWheelSettings>
 	{
+		friend FWheelOutputData;
+
 	public:
 
 		FWheelSimModule(const FWheelSettings& Settings);
+
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
+		{
+			return MakeShared<FWheelSimModuleDatas>(
+				SimArrayIndex
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+				, GetDebugName()
+#endif			
+			);
+		}
+
+		virtual FSimOutputData* GenerateOutputData() const override
+		{
+			return FWheelOutputData::MakeNew();
+		}
 
 		virtual eSimType GetSimType() const { return eSimType::Wheel; }
 
@@ -82,7 +141,7 @@ namespace Chaos
 
 		virtual void Animate(Chaos::FClusterUnionPhysicsProxy* Proxy) override;
 
-		virtual bool IsBehaviourType(eSimModuleTypeFlags InType) const override { return (InType & TorqueBased)||(InType & Velocity); }
+		virtual bool IsBehaviourType(eSimModuleTypeFlags InType) const override { return (InType & TorqueBased) || (InType & Velocity); }
 
 		void SetSuspensionSimTreeIndex(int IndexIn) { SuspensionSimTreeIndex = IndexIn; }
 		int GetSuspensionSimTreeIndex() const { return SuspensionSimTreeIndex; }
@@ -104,6 +163,9 @@ namespace Chaos
 		float MassPerWheel;
 		float SteerAngleDegrees;
 
+		// for output
+		bool bTouchingGround;
+		float SlipAngle;
 	};
 
 
