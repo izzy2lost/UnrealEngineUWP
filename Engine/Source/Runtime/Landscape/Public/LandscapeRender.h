@@ -406,6 +406,8 @@ public:
 	
 	virtual void GetSectionBoundsAndLocalToWorld(FBoxSphereBounds& LocalBounds, FMatrix& LocalToWorld) const = 0;
 
+	virtual void GetSectionCenterAndVectors(FVector& OutSectionCenterWorldSpace, FVector& OutSectionXVectorWorldSpace, FVector& OutSectionYVectorWorldSpace) const = 0;
+
 	/* return the resolution of a component, in vertices (-1 for any sections that are not grid based, i.e. mesh sections) */
 	virtual int32 GetComponentResolution() const { return -1; }
 
@@ -469,7 +471,8 @@ struct FLandscapeRenderSystem
 
 	TResourceArray<float> SectionLODBiases;
 	TArray<FLandscapeSectionInfo*> SectionInfos;
-	int32 ReferenceCount;
+	int32 ReferenceCount;			// number of sections with resources created
+	int32 RegisteredCount;			// number of sections registered
 
 	FBufferRHIRef SectionLODBiasBuffer;
 	FShaderResourceViewRHIRef SectionLODBiasSRV;
@@ -519,12 +522,19 @@ struct FLandscapeRenderSystem
 
 	void SetSectionInfo(FIntPoint InRenderCoord, FLandscapeSectionInfo* InSectionInfo)
 	{
-		SectionInfos[GetSectionLinearIndex(InRenderCoord)] = InSectionInfo;
+		if (IsValidCoord(InRenderCoord))
+		{
+			SectionInfos[GetSectionLinearIndex(InRenderCoord)] = InSectionInfo;
+		}
 	}
 
 	FLandscapeSectionInfo* GetSectionInfo(FIntPoint InRenderCoord)
 	{
-		return SectionInfos[GetSectionLinearIndex(InRenderCoord)];
+		if (IsValidCoord(InRenderCoord))
+		{
+			return SectionInfos[GetSectionLinearIndex(InRenderCoord)];
+		}
+		return nullptr;
 	}
 
 	float GetSectionLODValue(const FSceneView& SceneView, FIntPoint InRenderCoord) const
@@ -647,7 +657,7 @@ class FLandscapeMeshProxySceneProxy final : public FStaticMeshSceneProxy
 public:
 	SIZE_T GetTypeHash() const override;
 
-	FLandscapeMeshProxySceneProxy(UStaticMeshComponent* InComponent, const FGuid& InLandscapeGuid, const TArray<FIntPoint>& InProxySectionsBases, int8 InProxyLOD, uint32 InLODGroupKey);
+	FLandscapeMeshProxySceneProxy(UStaticMeshComponent* InComponent, const FGuid& InLandscapeGuid, const TArray<FIntPoint>& InProxySectionsBases, const TArray<FVector>& InProxySectionsCentersLocalSpace, const FVector& InComponentXVector, const FVector& InComponentYVector, const FTransform& LocalToWorld, int32 ComponentResolution, int8 InProxyLOD, uint32 InLODGroupKey);
 	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 	virtual void DestroyRenderThreadResources() override;
 	virtual bool OnLevelAddedToWorld_RenderThread() override;
@@ -902,6 +912,8 @@ public:
 
 	LANDSCAPE_API virtual double ComputeSectionResolution() const override;
 	LANDSCAPE_API virtual void GetSectionBoundsAndLocalToWorld(FBoxSphereBounds& LocalBounds, FMatrix& LocalToWorld) const override;
+
+	virtual void GetSectionCenterAndVectors(FVector& OutSectionCenterWorldSpace, FVector& OutSectionXVectorWorldSpace, FVector& OutSectionYVectorWorldSpace) const override;
 };
 
 class FLandscapeDebugMaterialRenderProxy : public FMaterialRenderProxy

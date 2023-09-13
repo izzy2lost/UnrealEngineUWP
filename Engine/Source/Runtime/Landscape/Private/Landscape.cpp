@@ -5679,11 +5679,37 @@ void ULandscapeMeshProxyComponent::InitializeForLandscape(ALandscapeProxy* Lands
 	LandscapeGuid = Landscape->GetLandscapeGuid();
 	LODGroupKey = Landscape->LODGroupKey;
 
+	FTransform WorldToLocal = GetComponentTransform().Inverse();
+
+	bool bFirst = true;
 	for (ULandscapeComponent* Component : Landscape->LandscapeComponents)
 	{
 		if (Component)
 		{
+			const FTransform& ComponentLocalToWorld = Component->GetComponentTransform();
+
+			if (bFirst)
+			{
+				bFirst = false;
+				ComponentResolution = Component->ComponentSizeQuads + 1;
+				FVector ComponentXVectorWorldSpace = ComponentLocalToWorld.TransformVector(FVector::XAxisVector) * ComponentResolution;
+				FVector ComponentYVectorWorldSpace = ComponentLocalToWorld.TransformVector(FVector::YAxisVector) * ComponentResolution;
+				ComponentXVectorObjectSpace = WorldToLocal.TransformVector(ComponentXVectorWorldSpace);
+				ComponentYVectorObjectSpace = WorldToLocal.TransformVector(ComponentYVectorWorldSpace);
+			}
+			else
+			{
+				// assume it's the same resolution and orientation as the first component... (we only record one resolution and orientation)
+			}
+
+			// record the component coordinate
 			ProxyComponentBases.Add(Component->GetSectionBase() / Component->ComponentSizeQuads);
+			
+			// record the component center position (in the space of the ULandscapeMeshProxyComponent)
+			FBoxSphereBounds ComponentLocalBounds = Component->CalcBounds(FTransform::Identity);
+			FVector ComponentOriginWorld = ComponentLocalToWorld.TransformPosition(ComponentLocalBounds.Origin);
+			FVector LocalOrigin = WorldToLocal.TransformPosition(ComponentOriginWorld);
+			ProxyComponentCentersObjectSpace.Add(LocalOrigin);
 		}
 	}
 
