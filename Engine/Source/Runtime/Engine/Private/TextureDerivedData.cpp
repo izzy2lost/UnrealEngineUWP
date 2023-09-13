@@ -3976,9 +3976,41 @@ bool UTexture::DownsizeImageUsingTextureSettings(const ITargetPlatform* TargetPl
 }
 
 
-void UTexture::GetTargetPlatformBuildSettings(const ITargetPlatform* TargetPlatform, TArray<FTextureBuildSettings>& OutSettings )
+void UTexture::GetTargetPlatformBuildSettings(const ITargetPlatform* TargetPlatform, TArray<TArray<FTextureBuildSettings>>& OutSettingPerSupportedFormatPerLayer)
 {
-	GetBuildSettingsForTargetPlatform(*this, TargetPlatform, ETextureEncodeSpeed::Final, OutSettings, nullptr);
+	ETextureEncodeSpeed EncodeSpeed = ETextureEncodeSpeed::Final;
+
+	if (!TargetPlatform)
+	{
+		OutSettingPerSupportedFormatPerLayer.Empty();
+		return;
+	}
+
+	const UTextureLODSettings* LODSettings = (UTextureLODSettings*)UDeviceProfileManager::Get().FindProfile(TargetPlatform->PlatformName());
+	FTextureBuildSettings SourceBuildSettings;
+	FTexturePlatformData::FTextureEncodeResultMetadata SourceMetadata;
+	GetTextureBuildSettings(*this, *LODSettings, *TargetPlatform, EncodeSpeed, SourceBuildSettings, &SourceMetadata);
+
+	TArray< TArray<FName> > PlatformFormats;
+	GetPlatformTextureFormatNamesWithPrefix(TargetPlatform, PlatformFormats);
+
+	int32 NumFormats = PlatformFormats.Num();
+	OutSettingPerSupportedFormatPerLayer.SetNum(NumFormats);
+	for ( int32 FormatIndex = 0; FormatIndex < NumFormats; ++FormatIndex)
+	{
+		const int32 NumLayers = Source.GetNumLayers();
+		check(PlatformFormats[FormatIndex].Num() == NumLayers);
+
+		OutSettingPerSupportedFormatPerLayer[FormatIndex].Reserve(NumLayers);
+		for (int32 LayerIndex = 0; LayerIndex < NumLayers; ++LayerIndex)
+		{
+			FTextureBuildSettings& OutSettings = OutSettingPerSupportedFormatPerLayer[FormatIndex].Add_GetRef(SourceBuildSettings);
+			OutSettings.TextureFormatName = PlatformFormats[FormatIndex][LayerIndex];
+
+			FTexturePlatformData::FTextureEncodeResultMetadata* OutMetadata = nullptr;
+			FinalizeBuildSettingsForLayer(*this, LayerIndex, TargetPlatform, EncodeSpeed, OutSettings, OutMetadata);
+		}
+	}
 }
 
 

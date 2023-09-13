@@ -1927,7 +1927,7 @@ public:
 
 	/*
 	*/
-	ENGINE_API void GetTargetPlatformBuildSettings(const ITargetPlatform* TargetPlatform, TArray<FTextureBuildSettings>& OutSettings);
+	ENGINE_API void GetTargetPlatformBuildSettings(const ITargetPlatform* TargetPlatform, TArray<TArray<FTextureBuildSettings>>& OutSettingsPerFormatPerLayer);
 
 #endif
 
