@@ -415,6 +415,7 @@ void FMetalUnorderedAccessView::UpdateView()
             if(bIsAtomicCompatible && Info.Dimension == FRHIViewDesc::EDimension::Texture2DArray)
             {
                 TextureType = mtlpp::TextureType::Texture2D;
+                ArraySize = 1;
             }
             
 			FMetalTexture MetalTexture(Texture->Texture.NewTextureView(

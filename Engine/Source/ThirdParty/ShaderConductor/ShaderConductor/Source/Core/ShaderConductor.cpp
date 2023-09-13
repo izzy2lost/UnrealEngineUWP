@@ -166,6 +166,21 @@ static bool ParseSpirvCrossOptionMetal(spirv_cross::CompilerMSL::Options& opt, c
 // UE Change Begin: Experimental support for Nanite on M2+ based devices
 // Allow implicit 2Darray to 2D conversion (for VSM)
     PARSE_SPIRVCROSS_OPTION(define, "flatten_2d_array", opt.flatten_2d_array);
+
+	static const char* flatten_2d_array_names = "flatten_2d_array_names";
+	static const size_t InIdentLen = std::strlen(flatten_2d_array_names);
+
+	if (!strncmp(define.name, flatten_2d_array_names, InIdentLen))
+	{
+		std::string value = define.value;
+		size_t Offset = 0, Prev = 0;
+		while ((Offset = value.find(',', Offset)) != std::string::npos)
+		{
+			opt.flatten_2d_array_names.insert(value.substr(Prev, Offset-Prev));
+			Prev = ++Offset;
+		}
+		opt.flatten_2d_array_names.insert(value.substr(Prev, Offset-Prev));
+	}
 // UE Change End: Experimental support for Nanite on M2+ based devices
 
     // Specify dimension of subpass input attachments.

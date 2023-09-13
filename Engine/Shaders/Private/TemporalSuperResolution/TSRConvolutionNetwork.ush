@@ -381,7 +381,7 @@ bool AnyThread(bool X)
 #elif !COMPILER_SUPPORTS_WAVE_VOTE && !defined(LDS_SIZE)
 {
 	// Metal SM6 have COMPILER_SUPPORTS_WAVE_VOTE=0 due to shader compiler bug
-	#if !METAL_PROFILE
+	#if !COMPILER_METAL
 		#error Requires to specify LDS_SIZE
 	#endif
 	return true;
