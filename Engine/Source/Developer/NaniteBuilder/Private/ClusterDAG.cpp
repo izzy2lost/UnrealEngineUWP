@@ -18,6 +18,11 @@ void BuildDAG( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clusters, ui
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Nanite.BuildDAG);
 
+	if( ClusterRangeNum == 0 )
+	{
+		return;
+	}
+
 	uint32 LevelOffset	= ClusterRangeStart;
 	
 	TAtomic< uint32 > NumClusters( Clusters.Num() );

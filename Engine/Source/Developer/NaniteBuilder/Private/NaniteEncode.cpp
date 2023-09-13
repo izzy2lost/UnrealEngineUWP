@@ -1921,14 +1921,16 @@ static void WritePages(	FResources& Resources,
 	TArray< uint8 > StreamableBulkData;
 	
 	const uint32 NumPages = Pages.Num();
-	const uint32 NumClusters = Clusters.Num();
 	Resources.PageStreamingStates.SetNum(NumPages);
 
+	uint32 NumReferencedClusters = 0;
 	TArray<FFixupChunk> FixupChunks;
 	FixupChunks.SetNum(NumPages);
 	for (uint32 PageIndex = 0; PageIndex < NumPages; PageIndex++)
 	{
 		const FPage& Page = Pages[PageIndex];
+		NumReferencedClusters += Page.NumClusters;
+
 		FFixupChunk& FixupChunk = FixupChunks[PageIndex];
 		FixupChunk.Header.Magic = NANITE_FIXUP_MAGIC;	
 		FixupChunk.Header.NumClusters = uint16(Page.NumClusters);
@@ -1942,6 +1944,9 @@ static void WritePages(	FResources& Resources,
 
 		FixupChunk.Header.NumHierachyFixups = uint16(NumHierarchyFixups);	// NumHierarchyFixups must be set before writing cluster fixups
 	}
+
+	check(NumReferencedClusters <= (uint32)Clusters.Num());	// There can be unused clusters when trim is used
+	Resources.NumClusters = NumReferencedClusters;
 
 	// Add external fixups to pages
 	for (const FClusterGroupPart& Part : Parts)
@@ -2534,7 +2539,7 @@ static uint32 BuildHierarchyRecursive(TArray<FPage>& Pages, TArray<Nanite::FHier
 	HierarchyNodes.AddZeroed();
 
 	uint32 NumChildren = INode.Children.Num();
-	check( NumChildren > 0 && NumChildren <= NANITE_MAX_BVH_NODE_FANOUT );
+	check(NumChildren <= NANITE_MAX_BVH_NODE_FANOUT);
 	for( uint32 ChildIndex = 0; ChildIndex < NumChildren; ChildIndex++ )
 	{
 		uint32 ChildNodeIndex = INode.Children[ ChildIndex ];
@@ -2813,7 +2818,13 @@ static void BuildHierarchies(FResources& Resources, TArray<FPage>& Pages, const 
 
 
 		uint32 RootIndex = 0;
-		if (Nodes.Num() == 1)
+		if (Nodes.Num() == 0)
+		{
+			// Completely empty mesh. This can happen for submeshes of existing geometry collections. 
+			// The caller expects the submesh to have a valid hierarchy offset, so we provide an empty node with no children.
+			Nodes.AddDefaulted();
+		}
+		else if (Nodes.Num() == 1)
 		{
 			// Just a single leaf.
 			// Needs to be special-cased as root should always be an inner node.
@@ -4448,10 +4459,6 @@ void Encode(
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::Build::BuildHierarchyNodes);
 		BuildHierarchies(Resources, Pages, Groups, GroupParts, NumMeshes);
-	}
-
-	{
-		Resources.NumClusters = (uint32)Clusters.Num();
 	}
 
 	{
