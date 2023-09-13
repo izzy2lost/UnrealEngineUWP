@@ -3302,6 +3302,7 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 		// * Forward inputs to the root node (Do not reconnect the Opacity as we handle the opacity by internally within the conversion node)
 		// * Always forward masked opacity because this is required when the blend mode is overriden to masked on a material instance.
 		bUseMaterialAttributes = false;
+		NumCustomizedUVs = 8;
 		EditorOnly->FrontMaterial.Connect(0, ConvertAttributeNode);
 		EditorOnly->Opacity.Connect(4, ConvertAttributeNode);
 		EditorOnly->OpacityMask.Connect(5, ConvertAttributeNode);
@@ -3309,7 +3310,12 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 		EditorOnly->AmbientOcclusion.Connect(2, ConvertAttributeNode);
 		EditorOnly->PixelDepthOffset.Connect(1, ConvertAttributeNode);
 		EditorOnly->Refraction.Connect(6, ConvertAttributeNode);
-		
+
+		// Need to connect all CustomizedUV, as NumCustomizedUVs might be 0, while legacy attribute would connect & use all the customized UVs inputs.
+		for (int32 UVIndex = 0; UVIndex<NumCustomizedUVs; ++UVIndex)
+		{
+			EditorOnly->CustomizedUVs[UVIndex].Connect(7+UVIndex, ConvertAttributeNode);
+		}
 
 		// Shading Model
 		// * either use the shader graph expression 
