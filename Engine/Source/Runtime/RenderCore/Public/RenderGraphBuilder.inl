@@ -614,7 +614,7 @@ UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(
 	if (!RHICmdListTask->IsImmediate())
 	{
 		ParallelSetupEvents.Emplace(Task);
-		RHICmdList.QueueAsyncCommandListSubmit(RHICmdListTask);
+		ParallelSetupCommandLists.Emplace(RHICmdListTask);
 	}
 
 	return Task;

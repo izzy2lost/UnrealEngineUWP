@@ -1739,6 +1739,7 @@ void FRDGBuilder::Execute()
 
 		if (!ParallelSetupEvents.IsEmpty())
 		{
+			RHICmdList.QueueAsyncCommandListSubmit(ParallelSetupCommandLists);
 			UE::Tasks::Wait(ParallelSetupEvents);
 			ParallelSetupEvents.Empty();
 		}

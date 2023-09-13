@@ -662,8 +662,11 @@ private:
 	/** Array of all active parallel execute tasks. */
 	TArray<UE::Tasks::FTask, FRDGArrayAllocator> ParallelExecuteEvents;
 
-	/** Array of all task events requested by the user. */
+	/** Array of all task events for variants of AddSetupTask. */
 	TArray<UE::Tasks::FTask, FRDGArrayAllocator> ParallelSetupEvents;
+
+	/** Array of all command lists to submit for AddCommandListSetupTask. */
+	TArray<FRHICommandListImmediate::FQueuedCommandList, FRDGArrayAllocator> ParallelSetupCommandLists;
 
 	/** Tracks the final access used on resources in order to call SetTrackedAccess. */
 	TArray<FRHITrackedAccessInfo, FRDGArrayAllocator> EpilogueResourceAccesses;
