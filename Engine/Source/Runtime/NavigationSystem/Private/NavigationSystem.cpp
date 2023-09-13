@@ -3793,10 +3793,18 @@ void UNavigationSystemV1::GetInvokerSeedLocations(const UWorld& InWorld, TArray<
 	for (FConstPlayerControllerIterator PlayerIt = InWorld.GetPlayerControllerIterator(); PlayerIt; ++PlayerIt)
 	{
 		const APlayerController* PlayerController = PlayerIt->Get();
-		if (PlayerController && PlayerController->GetPawn())
+		if (PlayerController)
 		{
-			const FVector2D SeedLoc(PlayerController->GetPawn()->GetActorLocation());
-			OutSeedLocations.Add(SeedLoc);
+			if (PlayerController->GetPawn())
+			{
+				const FVector2D SeedLoc(PlayerController->GetPawn()->GetActorLocation());
+				OutSeedLocations.Add(SeedLoc);
+			}
+			else if (PlayerController->PlayerCameraManager)
+			{
+				const FVector2D SeedLoc(PlayerController->PlayerCameraManager->GetCameraLocation());
+				OutSeedLocations.Add(SeedLoc);
+			}
 		}
 	}
 }
