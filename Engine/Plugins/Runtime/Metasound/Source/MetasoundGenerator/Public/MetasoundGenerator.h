@@ -184,6 +184,9 @@ namespace Metasound
 			return ReadRef;
 		}
 
+		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnVertexInterfaceDataUpdated, FVertexInterfaceData);
+		FOnVertexInterfaceDataUpdated OnVertexInterfaceDataUpdated;
+
 		/**
 		 * Add a vertex analyzer for a named output with the given address info.
 		 *
@@ -243,8 +246,6 @@ namespace Metasound
 		 */
 		void ClearGraph();
 		bool UpdateGraphIfPending();
-
-
 
 	private:
 
