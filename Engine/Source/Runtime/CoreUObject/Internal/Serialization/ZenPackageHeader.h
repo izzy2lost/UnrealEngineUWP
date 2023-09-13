@@ -30,6 +30,7 @@ struct FZenPackageHeader
 
 	TArray<FName> ImportedPackageNames;
 
-	static FZenPackageHeader MakeView(FMemoryView Memory);
-	void Reset();
+	COREUOBJECT_API static FZenPackageHeader MakeView(FMemoryView Memory);
+	COREUOBJECT_API static FZenPackageHeader MakeView(FMemoryView Memory, FString& OutError);
+	COREUOBJECT_API void Reset();
 };

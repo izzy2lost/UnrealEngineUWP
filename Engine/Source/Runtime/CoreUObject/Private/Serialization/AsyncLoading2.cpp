@@ -77,7 +77,7 @@
 #include "Containers/SpscQueue.h"
 #include "IO/IoPriorityQueue.h"
 #include "UObject/CoreRedirects.h"
-#include "ZenPackageHeader.h"
+#include "Serialization/ZenPackageHeader.h"
 
 #include <atomic>
 
