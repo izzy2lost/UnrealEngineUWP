@@ -189,7 +189,6 @@ namespace EpicGames.Horde.Api
 			return response.Artifacts;
 		}
 
-
 #if false
 			/// <summary>
 			/// Gets metadata about an artifact object

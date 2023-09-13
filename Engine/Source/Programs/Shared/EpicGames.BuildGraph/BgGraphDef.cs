@@ -761,7 +761,7 @@ namespace EpicGames.BuildGraph
 		{
 			if (uniqueNodes.Add(node))
 			{
-				foreach (BgNodeExpressionDef inputNode in node.InputDependencies)
+				foreach (BgNodeExpressionDef inputNode in node.InputDependencies.OfType<BgNodeExpressionDef>())
 				{
 					RegisterNode(graph, inputNode, uniqueNodes, uniqueAgents);
 				}

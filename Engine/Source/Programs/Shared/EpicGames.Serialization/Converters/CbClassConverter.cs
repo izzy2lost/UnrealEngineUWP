@@ -544,7 +544,7 @@ namespace EpicGames.Serialization.Converters
 				{
 					converter = (ICbConverter?)Activator.CreateInstance(converterType);
 				}
-				catch (TargetInvocationException ex) when (ex.InnerException is object)
+				catch (TargetInvocationException ex) when (ex.InnerException is not null)
 				{
 					throw ex.InnerException;
 				}

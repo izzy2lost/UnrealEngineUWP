@@ -15,7 +15,7 @@ namespace EpicGames.Horde.Api
 	[TypeConverter(typeof(AgentIdTypeConverter))]
 	[JsonConverter(typeof(AgentIdJsonConverter))]
 	[LogValueFormatter(typeof(AgentIdLogFormatter))]
-	public struct AgentId : IEquatable<AgentId>
+	public readonly struct AgentId : IEquatable<AgentId>
 	{
 		/// <summary>
 		/// The text representing this id

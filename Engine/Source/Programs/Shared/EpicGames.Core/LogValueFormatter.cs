@@ -100,7 +100,7 @@ namespace EpicGames.Core
 				writer.WriteEndArray();
 			}
 
-			void Format(Activity activity, Utf8JsonWriter writer)
+			static void Format(Activity activity, Utf8JsonWriter writer)
 			{
 				if (activity.Parent != null)
 				{

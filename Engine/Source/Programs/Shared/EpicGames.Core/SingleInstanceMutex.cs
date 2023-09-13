@@ -99,10 +99,7 @@ namespace EpicGames.Core
 			try
 			{
 				await impl.WaitAsync(cancellationToken);
-				if (cancellationToken.IsCancellationRequested)
-				{
-					throw new OperationCanceledException(cancellationToken);
-				}
+				cancellationToken.ThrowIfCancellationRequested();
 
 				SingleInstanceMutexImpl result = impl;
 				impl = null;
@@ -110,7 +107,9 @@ namespace EpicGames.Core
 			}
 			finally
 			{
+#pragma warning disable CA1508 // Avoid dead conditional code
 				impl?.Dispose();
+#pragma warning restore CA1508 // Avoid dead conditional code
 			}
 		}
 	}

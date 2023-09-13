@@ -129,10 +129,8 @@ namespace EpicGames.Horde.Storage
 
 			public void AppendPath(StringBuilder builder)
 			{
-				if (Parent != null)
-				{
-					Parent.AppendPath(builder);
-				}
+				Parent?.AppendPath(builder);
+
 				if (!Name.IsEmpty)
 				{
 					builder.Append(Name);

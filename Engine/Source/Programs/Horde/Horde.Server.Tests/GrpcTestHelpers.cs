@@ -55,7 +55,7 @@ namespace Horde.Server.Tests
 		{
 			if (await _channel.Reader.WaitToReadAsync())
 			{
-				_channel.Reader.TryRead(out var message);
+				_channel.Reader.TryRead(out T? message);
 				return message;
 			}
 			else

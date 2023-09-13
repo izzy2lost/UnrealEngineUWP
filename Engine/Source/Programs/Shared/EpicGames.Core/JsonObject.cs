@@ -213,7 +213,7 @@ namespace EpicGames.Core
 			}
 		}
 
-		private SystemJsonNode ToJsonNode(object? obj)
+		private static SystemJsonNode ToJsonNode(object? obj)
 		{
 			// All values in the JsonObject are either parsed from a string, read from a file or set/added with the API
 			// All values at this point must be supported and the correct types 

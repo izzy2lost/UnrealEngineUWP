@@ -176,12 +176,12 @@ namespace UnrealBuildTool.Matchers
 					return eventMatch;
 				}
 			}
-			else if (input.TryMatch(s_xcodeIDEWatchExtensionPattern, out Match? match))
+			else if (input.IsMatch(s_xcodeIDEWatchExtensionPattern))
 			{
 				LogEventBuilder builder = new LogEventBuilder(input);
 				return builder.ToMatch(LogEventPriority.Normal, LogLevel.Information, KnownLogEvents.Systemic_XCode);
 			}
-			else if (input.TryMatch(s_scriptCompilePattern, out match))
+			else if (input.IsMatch(s_scriptCompilePattern))
 			{
 				LogEventBuilder builder = new LogEventBuilder(input);
 				return builder.ToMatch(LogEventPriority.High, LogLevel.Error, KnownLogEvents.Compiler_Summary);
@@ -210,7 +210,7 @@ namespace UnrealBuildTool.Matchers
 		static readonly Regex s_msvcNotePattern = new Regex($"^\\s*{FilePattern}(?:{VisualCppLocationPattern})?\\s*: note:");
 		static readonly Regex s_projectPattern = new Regex(@"\[(?<project>[^[\]]+)]\s*$");
 
-		bool TryMatchVisualCppEvent(LogEventBuilder builder, [NotNullWhen(true)] out LogEventMatch? outEvent)
+		static bool TryMatchVisualCppEvent(LogEventBuilder builder, [NotNullWhen(true)] out LogEventMatch? outEvent)
 		{
 			Match? match;
 			if (!builder.Current.TryMatch(s_msvcPattern, out match) || !IsSourceFile(match))
@@ -299,7 +299,7 @@ namespace UnrealBuildTool.Matchers
 			return true;
 		}
 
-		void SkipClangMarker(LogEventBuilder builder)
+		static void SkipClangMarker(LogEventBuilder builder)
 		{
 			Match? match;
 			if (builder.Current.TryMatch(2, s_clangMarkerPattern, out match))
@@ -307,7 +307,7 @@ namespace UnrealBuildTool.Matchers
 				string indent = match.Groups[1].Value;
 
 				int length = 2;
-				if (indent.Length > 0 && builder.Current.TryGetLine(3, out string? suggestLine) && suggestLine.Length > indent.Length && suggestLine.StartsWith(indent) && !Char.IsWhiteSpace(suggestLine[indent.Length]))
+				if (indent.Length > 0 && builder.Current.TryGetLine(3, out string? suggestLine) && suggestLine.Length > indent.Length && suggestLine.StartsWith(indent, StringComparison.Ordinal) && !Char.IsWhiteSpace(suggestLine[indent.Length]))
 				{
 					length++;
 				}
@@ -328,7 +328,7 @@ namespace UnrealBuildTool.Matchers
 			}
 		}
 
-		bool IsSourceFile(Match match)
+		static bool IsSourceFile(Match match)
 		{
 			Group group = match.Groups["file"];
 			if (!group.Success)
