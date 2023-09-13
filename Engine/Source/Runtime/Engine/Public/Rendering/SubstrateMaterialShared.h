@@ -125,9 +125,9 @@ public:
 	/** The number of local normal/tangent bases */
 	LAYOUT_FIELD_EDITORONLY(uint8, SharedLocalBasesCount);
 	/** Material requested byte count per pixel */
-	LAYOUT_FIELD_EDITORONLY(uint8, RequestedBytePixePixel);
+	LAYOUT_FIELD_EDITORONLY(uint8, RequestedBytePerPixel);
 	/** The byte count per pixel supported by the platform the material has been compiled against */
-	LAYOUT_FIELD_EDITORONLY(uint8, PlatformBytePixePixel);
+	LAYOUT_FIELD_EDITORONLY(uint8, PlatformBytePerPixel);
 
 	/** Material requested BSDF/closure count per pixel */
 	LAYOUT_FIELD_EDITORONLY(uint8, RequestedClosurePerPixel);

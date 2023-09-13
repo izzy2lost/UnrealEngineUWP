@@ -408,7 +408,7 @@ void SMaterialEditorSubstrateWidget::Tick(const FGeometry& AllottedGeometry, con
 				if (CompilationOutput.bMaterialOutOfBudgetHasBeenSimplified)
 				{
 					MaterialDescription += FString::Printf(TEXT("The material was OUT-OF-BUDGET so it has been fully simplified: Request bytes = %i / budget = %i  -  Request Closures = %i / budget = %i\r\n"),
-						CompilationOutput.RequestedBytePixePixel, CompilationOutput.PlatformBytePixePixel,
+						CompilationOutput.RequestedBytePerPixel, CompilationOutput.PlatformBytePerPixel,
 						CompilationOutput.RequestedClosurePerPixel, CompilationOutput.PlatformClosurePixel);
 					MaterialDescription += FString::Printf(TEXT("Final per pixel byte count   = %i\r\n"),
 						FinalPixelByteCount);
@@ -416,7 +416,7 @@ void SMaterialEditorSubstrateWidget::Tick(const FGeometry& AllottedGeometry, con
 				else
 				{
 					MaterialDescription += FString::Printf(TEXT("Material per pixel byte count= %i / budget = %i\r\n"),
-						FinalPixelByteCount, CompilationOutput.PlatformBytePixePixel);
+						FinalPixelByteCount, CompilationOutput.PlatformBytePerPixel);
 				}
 				MaterialDescription += FString::Printf(TEXT("BSDF Count	                  = %i\r\n"), CompilationOutput.SubstrateBSDFCount);
 				MaterialDescription += FString::Printf(TEXT("Local bases Count            = %i\r\n"), CompilationOutput.SharedLocalBasesCount);
