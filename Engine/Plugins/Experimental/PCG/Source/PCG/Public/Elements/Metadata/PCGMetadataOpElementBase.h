@@ -207,6 +207,9 @@ protected:
 
 	template <typename InType1, typename InType2, typename InType3, typename InType4, typename... Callbacks>
 	bool DoQuaternaryOp(FOperationData& InOperationData, Callbacks&& ...InCallbacks) const;
+
+	/** To be called if we have no data to perform any operation, it will passthrough the input. */
+	void PassthroughInputs(FPCGContext* InContext, const UPCGMetadataSettingsBase* InSettings) const;
 };
 
 template <int32 NbInputs, int32 NbOutputs>
