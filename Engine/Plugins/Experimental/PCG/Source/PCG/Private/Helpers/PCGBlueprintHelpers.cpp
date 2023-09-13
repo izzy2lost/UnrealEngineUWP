@@ -177,10 +177,8 @@ TArray<FPCGLandscapeLayerWeight> UPCGBlueprintHelpers::GetInterpolatedPCGLandsca
 
 	FString FailureReason;
 
-
 	for (TWeakObjectPtr<ALandscapeProxy> LandscapePtr : Landscapes)
 	{
-
 		ALandscapeProxy* Landscape = LandscapePtr.Get();
 		if (!Landscape)
 		{
@@ -194,7 +192,11 @@ TArray<FPCGLandscapeLayerWeight> UPCGBlueprintHelpers::GetInterpolatedPCGLandsca
 			continue;
 		}
 
+#if WITH_EDITOR
 		const FVector LocalPoint = Landscape->GetTransform().InverseTransformPosition(Location);
+#else
+		const FVector LocalPoint = Landscape->LandscapeActorToWorld().InverseTransformPosition(Location);
+#endif
 		const FIntPoint ComponentMapKey(FMath::FloorToInt(LocalPoint.X / LandscapeInfo->ComponentSizeQuads), FMath::FloorToInt(LocalPoint.Y / LandscapeInfo->ComponentSizeQuads));
 
 		#if WITH_EDITOR

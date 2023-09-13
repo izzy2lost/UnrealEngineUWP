@@ -157,7 +157,11 @@ bool UPCGLandscapeData::ProjectPoint(const FTransform& InTransform, const FBox& 
 		return false;
 	}
 
+#if WITH_EDITOR
 	const FTransform& LandscapeTransform = LandscapeInfo->GetLandscapeProxy()->GetTransform();
+#else
+	const FTransform LandscapeTransform = LandscapeInfo->GetLandscapeProxy()->LandscapeActorToWorld();
+#endif
 
 	// TODO: compute full transform when we want to support bounds
 	const FVector LocalPoint = LandscapeTransform.InverseTransformPosition(InTransform.GetLocation());
@@ -255,7 +259,11 @@ const UPCGPointData* UPCGLandscapeData::CreatePointData(FPCGContext* Context, co
 			continue;
 		}
 
+#if WITH_EDITOR
 		const FTransform& LandscapeTransform = LandscapeInfo->GetLandscapeProxy()->GetTransform();
+#else
+		const FTransform LandscapeTransform = LandscapeInfo->GetLandscapeProxy()->LandscapeActorToWorld();
+#endif
 		const int32 ComponentSizeQuads = LandscapeInfo->ComponentSizeQuads;
 
 		// TODO: add offset to nearest edge, will have an impact if the grid size doesn't match the landscape size
