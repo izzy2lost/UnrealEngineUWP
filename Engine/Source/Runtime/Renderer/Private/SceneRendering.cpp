@@ -123,6 +123,13 @@ static FAutoConsoleVariableRef CVarAsyncMeshDrawCommands(
 	TEXT("Mesh draw command caching is offloaded to an async task."),
 	ECVF_RenderThreadSafe);
 
+static int32 GAsyncCacheMaterialUniformExpressions = 1;
+static FAutoConsoleVariableRef CVarAsyncMaterialUniformExpressions(
+	TEXT("r.AsyncCacheMaterialUniformExpressions"),
+	GAsyncCacheMaterialUniformExpressions,
+	TEXT("Material uniform expression caching is offloaded to an async task."),
+	ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<int32> CVarCachedMeshDrawCommands(
 	TEXT("r.MeshDrawCommands.UseCachedCommands"),
 	1,
@@ -3412,6 +3419,11 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)
 	if (GAsyncCacheMeshDrawCommands > 0)
 	{
 		AsyncOps |= EUpdateAllPrimitiveSceneInfosAsyncOps::CacheMeshDrawCommands;
+	}
+
+	if (GAsyncCacheMaterialUniformExpressions > 0)
+	{
+		AsyncOps |= EUpdateAllPrimitiveSceneInfosAsyncOps::CacheMaterialUniformExpressions;
 	}
 
 	Scene->UpdateAllPrimitiveSceneInfos(GraphBuilder, AsyncOps);

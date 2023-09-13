@@ -5428,7 +5428,9 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	}
 
 	FSceneRenderer::WaitForCleanUpTasks(GraphBuilder.RHICmdList);
-	FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions();
+
+	UE::Tasks::FTask UpdateUniformExpressionsTask;
+	FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions(GraphBuilder.RHICmdList, EnumHasAnyFlags(AsyncOps, EUpdateAllPrimitiveSceneInfosAsyncOps::CacheMaterialUniformExpressions) ? &UpdateUniformExpressionsTask : nullptr);
 
 	RDG_EVENT_SCOPE(GraphBuilder, "UpdateAllPrimitiveSceneInfos");
 
@@ -6384,6 +6386,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	ShadowScene->PostSceneUpdate(SceneUpdateChangeSetStorage.GetPreUpdateSet(), SceneUpdateChangeSetStorage.GetPostUpdateSet());
 
 	GPUSkinCacheTask.Wait();
+	UpdateUniformExpressionsTask.Wait();
 
 	if (SceneInfosWithStaticDrawListUpdate.Num() > 0)
 	{

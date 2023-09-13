@@ -8,6 +8,7 @@
 #include "RenderResource.h"
 #include "RHIImmutableSamplerState.h"
 #include "Async/Mutex.h"
+#include "Tasks/Task.h"
 
 enum class EMaterialParameterType : uint8;
 
@@ -110,7 +111,10 @@ public:
 	 * @param OutUniformExpressionCache - The uniform expression cache to build.
 	 * @param MaterialRenderContext - The context for which to cache expressions.
 	 */
-	ENGINE_API void EvaluateUniformExpressions(FUniformExpressionCache& OutUniformExpressionCache, const FMaterialRenderContext& Context, FUniformExpressionCacheAsyncUpdater* Updater = nullptr, FRHICommandListBase* RHICmdList = nullptr) const;
+	ENGINE_API void EvaluateUniformExpressions(FRHICommandListBase& RHICmdList, FUniformExpressionCache& OutUniformExpressionCache, const FMaterialRenderContext& Context, FUniformExpressionCacheAsyncUpdater* Updater = nullptr) const;
+
+	UE_DEPRECATED(5.4, "EvaluateUniformExpressions requires an RHI command list.")
+	ENGINE_API void EvaluateUniformExpressions(FUniformExpressionCache& OutUniformExpressionCache, const FMaterialRenderContext& Context, FUniformExpressionCacheAsyncUpdater* Updater = nullptr) const;
 
 	/**
 	 * Caches uniform expressions for efficient runtime evaluation.
@@ -210,7 +214,7 @@ public:
 	const uint32 NumSpecularProfileRT() const { return SpecularProfilesRT.Num(); }
 
 	static ENGINE_API void UpdateDeferredCachedUniformExpressions();
-	static ENGINE_API void UpdateDeferredCachedUniformExpressions(FRHICommandListBase& RHICmdList);
+	static ENGINE_API void UpdateDeferredCachedUniformExpressions(FRHICommandListBase& RHICmdList, UE::Tasks::FTask* TaskIfAsync = nullptr);
 
 	static ENGINE_API bool HasDeferredUniformExpressionCacheRequests();
 
@@ -220,7 +224,7 @@ public:
 
 private:
 	ENGINE_API IAllocatedVirtualTexture* GetPreallocatedVTStack(const FMaterialRenderContext& Context, const FUniformExpressionSet& UniformExpressionSet, const FMaterialVirtualTextureStack& VTStack) const;
-	ENGINE_API IAllocatedVirtualTexture* AllocateVTStack(const FMaterialRenderContext& Context, const FUniformExpressionSet& UniformExpressionSet, const FMaterialVirtualTextureStack& VTStack) const;
+	ENGINE_API IAllocatedVirtualTexture* AllocateVTStack(FRHICommandListBase& RHICmdList, const FMaterialRenderContext& Context, const FUniformExpressionSet& UniformExpressionSet, const FMaterialVirtualTextureStack& VTStack) const;
 
 	virtual void StartCacheUniformExpressions() const {}
 	virtual void FinishCacheUniformExpressions() const {}

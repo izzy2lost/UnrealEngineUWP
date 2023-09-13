@@ -91,7 +91,10 @@ enum class EUpdateAllPrimitiveSceneInfosAsyncOps
 	// Light primitive interactions are created asynchronously.
 	CreateLightPrimitiveInteractions = 1 << 1,
 
-	All = CacheMeshDrawCommands | CreateLightPrimitiveInteractions
+	// Material uniform expressions are cached asynchronously.
+	CacheMaterialUniformExpressions = 1 << 2,
+
+	All = CacheMeshDrawCommands | CreateLightPrimitiveInteractions | CacheMaterialUniformExpressions
 };
 ENUM_CLASS_FLAGS(EUpdateAllPrimitiveSceneInfosAsyncOps);
 
