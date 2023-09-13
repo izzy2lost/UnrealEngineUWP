@@ -113,6 +113,22 @@ void UCustomizableObjectNodeMaterialPinDataImage::Init(UCustomizableObjectNodeMa
 }
 
 
+void UCustomizableObjectNodeMaterialPinDataImage::Copy(const UCustomizableObjectNodePinData& Other)
+{
+	if (const UCustomizableObjectNodeMaterialPinDataImage* PinDataOldPin = Cast<UCustomizableObjectNodeMaterialPinDataImage>(&Other))
+	{
+		PinMode = PinDataOldPin->PinMode;
+		UVLayout = PinDataOldPin->UVLayout;
+		ReferenceTexture = PinDataOldPin->ReferenceTexture;
+
+		if (NodeMaterial)
+		{
+			NodeMaterial->UpdateImagePinMode(ParameterId);
+		}
+	}
+}
+
+
 FName UCustomizableObjectNodeMaterial::GetPinName(const EMaterialParameterType Type, const int32 ParameterIndex) const
 {
 	const FString ParameterName = GetParameterName(Type, ParameterIndex).ToString();

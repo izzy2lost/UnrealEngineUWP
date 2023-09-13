@@ -660,7 +660,7 @@ FString UCustomizableObjectNodeTable::GetRefreshMessage() const
 	return "Node data outdated. Please refresh node.";
 }
 
-
+// TODO(MTBL-1652): Move this to the Copy method of the NodePinData class which is more PinType specific (and the right plece to do this)
 void UCustomizableObjectNodeTable::RemapPinsData(const TMap<UEdGraphPin*, UEdGraphPin*>& PinsToRemap)
 {
 	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
