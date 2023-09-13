@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #if WITH_TESTS
-#include "TypedElementQueryBuilderTests.h"
+#include "TypedElementTestColumns.h"
 
 #include "Algo/Sort.h"
 #include "CoreTypes.h"
