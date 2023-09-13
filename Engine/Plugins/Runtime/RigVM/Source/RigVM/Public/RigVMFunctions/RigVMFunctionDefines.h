@@ -27,7 +27,8 @@ namespace ERigVMClampSpatialMode
 	{
 		Plane,
 		Cylinder,
-		Sphere
+		Sphere,
+		Capsule
 	};
 }
 
