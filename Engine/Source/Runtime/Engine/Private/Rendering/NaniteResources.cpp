@@ -1933,78 +1933,9 @@ void FSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringCont
 		return;
 	}
 
-	const bool bUsingNaniteRayTracing = GetRayTracingMode() != ERayTracingMode::Fallback;
-
-	// try and find the first valid RT geometry index
-	int32 ValidLODIndex = GetFirstValidRaytracingGeometryLODIndex();
-	if (ValidLODIndex == INDEX_NONE)
-	{
-		return;
-	}
-
-	// Setup a new instance
-	FRayTracingInstance& RayTracingInstance = OutRayTracingInstances.Emplace_GetRef();
-	if (bUsingNaniteRayTracing)
-	{
-		RayTracingInstance.Geometry = nullptr;
-		RayTracingInstance.bApplyLocalBoundsTransform = false;
-	}
-	else
-	{
-		RayTracingInstance.Geometry = &RenderData->LODResources[ValidLODIndex].RayTracingGeometry;
-		RayTracingInstance.bApplyLocalBoundsTransform = RayTracingInstance.Geometry->RayTracingGeometryRHI->GetInitializer().GeometryType == RTGT_Procedural;
-	}
-
-	const int32 InstanceCount = InstanceSceneData.Num();
-	if (CachedRayTracingInstanceTransforms.Num() != InstanceCount || !bCachedRayTracingInstanceTransformsValid)
-	{
-		const FRenderTransform PrimitiveToWorld = (FMatrix44f)GetLocalToWorld();
-
-		CachedRayTracingInstanceTransforms.SetNumUninitialized(InstanceCount);
-		for (int32 InstanceIndex = 0; InstanceIndex < InstanceCount; ++InstanceIndex)
-		{
-			const FInstanceSceneData& Instance = InstanceSceneData[InstanceIndex];
-			const FRenderTransform InstanceLocalToWorld = Instance.ComputeLocalToWorld(PrimitiveToWorld);
-			CachedRayTracingInstanceTransforms[InstanceIndex] = InstanceLocalToWorld.ToMatrix();
-		}
-		bCachedRayTracingInstanceTransformsValid = true;
-	}
-
-	// Transforms are persistently allocated, so we can just return them by pointer.
-	RayTracingInstance.InstanceTransformsView = CachedRayTracingInstanceTransforms;
-	RayTracingInstance.NumTransforms = CachedRayTracingInstanceTransforms.Num();
-	
-	// When we are running with NaniteRT we need to force materials to come from LOD0.
-	// TODO: Figure out a better place to do it.
-	const int32 ValidLODIndexForMaterials = GetRayTracingMode() != ERayTracingMode::Fallback ? 0 : ValidLODIndex;
-	
-	// Currently we only support 1 material when using procedural ray tracing primitive
-	const bool bProcedural = RayTracingInstance.Geometry && RayTracingInstance.Geometry->Initializer.GeometryType == RTGT_Procedural;
-	const int32 NumRayTracingMaterialEntries = bProcedural ? 1 : RenderData->LODResources[ValidLODIndex].Sections.Num();
-
-	// Setup the cached materials again when the LOD changes
-	if (NumRayTracingMaterialEntries != CachedRayTracingMaterials.Num() || ValidLODIndex != CachedRayTracingMaterialsLODIndex)
-	{
-		CachedRayTracingMaterials.Reset();
-		CachedRayTracingMaterials.SetNum(NumRayTracingMaterialEntries);
-
-		SetupRayTracingMaterials(ValidLODIndex, CachedRayTracingMaterials, bUsingNaniteRayTracing);
-		CachedRayTracingMaterialsLODIndex = ValidLODIndex;
-
-		// Request rebuild
-		CachedRayTracingInstanceMaskAndFlags.Mask = 0;
-	}
-
-	RayTracingInstance.MaterialsView = CachedRayTracingMaterials;
-
-	if (CachedRayTracingInstanceMaskAndFlags.Mask == 0)
-	{
-		CachedRayTracingInstanceMaskAndFlags = Context.BuildInstanceMaskAndFlags(RayTracingInstance, *this);
-	}
-	
-	// Skip computing the mask and flags in the renderer since we are using cached values.
-	RayTracingInstance.bInstanceMaskAndFlagsDirty = false;
-	RayTracingInstance.MaskAndFlags = CachedRayTracingInstanceMaskAndFlags;
+	ensureMsgf(GetFirstValidRaytracingGeometryLODIndex() == INDEX_NONE,
+		TEXT("Unexpected valid raytracing geometry found. ")
+		TEXT("Cached raytracing instance should be updated after mesh is streamted in."));
 }
 
 ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingInstance& RayTracingInstance)
