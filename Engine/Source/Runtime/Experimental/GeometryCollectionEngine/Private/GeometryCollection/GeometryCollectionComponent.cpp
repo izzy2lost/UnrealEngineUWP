@@ -5834,6 +5834,13 @@ void UGeometryCollectionComponent::SetEnableDamageFromCollision(bool bValue)
 	}
 }
 
+void UGeometryCollectionComponent::OnComponentCollisionSettingsChanged(bool bUpdateOverlaps)
+{
+	Super::OnComponentCollisionSettingsChanged(bUpdateOverlaps);
+
+	BuildInitialFilterData();
+	LoadCollisionProfiles();
+}
 
 #if WITH_EDITOR
 
