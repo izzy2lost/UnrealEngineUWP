@@ -66,7 +66,7 @@ bool FPackageReader::OpenPackageFile(FStringView InLongPackageName, FStringView 
 	Loader = IFileManager::Get().CreateFileReader(*PackageFilename);
 	bLoaderOwner = true;
 	EOpenPackageResult Tmp;
-	return OpenPackageFile(OutErrorCode ? *OutErrorCode : Tmp);
+	return OpenPackageFile(*(OutErrorCode ? OutErrorCode : &Tmp)); // do the ternary on pointers rather than references, because static analysis complains
 }
 
 bool FPackageReader::OpenPackageFile(FArchive* InLoader, EOpenPackageResult* OutErrorCode)
@@ -77,7 +77,7 @@ bool FPackageReader::OpenPackageFile(FArchive* InLoader, EOpenPackageResult* Out
 	LongPackageName.Empty();
 	PackageFilename = Loader->GetArchiveName();
 	EOpenPackageResult Tmp;
-	return OpenPackageFile(OutErrorCode ? *OutErrorCode : Tmp);
+	return OpenPackageFile(*(OutErrorCode ? OutErrorCode : &Tmp)); // do the ternary on pointers rather than references, because static analysis complains
 }
 
 bool FPackageReader::OpenPackageFile(TUniquePtr<FArchive> InLoader, EOpenPackageResult* OutErrorCode)
@@ -88,7 +88,7 @@ bool FPackageReader::OpenPackageFile(TUniquePtr<FArchive> InLoader, EOpenPackage
 	LongPackageName.Empty();
 	PackageFilename = Loader->GetArchiveName();
 	EOpenPackageResult Tmp;
-	return OpenPackageFile(OutErrorCode ? *OutErrorCode : Tmp);
+	return OpenPackageFile(*(OutErrorCode ? OutErrorCode : &Tmp)); // do the ternary on pointers rather than references, because static analysis complains
 }
 
 bool FPackageReader::OpenPackageFile(EOpenPackageResult& OutErrorCode)

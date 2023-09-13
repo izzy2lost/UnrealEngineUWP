@@ -1622,7 +1622,7 @@ void FString::ConvertTabsToSpacesInline(const int32 InSpacesPerTab)
 	//must call this with at least 1 space so the modulus operation works
 	check(InSpacesPerTab > 0);
 
-	int32 TabIndex;
+	int32 TabIndex = 0;
 	while ((TabIndex = Find(CHARTEXT(ElementType, "\t"), ESearchCase::CaseSensitive)) != INDEX_NONE )
 	{
 		FString RightSide = Mid(TabIndex+1);
