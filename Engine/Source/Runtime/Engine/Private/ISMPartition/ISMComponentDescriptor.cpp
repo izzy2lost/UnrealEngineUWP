@@ -115,6 +115,8 @@ void FISMComponentDescriptorBase::InitFrom(const UStaticMeshComponent* Template,
 	bReverseCulling = Template->bReverseCulling != bIsLocalToWorldDeterminantNegative;
 	bUseDefaultCollision = Template->bUseDefaultCollision;
 	bGenerateOverlapEvents = Template->GetGenerateOverlapEvents();
+	bOverrideNavigationExport = Template->bOverrideNavigationExport;
+	bForceNavigationObstacle = Template->bForceNavigationObstacle;
 
 #if WITH_EDITORONLY_DATA
 	HLODBatchingPolicy = Template->HLODBatchingPolicy;
@@ -218,6 +220,8 @@ bool FISMComponentDescriptorBase::operator==(const FISMComponentDescriptorBase& 
 	bUseGpuLodSelection == Other.bUseGpuLodSelection &&
 	bUseDefaultCollision == Other.bUseDefaultCollision &&
 	bGenerateOverlapEvents == Other.bGenerateOverlapEvents &&
+	bOverrideNavigationExport == Other.bOverrideNavigationExport &&
+	bForceNavigationObstacle == Other.bForceNavigationObstacle &&
 	WorldPositionOffsetDisableDistance == Other.WorldPositionOffsetDisableDistance &&
 	ShadowCacheInvalidationBehavior == Other.ShadowCacheInvalidationBehavior &&
 	DetailMode == Other.DetailMode &&
@@ -332,6 +336,8 @@ void FISMComponentDescriptorBase::InitComponent(UInstancedStaticMeshComponent* I
 	ISMComponent->bUseGpuLodSelection = bUseGpuLodSelection;
 	ISMComponent->bUseDefaultCollision = bUseDefaultCollision;
 	ISMComponent->SetGenerateOverlapEvents(bGenerateOverlapEvents);
+	ISMComponent->bOverrideNavigationExport = bOverrideNavigationExport;
+	ISMComponent->bForceNavigationObstacle = bForceNavigationObstacle;
 	ISMComponent->WorldPositionOffsetDisableDistance = WorldPositionOffsetDisableDistance;
 	ISMComponent->ShadowCacheInvalidationBehavior = ShadowCacheInvalidationBehavior;
 	ISMComponent->DetailMode = DetailMode;
