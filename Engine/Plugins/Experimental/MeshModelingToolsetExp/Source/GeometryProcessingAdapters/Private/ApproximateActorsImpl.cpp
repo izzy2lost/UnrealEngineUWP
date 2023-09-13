@@ -1049,12 +1049,23 @@ void FApproximateActorsImpl::GenerateApproximationForActorSet(const FInput& Inpu
 	SceneBuildOptions.bOnlySurfaceMaterials = true;				// don't include decal geometry in 3D mesh scene (will be included in renderings)
 	SceneBuildOptions.bEnableUVQueries = SceneBuildOptions.bEnableNormalsQueries = false;		// not required in this context, will reduce memory usage
 	SceneBuildOptions.bPrintDebugMessages = Options.bVerbose;
+
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(ApproximateActorsImpl_Generate_BuildScene);
 		TRACE_BOOKMARK(TEXT("ApproximateActors-Adding Actors"));
 		Scene->AddActors(Input.Actors);
 		TRACE_BOOKMARK(TEXT("ApproximateActors-Adding Components"));
 		Scene->AddComponents(Input.Components);
+	}
+
+	if (!Scene->IsValid())
+	{
+		UE_LOG(LogApproximateActors, Error, TEXT("No valid input actors/components - unable to generate mesh"));
+		ResultsOut.ResultCode = EResultCode::MeshGenerationFailed;
+		return;
+	}
+
+	{
 		TRACE_BOOKMARK(TEXT("ApproximateActors-Building Scene"));
 		Scene->Build(SceneBuildOptions);
 	}

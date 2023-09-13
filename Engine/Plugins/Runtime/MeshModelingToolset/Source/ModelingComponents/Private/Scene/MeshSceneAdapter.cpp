@@ -1505,6 +1505,10 @@ void FMeshSceneAdapter::InitializeSpatialWrappers(const TArray<FActorAdapter*>& 
 	}
 }
 
+bool FMeshSceneAdapter::IsValid() const
+{
+	return !SpatialAdapters.IsEmpty();
+}
 
 void FMeshSceneAdapter::Build(const FMeshSceneAdapterBuildOptions& BuildOptions)
 {
