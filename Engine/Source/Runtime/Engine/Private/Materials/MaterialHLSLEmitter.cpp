@@ -419,6 +419,16 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 		OutEnvironment.SetDefine(TEXT("NEEDS_PARTICLE_SIZE"), TEXT("1"));
 	}
 
+	const bool bNeedsParticleSubUVs =
+		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::ParticleSubUVCoords0) ||
+		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::ParticleSubUVCoords1) ||
+		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::ParticleSubUVLerp);
+
+	if (bNeedsParticleSubUVs)
+	{
+		OutEnvironment.SetDefine(TEXT("USE_PARTICLE_SUBUVS"), TEXT("1"));
+	}
+
 	if (MaterialCompilationOutput.bNeedsSceneTextures)
 	{
 		OutEnvironment.SetDefine(TEXT("NEEDS_SCENE_TEXTURES"), TEXT("1"));

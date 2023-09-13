@@ -21,6 +21,12 @@
 #include "Materials/MaterialExpressionChannelMaskParameter.h"
 #include "Materials/MaterialExpressionCollectionParameter.h"
 #include "Materials/MaterialParameterCollection.h"
+#include "Materials/MaterialExpressionDecalColor.h"
+#include "Materials/MaterialExpressionDecalLifetimeOpacity.h"
+#include "Materials/MaterialExpressionDepthOfFieldFunction.h"
+#include "Materials/MaterialExpressionParticleSubUVProperties.h"
+#include "Materials/MaterialExpressionPathTracingQualitySwitch.h"
+#include "Materials/MaterialExpressionThinTranslucentMaterialOutput.h"
 #include "Materials/MaterialExpressionDynamicParameter.h"
 #include "Materials/MaterialExpressionCurveAtlasRowParameter.h"
 #include "Materials/MaterialExpressionStaticSwitchParameter.h"
@@ -741,6 +747,31 @@ bool UMaterialExpressionCameraVectorWS::GenerateHLSLExpression(FMaterialHLSLGene
 	using namespace UE::HLSLTree::Material;
 	OutExpression = Generator.GetTree().NewExpression<FExpressionExternalInput>(EExternalInput::CameraVector);
 	return true;
+}
+
+bool UMaterialExpressionParticleSubUVProperties::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree::Material;
+	EExternalInput Input = EExternalInput::None;
+	switch (OutputIndex)
+	{
+	case 0:
+		Input = EExternalInput::ParticleSubUVCoords0; break;
+	case 1:
+		Input = EExternalInput::ParticleSubUVCoords1; break;
+	case 2:
+		Input = EExternalInput::ParticleSubUVLerp; break;
+	default:
+		checkNoEntry();
+		break;
+
+	}
+	
+	if (Input != EExternalInput::None)
+	{
+		OutExpression = Generator.GetTree().NewExpression<FExpressionExternalInput>(Input);
+	}
+	return OutExpression != nullptr;
 }
 
 bool UMaterialExpressionViewProperty::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
@@ -1900,6 +1931,50 @@ bool UMaterialExpressionSign::GenerateHLSLExpression(FMaterialHLSLGenerator& Gen
 	}
 	OutExpression = Generator.GetTree().NewUnaryOp(EOperation::Sign, InputExpression);
 	return true;
+}
+
+bool UMaterialExpressionDecalLifetimeOpacity::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	OutExpression = Generator.GetTree().NewExpression<UE::HLSLTree::FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float1, TEXT("DecalLifetimeOpacity()"));
+	return true;
+}
+
+bool UMaterialExpressionDecalColor::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	OutExpression = Generator.GetTree().NewExpression<UE::HLSLTree::FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float4, TEXT("DecalColor()"));
+	return true;
+}
+
+bool UMaterialExpressionPathTracingQualitySwitch::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	if (!Normal.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing PathTracingQualitySwitch input 'Normal'"));
+	}
+	else if (!PathTraced.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing PathTracingQualitySwitch input 'PathTraced'"));
+	}
+	else
+	{
+		using namespace UE::HLSLTree;
+		const FExpression* NormalExpression = Normal.AcquireHLSLExpression(Generator, Scope);
+		const FExpression* PathTracedExpression = PathTraced.AcquireHLSLExpression(Generator, Scope);
+		const FExpression* ConditionExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Bool1, TEXT("GetPathTracingQualitySwitch()"));
+
+		OutExpression = Generator.GetTree().NewExpression<FExpressionSelect>(ConditionExpression, PathTracedExpression, NormalExpression);
+		return true;
+	}
+}
+
+bool UMaterialExpressionDepthOfFieldFunction::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	//const FExpression* ExpressionDepth = Depth.AcquireHLSLExpression(Generator, Scope);
+	//FunctionValue
+	//MaterialExpressionDepthOfFieldFunction(%s, %d)
+	return Generator.Error(TEXT("UMaterialExpressionDepthOfFieldFunction::GenerateHLSLExpression unimplemented"));
 }
 
 static bool GenerateHLSLExpressionTrig(FMaterialHLSLGenerator& Generator,
@@ -3136,9 +3211,20 @@ bool UMaterialExpressionVolumetricAdvancedMaterialOutput::GenerateHLSLExpression
 	case 4: OutExpression = MultiScatteringOcclusion.AcquireHLSLExpressionOrConstant(Generator, Scope, ConstMultiScatteringOcclusion); break;
 	case 5: OutExpression = MultiScatteringEccentricity.AcquireHLSLExpressionOrConstant(Generator, Scope, ConstMultiScatteringEccentricity); break;
 	case 6: OutExpression = ConservativeDensity.AcquireHLSLExpressionOrConstant(Generator, Scope, FVector4f(1.0f, 1.0f, 1.0f, 1.0f)); break;
-	default: return Generator.Error(TEXT("Invlid output"));
+	default: return Generator.Error(TEXT("Invalid output"));
 	}
 	return OutExpression != nullptr;
+}
+
+bool UMaterialExpressionThinTranslucentMaterialOutput::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	if (OutputIndex == 0)
+	{
+		OutExpression = TransmittanceColor.AcquireHLSLExpressionOrConstant(Generator, Scope, FVector3f(0.5f, 0.5f, 0.5f));
+		return true;
+	}
+
+	return Generator.Error(TEXT("Invalid output"));
 }
 
 UE::Shader::EValueType UMaterialExpressionVolumetricAdvancedMaterialOutput::GetCustomOutputType(int32 OutputIndex) const
@@ -3150,14 +3236,12 @@ UE::Shader::EValueType UMaterialExpressionVolumetricAdvancedMaterialOutput::GetC
 
 bool UMaterialExpressionVolumetricCloudEmptySpaceSkippingInput::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
-	check(false);	// TODO implement when the new compiler is enabled
-	return OutExpression != nullptr;
+	return Generator.Error(TEXT("UMaterialExpressionVolumetricCloudEmptySpaceSkippingInput::GenerateHLSLExpression unimplemented"));
 }
 
 bool UMaterialExpressionVolumetricCloudEmptySpaceSkippingOutput::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
-	check(false);	// TODO implement when the new compiler is enabled
-	return OutExpression != nullptr;
+	return Generator.Error(TEXT("UMaterialExpressionVolumetricCloudEmptySpaceSkippingOutput::GenerateHLSLExpression unimplemented"));
 }
 
 UE::Shader::EValueType UMaterialExpressionVolumetricCloudEmptySpaceSkippingOutput::GetCustomOutputType(int32 OutputIndex) const

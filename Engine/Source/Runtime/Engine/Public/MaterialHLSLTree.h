@@ -187,6 +187,9 @@ enum class EExternalInput : uint8
 	ParticleRelativeTime,
 	ParticleRandom,
 	ParticleSize,
+	ParticleSubUVCoords0,
+	ParticleSubUVCoords1,
+	ParticleSubUVLerp,
 
 	IsOrthographic,
 

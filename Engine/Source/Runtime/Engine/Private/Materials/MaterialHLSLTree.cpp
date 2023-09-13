@@ -149,6 +149,9 @@ FExternalInputDescription GetExternalInputDescription(EExternalInput Input)
 	case EExternalInput::ParticleRelativeTime: return FExternalInputDescription(TEXT("ParticleRelativeTime"), Shader::EValueType::Float1);
 	case EExternalInput::ParticleRandom: return FExternalInputDescription(TEXT("ParticleRandom"), Shader::EValueType::Float1);
 	case EExternalInput::ParticleSize: return FExternalInputDescription(TEXT("ParticleSize"), Shader::EValueType::Float2);
+	case EExternalInput::ParticleSubUVCoords0: return FExternalInputDescription(TEXT("ParticleSubUVCoords0"), Shader::EValueType::Float2);
+	case EExternalInput::ParticleSubUVCoords1: return FExternalInputDescription(TEXT("ParticleSubUVCoords1"), Shader::EValueType::Float2);
+	case EExternalInput::ParticleSubUVLerp: return FExternalInputDescription(TEXT("ParticleSubUVLerp"), Shader::EValueType::Float1);
 
 	case EExternalInput::IsOrthographic: return FExternalInputDescription(TEXT("IsOrthographic"), Shader::EValueType::Float1);
 
@@ -344,6 +347,9 @@ void FExpressionExternalInput::EmitValueShader(FEmitContext& Context, FEmitScope
 		case EExternalInput::ParticleRelativeTime: Code = TEXT("Parameters.Particle.RelativeTime"); break;
 		case EExternalInput::ParticleRandom: Code = TEXT("Parameters.Particle.Random"); break;
 		case EExternalInput::ParticleSize: Code = TEXT("Parameters.Particle.Size"); break;
+		case EExternalInput::ParticleSubUVCoords0: Code = TEXT("Parameters.Particle.SubUVCoords[0].xy"); break;
+		case EExternalInput::ParticleSubUVCoords1: Code = TEXT("Parameters.Particle.SubUVCoords[1].xy"); break;
+		case EExternalInput::ParticleSubUVLerp: Code = TEXT("Parameters.Particle.SubUVLerp"); break;
 
 		case EExternalInput::IsOrthographic: Code = TEXT("((View.ViewToClip[3][3] < 1.0f) ? 0.0f : 1.0f)"); break;
 
