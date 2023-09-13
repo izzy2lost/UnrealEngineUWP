@@ -149,6 +149,39 @@ namespace GameFeatureVersePathMapper
 		return FString::Format(*ChunkPatternFormat, FStringFormatNamedArguments{ {TEXT("Chunk"), Chunk} });
 	}
 
+	TArray<int32> GetAlwaysResidentChunks()
+	{
+		TArray<int32> AlwaysResidentChunks;
+
+		TArray<FString> AlwaysResidentChunksStr;
+		if (!GConfig->GetArray(TEXT("GameFeaturePlugins"), TEXT("GFPAlwaysResidentChunks"), AlwaysResidentChunksStr, GInstallBundleIni))
+		{
+			AlwaysResidentChunks.Empty(1);
+			AlwaysResidentChunks.Add(0);
+		}
+		else
+		{
+			AlwaysResidentChunks.Empty(AlwaysResidentChunksStr.Num());
+			for (const FString& ChunkStr : AlwaysResidentChunksStr)
+			{
+				AlwaysResidentChunks.Add(FCString::Atoi(*ChunkStr));
+			}
+		}
+
+		return AlwaysResidentChunks;
+	}
+
+	TArray<FString> GetAlwaysResidentBundles()
+	{
+		TArray<FString> AlwaysResidentBundles;
+		if (!GConfig->GetArray(TEXT("GameFeaturePlugins"), TEXT("GFPAlwaysResidentBundles"), AlwaysResidentBundles, GInstallBundleIni))
+		{
+			AlwaysResidentBundles.Empty();
+		}
+
+		return AlwaysResidentBundles;
+	}
+
 	FString GetDevARPathForPlatform(FStringView PlatformName)
 	{
 		return FPaths::Combine(
@@ -233,6 +266,11 @@ namespace GameFeatureVersePathMapper
 		{
 			AR.EnumerateAssets(Filter, Callback);
 		});
+	}
+
+	bool IsChunkAlwaysResident(TConstArrayView<int32> AlwaysResidentChunks, int32 Chunk)
+	{
+		return Chunk < 0 || AlwaysResidentChunks.Contains(Chunk);
 	}
 
 	bool FDepthFirstGameFeatureSorter::Visit(const FName Plugin, TFunctionRef<void(FName, const FString&)> AddOutput)
@@ -332,6 +370,9 @@ namespace GameFeatureVersePathMapper
 		const FString GameFeatureRootVersePath = GetGameFeatureRootVersePath();
 		const FString ChunkPatternFormat = GetChunkPatternFormat();
 
+		const TArray<int32> AlwaysResidentChunks = GetAlwaysResidentChunks();
+		const TArray<FString> AlwaysResidentBundles = GetAlwaysResidentBundles();
+
 		FGameFeatureVersePathLookup Output;
 		for (const TPair<FString, int32>& Pair : GFPChunks)
 		{
@@ -365,10 +406,10 @@ namespace GameFeatureVersePathMapper
 			const FString DescriptorFileName = FPaths::CreateStandardFilename(Plugin->GetDescriptorFileName());
 
 			const int32 Chunk = Pair.Value;
-			const FString ChunkPattern = Chunk > 0 ? GetChunkPattern(ChunkPatternFormat, Chunk) : FString();
+			const FString ChunkPattern = IsChunkAlwaysResident(AlwaysResidentChunks, Chunk) ? FString() : GetChunkPattern(ChunkPatternFormat, Chunk);
 			const FString InstallBundleName = InstallBundleResolver.Resolve(PluginNameView, ChunkPattern);
 
-			GfpInfo.GfpUri = InstallBundleName.IsEmpty() ?
+			GfpInfo.GfpUri = (InstallBundleName.IsEmpty() || AlwaysResidentBundles.Contains(InstallBundleName)) ?
 				UGameFeaturesSubsystem::GetPluginURL_FileProtocol(DescriptorFileName) :
 				UGameFeaturesSubsystem::GetPluginURL_InstallBundleProtocol(DescriptorFileName, InstallBundleName);
 
