@@ -11,7 +11,6 @@
 #include "Materials/MaterialFunction.h"
 #include "Misc/PackageName.h"
 
-
 #define MATERIALX_FUNCTIONS_SUBSTRATE_PATH(Name)  \
 	constexpr const TCHAR* Name##FunctionsPath = TEXT("/Interchange/Functions/") TEXT("MX_") TEXT(#Name) TEXT(".") TEXT("MX_") TEXT(#Name);  \
 	constexpr const TCHAR* Name##SubstratePath = TEXT("/Interchange/Substrate/") TEXT("MX_") TEXT(#Name) TEXT(".") TEXT("MX_") TEXT(#Name);
@@ -20,9 +19,11 @@
 	MaterialXSettings->bIsSubstrateEnabled ? Name##FunctionsPath : Name##SubstratePath
 
 namespace
-{	
-	MATERIALX_FUNCTIONS_SUBSTRATE_PATH(StandardSurface);
-	MATERIALX_FUNCTIONS_SUBSTRATE_PATH(TransmissionSurface);
+{
+	constexpr const TCHAR* StandardSurfaceFunctionsPath = TEXT("/Interchange/Functions/MX_StandardSurface.MX_StandardSurface");
+	constexpr const TCHAR* StandardSurfaceSubstratePath = TEXT("/Engine/Functions/Strata/Substrate-StandardSurface-Opaque.Substrate-StandardSurface-Opaque");
+	constexpr const TCHAR* TransmissionSurfaceFunctionsPath = TEXT("/Interchange/Functions/MX_TransmissionSurface.MX_TransmissionSurface");
+	constexpr const TCHAR* TransmissionSurfaceSubstratePath = TEXT("/Engine/Functions/Strata/Substrate-StandardSurface-Translucent.Substrate-StandardSurface-Translucent");
 	MATERIALX_FUNCTIONS_SUBSTRATE_PATH(SurfaceUnlit);
 	MATERIALX_FUNCTIONS_SUBSTRATE_PATH(Surface);
 	MATERIALX_FUNCTIONS_SUBSTRATE_PATH(UsdPreviewSurface);
@@ -144,10 +145,10 @@ UMaterialXPipelineSettings::UMaterialXPipelineSettings()
 						UE::Interchange::Materials::StandardSurface::Parameters::TransmissionScatterAnisotropy,
 						UE::Interchange::Materials::StandardSurface::Parameters::TransmissionDispersion,
 						UE::Interchange::Materials::StandardSurface::Parameters::TransmissionExtraRoughness,
-						UE::Interchange::Materials::StandardSurface::Parameters::Subsurface,
-						UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceColor,
-						UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceRadius,
-						UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceScale,
+						!bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::Subsurface : FName{},
+						!bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceColor : FName{},
+						!bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceRadius : FName{},
+						!bIsSubstrateEnabled ? UE::Interchange::Materials::StandardSurface::Parameters::SubsurfaceScale : FName{},
 						UE::Interchange::Materials::StandardSurface::Parameters::Sheen,
 						UE::Interchange::Materials::StandardSurface::Parameters::SheenColor,
 						UE::Interchange::Materials::StandardSurface::Parameters::SheenRoughness,
