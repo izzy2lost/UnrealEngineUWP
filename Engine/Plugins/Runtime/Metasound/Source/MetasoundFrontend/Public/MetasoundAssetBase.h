@@ -29,6 +29,8 @@ namespace Metasound
 		class IInterfaceRegistryEntry;
 
 		METASOUNDFRONTEND_API float GetDefaultBlockRate();
+
+		class FProxyDataCache;
 	} // namespace Frontend
 } // namespace Metasound
 
@@ -247,5 +249,5 @@ private:
 	FGuid CurrentCachedRuntimeDataChangeID;
 	FRuntimeData CachedRuntimeData;
 
-	TSharedPtr<Metasound::FGraph, ESPMode::ThreadSafe> BuildMetasoundDocument(const FMetasoundFrontendDocument& InPreprocessDoc, const TSet<FName>& InTransmittableInputNames) const;
+	TSharedPtr<Metasound::FGraph, ESPMode::ThreadSafe> BuildMetasoundDocument(const FMetasoundFrontendDocument& InPreprocessDoc, const Metasound::Frontend::FProxyDataCache& InProxies) const;
 };

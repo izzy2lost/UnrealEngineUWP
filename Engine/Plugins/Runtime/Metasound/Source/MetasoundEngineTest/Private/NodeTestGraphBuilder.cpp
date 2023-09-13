@@ -88,7 +88,7 @@ namespace Metasound::Test
 		
 		const TSet<FName> TransmittableInputNames;
 		const FString UnknownAsset = TEXT("UnknownAsset");
-		if (const TUniquePtr<FFrontendGraph> Graph = FFrontendGraphBuilder::CreateGraph(Document, TransmittableInputNames, UnknownAsset))
+		if (const TUniquePtr<FFrontendGraph> Graph = FFrontendGraphBuilder::CreateGraph(Document, UnknownAsset))
 		{
 			FOperatorBuilderSettings BuilderSettings;
 			BuilderSettings.bFailOnAnyError = true;
