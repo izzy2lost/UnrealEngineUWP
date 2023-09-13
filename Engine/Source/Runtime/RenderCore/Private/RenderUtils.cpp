@@ -1606,10 +1606,16 @@ static TAutoConsoleVariable<int32> CVarSubstrate(
 	TEXT("Enable Substrate materials (Beta)."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarSubstrateBytePerPixel(
+static TAutoConsoleVariable<int32> CVarSubstrateBytesPerPixel(
 	TEXT("r.Substrate.BytesPerPixel"),
 	80,
 	TEXT("Substrate allocated byte per pixel to store materials data. Higher value means more complex material can be represented."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarSubstrateClosuresPerPixel(
+	TEXT("r.Substrate.ClosuresPerPixel"),
+	8,	// Similar to SUBSTRATE_MAX_BSDF_COUNT
+	TEXT("Substrate closure count per pixel can be constrained. That is usefull to reduce the number of byte written durting the base pass, but also to limit the number of closures in Forward. Higher value means more complex material can be represented."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarSubstrateBackCompatibility(
@@ -1724,14 +1730,21 @@ namespace Substrate
 
 	uint32 GetBytePerPixel()
 	{
-		return InternalGetBytePerPixel(CVarSubstrateBytePerPixel.GetValueOnAnyThread());
+		return InternalGetBytePerPixel(CVarSubstrateBytesPerPixel.GetValueOnAnyThread());
 	}
 
 	uint32 GetBytePerPixel(EShaderPlatform InPlatform)
 	{
 		// Variant for shader compilation per platform
-		static FShaderPlatformCachedIniValue<int32> CVarBudget(TEXT("r.Substrate.BytesPerPixel"));
-		return InternalGetBytePerPixel(CVarBudget.Get(InPlatform));
+		static FShaderPlatformCachedIniValue<int32> CVarByteBudget(TEXT("r.Substrate.BytesPerPixel"));
+		return InternalGetBytePerPixel(CVarByteBudget.Get(InPlatform));
+	}
+
+	uint32 GetClosurePerPixel(EShaderPlatform InPlatform)
+	{
+		// Variant for shader compilation per platform
+		static FShaderPlatformCachedIniValue<int32> CVarClosureBudget(TEXT("r.Substrate.ClosuresPerPixel"));
+		return uint32(FMath::Max(0, CVarClosureBudget.Get(InPlatform)));
 	}
 
 	uint32 GetNormalQuality()

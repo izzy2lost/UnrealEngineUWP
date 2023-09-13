@@ -2331,6 +2331,7 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 			{
 				// Output some debug info as comment in code and in the material stat window
 				const uint32 SubstrateBytePerPixel = Substrate::GetBytePerPixel(InPlatform);
+				const uint32 SubstrateClosurePerPixel = Substrate::GetClosurePerPixel(InPlatform);
 				FString SubstrateMaterialContextDescription;
 
 				auto GetSubstrateCompilationContextName = [](uint32 Index)
@@ -2350,11 +2351,14 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 
 				SubstrateMaterialContextDescription += FString::Printf(TEXT("----- SUBSTRATE - %s -----\r\n"), *SubstrateCompilationContextName);
 				SubstrateMaterialContextDescription += FString::Printf(TEXT("SubstrateCompilationInfo -\r\n"));
-				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Byte Per Pixel Budget                      %u\r\n"), SubstrateBytePerPixel);
-				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Requested Byte Size before simplification  %u (%d UINT32)\r\n"), SubstrateSimplificationStatus.OriginalRequestedByteSize, SubstrateSimplificationStatus.OriginalRequestedByteSize / 4);
-				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Requested Byte Size after simplification   %u (%d UINT32)\r\n"), SubstrateCtx.SubstrateMaterialRequestedSizeByte, SubstrateCtx.SubstrateMaterialRequestedSizeByte / 4);
-				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Material complexity                        %s\r\n"), SubstrateCtx.bSubstrateMaterialIsSingle ? TEXT("SINGLE") : (SubstrateCtx.bSubstrateMaterialIsSimple ? TEXT("SIMPLE") : TEXT("COMPLEX")));
-				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - TotalBSDFCount                             %i\r\n"), SubstrateCtx.SubstrateMaterialBSDFCount);
+				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Byte Per Pixel Budget                           %u\r\n"), SubstrateBytePerPixel);
+				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Closure Per Pixel Budget                        %u\r\n"), SubstrateClosurePerPixel);
+				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Requested Byte Size before simplification       %u (%d UINT32)\r\n"), SubstrateSimplificationStatus.OriginalRequestedByteSize, SubstrateSimplificationStatus.OriginalRequestedByteSize / 4);
+				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Requested Byte Size after simplification        %u (%d UINT32)\r\n"), SubstrateCtx.SubstrateMaterialRequestedSizeByte, SubstrateCtx.SubstrateMaterialRequestedSizeByte / 4);
+				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Requested Closure Count before simplification   %u\r\n"), SubstrateSimplificationStatus.OriginalRequestedClosureCount);
+				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Requested Closure Count after simplification    %u\r\n"), SubstrateCtx.SubstrateMaterialClosureCount);
+				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Material complexity                             %s\r\n"), SubstrateCtx.bSubstrateMaterialIsSingle ? TEXT("SINGLE") : (SubstrateCtx.bSubstrateMaterialIsSimple ? TEXT("SIMPLE") : TEXT("COMPLEX")));
+				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - BSDF Count                                      %i\r\n"), SubstrateCtx.SubstrateMaterialBSDFCount); // REMOVE?
 				if (RequestedSharedLocalBasesCount > SUBSTRATE_MAX_SHAREDLOCALBASES_REGISTERS)
 				{
 					SubstrateMaterialDescription += FString::Printf(TEXT(" - SharedLocalBasesCount                      %i (Requested:%i)\r\n"), SubstrateCtx.FinalUsedSharedLocalBasesCount, RequestedSharedLocalBasesCount);
@@ -11627,8 +11631,9 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 		}
 	}
 
-
-	const uint32 SubstrateBytePerPixel = Compiler->SubstrateCompilationConfig.BytesPerPixelOverride > 0 ? Compiler->SubstrateCompilationConfig.BytesPerPixelOverride : Substrate::GetBytePerPixel(Compiler->GetShaderPlatform());
+	EShaderPlatform ShaderPlatform = Compiler->GetShaderPlatform();
+	const uint32 SubstrateBytePerPixel = Compiler->SubstrateCompilationConfig.BytesPerPixelOverride > 0 ? Compiler->SubstrateCompilationConfig.BytesPerPixelOverride : Substrate::GetBytePerPixel(ShaderPlatform);
+	const uint32 SubstrateClosurePerPixel = Compiler->SubstrateCompilationConfig.ClosuresPerPixelOverride > 0 ? Compiler->SubstrateCompilationConfig.ClosuresPerPixelOverride : Substrate::GetClosurePerPixel(ShaderPlatform);
 
 	bool bFirstLoop = true;
 	do 
@@ -12027,6 +12032,7 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 			static_assert(SUBSTRATE_MAX_BSDF_COUNT					<= (1u << SUBSTRATE_BSDF_OFFSET_BIT_COUNT));
 			const uint32 BSDFMaxByteCountForOffset = uint32(1u << SUBSTRATE_BSDF_OFFSET_BIT_COUNT) * sizeof(uint32);
 			uint32 OperatorCount = 0;
+			SubstrateMaterialClosureCount = 0;
 			for (auto& It : SubstrateMaterialExpressionRegisteredOperators)
 			{
 				if (It.IsDiscarded())
@@ -12043,6 +12049,9 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 				{
 				case SUBSTRATE_OPERATOR_BSDF:
 				{
+					// we have encountered a new BSDF which directly link to a single closure evaluation
+					SubstrateMaterialClosureCount++;
+
 					// From the compiler side, we can only assume the top layer has gray scale luminance weight.
 					const bool bMayHaveColoredWeight = !It.bIsTop;
 
@@ -12172,7 +12181,7 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 				return false;
 			}
 
-			SubstrateSimplificationStatus.bMaterialFitsInMemoryBudget = SubstrateMaterialRequestedSizeByte <= SubstrateBytePerPixel;
+			SubstrateSimplificationStatus.bMaterialFitsInMemoryBudget = (SubstrateMaterialRequestedSizeByte <= SubstrateBytePerPixel) && (SubstrateMaterialClosureCount <= SubstrateClosurePerPixel);
 			if (!SubstrateSimplificationStatus.bMaterialFitsInMemoryBudget && SubstrateSimplificationStatus.bFullSimplificationStepHasBeenRun && SubstrateSimplificationStatus.bSlabSimplificationStepHasBeenRun)
 			{
 				// If we have already run the full simplification but the material still does not fit in memory, we must fail the material compilation.
@@ -12183,6 +12192,7 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 			{
 				// Record the original requested byte size before simplification, only for the first pass.
 				SubstrateSimplificationStatus.OriginalRequestedByteSize = SubstrateMaterialRequestedSizeByte;
+				SubstrateSimplificationStatus.OriginalRequestedClosureCount = SubstrateMaterialClosureCount;
 			}
 			SubstrateSimplificationStatus.bFullSimplificationStepHasBeenRun |= SubstrateSimplificationStatus.bRunFullSimplification;
 
@@ -12201,6 +12211,9 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.SharedLocalBasesCount = 0; // FinalUsedSharedLocalBasesCount is not valid yet
 				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.RequestedBytePixePixel = SubstrateMaterialRequestedSizeByte;
 				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.PlatformBytePixePixel = SubstrateBytePerPixel;
+
+				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.RequestedClosurePerPixel = SubstrateSimplificationStatus.OriginalRequestedClosureCount;
+				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.PlatformClosurePixel = SubstrateMaterialClosureCount;
 
 				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.bIsThin = CompilerMaterial->IsThinSurface() ? 1 : 0;
 

@@ -40,8 +40,10 @@ private:
 
 	TSharedPtr<class SCheckBox> CheckBoxForceFullSimplification;
 	TSharedPtr<class SCheckBox> CheckBoxBytesPerPixelOverride;
+	TSharedPtr<class SCheckBox> CheckBoxClosuresPerPixelOverride;
 
 	TSharedPtr<class SNumericEntryBox<uint32>> BytesPerPixelOverrideInput;
+	TSharedPtr<class SNumericEntryBox<uint32>> ClosuresPerPixelOverrideInput;
 
 	TSharedPtr<class SButton> ButtonApplyToPreview;
 
@@ -65,5 +67,15 @@ private:
 	TOptional<uint32> GetBytesPerPixelValue() const;
 
 	void OnCheckBoxBytesPerPixelChanged(ECheckBoxState InCheckBoxState);
+
+	bool bClosuresPerPixelStartedTransaction;
+	uint32 ClosuresPerPixelOverride;
+	void OnClosuresPerPixelChanged(uint32 NewValue);
+	void OnClosuresPerPixelCommitted(uint32 NewValue, ETextCommit::Type InCommitType);
+	void OnBeginClosuresPerPixelSliderMovement();
+	void OnEndClosuresPerPixelSliderMovement(uint32 NewValue);
+	TOptional<uint32> GetClosuresPerPixelValue() const;
+
+	void OnCheckBoxClosuresPerPixelChanged(ECheckBoxState InCheckBoxState);
 };
 

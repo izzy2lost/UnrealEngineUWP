@@ -1998,6 +1998,10 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 			KeyString += FString::Printf(TEXT("_BUDGET%u"), Substrate::GetBytePerPixel(Platform));
 		}
 
+		{
+			KeyString += FString::Printf(TEXT("_CLOSURE%u"), Substrate::GetClosurePerPixel(Platform));
+		}
+
 		if (Substrate::IsDBufferPassEnabled(Platform))
 		{
 			KeyString += FString::Printf(TEXT("_DBUFFERPASS"));

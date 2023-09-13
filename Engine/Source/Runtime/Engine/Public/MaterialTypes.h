@@ -466,6 +466,7 @@ struct FSubstrateCompilationConfig
 {
 	bool bFullSimplify = false;
 	int16 BytesPerPixelOverride = -1;
+	int16 ClosuresPerPixelOverride = -1;
 
 	FString GetShaderMapKeyString() const;
 
@@ -475,7 +476,7 @@ struct FSubstrateCompilationConfig
 
 	friend inline bool operator==(const FSubstrateCompilationConfig& Lhs, const FSubstrateCompilationConfig& Rhs)
 	{
-		return Lhs.bFullSimplify == Rhs.bFullSimplify && Lhs.BytesPerPixelOverride == Rhs.BytesPerPixelOverride;
+		return Lhs.bFullSimplify == Rhs.bFullSimplify && Lhs.BytesPerPixelOverride == Rhs.BytesPerPixelOverride && Lhs.ClosuresPerPixelOverride == Rhs.ClosuresPerPixelOverride;
 	}
 
 	friend inline bool operator!=(const FSubstrateCompilationConfig& Lhs, const FSubstrateCompilationConfig& Rhs)

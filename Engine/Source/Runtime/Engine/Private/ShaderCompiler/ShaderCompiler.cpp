@@ -7982,6 +7982,9 @@ void GlobalBeginCompileShader(
 			const uint32 SubstrateUintPerPixel = Substrate::GetBytePerPixel(Target.GetPlatform()) / 4u;
 			SET_SHADER_DEFINE(Input.Environment, SUBSTRATE_MATERIAL_NUM_UINTS, SubstrateUintPerPixel);
 
+			const uint32 SubstrateClosurePerPixel = Substrate::GetClosurePerPixel(Target.GetPlatform());
+			SET_SHADER_DEFINE(Input.Environment, SUBSTRATE_MATERIAL_CLOSURE_COUNT, SubstrateClosurePerPixel);
+
 			const bool bTileCoord8Bits = Substrate::Is8bitTileCoordEnabled();
 			SET_SHADER_DEFINE(Input.Environment, USE_8BIT_TILE_COORD, bTileCoord8Bits ? 1 : 0);
 

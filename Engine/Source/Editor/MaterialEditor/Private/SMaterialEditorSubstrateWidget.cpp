@@ -62,6 +62,26 @@ void SMaterialEditorSubstrateWidget::Construct(const FArguments& InArgs, TWeakPt
 		.ToolTipText(LOCTEXT("CheckBoxBytesPerPixelOverride", "This will force the byte per pixel count for the preview material. It cannot go higher than the current project setting."))
 		.OnCheckStateChanged(this, &SMaterialEditorSubstrateWidget::OnCheckBoxBytesPerPixelChanged);
 
+	ClosuresPerPixelOverride = Substrate::GetClosurePerPixel(SP_PCD3D_SM5);
+	ClosuresPerPixelOverrideInput = SNew(SNumericEntryBox<uint32>)
+		.MinDesiredValueWidth(150.0f)
+		.MinValue(1)
+		.MaxValue(ClosuresPerPixelOverride)
+		.MinSliderValue(1)
+		.MaxSliderValue(ClosuresPerPixelOverride)
+		.OnBeginSliderMovement(this, &SMaterialEditorSubstrateWidget::OnBeginClosuresPerPixelSliderMovement)
+		.OnEndSliderMovement(this, &SMaterialEditorSubstrateWidget::OnEndClosuresPerPixelSliderMovement)
+		.AllowSpin(true)
+		.OnValueChanged(this, &SMaterialEditorSubstrateWidget::OnClosuresPerPixelChanged)
+		.OnValueCommitted(this, &SMaterialEditorSubstrateWidget::OnClosuresPerPixelCommitted)
+		.Value(this, &SMaterialEditorSubstrateWidget::GetClosuresPerPixelValue)
+		.IsEnabled(false);
+
+	CheckBoxClosuresPerPixelOverride = SNew(SCheckBox)
+		.Padding(5.0f)
+		.ToolTipText(LOCTEXT("CheckBoxClosuresPerPixelOverride", "This will force the byte per pixel count for the preview material. It cannot go higher than the current project setting."))
+		.OnCheckStateChanged(this, &SMaterialEditorSubstrateWidget::OnCheckBoxClosuresPerPixelChanged);
+
 	if (Substrate::IsSubstrateEnabled())
 	{
 		this->ChildSlot
@@ -172,6 +192,49 @@ void SMaterialEditorSubstrateWidget::Construct(const FArguments& InArgs, TWeakPt
 								.VAlign(VAlign_Center)
 								[
 									BytesPerPixelOverrideInput->AsShared()
+								]
+							]
+							+SHorizontalBox::Slot()
+							.AutoWidth()
+							.Padding(20.0, 0.0, 0.0, 0.0)
+							.HAlign(HAlign_Left)
+							.VAlign(VAlign_Center)
+							[
+								SNew(SWrapBox)
+								.UseAllottedSize(true)
+								+SWrapBox::Slot()
+								.Padding(5.0f)
+								.HAlign(HAlign_Left)
+								.VAlign(VAlign_Center)
+								[
+									CheckBoxClosuresPerPixelOverride->AsShared()
+								]
+							]
+							+SHorizontalBox::Slot()
+							.AutoWidth()
+							.Padding(0.0f)
+							.HAlign(HAlign_Left)
+							.VAlign(VAlign_Center)
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FLinearColor::White)
+								.ShadowColorAndOpacity(FLinearColor::Black)
+								.ShadowOffset(FVector2D::UnitVector)
+								.Text(LOCTEXT("OverrideClosuresPerPixel", "Override closures per pixel"))
+							]
+							+SHorizontalBox::Slot()
+							.MaxWidth(200)
+							.HAlign(HAlign_Left)
+							.VAlign(VAlign_Center)
+							[
+								SNew(SWrapBox)
+								.UseAllottedSize(true)
+								+SWrapBox::Slot()
+								.Padding(0.0, 0.0, 0.0, 0.0)
+								.HAlign(HAlign_Left)
+								.VAlign(VAlign_Center)
+								[
+									ClosuresPerPixelOverrideInput->AsShared()
 								]
 							]
 							+SHorizontalBox::Slot()
@@ -344,8 +407,9 @@ void SMaterialEditorSubstrateWidget::Tick(const FGeometry& AllottedGeometry, con
 
 				if (CompilationOutput.bMaterialOutOfBudgetHasBeenSimplified)
 				{
-					MaterialDescription += FString::Printf(TEXT("The material was OUT-OF-BUDGET so it has been fully simplified: request bytes = %i / budget = %i\r\n"),
-						CompilationOutput.RequestedBytePixePixel, CompilationOutput.PlatformBytePixePixel);
+					MaterialDescription += FString::Printf(TEXT("The material was OUT-OF-BUDGET so it has been fully simplified: Request bytes = %i / budget = %i  -  Request Closures = %i / budget = %i\r\n"),
+						CompilationOutput.RequestedBytePixePixel, CompilationOutput.PlatformBytePixePixel,
+						CompilationOutput.RequestedClosurePerPixel, CompilationOutput.PlatformClosurePixel);
 					MaterialDescription += FString::Printf(TEXT("Final per pixel byte count   = %i\r\n"),
 						FinalPixelByteCount);
 				}
@@ -514,6 +578,47 @@ void SMaterialEditorSubstrateWidget::OnCheckBoxBytesPerPixelChanged(ECheckBoxSta
 	BytesPerPixelOverrideInput->SetEnabled(InCheckBoxState == ECheckBoxState::Checked);
 }
 
+void SMaterialEditorSubstrateWidget::OnClosuresPerPixelChanged(uint32 NewValue)
+{
+	ClosuresPerPixelOverride = NewValue;
+}
+
+void SMaterialEditorSubstrateWidget::OnClosuresPerPixelCommitted(uint32 NewValue, ETextCommit::Type InCommitType)
+{
+	if (InCommitType == ETextCommit::OnEnter)
+	{
+		ClosuresPerPixelOverride = NewValue;
+	}
+}
+
+void SMaterialEditorSubstrateWidget::OnBeginClosuresPerPixelSliderMovement()
+{
+	if (bClosuresPerPixelStartedTransaction == false)
+	{
+		bClosuresPerPixelStartedTransaction = true;
+		GEditor->BeginTransaction(LOCTEXT("PastePoseTransation", "Paste Pose"));
+	}
+}
+void SMaterialEditorSubstrateWidget::OnEndClosuresPerPixelSliderMovement(uint32 NewValue)
+{
+	if (bClosuresPerPixelStartedTransaction)
+	{
+		GEditor->EndTransaction();
+		bClosuresPerPixelStartedTransaction = false;
+		ClosuresPerPixelOverride = NewValue;
+	}
+}
+
+TOptional<uint32> SMaterialEditorSubstrateWidget::GetClosuresPerPixelValue() const
+{
+	return ClosuresPerPixelOverride;
+}
+
+void SMaterialEditorSubstrateWidget::OnCheckBoxClosuresPerPixelChanged(ECheckBoxState InCheckBoxState)
+{
+	ClosuresPerPixelOverrideInput->SetEnabled(InCheckBoxState == ECheckBoxState::Checked);
+}
+
 FReply SMaterialEditorSubstrateWidget::OnButtonApplyToPreview()
 {
 	if (MaterialEditorPtr.IsValid())
@@ -523,8 +628,9 @@ FReply SMaterialEditorSubstrateWidget::OnButtonApplyToPreview()
 		FSubstrateCompilationConfig SubstrateCompilationConfig;
 		SubstrateCompilationConfig.bFullSimplify = CheckBoxForceFullSimplification->IsChecked();
 
-		// Have a look at MaterialStats.cpp when we want to visualise a specific platform.
-		SubstrateCompilationConfig.BytesPerPixelOverride = CheckBoxBytesPerPixelOverride->IsChecked() ? FMath::Clamp(BytesPerPixelOverride, 12, Substrate::GetBytePerPixel(GMaxRHIShaderPlatform)) : -1;
+		// Have a look at MaterialStats.cpp when we want to visualize a specific platform.
+		SubstrateCompilationConfig.BytesPerPixelOverride	= CheckBoxBytesPerPixelOverride->IsChecked()	? FMath::Clamp(BytesPerPixelOverride,		12,	Substrate::GetBytePerPixel(GMaxRHIShaderPlatform))		: -1;
+		SubstrateCompilationConfig.ClosuresPerPixelOverride = CheckBoxClosuresPerPixelOverride->IsChecked() ? FMath::Clamp(ClosuresPerPixelOverride,	1,	Substrate::GetClosurePerPixel(GMaxRHIShaderPlatform))	: -1;
 
 		MaterialInterface->SetSubstrateCompilationConfig(SubstrateCompilationConfig);
 

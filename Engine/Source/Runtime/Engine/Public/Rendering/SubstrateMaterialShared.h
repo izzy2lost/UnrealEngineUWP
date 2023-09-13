@@ -129,6 +129,11 @@ public:
 	/** The byte count per pixel supported by the platform the material has been compiled against */
 	LAYOUT_FIELD_EDITORONLY(uint8, PlatformBytePixePixel);
 
+	/** Material requested BSDF/closure count per pixel */
+	LAYOUT_FIELD_EDITORONLY(uint8, RequestedClosurePerPixel);
+	/** The closure count per pixel supported by the platform the material has been compiled against */
+	LAYOUT_FIELD_EDITORONLY(uint8, PlatformClosurePixel);
+
 	/** Indicate that the material is considered a thin surface instead of a volume filled up with matter */
 	LAYOUT_FIELD_EDITORONLY(uint8, bIsThin);
 	/** Indicate the final material type */

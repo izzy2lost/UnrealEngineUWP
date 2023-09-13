@@ -576,23 +576,25 @@ void FStaticParameterSet::SetStaticComponentMaskParameterValue(const FMaterialPa
 #if WITH_EDITOR
 FString FSubstrateCompilationConfig::GetShaderMapKeyString() const
 {
-	if (bFullSimplify)
-	{
-		return FString::Printf(TEXT("_STRTFS%i"), BytesPerPixelOverride < 0 ? 0 : BytesPerPixelOverride);
-	}
-	return TEXT("");
+	FString SubStrateCompStr;
+	if (bFullSimplify)					SubStrateCompStr += TEXT("_SBSTRFS");
+	if (BytesPerPixelOverride >= 0)		SubStrateCompStr += TEXT("_SBSTRBS");
+	if (ClosuresPerPixelOverride >= 0)	SubStrateCompStr += TEXT("_SBSTRCS");
+	return SubStrateCompStr;
 }
 
 void FSubstrateCompilationConfig::UpdateHash(FSHA1& Hasher) const
 {
 	Hasher.Update((const uint8*)(&bFullSimplify), sizeof(bFullSimplify));
 	Hasher.Update((const uint8*)(&BytesPerPixelOverride), sizeof(BytesPerPixelOverride));
+	Hasher.Update((const uint8*)(&ClosuresPerPixelOverride), sizeof(ClosuresPerPixelOverride));
 }
 
 void FSubstrateCompilationConfig::Serialize(FArchive& Ar)
 {
 	Ar << bFullSimplify;
 	Ar << BytesPerPixelOverride;
+	Ar << ClosuresPerPixelOverride;
 }
 #endif
 

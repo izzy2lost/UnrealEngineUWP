@@ -503,6 +503,7 @@ namespace Substrate
 
 	RENDERCORE_API uint32 GetBytePerPixel();
 	RENDERCORE_API uint32 GetBytePerPixel(EShaderPlatform InPlatform);
+	RENDERCORE_API uint32 GetClosurePerPixel(EShaderPlatform InPlatform);
 
 	RENDERCORE_API uint32 GetNormalQuality();
 

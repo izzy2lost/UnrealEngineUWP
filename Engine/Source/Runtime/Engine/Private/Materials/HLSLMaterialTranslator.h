@@ -432,6 +432,7 @@ protected:
 		bool bMaterialFitsInMemoryBudget = false;	// Track whether or not the material fits.
 
 		uint32 OriginalRequestedByteSize = 0;
+		uint32 OriginalRequestedClosureCount = 0;
 		bool bRunFullSimplification = false;	// Simple implementation for now: if the material does not fit, we simply everything.
 		bool bFullSimplificationStepHasBeenRun = false;
 
@@ -491,8 +492,9 @@ protected:
 		TMap<FGuid, int32> SubstrateMaterialExpressionToOperatorIndex;
 		TArray<FSubstrateOperator> SubstrateMaterialExpressionRegisteredOperators;
 		FSubstrateOperator* SubstrateMaterialRootOperator;
-		uint32 SubstrateMaterialBSDFCount;
+		uint32 SubstrateMaterialBSDFCount; // Also acts as requested 
 		uint32 SubstrateMaterialRequestedSizeByte;
+		uint32 SubstrateMaterialClosureCount;
 		bool bSubstrateMaterialIsSimple;
 		bool bSubstrateMaterialIsSingle;
 		bool bSubstrateMaterialIsUnlitNode;
