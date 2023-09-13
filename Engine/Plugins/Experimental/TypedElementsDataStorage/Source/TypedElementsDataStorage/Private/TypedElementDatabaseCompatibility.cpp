@@ -429,9 +429,9 @@ void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::Remov
 			// If memory size becomes an issue it's better to resize the array once after this loop rather than within the
 			// loop to avoid many resizes happening.
 			constexpr bool bAllowToShrink = false;
+			StorageInterface.RemoveRow(*RowHandleIt);
 			Addresses.RemoveAtSwap(AddressIt - AddressBegin, 1, bAllowToShrink);
 			ReservedRowHandles.RemoveAtSwap(RowHandleIt - RowHandleBegin, 1, bAllowToShrink);
-			StorageInterface.RemoveRow(*RowHandleIt);
 			--AddressEnd;
 		}
 	}
