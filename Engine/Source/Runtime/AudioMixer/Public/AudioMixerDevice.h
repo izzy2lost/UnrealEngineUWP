@@ -20,6 +20,19 @@ class IAudioMixerPlatformInterface;
 class USoundModulatorBase;
 class IAudioLinkFactory;
 
+#include "AudioMixerDevice.generated.h"
+
+UENUM()
+enum class ERequiredSubmixes : uint8
+{
+	Main = 0,
+	BaseDefault = 1,
+	Reverb = 2,
+	EQ = 3,
+	Count = 4 UMETA(Hidden)
+};
+
+
 namespace Audio
 {
 	// Audio Namespace Forward Declarations
@@ -52,31 +65,19 @@ namespace Audio
 			, AudioRenderThreadTime(0.0)
 			, AudioThreadTimeJitterDelta(0.05)
 		{}
-	};
+	};	
 
-	// Required submixes
-	namespace ERequiredSubmixes
-	{
-		enum Type
-		{
-			Main = 0,
-			BaseDefault = 1,
-			Reverb = 2,
-			EQ = 3,
-			Count = 4
-		};
-	}
 
 	// Deprecated, use ERequiredSubmixes above
 	namespace EMasterSubmixType
 	{
 		enum Type
 		{
-			Master = ERequiredSubmixes::Main,
-			BaseDefault = ERequiredSubmixes::BaseDefault,
-			Reverb = ERequiredSubmixes::Reverb,
-			EQ = ERequiredSubmixes::EQ,
-			Count = ERequiredSubmixes::Count
+			Master = static_cast<uint8>(ERequiredSubmixes::Main),
+			BaseDefault = static_cast<uint8>(ERequiredSubmixes::BaseDefault),
+			Reverb = static_cast<uint8>(ERequiredSubmixes::Reverb),
+			EQ = static_cast<uint8>(ERequiredSubmixes::EQ),
+			Count = static_cast<uint8>(ERequiredSubmixes::Count)
 		};
 	}
 
@@ -89,14 +90,14 @@ namespace Audio
 
 		void Add(const FObjectId InObjectId, FMixerSubmixPtr InMixerSubmix);
 		void Iterate(FIterFunc InFunction);
-		FMixerSubmixPtr FindRef(FObjectId InObjectId);
+		FMixerSubmixPtr FindRef(FObjectId InObjectId) const;
 		int32 Remove(const FObjectId InObjectId);
 		void Reset();
 
 	private:
 		TMap<FObjectId, FMixerSubmixPtr> SubmixMap;
 
-		FCriticalSection MutationLock;
+		mutable FCriticalSection MutationLock;
 	};
 
 
@@ -225,7 +226,7 @@ namespace Audio
 
 		AUDIOMIXER_API FMixerSubmixPtr FindSubmixInstanceByObjectId(uint32 InObjectId);
 
-		AUDIOMIXER_API FMixerSubmixWeakPtr GetSubmixInstance(const USoundSubmixBase* SoundSubmix);
+		AUDIOMIXER_API FMixerSubmixWeakPtr GetSubmixInstance(const USoundSubmixBase* SoundSubmix) const;
 
 		// If SoundSubmix is a soundfield submix, this will return the factory used to encode 
 		// source audio to it's soundfield format.
@@ -368,8 +369,8 @@ namespace Audio
 		// Pushes the command to a MPSC queue to be executed on the game thread
 		AUDIOMIXER_API void GameThreadMPSCCommand(TFunction<void()> InCommand);
 
+		AUDIOMIXER_API void DrawSubmixes(FOutputDevice& Output) const;
 	protected:
-
 		AUDIOMIXER_API virtual void InitSoundSubmixes() override;
 
 		AUDIOMIXER_API virtual void OnListenerUpdated(const TArray<FListener>& InListeners) override;
@@ -392,7 +393,7 @@ namespace Audio
 
 		bool IsMainAudioDevice() const;
 
-		void LoadRequiredSubmix(ERequiredSubmixes::Type InType, const FString& InDefaultName, bool bInDefaultMuteWhenBackgrounded, FSoftObjectPath& InOutObjectPath);
+		void LoadRequiredSubmix(ERequiredSubmixes InType, const FString& InDefaultName, bool bInDefaultMuteWhenBackgrounded, FSoftObjectPath& InOutObjectPath);
 		void LoadPluginSoundSubmixes();
 		void LoadSoundSubmix(USoundSubmixBase& SoundSubmix);
 
@@ -403,8 +404,8 @@ namespace Audio
 		ICompressedAudioInfo* CreateAudioInfo(FName InFormat) const;
 
 		bool IsRequiredSubmixType(const USoundSubmixBase* InSubmix) const;
-		FMixerSubmixPtr GetRequiredSubmixInstance(uint32 InSubmixId);
-		FMixerSubmixPtr GetRequiredSubmixInstance(const USoundSubmixBase* InSubmix);
+		FMixerSubmixPtr GetRequiredSubmixInstance(uint32 InSubmixId) const;
+		FMixerSubmixPtr GetRequiredSubmixInstance(const USoundSubmixBase* InSubmix) const;
 		
 		// Pumps the audio render thread command queue
 		void PumpCommandQueue();
