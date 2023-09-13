@@ -24,7 +24,7 @@ namespace EPathExistanceQueryType
 }
 
 /**
- * Cooldown decorator node.
+ * Does Path Exist decorator node.
  * A decorator node that bases its condition on whether a path exists between two points from the Blackboard.
  */
 UCLASS(MinimalAPI)

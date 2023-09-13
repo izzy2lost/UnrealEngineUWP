@@ -16,7 +16,7 @@ struct FBTKeepInConeDecoratorMemory
 };
 
 /**
- * Cooldown decorator node.
+ * Keep In Cone decorator node.
  * A decorator node that bases its condition on whether the observed position is still inside a cone. The cone's direction is calculated when the node first becomes relevant.
  */
 UCLASS(HideCategories=(Condition), MinimalAPI)
