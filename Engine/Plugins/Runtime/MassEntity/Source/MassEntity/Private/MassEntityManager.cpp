@@ -514,6 +514,7 @@ void FMassEntityManager::BatchBuildEntities(const FMassArchetypeEntityCollection
 		check(Entities.IsValidIndex(Entity.Index));
 
 		FEntityData& EntityData = Entities[Entity.Index];
+		checkf(EntityData.SerialNumber != 0, TEXT("Failing this check means we're trying to build entities that have not been reserved yet. Consider using BatchCreateEntities"));
 		Entity.SerialNumber = EntityData.SerialNumber;
 		EntityData.CurrentArchetype = TargetArchetypeHandle.DataPtr;
 	}
@@ -590,6 +591,7 @@ TSharedRef<FMassEntityManager::FEntityCreationContext> FMassEntityManager::Inter
 		check(IsEntityValid(Entity));
 		FEntityData& EntityData = Entities[Entity.Index];
 		checkf(!EntityData.CurrentArchetype.IsValid(), TEXT("Batch creating reserved entities can only use entities that have not been constructed yet."));
+		checkf(EntityData.SerialNumber != 0, TEXT("Failing this check means we're trying to build entities that have not been reserved yet"));
 		EntityData.CurrentArchetype = ArchetypeHandle.DataPtr;
 		EntityData.SerialNumber = Entity.SerialNumber;
 	}

@@ -227,18 +227,32 @@ void FMassArchetypeEntityCollectionWithPayload::CreateEntityRangesWithPayload(co
 	for (int32 i = 0; i < Entities.Num(); ++i)
 	{
 		const FMassEntityHandle& Entity = Entities[i];
-		const FMassArchetypeHandle ArchetypeHandle = EntityManager.GetArchetypeForEntity(Entity);
-		const FMassArchetypeData* ArchetypePtr = FMassArchetypeHelper::ArchetypeDataFromHandle(ArchetypeHandle);
-		
-		// @todo if FMassArchetypeHandle used indices the look up would be a lot faster
-		int32 ArchetypeIndex = INDEX_NONE;
-		
-		if (Archetypes.Find(FArchetypeInfo{ ArchetypeHandle, 0 }, ArchetypeIndex) == false)
+		if (EntityManager.IsEntityValid(Entity))
 		{
-			ArchetypeIndex = Archetypes.Add({ ArchetypeHandle, 0 });
+			// using Unsafe since we just checked that the entity is valid
+			const FMassArchetypeHandle ArchetypeHandle = EntityManager.GetArchetypeForEntityUnsafe(Entity);
+			const FMassArchetypeData* ArchetypePtr = FMassArchetypeHelper::ArchetypeDataFromHandle(ArchetypeHandle);
+		
+			// @todo if FMassArchetypeHandle used indices the look up would be a lot faster
+			int32 ArchetypeIndex = INDEX_NONE;
+		
+			if (Archetypes.Find(FArchetypeInfo{ ArchetypeHandle, 0 }, ArchetypeIndex) == false)
+			{
+				ArchetypeIndex = Archetypes.Add({ ArchetypeHandle, 0 });
+			}
+			++Archetypes[ArchetypeIndex].Count;
+			EntityData[i] = { ArchetypeIndex, ArchetypePtr ? ArchetypePtr->GetInternalIndexForEntity(Entity.Index) : Entity.Index };
 		}
-		++Archetypes[ArchetypeIndex].Count;
-		EntityData[i] = { ArchetypeIndex, ArchetypePtr ? ArchetypePtr->GetInternalIndexForEntity(Entity.Index) : Entity.Index };
+		else
+		{
+			// for invalid entities we create an entry that will result in all of them batched together 
+			// (due to having the same archetype index, INDEX_NONE). Since the main logic loop below relies on entries 
+			// in Archetypes and the "invalid" EntityData doesn't correspond to any, all the invalid entities 
+			// will be silently filtered out.
+			EntityData[i] = FEntityInArchetype();
+			UE_LOG(LogMass, Warning, TEXT("%hs: Invalid entity handle passed in. Ignoring it, but check your code to make sure you don't mix synchronous entity-mutating Mass API function calls with Mass commands")
+				, __FUNCTION__);
+		}
 	}
 
 	UE::Mass::Utils::AbstractSort(Entities.Num(), [&EntityData](const int32 LHS, const int32 RHS)
