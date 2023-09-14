@@ -31,6 +31,7 @@
 #include "Algo/BinarySearch.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/ObjectSaveContext.h"
+#include "ISoundWaveCloudStreaming.h"
 
 static int32 SoundWaveDefaultLoadingBehaviorCVar = static_cast<int32>(ESoundWaveLoadingBehavior::LoadOnDemand);
 FAutoConsoleVariableRef CVarSoundWaveDefaultLoadingBehavior(
@@ -662,6 +663,26 @@ const uint8* USoundWave::GetResourceData() const
 	return SoundWaveDataPtr->GetResourceData();
 }
 
+#if WITH_EDITORONLY_DATA
+void USoundWave::SetCloudStreamingEnabled(bool bEnable)
+{
+	bEnableCloudStreaming = bEnable;
+}
+
+bool USoundWave::IsCloudStreamingEnabled() const
+{
+	return !!bEnableCloudStreaming;
+}
+
+void USoundWave::TriggerRecookForCloudStreaming()
+{
+	if (IsCloudStreamingEnabled())
+	{
+		InvalidateCompressedData();	// this will reinitialize the compressed data GUID and hence make sure we do generate new DDC entries at all times
+		MarkPackageDirty();			// also mark the package as dirty to ensure we trigger a cook
+	}
+}
+#endif // #if WITH_EDITORONLY_DATA
 
 ITargetPlatform* USoundWave::GetRunningPlatform()
 {
@@ -862,6 +883,7 @@ USoundWave::USoundWave(const FObjectInitializer& ObjectInitializer)
 	EnvelopeFollowerFrameSize = 1024;
 	EnvelopeFollowerAttackTime = 10;
 	EnvelopeFollowerReleaseTime = 100;
+	bEnableCloudStreaming = false;
 #endif
 
 	bCachedSampleRateFromPlatformSettings = false;
@@ -2777,6 +2799,8 @@ void USoundWave::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 	static const FName InitialChunkSizeFName = GET_MEMBER_NAME_CHECKED(USoundWave, InitialChunkSize_DEPRECATED);
 	static const FName TransformationsFName = GET_MEMBER_NAME_CHECKED(USoundWave, Transformations);
 	static const FName InlinedAudioInSecondsFName = GET_MEMBER_NAME_CHECKED(USoundWave, SizeOfFirstAudioChunkInSeconds);
+	static const FName CloudStreamingFName = GET_MEMBER_NAME_CHECKED(USoundWave, bEnableCloudStreaming);
+	static const FName CloudStreamingPlatformSettingsFName = GET_MEMBER_NAME_CHECKED(USoundWave, PlatformSettings);
 
 	// force proxy state to be up to date
 	SoundWaveDataPtr->InitializeDataFromSoundWave(*this);
@@ -2823,7 +2847,9 @@ void USoundWave::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 				|| Name == LoadingBehaviorFName
 				|| Name == InlinedAudioInSecondsFName
 				|| Name == InitialChunkSizeFName
-				|| Name == TransformationsFName)
+				|| Name == TransformationsFName
+				|| Name == CloudStreamingPlatformSettingsFName
+				|| Name == CloudStreamingFName)
 			{
 				UpdateAsset();
 			}
@@ -2840,6 +2866,29 @@ void USoundWave::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 		}
 	}
 }
+
+bool USoundWave::CanEditChange(const FProperty* InProperty) const
+{
+	if (!Super::CanEditChange(InProperty))
+	{
+		return false;
+	}
+
+	const FName& Name = InProperty->GetFName();
+	if (Name == GetCloudStreamingEnabledPropertyName())
+	{
+		// If it is currently set then it is always editable so that it can be turned off if there is no suitable feature plugin available.
+		if (IsCloudStreamingEnabled())
+		{
+			return true;
+		}
+		IModularFeatures::FScopedLockModularFeatureList ScopedLockModularFeatureList;
+		TArray<Audio::ISoundWaveCloudStreamingFeature*> Features = IModularFeatures::Get().GetModularFeatureImplementations<Audio::ISoundWaveCloudStreamingFeature>(Audio::ISoundWaveCloudStreamingFeature::GetModularFeatureName());
+		return Features.Num() > 0;
+	}
+	return true;
+}
+
 
 #endif // WITH_EDITOR
 

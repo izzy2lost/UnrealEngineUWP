@@ -5,6 +5,7 @@
 #include "Sound/SoundWave.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Audio.h"
+#include "ISoundWaveCloudStreaming.h"
 
 namespace Audio
 {
@@ -17,6 +18,32 @@ namespace Audio
 			return bAvailable;
 		}();
 		return !IsAudioLinkEnabled;
+	}
+
+	FName GetCloudStreamingFormatOverride(const FName& InCurrentFormat, const USoundWave* InWave)
+	{
+#if WITH_EDITORONLY_DATA
+		// Is a cloud streaming feature available?
+		if (InWave->IsCloudStreamingEnabled())
+		{
+			IModularFeatures::FScopedLockModularFeatureList ScopedLockModularFeatureList;
+			TArray<Audio::ISoundWaveCloudStreamingFeature*> Features = IModularFeatures::Get().GetModularFeatureImplementations<Audio::ISoundWaveCloudStreamingFeature>(Audio::ISoundWaveCloudStreamingFeature::GetModularFeatureName());
+			// If there is more than one cloud streaming feature it will be ambiguous which one to use.
+			check(Features.Num() <= 1);
+			for(int32 i=0; i<Features.Num(); ++i)
+			{
+				if (Features[i]->CanOverrideFormat(InWave))
+				{
+					FName NewFormatName = Features[i]->GetOverrideFormatName(InWave);
+					if (NewFormatName.GetStringLength())
+					{
+						return NewFormatName;
+					}
+				}
+			}
+		}
+#endif // WITH_EDITORONLY_DATA
+		return InCurrentFormat;
 	}
 
 	FAudioFormatSettings::FAudioFormatSettings(FConfigCacheIni* InConfigSystem, const FString& InConfigFilename, const FString& InPlatformIdentifierForLogging)
@@ -33,18 +60,19 @@ namespace Audio
 			{
 				if (Wave->IsStreaming())
 				{
-					return PlatformStreamingFormat;
+					FormatName = PlatformStreamingFormat;
 				}
 				else
 				{
-					return PlatformFormat;
+					FormatName = PlatformFormat;
 				}
 			}
 			else
 			{
-				return FallbackFormat;
+				FormatName = FallbackFormat;
 			}
 		}
+		FormatName = GetCloudStreamingFormatOverride(FormatName, Wave);
 		return FormatName;
 	}
 

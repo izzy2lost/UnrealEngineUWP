@@ -124,6 +124,7 @@ namespace Electra
 		UEMediaError ReturnBuffer(IBuffer* Buffer, bool bRender, const FParamDict& InSampleProperties) override;
 		UEMediaError ReleaseBufferPool() override;
 		bool CanReceiveOutputFrames(uint64 NumFrames) const override;
+		bool GetEnqueuedFrameInfo(int32& OutNumberOfEnqueuedFrames, FTimeValue& OutDurationOfEnqueuedFrames) const override;
 		void SetRenderClock(TSharedPtr<IMediaRenderClock, ESPMode::ThreadSafe> InRenderClock) override;
 		void SetParentRenderer(TWeakPtr<IMediaRenderer, ESPMode::ThreadSafe> ParentRenderer) override;
 		void SetNextApproximatePresentationTime(const FTimeValue& NextApproxPTS) override;
@@ -525,6 +526,11 @@ void FAdaptiveStreamingWrappedRenderer::SetRenderClock(TSharedPtr<IMediaRenderCl
 	WrappedRenderer->SetRenderClock(InRenderClock);
 }
 
+bool FAdaptiveStreamingWrappedRenderer::GetEnqueuedFrameInfo(int32& OutNumberOfEnqueuedFrames, FTimeValue& OutDurationOfEnqueuedFrames) const
+{
+	return WrappedRenderer->GetEnqueuedFrameInfo(OutNumberOfEnqueuedFrames, OutDurationOfEnqueuedFrames);
+}
+
 void FAdaptiveStreamingWrappedRenderer::SetParentRenderer(TWeakPtr<IMediaRenderer, ESPMode::ThreadSafe> ParentRenderer)
 {
 	check(!"this must not be called");
@@ -597,11 +603,20 @@ FTimeValue FAdaptiveStreamingWrappedRenderer::GetEnqueuedSampleDuration()
 int32 FAdaptiveStreamingWrappedRenderer::GetNumEnqueuedSamples(FTimeValue* OutOptionalDuration)
 {
 	FScopeLock lock(&Lock);
+
+	int32 NumAvail = 0;
+	FTimeValue DurAvail(FTimeValue::GetZero());
+	if (!WrappedRenderer->GetEnqueuedFrameInfo(NumAvail, DurAvail))
+	{
+		NumAvail = 0;
+		DurAvail = FTimeValue::GetZero();
+	}
+
 	if (OutOptionalDuration)
 	{
-		*OutOptionalDuration = EnqueuedDuration;
+		*OutOptionalDuration = EnqueuedDuration + DurAvail;
 	}
-	return NumEnqueuedSamples;
+	return NumEnqueuedSamples + NumAvail;
 }
 
 void FAdaptiveStreamingWrappedRenderer::DisableHoldbackOfFirstRenderableVideoFrame(bool bInDisableHoldback)

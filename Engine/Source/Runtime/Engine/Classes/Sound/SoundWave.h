@@ -28,6 +28,7 @@
 #include "ContentStreaming.h"
 #include "IAudioProxyInitializer.h"
 #include "IWaveformTransformation.h"
+#include "ISoundWaveCloudStreaming.h"
 #include "Templates/DontCopy.h"
 #include "SoundWave.generated.h"
 
@@ -131,7 +132,7 @@ struct FStreamedAudioPlatformData
 	mutable TDontCopy<FRWLock> AsyncTaskLock;
 	/** Async cache task if one is outstanding. */
 	struct FStreamedAudioAsyncCacheDerivedDataTask* AsyncTask;
-#endif // WITH_EDITORONLY_DATA
+#endif // #if WITH_EDITORONLY_DATA
 
 	/** Default constructor. */
 	ENGINE_API FStreamedAudioPlatformData();
@@ -422,7 +423,7 @@ class USoundWave : public USoundBase, public IAudioProxyDataFactory, public IInt
 private:
 
 	/** Platform agnostic compression quality. 1..100 with 1 being best compression and 100 being best quality. ADPCM and PCM sound asset compression types ignore this parameter. */
-	UPROPERTY(EditAnywhere, Category = "Format|Quality", meta = (DisplayName = "Compression", ClampMin = "1", ClampMax = "100", EditCondition = "SoundAssetCompressionType != ESoundAssetCompressionType::PCM || SoundAssetCompressionType != ESoundAssetCompressionType::ADPCM"), AssetRegistrySearchable)
+	UPROPERTY(EditAnywhere, Category = "Format|Quality", meta = (DisplayName = "Compression", ClampMin = "1", ClampMax = "100", EditCondition = "SoundAssetCompressionType != ESoundAssetCompressionType::PCM && SoundAssetCompressionType != ESoundAssetCompressionType::ADPCM"), AssetRegistrySearchable)
 	int32 CompressionQuality;
 
 public:
@@ -829,6 +830,24 @@ protected:
 	UPROPERTY()
 	TObjectPtr<class UCurveTable> InternalCurves;
 
+#if WITH_EDITORONLY_DATA
+protected:
+	/** If enabled, this wave may be streamed from the cloud using the Opus format. Loading behavior must NOT be `Force Inline`. Requires a suitable support plugin to be installed. */
+	UPROPERTY(EditAnywhere, Category = "Format", Meta=(DisplayName="Enable cloud streaming", DisplayAfter="SoundAssetCompressionType", EditCondition = "LoadingBehavior != ESoundWaveLoadingBehavior::ForceInline"), AssetRegistrySearchable)
+	uint8 bEnableCloudStreaming : 1;
+	/** Platform specific. */
+	UPROPERTY(EditAnywhere, config, Category="Platform specific", Meta=(DisplayName="Platform specific settings", ToolTip="Optionally disables cloud streaming per platform"))
+	TMap<FGuid, FSoundWaveCloudStreamingPlatformSettings> PlatformSettings;
+public:
+	static FName GetCloudStreamingEnabledPropertyName() { return GET_MEMBER_NAME_CHECKED(USoundWave, bEnableCloudStreaming); }
+	ENGINE_API void SetCloudStreamingEnabled(bool bEnabled);
+	ENGINE_API bool IsCloudStreamingEnabled() const;
+	ENGINE_API void TriggerRecookForCloudStreaming();
+	static FName GetCloudStreamingPlatformSettingsPropertyName() { return GET_MEMBER_NAME_CHECKED(USoundWave, PlatformSettings); }
+	ENGINE_API TMap<FGuid, FSoundWaveCloudStreamingPlatformSettings>& GetCloudStreamingPlatformSettings() { return PlatformSettings; }
+	ENGINE_API const TMap<FGuid, FSoundWaveCloudStreamingPlatformSettings>& GetCloudStreamingPlatformSettings() const { return PlatformSettings; }
+#endif // WITH_EDITORONLY_DATA
+
 public:
 	/**
 	* helper function for getting the cached name of the current platform.
@@ -901,6 +920,7 @@ public:
 	ENGINE_API virtual void BeginDestroy() override;
 #if WITH_EDITOR
 	ENGINE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	ENGINE_API virtual bool CanEditChange(const FProperty* InProperty) const override;
 
 	/** IInterface_AsyncCompilation begin*/
 	ENGINE_API virtual bool IsCompiling() const override;

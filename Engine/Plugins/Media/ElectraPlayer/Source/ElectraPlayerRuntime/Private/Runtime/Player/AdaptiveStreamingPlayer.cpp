@@ -1376,6 +1376,13 @@ bool FAdaptiveStreamingPlayer::InternalHandleThreadMessages()
 			}
 			case FWorkerThreadMessages::FMessage::EType::LoadManifest:
 			{
+				// Check if a new or different cache has been set prior to loading the manifest.
+				if (ExternalCache.IsValid())
+				{
+					HttpResponseCache.Reset();
+					HttpResponseCache = IHTTPResponseCache::Create(this, PlayerOptions, MoveTemp(ExternalCache));
+				}
+
 				InternalLoadManifest(msg.Data.ManifestToLoad.URL, msg.Data.ManifestToLoad.MimeType);
 				break;
 			}
@@ -4093,7 +4100,7 @@ void FAdaptiveStreamingPlayer::CheckForStreamEnd()
 
 						// Check if the video stream is seamlessly decodable (next AU is a keyframe and it will also be rendered and not cut off)
 						// Note: at this point we assume audio is always decodable on every AU.
-						bool bSeamlessSwitchPossible = IsSeamlessBufferSwitchPossible(EStreamType::Video, NewOutputBuffers);
+						bool bSeamlessSwitchPossible = bHaveVid ? IsSeamlessBufferSwitchPossible(EStreamType::Video, NewOutputBuffers) : true;
 						if (!bSeamlessSwitchPossible)
 						{
 							StopRendering();

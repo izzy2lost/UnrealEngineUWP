@@ -214,6 +214,13 @@ bool FElectraRendererAudio::CanReceiveOutputFrames(uint64 NumFrames) const
 	return PinnedPlayer->CanPresentAudioFrames(NumFrames);
 }
 
+bool FElectraRendererAudio::GetEnqueuedFrameInfo(int32& OutNumberOfEnqueuedFrames, Electra::FTimeValue& OutDurationOfEnqueuedFrames) const
+{
+	OutNumberOfEnqueuedFrames = 0;
+	OutDurationOfEnqueuedFrames.SetToZero();
+	return false;
+}
+
 /**
  *
  */

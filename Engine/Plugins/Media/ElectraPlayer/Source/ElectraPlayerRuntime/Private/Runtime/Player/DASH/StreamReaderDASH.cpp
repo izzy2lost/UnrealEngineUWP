@@ -527,6 +527,8 @@ FErrorDetail FStreamReaderDASH::FStreamHandler::LoadInitSegment(TSharedPtrTS<FMP
 	ds.AdaptationSetID = Request->AdaptationSet.IsValid() ? Request->AdaptationSet->GetUniqueIdentifier() : "";
 	ds.RepresentationID = Request->Representation.IsValid() ? Request->Representation->GetUniqueIdentifier() : "";
 	ds.Bitrate = Request->GetBitrate();
+	ds.QualityIndex = Request->QualityIndex;
+	ds.HighestQualityIndex = Request->MaxQualityIndex;
 
 	if (!LoadResult->bSuccess)
 	{
@@ -958,6 +960,8 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 	ds.SegmentType  	   = Metrics::ESegmentType::Init;
 	ds.PresentationTime    = Request->GetFirstPTS().GetAsSeconds();
 	ds.Bitrate  		   = Request->GetBitrate();
+	ds.QualityIndex        = Request->QualityIndex;
+	ds.HighestQualityIndex = Request->MaxQualityIndex;
 	ds.Duration 		   = SegmentDuration.GetAsSeconds();
 	ds.DurationDownloaded  = 0.0;
 	ds.DurationDelivered   = 0.0;

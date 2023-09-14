@@ -23,6 +23,7 @@
 #include "Containers/UnrealString.h"
 #include "Sound/StreamedAudioChunkSeekTable.h"
 #include "AudioDecompress.h"
+#include "ISoundWaveCloudStreaming.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogAudioDerivedData, Log, All);
 
@@ -197,6 +198,22 @@ static FString GetSoundWaveHash(const USoundWave& InWave, const ITargetPlatform*
 	FPCU::AppendHash(SoundWaveHash, TEXT("CHN"), InWave.NumChannels);
 	FPCU::AppendHash(SoundWaveHash, TEXT("SRQ"), InWave.SampleRateQuality);
 	FPCU::AppendHash(SoundWaveHash, TEXT("CK1"), InWave.GetSizeOfFirstAudioChunkInSeconds(InTargetPlatform));
+
+	// Add cloud streaming parameters, if available and enabled.
+	if (InWave.IsCloudStreamingEnabled())
+	{
+		IModularFeatures::FScopedLockModularFeatureList ScopedLockModularFeatureList;
+		TArray<Audio::ISoundWaveCloudStreamingFeature*> Features = IModularFeatures::Get().GetModularFeatureImplementations<Audio::ISoundWaveCloudStreamingFeature>(Audio::ISoundWaveCloudStreamingFeature::GetModularFeatureName());
+		for(int32 i=0; i<Features.Num(); ++i)
+		{
+			if (Features[i]->CanOverrideFormat(&InWave))
+			{
+				FString Hash = Features[i]->GetOverrideParameterDDCHash(&InWave);
+				FPCU::AppendHash(SoundWaveHash, TEXT("CSP"), Hash);
+				break;
+			}
+		}
+	}
 
 	return SoundWaveHash;
 }

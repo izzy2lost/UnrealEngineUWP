@@ -10,6 +10,7 @@
 #include "IElectraPlayerRuntimeModule.h"
 #include "ElectraPlayerPlugin.h"
 #include "ParameterDictionary.h"
+#include "SimpleElectraAudioPlayer.h"
 
 #define LOCTEXT_NAMESPACE "ElectraPlayerPluginModule"
 
@@ -52,6 +53,7 @@ public:
 	virtual void SendAnalyticMetricsPerMinute(const TSharedPtr<IAnalyticsProviderET>& AnalyticsProvider) override
 	{
 		SendAnalyticMetricsPerMinuteDelegate.Broadcast(AnalyticsProvider);
+		ISimpleElectraAudioPlayer::SendAnalyticMetrics(AnalyticsProvider);
 	}
 
 	virtual void ReportVideoStreamingError(const FGuid& PlayerGuid, const FString& LastError) override

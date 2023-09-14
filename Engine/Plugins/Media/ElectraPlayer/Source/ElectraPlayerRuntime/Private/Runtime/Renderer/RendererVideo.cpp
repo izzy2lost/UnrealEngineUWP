@@ -238,6 +238,13 @@ bool FElectraRendererVideo::CanReceiveOutputFrames(uint64 NumFrames) const
 	return PinnedPlayer->CanPresentVideoFrames(NumFrames);
 }
 
+bool FElectraRendererVideo::GetEnqueuedFrameInfo(int32& OutNumberOfEnqueuedFrames, Electra::FTimeValue& OutDurationOfEnqueuedFrames) const
+{
+	OutNumberOfEnqueuedFrames = 0;
+	OutDurationOfEnqueuedFrames.SetToZero();
+	return false;
+}
+
 /**
  *
  */

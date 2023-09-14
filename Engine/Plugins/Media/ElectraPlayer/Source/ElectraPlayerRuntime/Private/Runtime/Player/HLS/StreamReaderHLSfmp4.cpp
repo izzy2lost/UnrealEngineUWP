@@ -528,7 +528,7 @@ FStreamReaderHLSfmp4::FStreamHandler::EInitSegmentResult FStreamReaderHLSfmp4::F
 
 			TSharedPtrTS<IElectraHttpManager::FRequest> HTTP(new IElectraHttpManager::FRequest);
 			TSharedPtrTS<IElectraHttpManager::FProgressListener> ProgressListener(new IElectraHttpManager::FProgressListener);
-			ProgressListener->ProgressDelegate    = IElectraHttpManager::FProgressListener::FProgressDelegate::CreateRaw(this, &FStreamHandler::HTTPProgressCallback);
+			ProgressListener->ProgressDelegate = IElectraHttpManager::FProgressListener::FProgressDelegate::CreateRaw(this, &FStreamHandler::HTTPProgressCallback);
 			ProgressListener->CompletionDelegate = IElectraHttpManager::FProgressListener::FCompletionDelegate::CreateRaw(this, &FStreamHandler::HTTPCompletionCallback);
 			ReadBuffer.Reset();
 			ReadBuffer.ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
@@ -653,6 +653,8 @@ void FStreamReaderHLSfmp4::FStreamHandler::HandleRequest()
 	ds.SegmentType  	   = Metrics::ESegmentType::Media;
 	ds.PresentationTime    = Request->AbsoluteDateTime.GetAsSeconds();
 	ds.Bitrate  		   = Request->Bitrate;
+	ds.QualityIndex        = Request->QualityIndex;
+	ds.HighestQualityIndex = Request->MaxQualityIndex;
 	ds.Duration 		   = Request->SegmentDuration.GetAsSeconds();
 	ds.DurationDownloaded  = 0.0;
 	ds.DurationDelivered   = 0.0;

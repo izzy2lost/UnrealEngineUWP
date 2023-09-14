@@ -473,13 +473,16 @@ void FABROnDemandPlus::ReportDownloadEnd(const Metrics::FSegmentDownloadStats& S
 			const int64 LastAddedBandwidth = WorkVars->AverageBandwidth.GetLastSample();
 			const int32 NextHighestQualityIndex = QualityIndex + 1 < StreamInformation.Num() ? QualityIndex + 1 : QualityIndex;
 			const int32 NextHighestBitrate = StreamInformation[NextHighestQualityIndex]->Bitrate;
+			const double InverseUsableBandwidthScaleFactor = IsAudioOnly() ? 2.0 / UsableBandwidthScaleFactor : 1.0 / UsableBandwidthScaleFactor;
+			const double PretendedLatency = IsAudioOnly() ? 0.06 : 0.12;
+
 			// Last seen bandwidth already higher than what we might want to switch up to next?
 			if (LastAddedBandwidth > NextHighestBitrate)
 			{
 				// We want to bring the average down a bit in preparation for the next uncached segment in case the network
 				// has degraded. This way we are not overshooting the target.
 				ThisBitrate = (LastAddedBandwidth + NextHighestBitrate) / 2;
-				WorkVars->AverageBandwidth.AddValue(ThisBitrate);
+				WorkVars->AverageBandwidth.AddValue(ThisBitrate * InverseUsableBandwidthScaleFactor);
 			}
 			else if (LastAddedBandwidth > ThisBitrate)
 			{
@@ -488,14 +491,15 @@ void FABROnDemandPlus::ReportDownloadEnd(const Metrics::FSegmentDownloadStats& S
 				// at lightning speed and have its duration worth of time to spend on attempting the next segment download.
 				// If that doesn't finish in time we can downswitch without hurting things too much.
 				ThisBitrate = NextHighestBitrate;
-				WorkVars->AverageBandwidth.InitializeTo(ThisBitrate);
+				WorkVars->AverageBandwidth.InitializeTo(ThisBitrate * InverseUsableBandwidthScaleFactor);
 			}
 			else
 			{
 				// Let's try to bring the average up a bit.
 				ThisBitrate = (int32)(ThisBitrate * 0.2 + NextHighestBitrate * 0.8);
-				WorkVars->AverageBandwidth.AddValue(ThisBitrate);
+				WorkVars->AverageBandwidth.AddValue(ThisBitrate * InverseUsableBandwidthScaleFactor);
 			}
+			WorkVars->AverageLatency.AddValue(PretendedLatency);
 		}
 
 		// Adjust any forced bitrate duration.

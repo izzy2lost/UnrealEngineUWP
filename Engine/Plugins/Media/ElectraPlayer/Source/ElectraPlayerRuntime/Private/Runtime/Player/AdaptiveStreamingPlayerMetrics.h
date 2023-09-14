@@ -125,6 +125,8 @@ namespace Metrics
 		double			PresentationTime = 0.0;				//!< Presentation time on media timeline
 		double			Duration = 0.0;						//!< Duration of segment as specified in manifest
 		int32			Bitrate = 0;						//!< Stream bitrate as specified in manifest
+		int32			QualityIndex = 0;					//!< Quality index of this segment
+		int32			HighestQualityIndex = 0;			//!< The highest quality index that could be had.
 		int32			RetryNumber = 0;
 		bool			bIsMissingSegment = false;			//!< true if the segment was not actually downloaded because it is missing on the timeline.
 

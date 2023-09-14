@@ -716,6 +716,19 @@ bool FElectraPlayerPlugin::Open(const FString& Url, const IMediaOptions* Options
 	bMetadataChanged = false;
 	CurrentMetadata.Reset();
 
+	// Check if we can get a segment cache interface for this playback request...
+	TSharedPtr<FElectraPlayerDataCacheContainer, ESPMode::ThreadSafe> ElectraPlayerDataCacheContainer;
+	TSharedPtr<IMediaOptions::FDataContainer, ESPMode::ThreadSafe> ElectraPlayerDataCacheDefaultValue;
+	TSharedPtr<IMediaOptions::FDataContainer, ESPMode::ThreadSafe> DataContainer = Options->GetMediaOption(TEXT("ElectraPlayerDataCache"), ElectraPlayerDataCacheDefaultValue);
+	if (DataContainer.IsValid())
+	{
+		ElectraPlayerDataCacheContainer = StaticCastSharedPtr<FElectraPlayerDataCacheContainer, IMediaOptions::FDataContainer, ESPMode::ThreadSafe>(DataContainer);
+		if (ElectraPlayerDataCacheContainer.IsValid())
+		{
+			LocalPlaystartOptions.ExternalDataCache = ElectraPlayerDataCacheContainer->Data;
+		}
+	}
+
 	return Player->OpenInternal(Url, PlayerOptions, LocalPlaystartOptions, IElectraPlayerInterface::EOpenType::Media);
 }
 

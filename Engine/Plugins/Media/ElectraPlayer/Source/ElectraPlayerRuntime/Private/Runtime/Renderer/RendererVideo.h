@@ -78,6 +78,8 @@ public:
 	UEMediaError ReleaseBufferPool() override;
 
 	bool CanReceiveOutputFrames(uint64 NumFrames) const override;
+	
+	bool GetEnqueuedFrameInfo(int32& OutNumberOfEnqueuedFrames, Electra::FTimeValue& OutDurationOfEnqueuedFrames) const override;
 
 	// Receives the render clock we need to update with the most recently rendered sample's timestamp.
 	void SetRenderClock(TSharedPtr<Electra::IMediaRenderClock, ESPMode::ThreadSafe> RenderClock) override;

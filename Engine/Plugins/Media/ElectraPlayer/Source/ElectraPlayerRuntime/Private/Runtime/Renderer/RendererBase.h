@@ -151,6 +151,13 @@ namespace Electra
 		 */
 		virtual bool CanReceiveOutputFrames(uint64 NumFrames) const = 0;
 
+		/**
+		 * Returns how many frames of ready to use data the renderer has in its queue.
+		 * 
+		 * @return True if information is available, false if not.
+		 */
+		virtual bool GetEnqueuedFrameInfo(int32& OutNumberOfEnqueuedFrames, FTimeValue& OutDurationOfEnqueuedFrames) const = 0;
+
 		//=================================================================================================================
 		// Methods called from the player (and from within the player thread)
 		//

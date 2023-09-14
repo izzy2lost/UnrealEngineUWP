@@ -1,0 +1,79 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Containers/Map.h"
+#include "Misc/Variant.h"
+
+class IElectraPlayerDataCache;
+class IAnalyticsProviderET;
+
+class ELECTRAPLAYERRUNTIME_API ISimpleElectraAudioPlayer
+{
+public:
+	struct FCreateParams
+	{
+		/** The number of audio players that can be simultaneously active at any time. 0=unlimited */
+		int32 MaxTotalPlayerInstances = 0;
+
+		/** A GUID to identify the new player instance. */
+		FGuid InstanceGUID;
+	};
+	static TSharedPtr<ISimpleElectraAudioPlayer, ESPMode::ThreadSafe> Create(const FCreateParams& InCreateParams);
+
+	/**
+	 * Delivers the aggregated metrics to the analytics provider and clears the internal list.
+	 */
+	static void SendAnalyticMetrics(const TSharedPtr<IAnalyticsProviderET>& InAnalyticsProvider);
+
+	virtual ~ISimpleElectraAudioPlayer() = default;
+	virtual bool Open(const TMap<FString, FVariant>& InOptions, const FString& ManifestURL, const FTimespan& StartPosition, const FTimespan& EncodedDuration, bool bAutoPlay, bool bSetLooping, TSharedPtr<IElectraPlayerDataCache, ESPMode::ThreadSafe> InPlayerDataCache) = 0;
+	virtual void SeekTo(const FTimespan& NewPosition) = 0;
+	virtual void Pause() = 0;
+	virtual void Resume() = 0;
+	virtual void Stop() = 0;
+
+	virtual bool HasErrored() const = 0;
+	virtual FString GetError() const = 0;
+
+	struct FStreamFormat
+	{
+		int32 SampleRate = 0;
+		int32 NumChannels = 0;
+	};
+
+	struct FDefaultSampleInfo
+	{
+		int64 NumTotalSamples = -1;
+		int64 ExpectedCurrentSamplePos = -1;
+		int32 SampleRate = 0;
+		int32 NumChannels = 0;
+	};
+
+	virtual int64 GetNumAvailableSamples() const = 0;
+	virtual int64 GetNextSamples(float* OutBuffer, int32 InBufferSizeInSamples, int32 InNumSamplesToGet, const FDefaultSampleInfo& InDefaultSampleInfo) = 0;
+	virtual int64 GetNextSamples(int16* OutBuffer, int32 InBufferSizeInSamples, int32 InNumSamplesToGet, const FDefaultSampleInfo& InDefaultSampleInfo) = 0;
+	virtual bool IsAtEOS() const = 0;
+
+
+	//-------------------------------------------------------------------------
+	// State functions
+	//
+	virtual bool HaveMetadata() const = 0;
+	virtual int32 GetBinaryMetadata(TSharedPtr<TArray<uint8>, ESPMode::ThreadSafe>& OutMetadata) const = 0;
+	virtual bool GetStreamFormat(FStreamFormat& OutFormat) const = 0;
+	virtual FTimespan GetDuration() const = 0;
+	virtual FTimespan GetPlayPosition() const = 0;
+	virtual bool HasEnded() const = 0;
+	virtual bool IsBuffering() const = 0;
+	virtual bool IsSeeking() const = 0;
+	virtual bool IsPlaying() const = 0;
+	virtual bool IsPaused() const = 0;
+
+	//-------------------------------------------------------------------------
+	// Manual stream selection functions
+	//
+
+	//! Sets the highest bitrate when selecting a candidate stream.
+	virtual void SetBitrateCeiling(int32 HighestSelectableBitrate) = 0;
+};

@@ -232,6 +232,10 @@ bool FAdaptiveStreamingPlayer::FindMatchingStreamInfo(FStreamCodecInformation& O
  */
 int32 FAdaptiveStreamingPlayer::CreateDecoder(EStreamType type)
 {
+	if (IsTrackDeselected(type))
+	{
+		return 0;
+	}
 	if (type == EStreamType::Video)
 	{
 		if (VideoDecoder.Decoder == nullptr)
@@ -330,7 +334,7 @@ int32 FAdaptiveStreamingPlayer::CreateDecoder(EStreamType type)
 				}
 				FAccessUnit::Release(AccessUnit);
 
-					// Create the audio decoder
+				// Create the audio decoder
 				AudioDecoder.Decoder = IAudioDecoder::Create();
 				if (AudioDecoder.Decoder)
 				{
