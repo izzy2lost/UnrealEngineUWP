@@ -142,7 +142,23 @@ RAY_TRACING_ENTRY_CALLABLE(RayTracingDecalMaterialShader, FDecalShaderPayload, P
 	const float DecalFading = saturate(4 - 4 * abs(SwizzlePos.z * 2 - 1)) * DecalParams.x;
 
 	FDecalData Data = GetDecalData(PixelMaterialInputs, MaterialParameters);
+
+#if MATERIAL_VIRTUALTEXTURE_FEEDBACK
+	{
+		// Virtual texturing feedback logic
+		// NOTE: decals are only evaluated for camera rays (and sharp reflections)
+		FinalizeVirtualTextureFeedback(
+			MaterialParameters.VirtualTextureFeedback,
+			MaterialParameters.SvPosition,
+			Data.Opacity * DecalFading,
+			View.FrameNumber,
+			View.VTFeedbackBuffer
+		);
+	}
+#endif
+	
 	Data.WriteToPayload(Payload, DecalWriteFlags, DecalFading);
+
 }
 #endif // RAYCALLABLESHADER
 
@@ -200,8 +216,22 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(RayTracingDecalMaterialCHS,
 	}
 
 	FDecalData Data = GetDecalData(PixelMaterialInputs, MaterialParameters);
-	Data.WriteToPayload(Payload, DECAL_PAYLOAD_FLAGS, 1.0);
+	
+#if MATERIAL_VIRTUALTEXTURE_FEEDBACK
+	{
+		// Virtual texturing feedback logic
+		// NOTE: decals are only evaluated for camera rays (and sharp reflections)
+		FinalizeVirtualTextureFeedback(
+			MaterialParameters.VirtualTextureFeedback,
+			MaterialParameters.SvPosition,
+			Data.Opacity,
+			View.FrameNumber,
+			View.VTFeedbackBuffer
+		);
+	}
+#endif
 
+	Data.WriteToPayload(Payload, DECAL_PAYLOAD_FLAGS, 1.0);
 }
 
 #if USE_MATERIAL_ANY_HIT_SHADER

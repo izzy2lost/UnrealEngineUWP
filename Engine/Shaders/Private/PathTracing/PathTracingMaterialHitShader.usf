@@ -1301,6 +1301,20 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 	}
 #endif
 
+#if MATERIAL_VIRTUALTEXTURE_FEEDBACK
+	if (PackedPayload.IsCameraRay())
+	{
+		// Virtual texturing feedback logic (camera rays only for now)
+		FinalizeVirtualTextureFeedback(
+			MaterialParameters.VirtualTextureFeedback,
+			MaterialParameters.SvPosition,
+			Payload.BSDFOpacity,
+			View.FrameNumber,
+			View.VTFeedbackBuffer
+		);
+	}
+#endif
+
 	// Output depth for solid, masked 
 	// or when `output depth and velocity' is set and Opacity >= Opacity mask clip value to match the behavior of the rasterizer path. 
 #if (MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED)
