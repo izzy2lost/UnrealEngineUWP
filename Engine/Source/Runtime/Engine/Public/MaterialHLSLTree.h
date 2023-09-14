@@ -607,6 +607,64 @@ public:
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
 
+class FExpressionDistanceToNearestSurface : public FExpression
+{
+public:
+	const FExpression* PositionExpression;
+
+	FExpressionDistanceToNearestSurface(const FExpression* InPositionExpression)
+		: PositionExpression(InPositionExpression)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionDistanceFieldGradient : public FExpression
+{
+public:
+	const FExpression* PositionExpression;
+
+	FExpressionDistanceFieldGradient(const FExpression* InPositionExpression)
+		: PositionExpression(InPositionExpression)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionDistanceFieldApproxAO : public FExpression
+{
+public:
+	const FExpression* PositionExpression;
+	const FExpression* NormalExpression;
+	const FExpression* StepDistanceExpression;
+	const FExpression* DistanceBiasExpression;
+	const FExpression* MaxDistanceExpression;
+	int32 NumSteps;
+	float StepScale;
+
+	FExpressionDistanceFieldApproxAO(
+		const FExpression* InPositionExpression,
+		const FExpression* InNormalExpression,
+		const FExpression* InStepDistanceExpression,
+		const FExpression* InDistanceBiasExpression,
+		const FExpression* InMaxDistanceExpression,
+		int32 InNumSteps,
+		float InStepScale)
+		: PositionExpression(InPositionExpression)
+		, NormalExpression(InNormalExpression)
+		, StepDistanceExpression(InStepDistanceExpression)
+		, DistanceBiasExpression(InDistanceBiasExpression)
+		, MaxDistanceExpression(InMaxDistanceExpression)
+		, NumSteps(InNumSteps)
+		, StepScale(InStepScale)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
 struct FVertexInterpolator
 {
 	FVertexInterpolator() = default;

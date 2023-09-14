@@ -57,7 +57,10 @@
 #include "Materials/MaterialExpressionDeriveNormalZ.h"
 #include "Materials/MaterialExpressionDesaturation.h"
 #include "Materials/MaterialExpressionDistance.h"
+#include "Materials/MaterialExpressionDistanceFieldApproxAO.h"
+#include "Materials/MaterialExpressionDistanceFieldGradient.h"
 #include "Materials/MaterialExpressionDistanceFieldsRenderingSwitch.h"
+#include "Materials/MaterialExpressionDistanceToNearestSurface.h"
 #include "Materials/MaterialExpressionDivide.h"
 #include "Materials/MaterialExpressionDotProduct.h"
 #include "Materials/MaterialExpressionDynamicParameter.h"
@@ -3643,6 +3646,110 @@ bool UMaterialExpressionDeriveNormalZ::GenerateHLSLExpression(FMaterialHLSLGener
 	const FExpression* DerivedZ = Tree.NewSqrt(SaturatedInnerResult);
 	OutExpression = Tree.NewExpression<FExpressionAppend>(InputVector, DerivedZ);
 
+	return true;
+}
+
+bool UMaterialExpressionDistanceToNearestSurface::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const FExpression* PositionExpression;
+
+	if (Position.GetTracedInput().Expression)
+	{
+		PositionExpression = Position.AcquireHLSLExpression(Generator, Scope);
+	}
+	else
+	{
+		PositionExpression = Generator.NewExternalInput(Material::EExternalInput::WorldPosition);
+	}
+
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionDistanceToNearestSurface>(PositionExpression);
+	return true;
+}
+
+bool UMaterialExpressionDistanceFieldGradient::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const FExpression* PositionExpression;
+
+	if (Position.GetTracedInput().Expression)
+	{
+		PositionExpression = Position.AcquireHLSLExpression(Generator, Scope);
+	}
+	else
+	{
+		PositionExpression = Generator.NewExternalInput(Material::EExternalInput::WorldPosition);
+	}
+
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionDistanceFieldGradient>(PositionExpression);
+	return true;
+}
+
+bool UMaterialExpressionDistanceFieldApproxAO::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const FExpression* PositionExpression;;
+
+	if (Position.GetTracedInput().Expression)
+	{
+		PositionExpression = Position.AcquireHLSLExpression(Generator, Scope);
+	}
+	else
+	{
+		PositionExpression = Generator.NewExternalInput(Material::EExternalInput::WorldPosition);
+	}
+
+	const FExpression* NormalExpression;
+
+	if (Normal.GetTracedInput().Expression)
+	{
+		NormalExpression = Normal.AcquireHLSLExpression(Generator, Scope);
+	}
+	else
+	{
+		NormalExpression = Generator.NewExternalInput(Material::EExternalInput::WorldVertexNormal);
+	}
+
+	const FExpression* BaseDistanceExpression = BaseDistance.AcquireHLSLExpressionOrConstant(Generator, Scope, BaseDistanceDefault);
+	const FExpression* RadiusExpression = Radius.AcquireHLSLExpressionOrConstant(Generator, Scope, RadiusDefault);
+
+	const int32 LocalNumSteps = FMath::Clamp((int32)NumSteps, 1, 4);
+	const float LocalStepScale = FMath::Max(StepScaleDefault, 1.0f);
+
+	const FExpression* NumStepsMinusOneExpression = Generator.NewConstant(LocalNumSteps - 1);
+	const FExpression* StepScaleExpression = Generator.NewConstant(LocalStepScale);
+
+	const FExpression* StepDistanceExpression;
+	const FExpression* DistanceBiasExpression;
+	const FExpression* MaxDistanceExpression;
+	FTree& Tree = Generator.GetTree();
+
+	if (LocalNumSteps == 1)
+	{
+		StepDistanceExpression = Generator.NewConstant(0.f);
+		DistanceBiasExpression = BaseDistanceExpression;
+		MaxDistanceExpression = BaseDistanceExpression;
+	}
+	else
+	{
+		StepDistanceExpression = Tree.NewDiv(
+			Tree.NewSub(RadiusExpression, BaseDistanceExpression),
+			Tree.NewSub(Tree.NewPowClamped(StepScaleExpression, NumStepsMinusOneExpression), Tree.NewConstant(1.f)));
+		DistanceBiasExpression = Tree.NewSub(BaseDistanceExpression, StepDistanceExpression);
+		MaxDistanceExpression = RadiusExpression;
+	}
+
+	OutExpression = Tree.NewExpression<Material::FExpressionDistanceFieldApproxAO>(
+		PositionExpression,
+		NormalExpression,
+		StepDistanceExpression,
+		DistanceBiasExpression,
+		MaxDistanceExpression,
+		LocalNumSteps,
+		LocalStepScale);
 	return true;
 }
 

@@ -12,6 +12,7 @@
 #include "Engine/BlendableInterface.h" // BL_AfterTonemapping
 #include "VT/VirtualTextureScalability.h"
 #include "VT/RuntimeVirtualTexture.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 namespace UE::HLSLTree::Material
 {
@@ -1798,6 +1799,139 @@ void FExpressionSkyAtmosphereLightDirection::EmitValueShader(FEmitContext& Conte
 {
 	Context.bUsesSkyAtmosphere = true;
 	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float3, TEXT("MaterialExpressionSkyAtmosphereLightDirection(Parameters, %)"), LightIndex);
+}
+
+namespace Private
+{
+	bool PlatformSupportDistanceFields(FEmitContext& Context)
+	{
+		if (!Context.TargetParameters.IsGenericTarget() && !FDataDrivenShaderPlatformInfo::GetSupportsDistanceFields(Context.TargetParameters.ShaderPlatform))
+		{
+			const FString ShaderPlatformName = FDataDrivenShaderPlatformInfo::GetName(Context.TargetParameters.ShaderPlatform).ToString();
+			return Context.Errorf(TEXT("Node not supported in shader platform %s. The node requires DistanceField support."), *ShaderPlatformName);
+		}
+		return true;
+	}
+}
+
+bool FExpressionDistanceToNearestSurface::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (!Private::PlatformSupportDistanceFields(Context))
+	{
+		return false;
+	}
+
+	const FPreparedType& PositionType = Context.PrepareExpression(PositionExpression, Scope, Shader::EValueType::Double3);
+	if (PositionType.IsVoid())
+	{
+		return false;
+	}
+
+	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
+	{
+		Context.MaterialCompilationOutput->bUsesGlobalDistanceField = true;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float1);
+}
+
+void FExpressionDistanceToNearestSurface::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	const FPreparedType& PositionType = Context.GetPreparedType(PositionExpression, Shader::EValueType::Double3);
+	FEmitShaderExpression* EmitPosition = PositionExpression->GetValueShader(Context, Scope, IsLWCType(PositionType.Type.ValueType) ? Shader::EValueType::Double3 : Shader::EValueType::Float3);
+	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float1, TEXT("GetDistanceToNearestSurfaceGlobal(%)"), EmitPosition);
+}
+
+bool FExpressionDistanceFieldGradient::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (!Private::PlatformSupportDistanceFields(Context))
+	{
+		return false;
+	}
+
+	const FPreparedType& PositionType = Context.PrepareExpression(PositionExpression, Scope, Shader::EValueType::Double3);
+	if (PositionType.IsVoid())
+	{
+		return false;
+	}
+
+	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
+	{
+		Context.MaterialCompilationOutput->bUsesGlobalDistanceField = true;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+}
+
+void FExpressionDistanceFieldGradient::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	const FPreparedType& PositionType = Context.GetPreparedType(PositionExpression, Shader::EValueType::Double3);
+	FEmitShaderExpression* EmitPosition = PositionExpression->GetValueShader(Context, Scope, IsLWCType(PositionType.Type.ValueType) ? Shader::EValueType::Double3 : Shader::EValueType::Float3);
+	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float3, TEXT("GetDistanceFieldGradientGlobal(%)"), EmitPosition);
+}
+
+bool FExpressionDistanceFieldApproxAO::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (!Private::PlatformSupportDistanceFields(Context))
+	{
+		return false;
+	}
+
+	const FPreparedType& PositionType = Context.PrepareExpression(PositionExpression, Scope, Shader::EValueType::Double3);
+	if (PositionType.IsVoid())
+	{
+		return false;
+	}
+
+	const FPreparedType& NormalType = Context.PrepareExpression(NormalExpression, Scope, Shader::EValueType::Float3);
+	if (NormalType.IsVoid())
+	{
+		return false;
+	}
+
+	const FPreparedType& StepDistanceType = Context.PrepareExpression(StepDistanceExpression, Scope, Shader::EValueType::Float1);
+	if (StepDistanceType.IsVoid())
+	{
+		return false;
+	}
+
+	const FPreparedType& DistanceBiasType = Context.PrepareExpression(DistanceBiasExpression, Scope, Shader::EValueType::Float1);
+	if (DistanceBiasType.IsVoid())
+	{
+		return false;
+	}
+
+	const FPreparedType& MaxDistanceType = Context.PrepareExpression(MaxDistanceExpression, Scope, Shader::EValueType::Float1);
+	if (MaxDistanceType.IsVoid())
+	{
+		return false;
+	}
+
+	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
+	{
+		Context.MaterialCompilationOutput->bUsesGlobalDistanceField = true;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float1);
+}
+
+void FExpressionDistanceFieldApproxAO::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitPosition = PositionExpression->GetValueShader(Context, Scope, Shader::EValueType::Double3);
+	FEmitShaderExpression* EmitNormal = NormalExpression->GetValueShader(Context, Scope, Shader::EValueType::Float3);
+	FEmitShaderExpression* EmitStepDistance = StepDistanceExpression->GetValueShader(Context, Scope, Shader::EValueType::Float1);
+	FEmitShaderExpression* EmitDistanceBias = DistanceBiasExpression->GetValueShader(Context, Scope, Shader::EValueType::Float1);
+	FEmitShaderExpression* EmitMaxDistance = MaxDistanceExpression->GetValueShader(Context, Scope, Shader::EValueType::Float1);
+
+	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float1,
+		TEXT("CalculateDistanceFieldApproxAO(%, %, %, %, %, %, %)"),
+		EmitPosition,
+		EmitNormal,
+		NumSteps,
+		EmitStepDistance,
+		StepScale,
+		EmitDistanceBias,
+		EmitMaxDistance);
 }
 
 int32 FEmitData::FindInterpolatorIndex(const FExpression* Expression) const
