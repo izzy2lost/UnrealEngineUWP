@@ -144,8 +144,8 @@ bool FOpusAudioInfo::ParseHeader(const uint8* InSrcBufferData, uint32 InSrcBuffe
 
 	// Store the offset to where the audio data begins
 	AudioDataOffset = SrcBufferOffset;
-	// Set members from header
-	TrueSampleCount = Header.ActiveSampleCount;
+	// Sample counts in the Opus API are always per-channel so we multiply by NumChannels here
+	TrueSampleCount = (uint32)Header.ActiveSampleCount * Header.NumChannels;
 	NumChannels = Header.NumChannels;
 
 	// Write out the the header info
@@ -333,7 +333,7 @@ void FOpusAudioInfo::SeekToTime(const float InSeekTime)
 		uint32 SeekSampleNum = 0;
 		if (InSeekTime > 0.0f)
 		{
-			SeekSampleNum = (uint32)(InSeekTime * Header.SampleRate);
+			SeekSampleNum = (uint32)(InSeekTime * Header.SampleRate * NumChannels);
 		}
 
 		const uint8* ChunkPtr = SrcBufferData + AudioDataOffset;
@@ -344,7 +344,7 @@ void FOpusAudioInfo::SeekToTime(const float InSeekTime)
 			uint32 ChunkSize = (uint32)ChunkPtr[0] + ((uint32)ChunkPtr[1] << 8);
 			int32 ExpectedFrames = opus_packet_get_nb_frames(ChunkPtr + 2, ChunkSize);
 			int32 ExpectedFrameSize = opus_packet_get_samples_per_frame(ChunkPtr + 2, Header.EncodedSampleRate);
-			int32 NumExpectedTotal = ExpectedFrames * ExpectedFrameSize;
+			int32 NumExpectedTotal = ExpectedFrames * ExpectedFrameSize * NumChannels;
 
 			if (CurrentChunkSampleNum >= SeekSampleNum && SeekSampleNum < CurrentChunkSampleNum + NumExpectedTotal)
 			{

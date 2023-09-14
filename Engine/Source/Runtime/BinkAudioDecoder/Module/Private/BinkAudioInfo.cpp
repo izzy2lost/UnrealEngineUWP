@@ -121,22 +121,25 @@ void FBinkAudioInfo::SeekToTime(const float SeekTimeSeconds)
 		return;
 	}
 
+	uint32 SeekTimeFrames = 0;
 	uint32 SeekTimeSamples = 0;
 	if (SeekTimeSeconds > 0)
 	{
-		SeekTimeSamples = (uint32)(SeekTimeSeconds * SampleRate);
+		SeekTimeFrames = (uint32)(SeekTimeSeconds * SampleRate);
+		SeekTimeSamples = SeekTimeFrames * NumChannels;
 	}
 
 	uint32 SamplesInFrame = GetMaxFrameSizeSamples();
 	if (SeekTimeSamples > this->TrueSampleCount)
 	{
 		SeekTimeSamples = this->TrueSampleCount - 1;
+		SeekTimeFrames = (this->TrueSampleCount / NumChannels) - 1;
 	}
 	this->CurrentSampleCount = SeekTimeSamples;
 
 	uint32 SamplesPerBlock = SamplesInFrame * Decoder->FramesPerSeekTableEntry;
-	uint32 SeekTableIndex = SeekTimeSamples / SamplesPerBlock;
-	uint32 SeekTableOffset = SeekTimeSamples % SamplesPerBlock;
+	uint32 SeekTableIndex = SeekTimeFrames / SamplesPerBlock;
+	uint32 SeekTableOffset = SeekTimeFrames % SamplesPerBlock;
 
 	uint32 OffsetToBlock = Decoder->SeekTable()[SeekTableIndex] + sizeof(BinkAudioFileHeader) + Decoder->SeekTableCount * sizeof(uint16);
 
@@ -222,7 +225,8 @@ bool FBinkAudioInfo::ParseHeader(const uint8* InSrcBufferData, uint32 InSrcBuffe
 	}
 
 	SampleRate = Header->rate;
-	TrueSampleCount = Header->sample_count;
+	// Bink sample_count is per-channel so we multiply by num channels here
+	TrueSampleCount = Header->sample_count * Header->channels;
 	NumChannels = Header->channels;
 	MaxCompSpaceNeeded = Header->max_comp_space_needed;
   

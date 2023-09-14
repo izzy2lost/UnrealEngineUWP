@@ -241,7 +241,7 @@ protected:
 	* Decompresses a frame of data to PCM buffer
 	*
 	* @param FrameSize Size of the frame in bytes
-	* @return The amount of samples that were decompressed (< 0 indicates error)
+	* @return The number of audio frames that were decompressed (< 0 indicates error)
 	*/
 	int32 DecompressToPCMBuffer(uint16 FrameSize);
 

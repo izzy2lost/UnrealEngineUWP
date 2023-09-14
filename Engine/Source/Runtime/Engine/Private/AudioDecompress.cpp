@@ -163,15 +163,16 @@ void IStreamedCompressedInfo::ExpandFile(uint8* DstBuffer, struct FSoundQualityI
 
 	while (RawPCMOffset < QualityInfo->SampleDataSize)
 	{
-		int32 DecodedSamples = DecompressToPCMBuffer( /*Unused*/ 0);
+		int32 DecodedFrames = DecompressToPCMBuffer( /*Unused*/ 0);
 
-		if (DecodedSamples < 0)
+		if (DecodedFrames < 0)
 		{
 			RawPCMOffset += ZeroBuffer(DstBuffer + RawPCMOffset, QualityInfo->SampleDataSize - RawPCMOffset);
 		}
 		else
 		{
-			LastPCMByteSize = IncrementCurrentSampleCount(DecodedSamples) * SampleStride;
+			IncrementCurrentSampleCount(DecodedFrames * NumChannels);
+			LastPCMByteSize = DecodedFrames * SampleStride;
 			RawPCMOffset += WriteFromDecodedPCM(DstBuffer + RawPCMOffset, QualityInfo->SampleDataSize - RawPCMOffset);
 		}
 	}
@@ -231,14 +232,16 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 
 	SCOPE_CYCLE_COUNTER(STAT_AudioStreamedDecompressTime);
 	
-	UE_LOG(LogAudio, Log, TEXT("Streaming compressed data from SoundWave'%s' - Chunk=%d\tNumChunks=%d\tOffset=%d\tChunkSize=%d\tLooping=%s\tLastPCMOffset=%d\tContainsEOF=%s" ), 
+	UE_LOG(LogAudio, Log, TEXT("Streaming compressed data from SoundWave'%s' - Chunk=%d\tCurrentSampleCount=%d\tTrueSampleCount=%d\tNumChunks=%d\tOffset=%d\tChunkSize=%d\tLooping=%s\tLastPCMOffset=%d\tContainsEOF=%s" ), 
 		*StreamingSoundWave->GetFName().ToString(), 	
 		CurrentChunkIndex, 
+		CurrentSampleCount, 
+		TrueSampleCount, 
 		StreamingSoundWave->GetNumChunks(),
 		SrcBufferOffset, 
 		SrcBufferDataSize,
 		bLooping ? TEXT("YES") : TEXT("NO"),
-		LastPCMOffset,		
+		LastPCMOffset,	
 		bStoringEndOfFile ? TEXT("YES") : TEXT("NO")
 	);
 
@@ -401,9 +404,9 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 	while (RawPCMOffset < BufferSize)
 	{
 		// Decompress the next compression frame of audio (many samples) into the PCM buffer
-		int32 DecodedSamples = DecompressToPCMBuffer(/*Unused*/ 0);
+		int32 DecodedFrames = DecompressToPCMBuffer(/*Unused*/ 0);
 
-		if (DecodedSamples < 0)
+		if (DecodedFrames < 0)
 		{
 			UE_LOG(LogAudioStreamCaching, Warning, TEXT("Zero pad buffer Chunk=%d, Wave=%s, Reason=Decoder returned negative samples."),
 				CurrentChunkIndex, *StreamingSoundWave->GetFName().ToString());
@@ -414,7 +417,8 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 		}
 		else
 		{
-			LastPCMByteSize = IncrementCurrentSampleCount(DecodedSamples) * SampleStride;
+			IncrementCurrentSampleCount(DecodedFrames * NumChannels);
+			LastPCMByteSize = DecodedFrames * SampleStride;
 
 			// update OutNumBytesStreamed as we write out data
 			RawPCMOffset += WriteFromDecodedPCM(Destination + RawPCMOffset, BufferSize - RawPCMOffset);
