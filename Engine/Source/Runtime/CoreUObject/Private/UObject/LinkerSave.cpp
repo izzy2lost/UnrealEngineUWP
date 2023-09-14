@@ -293,6 +293,20 @@ FPackageIndex FLinkerSave::MapObject(TObjectPtr<const UObject> Object) const
 	return FPackageIndex();
 }
 
+void FLinkerSave::MarkScriptSerializationStart(const UObject* Obj) 
+{
+	check(Obj == CurrentlySavingExportObject);
+	FObjectExport& Export = ExportMap[CurrentlySavingExport.ToExport()];
+	Export.ScriptSerializationStartOffset = Tell();
+}
+
+void FLinkerSave::MarkScriptSerializationEnd(const UObject* Obj) 
+{
+	check(Obj == CurrentlySavingExportObject);
+	FObjectExport& Export = ExportMap[CurrentlySavingExport.ToExport()];
+	Export.ScriptSerializationEndOffset = Tell();
+}
+
 void FLinkerSave::Seek( int64 InPos )
 {
 	Saver->Seek( InPos );

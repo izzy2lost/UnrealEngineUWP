@@ -2034,6 +2034,18 @@ ESavePackageResult WritePackageTextHeader(FStructuredArchive::FRecord& Structure
 		Linker.CurrentlySavingExport = FPackageIndex();
 		Linker.CurrentlySavingExportObject = nullptr;
 		Export.SerialSize = ExportsArchive.Tell() - Export.SerialOffset;
+
+		if (Export.ScriptSerializationEndOffset - Export.ScriptSerializationStartOffset > 0)
+		{
+			// Offset is already relative to export offset because of FExportProxyArchive 
+			check(Export.ScriptSerializationStartOffset >= 0);
+			check(Export.ScriptSerializationEndOffset <= Export.SerialSize);
+		}
+		else
+		{
+			check(Export.ScriptSerializationEndOffset == 0);
+			check(Export.ScriptSerializationStartOffset == 0);
+		}
 	}
 
 	return Linker.IsError() ? ESavePackageResult::Error : ReturnSuccessOrCancel();
@@ -2122,6 +2134,19 @@ ESavePackageResult WriteExports(FStructuredArchive::FRecord& StructuredArchiveRo
 			Linker->CurrentlySavingExport = FPackageIndex();
 			Linker->CurrentlySavingExportObject = nullptr;
 			Export.SerialSize = Linker->Tell() - Export.SerialOffset;
+
+			if (Export.ScriptSerializationEndOffset - Export.ScriptSerializationStartOffset > 0)
+			{
+				Export.ScriptSerializationStartOffset -= Export.SerialOffset;
+				Export.ScriptSerializationEndOffset -= Export.SerialOffset;
+				check(Export.ScriptSerializationStartOffset >= 0);
+				check(Export.ScriptSerializationEndOffset <= Export.SerialSize);
+			}
+			else
+			{
+				check(Export.ScriptSerializationEndOffset == 0);
+				check(Export.ScriptSerializationStartOffset == 0);
+			}
 		}
 	}
 	// if an error occurred on the linker while serializing exports, return an error

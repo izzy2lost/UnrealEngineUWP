@@ -72,6 +72,9 @@ enum class EUnrealEngineObjectUE5Version : uint32
 
 	// Added bulk/data resource table
 	DATA_RESOURCES,
+	
+	// Added script property serialization offset to export table entries for saved, versioned packages
+	SCRIPT_SERIALIZATION_OFFSET,
 
 	// -----<new versions can be added before this line>-------------------------------------------------
 	// - this needs to be the last line (see note below)

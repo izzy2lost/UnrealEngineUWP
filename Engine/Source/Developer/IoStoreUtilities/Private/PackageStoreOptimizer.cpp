@@ -138,6 +138,7 @@ FPackageStoreOptimizer::FCookedHeaderData FPackageStoreOptimizer::LoadCookedHead
 		Ar << Summary;
 	}
 
+	Ar.SetUseUnversionedPropertySerialization((CookedHeaderData.Summary.GetPackageFlags() & EPackageFlags::PKG_UnversionedProperties) != 0);
 	Ar.SetFilterEditorOnly((CookedHeaderData.Summary.GetPackageFlags() & EPackageFlags::PKG_FilterEditorOnly) != 0);
 
 	if (Summary.NameCount > 0)

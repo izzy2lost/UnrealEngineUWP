@@ -5368,6 +5368,7 @@ void UClass::SerializeDefaultObject(UObject* Object, FStructuredArchive::FSlot S
 	// tell the archive that it's allowed to load data for transient properties
 	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
 
+	UnderlyingArchive.MarkScriptSerializationStart(Object);
 	UnderlyingArchive.StartSerializingDefaults();
 
 	if( ((UnderlyingArchive.IsLoading() || UnderlyingArchive.IsSaving()) && !UnderlyingArchive.WantBinaryPropertySerialization()) )
@@ -5386,6 +5387,7 @@ void UClass::SerializeDefaultObject(UObject* Object, FStructuredArchive::FSlot S
 		SerializeBin(Slot, Object);
 	}
 	UnderlyingArchive.StopSerializingDefaults();
+	UnderlyingArchive.MarkScriptSerializationEnd(Object);
 }
 
 void UClass::SerializeSparseClassData(FStructuredArchive::FSlot Slot)

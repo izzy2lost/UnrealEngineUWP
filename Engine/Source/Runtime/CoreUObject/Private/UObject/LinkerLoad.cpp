@@ -6007,7 +6007,14 @@ void FLinkerLoad::MarkScriptSerializationStart( const UObject* Obj )
 		if (ExportMap.IsValidIndex(Index))
 		{
 			FObjectExport& Export = ExportMap[Index];
-			Export.ScriptSerializationStartOffset = Tell();
+			if (!UseUnversionedPropertySerialization() && UEVer() >= EUnrealEngineObjectUE5Version::SCRIPT_SERIALIZATION_OFFSET)
+			{
+				checkf(Export.ScriptSerializationStartOffset == (Tell() - Export.SerialOffset), TEXT("Serialized script property start offset does not match offset during deserialization"));
+			}
+			else
+			{
+				Export.ScriptSerializationStartOffset = Tell() - Export.SerialOffset;
+			}
 		}
 	}
 }
@@ -6023,7 +6030,14 @@ void FLinkerLoad::MarkScriptSerializationEnd( const UObject* Obj )
 		if (ExportMap.IsValidIndex(Index))
 		{
 			FObjectExport& Export = ExportMap[Index];
-			Export.ScriptSerializationEndOffset = Tell();
+			if (!UseUnversionedPropertySerialization() && UEVer() >= EUnrealEngineObjectUE5Version::SCRIPT_SERIALIZATION_OFFSET)
+			{
+				checkf(Export.ScriptSerializationEndOffset == (Tell() - Export.SerialOffset), TEXT("Serialized script property end offset does not match offset during deserialization"));
+			}
+			else
+			{
+				Export.ScriptSerializationEndOffset = Tell() - Export.SerialOffset;
+			}
 		}
 	}
 }
