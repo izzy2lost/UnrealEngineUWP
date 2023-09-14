@@ -1655,19 +1655,22 @@ METASOUNDFRONTEND_API const TCHAR* LexToString(EMetasoundFrontendVertexAccessTyp
 
 namespace Metasound
 {
-	/** Signature of function called for each found literal. */
-	using FForEachLiteralFunctionRef = TFunctionRef<void(const FName& InDataTypeName, const FMetasoundFrontendLiteral&)>; 
+	namespace Frontend
+	{
+		/** Signature of function called for each found literal. */
+		using FForEachLiteralFunctionRef = TFunctionRef<void(const FName& InDataTypeName, const FMetasoundFrontendLiteral&)>; 
 
-	/** Execute the provided function for each literal on a FMetasoundFrontendDocument.*/
-	METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendDocument& InDoc, FForEachLiteralFunctionRef OnLiteral);
+		/** Execute the provided function for each literal on a FMetasoundFrontendDocument.*/
+		METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendDocument& InDoc, FForEachLiteralFunctionRef OnLiteral);
 
-	/** Execute the provided function for each literal on a FMetasoundFrontendGraphClass.*/
-	METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendGraphClass& InGraphClass, FForEachLiteralFunctionRef OnLiteral);
+		/** Execute the provided function for each literal on a FMetasoundFrontendGraphClass.*/
+		METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendGraphClass& InGraphClass, FForEachLiteralFunctionRef OnLiteral);
 
-	/** Execute the provided function for each literal on a FMetasoundFrontendClass.*/
-	METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendClass& InClass, FForEachLiteralFunctionRef OnLiteral);
+		/** Execute the provided function for each literal on a FMetasoundFrontendClass.*/
+		METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendClass& InClass, FForEachLiteralFunctionRef OnLiteral);
 
-	/** Execute the provided function for each literal on a FMetasoundFrontendNode.*/
-	METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendNode& InNode, FForEachLiteralFunctionRef OnLiteral);
+		/** Execute the provided function for each literal on a FMetasoundFrontendNode.*/
+		METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendNode& InNode, FForEachLiteralFunctionRef OnLiteral);
+	}
 }
 

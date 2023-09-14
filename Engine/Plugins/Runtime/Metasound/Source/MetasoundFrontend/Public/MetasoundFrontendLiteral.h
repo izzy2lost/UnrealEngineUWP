@@ -146,10 +146,10 @@ public:
 	// @param InDataTypeRegistry - A pointer to an existing data type registry. If null, the data type registry will be retrieved within this function.
 	// @param InProxyDataCache - A pointer to an existing proxy data cache. If not null, UObject proxies will be retrieved from the cache. If null, UObject proxies will be created in this function.
 	//
-	// @returns An Fliteral. If the data type couldn't be found, or if the literal type was incompatible with the data type, then an invalid FLiteral is returned.
+	// @returns An FLiteral. If the data type couldn't be found, or if the literal type was incompatible with the data type, then an invalid FLiteral is returned.
 	Metasound::FLiteral ToLiteral(const FName& InMetaSoundDataType, const Metasound::Frontend::IDataTypeRegistry* InDataTypeRegistry=nullptr, const Metasound::Frontend::FProxyDataCache* InProxyDataCache=nullptr) const;
 
-	// Return a Metasound::Fliteral representation of this object, excluding UObject proxies.
+	// Return a Metasound::FLiteral representation of this object, excluding UObject proxies.
 	Metasound::FLiteral ToLiteralNoProxy() const;
 
 	// Convert the value to a string for printing. 

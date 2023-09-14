@@ -868,56 +868,58 @@ const TCHAR* LexToString(EMetasoundFrontendVertexAccessType InVertexAccess)
 
 namespace Metasound
 {
-	void ForEachLiteral(const FMetasoundFrontendDocument& InDoc, FForEachLiteralFunctionRef OnLiteral)
+	namespace Frontend
 	{
-		ForEachLiteral(InDoc.RootGraph, OnLiteral);
-		for (const FMetasoundFrontendGraphClass& GraphClass : InDoc.Subgraphs)
+		void ForEachLiteral(const FMetasoundFrontendDocument& InDoc, FForEachLiteralFunctionRef OnLiteral)
 		{
-			ForEachLiteral(GraphClass, OnLiteral);
-		}
-		for (const FMetasoundFrontendClass& Dependency : InDoc.Dependencies)
-		{
-			ForEachLiteral(Dependency, OnLiteral);
-		}
-	}
-
-	void ForEachLiteral(const FMetasoundFrontendGraphClass& InGraphClass, FForEachLiteralFunctionRef OnLiteral)
-	{
-		ForEachLiteral(static_cast<const FMetasoundFrontendClass&>(InGraphClass), OnLiteral);
-
-		for (const FMetasoundFrontendNode& Node : InGraphClass.Graph.Nodes)
-		{
-			ForEachLiteral(Node, OnLiteral);
-		}
-
-		for (const FMetasoundFrontendVariable& Variable : InGraphClass.Graph.Variables)
-		{
-			OnLiteral(Variable.TypeName, Variable.Literal);
-		}
-	}
-
-	void ForEachLiteral(const FMetasoundFrontendClass& InClass, FForEachLiteralFunctionRef OnLiteral)
-	{
-		for (const FMetasoundFrontendClassInput& ClassInput : InClass.Interface.Inputs)
-		{
-			OnLiteral(ClassInput.TypeName, ClassInput.DefaultLiteral);
-		}
-	}
-
-	void ForEachLiteral(const FMetasoundFrontendNode& InNode, FForEachLiteralFunctionRef OnLiteral)
-	{
-		for (const FMetasoundFrontendVertexLiteral& VertexLiteral : InNode.InputLiterals)
-		{
-			auto HasEqualVertexID = [&VertexLiteral](const FMetasoundFrontendVertex& InVertex) -> bool
-			{ 
-				return InVertex.VertexID == VertexLiteral.VertexID; 
-			};
-
-			if (const FMetasoundFrontendVertex* InputVertex = InNode.Interface.Inputs.FindByPredicate(HasEqualVertexID))
+			ForEachLiteral(InDoc.RootGraph, OnLiteral);
+			for (const FMetasoundFrontendGraphClass& GraphClass : InDoc.Subgraphs)
 			{
-				OnLiteral(InputVertex->TypeName, VertexLiteral.Value);
+				ForEachLiteral(GraphClass, OnLiteral);
+			}
+			for (const FMetasoundFrontendClass& Dependency : InDoc.Dependencies)
+			{
+				ForEachLiteral(Dependency, OnLiteral);
+			}
+		}
+
+		void ForEachLiteral(const FMetasoundFrontendGraphClass& InGraphClass, FForEachLiteralFunctionRef OnLiteral)
+		{
+			ForEachLiteral(static_cast<const FMetasoundFrontendClass&>(InGraphClass), OnLiteral);
+
+			for (const FMetasoundFrontendNode& Node : InGraphClass.Graph.Nodes)
+			{
+				ForEachLiteral(Node, OnLiteral);
+			}
+
+			for (const FMetasoundFrontendVariable& Variable : InGraphClass.Graph.Variables)
+			{
+				OnLiteral(Variable.TypeName, Variable.Literal);
+			}
+		}
+
+		void ForEachLiteral(const FMetasoundFrontendClass& InClass, FForEachLiteralFunctionRef OnLiteral)
+		{
+			for (const FMetasoundFrontendClassInput& ClassInput : InClass.Interface.Inputs)
+			{
+				OnLiteral(ClassInput.TypeName, ClassInput.DefaultLiteral);
+			}
+		}
+
+		void ForEachLiteral(const FMetasoundFrontendNode& InNode, FForEachLiteralFunctionRef OnLiteral)
+		{
+			for (const FMetasoundFrontendVertexLiteral& VertexLiteral : InNode.InputLiterals)
+			{
+				auto HasEqualVertexID = [&VertexLiteral](const FMetasoundFrontendVertex& InVertex) -> bool
+				{ 
+					return InVertex.VertexID == VertexLiteral.VertexID; 
+				};
+
+				if (const FMetasoundFrontendVertex* InputVertex = InNode.Interface.Inputs.FindByPredicate(HasEqualVertexID))
+				{
+					OnLiteral(InputVertex->TypeName, VertexLiteral.Value);
+				}
 			}
 		}
 	}
 }
-

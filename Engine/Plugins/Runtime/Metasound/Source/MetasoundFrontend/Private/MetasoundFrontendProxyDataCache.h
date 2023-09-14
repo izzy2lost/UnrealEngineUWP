@@ -68,8 +68,9 @@ namespace Metasound
 			const TSharedPtr<Audio::IProxyData>* FindProxy(const UObject* InObject) const;
 
 		private:
+			using FUObjectMemoryAddress = const void*;
 
-			TMap<const void*, TSharedPtr<Audio::IProxyData>> ProxyCache;
+			TMap<FUObjectMemoryAddress, TSharedPtr<Audio::IProxyData>> ProxyCache;
 		};
 	}
 }

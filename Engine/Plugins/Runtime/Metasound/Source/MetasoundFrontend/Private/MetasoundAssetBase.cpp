@@ -121,38 +121,60 @@ namespace Metasound
 				}
 			}
 
-			// Remove all inputs from the provided array of public inputs which are of non-transmittable data types.
-			TArray<FMetasoundFrontendClassInput> GetTransmittableInputsFromPublicInputs(const TArray<FMetasoundFrontendClassInput>& InPublicInputs)
+			TSortedVertexNameMap<FMetasoundAssetBase::FRuntimeInput> GetPublicClassInputs(const FMetasoundFrontendDocument& InDoc)
 			{
+				using namespace Metasound;
 				using namespace Metasound::Frontend;
 
-				TArray<FMetasoundFrontendClassInput> TransmittableInputs;
+				METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(AssetBasePrivate::GetPublicClassInputs);
+
+				auto GetInputName = [](const FMetasoundFrontendClassInput& InInput) { return InInput.Name; };
 
 				IDataTypeRegistry& Registry = IDataTypeRegistry::Get();
-				Algo::TransformIf(InPublicInputs, TransmittableInputs,
-					[&Registry](const FMetasoundFrontendClassInput& Input)
+
+				TArray<const IInterfaceRegistryEntry*> Interfaces;
+				FMetaSoundFrontendDocumentBuilder::FindDeclaredInterfaces(InDoc, Interfaces);
+
+				// Inputs which are controlled by an interface are private unless
+				// their router name is `Audio::IParameterTransmitter::RouterName`
+				TSet<FVertexName> PrivateInputs;
+				for (const IInterfaceRegistryEntry* InterfaceEntry : Interfaces)
+				{
+					if (InterfaceEntry)
 					{
-						if (Input.AccessType != EMetasoundFrontendVertexAccessType::Reference)
+						if (InterfaceEntry->GetRouterName() != Audio::IParameterTransmitter::RouterName)
 						{
-							return false;
+							const FMetasoundFrontendInterface& Interface = InterfaceEntry->GetInterface();
+							Algo::Transform(Interface.Inputs, PrivateInputs, GetInputName);
 						}
+					}
+				}
 
-						FDataTypeRegistryInfo Info;
-						if (!Registry.GetDataTypeInfo(Input.TypeName, Info))
+				// Cache all inputs which are not private inputs.
+				TSortedVertexNameMap<FMetasoundAssetBase::FRuntimeInput> PublicInputs;
+				for (const FMetasoundFrontendClassInput& Input : InDoc.RootGraph.Interface.Inputs)
+				{
+					if (!PrivateInputs.Contains(Input.Name))
+					{
+						bool bIsTransmittable = false;
+						if (const IDataTypeRegistryEntry* RegistryEntry = Registry.FindDataTypeRegistryEntry(Input.TypeName))
 						{
-							return false;
+							bIsTransmittable = RegistryEntry->GetDataTypeInfo().bIsTransmittable;	
 						}
-
-						if (!Info.bIsTransmittable)
+						else
 						{
-							return false;
+							UE_LOG(LogMetaSound, Warning, TEXT("Failed to find data type '%s' in registry. Assuming data type is not transmittable"), *Input.TypeName.ToString());
+
 						}
+						PublicInputs.Add(Input.Name, FMetasoundAssetBase::FRuntimeInput{Input.Name, Input.TypeName, Input.AccessType, Input.DefaultLiteral, bIsTransmittable});
+					}
+				}
 
-						return true;
-					}, [](const FMetasoundFrontendClassInput& Input) { return Input; }
-					);
-
-				return TransmittableInputs;
+				// Add the parameter pack input that ALL Metasounds have
+				FMetasoundFrontendClassInput ParameterPackInput = UMetasoundParameterPack::GetClassInput();
+				PublicInputs.Add(ParameterPackInput.Name, FMetasoundAssetBase::FRuntimeInput{ParameterPackInput.Name, ParameterPackInput.TypeName, ParameterPackInput.AccessType, ParameterPackInput.DefaultLiteral, true /* bIsTransmittable */});
+				
+				return PublicInputs;
 			}
 
 			// Registers node by copying document. Updates to document require re-registration.
@@ -773,19 +795,19 @@ TArray<FMetasoundAssetBase::FSendInfoAndVertexName> FMetasoundAssetBase::GetSend
 
 	TArray<FSendInfoAndVertexName> SendInfos;
 
-	for (const FMetasoundFrontendClassInput& Vertex : RuntimeData.TransmittableInputs)
+	for (const TTuple<FVertexName, FRuntimeInput>& Entry: RuntimeData.PublicInputMap)
 	{
+		const FRuntimeInput& RuntimeInput = Entry.Get<1>();
 		FSendInfoAndVertexName Info;
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		Info.SendInfo.Address = FMetaSoundParameterTransmitter::CreateSendAddressFromInstanceID(InInstanceID, Vertex.Name, Vertex.TypeName);
+		Info.SendInfo.Address = FMetaSoundParameterTransmitter::CreateSendAddressFromInstanceID(InInstanceID, RuntimeInput.Name, RuntimeInput.TypeName);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		Info.SendInfo.ParameterName = Vertex.Name;
-		Info.SendInfo.TypeName = Vertex.TypeName;
-		Info.VertexName = Vertex.Name;
+		Info.SendInfo.ParameterName = RuntimeInput.Name;
+		Info.SendInfo.TypeName = RuntimeInput.TypeName;
+		Info.VertexName = RuntimeInput.Name;
 
 		SendInfos.Add(Info);
-		
 	}
 
 	return SendInfos;
@@ -904,48 +926,6 @@ FString FMetasoundAssetBase::GetOwningAssetName() const
 	return FString();
 }
 
-TArray<FMetasoundFrontendClassInput> FMetasoundAssetBase::GetPublicClassInputs() const
-{
-	using namespace Metasound;
-	using namespace Metasound::Frontend;
-
-	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundAssetBase::GetPublicClassInputs);
-
-	auto GetInputName = [](const FMetasoundFrontendClassInput& InInput) { return InInput.Name; };
-
-	// Inputs which are controlled by an interface are private. 
-	TArray<const IInterfaceRegistryEntry*> Interfaces;
-	TSet<FVertexName> PrivateInputs;
-	FMetaSoundFrontendDocumentBuilder::FindDeclaredInterfaces(GetDocumentChecked(), Interfaces);
-	for (const IInterfaceRegistryEntry* InterfaceEntry : Interfaces)
-	{
-		if (InterfaceEntry)
-		{
-			if (InterfaceEntry->GetRouterName() != Audio::IParameterTransmitter::RouterName)
-			{
-				const FMetasoundFrontendInterface& Interface = InterfaceEntry->GetInterface();
-				Algo::Transform(Interface.Inputs, PrivateInputs, GetInputName);
-			}
-		}
-	}
-
-	auto IsPublic = [&PrivateInputs](const FMetasoundFrontendClassVertex& InVertex)
-	{
-		return !PrivateInputs.Contains(InVertex.Name);
-	};
-
-	const FMetasoundFrontendDocument& Doc = GetDocumentChecked();
-	TArray<FMetasoundFrontendClassInput> PublicInputs;
-
-	Algo::CopyIf(Doc.RootGraph.Interface.Inputs, PublicInputs, IsPublic);
-
-	// Add the parameter pack input that ALL Metasounds have
-	PublicInputs.Add(UMetasoundParameterPack::GetClassInput());
-	
-	return PublicInputs;
-}
-
-
 #if WITH_EDITOR
 void FMetasoundAssetBase::RebuildReferencedAssetClasses()
 {
@@ -1045,20 +1025,15 @@ const FMetasoundAssetBase::FRuntimeData& FMetasoundAssetBase::CacheRuntimeData(c
 	CurrentCachedRuntimeDataChangeID = FGuid::NewGuid();
 	CachedRuntimeData.ChangeID = CurrentCachedRuntimeDataChangeID;
 
-	TArray<FMetasoundFrontendClassInput> PublicInputs = GetPublicClassInputs();
-	TArray<FMetasoundFrontendClassInput> TransmittableInputs = AssetBasePrivate::GetTransmittableInputsFromPublicInputs(PublicInputs);
+	Metasound::TSortedVertexNameMap<FMetasoundAssetBase::FRuntimeInput> PublicInputMap = AssetBasePrivate::GetPublicClassInputs(InDocument);
 
 	Metasound::Frontend::FProxyDataCache ProxyDataCache;
 	ProxyDataCache.CreateAndCacheProxies(InDocument);
 	TSharedPtr<Metasound::FGraph, ESPMode::ThreadSafe> Graph = BuildMetasoundDocument(InDocument, ProxyDataCache);
 
-	CachedRuntimeData =
-	{
-		CurrentCachedRuntimeDataChangeID,
-		MoveTemp(PublicInputs),
-		MoveTemp(TransmittableInputs),
-		MoveTemp(Graph)
-	};
+	CachedRuntimeData.ChangeID = CurrentCachedRuntimeDataChangeID;
+	CachedRuntimeData.PublicInputMap = MoveTemp(PublicInputMap);
+	CachedRuntimeData.Graph = MoveTemp(Graph);
 
 	return CachedRuntimeData;
 }

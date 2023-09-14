@@ -31,6 +31,7 @@ namespace Metasound
 		METASOUNDFRONTEND_API float GetDefaultBlockRate();
 
 		class FProxyDataCache;
+
 	} // namespace Frontend
 } // namespace Metasound
 
@@ -44,6 +45,21 @@ class METASOUNDFRONTEND_API FMetasoundAssetBase
 {
 public:
 	static const FString FileExtension;
+
+	// FRuntimeInput represents an input to a MetaSound which can be manipulated.
+	struct FRuntimeInput
+	{
+		// Name of input vertex
+		FName Name;
+		// Data type name of input vertex.
+		FName TypeName;
+		// Access type of input vertex.
+		EMetasoundFrontendVertexAccessType AccessType;
+		// Default literal of input vertex.
+		FMetasoundFrontendLiteral DefaultLiteral;
+		// True if the data type is transmittable. False otherwise.
+		bool bIsTransmittable;
+	};
 
 	FMetasoundAssetBase() = default;
 	virtual ~FMetasoundAssetBase() = default;
@@ -204,6 +220,7 @@ protected:
 	virtual Metasound::Frontend::FConstDocumentAccessPtr GetDocumentConstAccessPtr() const = 0;
 
 protected:
+	
 	// Container for runtime data of MetaSound graph.
 	struct FRuntimeData
 	{
@@ -211,9 +228,14 @@ protected:
 		FGuid ChangeID;
 
 		// Array of inputs which can be set for construction. 
+		UE_DEPRECATED(5.4, "Use PublicInputMap instead.")
 		TArray<FMetasoundFrontendClassInput> PublicInputs;
 
+		// Map of runtime inputs keyed by vertex names. 
+		Metasound::TSortedVertexNameMap<FRuntimeInput> PublicInputMap;
+
 		// Array of inputs which can be transmitted to.
+		UE_DEPRECATED(5.4, "Use PublicInputMap and DataTypeRegistry information instead.")
 		TArray<FMetasoundFrontendClassInput> TransmittableInputs;
 
 		// Core graph.
