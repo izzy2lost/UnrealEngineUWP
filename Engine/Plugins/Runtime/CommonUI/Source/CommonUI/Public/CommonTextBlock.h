@@ -108,6 +108,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Properties")
 	float FadeOutDelay;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Properties")
+	EWidgetClipping Clipping = EWidgetClipping::OnDemand;
 };
 
 /**
