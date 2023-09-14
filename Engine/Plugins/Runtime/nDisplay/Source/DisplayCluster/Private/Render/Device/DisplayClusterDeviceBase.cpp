@@ -324,7 +324,7 @@ bool FDisplayClusterDeviceBase::BeginNewFrame(FViewport* InViewport, UWorld* InW
 
 	if (ADisplayClusterRootActor* RootActor = DeviceBaseHelpers::GetDisplayClusterAPI().GetGameMgr()->GetRootActor())
 	{
-		if (IDisplayClusterViewportManager* ViewportManagerPtr = RootActor->GetViewportManager())
+		if (IDisplayClusterViewportManager* ViewportManagerPtr = RootActor->GetOrCreateViewportManager())
 		{
 			const FString LocalNodeId = DeviceBaseHelpers::GetDisplayClusterAPI().GetConfigMgr()->GetLocalNodeId();
 
@@ -350,9 +350,11 @@ bool FDisplayClusterDeviceBase::BeginNewFrame(FViewport* InViewport, UWorld* InW
 
 void FDisplayClusterDeviceBase::InitializeNewFrame()
 {
+	check(IsInGameThread());
+
 	if (ADisplayClusterRootActor* RootActor = DeviceBaseHelpers::GetDisplayClusterAPI().GetGameMgr()->GetRootActor())
 	{
-		if (IDisplayClusterViewportManager* ViewportManager = RootActor->GetViewportManager())
+		if (IDisplayClusterViewportManager* ViewportManager = RootActor->GetOrCreateViewportManager())
 		{
 			// Begin use viewport manager for current frame
 			ViewportManagerWeakPtr = ViewportManager->ToSharedPtr();

@@ -434,6 +434,12 @@ void UDisplayClusterMoviePipelineViewportPassBase::GetViewportCutOffset(const FM
 
 void UDisplayClusterMoviePipelineViewportPassBase::ReleaseDisplayCluster()
 {
+	if (DCRootActor)
+	{
+		// Delete all used rendering resources
+		DCRootActor->RemoveViewportManager();
+	}
+
 	// Reset all runtime values
 	DCRootActor = nullptr;
 
@@ -446,6 +452,8 @@ void UDisplayClusterMoviePipelineViewportPassBase::ReleaseDisplayCluster()
 
 bool UDisplayClusterMoviePipelineViewportPassBase::InitializeDisplayCluster()
 {
+	check(IsInGameThread());
+
 	ReleaseDisplayCluster();
 
 	UWorld* CurrentWorld = GetWorld();
@@ -475,14 +483,14 @@ bool UDisplayClusterMoviePipelineViewportPassBase::InitializeDisplayCluster()
 				return false;
 			}
 
-			IDisplayClusterViewportManager* ViewportManager = DCRootActor->GetViewportManager();
-			check(ViewportManager);
-
-			// Update local node viewports (update\create\delete) and build new render frame
-			const EDisplayClusterRenderFrameMode RenderFrameMode = EDisplayClusterRenderFrameMode::Mono;
-			if (ViewportManager->GetConfiguration().UpdateConfigurationForViewportsList(RenderFrameMode, DisplayClusterViewports))
+			if (IDisplayClusterViewportManager* ViewportManager = DCRootActor->GetOrCreateViewportManager())
 			{
-				return true;
+				// Update local node viewports (update\create\delete) and build new render frame
+				const EDisplayClusterRenderFrameMode RenderFrameMode = EDisplayClusterRenderFrameMode::Mono;
+				if (ViewportManager->GetConfiguration().UpdateConfigurationForViewportsList(RenderFrameMode, DisplayClusterViewports))
+				{
+					return true;
+				}
 			}
 		}
 	}

@@ -126,43 +126,42 @@ void ADisplayClusterRootActor::Destructor_Editor()
 
 void ADisplayClusterRootActor::RenderPreview_Editor()
 {
-	if (IsPreviewEnabled())
+	if (IsPreviewEnabled() && IsInGameThread())
 	{
-		// Restore ViewportManager
-		CreateViewportManagerImpl();
-
-		if (bDeferPreviewGeneration)
+		// When the preview is used by this DCRA, we must create a new ViewportManager
+		if (GetOrCreateViewportManager())
 		{
-			// Hack to generate preview components on instances during map load.
-			// TODO: See if we can move InitializeRootActor out of PostLoad.
-			bDeferPreviewGeneration = false;
-			UpdatePreviewComponents();
-		}
-
-		// Update preview RTTs correspond to 'TickPerFrame' value
-		if (++TickPerFrameCounter >= TickPerFrame)
-		{
-			TickPerFrameCounter = 0;
-
 			// Render viewport for preview material RTTs
-			if (ViewportManager.IsValid())
+			if (bDeferPreviewGeneration)
 			{
+				// Hack to generate preview components on instances during map load.
+				// TODO: See if we can move InitializeRootActor out of PostLoad.
+				bDeferPreviewGeneration = false;
+				UpdatePreviewComponents();
+			}
+
+			// Update preview RTTs correspond to 'TickPerFrame' value
+			if (++TickPerFrameCounter >= TickPerFrame)
+			{
+				TickPerFrameCounter = 0;
+
 				ImplRenderPreview_Editor();
 			}
-		}
 
-		// preview frustums on each tick
-		ImplRenderPreviewFrustums_Editor();
+			// preview frustums on each tick
+			ImplRenderPreviewFrustums_Editor();
+		}
 	}
 	else
 	{
 		ResetPreviewInternals_Editor();
-		if (ViewportManager.IsValid())
+		if (FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl())
 		{
 			if(ViewportManager->GetConfiguration().IsPreviewRendering())
 			{
-				// Release viewport manager with resources immediatelly for preview in scene
-				RemoveViewportManagerImpl();
+				// Preview is no longer in use.
+				// Release viewport manager with resources immediatelly
+				RemoveViewportManager();
 			}
 		}
 	}
@@ -353,7 +352,7 @@ void ADisplayClusterRootActor::SetIsSelectedInEditor(bool bValue)
 
 IDisplayClusterViewport* ADisplayClusterRootActor::FindPreviewViewport(const FString& InViewportId) const
 {
-	if (ViewportManager.IsValid())
+	if (FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl())
 	{
 		return ViewportManager->FindViewport(InViewportId);
 	}
@@ -376,17 +375,20 @@ bool ADisplayClusterRootActor::ImplUpdatePreviewConfiguration_Editor(const FStri
 	// Reset current preview rendering.
 	ResetClusterNodePreviewRendering_Editor();
 
-	if (IsPreviewEnabled() && ViewportManager.IsValid())
+	if (IsPreviewEnabled())
 	{
-		// Now we render this node
-		PreviewRenderFrameClusterNodeId = InClusterNodeId;
+		if (FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl())
+		{
+			// Now we render this node
+			PreviewRenderFrameClusterNodeId = InClusterNodeId;
 
-		// Update current world from scene DCRA
-		ADisplayClusterRootActor* SceneRootActor = ViewportManager->GetConfiguration().GetRootActor(EDisplayClusterRootActorType::Scene);
-		ViewportManager->GetConfiguration().SetCurrentWorld(SceneRootActor ? SceneRootActor->GetWorld() : GetWorld());
+			// Update current world from scene DCRA
+			ADisplayClusterRootActor* SceneRootActor = ViewportManager->GetConfiguration().GetRootActor(EDisplayClusterRootActorType::Scene);
+			ViewportManager->GetConfiguration().SetCurrentWorld(SceneRootActor ? SceneRootActor->GetWorld() : GetWorld());
 
-		// Update local node viewports (update\create\delete) and build new render frame
-		return ViewportManager->GetConfiguration().UpdateConfigurationForClusterNode(GetPreviewRenderMode_Editor(), InClusterNodeId);
+			// Update local node viewports (update\create\delete) and build new render frame
+			return ViewportManager->GetConfiguration().UpdateConfigurationForClusterNode(GetPreviewRenderMode_Editor(), InClusterNodeId);
+		}
 	}
 
 	return false;
@@ -436,19 +438,22 @@ bool ADisplayClusterRootActor::ImplUpdatePreviewRenderFrame_Editor(const FString
 
 		PreviewRenderFrame = MakeUnique<FDisplayClusterRenderFrame>();
 
-		// Update preview viewports from settings
-		if (!ViewportManager->BeginNewFrame(nullptr, *PreviewRenderFrame))
+		if (FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl())
 		{
-			PreviewRenderFrame.Reset();
+			// Update preview viewports from settings
+			if (!ViewportManager->BeginNewFrame(nullptr, *PreviewRenderFrame))
+			{
+				PreviewRenderFrame.Reset();
 
-			return false;
+				return false;
+			}
+
+			// Begin Render Preview For Cluster Node
+			PreviewViewportIndex = 0;
+
+			// Initialize frame for render
+			ViewportManager->InitializeNewFrame();
 		}
-
-		// Begin Render Preview For Cluster Node
-		PreviewViewportIndex = 0;
-
-		// Initialize frame for render
-		ViewportManager->InitializeNewFrame();
 	}
 
 	return IsActiveClusterNodePreviewRendering_Editor();
@@ -468,26 +473,29 @@ bool ADisplayClusterRootActor::ImplRenderPassPreviewClusterNode_Editor(const FSt
 		return false;
 	}
 
-	bool bFrameRendered = false;
-	int32 RenderedViewportsAmount = 0;
-
-	ViewportManager->RenderInEditor(*PreviewRenderFrame, nullptr, PreviewViewportIndex, ViewportsAmount, RenderedViewportsAmount, bFrameRendered);
-
-	// Increase viewport index
-	PreviewViewportIndex += ViewportsAmount;
-
-	// Count only rendered viewports
-	PreviewViewportsRenderedInThisFrameCnt += RenderedViewportsAmount;
-
-	if (bFrameRendered)
+	if (FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl())
 	{
-		// current cluster node is composed
-		ResetClusterNodePreviewRendering_Editor();
+		bool bFrameRendered = false;
+		int32 RenderedViewportsAmount = 0;
 
-		// Send event about RTT changed
-		OnPreviewGenerated.ExecuteIfBound();
+		ViewportManager->RenderInEditor(*PreviewRenderFrame, nullptr, PreviewViewportIndex, ViewportsAmount, RenderedViewportsAmount, bFrameRendered);
 
-		return true;
+		// Increase viewport index
+		PreviewViewportIndex += ViewportsAmount;
+
+		// Count only rendered viewports
+		PreviewViewportsRenderedInThisFrameCnt += RenderedViewportsAmount;
+
+		if (bFrameRendered)
+		{
+			// current cluster node is composed
+			ResetClusterNodePreviewRendering_Editor();
+
+			// Send event about RTT changed
+			OnPreviewGenerated.ExecuteIfBound();
+
+			return true;
+		}
 	}
 
 	return false;
@@ -495,7 +503,7 @@ bool ADisplayClusterRootActor::ImplRenderPassPreviewClusterNode_Editor(const FSt
 
 void ADisplayClusterRootActor::ImplRenderPreview_Editor()
 {
-	if (CurrentConfigData == nullptr || !IsPreviewEnabled() || !ViewportManager.IsValid())
+	if (CurrentConfigData == nullptr || !IsPreviewEnabled())
 	{
 		// no preview
 		return;
@@ -569,7 +577,8 @@ void ADisplayClusterRootActor::ImplRenderPreview_Editor()
 
 void ADisplayClusterRootActor::ImplRenderPreviewFrustums_Editor()
 {
-	if (CurrentConfigData == nullptr || !ViewportManager.IsValid())
+	FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl();
+	if (CurrentConfigData == nullptr || !ViewportManager)
 	{
 		return;
 	}

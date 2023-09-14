@@ -32,6 +32,7 @@ class IDisplayClusterConfiguratorBlueprintEditor;
 class FTransactionObjectEvent;
 #endif
 
+class FDisplayClusterViewportManager;
 class IDisplayClusterStageActor;
 class USceneComponent;
 class UDisplayClusterConfigurationData;
@@ -208,6 +209,12 @@ public:
 	/** Get ViewportManager API. */
 	IDisplayClusterViewportManager* GetViewportManager() const;
 
+	/** Get or Create ViewportManager API. */
+	IDisplayClusterViewportManager* GetOrCreateViewportManager();
+
+	/** Release the viewport manager instance, if it exists. */
+	void RemoveViewportManager();
+
 	/** Get ViewportConfiguration API.*/
 	IDisplayClusterViewportConfiguration* GetViewportConfiguration() const;
 	
@@ -217,15 +224,12 @@ public:
 	}
 
 private:
-	/** Create a new instance of the viewport manager if it does not exist. */
-	void CreateViewportManagerImpl();
-
-	/** Release the viewport manager instance, if it exists. */
-	void RemoveViewportManagerImpl();
+	/** Get ViewportManager API. */
+	FDisplayClusterViewportManager* GetViewportManagerImpl() const;
 
 private:
 	// DC ViewportManager instance for this DCRA
-	TSharedPtr<class FDisplayClusterViewportManager, ESPMode::ThreadSafe> ViewportManager;
+	TSharedPtr<FDisplayClusterViewportManager, ESPMode::ThreadSafe> ViewportManagerPtr;
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 // Details Panel Property Referencers

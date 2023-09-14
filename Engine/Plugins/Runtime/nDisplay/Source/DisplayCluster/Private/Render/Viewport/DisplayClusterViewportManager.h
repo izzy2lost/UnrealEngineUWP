@@ -132,11 +132,8 @@ public:
 	/** Get DC viewport manager proxy. */
 	TSharedPtr<FDisplayClusterViewportManagerProxy, ESPMode::ThreadSafe> GetViewportManagerProxy() const
 	{
-		check(IsInGameThread());
-
 		return ViewportManagerProxy;
 	}
-
 
 	/** Return initial StereoViewIndex for the input viewport. */
 	int32 FindFirstViewportStereoViewIndex(const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& InViewport) const;

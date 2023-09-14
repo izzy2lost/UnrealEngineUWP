@@ -92,8 +92,6 @@ ADisplayClusterRootActor::ADisplayClusterRootActor(const FObjectInitializer& Obj
 	DefaultViewPoint->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
 	DefaultViewPoint->SetRelativeLocation(FVector(0.f, 0.f, 50.f));
 
-	CreateViewportManagerImpl();
-
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.TickGroup = ETickingGroup::TG_PostUpdateWork;
 
@@ -124,38 +122,53 @@ ADisplayClusterRootActor::~ADisplayClusterRootActor()
 
 IDisplayClusterViewportManager* ADisplayClusterRootActor::GetViewportManager() const
 {
-	return ViewportManager.Get();
+	return GetViewportManagerImpl();
 }
 
-IDisplayClusterViewportConfiguration* ADisplayClusterRootActor::GetViewportConfiguration() const
+IDisplayClusterViewportManager* ADisplayClusterRootActor::GetOrCreateViewportManager()
 {
-	return ViewportManager.IsValid() ? &ViewportManager->GetConfiguration() : nullptr;
-}
+	check(IsInGameThread());
 
-void ADisplayClusterRootActor::CreateViewportManagerImpl()
-{
-	if (!ViewportManager.IsValid())
+	if (!ViewportManagerPtr.IsValid())
 	{
-		ViewportManager = MakeShared<FDisplayClusterViewportManager, ESPMode::ThreadSafe>();
+		ViewportManagerPtr = MakeShared<FDisplayClusterViewportManager, ESPMode::ThreadSafe>();
 
 		// After the constructor, we should always call this function to initialize internal references.
-		ViewportManager->Initialize();
+		ViewportManagerPtr->Initialize();
 
 		// Set the owner's DCRA to the newly created viewport manager.
-		ViewportManager->GetConfiguration().SetRootActor(this, EDisplayClusterRootActorType::Any);
+		ViewportManagerPtr->GetConfiguration().SetRootActor(this, EDisplayClusterRootActorType::Any);
 
 		// Preview rendering depends on the DC VM
 		FDisplayClusterRootActorPreviewRenderingManager::HandleEvent(EDisplayClusterRootActorPreviewEvent::Create, this);
 	}
+
+	return GetViewportManagerImpl();
 }
 
-void ADisplayClusterRootActor::RemoveViewportManagerImpl()
+FDisplayClusterViewportManager* ADisplayClusterRootActor::GetViewportManagerImpl() const
 {
-	// Preview rendering depends on the  DC VM
-	FDisplayClusterRootActorPreviewRenderingManager::HandleEvent(EDisplayClusterRootActorPreviewEvent::Remove, this);
+	return ViewportManagerPtr.IsValid() ? ViewportManagerPtr.Get() : nullptr;
+}
 
-	// Immediately release the viewport manager with resources
-	ViewportManager.Reset();
+IDisplayClusterViewportConfiguration* ADisplayClusterRootActor::GetViewportConfiguration() const
+{
+	return ViewportManagerPtr.IsValid() ? &ViewportManagerPtr->GetConfiguration() : nullptr;
+}
+
+void ADisplayClusterRootActor::RemoveViewportManager()
+{
+	if (ViewportManagerPtr.IsValid())
+	{
+		// Preview rendering depends on the  DC VM
+		FDisplayClusterRootActorPreviewRenderingManager::HandleEvent(EDisplayClusterRootActorPreviewEvent::Remove, this);
+
+		// Reset all DCRA references
+		ViewportManagerPtr->GetConfiguration().SetRootActor(nullptr, EDisplayClusterRootActorType::Any);
+
+		// Immediately release the viewport manager with resources
+		ViewportManagerPtr.Reset();
+	}
 }
 
 bool ADisplayClusterRootActor::IsRunningGameOrPIE() const
@@ -711,8 +724,6 @@ void ADisplayClusterRootActor::InitializeRootActor()
 		UpdateConfigDataInstance(GetDefaultConfigDataFromAsset());
 	}
 
-	CreateViewportManagerImpl();
-
 	StageGeometryComponent->Invalidate();
 
 	// Packaged, PIE and -game runtime
@@ -746,7 +757,7 @@ void ADisplayClusterRootActor::UpdateProceduralMeshComponentData(const UProcedur
 {
 	check(IsInGameThread());
 
-	if (ViewportManager.IsValid())
+	if (FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl())
 	{
 		FName ProceduralComponentName = (InProceduralMeshComponent==nullptr) ? NAME_None : InProceduralMeshComponent->GetFName();
 
@@ -1076,7 +1087,7 @@ void ADisplayClusterRootActor::Destroyed()
 #endif
 
 	// Release viewport manager with resources immediatelly
-	RemoveViewportManagerImpl();
+	RemoveViewportManager();
 
 	Super::Destroyed();
 }
@@ -1087,7 +1098,8 @@ void ADisplayClusterRootActor::BeginDestroy()
 	BeginDestroy_Editor();
 #endif
 
-	RemoveViewportManagerImpl();
+	// Release viewport manager with resources immediatelly
+	RemoveViewportManager();
 
 	Super::BeginDestroy();
 }
@@ -1464,10 +1476,9 @@ bool ADisplayClusterRootActor::SetFreezeOuterViewports(bool bEnable)
 void ADisplayClusterRootActor::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
 	ADisplayClusterRootActor* This = CastChecked<ADisplayClusterRootActor>(InThis);
-
-	if (This && This->ViewportManager.IsValid())
+	if (FDisplayClusterViewportManager* ViewportManager = This ? This->GetViewportManagerImpl() : nullptr)
 	{
-		This->ViewportManager->AddReferencedObjects(Collector);
+		ViewportManager->AddReferencedObjects(Collector);
 	}
 
 	Super::AddReferencedObjects(InThis, Collector);

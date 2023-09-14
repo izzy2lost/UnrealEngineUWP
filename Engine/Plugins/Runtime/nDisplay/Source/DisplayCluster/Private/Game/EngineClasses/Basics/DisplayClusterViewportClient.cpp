@@ -999,7 +999,7 @@ bool UDisplayClusterViewportClient::Draw_PIE(FViewport* InViewport, FCanvas* Sce
 {
 	IDisplayClusterGameManager* GameMgr = GDisplayCluster->GetGameMgr();
 
-	if (GameMgr == nullptr)
+	if (GameMgr == nullptr || !IsInGameThread())
 	{
 		return false;
 	}
@@ -1023,7 +1023,8 @@ bool UDisplayClusterViewportClient::Draw_PIE(FViewport* InViewport, FCanvas* Sce
 	//Get world for render
 	UWorld* const MyWorld = GetWorld();
 
-	IDisplayClusterViewportManager* ViewportManager = RootActor->GetViewportManager();
+	// When the PIE is used by this DCRA, we must create a new ViewportManager
+	IDisplayClusterViewportManager* ViewportManager = RootActor->GetOrCreateViewportManager();
 	if (ViewportManager == nullptr)
 	{
 		return false;
