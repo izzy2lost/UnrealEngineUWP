@@ -13,6 +13,7 @@ D3D12Util.h: D3D RHI utility implementation.
 #if PLATFORM_WINDOWS
 #include "HAL/PlatformCrashContext.h"
 #endif
+#include "GenericPlatform/GenericPlatformCrashContext.h"
 
 #define D3DERR(x) case x: ErrorCodeText = TEXT(#x); break;
 #define LOCTEXT_NAMESPACE "Developer.MessageLog"

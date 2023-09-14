@@ -291,7 +291,7 @@ struct FThreadCallStack
 };
 
 /** GPU breadcrumbs. */
-enum EBreadcrumbState : uint8
+enum class EBreadcrumbState : uint8
 {
 	NotStarted = 0,
 	Active = 1,
@@ -309,7 +309,7 @@ struct FBreadcrumbNode
 
 	const TCHAR* const GetStateString() const
 	{
-		return EBreadcrumbStateStrings[FMath::Min(State, EBreadcrumbState::Invalid)];
+		return EBreadcrumbStateStrings[static_cast<uint32>(FMath::Min(State, EBreadcrumbState::Invalid))];
 	}
 };
 
