@@ -2512,7 +2512,7 @@ struct FGameFeaturePluginState_Loading : public FGameFeaturePluginState
 			}));
 
 			// This will only bind if a load is in progress
-			BundleHandle->BindCompleteDelegate(FStreamableDelegate::CreateRaw(this, &FGameFeaturePluginState_Registering::UpdateStateMachineDeferred, 0.0f));
+			BundleHandle->BindCompleteDelegate(FStreamableDelegate::CreateRaw(this, &FGameFeaturePluginState_Loading::UpdateStateMachineDeferred, 0.0f));
 		}
 	}
 
