@@ -284,9 +284,10 @@ public:
 	 * @param InObject Object to mark dirty. Must be either a ALandscapeProxy or one of its inner objects
 	 * @param bInForceResave passed to true in order to bypass the bDirtyOnlyInMode and force the object into the list of modified packages. This ensures the object is marked as needing resaving in case we want to 
 	 *  help the user re-save its landscape actors (e.g. following a data fixup)
+	 * @param InLandscapeOverride if set, MarkObjectDirty will use this ALandscape instead of the local one in the method.
 	 * @return true if the object could not be marked dirty but has been added to the list of ModifiedPackages
 	 */
-	LANDSCAPE_API bool MarkObjectDirty(UObject* InObject, bool bInForceResave = false);
+	LANDSCAPE_API bool MarkObjectDirty(UObject* InObject, bool bInForceResave = false, const ALandscape* InLandscapeOverride = nullptr);
 #endif //WITH_EDITOR
 
 	/**
@@ -460,6 +461,6 @@ private:
 	void MoveSegment(ULandscapeSplineSegment* InSegment, TScriptInterface<ILandscapeSplineInterface> From, TScriptInterface<ILandscapeSplineInterface> To);
 	void MoveControlPoint(ULandscapeSplineControlPoint* InControlPoint, TScriptInterface<ILandscapeSplineInterface> From, TScriptInterface<ILandscapeSplineInterface> To);
 	bool UpdateLayerInfoMapInternal(ALandscapeProxy* Proxy, bool bInvalidate);
-	bool TryAddToModifiedPackages(UPackage* InPackage);
+	bool TryAddToModifiedPackages(UPackage* InPackage, const ALandscape* InLandscapeOverride = nullptr);
 #endif
 };

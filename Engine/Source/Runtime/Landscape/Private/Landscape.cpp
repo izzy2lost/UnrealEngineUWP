@@ -4380,8 +4380,11 @@ void ALandscapeProxy::FixupSharedData(ALandscape* Landscape, const bool bMapChec
 
 		if (bUpdated)
 		{
+			// In cases where LandscapeInfo is not fully ready yet, we forward the provided ALandscape. If ALandscape is available in LandscapeInfo, we let the object function naturally.
+			const ALandscape* LandscapeActor = (LandscapeInfo->LandscapeActor == nullptr) ? Landscape : nullptr;
+
 			// Force resave the proxy through the modified landscape system, so that the user can then use the Save Modified Landscapes menu and therefore manually trigger the re-save of all modified proxies. * /
-			bool bNeedsManualResave = LandscapeInfo->MarkObjectDirty(/*InObject = */this, /*bInForceResave = */true);
+			bool bNeedsManualResave = LandscapeInfo->MarkObjectDirty(/*InObject = */this, /*bInForceResave = */true, LandscapeActor);
 
 			if (bMapCheck && bNeedsManualResave)
 			{
@@ -4519,9 +4522,9 @@ int32 ULandscapeInfo::GetModifiedPackageCount() const
 	return IntCastChecked<int32>(Algo::CountIf(ModifiedPackages, [](const TWeakObjectPtr<UPackage>& InWeakPackagePtr) { return InWeakPackagePtr.IsValid(); }));
 }
 
-bool ULandscapeInfo::TryAddToModifiedPackages(UPackage* InPackage)
+bool ULandscapeInfo::TryAddToModifiedPackages(UPackage* InPackage, const ALandscape* InLandscapeOverride)
 {
-	ALandscape* LocalLandscapeActor = LandscapeActor.Get();
+	const ALandscape* LocalLandscapeActor = (InLandscapeOverride != nullptr) ? InLandscapeOverride : LandscapeActor.Get();
 	check(LocalLandscapeActor);
 
 	// We don't want to bother with packages being marked dirty for anything else than the Editor world 
@@ -4546,7 +4549,7 @@ bool ULandscapeInfo::TryAddToModifiedPackages(UPackage* InPackage)
 	return true;
 }
 
-bool ULandscapeInfo::MarkObjectDirty(UObject* InObject, bool bInForceResave)
+bool ULandscapeInfo::MarkObjectDirty(UObject* InObject, bool bInForceResave, const ALandscape* InLandscapeOverride)
 {
 	check(InObject && (InObject->IsA<ALandscapeProxy>() || InObject->GetTypedOuter<ALandscapeProxy>() != nullptr));
 
@@ -4557,12 +4560,12 @@ bool ULandscapeInfo::MarkObjectDirty(UObject* InObject, bool bInForceResave)
 		{
 			// When force-resaving (e.g. when syncing must-sync properties on load), unconditionally add the package to the list of packages to save if we couldn't mark it dirty already, so that 
 			//  the user can manually resave all that needs to be saved with the Save Modified Landscapes button :
-			bWasAddedToModifiedPackages = TryAddToModifiedPackages(InObject->GetPackage());
+			bWasAddedToModifiedPackages = TryAddToModifiedPackages(InObject->GetPackage(), InLandscapeOverride);
 		}
 	}
 	else if (bDirtyOnlyInMode)
 	{
-		ALandscape* LocalLandscapeActor = LandscapeActor.Get();
+		const ALandscape* LocalLandscapeActor = (InLandscapeOverride != nullptr) ? InLandscapeOverride : LandscapeActor.Get();
 		check(LocalLandscapeActor);
 		if (LocalLandscapeActor->HasLandscapeEdMode())
 		{
@@ -4570,7 +4573,7 @@ bool ULandscapeInfo::MarkObjectDirty(UObject* InObject, bool bInForceResave)
 		}
 		else
 		{
-			bWasAddedToModifiedPackages = TryAddToModifiedPackages(InObject->GetPackage());
+			bWasAddedToModifiedPackages = TryAddToModifiedPackages(InObject->GetPackage(), InLandscapeOverride);
 		}
 	}
 	else
