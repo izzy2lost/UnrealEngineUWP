@@ -25,8 +25,8 @@
 #include "Widgets/SMediaPlayerEditorViewer.h"
 #include "Widgets/SMediaSourceEditorDetails.h"
 #include "UObject/Package.h"
-
-#include "PostProcess/SceneFilterRendering.h" // Renderer/Private
+#include "PostProcess/DrawRectangle.h"
+#include "PixelShaderUtils.h"
 
 #define LOCTEXT_NAMESPACE "FMediaSourceEditorToolkit"
 
@@ -448,14 +448,14 @@ void FMediaSourceEditorToolkit::GenerateThumbnail()
 				SetScreenPassPipelineState(RHICmdList, PipelineState);
 				SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *PixelShaderParameters);
 
-				DrawRectangle(
-					RHICmdList,
+				FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
+				UE::Renderer::PostProcess::SetDrawRectangleParameters(BatchedParameters, PipelineState.VertexShader.GetShader(),
 					0.0f, 0.0f, static_cast<float>(Extent.X), static_cast<float>(Extent.Y),
 					0.0f, 0.0f, static_cast<float>(Extent.X), static_cast<float>(Extent.Y),
 					Extent,
-					Extent,
-					PipelineState.VertexShader,
-					EDRF_UseTriangleOptimization);
+					Extent);
+				RHICmdList.SetBatchedShaderParameters(PipelineState.VertexShader.GetVertexShader(), BatchedParameters);
+				FPixelShaderUtils::DrawFullscreenTriangle(RHICmdList);
 			});
 
 			GraphBuilder.Execute();
