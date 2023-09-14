@@ -29,9 +29,14 @@
 // DXC has issue with unrolling certain part of the code. To address temporarly the warning-as-error issues, 
 // we redefine the unroll function and fall back to loop on DXC
 // To remove this, one must test PC + DX12 + RayTracing and make sure raytracing shaders compile.
-#define SUBSTRATE_COMPILER (COMPILER_DXC)
+#define SUBSTRATE_COMPILER (COMPILER_VULKAN)
+#if SUBSTRATE_COMPILER == 1
+#define SUBSTRATE_UNROLL LOOP
+#define SUBSTRATE_UNROLL_N(X) LOOP
+#else
 #define SUBSTRATE_UNROLL UNROLL
 #define SUBSTRATE_UNROLL_N(X) UNROLL_N(X)
+#endif
 
 // During the base pass or forward rendering, shared local bases are simply available from registers.
 // If a BSDF is loaded for processing from the Substrate buffer, normals are unpacked on demand to reduce VGPR pressure and increase occupancy.
