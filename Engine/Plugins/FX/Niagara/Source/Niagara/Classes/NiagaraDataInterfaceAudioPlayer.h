@@ -2,7 +2,6 @@
 #pragma once
 
 #include "NiagaraCommon.h"
-#include "NiagaraShared.h"
 #include "NiagaraDataInterface.h"
 #include "NiagaraParameterStore.h"
 #include "Sound/SoundAttenuation.h"
@@ -21,6 +20,7 @@ struct FAudioParticleData
 	float Volume = 1;
 	float Pitch = 1;
 	float StartTime = 1;
+	int32 ParticleID = -1;
 };
 
 struct FPersistentAudioParticleData
@@ -29,6 +29,12 @@ struct FPersistentAudioParticleData
 
 	/** The update callback is executed in PerInstanceTickPostSimulate, which runs on the game thread */
 	TFunction<void(struct FAudioPlayerInterface_InstanceData*,UAudioComponent*,FNiagaraSystemInstance*)> UpdateCallback;
+};
+
+struct FAudioInitialParamData
+{
+	int32 ParticleID = -1;
+	FNiagaraVariable Value;
 };
 
 UCLASS(EditInlineNew, Category = "Audio", meta = (DisplayName = "Niagara Audio Player Settings"), Blueprintable, BlueprintType, MinimalAPI)
@@ -56,8 +62,10 @@ struct FAudioPlayerInterface_InstanceData
 {
 	/** We use a lock-free queue here because multiple threads might try to push data to it at the same time. */
 	TQueue<FAudioParticleData, EQueueMode::Mpsc> PlayAudioQueue;
+	TQueue<FAudioInitialParamData, EQueueMode::Mpsc> InitialParamDataQueue;
 	TQueue<FPersistentAudioParticleData, EQueueMode::Mpsc> PersistentAudioActionQueue;
 	FThreadSafeCounter HandleCount;
+	int32 ParamCountEstimate = 0;
 
 	TSortedMap<int32, TWeakObjectPtr<UAudioComponent>> PersistentAudioMapping;
 
@@ -66,6 +74,7 @@ struct FAudioPlayerInterface_InstanceData
 	TWeakObjectPtr<USoundConcurrency> Concurrency;
 	TWeakObjectPtr<UNiagaraDataInterfaceAudioPlayerSettings> CachedUserParam;
 	TArray<FName> ParameterNames;
+	TSet<FNiagaraVariable> GlobalInitialParameterValues;
 
 	FNiagaraLWCConverter LWCConverter;
 	int32 MaxPlaysPerTick = 0;
@@ -149,7 +158,7 @@ public:
 
 	virtual bool HasPreSimulateTick() const override { return true; }
 	virtual bool HasPostSimulateTick() const override { return true; }
-	virtual bool PostSimulateCanOverlapFrames() const { return false; }
+	virtual bool PostSimulateCanOverlapFrames() const override { return false; }
 	//UNiagaraDataInterface Interface
 
 	NIAGARA_API virtual void PlayOneShotAudio(FVectorVMExternalFunctionContext& Context);
@@ -157,6 +166,9 @@ public:
 	NIAGARA_API virtual void SetParameterBool(FVectorVMExternalFunctionContext& Context);
 	NIAGARA_API virtual void SetParameterInteger(FVectorVMExternalFunctionContext& Context);
 	NIAGARA_API virtual void SetParameterFloat(FVectorVMExternalFunctionContext& Context);
+	NIAGARA_API virtual void SetInitialParameterBool(FVectorVMExternalFunctionContext& Context);
+	NIAGARA_API virtual void SetInitialParameterInteger(FVectorVMExternalFunctionContext& Context);
+	NIAGARA_API virtual void SetInitialParameterFloat(FVectorVMExternalFunctionContext& Context);
 	NIAGARA_API virtual void UpdateVolume(FVectorVMExternalFunctionContext& Context);
 	NIAGARA_API virtual void UpdatePitch(FVectorVMExternalFunctionContext& Context);
 	NIAGARA_API virtual void UpdateLocation(FVectorVMExternalFunctionContext& Context);
@@ -176,5 +188,8 @@ private:
 	static NIAGARA_API const FName SetPersistentAudioBoolParamName;
 	static NIAGARA_API const FName SetPersistentAudioIntegerParamName;
 	static NIAGARA_API const FName SetPersistentAudioFloatParamName;
+	static NIAGARA_API const FName SetInitialAudioBoolParamName;
+	static NIAGARA_API const FName SetInitialAudioIntegerParamName;
+	static NIAGARA_API const FName SetInitialAudioFloatParamName;
 	static NIAGARA_API const FName PausePersistentAudioName;
 };
