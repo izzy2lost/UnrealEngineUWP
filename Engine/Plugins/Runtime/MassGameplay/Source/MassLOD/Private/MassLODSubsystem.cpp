@@ -392,7 +392,9 @@ void UMassLODSubsystem::AddEditorViewer(const int32 HashValue, const int32 Clien
 		const int NewIdx = bAddNew ? Viewers.Num() : ViewerFreeIndices.Pop();
 		FViewerInfo& NewViewerInfo = bAddNew ? Viewers.AddDefaulted_GetRef() : Viewers[NewIdx];
 
-		NewViewerInfo.EditorViewportClientIndex = ClientIndex;
+		using ClientIndexType = decltype(NewViewerInfo.EditorViewportClientIndex);
+		check(ClientIndex >= std::numeric_limits<ClientIndexType>::min() && ClientIndex <= std::numeric_limits<ClientIndexType>::max());
+		NewViewerInfo.EditorViewportClientIndex = static_cast<ClientIndexType>(ClientIndex);
 		NewViewerInfo.Handle.Index = NewIdx;
 		NewViewerInfo.Handle.SerialNumber = GetNextViewerSerialNumber();
 		NewViewerInfo.HashValue = HashValue;

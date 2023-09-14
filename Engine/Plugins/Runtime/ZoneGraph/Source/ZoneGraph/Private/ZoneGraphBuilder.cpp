@@ -11,7 +11,7 @@
 namespace UE::ZoneGraph::Internal
 {
 	
-inline bool InRange(const float Value, const float Min, const float Max)
+inline bool InRange(const double Value, const double Min, const double Max)
 {
 	return Value >= Min && Value <= Max;
 }

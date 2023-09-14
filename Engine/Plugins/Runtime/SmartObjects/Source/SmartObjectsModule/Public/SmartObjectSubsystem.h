@@ -201,11 +201,13 @@ private:
 		Slot,		// The handle points to the slot itself.
 	};
 	
-	explicit FSmartObjectSlotEntranceHandle(const FSmartObjectSlotHandle InSlotHandle, const EType InType, const uint8 InIndex = 0)
+	explicit FSmartObjectSlotEntranceHandle(const FSmartObjectSlotHandle InSlotHandle, const EType InType, const int32 InIndex = 0)
 		: SlotHandle(InSlotHandle)
 		, Type(InType)
-		, Index(InIndex)
 	{
+		using IndexType = decltype(Index);
+		check(InIndex >= std::numeric_limits<IndexType>::min() && InIndex <= std::numeric_limits<IndexType>::max());
+		Index = static_cast<IndexType>(InIndex);
 	}
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SmartObject", meta = (AllowPrivateAccess = "true"))

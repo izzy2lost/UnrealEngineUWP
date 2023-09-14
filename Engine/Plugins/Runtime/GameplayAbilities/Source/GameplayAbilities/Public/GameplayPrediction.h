@@ -405,9 +405,9 @@ private:
 	void GenerateNewPredictionKey();
 
 	FPredictionKey(int32 Key)
-		: Current(Key), Base(0), bIsStale(false), bIsServerInitiated(false)
+		: Current(static_cast<KeyType>(Key)), Base(0), bIsStale(false), bIsServerInitiated(false)
 	{
-
+		check(Key >= std::numeric_limits<KeyType>::min() && Key <= std::numeric_limits<KeyType>::max());
 	}
 
 	FPredictionKey(int16 InKey, int16 PreviousKey)

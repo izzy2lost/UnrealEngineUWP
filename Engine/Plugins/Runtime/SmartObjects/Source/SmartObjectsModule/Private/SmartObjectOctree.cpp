@@ -23,7 +23,7 @@ FSmartObjectOctree::FSmartObjectOctree()
 
 }
 
-FSmartObjectOctree::FSmartObjectOctree(const FVector& Origin, const float Radius)
+FSmartObjectOctree::FSmartObjectOctree(const FVector& Origin, const FVector::FReal Radius)
 	: TOctree2<FSmartObjectOctreeElement, FSmartObjectOctreeSemantics>(Origin, Radius)
 {
 }

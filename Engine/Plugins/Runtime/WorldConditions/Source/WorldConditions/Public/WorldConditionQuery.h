@@ -446,7 +446,7 @@ struct WORLDCONDITIONS_API FWorldConditionQueryState
 	static constexpr int32 CachedResultOffset = 0;
 
 	/** Offset in state memory where condition items are. */
-	static constexpr int32 ItemsOffset = Align(sizeof(EWorldConditionResultValue), alignof(FWorldConditionItem));
+	static constexpr int32 ItemsOffset = static_cast<int32>(Align(sizeof(EWorldConditionResultValue), alignof(FWorldConditionItem)));
  
 private:
 
