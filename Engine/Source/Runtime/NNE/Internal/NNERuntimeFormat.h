@@ -119,7 +119,7 @@ struct FNNERuntimeFormat
 			TensorData.SetNumUninitialized(DataSize);
 			Ar.Serialize((void*)TensorData.GetData(), DataSize);
 		}
-		else
+		else if (Ar.IsSaving())
 		{
 			DataSize = TensorData.Num();
 			Ar << DataSize;
