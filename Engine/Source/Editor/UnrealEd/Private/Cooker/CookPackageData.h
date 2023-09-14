@@ -915,7 +915,7 @@ public:
 		ICookPackageSplitter* InCookPackageSplitterInstance);
 	~FGeneratorPackage();
 	void InitializeSave(const UObject* InSplitDataObject, ICookPackageSplitter* InCookPackageSplitterInstance);
-	bool IsInitialized() const { return CookPackageSplitterInstance.IsValid(); }
+	bool IsInitialized() const { return bInitialized; }
 	/** Clear references to owned generated packages, and mark those packages as orphaned */
 	void ClearGeneratedPackages();
 
@@ -935,9 +935,12 @@ public:
 	const UE::Cook::FCookGenerationInfo* FindInfo(const FPackageData& PackageData) const;
 
 	/** Return CookPackageSplitter. */
-	ICookPackageSplitter* GetCookPackageSplitterInstance() const { return CookPackageSplitterInstance.Get(); }
+	ICookPackageSplitter* GetCookPackageSplitterInstance() const;
 	/** Return the SplitDataObject's FullObjectPath. */
 	const FName GetSplitDataObjectName() const { check(IsInitialized()); return SplitDataObjectName; }
+	/** Return the Splitter's value for virtual bool UseInternalReferenceToAvoidGarbageCollect() */
+	bool IsUseInternalReferenceToAvoidGarbageCollect() const { return bUseInternalReferenceToAvoidGarbageCollect; }
+
 	/**
 	 * Find again the split object from its name, or return null if no longer in memory.
 	 * It may have been GC'd and reloaded since the last time we used it.
@@ -988,7 +991,9 @@ private:
 	int32 NextPopulateIndex = 0;
 	int32 RemainingToPopulate = 0;
 
+	bool bInitialized = false;
 	bool bNotifiedCompletion = false;
+	bool bUseInternalReferenceToAvoidGarbageCollect = false;
 };
 
 
