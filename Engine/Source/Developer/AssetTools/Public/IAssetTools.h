@@ -598,6 +598,9 @@ public:
 	/** Get writable folder permission list for content browser and other systems */
 	virtual TSharedRef<FPathPermissionList>& GetWritableFolderPermissionList() = 0;
 
+	/** Determines whether an asset has a viewable asset class and its folder is allowed. If not, it can also check if it's aliased to an allowed location. */
+	virtual bool IsAssetVisible(const FAssetData& AssetData, bool bCheckAliases = true) const = 0;
+
 	/** Returns true if all in list pass writable folder filter */
 	virtual bool AllPassWritableFolderFilter(const TArray<FString>& InPaths) const = 0;
 

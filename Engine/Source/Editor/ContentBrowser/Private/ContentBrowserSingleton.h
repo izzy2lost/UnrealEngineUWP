@@ -119,6 +119,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual void UnregisterIsFolderShowPrivateContentToggleableDelegate() override;
 	virtual FDelegateHandle RegisterOnFavoritesChangedHandler(FSimpleDelegate OnFavoritesChanged) override;
 	virtual void UnregisterOnFavoritesChangedDelegate(FDelegateHandle Handle) override;
+	virtual TArray<FString> GetAliasesForPath(const FSoftObjectPath& InPath) const override;
 
 	/** Broadcast that the favorites have changed. */
 	void BroadcastFavoritesChanged() const;
