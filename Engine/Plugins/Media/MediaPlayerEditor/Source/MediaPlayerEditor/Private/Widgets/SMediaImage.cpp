@@ -7,6 +7,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialExpressionTextureSample.h"
 #include "Materials/MaterialExpressionSubstrate.h"
+#include "RenderUtils.h"
 #include "Styling/SlateBrush.h"
 #include "UObject/Package.h"
 #include "Widgets/Layout/SScaleBox.h"
