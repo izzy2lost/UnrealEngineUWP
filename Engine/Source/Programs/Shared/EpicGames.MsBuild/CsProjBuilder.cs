@@ -246,7 +246,7 @@ namespace EpicGames.MsBuild
 									Logger.LogError("  {Path}", Path);
 								}
 							}
-							throw IPFEx;
+							throw;
 						}
 
 						if (!OperatingSystem.IsWindows())
