@@ -829,12 +829,6 @@ class UMaterialExpressionSubstrateConvertMaterialAttributes : public UMaterialEx
 	UPROPERTY()
 	FMaterialAttributesInput MaterialAttributes;
 
-	/**
-	 * The amount of transmitted light from the back side of the surface to the front side of the surface (type = float3, unit = unitless, defaults to 1)
-	 */
-	UPROPERTY()
-	FExpressionInput TransmittanceColor;
-
 		/**
 	* The single scattering Albedo defining the overall color of the Material (type = float3, unit = unitless, default = 0)
 	 */
@@ -858,18 +852,6 @@ class UMaterialExpressionSubstrateConvertMaterialAttributes : public UMaterialEx
 	 */
 	UPROPERTY()
 	FExpressionInput ColorScaleBehindWater;
-
-	/**
-	 * Take the bottom clear coat surface normal as input. The normal is considered tangent or world space according to the space properties on the main material node. (type = float3, unit = unitless, defaults to vertex normal)
-	 */
-	UPROPERTY()
-	FExpressionInput ClearCoatNormal;
-
-	/**
-	 * Take the tangent output node as input. The tangent is considered tangent or world space according to the space properties on the main material node. (type = float3, unit = unitless, defaults to vertex tangent)
-	 */
-	UPROPERTY()
-	FExpressionInput CustomTangent;
 
 	/** SubsurfaceProfile, for Screen Space Subsurface Scattering. The profile needs to be set up on both the Substrate diffuse node, and the material node at the moment. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Material, meta = (DisplayName = "Subsurface Profile"))

@@ -562,6 +562,19 @@ const FMaterialCustomOutputAttributeDefintion* FMaterialAttributeDefinitionMap::
 	return nullptr;
 }
 
+const FMaterialCustomOutputAttributeDefintion* FMaterialAttributeDefinitionMap::GetCustomAttribute(const FGuid& AttributeID)
+{
+	for (auto& Attribute : GMaterialPropertyAttributesMap.CustomAttributes)
+	{
+		if (Attribute.AttributeID == AttributeID)
+		{
+			return &Attribute;
+		}
+	}
+
+	return nullptr;
+}
+
 void FMaterialAttributeDefinitionMap::GetCustomAttributeList(TArray<FMaterialCustomOutputAttributeDefintion>& CustomAttributeList)
 {
 	CustomAttributeList.Empty(GMaterialPropertyAttributesMap.CustomAttributes.Num());
