@@ -352,13 +352,7 @@ bool FActorTreeItem::ShouldShowPinnedState() const
 
 bool FActorTreeItem::ShouldShowVisibilityState() const
 {
-	if (const AActor* ActorPtr = Actor.Get())
-	{
-		const ULevel* Level = ActorPtr->GetLevel();
-		return Level->IsPersistentLevel() || !Level->IsInstancedLevel();
-	}
-
-	return false;
+	return true;
 }
 
 void FActorTreeItem::OnVisibilityChanged(const bool bNewVisibility)
