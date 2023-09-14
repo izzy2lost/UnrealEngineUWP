@@ -720,12 +720,4 @@ public:
 
 	/** Unregister a previously-registered handler for when Favorites changes. */
 	virtual void UnregisterOnFavoritesChangedDelegate(FDelegateHandle Handle) = 0;
-
-	/**
-	 * Get a list of other paths that the data source may be using to represent a specific path
-	 *
-	 * @param The internal path (or object path) of an asset to get aliases for
-	 * @return All alternative paths that represent the input path (not including the input path itself)
-	 */
-	virtual TArray<FString> GetAliasesForPath(const FSoftObjectPath& InPath) const = 0;
 };

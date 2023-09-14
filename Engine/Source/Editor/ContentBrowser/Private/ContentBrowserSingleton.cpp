@@ -1317,17 +1317,4 @@ FContentBrowserItemPath FContentBrowserSingleton::GetInitialPathToSaveAsset(cons
 	return FContentBrowserItemPath(AssetPath, EContentBrowserPathType::Internal);
 }
 
-TArray<FString> FContentBrowserSingleton::GetAliasesForPath(const FSoftObjectPath& InPath) const
-{
-	TArray<FString> OutPaths;
-
-	const TArray<FContentBrowserItemPath> Items = IContentBrowserDataModule::Get().GetSubsystem()->GetAliasesForPath(InPath);
-	for (const FContentBrowserItemPath& Item : Items)
-	{
-		OutPaths.Add(Item.GetInternalPathString());
-	}
-
-	return OutPaths;
-}
-
 #undef LOCTEXT_NAMESPACE

@@ -5933,42 +5933,6 @@ TSharedRef<FPathPermissionList>& UAssetToolsImpl::GetWritableFolderPermissionLis
 	return WritableFolderPermissionList;
 }
 
-bool UAssetToolsImpl::IsAssetVisible(const FAssetData& AssetData, bool bCheckAliases) const
-{
-	// If the class is not visible, the asset is never visible regardless of the path
-	if (!GetAssetClassPathPermissionList(EAssetClassAction::ViewAsset)->PassesFilter(AssetData.AssetClassPath.ToString()))
-	{
-		return false;
-	}
-	
-	// If this asset's package is in a visible folder, then it is visible
-	if (FolderPermissionList->PassesStartsWithFilter(AssetData.PackagePath))
-	{
-		return true;
-	}
-
-	// Otherwise, check if any of the asset's aliases are in a visible folder
-	if (bCheckAliases)
-	{
-		const TArray<FString> Aliases = IContentBrowserSingleton::Get().GetAliasesForPath(AssetData.ToSoftObjectPath());
-		for (const FString& Alias : Aliases)
-		{
-			FStringView AliasPackagePath(Alias);
-			int32 LastSlashIndex = INDEX_NONE;
-			if (AliasPackagePath.FindLastChar(TEXT('/'), LastSlashIndex))
-			{
-				AliasPackagePath.LeftInline(LastSlashIndex);
-				if (FolderPermissionList->PassesStartsWithFilter(AliasPackagePath))
-				{
-					return true;
-				}
-			}
-		}
-	}
-
-	return false;
-}
-
 bool UAssetToolsImpl::AllPassWritableFolderFilter(const TArray<FString>& InPaths) const
 {
 	if (WritableFolderPermissionList->HasFiltering())
