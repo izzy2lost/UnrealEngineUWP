@@ -34,6 +34,7 @@
 #include "Materials/MaterialRenderProxy.h"
 #include "StaticMeshBatch.h"
 #include "PrimitiveSceneDesc.h"
+#include "BasePassRendering.h" // TODO: Remove with later refactor (moving Nanite shading into its own files)
 
 
 extern int32 GGPUSceneInstanceClearList;
@@ -720,6 +721,7 @@ void FPrimitiveSceneInfo::CacheNaniteDrawCommands(FScene* Scene, const TArrayVie
 void BuildNaniteDrawCommands(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneInfo, FNaniteDrawListContext& DrawListContext)
 {
 	static const bool bAllowComputeMaterials = NaniteComputeMaterialsSupported();
+	static const bool bAllowStaticLighting = FReadOnlyCVARCache::Get().bAllowStaticLighting;
 
 	FPrimitiveSceneProxy* Proxy = PrimitiveSceneInfo->Proxy;
 	if (Proxy->IsNaniteMesh())
@@ -748,6 +750,17 @@ void BuildNaniteDrawCommands(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 				TArray<Nanite::FSceneProxyBase::FMaterialSection>& NaniteMaterialSections = NaniteProxy->GetMaterialSections();
 				if (NaniteMaterialSections.Num() > 0)
 				{
+					FLightCacheInterface* LightCacheInterface = nullptr;
+					if (bAllowComputeMaterials && bAllowStaticLighting && NaniteProxy->HasStaticLighting())
+					{
+						FPrimitiveSceneProxy::FLCIArray LCIs;
+						NaniteProxy->GetLCIs(LCIs);
+
+						// We expect a Nanite scene proxy can only ever have a single LCI
+						check(LCIs.Num() == 1u);
+						LightCacheInterface = LCIs[0];
+					}
+
 					FNaniteDrawListContext::FDeferredPipelines& PipelinesCommand = DrawListContext.DeferredPipelines[MeshPass].Emplace_GetRef();
 					PipelinesCommand.PrimitiveSceneInfo = PrimitiveSceneInfo;
 					for (int32 MaterialSectionIndex = 0; MaterialSectionIndex < NaniteMaterialSections.Num(); ++MaterialSectionIndex)
@@ -775,6 +788,12 @@ void BuildNaniteDrawCommands(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 							ShadingPipeline.ShadingMaterial = MaterialSection.ShadingMaterialProxy;
 							ShadingPipeline.bIsTwoSided = !!MaterialSection.MaterialRelevance.bTwoSided;
 							ShadingPipeline.bIsMasked = MaterialSection.MaterialRelevance.bMasked;
+							ShadingPipeline.LightCacheInterface = LightCacheInterface;
+							if (bAllowStaticLighting)
+							{
+								const FMaterial& LMMaterial = ShadingPipeline.ShadingMaterial->GetIncompleteMaterialWithFallback(NaniteMeshProcessor->Scene->GetFeatureLevel());
+								ShadingPipeline.LightMapPolicyType = FBasePassMeshProcessor::GetUniformLightMapPolicyType(NaniteMeshProcessor->Scene->GetFeatureLevel(), NaniteMeshProcessor->Scene, LightCacheInterface, NaniteProxy, LMMaterial);
+							}
 						}
 					}
 				}

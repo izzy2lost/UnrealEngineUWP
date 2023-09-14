@@ -402,7 +402,7 @@ bool FNaniteMeshProcessor::TryAddMeshBatch(
 	check(Nanite::IsSupportedMaterialDomain(Material.GetMaterialDomain()));
 
 	const bool bRenderSkylight = Scene && Scene->ShouldRenderSkylightInBasePass(bIsTranslucent) && ShadingModels != MSM_Unlit;
-	ELightMapPolicyType LightMapPolicyType = FBasePassMeshProcessor::GetUniformLightMapPolicyType(FeatureLevel, Scene, MeshBatch, PrimitiveSceneProxy, Material);
+	ELightMapPolicyType LightMapPolicyType = FBasePassMeshProcessor::GetUniformLightMapPolicyType(FeatureLevel, Scene, MeshBatch.LCI, PrimitiveSceneProxy, Material);
 
 	const EGBufferLayout GBufferLayout = Nanite::GetGBufferLayoutForMaterial(Material.MaterialUsesWorldPositionOffset_RenderThread());
 

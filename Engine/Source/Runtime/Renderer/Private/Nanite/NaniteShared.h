@@ -15,6 +15,7 @@
 #include "MaterialShader.h"
 #include "Misc/ScopeRWLock.h"
 #include "Experimental/Containers/RobinHoodHashTable.h"
+#include "LightMapRendering.h" // TODO: Remove with later refactor (moving Nanite shading into its own files)
 
 DECLARE_LOG_CATEGORY_EXTERN(LogNanite, Warning, All);
 
@@ -770,6 +771,8 @@ struct FNaniteShadingBin
 struct FNaniteShadingPipeline
 {
 	const FMaterialRenderProxy* ShadingMaterial = nullptr;
+	const FLightCacheInterface* LightCacheInterface = nullptr;
+	ELightMapPolicyType LightMapPolicyType = ELightMapPolicyType::LMP_NO_LIGHTMAP;
 	bool bIsTwoSided = false;
 	bool bIsMasked = false;
 
@@ -777,7 +780,8 @@ struct FNaniteShadingPipeline
 	{
 		struct FHashKey
 		{
-			uint32 MaterialFlags;
+			uint32 LightMapPolicy : 16;
+			uint32 MaterialFlags  : 16;
 			uint32 MaterialHash;
 
 			static inline uint32 PointerHash(const void* Key)
@@ -793,9 +797,16 @@ struct FNaniteShadingPipeline
 
 		} HashKey;
 
+		HashKey.LightMapPolicy = uint16(LightMapPolicyType);
 		HashKey.MaterialFlags  = 0;
 		HashKey.MaterialFlags |= bIsTwoSided ? 0x1u : 0x0u;
 		HashKey.MaterialHash   = FHashKey::PointerHash(ShadingMaterial);
+		
+		if (LightCacheInterface != nullptr)
+		{
+			HashKey.MaterialHash = HashCombine(HashKey.MaterialHash, FHashKey::PointerHash(LightCacheInterface));
+		}
+
 		return uint32(CityHash64((char*)&HashKey, sizeof(FHashKey)));
 	}
 

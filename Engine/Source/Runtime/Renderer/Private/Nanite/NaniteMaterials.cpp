@@ -867,7 +867,9 @@ void BuildShadingCommands(
 
 		const FMaterialShadingModelField ShadingModels = ShadingMaterial.GetShadingModels();
 		const bool bRenderSkylight = Scene.ShouldRenderSkylightInBasePass(IsTranslucentBlendMode(ShadingMaterial.GetBlendMode())) && ShadingModels != MSM_Unlit;
-		FUniformLightMapPolicy LightMapPolicy = FUniformLightMapPolicy(LMP_NO_LIGHTMAP);
+
+		const FLightCacheInterface* LCI = ShadingEntry.ShadingPipeline.LightCacheInterface;
+		FUniformLightMapPolicy LightMapPolicy = FUniformLightMapPolicy(ShadingEntry.ShadingPipeline.LightMapPolicyType);
 
 		const EGBufferLayout GBufferLayout = Nanite::GetGBufferLayoutForMaterial(ShadingMaterial.MaterialUsesWorldPositionOffset_RenderThread());
 
@@ -911,11 +913,6 @@ void BuildShadingCommands(
 		ShadingCommand->BoundTargetMask = PassShaders.ComputeShader->GetBoundTargetMask();
 
 		const FShaderParameterBindings& Bindings = BasePassComputeShader->Bindings;
-
-		//const FLightMapInteraction LightMapInteraction = (bAllowStaticLighting && MeshBatch.LCI && bIsLitMaterial)
-		//	? MeshBatch.LCI->GetLightMapInteraction(FeatureLevel)
-		//	: FLightMapInteraction();
-		FLightCacheInterface* LCI = nullptr; // TODO: Lightmaps?
 
 		TBasePassShaderElementData<FUniformLightMapPolicy> ShaderElementData(LCI);
 		ShaderElementData.InitializeMeshMaterialData(

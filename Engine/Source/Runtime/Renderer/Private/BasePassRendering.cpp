@@ -2049,7 +2049,7 @@ bool FBasePassMeshProcessor::TryAddMeshBatch(const FMeshBatch& RESTRICT MeshBatc
 		}
 		else
 		{
-			ELightMapPolicyType UniformLightMapPolicyType = GetUniformLightMapPolicyType(FeatureLevel, Scene, MeshBatch, PrimitiveSceneProxy, Material);
+			ELightMapPolicyType UniformLightMapPolicyType = GetUniformLightMapPolicyType(FeatureLevel, Scene, MeshBatch.LCI, PrimitiveSceneProxy, Material);
 			bResult = Process< FUniformLightMapPolicy >(
 				MeshBatch,
 				BatchElementMask,
@@ -2070,7 +2070,7 @@ bool FBasePassMeshProcessor::TryAddMeshBatch(const FMeshBatch& RESTRICT MeshBatc
 	return bResult;
 }
 
-ELightMapPolicyType FBasePassMeshProcessor::GetUniformLightMapPolicyType(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FMeshBatch& RESTRICT MeshBatch, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, const FMaterial& Material)
+ELightMapPolicyType FBasePassMeshProcessor::GetUniformLightMapPolicyType(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FLightCacheInterface* LCI, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, const FMaterial& Material)
 {
 	// Check for a cached light-map.
 	const bool bIsTranslucent = IsTranslucentBlendMode(Material);
@@ -2078,8 +2078,8 @@ ELightMapPolicyType FBasePassMeshProcessor::GetUniformLightMapPolicyType(ERHIFea
 	const bool bIsLitMaterial = ShadingModels.IsLit();
 	const bool bAllowStaticLighting = IsStaticLightingAllowed();
 
-	const FLightMapInteraction LightMapInteraction = (bAllowStaticLighting && MeshBatch.LCI && bIsLitMaterial)
-		? MeshBatch.LCI->GetLightMapInteraction(FeatureLevel)
+	const FLightMapInteraction LightMapInteraction = (bAllowStaticLighting && LCI && bIsLitMaterial)
+		? LCI->GetLightMapInteraction(FeatureLevel)
 		: FLightMapInteraction();
 
 	// force LQ lightmaps based on system settings
@@ -2098,8 +2098,8 @@ ELightMapPolicyType FBasePassMeshProcessor::GetUniformLightMapPolicyType(ERHIFea
 	case LMIT_Texture:
 		if (bAllowHighQualityLightMaps)
 		{
-			const FShadowMapInteraction ShadowMapInteraction = (bAllowStaticLighting && MeshBatch.LCI && bIsLitMaterial)
-				? MeshBatch.LCI->GetShadowMapInteraction(FeatureLevel)
+			const FShadowMapInteraction ShadowMapInteraction = (bAllowStaticLighting && LCI && bIsLitMaterial)
+				? LCI->GetShadowMapInteraction(FeatureLevel)
 				: FShadowMapInteraction();
 
 			if (ShadowMapInteraction.GetType() == SMIT_Texture)
