@@ -85,21 +85,17 @@ void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& C
 	// Restart the animation:
 	// - if this node just became relevant
 	// - if we chose a new animation
+	// - if the mirror setting has changed
 	// - for playback rate of 0, when the start time changes - for choosing poses as frames of an animation sequence
+	// - if the curve values are different
 	if (bJustBecameRelevant || NewAsset != CurrentAsset ||
-		(CurrentStartTime != Settings.StartTime && Settings.PlaybackRate == 0.0f)) 
-	{			
-		CurveOverridesIndex = (CurveOverridesIndex + 1) % 2;
-		OverrideCurves[CurveOverridesIndex].Empty();
-		if (!Settings.CurveOverrides.Values.IsEmpty())
-		{
-			OverrideCurves[CurveOverridesIndex].Reserve(Settings.CurveOverrides.Values.Num());
-			for (const FAnimCurveOverride& CurveOverride : Settings.CurveOverrides.Values)
-			{
-				OverrideCurves[CurveOverridesIndex].Add(CurveOverride.CurveName, CurveOverride.CurveValue);
-			}
-		}
-
+		CurrentMirror != Settings.bMirror ||
+		(CurrentStartTime != Settings.StartTime && Settings.PlaybackRate == 0.0f) ||
+		CurrentCurveOverrides != Settings.CurveOverrides)
+	{
+		CurrentCurveOverrides = Settings.CurveOverrides;
+		CurrentMirror = Settings.bMirror;
+		
 		float BlendTime = bJustBecameRelevant ? 0 : Settings.BlendTime;
 
 		bool bLoop = Settings.bForceLooping;
@@ -120,6 +116,16 @@ void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& C
 			Settings.BlendTime, Settings.BlendTime, Settings.BlendTime,
 			Settings.BlendProfile, Settings.BlendOption, Settings.bUseInertialBlend, FVector::Zero(), Settings.PlaybackRate,
 			GetGroupName(), GetGroupRole(), GetGroupMethod());
+
+		if (!Settings.CurveOverrides.Values.IsEmpty())
+		{
+			TBaseBlendedCurve<FDefaultAllocator, UE::Anim::FCurveElement>& OverrideCurve = AnimPlayers.First().OverrideCurve;
+			OverrideCurve.Reserve(Settings.CurveOverrides.Values.Num());
+			for (const FAnimCurveOverride& CurveOverride : Settings.CurveOverrides.Values)
+			{
+				OverrideCurve.Add(CurveOverride.CurveName, CurveOverride.CurveValue);
+			}
+		}
 		
 		CurrentAsset = NewAsset;
 		CurrentStartTime = Settings.StartTime;
@@ -161,22 +167,6 @@ void FAnimNode_ChooserPlayer::Evaluate_AnyThread(FPoseContext& Output)
 	FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(Output);
 
 	const FChooserPlayerSettings& Settings = ChooserContext.Params[1].Get<FChooserPlayerSettings>();
-
-
-	
-	if (AnimPlayers.Num() == 1)
-	{
-		UE::Anim::FNamedValueArrayUtils::Union(Output.Curve, OverrideCurves[CurveOverridesIndex]);	
-	}
-	if (AnimPlayers.Num() > 1)
-	{
-		const float Weight = FAlphaBlend::AlphaToBlendOption(AnimPlayers[0].GetBlendInPercentage(), AnimPlayers[0].GetBlendOption());
-		const uint32 PrevCurveOverridesIndex = (CurveOverridesIndex + 1) % 2;
-		UE::Anim::FNamedValueArrayUtils::Union(Output.Curve, OverrideCurves[PrevCurveOverridesIndex]);
-		Output.Curve.LerpTo(OverrideCurves[CurveOverridesIndex], Weight);
-	}
-
-	
 }
 
 FName FAnimNode_ChooserPlayer::GetGroupName() const

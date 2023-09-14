@@ -59,6 +59,10 @@ public:
 	// the output FPoseContext will be from StoredPose, StoredCurve, StoredAttributes
 	FCompactHeapPose StoredPose;
 	FBlendedHeapCurve StoredCurve;
+
+	// Curves to add to the pose after the player evaluates
+	TBaseBlendedCurve<FDefaultAllocator, UE::Anim::FCurveElement> OverrideCurve;
+	
 	UE::Anim::FHeapAttributeContainer StoredAttributes;
 	// We need to store the bone container, in case we have a LOD swap during a blend that uses the stored pose.
 	FBoneContainer StoredBoneContainer;

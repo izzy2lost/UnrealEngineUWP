@@ -130,6 +130,8 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 
 	UpdateSourceLinkNode();
 	PoseLinkIndex = InPoseLinkIdx;
+
+	OverrideCurve.Empty();
 }
 
 void FBlendStackAnimPlayer::UpdatePlayRate(float PlayRate)
@@ -226,6 +228,11 @@ void FBlendStackAnimPlayer::Evaluate_AnyThread(FPoseContext& Output)
 	{
 		UpdateSourceLinkNode();
 		MirrorNode.Evaluate_AnyThread(Output);
+
+		if (OverrideCurve.Num() != 0)
+		{
+			UE::Anim::FNamedValueArrayUtils::Union(Output.Curve, OverrideCurve);
+		}
 	}
 	else
 	{

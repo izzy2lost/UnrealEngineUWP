@@ -9,7 +9,6 @@
 #include "InstancedStruct.h"
 #include "IObjectChooser.h"
 #include "BlendStack/AnimNode_BlendStack.h"
-#include "Styling/SlateBrush.h"
 
 #include "AnimNode_ChooserPlayer.generated.h"
 
@@ -20,53 +19,6 @@ enum class EChooserEvaluationFrequency
 	OnBecomeRelevant,
 	OnLoop,
 	OnUpdate
-};
-
-/** The random player node holds a list of sequences and parameter ranges which will be played continuously
-  * In a random order. If shuffle mode is enabled then each entry will be played once before repeating any
-  */
-USTRUCT(BlueprintInternalUseOnly)
-struct FChooserPlayerSequenceEntry
-{
-	GENERATED_BODY()
-
-	FChooserPlayerSequenceEntry()
-	    : Sequence(nullptr)
-	    , ChanceToPlay(1.0f)
-	    , MinLoopCount(0)
-	    , MaxLoopCount(0)
-	    , MinPlayRate(1.0f)
-	    , MaxPlayRate(1.0f)
-	{
-	}
-
-	/** Sequence to play when this entry is picked */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (DisallowedClasses = "/Script/Engine.AnimMontage"))
-	TObjectPtr<UAnimSequenceBase> Sequence;
-
-	/** When not in shuffle mode, this is the chance this entry will play (normalized against all other sample chances) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (UIMin = "0", ClampMin = "0"))
-	float ChanceToPlay;
-
-	/** Minimum number of times this entry will loop before ending */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (UIMin = "0", ClampMin = "0"))
-	int32 MinLoopCount;
-
-	/** Maximum number of times this entry will loop before ending */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (UIMin = "0", ClampMin = "0"))
-	int32 MaxLoopCount;
-
-	/** Minimum playrate for this entry */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (UIMin = "0", ClampMin = "0"))
-	float MinPlayRate;
-
-	/** Maximum playrate for this entry */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (UIMin = "0", ClampMin = "0"))
-	float MaxPlayRate;
-
-	/** Blending properties used when this entry is blending in ontop of another entry */
-	UPROPERTY(EditAnywhere, Category = "Settings")
-	FAlphaBlend BlendIn;
 };
 
 USTRUCT(BlueprintType)
@@ -81,13 +33,25 @@ struct FAnimCurveOverride
 	float CurveValue;
 };
 
+template <>
+struct TTypeTraits<FAnimCurveOverride> : public TTypeTraitsBase < FAnimCurveOverride >
+{
+	enum { IsBytewiseComparable = true };
+};
+
 USTRUCT(BlueprintType)
 struct FAnimCurveOverrideList
 {
 	GENERATED_BODY()
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Values")
 	TArray<FAnimCurveOverride> Values;
+
+	bool operator != (const FAnimCurveOverrideList& Other) const
+	{
+		return Values != Other.Values;
+	}
 };
+
 
 USTRUCT(BlueprintType)
 struct FChooserPlayerSettings
@@ -148,7 +112,7 @@ public:
 	// if set and bMirrored MirrorDataTable will be used for mirroring the aniamtion
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	TObjectPtr<UMirrorDataTable> MirrorDataTable;
-
+	
 	// requested blend space blend X parameter (if AnimationAsset is a blend space)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault))
 	float BlendSpaceX = 0;
@@ -190,9 +154,9 @@ private:
 	FChooserEvaluationContext ChooserContext;
 	UAnimationAsset* CurrentAsset = nullptr;
 	float CurrentStartTime = 0;
-	uint32 CurveOverridesIndex = 0;
-	TBaseBlendedCurve<FDefaultAllocator, UE::Anim::FCurveElement> OverrideCurves[2]; 
-	
+	bool CurrentMirror = false;
+	FAnimCurveOverrideList CurrentCurveOverrides;
+
 	// Update Counter for detecting being relevant
 	FGraphTraversalCounter UpdateCounter;
 	
