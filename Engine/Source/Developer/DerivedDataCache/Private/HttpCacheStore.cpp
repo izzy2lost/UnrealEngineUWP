@@ -1083,6 +1083,8 @@ void FHttpCacheStore::FGetRecordOp::GetRecordOnly(const FCacheKey& InKey, const 
 {
 	FRequestTimer RequestTimer(RequestStats);
 
+	Key = InKey;
+
 	if (!CacheStore.IsUsable())
 	{
 		UE_LOG(LogDerivedDataCache, VeryVerbose,
@@ -1106,7 +1108,6 @@ void FHttpCacheStore::FGetRecordOp::GetRecordOnly(const FCacheKey& InKey, const 
 		return InOnComplete({FCacheRecordBuilder(Key).Build(), EStatus::Error});
 	}
 
-	Key = InKey;
 	OnRecordComplete = MoveTemp(InOnComplete);
 	RequestStats.Bucket = Key.Bucket;
 
