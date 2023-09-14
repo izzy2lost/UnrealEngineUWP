@@ -33,8 +33,7 @@ void FUnixOutputDevices::SetupOutputDevices()
 			GLog->AddOutputDevice(GLogConsole);
 		}
 	}
-
-	GLog->AddOutputDevice(FPlatformOutputDevices::GetEventLog());
+	// debug and event logging is not really supported on Unix. 
 }
 
 FString FUnixOutputDevices::GetAbsoluteLogFilename()
