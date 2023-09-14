@@ -146,6 +146,8 @@ public:
 
 	FBoneIndexType GetBoneIndexType(int8 SchemaBoneIdx) const;
 
+	void AddDefaultChannels();
+
 private:
 	template <typename FindPredicateType>
 	static const UPoseSearchFeatureChannel* FindChannelRecursive(TConstArrayView<TObjectPtr<UPoseSearchFeatureChannel>> Channels, FindPredicateType FindPredicate)

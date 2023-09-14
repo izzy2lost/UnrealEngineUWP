@@ -14,7 +14,10 @@ class UAnimationAsset;
 class UAnimComposite;
 class UAnimMontage;
 class UBlendSpace;
+
+#if WITH_EDITORONLY_DATA
 class UPoseSearchNormalizationSet;
+#endif // WITH_EDITORONLY_DATA
 
 namespace UE::PoseSearch
 {

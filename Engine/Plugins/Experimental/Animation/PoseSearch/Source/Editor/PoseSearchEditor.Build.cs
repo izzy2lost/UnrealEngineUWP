@@ -53,11 +53,5 @@ public class PoseSearchEditor : ModuleRules
 				"ToolWidgets"
 			}
 		);
-
-		// TODO: Should not be including private headers from a different module
-		PrivateIncludePaths.AddRange(
-			new string[] {
-				Path.Combine(GetModuleDirectory("PoseSearch"), "Private"), // For PoseSearchTraceLogger.h
-			});
 	}
 }

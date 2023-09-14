@@ -13,7 +13,7 @@
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearch/PoseSearchDerivedData.h"
 #include "PoseSearch/PoseSearchSchema.h"
-#include "Trace/PoseSearchTraceLogger.h"
+#include "PoseSearch/Trace/PoseSearchTraceLogger.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_MotionMatching)
 

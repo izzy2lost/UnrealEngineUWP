@@ -19,7 +19,7 @@
 #include "PoseSearch/PoseSearchDerivedData.h"
 #include "PoseSearch/PoseSearchSchema.h"
 #include "PoseSearchFeatureChannel_Trajectory.h"
-#include "Trace/PoseSearchTraceLogger.h"
+#include "PoseSearch/Trace/PoseSearchTraceLogger.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PoseSearchLibrary)
 

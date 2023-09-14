@@ -6,6 +6,8 @@
 #include "PoseSearch/PoseSearchResult.h"
 #include "PoseSearchFeatureChannel_Padding.h"
 #include "PoseSearchFeatureChannel_PermutationTime.h"
+#include "PoseSearchFeatureChannel_Pose.h"
+#include "PoseSearchFeatureChannel_Trajectory.h"
 #include "UObject/ObjectSaveContext.h"
 
 bool UPoseSearchSchema::IsValid() const
@@ -41,6 +43,13 @@ FBoneIndexType UPoseSearchSchema::GetBoneIndexType(int8 SchemaBoneIdx) const
 {
 	check(BoneReferences[SchemaBoneIdx].HasValidSetup());
 	return BoneReferences[SchemaBoneIdx].BoneIndex;
+}
+
+void UPoseSearchSchema::AddDefaultChannels()
+{
+	// defaulting UPoseSearchSchema for a meaningful locomotion setup
+	AddChannel(NewObject<UPoseSearchFeatureChannel_Trajectory>(this, NAME_None, RF_Transactional));
+	AddChannel(NewObject<UPoseSearchFeatureChannel_Pose>(this, NAME_None, RF_Transactional));
 }
 
 int8 UPoseSearchSchema::AddBoneReference(const FBoneReference& BoneReference)

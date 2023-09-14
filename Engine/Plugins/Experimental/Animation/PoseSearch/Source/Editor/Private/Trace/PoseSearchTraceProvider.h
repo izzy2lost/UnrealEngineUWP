@@ -4,9 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "Model/PointTimeline.h"
-#include "Trace/PoseSearchTraceLogger.h"
+#include "PoseSearch/Trace/PoseSearchTraceLogger.h"
 #include "TraceServices/Model/AnalysisSession.h"
-
 
 namespace UE::PoseSearch
 {
