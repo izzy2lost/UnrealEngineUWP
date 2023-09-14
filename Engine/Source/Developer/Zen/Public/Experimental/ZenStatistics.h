@@ -40,9 +40,15 @@ struct FZenCacheStats
 		FZenSizeStats Size;
 		int64 Hits = 0;
 		int64 Misses = 0;
+		int64 Writes = 0;
 		double HitRatio = 0.0;
 		int64 UpstreamHits = 0;
 		double UpstreamRatio = 0.0;
+		int64 CidHits = 0;
+		int64 CidMisses = 0;
+		int64 CidWrites = 0;
+		int64 RequestCount = 0;
+		int64 BadRequestCount = 0;
 	};
 
 	struct FRequestStats
@@ -105,6 +111,7 @@ struct FZenProjectStats
 		FReadWriteDeleteStats Oplog;
 		FHitMissWriteStats Op;
 		FHitMissWriteStats Chunk;
+		int64 RequestCount;
 		int64 BadRequestCount;
 	};
 	FGeneralStats General;

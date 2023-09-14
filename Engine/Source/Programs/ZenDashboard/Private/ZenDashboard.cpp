@@ -19,6 +19,7 @@
 #include "SMessageDialog.h"
 #include "StandaloneRenderer.h"
 #include "SZenCacheStatistics.h"
+#include "SZenCidStoreStatistics.h"
 #include "SZenProjectStatistics.h"
 #include "SZenServiceStatus.h"
 #include "Templates/SharedPointer.h"
@@ -487,6 +488,15 @@ public:
 						.VAlign(VAlign_Top)
 						[
 							SNew(SZenProjectStatistics)
+							.ZenServiceInstance(ServiceInstanceManager.ToSharedRef(), &UE::Zen::FServiceInstanceManager::GetZenServiceInstance)
+						]
+
+						+SHorizontalBox::Slot()
+						.AutoWidth()
+						.HAlign(HAlign_Left)
+						.VAlign(VAlign_Top)
+						[
+							SNew(SZenCidStoreStatistics)
 							.ZenServiceInstance(ServiceInstanceManager.ToSharedRef(), &UE::Zen::FServiceInstanceManager::GetZenServiceInstance)
 						]
 					]

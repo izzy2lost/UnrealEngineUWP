@@ -37,9 +37,15 @@ bool LoadFromCompactBinary(FCbFieldView Field, FZenCacheStats::FGeneralStats& Ou
 	bOk = LoadFromCompactBinary(Field["size"], OutValue.Size) & bOk;
 	bOk = LoadFromCompactBinary(Field["hits"], OutValue.Hits) & bOk;
 	bOk = LoadFromCompactBinary(Field["misses"], OutValue.Misses) & bOk;
+	bOk = LoadFromCompactBinary(Field["writes"], OutValue.Writes) & bOk;
 	bOk = LoadFromCompactBinary(Field["hit_ratio"], OutValue.HitRatio) & bOk;
 	bOk = LoadFromCompactBinary(Field["upstream_hits"], OutValue.UpstreamHits) & bOk;
 	bOk = LoadFromCompactBinary(Field["upstream_ratio"], OutValue.UpstreamRatio) & bOk;
+	bOk = LoadFromCompactBinary(Field["cidhits"], OutValue.CidHits) & bOk;
+	bOk = LoadFromCompactBinary(Field["cidmisses"], OutValue.CidMisses) & bOk;
+	bOk = LoadFromCompactBinary(Field["cidwrites"], OutValue.CidWrites) & bOk;
+	bOk = LoadFromCompactBinary(Field["requestcount"], OutValue.RequestCount) & bOk;
+	bOk = LoadFromCompactBinary(Field["badrequestcount"], OutValue.BadRequestCount) & bOk;
 	return bOk;
 }
 
@@ -139,6 +145,7 @@ bool LoadFromCompactBinary(FCbFieldView Field, FZenProjectStats::FGeneralStats& 
 	bOk = LoadFromCompactBinary(Field["oplog"], OutValue.Oplog) & bOk;
 	bOk = LoadFromCompactBinary(Field["op"], OutValue.Op) & bOk;
 	bOk = LoadFromCompactBinary(Field["chunk"], OutValue.Chunk) & bOk;
+	bOk = LoadFromCompactBinary(Field["requestcount"], OutValue.RequestCount) & bOk;
 	bOk = LoadFromCompactBinary(Field["badrequestcount"], OutValue.BadRequestCount) & bOk;
 	return bOk;
 }

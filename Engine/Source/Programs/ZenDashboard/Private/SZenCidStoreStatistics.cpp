@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SZenProjectStatistics.h"
+#include "SZenCidStoreStatistics.h"
 #include "Experimental/ZenServerInterface.h"
 #include "Internationalization/FastDecimalFormat.h"
 #include "Math/BasicMathExpressionEvaluator.h"
@@ -13,7 +13,7 @@
 
 #define LOCTEXT_NAMESPACE "ZenDashboard"
 
-void SZenProjectStatistics::Construct(const FArguments& InArgs)
+void SZenCidStoreStatistics::Construct(const FArguments& InArgs)
 {
 	ZenServiceInstance = InArgs._ZenServiceInstance;
 
@@ -30,10 +30,10 @@ void SZenProjectStatistics::Construct(const FArguments& InArgs)
 		]
 	];
 
-	RegisterActiveTimer(0.5f, FWidgetActiveTimerDelegate::CreateSP(this, &SZenProjectStatistics::UpdateGridPanels));
+	RegisterActiveTimer(0.5f, FWidgetActiveTimerDelegate::CreateSP(this, &SZenCidStoreStatistics::UpdateGridPanels));
 }
 
-EActiveTimerReturnType SZenProjectStatistics::UpdateGridPanels(double InCurrentTime, float InDeltaTime)
+EActiveTimerReturnType SZenCidStoreStatistics::UpdateGridPanels(double InCurrentTime, float InDeltaTime)
 {
 	(*GridSlot)
 	[
@@ -45,24 +45,25 @@ EActiveTimerReturnType SZenProjectStatistics::UpdateGridPanels(double InCurrentT
 	return EActiveTimerReturnType::Continue;
 }
 
-TSharedRef<SWidget> SZenProjectStatistics::GetGridPanel()
+TSharedRef<SWidget> SZenCidStoreStatistics::GetGridPanel()
 {
 	TSharedRef<SGridPanel> Panel = SNew(SGridPanel);
 
 	bool bHaveStats = false;
-	UE::Zen::FZenProjectStats ZenStats;
+	UE::Zen::FZenCacheStats ZenStats;
 
 	if (TSharedPtr<UE::Zen::FZenServiceInstance> ServiceInstance = ZenServiceInstance.Get())
 	{
-		if (ServiceInstance->GetProjectStats(ZenStats))
+		if (ServiceInstance->GetCacheStats(ZenStats))
 		{
 			bHaveStats = true;
 		}
 	}
 
-	int64 TotalHits = ZenStats.General.Op.HitCount + ZenStats.General.Chunk.HitCount;
-	int64 TotalMisses = ZenStats.General.Op.MissCount + ZenStats.General.Chunk.MissCount;
-	int64 TotalWrites = ZenStats.General.Op.WriteCount + ZenStats.General.Chunk.WriteCount;
+	int64 TotalHits = ZenStats.General.CidHits;
+	int64 TotalMisses = ZenStats.General.CidMisses;
+	int64 TotalWrites = ZenStats.General.CidWrites;
+	int64 Requests = ZenStats.General.CidHits + ZenStats.General.CidMisses + ZenStats.General.CidWrites;
 
 	const static FNumberFormattingOptions SingleDecimalFormatting = FNumberFormattingOptions()
 		.SetUseGrouping(true)
@@ -85,7 +86,7 @@ TSharedRef<SWidget> SZenProjectStatistics::GetGridPanel()
 		.Margin(FMargin(ColumnMargin, RowMargin))
 		.ColorAndOpacity(TitleColor)
 		.Font(TitleFont)
-		.Text(LOCTEXT("CAS", "Local Project Store"))
+		.Text(LOCTEXT("CAS", "Local Cid Store"))
 	];
 
 	Row++;
@@ -94,7 +95,7 @@ TSharedRef<SWidget> SZenProjectStatistics::GetGridPanel()
 	[
 		SNew(STextBlock)
 		.Margin(FMargin(ColumnMargin, RowMargin))
-		.Text(LOCTEXT("ProjectHitRate", "Hit Rate"))
+		.Text(LOCTEXT("CidStoreHitRate", "Hit Rate"))
 	];
 
 	Panel->AddSlot(1, Row)
@@ -118,7 +119,7 @@ TSharedRef<SWidget> SZenProjectStatistics::GetGridPanel()
 	[
 		SNew(STextBlock)
 		.Margin(FMargin(ColumnMargin, RowMargin))
-		.Text(LOCTEXT("ProjectHitQuantity", "Hits"))
+		.Text(LOCTEXT("CidStoreHitQuantity", "Hits"))
 	];
 
 	Panel->AddSlot(1, Row)
@@ -141,7 +142,7 @@ TSharedRef<SWidget> SZenProjectStatistics::GetGridPanel()
 	[
 		SNew(STextBlock)
 		.Margin(FMargin(ColumnMargin, RowMargin))
-		.Text(LOCTEXT("ProjectMissQuantity", "Misses"))
+		.Text(LOCTEXT("CidStoreMissQuantity", "Misses"))
 	];
 
 	Panel->AddSlot(1, Row)
@@ -164,7 +165,7 @@ TSharedRef<SWidget> SZenProjectStatistics::GetGridPanel()
 	[
 		SNew(STextBlock)
 		.Margin(FMargin(ColumnMargin, RowMargin))
-		.Text(LOCTEXT("ProjectWriteQuantity", "Writes"))
+		.Text(LOCTEXT("CidStoreWriteQuantity", "Writes"))
 	];
 
 	Panel->AddSlot(1, Row)
@@ -194,7 +195,7 @@ TSharedRef<SWidget> SZenProjectStatistics::GetGridPanel()
 	[
 		SNew(STextBlock)
 		.Margin(FMargin(ColumnMargin, RowMargin))
-		.Text_Lambda([bHaveStats, Requests = ZenStats.General.RequestCount]
+		.Text_Lambda([bHaveStats, Requests]
 		{
 			if (bHaveStats)
 			{
@@ -203,29 +204,6 @@ TSharedRef<SWidget> SZenProjectStatistics::GetGridPanel()
 			return LOCTEXT("UnavailableValue", "-");
 		})
 	];
-
-	Row++;
-
-	Panel->AddSlot(0, Row)
-		[
-			SNew(STextBlock)
-			.Margin(FMargin(ColumnMargin, RowMargin))
-		.Text(LOCTEXT("ProjectBadRequests", "Bad Requests"))
-		];
-
-	Panel->AddSlot(1, Row)
-		[
-			SNew(STextBlock)
-			.Margin(FMargin(ColumnMargin, RowMargin))
-		.Text_Lambda([bHaveStats, BadRequests = ZenStats.General.BadRequestCount]
-			{
-				if (bHaveStats)
-				{
-					return FText::AsNumber(BadRequests);
-				}
-	return LOCTEXT("UnavailableValue", "-");
-			})
-		];
 
 	Row++;
 
