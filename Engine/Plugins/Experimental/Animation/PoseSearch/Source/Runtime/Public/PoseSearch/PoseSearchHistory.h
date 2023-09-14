@@ -66,6 +66,8 @@ struct FPoseHistory : public IPoseHistory
 	virtual bool IsEmpty() const override;
 	// End of IPoseHistory interface
 
+	void ClearHistory();
+
 	static FBoneIndexType GetRemappedBoneIndexType(FBoneIndexType BoneIndexType, const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton);
 	static FComponentSpaceTransformIndex GetRemappedComponentSpaceTransformIndex(const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton, const FBoneToTransformMap& BoneToTransformMap, FBoneIndexType BoneIndexType, bool& bSuccess);
 	static bool LerpEntries(const FPoseHistoryEntry& PrevEntry, const FPoseHistoryEntry& NextEntry, float LerpValue, const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton, const FBoneToTransformMap& BoneToTransformMap, FBoneIndexType BoneIndexType, FBoneIndexType ReferenceBoneIndexType, FTransform& OutBoneTransform);

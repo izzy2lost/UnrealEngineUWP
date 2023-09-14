@@ -251,6 +251,11 @@ bool FPoseHistory::IsEmpty() const
 	return Entries.IsEmpty();
 }
 
+void FPoseHistory::ClearHistory()
+{
+	Entries.Reset();
+}
+
 void FPoseHistory::Update(float SecondsElapsed, FCSPose<FCompactPose>& ComponentSpacePose, const FTransform& ComponentTransform)
 {
 	const USkeleton* Skeleton = ComponentSpacePose.GetPose().GetBoneContainer().GetSkeletonAsset();
