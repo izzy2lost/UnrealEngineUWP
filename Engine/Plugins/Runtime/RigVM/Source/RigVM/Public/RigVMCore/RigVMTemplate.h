@@ -34,7 +34,9 @@ struct FRigVMUserDefinedTypeResolver;
 
 typedef TMap<FName, TRigVMTypeIndex> FRigVMTemplateTypeMap;
 
+// FRigVMTemplate_NewArgumentTypeDelegate is deprecated, use FRigVMTemplate_GetPermutationsFromArgumentTypeDelegate
 DECLARE_DELEGATE_RetVal_ThreeParams(FRigVMTemplateTypeMap, FRigVMTemplate_NewArgumentTypeDelegate, const FRigVMTemplate* /* InTemplate */, const FName& /* InArgumentName */, TRigVMTypeIndex /* InTypeIndexToAdd */);
+DECLARE_DELEGATE_RetVal_ThreeParams(TArray<FRigVMTemplateTypeMap>, FRigVMTemplate_GetPermutationsFromArgumentTypeDelegate, const FRigVMTemplate* /* InTemplate */, const FName& /* InArgumentName */, TRigVMTypeIndex /* InTypeIndexToAdd */);
 DECLARE_DELEGATE_RetVal_TwoParams(FRigVMFunctionPtr, FRigVMTemplate_RequestDispatchFunctionDelegate, const FRigVMTemplate* /* InTemplate */,  const FRigVMTemplateTypeMap& /* InTypes */);
 DECLARE_DELEGATE_RetVal_TwoParams(TArray<FRigVMFunction>, FRigVMTemplate_RequestDispatchPredicatesDelegate, const FRigVMTemplate* /* InTemplate */,  const FRigVMTemplateTypeMap& /* InTypes */);
 DECLARE_DELEGATE_RetVal(FRigVMDispatchFactory*, FRigVMTemplate_GetDispatchFactoryDelegate);
@@ -42,6 +44,7 @@ DECLARE_DELEGATE_RetVal(FRigVMDispatchFactory*, FRigVMTemplate_GetDispatchFactor
 struct RIGVM_API FRigVMTemplateDelegates
 {
 	FRigVMTemplate_NewArgumentTypeDelegate NewArgumentTypeDelegate;
+	FRigVMTemplate_GetPermutationsFromArgumentTypeDelegate GetPermutationsFromArgumentTypeDelegate;
 	FRigVMTemplate_GetDispatchFactoryDelegate GetDispatchFactoryDelegate;
 	FRigVMTemplate_RequestDispatchFunctionDelegate RequestDispatchFunctionDelegate;
 	FRigVMTemplate_RequestDispatchPredicatesDelegate RequestDispatchPredicatesDelegate;
@@ -198,6 +201,7 @@ struct RIGVM_API FRigVMTemplateArgument
 	// default constructor
 	FRigVMTemplateArgument();
 
+	FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection);
 	FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection, TRigVMTypeIndex InType);
 	FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection, const TArray<TRigVMTypeIndex>& InTypeIndices);
 	FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection, const TArray<ETypeCategory>& InTypeCategories, const FTypeFilter& InTypeFilter = {});
@@ -253,6 +257,7 @@ protected:
 	void UpdateTypeToPermutations();
 
 	friend struct FRigVMTemplate;
+	friend struct FRigVMDispatchFactory;
 	friend class URigVMController;
 	friend struct FRigVMRegistry;
 	friend struct FRigVMStructUpgradeInfo;
@@ -406,7 +411,11 @@ public:
 	void HandleTypeRemoval(TRigVMTypeIndex InTypeIndex);
 	
 	// Returns the delegate to be able to react to type changes dynamically
+	// This delegate is deprecated
 	FRigVMTemplate_NewArgumentTypeDelegate& OnNewArgumentType() { return Delegates.NewArgumentTypeDelegate; }
+
+	// Returns the delegate to be able to react to type changes dynamically
+	FRigVMTemplate_GetPermutationsFromArgumentTypeDelegate& OnGetPermutationsFromArgumentType() { return Delegates.GetPermutationsFromArgumentTypeDelegate; }
 
 	// Returns the factory this template was created by
 	const FRigVMDispatchFactory* GetDispatchFactory() const

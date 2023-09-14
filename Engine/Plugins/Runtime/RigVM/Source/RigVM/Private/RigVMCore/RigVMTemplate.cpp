@@ -36,6 +36,13 @@ FRigVMTemplateArgument::FRigVMTemplateArgument()
 {
 }
 
+FRigVMTemplateArgument::FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection)
+: Index(INDEX_NONE)
+, Name(InName)
+, Direction(InDirection)
+{
+}
+
 FRigVMTemplateArgument::FRigVMTemplateArgument(FProperty* InProperty)
 	: Index(INDEX_NONE)
 	, Name(InProperty->GetFName())
@@ -1678,52 +1685,68 @@ FString FRigVMTemplate::GetKeywords() const
 bool FRigVMTemplate::AddTypeForArgument(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex)
 {
 	InvalidateHash();
-	
-	if(OnNewArgumentType().IsBound())
+
+	TArray<FRigVMTemplateTypeMap> TypesArray;
+	if (OnGetPermutationsFromArgumentType().IsBound())
+	{
+		TypesArray = OnGetPermutationsFromArgumentType().Execute(this, InArgumentName, InTypeIndex);
+	}
+	else if(OnNewArgumentType().IsBound())
 	{
 		FRigVMTemplateTypeMap Types = OnNewArgumentType().Execute(this, InArgumentName, InTypeIndex);
-		if(Types.Num() == Arguments.Num())
-		{
-			const FRigVMRegistry& Registry = FRigVMRegistry::Get();
-			for (TPair<FName, TRigVMTypeIndex>& ArgumentAndType : Types)
-			{
-				// similar to FRigVMTemplateArgument::EnsureValidExecuteType
-				Registry.ConvertExecuteContextToBaseType(ArgumentAndType.Value);
-			}
-			
-			for(FRigVMTemplateArgument& Argument : Arguments)
-			{
-				const TRigVMTypeIndex* TypeIndex = Types.Find(Argument.Name);
-				if(TypeIndex == nullptr)
-				{
-					return false;
-				}
-				if(*TypeIndex == INDEX_NONE)
-				{
-					return false;
-				}
-			}
+		TypesArray = {Types};
+	}
 
-			// Find if these types were already registered
-			FRigVMTemplateTypeMap TestTypes = Types;
-			if (ContainsPermutation(TestTypes))
+	if (!TypesArray.IsEmpty())
+	{
+		for (FRigVMTemplateTypeMap& Types : TypesArray)
+		{
+			if(Types.Num() == Arguments.Num())
+			{
+				const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+				for (TPair<FName, TRigVMTypeIndex>& ArgumentAndType : Types)
+				{
+					// similar to FRigVMTemplateArgument::EnsureValidExecuteType
+					Registry.ConvertExecuteContextToBaseType(ArgumentAndType.Value);
+				}
+			
+				for(FRigVMTemplateArgument& Argument : Arguments)
+				{
+					const TRigVMTypeIndex* TypeIndex = Types.Find(Argument.Name);
+					if(TypeIndex == nullptr)
+					{
+						return false;
+					}
+					if(*TypeIndex == INDEX_NONE)
+					{
+						return false;
+					}
+				}
+
+				// Find if these types were already registered
+				FRigVMTemplateTypeMap TestTypes = Types;
+				if (ContainsPermutation(TestTypes))
+				{
+					return false;
+				}
+			
+				for(FRigVMTemplateArgument& Argument : Arguments)
+				{
+					const TRigVMTypeIndex TypeIndex = Types.FindChecked(Argument.Name);
+					Argument.TypeIndices.Add(TypeIndex);
+					Argument.TypeToPermutations.FindOrAdd(TypeIndex).Add(Permutations.Num());
+				}
+
+				Permutations.Add(INDEX_NONE);
+
+				UpdateTypesHashToPermutation(Permutations.Num()-1);
+			}
+			else
 			{
 				return false;
 			}
-			
-			for(FRigVMTemplateArgument& Argument : Arguments)
-			{
-				const TRigVMTypeIndex TypeIndex = Types.FindChecked(Argument.Name);
-				Argument.TypeIndices.Add(TypeIndex);
-				Argument.TypeToPermutations.FindOrAdd(TypeIndex).Add(Permutations.Num());
-			}
-
-			Permutations.Add(INDEX_NONE);
-
-			UpdateTypesHashToPermutation(Permutations.Num()-1);
-			
-			return true;
 		}
+		return true;
 	}
 	return false;
 }

@@ -278,6 +278,60 @@ FString FRigVMDispatchFactory::GetPermutationName(const FRigVMTemplateTypeMap& I
 	return GetPermutationNameImpl(InTypes);
 }
 
+TArray<FRigVMTemplateArgument> FRigVMDispatchFactory::BuildArgumentListFromPrimaryArgument(const TArray<FRigVMTemplateArgument>& InArguments, const FName& InPrimaryArgumentName) const
+{
+	TArray<FRigVMTemplateArgument> NewArguments;
+	const FRigVMTemplateArgument* PrimaryArgument = InArguments.FindByPredicate([InPrimaryArgumentName](const FRigVMTemplateArgument& Arg)
+	{
+		return Arg.Name == InPrimaryArgumentName;
+	});
+	
+	if (!PrimaryArgument)
+	{
+		return NewArguments;
+	}
+
+	NewArguments.SetNum(InArguments.Num());
+	for (int32 Index=0; Index < InArguments.Num(); ++Index)
+	{
+		NewArguments[Index].Name = InArguments[Index].Name;
+		NewArguments[Index].Direction = InArguments[Index].Direction;
+		NewArguments[Index].TypeCategories = InArguments[Index].TypeCategories;
+	}
+	
+	TSet<TRigVMTypeIndex> ProcessedTypes;
+	for (const TRigVMTypeIndex& Type : PrimaryArgument->TypeIndices)
+	{
+		if (ProcessedTypes.Contains(Type))
+		{
+			continue;
+		}
+
+		const TArray<FRigVMTemplateTypeMap> Permutations = GetPermutationsFromArgumentType(InPrimaryArgumentName, Type);
+		for (const FRigVMTemplateTypeMap& Permutation : Permutations)
+		{
+			for (int32 Index=0; Index < InArguments.Num(); ++Index)
+			{
+				const TRigVMTypeIndex* PermutationArg = Permutation.Find(NewArguments[Index].Name);
+				if (!PermutationArg)
+				{
+					NewArguments.Reset();
+					return NewArguments;
+				}
+				NewArguments[Index].TypeIndices.Add(*PermutationArg);
+			}
+		}
+	}
+
+	for (FRigVMTemplateArgument& Argument : NewArguments)
+	{
+		Argument.EnsureValidExecuteType();
+		Argument.UpdateTypeToPermutations();
+	}
+	
+	return NewArguments;
+}
+
 FString FRigVMDispatchFactory::GetPermutationNameImpl(const FRigVMTemplateTypeMap& InTypes) const
 {
 	static constexpr TCHAR Format[] = TEXT("%s::%s");
@@ -331,6 +385,12 @@ const FRigVMTemplate* FRigVMDispatchFactory::GetTemplate() const
 		[this](const FRigVMTemplate*, const FName& InArgumentName, int32 InTypeIndex)
 		{
 			return OnNewArgumentType(InArgumentName, InTypeIndex);
+		});
+
+	Delegates.GetPermutationsFromArgumentTypeDelegate = FRigVMTemplate_GetPermutationsFromArgumentTypeDelegate::CreateLambda(
+		[this](const FRigVMTemplate*, const FName& InArgumentName, int32 InTypeIndex)
+		{
+			return GetPermutationsFromArgumentType(InArgumentName, InTypeIndex);
 		});
 
 	Delegates.GetDispatchFactoryDelegate = FRigVMTemplate_GetDispatchFactoryDelegate::CreateLambda(

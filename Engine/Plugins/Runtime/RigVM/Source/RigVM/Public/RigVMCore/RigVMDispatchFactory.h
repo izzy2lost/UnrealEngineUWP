@@ -145,9 +145,21 @@ public:
 	// returns the execute arguments of the template
 	RIGVM_API TArray<FRigVMExecuteArgument> GetExecuteArguments(const FRigVMDispatchContext& InContext) const;
 
-	// returns the delegate to react to new types being added to an argument.
-	// this happens if types are being loaded later after this factory has already been deployed
+	// this function is deprecated, please use GetPermutationsFromArgumentType
+	// returns the new permutation argument types after a new type is defined for one argument
+	// this happens if types are being loaded later after this factory has already been deployed (like UUserDefinedStruct)
 	virtual FRigVMTemplateTypeMap OnNewArgumentType(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex) const { return FRigVMTemplateTypeMap(); }
+
+	// returns the new permutations argument types after a new type is defined for one argument
+	virtual TArray<FRigVMTemplateTypeMap> GetPermutationsFromArgumentType(const FName& InArgumentName, const TRigVMTypeIndex& InTypeIndex) const
+	{
+		FRigVMTemplateTypeMap Permutation = OnNewArgumentType(InArgumentName, InTypeIndex);
+		if (!Permutation.IsEmpty())
+		{
+			return {Permutation};
+		}
+		return {};
+	}
 
 	// returns the upgrade info to use for this factory
 	virtual FRigVMStructUpgradeInfo GetUpgradeInfo(const FRigVMTemplateTypeMap& InTypes, const FRigVMDispatchContext& InContext) const { return FRigVMStructUpgradeInfo(); }
@@ -168,6 +180,9 @@ public:
 	virtual bool IsSingleton() const { return false; } 
 
 protected:
+
+	// for each type defined in the primary argument, this function will call GetPermutationsFromArgumentType to construct an array of arguments with the appropiate permutations
+	RIGVM_API TArray<FRigVMTemplateArgument> BuildArgumentListFromPrimaryArgument(const TArray<FRigVMTemplateArgument>& InArguments, const FName& InPrimaryArgumentName) const;
 
 	// returns the name of the permutation for a given set of types
 	RIGVM_API FString GetPermutationNameImpl(const FRigVMTemplateTypeMap& InTypes) const;
