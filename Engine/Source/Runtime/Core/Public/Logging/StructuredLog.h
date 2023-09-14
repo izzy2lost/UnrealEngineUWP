@@ -7,6 +7,7 @@
 #include "Logging/LogCategory.h"
 #include "Logging/LogMacros.h"
 #include "Logging/LogVerbosity.h"
+#include "Misc/OptionalFwd.h"
 #include "Serialization/CompactBinary.h"
 #include "Serialization/CompactBinaryWriter.h"
 #include "Templates/IsArrayOrRefOfType.h"
@@ -235,6 +236,17 @@ inline void CallSerializeForLog(FCbWriter& Writer, ValueType&& Value)
 }
 
 } // UE
+
+template <typename ValueType UE_REQUIRES(TModels_V<UE::CSerializableForLog, ValueType>)>
+inline void SerializeForLog(FCbWriter& Writer, const TOptional<ValueType>& Optional)
+{
+	Writer.BeginArray();
+	if (Optional)
+	{
+		UE::CallSerializeForLog(Writer, Optional.GetValue());
+	}
+	Writer.EndArray();
+}
 
 namespace UE::Logging::Private
 {
