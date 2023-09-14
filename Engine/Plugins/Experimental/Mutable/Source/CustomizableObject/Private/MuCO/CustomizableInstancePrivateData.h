@@ -33,7 +33,7 @@ enum ECOInstanceFlags
 	// Update process
 	Updating						= 1 << 0,	//
 	CreatingSkeletalMesh			= 1 << 1,	//
-	Generated						= 1 << 2,	// Generated or update in progress.
+	Generated						= 1 << 2,	//
 	ReuseTextures					= 1 << 3, 	// 
 	ReplacePhysicsAssets			= 1 << 4,	// Merge active PhysicsAssets and replace the base physics asset
 
@@ -46,12 +46,8 @@ enum ECOInstanceFlags
 	// Types of updates
 	PendingLODsUpdate				= 1 << 9,	// Used to queue an update due to a change in LODs required by the instance
 	PendingLODsDowngrade			= 1 << 10,	// Used to queue a downgrade update to reduce the number of LODs. LOD update goes from a high res level to a low res one, ex: 0 to 1 or 1 to 2
-
-	// Streaming
-	LODsStreamingEnabled			= 1 << 11,	// Stream LODs instead of generating all LODs at once. Enables LODs update(upgrade)/downgrade.
 	
 	// Generation
-	ForceGenerateAllLODs			= 1 << 12,	// If set, Requested LOD Levels will be ignored and all LODs in between the current min/max lod will be generated
 	ForceGenerateMipTail			= 1 << 13,	// If set, SkipGenerateResidentMips will be ignored and the mip tail will be generated
 };
 

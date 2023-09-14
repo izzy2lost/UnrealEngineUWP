@@ -35,6 +35,7 @@
 #include "Logging/MessageLog.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/MessageDialog.h"
+#include "Engine/World.h"
 #else
 #include "Engine/Engine.h"
 #endif
@@ -858,16 +859,11 @@ bool FCustomizableObjectSystemPrivate::TextureHasReferences(const FMutableImageC
 }
 
 
-void FCustomizableObjectSystemPrivate::InitUpdateSkeletalMesh(UCustomizableObjectInstance& Instance, EQueuePriorityType Priority, bool bIsCloseDistTick, FInstanceUpdateDelegate* UpdateCallback)
+void FCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(UCustomizableObjectInstance& Instance, const EQueuePriorityType Priority, FInstanceUpdateDelegate* UpdateCallback)
 {
 	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectSystemPrivate::InitUpdateSkeletalMesh);
 
 	check(IsInGameThread());
-
-	bool bNeverStream = false;
-	int32 MipsToSkip = 0;
-
-	GetMipStreamingConfig(Instance, bNeverStream, MipsToSkip);
 	
 	const FDescriptorRuntimeHash UpdateDescriptorHash = Instance.GetUpdateDescriptorRuntimeHash();
 
@@ -888,13 +884,9 @@ void FCustomizableObjectSystemPrivate::InitUpdateSkeletalMesh(UCustomizableObjec
 		return; // The requested update is equal to the running update.
 	}
 	
-	// These delegates must be called at the end of the begin update.
-	Instance.BeginUpdateDelegate.Broadcast(&Instance);
-	Instance.BeginUpdateNativeDelegate.Broadcast(&Instance);
-
 	if (UpdateDescriptorHash.IsSubset(Instance.GetDescriptorRuntimeHash()) &&
 		!(CurrentMutableOperation &&
-			&Instance == CurrentMutableOperation->CustomizableObjectInstance)) // This condition is necessary because even if the descriptor is a subset, it will be replaced by the CurrentMutableOperation
+		&Instance == CurrentMutableOperation->CustomizableObjectInstance)) // This condition is necessary because even if the descriptor is a subset, it will be replaced by the CurrentMutableOperation
 	{
 		Instance.SkeletalMeshStatus = ESkeletalMeshState::Correct; // TODO FutureGMT MTBL-1033 should not be here. Move to UCustomizableObjectInstance::Updated
 		UpdateSkeletalMesh(Instance, Instance.GetDescriptorRuntimeHash(), EUpdateResult::Success, UpdateCallback);
@@ -938,11 +930,8 @@ void FCustomizableObjectSystemPrivate::InitUpdateSkeletalMesh(UCustomizableObjec
 
 		Instance.SkeletalMeshStatus = ESkeletalMeshState::AsyncUpdatePending;
 
-		if (!bIsCloseDistTick) // When called from bIsCloseDistTick, the update operation is directly processed without going to a queue first
-		{
-			const FMutablePendingInstanceUpdate InstanceUpdate(&Instance, Priority, UpdateCallback, bNeverStream, MipsToSkip);
-			MutablePendingInstanceWork.AddUpdate(InstanceUpdate);
-		}
+		const FMutablePendingInstanceUpdate InstanceUpdate(&Instance, Priority, UpdateCallback);
+		MutablePendingInstanceWork.AddUpdate(InstanceUpdate);
 	}
 }
 
@@ -1288,11 +1277,11 @@ namespace impl
 
 
 	// This runs in the mutable thread.
-	void Subtask_Mutable_BeginUpdate_GetMesh(const TSharedPtr<FMutableOperationData>& OperationData, TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model, mu::Ptr<const mu::Parameters> MutableParameters, int32 State)
+	void Subtask_Mutable_BeginUpdate_GetMesh(const TSharedPtr<FMutableOperationData>& OperationData, TSharedPtr<mu::Model> Model)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Subtask_Mutable_BeginUpdate_GetMesh)
 
-		check(MutableParameters);
+		check(OperationData->MutableParameters);
 		check(OperationData);
 		OperationData->InstanceUpdateData.Clear();
 
@@ -1333,7 +1322,7 @@ namespace impl
 
 		// Main instance generation step
 		// LOD mask, set to all ones to build  all LODs
-		const mu::Instance* Instance = System->BeginUpdate(OperationData->InstanceID, MutableParameters, State, mu::System::AllLODs);
+		const mu::Instance* Instance = System->BeginUpdate(OperationData->InstanceID, OperationData->MutableParameters, OperationData->State, mu::System::AllLODs);
 		if (!Instance)
 		{
 			UE_LOG(LogMutable, Warning, TEXT("An Instace update has failed."));
@@ -1869,7 +1858,7 @@ namespace impl
 		const uint32 StartCycles = FPlatformTime::Cycles();
 #endif
 
-		Subtask_Mutable_BeginUpdate_GetMesh(OperationData, Model, OperationData->MutableParameters, OperationData->State);
+		Subtask_Mutable_BeginUpdate_GetMesh(OperationData, Model);
 
 		// TODO: Not strictly mutable: move to another worker thread task to free mutable access?
 		Subtask_Mutable_PrepareSkeletonData(OperationData);
@@ -2378,6 +2367,8 @@ namespace impl
 			FinishUpdateGlobal(nullptr, EUpdateResult::Error, &Operation->UpdateCallback);
 			return;
 		}
+
+		CandidateInstancePrivateData->InstanceUpdateFlags(*CandidateInstance);
 		
 		if (CandidateInstancePrivateData->HasCOInstanceFlags(PendingLODsUpdate))
 		{
@@ -2465,7 +2456,12 @@ namespace impl
 			bLiveUpdateMode = StateData ? StateData->bLiveUpdateMode : false;
 		}
 
-		if (bLiveUpdateMode && (!Operation->bNeverStream || Operation->MipsToSkip > 0))
+		bool bNeverStream = false;
+		int32 MipsToSkip = 0;
+
+		SystemPrivateData->GetMipStreamingConfig(*CandidateInstance, bNeverStream, MipsToSkip);
+		
+		if (bLiveUpdateMode && (!bNeverStream || MipsToSkip > 0))
 		{
 			UE_LOG(LogMutable, Warning, TEXT("Instance LiveUpdateMode does not yet support progressive streaming of Mutable textures. Disabling LiveUpdateMode for this update."));
 			bLiveUpdateMode = false;
@@ -2478,7 +2474,7 @@ namespace impl
 			bReuseInstanceTextures = StateData ? StateData->bReuseInstanceTextures : false;
 			bReuseInstanceTextures |= CandidateInstancePrivateData->HasCOInstanceFlags(ReuseTextures);
 			
-			if (bReuseInstanceTextures && !Operation->bNeverStream)
+			if (bReuseInstanceTextures && !bNeverStream)
 			{
 				UE_LOG(LogMutable, Warning, TEXT("Instance texture reuse requires that the current Mutable state is in non-streaming mode. Change it in the Mutable graph base node in the state definition."));
 				bReuseInstanceTextures = false;
@@ -2492,6 +2488,7 @@ namespace impl
 			Task_Game_ReleaseInstanceID(CandidateInstancePrivateData->LiveUpdateModeInstanceID);
 			CandidateInstancePrivateData->LiveUpdateModeInstanceID = 0;
 		}
+
 		
 		// Task: Mutable Update and GetMesh
 		//-------------------------------------------------------------
@@ -2504,13 +2501,13 @@ namespace impl
 		CurrentOperationData->LastUpdateData = SystemPrivateData->bEnableMutableReusePreviousUpdateData ? CandidateInstancePrivateData->LastUpdateData : FInstanceGeneratedData();
 		CurrentOperationData->CurrentMinLOD = Operation->InstanceDescriptorRuntimeHash.GetMinLOD();
 		CurrentOperationData->CurrentMaxLOD = Operation->InstanceDescriptorRuntimeHash.GetMaxLOD();
-		CurrentOperationData->bNeverStream = Operation->bNeverStream;
+		CurrentOperationData->bNeverStream = bNeverStream;
 		CurrentOperationData->bLiveUpdateMode = bLiveUpdateMode;
 		CurrentOperationData->bReuseInstanceTextures = bReuseInstanceTextures;
 		CurrentOperationData->InstanceID = bLiveUpdateMode ? CandidateInstancePrivateData->LiveUpdateModeInstanceID : 0;
-		CurrentOperationData->MipsToSkip = Operation->MipsToSkip;
+		CurrentOperationData->MipsToSkip = MipsToSkip;
 		CurrentOperationData->MutableParameters = Parameters;
-		CurrentOperationData->State = CandidateInstance->GetState();
+		CurrentOperationData->State = Operation->GetState();
 		CurrentOperationData->UpdateResult = EUpdateResult::Success;
 		CurrentOperationData->UpdateCallback = Operation->UpdateCallback;
 		CurrentOperationData->bBuildParameterRelevancy = Operation->IsBuildParameterRelevancy();
@@ -2523,8 +2520,35 @@ namespace impl
 			CustomizableObject->GetLowPriorityTextureNames(CurrentOperationData->LowPriorityTextures);
 		}
 
+		bool bIsInEditorViewport = false;
+
+#if WITH_EDITOR
+		for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent && !bIsInEditorViewport; ++CustomizableSkeletalComponent)
+		{
+			if (CustomizableSkeletalComponent &&
+				CustomizableSkeletalComponent->CustomizableObjectInstance == CandidateInstance)
+			{
+				EWorldType::Type WorldType = EWorldType::Type::None;
+
+				if (CustomizableSkeletalComponent->GetWorld())
+				{
+					WorldType = CustomizableSkeletalComponent->GetWorld()->WorldType;
+				}
+
+				switch (WorldType)
+				{
+					// Editor preview instances
+					case EWorldType::EditorPreview:
+					case EWorldType::None:
+						bIsInEditorViewport = true;
+					default: ;
+				}
+			}
+		}
+#endif // WITH_EDITOR
+		
 		if (System->IsOnlyGenerateRequestedLODsEnabled() && System->CurrentInstanceLODManagement->IsOnlyGenerateRequestedLODLevelsEnabled() && 
-			!Operation->bForceGenerateAllLODs)
+			!bIsInEditorViewport)
 		{
 			CurrentOperationData->RequestedLODs = Operation->InstanceDescriptorRuntimeHash.GetRequestedLODs();
 		}
@@ -2687,8 +2711,6 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 			}
 		}
 
-		TSharedPtr<FMutableOperation> FoundOperation;
-
 		{
 			// Look for the highest priority update between the pending updates and the LOD Requested Updates
 			EQueuePriorityType MaxPriorityFound = EQueuePriorityType::Low;
@@ -2704,7 +2726,7 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 
 				if (PendingUpdate.CustomizableObjectInstance.IsValid())
 				{
-					EQueuePriorityType PriorityType = PendingUpdate.CustomizableObjectInstance->GetUpdatePriority(true, true, false, false);
+					const EQueuePriorityType PriorityType = PendingUpdate.CustomizableObjectInstance->GetUpdatePriority(false);
 					
 					if (PendingUpdate.PriorityType <= MaxPriorityFound)
 					{
@@ -2770,7 +2792,7 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 				check(!LODUpdateCandidateFound);
 
 				UCustomizableObjectInstance* PendingInstance = PendingInstanceUpdateFound->CustomizableObjectInstance.Get();
-				ensure(PendingInstance);
+				check(PendingInstance);
 
 				// Maybe there's a LODUpdate that has the same instance, merge both updates as an optimization
 				FMutableUpdateCandidate* LODUpdateWithSameInstance = RequestedLODUpdates.Find(PendingInstance);
@@ -2780,33 +2802,16 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 					LODUpdateWithSameInstance->ApplyLODUpdateParamsToInstance();
 				}
 
-				// No need to do a DoUpdateSkeletalMesh, as it was already done when adding the pending update
-
-				FoundOperation = MakeShared<FMutableOperation>(FMutableOperation::CreateInstanceUpdate(PendingInstance,
-					PendingInstanceUpdateFound->bNeverStream, PendingInstanceUpdateFound->MipsToSkip, PendingInstanceUpdateFound->Callback));
+				Private->CurrentMutableOperation = MakeShared<FMutableOperation>(FMutableOperation::CreateInstanceUpdate(*PendingInstance, PendingInstanceUpdateFound->Callback));
 
 				Private->MutablePendingInstanceWork.RemoveUpdate(PendingInstanceUpdateFound->CustomizableObjectInstance);
 			}
-			else if(LODUpdateCandidateFound)
+			else if (LODUpdateCandidateFound)
 			{
 				// Commit the LOD changes
 				LODUpdateCandidateFound->ApplyLODUpdateParamsToInstance();
 
-				// No need to check if a PendingUpdate has the same instance, it would already have been caught in the 
-				// previous if statements
-
-				// LOD updates are detected automatically and have never had a DoUpdateSkeletalMesh, so call it without enqueing a new update
-				const EUpdateRequired Required = EUpdateRequired::Update;
-				LODUpdateCandidateFound->CustomizableObjectInstance->DoUpdateSkeletalMesh(true, false, false, false, &Required, nullptr);
-				
-				bool bNeverStream = false;
-				int32 MipsToSkip = 0;
-
-				ensure(LODUpdateCandidateFound->CustomizableObjectInstance);
-				GetPrivate()->GetMipStreamingConfig(*LODUpdateCandidateFound->CustomizableObjectInstance, bNeverStream, MipsToSkip);
-
-				FoundOperation = MakeShared<FMutableOperation>(FMutableOperation::CreateInstanceUpdate(LODUpdateCandidateFound->CustomizableObjectInstance,
-					bNeverStream, MipsToSkip, nullptr));
+				Private->CurrentMutableOperation = MakeShared<FMutableOperation>(FMutableOperation::CreateInstanceUpdate(*LODUpdateCandidateFound->CustomizableObjectInstance, nullptr));
 			}
 		}
 
@@ -2827,26 +2832,8 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 		// Free memory before starting the new update
 		DiscardInstances();
 		ReleaseInstanceIDs();
-
-		// Decide the next mutable operation to perform.
-		if (FoundOperation.IsValid())
-		{
-			Private->CurrentMutableOperation = FoundOperation;
-
-			UCustomizableObjectInstance* FoundInstance = Private->CurrentMutableOperation->CustomizableObjectInstance.Get();
-			
-			if (FoundInstance->GetPrivate()->HasCOInstanceFlags(ForceGenerateAllLODs))
-			{
-				Private->CurrentMutableOperation->bForceGenerateAllLODs = true;
-			}
-
-			Private->CurrentMutableOperation->CustomizableObjectInstance->GetPrivate()->InstanceUpdateFlags(*FoundInstance);
-		}
-		else
-		{
-			Private->CurrentMutableOperation = nullptr;
-		}
 	}
+	
 	// Advance the current operation
 	if (Private->CurrentMutableOperation)
 	{
@@ -3026,17 +3013,13 @@ void UnCacheTexturesParameters(const TArray<FName>& TextureParameters)
 
 FMutableOperation::FMutableOperation(const FMutableOperation& Other)
 {
-	bNeverStream = Other.bNeverStream;
-	MipsToSkip = Other.MipsToSkip;
 	CustomizableObjectInstance = Other.CustomizableObjectInstance;
 	InstanceDescriptorRuntimeHash = Other.InstanceDescriptorRuntimeHash;
-	bStarted = Other.bStarted;
 	bBuildParameterRelevancy = Other.bBuildParameterRelevancy;
 	Parameters = Other.Parameters;
 	TextureParameters = Other.TextureParameters;
 	UpdateCallback = Other.UpdateCallback;
 	State = Other.State;
-	IDToRelease = Other.IDToRelease;
 
 	CacheTexturesParameters(TextureParameters);
 }
@@ -3044,11 +3027,8 @@ FMutableOperation::FMutableOperation(const FMutableOperation& Other)
 
 FMutableOperation& FMutableOperation::operator=(const FMutableOperation& Other)
 {
-	bNeverStream = Other.bNeverStream;
-	MipsToSkip = Other.MipsToSkip;
 	CustomizableObjectInstance = Other.CustomizableObjectInstance;
 	InstanceDescriptorRuntimeHash = Other.InstanceDescriptorRuntimeHash;
-	bStarted = Other.bStarted;
 	bBuildParameterRelevancy = Other.bBuildParameterRelevancy;
 	Parameters = Other.Parameters;
 	TextureParameters = Other.TextureParameters;
@@ -3067,28 +3047,25 @@ FMutableOperation::~FMutableOperation()
 }
 
 
-FMutableOperation FMutableOperation::CreateInstanceUpdate(UCustomizableObjectInstance* InCustomizableObjectInstance, bool bInNeverStream, int32 InMipsToSkip, const FInstanceUpdateDelegate* UpdateCallback)
+FMutableOperation FMutableOperation::CreateInstanceUpdate(UCustomizableObjectInstance& InCustomizableObjectInstance, const FInstanceUpdateDelegate* UpdateCallback)
 {
-	check(InCustomizableObjectInstance != nullptr);
-	check(InCustomizableObjectInstance->GetPrivate() != nullptr);
-	check(InCustomizableObjectInstance->GetCustomizableObject() != nullptr);
+	check(InCustomizableObjectInstance.GetPrivate() != nullptr);
+	check(InCustomizableObjectInstance.GetCustomizableObject() != nullptr);
 
 	FMutableOperation Op;
-	Op.bNeverStream = bInNeverStream;
-	Op.MipsToSkip = InMipsToSkip;
-	Op.CustomizableObjectInstance = InCustomizableObjectInstance;
-	Op.InstanceDescriptorRuntimeHash = InCustomizableObjectInstance->GetUpdateDescriptorRuntimeHash();
-	Op.bStarted = false;
-	Op.bBuildParameterRelevancy = InCustomizableObjectInstance->GetBuildParameterRelevancy();
-	Op.Parameters = InCustomizableObjectInstance->GetDescriptor().GetParameters();
-	Op.TextureParameters = InCustomizableObjectInstance->GetPrivate()->UpdateTextureParameters;
+	Op.CustomizableObjectInstance = &InCustomizableObjectInstance;
+	Op.InstanceDescriptorRuntimeHash = InCustomizableObjectInstance.GetUpdateDescriptorRuntimeHash();
+	Op.State = InCustomizableObjectInstance.GetState();
+	Op.bBuildParameterRelevancy = InCustomizableObjectInstance.GetBuildParameterRelevancy();
+	Op.Parameters = InCustomizableObjectInstance.GetDescriptor().GetParameters();
+	Op.TextureParameters = InCustomizableObjectInstance.GetPrivate()->UpdateTextureParameters;
 
 	if (UpdateCallback)
 	{
 		Op.UpdateCallback = *UpdateCallback;		
 	}
 	
-	InCustomizableObjectInstance->GetCustomizableObject()->ApplyStateForcedValuesToParameters(InCustomizableObjectInstance->GetState(), Op.Parameters.get());
+	InCustomizableObjectInstance.GetCustomizableObject()->ApplyStateForcedValuesToParameters(Op.State, Op.Parameters.get());
 
 	if (!Op.Parameters)
 	{

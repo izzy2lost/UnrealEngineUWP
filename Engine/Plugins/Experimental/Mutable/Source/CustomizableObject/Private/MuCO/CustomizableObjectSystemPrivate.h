@@ -42,13 +42,13 @@ class FMutableOperation
 	TArray<FName> TextureParameters;
 
 	bool bBuildParameterRelevancy = false;
-	bool bMeshNeedsUpdate = false;
 
-	/** Protected constructor. */
-	FMutableOperation() {}
-
+	/** Instance optimization state. */
+	int32 State = 0;
+	
+	FMutableOperation() = default;
+	
 public:
-
 	FMutableOperation(const FMutableOperation&);
 	FMutableOperation(FMutableOperation&&) = default;
 	FMutableOperation& operator=(const FMutableOperation&);
@@ -56,18 +56,7 @@ public:
 
 	~FMutableOperation();
 
-	static FMutableOperation CreateInstanceUpdate(UCustomizableObjectInstance* COInstance, bool bInNeverStream, int32 MipsToSkip, const FInstanceUpdateDelegate* UpdateCallback);
-
-	bool bStarted = false;
-
-	bool bForceGenerateAllLODs = false;
-
-	bool bNeverStream = false;
-
-	/** If this is non-zero, the instance images will be generated with a certain amount of mips starting from the smallest. Otherwise, the full images will be generated. 
-	 * This is used for both Update and UpdateImage operations. 
-	 */
-	int32 MipsToSkip = 0;
+	static FMutableOperation CreateInstanceUpdate(UCustomizableObjectInstance& COInstance, const FInstanceUpdateDelegate* UpdateCallback);
 
 	// Weak reference to the instance we are operating on.
 	// It is weak because we don't want to lock it in case it becomes irrelevant in the game while operations are pending and it needs to be destroyed.
@@ -78,12 +67,6 @@ public:
 
 	//! This is used to calculate stats.
 	double StartUpdateTime = 0.0;
-
-	/** Instance optimization state. */
-	int32 State = -1;
-
-	/** Only used in the IDRelease operation type */
-	mu::Instance::ID IDToRelease;
 
 	FInstanceUpdateDelegate UpdateCallback;
 	
@@ -97,6 +80,11 @@ public:
 	{
 		return Parameters;
 	}
+
+	int32 GetState() const
+	{
+		return State;
+	}
 };
 
 
@@ -109,12 +97,6 @@ struct FMutablePendingInstanceUpdate
 
 	double SecondsAtUpdate = 0;
 	FInstanceUpdateDelegate* Callback = nullptr;
-	bool bNeverStream = false;
-
-	/** If this is non-zero, the instance images will be generated with a certain amount of mips starting from the smallest. Otherwise, the full images will be generated.
-	 * This is used for both Update and UpdateImage operations.
-	 */
-	int32 MipsToSkip = 0;
 
 	FMutablePendingInstanceUpdate(UCustomizableObjectInstance* InCustomizableObjectInstance)
 	{
@@ -123,7 +105,7 @@ struct FMutablePendingInstanceUpdate
 	}
 
 	FMutablePendingInstanceUpdate(UCustomizableObjectInstance* InCustomizableObjectInstance, EQueuePriorityType NewPriorityType, 
-		                          FInstanceUpdateDelegate* InCallback, bool bInNeverStream, int32 InMipsToSkip)
+		                          FInstanceUpdateDelegate* InCallback)
 	{
 		PriorityType = NewPriorityType;
 
@@ -133,8 +115,6 @@ struct FMutablePendingInstanceUpdate
 
 		SecondsAtUpdate = FPlatformTime::Seconds();
 		Callback = InCallback;
-		bNeverStream = bInNeverStream;
-		MipsToSkip = InMipsToSkip;
 	}
 
 	friend bool operator ==(const FMutablePendingInstanceUpdate& A, const FMutablePendingInstanceUpdate& B)
@@ -723,8 +703,7 @@ public:
 
 	bool TextureHasReferences(const FMutableImageCacheKey& TextureId) const;
 
-	// Init the async Skeletal Mesh creation/update
-	void InitUpdateSkeletalMesh(UCustomizableObjectInstance& Public, EQueuePriorityType Priority, bool bIsCloseDistTick, FInstanceUpdateDelegate* UpdateCallback = nullptr);
+	void EnqueueUpdateSkeletalMesh(UCustomizableObjectInstance& Instance, EQueuePriorityType Priority, FInstanceUpdateDelegate* UpdateCallback);
 		
 	// Init an async and safe release of the UE and Mutable resources used by the instance without actually destroying the instance, for example if it's very far away
 	void InitDiscardResourcesSkeletalMesh(UCustomizableObjectInstance* InCustomizableObjectInstance);

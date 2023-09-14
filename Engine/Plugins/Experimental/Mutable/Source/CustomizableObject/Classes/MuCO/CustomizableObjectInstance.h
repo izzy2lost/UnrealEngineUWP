@@ -99,11 +99,6 @@ DECLARE_DYNAMIC_DELEGATE_OneParam(FInstanceUpdateDelegate, const FUpdateContext&
  * - Native delegates names should end with "NativeDelegate".
  * - Dynamic delegates broadcast before native delegates. */
 
-/** Broadcast at the end of an Instance update request (e.g., before returning from UpdateSkeletalMeshAsync).
- * Notice that Mutable internally can also request an Instance update. */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FBeginUpdateDelegate, UCustomizableObjectInstance*, Instance);
-DECLARE_MULTICAST_DELEGATE_OneParam(FBeginUpdateNativeDelegate, UCustomizableObjectInstance*);
-
 /** Broadcast when an Instance update has completed.
  * Notice that Mutable internally can also start an Instance update. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FObjectInstanceUpdatedDelegate, UCustomizableObjectInstance*, Instance);
@@ -135,13 +130,6 @@ public:
 	const FCustomizableObjectInstanceDescriptor& GetDescriptor() const;
 	
 	void SetDescriptor(const FCustomizableObjectInstanceDescriptor& InDescriptor);
-
-	/** Broadcast at the beginning of an Instance update. */
-	UPROPERTY(BlueprintAssignable, Category = CustomizableObjectInstance)
-	FBeginUpdateDelegate BeginUpdateDelegate;
-
-	/** Broadcast at the beginning of an Instance update. */
-	FBeginUpdateNativeDelegate BeginUpdateNativeDelegate;
 
 	/** Broadcast when the Customizable Object Instance is updated. */
 	UPROPERTY(Transient, BlueprintAssignable, Category = CustomizableObjectInstance)
@@ -292,18 +280,15 @@ public:
 
 private:
 	/** Perform all the checks required to see if the update should begin. */
-	EUpdateRequired IsUpdateRequired(bool bIsCloseDistTick, bool bOnlyUpdateIfNotGenerated, bool bIgnoreCloseDist) const;
+	EUpdateRequired IsUpdateRequired(bool bOnlyUpdateIfNotGenerated, bool bIgnoreCloseDist) const;
 
 public:
 	/** Private API.
 	 *
 	 * Update Skeletal Mesh asynchronously. Immersive function.
 	 * Once the update reaches this function, the update has been considered started and must complete all the update flow.
-	 * Starting at this function, all Update code paths must end up in FinishUpdateGlobal!
-	 *
-	 * @param bIsCloseDistTick true if and only if called from the tick.
-	 */
-	void DoUpdateSkeletalMesh(bool bIsCloseDistTick, bool bOnlyUpdateIfNotGenerated, bool bIgnoreCloseDist, bool bForceHighPriority, const EUpdateRequired* OptionalUpdateRequired, FInstanceUpdateDelegate* UpdateCallback);
+	 * Starting at this function, all Update code paths must end up in FinishUpdateGlobal! */
+	void EnqueueUpdateSkeletalMesh(bool bOnlyUpdateIfNotGenerated, bool bIgnoreCloseDist, bool bForceHighPriority, const EUpdateRequired* OptionalUpdateRequired, FInstanceUpdateDelegate* UpdateCallback);
 
 	// Clones the instance creating a new identical transient instance.
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
@@ -322,8 +307,8 @@ public:
 	// Releases all the mutable resources this instance holds, should only be called when it is not going to be used any more.
 	void ReleaseMutableResources(bool bCalledFromBeginDestroy);
 
-	/** Returns the priority an update issued by DoUpdateSkeletalMesh would get in the current instance configuration and state */
-	EQueuePriorityType GetUpdatePriority(bool bIsCloseDistTick, bool bOnlyUpdateIfNotGenerated, bool bIgnoreCloseDist, bool bForceHighPriority) const;
+	/** Returns the priority an update issued by EnqueueUpdateSkeletalMesh would get in the current instance configuration and state */
+	EQueuePriorityType GetUpdatePriority(bool bForceHighPriority) const;
 
 	// Returns de description texture (ex: color bar) for this parameter and DescIndex
 	// This will only be valid if bBuildParameterDecorations was set to true before the last update.
@@ -837,7 +822,7 @@ public:
 	}
 
 private:
-	/** If true it means that DoUpdateSkeletalMesh has decided this update should be performed, if false it should be ignored. Just used for consistency checks */
+	/** If true it means that EnqueueUpdateSkeletalMesh has decided this update should be performed, if false it should be ignored. Just used for consistency checks */
 	bool bHasBeenIssued = false;
 };
 
