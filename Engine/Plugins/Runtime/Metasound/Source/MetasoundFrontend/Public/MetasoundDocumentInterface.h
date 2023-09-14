@@ -50,6 +50,7 @@ namespace Metasound::Frontend
 		// (ex. via the soft deprecated controller/handle API).
 		virtual void InvalidateDocumentCache(const FMetasoundFrontendClassName& InClassName) const = 0;
 
+		static IDocumentBuilderRegistry* Get();
 		static IDocumentBuilderRegistry& GetChecked();
 
 	protected:

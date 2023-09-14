@@ -7,8 +7,21 @@ namespace Metasound::Frontend
 {
 	namespace DocumentBuilderRegistryPrivate
 	{
+		static bool bInitialized = false;
 		TUniqueFunction<IDocumentBuilderRegistry&()> GetInstance;
 	} // namespace DocumentBuilderRegistryPrivate
+
+	IDocumentBuilderRegistry* IDocumentBuilderRegistry::Get()
+	{
+		using namespace DocumentBuilderRegistryPrivate;
+
+		if (!DocumentBuilderRegistryPrivate::bInitialized)
+		{
+			return nullptr;
+		}
+		
+		return &GetInstance();
+	}
 
 	IDocumentBuilderRegistry& IDocumentBuilderRegistry::GetChecked()
 	{
@@ -24,6 +37,7 @@ namespace Metasound::Frontend
 
 		checkf(!GetInstance, TEXT("Failed to initialize MetaSoundDocumentBuilderRegistry getter: Cannot reinitialize once initialized."))
 		GetInstance = MoveTemp(InGetInstance);
+		DocumentBuilderRegistryPrivate::bInitialized = true;
 	}
 
 	IMetaSoundDocumentBuilderRegistry& IMetaSoundDocumentBuilderRegistry::GetChecked()
