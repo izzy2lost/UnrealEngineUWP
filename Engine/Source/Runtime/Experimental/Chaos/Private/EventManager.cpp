@@ -39,6 +39,10 @@ namespace Chaos
 
 	void FEventManager::FillProducerData(const Chaos::FPBDRigidsSolver* Solver, bool bResetData)
 	{
+		if (BufferMode == EMultiBufferMode::Double)
+		{
+			ResourceLock.ReadLock();
+		}
 		ContainerLock.ReadLock();
 		for (FEventContainerBasePtr EventContainer : EventContainers)
 		{
@@ -48,6 +52,10 @@ namespace Chaos
 			}
 		}
 		ContainerLock.ReadUnlock();
+		if (BufferMode == EMultiBufferMode::Double)
+		{
+			ResourceLock.ReadUnlock();
+		}
 	}
 
 	void FEventManager::FlipBuffersIfRequired()

@@ -469,12 +469,20 @@ namespace Chaos
 		template<typename PayloadType>
 		void AddEvent(const EEventType& EventType, TFunction<void(PayloadType& EventData)> InFunction)
 		{
+			if (BufferMode == EMultiBufferMode::Double)
+			{
+				ResourceLock.ReadLock();
+			}
 			ContainerLock.ReadLock();
 			if (TEventContainer<PayloadType>* EventContainer = StaticCast<TEventContainer<PayloadType>*>(EventContainers[FEventID(EventType)]))
 			{
 				EventContainer->AddEvent(InFunction);
 			}
 			ContainerLock.ReadUnlock();
+			if (BufferMode == EMultiBufferMode::Double)
+			{
+				ResourceLock.ReadUnlock();
+			}
 		}
 
 	private:
