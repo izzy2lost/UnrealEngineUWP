@@ -539,7 +539,10 @@ bool TSceneCastCommonImp(const UWorld* World, typename Traits::TOutHits& OutHits
 							FClusterUnionHit ClusterUnionHit = DoClusterUnionTrace(OutHits[Index], NewHit);
 							if (ClusterUnionHit.bIsClusterUnion)
 							{
-								ClusterUnionIndices.Add(Index);
+								if (Params.bReplaceHitWithSubComponents || !ClusterUnionHit.bHit)
+								{
+									ClusterUnionIndices.Add(Index);
+								}
 
 								if (ClusterUnionHit.bHit)
 								{
@@ -554,7 +557,11 @@ bool TSceneCastCommonImp(const UWorld* World, typename Traits::TOutHits& OutHits
 							OutHits.RemoveAtSwap(ClusterUnionIndices[Index], 1, false);
 						}
 
-						OutHits.Append(AllNewHits);
+						if (Params.bReplaceHitWithSubComponents)
+						{
+							OutHits.Append(AllNewHits);
+						}
+						
 						bBlockingHit &= !OutHits.IsEmpty();
 					}
 					else
@@ -566,7 +573,10 @@ bool TSceneCastCommonImp(const UWorld* World, typename Traits::TOutHits& OutHits
 							bBlockingHit = ClusterUnionHit.bHit;
 							if (ClusterUnionHit.bHit)
 							{
-								OutHits = NewHit;
+								if (Params.bReplaceHitWithSubComponents)
+								{
+									OutHits = NewHit;
+								}
 							}
 							else if (AActor* ClusterUnionActor = OutHits.GetActor())
 							{
@@ -929,7 +939,10 @@ bool GeomOverlapMultiImp(const UWorld* World, const FPhysicsGeometry& Geom, cons
 								FClusterUnionHit ClusterUnionHit = DoClusterUnionOverlap(OutOverlaps[Index], NewOverlaps);
 								if (ClusterUnionHit.bIsClusterUnion)
 								{
-									ClusterUnionIndices.Add(Index);
+									if (Params.bReplaceHitWithSubComponents || !ClusterUnionHit.bHit)
+									{
+										ClusterUnionIndices.Add(Index);
+									}
 
 									if (ClusterUnionHit.bHit)
 									{
@@ -944,7 +957,10 @@ bool GeomOverlapMultiImp(const UWorld* World, const FPhysicsGeometry& Geom, cons
 								OutOverlaps.RemoveAtSwap(ClusterUnionIndices[Index], 1, false);
 							}
 
-							OutOverlaps.Append(AllNewOverlaps);
+							if (Params.bReplaceHitWithSubComponents)
+							{
+								OutOverlaps.Append(AllNewOverlaps);
+							}
 							bHaveBlockingHit &= !OutOverlaps.IsEmpty();
 						}
 					}
