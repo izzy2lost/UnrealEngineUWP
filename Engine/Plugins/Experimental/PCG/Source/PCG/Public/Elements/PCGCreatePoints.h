@@ -34,6 +34,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	TArray<FPCGPoint> PointsToCreate;
 
+	/** If true, points are transformed to world space using the PCG component transform */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bLocal = false;
 
@@ -46,4 +47,5 @@ class FPCGCreatePointsElement : public FSimplePCGElement
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override;
+	virtual bool ShouldComputeFullOutputDataCrc(FPCGContext* Context) const { return true; }
 };
