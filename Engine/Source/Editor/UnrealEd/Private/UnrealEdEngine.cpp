@@ -31,6 +31,7 @@
 #include "Engine/Selection.h"
 #include "Editor.h"
 #include "LevelEditorViewport.h"
+#include "EditorCommandLineUtils.h"
 #include "EditorModeRegistry.h"
 #include "EditorModeManager.h"
 #include "EditorModes.h"
@@ -215,6 +216,17 @@ void UUnrealEdEngine::Init(IEngineLoop* InEngineLoop)
 		PropertyEditorModule.RegisterCustomClassLayout("EditorStyleSettings", FOnGetDetailCustomizationInstance::CreateStatic(&FEditorStyleSettingsCustomization::MakeInstance));
 		PropertyEditorModule.RegisterCustomPropertyTypeLayout("StyleColorList", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FStyleColorListCustomization::MakeInstance));
 
+	}
+
+	// Set the UE_EditorUIPid variable; must be set before constructing the UCookOnTheFlyServer
+	if (!IsRunningCommandlet())
+	{
+		FString ParentPid = FPlatformMisc::GetEnvironmentVariable(GEditorUIPidVariable);
+		if (ParentPid.IsEmpty())
+		{
+			FPlatformMisc::SetEnvironmentVar(GEditorUIPidVariable,
+				*LexToString(FPlatformProcess::GetCurrentProcessId()));
+		}
 	}
 
 	if (!IsRunningCommandlet())

@@ -49,6 +49,7 @@
 #include "Dom/JsonObject.h"
 #include "Editor.h"
 #include "Editor/UnrealEdEngine.h"
+#include "EditorCommandLineUtils.h"
 #include "EditorDomain/EditorDomain.h"
 #include "EditorDomain/EditorDomainUtils.h"
 #include "Engine/AssetManager.h"
@@ -6499,9 +6500,17 @@ void UCookOnTheFlyServer::Initialize( ECookMode::Type DesiredCookMode, ECookInit
 	DirectorCookMode = WorkerRequests->GetDirectorCookMode(*this);
 	if (IsCookByTheBookMode() && !IsCookingInEditor())
 	{
-		int32 CookProcessCount=1;
-		GConfig->GetInt(TEXT("CookSettings"), TEXT("CookProcessCount"), CookProcessCount, GEditorIni);
+		bool bLaunchedByEditor = !FPlatformMisc::GetEnvironmentVariable(GEditorUIPidVariable).IsEmpty();
+		int32 CookProcessCount=-1;
 		FParse::Value(FCommandLine::Get(), TEXT("-CookProcessCount="), CookProcessCount);
+		if (CookProcessCount < 0 && bLaunchedByEditor)
+		{
+			GConfig->GetInt(TEXT("CookSettings"), TEXT("CookProcessCountFromEditor"), CookProcessCount, GEditorIni);
+		}
+		if (CookProcessCount < 0)
+		{
+			GConfig->GetInt(TEXT("CookSettings"), TEXT("CookProcessCount"), CookProcessCount, GEditorIni);
+		}
 		CookProcessCount = FMath::Max(1, CookProcessCount);
 		if (CookProcessCount > 1)
 		{
