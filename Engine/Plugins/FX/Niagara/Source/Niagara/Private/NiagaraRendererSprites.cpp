@@ -596,12 +596,10 @@ FNiagaraSpriteUniformBufferRef FNiagaraRendererSprites::CreateViewUniformBuffer(
 			{
 				if (IsTranslucentOnlyBlendMode(ParticleSpriteRenderData.BlendMode))
 				{
-					ParticleSpriteRenderData.bHasTranslucentMaterials = true;
 					PerViewUniformParameters.PixelCoverageColorBlend = FVector4f(0.0f, 0.0f, 0.0f, PixelCoverageBlend);
 				}
 				else if (IsAdditiveBlendMode(ParticleSpriteRenderData.BlendMode))
 				{
-					ParticleSpriteRenderData.bHasTranslucentMaterials = true;
 					PerViewUniformParameters.PixelCoverageColorBlend = FVector4f(PixelCoverageBlend, PixelCoverageBlend, PixelCoverageBlend, PixelCoverageBlend);
 				}
 				else
@@ -610,7 +608,7 @@ FNiagaraSpriteUniformBufferRef FNiagaraRendererSprites::CreateViewUniformBuffer(
 					//BLEND_Modulate
 					//BLEND_AlphaComposite
 					//BLEND_AlphaHoldout
-					ParticleSpriteRenderData.bHasTranslucentMaterials = false;
+					PerViewUniformParameters.PixelCoverageEnabled = false;
 				}
 			}
 		}
@@ -977,6 +975,12 @@ void FNiagaraRendererSprites::GetDynamicMeshElements(const TArray<const FSceneVi
 			if (View->bIsInstancedStereoEnabled && IStereoRendering::IsStereoEyeView(*View) && !IStereoRendering::IsAPrimaryView(*View))
 			{
 				// We don't have to generate batches for non-primary views in stereo instance rendering
+				continue;
+			}
+
+			// Scene captures that are rendered in with the regular views will run depth only so we can skip building the batches
+			if (ParticleSpriteRenderData.bHasTranslucentMaterials && IsViewRenderingOpaqueOnly(View))
+			{
 				continue;
 			}
 

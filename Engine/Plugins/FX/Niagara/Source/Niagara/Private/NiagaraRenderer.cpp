@@ -584,6 +584,11 @@ void FNiagaraRenderer::ProcessMaterialParameterBindings(const FNiagaraRendererMa
 	}
 }
 
+bool FNiagaraRenderer::IsViewRenderingOpaqueOnly(const FSceneView* View)
+{
+	return View->bIsSceneCapture && View->SceneCaptureRenderTarget;
+}
+
 void FNiagaraRenderer::SortIndices(const FNiagaraGPUSortInfo& SortInfo, const FNiagaraRendererVariableInfo& SortVariable, const FNiagaraDataBuffer& Buffer, FGlobalDynamicReadBuffer::FAllocation& OutIndices)
 {
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraSortParticles);

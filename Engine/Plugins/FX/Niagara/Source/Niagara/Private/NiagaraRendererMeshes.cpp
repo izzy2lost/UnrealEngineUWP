@@ -328,6 +328,8 @@ void FNiagaraRendererMeshes::PrepareParticleMeshRenderData(FParticleMeshRenderDa
 
 	// Check if any materials are translucent and if we can pickup the low latency data
 	// If these conditions change please update the DebugHUD display also to reflect it
+	// Note: SceneCaptures will use latent data as GpuReadyTickStage < CurrentParticleData->GetGPUDataReadyStage()
+	//       For main pass scene captures we exclude the batches if they are translucent
 	const bool bIsWireframe = AllowDebugViewmodes() && ViewFamily.EngineShowFlags.Wireframe;
 	ParticleMeshRenderData.bIsGpuLowLatencyTranslucency =
 		bGpuLowLatencyTranslucency &&
@@ -1423,11 +1425,27 @@ void FNiagaraRendererMeshes::GetDynamicMeshElements(const TArray<const FSceneVie
 						const FMaterial& Material = MaterialProxy->GetIncompleteMaterialWithFallback(FeatureLevel);
 						const bool bTranslucent = IsTranslucentBlendMode(Material);
 						const bool bNeedsPrevTransform = !bTranslucent || Material.IsTranslucencyWritingVelocity();
-						if (bIsShadowView && bTranslucent && !SceneProxy->CastsVolumetricTranslucentShadow())
+						if (bTranslucent)
 						{
-							// Don't add translucent mesh batches for shadows
-							// TODO: Need a way to know if it's a volumetric translucent shadow view to make this logic better
-							continue;
+							if (bIsShadowView && !SceneProxy->CastsVolumetricTranslucentShadow())
+							{
+								// Don't add translucent mesh batches for shadows
+								// TODO: Need a way to know if it's a volumetric translucent shadow view to make this logic better
+								continue;
+							}
+
+							// If we are rendering opaque only we can skip this batch
+							//-OPT: If we only have opaque materials we can skip earlier however due to RemappedMaterialIndex potentially being invalid this is tricky
+							if (IsViewRenderingOpaqueOnly(View))
+							{
+								continue;
+							}
+
+							// This should never occur as the GPU data is considered not ready so low latency is disabled for regular scene captures
+							if (!ensureMsgf(!View->bIsSceneCapture || !ParticleMeshRenderData.bUseGPUScene || !ParticleMeshRenderData.bIsGpuLowLatencyTranslucency, TEXT("Attemping to render translucent mesh particles with low latency into a scenecapture this is not supported.")))
+							{
+								continue;
+							}
 						}
 
 						// When using GPU scene, the indirect draw is managed, so prevent creating indirect draw args

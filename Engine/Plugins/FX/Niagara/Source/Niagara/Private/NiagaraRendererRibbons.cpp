@@ -4,7 +4,6 @@
 
 #include "GlobalRenderResources.h"
 #include "GPUSortManager.h"
-#include "Materials/Material.h"
 #include "NiagaraRibbonVertexFactory.h"
 #include "NiagaraDataSet.h"
 #include "NiagaraDataSetAccessor.h"
@@ -15,8 +14,10 @@
 #include "NiagaraSystemInstance.h"
 #include "NiagaraComponent.h"
 #include "RayTracingInstance.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "MaterialDomain.h"
+#include "MaterialShared.h"
 #include "Math/NumericLimits.h"
 #include "NiagaraCullProxyComponent.h"
 #include "NiagaraGpuComputeDispatchInterface.h"
@@ -851,7 +852,14 @@ void FNiagaraRendererRibbons::GetDynamicMeshElements(const TArray<const FSceneVi
 				// We don't have to generate batches for non-primary views in stereo instance rendering
 				continue;
 			}
-			
+
+			// If we are rendering opaque only we can skip this batch
+			//-OPT: If we only have opaque materials we can skip earlier however due to RemappedMaterialIndex potentially being invalid this is tricky
+			if (IsViewRenderingOpaqueOnly(View) && DynamicData->Material && IsTranslucentBlendMode(DynamicData->Material->GetIncompleteMaterialWithFallback(FeatureLevel)))
+			{
+				continue;
+			}
+
 			FMeshBatch& MeshBatch = Collector.AllocateMesh();
 			
 			const FVector ViewOriginForDistanceCulling = View->ViewMatrices.GetViewOrigin();

@@ -92,6 +92,11 @@ public:
 	virtual int32 GetDynamicDataSize()const { return 0; }
 	virtual bool IsMaterialValid(const UMaterialInterface* Mat)const { return Mat != nullptr; }
 
+	// Determine if we are rendering into an opaque only view
+	// This is an optimization for depth only scene capture which render in the main pass.
+	// These captures will have SceneCaptureRenderTarget set on the view, no other capture type does this.
+	static NIAGARA_API bool IsViewRenderingOpaqueOnly(const FSceneView* View);
+
 	static NIAGARA_API void SortIndices(const struct FNiagaraGPUSortInfo& SortInfo, const FNiagaraRendererVariableInfo& SortVariable, const FNiagaraDataBuffer& Buffer, FGlobalDynamicReadBuffer::FAllocation& OutIndices);
 	static NIAGARA_API int32 SortAndCullIndices(const FNiagaraGPUSortInfo& SortInfo, const FNiagaraDataBuffer& Buffer, FGlobalDynamicReadBuffer::FAllocation& OutIndices);
 
