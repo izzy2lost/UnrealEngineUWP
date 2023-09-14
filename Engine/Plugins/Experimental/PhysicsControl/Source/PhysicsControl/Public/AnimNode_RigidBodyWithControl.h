@@ -117,12 +117,20 @@ public:
 
 
 	/**
-	 * Scale of cached bounds (vs. actual bounds).
+	 * Scale of cached bounds (vs. actual bounds) used for obtaining the list of objects we might collide with.
 	 * Increasing this may improve performance, but overlaps may not work as well.
 	 * (A value of 1.0 effectively disables cached bounds).
 	 */
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (ClampMin="1.0", ClampMax="2.0"))
 	float CachedBoundsScale;
+
+	/**
+	 * This can be used to force the cached collision objects to be updated every frame, even when we are not 
+	 * moving. This can be expensive, but may be needed if we wish to detect collisions with objects that are 
+	 * moving, otherwise the cache will only be updated if/when we move.
+	 */
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
+	bool UpdateCacheEveryFrame;
 
 	/** Matters if SimulationSpace is BaseBone */
 	UPROPERTY(EditAnywhere, Category = Settings)
@@ -386,7 +394,7 @@ private:
 	void PurgeExpiredWorldObjects();
 
 	// Update sim-space transforms of world objects
-	void UpdateWorldObjects(const FTransform& SpaceTransform);
+	void UpdateWorldObjects(const FTransform& SpaceTransform, const float DeltaSeconds);
 
 	// Advances the simulation by a given timestep
 	void RunPhysicsSimulation(float DeltaSeconds, const FVector& SimSpaceGravity);
@@ -505,9 +513,10 @@ private:
 		uint32 BoneIndex; // Bone within parent skeleton that drives physics actors transform.
 	};
 
-	// List of actors in the sim that represent objects collected from other parts of this character.
+	// List of cloth colliders in the sim that represent objects collected from other parts of this character.
 	TArray<FClothCollider> ClothColliders; 
 	
+	// List of actors in the sim that represent objects collected from the world.
 	TMap<const UPrimitiveComponent*, FWorldObject> ComponentsInSim;
 	int32 ComponentsInSimTick;
 
