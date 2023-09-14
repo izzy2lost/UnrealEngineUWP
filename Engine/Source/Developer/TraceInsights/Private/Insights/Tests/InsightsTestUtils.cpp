@@ -79,30 +79,32 @@ bool FInsightsTestUtils::AnalyzeTrace(const TCHAR* Path) const
 
 bool FInsightsTestUtils::FileContainsString(const FString& PathToFile, const FString& ExpectedString, const float& Timeout) const
 {
-	if (!FPaths::FileExists(PathToFile))
-	{
-		return false;
-	}
-
 	float StartTime = FPlatformTime::Seconds();
 	while ((FPlatformTime::Seconds() - StartTime) < Timeout)
 	{
-		FString LogFileContents;
-		IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
-		TUniquePtr<IFileHandle> FileHandle(PlatformFile.OpenRead(*PathToFile, true)); // Open the file with shared read access
-		if (FileHandle)
+		if (!FPaths::FileExists(PathToFile))
 		{
-			TArray<uint8> FileData;
-			FileData.SetNumUninitialized(FileHandle->Size());
-			FileHandle->Read(FileData.GetData(), FileData.Num());
-			FFileHelper::BufferToString(LogFileContents, FileData.GetData(), FileData.Num());
-
-			if (LogFileContents.Contains(ExpectedString))
-			{
-				return true;
-			}
+			FPlatformProcess::Sleep(0.1f);
 		}
-		FPlatformProcess::Sleep(0.1f);
+		else
+		{
+			FString LogFileContents;
+			IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+			TUniquePtr<IFileHandle> FileHandle(PlatformFile.OpenRead(*PathToFile, true)); // Open the file with shared read access
+			if (FileHandle)
+			{
+				TArray<uint8> FileData;
+				FileData.SetNumUninitialized(FileHandle->Size());
+				FileHandle->Read(FileData.GetData(), FileData.Num());
+				FFileHelper::BufferToString(LogFileContents, FileData.GetData(), FileData.Num());
+
+				if (LogFileContents.Contains(ExpectedString))
+				{
+					return true;
+				}
+			}
+			FPlatformProcess::Sleep(0.1f);
+		}
 	}
 
 	return false;
