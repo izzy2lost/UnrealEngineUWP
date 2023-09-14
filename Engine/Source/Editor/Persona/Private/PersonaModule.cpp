@@ -94,6 +94,7 @@
 #include "AnimSequenceTimelineCommands.h"
 #include "SAnimCurvePicker.h"
 #include "SAnimMontageSectionsPanel.h"
+#include "SPersonaToolBox.h"
 #include "Animation/AnimSequenceHelpers.h"
 #include "SkeletalMeshReferenceSectionDetails.h"
 #include "PersonaToolMenuContext.h"
@@ -356,6 +357,11 @@ TSharedRef<SWidget> FPersonaModule::CreateBlendSpacePreviewWidget(const FBlendSp
 		.ShowAxisLabels(false)
 		.ShowSettingsButtons(false)
 		.OnGetBlendSpaceSampleName(InArgs.OnGetBlendSpaceSampleName);
+}
+
+TSharedRef<FWorkflowTabFactory> FPersonaModule::CreatePersonaToolboxTabFactory(const TSharedRef<FPersonaAssetEditorToolkit>& InHostingApp) const
+{
+	return MakeShareable(new FToolBoxSummoner(InHostingApp));
 }
 
 TSharedRef<SWidget> FPersonaModule::CreateBlendSpacePreviewWidget(TAttribute<const UBlendSpace*> InBlendSpace, TAttribute<FVector> InPosition, TAttribute<FVector> InFilteredPosition) const

@@ -4,8 +4,6 @@
 
 #include "SkeletalMeshEditorCommands.h"
 #include "SkeletalMeshEditorMode.h"
-#include "SSkeletalMeshEditorToolbox.h"
-
 
 #include "Algo/Transform.h"
 #include "Animation/DebugSkelMeshComponent.h"
@@ -213,17 +211,6 @@ bool FSkeletalMeshEditor::OnRequestClose(EAssetEditorCloseReason InCloseReason)
 
 void FSkeletalMeshEditor::RegisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)
 {
-	WorkspaceMenuCategory = InTabManager->AddLocalWorkspaceMenuCategory(LOCTEXT("WorkspaceMenu_SkeletalMeshEditor", "Skeletal Mesh Editor"));
-	
-	InTabManager->RegisterTabSpawner(
-		SkeletalMeshEditorTabs::ToolboxDetailsTab, 
-		FOnSpawnTab::CreateSP(this, &FSkeletalMeshEditor::SpawnToolboxTab),
-		FCanSpawnTab::CreateSP(this, &FSkeletalMeshEditor::CanSpawnToolboxTab)
-		)
-		.SetDisplayName(LOCTEXT("ToolboxTab", "Toolbox"))
-		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Modes" ));
-
 	FAssetEditorToolkit::RegisterTabSpawners(InTabManager);
 }
 
@@ -346,7 +333,6 @@ TSharedPtr<FSkeletalMeshEditor> FSkeletalMeshEditor::GetSkeletalMeshEditor(const
 	return TSharedPtr<FSkeletalMeshEditor>();
 }
 
-
 void FSkeletalMeshEditor::OnEditorModeIdChanged(const FEditorModeID& ModeChangedID, bool bIsEnteringMode)
 {
 	if (GetEditorModeManager().IsDefaultMode(ModeChangedID))
@@ -381,40 +367,6 @@ void FSkeletalMeshEditor::OnEditorModeIdChanged(const FEditorModeID& ModeChanged
 		}
 	}
 }
-
-
-bool FSkeletalMeshEditor::CanSpawnToolboxTab(const FSpawnTabArgs& InArgs) const
-{
-	return HostedToolkit.IsValid();
-}
-
-
-TSharedRef<SDockTab> FSkeletalMeshEditor::SpawnToolboxTab(const FSpawnTabArgs& Args)
-{
-	ToolboxWidget = SNew(SSkeletalMeshEditorToolbox, SharedThis<ISkeletalMeshEditor>(this));
-
-	TSharedRef<SDockTab> DockTab = SNew(SDockTab)
-		.Label(LOCTEXT("ToolboxTab", "Toolbox"))
-		[
-			SNew(SBox)
-			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ToolboxTab")))
-			[
-				ToolboxWidget.ToSharedRef()
-			]
-		];
-	
-	ToolboxWidget->AttachToolkit(HostedToolkit.ToSharedRef());
-
-	return DockTab;
-}
-
-
-void FSkeletalMeshEditor::OnToolboxTabClosed(TSharedRef<SDockTab> InClosedTab)
-{
-	// If the user closed the tab, then we want to go back to the base skel mesh editor mode.
-	GetEditorModeManager().ActivateDefaultMode();
-}
-
 
 void FSkeletalMeshEditor::RegisterReimportContextMenu(const FName InBaseMenuName)
 {
@@ -708,35 +660,6 @@ void FSkeletalMeshEditor::InitToolMenuContext(FToolMenuContext& MenuContext)
 	PersonaContext->SetToolkit(GetPersonaToolkit());
 	MenuContext.AddObject(PersonaContext);
 }
-
-
-void FSkeletalMeshEditor::OnToolkitHostingStarted(const TSharedRef<IToolkit>& Toolkit)
-{
-	if (!HostedToolkit.IsValid())
-	{
-		HostedToolkit = Toolkit;
-
-		if (ToolboxWidget.IsValid())
-		{
-			ToolboxWidget->AttachToolkit(Toolkit);
-		}
-	}
-}
-
-
-void FSkeletalMeshEditor::OnToolkitHostingFinished(const TSharedRef<IToolkit>& Toolkit)
-{
-	if (Toolkit == HostedToolkit)
-	{
-		if (ToolboxWidget.IsValid())
-		{
-			ToolboxWidget->DetachToolkit(Toolkit);
-		}
-		
-		HostedToolkit.Reset();
-	}
-}
-
 
 void FSkeletalMeshEditor::AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget)
 {

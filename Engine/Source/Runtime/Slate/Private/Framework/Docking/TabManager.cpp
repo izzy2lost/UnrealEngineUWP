@@ -2079,6 +2079,11 @@ TSharedPtr<SDockTab> FTabManager::SpawnTab(const FTabId& TabId, const TSharedPtr
 			bSpawningAllowedBySpawner = false;
 		}
 	}
+	else
+	{
+	
+		bSpawningAllowedBySpawner = false;
+	}
 
 	// The tab was allowed to be spawned but failed for some reason
 	if (bSpawningAllowedBySpawner && !NewTabWidget.IsValid())
@@ -2735,9 +2740,10 @@ void FGlobalTabmanager::SaveAllVisualState()
 
 	for( int32 ManagerIndex=0; ManagerIndex < SubTabManagers.Num(); ++ManagerIndex )
 	{
-		const TSharedPtr<FTabManager> SubManagerTab = SubTabManagers[ManagerIndex].TabManager.Pin();
+		const TSharedPtr<FTabManager> SubManagerTab = SubTabManagers[ManagerIndex].TabManager.Pin();		
 		if (SubManagerTab.IsValid())
 		{
+			ensure(SubTabManagers[ManagerIndex].MajorTab.IsValid());
 			SubManagerTab->SavePersistentLayout();
 		}
 	}

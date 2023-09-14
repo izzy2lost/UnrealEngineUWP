@@ -76,6 +76,8 @@ const FName FPersonaTabs::DetailsID("DetailsTab");
 
 const FName FPersonaTabs::FindReplaceID("FindReplaceTab");
 
+const FName FPersonaTabs::ToolboxID("ToolBox");
+
 /////////////////////////////////////////////////////
 // FPersonaMode
 
