@@ -264,30 +264,34 @@ FAutoConsoleVariableRef CVarRenderInterpErrorVelocitySmoothingDuration(TEXT("p.R
 int32 RenderInterpDebugDraw = 0;
 FAutoConsoleVariableRef CVarRenderInterpDebugDraw(TEXT("p.RenderInterp.DebugDraw"), RenderInterpDebugDraw, TEXT("Draw debug lines for physics render interpolation, also needs p.Chaos.DebugDraw.Enabled set"));
 
+bool ShouldUpdateTransformFromSimulation(const Chaos::FPBDRigidParticle& Rigid)
+{
+	if (Rigid.ObjectState() == Chaos::EObjectStateType::Kinematic)
+	{
+		switch (Chaos::SyncKinematicOnGameThread)
+		{
+		case 0:
+			return false;
+		case 1:
+			return true;
+		default:
+			return Rigid.UpdateKinematicFromSimulation();
+		}
+	}
+	return true;
+}
+
 bool FSingleParticlePhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyRigidParticleData& PullData,int32 SolverSyncTimestamp, const Chaos::FDirtyRigidParticleData* NextPullData, const Chaos::FRealSingle* Alpha, const FDirtyRigidParticleReplicationErrorData* Error, const Chaos::FReal AsyncFixedTimeStep)
 {
 	using namespace Chaos;
 	// Move buffered data into the TPBDRigidParticle without triggering invalidation of the physics state.
-	auto Rigid = Particle ? Particle->CastToRigidParticle() : nullptr;
+	Chaos::FPBDRigidParticle* Rigid = Particle ? Particle->CastToRigidParticle() : nullptr;
 	if(Rigid)
 	{
 		// Note that kinematics should either be updated here (following simulation), or when the
 		// kinematic target is set in FChaosEngineInterface::SetKinematicTarget_AssumesLocked If the
 		// logic in one place is changed, it should be checked in the other place too.
-		bool bUpdatePositionFromSimulation = true;
-		if (Rigid->ObjectState() == EObjectStateType::Kinematic)
-		{
-			switch (SyncKinematicOnGameThread)
-			{
-			case 0:
-				bUpdatePositionFromSimulation = false ; break;
-			case 1: 
-				bUpdatePositionFromSimulation = true; break;
-			default:
-				bUpdatePositionFromSimulation = Rigid->UpdateKinematicFromSimulation();
-			}
-		}
-
+		bool bUpdatePositionFromSimulation = ShouldUpdateTransformFromSimulation(*Rigid);
 		const FSingleParticleProxyTimestamp* ProxyTimestamp = PullData.GetTimestamp();
 		
 #if RENDERINTERP_ERRORVELOCITYSMOOTHING

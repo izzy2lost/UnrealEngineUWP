@@ -1637,6 +1637,26 @@ namespace Chaos
 		//MarshallingManager.FreeData_Internal(&PushData);
 	}
 
+	template<typename TRigidParticle>
+	bool ShouldUpdateFromSimulation(const TRigidParticle& InRigidParticle)
+	{
+		if (InRigidParticle.ObjectState() == Chaos::EObjectStateType::Kinematic)
+		{
+			switch (Chaos::SyncKinematicOnGameThread)
+			{
+			case 0:
+				return false;
+			case 1:
+				return true;
+			default:
+				return InRigidParticle.UpdateKinematicFromSimulation();
+			}
+		}
+		// We assume that sleeping/static particles etc won't appear repeatedly (over multiple
+		// frames) in the dirty list, so we can safely return true here without incurring unwanted costs.
+		return true;
+	}
+
 	void FPBDRigidsSolver::ProcessPushedData_Internal(FPushPhysicsData& PushData)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(ChaosPushData);
@@ -1976,7 +1996,7 @@ namespace Chaos
 						{
 							if(!bIsResim || DirtyParticle.SyncState() == ESyncState::HardDesync)
 							{
-								if (!(SyncKinematicOnGameThread == 0 && DirtyParticle.ObjectState() == EObjectStateType::Kinematic))
+								if (ShouldUpdateFromSimulation(DirtyParticle))
 								{
 									ActiveRigid.AddUnique((FSingleParticlePhysicsProxy*)Proxy);
 								}

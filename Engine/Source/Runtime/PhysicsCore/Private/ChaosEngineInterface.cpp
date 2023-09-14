@@ -2172,30 +2172,36 @@ void FChaosEngineInterface::SetGlobalPose_AssumesLocked(const FPhysicsActorHandl
 	Scene->UpdateActorInAccelerationStructure(InActorReference);
 }
 
-void FChaosEngineInterface::SetKinematicTarget_AssumesLocked(const FPhysicsActorHandle& InActorReference,const FTransform& InNewTarget)
+// Match the logic in places that use SyncKinematicOnGameThread (like
+// FSingleParticlePhysicsProxy::PullFromPhysicsState) - to see if that will be updating the
+// position. If not, then we need to do it here. 
+bool ShouldSetKinematicTargetSetGameTransform(const FPhysicsActorHandle& InActorReference)
 {
-	// SetKinematicTarget_AssumesLocked could be called multiple times in one time step
-	const Chaos::FKinematicTarget NewKinematicTarget = Chaos::FKinematicTarget::MakePositionTarget(InNewTarget);
-	InActorReference->GetGameThreadAPI().SetKinematicTarget(NewKinematicTarget);
-
-	// Match the logic in FSingleParticlePhysicsProxy::PullFromPhysicsState - to see if that will be
-	// updating the position. If not, then we need to do it here. Note t
-	bool bUpdatePositionFromSimulation = false;
 	Chaos::FPBDRigidParticle* Rigid = InActorReference->GetRigidParticleUnsafe();
 	if (Rigid && Rigid->ObjectState() == Chaos::EObjectStateType::Kinematic)
 	{
 		switch (Chaos::SyncKinematicOnGameThread)
 		{
 		case 0:
-			bUpdatePositionFromSimulation = false; break;
+			return true;
 		case 1:
-			bUpdatePositionFromSimulation = true; break;
+			return false;
 		default:
-			bUpdatePositionFromSimulation = Rigid->UpdateKinematicFromSimulation();
+			return !Rigid->UpdateKinematicFromSimulation();
 		}
 	}
+	// Historically the game TM gets set through using the kinematic target even if called with a
+	// non-kinematic object, so preserve that behavior.
+	return true;
+}
 
-	if (!bUpdatePositionFromSimulation)
+void FChaosEngineInterface::SetKinematicTarget_AssumesLocked(const FPhysicsActorHandle& InActorReference,const FTransform& InNewTarget)
+{
+	// SetKinematicTarget_AssumesLocked could be called multiple times in one time step
+	const Chaos::FKinematicTarget NewKinematicTarget = Chaos::FKinematicTarget::MakePositionTarget(InNewTarget);
+	InActorReference->GetGameThreadAPI().SetKinematicTarget(NewKinematicTarget);
+
+	if (ShouldSetKinematicTargetSetGameTransform(InActorReference))
 	{
 		// IMPORTANT : we do not invalidate X and R as they will be properly computed using the kinematic target information 
 		InActorReference->GetGameThreadAPI().SetX(InNewTarget.GetLocation(), false); 
