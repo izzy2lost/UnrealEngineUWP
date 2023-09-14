@@ -96,11 +96,6 @@ UWorldPartitionRuntimeCell* UWorldPartitionRuntimeHash::CreateRuntimeCell(UClass
 	const FString CellObjectName = GetCellObjectName(CellName) + CellInstanceSuffix;
 	// Use given outer if provided, else use hash as outer
 	UObject* Outer = InOuter ? InOuter : this;
-	if (FindObject<UWorldPartitionRuntimeCell>(Outer, *CellObjectName))
-	{
-		UE_LOG(LogWorldPartition, Warning, TEXT("UWorldPartitionRuntimeHash::CreateRuntimeCell can't create an already existing UWorldPartitionRuntimeCell object named %s"), *CellObjectName);
-		return nullptr;
-	}
 	UWorldPartitionRuntimeCell* RuntimeCell = NewObject<UWorldPartitionRuntimeCell>(Outer, CellClass, *CellObjectName);
 	RuntimeCell->RuntimeCellData = NewObject<UWorldPartitionRuntimeCellData>(RuntimeCell, CellDataClass);
 	return RuntimeCell;
