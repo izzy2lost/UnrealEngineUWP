@@ -3261,7 +3261,7 @@ void UMaterialInstance::BeginDestroy()
 		FMaterialRenderProxy* LocalResource = Resource;
 		std::atomic<uint32>* Used = &UsedByRT;
 		ENQUEUE_RENDER_COMMAND(BeginDestroyCommand)(
-		[ResourcesToDestroy = MoveTemp(ResourcesToDestroy), LocalResource, Used](FRHICommandListImmediate& RHICmdList)
+		[ResourcesToDestroy = MoveTemp(ResourcesToDestroy), LocalResource, Used](FRHICommandListImmediate& RHICmdList) mutable
 		{
 			if (LocalResource)
 			{
@@ -3273,6 +3273,9 @@ void UMaterialInstance::BeginDestroy()
 			{
 				CurrentResource->PrepareDestroy_RenderThread();
 			}
+
+			// Clear all references before assigning the atomic state below.
+			ResourcesToDestroy.Empty();
 
 			// Clear flag set when Resource was created
 			*Used &= ~(uint32)EMaterialInstanceUsedByRTFlag::ResourceCreate;

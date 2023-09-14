@@ -5224,6 +5224,9 @@ void UMaterial::BeginDestroy()
 				Resource->PrepareDestroy_RenderThread();
 			}
 
+			// Release the references before assigning the bool below.
+			ResourcesToDestroy.Empty();
+
 			*Released = true;
 		});
 	}
