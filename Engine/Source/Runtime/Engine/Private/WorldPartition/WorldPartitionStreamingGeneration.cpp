@@ -856,6 +856,15 @@ class FWorldPartitionStreamingGenerator
 					}
 				}
 
+				TArray<FGuid> RuntimeReferences;
+				TArray<FGuid> EditorReferences;
+
+				if (PassType == EPassType::Fixup)
+				{
+					RuntimeReferences.Reserve(ActorDescView.GetReferences().Num());
+					EditorReferences.Reserve(ActorDescView.GetReferences().Num());
+				}
+
 				for (FActorReferenceInfo& Info : References)
 				{
 					FWorldPartitionActorDescView* RefererActorDescView = Info.ActorDesc;
@@ -864,7 +873,16 @@ class FWorldPartitionStreamingGenerator
 					if (ReferenceActorDescView)
 					{
 						// The actor reference is not editor-only, but we are referencing it through an editor-only property
-						if (!RefererActorDescView->IsEditorOnlyReference(ReferenceActorDescView->GetGuid()))
+						if (RefererActorDescView->IsEditorOnlyReference(ReferenceActorDescView->GetGuid()))
+						{
+							if (PassType == EPassType::Fixup)
+							{
+								EditorReferences.Add(Info.ReferenceGuid);
+							}
+
+							NbErrorsDetected++;
+						}
+						else
 						{
 							// Validate grid placement
 							if (!IsReferenceGridPlacementValid(*RefererActorDescView, *ReferenceActorDescView))
@@ -911,6 +929,11 @@ class FWorldPartitionStreamingGenerator
 
 								NbErrorsDetected++;
 							}
+
+							if (PassType == EPassType::Fixup)
+							{
+								RuntimeReferences.Add(Info.ReferenceGuid);
+							}
 						}
 					}
 					else
@@ -932,50 +955,27 @@ class FWorldPartitionStreamingGenerator
 								}
 
 								ErrorHandler->OnInvalidReference(*RefererActorDescView, Info.ReferenceGuid, ReferendceActorDescViewPtr);
-
-								NbErrorsDetected++;
 							}
 						}
+						else if (PassType == EPassType::Fixup)
+						{
+							EditorReferences.Add(Info.ReferenceGuid);
+						}
+
+						NbErrorsDetected++;
 					}
 				}
-			});
+
+				if (PassType == EPassType::Fixup)
+				{
+					if (RuntimeReferences.Num() != ActorDescView.GetReferences().Num())
+					{
+						ActorDescView.SetRuntimeReferences(RuntimeReferences);
+						ActorDescView.SetEditorReferences(EditorReferences);
+					}					
+				}
+			});		
 		}
-
-		// Split runtime and editor references
-		ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([this, &ContainerCollectionDescriptor](FWorldPartitionActorDescView& ActorDescView)
-		{
-			TArray<FGuid> RuntimeReferences;
-			TArray<FGuid> EditorReferences;
-
-			RuntimeReferences.Reserve(ActorDescView.GetReferences().Num());
-			EditorReferences.Reserve(ActorDescView.GetReferences().Num());
-
-			for (const FGuid& ReferenceGuid : ActorDescView.GetReferences())
-			{
-				if (FWorldPartitionActorDescView* ReferenceActorDescView = ContainerCollectionDescriptor.ActorDescViewMap.FindByGuid(ReferenceGuid))
-				{
-					// The actor reference is not editor-only, but we are referencing it through an editor-only property
-					if (ActorDescView.IsEditorOnlyReference(ReferenceGuid))
-					{
-						EditorReferences.Add(ReferenceGuid);
-					}
-					else
-					{
-						RuntimeReferences.Add(ReferenceGuid);
-					}
-				}
-				else if (ContainerCollectionDescriptor.EditorOnlyActorDescMap.Contains(ReferenceGuid))
-				{
-					EditorReferences.Add(ReferenceGuid);
-				}
-			}
-
-			if (RuntimeReferences.Num() != ActorDescView.GetReferences().Num())
-			{
-				ActorDescView.SetRuntimeReferences(RuntimeReferences);
-				ActorDescView.SetEditorReferences(EditorReferences);
-			}
-		});
 	}
 
 	/** 
