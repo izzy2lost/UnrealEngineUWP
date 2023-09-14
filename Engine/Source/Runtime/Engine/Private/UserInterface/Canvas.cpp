@@ -29,6 +29,7 @@
 #include "CanvasRendererItem.h"
 #include "RenderGraphUtils.h"
 #include "TextureResource.h"
+#include "Rendering/RenderCommandPipes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Canvas)
 
@@ -558,6 +559,9 @@ FCanvasRenderThreadScope::FCanvasRenderThreadScope(const FCanvas& InCanvas)
 FCanvasRenderThreadScope::~FCanvasRenderThreadScope()
 {
 	RenderCommandFunctionArray* RenderCommandArray = RenderCommands;
+
+	// DrawTileMesh can reference scene data that is mutated by the scene pipe.
+	UE::RenderCommandPipe::FSyncScope SyncScope({ &UE::RenderCommandPipe::Scene });
 
 	ENQUEUE_RENDER_COMMAND(DispatchCanvasRenderCommands)(
 		[RenderCommandArray, RenderTarget = Canvas.RenderTarget, ViewRect = Canvas.ViewRect, ScissorRect = Canvas.ScissorRect, bScaledToRenderTarget = Canvas.bScaledToRenderTarget](FRHICommandListImmediate& RHICmdList) mutable
