@@ -199,7 +199,9 @@ private:
 	 */
 	void SetWorkersStalled(bool bInWorkersStalled);
 	/** Callback for CookStats system to log our stats. */
+#if ENABLE_COOK_STATS
 	void LogCookStats(FCookStatsManager::AddStatFuncRef AddStat);
+#endif
 	void TickRetractionFromSchedulerThread(bool bAnyIdle, int32 BusiestNumAssignments);
 	void HandleRetractionMessage(FMPCollectorServerMessageContext& Context, bool bReadSuccessful,
 		FRetractionResultsMessage&& Message);
