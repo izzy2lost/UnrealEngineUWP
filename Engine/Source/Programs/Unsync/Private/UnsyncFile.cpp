@@ -35,11 +35,8 @@ MakeExtendedAbsolutePath(const FPath& InAbsolutePath)
 		return FPath();
 	}
 
-	UNSYNC_ASSERTF(InAbsolutePath.is_absolute(),
-		L"Input path '%ls' must be absolute",
-		InAbsolutePath.wstring().c_str());
-
 #if UNSYNC_PLATFORM_WINDOWS
+	UNSYNC_ASSERTF(InAbsolutePath.is_absolute(), L"Input path '%ls' must be absolute", InAbsolutePath.wstring().c_str());
 	const std::wstring& InFilenameString = InAbsolutePath.native();
 	if (InFilenameString.starts_with(L"\\\\?\\"))
 	{

@@ -72,6 +72,10 @@ CmdSync(const FCmdSyncOptions& Options)
 			UNSYNC_VERBOSE(L"Server supports access by manifest hash");
 			bSourceFileSystemRequired = false;
 		}
+		else
+		{
+			UNSYNC_VERBOSE2(L"Server does not support direct file access or download by manifest hash. Source file system access is required.");
+		}
 	}
 
 	if (bSourceFileSystemRequired)
@@ -200,7 +204,7 @@ CmdSync(const FCmdSyncOptions& Options)
 		}
 		else
 		{
-			UNSYNC_ERROR(L"Source path does not exist");
+			UNSYNC_ERROR(L"Source path '%ls' does not exist", ResolvedSource.wstring().c_str());
 			return 1;
 		}
 	}

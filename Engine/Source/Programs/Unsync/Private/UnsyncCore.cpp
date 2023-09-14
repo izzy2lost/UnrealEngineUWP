@@ -3003,12 +3003,17 @@ LoadAndMergeSourceManifest(FDirectoryManifest& Output,
 						   const FPath&		   SourceManifestOverride,
 						   bool				   bCaseSensitiveTargetFileSystem)
 {
-	auto ResolvePath = [SyncFilter](const FPath& Filename) -> FPath { return SyncFilter ? SyncFilter->Resolve(Filename) : Filename; };
-
 	const FRemoteProtocolFeatures& ProxyFeatures = ProxyPool.GetFeatures();
 
 	const bool bDownloadManifestFromProxy =
 		ProxyPool.RemoteDesc.Protocol == EProtocolFlavor::Unsync && ProxyFeatures.bDirectoryListing && ProxyFeatures.bFileDownload;
+
+	UNSYNC_VERBOSE2(L"LoadAndMergeSourceManifest: '%ls' (%hs)",
+					SourcePath.wstring().c_str(),
+					bDownloadManifestFromProxy ? "download" : "filesystem");
+
+	auto ResolvePath = [SyncFilter, bDownloadManifestFromProxy](const FPath& Filename) -> FPath
+	{ return (SyncFilter && !bDownloadManifestFromProxy) ? SyncFilter->Resolve(Filename) : Filename; };
 
 	FDirectoryManifest LoadedManifest;
 

@@ -337,6 +337,7 @@ AcquireAuthToken(const FAuthDesc& AuthDesc)
 
 	std::thread ServerThread = StartHttpCallbackServer(CallbackListenSocket, CallbackServerDesc.RequestPath, RandomState, HttpCallbackData);
 
+	UNSYNC_LOG(L"Authorization URL: %hs", AuthorizeUrl.c_str());
 	OpenUrlInDefaultBrowser(AuthorizeUrl.c_str());
 
 	UNSYNC_LOG(L"Waiting for HTTP callback on port %d...", int(CallbackPortNumber));
