@@ -506,8 +506,8 @@ void SRemoveAnimationModifierContentBrowserWindow::Construct(const FArguments& I
 				[
 					SNew(SButton)
 					.HAlign(HAlign_Center)
-					.Text(LOCTEXT("AnimationModifierWindow_Import", "Apply"))
-					.ToolTipText(LOCTEXT("AnimationModifierWindow_Import_ToolTip", "Apply remove modifiers(s)."))
+					.Text(LOCTEXT("AnimationModifierWindow_ApplyRemove", "Apply"))
+					.ToolTipText(LOCTEXT("AnimationModifierWindow_ApplyRemove_ToolTip", "Apply remove modifiers(s)."))
 					.IsEnabled(this, &SRemoveAnimationModifierContentBrowserWindow::CanApply)
 					.OnClicked(this, &SRemoveAnimationModifierContentBrowserWindow::OnApply)
 				]
@@ -515,8 +515,8 @@ void SRemoveAnimationModifierContentBrowserWindow::Construct(const FArguments& I
 				[
 					SNew(SButton)
 					.HAlign(HAlign_Center)
-					.Text(LOCTEXT("AnimationModifierWindow_Cancel", "Cancel"))
-					.ToolTipText(LOCTEXT("AnimationModifierWindow_Cancel_ToolTip", "Cancels removing modifiers(s)."))
+					.Text(LOCTEXT("AnimationModifierWindow_CancelRemove", "Cancel"))
+					.ToolTipText(LOCTEXT("AnimationModifierWindow_CancelRemove_ToolTip", "Cancels removing modifiers(s)."))
 					.OnClicked(this, &SRemoveAnimationModifierContentBrowserWindow::OnCancel)
 				]
 			]	

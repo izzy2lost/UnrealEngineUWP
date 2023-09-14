@@ -341,7 +341,7 @@ void FAnimationModifiersModule::ShowRemoveAnimationModifierWindow(const TArray<U
 	TSharedPtr<SRemoveAnimationModifierContentBrowserWindow> WindowContent;
 
 	TSharedRef<SWindow> Window = SNew(SWindow)
-		.Title(LOCTEXT("WindowTitle", "Remove Animation Modifier(s)"))
+		.Title(LOCTEXT("RemoveModifiersWindowTitle", "Remove Animation Modifier(s)"))
 		.SizingRule(ESizingRule::UserSized)
 		.ClientSize(FVector2D(500, 500));
 
