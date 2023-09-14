@@ -7,16 +7,44 @@
 
 #include "../SceneTexturesCommon.ush"
 
+
+
+#ifndef LFV_SPLAT_VS
+#define LFV_SPLAT_VS 0
+#endif
+#ifndef LFV_SPLAT_PS
+#define LFV_SPLAT_PS 0
+#endif
+#ifndef LFV_TILED_VS
+#define LFV_TILED_VS 0
+#endif
+#ifndef LFV_TILED_PS
+#define LFV_TILED_PS 0
+#endif
+
+
+
+#if LFV_SPLAT_PS
 #define LFV_CAN_CLIP 1
+#else
+#define LFV_CAN_CLIP 0
+#endif
 #include "LocalFogVolumeCommon.ush"
+
 
 
 struct FLocalFogVolumeVertexOutput
 {
+#if LFV_SPLAT_VS || LFV_SPLAT_PS
 	nointerpolation uint InstanceId : TEXCOORD0;
+#endif
+
+#if LFV_TILED_VS || LFV_TILED_PS
+	nointerpolation uint TileData : TEXCOORD0;
+#endif
 };
 
-
+#if LFV_SPLAT_VS
 void LocalFogVolumeSplatVS(
 	in float4 InPosition : ATTRIBUTE0,
 	uint InstanceIndex : SV_InstanceID,
@@ -39,8 +67,10 @@ void LocalFogVolumeSplatVS(
 	OutPosition = mul(TranslatedWorldPosition, PrimaryView.TranslatedWorldToClip);
 	OtherVertexOutput.InstanceId = InstanceIndex;
 }
+#endif // LFV_SPLAT_VS
 
 
+#if LFV_SPLAT_PS
 void LocalFogVolumeSplatPS(
 	in float4 SVPos : SV_POSITION,
 	in FLocalFogVolumeVertexOutput OtherVertexOutput,
@@ -76,36 +106,51 @@ void LocalFogVolumeSplatPS(
 		LuminanceColorTransmittance.rgb * PrimaryView.PreExposure,
 		LuminanceColorTransmittance.a);
 }
+#endif // LFV_SPLAT_PS
 
 
-/*
 
-Proof of the height fog integral equations using Mathematica
 
-(*Density of matter according to height Y*)
-Density [y_] := A * Exp[-B * y]
- 
-(*Ray position*)
-Ray[t_] := Oz + t * Rz
 
-(*Integrate Optical Depth for a distance T*)
-Fog[T_] := Integrate[Density[Ray[t]], {t, 0, T}]
+#if LFV_TILED_VS
+void LocalFogVolumeTiledVS(
+	in uint VertexIndex : SV_VertexID,
+	in uint InstanceIndex : SV_InstanceID,
+	out float4 OutPosition : SV_POSITION,
+	out FLocalFogVolumeVertexOutput OtherVertexOutput
+)
+{
+	ResolvedView = ResolveView();
 
-(*Optical Depth integration equation*)
-Fog[T]
+	uint2 TileCoord;
+	TileCoord.y = InstanceIndex / LFVTileDataResolution.x;
+	TileCoord.x = InstanceIndex - TileCoord.y * LFVTileDataResolution.x;
 
-(*Transmittance from Optical Depth*)
-Exp[-Integrate[Density[Ray[t]], {t, 0, T}]]
+	uint2 TileVertex = TileCoord * LFVTilePixelSize;
+	TileVertex.x += VertexIndex == 1 || VertexIndex == 2 || VertexIndex == 4 ? LFVTilePixelSize : 0;
+	TileVertex.y += VertexIndex == 2 || VertexIndex == 4 || VertexIndex == 5 ? LFVTilePixelSize : 0;
 
-(*Transmittance from a position to the origin of tracing*)
-Trans[T_] := Exp[-Integrate[Density[Ray[t]], {t, 0, T}]]
+	OutPosition = float4(float2(TileVertex) * ResolvedView.ViewSizeAndInvSize.zw * float2(2.0f, -2.0f) + float2(-1.0, 1.0f), 0.5f, 1.0f);
 
-(*Integrate emissive and scattering from height fog, assuming density \
-is extinction and extinction=scattering, thus albedo=1*)
-Integrate[Density[Ray[t]]*EmSc *Trans[t], {t, 0, T}]
+	OtherVertexOutput.TileData = (TileCoord.x << 16) | TileCoord.y;
+}
+#endif // LFV_TILED_VS
 
-=> this leads to EmSc - Transmittance * EmSc
-				 EmSc * (1 - Transmittance)
-				 EmSc * Coverage
 
-*/
+#if LFV_TILED_PS
+void LocalFogVolumeTiledPS(
+	in float4 SVPos : SV_POSITION,
+	in FLocalFogVolumeVertexOutput OtherVertexOutput,
+	out float4 OutColor : SV_Target0)
+{
+	ResolvedView = ResolveView();
+
+	uint2 TilePos = uint2(OtherVertexOutput.TileData >> 16, OtherVertexOutput.TileData & 0xFFFF);
+
+	uint LFVCount = LFVTileDataTex[uint3(TilePos,0)];
+
+//	OutColor = float4(float(TilePos.x) * 0.1, float(TilePos.y) * 0.1, 0.0, 0.5);
+	OutColor = float4(float(LFVCount) * 0.1, 0.0, 0.0, 0.5);
+}
+#endif // LFV_TILED_PS
+

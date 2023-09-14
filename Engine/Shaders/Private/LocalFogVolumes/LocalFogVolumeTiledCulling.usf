@@ -4,10 +4,7 @@
 #include "LocalFogVolumeCommon.ush"
 
 
-
-uint2 CullDataTextureResolution;
-
-RWTexture2DArray<uint> LocalFogVolumeCullDataTextureUAV;
+RWTexture2DArray<uint> LocalFogVolumeTileDataTextureUAV;
 
 #ifndef THREADGROUP_SIZE
 #error THREADGROUP_SIZE must be defined
@@ -18,12 +15,12 @@ void LocalFogVolumeTiledCullingCS(uint3 ThreadId : SV_DispatchThreadID)
 {
 	uint2 TilePos = uint2(ThreadId.xy);
 
-	if (any(TilePos >= CullDataTextureResolution))
+	if (any(TilePos >= LFVTileDataResolution))
 	{
-		return; // Skip out of bound texture tile data
+		return; // Skip out of bound texture tile data 
 	}
 
-	LocalFogVolumeCullDataTextureUAV[uint3(TilePos, 0)] = TilePos.x; // DEBUG
+	LocalFogVolumeTileDataTextureUAV[uint3(TilePos, 0)] = TilePos.x + TilePos.y; // DEBUG
 }
 
 
