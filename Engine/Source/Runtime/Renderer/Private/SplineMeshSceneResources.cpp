@@ -15,7 +15,7 @@
 
 static TAutoConsoleVariable<int32> CVarSplineMeshSceneTextures(
 	TEXT("r.SplineMesh.SceneTextures"),
-	1,
+	0,
 	TEXT("Whether to cache all spline mesh splines in the scene to textures (performance optimization)."),
 	ECVF_ReadOnly
 );

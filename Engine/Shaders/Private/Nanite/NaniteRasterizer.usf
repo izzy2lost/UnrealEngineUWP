@@ -150,6 +150,21 @@ bool ReverseWindingOrder(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 		bReverseInstanceCull = !bReverseInstanceCull;
 	}
 #endif
+
+#if USE_SPLINEDEFORM
+	BRANCH
+	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH) != 0 &&
+		(InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0)
+	{
+		// Effect facing direction by spline mesh scale
+		FSplineMeshShaderParams SplineMeshParams = SplineMeshLoadParamsFromInstancePayload(InstanceData);
+		if (SplineMeshParams.StartScale.x < 0.0f != SplineMeshParams.StartScale.y < 0.0f)
+		{
+			bReverseInstanceCull = !bReverseInstanceCull;
+		}
+	}
+#endif
+
 	bool bViewReverseCull = (NaniteView.Flags & NANITE_VIEW_FLAG_REVERSE_CULLING);
 	
 	// Logical XOR
