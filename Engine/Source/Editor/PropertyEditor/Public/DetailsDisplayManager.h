@@ -7,6 +7,8 @@
 
 DECLARE_DELEGATE(FOnDetailsNeedsUpdate)
 
+class FDetailsViewStyle;
+
 /** An @code FDetailsDisplayManager @endcode provides an API to tweak various settings of your details view, and
  * provides some utility methods to work with Details.  */
 class FDetailsDisplayManager : public TSharedFromThis<FDetailsDisplayManager>
@@ -14,9 +16,7 @@ class FDetailsDisplayManager : public TSharedFromThis<FDetailsDisplayManager>
 public:
 	FOnDetailsNeedsUpdate OnDetailsNeedsUpdate;
 
-	PROPERTYEDITOR_API FDetailsDisplayManager() : bIsOuterCategory(false)
-	{
-	}
+	PROPERTYEDITOR_API FDetailsDisplayManager();
 
 	PROPERTYEDITOR_API virtual ~FDetailsDisplayManager();
 
@@ -59,40 +59,39 @@ public:
 	void SetIsOuterCategory(bool bInIsOuterCategory);
 
 	/**
-	 * Returns the padding for details panel rows which are not outer Category rows
+	 * Returns the @code FDetailsViewStyle @endcode that is the current FDetailsViewStyle style
 	 */
-	FMargin GetRowPadding() const;
-
-	/**
-	 * Returns the padding for any buttons for Category rows
-	 */
-	FMargin GetCategoryButtonsPadding() const;
-
-	/**
-	 * returns a boolean indicating whether or not the currently active categpory is an inner category
-	 */	
-	bool GetIsInnerCategory() const;
-
-	/**
-   	 * Returns a bool indicating whether or not the scrollbar is showing on the details view
-   	 */
-	PROPERTYEDITOR_API virtual bool GetIsScrollbarShowing() const;
+	PROPERTYEDITOR_API const FDetailsViewStyle* GetDetailsViewStyle() const;
+	
+	    /**
+		* Returns a bool indicating whether or not the scrollbar is needed on the details view. Note that the "needed"
+		* here means that in this value the work has been done to figure out if the scrollbar should show, and
+		* anything can query this to see if it needs to alter the display accordingly
+		*/
+	PROPERTYEDITOR_API virtual bool GetIsScrollBarNeeded() const;
 	
 	/**
-	* Set a bool indicating whether or not the scrollbar is showing on the details view
+	* Set a bool indicating whether or not the scrollbar is needed on the details view. Note that the "needed"
+	* here means that in this value the work has been done to figure out if the scrollbar should show, and
+	* anything can query this to see if it needs to alter the display accordingly
 	*
-	* @param bInIsScrollbarShowing a bool indicating whether or not the scrollbar is showing on the details view
+	* @param bInIsScrollBarNeeded a bool indicating whether or not the scrollbar is Needed on the details view
 	*/
-	PROPERTYEDITOR_API virtual void SetIsScrollbarShowing(bool bInIsScrollbarShowing);
+	PROPERTYEDITOR_API virtual void SetIsScrollBarNeeded(bool bInIsScrollBarNeeded);
 	
 	/**
-	* Returns an FMargin containing the padding for the entire details view. Note that if there is a scrollbar present,
-	* this padding takes that into account
-	*/
-	PROPERTYEDITOR_API virtual FMargin GetTablePadding() const;
+	 * Returns the FMargin which provides the padding around the whole details view table
+	 */
+	FMargin GetTablePadding() const;
 
 protected:
 
+	
+	/**
+	 * The primary style key for the details view. 
+	 */
+	FDetailsViewStyleKey PrimaryStyleKey;
+	
 	/**
 	 * The name of the object defined by the currently active category
 	 */
@@ -104,9 +103,10 @@ protected:
 	bool bIsOuterCategory;
 
 	/**
-	 * A bool indicating whether or not the scrollbar is showing on the details view
+	* a bool indicating whether or not the scrollbar is needed on the details view. Note that the "needed"
+	* here means that in this value the work has been done to figure out if the scrollbar should show 
 	 */
-	bool bIsScrollbarShowing;
+	bool bIsScrollBarNeeded = false;
 
 };
 

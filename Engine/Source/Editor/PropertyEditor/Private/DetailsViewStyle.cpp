@@ -3,16 +3,38 @@
 
 #include "DetailsViewStyle.h"
 
+FDetailsViewStyle::FDetailsViewStyle()
+{
+}
+
 FDetailsViewStyle::FDetailsViewStyle(
 	const FDetailsViewStyleKey& InKey, 
-	float InTopCategoryPadding,
-	float InHorizontalPadding) :
+	float InTopCategoryPadding) :
 		FSlateWidgetStyle(),
 		Key(InKey),
-		TopCategoryPadding(InTopCategoryPadding),
-		HorizontalPadding(InHorizontalPadding)
+		TopCategoryPadding(InTopCategoryPadding)
 {
 	Initialize(Key);
+}
+
+FMargin FDetailsViewStyle::GetTablePadding(bool bIsScrollBarNeeded) const
+{
+	if (bIsScrollBarNeeded)
+	{
+		return TablePaddingWithScrollbar;
+	}
+	return TablePaddingWithNoScrollbar;
+}
+
+void FDetailsViewStyle::Initialize(const FDetailsViewStyle* Style)
+{
+	if ( Style )
+	{
+		Key = Style->Key;
+		TopCategoryPadding = Style->TopCategoryPadding;
+		TablePaddingWithScrollbar = Style->TablePaddingWithScrollbar;
+		TablePaddingWithNoScrollbar = Style->TablePaddingWithNoScrollbar;
+	}
 }
 
 FDetailsViewStyle::FDetailsViewStyle(FDetailsViewStyleKey& InKey) :
@@ -24,32 +46,32 @@ FDetailsViewStyle::FDetailsViewStyle(FDetailsViewStyleKey& InKey) :
 
 void FDetailsViewStyle::Initialize(FDetailsViewStyleKey& InKey)
 {
-	if (const FDetailsViewStyle* Style = GetStyle(InKey))
+	if (const FDetailsViewStyle** Style = StyleKeyToStyleTemplateMap.Find(InKey.GetName()))
 	{
-		Initialize(InKey, Style->HorizontalPadding, Style->TopCategoryPadding);
+		Initialize( *Style );
 	}
 }
 
 FDetailsViewStyle::FDetailsViewStyle(FDetailsViewStyle& InStyle) :
-	FDetailsViewStyle(InStyle.Key, InStyle.TopCategoryPadding, InStyle.HorizontalPadding) 
+	FDetailsViewStyle(InStyle.Key, InStyle.TopCategoryPadding ) 
 {
 }
 
 FDetailsViewStyle::FDetailsViewStyle(const FDetailsViewStyle& InStyle) :
-	FDetailsViewStyle(InStyle.Key, InStyle.TopCategoryPadding, InStyle.HorizontalPadding) 
+	FDetailsViewStyle(InStyle.Key, InStyle.TopCategoryPadding ) 
 {
 }
 
 FMargin FDetailsViewStyle::GetOuterCategoryRowPadding() const
 {
-	return FMargin(HorizontalPadding, TopCategoryPadding, HorizontalPadding, 1);
+	return FMargin(0, TopCategoryPadding, 0, 1);
 }
 
-FMargin FDetailsViewStyle::GetRowPadding() const
+FMargin FDetailsViewStyle::GetRowPadding(bool bIsOuterCategory) const
 {
 	return bIsOuterCategory ?
-		FMargin(HorizontalPadding, TopCategoryPadding, HorizontalPadding, 1) :
-		FMargin(HorizontalPadding, 0, HorizontalPadding, 1);
+		FMargin(0, TopCategoryPadding, 0, 1) :
+		FMargin(0, 0, 0, 1);
 }
 
 bool FDetailsViewStyle::operator==(FDetailsViewStyle& OtherLayoutType) const
@@ -61,7 +83,7 @@ FDetailsViewStyle& FDetailsViewStyle::operator=(FDetailsViewStyleKey& OtherLayou
 {
 	if (const FDetailsViewStyle* Style = GetStyle(OtherLayoutTypeKey))
 	{
-		Initialize(OtherLayoutTypeKey, Style->HorizontalPadding, Style->TopCategoryPadding);
+		Initialize(OtherLayoutTypeKey, Style->TopCategoryPadding);
 	}
 	return *this;
 }
@@ -75,13 +97,13 @@ const FSlateBrush* FDetailsViewStyle::GetBackgroundImageForCategoryRow(
 	const bool bShowBorder, 
 	const bool bIsInnerCategory,
 	const bool bIsCategoryExpanded,
-	const bool bIsScrollBarVisible) const
+	const bool bIsScrollBarNeeded) const
 {
 	static const FSlateBrush* InnerCategoryRowBrush = FAppStyle::Get().GetBrush("DetailsView.CategoryMiddle");
 	static const FSlateBrush* ClassicStyleTopLevelCategoryRowBrush = FAppStyle::Get().GetBrush("DetailsView.CategoryTop");
-	static const FSlateBrush* CardStyleTopLevelCategoryCollapsedScrollbarVisibleRowBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderRounded");
+	static const FSlateBrush* CardStyleTopLevelCategoryCollapsedScrollBarNeededRowBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderRounded");
 	static const FSlateBrush* CardStyleTopLevelCategoryCollapsedScrollbarHiddenRowBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderLeftSideRounded");
-	static const FSlateBrush* CardStyleTopLevelCategoryExpandedScrollbarVisibleRowBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderTopRounded");
+	static const FSlateBrush* CardStyleTopLevelCategoryExpandedScrollBarNeededRowBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderTopRounded");
 
 	if (bShowBorder)
 	{
@@ -98,13 +120,13 @@ const FSlateBrush* FDetailsViewStyle::GetBackgroundImageForCategoryRow(
 		}
 		if (!bIsCategoryExpanded)
 		{
-			if (bIsScrollBarVisible)
+			if (bIsScrollBarNeeded)
 			{
-				return CardStyleTopLevelCategoryCollapsedScrollbarVisibleRowBrush;
+				return CardStyleTopLevelCategoryCollapsedScrollBarNeededRowBrush;
 			}
 			return CardStyleTopLevelCategoryCollapsedScrollbarHiddenRowBrush;
 		}
-		return CardStyleTopLevelCategoryExpandedScrollbarVisibleRowBrush;
+		return CardStyleTopLevelCategoryExpandedScrollBarNeededRowBrush;
 	}
 
 	return nullptr;
@@ -112,25 +134,28 @@ const FSlateBrush* FDetailsViewStyle::GetBackgroundImageForCategoryRow(
 
 void FDetailsViewStyle::InitializeDetailsViewStyles()
 {
-	static FDetailsViewStyle CardStyle{FDetailsViewStyleKeys::Card(), 8.0f, 0.0f};
+	static FDetailsViewStyle CardStyle{FDetailsViewStyleKeys::Card(), 8.0f};
+	CardStyle.TablePaddingWithScrollbar = FMargin(8, 0, 20, 8);
+	CardStyle.TablePaddingWithNoScrollbar = FMargin(8, 0, 8, 8);
 	StyleKeyToStyleTemplateMap.Add(FDetailsViewStyleKeys::Card().GetName(), &CardStyle);
 
-	static FDetailsViewStyle DefaultStyle{FDetailsViewStyleKeys::Default(), 0.0f, 0.0f};
+	static FDetailsViewStyle DefaultStyle{FDetailsViewStyleKeys::Default(), 0.0f };
 	StyleKeyToStyleTemplateMap.Add(FDetailsViewStyleKeys::Default().GetName(), &DefaultStyle);
 	
+	static FDetailsViewStyle ClassicStyle{FDetailsViewStyleKeys::Classic(), 0.0f };
+	StyleKeyToStyleTemplateMap.Add(FDetailsViewStyleKeys::Classic().GetName(), &ClassicStyle);
 }
 
 const FSlateBrush* FDetailsViewStyle::GetBackgroundImageForScrollBarWell(
 	const bool bShowBorder,
 	const bool bIsInnerCategory,
 	const bool bIsCategoryExpanded,
-	const bool bIsScrollBarVisible) const
+	const bool bIsScrollBarNeeded) const
 {
 	static const FSlateBrush* InnerCategoryWellBrush = FAppStyle::Get().GetBrush("DetailsView.CategoryMiddle");
 	static const FSlateBrush* ClassicStyleTopLevelCategoryRowBrush = FAppStyle::Get().GetBrush("DetailsView.CategoryTop");
-	static const FSlateBrush* DetailsBackgroundWellBrush = FAppStyle::Get().GetBrush("DetailsView.GridLine");
-	static const FSlateBrush* CardStyleCollapsedScrollbarVisibleWellBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderRightSideRounded");
-	static const FSlateBrush* CardStyleExpandedScrollbarVisibleWellBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderTopRightSideRounded");
+	static const FSlateBrush* CardStyleCollapsedScrollBarNeededWellBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderRightSideRounded");
+	static const FSlateBrush* CardStyleExpandedScrollBarNeededWellBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderTopRightSideRounded");
 
 	if (bShowBorder)
 	{
@@ -145,9 +170,9 @@ const FSlateBrush* FDetailsViewStyle::GetBackgroundImageForScrollBarWell(
 			return ClassicStyleTopLevelCategoryRowBrush;
 		}
 		if (!bIsCategoryExpanded){
-			return CardStyleCollapsedScrollbarVisibleWellBrush;
+			return CardStyleCollapsedScrollBarNeededWellBrush;
 		}
-		return CardStyleExpandedScrollbarVisibleWellBrush;
+		return CardStyleExpandedScrollBarNeededWellBrush;
 	}
 
 	return nullptr;
@@ -155,32 +180,18 @@ const FSlateBrush* FDetailsViewStyle::GetBackgroundImageForScrollBarWell(
 
 void FDetailsViewStyle::Initialize(
 	FDetailsViewStyleKey& InKey,
-	const float InHorizontalPadding,
 	const float InTopCategoryPadding)
 {
 	Key = InKey;
-	HorizontalPadding = InHorizontalPadding;
 	TopCategoryPadding = InTopCategoryPadding;
 }
 
-const FDetailsViewStyle* FDetailsViewStyle::GetStyle(FDetailsViewStyleKey Key)
+const FDetailsViewStyle* FDetailsViewStyle::GetStyle(const FDetailsViewStyleKey& Key)
 {
-	const FDetailsViewStyle** StylePtr;
-		
-	StylePtr = StyleKeyToStyleTemplateMap.Find(Key.GetName());
+	const FDetailsViewStyle** StylePtr = StyleKeyToStyleTemplateMap.Find(Key.GetName());
 	StylePtr = StylePtr ?
 					StylePtr :
 					StyleKeyToStyleTemplateMap.Find(FDetailsViewStyleKeys::Default().GetName());
 		
 	return StylePtr ? *StylePtr : nullptr;
-}
-
-void FDetailsViewStyle::SetIsOuterCategory(bool bInIsOuterCategory)
-{
-	bIsOuterCategory = bInIsOuterCategory;
-}
-
-void FDetailsViewStyle::SetIsScrollbarShowing(bool bInIsScrollbarShowing)
-{
-	bIsScrollbarShowing = bInIsScrollbarShowing;
 }

@@ -3,7 +3,13 @@
 #include "DetailsDisplayManager.h"
 
 #include "DetailsViewStyle.h"
+#include "SDetailsView.h"
 
+
+FDetailsDisplayManager::FDetailsDisplayManager(): bIsOuterCategory(false)
+{
+	PrimaryStyleKey = SDetailsView::GetPrimaryDetailsViewStyleKey();
+}
 
 FDetailsDisplayManager::~FDetailsDisplayManager()
 {
@@ -37,7 +43,7 @@ void FDetailsDisplayManager::UpdateView() const
 
 const FDetailsViewStyleKey& FDetailsDisplayManager::GetDetailsViewStyleKey() const
 {
-	return FDetailsViewStyleKeys::Default();
+	return PrimaryStyleKey;
 }
 
 void FDetailsDisplayManager::SetIsOuterCategory(bool bInIsOuterCategory)
@@ -45,39 +51,26 @@ void FDetailsDisplayManager::SetIsOuterCategory(bool bInIsOuterCategory)
 	bIsOuterCategory = bInIsOuterCategory;
 }
 
+const FDetailsViewStyle* FDetailsDisplayManager::GetDetailsViewStyle() const
+{
+	const FDetailsViewStyle* ViewStyle = FDetailsViewStyle::GetStyle(GetDetailsViewStyleKey());
+	return ViewStyle;
+}
+
+
+
 FMargin FDetailsDisplayManager::GetTablePadding() const
 {
-	if (GetDetailsViewStyleKey() == FDetailsViewStyleKeys::Card())
-	{
-		return bIsScrollbarShowing ?
-					FDetailsViewStyle::TablePaddingWithScrollbarCard() :
-					FDetailsViewStyle::TablePaddingNoScrollbarCard();
-	}
-	return bIsScrollbarShowing ?
-					FDetailsViewStyle::TablePaddingWithScrollbarClassic() :
-					FDetailsViewStyle::TablePaddingNoScrollbarClassic();
-		
+	const FDetailsViewStyle* Style = GetDetailsViewStyle();
+	return Style ? Style->GetTablePadding(bIsScrollBarNeeded) : 0;
 }
 
-FMargin FDetailsDisplayManager::GetRowPadding() const
+bool FDetailsDisplayManager::GetIsScrollBarNeeded() const
 {
-	FDetailsViewStyle ViewStyle = GetDetailsViewStyleKey();
-	ViewStyle.SetIsOuterCategory(bIsOuterCategory);
-	ViewStyle.SetIsScrollbarShowing(bIsScrollbarShowing);
-	return ViewStyle.GetRowPadding();
+	return bIsScrollBarNeeded;
 }
 
-FMargin FDetailsDisplayManager::GetCategoryButtonsPadding() const
+void FDetailsDisplayManager::SetIsScrollBarNeeded(bool bInIsScrollBarNeeded)
 {
-	return FMargin(0, 0,  bIsOuterCategory ? 10 : 0, 0);
-}
-
-bool FDetailsDisplayManager::GetIsScrollbarShowing() const
-{
-	return bIsScrollbarShowing;
-}
-
-void FDetailsDisplayManager::SetIsScrollbarShowing(bool bInIsScrollbarShowing)
-{
-	bIsScrollbarShowing = bInIsScrollbarShowing;
+	bIsScrollBarNeeded = bInIsScrollBarNeeded;
 }

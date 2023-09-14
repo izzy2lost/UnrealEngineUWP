@@ -415,7 +415,12 @@ void SDetailsView::Construct(const FArguments& InArgs, const FDetailsViewArgs& I
 	           SNew(SBorder)
 				.Padding_Lambda([this]
 				{
-					return DisplayManager->GetTablePadding();
+					if (DisplayManager.IsValid())
+					{
+						return DisplayManager->GetTablePadding();
+					}
+					static const FMargin Margin{0};
+					return Margin;
 				})
 				.BorderImage_Lambda([this]
 				{

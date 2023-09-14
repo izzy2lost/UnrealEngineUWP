@@ -23,8 +23,6 @@ public:
 	 * Constructs this @code FDetailsViewStyle @endcode with the specified parameters
 	 *
 	 * @param InKey the Key for  the @code FDetailsViewStyle @endcode
-	 * @param InTopCategoryPadding the top padding for the Category row
-	 * @param InHorizontalPadding the horizontal padding for the Category row
 	 */
 	FDetailsViewStyle(FDetailsViewStyleKey& InKey);
 
@@ -50,26 +48,12 @@ public:
 	 FMargin GetOuterCategoryRowPadding() const;
 	
 	/**
-	* Sets a bool indicating whether or not the Category this is a Style for is an outer Category
-	*
-	* @param bIsOuterCategory a bool indicating whether or not the Category this is a Style for is an outer Category
-	*/
-	void SetIsOuterCategory(bool bIsOuterCategory);
-
-	/**
-	* Sets a bool indicating whether or not the Scrollbar is showing on the details view
-	*
-	* @param bInIsScrollbarShowing a bool indicating whether or not the Scrollbar is showing on the details view
-	*/
-	void SetIsScrollbarShowing(bool bInIsScrollbarShowing);
-	
-	/**
 	 * Returns the padding for details panel rows which are not outer Category rows
 	 */
-	FMargin GetRowPadding() const;
+	FMargin GetRowPadding(bool bIsOuterCategory) const;
 
 	/**
-	 * The equality operator for @code FDetailsViewStule @endcode
+	 * The equality operator for @code FDetailsViewStyle @endcode
 	 */
 	bool operator==(FDetailsViewStyle& OtherLayoutType) const;
 
@@ -121,71 +105,55 @@ public:
 	 *
 	 * @param InKey the name of the FDetailsViewStyle
 	 * @param InTopCategoryPadding the top padding for the Category row
-	 * @param InHorizontalPadding the horizontal padding for the Category row
 	 */
 	FDetailsViewStyle(
 		const FDetailsViewStyleKey& InKey,
-		float InTopCategoryPadding = 0.f,
-		float InHorizontalPadding = 0.f);
+		float InTopCategoryPadding = 0.f);
 
-	
-	/** the Padding for the entirety of the details panel if no scrollbar is present for Classic style */
-	static const FMargin& TablePaddingNoScrollbarClassic()
-	{
-		static FMargin Margin = FMargin(0, 0, 0, 1);
-		return Margin;
-	}
-	
-	/** the Padding for the entirety of the details panel if no scrollbar is present for Card style */
-	static const FMargin& TablePaddingNoScrollbarCard()
-	{
-		static FMargin Margin = FMargin(8, 0, 8, 1);
-		return Margin;
-	}
-
-	/** the Padding for the entirety of the details panel if the scrollbar is present for Classic style */
-	static const FMargin TablePaddingWithScrollbarClassic()
-	{
-		static FMargin Margin = FMargin(0, 0, 16, 1);
-		return Margin;
-	}
-
-	/** the Padding for the entirety of the details panel if the scrollbar is present for Card style  */
-	static const FMargin TablePaddingWithScrollbarCard()
-	{
-		static FMargin Margin = FMargin(8, 0, 20, 1);
-		return Margin;
-	}
-	
-private:
 	/**
-   	 * Initializes this FDetailsViewStyle with the specified parameters
-   	 *
-   	 * @param InKey the name of the FDetailsViewStyle
-   	 * @param InTopCategoryPadding the top padding for the Category row
-   	 * @param InHorizontalPadding the horizontal padding for the Category row
-   	 */
-	void Initialize(
-		FDetailsViewStyleKey& InKey, 
-		const float InHorizontalPadding, 
-		const float InTopCategoryPadding);
+	 * Returns the FMargin which provides the padding around the whole details view table
+	 *
+	 * @param bIsScrollBarVisible whether the scrollbar is visible
+	 */
+	FMargin GetTablePadding(bool bIsScrollBarVisible) const;
 
-		/**
-		* Initializes this FDetailsViewStyle with the style specified by @code FDetailsViewStyleKey @endcode InKey
-		*
-		* @param InKey the name of the FDetailsViewStyle
-		*/
-		void Initialize(FDetailsViewStyleKey& InKey);
-
-	/** the Name of the Style */
-	FDetailsViewStyleKey Key;
-
+	/**
+	 * Returns the FMargin which provides the padding around the Category buttons
+	 */
+	FMargin GetCategoryButtonsMargin() const
+	{
+		return CategoryButtonsMargin;
+	}
+	
 	/**
 	* Returns the @code FDetailsViewStyle @endcode for which this is the @code FDetailsViewStyleKey @endcode .
 	*
 	* @param InKey the name of the FDetailsViewStyle
 	*/
-	static const FDetailsViewStyle* GetStyle(FDetailsViewStyleKey InKey);
+	static const FDetailsViewStyle* GetStyle(const FDetailsViewStyleKey& InKey);
+	
+private:
+
+	void Initialize( const FDetailsViewStyle* Style );
+
+	/**
+   	 * Initializes this FDetailsViewStyle with the specified parameters
+   	 *
+   	 * @param InKey the name of the FDetailsViewStyle
+   	 * @param InTopCategoryPadding the top padding for the Category row
+   	 */
+	void Initialize( FDetailsViewStyleKey& InKey, 
+		const float InTopCategoryPadding);
+
+	/**
+	* Initializes this FDetailsViewStyle with the style specified by @code FDetailsViewStyleKey @endcode InKey
+	*
+	* @param InKey the name of the FDetailsViewStyle
+	*/
+	void Initialize(FDetailsViewStyleKey& InKey);
+
+	/** the Name of the Style */
+	FDetailsViewStyleKey Key;
 
 	/**
 	 * A map of @code FDetailsViewStyleKey @endcode instances to the
@@ -196,13 +164,21 @@ private:
 	/** the Slate Units of the top padding for an outer Category row */
 	float TopCategoryPadding = 0.f;
 	
-	/** the Slate Units of the horizontal padding for all details rows */
-	float HorizontalPadding = 0.f;
-	
-	/** Whether the current Category is an outer versus an inner Category  */
-   	bool bIsOuterCategory = false;
+ 	/**
+	* The FMargin which provides the padding around the whole details view table with scrollbar
+	*/
+	FMargin TablePaddingWithScrollbar = FMargin(0, 0, 16, 1);
 
-	/** Whether the scrollbar is showing on the details view  */
-	bool bIsScrollbarShowing = false;
+	/**
+	* The FMargin which provides the padding around the whole details view table with no scrollbar
+	*/
+	FMargin TablePaddingWithNoScrollbar = FMargin(0, 0, 0, 1);
+	
+	/**
+	* The FMargin which provides the padding around the Category buttons
+	*/
+	FMargin CategoryButtonsMargin = FMargin(0, 0,  10, 0);
+	
+	
 };
 

@@ -11,6 +11,8 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/STableViewBase.h"
+#include "DetailsViewStyle.h"
+
 
 class SDetailCategoryTableRow : public SDetailTableRowBase
 {
@@ -69,7 +71,13 @@ private:
 
 	/** The name of the object that is specified by this category */
 	FName ObjectName;
-	
+
+	/**
+	* The style of the details view. This holds information and methods to get things like the row border image,
+	* table padding, and so forth.
+	*/
+	const FDetailsViewStyle* DetailsViewStyle = nullptr;
+
 	/** Previously parsed clipboard data. */
 	UE::PropertyEditor::Internal::FClipboardData PreviousClipboardData;
 

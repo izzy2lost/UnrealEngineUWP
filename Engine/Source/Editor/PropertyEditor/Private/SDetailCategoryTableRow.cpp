@@ -33,6 +33,11 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 	ObjectName = InArgs._ObjectName;
 	DisplayManager = DetailsView->GetDisplayManager();
 
+	if (DisplayManager.IsValid() && DisplayManager->GetDetailsViewStyle())
+	{
+		DetailsViewStyle = DisplayManager->GetDetailsViewStyle();
+	}
+
 	InitializeDisplayManager();
 
 	PulseAnimation.AddCurve(0.0f, UE::PropertyEditor::Private::PulseAnimationLength, ECurveEaseFunction::CubicInOut);
@@ -86,25 +91,13 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 
 	OwnerTableViewWeak = InOwnerTableView;
 	
-	auto GetScrollbarWellTint = [this]()
-	{
-		return SDetailTableRowBase::IsScrollBarVisible(OwnerTableViewWeak) ?
-			FSlateColor(EStyleColor::Header) :
-			this->GetInnerBackgroundColor();
-	};
-
 	this->ChildSlot
 	[
 		SNew(SBorder)
 		.BorderImage(FAppStyle::Get().GetBrush("DetailsView.GridLine"))
 		.Padding_Lambda([this]
 		{
-			if (!DisplayManager.IsValid())
-			{
-				return FMargin{0};
-			}
-			DisplayManager->SetIsOuterCategory(!bIsInnerCategory);
-			return DisplayManager->GetRowPadding();
+			return DetailsViewStyle ? DetailsViewStyle->GetRowPadding(!bIsInnerCategory) : 0;
 		})
 		[
 			SNew(SOverlay)
@@ -130,13 +123,7 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 			.Visibility(EVisibility::Visible)
 			.Padding_Lambda([this]
 			{
-				if (!DisplayManager.IsValid())
-				{
-					return FMargin{0};
-				}
-				DisplayManager->SetIsOuterCategory(!bIsInnerCategory);
-				DisplayManager->SetIsScrollbarShowing(IsScrollBarVisible(OwnerTableViewWeak));
-				return DisplayManager->GetCategoryButtonsPadding();
+				return DetailsViewStyle ? DetailsViewStyle->GetCategoryButtonsMargin() : 0;
 			})
 			[
 			DisplayManager.IsValid() ?
@@ -251,17 +238,11 @@ const FSlateBrush* SDetailCategoryTableRow::GetBackgroundImage() const
 		{
 			return FAppStyle::Get().GetBrush("DetailsView.CategoryMiddle");
 		}
-		
-		IDetailsViewPrivate* View = OwnerTreeNode.IsValid() && OwnerTreeNode.Pin()->GetDetailsView() ? OwnerTreeNode.Pin()->GetDetailsView() : nullptr;
-		
-		static FDetailsViewStyleKey PrimaryKey = SDetailsView::GetPrimaryDetailsViewStyleKey();
-		FDetailsViewStyle ViewStyle = View ? View->GetStyleKey() : PrimaryKey;
+
+		const bool bIsScrollBarNeeded = IsScrollBarVisible(OwnerTableViewWeak);
+		DisplayManager->SetIsScrollBarNeeded(bIsScrollBarNeeded);
 		const bool bIsCategoryExpanded = IsItemExpanded();
-		const bool bIsScrollBarVisible = IsScrollBarVisible(OwnerTableViewWeak);
-		DisplayManager->SetIsScrollbarShowing(bIsScrollBarVisible);
-		ViewStyle.SetIsOuterCategory(!bIsInnerCategory);
-		
-		return ViewStyle.GetBackgroundImageForCategoryRow(bShowBorder, bIsInnerCategory, bIsCategoryExpanded, bIsScrollBarVisible);
+		return DetailsViewStyle ? DetailsViewStyle->GetBackgroundImageForCategoryRow(bShowBorder, bIsInnerCategory, bIsCategoryExpanded, bIsScrollBarNeeded) : nullptr;
 	}
 	return nullptr;
 }
@@ -270,15 +251,10 @@ const FSlateBrush* SDetailCategoryTableRow::GetBackgroundImageForScrollBarWell()
 {
 	if (bShowBorder)
 	{
-		IDetailsViewPrivate* View = OwnerTreeNode.IsValid() && OwnerTreeNode.Pin()->GetDetailsView() ? OwnerTreeNode.Pin()->GetDetailsView() : nullptr;
-		static FDetailsViewStyleKey PrimaryKey = SDetailsView::GetPrimaryDetailsViewStyleKey();
-		const FDetailsViewStyle ViewStyle = View ? View->GetStyleKey() : PrimaryKey;
 		const bool bIsCategoryExpanded = IsItemExpanded();
 		const bool bIsScrollBarVisible = IsScrollBarVisible(OwnerTableViewWeak);
-		DisplayManager->SetIsScrollbarShowing(bIsScrollBarVisible);
-		DisplayManager->SetIsOuterCategory(!bIsInnerCategory);
-
-		return ViewStyle.GetBackgroundImageForScrollBarWell(bShowBorder, bIsInnerCategory, bIsCategoryExpanded, bIsScrollBarVisible);
+		return DetailsViewStyle ? DetailsViewStyle->GetBackgroundImageForScrollBarWell(
+			bShowBorder, bIsInnerCategory, bIsCategoryExpanded, bIsScrollBarVisible) : nullptr;
 	}
 	return nullptr;
 }

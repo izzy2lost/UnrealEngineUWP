@@ -493,9 +493,9 @@ EVisibility SDetailsViewBase::GetTreeVisibility() const
 EVisibility SDetailsViewBase::GetScrollBarVisibility() const
 {
 	const bool bHasAnythingToShow = RootTreeNodes.Num() > 0;
-	const bool bIsScrollbarNeeded = DisplayManager.IsValid() ? DisplayManager->GetIsScrollbarShowing() : true;
-	const bool bShowScrollBar = DetailsViewArgs.bShowScrollBar && bHasAnythingToShow;
-	return bShowScrollBar && bIsScrollbarNeeded ? EVisibility::Visible : EVisibility::Collapsed;
+	const bool bIsScrollbarNeeded = DisplayManager.IsValid() ? DisplayManager->GetIsScrollBarNeeded() : true;
+	const bool bShowScrollBar = DetailsViewArgs.bShowScrollBar && bHasAnythingToShow && bIsScrollbarNeeded;
+	return bShowScrollBar ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 /** Returns the image used for the icon on the filter button */
