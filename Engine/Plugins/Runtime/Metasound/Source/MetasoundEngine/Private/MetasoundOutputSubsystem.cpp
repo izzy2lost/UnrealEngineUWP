@@ -39,7 +39,11 @@ bool UMetaSoundOutputSubsystem::WatchOutput(
 	else
 	{
 		Handle = UMetasoundGeneratorHandle::CreateMetaSoundGeneratorHandle(AudioComponent);
-		TrackedGenerators.Add(Handle);
+		
+		if(nullptr != Handle && Handle->IsValid())
+		{
+			TrackedGenerators.Add(Handle);
+		}
 	}
 
 	if (nullptr == Handle)
