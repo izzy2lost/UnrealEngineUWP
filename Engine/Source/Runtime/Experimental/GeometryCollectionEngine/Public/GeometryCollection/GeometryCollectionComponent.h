@@ -1112,7 +1112,7 @@ public:
 	UE_DEPRECATED(5.3, "Use GetComponentSpaceTransforms instead")
 	TArray<FMatrix> GetGlobalMatrices() { return ComputeGlobalMatricesFromComponentSpaceTransforms(); }
 
-	const TArray<FTransform> GetComponentSpaceTransforms() { return ComponentSpaceTransforms; }
+	GEOMETRYCOLLECTIONENGINE_API const TArray<FTransform>& GetComponentSpaceTransforms() { return ComponentSpaceTransforms.RequestAllTransforms(); }
 
 	GEOMETRYCOLLECTIONENGINE_API const FGeometryDynamicCollection* GetDynamicCollection() const;
 	GEOMETRYCOLLECTIONENGINE_API FGeometryDynamicCollection* GetDynamicCollection();  // TEMP HACK?
@@ -1247,7 +1247,7 @@ protected:
 
 	GEOMETRYCOLLECTIONENGINE_API Chaos::FPhysicsSolver* GetSolver(const UGeometryCollectionComponent& GeometryCollectionComponent);
 	GEOMETRYCOLLECTIONENGINE_API void CalculateLocalBounds();
-	GEOMETRYCOLLECTIONENGINE_API void CalculateGlobalMatrices();
+	//GEOMETRYCOLLECTIONENGINE_API void CalculateGlobalMatrices();
 	
 	UE_DEPRECATED(5.3, "Use ComputeBoundsFromComponentSpaceTransforms instead")
 	GEOMETRYCOLLECTIONENGINE_API FBox ComputeBoundsFromGlobalMatrices(const FMatrix& LocalToWorldWithScale, const TArray<FMatrix>& GlobalMatricesArray) const;
@@ -1380,7 +1380,49 @@ private:
 	UE_DEPRECATED(5.3, "Use ComponentSpaceTransforms instead")
 	TArray<FMatrix> GlobalMatrices;
 
-	TArray<FTransform> ComponentSpaceTransforms;
+	struct FComponentSpaceTransforms
+	{
+	public:
+		FComponentSpaceTransforms(const UGeometryCollectionComponent* InComponent = nullptr)
+			: RootIndex(INDEX_NONE)
+			, Component(InComponent)
+		{
+			bIsRootDirty = 1;
+			bIsDirty = 1;
+		}
+		
+		void Reset(int32 NumTransforms, int32 InRootIndex)
+		{
+			Transforms.SetNumUninitialized(NumTransforms);
+			RootIndex = InRootIndex;
+		}
+
+		void MarkDirty()
+		{
+			bIsRootDirty = true;
+			bIsDirty = true;
+		}
+
+		int32 Num() const { return Transforms.Num(); }
+
+		SIZE_T GetAllocatedSize() const { return Transforms.GetAllocatedSize(); }
+
+		// request all transform to be update
+		// this will trigger an update if it is still marked dirty
+		const TArray<FTransform>& RequestAllTransforms() const;
+
+		// request the root transform, this may compute it if it is still marked dirty
+		const FTransform& RequestRootTransform() const;
+
+	private:
+		int32 RootIndex;
+		mutable uint8 bIsRootDirty : 1;
+		mutable uint8 bIsDirty : 1;
+		mutable TArray<FTransform> Transforms;
+		const UGeometryCollectionComponent* Component;
+	};
+
+	FComponentSpaceTransforms ComponentSpaceTransforms;
 
 	FBox LocalBounds;
 
