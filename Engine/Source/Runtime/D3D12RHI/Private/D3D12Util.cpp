@@ -264,7 +264,7 @@ static bool LogBreadcrumbData(D3D12RHI::FD3DGPUProfiler& GPUProfiler, FD3D12Queu
 
 	if (!Nodes.IsEmpty())
 	{
-		FPlatformCrashContext::SetGPUBreadcrumbs(GPUQueueName, Nodes);
+		FGenericCrashContext::SetGPUBreadcrumbs(GPUQueueName, Nodes);
 	}
 
 	const FD3D12DiagnosticBufferData* DiagnosticData = Queue.GetDiagnosticBufferData();
