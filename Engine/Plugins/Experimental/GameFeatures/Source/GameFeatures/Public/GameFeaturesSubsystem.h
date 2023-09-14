@@ -244,6 +244,7 @@ struct FGameFeaturePluginDetails
 {
 	TArray<FGameFeaturePluginReferenceDetails> PluginDependencies;
 	TMap<FString, FString> AdditionalMetadata;
+	TSharedPtr<class FJsonObject> CachedJson;
 	bool bHotfixable;
 	EBuiltInAutoState BuiltInAutoState;
 
