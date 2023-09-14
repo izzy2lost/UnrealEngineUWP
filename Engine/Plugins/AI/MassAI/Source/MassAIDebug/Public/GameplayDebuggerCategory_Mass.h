@@ -87,6 +87,7 @@ protected:
 	static FOnConsoleCommandBroadcastDelegate OnToggleNearEntityOverviewBroadcast;
 	static FOnConsoleCommandBroadcastDelegate OnToggleNearEntityAvoidanceBroadcast;
 	static FOnConsoleCommandBroadcastDelegate OnToggleNearEntityPathBroadcast; 	
+	static FOnConsoleCommandBroadcastDelegate OnToggleDebugLocalEntityManagerBroadcast; 	
 
 	using FDelegateHandlePair = TPair<FOnConsoleCommandBroadcastDelegate*, FDelegateHandle>;
 	TArray<FDelegateHandlePair> ConsoleCommandHandles;
