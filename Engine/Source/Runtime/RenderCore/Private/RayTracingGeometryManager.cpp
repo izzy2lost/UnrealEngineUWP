@@ -128,7 +128,8 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList, bool bHasRayT
 			FScopeLock ScopeLock(&RequestCS);
 			for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 			{
-				checkf(Geometry->RayTracingGeometryRHI != nullptr, TEXT("Ray tracing geometry should be valid at this point."));
+				checkf(!EnumHasAllFlags(Geometry->GetGeometryState(), FRayTracingGeometry::EGeometryStateFlags::Valid) || Geometry->RayTracingGeometryRHI != nullptr, 
+					TEXT("Ray tracing geometry should have a valid RHI resource when ray tracing is enabled."));
 			}
 		}
 		else
@@ -136,7 +137,7 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList, bool bHasRayT
 			FScopeLock ScopeLock(&RequestCS);
 			for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 			{
-				checkf(Geometry->RayTracingGeometryRHI == nullptr, TEXT("Ray tracing geometry should not be valid at this point"));
+				checkf(Geometry->RayTracingGeometryRHI == nullptr, TEXT("Ray tracing geometry should not have a RHI resource when ray tracing is disabled."));
 			}
 		}
 #endif
@@ -159,8 +160,7 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList, bool bHasRayT
 		FScopeLock ScopeLock(&RequestCS);
 		for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 		{
-			Geometry->RemoveBuildRequest();
-			Geometry->RayTracingGeometryRHI.SafeRelease();			
+			Geometry->ReleaseRHI();			
 		}
 	}
 }

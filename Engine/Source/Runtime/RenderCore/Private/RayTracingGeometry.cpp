@@ -172,14 +172,6 @@ void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandList& RHICmdList, 
 			RayTracingGeometryRHI = RHICmdList.CreateRayTracingGeometry(Initializer);
 		}
 
-		// Register the geometry if it wasn't registered before and it's not using custom path
-		const bool bRegisterGeometry = (RayTracingGeometryHandle == INDEX_NONE) && (InBuildPriority != ERTAccelerationStructureBuildPriority::Immediate);
-
-		if (bRegisterGeometry)
-		{
-			RayTracingGeometryHandle = GRayTracingGeometryManager.RegisterRayTracingGeometry(this);
-		}
-
 		if (Initializer.OfflineData == nullptr)
 		{
 			// Request build if not skip
@@ -237,12 +229,6 @@ void FRayTracingGeometry::ReleaseRHI()
 {
 	RemoveBuildRequest();
 	RayTracingGeometryRHI.SafeRelease();
-
-	if (RayTracingGeometryHandle != INDEX_NONE)
-	{
-		GRayTracingGeometryManager.ReleaseRayTracingGeometryHandle(RayTracingGeometryHandle);
-		RayTracingGeometryHandle = INDEX_NONE;
-	}
 }
 
 void FRayTracingGeometry::RemoveBuildRequest()
@@ -259,11 +245,20 @@ void FRayTracingGeometry::InitResource(FRHICommandListBase& RHICmdList)
 	ensureMsgf(IsRayTracingAllowed(), TEXT("FRayTracingGeometry should only be initialized when Ray Tracing is allowed"));
 
 	FRenderResource::InitResource(RHICmdList);
+
+	check(RayTracingGeometryHandle == INDEX_NONE);
+	RayTracingGeometryHandle = GRayTracingGeometryManager.RegisterRayTracingGeometry(this);
 }
 
 void FRayTracingGeometry::ReleaseResource()
 {
 	ensureMsgf(IsRayTracingAllowed() || !IsInitialized(), TEXT("FRayTracingGeometry should only be initialized when Ray Tracing is allowed"));
+
+	if (RayTracingGeometryHandle != INDEX_NONE)
+	{
+		GRayTracingGeometryManager.ReleaseRayTracingGeometryHandle(RayTracingGeometryHandle);
+		RayTracingGeometryHandle = INDEX_NONE;
+	}
 
 	// Release any resource references held by the initializer.
 	// This includes index and vertex buffers used for building the BLAS.
