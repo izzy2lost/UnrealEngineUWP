@@ -70,54 +70,27 @@ namespace Metasound::Frontend
 		}
 	}
 
-	FDocumentCache::FDocumentCache(const FMetasoundFrontendDocument& InDocument)
+	FDocumentCache::FDocumentCache(const FMetasoundFrontendDocument& InDocument, TSharedRef<FDocumentModifyDelegates> Delegates)
 		: Document(&InDocument)
+		, ModifyDelegates(Delegates)
 	{
 	}
 
-	void FDocumentCache::Init(FDocumentModifyDelegates& OutDelegates)
+	void FDocumentCache::Init(bool bPrimeCache)
 	{
-		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FDocumentCache::Init);
-
 		check(Document);
 
-		IDToIndex.Reset();
-		KeyToIndex.Reset();
-
-		for (int32 Index = 0; Index < Document->Dependencies.Num(); ++Index)
+		if (bPrimeCache)
 		{
-			const FMetasoundFrontendClass& Class = Document->Dependencies[Index];
-			const FMetasoundFrontendClassMetadata& Metadata = Class.Metadata;
-			FNodeRegistryKey Key = NodeRegistryKey::CreateKey(Metadata);
-			KeyToIndex.Add(MoveTemp(Key), Index);
-			IDToIndex.Add(Class.ID, Index);
+			DependencyCache = MakeShared<FDocumentDependencyCache>(GetDocument());
+			EdgeCache = FDocumentGraphEdgeCache::Create(AsShared(), ModifyDelegates->EdgeDelegates);
+			NodeCache = FDocumentGraphNodeCache::Create(AsShared(), ModifyDelegates->NodeDelegates);
+			InterfaceCache = FDocumentGraphInterfaceCache::Create(AsShared(), ModifyDelegates->InterfaceDelegates);
 		}
 
-		OutDelegates.OnDependencyAdded.Remove(OnAddedHandle);
-		OutDelegates.OnRemoveSwappingDependency.Remove(OnRemoveSwappingHandle);
-		OutDelegates.OnRenamingDependencyClass.Remove(OnRenamingDependencyClassHandle);
-
-		OnAddedHandle = OutDelegates.OnDependencyAdded.AddSP(this, &FDocumentCache::OnDependencyAdded);
-		OnRemoveSwappingHandle = OutDelegates.OnRemoveSwappingDependency.AddSP(this, &FDocumentCache::OnRemoveSwappingDependency);
-		OnRenamingDependencyClassHandle = OutDelegates.OnRenamingDependencyClass.AddSP(this, &FDocumentCache::OnRenamingDependencyClass);
-
-		if (!EdgeCache.IsValid())
-		{
-			EdgeCache = MakeShared<FDocumentGraphEdgeCache>(AsShared());
-		}
-		EdgeCache->Init(OutDelegates.EdgeDelegates);
-
-		if (!NodeCache.IsValid())
-		{
-			NodeCache = MakeShared<FDocumentGraphNodeCache>(AsShared());
-		}
-		NodeCache->Init(OutDelegates.NodeDelegates);
-
-		if (!InterfaceCache.IsValid())
-		{
-			InterfaceCache = MakeShared<FDocumentGraphInterfaceCache>(AsShared());
-		}
-		InterfaceCache->Init(OutDelegates.InterfaceDelegates);
+		ModifyDelegates->OnDependencyAdded.AddSP(this, &FDocumentCache::OnDependencyAdded);
+		ModifyDelegates->OnRemoveSwappingDependency.AddSP(this, &FDocumentCache::OnRemoveSwappingDependency);
+		ModifyDelegates->OnRenamingDependencyClass.AddSP(this, &FDocumentCache::OnRenamingDependencyClass);
 	}
 
 	const FMetasoundFrontendDocument& FDocumentCache::GetDocument() const
@@ -126,9 +99,20 @@ namespace Metasound::Frontend
 		return *Document;
 	}
 
+	TSharedRef<FDocumentCache> FDocumentCache::Create(const FMetasoundFrontendDocument& InDocument, TSharedRef<FDocumentModifyDelegates> Delegates, bool bPrimeCache = false)
+	{
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentCache::Create);
+
+		// Factory style constructor as restrictions on construction of shared pointers disallows passing of this document cache's pointer to sub-caches
+		TSharedRef<FDocumentCache> Cache = MakeShared<FDocumentCache>(InDocument, Delegates);
+		Cache->Init(bPrimeCache);
+		return Cache;
+	}
+
 	bool FDocumentCache::ContainsDependency(const FNodeRegistryKey& InClassKey) const
 	{
-		return KeyToIndex.Contains(InClassKey);
+		const FDocumentDependencyCache& Cache = GetDependencyCache();
+		return Cache.KeyToIndex.Contains(InClassKey);
 	}
 
 	bool FDocumentCache::ContainsDependencyOfType(EMetasoundFrontendClassType ClassType) const
@@ -140,7 +124,8 @@ namespace Metasound::Frontend
 
 	const FMetasoundFrontendClass* FDocumentCache::FindDependency(const FNodeRegistryKey& InClassKey) const
 	{
-		if (const int32* Index = KeyToIndex.Find(InClassKey))
+		const FDocumentDependencyCache& Cache = GetDependencyCache();
+		if (const int32* Index = Cache.KeyToIndex.Find(InClassKey))
 		{
 			return &GetDocument().Dependencies[*Index];
 		}
@@ -150,7 +135,8 @@ namespace Metasound::Frontend
 
 	const FMetasoundFrontendClass* FDocumentCache::FindDependency(const FGuid& InClassID) const
 	{
-		if (const int32* Index = IDToIndex.Find(InClassID))
+		const FDocumentDependencyCache& Cache = GetDependencyCache();
+		if (const int32* Index = Cache.IDToIndex.Find(InClassID))
 		{
 			return &GetDocument().Dependencies[*Index];
 		}
@@ -160,26 +146,58 @@ namespace Metasound::Frontend
 
 	const int32* FDocumentCache::FindDependencyIndex(const Metasound::Frontend::FNodeRegistryKey& InClassKey) const
 	{
-		return KeyToIndex.Find(InClassKey);
+		const FDocumentDependencyCache& Cache = GetDependencyCache();
+		return Cache.KeyToIndex.Find(InClassKey);
 	}
 
 	const int32* FDocumentCache::FindDependencyIndex(const FGuid& InClassID) const
 	{
-		return IDToIndex.Find(InClassID);
+		const FDocumentDependencyCache& Cache = GetDependencyCache();
+		return Cache.IDToIndex.Find(InClassID);
+	}
+
+	FDocumentCache::FDocumentDependencyCache& FDocumentCache::GetDependencyCache()
+	{
+		if (!DependencyCache.IsValid())
+		{
+			DependencyCache = MakeShared<FDocumentDependencyCache>(GetDocument());
+		}
+		return *DependencyCache;
+	}
+
+	const FDocumentCache::FDocumentDependencyCache& FDocumentCache::GetDependencyCache() const
+	{
+		if (!DependencyCache.IsValid())
+		{
+			DependencyCache = MakeShared<FDocumentDependencyCache>(GetDocument());
+		}
+		return *DependencyCache;
 	}
 
 	const IDocumentGraphEdgeCache& FDocumentCache::GetEdgeCache() const
 	{
+		if (!EdgeCache.IsValid())
+		{
+			EdgeCache = FDocumentGraphEdgeCache::Create(AsShared(), ModifyDelegates->EdgeDelegates);
+		}
 		return *EdgeCache;
 	}
 
 	const IDocumentGraphNodeCache& FDocumentCache::GetNodeCache() const
 	{
+		if (!NodeCache.IsValid())
+		{
+			NodeCache = FDocumentGraphNodeCache::Create(AsShared(), ModifyDelegates->NodeDelegates);
+		}
 		return *NodeCache;
 	}
 
 	const IDocumentGraphInterfaceCache& FDocumentCache::GetInterfaceCache() const
 	{
+		if (!InterfaceCache.IsValid())
+		{
+			InterfaceCache = FDocumentGraphInterfaceCache::Create(AsShared(), ModifyDelegates->InterfaceDelegates);
+		}
 		return *InterfaceCache;
 	}
 
@@ -189,8 +207,10 @@ namespace Metasound::Frontend
 
 		const FMetasoundFrontendClass& Dependency = GetDocument().Dependencies[NewIndex];
 		const FNodeRegistryKey Key = NodeRegistryKey::CreateKey(Dependency.Metadata);
-		KeyToIndex.Add(Key, NewIndex);
-		IDToIndex.Add(Dependency.ID, NewIndex);
+
+		FDocumentDependencyCache& Cache = GetDependencyCache();
+		Cache.KeyToIndex.Add(Key, NewIndex);
+		Cache.IDToIndex.Add(Dependency.ID, NewIndex);
 	}
 
 	void FDocumentCache::OnRemoveSwappingDependency(int32 SwapIndex, int32 LastIndex)
@@ -203,8 +223,10 @@ namespace Metasound::Frontend
 
 		const FNodeRegistryKey SwapKey = NodeRegistryKey::CreateKey(SwapDependency.Metadata);
 		const FNodeRegistryKey LastKey = NodeRegistryKey::CreateKey(LastDependency.Metadata);
-		DocumentCachePrivate::RemoveSwapMapIndexChecked(SwapKey, LastKey, KeyToIndex);
-		DocumentCachePrivate::RemoveSwapMapIndexChecked(SwapDependency.ID, LastDependency.ID, IDToIndex);
+
+		FDocumentDependencyCache& Cache = GetDependencyCache();
+		DocumentCachePrivate::RemoveSwapMapIndexChecked(SwapKey, LastKey, Cache.KeyToIndex);
+		DocumentCachePrivate::RemoveSwapMapIndexChecked(SwapDependency.ID, LastDependency.ID, Cache.IDToIndex);
 	}
 
 	void FDocumentCache::OnRenamingDependencyClass(const int32 IndexBeingRenamed, const FMetasoundFrontendClassName& NewName)
@@ -217,13 +239,36 @@ namespace Metasound::Frontend
 		NewMetadata.SetClassName(NewName);
 		const FNodeRegistryKey NewKey = NodeRegistryKey::CreateKey(NewMetadata);
 
-		KeyToIndex.Add(NewKey, IndexBeingRenamed);
-		KeyToIndex.Remove(OldKey);
+		FDocumentDependencyCache& Cache = GetDependencyCache();
+		Cache.KeyToIndex.Add(NewKey, IndexBeingRenamed);
+		Cache.KeyToIndex.Remove(OldKey);
 	}
 
-	FDocumentGraphInterfaceCache::FDocumentGraphInterfaceCache(TSharedRef<IDocumentCache> ParentCache)
+	FDocumentGraphInterfaceCache::FDocumentGraphInterfaceCache(TSharedRef<const IDocumentCache> ParentCache)
 		: Parent(ParentCache)
 	{
+		const FMetasoundFrontendGraphClass& GraphClass = Parent->GetDocument().RootGraph;
+		const TArray<FMetasoundFrontendClassInput>& Inputs = GraphClass.Interface.Inputs;
+		for (int32 Index = 0; Index < Inputs.Num(); ++Index)
+		{
+			InputNameToIndex.Add(Inputs[Index].Name, Index);
+		};
+
+		const TArray<FMetasoundFrontendClassOutput>& Outputs = GraphClass.Interface.Outputs;
+		for (int32 Index = 0; Index < Outputs.Num(); ++Index)
+		{
+			OutputNameToIndex.Add(Outputs[Index].Name, Index);
+		};
+	}
+
+	TSharedRef<FDocumentGraphInterfaceCache> FDocumentGraphInterfaceCache::Create(TSharedRef<const IDocumentCache> ParentCache, FInterfaceModifyDelegates& OutDelegates)
+	{
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentGraphInterfaceCache::Create);
+
+		// Factory style constructor as restrictions on construction of shared pointers disallows passing of this document cache's pointer to sub-caches
+		TSharedRef<FDocumentGraphInterfaceCache> Cache = MakeShared<FDocumentGraphInterfaceCache>(ParentCache);
+		Cache->Init(OutDelegates);
+		return Cache;
 	}
 
 	const FMetasoundFrontendClassInput* FDocumentGraphInterfaceCache::FindInput(FName InputName) const
@@ -250,31 +295,11 @@ namespace Metasound::Frontend
 
 	void FDocumentGraphInterfaceCache::Init(FInterfaceModifyDelegates& OutDelegates)
 	{
-		InputNameToIndex.Reset();
-		OutputNameToIndex.Reset();
 
-		const FMetasoundFrontendGraphClass& GraphClass = Parent->GetDocument().RootGraph;
-		const TArray<FMetasoundFrontendClassInput>& Inputs = GraphClass.Interface.Inputs;
-		for (int32 Index = 0; Index < Inputs.Num(); ++Index)
-		{
-			InputNameToIndex.Add(Inputs[Index].Name, Index);
-		};
-
-		const TArray<FMetasoundFrontendClassOutput>& Outputs = GraphClass.Interface.Outputs;
-		for (int32 Index = 0; Index < Outputs.Num(); ++Index)
-		{
-			OutputNameToIndex.Add(Outputs[Index].Name, Index);
-		};
-
-		OutDelegates.OnInputAdded.Remove(OnInputAddedHandle);
-		OutDelegates.OnOutputAdded.Remove(OnOutputAddedHandle);
-		OutDelegates.OnRemovingInput.Remove(OnRemovingInputHandle);
-		OutDelegates.OnRemovingOutput.Remove(OnRemovingOutputHandle);
-
-		OnInputAddedHandle = OutDelegates.OnInputAdded.AddSP(this, &FDocumentGraphInterfaceCache::OnInputAdded);
-		OnOutputAddedHandle = OutDelegates.OnOutputAdded.AddSP(this, &FDocumentGraphInterfaceCache::OnOutputAdded);
-		OnRemovingInputHandle = OutDelegates.OnRemovingInput.AddSP(this, &FDocumentGraphInterfaceCache::OnRemovingInput);
-		OnRemovingOutputHandle = OutDelegates.OnRemovingOutput.AddSP(this, &FDocumentGraphInterfaceCache::OnRemovingOutput);
+		OutDelegates.OnInputAdded.AddSP(this, &FDocumentGraphInterfaceCache::OnInputAdded);
+		OutDelegates.OnOutputAdded.AddSP(this, &FDocumentGraphInterfaceCache::OnOutputAdded);
+		OutDelegates.OnRemovingInput.AddSP(this, &FDocumentGraphInterfaceCache::OnRemovingInput);
+		OutDelegates.OnRemovingOutput.AddSP(this, &FDocumentGraphInterfaceCache::OnRemovingOutput);
 	}
 
 	void FDocumentGraphInterfaceCache::OnInputAdded(int32 NewIndex)
@@ -309,16 +334,9 @@ namespace Metasound::Frontend
 		OutputNameToIndex.Remove(Output.Name);
 	}
 
-	FDocumentGraphNodeCache::FDocumentGraphNodeCache(TSharedRef<IDocumentCache> ParentCache)
+	FDocumentGraphNodeCache::FDocumentGraphNodeCache(TSharedRef<const IDocumentCache> ParentCache)
 		: Parent(ParentCache)
 	{
-	}
-
-	void FDocumentGraphNodeCache::Init(FNodeModifyDelegates& OutDelegates)
-	{
-		IDToIndex.Reset();
-		ClassIDToNodeIndices.Reset();
-
 		const FMetasoundFrontendGraph& Graph = Parent->GetDocument().RootGraph.Graph;
 		const TArray<FMetasoundFrontendNode>& Nodes = Graph.Nodes;
 		for (int32 Index = 0; Index < Nodes.Num(); ++Index)
@@ -331,17 +349,21 @@ namespace Metasound::Frontend
 			IDToIndex.Add(NodeID, Index);
 			ClassIDToNodeIndices.FindOrAdd(Node.ClassID).Add(Index);
 		}
-
-		OutDelegates.OnNodeAdded.Remove(OnAddedHandle);
-		OnAddedHandle = OutDelegates.OnNodeAdded.AddSP(this, &FDocumentGraphNodeCache::OnNodeAdded);
-
-		OutDelegates.OnRemoveSwappingNode.Remove(OnRemoveSwappingHandle);
-		OnRemoveSwappingHandle = OutDelegates.OnRemoveSwappingNode.AddSP(this, &FDocumentGraphNodeCache::OnRemoveSwappingNode);
 	}
 
 	bool FDocumentGraphNodeCache::ContainsNode(const FGuid& InNodeID) const
 	{
 		return IDToIndex.Contains(InNodeID);
+	}
+
+	TSharedRef<FDocumentGraphNodeCache> FDocumentGraphNodeCache::Create(TSharedRef<const IDocumentCache> ParentCache, FNodeModifyDelegates& OutDelegates)
+	{
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentGraphNodeCache::Create);
+
+		// Factory style constructor as restrictions on construction of shared pointers disallows passing of this document cache's pointer to sub-caches
+		TSharedRef<FDocumentGraphNodeCache> Cache = MakeShared<FDocumentGraphNodeCache>(ParentCache);
+		Cache->Init(OutDelegates);
+		return Cache;
 	}
 
 	const int32* FDocumentGraphNodeCache::FindNodeIndex(const FGuid& InNodeID) const
@@ -654,6 +676,12 @@ namespace Metasound::Frontend
 		return nullptr;
 	}
 
+	void FDocumentGraphNodeCache::Init(FNodeModifyDelegates& OutDelegates)
+	{
+		OutDelegates.OnNodeAdded.AddSP(this, &FDocumentGraphNodeCache::OnNodeAdded);
+		OutDelegates.OnRemoveSwappingNode.AddSP(this, &FDocumentGraphNodeCache::OnRemoveSwappingNode);
+	}
+
 	void FDocumentGraphNodeCache::OnNodeAdded(int32 InNewIndex)
 	{
 		const FMetasoundFrontendDocument& Document = Parent->GetDocument();
@@ -676,16 +704,9 @@ namespace Metasound::Frontend
 		DocumentCachePrivate::RemoveSwapMapIndexChecked(SwapNode.GetID(), LastNode.GetID(), IDToIndex);
 	}
 
-	FDocumentGraphEdgeCache::FDocumentGraphEdgeCache(TSharedRef<IDocumentCache> ParentCache)
+	FDocumentGraphEdgeCache::FDocumentGraphEdgeCache(TSharedRef<const IDocumentCache> ParentCache)
 		: Parent(ParentCache)
 	{
-	}
-
-	void FDocumentGraphEdgeCache::Init(FEdgeModifyDelegates& OutDelegates)
-	{
-		OutputToEdgeIndices.Reset();
-		InputToEdgeIndex.Reset();
-
 		const TArray<FMetasoundFrontendEdge>& Edges = Parent->GetDocument().RootGraph.Graph.Edges;
 		for (int32 Index = 0; Index < Edges.Num(); ++Index)
 		{
@@ -693,12 +714,6 @@ namespace Metasound::Frontend
 			OutputToEdgeIndices.FindOrAdd(Edge.GetFromVertexHandle()).Add(Index);
 			InputToEdgeIndex.Add(Edge.GetToVertexHandle()) = Index;
 		}
-
-		OutDelegates.OnEdgeAdded.Remove(OnAddedHandle);
-		OnAddedHandle = OutDelegates.OnEdgeAdded.AddSP(this, &FDocumentGraphEdgeCache::OnEdgeAdded);
-
-		OutDelegates.OnRemoveSwappingEdge.Remove(OnRemoveSwappingHandle);
-		OnRemoveSwappingHandle = OutDelegates.OnRemoveSwappingEdge.AddSP(this, &FDocumentGraphEdgeCache::OnRemoveSwappingEdge);
 	}
 
 	bool FDocumentGraphEdgeCache::ContainsEdge(const FMetasoundFrontendEdge& InEdge) const
@@ -712,6 +727,16 @@ namespace Metasound::Frontend
 		}
 
 		return false;
+	}
+
+	TSharedRef<FDocumentGraphEdgeCache> FDocumentGraphEdgeCache::Create(TSharedRef<const IDocumentCache> ParentCache, FEdgeModifyDelegates& OutDelegates)
+	{
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentGraphEdgeCache::Create);
+
+		// Factory style constructor as restrictions on construction of shared pointers disallows passing of this document cache's pointer to sub-caches
+		TSharedRef<FDocumentGraphEdgeCache> Cache = MakeShared<FDocumentGraphEdgeCache>(ParentCache);
+		Cache->Init(OutDelegates);
+		return Cache;
 	}
 
 	TArray<const FMetasoundFrontendEdge*> FDocumentGraphEdgeCache::FindEdges(const FGuid& InNodeID, const FGuid& InVertexID) const
@@ -750,6 +775,12 @@ namespace Metasound::Frontend
 		return { };
 	}
 
+	void FDocumentGraphEdgeCache::Init(FEdgeModifyDelegates& OutDelegates)
+	{
+		OutDelegates.OnEdgeAdded.AddSP(this, &FDocumentGraphEdgeCache::OnEdgeAdded);
+		OutDelegates.OnRemoveSwappingEdge.AddSP(this, &FDocumentGraphEdgeCache::OnRemoveSwappingEdge);
+	}
+
 	bool FDocumentGraphEdgeCache::IsNodeInputConnected(const FGuid& InNodeID, const FGuid& InVertexID) const
 	{
 		return InputToEdgeIndex.Contains(FMetasoundFrontendVertexHandle { InNodeID, InVertexID });
@@ -778,5 +809,19 @@ namespace Metasound::Frontend
 		const FMetasoundFrontendEdge& LastEdge = Edges[LastIndex];
 		DocumentCachePrivate::RemoveSwapMapIndexChecked(SwapEdge.GetToVertexHandle(), LastEdge.GetToVertexHandle(), InputToEdgeIndex);
 		DocumentCachePrivate::RemoveSwapMapArrayIndexChecked(SwapEdge.GetFromVertexHandle(), SwapIndex, LastEdge.GetFromVertexHandle(), LastIndex, OutputToEdgeIndices);
+	}
+
+	FDocumentCache::FDocumentDependencyCache::FDocumentDependencyCache(const FMetasoundFrontendDocument& InDocument)
+	{
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentDependencyCache::Create);
+
+		for (int32 Index = 0; Index < InDocument.Dependencies.Num(); ++Index)
+		{
+			const FMetasoundFrontendClass& Class = InDocument.Dependencies[Index];
+			const FMetasoundFrontendClassMetadata& Metadata = Class.Metadata;
+			FNodeRegistryKey Key = NodeRegistryKey::CreateKey(Metadata);
+			KeyToIndex.Add(MoveTemp(Key), Index);
+			IDToIndex.Add(Class.ID, Index);
+		}
 	}
 } // namespace Metasound::Frontend

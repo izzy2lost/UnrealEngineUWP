@@ -18,9 +18,13 @@ namespace Metasound::Frontend
 
 	class FDocumentGraphEdgeCache : public IDocumentGraphEdgeCache
 	{
+		template <typename ObjectType, ESPMode Mode>
+		friend class SharedPointerInternals::TIntrusiveReferenceController;
+
+		FDocumentGraphEdgeCache(TSharedRef<const IDocumentCache> ParentCache);
+
 	public:
-		FDocumentGraphEdgeCache() = default;
-		FDocumentGraphEdgeCache(TSharedRef<IDocumentCache> ParentCache);
+		static TSharedRef<FDocumentGraphEdgeCache> Create(TSharedRef<const IDocumentCache> ParentCache, FEdgeModifyDelegates& OutDelegates);
 		virtual ~FDocumentGraphEdgeCache() = default;
 
 		// IDocumentGraphEdgeCache implementation
@@ -33,9 +37,9 @@ namespace Metasound::Frontend
 		virtual const int32* FindEdgeIndexToNodeInput(const FGuid& InNodeID, const FGuid& InVertexID) const override;
 		virtual const TArrayView<const int32> FindEdgeIndicesFromNodeOutput(const FGuid& InNodeID, const FGuid& InVertexID) const override;
 
-		void Init(FEdgeModifyDelegates& OutDelegates);
 
 	private:
+		void Init(FEdgeModifyDelegates& OutDelegates);
 		void OnEdgeAdded(int32 InNewIndex);
 		void OnRemoveSwappingEdge(int32 SwapIndex, int32 LastIndex);
 
@@ -45,18 +49,19 @@ namespace Metasound::Frontend
 		// Cache of Input NodeId/VertexId pairs to associated edge indices
 		TMap<FMetasoundFrontendVertexHandle, int32> InputToEdgeIndex;
 
-		TSharedPtr<IDocumentCache> Parent;
-
-		FDelegateHandle OnAddedHandle;
-		FDelegateHandle OnRemoveSwappingHandle;
+		TSharedPtr<const IDocumentCache> Parent;
 	};
 
 
 	class FDocumentGraphNodeCache : public IDocumentGraphNodeCache
 	{
+		template <typename ObjectType, ESPMode Mode>
+		friend class SharedPointerInternals::TIntrusiveReferenceController;
+
+		FDocumentGraphNodeCache(TSharedRef<const IDocumentCache> ParentCache);
+
 	public:
-		FDocumentGraphNodeCache() = default;
-		FDocumentGraphNodeCache(TSharedRef<IDocumentCache> ParentCache);
+		static TSharedRef<FDocumentGraphNodeCache> Create(TSharedRef<const IDocumentCache> ParentCache, FNodeModifyDelegates& OutDelegates);
 		virtual ~FDocumentGraphNodeCache() = default;
 
 		// IDocumentGraphNodeCache implementation
@@ -80,9 +85,8 @@ namespace Metasound::Frontend
 		virtual const FMetasoundFrontendVertex* FindReroutedOutputVertex(const FGuid& InNodeID, const FGuid& InVertexID, const FMetasoundFrontendNode** ConnectedNodes = nullptr, bool* bOutIsRerouted = nullptr) const override;
 		virtual const FMetasoundFrontendVertex* FindReroutedOutputVertex(const FGuid& InNodeID, FName InVertexName, const FMetasoundFrontendNode** ConnectedNodes = nullptr, bool* bOutIsRerouted = nullptr) const override;
 
-		void Init(FNodeModifyDelegates& OutDelegates);
-
 	private:
+		void Init(FNodeModifyDelegates& OutDelegates);
 		void OnNodeAdded(int32 NewIndex);
 		void OnRemoveSwappingNode(int32 IndexBeingRemoved, int32 LastIndex);
 
@@ -92,27 +96,27 @@ namespace Metasound::Frontend
 		// Cache of ClassID to referencing node indices
 		TSortedMap<FGuid, TArray<int32>> ClassIDToNodeIndices;
 
-		TSharedPtr<IDocumentCache> Parent;
-
-		FDelegateHandle OnAddedHandle;
-		FDelegateHandle OnRemoveSwappingHandle;
+		TSharedPtr<const IDocumentCache> Parent;
 	};
 
 
 	class FDocumentGraphInterfaceCache : public IDocumentGraphInterfaceCache
 	{
+		template <typename ObjectType, ESPMode Mode>
+		friend class SharedPointerInternals::TIntrusiveReferenceController;
+
+		FDocumentGraphInterfaceCache(TSharedRef<const IDocumentCache> ParentCache);
+
 	public:
-		FDocumentGraphInterfaceCache() = default;
-		FDocumentGraphInterfaceCache(TSharedRef<IDocumentCache> ParentCache);
+		static TSharedRef<FDocumentGraphInterfaceCache> Create(TSharedRef<const IDocumentCache> ParentCache, FInterfaceModifyDelegates& OutDelegates);
 		virtual ~FDocumentGraphInterfaceCache() = default;
 
 		// IDocumentGraphInterfaceCache implementation
 		virtual const FMetasoundFrontendClassInput* FindInput(FName InputName) const override;
 		virtual const FMetasoundFrontendClassOutput* FindOutput(FName OutputName) const override;
 
-		void Init(FInterfaceModifyDelegates& OutDelegates);
-
 	private:
+		void Init(FInterfaceModifyDelegates& OutDelegates);
 		void OnInputAdded(int32 NewIndex);
 		void OnOutputAdded(int32 NewIndex);
 		void OnRemovingInput(int32 IndexBeingRemoved);
@@ -124,20 +128,19 @@ namespace Metasound::Frontend
 		// Cache of Output name to array index of output
 		TMap<FName, int32> OutputNameToIndex;
 
-		TSharedPtr<IDocumentCache> Parent;
-
-		FDelegateHandle OnInputAddedHandle;
-		FDelegateHandle OnOutputAddedHandle;
-		FDelegateHandle OnRemovingInputHandle;
-		FDelegateHandle OnRemovingOutputHandle;
+		TSharedPtr<const IDocumentCache> Parent;
 	};
 
 
 	class FDocumentCache : public IDocumentCache
 	{
+		template <typename ObjectType, ESPMode Mode>
+		friend class SharedPointerInternals::TIntrusiveReferenceController;
+
+		FDocumentCache(const FMetasoundFrontendDocument& InDocument, TSharedRef<FDocumentModifyDelegates> Delegates);
+
 	public:
-		FDocumentCache() = default;
-		FDocumentCache(const FMetasoundFrontendDocument& InDocument);
+		static TSharedRef<FDocumentCache> Create(const FMetasoundFrontendDocument& InDocument, TSharedRef<FDocumentModifyDelegates> Delegates, bool bPrimeCache);
 		virtual ~FDocumentCache() = default;
 
 		virtual bool ContainsDependency(const FNodeRegistryKey& InClassKey) const override;
@@ -153,27 +156,38 @@ namespace Metasound::Frontend
 		virtual const IDocumentGraphNodeCache& GetNodeCache() const override;
 		virtual const IDocumentGraphInterfaceCache& GetInterfaceCache() const override;
 
-		void Init(FDocumentModifyDelegates& OutDelegates);
-
 	private:
+		void Init(bool bPrimeCache);
+
 		void OnDependencyAdded(int32 InNewIndex);
 		void OnRemoveSwappingDependency(int32 SwapIndex, int32 LastIndex);
 		void OnRenamingDependencyClass(const int32 IndexBeingRenamed, const FMetasoundFrontendClassName& NewName);
 
-		// Cache of dependency (Class) ID to corresponding class dependency index
-		TSortedMap<FGuid, int32> IDToIndex;
+		struct FDocumentDependencyCache : public TSharedFromThis<FDocumentDependencyCache>
+		{
+			FDocumentDependencyCache(const FMetasoundFrontendDocument& InDocument);
+			~FDocumentDependencyCache() = default;
 
-		// Cache of version data to corresponding class dependency index
-		TSortedMap<FNodeRegistryKey, int32> KeyToIndex;
+			// Cache of dependency (Class) ID to corresponding class dependency index
+			TSortedMap<FGuid, int32> IDToIndex;
 
-		TSharedPtr<FDocumentGraphEdgeCache> EdgeCache;
-		TSharedPtr<FDocumentGraphNodeCache> NodeCache;
-		TSharedPtr<FDocumentGraphInterfaceCache> InterfaceCache;
+			// Cache of version data to corresponding class dependency index
+			TSortedMap<FNodeRegistryKey, int32> KeyToIndex;
+		};
 
-		FDelegateHandle OnAddedHandle;
-		FDelegateHandle OnRemoveSwappingHandle;
-		FDelegateHandle OnRenamingDependencyClassHandle;
+		// Private as cached queried data for fast access at document layer is minimal (i.e. dependencies by class id),
+		// so API is just passed through document cache interface. Opaque create getter API kept similar to calls above
+		// to separately implemented caches for parity.
+		FDocumentDependencyCache& GetDependencyCache();
+		const FDocumentDependencyCache& GetDependencyCache() const;
+
+		// Mutable to be able to be loaded on demand if cache does not exist at the time of an initial query
+		mutable TSharedPtr<FDocumentDependencyCache> DependencyCache;
+		mutable TSharedPtr<FDocumentGraphEdgeCache> EdgeCache;
+		mutable TSharedPtr<FDocumentGraphNodeCache> NodeCache;
+		mutable TSharedPtr<FDocumentGraphInterfaceCache> InterfaceCache;
 
 		const FMetasoundFrontendDocument* Document = nullptr;
+		TSharedRef<FDocumentModifyDelegates> ModifyDelegates;
 	};
 } // namespace Metasound::Frontend

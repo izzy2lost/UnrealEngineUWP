@@ -542,6 +542,30 @@ float UMetaSoundSource::GetDuration() const
 	return IsOneShot() ? INDEFINITELY_LOOPING_DURATION - 1.0f : INDEFINITELY_LOOPING_DURATION;
 }
 
+Metasound::Frontend::FDocumentAccessPtr UMetaSoundSource::GetDocumentAccessPtr()
+{
+	using namespace Metasound::Frontend;
+
+	// Mutation of a document via the soft deprecated access ptr/controller system is not tracked by
+	// the builder registry, so the document cache is invalidated here. It is discouraged to mutate
+	// documents using both systems at the same time as it can corrupt a builder document's cache.
+	const FMetasoundFrontendClassName& Name = RootMetasoundDocument.RootGraph.Metadata.GetClassName();
+	IDocumentBuilderRegistry::GetChecked().InvalidateDocumentCache(Name);
+
+	// Return document using FAccessPoint to inform the TAccessPtr when the 
+	// object is no longer valid.
+	return MakeAccessPtr<FDocumentAccessPtr>(RootMetasoundDocument.AccessPoint, RootMetasoundDocument);
+}
+
+Metasound::Frontend::FConstDocumentAccessPtr UMetaSoundSource::GetDocumentConstAccessPtr() const
+{
+	using namespace Metasound::Frontend;
+
+	// Return document using FAccessPoint to inform the TAccessPtr when the 
+	// object is no longer valid.
+	return MakeAccessPtr<FConstDocumentAccessPtr>(RootMetasoundDocument.AccessPoint, RootMetasoundDocument);
+}
+
 bool UMetaSoundSource::ImplementsParameterInterface(Audio::FParameterInterfacePtr InInterface) const
 {
 	const FMetasoundFrontendVersion Version { InInterface->GetName(), { InInterface->GetVersion().Major, InInterface->GetVersion().Minor } };

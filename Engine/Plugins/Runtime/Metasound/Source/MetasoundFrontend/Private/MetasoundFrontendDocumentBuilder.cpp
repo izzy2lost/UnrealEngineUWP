@@ -582,7 +582,7 @@ FMetaSoundFrontendDocumentBuilder::FMetaSoundFrontendDocumentBuilder(TScriptInte
 {
 	if (DocumentInterface)
 	{
-		ReloadCacheInternal();
+		InitCacheInternal();
 	}
 }
 
@@ -592,7 +592,7 @@ FMetaSoundFrontendDocumentBuilder::FMetaSoundFrontendDocumentBuilder(TScriptInte
 {
 	if (DocumentInterface)
 	{
-		ReloadCacheInternal();
+		InitCacheInternal();
 	}
 }
 
@@ -1207,7 +1207,7 @@ void FMetaSoundFrontendDocumentBuilder::ClearGraph()
 	GraphClass.PresetOptions.InputsInheritingDefault.Reset();
 	GetDocument().Interfaces.Reset();
 	RemoveUnusedDependencies();
-	ReloadCacheInternal();
+	InitCacheInternal();
 }
 
 bool FMetaSoundFrontendDocumentBuilder::ContainsDependencyOfType(EMetasoundFrontendClassType ClassType) const
@@ -1279,7 +1279,7 @@ bool FMetaSoundFrontendDocumentBuilder::ConvertToPreset(const FMetasoundFrontend
 	FRebuildPresetRootGraph RebuildPresetRootGraph(InReferencedDocument);
 	if (RebuildPresetRootGraph.Transform(GetDocument()))
 	{
-		ReloadCacheInternal();
+		InitCacheInternal();
 		return true;
 	}
 	return false;
@@ -1890,6 +1890,12 @@ void FMetaSoundFrontendDocumentBuilder::InitNodeLocations()
 #endif // WITH_EDITORONLY_DATA
 }
 
+void FMetaSoundFrontendDocumentBuilder::InvalidateCache()
+{
+	constexpr bool bPrimeCache = false;
+	InitCacheInternal(bPrimeCache);
+}
+
 bool FMetaSoundFrontendDocumentBuilder::IsDependencyReferenced(const FGuid& InClassID) const
 {
 	return DocumentCache->GetNodeCache().ContainsNodesOfClassID(InClassID);
@@ -2052,19 +2058,10 @@ bool FMetaSoundFrontendDocumentBuilder::TransformTemplateNodes()
 	return bModified;
 }
 
-void FMetaSoundFrontendDocumentBuilder::ReloadCacheInternal()
+void FMetaSoundFrontendDocumentBuilder::InitCacheInternal(bool bPrimeCache)
 {
 	using namespace Metasound::Frontend;
-	if (!DocumentCache.IsValid())
-	{
-		DocumentCache = MakeShared<FDocumentCache>(GetDocument());
-	}
-
-	// Must be called after the constructor to allow for passing shared pointer to
-	// sub-caches (i.e. can't be RAII because initialization requires creating
-	// additional shared pointers in the ctor which is explicitly forbidden)
-	TSharedPtr<FDocumentCache> CacheConcrete = StaticCastSharedPtr<FDocumentCache>(DocumentCache);
-	CacheConcrete->Init(*DocumentDelegates);
+	DocumentCache = FDocumentCache::Create(GetDocument(), DocumentDelegates, bPrimeCache);
 }
 
 bool FMetaSoundFrontendDocumentBuilder::RemoveDependency(const FGuid& InClassID)
@@ -2485,12 +2482,13 @@ bool FMetaSoundFrontendDocumentBuilder::RenameRootGraphClass(const FMetasoundFro
 	}
 }
 
-#if WITH_EDITOR
 void FMetaSoundFrontendDocumentBuilder::ReloadCache()
 {
-	ReloadCacheInternal();
+	constexpr bool bPrimeCache = true;
+	InitCacheInternal(bPrimeCache);
 }
 
+#if WITH_EDITOR
 void FMetaSoundFrontendDocumentBuilder::SetAuthor(const FString& InAuthor)
 {
 	FMetasoundFrontendClassMetadata& ClassMetadata = GetDocument().RootGraph.Metadata;

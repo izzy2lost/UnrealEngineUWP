@@ -217,6 +217,9 @@ public:
 	void InitDocument();
 	void InitNodeLocations();
 
+	// Clears the cached data enabling fast document queries. Generally discouraged unless document has been unavoidably mutated outside of the builder.
+	void InvalidateCache();
+
 	bool IsDependencyReferenced(const FGuid& InClassID) const;
 	bool IsNodeInputConnected(const FGuid& InNodeID, const FGuid& InVertexID) const;
 	bool IsNodeOutputConnected(const FGuid& InNodeID, const FGuid& InVertexID) const;
@@ -230,6 +233,10 @@ public:
 	Metasound::Frontend::EInvalidEdgeReason IsValidEdge(const FMetasoundFrontendEdge& InEdge) const;
 
 	bool ModifyInterfaces(Metasound::Frontend::FModifyInterfaceOptions&& InOptions);
+
+	// Reloads the cached data enabling fast document queries. Can be expensive and is generally discouraged in favor of using InvalidateCache
+	// only when document has been known to be mutated outside of the builder (also, invalidate doesn't prime the cache and only reloads piecemeal upon request).
+	void ReloadCache();
 
 	bool RemoveDependency(const FGuid& InClassID);
 	bool RemoveDependency(EMetasoundFrontendClassType ClassType, const FMetasoundFrontendClassName& InClassName, const FMetasoundFrontendVersionNumber& InClassVersionNumber);
@@ -247,10 +254,6 @@ public:
 	bool RenameRootGraphClass(const FMetasoundFrontendClassName& InName);
 
 #if WITH_EDITOR
-	// Primarily used by editor transaction stack to avoid corruption when object is
-	// changed outside of the builder API. Generally discouraged for direct use otherwise
-	// as it can be expensive and builder API should manage internal cache state directly.
-	void ReloadCache();
 
 	void SetAuthor(const FString& InAuthor);
 
@@ -285,7 +288,7 @@ private:
 
 	const TSet<FMetasoundFrontendVersion>* FindNodeClassInterfaces(const FGuid& InNodeID) const;
 
-	void ReloadCacheInternal();
+	void InitCacheInternal(bool bPrimeCache = false);
 
 	bool SetGraphInputInheritsDefault(FName InName, bool bInputInheritsDefault);
 
@@ -293,10 +296,5 @@ private:
 	TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface;
 
 	TSharedPtr<Metasound::Frontend::IDocumentCache> DocumentCache;
-
-	// SharedRef to struct of delegates fired when mutating document.  These are shared to safely support copying
-	// FrontendDocumentBuilders.  Copying is typically dissuaded as you can still have disparate builders that are
-	// not operating on the same cache; using a shared builder registered within the MetaSoundBuilderSubsystem
-	// in MetaSoundEngine is recommended.
 	TSharedRef<Metasound::Frontend::FDocumentModifyDelegates> DocumentDelegates;
 };

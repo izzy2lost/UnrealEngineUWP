@@ -45,11 +45,10 @@ namespace Metasound::Frontend
 	class METASOUNDFRONTEND_API IDocumentBuilderRegistry
 	{
 	public:
-		// Returns delegates used to mutate any internal builder cached state or notify listeners of external system that
-		// has mutated a given document class.  Exists primarily for backward compatibility with the DocumentController system,
-		// and is not recommended for use outside of MetaSound plugin as it may be deprecated in the future (best practice is to
-		// mutate all documents using MetasoundDocumentBuilders).
-		virtual const FDocumentModifyDelegates* FindModifyDelegates(const FMetasoundFrontendClassName& InClassName) const = 0;
+		// Invalidates the cache of a given document's builder should one be registered, causing it to be rebuilt.  Not recommended
+		// for general use, and is only available in case the document is modified by a system other than an active, registered builder
+		// (ex. via the soft deprecated controller/handle API).
+		virtual void InvalidateDocumentCache(const FMetasoundFrontendClassName& InClassName) const = 0;
 
 		static IDocumentBuilderRegistry& GetChecked();
 
@@ -57,6 +56,13 @@ namespace Metasound::Frontend
 		static void Set(TUniqueFunction<IDocumentBuilderRegistry&()>&& InGetInstance);
 	};
 
-	// Deprecated: use shorter name
-	using IMetaSoundDocumentBuilderRegistry = IDocumentBuilderRegistry;
+	class METASOUNDFRONTEND_API IMetaSoundDocumentBuilderRegistry : public IDocumentBuilderRegistry
+	{
+	public:
+		UE_DEPRECATED(5.4, "Public exposition of modify delegates no longer available to discourage unsafe manipulation of builder document cache")
+		virtual const FDocumentModifyDelegates* FindModifyDelegates(const FMetasoundFrontendClassName& InClassName) const = 0;
+
+		UE_DEPRECATED(5.4, "Use 'IDocumentBuilderRegistry' instead")
+		static IMetaSoundDocumentBuilderRegistry& GetChecked();
+	};
 } // namespace Metasound::Frontend

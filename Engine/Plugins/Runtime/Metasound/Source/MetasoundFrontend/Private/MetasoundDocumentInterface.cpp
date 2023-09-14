@@ -25,4 +25,9 @@ namespace Metasound::Frontend
 		checkf(!GetInstance, TEXT("Failed to initialize MetaSoundDocumentBuilderRegistry getter: Cannot reinitialize once initialized."))
 		GetInstance = MoveTemp(InGetInstance);
 	}
+
+	IMetaSoundDocumentBuilderRegistry& IMetaSoundDocumentBuilderRegistry::GetChecked()
+	{
+		return static_cast<IMetaSoundDocumentBuilderRegistry&>(IDocumentBuilderRegistry::GetChecked());
+	}
 } // namespace Metasound::Frontend

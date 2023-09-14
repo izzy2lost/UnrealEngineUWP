@@ -168,21 +168,8 @@ protected:
 	virtual void SetReferencedAssetClasses(TSet<Metasound::Frontend::IMetaSoundAssetManager::FAssetInfo>&& InAssetClasses) override;
 #endif // #if WITH_EDITOR
 
-	Metasound::Frontend::FDocumentAccessPtr GetDocumentAccessPtr() override
-	{
-		using namespace Metasound::Frontend;
-		// Return document using FAccessPoint to inform the TAccessPtr when the 
-		// object is no longer valid.
-		return MakeAccessPtr<FDocumentAccessPtr>(RootMetaSoundDocument.AccessPoint, RootMetaSoundDocument);
-	}
-
-	Metasound::Frontend::FConstDocumentAccessPtr GetDocumentConstAccessPtr() const override
-	{
-		using namespace Metasound::Frontend;
-		// Return document using FAccessPoint to inform the TAccessPtr when the 
-		// object is no longer valid.
-		return MakeAccessPtr<FConstDocumentAccessPtr>(RootMetaSoundDocument.AccessPoint, RootMetaSoundDocument);
-	}
+	Metasound::Frontend::FDocumentAccessPtr GetDocumentAccessPtr() override;
+	Metasound::Frontend::FConstDocumentAccessPtr GetDocumentConstAccessPtr() const override;
 
 private:
 	virtual FMetasoundFrontendDocument& GetDocument() override

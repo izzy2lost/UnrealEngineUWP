@@ -350,11 +350,11 @@ public:
 	// Rename the document's root graph class with a guid and optional namespace and variant
 	void RenameRootGraphClass(const FMetasoundFrontendClassName& InName);
 
-#if WITH_EDITOR
 	// Primarily used by editor transaction stack to avoid corruption when object is
 	// changed outside of the builder API. Generally discouraged for direct use otherwise.
-	void ReloadCache();
+	void ReloadCache(bool bPrimeCache = true);
 
+#if WITH_EDITOR
 	// Sets the author of the MetaSound.
 	void SetAuthor(const FString& InAuthor);
 #endif // WITH_EDITOR
@@ -390,10 +390,9 @@ protected:
 	// Should only be used when builders is not being attached to an existing, serialized MetaSound asset.
 	virtual void CreateTransientBuilder() PURE_VIRTUAL(UMetaSoundBuilderBase::CreateTransientBuilder, );
 
-	const FMetaSoundFrontendDocumentBuilder& GetConstBuilder() const
-	{
-		return Builder;
-	}
+	const FMetaSoundFrontendDocumentBuilder& GetConstBuilder() const;
+
+	void InvalidateCache();
 
 	// Runs build, conforming the document and corresponding object data on a MetaSound UObject to that managed by this builder.
 	template <typename UClassType>
@@ -570,8 +569,7 @@ private:
 
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-
-	virtual const Metasound::Frontend::FDocumentModifyDelegates* FindModifyDelegates(const FMetasoundFrontendClassName& InClassName) const override;
+	virtual void InvalidateDocumentCache(const FMetasoundFrontendClassName& InClassName) const override;
 
 	static UMetaSoundBuilderSubsystem& GetChecked();
 	static const UMetaSoundBuilderSubsystem& GetConstChecked();

@@ -636,6 +636,11 @@ UMetaSoundBuilderDocument* UMetaSoundBuilderBase::CreateTransientDocumentObject(
 	return &UMetaSoundBuilderDocument::Create(GetBuilderUClass());
 }
 
+const FMetaSoundFrontendDocumentBuilder& UMetaSoundBuilderBase::GetConstBuilder() const
+{
+	return Builder;
+}
+
 UObject* UMetaSoundBuilderBase::GetReferencedPresetAsset() const
 {
 	using namespace Metasound::Frontend;
@@ -682,6 +687,11 @@ bool UMetaSoundBuilderBase::InterfaceIsDeclared(FName InterfaceName) const
 	return Builder.IsInterfaceDeclared(InterfaceName);
 }
 
+void UMetaSoundBuilderBase::InvalidateCache()
+{
+	Builder.InvalidateCache();
+}
+
 bool UMetaSoundBuilderBase::IsPreset() const
 {
 	return Builder.IsPreset();
@@ -701,6 +711,11 @@ bool UMetaSoundBuilderBase::NodeInputIsConnected(const FMetaSoundBuilderNodeInpu
 bool UMetaSoundBuilderBase::NodeOutputIsConnected(const FMetaSoundBuilderNodeOutputHandle& OutputHandle) const
 {
 	return Builder.IsNodeOutputConnected(OutputHandle.NodeID, OutputHandle.VertexID);
+}
+
+void UMetaSoundBuilderBase::ReloadCache(bool bPrimeCache)
+{
+	Builder.ReloadCache();
 }
 
 void UMetaSoundBuilderBase::RemoveGraphInput(FName Name, EMetaSoundBuilderResult& OutResult)
@@ -739,11 +754,6 @@ void UMetaSoundBuilderBase::RenameRootGraphClass(const FMetasoundFrontendClassNa
 }
 
 #if WITH_EDITOR
-void UMetaSoundBuilderBase::ReloadCache()
-{
-	Builder.ReloadCache();
-}
-
 void UMetaSoundBuilderBase::SetAuthor(const FString& InAuthor)
 {
 	Builder.SetAuthor(InAuthor);
@@ -1661,17 +1671,15 @@ bool UMetaSoundBuilderSubsystem::DetachBuilderFromAsset(const FMetasoundFrontend
 	return AssetBuilders.Remove(InClassName.GetFullName()) > 0;
 }
 
-const Metasound::Frontend::FDocumentModifyDelegates* UMetaSoundBuilderSubsystem::FindModifyDelegates(const FMetasoundFrontendClassName& InClassName) const
+void UMetaSoundBuilderSubsystem::InvalidateDocumentCache(const FMetasoundFrontendClassName& InClassName) const
 {
 	using namespace Metasound::Frontend;
 
 	TWeakObjectPtr<UMetaSoundBuilderBase> BuilderPtr = AssetBuilders.FindRef(InClassName.GetFullName());
 	if (BuilderPtr.IsValid())
 	{
-		return &BuilderPtr->GetConstBuilder().GetDocumentDelegates();
+		BuilderPtr->InvalidateCache();
 	}
-
-	return nullptr;
 }
 
 UMetaSoundBuilderBase* UMetaSoundBuilderSubsystem::FindBuilder(FName BuilderName)

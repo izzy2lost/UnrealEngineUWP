@@ -57,6 +57,29 @@ UMetaSoundPatch::UMetaSoundPatch(const FObjectInitializer& ObjectInitializer)
 {
 }
 
+Metasound::Frontend::FDocumentAccessPtr UMetaSoundPatch::GetDocumentAccessPtr()
+{
+	using namespace Metasound::Frontend;
+
+	// Mutation of a document via the soft deprecated access ptr/controller system is not tracked by
+	// the builder registry, so the document cache is invalidated here. It is discouraged to mutate
+	// documents using both systems at the same time as it can corrupt a builder document's cache.
+	const FMetasoundFrontendClassName& Name = RootMetaSoundDocument.RootGraph.Metadata.GetClassName();
+	IDocumentBuilderRegistry::GetChecked().InvalidateDocumentCache(Name);
+
+	// Return document using FAccessPoint to inform the TAccessPtr when the 
+	// object is no longer valid.
+	return MakeAccessPtr<FDocumentAccessPtr>(RootMetaSoundDocument.AccessPoint, RootMetaSoundDocument);
+}
+
+Metasound::Frontend::FConstDocumentAccessPtr UMetaSoundPatch::GetDocumentConstAccessPtr() const
+{
+	using namespace Metasound::Frontend;
+	// Return document using FAccessPoint to inform the TAccessPtr when the 
+	// object is no longer valid.
+	return MakeAccessPtr<FConstDocumentAccessPtr>(RootMetaSoundDocument.AccessPoint, RootMetaSoundDocument);
+}
+
 const UClass& UMetaSoundPatch::GetBaseMetaSoundUClass() const
 {
 	return *UMetaSoundPatch::StaticClass();

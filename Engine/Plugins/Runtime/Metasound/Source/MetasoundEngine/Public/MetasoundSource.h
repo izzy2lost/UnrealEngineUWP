@@ -201,21 +201,8 @@ public:
 	FOnGeneratorInstanceDestroyed OnGeneratorInstanceDestroyed;
 
 protected:
-	Metasound::Frontend::FDocumentAccessPtr GetDocumentAccessPtr() override
-	{
-		using namespace Metasound::Frontend;
-		// Return document using FAccessPoint to inform the TAccessPtr when the 
-		// object is no longer valid.
-		return MakeAccessPtr<FDocumentAccessPtr>(RootMetasoundDocument.AccessPoint, RootMetasoundDocument);
-	}
-
-	Metasound::Frontend::FConstDocumentAccessPtr GetDocumentConstAccessPtr() const override
-	{
-		using namespace Metasound::Frontend;
-		// Return document using FAccessPoint to inform the TAccessPtr when the 
-		// object is no longer valid.
-		return MakeAccessPtr<FConstDocumentAccessPtr>(RootMetasoundDocument.AccessPoint, RootMetasoundDocument);
-	}
+	Metasound::Frontend::FDocumentAccessPtr GetDocumentAccessPtr() override;
+	Metasound::Frontend::FConstDocumentAccessPtr GetDocumentConstAccessPtr() const override;
 
 	virtual const UClass& GetBaseMetaSoundUClass() const final override;
 	virtual const FMetasoundFrontendDocument& GetDocument() const override;
