@@ -294,12 +294,12 @@ bool UDisplayClusterPreviewComponent::UpdatePreviewMesh()
 				{
 					PreviewMesh->SetCastShadow(false);
 
-					if (RootActor && RootActor->IsTechVizPreviewRenderingEnabled())
+					if (RootActor && RootActor->IsTechvisPreviewRenderingEnabled())
 					{
-						// Force set these properties to on with techviz rendering enabled. It won't work properly
-						// with them off. We don't need to force them off when techviz rendering is disabled, PostEditChangeProperty
+						// Force set these properties to on with Techvis rendering enabled. It won't work properly
+						// with them off. We don't need to force them off when Techvis rendering is disabled, PostEditChangeProperty
 						// on the root actor will take care of that.
-						UE::DisplayClusterDisplayDeviceUtils::ConfigureTechVizForMesh(PreviewMesh, true);
+						UE::DisplayClusterDisplayDeviceUtils::ConfigureTechvisForMesh(PreviewMesh, true);
 					}
 				}
 
@@ -386,7 +386,7 @@ void UDisplayClusterPreviewComponent::UpdatePreviewMaterial()
 		}
 
 		// Allow display device to perform any processing on the material instance.
-		if (RootActor && RootActor->IsTechVizPreviewRenderingEnabled())
+		if (RootActor && RootActor->IsTechvisPreviewRenderingEnabled())
 		{
 			if (UDisplayClusterDisplayDeviceBaseComponent* CachedComponent =
 				Cast<UDisplayClusterDisplayDeviceBaseComponent>(CachedDisplayDevice.GetComponent(GetOwner())))
@@ -465,7 +465,7 @@ void UDisplayClusterPreviewComponent::UpdatePreviewRenderTarget()
 			DestinationRenderTarget = SourceRenderTarget;
 
 			// Perform any render passes on the render target by the display device
-			if (RootActor->IsTechVizPreviewRenderingEnabled())
+			if (RootActor->IsTechvisPreviewRenderingEnabled())
 			{
 				if (UDisplayClusterDisplayDeviceBaseComponent* CachedComponent =
 				Cast<UDisplayClusterDisplayDeviceBaseComponent>(CachedDisplayDevice.GetComponent(GetOwner())))

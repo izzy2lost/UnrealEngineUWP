@@ -76,7 +76,7 @@ void ADisplayClusterRootActor::ResetPreviewInternals_Editor()
 	ResetClusterNodePreviewRendering_Editor();
 }
 
-void ADisplayClusterRootActor::ConfigureTechViz_Editor()
+void ADisplayClusterRootActor::ConfigureTechvis_Editor()
 {
 	TArray<UDisplayClusterPreviewComponent*> Components;
 	GetComponents(Components);
@@ -85,7 +85,7 @@ void ADisplayClusterRootActor::ConfigureTechViz_Editor()
 	{
 		if (UMeshComponent* Mesh = PreviewComponent->GetPreviewMesh())
 		{
-			UE::DisplayClusterDisplayDeviceUtils::ConfigureTechVizForMesh(Mesh, bEnablePreviewTechViz);
+			UE::DisplayClusterDisplayDeviceUtils::ConfigureTechvisForMesh(Mesh, bEnablePreviewTechvis);
 		}
 	}
 }
@@ -882,9 +882,9 @@ void ADisplayClusterRootActor::PostEditChangeProperty(FPropertyChangedEvent& Pro
 		PreviewRenderFrame.Reset();
 		bReinitializeActor = false;
 	}
-	else if (PropertyName == GET_MEMBER_NAME_CHECKED(ADisplayClusterRootActor, bEnablePreviewTechViz))
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(ADisplayClusterRootActor, bEnablePreviewTechvis))
 	{
-		ConfigureTechViz_Editor();
+		ConfigureTechvis_Editor();
 	}
 	
 	if (bReinitializeActor)

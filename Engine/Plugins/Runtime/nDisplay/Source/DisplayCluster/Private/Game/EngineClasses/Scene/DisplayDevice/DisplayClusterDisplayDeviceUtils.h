@@ -21,11 +21,11 @@ namespace UE::DisplayClusterDisplayDeviceUtils
 	UDisplayClusterDisplayDeviceBaseComponent* FindAndSyncDisplayDeviceFromViewport(UDisplayClusterConfigurationViewport* InViewport, bool* bOutIsDefaultDevice = nullptr);
 
 	/**
-	 * Configure techviz parameters on a given mesh component.
+	 * Configure Techvis parameters on a given mesh component.
 	 * 
 	 * @param InMeshComponent The impacted mesh component.
-	 * @param bIsTechVizEnabled Whether techviz should be enabled or disabled on this mesh.
+	 * @param bIsTechvisEnabled Whether Techvis should be enabled or disabled on this mesh.
 	 */
-	void ConfigureTechVizForMesh(UMeshComponent* InMeshComponent, bool bIsTechVizEnabled);
+	void ConfigureTechvisForMesh(UMeshComponent* InMeshComponent, bool bIsTechvisEnabled);
 #endif
 }
