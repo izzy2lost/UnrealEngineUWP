@@ -33,7 +33,7 @@ namespace Horde.Server.Tests
 		}
 
         [TestMethod]
-        public async Task AddTool()
+        public async Task AddToolAsync()
         {
 			IToolCollection collection = ServiceProvider.GetRequiredService<IToolCollection>();
 
@@ -49,7 +49,7 @@ namespace Horde.Server.Tests
         }
 
 		[TestMethod]
-		public async Task AddDeployment()
+		public async Task AddDeploymentAsync()
 		{
 			IToolCollection collection = ServiceProvider.GetRequiredService<IToolCollection>();
 

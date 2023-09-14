@@ -30,7 +30,7 @@ namespace Horde.Agent.Execution
 		{
 			await base.InitializeAsync(logger, cancellationToken);
 			
-			if (_batch.Change == 0)
+			if (Batch.Change == 0)
 			{
 				throw new WorkspaceMaterializationException("Jobs with an empty change number are not supported");
 			}
@@ -55,8 +55,8 @@ namespace Horde.Agent.Execution
 				workspaceSettings = await _workspace.InitializeAsync(logger, cancellationToken);
 				scope.Span.SetTag(Datadog.Trace.OpenTracing.DatadogTags.ResourceName, workspaceSettings.Identifier);
 				
-				int preflightChange = (_batch.ClonedPreflightChange != 0) ? _batch.ClonedPreflightChange : _batch.PreflightChange;
-				await _workspace.SyncAsync(_batch.Change, preflightChange, new SyncOptions(), cancellationToken);
+				int preflightChange = (Batch.ClonedPreflightChange != 0) ? Batch.ClonedPreflightChange : Batch.PreflightChange;
+				await _workspace.SyncAsync(Batch.Change, preflightChange, new SyncOptions(), cancellationToken);
 				
 				// TODO: Purging of cache for ManagedWorkspace did happen here in WorkspaceInfo
 
@@ -67,20 +67,20 @@ namespace Horde.Agent.Execution
 			PerforceExecutor.DeleteEngineUserSettings(logger);
 
 			// Get the temp storage directory
-			if (!String.IsNullOrEmpty(_batch.TempStorageDir))
+			if (!String.IsNullOrEmpty(Batch.TempStorageDir))
 			{
-				string escapedStreamName = Regex.Replace(_batch.StreamName, "[^a-zA-Z0-9_-]", "+");
-				_sharedStorageDir = DirectoryReference.Combine(new DirectoryReference(_batch.TempStorageDir), escapedStreamName, $"CL {_batch.Change} - Job {_jobId}");
+				string escapedStreamName = Regex.Replace(Batch.StreamName, "[^a-zA-Z0-9_-]", "+");
+				_sharedStorageDir = DirectoryReference.Combine(new DirectoryReference(Batch.TempStorageDir), escapedStreamName, $"CL {Batch.Change} - Job {JobId}");
 				CopyAutomationTool(_sharedStorageDir, workspaceSettings.DirectoryPath, logger);
 			}
 
 			// Set any non-materializer specific environment variables for jobs
 			_envVars["IsBuildMachine"] = "1";
 			_envVars["uebp_LOCAL_ROOT"] = workspaceSettings.DirectoryPath.FullName;
-			_envVars["uebp_BuildRoot_P4"] = _batch.StreamName;
-			_envVars["uebp_BuildRoot_Escaped"] = _batch.StreamName.Replace('/', '+');
-			_envVars["uebp_CL"] = _batch.Change.ToString();
-			_envVars["uebp_CodeCL"] = _batch.CodeChange.ToString();
+			_envVars["uebp_BuildRoot_P4"] = Batch.StreamName;
+			_envVars["uebp_BuildRoot_Escaped"] = Batch.StreamName.Replace('/', '+');
+			_envVars["uebp_CL"] = Batch.Change.ToString();
+			_envVars["uebp_CodeCL"] = Batch.CodeChange.ToString();
 
 			WorkspaceMaterializerSettings settings = await _workspace.GetSettingsAsync(cancellationToken);
 			foreach ((string key, string value) in settings.EnvironmentVariables)
@@ -139,7 +139,7 @@ namespace Horde.Agent.Execution
 				
 				if (workspaceInfo != null)
 				{
-					return PerforceExecutor.CreatePerforceLogger(logger, _batch.Change, workspaceInfo, autoSdkWorkspaceInfo);
+					return PerforceExecutor.CreatePerforceLogger(logger, Batch.Change, workspaceInfo, autoSdkWorkspaceInfo);
 				}
 			}
 

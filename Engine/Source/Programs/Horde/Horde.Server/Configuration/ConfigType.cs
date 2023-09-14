@@ -184,14 +184,14 @@ namespace Horde.Server.Configuration
 			for (int lastRemainingObjectCount = 0; remainingObjects.Count != lastRemainingObjectCount; )
 			{
 				lastRemainingObjectCount = remainingObjects.Count;
-				for (int Idx = remainingObjects.Count - 1; Idx >= 0; Idx--)
+				for (int idx = remainingObjects.Count - 1; idx >= 0; idx--)
 				{
-					(TKey key, TKey baseKey, TValue value) = remainingObjects[Idx];
+					(TKey key, TKey baseKey, TValue value) = remainingObjects[idx];
 					if (handledValues.TryGetValue(baseKey, out TValue? baseValue))
 					{
 						MergeDefaults(value, baseValue);
 						handledValues.Add(key, value);
-						remainingObjects.RemoveAt(Idx);
+						remainingObjects.RemoveAt(idx);
 					}
 				}
 			}

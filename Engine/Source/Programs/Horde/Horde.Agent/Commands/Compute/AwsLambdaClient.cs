@@ -14,22 +14,22 @@ namespace Horde.Agent.Commands.Compute
 		/// <summary>
 		/// Lambda request ID
 		/// </summary>
-		public string requestId { get; }
+		public string RequestId { get; }
 		
 		/// <summary>
 		/// Name of the Lambda function being invoked
 		/// </summary>
-		public string invokedFunctionArn { get; }
+		public string InvokedFunctionArn { get; }
 		
 		/// <summary>
 		/// Deadline in milliseconds for completing the function invocation
 		/// </summary>
-		public long deadlineMs { get; }
+		public long DeadlineMs { get; }
 		
 		/// <summary>
 		/// Data
 		/// </summary>
-		public ReadOnlyMemory<byte> data { get; }
+		public ReadOnlyMemory<byte> Data { get; }
 
 		/// <summary>
 		/// Constructor
@@ -40,10 +40,10 @@ namespace Horde.Agent.Commands.Compute
 		/// <param name="data"></param>
 		public NextInvocationResponse(string requestId, string invokedFunctionArn, long deadlineMs, byte[] data)
 		{
-			this.requestId = requestId;
-			this.invokedFunctionArn = invokedFunctionArn;
-			this.deadlineMs = deadlineMs;
-			this.data = data;
+			RequestId = requestId;
+			InvokedFunctionArn = invokedFunctionArn;
+			DeadlineMs = deadlineMs;
+			Data = data;
 		}
 	}
 
@@ -225,8 +225,8 @@ namespace Horde.Agent.Commands.Compute
 
 					// Block and wait for the next invocation (can be multiple minutes)
 					nextInvocationResponse = await GetNextInvocationAsync(cancellationToken);
-					ReadOnlyMemory<byte> responseData = await function.OnLambdaInvokeAsync(nextInvocationResponse.requestId, nextInvocationResponse.data, cancellationToken);
-					await SendInvocationResponseAsync(nextInvocationResponse.requestId, responseData);
+					ReadOnlyMemory<byte> responseData = await function.OnLambdaInvokeAsync(nextInvocationResponse.RequestId, nextInvocationResponse.Data, cancellationToken);
+					await SendInvocationResponseAsync(nextInvocationResponse.RequestId, responseData);
 				}
 				catch (Exception e)
 				{
@@ -237,7 +237,7 @@ namespace Horde.Agent.Commands.Compute
 						try
 						{
 							List<string>? stacktraceLines = e.StackTrace?.Split("\n").ToList();
-							await SendInvocationErrorAsync(nextInvocationResponse.requestId, "general", $"{e.GetType()}: {e.Message}", stacktraceLines);
+							await SendInvocationErrorAsync(nextInvocationResponse.RequestId, "general", $"{e.GetType()}: {e.Message}", stacktraceLines);
 						}
 						catch (AwsLambdaClientException sendErrorException)
 						{

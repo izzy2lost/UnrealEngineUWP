@@ -429,22 +429,22 @@ namespace Horde.Server.Jobs.Bisect
 		[Route("/api/v1/bisect")]
 		[ProducesResponseType(typeof(List<GetBisectTaskResponse>), 200)]
 		public async Task<ActionResult<List<GetBisectTaskResponse>>> FindBisectTasksAsync(
-		[FromQuery(Name = "id")] string[]? ids = null,
-		[FromQuery] string? ownerId = null,
-		[FromQuery] string? jobId = null,
-		[FromQuery] DateTimeOffset? minCreateTime = null,
-		[FromQuery] DateTimeOffset? maxCreateTime = null,
-		[FromQuery] int index = 0,
-		[FromQuery] int count = 100,
-		CancellationToken cancellationToken = default)
+			[FromQuery(Name = "id")] string[]? ids = null,
+			[FromQuery] string? ownerId = null,
+			[FromQuery] string? jobId = null,
+			[FromQuery] DateTimeOffset? minCreateTime = null,
+			[FromQuery] DateTimeOffset? maxCreateTime = null,
+			[FromQuery] int index = 0,
+			[FromQuery] int count = 100,
+			CancellationToken cancellationToken = default)
 		{
 			List<GetBisectTaskResponse> responses = new List<GetBisectTaskResponse>();
 
 			BisectTaskId[]? bisectTaskIdValues = (ids == null) ? (BisectTaskId[]?)null : Array.ConvertAll(ids, x => BisectTaskId.Parse(x));
-			JobId? JobIdValue = !String.IsNullOrEmpty(jobId) ? JobId.Parse(jobId) : null;
-			UserId? OwnerIdValue = !String.IsNullOrEmpty(ownerId) ? UserId.Parse(ownerId) : null;
+			JobId? jobIdValue = !String.IsNullOrEmpty(jobId) ? JobId.Parse(jobId) : null;
+			UserId? ownerIdValue = !String.IsNullOrEmpty(ownerId) ? UserId.Parse(ownerId) : null;
 
-			IReadOnlyList<IBisectTask> tasks = await _bisectTaskCollection.FindAsync(bisectTaskIdValues, JobIdValue, OwnerIdValue, minCreateTime?.UtcDateTime, maxCreateTime?.UtcDateTime, index, count, cancellationToken);
+			IReadOnlyList<IBisectTask> tasks = await _bisectTaskCollection.FindAsync(bisectTaskIdValues, jobIdValue, ownerIdValue, minCreateTime?.UtcDateTime, maxCreateTime?.UtcDateTime, index, count, cancellationToken);
 
 			if (tasks.Count == 0)
 			{

@@ -56,7 +56,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
     public class ReferencesTests : ControllerIntegrationTest
     {
 		//		private static TestServer? _server;
-		private static HttpClient? _httpClient;
+		private readonly HttpClient? _httpClient;
 
 		protected IBlobService BlobService => ServiceProvider.GetRequiredService<IBlobService>();
 		protected IRefService RefService => ServiceProvider.GetRequiredService<IRefService>();
@@ -83,8 +83,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		[TestMethod]
         public async Task PutGetBlobAsync()
         {
-            const string objectContents = "This is treated as a opaque blob";
-            byte[] data = Encoding.ASCII.GetBytes(objectContents);
+            const string ObjectContents = "This is treated as a opaque blob";
+            byte[] data = Encoding.ASCII.GetBytes(ObjectContents);
             BlobId objectHash = BlobId.FromBlob(data);
             RefId key = RefId.FromName("newBlobObject");
             using HttpContent requestContent = new ByteArrayContent(data);
@@ -103,7 +103,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
                 byte[] roundTrippedBuffer = ms.ToArray();
                 string roundTrippedPayload = Encoding.ASCII.GetString(roundTrippedBuffer);
 
-                Assert.AreEqual(objectContents, roundTrippedPayload);
+                Assert.AreEqual(ObjectContents, roundTrippedPayload);
                 CollectionAssert.AreEqual(data, roundTrippedBuffer);
                 Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
             }
@@ -135,7 +135,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
                     byte[] roundTrippedBuffer = ms.ToArray();
                     string roundTrippedString = Encoding.ASCII.GetString(roundTrippedBuffer);
 
-                    Assert.AreEqual(objectContents, roundTrippedString);
+                    Assert.AreEqual(ObjectContents, roundTrippedString);
                     Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
                 }
             }
@@ -185,7 +185,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 
                 string roundTrippedString = Encoding.ASCII.GetString(roundTrippedBuffer);
 
-                Assert.AreEqual(objectContents, roundTrippedString);
+                Assert.AreEqual(ObjectContents, roundTrippedString);
                 Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
             }
         }
@@ -510,8 +510,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		[TestMethod]
         public async Task ExistsChecksAsync()
         {
-            const string objectContents = "This is treated as a opaque blob";
-            byte[] data = Encoding.ASCII.GetBytes(objectContents);
+            const string ObjectContents = "This is treated as a opaque blob";
+            byte[] data = Encoding.ASCII.GetBytes(ObjectContents);
             BlobId objectHash = BlobId.FromBlob(data);
             RefId key = RefId.FromName("newObject");
             using HttpContent requestContent = new ByteArrayContent(data);
@@ -542,8 +542,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             BucketId bucket = new BucketId("bucket");
             RefId existingObject = RefId.FromName("existingObject");
 
-            const string objectContents = "This is treated as a opaque blob";
-            byte[] data = Encoding.ASCII.GetBytes(objectContents);
+            const string ObjectContents = "This is treated as a opaque blob";
+            byte[] data = Encoding.ASCII.GetBytes(ObjectContents);
             BlobId objectHash = BlobId.FromBlob(data);
             using HttpContent requestContent = new ByteArrayContent(data);
             requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
@@ -1359,8 +1359,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		[TestMethod]
         public async Task DeleteObjectAsync()
         {
-            const string objectContents = "This is treated as a opaque blob";
-            byte[] data = Encoding.ASCII.GetBytes(objectContents);
+            const string ObjectContents = "This is treated as a opaque blob";
+            byte[] data = Encoding.ASCII.GetBytes(ObjectContents);
             BlobId objectHash = BlobId.FromBlob(data);
 
             using HttpContent requestContent = new ByteArrayContent(data);
@@ -1405,8 +1405,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
         {
             const string BucketToDelete = "delete-bucket";
 
-            const string objectContents = "This is treated as a opaque blob";
-            byte[] data = Encoding.ASCII.GetBytes(objectContents);
+            const string ObjectContents = "This is treated as a opaque blob";
+            byte[] data = Encoding.ASCII.GetBytes(ObjectContents);
             BlobId objectHash = BlobId.FromBlob(data);
 
             using HttpContent requestContent = new ByteArrayContent(data);
@@ -1463,8 +1463,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
         {
             const string NamespaceToBeDeleted = "test-delete-namespace";
 
-            const string objectContents = "This is treated as a opaque blob";
-            byte[] data = Encoding.ASCII.GetBytes(objectContents);
+            const string ObjectContents = "This is treated as a opaque blob";
+            byte[] data = Encoding.ASCII.GetBytes(ObjectContents);
             BlobId objectHash = BlobId.FromBlob(data);
 
             using HttpContent requestContent = new ByteArrayContent(data);
@@ -1528,8 +1528,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		[TestMethod]
         public async Task ListNamespacesAsync()
         {
-            const string objectContents = "This is treated as a opaque blob";
-            byte[] data = Encoding.ASCII.GetBytes(objectContents);
+            const string ObjectContents = "This is treated as a opaque blob";
+            byte[] data = Encoding.ASCII.GetBytes(ObjectContents);
             BlobId objectHash = BlobId.FromBlob(data);
             RefId key = RefId.FromName("notUsedObject");
 
@@ -1557,8 +1557,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		[TestMethod]
         public async Task GetOldRecordsAsync()
         {
-            const string objectContents = "This is treated as a opaque blob";
-            byte[] data = Encoding.ASCII.GetBytes(objectContents);
+            const string ObjectContents = "This is treated as a opaque blob";
+            byte[] data = Encoding.ASCII.GetBytes(ObjectContents);
             BlobId objectHash = BlobId.FromBlob(data);
 
             using HttpContent requestContent = new ByteArrayContent(data);

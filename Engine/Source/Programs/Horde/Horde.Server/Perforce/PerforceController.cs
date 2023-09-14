@@ -274,12 +274,12 @@ namespace Horde.Server.Perforce
 		/// <returns>200 OK on success</returns>
 		[HttpPost]
 		[Route("/api/v1/perforce/{cluster}/trigger")]
-		public async Task<ActionResult> TriggerCallback(string cluster, [FromBody]PerforceTriggerRequest trigger)
+		public async Task<ActionResult> TriggerCallbackAsync(string cluster, [FromBody]PerforceTriggerRequest trigger)
 		{
 			_logger.LogDebug("Received Perforce trigger callback. Type={Type} CL={Changelist} User={User} Root={Root}", 
 				trigger.TriggerType, trigger.ChangeNumber, trigger.User, trigger.ChangeRoot);
 			
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PublicPerforceController)}.{nameof(TriggerCallback)}");
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PublicPerforceController)}.{nameof(TriggerCallbackAsync)}");
 			span.SetAttribute("type", trigger.TriggerType);
 			span.SetAttribute("cl", trigger.ChangeNumber);
 			span.SetAttribute("user", trigger.User);

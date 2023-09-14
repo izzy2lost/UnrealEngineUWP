@@ -94,7 +94,7 @@ namespace Horde.Agent.Tests
 		}
 
 		[TestMethod]
-		public async Task AbortExecuteStepTest()
+		public async Task AbortExecuteStepTestAsync()
 		{
 			{
 				using CancellationTokenSource cancelSource = new CancellationTokenSource();
@@ -129,7 +129,7 @@ namespace Horde.Agent.Tests
 		}
 
 		[TestMethod]
-		public async Task AbortExecuteJobTest()
+		public async Task AbortExecuteJobTestAsync()
 		{
 			using CancellationTokenSource source = new CancellationTokenSource();
 			CancellationToken token = source.Token;
@@ -182,7 +182,7 @@ namespace Horde.Agent.Tests
 		}
 		
 		[TestMethod]
-		public async Task PollForStepAbortFailureTest()
+		public async Task PollForStepAbortFailureTestAsync()
 		{
 			IJobExecutor executor = new SimpleTestExecutor(async (step, logger, cancelToken) =>
 			{

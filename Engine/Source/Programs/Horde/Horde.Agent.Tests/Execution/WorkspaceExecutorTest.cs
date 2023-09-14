@@ -106,7 +106,7 @@ public sealed class WorkspaceExecutorTest : IDisposable
 	}
 
 	[TestMethod]
-	public async Task JobWithPreflight()
+	public async Task JobWithPreflightAsync()
 	{
 		_server.AddJob("jobPreflight", StreamId, 1, 1000);		
 		_workspace.SetFile(1000, "New/Feature/Foo.cs", "foo");
@@ -123,7 +123,7 @@ public sealed class WorkspaceExecutorTest : IDisposable
 	}
 	
 	[TestMethod]
-	public async Task JobWithNoChange()
+	public async Task JobWithNoChangeAsync()
 	{
 		_server.AddJob("jobNoChange", StreamId, 0, 0);
 		BeginBatchResponse batch = new BeginBatchResponse { };

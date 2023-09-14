@@ -99,12 +99,12 @@ namespace Horde.Server.Devices
 		/// </summary>
 		readonly ISingletonDocument<DevicePlatformMapV1> _platformMapSingleton;
 
-		bool runUpgrade = true;
+		bool _runUpgrade = true;
 
 		/// <summary>
 		/// The number of days shared device sheckouts are held
 		/// </summary>
-		public int sharedDeviceCheckoutDays => _settings.CurrentValue.SharedDeviceCheckoutDays;
+		public int SharedDeviceCheckoutDays => _settings.CurrentValue.SharedDeviceCheckoutDays;
 
 		/// <summary>
 		/// Device service constructor
@@ -201,12 +201,12 @@ namespace Horde.Server.Devices
 
 				GlobalConfig globalConfig = _globalConfig.CurrentValue;
 
-				if (runUpgrade)
+				if (_runUpgrade)
 				{
 					try
 					{
 						await _devices.UpgradeAsync();
-						runUpgrade = false;
+						_runUpgrade = false;
 					}
 					catch (Exception ex)
 					{

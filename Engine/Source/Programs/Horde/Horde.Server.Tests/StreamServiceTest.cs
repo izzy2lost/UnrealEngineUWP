@@ -12,7 +12,7 @@ namespace Horde.Server.Tests
     public class StreamServiceTests : TestSetup
     {
         [TestMethod]
-        public async Task Pausing()
+        public async Task PausingAsync()
         {
 			Fixture fixture = await CreateFixtureAsync();
 

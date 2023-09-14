@@ -23,7 +23,7 @@ namespace Horde.Server.Tests
 		readonly LogId _logId = LogId.Parse("637809e571f04e1d1ba311f1");
 
 		[TestMethod]
-		public async Task Truncated()
+		public async Task TruncatedAsync()
 		{
 			LogTailService tailService = ServiceProvider.GetRequiredService<LogTailService>();
 			await tailService.EnableTailingAsync(_logId, 30);
@@ -45,7 +45,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task TruncatedMultiLine()
+		public async Task TruncatedMultiLineAsync()
 		{
 			LogTailService tailService = ServiceProvider.GetRequiredService<LogTailService>();
 			await tailService.EnableTailingAsync(_logId, 30);
@@ -69,7 +69,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task Splitting()
+		public async Task SplittingAsync()
 		{
 			RedisService redisService = ServiceProvider.GetRequiredService<RedisService>();
 
@@ -112,7 +112,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task Expiry()
+		public async Task ExpiryAsync()
 		{
 			RedisService redisService = GetRedisServiceSingleton();
 
@@ -132,7 +132,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task MissingData()
+		public async Task MissingDataAsync()
 		{
 			LogTailService tailService = ServiceProvider.GetRequiredService<LogTailService>();
 
@@ -168,7 +168,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task AsyncEnable()
+		public async Task AsyncEnableAsync()
 		{
 			LogTailService tailService = ServiceProvider.GetRequiredService<LogTailService>();
 			await tailService.StartAsync(CancellationToken.None);

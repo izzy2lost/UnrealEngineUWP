@@ -68,9 +68,9 @@ namespace Horde.Agent.Tests
 		[TestMethod]
 		public void MultiLineFormatTest()
 		{
-			const string msg = @"{""level"":""Information"",""message"":""ignored"",""format"":""This\nis a\nmulti-{Line}-end\nlog message {Var1} {Var2}"",""properties"":{""Line"":""line\nsplit\nin\nfour"",""Var1"":123,""Var2"":{""$type"":""SourceFile"",""$text"":""D:\\build\\\u002B\u002BUE5\\Sync\\GenerateProjectFiles.bat"",""relativePath"":""GenerateProjectFiles.bat"",""depotPath"":""//UE5/Main/GenerateProjectFiles.bat@20392842""}}}";
+			const string Msg = @"{""level"":""Information"",""message"":""ignored"",""format"":""This\nis a\nmulti-{Line}-end\nlog message {Var1} {Var2}"",""properties"":{""Line"":""line\nsplit\nin\nfour"",""Var1"":123,""Var2"":{""$type"":""SourceFile"",""$text"":""D:\\build\\\u002B\u002BUE5\\Sync\\GenerateProjectFiles.bat"",""relativePath"":""GenerateProjectFiles.bat"",""depotPath"":""//UE5/Main/GenerateProjectFiles.bat@20392842""}}}";
 
-			string[] result = SplitMultiLineMessage(msg);
+			string[] result = SplitMultiLineMessage(Msg);
 			Assert.AreEqual(7, result.Length);
 			Assert.AreEqual(@"{""level"":""Information"",""message"":""This"",""format"":""This"",""properties"":{""Var1"":123,""Var2"":{""$type"":""SourceFile"",""$text"":""D:\\build\\\u002B\u002BUE5\\Sync\\GenerateProjectFiles.bat"",""relativePath"":""GenerateProjectFiles.bat"",""depotPath"":""//UE5/Main/GenerateProjectFiles.bat@20392842""}},""line"":0,""lineCount"":7}", result[0]);
 			Assert.AreEqual(@"{""level"":""Information"",""message"":""is a"",""format"":""is a"",""properties"":{""Var1"":123,""Var2"":{""$type"":""SourceFile"",""$text"":""D:\\build\\\u002B\u002BUE5\\Sync\\GenerateProjectFiles.bat"",""relativePath"":""GenerateProjectFiles.bat"",""depotPath"":""//UE5/Main/GenerateProjectFiles.bat@20392842""}},""line"":1,""lineCount"":7}", result[1]);
@@ -84,9 +84,9 @@ namespace Horde.Agent.Tests
 		[TestMethod]
 		public void MultiLineMessageTest()
 		{
-			const string msg = @"{""level"":""Information"",""message"":""This is \na multi-line string""}";
+			const string Msg = @"{""level"":""Information"",""message"":""This is \na multi-line string""}";
 
-			string[] result = SplitMultiLineMessage(msg);
+			string[] result = SplitMultiLineMessage(Msg);
 			Assert.AreEqual(2, result.Length);
 			Assert.AreEqual(result[0], @"{""level"":""Information"",""message"":""This is "",""line"":0,""lineCount"":2}");
 			Assert.AreEqual(result[1], @"{""level"":""Information"",""message"":""a multi-line string"",""line"":1,""lineCount"":2}");
@@ -95,11 +95,11 @@ namespace Horde.Agent.Tests
 		[TestMethod]
 		public void MultiLineDecoyTest()
 		{
-			const string msg = @"{""level"":""Information"",""message"":""This is \\\\not a multi-line format string""}";
+			const string Msg = @"{""level"":""Information"",""message"":""This is \\\\not a multi-line format string""}";
 
-			string[] result = SplitMultiLineMessage(msg);
+			string[] result = SplitMultiLineMessage(Msg);
 			Assert.AreEqual(1, result.Length);
-			Assert.AreEqual(result[0], msg);
+			Assert.AreEqual(result[0], Msg);
 		}
 
 		class FakeJsonRpcLoggerBackend : JsonRpcAndStorageLogSink
@@ -201,18 +201,18 @@ namespace Horde.Agent.Tests
 		{
 			DateTime time = new DateTime(2023, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
 
-			string LongLineA = String.Join("\n", Enumerable.Range(0, 5).Select(x => $"A{x}"));
-			string LongLineB = String.Join("\n", Enumerable.Range(0, 5).Select(x => $"B{x}"));
-			string LongLineC = String.Join("\n", Enumerable.Range(0, 5).Select(x => $"C{x}"));
+			string longLineA = String.Join("\n", Enumerable.Range(0, 5).Select(x => $"A{x}"));
+			string longLineB = String.Join("\n", Enumerable.Range(0, 5).Select(x => $"B{x}"));
+			string longLineC = String.Join("\n", Enumerable.Range(0, 5).Select(x => $"C{x}"));
 
 			Dictionary<string, object> properties = new Dictionary<string, object>
 			{
-				["LongLineA"] = LongLineA,
-				["LongLineB"] = LongLineB,
-				["LongLineC"] = LongLineC,
+				["LongLineA"] = longLineA,
+				["LongLineB"] = longLineB,
+				["LongLineC"] = longLineC,
 			};
 
-			LogEvent baseEvent = new LogEvent(time, LogLevel.Information, default, $"start {LongLineA} x {LongLineB} y\nz {LongLineC} end", "start {LongLineA} x {LongLineB} y\nz {LongLineC} end", properties, null);
+			LogEvent baseEvent = new LogEvent(time, LogLevel.Information, default, $"start {longLineA} x {longLineB} y\nz {longLineC} end", "start {LongLineA} x {LongLineB} y\nz {LongLineC} end", properties, null);
 
 			JsonRpcLogWriter writer = new JsonRpcLogWriter();
 			writer.SanitizeAndWriteEvent(new JsonLogEvent(baseEvent));

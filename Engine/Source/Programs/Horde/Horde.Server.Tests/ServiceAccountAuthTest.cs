@@ -56,7 +56,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task ValidToken()
+		public async Task ValidTokenAsync()
 		{
 			ServiceAccountAuthHandler handler = await GetAuthHandlerAsync("ServiceAccount mytoken");
 			AuthenticateResult result = await handler.AuthenticateAsync();
@@ -68,7 +68,7 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task InvalidToken()
+		public async Task InvalidTokenAsync()
 		{
 			ServiceAccountAuthHandler handler = await GetAuthHandlerAsync("ServiceAccount doesNotExist");
 			AuthenticateResult result = await handler.AuthenticateAsync();
@@ -81,7 +81,7 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task NoResult()
+		public async Task NoResultAsync()
 		{
 			// Valid token but bad prefix
 			ServiceAccountAuthHandler handler = await GetAuthHandlerAsync("Bogus mytoken");
@@ -97,7 +97,7 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task Claims()
+		public async Task ClaimsAsync()
 		{
 			ServiceAccountAuthHandler handler = await GetAuthHandlerAsync("ServiceAccount mytoken");
 			AuthenticateResult result = await handler.AuthenticateAsync();

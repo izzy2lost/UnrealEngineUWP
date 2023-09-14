@@ -107,21 +107,21 @@ namespace Horde.Server.Perforce
 			{
 				public Utf8String _path;
 				public FileEntryFlags _flags;
-				public readonly ChunkedDataWriter _fileWriter;
+				public readonly ChunkedDataWriter FileWriter;
 				public long _size;
 				public long _sizeWritten;
-				public readonly IncrementalHash _hash;
+				public readonly IncrementalHash Hash;
 
 				public Handle(IStorageWriter writer, ChunkingOptions options)
 				{
-					_hash = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
-					_fileWriter = new ChunkedDataWriter(writer, options);
+					Hash = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
+					FileWriter = new ChunkedDataWriter(writer, options);
 				}
 
 				public void Dispose()
 				{
-					_hash.Dispose();
-					_fileWriter.Dispose();
+					Hash.Dispose();
+					FileWriter.Dispose();
 				}
 			}
 
@@ -156,7 +156,7 @@ namespace Horde.Server.Perforce
 					handle = new Handle(_writer, _options);
 				}
 
-				handle._fileWriter.Reset();
+				handle.FileWriter.Reset();
 				handle._path = path;
 				handle._size = size;
 				handle._sizeWritten = 0;
@@ -168,9 +168,9 @@ namespace Horde.Server.Perforce
 			public async Task AppendAsync(int fd, ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
 			{
 				Handle handle = _openHandles[fd];
-				handle._hash.AppendData(data.Span);
+				handle.Hash.AppendData(data.Span);
 
-				await handle._fileWriter.AppendAsync(data, cancellationToken);
+				await handle.FileWriter.AppendAsync(data, cancellationToken);
 				handle._sizeWritten += data.Length;
 			}
 
@@ -182,8 +182,8 @@ namespace Horde.Server.Perforce
 					throw new ReplicationException($"Invalid size for replicated file '{handle._path}'. Expected {handle._size}, got {handle._sizeWritten}.");
 				}
 
-				ChunkedData chunkedData = await handle._fileWriter.FlushAsync(cancellationToken);
-				byte[] hash = handle._hash.GetHashAndReset();
+				ChunkedData chunkedData = await handle.FileWriter.FlushAsync(cancellationToken);
+				byte[] hash = handle.Hash.GetHashAndReset();
 				FileInfo info = new FileInfo(handle._path, handle._flags, handle._size, hash, chunkedData);
 
 				_openHandles.Remove(fd);

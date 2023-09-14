@@ -131,7 +131,7 @@ namespace Horde.Server.Devices
 				DateTime? checkoutExpiration = null;
 				if (device.CheckOutTime != null)
 				{
-					checkoutExpiration = device.CheckOutTime.Value.AddDays(_deviceService.sharedDeviceCheckoutDays);
+					checkoutExpiration = device.CheckOutTime.Value.AddDays(_deviceService.SharedDeviceCheckoutDays);
 				}
 
 				responses.Add(new GetDeviceResponse(device.Id.ToString(), device.PlatformId.ToString(), device.PoolId.ToString(), device.Name, device.Enabled, device.Address, device.ModelId?.ToString(), device.ModifiedByUser, device.Notes, device.ProblemTimeUtc, device.MaintenanceTimeUtc, device.Utilization, device.CheckedOutByUser, device.CheckOutTime, checkoutExpiration));
@@ -169,7 +169,7 @@ namespace Horde.Server.Devices
 			DateTime? checkoutExpiration = null;
 			if (device.CheckOutTime != null)
 			{
-				checkoutExpiration = device.CheckOutTime.Value.AddDays(_deviceService.sharedDeviceCheckoutDays);
+				checkoutExpiration = device.CheckOutTime.Value.AddDays(_deviceService.SharedDeviceCheckoutDays);
 			}
 
 			return new GetDeviceResponse(device.Id.ToString(), device.PlatformId.ToString(), device.PoolId.ToString(), device.Name, device.Enabled, device.Address, device.ModelId?.ToString(), device.ModifiedByUser?.ToString(), device.Notes, device.ProblemTimeUtc, device.MaintenanceTimeUtc, device.Utilization, device.CheckedOutByUser, device.CheckOutTime, checkoutExpiration);

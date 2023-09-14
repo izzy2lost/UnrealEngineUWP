@@ -18,9 +18,9 @@ namespace Horde.Server.Tests
         }
 
         [TestMethod]
-        public async Task GetArtifactDataByFilenameTest()
+        public async Task GetArtifactDataByFilenameTestAsync()
         {
-			Fixture? fixture = await GetFixture();
+			Fixture? fixture = await GetFixtureAsync();
 			IArtifactV1? art = fixture.Job1Artifact;
 
 			// Test existing filename

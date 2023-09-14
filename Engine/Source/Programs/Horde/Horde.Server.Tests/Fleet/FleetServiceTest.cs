@@ -99,7 +99,7 @@ namespace Horde.Server.Tests.Fleet
 		readonly FleetManagerSpy _fleetManagerSpy = new();
 
 		[TestMethod]
-		public async Task OnlyEnabledAgentsAreAutoScaled()
+		public async Task OnlyEnabledAgentsAreAutoScaledAsync()
 		{
 			using FleetService service = GetFleetService(_fleetManagerSpy);
 			IPool pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.LeaseUtilization });
@@ -115,7 +115,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 
 		[TestMethod]
-		public async Task ScaleOutWithPendingShutdowns()
+		public async Task ScaleOutWithPendingShutdownsAsync()
 		{
 			using FleetService service = GetFleetService(new FakeFleetManager());
 			IPool pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.LeaseUtilization });
@@ -133,7 +133,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task ScaleOutWithPendingShutdownsWithStoppedAgents()
+		public async Task ScaleOutWithPendingShutdownsWithStoppedAgentsAsync()
 		{
 			using FleetService service = GetFleetService(new FakeFleetManager());
 			IPool pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.LeaseUtilization });
@@ -152,7 +152,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 
 		[TestMethod]
-		public async Task ScaleOutCooldown()
+		public async Task ScaleOutCooldownAsync()
 		{
 			using FleetService service = GetFleetService(_fleetManagerSpy);
 			IPool pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.NoOp });
@@ -175,7 +175,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task ScaleInCooldown()
+		public async Task ScaleInCooldownAsync()
 		{
 			using FleetService service = GetFleetService(_fleetManagerSpy);
 			IPool pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.NoOp });
@@ -200,7 +200,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task ScaleOutDuringDowntime()
+		public async Task ScaleOutDuringDowntimeAsync()
 		{
 			using FleetService service = GetFleetService(_fleetManagerSpy, true);
 			IPool pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.NoOp });
@@ -211,7 +211,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task ScaleInDuringDowntime()
+		public async Task ScaleInDuringDowntimeAsync()
 		{
 			using FleetService service = GetFleetService(_fleetManagerSpy, true);
 			IPool pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.NoOp });
@@ -242,7 +242,7 @@ namespace Horde.Server.Tests.Fleet
 		private static int s_poolCount;
 
 		[TestMethod]
-		public async Task CreateJobQueueFromLegacySettings()
+		public async Task CreateJobQueueFromLegacySettingsAsync()
 		{
 			IPool pool1 = await PoolService.CreatePoolAsync("test1", new AddPoolOptions { SizeStrategy = PoolSizeStrategy.JobQueue });
 			Assert.AreEqual(typeof(JobQueueStrategy), FleetService.CreatePoolSizeStrategy(pool1).GetType());
@@ -255,26 +255,26 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task CreateLeaseUtilizationFromLegacySettings()
+		public async Task CreateLeaseUtilizationFromLegacySettingsAsync()
 		{
 			IPool pool = await PoolService.CreatePoolAsync("test1", new AddPoolOptions { SizeStrategy = PoolSizeStrategy.LeaseUtilization });
 			Assert.AreEqual(typeof(LeaseUtilizationStrategy), FleetService.CreatePoolSizeStrategy(pool).GetType());
 		}
 
 		[TestMethod]
-		public async Task CreateJobQueueStrategy()
+		public async Task CreateJobQueueStrategyAsync()
 		{
-			IPoolSizeStrategy s = await CreateStrategy(new PoolSizeStrategyInfo(PoolSizeStrategy.JobQueue, null, "{\"ScaleOutFactor\": 100, \"ScaleInFactor\": 200}"));
+			IPoolSizeStrategy s = await CreateStrategyAsync(new PoolSizeStrategyInfo(PoolSizeStrategy.JobQueue, null, "{\"ScaleOutFactor\": 100, \"ScaleInFactor\": 200}"));
 			Assert.AreEqual(typeof(JobQueueStrategy), s.GetType());
 			Assert.AreEqual(100.0, ((JobQueueStrategy)s).Settings.ScaleOutFactor);
 			Assert.AreEqual(200.0, ((JobQueueStrategy)s).Settings.ScaleInFactor);
 		}
 		
 		[TestMethod]
-		public async Task CreateLeaseUtilizationStrategy()
+		public async Task CreateLeaseUtilizationStrategyAsync()
 		{
 			string config = "{\"SampleTimeSec\": 10, \"NumSamples\": 20, \"NumSamplesForResult\": 30}";
-			IPoolSizeStrategy s = await CreateStrategy(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilization, null, config));
+			IPoolSizeStrategy s = await CreateStrategyAsync(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilization, null, config));
 			Assert.AreEqual(typeof(LeaseUtilizationStrategy), s.GetType());
 			Assert.AreEqual(10, ((LeaseUtilizationStrategy)s).Settings.SampleTimeSec);
 			Assert.AreEqual(20, ((LeaseUtilizationStrategy)s).Settings.NumSamples);
@@ -282,69 +282,69 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task CreateLeaseUtilizationAwsMetricStrategy()
+		public async Task CreateLeaseUtilizationAwsMetricStrategyAsync()
 		{
 			string config = "{\"SamplePeriodSec\": 123, \"CloudWatchNamespace\": \"myNs\"}";
-			IPoolSizeStrategy s = await CreateStrategy(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilizationAwsMetric, null, config));
+			IPoolSizeStrategy s = await CreateStrategyAsync(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilizationAwsMetric, null, config));
 			Assert.AreEqual(typeof(LeaseUtilizationAwsMetricStrategy), s.GetType());
 			Assert.AreEqual(123, ((LeaseUtilizationAwsMetricStrategy)s).Settings.SamplePeriodSec);
 			Assert.AreEqual("myNs", ((LeaseUtilizationAwsMetricStrategy)s).Settings.CloudWatchNamespace);
 		}
 		
 		[TestMethod]
-		public async Task CreateStrategyWithExtraAgentCount()
+		public async Task CreateStrategyWithExtraAgentCountAsync()
 		{
-			IPoolSizeStrategy s = await CreateStrategy(new PoolSizeStrategyInfo(PoolSizeStrategy.NoOp, null, "{}", 39));
+			IPoolSizeStrategy s = await CreateStrategyAsync(new PoolSizeStrategyInfo(PoolSizeStrategy.NoOp, null, "{}", 39));
 			PoolSizeResult result = await s.CalculatePoolSizeAsync(null!, new List<IAgent>());
 			Assert.AreEqual(39, result.DesiredAgentCount);
 		}
 		
 		[TestMethod]
-		public async Task EmptyOrInvalidJsonConfig()
+		public async Task EmptyOrInvalidJsonConfigAsync()
 		{
-			await CreateStrategy(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilization, null, ""));
-			await CreateStrategy(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilization, null, "{}"));
-			await CreateStrategy(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilization, null, "  {} "));
+			await CreateStrategyAsync(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilization, null, ""));
+			await CreateStrategyAsync(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilization, null, "{}"));
+			await CreateStrategyAsync(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilization, null, "  {} "));
 			
-			await Assert.ThrowsExceptionAsync<JsonException>(() => CreateStrategy(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilization, null, "BAD_JSON")));
+			await Assert.ThrowsExceptionAsync<JsonException>(() => CreateStrategyAsync(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilization, null, "BAD_JSON")));
 		}
 		
 		[TestMethod]
-		public async Task CreateNoOpStrategy()
+		public async Task CreateNoOpStrategyAsync()
 		{
-			IPoolSizeStrategy s = await CreateStrategy(new PoolSizeStrategyInfo(PoolSizeStrategy.NoOp, null, "{}"));
+			IPoolSizeStrategy s = await CreateStrategyAsync(new PoolSizeStrategyInfo(PoolSizeStrategy.NoOp, null, "{}"));
 			Assert.AreEqual(typeof(NoOpPoolSizeStrategy), s.GetType());
 		}
 		
 		[TestMethod]
-		public async Task UnknownConfigFieldsAreIgnored()
+		public async Task UnknownConfigFieldsAreIgnoredAsync()
 		{
-			IPoolSizeStrategy s = await CreateStrategy(new PoolSizeStrategyInfo(PoolSizeStrategy.JobQueue, null, "{\"BAD-PROPERTY\": 1337}"));
+			IPoolSizeStrategy s = await CreateStrategyAsync(new PoolSizeStrategyInfo(PoolSizeStrategy.JobQueue, null, "{\"BAD-PROPERTY\": 1337}"));
 			Assert.AreEqual(typeof(JobQueueStrategy), s.GetType());
 			Assert.AreEqual(0.25, ((JobQueueStrategy)s).Settings.ScaleOutFactor);
 			Assert.AreEqual(0.9, ((JobQueueStrategy)s).Settings.ScaleInFactor);
 		}
 		
 		[TestMethod]
-		public async Task ConfigHandlesMixedCase()
+		public async Task ConfigHandlesMixedCaseAsync()
 		{
-			IPoolSizeStrategy s = await CreateStrategy(new PoolSizeStrategyInfo(PoolSizeStrategy.JobQueue, null, "{\"scaleOutFactor\": 100, \"SCALEINFACTOR\": 200}"));
+			IPoolSizeStrategy s = await CreateStrategyAsync(new PoolSizeStrategyInfo(PoolSizeStrategy.JobQueue, null, "{\"scaleOutFactor\": 100, \"SCALEINFACTOR\": 200}"));
 			Assert.AreEqual(typeof(JobQueueStrategy), s.GetType());
 			Assert.AreEqual(100.0, ((JobQueueStrategy)s).Settings.ScaleOutFactor);
 			Assert.AreEqual(200.0, ((JobQueueStrategy)s).Settings.ScaleInFactor);
 		}
 		
 		[TestMethod]
-		public async Task CreateFromEmptyStrategyList()
+		public async Task CreateFromEmptyStrategyListAsync()
 		{
-			IPoolSizeStrategy s = await CreateStrategy();
+			IPoolSizeStrategy s = await CreateStrategyAsync();
 			Assert.AreEqual(typeof(NoOpPoolSizeStrategy), s.GetType());
 		}
 		
 		[TestMethod]
-		public async Task ConditionSimple()
+		public async Task ConditionSimpleAsync()
 		{
-			IPoolSizeStrategy s = await CreateStrategy(
+			IPoolSizeStrategy s = await CreateStrategyAsync(
 				new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilization, "false", "{}"),
 				new PoolSizeStrategyInfo(PoolSizeStrategy.JobQueue, "true", "{\"ScaleOutFactor\": 100, \"ScaleInFactor\": 200}")
 			);
@@ -418,7 +418,7 @@ namespace Horde.Server.Tests.Fleet
 			return EpicGames.Horde.Common.Condition.Parse(condition).Evaluate(FleetService.GetPropValues);
 		}
 		
-		private async Task<IPoolSizeStrategy> CreateStrategy(params PoolSizeStrategyInfo[] infos)
+		private async Task<IPoolSizeStrategy> CreateStrategyAsync(params PoolSizeStrategyInfo[] infos)
 		{
 			IPool pool = await PoolService.CreatePoolAsync("testPool-" + s_poolCount++, new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.NoOp });
 			await PoolService.UpdatePoolAsync(pool, new UpdatePoolOptions { SizeStrategies = infos.ToList() });
@@ -432,71 +432,71 @@ namespace Horde.Server.Tests.Fleet
 		private static int s_poolCount;
 		
 		[TestMethod]
-		public async Task CreateNoOp()
+		public async Task CreateNoOpAsync()
 		{
-			IFleetManager fm = await CreateFleetManager(new FleetManagerInfo(FleetManagerType.NoOp, null, "{}"));
+			IFleetManager fm = await CreateFleetManagerAsync(new FleetManagerInfo(FleetManagerType.NoOp, null, "{}"));
 			Assert.AreEqual(typeof(NoOpFleetManager), fm.GetType());
 		}
 		
 		[TestMethod]
-		public async Task CreateAws()
+		public async Task CreateAwsAsync()
 		{
-			IFleetManager fm = await CreateFleetManager(new FleetManagerInfo(FleetManagerType.Aws, null, "{\"ImageId\": \"bogusImageId\"}"));
+			IFleetManager fm = await CreateFleetManagerAsync(new FleetManagerInfo(FleetManagerType.Aws, null, "{\"ImageId\": \"bogusImageId\"}"));
 			Assert.AreEqual(typeof(AwsFleetManager), fm.GetType());
 			Assert.AreEqual("bogusImageId", ((AwsFleetManager)fm).Settings.ImageId);
 		}
 		
 		[TestMethod]
-		public async Task CreateAwsReuse()
+		public async Task CreateAwsReuseAsync()
 		{
-			IFleetManager fm = await CreateFleetManager(new FleetManagerInfo(FleetManagerType.AwsReuse, null, "{\"InstanceTypes\": [\"foo\", \"bar\"]}"));
+			IFleetManager fm = await CreateFleetManagerAsync(new FleetManagerInfo(FleetManagerType.AwsReuse, null, "{\"InstanceTypes\": [\"foo\", \"bar\"]}"));
 			Assert.AreEqual(typeof(AwsReuseFleetManager), fm.GetType());
 			Assert.AreEqual("foo", ((AwsReuseFleetManager)fm).Settings.InstanceTypes![0]);
 			Assert.AreEqual("bar", ((AwsReuseFleetManager)fm).Settings.InstanceTypes![1]);
 		}
 		
 		[TestMethod]
-		public async Task CreateAwsAsg()
+		public async Task CreateAwsAsgAsync()
 		{
-			IFleetManager fm = await CreateFleetManager(new FleetManagerInfo(FleetManagerType.AwsAsg, null, "{\"Name\": \"bogusName\"}"));
+			IFleetManager fm = await CreateFleetManagerAsync(new FleetManagerInfo(FleetManagerType.AwsAsg, null, "{\"Name\": \"bogusName\"}"));
 			Assert.AreEqual(typeof(AwsAsgFleetManager), fm.GetType());
 			Assert.AreEqual("bogusName", ((AwsAsgFleetManager)fm).Settings.Name);
 		}
 
 		[TestMethod]
-		public async Task UnknownConfigFieldsAreIgnored()
+		public async Task UnknownConfigFieldsAreIgnoredAsync()
 		{
-			IFleetManager fm = await CreateFleetManager(new FleetManagerInfo(FleetManagerType.AwsAsg, null, "{\"Name\": \"bogusName\", \"BAD-PROPERTY\": 1337}"));
+			IFleetManager fm = await CreateFleetManagerAsync(new FleetManagerInfo(FleetManagerType.AwsAsg, null, "{\"Name\": \"bogusName\", \"BAD-PROPERTY\": 1337}"));
 			Assert.AreEqual(typeof(AwsAsgFleetManager), fm.GetType());
 			Assert.AreEqual("bogusName", ((AwsAsgFleetManager)fm).Settings.Name);
 		}
 		
 		[TestMethod]
-		public async Task EmptyConfigThrowsException()
+		public async Task EmptyConfigThrowsExceptionAsync()
 		{
-			IFleetManager fm = await CreateFleetManager(new FleetManagerInfo(FleetManagerType.AwsRecycle, null, ""));
+			IFleetManager fm = await CreateFleetManagerAsync(new FleetManagerInfo(FleetManagerType.AwsRecycle, null, ""));
 			Assert.AreEqual(typeof(AwsRecyclingFleetManager), fm.GetType());
 			Assert.IsNull(((AwsRecyclingFleetManager)fm).Settings.InstanceTypes);
 		}
 		
 		[TestMethod]
-		public async Task CreateFromEmptyList()
+		public async Task CreateFromEmptyListAsync()
 		{
-			IFleetManager fm = await CreateFleetManager();
+			IFleetManager fm = await CreateFleetManagerAsync();
 			Assert.AreEqual(typeof(NoOpFleetManager), fm.GetType());
 		}
 		
 		[TestMethod]
-		public async Task ConditionSimple()
+		public async Task ConditionSimpleAsync()
 		{
-			IFleetManager s = await CreateFleetManager(
+			IFleetManager s = await CreateFleetManagerAsync(
 				new FleetManagerInfo(FleetManagerType.Aws, "false", "{}"),
 				new FleetManagerInfo(FleetManagerType.AwsReuse, "true", "{\"ScaleOutFactor\": 100, \"ScaleInFactor\": 200}")
 			);
 			Assert.AreEqual(typeof(AwsReuseFleetManager), s.GetType());
 		}
 		
-		private async Task<IFleetManager> CreateFleetManager(params FleetManagerInfo[] infos)
+		private async Task<IFleetManager> CreateFleetManagerAsync(params FleetManagerInfo[] infos)
 		{
 			IPool pool = await PoolService.CreatePoolAsync("testPool-" + s_poolCount++, new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, FleetManagers = infos.ToList(), SizeStrategy = PoolSizeStrategy.NoOp });
 			return FleetService.CreateFleetManager(pool);

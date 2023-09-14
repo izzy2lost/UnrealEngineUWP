@@ -34,7 +34,7 @@ namespace Horde.Agent.Execution
 			await Task.Delay(5000, cancellationToken);
 
 			UpdateGraphRequest updateGraph = new UpdateGraphRequest();
-			updateGraph.JobId = _jobId;
+			updateGraph.JobId = JobId;
 
 			CreateGroupRequest winEditorGroup = CreateGroup("AnyAgent");
 			winEditorGroup.Nodes.Add(CreateNode("Update Version Files", Array.Empty<string>(), JobStepOutcome.Success));
@@ -170,7 +170,7 @@ namespace Horde.Agent.Execution
 			}
 
 			FileReference currentFile = new FileReference(Assembly.GetExecutingAssembly().Location);
-			await ArtifactUploader.UploadAsync(RpcConnection, _jobId, _batchId, step.StepId, currentFile.GetFileName(), currentFile, logger, cancellationToken);
+			await ArtifactUploader.UploadAsync(RpcConnection, JobId, BatchId, step.StepId, currentFile.GetFileName(), currentFile, logger, cancellationToken);
 
 			logger.LogInformation("**** FINISH NODE {StepName} ****", step.Name);
 

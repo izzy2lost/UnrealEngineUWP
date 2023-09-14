@@ -25,7 +25,7 @@ namespace Horde.Server.Tests.Agents.Pools
 		}
 
 		[TestInitialize]
-		public async Task Setup()
+		public async Task SetupAsync()
 		{
 			_pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true });
 			_enabledAgent = await CreateAgentAsync(_pool, true);
@@ -33,7 +33,7 @@ namespace Horde.Server.Tests.Agents.Pools
 			_disabledAgentBeyondGracePeriod = await CreateAgentAsync(_pool, enabled: false, adjustClockBy: -TimeSpan.FromHours(9));
 		}
 
-		private async Task RefreshAgents()
+		private async Task RefreshAgentsAsync()
 		{
 			_enabledAgent = (await AgentService.GetAgentAsync(_enabledAgent.Id))!;
 			_disabledAgent = (await AgentService.GetAgentAsync(_disabledAgent.Id))!;
@@ -51,11 +51,11 @@ namespace Horde.Server.Tests.Agents.Pools
 		}
 
 		[TestMethod]
-		public async Task ShutdownDisabledAgents_WithGlobalGracePeriod_RequestsShutdown()
+		public async Task ShutdownDisabledAgents_WithGlobalGracePeriod_RequestsShutdownAsync()
 		{
 			// Act
 			await _pus.ShutdownDisabledAgentsAsync(CancellationToken.None);
-			await RefreshAgents();
+			await RefreshAgentsAsync();
 			
 			// Assert
 			Assert.IsFalse(_enabledAgent.RequestShutdown);
@@ -64,7 +64,7 @@ namespace Horde.Server.Tests.Agents.Pools
 		}
 		
 		[TestMethod]
-		public async Task ShutdownDisabledAgents_WithPerPoolGracePeriod_DoesNotRequestShutdown()
+		public async Task ShutdownDisabledAgents_WithPerPoolGracePeriod_DoesNotRequestShutdownAsync()
 		{
 			// Arrange
 			// Explicitly set the grace period for the pool to be longer than the default of 8 hours
@@ -72,7 +72,7 @@ namespace Horde.Server.Tests.Agents.Pools
 			
 			// Act
 			await _pus.ShutdownDisabledAgentsAsync(CancellationToken.None);
-			await RefreshAgents();
+			await RefreshAgentsAsync();
 			
 			// Assert
 			Assert.IsFalse(_enabledAgent.RequestShutdown);
@@ -88,7 +88,7 @@ namespace Horde.Server.Tests.Agents.Pools
 			
 			// Act
 			await _pus.ShutdownDisabledAgentsAsync(CancellationToken.None);
-			await RefreshAgents();
+			await RefreshAgentsAsync();
 			
 			// Assert
 			Assert.IsFalse(_enabledAgent.RequestShutdown);

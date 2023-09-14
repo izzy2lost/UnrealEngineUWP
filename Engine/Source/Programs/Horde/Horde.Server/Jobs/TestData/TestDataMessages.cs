@@ -220,7 +220,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// Test ids to get
 		/// </summary>
-		public List<string> testIds { get; set; } = new List<string>();
+		public List<string> TestIds { get; set; } = new List<string>();
 	}
 
 	/// <summary>

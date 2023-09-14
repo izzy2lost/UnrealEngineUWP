@@ -33,7 +33,7 @@ namespace Horde.Server.Tests.Compute
 		}
 
 		[TestMethod]
-		public async Task EnqueueAndDequeueTask()
+		public async Task EnqueueAndDequeueTaskAsync()
 		{
 			await _scheduler.EnqueueAsync("queue", "task1", true);
 			string? dequeuedTask = await _scheduler.DequeueAsync("queue");
@@ -42,7 +42,7 @@ namespace Horde.Server.Tests.Compute
 		
 		[TestMethod]
 		[Ignore("Currently fails as nothing picks up tasks(?)")]
-		public async Task DequeueWithPredicateFromMiddleOfQueue()
+		public async Task DequeueWithPredicateFromMiddleOfQueueAsync()
 		{
 			using CancellationTokenSource cts = new (2000);
 			await _scheduler.EnqueueAsync("queue", "task1", true);
@@ -57,7 +57,7 @@ namespace Horde.Server.Tests.Compute
 		}
 		
 		[TestMethod]
-		public async Task EnqueueTaskAtFront()
+		public async Task EnqueueTaskAtFrontAsync()
 		{
 			await _scheduler.EnqueueAsync("queue", "task1", true);
 			await _scheduler.EnqueueAsync("queue", "task2", true);
@@ -65,7 +65,7 @@ namespace Horde.Server.Tests.Compute
 		}
 		
 		[TestMethod]
-		public async Task EnqueueTaskAtBack()
+		public async Task EnqueueTaskAtBackAsync()
 		{
 			await _scheduler.EnqueueAsync("queue", "task1", false);
 			await _scheduler.EnqueueAsync("queue", "task2", false);
@@ -73,7 +73,7 @@ namespace Horde.Server.Tests.Compute
 		}
 		
 		[TestMethod]
-		public async Task EnqueueTasksOnSeparateQueues()
+		public async Task EnqueueTasksOnSeparateQueuesAsync()
 		{
 			await _scheduler.EnqueueAsync("queue1", "task1", true);
 			await _scheduler.EnqueueAsync("queue2", "task2", true);
@@ -82,13 +82,13 @@ namespace Horde.Server.Tests.Compute
 		}
 		
 		[TestMethod]
-		public async Task DequeueEmptyQueue()
+		public async Task DequeueEmptyQueueAsync()
 		{
 			Assert.IsNull(await _scheduler.DequeueAsync("queue"));
 		}
 		
 		[TestMethod]
-		public async Task DequeuingMakesQueueActive()
+		public async Task DequeuingMakesQueueActiveAsync()
 		{
 			await _scheduler.EnqueueAsync("queue", "task1", true);
 			Assert.AreEqual(1, (await _scheduler.GetInactiveQueuesAsync()).Count);

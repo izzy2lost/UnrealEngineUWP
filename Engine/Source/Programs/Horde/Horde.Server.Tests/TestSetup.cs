@@ -278,7 +278,7 @@ namespace Horde.Server.Tests
 
 		public Task<Fixture> CreateFixtureAsync()
 		{
-			return Fixture.Create(ConfigService, GraphCollection, TemplateCollection, JobService, ArtifactCollection, AgentService, ServerSettings);
+			return Fixture.CreateAsync(ConfigService, GraphCollection, TemplateCollection, JobService, ArtifactCollection, AgentService, ServerSettings);
 		}
 
 		private JobsController GetJobsController()

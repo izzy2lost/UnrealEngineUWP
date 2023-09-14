@@ -23,7 +23,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task Add()
+		public async Task AddAsync()
 		{
 			IServiceAccount sa = await _serviceAccounts.AddAsync("addToken", new List<string> {"myclaim###myvalue"}, "mydesc");
 			Assert.AreEqual("addToken", sa.SecretToken);
@@ -34,21 +34,21 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task Get()
+		public async Task GetAsync()
 		{
 			IServiceAccount sa = (await _serviceAccounts.GetAsync(_serviceAccount.Id))!;
 			Assert.AreEqual(_serviceAccount, sa);
 		}
 		
 		[TestMethod]
-		public async Task GetBySecretToken()
+		public async Task GetBySecretTokenAsync()
 		{
 			IServiceAccount sa = (await _serviceAccounts.GetBySecretTokenAsync(_serviceAccount.SecretToken))!;
 			Assert.AreEqual(_serviceAccount, sa);
 		}
 		
 		[TestMethod]
-		public async Task Update()
+		public async Task UpdateAsync()
 		{
 			List<string> newClaims = new List<string> {{"newclaim1###newvalue1"}, {"newclaim2###newvalue2"}};
 			await _serviceAccounts.UpdateAsync(_serviceAccount.Id, "newtoken", newClaims, false, "newdesc");
@@ -63,7 +63,7 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task Delete()
+		public async Task DeleteAsync()
 		{
 			await _serviceAccounts.DeleteAsync(_serviceAccount.Id);
 			IServiceAccount? result = await _serviceAccounts.GetAsync(_serviceAccount.Id);

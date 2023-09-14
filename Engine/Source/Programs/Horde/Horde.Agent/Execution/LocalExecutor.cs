@@ -35,8 +35,8 @@ namespace Horde.Agent.Execution
 			FileReference executableFile = new FileReference(Assembly.GetExecutingAssembly().Location);
 			for (DirectoryReference? directory = executableFile.Directory; directory != null; directory = directory.ParentDirectory)
 			{
-				FileReference HordeSln = FileReference.Combine(directory, HordeSlnRelativePath);
-				if (FileReference.Exists(HordeSln))
+				FileReference hordeSln = FileReference.Combine(directory, HordeSlnRelativePath);
+				if (FileReference.Exists(hordeSln))
 				{
 					return directory;
 				}

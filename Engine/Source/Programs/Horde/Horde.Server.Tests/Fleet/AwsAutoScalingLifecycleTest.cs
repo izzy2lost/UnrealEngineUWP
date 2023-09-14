@@ -44,7 +44,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	}
 
 	[TestInitialize]
-	public async Task Setup()
+	public async Task SetupAsync()
 	{
 		ILogger<AwsAutoScalingLifecycleService> logger = ServiceProvider.GetRequiredService<ILogger<AwsAutoScalingLifecycleService>>();
 		_asgMock = new Mock<IAmazonAutoScaling>(MockBehavior.Strict);
@@ -66,7 +66,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task TerminationRequested_WithAgentInService_MarkedForShutdown()
+	public async Task TerminationRequested_WithAgentInService_MarkedForShutdownAsync()
 	{
 		// Arrange
 		LifecycleActionEvent lae = new() { Ec2InstanceId = "i-1234", LifecycleActionToken = "action-token-test", Origin = "AutoScalingGroup" };
@@ -83,7 +83,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task TerminationRequested_WithAgentOnline_LifecycleIsContinued()
+	public async Task TerminationRequested_WithAgentOnline_LifecycleIsContinuedAsync()
 	{
 		// Arrange
 		LifecycleActionEvent lae = new() { Ec2InstanceId = "i-1234", LifecycleActionToken = "action-token-test", Origin = "AutoScalingGroup" };
@@ -98,7 +98,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task TerminationRequested_WithAgentGoingFromOnlineToOffline()
+	public async Task TerminationRequested_WithAgentGoingFromOnlineToOfflineAsync()
 	{
 		// Arrange
 		LifecycleActionEvent lae = new() { Ec2InstanceId = "i-1234", LifecycleActionToken = "action-token-test", Origin = "AutoScalingGroup" };
@@ -129,7 +129,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task TerminationRequested_WithAgentInWarmPool_LifecycleIsAbandoned()
+	public async Task TerminationRequested_WithAgentInWarmPool_LifecycleIsAbandonedAsync()
 	{
 		// Arrange
 		LifecycleActionEvent lae = new() { Ec2InstanceId = "i-1234", LifecycleActionToken = "action-token-test", Origin = "WarmPool" };
@@ -142,7 +142,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task GetInstancesAvailableForTermination_IdleAgent_ReturnsInstanceId()
+	public async Task GetInstancesAvailableForTermination_IdleAgent_ReturnsInstanceIdAsync()
 	{
 		// Arrange
 		_ = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-1000");
@@ -156,7 +156,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task GetInstancesAvailableForTermination_IdleAgentsInMixedAsgs_OnlyReturnInstanceIdFromSameAsg()
+	public async Task GetInstancesAvailableForTermination_IdleAgentsInMixedAsgs_OnlyReturnInstanceIdFromSameAsgAsync()
 	{
 		// Arrange
 		_ = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-1000");
@@ -171,7 +171,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task GetInstancesAvailableForTermination_AgentRunningJob_ReturnsNoInstanceId()
+	public async Task GetInstancesAvailableForTermination_AgentRunningJob_ReturnsNoInstanceIdAsync()
 	{
 		// Arrange
 		AgentLease lease = new(new LeaseId(BinaryIdUtils.CreateNew()), null, "test-lease", null, null, null, LeaseState.Active, null, false, null);

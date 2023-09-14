@@ -341,7 +341,7 @@ namespace Horde.Server.Server
 				throw;
 			}
 
-			_setSchemaVersionTask = SetSchemaVersion(Program.Version);
+			_setSchemaVersionTask = SetSchemaVersionAsync(Program.Version);
 		}
 
 		internal const int CtrlCEvent = 0;
@@ -804,7 +804,7 @@ namespace Horde.Server.Server
 			}
 		}
 
-		async Task<bool> SetSchemaVersion(SemVer schemaVersion)
+		async Task<bool> SetSchemaVersionAsync(SemVer schemaVersion)
 		{
 			// Check we're not downgrading the data
 			for (; ; )
@@ -869,9 +869,9 @@ namespace Horde.Server.Server
 		/// <returns>The document</returns>
 		public async Task<T> GetSingletonAsync<T>(Func<T> constructor) where T : SingletonBase, new()
 		{
-			SingletonDocumentAttribute Attribute = SingletonInfo<T>.Attribute;
+			SingletonDocumentAttribute attribute = SingletonInfo<T>.Attribute;
 
-			FilterDefinition<BsonDocument> filter = new BsonDocument(new BsonElement("_id", Attribute.Id));
+			FilterDefinition<BsonDocument> filter = new BsonDocument(new BsonElement("_id", attribute.Id));
 			for (; ; )
 			{
 				BsonDocument? document = await SingletonsV2.Find(filter).FirstOrDefaultAsync();
@@ -883,9 +883,9 @@ namespace Horde.Server.Server
 				}
 
 				T? newItem = null;
-				if (Attribute.LegacyId != null)
+				if (attribute.LegacyId != null)
 				{
-					BsonDocument? legacyDocument = await SingletonsV1.Find(new BsonDocument(new BsonElement("_id", ObjectId.Parse(Attribute.LegacyId)))).FirstOrDefaultAsync();
+					BsonDocument? legacyDocument = await SingletonsV1.Find(new BsonDocument(new BsonElement("_id", ObjectId.Parse(attribute.LegacyId)))).FirstOrDefaultAsync();
 					if (legacyDocument != null)
 					{
 						legacyDocument.Remove("_id");
@@ -895,7 +895,7 @@ namespace Horde.Server.Server
 				}
 				newItem ??= constructor();
 
-				newItem.Id = new SingletonId(Attribute.Id);
+				newItem.Id = new SingletonId(attribute.Id);
 				await SingletonsV2.InsertOneIgnoreDuplicatesAsync(newItem.ToBsonDocument());
 			}
 		}

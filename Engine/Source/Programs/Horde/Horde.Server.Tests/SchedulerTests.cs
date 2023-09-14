@@ -90,7 +90,7 @@ namespace Horde.Server.Tests
 			await Clock.AdvanceAsync(TimeSpan.FromHours(1.25));
 			await ScheduleService.TickForTestingAsync();
 
-			return await GetNewJobs();
+			return await GetNewJobsAsync();
 		}
 
 		[TestMethod]
@@ -205,14 +205,14 @@ namespace Horde.Server.Tests
 			// Initial tick
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs1 = await GetNewJobs();
+			List<IJob> jobs1 = await GetNewJobsAsync();
 			Assert.AreEqual(0, jobs1.Count);
 
 			// Trigger a job
 			await Clock.AdvanceAsync(TimeSpan.FromHours(1.25));
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs2 = await GetNewJobs();
+			List<IJob> jobs2 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs2.Count);
 			Assert.AreEqual(102, jobs2[0].Change);
 			Assert.AreEqual(100, jobs2[0].CodeChange);
@@ -233,14 +233,14 @@ namespace Horde.Server.Tests
 			// Initial tick
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs1 = await GetNewJobs();
+			List<IJob> jobs1 = await GetNewJobsAsync();
 			Assert.AreEqual(0, jobs1.Count);
 
 			// Trigger a job
 			await Clock.AdvanceAsync(TimeSpan.FromHours(1.25));
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs2 = await GetNewJobs();
+			List<IJob> jobs2 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs2.Count);
 			Assert.AreEqual(102, jobs2[0].Change);
 			Assert.AreEqual(100, jobs2[0].CodeChange);
@@ -257,7 +257,7 @@ namespace Horde.Server.Tests
 			await Clock.AdvanceAsync(TimeSpan.FromHours(0.5));
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs3 = await GetNewJobs();
+			List<IJob> jobs3 = await GetNewJobsAsync();
 			Assert.AreEqual(0, jobs3.Count);
 		}
 
@@ -278,7 +278,7 @@ namespace Horde.Server.Tests
 			// Initial tick
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs1 = await GetNewJobs();
+			List<IJob> jobs1 = await GetNewJobsAsync();
 			Assert.AreEqual(0, jobs1.Count);
 
 			// Trigger some jobs
@@ -291,7 +291,7 @@ namespace Horde.Server.Tests
 			await Clock.AdvanceAsync(TimeSpan.FromHours(1.25));
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs2 = await GetNewJobs();
+			List<IJob> jobs2 = await GetNewJobsAsync();
 			Assert.AreEqual(2, jobs2.Count);
 			Assert.AreEqual(104, jobs2[0].Change);
 			Assert.AreEqual(104, jobs2[0].CodeChange);
@@ -316,7 +316,7 @@ namespace Horde.Server.Tests
 			// Initial tick
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs1 = await GetNewJobs();
+			List<IJob> jobs1 = await GetNewJobsAsync();
 			Assert.AreEqual(0, jobs1.Count);
 
 			// Trigger some jobs
@@ -329,7 +329,7 @@ namespace Horde.Server.Tests
 			await Clock.AdvanceAsync(TimeSpan.FromHours(1.25));
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs2 = await GetNewJobs();
+			List<IJob> jobs2 = await GetNewJobsAsync();
 			Assert.AreEqual(2, jobs2.Count);
 			Assert.AreEqual(103, jobs2[0].Change);
 			Assert.AreEqual(103, jobs2[0].CodeChange);
@@ -355,7 +355,7 @@ namespace Horde.Server.Tests
 			await Clock.AdvanceAsync(TimeSpan.FromHours(1.25));
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs2 = await GetNewJobs();
+			List<IJob> jobs2 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs2.Count);
 			Assert.AreEqual(102, jobs2[0].Change);
 			Assert.AreEqual(100, jobs2[0].CodeChange);
@@ -364,7 +364,7 @@ namespace Horde.Server.Tests
 			await Clock.AdvanceAsync(TimeSpan.FromHours(0.5));
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs3 = await GetNewJobs();
+			List<IJob> jobs3 = await GetNewJobsAsync();
 			Assert.AreEqual(0, jobs3.Count);
 
 			// Mark the original job as complete
@@ -374,7 +374,7 @@ namespace Horde.Server.Tests
 			await Clock.AdvanceAsync(TimeSpan.FromHours(0.5));
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs4 = await GetNewJobs();
+			List<IJob> jobs4 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs4.Count);
 			Assert.AreEqual(102, jobs4[0].Change);
 			Assert.AreEqual(100, jobs4[0].CodeChange);
@@ -396,7 +396,7 @@ namespace Horde.Server.Tests
 			await Clock.AdvanceAsync(TimeSpan.FromHours(1.25));
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs2 = await GetNewJobs();
+			List<IJob> jobs2 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs2.Count);
 			Assert.AreEqual(102, jobs2[0].Change);
 			Assert.AreEqual(100, jobs2[0].CodeChange);
@@ -405,7 +405,7 @@ namespace Horde.Server.Tests
 			await Clock.AdvanceAsync(TimeSpan.FromHours(1.25));
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs3 = await GetNewJobs();
+			List<IJob> jobs3 = await GetNewJobsAsync();
 			Assert.AreEqual(0, jobs3.Count);
 		}
 
@@ -444,7 +444,7 @@ namespace Horde.Server.Tests
 
 			// Tick the schedule and make sure it doesn't trigger
 			await ScheduleService.TickForTestingAsync();
-			List<IJob> jobs2 = await GetNewJobs();
+			List<IJob> jobs2 = await GetNewJobsAsync();
 			Assert.AreEqual(0, jobs2.Count);
 
 			// Create a job and fail it
@@ -459,12 +459,12 @@ namespace Horde.Server.Tests
 			job1 = Deref(await JobService.UpdateStepAsync(job1, batchId1, stepId1, config, JobStepState.Completed, JobStepOutcome.Failure));
 			job1 = Deref(await JobService.UpdateBatchAsync(job1, batchId1, config, LogId.GenerateNewId(), JobStepBatchState.Complete));
 			Assert.IsNotNull(job1);
-			await GetNewJobs();
+			await GetNewJobsAsync();
 
 			// Tick the schedule and make sure it doesn't trigger
 			await Clock.AdvanceAsync(TimeSpan.FromMinutes(30.0));
 			await ScheduleService.TickForTestingAsync();
-			List<IJob> jobs3 = await GetNewJobs();
+			List<IJob> jobs3 = await GetNewJobsAsync();
 			Assert.AreEqual(0, jobs3.Count);
 
 			// Create a job and make it succeed
@@ -481,7 +481,7 @@ namespace Horde.Server.Tests
 
 			// Tick the schedule and make sure it does trigger
 			await ScheduleService.TickForTestingAsync();
-			List<IJob> jobs4 = await GetNewJobs();
+			List<IJob> jobs4 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs4.Count);
 			Assert.AreEqual(1234, jobs4[0].Change);
 			Assert.AreEqual(1233, jobs4[0].CodeChange);
@@ -562,12 +562,12 @@ namespace Horde.Server.Tests
 					job1 = Deref(await JobService.UpdateBatchAsync(job1, batchId1, config, LogId.GenerateNewId(), JobStepBatchState.Complete));
 				}
 			}
-			await GetNewJobs();
+			await GetNewJobsAsync();
 
 			// Tick the schedule and make sure it doesn't trigger
 			await Clock.AdvanceAsync(TimeSpan.FromMinutes(30.0));
 			await ScheduleService.TriggerAsync(StreamId, newTemplateRefId2, Clock.UtcNow, default);
-			List<IJob> jobs3 = await GetNewJobs();
+			List<IJob> jobs3 = await GetNewJobsAsync();
 			Assert.AreEqual(2, jobs3.Count);
 			Assert.AreEqual(1230, jobs3[0].Change);
 			Assert.AreEqual(1233, jobs3[1].Change);
@@ -590,7 +590,7 @@ namespace Horde.Server.Tests
 			await Clock.AdvanceAsync(TimeSpan.FromHours(1.25));
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs1 = await GetNewJobs();
+			List<IJob> jobs1 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs1.Count);
 			Assert.AreEqual(102, jobs1[0].Change);
 			Assert.AreEqual(100, jobs1[0].CodeChange);
@@ -612,7 +612,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task StreamPausing()
+		public async Task StreamPausingAsync()
 		{
 			DateTime startTime = new DateTime(2021, 1, 1, 12, 0, 0, DateTimeKind.Utc); // Friday Jan 1, 2021 
 			Clock.UtcNow = startTime;
@@ -628,20 +628,20 @@ namespace Horde.Server.Tests
 			// Try trigger a job. No job should be scheduled as the stream is paused
 			await Clock.AdvanceAsync(TimeSpan.FromHours(1.25));
 			await ScheduleService.TickForTestingAsync();
-			List<IJob> jobs2 = await GetNewJobs();
+			List<IJob> jobs2 = await GetNewJobsAsync();
 			Assert.AreEqual(0, jobs2.Count);
 
 			// Advance time beyond the pause period. A build should now trigger
 			await Clock.AdvanceAsync(TimeSpan.FromHours(5.25));
 			await ScheduleService.TickForTestingAsync();
 
-			List<IJob> jobs3 = await GetNewJobs();
+			List<IJob> jobs3 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs3.Count);
 			Assert.AreEqual(102, jobs3[0].Change);
 			Assert.AreEqual(100, jobs3[0].CodeChange);
 		}
 
-		async Task<List<IJob>> GetNewJobs()
+		async Task<List<IJob>> GetNewJobsAsync()
 		{
 			List<IJob> jobs = await JobCollection.FindAsync();
 			jobs.RemoveAll(x => _initialJobIds.Contains(x.Id));

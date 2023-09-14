@@ -97,7 +97,7 @@ namespace Horde.Server.Jobs.TestData
 		[ProducesResponseType(typeof(List<GetTestResponse>), 200)]
 		public async Task<ActionResult<List<GetTestResponse>>> GetTestsAsync([FromBody] GetTestsRequest request)
 		{
-			HashSet<string> testIds = new HashSet<string>(request.testIds);
+			HashSet<string> testIds = new HashSet<string>(request.TestIds);
 
 			List<ITest> testValues = await _testDataService.FindTestsAsync(testIds.Select(x => TestId.Parse(x)).ToArray());			
 

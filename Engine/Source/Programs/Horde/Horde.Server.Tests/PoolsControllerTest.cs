@@ -13,7 +13,7 @@ namespace Horde.Server.Tests
     public class PoolsControllerTest : TestSetup
     {
         [TestMethod]
-        public async Task GetPoolsTest()
+        public async Task GetPoolsTestAsync()
         {
 	        IPool pool1 = await PoolService.CreatePoolAsync("Pool1", new AddPoolOptions { Properties = new Dictionary<string, string>() { { "foo", "bar" }, { "lorem", "ipsum" } } });
 	        ActionResult<List<object>> rawResult = await PoolsController.GetPoolsAsync();
@@ -25,7 +25,7 @@ namespace Horde.Server.Tests
         }
         
         [TestMethod]
-        public async Task CreatePoolsTest()
+        public async Task CreatePoolsTestAsync()
         {
 	        CreatePoolRequest request = new CreatePoolRequest
 	        {
@@ -59,7 +59,7 @@ namespace Horde.Server.Tests
         }
         
         [TestMethod]
-        public async Task UpdatePoolTest()
+        public async Task UpdatePoolTestAsync()
         {
 	        IPool pool1 = await PoolService.CreatePoolAsync("Pool1", new AddPoolOptions { Properties = new Dictionary<string, string>() { { "foo", "bar" }, { "lorem", "ipsum" } } });
 

@@ -226,10 +226,10 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
 		{
-			string Title = fingerprint.GetMetadataValues("type").FirstOrDefault() ?? "unknown";
+			string title = fingerprint.GetMetadataValues("type").FirstOrDefault() ?? "unknown";
 			string severityText = (severity == IssueSeverity.Warning) ? "warnings" : "errors";
-			string[] Errors = fingerprint.GetMetadataValues("context").ToArray();
-			return $"{Type} {Title} {severityText} {StringUtils.FormatList(Errors, 2)}";
+			string[] errors = fingerprint.GetMetadataValues("context").ToArray();
+			return $"{Type} {title} {severityText} {StringUtils.FormatList(errors, 2)}";
 		}
 	}
 }

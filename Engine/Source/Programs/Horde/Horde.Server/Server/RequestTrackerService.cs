@@ -143,14 +143,16 @@ namespace Horde.Server.Server
 		{
 			_next = next;
 		}
-	
+
 		/// <summary>
 		/// Invoked by ASP.NET framework itself
 		/// </summary>
 		/// <param name="context">HTTP Context</param>
 		/// <param name="service">The RequestTrackerService singleton</param>
 		/// <returns></returns>
+#pragma warning disable IDE1006 // Naming Styles
 		public async Task Invoke(HttpContext context, RequestTrackerService service)
+#pragma warning restore IDE1006 // Naming Styles
 		{
 			if (!context.Request.Path.StartsWithSegments("/health", StringComparison.Ordinal))
 			{

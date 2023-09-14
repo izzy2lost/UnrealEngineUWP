@@ -50,9 +50,9 @@ namespace Horde.Server.Tests
 			}
 		}
 
-		private async Task PopulateDevices()
+		private async Task PopulateDevicesAsync()
 		{
-			DeviceConfig Devices = new DeviceConfig();
+			DeviceConfig devices = new DeviceConfig();
 
 			// create 2 pools
 			for (int i = 1; i < 3; i++)
@@ -86,11 +86,11 @@ namespace Horde.Server.Tests
 					config.Id = new DevicePlatformId(StringId.Sanitize(platformName)).ToString();
 					config.Names.Add("TestDevicePlatform3Alias");
 					config.LegacyPerfSpecHighModel = "TestDevicePlatform3_Model4";
-					Devices.Platforms.Add(config);
+					devices.Platforms.Add(config);
 				}
 			}
 
-			UpdateConfig(x => x.Devices = Devices);
+			UpdateConfig(x => x.Devices = devices);
 
 			// add 4 devices to each platform, split between 2 pools
 			for (int i = 1; i < 4; i++)
@@ -98,15 +98,15 @@ namespace Horde.Server.Tests
 				for (int j = 1; j < 5; j++)
 				{
 					// one base model, and 3 other models 
-					string? ModelId = null;
+					string? modelId = null;
 					if (j > 1)
 					{
-						ModelId = "TestDevicePlatform" + i + "_Model" + j;
+						modelId = "TestDevicePlatform" + i + "_Model" + j;
 					}
 
 					string poolId = (j & 1) != 0 ? "testdevicepool1" : "testdevicepool2";
 
-					await DeviceController.CreateDeviceAsync(new CreateDeviceRequest() { Name = "TestDevice" + j + "_Platform" + i + "_" + poolId, Address = "10.0.0.1", Enabled = true, PlatformId = "testdeviceplatform" + i, ModelId = ModelId, PoolId = poolId });
+					await DeviceController.CreateDeviceAsync(new CreateDeviceRequest() { Name = "TestDevice" + j + "_Platform" + i + "_" + poolId, Address = "10.0.0.1", Enabled = true, PlatformId = "testdeviceplatform" + i, ModelId = modelId, PoolId = poolId });
 				}
 			}
 
@@ -119,10 +119,10 @@ namespace Horde.Server.Tests
 			return ((result.Result! as JsonResult)!.Value! as T)!;
 		}
 
-		async Task<LegacyCreateReservationRequest> SetupReservationTest(string poolId = "TestDevicePool1", string deviceType = "TestDevicePlatform1")
+		async Task<LegacyCreateReservationRequest> SetupReservationTestAsync(string poolId = "TestDevicePool1", string deviceType = "TestDevicePlatform1")
 		{
 			await CreateFixtureAsync();
-			await PopulateDevices();
+			await PopulateDevicesAsync();
 
 			ActionResult<List<object>> res = await JobsController.FindJobsAsync();
 			Assert.AreEqual(2, res.Value!.Count);
@@ -141,9 +141,9 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task TestReservation()
+		public async Task TestReservationAsync()
 		{
-			LegacyCreateReservationRequest request = await SetupReservationTest();
+			LegacyCreateReservationRequest request = await SetupReservationTestAsync();
 			
 			// create a reservation
 			GetLegacyReservationResponse reservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));			
@@ -173,9 +173,9 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task TestReservationPerfSpecWithAlias()
+		public async Task TestReservationPerfSpecWithAliasAsync()
 		{
-			LegacyCreateReservationRequest request = await SetupReservationTest("TestDevicePool2", "TestDevicePlatform3Alias:High");
+			LegacyCreateReservationRequest request = await SetupReservationTestAsync("TestDevicePool2", "TestDevicePlatform3Alias:High");
 
 			// create a reservation
 			GetLegacyReservationResponse reservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));
@@ -206,10 +206,10 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task TestReservationPerfModel()
+		public async Task TestReservationPerfModelAsync()
 		{
 			List<string> deviceModels = new List<string>() { "TestDevicePlatform1:TestDevicePlatform1_Model2", "TestDevicePlatform1_Model3" };
-			LegacyCreateReservationRequest request = await SetupReservationTest("TestDevicePool1", String.Join(';', deviceModels));
+			LegacyCreateReservationRequest request = await SetupReservationTestAsync("TestDevicePool1", String.Join(';', deviceModels));
 
 			// update device model
 			UpdateDeviceRequest updateRequest = new UpdateDeviceRequest() { ModelId = "TestDevicePlatform1_Model2" };
@@ -240,9 +240,9 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task TestProblemDevice()
+		public async Task TestProblemDeviceAsync()
 		{
-			LegacyCreateReservationRequest request = await SetupReservationTest();
+			LegacyCreateReservationRequest request = await SetupReservationTestAsync();
 
 			// create a reservation
 			GetLegacyReservationResponse reservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));
@@ -265,9 +265,9 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task TestDevicePoolTelemetryCapture()
+		public async Task TestDevicePoolTelemetryCaptureAsync()
 		{
-			LegacyCreateReservationRequest reservationRequest = await SetupReservationTest();
+			LegacyCreateReservationRequest reservationRequest = await SetupReservationTestAsync();
 
 			// set some device status
 			UpdateDeviceRequest request = new UpdateDeviceRequest();

@@ -19,7 +19,7 @@ namespace Horde.Server.Tests.Fleet
 	public class AwsReuseFleetManagerTest : TestSetup
 	{
 		[TestMethod]
-		public async Task ExpandOneAgent()
+		public async Task ExpandOneAgentAsync()
 		{
 			FakeAmazonEc2 ec2 = new ();
 			Instance i = ec2.AddInstance(FakeAmazonEc2.StateStopped, InstanceType.M5Large);
@@ -31,7 +31,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task ExpandWithInstanceTypeChange()
+		public async Task ExpandWithInstanceTypeChangeAsync()
 		{
 			FakeAmazonEc2 ec2 = new ();
 			Instance i = ec2.AddInstance(FakeAmazonEc2.StateStopped, InstanceType.M5Large);

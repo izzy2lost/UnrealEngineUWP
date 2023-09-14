@@ -97,7 +97,7 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task NotifyJobScheduled()
+		public async Task NotifyJobScheduledAsync()
 		{
 			FakeNotificationSink fakeSink = ServiceProvider.GetRequiredService<FakeNotificationSink>();
 
@@ -119,7 +119,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task JobScheduledNotificationsAreDeduplicated()
+		public async Task JobScheduledNotificationsAreDeduplicatedAsync()
 		{
 			FakeNotificationSink fakeSink = ServiceProvider.GetRequiredService<FakeNotificationSink>();
 			NotificationService service = (NotificationService)ServiceProvider.GetRequiredService<INotificationService>();

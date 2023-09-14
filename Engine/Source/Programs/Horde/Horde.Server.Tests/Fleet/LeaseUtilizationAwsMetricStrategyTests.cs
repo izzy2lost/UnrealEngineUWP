@@ -48,7 +48,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task Metadata()
+		public async Task MetadataAsync()
 		{
 			// Arrange
 			List<IAgent> agents = await CreateAgentsAsync(_pool, 4);
@@ -66,7 +66,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task UtilizationZero()
+		public async Task UtilizationZeroAsync()
 		{
 			// Arrange
 			List<IAgent> agents = await CreateAgentsAsync(_pool, 4);
@@ -79,7 +79,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task NoAgents()
+		public async Task NoAgentsAsync()
 		{
 			// Arrange
 			await CreateAgentsAsync(_pool, 4);
@@ -92,12 +92,12 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task UtilizationHalf()
+		public async Task UtilizationHalfAsync()
 		{
 			// Arrange
 			List<IAgent> agents = await CreateAgentsAsync(_pool, 4);
-			await AddPlaceholderLease(agents[0], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120), LeaseType.Compute);
-			await AddPlaceholderLease(agents[1], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
+			await AddPlaceholderLeaseAsync(agents[0], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120), LeaseType.Compute);
+			await AddPlaceholderLeaseAsync(agents[1], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
 
 			// Act
 			await _strategy.CalculatePoolSizeAsync(_pool, agents);
@@ -107,14 +107,14 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task UtilizationFull()
+		public async Task UtilizationFullAsync()
 		{
 			// Arrange
 			List<IAgent> agents = await CreateAgentsAsync(_pool, 4);
-			await AddPlaceholderLease(agents[0], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120), LeaseType.Compute);
-			await AddPlaceholderLease(agents[1], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120), LeaseType.Compute);
-			await AddPlaceholderLease(agents[2], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
-			await AddPlaceholderLease(agents[3], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
+			await AddPlaceholderLeaseAsync(agents[0], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120), LeaseType.Compute);
+			await AddPlaceholderLeaseAsync(agents[1], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120), LeaseType.Compute);
+			await AddPlaceholderLeaseAsync(agents[2], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
+			await AddPlaceholderLeaseAsync(agents[3], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
 
 			// Act
 			await _strategy.CalculatePoolSizeAsync(_pool, agents);
@@ -124,14 +124,14 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task AgentMissingInParameters()
+		public async Task AgentMissingInParametersAsync()
 		{
 			// Arrange
 			List<IAgent> agents = await CreateAgentsAsync(_pool, 4);
-			await AddPlaceholderLease(agents[0], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120), LeaseType.Compute);
-			await AddPlaceholderLease(agents[1], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120), LeaseType.Compute);
-			await AddPlaceholderLease(agents[2], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
-			await AddPlaceholderLease(agents[3], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
+			await AddPlaceholderLeaseAsync(agents[0], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120), LeaseType.Compute);
+			await AddPlaceholderLeaseAsync(agents[1], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120), LeaseType.Compute);
+			await AddPlaceholderLeaseAsync(agents[2], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
+			await AddPlaceholderLeaseAsync(agents[3], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
 
 			// Act
 			List<IAgent> oneMissingAgent = agents.Take(3).ToList();
@@ -142,16 +142,16 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task IgnoreOtherPools()
+		public async Task IgnoreOtherPoolsAsync()
 		{
 			// Arrange
 			IPool otherPool = await PoolService.CreatePoolAsync("other-pool", new() { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 });
 			List<IAgent> agents = await CreateAgentsAsync(_pool, 4);
 			List<IAgent> otherAgents = await CreateAgentsAsync(otherPool, 4);
-			await AddPlaceholderLease(agents[0], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120), LeaseType.Compute);
-			await AddPlaceholderLease(agents[1], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
-			await AddPlaceholderLease(otherAgents[0], otherPool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
-			await AddPlaceholderLease(otherAgents[1], otherPool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
+			await AddPlaceholderLeaseAsync(agents[0], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120), LeaseType.Compute);
+			await AddPlaceholderLeaseAsync(agents[1], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
+			await AddPlaceholderLeaseAsync(otherAgents[0], otherPool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
+			await AddPlaceholderLeaseAsync(otherAgents[1], otherPool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
 
 			// Act
 			await _strategy.CalculatePoolSizeAsync(_pool, agents);
@@ -161,17 +161,17 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task MoreLeasesThanAgents()
+		public async Task MoreLeasesThanAgentsAsync()
 		{
 			// Arrange
 			List<IAgent> agents = await CreateAgentsAsync(_pool, 4);
-			await AddPlaceholderLease(agents[0], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(5));
-			await AddPlaceholderLease(agents[0], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(10));
-			await AddPlaceholderLease(agents[0], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(15));
-			await AddPlaceholderLease(agents[1], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(5));
-			await AddPlaceholderLease(agents[1], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(15));
-			await AddPlaceholderLease(agents[2], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(15));
-			await AddPlaceholderLease(agents[3], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(15));
+			await AddPlaceholderLeaseAsync(agents[0], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(5));
+			await AddPlaceholderLeaseAsync(agents[0], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(10));
+			await AddPlaceholderLeaseAsync(agents[0], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(15));
+			await AddPlaceholderLeaseAsync(agents[1], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(5));
+			await AddPlaceholderLeaseAsync(agents[1], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(15));
+			await AddPlaceholderLeaseAsync(agents[2], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(15));
+			await AddPlaceholderLeaseAsync(agents[3], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(15));
 
 			// Act
 			await _strategy.CalculatePoolSizeAsync(_pool, agents);
@@ -181,13 +181,13 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task LeasesInProgress()
+		public async Task LeasesInProgressAsync()
 		{
 			// Arrange
 			List<IAgent> agents = await CreateAgentsAsync(_pool, 4);
-			await AddPlaceholderLease(agents[0], _pool, OneMinuteAgo(), null);
-			await AddPlaceholderLease(agents[1], _pool, OneMinuteAgo(), null);
-			await AddPlaceholderLease(agents[2], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(15));
+			await AddPlaceholderLeaseAsync(agents[0], _pool, OneMinuteAgo(), null);
+			await AddPlaceholderLeaseAsync(agents[1], _pool, OneMinuteAgo(), null);
+			await AddPlaceholderLeaseAsync(agents[2], _pool, OneMinuteAgo(), TimeSpan.FromSeconds(15));
 
 			// Act
 			await _strategy.CalculatePoolSizeAsync(_pool, agents);
@@ -207,7 +207,7 @@ namespace Horde.Server.Tests.Fleet
 			Compute
 		}
 		
-		private async Task<ILease> AddPlaceholderLease(IAgent agent, IPool pool, DateTime startTime, TimeSpan? duration, LeaseType leaseType = LeaseType.ExecuteJob)
+		private async Task<ILease> AddPlaceholderLeaseAsync(IAgent agent, IPool pool, DateTime startTime, TimeSpan? duration, LeaseType leaseType = LeaseType.ExecuteJob)
 		{
 			Assert.IsNotNull(agent.SessionId);
 

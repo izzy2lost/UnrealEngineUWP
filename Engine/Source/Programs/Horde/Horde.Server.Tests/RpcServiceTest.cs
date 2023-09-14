@@ -292,7 +292,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task CreateSessionTest()
+		public async Task CreateSessionTestAsync()
 		{
 			CreateSessionRequest req = new CreateSessionRequest();
 			await Assert.ThrowsExceptionAsync<StructuredRpcException>(() => RpcService.CreateSession(req, _adminContext));
@@ -308,7 +308,7 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task AgentJoinsPoolThroughProperties()
+		public async Task AgentJoinsPoolThroughPropertiesAsync()
 		{
 			CreateSessionRequest req = new () { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new AgentCapabilities() };
 			req.Capabilities.Properties.Add($"{KnownPropertyNames.RequestedPools}=fooPool,barPool");
@@ -327,7 +327,7 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task PropertiesFromAgentCapabilities()
+		public async Task PropertiesFromAgentCapabilitiesAsync()
 		{
 			CreateSessionRequest req = new () { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new AgentCapabilities() };
 			req.Capabilities.Properties.Add("fooKey=barValue");
@@ -337,7 +337,7 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task PropertiesFromDeviceCapabilities()
+		public async Task PropertiesFromDeviceCapabilitiesAsync()
 		{
 			CreateSessionRequest req = new () { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new AgentCapabilities() };
 			req.Capabilities.Devices.Add(new DeviceCapabilities { Handle = "someHandle", Properties = { "foo=bar" } });
@@ -347,7 +347,7 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task KnownPropertiesAreSetAsResources()
+		public async Task KnownPropertiesAreSetAsResourcesAsync()
 		{
 			CreateSessionRequest req = new () { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new AgentCapabilities() };
 			req.Capabilities.Devices.Add(new DeviceCapabilities { Handle = "someHandle", Properties = { $"{KnownPropertyNames.LogicalCores}=10" }});
@@ -357,7 +357,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task UpdateSessionTest()
+		public async Task UpdateSessionTestAsync()
 		{
 			CreateSessionRequest createReq = new CreateSessionRequest
 			{
@@ -380,7 +380,7 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task QueryServerSessionTest()
+		public async Task QueryServerSessionTestAsync()
 		{
 			RpcService._longPollTimeout = TimeSpan.FromMilliseconds(200);
 
@@ -402,7 +402,7 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task FinishBatchTest()
+		public async Task FinishBatchTestAsync()
 		{
 			CreateSessionRequest createReq = new CreateSessionRequest
 			{
@@ -425,7 +425,7 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task UploadArtifactTest()
+		public async Task UploadArtifactTestAsync()
 		{
 			Fixture fixture = await CreateFixtureAsync();
 

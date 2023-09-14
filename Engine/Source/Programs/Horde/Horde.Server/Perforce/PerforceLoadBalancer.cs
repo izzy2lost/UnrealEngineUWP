@@ -422,7 +422,7 @@ namespace Horde.Server.Perforce
 
 			// Update the number of leases for each entry
 			List<PerforceServerEntry> newEntries = newServers.OrderBy(x => x.Cluster).ThenBy(x => x.BaseServerAndPort).ThenBy(x => x.ServerAndPort).ToList();
-			await UpdateLeaseCounts(newEntries);
+			await UpdateLeaseCountsAsync(newEntries);
 			PerforceServerList list = await _serverListSingleton.UpdateAsync(list => MergeServerList(list, newEntries));
 
 			// Now update the health of each entry
@@ -454,7 +454,7 @@ namespace Horde.Server.Perforce
 			serverList.Servers = newEntries;
 		}
 
-		async Task UpdateLeaseCounts(IEnumerable<PerforceServerEntry> newServerEntries)
+		async Task UpdateLeaseCountsAsync(IEnumerable<PerforceServerEntry> newServerEntries)
 		{
 			Dictionary<string, Dictionary<string, PerforceServerEntry>> newServerLookup = new Dictionary<string, Dictionary<string, PerforceServerEntry>>();
 			foreach (PerforceServerEntry newServerEntry in newServerEntries)

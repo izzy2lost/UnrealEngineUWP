@@ -41,7 +41,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task SendRecvTest()
+		public async Task SendRecvTestAsync()
 		{
 			CancellationToken cancellationToken = CancellationToken.None;
 			byte[] nonce = new byte[ServerComputeClient.NonceLength];

@@ -24,7 +24,7 @@ namespace Horde.Server.Tests.Fleet
 		private readonly FakeClock _clock = new();
 		
 		[TestMethod]
-		public async Task ExpandAmazonEc2ExceptionsArePropagated()
+		public async Task ExpandAmazonEc2ExceptionsArePropagatedAsync()
 		{
 			FakeAmazonEc2 ec2 = new ();
 			ec2.AddInstance(FakeAmazonEc2.StateStopped, InstanceType.M5Large, FakeAmazonEc2.AzUsEast1A);
@@ -34,7 +34,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task ExpandOneAzPartialCapacityWithFallback()
+		public async Task ExpandOneAzPartialCapacityWithFallbackAsync()
 		{
 			FakeAmazonEc2 ec2 = new ();
 			Instance i1 = ec2.AddInstance(FakeAmazonEc2.StateStopped, InstanceType.M5Large, FakeAmazonEc2.AzUsEast1A);
@@ -50,7 +50,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task ExpandOneAzPartialCapacityWithMultipleFallbacks()
+		public async Task ExpandOneAzPartialCapacityWithMultipleFallbacksAsync()
 		{
 			FakeAmazonEc2 ec2 = new ();
 			Instance i1 = ec2.AddInstance(FakeAmazonEc2.StateStopped, InstanceType.M5Large, FakeAmazonEc2.AzUsEast1A);
@@ -66,7 +66,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task ExpandOneAzPartialCapacityNoFallback()
+		public async Task ExpandOneAzPartialCapacityNoFallbackAsync()
 		{
 			FakeAmazonEc2 ec2 = new ();
 			ec2.AddInstance(FakeAmazonEc2.StateStopped, InstanceType.M5Large, FakeAmazonEc2.AzUsEast1A);
@@ -79,7 +79,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task ExpandTwoAzsPartialCapacityNoFallback()
+		public async Task ExpandTwoAzsPartialCapacityNoFallbackAsync()
 		{
 			FakeAmazonEc2 ec2 = new ();
 			ec2.AddInstance(FakeAmazonEc2.StateStopped, InstanceType.M5Large, FakeAmazonEc2.AzUsEast1A);
@@ -93,7 +93,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task ExpandMoreThanNumStoppedInstances()
+		public async Task ExpandMoreThanNumStoppedInstancesAsync()
 		{
 			FakeAmazonEc2 ec2 = new ();
 			ec2.AddInstance(FakeAmazonEc2.StateStopped, InstanceType.M5Large, FakeAmazonEc2.AzUsEast1A);
@@ -110,7 +110,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task ExpandTwoAzsFullCapacityNoFallback()
+		public async Task ExpandTwoAzsFullCapacityNoFallbackAsync()
 		{
 			FakeAmazonEc2 ec2 = new ();
 			ec2.AddInstance(FakeAmazonEc2.StateStopped, InstanceType.M5Large, FakeAmazonEc2.AzUsEast1A);
@@ -124,7 +124,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task ExpandTwoAzsFullCapacityEmptyFallback()
+		public async Task ExpandTwoAzsFullCapacityEmptyFallbackAsync()
 		{
 			FakeAmazonEc2 ec2 = new ();
 			ec2.AddInstance(FakeAmazonEc2.StateStopped, InstanceType.M5Large, FakeAmazonEc2.AzUsEast1A);
@@ -138,7 +138,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task ExpandLaunchesLastUsedInstancesFirst()
+		public async Task ExpandLaunchesLastUsedInstancesFirstAsync()
 		{
 			FakeAmazonEc2 ec2 = new ();
 			Instance i1 = ec2.AddInstance(FakeAmazonEc2.StateStopped, InstanceType.M5Large, launchTime: DateTime.Parse("Aug 18, 2018"));
@@ -160,7 +160,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task StopInstancesStuckInPending()
+		public async Task StopInstancesStuckInPendingAsync()
 		{
 			FakeAmazonEc2 ec2 = new ();
 			Instance i1 = ec2.AddInstance(FakeAmazonEc2.StatePending, InstanceType.M5Large, launchTime: _clock.UtcNow.Subtract(TimeSpan.FromMinutes(50)));

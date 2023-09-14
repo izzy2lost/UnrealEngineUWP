@@ -105,7 +105,7 @@ namespace Horde.Server.Streams
 		[HttpGet]
 		[Route("/api/v2/streams")]
 		[ProducesResponseType(typeof(List<GetStreamResponse>), 200)]
-		public async Task<ActionResult<List<object>>> GetStreamsAsyncV2([FromQuery(Name = "ProjectId")] string[] projectIds, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<List<object>>> GetStreamsV2Async([FromQuery(Name = "ProjectId")] string[] projectIds, [FromQuery] PropertyFilter? filter = null)
 		{
 			ProjectId[] projectIdValues = Array.ConvertAll(projectIds, x => new ProjectId(x));
 
@@ -164,7 +164,7 @@ namespace Horde.Server.Streams
 		[HttpGet]
 		[Route("/api/v2/streams/{streamId}/config")]
 		[ProducesResponseType(typeof(GetStreamResponseV2), 200)]
-		public async Task<ActionResult<object>> GetStreamAsyncV2(StreamId streamId, [FromQuery] string? config = null, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<object>> GetStreamV2Async(StreamId streamId, [FromQuery] string? config = null, [FromQuery] PropertyFilter? filter = null)
 		{
 			StreamConfig? streamConfig;
 			if (!_globalConfig.Value.TryGetStream(streamId, out streamConfig))

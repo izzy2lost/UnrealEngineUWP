@@ -138,7 +138,7 @@ namespace Horde.Server.Utilities
 					return currentStateTask;
 				}
 
-				Task<Task<State>> innerNewStateTask = new Task<Task<State>>(() => CreateState());
+				Task<Task<State>> innerNewStateTask = new Task<Task<State>>(() => CreateStateAsync());
 				if (Interlocked.CompareExchange(ref stateTask, innerNewStateTask.Unwrap(), null) == null)
 				{
 					innerNewStateTask.Start();
@@ -146,7 +146,7 @@ namespace Horde.Server.Utilities
 			}
 		}
 
-		async Task<State> CreateState()
+		async Task<State> CreateStateAsync()
 		{
 			return new State(await _generator());
 		}

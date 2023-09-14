@@ -61,7 +61,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task IndexTests()
+		public async Task IndexTestsAsync()
 		{
 			JobId jobId = JobId.GenerateNewId();
 			ILogFile logFile = await _logFileService.CreateLogFileAsync(jobId, null, null, LogType.Text, useNewStorageBackend: false);
@@ -132,7 +132,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task PartialTokenTests()
+		public async Task PartialTokenTestsAsync()
 		{
 			JobId jobId = JobId.GenerateNewId();
 			ILogFile logFile = await _logFileService.CreateLogFileAsync(jobId, null, null, LogType.Text, useNewStorageBackend: false);
@@ -174,7 +174,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task AppendIndexTests()
+		public async Task AppendIndexTestsAsync()
 		{
 			JobId jobId = JobId.GenerateNewId();
 			ILogFile logFile = await _logFileService.CreateLogFileAsync(jobId, null, null, LogType.Text, useNewStorageBackend: false);

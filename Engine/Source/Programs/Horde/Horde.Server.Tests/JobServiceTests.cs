@@ -29,7 +29,7 @@ namespace Horde.Server.Tests
 	public class JobServiceTests : TestSetup
 	{
 		[TestMethod]
-		public async Task TestChainedJobs()
+		public async Task TestChainedJobsAsync()
 		{
 			ProjectId projectId = new ProjectId("ue5");
 			StreamId streamId = new StreamId("ue5-main");
@@ -116,17 +116,17 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task StopAnyDuplicateJobsByPreflight()
+		public async Task StopAnyDuplicateJobsByPreflightAsync()
 		{
 			Fixture fixture = await CreateFixtureAsync();
 
 			string[] args = {"-Target=bogus"};
-			IJob orgJob = await CreatePreflightJob(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1000, args);
-			IJob newJob = await CreatePreflightJob(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1000, args);
-			IJob differentTplRef = await CreatePreflightJob(fixture, "tpl-ref-other", "tpl-hash-1", "elvis", 1000, args);
-			IJob differentTplHash = await CreatePreflightJob(fixture, "tpl-ref-1", "tpl-hash-other", "elvis", 1000, args);
-			IJob differentUserName = await CreatePreflightJob(fixture, "tpl-ref-1", "tpl-hash-1", "julia", 1000, args);
-			IJob differentArgs = await CreatePreflightJob(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1000, new []{"-Target=other"});
+			IJob orgJob = await CreatePreflightJobAsync(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1000, args);
+			IJob newJob = await CreatePreflightJobAsync(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1000, args);
+			IJob differentTplRef = await CreatePreflightJobAsync(fixture, "tpl-ref-other", "tpl-hash-1", "elvis", 1000, args);
+			IJob differentTplHash = await CreatePreflightJobAsync(fixture, "tpl-ref-1", "tpl-hash-other", "elvis", 1000, args);
+			IJob differentUserName = await CreatePreflightJobAsync(fixture, "tpl-ref-1", "tpl-hash-1", "julia", 1000, args);
+			IJob differentArgs = await CreatePreflightJobAsync(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1000, new []{"-Target=other"});
 			
 			orgJob = (await JobService.GetJobAsync(orgJob.Id))!;
 			newJob = (await JobService.GetJobAsync(newJob.Id))!;
@@ -144,19 +144,19 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task TestJobTemplateSettings()
+		public async Task TestJobTemplateSettingsAsync()
 		{
 			// Scenario: User creates a number of preflights
 			// Expected: The users job template settings are populated and updated in place
 
 			Fixture fixture = await CreateFixtureAsync();
-			await CreatePreflightJob(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1000, new[] { "-Target=targeta" });
-			await CreatePreflightJob(fixture, "tpl-ref-1", "tpl-hash-1", "julia", 1000, new[] { "-Target=targeta" });
-			await CreatePreflightJob(fixture, "tpl-ref-other", "tpl-hash-1", "elvis", 1001, new[] { "-Target=targetb" });
-			await CreatePreflightJob(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1002, new[] { "-Target=targetc" });
-			await CreatePreflightJob(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1003, new[] { "-Target=targetd" });
-			await CreatePreflightJob(fixture, "tpl-ref-other", "tpl-hash-1", "julia", 1004, new[] { "-Target=targete" });
-			await CreatePreflightJob(fixture, "tpl-ref-other", "tpl-hash-1", "elvis", 1004, new[] { "-Target=targete" });
+			await CreatePreflightJobAsync(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1000, new[] { "-Target=targeta" });
+			await CreatePreflightJobAsync(fixture, "tpl-ref-1", "tpl-hash-1", "julia", 1000, new[] { "-Target=targeta" });
+			await CreatePreflightJobAsync(fixture, "tpl-ref-other", "tpl-hash-1", "elvis", 1001, new[] { "-Target=targetb" });
+			await CreatePreflightJobAsync(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1002, new[] { "-Target=targetc" });
+			await CreatePreflightJobAsync(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1003, new[] { "-Target=targetd" });
+			await CreatePreflightJobAsync(fixture, "tpl-ref-other", "tpl-hash-1", "julia", 1004, new[] { "-Target=targete" });
+			await CreatePreflightJobAsync(fixture, "tpl-ref-other", "tpl-hash-1", "elvis", 1004, new[] { "-Target=targete" });
 
 			IUser user = await UserCollection.FindOrAddUserByLoginAsync("elvis")!;
 			IUserSettings settings = await UserCollection.GetSettingsAsync(user!.Id)!;
@@ -175,7 +175,7 @@ namespace Horde.Server.Tests
 			Assert.AreEqual(templateSettings.Arguments[0], "-Target=targete");
 		}
 
-		private async Task<IJob> CreatePreflightJob(Fixture fixture, string templateRefId, string templateHash, string startedByUserName, int preflightChange, string[] arguments)
+		private async Task<IJob> CreatePreflightJobAsync(Fixture fixture, string templateRefId, string templateHash, string startedByUserName, int preflightChange, string[] arguments)
 		{
 			IUser user = await UserCollection.FindOrAddUserByLoginAsync(startedByUserName);
 
@@ -222,7 +222,7 @@ namespace Horde.Server.Tests
 		// }
 
 		[TestMethod]
-		public async Task TestRunEarly()
+		public async Task TestRunEarlyAsync()
 		{
 			StreamId streamId = new StreamId("ue5-main");
 			StreamConfig streamConfig = new StreamConfig { Id = streamId };

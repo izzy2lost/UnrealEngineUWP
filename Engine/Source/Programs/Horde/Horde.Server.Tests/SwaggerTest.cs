@@ -14,7 +14,7 @@ namespace Horde.Server.Tests
     public class SwaggerTest : ControllerIntegrationTest
     {
         [TestMethod]
-        public async Task ValidateSwagger()
+        public async Task ValidateSwaggerAsync()
         {
 			HttpResponseMessage res = await Client.GetAsync("/swagger/v1/swagger.json");
 			if (!res.IsSuccessStatusCode)

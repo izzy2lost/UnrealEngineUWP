@@ -28,7 +28,7 @@ namespace Horde.Server.Tests;
 public class AgentServiceTest : TestSetup
 {
 	[TestMethod]
-	public async Task GetJobs()
+	public async Task GetJobsAsync()
 	{
 		await CreateFixtureAsync();
 
@@ -66,7 +66,7 @@ public class AgentServiceTest : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task LastStatusChangeDuringSessionCreate()
+	public async Task LastStatusChangeDuringSessionCreateAsync()
 	{
 		// No session created yet, status change timestamp is empty
 		IAgent agent = await AgentService.CreateAgentAsync("agent1", true, null);
@@ -113,7 +113,7 @@ public class AgentServiceTest : TestSetup
 	[DataRow(AgentStatus.Stopping, true)]
 	[DataRow(AgentStatus.Stopped, true)]
 	[DataRow(AgentStatus.Unspecified, true)]
-	public async Task LastStatusChange(AgentStatus status, bool expectTimestampUpdate)
+	public async Task LastStatusChangeAsync(AgentStatus status, bool expectTimestampUpdate)
 	{
 		IAgent agent = await CreateAgentSessionAsync();
 		DateTime lastStatusChange = agent.LastStatusChange!.Value;
@@ -131,7 +131,7 @@ public class AgentServiceTest : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task AuditLogAwsInstanceTypeChanges()
+	public async Task AuditLogAwsInstanceTypeChangesAsync()
 	{
 		Fixture fixture = await CreateFixtureAsync();
 		IAuditLogChannel<AgentId> agentLogger = AgentCollection.GetLogger(fixture.Agent1.Id);
@@ -152,7 +152,7 @@ public class AgentServiceTest : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task GetAgentRateTest()
+	public async Task GetAgentRateTestAsync()
 	{
 		IAgent agent1 = await AgentService.CreateAgentAsync("agent1", true, null);
 		IAgent agent2 = await AgentService.CreateAgentAsync("agent2", true, null);
@@ -174,7 +174,7 @@ public class AgentServiceTest : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task EphemeralTest()
+	public async Task EphemeralTestAsync()
 	{
 		IAgent agent = await CreateAgentAsync(new PoolId("pool1"), ephemeral: true);
 		Assert.IsTrue(agent.Ephemeral);

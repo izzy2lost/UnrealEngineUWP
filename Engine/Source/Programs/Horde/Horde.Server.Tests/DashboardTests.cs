@@ -15,7 +15,7 @@ namespace Horde.Server.Tests
 	public class DashboardTest : TestSetup
 	{
 		[TestMethod]
-		public async Task TestPreviews()
+		public async Task TestPreviewsAsync()
 		{
 			CreateDashboardPreviewRequest request = new CreateDashboardPreviewRequest();
 			request.Summary = "This is a test preview item";

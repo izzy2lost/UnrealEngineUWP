@@ -33,11 +33,11 @@ namespace Horde.Agent.Utility
 	/// </summary>
 	sealed class JsonRpcLogger : IServerLogger
 	{
-		internal readonly IJsonRpcLogSink _sink;
-		internal readonly string _logId;
-		internal readonly bool _warnings;
-		internal readonly LogLevel _outputLevel;
-		internal readonly ILogger _inner;
+		internal readonly IJsonRpcLogSink Sink;
+		internal readonly string LogId;
+		internal readonly bool Warnings;
+		internal readonly LogLevel OutputLevel;
+		internal readonly ILogger Inner;
 		readonly Channel<JsonLogEvent> _dataChannel;
 		Task? _dataWriter;
 
@@ -60,11 +60,11 @@ namespace Horde.Agent.Utility
 		/// <param name="inner">Additional logger to write to</param>
 		public JsonRpcLogger(IJsonRpcLogSink sink, string logId, bool? warnings, LogLevel outputLevel, ILogger inner)
 		{
-			_sink = sink;
-			_logId = logId;
-			_warnings = warnings ?? true;
-			_outputLevel = outputLevel;
-			_inner = inner;
+			Sink = sink;
+			LogId = logId;
+			Warnings = warnings ?? true;
+			OutputLevel = outputLevel;
+			Inner = inner;
 			_dataChannel = Channel.CreateUnbounded<JsonLogEvent>();
 			_dataWriter = Task.Run(() => RunDataWriterAsync());
 
@@ -75,7 +75,7 @@ namespace Horde.Agent.Utility
 		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 		{
 			// Downgrade warnings to information if not required
-			if (logLevel == LogLevel.Warning && !_warnings)
+			if (logLevel == LogLevel.Warning && !Warnings)
 			{
 				logLevel = LogLevel.Information;
 			}
@@ -85,10 +85,10 @@ namespace Horde.Agent.Utility
 		}
 
 		/// <inheritdoc/>
-		public bool IsEnabled(LogLevel logLevel) => logLevel >= _outputLevel;
+		public bool IsEnabled(LogLevel logLevel) => logLevel >= OutputLevel;
 
 		/// <inheritdoc/>
-		public IDisposable BeginScope<TState>(TState state) => _inner.BeginScope(state);
+		public IDisposable BeginScope<TState>(TState state) => Inner.BeginScope(state);
 
 		private void WriteFormattedEvent(JsonLogEvent jsonLogEvent)
 		{
@@ -130,7 +130,7 @@ namespace Horde.Agent.Utility
 		public async ValueTask DisposeAsync()
 		{
 			await StopAsync();
-			await _sink.DisposeAsync();
+			await Sink.DisposeAsync();
 		}
 
 		/// <summary>
@@ -204,13 +204,13 @@ namespace Horde.Agent.Utility
 					(ReadOnlyMemory<byte> packet, int packetLineCount) = writer.CreatePacket();
 					try
 					{
-						await _sink.WriteOutputAsync(new WriteOutputRequest(_logId, packetOffset, packetLineIndex, UnsafeByteOperations.UnsafeWrap(packet), false), CancellationToken.None);
+						await Sink.WriteOutputAsync(new WriteOutputRequest(LogId, packetOffset, packetLineIndex, UnsafeByteOperations.UnsafeWrap(packet), false), CancellationToken.None);
 						packetOffset += packet.Length;
 						packetLineIndex += packetLineCount;
 					}
 					catch (Exception ex)
 					{
-						_inner.LogWarning(ex, "Unable to write data to server (log {LogId}, offset {Offset}, length {Length}, lines {StartLine}-{EndLine})", _logId, packetOffset, packet.Length, packetLineIndex, packetLineIndex + packetLineCount);
+						Inner.LogWarning(ex, "Unable to write data to server (log {LogId}, offset {Offset}, length {Length}, lines {StartLine}-{EndLine})", LogId, packetOffset, packet.Length, packetLineIndex, packetLineIndex + packetLineCount);
 					}
 				}
 
@@ -219,11 +219,11 @@ namespace Horde.Agent.Utility
 				{
 					try
 					{
-						await _sink.WriteEventsAsync(events, CancellationToken.None);
+						await Sink.WriteEventsAsync(events, CancellationToken.None);
 					}
 					catch (Exception ex)
 					{
-						_inner.LogWarning(ex, "Unable to create events");
+						Inner.LogWarning(ex, "Unable to create events");
 					}
 				}
 
@@ -232,11 +232,11 @@ namespace Horde.Agent.Utility
 				{
 					try
 					{
-						await _sink.SetOutcomeAsync(Outcome, CancellationToken.None);
+						await Sink.SetOutcomeAsync(Outcome, CancellationToken.None);
 					}
 					catch (Exception ex)
 					{
-						_inner.LogWarning(ex, "Unable to update step outcome to {NewOutcome}", Outcome);
+						Inner.LogWarning(ex, "Unable to update step outcome to {NewOutcome}", Outcome);
 					}
 					postedOutcome = Outcome;
 				}
@@ -246,11 +246,11 @@ namespace Horde.Agent.Utility
 				{
 					try
 					{
-						await _sink.WriteOutputAsync(new WriteOutputRequest(_logId, packetOffset, packetLineIndex, ByteString.Empty, true), CancellationToken.None);
+						await Sink.WriteOutputAsync(new WriteOutputRequest(LogId, packetOffset, packetLineIndex, ByteString.Empty, true), CancellationToken.None);
 					}
 					catch (Exception ex)
 					{
-						_inner.LogWarning(ex, "Unable to flush data to server (log {LogId}, offset {Offset})", _logId, packetOffset);
+						Inner.LogWarning(ex, "Unable to flush data to server (log {LogId}, offset {Offset})", LogId, packetOffset);
 					}
 					break;
 				}
@@ -261,11 +261,11 @@ namespace Horde.Agent.Utility
 		{
 			try
 			{
-				events.Add(new CreateEventRequest(severity, _logId, lineIndex, lineCount));
+				events.Add(new CreateEventRequest(severity, LogId, lineIndex, lineCount));
 			}
 			catch (Exception ex)
 			{
-				_inner.LogError(ex, "Exception while trying to parse line count from data ({Message})", Encoding.UTF8.GetString(span));
+				Inner.LogError(ex, "Exception while trying to parse line count from data ({Message})", Encoding.UTF8.GetString(span));
 			}
 		}
 	}

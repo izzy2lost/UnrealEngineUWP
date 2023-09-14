@@ -28,7 +28,7 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task TestCatalogAsync()
 		{
-			await GetFixture();
+			await GetFixtureAsync();
 
 			// Fetch the catalog
 			SchemaCatalog catalog;

@@ -27,7 +27,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task CreateBasicTree()
+		public async Task CreateBasicTreeAsync()
 		{
 			await StorageService.StartAsync(CancellationToken.None);
 

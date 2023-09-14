@@ -512,10 +512,10 @@ namespace Horde.Storage.Utility
 		/// <returns>Set of files</returns>
 		public HashSet<FileReference> ToFileSet(DirectoryReference rootDir)
 		{
-			HashSet<FileReference> Files = new HashSet<FileReference>();
-			Files.UnionWith(LocalFiles.Select(x => FileReference.Combine(rootDir, x)));
-			Files.UnionWith(ExternalFiles.Select(x => new FileReference(x)));
-			return Files;
+			HashSet<FileReference> files = new HashSet<FileReference>();
+			files.UnionWith(LocalFiles.Select(x => FileReference.Combine(rootDir, x)));
+			files.UnionWith(ExternalFiles.Select(x => new FileReference(x)));
+			return files;
 		}
 	}
 
@@ -750,9 +750,9 @@ namespace Horde.Storage.Utility
 
 			// Check all the local files are as expected
 			bool allMatch = true;
-			foreach(TempStorageFile File in manifest.Files)
+			foreach(TempStorageFile file in manifest.Files)
 			{
-				allMatch &= File.Compare(rootDir, logger);
+				allMatch &= file.Compare(rootDir, logger);
 			}
 			if(!allMatch)
 			{

@@ -21,17 +21,17 @@ namespace Horde.Server.Tests
         {
         }
 
-        private async Task<IPool> CreatePoolFixture(string name)
+        private async Task<IPool> CreatePoolFixtureAsync(string name)
         {
             return await PoolService.CreatePoolAsync(name, new AddPoolOptions { Properties = _fixtureProps });
         }
 
         [TestMethod]
-        public async Task GetPoolTest()
+        public async Task GetPoolTestAsync()
         {
             Assert.IsNull(await PoolService.GetPoolAsync(new PoolId("this-does-not-exist")));
 
-            IPool newPool = await CreatePoolFixture("create-pool");
+            IPool newPool = await CreatePoolFixtureAsync("create-pool");
 			IPool? pool = await PoolService.GetPoolAsync(newPool.Id);
 			Assert.IsNotNull(pool);
             Assert.AreEqual("create-pool", pool!.Id.ToString());
@@ -42,15 +42,15 @@ namespace Horde.Server.Tests
         }
         
         [TestMethod]
-        public async Task GetPoolsTest()
+        public async Task GetPoolsTestAsync()
         {
             await GetMongoServiceSingleton().Database.DropCollectionAsync("Pools");
             
             List<IPool> pools = await PoolService.GetPoolsAsync();
             Assert.AreEqual(pools.Count, 0);
 
-			IPool pool0 = await CreatePoolFixture("multiple-pools-0");
-			IPool pool1 = await CreatePoolFixture("multiple-pools-1");
+			IPool pool0 = await CreatePoolFixtureAsync("multiple-pools-0");
+			IPool pool1 = await CreatePoolFixtureAsync("multiple-pools-1");
             pools = await PoolService.GetPoolsAsync();
             Assert.AreEqual(pools.Count, 2);
             Assert.AreEqual(pools[0].Name, pool0.Name);
@@ -58,18 +58,18 @@ namespace Horde.Server.Tests
         }
         
         [TestMethod]
-        public async Task DeletePoolTest()
+        public async Task DeletePoolTestAsync()
         {
             Assert.IsFalse(await PoolService.DeletePoolAsync(new PoolId("this-does-not-exist")));
-            IPool pool = await CreatePoolFixture("pool-to-be-deleted");
+            IPool pool = await CreatePoolFixtureAsync("pool-to-be-deleted");
             Assert.IsTrue(await PoolService.DeletePoolAsync(pool.Id));
         }
         
         [TestMethod]
-        public async Task UpdatePoolTest()
+        public async Task UpdatePoolTestAsync()
         {
 			string uniqueSuffix = Guid.NewGuid().ToString("N");
-            IPool pool = await CreatePoolFixture($"update-pool-{uniqueSuffix}");
+            IPool pool = await CreatePoolFixtureAsync($"update-pool-{uniqueSuffix}");
             Dictionary<string, string?> updatedProps = new Dictionary<string, string?>
             {
                 {"foo", "bar"},
@@ -87,9 +87,9 @@ namespace Horde.Server.Tests
         }
         
         [TestMethod]
-        public async Task UpdatePoolCollectionTest()
+        public async Task UpdatePoolCollectionTestAsync()
         {
-	        IPool pool = await CreatePoolFixture("update-pool-2");
+	        IPool pool = await CreatePoolFixtureAsync("update-pool-2");
 	        await PoolCollection.TryUpdateAsync(pool, new UpdatePoolOptions { LastScaleUpTime = DateTime.UtcNow });
         }
     }

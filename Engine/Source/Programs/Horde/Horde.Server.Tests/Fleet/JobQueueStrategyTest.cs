@@ -21,7 +21,7 @@ namespace Horde.Server.Tests.Fleet
 	public class JobQueueStrategyTest : TestSetup
 	{
 		[TestMethod]
-		public async Task GetPoolQueueSizes()
+		public async Task GetPoolQueueSizesAsync()
 		{
 			(JobQueueStrategy strategy, _, IPool pool, _) = await SetUpJobsAsync(1, 5);
 			await Clock.AdvanceAsync(TimeSpan.FromSeconds(strategy.Settings.ReadyTimeThresholdSec) + TimeSpan.FromSeconds(5));
@@ -31,7 +31,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task DowntimeActive()
+		public async Task DowntimeActiveAsync()
 		{
 			(JobQueueStrategy strategy, _, IPool pool, _) = await SetUpJobsAsync(1, 5, isDowntimeActive: true);
 			await Clock.AdvanceAsync(TimeSpan.FromSeconds(strategy.Settings.ReadyTimeThresholdSec) + TimeSpan.FromSeconds(5));
@@ -41,54 +41,54 @@ namespace Horde.Server.Tests.Fleet
 		}
 		
 		[TestMethod]
-		public async Task EmptyJobQueue()
+		public async Task EmptyJobQueueAsync()
 		{
-			await AssertAgentCount(0, -1, false);
+			await AssertAgentCountAsync(0, -1, false);
 		}
 		
 		[TestMethod]
-		public async Task EmptyJobQueueWithLargePool()
+		public async Task EmptyJobQueueWithLargePoolAsync()
 		{
-			await AssertAgentCount(0, -2, false, 20);
+			await AssertAgentCountAsync(0, -2, false, 20);
 		}
 		
 		[TestMethod]
-		public async Task NoAgentsInPool()
+		public async Task NoAgentsInPoolAsync()
 		{
-			await AssertAgentCount(1, 1, true, 0);
+			await AssertAgentCountAsync(1, 1, true, 0);
 		}
 		
 		[TestMethod]
-		public async Task BatchesNotWaitingLongEnough()
+		public async Task BatchesNotWaitingLongEnoughAsync()
 		{
-			await AssertAgentCount(3, -1, false);
+			await AssertAgentCountAsync(3, -1, false);
 		}
 		
 		[TestMethod]
-		public async Task NumQueuedJobs1()
+		public async Task NumQueuedJobs1Async()
 		{
-			await AssertAgentCount(1, 1, true);
+			await AssertAgentCountAsync(1, 1, true);
 		}
 		
 		[TestMethod]
-		public async Task NumQueuedJobs3()
+		public async Task NumQueuedJobs3Async()
 		{
-			await AssertAgentCount(3, 1, true);
+			await AssertAgentCountAsync(3, 1, true);
 		}
 		
 		[TestMethod]
-		public async Task NumQueuedJobs6()
+		public async Task NumQueuedJobs6Async()
 		{
-			await AssertAgentCount(6, 2);
+			await AssertAgentCountAsync(6, 2);
 		}
 		
 		[TestMethod]
-		public async Task NumQueuedJobs25()
+		public async Task NumQueuedJobs25Async()
 		{
-			await AssertAgentCount(25, 7);
+			await AssertAgentCountAsync(25, 7);
 		}
 
-		public async Task AssertAgentCount(int numBatchesReady, int expectedAgentDelta, bool waitedBeyondThreshold = true, int numAgents = 8, bool isDowntimeActive = false)
+		public async Task AssertAgentCountAsync(int numBatchesReady, int expectedAgentDelta, bool waitedBeyondThreshold = true, int numAgents = 8, bool isDowntimeActive = false)
 		{
 			(JobQueueStrategy strategy, _, IPool pool, List<IAgent> agents) = await SetUpJobsAsync(1, numBatchesReady, numAgents, isDowntimeActive);
 			TimeSpan timeToWait = waitedBeyondThreshold
@@ -146,20 +146,20 @@ namespace Horde.Server.Tests.Fleet
 
 			for (int i = 0; i < numBatchesRunning; i++)
 			{
-				IJob job = await AddPlaceholderJob(graph, streamConfig.Id, nodeForAgentType1);
+				IJob job = await AddPlaceholderJobAsync(graph, streamConfig.Id, nodeForAgentType1);
 				await JobCollection.TryUpdateBatchAsync(job, graph, job.Batches[0].Id, null, JobStepBatchState.Running, null);
 			}
 			
 			for (int i = 0; i < numBatchesReady; i++)
 			{
-				IJob job = await AddPlaceholderJob(graph, streamConfig.Id, nodeForAgentType1);
+				IJob job = await AddPlaceholderJobAsync(graph, streamConfig.Id, nodeForAgentType1);
 				await JobCollection.TryUpdateBatchAsync(job, graph, job.Batches[0].Id, null, JobStepBatchState.Ready, null);
 			}
 
 			return (new (JobCollection, GraphCollection, StreamCollection, Clock, Cache, isDowntimeActive, GlobalConfig), poolSize, pool, agents);
 		}
 		
-		private async Task<IJob> AddPlaceholderJob(IGraph graph, StreamId streamId, string nodeNameToExecute)
+		private async Task<IJob> AddPlaceholderJobAsync(IGraph graph, StreamId streamId, string nodeNameToExecute)
 		{
 			CreateJobOptions options = new CreateJobOptions();
 			options.Arguments.Add($"-Target={nodeNameToExecute}");

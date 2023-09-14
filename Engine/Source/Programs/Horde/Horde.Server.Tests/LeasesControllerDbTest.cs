@@ -21,14 +21,14 @@ namespace Horde.Server.Tests
 	public class LeasesControllerDbTest : TestSetup
 	{
 		[TestMethod]
-		public async Task FindLeases()
+		public async Task FindLeasesAsync()
 		{
 			DateTimeOffset minTime = Clock.UtcNow - TimeSpan.FromMinutes(5);
 			DateTimeOffset maxTime = Clock.UtcNow;
 
-			ILease lease1 = await CreateLease(Clock.UtcNow - TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(6));
-			ILease lease2 = await CreateLease(Clock.UtcNow - TimeSpan.FromMinutes(7), TimeSpan.FromMinutes(3.1));
-			/*ILease outOfTimeWindow = */await CreateLease(Clock.UtcNow - TimeSpan.FromMinutes(7), TimeSpan.FromMinutes(25));
+			ILease lease1 = await CreateLeaseAsync(Clock.UtcNow - TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(6));
+			ILease lease2 = await CreateLeaseAsync(Clock.UtcNow - TimeSpan.FromMinutes(7), TimeSpan.FromMinutes(3.1));
+			/*ILease outOfTimeWindow = */await CreateLeaseAsync(Clock.UtcNow - TimeSpan.FromMinutes(7), TimeSpan.FromMinutes(25));
 			
 			ActionResult<List<object>> res = await LeasesController.FindLeasesAsync(null, null, null, null, minTime, maxTime);
 			Assert.AreEqual(2, res.Value!.Count);
@@ -36,7 +36,7 @@ namespace Horde.Server.Tests
 			Assert.AreEqual(lease1.Id.ToString(), (res.Value[1] as GetAgentLeaseResponse)!.Id);
 		}
 
-		private async Task<ILease> CreateLease(DateTime startTime, TimeSpan duration)
+		private async Task<ILease> CreateLeaseAsync(DateTime startTime, TimeSpan duration)
 		{
 			LeaseId id = new LeaseId(BinaryIdUtils.CreateNew());
 			SessionId sessionId = SessionId.GenerateNewId();

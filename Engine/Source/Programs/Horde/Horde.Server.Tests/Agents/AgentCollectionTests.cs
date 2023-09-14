@@ -31,7 +31,7 @@ public class AgentCollectionTests : TestSetup
 	}
 
 	[TestMethod]
-	public async Task AddLease()
+	public async Task AddLeaseAsync()
 	{
 		await AgentCollection.TryAddLeaseAsync(_agent, _lease1); 
 		await UpdateAgentAsync();
@@ -51,7 +51,7 @@ public class AgentCollectionTests : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task StartSession()
+	public async Task StartSessionAsync()
 	{
 		await AgentCollection.TryAddLeaseAsync(_agent, _lease1); 
 		await UpdateAgentAsync();
@@ -68,7 +68,7 @@ public class AgentCollectionTests : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task UpdateSession_WithEmptyLeases()
+	public async Task UpdateSession_WithEmptyLeasesAsync()
 	{
 		await AgentCollection.TryAddLeaseAsync(_agent, _lease1); 
 		await UpdateAgentAsync();
@@ -84,7 +84,7 @@ public class AgentCollectionTests : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task UpdateSession_WithNewLeases()
+	public async Task UpdateSession_WithNewLeasesAsync()
 	{
 		await AgentCollection.TryAddLeaseAsync(_agent, _lease1); 
 		await UpdateAgentAsync();
@@ -99,7 +99,7 @@ public class AgentCollectionTests : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task UpdateSession_WithOneLeaseRemoved()
+	public async Task UpdateSession_WithOneLeaseRemovedAsync()
 	{
 		await AgentCollection.TryAddLeaseAsync(_agent, _lease1); 
 		await UpdateAgentAsync();
@@ -116,7 +116,7 @@ public class AgentCollectionTests : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task CancelLease()
+	public async Task CancelLeaseAsync()
 	{
 		await AgentCollection.TryAddLeaseAsync(_agent, _lease1); 
 		await UpdateAgentAsync();
@@ -133,7 +133,7 @@ public class AgentCollectionTests : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task TerminateSession()
+	public async Task TerminateSessionAsync()
 	{
 		await AgentCollection.TryAddLeaseAsync(_agent, _lease1); 
 		await UpdateAgentAsync();
@@ -149,7 +149,7 @@ public class AgentCollectionTests : TestSetup
 	}
 	
 	[TestMethod]
-	public async Task GetChildLeaseIds()
+	public async Task GetChildLeaseIdsAsync()
 	{
 		await AgentCollection.TryAddLeaseAsync(_agent, _lease1); 
 		await UpdateAgentAsync();
@@ -166,7 +166,6 @@ public class AgentCollectionTests : TestSetup
 		Assert.IsTrue(leases.Contains(_leaseWithParent3.Id));
 		Assert.IsTrue(leases.Contains(_leaseWithParent4.Id));
 	}
-	
 
 	private async Task UpdateAgentAsync()
 	{

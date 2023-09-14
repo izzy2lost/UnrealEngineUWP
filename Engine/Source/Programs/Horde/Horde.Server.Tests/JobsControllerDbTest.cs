@@ -16,9 +16,8 @@ namespace Horde.Server.Tests
 	[TestClass]
     public class JobsControllerDbTest : TestSetup
     {
-        
         [TestMethod]
-        public async Task GetJobs()
+        public async Task GetJobsAsync()
         {
 			await CreateFixtureAsync();
 
@@ -37,7 +36,7 @@ namespace Horde.Server.Tests
         }
         
         [TestMethod]
-        public async Task AbortStepTest()
+        public async Task AbortStepTestAsync()
         {
 			Fixture fixture = await CreateFixtureAsync();
 
@@ -61,7 +60,7 @@ namespace Horde.Server.Tests
         }
         
         [TestMethod]
-        public async Task FindJobTimingsTest()
+        public async Task FindJobTimingsTestAsync()
         {
 	        Fixture fixture = await CreateFixtureAsync();
 	        IJob job = fixture.Job1;

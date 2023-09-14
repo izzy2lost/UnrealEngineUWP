@@ -82,7 +82,7 @@ public class ControllerIntegrationTest : IDisposable
 		Factory = new TestWebApplicationFactory<Startup>(MongoDbInstance);
 		Client = Factory.CreateClient();
 
-		_fixture = new Lazy<Task<Fixture>>(CreateFixtureTask);
+		_fixture = new Lazy<Task<Fixture>>(CreateFixtureTaskAsync);
 	}
 
 	protected MongoDbInstance MongoDbInstance { get; }
@@ -103,17 +103,17 @@ public class ControllerIntegrationTest : IDisposable
 		MongoDbInstance.Dispose();
 	}
 
-	public Task<Fixture> GetFixture()
+	public Task<Fixture> GetFixtureAsync()
 	{
 		return _fixture.Value;
 	}
 
-	private Task<Fixture> CreateFixtureTask()
+	private Task<Fixture> CreateFixtureTaskAsync()
 	{
-		return Task.Run(() => CreateFixture());
+		return Task.Run(() => CreateFixtureAsync());
 	}
 
-	private async Task<Fixture> CreateFixture()
+	private async Task<Fixture> CreateFixtureAsync()
 	{
 		IServiceProvider services = Factory.Services;
 		ConfigService configService = services.GetRequiredService<ConfigService>();
@@ -124,6 +124,6 @@ public class ControllerIntegrationTest : IDisposable
 		IGraphCollection graphCollection = services.GetRequiredService<IGraphCollection>();
 		IOptions<ServerSettings> serverSettings = services.GetRequiredService<IOptions<ServerSettings>>();
 
-		return await Fixture.Create(configService, graphCollection, templateService, jobService, artifactCollection, agentService, serverSettings.Value);
+		return await Fixture.CreateAsync(configService, graphCollection, templateService, jobService, artifactCollection, agentService, serverSettings.Value);
 	}
 }

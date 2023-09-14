@@ -109,7 +109,7 @@ public sealed class AwsInstanceLifecycleServiceTests : System.IDisposable
 	}
 
 	[TestMethod]
-	public async Task Terminate_Asg_CallbackHasCorrectParameters()
+	public async Task Terminate_Asg_CallbackHasCorrectParametersAsync()
 	{
 		_fakeImds.TargetLifecycleState = "Terminated";
 		await _service.MonitorInstanceLifecycleAsync(CancellationToken.None);
@@ -119,7 +119,7 @@ public sealed class AwsInstanceLifecycleServiceTests : System.IDisposable
 	}
 	
 	[TestMethod]
-	public async Task Terminate_Spot_CallbackHasCorrectParameters()
+	public async Task Terminate_Spot_CallbackHasCorrectParametersAsync()
 	{
 		_fakeImds.SpotInstanceAction = FakeAwsImds.SpotInstanceData;
 		_fakeImds.InstanceLifeCycle = FakeAwsImds.Spot;
@@ -130,7 +130,7 @@ public sealed class AwsInstanceLifecycleServiceTests : System.IDisposable
 	}
 	
 	[TestMethod]
-	public async Task Terminate_Spot_WritesSignalFile()
+	public async Task Terminate_Spot_WritesSignalFileAsync()
 	{
 		_fakeImds.SpotInstanceAction = FakeAwsImds.SpotInstanceData;
 		_fakeImds.InstanceLifeCycle = FakeAwsImds.Spot;

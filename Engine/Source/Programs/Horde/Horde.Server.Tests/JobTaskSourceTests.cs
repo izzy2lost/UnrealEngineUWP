@@ -42,7 +42,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task UpdateJobQueueNormal()
+		public async Task UpdateJobQueueNormalAsync()
 		{
 			Fixture fixture = await SetupPoolWithAgentAsync(isPoolAutoScaled: true, shouldCreateAgent: true, isAgentEnabled: true);
 
@@ -56,7 +56,7 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task UpdateJobQueueWithNoAgentsInPool()
+		public async Task UpdateJobQueueWithNoAgentsInPoolAsync()
 		{
 			Fixture fixture = await SetupPoolWithAgentAsync(isPoolAutoScaled: true, shouldCreateAgent: false, isAgentEnabled: false);
 			
@@ -70,7 +70,7 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task UpdateJobQueueWithNoAgentsOnlineInPool()
+		public async Task UpdateJobQueueWithNoAgentsOnlineInPoolAsync()
 		{
 			Fixture fixture = await SetupPoolWithAgentAsync(isPoolAutoScaled: false, shouldCreateAgent: true, isAgentEnabled: false);
 			
@@ -85,7 +85,7 @@ namespace Horde.Server.Tests
 		}
 		
 		[TestMethod]
-		public async Task UpdateJobQueueWithNoAgentsOnlineInAutoScaledPool()
+		public async Task UpdateJobQueueWithNoAgentsOnlineInAutoScaledPoolAsync()
 		{
 			Fixture fixture = await SetupPoolWithAgentAsync(isPoolAutoScaled: true, shouldCreateAgent: true, isAgentEnabled: false);
 			
@@ -100,13 +100,13 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task UpdateJobQueueWithPausedStep()
+		public async Task UpdateJobQueueWithPausedStepAsync()
 		{
 			Fixture fixture = await SetupPoolWithAgentAsync(isPoolAutoScaled: true, shouldCreateAgent: true, isAgentEnabled: true);
 
 			// update template with some step states
-			IStream Stream = await StreamCollection.GetAsync(fixture.StreamConfig!);
-			Stream = Deref(await StreamCollection.TryUpdateTemplateRefAsync(Stream, fixture.TemplateRefId1, new List<UpdateStepStateRequest>() { new UpdateStepStateRequest() { Name = "Paused Step", PausedByUserId = new UserId(BinaryIdUtils.CreateNew()).ToString() } }));
+			IStream stream = await StreamCollection.GetAsync(fixture.StreamConfig!);
+			stream = Deref(await StreamCollection.TryUpdateTemplateRefAsync(stream, fixture.TemplateRefId1, new List<UpdateStepStateRequest>() { new UpdateStepStateRequest() { Name = "Paused Step", PausedByUserId = new UserId(BinaryIdUtils.CreateNew()).ToString() } }));
 
 			// create a new graph with the associated nodes
 			List<NewGroup> newGroups = new List<NewGroup>();
@@ -120,17 +120,17 @@ namespace Horde.Server.Tests
 			IGraph graph = await GraphCollection.AppendAsync(null, newGroups);
 
 			// remove the default fixture jobs
-			List<IJob> Jobs = await JobCollection.FindAsync();
-			for (int i = 0; i < Jobs.Count; i++)
+			List<IJob> jobs = await JobCollection.FindAsync();
+			for (int i = 0; i < jobs.Count; i++)
 			{
-				await JobCollection.RemoveAsync(Jobs[i]);
+				await JobCollection.RemoveAsync(jobs[i]);
 			}
 
 			// create a new job
 			CreateJobOptions options = new CreateJobOptions();
 			options.Arguments.Add("-Target=Step That Depends on Paused Step;Step That Depends on Update Version Files");
 
-			IJob job = await JobCollection.AddAsync(JobId.GenerateNewId(), Stream.Id,
+			IJob job = await JobCollection.AddAsync(JobId.GenerateNewId(), stream.Id,
 				fixture.TemplateRefId1, fixture.Template.Hash, graph, "Test Paused Step Job",
 				1000, 1000, options);
 

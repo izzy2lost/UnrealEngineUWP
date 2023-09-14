@@ -299,6 +299,7 @@ namespace Horde.Agent.TrayApp
 			_mainThreadInvokeTarget.BeginInvoke(() => Exit_MainThread());
 		}
 
+#pragma warning disable IDE1006
 		[StructLayout(LayoutKind.Sequential)]
 		struct LASTINPUTINFO
 		{
@@ -340,6 +341,7 @@ namespace Horde.Agent.TrayApp
 
 		[DllImport("kernel32.dll", SetLastError = true)]
 		static extern bool GetSystemTimes(out FILETIME lpIdleTime, out FILETIME lpKernelTime, out FILETIME lpUserTime);
+#pragma warning restore IDE1006
 
 		bool _enabled;
 		readonly AsyncEvent _statusChangedEvent = new AsyncEvent();
@@ -420,7 +422,7 @@ namespace Horde.Agent.TrayApp
 			if (!_enabled)
 			{
 				// Check the CPU usage doesn't exceed the limit
-				int MinIdleCpuPct = 70;
+				const int MinIdleCpuPct = 70;
 				idleStats.Add(new IdleStat("IdleCpuPct", _idleCpuPct, MinIdleCpuPct));
 
 				// Check there's enough available virtual memory 

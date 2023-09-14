@@ -18,22 +18,22 @@ namespace Horde.Server.Tests
 	public class LogBuilderTests : DatabaseIntegrationTest
 	{
 		[TestMethod]
-		public async Task TestLocalLogBuilder()
+		public async Task TestLocalLogBuilderAsync()
 		{
 			ILogBuilder builder = new LocalLogBuilder();
-			await TestBuilder(builder);
+			await TestBuilderAsync(builder);
 		}
 
 		[TestMethod]
-		public async Task TestRedisLogBuilder()
+		public async Task TestRedisLogBuilderAsync()
 		{
 			RedisService redisService = GetRedisServiceSingleton();
 			Tracer tracer = TracerProvider.Default.GetTracer("LogBuilderTests");
 			ILogBuilder builder = new RedisLogBuilder(redisService.ConnectionPool, tracer, NullLogger.Instance);
-			await TestBuilder(builder);
+			await TestBuilderAsync(builder);
 		}
 
-		public static async Task TestBuilder(ILogBuilder builder)
+		public static async Task TestBuilderAsync(ILogBuilder builder)
 		{
 			LogId logId = LogId.GenerateNewId();
 

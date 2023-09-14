@@ -26,7 +26,7 @@ namespace Horde.Agent.Commands.Execution
 		public string Task { get; set; } = null!;
 
 		[CommandLine("-WorkingDir=", Required = true)]
-		public DirectoryReference WorkingDir = null!;
+		public DirectoryReference WorkingDir { get; set; } = null!;
 
 		readonly GrpcService _grpcService;
 		readonly JobHandler _jobHandler;

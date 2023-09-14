@@ -551,22 +551,22 @@ namespace Horde.Server.Issues
 			}
 		}
 
-		async ValueTask<string> GetUserNameAsync(UserId? UserId)
+		async ValueTask<string> GetUserNameAsync(UserId? userId)
 		{
-			if (UserId == null)
+			if (userId == null)
 			{
 				return "null";
 			}
-			else if (UserId == IIssue.ResolvedByUnknownId)
+			else if (userId == IIssue.ResolvedByUnknownId)
 			{
 				return "Horde (Unknown)";
 			}
-			else if (UserId == IIssue.ResolvedByTimeoutId)
+			else if (userId == IIssue.ResolvedByTimeoutId)
 			{
 				return "Horde (Timeout)";
 			}
 
-			IUser? user = await _userCollection.GetCachedUserAsync(UserId);
+			IUser? user = await _userCollection.GetCachedUserAsync(userId);
 			if (user == null)
 			{
 				return "Unknown user";

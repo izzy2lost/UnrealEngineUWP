@@ -32,7 +32,7 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task TestStatesAsync()
 		{
-			(IJob failedJob, IGraph graph) = await SetupBisectionTest();
+			(IJob failedJob, IGraph graph) = await SetupBisectionTestAsync();
 
 			// Create the bisection task
 			CreateBisectTaskResponse task = Deref(await BisectTasksController!.CreateAsync(new CreateBisectTaskRequest() {JobId = failedJob.Id, NodeName = "CompileEditor" }));
@@ -114,7 +114,7 @@ namespace Horde.Server.Tests
 		StreamId StreamId { get; } = new StreamId("ue4-main");
 		TemplateId TemplateId { get; } = new TemplateId("test-build");
 
-		async Task<(IJob failedJob, IGraph graph)> SetupBisectionTest()
+		async Task<(IJob failedJob, IGraph graph)> SetupBisectionTestAsync()
 		{
 			IUser user = await UserCollection.FindOrAddUserByLoginAsync("Bob");
 

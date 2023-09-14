@@ -1246,8 +1246,8 @@ namespace Horde.Server.Devices
 					if (device.CheckOutTime != null)
 					{
 						DateTime now = DateTime.UtcNow;
-						double Days = (now - device.CheckOutTime!.Value).TotalDays;
-						if (Days > 3)
+						double days = (now - device.CheckOutTime!.Value).TotalDays;
+						if (days > 3)
 						{							
 							updates.Add(updateBuilder.Set(x => x.CheckOutTime, now));
 							updates.Add(updateBuilder.Set(x => x.CheckoutExpiringNotificationSent, null));

@@ -11,7 +11,7 @@ namespace Horde.Server.Tests;
 public class AgentControllerDbTest : TestSetup
 {
 	[TestMethod]
-	public async Task UpdateAgent()
+	public async Task UpdateAgentAsync()
 	{
 		Fixture fixture = await CreateFixtureAsync();
 		IAgent fixtureAgent = fixture.Agent1;

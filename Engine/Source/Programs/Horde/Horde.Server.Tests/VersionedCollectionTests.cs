@@ -46,20 +46,20 @@ namespace Horde.Server.Tests
 			[2] = typeof(DocumentV2),
 		};
 
-		MongoService _mongoService => GetMongoServiceSingleton();
-		RedisService _redisService => GetRedisServiceSingleton();
+		MongoService MongoService => GetMongoServiceSingleton();
+		RedisService RedisService => GetRedisServiceSingleton();
 		readonly RedisKey _baseKey = new RedisKey("versioned/");
 		readonly IMongoCollection<VersionedDocument<string, DocumentV2>> _baseCollection;
 		readonly VersionedCollection<string, DocumentV2> _collection;
 
 		public VersionedCollectionTests()
 		{
-			_collection = new VersionedCollection<string, DocumentV2>(_mongoService, "versioned", _redisService, _baseKey, s_documentTypes);
+			_collection = new VersionedCollection<string, DocumentV2>(MongoService, "versioned", RedisService, _baseKey, s_documentTypes);
 			_baseCollection = _collection.BaseCollection;
 		}
 
 		[TestMethod]
-		public async Task Add()
+		public async Task AddAsync()
 		{
 			DocumentV2? doc = await _collection.GetAsync("hello");
 			Assert.IsNull(doc);
@@ -72,7 +72,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task AutoUpgrade()
+		public async Task AutoUpgradeAsync()
 		{
 			DocumentV2? doc = await _collection.GetAsync("hello");
 			Assert.IsNull(doc);
@@ -85,7 +85,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task Delete()
+		public async Task DeleteAsync()
 		{
 			DocumentV2? doc = await _collection.GetAsync("hello");
 			Assert.IsNull(doc);
@@ -103,7 +103,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task FindOrAdd()
+		public async Task FindOrAddAsync()
 		{
 			await _baseCollection.InsertOneAsync(new DocumentV1("hello", 555));
 
@@ -121,7 +121,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task Update()
+		public async Task UpdateAsync()
 		{
 			await _baseCollection.InsertOneAsync(new DocumentV1("hello", 555));
 
@@ -152,7 +152,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task Replace()
+		public async Task ReplaceAsync()
 		{
 			await _baseCollection.InsertOneAsync(new DocumentV1("hello", 555));
 

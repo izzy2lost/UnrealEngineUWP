@@ -156,7 +156,7 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task SimpleReportTest()
+		public async Task SimpleReportTestAsync()
 		{
 			await TestDataService.StartAsync(CancellationToken.None);
 			string[] streamIds = new string[] { _mainStreamId.ToString(), _releaseStreamId.ToString() };
@@ -222,7 +222,7 @@ namespace Horde.Server.Tests
 
 			Assert.AreEqual(3, refs.Count);
 
-			GetTestsRequest request = new GetTestsRequest() { testIds = streams[0].Tests.Select(x => x.Id.ToString()).ToList() };
+			GetTestsRequest request = new GetTestsRequest() { TestIds = streams[0].Tests.Select(x => x.Id.ToString()).ToList() };
 			ActionResult<List<GetTestResponse>> testResults = await TestDataController.GetTestsAsync(request);
 			Assert.IsNotNull(testResults);
 			Assert.IsNotNull(testResults.Value);
@@ -231,11 +231,11 @@ namespace Horde.Server.Tests
 
 		internal class TestRequest
 		{
-			public List<string>? testIds { get; set; }
+			public List<string>? TestIds { get; set; }
 		}
 
 		[TestMethod]
-		public async Task SessionReportTest()
+		public async Task SessionReportTestAsync()
 		{
 			await TestDataService.StartAsync(CancellationToken.None);
 

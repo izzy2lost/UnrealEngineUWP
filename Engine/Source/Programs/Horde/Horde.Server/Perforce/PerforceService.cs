@@ -1164,15 +1164,15 @@ namespace Horde.Server.Perforce
 		/// </summary>
 		protected class CommitSource : ICommitCollection
 		{
-			protected readonly PerforceService _perforceService;
-			protected readonly StreamConfig _streamConfig;
-			protected readonly ILogger _logger;
+			protected PerforceService PerforceService { get; }
+			protected StreamConfig StreamConfig { get; }
+			protected ILogger Logger { get; }
 
 			public CommitSource(PerforceService perforceService, StreamConfig streamConfig, ILogger logger)
 			{
-				_perforceService = perforceService;
-				_streamConfig = streamConfig;
-				_logger = logger;
+				PerforceService = perforceService;
+				StreamConfig = streamConfig;
+				Logger = logger;
 			}
 
 			public async Task<int> CreateNewAsync(string path, string description, CancellationToken cancellationToken = default)
@@ -1180,23 +1180,23 @@ namespace Horde.Server.Perforce
 				Match match = Regex.Match(path, @"^(//[^/]+/[^/]+)/(.+)$");
 				if (match.Success)
 				{
-					return await _perforceService.CreateNewChangeAsync(_streamConfig.ClusterName, match.Groups[1].Value, match.Groups[2].Value, description, cancellationToken);
+					return await PerforceService.CreateNewChangeAsync(StreamConfig.ClusterName, match.Groups[1].Value, match.Groups[2].Value, description, cancellationToken);
 				}
 				else
 				{
-					return await _perforceService.CreateNewChangeAsync(_streamConfig.ClusterName, _streamConfig.Name, path, description, cancellationToken);
+					return await PerforceService.CreateNewChangeAsync(StreamConfig.ClusterName, StreamConfig.Name, path, description, cancellationToken);
 				}
 			}
 
 			public virtual async IAsyncEnumerable<ICommit> FindAsync(int? minChange, int? maxChange, int? maxResults, IReadOnlyList<CommitTag>? tags, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 			{
-				using TelemetrySpan span = _perforceService._tracer.StartActiveSpan($"{nameof(PerforceService)}.{nameof(CommitSource)}.{nameof(FindAsync)}");
-				span.SetAttribute("stream", _streamConfig.ClusterName);
+				using TelemetrySpan span = PerforceService._tracer.StartActiveSpan($"{nameof(Perforce.PerforceService)}.{nameof(PerforceService.CommitSource)}.{nameof(FindAsync)}");
+				span.SetAttribute("stream", StreamConfig.ClusterName);
 				span.SetAttribute("minChange", minChange ?? -2);
 				span.SetAttribute("maxChange", maxChange ?? -2);
 				span.SetAttribute("maxResults", maxResults ?? -1);
 
-				using (PooledConnectionHandle perforce = await _perforceService.ConnectWithStreamClientAsync(_streamConfig, null, cancellationToken))
+				using (PooledConnectionHandle perforce = await PerforceService.ConnectWithStreamClientAsync(StreamConfig, null, cancellationToken))
 				{
 					InfoRecord info = await perforce.GetInfoAsync(cancellationToken);
 
@@ -1207,7 +1207,7 @@ namespace Horde.Server.Perforce
 						List<ChangesRecord> changes = await perforce.GetChangesAsync(ChangesOptions.IncludeTimes | ChangesOptions.LongOutput, maxResults ?? -1, ChangeStatus.Submitted, filter, cancellationToken);
 						foreach (ChangesRecord change in changes)
 						{
-							ICommit commit = await _perforceService.CreateCommitAsync(_streamConfig, change, info, cancellationToken);
+							ICommit commit = await PerforceService.CreateCommitAsync(StreamConfig, change, info, cancellationToken);
 							yield return commit;
 						}
 					}
@@ -1232,7 +1232,7 @@ namespace Horde.Server.Perforce
 							List<DescribeRecord> describeRecords = await perforce.DescribeAsync(DescribeOptions.None, MaxFiles, changesRecords.Select(x => x.Number).ToArray(), cancellationToken);
 							foreach (DescribeRecord describeRecord in describeRecords)
 							{
-								ICommit commit = await _perforceService.CreateCommitAsync(perforce, _streamConfig, describeRecord, MaxFiles, info, cancellationToken);
+								ICommit commit = await PerforceService.CreateCommitAsync(perforce, StreamConfig, describeRecord, MaxFiles, info, cancellationToken);
 
 								IReadOnlyList<CommitTag> commitTags = await commit.GetTagsAsync(cancellationToken);
 								if (commitTags.Intersect(tags).Any())
@@ -1254,7 +1254,7 @@ namespace Horde.Server.Perforce
 			/// <inheritdoc/>
 			public virtual Task<ICommit> GetAsync(int changeNumber, CancellationToken cancellationToken = default)
 			{
-				return _perforceService.GetChangeDetailsAsync(_streamConfig, changeNumber, cancellationToken);
+				return PerforceService.GetChangeDetailsAsync(StreamConfig, changeNumber, cancellationToken);
 			}
 
 			/// <inheritdoc/>
