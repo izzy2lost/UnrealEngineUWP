@@ -2926,6 +2926,12 @@ void UGeometryCollectionComponent::ResetDynamicCollection()
 		DynamicCollection.Reset();
 	}
 
+	const int32 NumRestCollectionTransforms = RestCollection ? RestCollection->GetGeometryCollection()->Transform.Num() : 0;
+	if (RestTransforms.Num() != NumRestCollectionTransforms)
+	{
+		RestTransforms.Reset();
+	}
+
 	// if Rest transform have been overriden uses them to initialize the dynamic collection transforms
 	if (RestTransforms.Num() > 0)
 	{
