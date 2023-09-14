@@ -144,7 +144,7 @@ void SEditorViewportViewMenu::FillViewMenu(UToolMenu* Menu) const
 			}
 
 #if RHI_RAYTRACING
-			if (IsRayTracingAllowed())
+			if (IsRayTracingEnabled())
 			{
 				static auto PathTracingCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PathTracing"));
 				if (PathTracingCvar && PathTracingCvar->GetValueOnAnyThread() != 0)
