@@ -701,6 +701,33 @@ static HRESULT D3DCompileToDxil(const char* SourceText, const FDxcArguments& Arg
 		checkf(CompileResult->HasOutput(DXC_OUT_OBJECT), TEXT("No object code found!"));
 		VERIFYHRESULT(CompileResult->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(OutDxilBlob.GetInitReference()), ObjectCodeNameBlob.GetInitReference()));
 
+		const bool bPostCompileSign = true;
+		if (bPostCompileSign)
+		{
+			// https://www.wihlidal.com/blog/pipeline/2018-09-16-dxil-signing-post-compile/
+			TRefCountPtr<IDxcValidator> Validator;
+			VERIFYHRESULT(DxcDllHelper.CreateInstance2(GetDxcMalloc(), CLSID_DxcValidator, Validator.GetInitReference()));
+
+		#if 0
+			struct FDxilMinimalHeader
+			{
+				uint32 FourCC;
+				uint32 HashDigest[4];
+			};
+
+			FDxilMinimalHeader BeforeSignHeader = *reinterpret_cast<FDxilMinimalHeader*>(OutDxilBlob->GetBufferPointer());
+			(void)BeforeSignHeader;
+		#endif
+
+			TRefCountPtr<IDxcOperationResult> ValidateResult;
+			VERIFYHRESULT(Validator->Validate(OutDxilBlob.GetReference(), DxcValidatorFlags_InPlaceEdit, ValidateResult.GetInitReference()));
+
+		#if 0
+			FDxilMinimalHeader AfterSignHeader = *reinterpret_cast<FDxilMinimalHeader*>(OutDxilBlob->GetBufferPointer());
+			(void)AfterSignHeader;
+		#endif
+		}
+
 		TRefCountPtr<IDxcBlobUtf16> ReflectionNameBlob; // Dummy name blob to silence static analysis warning
 		checkf(CompileResult->HasOutput(DXC_OUT_REFLECTION), TEXT("No reflection found!"));
 		VERIFYHRESULT(CompileResult->GetOutput(DXC_OUT_REFLECTION, IID_PPV_ARGS(OutReflectionBlob.GetInitReference()), ReflectionNameBlob.GetInitReference()));
