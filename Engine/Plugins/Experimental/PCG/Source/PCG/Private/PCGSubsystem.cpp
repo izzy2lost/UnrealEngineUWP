@@ -254,6 +254,10 @@ void UPCGSubsystem::RegisterPCGWorldActor(APCGWorldActor* InActor)
 	{
 		PCGWorldActor = InActor;
 	}
+	else if (InActor != PCGWorldActor)
+	{
+		PCGWorldActor->MergeFrom(InActor);
+	}
 }
 
 void UPCGSubsystem::UnregisterPCGWorldActor(APCGWorldActor* InActor)

@@ -9,7 +9,16 @@
 #include "Grid/PCGPartitionActor.h"
 #include "Helpers/PCGActorHelpers.h"
 
+#include "LandscapeProxy.h"
 #include "Engine/World.h"
+#include "HAL/IConsoleManager.h"
+
+#if WITH_EDITOR
+#include "UObject/UObjectHash.h"
+#include "WorldPartition/WorldPartition.h"
+#include "WorldPartition/WorldPartitionHelpers.h"
+#include "WorldPartition/ActorPartition/PartitionActorDesc.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGWorldActor)
 
@@ -30,10 +39,64 @@ void APCGWorldActor::BeginCacheForCookedPlatformData(const ITargetPlatform* Targ
 {
 	Super::BeginCacheForCookedPlatformData(TargetPlatform);
 	check(LandscapeCacheObject);
-	LandscapeCacheObject->PrimeCache();
+	
+	UWorld* World = GetWorld();
+
+	if (World && LandscapeCacheObject->SerializationMode == EPCGLandscapeCacheSerializationMode::SerializeOnlyAtCook)
+	{
+		// Implementation note: actor references gathered from the world partition helpers will register on creation and unregister on deletion
+		// which is why we need to manage this only in the non-WP case.
+		TSet<FWorldPartitionReference> ActorRefs;
+		TArray<ALandscapeProxy*> ProxiesToRegisterAndUnregister;
+
+		if (UWorldPartition* WorldPartition = World->GetWorldPartition())
+		{
+			FWorldPartitionHelpers::ForEachActorDesc<ALandscapeProxy>(WorldPartition, [WorldPartition, &ActorRefs](const FWorldPartitionActorDesc* ActorDesc)
+			{
+				check(ActorDesc);
+				ActorRefs.Add(FWorldPartitionReference(WorldPartition, ActorDesc->GetGuid()));
+				return true;
+			});
+		}
+		else
+		{
+			// Since we're not in a WP map, the proxies should be outered to this world.
+			// Important note: registering the landscape proxies can create objects, which can and will cause issues with the ForEachWithOuter, hence the second loop in which we do the register
+			ForEachObjectWithOuter(GetWorld(), [&ProxiesToRegisterAndUnregister](UObject* Object)
+			{
+				if (ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(Object))
+				{
+					bool bHasUnregisteredComponents = false;
+					LandscapeProxy->ForEachComponent(/*bIncludeFromChildActors=*/false, [&bHasUnregisteredComponents](const UActorComponent* Component)
+					{
+						if (Component && !Component->IsRegistered())
+						{
+							bHasUnregisteredComponents = true;
+						}
+					});
+
+					if (bHasUnregisteredComponents)
+					{
+						ProxiesToRegisterAndUnregister.Add(LandscapeProxy);
+					}
+				}
+			});
+
+			for (ALandscapeProxy* ProxyToRegister : ProxiesToRegisterAndUnregister)
+			{
+				ProxyToRegister->RegisterAllComponents();
+			}
+		}
+
+		LandscapeCacheObject->PrimeCache();
+
+		for (ALandscapeProxy* ProxyToUnregister : ProxiesToRegisterAndUnregister)
+		{
+			ProxyToUnregister->UnregisterAllComponents();
+		}
+	}
 }
 #endif
-
 
 void APCGWorldActor::PostInitProperties()
 {
@@ -119,6 +182,13 @@ void APCGWorldActor::GetGridGuids(PCGHiGenGrid::FSizeToGuidMap& OutSizeToGuidMap
 	{
 		OutSizeToGuidMap.Add(SizeGuid.Key, SizeGuid.Value);
 	}
+}
+
+void APCGWorldActor::MergeFrom(APCGWorldActor* OtherWorldActor)
+{
+	check(OtherWorldActor && this != OtherWorldActor);
+	ensure(PartitionGridSize == OtherWorldActor->PartitionGridSize && bUse2DGrid == OtherWorldActor->bUse2DGrid && GridGuids.OrderIndependentCompareEqual(OtherWorldActor->GridGuids));
+	LandscapeCacheObject->TakeOwnership(OtherWorldActor->LandscapeCacheObject);
 }
 
 #if WITH_EDITOR

@@ -679,6 +679,44 @@ void UPCGLandscapeCache::ClearCache()
 #endif
 }
 
+void UPCGLandscapeCache::TakeOwnership(UPCGLandscapeCache* InLandscapeCache)
+{
+	if (SerializationMode != EPCGLandscapeCacheSerializationMode::NeverSerialize)
+	{
+		Modify(/*bAlwaysMarkDirty=*/false);
+	}
+
+	bool bShouldDirty = false;
+
+	for (TPair<TPair<FGuid, FIntPoint>, FPCGLandscapeCacheEntry*>& CacheEntryPair : InLandscapeCache->CachedData)
+	{
+		FPCGLandscapeCacheEntry* CacheEntry = CachedData.FindOrAdd(CacheEntryPair.Key, CacheEntryPair.Value);
+		if (CacheEntry == CacheEntryPair.Value)
+		{
+			CacheEntryPair.Value = nullptr;
+			bShouldDirty = true;
+		}
+	}
+
+	for (FName LayerName : InLandscapeCache->CachedLayerNames)
+	{
+		bool bLayerWasAlreadyPresent = false;
+		CachedLayerNames.Add(LayerName, &bLayerWasAlreadyPresent);
+		bShouldDirty |= !bLayerWasAlreadyPresent;
+	}
+
+	InLandscapeCache->ClearCache();
+
+#if WITH_EDITOR
+	CacheEntryCount = CachedData.Num();
+#endif
+
+	if (bShouldDirty && SerializationMode != EPCGLandscapeCacheSerializationMode::NeverSerialize)
+	{
+		MarkPackageDirty();
+	}
+}
+
 #if WITH_EDITOR
 const FPCGLandscapeCacheEntry* UPCGLandscapeCache::GetCacheEntry(ULandscapeComponent* LandscapeComponent, const FIntPoint& ComponentCoordinate)
 {

@@ -129,6 +129,8 @@ public:
 	UFUNCTION(CallInEditor, Category = "Cache")
 	void ClearCache();
 
+	void TakeOwnership(UPCGLandscapeCache* InLandscapeCache);
+
 	void Tick(float DeltaSeconds);
 
 #if WITH_EDITOR
