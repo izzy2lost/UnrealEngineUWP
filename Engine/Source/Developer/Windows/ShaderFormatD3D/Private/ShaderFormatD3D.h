@@ -5,9 +5,6 @@
 #include "Windows/WindowsHWrapper.h"
 #include "ShaderCompilerCommon.h"
 
-// TODO: Lock D3D12 to SM 6.6 min spec
-#define USE_SHADER_MODEL_6_6 1
-
 // Controls whether r.Shaders.RemoveDeadCode should be honored
 #ifndef UE_D3D_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
 #define UE_D3D_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL 1
@@ -22,6 +19,16 @@ enum class ELanguage
 	ES3_1,
 	Invalid,
 };
+
+inline bool IsUsingSM66(ELanguage Language, EShaderFrequency Frequency)
+{
+	return Language == ELanguage::SM6 || IsRayTracingShaderFrequency(Frequency);
+}
+
+inline bool IsUsingSM66(const FShaderCompilerInput& Input, ELanguage Language)
+{
+	return IsUsingSM66(Language, Input.Target.GetFrequency());
+}
 
 bool PreprocessD3DShader(
 	const struct FShaderCompilerInput& Input,

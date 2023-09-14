@@ -82,10 +82,9 @@ static void D3D11FilterShaderCompileWarnings(const FString& CompileWarnings, TAr
 }
 
 // @return 0 if not recognized
-static const TCHAR* GetShaderProfileName(ELanguage Language, uint32 Frequency, bool bForceSM6)
+static const TCHAR* GetShaderProfileName(ELanguage Language, EShaderFrequency Frequency, bool bForceSM6)
 {
-
-	if (Language == ELanguage::SM6 || IsRayTracingShaderFrequency(EShaderFrequency(Frequency)))
+	if (IsUsingSM66(Language, Frequency))
 	{
 		switch (Frequency)
 		{
@@ -93,22 +92,22 @@ static const TCHAR* GetShaderProfileName(ELanguage Language, uint32 Frequency, b
 			checkfSlow(false, TEXT("Unexpected shader frequency"));
 			return nullptr;
 		case SF_Pixel:
-			return USE_SHADER_MODEL_6_6 ? TEXT("ps_6_6") : TEXT("ps_6_5");
+			return TEXT("ps_6_6");
 		case SF_Vertex:
-			return USE_SHADER_MODEL_6_6 ? TEXT("vs_6_6") : TEXT("vs_6_5");
+			return TEXT("vs_6_6");
 		case SF_Mesh:
-			return USE_SHADER_MODEL_6_6 ? TEXT("ms_6_6") : TEXT("ms_6_5");
+			return TEXT("ms_6_6");
 		case SF_Amplification:
-			return USE_SHADER_MODEL_6_6 ? TEXT("as_6_6") : TEXT("as_6_5");
+			return TEXT("as_6_6");
 		case SF_Geometry:
-			return USE_SHADER_MODEL_6_6 ? TEXT("gs_6_6") : TEXT("gs_6_5");
+			return TEXT("gs_6_6");
 		case SF_Compute:
-			return USE_SHADER_MODEL_6_6 ? TEXT("cs_6_6") : TEXT("cs_6_5");
+			return TEXT("cs_6_6");
 		case SF_RayGen:
 		case SF_RayMiss:
 		case SF_RayHitGroup:
 		case SF_RayCallable:
-			return USE_SHADER_MODEL_6_6 ? TEXT("lib_6_6") : TEXT("lib_6_5");
+			return TEXT("lib_6_6");
 		}
 	}
 	else if(Language == ELanguage::SM5)
@@ -1106,8 +1105,7 @@ bool CompileAndProcessD3DShaderFXC(const FShaderPreprocessOutput& PreprocessOutp
 
 inline bool ShouldUseDXC(const FShaderCompilerInput& Input, ELanguage Language)
 {
-	return Language == ELanguage::SM6
-		|| Input.IsRayTracingShader()
+	return IsUsingSM66(Input, Language)
 		|| Input.Environment.CompilerFlags.Contains(CFLAG_WaveOperations)
 		|| Input.Environment.CompilerFlags.Contains(CFLAG_ForceDXC)
 		|| Input.Environment.CompilerFlags.Contains(CFLAG_InlineRayTracing)
@@ -1122,7 +1120,7 @@ bool PreprocessD3DShader(
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 	FShaderCompilerDefinitions AdditionalDefines;
-	if (Language == ELanguage::SM6)
+	if (IsUsingSM66(Input, Language))
 	{
 		AdditionalDefines.SetDefine(TEXT("SM6_PROFILE"), 1);
 	}
@@ -1147,7 +1145,7 @@ bool PreprocessD3DShader(
 	{
 		AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_CALLABLE_SHADERS"), 1);
 		AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS"), 1);
-		if (Language == ELanguage::SM6 || Input.IsRayTracingShader())
+		if (IsUsingSM66(Input, Language))
 		{
 			AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_STATIC_SAMPLERS"), 1);
 		}
@@ -1197,7 +1195,7 @@ bool PreprocessD3DShader(
 	}
 
 	// Only use UniformBuffer structs on SM6 until we can fully vet SM5
-	if (Language != ELanguage::SM6)
+	if (!IsUsingSM66(Input, Language))
 	{
 		RemoveUniformBuffersFromSource(Environment, PreprocessedSource);
 	}
@@ -1222,7 +1220,7 @@ void CompileD3DShader(const FShaderCompilerInput& Input, const FShaderPreprocess
 	TRACE_CPUPROFILER_EVENT_SCOPE(CompileD3DShader);
 
 	const bool bUseDXC = ShouldUseDXC(Input, Language);
-	const TCHAR* ShaderProfile = GetShaderProfileName(Language, Input.Target.Frequency, bUseDXC);
+	const TCHAR* ShaderProfile = GetShaderProfileName(Language, Input.Target.GetFrequency(), bUseDXC);
 
 	if(!ShaderProfile)
 	{

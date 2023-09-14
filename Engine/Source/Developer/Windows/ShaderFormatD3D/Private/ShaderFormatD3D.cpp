@@ -12,18 +12,13 @@ static FName NAME_PCD3D_SM6(TEXT("PCD3D_SM6"));
 static FName NAME_PCD3D_SM5(TEXT("PCD3D_SM5"));
 static FName NAME_PCD3D_ES3_1(TEXT("PCD3D_ES31"));
 
+static const FGuid UE_SHADER_PCD3D_SHARED_VER = FGuid("dd4e6e76-4b48-4097-9ece-0f21118b7177");
+static const FGuid UE_SHADER_PCD3D_SM6_VER    = FGuid("c12d7716-7d6a-4be7-920f-9d38c54d1d36");
+static const FGuid UE_SHADER_PCD3D_SM5_VER    = FGuid("07cd0fa4-6d18-43e0-915d-e6c125effafd");
+static const FGuid UE_SHADER_PCD3D_ES3_1_VER  = FGuid("75466d2b-e169-40d8-bac5-1e2f9d43e0bb");
+
 class FShaderFormatD3D : public UE::ShaderCompilerCommon::FBaseShaderFormat 
 {
-	enum EVersion
-	{
-		UE_SHADER_PCD3D_SHARED_VER = 5,
-
-		/** Version for shader format, this becomes part of the DDC key. */
-		UE_SHADER_PCD3D_SM6_VER = 8,
-		UE_SHADER_PCD3D_SM5_VER = 13,
-		UE_SHADER_PCD3D_ES3_1_VER = 8,
-	};
-
 	uint32 DxcVersionHash = 0;
 
 public:
@@ -33,7 +28,7 @@ public:
 	{
 	}
 
-	inline uint32 GetVersionHash(EVersion InVersion) const
+	inline uint32 GetVersionHash(const FGuid& InVersion) const
 	{
 		const uint32 BaseHash = GetTypeHash(UE_SHADER_PCD3D_SHARED_VER);
 		uint32 VersionHash = GetTypeHash(InVersion);
@@ -50,10 +45,6 @@ public:
 		if (Format == NAME_PCD3D_SM6)
 		{
 			uint32 ShaderModelHash = GetVersionHash(UE_SHADER_PCD3D_SM6_VER);
-
-		#if USE_SHADER_MODEL_6_6
-			ShaderModelHash ^= 0x96ED7F56;
-		#endif
 
 			// Make sure we recompile if EShaderCodeFeatures gets bigger
 			ShaderModelHash = HashCombine(ShaderModelHash, GetTypeHash(sizeof(EShaderCodeFeatures)));
@@ -136,22 +127,17 @@ public:
 
 	void ModifyShaderCompilerInput(FShaderCompilerInput& Input) const final
 	{
-		if (Input.ShaderFormat == NAME_PCD3D_SM6 || Input.IsRayTracingShader())
+		const ELanguage Language = FormatToLanguage(Input.ShaderFormat);
+
+		if (IsUsingSM66(Input, Language))
 		{
 			Input.Environment.SetDefine(TEXT("SM6_PROFILE"), 1);
 			Input.Environment.SetDefine(TEXT("COMPILER_DXC"), 1);
 			Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_UB_STRUCT"), 1);
 
-			if (USE_SHADER_MODEL_6_6)
-			{
-				AddShaderTargetDefines(Input, 6, 6);
-			}
-			else
-			{
-				AddShaderTargetDefines(Input, 6, 5);
-			}
+			AddShaderTargetDefines(Input, 6, 6);
 		}
-		else if (Input.ShaderFormat == NAME_PCD3D_SM5)
+		else if (Language == ELanguage::SM5)
 		{
 			Input.Environment.SetDefine(TEXT("SM5_PROFILE"), 1);
 			const bool bUseDXC =
@@ -168,7 +154,7 @@ public:
 				AddShaderTargetDefines(Input, 5, 0);
 			}
 		}
-		else if (Input.ShaderFormat == NAME_PCD3D_ES3_1)
+		else if (Language == ELanguage::ES3_1)
 		{
 			Input.Environment.SetDefine(TEXT("ES3_1_PROFILE"), 1);
 			Input.Environment.SetDefine(TEXT("COMPILER_DXC"), 0);
