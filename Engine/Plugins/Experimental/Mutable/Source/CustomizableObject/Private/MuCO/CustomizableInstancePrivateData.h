@@ -234,7 +234,7 @@ public:
 
 	void BuildMaterials(const TSharedPtr<FMutableOperationData>& OperationData, UCustomizableObjectInstance* Public);
 
-	void ReuseTexture(UTexture2D* Texture);
+	void ReuseTexture(UTexture2D* Texture, TSharedRef<FTexturePlatformData, ESPMode::ThreadSafe>& PlatformData);
 
 	// Return an event that will be fired when the assets  have been loaded. It returns null if no asset needs loading.
 	FGraphEventRef LoadAdditionalAssetsAsync(const TSharedPtr<FMutableOperationData>& OperationData, UCustomizableObjectInstance* Public, struct FStreamableManager &StreamableManager);
