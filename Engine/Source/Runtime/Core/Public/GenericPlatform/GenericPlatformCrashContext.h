@@ -290,6 +290,29 @@ struct FThreadCallStack
 	uint32 ThreadId;
 };
 
+/** GPU breadcrumbs. */
+enum EBreadcrumbState : uint8
+{
+	NotStarted = 0,
+	Active = 1,
+	Finished = 2,
+	Overflow = 3,
+	Invalid = 4,
+};
+const TCHAR* const EBreadcrumbStateStrings[] = { TEXT("Not started"), TEXT("Active"), TEXT("Finished"), TEXT("Overflow"), TEXT("Invalid") };
+
+struct FBreadcrumbNode
+{
+	EBreadcrumbState State = EBreadcrumbState::Invalid;
+	FString Name;
+	TArray<FBreadcrumbNode> Children;
+
+	const TCHAR* const GetStateString() const
+	{
+		return EBreadcrumbStateStrings[FMath::Min(State, EBreadcrumbState::Invalid)];
+	}
+};
+
 /**
  *	Contains a runtime crash's properties that are common for all platforms.
  *	This may change in the future.
@@ -473,6 +496,9 @@ public:
 
 	/** Updates (or adds if not already present) arbitrary engine data to the crash context (will remove the key if passed an empty string) */
 	CORE_API static void SetEngineData(const FString& Key, const FString& Value);
+
+	/** Updates (or adds if not already present) GPU breadcrumb data for a given GPU queue */
+	CORE_API static void SetGPUBreadcrumbs(const FString& GPUQueueName, const TArray<FBreadcrumbNode>& Breadcrumbs);
 
 	/** Accessor for engine data change callback delegate */
 	static FEngineDataSetDelegate& OnEngineDataSetDelegate() { return OnEngineDataSet; }
@@ -663,6 +689,9 @@ private:
 	/** Produces a hash based on the offsets of the portable callstack and adds it to the xml */
 	void AddPortableCallStackHash() const;
 
+	/** Add GPU breadcrumbs information to the crash report xml */
+	void AddGPUBreadcrumbs() const;
+
 	/** Add module/pdb information to the crash report xml */
 	void AddModules() const;
 
@@ -674,6 +703,7 @@ private:
 
 	static void BeginSection(FString& Buffer, const TCHAR* SectionName);
 	static void EndSection(FString& Buffer, const TCHAR* SectionName);
+	static void AddSection(FString& Buffer, const TCHAR* SectionName, const FString& SectionContent);
 
 	/** Called once when GConfig is initialized. Opportunity to cache values from config. */
 	static void InitializeFromConfig();

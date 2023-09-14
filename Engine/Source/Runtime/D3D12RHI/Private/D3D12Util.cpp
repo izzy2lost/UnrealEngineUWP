@@ -162,60 +162,69 @@ static FString GetD3D12TextureFlagString(uint32 TextureFlags)
 	return TextureFormatText;
 }
 
-void DumpBreadcrumbScopeRecursive(
+FBreadcrumbNode CollectBreadcrumbNode(
 	D3D12RHI::FD3DGPUProfiler& GPUProfiler,
 	const TSharedPtr<FBreadcrumbStack>& Stack,
-	FString& OutGpuProgress,
-	const FBreadcrumbStack::FScope& Scope,
-	uint32 Indent)
+	const FBreadcrumbStack::FScope& Scope)
 {
+	FBreadcrumbNode Node;
+
 	const volatile uint32* Markers = reinterpret_cast<uint32*>(Stack->CPUAddress);
 	const bool bHaveMarkerIndex = (Scope.MarkerIndex < Stack->MaxMarkers);
-	const uint32 Marker = bHaveMarkerIndex ? Markers[Scope.MarkerIndex] : 0;
+	Node.State = bHaveMarkerIndex ? (EBreadcrumbState)Markers[Scope.MarkerIndex] : EBreadcrumbState::Overflow;
 
-	const bool bDidOpen = Marker > 0;
-	const bool bDidClose = Marker > 1;
+	const FString* EventName = GPUProfiler.FindEventString(Scope.NameCRC);
+	Node.Name = EventName ? *EventName : TEXT("Unknown");
 
+	if (Node.State == EBreadcrumbState::Active)
+	{
+		for (uint32 Child = Scope.Child; Child != 0; Child = Stack->Scopes[Child].Sibling)
+		{
+			Node.Children.Emplace(CollectBreadcrumbNode(GPUProfiler, Stack, Stack->Scopes[Child]));
+		}
+	}
+
+	return Node;
+};
+
+void BuildBreadcrumbsDumpString(const FBreadcrumbNode& Breadcrumb, FString& OutString, uint32 Indent)
+{
 	const TCHAR* Prefix = TEXT("  ");
-	if (bDidOpen && bDidClose)
+	if (Breadcrumb.State == EBreadcrumbState::Finished)
 	{
 		Prefix = TEXT("| ");
 	}
-	else if (bDidOpen && !bDidClose)
+	else if (Breadcrumb.State == EBreadcrumbState::Active)
 	{
 		Prefix = TEXT("> ");
 	}
 
 	const TCHAR* Suffix = TEXT("");
-	if (!bHaveMarkerIndex)
+	if (Breadcrumb.State == EBreadcrumbState::Overflow)
 	{
 		Suffix = TEXT(" [overflow]");
 	}
 
-	const FString* EventName = GPUProfiler.FindEventString(Scope.NameCRC);
-
 	for (uint32 Idx = 0; Idx < Indent * 2; ++Idx)
 	{
-		OutGpuProgress.AppendChar(' ');
+		OutString.AppendChar(' ');
 	}
 
-	const TCHAR* MarkerState[] = { TEXT("Not started"), TEXT("Active"), TEXT("Finished"), TEXT("Invalid")};
-	OutGpuProgress.Append(FString::Printf(TEXT("Breadcrumbs: %s%s [%s]%s\n"), Prefix, **EventName, MarkerState[FMath::Min(3U, Marker)], Suffix));
+	OutString.Append(FString::Printf(TEXT("Breadcrumbs: %s%s [%s]%s\n"), Prefix, *Breadcrumb.Name, Breadcrumb.GetStateString(), Suffix));
 
-	if (bDidOpen && !bDidClose)
+	for (const FBreadcrumbNode& Child : Breadcrumb.Children)
 	{
-		for (uint32 Child = Scope.Child; Child != 0; Child = Stack->Scopes[Child].Sibling)
-		{
-			DumpBreadcrumbScopeRecursive(GPUProfiler, Stack, OutGpuProgress, Stack->Scopes[Child], Indent + 1);
-		}
+		BuildBreadcrumbsDumpString(Child, OutString, Indent + 1);
 	}
-};
+}
 
 /** Log the GPU progress of the given queue to the Error log if breadcrumb data is available */
 static bool LogBreadcrumbData(D3D12RHI::FD3DGPUProfiler& GPUProfiler, FD3D12Queue& Queue)
 {
-	FString GpuProgress = FString::Printf(TEXT("[GPUBreadCrumb]\t%s Queue %d\n"), GetD3DCommandQueueTypeName(Queue.QueueType),
+	FString GPUQueueName = FString::Printf(TEXT("%s Queue %d"), GetD3DCommandQueueTypeName(Queue.QueueType),
 		Queue.Device->GetGPUIndex());
+
+	FString GpuProgress = FString::Printf(TEXT("[GPUBreadCrumb]\t%s\n"), *GPUQueueName);
 
 	TArray<TSharedPtr<FBreadcrumbStack>, TInlineAllocator<8>> UniqueStacks;
 
@@ -228,6 +237,7 @@ static bool LogBreadcrumbData(D3D12RHI::FD3DGPUProfiler& GPUProfiler, FD3D12Queu
 		Queue.PendingInterrupt.Pop();
 	}
 
+	TArray<FBreadcrumbNode> Nodes;
 	for (const TSharedPtr<FBreadcrumbStack>& Stack : UniqueStacks)
 	{
 		if (!Stack->Scopes.IsEmpty())
@@ -237,14 +247,24 @@ static bool LogBreadcrumbData(D3D12RHI::FD3DGPUProfiler& GPUProfiler, FD3D12Queu
 				uint32 Scope = 0;
 				do
 				{
-					DumpBreadcrumbScopeRecursive(GPUProfiler, Stack, GpuProgress, Stack->Scopes[Scope], 0);
+					Nodes.Emplace(CollectBreadcrumbNode(GPUProfiler, Stack, Stack->Scopes[Scope]));
 					Scope = Stack->Scopes[Scope].Sibling;
 				} while (Scope != 0);
 			}
 		}
 	}
 
+	for (const FBreadcrumbNode& Node : Nodes)
+	{
+		BuildBreadcrumbsDumpString(Node, GpuProgress, 0);
+	}
+
 	UE_LOG(LogD3D12RHI, Error, TEXT("%s"), *GpuProgress);
+
+	if (!Nodes.IsEmpty())
+	{
+		FPlatformCrashContext::SetGPUBreadcrumbs(GPUQueueName, Nodes);
+	}
 
 	const FD3D12DiagnosticBufferData* DiagnosticData = Queue.GetDiagnosticBufferData();
 	if (DiagnosticData && DiagnosticData->Counter)

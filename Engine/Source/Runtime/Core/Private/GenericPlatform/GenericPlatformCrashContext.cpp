@@ -86,6 +86,73 @@ static const TCHAR* AttendedStatusToString(EUnattendedStatus Status)
 	}
 }
 
+/* GPU breadcrumbs */
+class FGPUBreadcrumbCrashData
+{
+public:
+	FGPUBreadcrumbCrashData(const TArray<FBreadcrumbNode>& Breadcrumbs)
+	{
+		for (const FBreadcrumbNode& Node : Breadcrumbs)
+		{
+			ProcessBreadcrumbNode(Node);
+		}
+
+		FinalizedFullHash = FullHash.Finalize();
+		FinalizedActiveHash = ActiveHash.Finalize();
+	}
+
+	const FString& GetProcessedBreadcrumbString() const { return ProcessedBreadcrumbString; }
+	const FSHAHash GetFullHash() const { return FinalizedFullHash; }
+	const FSHAHash GetActiveHash() const { return FinalizedActiveHash; }
+	
+	/** 
+	 * This must be incremented whenever the format of the breadcrumb string
+	 * changes, in order to help parsers in dealing with strings from multiple
+	 * versions.
+	 */
+	static const TCHAR* const GetBreadcrumbStringFormatVersion() { return TEXT("1.0"); }
+
+private:
+	void ProcessBreadcrumbNode(const FBreadcrumbNode& Node)
+	{
+		FullHash.UpdateWithString(*Node.Name, Node.Name.Len());
+		if (Node.State == EBreadcrumbState::Active)
+		{
+			ActiveHash.UpdateWithString(*Node.Name, Node.Name.Len());
+		}
+
+		ProcessedBreadcrumbString.Append(FString::Printf(TEXT("{{%s},%c"), *SanitizeBreadcrumbEventName(Node.Name), Node.GetStateString()[0]));
+		if (!Node.Children.IsEmpty())
+		{
+			ProcessedBreadcrumbString.Append(TEXT(",{"));
+			for (int32 Child = 0; Child < Node.Children.Num(); Child++)
+			{
+				ProcessBreadcrumbNode(Node.Children[Child]);
+				if (Child != Node.Children.Num() - 1)
+				{
+					ProcessedBreadcrumbString.AppendChar(',');
+				}
+			}
+			ProcessedBreadcrumbString.AppendChar('}');
+		}
+		ProcessedBreadcrumbString.AppendChar('}');
+	}
+
+	// Sanitize the event name string to remove characters that are used
+	// as delimiters for parsing.
+	static FString SanitizeBreadcrumbEventName(const FString& EventName)
+	{
+		return EventName.Replace(TEXT("{"), TEXT("(")).Replace(TEXT("}"), TEXT(")"));
+	}
+
+	FString ProcessedBreadcrumbString;	
+
+	FSHA1 FullHash;
+	FSHAHash FinalizedFullHash;
+	FSHA1 ActiveHash;
+	FSHAHash FinalizedActiveHash;
+};
+
 /*-----------------------------------------------------------------------------
 	FGenericCrashContext
 -----------------------------------------------------------------------------*/
@@ -146,6 +213,7 @@ namespace NCached
 	static TArray<FString> EnabledPluginsList;
 	static TMap<FString, FString> EngineData;
 	static TMap<FString, FString> GameData;
+	static TMap<FString, FGPUBreadcrumbCrashData> GPUBreadcrumbsByQueue;
 
 	template <size_t CharCount, typename CharType>
 	void Set(CharType(&Dest)[CharCount], const CharType* pSrc)
@@ -802,6 +870,8 @@ void FGenericCrashContext::SerializeContentToBuffer() const
 	AddPortableCallStack();
 	AddPortableCallStackHash();
 
+	AddGPUBreadcrumbs();
+
 	{
 		FString AllThreadStacks;
 		if (GetPlatformAllThreadContextsString(AllThreadStacks))
@@ -992,7 +1062,33 @@ void FGenericCrashContext::AddPortableCallStack() const
 	EndSection(CommonBuffer, TEXT("PCallStack"));
 }
 
+void FGenericCrashContext::AddGPUBreadcrumbs() const
+{
+	if (NCached::GPUBreadcrumbsByQueue.IsEmpty())
+	{
+		return;
+	}
+	
+	BeginSection(CommonBuffer, TEXT("GPUBreadcrumbs"));
 
+	// We use a version indicator for the format used by the breadcrumbs
+	// string, so that parsers can know what to expect and don't break
+	// if changes are made in the format exported by the engine.
+	AddSection(CommonBuffer, TEXT("FormatVersion"), FGPUBreadcrumbCrashData::GetBreadcrumbStringFormatVersion());
+
+	for (auto& [Queue, Breadcrumbs] : NCached::GPUBreadcrumbsByQueue)
+	{
+		BeginSection(CommonBuffer, TEXT("Queue"));
+
+		AddSection(CommonBuffer, TEXT("Name"), Queue);
+		AddSection(CommonBuffer, TEXT("FullHash"), Breadcrumbs.GetFullHash().ToString());
+		AddSection(CommonBuffer, TEXT("ActiveHash"), Breadcrumbs.GetActiveHash().ToString());
+		AddSection(CommonBuffer, TEXT("Breadcrumbs"), Breadcrumbs.GetProcessedBreadcrumbString());
+
+		EndSection(CommonBuffer, TEXT("Queue"));
+	}
+	EndSection(CommonBuffer, TEXT("GPUBreadcrumbs"));
+}
 
 void FGenericCrashContext::AddHeader(FString& Buffer)
 {
@@ -1013,6 +1109,13 @@ void FGenericCrashContext::BeginSection(FString& Buffer, const TCHAR* SectionNam
 void FGenericCrashContext::EndSection(FString& Buffer, const TCHAR* SectionName)
 {
 	Buffer.Appendf(TEXT("</%s>" LINE_TERMINATOR_ANSI), SectionName);
+}
+
+void FGenericCrashContext::AddSection(FString& Buffer, const TCHAR* SectionName, const FString& SectionContent)
+{
+	BeginSection(Buffer, SectionName);
+	Buffer.Appendf(TEXT("%s"), *FXmlEscapedString(SectionContent));
+	EndSection(Buffer, SectionName);
 }
 
 template<typename DEST>
@@ -1183,6 +1286,11 @@ void FGenericCrashContext::SetEngineData(const FString& Key, const FString& Valu
 	}
 
 	OnEngineDataSet.Broadcast(Key, Value);
+}
+
+void FGenericCrashContext::SetGPUBreadcrumbs(const FString& GPUQueueName, const TArray<FBreadcrumbNode>& Breadcrumbs)
+{
+	NCached::GPUBreadcrumbsByQueue.Emplace(GPUQueueName, FGPUBreadcrumbCrashData(Breadcrumbs));
 }
 
 const TMap<FString, FString>& FGenericCrashContext::GetEngineData()
