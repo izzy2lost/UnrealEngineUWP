@@ -56,7 +56,6 @@ FCollisionQueryParams::FCollisionQueryParams(FName InTraceTag, const TStatId& In
 		bDebugQuery = false;
 #endif
 	bTraceIntoSubComponents = true;
-	bReplaceHitWithSubComponents = true;
 }
 
 

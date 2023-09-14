@@ -6598,8 +6598,7 @@ void UCharacterMovementComponent::ComputeFloorDist(const FVector& CapsuleLocatio
 	// Having a character base on a component within a cluster union will cause replication problems.
 	// The issue is that ACharacter::SetBase() gets a GeometryCollectionComponent passed to it when standing on the DynamicPlatform
 	// and that GC is never simulating, and since it's not simulating it's stopping the based movement flow there for simulated proxies.
-	QueryParams.bTraceIntoSubComponents = true;
-	QueryParams.bReplaceHitWithSubComponents = false;
+	QueryParams.bTraceIntoSubComponents = false;
 
 	FCollisionResponseParams ResponseParam;
 	InitCollisionParams(QueryParams, ResponseParam);
