@@ -1471,10 +1471,11 @@ namespace mu
 				bool bInclude = Params->GetPrivate()->HasMultipleValues(ParamIndex);
 				if (!bInclude)
 				{
-					bInclude =
+					bInclude = !(
 						Params->GetPrivate()->m_values[ParamIndex]
-						!=
-						ParamDescs[ParamIndex].m_defaultValue;
+						==
+						ParamDescs[ParamIndex].m_defaultValue
+						);
 				}
 
 				IncludedParameters[IndexIndex] = bInclude;

@@ -15,6 +15,8 @@ class ITargetPlatform;
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
+#define UE_MUTABLE_CORE_REGION	TEXT("Mutable Core")
+
 
 FCustomizableObjectCompileRunnable::FCustomizableObjectCompileRunnable(mu::Ptr<mu::Node> Root)
 	: MutableRoot(Root)
@@ -27,6 +29,8 @@ FCustomizableObjectCompileRunnable::FCustomizableObjectCompileRunnable(mu::Ptr<m
 
 uint32 FCustomizableObjectCompileRunnable::Run()
 {
+	TRACE_BEGIN_REGION(UE_MUTABLE_CORE_REGION);
+
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] FCustomizableObjectCompileRunnable::Run start."), FPlatformTime::Seconds());
 
 	uint32 Result = 1;
@@ -147,6 +151,8 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 	bThreadCompleted = true;
 
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] FCustomizableObjectCompileRunnable::Run end."), FPlatformTime::Seconds());
+
+	TRACE_END_REGION(UE_MUTABLE_CORE_REGION);
 
 	return Result;
 }

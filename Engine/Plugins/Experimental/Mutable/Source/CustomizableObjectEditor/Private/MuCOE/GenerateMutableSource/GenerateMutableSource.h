@@ -257,7 +257,7 @@ struct FTextureUnrealToMutableTask
 
 	mu::NodeImageConstantPtr ImageNode;
 	mu::TablePtr TableNode;
-	UTexture2D* Texture;
+	TObjectPtr<UTexture2D> Texture;
 	const UCustomizableObjectNode* Node;
 	int32 TableColumn;
 	int32 TableRow;

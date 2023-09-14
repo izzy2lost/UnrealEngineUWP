@@ -39,8 +39,7 @@ namespace mu
     void DLLEXPORT operator>> <T>(InputArchive& arch, T& t);		\
 	
 	
-    //! \brief
-    //! \ingroup model
+    /** This repesents a handle to Mutable resource. */
     template<class R>
     class ResourceProxy : public RefCounted
     {
@@ -51,6 +50,7 @@ namespace mu
     };
 
 
+	/** Proxy implementation that always has the resource loaded in memory. */
 	template<class R>
 	class ResourceProxyMemory : public ResourceProxy<R>
 	{
@@ -65,7 +65,7 @@ namespace mu
 			m_resource = i;
 		}
 
-		// ImageProxy interface
+		// ResourceProxy interface
 		Ptr<const R> Get() override
 		{
 			return m_resource;

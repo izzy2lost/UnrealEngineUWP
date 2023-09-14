@@ -12,7 +12,7 @@ enum class EUnrealToMutableConversionError
 {
     Success,
     UnsupportedFormat,
-    CompositeImageDimensionMissmatch,
+    CompositeImageDimensionMismatch,
     CompositeUnsupportedFormat,
     Unknown
 };

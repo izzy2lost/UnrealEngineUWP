@@ -72,11 +72,11 @@ mu::ImagePtr ConvertTextureUnrealToMutable(UTexture2D* Texture, const UCustomiza
 					Node);
 			break;
 		}
-	case EUnrealToMutableConversionError::CompositeImageDimensionMissmatch:
+	case EUnrealToMutableConversionError::CompositeImageDimensionMismatch:
 		{
 			Compiler->CompilerLog(
-					LOCTEXT("CompositeImageDimensionMissmatch", 
-							"Composite image dimension missmatch."), 
+					LOCTEXT("CompositeImageDimensionMismatch", 
+							"Composite image dimension mismatch."), 
 					Node);
 			break;
 		}

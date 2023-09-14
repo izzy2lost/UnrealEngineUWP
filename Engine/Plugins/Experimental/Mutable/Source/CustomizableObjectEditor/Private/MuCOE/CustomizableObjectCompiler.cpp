@@ -27,6 +27,10 @@ class UTexture2D;
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
+#define UE_MUTABLE_COMPILE_REGION		TEXT("Mutable Compile")
+#define UE_MUTABLE_PRELOAD_REGION		TEXT("Mutable Preload")
+#define UE_MUTABLE_SAVEDD_REGION		TEXT("Mutable SaveDD")
+#define UE_MUTABLE_CONVERTING_REGION	TEXT("Mutable Converting")
 
 UCustomizableObjectNodeObject* GetRootNode(UCustomizableObject* Object, bool &bOutMultipleBaseObjectsFound);
 
@@ -77,6 +81,7 @@ bool FCustomizableObjectCompiler::Tick()
 
 		CompilationLogsContainer.ClearMessagesArray();
 
+		TRACE_END_REGION(UE_MUTABLE_COMPILE_REGION);
 
 	}
 
@@ -92,6 +97,8 @@ bool FCustomizableObjectCompiler::Tick()
 
 		UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Finished Saving Derived Data task."), FPlatformTime::Seconds());
 		UE_LOG(LogMutable, Verbose, TEXT("PROFILE: -----------------------------------------------------------"));
+
+		TRACE_END_REGION(UE_MUTABLE_SAVEDD_REGION);
 	}
 
 	// In editor, when compiling a CO, referencer assets and Unreal to Mutable texture conversion are performed asynchronously
@@ -175,12 +182,16 @@ void FCustomizableObjectCompiler::PreloadingReferencerAssetsCallback(UCustomizab
 	CustomizableObjectCompiler->SetPreloadingReferencerAssets(false);
 	UCustomizableObjectSystem::GetInstance()->UnlockObject(Object);
 
+	TRACE_END_REGION(UE_MUTABLE_PRELOAD_REGION);
+
 	CustomizableObjectCompiler->CompileInternal(Object, Options, bAsync);
 }
 
 
 void FCustomizableObjectCompiler::Compile(UCustomizableObject& Object, const FCompilationOptions& InOptions, bool bAsync)
 {
+	TRACE_BEGIN_REGION(UE_MUTABLE_COMPILE_REGION);
+
 	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
 	check(System);
 
@@ -233,6 +244,7 @@ void FCustomizableObjectCompiler::Compile(UCustomizableObject& Object, const FCo
 	CurrentObject = &Object;
 
 	PreloadingReferencerAssets = true;
+	TRACE_BEGIN_REGION(UE_MUTABLE_PRELOAD_REGION);
 
 	CleanCachedReferencers();
 	UpdateArrayGCProtect();
@@ -293,6 +305,12 @@ void FCustomizableObjectCompiler::AddReferencedObjects(FReferenceCollector& Coll
 	for (int32 i = 0; i < MaxIndex; ++i)
 	{
 		Collector.AddReferencedObject(ArrayGCProtect[i]);
+	}
+
+	// Protect images that are pending to be loaded as well
+	for (FTextureUnrealToMutableTask& Image: ArrayTextureUnrealToMutableTask )
+	{
+		Collector.AddReferencedObject(Image.Texture);
 	}
 
 	if (CurrentObject)
@@ -864,6 +882,8 @@ void FCustomizableObjectCompiler::UpdatePendingTextureConversion(bool UseTimeLim
 			PendingTexturesToLoad = false;
 			ArrayTextureUnrealToMutableTask.Empty();
 			CompletedUnrealToMutableTask = 0;
+
+			TRACE_END_REGION(UE_MUTABLE_CONVERTING_REGION);
 		}
 	}
 }
@@ -1288,7 +1308,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		{
 			if (!Object->MaskOutCache.ToString().IsEmpty() || Object->MaskOutCache.Get())
 			{
-				if (!ParamNamesToSelectedOptions.Num()) // Don't marked the object as modified because of a partial compilation
+				if (!ParamNamesToSelectedOptions.Num()) // Don't mark the object as modified because of a partial compilation
 				{
 					Object->MaskOutCache = nullptr;
 					Object->MarkPackageDirty();
@@ -1318,6 +1338,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		{
 			ArrayTextureUnrealToMutableTask.Insert(GenerationContext.ArrayTextureUnrealToMutableTask, ArrayTextureUnrealToMutableTask.Num());
 			PendingTexturesToLoad = true;
+			TRACE_BEGIN_REGION(UE_MUTABLE_CONVERTING_REGION);
 		}
 
 		// If synchronous compilation is requested, proceed the same way if in editor and if packaging
@@ -1460,6 +1481,8 @@ void FCustomizableObjectCompiler::FinishCompilation()
 
 	if (!Options.bDontUpdateStreamedDataAndCache)
 	{
+		TRACE_BEGIN_REGION(UE_MUTABLE_SAVEDD_REGION);
+
 		SaveDDTask = MakeShareable(new FCustomizableObjectSaveDDRunnable(CurrentObject, Options));
 	}
 	else

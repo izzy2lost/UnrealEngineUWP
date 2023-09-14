@@ -7,6 +7,14 @@
 
 /** Helpers to ease portability across unreal engine versions */
 
+#if ENGINE_MAJOR_VERSION==5 && ENGINE_MINOR_VERSION<3
+
+#define ObjectPtrWrap(X)	X
+#define ObjectPtrDecay(X)	X
+
+#endif
+
+
 #if ENGINE_MAJOR_VERSION==5 && ENGINE_MINOR_VERSION>=1
 
 #include "Engine/SkinnedAssetCommon.h"

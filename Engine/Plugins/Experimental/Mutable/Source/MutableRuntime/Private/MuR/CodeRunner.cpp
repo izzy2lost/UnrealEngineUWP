@@ -4064,7 +4064,10 @@ namespace mu
 				int32 MipsToSkip = item.ExecutionOptions;
 				while ( MipsToSkip>0 && rect.size[0]>0 && rect.size[1]>0 )
 				{
-					rect.ShrinkToHalf();
+					rect.min[0] /= 2;
+					rect.min[1] /= 2;
+					rect.size[0] /= 2;
+					rect.size[1] /= 2;
 					MipsToSkip--;
 				}
 
@@ -4524,6 +4527,7 @@ namespace mu
 
                 ImageMakeGrowMap(Result.get(), Mask.get(), args.border );
 				Result->m_flags |= Image::IF_CANNOT_BE_SCALED;
+				check(Result->GetData());
 
 				Release(Mask);
                 StoreImage( item, Result);

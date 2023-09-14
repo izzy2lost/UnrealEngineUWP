@@ -48,7 +48,7 @@ EUnrealToMutableConversionError ApplyCompositeTexture(
    
     if (SizeX < Image.SizeX || SizeY < Image.SizeY || !bHaveSimilarAspect)
     {
-        return EUnrealToMutableConversionError::CompositeImageDimensionMissmatch;
+        return EUnrealToMutableConversionError::CompositeImageDimensionMismatch;
     }
 
     {
