@@ -2,7 +2,13 @@
 #include "../Common.ush"
 
 #include "LocalFogVolumeCommon.ush"
+#include "../Nanite/NaniteHZBCull.ush"
 
+float4 LeftPlane;
+float4 RightPlane;
+float4 TopPlane;
+float4 BottomPlane;
+float4 NearPlane;
 
 RWTexture2DArray<uint> LocalFogVolumeTileDataTextureUAV;
 
@@ -20,7 +26,49 @@ void LocalFogVolumeTiledCullingCS(uint3 ThreadId : SV_DispatchThreadID)
 		return; // Skip out of bound texture tile data 
 	}
 
-	LocalFogVolumeTileDataTextureUAV[uint3(TilePos, 0)] = TilePos.x + TilePos.y; // DEBUG
+
+	float2 MinTileLerp =  float2(TilePos)       / float2(LFVTileDataResolution);
+	float2 MaxTileLerp = (float2(TilePos)+1.0f) / float2(LFVTileDataResolution);
+
+	float4 TilePlanes[5];
+	TilePlanes[0] = lerp(LeftPlane, RightPlane, MinTileLerp.xxxx);		// Left tile plane
+	TilePlanes[1] = lerp(LeftPlane, RightPlane, MaxTileLerp.xxxx);		// Right tile plane
+	TilePlanes[2] = lerp(-TopPlane, -BottomPlane, MinTileLerp.yyyy);	// Bottom tile plane
+	TilePlanes[3] = lerp(-TopPlane, -BottomPlane, MaxTileLerp.yyyy);	// Top plane
+//	TilePlanes[4] = NearPlane;		LFV_TODO							// Near plane
+	// Swap right and top plane to go from lerpable planes to planes we can use for culling
+	TilePlanes[1] *= -1.0f;
+	TilePlanes[3] *= -1.0f;
+
+#if 0
+	// Optional plane normalise
+	UNROLL
+	for (uint i = 0; i < 4; ++i)
+	{
+		float SquareSum = TilePlanes[i].x * TilePlanes[i].x + TilePlanes[i].y * TilePlanes[i].y + TilePlanes[i].z * TilePlanes[i].z;
+		float Scale = 1.0 / sqrt(SquareSum);
+		TilePlanes[i] *= Scale;
+	}
+#endif
+
+	// Single sphere culling proof of concept
+	float4 Sphere = float4(0.0, 0.0, 0.0, 500.0);
+
+	uint LFVCount = 0;
+	bool bCompletelyOutside = false;
+	UNROLL
+	for (uint i = 0; i < 4; ++i)
+	{
+		if (dot(TilePlanes[i].xyz, Sphere.xyz) - TilePlanes[i].w > Sphere.w)
+		{
+			bCompletelyOutside = true;
+			break;
+		}
+	}
+
+	LFVCount += bCompletelyOutside ? 0 : 1;
+
+	LocalFogVolumeTileDataTextureUAV[uint3(TilePos, 0)] = LFVCount * 20; // DEBUG
 }
 
 

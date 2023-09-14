@@ -148,6 +148,11 @@ public:
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT(FLocalFogVolumeCommonParameters, LFV)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<uint>, LocalFogVolumeTileDataTextureUAV)
+		SHADER_PARAMETER(FVector4f, LeftPlane)
+		SHADER_PARAMETER(FVector4f, RightPlane)
+		SHADER_PARAMETER(FVector4f, TopPlane)
+		SHADER_PARAMETER(FVector4f, BottomPlane)
+		SHADER_PARAMETER(FVector4f, NearPlane)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -166,6 +171,28 @@ static void LocalFogVolumeViewTiledCullingPass(FViewInfo& View, FRDGBuilder& Gra
 	PassParameters->View = View.ViewUniformBuffer;
 	PassParameters->LFV = View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon;
 	PassParameters->LocalFogVolumeTileDataTextureUAV = View.LocalFogVolumeViewData.TileDataTextureArrayUAV;
+
+	auto ConvertPlanToVector4f = [&](FVector4f& OutVec4f, auto& Plane, bool bFlipPlane)
+	{
+		OutVec4f.X = Plane.X;
+		OutVec4f.Y = Plane.Y;
+		OutVec4f.Z = Plane.Z;
+		OutVec4f.W = Plane.W;
+		if (bFlipPlane)
+		{
+			// We swap some of the planes normal so that they are lerpable while avoiding potential null normal and precision issue at the middle of the frustum.
+			OutVec4f.X *= -1.0f;
+			OutVec4f.Y *= -1.0f;
+			OutVec4f.Z *= -1.0f;
+			OutVec4f.W *= -1.0f;
+		}
+	};
+	// Using world space plane for now. LFV_TODO: do computation in view space.
+	ConvertPlanToVector4f(PassParameters->LeftPlane,	View.CullingFrustum.Planes[0], false);
+	ConvertPlanToVector4f(PassParameters->RightPlane,	View.CullingFrustum.Planes[1], true);
+	ConvertPlanToVector4f(PassParameters->TopPlane,		View.CullingFrustum.Planes[2], true);
+	ConvertPlanToVector4f(PassParameters->BottomPlane,	View.CullingFrustum.Planes[3], false);
+//	ConvertPlanToVector4f(PassParameters->NearPlane,	View.CullingFrustum.Planes[4], false); // LFV TODO View.ViewMatrices.GetViewProjectionMatrix().GetNearPlane
 
 	ERDGPassFlags PassFlag = ERDGPassFlags::Compute; // LFV_TODO try ERDGPassFlags::AsyncCompute later
 
