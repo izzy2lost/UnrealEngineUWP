@@ -3,6 +3,8 @@
 #include "Cooker/DiffWriterArchive.h"
 
 #include "Compression/CompressionUtil.h"
+#include "Cooker/DiffWriterLinkerLoadHeader.h"
+#include "Cooker/DiffWriterZenHeader.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
 #include "HAL/PlatformStackWalk.h"
@@ -12,6 +14,9 @@
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeExit.h"
+#include "PackageStoreOptimizer.h"
+#include "Serialization/AsyncLoading2.h"
+#include "Serialization/MemoryReader.h"
 #include "Serialization/StaticMemoryReader.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/ObjectMacros.h"
@@ -31,11 +36,8 @@ const TCHAR* const NewLineToken = TEXT("%DWA%\n");
 
 /** Logs any mismatching header data. */
 void DumpPackageHeaderDiffs(
-	const FPackageData& SourcePackage,
-	const FPackageData& DestPackage,
-	const FString& AssetFilename,
-	const int32 MaxDiffsToLog,
-	const EPackageHeaderFormat PackageHeaderFormat,
+	FAccumulatorGlobals& Globals, const FPackageData& SourcePackage, const FPackageData& DestPackage,
+	const FString& AssetFilename, const int32 MaxDiffsToLog, const EPackageHeaderFormat PackageHeaderFormat,
 	const FMessageCallback& MessageCallback);
 /** Returns a new linker for loading the specified package. */
 FLinkerLoad* CreateLinkerForPackage(
@@ -484,10 +486,38 @@ void FCallstacks::RecordSerialize(EOffsetFrame OffsetFrame, int64 CurrentOffset,
 	}
 }
 
-FAccumulator::FAccumulator(UObject* InAsset, FName InPackageName, int32 InMaxDiffsToLog, bool bInIgnoreHeaderDiffs,
-	FMessageCallback&& InMessageCallback, EPackageHeaderFormat InPackageHeaderFormat)
+FAccumulatorGlobals::FAccumulatorGlobals(ICookedPackageWriter* InnerPackageWriter)
+	: PackageWriter(InnerPackageWriter)
+{
+}
+
+void FAccumulatorGlobals::Initialize(EPackageHeaderFormat InFormat)
+{
+	if (bInitialized)
+	{
+		return;
+	}
+	bInitialized = true;
+	Format = InFormat;
+	switch (Format)
+	{
+	case EPackageHeaderFormat::PackageFileSummary:
+		break;
+	case EPackageHeaderFormat::ZenPackageSummary:
+		FPackageStoreOptimizer::FindScriptObjects(ScriptObjectsMap);
+		break;
+	default:
+		checkNoEntry();
+		break;
+	}
+}
+
+FAccumulator::FAccumulator(FAccumulatorGlobals& InGlobals, UObject* InAsset, FName InPackageName,
+	int32 InMaxDiffsToLog, bool bInIgnoreHeaderDiffs, FMessageCallback&& InMessageCallback,
+	EPackageHeaderFormat InPackageHeaderFormat)
 	: LinkerCallstacks()
 	, ExportsCallstacks()
+	, Globals(InGlobals)
 	, MessageCallback(MoveTemp(InMessageCallback))
 	, PackageName(InPackageName)
 	, Asset(InAsset)
@@ -942,6 +972,8 @@ void FAccumulator::CompareWithPrevious(const TCHAR* CallstackCutoffText, TMap<FN
 	// An FDiffArchiveForLinker should have been constructed by SavePackage and should still be in memory
 	check(LinkerArchive);
 
+	Globals.Initialize(PackageHeaderFormat);
+
 	const FName AssetClass = GetAssetClass();
 	OutStats.FindOrAdd(AssetClass).NewFileTotalSize = LinkerArchive->TotalSize();
 	if (PreviousPackageData.Size == 0)
@@ -983,8 +1015,20 @@ void FAccumulator::CompareWithPrevious(const TCHAR* CallstackCutoffText, TMap<FN
 
 	if (HeaderSize > 0 && OutStats.FindOrAdd(AssetClass).NumDiffs > 0)
 	{
-		DumpPackageHeaderDiffs(SourcePackage, DestPackage, Filename, MaxDiffsToLog,
-			PackageHeaderFormat, MessageCallback);
+		int32 NumHeaderDiffMessages = 0;
+		DumpPackageHeaderDiffs(Globals, SourcePackage, DestPackage, Filename, MaxDiffsToLog,
+			PackageHeaderFormat,
+			[&NumHeaderDiffMessages, this](ELogVerbosity::Type Verbosity, FStringView Message)
+			{
+				MessageCallback(Verbosity, Message);
+				++NumHeaderDiffMessages;
+			});
+		if (NumHeaderDiffMessages == 0)
+		{
+			MessageCallback(ELogVerbosity::Warning, FString::Printf(
+				TEXT("%s: headers are different, but DumpPackageHeaderDiffs does not yet implement describing the difference."),
+				*Filename));
+		}
 	}
 
 	FPackageData SourcePackageExports = SourcePackage;
@@ -1214,243 +1258,6 @@ FLinkerLoad* CreateLinkerForPackage(FUObjectSerializeContext* LoadContext, const
 	return Linker;
 }
 
-static FString GetTableKey(const FLinkerLoad* Linker, const FObjectExport& Export)
-{
-	FName ClassName = Export.ClassIndex.IsNull() ? FName(NAME_Class) : Linker->ImpExp(Export.ClassIndex).ObjectName;
-	return FString::Printf(TEXT("%s %s.%s"),
-		*ClassName.ToString(),
-		!Export.OuterIndex.IsNull() ? *Linker->ImpExp(Export.OuterIndex).ObjectName.ToString() : *FPackageName::GetShortName(Linker->LinkerRoot),
-		*Export.ObjectName.ToString());
-}
-
-static FString GetTableKey(const FLinkerLoad* Linker, const FObjectImport& Import)
-{
-	return FString::Printf(TEXT("%s %s.%s"),
-		*Import.ClassName.ToString(),
-		!Import.OuterIndex.IsNull() ? *Linker->ImpExp(Import.OuterIndex).ObjectName.ToString() : TEXT("NULL"),
-		*Import.ObjectName.ToString());
-}
-
-static inline FString GetTableKey(const FLinkerLoad* Linker, const FName& Name)
-{
-	return *Name.ToString();
-}
-
-static inline FString GetTableKey(const FLinkerLoad* Linker, FNameEntryId Id)
-{
-	return FName::GetEntry(Id)->GetPlainNameString();
-}
-
-static inline FString GetTableKeyForIndex(const FLinkerLoad* Linker, FPackageIndex Index)
-{
-	if (Index.IsNull())
-	{
-		return TEXT("NULL");
-	}
-	else if (Index.IsExport())
-	{
-		return GetTableKey(Linker, Linker->Exp(Index));
-	}
-	else
-	{
-		return GetTableKey(Linker, Linker->Imp(Index));
-	}
-}
-
-static bool ComparePackageIndices(FLinkerLoad* SourceLinker, FLinkerLoad* DestLinker, const FPackageIndex& SourceIndex,
-	const FPackageIndex& DestIndex, const FMessageCallback& MessageCallback);
-
-static bool CompareTableItem(FLinkerLoad* SourceLinker, FLinkerLoad* DestLinker,
-	const FName& SourceName, const FName& DestName, const FMessageCallback& MessageCallback)
-{
-	return SourceName == DestName;
-}
-
-static bool CompareTableItem(FLinkerLoad* SourceLinker, FLinkerLoad* DestLinker,
-	FNameEntryId SourceName, FNameEntryId DestName, const FMessageCallback& MessageCallback)
-{
-	return SourceName == DestName;
-}
-
-static FString ConvertItemToText(const FName& Name, FLinkerLoad* Linker)
-{
-	return Name.ToString();
-}
-
-static FString ConvertItemToText(FNameEntryId Id, FLinkerLoad* Linker)
-{
-	return FName::GetEntry(Id)->GetPlainNameString();
-}
-
-static bool CompareTableItem(FLinkerLoad* SourceLinker, FLinkerLoad* DestLinker, const FObjectImport& SourceImport,
-	const FObjectImport& DestImport, const FMessageCallback& MessageCallback)
-{
-	if (SourceImport.ObjectName != DestImport.ObjectName ||
-		SourceImport.ClassName != DestImport.ClassName ||
-		SourceImport.ClassPackage != DestImport.ClassPackage ||
-		!ComparePackageIndices(SourceLinker, DestLinker, SourceImport.OuterIndex,
-			DestImport.OuterIndex, MessageCallback))
-	{
-		return false;
-	}
-	else
-	{
-		return true;
-	}
-}
-
-static FString ConvertItemToText(const FObjectImport& Import, FLinkerLoad* Linker)
-{
-	return FString::Printf(
-		TEXT("%s ClassPackage: %s"),
-		*GetTableKey(Linker, Import),
-		*Import.ClassPackage.ToString()
-	);
-}
-
-static bool CompareTableItem(FLinkerLoad* SourceLinker, FLinkerLoad* DestLinker, const FObjectExport& SourceExport,
-	const FObjectExport& DestExport, const FMessageCallback& MessageCallback)
-{
-	if (SourceExport.ObjectName != DestExport.ObjectName ||
-		SourceExport.PackageFlags != DestExport.PackageFlags ||
-		SourceExport.ObjectFlags != DestExport.ObjectFlags ||
-		SourceExport.SerialSize != DestExport.SerialSize ||
-		SourceExport.bForcedExport != DestExport.bForcedExport ||
-		SourceExport.bNotForClient != DestExport.bNotForClient ||
-		SourceExport.bNotForServer != DestExport.bNotForServer ||
-		SourceExport.bNotAlwaysLoadedForEditorGame != DestExport.bNotAlwaysLoadedForEditorGame ||
-		SourceExport.bIsAsset != DestExport.bIsAsset ||
-		SourceExport.bIsInheritedInstance != DestExport.bIsInheritedInstance ||
-		SourceExport.bGeneratePublicHash != DestExport.bGeneratePublicHash ||
-		!ComparePackageIndices(SourceLinker, DestLinker, SourceExport.TemplateIndex,
-			DestExport.TemplateIndex, MessageCallback) ||
-		!ComparePackageIndices(SourceLinker, DestLinker, SourceExport.OuterIndex,
-			DestExport.OuterIndex, MessageCallback) ||
-		!ComparePackageIndices(SourceLinker, DestLinker, SourceExport.ClassIndex,
-			DestExport.ClassIndex, MessageCallback) ||
-		!ComparePackageIndices(SourceLinker, DestLinker, SourceExport.SuperIndex, 
-			DestExport.SuperIndex, MessageCallback))
-	{
-		return false;
-	}
-	else
-	{
-		return true;
-	}
-}
-
-static bool IsImportMapIdentical(FLinkerLoad* SourceLinker, FLinkerLoad* DestLinker,
-	const FMessageCallback& MessageCallback)
-{
-	bool bIdentical = (SourceLinker->ImportMap.Num() == DestLinker->ImportMap.Num());
-	if (bIdentical)
-	{
-		for (int32 ImportIndex = 0; ImportIndex < SourceLinker->ImportMap.Num(); ++ImportIndex)
-		{
-			if (!CompareTableItem(SourceLinker, DestLinker, SourceLinker->ImportMap[ImportIndex],
-				DestLinker->ImportMap[ImportIndex], MessageCallback))
-			{
-				bIdentical = false;
-				break;
-			}
-		}
-	}
-	return bIdentical;
-}
-
-static bool ComparePackageIndices(FLinkerLoad* SourceLinker, FLinkerLoad* DestLinker, const FPackageIndex& SourceIndex,
-	const FPackageIndex& DestIndex, const FMessageCallback& MessageCallback)
-{
-	if (SourceIndex.IsNull() && DestIndex.IsNull())
-	{
-		return true;
-	}
-
-	if (SourceIndex.IsExport() && DestIndex.IsExport())
-	{
-		int32 SourceArrayIndex = SourceIndex.ToExport();
-		int32 DestArrayIndex   = DestIndex  .ToExport();
-
-		if (!SourceLinker->ExportMap.IsValidIndex(SourceArrayIndex) || !DestLinker->ExportMap.IsValidIndex(DestArrayIndex))
-		{
-			MessageCallback(ELogVerbosity::Warning, FString::Printf(
-				TEXT("Invalid export indices found, source: %d (of %d), dest: %d (of %d)"),
-				SourceArrayIndex, SourceLinker->ExportMap.Num(), DestArrayIndex, DestLinker->ExportMap.Num()));
-			return false;
-		}
-
-		const FObjectExport& SourceOuterExport = SourceLinker->Exp(SourceIndex);
-		const FObjectExport& DestOuterExport   = DestLinker  ->Exp(DestIndex);
-
-		FString SourceOuterExportKey = GetTableKey(SourceLinker, SourceOuterExport);
-		FString DestOuterExportKey   = GetTableKey(DestLinker,   DestOuterExport);
-
-		return SourceOuterExportKey == DestOuterExportKey;
-	}
-
-	if (SourceIndex.IsImport() && DestIndex.IsImport())
-	{
-		int32 SourceArrayIndex = SourceIndex.ToImport();
-		int32 DestArrayIndex   = DestIndex  .ToImport();
-
-		if (!SourceLinker->ImportMap.IsValidIndex(SourceArrayIndex) || !DestLinker->ImportMap.IsValidIndex(DestArrayIndex))
-		{
-			MessageCallback(ELogVerbosity::Warning, FString::Printf(
-				TEXT("Invalid import indices found, source: %d (of %d), dest: %d (of %d)"),
-				SourceArrayIndex, SourceLinker->ImportMap.Num(), DestArrayIndex, DestLinker->ImportMap.Num()));
-			return false;
-		}
-
-		const FObjectImport& SourceOuterImport = SourceLinker->Imp(SourceIndex);
-		const FObjectImport& DestOuterImport   = DestLinker  ->Imp(DestIndex);
-
-		FString SourceOuterImportKey = GetTableKey(SourceLinker, SourceOuterImport);
-		FString DestOuterImportKey   = GetTableKey(DestLinker,   DestOuterImport);
-
-		return SourceOuterImportKey == DestOuterImportKey;
-	}
-
-	return false;
-}
-
-static FString ConvertItemToText(const FObjectExport& Export, FLinkerLoad* Linker)
-{
-	FName ClassName = Export.ClassIndex.IsNull() ? FName(NAME_Class) : Linker->ImpExp(Export.ClassIndex).ObjectName;
-	return FString::Printf(TEXT("%s Super: %s, Template: %s, Flags: %d, Size: %lld, PackageFlags: %d, ForcedExport: %d, NotForClient: %d, NotForServer: %d, NotAlwaysLoadedForEditorGame: %d, IsAsset: %d, IsInheritedInstance: %d, GeneratePublicHash: %d"),
-		*GetTableKey(Linker, Export),
-		*GetTableKeyForIndex(Linker, Export.SuperIndex),
-		*GetTableKeyForIndex(Linker, Export.TemplateIndex),
-		(int32)Export.ObjectFlags,
-		Export.SerialSize,
-		Export.PackageFlags,
-		Export.bForcedExport,
-		Export.bNotForClient,
-		Export.bNotForServer,
-		Export.bNotAlwaysLoadedForEditorGame,
-		Export.bIsAsset,
-		Export.bIsInheritedInstance,
-		Export.bGeneratePublicHash);
-}
-
-static bool IsExportMapIdentical(FLinkerLoad* SourceLinker, FLinkerLoad* DestLinker,
-	const FMessageCallback& MessageCallback)
-{
-	bool bIdentical = (SourceLinker->ExportMap.Num() == DestLinker->ExportMap.Num());
-	if (bIdentical)
-	{
-		for (int32 ExportIndex = 0; ExportIndex < SourceLinker->ExportMap.Num(); ++ExportIndex)
-		{
-			if (!CompareTableItem(SourceLinker, DestLinker, SourceLinker->ExportMap[ExportIndex],
-				DestLinker->ExportMap[ExportIndex], MessageCallback))
-			{
-				bIdentical = false;
-				break;
-			}
-		}
-	}
-	return bIdentical;
-}
-
 /** Structure that holds an item from the NameMap/ImportMap/ExportMap in a TSet for diffing */
 template <typename T>
 struct TTableItem
@@ -1481,16 +1288,15 @@ struct TTableItem
 };
 
 /** Dumps differences between Linker tables */
-template <typename T>
+template <typename T, typename ContextProvider>
 static void DumpTableDifferences(
-	FLinkerLoad* SourceLinker, 
-	FLinkerLoad* DestLinker, 
-	TArray<T>& SourceTable, 
-	TArray<T>& DestTable,
+	ContextProvider& SourceContext,
+	ContextProvider& DestContext,
+	TConstArrayView<T> SourceTable, 
+	TConstArrayView<T> DestTable,
 	const TCHAR* AssetFilename,
 	const TCHAR* ItemName,
-	const int32 MaxDiffsToLog,
-	const FMessageCallback& MessageCallback
+	const int32 MaxDiffsToLog
 )
 {
 	FString HumanReadableString;
@@ -1506,12 +1312,12 @@ static void DumpTableDifferences(
 	for (int32 Index = 0; Index < SourceTable.Num(); ++Index)
 	{
 		const T& Item = SourceTable[Index];
-		SourceSet.Add(TTableItem<T>(GetTableKey(SourceLinker, Item), &Item, Index));
+		SourceSet.Add(TTableItem<T>(SourceContext.GetTableKey(Item), &Item, Index));
 	}
 	for (int32 Index = 0; Index < DestTable.Num(); ++Index)
 	{
 		const T& Item = DestTable[Index];
-		DestSet.Add(TTableItem<T>(GetTableKey(DestLinker, Item), &Item, Index));
+		DestSet.Add(TTableItem<T>(DestContext.GetTableKey(Item), &Item, Index));
 	}
 
 	// Determine the list of items removed from the source package and added to the dest package
@@ -1523,8 +1329,8 @@ static void DumpTableDifferences(
 	{
 		if (const TTableItem<T>* ChangedDestItem = DestSet.Find(ChangedSourceItem))
 		{
-			if (!CompareTableItem(SourceLinker, DestLinker, *ChangedSourceItem.Item,
-				*ChangedDestItem->Item, MessageCallback))
+			if (!SourceContext.CompareTableItem(DestContext, *ChangedSourceItem.Item,
+				*ChangedDestItem->Item))
 			{
 				RemovedItems.Add(ChangedSourceItem);
 				AddedItems  .Add(*ChangedDestItem);
@@ -1540,13 +1346,13 @@ static void DumpTableDifferences(
 	for (const TTableItem<T>& RemovedItem : RemovedItems)
 	{
 		HumanReadableString += IndentToken;
-		HumanReadableString += FString::Printf(TEXT("-[%d] %s"), RemovedItem.Index, *ConvertItemToText(*RemovedItem.Item, SourceLinker));
+		HumanReadableString += FString::Printf(TEXT("-[%d] %s"), RemovedItem.Index, *SourceContext.ConvertItemToText(*RemovedItem.Item));
 		HumanReadableString += NewLineToken;
 	}
 	for (const TTableItem<T>& AddedItem : AddedItems)
 	{
 		HumanReadableString += IndentToken;
-		HumanReadableString += FString::Printf(TEXT("+[%d] %s"), AddedItem.Index, *ConvertItemToText(*AddedItem.Item, DestLinker));
+		HumanReadableString += FString::Printf(TEXT("+[%d] %s"), AddedItem.Index, *DestContext.ConvertItemToText(*AddedItem.Item));
 		HumanReadableString += NewLineToken;
 	}
 
@@ -1561,7 +1367,7 @@ static void DumpTableDifferences(
 		HumanReadableString += NewLineToken;
 	}
 
-	MessageCallback(ELogVerbosity::Warning, FString::Printf(
+	SourceContext.LogMessage(ELogVerbosity::Warning, FString::Printf(
 		TEXT("%s: %sMap is different (%d %ss in source package vs %d %ss in dest package):%s%s"),		
 		AssetFilename,
 		ItemName,
@@ -1574,6 +1380,7 @@ static void DumpTableDifferences(
 }
 
 void DumpPackageHeaderDiffs_LinkerLoad(
+	FAccumulatorGlobals& Globals,
 	const FPackageData& SourcePackage,
 	const FPackageData& DestPackage,
 	const FString& AssetFilename,
@@ -1614,22 +1421,25 @@ void DumpPackageHeaderDiffs_LinkerLoad(
 
 	if (SourceLinker && DestLinker)
 	{
+		FDiffWriterLinkerLoadHeader SourceContext(SourceLinker, MessageCallback);
+		FDiffWriterLinkerLoadHeader DestContext(DestLinker, MessageCallback);
+
 		if (SourceLinker->NameMap != DestLinker->NameMap)
 		{
-			DumpTableDifferences<FNameEntryId>(SourceLinker, DestLinker, SourceLinker->NameMap, DestLinker->NameMap,
-				*AssetFilename, TEXT("Name"), MaxDiffsToLog, MessageCallback);
+			DumpTableDifferences<FNameEntryId>(SourceContext, DestContext, SourceLinker->NameMap, DestLinker->NameMap,
+				*AssetFilename, TEXT("Name"), MaxDiffsToLog);
 		}
 
-		if (!IsImportMapIdentical(SourceLinker, DestLinker, MessageCallback))
+		if (!SourceContext.IsImportMapIdentical(DestContext))
 		{
-			DumpTableDifferences<FObjectImport>(SourceLinker, DestLinker, SourceLinker->ImportMap, DestLinker->ImportMap,
-				*AssetFilename, TEXT("Import"), MaxDiffsToLog, MessageCallback);
+			DumpTableDifferences<FObjectImport>(SourceContext, DestContext, SourceLinker->ImportMap, DestLinker->ImportMap,
+				*AssetFilename, TEXT("Import"), MaxDiffsToLog);
 		}
 
-		if (!IsExportMapIdentical(SourceLinker, DestLinker, MessageCallback))
+		if (!SourceContext.IsExportMapIdentical(DestContext))
 		{
-			DumpTableDifferences<FObjectExport>(SourceLinker, DestLinker, SourceLinker->ExportMap, DestLinker->ExportMap,
-				*AssetFilename, TEXT("Export"), MaxDiffsToLog, MessageCallback);
+			DumpTableDifferences<FObjectExport>(SourceContext, DestContext, SourceLinker->ExportMap, DestLinker->ExportMap,
+				*AssetFilename, TEXT("Export"), MaxDiffsToLog);
 		}
 	}
 
@@ -1644,19 +1454,71 @@ void DumpPackageHeaderDiffs_LinkerLoad(
 }
 
 void DumpPackageHeaderDiffs_ZenPackage(
+	FAccumulatorGlobals& Globals,
 	const FPackageData& SourcePackage,
 	const FPackageData& DestPackage,
 	const FString& AssetFilename,
 	const int32 MaxDiffsToLog,
 	const FMessageCallback& MessageCallback)
 {
-	// TODO: Fill in detailed diffing of Zen Package Summary
-	MessageCallback(ELogVerbosity::Warning, FString::Printf(
-		TEXT("%s: header is different (header diffing not yet implemented for -zenstore; cook with -skipzenstore to see header diffs)"),
-		*AssetFilename));
+	FDiffWriterZenHeader SourceHeader(Globals, MessageCallback, true /* bUseZenStore */, SourcePackage, AssetFilename,
+		TEXT("source"));
+	FDiffWriterZenHeader DestHeader(Globals, MessageCallback, false /* bUseZenStore */, DestPackage, AssetFilename,
+		TEXT("dest"));
+	if (!SourceHeader.IsValid() || !DestHeader.IsValid())
+	{
+		// Explanation was logged by TryConstructSummary
+		return;
+	}
+
+	TArray<FName> SourceNames;
+	TArray<FName> DestNames;
+	for (FDisplayNameEntryId Id : SourceHeader.GetPackageHeader().NameMap)
+	{
+		SourceNames.Add(Id.ToName(0));
+	}
+	for (FDisplayNameEntryId Id : DestHeader.GetPackageHeader().NameMap)
+	{
+		DestNames.Add(Id.ToName(0));
+	}
+	Algo::Sort(SourceNames, FNameFastLess());
+	Algo::Sort(DestNames, FNameFastLess());
+
+	if (SourceNames != DestNames)
+	{
+		DumpTableDifferences<FName>(SourceHeader, DestHeader, SourceNames, DestNames,
+			*AssetFilename, TEXT("Name"), MaxDiffsToLog);
+	}
+
+	if (!SourceHeader.IsImportMapIdentical(DestHeader))
+	{
+		DumpTableDifferences<FPackageObjectIndex>(SourceHeader, DestHeader, SourceHeader.GetPackageHeader().ImportMap,
+			DestHeader.GetPackageHeader().ImportMap, *AssetFilename, TEXT("Import"), MaxDiffsToLog);
+	}
+
+	if (!SourceHeader.IsExportMapIdentical(DestHeader))
+	{
+		int32 SourceNum = SourceHeader.GetPackageHeader().ExportMap.Num();
+		int32 DestNum = DestHeader.GetPackageHeader().ExportMap.Num();
+		TArray<FZenHeaderIndexIntoExportMap> SourceIndices;
+		SourceIndices.Reserve(SourceNum);
+		for (int N = 0; N < SourceNum; ++N)
+		{
+			SourceIndices.Add(FZenHeaderIndexIntoExportMap{ N });
+		}
+		TArray<FZenHeaderIndexIntoExportMap> DestIndices;
+		DestIndices.Reserve(DestNum);
+		for (int N = 0; N < DestNum; ++N)
+		{
+			DestIndices.Add(FZenHeaderIndexIntoExportMap{ N });
+		}
+		DumpTableDifferences<FZenHeaderIndexIntoExportMap>(SourceHeader, DestHeader, SourceIndices, DestIndices,
+			*AssetFilename, TEXT("Export"), MaxDiffsToLog);
+	}
 }
 
 void DumpPackageHeaderDiffs(
+	FAccumulatorGlobals& Globals,
 	const FPackageData& SourcePackage,
 	const FPackageData& DestPackage,
 	const FString& AssetFilename,
@@ -1667,10 +1529,10 @@ void DumpPackageHeaderDiffs(
 	switch (PackageHeaderFormat)
 	{
 	case EPackageHeaderFormat::PackageFileSummary:
-		DumpPackageHeaderDiffs_LinkerLoad(SourcePackage, DestPackage, AssetFilename, MaxDiffsToLog, MessageCallback);
+		DumpPackageHeaderDiffs_LinkerLoad(Globals, SourcePackage, DestPackage, AssetFilename, MaxDiffsToLog, MessageCallback);
 		break;
 	case EPackageHeaderFormat::ZenPackageSummary:
-		DumpPackageHeaderDiffs_ZenPackage(SourcePackage, DestPackage, AssetFilename, MaxDiffsToLog, MessageCallback);
+		DumpPackageHeaderDiffs_ZenPackage(Globals, SourcePackage, DestPackage, AssetFilename, MaxDiffsToLog, MessageCallback);
 		break;
 	default:
 		unimplemented();

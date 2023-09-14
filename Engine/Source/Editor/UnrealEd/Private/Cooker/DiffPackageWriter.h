@@ -6,6 +6,8 @@
 #include "Cooker/DiffWriterArchive.h"
 #include "Serialization/PackageWriter.h"
 
+namespace UE::DiffWriter { struct FAccumulatorGlobals; }
+
 /** A CookedPackageWriter that diffs output from the current cook with the file that was saved in the previous cook. */
 class FDiffPackageWriter : public ICookedPackageWriter
 {
@@ -131,6 +133,7 @@ protected:
 	TRefCountPtr<UE::DiffWriter::FAccumulator> Accumulators[2];
 	FBeginPackageInfo BeginInfo;
 	TUniquePtr<ICookedPackageWriter> Inner;
+	TUniquePtr<UE::DiffWriter::FAccumulatorGlobals> AccumulatorGlobals;
 	const TCHAR* Indent = nullptr;
 	const TCHAR* NewLine = nullptr;
 	FString DumpObjListParams;

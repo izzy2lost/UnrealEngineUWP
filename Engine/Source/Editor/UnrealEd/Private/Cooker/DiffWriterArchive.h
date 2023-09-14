@@ -8,6 +8,7 @@
 #include "Containers/UnrealString.h"
 #include "HAL/Platform.h"
 #include "Logging/LogVerbosity.h"
+#include "PackageStoreOptimizer.h"
 #include "Serialization/Archive.h"
 #include "Serialization/ArchiveProxy.h"
 #include "Serialization/ArchiveStackTrace.h"
@@ -219,6 +220,23 @@ private:
 	int64 EndOffset;
 };
 
+/** Global data (e.g. the FPackageId of every object in /Script) used during diffing */
+struct FAccumulatorGlobals
+{
+public:
+	// Zen variables
+	TMap<FPackageObjectIndex, FPackageStoreOptimizer::FScriptObjectData> ScriptObjectsMap;
+
+	// Shared variables
+	ICookedPackageWriter* PackageWriter = nullptr;
+	EPackageHeaderFormat Format = EPackageHeaderFormat::PackageFileSummary;
+	bool bInitialized = false;
+
+public:
+	FAccumulatorGlobals(ICookedPackageWriter* InnerPackageWriter = nullptr);
+	void Initialize(EPackageHeaderFormat Format);
+};
+
 /**
  * Collects the memory version of a saved package, compares it with an existing package on disk, and reports callstack
  * for the Serialize call at each offset where they differ.
@@ -231,8 +249,8 @@ private:
 class FAccumulator : public FRefCountBase
 {
 public:
-	FAccumulator(UObject* InAsset, FName InPackageName, int32 InMaxDiffsToLog, bool bInIgnoreHeaderDiffs,
-		FMessageCallback&& InMessageCallback, EPackageHeaderFormat InPackageHeaderFormat);
+	FAccumulator(FAccumulatorGlobals& InGlobals, UObject* InAsset, FName InPackageName, int32 InMaxDiffsToLog,
+		bool bInIgnoreHeaderDiffs, FMessageCallback&& InMessageCallback, EPackageHeaderFormat InPackageHeaderFormat);
 	virtual ~FAccumulator();
 
 	void OnFirstSaveComplete(FStringView InLooseFilePath, int64 InHeaderSize, int64 InPreTransformHeaderSize,
@@ -262,6 +280,7 @@ private:
 	ICookedPackageWriter::FPreviousCookedBytesData PreviousPackageData;
 	FDiffArchive* LinkerArchive = nullptr;
 	FDiffArchive* ExportsArchive = nullptr;
+	FAccumulatorGlobals& Globals;
 
 	FDiffMap DiffMap;
 	FMessageCallback MessageCallback;

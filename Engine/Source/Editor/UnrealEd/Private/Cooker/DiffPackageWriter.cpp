@@ -30,6 +30,8 @@ DEFINE_LOG_CATEGORY_STATIC(LogDiff, Log, All);
 FDiffPackageWriter::FDiffPackageWriter(TUniquePtr<ICookedPackageWriter>&& InInner)
 	: Inner(MoveTemp(InInner))
 {
+	AccumulatorGlobals.Reset(new UE::DiffWriter::FAccumulatorGlobals(Inner.Get()));
+
 	GConfig->GetInt(TEXT("CookSettings"), TEXT("MaxDiffsToLog"), MaxDiffsToLog, GEditorIni);
 	// Command line override for MaxDiffsToLog
 	FParse::Value(FCommandLine::Get(), TEXT("MaxDiffstoLog="), MaxDiffsToLog);
@@ -180,6 +182,10 @@ void FDiffPackageWriter::WritePackageData(const FPackageInfo& Info, FLargeMemory
 	{
 		Accumulator.OnSecondSaveComplete(LocalInfo.HeaderSize);
 
+		// Avoid an assert when calling StaticFindObject during save to retrieve the actor's class.
+		// We are not writing the discovered objects into the saved package, so the call to StaticFindObject is legal.
+		TGuardValue<bool> GIsSavingPackageGuard(GIsSavingPackage, false);
+
 		TMap<FName, FArchiveDiffStats> PackageDiffStats;
 		const TCHAR* CutoffString = TEXT("UEditorEngine::Save()");
 		Accumulator.CompareWithPrevious(CutoffString, PackageDiffStats);
@@ -221,7 +227,7 @@ UE::DiffWriter::FAccumulator& FDiffPackageWriter::ConstructAccumulator(FName Pac
 	if (!Accumulator.IsValid())
 	{
 		check(!bHasStartedSecondSave); // Accumulator should already exist from CreateLinkerArchive in the first save
-		Accumulator = new UE::DiffWriter::FAccumulator(Asset, *PackageName.ToString(), MaxDiffsToLog,
+		Accumulator = new UE::DiffWriter::FAccumulator(*AccumulatorGlobals, Asset, *PackageName.ToString(), MaxDiffsToLog,
 			bIgnoreHeaderDiffs, GetDiffWriterMessageCallback(), Inner->GetCookCapabilities().HeaderFormat);
 	}
 	return *Accumulator;
