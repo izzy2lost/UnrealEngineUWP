@@ -733,7 +733,7 @@ void FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions(FRHICommandLis
 		}
 	};
 
-	if (bAllowAsyncUpdate)
+	if (TaskIfAsync && bAllowAsyncUpdate)
 	{
 		*TaskIfAsync = UE::Tasks::Launch(UE_SOURCE_LOCATION, MoveTemp(EvaluateUniformExpressionsLambda));
 	}
