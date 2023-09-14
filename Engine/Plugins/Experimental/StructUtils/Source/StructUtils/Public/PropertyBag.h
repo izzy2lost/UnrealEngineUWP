@@ -592,6 +592,7 @@ struct STRUCTUTILS_API FInstancedPropertyBag
 	bool Identical(const FInstancedPropertyBag* Other, uint32 PortFlags) const;
 	bool Serialize(FArchive& Ar);
 	void AddStructReferencedObjects(FReferenceCollector& Collector);
+	void GetPreloadDependencies(TArray<UObject*>& OutDeps);
 
 protected:
 	const void* GetValueAddress(const FPropertyBagPropertyDesc* Desc) const;
@@ -608,6 +609,7 @@ template<> struct TStructOpsTypeTraits<FInstancedPropertyBag> : public TStructOp
 		WithIdentical = true,
 		WithSerializer = true,
 		WithAddStructReferencedObjects = true,
+		WithGetPreloadDependencies = true,
 	};
 };
 
