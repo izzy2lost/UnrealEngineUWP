@@ -161,6 +161,7 @@ public:
 		bDebugQuery = false;
 #endif
 		bTraceIntoSubComponents = true;
+		bReplaceHitWithSubComponents = true;
 	}
 
 	FCollisionQueryParams(FName InTraceTag, bool bInTraceComplex=false, const AActor* InIgnoreActor=NULL)
