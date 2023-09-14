@@ -14,7 +14,7 @@
 #include "Templates/Tuple.h"
 
 /** This define will use the newer task graph interface to manage mutable concurrency. It has not been fully tested. */
-//#define MUTABLE_USE_NEW_TASKGRAPH
+#define MUTABLE_USE_NEW_TASKGRAPH
 
 /** If set to 1, this enables some expensive Unreal Insights traces, but can lead to 5x slower mutable operation. 
 * Other cheaper traces are enabled at all times.

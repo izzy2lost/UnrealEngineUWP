@@ -352,7 +352,14 @@ mu::EImageFormat GetMutablePixelFormat(EPixelFormat InTextureFormat)
 				{
 					UE_LOG(LogMutable, Warning, TEXT("Failed to create an IORequest for a UTexture2D BulkData for an application-specific image parameter."));
 
-					IORequestCompletionEvent->DispatchSubsequents();
+#ifdef MUTABLE_USE_NEW_TASKGRAPH
+					IORequestCompletionEvent.Trigger();
+#else
+					if (IORequestCompletionEvent.IsValid())
+					{
+						IORequestCompletionEvent->DispatchSubsequents();
+					}
+#endif
 					
 					ResultCallback(CreateDummy());
 					return Invoke(TrivialReturn);
