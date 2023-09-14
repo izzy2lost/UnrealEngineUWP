@@ -14,7 +14,7 @@ struct FAnimNextAnimGraphNodeParameterBinding
 	FName BindingName;
 
 	UPROPERTY()
-	int32 ArrayIndex;
+	int32 ArrayIndex = INDEX_NONE;
 
 	UPROPERTY()
 	FName ParameterName;

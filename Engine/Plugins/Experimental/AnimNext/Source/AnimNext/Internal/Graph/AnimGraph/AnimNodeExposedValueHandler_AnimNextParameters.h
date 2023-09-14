@@ -30,11 +30,11 @@ struct FAnimNodeExposedValueHandler_AnimNextParameters_Entry
 
 	// Property access index
 	UPROPERTY()
-	int32 AccessIndex;
+	int32 AccessIndex = INDEX_NONE;
 
 	// Access operation to perform
 	UPROPERTY()
-	EPropertyAccessCopyType AccessType;
+	EPropertyAccessCopyType AccessType = EPropertyAccessCopyType::None;
 };
 
 USTRUCT()
