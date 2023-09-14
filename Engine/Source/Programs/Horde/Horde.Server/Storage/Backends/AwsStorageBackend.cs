@@ -259,7 +259,7 @@ namespace Horde.Server.Storage.Backends
 			}
 		}
 
-		string GetFullPath(string path) => _pathPrefix + path;
+		string GetFullPath(string path) => $"{_pathPrefix}{path}.blob";
 
 		/// <inheritdoc/>
 		public Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken)
