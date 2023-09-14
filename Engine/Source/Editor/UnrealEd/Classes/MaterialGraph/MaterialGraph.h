@@ -61,7 +61,9 @@ struct FMaterialInputInfo
 
 		if (Material->bUseMaterialAttributes && !bIgnoreMaterialAttributes)
 		{
-			return Property == MP_MaterialAttributes;
+			// On the root node both MaterialAttributes and FrontMaterial are visible when Substrate is enabled. 
+			// Otherwise only MaterialAttributes is visible.
+			return Property == MP_MaterialAttributes || (Property == MP_FrontMaterial && Substrate::IsSubstrateEnabled());
 		}
 		else if( Material->IsUIMaterial() )
 		{

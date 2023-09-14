@@ -886,6 +886,7 @@ class UMaterialExpressionSubstrateConvertMaterialAttributes : public UMaterialEx
 	virtual uint32 GetInputType(int32 InputIndex) override;
 	virtual FName GetInputName(int32 InputIndex) const override;
 	virtual bool IsResultSubstrateMaterial(int32 OutputIndex) override;
+	virtual bool IsResultMaterialAttributes(int32 OutputIndex) override;
 	virtual void GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex) override;
 	virtual FSubstrateOperator* SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

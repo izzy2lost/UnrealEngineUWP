@@ -26470,18 +26470,6 @@ UMaterialExpressionSubstrateConvertMaterialAttributes::UMaterialExpressionSubstr
 #if WITH_EDITORONLY_DATA
 	Outputs.Reset();
 	Outputs.Add(FExpressionOutput(TEXT(""))); // Substrate
-	Outputs.Add(FExpressionOutput(TEXT("PixelDepthOffset")));
-	Outputs.Add(FExpressionOutput(TEXT("AmbientOcclusion")));
-	Outputs.Add(FExpressionOutput(TEXT("WorldPositionOffset")));
-	Outputs.Add(FExpressionOutput(TEXT("Opacity")));
-	Outputs.Add(FExpressionOutput(TEXT("OpacityMask")));
-	Outputs.Add(FExpressionOutput(TEXT("Refraction")));
-
-	for (int32 UVIndex = 0; UVIndex <= MP_CustomizedUVs7 - MP_CustomizedUVs0; UVIndex++)
-	{
-		Outputs.Add(FExpressionOutput(*FString::Printf(TEXT("CustomizedUV%u"), UVIndex), 1, 1, 1, 0, 0));
-	}
-
 	bShowOutputNameOnPin = true;
 #endif
 }
@@ -26489,37 +26477,7 @@ UMaterialExpressionSubstrateConvertMaterialAttributes::UMaterialExpressionSubstr
 #if WITH_EDITOR
 int32 UMaterialExpressionSubstrateConvertMaterialAttributes::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
-	if (OutputIndex == 1)
-	{
-		return MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_PixelDepthOffset));
-	}
-	else if (OutputIndex == 2)
-	{
-		return MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_AmbientOcclusion));
-	}
-	else if (OutputIndex == 3)
-	{
-		return MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_WorldPositionOffset));
-	}
-	else if (OutputIndex == 4)
-	{
-		return MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_Opacity));
-	}
-	else if (OutputIndex == 5)
-	{
-		return MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_OpacityMask));
-	}
-	else if (OutputIndex == 6)
-	{
-		return MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_Refraction));
-	}
-	
-	else if (OutputIndex >= 7 && OutputIndex <= 7 + (MP_CustomizedUVs7 - MP_CustomizedUVs0))
-	{
-		const uint32 UVIndex = OutputIndex-7u;
-		return MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(EMaterialProperty(MP_CustomizedUVs0 + UVIndex)));
-	}
-	else if (OutputIndex != 0)
+	if (OutputIndex != 0)
 	{
 		return Compiler->Error(TEXT("Output pin index error"));
 	}
@@ -26666,21 +26624,7 @@ uint32 UMaterialExpressionSubstrateConvertMaterialAttributes::GetOutputType(int3
 {
 	switch (OutputIndex)
 	{
-		case 0 : return MCT_Substrate;		// Substrata data
-		case 1 : return MCT_Float1;			// PixelDepthOffset
-		case 2 : return MCT_Float1; 		// AmbientOcclusion
-		case 3 : return MCT_Float3; 		// WorldPositionOffset
-		case 4 : return MCT_Float1; 		// Opacity
-		case 5 : return MCT_Float1; 		// OpacityMask
-		case 6 : return MCT_Float; 			// Refraction
-		case 7 : return MCT_Float2;			// MP_CustomizedUVs0
-		case 8 : return MCT_Float2;			// MP_CustomizedUVs1
-		case 9 : return MCT_Float2;			// MP_CustomizedUVs2
-		case 10: return MCT_Float2;			// MP_CustomizedUVs3
-		case 11: return MCT_Float2;			// MP_CustomizedUVs4
-		case 12: return MCT_Float2;			// MP_CustomizedUVs5
-		case 13: return MCT_Float2;			// MP_CustomizedUVs6
-		case 14: return MCT_Float2; 		// MP_CustomizedUVs7
+		case 0 : return MCT_Substrate;
 	}
 	check(false);
 	return MCT_Float1;
@@ -26720,13 +26664,7 @@ void UMaterialExpressionSubstrateConvertMaterialAttributes::GetConnectorToolTip(
 {
 	switch (OutputIndex)
 	{
-		case 0: OutToolTip.Add(TEXT("TT Ouput")); break;
-		case 1: OutToolTip.Add(TEXT("TT PixelDepthOffset")); break;
-		case 2: OutToolTip.Add(TEXT("TT AmbientOcclusion")); break;
-		case 3: OutToolTip.Add(TEXT("TT WorldPositionOffset")); break;
-		case 4: OutToolTip.Add(TEXT("TT Opacity")); break;
-		case 5: OutToolTip.Add(TEXT("TT OpacityMask")); break;
-		case 6: OutToolTip.Add(TEXT("TT Refraction")); break;
+		case 0: OutToolTip.Add(TEXT("TT Out Substrate Data")); break;
 	}
 	Super::GetConnectorToolTip(InputIndex, INDEX_NONE, OutToolTip);
 }
@@ -26734,6 +26672,11 @@ void UMaterialExpressionSubstrateConvertMaterialAttributes::GetConnectorToolTip(
 bool UMaterialExpressionSubstrateConvertMaterialAttributes::IsResultSubstrateMaterial(int32 OutputIndex)
 {
 	return OutputIndex == 0;
+}
+
+bool UMaterialExpressionSubstrateConvertMaterialAttributes::IsResultMaterialAttributes(int32 OutputIndex)
+{
+	return false;
 }
 
 void UMaterialExpressionSubstrateConvertMaterialAttributes::GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex)

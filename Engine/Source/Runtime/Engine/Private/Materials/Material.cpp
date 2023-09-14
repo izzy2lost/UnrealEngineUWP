@@ -3262,14 +3262,18 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 	bool bRelinkCustomOutputNodes = false;
 	UMaterialExpressionSubstrateShadingModels* ConvertNode = nullptr;
 	// Connect all the legacy pin into the conversion node
-	if (bUseMaterialAttributes && EditorOnly->MaterialAttributes.Expression && !EditorOnly->MaterialAttributes.Expression->IsResultSubstrateMaterial(EditorOnly->MaterialAttributes.OutputIndex)) // M_Rifle cause issues there
+	if (bUseMaterialAttributes && EditorOnly->MaterialAttributes.Expression && !EditorOnly->FrontMaterial.IsConnected() && !EditorOnly->MaterialAttributes.Expression->IsResultSubstrateMaterial(EditorOnly->MaterialAttributes.OutputIndex)) // M_Rifle cause issues there
 	{
 		UMaterialExpressionSubstrateConvertMaterialAttributes* ConvertAttributeNode = NewObject<UMaterialExpressionSubstrateConvertMaterialAttributes>(this);
 		ConvertAttributeNode->Material = this;
 		SetPosXAndMoveReferenceToTheRight(ConvertAttributeNode);
 		ConvertAttributeNode->SubsurfaceProfile = bRequireNoSubsurfaceProfile ? nullptr : SubsurfaceProfile;
 
-		MoveConnectionTo(EditorOnly->MaterialAttributes, ConvertAttributeNode, 0);
+		// * Copy the material attribute connection to the conversion node.
+		// * Leave the material attribute existing connection plugged to the root node, 
+		//   so that other input (PixelDepthOffset, WorldPositionOffset, ...) get pull 
+		//   from the material attributes node
+		CopyConnectionTo(EditorOnly->MaterialAttributes, ConvertAttributeNode, 0);
 
 		// Reconnect custom output to material attribute conversion node
 		{
@@ -3297,25 +3301,8 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 			}
 		}
 
-		// * Remove support for material attribute
-		// * explicitly connect the Substrate node to the root node
-		// * Forward inputs to the root node (Do not reconnect the Opacity as we handle the opacity by internally within the conversion node)
-		// * Always forward masked opacity because this is required when the blend mode is overriden to masked on a material instance.
-		bUseMaterialAttributes = false;
-		NumCustomizedUVs = 8;
+		// Connect converted Substrate data to root node
 		EditorOnly->FrontMaterial.Connect(0, ConvertAttributeNode);
-		EditorOnly->Opacity.Connect(4, ConvertAttributeNode);
-		EditorOnly->OpacityMask.Connect(5, ConvertAttributeNode);
-		EditorOnly->WorldPositionOffset.Connect(3, ConvertAttributeNode);
-		EditorOnly->AmbientOcclusion.Connect(2, ConvertAttributeNode);
-		EditorOnly->PixelDepthOffset.Connect(1, ConvertAttributeNode);
-		EditorOnly->Refraction.Connect(6, ConvertAttributeNode);
-
-		// Need to connect all CustomizedUV, as NumCustomizedUVs might be 0, while legacy attribute would connect & use all the customized UVs inputs.
-		for (int32 UVIndex = 0; UVIndex<NumCustomizedUVs; ++UVIndex)
-		{
-			EditorOnly->CustomizedUVs[UVIndex].Connect(7+UVIndex, ConvertAttributeNode);
-		}
 
 		// Shading Model
 		// * either use the shader graph expression 
@@ -4596,8 +4583,8 @@ void UMaterial::PostEditChangePropertyInternal(FPropertyChangedEvent& PropertyCh
 
 	// If BLEND_TranslucentColoredTransmittance is selected while Substrate is not enabled, force BLEND_Translucent blend mode
 	if (!Substrate::IsSubstrateEnabled() && BlendMode == BLEND_TranslucentColoredTransmittance)
-		{
-			BlendMode = BLEND_Translucent;
+	{
+		BlendMode = BLEND_Translucent;
 	}
 
 	bool bRequiresCompilation = true;
@@ -6777,11 +6764,15 @@ bool UMaterial::IsPropertySupported(EMaterialProperty InProperty) const
 		case MP_FrontMaterial:
 			bSupported = true;
 			break;
+		case MP_MaterialAttributes:
+			bSupported = bUseMaterialAttributes;
+			break;
 		}
 
 		if (InProperty >= MP_CustomizedUVs0 && InProperty <= MP_CustomizedUVs7)
 		{
-			bSupported = (InProperty - MP_CustomizedUVs0) < NumCustomizedUVs;
+			// When bUseMaterialAttributes is enabled all MP_CustomizedUVs are valid to match legacy behavior
+			bSupported = bUseMaterialAttributes || (InProperty - MP_CustomizedUVs0) < NumCustomizedUVs ;
 		}
 	}
 	return bSupported;
@@ -6975,6 +6966,9 @@ static bool IsPropertyActive_Internal(EMaterialProperty InProperty,
 			case MP_FrontMaterial:
 				Active = true;
 				break;
+			case MP_MaterialAttributes:
+				Active = true;
+				break;
 			}
 
 			if (InProperty >= MP_CustomizedUVs0 && InProperty <= MP_CustomizedUVs7)
@@ -7054,7 +7048,7 @@ static bool IsPropertyActive_Internal(EMaterialProperty InProperty,
 		case MP_SurfaceThickness:
 		case MP_FrontMaterial:
 			{
-				Active = bSubstrateEnabled;
+				Active = false;
 				break;
 			}
 		case MP_MaterialAttributes:
