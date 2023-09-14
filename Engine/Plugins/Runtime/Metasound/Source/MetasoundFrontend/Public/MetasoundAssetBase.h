@@ -100,7 +100,8 @@ public:
 	bool IsInterfaceDeclared(const FMetasoundFrontendVersion& InVersion) const;
 
 	// Gets the asset class info.
-	virtual Metasound::Frontend::FNodeClassInfo GetAssetClassInfo() const = 0;
+	UE_DEPRECATED(5.4, "NodeClassInfo can be constructed directly from document's root graph & asset's path and requires no specialized virtual getter.")
+	virtual Metasound::Frontend::FNodeClassInfo GetAssetClassInfo() const;
 
 	// Returns all the class keys of this asset's referenced assets
 	virtual const TSet<FString>& GetReferencedAssetClassKeys() const = 0;

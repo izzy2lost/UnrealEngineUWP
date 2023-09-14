@@ -55,13 +55,13 @@ namespace Metasound
 			// If true, warnings will be logged if updating a node results in existing connections being discarded.
 			bool bAutoUpdateLogWarningOnDroppedConnection = false;
 
-			// If true, the preprocessed document will be registered 
+#if WITH_EDITOR
+			// Soft deprecated. Preprocessing now handled contextually if cooking or serializing.
 			bool bPreprocessDocument = true;
 
-#if WITH_EDITOR
 			// Attempt to rebuild referenced classes (only run if class not registered or set to force re-register)
 			bool bRebuildReferencedAssetClasses = true;
-#endif
+#endif // WITH_EDITOR
 		};
 
 		class METASOUNDFRONTEND_API IMetaSoundAssetManager

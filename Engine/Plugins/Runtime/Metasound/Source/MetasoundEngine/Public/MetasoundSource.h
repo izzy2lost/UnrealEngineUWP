@@ -169,10 +169,6 @@ public:
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
 
-	// Returns Asset Metadata associated with this MetaSoundSource
-	virtual Metasound::Frontend::FNodeClassInfo GetAssetClassInfo() const override;
-
-
 	virtual bool ConformObjectDataToInterfaces() override;
 
 	UObject* GetOwningAsset() override

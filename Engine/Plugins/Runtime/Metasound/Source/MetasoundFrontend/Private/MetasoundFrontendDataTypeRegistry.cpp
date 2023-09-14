@@ -142,7 +142,7 @@ namespace Metasound
 					return nullptr;
 				}
 
-				virtual TSet<FMetasoundFrontendVersion>* GetImplementedInterfaces() const override
+				virtual const TSet<FMetasoundFrontendVersion>* GetImplementedInterfaces() const override
 				{
 					return nullptr;
 				}

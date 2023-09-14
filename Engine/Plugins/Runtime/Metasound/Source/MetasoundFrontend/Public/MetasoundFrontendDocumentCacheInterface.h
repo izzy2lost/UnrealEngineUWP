@@ -99,7 +99,7 @@ namespace Metasound::Frontend
 		virtual ~IDocumentCache() = default;
 
 		virtual bool ContainsDependency(const FNodeRegistryKey& InClassKey) const = 0;
-
+		virtual bool ContainsDependencyOfType(EMetasoundFrontendClassType ClassType) const = 0;
 		virtual const FMetasoundFrontendClass* FindDependency(const Metasound::Frontend::FNodeRegistryKey& InClassKey) const = 0;
 		virtual const FMetasoundFrontendClass* FindDependency(const FGuid& InClassID) const = 0;
 		virtual const int32* FindDependencyIndex(const Metasound::Frontend::FNodeRegistryKey& InClassKey) const = 0;

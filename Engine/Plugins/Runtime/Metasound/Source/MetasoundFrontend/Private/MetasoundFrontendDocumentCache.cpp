@@ -2,6 +2,7 @@
 
 #include "MetasoundFrontendDocumentCache.h"
 
+#include "Algo/AnyOf.h"
 #include "Algo/ForEach.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendDocumentBuilder.h"
@@ -128,6 +129,13 @@ namespace Metasound::Frontend
 	bool FDocumentCache::ContainsDependency(const FNodeRegistryKey& InClassKey) const
 	{
 		return KeyToIndex.Contains(InClassKey);
+	}
+
+	bool FDocumentCache::ContainsDependencyOfType(EMetasoundFrontendClassType ClassType) const
+	{
+		const TArray<FMetasoundFrontendClass>& Dependencies = GetDocument().Dependencies;
+		auto IsTemplateDependency = [&ClassType](const FMetasoundFrontendClass& Class) { return Class.Metadata.GetType() == ClassType; };
+		return Algo::AnyOf(Dependencies, IsTemplateDependency);
 	}
 
 	const FMetasoundFrontendClass* FDocumentCache::FindDependency(const FNodeRegistryKey& InClassKey) const

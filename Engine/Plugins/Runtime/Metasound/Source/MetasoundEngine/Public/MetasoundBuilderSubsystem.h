@@ -101,9 +101,9 @@ struct METASOUNDENGINE_API FMetaSoundBuilderOptions
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MetaSound|Builder")
 	FName Name;
 
-	// If true, this will force regeneration of the class identifier. If the resulting MetaSound is building over
-	// an existing document, this will effectively invalidate any referencing MetaSounds and register the MetaSound
-	// as a new entry in the Frontend.
+	// If the resulting MetaSound is building over an existing document, a unique class name will be generated,
+	// invalidating any referencing MetaSounds and registering the MetaSound as a new entry in the Frontend. If
+	// building a new document, option is ignored.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MetaSound|Builder", meta = (AdvancedDisplay))
 	bool bForceUniqueClassName = false;
 
@@ -372,19 +372,24 @@ public:
 
 	virtual TScriptInterface<IMetaSoundDocumentInterface> Build(UObject* Parent, const FMetaSoundBuilderOptions& Options) const PURE_VIRTUAL(UMetaSoundBuilderBase::Build, return { }; );
 
-	// Returns the base MetaSound UClass the builder is operating on (ex. MetaSoundSource, MetaSoundPatch, etc. not to be confused with the underlying document builder's MetaSound class type)
+	// Returns the base MetaSound UClass the builder is operating on
 	virtual const UClass& GetBuilderUClass() const PURE_VIRTUAL(UMetaSoundBuilderBase::Build, return *UClass::StaticClass(); );
+
+	UE_DEPRECATED(5.4, "Moved to protected pure virtual 'CreateTransientBuilder'")
+	virtual void InitFrontendBuilder();
 
 	// Initializes and ensures all nodes have a position (required prior to exporting to an asset if expected to be viewed in the editor).
 	void InitNodeLocations();
-
-	virtual void InitFrontendBuilder();
 
 #if WITH_EDITOR
 	void SetNodeLocation(const FMetaSoundNodeHandle& InNodeHandle, const FVector2D& InLocation, EMetaSoundBuilderResult& OutResult);
 #endif // WITH_EDITOR
 
 protected:
+	// Creates a FrontendBuilder wrapping the transient MetaSound object of the class supported by the given subsystem builder (See GetBuilderUClass).
+	// Should only be used when builders is not being attached to an existing, serialized MetaSound asset.
+	virtual void CreateTransientBuilder() PURE_VIRTUAL(UMetaSoundBuilderBase::CreateTransientBuilder, );
+
 	const FMetaSoundFrontendDocumentBuilder& GetConstBuilder() const
 	{
 		return Builder;
@@ -469,11 +474,10 @@ protected:
 	UPROPERTY()
 	FMetaSoundFrontendDocumentBuilder Builder;
 
-	// If true, builder is attached to an existing asset (directly making changes to its document). If false, builder is
-	// operating on a transient document which must be built to an asset prior to use by the MetaSound Frontend where it
-	// is then available for referencing, playback, auditioning, etc. by core execution.
-	UPROPERTY()
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.4 - All source builders now operate on an underlying document source document that is also used to audition."))
 	bool bIsAttached = false;
+#endif // WITH_EDITORONLY_DATA
 
 	// Friending allows for swapping the builder in certain circumstances where desired (eg. attaching a builder to an existing asset)
 	friend class UMetaSoundBuilderSubsystem;
@@ -490,6 +494,11 @@ public:
 	virtual UPARAM(DisplayName = "MetaSound") TScriptInterface<IMetaSoundDocumentInterface> Build(UObject* Parent, const FMetaSoundBuilderOptions& Options) const override;
 
 	virtual const UClass& GetBuilderUClass() const override;
+
+protected:
+	virtual void CreateTransientBuilder() override;
+
+	friend class UMetaSoundBuilderSubsystem;
 };
 
 /** Builder in charge of building a MetaSound Source */
@@ -516,12 +525,19 @@ public:
 	const Metasound::Engine::FOutputAudioFormatInfoPair* FindOutputAudioFormatInfo() const;
 
 	virtual const UClass& GetBuilderUClass() const override;
-	virtual void InitFrontendBuilder() override;
+
+protected:
+	virtual void CreateTransientBuilder() override;
+
 
 private:
 	static TOptional<Metasound::FAnyDataReference> CreateDataReference(const Metasound::FOperatorSettings& InOperatorSettings, FName DataType, const Metasound::FLiteral& InLiteral, Metasound::EDataReferenceAccessType AccessType);
 
+	const UMetaSoundSource& GetMetaSoundSource() const;
+	UMetaSoundSource& GetMetaSoundSource();
+
 	void InitDelegates(Metasound::Frontend::FDocumentModifyDelegates& OutDocumentDelegates) const;
+
 	void OnEdgeAdded(int32 EdgeIndex) const;
 	void OnInputAdded(int32 InputIndex) const;
 	void OnNodeAdded(int32 NodeIndex) const;
@@ -532,8 +548,6 @@ private:
 	void OnRemoveSwappingNode(int32 SwapIndex, int32 LastIndex) const;
 	void OnRemovingNodeInputLiteral(int32 NodeIndex, int32 VertexIndex, int32 LiteralIndex) const;
 	void OnRemovingOutput(int32 OutputIndex) const;
-
-	TWeakObjectPtr<UMetaSoundSource> AuditionSound;
 
 	using FAuditionableTransaction = TFunctionRef<bool(Metasound::DynamicGraph::FDynamicOperatorTransactor&)>;
 	bool ExecuteAuditionableTransaction(FAuditionableTransaction Transaction) const;
@@ -666,6 +680,18 @@ public:
 
 private:
 	template <typename BuilderClass>
+	BuilderClass& CreateTransientBuilder(FName BuilderName = FName())
+	{
+		const EObjectFlags NewObjectFlags = RF_Public | RF_Transient;
+		UPackage* TransientPackage = GetTransientPackage();
+		const FName ObjectName = MakeUniqueObjectName(TransientPackage, BuilderClass::StaticClass(), BuilderName);
+		TObjectPtr<BuilderClass> NewBuilder = NewObject<BuilderClass>(TransientPackage, ObjectName, NewObjectFlags);
+		check(NewBuilder);
+		NewBuilder->CreateTransientBuilder();
+		return *NewBuilder.Get();
+	}
+
+	template <typename BuilderClass>
 	BuilderClass& AttachBuilderToAssetCheckedPrivate(UObject* InMetaSoundObject) const
 	{
 		check(InMetaSoundObject);
@@ -683,7 +709,6 @@ private:
 		TObjectPtr<BuilderClass> NewBuilder = NewObject<BuilderClass>(InMetaSoundObject);
 		check(NewBuilder);
 		NewBuilder->Builder = FMetaSoundFrontendDocumentBuilder(DocInterface);
-		NewBuilder->bIsAttached = true;
 		TObjectPtr<UMetaSoundBuilderBase> NewBuilderBase = CastChecked<UMetaSoundBuilderBase>(NewBuilder);
 		AssetBuilders.Add(FullClassName, NewBuilderBase);
 		return *NewBuilder;

@@ -22,6 +22,9 @@ class FMetasoundAssetBase;
 
 namespace Metasound::Frontend
 {
+	// Forward Declarations
+	class INodeTemplate;
+
 	using FFinalizeNodeFunctionRef = TFunctionRef<void(FMetasoundFrontendNode&, const Metasound::Frontend::FNodeRegistryKey&)>;
 
 	enum class EInvalidEdgeReason : uint8
@@ -150,6 +153,8 @@ public:
 	bool CanAddEdge(const FMetasoundFrontendEdge& InEdge) const;
 
 	void ClearGraph();
+
+	bool ContainsDependencyOfType(EMetasoundFrontendClassType ClassType) const;
 	bool ContainsEdge(const FMetasoundFrontendEdge& InEdge) const;
 	bool ContainsNode(const FGuid& InNodeID) const;
 
@@ -185,6 +190,21 @@ public:
 
 	const FString GetDebugName() const;
 	const FMetasoundFrontendDocument& GetDocument() const;
+
+	template<typename TObjectType>
+	const TObjectType& CastDocumentObjectChecked() const
+	{
+		const UObject* Owner = DocumentInterface.GetObject();
+		return *CastChecked<TObjectType>(Owner);
+	}
+
+	template<typename TObjectType>
+	TObjectType& CastDocumentObjectChecked()
+	{
+		UObject* Owner = DocumentInterface.GetObject();
+		return *CastChecked<TObjectType>(Owner);
+	}
+
 	const Metasound::Frontend::FDocumentModifyDelegates& GetDocumentDelegates() const;
 	const IMetaSoundDocumentInterface& GetDocumentInterface() const;
 	EMetasoundFrontendVertexAccessType GetNodeInputAccessType(const FGuid& InNodeID, const FGuid& InVertexID) const;
@@ -245,6 +265,11 @@ public:
 	bool SwapGraphInput(const FMetasoundFrontendClassVertex& InExistingInputVertex, const FMetasoundFrontendClassVertex& NewInputVertex);
 	bool SwapGraphOutput(const FMetasoundFrontendClassVertex& InExistingOutputVertex, const FMetasoundFrontendClassVertex& NewOutputVertex);
 	bool UpdateDependencyClassNames(const TMap<FMetasoundFrontendClassName, FMetasoundFrontendClassName>& OldToNewReferencedClassNames);
+
+	// Determines if the provided interface requires further processing or if its data  is ready as is for insertion into the FrontendRegistry.
+	// If it requires further processing, returns a transient document interface to be used by the registry with an optimized, transformed version
+	// of the given interface's document.
+	static TScriptInterface<IMetaSoundDocumentInterface> BuildRegistryDocument(TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface);
 
 	// Transforms template nodes within the given builder's document, which can include swapping associated edges and/or
 	// replacing nodes with other, registry-defined concrete node class instances. Returns true if any template nodes were processed.

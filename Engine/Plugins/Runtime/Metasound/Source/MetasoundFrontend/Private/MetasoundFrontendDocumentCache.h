@@ -141,6 +141,7 @@ namespace Metasound::Frontend
 		virtual ~FDocumentCache() = default;
 
 		virtual bool ContainsDependency(const FNodeRegistryKey& InClassKey) const override;
+		virtual bool ContainsDependencyOfType(EMetasoundFrontendClassType ClassType) const override;
 
 		virtual const FMetasoundFrontendClass* FindDependency(const FNodeRegistryKey& InClassKey) const override;
 		virtual const FMetasoundFrontendClass* FindDependency(const FGuid& InClassID) const override;

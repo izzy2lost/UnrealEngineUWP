@@ -552,11 +552,6 @@ void UMetaSoundSource::InitResources()
 	RegisterGraphWithFrontend(GetInitRegistrationOptions());
 }
 
-Metasound::Frontend::FNodeClassInfo UMetaSoundSource::GetAssetClassInfo() const
-{
-	return { GetDocumentChecked().RootGraph, FSoftObjectPath(this) };
-}
-
 bool UMetaSoundSource::IsPlayable() const
 {
 	// todo: cache off whether this metasound is buildable to an operator.

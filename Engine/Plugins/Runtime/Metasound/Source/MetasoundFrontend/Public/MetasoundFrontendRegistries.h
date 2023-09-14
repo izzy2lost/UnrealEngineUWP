@@ -127,7 +127,7 @@ namespace Metasound
 			  *
 			  * Returns nullptr if node class implementation does not support interface implementation.
 			  */
-			virtual TSet<FMetasoundFrontendVersion>* GetImplementedInterfaces() const = 0;
+			virtual const TSet<FMetasoundFrontendVersion>* GetImplementedInterfaces() const = 0;
 
 			/** Whether or not the node is natively defined */
 			virtual bool IsNative() const = 0;
@@ -251,6 +251,7 @@ namespace Metasound
 			METASOUNDFRONTEND_API FNodeRegistryKey CreateKey(EMetasoundFrontendClassType InType, const FString& InFullClassName, int32 InMajorVersion, int32 InMinorVersion);
 			METASOUNDFRONTEND_API FNodeRegistryKey CreateKey(const FNodeClassMetadata& InNodeMetadata);
 			METASOUNDFRONTEND_API FNodeRegistryKey CreateKey(const FMetasoundFrontendClassMetadata& InNodeMetadata);
+			METASOUNDFRONTEND_API FNodeRegistryKey CreateKey(const FMetasoundFrontendGraphClass& InNodeMetadata);
 			METASOUNDFRONTEND_API FNodeRegistryKey CreateKey(const FNodeClassInfo& ClassInfo);
 		}
 	} // namespace Frontend

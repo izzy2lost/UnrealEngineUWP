@@ -116,7 +116,7 @@ namespace EngineTestMetaSoundSourcePrivate
 		constexpr EMetaSoundOutputAudioFormat OutputFormat = EMetaSoundOutputAudioFormat::Mono;
 		constexpr bool bIsOneShot = false;
 		FInitTestBuilderSourceOutput Output;
-		UMetaSoundSourceBuilder& Builder = CreateSourceBuilder(Test, EMetaSoundOutputAudioFormat::Mono, bIsOneShot, Output);
+		UMetaSoundSourceBuilder& Builder = CreateSourceBuilder(Test, OutputFormat, bIsOneShot, Output);
 
 		EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
 		if (MonoOutNodeInput)

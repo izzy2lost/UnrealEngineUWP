@@ -148,11 +148,6 @@ void UMetaSoundPatch::PostLoad()
 	Metasound::FMetaSoundEngineAssetHelper::PostLoad(*this);
 }
 
-Metasound::Frontend::FNodeClassInfo UMetaSoundPatch::GetAssetClassInfo() const
-{
-	return { GetDocumentChecked().RootGraph, FSoftObjectPath(this) };
-}
-
 #if WITH_EDITOR
 void UMetaSoundPatch::SetReferencedAssetClasses(TSet<Metasound::Frontend::IMetaSoundAssetManager::FAssetInfo>&& InAssetClasses)
 {

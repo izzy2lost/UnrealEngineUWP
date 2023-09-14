@@ -8,7 +8,6 @@
 #include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendRegistries.h"
-#include "NodeTemplates/MetasoundFrontendDocumentTemplatePreprocessor.h"
 
 
 namespace Metasound::Frontend

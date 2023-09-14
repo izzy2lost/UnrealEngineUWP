@@ -98,6 +98,19 @@ namespace Metasound::Frontend
 			}
 		}
 
+		const FString GetDebugName(const IMetaSoundDocumentInterface& DocumentInterface)
+		{
+			const FMetasoundFrontendClassMetadata& Metadata = DocumentInterface.GetDocument().RootGraph.Metadata;
+			const FMetasoundFrontendVersionNumber& Version = Metadata.GetVersion();
+			const FNodeRegistryKey RegKey = NodeRegistryKey::CreateKey(EMetasoundFrontendClassType::External, Metadata.GetClassName().ToString(), Version.Major, Version.Minor);
+			if (const FMetasoundAssetBase* Asset = IMetaSoundAssetManager::GetChecked().TryLoadAssetFromKey(RegKey))
+			{
+				return Asset->GetOwningAssetName();
+			}
+
+			return Metadata.GetClassName().ToString();
+		}
+
 		class FModifyInterfacesImpl
 		{
 		public:
@@ -1197,6 +1210,11 @@ void FMetaSoundFrontendDocumentBuilder::ClearGraph()
 	ReloadCacheInternal();
 }
 
+bool FMetaSoundFrontendDocumentBuilder::ContainsDependencyOfType(EMetasoundFrontendClassType ClassType) const
+{
+	return DocumentCache->ContainsDependencyOfType(ClassType);
+}
+
 bool FMetaSoundFrontendDocumentBuilder::ContainsEdge(const FMetasoundFrontendEdge& InEdge) const
 {
 	using namespace Metasound::Frontend;
@@ -1559,15 +1577,7 @@ const FString FMetaSoundFrontendDocumentBuilder::GetDebugName() const
 {
 	using namespace Metasound::Frontend;
 
-	const FMetasoundFrontendClassMetadata& Metadata = GetDocument().RootGraph.Metadata;
-	const FMetasoundFrontendVersionNumber& Version = Metadata.GetVersion();
-	const FNodeRegistryKey RegKey = NodeRegistryKey::CreateKey(EMetasoundFrontendClassType::External, Metadata.GetClassName().ToString(), Version.Major, Version.Minor);
-	if (const FMetasoundAssetBase* Asset = IMetaSoundAssetManager::GetChecked().TryLoadAssetFromKey(RegKey))
-	{
-		return Asset->GetOwningAssetName();
-	}
-
-	return Metadata.GetClassName().ToString();
+	return DocumentBuilderPrivate::GetDebugName(GetDocumentInterface());
 }
 
 FMetasoundFrontendDocument& FMetaSoundFrontendDocumentBuilder::GetDocument()
@@ -1968,84 +1978,76 @@ bool FMetaSoundFrontendDocumentBuilder::TransformTemplateNodes()
 
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetaSoundFrontendDocumentBuilder::TransformTemplateNodes);
 
-	bool bModified = false;
+	struct FTemplateTransformParams
+	{
+		const Metasound::Frontend::INodeTemplate* Template;
+		TArray<FGuid> NodeIDs;
+	};
+	using FTemplateTransformParamsMap = TSortedMap<FGuid, FTemplateTransformParams>;
 
 	FMetasoundFrontendDocument& Document = GetDocument();
 	FMetasoundFrontendGraph& Graph = Document.RootGraph.Graph;
 	TArray<FMetasoundFrontendClass>& Dependencies = Document.Dependencies;
-	const TArray<FMetasoundFrontendEdge>& GraphEdges = Graph.Edges;
 
-	struct FTemplateParams
+	FTemplateTransformParamsMap TemplateParams;
+	for (const FMetasoundFrontendClass& Dependency : Dependencies)
 	{
-		FGuid ClassID;
-		const INodeTemplate* Template = nullptr;
-	};
-
-	// 1. Find template dependencies to build
-	TArray<FTemplateParams> TemplateParams;
-	Algo::TransformIf(Dependencies, TemplateParams,
-		[](const FMetasoundFrontendClass& Class) { return Class.Metadata.GetType() == EMetasoundFrontendClassType::Template; },
-		[](const FMetasoundFrontendClass& Class)
+		if (Dependency.Metadata.GetType() == EMetasoundFrontendClassType::Template)
 		{
-			const FNodeRegistryKey Key = NodeRegistryKey::CreateKey(Class.Metadata);
-			FGuid ClassID = Class.ID;
+			const FNodeRegistryKey Key = NodeRegistryKey::CreateKey(Dependency.Metadata);
 			const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(Key);
-			ensureMsgf(Template, TEXT("Template not found for template class reference '%s'"), *Class.Metadata.GetClassName().ToString());
-			return FTemplateParams { ClassID, Template };
-		}
-	);
-
-	for (FTemplateParams& Params : TemplateParams)
-	{
-		if (!Params.Template)
-		{
-			continue;
-		}
-
-		TUniquePtr<INodeTransform> NodeTransform = Params.Template->GenerateNodeTransform();
-		check(NodeTransform.IsValid());
-
-		TSet<const FMetasoundFrontendNode*> NodesToRemove;
-
-		// 2. Execute generated template node transform on copy of node array,
-		// which allows for addition/removal of nodes to/from original array container
-		// without template transform having to worry about mutation while iterating
-		TArray<FGuid> TemplateNodeIDs;
-		Algo::TransformIf(Graph.Nodes, TemplateNodeIDs,
-			[ClassID = Params.ClassID](const FMetasoundFrontendNode& Node) { return ClassID == Node.ClassID; },
-			[](const FMetasoundFrontendNode& Node) { return Node.GetID(); });
-
-		for (const FGuid& NodeID : TemplateNodeIDs)
-		{
-			bModified = true;
-			NodeTransform->Transform(NodeID, *this);
+			ensureMsgf(Template, TEXT("Template not found for template class reference '%s'"), *Dependency.Metadata.GetClassName().ToString());
+			TemplateParams.Add(Dependency.ID, FTemplateTransformParams { Template });
 		}
 	}
 
-	// 4. Remove template classes from dependency list
+	if (TemplateParams.IsEmpty())
 	{
-		TSet<FString> TemplateKeys;
-		Algo::Transform(TemplateParams, TemplateKeys, [](const FTemplateParams& Params)
-		{
-			if (Params.Template)
-			{
-				return NodeRegistryKey::CreateKey(Params.Template->GetFrontendClass().Metadata);
-			}
+		return false;
+	}
 
-			return FString();
-		});
-		constexpr bool bAllowShrinking = false;
-		for (int32 i = Dependencies.Num() - 1; i >= 0; --i)
+	// 1. Execute generated template node transform on copy of node array,
+	// which allows for addition/removal of nodes to/from original array container
+	// without template transform having to worry about mutation while iterating
+	TArray<FGuid> TemplateNodeIDs;
+	for (const FMetasoundFrontendNode& Node : Graph.Nodes)
+	{
+		if (FTemplateTransformParams* Params = TemplateParams.Find(Node.ClassID))
 		{
-			const FMetasoundFrontendClass& Class = Dependencies[i];
-			if (TemplateKeys.Contains(NodeRegistryKey::CreateKey(Class.Metadata)))
+			Params->NodeIDs.Add(Node.GetID());
+		}
+	}
+
+	// 2. Transform nodes
+	bool bModified = false;
+	for (const TPair<FGuid, FTemplateTransformParams>& Pair : TemplateParams)
+	{
+		const FTemplateTransformParams& Params = Pair.Value;
+		if (Params.Template)
+		{
+			TUniquePtr<INodeTransform> NodeTransform = Params.Template->GenerateNodeTransform();
+			check(NodeTransform.IsValid());
+
+			for (const FGuid& NodeID : Params.NodeIDs)
 			{
-				DocumentDelegates->OnRemoveSwappingDependency.Broadcast(i, Dependencies.Num() - 1);
-				Dependencies.RemoveAtSwap(i, 1, bAllowShrinking);
+				bModified = true;
+				NodeTransform->Transform(NodeID, *this);
 			}
 		}
-		Dependencies.Shrink();
 	}
+
+	// 3. Remove template classes from dependency list
+	constexpr bool bAllowShrinking = false;
+	for (int32 i = Dependencies.Num() - 1; i >= 0; --i)
+	{
+		const FMetasoundFrontendClass& Class = Dependencies[i];
+		if (TemplateParams.Contains(Class.ID))
+		{
+			DocumentDelegates->OnRemoveSwappingDependency.Broadcast(i, Dependencies.Num() - 1);
+			Dependencies.RemoveAtSwap(i, 1, bAllowShrinking);
+		}
+	}
+	Dependencies.Shrink();
 
 	return bModified;
 }

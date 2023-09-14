@@ -142,8 +142,8 @@ void UMetaSoundAssetSubsystem::AddAssetReferences(FMetasoundAssetBase& InAssetBa
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
 
-	const FNodeClassInfo AssetClassInfo = InAssetBase.GetAssetClassInfo();
-	const FNodeRegistryKey AssetClassKey = NodeRegistryKey::CreateKey(AssetClassInfo);
+	const FMetasoundFrontendDocument& Document = InAssetBase.GetDocumentChecked();
+	const FNodeRegistryKey AssetClassKey = NodeRegistryKey::CreateKey(Document.RootGraph);
 
 	if (!ContainsKey(AssetClassKey))
 	{
@@ -175,8 +175,8 @@ void UMetaSoundAssetSubsystem::AddAssetReferences(FMetasoundAssetBase& InAssetBa
 	{
 		if (Asset)
 		{
-			FNodeClassInfo ClassInfo = Asset->GetAssetClassInfo();
-			const FNodeRegistryKey ClassKey = NodeRegistryKey::CreateKey(ClassInfo);
+			const FMetasoundFrontendDocument& RefDocument = Asset->GetDocumentChecked();
+			const FNodeRegistryKey ClassKey = NodeRegistryKey::CreateKey(RefDocument.RootGraph);
 			if (!ContainsKey(ClassKey))
 			{
 				UE_LOG(LogMetaSound, Verbose,
@@ -210,8 +210,8 @@ Metasound::Frontend::FNodeRegistryKey UMetaSoundAssetSubsystem::AddOrUpdateAsset
 	const FMetasoundAssetBase* MetaSoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InObject);
 	check(MetaSoundAsset);
 
-	FNodeClassInfo ClassInfo = MetaSoundAsset->GetAssetClassInfo();
-	const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(ClassInfo);
+	const FMetasoundFrontendDocument& Document = MetaSoundAsset->GetDocumentChecked();
+	const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(Document.RootGraph);
 
 	if (NodeRegistryKey::IsValid(RegistryKey))
 	{
@@ -224,13 +224,12 @@ Metasound::Frontend::FNodeRegistryKey UMetaSoundAssetSubsystem::AddOrUpdateAsset
 Metasound::Frontend::FNodeRegistryKey UMetaSoundAssetSubsystem::AddOrUpdateAsset(const FAssetData& InAssetData)
 {
 	using namespace Metasound;
-	using namespace Metasound::AssetSubsystemPrivate;
 	using namespace Metasound::Frontend;
 
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetaSoundAssetSubsystem::AddOrUpdateAsset);
 
 	FNodeClassInfo ClassInfo;
-	bool bClassInfoFound = GetAssetClassInfo(InAssetData, ClassInfo);
+	bool bClassInfoFound = AssetSubsystemPrivate::GetAssetClassInfo(InAssetData, ClassInfo);
 	if (!bClassInfoFound)
 	{
 		UObject* Object = nullptr;
@@ -598,12 +597,12 @@ void UMetaSoundAssetSubsystem::RemoveAsset(const UObject& InObject)
 
 	if (const FMetasoundAssetBase* MetaSoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InObject))
 	{
-		const FNodeClassInfo ClassInfo = MetaSoundAsset->GetAssetClassInfo();
-		FNodeRegistryKey RegistryKey = FMetasoundFrontendRegistryContainer::Get()->GetRegistryKey(ClassInfo);
 		const FSoftObjectPath ObjectPath(&InObject);
+		const FMetasoundFrontendDocument& Document = MetaSoundAsset->GetDocumentChecked();
+		FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(Document.RootGraph);
 		if (AssetSubsystemPrivate::RemoveIfExactMatch(PathMap, RegistryKey, ObjectPath))
 		{
-			UMetaSoundBuilderSubsystem::GetChecked().DetachBuilderFromAsset(ClassInfo.ClassName);
+			UMetaSoundBuilderSubsystem::GetChecked().DetachBuilderFromAsset(Document.RootGraph.Metadata.GetClassName());
 		}
 	}
 }

@@ -1782,8 +1782,8 @@ void UMetasoundEditorGraphSchema::DroppedAssetsOnGraph(const TArray<FAssetData>&
 			}
 
 			// This may not be necessary as dropping an asset on the graph may load it, thus triggering the registration from the MetaSoundAssetManager.
-			const FNodeClassInfo ClassInfo = DroppedMetaSoundAsset->GetAssetClassInfo();
-			const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(ClassInfo);
+			const FMetasoundFrontendDocument& DroppedDoc = DroppedMetaSoundAsset->GetDocumentChecked();
+			const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(DroppedDoc.RootGraph);
 			if (ensure(NodeRegistryKey::IsValid(RegistryKey)))
 			{
 				FMetaSoundAssetRegistrationOptions RegOptions;
@@ -1791,10 +1791,8 @@ void UMetasoundEditorGraphSchema::DroppedAssetsOnGraph(const TArray<FAssetData>&
 				DroppedMetaSoundAsset->RegisterGraphWithFrontend(RegOptions);
 			}
 
-			const FMetasoundFrontendClassName ClassName = DroppedMetaSoundAsset->GetAssetClassInfo().ClassName;
-
 			FMetasoundFrontendClass Class;
-			if (ensure(ISearchEngine::Get().FindClassWithHighestVersion(ClassName.ToNodeClassName(), Class)))
+			if (ensure(ISearchEngine::Get().FindClassWithHighestVersion(DroppedDoc.RootGraph.Metadata.GetClassName(), Class)))
 			{
 				Metasound::Editor::FGraphBuilder::AddExternalNode(MetaSound, Class.Metadata, GraphPosition);
 				bTransactionSucceeded = true;

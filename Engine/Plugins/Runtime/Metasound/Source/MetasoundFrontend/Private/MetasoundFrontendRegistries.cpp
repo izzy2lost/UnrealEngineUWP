@@ -624,11 +624,23 @@ namespace Metasound
 
 			FNodeRegistryKey CreateKey(const FMetasoundFrontendClassMetadata& InNodeMetadata)
 			{
+				checkf(InNodeMetadata.GetType() != EMetasoundFrontendClassType::Graph, TEXT("Cannot create key from 'graph' type. Likely meant to use CreateKey overload that is provided FMetasoundFrontendGraphClass"));
 				return CreateKey(InNodeMetadata.GetType(), InNodeMetadata.GetClassName().GetFullName().ToString(), InNodeMetadata.GetVersion().Major, InNodeMetadata.GetVersion().Minor);
+			}
+
+			FNodeRegistryKey CreateKey(const FMetasoundFrontendGraphClass& InGraphClass)
+			{
+				return CreateKey(
+					EMetasoundFrontendClassType::External, // Overridden as all graphs are considered the same as an external in the registry
+					InGraphClass.Metadata.GetClassName().GetFullName().ToString(),
+					InGraphClass.Metadata.GetVersion().Major,
+					InGraphClass.Metadata.GetVersion().Minor
+				);
 			}
 
 			FNodeRegistryKey CreateKey(const FNodeClassInfo& InClassInfo)
 			{
+				checkf(InClassInfo.Type != EMetasoundFrontendClassType::Graph, TEXT("Cannot create key from 'graph' type. Likely meant to use CreateKey overload that is provided FMetasoundFrontendGraphClass"));
 				return CreateKey(InClassInfo.Type, InClassInfo.ClassName.GetFullName().ToString(), InClassInfo.Version.Major, InClassInfo.Version.Minor);
 			}
 		}
