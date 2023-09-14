@@ -16,6 +16,7 @@
 #include "Materials/Material.h"
 #include "MeshUtilities.h"
 #include "Misc/PackageName.h"
+#include "Misc/ScopedSlowTask.h"
 #include "PackageTools.h"
 #include "RenderMath.h"
 #include "UObject/Package.h"
@@ -1190,12 +1191,12 @@ void AbcImporterUtilities::PropogateMatrixTransformationToSample(FAbcMeshSample*
 }
 
 void AbcImporterUtilities::GenerateDeltaFrameDataMatrix(const TArray<FVector3f>& FrameVertexData, const TArray<FVector3f>& FrameNormalData, const TArray<FVector3f>& AverageVertexData, const TArray<FVector3f>& AverageNormalData,
-	const int32 SampleIndex, const int32 AverageVertexOffset, const int32 AverageIndexOffset, const FVector& SamplePositionOffset, TArray<float>& OutGeneratedMatrix, TArray<float>& OutGeneratedNormalsMatrix)
+	const int32 SampleIndex, const int32 AverageVertexOffset, const int32 AverageIndexOffset, const FVector& SamplePositionOffset, TArray64<float>& OutGeneratedMatrix, TArray64<float>& OutGeneratedNormalsMatrix)
 {
-	const uint32 NumVertices = FrameVertexData.Num();
-	const uint32 VertexOffset = SampleIndex * AverageVertexData.Num() * 3;
+	const int32 NumVertices = FrameVertexData.Num();
+	const int64 VertexOffset = int64(SampleIndex) * AverageVertexData.Num() * 3;
 
-	for (uint32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
+	for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
 	{
 		const int32 ComponentIndexOffset = (VertexIndex + AverageVertexOffset) * 3;
 		const FVector AverageDifference = ((FVector)AverageVertexData[VertexIndex + AverageVertexOffset] + SamplePositionOffset) - (FVector)FrameVertexData[VertexIndex];
@@ -1205,10 +1206,10 @@ void AbcImporterUtilities::GenerateDeltaFrameDataMatrix(const TArray<FVector3f>&
 		OutGeneratedMatrix[VertexOffset + ComponentIndexOffset + 2] = static_cast<float>(AverageDifference.Z);
 	}
 
-	const uint32 NumIndices = FrameNormalData.Num();
-	const uint32 IndexOffset = SampleIndex * AverageNormalData.Num() * 3;
+	const int32 NumIndices = FrameNormalData.Num();
+	const int64 IndexOffset = int64(SampleIndex) * AverageNormalData.Num() * 3;
 
-	for (uint32 Index = 0; Index < NumIndices; ++Index)
+	for (int32 Index = 0; Index < NumIndices; ++Index)
 	{
 		const int32 ComponentIndexOffset = (Index + AverageIndexOffset) * 3;
 		const FVector AverageNormal = (FVector)AverageNormalData[Index + AverageIndexOffset] - (FVector)FrameNormalData[Index];
@@ -1220,8 +1221,11 @@ void AbcImporterUtilities::GenerateDeltaFrameDataMatrix(const TArray<FVector3f>&
 }
 
 void AbcImporterUtilities::GenerateCompressedMeshData(FCompressedAbcData& CompressedData, const uint32 NumUsedSingularValues, const uint32 NumSamples,
-	const TArrayView<float>& BasesMatrix, const TArrayView<float>& NormalsBasesMatrix, const TArray<float>& BasesWeights, const float SampleTimeStep, const float StartTime)
+	const TArrayView64<float>& BasesMatrix, const TArrayView64<float>& NormalsBasesMatrix, const TArray64<float>& BasesWeights, const float SampleTimeStep, const float StartTime)
 {
+	FScopedSlowTask SlowTask(static_cast<float>(NumUsedSingularValues), FText::FromString(FString(TEXT("Generating bases"))));
+	SlowTask.MakeDialog();
+
 	// Allocate base sample data	
 	CompressedData.BaseSamples.AddZeroed(NumUsedSingularValues);
 	CompressedData.CurveValues.AddZeroed(NumUsedSingularValues);
@@ -1232,12 +1236,12 @@ void AbcImporterUtilities::GenerateCompressedMeshData(FCompressedAbcData& Compre
 	{
 		FAbcMeshSample* Base = new FAbcMeshSample(*CompressedData.AverageSample);
 
-		const uint32 NumVertices = Base->Vertices.Num();
-		const uint32 NumMatrixRows = NumVertices * 3;
-		const int32 BaseOffset = BaseIndex * NumMatrixRows;
-		for (uint32 Index = 0; Index < NumVertices; ++Index)
+		const int32 NumVertices = Base->Vertices.Num();
+		const int32 NumMatrixRows = NumVertices * 3;
+		const int64 BaseOffset = int64(BaseIndex) * NumMatrixRows;
+		for (int32 Index = 0; Index < NumVertices; ++Index)
 		{
-			const int32 IndexOffset = BaseOffset + (Index * 3);
+			const int64 IndexOffset = BaseOffset + (Index * 3);
 			FVector3f& BaseVertex = Base->Vertices[Index];
 
 			BaseVertex.X -= BasesMatrix[IndexOffset + 0];
@@ -1245,12 +1249,12 @@ void AbcImporterUtilities::GenerateCompressedMeshData(FCompressedAbcData& Compre
 			BaseVertex.Z -= BasesMatrix[IndexOffset + 2];
 		}
 
-		const uint32 NumIndices = Base->Indices.Num();
-		const uint32 NumNormalsMatrixRows = NumIndices * 3;
-		const int32 BaseIndexOffset = BaseIndex * NumNormalsMatrixRows;
-		for (uint32 Index = 0; Index < NumIndices; ++Index)
+		const int32 NumIndices = Base->Indices.Num();
+		const int32 NumNormalsMatrixRows = NumIndices * 3;
+		const int64 BaseIndexOffset = int64(BaseIndex) * NumNormalsMatrixRows;
+		for (int32 Index = 0; Index < NumIndices; ++Index)
 		{
-			const int32 IndexOffset = BaseIndexOffset + (Index * 3);
+			const int64 IndexOffset = BaseIndexOffset + (Index * 3);
 			FVector3f& BaseNormal = Base->Normals[Index];
 
 			BaseNormal.X -= NormalsBasesMatrix[IndexOffset + 0];
@@ -1267,13 +1271,15 @@ void AbcImporterUtilities::GenerateCompressedMeshData(FCompressedAbcData& Compre
 		TimeValues.Reserve(NumSamples);
 
 		// Use original number of singular values to index into the array (otherwise we would be reading incorrect data if NumUsedSingularValues != the original number
-		const uint32 OriginalNumberOfSingularValues = BasesWeights.Num() / NumSamples;
+		const int64 OriginalNumberOfSingularValues = BasesWeights.Num() / NumSamples;
 		// Should be possible to rearrange the data so this can become a memcpy
 		for (uint32 CurveSampleIndex = 0; CurveSampleIndex < NumSamples; ++CurveSampleIndex)
 		{
 			CurveValues.Add(BasesWeights[BaseIndex + (OriginalNumberOfSingularValues * CurveSampleIndex)]);
 			TimeValues.Add(StartTime + (SampleTimeStep * static_cast<float>(CurveSampleIndex)));
 		}
+
+		SlowTask.EnterProgressFrame(1.f);
 	}
 }
 
