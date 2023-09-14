@@ -110,6 +110,9 @@ namespace CrossCompiler
 
 		/** HLSL language input version: 2015, 2016, 2017, 2018 (Default), 2021 (Breaking changes in short-circuiting evaluation). */
 		uint32 HlslVersion = 2018;
+
+		/** SPIR-V specific optimization passes to override the default '-O' argument. This will be passed to DXC via the '-Oconfig=...' argument. */
+		FString SpirvCustomOptimizationPasses;
 	};
 
 	/** Target high level languages for ShaderConductor output. */
