@@ -1447,6 +1447,8 @@ private:
 	bool bLoadBusy = false;
 	/** True when PumpSaves has detected it is blocked on async work and CookOnTheFlyServer should do work elsewhere. */
 	bool bSaveBusy = false;
+	/** We need to track whether the compiler has been inactive for a long time before issuing a warning about it. */
+	bool bShaderCompilerWasActiveeOnPreviousBusyReport = true;
 	/**
 	 * If preloading is enabled, we call TryPreload until it returns true before sending the package to LoadReady,
 	 * otherwise we skip TryPreload and it goes immediately.
