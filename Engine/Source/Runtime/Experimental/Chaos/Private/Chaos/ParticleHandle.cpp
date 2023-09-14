@@ -92,14 +92,16 @@ namespace Chaos
 		}
 
 		const FImplicitObjectRef CurrentGeometry = GetGeometry();
-		ensure(CurrentGeometry != nullptr);
-		if (ensure(CurrentGeometry->GetType() == FImplicitObjectUnion::StaticType()))
+		if (ensure(CurrentGeometry != nullptr))
 		{
-			FImplicitObjectUnion& Union = CurrentGeometry->GetObjectChecked<FImplicitObjectUnion>();
-			Union.Combine(Objects);
+			if (ensure(CurrentGeometry->GetType() == FImplicitObjectUnion::StaticType()))
+			{
+				FImplicitObjectUnion& Union = CurrentGeometry->GetObjectChecked<FImplicitObjectUnion>();
+				Union.Combine(Objects);
 
-			// Needed to update the shapes array.
-			SetGeometry(GeometryParticles->GetGeometry(ParticleIdx));
+				// Needed to update the shapes array.
+				SetGeometry(GeometryParticles->GetGeometry(ParticleIdx));
+			}
 		}
 	}
 
