@@ -48,6 +48,10 @@ namespace UE::PoseSearch
 		const FSlateBrush* GetMirrorOptionSlateBrush() const;
 		FText GetMirrorOptionToolTip() const;
 		
+		FText GetDisableReselectionToolTip() const;
+		ECheckBoxState GetDisableReselectionChecked() const;
+		void OnDisableReselectionChanged(ECheckBoxState NewCheckboxState);
+
 		FText GetAssetEnabledToolTip() const;
 		ECheckBoxState GetAssetEnabledChecked() const;
 		void OnAssetIsEnabledChanged(ECheckBoxState NewCheckboxState);

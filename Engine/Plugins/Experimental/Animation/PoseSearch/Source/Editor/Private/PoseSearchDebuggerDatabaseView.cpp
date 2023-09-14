@@ -269,7 +269,9 @@ void SDebuggerDatabaseView::Update(const FTraceMotionMatchingStateMessage& State
 			SharedData->DatabasePath = Database->GetPathName();
 			SharedData->QueryVector = DbEntry.QueryVector;
 
-			if (Database->PoseSearchMode == EPoseSearchMode::PCAKDTree)
+			// checking for DbEntry.QueryVector.Num() == Database->Schema->SchemaCardinality to make sure the stored DbEntry data is still aligned with the Database->Schema
+			// (this could happen when pausing PIE, change the schema cardinality, scrubbing back to previously recorded data)
+			if (Database->PoseSearchMode == EPoseSearchMode::PCAKDTree && DbEntry.QueryVector.Num() == Database->Schema->SchemaCardinality)
 			{
 				SharedData->PCAQueryVector.SetNumZeroed(Database->GetNumberOfPrincipalComponents());
 				Database->GetSearchIndex().PCAProject(DbEntry.QueryVector, SharedData->PCAQueryVector);

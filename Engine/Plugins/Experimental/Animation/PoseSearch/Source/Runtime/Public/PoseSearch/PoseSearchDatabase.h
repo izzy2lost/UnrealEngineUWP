@@ -78,12 +78,27 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 	virtual UClass* GetAnimationAssetStaticClass() const { return nullptr; }
 	virtual bool IsLooping() const { return false; }
 	virtual const FString GetName() const { return FString(); }
-	virtual bool IsEnabled() const { return false; }
-	virtual void SetIsEnabled(bool bInIsEnabled) {}
+	virtual bool IsDisableReselection() const { return bDisableReselection; }
+	virtual void SetDisableReselection(bool bValue) { bDisableReselection = bValue; }
+	virtual bool IsEnabled() const { return bEnabled; }
+	virtual void SetIsEnabled(bool bValue) { bEnabled = bValue; }
 	virtual bool IsRootMotionEnabled() const { return false; }
-	virtual EPoseSearchMirrorOption GetMirrorOption() const { return EPoseSearchMirrorOption::Invalid; }
+	virtual EPoseSearchMirrorOption GetMirrorOption() const { return MirrorOption; }
 	// [0, 0] represents the entire frame range of the original animation.
 	virtual FFloatInterval GetSamplingRange() const { return FFloatInterval(0.f, 0.f); }
+
+	// This allows users to enable or exclude animations from this database. Useful for debugging.
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 1))
+	bool bEnabled = true;
+
+	// if bDisableReselection is true, poses from the same asset cannot be reselected. Useful to avoid jumping on frames on the same looping animations
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (ExcludeFromHash, DisplayPriority = 2))
+	bool bDisableReselection = false;
+
+	// This allows users to set if this animation is original only (no mirrored data), original and mirrored, or only the mirrored version of this animation.
+	// It requires the mirror table to be set up in the config file.
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 3))
+	EPoseSearchMirrorOption MirrorOption = EPoseSearchMirrorOption::UnmirroredOnly;
 };
 
 /** A sequence entry in a UPoseSearchDatabase. */
@@ -93,32 +108,20 @@ struct POSESEARCH_API FPoseSearchDatabaseSequence : public FPoseSearchDatabaseAn
 	GENERATED_BODY()
 	virtual ~FPoseSearchDatabaseSequence() = default;
 
-	UPROPERTY(EditAnywhere, Category="Sequence", meta = (DisplayPriority = 0))
+	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 0))
 	TObjectPtr<UAnimSequence> Sequence;
-
-	// This allows users to enable or exclude animations from this database. Useful for debugging.
-	UPROPERTY(EditAnywhere, Category = "Sequence", meta = (DisplayPriority = 3))
-	bool bEnabled = true;
 
 	// It allows users to set a time range to an individual animation sequence in the database. 
 	// This is effectively trimming the beginning and end of the animation in the database (not in the original sequence).
 	// If set to [0, 0] it will be the entire frame range of the original sequence.
-	UPROPERTY(EditAnywhere, Category="Sequence", meta = (DisplayPriority = 1))
+	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 2))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
-
-	// This allows users to set if this animation is original only (no mirrored data), original and mirrored, or only the mirrored version of this animation.
-	// It requires the mirror table to be set up in the config file.
-	UPROPERTY(EditAnywhere, Category = "Sequence", meta = (DisplayPriority = 2))
-	EPoseSearchMirrorOption MirrorOption = EPoseSearchMirrorOption::UnmirroredOnly;
 
 	UAnimationAsset* GetAnimationAsset() const override;
 	UClass* GetAnimationAssetStaticClass() const override;
 	bool IsLooping() const override;
 	const FString GetName() const override;
-	bool IsEnabled() const override { return bEnabled; }
-	void SetIsEnabled(bool bInIsEnabled) override { bEnabled = bInIsEnabled; }
 	bool IsRootMotionEnabled() const override;
-	EPoseSearchMirrorOption GetMirrorOption() const override { return MirrorOption; }
 	FFloatInterval GetSamplingRange() const override { return SamplingRange; }
 };
 
@@ -129,50 +132,38 @@ struct POSESEARCH_API FPoseSearchDatabaseBlendSpace : public FPoseSearchDatabase
 	GENERATED_BODY()
 	virtual ~FPoseSearchDatabaseBlendSpace() = default;
 
-	UPROPERTY(EditAnywhere, Category = "BlendSpace", meta = (DisplayPriority = 0))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 0))
 	TObjectPtr<UBlendSpace> BlendSpace;
 
-	// This allows users to set if this animation is original only (no mirrored data), original and mirrored, or only the mirrored version of this animation.
-	// It requires the mirror table to be set up in the config file.
-	UPROPERTY(EditAnywhere, Category = "BlendSpace", meta = (DisplayPriority = 1))
-	EPoseSearchMirrorOption MirrorOption = EPoseSearchMirrorOption::UnmirroredOnly;
-
 	// If true this BlendSpace will output a single segment in the database.
-	UPROPERTY(EditAnywhere, Category = "BlendSpace", meta = (DisplayPriority = 2))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 4))
 	bool bUseSingleSample = false;
 
 	// When turned on, this will use the set grid samples of the blend space asset for sampling. This will override the Number of Horizontal/Vertical Samples.
-	UPROPERTY(EditAnywhere, Category = "BlendSpace", meta = (EditCondition = "!bUseSingleSample", EditConditionHides, DisplayPriority = 3))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (EditCondition = "!bUseSingleSample", EditConditionHides, DisplayPriority = 5))
 	bool bUseGridForSampling = false;
 
 	// Sets the number of horizontal samples in the blend space to pull the animation data coverage from. The larger the samples the more the data, but also the more memory and performance it takes.
-	UPROPERTY(EditAnywhere, Category = "BlendSpace", meta = (EditCondition = "!bUseSingleSample && !bUseGridForSampling", EditConditionHides, ClampMin = "1", UIMin = "1", UIMax = "25", DisplayPriority = 4))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (EditCondition = "!bUseSingleSample && !bUseGridForSampling", EditConditionHides, ClampMin = "1", UIMin = "1", UIMax = "25", DisplayPriority = 6))
 	int32 NumberOfHorizontalSamples = 9;
 	
 	// Sets the number of vertical samples in the blend space to pull the animation data coverage from.The larger the samples the more the data, but also the more memory and performance it takes.
-	UPROPERTY(EditAnywhere, Category = "BlendSpace", meta = (EditCondition = "!bUseSingleSample && !bUseGridForSampling", EditConditionHides, ClampMin = "1", UIMin = "1", UIMax = "25", DisplayPriority = 5))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (EditCondition = "!bUseSingleSample && !bUseGridForSampling", EditConditionHides, ClampMin = "1", UIMin = "1", UIMax = "25", DisplayPriority = 7))
 	int32 NumberOfVerticalSamples = 2;
 
 	// BlendParams used to sample this BlendSpace
-	UPROPERTY(EditAnywhere, Category = "BlendSpace", meta = (EditCondition = "bUseSingleSample", EditConditionHides, DisplayPriority = 6))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (EditCondition = "bUseSingleSample", EditConditionHides, DisplayPriority = 8))
 	float BlendParamX = 0.f;
 
 	// BlendParams used to sample this BlendSpace
-	UPROPERTY(EditAnywhere, Category = "BlendSpace", meta = (EditCondition = "bUseSingleSample", EditConditionHides, DisplayPriority = 7))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (EditCondition = "bUseSingleSample", EditConditionHides, DisplayPriority = 9))
 	float BlendParamY = 0.f;
-
-	// This allows users to enable or exclude animations from this database. Useful for debugging.
-	UPROPERTY(EditAnywhere, Category = "BlendSpace", meta = (DisplayPriority = 8))
-	bool bEnabled = true;
 
 	UAnimationAsset* GetAnimationAsset() const override;
 	UClass* GetAnimationAssetStaticClass() const override;
 	bool IsLooping() const override;
 	const FString GetName() const override;
-	bool IsEnabled() const override { return bEnabled; }
-	void SetIsEnabled(bool bInIsEnabled) override { bEnabled = bInIsEnabled; }
 	bool IsRootMotionEnabled() const override;
-	EPoseSearchMirrorOption GetMirrorOption() const override { return MirrorOption; }
 
 	void GetBlendSpaceParameterSampleRanges(int32& HorizontalBlendNum, int32& VerticalBlendNum) const;
 	FVector BlendParameterForSampleRanges(int32 HorizontalBlendIndex, int32 VerticalBlendIndex) const;
@@ -185,32 +176,20 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimComposite : public FPoseSearchDatab
 	GENERATED_BODY()
 	virtual ~FPoseSearchDatabaseAnimComposite() = default;
 
-	UPROPERTY(EditAnywhere, Category = "AnimComposite", meta = (DisplayPriority = 0))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 0))
 	TObjectPtr<UAnimComposite> AnimComposite;
-
-	// This allows users to enable or exclude animations from this database. Useful for debugging.
-	UPROPERTY(EditAnywhere, Category = "AnimComposite", meta = (DisplayPriority = 3))
-	bool bEnabled = true;
 
 	// It allows users to set a time range to an individual animation sequence in the database. 
 	// This is effectively trimming the beginning and end of the animation in the database (not in the original sequence).
 	// If set to [0, 0] it will be the entire frame range of the original sequence.
-	UPROPERTY(EditAnywhere, Category = "AnimComposite", meta = (DisplayPriority = 1))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 3))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
-
-	// This allows users to set if this animation is original only (no mirrored data), original and mirrored, or only the mirrored version of this animation.
-	// It requires the mirror table to be set up in the config file.
-	UPROPERTY(EditAnywhere, Category = "AnimComposite", meta = (DisplayPriority = 2))
-	EPoseSearchMirrorOption MirrorOption = EPoseSearchMirrorOption::UnmirroredOnly;
 
 	UAnimationAsset* GetAnimationAsset() const override;
 	UClass* GetAnimationAssetStaticClass() const override;
 	bool IsLooping() const override;
 	const FString GetName() const override;
-	bool IsEnabled() const override { return bEnabled; }
-	void SetIsEnabled(bool bInIsEnabled) override { bEnabled = bInIsEnabled; }
 	bool IsRootMotionEnabled() const override;
-	EPoseSearchMirrorOption GetMirrorOption() const override { return MirrorOption; }
 	FFloatInterval GetSamplingRange() const override { return SamplingRange; }
 };
 
@@ -221,32 +200,20 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimMontage : public FPoseSearchDatabas
 	GENERATED_BODY()
 	virtual ~FPoseSearchDatabaseAnimMontage() = default;
 
-	UPROPERTY(EditAnywhere, Category="AnimMontage", meta = (DisplayPriority = 0))
+	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 0))
 	TObjectPtr<UAnimMontage> AnimMontage;
-
-	// This allows users to enable or exclude animations from this database. Useful for debugging.
-	UPROPERTY(EditAnywhere, Category = "AnimMontage", meta = (DisplayPriority = 3))
-	bool bEnabled = true;
 
 	// It allows users to set a time range to an individual animation sequence in the database. 
 	// This is effectively trimming the beginning and end of the animation in the database (not in the original sequence).
 	// If set to [0, 0] it will be the entire frame range of the original sequence.
-	UPROPERTY(EditAnywhere, Category="AnimMontage", meta = (DisplayPriority = 1))
+	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 2))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
-
-	// This allows users to set if this animation is original only (no mirrored data), original and mirrored, or only the mirrored version of this animation.
-	// It requires the mirror table to be set up in the config file.
-	UPROPERTY(EditAnywhere, Category = "AnimMontage", meta = (DisplayPriority = 2))
-	EPoseSearchMirrorOption MirrorOption = EPoseSearchMirrorOption::UnmirroredOnly;
 
 	UAnimationAsset* GetAnimationAsset() const override;
 	UClass* GetAnimationAssetStaticClass() const override;
 	bool IsLooping() const override;
 	const FString GetName() const override;
-	bool IsEnabled() const override { return bEnabled; }
-	void SetIsEnabled(bool bInIsEnabled) override { bEnabled = bInIsEnabled; }
 	bool IsRootMotionEnabled() const override;
-	EPoseSearchMirrorOption GetMirrorOption() const override { return MirrorOption; }
 	FFloatInterval GetSamplingRange() const override { return SamplingRange; }
 };
 

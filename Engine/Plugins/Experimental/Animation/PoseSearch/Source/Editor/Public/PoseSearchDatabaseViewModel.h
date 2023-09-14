@@ -108,6 +108,9 @@ namespace UE::PoseSearch
 		void AddAnimMontageToDatabase(UAnimMontage* AnimMontage);
 		void DeleteFromDatabase(int32 AnimationAssetIndex);
 
+		void SetDisableReselection(int32 AnimationAssetIndex, bool bEnabled);
+		bool IsDisableReselection(int32 AnimationAssetIndex) const;
+
 		void SetIsEnabled(int32 AnimationAssetIndex, bool bEnabled);
 		bool IsEnabled(int32 AnimationAssetIndex) const;
 

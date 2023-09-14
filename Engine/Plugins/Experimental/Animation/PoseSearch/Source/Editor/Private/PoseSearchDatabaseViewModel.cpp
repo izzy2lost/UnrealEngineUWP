@@ -361,6 +361,24 @@ namespace UE::PoseSearch
 		PoseSearchDatabase->AnimationAssets.RemoveAt(AnimationAssetIndex);
 	}
 
+	void FDatabaseViewModel::SetDisableReselection(int32 AnimationAssetIndex, bool bEnabled)
+	{
+		if (FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = PoseSearchDatabase->GetMutableAnimationAssetBase(AnimationAssetIndex))
+		{
+			DatabaseAnimationAsset->SetDisableReselection(bEnabled);
+		}
+	}
+
+	bool FDatabaseViewModel::IsDisableReselection(int32 AnimationAssetIndex) const
+	{
+		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = PoseSearchDatabase->GetAnimationAssetBase(AnimationAssetIndex))
+		{
+			return DatabaseAnimationAsset->IsDisableReselection();
+		}
+
+		return false;
+	}
+
 	void FDatabaseViewModel::SetIsEnabled(int32 AnimationAssetIndex, bool bEnabled)
 	{
 		if (FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = PoseSearchDatabase->GetMutableAnimationAssetBase(AnimationAssetIndex))

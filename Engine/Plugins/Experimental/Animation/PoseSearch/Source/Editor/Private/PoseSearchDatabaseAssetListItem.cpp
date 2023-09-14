@@ -301,6 +301,26 @@ namespace UE::PoseSearch
 						.Image(this, &SDatabaseAssetListItem::GetMirrorOptionSlateBrush)
 						.ToolTipText(this, &SDatabaseAssetListItem::GetMirrorOptionToolTip)
 					]
+
+					// Disable Reselection
+					+ SHorizontalBox::Slot()
+					.Padding(1.0f, 1.0f)
+					.AutoWidth()
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					[
+						SNew(SCheckBox)
+						.IsChecked(this, &SDatabaseAssetListItem::GetDisableReselectionChecked)
+						.OnCheckStateChanged(const_cast<SDatabaseAssetListItem*>(this), &SDatabaseAssetListItem::OnDisableReselectionChanged)
+						.ToolTipText(this, &SDatabaseAssetListItem::GetDisableReselectionToolTip)
+						// @todo: customize icon!
+						//.CheckedImage(FAppStyle::Get().GetBrush("FractureFlush"))
+						//.CheckedHoveredImage(FAppStyle::Get().GetBrush("FractureFlush"))
+						//.CheckedPressedImage(FAppStyle::Get().GetBrush("FractureFlush"))
+						//.UncheckedImage(FAppStyle::Get().GetBrush("FractureFlush"))
+						//.UncheckedHoveredImage(FAppStyle::Get().GetBrush("FractureFlush"))
+						//.UncheckedPressedImage(FAppStyle::Get().GetBrush("FractureFlush"))
+					]
 				]
 			]
 			
@@ -370,6 +390,49 @@ namespace UE::PoseSearch
 		}
 
 		return EVisibility::Hidden;
+	}
+
+	FText SDatabaseAssetListItem::GetDisableReselectionToolTip() const
+	{
+		if (GetDisableReselectionChecked() == ECheckBoxState::Checked)
+		{
+			return LOCTEXT("EnableReselectionToolTip", "Enable reselection of poses from the same asset.");
+		}
+		
+		return LOCTEXT("DisableReselectionToolTip", "Disable reselection of poses from the same asset.");
+	}
+
+	ECheckBoxState SDatabaseAssetListItem::GetDisableReselectionChecked() const
+	{
+		TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
+		TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
+		const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase();
+
+		if (Database->AnimationAssets.IsValidIndex(TreeNodePtr->SourceAssetIdx))
+		{
+			if (ViewModelPtr->IsDisableReselection(TreeNodePtr->SourceAssetIdx))
+			{
+				return ECheckBoxState::Checked;
+			}
+		}
+
+		return ECheckBoxState::Unchecked;
+	}
+
+	void SDatabaseAssetListItem::OnDisableReselectionChanged(ECheckBoxState NewCheckboxState)
+	{
+		const FScopedTransaction Transaction(LOCTEXT("EnableChangedForAssetInPoseSearchDatabase", "Update enabled flag for item from Pose Search Database"));
+
+		const TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
+		const TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
+
+		ViewModelPtr->GetPoseSearchDatabase()->Modify();
+		
+		ViewModelPtr->SetDisableReselection(TreeNodePtr->SourceAssetIdx, NewCheckboxState == ECheckBoxState::Checked ? true : false);
+
+		SkeletonView.Pin()->RefreshTreeView(false, true);
+		
+		// no need to rebuild the SearchIndex (ViewModelPtr->BuildSearchIndex()), since bDisableReselection is a runtime only parameter
 	}
 
 	ECheckBoxState SDatabaseAssetListItem::GetAssetEnabledChecked() const

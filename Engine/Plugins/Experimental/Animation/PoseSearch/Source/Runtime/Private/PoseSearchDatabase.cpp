@@ -42,52 +42,81 @@ static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearc
 )
 {
 	check(Database);
-#if UE_POSE_SEARCH_TRACE_ENABLED
 	const FSearchIndex& SearchIndex = Database->GetSearchIndex();
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
 
 	NonSelectableIdx.Reset();
-	const FSearchIndexAsset* CurrentIndexAsset = SearchContext.GetCurrentResult().GetSearchIndexAsset();
-	if (CurrentIndexAsset && SearchContext.IsCurrentResultFromDatabase(Database) && !FMath::IsNearlyEqual(SearchContext.GetPoseJumpThresholdTime().Min, SearchContext.GetPoseJumpThresholdTime().Max))
+	if (SearchContext.IsCurrentResultFromDatabase(Database))
 	{
-		const int32 CurrentResultPoseIdx = SearchContext.GetCurrentResult().PoseIdx;
-		const int32 UnboundMinPoseIdx = CurrentResultPoseIdx + FMath::FloorToInt(SearchContext.GetPoseJumpThresholdTime().Min * Database->Schema->SampleRate);
-		const int32 UnboundMaxPoseIdx = CurrentResultPoseIdx + FMath::CeilToInt(SearchContext.GetPoseJumpThresholdTime().Max * Database->Schema->SampleRate);
-		const int32 CurrentIndexAssetFirstPoseIdx = CurrentIndexAsset->FirstPoseIdx;
-		const int32 CurrentIndexAssetNumPoses = CurrentIndexAsset->GetNumPoses();
-		const bool IsLooping = Database->IsSourceAssetLooping(*CurrentIndexAsset);
-
-		if (IsLooping)
+		if (const FSearchIndexAsset* CurrentIndexAsset = SearchContext.GetCurrentResult().GetSearchIndexAsset(true))
 		{
-			for (int32 UnboundPoseIdx = UnboundMinPoseIdx; UnboundPoseIdx < UnboundMaxPoseIdx; ++UnboundPoseIdx)
+			const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetStruct(CurrentIndexAsset->SourceAssetIdx).GetPtr<FPoseSearchDatabaseAnimationAssetBase>();
+			check(DatabaseAnimationAssetBase);
+			if (!DatabaseAnimationAssetBase->bDisableReselection)
 			{
-				const int32 Modulo = (UnboundPoseIdx - CurrentIndexAssetFirstPoseIdx) % CurrentIndexAssetNumPoses;
-				const int32 CurrentIndexAssetFirstPoseIdxPlusModulo = CurrentIndexAssetFirstPoseIdx + Modulo;
-				const int32 PoseIdx = Modulo >= 0 ? CurrentIndexAssetFirstPoseIdxPlusModulo : CurrentIndexAssetFirstPoseIdxPlusModulo + CurrentIndexAssetNumPoses;
-
-				NonSelectableIdx.AddUnique(PoseIdx);
+				// excluding all the poses from DatabaseAnimationAssetBase
+				// @todo: optimize this code!
+				for (const FSearchIndexAsset& SearchIndexAsset : SearchIndex.Assets)
+				{
+					if (SearchIndexAsset.SourceAssetIdx == CurrentIndexAsset->SourceAssetIdx)
+					{
+						const int32 FirstPoseIdx = SearchIndexAsset.FirstPoseIdx;
+						const int32 LastPoseIdx = FirstPoseIdx + SearchIndexAsset.GetNumPoses();
+						for (int32 PoseIdx = FirstPoseIdx; PoseIdx < LastPoseIdx; ++PoseIdx)
+						{
+							// no need to AddUnique since there's no overlapping between pose indexes in the FSearchIndexAsset(s)
+							NonSelectableIdx.Add(PoseIdx);
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
-				const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
-				const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-				SearchContext.BestCandidates.Add(PoseCost, PoseIdx, Database, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime);
+							const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
+							const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
+							SearchContext.BestCandidates.Add(PoseCost, PoseIdx, Database, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
+						}
+					}
+				}
 			}
-		}
-		else
-		{
-			const int32 MinPoseIdx = FMath::Max(CurrentIndexAssetFirstPoseIdx, UnboundMinPoseIdx);
-			const int32 MaxPoseIdx = FMath::Min(CurrentIndexAssetFirstPoseIdx + CurrentIndexAssetNumPoses, UnboundMaxPoseIdx);
-
-			for (int32 PoseIdx = MinPoseIdx; PoseIdx < MaxPoseIdx; ++PoseIdx)
+			else if (!FMath::IsNearlyEqual(SearchContext.GetPoseJumpThresholdTime().Min, SearchContext.GetPoseJumpThresholdTime().Max))
 			{
-				NonSelectableIdx.AddUnique(PoseIdx);
+				const int32 CurrentResultPoseIdx = SearchContext.GetCurrentResult().PoseIdx;
+				const int32 UnboundMinPoseIdx = CurrentResultPoseIdx + FMath::FloorToInt(SearchContext.GetPoseJumpThresholdTime().Min * Database->Schema->SampleRate);
+				const int32 UnboundMaxPoseIdx = CurrentResultPoseIdx + FMath::CeilToInt(SearchContext.GetPoseJumpThresholdTime().Max * Database->Schema->SampleRate);
+				const int32 CurrentIndexAssetFirstPoseIdx = CurrentIndexAsset->FirstPoseIdx;
+				const int32 CurrentIndexAssetNumPoses = CurrentIndexAsset->GetNumPoses();
+				const bool IsLooping = Database->IsSourceAssetLooping(*CurrentIndexAsset);
+
+				if (IsLooping)
+				{
+					for (int32 UnboundPoseIdx = UnboundMinPoseIdx; UnboundPoseIdx < UnboundMaxPoseIdx; ++UnboundPoseIdx)
+					{
+						const int32 Modulo = (UnboundPoseIdx - CurrentIndexAssetFirstPoseIdx) % CurrentIndexAssetNumPoses;
+						const int32 CurrentIndexAssetFirstPoseIdxPlusModulo = CurrentIndexAssetFirstPoseIdx + Modulo;
+						const int32 PoseIdx = Modulo >= 0 ? CurrentIndexAssetFirstPoseIdxPlusModulo : CurrentIndexAssetFirstPoseIdxPlusModulo + CurrentIndexAssetNumPoses;
+
+						NonSelectableIdx.AddUnique(PoseIdx);
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
-				const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
-				const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-				SearchContext.BestCandidates.Add(PoseCost, PoseIdx, Database, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime);
+						const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
+						const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
+						SearchContext.BestCandidates.Add(PoseCost, PoseIdx, Database, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
+					}
+				}
+				else
+				{
+					const int32 MinPoseIdx = FMath::Max(CurrentIndexAssetFirstPoseIdx, UnboundMinPoseIdx);
+					const int32 MaxPoseIdx = FMath::Min(CurrentIndexAssetFirstPoseIdx + CurrentIndexAssetNumPoses, UnboundMaxPoseIdx);
+
+					for (int32 PoseIdx = MinPoseIdx; PoseIdx < MaxPoseIdx; ++PoseIdx)
+					{
+						NonSelectableIdx.AddUnique(PoseIdx);
+
+#if UE_POSE_SEARCH_TRACE_ENABLED
+						const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
+						const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
+						SearchContext.BestCandidates.Add(PoseCost, PoseIdx, Database, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime);
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+					}
+				}
 			}
 		}
 	}
