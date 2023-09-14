@@ -1008,6 +1008,8 @@ public:
 	CORE_API static void DisplayHash( class FOutputDevice& Ar );
 	CORE_API static FString SafeString(FNameEntryId InDisplayIndex, int32 InstanceNumber = NAME_NO_NUMBER_INTERNAL);
 
+	CORE_API static void Reserve(uint32 NumBytes, uint32 NumNames);
+
 	/**
 	 * @return Size of all name entries.
 	 */

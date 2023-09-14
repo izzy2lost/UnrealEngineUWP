@@ -1932,7 +1932,7 @@ void FNamePool::RetraceAll() const
 
 void FNamePool::LogStats(FOutputDevice& Ar) const
 {
-	Ar.Logf(TEXT("%i FNames using in %ikB + %ikB"), NumEntries(), sizeof(FNamePool), Entries.NumBlocks() * FNameEntryAllocator::BlockSizeBytes / 1024);
+	Ar.Logf(TEXT("%i FNames using in %ikB + %ikB"), NumEntries(), sizeof(FNamePool) / 1024, Entries.NumBlocks() * FNameEntryAllocator::BlockSizeBytes / 1024);
 	Ar.Logf(TEXT("%d ansi FNames"), NumAnsiEntries());
 	Ar.Logf(TEXT("%d wide FNames"), NumWideEntries());
 #if UE_FNAME_OUTLINE_NUMBER
@@ -2386,6 +2386,12 @@ FString FNameEntrySerialized::GetPlainNameString() const
 
 static TArray<FString> NameToDisplayStringExemptions;
 static FRWLock NameToDisplayStringExemptionLock;
+
+void FName::Reserve(uint32 NumBytes, uint32 NumNames)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("FName Reserve");
+	GetNamePoolPostInit().Reserve(NumBytes, NumNames);
+}
 
 int32 FName::GetNameEntryMemorySize()
 {

@@ -6409,6 +6409,20 @@ bool FEngineLoop::AppInit( )
 		// init config system
 		FConfigCacheIni::InitializeConfigSystem();
 	}
+	
+#if WITH_EDITOR
+	if (GIsEditor)
+	{
+		int32 NumPreallocateNames = 0;
+		GConfig->GetInt(TEXT("NameTable"), TEXT("PreallocateNames"), NumPreallocateNames, GEditorIni);
+		int32 PreAllocateNameMB = 0;
+		GConfig->GetInt(TEXT("NameTable"), TEXT("PreallocateNameMemoryMB"), PreAllocateNameMB, GEditorIni);
+		if (NumPreallocateNames || PreAllocateNameMB)
+		{
+			FName::Reserve(PreAllocateNameMB * 1024 * 1024, NumPreallocateNames);
+		}
+	}
+#endif
 
 #if USE_IO_DISPATCHER
 	// Initialize on demand I/O dispatcher backend
