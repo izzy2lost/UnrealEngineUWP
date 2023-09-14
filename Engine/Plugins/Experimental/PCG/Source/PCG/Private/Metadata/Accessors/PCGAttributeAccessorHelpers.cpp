@@ -198,6 +198,11 @@ namespace PCGAttributeAccessorHelpers
 				return MakeUnique<FPCGAttributeAccessorKeysEntries>(Attribute);
 			}
 		}
+		else if (Metadata && InSelector.GetSelection() == EPCGAttributePropertySelection::ExtraProperty && InSelector.GetExtraProperty() == EPCGExtraProperties::Index)
+		{
+			// Special case for Indexes, we will use the metadata to get the keys
+			return MakeUnique<FPCGAttributeAccessorKeysEntries>(Metadata);
+		}
 		else
 		{
 			return TUniquePtr<KeysType>();

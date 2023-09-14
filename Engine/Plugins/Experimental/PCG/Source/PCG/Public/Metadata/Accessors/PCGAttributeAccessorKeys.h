@@ -8,6 +8,7 @@
 struct FPCGPoint;
 
 class FPCGMetadataAttributeBase;
+class UPCGMetadata;
 
 ///////////////////////////////////////////////////////////////////////
 
@@ -139,6 +140,9 @@ class PCG_API FPCGAttributeAccessorKeysEntries : public IPCGAttributeAccessorKey
 public:
 	explicit FPCGAttributeAccessorKeysEntries(const FPCGMetadataAttributeBase* Attribute);
 	explicit FPCGAttributeAccessorKeysEntries(PCGMetadataEntryKey EntryKey);
+
+	// Read-only case where we will just iterate on all the entries in the metadata.
+	explicit FPCGAttributeAccessorKeysEntries(const UPCGMetadata* Metadata);
 
 	virtual int32 GetNum() const override { return Entries.Num(); }
 

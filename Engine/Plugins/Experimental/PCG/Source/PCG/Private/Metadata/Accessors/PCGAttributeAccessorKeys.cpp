@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
+#include "Metadata/PCGMetadata.h"
 #include "Metadata/PCGMetadataAttribute.h"
 
 #include "PCGPoint.h"
@@ -30,6 +31,29 @@ FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(PCGMetadataEn
 	: IPCGAttributeAccessorKeys(/*bInReadOnly=*/ false)
 {
 	Entries.Add(EntryKey);
+}
+
+FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(const UPCGMetadata* Metadata)
+	: IPCGAttributeAccessorKeys(/*bInReadOnly=*/ true)
+{
+	if (!Metadata)
+	{
+		return;
+	}
+
+	const PCGMetadataEntryKey ItemKeyLowerBound = Metadata->GetItemKeyCountForParent();
+	const PCGMetadataEntryKey ItemKeyUpperBound = Metadata->GetItemCountForChild();
+	const int64 Count = ItemKeyUpperBound - ItemKeyLowerBound;
+
+	if (Count > 0)
+	{
+		Entries.Reserve(Count);
+
+		for (PCGMetadataEntryKey Entry = ItemKeyLowerBound; Entry < ItemKeyUpperBound; ++Entry)
+		{
+			Entries.Add(Entry);
+		}
+	}
 }
 
 bool FPCGAttributeAccessorKeysEntries::GetMetadataEntryKeys(int32 InStart, TArrayView<PCGMetadataEntryKey*>& OutEntryKeys)
