@@ -74,8 +74,11 @@ void FWaterViewExtension::SetupViewFamily(FSceneViewFamily& InViewFamily)
 
 		const UWorld* WorldPtr = GetWorld();
 		check(WorldPtr != nullptr);
-		const FWaterBodyManager* WaterBodyManager = UWaterSubsystem::GetWaterBodyManager(WorldPtr);
+		FWaterBodyManager* WaterBodyManager = UWaterSubsystem::GetWaterBodyManager(WorldPtr);
 		check(WaterBodyManager);
+
+		// Shrink the water manager storage to avoid over-preallocating in the WaterIndirectionBuffer.
+		WaterBodyManager->Shrink();
 
 
 		struct FWaterIndirection
@@ -160,7 +163,8 @@ void FWaterViewExtension::SetupViewFamily(FSceneViewFamily& InViewFamily)
 		TArray<FWaterBodyData> WaterBodyData;
 		{
 			const int32 NumWaterBodies =  WaterBodyManager->NumWaterBodies();
-			WaterIndirection.SetNumZeroed(NumWaterBodies);
+			// Pre-set up to the max water body index. Some entries may be empty and NumWaterBodies != MaxIndex
+			WaterIndirection.SetNumZeroed(WaterBodyManager->MaxWaterBodyIndex());
 			WaterBodyData.Reserve(NumWaterBodies);
 
 			TMap<const UGerstnerWaterWaves*, int32> GerstnerWavesIndices;

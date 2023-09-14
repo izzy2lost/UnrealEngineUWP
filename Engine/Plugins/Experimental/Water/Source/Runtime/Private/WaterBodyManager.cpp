@@ -23,7 +23,8 @@ void FWaterBodyManager::Deinitialize()
 int32 FWaterBodyManager::AddWaterBodyComponent(UWaterBodyComponent* InWaterBodyComponent)
 {
 	RequestWaveDataRebuild();
-	const int32 WaterIndex = WaterBodyComponents.Register(InWaterBodyComponent);
+	int32 LowestFreeIndex = 0;
+	const int32 WaterIndex = WaterBodyComponents.EmplaceAtLowestFreeIndex(LowestFreeIndex, InWaterBodyComponent);
 	OnWaterBodyAdded.Broadcast(InWaterBodyComponent);
 	return WaterIndex;
 }
@@ -31,20 +32,21 @@ int32 FWaterBodyManager::AddWaterBodyComponent(UWaterBodyComponent* InWaterBodyC
 void FWaterBodyManager::RemoveWaterBodyComponent(UWaterBodyComponent* InWaterBodyComponent)
 {
 	RequestWaveDataRebuild();
-	WaterBodyComponents.Unregister(InWaterBodyComponent, InWaterBodyComponent->GetWaterBodyIndex());
+	WaterBodyComponents.RemoveAt(InWaterBodyComponent->GetWaterBodyIndex());
 	OnWaterBodyRemoved.Broadcast(InWaterBodyComponent);
 }
 
 int32 FWaterBodyManager::AddWaterZone(AWaterZone* InWaterZone)
 {
 	RequestGPUDataRebuild();
-	return WaterZones.Register(InWaterZone);
+	int32 LowestFreeIndex = 0;
+	return WaterZones.EmplaceAtLowestFreeIndex(LowestFreeIndex, InWaterZone);
 }
 
 void FWaterBodyManager::RemoveWaterZone(AWaterZone* InWaterZone)
 {
 	RequestGPUDataRebuild();
-	WaterZones.Unregister(InWaterZone, InWaterZone->GetWaterZoneIndex());
+	WaterZones.RemoveAt(InWaterZone->GetWaterZoneIndex());
 }
 
 void FWaterBodyManager::RequestGPUDataRebuild()
@@ -70,7 +72,7 @@ void FWaterBodyManager::RequestWaveDataRebuild()
 
 void FWaterBodyManager::ForEachWaterBodyComponent(TFunctionRef<bool(UWaterBodyComponent*)> Pred) const
 {
-	for (UWaterBodyComponent* WaterBodyComponent : WaterBodyComponents.Elements)
+	for (UWaterBodyComponent* WaterBodyComponent : WaterBodyComponents)
 	{
 		if (WaterBodyComponent)
 		{
@@ -92,7 +94,7 @@ void FWaterBodyManager::ForEachWaterBodyComponent(const UWorld* World, TFunction
 
 void FWaterBodyManager::ForEachWaterZone(TFunctionRef<bool(AWaterZone*)> Pred) const
 {
-	for (AWaterZone* WaterZone : WaterZones.Elements)
+	for (AWaterZone* WaterZone : WaterZones)
 	{
 		if (WaterZone)
 		{
@@ -110,5 +112,11 @@ void FWaterBodyManager::ForEachWaterZone(const UWorld* World, TFunctionRef<bool(
 	{
 		Manager->ForEachWaterZone(Pred);
 	}
+}
+
+void FWaterBodyManager::Shrink()
+{
+	WaterBodyComponents.Shrink();
+	WaterZones.Shrink();
 }
 

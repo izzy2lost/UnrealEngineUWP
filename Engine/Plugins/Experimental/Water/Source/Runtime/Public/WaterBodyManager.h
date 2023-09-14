@@ -49,11 +49,15 @@ public:
 	void ForEachWaterZone(TFunctionRef<bool(AWaterZone*)> Pred) const;
 	static void ForEachWaterZone(const UWorld* World, TFunctionRef<bool(AWaterZone*)> Pred);
 
-	bool HasAnyWaterBodies() const { return WaterBodyComponents.Num > 0; }
+	bool HasAnyWaterBodies() const { return WaterBodyComponents.Num() > 0; }
 
-	int32 NumWaterBodies() const { return WaterBodyComponents.Num; }
+	int32 NumWaterBodies() const { return WaterBodyComponents.Num(); }
+	int32 MaxWaterBodyIndex() const { return WaterBodyComponents.GetMaxIndex(); }
 
-	int32 NumWaterZones() const { return WaterZones.Num; }
+	/** Shrinks the sparse array storage for water body components and water zones. Ensures that MaxIndex == MaxAllocatedIndex */
+	void Shrink();
+
+	int32 NumWaterZones() const { return WaterZones.Num(); }
 
 	FWaterViewExtension* GetWaterViewExtension() { return WaterViewExtension.Get(); }
 
@@ -62,64 +66,11 @@ public:
 	FWaterBodyEvent OnWaterBodyRemoved;
 
 private:
-
-	/**
-	* TWaterContainer<T> wraps a TArray<T> to support reusing dead indices while always maintaining stability for existing indices.
-	*
-	* The Elements array may contain nullptr entries.
-	*/
-	template <typename T>
-	class TWaterContainer 
-	{
-	public:
-		int32 Register(T* InElement)
-		{
-			int32 Index = INDEX_NONE;
-			if (UnusedIndices.Num())
-			{
-				Index = UnusedIndices.Pop(/*bAllowShrinking = */false);
-				check(Elements[Index] == nullptr);
-				Elements[Index] = InElement;
-			}
-			else
-			{
-				Index = Elements.Add(InElement);
-			}
-
-			++Num;
-			check(Num <= Elements.Num());
-
-			check(Index != INDEX_NONE);
-			return Index;
-		}
-
-		void Unregister(const T* InElement, int32 OldIndex)
-		{
-			check(OldIndex != INDEX_NONE);
-			UnusedIndices.Add(OldIndex);
-			Elements[OldIndex] = nullptr;
-
-			--Num;
-			check(Num >= 0);
-
-			// Empty all arrays once there are no more elements
-			if (UnusedIndices.Num() == Elements.Num())
-			{
-				UnusedIndices.Empty();
-				Elements.Empty();
-			}
-		}
-
-		TArray<T*> Elements;
-		TArray<int32> UnusedIndices;
-		int32 Num = 0;
-	};
-
 	/** List of components registered to this manager. */
-	TWaterContainer<UWaterBodyComponent> WaterBodyComponents;
+	TSparseArray<UWaterBodyComponent*> WaterBodyComponents;
 
 	/** List of Water zones registered to this manager. */
-	TWaterContainer<AWaterZone> WaterZones;
+	TSparseArray<AWaterZone*> WaterZones;
 
 	float GlobalMaxWaveHeight = 0.0f;
 
