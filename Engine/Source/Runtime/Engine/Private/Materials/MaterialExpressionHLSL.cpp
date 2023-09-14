@@ -266,7 +266,7 @@ bool UMaterialExpressionConstantBiasScale::GenerateHLSLExpression(FMaterialHLSLG
 	{
 		return false;
 	}
-	OutExpression = Generator.GetTree().NewAdd(Generator.GetTree().NewMul(Generator.NewConstant(Scale), ExpressionInput), Generator.NewConstant(Bias));
+	OutExpression = Generator.GetTree().NewMul(Generator.GetTree().NewAdd(Generator.NewConstant(Bias), ExpressionInput), Generator.NewConstant(Scale));
 	return true;
 }
 
