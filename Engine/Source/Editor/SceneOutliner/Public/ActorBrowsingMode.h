@@ -17,9 +17,6 @@ public:
 	SCENEOUTLINER_API virtual void Rebuild() override;
 	SCENEOUTLINER_API virtual FCreateSceneOutlinerMode CreateFolderPickerMode(const FFolder::FRootObject& InRootObject = FFolder::GetInvalidRootObject()) const override;
 	SCENEOUTLINER_API virtual void InitializeViewMenuExtender(TSharedPtr<FExtender> Extender) override;
-	SCENEOUTLINER_API virtual TSharedPtr<FDragDropOperation> CreateDragDropOperation(const FPointerEvent& MouseEvent, const TArray<FSceneOutlinerTreeItemPtr>& InTreeItems) const override;
-	SCENEOUTLINER_API virtual bool ParseDragDrop(FSceneOutlinerDragDropPayload& OutPayload, const FDragDropOperation& Operation) const override;
-	SCENEOUTLINER_API virtual FSceneOutlinerDragValidationInfo ValidateDrop(const ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload) const override;
 	SCENEOUTLINER_API virtual TSharedPtr<SWidget> CreateContextMenu() override;
 	SCENEOUTLINER_API virtual void OnItemAdded(FSceneOutlinerTreeItemPtr Item) override;
 	SCENEOUTLINER_API virtual void OnItemRemoved(FSceneOutlinerTreeItemPtr Item) override;
@@ -29,7 +26,6 @@ public:
 	SCENEOUTLINER_API virtual void OnItemPassesFilters(const ISceneOutlinerTreeItem& Item) override;
 	SCENEOUTLINER_API virtual FReply OnKeyDown(const FKeyEvent& InKeyEvent) override;
 	SCENEOUTLINER_API virtual void OnDuplicateSelected() override;
-	SCENEOUTLINER_API virtual void OnDrop(ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload, const FSceneOutlinerDragValidationInfo& ValidationInfo) const override;
 	SCENEOUTLINER_API virtual bool CanRenameItem(const ISceneOutlinerTreeItem& Item) const override;
 	SCENEOUTLINER_API virtual FText GetStatusText() const override;
 	SCENEOUTLINER_API virtual FSlateColor GetStatusTextColor() const override;
@@ -114,10 +110,7 @@ private:
 	static void RegisterContextMenu();
 	static void FillDefaultContextBaseMenu(UToolMenu* InMenu);
 	bool CanPasteFoldersOnlyFromClipboard() const;
-
-	bool GetFolderNamesFromPayload(const FSceneOutlinerDragDropPayload& InPayload, TArray<FName>& OutFolders, FFolder::FRootObject& OutCommonRootObject) const;
-	FFolder GetWorldDefaultRootFolder() const;
-
+	
 	void SynchronizeSelectedActorDescs();
 
 	void OnActorEditorContextSubsystemChanged();

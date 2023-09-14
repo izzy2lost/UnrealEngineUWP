@@ -7,7 +7,7 @@
 namespace SceneOutliner
 {
 	/** Functor which can be used to get weak actor pointers from a selection */
-	struct FWeakActorSelector
+	struct SCENEOUTLINER_API FWeakActorSelector
 	{
 		bool operator()(const TWeakPtr<ISceneOutlinerTreeItem>& Item, TWeakObjectPtr<AActor>& DataOut) const;
 	};
@@ -19,7 +19,7 @@ namespace SceneOutliner
 	};
 
 	/** Functor which can be used to get actor descriptors from a selection  */
-	struct FActorDescSelector
+	struct SCENEOUTLINER_API FActorDescSelector
 	{
 		bool operator()(const TWeakPtr<ISceneOutlinerTreeItem>& Item, FWorldPartitionActorDesc*& ActorDescPtrOut) const;
 	};
@@ -77,6 +77,12 @@ public:
 	virtual FFolder::FRootObject GetPasteTargetRootObject() const override;
 
 	virtual bool CanInteract(const ISceneOutlinerTreeItem& Item) const override;
+	
+	virtual TSharedPtr<FDragDropOperation> CreateDragDropOperation(const FPointerEvent& MouseEvent, const TArray<FSceneOutlinerTreeItemPtr>& InTreeItems) const override;
+	virtual bool ParseDragDrop(FSceneOutlinerDragDropPayload& OutPayload, const FDragDropOperation& Operation) const override;
+	virtual FSceneOutlinerDragValidationInfo ValidateDrop(const ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload) const override;
+	virtual void OnDrop(ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload, const FSceneOutlinerDragValidationInfo& ValidationInfo) const override;
+
 
 private:
 	/** Called when the user selects a world in the world picker menu */
@@ -86,6 +92,8 @@ private:
 
 	void ChooseRepresentingWorld();
 	bool IsWorldChecked(TWeakObjectPtr<UWorld> World) const;
+	bool GetFolderNamesFromPayload(const FSceneOutlinerDragDropPayload& InPayload, TArray<FName>& OutFolders, FFolder::FRootObject& OutCommonRootObject) const;
+
 protected:
 	void SynchronizeActorSelection();
 	bool IsActorDisplayable(const AActor* InActor) const;
@@ -94,6 +102,8 @@ protected:
 	void SetAsMostRecentOutliner() const;
 
 	virtual TUniquePtr<ISceneOutlinerHierarchy> CreateHierarchy() override;
+	
+	FFolder GetWorldDefaultRootFolder() const;
 protected:
 	/** The world which we are currently representing */
 	TWeakObjectPtr<UWorld> RepresentingWorld;
