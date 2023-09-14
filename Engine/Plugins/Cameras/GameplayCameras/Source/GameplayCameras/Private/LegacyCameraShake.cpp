@@ -111,10 +111,12 @@ void ULegacyCameraShake::DoStopShake(bool bImmediately)
 
 void ULegacyCameraShake::DoStartShake(const FCameraShakePatternStartParams& Params)
 {
-	const float EffectiveOscillationDuration = (OscillationDuration > 0.f) ? OscillationDuration : TNumericLimits<float>::Max();
+	ActualOscillationDuration = Params.bOverrideDuration ? Params.DurationOverride : OscillationDuration;
+
+	const float EffectiveOscillationDuration = (ActualOscillationDuration > 0.f) ? ActualOscillationDuration : TNumericLimits<float>::Max();
 
 	// init oscillations
-	if (OscillationDuration != 0.f)
+	if (ActualOscillationDuration != 0.f)
 	{
 		if (OscillatorTimeRemaining > 0.f)
 		{
@@ -186,7 +188,7 @@ void ULegacyCameraShake::DoStartShake(const FCameraShakePatternStartParams& Para
 		SequenceShakePattern->StartShakePattern(Params);
 	}
 
-	UE_LOG(LogLegacyCameraShake, Verbose, TEXT("ULegacyCameraShake::DoStartShake %s Duration: %f"), *GetNameSafe(this), OscillationDuration);
+	UE_LOG(LogLegacyCameraShake, Verbose, TEXT("ULegacyCameraShake::DoStartShake %s Duration: %f"), *GetNameSafe(this), ActualOscillationDuration);
 
 	ReceivePlayShake(ShakeScale);
 }
@@ -224,7 +226,7 @@ void ULegacyCameraShake::DoUpdateShake(const FCameraShakePatternUpdateParams& Pa
 		bBlendingOut = true;
 		CurrentBlendOutTime = OscillationBlendOutTime - OscillatorTimeRemaining;
 	}
-	else if (OscillationDuration < 0.f)
+	else if (ActualOscillationDuration < 0.f)
 	{
 		// infinite oscillation, keep the time remaining up
 		OscillatorTimeRemaining = TNumericLimits<float>::Max();
@@ -333,7 +335,7 @@ void ULegacyCameraShake::DoUpdateShake(const FCameraShakePatternUpdateParams& Pa
 		OutResult.FOV = InOutPOV.FOV;
 	}
 
-	UE_LOG(LogLegacyCameraShake, Verbose, TEXT("ULegacyCameraShake::DoUpdateShake %s Finished: %i Duration: %f Remaining: %f"), *GetNameSafe(this), bOscillationFinished, OscillationDuration, OscillatorTimeRemaining);
+	UE_LOG(LogLegacyCameraShake, Verbose, TEXT("ULegacyCameraShake::DoUpdateShake %s Finished: %i Duration: %f Remaining: %f"), *GetNameSafe(this), bOscillationFinished, ActualOscillationDuration, OscillatorTimeRemaining);
 }
 
 void ULegacyCameraShake::DoScrubShake(const FCameraShakePatternScrubParams& Params, FCameraShakePatternUpdateResult& OutResult)
@@ -345,7 +347,7 @@ void ULegacyCameraShake::DoScrubShake(const FCameraShakePatternScrubParams& Para
 	RotSinOffset = InitialRotSinOffset;
 	FOVSinOffset = InitialFOVSinOffset;
 
-	const float EffectiveOscillationDuration = (OscillationDuration > 0.f) ? OscillationDuration : TNumericLimits<float>::Max();
+	const float EffectiveOscillationDuration = (ActualOscillationDuration > 0.f) ? ActualOscillationDuration : TNumericLimits<float>::Max();
 
 	OscillatorTimeRemaining = EffectiveOscillationDuration;
 
@@ -361,12 +363,12 @@ void ULegacyCameraShake::DoScrubShake(const FCameraShakePatternScrubParams& Para
 		CurrentBlendOutTime = 0.f;
 	}
 
-	if (OscillationDuration > 0.f)
+	if (ActualOscillationDuration > 0.f)
 	{
-		if ((OscillationBlendOutTime > 0.f) && (NewTime > (OscillationDuration - OscillationBlendOutTime)))
+		if ((OscillationBlendOutTime > 0.f) && (NewTime > (ActualOscillationDuration - OscillationBlendOutTime)))
 		{
 			bBlendingOut = true;
-			CurrentBlendOutTime = OscillationBlendOutTime - (OscillationDuration - NewTime);
+			CurrentBlendOutTime = OscillationBlendOutTime - (ActualOscillationDuration - NewTime);
 		}
 	}
 
@@ -404,7 +406,7 @@ bool ULegacyCameraShake::ReceiveIsFinished_Implementation() const
 
 bool ULegacyCameraShake::IsLooping() const
 {
-	return OscillationDuration < 0.0f;
+	return ActualOscillationDuration < 0.0f;
 }
 
 void ULegacyCameraShake::SetCurrentTimeAndApplyShake(float NewTime, FMinimalViewInfo& POV)

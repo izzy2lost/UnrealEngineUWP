@@ -56,11 +56,8 @@ public:
 
 	void ModifyCamera(FEditorViewportViewModifierParams& Params);
 
-	void Reinitialize(UWorld* InWorld);
-
 private:
 	void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap);
-	void OnPrepareToCleanseEditorObject(UObject* Object);
 
 private:
 	FCameraShakePreviewer Previewer;

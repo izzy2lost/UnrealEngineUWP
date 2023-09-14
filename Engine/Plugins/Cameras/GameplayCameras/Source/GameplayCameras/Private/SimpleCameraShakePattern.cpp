@@ -21,7 +21,7 @@ void USimpleCameraShakePattern::GetShakePatternInfoImpl(FCameraShakeInfo& OutInf
 
 void USimpleCameraShakePattern::StartShakePatternImpl(const FCameraShakePatternStartParams& Params)
 {
-	State.Start(this);
+	State.Start(this, Params);
 }
 
 bool USimpleCameraShakePattern::IsFinishedImpl() const

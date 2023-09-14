@@ -17,6 +17,7 @@ class UCameraModifier;
 class UCameraShakeBase;
 class UCameraShakeSourceComponent;
 class ICameraLensEffectInterface;
+struct FAddCameraShakeParams;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAudioFadeChangeSignature, bool, bFadeOut, float, FadeTime);
 
@@ -826,6 +827,13 @@ public:
 	/** Stops playing all shakes originating from the given source. */
 	UFUNCTION(BlueprintCallable, Category = "Camera Shakes")
 	ENGINE_API virtual void StopAllCameraShakesFromSource(UCameraShakeSourceComponent* SourceComponent, bool bImmediately = true);
+
+	/**
+	 * Plays a camera shake on this camera.
+	 * @param Shake - The class of camera shake to play.
+	 * @param Params - The parameters to pass to the camera shake camera modifier.
+	 */
+	ENGINE_API virtual UCameraShakeBase* StartCameraShake(TSubclassOf<UCameraShakeBase> ShakeClass, const FAddCameraShakeParams& Params);
 
 	//
 	//  Camera fades.

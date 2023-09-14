@@ -68,11 +68,16 @@ void USequenceCameraShakePattern::StartShakePatternImpl(const FCameraShakePatter
 	Player->SetBoundObjectOverride(CameraStandIn);
 
 	// Initialize it and start playing.
-	Player->Initialize(Sequence);
+	float DurationOverride = 0.f;
+	if (Params.bOverrideDuration)
+	{
+		DurationOverride = Params.DurationOverride;
+	}
+	Player->Initialize(Sequence, 0, DurationOverride);
 	Player->Play(bRandomSegment, bRandomSegment);
 
 	// Initialize our state.
-	State.Start(this);
+	State.Start(this, Params);
 }
 
 void USequenceCameraShakePattern::UpdateShakePatternImpl(const FCameraShakePatternUpdateParams& Params, FCameraShakePatternUpdateResult& OutResult)

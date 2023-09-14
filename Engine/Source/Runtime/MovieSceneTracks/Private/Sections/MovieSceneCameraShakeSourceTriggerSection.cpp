@@ -54,12 +54,7 @@ void UMovieSceneCameraShakeSourceTriggerSection::ImportEntityImpl(UMovieSceneEnt
 	UMovieSceneCameraShakeInstantiatorSystem* ShakeSystem = EntityLinker->LinkSystem<UMovieSceneCameraShakeInstantiatorSystem>();
 	if (ensure(ShakeSystem))
 	{
-		const FSequenceInstance& ThisInstance = EntityLinker->GetInstanceRegistry()->GetInstance(Params.Sequence.InstanceHandle);
-		const FMovieSceneContext& Context = ThisInstance.GetContext();
-		
-		const FFrameTime ShakeTime = Times[ShakeIndex] * Context.GetSequenceToRootSequenceTransform();
-
-		ShakeSystem->AddShakeTrigger(Params.Sequence.InstanceHandle, Params.GetObjectBindingID(), ShakeTime, Shakes[ShakeIndex]);
+		ShakeSystem->AddShakeTrigger(Params.Sequence.InstanceHandle, Params.GetObjectBindingID(), Times[ShakeIndex], Shakes[ShakeIndex]);
 
 		// Mimic the structure changing in order to ensure that the instantiation phase runs
 		EntityLinker->EntityManager.MimicStructureChanged();

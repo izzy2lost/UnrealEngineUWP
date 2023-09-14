@@ -2,6 +2,7 @@
 
 #include "Camera/CameraShakeSourceComponent.h"
 #include "Camera/CameraShakeBase.h"
+#include "Camera/CameraModifier_CameraShake.h"
 #include "Components/BillboardComponent.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
@@ -81,14 +82,31 @@ void UCameraShakeSourceComponent::Start()
 
 void UCameraShakeSourceComponent::StartCameraShake(TSubclassOf<UCameraShakeBase> InCameraShake, float Scale, ECameraShakePlaySpace PlaySpace, FRotator UserPlaySpaceRot)
 {
+	FCameraShakeSourceComponentStartParams Params;
+	Params.ShakeClass = InCameraShake;
+	Params.Scale = Scale;
+	Params.PlaySpace = PlaySpace;
+	Params.UserPlaySpaceRot = UserPlaySpaceRot;
+	StartCameraShake(Params);
+}
+
+void UCameraShakeSourceComponent::StartCameraShake(const FCameraShakeSourceComponentStartParams& Params)
+{
 	if (UWorld* World = GetWorld())
 	{
+		FAddCameraShakeParams ModParams;
+		ModParams.SourceComponent = this;
+		ModParams.Scale = Params.Scale;
+		ModParams.PlaySpace = Params.PlaySpace;
+		ModParams.UserPlaySpaceRot = Params.UserPlaySpaceRot;
+		ModParams.DurationOverride = Params.DurationOverride;
+
 		for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
 		{
 			APlayerController* PlayerController = Iterator->Get();
 			if (PlayerController != nullptr && PlayerController->PlayerCameraManager != nullptr)
 			{
-				PlayerController->PlayerCameraManager->StartCameraShakeFromSource(InCameraShake, this, Scale, PlaySpace, UserPlaySpaceRot);
+				PlayerController->PlayerCameraManager->StartCameraShake(Params.ShakeClass, ModParams);
 			}
 		}
 	}

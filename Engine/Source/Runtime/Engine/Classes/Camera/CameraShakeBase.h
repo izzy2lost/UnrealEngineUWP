@@ -26,6 +26,14 @@ struct FCameraShakePatternStartParams
 	/** Whether the camera shake is restarting while playing */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=CameraShake)
 	bool bIsRestarting = false;
+
+	/** Whether the camera shake's duration is overriden (see DurationOverride) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=CameraShake)
+	bool bOverrideDuration = false;
+
+	/** An optional override for the camera shake's duration */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=CameraShake)
+	float DurationOverride;
 };
 
 /**
@@ -291,11 +299,21 @@ struct FCameraShakeState
 	 * Initialize the state with a shake's info and start playing.
 	 */
 	ENGINE_API void Start(const FCameraShakeInfo& InShakeInfo);
-	
+
+	/**
+	 * Initialize the state with a shake's info and start playing.
+	 */
+	ENGINE_API void Start(const FCameraShakeInfo& InShakeInfo, TOptional<float> InDurationOverride);
+
 	/**
 	 * Initialize the state with a shake's info and start playing.
 	 */
 	ENGINE_API void Start(const UCameraShakePattern* InShakePattern);
+	
+	/**
+	 * Initialize the state with a shake's info and start playing.
+	 */
+	ENGINE_API void Start(const UCameraShakePattern* InShakePattern, const FCameraShakePatternStartParams& InParams);
 
 	/**
 	 * Updates the state with a delta time.
@@ -396,6 +414,27 @@ private:
 	// Cached values for blending information
 	bool bHasBlendIn : 1;
 	bool bHasBlendOut : 1;
+};
+
+/**
+ * Parameter struct for starting a camera shake.
+ */
+struct FCameraShakeBaseStartParams
+{
+	/** The parent camera manager */
+	TObjectPtr<APlayerCameraManager> CameraManager;
+
+	/** The scale for playing the shake */
+	float Scale = 1.f;
+
+	/** The coordinate system in which to play the shake */
+	ECameraShakePlaySpace PlaySpace = ECameraShakePlaySpace::CameraLocal;
+
+	/** A custom rotation, only used if PlaySpace is UserDefined */
+	FRotator UserPlaySpaceRot = FRotator::ZeroRotator;
+
+	/** An optional override for the camera shake's duration */
+	TOptional<float> DurationOverride;
 };
 
 /**
@@ -535,6 +574,9 @@ public:
 
 	/** Starts this camera shake with the given parameters */
 	ENGINE_API void StartShake(APlayerCameraManager* Camera, float Scale, ECameraShakePlaySpace InPlaySpace, FRotator UserPlaySpaceRot = FRotator::ZeroRotator);
+
+	/** Starts this camera shake with the given parameters */
+	ENGINE_API void StartShake(const FCameraShakeBaseStartParams& Params);
 
 	/** Returns whether this camera shake is finished */
 	ENGINE_API bool IsFinished() const;

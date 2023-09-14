@@ -251,6 +251,9 @@ private:
 
 protected:
 
+	/** Actual oscillation duration. */
+	float ActualOscillationDuration;
+
 	/** Current location sinusoidal offset. */
 	FVector LocSinOffset;
 

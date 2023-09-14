@@ -1234,19 +1234,21 @@ void APlayerCameraManager::RemoveCameraLensEffect(AEmitterCameraLensEffectBase* 
 
 UCameraShakeBase* APlayerCameraManager::StartCameraShake(TSubclassOf<UCameraShakeBase> ShakeClass, float Scale, ECameraShakePlaySpace PlaySpace, FRotator UserPlaySpaceRot)
 {
-	if (ShakeClass && CachedCameraShakeMod && (Scale > 0.0f) )
-	{
-		return CachedCameraShakeMod->AddCameraShake(ShakeClass, FAddCameraShakeParams(Scale, PlaySpace, UserPlaySpaceRot));
-	}
-
-	return nullptr;
+	FAddCameraShakeParams Params(Scale, PlaySpace, UserPlaySpaceRot);
+	return StartCameraShake(ShakeClass, Params);
 }
 
 UCameraShakeBase* APlayerCameraManager::StartCameraShakeFromSource(TSubclassOf<UCameraShakeBase> ShakeClass, UCameraShakeSourceComponent* SourceComponent, float Scale, ECameraShakePlaySpace PlaySpace, FRotator UserPlaySpaceRot)
 {
+	FAddCameraShakeParams Params(Scale, PlaySpace, UserPlaySpaceRot, SourceComponent);
+	return StartCameraShake(ShakeClass, Params);
+}
+
+UCameraShakeBase* APlayerCameraManager::StartCameraShake(TSubclassOf<UCameraShakeBase> ShakeClass, const FAddCameraShakeParams& Params)
+{
 	if (ShakeClass && CachedCameraShakeMod)
 	{
-		return CachedCameraShakeMod->AddCameraShake(ShakeClass, FAddCameraShakeParams(Scale, PlaySpace, UserPlaySpaceRot, SourceComponent));
+		return CachedCameraShakeMod->AddCameraShake(ShakeClass, Params);
 	}
 
 	return nullptr;

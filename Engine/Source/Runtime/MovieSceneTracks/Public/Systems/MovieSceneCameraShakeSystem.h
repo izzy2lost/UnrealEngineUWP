@@ -108,17 +108,6 @@ class UMovieSceneCameraShakeEvaluatorSystem : public UMovieSceneEntitySystem
 public:
 	UMovieSceneCameraShakeEvaluatorSystem(const FObjectInitializer& ObjInit);
 
-	virtual void OnRun(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents) override;
-};
-
-UCLASS()
-class UMovieSceneCameraShakePreviewerEvaluatorSystem : public UMovieSceneEntitySystem
-{
-	GENERATED_BODY()
-
-public:
-	UMovieSceneCameraShakePreviewerEvaluatorSystem(const FObjectInitializer& ObjInit);
-
 	virtual void OnLink() override;
 	virtual void OnUnlink() override;
 	virtual bool IsRelevantImpl(UMovieSceneEntitySystemLinker* InLinker) const override;
@@ -129,4 +118,3 @@ private:
 	TSharedPtr<UE::MovieScene::FCameraShakePreviewerLinkerExtension> PreviewerExtension;
 #endif
 };
-

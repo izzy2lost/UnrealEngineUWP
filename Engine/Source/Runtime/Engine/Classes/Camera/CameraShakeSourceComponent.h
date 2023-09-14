@@ -18,6 +18,24 @@ enum class ECameraShakeAttenuation : uint8
 	Quadratic
 };
 
+struct FCameraShakeSourceComponentStartParams
+{
+	/** The type of camera shake to create */
+	TSubclassOf<UCameraShakeBase> ShakeClass;
+
+	/* The scale for playing the shake */
+	float Scale = 1.f;
+
+	/** The coordinate system in which to play the shake */
+	ECameraShakePlaySpace PlaySpace = ECameraShakePlaySpace::CameraLocal;
+
+	/** A custom rotation, only used if PlaySpace is UserDefined */
+	FRotator UserPlaySpaceRot = FRotator::ZeroRotator;
+
+	/** An optional override for the camera shake's duration */
+	TOptional<float> DurationOverride;
+};
+
 UCLASS(Blueprintable, meta = (BlueprintSpawnableComponent), MinimalAPI)
 class UCameraShakeSourceComponent : public USceneComponent
 {
@@ -42,6 +60,10 @@ private:
 #if WITH_EDITOR
 	TSubclassOf<UCameraShakeBase> PreviousCameraShake;
 #endif
+
+public:
+	/** Starts a new camera shake originating from this source, and apply it on all player controllers */
+	ENGINE_API void StartCameraShake(const FCameraShakeSourceComponentStartParams& Params);
 
 public:
 	/** The attenuation profile for how camera shakes' intensity falls off with distance */

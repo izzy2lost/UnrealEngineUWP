@@ -4,74 +4,86 @@
 
 #if WITH_EDITOR
 
+#include "Camera/CameraTypes.h"
 #include "CoreMinimal.h"
 #include "UObject/GCObject.h"
-#include "Camera/PlayerCameraManager.h"
-
-#include "MovieSceneCameraShakePreviewer.generated.h"
 
 class FLevelEditorViewportClient;
-class UCameraModifier_CameraShake;
+class UCameraShakeBase;
+class UCameraShakeSourceComponent;
+struct FActiveCameraShakeInfo;
 struct FEditorViewportViewModifierParams;
 
-/**
- * A mock player camera manager, used to store camera shake post-process settings for previewing.
- */
-UCLASS()
-class APreviewPlayerCameraManager : public APlayerCameraManager
+struct FCameraShakePreviewerAddParams
 {
-	GENERATED_BODY()
+	// The class of the shake.
+	TSubclassOf<UCameraShakeBase> ShakeClass;
 
-public:
-	void ResetPostProcessSettings()
-	{
-		ClearCachedPPBlends();
-	}
+	// Optional shake source.
+	TObjectPtr<const UCameraShakeSourceComponent> SourceComponent;
 
-	void MergePostProcessSettings(TArray<FPostProcessSettings>& InSettings, TArray<float>& InBlendWeights)
-	{
-		InSettings.Append(PostProcessBlendCache);
-		InBlendWeights.Append(PostProcessBlendCacheWeights);
-	}
+	// Start time of the shake, for scrubbing.
+	float GlobalStartTime;
+
+	// Parameters to be passed to the shake's start method.
+	float Scale = 1.f;
+	ECameraShakePlaySpace PlaySpace = ECameraShakePlaySpace::CameraLocal;
+	FRotator UserPlaySpaceRot = FRotator::ZeroRotator;
+	TOptional<float> DurationOverride;
 };
 
 /**
  * A class that owns a gameplay camera shake manager, so that we can us it to preview shakes in editor.
  */
-class FCameraShakePreviewer : public FGCObject
+class MOVIESCENETRACKS_API FCameraShakePreviewer : public FGCObject
 {
 public:
-	MOVIESCENETRACKS_API FCameraShakePreviewer();
-	MOVIESCENETRACKS_API ~FCameraShakePreviewer();
+	FCameraShakePreviewer();
+	~FCameraShakePreviewer();
 
-	MOVIESCENETRACKS_API void Initialize(UWorld* InWorld);
-	bool IsInitialized() const { return PreviewCameraShake != nullptr; }
-	MOVIESCENETRACKS_API void Teardown();
+	void ModifyView(FEditorViewportViewModifierParams& Params);
 
-	APlayerCameraManager* GetCameraManager() const { return PreviewCamera; }
-	UCameraModifier_CameraShake* GetCameraModifier() const { return PreviewCameraShake; }
+	void RegisterViewModifier();
+	void UnRegisterViewModifier();
 
-	MOVIESCENETRACKS_API void ModifyView(FEditorViewportViewModifierParams& Params);
+	void Update(float DeltaTime, bool bIsPlaying);
+	void Scrub(float ScrubTime);
 
-	MOVIESCENETRACKS_API void RegisterViewModifier();
-	MOVIESCENETRACKS_API void UnRegisterViewModifier();
-	MOVIESCENETRACKS_API void Update(float DeltaTime, bool bIsPlaying);
+	UCameraShakeBase* AddCameraShake(const FCameraShakePreviewerAddParams& Params);
+	void RemoveCameraShake(UCameraShakeBase* ShakeInstance);
+	void RemoveAllCameraShakesFromSource(const UCameraShakeSourceComponent* SourceComponent);
+	void RemoveAllCameraShakes();
+
+	int32 NumActiveCameraShakes() const { return ActiveShakes.Num(); }
+	void GetActiveCameraShakes(TArray<FActiveCameraShakeInfo>& ActiveCameraShakes) const;
+
+	void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap);
 
 private:
 	// FGCObject interface
-	virtual void AddReferencedObjects(FReferenceCollector& Collector) override { Collector.AddReferencedObject(PreviewCameraShake); }
-	virtual FString GetReferencerName() const override { return TEXT("SCameraShakePreviewer"); }
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override { return TEXT("FCameraShakePreviewer"); }
 
 private:
-	MOVIESCENETRACKS_API void OnModifyView(FEditorViewportViewModifierParams& Params);
-	MOVIESCENETRACKS_API void OnLevelViewportClientListChanged();
+	void OnModifyView(FEditorViewportViewModifierParams& Params);
+	void OnLevelViewportClientListChanged();
+
+	void ResetModifiers();
 
 private:
-	APreviewPlayerCameraManager* PreviewCamera;
-	TObjectPtr<UCameraModifier_CameraShake> PreviewCameraShake;
 	TArray<FLevelEditorViewportClient*> RegisteredViewportClients;
 
+	struct FPreviewCameraShakeInfo
+	{
+		TObjectPtr<UCameraShakeBase> ShakeInstance;
+		TWeakObjectPtr<const UCameraShakeSourceComponent> SourceComponent;
+		float StartTime;
+	};
+	TArray<FPreviewCameraShakeInfo> ActiveShakes;
+
 	TOptional<float> LastDeltaTime;
+	TOptional<float> LastScrubTime;
+
 	FVector LastLocationModifier;
 	FRotator LastRotationModifier;
 	float LastFOVModifier;

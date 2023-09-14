@@ -105,15 +105,6 @@ struct FMovieSceneAudioComponentData
 	TObjectPtr<UMovieSceneAudioSection> Section = nullptr;
 };
 
-UENUM()
-enum EMovieSceneCameraShakeStatus : uint8
-{
-	NotStarted,
-	Started,
-	BlendingOut,
-	Finished
-};
-
 /** Component data for camera shakes */
 USTRUCT()
 struct FMovieSceneCameraShakeComponentData
@@ -136,18 +127,6 @@ struct FMovieSceneCameraShakeComponentData
 	// Shake instance created by the shake evaluation system.
 	UPROPERTY()
 	TObjectPtr<UCameraShakeBase> ShakeInstance;
-	
-	// Status for the shake.
-	UPROPERTY()
-	TEnumAsByte<EMovieSceneCameraShakeStatus> Status = EMovieSceneCameraShakeStatus::NotStarted;
-
-	// Duration of the shake.
-	UPROPERTY()
-	FFrameTime Duration;
-
-	// Time for blending out the shake.
-	UPROPERTY()
-	FFrameTime BlendOutTime;
 
 	FMovieSceneCameraShakeComponentData()
 	{}

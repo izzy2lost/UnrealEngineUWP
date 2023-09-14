@@ -114,8 +114,9 @@ public:
 	 *
 	 * @param InSequence    The sequence to play
 	 * @param StartOffset   The offset to start at, in frames (display rate)
+	 * @param DurationOverride  A duration to use instead of the natural duration of the sequence
 	 */
-	void Initialize(UMovieSceneSequence* InSequence, int32 StartOffset = 0);
+	void Initialize(UMovieSceneSequence* InSequence, int32 StartOffset = 0, float DurationOverride = 0.f);
 
 	/**
 	 * Start playing the sequence
@@ -214,8 +215,17 @@ private:
 	/** The sequence duration in frames */
 	FFrameTime DurationFrames;
 
+	/** The total duration we need to play */
+	FFrameTime TotalDurationFrames;
+
+	/** Accumulated number of loops played so far */
+	uint16 LoopsPlayed = 0; 
+
 	/** Whether we should be looping */
-	bool bIsLooping;
+	bool bIsLooping = false;
+
+	/** Whether we need to loop due to a duration override */
+	bool bDurationRequiresLooping = false;
 
 	/** Movie player status. */
 	TEnumAsByte<EMovieScenePlayerStatus::Type> Status;

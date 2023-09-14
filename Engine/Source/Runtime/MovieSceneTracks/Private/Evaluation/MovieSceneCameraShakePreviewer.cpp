@@ -5,13 +5,12 @@
 #if WITH_EDITOR
 
 #include "LevelEditorViewport.h"
+#include "Camera/CameraShakeBase.h"
+#include "Camera/CameraShakeSourceComponent.h"
 #include "Camera/CameraModifier_CameraShake.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneCameraShakePreviewer)
-
 FCameraShakePreviewer::FCameraShakePreviewer()
-	: PreviewCamera(nullptr)
-	, PreviewCameraShake(nullptr)
+	: LastDeltaTime(0.f)
 	, LastLocationModifier(FVector::ZeroVector)
 	, LastRotationModifier(FRotator::ZeroRotator)
 	, LastFOVModifier(0.f)
@@ -24,46 +23,106 @@ FCameraShakePreviewer::~FCameraShakePreviewer()
 	{
 		UnRegisterViewModifier();
 	}
-
-	Teardown();
 }
 
-void FCameraShakePreviewer::Initialize(UWorld* InWorld)
+UCameraShakeBase* FCameraShakePreviewer::AddCameraShake(const FCameraShakePreviewerAddParams& Params)
 {
-	FActorSpawnParameters SpawnInfo;
-	SpawnInfo.ObjectFlags |= RF_Transient;
-	SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	UCameraShakeBase* NewShake = NewObject<UCameraShakeBase>(GetTransientPackage(), Params.ShakeClass);
+	ActiveShakes.Add({ NewShake, Params.SourceComponent, Params.GlobalStartTime });
 
-	PreviewCamera = InWorld->SpawnActor<APreviewPlayerCameraManager>(SpawnInfo);
-	PreviewCamera->SetIsTemporarilyHiddenInEditor(true);
+	FCameraShakeBaseStartParams StartParams;
+	StartParams.Scale = Params.Scale;
+	StartParams.PlaySpace = Params.PlaySpace;
+	StartParams.UserPlaySpaceRot = Params.UserPlaySpaceRot;
+	StartParams.DurationOverride = Params.DurationOverride;
+	NewShake->StartShake(StartParams);
 
-	PreviewCameraShake = CastChecked<UCameraModifier_CameraShake>(
-		PreviewCamera->AddNewCameraModifier(UCameraModifier_CameraShake::StaticClass()));
-
-	LastDeltaTime = 0.f;
+	return NewShake;
 }
 
-void FCameraShakePreviewer::Teardown()
+void FCameraShakePreviewer::RemoveCameraShake(UCameraShakeBase* ShakeInstance)
 {
-	if (PreviewCamera != nullptr)
+	const bool bImmediately = true;
+	for (int32 i = ActiveShakes.Num() - 1; i >= 0; --i)
 	{
-		PreviewCamera->Destroy(false, false);
+		FPreviewCameraShakeInfo& ActiveShake = ActiveShakes[i];
+		if (ActiveShake.ShakeInstance == ShakeInstance)
+		{
+			ActiveShake.ShakeInstance->StopShake(bImmediately);
+			ActiveShake.ShakeInstance->TeardownShake();
+			ActiveShakes.RemoveAt(i, 1);
+			break;
+		}
 	}
+}
 
-	PreviewCameraShake = nullptr;
-	PreviewCamera = nullptr;
+void FCameraShakePreviewer::RemoveAllCameraShakesFromSource(const UCameraShakeSourceComponent* SourceComponent)
+{
+	const bool bImmediately = true;
+	for (int32 i = ActiveShakes.Num() - 1; i >= 0; --i)
+	{
+		FPreviewCameraShakeInfo& ActiveShake = ActiveShakes[i];
+		if (ActiveShake.SourceComponent.Get() == SourceComponent && ActiveShake.ShakeInstance != nullptr)
+		{
+			ActiveShake.ShakeInstance->StopShake(bImmediately);
+			ActiveShake.ShakeInstance->TeardownShake();
+			ActiveShakes.RemoveAt(i, 1);
+		}
+	}
+}
+
+void FCameraShakePreviewer::RemoveAllCameraShakes()
+{
+	const bool bImmediately = true;
+	for (FPreviewCameraShakeInfo& ActiveShake : ActiveShakes)
+	{
+		if (ActiveShake.ShakeInstance)
+		{
+			ActiveShake.ShakeInstance->StopShake(bImmediately);
+			ActiveShake.ShakeInstance->TeardownShake();
+		}
+	}
+	ActiveShakes.Empty();
+}
+
+void FCameraShakePreviewer::GetActiveCameraShakes(TArray<FActiveCameraShakeInfo>& ActiveCameraShakes) const
+{
+	for (const FPreviewCameraShakeInfo& ActiveShake : ActiveShakes)
+	{
+		FActiveCameraShakeInfo ShakeInfo;
+		ShakeInfo.ShakeInstance = ActiveShake.ShakeInstance;
+		ShakeInfo.ShakeSource = ActiveShake.SourceComponent;
+		ActiveCameraShakes.Add(ShakeInfo);
+	}
 }
 
 void FCameraShakePreviewer::Update(float DeltaTime, bool bIsPlaying)
 {
 	LastDeltaTime = DeltaTime;
+	LastScrubTime.Reset();
 
 	if (!bIsPlaying)
 	{
-		LastLocationModifier = FVector::ZeroVector;
-		LastRotationModifier = FRotator::ZeroRotator;
-		LastFOVModifier = 0.f;
+		ResetModifiers();
 	}
+}
+
+void FCameraShakePreviewer::Scrub(float ScrubTime)
+{
+	LastDeltaTime.Reset();
+	LastScrubTime = ScrubTime;
+
+	ResetModifiers();
+}
+
+void FCameraShakePreviewer::ResetModifiers()
+{
+	LastLocationModifier = FVector::ZeroVector;
+	LastRotationModifier = FRotator::ZeroRotator;
+	LastFOVModifier = 0.f;
+
+	LastPostProcessSettings.Reset();
+	LastPostProcessBlendWeights.Reset();
 }
 
 void FCameraShakePreviewer::ModifyView(FEditorViewportViewModifierParams& Params)
@@ -73,35 +132,82 @@ void FCameraShakePreviewer::ModifyView(FEditorViewportViewModifierParams& Params
 
 void FCameraShakePreviewer::OnModifyView(FEditorViewportViewModifierParams& Params)
 {
-	const float DeltaTime = LastDeltaTime.Get(-1.f);
-	if (DeltaTime > 0.f)
+	FMinimalViewInfo& InOutPOV(Params.ViewInfo);
+	const FMinimalViewInfo OriginalPOV(Params.ViewInfo);
+
+	// This is a simpler version of what UCameraModifier_CameraShake does, with extra
+	// support for scrubbing.
+	if (LastDeltaTime.IsSet() || LastScrubTime.IsSet())
 	{
 		LastPostProcessSettings.Reset();
 		LastPostProcessBlendWeights.Reset();
-		PreviewCamera->ResetPostProcessSettings();
 
-		FMinimalViewInfo OriginalPOV(Params.ViewInfo);
+		for (FPreviewCameraShakeInfo& ActiveShake : ActiveShakes)
+		{
+			if (ActiveShake.ShakeInstance != nullptr)
+			{
+				float CurShakeAlpha = 1.f;
 
-		PreviewCameraShake->ModifyCamera(DeltaTime, Params.ViewInfo);
+				if (ActiveShake.SourceComponent.IsValid())
+				{
+					const UCameraShakeSourceComponent* SourceComponent = ActiveShake.SourceComponent.Get();
+					const float AttenuationFactor = SourceComponent->GetAttenuationFactor(InOutPOV.Location);
+					CurShakeAlpha *= AttenuationFactor;
+				}
 
-		PreviewCamera->MergePostProcessSettings(LastPostProcessSettings, LastPostProcessBlendWeights);
+				if (LastDeltaTime.IsSet())
+				{
+					ActiveShake.ShakeInstance->UpdateAndApplyCameraShake(LastDeltaTime.GetValue(), CurShakeAlpha, InOutPOV);
+				}
+				else if (LastScrubTime.IsSet())
+				{
+					float RelativeScrubTime = LastScrubTime.GetValue() - ActiveShake.StartTime;
+					ActiveShake.ShakeInstance->ScrubAndApplyCameraShake(RelativeScrubTime, CurShakeAlpha, InOutPOV);
+				}
 
-		LastLocationModifier = Params.ViewInfo.Location - OriginalPOV.Location;
-		LastRotationModifier = Params.ViewInfo.Rotation - OriginalPOV.Rotation;
-		LastFOVModifier = Params.ViewInfo.FOV - OriginalPOV.FOV;
+				if (InOutPOV.PostProcessBlendWeight > 0.f)
+				{
+					Params.AddPostProcessBlend(InOutPOV.PostProcessSettings, InOutPOV.PostProcessBlendWeight);
+					LastPostProcessSettings.Add(InOutPOV.PostProcessSettings);
+					LastPostProcessBlendWeights.Add(InOutPOV.PostProcessBlendWeight);
+				}
+				InOutPOV.PostProcessSettings = FPostProcessSettings();
+				InOutPOV.PostProcessBlendWeight = 0.f;
+			}
+		}
+
+		LastLocationModifier = InOutPOV.Location - OriginalPOV.Location;
+		LastRotationModifier = InOutPOV.Rotation - OriginalPOV.Rotation;
+		LastFOVModifier = InOutPOV.FOV - OriginalPOV.FOV;
 
 		LastDeltaTime.Reset();
+		LastScrubTime.Reset();
+
+		// Delete any obsolete shakes.
+		for (int32 i = ActiveShakes.Num() - 1; i >= 0; i--)
+		{
+			const FPreviewCameraShakeInfo& ShakeInfo = ActiveShakes[i];
+			if (ShakeInfo.ShakeInstance == nullptr || ShakeInfo.ShakeInstance->IsFinished() || ShakeInfo.SourceComponent.IsStale())
+			{
+				if (ShakeInfo.ShakeInstance != nullptr)
+				{
+					ShakeInfo.ShakeInstance->TeardownShake();
+				}
+
+				ActiveShakes.RemoveAt(i, 1);
+			}
+		}
 	}
 	else
 	{
-		Params.ViewInfo.Location += LastLocationModifier;
-		Params.ViewInfo.Rotation += LastRotationModifier;
-		Params.ViewInfo.FOV += LastFOVModifier;
-	}
+		InOutPOV.Location += LastLocationModifier;
+		InOutPOV.Rotation += LastRotationModifier;
+		InOutPOV.FOV += LastFOVModifier;
 
-	for (int32 PPIndex = 0; PPIndex < LastPostProcessSettings.Num(); ++PPIndex)
-	{
-		Params.AddPostProcessBlend(LastPostProcessSettings[PPIndex], LastPostProcessBlendWeights[PPIndex]);
+		for (int32 PPIndex = 0; PPIndex < LastPostProcessSettings.Num(); ++PPIndex)
+		{
+			Params.AddPostProcessBlend(LastPostProcessSettings[PPIndex], LastPostProcessBlendWeights[PPIndex]);
+		}
 	}
 }
 
@@ -153,6 +259,33 @@ void FCameraShakePreviewer::OnLevelViewportClientListChanged()
 		TSet<FLevelEditorViewportClient*> PreviousViewportClients(RegisteredViewportClients);
 		TSet<FLevelEditorViewportClient*> NewViewportClients(GEditor->GetLevelViewportClients());
 		RegisteredViewportClients = PreviousViewportClients.Intersect(NewViewportClients).Array();
+	}
+}
+
+void FCameraShakePreviewer::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	for (FPreviewCameraShakeInfo& ActiveShake : ActiveShakes)
+	{
+		if (ActiveShake.ShakeInstance)
+		{
+			Collector.AddReferencedObject(ActiveShake.ShakeInstance);
+		}
+	}
+}
+
+void FCameraShakePreviewer::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap)
+{
+	const bool bImmediately = true;
+	for (int32 i = ActiveShakes.Num() - 1; i >= 0; i--)
+	{
+		FPreviewCameraShakeInfo& ActiveShake = ActiveShakes[i];
+		if (ReplacementMap.Find(ActiveShake.ShakeInstance))
+		{
+			// If a camera shake gets recompiled, we just stop and discard it.
+			ActiveShake.ShakeInstance->StopShake(bImmediately);
+			ActiveShake.ShakeInstance->TeardownShake();
+			ActiveShakes.RemoveAt(i);
+		}
 	}
 }
 

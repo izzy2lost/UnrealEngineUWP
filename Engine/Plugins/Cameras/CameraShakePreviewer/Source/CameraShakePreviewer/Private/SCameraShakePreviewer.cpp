@@ -62,9 +62,6 @@ FCameraShakePreviewUpdater::FCameraShakePreviewUpdater()
 {
 	// Handle camera shakes being recompiled.
 	FCoreUObjectDelegates::OnObjectsReplaced.AddRaw(this, &FCameraShakePreviewUpdater::OnObjectsReplaced);
-
-	// Handle levels/worlds being cleared.
-	FEditorSupportDelegates::PrepareToCleanseEditorObject.AddRaw(this, &FCameraShakePreviewUpdater::OnPrepareToCleanseEditorObject);
 }
 
 FCameraShakePreviewUpdater::~FCameraShakePreviewUpdater()
@@ -73,47 +70,9 @@ FCameraShakePreviewUpdater::~FCameraShakePreviewUpdater()
 	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
 }
 
-void FCameraShakePreviewUpdater::Reinitialize(UWorld* InWorld)
-{
-	if (Previewer.IsInitialized() && Previewer.GetCameraManager()->GetWorld() != InWorld)
-	{
-		Previewer.Teardown();
-	}
-	if (!Previewer.IsInitialized())
-	{
-		Previewer.Initialize(InWorld);
-	}
-}
-
 void FCameraShakePreviewUpdater::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap)
 {
-	if (Previewer.IsInitialized())
-	{
-		// If a camera shake gets recompiled, we just stop and discard it.
-		TArray<FActiveCameraShakeInfo> ActiveCameraShakes;
-		Previewer.GetCameraModifier()->GetActiveCameraShakes(ActiveCameraShakes);
-
-		for (const FActiveCameraShakeInfo& ActiveCameraShake : ActiveCameraShakes)
-		{
-			UObject* NewShakeInstance = ReplacementMap.FindRef(ActiveCameraShake.ShakeInstance);
-			if (NewShakeInstance)
-			{
-				Previewer.GetCameraModifier()->RemoveCameraShake(ActiveCameraShake.ShakeInstance, true);
-			}
-		}
-	}
-}
-
-void FCameraShakePreviewUpdater::OnPrepareToCleanseEditorObject(UObject* Object)
-{
-	if (Previewer.IsInitialized())
-	{
-		ULevel* Level = Previewer.GetCameraManager()->GetLevel();
-		if (Object == Level || Object == Level->OwningWorld)
-		{
-			Previewer.Teardown();
-		}
-	}
+	Previewer.OnObjectsReplaced(ReplacementMap);
 }
 
 void FCameraShakePreviewUpdater::Tick(float DeltaTime)
@@ -128,31 +87,33 @@ void FCameraShakePreviewUpdater::ModifyCamera(FEditorViewportViewModifierParams&
 
 UCameraShakeBase* FCameraShakePreviewUpdater::AddCameraShake(TSubclassOf<UCameraShakeBase> ShakeClass, const FAddCameraShakeParams& Params)
 {
-	FAddCameraShakeParams ActualParams(Params);
-
-	UCameraShakeBase* ShakeInstance = Previewer.GetCameraModifier()->AddCameraShake(ShakeClass, ActualParams);
-
-	return ShakeInstance;
+	FCameraShakePreviewerAddParams ActualParams;
+	ActualParams.ShakeClass = ShakeClass;
+	ActualParams.SourceComponent = Params.SourceComponent;
+	ActualParams.Scale = Params.Scale;
+	ActualParams.PlaySpace = Params.PlaySpace;
+	ActualParams.UserPlaySpaceRot = Params.UserPlaySpaceRot;
+	return Previewer.AddCameraShake(ActualParams);
 }
 
 void FCameraShakePreviewUpdater::RemoveAllCameraShakesFromSource(const UCameraShakeSourceComponent* SourceComponent)
 {
-	Previewer.GetCameraModifier()->RemoveAllCameraShakesFromSource(SourceComponent);
+	Previewer.RemoveAllCameraShakesFromSource(SourceComponent);
 }
 
 void FCameraShakePreviewUpdater::GetActiveCameraShakes(TArray<FActiveCameraShakeInfo>& ActiveCameraShakes) const
 {
-	Previewer.GetCameraModifier()->GetActiveCameraShakes(ActiveCameraShakes);
+	Previewer.GetActiveCameraShakes(ActiveCameraShakes);
 }
 
 void FCameraShakePreviewUpdater::RemoveCameraShake(UCameraShakeBase* ShakeInstance)
 {
-	Previewer.GetCameraModifier()->RemoveCameraShake(ShakeInstance);
+	Previewer.RemoveCameraShake(ShakeInstance);
 }
 
 void FCameraShakePreviewUpdater::RemoveAllCameraShakes()
 {
-	Previewer.GetCameraModifier()->RemoveAllCameraShakes();
+	Previewer.RemoveAllCameraShakes();
 }
 
 /**
@@ -405,9 +366,6 @@ void SCameraShakePreviewer::Populate()
 	{
 		return;
 	}
-
-	// Reinitialize the previewer in case the persistent level has changed.
-	CameraShakePreviewUpdater->Reinitialize(CurrentWorld);
 
 	// Get all the shake sources from the level.
 	TArray<UCameraShakeSourceComponent*> ShakeSourceComponents;

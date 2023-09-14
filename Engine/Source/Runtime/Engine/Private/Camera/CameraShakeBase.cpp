@@ -58,12 +58,22 @@ FCameraShakeState::FCameraShakeState()
 
 void FCameraShakeState::Start(const FCameraShakeInfo& InShakeInfo)
 {
+	Start(InShakeInfo, TOptional<float>());
+}
+
+void FCameraShakeState::Start(const FCameraShakeInfo& InShakeInfo, TOptional<float> InDurationOverride)
+{
 	const FCameraShakeState PrevState(*this);
 
 	// Cache a few things about the shake.
 	ShakeInfo = InShakeInfo;
 	bHasBlendIn = ShakeInfo.BlendIn > 0.f;
 	bHasBlendOut = ShakeInfo.BlendOut > 0.f;
+
+	if (InDurationOverride.IsSet())
+	{
+		ShakeInfo.Duration = FCameraShakeDuration(InDurationOverride.GetValue());
+	}
 
 	// Initialize our running state.
 	InitializePlaying();
@@ -92,6 +102,19 @@ void FCameraShakeState::Start(const UCameraShakePattern* InShakePattern)
 	FCameraShakeInfo Info;
 	InShakePattern->GetShakePatternInfo(Info);
 	Start(Info);
+}
+
+void FCameraShakeState::Start(const UCameraShakePattern* InShakePattern, const FCameraShakePatternStartParams& InParams)
+{
+	check(InShakePattern);
+	FCameraShakeInfo Info;
+	InShakePattern->GetShakePatternInfo(Info);
+	TOptional<float> DurationOverride;
+	if (InParams.bOverrideDuration)
+	{
+		DurationOverride = InParams.DurationOverride;
+	}
+	Start(Info, DurationOverride);
 }
 
 void FCameraShakeState::InitializePlaying()
@@ -248,6 +271,16 @@ void UCameraShakeBase::GetShakeInfo(FCameraShakeInfo& OutInfo) const
 
 void UCameraShakeBase::StartShake(APlayerCameraManager* Camera, float Scale, ECameraShakePlaySpace InPlaySpace, FRotator UserPlaySpaceRot)
 {
+	FCameraShakeBaseStartParams Params;
+	Params.CameraManager = Camera;
+	Params.Scale = Scale;
+	Params.PlaySpace = InPlaySpace;
+	Params.UserPlaySpaceRot = UserPlaySpaceRot;
+	StartShake(Params);
+}
+
+void UCameraShakeBase::StartShake(const FCameraShakeBaseStartParams& Params)
+{
 	SCOPE_CYCLE_COUNTER(STAT_StartShake);
 
 	// Check that we were correctly stopped before we are asked to play again.
@@ -256,11 +289,11 @@ void UCameraShakeBase::StartShake(APlayerCameraManager* Camera, float Scale, ECa
 
 	// Remember the various settings for this run.
 	// Note that the camera manager can be null, for example in unit tests.
-	CameraManager = Camera;
-	ShakeScale = Scale;
-	PlaySpace = InPlaySpace;
-	UserPlaySpaceMatrix = (InPlaySpace == ECameraShakePlaySpace::UserDefined) ? 
-		FRotationMatrix(UserPlaySpaceRot) : FRotationMatrix::Identity;
+	CameraManager = Params.CameraManager;
+	ShakeScale = Params.Scale;
+	PlaySpace = Params.PlaySpace;
+	UserPlaySpaceMatrix = (Params.PlaySpace == ECameraShakePlaySpace::UserDefined) ? 
+		FRotationMatrix(Params.UserPlaySpaceRot) : FRotationMatrix::Identity;
 
 	const bool bIsRestarting = bIsActive;
 	bIsActive = true;
@@ -270,6 +303,8 @@ void UCameraShakeBase::StartShake(APlayerCameraManager* Camera, float Scale, ECa
 	{
 		FCameraShakePatternStartParams StartParams;
 		StartParams.bIsRestarting = bIsRestarting;
+		StartParams.bOverrideDuration = Params.DurationOverride.IsSet();
+		StartParams.DurationOverride = Params.DurationOverride.Get(0.f);
 		RootShakePattern->StartShakePattern(StartParams);
 	}
 }
@@ -420,11 +455,20 @@ void UCameraShakeBase::ApplyResult(const FCameraShakeApplyResultParams& ApplyPar
 		InOutPOV.FOV += TempResult.FOV;
 	}
 
-	// It's weird but the post-process settings go directly on the camera manager, not on the view info.
-	if (ApplyParams.CameraManager.IsValid() && TempResult.PostProcessBlendWeight > 0.f)
+	if (TempResult.PostProcessBlendWeight > 0.f)
 	{
-		EViewTargetBlendOrder CameraShakeBlendOrder = GCameraShakeLegacyPostProcessBlending.GetValueOnGameThread() ? VTBlendOrder_Base : VTBlendOrder_Override;
-		ApplyParams.CameraManager->AddCachedPPBlend(TempResult.PostProcessSettings, TempResult.PostProcessBlendWeight, CameraShakeBlendOrder);
+		// If we have a camera manager, post-process settings go there. Otherwise, let's put them on
+		// the view-info.
+		if (ApplyParams.CameraManager.IsValid())
+		{
+			EViewTargetBlendOrder CameraShakeBlendOrder = GCameraShakeLegacyPostProcessBlending.GetValueOnGameThread() ? VTBlendOrder_Base : VTBlendOrder_Override;
+			ApplyParams.CameraManager->AddCachedPPBlend(TempResult.PostProcessSettings, TempResult.PostProcessBlendWeight, CameraShakeBlendOrder);
+		}
+		else
+		{
+			InOutPOV.PostProcessSettings = TempResult.PostProcessSettings;
+			InOutPOV.PostProcessBlendWeight = TempResult.PostProcessBlendWeight;
+		}
 	}
 }
 
