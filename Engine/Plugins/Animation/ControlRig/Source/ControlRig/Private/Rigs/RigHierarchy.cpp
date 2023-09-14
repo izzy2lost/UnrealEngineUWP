@@ -293,7 +293,7 @@ void URigHierarchy::Load(FArchive& Ar)
 		}
 	}
 
-	UpdateAllCachedChildren();
+	UpdateAllCachedChildren(true);
 
 	if(Ar.IsTransacting())
 	{
@@ -559,7 +559,7 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 	TopologyVersion = InHierarchy->GetTopologyVersion();
 	MetadataVersion = InHierarchy->GetMetadataVersion();
 
-	UpdateAllCachedChildren();
+	UpdateAllCachedChildren(true);
 	EnsureCacheValidity();
 }
 
@@ -4507,40 +4507,47 @@ void URigHierarchy::ResetCachedChildren()
 	}
 }
 
-void URigHierarchy::UpdateCachedChildren(const FRigBaseElement* InElement, bool bForce) const
+bool URigHierarchy::UpdateCachedChildren(const FRigBaseElement* InElement, bool bForce) const
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
 	check(InElement);
 
 	if(InElement->TopologyVersion == TopologyVersion && !bForce)
 	{
-		return;
+		return false;
 	}
 
-	InElement->CachedChildren.Reset();
+	// we collect the transforms into a separate array to loop faster,
+	// since some hierarchies have a very large number of curves / non transform elements.
+	TArray<FRigTransformElement*> TransformElements;
+	TransformElements.Reserve(Elements.Num());
 
 	for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ElementIndex++)
 	{
 		FRigBaseElement* Element = Elements[ElementIndex];
-		if(Element->IsA<FRigSingleParentElement>() || Element->IsA<FRigMultiParentElement>())
+		if(bForce || (Element->TopologyVersion != TopologyVersion))
 		{
-			if(Element->TopologyVersion != TopologyVersion)
+			if(FRigTransformElement* TransformElement = Cast<FRigTransformElement>(Element))
 			{
-				Element->CachedChildren.Reset();
+				TransformElements.Add(TransformElement);
+				TransformElement->CachedChildren.Reset();
+			}
+			else
+			{
+				Element->TopologyVersion = TopologyVersion;
 			}
 		}
 	}
 
 	// since we'll have to loop over all children anyway - it makes sense to update all of them
 	// at the same time.
-	for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ElementIndex++)
+	for (FRigTransformElement* Element : TransformElements)
 	{
-		FRigBaseElement* Element = Elements[ElementIndex];
 		if(FRigSingleParentElement* SingleParentElement = Cast<FRigSingleParentElement>(Element))
 		{
 			if(FRigTransformElement* ParentElement = SingleParentElement->ParentElement)
 			{
-				if(ParentElement->TopologyVersion != TopologyVersion)
+				if(bForce || (ParentElement->TopologyVersion != TopologyVersion))
 				{
 					ParentElement->CachedChildren.Add(SingleParentElement);
 				}
@@ -4552,7 +4559,7 @@ void URigHierarchy::UpdateCachedChildren(const FRigBaseElement* InElement, bool 
 			{
 				if(FRigTransformElement* ParentElement = ParentConstraint.ParentElement)
 				{
-					if(ParentElement->TopologyVersion != TopologyVersion)
+					if(bForce || (ParentElement->TopologyVersion != TopologyVersion))
 					{
 						ParentElement->CachedChildren.Add(MultiParentElement);
 					}
@@ -4561,53 +4568,25 @@ void URigHierarchy::UpdateCachedChildren(const FRigBaseElement* InElement, bool 
 		}
 	}
 
-	for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ElementIndex++)
+	for (FRigTransformElement* Element : TransformElements)
 	{
-		FRigBaseElement* Element = Elements[ElementIndex];
-		if(Element->IsA<FRigSingleParentElement>() || Element->IsA<FRigMultiParentElement>())
-		{
-			Element->TopologyVersion = TopologyVersion;
-		}
+		Element->TopologyVersion = TopologyVersion;
 	}
+
+	return true;
 }
 
-void URigHierarchy::UpdateAllCachedChildren() const
+void URigHierarchy::UpdateAllCachedChildren(bool bForce) const
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
-	TArray<bool> ParentVisited;
-	ParentVisited.AddZeroed(Elements.Num());
 	
-	for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ElementIndex++)
+	for (const FRigBaseElement* Element : Elements)
 	{
-		FRigBaseElement* Element = Elements[ElementIndex];
-		Element->TopologyVersion = TopologyVersion;
-		
-		if(FRigSingleParentElement* SingleParentElement = Cast<FRigSingleParentElement>(Element))
+		// as soon as one element was updated,
+		// as a side effect all other elements are updated.
+		if(UpdateCachedChildren(Element, bForce))
 		{
-			if(FRigTransformElement* ParentElement = SingleParentElement->ParentElement)
-			{
-				if(!ParentVisited[ParentElement->Index])
-				{
-					ParentElement->CachedChildren.Reset();
-					ParentVisited[ParentElement->Index] = true;
-				}
-				ParentElement->CachedChildren.Add(Element);
-			}
-		}
-		else if(FRigMultiParentElement* MultiParentElement = Cast<FRigMultiParentElement>(Element))
-		{
-			for(const FRigElementParentConstraint& ParentConstraint : MultiParentElement->ParentConstraints)
-			{
-				if(ParentConstraint.ParentElement)
-				{
-					if(!ParentVisited[ParentConstraint.ParentElement->Index])
-					{
-						ParentConstraint.ParentElement->CachedChildren.Reset();
-						ParentVisited[ParentConstraint.ParentElement->Index] = true;
-					}
-					ParentConstraint.ParentElement->CachedChildren.Add(Element);
-				}
-			}
+			return;
 		}
 	}
 }

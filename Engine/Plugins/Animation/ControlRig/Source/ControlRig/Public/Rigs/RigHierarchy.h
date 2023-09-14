@@ -3969,14 +3969,15 @@ private:
 	 * Updates the transient cached children table for a given element if needed (or if bForce == true).
 	 * @param InElement The element to update the children table for
 	 * @param bForce If set to true the table will always be updated
+	 * @return Returns true if a change was performed
 	 */
-	void UpdateCachedChildren(const FRigBaseElement* InElement, bool bForce = false) const;
+	bool UpdateCachedChildren(const FRigBaseElement* InElement, bool bForce = false) const;
 
 	/**
-	* Updates the transient cached children table for all elements if needed (or if bForce == true).
-	* @param bForce If set to true the table will always be updated
+	* Updates the transient cached children table for all elements if needed.
+	 * @param bForce If set to true the table will always be updated
 	*/
-	void UpdateAllCachedChildren() const;
+	void UpdateAllCachedChildren(bool bForce = false) const;
 
 	/**
 	 * Corrects a parent element key for space switching

@@ -2248,12 +2248,6 @@ bool URigHierarchyController::ReorderElement(FRigBaseElement* InElement, int32 I
 		Hierarchy->Elements[GlobalIndex] = Element;
 		Element->Index = GlobalIndex;
 		Hierarchy->IndexLookup.FindOrAdd(Element->Key) = GlobalIndex;
-		Element->TopologyVersion = Hierarchy->GetTopologyVersion();
-	}
-
-	if(ParentElement)
-	{
-		Hierarchy->UpdateCachedChildren(ParentElement, true);
 	}
 
 	Notify(ERigHierarchyNotification::ElementReordered, InElement);
