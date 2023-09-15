@@ -39,7 +39,7 @@ void APCGWorldActor::BeginCacheForCookedPlatformData(const ITargetPlatform* Targ
 {
 	Super::BeginCacheForCookedPlatformData(TargetPlatform);
 	check(LandscapeCacheObject);
-	
+
 	UWorld* World = GetWorld();
 
 	if (World && LandscapeCacheObject->SerializationMode == EPCGLandscapeCacheSerializationMode::SerializeOnlyAtCook)
@@ -243,7 +243,7 @@ void APCGWorldActor::OnPartitionGridSizeChanged()
 	{
 		return;
 	}
-	
+
 	bool bAllSafeToDelete = true;
 
 	auto AddPartitionComponentAndCheckIfSafeToDelete = [&bAllSafeToDelete](AActor* Actor) -> bool
@@ -297,10 +297,16 @@ void APCGWorldActor::PostLoad()
 
 void APCGWorldActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(APCGWorldActor, PartitionGridSize) 
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(APCGWorldActor, PartitionGridSize)
 		|| PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(APCGWorldActor, bUse2DGrid))
 	{
 		OnPartitionGridSizeChanged();
 	}
 }
 #endif // WITH_EDITOR
+
+void APCGWorldActor::BeginDestroy()
+{
+	UnregisterFromSubsystem();
+	Super::BeginDestroy();
+}

@@ -31,7 +31,7 @@ public:
 
 	void MergeFrom(APCGWorldActor* OtherWorldActor);
 
-#if WITH_EDITOR	
+#if WITH_EDITOR
 	virtual bool CanChangeIsSpatiallyLoadedFlag() const { return false; }
 	virtual bool IsUserManaged() const override { return false; }
 	virtual bool ShouldExport() override { return false; }
@@ -45,10 +45,11 @@ public:
 	static inline constexpr uint32 DefaultPartitionGridSize = 25600; // 256m
 
 	//~ Begin UObject Interface.
-#if WITH_EDITOR	
+#if WITH_EDITOR
 	virtual void PostLoad() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
+	virtual void BeginDestroy() override;
 	//~ End UObject Interface.
 
 	/** Size of the PCG partition actor grid for non-hierarchical-generation graphs. */
@@ -67,7 +68,7 @@ private:
 	void RegisterToSubsystem();
 	void UnregisterFromSubsystem();
 
-#if WITH_EDITOR	
+#if WITH_EDITOR
 	void OnPartitionGridSizeChanged();
 #endif
 
