@@ -120,6 +120,8 @@ public:
 
 	UE_DEPRECATED(5.4, "CreateRayTracingGeometry now requires a command list.")
 	RENDERCORE_API void CreateRayTracingGeometry(ERTAccelerationStructureBuildPriority InBuildPriority);
+
+	RENDERCORE_API void Evict();
 	
 	bool HasPendingBuildRequest() const
 	{

@@ -160,7 +160,7 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList, bool bHasRayT
 		FScopeLock ScopeLock(&RequestCS);
 		for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 		{
-			Geometry->ReleaseRHI();			
+			Geometry->Evict();			
 		}
 	}
 }

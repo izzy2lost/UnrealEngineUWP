@@ -127,6 +127,12 @@ void FRayTracingGeometry::InitRHIForDynamicRayTracing()
 	InitRHIForDynamicRayTracing(FRHICommandListImmediate::Get());
 }
 
+void FRayTracingGeometry::Evict()
+{
+	RemoveBuildRequest();
+	RayTracingGeometryRHI.SafeRelease();
+}
+
 void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandList& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority)
 {
 	// Release previous RHI object if any
@@ -229,6 +235,7 @@ void FRayTracingGeometry::ReleaseRHI()
 {
 	RemoveBuildRequest();
 	RayTracingGeometryRHI.SafeRelease();
+	EnumRemoveFlags(GeometryState, EGeometryStateFlags::Valid);
 }
 
 void FRayTracingGeometry::RemoveBuildRequest()
@@ -265,6 +272,8 @@ void FRayTracingGeometry::ReleaseResource()
 	// Release any resource references held by the initializer.
 	// This includes index and vertex buffers used for building the BLAS.
 	Initializer = FRayTracingGeometryInitializer{};
+
+	GeometryState = EGeometryStateFlags::Invalid;
 
 	FRenderResource::ReleaseResource();
 }
