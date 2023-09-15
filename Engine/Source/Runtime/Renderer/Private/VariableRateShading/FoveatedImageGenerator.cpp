@@ -204,7 +204,7 @@ void FFoveatedImageGenerator::PrepareImages(FRDGBuilder& GraphBuilder, const FSc
 	PassParameters->HMDFieldOfView = HMDFieldOfView;
 
 	PassParameters->FoveationFullRateCutoffSquared = FoveationFullRateCutoff * FoveationFullRateCutoff;
-	PassParameters->FoveationHalfRateCutoffSquared = FoveationHalfRateCutoff * FoveationHalfRateCutoff;
+	PassParameters->FoveationHalfRateCutoffSquared = GRHISupportsLargerVariableRateShadingSizes ? (FoveationHalfRateCutoff * FoveationHalfRateCutoff) : 2.0f; // Set cutoff to outside screen edge if quarter-rate is unsupported
 
 	PassParameters->LeftEyeCenterPixelXY = FVector2f(Desc.Extent.X * FoveationCenterX, Desc.Extent.Y * FoveationCenterY);
 	PassParameters->RightEyeCenterPixelXY = PassParameters->LeftEyeCenterPixelXY;

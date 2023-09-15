@@ -109,6 +109,7 @@ public:
 
 	static FIntPoint GetSRITileSize();
 	static FRDGTextureDesc GetSRIDesc();
+	static int32 GetNumberOfSupportedRates();
 
 	void DrawDebugPreview(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, FRDGTextureRef OutputSceneColor);
 
