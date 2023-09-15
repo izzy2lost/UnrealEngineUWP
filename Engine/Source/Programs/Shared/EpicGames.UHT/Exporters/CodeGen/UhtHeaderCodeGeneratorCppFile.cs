@@ -191,15 +191,8 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 					if (hasRegisteredEnums)
 					{
-						if (allEnumsEditorOnly)
-						{
-							builder.Append("#if WITH_EDITORONLY_DATA\r\n");
-						}
+						using UhtMacroBlockEmitter blockEmitter = new(builder, "WITH_EDITORONLY_DATA", allEnumsEditorOnly);
 						builder.Append("\t\tstatic const FEnumRegisterCompiledInInfo EnumInfo[];\r\n");
-						if (allEnumsEditorOnly)
-						{
-							builder.Append("#endif\r\n");
-						}
 					}
 					if (hasRegisteredScriptStructs)
 					{
@@ -216,19 +209,13 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 					if (hasRegisteredEnums)
 					{
-						if (allEnumsEditorOnly)
-						{
-							builder.Append("#if WITH_EDITORONLY_DATA\r\n");
-						}
+						using UhtMacroBlockEmitter blockEmitter = new(builder, "WITH_EDITORONLY_DATA", allEnumsEditorOnly);
 						builder.Append("\tconst FEnumRegisterCompiledInInfo ").Append(staticsName).Append("::EnumInfo[] = {\r\n");
 						foreach (UhtObject obj in HeaderFile.References.ExportTypes)
 						{
 							if (obj is UhtEnum enumObj)
 							{
-								if (!allEnumsEditorOnly && enumObj.IsEditorOnly)
-								{
-									builder.Append("#if WITH_EDITORONLY_DATA\r\n");
-								}
+								blockEmitter.Set(enumObj.IsEditorOnly);
 								uint hash = ObjectInfos[enumObj.ObjectTypeIndex].Hash;
 								builder
 									.Append("\t\t{ ")
@@ -238,18 +225,11 @@ namespace EpicGames.UHT.Exporters.CodeGen
 									.Append("\"), &Z_Registration_Info_UEnum_")
 									.Append(enumObj.EngineName)
 									.Append($", CONSTRUCT_RELOAD_VERSION_INFO(FEnumReloadVersionInfo, {hash}U) }},\r\n");
-								if (!allEnumsEditorOnly && enumObj.IsEditorOnly)
-								{
-									builder.Append("#endif\r\n");
-								}
 								combinedHash = HashCombine(combinedHash, hash);
 							}
 						}
+						blockEmitter.Set(allEnumsEditorOnly);
 						builder.Append("\t};\r\n");
-						if (allEnumsEditorOnly)
-						{
-							builder.Append("#endif\r\n");
-						}
 					}
 
 					if (hasRegisteredScriptStructs)
@@ -1041,32 +1021,19 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 			PropertyMemberContextImpl context = new(CodeGenerator, structObj, structSourceName, staticsName);
 
-			using (UhtMacroBlockEmitter emitter = new(builder, "WITH_EDITORONLY_DATA"))
+			bool hasAllEditorOnlyDataProperties = structObj.Properties.All(x => x.IsEditorOnlyProperty);
+
+			using (UhtMacroBlockEmitter emitter = new(builder, "WITH_EDITORONLY_DATA", hasAllEditorOnlyDataProperties))
 			{
-				bool hasAllEditorOnlyDataProperties = true;
-				foreach (UhtType type in structObj.Children)
+				foreach (UhtProperty property in structObj.Properties)
 				{
-					if (type is UhtProperty property)
-					{
-						emitter.Set(property.IsEditorOnlyProperty);
-						hasAllEditorOnlyDataProperties &= property.IsEditorOnlyProperty;
-						builder.AppendMemberDecl(property, context, property.EngineName, "", tabs);
-					}
+					emitter.Set(property.IsEditorOnlyProperty);
+					hasAllEditorOnlyDataProperties &= property.IsEditorOnlyProperty;
+					builder.AppendMemberDecl(property, context, property.EngineName, "", tabs);
 				}
 
-				// This will force it off if the last one was editor only but we has some that weren't
 				emitter.Set(hasAllEditorOnlyDataProperties);
-
 				builder.AppendTabs(tabs).Append("static const UECodeGen_Private::FPropertyParamsBase* const PropPointers[];\r\n");
-
-				foreach (UhtType type in structObj.Children)
-				{
-					if (type is UhtProperty property)
-					{
-						emitter.Set(property.IsEditorOnlyProperty);
-					}
-				}
-				emitter.Set(hasAllEditorOnlyDataProperties);
 			}
 			return builder;
 		}
@@ -1080,35 +1047,26 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 			PropertyMemberContextImpl context = new(CodeGenerator, structObj, structSourceName, staticsName);
 
-			using (UhtMacroBlockEmitter emitter = new(builder, "WITH_EDITORONLY_DATA"))
+			bool hasAllEditorOnlyDataProperties = structObj.Properties.All(x => x.IsEditorOnlyProperty);
+
+			using (UhtMacroBlockEmitter emitter = new(builder, "WITH_EDITORONLY_DATA", hasAllEditorOnlyDataProperties))
 			{
-				bool hasAllEditorOnlyDataProperties = true;
-				foreach (UhtType type in structObj.Children)
+				foreach (UhtProperty property in structObj.Properties)
 				{
-					if (type is UhtProperty property)
-					{
-						emitter.Set(property.IsEditorOnlyProperty);
-						hasAllEditorOnlyDataProperties &= property.IsEditorOnlyProperty;
-						builder.AppendMemberDef(property, context, property.EngineName, "", null, tabs);
-					}
+					emitter.Set(property.IsEditorOnlyProperty);
+					builder.AppendMemberDef(property, context, property.EngineName, "", null, tabs);
 				}
+			}
 
-				// This will force it off if the last one was editor only but we has some that weren't
-				emitter.Set(hasAllEditorOnlyDataProperties);
-
+			using (UhtMacroBlockEmitter emitter = new(builder, "WITH_EDITORONLY_DATA", hasAllEditorOnlyDataProperties))
+			{
 				builder.AppendTabs(tabs).Append("const UECodeGen_Private::FPropertyParamsBase* const ").Append(staticsName).Append("::PropPointers[] = {\r\n");
-				foreach (UhtType type in structObj.Children)
+				foreach (UhtProperty property in structObj.Properties)
 				{
-					if (type is UhtProperty property)
-					{
-						emitter.Set(property.IsEditorOnlyProperty);
-						builder.AppendMemberPtr(property, context, property.EngineName, "", tabs + 1);
-					}
+					emitter.Set(property.IsEditorOnlyProperty);
+					builder.AppendMemberPtr(property, context, property.EngineName, "", tabs + 1);
 				}
-
-				// This will force it off if the last one was editor only but we has some that weren't
 				emitter.Set(hasAllEditorOnlyDataProperties);
-
 				builder.AppendTabs(tabs).Append("};\r\n");
 			}
 			return builder;
@@ -1226,6 +1184,12 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					builder.Append($"\tUE_FIELD_NOTIFICATION_IMPLEMENT_FIELD({classObj.SourceName}, {name})\r\n");
 				});
 
+			if (allEditorFields)
+			{
+				builder.Append("#endif // WITH_EDITORONLY_DATA\r\n");
+				builder.Append("#if WITH_EDITORONLY_DATA\r\n");
+			}
+
 			//UE_FIELD_NOTIFICATION_DECLARE_ENUM_FIELD
 			builder.Append($"\tUE_FIELD_NOTIFICATION_IMPLEMENTATION_BEGIN({classObj.SourceName})\r\n");
 			AppendFieldNotify(builder, classObj, hasProperties, hasFunctions, hasEditorFields, allEditorFields, true, true,
@@ -1244,66 +1208,48 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 		private static StringBuilder AppendAutoGettersSetters(StringBuilder builder, UhtClass classObj)
 		{
-			if (!NeedAutoGetterSetterCodeGen(classObj))
+			IEnumerable<UhtProperty> properties = classObj.Properties.Where(x => x.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.GetterSpecifiedAuto | UhtPropertyExportFlags.SetterSpecifiedAuto));
+			if (!properties.Any())
 			{
 				return builder;
 			}
-			
-			// Scan the children to see what we have
-			GetAutoGetterSetterStats(classObj, out bool hasProperties, out bool hasEditorFields, out bool allEditorFields);
-			
-			// If we only have editor fields or no editor fields, then we only emit one block
-			if (hasEditorFields)
-			{
-				builder.Append("#if WITH_EDITORONLY_DATA\r\n");
-				AppendAutoGettersSetters(builder, classObj, hasProperties, hasEditorFields, allEditorFields, true);
-				builder.Append("#else //WITH_EDITORONLY_DATA\r\n");
-				AppendAutoGettersSetters(builder, classObj, hasProperties, hasEditorFields, allEditorFields, false);
-				builder.Append("#endif // WITH_EDITORONLY_DATA\r\n");
-			}
-			else
-			{
-				AppendAutoGettersSetters(builder, classObj, hasProperties, hasEditorFields, allEditorFields, false);
-			}
-			return builder;
-		}
-		
-		private static StringBuilder AppendAutoGettersSetters(StringBuilder builder, UhtClass classObj,
-			bool hasProperties, bool hasEditorFields, bool allEditorFields,
-			bool includeEditorOnlyFields)
-		{
-			AppendAutoGettersSetters(builder, classObj, UhtPropertyExportFlags.GetterSpecifiedAuto, hasProperties, hasEditorFields, allEditorFields,
-				includeEditorOnlyFields, false, (StringBuilder parentBuilder, UhtClass classObj, UhtProperty property) =>
-				{
-					using BorrowStringBuilder borrower = new(StringBuilderCache.Small);
-					StringBuilder propertyStringBuilder = borrower.StringBuilder;
-					propertyStringBuilder.AppendPropertyText(property, UhtPropertyTextType.GetterRetVal);
-					string getterRetText = propertyStringBuilder.ToString();
-					string getterCallText = property.Getter ?? "Get" + property.SourceName;
-					parentBuilder.Append('\t').Append(getterRetText).Append(classObj.SourceName).Append("::").Append(getterCallText).Append("() const\r\n");
-					parentBuilder.Append("\t{\r\n");
-					parentBuilder.Append('\t', 2).Append("return ").Append(property.SourceName).Append(";\r\n");
-					parentBuilder.Append("\t}\r\n");
-				});
-			
-			AppendAutoGettersSetters(builder, classObj, UhtPropertyExportFlags.SetterSpecifiedAuto, hasProperties, hasEditorFields, allEditorFields,
-				includeEditorOnlyFields, false, (StringBuilder parentBuilder, UhtClass classObj, UhtProperty property) =>
-				{
-					using BorrowStringBuilder borrower = new(StringBuilderCache.Small);
-					StringBuilder propertyStringBuilder = borrower.StringBuilder;
-					propertyStringBuilder.AppendPropertyText(property, UhtPropertyTextType.SetterParameterArgType);
-					string setterArgText = propertyStringBuilder + "InValue";
-					string setterCallText = property.Setter ?? "Set" + property.SourceName;
-					parentBuilder.Append("\tvoid ").Append(classObj.SourceName).Append("::").Append(setterCallText).Append('(').Append(setterArgText).Append(")\r\n");
-					parentBuilder.Append("\t{\r\n");
-					
-					// @todo: setter defn
-					
-					parentBuilder.Append("\t}\r\n");
-					
-					
-				});
 
+			using (UhtMacroBlockEmitter blockEmitter = new(builder, "WITH_EDITORONLY_DATA", properties.Any(x => x.IsEditorOnlyProperty)))
+			{
+				foreach (UhtProperty property in classObj.Properties)
+				{
+					if (property.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.GetterSpecifiedAuto | UhtPropertyExportFlags.SetterSpecifiedAuto))
+					{
+						blockEmitter.Set(property.IsEditorOnlyProperty);
+						if (property.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.GetterSpecifiedAuto))
+						{
+							using BorrowStringBuilder borrower = new(StringBuilderCache.Small);
+							StringBuilder propertyStringBuilder = borrower.StringBuilder;
+							propertyStringBuilder.AppendPropertyText(property, UhtPropertyTextType.GetterRetVal);
+							string getterRetText = propertyStringBuilder.ToString();
+							string getterCallText = property.Getter ?? "Get" + property.SourceName;
+							builder.Append('\t').Append(getterRetText).Append(classObj.SourceName).Append("::").Append(getterCallText).Append("() const\r\n");
+							builder.Append("\t{\r\n");
+							builder.Append('\t', 2).Append("return ").Append(property.SourceName).Append(";\r\n");
+							builder.Append("\t}\r\n");
+						}
+						if (property.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.SetterSpecifiedAuto))
+						{
+							using BorrowStringBuilder borrower = new(StringBuilderCache.Small);
+							StringBuilder propertyStringBuilder = borrower.StringBuilder;
+							propertyStringBuilder.AppendPropertyText(property, UhtPropertyTextType.SetterParameterArgType);
+							string setterArgText = propertyStringBuilder + "InValue";
+							string setterCallText = property.Setter ?? "Set" + property.SourceName;
+							builder.Append("\tvoid ").Append(classObj.SourceName).Append("::").Append(setterCallText).Append('(').Append(setterArgText).Append(")\r\n");
+							builder.Append("\t{\r\n");
+
+							// @todo: setter defn
+
+							builder.Append("\t}\r\n");
+						}
+					}
+				}
+			}
 			return builder;
 		}
 
@@ -1320,7 +1266,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						builder.Append("\t{\r\n");
 						if (editorOnlyProperty)
 						{
-							builder.Append("\t#if WITH_EDITORONLY_DATA\r\n");
+							builder.Append("#if WITH_EDITORONLY_DATA\r\n");
 						}
 						builder.Append("\t\tconst ").Append(classObj.SourceName).Append("* Obj = (const ").Append(classObj.SourceName).Append("*)Object;\r\n");
 						if (property.IsStaticArray)
@@ -1379,7 +1325,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						}
 						if (editorOnlyProperty)
 						{
-							builder.Append("\t#endif // WITH_EDITORONLY_DATA\r\n");
+							builder.Append("#endif // WITH_EDITORONLY_DATA\r\n");
 						}
 						builder.Append("\t}\r\n");
 					}
@@ -1389,7 +1335,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						builder.Append("\t{\r\n");
 						if (editorOnlyProperty)
 						{
-							builder.Append("\t#if WITH_EDITORONLY_DATA\r\n");
+							builder.Append("#if WITH_EDITORONLY_DATA\r\n");
 						}
 						builder.Append("\t\t").Append(classObj.SourceName).Append("* Obj = (").Append(classObj.SourceName).Append("*)Object;\r\n");
 						if (property.IsStaticArray)
@@ -1428,7 +1374,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 							.Append("(Value);\r\n");
 						if (editorOnlyProperty)
 						{
-							builder.Append("\t#endif // WITH_EDITORONLY_DATA\r\n");
+							builder.Append("#endif // WITH_EDITORONLY_DATA\r\n");
 						}
 						builder.Append("\t}\r\n");
 					}
@@ -1581,7 +1527,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			List<UhtFunction> sortedFunctions = new();
 			foreach (UhtFunction function in classObj.Functions)
 			{
-				if (!function.FunctionFlags.HasAnyFlags(EFunctionFlags.Delegate))
+				//if (!function.FunctionFlags.HasAnyFlags(EFunctionFlags.Delegate))
 				{
 					allEditorOnlyFunctions &= function.FunctionFlags.HasAnyFlags(EFunctionFlags.EditorOnly);
 				}
@@ -1654,13 +1600,12 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 				if (sortedFunctions.Count > 0)
 				{
-					builder.AppendBeginEditorOnlyGuard(allEditorOnlyFunctions);
+					using UhtMacroBlockEmitter blockEmitter = new(builder, "WITH_EDITOR", allEditorOnlyFunctions);
 					builder.Append("\tconst FClassFunctionLinkInfo ").Append(staticsName).Append("::FuncInfo[] = {\r\n");
 
 					foreach (UhtFunction function in sortedFunctions)
 					{
-						bool isEditorOnlyFunction = function.FunctionFlags.HasAnyFlags(EFunctionFlags.EditorOnly);
-						builder.AppendBeginEditorOnlyGuard(isEditorOnlyFunction);
+						blockEmitter.Set(function.FunctionFlags.HasAnyFlags(EFunctionFlags.EditorOnly));
 						builder
 							.Append("\t\t{ &")
 							.Append(GetSingletonName(function, true))
@@ -1669,12 +1614,11 @@ namespace EpicGames.UHT.Exporters.CodeGen
 							.Append(" },")
 							.AppendObjectHash(classObj, context, function)
 							.Append("\r\n");
-						builder.AppendEndEditorOnlyGuard(isEditorOnlyFunction);
 					}
 
+					blockEmitter.Set(allEditorOnlyFunctions);
 					builder.Append("\t};\r\n");
 					builder.Append("\tstatic_assert(UE_ARRAY_COUNT(").Append(staticsName).Append("::FuncInfo) < 2048);\r\n");
-					builder.AppendEndEditorOnlyGuard(allEditorOnlyFunctions);
 				}
 
 				builder.AppendMetaDataDef(classObj, staticsName, MetaDataParamsName, 1);
@@ -2288,7 +2232,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			{
 				builder.Append("#if WITH_EDITORONLY_DATA\r\n")
 					   .Append("\tstatic_assert(UE_ARRAY_COUNT(").Append(staticsName).Append("::PropPointers) < 2048);\r\n")
-					   .Append("#endif\r\n");
+					   .Append("#endif // WITH_EDITORONLY_DATA\r\n");
 			}
 			return builder;
 		}
