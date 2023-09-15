@@ -213,7 +213,7 @@ public:
 		UGameplayTagsSettings* Settings = GetMutableDefault<UGameplayTagsSettings>();
 		
 		// The refresh has already set the in memory version of this to be correct, just need to save it out now
-		if (!GConfig->GetSectionPrivate(TEXT("GameplayTags"), false, true, DefaultEnginePath))
+		if (!GConfig->GetSection(TEXT("GameplayTags"), false, DefaultEnginePath))
 		{
 			// Already migrated or no data
 			return;
@@ -225,18 +225,8 @@ public:
 		// Delete gameplay tags section entirely. This modifies the disk version
 		GConfig->EmptySection(TEXT("GameplayTags"), DefaultEnginePath);
 
-		FConfigSection* PackageRedirects = GConfig->GetSectionPrivate(TEXT("/Script/Engine.Engine"), false, false, DefaultEnginePath);
-
-		if (PackageRedirects)
-		{
-			for (FConfigSection::TIterator It(*PackageRedirects); It; ++It)
-			{
-				if (It.Key() == TEXT("+GameplayTagRedirects"))
-				{
-					It.RemoveCurrent();
-				}
-			}
-		}
+		// Remove any redirects
+		GConfig->RemoveKeyFromSection(TEXT("/Script/Engine.Engine"), "+GameplayTagRedirects", DefaultEnginePath);
 
 		// This will remove comments, etc. It is expected for someone to diff this before checking in to manually fix it
 		GConfig->Flush(false, DefaultEnginePath);

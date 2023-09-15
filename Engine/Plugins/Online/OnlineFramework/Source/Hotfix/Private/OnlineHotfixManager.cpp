@@ -1410,7 +1410,7 @@ void UOnlineHotfixManager::PatchAssetsFromIniFiles()
 	AssetsHotfixedFromIniFiles.Reset();
 
 	// Everything should be under the 'AssetHotfix' section in Game.ini
-	FConfigSection* AssetHotfixConfigSection = GConfig->GetSectionPrivate(TEXT("AssetHotfix"), false, true, GGameIni);
+	const FConfigSection* AssetHotfixConfigSection = GConfig->GetSection(TEXT("AssetHotfix"), false, GGameIni);
 	if (AssetHotfixConfigSection != nullptr)
 	{
 		// These are the asset types we support patching right now
@@ -1425,7 +1425,7 @@ void UOnlineHotfixManager::PatchAssetsFromIniFiles()
 
 		TSet<UDataTable*> ChangedTables;
 
-		for (FConfigSection::TIterator It(*AssetHotfixConfigSection); It; ++It)
+		for (FConfigSection::TConstIterator It(*AssetHotfixConfigSection); It; ++It)
 		{
 			FMoviePlayerProxy::BlockingTick();
 			++TotalPatchableAssets;

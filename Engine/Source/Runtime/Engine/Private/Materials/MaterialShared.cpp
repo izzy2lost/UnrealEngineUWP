@@ -2171,7 +2171,7 @@ bool FMaterialResource::ShouldInlineShaderCode() const
 	}
 
 	bool bNeedsToBeInlined = false;
-	const FConfigSection* ShaderLibrarySec = GConfig->GetSectionPrivate(TEXT("ShaderCodeLibrary"), false, true, GEngineIni);
+	const FConfigSection* ShaderLibrarySec = GConfig->GetSection(TEXT("ShaderCodeLibrary"), false, GEngineIni);
 	if (ShaderLibrarySec)
 	{
 		TArray<FString> ConfiguredMaterials;

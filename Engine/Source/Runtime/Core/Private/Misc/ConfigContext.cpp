@@ -827,7 +827,7 @@ bool FConfigContext::GenerateDestIniFile()
 		//	The ini syntax is Preserve=Section=<section name, like /Scipt/FortniteGame.FortConsole>.
 		//	Go through and save the preserved sections before we regenerate the file. We'll re-add those after.
 		FConfigSection PreservedConfigSectionData;
-		if (FConfigSection* SourceConfigSectionIniVersion = ConfigFile->SourceConfigFile->Find(CurrentIniVersionString))
+		if (const FConfigSection* SourceConfigSectionIniVersion = ConfigFile->SourceConfigFile->FindSection(CurrentIniVersionString))
 		{
 			for (FConfigSectionMap::TConstIterator ItSourceConfigSectionIniVersion(*SourceConfigSectionIniVersion); ItSourceConfigSectionIniVersion; ++ItSourceConfigSectionIniVersion)
 			{
@@ -842,11 +842,11 @@ bool FConfigContext::GenerateDestIniFile()
 		for (FConfigSectionMap::TConstIterator ItPreservedConfigSectionData(PreservedConfigSectionData); ItPreservedConfigSectionData; ++ItPreservedConfigSectionData)
 		{
 			FString SectionString = ItPreservedConfigSectionData.Value().GetSavedValue();
-			if (FConfigSection* FoundSection = ConfigFile->Find(SectionString))
+			if (const FConfigSection* FoundSection = ConfigFile->FindSection(SectionString))
 			{
 				for (FConfigSectionMap::TConstIterator ItFoundSection(*FoundSection); ItFoundSection; ++ItFoundSection)
 				{
-					if (FConfigSection* CreatedSection = PreservedConfigFileData.FindOrAddSection(SectionString))
+					if (FConfigSection* CreatedSection = PreservedConfigFileData.FindOrAddSectionInternal(SectionString))
 					{
 						CreatedSection->Add(ItFoundSection.Key(), ItFoundSection.Value());
 					}
@@ -861,7 +861,7 @@ bool FConfigContext::GenerateDestIniFile()
 		bResult = RegenerateFileLambda(ConfigFile->SourceIniHierarchy, *ConfigFile, bUseHierarchyCache);
 
 		// Add back the CurrentIniVersion section.
-		if (FConfigSection* DestConfigSectionIniVersion = ConfigFile->FindOrAddSection(CurrentIniVersionString))
+		if (FConfigSection* DestConfigSectionIniVersion = ConfigFile->FindOrAddSectionInternal(CurrentIniVersionString))
 		{
 			// Update the version. If it's already there then good but if not, we add it.
 			DestConfigSectionIniVersion->FindOrAdd(VersionName, FConfigValue(FString::FromInt(SourceConfigVersionNum)));
@@ -870,7 +870,7 @@ bool FConfigContext::GenerateDestIniFile()
 		// Add back any preserved sections.
 		for (TMap<FString, FConfigSection>::TConstIterator ItPreservedConfigFileData(PreservedConfigFileData); ItPreservedConfigFileData; ++ItPreservedConfigFileData)
 		{
-			if (FConfigSection* DestConfigSectionPreserved = ConfigFile->FindOrAddSection(ItPreservedConfigFileData.Key()))
+			if (FConfigSection* DestConfigSectionPreserved = ConfigFile->FindOrAddSectionInternal(ItPreservedConfigFileData.Key()))
 			{
 				FConfigSection PreservedConfigFileSection = ItPreservedConfigFileData.Value();
 				for (FConfigSectionMap::TConstIterator ItPreservedConfigFileSection(PreservedConfigFileSection); ItPreservedConfigFileSection; ++ItPreservedConfigFileSection)

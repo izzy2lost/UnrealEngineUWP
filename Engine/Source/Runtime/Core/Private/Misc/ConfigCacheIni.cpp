@@ -240,7 +240,7 @@ static void CheckLongSectionNames(const TCHAR* Section, const FConfigFile* File)
 		if (FCString::Strnicmp(Section, TEXT("/Script/"), 8) == 0)
 		{
 			// Section is a long name
-			if (File->Find(Section + 8))
+			if (File->FindSection(Section + 8))
 			{
 				UE_LOG(LogConfig, Fatal, TEXT("Short config section found while looking for %s"), Section);
 			}
@@ -249,7 +249,7 @@ static void CheckLongSectionNames(const TCHAR* Section, const FConfigFile* File)
 		{
 			// Section is a short name
 			FString LongName = FString(TEXT("/Script/")) + Section;
-			if (File->Find(*LongName))
+			if (File->FindSection(*LongName))
 			{
 				UE_LOG(LogConfig, Fatal, TEXT("Short config section used instead of long %s"), Section);
 			}
@@ -582,12 +582,22 @@ bool FConfigFile::operator!=( const FConfigFile& Other ) const
 
 FConfigSection* FConfigFile::FindOrAddSection(const FString& SectionName)
 {
-	FConfigSection* Section = Find(SectionName);
+	return FindOrAddSectionInternal(SectionName);
+}
+
+FConfigSection* FConfigFile::FindOrAddSectionInternal(const FString& SectionName)
+{
+	FConfigSection* Section = FindInternal(SectionName);
 	if (Section == nullptr)
 	{
 		Section = &Add(SectionName, FConfigSection());
 	}
 	return Section;
+}
+
+const FConfigSection* FConfigFile::FindOrAddConfigSection(const FString& SectionName)
+{
+	return FindOrAddSectionInternal(SectionName);
 }
 
 bool FConfigFile::Combine(const FString& Filename)
@@ -776,7 +786,7 @@ void FConfigFile::CombineFromBuffer(const FString& Buffer, const FString& FileHi
 				
 				CurrentSectionName = *FoundRemap;
 			}
-			CurrentSection = FindOrAddSection(CurrentSectionName);
+			CurrentSection = FindOrAddSectionInternal(CurrentSectionName);
 
 			// look to see if there is a set of key remaps for this section
 			CurrentKeyRemap = KeyRemap.Find(CurrentSectionName);
@@ -852,7 +862,7 @@ void FConfigFile::CombineFromBuffer(const FString& Buffer, const FString& FileHi
 						if (FoundRemap->FindChar(':', ColonLoc))
 						{
 							// find or create a section for name before the :
-							CurrentSection = FindOrAddSection(*FoundRemap->Mid(0, ColonLoc));
+							CurrentSection = FindOrAddSectionInternal(*FoundRemap->Mid(0, ColonLoc));
 							// the name can still point right into the FString, but right after the :
 							KeyName = **FoundRemap + ColonLoc + 1;
 						}
@@ -1004,7 +1014,7 @@ void FConfigFile::ProcessInputFileContents(FStringView Contents, const FString& 
 			CurrentKeyRemap = KeyRemap.Find(CurrentSectionName);
 
 			// If we don't have an existing section by this name, add one
-			CurrentSection = FindOrAddSection(CurrentSectionName);
+			CurrentSection = FindOrAddSectionInternal(CurrentSectionName);
 		}
 
 		// Otherwise, if we're currently inside a section, and we haven't reached the end of the stream
@@ -1536,7 +1546,7 @@ void FConfigFile::WriteToStringInternal(FString& InOutText, bool bIsADefaultIniW
 	int32 EstimatedFinalTextSize = 0;
 	
 	// no need to look up the section if it's a default ini, or if we are always saving all sections
-	FConfigSection* SectionsToSaveSection = (bIsADefaultIniWrite || bCanSaveAllSections) ? nullptr : Find(SectionsToSaveStr);
+	const FConfigSection* SectionsToSaveSection = (bIsADefaultIniWrite || bCanSaveAllSections) ? nullptr : FindSection(SectionsToSaveStr);
 	TArray<FString> SectionsToSave;
 	if (SectionsToSaveSection != nullptr)
 	{
@@ -1556,18 +1566,18 @@ void FConfigFile::WriteToStringInternal(FString& InOutText, bool bIsADefaultIniW
 		}
 
 		// If we have a config file to check against, have a look.
-		FConfigSection* SourceConfigSection = nullptr;
+		const FConfigSection* SourceConfigSection = nullptr;
 		if (SourceConfigFile)
 		{
 			// Check the sections which could match our desired section name
-			SourceConfigSection = SourceConfigFile->Find(SectionName);
+			SourceConfigSection = SourceConfigFile->FindSection(SectionName);
 
 #if !UE_BUILD_SHIPPING
 			if (!SourceConfigSection && FPlatformProperties::RequiresCookedData() == false && SectionName.StartsWith(TEXT("/Script/")))
 			{
 				// Guard against short names in ini files
 				const FString ShortSectionName = SectionName.Replace(TEXT("/Script/"), TEXT("")); 
-				if (SourceConfigFile->Find(ShortSectionName) != nullptr)
+				if (SourceConfigFile->FindSection(ShortSectionName) != nullptr)
 				{
 					UE_LOG(LogConfig, Fatal, TEXT("Short config section found while looking for %s"), *SectionName);
 				}
@@ -1715,7 +1725,7 @@ void FConfigFile::AddMissingProperties( const FConfigFile& InSourceFile )
 
 		{
 			// If we don't already have this section, go ahead and add it now
-			FConfigSection* DestSection = FindOrAddSection( SourceSectionName );
+			FConfigSection* DestSection = FindOrAddSectionInternal( SourceSectionName );
 			DestSection->Reserve(SourceSection.Num());
 
 			for( FConfigSection::TConstIterator SourcePropertyIt( SourceSection ); SourcePropertyIt; ++SourcePropertyIt )
@@ -1777,7 +1787,7 @@ void FConfigFile::Dump(FOutputDevice& Ar)
 
 bool FConfigFile::GetString( const TCHAR* Section, const TCHAR* Key, FString& Value ) const
 {
-	const FConfigSection* Sec = Find( Section );
+	const FConfigSection* Sec = FindSection( Section );
 	if( Sec == nullptr )
 	{
 		return false;
@@ -1793,7 +1803,7 @@ bool FConfigFile::GetString( const TCHAR* Section, const TCHAR* Key, FString& Va
 
 bool FConfigFile::GetText( const TCHAR* Section, const TCHAR* Key, FText& Value ) const
 {
-	const FConfigSection* Sec = Find( Section );
+	const FConfigSection* Sec = FindSection( Section );
 	if( Sec == nullptr )
 	{
 		return false;
@@ -1863,7 +1873,7 @@ bool FConfigFile::GetBool(const TCHAR* Section, const TCHAR* Key, bool& Value ) 
 int32 FConfigFile::GetArray(const TCHAR* Section, const TCHAR* Key, TArray<FString>& Value) const
 {
 	Value.Empty();
-	const FConfigSection* Sec = Find(Section);
+	const FConfigSection* Sec = FindSection(Section);
 	if (Sec != nullptr)
 	{
 		Sec->MultiFind(Key, Value, true);
@@ -1880,12 +1890,12 @@ int32 FConfigFile::GetArray(const TCHAR* Section, const TCHAR* Key, TArray<FStri
 
 bool FConfigFile::DoesSectionExist(const TCHAR* Section) const
 {
-	return Find(Section) != nullptr;
+	return FindSection(Section) != nullptr;
 }
 
 void FConfigFile::SetString( const TCHAR* Section, const TCHAR* Key, const TCHAR* Value )
 {
-	FConfigSection* Sec = FindOrAddSection( Section );
+	FConfigSection* Sec = FindOrAddSectionInternal( Section );
 
 	FConfigValue* ConfigValue = Sec->Find( Key );
 	if( ConfigValue == nullptr )
@@ -1903,7 +1913,7 @@ void FConfigFile::SetString( const TCHAR* Section, const TCHAR* Key, const TCHAR
 
 void FConfigFile::SetText( const TCHAR* Section, const TCHAR* Key, const FText& Value )
 {
-	FConfigSection* Sec = FindOrAddSection( Section );
+	FConfigSection* Sec = FindOrAddSectionInternal( Section );
 
 	FString StrValue;
 	FTextStringHelper::WriteToBuffer(StrValue, Value);
@@ -1951,7 +1961,7 @@ void FConfigFile::SetInt64( const TCHAR* Section, const TCHAR* Key, int64 Value 
 
 void FConfigFile::SetArray(const TCHAR* Section, const TCHAR* Key, const TArray<FString>& Value)
 {
-	FConfigSection* Sec = FindOrAddSection(Section);
+	FConfigSection* Sec = FindOrAddSectionInternal(Section);
 
 	if (Sec->Remove(Key) > 0)
 	{
@@ -1963,6 +1973,57 @@ void FConfigFile::SetArray(const TCHAR* Section, const TCHAR* Key, const TArray<
 		Sec->Add(Key, *Value[i]);
 		Dirty = true;
 	}
+}
+
+bool FConfigFile::AddToSection(const TCHAR* SectionName, FName Key, const FString& Value)
+{
+	FConfigSection* Section = FindOrAddSectionInternal(SectionName);
+	Section->Add(Key, FConfigValue(Value));
+	Dirty = true;
+	return true;
+}
+
+bool FConfigFile::AddUniqueToSection(const TCHAR* SectionName, FName Key, const FString& Value)
+{
+	FConfigSection* Section = FindOrAddSectionInternal(SectionName);
+	if (Section->FindPair(Key, Value))
+	{
+		return false;
+	}
+	
+	// just call Add since we already checked above if it exists (AddUnique can't return whether or not it existed)
+	Section->Add(Key, FConfigValue(Value));
+	Dirty = true;
+	return true;
+}
+
+bool FConfigFile::RemoveKeyFromSection(const TCHAR* SectionName, FName Key)
+{
+	FConfigSection* Section = FindInternal(SectionName);
+	// if it doesn't contain the key for any number of values
+	if (Section == nullptr || !Section->Contains(Key))
+	{
+		return false;
+	}
+
+	Section->Remove(Key);
+	Dirty = true;
+	return true;
+}
+
+bool FConfigFile::RemoveFromSection(const TCHAR* SectionName, FName Key, const FString& Value)
+{
+	FConfigSection* Section = FindInternal(SectionName);
+	// if it doesn't contain the pair, do nothing
+	if (Section == nullptr || !Section->FindPair(Key, Value))
+	{
+		return false;
+	}
+
+	// remove any copies of the pair
+	Section->Remove(Key, Value);
+	Dirty = true;
+	return true;
 }
 
 void FConfigFile::SaveSourceToBackupFile()
@@ -2010,7 +2071,7 @@ void FConfigFile::ProcessSourceAndCheckAgainstBackup()
 		{
 			const FString& SectionName = SectionIterator.Key();
 			const FConfigSection& SourceSection = SectionIterator.Value();
-			const FConfigSection* BackupSection = BackupFile.Find( SectionName );
+			const FConfigSection* BackupSection = BackupFile.FindSection( SectionName );
 
 			if( BackupSection && SourceSection != *BackupSection )
 			{
@@ -2364,14 +2425,14 @@ void FConfigCacheIni::Parse1ToNSectionOfNames(const TCHAR* Section, const TCHAR*
 	}
 
 	// find the section in the file
-	FConfigSectionMap* ConfigSection = ConfigFile->Find(Section);
+	const FConfigSectionMap* ConfigSection = ConfigFile->FindSection(Section);
 	if (!ConfigSection)
 	{
 		return;
 	}
 
 	TArray<FName>* WorkingList = nullptr;
-	for( FConfigSectionMap::TIterator It(*ConfigSection); It; ++It )
+	for( FConfigSectionMap::TConstIterator It(*ConfigSection); It; ++It )
 	{
 		// is the current key the 1 key?
 		if (It.Key().ToString().StartsWith(KeyOne))
@@ -2429,14 +2490,14 @@ void FConfigCacheIni::Parse1ToNSectionOfStrings(const TCHAR* Section, const TCHA
 	}
 
 	// find the section in the file
-	FConfigSectionMap* ConfigSection = ConfigFile->Find(Section);
+	const FConfigSectionMap* ConfigSection = ConfigFile->FindSection(Section);
 	if (!ConfigSection)
 	{
 		return;
 	}
 
 	TArray<FString>* WorkingList = nullptr;
-	for( FConfigSectionMap::TIterator It(*ConfigSection); It; ++It )
+	for( FConfigSectionMap::TConstIterator It(*ConfigSection); It; ++It )
 	{
 		// is the current key the 1 key?
 		if (It.Key().ToString().StartsWith(KeyOne))
@@ -2522,7 +2583,7 @@ bool FConfigCacheIni::GetString( const TCHAR* Section, const TCHAR* Key, FString
 	{
 		return false;
 	}
-	FConfigSection* Sec = File->Find( Section );
+	const FConfigSection* Sec = File->FindSection( Section );
 	if( !Sec )
 	{
 #if !UE_BUILD_SHIPPING
@@ -2550,7 +2611,7 @@ bool FConfigCacheIni::GetText( const TCHAR* Section, const TCHAR* Key, FText& Va
 	{
 		return false;
 	}
-	FConfigSection* Sec = File->Find( Section );
+	const FConfigSection* Sec = File->FindSection( Section );
 	if( !Sec )
 	{
 #if !UE_BUILD_SHIPPING
@@ -2582,13 +2643,13 @@ bool FConfigCacheIni::GetSection( const TCHAR* Section, TArray<FString>& Result,
 	{
 		return false;
 	}
-	FConfigSection* Sec = File->Find( Section );
+	const FConfigSection* Sec = File->FindSection( Section );
 	if (!Sec)
 	{
 		return false;
 	}
 	Result.Reserve(Sec->Num());
-	for (FConfigSection::TIterator It(*Sec); It; ++It)
+	for (FConfigSection::TConstIterator It(*Sec); It; ++It)
 	{
 		Result.Add(FString::Printf(TEXT("%s=%s"), *It.Key().ToString(), *It.Value().GetValue()));
 	}
@@ -2600,19 +2661,30 @@ bool FConfigCacheIni::GetSection( const TCHAR* Section, TArray<FString>& Result,
 
 FConfigSection* FConfigCacheIni::GetSectionPrivate( const TCHAR* Section, const bool Force, const bool Const, const FString& Filename )
 {
+	FConfigSection* Sec = const_cast<FConfigSection*>(GetSection(Section, Force, Filename));
+	
+	// handle the non-const case
+	if ((!Const || Force) && Sec != nullptr)
+	{
+		FConfigFile* File = Find(Filename);
+		File->Dirty = true;
+	}
+
+	return Sec;
+}
+
+const FConfigSection* FConfigCacheIni::GetSection( const TCHAR* Section, const bool Force, const FString& Filename )
+{
 	FRemoteConfig::Get()->FinishRead(*Filename); // Ensure the remote file has been loaded and processed
 	FConfigFile* File = Find(Filename);
 	if (!File)
 	{
 		return nullptr;
 	}
-	FConfigSection* Sec = File->Find( Section );
+	const FConfigSection* Sec = File->FindSection( Section );
 	if (!Sec && Force)
 	{
 		Sec = &File->Add(Section, FConfigSection());
-	}
-	if (Sec && (Force || !Const))
-	{
 		File->Dirty = true;
 	}
 
@@ -2631,7 +2703,7 @@ bool FConfigCacheIni::DoesSectionExist(const TCHAR* Section, const FString& File
 	FRemoteConfig::Get()->FinishRead(*Filename); // Ensure the remote file has been loaded and processed
 	FConfigFile* File = Find(Filename);
 
-	bReturnVal = (File != nullptr && File->Find(Section) != nullptr);
+	bReturnVal = (File != nullptr && File->FindSection(Section) != nullptr);
 
 	if (bReturnVal)
 	{
@@ -2662,7 +2734,7 @@ void FConfigCacheIni::SetText( const TCHAR* Section, const TCHAR* Key, const FTe
 		return;
 	}
 
-	FConfigSection* Sec = File->FindOrAddSection( Section );
+	FConfigSection* Sec = File->FindOrAddSectionInternal( Section );
 
 	FString StrValue;
 	FTextStringHelper::WriteToBuffer(StrValue, Value);
@@ -2686,14 +2758,10 @@ bool FConfigCacheIni::RemoveKey( const TCHAR* Section, const TCHAR* Key, const F
 	FConfigFile* File = Find(Filename);
 	if( File )
 	{
-		FConfigSection* Sec = File->Find( Section );
-		if( Sec )
+		if (File->RemoveKeyFromSection(Section, Key))
 		{
-			if( Sec->Remove(Key) > 0 )
-			{
-				File->Dirty = 1;
-				return true;
-			}
+			File->Dirty = 1;
+			return true;
 		}
 	}
 	return false;
@@ -2704,14 +2772,9 @@ bool FConfigCacheIni::EmptySection( const TCHAR* Section, const FString& Filenam
 	FConfigFile* File = Find(Filename);
 	if( File )
 	{
-		FConfigSection* Sec = File->Find( Section );
 		// remove the section name if there are no more properties for this section
-		if( Sec )
+		if(File->FindSection(Section) != nullptr)
 		{
-			if ( FConfigSection::TIterator(*Sec) )
-			{
-				Sec->Empty();
-			}
 			File->Remove(Section);
 			if (bAreFileOperationsDisabled == false)
 			{
@@ -2861,7 +2924,7 @@ void FConfigCacheIni::Exit()
 #endif
 }
 
-static void DumpFile(FOutputDevice& Ar, const FString& Filename, const FConfigFile& File)
+void FConfigCacheIni::DumpFile(FOutputDevice& Ar, const FString& Filename, const FConfigFile& File)
 {
 	Ar.Logf(TEXT("FileName: %s"), *Filename);
 	for (FConfigFile::TConstIterator FileIt(File); FileIt; ++FileIt)
@@ -3274,6 +3337,43 @@ void FConfigCacheIni::SetRotator
 }
 
 
+bool FConfigCacheIni::AddToSection(const TCHAR* Section, FName Key, const FString& Value, const FString& Filename)
+{
+	if (FConfigFile* File = Find(*Filename))
+	{
+		return File->AddToSection(Section, Key, Value);
+	}
+	return false;
+}
+
+bool FConfigCacheIni::AddUniqueToSection(const TCHAR* Section, FName Key, const FString& Value, const FString& Filename)
+{
+	if (FConfigFile* File = Find(*Filename))
+	{
+		return File->AddUniqueToSection(Section, Key, Value);
+	}
+	return false;
+}
+
+bool FConfigCacheIni::RemoveKeyFromSection(const TCHAR* Section, FName Key, const FString& Filename)
+{
+	if (FConfigFile* File = Find(*Filename))
+	{
+		return File->RemoveKeyFromSection(Section, Key);
+	}
+	return false;
+}
+
+bool FConfigCacheIni::RemoveFromSection(const TCHAR* Section, FName Key, const FString& Value, const FString& Filename)
+{
+	if (FConfigFile* File = Find(*Filename))
+	{
+		return File->RemoveFromSection(Section, Key, Value);
+	}
+	return false;
+}
+
+
 /**
  * Archive for counting config file memory usage.
  */
@@ -3476,13 +3576,13 @@ bool FConfigCacheIni::ForEachEntry(const FKeyValueSink& Visitor, const TCHAR* Se
 		return false;
 	}
 
-	FConfigSection* Sec = File->Find(Section);
+	const FConfigSection* Sec = File->FindSection(Section);
 	if(!Sec)
 	{
 		return false;
 	}
 
-	for(FConfigSectionMap::TIterator It(*Sec); It; ++It)
+	for(FConfigSectionMap::TConstIterator It(*Sec); It; ++It)
 	{
 		Visitor.Execute(*It.Key().GetPlainNameString(), *It.Value().GetValue());
 	}
@@ -3783,7 +3883,7 @@ static void InitializeConfigRemap()
 		
 		Context.Load(*FPaths::Combine(Pass == 0 ? FPaths::EngineDir() : FPaths::ProjectDir(), TEXT("Config/ConfigRedirects.ini")));
 		
-		for (const TPair<FString, FConfigSection>& Section : RemapFile)
+		for (const TPair<FString, FConfigSection>& Section : AsConst(RemapFile))
 		{
 			if (Section.Key == TEXT("SectionNameRemap"))
 			{
@@ -4408,7 +4508,7 @@ private:
 bool FConfigFile::UpdateSinglePropertyInSection(const TCHAR* DiskFilename, const TCHAR* PropertyName, const TCHAR* SectionName)
 {
 	TOptional<FString> PropertyValue;
-	if (const FConfigSection* LocalSection = this->Find(SectionName))
+	if (const FConfigSection* LocalSection = this->FindSection(SectionName))
 	{
 		if (const FConfigValue* ConfigValue = LocalSection->Find(PropertyName))
 		{

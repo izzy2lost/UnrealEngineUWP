@@ -2454,7 +2454,7 @@ void CheckMissingSection(const FString& SectionName, const FString& IniFilename)
 	};
 	static FMissingSections MissingSections[MISSINGSECTIONS_BUCKETS];
 
-	FConfigSection* Sec = GConfig->GetSectionPrivate(*SectionName, false, true, *IniFilename);
+	const FConfigSection* Sec = GConfig->GetSection(*SectionName, false, *IniFilename);
 
 	if (Sec == nullptr)
 	{
@@ -2476,7 +2476,7 @@ void CheckMissingSection(const FString& SectionName, const FString& IniFilename)
 			FString ShortSectionName = FPackageName::GetShortName(SectionName);
 			if (ShortSectionName != SectionName)
 			{
-				Sec = GConfig->GetSectionPrivate(*ShortSectionName, false, true, *IniFilename);
+				Sec = GConfig->GetSection(*ShortSectionName, false, *IniFilename);
 				if (Sec != nullptr)
 				{
 					UE_LOG(LogObj, Fatal, TEXT("Short class section names (%s) are not supported, please use long name: %s"), *ShortSectionName, *SectionName);
@@ -2685,7 +2685,7 @@ void UObject::LoadConfig( UClass* ConfigClass/*=NULL*/, const TCHAR* InFilename/
 		{
 			OverrideConfigFile = FConfigCacheIni::FindOrLoadPlatformConfig(LocalOverrideConfig, *GetClass()->ClassConfigName.ToString(), *PreviewPlatform.ToString());
 			bUseConfigOverride = true;
-		}
+	}
 	}
 #endif
 
@@ -2756,11 +2756,11 @@ void UObject::LoadConfig( UClass* ConfigClass/*=NULL*/, const TCHAR* InFilename/
 	{
 		if (bUseConfigOverride)
 		{
-			return OverrideConfigFile->Find(SectionName);
+			return OverrideConfigFile->FindSection(SectionName);
 		}
 		else
 		{
-			return GConfig->GetSectionPrivate(SectionName, false, true, ConfigFilename);
+			return GConfig->GetSection(SectionName, false, ConfigFilename);
 		}
 	};
 
@@ -2869,7 +2869,7 @@ void UObject::LoadConfig( UClass* ConfigClass/*=NULL*/, const TCHAR* InFilename/
 			}
 #endif
 
-			FConfigSection* Sec = GetConfigSection(*ClassSection, *PropFileName);
+			const FConfigSection* Sec = GetConfigSection(*ClassSection, *PropFileName);
 			if (!Sec && bPerObject && ClassPathSection.Len())
 			{
 				Sec = GetConfigSection(*ClassPathSection, *PropFileName);
@@ -3039,13 +3039,13 @@ void UObject::SaveConfig( uint64 Flags, const TCHAR* InFilename, FConfigCacheIni
 			FArrayProperty* Array   = CastField<FArrayProperty>( Property );
 			if( Array )
 			{
-				FConfigSection* Sec = Config->GetSectionPrivate(*Section, 1, 0, PropFileName);
+				const FConfigSection* Sec = Config->GetSection(*Section, 1, PropFileName);
 				// Default ini's require the array syntax to be applied to the property name
 				FString CompleteKey = FString::Printf(TEXT("%s%s"), bIsADefaultIniWrite ? TEXT("+") : TEXT(""), *Key);
 				if (Sec)
 				{
 					// Delete the old value for the property in the ConfigCache before (conditionally) adding in the new value
-					Sec->Remove(*CompleteKey);
+					Config->RemoveKeyFromSection(*Section, *CompleteKey, PropFileName);
 				}
 
 				if (!bPropDeprecated && (!bShouldCheckIfIdenticalBeforeAdding || !Property->Identical_InContainer(this, SuperClassDefaultObject)))
@@ -3056,12 +3056,12 @@ void UObject::SaveConfig( uint64 Flags, const TCHAR* InFilename, FConfigCacheIni
 					{
 						FString	Buffer;
 						Array->Inner->ExportTextItem_Direct( Buffer, ArrayHelper.GetRawPtr(i), ArrayHelper.GetRawPtr(i), this, PortFlags );
-						Sec->Add(*CompleteKey, *Buffer);
+						Config->AddToSection(*Section, *CompleteKey, *Buffer, PropFileName);
 					}
 					if (ArrayHelper.Num() == 0 && bIsADefaultIniWrite)
 					{
 						const FString EmptyKey = FString::Printf(TEXT("!%s"), *Key);
-						Sec->Add(*EmptyKey, TEXT("__ClearArray__"));
+						Config->AddToSection(*Section, *EmptyKey, TEXT("__ClearArray__"), PropFileName);
 					}
 				}
 			}
@@ -5034,12 +5034,12 @@ void StaticUObjectInit()
 
 	if (IConsoleVariable* CVarVerifyGCAssumptions = IConsoleManager::Get().FindConsoleVariable(TEXT("gc.VerifyAssumptions")))
 	{
-		if( FParse::Param( FCommandLine::Get(), TEXT("VERIFYGC") ) )
-		{
+	if( FParse::Param( FCommandLine::Get(), TEXT("VERIFYGC") ) )
+	{
 			CVarVerifyGCAssumptions->Set(true, ECVF_SetByCommandline);
-		}
-		if( FParse::Param( FCommandLine::Get(), TEXT("NOVERIFYGC") ) )
-		{
+	}
+	if( FParse::Param( FCommandLine::Get(), TEXT("NOVERIFYGC") ) )
+	{
 			CVarVerifyGCAssumptions->Set(false, ECVF_SetByCommandline);
 		}
 	}

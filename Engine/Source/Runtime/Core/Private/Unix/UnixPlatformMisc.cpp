@@ -1772,10 +1772,7 @@ bool FUnixPlatformMisc::SetStoredValues(const FString& InStoreId, const FString&
 	{
 		check(!InKeyValue.Key.IsEmpty());
 
-		FConfigSection& Section = ConfigFile.FindOrAdd(InSectionName);
-
-		FConfigValue& KeyValue = Section.FindOrAdd(*InKeyValue.Key);
-		KeyValue = FConfigValue(InKeyValue.Value);
+		ConfigFile.SetString(*InSectionName, *InKeyValue.Key, *InKeyValue.Value);
 	}
 
 	ConfigFile.Dirty = true;

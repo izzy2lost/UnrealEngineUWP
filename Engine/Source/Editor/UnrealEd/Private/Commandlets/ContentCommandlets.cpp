@@ -2643,9 +2643,9 @@ int32 UWrangleContentCommandlet::Main( const FString& Params )
 		}
 
 		// get a list of packages to load
-		const FConfigSection* PackagesToFullyLoadSection = GConfig->GetSectionPrivate(*PackagesToFullyLoadSectionName, 0, 1, *WrangleContentIniName);
-		const FConfigSection* StartupPackages = GConfig->GetSectionPrivate(TEXT("/Script/Engine.StartupPackages"), 0, 1, GEngineIni);
-		const FConfigSection* CollectionsToFullyLoadSection = GConfig->GetSectionPrivate(*CollectionsToFullyLoadSectionName, 0, 1, *WrangleContentIniName);
+		const FConfigSection* PackagesToFullyLoadSection = GConfig->GetSection(*PackagesToFullyLoadSectionName, 0, *WrangleContentIniName);
+		const FConfigSection* StartupPackages = GConfig->GetSection(TEXT("/Script/Engine.StartupPackages"), 0, GEngineIni);
+		const FConfigSection* CollectionsToFullyLoadSection = GConfig->GetSection(*CollectionsToFullyLoadSectionName, 0, *WrangleContentIniName);
 
 		// we expect either the .ini to exist, or -allmaps to be specified
 		if (!PackagesToFullyLoadSection && !bShouldLoadAllMaps && !CollectionsToFullyLoadSection)

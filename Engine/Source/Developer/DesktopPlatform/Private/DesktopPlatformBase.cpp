@@ -1518,12 +1518,12 @@ bool FDesktopPlatformBase::EnumerateProjectsKnownByEngine(const FString &Identif
 	}
 
 	// Find the editor game-agnostic settings
-	FConfigSection* Section = GameAgnosticConfig.Find(TEXT("/Script/UnrealEd.EditorSettings"));
+	const FConfigSection* Section = GameAgnosticConfig.FindSection(TEXT("/Script/UnrealEd.EditorSettings"));
 
 	if (Section == NULL)
 	{
 		FConfigCacheIni::LoadExternalIniFile(GameAgnosticConfig, TEXT("EditorGameAgnostic"), NULL, *GameAgnosticConfigDir, false);
-		Section = GameAgnosticConfig.Find(TEXT("/Script/UnrealEd.EditorGameAgnosticSettings"));
+		Section = GameAgnosticConfig.FindSection(TEXT("/Script/UnrealEd.EditorGameAgnosticSettings"));
 	}
 
 	if (GameAgnosticConfig.IsEmpty())

@@ -3009,7 +3009,7 @@ void UEditorEngine::ParseMapSectionIni(const TCHAR* InCmdParams, TArray<FString>
 void UEditorEngine::LoadMapListFromIni(const FString& InSectionName, TArray<FString>& OutMapList)
 {
 	// 
-	FConfigSection* MapListList = GConfig->GetSectionPrivate(*InSectionName, false, true, GEditorIni);
+	const FConfigSection* MapListList = GConfig->GetSection(*InSectionName, false, GEditorIni);
 	if (MapListList)
 	{
 		for (FConfigSectionMap::TConstIterator It(*MapListList) ; It ; ++It)

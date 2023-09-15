@@ -1302,8 +1302,7 @@ bool FPluginManager::IntegratePluginsIntoConfig(FConfigCacheIni& ConfigSystem, c
 			{
 				// we need to look up the section each time because other loops could add entries
 				FConfigFile* EngineConfigFile = ConfigSystem.FindConfigFile(EngineIniName);
-				FConfigSection* CoreSystemSection = EngineConfigFile->FindOrAddSection(TEXT("Core.System"));
-				CoreSystemSection->AddUnique("Paths", Plugin.GetContentDir());
+				EngineConfigFile->AddUniqueToSection(TEXT("Core.System"), "Paths", Plugin.GetContentDir());
 			}
 		}
 	}
@@ -1873,10 +1872,7 @@ bool FPluginManager::ConfigureEnabledPlugins()
 						// we need to look up the section each time because other loops could add entries
 						if (FConfigFile* EngineConfigFile = GConfig->FindConfigFile(GEngineIni))
 						{
-							if (FConfigSection* CoreSystemSection = EngineConfigFile->Find(TEXT("Core.System")))
-							{
-								CoreSystemSection->AddUnique("Paths", Plugin.GetContentDir());
-							}
+							EngineConfigFile->AddUniqueToSection(TEXT("Core.System"), "Paths", Plugin.GetContentDir());
 						}
 					}
 
@@ -2954,10 +2950,7 @@ void FPluginManager::MountPluginFromExternalSource(const TSharedRef<FPlugin>& Pl
 		{
 			if (FConfigFile* EngineConfigFile = GConfig->Find(GEngineIni))
 			{
-				if (FConfigSection* CoreSystemSection = EngineConfigFile->Find(TEXT("Core.System")))
-				{
-					CoreSystemSection->AddUnique("Paths", MoveTemp(ContentDir));
-				}
+				EngineConfigFile->AddUniqueToSection(TEXT("Core.System"), "Paths", MoveTemp(ContentDir));
 			}
 
 			// Update the localization cache for the newly added content directory
@@ -3080,10 +3073,7 @@ bool FPluginManager::UnmountExplicitlyLoadedPlugin(const FString& PluginName, FT
 		{
 			if (FConfigFile* EngineConfigFile = GConfig->Find(GEngineIni))
 			{
-				if (FConfigSection* CoreSystemSection = EngineConfigFile->Find(TEXT("Core.System")))
-				{
-					CoreSystemSection->Remove("Paths", Plugin->GetContentDir());
-				}
+				EngineConfigFile->RemoveFromSection(TEXT("Core.System"), "Paths", Plugin->GetContentDir());
 			}
 		}
 
