@@ -976,7 +976,16 @@ void UEditorLevelUtils::PrivateRemoveLevelFromWorld(ULevel* InLevel)
 
 	IStreamingManager::Get().RemoveLevel(InLevel);
 	UWorld* World = InLevel->OwningWorld;
-	World->RemoveLevel(InLevel);
+	if (World->ContainsLevel(InLevel))
+	{
+		// Manually call level removal world delegates PreLevelRemovedFromWorld/LevelRemovedFromWorld to simulate what UWorld::RemoveFromWorld does.
+		FWorldDelegates::PreLevelRemovedFromWorld.Broadcast(InLevel, World);
+		if (World->RemoveLevel(InLevel))
+		{
+			FWorldDelegates::LevelRemovedFromWorld.Broadcast(InLevel, World);
+		}
+	}
+
 	if (InLevel->bIsLightingScenario)
 	{
 		World->PropagateLightingScenarioChange();

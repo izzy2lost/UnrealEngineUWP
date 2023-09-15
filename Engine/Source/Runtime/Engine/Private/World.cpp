@@ -8072,7 +8072,6 @@ bool UWorld::RemoveLevel( ULevel* InLevel )
 	bool bRemovedLevel = false;
 	if(ContainsLevel( InLevel ) == true )
 	{
-		FWorldDelegates::PreLevelRemovedFromWorld.Broadcast(InLevel, this);
 		bRemovedLevel = true;
 		
 #if WITH_EDITOR
@@ -8082,7 +8081,6 @@ bool UWorld::RemoveLevel( ULevel* InLevel )
 		}
 #endif //WITH_EDITOR
 		Levels.Remove( InLevel );
-		FWorldDelegates::LevelRemovedFromWorld.Broadcast(InLevel, this);
 		BroadcastLevelsChanged();
 	}
 	return bRemovedLevel;
