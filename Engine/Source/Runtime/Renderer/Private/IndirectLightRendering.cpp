@@ -1166,7 +1166,6 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 		bool bWritableAmbientOcclusionMask = true;
 		if (ViewPipelineState.AmbientOcclusionMethod == EAmbientOcclusionMethod::Disabled)
 		{
-			ensure(!HasBeenProduced(SceneTextures.ScreenSpaceAO));
 			AmbientOcclusionMask = nullptr;
 			bWritableAmbientOcclusionMask = false;
 		}
