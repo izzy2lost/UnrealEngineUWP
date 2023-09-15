@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
@@ -39,7 +38,6 @@ namespace EpicGames.Horde.Compute.Clients
 		readonly Socket _listener;
 		readonly Socket _socket;
 		readonly bool _executeInProcess;
-		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
@@ -50,7 +48,6 @@ namespace EpicGames.Horde.Compute.Clients
 		/// <param name="logger">Logger for diagnostic output</param>
 		public LocalComputeClient(int port, DirectoryReference sandboxDir, bool executeInProcess, ILogger logger)
 		{
-			_logger = logger;
 			_executeInProcess = executeInProcess;
 
 			_listener = new Socket(SocketType.Stream, ProtocolType.IP);
