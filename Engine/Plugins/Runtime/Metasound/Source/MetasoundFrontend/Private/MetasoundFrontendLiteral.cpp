@@ -78,6 +78,14 @@ namespace MetasoundFrontendLiteralPrivate
 		// (c++ does not allow partial specialization of functions)
 		return TLiteralValueToStringHelper<Type>::Convert(InType);
 	}
+	
+	template <typename TLiteralType>
+	FMetasoundFrontendLiteral CreatePODMetaSoundLiteral(const TLiteralType& Value)
+	{
+		FMetasoundFrontendLiteral Literal;
+		Literal.Set(Value);
+		return Literal;
+	}
 }
 
 FMetasoundFrontendLiteral::FMetasoundFrontendLiteral(const FAudioParameter& InParameter)
@@ -870,4 +878,63 @@ namespace Metasound
 	}
 }
 
+FMetasoundFrontendLiteral UMetasoundFrontendLiteralBlueprintAccess::CreateBoolMetaSoundLiteral(bool Value)
+{
+	return MetasoundFrontendLiteralPrivate::CreatePODMetaSoundLiteral(Value);
+}
 
+FMetasoundFrontendLiteral UMetasoundFrontendLiteralBlueprintAccess::CreateBoolArrayMetaSoundLiteral(
+	const TArray<bool>& Value)
+{
+	return MetasoundFrontendLiteralPrivate::CreatePODMetaSoundLiteral(Value);
+}
+
+FMetasoundFrontendLiteral UMetasoundFrontendLiteralBlueprintAccess::CreateFloatMetaSoundLiteral(float Value)
+{
+	return MetasoundFrontendLiteralPrivate::CreatePODMetaSoundLiteral(Value);
+}
+
+FMetasoundFrontendLiteral UMetasoundFrontendLiteralBlueprintAccess::CreateFloatArrayMetaSoundLiteral(
+	const TArray<float>& Value)
+{
+	return MetasoundFrontendLiteralPrivate::CreatePODMetaSoundLiteral(Value);
+}
+
+FMetasoundFrontendLiteral UMetasoundFrontendLiteralBlueprintAccess::CreateIntMetaSoundLiteral(int32 Value)
+{
+	return MetasoundFrontendLiteralPrivate::CreatePODMetaSoundLiteral(Value);
+}
+
+FMetasoundFrontendLiteral UMetasoundFrontendLiteralBlueprintAccess::CreateIntArrayMetaSoundLiteral(
+	const TArray<int32>& Value)
+{
+	return MetasoundFrontendLiteralPrivate::CreatePODMetaSoundLiteral(Value);
+}
+
+FMetasoundFrontendLiteral UMetasoundFrontendLiteralBlueprintAccess::CreateObjectMetaSoundLiteral(UObject* Value)
+{
+	return MetasoundFrontendLiteralPrivate::CreatePODMetaSoundLiteral(Value);
+}
+
+FMetasoundFrontendLiteral UMetasoundFrontendLiteralBlueprintAccess::CreateObjectArrayMetaSoundLiteral(
+	const TArray<UObject*>& Value)
+{
+	return MetasoundFrontendLiteralPrivate::CreatePODMetaSoundLiteral(Value);
+}
+
+FMetasoundFrontendLiteral UMetasoundFrontendLiteralBlueprintAccess::CreateStringMetaSoundLiteral(const FString& Value)
+{
+	return MetasoundFrontendLiteralPrivate::CreatePODMetaSoundLiteral(Value);
+}
+
+FMetasoundFrontendLiteral UMetasoundFrontendLiteralBlueprintAccess::CreateStringArrayMetaSoundLiteral(
+	const TArray<FString>& Value)
+{
+	return MetasoundFrontendLiteralPrivate::CreatePODMetaSoundLiteral(Value);
+}
+
+FMetasoundFrontendLiteral UMetasoundFrontendLiteralBlueprintAccess::CreateMetaSoundLiteralFromParam(
+	const FAudioParameter& Param)
+{
+	return FMetasoundFrontendLiteral{ Param };
+}
