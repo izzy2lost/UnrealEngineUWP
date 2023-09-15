@@ -32,6 +32,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = Settings)
 	bool bResetOnBecomingRelevant = true;
 
+	UPROPERTY(EditAnywhere, Category = Settings)
+	FLinearColor DebugColor = FLinearColor::Red;
+
 	// Update Counter for detecting being relevant
 	FGraphTraversalCounter UpdateCounter;
 

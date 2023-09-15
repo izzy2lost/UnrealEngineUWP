@@ -311,17 +311,8 @@ float FPoseHistory::GetSampleTimeInterval() const
 }
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-void FPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy) const
+void FPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color) const
 {
-	auto LerpColor = [](FColor A, FColor B, float T) -> FColor
-	{
-		return FColor(
-			FMath::RoundToInt(float(A.R) * (1.f - T) + float(B.R) * T),
-			FMath::RoundToInt(float(A.G) * (1.f - T) + float(B.G) * T),
-			FMath::RoundToInt(float(A.B) * (1.f - T) + float(B.B) * T),
-			FMath::RoundToInt(float(A.A) * (1.f - T) + float(B.A) * T));
-	};
-
 	TArray<FTransform> PrevGlobalTransforms;
 	for (int32 EntryIndex = 0; EntryIndex < Entries.Num(); ++EntryIndex)
 	{
@@ -340,9 +331,6 @@ void FPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy) const
 		}
 		else
 		{
-			const float LerpFactor = float(EntryIndex - 1) / float(Entries.Num() - 1);
-			const FColor Color = LerpColor(FColorList::Red, FColorList::Orange, LerpFactor);
-
 			for (int32 i = 0; i < Entry.ComponentSpaceTransforms.Num(); ++i)
 			{
 				const FTransform GlobalTransforms = Entry.ComponentSpaceTransforms[i] * Entry.RootTransform;
@@ -426,18 +414,9 @@ void FExtendedPoseHistory::AddFuturePose(float SecondsInTheFuture, FCSPose<FComp
 }
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-void FExtendedPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy) const
+void FExtendedPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor PastColor, FColor FutureColor) const
 {
 	check(PoseHistory);
-
-	auto LerpColor = [](FColor A, FColor B, float T) -> FColor
-	{
-		return FColor(
-			FMath::RoundToInt(float(A.R) * (1.f - T) + float(B.R) * T),
-			FMath::RoundToInt(float(A.G) * (1.f - T) + float(B.G) * T),
-			FMath::RoundToInt(float(A.B) * (1.f - T) + float(B.B) * T),
-			FMath::RoundToInt(float(A.A) * (1.f - T) + float(B.A) * T));
-	};
 
 	TArray<FTransform> PrevGlobalTransforms;
 	for (int32 EntryIndex = 0; EntryIndex < FutureEntries.Num(); ++EntryIndex)
@@ -457,21 +436,18 @@ void FExtendedPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy) cons
 		}
 		else
 		{
-			const float LerpFactor = float(EntryIndex - 1) / float(FutureEntries.Num() - 1);
-			const FColor Color = LerpColor(FColorList::Green, FColorList::Violet, LerpFactor);
-
 			for (int32 i = 0; i < Entry.ComponentSpaceTransforms.Num(); ++i)
 			{
 				const FTransform GlobalTransforms = Entry.ComponentSpaceTransforms[i] * Entry.RootTransform;
 
-				AnimInstanceProxy.AnimDrawDebugLine(PrevGlobalTransforms[i].GetTranslation(), GlobalTransforms.GetTranslation(), Color, false, 0.f, ESceneDepthPriorityGroup::SDPG_Foreground);
+				AnimInstanceProxy.AnimDrawDebugLine(PrevGlobalTransforms[i].GetTranslation(), GlobalTransforms.GetTranslation(), FutureColor, false, 0.f, ESceneDepthPriorityGroup::SDPG_Foreground);
 
 				PrevGlobalTransforms[i] = GlobalTransforms;
 			}
 		}
 	}
 
-	PoseHistory->DebugDraw(AnimInstanceProxy);
+	PoseHistory->DebugDraw(AnimInstanceProxy, PastColor);
 }
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 

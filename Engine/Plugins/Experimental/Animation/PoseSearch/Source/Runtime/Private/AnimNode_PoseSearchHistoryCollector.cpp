@@ -133,7 +133,7 @@ void FAnimNode_PoseSearchHistoryCollector::Evaluate_AnyThread(FPoseContext& Outp
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 	if (CVarAnimPoseHistoryDebugDraw.GetValueOnAnyThread())
 	{
-		PoseHistory.DebugDraw(*Output.AnimInstanceProxy);
+		PoseHistory.DebugDraw(*Output.AnimInstanceProxy, DebugColor.ToFColor(true));
 	}
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 }
@@ -185,7 +185,7 @@ void FAnimNode_PoseSearchComponentSpaceHistoryCollector::EvaluateComponentSpace_
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 	if (CVarAnimPoseHistoryDebugDraw.GetValueOnAnyThread())
 	{
-		PoseHistory.DebugDraw(*Output.AnimInstanceProxy);
+		PoseHistory.DebugDraw(*Output.AnimInstanceProxy, DebugColor.ToFColor(true));
 	}
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 }

@@ -73,7 +73,7 @@ struct FPoseHistory : public IPoseHistory
 	static bool LerpEntries(const FPoseHistoryEntry& PrevEntry, const FPoseHistoryEntry& NextEntry, float LerpValue, const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton, const FBoneToTransformMap& BoneToTransformMap, FBoneIndexType BoneIndexType, FBoneIndexType ReferenceBoneIndexType, FTransform& OutBoneTransform);
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-	void DebugDraw(FAnimInstanceProxy& AnimInstanceProxy) const;
+	void DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color) const;
 #endif
 
 private:
@@ -104,7 +104,7 @@ struct FExtendedPoseHistory : public IPoseHistory
 	void AddFuturePose(float SecondsInTheFuture, FCSPose<FCompactPose>& ComponentSpacePose, const FTransform& ComponentTransform);
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-	void DebugDraw(FAnimInstanceProxy& AnimInstanceProxy) const;
+	void DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor PastColor, FColor FutureColor) const;
 #endif
 
 private:

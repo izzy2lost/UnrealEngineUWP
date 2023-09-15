@@ -459,6 +459,10 @@ void UPoseSearchLibrary::MotionMatch(
 	FMemMark Mark(FMemStack::Get());
 	if (Database && AnimInstance)
 	{
+#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+		FColor HistoryCollectorColor = FColor::Red;
+#endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+
 		const FPoseSearchQueryTrajectory TrajectoryRootSpace = ProcessTrajectory(Trajectory, 0.f, 0.f, TrajectorySpeedMultiplier);
 
 		// ExtendedPoseHistory will hold future poses to match AssetSamplerBase (at FutureAnimationStartTime) TimeToFutureAnimationStart seconds in the future
@@ -470,6 +474,9 @@ void UPoseSearchLibrary::MotionMatch(
 				if (const FAnimNode_PoseSearchHistoryCollector_Base* PoseHistoryNode = TagSubsystem->FindNodeByTag<FAnimNode_PoseSearchHistoryCollector_Base>(PoseHistoryName, AnimInstance))
 				{
 					ExtendedPoseHistory.Init(&PoseHistoryNode->GetPoseHistory());
+#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+					HistoryCollectorColor = PoseHistoryNode->DebugColor.ToFColor(true);
+#endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 				}
 			}
 		}
@@ -529,7 +536,7 @@ void UPoseSearchLibrary::MotionMatch(
 			{
 				if (FAnimInstanceProxy* AnimInstanceProxy = UAnimInstanceProxyProvider::GetAnimInstanceProxy(AnimInstance))
 				{
-					ExtendedPoseHistory.DebugDraw(*AnimInstanceProxy);
+					ExtendedPoseHistory.DebugDraw(*AnimInstanceProxy, HistoryCollectorColor, FColor::Green);
 				}
 			}
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
