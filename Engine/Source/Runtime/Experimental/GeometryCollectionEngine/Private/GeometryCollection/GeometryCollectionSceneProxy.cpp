@@ -1088,7 +1088,7 @@ FNaniteGeometryCollectionSceneProxy::FNaniteGeometryCollectionSceneProxy(UGeomet
 		check(MaterialInterface != nullptr);
 
 		// Should always be opaque blend mode here.
-		check(IsOpaqueBlendMode(*MaterialInterface));
+		check(IsOpaqueOrMaskedBlendMode(*MaterialInterface));
 
 		MaterialSections[SectionIndex].ShadingMaterialProxy = MaterialInterface->GetRenderProxy();
 		MaterialSections[SectionIndex].RasterMaterialProxy  = MaterialInterface->GetRenderProxy(); // TODO: PROG_RASTER (Implement programmable raster support)
