@@ -71,22 +71,6 @@ public:
 	UPROPERTY(Transient)
 	TArray<uint16> BoneIndicesWithParents;
 
-	// Cost added to the continuing pose from databases that uses this config. This allows users to apply a cost bias (positive or negative) to the continuing pose.
-	// This is useful to help the system stay in one animation segment longer, or shorter depending on how you set this bias.
-	// Negative values make it more likely to be picked, or stayed in, positive values make it less likely to be picked or stay in.
-	UPROPERTY(EditAnywhere, Category = "Bias")
-	float ContinuingPoseCostBias = -0.01f;
-
-	// Base Cost added or removed to all poses from databases that use this config. It can be overridden by Anim Notify: Pose Search Modify Cost at the frame level of animation data.
-	// Negative values make it more likely to be picked, or stayed in, Positive values make it less likely to be picked or stay in.
-	UPROPERTY(EditAnywhere, Category = "Bias")
-	float BaseCostBias = 0.f;
-
-	// Cost added to all looping animation assets in a database that uses this config. This allows users to make it more or less likely to pick the looping animation segments.
-	// Negative values make it more likely to be picked, or stayed in, Positive values make it less likely to be picked or stay in.
-	UPROPERTY(EditAnywhere, Category = "Bias")
-	float LoopingCostBias = -0.005f;
-
 	// How many times the animation assets of the database using this schema will be indexed.
 	UPROPERTY(EditAnywhere, Category = "Permutations", meta = (ClampMin = "1"))
 	int32 NumberOfPermutations = 1;

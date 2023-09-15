@@ -228,11 +228,36 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Database", DisplayName="Config")
 	TObjectPtr<const UPoseSearchSchema> Schema;
 
+	// Cost added to the continuing pose from this database. This allows users to apply a cost bias (positive or negative) to the continuing pose.
+	// This is useful to help the system stay in one animation segment longer, or shorter depending on how you set this bias.
+	// Negative values make it more likely to be picked, or stayed in, positive values make it less likely to be picked or stay in.
+	// Note: excluded from DDC hash, since used only at runtime in SearchContinuingPose
+	UPROPERTY(EditAnywhere, Category = "Database", meta = (ExcludeFromHash)) 
+	float ContinuingPoseCostBias = -0.01f;
+
+	// Base Cost added or removed to all poses from this database. It can be overridden by Anim Notify: Pose Search Modify Cost at the frame level of animation data.
+	// Negative values make it more likely to be picked, or stayed in, Positive values make it less likely to be picked or stay in.
+	UPROPERTY(EditAnywhere, Category = "Database")
+	float BaseCostBias = 0.f;
+
+	// Cost added to all looping animation assets in this database. This allows users to make it more or less likely to pick the looping animation segments.
+	// Negative values make it more likely to be picked, or stayed in, Positive values make it less likely to be picked or stay in.
+	UPROPERTY(EditAnywhere, Category = "Database")
+	float LoopingCostBias = -0.005f;
+
 	// These settings allow users to trim the start and end of animations in the database to preserve start/end frames for blending, and prevent the system from selecting the very last frames before it blends out.
 	UPROPERTY(EditAnywhere, Category = "Database")
 	FPoseSearchExcludeFromDatabaseParameters ExcludeFromDatabaseParameters;
 
+	UPROPERTY(EditAnywhere, Category="Database")
+	TArray<FInstancedStruct> AnimationAssets;
+
 #if WITH_EDITORONLY_DATA
+	// This optional asset defines a list of databases you want to normalize together. Without it, it would be difficult to compare costs from separately normalized databases containing different types of animation,
+	// like only idles versus only runs animations, given that the range of movement would be dramatically different.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Database")
+	TObjectPtr<const UPoseSearchNormalizationSet> NormalizationSet;
+
 	// Sequences and Blendspaces are deprecated and its data will be part of the AnimationAssets.
 	// All sequences and blend spaces will be added to the AnimationAssets in PostLoad().
 	UPROPERTY()
@@ -245,9 +270,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Preview")
 	TObjectPtr<USkeletalMesh> PreviewMesh = nullptr;
 #endif // WITH_EDITORONLY_DATA
-
-	UPROPERTY(EditAnywhere, Category="Database")
-	TArray<FInstancedStruct> AnimationAssets;
 
 	// This dictates how the database will perform the search.
 	UPROPERTY(EditAnywhere, Category = "Performance")
@@ -286,16 +308,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Performance", meta = (DisplayName = "KNNQueryNumNeighborsWithDuplicates", EditCondition = "PoseSearchMode == EPoseSearchMode::PCAKDTree && PCAValuesPruningSimilarityThreshold > 0", EditConditionHides, ClampMin = "0", ClampMax = "600", UIMin = "1"))
 	int32 KDTreeQueryNumNeighborsWithDuplicates = 0;
 	
-#if WITH_EDITORONLY_DATA
-	// This optional asset defines a list of databases you want to normalize together. Without it, it would be difficult to compare costs from separately normalized databases containing different types of animation,
-	// like only idles versus only runs animations, given that the range of movement would be dramatically different.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Database")
-	TObjectPtr<const UPoseSearchNormalizationSet> NormalizationSet;
-#endif // WITH_EDITORONLY_DATA
-
 private:
 	// Do not use it directly. Use GetSearchIndex / SetSearchIndex interact with it and validate that is ok to do so.
 	UE::PoseSearch::FSearchIndex SearchIndexPrivate;
+
+#if WITH_EDITOR
+	DECLARE_MULTICAST_DELEGATE(FOnDerivedDataRebuildMulticaster);
+	FOnDerivedDataRebuildMulticaster OnDerivedDataRebuild;
+#endif // WITH_EDITOR
 
 public:
 	virtual ~UPoseSearchDatabase();
@@ -334,10 +354,6 @@ public:
 	virtual void BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform) override;
 	virtual bool IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform) override;
 
-private:
-	DECLARE_MULTICAST_DELEGATE(FOnDerivedDataRebuildMulticaster);
-	FOnDerivedDataRebuildMulticaster OnDerivedDataRebuild;
-public:
 	typedef FOnDerivedDataRebuildMulticaster::FDelegate FOnDerivedDataRebuild;
 	void RegisterOnDerivedDataRebuild(const FOnDerivedDataRebuild& Delegate);
 	void UnregisterOnDerivedDataRebuild(void* Unregister);

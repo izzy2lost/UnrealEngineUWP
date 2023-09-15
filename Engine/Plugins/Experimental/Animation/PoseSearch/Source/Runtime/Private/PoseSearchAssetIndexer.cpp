@@ -12,6 +12,7 @@
 #include "PoseSearch/PoseSearchFeatureChannel.h"
 #include "PoseSearch/PoseSearchIndex.h"
 #include "PoseSearch/PoseSearchSchema.h"
+#include "PoseSearch/PoseSearchDatabase.h"
 
 namespace UE::PoseSearch
 {
@@ -80,13 +81,16 @@ static FSamplingParam WrapOrClampSamplingParam(bool bCanWrap, float SamplingPara
 
 //////////////////////////////////////////////////////////////////////////
 // FAssetSamplingContext
-void FAssetSamplingContext::Init(const UMirrorDataTable* InMirrorDataTable, const FBoneContainer& BoneContainer)
+FAssetSamplingContext::FAssetSamplingContext(const UPoseSearchDatabase& Database, const FBoneContainer& BoneContainer)
 {
-	MirrorDataTable = InMirrorDataTable;
+	check(Database.Schema);
+	MirrorDataTable = Database.Schema->MirrorDataTable;
+	BaseCostBias = Database.BaseCostBias;
+	LoopingCostBias = Database.LoopingCostBias;
 
-	if (InMirrorDataTable)
+	if (MirrorDataTable)
 	{
-		InMirrorDataTable->FillCompactPoseAndComponentRefRotations(BoneContainer, CompactPoseMirrorBones, ComponentSpaceRefRotations);
+		MirrorDataTable->FillCompactPoseAndComponentRefRotations(BoneContainer, CompactPoseMirrorBones, ComponentSpaceRefRotations);
 	}
 	else
 	{
@@ -133,8 +137,7 @@ void FAssetIndexer::Process(int32 AssetIdx)
 	for (int32 SampleIdx = GetBeginSampleIdx(); SampleIdx != GetEndSampleIdx(); ++SampleIdx)
 	{
 		const float SampleTime = FMath::Min(CalculateSampleTime(SampleIdx), SequenceLength);
-		float CostAddend = Schema.BaseCostBias;
-		float ContinuingPoseCostAddend = Schema.ContinuingPoseCostBias;
+		float CostAddend = SamplingContext.BaseCostBias;
 		bool bBlockTransition = false;
 
 		TArray<UAnimNotifyState_PoseSearchBase*> NotifyStates;
@@ -153,7 +156,7 @@ void FAssetIndexer::Process(int32 AssetIdx)
 
 		if (AssetSampler.IsLoopable())
 		{
-			CostAddend += Schema.LoopingCostBias;
+			CostAddend += SamplingContext.LoopingCostBias;
 		}
 
 		const int32 ValueOffset = (StartPoseIdx + GetVectorIdx(SampleIdx)) * Schema.SchemaCardinality;

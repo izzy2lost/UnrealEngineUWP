@@ -779,17 +779,6 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const UPoseSearchDa
 	const UPoseSearchSchema* Schema = Database.Schema;
 	check(Schema);
 
-	FBoneContainer BoneContainer;
-	BoneContainer.InitializeTo(Schema->BoneIndicesWithParents, UE::Anim::FCurveFilterSettings(UE::Anim::ECurveFilterMode::DisallowAll), *Schema->Skeleton);
-
-	FAssetSamplingContext SamplingContext;
-	SamplingContext.Init(Schema->MirrorDataTable, BoneContainer);
-
-	if (Owner.IsCanceled())
-	{
-		return false;
-	}
-
 	// Prepare samplers for all animation assets.
 	TArray<FAnimationAssetSampler> Samplers;
 	Samplers.Reserve(256);
@@ -834,6 +823,8 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const UPoseSearchDa
 		}
 	}
 
+	FBoneContainer BoneContainer;
+	BoneContainer.InitializeTo(Schema->BoneIndicesWithParents, UE::Anim::FCurveFilterSettings(UE::Anim::ECurveFilterMode::DisallowAll), *Schema->Skeleton);
 	ParallelFor(Samplers.Num(), [&Samplers, &BoneContainer](int32 SamplerIdx) { Samplers[SamplerIdx].Process(BoneContainer); }, ParallelForFlags);
 
 	if (Owner.IsCanceled())
@@ -844,6 +835,7 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const UPoseSearchDa
 	// prepare indexers
 	TArray<FAssetIndexer> Indexers;
 	Indexers.Reserve(SearchIndexBase.Assets.Num());
+	FAssetSamplingContext SamplingContext(Database, BoneContainer);
 
 	int32 TotalPoses = 0;
 	for (int32 AssetIdx = 0; AssetIdx != SearchIndexBase.Assets.Num(); ++AssetIdx)

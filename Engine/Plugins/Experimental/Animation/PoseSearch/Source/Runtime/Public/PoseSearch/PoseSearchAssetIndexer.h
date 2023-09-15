@@ -10,6 +10,8 @@
 #include "PoseSearch/PoseSearchFeatureChannel.h"
 #include "PoseSearch/PoseSearchSchema.h"
 
+class UPoseSearchDatabase;
+
 namespace UE::PoseSearch
 {
 
@@ -22,6 +24,9 @@ struct FAssetSamplingContext
 	// Time delta used for computing pose derivatives
 	static constexpr float FiniteDelta = 1 / 60.0f;
 
+	float BaseCostBias = 0.f;
+	float LoopingCostBias = 0.f;
+
 	// Mirror data table pointer copied from Schema for convenience
 	TObjectPtr<const UMirrorDataTable> MirrorDataTable;
 
@@ -32,7 +37,7 @@ struct FAssetSamplingContext
 	// Only initialized and used when a mirroring table is specified
 	TCustomBoneIndexArray<FQuat, FCompactPoseBoneIndex> ComponentSpaceRefRotations;
 
-	void Init(const UMirrorDataTable* InMirrorDataTable, const FBoneContainer& BoneContainer);
+	FAssetSamplingContext(const UPoseSearchDatabase& Database, const FBoneContainer& BoneContainer);
 	FTransform MirrorTransform(const FTransform& Transform) const;
 };
 
