@@ -316,47 +316,75 @@ void UMassActorSpawnerSubsystem::ProcessPendingSpawningRequest(const double MaxT
 			return;
 		}
 
-		// Do the spawning
-		SpawnRequest.SpawnStatus = ESpawnRequestStatus::Processing;
+		ESpawnRequestStatus Result = ProcessSpawnRequest(SpawnRequestHandle, SpawnRequestView, SpawnRequest);
+		ensureMsgf(Result != ESpawnRequestStatus::None, TEXT("Getting ESpawnRequestStatus::None as a result in this context is unexpected. Needs to be investigated."));
+	}
+}
 
-		// Call the pre spawn delegate on the spawn request
-		if (SpawnRequest.ActorPreSpawnDelegate.IsBound())
+ESpawnRequestStatus UMassActorSpawnerSubsystem::ProcessSpawnRequest(const FMassActorSpawnRequestHandle SpawnRequestHandle)
+{
+	if (!SpawnRequestHandle.IsValid()
+		|| !SpawnRequestHandleManager.IsValidHandle(SpawnRequestHandle))
+	{
+		return ESpawnRequestStatus::None;
+	}
+
+	FStructView SpawnRequestView = SpawnRequests[SpawnRequestHandle.GetIndex()];
+	FMassActorSpawnRequest& SpawnRequest = SpawnRequestView.Get<FMassActorSpawnRequest>();
+
+	return ProcessSpawnRequest(SpawnRequestHandle, SpawnRequestView, SpawnRequest);
+}
+
+ESpawnRequestStatus UMassActorSpawnerSubsystem::ProcessSpawnRequest(const FMassActorSpawnRequestHandle SpawnRequestHandle, FStructView SpawnRequestView, FMassActorSpawnRequest& SpawnRequest)
+{
+	if (!ensureMsgf(SpawnRequest.IsFinished() == false, TEXT("Finished spawn requests are not expected to be processed again. Bailing out.")))
+	{
+		// returning None rather than the actual SpawnRequest.SpawnStatus to indicate the issue has occurred. 
+		return ESpawnRequestStatus::None;
+	}
+
+	// Do the spawning
+	SpawnRequest.SpawnStatus = ESpawnRequestStatus::Processing;
+
+	// Call the pre spawn delegate on the spawn request
+	if (SpawnRequest.ActorPreSpawnDelegate.IsBound())
+	{
+		SpawnRequest.ActorPreSpawnDelegate.Execute(SpawnRequestHandle, SpawnRequestView);
+	}
+
+	SpawnRequest.SpawnStatus = SpawnOrRetrieveFromPool(SpawnRequestView, SpawnRequest.SpawnedActor);
+
+	if (SpawnRequest.IsFinished())
+	{
+		if (SpawnRequest.SpawnStatus == ESpawnRequestStatus::Succeeded && IsValid(SpawnRequest.SpawnedActor))
 		{
-			SpawnRequest.ActorPreSpawnDelegate.Execute(SpawnRequestHandle, SpawnRequestView);
+			if (UMassAgentComponent* AgentComp = SpawnRequest.SpawnedActor->FindComponentByClass<UMassAgentComponent>())
+			{
+				AgentComp->SetPuppetHandle(SpawnRequest.MassAgent);
+			}
 		}
 
-		SpawnRequest.SpawnStatus = SpawnOrRetrieveFromPool(SpawnRequestView, SpawnRequest.SpawnedActor);
+		EMassActorSpawnRequestAction PostAction = EMassActorSpawnRequestAction::Remove;
 
-		if (SpawnRequest.IsFinished())
+		// Call the post spawn delegate on the spawn request
+		if (SpawnRequest.ActorPostSpawnDelegate.IsBound())
 		{
-			if (SpawnRequest.SpawnStatus == ESpawnRequestStatus::Succeeded && IsValid(SpawnRequest.SpawnedActor))
-			{
-				if (UMassAgentComponent* AgentComp = SpawnRequest.SpawnedActor->FindComponentByClass<UMassAgentComponent>())
-				{
-					AgentComp->SetPuppetHandle(SpawnRequest.MassAgent);
-				}
-			}
-
-			EMassActorSpawnRequestAction PostAction = EMassActorSpawnRequestAction::Remove;
-
-			// Call the post spawn delegate on the spawn request
-			if (SpawnRequest.ActorPostSpawnDelegate.IsBound())
-			{
-				PostAction = SpawnRequest.ActorPostSpawnDelegate.Execute(SpawnRequestHandle, SpawnRequestView);
-			}
-
-			if (PostAction == EMassActorSpawnRequestAction::Remove)
-			{
-				// If notified, remove the spawning request
-				ensureMsgf(SpawnRequestHandleManager.RemoveHandle(SpawnRequestHandle), TEXT("When providing a delegate, the spawn request gets automatically removed, no need to remove it on your side"));
-			}
+			PostAction = SpawnRequest.ActorPostSpawnDelegate.Execute(SpawnRequestHandle, SpawnRequestView);
 		}
-		else
+
+		if (PostAction == EMassActorSpawnRequestAction::Remove)
 		{
-			// lower priority
-			SpawnRequest.SpawnStatus = ESpawnRequestStatus::RetryPending;
+			// If notified, remove the spawning request
+			ensureMsgf(SpawnRequestHandleManager.RemoveHandle(SpawnRequestHandle), TEXT("When providing a delegate, the spawn request gets automatically removed, no need to remove it on your side"));
 		}
 	}
+	else
+	{
+		// lower priority
+		SpawnRequest.SpawnStatus = ESpawnRequestStatus::RetryPending;
+	}
+
+	return SpawnRequest.SpawnStatus;
 }
 
 void UMassActorSpawnerSubsystem::ProcessPendingDestruction(const double MaxTimeSlicePerTick)

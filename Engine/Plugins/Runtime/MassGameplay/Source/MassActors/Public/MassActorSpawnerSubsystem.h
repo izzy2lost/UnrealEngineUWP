@@ -131,6 +131,19 @@ public:
 		return RequestActorSpawnInternal(FConstStructView::Make(InSpawnRequest));
 	}
 
+	/**
+	 * Process a valid spawn request indicated by given handle. Can be used to force instant-spawn of an actor provided 
+	 * a valid handle is obtained by calling RequestActorSpawn first. 
+	 * @return indicates the status of processed spawn request, with ESpawnRequestStatus::None indicating that "something 
+	 *	went wrong" and spawning request has not been processed. 
+	 */
+	[[nodiscard]] ESpawnRequestStatus ProcessSpawnRequest(const FMassActorSpawnRequestHandle SpawnRequestHandle);
+
+	/** 
+	 * Similar to the other ProcessSpawnRequest flavor, but with SpawnRequestView and SpawnRequest already provided. 
+	 */
+	[[nodiscard]] ESpawnRequestStatus ProcessSpawnRequest(const FMassActorSpawnRequestHandle SpawnRequestHandle, FStructView SpawnRequestView, FMassActorSpawnRequest& SpawnRequest);
+
 	/** Retries a failed spawn request
 	 * @param SpawnRequestHandle the spawn request handle to retry
 	 */
