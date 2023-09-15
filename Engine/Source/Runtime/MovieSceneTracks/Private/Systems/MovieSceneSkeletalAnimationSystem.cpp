@@ -545,7 +545,7 @@ private:
 		}
 		else if (ExistingAnimInstance)
 		{
-			for (const TPair<FObjectKey, FMontagePlayerPerSectionData >& Pair : SystemData->MontageData)
+			for (const TPair<FObjectKey, FMontagePlayerPerSectionData >& Pair : SystemData->MontageData.FindOrAdd(SkeletalMeshComponent))
 			{
 				int32 InstanceId = Pair.Value.MontageInstanceId;
 				FAnimMontageInstance* MontageInstanceToUpdate = ExistingAnimInstance->GetMontageInstanceForID(InstanceId);
@@ -821,7 +821,7 @@ private:
 		}
 		else if (UAnimInstance* AnimInst = GetSourceAnimInstance(Params.SkeletalMeshComponent))
 		{
-			FMontagePlayerPerSectionData* SectionData = SystemData->MontageData.Find(Params.Section);
+			FMontagePlayerPerSectionData* SectionData = SystemData->MontageData.FindOrAdd(Params.SkeletalMeshComponent).Find(Params.Section);
 
 			int32 InstanceId = (SectionData) ? SectionData->MontageInstanceId : INDEX_NONE;
 
@@ -841,7 +841,7 @@ private:
 			UAnimMontage* Montage = WeakMontage.Get();
 			if (Montage)
 			{
-				FMontagePlayerPerSectionData& DataContainer = SystemData->MontageData.FindOrAdd(Params.Section);
+				FMontagePlayerPerSectionData& DataContainer = SystemData->MontageData.FindOrAdd(Params.SkeletalMeshComponent).FindOrAdd(Params.Section);
 				DataContainer.Montage = WeakMontage;
 				DataContainer.MontageInstanceId = InstanceId;
 
@@ -914,7 +914,7 @@ private:
 		}
 		else if (UAnimInstance* AnimInst = GetSourceAnimInstance(Params.SkeletalMeshComponent))
 		{
-			FMontagePlayerPerSectionData* SectionData = SystemData->MontageData.Find(Params.Section);
+			FMontagePlayerPerSectionData* SectionData = SystemData->MontageData.FindOrAdd(Params.SkeletalMeshComponent).Find(Params.Section);
 
 			int32 InstanceId = SectionData ? SectionData->MontageInstanceId : INDEX_NONE;
 		
@@ -935,7 +935,7 @@ private:
 			UAnimMontage* Montage = WeakMontage.Get();
 			if (Montage)
 			{
-				FMontagePlayerPerSectionData& DataContainer = SystemData->MontageData.FindOrAdd(Params.Section);
+				FMontagePlayerPerSectionData& DataContainer = SystemData->MontageData.FindOrAdd(Params.SkeletalMeshComponent).FindOrAdd(Params.Section);
 				DataContainer.Montage = WeakMontage;
 				DataContainer.MontageInstanceId = InstanceId;
 
