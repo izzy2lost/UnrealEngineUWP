@@ -73,9 +73,9 @@ public class FakeAwsImds
 }
 
 [TestClass]
-public sealed class AwsInstanceLifecycleServiceTests : System.IDisposable
+public sealed class AwsInstanceLifecycleServiceTests : IAsyncDisposable, IDisposable
 {
-	private readonly LoggerFactory _loggerFactory = new ();
+	private readonly StatusService _statusService;
 	private readonly HttpClient _httpClient;
 	private readonly FakeAwsImds _fakeImds = new ();
 	private readonly AwsInstanceLifecycleService _service;
@@ -84,12 +84,19 @@ public sealed class AwsInstanceLifecycleServiceTests : System.IDisposable
 	
 	public AwsInstanceLifecycleServiceTests()
 	{
+		using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
+		{
+			builder.SetMinimumLevel(LogLevel.Debug);
+			builder.AddSimpleConsole(options => { options.SingleLine = true; });
+		});
+		
 		DirectoryInfo tempDir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "horde-agent-test-" + Path.GetRandomFileName()));
 		AgentSettings settings = new () { WorkingDir = tempDir.FullName };
 		_terminationSignalFile = settings.GetTerminationSignalFile();
 
+		_statusService  = new(loggerFactory.CreateLogger<StatusService>());
 		_httpClient = _fakeImds.GetHttpClient();
-		_service = new AwsInstanceLifecycleService(_httpClient, new OptionsWrapper<AgentSettings>(settings), _loggerFactory.CreateLogger<AwsInstanceLifecycleService>());
+		_service = new AwsInstanceLifecycleService(_statusService, _httpClient, new OptionsWrapper<AgentSettings>(settings), loggerFactory.CreateLogger<AwsInstanceLifecycleService>());
 		_service._timeToLiveAsg = TimeSpan.FromMilliseconds(10);
 		_service._timeToLiveSpot = TimeSpan.FromMilliseconds(20);
 		_service._terminationBufferTime = TimeSpan.FromMilliseconds(2);
@@ -109,6 +116,7 @@ public sealed class AwsInstanceLifecycleServiceTests : System.IDisposable
 	}
 
 	[TestMethod]
+	[Timeout(5000)]
 	public async Task Terminate_Asg_CallbackHasCorrectParametersAsync()
 	{
 		_fakeImds.TargetLifecycleState = "Terminated";
@@ -119,6 +127,7 @@ public sealed class AwsInstanceLifecycleServiceTests : System.IDisposable
 	}
 	
 	[TestMethod]
+	[Timeout(5000)]
 	public async Task Terminate_Spot_CallbackHasCorrectParametersAsync()
 	{
 		_fakeImds.SpotInstanceAction = FakeAwsImds.SpotInstanceData;
@@ -130,6 +139,7 @@ public sealed class AwsInstanceLifecycleServiceTests : System.IDisposable
 	}
 	
 	[TestMethod]
+	[Timeout(5000)]
 	public async Task Terminate_Spot_WritesSignalFileAsync()
 	{
 		_fakeImds.SpotInstanceAction = FakeAwsImds.SpotInstanceData;
@@ -144,8 +154,12 @@ public sealed class AwsInstanceLifecycleServiceTests : System.IDisposable
 	
 	public void Dispose()
 	{
-		_loggerFactory.Dispose();
 		_httpClient.Dispose();
 		_service.Dispose();
+	}
+
+	public ValueTask DisposeAsync()
+	{
+		return _statusService.DisposeAsync();
 	}
 }

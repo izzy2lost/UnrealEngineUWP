@@ -21,7 +21,6 @@ namespace Horde.Agent.Services
 		private AgentStatusMessage _current;
 
 		readonly BackgroundTask _task;
-		bool? _enabled;
 		readonly ILogger _logger;
 
 		/// <summary>
@@ -32,7 +31,7 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Whether the agent is currently enabled.
 		/// </summary>
-		public bool IsEnabled => _enabled ?? true;
+		public bool IsEnabled { get; set; } = true;
 
 		/// <summary>
 		/// Constructor
@@ -159,7 +158,7 @@ namespace Horde.Agent.Services
 					switch (request.Type)
 					{
 						case AgentMessageType.SetEnabledRequest:
-							_enabled = request.Parse<AgentEnabledMessage>().IsEnabled;
+							IsEnabled = request.Parse<AgentEnabledMessage>().IsEnabled;
 							break;
 						case AgentMessageType.GetStatusRequest:
 							response.Set(AgentMessageType.GetStatusResponse, Current);

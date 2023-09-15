@@ -61,10 +61,11 @@ class AwsInstanceLifecycleService : BackgroundService
 	public const string HttpClientName = "Horde.HttpAwsInstanceClient";
 
 	private const string BaseUri = "http://169.254.169.254/latest/meta-data";
-	private readonly ILogger<AwsInstanceLifecycleService> _logger;
+	private readonly StatusService _statusService;
 	private readonly HttpClient _httpClient;
-	private readonly TimeSpan _pollInterval = TimeSpan.FromSeconds(5);
 	private readonly FileReference _terminationSignalFile;
+	private readonly ILogger<AwsInstanceLifecycleService> _logger;
+	private readonly TimeSpan _pollInterval = TimeSpan.FromSeconds(5);
 	
 	internal delegate Task TerminationWarningDelegate(Ec2TerminationInfo info, CancellationToken cancellationToken);
 	internal delegate Task TerminationDelegate(Ec2TerminationInfo info, CancellationToken cancellationToken);
@@ -92,8 +93,9 @@ class AwsInstanceLifecycleService : BackgroundService
 	/// <summary>
 	/// Constructor
 	/// </summary>
-	public AwsInstanceLifecycleService(HttpClient httpClient, IOptions<AgentSettings> settings, ILogger<AwsInstanceLifecycleService> logger)
+	public AwsInstanceLifecycleService(StatusService statusService, HttpClient httpClient, IOptions<AgentSettings> settings, ILogger<AwsInstanceLifecycleService> logger)
 	{
+		_statusService = statusService;
 		_httpClient = httpClient;
 		_httpClient.Timeout = TimeSpan.FromSeconds(10);
 		_terminationWarningCallback = OnTerminationWarningAsync;
@@ -217,6 +219,9 @@ class AwsInstanceLifecycleService : BackgroundService
 
 	private async Task OnTerminationWarningAsync(Ec2TerminationInfo info, CancellationToken cancellationToken)
 	{
+		// Signal to server we are disabled, setting state to paused preventing new leases getting scheduled
+		_statusService.IsEnabled = false;
+		
 		// Create and write the termination signal file, containing the time-to-live for the EC2 instance.
 		// Workloads executed by the agent that support this protocol can pick this up and prepare/clean up prior to termination
 		await WriteTerminationSignalFileAsync(info, cancellationToken);
