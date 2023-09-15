@@ -3511,7 +3511,10 @@ UStaticMesh* UNiagaraDataInterfaceStaticMesh::GetStaticMesh(USceneComponent*& Ou
 	else if (bTrySource && SoftSourceActor.Get())
 	{
 		OutStaticMeshComponent = FindActorMeshComponent(SoftSourceActor.Get());
-		OutMesh = OutStaticMeshComponent->GetStaticMesh();
+		if (OutStaticMeshComponent)
+		{
+			OutMesh = OutStaticMeshComponent->GetStaticMesh();
+		}
 	}
 	else
 	{
@@ -3521,7 +3524,10 @@ UStaticMesh* UNiagaraDataInterfaceStaticMesh::GetStaticMesh(USceneComponent*& Ou
 			if (AActor* Actor = Cast<AActor>(ParameterBindingValue))
 			{
 				OutStaticMeshComponent = FindActorMeshComponent(Actor, true);
-				OutMesh = OutStaticMeshComponent->GetStaticMesh();
+				if (OutStaticMeshComponent)
+				{
+					OutMesh = OutStaticMeshComponent->GetStaticMesh();
+				}
 			}
 			else
 			{
