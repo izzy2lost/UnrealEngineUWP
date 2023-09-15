@@ -280,6 +280,8 @@ bool PreInitOpenXRCore(PFN_xrGetInstanceProcAddr InGetProcAddr);
  */
 bool InitOpenXRCore(XrInstance Instance);
 
+void OPENXRHMD_API EnumerateOpenXRApiLayers(TArray<XrApiLayerProperties>& OutProperties);
+
 FORCEINLINE void FilterActionName(const char* InActionName, char* OutActionName)
 {
 	static_assert(XR_MAX_ACTION_NAME_SIZE == XR_MAX_ACTION_SET_NAME_SIZE);

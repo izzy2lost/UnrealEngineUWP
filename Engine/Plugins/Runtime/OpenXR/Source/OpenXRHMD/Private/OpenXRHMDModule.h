@@ -69,6 +69,7 @@ private:
 	bool EnumerateLayers();
 	bool InitRenderBridge();
 	bool InitInstance();
+	bool TryCreateInstance(XrInstanceCreateInfo& Info);
 	PFN_xrGetInstanceProcAddr GetDefaultLoader();
 	bool EnableExtensions(const TArray<const ANSICHAR*>& RequiredExtensions, const TArray<const ANSICHAR*>& OptionalExtensions, TArray<const ANSICHAR*>& OutExtensions);
 	bool GetRequiredExtensions(TArray<const ANSICHAR*>& OutExtensions);
