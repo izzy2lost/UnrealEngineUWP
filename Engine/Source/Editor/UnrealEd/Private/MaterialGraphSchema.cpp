@@ -41,15 +41,12 @@
 #include "GraphEditorActions.h"
 #include "GraphEditorSettings.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "IAssetTools.h"
 #include "MaterialEditorActions.h"
 #include "MaterialGraphNode_Knot.h"
 #include "RenderUtils.h"
 
 #define LOCTEXT_NAMESPACE "MaterialGraphSchema"
-
-static bool GDisableMaterialFunctionContextMenuActions = false;
-static FAutoConsoleVariableRef DisableMaterialFunctionContextMenuActionsCVar(TEXT("r.Material.DisableMaterialFunctionContextMenuActions"),
-	GDisableMaterialFunctionContextMenuActions, TEXT("Prevents MaterialFunction creation actions from being added to MaterialEditor context menus (False: disabled, True: enabled"));
 
 int32 UMaterialGraphSchema::CurrentCacheRefreshID = 0;
 
@@ -926,13 +923,6 @@ TSharedPtr<FEdGraphSchemaAction> UMaterialGraphSchema::GetCreateCommentAction() 
 
 void UMaterialGraphSchema::GetMaterialFunctionActions(FGraphActionMenuBuilder& ActionMenuBuilder) const
 {
-	// Note: this is a temporary security solution. We need to improve on this by allowing functions that in included folders, 
-	// also considering that some folders may be aliased to different paths.
-	if (GDisableMaterialFunctionContextMenuActions)
-	{
-		return;
-	}
-
 	// Get type of dragged pin
 	uint32 FromPinType = 0;
 	if (ActionMenuBuilder.FromPin)
@@ -942,6 +932,7 @@ void UMaterialGraphSchema::GetMaterialFunctionActions(FGraphActionMenuBuilder& A
 
 	// Load the asset registry module
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+	IAssetTools& AssetTools = IAssetTools::Get();
 
 	// Collect a full list of assets with the specified class
 	TArray<FAssetData> AssetDataList;
@@ -960,6 +951,11 @@ void UMaterialGraphSchema::GetMaterialFunctionActions(FGraphActionMenuBuilder& A
 				{
 					continue;
 				}
+			}
+
+			if (!AssetTools.IsAssetVisible(AssetData))
+			{
+				continue;
 			}
 
 			if (!ActionMenuBuilder.FromPin || HasCompatibleConnection(AssetData, FromPinType, ActionMenuBuilder.FromPin->Direction))
