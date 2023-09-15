@@ -556,6 +556,9 @@ void FLandscapeRenderSystem::CreateResources_Internal(FRHICommandListBase& RHICm
 	// we changed the RenderCoord, need to update the uniform buffer
 	SectionInfo->OnRenderCoordsChanged(RHICmdList);
 
+	check(SectionInfo->RenderCoord.X > INT32_MIN);
+	ResizeToInclude(SectionInfo->RenderCoord);
+
 	ReferenceCount++;
 }
 
@@ -571,7 +574,12 @@ void FLandscapeRenderSystem::DestroyResources_Internal(FLandscapeSectionInfo* Se
 
 	// try to compact the map every once in a while
 	SectionsRemovedSinceLastCompact++;
-	if (SectionsRemovedSinceLastCompact >= 128)
+
+	// When ReferenceCount == RegisteredCount then we know all resource-created sections are registered.
+	// So any empty sections of the map can be compacted without issues.  When they are not equal
+	// then compacting may erroneously remove areas that are still allocated to resource-created sections,
+	// but are not yet registered.
+	if ((SectionsRemovedSinceLastCompact >= 128) && ReferenceCount == RegisteredCount)
 	{
 		// if there are at least 128 free entries, run a compact step
 		if (Size.X * Size.Y - ReferenceCount >= 128)
@@ -600,7 +608,6 @@ void FLandscapeRenderSystem::RegisterSection(FLandscapeSectionInfo* SectionInfo)
 	FLandscapeSectionInfo* ExistingSection = LandscapeRenderSystem->GetSectionInfo(SectionInfo->RenderCoord);
 	if (ExistingSection == nullptr)
 	{
-		LandscapeRenderSystem->ResizeToInclude(SectionInfo->RenderCoord);
 		LandscapeRenderSystem->SetSectionInfo(SectionInfo->RenderCoord, SectionInfo);
 	}
 	else
