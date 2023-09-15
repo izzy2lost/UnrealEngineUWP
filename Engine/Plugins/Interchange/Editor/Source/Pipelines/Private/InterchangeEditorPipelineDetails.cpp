@@ -280,7 +280,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 	for (const TPair<FName, TArray<FName>>& CategoryAndProperties : PropertiesPerCategorys)
 	{
 		//Category meta value Subgroup data
-		TMap<FName, IDetailGroup*> SubCategoryGroups;
+		TMap<FString, IDetailGroup*> SubCategoryGroups;
 
 		const FName CategoryName = CategoryAndProperties.Key;
 		
@@ -325,15 +325,38 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 			FName PropertyPath = FName(PropertyPtr->GetPathName());
 			CachedDetailBuilder->HideProperty(PropertyHandle);
 
-			const FName SubCategoryData = FName(PropertyHandle->GetMetaData(TEXT("SubCategory")));
+			const FString SubCategoryData = PropertyHandle->GetMetaData(TEXT("SubCategory"));
 			IDetailGroup* GroupPtr = nullptr;
 			auto GetGroupPtr = [&GroupPtr, &SubCategoryData, &SubCategoryGroups, &Category]()
 			{
-				if (SubCategoryData != NAME_None)
+				if (!SubCategoryData.IsEmpty())
 				{
 					if (!SubCategoryGroups.Contains(SubCategoryData))
 					{
-						SubCategoryGroups.Add(SubCategoryData, &(Category.AddGroup(SubCategoryData, FText::FromName(SubCategoryData))));
+						//Localize sub category
+						FText LocalizeSubCategoryName = FText::FromString(SubCategoryData);
+						
+						if (SubCategoryData.Equals(TEXT("Build")))
+						{
+							LocalizeSubCategoryName = NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "SubCategory_Build", "Build");
+						}
+						else if (SubCategoryData.Equals(TEXT("Collision")))
+						{
+							LocalizeSubCategoryName = NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "SubCategory_Collision", "Collision");
+						}
+						else if (SubCategoryData.Equals(TEXT("Actors properties")))
+						{
+							LocalizeSubCategoryName = NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "SubCategory_Actors_properties", "Actors properties");
+						}
+						else if (SubCategoryData.Equals(TEXT("Reimport Actors")))
+						{
+							LocalizeSubCategoryName = NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "SubCategory_Reimport_Actors", "Reimport Actors");
+						}
+						else if (SubCategoryData.Equals(TEXT("Reimport Assets")))
+						{
+							LocalizeSubCategoryName = NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "SubCategory_Reimport_Assets", "Reimport Assets");
+						}
+						SubCategoryGroups.Add(SubCategoryData, &(Category.AddGroup(FName(SubCategoryData), LocalizeSubCategoryName)));
 					}
 					GroupPtr = SubCategoryGroups.FindChecked(SubCategoryData);
 				}

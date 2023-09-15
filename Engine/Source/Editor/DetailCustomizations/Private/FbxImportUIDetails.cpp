@@ -449,10 +449,16 @@ void FFbxImportUIDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder 
 			}
 			else if (!SubCategoryData.IsEmpty())
 			{
-				TArray<TSharedPtr<IPropertyHandle> >& SubCategoryProperties = SubCategoriesProperties.FindOrAdd(SubCategoryData);
+				//Localize the sub category
+				FString SubCategoryLocalizeName = SubCategoryData;
+				if (SubCategoryData.Equals(TEXT("Thresholds")))
+				{
+					SubCategoryLocalizeName = LOCTEXT("Thresholds_subcategory_name", "Thresholds").ToString();
+				}
+				TArray<TSharedPtr<IPropertyHandle> >& SubCategoryProperties = SubCategoriesProperties.FindOrAdd(SubCategoryLocalizeName);
 				SubCategoryProperties.Add(Handle);
-				bool& SubCategoryAdvanced = SubCategoriesAdvanced.FindOrAdd(SubCategoryData);
-				FText& SubCategoryTooltip = SubCategoriesTooltip.FindOrAdd(SubCategoryData);
+				bool& SubCategoryAdvanced = SubCategoriesAdvanced.FindOrAdd(SubCategoryLocalizeName);
+				FText& SubCategoryTooltip = SubCategoriesTooltip.FindOrAdd(SubCategoryLocalizeName);
 				if (SubCategoryData.Equals(TEXT("Thresholds")))
 				{
 					SubCategoryAdvanced = true;
