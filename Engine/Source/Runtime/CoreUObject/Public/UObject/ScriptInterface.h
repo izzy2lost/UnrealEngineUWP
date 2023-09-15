@@ -168,7 +168,7 @@ public:
 	 */
 	template <
 		typename OtherInterfaceType,
-		decltype(ImplicitConv<InInterfaceType*>(std::declval<OtherInterfaceType>()))* = nullptr
+		decltype(ImplicitConv<InInterfaceType*>(std::declval<OtherInterfaceType*>()))* = nullptr
 	>
 	FORCEINLINE TScriptInterface(const TScriptInterface<OtherInterfaceType>& Other)
 	{
@@ -188,12 +188,6 @@ public:
 
 		InInterfaceType* SourceInterface = Cast<InInterfaceType>(ToRawPtr(SourceObject));
 		SetInterface(SourceInterface);
-	}
-
-	template <typename OtherInterfaceType>
-	TScriptInterface(const TScriptInterface<OtherInterfaceType>& Other)
-	{
-
 	}
 
 	/**
@@ -316,7 +310,7 @@ public:
 	 */
 	FORCEINLINE void SetInterface(InInterfaceType* InInterfacePointer)
 	{
-		FScriptInterface::SetInterface(InInterfacePointer);
+		FScriptInterface::SetInterface((void*)InInterfacePointer);
 	}
 
 	/**
