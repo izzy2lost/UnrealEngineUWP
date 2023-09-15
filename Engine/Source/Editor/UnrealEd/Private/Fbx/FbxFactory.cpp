@@ -36,6 +36,7 @@
 #include "Misc/Paths.h"
 #include "Misc/ScopedSlowTask.h"
 #include "ObjectTools.h"
+#include "PhysicsEngine/PhysicsAsset.h"
 #include "StaticMeshResources.h"
 #include "UObject/UnrealType.h"
 
@@ -402,6 +403,10 @@ UObject* UFbxFactory::FactoryCreateFile
 				ImportOptions->bImportAnimations = false;
 				ImportOptions->bUpdateSkeletonReferencePose = false;
 			}
+		}
+		if (!FbxImporter->CanCreateClass(UPhysicsAsset::StaticClass()))
+		{
+			ImportOptions->bCreatePhysicsAsset = false;
 		}
 		
 		if ( !FbxImporter->ImportFromFile( *UFactory::CurrentFilename, Type, true ) )

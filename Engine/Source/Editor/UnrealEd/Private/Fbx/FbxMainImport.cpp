@@ -129,11 +129,6 @@ FBXImportOptions* GetImportOptions( UnFbx::FFbxImporter* FbxImporter, UFbxImport
 			ImportUI->PhysicsAsset = NULL;
 		}
 
-		if (!FbxImporter->CanCreateClass(UPhysicsAsset::StaticClass()))
-		{
-			ImportUI->bCreatePhysicsAsset = false;
-		}
-
 		if(bForceImportType)
 		{
 			ImportUI->MeshTypeToImport = ImportType;
@@ -281,6 +276,11 @@ FBXImportOptions* GetImportOptions( UnFbx::FFbxImporter* FbxImporter, UFbxImport
 			}
 		}
 
+		if (!FbxImporter->CanCreateClass(UPhysicsAsset::StaticClass()))
+		{
+			ImportUI->bCreatePhysicsAsset = false;
+		}
+
 		UFbxImportUI::SaveOptions(ImportUI);
 
 		if( ImportUI->StaticMeshImportData )
@@ -325,10 +325,22 @@ FBXImportOptions* GetImportOptions( UnFbx::FFbxImporter* FbxImporter, UFbxImport
 		//Clean up the options
 		UnFbx::FBXImportOptions::ResetOptions(ImportOptions);
 		ApplyImportUIToImportOptions(ImportUI, *ImportOptions);
+		
+		if (!FbxImporter->CanCreateClass(UPhysicsAsset::StaticClass()))
+		{
+			ImportOptions->bCreatePhysicsAsset = false;
+		}
+		
 		return ImportOptions;
 	}
 	else
 	{
+		
+		if (!FbxImporter->CanCreateClass(UPhysicsAsset::StaticClass()))
+		{
+			FbxImporter->GetImportOptions()->bCreatePhysicsAsset = false;
+		}
+
 		return FbxImporter->GetImportOptions();
 	}
 
