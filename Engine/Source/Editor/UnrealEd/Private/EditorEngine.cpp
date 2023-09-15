@@ -3364,7 +3364,7 @@ void UEditorEngine::SelectAllActorsWithClass( bool bArchetype )
 		UWorld* CurrentEditorWorld = GetEditorWorldContext().World();
 		for (UClass* Class : SelectedClasses)
 		{
-			Exec(CurrentEditorWorld, *FString::Printf(TEXT("ACTOR SELECT OFCLASS CLASS=%s"), *Class->GetName()));
+			Exec(CurrentEditorWorld, *FString::Printf(TEXT("ACTOR SELECT OFCLASS CLASS=%s"), *Class->GetPathName()));
 		}
 	}
 	else
