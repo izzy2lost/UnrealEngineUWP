@@ -1074,7 +1074,7 @@ namespace EpicGames.UHT.Parsers
 			}
 		}
 
-		private bool IsRestrictedDirective(UhtCompilerDirective compilerDirective)
+		private static bool IsRestrictedDirective(UhtCompilerDirective compilerDirective)
 		{
 			switch (compilerDirective)
 			{
@@ -1240,7 +1240,7 @@ namespace EpicGames.UHT.Parsers
 				return false;
 			}
 
-			IUhtTokenReader replayReader = UhtTokenReplayReader.GetThreadInstance(this.HeaderFile, this.HeaderFile.Data.Memory, new ReadOnlyMemory<UhtToken>(declaration.Tokens), UhtTokenType.EndOfDeclaration);
+			IUhtTokenReader replayReader = UhtTokenReplayReader.GetThreadInstance(HeaderFile, HeaderFile.Data.Memory, new ReadOnlyMemory<UhtToken>(declaration.Tokens), UhtTokenType.EndOfDeclaration);
 
 			SkipVirtualAndAPI(replayReader);
 

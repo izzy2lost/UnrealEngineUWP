@@ -70,7 +70,7 @@ namespace EpicGames.UHT.Parsers
 
 					if ((topScope.HeaderParser.GetCurrentCompositeCompilerDirective() & UhtCompilerDirective.WithEditorOnlyData) != 0)
 					{
-						enumObject.IsEditorOnly = true;
+						enumObject.DefineScope |= UhtDefineScope.EditorOnlyData;
 					}
 
 					// Read base for enum class

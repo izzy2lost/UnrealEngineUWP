@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Text;
 using EpicGames.UHT.Types;
 
 namespace EpicGames.UHT.Exporters.CodeGen
@@ -19,9 +18,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 		public static string EnableDeprecationWarnings = "PRAGMA_ENABLE_DEPRECATION_WARNINGS";
 		public static string DisableDeprecationWarnings = "PRAGMA_DISABLE_DEPRECATION_WARNINGS";
-
-		public static string BeginEditorOnlyGuard = "#if WITH_EDITOR\r\n";
-		public static string EndEditorOnlyGuard = "#endif // WITH_EDITOR\r\n";
 
 		public readonly UhtCodeGenerator CodeGenerator;
 		public readonly UhtPackage Package;
@@ -121,26 +117,5 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return C;
 		}
 		#endregion
-	}
-
-	internal static class UhtPackageCodeGeneratorStringBuilderExtensions
-	{
-		public static StringBuilder AppendBeginEditorOnlyGuard(this StringBuilder builder, bool enable = true)
-		{
-			if (enable)
-			{
-				builder.Append(UhtPackageCodeGenerator.BeginEditorOnlyGuard);
-			}
-			return builder;
-		}
-
-		public static StringBuilder AppendEndEditorOnlyGuard(this StringBuilder builder, bool enable = true)
-		{
-			if (enable)
-			{
-				builder.Append(UhtPackageCodeGenerator.EndEditorOnlyGuard);
-			}
-			return builder;
-		}
 	}
 }

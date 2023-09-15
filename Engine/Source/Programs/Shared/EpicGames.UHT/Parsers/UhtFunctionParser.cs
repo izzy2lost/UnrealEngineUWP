@@ -356,6 +356,7 @@ namespace EpicGames.UHT.Parsers
 					if ((topScope.HeaderParser.GetCurrentCompositeCompilerDirective() & UhtCompilerDirective.WithEditor) != 0)
 					{
 						function.FunctionFlags |= EFunctionFlags.EditorOnly;
+						function.DefineScope |= UhtDefineScope.EditorOnlyData;
 					}
 
 					specifierParser.ParseDeferred();

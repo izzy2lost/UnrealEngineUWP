@@ -797,6 +797,7 @@ namespace EpicGames.UHT.Parsers
 				if (compilerDirective.HasAnyFlags(UhtCompilerDirective.WithEditorOnlyData))
 				{
 					propertySettings.PropertyFlags |= EPropertyFlags.EditorOnly;
+					propertySettings.DefineScope |= UhtDefineScope.EditorOnlyData;
 				}
 				else if (compilerDirective.HasAnyFlags(UhtCompilerDirective.WithEditor))
 				{
@@ -845,6 +846,7 @@ namespace EpicGames.UHT.Parsers
 						if (layoutMacroType.IsEditorOnly())
 						{
 							propertySettings.PropertyFlags |= EPropertyFlags.EditorOnly;
+							propertySettings.DefineScope |= UhtDefineScope.EditorOnlyData;
 						}
 					}
 				}
@@ -1305,9 +1307,8 @@ namespace EpicGames.UHT.Parsers
 		[SuppressMessage("Style", "IDE0060:Remove unused parameter", Justification = "Attribute accessed method")]
 		private static UhtProperty? DefaultProperty(UhtPropertyResolvePhase resolvePhase, UhtPropertySettings propertySettings, IUhtTokenReader tokenReader, UhtToken matchedToken)
 		{
-			UhtProperty? property = null;
+			UhtProperty? property;
 			UhtSession session = propertySettings.Outer.Session;
-			int typeStartPos = tokenReader.PeekToken().InputStartPos;
 
 			bool gotConst = tokenReader.TryOptional("const");
 

@@ -521,26 +521,19 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			// With interfaces, there are cases where we use the native interface class export flags to check for legacy macro
 			bool alternateUsesLegacy = (classObj.ClassFlags.HasAnyFlags(EClassFlags.Interface) ? nativeInterface! : classObj).ClassExportFlags.HasAnyFlags(UhtClassExportFlags.UsesGeneratedBodyLegacy);
 
-			// Collect sparse data
+			// Collect sparse data information
 			IEnumerable<UhtScriptStruct> sparseScriptStructs = GetSparseDataStructsToExport(classObj);
-			CalculateSparsePropertyDeclarations(sparseScriptStructs, out Dictionary<UhtScriptStruct, List<UhtProperty>> commonSparseProperties, out Dictionary<UhtScriptStruct, List<UhtProperty>> editorOnlySparseProperties);
+			UhtUsedDefineScopes<UhtProperty> sparseProperties = new(EnumerateSparseDataStructProperties(sparseScriptStructs));
 
 			// Write the spare declarations
-			AppendSparseDeclarations(builder, classObj, sparseScriptStructs, commonSparseProperties, editorOnlySparseProperties);
+			AppendSparseDeclarations(builder, classObj, sparseScriptStructs, sparseProperties);
 
-			// Collect the functions in reversed order
-			List<UhtFunction> reversedFunctions = new(classObj.Functions);
-			reversedFunctions.Reverse();
-
-			// Check to see if we have any RPC functions for the editor
-			bool hasEditorRpc = reversedFunctions.Any(x => IsRpcFunction(x, true));
+			// Collect the rpc functions in reversed order
+			UhtUsedDefineScopes<UhtFunction> rpcFunctions = new(classObj.Functions.Where(x => IsRpcFunction(x)));
+			rpcFunctions.Instances.Reverse();
 
 			// Output the RPC methods
-			AppendRpcFunctions(builder, classObj, alternateUsesLegacy, reversedFunctions, false);
-			if (hasEditorRpc)
-			{
-				AppendRpcFunctions(builder, classObj, alternateUsesLegacy, reversedFunctions, true);
-			}
+			AppendRpcFunctions(builder, classObj, alternateUsesLegacy, rpcFunctions);
 
 			// Output property accessors
 			AppendPropertyAccessors(builder, classObj);
@@ -549,10 +542,9 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			List<UhtFunction> callbackFunctions = new(classObj.Functions.Where(x => x.FunctionFlags.HasAnyFlags(EFunctionFlags.Event) && x.SuperFunction == null));
 			callbackFunctions.Sort((x, y) => StringComparerUE.OrdinalIgnoreCase.Compare(x.EngineName, y.EngineName));
 			bool hasCallbacks = callbackFunctions.Count > 0;
-			
-			// Determine if auto getters/setters have been generated
-			bool hasAutoGettersSetters = classObj.Properties.Any(x => x.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.GetterSpecifiedAuto | UhtPropertyExportFlags.SetterSpecifiedAuto));
-			bool hasEditorOnlyAutoGettersSetters = classObj.Properties.Any(x => x.IsEditorOnlyProperty && x.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.GetterSpecifiedAuto | UhtPropertyExportFlags.SetterSpecifiedAuto));
+
+			// Collect the auto getter setter properties
+			UhtUsedDefineScopes<UhtProperty> autoGetterSetterProperties = GetAutoGetterSetterProperties(classObj);
 
 			// Generate the RPC wrappers for the callbacks
 			AppendCallbackRpcWrapperDecls(builder, classObj, callbackFunctions);
@@ -613,8 +605,8 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				}
 
 				AppendProlog(builder, classObj);
-				AppendGeneratedBodyMacroBlock(builder, classObj, nativeInterface!, alternateUsesLegacy, hasEditorRpc, hasCallbacks, hasAutoGettersSetters, 
-					hasEditorOnlyAutoGettersSetters, sparseScriptStructs.Any(), editorOnlySparseProperties.Count > 0, null);
+				AppendGeneratedBodyMacroBlock(builder, classObj, nativeInterface!, alternateUsesLegacy, rpcFunctions, autoGetterSetterProperties, 
+					sparseScriptStructs.Any(), sparseProperties, hasCallbacks, null);
 			}
 			else
 			{
@@ -636,10 +628,10 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				}
 
 				AppendFieldNotify(builder, classObj);
-				AppendAutoGettersSetters(builder, classObj);
+				AppendAutoGettersSetters(builder, classObj, autoGetterSetterProperties);
 				AppendProlog(builder, classObj);
-				AppendGeneratedBodyMacroBlock(builder, classObj, classObj, usesLegacy, hasEditorRpc, hasCallbacks, hasAutoGettersSetters, hasEditorOnlyAutoGettersSetters,
-					sparseScriptStructs.Any(), editorOnlySparseProperties.Count > 0, usesLegacy ? "GENERATED_UCLASS_BODY" : null);
+				AppendGeneratedBodyMacroBlock(builder, classObj, classObj, usesLegacy, rpcFunctions, autoGetterSetterProperties, 
+					sparseScriptStructs.Any(), sparseProperties, hasCallbacks, usesLegacy ? "GENERATED_UCLASS_BODY" : null);
 			}
 
 			// Forward declare the StaticClass specialization in the header
@@ -667,154 +659,109 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				return builder;
 			}
 
-			// Scan the children to see what we have
-			GetFieldNotifyStats(classObj, out bool hasProperties, out bool hasFunctions, out bool hasEditorFields, out bool allEditorFields);
+			UhtUsedDefineScopes<UhtType> notifyTypes = GetFieldNotifyTypes(classObj);
+			return builder.AppendSingleMacro(notifyTypes, UhtDefineScopeNames.Standard, this, classObj, FieldNotifyMacroSuffix, false,
+				(builder, filteredTypes) =>
+				{
+					builder.Append("\tUE_FIELD_NOTIFICATION_DECLARE_CLASS_DESCRIPTOR_BEGIN(").Append(PackageApi).Append(") \\\r\n");
 
-			// If we have editor fields, then we must place them in #if blocks
-			if (hasEditorFields)
-			{
-				builder.Append("#if WITH_EDITORONLY_DATA\r\n");
-				using (UhtMacroCreator macro = new(builder, this, classObj, FieldNotifyMacroSuffix))
-				{
-					AppendFieldNotify(builder, classObj, hasProperties, hasFunctions, hasEditorFields, allEditorFields, true);
-				}
-				//if (!allEditorFields)
-				{
-					builder.Append("#else\r\n");
-					using UhtMacroCreator macro = new(builder, this, classObj, FieldNotifyMacroSuffix);
-					AppendFieldNotify(builder, classObj, hasProperties, hasFunctions, hasEditorFields, allEditorFields, false);
-				}
-				builder.Append("#endif\r\n");
-			}
-			else
-			{
-				using UhtMacroCreator macro = new(builder, this, classObj, FieldNotifyMacroSuffix);
-				AppendFieldNotify(builder, classObj, hasProperties, hasFunctions, hasEditorFields, allEditorFields, false);
-			}
-			return builder;
+					// UE_FIELD_NOTIFICATION_DECLARE_FIELD
+					foreach (UhtType notifyType in filteredTypes)
+					{
+						builder.Append("\tUE_FIELD_NOTIFICATION_DECLARE_FIELD(").Append(GetNotifyTypeName(notifyType)).Append(") \\\r\n");
+					}
+
+					// UE_FIELD_NOTIFICATION_DECLARE_ENUM_FIELD
+					bool isFirst = true;
+					foreach (UhtType notifyType in filteredTypes)
+					{
+						if (isFirst)
+						{
+							isFirst = false;
+							builder.Append("\tUE_FIELD_NOTIFICATION_DECLARE_ENUM_FIELD_BEGIN(").Append(GetNotifyTypeName(notifyType)).Append(") \\\r\n");
+						}
+						else
+						{
+							builder.Append("\tUE_FIELD_NOTIFICATION_DECLARE_ENUM_FIELD(").Append(GetNotifyTypeName(notifyType)).Append(") \\\r\n");
+						}
+					}
+					builder.Append("\tUE_FIELD_NOTIFICATION_DECLARE_ENUM_FIELD_END() \\\r\n");
+					builder.Append("\tUE_FIELD_NOTIFICATION_DECLARE_CLASS_DESCRIPTOR_END(); \\\r\n");
+				});
 		}
 
-		private StringBuilder AppendFieldNotify(StringBuilder builder, UhtClass classObj,
-			bool hasProperties, bool hasFunctions, bool hasEditorFields, bool allEditorFields,
-			bool includeEditorOnlyFields)
+		private StringBuilder AppendAutoGettersSetters(StringBuilder builder, UhtClass classObj, UhtUsedDefineScopes<UhtProperty> autoGetterSetterProperties)
 		{
-			builder.Append("\tUE_FIELD_NOTIFICATION_DECLARE_CLASS_DESCRIPTOR_BEGIN(").Append(PackageApi).Append(") \\\r\n");
-
-			//UE_FIELD_NOTIFICATION_DECLARE_FIELD
-			AppendFieldNotify(builder, classObj, hasProperties, hasFunctions, hasEditorFields, allEditorFields,
-				includeEditorOnlyFields, false, (StringBuilder builder, UhtClass classObj, string name) =>
+			if (autoGetterSetterProperties.IsEmpty)
 			{
-				builder.Append("\tUE_FIELD_NOTIFICATION_DECLARE_FIELD(").Append(name).Append(") \\\r\n");
-			});
-
-			//UE_FIELD_NOTIFICATION_DECLARE_ENUM_FIELD
-			bool isFirst = true;
-			AppendFieldNotify(builder, classObj, hasProperties, hasFunctions, hasEditorFields, allEditorFields,
-				includeEditorOnlyFields, false, (StringBuilder builder, UhtClass classObj, string name) =>
-			{
-				if (isFirst)
-				{
-					isFirst = false;
-					builder.Append("\tUE_FIELD_NOTIFICATION_DECLARE_ENUM_FIELD_BEGIN(").Append(name).Append(") \\\r\n");
-				}
-				else
-				{
-					builder.Append("\tUE_FIELD_NOTIFICATION_DECLARE_ENUM_FIELD(").Append(name).Append(") \\\r\n");
-				}
-			});
-
-			builder.Append("\tUE_FIELD_NOTIFICATION_DECLARE_ENUM_FIELD_END() \\\r\n");
-			builder.Append("\tUE_FIELD_NOTIFICATION_DECLARE_CLASS_DESCRIPTOR_END(); \\\r\n");
-			return builder;
-		}
-
-		private StringBuilder AppendAutoGettersSetters(StringBuilder builder, UhtClass classObj)
-		{
-			// Scan the children to see what we have
-			IEnumerable<UhtProperty> properties = classObj.Properties.Where(x => x.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.GetterSpecifiedAuto | UhtPropertyExportFlags.SetterSpecifiedAuto));
-			if (properties.Any())
-			{
-				AppendAutoGettersSetters(builder, classObj, properties, false);
-				if (properties.Any(x => x.IsEditorOnlyProperty))
-				{
-					AppendAutoGettersSetters(builder, classObj, properties, true);
-				}
-			}
-			return builder;
-		}
-		
-		private StringBuilder AppendAutoGettersSetters(StringBuilder builder, UhtClass classObj, IEnumerable<UhtProperty> properties, bool isEditorOnly)
-		{
-			// We can skip writing the macros if there are no properties to declare, as the 'if' and 'else' would be the same
-			if (isEditorOnly)
-			{
-				builder.Append("#if WITH_EDITORONLY_DATA\r\n");
+				return builder;
 			}
 
-			using (UhtMacroCreator macro = new(builder, this, classObj, isEditorOnly ? EditorOnlyAutoGettersSettersMacroSuffix : AutoGettersSettersMacroSuffix))
-			{
-				foreach (UhtProperty property in properties)
+			return builder.AppendMultiMacros(autoGetterSetterProperties, UhtDefineScopeNames.Standard, this, classObj, AutoGettersSettersMacroSuffix, true,
+				(builder, properties) =>
 				{
-					if (property.IsEditorOnlyProperty == isEditorOnly)
+					foreach (UhtProperty property in properties)
 					{
 						if (property.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.GetterSpecifiedAuto))
 						{
-							using BorrowStringBuilder borrower = new(StringBuilderCache.Small);
-							StringBuilder propertyStringBuilder = borrower.StringBuilder;
-							propertyStringBuilder.AppendPropertyText(property, UhtPropertyTextType.GetterRetVal);
-							string getterRetText = propertyStringBuilder.ToString();
 							string getterCallText = property.Getter ?? "Get" + property.SourceName;
-							builder.Append('\t').Append(getterRetText).Append(getterCallText).Append("() const; \\\r\n");
+							builder.Append('\t').AppendPropertyText(property, UhtPropertyTextType.GetterRetVal).Append(getterCallText).Append("() const; \\\r\n");
 						}
 						if (property.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.SetterSpecifiedAuto))
 						{
-							using BorrowStringBuilder borrower = new(StringBuilderCache.Small);
-							StringBuilder propertyStringBuilder = borrower.StringBuilder;
-							propertyStringBuilder.AppendPropertyText(property, UhtPropertyTextType.SetterParameterArgType);
-							string setterArgText = propertyStringBuilder + "InValue";
 							string setterCallText = property.Setter ?? "Set" + property.SourceName;
-							builder.Append("\tvoid ").Append(setterCallText).Append('(').Append(setterArgText).Append("); \\\r\n");
+							builder.Append("\tvoid ").Append(setterCallText).Append('(').AppendPropertyText(property, UhtPropertyTextType.SetterParameterArgType).Append("InValue").Append("); \\\r\n");
 						}
+					}
+				});
+		}
+
+		private static IEnumerable<UhtProperty> EnumerateSparseDataStructProperties(IEnumerable<UhtScriptStruct> sparseScriptStructs)
+		{
+			foreach (UhtScriptStruct sparseScriptStruct in sparseScriptStructs)
+			{
+				foreach (UhtProperty property in sparseScriptStruct.Properties)
+				{
+					if (!property.MetaData.ContainsKey(UhtNames.NoGetter))
+					{
+						yield return property;
 					}
 				}
 			}
-
-			// We can skip writing the macros if there are no properties to declare, as the 'if' and 'else' would be the same
-			if (isEditorOnly)
-			{
-				// Trim the extra newlines added after the macro generator
-				if (builder.Length > 4 &&
-					builder[^4] == '\r' &&
-					builder[^3] == '\n' &&
-					builder[^2] == '\r' &&
-					builder[^1] == '\n')
-				{
-					builder.Length -= 4;
-				}
-
-				builder.Append("#else // WITH_EDITORONLY_DATA\r\n");
-				using (UhtMacroCreator macro = new(builder, this, classObj, EditorOnlyAutoGettersSettersMacroSuffix))
-				{
-					// Empty macro when not compiling WITH_EDITORONLY_DATA
-				}
-				builder.Append("#endif // WITH_EDITORONLY_DATA\r\n\r\n\r\n");
-			}
-
-			return builder;
 		}
 		
-		private StringBuilder AppendSparseDeclarations(StringBuilder builder, UhtClass classObj, IEnumerable<UhtScriptStruct> sparseScriptStructs, 
-			Dictionary<UhtScriptStruct, List<UhtProperty>> commonProperties, Dictionary<UhtScriptStruct, List<UhtProperty>> editorOnlyProperties)
+		private StringBuilder AppendSparseDeclarations(StringBuilder builder, UhtClass classObj, IEnumerable<UhtScriptStruct> sparseScriptStructs, UhtUsedDefineScopes<UhtProperty> sparseProperties)
 		{
-			if (sparseScriptStructs.Any())
+			if (!sparseScriptStructs.Any())
 			{
-				AppendSparseStructDeclarations(builder, classObj, sparseScriptStructs);
-				AppendSparsePropertyDeclarations(builder, classObj, sparseScriptStructs, commonProperties, /*isEditorOnly*/false);
-				if (editorOnlyProperties.Count > 0)
-				{
-					AppendSparsePropertyDeclarations(builder, classObj, sparseScriptStructs, editorOnlyProperties, /*isEditorOnly*/true);
-				}
+				return builder;
 			}
+
+			AppendSparseStructDeclarations(builder, classObj, sparseScriptStructs);
+
+			builder.AppendMultiMacros(sparseProperties, UhtDefineScopeNames.Standard, this, classObj, SparseDataPropertyAccessorsMacroSuffix, 
+				true, (builder, properties) =>
+				{
+					foreach (UhtProperty property in properties)
+					{
+						string propertyName = property.SourceName;
+						ReadOnlySpan<char> cleanPropertyName = propertyName.AsSpan();
+						if (property is UhtBoolProperty && propertyName.StartsWith("b", StringComparison.Ordinal))
+						{
+							cleanPropertyName = cleanPropertyName[1..];
+						}
+
+						if (property.MetaData.ContainsKey(UhtNames.GetByRef))
+						{
+							builder.Append("const ").AppendSparse(property).Append("& Get").Append(cleanPropertyName).Append("() const");
+						}
+						else
+						{
+							builder.AppendSparse(property).Append(" Get").Append(cleanPropertyName).Append("() const");
+						}
+						builder.Append(" { return Get").Append(property.Outer?.EngineName).Append("(EGetSparseClassDataMethod::ArchetypeIfNull)->").Append(propertyName).Append("; } \\\r\n");
+					}
+				});	
 			return builder;
 		}
 
@@ -840,138 +787,25 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return builder;
 		}
 
-		private StringBuilder AppendSparsePropertyDeclarations(StringBuilder builder, UhtClass classObj, IEnumerable<UhtScriptStruct> sparseScriptStructs, Dictionary<UhtScriptStruct, List<UhtProperty>> propertiesToDeclare, bool isEditorOnly)
+		private StringBuilder AppendRpcFunctions(StringBuilder builder, UhtClass classObj, bool usesLegacy, UhtUsedDefineScopes<UhtFunction> functions)
 		{
-			// We can skip writing the macros if there are no properties to declare, as the 'if' and 'else' would be the same
-			if (isEditorOnly && propertiesToDeclare.Count > 0)
-			{
-				builder.Append("#if WITH_EDITORONLY_DATA\r\n");
-			}
-
-			using (UhtMacroCreator macro = new(builder, this, classObj, isEditorOnly ? EditorOnlySparseDataPropertyAccessorsMacroSuffix : SparseDataPropertyAccessorsMacroSuffix))
-			{
-				foreach (UhtScriptStruct sparseScriptStruct in sparseScriptStructs)
+			builder.AppendMultiMacros(functions, UhtDefineScopeNames.WithEditor, this, classObj, usesLegacy ? RpcWrappersMacroSuffix : RpcWrappersNoPureDeclsMacroSuffix, false,
+				(builder, functions) =>
 				{
-					if (propertiesToDeclare.TryGetValue(sparseScriptStruct, out List<UhtProperty>? sparseProperties))
+					if (usesLegacy)
 					{
-						string sparseDataType = sparseScriptStruct.EngineName;
-
-						foreach (UhtProperty sparseProperty in sparseProperties)
-						{
-							string propertyName = sparseProperty.SourceName;
-							string cleanPropertyName = propertyName;
-							if (sparseProperty is UhtBoolProperty && propertyName.StartsWith("b", StringComparison.Ordinal))
-							{
-								cleanPropertyName = propertyName[1..];
-							}
-
-							if (sparseProperty.MetaData.ContainsKey(UhtNames.GetByRef))
-							{
-								builder.Append("const ").AppendSparse(sparseProperty).Append("& Get").Append(cleanPropertyName).Append("() const");
-							}
-							else
-							{
-								builder.AppendSparse(sparseProperty).Append(" Get").Append(cleanPropertyName).Append("() const");
-							}
-							builder.Append(" { return Get").Append(sparseDataType).Append("(EGetSparseClassDataMethod::ArchetypeIfNull)->").Append(propertyName).Append("; } \\\r\n");
-						}
+						AppendAutogeneratedBlueprintFunctionDeclarations(builder, classObj, functions);
+						AppendRpcWrappers(builder, functions);
 					}
-				}
-			}
-
-			// We can skip writing the macros if there are no properties to declare, as the 'if' and 'else' would be the same
-			if (isEditorOnly && propertiesToDeclare.Count > 0)
-			{
-				// Trim the extra newlines added after the macro generator
-				if (builder.Length > 4 &&
-					builder[^4] == '\r' &&
-					builder[^3] == '\n' &&
-					builder[^2] == '\r' &&
-					builder[^1] == '\n')
-				{
-					builder.Length -= 4;
-				}
-
-				builder.Append("#else // WITH_EDITORONLY_DATA\r\n");
-				using (UhtMacroCreator macro = new(builder, this, classObj, EditorOnlySparseDataPropertyAccessorsMacroSuffix))
-				{
-					// Empty macro when not compiling WITH_EDITORONLY_DATA
-				}
-				builder.Append("#endif // WITH_EDITORONLY_DATA\r\n\r\n\r\n");
-			}
-
-			return builder;
-		}
-
-		private static void CalculateSparsePropertyDeclarations(IEnumerable<UhtScriptStruct> sparseScriptStructs, out Dictionary<UhtScriptStruct, List<UhtProperty>> commonProperties, out Dictionary<UhtScriptStruct, List<UhtProperty>> editorOnlyProperties)
-		{
-			commonProperties = new();
-			editorOnlyProperties = new();
-
-			foreach (UhtScriptStruct sparseScriptStruct in sparseScriptStructs)
-			{
-				List<UhtProperty> commonPropertiesForStruct = new();
-				List<UhtProperty> editorOnlyPropertiesForStruct = new();
-
-				foreach (UhtProperty sparseProperty in sparseScriptStruct.Properties)
-				{
-					if (!sparseProperty.MetaData.ContainsKey(UhtNames.NoGetter))
+					else
 					{
-						if (sparseProperty.IsEditorOnlyProperty)
+						if (classObj.GeneratedCodeVersion <= EGeneratedCodeVersion.V1)
 						{
-							editorOnlyPropertiesForStruct.Add(sparseProperty);
+							AppendAutogeneratedBlueprintFunctionDeclarationsOnlyNotDeclared(builder, classObj, functions);
 						}
-						else
-						{
-							commonPropertiesForStruct.Add(sparseProperty);
-						}
+						AppendRpcWrappers(builder, functions);
 					}
-				}
-
-				if (commonPropertiesForStruct.Count > 0)
-				{
-					commonProperties.Add(sparseScriptStruct, commonPropertiesForStruct);
-				}
-				if (editorOnlyPropertiesForStruct.Count > 0)
-				{
-					editorOnlyProperties.Add(sparseScriptStruct, editorOnlyPropertiesForStruct);
-				}
-			}
-		}
-
-		private StringBuilder AppendRpcFunctions(StringBuilder builder, UhtClass classObj, bool usesLegacy, List<UhtFunction> reversedFunctions, bool editorOnly)
-		{
-			builder.AppendBeginEditorOnlyGuard(editorOnly);
-
-			if (usesLegacy)
-			{
-				using UhtMacroCreator macro = new(builder, this, classObj, editorOnly ? EditorOnlyRpcWrappersMacroSuffix : RpcWrappersMacroSuffix);
-				AppendAutogeneratedBlueprintFunctionDeclarations(builder, classObj, reversedFunctions, editorOnly);
-				AppendRpcWrappers(builder, reversedFunctions, editorOnly);
-			}
-			else
-			{
-				using UhtMacroCreator macro = new(builder, this, classObj, editorOnly ? EditorOnlyRpcWrappersNoPureDeclsMacroSuffix : RpcWrappersNoPureDeclsMacroSuffix);
-				if (classObj.GeneratedCodeVersion <= EGeneratedCodeVersion.V1)
-				{
-					AppendAutogeneratedBlueprintFunctionDeclarationsOnlyNotDeclared(builder, classObj, reversedFunctions, editorOnly);
-				}
-				AppendRpcWrappers(builder, reversedFunctions, editorOnly);
-			}
-
-			if (editorOnly)
-			{
-				builder.Append("#else // WITH_EDITOR\r\n");
-				if (usesLegacy)
-				{
-					using UhtMacroCreator macro = new(builder, this, classObj, editorOnly ? EditorOnlyRpcWrappersMacroSuffix : RpcWrappersMacroSuffix);
-				}
-				else
-				{
-					using UhtMacroCreator macro = new(builder, this, classObj, editorOnly ? EditorOnlyRpcWrappersNoPureDeclsMacroSuffix : RpcWrappersNoPureDeclsMacroSuffix);
-				}
-				builder.AppendEndEditorOnlyGuard();
-			}
+				});
 			return builder;
 		}
 
@@ -997,11 +831,11 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return builder;
 		}
 
-		private StringBuilder AppendAutogeneratedBlueprintFunctionDeclarations(StringBuilder builder, UhtClass classObj, List<UhtFunction> reversedFunctions, bool editorOnly)
+		private StringBuilder AppendAutogeneratedBlueprintFunctionDeclarations(StringBuilder builder, UhtClass classObj, IEnumerable<UhtFunction> functions)
 		{
-			foreach (UhtFunction function in reversedFunctions)
+			foreach (UhtFunction function in functions)
 			{
-				if (!IsRpcFunction(function, editorOnly) || function.CppImplName == function.SourceName)
+				if (function.CppImplName == function.SourceName)
 				{
 					continue;
 				}
@@ -1011,11 +845,11 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return builder;
 		}
 
-		private StringBuilder AppendAutogeneratedBlueprintFunctionDeclarationsOnlyNotDeclared(StringBuilder builder, UhtClass classObj, List<UhtFunction> reversedFunctions, bool editorOnly)
+		private StringBuilder AppendAutogeneratedBlueprintFunctionDeclarationsOnlyNotDeclared(StringBuilder builder, UhtClass classObj, IEnumerable<UhtFunction> functions)
 		{
-			foreach (UhtFunction function in reversedFunctions)
+			foreach (UhtFunction function in functions)
 			{
-				if (!IsRpcFunction(function, editorOnly) || function.CppImplName == function.SourceName)
+				if (function.CppImplName == function.SourceName)
 				{
 					continue;
 				}
@@ -1053,14 +887,10 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return builder;
 		}
 
-		private static StringBuilder AppendRpcWrappers(StringBuilder builder, List<UhtFunction> reversedFunctions, bool editorOnly)
+		private static StringBuilder AppendRpcWrappers(StringBuilder builder, IEnumerable<UhtFunction> functions)
 		{
-			foreach (UhtFunction function in reversedFunctions)
+			foreach (UhtFunction function in functions)
 			{
-				if (!IsRpcFunction(function, editorOnly))
-				{
-					continue;
-				}
 				if (!ShouldExportFunction(function))
 				{
 					continue;
@@ -1631,8 +1461,9 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return builder;
 		}
 
-		private StringBuilder AppendGeneratedBodyMacroBlock(StringBuilder builder, UhtClass classObj, UhtClass bodyClassObj, bool isLegacy, bool hasEditorRpc, bool hasCallbacks, 
-			bool hasAutoGettersSetters, bool hasEditorOnlyAutoGettersSetters, bool hasSparseProperties, bool hasEditorOnlySparseProperties, string? deprecatedMacroName)
+		private StringBuilder AppendGeneratedBodyMacroBlock(StringBuilder builder, UhtClass classObj, UhtClass bodyClassObj, bool isLegacy, 
+			UhtUsedDefineScopes<UhtFunction> rpcFunctions, UhtUsedDefineScopes<UhtProperty> autoGetterSetterProperties, bool hasSparseStructs,
+			UhtUsedDefineScopes<UhtProperty> sparseProperties, bool hasCallbacks, string? deprecatedMacroName)
 		{
 			bool isInterface = classObj.ClassFlags.HasAnyFlags(EClassFlags.Interface);
 			using (UhtMacroCreator macro = new(builder, this, bodyClassObj, isLegacy ? GeneratedBodyLegacyMacroSuffix : GeneratedBodyMacroSuffix))
@@ -1643,42 +1474,16 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				}
 				builder.Append(DisableDeprecationWarnings).Append(" \\\r\n");
 				builder.Append("public: \\\r\n");
-				if (hasSparseProperties)
+				if (hasSparseStructs)
 				{
 					builder.Append('\t').AppendMacroName(this, classObj, SparseDataMacroSuffix).Append(" \\\r\n");
-					builder.Append('\t').AppendMacroName(this, classObj, SparseDataPropertyAccessorsMacroSuffix).Append(" \\\r\n");
-					if (hasEditorOnlySparseProperties)
-					{
-						builder.Append('\t').AppendMacroName(this, classObj, EditorOnlySparseDataPropertyAccessorsMacroSuffix).Append(" \\\r\n");
-					}
+					builder.AppendMultiMacroRefs(sparseProperties, this, classObj, SparseDataPropertyAccessorsMacroSuffix);
 				}
-				if (isLegacy)
-				{
-					builder.Append('\t').AppendMacroName(this, classObj, RpcWrappersMacroSuffix).Append(" \\\r\n");
-				}
-				else
-				{
-					builder.Append('\t').AppendMacroName(this, classObj, RpcWrappersNoPureDeclsMacroSuffix).Append(" \\\r\n");
-				}
-				if (hasEditorRpc)
-				{
-					if (isLegacy)
-					{
-						builder.Append('\t').AppendMacroName(this, classObj, EditorOnlyRpcWrappersMacroSuffix).Append(" \\\r\n");
-					}
-					else
-					{
-						builder.Append('\t').AppendMacroName(this, classObj, EditorOnlyRpcWrappersNoPureDeclsMacroSuffix).Append(" \\\r\n");
-					}
-				}
+				builder.AppendMultiMacroRefs(rpcFunctions, this, classObj, isLegacy ? RpcWrappersMacroSuffix : RpcWrappersNoPureDeclsMacroSuffix);
 				builder.Append('\t').AppendMacroName(this, classObj, AccessorsMacroSuffix).Append(" \\\r\n");
-				if (hasAutoGettersSetters)
+				if (!autoGetterSetterProperties.IsEmpty)
 				{
-					builder.Append('\t').AppendMacroName(this, classObj, AutoGettersSettersMacroSuffix).Append(" \\\r\n");
-					if (hasEditorOnlyAutoGettersSetters)
-					{
-						builder.Append('\t').AppendMacroName(this, classObj, EditorOnlyAutoGettersSettersMacroSuffix).Append(" \\\r\n");
-					}
+					builder.AppendMultiMacroRefs(autoGetterSetterProperties, this, classObj, AutoGettersSettersMacroSuffix);
 				}
 				if (hasCallbacks)
 				{

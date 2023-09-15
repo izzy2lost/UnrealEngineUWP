@@ -691,6 +691,11 @@ namespace EpicGames.UHT.Types
 		public UhtPropertyExportFlags PropertyExportFlags { get; set; }
 
 		/// <summary>
+		/// #define scope of where the property exists
+		/// </summary>
+		public UhtDefineScope DefineScope { get; set; }
+
+		/// <summary>
 		/// Allocator used for containers
 		/// </summary>
 		public UhtPropertyAllocator Allocator { get; set; }
@@ -762,6 +767,7 @@ namespace EpicGames.UHT.Types
 			PropertyFlags = parentPropertySettings.PropertyFlags;
 			DisallowPropertyFlags = parentPropertySettings.DisallowPropertyFlags;
 			PropertyExportFlags = UhtPropertyExportFlags.Public;
+			DefineScope = parentPropertySettings.DefineScope;
 			RepNotifyName = null;
 			Allocator = UhtPropertyAllocator.Default;
 			Options = parentPropertySettings.Options;
@@ -790,6 +796,7 @@ namespace EpicGames.UHT.Types
 			PropertyCategory = propertyCategory;
 			PropertyFlags = EPropertyFlags.None;
 			DisallowPropertyFlags = disallowPropertyFlags;
+			DefineScope = UhtDefineScope.None;
 			PropertyExportFlags = UhtPropertyExportFlags.Public;
 			RepNotifyName = null;
 			Allocator = UhtPropertyAllocator.Default;
@@ -822,6 +829,7 @@ namespace EpicGames.UHT.Types
 			PropertyFlags = property.PropertyFlags;
 			DisallowPropertyFlags = property.DisallowPropertyFlags;
 			PropertyExportFlags = property.PropertyExportFlags;
+			DefineScope = property.DefineScope;
 			Allocator = property.Allocator;
 			Options = options;
 			PointerType = property.PointerType;
@@ -1029,7 +1037,7 @@ namespace EpicGames.UHT.Types
 		/// If true, the property is editor only
 		/// </summary>
 		[JsonIgnore]
-		public bool IsEditorOnlyProperty => PropertyFlags.HasAnyFlags(EPropertyFlags.DevelopmentAssets);
+		public bool IsEditorOnlyProperty => PropertyFlags.HasAnyFlags(EPropertyFlags.EditorOnly);
 
 		/// <summary>
 		/// Construct a new property
@@ -1058,6 +1066,7 @@ namespace EpicGames.UHT.Types
 			PropertyFlags = propertySettings.PropertyFlags;
 			DisallowPropertyFlags = propertySettings.DisallowPropertyFlags;
 			PropertyExportFlags = propertySettings.PropertyExportFlags;
+			DefineScope = propertySettings.DefineScope;
 			Allocator = propertySettings.Allocator;
 			PointerType = propertySettings.PointerType;
 			RepNotifyName = propertySettings.RepNotifyName;
@@ -1958,7 +1967,7 @@ namespace EpicGames.UHT.Types
 		/// <returns>True if GC barriers need to run</returns>				
 		public bool NeedsGCBarrierWhenPassedToFunction(UhtFunction function)
 		{
-			if (this.RefQualifier != UhtPropertyRefQualifier.NonConstRef)
+			if (RefQualifier != UhtPropertyRefQualifier.NonConstRef)
 			{
 				return false;
 			}
