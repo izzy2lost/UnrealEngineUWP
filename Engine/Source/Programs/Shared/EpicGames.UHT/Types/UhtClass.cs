@@ -298,8 +298,8 @@ namespace EpicGames.UHT.Types
 		/// <summary>
 		/// If needed, the #if block define for the serializer
 		/// </summary>
-		[JsonIgnore]
-		public string EnclosingDefine { get; set; } = String.Empty;
+		[JsonConverter(typeof(JsonStringEnumConverter))]
+		public UhtDefineScope SerializerDefineScope { get; set; } = UhtDefineScope.None;
 
 		/// <summary>
 		/// The class within

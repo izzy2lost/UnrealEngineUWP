@@ -1388,15 +1388,8 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		{
 			if (!classObj.SerializerArchiveType.HasAnyFlags(serializerType))
 			{
-				if (classObj.EnclosingDefine.Length > 0)
-				{
-					builder.Append("#if ").Append(classObj.EnclosingDefine).Append("\r\n");
-				}
-				builder.Append('\t').Append(macroText).Append('(').Append(classObj.SourceName).Append(")\r\n");
-				if (classObj.EnclosingDefine.Length > 0)
-				{
-					builder.Append("#endif\r\n");
-				}
+				builder.AppendScoped(UhtDefineScopeNames.Standard, classObj.SerializerDefineScope,
+					builder => builder.Append('\t').Append(macroText).Append('(').Append(classObj.SourceName).Append(")\r\n"));
 			}
 			return builder;
 		}

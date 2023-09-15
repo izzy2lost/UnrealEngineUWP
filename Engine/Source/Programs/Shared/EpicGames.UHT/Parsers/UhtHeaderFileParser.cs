@@ -1318,7 +1318,7 @@ namespace EpicGames.UHT.Parsers
 				if (declaration.CompilerDirectives == UhtCompilerDirective.None || declaration.CompilerDirectives == UhtCompilerDirective.WithEditorOnlyData)
 				{
 					classObj.SerializerArchiveType |= archiveType;
-					classObj.EnclosingDefine = declaration.CompilerDirectives == UhtCompilerDirective.None ? "" : "WITH_EDITORONLY_DATA";
+					classObj.SerializerDefineScope = declaration.CompilerDirectives == UhtCompilerDirective.None ? UhtDefineScope.None : UhtDefineScope.EditorOnlyData;
 				}
 				else
 				{

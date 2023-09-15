@@ -198,6 +198,69 @@ namespace EpicGames.UHT.Exporters.CodeGen
 	/// </summary>
 	internal static class UhtUsedDefineScopesExtensions
 	{
+
+		/// <summary>
+		/// Append a macro scoped macro
+		/// </summary>
+		/// <param name="builder">Destination builder</param>
+		/// <param name="defineScopeNames">Which set of scope names will be used</param>
+		/// <param name="defineScope">Specified scope</param>
+		/// <param name="appendAction">Action to invoke to append an instance</param>
+		/// <returns>String builder</returns>
+		public static StringBuilder AppendScoped(this StringBuilder builder, UhtDefineScopeNames defineScopeNames, UhtDefineScope defineScope, Action<StringBuilder> appendAction)
+		{
+			using UhtMacroBlockEmitter blockEmitter = new(builder, defineScopeNames, defineScope);
+			appendAction(builder);
+			return builder;
+		}
+
+		/// <summary>
+		/// Append a macro scoped macro
+		/// </summary>
+		/// <param name="builder">Destination builder</param>
+		/// <param name="defineScopeNames">Which set of scope names will be used</param>
+		/// <param name="defineScope">Specified scope</param>
+		/// <param name="generator">Header code generator</param>
+		/// <param name="outerType">Output type owning the instances</param>
+		/// <param name="macroSuffix">Macro being created</param>
+		/// <param name="includeSuffix">If true, include such things as _EOD onto the macro name</param>
+		/// <param name="appendAction">Action to invoke to append an instance</param>
+		/// <returns>String builder</returns>
+		public static StringBuilder AppendScopedMacro(this StringBuilder builder, UhtDefineScopeNames defineScopeNames, UhtDefineScope defineScope,
+			UhtHeaderCodeGenerator generator, UhtType outerType, string macroSuffix, bool includeSuffix, Action<StringBuilder> appendAction)
+		{
+			using (UhtMacroBlockEmitter blockEmitter = new(builder, defineScopeNames, defineScope))
+			{
+				using (UhtMacroCreator macro = new(builder, generator, outerType, macroSuffix, defineScope, includeSuffix))
+				{
+					appendAction(builder);
+				}
+
+				// We can skip writing the macros if there are no properties to declare, as the 'if' and 'else' would be the same
+				if (defineScope != UhtDefineScope.None)
+				{
+					// Trim the extra newlines added after the macro generator
+					if (builder.Length > 4 &&
+						builder[^4] == '\r' &&
+						builder[^3] == '\n' &&
+						builder[^2] == '\r' &&
+						builder[^1] == '\n')
+					{
+						builder.Length -= 4;
+					}
+
+					builder.AppendElsePreprocessor(defineScope, defineScopeNames);
+					using UhtMacroCreator macro = new(builder, generator, outerType, macroSuffix, defineScope, includeSuffix); // Empty macro
+				}
+			}
+
+			if (defineScope != UhtDefineScope.None)
+			{
+				builder.Append("\r\n\r\n");
+			}
+			return builder;
+		}
+
 		/// <summary>
 		/// Append multi macros for the given collection of scopes
 		/// </summary>
@@ -209,40 +272,13 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		/// <param name="macroSuffix">Macro being created</param>
 		/// <param name="appendAction">Action to invoke to append an instance</param>
 		/// <returns>String builder</returns>
-		public static StringBuilder AppendMultiMacros<T>(this StringBuilder builder, UhtUsedDefineScopes<T> instances, UhtDefineScopeNames defineScopeNames, 
+		public static StringBuilder AppendMultiMacros<T>(this StringBuilder builder, UhtUsedDefineScopes<T> instances, UhtDefineScopeNames defineScopeNames,
 			UhtHeaderCodeGenerator generator, UhtType outerType, string macroSuffix, Action<StringBuilder, IEnumerable<T>> appendAction) where T : UhtType
 		{
 			foreach (UhtDefineScope defineScope in instances.EnumerateDefinedScopes())
 			{
-				using (UhtMacroBlockEmitter blockEmitter = new(builder, defineScopeNames, defineScope))
-				{
-					using (UhtMacroCreator macro = new(builder, generator, outerType, macroSuffix, defineScope))
-					{
-						appendAction(builder, instances.Instances.Where(x => x.DefineScope == defineScope));
-					}
-
-					// We can skip writing the macros if there are no properties to declare, as the 'if' and 'else' would be the same
-					if (defineScope != UhtDefineScope.None)
-					{
-						// Trim the extra newlines added after the macro generator
-						if (builder.Length > 4 &&
-							builder[^4] == '\r' &&
-							builder[^3] == '\n' &&
-							builder[^2] == '\r' &&
-							builder[^1] == '\n')
-						{
-							builder.Length -= 4;
-						}
-
-						builder.AppendElsePreprocessor(defineScope, defineScopeNames);
-						using UhtMacroCreator macro = new(builder, generator, outerType, macroSuffix, defineScope); // Empty macro
-					}
-				}
-
-				if (defineScope != UhtDefineScope.None)
-				{
-					builder.Append("\r\n\r\n");
-				}
+				AppendScopedMacro(builder, defineScopeNames, defineScope, generator, outerType, macroSuffix, true,
+					builder => appendAction(builder, instances.Instances.Where(x => x.DefineScope == defineScope)));
 			}
 			return builder;
 		}

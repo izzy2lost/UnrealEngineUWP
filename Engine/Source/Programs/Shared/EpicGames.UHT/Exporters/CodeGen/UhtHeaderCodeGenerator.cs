@@ -634,34 +634,37 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 	internal static class UhtHaederCodeGeneratorStringBuilderExtensions
 	{
-		public static StringBuilder AppendMacroName(this StringBuilder builder, string fileId, int lineNumber, string macroSuffix, UhtDefineScope defineScope = UhtDefineScope.None)
+		public static StringBuilder AppendMacroName(this StringBuilder builder, string fileId, int lineNumber, string macroSuffix, UhtDefineScope defineScope = UhtDefineScope.None, bool includeSuffix = true)
 		{
 			builder.Append(fileId).Append('_').Append(lineNumber).Append('_').Append(macroSuffix);
-			if (defineScope.HasAnyFlags(UhtDefineScope.EditorOnlyData))
+			if (includeSuffix)
 			{
-				builder.Append("_EOD");
+				if (defineScope.HasAnyFlags(UhtDefineScope.EditorOnlyData))
+				{
+					builder.Append("_EOD");
+				}
 			}
 			return builder;
 		}
 
-		public static StringBuilder AppendMacroName(this StringBuilder builder, UhtHeaderCodeGenerator generator, int lineNumber, string macroSuffix, UhtDefineScope defineScope = UhtDefineScope.None)
+		public static StringBuilder AppendMacroName(this StringBuilder builder, UhtHeaderCodeGenerator generator, int lineNumber, string macroSuffix, UhtDefineScope defineScope = UhtDefineScope.None, bool includeSuffix = true)
 		{
-			return builder.AppendMacroName(generator.FileId, lineNumber, macroSuffix, defineScope);
+			return builder.AppendMacroName(generator.FileId, lineNumber, macroSuffix, defineScope, includeSuffix);
 		}
 
-		public static StringBuilder AppendMacroName(this StringBuilder builder, UhtHeaderCodeGenerator generator, UhtType type, string macroSuffix, UhtDefineScope defineScope = UhtDefineScope.None)
+		public static StringBuilder AppendMacroName(this StringBuilder builder, UhtHeaderCodeGenerator generator, UhtType type, string macroSuffix, UhtDefineScope defineScope = UhtDefineScope.None, bool includeSuffix = true)
 		{
 			if (type is UhtClass classObj)
 			{
-				return builder.AppendMacroName(generator, classObj.GeneratedBodyLineNumber, macroSuffix, defineScope);
+				return builder.AppendMacroName(generator, classObj.GeneratedBodyLineNumber, macroSuffix, defineScope, includeSuffix);
 			}
 			else if (type is UhtScriptStruct scriptStruct)
 			{
-				return builder.AppendMacroName(generator, scriptStruct.MacroDeclaredLineNumber, macroSuffix, defineScope);
+				return builder.AppendMacroName(generator, scriptStruct.MacroDeclaredLineNumber, macroSuffix, defineScope, includeSuffix);
 			}
 			else if (type is UhtFunction function)
 			{
-				return builder.AppendMacroName(generator, function.MacroLineNumber, macroSuffix, defineScope);
+				return builder.AppendMacroName(generator, function.MacroLineNumber, macroSuffix, defineScope, includeSuffix);
 			}
 			else
 			{

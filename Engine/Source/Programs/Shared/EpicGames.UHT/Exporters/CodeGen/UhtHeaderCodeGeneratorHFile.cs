@@ -920,28 +920,8 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		{
 			if (!classObj.SerializerArchiveType.HasAnyFlags(type))
 			{
-				if (classObj.EnclosingDefine.Length != 0)
-				{
-					builder.Append("#if ").Append(classObj.EnclosingDefine).Append("\r\n");
-				}
-				AppendSerializerFunction(builder, classObj, api, declare);
-				if (classObj.EnclosingDefine.Length != 0)
-				{
-					builder.Append("#else\r\n");
-					using (UhtMacroCreator macro = new(builder, this, classObj, ArchiveSerializerMacroSuffix))
-					{
-					}
-					builder.Append("#endif\r\n");
-				}
-			}
-			return builder;
-		}
-
-		private StringBuilder AppendSerializerFunction(StringBuilder builder, UhtClass classObj, string api, string declare)
-		{
-			using (UhtMacroCreator macro = new(builder, this, classObj, ArchiveSerializerMacroSuffix))
-			{
-				builder.Append('\t').Append(declare).Append('(').Append(classObj.SourceName).Append(", ").Append(api[0..^1]).Append(") \\\r\n");
+				builder.AppendScopedMacro(UhtDefineScopeNames.Standard, classObj.SerializerDefineScope, this, classObj, ArchiveSerializerMacroSuffix, false,
+					builder => builder.Append('\t').Append(declare).Append('(').Append(classObj.SourceName).Append(", ").Append(api[0..^1]).Append(") \\\r\n"));
 			}
 			return builder;
 		}
