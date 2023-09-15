@@ -1,4 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+#pragma optimize("", off)
 #include "GeometryCollection/GeometryCollectionComponent.h"
 
 #include "AI/Navigation/NavCollisionBase.h"
@@ -2690,12 +2691,14 @@ void UGeometryCollectionComponent::CheckFullyDecayed()
 
 	if (DynamicCollection && PhysicsProxy)
 	{
-		bool bFullyDecayed = true;
 		FGeometryCollectionDynamicStateFacade DynamicStateFacade(*DynamicCollection);
+		FGeometryCollectionDecayDynamicFacade DecayFacade(*DynamicCollection);
 
-		if (DynamicStateFacade.IsValid())
+		if (DynamicStateFacade.IsValid() && DecayFacade.IsValid())
 		{
+			bool bFullyDecayed = true;
 			const int32 NumTransforms = DynamicCollection->NumElements(FGeometryCollection::TransformGroup);
+
 			for (int32 TransformIdx = 0; TransformIdx < NumTransforms; ++TransformIdx)
 			{
 				// If we didn't create a particle for this transform, we shouldn't consider this particle.
@@ -2713,6 +2716,12 @@ void UGeometryCollectionComponent::CheckFullyDecayed()
 
 				// If the particle is active, it's definitely not decayed either.
 				if (DynamicStateFacade.IsActive(TransformIdx))
+				{
+					bFullyDecayed = false;
+					break;
+				}
+
+				if (DecayFacade.GetDecay(TransformIdx) < 1.0f)
 				{
 					bFullyDecayed = false;
 					break;
