@@ -194,11 +194,11 @@ static void LocalFogVolumeViewTiledCullingPass(FViewInfo& View, FRDGBuilder& Gra
 		}
 	};
 	// Using world space plane for now. LFV_TODO: do computation in view space.
-	ConvertPlanToVector4f(PassParameters->LeftPlane,	View.CullingFrustum.Planes[0], false);
-	ConvertPlanToVector4f(PassParameters->RightPlane,	View.CullingFrustum.Planes[1], true);
-	ConvertPlanToVector4f(PassParameters->TopPlane,		View.CullingFrustum.Planes[2], true);
-	ConvertPlanToVector4f(PassParameters->BottomPlane,	View.CullingFrustum.Planes[3], false);
-//	ConvertPlanToVector4f(PassParameters->NearPlane,	View.CullingFrustum.Planes[4], false); // LFV TODO View.ViewMatrices.GetViewProjectionMatrix().GetNearPlane
+	ConvertPlanToVector4f(PassParameters->LeftPlane,	View.CullingFrustum.Planes[0],	false);
+	ConvertPlanToVector4f(PassParameters->RightPlane,	View.CullingFrustum.Planes[1],	true);
+	ConvertPlanToVector4f(PassParameters->TopPlane,		View.CullingFrustum.Planes[2],	true);
+	ConvertPlanToVector4f(PassParameters->BottomPlane,	View.CullingFrustum.Planes[3],	false);
+	ConvertPlanToVector4f(PassParameters->NearPlane,	View.NearClippingPlane,			false);
 
 	ERDGPassFlags PassFlag = ERDGPassFlags::Compute; // LFV_TODO try ERDGPassFlags::AsyncCompute later
 

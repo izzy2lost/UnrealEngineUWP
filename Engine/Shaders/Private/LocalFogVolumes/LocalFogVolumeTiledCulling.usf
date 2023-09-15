@@ -37,7 +37,7 @@ void LocalFogVolumeTiledCullingCS(uint3 ThreadId : SV_DispatchThreadID)
 	TilePlanes[1] = lerp(LeftPlane, RightPlane, MaxTileLerp.xxxx);		// Right tile plane
 	TilePlanes[2] = lerp(-TopPlane, -BottomPlane, MinTileLerp.yyyy);	// Bottom tile plane
 	TilePlanes[3] = lerp(-TopPlane, -BottomPlane, MaxTileLerp.yyyy);	// Top plane
-//	TilePlanes[4] = NearPlane;		LFV_TODO							// Near plane
+	TilePlanes[4] = NearPlane;											// Near plane
 	// Swap right and top plane to go from lerpable planes to planes we can use for culling
 	TilePlanes[1] *= -1.0f;
 	TilePlanes[3] *= -1.0f;
@@ -45,7 +45,7 @@ void LocalFogVolumeTiledCullingCS(uint3 ThreadId : SV_DispatchThreadID)
 #if 0
 	// Optional plane normalise
 	UNROLL
-	for (uint i = 0; i < 4; ++i)
+	for (uint i = 0; i < 5; ++i)
 	{
 		float SquareSum = TilePlanes[i].x * TilePlanes[i].x + TilePlanes[i].y * TilePlanes[i].y + TilePlanes[i].z * TilePlanes[i].z;
 		float Scale = 1.0 / sqrt(SquareSum);
@@ -60,7 +60,7 @@ void LocalFogVolumeTiledCullingCS(uint3 ThreadId : SV_DispatchThreadID)
 
 		bool bCompletelyOutside = false;
 		UNROLL
-		for (uint i = 0; i < 4; ++i)
+		for (uint i = 0; i < 5; ++i)
 		{
 			if (dot(TilePlanes[i].xyz, Sphere.xyz) - TilePlanes[i].w > Sphere.w)
 			{
