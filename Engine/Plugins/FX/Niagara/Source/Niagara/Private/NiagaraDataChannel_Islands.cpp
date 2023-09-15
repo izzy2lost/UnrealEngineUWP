@@ -188,12 +188,12 @@ FNDCIsland* UNiagaraDataChannelHandler_Islands::FindOrCreateIsland(const FNiagar
 		//When writing we'll grow/spawn islands to accommodate the data.
 
 		//First we see if this is an islands handler system.
-		if(SearchParams.OwningComponent)
+		if(SearchParams.GetOwner())
 		{
 			for (int32 i : ActiveIslands)
 			{
 				FNDCIsland& Island = IslandPool[i];
-				if (Island.IsHandlerSystem(SearchParams.OwningComponent))
+				if (Island.IsHandlerSystem(SearchParams.GetOwner()))
 				{
 					return &Island;
 				}
@@ -202,7 +202,7 @@ FNDCIsland* UNiagaraDataChannelHandler_Islands::FindOrCreateIsland(const FNiagar
 			for (int32 i : ActiveIslands)
 			{
 				FNDCIsland& Island = IslandPool[i];
-				if (Island.Intersects(SearchParams.OwningComponent->Bounds))
+				if (Island.Intersects(SearchParams.GetOwner()->Bounds))
 				{
 					return &Island;
 				}

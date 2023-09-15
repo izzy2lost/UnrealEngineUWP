@@ -347,8 +347,7 @@ bool FNDIDataChannelReadInstanceData::Tick(UNiagaraDataInterfaceDataChannelRead*
 			if(DataChannelData == nullptr || Interface->bUpdateSourceDataEveryTick)
 			{
 				//TODO: Automatically modify tick group if we have DIs that require current frame info?
-				FNiagaraDataChannelSearchParameters SearchParams;
-				SearchParams.OwningComponent = Instance->GetAttachComponent();
+				FNiagaraDataChannelSearchParameters SearchParams(Instance->GetAttachComponent());
 				DataChannelData = DataChannelPtr->FindData(SearchParams, ENiagaraResourceAccess::ReadOnly);//TODO: Maybe should have two paths, one for system instances and another for SceneComponents...
 			}	
 

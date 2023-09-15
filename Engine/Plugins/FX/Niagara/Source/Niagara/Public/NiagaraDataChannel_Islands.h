@@ -126,11 +126,11 @@ public:
 	FVector GetMaxExtents()const { return MaxExtents; }
 	FVector GetPerElementExtents()const { return PerElementExtents; }
 
-	TConstArrayView<TObjectPtr<UNiagaraSystem>> GetSystems()const;
+	NIAGARA_API TConstArrayView<TObjectPtr<UNiagaraSystem>> GetSystems()const;
 	int32 GetIslandPoolSize()const { return IslandPoolSize; }
 	const FNDCIslandDebugDrawSettings& GetDebugDrawSettings()const { return DebugDrawSettings; }
 
-private:
+protected:
 
 	/** Controls how islands are placed and sized. */
 	UPROPERTY(EditAnywhere, Category = "Islands")
@@ -197,7 +197,7 @@ class UNiagaraDataChannelHandler_Islands : public UNiagaraDataChannelHandler
 	NIAGARA_API virtual void Tick(float DeltaTime, ETickingGroup TickGroup, FNiagaraWorldManager* OwningWorld) override;
 	NIAGARA_API virtual FNiagaraDataChannelDataPtr FindData(FNiagaraDataChannelSearchParameters SearchParams, ENiagaraResourceAccess AccessType) override;
 
-private:
+protected:
 
 	/** All currently active Islands for this channel. */
 	UPROPERTY()

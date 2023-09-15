@@ -212,8 +212,7 @@ struct FNDIDataChannelWriteInstanceData
 			{
 				if (DataChannelData == nullptr || Interface->bUpdateDestinationDataEveryTick)
 				{
-					FNiagaraDataChannelSearchParameters SearchParams;
-					SearchParams.OwningComponent = Instance->GetAttachComponent();
+					FNiagaraDataChannelSearchParameters SearchParams(Instance->GetAttachComponent());
 					DataChannelData = DataChannelPtr->FindData(SearchParams, ENiagaraResourceAccess::WriteOnly);
 				}
 			}
