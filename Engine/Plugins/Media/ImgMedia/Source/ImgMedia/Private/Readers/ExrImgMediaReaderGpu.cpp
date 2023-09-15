@@ -268,7 +268,6 @@ bool FExrImgMediaReaderGpu::ReadFrame(int32 FrameId, const TMap<int32, FImgMedia
 
 	{
 		// Force mip level to be upscaled to all higher quality mips.
-		FIntPoint CurrentMipDim = ConverterParams->FullResolution;
 		TMap<int32, FImgMediaTileSelection> InMipTilesCopy = InMipTiles;
 		const int32 MipToUpscale = FMath::Clamp(Loader->GetMinimumLevelToUpscale(), -1, ConverterParams->NumMipLevels - 1);
 
@@ -359,7 +358,8 @@ bool FExrImgMediaReaderGpu::ReadFrame(int32 FrameId, const TMap<int32, FImgMedia
 			}
 
 			const int32 MipLevelDiv = 1 << CurrentMipLevel;
-			
+			FIntPoint CurrentMipDim = ConverterParams->FullResolution / MipLevelDiv;
+
 			TArray<FIntRect>& Viewports = ConverterParams->Viewports.Add(CurrentMipLevel);
 			for (const FIntRect& TileRegion : CurrentTileSelection.GetVisibleRegions())
 			{
