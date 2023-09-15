@@ -57,7 +57,7 @@ export const BisectionCreateModal: React.FC<{ jobId: string, nodeName: string, o
          <Stack tokens={{ childrenGap: 12 }}>
             <Stack horizontal styles={{ root: { padding: 0 } }}>
                <Stack style={{ paddingLeft: 0, paddingTop: 4 }} grow>
-                  <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>Step Bisection</Text>
+                  <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>Step Bisection (Experimental)</Text>
                </Stack>
                <Stack grow horizontalAlign="end">
                   <IconButton
