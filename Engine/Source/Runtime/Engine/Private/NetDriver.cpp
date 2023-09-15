@@ -946,7 +946,7 @@ void UNetDriver::TickFlush(float DeltaSeconds)
 #if UE_WITH_IRIS
 		if (ReplicationSystem)
 		{
-			UpdateReplicationViews();
+			UpdateIrisReplicationViews();
 			SendClientMoveAdjustments();
 			ReplicationSystem->PreSendUpdate(DeltaSeconds);
 		}
@@ -970,7 +970,7 @@ void UNetDriver::TickFlush(float DeltaSeconds)
 	{
 		if (ReplicationSystem)
 		{
-			UpdateReplicationViews();
+			UpdateIrisReplicationViews();
 			ReplicationSystem->PreSendUpdate(DeltaSeconds);
 		}
 	}
@@ -6380,11 +6380,9 @@ void UNetDriver::CreateReplicationSystem(bool bInitAsClient)
 	}
 }
 
-void UNetDriver::UpdateReplicationViews() const
+void UNetDriver::UpdateIrisReplicationViews() const
 {
 	using namespace UE::Net;
-
-	FReplicationView ReplicationView;
 
 	FReplicationView::FView DefaultView;
 	{
@@ -6392,46 +6390,28 @@ void UNetDriver::UpdateReplicationViews() const
 		DefaultView.FoVRadians = FMath::DegreesToRadians(CameraManager->DefaultFOV);
 	}
 
-	TObjectPtr<UNetConnection> const* Connections = (ServerConnection != nullptr ? &ServerConnection : ClientConnections.GetData());
-	const bool bUpdateConnectionViewTarget = ServerConnection == nullptr;
+	const bool bUpdateConnectionViewTarget = IsServer();
 
-	const uint32 ConnectionCount = (ServerConnection != nullptr ? 1U : uint32(ClientConnections.Num()));
-	TArray<UNetConnection*, TInlineAllocator<4>> SubConnections;
-	for (uint32 ConnIt = 0, ConnEndIt = ConnectionCount; ConnIt != ConnEndIt; ++ConnIt)
+	auto FillIrisReplicationViews = [&DefaultView, bUpdateConnectionViewTarget](TArrayView<UNetConnection*> AllConnections, FReplicationView& OutReplicationView)
 	{
-		ReplicationView.Views.Reset();
-
-		UNetConnection* Conn = Connections[ConnIt];
-		SubConnections.Reset();
-		SubConnections.Add(Conn);
-		if (Conn->Children.Num() > 0)
+		for (UNetConnection* AnyConnection : AllConnections)
 		{
-			SubConnections.Insert(reinterpret_cast<UNetConnection*const*>(Conn->Children.GetData()), Conn->Children.Num(), 1);
-		}
-
-		// As we no longer call ServerReplicateActors we must make sure to update the ViewTarget
-		if (bUpdateConnectionViewTarget)
-		{
-			Conn->ViewTarget = Conn->PlayerController ? Conn->PlayerController->GetViewTarget() : ToRawPtr(Conn->OwningActor);
-		}
-
-		for (UNetConnection* SubConn : SubConnections)
-		{
-			// See comment above
+			// As we no longer call ServerReplicateActors we must make sure to update the ViewTarget
 			if (bUpdateConnectionViewTarget)
 			{
-				SubConn->ViewTarget = SubConn->PlayerController ? SubConn->PlayerController->GetViewTarget() : ToRawPtr(SubConn->OwningActor);
+				AnyConnection->ViewTarget = AnyConnection->GetConnectionViewTarget();
 			}
 
-			const AActor* ViewTarget = Conn->ViewTarget;
-			const APlayerController* ViewingController = Conn->PlayerController;
+			const AActor* ViewTarget = AnyConnection->ViewTarget;
+			const APlayerController* ViewingController = AnyConnection->PlayerController;
 			if (ViewTarget == nullptr && ViewingController == nullptr)
 			{
 				continue;
 			}
 
-			FReplicationView::FView View;
+			FReplicationView::FView& View = OutReplicationView.Views.AddZeroed_GetRef();
 			View.FoVRadians = DefaultView.FoVRadians;
+
 			if (ViewTarget)
 			{
 				View.Pos = ViewTarget->GetActorLocation();
@@ -6448,11 +6428,44 @@ void UNetDriver::UpdateReplicationViews() const
 					View.FoVRadians = FMath::DegreesToRadians(CameraManager->GetFOVAngle());
 				}
 			}
+		}
+	};
 
-			ReplicationView.Views.Add(View);
+	if (IsServer())
+	{
+		FReplicationView ReplicationView;
+		TArray<UNetConnection*, TInlineAllocator<UE_IRIS_INLINE_VIEWS_PER_CONNECTION>> AllConnections;
+
+		for (UNetConnection* ClientConnection : ClientConnections)
+		{
+			AllConnections.Add(ClientConnection);
+			for (UNetConnection* Children : ClientConnection->Children)
+			{
+				AllConnections.Add(Children);
+			}
+
+			FillIrisReplicationViews(AllConnections, ReplicationView);
+
+			ReplicationSystem->SetReplicationView(ClientConnection->GetConnectionId(), ReplicationView);
+
+			ReplicationView.Views.Reset();
+			AllConnections.Reset();
+		}
+	}
+	else
+	{
+		FReplicationView ReplicationView;
+		TArray<UNetConnection*, TInlineAllocator<UE_IRIS_INLINE_VIEWS_PER_CONNECTION>> AllConnections;
+
+		AllConnections.Add(ServerConnection);
+		for (UNetConnection* Children : ServerConnection->Children)
+		{
+			AllConnections.Add(Children);
 		}
 
-		ReplicationSystem->SetReplicationView(Conn->GetConnectionId(), ReplicationView);
+		FillIrisReplicationViews(AllConnections, ReplicationView);
+
+		ReplicationSystem->SetReplicationView(ServerConnection->GetConnectionId(), ReplicationView);
 	}
 }
 

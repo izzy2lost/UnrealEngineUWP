@@ -706,6 +706,13 @@ public:
 		}
 	}
 
+	/** Returns the view target for this connection. Controlled by the player controller when one is assigned. The view target is the owning actor when no PC's are assigned or the PC's view target is invalid */
+	AActor* GetConnectionViewTarget() const
+	{
+		AActor* TempViewTarget = PlayerController ? PlayerController->GetViewTarget() : nullptr;
+		return (TempViewTarget && TempViewTarget->GetWorld()) ? TempViewTarget : ToRawPtr(OwningActor);
+	}
+
 private:
 	/** @todo document */
 	FActorChannelMap ActorChannels;

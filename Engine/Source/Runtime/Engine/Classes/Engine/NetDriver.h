@@ -2125,7 +2125,7 @@ private:
 	void InitIrisSettings(FName NewDriverName);
 	void SetReplicationSystem(UReplicationSystem* ReplicationSystem);
 	void CreateReplicationSystem(bool bInitAsClient);
-	void UpdateReplicationViews() const;
+	void UpdateIrisReplicationViews() const;
 	void SendClientMoveAdjustments();
 #endif
 
