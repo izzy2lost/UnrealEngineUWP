@@ -528,6 +528,12 @@ public:
 protected:
 	mutable TArray<TObjectPtr<UAssetUserData>> CombinedAssetUserData;
 
+	UPROPERTY(Transient, DuplicateTransient)
+	mutable TMap<FName, TObjectPtr<UDataAssetLink>> ExternalVariableDataAssetLinks;
+
+	DECLARE_DELEGATE_RetVal(TArray<TObjectPtr<UAssetUserData>>, FGetExternalAssetUserData);
+	FGetExternalAssetUserData GetExternalAssetUserDataDelegate;
+
 private:
 
 	void CopyPoseFromOtherRig(UControlRig* Subject);
@@ -757,6 +763,7 @@ private:
 	friend class FControlRigInteractionScope;
 	friend class UControlRigValidator;
 	friend struct FAnimNode_ControlRig;
+	friend struct FAnimNode_ControlRigBase;
 	friend class URigHierarchy;
 	friend class UFKControlRig;
 	friend class UControlRigGraph;

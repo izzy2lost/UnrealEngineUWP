@@ -35,6 +35,7 @@
 #include "Constraints/ControlRigTransformableHandle.h"
 #include "RigVMCore/RigVMNativized.h"
 #include "UObject/UObjectIterator.h"
+#include "RigVMCore/RigVMAssetUserData.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRig)
 
@@ -485,6 +486,8 @@ void UControlRig::InitializeFromCDO()
 		{
 			HierarchySettings.ProceduralElementLimit += CDOHierarchy->Num();
 		}
+
+		ExternalVariableDataAssetLinks.Reset();
 	}
 }
 
@@ -2607,6 +2610,50 @@ const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 	else
 	{
 		CombinedAssetUserData.Append(AssetUserData);
+	}
+	
+	if(GetExternalAssetUserDataDelegate.IsBound())
+	{
+		CombinedAssetUserData.Append(GetExternalAssetUserDataDelegate.Execute());
+	}
+
+	// find the data assets on the external variable list
+	TArray<FRigVMExternalVariable> ExternalVariables = GetExternalVariablesImpl(false);
+	for(const FRigVMExternalVariable& ExternalVariable : ExternalVariables)
+	{
+		if(ExternalVariable.Memory != nullptr)
+		{
+			if(const UClass* Class = Cast<UClass>(ExternalVariable.TypeObject))
+			{
+				if(Class->IsChildOf(UDataAsset::StaticClass()))
+				{
+					TObjectPtr<UDataAsset>& DataAsset = *(TObjectPtr<UDataAsset>*)ExternalVariable.Memory;
+					if(IsValid(DataAsset) && !DataAsset->GetFName().IsNone())
+					{
+						if(const TObjectPtr<UDataAssetLink>* ExistingDataAssetLink =
+							ExternalVariableDataAssetLinks.Find(ExternalVariable.Name))
+						{
+							if(!IsValid(*ExistingDataAssetLink) ||
+								(*ExistingDataAssetLink)->HasAnyFlags(EObjectFlags::RF_BeginDestroyed))
+							{
+								ExternalVariableDataAssetLinks.Remove(ExternalVariable.Name);
+							}
+						}
+						if(!ExternalVariableDataAssetLinks.Contains(ExternalVariable.Name))
+						{
+							ExternalVariableDataAssetLinks.Add(
+								ExternalVariable.Name,
+								NewObject<UDataAssetLink>((UObject*)this));
+						}
+
+						TObjectPtr<UDataAssetLink>& DataAssetLink = ExternalVariableDataAssetLinks.FindChecked(ExternalVariable.Name);
+						DataAssetLink->NameSpace = ExternalVariable.Name.ToString();
+						DataAssetLink->SetDataAsset(DataAsset);
+						CombinedAssetUserData.Add(DataAssetLink);
+					}
+				}
+			}
+		}
 	}
 
 	if(OuterSceneComponent.IsValid())

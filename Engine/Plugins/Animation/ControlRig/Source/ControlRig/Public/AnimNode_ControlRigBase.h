@@ -4,9 +4,9 @@
 
 #include "Animation/AnimBulkCurves.h"
 #include "Animation/AnimNode_CustomProperty.h"
+#include "ControlRig.h"
 #include "AnimNode_ControlRigBase.generated.h"
 
-class UControlRig;
 class UNodeMappingContainer;
 
 /** Struct defining the settings to override when driving a control rig */
@@ -127,6 +127,9 @@ protected:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Settings)
 	TArray<FBoneReference> OutputBonesToTransfer;
 
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Settings)
+	TArray<TObjectPtr<UAssetUserData>> AssetUserData;
+
 	/** Complete mapping from skeleton to control rig bone index */
 	TArray<TPair<uint16, uint16>> ControlRigBoneInputMappingByIndex;
 	TArray<TPair<uint16, uint16>> ControlRigBoneOutputMappingByIndex;
@@ -175,9 +178,13 @@ protected:
 	void ExecuteControlRig(FPoseContext& InOutput);
 
 	void QueueControlRigDrawInstructions(UControlRig* ControlRig, FAnimInstanceProxy* Proxy) const;
-	
+
+	TArray<TObjectPtr<UAssetUserData>> GetAssetUserData() const { return AssetUserData; }
+	void UpdateGetAssetUserDataDelegate(UControlRig* InControlRig) const;
+
 	bool bControlRigRequiresInitialization;
 	uint16 LastBonesSerialNumberForCacheBones;
+	TWeakObjectPtr<const UAnimInstance> WeakAnimInstanceObject;
 
 	friend struct FControlRigSequencerAnimInstanceProxy;
 	friend struct FControlRigLayerInstanceProxy;

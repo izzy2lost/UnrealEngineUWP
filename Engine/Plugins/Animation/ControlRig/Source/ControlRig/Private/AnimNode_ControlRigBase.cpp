@@ -41,7 +41,6 @@ FAnimNode_ControlRigBase::FAnimNode_ControlRigBase()
 	, bControlRigRequiresInitialization(true)
 	, LastBonesSerialNumberForCacheBones(0)
 {
-
 }
 
 void FAnimNode_ControlRigBase::OnInitializeAnimInstance(const FAnimInstanceProxy* InProxy, const UAnimInstance* InAnimInstance)
@@ -49,6 +48,8 @@ void FAnimNode_ControlRigBase::OnInitializeAnimInstance(const FAnimInstanceProxy
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
 	FAnimNode_CustomProperty::OnInitializeAnimInstance(InProxy, InAnimInstance);
+
+	WeakAnimInstanceObject = TWeakObjectPtr<const UAnimInstance>(InAnimInstance);
 
 	USkeletalMeshComponent* Component = InAnimInstance->GetOwningComponent();
 	UControlRig* ControlRig = GetControlRig();
@@ -66,6 +67,7 @@ void FAnimNode_ControlRigBase::OnInitializeAnimInstance(const FAnimInstanceProxy
 
 		// register skeletalmesh component for now
 		ControlRig->GetDataSourceRegistry()->RegisterDataSource(UControlRig::OwnerComponent, InAnimInstance->GetOwningComponent());
+		UpdateGetAssetUserDataDelegate(ControlRig);
 	}
 }
 
@@ -488,8 +490,9 @@ void FAnimNode_ControlRigBase::ExecuteControlRig(FPoseContext& InOutput)
 			{
 				ControlRig->ClearPoseBeforeBackwardsSolve();
 			}
-			
+
 			// evaluate control rig
+			UpdateGetAssetUserDataDelegate(ControlRig);
 			ControlRig->Evaluate_AnyThread();
 
 #if ENABLE_ANIM_DEBUG 
@@ -572,6 +575,7 @@ void FAnimNode_ControlRigBase::CacheBones_AnyThread(const FAnimationCacheBonesCo
 		if(ControlRig->IsConstructionModeEnabled() ||
 			(ControlRig->IsConstructionRequired() && (bControlRigRequiresInitialization || bIsLODChange)))
 		{
+			UpdateGetAssetUserDataDelegate(ControlRig);
 			ControlRig->Execute(FRigUnit_PrepareForExecution::EventName);
 			bControlRigRequiresInitialization = false;
 		}
@@ -820,6 +824,32 @@ void FAnimNode_ControlRigBase::QueueControlRigDrawInstructions(UControlRig* Cont
 			}
 		}
 	}
+}
+
+void FAnimNode_ControlRigBase::UpdateGetAssetUserDataDelegate(UControlRig* InControlRig) const
+{
+	if(GetAssetUserData().IsEmpty() || !WeakAnimInstanceObject.IsValid())
+	{
+		InControlRig->GetExternalAssetUserDataDelegate.Unbind();
+		return;
+	}
+	
+	// due to the re-instancing of the anim nodes we have to set this up for every run
+	// since the delegate may go stale quickly. to guard against destroyed anim nodes
+	// we'll rely on the anim instance to provide an indication if the memory is still valid. 
+	TWeakObjectPtr<const UAnimInstance> LocalWeakAnimInstance = WeakAnimInstanceObject;
+	InControlRig->GetExternalAssetUserDataDelegate = UControlRig::FGetExternalAssetUserData::CreateLambda([InControlRig, LocalWeakAnimInstance, this]
+	{
+		if(LocalWeakAnimInstance.IsValid())
+		{
+			return this->GetAssetUserData();
+		}
+		if(IsValid(InControlRig))
+		{
+			InControlRig->GetExternalAssetUserDataDelegate.Unbind();
+		}
+		return TArray<TObjectPtr<UAssetUserData>>();
+	});
 }
 
 

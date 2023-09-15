@@ -142,6 +142,9 @@ void FAnimNode_ControlRig::CacheBones_AnyThread(const FAnimationCacheBonesContex
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
+	// we also need access to the properties when running construction event
+	PropagateInputProperties(Context.AnimInstanceProxy->GetAnimInstanceObject());
+
 	FAnimNode_ControlRigBase::CacheBones_AnyThread(Context);
 
 	FBoneContainer& RequiredBones = Context.AnimInstanceProxy->GetRequiredBones();
@@ -589,6 +592,13 @@ void FAnimNode_ControlRig::PropagateInputProperties(const UObject* InSourceInsta
 					if(ensure(ArrayProperty->SameType(Variable.Property)))
 					{
 						ArrayProperty->CopyCompleteValue(Variable.Memory, SrcPtr);
+					}
+				}
+				else if(FObjectProperty* ObjectProperty = CastField<FObjectProperty>(CallerProperty))
+				{
+					if(ensure(ObjectProperty->SameType(Variable.Property)))
+					{
+						ObjectProperty->CopyCompleteValue(Variable.Memory, SrcPtr);
 					}
 				}
 				else
