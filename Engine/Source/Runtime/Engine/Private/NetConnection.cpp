@@ -795,6 +795,12 @@ int32 UNetConnection::GetLastNotifiedPacketId() const
 	return LastNotifiedPacketId;
 }
 
+AActor* UNetConnection::GetConnectionViewTarget() const;
+{
+	AActor* TempViewTarget = PlayerController ? PlayerController->GetViewTarget() : nullptr;
+	return (TempViewTarget && TempViewTarget->GetWorld()) ? TempViewTarget : ToRawPtr(OwningActor);
+}
+
 void UNetConnection::EnableEncryption(const FEncryptionData& EncryptionData)
 {
 	if (Handler.IsValid())
