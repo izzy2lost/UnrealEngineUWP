@@ -57,6 +57,7 @@ void FContentBundleContainer::Initialize()
 		UWorldPartition* WorldPartition = GetInjectedWorld()->GetWorldPartition();
 		WorldPartition->OnPreGenerateStreaming.AddRaw(this, &FContentBundleContainer::OnPreGenerateStreaming);
 		WorldPartition->OnBeginCook.AddRaw(this, &FContentBundleContainer::OnBeginCook);
+		WorldPartition->OnEndCook.AddRaw(this, &FContentBundleContainer::OnEndCook);
 	}
 #endif
 }
@@ -75,6 +76,7 @@ void FContentBundleContainer::Deinitialize()
 			UWorldPartition* WorldPartition = GetInjectedWorld()->GetWorldPartition();
 			WorldPartition->OnPreGenerateStreaming.RemoveAll(this);
 			WorldPartition->OnBeginCook.RemoveAll(this);
+			WorldPartition->OnEndCook.RemoveAll(this);
 		}
 #endif
 	}
@@ -437,4 +439,11 @@ void FContentBundleContainer::OnBeginCook(IWorldPartitionCookPackageContext& Coo
 	}
 }
 
+void FContentBundleContainer::OnEndCook(IWorldPartitionCookPackageContext& CookContext)
+{
+	for (TSharedPtr<FContentBundleEditor>& ContentBundle : GetEditorContentBundles())
+	{
+		ContentBundle->OnEndCook(CookContext);
+	}
+}
 #endif

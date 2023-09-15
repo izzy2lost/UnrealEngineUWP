@@ -1866,6 +1866,13 @@ void UWorldPartition::BeginCook(IWorldPartitionCookPackageContext& CookContext)
 	CookContext.RegisterPackageCookPackageGenerator(this);
 }
 
+void UWorldPartition::EndCook(IWorldPartitionCookPackageContext& CookContext)
+{
+	OnEndCook.Broadcast(CookContext);
+
+	CookContext.UnregisterPackageCookPackageGenerator(this);
+}
+
 bool UWorldPartition::GatherPackagesToCook(IWorldPartitionCookPackageContext& CookContext)
 {
 	FGenerateStreamingParams Params = FGenerateStreamingParams()

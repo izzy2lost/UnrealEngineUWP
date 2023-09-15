@@ -26,7 +26,13 @@ FContentBundleEditor::FContentBundleEditor(TSharedPtr<FContentBundleClient>& InC
 	, ExternalStreamingObject(nullptr)
 	, TreeItemID(FGuid::NewGuid())
 	, bIsBeingEdited(false)
+	, bIsInCook(false)
 {}
+
+FContentBundleEditor::~FContentBundleEditor()
+{
+	check(!bIsInCook);
+}
 
 void FContentBundleEditor::DoInitialize()
 {
@@ -365,7 +371,16 @@ void FContentBundleEditor::GenerateStreaming(TArray<FString>* OutPackageToGenera
 
 void FContentBundleEditor::OnBeginCook(IWorldPartitionCookPackageContext& CookContext)
 {
+	check(!bIsInCook);
 	CookContext.RegisterPackageCookPackageGenerator(this);
+	bIsInCook = true;
+}
+
+void FContentBundleEditor::OnEndCook(IWorldPartitionCookPackageContext& CookContext)
+{
+	check(bIsInCook);
+	CookContext.UnregisterPackageCookPackageGenerator(this);
+	bIsInCook = false;
 }
 
 bool FContentBundleEditor::GatherPackagesToCook(class IWorldPartitionCookPackageContext& CookContext)

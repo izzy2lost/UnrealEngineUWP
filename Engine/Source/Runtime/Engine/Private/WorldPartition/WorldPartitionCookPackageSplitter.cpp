@@ -38,6 +38,7 @@ void FWorldPartitionCookPackageSplitter::Teardown(ETeardown Status)
 			UWorldPartition* WorldPartition = LocalWorld->PersistentLevel->GetWorldPartition();
 			if (WorldPartition)
 			{
+				WorldPartition->EndCook(CookContext);
 				WorldPartition->Uninitialize();
 			}
 		}

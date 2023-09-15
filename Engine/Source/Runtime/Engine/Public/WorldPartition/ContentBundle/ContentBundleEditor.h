@@ -27,6 +27,7 @@ class FContentBundleEditor : public FContentBundleBase, IWorldPartitionCookPacka
 
 public:
 	ENGINE_API FContentBundleEditor(TSharedPtr<FContentBundleClient>& InClient, UWorld* InWorld);
+	ENGINE_API ~FContentBundleEditor();
 
 	//~ Begin IContentBundle Interface
 	ENGINE_API virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
@@ -59,6 +60,7 @@ public:
 
 	// Cooking
 	ENGINE_API void OnBeginCook(IWorldPartitionCookPackageContext& CookContext);
+	ENGINE_API void OnEndCook(IWorldPartitionCookPackageContext& CookContext);
 	bool HasCookedContent() const { return ExternalStreamingObject != nullptr; }
 	//~Begin IWorldPartitionCookPackageGenerator
 	ENGINE_API virtual bool GatherPackagesToCook(class IWorldPartitionCookPackageContext& CookContext) override;
@@ -102,6 +104,7 @@ private:
 	FGuid TreeItemID;
 
 	bool bIsBeingEdited;
+	bool bIsInCook;
 };
 
 #endif

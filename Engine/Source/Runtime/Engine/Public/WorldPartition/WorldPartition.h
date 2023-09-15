@@ -276,10 +276,14 @@ public:
 	ENGINE_API void RemapSoftObjectPath(FSoftObjectPath& ObjectPath) const;
 	ENGINE_API bool IsValidPackageName(const FString& InPackageName);
 
-	// Begin Cooking
+	// Cooking events
+	DECLARE_MULTICAST_DELEGATE_OneParam(FWorldPartitionCookEventDelegate, IWorldPartitionCookPackageContext&);
+
 	ENGINE_API void BeginCook(IWorldPartitionCookPackageContext& CookContext);
-	DECLARE_MULTICAST_DELEGATE_OneParam(FWorldPartitionBeginCookDelegate, IWorldPartitionCookPackageContext&);
-	FWorldPartitionBeginCookDelegate OnBeginCook;
+	ENGINE_API void EndCook(IWorldPartitionCookPackageContext& CookContext);
+
+	FWorldPartitionCookEventDelegate OnBeginCook;	
+	FWorldPartitionCookEventDelegate OnEndCook;
 
 	//~ Begin IWorldPartitionCookPackageGenerator Interface 
 	ENGINE_API virtual bool GatherPackagesToCook(IWorldPartitionCookPackageContext& CookContext) override;
