@@ -93,8 +93,7 @@ public:
 				QUICK_SCOPE_CYCLE_COUNTER(STAT_FAsyncDecodeWorker_Procedural);
 				if (ProceduralTaskData.SoundGenerator.IsValid())
 				{
-					// Pre-zero the buffer before calling into the generator code as a convenience to implementers
-					FMemory::Memzero(ProceduralTaskData.AudioData, ProceduralTaskData.NumSamples * sizeof(float));
+					// Generators are responsible to zero memory in case they can't generate the requested amount of samples
 					ProceduralResult.NumSamplesWritten = ProceduralTaskData.SoundGenerator->GetNextBuffer(ProceduralTaskData.AudioData, ProceduralTaskData.NumSamples);
 					ProceduralResult.bIsFinished = ProceduralTaskData.SoundGenerator->IsFinished();
 				}

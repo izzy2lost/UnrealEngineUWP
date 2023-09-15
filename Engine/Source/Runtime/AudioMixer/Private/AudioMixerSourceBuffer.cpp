@@ -39,17 +39,11 @@ namespace Audio
 			}
 
 			// Zero out the rest of the buffer
-			while (Sample < NumSampleToGet)
-			{
-				OutBufferPtr[Sample++] = 0.0f;
-			}
+			FMemory::Memzero(&OutBufferPtr[Sample], (NumSampleToGet - Sample) * sizeof(float));
 		}
 		else
 		{
-			for (uint32 Sample = 0; Sample < NumSampleToGet; ++Sample)
-			{
-				OutBufferPtr[Sample] = 0.0f;
-			}
+			FMemory::Memzero(OutBufferPtr, NumSampleToGet * sizeof(float));
 		}
 
 		// If the current sample is greater or equal to num samples we hit the end of the buffer
@@ -341,7 +335,7 @@ namespace Audio
 		const int32 MaxSamples = MONO_PCM_BUFFER_SAMPLES * NumChannels;
 
 		SourceVoiceBuffers[BufferIndex]->AudioData.Reset();
-		SourceVoiceBuffers[BufferIndex]->AudioData.AddZeroed(MaxSamples);
+		SourceVoiceBuffers[BufferIndex]->AudioData.AddUninitialized(MaxSamples);
 
 		if (bProcedural)
 		{
@@ -384,6 +378,8 @@ namespace Audio
 		// Handle the case that the decoder has an error and can't continue.
 		if (InDecoder && InDecoder->HasError())
 		{
+			FMemory::Memzero(SourceVoiceBuffers[BufferIndex]->AudioData.GetData(), MaxSamples * sizeof(float));
+
 			FScopeTryLock Lock(&SoundWaveCritSec);
 			if (Lock.IsLocked() && SoundWave)
 			{

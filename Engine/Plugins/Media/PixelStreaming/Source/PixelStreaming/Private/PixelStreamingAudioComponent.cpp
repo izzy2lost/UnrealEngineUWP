@@ -239,6 +239,7 @@ int32 FWebRTCSoundGenerator::OnGenerateAudio(float* OutAudio, int32 NumSamples)
 	// Not listening to peer, return zero'd buffer.
 	if (!bShouldGenerateAudio || Buffer.Num() == 0)
 	{
+		FMemory::Memzero(OutAudio, NumSamples * sizeof(float));
 		return NumSamples;
 	}
 
@@ -251,6 +252,7 @@ int32 FWebRTCSoundGenerator::OnGenerateAudio(float* OutAudio, int32 NumSamples)
 		// Copy from local buffer into OutAudio if we have enough samples
 		for (int i = 0; i < NumSamplesToCopy; i++)
 		{
+			//TODO: vectorize!
 			*OutAudio = Buffer[i] / 32767.0f;
 			OutAudio++;
 		}

@@ -74,6 +74,7 @@ class FSoundGeneratorNull : public ISoundGenerator
 public:
 	virtual int32 OnGenerateAudio(float* OutAudio, int32 NumSamples) override
 	{
+		FMemory::Memzero(OutAudio, NumSamples * sizeof(float));
 		return NumSamples;
 	}
 };
