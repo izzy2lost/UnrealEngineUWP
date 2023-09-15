@@ -1172,13 +1172,35 @@ void UMetaSoundSourceBuilder::OnNodeAdded(int32 NodeIndex) const
 			{
 				const FName& DataTypeName = NodeClass->Metadata.GetClassName().Name;
 				const FMetasoundFrontendVertex& InputVertex = AddedNode.Interface.Inputs.Last();
-				const FMetasoundFrontendLiteral& DefaultLiteral = NodeClass->Interface.Inputs.Last().DefaultLiteral;
+
+				const FMetasoundFrontendLiteral* DefaultLiteral = nullptr;
+				auto HasEqualVertexID = [&VertexID = InputVertex.VertexID](const FMetasoundFrontendVertexLiteral& InVertexLiteral)
+				{
+					return InVertexLiteral.VertexID == VertexID;
+				};
+
+				// Check for default literal on Node
+				if (const FMetasoundFrontendVertexLiteral* VertexLiteralOnNode = AddedNode.InputLiterals.FindByPredicate(HasEqualVertexID))
+				{
+					DefaultLiteral = &(VertexLiteralOnNode->Value);
+				}
+				// Check for default literal on class input
+				else if (const FMetasoundFrontendClassInput* GraphInput = Builder.FindGraphInput(InputVertex.Name))
+				{
+					DefaultLiteral = &(GraphInput->DefaultLiteral);
+				}
+				else
+				{
+					// As a last resort, get default literal on node class 
+					DefaultLiteral = &(NodeClass->Interface.Inputs.Last().DefaultLiteral);
+				}
+
 				FInputNodeConstructorParams InitData
 				{
 					AddedNode.Name,
 					AddedNode.GetID(),
 					InputVertex.Name,
-					DefaultLiteral.ToLiteral(DataTypeName)
+					DefaultLiteral->ToLiteral(DataTypeName)
 				};
 
 				NewNode = DataTypeRegistry.CreateInputNode(DataTypeName, MoveTemp(InitData));
