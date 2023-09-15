@@ -8,8 +8,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 // Local Fog Volume Data
 
-
-
 struct FLocalFogVolumeGPUInstanceData
 {
 	float4x4 Transform;
@@ -28,7 +26,6 @@ struct FLocalFogVolumeGPUInstanceData
 	float3 Emissive;
 	float  FogMode;
 };
-
 
 
 // Structured buffers cannot be sampled from the vertex shader on some mobile platforms. 
@@ -62,7 +59,6 @@ Texture2DArray<uint>			LFV_LocalFogVolumeTileDataTexture;
 #endif
 
 
-
 FLocalFogVolumeGPUInstanceData GetLocalFogVolumeGPUInstanceData(uint Index)
 {
 	FLocalFogVolumeGPUInstanceData Data;
@@ -94,9 +90,26 @@ FLocalFogVolumeGPUInstanceData GetLocalFogVolumeGPUInstanceData(uint Index)
 
 
 ///////////////////////////////////////////////////////////////////////////////
+// Local Fog Volume Tile Data
+
+uint2 LFVUnpackTile(uint In)
+{
+	return uint2(In & 0xFFFF, In >> 16);
+}
+
+uint LFVPackTile(uint2 TileCoord)
+{
+#if COMPILER_SUPPORTS_PACK_INTRINSICS
+	return PackUInt2ToUInt(TileCoord.x, TileCoord.y);
+#else
+	return TileCoord.x | (TileCoord.y << 16); // assumes 16bit is enough to represent a tiled resolution up to 65,535 :)
+#endif
+}
+
+
+
+///////////////////////////////////////////////////////////////////////////////
 // Local Fog Volume Integrals
-
-
 
 // CameraPos can be behind of RayStart if the camera is out of the volume
 struct FFogData

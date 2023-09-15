@@ -113,6 +113,9 @@ void LocalFogVolumeSplatPS(
 
 
 #if LFV_TILED_VS
+
+Buffer<uint> TileDataBuffer;
+
 void LocalFogVolumeTiledVS(
 	in uint VertexIndex : SV_VertexID,
 	in uint InstanceIndex : SV_InstanceID,
@@ -122,9 +125,8 @@ void LocalFogVolumeTiledVS(
 {
 	ResolvedView = ResolveView();
 
-	uint2 TileCoord;
-	TileCoord.y = InstanceIndex / LFVTileDataResolution.x;
-	TileCoord.x = InstanceIndex - TileCoord.y * LFVTileDataResolution.x;
+	uint PackedTileCoord = TileDataBuffer[InstanceIndex];
+	uint2 TileCoord = LFVUnpackTile(PackedTileCoord);
 
 	uint2 TileVertex = TileCoord * LFVTilePixelSize;
 	TileVertex.x += VertexIndex == 1 || VertexIndex == 2 || VertexIndex == 4 ? LFVTilePixelSize : 0;
@@ -132,7 +134,7 @@ void LocalFogVolumeTiledVS(
 
 	OutPosition = float4(float2(TileVertex) * ResolvedView.ViewSizeAndInvSize.zw * float2(2.0f, -2.0f) + float2(-1.0, 1.0f), 0.5f, 1.0f);
 
-	OtherVertexOutput.TileData = (TileCoord.x << 16) | TileCoord.y;
+	OtherVertexOutput.TileData = PackedTileCoord;
 }
 #endif // LFV_TILED_VS
 
@@ -166,7 +168,7 @@ void LocalFogVolumeTiledPS(
 
 	float3 DepthBufferTranslatedWorldPos = SvPositionToTranslatedWorld(float4(SVPos.xy, DeviceZ, 1.0));
 
-	uint2 TilePos = uint2(OtherVertexOutput.TileData >> 16, OtherVertexOutput.TileData & 0xFFFF);
+	uint2 TilePos = LFVUnpackTile(OtherVertexOutput.TileData);
 	uint LFVCount = LFVTileDataTex[uint3(TilePos,0)];
 	const float4 DefaultColorTransmittance = float4(0.0, 0.0, 0.0, 1.0);
 	float4 LuminanceColorTransmittance = DefaultColorTransmittance;

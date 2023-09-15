@@ -91,9 +91,9 @@ void SetDummyLocalFogVolumeForView(FRDGBuilder& GraphBuilder, FViewInfo& View)
 		FRDGBufferDesc::CreateBufferDesc(sizeof(FVector4f), 1), &DummyCullingData, sizeof(FVector4f) * 1, ERDGInitialDataFlags::NoCopy);
 	View.LocalFogVolumeViewData.GPUInstanceCullingDataBufferSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.GPUInstanceCullingDataBuffer, PF_A32B32G32R32F);
 
-	View.LocalFogVolumeViewData.TileDataTextureArray		= GSystemTextures.GetZeroUIntArrayDummy(GraphBuilder);
-	View.LocalFogVolumeViewData.TileDataTextureArraySRV		= GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.TileDataTextureArray);
-	View.LocalFogVolumeViewData.TileDataTextureArrayUAV		= nullptr;	// Should never be written by culling passes if there are no instances.
+	View.LocalFogVolumeViewData.TileDataTextureArray			= GSystemTextures.GetZeroUIntArrayDummy(GraphBuilder);
+	View.LocalFogVolumeViewData.TileDataTextureArraySRV			= GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.TileDataTextureArray);
+	View.LocalFogVolumeViewData.TileDataTextureArrayUAV			= nullptr;	// Should never be written by culling passes if there are no instances.
 
 	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.LocalFogVolumeTileDataTextureResolution= FUintVector2(1, 1);
 	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.LocalFogVolumeInstanceCount			= View.LocalFogVolumeViewData.GPUInstanceCount;
@@ -101,6 +101,15 @@ void SetDummyLocalFogVolumeForView(FRDGBuilder& GraphBuilder, FViewInfo& View)
 	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.LocalFogVolumeInstances				= View.LocalFogVolumeViewData.GPUInstanceDataBufferSRV;
 	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeTileDataTexture								= View.LocalFogVolumeViewData.TileDataTextureArraySRV;
 	View.LocalFogVolumeViewData.UniformBuffer																		= GraphBuilder.CreateUniformBuffer(&View.LocalFogVolumeViewData.UniformParametersStruct);
+
+	// This buffer must remain a basic vertex buffer for mobile to be able to read it from vertex shader
+	View.LocalFogVolumeViewData.GPUTileDataBuffer		= CreateVertexBuffer(
+		GraphBuilder, TEXT("LocalFogVolume.GPUTileDataBuffer"), FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 1 * 1 * sizeof(uint32)), nullptr, 0);
+	View.LocalFogVolumeViewData.GPUTileDataBufferSRV	= GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.GPUTileDataBuffer);
+	View.LocalFogVolumeViewData.GPUTileDataBufferUAV	= nullptr;	// Should never be written by culling passes if there are no instances.
+
+	View.LocalFogVolumeViewData.GPUTileDrawIndirectBuffer	= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDrawIndirectParameters>(), TEXT("LocalFogVolume.DispatchIndirectBuffer"));
+	View.LocalFogVolumeViewData.GPUTileDrawIndirectBufferUAV= nullptr;
 }
 
 
@@ -158,6 +167,8 @@ public:
 		SHADER_PARAMETER_STRUCT(FLocalFogVolumeCommonParameters, LFV)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<uint>, LocalFogVolumeTileDataTextureUAV)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, LocalFogVolumeCullingDataBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, TileDataBufferUAV)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, TileDrawIndirectBufferUAV)
 		SHADER_PARAMETER(FVector4f, LeftPlane)
 		SHADER_PARAMETER(FVector4f, RightPlane)
 		SHADER_PARAMETER(FVector4f, TopPlane)
@@ -178,10 +189,12 @@ static void LocalFogVolumeViewTiledCullingPass(FViewInfo& View, FRDGBuilder& Gra
 	FIntVector TileDataTextureSize = View.LocalFogVolumeViewData.TileDataTextureArray->Desc.GetSize();
 
 	FLocalFogVolumeTiledCullingCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FLocalFogVolumeTiledCullingCS::FParameters>();
-	PassParameters->View = View.ViewUniformBuffer;
-	PassParameters->LFV = View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon;
-	PassParameters->LocalFogVolumeCullingDataBuffer = View.LocalFogVolumeViewData.GPUInstanceCullingDataBufferSRV;
-	PassParameters->LocalFogVolumeTileDataTextureUAV = View.LocalFogVolumeViewData.TileDataTextureArrayUAV;
+	PassParameters->View								= View.ViewUniformBuffer;
+	PassParameters->LFV									= View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon;
+	PassParameters->LocalFogVolumeCullingDataBuffer		= View.LocalFogVolumeViewData.GPUInstanceCullingDataBufferSRV;
+	PassParameters->LocalFogVolumeTileDataTextureUAV	= View.LocalFogVolumeViewData.TileDataTextureArrayUAV;
+	PassParameters->TileDataBufferUAV					= View.LocalFogVolumeViewData.GPUTileDataBufferUAV;
+	PassParameters->TileDrawIndirectBufferUAV			= View.LocalFogVolumeViewData.GPUTileDrawIndirectBufferUAV;
 
 	auto ConvertPlanToVector4f = [&](FVector4f& OutVec4f, auto& Plane, bool bFlipPlane)
 	{
@@ -341,6 +354,17 @@ void CreateViewLocalFogVolumeBufferSRV(FViewInfo& View, FRDGBuilder& GraphBuilde
 	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.LocalFogVolumeInstances				= View.LocalFogVolumeViewData.GPUInstanceDataBufferSRV;
 	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeTileDataTexture								= View.LocalFogVolumeViewData.TileDataTextureArraySRV;
 	View.LocalFogVolumeViewData.UniformBuffer																		= GraphBuilder.CreateUniformBuffer(&View.LocalFogVolumeViewData.UniformParametersStruct);
+
+	// This buffer must remain a basic vertex buffer for mobile to be able to read it from vertex shader
+	View.LocalFogVolumeViewData.GPUTileDataBuffer = CreateVertexBuffer(
+		GraphBuilder, TEXT("LocalFogVolume.GPUTileDataBuffer"),
+		FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), TileDataTextureResolution.X * TileDataTextureResolution.Y * sizeof(uint32)), nullptr, 0);
+	View.LocalFogVolumeViewData.GPUTileDataBufferSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.GPUTileDataBuffer, PF_R32_UINT);
+	View.LocalFogVolumeViewData.GPUTileDataBufferUAV = GraphBuilder.CreateUAV(View.LocalFogVolumeViewData.GPUTileDataBuffer, PF_R32_UINT);
+
+	View.LocalFogVolumeViewData.GPUTileDrawIndirectBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDrawIndirectParameters>(), TEXT("LocalFogVolume.DispatchIndirectBuffer"));
+	View.LocalFogVolumeViewData.GPUTileDrawIndirectBufferUAV = GraphBuilder.CreateUAV(View.LocalFogVolumeViewData.GPUTileDrawIndirectBuffer, PF_R32_UINT);
+	AddClearUAVPass(GraphBuilder, View.LocalFogVolumeViewData.GPUTileDrawIndirectBufferUAV, 0);
 }
 
 void InitLocalFogVolumesForViews(
@@ -446,6 +470,7 @@ class FLocalFogVolumeTiledRenderVS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, TileDataBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 
 	using FPermutationDomain = TShaderPermutationDomain<>;
@@ -510,6 +535,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLocalFogVolumeTiledPassParameters, )
 	SHADER_PARAMETER_STRUCT_INCLUDE(FLocalFogVolumeTiledRenderVS::FParameters, VS)
 	SHADER_PARAMETER_STRUCT_INCLUDE(FLocalFogVolumeTiledRenderPS::FParameters, PS)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTextures)
+	RDG_BUFFER_ACCESS(TileDrawIndirectBuffer, ERHIAccess::IndirectArgs)
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
  
@@ -535,19 +561,20 @@ void RenderLocalFogVolume(
 				continue;
 			}
 
-
 			if (GetLocalFogVolumeTiledRenderingEnable())
 			{
 				FLocalFogVolumeTiledPassParameters* PassParameters = GraphBuilder.AllocParameters<FLocalFogVolumeTiledPassParameters>();
 
 				PassParameters->VS.View = GetShaderBinding(View.ViewUniformBuffer);
 				PassParameters->VS.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
+				PassParameters->VS.TileDataBuffer = View.LocalFogVolumeViewData.GPUTileDataBufferSRV;
 
 				PassParameters->PS.View = GetShaderBinding(View.ViewUniformBuffer);
 				PassParameters->PS.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
 				PassParameters->PS.LocalFogVolumeTileDebug = FMath::Clamp(CVarLocalFogVolumeTileDebug.GetValueOnRenderThread(), 0, 2);
 
 				PassParameters->SceneTextures = SceneTextures.UniformBuffer;
+				PassParameters->TileDrawIndirectBuffer = View.LocalFogVolumeViewData.GPUTileDrawIndirectBuffer;
 				PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorTexture, ERenderTargetLoadAction::ENoAction);
 
 				FLocalFogVolumeTiledRenderVS::FPermutationDomain VSPermutationVector;
@@ -581,7 +608,7 @@ void RenderLocalFogVolume(
 					GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI();
 					GraphicsPSOInit.PrimitiveType = PT_TriangleList; // LFV_TODO check if rects are supported and use them if so
 
-					GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI; //		GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector4();
+					GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
 					GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
 					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 
@@ -591,11 +618,7 @@ void RenderLocalFogVolume(
 					SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters->PS);
 
 					RHICmdList.SetStreamSource(0, nullptr, 0);
-					RHICmdList.DrawPrimitive(
-						0,					// BaseVertexIndex
-						6,					// NumPrimitives
-						TileInstanceCount	// NumInstances
-						);
+					RHICmdList.DrawPrimitiveIndirect(PassParameters->TileDrawIndirectBuffer->GetIndirectRHICallBuffer(), 0);
 				});
 			}
 			else

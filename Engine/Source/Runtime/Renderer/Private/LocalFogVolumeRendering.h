@@ -96,15 +96,23 @@ struct FLocalFogVolumeViewData
 	uint32 GPUInstanceCount = 0;
 	FRDGBufferRef GPUInstanceDataBuffer = nullptr;
 	FRDGBufferSRVRef GPUInstanceDataBufferSRV = nullptr;
+
 	FRDGBufferRef GPUInstanceCullingDataBuffer = nullptr;
 	FRDGBufferSRVRef GPUInstanceCullingDataBufferSRV = nullptr;
+
+	FRDGBufferRef	 GPUTileDataBuffer = nullptr;
+	FRDGBufferSRVRef GPUTileDataBufferSRV = nullptr;
+	FRDGBufferUAVRef GPUTileDataBufferUAV = nullptr;
+	FRDGBufferRef    GPUTileDrawIndirectBuffer = nullptr;
+	FRDGBufferUAVRef GPUTileDrawIndirectBufferUAV = nullptr;
+
 	TRDGUniformBufferRef<FLocalFogVolumeUniformParameters> UniformBuffer = nullptr;
 
 	FLocalFogVolumeUniformParameters UniformParametersStruct;
 
-	FRDGTextureRef TileDataTextureArray;		// First slice is the instance count, later slices are instance indices.
-	FRDGTextureSRVRef TileDataTextureArraySRV;
-	FRDGTextureUAVRef TileDataTextureArrayUAV;
+	FRDGTextureRef		TileDataTextureArray;		// First slice is the instance count, later slices are instance indices.
+	FRDGTextureSRVRef	TileDataTextureArraySRV;
+	FRDGTextureUAVRef	TileDataTextureArrayUAV;
 };
 
 
