@@ -288,14 +288,16 @@ bool FSequencerObjectChangeListener::CanKeyProperty_Internal(FCanKeyPropertyPara
 				continue;
 			}
 
-			const UStruct* PropertyContainer = CanKeyPropertyParams.FindPropertyContainer(Property);
-			if (PropertyContainer)
+			const UStruct* PropertyOwner = CanKeyPropertyParams.FindPropertyOwner(Property);
+			if (PropertyOwner)
 			{
-				if (!FPropertyEditorPermissionList::Get().DoesPropertyPassFilter(PropertyContainer, Property->GetFName()))
+				if (!FPropertyEditorPermissionList::Get().DoesPropertyPassFilter(PropertyOwner, Property->GetFName()))
 				{
 					continue;
 				}
 
+				const UStruct* PropertyContainer = CanKeyPropertyParams.FindPropertyContainer(Property);
+				if (PropertyContainer)
 				{
 					FAnimatedPropertyKey PropertyKey = FAnimatedPropertyKey::FromProperty(Property);
 
