@@ -45,11 +45,6 @@
 
 #define LOCTEXT_NAMESPACE "SActorDetails"
 
-static TAutoConsoleVariable<bool> CVarForceShowComponentEditor(
-	TEXT("CoreEntity.UI.ForceShowComponentEditor"),
-	true,
-	TEXT("Force the component editor to show in the main details tab."));
-
 namespace UE::LevelEditor::Private
 {
 	class SElementSelectionDetailsButtons : public SCompoundWidget
@@ -890,10 +885,9 @@ void SActorDetails::OnNativeComponentWarningHyperlinkClicked(const FSlateHyperli
 
 EVisibility SActorDetails::GetComponentEditorVisibility() const
 {
-	// force hide it if the style is not default and the ForceShowComponentEditor CVar is not set to true
+	// see if we need to hide the editor due to the current object display 
 	const bool bHideEditorFromDetailsView = (DisplayManager.IsValid() &&
-							                 DisplayManager->ShouldHideComponentEditor()) &&
-											(!CVarForceShowComponentEditor.GetValueOnAnyThread());
+							                 DisplayManager->ShouldHideComponentEditor() );
 	return GetActorContext() && !bHideEditorFromDetailsView  ? EVisibility::Visible : EVisibility::Collapsed;
 }
 

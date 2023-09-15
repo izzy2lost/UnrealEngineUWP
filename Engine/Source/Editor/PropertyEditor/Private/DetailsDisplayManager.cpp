@@ -5,6 +5,11 @@
 #include "DetailsViewStyle.h"
 #include "SDetailsView.h"
 
+static TAutoConsoleVariable<bool> CVarForceShowComponentEditor(
+	TEXT("CoreEntity.UI.ForceShowComponentEditor"),
+	true,
+	TEXT("Force the component editor to show in the main details tab."));
+
 
 FDetailsDisplayManager::FDetailsDisplayManager(): bIsOuterCategory(false)
 {
@@ -18,7 +23,7 @@ FDetailsDisplayManager::~FDetailsDisplayManager()
 
 bool FDetailsDisplayManager::ShouldHideComponentEditor()
 {
-	return false;
+	return !GetForceShowSubObjectEditor();
 }
 
 bool FDetailsDisplayManager::ShouldShowCategoryMenu()
@@ -74,3 +79,9 @@ void FDetailsDisplayManager::SetIsScrollBarNeeded(bool bInIsScrollBarNeeded)
 {
 	bIsScrollBarNeeded = bInIsScrollBarNeeded;
 }
+
+bool FDetailsDisplayManager::GetForceShowSubObjectEditor()
+{
+	return CVarForceShowComponentEditor.GetValueOnAnyThread();
+}
+

@@ -26,6 +26,12 @@ public:
 	virtual bool ShouldHideComponentEditor();
 
 	/**
+	 * Returns a boolean indicating whether the sub-object editor should show regardless of
+	 * any object filter preference settings this would override any value retrieved from ShouldHideComponentEditor.
+	 */
+	PROPERTYEDITOR_API static bool GetForceShowSubObjectEditor();
+
+	/**
 	 * Returns a @code bool @endcode indicating whether this @code DetailsViewObjectFilter @endcode instance
 	 * should show a category menu
 	 */
