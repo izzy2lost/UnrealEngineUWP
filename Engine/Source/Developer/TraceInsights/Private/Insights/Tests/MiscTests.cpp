@@ -3,6 +3,8 @@
 #include "Misc/AutomationTest.h"
 //awful hack since SlabAllocator is private
 #include "Developer/TraceServices/Private/Common/SlabAllocator.h"
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
 #include "HAL/PlatformFileManager.h"
 #include "Common/PagedArray.h"
 #include "Insights/InsightsManager.h"
