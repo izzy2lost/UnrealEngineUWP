@@ -191,8 +191,8 @@ void FPCGEditorModule::PopulateMenuActions(FMenuBuilder& MenuBuilder)
 		NAME_None);
 
 	MenuBuilder.AddMenuEntry(
-		LOCTEXT("DeletePCGWorldActor", "Delete PCG World Actor"),
-		LOCTEXT("DeletePCGWorldActor_Tooltip", "Deletes the PCG World Actor"),
+		LOCTEXT("DeletePCGWorldActor", "Deletes all PCG World Actors"),
+		LOCTEXT("DeletePCGWorldActor_Tooltip", "Deletes all PCG World Actors"),
 		FSlateIcon(),
 		FUIAction(
 			FExecuteAction::CreateLambda([]() {
@@ -200,10 +200,7 @@ void FPCGEditorModule::PopulateMenuActions(FMenuBuilder& MenuBuilder)
 				{
 					if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetInstance(GEditor->GetEditorWorldContext().World()))
 					{
-						if (APCGWorldActor* PCGWorldActor = PCGSubsystem->GetPCGWorldActor())
-						{
-							PCGSubsystem->DestroyPCGWorldActor();
-						}
+						PCGSubsystem->DestroyAllPCGWorldActors();
 					}
 				}
 			})),

@@ -78,7 +78,8 @@ public:
 	APCGWorldActor* GetPCGWorldActor();
 	APCGWorldActor* FindPCGWorldActor();
 #if WITH_EDITOR
-	void DestroyPCGWorldActor();
+	void DestroyAllPCGWorldActors();
+	void DestroyCurrentPCGWorldActor();
 #endif
 	void RegisterPCGWorldActor(APCGWorldActor* InActor);
 	void UnregisterPCGWorldActor(APCGWorldActor* InActor);

@@ -72,6 +72,28 @@ namespace PCGSubsystemConsole
 		TEXT("pcg.PIE.RebuildLandscapeOnPIE"),
 		true,
 		TEXT("Controls whether the landscape cache will be rebuilt on PIE"));
+
+	static FAutoConsoleCommand CommandDeleteCurrentPCGWorldActor(
+		TEXT("pcg.DeleteCurrentPCGWorldActor"),
+		TEXT("Deletes the PCG World Actor currently registered to the PCG Subsystem."),
+		FConsoleCommandDelegate::CreateLambda([]()
+		{
+			if(UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+			{
+				PCGSubsystem->DestroyCurrentPCGWorldActor();
+			}
+		}));
+
+	static FAutoConsoleCommand CommandDeleteAllPCGWorldActors(
+		TEXT("pcg.DeleteAllPCGWorldActors"),
+		TEXT("Deletes all PCG World Actors in current World.."),
+		FConsoleCommandDelegate::CreateLambda([]()
+		{
+			if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+			{
+				PCGSubsystem->DestroyAllPCGWorldActors();
+			}
+		}));
 #endif
 }
 
@@ -235,7 +257,7 @@ APCGWorldActor* UPCGSubsystem::FindPCGWorldActor()
 }
 
 #if WITH_EDITOR
-void UPCGSubsystem::DestroyPCGWorldActor()
+void UPCGSubsystem::DestroyCurrentPCGWorldActor()
 {
 	if (PCGWorldActor)
 	{
@@ -243,6 +265,30 @@ void UPCGSubsystem::DestroyPCGWorldActor()
 		PCGWorldActor->Destroy();
 		PCGWorldActor = nullptr;
 		PCGWorldActorLock.Unlock();
+	}
+}
+
+void UPCGSubsystem::DestroyAllPCGWorldActors()
+{
+	// Get rid of current PCG world actor first
+	DestroyCurrentPCGWorldActor();
+	
+	// Pick up any strays in the current world
+	TArray<APCGWorldActor*> ActorsToDestroy;
+	ForEachObjectWithOuter(GetWorld(), [&ActorsToDestroy](UObject* Object)
+	{
+		if (APCGWorldActor* WorldActor = Cast<APCGWorldActor>(Object))
+		{
+			if (IsValid(WorldActor))
+			{
+				ActorsToDestroy.Add(WorldActor);
+			}
+		}
+	});
+
+	for (APCGWorldActor* ActorToDestroy : ActorsToDestroy)
+	{
+		ActorToDestroy->Destroy();
 	}
 }
 #endif
