@@ -1112,7 +1112,7 @@ public:
 	UE_DEPRECATED(5.3, "Use GetComponentSpaceTransforms instead")
 	TArray<FMatrix> GetGlobalMatrices() { return ComputeGlobalMatricesFromComponentSpaceTransforms(); }
 
-	GEOMETRYCOLLECTIONENGINE_API const TArray<FTransform>& GetComponentSpaceTransforms() { return ComponentSpaceTransforms.RequestAllTransforms(); }
+	GEOMETRYCOLLECTIONENGINE_API const TArray<FTransform>& GetComponentSpaceTransforms();
 
 	GEOMETRYCOLLECTIONENGINE_API const FGeometryDynamicCollection* GetDynamicCollection() const;
 	GEOMETRYCOLLECTIONENGINE_API FGeometryDynamicCollection* GetDynamicCollection();  // TEMP HACK?

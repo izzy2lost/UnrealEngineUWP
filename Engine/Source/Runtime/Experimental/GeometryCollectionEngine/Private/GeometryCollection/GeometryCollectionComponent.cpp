@@ -1459,6 +1459,11 @@ static void DispatchGeometryCollectionCrumblingEvent(const FChaosCrumblingEvent&
 	}
 }
 
+const TArray<FTransform>& UGeometryCollectionComponent::GetComponentSpaceTransforms()
+{ 
+	return ComponentSpaceTransforms.RequestAllTransforms();
+}
+
 const FGeometryDynamicCollection* UGeometryCollectionComponent::GetDynamicCollection() const
 {
 	return DynamicCollection.Get();
