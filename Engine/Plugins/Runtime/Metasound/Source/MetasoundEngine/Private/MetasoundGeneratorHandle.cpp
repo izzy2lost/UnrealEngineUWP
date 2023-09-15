@@ -222,6 +222,8 @@ namespace Metasound
 
 		check(IsInGameThread());
 
+		int32 NumDequeued = 0;
+
 		while (TOptional<FOutputPayload> ChangedOutput = ChangedOutputs.Dequeue())
 		{
 			if (const FOutputWatcher* OutputListener = OutputWatchers.FindByPredicate(
@@ -234,7 +236,11 @@ namespace Metasound
 			{
 				OutputListener->OnOutputValueChanged.Broadcast(ChangedOutput->OutputName, ChangedOutput->OutputValue);
 			}
+
+			++NumDequeued;
 		}
+
+		ChangedOutputsQueueCount.store(FMath::Max(0, ChangedOutputsQueueCount.load() - NumDequeued));
 	}
 
 	void FMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
@@ -531,8 +537,21 @@ namespace Metasound
 	{
 		METASOUND_LLM_SCOPE;
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundGeneratorHandle::HandleOutputChanged);
+
+		if (ChangedOutputsQueueCount >= ChangedOutputsQueueMax)
+		{
+			// Log only once per handle
+			if (ChangedOutputsQueueShouldLogIfFull.load())
+			{
+				UE_LOG(LogMetaSound, Warning, TEXT("UMetasoundGeneratorHandle output queue is full."));
+				ChangedOutputsQueueShouldLogIfFull.store(false);
+			}
+			
+			return;
+		}
 		
 		ChangedOutputs.Enqueue(AnalyzerName, OutputName, AnalyzerOutputName, OutputData);
+		ChangedOutputsQueueCount.fetch_add(1);
 	}
 }
 

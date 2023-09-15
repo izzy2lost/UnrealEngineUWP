@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <atomic>
+
 #include "MetasoundOutput.h"
 #include "MetasoundParameterPack.h"
 #include "Analysis/MetasoundFrontendAnalyzerAddress.h"
@@ -224,6 +226,11 @@ namespace Metasound
 		};
 	
 		TSpscQueue<FOutputPayload> ChangedOutputs;
+
+		// Keep ChangedOutputs from growing infinitely
+		static constexpr int32 ChangedOutputsQueueMax = 1024;
+		std::atomic<int32> ChangedOutputsQueueCount{ 0 };
+		std::atomic<bool> ChangedOutputsQueueShouldLogIfFull{ true };
 
 		bool bRuntimeRenderTimingShouldBeEnabled{ false };
 	};
