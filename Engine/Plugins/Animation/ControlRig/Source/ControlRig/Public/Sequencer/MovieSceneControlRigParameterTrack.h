@@ -199,6 +199,9 @@ private:
 	UPROPERTY()
 	TMap<FName,FControlRotationOrder> ControlsRotationOrder;
 
+public:
+	static CONTROLRIG_API FColor AbsoluteRigTrackColor;
+	static CONTROLRIG_API FColor AdditiveRigTrackColor;
 };
 
 
