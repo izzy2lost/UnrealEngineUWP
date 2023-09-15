@@ -50,6 +50,7 @@ bool NeedsVelocityDepth(EShaderPlatform TargetPlatform)
 template<typename EnvironmentType>
 void ApplyFetchEnvironmentInternal(FShaderGlobalDefines& SrcDefines, const EnvironmentType& Environment)
 {
+	FETCH_COMPILE_BOOL(USES_BASE_PASS_VELOCITY);
 	FETCH_COMPILE_BOOL(GBUFFER_HAS_VELOCITY);
 	FETCH_COMPILE_BOOL(GBUFFER_HAS_TANGENT);
 	FETCH_COMPILE_BOOL(ALLOW_STATIC_LIGHTING);
@@ -208,6 +209,8 @@ void ApplyFetchEnvironmentInternal(FShaderMaterialPropertyDefines& SrcDefines, c
 	FETCH_COMPILE_BOOL(IS_VIRTUAL_TEXTURE_MATERIAL);
 	FETCH_COMPILE_BOOL(IS_DECAL);
 	FETCH_COMPILE_BOOL(IS_BASE_PASS);
+	FETCH_COMPILE_BOOL(COMPUTE_SHADED);
+	FETCH_COMPILE_BOOL(USES_WORLD_POSITION_OFFSET);
 	FETCH_COMPILE_BOOL(IS_MATERIAL_SHADER);
 
 	FETCH_COMPILE_BOOL(SUBSTRATE_ENABLED);
@@ -319,7 +322,8 @@ static FShaderGlobalDefines FetchShaderGlobalDefines(EShaderPlatform TargetPlatf
 	bool bIsMobilePlatform = IsMobilePlatform(TargetPlatform);
 
 	Ret.ALLOW_STATIC_LIGHTING = IsStaticLightingAllowed();
-	Ret.GBUFFER_HAS_VELOCITY = (IsUsingBasePassVelocity(TargetPlatform) || GBufferLayout == GBL_ForceVelocity) ? 1 : 0;
+	Ret.USES_BASE_PASS_VELOCITY = IsUsingBasePassVelocity(TargetPlatform);
+	Ret.GBUFFER_HAS_VELOCITY = (Ret.USES_BASE_PASS_VELOCITY || GBufferLayout == GBL_ForceVelocity) ? 1 : 0;
 	Ret.GBUFFER_HAS_TANGENT = false;//BasePassCanOutputTangent(TargetPlatform) ? 1 : 0;
 
 	{

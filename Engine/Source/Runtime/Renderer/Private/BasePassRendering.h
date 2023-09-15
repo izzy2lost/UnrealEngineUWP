@@ -425,7 +425,7 @@ public:
 };
 
 /** The concrete base pass compute shader type. */
-template<typename LightMapPolicyType, bool bEnableSkyLight, EGBufferLayout GBufferLayout>
+template<typename LightMapPolicyType, bool bEnableSkyLight>
 class TBasePassCS : public TBasePassComputeShaderBaseType<LightMapPolicyType>
 {
 	DECLARE_SHADER_TYPE(TBasePassCS,MeshMaterial);
@@ -452,13 +452,12 @@ public:
 		return bCacheShaders
 			&& (IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5))
 			&& Parameters.VertexFactoryType->SupportsComputeShading()
-			&& TBasePassComputeShaderBaseType<LightMapPolicyType>::ShouldCompilePermutation(Parameters)
-			&& IsGBufferLayoutSupportedForMaterial(GBufferLayout, Parameters);
+			&& TBasePassComputeShaderBaseType<LightMapPolicyType>::ShouldCompilePermutation(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FMeshMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
-		ModifyBasePassCSPSCompilationEnvironment(Parameters, GBufferLayout, bEnableSkyLight, OutEnvironment);
+		ModifyBasePassCSPSCompilationEnvironment(Parameters, GBL_ForceVelocity, bEnableSkyLight, OutEnvironment);
 
 		OutEnvironment.SetDefine(TEXT("COMPUTE_SHADED"), 1);
 
@@ -629,16 +628,16 @@ public:
  * Get shader templates allowing to redirect between compatible shaders.
  */
 
-template <typename LightMapPolicyType, EGBufferLayout GBufferLayout>
+template <typename LightMapPolicyType>
 void AddBasePassComputeShader(bool bEnableSkyLight, FMaterialShaderTypes& OutShaderTypes)
 {
 	if (bEnableSkyLight)
 	{
-		OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, true, GBufferLayout>>();
+		OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, true>>();
 	}
 	else
 	{
-		OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, false, GBufferLayout>>();
+		OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, false>>();
 	}
 }
 
@@ -649,7 +648,6 @@ bool GetBasePassShader(
 	LightMapPolicyType LightMapPolicy,
 	ERHIFeatureLevel::Type FeatureLevel,
 	bool bEnableSkyLight,
-	EGBufferLayout GBufferLayout,
 	TShaderRef<TBasePassComputeShaderPolicyParamType<LightMapPolicyType>>* ComputeShader
 )
 {
@@ -657,18 +655,7 @@ bool GetBasePassShader(
 
 	if (ComputeShader)
 	{
-		switch (GBufferLayout)
-		{
-		case GBL_Default:
-			AddBasePassComputeShader<LightMapPolicyType, GBL_Default>(bEnableSkyLight, ShaderTypes);
-			break;
-		case GBL_ForceVelocity:
-			AddBasePassComputeShader<LightMapPolicyType, GBL_ForceVelocity>(bEnableSkyLight, ShaderTypes);
-			break;
-		default:
-			check(false);
-			break;
-		}
+		AddBasePassComputeShader<LightMapPolicyType>(bEnableSkyLight, ShaderTypes);
 	}
 
 	FMaterialShaders Shaders;
@@ -688,7 +675,6 @@ bool GetBasePassShader<FUniformLightMapPolicy>(
 	FUniformLightMapPolicy LightMapPolicy,
 	ERHIFeatureLevel::Type FeatureLevel,
 	bool bEnableSkyLight,
-	EGBufferLayout GBufferLayout,
 	TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>>* ComputeShader
 );
 

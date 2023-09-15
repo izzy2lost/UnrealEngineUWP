@@ -17,6 +17,7 @@ struct FShaderGlobalDefines
 {
 	//void ModifyEnvironment(FShaderCompilerEnvironment& OutEnvironment) const;
 
+	bool USES_BASE_PASS_VELOCITY;
 	bool GBUFFER_HAS_VELOCITY;
 	bool GBUFFER_HAS_TANGENT;
 	bool ALLOW_STATIC_LIGHTING;
@@ -195,6 +196,8 @@ struct FShaderMaterialPropertyDefines
 	uint8 IS_VIRTUAL_TEXTURE_MATERIAL : 1;
 	uint8 IS_DECAL : 1;
 	uint8 IS_BASE_PASS : 1;
+	uint8 COMPUTE_SHADED : 1;
+	uint8 USES_WORLD_POSITION_OFFSET;
 	uint32 DECAL_RENDERTARGET_COUNT;
 	uint32 GBUFFER_LAYOUT;
 

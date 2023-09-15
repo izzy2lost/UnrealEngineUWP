@@ -871,8 +871,6 @@ void BuildShadingCommands(
 		const FLightCacheInterface* LCI = ShadingEntry.ShadingPipeline.LightCacheInterface;
 		FUniformLightMapPolicy LightMapPolicy = FUniformLightMapPolicy(ShadingEntry.ShadingPipeline.LightMapPolicyType);
 
-		const EGBufferLayout GBufferLayout = Nanite::GetGBufferLayoutForMaterial(ShadingMaterial.MaterialUsesWorldPositionOffset_RenderThread());
-
 		TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>> BasePassComputeShader;
 		bool bShadersValid = GetBasePassShader<FUniformLightMapPolicy>(
 			ShadingMaterial,
@@ -880,7 +878,6 @@ void BuildShadingCommands(
 			LightMapPolicy,
 			FeatureLevel,
 			bRenderSkylight,
-			GBufferLayout,
 			&BasePassComputeShader
 		);
 
@@ -1340,10 +1337,11 @@ void DispatchBasePass(
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ViewsBuffer), 0);
 
 	const FNaniteVisibilityResults& VisibilityResults = RasterResults.VisibilityResults;
-	const bool bWPOInSecondPass = !IsUsingBasePassVelocity(View.GetShaderPlatform());
 
 	TStaticArray<FTextureRenderTargetBinding, MaxSimultaneousRenderTargets> BasePassTextures;
-	uint32 BasePassTextureCount = SceneTextures.GetGBufferRenderTargets(BasePassTextures, GBL_Default);
+
+	// NOTE: Always use a GBuffer layout with velocity output (It won't be written to unless the material has WPO or IsUsingBasePassVelocity())
+	uint32 BasePassTextureCount = SceneTextures.GetGBufferRenderTargets(BasePassTextures, GBL_ForceVelocity);
 
 	// We don't want to have Substrate MRTs appended to the list, except for the top layer data
 	if (Substrate::IsSubstrateEnabled() && SceneRenderer.Scene)
