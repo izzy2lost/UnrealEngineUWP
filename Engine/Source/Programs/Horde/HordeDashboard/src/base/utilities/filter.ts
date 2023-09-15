@@ -82,5 +82,14 @@ export const filterJob = (job: GetJobResponse, keywordIn?: string, additionalKey
 
     keywords = keywords.map(k => k.toLowerCase());
 
-    return !!keywords.find(k => k.indexOf(keyword) !== -1);
+    const keys = keyword.indexOf(";") !== -1 ? keyword.split(";").map(k => k.trim()).filter(k => k.length) : [keyword];
+
+    let j = 0;
+    for (let i = 0; i < keys.length; i++) {
+        if (keywords.find(k => k.indexOf(keys[i]) !== -1)) {
+            j++;
+        }
+    }
+
+    return j === keys.length;
 }
