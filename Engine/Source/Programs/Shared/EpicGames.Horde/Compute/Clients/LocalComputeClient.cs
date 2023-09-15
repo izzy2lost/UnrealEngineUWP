@@ -35,39 +35,6 @@ namespace EpicGames.Horde.Compute.Clients
 			public ValueTask CloseAsync(CancellationToken cancellationToken) => _socket.CloseAsync(cancellationToken);
 		}
 
-		class PrefixLogger : ILogger
-		{
-			readonly string _prefix;
-			readonly ILogger _inner;
-
-			public PrefixLogger(string prefix, ILogger inner)
-			{
-				_prefix = prefix;
-				_inner = inner;
-			}
-
-			public IDisposable BeginScope<TState>(TState state) => _inner.BeginScope<TState>(state);
-			public bool IsEnabled(LogLevel logLevel) => _inner.IsEnabled(logLevel);
-
-			public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-			{
-				if (state is IEnumerable<KeyValuePair<string, object>> enumerable)
-				{
-					List<KeyValuePair<string, object>> copy = new List<KeyValuePair<string, object>>(enumerable);
-
-					int idx = copy.FindIndex(x => x.Key.Equals("{OriginalFormat}", StringComparison.OrdinalIgnoreCase));
-					if (idx != -1 && copy[idx].Value is string format)
-					{
-						copy[idx] = new KeyValuePair<string, object>(copy[idx].Key, "[{_tag}] " + format);
-						copy.Add(new KeyValuePair<string, object>("_tag", _prefix));
-						_inner.Log(logLevel, eventId, copy, exception, (s, e) => $"[{_prefix}] {formatter(state, exception)}");
-						return;
-					}
-				}
-				_inner.Log(logLevel, eventId, state, exception, formatter);
-			}
-		}
-
 		readonly BackgroundTask _listenerTask;
 		readonly Socket _listener;
 		readonly Socket _socket;
@@ -120,18 +87,12 @@ namespace EpicGames.Horde.Compute.Clients
 				await socket.CloseAsync(cancellationToken);
 			}
 		}
-		
-		/// <inheritdoc/>
-		public Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, CancellationToken cancellationToken)
-		{
-			return TryAssignWorkerAsync(clusterId, requirements, null, cancellationToken);
-		}
 
 		/// <inheritdoc/>
-		public Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, CancellationToken cancellationToken)
+		public Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ILogger logger, CancellationToken cancellationToken)
 		{
 #pragma warning disable CA2000 // Dispose objects before losing scope
-			RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(_socket), new PrefixLogger("CLIENT", _logger));
+			RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(_socket), logger);
 			return Task.FromResult<IComputeLease?>(new LeaseImpl(socket));
 #pragma warning restore CA2000 // Dispose objects before losing scope
 		}

@@ -64,21 +64,15 @@ namespace EpicGames.Horde.Compute.Clients
 
 		/// <inheritdoc/>
 		public ValueTask DisposeAsync() => new ValueTask();
-
-		/// <inheritdoc/>
-		public Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, CancellationToken cancellationToken)
-		{
-			return TryAssignWorkerAsync(clusterId, requirements, null, cancellationToken);
-		}
 		
 		/// <inheritdoc/>
-		public async Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, CancellationToken cancellationToken)
+		public async Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ILogger logger, CancellationToken cancellationToken)
 		{
-			_logger.LogInformation("** CLIENT **");
-			_logger.LogInformation("Launching {Path} to handle remote", _hordeAgentAssembly);
+			logger.LogInformation("** CLIENT **");
+			logger.LogInformation("Launching {Path} to handle remote", _hordeAgentAssembly);
 
 			// The connection logic is an async enumerator that returns the socket, then shuts down.
-			IAsyncEnumerator<RemoteComputeSocket> source = ConnectAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
+			IAsyncEnumerator<RemoteComputeSocket> source = ConnectAsync(logger, cancellationToken).GetAsyncEnumerator(cancellationToken);
 			if (!await source.MoveNextAsync())
 			{
 				await source.DisposeAsync();
@@ -88,13 +82,13 @@ namespace EpicGames.Horde.Compute.Clients
 			return new LeaseImpl(source);
 		}
 
-		async IAsyncEnumerable<RemoteComputeSocket> ConnectAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+		async IAsyncEnumerable<RemoteComputeSocket> ConnectAsync(ILogger logger, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			using Socket listener = new Socket(SocketType.Stream, ProtocolType.IP);
 			listener.Bind(new IPEndPoint(IPAddress.Loopback, _port));
 			listener.Listen();
 
-			using BackgroundTask agentTask = BackgroundTask.StartNew(ctx => RunAgentAsync(_hordeAgentAssembly, _port, _logger, ctx));
+			using BackgroundTask agentTask = BackgroundTask.StartNew(ctx => RunAgentAsync(_hordeAgentAssembly, _port, logger, ctx));
 			using Socket tcpSocket = await listener.AcceptAsync(cancellationToken);
 
 			await using RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(tcpSocket), _logger);
