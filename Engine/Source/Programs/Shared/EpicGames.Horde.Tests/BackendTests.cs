@@ -53,6 +53,29 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
+		public async Task TestFileBackendFileMapping()
+		{
+			using (TempDir tempDir = new TempDir("Cache"))
+			{
+				using FileStorageBackend backend = new FileStorageBackend(tempDir.Location);
+				string path = await backend.WriteBytesAsync(Encoding.UTF8.GetBytes("hello world"));
+
+				using (IStorageObject handle = backend.Read(path, 0, null))
+				{
+					Assert.AreEqual("hello world", Encoding.UTF8.GetString(handle.Data.Span));
+				}
+				using (IStorageObject handle = backend.Read(path, 0, 5))
+				{
+					Assert.AreEqual("hello", Encoding.UTF8.GetString(handle.Data.Span));
+				}
+				using (IStorageObject handle = backend.Read(path, 4, 3))
+				{
+					Assert.AreEqual("o w", Encoding.UTF8.GetString(handle.Data.Span));
+				}
+			}
+		}
+
+		[TestMethod]
 		public async Task TestCacheBackend()
 		{
 			using (TempDir tempDir = new TempDir("Cache"))
