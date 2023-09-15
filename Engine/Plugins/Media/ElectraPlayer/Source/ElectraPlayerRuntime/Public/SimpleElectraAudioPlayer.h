@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "Containers/Map.h"
 #include "Misc/Variant.h"
+#include "Misc/Timespan.h"
 
 class IElectraPlayerDataCache;
 class IAnalyticsProviderET;
@@ -29,6 +30,7 @@ public:
 	virtual ~ISimpleElectraAudioPlayer() = default;
 	virtual bool Open(const TMap<FString, FVariant>& InOptions, const FString& ManifestURL, const FTimespan& StartPosition, const FTimespan& EncodedDuration, bool bAutoPlay, bool bSetLooping, TSharedPtr<IElectraPlayerDataCache, ESPMode::ThreadSafe> InPlayerDataCache) = 0;
 	virtual void SeekTo(const FTimespan& NewPosition) = 0;
+	virtual void PrepareToLoopToBeginning() = 0;
 	virtual void Pause() = 0;
 	virtual void Resume() = 0;
 	virtual void Stop() = 0;
@@ -44,16 +46,20 @@ public:
 
 	struct FDefaultSampleInfo
 	{
-		int64 NumTotalSamples = -1;
-		int64 ExpectedCurrentSamplePos = -1;
+		int64 NumTotalFrames = -1;
+		int64 ExpectedCurrentFramePos = -1;
 		int32 SampleRate = 0;
 		int32 NumChannels = 0;
 	};
 
-	virtual int64 GetNumAvailableSamples() const = 0;
-	virtual int64 GetNextSamples(float* OutBuffer, int32 InBufferSizeInSamples, int32 InNumSamplesToGet, const FDefaultSampleInfo& InDefaultSampleInfo) = 0;
-	virtual int64 GetNextSamples(int16* OutBuffer, int32 InBufferSizeInSamples, int32 InNumSamplesToGet, const FDefaultSampleInfo& InDefaultSampleInfo) = 0;
-	virtual bool IsAtEOS() const = 0;
+	// Negative return values indicating reason for having no samples in GetNextSamples()
+	enum
+	{
+		GetSamples_NotReady = -1,		// Player not ready, no samples available.
+		GetSamples_AtEOS = -2,			// Reached end of stream
+	};
+
+	virtual int64 GetNextSamples(FTimespan& OutPTS, bool& bOutIsFirstBlock, int16* OutBuffer, int32 InBufferSizeInFrames, int32 InNumFramesToGet, const FDefaultSampleInfo& InDefaultSampleInfo) = 0;
 
 
 	//-------------------------------------------------------------------------

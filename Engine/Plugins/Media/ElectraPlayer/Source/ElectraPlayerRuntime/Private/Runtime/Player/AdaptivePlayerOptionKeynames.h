@@ -35,6 +35,9 @@ namespace Electra
 	
 	//! (bool) true to emit the first decoded video frame while prerolling so it can be displayed while scrubbing.
 	const TCHAR* const OptionKeyDoNotHoldBackFirstVideoFrame = TEXT("do_not_hold_back_first_frame");
+
+	//! (bool) true to not truncate the media segment access units at the end of the presentation. Must only be used without a set playback range end!
+	const TCHAR* const OptionKeyDoNotTruncateAtPresentationEnd = TEXT("do_not_truncate_at_presentation_end");
 	
 	//! (bool) true to have every request to read data break out to an external data reader.
 	const TCHAR* const OptionKeyUseExternalDataReader = TEXT("use_external_data_reader");

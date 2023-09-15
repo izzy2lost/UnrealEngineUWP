@@ -11,6 +11,7 @@
 #include "HAL/LowLevelMemTracker.h"
 #include "ElectraPlayerPrivate.h"
 #include "Player/AdaptiveStreamingPlayerABR.h"
+#include "Player/AdaptivePlayerOptionKeynames.h"
 #include "Player/PlayerEntityCache.h"
 #include "Player/DASH/PlaylistReaderDASH.h"
 #include "Player/DASH/OptionKeynamesDASH.h"
@@ -1009,6 +1010,9 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 	FTimeValue LastKnownAUDuration;
 	FTimeValue TimeOffset = Request->PeriodStart + Request->AST + Request->AdditionalAdjustmentTime;
 
+	const FParamDict& Options = PlayerSessionService->GetOptions();
+	bool bDoNotTruncateAtPresentationEnd = Options.GetValue(OptionKeyDoNotTruncateAtPresentationEnd).SafeGetBool(false);
+
 	// Get the init segment if there is one. Either gets it from the entity cache or requests it now and adds it to the cache.
 	InitSegmentError = GetInitSegment(MP4InitSegment, Request);
 	// Get the CSD from the init segment in case there is a failure with the segment later.
@@ -1111,7 +1115,6 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 			}
 			HTTP->Parameters.bCollectTimingTraces = Request->Segment.bLowLatencyChunkedEncodingExpected;
 			// Set timeouts for media segment retrieval
-			const FParamDict& Options = PlayerSessionService->GetOptions();
 			HTTP->Parameters.ConnectTimeout = Options.GetValue(DASH::OptionKeyMediaSegmentConnectTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 4));
 			HTTP->Parameters.NoDataTimeout = Options.GetValue(DASH::OptionKeyMediaSegmentNoDataTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 4));
 
@@ -1197,7 +1200,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 								TrackTimescale = TrackIterator->GetTimescale();
 
 								int64 MediaLocalFirstAUTime = Request->Segment.MediaLocalFirstAUTime;
-								int64 MediaLocalLastAUTime = Request->Segment.MediaLocalLastAUTime;
+								int64 MediaLocalLastAUTime = bDoNotTruncateAtPresentationEnd ? TNumericLimits<int64>::Max() : Request->Segment.MediaLocalLastAUTime;
 								int64 PTO = Request->Segment.PTO;
 
 								if (TrackTimescale != Request->Segment.Timescale)
@@ -1869,6 +1872,9 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMKV()
 	bFillRemainingDuration = false;
 	ABRAbortReason.Empty();
 
+	const FParamDict& Options = PlayerSessionService->GetOptions();
+	bool bDoNotTruncateAtPresentationEnd = Options.GetValue(OptionKeyDoNotTruncateAtPresentationEnd).SafeGetBool(false);
+
 	// Get the init segment if there is one. Either gets it from the entity cache or requests it now and adds it to the cache.
 	InitSegmentError = GetInitSegment(MKVParser, Request);
 	// Get the CSD from the init segment in case there is a failure with the segment later.
@@ -1945,7 +1951,6 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMKV()
 			}
 			HTTP->Parameters.bCollectTimingTraces = Request->Segment.bLowLatencyChunkedEncodingExpected;
 			// Set timeouts for media segment retrieval
-			const FParamDict& Options = PlayerSessionService->GetOptions();
 			HTTP->Parameters.ConnectTimeout = Options.GetValue(DASH::OptionKeyMediaSegmentConnectTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 4));
 			HTTP->Parameters.NoDataTimeout = Options.GetValue(DASH::OptionKeyMediaSegmentNoDataTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 4));
 
@@ -1985,7 +1990,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMKV()
 			FTimeValue EarliestPTS(Request->Segment.MediaLocalFirstAUTime, Request->Segment.Timescale, Request->TimestampSequenceIndex);
 			EarliestPTS += TimeOffset - PTO;
 			FTimeValue LastPTS;
-			if (Request->Segment.MediaLocalLastAUTime != TNumericLimits<int64>::Max())
+			if (!bDoNotTruncateAtPresentationEnd && Request->Segment.MediaLocalLastAUTime != TNumericLimits<int64>::Max())
 			{
 				LastPTS.SetFromND(Request->Segment.MediaLocalLastAUTime, Request->Segment.Timescale, Request->TimestampSequenceIndex);
 				LastPTS += TimeOffset - PTO;
