@@ -14,13 +14,13 @@ UPoseSearchFeatureChannel_Heading::UPoseSearchFeatureChannel_Heading()
 	bUseBlueprintQueryOverride = Cast<UBlueprintGeneratedClass>(GetClass()) != nullptr;
 }
 
-void UPoseSearchFeatureChannel_Heading::FindOrAddToSchema(UPoseSearchSchema* Schema, float SampleTimeOffset, const FName& BoneName, EHeadingAxis HeadingAxis)
+void UPoseSearchFeatureChannel_Heading::FindOrAddToSchema(UPoseSearchSchema* Schema, float SampleTimeOffset, const FName& BoneName, EHeadingAxis HeadingAxis, EPermutationTimeType PermutationTimeType)
 {
-	if (!Schema->FindChannel([SampleTimeOffset, &BoneName, HeadingAxis](const UPoseSearchFeatureChannel* Channel) -> const UPoseSearchFeatureChannel_Heading*
+	if (!Schema->FindChannel([SampleTimeOffset, &BoneName, HeadingAxis, PermutationTimeType](const UPoseSearchFeatureChannel* Channel) -> const UPoseSearchFeatureChannel_Heading*
 		{
 			if (const UPoseSearchFeatureChannel_Heading* Heading = Cast<UPoseSearchFeatureChannel_Heading>(Channel))
 			{
-				if (Heading->Bone.BoneName == BoneName && Heading->SampleTimeOffset == SampleTimeOffset && Heading->OriginTimeOffset == 0.f && Heading->HeadingAxis == HeadingAxis)
+				if (Heading->Bone.BoneName == BoneName && Heading->OriginBone.BoneName == NAME_None && Heading->SampleTimeOffset == SampleTimeOffset && Heading->OriginTimeOffset == 0.f && Heading->HeadingAxis == HeadingAxis && Heading->PermutationTimeType == PermutationTimeType)
 				{
 					return Heading;
 				}
@@ -35,6 +35,7 @@ void UPoseSearchFeatureChannel_Heading::FindOrAddToSchema(UPoseSearchSchema* Sch
 		Heading->HeadingAxis = HeadingAxis;
 		// @todo: perhaps add a tunable color for injected channels
 		Heading->DebugColor = FLinearColor::Gray;
+		Heading->PermutationTimeType = PermutationTimeType;
 		Schema->AddTemporaryChannel(Heading);
 	}
 }
@@ -44,7 +45,9 @@ void UPoseSearchFeatureChannel_Heading::Finalize(UPoseSearchSchema* Schema)
 	ChannelDataOffset = Schema->SchemaCardinality;
 	ChannelCardinality = UE::PoseSearch::FFeatureVectorHelper::GetVectorCardinality(ComponentStripping);
 	Schema->SchemaCardinality += ChannelCardinality;
+
 	SchemaBoneIdx = Schema->AddBoneReference(Bone);
+	SchemaOriginBoneIdx = Schema->AddBoneReference(OriginBone);
 }
 
 void UPoseSearchFeatureChannel_Heading::AddDependentChannels(UPoseSearchSchema* Schema) const
@@ -89,7 +92,7 @@ void UPoseSearchFeatureChannel_Heading::BuildQuery(UE::PoseSearch::FSearchContex
 	if (bUseBlueprintQueryOverride)
 	{
 		const FQuat BoneRotationWorld = BP_GetWorldRotation(SearchContext.GetAnimInstance());
-		const FQuat BoneRotation = SearchContext.GetSampleRotation(SampleTimeOffset, OriginTimeOffset, InOutQuery.GetSchema(), SchemaBoneIdx, RootSchemaBoneIdx, /*!bIsRootBone*/ true, EPermutationTimeType::UseSampleTime, &BoneRotationWorld);
+		const FQuat BoneRotation = SearchContext.GetSampleRotation(SampleTimeOffset, OriginTimeOffset, InOutQuery.GetSchema(), SchemaBoneIdx, SchemaOriginBoneIdx, /*!bIsRootBone*/ true, EPermutationTimeType::UseSampleTime, &BoneRotationWorld);
 		FFeatureVectorHelper::EncodeVector(InOutQuery.EditValues(), ChannelDataOffset, GetAxis(BoneRotation), ComponentStripping);
 	}
 	else
@@ -111,7 +114,7 @@ void UPoseSearchFeatureChannel_Heading::BuildQuery(UE::PoseSearch::FSearchContex
 		else
 		{
 			// calculating the BoneRotation in component space for the bone indexed by SchemaBoneIdx
-			const FQuat BoneRotation = SearchContext.GetSampleRotation(SampleTimeOffset, OriginTimeOffset, InOutQuery.GetSchema(), SchemaBoneIdx, RootSchemaBoneIdx, !bIsRootBone);
+			const FQuat BoneRotation = SearchContext.GetSampleRotation(SampleTimeOffset, OriginTimeOffset, InOutQuery.GetSchema(), SchemaBoneIdx, SchemaOriginBoneIdx, !bIsRootBone);
 			FFeatureVectorHelper::EncodeVector(InOutQuery.EditValues(), ChannelDataOffset, GetAxis(BoneRotation), ComponentStripping);
 		}
 	}
@@ -147,7 +150,7 @@ bool UPoseSearchFeatureChannel_Heading::IndexAsset(UE::PoseSearch::FAssetIndexer
 	FQuat SampleRotation = FQuat::Identity;
 	for (int32 SampleIdx = Indexer.GetBeginSampleIdx(); SampleIdx != Indexer.GetEndSampleIdx(); ++SampleIdx)
 	{
-		if (Indexer.GetSampleRotation(SampleRotation, SampleTimeOffset, OriginTimeOffset, SampleIdx, SchemaBoneIdx, RootSchemaBoneIdx, EPermutationTimeType::UseSampleTime, SamplingAttributeId))
+		if (Indexer.GetSampleRotation(SampleRotation, SampleTimeOffset, OriginTimeOffset, SampleIdx, SchemaBoneIdx, SchemaOriginBoneIdx, EPermutationTimeType::UseSampleTime, SamplingAttributeId))
 		{
 			FFeatureVectorHelper::EncodeVector(Indexer.GetPoseVector(SampleIdx), ChannelDataOffset, GetAxis(SampleRotation), ComponentStripping);
 		}
@@ -197,6 +200,12 @@ FString UPoseSearchFeatureChannel_Heading::GetLabel() const
 	{
 		Label.Append(TEXT("_"));
 		Label.Append(Schema->BoneReferences[SchemaBoneIdx].BoneName.ToString());
+	}
+
+	if (SchemaOriginBoneIdx != RootSchemaBoneIdx)
+	{
+		Label.Append(TEXT("_"));
+		Label.Append(Schema->BoneReferences[SchemaOriginBoneIdx].BoneName.ToString());
 	}
 
 	Label.Appendf(TEXT(" %.2f"), SampleTimeOffset);

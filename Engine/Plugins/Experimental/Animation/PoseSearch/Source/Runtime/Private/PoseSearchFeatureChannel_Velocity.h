@@ -16,22 +16,35 @@ public:
 	FBoneReference Bone;
 
 	UPROPERTY(EditAnywhere, Category = "Settings")
+	FBoneReference OriginBone;
+
+	UPROPERTY(EditAnywhere, Category = "Settings")
 	float Weight = 1.f;
+
 
 	// if SamplingAttributeId >= 0, ALL the animations contained in the pose search database referencing the schema containing this channel are expected to have 
 	// UAnimNotifyState_PoseSearchSamplingAttribute notify state with a matching SamplingAttributeId, and the UAnimNotifyState_PoseSearchSamplingAttribute properties
-	// will be used as source of data instead of this channel "Bone".
+	// will be used as source of data instead of this channel "Bone". UAnimNotifyState_PoseSearchSamplingAttribute properties will be then converted into OriginBone space
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	int32 SamplingAttributeId = INDEX_NONE;
-
+	
 	// the data relative to the sampling time associated to this channel will be offsetted by SampleTimeOffset seconds.
 	// For example, if Bone is the head bone, and SampleTimeOffset is 0.5, this channel will try to match the future velocity of the character head bone 0.5 seconds ahead
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	float SampleTimeOffset = 0.f;
 
+	// the data relative to the sampling time associated to this channel origin (root / trajectory bone) will be offsetted by OriginTimeOffset seconds.
+	// For example, if Bone is the head bone, SampleTimeOffset is 0.5, and OriginTimeOffset is 0.5, this channel will try to match 
+	// the future velocity of the character head bone 0.5 seconds ahead, relative to the future root bone 0.5 seconds ahead
+	UPROPERTY(EditAnywhere, Category = "Settings")
+	float OriginTimeOffset = 0.f;
+
 	// index referencing the associated bone in UPoseSearchSchema::BoneReferences
 	UPROPERTY(Transient)
 	int8 SchemaBoneIdx = 0;
+
+	UPROPERTY(Transient)
+	int8 SchemaOriginBoneIdx = 0;
 
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (ExcludeFromHash, DisplayPriority = 0))
 	FLinearColor DebugColor = FLinearColor::Green;
@@ -50,6 +63,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	EComponentStrippingVector ComponentStripping = EComponentStrippingVector::None;
 
+	UPROPERTY(EditAnywhere, Category = "Settings")
+	EPermutationTimeType PermutationTimeType = EPermutationTimeType::UseSampleTime;
+
 	UFUNCTION(BlueprintPure, BlueprintImplementableEvent, meta=(BlueprintThreadSafe, DisplayName = "Get World Velocity"), Category = "Settings")
 	FVector BP_GetWorldVelocity(const UAnimInstance* AnimInstance) const;
 
@@ -61,6 +77,7 @@ public:
 	virtual void Finalize(UPoseSearchSchema* Schema) override;
 	virtual void BuildQuery(UE::PoseSearch::FSearchContext& SearchContext, UE::PoseSearch::FFeatureVectorBuilder& InOutQuery) const override;
 
+	virtual EPermutationTimeType GetPermutationTimeType() const override { return PermutationTimeType; }
 	virtual void AddDependentChannels(UPoseSearchSchema* Schema) const override;
 
 #if ENABLE_DRAW_DEBUG

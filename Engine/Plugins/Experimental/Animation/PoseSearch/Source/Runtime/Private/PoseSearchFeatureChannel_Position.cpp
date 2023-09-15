@@ -19,7 +19,7 @@ void UPoseSearchFeatureChannel_Position::FindOrAddToSchema(UPoseSearchSchema* Sc
 		{
 			if (const UPoseSearchFeatureChannel_Position* Position = Cast<UPoseSearchFeatureChannel_Position>(Channel))
 			{
-				if (Position->Bone.BoneName == BoneName && Position->OriginBone.BoneName == NAME_None && Position->SampleTimeOffset == SampleTimeOffset && Position->PermutationTimeType == PermutationTimeType)
+				if (Position->Bone.BoneName == BoneName && Position->OriginBone.BoneName == NAME_None && Position->SampleTimeOffset == SampleTimeOffset && Position->OriginTimeOffset == 0.f && Position->PermutationTimeType == PermutationTimeType)
 				{
 					return Position;
 				}
@@ -69,7 +69,7 @@ void UPoseSearchFeatureChannel_Position::BuildQuery(UE::PoseSearch::FSearchConte
 	if (bUseBlueprintQueryOverride)
 	{
 		const FVector BonePositionWorld = BP_GetWorldPosition(SearchContext.GetAnimInstance());
-		const FVector BonePosition = SearchContext.GetSamplePosition(SampleTimeOffset, 0.f, InOutQuery.GetSchema(), SchemaBoneIdx, SchemaOriginBoneIdx, /*!bIsRootBone*/ true, PermutationTimeType, &BonePositionWorld);
+		const FVector BonePosition = SearchContext.GetSamplePosition(SampleTimeOffset, OriginTimeOffset, InOutQuery.GetSchema(), SchemaBoneIdx, SchemaOriginBoneIdx, /*!bIsRootBone*/ true, PermutationTimeType, &BonePositionWorld);
   		FFeatureVectorHelper::EncodeVector(InOutQuery.EditValues(), ChannelDataOffset, BonePosition, ComponentStripping);
 	}
 	else
@@ -91,7 +91,7 @@ void UPoseSearchFeatureChannel_Position::BuildQuery(UE::PoseSearch::FSearchConte
 		else
 		{
 			// calculating the BonePosition in root bone space for the bone indexed by SchemaBoneIdx
-			const FVector BonePosition = SearchContext.GetSamplePosition(SampleTimeOffset, 0.f, InOutQuery.GetSchema(), SchemaBoneIdx, SchemaOriginBoneIdx, !bIsRootBone, PermutationTimeType);
+			const FVector BonePosition = SearchContext.GetSamplePosition(SampleTimeOffset, OriginTimeOffset, InOutQuery.GetSchema(), SchemaBoneIdx, SchemaOriginBoneIdx, !bIsRootBone, PermutationTimeType);
 			FFeatureVectorHelper::EncodeVector(InOutQuery.EditValues(), ChannelDataOffset, BonePosition, ComponentStripping);
 		}
 	}
@@ -139,7 +139,7 @@ bool UPoseSearchFeatureChannel_Position::IndexAsset(UE::PoseSearch::FAssetIndexe
 	FVector BonePosition;
 	for (int32 SampleIdx = Indexer.GetBeginSampleIdx(); SampleIdx != Indexer.GetEndSampleIdx(); ++SampleIdx)
 	{
-		if (Indexer.GetSamplePosition(BonePosition, SampleTimeOffset, 0.f, SampleIdx, SchemaBoneIdx, SchemaOriginBoneIdx, PermutationTimeType, SamplingAttributeId))
+		if (Indexer.GetSamplePosition(BonePosition, SampleTimeOffset, OriginTimeOffset, SampleIdx, SchemaBoneIdx, SchemaOriginBoneIdx, PermutationTimeType, SamplingAttributeId))
 		{
 			FFeatureVectorHelper::EncodeVector(Indexer.GetPoseVector(SampleIdx), ChannelDataOffset, BonePosition, ComponentStripping);
 		}
@@ -186,6 +186,12 @@ FString UPoseSearchFeatureChannel_Position::GetLabel() const
 	}
 
 	Label.Appendf(TEXT(" %.2f"), SampleTimeOffset);
+
+	if (!FMath::IsNearlyZero(OriginTimeOffset))
+	{
+		Label.Appendf(TEXT("-%.2f"), OriginTimeOffset);
+	}
+
 	return Label.ToString();
 }
 #endif

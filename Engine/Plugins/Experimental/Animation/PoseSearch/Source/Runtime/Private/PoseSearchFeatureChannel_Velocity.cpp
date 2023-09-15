@@ -22,6 +22,7 @@ void UPoseSearchFeatureChannel_Velocity::Finalize(UPoseSearchSchema* Schema)
 	Schema->SchemaCardinality += ChannelCardinality;
 
 	SchemaBoneIdx = Schema->AddBoneReference(Bone);
+	SchemaOriginBoneIdx = Schema->AddBoneReference(OriginBone);
 }
 
 void UPoseSearchFeatureChannel_Velocity::AddDependentChannels(UPoseSearchSchema* Schema) const
@@ -42,7 +43,7 @@ void UPoseSearchFeatureChannel_Velocity::BuildQuery(UE::PoseSearch::FSearchConte
 	{
 		const FVector LinearVelocityWorld = BP_GetWorldVelocity(SearchContext.GetAnimInstance());
 
-		FVector LinearVelocity = SearchContext.GetSampleVelocity(SampleTimeOffset, 0.f, InOutQuery.GetSchema(), SchemaBoneIdx, RootSchemaBoneIdx, bUseCharacterSpaceVelocities, /*!bIsRootBone*/ true, EPermutationTimeType::UseSampleTime, &LinearVelocityWorld);
+		FVector LinearVelocity = SearchContext.GetSampleVelocity(SampleTimeOffset, OriginTimeOffset, InOutQuery.GetSchema(), SchemaBoneIdx, SchemaOriginBoneIdx, bUseCharacterSpaceVelocities, /*!bIsRootBone*/ true, EPermutationTimeType::UseSampleTime, &LinearVelocityWorld);
 		if (bNormalize)
 		{
 			LinearVelocity = LinearVelocity.GetClampedToMaxSize(1.f);
@@ -68,7 +69,7 @@ void UPoseSearchFeatureChannel_Velocity::BuildQuery(UE::PoseSearch::FSearchConte
 		else
 		{
 			// calculating the LinearVelocity for the bone indexed by SchemaBoneIdx
-			FVector LinearVelocity = SearchContext.GetSampleVelocity(SampleTimeOffset, 0.f, InOutQuery.GetSchema(), SchemaBoneIdx, RootSchemaBoneIdx, bUseCharacterSpaceVelocities, !bIsRootBone, EPermutationTimeType::UseSampleTime);
+			FVector LinearVelocity = SearchContext.GetSampleVelocity(SampleTimeOffset, OriginTimeOffset, InOutQuery.GetSchema(), SchemaBoneIdx, SchemaOriginBoneIdx, bUseCharacterSpaceVelocities, !bIsRootBone, EPermutationTimeType::UseSampleTime);
 			if (bNormalize)
 			{
 				LinearVelocity = LinearVelocity.GetClampedToMaxSize(1.f);
@@ -111,7 +112,7 @@ bool UPoseSearchFeatureChannel_Velocity::IndexAsset(UE::PoseSearch::FAssetIndexe
 	FVector LinearVelocity;
 	for (int32 SampleIdx = Indexer.GetBeginSampleIdx(); SampleIdx != Indexer.GetEndSampleIdx(); ++SampleIdx)
 	{
-		if (Indexer.GetSampleVelocity(LinearVelocity, SampleTimeOffset, 0.f, SampleIdx, SchemaBoneIdx, RootSchemaBoneIdx, bUseCharacterSpaceVelocities, EPermutationTimeType::UseSampleTime, SamplingAttributeId))
+		if (Indexer.GetSampleVelocity(LinearVelocity, SampleTimeOffset, OriginTimeOffset, SampleIdx, SchemaBoneIdx, SchemaOriginBoneIdx, bUseCharacterSpaceVelocities, EPermutationTimeType::UseSampleTime, SamplingAttributeId))
 		{
 			if (bNormalize)
 			{
@@ -159,7 +160,19 @@ FString UPoseSearchFeatureChannel_Velocity::GetLabel() const
 		Label.Append(Schema->BoneReferences[SchemaBoneIdx].BoneName.ToString());
 	}
 
+	if (SchemaOriginBoneIdx != RootSchemaBoneIdx)
+	{
+		Label.Append(TEXT("_"));
+		Label.Append(Schema->BoneReferences[SchemaOriginBoneIdx].BoneName.ToString());
+	}
+
 	Label.Appendf(TEXT(" %.2f"), SampleTimeOffset);
+
+	if (!FMath::IsNearlyZero(OriginTimeOffset))
+	{
+		Label.Appendf(TEXT("-%.2f"), OriginTimeOffset);
+	}
+
 	return Label.ToString();
 }
 #endif
