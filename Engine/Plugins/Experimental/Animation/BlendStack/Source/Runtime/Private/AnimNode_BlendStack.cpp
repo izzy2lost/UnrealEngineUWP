@@ -771,6 +771,7 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 	if (bNeedsReset)
 	{
 		Reset();
+		bForceBlendNextUpdate = false;
 	}
 
 	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
