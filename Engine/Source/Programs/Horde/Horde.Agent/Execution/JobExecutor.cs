@@ -498,7 +498,7 @@ namespace Horde.Agent.Execution
 
 				using (GlobalTracer.Instance.BuildSpan("TempStorage").WithTag("resource", "Write").StartActive())
 				{
-					IStorageClient storage = StorageFactory.CreateStorageClient(Session, _namespaceId, _token);
+					using IStorageClient storage = StorageFactory.CreateStorageClient(Session, _namespaceId, _token);
 
 					Stopwatch timer = Stopwatch.StartNew();
 
@@ -760,7 +760,7 @@ namespace Horde.Agent.Execution
 
 				if (JobOptions.UseNewTempStorage ?? false)
 				{
-					IStorageClient storage = StorageFactory.CreateStorageClient(Session, _namespaceId, _token);
+					using IStorageClient storage = StorageFactory.CreateStorageClient(Session, _namespaceId, _token);
 
 					RefName refName = TempStorage.GetRefNameForNode(_storagePrefix, SetupStepName);
 
@@ -837,7 +837,7 @@ namespace Horde.Agent.Execution
 				CreateJobArtifactResponse artifact = await jobRpc.Client.CreateArtifactAsync(new CreateJobArtifactRequest { JobId = JobId, StepId = stepId, Type = type }, cancellationToken: cancellationToken);
 				Logger.LogInformation("Created artifact {ArtifactId} with ref {RefName} in ns {Namespace}", artifact.Id, artifact.RefName, artifact.NamespaceId);
 
-				IStorageClient storage = StorageFactory.CreateStorageClient(Session, new NamespaceId(artifact.NamespaceId), artifact.Token);
+				using IStorageClient storage = StorageFactory.CreateStorageClient(Session, new NamespaceId(artifact.NamespaceId), artifact.Token);
 				await using IStorageWriter writer = storage.CreateWriter(new RefName(artifact.RefName));
 
 				DirectoryNode dir = new DirectoryNode();
@@ -855,7 +855,7 @@ namespace Horde.Agent.Execution
 		{
 			DirectoryReference manifestDir = DirectoryReference.Combine(workspaceDir, "Engine", "Saved", "BuildGraph");
 
-			IStorageClient storage = StorageFactory.CreateStorageClient(Session, _namespaceId, _token);
+			using IStorageClient storage = StorageFactory.CreateStorageClient(Session, _namespaceId, _token);
 
 			// Create the mapping of tag names to file sets
 			Dictionary<string, HashSet<FileReference>> tagNameToFileSet = new Dictionary<string, HashSet<FileReference>>();

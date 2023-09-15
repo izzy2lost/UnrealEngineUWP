@@ -249,7 +249,7 @@ namespace Horde.Server.Tools
 				return Forbid(ToolAclAction.UploadTool, id);
 			}
 
-			BundleStorageClient storageClient = await _toolCollection.GetStorageClientAsync(tool, cancellationToken);
+			using IBundleStorageClient storageClient = _toolCollection.CreateStorageClient(tool);
 			return await StorageController.WriteBlobAsync(storageClient, file, cancellationToken: cancellationToken);
 		}
 
@@ -503,7 +503,7 @@ namespace Horde.Server.Tools
 				return Ok(response);
 			}
 
-			IStorageClient client = await _toolCollection.GetStorageClientAsync(tool, cancellationToken);
+			using IStorageClient client = _toolCollection.CreateStorageClient(tool);
 
 			DirectoryNode node = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken);
 
@@ -526,7 +526,7 @@ namespace Horde.Server.Tools
 
 		private async Task<GetToolDeploymentResponse> GetDeploymentInfoResponseAsync(ITool tool, IToolDeployment deployment, CancellationToken cancellationToken)
 		{
-			BundleStorageClient client = await _toolCollection.GetStorageClientAsync(tool, cancellationToken);
+			using IBundleStorageClient client = _toolCollection.CreateStorageClient(tool);
 			BundleNodeHandle rootHandle = await client.ReadRefTargetAsync(deployment.RefName, cancellationToken: cancellationToken);
 
 			return new GetToolDeploymentResponse(deployment, rootHandle);
@@ -558,7 +558,7 @@ namespace Horde.Server.Tools
 				return BadRequest("Invalid blob id for tool");
 			}
 
-			BundleStorageClient storageClient = await _toolCollection.GetStorageClientAsync(tool, cancellationToken);
+			using IBundleStorageClient storageClient = _toolCollection.CreateStorageClient(tool);
 			return StorageController.ReadBlobInternalAsync(storageClient, locator, Request.Headers, cancellationToken);
 		}
 

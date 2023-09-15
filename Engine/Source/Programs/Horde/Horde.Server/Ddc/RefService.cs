@@ -28,20 +28,20 @@ namespace Horde.Server.Ddc
 
 		public async Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
+			using IStorageClient storageClient = _storageService.CreateClient(ns);
 			return await storageClient.DeleteRefAsync(GetRefName(bucket, key), cancellationToken);
 		}
 
 		public async Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
+			using IStorageClient storageClient = _storageService.CreateClient(ns);
 			BlobHandle? handle = await storageClient.TryReadRefTargetAsync(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			return handle != null;
 		}
 
 		public async Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
+			using IStorageClient storageClient = _storageService.CreateClient(ns);
 
 			BlobHandle? blobHandle = await storageClient.FindAliasAsync(BlobService.GetAlias(blobHash), cancellationToken).FirstOrDefaultAsync(cancellationToken);
 			if (blobHandle == null)
@@ -123,7 +123,7 @@ namespace Horde.Server.Ddc
 
 		public async Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[] fields, bool doLastAccessTracking, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
+			using IStorageClient storageClient = _storageService.CreateClient(ns);
 
 			DdcRefNode? node = await storageClient.TryReadRefAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)
@@ -140,7 +140,7 @@ namespace Horde.Server.Ddc
 
 		public async Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
+			using IStorageClient storageClient = _storageService.CreateClient(ns);
 
 			DdcRefNode? node = await storageClient.TryReadRefAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)

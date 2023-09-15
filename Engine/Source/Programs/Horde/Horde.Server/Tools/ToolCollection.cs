@@ -251,7 +251,7 @@ namespace Horde.Server.Tools
 			ToolDeploymentId deploymentId = ToolDeploymentId.GenerateNewId();
 			RefName refName = new RefName($"{tool.Id}/{deploymentId}");
 
-			StorageClient client = await _storageService.GetClientAsync(Namespace.Tools, cancellationToken);
+			using IServerStorageClient client = _storageService.CreateClient(Namespace.Tools);
 
 			NodeRef<DirectoryNode> nodeRef;
 			await using (IStorageWriter writer = client.CreateWriter(refName))
@@ -281,7 +281,7 @@ namespace Horde.Server.Tools
 			ToolDeploymentId deploymentId = ToolDeploymentId.GenerateNewId();
 			RefName refName = new RefName($"{tool.Id}/{deploymentId}");
 
-			StorageClient client = await _storageService.GetClientAsync(Namespace.Tools, cancellationToken);
+			using IServerStorageClient client = _storageService.CreateClient(Namespace.Tools);
 			await client.WriteRefTargetAsync(refName, locator, cancellationToken: cancellationToken);
 
 			return await CreateDeploymentInternalAsync(tool, deploymentId, options, refName, globalConfig, cancellationToken);
@@ -340,7 +340,7 @@ namespace Horde.Server.Tools
 					return null;
 				}
 
-				IStorageClient client = await _storageService.GetClientAsync(Namespace.Tools, cancellationToken);
+				using IStorageClient client = _storageService.CreateClient(Namespace.Tools);
 				await client.DeleteRefAsync(tool.Deployments[0].RefName, cancellationToken);
 			}
 
@@ -412,9 +412,8 @@ namespace Horde.Server.Tools
 		/// Gets the storage client containing data for a particular tool
 		/// </summary>
 		/// <param name="tool">Identifier for the tool</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Storage client for the data</returns>
-		public async Task<BundleStorageClient> GetStorageClientAsync(ITool tool, CancellationToken cancellationToken)
+		public IBundleStorageClient CreateStorageClient(ITool tool)
 		{
 			if (tool.Config is BundledToolConfig bundledConfig)
 			{
@@ -422,7 +421,7 @@ namespace Horde.Server.Tools
 			}
 			else
 			{
-				return await _storageService.GetClientAsync(Namespace.Tools, cancellationToken);
+				return _storageService.CreateClient(Namespace.Tools);
 			}
 		}
 
@@ -435,7 +434,7 @@ namespace Horde.Server.Tools
 		/// <returns>Stream for the data</returns>
 		public async Task<Stream> GetDeploymentZipAsync(ITool tool, IToolDeployment deployment, CancellationToken cancellationToken)
 		{
-			IStorageClient client = await GetStorageClientAsync(tool, cancellationToken);
+			using IStorageClient client = CreateStorageClient(tool);
 
 			DirectoryNode node = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken);
 

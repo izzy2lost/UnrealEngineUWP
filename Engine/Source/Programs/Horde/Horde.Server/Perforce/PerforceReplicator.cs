@@ -252,7 +252,7 @@ namespace Horde.Server.Perforce
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public async Task WriteAsync(StreamConfig streamConfig, int change, PerforceReplicationOptions options, CancellationToken cancellationToken)
 		{
-			IStorageClient store = await _storageService.GetClientAsync(Namespace.Perforce, cancellationToken);
+			using IStorageClient store = _storageService.CreateClient(Namespace.Perforce);
 
 			// Find the parent node
 			RefName refName = GetRefName(streamConfig.Id);

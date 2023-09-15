@@ -57,9 +57,8 @@ namespace Horde.Server.Tools
 		/// Gets the storage client for a particular tool
 		/// </summary>
 		/// <param name="tool">The tool to get a storage client for</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Instance of the storage client</returns>
-		Task<BundleStorageClient> GetStorageClientAsync(ITool tool, CancellationToken cancellationToken);
+		IBundleStorageClient CreateStorageClient(ITool tool);
 
 		/// <summary>
 		/// Opens a stream to the data for a particular deployment

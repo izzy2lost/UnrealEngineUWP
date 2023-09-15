@@ -63,13 +63,13 @@ namespace Horde.Server.Ddc
 
 		public async Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
+			using IStorageClient storageClient = _storageService.CreateClient(ns);
 			return await storageClient.FindAliasAsync(GetAlias(blob), cancellationToken).AnyAsync(cancellationToken);
 		}
 
 		public async Task DeleteObjectAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
+			using IStorageClient storageClient = _storageService.CreateClient(ns);
 			Utf8String alias = GetAlias(blob);
 
 			List<BlobHandle> handles = await storageClient.FindAliasAsync(alias, cancellationToken).ToListAsync(cancellationToken);
@@ -81,7 +81,7 @@ namespace Horde.Server.Ddc
 
 		public async Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobIds, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
+			using IStorageClient storageClient = _storageService.CreateClient(ns);
 
 			List<BlobId> unknownBlobIds = new List<BlobId>();
 			foreach (BlobId blobId in blobIds)
@@ -97,7 +97,7 @@ namespace Horde.Server.Ddc
 
 		public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers, bool supportsRedirectUri, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
+			using IStorageClient storageClient = _storageService.CreateClient(ns);
 
 			BlobHandle? handle = await storageClient.FindAliasAsync(GetAlias(blob), cancellationToken).FirstOrDefaultAsync(cancellationToken);
 			if (handle == null)
@@ -143,7 +143,7 @@ namespace Horde.Server.Ddc
 
 		public async Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, BufferedPayload content, BlobId identifier, CancellationToken cancellationToken)
 		{
-			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
+			using IStorageClient storageClient = _storageService.CreateClient(ns);
 
 			BlobHandle blobHandle;
 			await using (IStorageWriter writer = storageClient.CreateWriter())

@@ -6,6 +6,7 @@ using System;
 using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -81,7 +82,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 			if (text[^1] == '/')
 			{
-				throw new ArgumentException("Blob paths cannot start or end with a slash", name);
+				throw new ArgumentException($"Blob paths cannot start or end with a slash (\"{Encoding.UTF8.GetString(text)}\")", name);
 			}
 
 			int lastSlashIdx = -1;
@@ -92,7 +93,7 @@ namespace EpicGames.Horde.Storage.Bundles
 				{
 					if (lastSlashIdx == idx - 1)
 					{
-						throw new ArgumentException("Leading and consecutive slashes are not permitted in blob paths", name);
+						throw new ArgumentException($"Leading and consecutive slashes are not permitted in blob paths (\"{Encoding.UTF8.GetString(text)}\")", name);
 					}
 					else
 					{
@@ -103,7 +104,7 @@ namespace EpicGames.Horde.Storage.Bundles
 				{
 					if (!IsValidChar(text[idx]))
 					{
-						throw new ArgumentException($"'{(char)text[idx]} is not a valid blob path character", name);
+						throw new ArgumentException($"'{(char)text[idx]} is not a valid blob path character (\"{Encoding.UTF8.GetString(text)}\")", name);
 					}
 				}
 			}

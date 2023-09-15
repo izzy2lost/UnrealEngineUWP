@@ -159,19 +159,15 @@ namespace Horde.Server.Storage
 	public class StorageController : HordeControllerBase
 	{
 		readonly StorageService _storageService;
-		readonly StorageCache _storageCache;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
-		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageController(StorageService storageService, StorageCache storageCache, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<StorageController> logger)
+		public StorageController(StorageService storageService, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_storageService = storageService;
-			_storageCache = storageCache;
 			_globalConfig = globalConfig;
-			_logger = logger;
 		}
 
 		/// <summary>
@@ -186,12 +182,12 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/bundles")]
 		public async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(NamespaceId namespaceId, IFormFile? file, [FromForm] string? prefix = default, CancellationToken cancellationToken = default)
 		{
-			StorageClient? storageClient = await _storageService.TryGetClientAsync(namespaceId, cancellationToken);
+			using IServerStorageClient? storageClient = _storageService.TryCreateClient(namespaceId);
 			if (storageClient == null)
 			{
 				return NotFound(namespaceId);
 			}
-			if (!storageClient.Config.Authorize(StorageAclAction.WriteBlobs, User) && !HasPathClaim(User, HordeClaimTypes.WriteNamespace, namespaceId, prefix ?? String.Empty))
+			if (!storageClient.Authorize(StorageAclAction.WriteBlobs, User) && !HasPathClaim(User, HordeClaimTypes.WriteNamespace, namespaceId, prefix ?? String.Empty))
 			{
 				return Forbid(StorageAclAction.WriteBlobs, namespaceId);
 			}
@@ -207,9 +203,9 @@ namespace Horde.Server.Storage
 		/// <param name="prefix">Prefix for uploaded blobs</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>Information about the written blob, or redirect information</returns>
-		public static async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(BundleStorageClient storageClient, IFormFile? file, [FromForm] string? prefix = default, CancellationToken cancellationToken = default)
+		public static async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(IBundleStorageClient storageClient, IFormFile? file, [FromForm] string? prefix = default, CancellationToken cancellationToken = default)
 		{
-			StorageClient? storageClientImpl = storageClient as StorageClient;
+			IServerStorageClient? storageClientImpl = storageClient as IServerStorageClient;
 			if (file == null)
 			{
 				if (storageClientImpl == null)
@@ -217,7 +213,7 @@ namespace Horde.Server.Storage
 					return new WriteBlobResponse { SupportsRedirects = false };
 				}
 
-				(string Path, Uri UploadUrl)? result = await storageClientImpl.Backend.TryGetWriteRedirectAsync(prefix ?? String.Empty, cancellationToken);
+				(string Path, Uri UploadUrl)? result = await storageClient.Backend.TryGetWriteRedirectAsync(prefix ?? String.Empty, cancellationToken);
 				if (result == null)
 				{
 					return new WriteBlobResponse { SupportsRedirects = false };
@@ -234,7 +230,7 @@ namespace Horde.Server.Storage
 				}
 
 				BundleLocator locator = await storageClient.WriteBundleAsync(bundle, prefix: (prefix == null) ? Utf8String.Empty : new Utf8String(prefix), cancellationToken: cancellationToken);
-				return new WriteBlobResponse { Blob = locator.ToString(), SupportsRedirects = storageClientImpl?.SupportsRedirects };
+				return new WriteBlobResponse { Blob = locator.ToString(), SupportsRedirects = storageClient?.Backend.SupportsRedirects };
 			}
 		}
 
@@ -249,12 +245,12 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/bundles/{*locator}")]
 		public async Task<ActionResult> ReadBlobAsync(NamespaceId namespaceId, BundleLocator locator, CancellationToken cancellationToken = default)
 		{
-			StorageClient? client = await _storageService.TryGetClientAsync(namespaceId, cancellationToken);
+			using IServerStorageClient? client = _storageService.TryCreateClient(namespaceId);
 			if (client == null)
 			{
 				return NotFound(namespaceId);
 			}
-			if (!client.Config.Authorize(StorageAclAction.ReadBlobs, User) && !HasPathClaim(User, HordeClaimTypes.ReadNamespace, namespaceId, locator.Path.ToString()))
+			if (!client.Authorize(StorageAclAction.ReadBlobs, User) && !HasPathClaim(User, HordeClaimTypes.ReadNamespace, namespaceId, locator.Path.ToString()))
 			{
 				return Forbid(StorageAclAction.ReadBlobs, namespaceId);
 			}
@@ -265,15 +261,12 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Reads a blob from storage, without performing namespace access checks.
 		/// </summary>
-		internal static async Task<ActionResult> ReadBlobInternalAsync(BundleStorageClient storageClient, BundleLocator locator, IHeaderDictionary headers, CancellationToken cancellationToken)
+		internal static async Task<ActionResult> ReadBlobInternalAsync(IBundleStorageClient storageClient, BundleLocator locator, IHeaderDictionary headers, CancellationToken cancellationToken)
 		{
-			if (storageClient is StorageClient storageClientImpl)
+			Uri? redirectUrl = await storageClient.Backend.TryGetReadRedirectAsync(locator.ToString(), cancellationToken);
+			if (redirectUrl != null)
 			{
-				Uri? redirectUrl = await storageClientImpl.Backend.TryGetReadRedirectAsync(locator.ToString(), cancellationToken);
-				if (redirectUrl != null)
-				{
-					return new RedirectResult(redirectUrl.ToString());
-				}
+				return new RedirectResult(redirectUrl.ToString());
 			}
 
 			// Parse the range header
@@ -329,12 +322,12 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/nodes")]
 		public async Task<ActionResult<FindNodesResponse>> FindNodesAsync(NamespaceId namespaceId, string alias, CancellationToken cancellationToken = default)
 		{
-			StorageClient? client = await _storageService.TryGetClientAsync(namespaceId, cancellationToken);
+			using IServerStorageClient? client = _storageService.TryCreateClient(namespaceId);
 			if (client == null)
 			{
 				return NotFound(namespaceId);
 			}
-			if (!client.Config.Authorize(StorageAclAction.ReadBlobs, User))
+			if (!client.Authorize(StorageAclAction.ReadBlobs, User))
 			{
 				return Forbid(StorageAclAction.ReadBlobs, namespaceId);
 			}
@@ -364,12 +357,12 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/refs/{*refName}")]
 		public async Task<ActionResult> WriteRefAsync(NamespaceId namespaceId, RefName refName, [FromBody] WriteRefRequest request, CancellationToken cancellationToken)
 		{
-			StorageClient? client = await _storageService.TryGetClientAsync(namespaceId, cancellationToken);
+			using IServerStorageClient? client = _storageService.TryCreateClient(namespaceId);
 			if (client == null)
 			{
 				return NotFound(namespaceId);
 			}
-			if (!client.Config.Authorize(StorageAclAction.WriteRefs, User) && !HasPathClaim(User, HordeClaimTypes.WriteNamespace, namespaceId, refName.ToString()))
+			if (!client.Authorize(StorageAclAction.WriteRefs, User) && !HasPathClaim(User, HordeClaimTypes.WriteNamespace, namespaceId, refName.ToString()))
 			{
 				return Forbid(StorageAclAction.WriteRefs, namespaceId);
 			}
@@ -408,7 +401,7 @@ namespace Horde.Server.Storage
 		/// </summary>
 		internal static async Task<ActionResult<ReadRefResponse>> ReadRefInternalAsync(StorageService storageService, NamespaceId namespaceId, RefName refName, IHeaderDictionary headers, CancellationToken cancellationToken)
 		{
-			StorageClient client = await storageService.GetClientAsync(namespaceId, cancellationToken);
+			using IServerStorageClient client = storageService.CreateClient(namespaceId);
 
 			RefCacheTime cacheTime = new RefCacheTime();
 			foreach (string entry in headers.CacheControl)
@@ -483,19 +476,17 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/bundleinfo/{*locator}")]
 		public async Task<ActionResult<object>> GetBundleAsync(NamespaceId namespaceId, BundleLocator locator, [FromQuery(Name = "imports")] bool includeImports = false, [FromQuery(Name = "exports")] bool includeExports = true, [FromQuery(Name = "packets")] bool includePackets = false, CancellationToken cancellationToken = default)
 		{
-			StorageClient? storageClient = await _storageService.TryGetClientAsync(namespaceId, cancellationToken);
+			using IServerStorageClient? storageClient = _storageService.TryCreateClient(namespaceId);
 			if (storageClient == null)
 			{
 				return NotFound(namespaceId);
 			}
-			if (!storageClient.Config.Authorize(StorageAclAction.ReadBlobs, User))
+			if (!storageClient.Authorize(StorageAclAction.ReadBlobs, User))
 			{
 				return Forbid(StorageAclAction.ReadBlobs, namespaceId);
 			}
 
-			BundleReader reader = new BundleReader(storageClient, _storageCache, _logger);
-
-			BundleHeader header = await reader.ReadHeaderAsync(locator, cancellationToken);
+			BundleHeader header = await storageClient.ReadHeaderAsync(locator, cancellationToken);
 
 			string linkBase = $"/api/v1/storage/{namespaceId}";
 
@@ -572,17 +563,16 @@ namespace Horde.Server.Storage
 				return Forbid(StorageAclAction.ReadBlobs, namespaceId);
 			}
 
-			StorageClient storageClient = await _storageService.GetClientAsync(namespaceId, cancellationToken);
-			BundleReader reader = new BundleReader(storageClient, _storageCache, _logger);
+			using IServerStorageClient storageClient = _storageService.CreateClient(namespaceId);
 
-			BundleHeader header = await reader.ReadHeaderAsync(locator, cancellationToken);
+			BundleHeader header = await storageClient.ReadHeaderAsync(locator, cancellationToken);
 			BundleExport export = header.Exports[exportIdx];
 
 			string linkBase = $"/api/v1/storage/{namespaceId}";
 
 			object content;
 
-			BlobData nodeData = await reader.ReadNodeDataAsync(new BundleNodeLocator(export.Hash, locator, exportIdx), cancellationToken);
+			BlobData nodeData = await storageClient.ReadNodeDataAsync(new BundleNodeLocator(export.Hash, locator, exportIdx), cancellationToken);
 
 			Node node = Node.Deserialize(nodeData);
 			switch (node)

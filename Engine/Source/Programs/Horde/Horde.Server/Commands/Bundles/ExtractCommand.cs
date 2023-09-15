@@ -40,7 +40,7 @@ namespace Horde.Server.Commands.Bundles
 
 			StorageService storageService = serviceProvider.GetRequiredService<StorageService>();
 
-			IStorageClient store = await storageService.GetClientAsync(NamespaceId, default);
+			using IStorageClient store = storageService.CreateClient(NamespaceId);
 
 			CommitNode commit = await store.ReadRefAsync<CommitNode>(RefName);
 			logger.LogInformation("Extracting {Number}: {Description} to {OutputDir}", commit.Number, (commit.Message ?? String.Empty).Replace("\n", "\\n", StringComparison.Ordinal), OutputDir);

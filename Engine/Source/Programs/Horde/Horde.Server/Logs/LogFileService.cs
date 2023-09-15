@@ -648,7 +648,7 @@ namespace Horde.Server.Logs
 
 			if (logFile.UseNewStorageBackend)
 			{
-				IStorageClient storageClient = await GetStorageClientAsync(cancellationToken);
+				using IStorageClient storageClient = await CreateStorageClientAsync(cancellationToken);
 
 				int maxIndex = index + count;
 
@@ -1078,7 +1078,7 @@ namespace Horde.Server.Logs
 		{
 			if (logFile.UseNewStorageBackend)
 			{
-				IStorageClient storageClient = await GetStorageClientAsync(cancellationToken);
+				using IStorageClient storageClient = await CreateStorageClientAsync(cancellationToken);
 
 				LogNode? root = await storageClient.TryReadRefAsync<LogNode>(logFile.RefName, cancellationToken: cancellationToken);
 				if (root == null || root.TextChunkRefs.Count == 0)
@@ -1217,9 +1217,10 @@ namespace Horde.Server.Logs
 			}
 		}
 
-		async Task<IStorageClient> GetStorageClientAsync(CancellationToken cancellationToken)
+		Task<IStorageClient> CreateStorageClientAsync(CancellationToken cancellationToken)
 		{
-			return await _storageService.GetClientAsync(Namespace.Logs, cancellationToken);
+			_ = cancellationToken;
+			return Task.FromResult<IStorageClient>(_storageService.CreateClient(Namespace.Logs));
 		}
 
 		/// <inheritdoc/>
@@ -1227,7 +1228,7 @@ namespace Horde.Server.Logs
 		{
 			if (logFile.UseNewStorageBackend)
 			{
-				IStorageClient storageClient = await GetStorageClientAsync(cancellationToken);
+				using IStorageClient storageClient = await CreateStorageClientAsync(cancellationToken);
 
 				LogNode? root = await storageClient.TryReadRefAsync<LogNode>(logFile.RefName, cancellationToken: cancellationToken);
 				if (root == null)
@@ -1888,7 +1889,7 @@ namespace Horde.Server.Logs
 		async IAsyncEnumerable<int> SearchLogDataInternalNewAsync(ILogFile logFile, string text, int firstLine, SearchStats searchStats, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			SearchTerm searchText = new SearchTerm(text);
-			IStorageClient storageClient = await GetStorageClientAsync(cancellationToken);
+			using IStorageClient storageClient = await CreateStorageClientAsync(cancellationToken);
 
 			// Search the index
 			if (logFile.LineCount > 0)

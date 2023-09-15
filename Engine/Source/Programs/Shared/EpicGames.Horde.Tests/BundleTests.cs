@@ -31,6 +31,7 @@ namespace EpicGames.Horde.Tests
 
 		public void Dispose()
 		{
+			_storage.Dispose();
 			_cache.Dispose();
 		}
 

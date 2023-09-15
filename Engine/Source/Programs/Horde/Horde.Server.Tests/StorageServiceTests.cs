@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.Clients;
 using Horde.Server.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -20,7 +21,7 @@ namespace Horde.Server.Tests
 		public async Task BlobCollectionTestAsync()
 		{
 			StorageService storageService = ServiceProvider.GetRequiredService<StorageService>();
-			StorageClient client = await storageService.GetClientAsync(new NamespaceId("memory"), default);
+			using IServerStorageClient client = storageService.CreateClient(new NamespaceId("memory"));
 
 			List<BlobType> types = new List<BlobType>();
 			types.Add(new BlobType(Guid.Parse("{11C2D886-3349-4164-946F-E9D10BD12E3D}"), 0));

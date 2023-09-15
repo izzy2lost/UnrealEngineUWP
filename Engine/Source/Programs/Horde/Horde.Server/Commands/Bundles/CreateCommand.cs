@@ -40,26 +40,28 @@ namespace Horde.Server.Commands.Bundles
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
 			using ServiceProvider serviceProvider = Startup.CreateServiceProvider(_configuration, _loggerProvider);
-
-			IStorageClient storageClient;
 			if (OutputDir == null)
 			{
-				StorageService storageService = serviceProvider.GetRequiredService<StorageService>();
-				storageClient = await storageService.GetClientAsync(NamespaceId, CancellationToken.None);
+				using IStorageClient storageClient = serviceProvider.GetRequiredService<StorageService>().CreateClient(NamespaceId);
+				await ExecuteInternalAsync(storageClient, logger);
 			}
 			else
 			{
-				FileStorageClient fileStorageClient = new FileStorageClient(OutputDir, serviceProvider.GetRequiredService<StorageCache>(), logger);
-				storageClient = fileStorageClient;
+				using FileStorageClient storageClient = new FileStorageClient(OutputDir, serviceProvider.GetRequiredService<StorageCache>(), logger);
+				await ExecuteInternalAsync(storageClient, logger);
 			}
-		
+
+			return 0;
+		}
+
+		async Task ExecuteInternalAsync(IStorageClient storageClient, ILogger logger)
+		{
 			await using IStorageWriter writer = storageClient.CreateWriter(RefName);
 
 			DirectoryNode node = new DirectoryNode(DirectoryFlags.None);
 			await node.CopyFromDirectoryAsync(InputDir.ToDirectoryInfo(), new ChunkingOptions(), writer, new CopyStatsLogger(logger), CancellationToken.None);
 
 			await storageClient.WriteRefAsync(RefName, node);
-			return 0;
 		}
 	}
 }

@@ -16,41 +16,24 @@ namespace EpicGames.Horde.Compute
 	/// <summary>
 	/// Storage client which can read bundles over a compute channel
 	/// </summary>
-	public sealed class AgentStorageClient : BundleStorageClient, IDisposable
+	public sealed class AgentStorageClient : BundleStorageClient
 	{
-		readonly AgentStorageBackend _backend;
-
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="channel"></param>
 		public AgentStorageClient(AgentMessageChannel channel)
-			: this(new AgentStorageBackend(channel))
+			: base(new AgentStorageBackend(channel), StorageCache.None, NullLogger.Instance)
 		{
-		}
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		private AgentStorageClient(AgentStorageBackend backend)
-			: base(backend, StorageCache.None, NullLogger.Instance)
-		{
-			_backend = backend;
-		}
-
-		/// <inheritdoc/>
-		public void Dispose()
-		{
-			_backend.Dispose();
 		}
 
 		#region Nodes
 
 		/// <inheritdoc/>
-		public override Task AddAliasAsync(Utf8String name, BundleNodeHandle locator, int rank, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+		public override Task AddAliasAsync(Utf8String name, BundleNodeLocator locator, int rank, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
 		/// <inheritdoc/>
-		public override Task RemoveAliasAsync(Utf8String name, BundleNodeHandle locator, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+		public override Task RemoveAliasAsync(Utf8String name, BundleNodeLocator locator, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
 		/// <inheritdoc/>
 		public override IAsyncEnumerable<BundleNodeHandle> FindAliasAsync(Utf8String name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -66,7 +49,7 @@ namespace EpicGames.Horde.Compute
 		public override Task<BundleNodeHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
 		/// <inheritdoc/>
-		public override Task WriteRefTargetAsync(RefName name, BundleNodeHandle target, RefOptions? options = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+		public override Task WriteRefTargetAsync(RefName name, BundleNodeLocator target, RefOptions? options = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
 		#endregion
 	}

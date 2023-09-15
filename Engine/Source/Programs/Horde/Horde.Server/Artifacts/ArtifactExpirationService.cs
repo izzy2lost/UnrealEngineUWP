@@ -52,7 +52,7 @@ namespace Horde.Server.Artifacts
 			{
 				foreach (IGrouping<NamespaceId, IArtifact> group in artifacts.GroupBy(x => x.NamespaceId))
 				{
-					IStorageClient storageClient = await _storageService.GetClientAsync(group.Key, cancellationToken);
+					using IServerStorageClient storageClient = _storageService.CreateClient(group.Key);
 					foreach (IArtifact artifact in group)
 					{
 						_logger.LogDebug("Expiring artifact {ArtifactId}, ref {RefName}", artifact.Id, artifact.RefName);

@@ -115,7 +115,7 @@ namespace Horde.Server.Logs
 				return Forbid();
 			}
 
-			StorageClient storageClient = await _storageService.GetClientAsync(Namespace.Logs, cancellationToken);
+			using IServerStorageClient storageClient = _storageService.CreateClient(Namespace.Logs);
 			return await StorageController.WriteBlobAsync(storageClient, file, $"{logFile.RefName}", cancellationToken);
 		}
 

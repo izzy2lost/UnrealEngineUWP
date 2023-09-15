@@ -32,21 +32,24 @@ namespace Horde.Commands.Bundles
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			// Create the storage client
-			IStorageClient store;
 			if (File != null)
 			{
-				store = new FileStorageClient(File.Directory, StorageCache, logger);
+				using FileStorageClient store = new FileStorageClient(File.Directory, StorageCache, logger);
+				return await ExecuteInternalAsync(store, logger);
 			}
 			else if (!String.IsNullOrEmpty(Ref))
 			{
-				store = await CreateStorageClientAsync(logger);
+				using IStorageClient store = await CreateStorageClientAsync(logger);
+				return await ExecuteInternalAsync(store, logger);
 			}
 			else
 			{
 				throw new CommandLineArgumentException("Either -File=... or -Ref=... must be specified.");
 			}
+		}
 
+		async Task<int> ExecuteInternalAsync(IStorageClient store, ILogger logger)
+		{
 			// Gather the input files
 			DirectoryReference baseDir;
 			List<FileReference> files = new List<FileReference>();

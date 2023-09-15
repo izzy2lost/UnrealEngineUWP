@@ -29,7 +29,7 @@ namespace Horde.Agent.Utility
 		}
 
 		/// <inheritdoc/>
-		public ValueTask<IStorageClient> GetClientAsync(NamespaceId namespaceId, CancellationToken cancellationToken)
+		public Task<IStorageClient> CreateClientAsync(NamespaceId namespaceId, CancellationToken cancellationToken = default)
 		{
 			IStorageClient client;
 			if (_settings.Value.UseLocalStorageClient)
@@ -40,7 +40,7 @@ namespace Horde.Agent.Utility
 			{
 				client = new HttpStorageClient(() => CreateDefaultHttpClient(namespaceId), () => new HttpClient(), _memoryCache, _logger);
 			}
-			return new ValueTask<IStorageClient>(client);
+			return Task.FromResult(client);
 		}
 
 		HttpClient CreateDefaultHttpClient(NamespaceId namespaceId)

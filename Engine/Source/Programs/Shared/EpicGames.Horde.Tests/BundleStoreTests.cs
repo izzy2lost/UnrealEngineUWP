@@ -59,7 +59,7 @@ namespace EpicGames.Horde.Tests
 
 		static async Task<Bundle> CreateBundleNormalAsync()
 		{
-			MemoryStorageClient store = new MemoryStorageClient();
+			using MemoryStorageClient store = new MemoryStorageClient();
 			await using BundleWriter writer = store.CreateWriter(options: new BundleOptions { CompressionFormat = BundleCompressionFormat.None });
 
 			TextNode node = new TextNode("Hello world");
@@ -92,7 +92,7 @@ namespace EpicGames.Horde.Tests
 		{
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 
-			MemoryStorageClient blobStore = new MemoryStorageClient();
+			using MemoryStorageClient blobStore = new MemoryStorageClient();
 			await TestTreeAsync(blobStore, new BundleOptions { MaxBlobSize = 1024 * 1024 });
 
 			Assert.AreEqual(1, blobStore.Blobs.Count);
@@ -104,7 +104,7 @@ namespace EpicGames.Horde.Tests
 		{
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 
-			MemoryStorageClient blobStore = new MemoryStorageClient();
+			using MemoryStorageClient blobStore = new MemoryStorageClient();
 			await TestTreeAsync(blobStore, new BundleOptions { MaxBlobSize = 1 });
 
 			Assert.AreEqual(5, blobStore.Blobs.Count);
@@ -198,7 +198,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task SimpleNodeAsync()
 		{
-			MemoryStorageClient store = new MemoryStorageClient();
+			using MemoryStorageClient store = new MemoryStorageClient();
 
 			RefName refName = new RefName("test");
 			await store.WriteRefAsync(refName, new SimpleNode(new ReadOnlySequence<byte>(new byte[] { (byte)123 }), Array.Empty<NodeRef<SimpleNode>>()));
@@ -211,7 +211,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task DirectoryNodesAsync()
 		{
-			MemoryStorageClient store = new MemoryStorageClient();
+			using MemoryStorageClient store = new MemoryStorageClient();
 
 			// Generate a tree
 			{
@@ -258,7 +258,7 @@ namespace EpicGames.Horde.Tests
 		public async Task FileNodesAsync()
 		{
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
-			MemoryStorageClient store = new MemoryStorageClient();
+			using MemoryStorageClient store = new MemoryStorageClient();
 			BundleReader reader = new BundleReader(store, StorageCache.None, NullLogger.Instance);
 
 			// Generate a tree
@@ -306,7 +306,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task StreamTestAsync()
 		{
-			MemoryStorageClient store = new MemoryStorageClient();
+			using MemoryStorageClient store = new MemoryStorageClient();
 
 			const int length = 4096;
 
@@ -346,7 +346,7 @@ namespace EpicGames.Horde.Tests
 		public async Task LargeFileTestAsync()
 		{
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
-			MemoryStorageClient store = new MemoryStorageClient();
+			using MemoryStorageClient store = new MemoryStorageClient();
 
 			const int length = 1024;
 			const int copies = 4096;

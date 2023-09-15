@@ -2,7 +2,6 @@
 
 using System.Linq;
 using System.Security.Claims;
-using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 using Horde.Server.Acls;
@@ -21,18 +20,18 @@ namespace Horde.Server.Ddc
 			_storageService = storageService;
 		}
 
-		public async Task<ActionResult?> HasAccessToNamespaceAsync(ClaimsPrincipal user, HttpRequest request, NamespaceId ns, AclAction[] aclActions)
+		public Task<ActionResult?> HasAccessToNamespaceAsync(ClaimsPrincipal user, HttpRequest request, NamespaceId ns, AclAction[] aclActions)
 		{
-			StorageClient? storageClient = await _storageService.TryGetClientAsync(ns, CancellationToken.None);
+			using IServerStorageClient? storageClient = _storageService.TryCreateClient(ns);
 			if (storageClient == null)
 			{
-				return new ForbidResult();
+				return Task.FromResult<ActionResult?>(new ForbidResult());
 			}
-			if (aclActions.Any(x => !storageClient.Config.Authorize(x, user)))
+			if (aclActions.Any(x => !storageClient.Authorize(x, user)))
 			{
-				return new ForbidResult();
+				return Task.FromResult<ActionResult?>(new ForbidResult());
 			}
-			return null;
+			return Task.FromResult<ActionResult?>(null);
 		}
 	}
 }

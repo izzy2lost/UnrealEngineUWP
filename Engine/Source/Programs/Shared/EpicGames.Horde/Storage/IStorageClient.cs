@@ -70,7 +70,7 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Interface for the storage system.
 	/// </summary>
-	public interface IStorageClient
+	public interface IStorageClient : IDisposable
 	{
 		#region Nodes
 
@@ -197,8 +197,8 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="namespaceId">Namespace to manipulate</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Storage client instance</returns>
-		ValueTask<IStorageClient> GetClientAsync(NamespaceId namespaceId, CancellationToken cancellationToken = default);
+		/// <returns>Storage client instance. Must be disposed by the caller.</returns>
+		Task<IStorageClient> CreateClientAsync(NamespaceId namespaceId, CancellationToken cancellationToken = default);
 	}
 
 	/// <summary>

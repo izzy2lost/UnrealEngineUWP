@@ -44,7 +44,7 @@ namespace Horde.Server.Commands.Migrate
 			ILogFileService logService = serviceProvider.GetRequiredService<ILogFileService>();
 
 			StorageService storageService = serviceProvider.GetRequiredService<StorageService>();
-			IStorageClient storageClient = await storageService.GetClientAsync(Namespace.Logs, CancellationToken.None);
+			using IStorageClient storageClient = storageService.CreateClient(Namespace.Logs);
 
 			byte[] buffer = new byte[1 * 1024];
 

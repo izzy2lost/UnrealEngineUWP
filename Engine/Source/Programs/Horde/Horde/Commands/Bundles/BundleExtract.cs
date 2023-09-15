@@ -36,28 +36,34 @@ namespace Horde.Commands.Bundles
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			IStorageClient store;
-			BlobHandle handle;
 			if (File != null)
 			{
-				store = new FileStorageClient(File.Directory, StorageCache, logger);
-				handle = await ((FileStorageClient)store).ReadRefAsync(File);
+				using FileStorageClient store = new FileStorageClient(File.Directory, StorageCache, logger);
+				BlobHandle handle = await store.ReadRefAsync(File);
+				await ExecuteInternalAsync(store, handle, logger);
 			}
 			else if (Ref != null)
 			{
-				store = await CreateStorageClientAsync(logger);
-				handle = await store.ReadRefTargetAsync(new RefName(Ref));
+				using IStorageClient store = await CreateStorageClientAsync(logger);
+				BlobHandle handle = await store.ReadRefTargetAsync(new RefName(Ref));
+				await ExecuteInternalAsync(store, handle, logger);
 			}
 			else if (Node != null)
 			{
-				store = await CreateStorageClientAsync(logger);
-				handle = ((BundleStorageClient)store).CreateNodeHandle(BundleNodeLocator.Parse(Node));
+				BundleStorageClient store = (BundleStorageClient)await CreateStorageClientAsync(logger);
+				BlobHandle handle = store.CreateNodeHandle(BundleNodeLocator.Parse(Node));
+				await ExecuteInternalAsync(store, handle, logger);
 			}
 			else
 			{
 				throw new CommandLineArgumentException("Either -File=... or -Ref=... must be specified");
 			}
 
+			return 0;
+		}
+
+		protected async Task ExecuteInternalAsync(IStorageClient store, BlobHandle handle, ILogger logger)
+		{
 			Stopwatch timer = Stopwatch.StartNew();
 
 			DirectoryNode node = await handle.ReadNodeAsync<DirectoryNode>();
@@ -75,8 +81,6 @@ namespace Horde.Commands.Bundles
 					logger.LogInformation("Num packet reads: {NumReads:n0}", bundleStorageClient.BundleReader.NumPacketReads);
 				}
 			}
-
-			return 0;
 		}
 	}
 }

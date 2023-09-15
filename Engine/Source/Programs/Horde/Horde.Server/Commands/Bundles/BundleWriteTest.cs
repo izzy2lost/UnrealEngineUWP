@@ -23,6 +23,8 @@ namespace Horde.Server.Commands.Bundles
 			{
 			}
 
+			public void Dispose() { }
+
 			public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default) => Task.FromResult(true);
 			public Task AddAliasAsync(Utf8String name, BlobHandle handle, int rank = 0, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 			public Task RemoveAliasAsync(Utf8String name, BlobHandle handle, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -41,7 +43,7 @@ namespace Horde.Server.Commands.Bundles
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			FakeStorageClient store = new FakeStorageClient();
+			using FakeStorageClient store = new FakeStorageClient();
 
 			BundleOptions options = new BundleOptions();
 			options.CompressionFormat = BundleCompressionFormat.None;

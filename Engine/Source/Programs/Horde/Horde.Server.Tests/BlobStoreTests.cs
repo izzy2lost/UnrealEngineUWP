@@ -10,7 +10,6 @@ using MongoDB.Driver;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
-using System.Threading;
 using Horde.Server.Server;
 using Horde.Server.Storage;
 
@@ -19,14 +18,14 @@ namespace Horde.Server.Tests
 	[TestClass]
 	public class BlobStoreTests : TestSetup
 	{
-		async Task<StorageClient> CreateStorageClientAsync()
+		IServerStorageClient CreateStorageClient()
 		{
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.Storage.Backends.Add(new BackendConfig { Id = new BackendId("default-backend"), Type = StorageBackendType.Memory });
 			globalConfig.Storage.Namespaces.Add(new NamespaceConfig { Id = new NamespaceId("default"), Backend = new BackendId("default-backend"), GcDelayHrs = 0.0 });
 			SetConfig(globalConfig);
 
-			return await StorageService.GetClientAsync(new NamespaceId("default"), CancellationToken.None);
+			return StorageService.CreateClient(new NamespaceId("default"));
 		}
 
 		static byte[] CreateTestData(int length, int seed)
@@ -65,7 +64,7 @@ namespace Horde.Server.Tests
 			return new Bundle(header, new[] { data });
 		}
 
-		static async Task<Blob> ReadBlobAsync(StorageClient store, BundleLocator locator)
+		static async Task<Blob> ReadBlobAsync(IServerStorageClient store, BundleLocator locator)
 		{
 			Bundle bundle = await store.ReadBundleAsync(locator);
 			return ExtractBlobFromBundle(bundle);
@@ -82,7 +81,7 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task LeafTestAsync()
 		{
-			StorageClient store = await CreateStorageClientAsync();
+			using IServerStorageClient store = CreateStorageClient();
 
 			byte[] input = CreateTestData(256, 0);
 			BundleLocator locator = await store.WriteBundleAsync(CreateTestBundle(input, Array.Empty<BundleLocator>()));
@@ -94,7 +93,7 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task ReferenceTestAsync()
 		{
-			StorageClient store = await CreateStorageClientAsync();
+			using IServerStorageClient store = CreateStorageClient();
 
 			byte[] input1 = CreateTestData(256, 1);
 			Bundle bundle1 = CreateTestBundle(input1, Array.Empty<BundleLocator>());
@@ -129,7 +128,7 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task RefExpiryTestAsync()
 		{
-			StorageClient store = await CreateStorageClientAsync();
+			using IServerStorageClient store = CreateStorageClient();
 
 			Bundle bundle1 = CreateTestBundle(new byte[] { 1, 2, 3 }, Array.Empty<BundleLocator>());
 			BundleLocator locator1 = await store.WriteBundleAsync(bundle1);
@@ -162,7 +161,7 @@ namespace Horde.Server.Tests
 			Assert.AreEqual(default, await TryReadRefTargetAsync(store, "test-ref-3"));
 		}
 
-		static async Task<BundleNodeLocator> TryReadRefTargetAsync(BundleStorageClient store, RefName name)
+		static async Task<BundleNodeLocator> TryReadRefTargetAsync(IBundleStorageClient store, RefName name)
 		{
 			BundleNodeHandle? handle = await store.TryReadRefTargetAsync(name);
 			if (handle == null)

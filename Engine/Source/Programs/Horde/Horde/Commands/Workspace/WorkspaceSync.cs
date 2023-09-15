@@ -41,37 +41,40 @@ namespace Horde.Commands.Workspace
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			CancellationToken cancellationToken = CancellationToken.None;
+			if (File != null)
+			{
+				using FileStorageClient store = new FileStorageClient(File.Directory, StorageCache, logger);
+				BlobHandle handle = await store.ReadRefAsync(File);
+				return await ExecuteInternalAsync(store, handle, logger);
+			}
+			else if (Ref != null)
+			{
+				using IStorageClient store = await CreateStorageClientAsync(logger);
+				BlobHandle handle = await store.ReadRefTargetAsync(new RefName(Ref));
+				return await ExecuteInternalAsync(store, handle, logger);
+			}
+			else if (Node != null)
+			{
+				using IStorageClient store = await CreateStorageClientAsync(logger);
+				BlobHandle handle = ((BundleStorageClient)store).CreateNodeHandle(BundleNodeLocator.Parse(Node));
+				return await ExecuteInternalAsync(store, handle, logger);
+			}
+			else
+			{
+				throw new CommandLineArgumentException("Either -File=... or -Ref=... must be specified");
+			}
+		}
+
+		async Task<int> ExecuteInternalAsync(IStorageClient store, BlobHandle handle, ILogger logger)
+		{
 			RootDir ??= DirectoryReference.GetCurrentDirectory();
+			CancellationToken cancellationToken = CancellationToken.None;
 
 			Workspace? workspace = await Workspace.TryOpenAsync(RootDir, logger, cancellationToken);
 			if (workspace == null)
 			{
 				logger.LogError("No workspace has been initialized in {RootDir}. Use 'workspace init' to create a new workspace.", RootDir);
 				return 1;
-			}
-
-			IStorageClient store;
-
-			BlobHandle handle;
-			if (File != null)
-			{
-				store = new FileStorageClient(File.Directory, StorageCache, logger);
-				handle = await ((FileStorageClient)store).ReadRefAsync(File);
-			}
-			else if (Ref != null)
-			{
-				store = await CreateStorageClientAsync(logger);
-				handle = await store.ReadRefTargetAsync(new RefName(Ref));
-			}
-			else if (Node != null)
-			{
-				store = await CreateStorageClientAsync(logger);
-				handle = ((BundleStorageClient)store).CreateNodeHandle(BundleNodeLocator.Parse(Node));
-			}
-			else
-			{
-				throw new CommandLineArgumentException("Either -File=... or -Ref=... must be specified");
 			}
 
 			Stopwatch timer = Stopwatch.StartNew();

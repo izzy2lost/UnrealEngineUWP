@@ -96,7 +96,7 @@ namespace RemoteClient
 				await channel.ForkAsync(BackgroundChannelId, 4 * 1024 * 1024, default);
 
 				// Upload the sandbox to the primary channel.
-				MemoryStorageClient storage = new MemoryStorageClient();
+				using MemoryStorageClient storage = new MemoryStorageClient();
 				await using (BundleWriter treeWriter = storage.CreateWriter())
 				{
 					DirectoryNode sandbox = new DirectoryNode();

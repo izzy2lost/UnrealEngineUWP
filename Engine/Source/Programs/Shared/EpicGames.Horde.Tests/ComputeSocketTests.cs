@@ -140,7 +140,7 @@ namespace EpicGames.Horde.Tests
 						await channel2.CloseAsync();
 					}
 
-					MemoryStorageClient storage = new MemoryStorageClient();
+					using MemoryStorageClient storage = new MemoryStorageClient();
 					await using (BundleWriter treeWriter = storage.CreateWriter())
 					{
 						FileReference file = FileReference.Combine(tempDir, "subdir/hello.txt");

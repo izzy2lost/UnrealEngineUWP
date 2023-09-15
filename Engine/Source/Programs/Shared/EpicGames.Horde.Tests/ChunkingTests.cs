@@ -49,7 +49,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task EmptyNodeTest()
 		{
-			MemoryStorageClient store = new MemoryStorageClient();
+			using MemoryStorageClient store = new MemoryStorageClient();
 
 			await using (IStorageWriter writer = store.CreateWriter(new RefName("hello")))
 			{
@@ -93,7 +93,7 @@ namespace EpicGames.Horde.Tests
 		{
 			using MemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 
-			MemoryStorageClient store = new MemoryStorageClient();
+			using MemoryStorageClient store = new MemoryStorageClient();
 
 			await using IStorageWriter writer = store.CreateWriter();
 

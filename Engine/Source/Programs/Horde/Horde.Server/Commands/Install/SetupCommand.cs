@@ -60,7 +60,7 @@ namespace Horde.Server.Commands.Install
 
 			using StorageCache storageCache = new StorageCache();
 
-			FileStorageClient client = new FileStorageClient(bundleDir, storageCache, logger);
+			using FileStorageClient client = new FileStorageClient(bundleDir, storageCache, logger);
 			await using (IStorageWriter writer = client.CreateWriter(refName))
 			{
 				DirectoryNode dirNode = new DirectoryNode();

@@ -25,7 +25,7 @@ namespace Horde.Commands.Vcs
 
 			RefName branchName = new RefName(Branch ?? "ue5-main");
 
-			IStorageClient storageClient = await GetStorageClientAsync();
+			using IStorageClient storageClient = await CreateStorageClientAsync();
 
 			CommitNode? tip = await GetCommitAsync(storageClient, branchName, Change);
 			if (tip == null)

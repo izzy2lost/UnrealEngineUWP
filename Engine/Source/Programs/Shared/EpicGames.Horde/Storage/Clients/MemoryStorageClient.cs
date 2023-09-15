@@ -18,7 +18,7 @@ namespace EpicGames.Horde.Storage.Clients
 	/// </summary>
 	public class MemoryStorageClient : BundleStorageClient
 	{
-		record class ExportEntry(BundleNodeHandle Handle, int Rank, ExportEntry? Next);
+		record class ExportEntry(BundleNodeLocator Locator, int Rank, ExportEntry? Next);
 
 		/// <summary>
 		/// Backend instance
@@ -63,14 +63,14 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Aliases
 
 		/// <inheritdoc/>
-		public override Task AddAliasAsync(Utf8String name, BundleNodeHandle handle, int rank = 0, CancellationToken cancellationToken = default)
+		public override Task AddAliasAsync(Utf8String name, BundleNodeLocator handle, int rank = 0, CancellationToken cancellationToken = default)
 		{
 			_exports.AddOrUpdate(name, _ => new ExportEntry(handle, rank, null), (_, entry) => new ExportEntry(handle, rank, entry));
 			return Task.CompletedTask;
 		}
 
 		/// <inheritdoc/>
-		public override Task RemoveAliasAsync(Utf8String name, BundleNodeHandle handle, CancellationToken cancellationToken = default)
+		public override Task RemoveAliasAsync(Utf8String name, BundleNodeLocator handle, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException();
 		}
@@ -84,7 +84,7 @@ namespace EpicGames.Horde.Storage.Clients
 				{
 					cancellationToken.ThrowIfCancellationRequested();
 					await Task.Yield();
-					yield return entry.Handle;
+					yield return CreateNodeHandle(entry.Locator);
 				}
 			}
 		}
@@ -111,9 +111,10 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public override async Task WriteRefTargetAsync(RefName name, BundleNodeHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public override Task WriteRefTargetAsync(RefName name, BundleNodeLocator target, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
-			_refs[name] = await target.FlushAsync(cancellationToken);
+			_refs[name] = target;
+			return Task.CompletedTask;
 		}
 
 		#endregion

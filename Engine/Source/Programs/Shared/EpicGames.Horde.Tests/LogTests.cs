@@ -21,14 +21,7 @@ namespace EpicGames.Horde.Tests
 	[TestClass]
 	public sealed class LogTests
 	{
-		readonly MemoryStorageClient _store;
-
 		private readonly byte[] _data = Resources.TextFile;
-
-		public LogTests()
-		{
-			_store = new MemoryStorageClient();
-		}
 
 		[TestMethod]
 		public void NgramTests()
@@ -50,6 +43,8 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task IndexTests()
 		{
+			using MemoryStorageClient store = new MemoryStorageClient();
+
 			// Write the test data to the log file in blocks
 			LogBuilder builder = new LogBuilder(LogFormat.Text, 1, 1, NullLogger.Instance);
 
@@ -78,7 +73,7 @@ namespace EpicGames.Horde.Tests
 
 			// Flush it to storage, and read the finished log node
 			NodeRef<LogNode> logRef;
-			await using (IStorageWriter writer = _store.CreateWriter())
+			await using (IStorageWriter writer = store.CreateWriter())
 			{
 				logRef = await builder.FlushAsync(writer, true, CancellationToken.None);
 			}
@@ -109,6 +104,8 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task PartialTokenTests()
 		{
+			using MemoryStorageClient store = new MemoryStorageClient();
+
 			// Generate the test data
 			string[] lines =
 			{
@@ -125,7 +122,7 @@ namespace EpicGames.Horde.Tests
 			}
 
 			NodeRef<LogNode> rootNodeRef;
-			await using (IStorageWriter writer = _store.CreateWriter())
+			await using (IStorageWriter writer = store.CreateWriter())
 			{
 				rootNodeRef = await builder.FlushAsync(writer, true, CancellationToken.None);
 			}

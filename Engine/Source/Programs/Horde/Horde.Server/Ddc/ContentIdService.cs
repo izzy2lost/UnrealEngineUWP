@@ -25,7 +25,7 @@ namespace Horde.Server.Ddc
 		{
 			CancellationToken cancellationToken = CancellationToken.None;
 
-			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
+			using IStorageClient storageClient = _storageService.CreateClient(ns);
 
 			BlobHandle? blobHandle = await storageClient.FindAliasAsync(GetAlias(contentId), cancellationToken).FirstOrDefaultAsync(cancellationToken);
 			if (blobHandle == null && !mustBeContentId)
@@ -44,7 +44,7 @@ namespace Horde.Server.Ddc
 		{
 			CancellationToken cancellationToken = CancellationToken.None;
 
-			IStorageClient storageClient = await _storageService.GetClientAsync(ns, cancellationToken);
+			using IStorageClient storageClient = _storageService.CreateClient(ns);
 
 			BlobHandle? blobHandle = await storageClient.FindAliasAsync(GetAlias(blobId), cancellationToken).FirstOrDefaultAsync(cancellationToken);
 			if (blobHandle == null)
