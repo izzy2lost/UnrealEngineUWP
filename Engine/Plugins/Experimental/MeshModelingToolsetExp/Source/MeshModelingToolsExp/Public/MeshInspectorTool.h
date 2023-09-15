@@ -96,6 +96,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = Options)
 	bool bTangentVectors = false;
 
+	/** Toggle visibility of occluded boundary edges and seams */
+	UPROPERTY(EditAnywhere, Category = Options)
+	bool bDrawHiddenEdgesAndSeams = true;
+
 	/** Length of line segments representing normal vectors */
 	UPROPERTY(EditAnywhere, Category = Options, AdvancedDisplay, meta = (EditCondition = "bNormalVectors",
 		UIMin="0", UIMax="400", ClampMin = "0", ClampMax = "1000000000.0"))

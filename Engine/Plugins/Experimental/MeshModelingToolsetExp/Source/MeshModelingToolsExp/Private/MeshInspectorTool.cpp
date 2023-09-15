@@ -199,7 +199,6 @@ void UMeshInspectorTool::Setup()
 
 	DrawnLineSet->SetupAttachment(PreviewMesh->GetRootComponent());
 
-	DrawnLineSet->SetLineMaterial(ToolSetupUtil::GetDefaultLineComponentMaterial(GetToolManager()));
 	DrawnLineSet->RegisterComponent();
 
 	Precompute();
@@ -594,6 +593,7 @@ void UMeshInspectorTool::UpdateVisualization()
 	const FDynamicMesh3* TargetMesh = PreviewMesh->GetPreviewDynamicMesh();
 	FVector3d A, B;
 
+	DrawnLineSet->SetLineMaterial(ToolSetupUtil::GetDefaultLineComponentMaterial(GetToolManager(), !Settings->bDrawHiddenEdgesAndSeams));
 	DrawnLineSet->Clear();
 	if (Settings->bBoundaryEdges)
 	{
