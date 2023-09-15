@@ -1555,6 +1555,24 @@ namespace PCGDeterminismTests
 		return DataCollectionsContainSameData(FirstTestData.OutputData, SecondTestData.OutputData);
 	}
 
+	bool ExecutionIsConcretelyDeterministic(PCGTestsCommon::FTestData& FirstTestData, PCGTestsCommon::FTestData& SecondTestData, const UPCGNode* PCGNode)
+	{
+		ExecuteWithTestData(FirstTestData, PCGNode);
+		ExecuteWithTestData(SecondTestData, PCGNode);
+
+		for (FPCGTaggedData& TaggedData : FirstTestData.OutputData.TaggedData)
+		{
+			TaggedData.Data = CastChecked<UPCGSpatialData>(TaggedData.Data)->ToPointData();
+		}
+
+		for (FPCGTaggedData& TaggedData : SecondTestData.OutputData.TaggedData)
+		{
+			TaggedData.Data = CastChecked<UPCGSpatialData>(TaggedData.Data)->ToPointData();
+		}
+
+		return DataCollectionsContainSameData(FirstTestData.OutputData, SecondTestData.OutputData);
+	}
+
 	bool ExecutionIsDeterministicSameData(const PCGTestsCommon::FTestData& TestData, const UPCGNode* PCGNode)
 	{
 		FPCGDataCollection FirstOutput;

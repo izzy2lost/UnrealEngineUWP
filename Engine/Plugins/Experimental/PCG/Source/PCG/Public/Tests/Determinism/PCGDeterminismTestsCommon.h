@@ -287,6 +287,8 @@ namespace PCGDeterminismTests
 	void ExecuteWithSameTestDataSameElement(const PCGTestsCommon::FTestData& TestData, const UPCGNode* PCGNode, FPCGDataCollection& OutFirstOutputData, FPCGDataCollection& OutSecondOutputData);
 	/** Execute the elements for each valid input and compare if all the outputs are at least orthogonally deterministic */
 	bool ExecutionIsDeterministic(PCGTestsCommon::FTestData& FirstTestData, PCGTestsCommon::FTestData& SecondTestData, const UPCGNode* PCGNode = nullptr);
+	/** Execute the elements for each valid input, convert output to points, and compare if all the outputs are at least orthogonally deterministic */
+	bool ExecutionIsConcretelyDeterministic(PCGTestsCommon::FTestData& FirstTestData, PCGTestsCommon::FTestData& SecondTestData, const UPCGNode* PCGNode = nullptr);
 	/** Execute the same element twice compare if all the outputs are at least orthogonally deterministic */
 	bool ExecutionIsDeterministicSameData(const PCGTestsCommon::FTestData& TestData, const UPCGNode* PCGNode = nullptr);
 
