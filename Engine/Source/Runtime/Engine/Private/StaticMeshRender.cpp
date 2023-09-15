@@ -442,8 +442,6 @@ FStaticMeshSceneProxy::FStaticMeshSceneProxy(const FStaticMeshSceneProxyDesc& In
 	{
 		UpdateVisibleInLumenScene();
 	}
-
-	bConstrainToRenderThread = true;
 }
 
 void FStaticMeshSceneProxy::SetEvaluateWorldPositionOffsetInRayTracing(FRHICommandListBase& RHICmdList, bool NewValue)

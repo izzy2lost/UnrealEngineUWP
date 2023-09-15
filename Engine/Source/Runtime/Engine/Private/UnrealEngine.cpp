@@ -1652,6 +1652,9 @@ void UEngine::PreGarbageCollect()
 	TRACE_CPUPROFILER_EVENT_SCOPE(UEngine::PreGarbageCollect);
 
 	SendWorldEndOfFrameUpdates();
+
+	// Sync recording render command pipes prior to calling BeginDestroy on resources so that render thread fences are serialized with other render commands.
+	UE::RenderCommandPipe::StopRecording();
 }
 
 float GetLowMemoryGCTimer(const float DefaultTimeBetweenGC)
