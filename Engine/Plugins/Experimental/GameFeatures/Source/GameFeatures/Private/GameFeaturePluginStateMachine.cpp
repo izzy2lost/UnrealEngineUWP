@@ -2419,7 +2419,7 @@ struct FGameFeaturePluginState_ErrorLoading : public FErrorGameFeaturePluginStat
 	{
 		if (StateProperties.Destination < EGameFeaturePluginState::ErrorLoading)
 		{
-			StateStatus.SetTransition(EGameFeaturePluginState::Registered);
+			StateStatus.SetTransition(EGameFeaturePluginState::Unloading);
 		}
 		else if (StateProperties.Destination > EGameFeaturePluginState::ErrorLoading)
 		{
