@@ -74,6 +74,7 @@ UClusterUnionComponent::UClusterUnionComponent(const FObjectInitializer& ObjectI
 #if WITH_EDITORONLY_DATA
 	bVisualizeComponent = true;
 #endif
+	GravityGroupIndexOverride = INDEX_NONE;
 }
 
 FPhysScene_Chaos* UClusterUnionComponent::GetChaosScene() const
@@ -616,6 +617,7 @@ void UClusterUnionComponent::OnCreatePhysicsState()
 	InitData.ActorId = GetOwner()->GetUniqueID();
 	InitData.ComponentId = GetUniqueID();
 	InitData.InitialTransform = GetComponentTransform();
+	InitData.GravityGroupOverride = GravityGroupIndexOverride;
 
 	// Client needs to be set to unbreakable so the server is authoritative.
 	InitData.bUnbreakable = !bHasAuthority;

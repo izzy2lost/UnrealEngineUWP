@@ -34,6 +34,7 @@ namespace Chaos
 		bool bCheckConnectivity = true;
 		bool bUnbreakable = false;
 		bool bGenerateConnectivityEdges = true;
+		int32 GravityGroupOverride = INDEX_NONE;
 	};
 
 	/**

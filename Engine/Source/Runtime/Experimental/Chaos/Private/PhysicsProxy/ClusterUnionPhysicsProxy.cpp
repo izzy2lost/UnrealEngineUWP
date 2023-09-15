@@ -113,6 +113,7 @@ namespace Chaos
 		ClusterUnionParameters.UniqueIndex = &UniqueIndex;
 		ClusterUnionParameters.ActorId = InitData.ActorId;
 		ClusterUnionParameters.ComponentId = InitData.ComponentId;
+		ClusterUnionParameters.GravityGroupOverride = InitData.GravityGroupOverride;
 
 		ClusterUnionIndex = ClusterUnionManager.CreateNewClusterUnion(ClusterParameters, ClusterUnionParameters);
 		if (FClusterUnion* ClusterUnion = ClusterUnionManager.FindClusterUnion(ClusterUnionIndex); ensure(ClusterUnion != nullptr))

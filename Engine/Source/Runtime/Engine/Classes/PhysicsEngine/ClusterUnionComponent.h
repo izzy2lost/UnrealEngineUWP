@@ -209,6 +209,11 @@ private:
 	// be specified in the editor and never change.
 	UPROPERTY(EditAnywhere, Category = "Cluster Union")
 	TArray<FComponentReference> ClusteredComponentsReferences;
+
+	// If set to a value not equal to -1, will manually set the cluster union's gravity group
+	// instead of automatically inheriting it from its children particles.
+	UPROPERTY(EditAnywhere, Category = "Cluster Union")
+	int32 GravityGroupIndexOverride;
 	
 	// We need to keep track of the mapping of primitive components to physics objects.
 	// This way we know the right physics objects to pass when removing the component (because

@@ -65,6 +65,7 @@ namespace Chaos
 		const FUniqueIdx* UniqueIndex = nullptr;
 		uint32 ActorId = 0;
 		uint32 ComponentId = 0;
+		int32 GravityGroupOverride = INDEX_NONE;
 	};
 
 	struct FClusterUnionParticleProperties
@@ -117,6 +118,8 @@ namespace Chaos
 
 		// Pending particles that need to be added into the connectivity graph.
 		TArray<TPair<FPBDRigidParticleHandle*, EClusterUnionConnectivityOperation>> PendingConnectivityOperations;
+
+		bool IsGravityOverrideSet() const { return ClusterUnionParameters.GravityGroupOverride != INDEX_NONE; }
 
 		const TArray<FPBDRigidParticleHandle*>& GetPendingGeometryOperationParticles(EClusterUnionGeometryOperation Op) const;
 		void AddPendingGeometryOperation(EClusterUnionGeometryOperation Op, FPBDRigidParticleHandle* Particle);

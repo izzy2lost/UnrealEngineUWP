@@ -287,6 +287,11 @@ namespace Chaos
 		NewUnion.Parameters = Parameters;
 		NewUnion.ClusterUnionParameters = ClusterUnionParameters;
 
+		if (ClusterUnionParameters.GravityGroupOverride != INDEX_NONE)
+		{
+			NewUnion.InternalCluster->SetGravityGroupIndex(ClusterUnionParameters.GravityGroupOverride);
+		}
+
 		// Some parameters aren't relevant after creation.
 		NewUnion.ClusterUnionParameters.UniqueIndex = nullptr;
 
@@ -681,6 +686,11 @@ namespace Chaos
 				{
 					ShapeData->SetMaterial(MatHandle);
 				}
+			}
+
+			if (!Cluster->IsGravityOverrideSet() && !FinalParticlesToAdd.IsEmpty())
+			{
+				Cluster->InternalCluster->SetGravityGroupIndex(FinalParticlesToAdd[0]->GravityGroupIndex());
 			}
 		}
 	}
