@@ -96,6 +96,8 @@ struct FLocalFogVolumeViewData
 	uint32 GPUInstanceCount = 0;
 	FRDGBufferRef GPUInstanceDataBuffer = nullptr;
 	FRDGBufferSRVRef GPUInstanceDataBufferSRV = nullptr;
+	FRDGBufferRef GPUInstanceCullingDataBuffer = nullptr;
+	FRDGBufferSRVRef GPUInstanceCullingDataBufferSRV = nullptr;
 	TRDGUniformBufferRef<FLocalFogVolumeUniformParameters> UniformBuffer = nullptr;
 
 	FLocalFogVolumeUniformParameters UniformParametersStruct;

@@ -145,12 +145,45 @@ void LocalFogVolumeTiledPS(
 {
 	ResolvedView = ResolveView();
 
+	float3 CamRayTranslatedWorldOrigin = PrimaryView.TranslatedWorldCameraOrigin;
+	float3 CamRayTranslatedWorldDir = normalize(SvPositionToTranslatedWorld(float4(SVPos.xy, 0.5, 1.0)));
+	float3 CamRayWorldDir = CamRayTranslatedWorldDir;
+	float3 CamRayWorldOrigin = CamRayTranslatedWorldOrigin - LWCHackToFloat(PrimaryView.PreViewTranslation);
+
+#if SHADING_PATH_MOBILE
+	// LookupDeviceZ with uint2 SVPos.xy as input does not work on mobile.
+	float2 UV = SVPos * View.BufferSizeAndInvSize.zw;
+	const float DeviceZ = LookupDeviceZ(UV);
+#else
+	const float DeviceZ = LookupDeviceZ(uint2(SVPos.xy));
+#endif
+
+	float3 DepthBufferTranslatedWorldPos = SvPositionToTranslatedWorld(float4(SVPos.xy, DeviceZ, 1.0));
+
 	uint2 TilePos = uint2(OtherVertexOutput.TileData >> 16, OtherVertexOutput.TileData & 0xFFFF);
-
 	uint LFVCount = LFVTileDataTex[uint3(TilePos,0)];
+	float4 LuminanceColorTransmittance = float4(0.0, 0.0, 0.0, 1.0);
+	for (int LFVIndex = 0; LFVIndex < LFVCount; ++LFVIndex)
+	{
+		uint InstanceIndex = LFVTileDataTex[uint3(TilePos, 1 + LFVIndex)];
 
-//	OutColor = float4(float(TilePos.x) * 0.1, float(TilePos.y) * 0.1, 0.0, 0.5);
-	OutColor = float4(float(LFVCount) * 0.1, 0.0, 0.0, 0.5);
+		float4 LFVLuminanceColorTransmittance = GetLFVInstanceContribution(
+			InstanceIndex,
+			CamRayWorldOrigin,
+			CamRayWorldDir,
+			CamRayTranslatedWorldOrigin,
+			CamRayTranslatedWorldDir,
+			DepthBufferTranslatedWorldPos);
+
+		LuminanceColorTransmittance = float4(LuminanceColorTransmittance.rgb * LFVLuminanceColorTransmittance.a + LFVLuminanceColorTransmittance.rgb, LuminanceColorTransmittance.a * LFVLuminanceColorTransmittance.a);
+	}
+	
+	OutColor = float4(
+		LuminanceColorTransmittance.rgb * PrimaryView.PreExposure,
+		LuminanceColorTransmittance.a);
+
+	// Debug
+	OutColor += float4(float(LFVCount) * 0.1 * PrimaryView.PreExposure, 0.0, 0.0, 0.0);
 }
 #endif // LFV_TILED_PS
 

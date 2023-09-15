@@ -10,6 +10,8 @@ float4 TopPlane;
 float4 BottomPlane;
 float4 NearPlane;
 
+Buffer<float4> LocalFogVolumeCullingDataBuffer;
+
 RWTexture2DArray<uint> LocalFogVolumeTileDataTextureUAV;
 
 #ifndef THREADGROUP_SIZE
@@ -51,24 +53,29 @@ void LocalFogVolumeTiledCullingCS(uint3 ThreadId : SV_DispatchThreadID)
 	}
 #endif
 
-	// Single sphere culling proof of concept
-	float4 Sphere = float4(0.0, 0.0, 0.0, 500.0);
-
 	uint LFVCount = 0;
-	bool bCompletelyOutside = false;
-	UNROLL
-	for (uint i = 0; i < 4; ++i)
+	for (int LFVIndex = 0; LFVIndex < LFVInstcount; ++LFVIndex)
 	{
-		if (dot(TilePlanes[i].xyz, Sphere.xyz) - TilePlanes[i].w > Sphere.w)
+		float4 Sphere = LocalFogVolumeCullingDataBuffer[LFVIndex];
+
+		bool bCompletelyOutside = false;
+		UNROLL
+		for (uint i = 0; i < 4; ++i)
 		{
-			bCompletelyOutside = true;
-			break;
+			if (dot(TilePlanes[i].xyz, Sphere.xyz) - TilePlanes[i].w > Sphere.w)
+			{
+				bCompletelyOutside = true;
+				break;
+			}
+		}
+		if (!bCompletelyOutside)
+		{
+			LocalFogVolumeTileDataTextureUAV[uint3(TilePos, 1 + LFVCount)] = LFVIndex;
+			LFVCount++;
 		}
 	}
 
-	LFVCount += bCompletelyOutside ? 0 : 1;
-
-	LocalFogVolumeTileDataTextureUAV[uint3(TilePos, 0)] = LFVCount * 20; // DEBUG
+	LocalFogVolumeTileDataTextureUAV[uint3(TilePos, 0)] = LFVCount;
 }
 
 
