@@ -2371,7 +2371,9 @@ void UGeometryCollectionComponent::GetHiddenTransforms(TArray<bool>& OutHiddenTr
 void UGeometryCollectionComponent::GetRestTransforms(TArray<FMatrix44f>& OutRestTransforms) const
 {
 	TArray<FMatrix> RestMatrices;
-	GeometryCollectionAlgo::GlobalMatrices(RestCollection->GetGeometryCollection()->Transform, RestCollection->GetGeometryCollection()->Parent, RestMatrices);
+	const TArray<FTransform>& RestCollectionTransforms = RestCollection->GetGeometryCollection()->Transform.GetConstArray();
+	const TArray<FTransform>& RestTransformToUse = (RestTransforms.Num() == RestCollectionTransforms.Num()) ? RestTransforms : RestCollectionTransforms;
+	GeometryCollectionAlgo::GlobalMatrices(RestTransformToUse, RestCollection->GetGeometryCollection()->Parent, RestMatrices);
 #if WITH_EDITOR
 	UpdateGlobalMatricesWithExplodedVectors(RestMatrices, *(RestCollection->GetGeometryCollection()));
 #endif

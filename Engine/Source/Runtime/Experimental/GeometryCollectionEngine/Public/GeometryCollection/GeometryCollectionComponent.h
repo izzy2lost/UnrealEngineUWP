@@ -1395,6 +1395,7 @@ private:
 		{
 			Transforms.SetNumUninitialized(NumTransforms);
 			RootIndex = InRootIndex;
+			MarkDirty();
 		}
 
 		void MarkDirty()
