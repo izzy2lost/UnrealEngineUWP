@@ -916,6 +916,9 @@ public:
 	DECLARE_EVENT_OneParam(UUserWidget, FNativeOnVisibilityChangedEvent, ESlateVisibility);
 	FNativeOnVisibilityChangedEvent OnNativeVisibilityChanged;
 
+	DECLARE_EVENT_OneParam(UUserWidget, FNativeOnDestruct, UUserWidget*);
+	FNativeOnDestruct OnNativeDestruct;
+
 	UE_DEPRECATED(5.2, "Direct access to Padding is deprecated. Please use the getter or setter.")
 	/** The padding area around the content. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, BlueprintSetter = "SetPadding", Category = "Appearance")

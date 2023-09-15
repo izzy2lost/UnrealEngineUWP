@@ -1523,6 +1523,8 @@ void UUserWidget::NativeConstruct()
 void UUserWidget::NativeDestruct()
 {
 	StopListeningForAllInputActions();
+	OnNativeDestruct.Broadcast(this);
+
 	Destruct();
 
 	// Extension can remove other extensions.
