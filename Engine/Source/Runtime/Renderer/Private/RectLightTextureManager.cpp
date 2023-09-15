@@ -217,9 +217,11 @@ bool CanContain(const FAtlasRect& Outside, const FAtlasRect& Inside)
 
 static FIntPoint ToMIP(const FIntPoint& InMip, uint32 MipIndex)
 {
+	const int32 Div = 1 << MipIndex;
+
 	FIntPoint Out;
-	Out.X = InMip.X >> MipIndex;
-	Out.Y = InMip.Y >> MipIndex;
+	Out.X = FMath::DivideAndRoundUp(InMip.X,Div);
+	Out.Y = FMath::DivideAndRoundUp(InMip.Y,Div);
 	return Out;
 }
 
