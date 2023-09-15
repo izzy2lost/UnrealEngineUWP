@@ -557,6 +557,7 @@ private:
 class SMaterialSlotWidget : public SCompoundWidget
 {
 	SLATE_BEGIN_ARGS(SMaterialSlotWidget)
+		: _DeleteMaterialSlotVisibility(EVisibility::Visible)
 	{}
 		SLATE_ATTRIBUTE(FText, MaterialName)
 		SLATE_ATTRIBUTE(bool, IsMaterialSlotNameReadOnly)
@@ -564,6 +565,7 @@ class SMaterialSlotWidget : public SCompoundWidget
 		SLATE_EVENT(FOnTextCommitted, OnMaterialNameCommitted)
 		SLATE_ATTRIBUTE(bool, CanDeleteMaterialSlot)
 		SLATE_EVENT(FSimpleDelegate, OnDeleteMaterialSlot)
+		SLATE_ATTRIBUTE(EVisibility, DeleteMaterialSlotVisibility)
 	SLATE_END_ARGS()
 
 	PROPERTYEDITOR_API void Construct(const FArguments& InArgs, int32 SlotIndex, bool bIsMaterialUsed);

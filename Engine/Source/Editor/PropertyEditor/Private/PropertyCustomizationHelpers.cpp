@@ -1462,6 +1462,8 @@ void SMaterialSlotWidget::Construct(const FArguments& InArgs, int32 SlotIndex, b
 			LOCTEXT("CustomNameMaterialNotUsedDeleteTooltip", "Delete this material slot"),
 			InArgs._CanDeleteMaterialSlot);
 
+	DeleteButton->SetVisibility(InArgs._DeleteMaterialSlotVisibility);
+
 	ChildSlot
 	[
 		SAssignNew(SlotNameBox, SHorizontalBox)
@@ -1475,7 +1477,7 @@ void SMaterialSlotWidget::Construct(const FArguments& InArgs, int32 SlotIndex, b
 			[
 				SNew(STextBlock)
 				.Font(IDetailLayoutBuilder::GetDetailFont())
-				.Text(LOCTEXT("MaterialArrayNameLabelStringKey", "Slot Name"))
+				.Text(LOCTEXT("MaterialArrayNameLabelStringKey", "Slot"))
 			]
 		]
 		+ SHorizontalBox::Slot()

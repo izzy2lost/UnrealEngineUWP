@@ -587,7 +587,7 @@ TSharedRef<SWidget> FComponentMaterialCategory::OnGenerateWidgetsForMaterial(UMa
 		SNew(SMaterialSlotWidget, SlotIndex, true)
 		.MaterialName(this, &FComponentMaterialCategory::GetMaterialNameText, SlotIndex)
 		.IsMaterialSlotNameReadOnly(true)
-		.CanDeleteMaterialSlot(false);
+		.DeleteMaterialSlotVisibility(EVisibility::Collapsed);
 }
 
 FText FComponentMaterialCategory::GetMaterialNameText(int32 MaterialIndex) const

@@ -187,7 +187,7 @@ TSharedRef<SWidget> FMaterialItemView::CreateValueContent(IDetailLayoutBuilder& 
 		[
 			SNew(SHorizontalBox)
 			+SHorizontalBox::Slot()
-			.AutoWidth()
+			.FillWidth(1.f)
 			[
 				SNew(SObjectPropertyEntryBox)
 				.ObjectPath(this, &FMaterialItemView::OnGetObjectPath)
@@ -234,7 +234,7 @@ TSharedRef<SWidget> FMaterialItemView::CreateValueContent(IDetailLayoutBuilder& 
 						]
 						+SHorizontalBox::Slot()
 						.Padding(3.0f, 0.0f)
-						.AutoWidth()
+						.FillWidth(1.f)
 						[
 							OnGenerateCustomMaterialWidgets.IsBound() ? OnGenerateCustomMaterialWidgets.Execute(MaterialItem.Material.Get(), MaterialItem.SlotIndex) : SNullWidget::NullWidget
 						]
