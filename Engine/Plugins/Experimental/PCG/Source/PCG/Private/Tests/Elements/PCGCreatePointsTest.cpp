@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Tests/Determinism/PCGDeterminismTestsCommon.h"
+#include "Tests/PCGTestsCommon.h"
 
 #include "PCGContext.h"
 #include "Data/PCGPointData.h"
@@ -11,8 +11,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsTest_Basic, FPCGTestBase
 
 bool FPCGCreatePointsTest_Basic::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGCreatePointsSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGCreatePointsSettings>(TestData);
 	UPCGCreatePointsSettings* Settings = CastChecked<UPCGCreatePointsSettings>(TestData.Settings);
 	
 	TObjectPtr<UPCGPointData> PointData = PCGTestsCommon::CreateRandomPointData(100, 42, false);

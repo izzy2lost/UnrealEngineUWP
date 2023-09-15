@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Tests/Determinism/PCGDeterminismTestsCommon.h"
+#include "Tests/PCGTestsCommon.h"
 
 #include "PCGComponent.h"
 #include "PCGContext.h"
@@ -12,9 +12,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGatherTest_Basic, FPCGTestBaseClass,
 
 bool FPCGGatherTest_Basic::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGGatherSettings>(TestData);
-	UPCGGatherSettings* Settings = CastChecked<UPCGGatherSettings>(TestData.Settings);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGGatherSettings>(TestData);
 
 	FPCGElementPtr TestElement = TestData.Settings->GetElement();
 

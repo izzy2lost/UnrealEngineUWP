@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Tests/Determinism/PCGDeterminismTestsCommon.h"
+#include "Tests/PCGTestsCommon.h"
 
 #include "PCGComponent.h"
 #include "PCGContext.h"
@@ -11,11 +11,10 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAddTagTest_ZeroTags, FPCGTestBaseCla
 
 bool FPCGAddTagTest_ZeroTags::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
+	PCGTestsCommon::FTestData TestData;
 
 	//auto generate settings for this node
-	PCGDeterminismTests::GenerateSettings<UPCGAddTagSettings>(TestData);
-	UPCGAddTagSettings* Settings = CastChecked<UPCGAddTagSettings>(TestData.Settings);
+	PCGTestsCommon::GenerateSettings<UPCGAddTagSettings>(TestData);
 
 	FPCGElementPtr TestElement = TestData.Settings->GetElement();
 
@@ -44,10 +43,10 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAddTagTest_OneTag, FPCGTestBaseClass
 
 bool FPCGAddTagTest_OneTag::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
+	PCGTestsCommon::FTestData TestData;
 
 	//auto generate settings for this node
-	PCGDeterminismTests::GenerateSettings<UPCGAddTagSettings>(TestData);
+	PCGTestsCommon::GenerateSettings<UPCGAddTagSettings>(TestData);
 	UPCGAddTagSettings* Settings = CastChecked<UPCGAddTagSettings>(TestData.Settings);
 
 	FPCGElementPtr TestElement = TestData.Settings->GetElement();
@@ -86,10 +85,10 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAddTagTest_MultipleTags, FPCGTestBas
 
 bool FPCGAddTagTest_MultipleTags::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
+	PCGTestsCommon::FTestData TestData;
 
 	//auto generate settings for this node
-	PCGDeterminismTests::GenerateSettings<UPCGAddTagSettings>(TestData);
+	PCGTestsCommon::GenerateSettings<UPCGAddTagSettings>(TestData);
 	UPCGAddTagSettings* Settings = CastChecked<UPCGAddTagSettings>(TestData.Settings);
 
 	FPCGElementPtr TestElement = TestData.Settings->GetElement();

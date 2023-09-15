@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MeshSelectors/PCGMeshSelectorBase.h"
-#include "Tests/Determinism/PCGDeterminismTestsCommon.h"
+#include "Tests/PCGTestsCommon.h"
 
 #include "Metadata/PCGMetadataAccessor.h"
 #include "PCGComponent.h"
@@ -101,8 +101,8 @@ namespace
 
 bool FPCGStaticMeshSpawnerInstancePackerByAttributeTest::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGStaticMeshSpawnerSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGStaticMeshSpawnerSettings>(TestData);
 	UPCGStaticMeshSpawnerSettings* Settings = CastChecked<UPCGStaticMeshSpawnerSettings>(TestData.Settings);
 
 	FPCGTaggedData& SourceTaggedData = TestData.InputData.TaggedData.Emplace_GetRef(FPCGTaggedData());
@@ -258,8 +258,8 @@ bool FPCGStaticMeshSpawnerInstancePackerByAttributeTest::RunTest(const FString& 
 
 bool FPCGStaticMeshSpawnerInstancePackerByRegexTest::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGStaticMeshSpawnerSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGStaticMeshSpawnerSettings>(TestData);
 	UPCGStaticMeshSpawnerSettings* Settings = CastChecked<UPCGStaticMeshSpawnerSettings>(TestData.Settings);
 
 	FPCGTaggedData& SourceTaggedData = TestData.InputData.TaggedData.Emplace_GetRef(FPCGTaggedData());

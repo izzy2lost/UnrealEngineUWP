@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Tests/Determinism/PCGDeterminismTestsCommon.h"
+#include "Tests/PCGTestsCommon.h"
 
 #include "Data/PCGSpatialData.h"
 #include "PCGComponent.h"
@@ -13,8 +13,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDensityRemapTest, FPCGTestBaseClass,
 
 bool FPCGDensityRemapTest::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGDensityRemapSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGDensityRemapSettings>(TestData);
 	UPCGDensityRemapSettings* Settings = CastChecked<UPCGDensityRemapSettings>(TestData.Settings);
 	FPCGElementPtr DensityRemapElement = TestData.Settings->GetElement();
 

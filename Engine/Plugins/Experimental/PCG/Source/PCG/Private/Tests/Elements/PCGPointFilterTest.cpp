@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Tests/Determinism/PCGDeterminismTestsCommon.h"
+#include "Tests/PCGTestsCommon.h"
 
 #include "PCGComponent.h"
 #include "PCGContext.h"
@@ -37,8 +37,8 @@ namespace PCGPointFilterTest
 
 bool FPCGPointFilterDensity::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGPointFilterSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGPointFilterSettings>(TestData);
 	UPCGPointFilterSettings* Settings = CastChecked<UPCGPointFilterSettings>(TestData.Settings);
 
 	FPCGElementPtr TestElement = TestData.Settings->GetElement();
@@ -54,7 +54,7 @@ bool FPCGPointFilterDensity::RunTest(const FString& Parameters)
 
 	FPCGTaggedData& TaggedData = TestData.InputData.TaggedData.Emplace_GetRef(FPCGTaggedData());
 	TaggedData.Pin = PCGPinConstants::DefaultInputLabel;
-	TaggedData.Data = PCGPointFilterTest::GeneratePointDataWithRandomDensity(NumPoints, PCGDeterminismTests::Defaults::Seed);
+	TaggedData.Data = PCGPointFilterTest::GeneratePointDataWithRandomDensity(NumPoints, TestData.Seed);
 
 	TUniquePtr<FPCGContext> Context = TestData.InitializeTestContext();
 
@@ -90,8 +90,8 @@ bool FPCGPointFilterDensity::RunTest(const FString& Parameters)
 
 bool FPCGPointFilterDensityRange::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGPointFilterRangeSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGPointFilterRangeSettings>(TestData);
 	UPCGPointFilterRangeSettings* Settings = CastChecked<UPCGPointFilterRangeSettings>(TestData.Settings);
 
 	FPCGElementPtr TestElement = TestData.Settings->GetElement();
@@ -112,7 +112,7 @@ bool FPCGPointFilterDensityRange::RunTest(const FString& Parameters)
 
 	FPCGTaggedData& TaggedData = TestData.InputData.TaggedData.Emplace_GetRef(FPCGTaggedData());
 	TaggedData.Pin = PCGPinConstants::DefaultInputLabel;
-	TaggedData.Data = PCGPointFilterTest::GeneratePointDataWithRandomDensity(NumPoints, PCGDeterminismTests::Defaults::Seed);
+	TaggedData.Data = PCGPointFilterTest::GeneratePointDataWithRandomDensity(NumPoints, TestData.Seed);
 
 	TUniquePtr<FPCGContext> Context = TestData.InitializeTestContext();
 

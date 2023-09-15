@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Metadata/PCGMetadataAccessor.h"
-#include "Tests/Determinism/PCGDeterminismTestsCommon.h"
+#include "Tests/PCGTestsCommon.h"
 
 #include "PCGComponent.h"
 #include "PCGContext.h"
@@ -409,8 +409,8 @@ void TestMeshSelectorWeightedByCategory(
 
 bool FPCGStaticMeshSpawnerByAttributeTest::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGStaticMeshSpawnerSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGStaticMeshSpawnerSettings>(TestData);
 
 	// create test attribute data
 	const FName RockAttribute = "Rock";
@@ -499,8 +499,8 @@ bool FPCGStaticMeshSpawnerByAttributeTest::RunTest(const FString& Parameters)
 
 bool FPCGStaticMeshSpawnerWeightedTest::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGStaticMeshSpawnerSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGStaticMeshSpawnerSettings>(TestData);
 
 	// create test meshes
 	const FString CubePath = TEXT("StaticMesh'/Engine/BasicShapes/Cube.Cube'");
@@ -568,8 +568,8 @@ bool FPCGStaticMeshSpawnerWeightedTest::RunTest(const FString& Parameters)
 
 bool FPCGStaticMeshSpawnerWeightedByCategoryTest::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGStaticMeshSpawnerSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGStaticMeshSpawnerSettings>(TestData);
 
 	// create test meshes
 	const FString CubePath = TEXT("StaticMesh'/Engine/BasicShapes/Cube.Cube'");

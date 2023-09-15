@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Tests/Determinism/PCGDeterminismTestsCommon.h"
+#include "Tests/PCGTestsCommon.h"
 
 #include "PCGComponent.h"
 #include "PCGContext.h"
@@ -11,8 +11,8 @@ namespace SortCommonTestData
 {
 	TUniquePtr<FPCGContext> GenerateTestDataAndRunSort(EPCGSortMethod Method, bool bRandomDensity)
 	{
-		PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-		PCGDeterminismTests::GenerateSettings<UPCGSortPointsSettings>(TestData);
+		PCGTestsCommon::FTestData TestData;
+		PCGTestsCommon::GenerateSettings<UPCGSortPointsSettings>(TestData);
 		UPCGSortPointsSettings* Settings = CastChecked<UPCGSortPointsSettings>(TestData.Settings);
 		Settings->InputSource.SetPointProperty(EPCGPointProperties::Density);
 		Settings->SortMethod = Method;

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Tests/Determinism/PCGDeterminismTestsCommon.h"
+#include "Tests/PCGTestsCommon.h"
 
 #include "Metadata/PCGMetadataAccessor.h"
 #include "PCGComponent.h"
@@ -212,12 +212,12 @@ bool FPCGMetadataMakeTransformTest::RunTest(const FString& Parameters)
 
 	bool bTestPassed = true;
 
-	PCGTestsCommon::FTestData TestDataSpatial(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGMetadataMakeTransformSettings>(TestDataSpatial);
+	PCGTestsCommon::FTestData TestDataSpatial;
+	PCGTestsCommon::GenerateSettings<UPCGMetadataMakeTransformSettings>(TestDataSpatial);
 	GenerateSpatialData(TestDataSpatial);
 
-	PCGTestsCommon::FTestData TestDataParams(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGMetadataMakeTransformSettings>(TestDataParams);
+	PCGTestsCommon::FTestData TestDataParams;
+	PCGTestsCommon::GenerateSettings<UPCGMetadataMakeTransformSettings>(TestDataParams);
 	GenerateParamData(TestDataParams);
 
 	using PairWhatData = TPair<FString, PCGTestsCommon::FTestData*>;

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Tests/Determinism/PCGDeterminismTestsCommon.h"
+#include "Tests/PCGTestsCommon.h"
 
 #include "Metadata/PCGMetadataAccessor.h"
 #include "PCGComponent.h"
@@ -308,12 +308,12 @@ bool FPCGMetadataBreakVectorTest::RunTest(const FString& Parameters)
 
 	bool bTestPassed = true;
 
-	PCGTestsCommon::FTestData TestDataSpatial(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGMetadataBreakVectorSettings>(TestDataSpatial);
+	PCGTestsCommon::FTestData TestDataSpatial;
+	PCGTestsCommon::GenerateSettings<UPCGMetadataBreakVectorSettings>(TestDataSpatial);
 	PCGBreakVectorTest::GenerateSpatialData(TestDataSpatial);
 
-	PCGTestsCommon::FTestData TestDataParams(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGMetadataBreakVectorSettings>(TestDataParams);
+	PCGTestsCommon::FTestData TestDataParams;
+	PCGTestsCommon::GenerateSettings<UPCGMetadataBreakVectorSettings>(TestDataParams);
 	PCGBreakVectorTest::GenerateParamData(TestDataParams);
 
 	using PairWhatData = TPair<FString, PCGTestsCommon::FTestData*>;

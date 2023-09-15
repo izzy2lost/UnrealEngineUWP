@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Tests/Determinism/PCGDeterminismTestsCommon.h"
+#include "Tests/PCGTestsCommon.h"
 
 #include "PCGComponent.h"
 #include "PCGContext.h"
@@ -12,8 +12,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDistanceTest_PointToPoint, FPCGTestB
 
 bool FPCGDistanceTest_PointToPoint::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGDistanceSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGDistanceSettings>(TestData);
 	UPCGDistanceSettings* Settings = CastChecked<UPCGDistanceSettings>(TestData.Settings);
 
 	Settings->SourceShape = PCGDistanceShape::Center;
@@ -69,8 +69,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDistanceTest_SetDensity, FPCGTestBas
 
 bool FPCGDistanceTest_SetDensity::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGDistanceSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGDistanceSettings>(TestData);
 	UPCGDistanceSettings* Settings = CastChecked<UPCGDistanceSettings>(TestData.Settings);
 
 	Settings->SourceShape = PCGDistanceShape::Center;
@@ -126,8 +126,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDistanceTest_PointToSphere, FPCGTest
 
 bool FPCGDistanceTest_PointToSphere::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGDistanceSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGDistanceSettings>(TestData);
 	UPCGDistanceSettings* Settings = CastChecked<UPCGDistanceSettings>(TestData.Settings);
 
 	Settings->SourceShape = PCGDistanceShape::Center;
@@ -191,8 +191,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDistanceTest_PointToBox, FPCGTestBas
 
 bool FPCGDistanceTest_PointToBox::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGDistanceSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGDistanceSettings>(TestData);
 	UPCGDistanceSettings* Settings = CastChecked<UPCGDistanceSettings>(TestData.Settings);
 
 	Settings->SourceShape = PCGDistanceShape::Center;

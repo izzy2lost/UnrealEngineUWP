@@ -3,6 +3,7 @@
 #pragma once
 
 #include "PCGData.h"
+#include "PCGSettings.h"
 
 #include "GameFramework/Actor.h"
 #include "Misc/AutomationTest.h"
@@ -14,7 +15,6 @@ class UPCGParamData;
 class UPCGPointData;
 class UPCGPolyLineData;
 class UPCGPrimitiveData;
-class UPCGSettings;
 class UPCGSurfaceData;
 class UPCGVolumeData;
 struct FPCGContext;
@@ -30,7 +30,7 @@ namespace PCGTestsCommon
 
 	struct PCG_API FTestData
 	{
-		FTestData(int32 Seed, UPCGSettings* DefaultSettings = nullptr, TSubclassOf<AActor> ActorClass = AActor::StaticClass());
+		explicit FTestData(int32 Seed = 42, UPCGSettings* DefaultSettings = nullptr, TSubclassOf<AActor> ActorClass = AActor::StaticClass());
 		~FTestData();
 
 		void Reset(UPCGSettings* InSettings = nullptr);
@@ -68,6 +68,27 @@ namespace PCGTestsCommon
 
 	/** Validates that two Spatial Points are identical */
 	PCG_API bool PointsAreIdentical(const FPCGPoint& FirstPoint, const FPCGPoint& SecondPoint);
+
+	/** Generates settings based upon a UPCGSettings subclass */
+	template<typename SettingsType>
+	SettingsType* GenerateSettings(FTestData& TestData, TFunction<void(FTestData&)> ExtraSettingsDelegate = nullptr)
+	{
+		SettingsType* TypedSettings = NewObject<SettingsType>();
+		check(TypedSettings);
+
+		TestData.Settings = TypedSettings;
+		TestData.Settings->Seed = TestData.Seed;
+
+		TestData.InputData.TaggedData.Emplace_GetRef().Data = TestData.Settings;
+		TestData.InputData.TaggedData.Last().Pin = FName(TEXT("Settings"));
+
+		if (ExtraSettingsDelegate)
+		{
+			ExtraSettingsDelegate(TestData);
+		}
+
+		return TypedSettings;
+	}
 }
 
 class PCG_API FPCGTestBaseClass : public FAutomationTestBase

@@ -33,11 +33,12 @@ namespace
 		check(NumSpatialSetsToAdd > 0 && NumPointsToCreatePerSet > 0 && NumPolyLinePointsToCreatePerSet > 0);
 
 		TestDataSet.Empty();
-		TestDataSet.Init(PCGTestsCommon::FTestData(PCGDeterminismTests::Defaults::Seed), NumTestableSpatialDataTypes);
+		PCGTestsCommon::FTestData TestData;
+		TestDataSet.Init(TestData, NumTestableSpatialDataTypes);
 
 		for (PCGTestsCommon::FTestData& Data : TestDataSet)
 		{
-			PCGDeterminismTests::GenerateSettings<UPCGCollapseSettings>(Data);
+			PCGTestsCommon::GenerateSettings<UPCGCollapseSettings>(Data);
 		}
 
 		for (int32 I = 0; I < NumSpatialSetsToAdd; ++I)

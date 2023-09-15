@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Tests/Determinism/PCGDeterminismTestsCommon.h"
+#include "Tests/PCGTestsCommon.h"
 
 #include "PCGComponent.h"
 #include "PCGContext.h"
@@ -15,8 +15,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSanityCheckPointData_MinPointCount, 
 
 bool FPCGSanityCheckPointData_MinPointCount::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGSanityCheckPointDataSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGSanityCheckPointDataSettings>(TestData);
 	UPCGSanityCheckPointDataSettings* Settings = CastChecked<UPCGSanityCheckPointDataSettings>(TestData.Settings);
 
 	Settings->MinPointCount = 10;
@@ -43,8 +43,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSanityCheckPointData_MaxPointCount, 
 
 bool FPCGSanityCheckPointData_MaxPointCount::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGSanityCheckPointDataSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGSanityCheckPointDataSettings>(TestData);
 	UPCGSanityCheckPointDataSettings* Settings = CastChecked<UPCGSanityCheckPointDataSettings>(TestData.Settings);
 
 	Settings->MinPointCount = 10;
@@ -71,8 +71,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSanityCheckPointData_Success, FPCGTe
 
 bool FPCGSanityCheckPointData_Success::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGSanityCheckPointDataSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGSanityCheckPointDataSettings>(TestData);
 	UPCGSanityCheckPointDataSettings* Settings = CastChecked<UPCGSanityCheckPointDataSettings>(TestData.Settings);
 
 	Settings->MinPointCount = 10;

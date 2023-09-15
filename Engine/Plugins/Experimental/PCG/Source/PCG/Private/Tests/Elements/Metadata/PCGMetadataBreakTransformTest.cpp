@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Tests/Determinism/PCGDeterminismTestsCommon.h"
+#include "Tests/PCGTestsCommon.h"
 
 #include "Elements/Metadata/PCGMetadataMakeTransform.h"
 #include "PCGComponent.h"
@@ -242,12 +242,12 @@ bool FPCGMetadataBreakTransformTest::RunTest(const FString& Parameters)
 
 	bool bTestPassed = true;
 
-	PCGTestsCommon::FTestData TestDataSpatial(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGMetadataBreakTransformSettings>(TestDataSpatial);
+	PCGTestsCommon::FTestData TestDataSpatial;
+	PCGTestsCommon::GenerateSettings<UPCGMetadataBreakTransformSettings>(TestDataSpatial);
 	PCGBreakTransformTest::GenerateSpatialData(TestDataSpatial);
 
-	PCGTestsCommon::FTestData TestDataParams(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGMetadataBreakTransformSettings>(TestDataParams);
+	PCGTestsCommon::FTestData TestDataParams;
+	PCGTestsCommon::GenerateSettings<UPCGMetadataBreakTransformSettings>(TestDataParams);
 	PCGBreakTransformTest::GenerateParamData(TestDataParams);
 
 	using PairWhatData = TPair<FString, PCGTestsCommon::FTestData*>;

@@ -2,7 +2,7 @@
 
 #include "Tests/Elements/PCGElementTest.h"
 
-#include "Tests/Determinism/PCGDeterminismTestsCommon.h"
+#include "Tests/PCGTestsCommon.h"
 #include "PCGData.h"
 #include "PCGContext.h"
 
@@ -33,8 +33,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGElementTest_CleanupAndValidateOutput
 
 bool FPCGElementTest_CleanupAndValidateOutput::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGBadOutputsNodeSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGBadOutputsNodeSettings>(TestData);
 
 	TUniquePtr<FPCGContext> Context = TestData.InitializeTestContext();
 

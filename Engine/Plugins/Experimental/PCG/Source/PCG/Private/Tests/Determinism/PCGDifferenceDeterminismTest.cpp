@@ -51,7 +51,7 @@ namespace
 			break;
 		}
 
-		PCGDeterminismTests::GenerateSettings<UPCGDifferenceSettings>(TestData, AdditionalSettingsDelegate);
+		PCGTestsCommon::GenerateSettings<UPCGDifferenceSettings>(TestData, AdditionalSettingsDelegate);
 		// Source
 		PCGDeterminismTests::AddVolumeInputData(TestData.InputData, FVector::ZeroVector, PCGDeterminismTests::Defaults::LargeVector, PCGDeterminismTests::Defaults::SmallVector, PCGDifferenceConstants::SourceLabel);
 
@@ -100,9 +100,9 @@ namespace PCGDeterminismTests
 bool FPCGDifferenceDeterminismSingleSameDataTest::RunTest(const FString& Parameters)
 {
 	// Test single same data
-	PCGTestsCommon::FTestData TestDataInferred(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData TestDataContinuous(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData TestDataDiscrete(PCGDeterminismTests::Defaults::Seed);
+	PCGTestsCommon::FTestData TestDataInferred;
+	PCGTestsCommon::FTestData TestDataContinuous;
+	PCGTestsCommon::FTestData TestDataDiscrete;
 
 	DifferenceTestBase(TestDataInferred, EPCGDifferenceMode::Inferred);
 	DifferenceTestBase(TestDataContinuous, EPCGDifferenceMode::Continuous);
@@ -118,12 +118,12 @@ bool FPCGDifferenceDeterminismSingleSameDataTest::RunTest(const FString& Paramet
 bool FPCGDifferenceDeterminismSingleIdenticalDataTest::RunTest(const FString& Parameters)
 {
 	// Test single identical data
-	PCGTestsCommon::FTestData FirstTestDataInferred(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData FirstTestDataContinuous(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData FirstTestDataDiscrete(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData SecondTestDataInferred(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData SecondTestDataContinuous(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData SecondTestDataDiscrete(PCGDeterminismTests::Defaults::Seed);
+	PCGTestsCommon::FTestData FirstTestDataInferred;
+	PCGTestsCommon::FTestData FirstTestDataContinuous;
+	PCGTestsCommon::FTestData FirstTestDataDiscrete;
+	PCGTestsCommon::FTestData SecondTestDataInferred;
+	PCGTestsCommon::FTestData SecondTestDataContinuous;
+	PCGTestsCommon::FTestData SecondTestDataDiscrete;
 
 	DifferenceTestBase(FirstTestDataInferred, EPCGDifferenceMode::Inferred);
 	DifferenceTestBase(FirstTestDataContinuous, EPCGDifferenceMode::Continuous);
@@ -142,9 +142,9 @@ bool FPCGDifferenceDeterminismSingleIdenticalDataTest::RunTest(const FString& Pa
 bool FPCGDifferenceDeterminismMultipleSameDataTest::RunTest(const FString& Parameters)
 {
 	// Test multiple same data
-	PCGTestsCommon::FTestData TestDataInferred(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData TestDataContinuous(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData TestDataDiscrete(PCGDeterminismTests::Defaults::Seed);
+	PCGTestsCommon::FTestData TestDataInferred;
+	PCGTestsCommon::FTestData TestDataContinuous;
+	PCGTestsCommon::FTestData TestDataDiscrete;
 
 	DifferenceTestMultiple(TestDataInferred, EPCGDifferenceMode::Inferred);
 	DifferenceTestMultiple(TestDataContinuous, EPCGDifferenceMode::Continuous);
@@ -160,12 +160,12 @@ bool FPCGDifferenceDeterminismMultipleSameDataTest::RunTest(const FString& Param
 bool FPCGDifferenceDeterminismMultipleIdenticalDataTest::RunTest(const FString& Parameters)
 {
 	// Test multiple identical data
-	PCGTestsCommon::FTestData FirstTestDataInferred(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData FirstTestDataContinuous(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData FirstTestDataDiscrete(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData SecondTestDataInferred(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData SecondTestDataContinuous(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData SecondTestDataDiscrete(PCGDeterminismTests::Defaults::Seed);
+	PCGTestsCommon::FTestData FirstTestDataInferred;
+	PCGTestsCommon::FTestData FirstTestDataContinuous;
+	PCGTestsCommon::FTestData FirstTestDataDiscrete;
+	PCGTestsCommon::FTestData SecondTestDataInferred;
+	PCGTestsCommon::FTestData SecondTestDataContinuous;
+	PCGTestsCommon::FTestData SecondTestDataDiscrete;
 
 	DifferenceTestMultiple(FirstTestDataInferred, EPCGDifferenceMode::Inferred);
 	DifferenceTestMultiple(FirstTestDataContinuous, EPCGDifferenceMode::Continuous);
@@ -184,12 +184,12 @@ bool FPCGDifferenceDeterminismMultipleIdenticalDataTest::RunTest(const FString& 
 bool FPCGDifferenceDeterminismOrderIndependenceTest::RunTest(const FString& Parameters)
 {
 	// Test multiple identical data, shuffled
-	PCGTestsCommon::FTestData FirstTestDataInferred(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData FirstTestDataContinuous(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData FirstTestDataDiscrete(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData SecondTestDataInferred(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData SecondTestDataContinuous(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData SecondTestDataDiscrete(PCGDeterminismTests::Defaults::Seed);
+	PCGTestsCommon::FTestData FirstTestDataInferred;
+	PCGTestsCommon::FTestData FirstTestDataContinuous;
+	PCGTestsCommon::FTestData FirstTestDataDiscrete;
+	PCGTestsCommon::FTestData SecondTestDataInferred;
+	PCGTestsCommon::FTestData SecondTestDataContinuous;
+	PCGTestsCommon::FTestData SecondTestDataDiscrete;
 
 	DifferenceTestMultiple(FirstTestDataInferred, EPCGDifferenceMode::Inferred);
 	DifferenceTestMultiple(FirstTestDataContinuous, EPCGDifferenceMode::Continuous);

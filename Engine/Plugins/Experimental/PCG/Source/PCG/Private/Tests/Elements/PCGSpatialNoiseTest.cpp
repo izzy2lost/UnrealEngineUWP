@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Tests/Determinism/PCGDeterminismTestsCommon.h"
+#include "Tests/PCGTestsCommon.h"
 
 #include "PCGContext.h"
 #include "Data/PCGPointData.h"
@@ -43,8 +43,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_Perlin2D, FPCGTestBaseC
 
 bool FPCGSpatialNoise_Perlin2D::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGSpatialNoiseSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGSpatialNoiseSettings>(TestData);
 	UPCGSpatialNoiseSettings* Settings = CastChecked<UPCGSpatialNoiseSettings>(TestData.Settings);
 
 	Settings->Mode = PCGSpatialNoiseMode::Perlin2D;
@@ -81,8 +81,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_Caustic2D, FPCGTestBase
 
 bool FPCGSpatialNoise_Caustic2D::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGSpatialNoiseSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGSpatialNoiseSettings>(TestData);
 	UPCGSpatialNoiseSettings* Settings = CastChecked<UPCGSpatialNoiseSettings>(TestData.Settings);
 
 	Settings->Mode = PCGSpatialNoiseMode::Caustic2D;
@@ -119,8 +119,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_Voronoi2D, FPCGTestBase
 
 bool FPCGSpatialNoise_Voronoi2D::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGSpatialNoiseSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGSpatialNoiseSettings>(TestData);
 	UPCGSpatialNoiseSettings* Settings = CastChecked<UPCGSpatialNoiseSettings>(TestData.Settings);
 
 	Settings->Mode = PCGSpatialNoiseMode::Voronoi2D;
@@ -162,8 +162,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_FractionalBrownian2D, F
 
 bool FPCGSpatialNoise_FractionalBrownian2D::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGSpatialNoiseSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGSpatialNoiseSettings>(TestData);
 	UPCGSpatialNoiseSettings* Settings = CastChecked<UPCGSpatialNoiseSettings>(TestData.Settings);
 
 	Settings->Mode = PCGSpatialNoiseMode::FractionalBrownian2D;
@@ -200,8 +200,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_EdgeMask2D, FPCGTestBas
 
 bool FPCGSpatialNoise_EdgeMask2D::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGSpatialNoiseSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGSpatialNoiseSettings>(TestData);
 	UPCGSpatialNoiseSettings* Settings = CastChecked<UPCGSpatialNoiseSettings>(TestData.Settings);
 
 	Settings->Mode = PCGSpatialNoiseMode::EdgeMask2D;
@@ -237,8 +237,8 @@ bool FPCGSpatialNoise_EdgeMask2D::RunTest(const FString& Parameters)
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_TilingPerlin2D, FPCGTestBaseClass, "pcg.tests.Noise.TilingPerlin2D", PCGTestsCommon::TestFlags)
 bool FPCGSpatialNoise_TilingPerlin2D::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGSpatialNoiseSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGSpatialNoiseSettings>(TestData);
 	UPCGSpatialNoiseSettings* Settings = CastChecked<UPCGSpatialNoiseSettings>(TestData.Settings);
 
 	Settings->Mode = PCGSpatialNoiseMode::Perlin2D;
@@ -275,8 +275,8 @@ bool FPCGSpatialNoise_TilingPerlin2D::RunTest(const FString& Parameters)
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_TilingVoronoi2D, FPCGTestBaseClass, "pcg.tests.Noise.TilingVoronoi2D", PCGTestsCommon::TestFlags)
 bool FPCGSpatialNoise_TilingVoronoi2D::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
-	PCGDeterminismTests::GenerateSettings<UPCGSpatialNoiseSettings>(TestData);
+	PCGTestsCommon::FTestData TestData;
+	PCGTestsCommon::GenerateSettings<UPCGSpatialNoiseSettings>(TestData);
 	UPCGSpatialNoiseSettings* Settings = CastChecked<UPCGSpatialNoiseSettings>(TestData.Settings);
 
 	Settings->Mode = PCGSpatialNoiseMode::Voronoi2D;

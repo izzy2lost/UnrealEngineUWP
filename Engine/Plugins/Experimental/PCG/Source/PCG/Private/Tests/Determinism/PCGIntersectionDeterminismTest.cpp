@@ -15,7 +15,7 @@ namespace
 {
 	void IntersectionTestBase(PCGTestsCommon::FTestData& TestData)
 	{
-		PCGDeterminismTests::GenerateSettings<UPCGInnerIntersectionSettings>(TestData);
+		PCGTestsCommon::GenerateSettings<UPCGInnerIntersectionSettings>(TestData);
 		// Source Volumes
 		PCGDeterminismTests::AddVolumeInputData(TestData.InputData, PCGDeterminismTests::Defaults::SmallVector, PCGDeterminismTests::Defaults::MediumVector, PCGDeterminismTests::Defaults::MediumVector);
 		PCGDeterminismTests::AddVolumeInputData(TestData.InputData, PCGDeterminismTests::Defaults::SmallVector * -1.f, PCGDeterminismTests::Defaults::MediumVector, PCGDeterminismTests::Defaults::MediumVector);
@@ -33,7 +33,7 @@ namespace
 bool FPCGIntersectionDeterminismSingleSameDataTest::RunTest(const FString& Parameters)
 {
 	// Test single same data
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
+	PCGTestsCommon::FTestData TestData;
 
 	IntersectionTestBase(TestData);
 
@@ -43,8 +43,8 @@ bool FPCGIntersectionDeterminismSingleSameDataTest::RunTest(const FString& Param
 bool FPCGIntersectionDeterminismSingleIdenticalDataTest::RunTest(const FString& Parameters)
 {
 	// Test single identical data
-	PCGTestsCommon::FTestData FirstTestData(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData SecondTestData(PCGDeterminismTests::Defaults::Seed);
+	PCGTestsCommon::FTestData FirstTestData;
+	PCGTestsCommon::FTestData SecondTestData;
 
 	IntersectionTestBase(FirstTestData);
 	IntersectionTestBase(SecondTestData);
@@ -55,7 +55,7 @@ bool FPCGIntersectionDeterminismSingleIdenticalDataTest::RunTest(const FString& 
 bool FPCGIntersectionDeterminismMultipleSameDataTest::RunTest(const FString& Parameters)
 {
 	// Test multiple same data
-	PCGTestsCommon::FTestData TestData(PCGDeterminismTests::Defaults::Seed);
+	PCGTestsCommon::FTestData TestData;
 
 	IntersectionTestMultiple(TestData);
 
@@ -65,8 +65,8 @@ bool FPCGIntersectionDeterminismMultipleSameDataTest::RunTest(const FString& Par
 bool FPCGIntersectionDeterminismMultipleIdenticalDataTest::RunTest(const FString& Parameters)
 {
 	// Test multiple identical data
-	PCGTestsCommon::FTestData FirstTestData(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData SecondTestData(PCGDeterminismTests::Defaults::Seed);
+	PCGTestsCommon::FTestData FirstTestData;
+	PCGTestsCommon::FTestData SecondTestData;
 
 	IntersectionTestMultiple(FirstTestData);
 	IntersectionTestMultiple(SecondTestData);
@@ -77,8 +77,8 @@ bool FPCGIntersectionDeterminismMultipleIdenticalDataTest::RunTest(const FString
 bool FPCGIntersectionDeterminismOrderIndependenceTest::RunTest(const FString& Parameters)
 {
 	// Test multiple identical, shuffled data
-	PCGTestsCommon::FTestData FirstTestData(PCGDeterminismTests::Defaults::Seed);
-	PCGTestsCommon::FTestData SecondTestData(PCGDeterminismTests::Defaults::Seed);
+	PCGTestsCommon::FTestData FirstTestData;
+	PCGTestsCommon::FTestData SecondTestData;
 
 	IntersectionTestMultiple(FirstTestData);
 	IntersectionTestMultiple(SecondTestData);

@@ -70,7 +70,6 @@ namespace PCGDeterminismTests
 {
 	namespace Defaults
 	{
-		constexpr static int32 Seed = 42;
 		constexpr static int32 NumPointsToGenerate = 1;
 		constexpr static int32 NumTestPointsToGenerate = 100;
 		constexpr static int32 NumPolyLinePointsToGenerate = 6;
@@ -290,27 +289,6 @@ namespace PCGDeterminismTests
 	bool ExecutionIsDeterministic(PCGTestsCommon::FTestData& FirstTestData, PCGTestsCommon::FTestData& SecondTestData, const UPCGNode* PCGNode = nullptr);
 	/** Execute the same element twice compare if all the outputs are at least orthogonally deterministic */
 	bool ExecutionIsDeterministicSameData(const PCGTestsCommon::FTestData& TestData, const UPCGNode* PCGNode = nullptr);
-
-	/** Generates settings based upon a UPCGSettings subclass */
-	template<typename SettingsType>
-	SettingsType* GenerateSettings(PCGTestsCommon::FTestData& TestData, TFunction<void(PCGTestsCommon::FTestData&)> ExtraSettingsDelegate = nullptr)
-	{
-		SettingsType* TypedSettings = NewObject<SettingsType>();
-		check(TypedSettings);
-
-		TestData.Settings = TypedSettings;
-		TestData.Settings->Seed = TestData.Seed;
-
-		TestData.InputData.TaggedData.Emplace_GetRef().Data = TestData.Settings;
-		TestData.InputData.TaggedData.Last().Pin = FName(TEXT("Settings"));
-
-		if (ExtraSettingsDelegate)
-		{
-			ExtraSettingsDelegate(TestData);
-		}
-
-		return TypedSettings;
-	}
 
 	/** Validates whether both UPCGData can be cast to a specified subclass */
 	template<typename DataType>
