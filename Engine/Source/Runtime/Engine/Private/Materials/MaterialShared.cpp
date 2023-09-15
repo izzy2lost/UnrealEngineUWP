@@ -803,7 +803,7 @@ bool FMaterial::IsRequiredComplete() const
 }
 
 #if WITH_EDITOR
-void FMaterial::GetShaderMapIDsWithUnfinishedCompilation(TArray<int32>& ShaderMapIds)
+void FMaterial::AddShaderMapIDsWithUnfinishedCompilation(TArray<int32>& ShaderMapIds)
 {
 	if (GameThreadCompilingShaderMapId != 0u && GShaderCompilingManager->IsCompilingShaderMap(GameThreadCompilingShaderMapId))
 	{
@@ -840,7 +840,7 @@ void FMaterial::CancelCompilation()
 	}
 
 	TArray<int32> ShaderMapIdsToCancel;
-	GetShaderMapIDsWithUnfinishedCompilation(ShaderMapIdsToCancel);
+	AddShaderMapIDsWithUnfinishedCompilation(ShaderMapIdsToCancel);
 
 	if (ShaderMapIdsToCancel.Num() > 0)
 	{
@@ -854,12 +854,32 @@ void FMaterial::FinishCompilation()
 	FinishCacheShaders();
 
 	TArray<int32> ShaderMapIdsToFinish;
-	GetShaderMapIDsWithUnfinishedCompilation(ShaderMapIdsToFinish);
+	AddShaderMapIDsWithUnfinishedCompilation(ShaderMapIdsToFinish);
 
 	if (ShaderMapIdsToFinish.Num() > 0)
 	{
 		// Block until the shader maps that we will save have finished being compiled
 		GShaderCompilingManager->FinishCompilation(*GetFriendlyName(), ShaderMapIdsToFinish);
+	}
+}
+
+void FMaterial::FinishCompilation(const TCHAR* MaterialName, const TArray<FMaterial*>& MaterialsToCompile)
+{
+	for(const FMaterial* Material: MaterialsToCompile)
+	{
+		Material->FinishCacheShaders();
+	}
+
+	TArray<int32> ShaderMapIdsToFinish;
+	for(FMaterial* Material: MaterialsToCompile)
+	{
+		Material->AddShaderMapIDsWithUnfinishedCompilation(ShaderMapIdsToFinish);
+	}
+
+	if (ShaderMapIdsToFinish.Num() > 0)
+	{
+		// Block until the shader maps that we will save have finished being compiled
+		GShaderCompilingManager->FinishCompilation(MaterialName, ShaderMapIdsToFinish);
 	}
 }
 

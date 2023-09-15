@@ -415,6 +415,7 @@ public:
 	virtual FMatExpressionPreview* GetExpressionPreview(UMaterialExpression* InExpression) override;
 	virtual void DeleteNodes(const TArray<class UEdGraphNode*>& NodesToDelete) override;
 	virtual void GenerateInheritanceMenu(class UToolMenu* Menu) override;
+	virtual void RefreshStatsMaterials() override;
 
 	void DeleteSelectedNodes(bool bShowConfirmation);
 	void DeleteNodes(const TArray<class UEdGraphNode*>& NodesToDelete, bool bShowConfirmation);
@@ -458,6 +459,9 @@ public:
 
 	/** The material applied to the preview mesh. */
 	TObjectPtr<UMaterial> Material;
+
+	TArray<TObjectPtr<UMaterialInstance>> DerivedMaterialInstances;
+	TArray<TObjectPtr<UMaterialInstance>> OriginalDerivedMaterialInstances;
 	
 	/** The source material being edited by this material editor. Only will be updated when Material's settings are copied over this material */
 	TObjectPtr<UMaterial> OriginalMaterial;
@@ -707,8 +711,10 @@ private:
 	/** Update Substrate topology preview */
 	void UpdateSubstrateTopologyPreview();
 
-public:
+	/** Create array of derived material instances used in conjunction with preview material in material stats */
+	void CreateDerivedMaterialInstancesPreviews();
 
+public:
 private:
 	/**
 	 * Load editor settings from disk (docking state, window pos/size, option state, etc).

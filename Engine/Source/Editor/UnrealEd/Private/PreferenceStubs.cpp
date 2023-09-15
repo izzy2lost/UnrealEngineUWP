@@ -85,6 +85,8 @@ UMaterialStatsOptions::UMaterialStatsOptions(const FObjectInitializer& ObjectIni
 #endif
 
 	bMaterialQualityUsed[EMaterialQualityLevel::High] = 1;
+
+	MaterialStatsDerivedMIOption = EMaterialStatsDerivedMIOption::Ignore;
 }
 
 UAnimationBlueprintEditorOptions::UAnimationBlueprintEditorOptions(const FObjectInitializer& ObjectInitializer)

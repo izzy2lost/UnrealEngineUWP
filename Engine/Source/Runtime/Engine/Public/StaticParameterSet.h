@@ -519,7 +519,7 @@ struct FStaticParameterSet : public FStaticParameterSetRuntimeData
 		return !(*this == ReferenceSet);
 	}
 
-	bool Equivalent(const FStaticParameterSet& ReferenceSet) const;
+	ENGINE_API bool Equivalent(const FStaticParameterSet& ReferenceSet) const;
 
 #if WITH_EDITORONLY_DATA
 	ENGINE_API void SetParameterValue(const FMaterialParameterInfo& ParameterInfo, const FMaterialParameterMetadata& Meta, EMaterialSetParameterValueFlags Flags = EMaterialSetParameterValueFlags::None);

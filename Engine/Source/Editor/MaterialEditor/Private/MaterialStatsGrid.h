@@ -14,6 +14,13 @@
 /** class to represent a single cell inside the material stats grid */
 class FGridCell
 {
+public:
+	enum class EIcon
+	{
+		None,
+		Error
+	};
+
 protected:
 	/** attributes used at display time to configure widgets */
 	FSlateColor CellColor;
@@ -42,6 +49,11 @@ public:
 
 	FORCEINLINE EVerticalAlignment GetVerticalAlignment() const;
 	FORCEINLINE void SetVerticalAlignment(EVerticalAlignment Align);
+
+	virtual EIcon GetIcon() const
+	{
+		return EIcon::None;
+	}
 };
 
 /** this time of cell with just return an empty string and its mainly used to separate rows */
@@ -68,7 +80,7 @@ public:
 /** enumeration used to classify arguments for FGridCell_ShaderValue */
 enum class EShaderInfoType
 {
-	Errors,
+	Name,
 	InstructionsCount,
 	SamplersCount,
 	InterpolatorsCount,
@@ -87,15 +99,17 @@ private:
 	ERepresentativeShader ShaderType;
 	EMaterialQualityLevel::Type QualityLevel;
 	EShaderPlatform PlatformType;
+	int32 InstanceIndex;
 
 	FString InternalGetContent(bool bLongContent);
 
 public:
 	FGridCell_ShaderValue(const TWeakPtr<FMaterialStats>& _MaterialStatsWPtr, const EShaderInfoType _InfoType, const ERepresentativeShader _ShaderType,
-		const EMaterialQualityLevel::Type _QualityLevel, const EShaderPlatform _PlatformType);
+		const EMaterialQualityLevel::Type _QualityLevel, const EShaderPlatform _PlatformType, const int32 _InstanceIndex);
 
 	FString GetCellContent() override;
 	FString GetCellContentLong() override;
+	EIcon GetIcon() const override;
 };
 
 /** virtual class to model grid row generation */
@@ -120,10 +134,15 @@ public:
 	virtual void CreateRow(TSharedPtr<FMaterialStats> StatsManager) = 0;
 
 	/** Add/RemovePlatforms should be called when a platform is added or removed from the grid */
-	virtual void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> PlatformPtr, const EMaterialQualityLevel::Type QualityLevel) = 0;
-	virtual void RemovePlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> PlatformPtr, const EMaterialQualityLevel::Type QualityLevel);
+	virtual void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> PlatformPtr, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex) = 0;
+	virtual void RemovePlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> PlatformPtr, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex);
 
 	TSharedPtr<FGridCell> GetCell(const FName ColumnName);
+
+	void RemoveAll()
+	{
+		RowCells.Empty();
+	}
 };
 
 /** separator row */
@@ -132,7 +151,16 @@ class FStatsGridRow_Empty : public FStatsGridRow
 public:
 	void CreateRow(TSharedPtr<FMaterialStats> StatsManager) override;
 
-	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel) override;
+	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex) override;
+};
+
+/** material/instance name */
+class FStatsGridRow_Name : public FStatsGridRow
+{
+public:
+	void CreateRow(TSharedPtr<FMaterialStats> StatsManager) override;
+
+	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex) override;
 };
 
 /** row that will produce static string from EMaterialQualityLevel::Type */
@@ -141,16 +169,7 @@ class FStatsGridRow_Quality : public FStatsGridRow
 public:
 	void CreateRow(TSharedPtr<FMaterialStats> StatsManager) override;
 
-	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel) override;
-};
-
-/** row that will display eventual shader errors */
-class FStatsGridRow_Errors : public FStatsGridRow
-{
-public:
-	void CreateRow(TSharedPtr<FMaterialStats> StatsManager) override;
-
-	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel) override;
+	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex) override;
 };
 
 /** row that will extract and the number of instructions for each used shader */
@@ -177,7 +196,7 @@ public:
 
 	void CreateRow(TSharedPtr<FMaterialStats> StatsManager) override;
 
-	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel) override;
+	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex) override;
 };
 
 /** this row will display the global number of samplers present in the material for a specified platform */
@@ -186,7 +205,7 @@ class FStatsGridRow_Samplers : public FStatsGridRow
 public:
 	void CreateRow(TSharedPtr<FMaterialStats> StatsManager) override;
 
-	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel) override;
+	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex) override;
 };
 
 /** this row will display the global number of interpolators present in the material for a specified platform */
@@ -195,7 +214,7 @@ class FStatsGridRow_Interpolators : public FStatsGridRow
 public:
 	void CreateRow(TSharedPtr<FMaterialStats> StatsManager) override;
 
-	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel) override;
+	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex) override;
 };
 
 /** this row will display the global number of texture samples present in the material for a specified platform */
@@ -204,7 +223,7 @@ class FStatsGridRow_NumTextureSamples : public FStatsGridRow
 public:
 	void CreateRow(TSharedPtr<FMaterialStats> StatsManager) override;
 
-	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel) override;
+	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex) override;
 };
 
 /** this row will display the global number of virtual texture lookups present in the material for a specified platform */
@@ -213,7 +232,7 @@ class FStatsGridRow_NumVirtualTextureLookups : public FStatsGridRow
 public:
 	void CreateRow(TSharedPtr<FMaterialStats> StatsManager) override;
 
-	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel) override;
+	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex) override;
 };
 
 /** this row will display the total number of shaders present in the material for a specified platform */
@@ -222,7 +241,7 @@ class FStatsGridRow_NumShaders : public FStatsGridRow
 public:
 	void CreateRow(TSharedPtr<FMaterialStats> StatsManager) override;
 
-	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel) override;
+	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex) override;
 };
 
 /** class that models the logical material stats grid */
@@ -243,8 +262,8 @@ class FMaterialStatsGrid
 	enum class ERowType
 	{
 		Empty,
+		Name,
 		Quality,
-		Errors,
 		Samplers,
 		Interpolators,
 		TextureSamples,
@@ -293,8 +312,8 @@ public:
 	const static FName ShaderColumnName;
 
 private:
-	void AddColumnInfo(TSharedPtr<FShaderPlatformSettings> PlatformPtr, const EMaterialQualityLevel::Type QualityLevel);
-	void RemoveColumnInfo(TSharedPtr<FShaderPlatformSettings> PlatformPtr, const EMaterialQualityLevel::Type QualityLevel);
+	void AddColumnInfo(TSharedPtr<FShaderPlatformSettings> PlatformPtr, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex);
+	void RemoveColumnInfo(TSharedPtr<FShaderPlatformSettings> PlatformPtr, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex);
 
 	/** this function will go through all available shader platforms and will call build the content of GridColumnContent */
 	void BuildColumnInfo();
@@ -307,7 +326,7 @@ private:
 	void CheckForErrors();
 
 	/** this functions will build the content of UsedShaders array */
-	void CollectShaderInfo(const TSharedPtr<FShaderPlatformSettings>& PlatformPtr, const EMaterialQualityLevel::Type QualityLevel);
+	void CollectShaderInfo(const TSharedPtr<FShaderPlatformSettings>& PlatformPtr, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex);
 	void CollectShaderInfo();
 
 	/** functions that build the row ids array used by GridStatsWidget to identify available rows inside this logical grid */
@@ -318,7 +337,7 @@ private:
 	FORCEINLINE int32 AssembleRowKey(const ERowType RowType, const int16 Index);
 	FORCEINLINE void DissasambleRowKey(ERowType& RowType, int32& Index, const int32 Key);
 
-	void AddOrRemovePlatform(TSharedPtr<FShaderPlatformSettings> PlatformPtr, const bool bAdd, const EMaterialQualityLevel::Type QualityLevel);
+	void AddOrRemovePlatform(TSharedPtr<FShaderPlatformSettings> PlatformPtr, const bool bAdd, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex);
 
 public:
 	FMaterialStatsGrid(TWeakPtr<FMaterialStats> _StatsManager);
@@ -331,6 +350,7 @@ public:
 	FORCEINLINE TArray<FName> GetVisibleColumnNames() const;
 
 	void OnShaderChanged();
+	void OnColumnNumChanged();
 
 	void OnAddOrRemovePlatform(TSharedPtr<FShaderPlatformSettings> PlatformPtr);
 	void OnQualitySettingChanged(const EMaterialQualityLevel::Type QualityLevel);
@@ -343,7 +363,7 @@ public:
 	FSlateColor GetColumnColor(const FName ColumnName) const;
 
 	/** helper function that will assemble a column name from the given arguments */
-	static FName MakePlatformColumnName(const TSharedPtr<FShaderPlatformSettings>& Platform, const EMaterialQualityLevel::Type Quality);
+	static FName MakePlatformColumnName(const TSharedPtr<FShaderPlatformSettings>& Platform, const EMaterialQualityLevel::Type Quality, const int32 InstanceIndex);
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////////

@@ -5,6 +5,7 @@
 #include "Materials/Material.h"
 #include "MaterialStatsCommon.h"
 #include "UObject/GCObject.h"
+#include "Preferences/MaterialStatsOptions.h"
 
 /** structure used to store various statistics extracted from compiled shaders */
 struct FShaderStatsInfo
@@ -41,7 +42,7 @@ struct FShaderStatsInfo
 
 		ShaderCount.StrDescription = TEXT("Compiling...");
 		ShaderCount.StrDescriptionLong = TEXT("Compiling...");
-		
+
 		StrShaderErrors.Empty();
 	}
 
@@ -84,13 +85,11 @@ struct FMaterialShaderEntry
 struct FShaderPlatformSettings
 {
 public:
-	/////////////////////
-	/** inner structure used to hold properties for a single material platform and with a specific quality level */
-	struct FPlatformData
+	struct FInstanceData
 	{
 		/** pointer to the material resource created for this platform
 		*  mainly used to compile the shaders and extract information from them */
-		FMaterialResourceStats* MaterialResourcesStats = nullptr;
+		FMaterialResourceStats* MaterialResourcesStats;
 
 		/** array of shader ids for this platform; needed to fill ComboBox in MaterialEditor's shader viewer
 		* generated from ShaderID.ShaderType->GetFName() */
@@ -99,26 +98,39 @@ public:
 		/** ComboBox current entry */
 		FMaterialShaderEntry ComboBoxSelectedEntry;
 
+		/** when true we should update the content of [FText ShaderCode] variable */
+		bool bUpdateShaderCode = false;
+		/** cached shader code computed by FShaderPlatformSettings::GetShaderCode() */
+		FText ShaderCode;
+		/** flag that marks an ongoing shader compilation */
+		bool bCompilingShaders = false;
+		/** flag suggests we needed to recompile shaders due to changes in the material */
+		bool bNeedShaderRecompilation = false;
+		/** flag suggests we only need to compile the most complex shader from available set */
+		bool bOnlyCompileMostComplexShader = false;
+		/** flag suggests we needed to warn the user due to compilation errors */
+		bool bNeedToWarnAboutCompilationErrors = false;
+
+		FShaderStatsInfo ShaderStatsInfo;
+	};
+	
+	/////////////////////
+	/** inner structure used to hold properties for a single material platform and with a specific quality level */
+	struct FPlatformData
+	{
+		/* Array of material instances including base material and any material instances derived from it */
+		TArray<FInstanceData> Instances;
+		
 		/** flag that marks the usage of this data structure */
 		bool bExtractStats = false;
 
 		/** true when code is listed in its own tab */
 		bool bExtractCode = false;
 
-		/** cached shader code computed by FShaderPlatformSettings::GetShaderCode() */
-		FText ShaderCode;
-		/** when true we should update the content of [FText ShaderCode] variable */
-		bool bUpdateShaderCode = false;
-		/** flag that marks an ongoing shader compilation */
-		bool bCompilingShaders = false;
-		/** flag suggests we needed to recompile shaders due to changes in the material */
-		bool bNeedShaderRecompilation = false;
 		/** object used to display the content of [FText ShaderCode] */
 		TSharedPtr<class SScrollBox> CodeScrollBox;
 		/** weak pointer to the spawned shader code viewer tab */
 		TWeakPtr<class SDockTab> CodeViewerTab;
-
-		FShaderStatsInfo ShaderStatsInfo;
 
 		/** Time when the previous compilation was requested.*/
 		double LastTimeCompilationRequested = 0.0;
@@ -153,11 +165,13 @@ private:
 	UMaterial *Material = nullptr;
 	/** pointer to the material instance whose stats are analyzed */
 	UMaterialInstance *MaterialInstance = nullptr;
+	/** array of derived material instances whose stats are analyzed */ 
+	TArray<TObjectPtr<UMaterialInstance>> DerivedMaterialInstances;
 
 private:
 	/** function used to trigger shader rebuilding when needed */
 	/** returns true if shaders are being recompiled, false otherwise */
-	bool CheckShaders();
+	bool CheckShaders(bool bIgnoreCooldown);
 
 	/** builds material resources needed to compile shaders */
 	void AllocateMaterialResources();
@@ -197,7 +211,7 @@ public:
 	FORCEINLINE TWeakPtr<class SDockTab> GetCodeViewerTab(const EMaterialQualityLevel::Type QualityLevel);
 
 	/** returns an array with the names of all the compiled shaders for this material with specified quality level */
-	FORCEINLINE const TArray<TSharedPtr<FMaterialShaderEntry>> *GetShaderEntries(const EMaterialQualityLevel::Type QualityLevel);
+	FORCEINLINE const TArray<TSharedPtr<FMaterialShaderEntry>> *GetShaderEntries(const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex);
 
 	/** when set this flag will indicate the presence of this material with a particular quality level inside the stats widget */
 	void SetExtractStatsFlag(const EMaterialQualityLevel::Type QualityType, const bool bValue);
@@ -223,7 +237,7 @@ public:
 	FORCEINLINE void SetExtractStatsQualityLevel(const EMaterialQualityLevel::Type Quality, const bool bActive);
 
 	/** flags shader compilation for a specific quality level */
-	FORCEINLINE void SetNeedShaderCompilation(const EMaterialQualityLevel::Type QualityLevel, const bool bValue);
+	FORCEINLINE void SetNeedShaderCompilation(const EMaterialQualityLevel::Type QualityLevel, const bool bValue, const bool bOnlyCompileDerivedMI);
 
 	/** returns the shader type used by this platform as set at construction time */
 	FORCEINLINE EShaderPlatform GetPlatformShaderType() const;
@@ -231,22 +245,26 @@ public:
 	/** returns a reference to the platform settings used for a specified material quality level; see the definition of FPlatformData inner structure */
 	FORCEINLINE FPlatformData& GetPlatformData(const EMaterialQualityLevel::Type QualityLevel);
 
+	/** returns a reference to the platform instance data used for a specified material quality level and instance index; see the definition of FInstanceData inner structure */
+	FORCEINLINE FInstanceData& GetInstanceData(const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex);
+
 	/** returns the shader name chosen in the shader viewer combo-box */
-	FText GetSelectedShaderViewComboText(EMaterialQualityLevel::Type QualityLevel) const;
+	FText GetSelectedShaderViewComboText(EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex) const;
 
 	/** callback function called when we change the content of the shader viewer combo-box, used to select a different shader to be displayed */
-	void OnShaderViewComboSelectionChanged(TSharedPtr<FMaterialShaderEntry> Item, EMaterialQualityLevel::Type QualityType);
+	void OnShaderViewComboSelectionChanged(TSharedPtr<FMaterialShaderEntry> Item, EMaterialQualityLevel::Type QualityType, const int32 InstanceIndex);
 
 	/** returns the actual shader source selected by the shaders viewer's combo-box */
-	FText GetShaderCode(const EMaterialQualityLevel::Type QualityType);
+	FText GetShaderCode(const EMaterialQualityLevel::Type QualityType, const int32 InstanceIndex);
 
 	/** call this whenever the analyzed material or material instance is changed */
-	void SetMaterial(UMaterial *InMaterial);
-	void SetMaterial(UMaterialInstance *InMaterialInstance);
+	void SetMaterial(UMaterial *InBaseMaterial, UMaterialInstance *InBaseMaterialInstance, const TArray<TObjectPtr<UMaterialInstance>>& InDerivedMaterialInstances);
 
 	/** main function used to update the state of this platform; will be called from FMaterialStats::Update() */
 	/** returns true if something changed for this the update call, false otherwise */
 	bool Update();
+
+	bool CachePendingShaders();
 };
 
 /** name alias used bellow in FMaterialStats */
@@ -275,8 +293,11 @@ class FMaterialStats : public FGCObject, public TSharedFromThis<FMaterialStats>
 	/** array of bools that flag a specific global material quality setting of the stats grid widget */
 	bool bArrStatsQualitySelector[EMaterialQualityLevel::Num] = { false };
 
-	/** name of the analyzed material */
-	FText MaterialName;
+	/** inspect all derived material instances also */
+	EMaterialStatsDerivedMIOption MaterialStatsDerivedMIOption = EMaterialStatsDerivedMIOption::CompileOnly;
+
+	/** names of the analyzed materials */
+	TArray<FString> MaterialNames;
 
 	/** the id of the stats grid widget tab */
 	static const FName StatsTabId;
@@ -303,12 +324,14 @@ class FMaterialStats : public FGCObject, public TSharedFromThis<FMaterialStats>
 	/** pointer to the material interface whose stats are analyzed */
 	class UMaterialInterface *MaterialInterface = nullptr;
 
-	/** grid warning messages ids */
-	static const int32 WarningNoQuality = 1;
-	static const int32 WarningNoPlatform = 2;
+	/** array of pointers to derived material instances whose stats are analyzed */
+	TArray<TObjectPtr<UMaterialInstance>> DerivedMaterialInstances;
 
-	int32 LastGenericWarning = 0;
-	TArray<EShaderPlatform> LastMissingCompilerWarnings;
+	/** grid warning messages */
+	TArray<FString> LastGridMessages;
+	double LastGridMessagesUpdate = 0.0;
+
+	bool bNeedsGridRefresh = false;
 
 private:
 	/** adds a specified platform in the grid widget for analysis; usually called from BuildShaderPlatformDB() */
@@ -319,11 +342,11 @@ private:
 	void BuildShaderPlatformDB();
 
 	/** this will spawn the window that will display the a specific set of shaders from the analyzed material */
-	TSharedRef<class SDockTab> SpawnTab_ShaderCode(const class FSpawnTabArgs& Args, const EShaderPlatform PlatformID, const EMaterialQualityLevel::Type QualityType);
+	TSharedRef<class SDockTab> SpawnTab_ShaderCode(const class FSpawnTabArgs& Args, const EShaderPlatform PlatformID, const EMaterialQualityLevel::Type QualityType, const int32 InstanceIndex);
 	TSharedRef<class SDockTab> SpawnTab_HLSLCode(const class FSpawnTabArgs& Args);
 
 	/** utility function used to build names for the shader viewing tabs  */
-	static FName MakeTabName(const EPlatformCategoryType PlatformType, const EShaderPlatform ShaderPlatformType, const EMaterialQualityLevel::Type QualityLevel);
+	static FName MakeTabName(const EPlatformCategoryType PlatformType, const EShaderPlatform ShaderPlatformType, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex);
 
 	/** functions responsible for construction and spawning of the window that will display the stats grid widget */
 	void BuildStatsTab();
@@ -379,7 +402,7 @@ public:
 	static FORCEINLINE FName GetGridOldStatsTabName();
 
 	/** returns the material name we're analyzing */
-	FORCEINLINE FText GetMaterialName() const;
+	FORCEINLINE FString GetMaterialName(const int32 InstanceIndex) const;
 
 	/** returns a pointer to the material stats grid widget */
 	FORCEINLINE TSharedPtr<class SMaterialEditorStatsWidget> GetGridStatsWidget();
@@ -397,12 +420,15 @@ public:
 	void SetStatusQualityFlag(const EMaterialQualityLevel::Type Quality, const bool bValue);
 	FORCEINLINE bool GetStatsQualityFlag(const EMaterialQualityLevel::Type Quality);
 
+	void SetMaterialStatsDerivedMIOption(const EMaterialStatsDerivedMIOption value);
+	FORCEINLINE EMaterialStatsDerivedMIOption GetMaterialStatsDerivedMIOption() const;
+	FORCEINLINE bool GetProvideDerivedMIFlag() const;
+
 	/** switches on or off the presence of a specified shader platform inside the stats grid widget for this material */
 	bool SwitchShaderPlatformUseStats(const EShaderPlatform PlatformID);
 
 	/** Sets the name of the material that will be displayed in the stats grid widget */
-	template <typename TString>
-	void SetMaterialDisplayName(TString&& Name);
+	void SetMaterialsDisplayNames(const TArray<FString>& Names);
 
 	/** returns a platform name given at its construction time */
 	FName GetPlatformName(const EShaderPlatform InEnumValue) const;
@@ -415,7 +441,7 @@ public:
 	TSharedPtr<FShaderPlatformSettings> GetPlatformSettings(const FName PlatformName);
 
 	/** returns the shader code computed by the specified platform with some quality level */
-	FText GetShaderCode(const EShaderPlatform PlatformID, const EMaterialQualityLevel::Type QualityType);
+	FText GetShaderCode(const EShaderPlatform PlatformID, const EMaterialQualityLevel::Type QualityType, const int32 InstanceIndex);
 
 	/** call this whenever some material property is changed, as it will trigger shader recompilation */
 	void SignalMaterialChanged();
@@ -439,7 +465,7 @@ public:
 
 private:
 	/** this function will do the setup procedure and its called from FMaterialStatsUtils::CreateMaterialStats()  */
-	void Initialize(IMaterialEditor *MaterialEditor);
+	void Initialize(IMaterialEditor *MaterialEditor, const bool ShowMaterialInstancesMenu);
 public:
 	//end Setup Functions
 	///////////////////////////////////////////
@@ -449,13 +475,18 @@ public:
 	/** call this from chosen IMaterialEditor whenever an update to this analysis tool in appropriate */
 	void Update();
 
-	/** this will set the material to be analyzed by this class */
-	/** TMaterial should be UMaterial or UMaterialInstance */
-	template <typename TMaterial>
-	void SetMaterial(TMaterial& InMaterial);
+	/** call this to request caching required shaders regardless of cooldown */
+	void CacheAndCompilePendingShaders();
+
+	/** this will set the material or material instance to be analyzed by this class */
+	void SetMaterial(UMaterial *InMaterial, const TArray<TObjectPtr<UMaterialInstance>>& InDerivedMaterialInstances);
+	void SetMaterial(UMaterialInstance *InMaterialInstance);
 
 	// end Update Functions
 	///////////////////////////////////////////
+
+	/** returns true if any new compilation errors are discovered */
+	bool AnyNewCompilationErrors(const int32 StartingFromInstanceIndex = 0);
 };
 
 
@@ -492,15 +523,21 @@ FORCEINLINE bool FMaterialStats::IsShowingOldStats() const
 	return bShowOldStats;
 }
 
-template <typename TString>
-void FMaterialStats::SetMaterialDisplayName(TString&& Name)
+FORCEINLINE void FMaterialStats::SetMaterialsDisplayNames(const TArray<FString>& Names)
 {
-	MaterialName = FText::FromString(Forward<TString>(Name));
+	MaterialNames = Names;
 }
 
-FORCEINLINE FText FMaterialStats::GetMaterialName() const
+FORCEINLINE FString FMaterialStats::GetMaterialName(const int32 InstanceIndex) const
 {
-	return MaterialName;
+	if (InstanceIndex < MaterialNames.Num())
+	{
+		return MaterialNames[InstanceIndex];
+	}
+	else
+	{
+		return TEXT("");
+	}
 }
 
 FORCEINLINE FName FMaterialStats::GetGridStatsTabName()
@@ -519,27 +556,19 @@ FORCEINLINE bool FMaterialStats::GetStatsQualityFlag(const EMaterialQualityLevel
 	return bArrStatsQualitySelector[(int32)Quality];
 }
 
+FORCEINLINE EMaterialStatsDerivedMIOption FMaterialStats::GetMaterialStatsDerivedMIOption() const
+{
+	return MaterialStatsDerivedMIOption;
+}
+
+FORCEINLINE bool FMaterialStats::GetProvideDerivedMIFlag() const
+{
+	return MaterialStatsDerivedMIOption != EMaterialStatsDerivedMIOption::Ignore;
+}
+
 FORCEINLINE TSharedPtr<class SMaterialEditorStatsWidget> FMaterialStats::GetGridStatsWidget()
 {
 	return GridStatsWidget;
-}
-
-//TMaterial should be UMaterial or UMaterialInstance
-template <typename TMaterial>
-void FMaterialStats::SetMaterial(TMaterial& MaterialPtr)
-{
-	if (MaterialInterface != MaterialPtr)
-	{
-		MaterialInterface = MaterialPtr;
-		for (const auto& Entry : ShaderPlatformStatsDB)
-		{
-			auto& Platform = Entry.Value;
-			if (Platform.IsValid())
-			{
-				Platform->SetMaterial(MaterialPtr);
-			}
-		}
-	}
 }
 
 // end FMaterialStats implementation
@@ -590,10 +619,10 @@ FORCEINLINE TWeakPtr<class SDockTab> FShaderPlatformSettings::GetCodeViewerTab(c
 	return SomePlatformData.CodeViewerTab;
 }
 
-FORCEINLINE const TArray<TSharedPtr<FMaterialShaderEntry>> *FShaderPlatformSettings::GetShaderEntries(const EMaterialQualityLevel::Type QualityLevel)
+FORCEINLINE const TArray<TSharedPtr<FMaterialShaderEntry>> *FShaderPlatformSettings::GetShaderEntries(const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex)
 {
-	FPlatformData& SomePlatformData = GetPlatformData(QualityLevel);
-	return &SomePlatformData.ArrShaderEntries;
+	auto& InstanceData = GetInstanceData(QualityLevel, InstanceIndex);
+	return &InstanceData.ArrShaderEntries;
 }
 
 FORCEINLINE void FShaderPlatformSettings::SetExtractStatsFlag(const EMaterialQualityLevel::Type QualityType, const bool bValue)
@@ -639,10 +668,15 @@ FORCEINLINE void FShaderPlatformSettings::SetExtractStatsQualityLevel(const EMat
 	PlatformData[Quality].bExtractStats = bActive;
 }
 
-FORCEINLINE void FShaderPlatformSettings::SetNeedShaderCompilation(const EMaterialQualityLevel::Type QualityLevel, const bool bValue)
+FORCEINLINE void FShaderPlatformSettings::SetNeedShaderCompilation(const EMaterialQualityLevel::Type QualityLevel, const bool bValue, const bool bOnlyCompileDerivedMI)
 {
-	check(QualityLevel != EMaterialQualityLevel::Num);
-	PlatformData[QualityLevel].bNeedShaderRecompilation = bValue;
+	check(QualityLevel < EMaterialQualityLevel::Num);
+	for (int32 InstancesIndex = 0; InstancesIndex < PlatformData[QualityLevel].Instances.Num(); ++InstancesIndex)
+	{
+		auto& Instance = GetInstanceData(QualityLevel, InstancesIndex);
+		Instance.bNeedShaderRecompilation = bValue;
+		Instance.bOnlyCompileMostComplexShader = (InstancesIndex > 0) && bOnlyCompileDerivedMI;
+	}
 }
 
 FORCEINLINE EShaderPlatform FShaderPlatformSettings::GetPlatformShaderType() const
@@ -652,8 +686,15 @@ FORCEINLINE EShaderPlatform FShaderPlatformSettings::GetPlatformShaderType() con
 
 FORCEINLINE FShaderPlatformSettings::FPlatformData& FShaderPlatformSettings::GetPlatformData(const EMaterialQualityLevel::Type QualityLevel)
 {
-	check(QualityLevel != EMaterialQualityLevel::Num);
+	check(QualityLevel < EMaterialQualityLevel::Num);
 	return PlatformData[QualityLevel];
 }
+
+FORCEINLINE FShaderPlatformSettings::FInstanceData& FShaderPlatformSettings::GetInstanceData(const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex)
+{
+	check(QualityLevel < EMaterialQualityLevel::Num);
+	return PlatformData[QualityLevel].Instances[InstanceIndex];
+}
+
 // end FShaderPlatformSettings implementation
 //////////////////////////////////////////////////////////////////////////////////////////////////

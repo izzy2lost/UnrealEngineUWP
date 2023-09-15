@@ -414,8 +414,8 @@ void FMaterialInstanceEditor::InitMaterialInstanceEditor( const EToolkitMode::Ty
 	MaterialEditorInstance->SetSourceInstance(InstanceConstant);
 	MaterialEditorInstance->SetSourceFunction(MaterialFunctionOriginal);
 
-	MaterialStatsManager = FMaterialStatsUtils::CreateMaterialStats(this);
-	MaterialStatsManager->SetMaterialDisplayName(MaterialEditorInstance->SourceInstance->GetName());
+	MaterialStatsManager = FMaterialStatsUtils::CreateMaterialStats(this, false);
+	MaterialStatsManager->SetMaterialsDisplayNames({MaterialEditorInstance->SourceInstance->GetName()});
 
 	// Register our commands. This will only register them if not previously registered
 	FMaterialEditorCommands::Register();

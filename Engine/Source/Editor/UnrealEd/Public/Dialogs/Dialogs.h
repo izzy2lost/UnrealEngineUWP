@@ -99,6 +99,9 @@ public:
 		/** If true the suppress checkbox defaults to true*/
 		bool bDefaultToSuppressInTheFuture;
 
+		/** If true suppression will not persist for future editor sessions */
+		bool bDontPersistSuppressionAcrossSessions;
+
 		/** Text used on the button which will return FSuppressableWarningDialog::Confirm */
 		FText ConfirmText;
 
@@ -125,6 +128,7 @@ public:
 			, IniSettingName(InIniSettingName)
 			, IniSettingFileName(InIniSettingFileName)
 			, bDefaultToSuppressInTheFuture(false)
+			, bDontPersistSuppressionAcrossSessions(false)
 			, ConfirmText()
 			, CancelText()
 			, CheckBoxText(NSLOCTEXT("ModalDialogs", "DefaultCheckBoxMessage", "Don't show this again"))
@@ -168,6 +172,11 @@ private:
 	/** Cached pointer to the message box held within the window */
 	TSharedPtr<class SModalDialogWithCheckbox> MessageBox;
 
+	/** If true suppression will not persist for future editor sessions */
+	bool bDontPersistSuppressionAcrossSessions;
+
+	/** Set of session only suppressions */
+	static TSet<FString> SuppressedInTheSession;
 };
 
 

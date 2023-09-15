@@ -815,6 +815,13 @@ private:
 	TAttribute<FText> MyCheckboxMessage;
 };
 
+TSet<FString> FSuppressableWarningDialog::SuppressedInTheSession = {};
+
+FString SuppressableWarningDialogGetSessionKey(const FString& IniSettingName, const FString& IniSettingFileName)
+{
+	return IniSettingFileName + TEXT("_") + IniSettingName;
+}
+
 FSuppressableWarningDialog::FSuppressableWarningDialog(const FSetupInfo& Info)
 {
 	// Ensure proper usage of the suppression warning.
@@ -828,8 +835,16 @@ FSuppressableWarningDialog::FSuppressableWarningDialog(const FSetupInfo& Info)
 	IniSettingName = Info.IniSettingName;
 	IniSettingFileName = Info.IniSettingFileName;
 	Prompt = Info.Message;
+	bDontPersistSuppressionAcrossSessions = Info.bDontPersistSuppressionAcrossSessions;
 
-	GConfig->GetBool( *ConfigSection, *IniSettingName, bShouldSuppressDialog, IniSettingFileName );
+	if (bDontPersistSuppressionAcrossSessions)
+	{
+		bShouldSuppressDialog = SuppressedInTheSession.Contains(SuppressableWarningDialogGetSessionKey(IniSettingName, IniSettingFileName));
+	}
+	else
+	{
+		GConfig->GetBool( *ConfigSection, *IniSettingName, bShouldSuppressDialog, IniSettingFileName );
+	}
 	
 	if (!bShouldSuppressDialog && FSlateApplication::IsInitialized())
 	{
@@ -862,7 +877,14 @@ FSuppressableWarningDialog::EResult FSuppressableWarningDialog::ShowModal() cons
 	bool bShouldSuppressDialog = false;
 
 	// Get the setting from the config file.
-	GConfig->GetBool( *ConfigSection, *IniSettingName, bShouldSuppressDialog, IniSettingFileName );
+	if (bDontPersistSuppressionAcrossSessions)
+	{
+		bShouldSuppressDialog = SuppressedInTheSession.Contains(SuppressableWarningDialogGetSessionKey(IniSettingName, IniSettingFileName));
+	}
+	else
+	{
+		GConfig->GetBool( *ConfigSection, *IniSettingName, bShouldSuppressDialog, IniSettingFileName );
+	}
 
 	EResult RetCode = Suppressed;
 	if( !bShouldSuppressDialog )
@@ -874,7 +896,17 @@ FSuppressableWarningDialog::EResult FSuppressableWarningDialog::ShowModal() cons
 		{
 			// Set the ini variable to the state of the disable check box
 			bShouldSuppressDialog = MessageBox->GetCheckBoxState();
-			GConfig->SetBool( *ConfigSection, *IniSettingName, bShouldSuppressDialog, IniSettingFileName );
+			if (bDontPersistSuppressionAcrossSessions)
+			{
+				if (bShouldSuppressDialog)
+				{
+					SuppressedInTheSession.Add(SuppressableWarningDialogGetSessionKey(IniSettingName, IniSettingFileName));
+				}
+			}
+			else
+			{
+				GConfig->SetBool( *ConfigSection, *IniSettingName, bShouldSuppressDialog, IniSettingFileName );
+			}
 		}
 	}
 	else

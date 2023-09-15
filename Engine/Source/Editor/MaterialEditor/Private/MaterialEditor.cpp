@@ -161,6 +161,7 @@
 #include "SMaterialParametersOverviewWidget.h"
 #include "SMaterialEditorCustomPrimitiveDataWidget.h"
 #include "IPropertyRowGenerator.h"
+#include "LandscapeMaterialInstanceConstant.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "UObject/TextProperty.h"
 #include "Subsystems/AssetEditorSubsystem.h"
@@ -181,6 +182,11 @@ static TAutoConsoleVariable<int32> CVarMaterialEdUseDevShaders(
 	1,
 	TEXT("Toggles whether the material editor will use shaders that include extra overhead incurred by the editor. Material editor must be re-opened if changed at runtime."),
 	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarMaterialEdMaxDerivedMaterialInstances(
+	TEXT("r.MaterialEditor.MaxDerivedMaterialInstances"),
+	-1,
+	TEXT("Limits amount of derived material instance shown in platform stats. Use negative number to disable the limit. Material editor must be re-opened if changed at runtime."));
 
 ///////////////////////////
 // FMatExpressionPreview //
@@ -550,8 +556,8 @@ void FMaterialEditor::InitMaterialEditor( const EToolkitMode::Type Mode, const T
 
 	GEditor->RegisterForUndo(this);
 
-	MaterialStatsManager = FMaterialStatsUtils::CreateMaterialStats(this);
-	MaterialStatsManager->SetMaterialDisplayName(OriginalMaterial->GetName());
+	MaterialStatsManager = FMaterialStatsUtils::CreateMaterialStats(this, true);
+	MaterialStatsManager->SetMaterialsDisplayNames({OriginalMaterial->GetName()});
 	MaterialStatsManager->GetOldStatsListing()->OnMessageTokenClicked().AddSP(this, &FMaterialEditor::OnMessageLogLinkActivated);
 
 	if (!Material->MaterialGraph)
@@ -1949,6 +1955,15 @@ void FMaterialEditor::GenerateInheritanceMenu(UToolMenu* Menu)
 	}
 }
 
+void FMaterialEditor::RefreshStatsMaterials()
+{
+	// unconditionally recreate as settings might have changed
+	CreateDerivedMaterialInstancesPreviews();
+
+	MaterialStatsManager->SetMaterial(bStatsFromPreviewMaterial ? Material : OriginalMaterial, bStatsFromPreviewMaterial ? DerivedMaterialInstances : OriginalDerivedMaterialInstances);
+	MaterialStatsManager->SignalMaterialChanged();
+}
+
 void FMaterialEditor::GeneratePreviewMenuContent(UToolMenu* Menu)
 {
 	Menu->bShouldCloseWindowAfterMenuSelection = true;
@@ -2569,17 +2584,26 @@ void FMaterialEditor::UpdatePreviewMaterial( bool bForce )
 		// Null out the expression preview material so they can be GC'ed
 		ExpressionPreviewMaterial = NULL;
 	}
-	MaterialStatsManager->SetMaterial(bStatsFromPreviewMaterial ? Material : OriginalMaterial);
+
+	if (DerivedMaterialInstances.IsEmpty())
+	{
+		CreateDerivedMaterialInstancesPreviews();
+	}
+
+	MaterialStatsManager->SetMaterial(bStatsFromPreviewMaterial ? Material : OriginalMaterial, bStatsFromPreviewMaterial ? DerivedMaterialInstances : OriginalDerivedMaterialInstances);
 	MaterialStatsManager->SignalMaterialChanged();
 
 	// Reregister all components that use the preview material, since UMaterial::PEC does not reregister components using a bIsPreviewMaterial=true material
 	RefreshPreviewViewport();
 }
 
-
-
 bool FMaterialEditor::UpdateOriginalMaterial()
 {
+	if (MaterialStatsManager->GetProvideDerivedMIFlag())
+	{
+		MaterialStatsManager->CacheAndCompilePendingShaders();
+	}
+
 	// If the Material has compilation errors, warn the user
 	for (int32 i = ERHIFeatureLevel::Num - 1; i >= 0; --i)
 	{
@@ -2596,6 +2620,7 @@ bool FMaterialEditor::UpdateOriginalMaterial()
 					FText::Format(NSLOCTEXT("UnrealEd", "Error_CompileErrorsInDefaultMaterial", "The current material has compilation errors for feature level {0}.\nThis material is a Default Material which must be available as a code fallback at all times, compilation errors are not allowed."), FText::FromString(*FeatureLevelName)),
 					NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInDefaultMaterial_Title", "Error: Compilation errors in Default Material"), "Error_CompileErrorsInDefaultMaterial");
 				Info.ConfirmText = NSLOCTEXT("ModalDialogs", "CompileErrorsInDefaultMaterialOk", "Ok");
+				Info.bDontPersistSuppressionAcrossSessions = true;
 
 				FSuppressableWarningDialog CompileErrors(Info);
 				CompileErrors.ShowModal();
@@ -2603,16 +2628,55 @@ bool FMaterialEditor::UpdateOriginalMaterial()
 			}
 			else
 			{
-			FSuppressableWarningDialog::FSetupInfo Info(
-				FText::Format(NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInMaterial", "The current material has compilation errors, so it will not render correctly in feature level {0}.\nAre you sure you wish to continue?"),FText::FromString(*FeatureLevelName)),
-				NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInMaterial_Title", "Warning: Compilation errors in this Material" ), "Warning_CompileErrorsInMaterial");
-			Info.ConfirmText = NSLOCTEXT("ModalDialogs", "CompileErrorsInMaterialConfirm", "Continue");
-			Info.CancelText = NSLOCTEXT("ModalDialogs", "CompileErrorsInMaterialCancel", "Abort");
+				FSuppressableWarningDialog::FSetupInfo Info(
+					FText::Format(NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInMaterial", "The current material has compilation errors, so it will not render correctly in feature level {0}.\nAre you sure you wish to continue?"),FText::FromString(*FeatureLevelName)),
+					NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInMaterial_Title", "Warning: Compilation errors in this Material" ), "Warning_CompileErrorsInMaterial");
+				Info.ConfirmText = NSLOCTEXT("ModalDialogs", "CompileErrorsInMaterialConfirm", "Continue");
+				Info.CancelText = NSLOCTEXT("ModalDialogs", "CompileErrorsInMaterialCancel", "Abort");
+				Info.bDontPersistSuppressionAcrossSessions = true;
 
-			FSuppressableWarningDialog CompileErrorsWarning( Info );
-			if( CompileErrorsWarning.ShowModal() == FSuppressableWarningDialog::Cancel )
-			{
+				FSuppressableWarningDialog CompileErrorsWarning( Info );
+				if( CompileErrorsWarning.ShowModal() == FSuppressableWarningDialog::Cancel )
+				{
 					return false;
+				}
+			}
+		}
+	}
+
+	// If derived material instances have compilation errors, warn the user
+	const auto& PlatformList = MaterialStatsManager->GetPlatformsDB();
+	for (const auto& Pair : PlatformList)
+	{
+		const auto& PlatformPtr = Pair.Value;
+		if (PlatformPtr->IsPresentInGrid())
+		{
+			for (int32 QualityLevel = 0; QualityLevel < EMaterialQualityLevel::Num; ++QualityLevel)
+			{
+				const auto& PlatformData = PlatformPtr->GetPlatformData((EMaterialQualityLevel::Type)QualityLevel);
+				// base material is covered by previous check
+				for (int32 InstanceIndex = 1; InstanceIndex < PlatformData.Instances.Num(); ++InstanceIndex)
+				{
+					const FMaterialResource* CurrentResource = PlatformData.Instances[InstanceIndex].MaterialResourcesStats;
+					if (CurrentResource && CurrentResource->GetCompileErrors().Num() > 0)
+					{
+						const auto& PlatformName = MaterialStatsManager->GetPlatformName(Pair.Key);
+						const auto& AssetName = MaterialStatsManager->GetMaterialName(InstanceIndex);
+						const FString QualityName = FMaterialStatsUtils::MaterialQualityToShortString((EMaterialQualityLevel::Type)QualityLevel);
+
+						FSuppressableWarningDialog::FSetupInfo Info(
+						FText::Format(NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInMaterial", "The current material has compilation errors in derived material instance {0} for platform {1} at quality level {2}, so it will not render correctly.\nAre you sure you wish to continue?"),FText::FromString(*AssetName),FText::FromName(PlatformName),FText::FromString(QualityName)),
+						NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInMaterial_Title", "Warning: Compilation errors in this Material" ), "Warning_CompileErrorsInMaterial");
+						Info.ConfirmText = NSLOCTEXT("ModalDialogs", "CompileErrorsInMaterialConfirm", "Continue");
+						Info.CancelText = NSLOCTEXT("ModalDialogs", "CompileErrorsInMaterialCancel", "Abort");
+						Info.bDontPersistSuppressionAcrossSessions = true;
+
+						FSuppressableWarningDialog CompileErrorsWarning( Info );
+						if( CompileErrorsWarning.ShowModal() == FSuppressableWarningDialog::Cancel )
+						{
+							return false;
+						}
+					}
 				}
 			}
 		}
@@ -3202,9 +3266,24 @@ void FMaterialEditor::UpdateMaterialInfoList()
 		}
 	}
 
+	if (DerivedMaterialInstances.IsEmpty())
+	{
+		CreateDerivedMaterialInstancesPreviews();
+	}
+
 	// extract material stats
-	MaterialStatsManager->SetMaterial(MaterialForStats);
+	MaterialStatsManager->SetMaterial(MaterialForStats, bStatsFromPreviewMaterial ? DerivedMaterialInstances : OriginalDerivedMaterialInstances);
 	MaterialStatsManager->Update();
+
+	// check if any derived instances fail, if so show the window
+	if (MaterialStatsManager->AnyNewCompilationErrors(1))
+	{
+		// but then check if base material is compiling, if not, keep the old stats popup not to break UX flow until we merge old and new stats together
+		if (!MaterialStatsManager->AnyNewCompilationErrors(0))
+		{
+			TabManager->TryInvokeTab(MaterialStatsManager->GetGridStatsTabName());
+		}
+	}
 }
 
 void FMaterialEditor::UpdateGraphNodeStates()
@@ -3311,6 +3390,10 @@ void FMaterialEditor::AddReferencedObjects( FReferenceCollector& Collector )
 {
 	Collector.AddReferencedObject(EditorOptions);
 	Collector.AddReferencedObject(Material);
+	for (auto& DerivedMaterialInstance: DerivedMaterialInstances)
+	{
+		Collector.AddReferencedObject(DerivedMaterialInstance);
+	}
 	Collector.AddReferencedObject(OriginalMaterial);
 	Collector.AddReferencedObject(MaterialFunction);
 	Collector.AddReferencedObject(ExpressionPreviewMaterial);
@@ -6107,6 +6190,119 @@ void FMaterialEditor::UpdateSubstrateTopologyPreview()
 			}
 		}
 	}
+}
+
+void FMaterialEditor::CreateDerivedMaterialInstancesPreviews()
+{
+	DerivedMaterialInstances.Empty();
+	OriginalDerivedMaterialInstances.Empty();
+
+	TArray<FString> DisplayNames;
+	DisplayNames.Push(OriginalMaterial->GetName());
+
+	if (MaterialStatsManager->GetProvideDerivedMIFlag())
+	{
+		const int32 MaxCount = CVarMaterialEdMaxDerivedMaterialInstances.GetValueOnGameThread();
+		// TODO consider a mode where we load all MaterialChildList also
+
+		for (TObjectIterator<UMaterialInstance> It; It; ++It)
+		{
+			UMaterialInstance* Instance = *It;
+			if (!Instance->HasStaticParameters())
+			{
+				continue;
+			}
+
+			FMaterialInheritanceChain Chain;
+			Instance->GetMaterialInheritanceChain(Chain);
+			if (Chain.GetBaseMaterial() != OriginalMaterial)
+			{
+				continue;
+			}
+
+			if (Instance->IsEditorOnly())
+			{
+				continue;
+			}
+
+			bool bSkip = false;
+			for (int32 i = 1; i < Chain.MaterialInstances.Num(); ++i)
+			{
+				auto NestedMaterialInstance = Chain.MaterialInstances[i];
+				if (NestedMaterialInstance->HasStaticParameters())
+				{
+					bSkip = true;
+				}
+			}
+
+			if (bSkip)
+			{
+				UE_LOG(LogMaterialEditor, Display, TEXT("Skipping material instance '%s' with static parameters due to depending on other material instances with static parameters"), *Instance->GetName());
+				continue;
+			}
+
+			const UMaterial* InstanceBaseMaterial = Instance->GetBaseMaterial();
+			const FStaticParameterSet& InstanceStaticParameters = Instance->GetStaticParameters();
+			for(int32_t i = 0; i < OriginalDerivedMaterialInstances.Num(); ++i)
+			{
+				auto ExistingInstance = OriginalDerivedMaterialInstances[i];
+				if (ExistingInstance->GetStaticParameters().Equivalent(InstanceStaticParameters))
+				{
+					bSkip = true;
+				}
+			}
+
+			if (bSkip)
+			{
+				UE_LOG(LogMaterialEditor, Display, TEXT("Skipping material instance '%s' because instance with same static parameters and base material is already present"), *Instance->GetName());
+				continue;
+			}
+
+			const bool bIsLandscapeMaterial = Instance->IsA<ULandscapeMaterialInstanceConstant>();
+
+			FString DisplayName;
+			if (bIsLandscapeMaterial)
+			{
+				const auto LandscapeMaterial = Cast<ULandscapeMaterialInstanceConstant>(Instance);
+				if (LandscapeMaterial->bEditorToolUsage)
+				{
+					UE_LOG(LogMaterialEditor, Display, TEXT("Skipping material instance '%s' because it's used by landscape editor"), *Instance->GetName());
+					continue;
+				}
+
+				// Provide a special name for landscape MIC's to improve UX, so user will be able to tell which combination is not compiling.
+				FString BaseMaterialName = Instance->Parent ? Instance->Parent->GetName() : Instance->GetName();
+				FString LayerNames = FString::JoinBy(LandscapeMaterial->GetEditorOnlyStaticParameters().TerrainLayerWeightParameters,
+					TEXT(","),
+					[](const FStaticTerrainLayerWeightParameter& x) -> FString { return x.LayerName.ToString(); });
+
+				DisplayName = FString::Format(TEXT("{0}({1})"), {*BaseMaterialName, *LayerNames});
+			}
+			else
+			{
+				DisplayName = Instance->GetName();
+			}
+
+			UMaterialInstance* DerivedInstance = Cast<UMaterialInstance>(StaticDuplicateObject(Instance, GetTransientPackage(), NAME_None, ~RF_Standalone, Instance->GetClass()));
+
+			// Beware that this potentially ruins inheritance chain:
+			// - Let's say we have Base material <- Material instance 1 with no static params <- Material instance 2 with static params
+			// - Material instance 1 doesn't influence shader compilation
+			// - So it's safe to change inheritance to Base material <- Material instance 2 with static params
+			DerivedInstance->Parent = Material;
+
+			DerivedMaterialInstances.Add(DerivedInstance);
+			OriginalDerivedMaterialInstances.Add(Instance);
+			DisplayNames.Push(DisplayName);
+
+			if (MaxCount >= 0 && OriginalDerivedMaterialInstances.Num() >= MaxCount)
+			{
+				break;
+			}
+		}
+	}
+
+	MaterialStatsManager->SetMaterialsDisplayNames(DisplayNames);
 }
 
 void FMaterialEditor::UpdateMaterialAfterGraphChange()

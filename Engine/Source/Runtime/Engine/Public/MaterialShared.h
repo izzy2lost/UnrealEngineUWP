@@ -2025,6 +2025,11 @@ public:
 	 */
 	ENGINE_API void FinishCompilation();
 
+	/** 
+	 * Blocks until compilation has completed. Returns immediately if a compilation is not outstanding.
+	 */
+	ENGINE_API static void FinishCompilation(const TCHAR* MaterialName, const TArray<FMaterial*>& MaterialsToCompile);
+
 	/**
 	 * Checks if the compilation for this shader is finished
 	 * 
@@ -2327,7 +2332,7 @@ protected:
 	/**
 	* Fills the passed array with IDs of shader maps unfinished compilation jobs.
 	*/
-	void GetShaderMapIDsWithUnfinishedCompilation(TArray<int32>& ShaderMapIds);
+	void AddShaderMapIDsWithUnfinishedCompilation(TArray<int32>& ShaderMapIds);
 
 	uint32 GetGameThreadCompilingShaderMapId() const { return GameThreadCompilingShaderMapId; }
 
