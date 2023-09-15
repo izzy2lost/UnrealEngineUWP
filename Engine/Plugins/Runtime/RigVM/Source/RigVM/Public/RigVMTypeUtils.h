@@ -61,6 +61,7 @@ namespace RigVMTypeUtils
 	const FString UInt8Type = TEXT("uint8");
 	const FString FNameType = TEXT("FName");
 	const FString FStringType = TEXT("FString");
+	const FString FTextType = TEXT("FText");
 	const FString BoolArrayType = TEXT("TArray<bool>");
 	const FString FloatArrayType = TEXT("TArray<float>");
 	const FString DoubleArrayType = TEXT("TArray<double>");
@@ -69,6 +70,7 @@ namespace RigVMTypeUtils
 	const FString UInt8ArrayType = TEXT("TArray<uint8>");
 	const FString FNameArrayType = TEXT("TArray<FName>");
 	const FString FStringArrayType = TEXT("TArray<FString>");
+	const FString FTextArrayType = TEXT("TArray<FText>");
 
 	const FName BoolTypeName = *BoolType;
 	const FName FloatTypeName = *FloatType;
@@ -78,6 +80,7 @@ namespace RigVMTypeUtils
 	const FName UInt8TypeName = *UInt8Type;
 	const FName FNameTypeName = *FNameType;
 	const FName FStringTypeName = *FStringType;
+	const FName FTextTypeName = *FTextType;
 	const FName BoolArrayTypeName = *BoolArrayType;
 	const FName FloatArrayTypeName = *FloatArrayType;
 	const FName DoubleArrayTypeName = *DoubleArrayType;

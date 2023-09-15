@@ -10,6 +10,7 @@
 #include "RigVMTypeIndex.h"
 #include "RigVMTypeUtils.h"
 #include "UObject/UnrealType.h"
+#include "UObject/TextProperty.h"
 #if WITH_EDITOR
 #include "EdGraphSchema_K2.h"
 #endif
@@ -70,6 +71,11 @@ struct RIGVM_API FRigVMExternalVariableDef
 			OutTypeName = TEXT("FName");
 			OutTypeObject = nullptr;
 		}
+		else if (CastField<FTextProperty>(InProperty))
+		{
+			OutTypeName = TEXT("FText");
+			OutTypeObject = nullptr;
+		}
 		else if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(InProperty))
 		{
 			OutTypeName = EnumProperty->GetEnum()->GetFName();
@@ -126,7 +132,10 @@ struct RIGVM_API FRigVMExternalVariableDef
 		}
 		else
 		{
-			checkNoEntry();
+			// this can happen due to unsupported property types
+			// within data assets or user defined structs
+			OutTypeName = NAME_None;
+			OutTypeObject = nullptr;
 		}
 	}
 
