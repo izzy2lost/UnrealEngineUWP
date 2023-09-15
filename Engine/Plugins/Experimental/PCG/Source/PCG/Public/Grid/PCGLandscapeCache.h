@@ -90,7 +90,7 @@ private:
 
 	// Internal usage methods
 	void SerializeToBulkData(EPCGLandscapeCacheSerializationContents SerializationContents);
-	void SerializeFromBulkData() const;
+	bool SerializeFromBulkData() const;
 
 	// Serialized data
 	TArray<FName> LayerDataNames;

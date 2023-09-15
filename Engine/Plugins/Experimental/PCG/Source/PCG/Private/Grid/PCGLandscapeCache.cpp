@@ -323,8 +323,7 @@ bool FPCGLandscapeCacheEntry::TouchAndLoad(int32 InTouch) const
 		FScopeLock ScopeDataLock(&DataLock);
 		if (!bDataLoaded)
 		{
-			SerializeFromBulkData();
-			return true;
+			return SerializeFromBulkData();
 		}
 	}
 
@@ -398,7 +397,7 @@ void FPCGLandscapeCacheEntry::SerializeToBulkData(EPCGLandscapeCacheSerializatio
 	BulkData.Unlock();
 }
 
-void FPCGLandscapeCacheEntry::SerializeFromBulkData() const
+bool FPCGLandscapeCacheEntry::SerializeFromBulkData() const
 {
 	check(!bDataLoaded);
 
@@ -406,6 +405,12 @@ void FPCGLandscapeCacheEntry::SerializeFromBulkData() const
 	uint8* Data = nullptr;
 	BulkData.GetCopy((void**)&Data);
 	int32 DataSize = BulkData.GetBulkDataSize();
+
+	if (!Data)
+	{
+		UE_LOG(LogPCG, Error, TEXT("Unable to load Landscape Cache Entry bulk data"));
+		return false;
+	}
 
 	FBufferReader Ar(Data, DataSize, /*bInFreeOnClose=*/true, /*bIsPersistent=*/true);
 
@@ -422,6 +427,7 @@ void FPCGLandscapeCacheEntry::SerializeFromBulkData() const
 	}
 
 	bDataLoaded = true;
+	return true;
 }
 
 void FPCGLandscapeCacheEntry::Serialize(FArchive& Archive, UObject* Owner, int32 Index, EPCGLandscapeCacheSerializationContents SerializeContents)
@@ -748,6 +754,10 @@ const FPCGLandscapeCacheEntry* UPCGLandscapeCache::GetCacheEntry(ULandscapeCompo
 			{
 				CacheMemorySize += CacheEntry->GetMemorySize();
 			}
+			else if(!CacheEntry->bDataLoaded)
+			{
+				CacheEntry = nullptr;
+			}
 		}
 	}
 
@@ -775,6 +785,10 @@ const FPCGLandscapeCacheEntry* UPCGLandscapeCache::GetCacheEntry(const FGuid& La
 		if (CacheEntry->TouchAndLoad(CacheTouch++))
 		{
 			CacheMemorySize += CacheEntry->GetMemorySize();
+		}
+		else if(!CacheEntry->bDataLoaded)
+		{
+			CacheEntry = nullptr;
 		}
 	}
 
