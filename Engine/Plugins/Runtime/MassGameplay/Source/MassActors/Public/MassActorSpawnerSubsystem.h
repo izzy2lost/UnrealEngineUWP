@@ -108,7 +108,7 @@ public:
 /**
  * A subsystem managing spawning of actors for all mass subsystems
  */
-UCLASS()
+UCLASS(transient)
 class MASSACTORS_API UMassActorSpawnerSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
@@ -190,6 +190,11 @@ public:
 	void ReleaseAllResources();
 
 protected:
+	/** 
+	 * Provides consistent way of conditional destroying Actor within World. The actual destruction depends on Actor's state
+	 * and whether it belongs to World
+	 */
+	static void ConditionalDestroyActor(UWorld& World, AActor& ActorToDestroy);
 
 	/** Called at the start of the PrePhysics mass processing phase and calls ProcessPendingSpawningRequest */ 
 	void OnPrePhysicsPhaseStarted(const float DeltaSeconds);
