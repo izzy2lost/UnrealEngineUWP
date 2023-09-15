@@ -70,7 +70,7 @@ int16 UMassRepresentationSubsystem::FindOrAddTemplateActor(const TSubclassOf<AAc
 }
 
 AActor* UMassRepresentationSubsystem::GetOrSpawnActorFromTemplate(const FMassEntityHandle MassAgent, const FTransform& Transform
-	, const int16 TemplateActorIndex, FMassActorSpawnRequestHandle& SpawnRequestHandle, float Priority
+	, const int16 TemplateActorIndex, FMassActorSpawnRequestHandle& InOutSpawnRequestHandle, float Priority
 	, FMassActorPreSpawnDelegate ActorPreSpawnDelegate, FMassActorPostSpawnDelegate ActorPostSpawnDelegate)
 {
 	UE_MT_SCOPED_READ_ACCESS(TemplateActorsMTAccessDetector);
@@ -84,9 +84,9 @@ AActor* UMassRepresentationSubsystem::GetOrSpawnActorFromTemplate(const FMassEnt
 	check(ActorSpawnerSubsystem);
 	const TSubclassOf<AActor> TemplateToSpawn = TemplateActors[TemplateActorIndex];
 
-	if (SpawnRequestHandle.IsValid())
+	if (InOutSpawnRequestHandle.IsValid())
 	{
-		FMassActorSpawnRequest& SpawnRequest = ActorSpawnerSubsystem->GetMutableSpawnRequest<FMassActorSpawnRequest>(SpawnRequestHandle);
+		FMassActorSpawnRequest& SpawnRequest = ActorSpawnerSubsystem->GetMutableSpawnRequest<FMassActorSpawnRequest>(InOutSpawnRequestHandle);
 		// Check if this existing spawn request is matching the template actor
 		if (SpawnRequest.Template != TemplateToSpawn)
 		{
@@ -114,7 +114,7 @@ AActor* UMassRepresentationSubsystem::GetOrSpawnActorFromTemplate(const FMassEnt
 					// Update spawn request with latest information and retry
 					SpawnRequest.Transform = Transform;
 					SpawnRequest.Priority = Priority;
-					ActorSpawnerSubsystem->RetryActorSpawnRequest(SpawnRequestHandle);
+					ActorSpawnerSubsystem->RetryActorSpawnRequest(InOutSpawnRequestHandle);
 				}
 				return nullptr;
 			}
@@ -122,12 +122,12 @@ AActor* UMassRepresentationSubsystem::GetOrSpawnActorFromTemplate(const FMassEnt
 			{
 				AActor* SpawnedActor = SpawnRequest.SpawnedActor;
 				check(SpawnedActor);
-				ensureMsgf(ActorSpawnerSubsystem->RemoveActorSpawnRequest(SpawnRequestHandle), TEXT("Unable to remove a valid spawn request"));
+				ensureMsgf(ActorSpawnerSubsystem->RemoveActorSpawnRequest(InOutSpawnRequestHandle), TEXT("Unable to remove a valid spawn request"));
 				return SpawnedActor;
 			}
 			default:
 				checkf(false, TEXT("Unexpected spawn request status!"));
-				SpawnRequestHandle.Invalidate();
+				InOutSpawnRequestHandle.Invalidate();
 				return nullptr;
 		}
 	}
@@ -140,7 +140,7 @@ AActor* UMassRepresentationSubsystem::GetOrSpawnActorFromTemplate(const FMassEnt
 	SpawnRequest.Priority = Priority;
 	SpawnRequest.ActorPreSpawnDelegate = ActorPreSpawnDelegate;
 	SpawnRequest.ActorPostSpawnDelegate = ActorPostSpawnDelegate;
-	SpawnRequestHandle = ActorSpawnerSubsystem->RequestActorSpawn(SpawnRequest);
+	InOutSpawnRequestHandle = ActorSpawnerSubsystem->RequestActorSpawn(SpawnRequest);
 
 	++(HandledMassAgents.FindOrAdd(MassAgent));
 

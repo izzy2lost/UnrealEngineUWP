@@ -14,10 +14,10 @@ float UMassRepresentationActorManagement::GetSpawnPriority(const FMassRepresenta
 }
 
 AActor* UMassRepresentationActorManagement::GetOrSpawnActor(UMassRepresentationSubsystem& RepresentationSubsystem, FMassEntityManager& EntityManager
-	, const FMassEntityHandle MassAgent, FMassActorFragment& ActorInfo, const FTransform& Transform, const int16 TemplateActorIndex
-	, FMassActorSpawnRequestHandle& SpawnRequestHandle, const float Priority) const
+	, const FMassEntityHandle MassAgent, const FTransform& Transform, const int16 TemplateActorIndex
+	, FMassActorSpawnRequestHandle& InOutSpawnRequestHandle, const float Priority) const
 {
-	return RepresentationSubsystem.GetOrSpawnActorFromTemplate(MassAgent, Transform, TemplateActorIndex, SpawnRequestHandle, Priority,
+	return RepresentationSubsystem.GetOrSpawnActorFromTemplate(MassAgent, Transform, TemplateActorIndex, InOutSpawnRequestHandle, Priority,
 		FMassActorPreSpawnDelegate::CreateUObject(this, &UMassRepresentationActorManagement::OnPreActorSpawn, &EntityManager),
 		FMassActorPostSpawnDelegate::CreateUObject(this, &UMassRepresentationActorManagement::OnPostActorSpawn, &EntityManager));
 }
@@ -136,4 +136,13 @@ void UMassRepresentationActorManagement::ReleaseAnyActorOrCancelAnySpawning(UMas
 		RepresentationSubsystem.ReleaseTemplateActorOrCancelSpawning(MassAgent, Representation.LowResTemplateActorIndex, Actor, Representation.ActorSpawnRequestHandle);
 	}
 	check(!Representation.ActorSpawnRequestHandle.IsValid());
+}
+
+AActor* UMassRepresentationActorManagement::GetOrSpawnActor(UMassRepresentationSubsystem& RepresentationSubsystem, FMassEntityManager& EntityManager
+	, const FMassEntityHandle MassAgent, FMassActorFragment&/* OutActorInfo*/, const FTransform& Transform, const int16 TemplateActorIndex
+	, FMassActorSpawnRequestHandle& InOutSpawnRequestHandle, const float Priority) const
+{
+	return GetOrSpawnActor(RepresentationSubsystem, EntityManager
+		, MassAgent, Transform, TemplateActorIndex
+		, InOutSpawnRequestHandle, Priority);
 }

@@ -42,8 +42,8 @@ public:
 	 * @return the actor spawned
 	 */
 	virtual AActor* GetOrSpawnActor(UMassRepresentationSubsystem& RepresentationSubsystem, FMassEntityManager& EntitySubsystem
-		, const FMassEntityHandle MassAgent, FMassActorFragment& ActorInfo, const FTransform& Transform, const int16 TemplateActorIndex
-		, FMassActorSpawnRequestHandle& SpawnRequestHandle, const float Priority) const;
+		, const FMassEntityHandle MassAgent, const FTransform& Transform, const int16 TemplateActorIndex
+		, FMassActorSpawnRequestHandle& InOutSpawnRequestHandle, const float Priority) const;
 
 	/**
 	 * Enable/disable a spawned actor for a mass entity
@@ -101,4 +101,9 @@ public:
 	 * @param Representation fragment containing the current and previous visual state
 	 */
 	static void ReleaseAnyActorOrCancelAnySpawning(UMassRepresentationSubsystem& RepresentationSubsystem, const FMassEntityHandle MassAgent, FMassActorFragment& ActorInfo, FMassRepresentationFragment& Representation);
+
+	UE_DEPRECATED(5.4, "This flavor of GetOrSpawnActor has been deprecated due to a defunct parameter, OutActorInfo, that was never being used.")
+	virtual AActor* GetOrSpawnActor(UMassRepresentationSubsystem& RepresentationSubsystem, FMassEntityManager& EntitySubsystem
+		, const FMassEntityHandle MassAgent, FMassActorFragment&/* OutActorInfo*/, const FTransform& Transform, const int16 TemplateActorIndex
+		, FMassActorSpawnRequestHandle& InOutSpawnRequestHandle, const float Priority) const final;
 };

@@ -65,7 +65,7 @@ void UMassCrowdRepresentationActorManagement::SetActorEnabled(const EMassActorEn
 }
 
 AActor* UMassCrowdRepresentationActorManagement::GetOrSpawnActor(UMassRepresentationSubsystem& RepresentationSubsystem
-	, FMassEntityManager& EntityManager, const FMassEntityHandle MassAgent, FMassActorFragment& ActorInfo, const FTransform& Transform
+	, FMassEntityManager& EntityManager, const FMassEntityHandle MassAgent, const FTransform& Transform
 	, const int16 TemplateActorIndex, FMassActorSpawnRequestHandle& SpawnRequestHandle, const float Priority) const
 {
 	FTransform RootTransform = Transform;
@@ -78,7 +78,7 @@ AActor* UMassCrowdRepresentationActorManagement::GetOrSpawnActor(UMassRepresenta
 		}
 	}
 
-	return Super::GetOrSpawnActor(RepresentationSubsystem, EntityManager, MassAgent, ActorInfo, RootTransform, TemplateActorIndex, SpawnRequestHandle, Priority);
+	return Super::GetOrSpawnActor(RepresentationSubsystem, EntityManager, MassAgent, RootTransform, TemplateActorIndex, SpawnRequestHandle, Priority);
 }
 
 void UMassCrowdRepresentationActorManagement::TeleportActor(const FTransform& Transform, AActor& Actor, FMassCommandBuffer& CommandBuffer) const
