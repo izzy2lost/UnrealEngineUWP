@@ -672,6 +672,12 @@ int32 UGatherTextFromAssetsCommandlet::Main(const FString& Params)
 	const double FilteringAssetsByIncludeExcludePathsStartTime = FPlatformTime::Seconds();
 	AssetDataArray.RemoveAll([&](const FAssetData& PartiallyFilteredAssetData) -> bool
 	{
+		if (PartiallyFilteredAssetData.IsRedirector())
+		{
+			// Redirectors never have localization
+			return true;
+		}
+
 		FString PackageFilePathWithoutExtension;
 		if (!FPackageName::TryConvertLongPackageNameToFilename(PartiallyFilteredAssetData.PackageName.ToString(), PackageFilePathWithoutExtension))
 		{
