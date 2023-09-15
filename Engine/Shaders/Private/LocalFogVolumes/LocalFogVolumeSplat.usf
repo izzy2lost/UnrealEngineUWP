@@ -138,6 +138,12 @@ void LocalFogVolumeTiledVS(
 
 
 #if LFV_TILED_PS
+int LocalFogVolumeTileDebug;
+
+#if USE_DEVELOPMENT_SHADERS
+#include "../ColorMap.ush"
+#endif
+
 void LocalFogVolumeTiledPS(
 	in float4 SVPos : SV_POSITION,
 	in FLocalFogVolumeVertexOutput OtherVertexOutput,
@@ -183,13 +189,26 @@ void LocalFogVolumeTiledPS(
 		LuminanceColorTransmittance.rgb * PrimaryView.PreExposure,
 		LuminanceColorTransmittance.a);
 
-	if (all(DefaultColorTransmittance == OutColor))
+	bool bDoClip = true;
+#if USE_DEVELOPMENT_SHADERS
+	bDoClip = LocalFogVolumeTileDebug == 2;
+#endif
+
+	if (all(DefaultColorTransmittance == OutColor) && bDoClip)
 	{
 		clip(-1.0f);
 	}
 
-	// Debug
-	OutColor += float4(float(LFVCount) * 0.1 * PrimaryView.PreExposure, 0.0, 0.0, 0.0);
+#if USE_DEVELOPMENT_SHADERS
+	if (LocalFogVolumeTileDebug > 0)
+	{
+		float DebugTransmittance = 0.5;
+		float3 DebugColor = GetHSVDebugColor(float(LFVCount)  / 4.0f);
+		DebugColor = DebugColor * (1.0f - DebugTransmittance) * PrimaryView.PreExposure;
+
+		OutColor = float4(OutColor.rgb * DebugTransmittance + DebugColor, OutColor.a * DebugTransmittance);
+	}
+#endif
 }
 #endif // LFV_TILED_PS
 

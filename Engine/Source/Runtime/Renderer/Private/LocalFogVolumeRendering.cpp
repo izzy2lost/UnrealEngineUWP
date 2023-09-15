@@ -34,6 +34,11 @@ static TAutoConsoleVariable<int32> CVarLocalFogVolumeTileMaxInstanceCount(
 	TEXT("Maximum number of local fog volume to account for per view (and per tile or consistency).\n"),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarLocalFogVolumeTileDebug(
+	TEXT("r.LocalFogVolume.TileDebug"), 0,
+	TEXT("Debug the tiled rendering data complexity.\n"),
+	ECVF_RenderThreadSafe);
+
 // Example of tile setup
 //  - 1920x1080 => 15x9 tiles
 //  - Allowing max 32 volumes at once => culling list buffer = 15 * 9 * 32 * 1 byte = 4320 bytes = 4.3KB
@@ -471,6 +476,7 @@ class FLocalFogVolumeTiledRenderPS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
+		SHADER_PARAMETER(int32, LocalFogVolumeTileDebug)
 	END_SHADER_PARAMETER_STRUCT()
 
 	using FPermutationDomain = TShaderPermutationDomain<>;
@@ -539,6 +545,7 @@ void RenderLocalFogVolume(
 
 				PassParameters->PS.View = GetShaderBinding(View.ViewUniformBuffer);
 				PassParameters->PS.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
+				PassParameters->PS.LocalFogVolumeTileDebug = FMath::Clamp(CVarLocalFogVolumeTileDebug.GetValueOnRenderThread(), 0, 2);
 
 				PassParameters->SceneTextures = SceneTextures.UniformBuffer;
 				PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorTexture, ERenderTargetLoadAction::ENoAction);
