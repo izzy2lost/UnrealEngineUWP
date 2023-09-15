@@ -125,11 +125,8 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		/// <returns>Enumeration</returns>
 		public IEnumerable<UhtDefineScope> EnumerateDefinedScopes()
 		{
-			// At this time, we alway return None
-			yield return UhtDefineScope.None;
-
-			ulong present = _present >> 1;
-			for (int index = 1; present != 0; ++index, present >>= 1)
+			ulong present = _present;
+			for (int index = 0; present != 0; ++index, present >>= 1)
 			{
 				if ((present & 1) != 0)
 				{
@@ -210,11 +207,10 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		/// <param name="generator">Header code generator</param>
 		/// <param name="outerType">Output type owning the instances</param>
 		/// <param name="macroSuffix">Macro being created</param>
-		/// <param name="trimMacro">If true, trim the end of the prior macro</param>
 		/// <param name="appendAction">Action to invoke to append an instance</param>
 		/// <returns>String builder</returns>
 		public static StringBuilder AppendMultiMacros<T>(this StringBuilder builder, UhtUsedDefineScopes<T> instances, UhtDefineScopeNames defineScopeNames, 
-			UhtHeaderCodeGenerator generator, UhtType outerType, string macroSuffix, bool trimMacro, Action<StringBuilder, IEnumerable<T>> appendAction) where T : UhtType
+			UhtHeaderCodeGenerator generator, UhtType outerType, string macroSuffix, Action<StringBuilder, IEnumerable<T>> appendAction) where T : UhtType
 		{
 			foreach (UhtDefineScope defineScope in instances.EnumerateDefinedScopes())
 			{
@@ -228,17 +224,14 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					// We can skip writing the macros if there are no properties to declare, as the 'if' and 'else' would be the same
 					if (defineScope != UhtDefineScope.None)
 					{
-						if (trimMacro)
+						// Trim the extra newlines added after the macro generator
+						if (builder.Length > 4 &&
+							builder[^4] == '\r' &&
+							builder[^3] == '\n' &&
+							builder[^2] == '\r' &&
+							builder[^1] == '\n')
 						{
-							// Trim the extra newlines added after the macro generator
-							if (builder.Length > 4 &&
-								builder[^4] == '\r' &&
-								builder[^3] == '\n' &&
-								builder[^2] == '\r' &&
-								builder[^1] == '\n')
-							{
-								builder.Length -= 4;
-							}
+							builder.Length -= 4;
 						}
 
 						builder.AppendElsePreprocessor(defineScope, defineScopeNames);
@@ -246,7 +239,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					}
 				}
 
-				if (trimMacro && defineScope != UhtDefineScope.None)
+				if (defineScope != UhtDefineScope.None)
 				{
 					builder.Append("\r\n\r\n");
 				}
@@ -283,11 +276,10 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		/// <param name="generator">Header code generator</param>
 		/// <param name="outerType">Output type owning the instances</param>
 		/// <param name="macroSuffix">Macro being created</param>
-		/// <param name="trimMacro">If true, trim the end of the prior macro</param>
 		/// <param name="appendAction">Action to invoke to append an instance</param>
 		/// <returns>String builder</returns>
 		public static StringBuilder AppendSingleMacro<T>(this StringBuilder builder, UhtUsedDefineScopes<T> instances, UhtDefineScopeNames defineScopeNames, 
-			UhtHeaderCodeGenerator generator, UhtType outerType, string macroSuffix, bool trimMacro, Action<StringBuilder, IEnumerable<T>> appendAction) where T : UhtType
+			UhtHeaderCodeGenerator generator, UhtType outerType, string macroSuffix, Action<StringBuilder, IEnumerable<T>> appendAction) where T : UhtType
 		{
 			if (instances.SoleScope == UhtDefineScope.None)
 			{
@@ -316,19 +308,16 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					{
 						appendAction(builder, instances.Instances.Where(x => (x.DefineScope & ~defineScope) == 0));
 					}
-					if (trimMacro)
+					if (builder.Length > 4 &&
+						builder[^4] == '\r' &&
+						builder[^3] == '\n' &&
+						builder[^2] == '\r' &&
+						builder[^1] == '\n')
 					{
-						if (builder.Length > 4 &&
-							builder[^4] == '\r' &&
-							builder[^3] == '\n' &&
-							builder[^2] == '\r' &&
-							builder[^1] == '\n')
-						{
-							builder.Length -= 4;
-						}
+						builder.Length -= 4;
 					}
 				}
-				builder.Append("#endif\r\n");
+				builder.Append("#endif\r\n\r\n\r\n");
 			}
 			return builder;
 		}
