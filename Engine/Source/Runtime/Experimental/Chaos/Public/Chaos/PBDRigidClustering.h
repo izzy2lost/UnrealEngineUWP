@@ -476,6 +476,11 @@ public:
 	 *	For a given set of physics proxies, cleanup any tracked internal clusters that we've marked as being empty.
 	 */
 	CHAOS_API void CleanupInternalClustersForProxies(TArrayView<IPhysicsProxyBase*> Proxies);
+
+	/**
+	* Handles leveraging the connectivity edges on the children of the clustered particle to produce the desired effects.
+	*/
+	CHAOS_API TSet<FPBDRigidParticleHandle*> HandleConnectivityOnReleaseClusterParticle(FPBDRigidClusteredParticleHandle* ClusteredParticle, bool bCreateNewClusters);
  protected:
 
 	CHAOS_API void ComputeStrainFromCollision(const FPBDCollisionConstraints& CollisionRule, const FReal Dt);
@@ -541,11 +546,6 @@ public:
 		bool bForceRelease,
 		bool bCreateNewClusters);
 
-	/**
-	 * Handles leveraging the connectivity edges on the children of the clustered particle to produce the desired effects.
-	 */
-	CHAOS_API TSet<FPBDRigidParticleHandle*> HandleConnectivityOnReleaseClusterParticle(FPBDRigidClusteredParticleHandle* ClusteredParticle, bool bCreateNewClusters);
-	
 	using FParticleIsland = TArray<FPBDRigidParticleHandle*>;
 	CHAOS_API TArray<FParticleIsland> FindIslandsInChildren(const FPBDRigidClusteredParticleHandle* ClusteredParticle, bool bTraverseInterclusterEdges);
 	CHAOS_API TArray<FPBDRigidParticleHandle*> CreateClustersFromNewIslands(TArray<FParticleIsland>& Islands, FPBDRigidClusteredParticleHandle* ClusteredParent);

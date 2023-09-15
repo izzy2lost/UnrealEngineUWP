@@ -187,6 +187,9 @@ public:
 
 	ENGINE_API const FSpatialAcceleration* GetSpatialAcceleration() const;
 
+	ENGINE_API TArray<int32> GetAddedBoneIdsForComponent(UPrimitiveComponent* Component) const;
+	ENGINE_API void ChangeIfComponentBonesAreMainParticle(UPrimitiveComponent* Component, const TArray<int32>& BoneIds, bool bIsMain);
+
 	friend class UClusterUnionReplicatedProxyComponent;
 	friend class UModularVehicleBaseComponent;
 protected:
@@ -194,8 +197,6 @@ protected:
 	// This should only be called on the client when replication happens.
 	UFUNCTION()
 	ENGINE_API void ForceSetChildToParent(UPrimitiveComponent* InComponent, const TArray<int32>& BoneIds, const TArray<FTransform>& ChildToParent);
-
-	ENGINE_API TArray<int32> GetAddedBoneIdsForComponent(UPrimitiveComponent* Component) const;
 
 	ENGINE_API void BroadcastComponentAddedEvents(UPrimitiveComponent* ChangedComponent, const TSet<int32>& BoneIds, bool bIsNew);
 	ENGINE_API void BroadcastComponentRemovedEvents(UPrimitiveComponent* ChangedComponent);

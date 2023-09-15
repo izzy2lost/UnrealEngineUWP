@@ -1555,3 +1555,19 @@ bool UClusterUnionComponent::DoCustomNavigableGeometryExport(FNavigableGeometryE
 	);
 	return bHasData;
 }
+
+void UClusterUnionComponent::ChangeIfComponentBonesAreMainParticle(UPrimitiveComponent* Component, const TArray<int32>& BoneIds, bool bIsMain)
+{
+	if (!PhysicsProxy || BoneIds.IsEmpty() || !Component)
+	{
+		return;
+	}
+
+	TArray<Chaos::FPhysicsObjectHandle> PhysicsObjects = GetAllPhysicsObjectsById(Component, BoneIds);
+	if (PhysicsObjects.IsEmpty())
+	{
+		return;
+	}
+
+	PhysicsProxy->ChangeMainParticleStatus_External(PhysicsObjects, bIsMain);
+}

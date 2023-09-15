@@ -113,6 +113,7 @@ namespace Chaos
 		CHAOS_API void SetAngularVelocity_External(const FVector& W);
 		CHAOS_API void SetChildToParent_External(FPhysicsObjectHandle Child, const FTransform& RelativeTransform, bool bLock);
 		CHAOS_API void BulkSetChildToParent_External(const TArray<FPhysicsObjectHandle>& Objects, const TArray<FTransform>& Transforms, bool bLock);
+		CHAOS_API void ChangeMainParticleStatus_External(const TArray<FPhysicsObjectHandle>& Objects, bool bIsMain);
 
 		//
 		// These functions take care of marshaling data back and forth between the game thread

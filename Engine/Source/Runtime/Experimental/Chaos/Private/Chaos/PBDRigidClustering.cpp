@@ -1099,18 +1099,6 @@ namespace Chaos
 					RemoveNodeConnections(Child);
 				}
 				ActivatedChildren.Append(HandleConnectivityOnReleaseClusterParticle(ClusteredParticle, bCreateNewClusters));
-
-				// Every removal from a cluster union can trigger connectivity changes as well.
-				if (!bIsClusterUnion && bCheckForInterclusterEdgesOnRelease)
-				{
-					for (FClusterUnionIndex UnionIndex : ClusterUnionsToConsiderForConnectivity)
-					{
-						if (FClusterUnion* ClusterUnion = ClusterUnionManager.FindClusterUnion(UnionIndex))
-						{
-							ActivatedChildren.Append(HandleConnectivityOnReleaseClusterParticle(ClusterUnion->InternalCluster, false));
-						}
-					}
-				}
 			}
 
 			for (FPBDRigidParticleHandle* Child : ActivatedChildren)

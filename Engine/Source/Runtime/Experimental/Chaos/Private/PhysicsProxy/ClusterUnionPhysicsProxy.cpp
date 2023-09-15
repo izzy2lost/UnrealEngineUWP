@@ -685,4 +685,34 @@ namespace Chaos
 			}
 		);
 	}
+
+	void FClusterUnionPhysicsProxy::ChangeMainParticleStatus_External(const TArray<FPhysicsObjectHandle>& Objects, bool bIsMain)
+	{
+		if (!Solver)
+		{
+			return;
+		}
+
+		Solver->EnqueueCommandImmediate(
+			[this, Objects, bIsMain]() mutable
+			{
+				FReadPhysicsObjectInterface_Internal Interface = FPhysicsObjectInternalInterface::GetRead();
+				TArray<FPBDRigidParticleHandle*> Particles = Interface.GetAllRigidParticles(Objects);
+
+				FPBDRigidsEvolutionGBF& Evolution = *static_cast<FPBDRigidsSolver*>(Solver)->GetEvolution();
+				FClusterUnionManager& ClusterUnionManager = Evolution.GetRigidClustering().GetClusterUnionManager();
+
+				if (FClusterUnion* Union = ClusterUnionManager.FindClusterUnion(ClusterUnionIndex))
+				{
+					for (FPBDRigidParticleHandle* Particle : Particles)
+					{
+						if (FClusterUnionParticleProperties* Props = Union->ChildProperties.Find(Particle))
+						{
+							Props->bIsAuxiliaryParticle = !bIsMain;
+						}
+					}
+				}
+			}
+		);
+	}
 }
