@@ -1492,7 +1492,7 @@ bool UNetDriver::InitBase(bool bInitAsClient, FNetworkNotify* InNotify, const FU
 #endif // UE_WITH_IRIS
 
 
-	if (NetDriverName == NAME_GameNetDriver)
+	if (NetDriverDefinition == NAME_GameNetDriver)
 	{
 		static FString CrashContext_ReplicationDriver = TEXT("ReplicationDriver");
 
