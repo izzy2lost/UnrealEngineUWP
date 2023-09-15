@@ -8,8 +8,6 @@
 #include "ChaosVDPlaybackController.h"
 #include "ChaosVDScene.h"
 #include "ChaosVDSkySphereInterface.h"
-#include "ChaosVDCollisionDataDetailsTab.h"
-#include "ChaosVDTabsIDs.h"
 #include "ComponentVisualizer.h"
 #include "EditorModeManager.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
@@ -21,8 +19,6 @@
 #include "Actors/ChaosVDSolverInfoActor.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
-#include "Visualizers/ChaosVDSolverCollisionDataComponentVisualizer.h"
-#include "Widgets/SChaosVDCollisionDataInspector.h"
 #include "Widgets/SChaosVDMainTab.h"
 
 FChaosVDPlaybackViewportClient::FChaosVDPlaybackViewportClient(const TSharedPtr<FEditorModeTools>& InModeTools) : FEditorViewportClient(InModeTools.Get()), CVDWorld(nullptr)
@@ -66,34 +62,33 @@ void FChaosVDPlaybackViewportClient::ProcessClick(FSceneView& View, HHitProxy* H
 		return;
 	}
 
+	const FViewportClick Click(&View, this, Key, Event, HitX, HitY);
+
 	if (TSharedPtr<FChaosVDScene> ScenePtr = CVDScene.Pin())
 	{
+		bool bClickHandled = false;
+
+		// TODO: Iterate trough all registered visualizers
+		HComponentVisProxy* ComponentVisProxy = HitProxyCast<HComponentVisProxy>(HitProxy);
+		if (const TSharedPtr<FComponentVisualizer> Visualizer = MainTabToolkitHost->FindComponentVisualizer(UChaosVDSolverCollisionDataComponent::StaticClass()))
+		{
+			// Not sure if this is compliant with the normal use of the component visualizers,
+			// but passing a null hitproxy when the hit proxy was not a component
+			// It allow us to handle things like clear selection on the Collision Data Visualizer
+			bClickHandled = Visualizer->VisProxyHandleClick(this, ComponentVisProxy, Click);
+		}
+
+		if (bClickHandled)
+		{
+			return;
+		}
+
 		if (HitProxy->IsA(HActor::StaticGetType()))
 		{
 			const HActor* ActorHitProxy = static_cast<HActor*>(HitProxy);
 			if (AActor* ClickedActor = ActorHitProxy->Actor)
 			{
 				ScenePtr->SetSelectedObject(ClickedActor);
-			}
-		}
-		else
-		{
-			if (HChaosVDContactPointProxy* ContactProxy = HitProxyCast<HChaosVDContactPointProxy>(HitProxy))
-			{
-				if (ContactProxy->ContactFinder.OwningMidPhase.Pin())
-				{
-					if (TSharedPtr<FChaosVDCollisionDataDetailsTab> CollisionDataDetailsTab = MainTabToolkitHost->GetTabSpawnerInstance<FChaosVDCollisionDataDetailsTab>(FChaosVDTabID::CollisionDataDetails).Pin())
-					{
-						if (TSharedPtr<SChaosVDCollisionDataInspector> CollisionInspector = CollisionDataDetailsTab->GetCollisionInspectorInstance().Pin())
-						{
-							if (TSharedPtr<FTabManager> TabManager = MainTabToolkitHost->GetTabManager())
-							{
-								TabManager->TryInvokeTab(FChaosVDTabID::CollisionDataDetails);
-								CollisionInspector->SetSingleContactDataToInspect(ContactProxy->ContactFinder);
-							}
-						}
-					}
-				}
 			}
 		}
 	}
@@ -278,8 +273,6 @@ void FChaosVDPlaybackViewportClient::PerformSelectedTrackingForFrame(FChaosVDGam
 
 void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
-	FEditorViewportClient::Draw(View, PDI);
-
 	const TSharedPtr<SChaosVDMainTab> MainTabToolkitHost = ModeTools.IsValid() ? StaticCastSharedPtr<SChaosVDMainTab>(ModeTools->GetToolkitHost()) : nullptr;
 	if (!MainTabToolkitHost.IsValid())
 	{
@@ -311,6 +304,8 @@ void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDraw
 			}
 		}
 	}
+
+	FEditorViewportClient::Draw(View, PDI);
 }
 
 void FChaosVDPlaybackViewportClient::DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas)

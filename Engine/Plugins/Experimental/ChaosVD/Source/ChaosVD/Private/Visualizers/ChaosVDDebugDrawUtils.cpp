@@ -4,33 +4,58 @@
 
 #include "CanvasItem.h"
 #include "ChaosVDEditorSettings.h"
-#include "DebugRenderSceneProxy.h"
 #include "Engine/Engine.h"
+#include "SceneView.h"
 
 TQueue<FChaosVDDebugDrawUtils::FChaosVDQueuedTextToDraw> FChaosVDDebugDrawUtils::TexToDrawQueue = TQueue<FChaosVDQueuedTextToDraw>();
 
-void FChaosVDDebugDrawUtils::DrawArrowVector(FPrimitiveDrawInterface* PDI, const FVector& StartLocation, const FVector& EndLocation, FStringView DebugText, const FColor& Color, float ArrowSize)
+void FChaosVDDebugDrawUtils::DrawArrowVector(FPrimitiveDrawInterface* PDI, const FVector& StartLocation, const FVector& EndLocation, FStringView DebugText, const FColor& Color, ESceneDepthPriorityGroup DepthPriority)
 {
-	const FDebugRenderSceneProxy::FArrowLine VelocityArrowLine = { StartLocation, EndLocation, Color};
-	VelocityArrowLine.Draw(PDI, ArrowSize);
+	if (!PDI)
+	{
+		return;
+	}
+
+	const FVector LineVectorToDraw = EndLocation - StartLocation;
+
+	FVector ArrowDir;
+	float ArrowLength;
+	LineVectorToDraw.ToDirectionAndLength(ArrowDir, ArrowLength);
+
+	FVector YAxis, ZAxis;
+	ArrowDir.FindBestAxisVectors(YAxis,ZAxis);
+	const FMatrix ArrowTransformMatrix(ArrowDir, YAxis, ZAxis,StartLocation);
+
+	constexpr float MinTipOfArrowSize = 0.2f;
+	constexpr float MaxTipOfArrowSize = 10.0f;
+	constexpr float MaxVectorSizeForArrow = 100.0f; // The vector size that is the upper limit after which we just use the max size for the tip of the arrow
+
+	const float ProportionalArrowSize = MaxTipOfArrowSize * (ArrowLength / MaxVectorSizeForArrow);
+	const float ArrowSize = FMath::Clamp(ProportionalArrowSize, MinTipOfArrowSize, MaxTipOfArrowSize);
+	
+	DrawDirectionalArrow(PDI, ArrowTransformMatrix, Color, ArrowLength, ArrowSize, DepthPriority);
 
 	if (!DebugText.IsEmpty())
 	{
 		// Draw the text in the middle of the vector line
-		const FVector VectorToDraw = EndLocation - StartLocation;
-		const FVector TextWorldPosition = StartLocation + VectorToDraw  * 0.5f;
+		const FVector TextWorldPosition = StartLocation + LineVectorToDraw  * 0.5f;
 		DrawText(DebugText.GetData(), TextWorldPosition , Color);
 	}
 }
 
-void FChaosVDDebugDrawUtils::DrawPoint(FPrimitiveDrawInterface* PDI, const FVector& Location, FStringView DebugText, const FColor& Color, float Size)
+void FChaosVDDebugDrawUtils::DrawPoint(FPrimitiveDrawInterface* PDI, const FVector& Location, FStringView DebugText, const FColor& Color, float Size, ESceneDepthPriorityGroup DepthPriority)
 {
+	if (!PDI)
+	{
+		return;
+	}
+
 	if (DebugText.IsEmpty())
 	{
 		return;
 	}
 
-	PDI->DrawPoint(Location, Color, Size, ESceneDepthPriorityGroup::SDPG_World);
+	PDI->DrawPoint(Location, Color, Size, DepthPriority);
 
 	if (!DebugText.IsEmpty())
 	{
@@ -49,8 +74,87 @@ void FChaosVDDebugDrawUtils::DrawText(FStringView StringToDraw, const FVector& L
 	}
 }
 
+void FChaosVDDebugDrawUtils::DrawCircle(FPrimitiveDrawInterface* PDI, const FVector& Origin, float Radius, int32 Segments, const FColor& Color, float Thickness, const FVector& XAxis, const FVector& YAxis, FStringView DebugText, ESceneDepthPriorityGroup DepthPriority)
+{
+	if (!PDI)
+	{
+		return;
+	}
+
+	constexpr float DepthBias = 0;
+	const bool bScreenSpace = Thickness > 0;
+
+	// Need at least 2 sides
+	Segments = FMath::Max(Segments, 2);
+	const float	AngleDelta = 2.0f * UE_PI / Segments;
+	FVector	LastVertex = Origin + XAxis * Radius;
+
+	for (int32 SideIndex = 0; SideIndex < Segments; SideIndex++)
+	{
+		const FVector Vertex = Origin + (XAxis * FMath::Cos(AngleDelta * (SideIndex + 1)) + YAxis * FMath::Sin(AngleDelta * (SideIndex + 1))) * Radius;
+
+		PDI->DrawLine(LastVertex, Vertex, Color, DepthPriority, Thickness, DepthBias, bScreenSpace);
+
+		LastVertex = Vertex;
+	}
+	
+	if (!DebugText.IsEmpty())
+	{
+		DrawText(DebugText, Origin, Color);
+	}
+}
+
+void FChaosVDDebugDrawUtils::DrawBox(FPrimitiveDrawInterface* PDI, const FVector& InExtents, const FColor& InColor, const FTransform& InTransform, FStringView DebugText, ESceneDepthPriorityGroup DepthPriority)
+{
+	if (!PDI)
+	{
+		return;
+	}
+
+	constexpr int32 MaxBoxLines = 12;
+
+	// Array for direction offsets for the start/end point of each line
+	static TPair<FVector, FVector> VertexOffsetDirectionFromOrigin[MaxBoxLines] =
+	{
+		{FVector(1,1,1), FVector(1,-1,1)},
+		{FVector(1,-1,1) ,FVector(-1,-1,1)},
+		{FVector(-1,-1,1), FVector(-1,1,1)},
+		{FVector(-1,1,1), FVector(1,1,1)},
+		{FVector(1,1,-1), FVector(1,-1,-1)},
+		{FVector(1, -1,-1), FVector(-1,-1,-1)},
+		{FVector(-1,-1,-1), FVector(-1,1,-1)},
+		{FVector(-1,1,-1), FVector(1,1,-1)},
+		{FVector(1,1,1), FVector(1,1,-1)},
+		{FVector(1,-1,1), FVector(1,-1,-1)},
+		{FVector(-1,-1,1), FVector(-1,-1,-1)},
+		{FVector(-1, 1,1), FVector(-1,1,-1)},
+	};
+
+	constexpr float Thickness = 2.0f;
+	constexpr float DepthBias = 0;
+	constexpr bool bScreenSpace = Thickness > 0;
+
+	for (int32 BoxLineIndex = 0; BoxLineIndex < MaxBoxLines; BoxLineIndex++)
+	{
+		FVector LineStart = InTransform.TransformPosition(InExtents * VertexOffsetDirectionFromOrigin[BoxLineIndex].Key);
+		FVector LineEnd = InTransform.TransformPosition(InExtents * VertexOffsetDirectionFromOrigin[BoxLineIndex].Value);
+
+		PDI->DrawLine(LineStart, LineEnd, InColor, DepthPriority, Thickness,DepthBias, bScreenSpace);
+	}
+	
+	if (!DebugText.IsEmpty())
+	{
+		DrawText(DebugText, InTransform.GetLocation(), InColor);
+	}
+}
+
 void FChaosVDDebugDrawUtils::DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas)
 {
+	if (!GEngine)
+	{
+		return;
+	}
+
 	while (!TexToDrawQueue.IsEmpty())
 	{
 		FChaosVDQueuedTextToDraw TextToDraw;

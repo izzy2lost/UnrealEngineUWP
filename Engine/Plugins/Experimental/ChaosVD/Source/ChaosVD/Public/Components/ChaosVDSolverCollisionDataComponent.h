@@ -22,9 +22,9 @@ struct FChaosVDConstraint;
 typedef TMap<int32, TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>> FChaosVDMidPhaseByParticleMap;
 typedef TMap<int32, TArray<FChaosVDConstraint*>> FChaosVDConstraintByParticleMap;
 
-enum class EChaosVDGetCollisionDataOptions
+enum class EChaosVDCollisionParticlePairSlot
 {
-	Owner,
+	Primary,
 	Secondary,
 	Any
 };
@@ -40,8 +40,8 @@ public:
 	void UpdateCollisionData(const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>& InMidPhaseData);
 
 	const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>& GetMidPhases() const { return AllMidPhases; }
-	const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* GetMidPhasesForParticle(int32 ParticleID, EChaosVDGetCollisionDataOptions Options) const;
-	const TArray<FChaosVDConstraint*>* GetConstraintsForParticle(int32 ParticleID, EChaosVDGetCollisionDataOptions Options) const;
+	const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* GetMidPhasesForParticle(int32 ParticleID, EChaosVDCollisionParticlePairSlot Options) const;
+	const TArray<FChaosVDConstraint*>* GetConstraintsForParticle(int32 ParticleID, EChaosVDCollisionParticlePairSlot Options) const;
 
 	void DrawVisualization(const FSceneView* View, FPrimitiveDrawInterface* PDI);
 
@@ -53,7 +53,7 @@ protected:
 	void AddCollisionDataToParticleIDMap(MapType& MapToUpdate, const CollisionDataType& MidPhaseData, int32 ParticleID);
 
 	template<typename MapType, typename CollisionDataType>
-	const TArray<CollisionDataType>* GetCollisionDataFromMap(const MapType& Map0ToQuery, const MapType& Map1ToQuery, int32 ParticleID, EChaosVDGetCollisionDataOptions Options) const;
+	const TArray<CollisionDataType>* GetCollisionDataFromMap(const MapType& Map0ToQuery, const MapType& Map1ToQuery, int32 ParticleID, EChaosVDCollisionParticlePairSlot Options) const;
 
 	TArray<TSharedPtr<FChaosVDParticlePairMidPhase>> AllMidPhases;
 	FChaosVDMidPhaseByParticleMap MidPhasesByParticleID0;
@@ -78,21 +78,21 @@ void UChaosVDSolverCollisionDataComponent::AddCollisionDataToParticleIDMap(MapTy
 }
 
 template <typename MapType, typename CollisionDataType>
-const TArray<CollisionDataType>* UChaosVDSolverCollisionDataComponent::GetCollisionDataFromMap(const MapType& Map0ToQuery, const MapType& Map1ToQuery, int32 ParticleID, EChaosVDGetCollisionDataOptions Options) const
+const TArray<CollisionDataType>* UChaosVDSolverCollisionDataComponent::GetCollisionDataFromMap(const MapType& Map0ToQuery, const MapType& Map1ToQuery, int32 ParticleID, EChaosVDCollisionParticlePairSlot Options) const
 {
 	switch (Options)
 	{
-	case EChaosVDGetCollisionDataOptions::Owner:
+	case EChaosVDCollisionParticlePairSlot::Primary:
 		{
 			return Map0ToQuery.Find(ParticleID);
 			break;
 		}
-	case EChaosVDGetCollisionDataOptions::Secondary:
+	case EChaosVDCollisionParticlePairSlot::Secondary:
 		{
 			return Map1ToQuery.Find(ParticleID);
 			break;
 		}
-	case EChaosVDGetCollisionDataOptions::Any:
+	case EChaosVDCollisionParticlePairSlot::Any:
 		{
 			const TArray<CollisionDataType>* FoundMidPhasesContainer = Map0ToQuery.Find(ParticleID);
 			return FoundMidPhasesContainer ? FoundMidPhasesContainer : Map1ToQuery.Find(ParticleID);

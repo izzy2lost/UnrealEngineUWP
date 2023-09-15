@@ -130,6 +130,8 @@ struct CHAOSVDRUNTIME_API FChaosVDManifoldPoint
 	UPROPERTY()
 	TArray<FVector> ShapeContactPoints;
 
+	bool bIsSelectedInEditor = false;
+
 	bool Serialize(FArchive& Ar);
 };
 

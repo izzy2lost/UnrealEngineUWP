@@ -267,7 +267,7 @@ const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* AChaosVDParticleActor::G
 	{
 		if (const UChaosVDSolverCollisionDataComponent* CollisionDataComponent = SolverInfoActor->GetCollisionDataComponent())
 		{
-			return CollisionDataComponent->GetMidPhasesForParticle(ParticleDataViewer.ParticleIndex, EChaosVDGetCollisionDataOptions::Any);
+			return CollisionDataComponent->GetMidPhasesForParticle(ParticleDataViewer.ParticleIndex, EChaosVDCollisionParticlePairSlot::Any);
 		}
 	}
 

@@ -12,16 +12,23 @@ class FChaosVDScene;
 struct FChaosVDCollisionDataFinder
 {
 	TWeakPtr<FChaosVDParticlePairMidPhase> OwningMidPhase;
-	const FChaosVDConstraint* OwningConstraint = nullptr;
+	FChaosVDConstraint* OwningConstraint = nullptr;
 	int32 ContactIndex = INDEX_NONE;
+
+	void SetIsSelected(bool bNewSelected);
 };
 
-struct HChaosVDContactPointProxy : public HHitProxy
+struct HChaosVDContactPointProxy : public HComponentVisProxy
 {
 	DECLARE_HIT_PROXY()
 	
-	HChaosVDContactPointProxy(const FChaosVDCollisionDataFinder& InContactFinderData) : HHitProxy(HPP_UI), ContactFinder(InContactFinderData)
+	HChaosVDContactPointProxy(const UActorComponent* Component, const FChaosVDCollisionDataFinder& InContactFinderData) : HComponentVisProxy(Component, HPP_UI), ContactFinder(InContactFinderData)
 	{	
+	}
+
+	virtual EMouseCursor::Type GetMouseCursor() override
+	{
+		return EMouseCursor::Crosshairs;
 	}
 
 	FChaosVDCollisionDataFinder ContactFinder;
@@ -32,12 +39,12 @@ enum class EChaosVDCollisionVisualizationFlags: uint32
 {
 	None					= 0 UMETA(Hidden),
 	ContactPoints			= 1 << 0,
-	ContactInfo				= 1 << 1 UMETA(Hidden), // Not used yet
+	ContactInfo				= 1 << 1,
 	NetPushOut				= 1 << 2,
 	NetImpulse				= 1 << 3,
 	ContactNormal			= 1 << 4,
 	AccumulatedImpulse		= 1 << 5,
-	DrawOnlyActiveContacts	= 1 << 6,
+	DrawInactiveContacts	= 1 << 6,
 	EnableDrawForAllParticles	= 1 << 7,
 };
 ENUM_CLASS_FLAGS(EChaosVDCollisionVisualizationFlags);
@@ -51,7 +58,13 @@ public:
 	virtual bool ShowWhenSelected() override;
 	virtual void DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
 
-protected:
+	virtual bool VisProxyHandleClick(FEditorViewportClient* InViewportClient, HComponentVisProxy* VisProxy, const FViewportClick& Click) override;
 
-	void DrawnMidPhaseData(const TSharedPtr<FChaosVDParticlePairMidPhase>& MidPhase, const FChaosVDVisualizationContext& VisualizationContext, const FSceneView* View, FPrimitiveDrawInterface* PDI);
+protected:
+	
+	void ClearCurrentSelection();
+
+	void DrawMidPhaseData(const UActorComponent* Component, const TSharedPtr<FChaosVDParticlePairMidPhase>& MidPhase, const FChaosVDVisualizationContext& VisualizationContext, const FSceneView* View, FPrimitiveDrawInterface* PDI);
+
+	FChaosVDCollisionDataFinder CurrentSelectedContactData;
 };

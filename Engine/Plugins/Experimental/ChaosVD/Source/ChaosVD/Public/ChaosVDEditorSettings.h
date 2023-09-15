@@ -44,6 +44,29 @@ enum class EChaosVDGeometryVisibilityFlags : uint8
 };
 ENUM_CLASS_FLAGS(EChaosVDGeometryVisibilityFlags)
 
+/** Structure holding the settings using to debug draw contact data on the Chaos Visual Debugger */
+USTRUCT()
+struct FChaosVDContactDebugDrawSettings
+{
+	GENERATED_BODY()
+
+	/** The depth priority used for while drawing contact data. Can be World or Foreground (with this one the shapes will be drawn on top of the geometry and be always visible) */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	TEnumAsByte<ESceneDepthPriorityGroup> DepthPriority = ESceneDepthPriorityGroup::SDPG_World;
+
+	/** The radius of the debug draw circle used to represent a contact point */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float ContactCircleRadius = 6.0f;
+
+	/** The scale value to be applied to the normal vector of a contact used to change its size to make it easier to see */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float ContactNormalScale = 30.0f;
+
+	/** The radius of the debug draw circle used to represent the Phi value (penetration) of a contact point */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float ContactPhiCircleRadius = 2.0f;
+};
+
 UCLASS(config = Engine)
 class UChaosVDEditorSettings : public UObject
 {
@@ -56,8 +79,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDCollisionVisualizationFlags"))
 	uint32 GlobalCollisionDataVisualizationFlags = 0;
 
-	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDCollisionVisualizationFlags"))
+	UPROPERTY(EditAnywhere, Category = "Viewport Visualization")
 	bool bShowDebugText = false;
+
+	UPROPERTY(EditAnywhere, Category = "Viewport Visualization",  meta=(EditCondition = "GlobalCollisionDataVisualizationFlags != 0", EditConditionHides))
+	FChaosVDContactDebugDrawSettings ContactDebugDrawSettings;
 
 	UPROPERTY(EditAnywhere, Category = "Viewport Tracking")
 	EChaosVDActorTrackingTarget TrackingTarget;
