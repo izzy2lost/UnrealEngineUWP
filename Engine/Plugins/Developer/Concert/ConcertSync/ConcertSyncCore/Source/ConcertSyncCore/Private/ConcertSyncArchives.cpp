@@ -14,6 +14,11 @@ static const FSoftObjectPath SkipAssetsMarker = FSoftObjectPath(TEXT("/Engine/Tr
 namespace ConcertSyncUtil
 {
 
+const FSoftObjectPath& GetSkipObjectPath()
+{
+	return SkipAssetsMarker;
+}
+
 bool CanExportProperty(const FProperty* Property, const bool InIncludeEditorOnlyData)
 {
 	auto PropertyPathIsInList = [Property](const TArray<TFieldPath<FProperty>>& PropertyPaths)
