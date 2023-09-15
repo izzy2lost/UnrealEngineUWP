@@ -7339,10 +7339,10 @@ EAsyncPackageState::Type FAsyncLoadingThread2::ProcessLoadedPackagesFromGameThre
 				if (!Package->bLoadHasFailed)
 				{
 #if WITH_EDITOR
+					// In the editor we need to find any assets and packages and add them to list for later callback
+					EditorCompletedUPackages.Add(Package->LinkerRoot);
 					if (GIsEditor)
 					{
-						// In the editor we need to find any assets and packages and add them to list for later callback
-						EditorCompletedUPackages.Add(Package->LinkerRoot);
 						for (UObject* Object : Package->ConstructedObjects)
 						{
 							if (Object->IsAsset())

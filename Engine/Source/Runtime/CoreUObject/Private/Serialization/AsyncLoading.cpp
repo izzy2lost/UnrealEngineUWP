@@ -4848,27 +4848,25 @@ EAsyncPackageState::Type FAsyncLoadingThread::ProcessLoadedPackages(bool bUseTim
 		Package->CallCompletionCallbacks(bInternalCallbacks, LoadingResult);
 		
 #if WITH_EDITOR
-		if (GIsEditor)
-		{
-			// In the editor we need to find any assets and packages and add them to list for later callback
-			Package->GetLoadedAssetsAndPackages(LoadedAssets, CompletedUPackages);
-		}
+		// In the editor we need to find any assets and packages and add them to list for later callback
+		Package->GetLoadedAssetsAndPackages(LoadedAssets, CompletedUPackages);
 #endif
 		// We don't need the package anymore
 		PackagesToDelete.AddUnique(Package);
 		Package->MarkRequestIDsAsComplete();
 	}
 #if WITH_EDITOR
-	if (GIsEditor)
+	// Call the global delegate for package endloads and set the bHasBeenLoaded flag that is used
+	// to check which packages have reached this state
+	for (UPackage* CompletedUPackage : CompletedUPackages)
 	{
-		// Call the global delegate for package endloads and set the bHasBeenLoaded flag that is used
-		// to check which packages have reached this state
-		for (UPackage* CompletedUPackage : CompletedUPackages)
-		{
-			CompletedUPackage->SetHasBeenEndLoaded(true);
-		}
+		CompletedUPackage->SetHasBeenEndLoaded(true);
+	}
+
+	if (CompletedUPackages.Num())
+	{
 		FCoreUObjectDelegates::OnEndLoadPackage.Broadcast(
-			FEndLoadPackageContext{ CompletedUPackages.Array(), 0, false /* bSynchronous */ });
+		FEndLoadPackageContext{ CompletedUPackages.Array(), 0, false /* bSynchronous */ });
 	}
 #endif
 

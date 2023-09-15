@@ -1592,7 +1592,7 @@ void BroadcastEndLoad(TArray<UPackage*>&& LoadedPackages)
 {
 #if WITH_EDITOR
 	// check(IsInGameThread()) was called by the caller, but we still need to test !IsInAsyncLoadingThread to exclude that callsite when the engine is single-threaded
-	if (GIsEditor && !IsInAsyncLoadingThread() && GGameThreadLoadCounter == 0)
+	if (!IsInAsyncLoadingThread() && GGameThreadLoadCounter == 0)
 	{
 		LoadedPackages.RemoveAllSwap([](UPackage* Package)
 			{
@@ -2241,23 +2241,20 @@ void EndLoad(FUObjectSerializeContext* LoadContext, TArray<UPackage*>* OutLoaded
 				SlowTask->TotalAmountOfWork += static_cast<float>(ObjLoaded.Num());
 				SlowTask->CurrentFrameScope = 0;
 			}
-#endif
 
-			if (GIsEditor)
+			for (int32 i = 0; i < ObjLoaded.Num(); i++)
 			{
-				for (int32 i = 0; i < ObjLoaded.Num(); i++)
+				UObject* Obj = ObjLoaded[i];
+				if (OutLoadedPackages)
 				{
-					UObject* Obj = ObjLoaded[i];
-					if (OutLoadedPackages)
-					{
-						LoadedPackages.Add(Obj->GetPackage());
-					}
-					if (Obj->GetLinker())
-					{
-						LoadedLinkers.Add(Obj->GetLinker());
-					}
+					LoadedPackages.Add(Obj->GetPackage());
+				}
+				if (GIsEditor && Obj->GetLinker())
+				{
+					LoadedLinkers.Add(Obj->GetLinker());
 				}
 			}
+#endif		
 
 			{
 				SCOPED_LOADTIMER(PostLoad);
