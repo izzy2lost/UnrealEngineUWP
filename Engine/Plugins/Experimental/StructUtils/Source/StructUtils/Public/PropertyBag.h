@@ -28,6 +28,8 @@ enum class EPropertyBagPropertyType : uint8
 	SoftObject UMETA(Hidden),
 	Class UMETA(Hidden),
 	SoftClass UMETA(Hidden),
+	UInt32,	// Type not fully supported at UI, will work with restrictions to type editing
+	UInt64, // Type not fully supported at UI, will work with restrictions to type editing
 
 	Count UMETA(Hidden)
 };
@@ -243,8 +245,11 @@ struct STRUCTUTILS_API FPropertyBagPropertyDesc
 	/** @return true if the two descriptors have the same type. Object types are compatible if Other can be cast to this type. */
 	bool CompatibleType(const FPropertyBagPropertyDesc& Other) const;
 
-	/** @return true if the property type is numeric (bool, int32, int64, float, double, enum) */
+	/** @return true if the property type is numeric (bool, (u)int32, (u)int64, float, double, enum) */
 	bool IsNumericType() const;
+
+	/** @return true if the property type is unsigned (uint32, uint64) */
+	bool IsUnsignedNumericType() const;
 	
 	/** @return true if the property type is floating point numeric (float, double) */
 	bool IsNumericFloatType() const;
@@ -448,13 +453,15 @@ struct STRUCTUTILS_API FInstancedPropertyBag
 	
 	/**
 	 * Getters
-	 * Numeric types (bool, int32, int64, float, double) support type conversion.
+	 * Numeric types (bool, (u)int32, (u)int64, float, double) support type conversion.
 	 */
 
 	TValueOrError<bool, EPropertyBagResult> GetValueBool(const FName Name) const;
 	TValueOrError<uint8, EPropertyBagResult> GetValueByte(const FName Name) const;
 	TValueOrError<int32, EPropertyBagResult> GetValueInt32(const FName Name) const;
+	TValueOrError<uint32, EPropertyBagResult> GetValueUInt32(const FName Name) const;
 	TValueOrError<int64, EPropertyBagResult> GetValueInt64(const FName Name) const;
+	TValueOrError<uint64, EPropertyBagResult> GetValueUInt64(const FName Name) const;
 	TValueOrError<float, EPropertyBagResult> GetValueFloat(const FName Name) const;
 	TValueOrError<double, EPropertyBagResult> GetValueDouble(const FName Name) const;
 	TValueOrError<FName, EPropertyBagResult> GetValueName(const FName Name) const;
@@ -523,12 +530,14 @@ struct STRUCTUTILS_API FInstancedPropertyBag
 
 	/**
 	 * Value Setters. A property must exists in that bag before it can be set.  
-	 * Numeric types (bool, int32, int64, float, double) support type conversion.
+	 * Numeric types (bool, (u)int32, (u)int64, float, double) support type conversion.
 	 */
 	EPropertyBagResult SetValueBool(const FName Name, const bool bInValue);
 	EPropertyBagResult SetValueByte(const FName Name, const uint8 InValue);
 	EPropertyBagResult SetValueInt32(const FName Name, const int32 InValue);
+	EPropertyBagResult SetValueUInt32(const FName Name, const uint32 InValue);
 	EPropertyBagResult SetValueInt64(const FName Name, const int64 InValue);
+	EPropertyBagResult SetValueUInt64(const FName Name, const uint64 InValue);
 	EPropertyBagResult SetValueFloat(const FName Name, const float InValue);
 	EPropertyBagResult SetValueDouble(const FName Name, const double InValue);
 	EPropertyBagResult SetValueName(const FName Name, const FName InValue);
@@ -675,13 +684,15 @@ public:
 
 	/**
 	 * Getters
-	 * Numeric types (bool, int32, int64, float, double) support type conversion.
+	 * Numeric types (bool, (u)int32, (u)int64, float, double) support type conversion.
 	 */
 	
 	TValueOrError<bool, EPropertyBagResult> GetValueBool(const int32 Index) const;
 	TValueOrError<uint8, EPropertyBagResult> GetValueByte(const int32 Index) const;
 	TValueOrError<int32, EPropertyBagResult> GetValueInt32(const int32 Index) const;
+	TValueOrError<uint32, EPropertyBagResult> GetValueUInt32(const int32 Index) const;
 	TValueOrError<int64, EPropertyBagResult> GetValueInt64(const int32 Index) const;
+	TValueOrError<uint64, EPropertyBagResult> GetValueUInt64(const int32 Index) const;
 	TValueOrError<float, EPropertyBagResult> GetValueFloat(const int32 Index) const;
 	TValueOrError<double, EPropertyBagResult> GetValueDouble(const int32 Index) const;
 	TValueOrError<FName, EPropertyBagResult> GetValueName(const int32 Index) const;
@@ -761,12 +772,14 @@ public:
 
 	/**
 	 * Value Setters. A property must exists in that bag before it can be set.  
-	 * Numeric types (bool, int32, int64, float, double) support type conversion.
+	 * Numeric types (bool, (u)int32, (u)int64, float, double) support type conversion.
 	 */
 	EPropertyBagResult SetValueBool(const int32 Index, const bool bInValue);
 	EPropertyBagResult SetValueByte(const int32 Index, const uint8 InValue);
 	EPropertyBagResult SetValueInt32(const int32 Index, const int32 InValue);
+	EPropertyBagResult SetValueUInt32(const int32 Index, const uint32 InValue);
 	EPropertyBagResult SetValueInt64(const int32 Index, const int64 InValue);
+	EPropertyBagResult SetValueUInt64(const int32 Index, const uint64 InValue);
 	EPropertyBagResult SetValueFloat(const int32 Index, const float InValue);
 	EPropertyBagResult SetValueDouble(const int32 Index, const double InValue);
 	EPropertyBagResult SetValueName(const int32 Index, const FName InValue);

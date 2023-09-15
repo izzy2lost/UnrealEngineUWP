@@ -28,6 +28,8 @@ enum class EMovieGraphValueType : uint8
 	SoftObject UMETA(Hidden),
 	Class UMETA(Hidden),
 	SoftClass UMETA(Hidden),
+	UInt32,	// Type not fully supported at UI, will work with restrictions to type editing
+	UInt64, // Type not fully supported at UI, will work with restrictions to type editing
 
 	Count UMETA(Hidden)
 };

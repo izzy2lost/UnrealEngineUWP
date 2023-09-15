@@ -605,6 +605,8 @@ void FRigVMMemoryStorageStruct::SetDefaultValues(const TArray<FRigVMPropertyDesc
 	}
 
 	static const FName IntTypeName(TEXT("int")); // type used by some engine tests
+	static const FName Int64TypeName(TEXT("Int64"));
+	static const FName UInt64TypeName(TEXT("UInt64"));
 
 	if (VMType == RigVMTypeUtils::BoolTypeName)
 	{
@@ -613,6 +615,18 @@ void FRigVMMemoryStorageStruct::SetDefaultValues(const TArray<FRigVMPropertyDesc
 	else if (VMType == RigVMTypeUtils::Int32TypeName || VMType == IntTypeName)
 	{
 		OutBagPropertyType = EPropertyBagPropertyType::Int32;
+	}
+	else if (VMType == RigVMTypeUtils::UInt32TypeName)
+	{
+		OutBagPropertyType = EPropertyBagPropertyType::UInt32;
+	}
+	else if (VMType == Int64TypeName)
+	{
+		OutBagPropertyType = EPropertyBagPropertyType::Int64;
+	}
+	else if (VMType == UInt64TypeName)
+	{
+		OutBagPropertyType = EPropertyBagPropertyType::UInt64;
 	}
 	else if (VMType == RigVMTypeUtils::FloatTypeName)
 	{
@@ -644,6 +658,7 @@ void FRigVMMemoryStorageStruct::SetDefaultValues(const TArray<FRigVMPropertyDesc
 	}
 	else
 	{
+		ensureMsgf(false, TEXT("Unsupported type : %s"), *VMType);
 		OutBagPropertyType = EPropertyBagPropertyType::None;
 	}
 

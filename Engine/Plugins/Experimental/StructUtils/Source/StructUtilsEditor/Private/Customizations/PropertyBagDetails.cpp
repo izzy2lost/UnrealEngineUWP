@@ -288,6 +288,12 @@ FEdGraphPinType GetPropertyDescAsPin(const FPropertyBagPropertyDesc& Desc)
 		PinType.PinCategory = UEdGraphSchema_K2::PC_SoftClass;
 		PinType.PinSubCategoryObject = const_cast<UObject*>(Desc.ValueTypeObject.Get());
 		break;
+	case EPropertyBagPropertyType::UInt32:	// Warning : Type only partially supported (Blueprint does not support unsigned type)
+		PinType.PinCategory = UEdGraphSchema_K2::PC_Int;
+		break;
+	case EPropertyBagPropertyType::UInt64:	// Warning : Type only partially supported (Blueprint does not support unsigned type)
+		PinType.PinCategory = UEdGraphSchema_K2::PC_Int64;
+		break;
 	default:
 		ensureMsgf(false, TEXT("Unhandled value type %s"), *UEnum::GetValueAsString(Desc.ValueType));
 		break;
@@ -744,14 +750,30 @@ void FPropertyBagInstanceDataDetails::OnChildRowAdded(IDetailPropertyRow& ChildR
 	
 	bool bSupportedType = true;
 
+	FText UnsupportedTypeWarning;
+
 	TArray<FPropertyBagPropertyDesc> PropertyDescs = UE::StructUtils::Private::GetCommonPropertyDescs(BagStructProperty);
 	const FProperty* Property = ChildPropertyHandle->GetProperty();
 	if (FPropertyBagPropertyDesc* Desc = PropertyDescs.FindByPredicate([Property](const FPropertyBagPropertyDesc& Desc){ return Desc.CachedProperty == Property; }))
 	{
 		if (Desc->ContainerTypes.Num() > 1)
 		{
+			static const FText UnsupportedTypeWarningNestedContainer = LOCTEXT("NestedContainersWarning", "This property type is not supported in the property bag UI.");
+
+			// The property editing for nested containers is not supported.
+			UnsupportedTypeWarning = UnsupportedTypeWarningNestedContainer;
 			bSupportedType = false;
+			// Do not allow to edit the data.
 			ChildRow.IsEnabled(false);
+		}
+		else if ((Desc->ValueType == EPropertyBagPropertyType::UInt32 || Desc->ValueType == EPropertyBagPropertyType::UInt64)
+			&& !bFixedLayout)
+		{
+			static const FText UnsupportedTypeWarningUnsigned = LOCTEXT("UnsignedTypesWarning", "Unsigned types are not supported throught the property type selection. If you change the type, you will not be able to change it back.");
+
+			// Warn that the unsinged types cannot be set via the type selection.
+			UnsupportedTypeWarning = UnsupportedTypeWarningUnsigned;
+			bSupportedType = false;
 		}
 	}
 
@@ -829,10 +851,10 @@ void FPropertyBagInstanceDataDetails::OnChildRowAdded(IDetailPropertyRow& ChildR
 				.HeightOverride(12)
 				[
 					SNew(SImage)
-					.ToolTipText_Lambda([ChildPropertyHandle, bSupportedType]()
+					.ToolTipText_Lambda([UnsupportedTypeWarning, ChildPropertyHandle, bSupportedType]()
 					{
 						return !bSupportedType
-							? LOCTEXT("UnsupportedType", "This property type is not supported in the property bag UI.")
+							? UnsupportedTypeWarning
 							: LOCTEXT("MissingType", "The property is missing type. The Struct, Enum, or Object may have been removed.");
 					})
 					.Visibility_Lambda([ChildPropertyHandle, bSupportedType]()
