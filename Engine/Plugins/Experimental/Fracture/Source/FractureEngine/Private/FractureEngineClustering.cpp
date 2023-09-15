@@ -599,6 +599,12 @@ void FFractureEngineClustering::AutoCluster(FGeometryCollection& GeometryCollect
 		PartitionPositions = GenerateGridSites(GeometryCollection, ClusterIndex, InGridX, InGridY, InGridZ);
 	}
 
+	// Stop if we only want one cluster or there aren't enough children to do any clustering
+	if (DesiredSiteCountToUse <= 1 || NumChildren <= 1)
+	{
+		return;
+	}
+
 	int32 SiteCountToUse = DesiredSiteCountToUse;
 	int32 PreviousPartitionCount = TNumericLimits<int32>::Max();
 	bool bIterate = false;
