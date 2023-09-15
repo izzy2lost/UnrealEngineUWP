@@ -31,9 +31,8 @@ namespace UE::AnimNext
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
-		// TODO: hook up blend weight to a pin, it could change every frame
-
-		if (SharedData->BlendWeight < 1.0)
+		const float BlendWeight = SharedData->GetBlendWeight(Context, Binding);
+		if (BlendWeight < 1.0f)
 		{
 			if (!InstanceData->ChildA.IsValid())
 			{
@@ -41,14 +40,14 @@ namespace UE::AnimNext
 				InstanceData->ChildA = Context.AllocateNodeInstance(Binding, SharedData->ChildA);
 			}
 
-			if (SharedData->BlendWeight == 0.0)
+			if (BlendWeight == 0.0f)
 			{
 				// We no longer need this child, release it
 				InstanceData->ChildB.Reset();
 			}
 		}
 
-		if (SharedData->BlendWeight > 0.0)
+		if (BlendWeight > 0.0f)
 		{
 			if (!InstanceData->ChildB.IsValid())
 			{
@@ -56,7 +55,7 @@ namespace UE::AnimNext
 				InstanceData->ChildB = Context.AllocateNodeInstance(Binding, SharedData->ChildB);
 			}
 
-			if (SharedData->BlendWeight == 1.0)
+			if (BlendWeight == 1.0f)
 			{
 				// We no longer need this child, release it
 				InstanceData->ChildA.Reset();

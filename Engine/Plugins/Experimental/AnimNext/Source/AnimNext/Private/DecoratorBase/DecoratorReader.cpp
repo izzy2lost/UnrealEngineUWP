@@ -110,12 +110,31 @@ namespace UE::AnimNext
 		GraphSharedData.Empty(0);
 		GraphSharedData.AddZeroed(SharedDataSize);
 
-		// Serialize our graph
+		// Serialize our graph shared data
 		for (uint32 NodeIndex = 0; NodeIndex < NumNodes; ++NodeIndex)
 		{
+			// Serialize our node shared data
 			const uint32 SharedDataOffset = NodeHandles[NodeIndex].GetSharedOffset();
 			FNodeDescription* NodeDesc = reinterpret_cast<FNodeDescription*>(&GraphSharedData[SharedDataOffset]);
 			NodeDesc->Serialize(*this);
+
+			// Serialize our latent property handles
+			const FNodeTemplate* NodeTemplate = NodeTemplateRegistry.Find(NodeDesc->GetTemplateHandle());
+
+			const uint32 NumDecorators = NodeTemplate->GetNumDecorators();
+			const FDecoratorTemplate* DecoratorTemplates = NodeTemplate->GetDecorators();
+
+			for (uint32 DecoratorIndex = 0; DecoratorIndex < NumDecorators; ++DecoratorIndex)
+			{
+				int32 NumLatentHandles = 0;
+				*this << NumLatentHandles;
+
+				FLatentPropertyHandle* LatentHandles = DecoratorTemplates[DecoratorIndex].GetDecoratorLatentPropertyHandles(*NodeDesc);
+				for (int32 LatentHandleIndex = 0; LatentHandleIndex < NumLatentHandles; ++LatentHandleIndex)
+				{
+					*this << LatentHandles[LatentHandleIndex];
+				}
+			}
 		}
 
 		return EErrorState::None;

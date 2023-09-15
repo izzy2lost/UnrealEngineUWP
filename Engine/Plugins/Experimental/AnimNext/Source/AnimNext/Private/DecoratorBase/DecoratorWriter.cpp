@@ -75,6 +75,7 @@ namespace UE::AnimNext
 
 		bIsNodeWriting = true;
 		TrackedObjectsForGC.Reset();
+		CurrentLatentPropertyHandle = FLatentPropertyHandle::GetFirstHandle();
 
 		// Serialize the node templates
 		TArray<FNodeTemplateRegistryHandle> NodeTemplateHandles;
@@ -132,7 +133,10 @@ namespace UE::AnimNext
 		}
 	}
 
-	void FDecoratorWriter::WriteNode(const FNodeHandle NodeHandle, const TFunction<FString (uint32 DecoratorIndex, const FString& PropertyName)>& GetDecoratorProperty)
+	void FDecoratorWriter::WriteNode(
+		const FNodeHandle NodeHandle,
+		const TFunction<FString (uint32 DecoratorIndex, const FString& PropertyName)>& GetDecoratorProperty,
+		const TFunction<bool(uint32 DecoratorIndex, const FString& PropertyName)>& IsDecoratorPropertyLatent)
 	{
 		ensure(bIsNodeWriting);
 
@@ -180,11 +184,34 @@ namespace UE::AnimNext
 				return GetDecoratorProperty(DecoratorIndex, PropertyName);
 			};
 
-			Decorator->SaveDecoratorSharedData(*this, GetDecoratorPropertyAt, *SharedData);
+			Decorator->SaveDecoratorSharedData(GetDecoratorPropertyAt, *SharedData);
 		}
 
-		// Append it to our archive
+		// Append our node and decorator shared data to our archive
 		NodeDesc->Serialize(*this);
+
+		// Append our decorator latent property handles to our archive
+		for (uint32 DecoratorIndex = 0; DecoratorIndex < NumDecorators; ++DecoratorIndex)
+		{
+			const FDecoratorRegistryHandle DecoratorHandle = DecoratorTemplates[DecoratorIndex].GetRegistryHandle();
+			const FDecorator* Decorator = DecoratorRegistry.Find(DecoratorHandle);
+
+			// Curry our lambda with the decorator index
+			const auto IsDecoratorPropertyLatentAt = [&IsDecoratorPropertyLatent, DecoratorIndex](const FString& PropertyName)
+			{
+				return IsDecoratorPropertyLatent(DecoratorIndex, PropertyName);
+			};
+
+			const TArray<FLatentPropertyHandle> LatentHandles = Decorator->GetLatentPropertyHandles(IsFilterEditorOnly(), IsDecoratorPropertyLatentAt, CurrentLatentPropertyHandle);
+
+			int32 NumLatentHandles = LatentHandles.Num();
+			*this << NumLatentHandles;
+
+			for (FLatentPropertyHandle Handle : LatentHandles)
+			{
+				*this << Handle;
+			}
+		}
 
 		NumNodesWritten++;
 	}

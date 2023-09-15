@@ -9,6 +9,10 @@
 
 /**
  * Animation graph output
+ * This is a synthetic node that represents the entry point for an animation graph for RigVM.
+ * The graph editor will see this as the graph output in which to hook up the first animation node
+ * to evaluate.
+ * This node isn't used at runtime.
  */
 USTRUCT(meta=(DisplayName="Animation Output", Category="Events", NodeColor="1, 0, 0", Keywords="Root,Output"))
 struct ANIMNEXT_API FRigUnit_AnimNextGraphRoot : public FRigUnit_AnimNextBase
@@ -16,7 +20,7 @@ struct ANIMNEXT_API FRigUnit_AnimNextGraphRoot : public FRigUnit_AnimNextBase
 	GENERATED_BODY()
 
 	RIGVM_METHOD()
-	void Execute();
+	void DummyExecute();
 
 	virtual FName GetEventName() const override { return EventName; }
 	virtual bool CanOnlyExistOnce() const override { return true; }

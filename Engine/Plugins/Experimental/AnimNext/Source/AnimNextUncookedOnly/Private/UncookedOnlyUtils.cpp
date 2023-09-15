@@ -2,9 +2,12 @@
 
 #include "UncookedOnlyUtils.h"
 #include "Graph/AnimNextGraph.h"
+#include "Graph/AnimNextGraph_Controller.h"
 #include "Graph/AnimNextGraph_EditorData.h"
-#include "Graph/RigUnit_AnimNextGraphRoot.h"
 #include "Graph/RigUnit_AnimNextDecoratorStack.h"
+#include "Graph/RigUnit_AnimNextGraphRoot.h"
+#include "Graph/RigUnit_AnimNextGraphEvaluator.h"
+#include "Graph/RigUnit_AnimNextShimRoot.h"
 #include "Graph/AnimNextExecuteContext.h"
 #include "Param/AnimNextParameter.h"
 #include "Param/AnimNextParameterBlock.h"
@@ -108,7 +111,7 @@ namespace Private
 	FString GetDecoratorProperty(const FDecoratorStackMapping& DecoratorStack, uint32 DecoratorIndex, const FString& PropertyName, const TArray<FDecoratorStackMapping>& DecoratorStackNodes)
 	{
 		const TArray<URigVMPin*>& Pins = DecoratorStack.DecoratorEntries[DecoratorIndex].DecoratorEntryPin->GetSubPins();
-		for (URigVMPin* Pin : Pins)
+		for (const URigVMPin* Pin : Pins)
 		{
 			if (Pin->GetDirection() != ERigVMPinDirection::Input)
 			{
@@ -168,12 +171,37 @@ namespace Private
 		return FString();
 	}
 
+	bool IsDecoratorPropertyLatent(const FDecoratorStackMapping& DecoratorStack, uint32 DecoratorIndex, const FString& PropertyName, const TArray<FDecoratorStackMapping>& DecoratorStackNodes)
+	{
+		const TArray<URigVMPin*>& Pins = DecoratorStack.DecoratorEntries[DecoratorIndex].DecoratorEntryPin->GetSubPins();
+		for (const URigVMPin* Pin : Pins)
+		{
+			if (Pin->GetDirection() != ERigVMPinDirection::Input)
+			{
+				continue;	// We only look for input pins
+			}
+
+			if (Pin->GetName() == PropertyName)
+			{
+				// Lazy pins are latent if they are connected to something
+				return Pin->IsLazy() && !Pin->GetLinks().IsEmpty();
+			}
+		}
+
+		// Unknown property
+		return false;
+	}
+
 	void WriteDecoratorProperties(FDecoratorWriter& DecoratorWriter, const FDecoratorStackMapping& Mapping, const TArray<FDecoratorStackMapping>& DecoratorStackNodes)
 	{
 		DecoratorWriter.WriteNode(Mapping.DecoratorStackNodeHandle,
 			[&Mapping, &DecoratorStackNodes](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return GetDecoratorProperty(Mapping, DecoratorIndex, PropertyName, DecoratorStackNodes);
+			},
+			[&Mapping, &DecoratorStackNodes](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return IsDecoratorPropertyLatent(Mapping, DecoratorIndex, PropertyName, DecoratorStackNodes);
 			});
 	}
 
@@ -236,6 +264,85 @@ namespace Private
 
 		return DecoratorStackNodes;
 	}
+
+	FRigVMPinInfoArray CollectLatentPins(const TArray<FDecoratorStackMapping>& DecoratorStackNodes, TMap<FName, URigVMPin*>& LatentPinMapping)
+	{
+		const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+
+		FRigVMPinInfoArray LatentPins;
+
+		for (const FDecoratorStackMapping& DecoratorStack : DecoratorStackNodes)
+		{
+			for (const FDecoratorEntryMapping& DecoratorEntry : DecoratorStack.DecoratorEntries)
+			{
+				for (URigVMPin* Pin : DecoratorEntry.DecoratorEntryPin->GetSubPins())
+				{
+					if (Pin->IsLazy() && !Pin->GetLinks().IsEmpty())
+					{
+						// This pin has something linked to it, it is a latent pin
+						const FName LatentPinName(TEXT("LatentPin"), LatentPins.Num());	// Create unique latent pin names
+
+						FRigVMPinInfo PinInfo;
+						PinInfo.Name = LatentPinName;
+						PinInfo.TypeIndex = Pin->GetTypeIndex();
+
+						// All our programmatic pins are lazy inputs
+						PinInfo.Direction = ERigVMPinDirection::Input;
+						PinInfo.bIsLazy = true;
+
+						LatentPins.Pins.Emplace(PinInfo);
+
+						const TArray<URigVMLink*>& PinLinks = Pin->GetLinks();
+						check(PinLinks.Num() == 1);
+
+						LatentPinMapping.Add(LatentPinName, PinLinks[0]->GetSourcePin());
+					}
+				}
+			}
+		}
+
+		return LatentPins;
+	}
+
+	TArray<FRigVMFunctionArgument> GetGraphEvaluatorFunctionArguments(const FRigVMPinInfoArray& LatentPins)
+	{
+		const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+
+		TArray<FRigVMFunctionArgument> Arguments;
+		Arguments.Reserve(LatentPins.Num());
+
+		for (const FRigVMPinInfo& Pin : LatentPins)
+		{
+			const FRigVMTemplateArgumentType& TypeArg = Registry.GetType(Pin.TypeIndex);
+
+			Arguments.Add(FRigVMFunctionArgument(Pin.Name.ToString(), TypeArg.CPPType.ToString(), ERigVMFunctionArgumentDirection::Input));
+		}
+
+		return Arguments;
+	}
+
+	FString GetGraphEvaluatorMethodName(const FRigVMPinInfoArray& LatentPins)
+	{
+		static TMap<uint32, FString> GraphEvaluatorMethodNameCache;
+
+		const uint32 LatentPinListHash = GetTypeHash(LatentPins);
+		if (const FString* MethodName = GraphEvaluatorMethodNameCache.Find(LatentPinListHash))
+		{
+			return *MethodName;
+		}
+
+		// Generate a new method for this argument list
+		const FString MethodName = FString::Printf(TEXT("Execute_%X"), LatentPinListHash);
+		const FString FullExecuteMethodName = FString::Printf(TEXT("FRigUnit_AnimNextGraphEvaluator::%s"), *MethodName);
+
+		const TArray<FRigVMFunctionArgument> GraphEvaluatorArguments = GetGraphEvaluatorFunctionArguments(LatentPins);
+		FRigVMRegistry::Get().Register(*FullExecuteMethodName, &FRigUnit_AnimNextGraphEvaluator::StaticExecute, FRigUnit_AnimNextGraphEvaluator::StaticStruct(), GraphEvaluatorArguments);
+
+		// Cache our result
+		GraphEvaluatorMethodNameCache.Add(LatentPinListHash, MethodName);
+
+		return MethodName;
+	}
 }
 
 void FUtils::Compile(UAnimNextGraph* InGraph)
@@ -267,75 +374,94 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	EditorData->CompileLog.NumErrors = EditorData->CompileLog.NumWarnings = 0;
 
 	// We use a temporary graph model to build our final graph that we'll compile
-	URigVMGraph* VMTempGraph = EditorData->GetRigVMClient()->GetModel(TEXT("TempRigVMGraph"));
-	URigVMController* TempController = nullptr;
+	FRigVMClient* VMClient = EditorData->GetRigVMClient();
+	URigVMGraph* VMRootGraph = VMClient->GetDefaultModel();
+	URigVMGraph* VMTempGraph = CastChecked<URigVMGraph>(StaticDuplicateObject(VMRootGraph, GetTransientPackage(), VMClient->GetUniqueName(TEXT("TempRigVMGraph"))));
 
-	TArray<URigVMGraph*> GraphModelsToCompile;
+	UAnimNextGraph_Controller* TempController = CastChecked<UAnimNextGraph_Controller>(VMClient->GetOrCreateController(VMTempGraph));
 
-	if (VMTempGraph != nullptr)
+	// Gather our decorator stacks
+	TArray<Private::FDecoratorStackMapping> DecoratorStackNodes = Private::CollectDecoratorStacks(VMTempGraph);
+
+	// Add our runtime shim root node
+	URigVMUnitNode* TempShimRootNode = TempController->AddUnitNode(FRigUnit_AnimNextShimRoot::StaticStruct(), FRigVMStruct::ExecuteName, FVector2D::ZeroVector, FString(), false);
+
+	// Add our graph evaluator node
+	TMap<FName, URigVMPin*> LatentPinMapping;
+	const FRigVMPinInfoArray LatentPins = Private::CollectLatentPins(DecoratorStackNodes, LatentPinMapping);
+
+	// We need a unique method name to match our unique argument list
+	const FString ExecuteMethodName = Private::GetGraphEvaluatorMethodName(LatentPins);
+
+	URigVMUnitNode* GraphEvaluatorNode = TempController->AddUnitNodeWithPins(FRigUnit_AnimNextGraphEvaluator::StaticStruct(), LatentPins, *ExecuteMethodName, FVector2D::ZeroVector, FString(), false);
+
+	// Link our shim and evaluator nodes together using the execution context
+	TempController->AddLink(
+		TempShimRootNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextShimRoot, ExecuteContext)),
+		GraphEvaluatorNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextGraphEvaluator, ExecuteContext)));
+
+	// Link our latent pins
+	for (const FRigVMPinInfo& LatentPin : LatentPins)
 	{
-		TempController = EditorData->GetRigVMClient()->GetOrCreateController(VMTempGraph);
-
-		// Clear our temporary model
-		TempController->RemoveNodes(VMTempGraph->GetNodes());
-
-		URigVMGraph* VMRootGraph = EditorData->GetRigVMClient()->GetDefaultModel();
-
-		// Add our root node, it's always there
-		URigVMUnitNode* TempRootNode = TempController->AddUnitNode(FRigUnit_AnimNextGraphRoot::StaticStruct(), FRigVMStruct::ExecuteName, FVector2D(0.0f, 0.0f), FString(), false);
-
-		// Gather our decorator stacks
-		TArray<Private::FDecoratorStackMapping> DecoratorStackNodes = Private::CollectDecoratorStacks(VMRootGraph);
-
-		FDecoratorWriter DecoratorWriter;
-
-		// Iterate over every decorator stack and register our node templates
-		for (Private::FDecoratorStackMapping& NodeMapping : DecoratorStackNodes)
-		{
-			NodeMapping.DecoratorStackNodeHandle = Private::RegisterDecoratorNodeTemplate(DecoratorWriter, NodeMapping.DecoratorStackNode);
-		}
-
-		// Write our node shared data
-		DecoratorWriter.BeginNodeWriting();
-
-		for (const Private::FDecoratorStackMapping& NodeMapping : DecoratorStackNodes)
-		{
-			Private::WriteDecoratorProperties(DecoratorWriter, NodeMapping, DecoratorStackNodes);
-		}
-
-		DecoratorWriter.EndNodeWriting();
-
-		// Find our root node handle, if we have any stack nodes, the first one is our root stack
-		FAnimNextEntryPointHandle RootDecoratorHandle;
-		if (DecoratorStackNodes.Num() != 0)
-		{
-			RootDecoratorHandle = FAnimNextEntryPointHandle(DecoratorStackNodes[0].DecoratorStackNodeHandle);
-		}
-
-		// Cache our compiled metadata
-		InGraph->SharedDataArchiveBuffer = DecoratorWriter.GetGraphSharedData();
-		InGraph->RootDecoratorHandle = RootDecoratorHandle;
-
-		// Populate our runtime metadata
-		InGraph->LoadFromArchiveBuffer(InGraph->SharedDataArchiveBuffer);
-
-		// Compile our new graph
-		GraphModelsToCompile.Add(VMTempGraph);
+		TempController->AddLink(
+			LatentPinMapping[LatentPin.Name],
+			GraphEvaluatorNode->FindPin(LatentPin.Name.ToString()));
 	}
 
-	if (VMTempGraph == nullptr)
-	{
-		// This is an old graph that was saved before the introduction of the temporary graph, use the root graph instead
-		URigVMGraph* VMRootGraph = EditorData->GetRigVMClient()->GetDefaultModel();
+	FDecoratorWriter DecoratorWriter;
 
-		GraphModelsToCompile.Add(VMRootGraph);
-		TempController = EditorData->GetRigVMClient()->GetOrCreateController(VMRootGraph);
+	// Iterate over every decorator stack and register our node templates
+	for (Private::FDecoratorStackMapping& NodeMapping : DecoratorStackNodes)
+	{
+		NodeMapping.DecoratorStackNodeHandle = Private::RegisterDecoratorNodeTemplate(DecoratorWriter, NodeMapping.DecoratorStackNode);
+	}
+
+	// Write our node shared data
+	DecoratorWriter.BeginNodeWriting();
+
+	for (const Private::FDecoratorStackMapping& NodeMapping : DecoratorStackNodes)
+	{
+		Private::WriteDecoratorProperties(DecoratorWriter, NodeMapping, DecoratorStackNodes);
+	}
+
+	DecoratorWriter.EndNodeWriting();
+
+	// Find our root node handle, if we have any stack nodes, the first one is our root stack
+	FAnimNextEntryPointHandle RootDecoratorHandle;
+	if (DecoratorStackNodes.Num() != 0)
+	{
+		RootDecoratorHandle = FAnimNextEntryPointHandle(DecoratorStackNodes[0].DecoratorStackNodeHandle);
+	}
+
+	// Cache our compiled metadata
+	InGraph->SharedDataArchiveBuffer = DecoratorWriter.GetGraphSharedData();
+	InGraph->RootDecoratorHandle = RootDecoratorHandle;
+
+	// Populate our runtime metadata
+	InGraph->LoadFromArchiveBuffer(InGraph->SharedDataArchiveBuffer);
+
+	// Remove our old root node
+	if (URigVMNode* const* RootNode = VMTempGraph->GetNodes().FindByPredicate(
+		[](URigVMNode* Node)
+		{
+			if (URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(Node))
+			{
+				return UnitNode->GetScriptStruct() == FRigUnit_AnimNextGraphRoot::StaticStruct();
+			}
+
+			return false;
+		}))
+	{
+		TempController->RemoveNode(*RootNode, false, false);
 	}
 
 	URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
 	EditorData->VMCompileSettings.SetExecuteContextStruct(EditorData->RigVMClient.GetExecuteContextStruct());
 	const FRigVMCompileSettings Settings = (EditorData->bCompileInDebugMode) ? FRigVMCompileSettings::Fast(EditorData->VMCompileSettings.GetExecuteContextStruct()) : EditorData->VMCompileSettings;
-	Compiler->Compile(Settings, GraphModelsToCompile, TempController, InGraph->RigVM, InGraph->ExtendedExecuteContext, InGraph->GetRigVMExternalVariables(), &EditorData->PinToOperandMap);
+	Compiler->Compile(Settings, { VMTempGraph }, TempController, InGraph->RigVM, InGraph->ExtendedExecuteContext, InGraph->GetRigVMExternalVariables(), & EditorData->PinToOperandMap);
+
+	// Initialize right away, in packaged builds we initialize during PostLoad
+	InGraph->RigVM->Initialize(InGraph->ExtendedExecuteContext, InGraph->RigVM->GetLocalMemoryArray(InGraph->ExtendedExecuteContext));
 
 	if (EditorData->bErrorsDuringCompilation)
 	{
@@ -351,6 +477,8 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 		EditorData->VMCompiledEvent.Broadcast(InGraph, InGraph->RigVM, InGraph->ExtendedExecuteContext);
 	}
 
+	VMClient->RemoveController(VMTempGraph);
+
 #if WITH_EDITOR
 //	RefreshBreakpoints(EditorData);
 #endif
@@ -363,8 +491,7 @@ void FUtils::RecreateVM(UAnimNextGraph* InGraph)
 	// Cooked platforms will load these pointers from disk
 	if (!FPlatformProperties::RequiresCookedData())
 	{
-		// We dont support ERigVMMemoryType::Work memory as we dont operate on an instance
-	//	InGraph->RigVM->GetMemoryByType(ERigVMMemoryType::Work, true);
+		InGraph->RigVM->CreateMemoryByType(InGraph->ExtendedExecuteContext, ERigVMMemoryType::Work);
 		InGraph->RigVM->CreateMemoryByType(InGraph->ExtendedExecuteContext, ERigVMMemoryType::Literal);
 		InGraph->RigVM->CreateMemoryByType(InGraph->ExtendedExecuteContext, ERigVMMemoryType::Debug);
 	}

@@ -46,6 +46,7 @@ namespace UE::AnimNext
 			const FDecoratorUID DecoratorUID = DecoratorTemplate.GetUID();
 
 			uint32 DecoratorSharedDataOffset = 0;
+			uint32 DecoratorSharedLatentPropertyHandlesOffset = 0;
 			uint32 DecoratorInstanceDataOffset = 0;	// For instance data, 0 is an invalid offset since the data follows an instance of FNodeInstance
 
 			// Skip decorators that we can't find
@@ -65,13 +66,22 @@ namespace UE::AnimNext
 				// Include our decorator
 				SharedDataOffset += MemoryLayout.SharedDataSize;
 				InstanceDataOffset += MemoryLayout.InstanceDataSize;
+
+				// Save our latent pins offset (if we have any)
+				const uint32 NumLatentProperties = Decorator->GetNumLatentDecoratorProperties();
+				DecoratorSharedLatentPropertyHandlesOffset = NumLatentProperties != 0 ? Align(SharedDataOffset, alignof(FLatentPropertyHandle)) : 0;
+
+				// Include our latent pins
+				SharedDataOffset += NumLatentProperties * sizeof(FLatentPropertyHandle);
 			}
 
 			check(DecoratorSharedDataOffset <= MAX_uint16);
+			check(DecoratorSharedLatentPropertyHandlesOffset <= MAX_uint16);
 			check(DecoratorInstanceDataOffset <= MAX_uint16);
 
 			// Update our decorator offsets
 			DecoratorTemplate.NodeSharedOffset = static_cast<uint16>(DecoratorSharedDataOffset);
+			DecoratorTemplate.NodeSharedLatentPropertyHandlesOffset = static_cast<uint16>(DecoratorSharedLatentPropertyHandlesOffset);
 			DecoratorTemplate.NodeInstanceOffset = static_cast<uint16>(DecoratorInstanceDataOffset);
 		}
 

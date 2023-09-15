@@ -1075,7 +1075,7 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 	if (!WorkData.AST.IsValid())
 	{
 		WorkData.OverrideReportDelegate(bEncounteredASTError, bSurpressedASTError);
-		WorkData.AST = MakeShareable(new FRigVMParserAST(InGraphs, InController, Settings.ASTSettings, InExternalVariables));
+		WorkData.AST = MakeShared<FRigVMParserAST>(InGraphs, InController, Settings.ASTSettings, InExternalVariables);
 		WorkData.RemoveOverrideReportDelegate();
 
 		for(URigVMGraph* Graph : InGraphs)
@@ -1220,7 +1220,7 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 #else
 	for(ERigVMMemoryType MemoryType : MemoryTypes)
 	{
-		UPackage* Package = InGraphs[0]->GetOutermost();
+		UPackage* Package = WorkData.VM->GetOutermost();
 
 		const TArray<FRigVMPropertyDescription>* Properties = WorkData.PropertyDescriptions.Find(MemoryType);
 		if(Properties == nullptr)

@@ -96,6 +96,9 @@ public:
 
 	virtual uint32 GetStructureHash() const override;
 
+	// allows the node to support non-native pins
+	virtual bool HasNonNativePins() const { return false; }
+
 protected:
 
 	virtual FText GetToolTipTextForPin(const URigVMPin* InPin) const override;

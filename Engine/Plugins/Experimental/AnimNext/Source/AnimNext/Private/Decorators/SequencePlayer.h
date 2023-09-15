@@ -17,20 +17,29 @@ struct FAnimNextSequencePlayerDecoratorSharedData : public FAnimNextDecoratorSha
 	GENERATED_BODY()
 
 	/** The sequence to play. */
-	UPROPERTY(meta = (Input))
+	UPROPERTY(meta = (Inline))
 	TObjectPtr<UAnimSequence> AnimSequence;
 
 	/** The play rate multiplier at which this sequence plays. */
-	UPROPERTY(meta = (Input))
+	UPROPERTY()
 	float PlayRate = 1.0f;
 
 	/** The time at which we should start playing this sequence. */
-	UPROPERTY(meta = (Input))
+	UPROPERTY()
 	float StartPosition = 0.0f;
 
 	/** Whether or not this sequence playback will loop. */
-	UPROPERTY(meta = (Input))
+	UPROPERTY()
 	bool bLoop = 0.0f;
+
+	// Latent pin support boilerplate
+	#define DECORATOR_LATENT_PROPERTIES_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(PlayRate) \
+		GeneratorMacro(StartPosition) \
+		GeneratorMacro(bLoop) \
+
+	GENERATE_DECORATOR_LATENT_PROPERTIES(FAnimNextSequencePlayerDecoratorSharedData, DECORATOR_LATENT_PROPERTIES_ENUMERATOR)
+	#undef DECORATOR_LATENT_PROPERTIES_ENUMERATOR
 };
 
 namespace UE::AnimNext
@@ -51,7 +60,7 @@ namespace UE::AnimNext
 			float InternalTimeAccumulator = 0.0f;
 			float PrevInternalTimeAccumulator = 0.0f;
 
-			void Construct(FExecutionContext& Context, FWeakDecoratorPtr DecoratorPtr, const FAnimNextSequencePlayerDecoratorSharedData& SharedData);
+			void Construct(FExecutionContext& Context, const FDecoratorBinding& Binding);
 		};
 
 		// IEvaluate impl

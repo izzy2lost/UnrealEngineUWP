@@ -9,6 +9,7 @@
 #include "DecoratorBase/NodeInstance.h"
 #include "DecoratorBase/NodeTemplate.h"
 #include "DecoratorBase/NodeTemplateRegistry.h"
+#include "RigVMCore/RigVMExecuteContext.h"
 
 namespace UE::AnimNext
 {
@@ -17,8 +18,20 @@ namespace UE::AnimNext
 		static thread_local UE::AnimNext::FExecutionContext* GThreadLocalExecutionContext = nullptr;
 	}
 
-	FExecutionContext::FExecutionContext(TArrayView<const uint8> GraphSharedData_)
-		: GraphSharedData(GraphSharedData_)
+	FExecutionContext::FExecutionContext(TArrayView<const uint8> InGraphSharedData)
+		: GraphSharedData(InGraphSharedData)
+		, RigVMLatentMemoryHandles()
+		, RigVMExecuteContext(nullptr)
+	{
+		// There can be only one execution context alive per thread
+		ensure(Private::GThreadLocalExecutionContext == nullptr);
+		Private::GThreadLocalExecutionContext = this;
+	}
+
+	FExecutionContext::FExecutionContext(TArrayView<const uint8> InGraphSharedData, FRigVMExtendedExecuteContext& InRigVMExecuteContext, FRigVMMemoryHandleArray InRigVMLatentMemoryHandles)
+		: GraphSharedData(InGraphSharedData)
+		, RigVMLatentMemoryHandles(InRigVMLatentMemoryHandles)
+		, RigVMExecuteContext(&InRigVMExecuteContext)
 	{
 		// There can be only one execution context alive per thread
 		ensure(Private::GThreadLocalExecutionContext == nullptr);
@@ -95,7 +108,8 @@ namespace UE::AnimNext
 			const FAnimNextDecoratorSharedData* SharedData = DecoratorDesc->GetDecoratorDescription(NodeDesc);
 			FDecoratorInstanceData* InstanceData = DecoratorDesc->GetDecoratorInstance(*NodeInstance);
 
-			Decorator->ConstructDecoratorInstance(*this, DecoratorPtr, *SharedData, *InstanceData);
+			const FDecoratorBinding Binding(nullptr, DecoratorDesc, &NodeDesc, DecoratorPtr);
+			Decorator->ConstructDecoratorInstance(*this, Binding);
 		}
 
 		return FDecoratorPtr(NodeInstance, ChildDecoratorIndex);
@@ -137,10 +151,8 @@ namespace UE::AnimNext
 
 				FWeakDecoratorPtr DecoratorPtr(NodeInstance, DecoratorIndex);
 
-				const FAnimNextDecoratorSharedData* SharedData = DecoratorDesc->GetDecoratorDescription(NodeDesc);
-				FDecoratorInstanceData* InstanceData = DecoratorDesc->GetDecoratorInstance(*NodeInstance);
-
-				Decorator->DestructDecoratorInstance(*this, DecoratorPtr, *SharedData, *InstanceData);
+				const FDecoratorBinding Binding(nullptr, DecoratorDesc, &NodeDesc, DecoratorPtr);
+				Decorator->DestructDecoratorInstance(*this, Binding);
 			}
 		}
 
@@ -191,7 +203,7 @@ namespace UE::AnimNext
 				const uint32 DecoratorIndex = DecoratorDesc - DecoratorDescs;
 				FWeakDecoratorPtr InterfaceDecoratorPtr(NodeInstance, DecoratorIndex);
 
-				InterfaceBinding = FDecoratorBinding(Interface, SharedData, InstanceData, InterfaceDecoratorPtr);
+				InterfaceBinding = FDecoratorBinding(Interface, DecoratorDesc, &NodeDesc, InterfaceDecoratorPtr);
 				return true;
 			}
 		}
@@ -248,13 +260,32 @@ namespace UE::AnimNext
 				const uint32 DecoratorIndex = DecoratorDesc - DecoratorDescs;
 				FWeakDecoratorPtr SuperPtr(NodeInstance, DecoratorIndex);
 
-				SuperBinding = FDecoratorBinding(Interface, SharedData, InstanceData, SuperPtr);
+				SuperBinding = FDecoratorBinding(Interface, DecoratorDesc, &NodeDesc, SuperPtr);
 				return true;
 			}
 		}
 
 		// We failed to find a decorator that handles this interface
 		return false;
+	}
+
+	const void* FExecutionContext::EvaluateLatentPinImpl(FLatentPropertyHandle LatentPropertyHandle) const
+	{
+		check(LatentPropertyHandle.IsValid());
+		check(RigVMLatentMemoryHandles.IsValidIndex(LatentPropertyHandle.GetLatentPropertyIndex()));
+
+		FRigVMMemoryHandle& MemoryHandle = RigVMLatentMemoryHandles[LatentPropertyHandle.GetLatentPropertyIndex()];
+
+		// This should be an assert. If this triggers, it means that we have a bug in how lazy memory handles
+		// are assigned during compilation. We keep it as an ensure because in this case, we can recover
+		// as even if the memory handle isn't lazy, it remains valid and we can use it. It won't have the
+		// value we expect but it'll work. The ensure will signal that we need to fix the bug.
+		if (ensure(MemoryHandle.IsLazy()))
+		{
+			MemoryHandle.ComputeLazyValueIfNecessary(*RigVMExecuteContext, RigVMExecuteContext->GetSlice().GetIndex());
+		}
+
+		return MemoryHandle.GetData();
 	}
 
 	const FNodeDescription& FExecutionContext::GetNodeDescription(FNodeHandle NodeHandle) const

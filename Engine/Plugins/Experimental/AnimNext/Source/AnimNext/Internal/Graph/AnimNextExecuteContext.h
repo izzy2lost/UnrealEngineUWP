@@ -42,6 +42,7 @@ struct FAnimNextExecuteContext : public FRigVMExecuteContext
 	FAnimNextExecuteContext()
 		: FRigVMExecuteContext()
 		, Context(nullptr)
+		, SimulationSteps(EAnimNextGraphSimulationSteps::None)
 	{
 	}
 
@@ -65,6 +66,7 @@ struct FAnimNextExecuteContext : public FRigVMExecuteContext
 		Context = OtherContext->Context;
 		SharedDataBuffer = OtherContext->SharedDataBuffer;
 		GraphInstancePtr = OtherContext->GraphInstancePtr;
+		SimulationSteps = OtherContext->SimulationSteps;
 	}
 
 private:
@@ -82,6 +84,15 @@ private:
 	void SetSimulationSteps(EAnimNextGraphSimulationSteps InSimulationSteps)
 	{
 		SimulationSteps = InSimulationSteps;
+	}
+
+	// Call this to reset the context to its original state to detect stale usage, can't call it Reset due to virtual in base with that name
+	void DebugReset()
+	{
+		Context = nullptr;
+		SharedDataBuffer = TArrayView<const uint8>();
+		GraphInstancePtr.Reset();
+		SimulationSteps = EAnimNextGraphSimulationSteps::None;
 	}
 
 	const UE::AnimNext::FContext* Context;

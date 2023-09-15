@@ -17,12 +17,13 @@ namespace UE::AnimNext
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(ITimeline)
 	DEFINE_ANIM_DECORATOR_END(FSequencePlayerDecorator)
 
-	void FSequencePlayerDecorator::FInstanceData::Construct(FExecutionContext& Context, FWeakDecoratorPtr DecoratorPtr, const FAnimNextSequencePlayerDecoratorSharedData& SharedData)
+	void FSequencePlayerDecorator::FInstanceData::Construct(FExecutionContext& Context, const FDecoratorBinding& Binding)
 	{
-		if (SharedData.AnimSequence != nullptr)
+		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
+		if (SharedData->AnimSequence != nullptr)
 		{
-			const float SequenceLength = SharedData.AnimSequence->GetPlayLength();
-			InternalTimeAccumulator = FMath::Clamp(SharedData.StartPosition, 0.f, SequenceLength);
+			const float SequenceLength = SharedData->AnimSequence->GetPlayLength();
+			InternalTimeAccumulator = FMath::Clamp(SharedData->GetStartPosition(Context, Binding), 0.0f, SequenceLength);
 			PrevInternalTimeAccumulator = InternalTimeAccumulator;
 		}
 	}
@@ -44,7 +45,7 @@ namespace UE::AnimNext
 		const FAnimExtractContext ExtractionContext(static_cast<double>(InstanceData->InternalTimeAccumulator)
 			, false /*Output.AnimInstanceProxy->ShouldExtractRootMotion()*/
 			, DeltaTimeRecord
-			, SharedData->bLoop);
+			, SharedData->GetbLoop(Context, Binding));
 
 		const FAnimNextGraphReferencePose& GraphReferencePose = ParamStack.GetParam<FAnimNextGraphReferencePose>("GraphReferencePose");
 		const int32 GraphLODLevel = ParamStack.GetParam<int32>("GraphLODLevel");
@@ -66,7 +67,7 @@ namespace UE::AnimNext
 	double FSequencePlayerDecorator::GetPlayRate(FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
-		return SharedData->PlayRate;
+		return SharedData->GetPlayRate(Context, Binding);
 	}
 
 	void FSequencePlayerDecorator::PreUpdate(FExecutionContext& Context, const TDecoratorBinding<IUpdate>& Binding) const
@@ -86,12 +87,14 @@ namespace UE::AnimNext
 
 			const float EffectiveDelta = FMath::IsNearlyZero(DeltaTime) || FMath::IsNearlyZero(PlayRate) ? 0.f : DeltaTime * PlayRate;
 
+			const bool bIsLooping = SharedData->GetbLoop(Context, Binding);
+
 			const float SequenceLength = SharedData->AnimSequence->GetPlayLength();
-			float CurrentTime = SharedData->bLoop
+			float CurrentTime = bIsLooping
 				? FMath::Fmod(InstanceData->InternalTimeAccumulator + EffectiveDelta, SequenceLength)
 				: FMath::Clamp(InstanceData->InternalTimeAccumulator + EffectiveDelta, 0.f, SequenceLength);
 
-			if (SharedData->bLoop && CurrentTime < 0.f)
+			if (bIsLooping && CurrentTime < 0.f)
 			{
 				CurrentTime += SequenceLength;
 			}

@@ -3,7 +3,7 @@
 #include "Graph/AnimNextGraph.h"
 #include "RigVMCore/RigVMMemoryStorage.h"
 #include "RigVMCore/RigVMExecuteContext.h"
-#include "Graph/RigUnit_AnimNextGraphRoot.h"
+#include "Graph/RigUnit_AnimNextShimRoot.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/Package.h"
 #include "Param/ParamTypeHandle.h"
@@ -19,19 +19,12 @@ const FName EntryPointName("GetData");
 const FName ResultName("Result");
 }
 
-UE::AnimNext::FDecoratorPtr UAnimNextGraph::AllocateInstance() const
+FAnimNextGraphInstance::~FAnimNextGraphInstance()
 {
-	if (!ResolvedRootDecoratorHandle.IsValid())
-	{
-		return UE::AnimNext::FDecoratorPtr();
-	}
-
-	UE::AnimNext::FExecutionContext Context(SharedDataBuffer);
-
-	return Context.AllocateNodeInstance(UE::AnimNext::FWeakDecoratorPtr(), ResolvedRootDecoratorHandle);
+	Release();
 }
 
-void UAnimNextGraph::ReleaseInstance(UE::AnimNext::FDecoratorPtr& GraphInstancePtr) const
+void FAnimNextGraphInstance::Release()
 {
 	if (!GraphInstancePtr.IsValid())
 	{
@@ -39,22 +32,50 @@ void UAnimNextGraph::ReleaseInstance(UE::AnimNext::FDecoratorPtr& GraphInstanceP
 	}
 
 	// We need an execution context for this graph to be active when we delete the graph instance
-	UE::AnimNext::FExecutionContext Context(SharedDataBuffer);
+	UE::AnimNext::FExecutionContext Context(Graph->SharedDataBuffer);
 
 	GraphInstancePtr.Reset();
+	Graph = nullptr;
+	ExtendedExecuteContext.Reset();
 }
 
-void UAnimNextGraph::Run(const UE::AnimNext::FContext& Context, UE::AnimNext::FWeakDecoratorPtr GraphInstancePtr, EAnimNextGraphSimulationSteps SimulationSteps) const
+bool FAnimNextGraphInstance::IsValid() const
 {
-	if (RigVM && GraphInstancePtr.IsValid())
+	return GraphInstancePtr.IsValid();
+}
+
+void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstance& Instance) const
+{
+	Instance.Release();
+
+	if (!ResolvedRootDecoratorHandle.IsValid())
 	{
-		FRigVMExtendedExecuteContext RigVMExtendedExecuteContext;
-		FAnimNextExecuteContext& AnimNextContext = RigVMExtendedExecuteContext.GetPublicDataSafe<FAnimNextExecuteContext>();
+		return;
+	}
+
+	Instance.Graph = this;
+
+	UE::AnimNext::FExecutionContext Context(SharedDataBuffer);
+	Instance.GraphInstancePtr = Context.AllocateNodeInstance(UE::AnimNext::FWeakDecoratorPtr(), ResolvedRootDecoratorHandle);
+
+	Instance.ExtendedExecuteContext.CopyMemoryStorage(ExtendedExecuteContext, RigVM);
+
+	RigVM->InitializeInstance(Instance.ExtendedExecuteContext, RigVM->GetLocalMemoryArray(Instance.ExtendedExecuteContext));
+}
+
+void UAnimNextGraph::Run(const UE::AnimNext::FContext& Context, FAnimNextGraphInstance& GraphInstance, EAnimNextGraphSimulationSteps SimulationSteps) const
+{
+	if (RigVM && GraphInstance.IsValid())
+	{
+		FAnimNextExecuteContext& AnimNextContext = GraphInstance.ExtendedExecuteContext.GetPublicDataSafe<FAnimNextExecuteContext>();
 		AnimNextContext.SetContextData(Context);
-		AnimNextContext.InitializeWithGraph(SharedDataBuffer, GraphInstancePtr);
+		AnimNextContext.InitializeWithGraph(SharedDataBuffer, GraphInstance.GraphInstancePtr);
 		AnimNextContext.SetSimulationSteps(SimulationSteps);
 
-		RigVM->Execute(RigVMExtendedExecuteContext, TArray<TRigVMMemoryStorage*>(), FRigUnit_AnimNextGraphRoot::EventName);
+		RigVM->Execute(GraphInstance.ExtendedExecuteContext, FRigUnit_AnimNextShimRoot::EventName);
+
+		// Reset the context to avoid issues if we forget to reset it the next time we use it
+		AnimNextContext.DebugReset();
 	}
 }
 
@@ -78,6 +99,13 @@ static TArray<UClass*> GetClassObjectsInPackage(UPackage* InPackage)
 	}
 
 	return ClassObjects;
+}
+
+void UAnimNextGraph::PostLoad()
+{
+	Super::PostLoad();
+
+	ExtendedExecuteContext.InvalidateCachedMemory();
 }
 
 void UAnimNextGraph::PostRename(UObject* OldOuter, const FName OldName)

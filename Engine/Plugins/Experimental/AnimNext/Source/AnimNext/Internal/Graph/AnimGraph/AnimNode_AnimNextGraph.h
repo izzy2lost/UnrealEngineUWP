@@ -17,7 +17,6 @@ struct ANIMNEXT_API FAnimNode_AnimNextGraph : public FAnimNode_CustomProperty
 	GENERATED_BODY()
 
 	FAnimNode_AnimNextGraph();
-	~FAnimNode_AnimNextGraph();
 
 	// FAnimNode_Base interface
 	virtual void OnInitializeAnimInstance(const FAnimInstanceProxy* InProxy, const UAnimInstance* InAnimInstance) override;
@@ -44,8 +43,9 @@ private:
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
 	TObjectPtr<UAnimNextGraph> AnimNextGraph;
 
-	// Shared pointer to our graph instance, we own it
-	UE::AnimNext::FDecoratorPtr GraphInstancePtr;
+	// Our graph instance, we own it
+	UPROPERTY()
+	FAnimNextGraphInstance GraphInstance;
 
 	/*
 	 * Max LOD that this node is allowed to run

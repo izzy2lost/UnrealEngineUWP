@@ -37,6 +37,42 @@ namespace UE::AnimNext::Graph
 	extern ANIMNEXT_API const FName ResultName;
 }
 
+// Represents an instance of an AnimNext graph
+// This struct uses UE reflection because we wish for the GC to keep the graph
+// alive while we own a reference to it. It is not intended to be serialized on disk with a live instance.
+USTRUCT()
+struct ANIMNEXT_API FAnimNextGraphInstance
+{
+	GENERATED_BODY()
+
+	// Creates an empty graph instance that doesn't reference anything
+	FAnimNextGraphInstance() = default;
+
+	// If the graph instance is allocated, we release it during destruction
+	~FAnimNextGraphInstance();
+
+	// Releases the graph instance and frees all corresponding memory
+	void Release();
+
+	// Returns true if we have a live graph instance, false otherwise
+	bool IsValid() const;
+
+private:
+	// Hard reference to the graph used to create this instance to ensure we can release it safely
+	UPROPERTY()
+	TObjectPtr<const UAnimNextGraph> Graph;
+
+	// Hard reference to the graph instance data, we own it
+	UE::AnimNext::FDecoratorPtr GraphInstancePtr;
+
+	// Extended execute context instance for this graph instance, we own it
+	UPROPERTY()
+	FRigVMExtendedExecuteContext ExtendedExecuteContext;
+
+	// The graph is the one that allocates instances
+	friend UAnimNextGraph;
+};
+
 // A user-created graph of logic used to supply data
 UCLASS(BlueprintType)
 class ANIMNEXT_API UAnimNextGraph : public UObject
@@ -45,19 +81,17 @@ class ANIMNEXT_API UAnimNextGraph : public UObject
 
 public:
 	// UObject interface
+	virtual void PostLoad() override;
 	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
 	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 	virtual void Serialize(FArchive& Ar) override;
 	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
 	// Allocates an instance of the graph, retain the handle and use it with the Run() function to evaluate it
-	UE::AnimNext::FDecoratorPtr AllocateInstance() const;
-
-	// Releases an instance of the graph and clears the provided handle
-	void ReleaseInstance(UE::AnimNext::FDecoratorPtr& GraphInstancePtr) const;
+	void AllocateInstance(FAnimNextGraphInstance& Instance) const;
 
 	// Run the specified simulation steps on the provided graph with the given context
-	void Run(const UE::AnimNext::FContext& Context, UE::AnimNext::FWeakDecoratorPtr GraphInstancePtr, EAnimNextGraphSimulationSteps SimulationSteps) const;
+	void Run(const UE::AnimNext::FContext& Context, FAnimNextGraphInstance& GraphInstance, EAnimNextGraphSimulationSteps SimulationSteps) const;
 
 protected:
 	// Support rig VM execution
@@ -70,11 +104,8 @@ protected:
 	friend class UAnimNextGraph_EditorData;
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 	friend class UE::AnimNext::Editor::FGraphEditor;
-	friend class UAnimNextGraph;
+	friend struct FAnimNextGraphInstance;
 	friend class UAnimGraphNode_AnimNextGraph;
-
-	UPROPERTY()
-	TObjectPtr<URigVM> RigVM;
 
 	// This is a handle to the root decorator in our graph
 	UPROPERTY()
@@ -92,8 +123,15 @@ protected:
 	// It means that object references in the graph shared data are not visited at runtime by the GC (they are immutable)
 	TArray<TObjectPtr<UObject>> TrackedObjectsForGC;
 
-	UPROPERTY(transient)
-	mutable FRigVMExtendedExecuteContext ExtendedExecuteContext;
+	// The RigVM object holds the bytecode, literals, etc used by the RigVM internals, there is a single instance along with the UAnimNextGraph (1:1 mapping)
+	UPROPERTY()
+	TObjectPtr<URigVM> RigVM;
+
+	// The ExtendedExecuteContext object holds instance/work data used by the RigVM internals. It is populated during compilation same as the URigVM object above.
+	// We also have a 1:1 mapping with the UAnimNextGraph but each instance of the anim graph also needs its own exetended execute context object. This one is used
+	// as a reference we copy from.
+	UPROPERTY()
+	FRigVMExtendedExecuteContext ExtendedExecuteContext;
 
 	UPROPERTY()
 	FRigVMRuntimeSettings VMRuntimeSettings;

@@ -89,6 +89,7 @@ public:
 	FRigVMClient()
 		: SchemaPtr(nullptr)
 		, SchemaClass(URigVMSchema::StaticClass())
+		, ControllerClass(URigVMController::StaticClass())
 		, FunctionLibrary(nullptr)
 		, ActionStack(nullptr)
 		, bSuspendNotifications(false)
@@ -99,6 +100,7 @@ public:
 	}
 
 	void SetSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass);
+	void SetControllerClass(TSubclassOf<URigVMController> InControllerClass);
 	void SetOuterClientHost(UObject* InOuterClientHost, const FName& InOuterClientHostPropertyName);
 	void SetFromDeprecatedData(URigVMGraph* InDefaultGraph, URigVMFunctionLibrary* InFunctionLibrary);
 
@@ -205,6 +207,9 @@ private:
 
 	UPROPERTY(transient)
 	TSubclassOf<URigVMSchema> SchemaClass;
+
+	UPROPERTY(transient)
+	TSubclassOf<URigVMController> ControllerClass;
 
 	UPROPERTY()
 	TArray<TObjectPtr<URigVMGraph>> Models;

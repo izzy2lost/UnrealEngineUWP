@@ -7,7 +7,13 @@
 #include "DecoratorBase/DecoratorHandle.h"
 #include "DecoratorBase/DecoratorPtr.h"
 #include "DecoratorBase/DecoratorInterfaceUID.h"
+#include "DecoratorBase/LatentPropertyHandle.h"
 #include "DecoratorBase/NodeHandle.h"
+
+struct FRigVMExtendedExecuteContext;
+struct FRigVMMemoryHandle;
+
+using FRigVMMemoryHandleArray = TArrayView<FRigVMMemoryHandle>;
 
 namespace UE::AnimNext
 {
@@ -26,7 +32,10 @@ namespace UE::AnimNext
 	struct ANIMNEXT_API FExecutionContext
 	{
 		// Creates an execution context for the specified graph
-		explicit FExecutionContext(TArrayView<const uint8> GraphSharedData);
+		explicit FExecutionContext(TArrayView<const uint8> InGraphSharedData);
+
+		// Creates an execution context for the specified graph with RigVM latent pin support
+		FExecutionContext(TArrayView<const uint8> InGraphSharedData, FRigVMExtendedExecuteContext& InRigVMExecuteContext, FRigVMMemoryHandleArray InRigVMLatentMemoryHandles);
 
 		// Destroys the execution context
 		~FExecutionContext();
@@ -66,12 +75,17 @@ namespace UE::AnimNext
 		template<class TraversalContextType>
 		TraversalContextType& GetTraversalContext() const { return *static_cast<TraversalContextType*>(TraversalContext); }	// TODO: Add a casting check for safety
 
+		// Evaluates the latent pin with the specified handle
+		template<typename LatentPinType>
+		LatentPinType EvaluateLatentPin(FLatentPropertyHandle LatentPropertyHandle) const;
+
 	private:
 		FExecutionContext(const FExecutionContext&) = delete;
 		FExecutionContext(FExecutionContext&&) = delete;
 
 		bool GetInterfaceImpl(FDecoratorInterfaceUID InterfaceUID, FWeakDecoratorPtr DecoratorPtr, FDecoratorBinding& InterfaceBinding) const;
 		bool GetInterfaceSuperImpl(FDecoratorInterfaceUID InterfaceUID, FWeakDecoratorPtr DecoratorPtr, FDecoratorBinding& SuperBinding) const;
+		const void* EvaluateLatentPinImpl(FLatentPropertyHandle LatentPropertyHandle) const;
 
 		const FNodeDescription& GetNodeDescription(FNodeHandle NodeHandle) const;
 		const FNodeTemplate* GetNodeTemplate(const FNodeDescription& NodeDesc) const;
@@ -80,6 +94,8 @@ namespace UE::AnimNext
 		ITraversalContext* TraversalContext = nullptr;
 
 		TArrayView<const uint8> GraphSharedData;
+		FRigVMMemoryHandleArray RigVMLatentMemoryHandles;
+		FRigVMExtendedExecuteContext* RigVMExecuteContext;
 
 		friend struct FScopedTraversalContext;
 	};
@@ -90,27 +106,27 @@ namespace UE::AnimNext
 	//////////////////////////////////////////////////////////////////////////
 
 	template<class DecoratorInterface>
-	bool FExecutionContext::GetInterface(FWeakDecoratorPtr DecoratorPtr, TDecoratorBinding<DecoratorInterface>& InterfaceBinding) const
+	inline bool FExecutionContext::GetInterface(FWeakDecoratorPtr DecoratorPtr, TDecoratorBinding<DecoratorInterface>& InterfaceBinding) const
 	{
 		constexpr FDecoratorInterfaceUID InterfaceUID = DecoratorInterface::InterfaceUID;
 		return GetInterfaceImpl(InterfaceUID, DecoratorPtr, InterfaceBinding);
 	}
 
 	template<class DecoratorInterface>
-	bool FExecutionContext::GetInterface(const FDecoratorBinding& Binding, TDecoratorBinding<DecoratorInterface>& InterfaceBinding) const
+	inline bool FExecutionContext::GetInterface(const FDecoratorBinding& Binding, TDecoratorBinding<DecoratorInterface>& InterfaceBinding) const
 	{
 		return GetInterface<DecoratorInterface>(Binding.GetDecoratorPtr(), InterfaceBinding);
 	}
 
 	template<class DecoratorInterface>
-	bool FExecutionContext::GetInterfaceSuper(FWeakDecoratorPtr DecoratorPtr, TDecoratorBinding<DecoratorInterface>& SuperBinding) const
+	inline bool FExecutionContext::GetInterfaceSuper(FWeakDecoratorPtr DecoratorPtr, TDecoratorBinding<DecoratorInterface>& SuperBinding) const
 	{
 		constexpr FDecoratorInterfaceUID InterfaceUID = DecoratorInterface::InterfaceUID;
 		return GetInterfaceSuperImpl(InterfaceUID, DecoratorPtr, SuperBinding);
 	}
 
 	template<class DecoratorInterface>
-	bool FExecutionContext::GetInterfaceSuper(const FDecoratorBinding& Binding, TDecoratorBinding<DecoratorInterface>& SuperBinding) const
+	inline bool FExecutionContext::GetInterfaceSuper(const FDecoratorBinding& Binding, TDecoratorBinding<DecoratorInterface>& SuperBinding) const
 	{
 		return GetInterfaceSuper<DecoratorInterface>(Binding.GetDecoratorPtr(), SuperBinding);
 	}
@@ -118,5 +134,25 @@ namespace UE::AnimNext
 	inline FDecoratorPtr FExecutionContext::AllocateNodeInstance(const FDecoratorBinding& ParentBinding, FAnimNextDecoratorHandle ChildDecoratorHandle)
 	{
 		return AllocateNodeInstance(ParentBinding.GetDecoratorPtr(), ChildDecoratorHandle);
+	}
+
+	template<typename LatentPinType>
+	inline LatentPinType FExecutionContext::EvaluateLatentPin(FLatentPropertyHandle LatentPropertyHandle) const
+	{
+		// Latent pin handle needs to be valid
+		ensure(LatentPropertyHandle.IsValid());
+		if (!LatentPropertyHandle.IsValid())
+		{
+			return LatentPinType();
+		}
+
+		// We need latent pin memory handles, also implies we have a valid RigVM execution context
+		ensure(RigVMLatentMemoryHandles.IsValidIndex(LatentPropertyHandle.GetLatentPropertyIndex()));
+		if (!RigVMLatentMemoryHandles.IsValidIndex(LatentPropertyHandle.GetLatentPropertyIndex()))
+		{
+			return LatentPinType();
+		}
+
+		return *reinterpret_cast<const LatentPinType*>(EvaluateLatentPinImpl(LatentPropertyHandle));
 	}
 }

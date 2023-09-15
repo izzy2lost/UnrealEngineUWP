@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+#include "DecoratorBase/DecoratorBinding.h"
 #include "DecoratorBase/DecoratorHandle.h"			// Derived types are likely to refer to other decorators as children
 #include "DecoratorBase/DecoratorInstanceData.h"
 #include "DecoratorBase/DecoratorMode.h"
@@ -11,6 +12,9 @@
 #include "DecoratorBase/DecoratorSharedData.h"
 #include "DecoratorBase/DecoratorUID.h"
 #include "DecoratorBase/IDecoratorInterface.h"
+#include "DecoratorBase/LatentPropertyHandle.h"
+
+#include <type_traits>
 
 class FArchive;
 
@@ -25,11 +29,12 @@ class FArchive;
 	static const UE::AnimNext::FDecoratorMemoryLayout DecoratorMemoryDescription; \
 	virtual UE::AnimNext::FDecoratorMemoryLayout GetDecoratorMemoryDescription() const override { return DecoratorMemoryDescription; } \
 	virtual UScriptStruct* GetDecoratorSharedDataStruct() const override { return FSharedData::StaticStruct(); } \
-	virtual void ConstructDecoratorInstance(UE::AnimNext::FExecutionContext& Context, UE::AnimNext::FWeakDecoratorPtr DecoratorPtr, const FAnimNextDecoratorSharedData& DecoratorDesc, UE::AnimNext::FDecoratorInstanceData& DecoratorInstance) const override; \
-	virtual void DestructDecoratorInstance(UE::AnimNext::FExecutionContext& Context, UE::AnimNext::FWeakDecoratorPtr DecoratorPtr, const FAnimNextDecoratorSharedData& DecoratorDesc, UE::AnimNext::FDecoratorInstanceData& DecoratorInstance) const override; \
+	virtual void ConstructDecoratorInstance(UE::AnimNext::FExecutionContext& Context, const UE::AnimNext::FDecoratorBinding& Binding) const override; \
+	virtual void DestructDecoratorInstance(UE::AnimNext::FExecutionContext& Context, const UE::AnimNext::FDecoratorBinding& Binding) const override; \
 	virtual const UE::AnimNext::IDecoratorInterface* GetDecoratorInterface(UE::AnimNext::FDecoratorInterfaceUID InterfaceUID) const override; \
-	static_assert(std::is_base_of<FAnimNextDecoratorSharedData, FSharedData>::value, TEXT("Decorator shared data must derive from FAnimNextDecoratorSharedData")); \
-	static_assert(std::is_base_of<FDecoratorInstanceData, FInstanceData>::value, TEXT("Decorator instance data must derive from FDecoratorInstanceData"));
+	virtual uint32 GetNumLatentDecoratorProperties() const override { return -FSharedData::GetLatentPropertyIndex(~(size_t)0); } \
+	static_assert(std::is_base_of<FAnimNextDecoratorSharedData, FSharedData>::value, "Decorator shared data must derive from FAnimNextDecoratorSharedData"); \
+	static_assert(std::is_base_of<FDecoratorInstanceData, FInstanceData>::value, "Decorator instance data must derive from FDecoratorInstanceData");
 
 #define DECLARE_ABSTRACT_ANIM_DECORATOR(DecoratorName, DecoratorNameHash, SuperDecoratorName) \
 	using DecoratorSuper = SuperDecoratorName; \
@@ -50,16 +55,16 @@ class FArchive;
 #define DEFINE_ANIM_DECORATOR_BEGIN(DecoratorName) \
 	const UE::AnimNext::FDecoratorMemoryLayout DecoratorName::DecoratorMemoryDescription = \
 		UE::AnimNext::FDecoratorMemoryLayout{ sizeof(DecoratorName), alignof(DecoratorName), sizeof(DecoratorName::FSharedData), alignof(DecoratorName::FSharedData), sizeof(DecoratorName::FInstanceData), alignof(DecoratorName::FInstanceData) }; \
-	void DecoratorName::ConstructDecoratorInstance(UE::AnimNext::FExecutionContext& Context, UE::AnimNext::FWeakDecoratorPtr DecoratorPtr, const FAnimNextDecoratorSharedData& DecoratorDesc, UE::AnimNext::FDecoratorInstanceData& DecoratorInstance) const \
+	void DecoratorName::ConstructDecoratorInstance(UE::AnimNext::FExecutionContext& Context, const UE::AnimNext::FDecoratorBinding& Binding) const \
 	{ \
-		FInstanceData* Data = new(&static_cast<FInstanceData&>(DecoratorInstance)) FInstanceData(); \
-		Data->Construct(Context, DecoratorPtr, static_cast<const FSharedData&>(DecoratorDesc)); \
+		FInstanceData* Data = new(Binding.GetInstanceData<FInstanceData>()) FInstanceData(); \
+		Data->Construct(Context, Binding); \
 	} \
-	void DecoratorName::DestructDecoratorInstance(UE::AnimNext::FExecutionContext& Context, UE::AnimNext::FWeakDecoratorPtr DecoratorPtr, const FAnimNextDecoratorSharedData& DecoratorDesc, UE::AnimNext::FDecoratorInstanceData& DecoratorInstance) const \
+	void DecoratorName::DestructDecoratorInstance(UE::AnimNext::FExecutionContext& Context, const UE::AnimNext::FDecoratorBinding& Binding) const \
 	{ \
-		FInstanceData& Data = static_cast<FInstanceData&>(DecoratorInstance); \
-		Data.Destruct(Context, DecoratorPtr, DecoratorDesc); \
-		Data.~FInstanceData(); \
+		FInstanceData* Data = Binding.GetInstanceData<FInstanceData>(); \
+		Data->Destruct(Context, Binding); \
+		Data->~FInstanceData(); \
 	} \
 	const UE::AnimNext::IDecoratorInterface* DecoratorName::GetDecoratorInterface(UE::AnimNext::FDecoratorInterfaceUID InterfaceUID_) const \
 	{
@@ -111,16 +116,16 @@ namespace UE::AnimNext
 		// The alignment in bytes of an instance of the decorator class which derives from FDecorator
 		uint32 DecoratorAlignment = 0;
 
-		// The size in bytes of the shared data for the decorator
+		// The size in bytes of the shared data for the decorator which derives from FAnimNextDecoratorSharedData
 		uint32 SharedDataSize = 0;
 
-		// The alignment in bytes of the shared data for the decorator
+		// The alignment in bytes of the shared data for the decorator which derives from FAnimNextDecoratorSharedData
 		uint32 SharedDataAlignment = 0;
 
-		// The size in bytes of the instance data for the decorator
+		// The size in bytes of the instance data for the decorator which derives from FDecoratorInstanceData
 		uint32 InstanceDataSize = 0;
 
-		// The alignment in bytes of the instance data for the decorator
+		// The alignment in bytes of the instance data for the decorator which derives from FDecoratorInstanceData
 		uint32 InstanceDataAlignment = 0;
 	};
 
@@ -163,15 +168,15 @@ namespace UE::AnimNext
 		virtual FString GetDecoratorName() const { return TEXT("FDecorator"); }
 
 		// Returns the memory requirements of the derived decorator instance
-		virtual FDecoratorMemoryLayout GetDecoratorMemoryDescription() const { return { sizeof(FDecorator), alignof(FDecorator) }; }
+		virtual FDecoratorMemoryLayout GetDecoratorMemoryDescription() const = 0;
 
 		// Returns the UScriptStruct associated with the shared data for the decorator
 		virtual UScriptStruct* GetDecoratorSharedDataStruct() const { return FSharedData::StaticStruct(); }
 
 		// Called when a new instance of the decorator is created or destroyed
 		// Derived types must override this and forward to the instance data constructor/destructor
-		virtual void ConstructDecoratorInstance(FExecutionContext& Context, FWeakDecoratorPtr DecoratorPtr, const FAnimNextDecoratorSharedData& DecoratorDesc, FDecoratorInstanceData& DecoratorInstance) const = 0;
-		virtual void DestructDecoratorInstance(FExecutionContext& Context, FWeakDecoratorPtr DecoratorPtr, const FAnimNextDecoratorSharedData& DecoratorDesc, FDecoratorInstanceData& DecoratorInstance) const = 0;
+		virtual void ConstructDecoratorInstance(FExecutionContext& Context, const FDecoratorBinding& Binding) const = 0;
+		virtual void DestructDecoratorInstance(FExecutionContext& Context, const FDecoratorBinding& Binding) const = 0;
 
 		// Returns the decorator mode.
 		virtual EDecoratorMode GetDecoratorMode() const = 0;
@@ -202,6 +207,9 @@ namespace UE::AnimNext
 			return nullptr;
 		}
 
+		// The number of latent property properties in the shared data of this decorator
+		virtual uint32 GetNumLatentDecoratorProperties() const { return 0; }
+
 		// Called to serialize decorator shared data
 		virtual void SerializeDecoratorSharedData(FArchive& Ar, FAnimNextDecoratorSharedData& SharedData) const;
 
@@ -210,7 +218,10 @@ namespace UE::AnimNext
 		// derived type using UE reflection.
 		// Decorators can override this function to control how editor only properties are coerced into the runtime shared data
 		// instance.
-		virtual void SaveDecoratorSharedData(FDecoratorWriter& Writer, const TFunction<FString(const FString& PropertyName)>& GetDecoratorProperty, FAnimNextDecoratorSharedData& OutSharedData) const;
+		virtual void SaveDecoratorSharedData(const TFunction<FString(const FString& PropertyName)>& GetDecoratorProperty, FAnimNextDecoratorSharedData& OutSharedData) const;
+
+		// Takes the editor properties as authored in the graph and returns the latent property handles using UE reflection.
+		TArray<FLatentPropertyHandle> GetLatentPropertyHandles(bool bFilterEditorOnly, const TFunction<bool(const FString& PropertyName)>& IsDecoratorPropertyLatent, FLatentPropertyHandle& CurrentLatentPropertyHandle) const;
 #endif
 	};
 
@@ -238,7 +249,7 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXT_API FDecoratorStaticInitHook final
 	{
-		explicit FDecoratorStaticInitHook(DecoratorConstructorFunc DecoratorConstructor_);
+		explicit FDecoratorStaticInitHook(DecoratorConstructorFunc InDecoratorConstructor);
 		~FDecoratorStaticInitHook();
 
 	private:

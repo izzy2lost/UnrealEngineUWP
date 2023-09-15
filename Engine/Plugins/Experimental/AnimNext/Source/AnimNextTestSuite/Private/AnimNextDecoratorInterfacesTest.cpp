@@ -104,9 +104,9 @@ namespace UE::AnimNext
 		{
 			FDecoratorPtr Child;
 
-			void Construct(FExecutionContext& Context, FWeakDecoratorPtr DecoratorPtr, const FSharedData& SharedData)
+			void Construct(FExecutionContext& Context, const FDecoratorBinding& Binding)
 			{
-				Child = Context.AllocateNodeInstance(DecoratorPtr, SharedData.Child);
+				Child = Context.AllocateNodeInstance(Binding.GetDecoratorPtr(), Binding.GetSharedData<FSharedData>()->Child);
 			}
 		};
 
@@ -135,10 +135,10 @@ namespace UE::AnimNext
 		{
 			FDecoratorPtr Children[2];
 
-			void Construct(FExecutionContext& Context, FWeakDecoratorPtr DecoratorPtr, const FSharedData& SharedData)
+			void Construct(FExecutionContext& Context, const FDecoratorBinding& Binding)
 			{
-				Children[0] = Context.AllocateNodeInstance(DecoratorPtr, SharedData.Children[0]);
-				Children[1] = Context.AllocateNodeInstance(DecoratorPtr, SharedData.Children[1]);
+				Children[0] = Context.AllocateNodeInstance(Binding.GetDecoratorPtr(), Binding.GetSharedData<FSharedData>()->Children[0]);
+				Children[1] = Context.AllocateNodeInstance(Binding.GetDecoratorPtr(), Binding.GetSharedData<FSharedData>()->Children[1]);
 			}
 		};
 
@@ -285,21 +285,37 @@ bool FAnimationAnimNextRuntimeTest_IHierarchy::RunTest(const FString& InParamete
 			[&DecoratorPropertiesA](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return DecoratorPropertiesA[DecoratorIndex][PropertyName];
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.WriteNode(NodeB,
 			[&DecoratorPropertiesB](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return DecoratorPropertiesB[DecoratorIndex][PropertyName];
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.WriteNode(NodeC,
 			[&DecoratorPropertiesC](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return DecoratorPropertiesC[DecoratorIndex][PropertyName];
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.WriteNode(NodeD,
 			[&DecoratorPropertiesD](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return DecoratorPropertiesD[DecoratorIndex][PropertyName];
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.EndNodeWriting();
 
@@ -465,16 +481,28 @@ bool FAnimationAnimNextRuntimeTest_IUpdate::RunTest(const FString& InParameters)
 			[&DecoratorPropertiesA](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return DecoratorPropertiesA[DecoratorIndex][PropertyName];
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.WriteNode(NodeB,
 			[&DecoratorPropertiesB](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return DecoratorPropertiesB[DecoratorIndex][PropertyName];
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.WriteNode(NodeC,
 			[&DecoratorPropertiesC](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return DecoratorPropertiesC[DecoratorIndex][PropertyName];
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.EndNodeWriting();
 
@@ -602,16 +630,28 @@ bool FAnimationAnimNextRuntimeTest_IEvaluate::RunTest(const FString& InParameter
 			[&DecoratorPropertiesA](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return DecoratorPropertiesA[DecoratorIndex][PropertyName];
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.WriteNode(NodeB,
 			[&DecoratorPropertiesB](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return DecoratorPropertiesB[DecoratorIndex][PropertyName];
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.WriteNode(NodeC,
 			[&DecoratorPropertiesC](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return DecoratorPropertiesC[DecoratorIndex][PropertyName];
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.EndNodeWriting();
 

@@ -362,6 +362,7 @@ FRigVMPinInfo::FRigVMPinInfo()
 	, bIsConstant(false)
 	, bIsDynamicArray(false)
 	, bIsDecorator(false)
+	, bIsLazy(false)
 {
 }
 
@@ -376,6 +377,7 @@ FRigVMPinInfo::FRigVMPinInfo(const URigVMPin* InPin, int32 InParentIndex, ERigVM
 	, bIsConstant(InPin->IsDefinedAsConstant())
 	, bIsDynamicArray(InPin->IsDynamicArray())
 	, bIsDecorator(InPin->IsDecoratorPin() && InPin->IsRootPin())
+	, bIsLazy(InPin->IsLazy() && InPin->IsRootPin())
 {
 	// this method describes the info as currently represented in the model.
 
@@ -400,6 +402,7 @@ FRigVMPinInfo::FRigVMPinInfo(FProperty* InProperty, ERigVMPinDirection InDirecti
 	, bIsConstant(false)
 	, bIsDynamicArray(false)
 	, bIsDecorator(false)
+	, bIsLazy(false)
 {
 	// this method describes the info as needed based on the property structure
 
@@ -442,6 +445,11 @@ FRigVMPinInfo::FRigVMPinInfo(FProperty* InProperty, ERigVMPinDirection InDirecti
 		{
 			bIsDynamicArray = false;
 		}
+	}
+
+	if (InProperty->HasMetaData(FRigVMStruct::ComputeLazilyMetaName))
+	{
+		bIsLazy = true;
 	}
 #endif
 
@@ -1286,6 +1294,11 @@ TArray<FString> URigVMController::GetAddDecoratorPythonCommands(URigVMNode* Node
 
 URigVMUnitNode* URigVMController::AddUnitNode(UScriptStruct* InScriptStruct, const FName& InMethodName, const FVector2D& InPosition, const FString& InNodeName, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
+	return AddUnitNode(InScriptStruct, URigVMUnitNode::StaticClass(), InMethodName, InPosition, InNodeName, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+URigVMUnitNode* URigVMController::AddUnitNode(UScriptStruct* InScriptStruct, TSubclassOf<URigVMUnitNode> InUnitNodeClass, const FName& InMethodName, const FVector2D& InPosition, const FString& InNodeName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
 	if(!IsValidGraph())
 	{
 		return nullptr;
@@ -1433,7 +1446,7 @@ URigVMUnitNode* URigVMController::AddUnitNode(UScriptStruct* InScriptStruct, con
 	}
 	
 	FString Name = GetSchema()->GetValidNodeName(Graph, InNodeName.IsEmpty() ? InScriptStruct->GetName() : InNodeName);
-	URigVMUnitNode* Node = NewObject<URigVMUnitNode>(Graph, *Name);
+	URigVMUnitNode* Node = NewObject<URigVMUnitNode>(Graph, InUnitNodeClass, *Name);
 	Node->ResolvedFunctionName = Function->GetName();
 	Node->Position = InPosition;
 	Node->NodeTitle = InScriptStruct->GetMetaData(TEXT("DisplayName"));
@@ -13766,55 +13779,7 @@ FName URigVMController::AddDecorator(URigVMNode* InNode, UScriptStruct* InDecora
 	Decorator->GetProgrammaticPins(this, INDEX_NONE, ProgrammaticPins);
 
 	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
-	auto CreatePinFromPinInfo = [this, &Registry](const FRigVMPinInfo& InPinInfo, const FString& InPinPath, UObject* InOuter) -> URigVMPin*
-	{
-		check(InOuter);
-		URigVMPin* Pin = NewObject<URigVMPin>(InOuter, InPinInfo.Name);
-		if (InPinInfo.Property)
-		{
-			ConfigurePinFromProperty(InPinInfo.Property, Pin, InPinInfo.Direction);
-		}
-		else
-		{
-			const FRigVMTemplateArgumentType& Type = Registry.GetType(InPinInfo.TypeIndex);
-			Pin->CPPType = Type.CPPType.ToString();
-			Pin->CPPTypeObject = Type.CPPTypeObject;
-			if (Pin->CPPTypeObject)
-			{
-				Pin->CPPTypeObjectPath = *Pin->CPPTypeObject->GetPathName();
-			}
-			if (Registry.IsExecuteType(InPinInfo.TypeIndex))
-			{
-				MakeExecutePin(Pin);
-			}
-
-			Pin->Direction = InPinInfo.Direction;
-			Pin->DisplayName = InPinInfo.DisplayName.IsEmpty() ? NAME_None : FName(*InPinInfo.DisplayName);
-			Pin->bIsConstant = InPinInfo.bIsConstant;
-			Pin->bIsDynamicArray = InPinInfo.bIsDynamicArray;
-			Pin->CustomWidgetName = InPinInfo.CustomWidgetName.IsEmpty() ? NAME_None : FName(*InPinInfo.CustomWidgetName);
-		}
-
-		Pin->bIsExpanded = InPinInfo.bIsExpanded;
-		Pin->DefaultValue = InPinInfo.DefaultValue;
-
-		if (URigVMPin* ParentPin = Cast<URigVMPin>(InOuter))
-		{
-			AddSubPin(ParentPin, Pin);
-		}
-		else if (URigVMNode* OwnerNode = Cast<URigVMNode>(InOuter))
-		{
-			AddNodePin(OwnerNode, Pin);
-		}
-		else
-		{
-			ensureMsgf(false, TEXT("Outer %s of pin info %s is not a pin or a node"), *InOuter->GetPathName(), *InPinPath);
-		}
-
-		Notify(ERigVMGraphNotifType::PinAdded, Pin);
-
-		return Pin;
-	};
+	const FRigVMPinInfoArray PreviousPins;
 
 	for (int32 PinIndex = 0; PinIndex < ProgrammaticPins.Num(); ++PinIndex)
 	{
@@ -13826,7 +13791,7 @@ FName URigVMController::AddDecorator(URigVMNode* InNode, UScriptStruct* InDecora
 			OuterForPin = DecoratorPin->FindSubPin(ParentPinPath);
 		}
 
-		CreatePinFromPinInfo(ProgrammaticPins[PinIndex], PinPath, OuterForPin);
+		CreatePinFromPinInfo(Registry, PreviousPins, ProgrammaticPins[PinIndex], PinPath, OuterForPin);
 	}
 
 	// move the the pin to the right index as required
@@ -14387,6 +14352,12 @@ void URigVMController::AddPinsForTemplate(const FRigVMTemplate* InTemplate, cons
 			}
 		}
 
+		if (Pin->Direction == ERigVMPinDirection::Input &&
+			!InTemplate->GetArgumentMetaData(Arg->Name, FRigVMStruct::ComputeLazilyMetaName).IsEmpty())
+		{
+			Pin->bIsLazy = true;
+		}
+
 		AddNodePin(InNode, Pin);
 
 		if(!Pin->IsWildCard() && !Pin->IsArray())
@@ -14426,7 +14397,7 @@ void URigVMController::AddPinsForTemplate(const FRigVMTemplate* InTemplate, cons
 	AddExecutePins(ERigVMPinDirection::Output);
 }
 
-void URigVMController::ConfigurePinFromProperty(FProperty* InProperty, URigVMPin* InOutPin, ERigVMPinDirection InPinDirection)
+void URigVMController::ConfigurePinFromProperty(FProperty* InProperty, URigVMPin* InOutPin, ERigVMPinDirection InPinDirection) const
 {
 	if (InPinDirection == ERigVMPinDirection::Invalid)
 	{
@@ -14435,6 +14406,12 @@ void URigVMController::ConfigurePinFromProperty(FProperty* InProperty, URigVMPin
 	else
 	{
 		InOutPin->Direction = InPinDirection;
+	}
+
+	// If this property wants to be explicitly hidden, hide it
+	if (InProperty->HasMetaData(FRigVMStruct::HiddenMetaName))
+	{
+		InOutPin->Direction = ERigVMPinDirection::Hidden;
 	}
 
 #if WITH_EDITOR
@@ -14488,6 +14465,24 @@ void URigVMController::ConfigurePinFromProperty(FProperty* InProperty, URigVMPin
 		if (InProperty->HasMetaData(FRigVMStruct::SingletonMetaName))
 		{
 			InOutPin->bIsDynamicArray = false;
+		}
+	}
+
+	if (InOutPin->Direction == ERigVMPinDirection::Input)
+	{
+		// fixed array elements are treated as lazy elements
+		// if the original argument is also marked as lazy
+		if (const URigVMPin* ParentPin = InOutPin->GetParentPin())
+		{
+			if (ParentPin->IsFixedSizeArray())
+			{
+				InOutPin->bIsLazy = ParentPin->IsLazy();
+			}
+		}
+
+		if (InProperty->HasMetaData(FRigVMStruct::ComputeLazilyMetaName))
+		{
+			InOutPin->bIsLazy = true;
 		}
 	}
 #endif
@@ -14556,6 +14551,7 @@ void URigVMController::ConfigurePinFromPin(URigVMPin* InOutPin, URigVMPin* InPin
 	InOutPin->CPPTypeObject = InPin->CPPTypeObject;
 	InOutPin->DefaultValue = InPin->DefaultValue;
 	InOutPin->bIsDynamicArray = InPin->bIsDynamicArray;
+	InOutPin->bIsLazy = InPin->bIsLazy;
 	if(bCopyDisplayName)
 	{
 		InOutPin->SetDisplayName(InPin->GetDisplayName());
@@ -15355,66 +15351,6 @@ void URigVMController::RepopulatePinsOnNode(URigVMNode* InNode, bool bFollowCore
 		}
 	}
 
-	auto CreatePinFromPinInfo = [this, &Registry, &PreviousPinInfos](const FRigVMPinInfo& InPinInfo, const FString& InPinPath, UObject* InOuter) -> URigVMPin*
-	{
-		check(InOuter);
-		URigVMPin* Pin = NewObject<URigVMPin>(InOuter, InPinInfo.Name);
-		if(InPinInfo.Property)
-		{
-			ConfigurePinFromProperty(InPinInfo.Property, Pin, InPinInfo.Direction);
-		}
-		else
-		{
-			const FRigVMTemplateArgumentType& Type = Registry.GetType(InPinInfo.TypeIndex);
-			Pin->CPPType = Type.CPPType.ToString();
-			Pin->CPPTypeObject = Type.CPPTypeObject;
-			if(Pin->CPPTypeObject)
-			{
-				Pin->CPPTypeObjectPath = *Pin->CPPTypeObject->GetPathName();
-			}
-			if(Registry.IsExecuteType(InPinInfo.TypeIndex))
-			{
-				MakeExecutePin(Pin);
-			}
-				
-			Pin->Direction = InPinInfo.Direction;
-			Pin->DisplayName = InPinInfo.DisplayName.IsEmpty() ? NAME_None : FName(*InPinInfo.DisplayName);
-			Pin->bIsConstant = InPinInfo.bIsConstant;
-			Pin->bIsDynamicArray = InPinInfo.bIsDynamicArray;
-			Pin->CustomWidgetName = InPinInfo.CustomWidgetName.IsEmpty() ? NAME_None : FName(*InPinInfo.CustomWidgetName);
-		}
-
-		Pin->bIsExpanded = InPinInfo.bIsExpanded;
-		Pin->DefaultValue = InPinInfo.DefaultValue;
-
-		// reuse expansion state and default value
-		if(const FRigVMPinInfo* PreviousPin = PreviousPinInfos.GetPinFromPinPath(InPinPath))
-		{
-			if(PreviousPin->TypeIndex == InPinInfo.TypeIndex)
-			{
-				Pin->bIsExpanded = PreviousPin->bIsExpanded;
-				Pin->DefaultValue = PreviousPin->DefaultValue;
-			}
-		}
-
-		if (URigVMPin* ParentPin = Cast<URigVMPin>(InOuter))
-		{
-			AddSubPin(ParentPin, Pin);
-		}
-		else if (URigVMNode* OwnerNode = Cast<URigVMNode>(InOuter))
-		{
-			AddNodePin(OwnerNode, Pin);
-		}
-		else
-		{
-			ensureMsgf(false, TEXT("Outer %s of pin info %s is not a pin or a node"), *InOuter->GetPathName(), *InPinPath);
-		}
-
-		Notify(ERigVMGraphNotifType::PinAdded, Pin);
-
-		return Pin;
-	};
-
 	// step 1/3: keep a record of the current state of the node's pins
 	TMap<FString, FString> RedirectedPinPaths;
 	if (bFollowCoreRedirectors)
@@ -15506,7 +15442,7 @@ void URigVMController::RepopulatePinsOnNode(URigVMNode* InNode, bool bFollowCore
 			OuterForPin = InNode->FindPin(ParentPinPath);
 		}
 		
-		(void)CreatePinFromPinInfo(NewPinInfos[NewPinsToAdd[Index]], PinPath, OuterForPin);
+		CreatePinFromPinInfo(Registry, PreviousPinInfos, NewPinInfos[NewPinsToAdd[Index]], PinPath, OuterForPin);
 #if UE_RIGVMCONTROLLER_VERBOSE_REPOPULATE
 		UE_LOG(LogRigVMDeveloper, Display, TEXT("Adding new pin '%s'."), *PinPath);
 #endif
@@ -16069,6 +16005,67 @@ void URigVMController::ApplyPinStates(URigVMNode* InNode, const TMap<FString, UR
 			}
 		}
 	}
+}
+
+URigVMPin* URigVMController::CreatePinFromPinInfo(const FRigVMRegistry& InRegistry, const FRigVMPinInfoArray& InPreviousPinInfos, const FRigVMPinInfo& InPinInfo, const FString& InPinPath, UObject* InOuter) const
+{
+	check(InOuter);
+	URigVMPin* Pin = NewObject<URigVMPin>(InOuter, InPinInfo.Name);
+	if (InPinInfo.Property)
+	{
+		ConfigurePinFromProperty(InPinInfo.Property, Pin, InPinInfo.Direction);
+	}
+	else
+	{
+		const FRigVMTemplateArgumentType& Type = InRegistry.GetType(InPinInfo.TypeIndex);
+		Pin->CPPType = Type.CPPType.ToString();
+		Pin->CPPTypeObject = Type.CPPTypeObject;
+		if (Pin->CPPTypeObject)
+		{
+			Pin->CPPTypeObjectPath = *Pin->CPPTypeObject->GetPathName();
+		}
+		if (InRegistry.IsExecuteType(InPinInfo.TypeIndex))
+		{
+			MakeExecutePin(Pin);
+		}
+
+		Pin->Direction = InPinInfo.Direction;
+		Pin->DisplayName = InPinInfo.DisplayName.IsEmpty() ? NAME_None : FName(*InPinInfo.DisplayName);
+		Pin->bIsConstant = InPinInfo.bIsConstant;
+		Pin->bIsDynamicArray = InPinInfo.bIsDynamicArray;
+		Pin->bIsLazy = InPinInfo.bIsLazy;
+		Pin->CustomWidgetName = InPinInfo.CustomWidgetName.IsEmpty() ? NAME_None : FName(*InPinInfo.CustomWidgetName);
+	}
+
+	Pin->bIsExpanded = InPinInfo.bIsExpanded;
+	Pin->DefaultValue = InPinInfo.DefaultValue;
+
+	// reuse expansion state and default value
+	if (const FRigVMPinInfo* PreviousPin = InPreviousPinInfos.GetPinFromPinPath(InPinPath))
+	{
+		if (PreviousPin->TypeIndex == InPinInfo.TypeIndex)
+		{
+			Pin->bIsExpanded = PreviousPin->bIsExpanded;
+			Pin->DefaultValue = PreviousPin->DefaultValue;
+		}
+	}
+
+	if (URigVMPin* ParentPin = Cast<URigVMPin>(InOuter))
+	{
+		AddSubPin(ParentPin, Pin);
+	}
+	else if (URigVMNode* OwnerNode = Cast<URigVMNode>(InOuter))
+	{
+		AddNodePin(OwnerNode, Pin);
+	}
+	else
+	{
+		ensureMsgf(false, TEXT("Outer %s of pin info %s is not a pin or a node"), *InOuter->GetPathName(), *InPinPath);
+	}
+
+	Notify(ERigVMGraphNotifType::PinAdded, Pin);
+
+	return Pin;
 }
 
 void URigVMController::ReportInfo(const FString& InMessage) const

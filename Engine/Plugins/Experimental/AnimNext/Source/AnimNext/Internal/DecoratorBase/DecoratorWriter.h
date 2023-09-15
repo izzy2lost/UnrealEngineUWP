@@ -7,6 +7,7 @@
 #if WITH_EDITOR
 #include "Serialization/MemoryWriter.h"
 
+#include "DecoratorBase/LatentPropertyHandle.h"
 #include "DecoratorBase/NodeHandle.h"
 #include "DecoratorBase/NodeTemplateRegistryHandle.h"
 
@@ -47,7 +48,11 @@ namespace UE::AnimNext
 
 		// Writes out the provided node using the decorator properties
 		// Nodes must be written in the same order they were registered in
-		void WriteNode(const FNodeHandle NodeHandle, const TFunction<FString(uint32 DecoratorIndex, const FString& PropertyName)>& GetDecoratorProperty);
+		void WriteNode(
+			const FNodeHandle NodeHandle,
+			const TFunction<FString(uint32 DecoratorIndex, const FString& PropertyName)>& GetDecoratorProperty,
+			const TFunction<bool(uint32 DecoratorIndex, const FString& PropertyName)>& IsDecoratorPropertyLatent
+			);
 
 		// Returns the error state
 		[[nodiscard]] EErrorState GetErrorState() const;
@@ -81,6 +86,7 @@ namespace UE::AnimNext
 		// To track node writing
 		TArray<UObject*> TrackedObjectsForGC;
 		uint32 NumNodesWritten;
+		FLatentPropertyHandle CurrentLatentPropertyHandle;
 		bool bIsNodeWriting;
 
 		EErrorState ErrorState;

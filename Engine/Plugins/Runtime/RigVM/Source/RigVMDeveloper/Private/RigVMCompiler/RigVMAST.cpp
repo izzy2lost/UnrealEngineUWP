@@ -1044,10 +1044,24 @@ TArray<FRigVMExprAST*> FRigVMParserAST::TraversePins(const FRigVMASTProxy& InNod
 				}
 			}
 		}
+
+		// We might have extra non-native pins, add them afterwards
+		if (UnitNode->HasNonNativePins())
+		{
+			for (URigVMPin* Pin : Node->GetPins())
+			{
+				// We skip decorator pins as we don't want to traverse them
+				if (!Pin->IsDecoratorPin())
+				{
+					Pins.AddUnique(Pin);
+				}
+			}
+		}
 	}
 
-	if(Pins.IsEmpty())
+	if (Pins.IsEmpty())
 	{
+		// Just grab whatever pins we have
 		Pins = Node->GetPins();
 	}
 

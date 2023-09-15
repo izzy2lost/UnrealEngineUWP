@@ -188,6 +188,7 @@ struct RIGVMDEVELOPER_API FRigVMPinInfo
 	bool bIsConstant;
 	bool bIsDynamicArray;
 	bool bIsDecorator;
+	bool bIsLazy;
 	TArray<int32> SubPins;
 
 	friend uint32 GetTypeHash(const FRigVMPinInfo& InPin);
@@ -216,11 +217,13 @@ struct RIGVMDEVELOPER_API FRigVMPinInfoArray
 	const FRigVMPinInfo* GetPinFromPinPath(const FString& InPinPath) const;
 	int32 GetRootIndex(const int32 InIndex) const;
 
-	friend uint32 GetTypeHash(const FRigVMPinInfoArray& InPins);
+	friend RIGVMDEVELOPER_API uint32 GetTypeHash(const FRigVMPinInfoArray& InPins);
 
 	mutable TArray<FRigVMPinInfo> Pins;
 	mutable TMap<FString, int32> PinPathLookup;;
 };
+
+RIGVMDEVELOPER_API uint32 GetTypeHash(const FRigVMPinInfoArray& InPins);
 
 /**
  * The Controller is the sole authority to perform changes
@@ -1049,37 +1052,37 @@ public:
 	void SendUserFacingNotification(const FString& InMessage, float InDuration = 0.f, const UObject* InSubject = nullptr, const FName& InBrushName = TEXT("MessageLog.Warning")) const;
 
 	template <typename FmtType, typename... Types>
-	void ReportInfof(const FmtType& Fmt, Types... Args)
+	void ReportInfof(const FmtType& Fmt, Types... Args) const
 	{
 		ReportInfo(FString::Printf(Fmt, Args...));
 	}
 
 	template <typename FmtType, typename... Types>
-	void ReportWarningf(const FmtType& Fmt, Types... Args)
+	void ReportWarningf(const FmtType& Fmt, Types... Args) const
 	{
 		ReportWarning(FString::Printf(Fmt, Args...));
 	}
 
 	template <typename FmtType, typename... Types>
-	void ReportErrorf(const FmtType& Fmt, Types... Args)
+	void ReportErrorf(const FmtType& Fmt, Types... Args) const
 	{
 		ReportError(FString::Printf(Fmt, Args...));
 	}
 
 	template <typename FmtType, typename... Types>
-	void ReportAndNotifyInfof(const FmtType& Fmt, Types... Args)
+	void ReportAndNotifyInfof(const FmtType& Fmt, Types... Args) const
 	{
 		ReportAndNotifyInfo(FString::Printf(Fmt, Args...));
 	}
 
 	template <typename FmtType, typename... Types>
-	void ReportAndNotifyWarningf(const FmtType& Fmt, Types... Args)
+	void ReportAndNotifyWarningf(const FmtType& Fmt, Types... Args) const
 	{
 		ReportAndNotifyWarning(FString::Printf(Fmt, Args...));
 	}
 
 	template <typename FmtType, typename... Types>
-	void ReportAndNotifyErrorf(const FmtType& Fmt, Types... Args)
+	void ReportAndNotifyErrorf(const FmtType& Fmt, Types... Args) const
 	{
 		ReportAndNotifyError(FString::Printf(Fmt, Args...));
 	}
@@ -1107,7 +1110,7 @@ private:
 	void AddPinsForStruct(UStruct* InStruct, URigVMNode* InNode, URigVMPin* InParentPin, ERigVMPinDirection InPinDirection, const FString& InDefaultValue, bool bAutoExpandArrays, const FRigVMPinInfoArray* PreviousPins = nullptr);
 	void AddPinsForArray(FArrayProperty* InArrayProperty, URigVMNode* InNode, URigVMPin* InParentPin, ERigVMPinDirection InPinDirection, const TArray<FString>& InDefaultValues, bool bAutoExpandArrays);
 	void AddPinsForTemplate(const FRigVMTemplate* InTemplate, const FRigVMTemplateTypeMap& InPinTypeMap, URigVMNode* InNode);
-	void ConfigurePinFromProperty(FProperty* InProperty, URigVMPin* InOutPin, ERigVMPinDirection InPinDirection = ERigVMPinDirection::Invalid);
+	void ConfigurePinFromProperty(FProperty* InProperty, URigVMPin* InOutPin, ERigVMPinDirection InPinDirection = ERigVMPinDirection::Invalid) const;
 	void ConfigurePinFromPin(URigVMPin* InOutPin, URigVMPin* InPin, bool bCopyDisplayName = false);
 	void ConfigurePinFromArgument(URigVMPin* InOutPin, const FRigVMGraphFunctionArgument& InArgument, bool bCopyDisplayName = false);
 	bool SetPinDefaultValue(URigVMPin* InPin, const FString& InDefaultValue, bool bResizeArrays, bool bSetupUndoRedo, bool bMergeUndoAction, bool bSetValueOnLinkedPins = true);
@@ -1127,6 +1130,12 @@ private:
 	bool EjectAllInjectedNodes(URigVMNode* InNode, bool bSetupUndoRedo = true, bool bPrintPythonCommands = false);
 	FName AddDecorator(URigVMNode* InNode, UScriptStruct* InDecoratorScriptStruct, const FName& InDecoratorName, const FString& InDefaultValue, int32 InPinIndex = -1, bool bSetupUndoRedo = true);
 	bool RemoveDecorator(URigVMNode* InNode, const FName& InDecoratorName, bool bSetupUndoRedo = true);
+
+protected:
+
+#if WITH_EDITOR
+	URigVMUnitNode* AddUnitNode(UScriptStruct* InScriptStruct, TSubclassOf<URigVMUnitNode> InUnitNodeClass, const FName& InMethodName, const FVector2D& InPosition, const FString& InNodeName, bool bSetupUndoRedo, bool bPrintPythonCommand);
+#endif
 
 public:
 
@@ -1290,6 +1299,8 @@ public:
 	URigVMNode* ConvertRerouteNodeToDispatch(URigVMRerouteNode* InRerouteNode, const FName& InTemplateNotation, bool bSetupUndoRedo, bool bPrintPythonCommand);
 
 protected:
+
+	URigVMPin* CreatePinFromPinInfo(const FRigVMRegistry& InRegistry, const FRigVMPinInfoArray& InPreviousPinInfos, const FRigVMPinInfo& InPinInfo, const FString& InPinPath, UObject* InOuter) const;
 
 	// backwards compatibility code
 	FRigVMClientPatchResult PatchRerouteNodesOnLoad();

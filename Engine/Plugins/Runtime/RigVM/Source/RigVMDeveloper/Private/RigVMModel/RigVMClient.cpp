@@ -46,6 +46,23 @@ void FRigVMClient::SetSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass)
 	}
 }
 
+void FRigVMClient::SetControllerClass(TSubclassOf<URigVMController> InControllerClass)
+{
+	check(InControllerClass);
+
+	if (InControllerClass == ControllerClass)
+	{
+		return;
+	}
+
+	for (URigVMGraph* Model : Models)
+	{
+		RemoveController(Model);
+	}
+
+	ControllerClass = InControllerClass;
+}
+
 void FRigVMClient::SetOuterClientHost(UObject* InOuterClientHost, const FName& InOuterClientHostPropertyName)
 {
 	OuterClientHost = InOuterClientHost;
@@ -754,7 +771,7 @@ URigVMController* FRigVMClient::CreateController(const URigVMGraph* InModel)
 {
 	const FString ModelName = InModel ? InModel->GetName() : TEXT("__NullGraph");
 	const FName SafeControllerName = GetUniqueName(*FString::Printf(TEXT("%s_Controller"), *ModelName));
-	URigVMController* Controller = NewObject<URigVMController>(GetOuter(), SafeControllerName);
+	URigVMController* Controller = NewObject<URigVMController>(GetOuter(), ControllerClass, SafeControllerName);
 	Controllers.Add(InModel, Controller);
 	Controller->SetSchema(GetOrCreateSchema());
 	Controller->SetActionStack(GetOrCreateActionStack());

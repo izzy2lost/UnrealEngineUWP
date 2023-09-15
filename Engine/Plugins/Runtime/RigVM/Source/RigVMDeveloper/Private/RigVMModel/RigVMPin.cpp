@@ -108,6 +108,7 @@ URigVMPin::URigVMPin()
 	, bIsConstant(false)
 	, bRequiresWatch(false)
 	, bIsDynamicArray(false)
+	, bIsLazy(false)
 	, CPPType(FString())
 	, CPPTypeObject(nullptr)
 	, CPPTypeObjectPath(NAME_None)
@@ -501,24 +502,7 @@ bool URigVMPin::IsDynamicArray() const
 
 bool URigVMPin::IsLazy() const
 {
-	// fixed array elements are treated as lazy elements
-	// if the original argument is also marked as lazy
-	if(const URigVMPin* ParentPin = GetParentPin())
-	{
-		if(ParentPin->IsFixedSizeArray())
-		{
-			return ParentPin->IsLazy();
-		}
-	}
-	
-	if(GetDirection() == ERigVMPinDirection::Input)
-	{
-		if(const URigVMNode* Node = GetNode())
-		{
-			return Node->ShouldInputPinComputeLazily(this);
-		}
-	}
-	return false;
+	return bIsLazy;
 }
 
 int32 URigVMPin::GetPinIndex() const

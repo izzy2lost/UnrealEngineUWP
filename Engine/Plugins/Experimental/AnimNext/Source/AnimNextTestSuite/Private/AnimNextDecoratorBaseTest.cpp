@@ -535,11 +535,19 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 			[](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return FString();
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.WriteNode(Node1,
 			[](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return FString();
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.EndNodeWriting();
 
@@ -737,6 +745,10 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterface::RunTest(const FString&
 			[](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return FString();
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.EndNodeWriting();
 
@@ -1003,6 +1015,10 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper::RunTest(const FSt
 			[](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return FString();
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.EndNodeWriting();
 
@@ -1341,11 +1357,19 @@ bool FAnimationAnimNextRuntimeTest_DecoratorSerialization::RunTest(const FString
 			[&DecoratorProperties0](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return DecoratorProperties0[DecoratorIndex][PropertyName];
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.WriteNode(Node1,
 			[&DecoratorProperties1](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return DecoratorProperties1[DecoratorIndex][PropertyName];
+			},
+			[](uint32 DecoratorIndex, const FString& PropertyName)
+			{
+				return false;
 			});
 		DecoratorWriter.EndNodeWriting();
 

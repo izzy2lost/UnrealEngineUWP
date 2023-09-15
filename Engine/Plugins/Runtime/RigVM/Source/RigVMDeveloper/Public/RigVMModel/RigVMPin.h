@@ -510,6 +510,9 @@ private:
 	bool bIsDynamicArray;
 
 	UPROPERTY()
+	bool bIsLazy;
+
+	UPROPERTY()
 	FString CPPType;
 
 	// serialize object ptr here to keep track of the latest version of the type object,

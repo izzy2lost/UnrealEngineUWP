@@ -2,12 +2,7 @@
 
 #include "DecoratorBase/Decorator.h"
 
-#include "DecoratorBase/DecoratorReader.h"
 #include "DecoratorBase/DecoratorRegistry.h"
-
-#if WITH_EDITOR
-#include "DecoratorBase/DecoratorWriter.h"
-#endif
 
 namespace UE::AnimNext
 {
@@ -18,7 +13,7 @@ namespace UE::AnimNext
 	}
 
 #if WITH_EDITOR
-	void FDecorator::SaveDecoratorSharedData(FDecoratorWriter& Writer, const TFunction<FString(const FString& PropertyName)>& GetDecoratorProperty, FAnimNextDecoratorSharedData& OutSharedData) const
+	void FDecorator::SaveDecoratorSharedData(const TFunction<FString(const FString& PropertyName)>& GetDecoratorProperty, FAnimNextDecoratorSharedData& OutSharedData) const
 	{
 		const UScriptStruct* SharedDataStruct = GetDecoratorSharedDataStruct();
 
@@ -31,6 +26,8 @@ namespace UE::AnimNext
 		// We convert every property from its string representation into its binary form
 		for (const FProperty* Property = SharedDataStruct->PropertyLink; Property != nullptr; Property = Property->PropertyLinkNext)
 		{
+			// No need to skip editor only properties since serialization will take care of that afterwards
+
 			const FString PropertyValue = GetDecoratorProperty(Property->GetName());
 			if (PropertyValue.Len() != 0)
 			{
@@ -64,12 +61,72 @@ namespace UE::AnimNext
 			}
 		}
 	}
+
+	TArray<FLatentPropertyHandle> FDecorator::GetLatentPropertyHandles(bool bFilterEditorOnly, const TFunction<bool(const FString& PropertyName)>& IsDecoratorPropertyLatent, FLatentPropertyHandle& CurrentLatentPropertyHandle) const
+	{
+		const UStruct* BaseStruct = GetDecoratorSharedDataStruct();
+
+		// The property linked list on UScriptStruct iterates over the properties starting in the derived type
+		// but with latent properties, the base type should be the first to be visited.
+		// Gather our struct hierarchy from most derived to base
+		TArray<const UStruct*> StructHierarchy;
+
+		do
+		{
+			StructHierarchy.Add(BaseStruct);
+			BaseStruct = BaseStruct->GetSuperStruct();
+		}
+		while (BaseStruct != nullptr);
+
+		TArray<FLatentPropertyHandle> LatentPropertyHandles;
+
+		// Gather our latent properties from base to most derived
+		for (auto It = StructHierarchy.rbegin(); It != StructHierarchy.rend(); ++It)
+		{
+			for (const FField* Field = (*It)->ChildProperties; Field; Field = Field->Next)
+			{
+				const FProperty* Property = CastField<FProperty>(Field);
+
+				if (bFilterEditorOnly && Property->IsEditorOnlyProperty())
+				{
+					continue;	// Skip editor only properties if we don't need them
+				}
+
+				// By default, properties are latent
+				// However, there are exceptions:
+				//     - Properties marked as hidden are not visible in the editor and cannot be hooked up manually
+				//     - Properties marked as inline are only visible in the details panel and cannot be hooked up to another node
+				//     - Properties of decorator handle type are never lazy since they just encode graph connectivity
+				const bool bIsPotentiallyLatent = !Property->HasMetaData(TEXT("Hidden")) &&
+					!Property->HasMetaData(TEXT("Inline")) &&
+					Property->GetCPPType() != TEXT("FAnimNextDecoratorHandle");
+
+				if (!bIsPotentiallyLatent)
+				{
+					continue;	// Skip non-latent properties
+				}
+
+				FLatentPropertyHandle LatentHandle;
+
+				if (IsDecoratorPropertyLatent(Property->GetName()))
+				{
+					// This property is marked latent and it has a non-inline value, grab our next latent handle and increment it
+					LatentHandle = CurrentLatentPropertyHandle;
+					CurrentLatentPropertyHandle = CurrentLatentPropertyHandle.GetNextHandle();
+				}
+
+				LatentPropertyHandles.Add(LatentHandle);
+			}
+		}
+
+		return LatentPropertyHandles;
+	}
 #endif
 
-	FDecoratorStaticInitHook::FDecoratorStaticInitHook(DecoratorConstructorFunc DecoratorConstructor_)
-		: DecoratorConstructor(DecoratorConstructor_)
+	FDecoratorStaticInitHook::FDecoratorStaticInitHook(DecoratorConstructorFunc InDecoratorConstructor)
+		: DecoratorConstructor(InDecoratorConstructor)
 	{
-		FDecoratorRegistry::StaticRegister(DecoratorConstructor_);
+		FDecoratorRegistry::StaticRegister(InDecoratorConstructor);
 	}
 
 	FDecoratorStaticInitHook::~FDecoratorStaticInitHook()

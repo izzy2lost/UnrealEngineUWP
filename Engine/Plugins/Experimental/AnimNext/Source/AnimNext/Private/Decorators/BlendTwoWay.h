@@ -17,16 +17,23 @@ struct FAnimNextBlendTwoWayDecoratorSharedData : public FAnimNextDecoratorShared
 	GENERATED_BODY()
 
 	/** First output to be blended (full weight is 0.0). */
-	UPROPERTY(meta = (Input))
+	UPROPERTY()
 	FAnimNextDecoratorHandle ChildA;
 
 	/** Second output to be blended (full weight is 1.0). */
-	UPROPERTY(meta = (Input))
+	UPROPERTY()
 	FAnimNextDecoratorHandle ChildB;
 
 	/** How much to blend our two children: 0.0 is fully child A while 1.0 is fully child B. */
-	UPROPERTY(meta = (Input))
-	double BlendWeight = 0.0;
+	UPROPERTY()
+	float BlendWeight = 0.0f;
+
+	// Latent pin support boilerplate
+	#define DECORATOR_LATENT_PROPERTIES_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(BlendWeight) \
+
+	GENERATE_DECORATOR_LATENT_PROPERTIES(FAnimNextBlendTwoWayDecoratorSharedData, DECORATOR_LATENT_PROPERTIES_ENUMERATOR)
+	#undef DECORATOR_LATENT_PROPERTIES_ENUMERATOR
 };
 
 namespace UE::AnimNext

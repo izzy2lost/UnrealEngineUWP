@@ -18,7 +18,7 @@ struct ANIMNEXT_API FRigDecorator_AnimNextCppDecorator : public FRigVMDecorator
 	GENERATED_BODY()
 
 	// The struct the decorator exposes with its shared data. Each one of its properties will be added as a pin.
-	UPROPERTY()
+	UPROPERTY(meta = (Hidden))
 	UScriptStruct* DecoratorSharedDataStruct = nullptr;
 
 #if WITH_EDITOR

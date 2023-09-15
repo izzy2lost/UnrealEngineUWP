@@ -4,6 +4,7 @@
 
 #include "ControlRigDefines.h"
 #include "Graph/AnimNextGraph.h"
+#include "Graph/AnimNextGraph_Controller.h"
 #include "Graph/AnimNextGraph_EdGraphSchema.h"
 #include "UncookedOnlyUtils.h"
 #include "Graph/AnimNextExecuteContext.h"
@@ -19,6 +20,7 @@ UAnimNextGraph_EditorData::UAnimNextGraph_EditorData(const FObjectInitializer& O
 {
 	RigVMClient.Reset();
 	RigVMClient.SetSchemaClass(UAnimNextGraph_Schema::StaticClass());
+	RigVMClient.SetControllerClass(UAnimNextGraph_Controller::StaticClass());
 	RigVMClient.SetOuterClientHost(this, GET_MEMBER_NAME_CHECKED(UAnimNextGraph_EditorData, RigVMClient));
 	{
 		TGuardValue<bool> DisableClientNotifs(RigVMClient.bSuspendNotifications, true);
