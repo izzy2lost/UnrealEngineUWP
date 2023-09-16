@@ -110,9 +110,6 @@ private:
 	UPROPERTY(EditAnywhere, Category = RootMotion, meta = (PinHiddenByDefault))
 	float YawFromAnimationBlendRate = -1.f;
 
-	UPROPERTY()
-	FAnimNode_BlendStack_Standalone BlendStackNode;
-
 	// Encapsulated motion matching algorithm and internal state
 	FMotionMatchingState MotionMatchingState;
 
