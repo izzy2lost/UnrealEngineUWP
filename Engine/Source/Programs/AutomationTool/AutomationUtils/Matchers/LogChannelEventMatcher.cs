@@ -13,7 +13,7 @@ namespace AutomationUtils.Matchers
 	/// </summary>
 	class LogChannelEventMatcher : ILogEventMatcher
 	{
-		readonly static Regex s_pattern = new Regex(
+		static readonly Regex s_pattern = new Regex(
 			@"^(\s*)" +
 			@"(?:\[[\d\.\-: ]+\])*" +
 			@"(?<channel>[a-zA-Z_][a-zA-Z0-9_]*):\s*" +
