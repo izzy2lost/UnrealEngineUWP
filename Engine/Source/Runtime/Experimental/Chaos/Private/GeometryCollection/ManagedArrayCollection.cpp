@@ -547,7 +547,8 @@ void FManagedArrayCollection::CopyAttribute(const FManagedArrayCollection& InCol
 
 	const FValueType& OriginalValue = InCollection.Map[SrcKey];
 	const FValueType& DestValue = Map[DestKey];
-	check(OriginalValue.ArrayType == DestValue.ArrayType);
+	// Now a FTransform3f can be copy in a FTransform, and the way around
+	// check(OriginalValue.ArrayType == DestValue.ArrayType);
 	DestValue.Value->Init(*OriginalValue.Value);
 }
 
