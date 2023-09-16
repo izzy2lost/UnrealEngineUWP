@@ -149,8 +149,7 @@ inline void CollectSRVsToUnset(FRHIBatchedShaderUnbinds& BatchedUnbinds, const T
 	{
 		if (Parameter.BaseType == UBMT_SRV ||
 			Parameter.BaseType == UBMT_RDG_TEXTURE_SRV ||
-			Parameter.BaseType == UBMT_RDG_BUFFER_SRV ||
-			Parameter.BaseType == UBMT_RDG_UNIFORM_BLOCK_SRV)
+			Parameter.BaseType == UBMT_RDG_BUFFER_SRV)
 		{
 			BatchedUnbinds.UnsetSRV(GetParameterIndex(Parameter));
 		}

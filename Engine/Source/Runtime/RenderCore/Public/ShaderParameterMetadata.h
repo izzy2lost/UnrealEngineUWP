@@ -155,6 +155,9 @@ public:
 
 		/** On platforms that support emulated uniform buffers, disable them for this uniform buffer */
 		NoEmulatedUniformBuffer = 1 << 0,
+		
+		/** This struct is a view into uniform buffer object, on platforms that support UBO */
+		UniformView = 1 << 1,
 	};
 
 	/** Shader binding name of the uniform buffer that contains the root shader parameters. */

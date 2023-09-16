@@ -105,15 +105,23 @@ bool FVulkanUniformBuffer::SetupUniformBufferView(const FRHIUniformBufferLayout*
 {
 	bUniformView = false;
 
-	if (InLayout->Resources.Num() == 1 &&
-		InLayout->Resources[0].MemberType == UBMT_RDG_UNIFORM_BLOCK_SRV)
+	if (InLayout->bUniformView)
 	{
-		FRHIShaderResourceView* SRV = (FRHIShaderResourceView*)GetShaderParameterResourceRHI(Contents, InLayout->Resources[0].MemberOffset, UBMT_RDG_UNIFORM_BLOCK_SRV);
-		ResourceTable.Empty(1);
-		ResourceTable.Add(SRV);
-		
-		FVulkanResourceMultiBuffer* Buffer = ResourceCast(SRV->GetBuffer());
-		const FRHIViewDesc::FBufferSRV& SRVInfo = SRV->GetDesc().Buffer.SRV;
+		FRHIShaderResourceView* UniformViewSRV = nullptr;
+		for (int32 Index = 0; Index < InLayout->Resources.Num() && !UniformViewSRV; ++Index)
+		{
+			EUniformBufferBaseType ResourceBaseType = InLayout->Resources[Index].MemberType;
+			if (ResourceBaseType == UBMT_SRV || 
+				ResourceBaseType == UBMT_RDG_BUFFER_SRV)
+			{
+				UniformViewSRV = (FRHIShaderResourceView*)GetShaderParameterResourceRHI(Contents, InLayout->Resources[Index].MemberOffset, ResourceBaseType);
+			}
+		}
+
+		check(UniformViewSRV)
+				
+		FVulkanResourceMultiBuffer* Buffer = ResourceCast(UniformViewSRV->GetBuffer());
+		const FRHIViewDesc::FBufferSRV& SRVInfo = UniformViewSRV->GetDesc().Buffer.SRV;
 		
 		Allocation.Reference(Buffer->GetCurrentAllocation());
 		//Adjust Allocation.Size ???
@@ -140,11 +148,6 @@ FVulkanUniformBuffer::FVulkanUniformBuffer(FVulkanDevice& InDevice, const FRHIUn
 	check(InLayout->Resources.Num() > 0 || InLayout->ConstantBufferSize > 0);
 	const uint32 NumResources = InLayout->Resources.Num();
 
-	if (SetupUniformBufferView(InLayout, Contents))
-	{
-		return;
-	}
-		
 	// Setup resource table
 	if (NumResources > 0)
 	{
@@ -159,6 +162,11 @@ FVulkanUniformBuffer::FVulkanUniformBuffer(FVulkanDevice& InDevice, const FRHIUn
 				ResourceTable[Index] = GetShaderParameterResourceRHI(Contents, InLayout->Resources[Index].MemberOffset, InLayout->Resources[Index].MemberType);
 			}
 		}
+	}
+
+	if (SetupUniformBufferView(InLayout, Contents))
+	{
+		return;
 	}
 
 	if (InLayout->ConstantBufferSize > 0)

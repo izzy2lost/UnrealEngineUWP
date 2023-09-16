@@ -1051,6 +1051,9 @@ struct FRHIUniformBufferLayout : public FRHIResource
 	/** Used for platforms which use emulated ub's, forces a real uniform buffer instead */
 	const bool bNoEmulatedUniformBuffer;
 
+	/** This struct is a view into uniform buffer object, on platforms that support UBO */
+	const bool bUniformView;
+
 	/** Compare two uniform buffer layouts. */
 	friend inline bool operator==(const FRHIUniformBufferLayout& A, const FRHIUniformBufferLayout& B)
 	{

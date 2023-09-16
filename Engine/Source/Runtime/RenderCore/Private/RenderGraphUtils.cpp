@@ -34,8 +34,7 @@ void ClearUnusedGraphResourcesImpl(
 			Type == UBMT_RDG_TEXTURE_SRV ||
 			Type == UBMT_RDG_TEXTURE_UAV ||
 			Type == UBMT_RDG_BUFFER_SRV ||
-			Type == UBMT_RDG_BUFFER_UAV ||
-			Type == UBMT_RDG_UNIFORM_BLOCK_SRV)
+			Type == UBMT_RDG_BUFFER_UAV)
 		{
 			const TMemoryImageArray<FShaderParameterBindings::FResourceParameter>& ResourceParameters = ShaderBindings.ResourceParameters;
 			const int32 ShaderResourceCount = ResourceParameters.Num();
@@ -119,8 +118,7 @@ void ClearUnusedGraphResourcesImpl(
 			Type == UBMT_RDG_TEXTURE_SRV ||
 			Type == UBMT_RDG_TEXTURE_UAV ||
 			Type == UBMT_RDG_BUFFER_SRV ||
-			Type == UBMT_RDG_BUFFER_UAV ||
-			Type == UBMT_RDG_UNIFORM_BLOCK_SRV)
+			Type == UBMT_RDG_BUFFER_UAV)
 		{
 			for (int32 Index = 0; Index < ShaderBindingsList.Num(); ++Index)
 			{

@@ -629,20 +629,30 @@ static FOpenGLUniformBuffer* CreateUniformBufferView(FRHICommandListImmediate& R
 {
 	FOpenGLUniformBuffer* UniformBufferView = nullptr;
 	
-	if (Layout->Resources.Num() == 1 && 
-		Layout->Resources[0].MemberType == UBMT_RDG_UNIFORM_BLOCK_SRV)
+	if (Layout->bUniformView)
 	{
 		UniformBufferView = new FOpenGLUniformBuffer(Layout);
 		UniformBufferView->SetLayoutTable(Contents, EUniformBufferValidation::None);
-		
-		FRHIShaderResourceView* SRV = (FRHIShaderResourceView*)GetShaderParameterResourceRHI(Contents, Layout->Resources[0].MemberOffset, UBMT_RDG_UNIFORM_BLOCK_SRV);
 
-		RHICmdList.EnqueueLambda([UniformBufferView, SRV](FRHICommandListImmediate&)
+		FRHIShaderResourceView* UniformViewSRV = nullptr;
+		for (int32 Index = 0; Index < Layout->Resources.Num() && !UniformViewSRV; ++Index)
+		{
+			EUniformBufferBaseType ResourceBaseType = Layout->Resources[Index].MemberType;
+			if (ResourceBaseType == UBMT_SRV || 
+				ResourceBaseType == UBMT_RDG_BUFFER_SRV)
+			{
+				UniformViewSRV = (FRHIShaderResourceView*)GetShaderParameterResourceRHI(Contents, Layout->Resources[Index].MemberOffset, ResourceBaseType);
+			}
+		}
+		
+		check(UniformViewSRV);
+
+		RHICmdList.EnqueueLambda([UniformBufferView, UniformViewSRV](FRHICommandListImmediate&)
 		{
 			VERIFY_GL_SCOPE();
 			
-			FOpenGLBuffer* UBO = FOpenGLDynamicRHI::ResourceCast(SRV->GetBuffer());
-			const FRHIViewDesc::FBufferSRV& SRVInfo = SRV->GetDesc().Buffer.SRV;
+			FOpenGLBuffer* UBO = FOpenGLDynamicRHI::ResourceCast(UniformViewSRV->GetBuffer());
+			const FRHIViewDesc::FBufferSRV& SRVInfo = UniformViewSRV->GetDesc().Buffer.SRV;
 			
 			check(UBO->Resource);
 			check(UBO->GetSize() >= PLATFORM_MAX_UNIFORM_BUFFER_RANGE);

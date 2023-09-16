@@ -558,7 +558,6 @@ void ValidateShaderParameters(const TShaderRef<FShader>& Shader, const FShaderPa
 			case UBMT_RDG_BUFFER_SRV:
 			case UBMT_RDG_TEXTURE_UAV:
 			case UBMT_RDG_BUFFER_UAV:
-			case UBMT_RDG_UNIFORM_BLOCK_SRV:
 			{
 				const FRDGResource* GraphResource = Reader.Read<const FRDGResource*>(Parameter);
 
@@ -621,8 +620,7 @@ void ValidateShaderParameterResourcesRHI(const void* Contents, const FRHIUniform
 
 		const bool bSRV =
 			Parameter.MemberType == UBMT_SRV ||
-			Parameter.MemberType == UBMT_RDG_TEXTURE_SRV ||
-			Parameter.MemberType == UBMT_RDG_BUFFER_SRV;
+			Parameter.MemberType == UBMT_RDG_TEXTURE_SRV;
 
 		// Allow null SRV's in uniform buffers for feature levels that don't support SRV's in shaders
 		if (GMaxRHIFeatureLevel <= ERHIFeatureLevel::ES3_1 && bSRV)
@@ -702,7 +700,6 @@ FRHIShaderParameterResource ExtractShaderParameterResource(FShaderParameterReade
 	}
 	case UBMT_RDG_TEXTURE_SRV:
 	case UBMT_RDG_BUFFER_SRV:
-	case UBMT_RDG_UNIFORM_BLOCK_SRV:
 	{
 		FRDGShaderResourceView* RDGShaderResourceView = Reader.Read<FRDGShaderResourceView*>(Parameter);
 		checkSlow(RDGShaderResourceView);
@@ -900,7 +897,6 @@ void SetShaderParameters(
 		break;
 		case UBMT_RDG_TEXTURE_SRV:
 		case UBMT_RDG_BUFFER_SRV:
-		case UBMT_RDG_UNIFORM_BLOCK_SRV:
 		{
 			FRDGShaderResourceView* RDGShaderResourceView = Reader.Read<FRDGShaderResourceView*>(Parameter);
 			checkSlow(RDGShaderResourceView);

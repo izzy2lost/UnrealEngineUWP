@@ -42,7 +42,7 @@ IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(InstanceCullingUbSlot);
 IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FInstanceCullingGlobalUniforms, "InstanceCulling", InstanceCullingUbSlot);
 
 IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(BatchedPrimitive);
-IMPLEMENT_STATIC_AND_SHADER_UNIFORM_BUFFER_STRUCT_EX(FBatchedPrimitiveParameters, "BatchedPrimitive", BatchedPrimitive, FShaderParametersMetadata::EUsageFlags::NoEmulatedUniformBuffer);
+IMPLEMENT_STATIC_AND_SHADER_UNIFORM_BUFFER_STRUCT_EX(FBatchedPrimitiveParameters, "BatchedPrimitive", BatchedPrimitive, FShaderParametersMetadata::EUsageFlags::UniformView);
 
 static const TCHAR* BatchProcessingModeStr[] =
 {

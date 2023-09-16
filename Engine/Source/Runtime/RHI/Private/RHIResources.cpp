@@ -361,5 +361,6 @@ FRHIUniformBufferLayout::FRHIUniformBufferLayout(const FRHIUniformBufferLayoutIn
 	, BindingFlags(Initializer.BindingFlags)
 	, bHasNonGraphOutputs(Initializer.bHasNonGraphOutputs)
 	, bNoEmulatedUniformBuffer(Initializer.bNoEmulatedUniformBuffer)
+	, bUniformView(Initializer.bUniformView)
 {
 }

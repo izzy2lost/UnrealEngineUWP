@@ -534,7 +534,6 @@ enum EUniformBufferBaseType : uint8
 	UBMT_RDG_BUFFER_SRV,
 	UBMT_RDG_BUFFER_UAV,
 	UBMT_RDG_UNIFORM_BUFFER,
-	UBMT_RDG_UNIFORM_BLOCK_SRV,
 
 	// Nested structure.
 	UBMT_NESTED_STRUCT,
@@ -1275,8 +1274,7 @@ inline bool IsRDGBufferReferenceShaderParameterType(EUniformBufferBaseType BaseT
 		BaseType == UBMT_RDG_BUFFER_SRV ||
 		BaseType == UBMT_RDG_BUFFER_UAV ||
 		BaseType == UBMT_RDG_BUFFER_ACCESS ||
-		BaseType == UBMT_RDG_BUFFER_ACCESS_ARRAY ||
-		BaseType == UBMT_RDG_UNIFORM_BLOCK_SRV;
+		BaseType == UBMT_RDG_BUFFER_ACCESS_ARRAY;
 }
 
 /** Returns whether the shader parameter type is for RDG access and not actually for shaders. */
@@ -1304,7 +1302,6 @@ inline bool IsShaderParameterTypeForUniformBufferLayout(EUniformBufferBaseType B
 		BaseType == UBMT_SRV ||
 		BaseType == UBMT_SAMPLER ||
 		BaseType == UBMT_UAV ||
-		BaseType == UBMT_RDG_UNIFORM_BLOCK_SRV ||
 
 		// RHI is able to access RHI resources from RDG.
 		IsRDGResourceReferenceShaderParameterType(BaseType) ||
