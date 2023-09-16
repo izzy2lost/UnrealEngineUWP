@@ -529,7 +529,11 @@ void UMeshInspectorTool::OnPropertyModified(UObject* PropertySet, FProperty* Pro
 
 void UMeshInspectorTool::UpdateVisualization()
 {
-	if (!MaterialSettings) return;
+	// return if tool is not in a valid state (e.g., has already shut down)
+	if (!MaterialSettings || !PreviewMesh)
+	{
+		return;
+	}
 
 	PreviewMesh->EnableWireframe(Settings->bWireframe);
 
