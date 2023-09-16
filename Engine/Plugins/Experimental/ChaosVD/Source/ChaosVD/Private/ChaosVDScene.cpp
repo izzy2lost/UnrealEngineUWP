@@ -59,8 +59,10 @@ void FChaosVDScene::Initialize()
 		// TODO: Do an async load instead, and prepare a loading screen or notification popup
 		// Jira for tracking UE-191639
 		StreamableManager->RequestSyncLoad(Settings->QueryOnlyMeshesMaterial.ToSoftObjectPath());
+		StreamableManager->RequestSyncLoad(Settings->SimOnlyMeshesMaterial.ToSoftObjectPath());
 		
 		Settings->OnVisibilitySettingsChanged().AddRaw(this, &FChaosVDScene::HandleVisibilitySettingsChanged);
+		Settings->OnColorSettingsChanged().AddRaw(this, &FChaosVDScene::HandleColorSettingsChanged);
 	}
 
 	bIsInitialized = true;
@@ -76,6 +78,7 @@ void FChaosVDScene::DeInitialize()
 	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
 	{
 		Settings->OnVisibilitySettingsChanged().RemoveAll(this);
+		Settings->OnColorSettingsChanged().RemoveAll(this);
 	}
 
 	DeInitializeSelectionSets();
@@ -482,6 +485,17 @@ void FChaosVDScene::HandleVisibilitySettingsChanged(UChaosVDEditorSettings* Sett
 		if (AChaosVDSolverInfoActor* SolverDataInfo = SolverDataInfoWithID.Value)
 		{
 			SolverDataInfo->HandleVisibilitySettingsUpdated();
+		}
+	}
+}
+
+void FChaosVDScene::HandleColorSettingsChanged(UChaosVDEditorSettings* SettingsObject)
+{
+	for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverDataInfoWithID : SolverDataContainerBySolverID)
+	{
+		if (AChaosVDSolverInfoActor* SolverDataInfo = SolverDataInfoWithID.Value)
+		{
+			SolverDataInfo->HandleColorsSettingsUpdated();
 		}
 	}
 }

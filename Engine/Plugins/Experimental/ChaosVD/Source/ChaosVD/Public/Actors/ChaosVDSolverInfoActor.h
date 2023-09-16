@@ -37,6 +37,7 @@ public:
 	const TArray<int32>& GetSelectedParticlesIDs() const { return SelectedParticlesID; }
 
 	void HandleVisibilitySettingsUpdated();
+	void HandleColorsSettingsUpdated();
 
 	virtual void BeginDestroy() override;
 

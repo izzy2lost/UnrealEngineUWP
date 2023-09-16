@@ -42,7 +42,21 @@ void AChaosVDSolverInfoActor::HandleVisibilitySettingsUpdated()
 {
 	for (const TPair<int32, AChaosVDParticleActor*>& ParticleWithIDPair : SolverParticlesByID)
 	{
-		ParticleWithIDPair.Value->UpdateGeometryComponentsVisibility();
+		if (AChaosVDParticleActor* ParticleActor = ParticleWithIDPair.Value)
+		{
+			ParticleActor->UpdateGeometryComponentsVisibility();
+		}
+	}
+}
+
+void AChaosVDSolverInfoActor::HandleColorsSettingsUpdated()
+{
+	for (const TPair<int32, AChaosVDParticleActor*>& ParticleWithIDPair : SolverParticlesByID)
+	{
+		if (AChaosVDParticleActor* ParticleActor = ParticleWithIDPair.Value)
+		{
+			ParticleActor->UpdateGeometryColors();
+		}	
 	}
 }
 

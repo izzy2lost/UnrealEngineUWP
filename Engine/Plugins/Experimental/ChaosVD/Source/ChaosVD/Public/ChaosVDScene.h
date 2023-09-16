@@ -131,6 +131,7 @@ private:
 	void ClearSelectionAndNotify();
 
 	void HandleVisibilitySettingsChanged(UChaosVDEditorSettings* SettingsObject);
+	void HandleColorSettingsChanged(UChaosVDEditorSettings* SettingsObject);
 
 	void InitializeSelectionSets();
 	void DeInitializeSelectionSets();

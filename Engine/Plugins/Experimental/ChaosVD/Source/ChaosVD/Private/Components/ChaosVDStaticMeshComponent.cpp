@@ -9,7 +9,17 @@ void UChaosVDStaticMeshComponent::UpdateVisibility()
 
 void UChaosVDStaticMeshComponent::UpdateDataFromShapeArray(const TArray<FChaosVDShapeCollisionData>& InShapeArray)
 {
-	UpdateDataFromShapeArray_Internal(InShapeArray, CollisionData);
+	UpdateDataFromShapeArray_Internal(InShapeArray, CollisionData, this);
+}
+
+void UChaosVDStaticMeshComponent::SetImplicitObject(const Chaos::FImplicitObject* InImplicitObject)
+{
+	SetImplicitObject_Internal(InImplicitObject);
+}
+
+void UChaosVDStaticMeshComponent::UpdateColors()
+{
+	UpdateColors_Internal(this);
 }
 
 void UChaosVDStaticMeshComponent::SetRootImplicitObject(const Chaos::FConstImplicitObjectPtr& InImplicitObject)

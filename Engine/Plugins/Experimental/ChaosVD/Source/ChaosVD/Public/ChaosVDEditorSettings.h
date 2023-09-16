@@ -15,7 +15,7 @@
 class UChaosVDEditorSettings;
 class UMaterial;
 
-DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDVisibilitySettingsChaged, UChaosVDEditorSettings* CVDEditorSettingsObject)
+DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDSettingChaged, UChaosVDEditorSettings* CVDEditorSettingsObject)
 
 UENUM()
 enum class EChaosVDActorTrackingMode
@@ -41,6 +41,7 @@ enum class EChaosVDGeometryVisibilityFlags : uint8
 	Simulated = 1 << 2,
 	Simple = 1 << 3,
 	Complex = 1 << 4,
+	ShowHeightfields = 1 << 5, // Selecting this will show heightfields even if complex is not selected
 };
 ENUM_CLASS_FLAGS(EChaosVDGeometryVisibilityFlags)
 
@@ -67,6 +68,68 @@ struct FChaosVDContactDebugDrawSettings
 	float ContactPhiCircleRadius = 2.0f;
 };
 
+/** Structure holding the settings using to debug draw Particles shape based on their state on the Chaos Visual Debugger */
+USTRUCT()
+struct FChaosDebugDrawColorsByState
+{
+	GENERATED_BODY()
+
+	/** Color used for dynamic particles */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FColor DynamicColor = FColor(255, 255, 0);
+	
+	/** Color used for sleeping particles */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FColor SleepingColor = FColor(128, 128, 128);
+
+	/** Color used for kinematic particles */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FColor KinematicColor = FColor(0, 128, 255);
+
+	/** Color used for static particles */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FColor StaticColor = FColor(255, 0, 0);
+
+	FColor GetColorFromState(EChaosVDObjectStateType State) const;
+};
+
+/** Structure holding the settings using to debug draw Particles shape based on their shape type on the Chaos Visual Debugger */
+USTRUCT()
+struct FChaosDebugDrawColorsByShapeType
+{
+	GENERATED_BODY()
+
+	/** Color used for Sphere, Plane, Cube, Capsule, Cylinder, tapered shapes */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FColor SimpleTypeColor = FColor(0, 255, 0); 
+
+	/** Color used for convex shapes */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FColor ConvexColor = FColor(0, 255, 255);
+
+	/** Color used for heightfield */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FColor HeightFieldColor = FColor(0, 0, 255);
+	
+	/** Color used for triangle meshes */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FColor TriangleMeshColor = FColor(255, 0, 0);
+
+	/** Color used for triangle LevelSets */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FColor LevelSetColor = FColor(255, 0, 128);
+
+	FColor GetColorFromShapeType(Chaos::EImplicitObjectType ShapeType) const;
+};
+
+UENUM()
+enum class EChaosVDParticleDebugColorMode
+{
+	None,
+	State,
+	ShapeType
+};
+
 UCLASS(config = Engine)
 class UChaosVDEditorSettings : public UObject
 {
@@ -85,6 +148,15 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization",  meta=(EditCondition = "GlobalCollisionDataVisualizationFlags != 0", EditConditionHides))
 	FChaosVDContactDebugDrawSettings ContactDebugDrawSettings;
 
+	UPROPERTY(EditAnywhere, Category = "Viewport Visualization")
+	EChaosVDParticleDebugColorMode ParticleColorMode;
+	
+	UPROPERTY(EditAnywhere, Category = "Viewport Visualization", meta=(EditCondition = "ParticleColorMode == EChaosVDParticleDebugColorMode::ShapeType", EditConditionHides))
+	FChaosDebugDrawColorsByShapeType ColorsByShapeType;
+	
+	UPROPERTY(EditAnywhere, Category = "Viewport Visualization", meta=(EditCondition = "ParticleColorMode == EChaosVDParticleDebugColorMode::State", EditConditionHides))
+	FChaosDebugDrawColorsByState ColorsByParticleState;
+
 	UPROPERTY(EditAnywhere, Category = "Viewport Tracking")
 	EChaosVDActorTrackingTarget TrackingTarget;
 
@@ -98,21 +170,27 @@ public:
 	float ExpandViewTrackingBy = 60.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Geometry Visibility", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDGeometryVisibilityFlags"))
-	uint8 GeometryVisibilityFlags = static_cast<uint8>(EChaosVDGeometryVisibilityFlags::Simulated | EChaosVDGeometryVisibilityFlags::Simple);
+	uint8 GeometryVisibilityFlags = static_cast<uint8>(EChaosVDGeometryVisibilityFlags::Simulated | EChaosVDGeometryVisibilityFlags::Simple |  EChaosVDGeometryVisibilityFlags::ShowHeightfields);
 
 	UPROPERTY(Config)
 	TSoftObjectPtr<UMaterial> QueryOnlyMeshesMaterial;
+
+	UPROPERTY(Config)
+	TSoftObjectPtr<UMaterial> SimOnlyMeshesMaterial;
 
 	UPROPERTY(Config)
 	FSoftClassPath SkySphereActorClass;
 
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 
-	FChaosVDVisibilitySettingsChaged& OnVisibilitySettingsChanged() { return VisibilitySettingsChangedDelegate; }
+	FChaosVDSettingChaged& OnVisibilitySettingsChanged() { return VisibilitySettingsChangedDelegate; }
+
+	FChaosVDSettingChaged& OnColorSettingsChanged() { return ColorsSettingsChangedDelegate; }
 
 	TSharedPtr<FName> SelectedTrackedTransformName;
 	TSharedPtr<FName> SelectedTrackedLocationName;
 
 protected:
-	FChaosVDVisibilitySettingsChaged VisibilitySettingsChangedDelegate;
+	FChaosVDSettingChaged VisibilitySettingsChangedDelegate;
+	FChaosVDSettingChaged ColorsSettingsChangedDelegate;
 };

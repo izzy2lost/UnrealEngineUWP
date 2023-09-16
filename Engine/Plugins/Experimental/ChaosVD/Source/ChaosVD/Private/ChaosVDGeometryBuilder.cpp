@@ -207,7 +207,7 @@ void FChaosVDGeometryBuilder::ApplyMeshToComponentFromKey(TWeakObjectPtr<UMeshCo
 	if (IChaosVDGeometryDataComponent* DataComponent = Cast<IChaosVDGeometryDataComponent>(MeshComponent.Get()))
 	{
 		DataComponent->SetIsMeshReady(true);
-		DataComponent->OnMeshReady()->ExecuteIfBound(*DataComponent);
+		DataComponent->OnMeshReady()->Broadcast(*DataComponent);
 	}
 }
 

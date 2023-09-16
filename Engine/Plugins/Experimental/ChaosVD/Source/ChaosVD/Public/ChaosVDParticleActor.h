@@ -27,6 +27,7 @@ namespace Chaos
 }
 
 /** Options flags to control how geometry is updated in a ChaosVDActor */
+UENUM()
 enum class EChaosVDActorGeometryUpdateFlags : int32
 {
 	None = 0,
@@ -68,6 +69,7 @@ public:
 #endif
 
 	void UpdateGeometryComponentsVisibility();
+	void UpdateGeometryColors();
 
 	/** Changes the active state of this CVD Particle Actor */
 	void SetIsActive(bool bNewActive);
@@ -88,6 +90,8 @@ protected:
 	const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* GetCollisionMidPhasesArray() const;
 
 	void UpdateShapeDataComponents();
+
+	void PerformTaskOnGeometryComponents(TFunction<void(IChaosVDGeometryDataComponent& InDataComponent)> TaskToPerform);
 	
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDParticleDataVisualizationFlags"))
 	uint8 LocalParticleDataVisualizationFlags;

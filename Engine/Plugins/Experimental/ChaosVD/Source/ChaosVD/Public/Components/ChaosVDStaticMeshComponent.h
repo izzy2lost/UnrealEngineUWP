@@ -11,6 +11,7 @@ UCLASS(HideCategories=("Transform"), MinimalAPI)
 class UChaosVDStaticMeshComponent : public UStaticMeshComponent, public IChaosVDGeometryDataComponent, public FChaosVDGeometryDataComponentBase
 {
 	GENERATED_BODY()
+
 public:
 	UChaosVDStaticMeshComponent(const FObjectInitializer& ObjectInitializer)
 		: Super(ObjectInitializer)
@@ -36,7 +37,11 @@ public:
 	
 	virtual void UpdateVisibility() override;
 	
-	virtual void UpdateDataFromShapeArray(const TArray<FChaosVDShapeCollisionData>& InShapeArray) override;;
+	virtual void UpdateDataFromShapeArray(const TArray<FChaosVDShapeCollisionData>& InShapeArray) override;
+
+	virtual void SetImplicitObject(const Chaos::FImplicitObject* InImplicitObject) override;
+	
+	virtual void UpdateColors() override;
 	// END IChaosVDGeometryDataComponent Interface
 
 protected:

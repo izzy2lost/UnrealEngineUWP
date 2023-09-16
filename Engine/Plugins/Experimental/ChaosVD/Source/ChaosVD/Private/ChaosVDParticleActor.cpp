@@ -67,6 +67,8 @@ void AChaosVDParticleActor::UpdateFromRecordedParticleData(const FChaosVDParticl
 		UpdateShapeDataComponents();
 		UpdateGeometryComponentsVisibility();
 	}
+
+	UpdateGeometryColors();
 }
 
 void AChaosVDParticleActor::UpdateGeometry(const Chaos::FConstImplicitObjectPtr& InImplicitObject, EChaosVDActorGeometryUpdateFlags OptionsFlags)
@@ -124,11 +126,12 @@ void AChaosVDParticleActor::UpdateGeometry(const Chaos::FConstImplicitObjectPtr&
 					if (IChaosVDGeometryDataComponent* DataComponent = Cast<IChaosVDGeometryDataComponent>(MeshComponent.Get()))
 					{
 						DataComponent->SetRootImplicitObject(InImplicitObject);
+						DataComponent->UpdateDataFromShapeArray(ParticleDataViewer.CollisionDataPerShape);
 					}
 				}
 
-				UpdateShapeDataComponents();
 				UpdateGeometryComponentsVisibility();
+				UpdateGeometryColors();
 
 				bIsGeometryDataGenerationStarted = true;
 			}
@@ -274,6 +277,37 @@ const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* AChaosVDParticleActor::G
 	return nullptr;
 }
 
+void AChaosVDParticleActor::PerformTaskOnGeometryComponents(TFunction<void(IChaosVDGeometryDataComponent& InDataComponent)> TaskToPerform)
+{
+	if (!ensure(TaskToPerform))
+	{
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Called with an invalid task callback..."), ANSI_TO_TCHAR(__FUNCTION__))
+		return;
+	}
+
+	for (TWeakObjectPtr<UMeshComponent> MeshComponent : MeshComponents)
+	{
+		if (IChaosVDGeometryDataComponent* DataComponent = Cast<IChaosVDGeometryDataComponent>(MeshComponent.Get()))
+		{
+			// We need wait until we have a valid mesh
+			if (DataComponent->IsMeshReady())
+			{
+				TaskToPerform(*DataComponent);
+			}
+			else if (FChaosVDMeshReadyDelegate* MeshReadyDelegate = DataComponent->OnMeshReady())
+			{
+				// TODO: Guard against this being multiple times for a specific task.
+				// These tasks should probably be implemented on the components themselves
+				// and they decide if they need to wait and how to do so.
+				MeshReadyDelegate->AddWeakLambda(MeshComponent.Get(), [TaskToPerform](IChaosVDGeometryDataComponent& GeometryDataComponent)
+				{
+					TaskToPerform(GeometryDataComponent);
+				});
+			}
+		}
+	}
+}
+
 void AChaosVDParticleActor::UpdateShapeDataComponents()
 {
 	for (TWeakObjectPtr<UMeshComponent> MeshComponent : MeshComponents)
@@ -282,29 +316,17 @@ void AChaosVDParticleActor::UpdateShapeDataComponents()
 		{
 			DataComponent->UpdateDataFromShapeArray(ParticleDataViewer.CollisionDataPerShape);
 		}
-	}			
+	}
 }
 
 void AChaosVDParticleActor::UpdateGeometryComponentsVisibility()
 {
-	for (TWeakObjectPtr<UMeshComponent> MeshComponent : MeshComponents)
-	{
-		if (IChaosVDGeometryDataComponent* DataComponent = Cast<IChaosVDGeometryDataComponent>(MeshComponent.Get()))
-		{
-			// We need wait until we have a valid mesh
-			if (DataComponent->IsMeshReady())
-			{
-				DataComponent->UpdateVisibility();
-			}
-			else if (!DataComponent->OnMeshReady()->IsBound())
-			{
-				DataComponent->OnMeshReady()->BindWeakLambda(this, [](IChaosVDGeometryDataComponent& GeometryDataComponent)
-				{
-					GeometryDataComponent.UpdateVisibility();
-				});
-			}
-		}
-	}
+	PerformTaskOnGeometryComponents([](IChaosVDGeometryDataComponent& GeometryDataComponent){ GeometryDataComponent.UpdateVisibility(); });
+}
+
+void AChaosVDParticleActor::UpdateGeometryColors()
+{
+	PerformTaskOnGeometryComponents([](IChaosVDGeometryDataComponent& GeometryDataComponent){ GeometryDataComponent.UpdateColors(); });
 }
 
 void AChaosVDParticleActor::SetIsActive(bool bNewActive)

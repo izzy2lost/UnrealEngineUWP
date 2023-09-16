@@ -439,8 +439,6 @@ void FChaosVDGeometryBuilder::CreateMeshComponentsFromImplicit(const Chaos::FImp
 
 					DispatchCreateAndCacheMeshForImplicitAsync<MeshType>(GeometryKey, HeightFieldMeshGen, DesiredLODCount);
 				}
-
-				return;
 			}
 		
 			break;
@@ -451,6 +449,11 @@ void FChaosVDGeometryBuilder::CreateMeshComponentsFromImplicit(const Chaos::FImp
 
 		if (MeshComponent != nullptr)
 		{
+			if (IChaosVDGeometryDataComponent* DataComponent = Cast<IChaosVDGeometryDataComponent>(MeshComponent))
+			{
+				DataComponent->SetImplicitObject(InImplicitObject);
+			}
+
 			OutMeshComponents.Add(MeshComponent);
 		}
 }

@@ -37,6 +37,10 @@ class UChaosVDInstancedStaticMeshComponent : public UInstancedStaticMeshComponen
 	virtual void UpdateVisibility() override;
 	
 	virtual void UpdateDataFromShapeArray(const TArray<FChaosVDShapeCollisionData>& InShapeArray) override;
+	
+	virtual void SetImplicitObject(const Chaos::FImplicitObject* InImplicitObject) override;
+
+	virtual void UpdateColors() override;
 	// END IChaosVDGeometryDataComponent Interface
 
 protected:
