@@ -323,6 +323,32 @@ const TManagedArray<Type>& UGeometryCollectionComponent::Get##Name##ArrayRest() 
 // Define the methods
 COPY_ON_WRITE_ATTRIBUTES
 
+const TManagedArray<FTransform3f>& UGeometryCollectionComponent::GetTransformArray() const
+{
+	check(IndirectTransformArray != nullptr);
+	return *IndirectTransformArray;
+}
+
+TManagedArray<FTransform3f>& UGeometryCollectionComponent::GetTransformArrayCopyOnWrite()
+{
+	if (!IndirectTransformArray)
+	{
+		DynamicCollection->AddAttribute<FTransform>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
+		DynamicCollection->CopyAttribute(*RestCollection->GetGeometryCollection(), FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
+		IndirectTransformArray = &DynamicCollection->ModifyAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
+		CopyOnWriteAttributeList.Add(reinterpret_cast<FManagedArrayBase**>(&IndirectTransformArray));
+	}
+	return *IndirectTransformArray;
+}
+void UGeometryCollectionComponent::ResetTransformArrayDynamic()
+{
+	IndirectTransformArray = nullptr;
+}
+const TManagedArray<FTransform>& UGeometryCollectionComponent::GetTransformArrayRest() const
+{
+	return RestCollection->GetGeometryCollection()->Transform;
+}
+
 UGeometryCollectionComponent::UGeometryCollectionComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, ChaosSolverActor(nullptr)
@@ -1087,7 +1113,7 @@ bool UGeometryCollectionComponent::DoCustomNavigableGeometryExport(FNavigableGeo
 			{
 				const int32 RootIndex = GetRootIndex();
 				const FTransform& CompToWorld = GetComponentToWorld(); 
-				const FTransform FinalTransform = (DynamicCollection ? DynamicCollection->Transform[RootIndex] : FTransform::Identity) * CompToWorld;
+				const FTransform FinalTransform = (DynamicCollection ? FTransform(DynamicCollection->Transform[RootIndex]) : FTransform::Identity) * CompToWorld;
 				const FVector Scale3D = FinalTransform.GetScale3D();
 				if (!Scale3D.IsZero())
 				{
@@ -1149,7 +1175,14 @@ bool UGeometryCollectionComponent::DoCustomNavigableGeometryExport(FNavigableGeo
 
 	// Get all the geometry transforms in component space (they are stored natively in parent-bone space)
 	TArray<FTransform> GeomToComponent;
-	GeometryCollectionAlgo::GlobalMatrices(GetTransformArray(), GetParentArray(), TransformIndexBuffer, GeomToComponent);
+	if (DynamicCollection)
+	{
+		GeometryCollectionAlgo::GlobalMatrices(GetTransformArray(), GetParentArray(), TransformIndexBuffer, GeomToComponent);
+	}
+	else
+	{
+		GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform>(GetCurrentRestTransforms()), GetParentArray(), TransformIndexBuffer, GeomToComponent);
+	}
 
 	OutVertexBuffer.AddUninitialized(VertexCount);
 
@@ -2334,11 +2367,11 @@ void UGeometryCollectionComponent::SetInitialTransforms(const TArray<FTransform>
 {
 	if (DynamicCollection)
 	{
-		TManagedArray<FTransform>& Transform = DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = DynamicCollection->Transform;
 		int32 MaxIdx = FMath::Min(Transform.Num(), InitialTransforms.Num());
 		for (int32 Idx = 0; Idx < MaxIdx; ++Idx)
 		{
-			Transform[Idx] = InitialTransforms[Idx];
+			Transform[Idx] = FTransform3f(InitialTransforms[Idx]);
 		}
 	}
 }
@@ -2426,7 +2459,7 @@ void UGeometryCollectionComponent::GetRestTransforms(TArray<FMatrix44f>& OutRest
 	TArray<FMatrix> RestMatrices;
 	const TArray<FTransform>& RestCollectionTransforms = RestCollection->GetGeometryCollection()->Transform.GetConstArray();
 	const TArray<FTransform>& RestTransformToUse = (RestTransforms.Num() == RestCollectionTransforms.Num()) ? RestTransforms : RestCollectionTransforms;
-	GeometryCollectionAlgo::GlobalMatrices(RestTransformToUse, RestCollection->GetGeometryCollection()->Parent, RestMatrices);
+	GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform>(RestTransformToUse), RestCollection->GetGeometryCollection()->Parent, RestMatrices);
 #if WITH_EDITOR
 	UpdateGlobalMatricesWithExplodedVectors(RestMatrices, *(RestCollection->GetGeometryCollection()));
 #endif
@@ -3386,7 +3419,7 @@ void UGeometryCollectionComponent::UpdateRemovalIfNeeded()
 					const float Scale = 1.0 - Decay;
 					if (Scale < UE_SMALL_NUMBER)
 					{
-						DynamicCollection->Transform[TransformIndex].SetScale3D(FVector::ZeroVector);
+						DynamicCollection->Transform[TransformIndex].SetScale3D(FVector3f::ZeroVector);
 					}
 					// do not try to get this condition out of the loop as this may cause some optimizer related issues
 					else if (RestCollection->bScaleOnRemoval && MassToLocal && CompSpaceTransform)
@@ -3404,7 +3437,7 @@ void UGeometryCollectionComponent::UpdateRemovalIfNeeded()
 						const FVector CenterOfMass = (*MassToLocal)[TransformIndex].GetTranslation();
 						const FVector ScaleCenter = LocalDown + CenterOfMass;
 						const FTransform ScaleTransform(FQuat::Identity, ScaleCenter * FVector::FReal(1.f - Scale), FVector(Scale));
-						DynamicCollection->Transform[TransformIndex] = ScaleTransform * DynamicCollection->Transform[TransformIndex];
+						DynamicCollection->Transform[TransformIndex] = FTransform3f(ScaleTransform) * DynamicCollection->Transform[TransformIndex];
 					}
 				}
 			}
@@ -4734,14 +4767,15 @@ static void CheckForNaNs(const TArray<FTransform>& Transforms)
 }
 #endif
 
-const TArray<FTransform>& UGeometryCollectionComponent::GetCurrentTransforms() const
+const TArray<FTransform>& UGeometryCollectionComponent::GetCurrentRestTransforms() const
 {
 	const bool bRestTransformsOverriden = (RestTransforms.Num() > 0);
-	if (!DynamicCollection && bRestTransformsOverriden)
+	if (bRestTransformsOverriden)
 	{
 		return RestTransforms;
 	}
-	return GetTransformArray().GetConstArray();
+
+	return GetTransformArrayRest().GetConstArray();
 }
 
 const FTransform& UGeometryCollectionComponent::FComponentSpaceTransforms::RequestRootTransform() const
@@ -4756,7 +4790,15 @@ const FTransform& UGeometryCollectionComponent::FComponentSpaceTransforms::Reque
 	{
 		if (bIsRootDirty)
 		{
-			Transforms[RootIndex] = Component->GetCurrentTransforms()[RootIndex];
+			if (Component->DynamicCollection)
+			{
+				Transforms[RootIndex] = FTransform(Component->GetTransformArray()[RootIndex]);
+			}
+			else
+			{
+				Transforms[RootIndex] = Component->GetCurrentRestTransforms()[RootIndex];
+			}
+			
 			bIsRootDirty = false;
 		}
 
@@ -4781,13 +4823,21 @@ const TArray<FTransform>& UGeometryCollectionComponent::FComponentSpaceTransform
 		return Transforms;
 	}
 
-	const TArray<FTransform>& CurrentTransforms = Component->GetCurrentTransforms();
+	int32 CurrentTransformNum;
+	if (Component->DynamicCollection)
+	{
+		CurrentTransformNum = Component->GetTransformArray().Num();
+	}
+	else
+	{
+		CurrentTransformNum = Component->GetCurrentRestTransforms().Num();
+	}
 
 	bool bFastPath = false;
 	if (Component->RestCollection)
 	{
 		const TArray<int32>& BreadthFirstTransformIndices = Component->RestCollection->GetBreadthFirstTransformIndices();
-		bFastPath = (BreadthFirstTransformIndices.Num() == CurrentTransforms.Num());
+		bFastPath = (BreadthFirstTransformIndices.Num() == CurrentTransformNum);
 	}
 
 	if (bFastPath)
@@ -4800,20 +4850,39 @@ const TArray<FTransform>& UGeometryCollectionComponent::FComponentSpaceTransform
 			const int32 TransformIndex = BreadthFirstTransformIndices[Index];
 			const int32 ParentTransformIndex = ParentArray[TransformIndex];
 
+
+			FTransform CurrentTransform;
+			if (Component->DynamicCollection)
+			{
+				CurrentTransform = FTransform(Component->GetTransformArray()[TransformIndex]);
+			}
+			else
+			{
+				CurrentTransform = Component->GetCurrentRestTransforms()[TransformIndex];
+			}
 			if (ParentTransformIndex == INDEX_NONE)
 			{
-				Transforms[TransformIndex] = CurrentTransforms[TransformIndex];
+				
+				Transforms[TransformIndex] = CurrentTransform;
 			}
 			else
 			{
 				const FTransform& ParentTransform = Transforms[ParentTransformIndex];
-				Transforms[TransformIndex] = CurrentTransforms[TransformIndex] * ParentTransform;
+				Transforms[TransformIndex] = CurrentTransform * ParentTransform;
 			}
 		}
 	}
 	else
 	{
-		GeometryCollectionAlgo::GlobalMatrices(Component->GetCurrentTransforms(), Component->GetParentArray(), Transforms);
+		if (Component->DynamicCollection)
+		{
+			GeometryCollectionAlgo::GlobalMatrices(Component->GetTransformArray(), Component->GetParentArray(), Transforms);
+		}
+		else
+		{
+			GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform>(Component->GetCurrentRestTransforms()), Component->GetParentArray(), Transforms);
+		}
+		
 	}
 
 #if WITH_EDITOR
@@ -5231,8 +5300,8 @@ void UGeometryCollectionComponent::IncrementSleepTimer(float DeltaTime)
 						bool ShouldUpdateTimer = (DecayFacade.GetDecay(TransformIdx) > 0);
 						if (!ShouldUpdateTimer && RestCollection->bSlowMovingAsSleeping)
 						{
-							const FVector CurrentPosition = DynamicCollection->Transform[TransformIdx].GetTranslation();
-							ShouldUpdateTimer |= RemoveOnSleepFacade.ComputeSlowMovingState(TransformIdx, CurrentPosition, DeltaTime, RestCollection->SlowMovingVelocityThreshold);
+							const FVector3f CurrentPosition = DynamicCollection->Transform[TransformIdx].GetTranslation();
+							ShouldUpdateTimer |= RemoveOnSleepFacade.ComputeSlowMovingState(TransformIdx, FVector(CurrentPosition), DeltaTime, RestCollection->SlowMovingVelocityThreshold);
 						}
 						if (ShouldUpdateTimer || DynamicStateFacade.IsSleeping(TransformIdx))
 						{

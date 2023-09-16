@@ -29,7 +29,7 @@ public:
 	FTransformDynamicCollection& operator=(FTransformDynamicCollection&&) = delete;
 
 	// Transform Group
-	TManagedArray<FTransform>   Transform;
+	TManagedArray<FTransform3f> Transform;
 	TManagedArray<int32>        Parent;
 	TManagedArray<TSet<int32>>  Children;
 	TManagedArray<int32>        SimulationType;

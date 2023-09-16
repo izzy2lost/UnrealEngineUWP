@@ -601,7 +601,7 @@ public:
 	FORCEINLINE RangedForIteratorType      end  ()			{ return Array.end(); }
 	FORCEINLINE RangedForConstIteratorType end  () const	{ return Array.end(); }
 
-private:
+protected:
 	/**
 	* Protected Resize to prevent external resizing of the array
 	*
@@ -662,6 +662,18 @@ void InitHelper(TArray<T>& Array, const TManagedArrayBase<T>& NewTypedArray, int
 		Array[Index] = NewTypedArray[Index];
 	}
 }
+
+
+template <typename TSrc, typename TDst>
+void InitHelper(TArray<TDst>& Array, const TManagedArrayBase<TSrc>& NewTypedArray, int32 Size)
+{
+	for (int32 Index = 0; Index < Size; Index++)
+	{
+		Array[Index] = TDst(NewTypedArray[Index]);
+	}
+}
+
+
 
 template <typename T>
 void InitHelper(TArray<TUniquePtr<T>>& Array, const TManagedArrayBase<TUniquePtr<T>>& NewTypedArray, int32 Size)
@@ -1167,6 +1179,30 @@ public:
 	}
 };
 
+
+template<>
+class TManagedArray<FTransform3f> : public TManagedArrayBase<FTransform3f>
+{
+	/**
+	* Init from a predefined Array of matching type
+	*/
+	virtual void Init(const FManagedArrayBase& NewArray) override
+	{
+		if (NewArray.GetTypeSize() == GetTypeSize())
+		{
+			TManagedArrayBase::Init(NewArray);
+		}
+		else
+		{
+			check(NewArray.GetTypeSize() == 2 * GetTypeSize());
+			check(NewArray.GetTypeSize() == sizeof(FTransform));
+			const TManagedArrayBase<FTransform>& NewTypedArray = static_cast<const TManagedArrayBase<FTransform>&>(NewArray);
+			const int32 Size = NewTypedArray.Num();
+			Resize(Size);
+			InitHelper(Array, NewTypedArray, Size);
+		}
+	}
+};
 
 template<>
 class TManagedArray<bool> : public FManagedBitArrayBase

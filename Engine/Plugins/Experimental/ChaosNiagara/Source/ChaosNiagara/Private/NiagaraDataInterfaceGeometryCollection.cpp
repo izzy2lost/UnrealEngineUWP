@@ -102,7 +102,6 @@ void FNDIGeometryCollectionData::Init(UNiagaraDataInterfaceGeometryCollection* I
 				Collection = Interface->GeometryCollectionActor->GetGeometryCollectionComponent()->RestCollection->GetGeometryCollection();
 			const TManagedArray<FBox>& BoundingBoxes = Collection->BoundingBox;
 			const TManagedArray<int32>& TransformIndex = Collection->TransformIndex;
-			const TManagedArray<FTransform>& Transforms = Interface->GeometryCollectionActor->GetGeometryCollectionComponent()->GetTransformArray();
 			const TManagedArray<TSet<int32>>& Children = Collection->Children;
 			const TManagedArray<int32>& TransformIndexArray = Collection->TransformIndex;
 
@@ -177,7 +176,6 @@ void FNDIGeometryCollectionData::Update(UNiagaraDataInterfaceGeometryCollection*
 				Collection = Interface->GeometryCollectionActor->GetGeometryCollectionComponent()->RestCollection->GetGeometryCollection();
 			const TManagedArray<FBox>& BoundingBoxes = Collection->BoundingBox;
 			const TManagedArray<int32>& TransformIndexArray = Collection->TransformIndex;
-			const TManagedArray<FTransform>& Transforms = Interface->GeometryCollectionActor->GetGeometryCollectionComponent()->GetTransformArray();
 			const TArray<FTransform>& ComponentSpaceTransforms = Interface->GeometryCollectionActor->GetGeometryCollectionComponent()->GetComponentSpaceTransforms();
 			const TManagedArray<TSet<int32>>& Children = Collection->Children;
 			
@@ -192,11 +190,6 @@ void FNDIGeometryCollectionData::Update(UNiagaraDataInterfaceGeometryCollection*
 				{
 					NumPieces++;
 				}
-			}
-
-			if (ComponentSpaceTransforms.Num() != Transforms.Num())
-			{
-				return;
 			}
 
 			if (NumPieces != AssetArrays->BoundsBuffer.Num())

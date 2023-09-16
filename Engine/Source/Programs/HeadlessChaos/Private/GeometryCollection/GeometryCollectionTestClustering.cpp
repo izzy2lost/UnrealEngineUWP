@@ -92,7 +92,7 @@ namespace GeometryCollectionTest
 		UnitTest.AddSimulationObject(Collection);
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		FReal StartingRigidDistance = (Transform[1].GetTranslation() - Transform[0].GetTranslation()).Size(), CurrentRigidDistance = 0.f;
 
 		TManagedArray<bool>& Active = Collection->DynamicCollection->Active;
@@ -167,7 +167,7 @@ namespace GeometryCollectionTest
 		UnitTest.AddSimulationObject(Collection);
 		UnitTest.Initialize();		
 
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		FReal StartingRigidDistance = (Transform[1].GetTranslation() - Transform[0].GetTranslation()).Size(), CurrentRigidDistance = 0.f;
 
 		UnitTest.Advance();
@@ -282,7 +282,7 @@ namespace GeometryCollectionTest
 		UnitTest.AddSimulationObject(Collection);
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		FReal StartingRigidDistance = (Transform[1].GetTranslation() - Transform[0].GetTranslation()).Size(), CurrentRigidDistance = 0.f;
 
 		UnitTest.Advance();
@@ -406,7 +406,7 @@ namespace GeometryCollectionTest
 
 		Collection->PhysObject->SetCollisionParticlesPerObjectFraction(1.0);
 
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		FReal StartingRigidDistance = (Transform[1].GetTranslation() - Transform[0].GetTranslation()).Size(), CurrentRigidDistance = 0.f;
 
 		UnitTest.Advance();
@@ -507,7 +507,7 @@ namespace GeometryCollectionTest
 		UnitTest.AddSimulationObject(Collection);
 		UnitTest.Initialize();
 		
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		FReal StartingRigidDistance = (Transform[1].GetTranslation() - Transform[0].GetTranslation()).Size(), CurrentRigidDistance = 0.f;
 
 		UnitTest.Advance();
@@ -699,7 +699,7 @@ namespace GeometryCollectionTest
 		UnitTest.AddSimulationObject(Collection);
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		FReal StartingRigidDistance = (Transform[1].GetTranslation() - Transform[0].GetTranslation()).Size(), CurrentRigidDistance = 0.f;
 
 		TArray<bool> Conditions = { false,false,false,false };
@@ -860,7 +860,7 @@ namespace GeometryCollectionTest
 		UnitTest.AddSimulationObject(Collection);
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		FReal StartingRigidDistance = (Transform[1].GetTranslation() - Transform[0].GetTranslation()).Size();
 		FReal CurrentRigidDistance = 0;
 
@@ -1159,7 +1159,7 @@ namespace GeometryCollectionTest
 		UnitTest.AddSimulationObject(Collection);
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		FReal StartingRigidDistance = (Transform[1].GetTranslation() - Transform[0].GetTranslation()).Size();
 		FReal CurrentRigidDistance = 0.f;
 
@@ -1446,8 +1446,8 @@ namespace GeometryCollectionTest
 
 
 		TArray<FReal> Distances;
-		TManagedArray<FTransform>& Transform = DynamicCollection->Transform;
-		TManagedArray<FTransform>& Transform2 = DynamicCollection2->Transform;
+		TManagedArray<FTransform3f>& Transform = DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform2 = DynamicCollection2->Transform;
 
 		auto& Clustering = UnitTest.Solver->GetEvolution()->GetRigidClustering();
 		const auto& ClusterMap = Clustering.GetChildrenMap();
@@ -1553,8 +1553,8 @@ namespace GeometryCollectionTest
 
 
 		TArray<FReal> Distances;
-		TManagedArray<FTransform>& Transform = DynamicCollection->Transform;
-		TManagedArray<FTransform>& Transform2 = DynamicCollection2->Transform;
+		TManagedArray<FTransform3f>& Transform = DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform2 = DynamicCollection2->Transform;
 
 
 		auto& Clustering = UnitTest.Solver->GetEvolution()->GetRigidClustering();
@@ -1657,8 +1657,8 @@ namespace GeometryCollectionTest
 		TSharedPtr<FGeometryDynamicCollection> DynamicCollection2 = Collection2->DynamicCollection;
 
 		TArray<FReal> Distances;
-		TManagedArray<FTransform>& Transform = DynamicCollection->Transform;
-		TManagedArray<FTransform>& Transform2 = DynamicCollection2->Transform;
+		TManagedArray<FTransform3f>& Transform = DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform2 = DynamicCollection2->Transform;
 
 		auto& Clustering = UnitTest.Solver->GetEvolution()->GetRigidClustering();
 		const auto& ClusterMap = Clustering.GetChildrenMap();

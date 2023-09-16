@@ -145,7 +145,7 @@ namespace GeometryCollectionTest
 			UnitTest.Advance();
 
 		{
-			TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+			TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 			EXPECT_EQ(Transform.Num(), 1);
 			//UE_LOG(LogTest, Verbose, TEXT("Position : (%3.5f,%3.5f,%3.5f)"), Transform[0].GetTranslation().X, Transform[0].GetTranslation().Y, Transform[0].GetTranslation().Z);
 			EXPECT_EQ(Transform[0].GetTranslation().Z, 0.f);
@@ -288,7 +288,7 @@ namespace GeometryCollectionTest
 
 		// testing...
 		auto GCParticles = Collection->PhysObject->GetSolverParticleHandles();
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		for (int Frame = 1; Frame < 200; Frame++)
 		{
 			if (Frame == 1)
@@ -304,11 +304,11 @@ namespace GeometryCollectionTest
 				GCParticles[3]->SetCollisionGroup(3);
 				GCParticles[4]->SetCollisionGroup(-1);
 
-				EXPECT_TRUE(Transform[0].GetRotation() == FQuat::Identity); // Can use defaulted zero rotation to indicate that the
-				EXPECT_TRUE(Transform[1].GetRotation() == FQuat::Identity); // rigid has not been affected. Should we though??
-				EXPECT_TRUE(Transform[2].GetRotation() == FQuat::Identity);
-				EXPECT_TRUE(Transform[3].GetRotation() == FQuat::Identity);
-				EXPECT_TRUE(Transform[4].GetRotation() == FQuat::Identity);
+				EXPECT_TRUE(Transform[0].GetRotation() == FQuat4f::Identity); // Can use defaulted zero rotation to indicate that the
+				EXPECT_TRUE(Transform[1].GetRotation() == FQuat4f::Identity); // rigid has not been affected. Should we though??
+				EXPECT_TRUE(Transform[2].GetRotation() == FQuat4f::Identity);
+				EXPECT_TRUE(Transform[3].GetRotation() == FQuat4f::Identity);
+				EXPECT_TRUE(Transform[4].GetRotation() == FQuat4f::Identity);
 			}
 
 			if (Frame == 100)
@@ -316,11 +316,11 @@ namespace GeometryCollectionTest
 				EXPECT_NEAR(Transform[0].GetTranslation().Z, 50.0f, 1.0f);
 				EXPECT_NEAR(Transform[1].GetTranslation().Z, 150.0f, 1.0f);
 				EXPECT_NEAR(Transform[2].GetTranslation().Z, 250.0f, 1.0f);
-				EXPECT_FALSE(Transform[0].GetRotation() == FQuat::Identity);
-				EXPECT_FALSE(Transform[1].GetRotation() == FQuat::Identity);
-				EXPECT_FALSE(Transform[2].GetRotation() == FQuat::Identity);
-				EXPECT_FALSE(Transform[3].GetRotation() == FQuat::Identity);
-				EXPECT_TRUE(Transform[4].GetRotation() == FQuat::Identity);
+				EXPECT_FALSE(Transform[0].GetRotation() == FQuat4f::Identity);
+				EXPECT_FALSE(Transform[1].GetRotation() == FQuat4f::Identity);
+				EXPECT_FALSE(Transform[2].GetRotation() == FQuat4f::Identity);
+				EXPECT_FALSE(Transform[3].GetRotation() == FQuat4f::Identity);
+				EXPECT_TRUE(Transform[4].GetRotation() == FQuat4f::Identity);
 			}
 			UnitTest.Advance();
 		}
@@ -329,8 +329,8 @@ namespace GeometryCollectionTest
 		EXPECT_NEAR(Transform[1].GetTranslation().Z, 150.0f, 1.0f);
 		EXPECT_NEAR(Transform[2].GetTranslation().Z, 250.0f, 1.0f);
 		EXPECT_NEAR(Transform[3].GetTranslation().Z, 150.0f, 1.0f);
-		EXPECT_FALSE(Transform[3].GetRotation() == FQuat::Identity);
-		EXPECT_TRUE(Transform[4].GetRotation() == FQuat::Identity); // Phased through everything, good.
+		EXPECT_FALSE(Transform[3].GetRotation() == FQuat4f::Identity);
+		EXPECT_TRUE(Transform[4].GetRotation() == FQuat4f::Identity); // Phased through everything, good.
 		EXPECT_LT(Transform[4].GetTranslation().Z, -100.0f);
 
 		GCParticles[0]->SetCollisionGroup(-1);

@@ -586,7 +586,7 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 				// constraint will query the game thread particle position/rotation for the geometry collection to compute its
 				// reference frame. If that position/rotation does not match up with the physics thread's position/rotation,
 				// the geometry collection particle will have an added velocity computed by the joint constraint solver.
-				const FTransform& T = MassToLocal[Index] * GameThreadCollection.Transform[Index] * Parameters.WorldTransform;
+				const FTransform& T = MassToLocal[Index] * FTransform(GameThreadCollection.Transform[Index]) * Parameters.WorldTransform;
 				P->SetX(T.GetTranslation(), false);
 				P->SetR(T.GetRotation(), false);
 				P->SetM(ScaledMass);
@@ -675,7 +675,7 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 								const Chaos::FImplicitObjectPtr& ChildImplicit = GameThreadCollection.Implicits[ChildIndex];
 								if (ChildImplicit)
 								{
-									const Chaos::FRigidTransform3 ChildShapeTransform = MassToLocal[ChildIndex] * GameThreadCollection.Transform[ChildIndex];
+									const Chaos::FRigidTransform3 ChildShapeTransform = MassToLocal[ChildIndex] * FTransform(GameThreadCollection.Transform[ChildIndex]);
 									const Chaos::FRigidTransform3 RelativeShapeTransform = ChildShapeTransform.GetRelativeTransform(ParentShapeTransform);
 
 									Chaos::FImplicitObjectPtr TransformedChildImplicit = MakeTransformImplicitObject(*ChildImplicit, RelativeShapeTransform);
@@ -1627,7 +1627,7 @@ Chaos::TPBDGeometryCollectionParticleHandle<Chaos::FReal, 3>* FGeometryCollectio
 	TManagedArray<int32>& DynamicState = DynamicCollection.DynamicState;
 	TManagedArray<int32>& ParentIndex = DynamicCollection.Parent;
 	TManagedArray<TSet<int32>>& Children = DynamicCollection.Children;
-	TManagedArray<FTransform>& Transform = DynamicCollection.Transform;
+	TManagedArray<FTransform3f>& Transform = DynamicCollection.Transform;
 	const TManagedArray<FTransform>& MassToLocal = Parameters.RestCollection->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
 	const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.Implicits;
 	const TManagedArray<TUniquePtr<FCollisionStructureManager::FSimplicial>>& Simplicials = DynamicCollection.Simplicials;
@@ -1747,7 +1747,7 @@ FGeometryCollectionPhysicsProxy::BuildClusters_Internal(
 	TManagedArray<int32>& DynamicState = DynamicCollection.DynamicState;
 	TManagedArray<int32>& ParentIndex = DynamicCollection.Parent;
 	TManagedArray<TSet<int32>>& Children = DynamicCollection.Children;
-	TManagedArray<FTransform>& Transform = DynamicCollection.Transform;
+	TManagedArray<FTransform3f>& Transform = DynamicCollection.Transform;
 	const TManagedArray<FTransform>& MassToLocal = Parameters.RestCollection->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
 	//TManagedArray<TSharedPtr<FCollisionStructureManager::FSimplicial> >& Simplicials = DynamicCollection.Simplicials;
 	TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.Implicits;
@@ -3044,7 +3044,7 @@ void FGeometryCollectionPhysicsProxy::PushToPhysicsState()
 						if (ClusterUnionIndex != INDEX_NONE)
 						{
 							const FTransform ParentWorldTransform{ ParentHandle->R(), ParentHandle->X() };
-							const FTransform NewWorldTransform = MassToLocal[TransformGroupIndex] * PhysicsThreadCollection.Transform[TransformGroupIndex] * Parameters.WorldTransform;
+							const FTransform NewWorldTransform = MassToLocal[TransformGroupIndex] * FTransform(PhysicsThreadCollection.Transform[TransformGroupIndex]) * Parameters.WorldTransform;
 							const FTransform RelativeTransform = NewWorldTransform.GetRelativeTransform(ParentWorldTransform);
 
 							DeferredClusterUnionParticleUpdates.Add(Handle);
@@ -3358,7 +3358,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 			if (bHasChanged)
 			{
 				// default is what we have on the collection
-				FTransform ParentSpaceTransform = PhysicsThreadCollection.Transform[TransformGroupIndex];
+				FTransform ParentSpaceTransform = FTransform(PhysicsThreadCollection.Transform[TransformGroupIndex]);
 
 				// recompute parent space transform if there's no more parent or if the parent is an internal cluster 
 				if (!ClusterParent || ClusterParent->InternalCluster())
@@ -3378,7 +3378,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 				Results.SetPositions(EntryIndex, PositionData);
 				Results.SetVelocities(EntryIndex, VelocityData);
 				// todo(chaos) : we shoudl eventually get rid of the transform in the Physics collection
-				PhysicsThreadCollection.Transform[TransformGroupIndex] = ParentSpaceTransform; 
+				PhysicsThreadCollection.Transform[TransformGroupIndex] = FTransform3f(ParentSpaceTransform);
 				IsObjectDynamic = true;
 			}
 
@@ -3473,7 +3473,7 @@ static inline bool UpdateTransform(FTransform& ValueInOut, const FTransform& New
 }
 
 // this helper class helps getting the right interpolated values )
-// it also handles the case where entries for a specific transfrom index may be available in one or the other the other results 
+// it also handles the case where entries for a specific transform index may be available in one or the other the other results 
 // and properly fallback to interpolate 
 struct FResultInterpolator
 {
@@ -3808,10 +3808,10 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 							{
 								NewTransform = ParticleMassToLocal.Inverse() * ComponentScaleTransform * ParticleMassToLocal * NewTransform;
 							}
-							if (!NewTransform.Equals(GameThreadCollection.Transform[TransformIndex], GeometryCollectionTransformTolerance))
+							if (!NewTransform.Equals(FTransform(GameThreadCollection.Transform[TransformIndex]), GeometryCollectionTransformTolerance))
 							{
 								bHasDifferentTransforms = true;
-								GameThreadCollection.Transform[TransformIndex] = NewTransform;
+								GameThreadCollection.Transform[TransformIndex] = FTransform3f(NewTransform);
 							}
 						}
 					}

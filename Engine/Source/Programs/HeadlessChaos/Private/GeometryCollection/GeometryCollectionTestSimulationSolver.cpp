@@ -62,7 +62,7 @@ using namespace ChaosTest;
 			EXPECT_LT(FMath::Abs(RestTransform[0].GetTranslation().Z), SMALL_THRESHOLD);
 
 			// simulated
-			TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+			TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 			EXPECT_EQ(Transform.Num(), 1);
 			EXPECT_LT(FMath::Abs(Transform[0].GetTranslation().Z), SMALL_THRESHOLD);
 		}
@@ -98,8 +98,8 @@ using namespace ChaosTest;
 		UnitTest.AddSimulationObject(Collection);
 		UnitTest.Initialize();
 
-		FVector StartingClusterPosition;
-		TManagedArray<FTransform>* Transform;
+		FVector3f StartingClusterPosition;
+		TManagedArray<FTransform3f>* Transform;
 		FReal StartingRigidDistance;
 
 		UnitTest.Solver->RegisterSimOneShotCallback([&]()

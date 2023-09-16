@@ -90,9 +90,9 @@ namespace GeometryCollectionTest
 		EXPECT_EQ(DynamicState[0], (int32)EObjectStateTypeEnum::Chaos_Object_Kinematic);
 
 		// simulated
-		const TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		const TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		EXPECT_EQ(Transform.Num(), 1);
-		const FVector Translation1 = Transform[0].GetTranslation();
+		const FVector Translation1 = FVector(Transform[0].GetTranslation());
 		EXPECT_NEAR((Translation0 - Translation1).Size(), 0.f, KINDA_SMALL_NUMBER);
 		EXPECT_NEAR(Transform[0].GetTranslation().Z, 1.f, KINDA_SMALL_NUMBER);
 
@@ -110,7 +110,7 @@ namespace GeometryCollectionTest
 		}
 		EXPECT_EQ(DynamicState[0], (int32)EObjectStateTypeEnum::Chaos_Object_Dynamic);
 
-		const FVector Translation2 = Transform[0].GetTranslation();
+		const FVector Translation2 = FVector(Transform[0].GetTranslation());
 		EXPECT_NE(Translation1, Translation2);
 		EXPECT_LE(Transform[0].GetTranslation().Z, 0.f);
 	}
@@ -135,9 +135,9 @@ namespace GeometryCollectionTest
 		}
 
 		// simulated
-		const TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		const TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		EXPECT_EQ(Transform.Num(), 1);
-		const FVector Translation1 = Transform[0].GetTranslation();
+		const FVector Translation1 = FVector(Transform[0].GetTranslation());
 		EXPECT_NEAR((Translation0 - Translation1).Size(), 0.f, KINDA_SMALL_NUMBER);
 		EXPECT_NEAR(Transform[0].GetTranslation().Z, 1.f, KINDA_SMALL_NUMBER);
 
@@ -155,7 +155,7 @@ namespace GeometryCollectionTest
 			UnitTest.Advance();
 		}
 
-		const FVector Translation2 = Transform[0].GetTranslation();
+		const FVector Translation2 = FVector(Transform[0].GetTranslation());
 		EXPECT_NE(Translation1, Translation2);
 		EXPECT_LE(Transform[0].GetTranslation().Z, 0.f);
 	}
@@ -184,7 +184,7 @@ namespace GeometryCollectionTest
 
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		TManagedArray<int32>& DynamicState = Collection->DynamicCollection->DynamicState;
 
 		FReal PreviousY = 0.f;
@@ -241,7 +241,7 @@ namespace GeometryCollectionTest
 
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		for (int Frame = 0; Frame < 10; Frame++)
 		{
 			// Set everything inside the r=5.0 sphere to dynamic
@@ -288,7 +288,7 @@ namespace GeometryCollectionTest
 
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		FReal PreviousY = 0.0;
 		for (int Frame = 0; Frame < 10; Frame++)
 		{
@@ -336,7 +336,7 @@ namespace GeometryCollectionTest
 
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		FReal PreviousY = 0.0;
 		for (int Frame = 0; Frame < 10; Frame++)
 		{
@@ -385,7 +385,7 @@ namespace GeometryCollectionTest
 
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		TManagedArray<bool>& Active = Collection->DynamicCollection->Active;
 		auto& Particles = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles();
 		for (int Frame = 0; Frame < 20; Frame++)
@@ -431,7 +431,7 @@ namespace GeometryCollectionTest
 		UnitTest.Advance();
 
 		FReal PreviousX = 0.0;
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		for (int Frame = 1; Frame < 10; Frame++)
 		{
 			UnitTest.Solver->GetPerSolverField().AddTransientCommand({ GetFieldPhysicsName(EFieldPhysicsType::Field_LinearVelocity), VectorField->NewCopy() });
@@ -973,7 +973,7 @@ namespace GeometryCollectionTest
 		UnitTest.Solver->GetPerSolverField().AddTransientCommand({ TargetNameForce, VectorFieldBackward->NewCopy() });
 		UnitTest.Advance();
 
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		for (int Frame = 1; Frame < 10; Frame++)
 		{
 			UnitTest.Solver->GetPerSolverField().AddTransientCommand({ GetFieldPhysicsName(EFieldPhysicsType::Field_LinearVelocity), VectorFieldRight->NewCopy() });
@@ -1020,7 +1020,7 @@ namespace GeometryCollectionTest
 
 		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& ParticleHandles = Collection->PhysObject->GetSolverParticleHandles();
 		Chaos::TVector<float, 3> CurrV = ParticleHandles[0]->V();
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 
 		for (int Frame = 1; Frame < 10; Frame++)
 		{
@@ -1036,7 +1036,7 @@ namespace GeometryCollectionTest
 			// Still falling?
 			EXPECT_LT(Transform[0].GetTranslation().Z, LastLocation.Z);
 
-			LastLocation = Transform[0].GetTranslation();
+			LastLocation = FVector(Transform[0].GetTranslation());
 
 		}
 	}
@@ -1064,7 +1064,7 @@ namespace GeometryCollectionTest
 
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform>& Transform = Collection->DynamicCollection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		FReal PreviousHeight = Transform[0].GetTranslation().Z;
 		FReal PreviousX = Transform[0].GetRotation().Euler().X;
 		for (int Frame = 0; Frame < 10; Frame++)

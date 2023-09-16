@@ -760,7 +760,6 @@ public:
 	/* Transform group */																				\
 	COPY_ON_WRITE_ATTRIBUTE(FString, BoneName, FTransformCollection::TransformGroup)					\
 	COPY_ON_WRITE_ATTRIBUTE(FLinearColor, BoneColor, FTransformCollection::TransformGroup)				\
-	COPY_ON_WRITE_ATTRIBUTE(FTransform, Transform, FTransformCollection::TransformGroup)				\
 	COPY_ON_WRITE_ATTRIBUTE(int32, Parent, FTransformCollection::TransformGroup)						\
 	COPY_ON_WRITE_ATTRIBUTE(TSet<int32>, Children, FTransformCollection::TransformGroup)				\
 	COPY_ON_WRITE_ATTRIBUTE(int32, SimulationType, FTransformCollection::TransformGroup)				\
@@ -770,6 +769,15 @@ public:
 
 	// Declare all the methods
 	COPY_ON_WRITE_ATTRIBUTES
+
+	GEOMETRYCOLLECTIONENGINE_API const TManagedArray<FTransform3f>& GetTransformArray() const;
+	GEOMETRYCOLLECTIONENGINE_API TManagedArray<FTransform3f>& GetTransformArrayCopyOnWrite();
+	GEOMETRYCOLLECTIONENGINE_API void ResetTransformArrayDynamic();
+	GEOMETRYCOLLECTIONENGINE_API const TManagedArray<FTransform>& GetTransformArrayRest() const;
+	private:
+		TManagedArray<FTransform3f>* IndirectTransformArray;
+	public:
+
 
 	UPROPERTY(EditAnywhere, NoClear, BlueprintReadOnly, Category = "ChaosPhysics")
 	TObjectPtr<const UGeometryCollection> RestCollection;
@@ -1370,7 +1378,7 @@ private:
 
 	// return the most actual transforms
 	// this can be the rest collection ones, the overriden RestTransforms or the dynamic collection ones
-	const TArray<FTransform>& GetCurrentTransforms() const;
+	const TArray<FTransform>& GetCurrentRestTransforms() const;
 
 	bool bRenderStateDirty;
 	bool bEnableBoneSelection;
