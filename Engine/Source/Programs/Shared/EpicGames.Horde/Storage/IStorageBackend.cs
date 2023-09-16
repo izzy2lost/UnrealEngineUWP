@@ -11,6 +11,17 @@ using EpicGames.Core;
 namespace EpicGames.Horde.Storage
 {
 	/// <summary>
+	/// Handle to a raw object read from storage.
+	/// </summary>
+	public interface IStorageObject : IDisposable
+	{
+		/// <summary>
+		/// Data for the item. Consumers of this interface must not cache this value beyond the lifetime of the object.
+		/// </summary>
+		public ReadOnlyMemory<byte> Data { get; }
+	}
+
+	/// <summary>
 	/// Interface for a low-level storage backend.
 	/// </summary>
 	public interface IStorageBackend : IDisposable
@@ -29,6 +40,16 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
 		Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Reads an object into memory and returns a handle to it.
+		/// </summary>
+		/// <param name="path">Path to the file</param>
+		/// <param name="offset">Offset of the data to retrieve</param>
+		/// <param name="length">Length of the data</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Handle to the data. Must be disposed by the caller.</returns>
+		Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Writes a stream to the storage backend. If the stream throws an exception during read, the write will be aborted.
@@ -127,6 +148,109 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public static class StorageBackendExtensions
 	{
+		// Wraps an IStorageObject in a stream
+		class StorageObjectStream : Stream
+		{
+			readonly IStorageObject _storageObject;
+			int _offset;
+
+			public override bool CanRead => true;
+			public override bool CanSeek => true;
+			public override bool CanWrite => false;
+
+			public override long Length => _storageObject.Data.Length;
+
+			public override long Position
+			{
+				get => _offset;
+				set => _offset = (int)Math.Clamp(value, 0, _storageObject.Data.Length);
+			}
+
+			public StorageObjectStream(IStorageObject storageObject) => _storageObject = storageObject;
+
+			protected override void Dispose(bool disposing)
+			{
+				base.Dispose(disposing);
+
+				if (disposing)
+				{
+					_storageObject.Dispose();
+				}
+			}
+
+			public override void Flush() { }
+
+			public override int Read(Span<byte> buffer)
+			{
+				int length = (int)Math.Min(Length - _offset, buffer.Length);
+				_storageObject.Data.Span.Slice(_offset, length).CopyTo(buffer);
+				_offset += length;
+				return length;
+			}
+
+			public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+			public override long Seek(long offset, SeekOrigin origin)
+			{
+				return _offset = origin switch
+				{
+					SeekOrigin.Begin => (int)Math.Clamp(offset, 0, Length),
+					SeekOrigin.Current => (int)Math.Clamp(_offset + offset, 0, Length),
+					SeekOrigin.End => (int)Math.Clamp(Length + offset, 0, Length),
+					_ => throw new InvalidOperationException()
+				};
+			}
+
+			public override void SetLength(long value) => throw new InvalidOperationException();
+			public override void Write(byte[] buffer, int offset, int count) => throw new InvalidOperationException();
+		}
+
+		/// <summary>
+		/// Create a stream to wrap a storage object. The object will be disposed when the stream is closed.
+		/// </summary>
+		/// <param name="storageObject">Storage object to wrap</param>
+		/// <returns>Stream for the given storage object</returns>
+		public static Stream CreateStream(this IStorageObject storageObject) => new StorageObjectStream(storageObject);
+
+		// Creates a slice of a storage object
+		class StorageObjectSlice : IStorageObject
+		{
+			readonly IStorageObject _inner;
+			readonly int _offset;
+			readonly int _length;
+
+			public ReadOnlyMemory<byte> Data => _inner.Data.Slice(_offset, _length);
+
+			public StorageObjectSlice(IStorageObject inner, int offset, int? length)
+			{
+				_inner = inner;
+				_offset = offset;
+				_length = length ?? (inner.Data.Length - offset);
+			}
+
+			public void Dispose() => _inner.Dispose();
+		}
+
+		/// <summary>
+		/// Create a stream to wrap a storage object. The object will be disposed when the stream is closed.
+		/// </summary>
+		/// <param name="storageObject">Storage object to wrap</param>
+		/// <param name="offset">Offset of the slice</param>
+		/// <param name="length">Length to take for the slice</param>
+		/// <returns>Stream for the given storage object</returns>
+		public static IStorageObject CreateSlice(this IStorageObject storageObject, int offset, int? length)
+		{
+			int actualLength = length ?? (storageObject.Data.Length - offset);
+			if (offset == 0 && actualLength == storageObject.Data.Length)
+			{
+				return storageObject;
+			}
+			else
+			{
+				return new StorageObjectSlice(storageObject, offset, length);
+			}
+		}
+
 		/// <summary>
 		/// Attempts to open a read stream for the given path.
 		/// </summary>
@@ -137,6 +261,15 @@ namespace EpicGames.Horde.Storage
 		public static Task<Stream> OpenAsync(this IStorageBackend storageBackend, string path, CancellationToken cancellationToken = default) => storageBackend.OpenAsync(path, 0, null, cancellationToken);
 
 		/// <summary>
+		/// Attempts to open a read stream for the given path.
+		/// </summary>
+		/// <param name="storageBackend">Backend to read from</param>
+		/// <param name="path">Object name within the store</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Stream for the object</returns>
+		public static Task<IStorageObject> ReadAsync(this IStorageBackend storageBackend, string path, CancellationToken cancellationToken = default) => storageBackend.ReadAsync(path, 0, null, cancellationToken);
+
+		/// <summary>
 		/// Reads an object as an array of bytes
 		/// </summary>
 		/// <param name="storageBackend">Backend to read from</param>
@@ -145,14 +278,8 @@ namespace EpicGames.Horde.Storage
 		/// <returns>Contents of the object</returns>
 		public static async Task<byte[]> ReadBytesAsync(this IStorageBackend storageBackend, string path, CancellationToken cancellationToken = default)
 		{
-			using (Stream inputStream = await storageBackend.OpenAsync(path, cancellationToken))
-			{
-				using (MemoryStream outputStream = new MemoryStream())
-				{
-					await inputStream.CopyToAsync(outputStream, cancellationToken);
-					return outputStream.ToArray();
-				}
-			}
+			using IStorageObject storageObject = await storageBackend.ReadAsync(path, cancellationToken);
+			return storageObject.Data.ToArray();
 		}
 
 		/// <summary>

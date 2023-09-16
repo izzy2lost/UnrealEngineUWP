@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace EpicGames.Horde.Tests
@@ -80,10 +81,11 @@ namespace EpicGames.Horde.Tests
 		{
 			using (TempDir tempDir = new TempDir("Cache"))
 			{
-				StorageBackendCache cache = new StorageBackendCache(tempDir.Location, 12);
+				using StorageBackendCache cache = new StorageBackendCache(tempDir.Location, 12, NullLogger.Instance);
 
 				using MemoryStorageBackend memoryBackend = new MemoryStorageBackend();
-				using IStorageBackend cacheBackend = StorageBackendCache.Wrap(memoryBackend, cache);
+				using IStorageBackend cacheBackend = cache.CreateWrapper("", memoryBackend);
+
 				await TestBackendAsync(cacheBackend);
 
 				Assert.AreEqual(1, cache.Items.Count());

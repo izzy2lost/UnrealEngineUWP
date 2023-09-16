@@ -46,6 +46,9 @@ namespace Horde.Server.Storage
 			public Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken) => _inner.OpenAsync(path, offset, length, cancellationToken);
 
 			/// <inheritdoc/>
+			public Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken) => _inner.ReadAsync(path, offset, length, cancellationToken);
+
+			/// <inheritdoc/>
 			public Task<string> WriteAsync(Stream stream, string? prefix, CancellationToken cancellationToken) => _inner.WriteAsync(stream, prefix, cancellationToken);
 
 #pragma warning disable CS0618

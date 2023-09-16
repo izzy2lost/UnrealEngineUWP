@@ -17,6 +17,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage;
 using OpenTelemetry.Trace;
+using EpicGames.Core;
 
 namespace Horde.Server.Storage.Backends
 {
@@ -103,6 +104,13 @@ namespace Horde.Server.Storage.Backends
 	/// </summary>
 	public sealed class AwsStorageBackend : IStorageBackend, IDisposable
 	{
+		class StorageObject : IStorageObject
+		{
+			public ReadOnlyMemory<byte> Data { get; }
+			public StorageObject(ReadOnlyMemory<byte> data) => Data = data;
+			public void Dispose() { }
+		}
+
 		/// <summary>
 		/// S3 Client
 		/// </summary>
@@ -277,12 +285,12 @@ namespace Horde.Server.Storage.Backends
 			{
 				range = $"bytes={offset}-{offset + length.Value - 1}";
 			}
-			return ReadAsync(path, new ByteRange(range), cancellationToken);
+			return OpenAsync(path, new ByteRange(range), cancellationToken);
 		}
 
-		async Task<Stream> ReadAsync(string path, ByteRange? byteRange, CancellationToken cancellationToken)
+		async Task<Stream> OpenAsync(string path, ByteRange? byteRange, CancellationToken cancellationToken)
 		{
-			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsStorageBackend)}.{nameof(ReadAsync)}");
+			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsStorageBackend)}.{nameof(OpenAsync)}");
 			span.SetAttribute("path", path);
 			
 			string fullPath = GetFullPath(path);
@@ -294,7 +302,7 @@ namespace Horde.Server.Storage.Backends
 			{
 				semaLock = await _semaphore.UseWaitAsync(cancellationToken);
 
-				semaphoreSpan = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsStorageBackend)}.{nameof(ReadAsync)}.Semaphore");
+				semaphoreSpan = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsStorageBackend)}.{nameof(OpenAsync)}.Semaphore");
 				semaphoreSpan.SetAttribute("path", path);
 
 				GetObjectRequest newGetRequest = new GetObjectRequest();
@@ -337,6 +345,13 @@ namespace Horde.Server.Storage.Backends
 
 				throw new StorageException($"Unable to read {fullPath} from {_options.AwsBucketName}", ex);
 			}
+		}
+
+		/// <inheritdoc/>
+		public async Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
+		{
+			using Stream stream = await OpenAsync(path, offset, length, cancellationToken);
+			return new StorageObject(await stream.ReadAllBytesAsync(cancellationToken));
 		}
 
 		/// <inheritdoc/>

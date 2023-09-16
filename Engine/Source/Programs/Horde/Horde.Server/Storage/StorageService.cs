@@ -114,6 +114,13 @@ namespace Horde.Server.Storage
 			}
 
 			/// <inheritdoc/>
+			public async Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+			{
+				string fullPath = $"{_prefix}{path}";
+				return await _inner.ReadAsync(fullPath, offset, length, cancellationToken);
+			}
+
+			/// <inheritdoc/>
 			public async Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default)
 			{
 				string path = await _inner.WriteAsync(stream, $"{_prefix}{prefix}", cancellationToken);

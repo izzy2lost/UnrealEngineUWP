@@ -8,6 +8,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage.Backends
@@ -17,6 +18,13 @@ namespace EpicGames.Horde.Storage.Backends
 	/// </summary>
 	public sealed class HttpStorageBackend : IStorageBackend
 	{
+		class StorageObject : IStorageObject
+		{
+			public ReadOnlyMemory<byte> Data { get; }
+			public StorageObject(ReadOnlyMemory<byte> data) => Data = data;
+			public void Dispose() { }
+		}
+
 		class WriteBlobResponse
 		{
 			public string Blob { get; set; } = String.Empty;
@@ -83,6 +91,16 @@ namespace EpicGames.Horde.Storage.Backends
 					response.EnsureSuccessStatusCode();
 					return await response.Content.ReadAsStreamAsync(cancellationToken);
 				}
+			}
+		}
+
+		/// <inheritdoc/>
+		public async Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+		{
+			using (Stream stream = await OpenAsync(path, offset, length, cancellationToken))
+			{
+				byte[] data = await stream.ReadAllBytesAsync(cancellationToken);
+				return new StorageObject(data);
 			}
 		}
 

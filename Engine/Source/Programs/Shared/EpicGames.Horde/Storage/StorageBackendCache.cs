@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde.Storage.Backends;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,17 +15,19 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Implementation of a local disk cache which can be shared by multiple backends
 	/// </summary>
-	public sealed class StorageBackendCache
+	public sealed class StorageBackendCache : IDisposable
 	{
 		class Item
 		{
 			public string Key { get; }
+			public string Path { get; }
 			public long Length { get; }
 			public LinkedListNode<Item> ListNode { get; }
 
-			public Item(string key, long length)
+			public Item(string key, string path, long length)
 			{
 				Key = key;
+				Path = path;
 				Length = length;
 				ListNode = new LinkedListNode<Item>(this);
 			}
@@ -67,12 +71,14 @@ namespace EpicGames.Horde.Storage
 
 			public async Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
 			{
-				Stream stream = await _cacheStorage.ReadAsync($"{_keyPrefix}{path}", ctx => _inner.OpenAsync(path, ctx), cancellationToken);
-				if (offset != 0)
-				{
-					stream.Seek(offset, SeekOrigin.Begin);
-				}
-				return stream;
+				IStorageObject storageObject = await ReadAsync(path, offset, length, cancellationToken);
+				return storageObject.CreateStream();
+			}
+
+			public async Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+			{
+				IStorageObject storageObject = await _cacheStorage.ReadAsync($"{_keyPrefix}{path}", ctx => _inner.OpenAsync(path, ctx), cancellationToken);
+				return storageObject.CreateSlice(offset, length);
 			}
 
 			public Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default) => _inner.WriteAsync(stream, prefix, cancellationToken);
@@ -90,8 +96,9 @@ namespace EpicGames.Horde.Storage
 
 		object LockObject => _items;
 
-		readonly DirectoryReference _cacheDir;
+		readonly FileStorageBackend _backend;
 		readonly long _maxSize;
+		readonly ILogger _logger;
 
 		readonly LinkedList<Item> _items = new LinkedList<Item>();
 		readonly Dictionary<string, Item> _pathToItem = new Dictionary<string, Item>(StringComparer.Ordinal);
@@ -104,31 +111,46 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageBackendCache(DirectoryReference cacheDir, long maxSize)
+		public StorageBackendCache(DirectoryReference cacheDir, long maxSize, ILogger logger)
 		{
-			_cacheDir = cacheDir;
+			_backend = new FileStorageBackend(cacheDir);
 			_maxSize = maxSize;
+			_logger = logger;
+		}
+
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			foreach (Item item in _items)
+			{
+				_backend.Delete(item.Path);
+			}
+			_backend.Dispose();
 		}
 
 		/// <summary>
 		/// Wraps a storage backend in another backend that routes requests through the cache
 		/// </summary>
+		/// <param name="keyPrefix">Prefix for items in this cache</param>
+		/// <param name="backend">Backend to wrap</param>
+		public IStorageBackend CreateWrapper(string keyPrefix, IStorageBackend backend)
+		{
+			return new BackendWrapper(keyPrefix, this, backend);
+		}
+
+		/// <summary>
+		/// Wraps a storage backend in another backend that routes requests through the cache
+		/// </summary>
+		/// <param name="keyPrefix">Prefix for items in this cache</param>
 		/// <param name="backend">Backend to wrap</param>
 		/// <param name="cache">The cache instance. May be null.</param>
-		public static IStorageBackend Wrap(IStorageBackend backend, StorageBackendCache? cache)
+		public static IStorageBackend CreateWrapper(string keyPrefix, IStorageBackend backend, StorageBackendCache? cache)
 		{
-			if (cache == null)
-			{
-				return backend;
-			}
-			else
-			{
-				return new BackendWrapper("", cache, backend);
-			}
+			return cache?.CreateWrapper(keyPrefix, backend) ?? backend;
 		}
 
 		/// <inheritdoc/>
-		public async Task<Stream> ReadAsync(string key, Func<CancellationToken, Task<Stream>> createStreamAsync, CancellationToken cancellationToken = default)
+		public async Task<IStorageObject> ReadAsync(string key, Func<CancellationToken, Task<Stream>> createStreamAsync, CancellationToken cancellationToken = default)
 		{
 			for (; ; )
 			{
@@ -138,7 +160,9 @@ namespace EpicGames.Horde.Storage
 					Item? item;
 					if (_pathToItem.TryGetValue(key, out item))
 					{
-						return OpenItem(item);
+						_items.Remove(item.ListNode);
+						_items.AddFirst(item.ListNode);
+						return _backend.Read(item.Path, 0, null);
 					}
 
 					if (!_pathToPendingItem.TryGetValue(key, out pendingItem))
@@ -161,15 +185,6 @@ namespace EpicGames.Horde.Storage
 			}
 		}
 
-		Stream OpenItem(Item item)
-		{
-			_items.Remove(item.ListNode);
-			_items.AddFirst(item.ListNode);
-
-			FileReference file = FileReference.Combine(_cacheDir, item.Key);
-			return FileReference.Open(file, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
-		}
-
 		async Task ReadIntoCacheAsync(string key, Func<CancellationToken, Task<Stream>> createStreamAsync, CancellationToken cancellationToken)
 		{
 			using Stream stream = await createStreamAsync(cancellationToken);
@@ -179,30 +194,33 @@ namespace EpicGames.Horde.Storage
 			{
 				_size += totalLength;
 
-				while (_size > _maxSize && _items.Count > 0)
+				LinkedListNode<Item>? lastNode = _items.Last;
+				while (_size > _maxSize && lastNode != null)
 				{
-					LinkedListNode<Item> lastItem = _items.Last!;
-					_pathToItem.Remove(lastItem.Value.Key);
-					_items.RemoveLast();
+					LinkedListNode<Item> node = lastNode;
+					lastNode = lastNode.Previous;
 
-					_size -= lastItem.Value.Length;
+					Item item = node.Value;
+					try
+					{
+						_backend.Delete(item.Path);
 
-					FileReference file = FileReference.Combine(_cacheDir, lastItem.Value.Key);
-					FileReference.Delete(file);
+						_pathToItem.Remove(item.Key);
+						_items.Remove(node);
+
+						_size -= item.Length;
+					}
+					catch (Exception ex)
+					{
+						_logger.LogDebug(ex, "Unable to delete cache item {Path}: {Message}", item.Path, ex.Message);
+					}
 				}
 			}
 
-			FileReference cacheFile = FileReference.Combine(_cacheDir, key);
-			DirectoryReference.CreateDirectory(cacheFile.Directory);
-
-			using (FileStream outputStream = FileReference.Open(cacheFile, FileMode.Create, FileAccess.Write, FileShare.None))
-			{
-				await stream.CopyToAsync(outputStream, cancellationToken);
-			}
-
+			string path = await _backend.WriteAsync(stream, cancellationToken: cancellationToken);
 			lock (LockObject)
 			{
-				Item item = new Item(key, totalLength);
+				Item item = new Item(key, path, totalLength);
 				_items.AddFirst(item.ListNode);
 				_pathToItem.Add(key, item);
 

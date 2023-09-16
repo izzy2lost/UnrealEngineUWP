@@ -81,11 +81,13 @@ namespace Horde.Server.Storage
 			/// <inheritdoc/>
 			public Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
 			{
-				if (_backend == null)
-				{
-					throw new InvalidOperationException("Backend has already been disposed");
-				}
-				return _backend.OpenAsync(path, offset, length, cancellationToken);
+				return _backend?.OpenAsync(path, offset, length, cancellationToken) ?? throw new InvalidOperationException("Backend has already been disposed");
+			}
+
+			/// <inheritdoc/>
+			public Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+			{
+				return _backend?.ReadAsync(path, offset, length, cancellationToken) ?? throw new InvalidOperationException("Backend has already been disposed");
 			}
 
 			/// <inheritdoc/>
