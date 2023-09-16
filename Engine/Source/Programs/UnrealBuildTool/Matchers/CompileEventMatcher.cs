@@ -324,7 +324,7 @@ namespace UnrealBuildTool.Matchers
 			}
 			else
 			{
-				return fileName.Substring(0, index);
+				return fileName[..index];
 			}
 		}
 

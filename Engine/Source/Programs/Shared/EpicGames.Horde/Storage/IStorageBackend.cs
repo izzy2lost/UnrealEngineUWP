@@ -123,7 +123,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Incremented value used for each supplied id
 		/// </summary>
-		static int _increment;
+		static int s_increment;
 
 		/// <summary>
 		/// Creates a unique name with a given prefix
@@ -138,7 +138,7 @@ namespace EpicGames.Horde.Storage
 				builder.Append('/');
 			}
 			builder.Append(s_sessionPrefix);
-			builder.Append(Interlocked.Increment(ref _increment));
+			builder.Append(Interlocked.Increment(ref s_increment));
 			return builder.ToString();
 		}
 	}

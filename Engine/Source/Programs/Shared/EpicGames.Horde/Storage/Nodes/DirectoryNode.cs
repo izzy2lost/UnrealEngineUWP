@@ -780,8 +780,8 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public async Task CopyToDirectoryAsync(DirectoryInfo directoryInfo, IProgress<ICopyStats>? progress, ILogger logger, CancellationToken cancellationToken)
 		{
-			int NumTasks = Math.Min(1 + (int)(Length / (10 * 1024 * 1024)), 16);
-			logger.LogInformation("Splitting read into {NumThreads} threads", NumTasks);
+			int numTasks = Math.Min(1 + (int)(Length / (10 * 1024 * 1024)), 16);
+			logger.LogInformation("Splitting read into {NumThreads} threads", numTasks);
 
 			CopyStats? copyStats = null;
 			if (progress != null)
@@ -793,10 +793,10 @@ namespace EpicGames.Horde.Storage.Nodes
 			try
 			{
 				long offset = 0;
-				for (int taskIdx = 0; taskIdx < NumTasks; taskIdx++)
+				for (int taskIdx = 0; taskIdx < numTasks; taskIdx++)
 				{
 					long minOffset = offset;
-					long maxOffset = (Length * (taskIdx + 1)) / NumTasks;
+					long maxOffset = (Length * (taskIdx + 1)) / numTasks;
 					tasks.Add(Task.Run(() => CopyToDirectoryInternalAsync(directoryInfo, minOffset, maxOffset - minOffset, copyStats, logger, cancellationToken), cancellationToken));
 					offset = maxOffset;
 				}

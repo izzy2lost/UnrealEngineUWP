@@ -57,7 +57,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		class QueuedBundle
 		{
 			public BundleLocator Locator { get; }
-			public TaskCompletionSource<BundleInfo> BundleInfo = new TaskCompletionSource<BundleInfo>();
+			public TaskCompletionSource<BundleInfo> BundleInfo { get; } = new TaskCompletionSource<BundleInfo>();
 			public List<QueuedPacket> QueuedPackets { get; } = new List<QueuedPacket>(); // Sorted by index
 			public int InfoRefCount { get; set; } // Ref count for reading the header
 			public PendingRead? PendingRead { get; set; }

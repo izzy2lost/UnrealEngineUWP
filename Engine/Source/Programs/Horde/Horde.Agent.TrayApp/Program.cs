@@ -319,7 +319,7 @@ namespace Horde.Agent.TrayApp
 			public uint dwLowDateTime;
 			public uint dwHighDateTime;
 
-			public ulong Total => dwLowDateTime | ((ulong)dwHighDateTime << 32);
+			public readonly ulong Total => dwLowDateTime | ((ulong)dwHighDateTime << 32);
 		};
 
 		[StructLayout(LayoutKind.Sequential)]

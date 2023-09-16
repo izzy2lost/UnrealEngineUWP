@@ -15,7 +15,7 @@ namespace EpicGames.Core
 		{
 			public readonly int RunningIndex;
 			public readonly byte[] Data;
-			public int Length;
+			public int Length { get; set; }
 
 			public Chunk(int runningIndex, int size)
 			{

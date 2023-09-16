@@ -308,9 +308,9 @@ namespace EpicGames.Horde.Tests
 		{
 			using MemoryStorageClient store = new MemoryStorageClient();
 
-			const int length = 4096;
+			const int Length = 4096;
 
-			byte[] chunk = new byte[length];
+			byte[] chunk = new byte[Length];
 			new Random(0).NextBytes(chunk);
 
 			// Generate a tree
@@ -348,14 +348,14 @@ namespace EpicGames.Horde.Tests
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 			using MemoryStorageClient store = new MemoryStorageClient();
 
-			const int length = 1024;
-			const int copies = 4096;
+			const int Length = 1024;
+			const int Copies = 4096;
 
-			byte[] chunk = new byte[length];
+			byte[] chunk = new byte[Length];
 			new Random(0).NextBytes(chunk);
 
-			byte[] data = new byte[chunk.Length * copies];
-			for (int idx = 0; idx < copies; idx++)
+			byte[] data = new byte[chunk.Length * Copies];
+			for (int idx = 0; idx < Copies; idx++)
 			{
 				chunk.CopyTo(data.AsSpan(idx * chunk.Length));
 			}

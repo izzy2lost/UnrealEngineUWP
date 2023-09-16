@@ -7,3 +7,9 @@
 
 # IDE0005: Using directive is unnecessary (Disabled for UBT due to mismatch in projects with implicit usings)
 dotnet_diagnostic.IDE0005.severity = silent 
+
+# IDE0018: Variable declaration can be inlined
+dotnet_diagnostic.IDE0018.severity = silent 
+
+# IDE0090: New expression can be simplified
+dotnet_diagnostic.IDE0090.severity = silent 

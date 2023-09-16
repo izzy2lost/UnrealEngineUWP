@@ -81,7 +81,7 @@ namespace EpicGames.Horde.Compute
 						case AgentMessageType.Fork:
 							{
 								ForkMessage fork = message.ParseForkMessage();
-								childTasks.Add(Task.Run(() => RunAsync(socket, fork.channelId, fork.bufferSize, cancellationToken), cancellationToken));
+								childTasks.Add(Task.Run(() => RunAsync(socket, fork.ChannelId, fork.BufferSize, cancellationToken), cancellationToken));
 							}
 							break;
 						case AgentMessageType.WriteFiles:

@@ -313,7 +313,7 @@ namespace EpicGames.Horde.Compute
 		class RecvBuffer : IDisposable
 		{
 			public ComputeBufferWriter? _writer;
-			public readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1);
+			public readonly SemaphoreSlim Semaphore = new SemaphoreSlim(1);
 			public int _refCount = 1;
 
 			public RecvBuffer(ComputeBufferWriter writer) => _writer = writer;
@@ -331,22 +331,22 @@ namespace EpicGames.Horde.Compute
 			public void Dispose()
 			{
 				_writer?.Dispose();
-				_semaphore.Dispose();
+				Semaphore.Dispose();
 			}
 		}
 
 		class SendBuffer : IDisposable
 		{
 			public ComputeBufferReader? _reader;
-			public readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1);
+			public readonly SemaphoreSlim Semaphore = new SemaphoreSlim(1);
 			[SuppressMessage("Usage", "CA2213:Disposable fields should be disposed")]
-			public readonly BackgroundTask _task;
+			public readonly BackgroundTask Task;
 			int _refCount = 1;
 
 			public SendBuffer(ComputeBufferReader reader, Func<SendBuffer, CancellationToken, Task> func)
 			{
 				_reader = reader;
-				_task = BackgroundTask.StartNew(ctx => func(this, ctx));
+				Task = BackgroundTask.StartNew(ctx => func(this, ctx));
 			}
 
 			public void AddRef() => Interlocked.Increment(ref _refCount);
@@ -362,7 +362,7 @@ namespace EpicGames.Horde.Compute
 			public void Dispose()
 			{
 				_reader?.Dispose();
-				_semaphore.Dispose();
+				Semaphore.Dispose();
 			}
 		}
 
@@ -540,7 +540,7 @@ namespace EpicGames.Horde.Compute
 			bool result = false;
 			try
 			{
-				await recvBuffer._semaphore.WaitAsync(cancellationToken);
+				await recvBuffer.Semaphore.WaitAsync(cancellationToken);
 				try
 				{
 					ComputeBufferWriter? writer = recvBuffer._writer;
@@ -566,7 +566,7 @@ namespace EpicGames.Horde.Compute
 				}
 				finally
 				{
-					recvBuffer._semaphore.Release();
+					recvBuffer.Semaphore.Release();
 				}
 			}
 			finally
@@ -664,7 +664,7 @@ namespace EpicGames.Horde.Compute
 			}
 
 			// Release the writer
-			await recvBuffer._semaphore.WaitAsync(cancellationToken);
+			await recvBuffer.Semaphore.WaitAsync(cancellationToken);
 			try
 			{
 				recvBuffer._writer?.Dispose();
@@ -672,7 +672,7 @@ namespace EpicGames.Horde.Compute
 			}
 			finally
 			{
-				recvBuffer._semaphore.Release();
+				recvBuffer.Semaphore.Release();
 				recvBuffer.Release(); // Ref added above
 			}
 
@@ -748,7 +748,7 @@ namespace EpicGames.Horde.Compute
 			}
 
 			// Release the reader
-			await sendBuffer._semaphore.WaitAsync(cancellationToken);
+			await sendBuffer.Semaphore.WaitAsync(cancellationToken);
 			try
 			{
 				sendBuffer._reader?.Dispose();
@@ -756,12 +756,12 @@ namespace EpicGames.Horde.Compute
 			}
 			finally
 			{
-				sendBuffer._semaphore.Release();
+				sendBuffer.Semaphore.Release();
 				sendBuffer.Release(); // Added above
 			}
 
 			// Wait for the send task to complete
-			await sendBuffer._task.DisposeAsync();
+			await sendBuffer.Task.DisposeAsync();
 
 			// Remove the buffer from the dictionary
 			lock (_lockObject)

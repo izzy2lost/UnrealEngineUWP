@@ -53,11 +53,11 @@ namespace EpicGames.Core
 		{
 			// This seems to be consistently at least 35% faster than ZipFileExtensions.ExtractToFile(Entry, TargetFileName, Overwrite) when the
 			// archive contains many small files.
-			using (FileStream OutputStream = new FileStream(targetFileName, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write))
+			using (FileStream outputStream = new FileStream(targetFileName, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write))
 			{
-				using (Stream InStream = entry.Open())
+				using (Stream inputStream = entry.Open())
 				{
-					InStream.CopyTo(OutputStream);
+					inputStream.CopyTo(outputStream);
 				}
 			}
 

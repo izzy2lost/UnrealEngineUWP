@@ -206,9 +206,9 @@ namespace EpicGames.Horde.Compute
 	/// <summary>
 	/// Message requesting that the message loop be forked
 	/// </summary>
-	/// <param name="channelId">New channel to communicate on</param>
-	/// <param name="bufferSize">Size of the buffer</param>
-	public record struct ForkMessage(int channelId, int bufferSize);
+	/// <param name="ChannelId">New channel to communicate on</param>
+	/// <param name="BufferSize">Size of the buffer</param>
+	public record struct ForkMessage(int ChannelId, int BufferSize);
 
 	/// <summary>
 	/// Extract files from a bundle to a path in the remote sandbox

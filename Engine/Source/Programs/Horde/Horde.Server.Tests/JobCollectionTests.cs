@@ -33,10 +33,7 @@ namespace Horde.Server.Tests
 		static NewNode AddNode(NewGroup group, string name, string[]? inputDependencies, Action<NewNode>? action = null)
 		{
 			NewNode node = new NewNode(name, inputDependencies: inputDependencies?.ToList(), orderDependencies: inputDependencies?.ToList());
-			if (action != null)
-			{
-				action.Invoke(node);
-			}
+			action?.Invoke(node);
 			group.Nodes.Add(node);
 			return node;
 		}

@@ -294,7 +294,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			long _compressedLength;
 
 			// Map of keys to nodes in the queue
-			public readonly Dictionary<NodeKey, PendingNode> _nodeKeyToInfo = new Dictionary<NodeKey, PendingNode>();
+			readonly Dictionary<NodeKey, PendingNode> _nodeKeyToInfo = new Dictionary<NodeKey, PendingNode>();
 
 			// Queue of nodes for the current bundle
 			readonly List<PendingNode> _queue = new List<PendingNode>();
@@ -756,7 +756,7 @@ namespace EpicGames.Horde.Storage.Bundles
 
 		bool _disposed;
 
-		internal readonly ILogger? _traceLogger;
+		internal ILogger? TraceLogger { get; }
 
 		/// <summary>
 		/// Cache of nodes to deduplicate against
@@ -782,7 +782,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// </summary>
 		/// <param name="other"></param>
 		public BundleWriter(BundleWriter other)
-			: this(other._store, other._reader, other._refName, other._options, other._nodeCache, other._writeQueue, other._traceLogger)
+			: this(other._store, other._reader, other._refName, other._options, other._nodeCache, other._writeQueue, other.TraceLogger)
 		{
 			_writeQueue.AddRef();
 		}
@@ -798,7 +798,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			_options = options ?? s_defaultOptions;
 			_nodeCache = nodeCache ?? new NodeCache(_options.NodeCacheSize);
 			_writeQueue = writeQueue ?? new WriteQueue(store, refName.Text, _options.MaxWriteQueueLength, traceLogger);
-			_traceLogger = traceLogger;
+			TraceLogger = traceLogger;
 		}
 
 		/// <inheritdoc/>
@@ -867,14 +867,14 @@ namespace EpicGames.Horde.Storage.Bundles
 			// Check if we have a matching node already in storage
 			if (_nodeCache.TryGetNode(nodeKey, out BlobHandle? handle))
 			{
-				_traceLogger?.LogInformation("Returning cached handle for {NodeKey} -> {Handle}", nodeKey, handle);
+				TraceLogger?.LogInformation("Returning cached handle for {NodeKey} -> {Handle}", nodeKey, handle);
 				return handle;
 			}
 
 			// Append this node data
 			PendingNode pendingNode = currentBundle.WriteNode(nodeKey, size, references);
 			_nodeCache.Add(nodeKey, pendingNode);
-			_traceLogger?.LogInformation("Added new node for {NodeKey} in bundle {BundleId}", nodeKey, currentBundle.BundleId);
+			TraceLogger?.LogInformation("Added new node for {NodeKey} in bundle {BundleId}", nodeKey, currentBundle.BundleId);
 
 			// Add dependencies on all bundles containing a dependent node
 			foreach (BlobHandle reference in references)
@@ -882,7 +882,7 @@ namespace EpicGames.Horde.Storage.Bundles
 				PendingNode? pendingReference = reference as PendingNode;
 				if (pendingReference?.PendingBundle != null)
 				{
-					currentBundle.AddDependencyOn(pendingReference.PendingBundle, _traceLogger);
+					currentBundle.AddDependencyOn(pendingReference.PendingBundle, TraceLogger);
 				}
 			}
 
