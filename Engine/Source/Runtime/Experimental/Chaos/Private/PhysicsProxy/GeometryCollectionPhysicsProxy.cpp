@@ -463,9 +463,11 @@ FGeometryCollectionPhysicsProxy::FGeometryCollectionPhysicsProxy(
 
 	, GameThreadCollection(GameThreadCollectionIn)
 	, GameThreadPerFrameData(SimulationParameters)
+	, MaterialOverrideMassScaleMultiplierChange(0)
 	, bIsPhysicsThreadWorldTransformDirty(false)
 	, bIsCollisionFilterDataDirty(false)
 	, bIsDamageThresholdDataDirty(false)
+	, bIsGravityGroupIndexDirty(false)
 	, CollectorGuid(InCollectorGuid)
 {
 	// We rely on a guarded buffer.
@@ -2808,8 +2810,54 @@ void FGeometryCollectionPhysicsProxy::SetDamageThresholds_External(const TArray<
 	SetProxyDirty_External();
 }
 
+void FGeometryCollectionPhysicsProxy::SetDamagePropagationData_External(bool bEnabled, float BreakDamagePropagationFactor, float ShockDamagePropagationFactor)
+{
+	check(IsInGameThread());
+	FGeometryCollectioPerFrameData::FDamagePropagationData Data;
+	Data.bEnabled = bEnabled;
+	Data.BreakDamagePropagationFactor = BreakDamagePropagationFactor;
+	Data.ShockDamagePropagationFactor = ShockDamagePropagationFactor;
+	GameThreadPerFrameData.DamagePropagationData = Data;
+	SetProxyDirty_External();
+}
+
+void FGeometryCollectionPhysicsProxy::SetDamageModel_External(EDamageModelTypeEnum DamageModel)
+{
+	check(IsInGameThread());
+	GameThreadPerFrameData.DamageModel = DamageModel;
+	SetProxyDirty_External();
+}
+
+void FGeometryCollectionPhysicsProxy::SetUseMaterialDamageModifiers_External(bool bUseMaterialDamageModifiers)
+{
+	check(IsInGameThread());
+	GameThreadPerFrameData.bUseMaterialDamageModifiers = bUseMaterialDamageModifiers;
+	SetProxyDirty_External();
+}
+
+void FGeometryCollectionPhysicsProxy::SetMaterialOverrideMassScaleMultiplier_External(float InMultiplier)
+{
+	check(IsInGameThread());
+	GameThreadPerFrameData.MaterialOverrideMassScaleMultiplier = InMultiplier;
+	SetProxyDirty_External();
+}
+
+void FGeometryCollectionPhysicsProxy::SetGravityGroupIndex_External(int32 GravityGroupIndex)
+{
+	check(IsInGameThread());
+	GameThreadPerFrameData.GravityGroupIndex = static_cast<uint8>(GravityGroupIndex); // we actually only support a handful gravity groups 
+	SetProxyDirty_External();
+}
+
 void FGeometryCollectionPhysicsProxy::PushStateOnGameThread(Chaos::FPBDRigidsSolver* InSolver)
 {
+	// rest all the dirty flags
+	bIsPhysicsThreadWorldTransformDirty = false;
+	bIsCollisionFilterDataDirty = false;
+	bIsDamageThresholdDataDirty = false;
+	bIsGravityGroupIndexDirty = false;
+	MaterialOverrideMassScaleMultiplierChange = 0;
+
 	// CONTEXT: GAMETHREAD
 	// this is running on GAMETHREAD before the PhysicsThread code runs for this frame
 	bIsPhysicsThreadWorldTransformDirty = GameThreadPerFrameData.GetIsWorldTransformDirty();
@@ -2845,11 +2893,49 @@ void FGeometryCollectionPhysicsProxy::PushStateOnGameThread(Chaos::FPBDRigidsSol
 		GameThreadPerFrameData.ResetIsDamageSettingsDataDirty();
 	}
 
-	bIsDamageThresholdDataDirty = GameThreadPerFrameData.GetIsDamageThresholdDataDirty();
-	if (bIsDamageThresholdDataDirty)
+	if (GameThreadPerFrameData.GetIsDamageThresholdDataDirty())
 	{
 		Parameters.DamageThreshold = GameThreadPerFrameData.GetDamageThresholds();
 		GameThreadPerFrameData.ResetIsDamageThresholdDataDirty();
+		bIsDamageThresholdDataDirty = true;
+	}
+
+	if (GameThreadPerFrameData.DamageModel.IsSet())
+	{
+		Parameters.DamageModel = GameThreadPerFrameData.DamageModel.GetValue();
+		GameThreadPerFrameData.DamageModel.Reset();
+		bIsDamageThresholdDataDirty = true;
+	}
+
+	if (GameThreadPerFrameData.bUseMaterialDamageModifiers.IsSet())
+	{
+		Parameters.bUseMaterialDamageModifiers = GameThreadPerFrameData.bUseMaterialDamageModifiers.GetValue();
+		GameThreadPerFrameData.bUseMaterialDamageModifiers.Reset();
+		bIsDamageThresholdDataDirty = true;
+	}
+
+	if (GameThreadPerFrameData.MaterialOverrideMassScaleMultiplier.IsSet())
+	{
+		const float NewValue = GameThreadPerFrameData.MaterialOverrideMassScaleMultiplier.GetValue();
+		MaterialOverrideMassScaleMultiplierChange = NewValue / Parameters.MaterialOverrideMassScaleMultiplier;
+		Parameters.MaterialOverrideMassScaleMultiplier = NewValue;
+		GameThreadPerFrameData.MaterialOverrideMassScaleMultiplier.Reset();
+	}
+
+	if (GameThreadPerFrameData.GravityGroupIndex.IsSet())
+	{
+		Parameters.GravityGroupIndex = GameThreadPerFrameData.GravityGroupIndex.GetValue();
+		GameThreadPerFrameData.GravityGroupIndex.Reset();
+		bIsGravityGroupIndexDirty = true;
+	}
+
+	if (GameThreadPerFrameData.DamagePropagationData.IsSet())
+	{
+		const FGeometryCollectioPerFrameData::FDamagePropagationData& Data = GameThreadPerFrameData.DamagePropagationData.GetValue();
+		Parameters.bUseDamagePropagation = Data.bEnabled;
+		Parameters.BreakDamagePropagationFactor = Data.BreakDamagePropagationFactor;
+		Parameters.ShockDamagePropagationFactor = Data.ShockDamagePropagationFactor;
+		GameThreadPerFrameData.DamagePropagationData.Reset();
 	}
 }
 
@@ -2981,6 +3067,36 @@ void FGeometryCollectionPhysicsProxy::PushToPhysicsState()
 	if (bIsDamageThresholdDataDirty)
 	{
 		UpdateDamageThreshold_Internal();
+	}
+
+	if (bIsGravityGroupIndexDirty)
+	{
+		for (int32 TransformIndex = 0; TransformIndex < SolverParticleHandles.Num(); ++TransformIndex)
+		{
+			if (Chaos::FPBDRigidClusteredParticleHandle* Handle = SolverParticleHandles[TransformIndex])
+			{
+				Handle->SetGravityGroupIndex(Parameters.GravityGroupIndex);
+			}
+		}
+	}
+
+	if (MaterialOverrideMassScaleMultiplierChange > 0)
+	{
+		for (int32 TransformIndex = 0; TransformIndex < SolverParticleHandles.Num(); ++TransformIndex)
+		{
+			if (Chaos::FPBDRigidClusteredParticleHandle* Handle = SolverParticleHandles[TransformIndex])
+			{
+				const Chaos::FReal NewM = Handle->M() * MaterialOverrideMassScaleMultiplierChange;
+				const Chaos::FVec3 NewI = Handle->I() * MaterialOverrideMassScaleMultiplierChange;
+
+				Handle->SetM(NewM);
+				Handle->SetI(NewI);
+				const Chaos::FReal InvM = (NewM > 0.0f) ? 1.0f / NewM : 0.0f;
+				const Chaos::FVec3 InvI = (NewM > 0.0f) ? Chaos::FVec3(NewI).Reciprocal() : Chaos::FVec3::ZeroVector;
+				Handle->SetInvM(InvM);
+				Handle->SetInvI(InvI);
+			}
+		}
 	}
 }
 

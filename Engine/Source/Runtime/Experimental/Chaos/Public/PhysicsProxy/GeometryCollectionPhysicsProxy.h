@@ -458,7 +458,11 @@ public:
 	CHAOS_API void UpdatePerParticleFilterData_External(const TArray<FParticleCollisionFilterData>& Data);
 	
 	CHAOS_API void SetDamageThresholds_External(const TArray<float>& DamageThresholds);
-
+	CHAOS_API void SetDamagePropagationData_External(bool bEnabled, float BreakDamagePropagationFactor, float ShockDamagePropagationFactor);
+	CHAOS_API void SetDamageModel_External(EDamageModelTypeEnum DamageModel);
+	CHAOS_API void SetUseMaterialDamageModifiers_External(bool bUseMaterialDamageModifiers);
+	CHAOS_API void SetMaterialOverrideMassScaleMultiplier_External(float InMultiplier);
+	CHAOS_API void SetGravityGroupIndex_External(int32 GravityGroupIndex);
 	/** 
 	 * Traverses the parents of TransformGroupIdx counting number of levels,
 	 * and sets levels array value for TransformGroupIdx and its parents if not yet initialized.
@@ -630,10 +634,13 @@ private:
 	FGeometryDynamicCollection& GameThreadCollection;
 
 	// this data flows from Game thread to physics thread
+	// todo: replace this with proper structure copies between the two threads 
 	FGeometryCollectioPerFrameData GameThreadPerFrameData;
-	bool bIsPhysicsThreadWorldTransformDirty;
-	bool bIsCollisionFilterDataDirty;
-	bool bIsDamageThresholdDataDirty;
+	float MaterialOverrideMassScaleMultiplierChange;
+	uint8 bIsPhysicsThreadWorldTransformDirty : 1;
+	uint8 bIsCollisionFilterDataDirty: 1;
+	uint8 bIsDamageThresholdDataDirty: 1;
+	uint8 bIsGravityGroupIndexDirty: 1;
 
 	// Currently this is using triple buffers for game-physics and 
 	// physics-game thread communication, but not for any reason other than this 

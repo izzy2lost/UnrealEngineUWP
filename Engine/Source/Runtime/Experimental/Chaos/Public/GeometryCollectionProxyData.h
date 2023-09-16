@@ -169,6 +169,14 @@ private:
 class FGeometryCollectioPerFrameData
 {
 public:
+	struct FDamagePropagationData
+	{
+		bool bEnabled = false;
+		float BreakDamagePropagationFactor = 0.0f;
+		float ShockDamagePropagationFactor = 0.0f;
+	};
+
+public:
 	FGeometryCollectioPerFrameData()
 		: bIsWorldTransformDirty(false)
 		, bIsCollisionFilterDataDirty(false)
@@ -310,7 +318,6 @@ public:
 	bool GetIsDamageThresholdDataDirty() const { return bIsDamageThresholdDataDirty; }
 	void ResetIsDamageThresholdDataDirty() { bIsDamageThresholdDataDirty = false; }
 
-
 private:
 	uint16 bIsWorldTransformDirty : 1;
 	uint16 bIsCollisionFilterDataDirty : 1;
@@ -340,6 +347,13 @@ private:
 	/** updated when bIsCollisionFilterDataDirty is set */
 	FCollisionFilterData SimFilter;
 	FCollisionFilterData QueryFilter;
+
+public:
+	TOptional<EDamageModelTypeEnum> DamageModel;
+	TOptional<FDamagePropagationData> DamagePropagationData;
+	TOptional<bool> bUseMaterialDamageModifiers;
+	TOptional<float> MaterialOverrideMassScaleMultiplier;
+	TOptional<uint8> GravityGroupIndex;
 };
 
 /**

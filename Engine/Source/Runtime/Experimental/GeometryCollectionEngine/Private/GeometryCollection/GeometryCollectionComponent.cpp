@@ -696,6 +696,24 @@ int32 UGeometryCollectionComponent::GetNumElements(FName Group) const
 	return Size > 0 ? Size : DynamicCollection->NumElements(Group);	//if not, maybe dynamic has the group
 }
 
+void UGeometryCollectionComponent::SetDamageModel(EDamageModelTypeEnum InDamageModel)
+{
+	DamageModel = InDamageModel;
+	if (PhysicsProxy)
+	{
+		PhysicsProxy->SetDamageModel_External(DamageModel);
+	}
+}
+
+void UGeometryCollectionComponent::SetGravityGroupIndex(int32 InGravityGroupIndex)
+{
+	GravityGroupIndex = InGravityGroupIndex;
+	if (PhysicsProxy)
+	{
+		PhysicsProxy->SetGravityGroupIndex_External(GravityGroupIndex);
+	}
+}
+
 void UGeometryCollectionComponent::SetDamageThreshold(const TArray<float>& InDamageThreshold)
 {
 	// NOTE: Should only call this during construction, not during runtime
@@ -705,6 +723,36 @@ void UGeometryCollectionComponent::SetDamageThreshold(const TArray<float>& InDam
 	if (PhysicsProxy)
 	{
 		PhysicsProxy->SetDamageThresholds_External(DamageThreshold);
+	}
+}
+
+void UGeometryCollectionComponent::SetDamagePropagationData(const FGeometryCollectionDamagePropagationData& InDamagePropagationData)
+{
+	DamagePropagationData = InDamagePropagationData;
+
+	if (PhysicsProxy)
+	{
+		PhysicsProxy->SetDamagePropagationData_External(DamagePropagationData.bEnabled, DamagePropagationData.BreakDamagePropagationFactor, DamagePropagationData.ShockDamagePropagationFactor);
+	}
+}
+
+void UGeometryCollectionComponent::SetUseMaterialDamageModifiers(bool bInUseMaterialDamageModifiers)
+{
+	bUseMaterialDamageModifiers = bInUseMaterialDamageModifiers;
+
+	if (PhysicsProxy)
+	{
+		PhysicsProxy->SetUseMaterialDamageModifiers_External(bUseMaterialDamageModifiers);
+	}
+}
+
+void UGeometryCollectionComponent::SetDensityFromPhysicsMaterial(bool bInDensityFromPhysicsMaterial)
+{
+	bDensityFromPhysicsMaterial = bInDensityFromPhysicsMaterial;
+
+	if (PhysicsProxy)
+	{
+		PhysicsProxy->SetMaterialOverrideMassScaleMultiplier_External(ComputeMassScaleRelativeToAsset());
 	}
 }
 
