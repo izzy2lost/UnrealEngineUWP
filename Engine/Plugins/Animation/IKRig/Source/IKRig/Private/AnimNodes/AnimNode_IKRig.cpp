@@ -12,6 +12,7 @@
 #include "Animation/AnimStats.h"
 #include "Algo/ForEach.h"
 #include "SceneManagement.h"
+#include "Engine/SkeletalMesh.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_IKRig)
 
