@@ -65,7 +65,7 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task BasicChunkingTests()
+		public async Task BasicChunkingTestsAsync()
 		{
 			RefName refName = new RefName("test");
 			await using IStorageWriter writer = _storage.CreateWriter(refName);
@@ -186,7 +186,7 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task BasicTestDirectory()
+		public async Task BasicTestDirectoryAsync()
 		{
 			MemoryStorageClient store = _storage;
 
@@ -238,7 +238,7 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task DedupTests()
+		public async Task DedupTestsAsync()
 		{
 			Assert.AreEqual(0, _storage.Refs.Count);
 			Assert.AreEqual(0, _storage.Blobs.Count);
@@ -266,7 +266,7 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task ReloadTests()
+		public async Task ReloadTestsAsync()
 		{
 			BundleOptions options = new BundleOptions();
 			options.MaxBlobSize = 1;

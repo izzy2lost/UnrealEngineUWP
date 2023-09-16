@@ -84,7 +84,7 @@ public sealed class AsyncThreadPoolWorkQueue : IDisposable
 		List<Task> tasks = new();
 		for (int i = 0; i < _numWorkers; i++)
 		{
-			tasks.Add(Task.Run(() => Worker(cancellationToken), cancellationToken));
+			tasks.Add(Task.Run(() => WorkerAsync(cancellationToken), cancellationToken));
 		}
 
 		Task queueCompletionTask = Task.Run(async () =>
@@ -101,7 +101,7 @@ public sealed class AsyncThreadPoolWorkQueue : IDisposable
 	/// Worker executing tasks. Any exception encountered will be bubbled up as all calls are awaited.
 	/// </summary>
 	/// <param name="cancellationToken">Cancellation token</param>
-	private async Task Worker(CancellationToken cancellationToken)
+	private async Task WorkerAsync(CancellationToken cancellationToken)
 	{
 		await foreach (Func<CancellationToken, Task> task in _tasks.Reader.ReadAllAsync(cancellationToken))
 		{

@@ -152,17 +152,17 @@ namespace EpicGames.Horde.Tests
 				await store.WriteRefTargetAsync(new RefName("test"), await writer.WriteNodeAsync(root));
 
 				BundleReader reader = new BundleReader(store, StorageCache.None, NullLogger.Instance);
-				await CheckTree(root);
+				await CheckTreeAsync(root);
 			}
 
 			// Check we can read it back in
 			{
 				SimpleNode root = await store.ReadRefAsync<SimpleNode>(new RefName("test"));
-				await CheckTree(root);
+				await CheckTreeAsync(root);
 			}
 		}
 
-		static async Task CheckTree(SimpleNode root)
+		static async Task CheckTreeAsync(SimpleNode root)
 		{
 			SimpleNode node5 = root;
 			byte[] data5 = node5.Data.ToArray();
@@ -383,7 +383,7 @@ namespace EpicGames.Horde.Tests
 			// Check we can read it back in
 			{
 				DirectoryNode newRoot = await store.ReadRefAsync<DirectoryNode>(new RefName("test"));
-				await CompareTrees(root, newRoot);
+				await CompareTreesAsync(root, newRoot);
 				await CheckLargeFileTreeAsync(root, data);
 
 				NodeRef<ChunkedDataNode> file = root.GetFileEntry("test");
@@ -393,7 +393,7 @@ namespace EpicGames.Horde.Tests
 			}
 		}
 
-		static async Task CompareTrees(DirectoryNode oldNode, DirectoryNode newNode)
+		static async Task CompareTreesAsync(DirectoryNode oldNode, DirectoryNode newNode)
 		{
 			Assert.AreEqual(oldNode.Length, newNode.Length);
 			Assert.AreEqual(oldNode.Files.Count, newNode.Files.Count);
@@ -403,11 +403,11 @@ namespace EpicGames.Horde.Tests
 			{
 				ChunkedDataNode oldFile = await oldFileEntry.ExpandAsync();
 				ChunkedDataNode newFile = await newFileEntry.ExpandAsync();
-				await CompareTrees(oldFile, newFile);
+				await CompareTreesAsync(oldFile, newFile);
 			}
 		}
 
-		static async Task CompareTrees(ChunkedDataNode oldNode, ChunkedDataNode newNode)
+		static async Task CompareTreesAsync(ChunkedDataNode oldNode, ChunkedDataNode newNode)
 		{
 			if (oldNode is InteriorChunkedDataNode oldInteriorNode)
 			{
@@ -419,7 +419,7 @@ namespace EpicGames.Horde.Tests
 				{
 					ChunkedDataNode oldFile = await oldFileRef.ExpandAsync();
 					ChunkedDataNode newFile = await newFileRef.ExpandAsync();
-					await CompareTrees(oldFile, newFile);
+					await CompareTreesAsync(oldFile, newFile);
 					index++;
 				}
 			}

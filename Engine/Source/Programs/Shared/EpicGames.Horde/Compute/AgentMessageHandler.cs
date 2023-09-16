@@ -111,7 +111,7 @@ namespace EpicGames.Horde.Compute
 						case AgentMessageType.XorRequest:
 							{
 								XorRequestMessage xorRequest = message.AsXorRequest();
-								await RunXor(channel, xorRequest.Data, xorRequest.Value, cancellationToken);
+								await RunXorAsync(channel, xorRequest.Data, xorRequest.Value, cancellationToken);
 							}
 							break;
 						default:
@@ -121,7 +121,7 @@ namespace EpicGames.Horde.Compute
 			}
 		}
 
-		static async ValueTask RunXor(AgentMessageChannel channel, ReadOnlyMemory<byte> source, byte value, CancellationToken cancellationToken)
+		static async ValueTask RunXorAsync(AgentMessageChannel channel, ReadOnlyMemory<byte> source, byte value, CancellationToken cancellationToken)
 		{
 			using IAgentMessageBuilder response = await channel.CreateMessageAsync(AgentMessageType.XorResponse, source.Length, cancellationToken);
 			XorData(source.Span, response.GetSpanAndAdvance(source.Length), value);

@@ -347,7 +347,7 @@ namespace EpicGames.Horde.Compute
 
 		#region Process
 
-		static async Task<AgentMessage> RunStorageServer(this AgentMessageChannel channel, BundleStorageClient storage, CancellationToken cancellationToken = default)
+		static async Task<AgentMessage> RunStorageServerAsync(this AgentMessageChannel channel, BundleStorageClient storage, CancellationToken cancellationToken = default)
 		{
 			for (; ; )
 			{
@@ -386,7 +386,7 @@ namespace EpicGames.Horde.Compute
 				request.Send();
 			}
 
-			using AgentMessage response = await RunStorageServer(channel, storage, cancellationToken);
+			using AgentMessage response = await RunStorageServerAsync(channel, storage, cancellationToken);
 			if (response.Type != AgentMessageType.WriteFilesResponse)
 			{
 				throw new InvalidAgentMessageException(response);

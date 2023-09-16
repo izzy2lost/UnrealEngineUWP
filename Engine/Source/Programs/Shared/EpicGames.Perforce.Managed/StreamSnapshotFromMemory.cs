@@ -114,7 +114,7 @@ namespace EpicGames.Perforce.Managed
 		/// </summary>
 		/// <param name="outputFile">The output file to write to</param>
 		/// <param name="basePath"></param>
-		public async Task Save(FileReference outputFile, Utf8String basePath)
+		public async Task SaveAsync(FileReference outputFile, Utf8String basePath)
 		{
 			CbWriter writer = new CbWriter();
 			writer.BeginObject();

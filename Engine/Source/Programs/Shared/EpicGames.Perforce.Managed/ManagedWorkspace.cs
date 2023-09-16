@@ -502,7 +502,7 @@ namespace EpicGames.Perforce.Managed
 			{
 				Stopwatch timer = Stopwatch.StartNew();
 
-				(FileInfo[] filesToDelete, DirectoryInfo[] directoriesToDelete) refreshResult = await _workspace.Refresh(removeUntracked, _options.MaxFileConcurrency);
+				(FileInfo[] filesToDelete, DirectoryInfo[] directoriesToDelete) refreshResult = await _workspace.RefreshAsync(removeUntracked, _options.MaxFileConcurrency);
 				filesToDelete = refreshResult.filesToDelete;
 				directoriesToDelete = refreshResult.directoriesToDelete;
 
@@ -805,7 +805,7 @@ namespace EpicGames.Perforce.Managed
 		/// <summary>
 		/// Prints information about the repository state
 		/// </summary>
-		public async Task Status()
+		public async Task StatusAsync()
 		{
 			// Print size stats
 			_logger.LogInformation("Cache contains {NumFiles:n0} files, {TotalSize:n1}mb", _contentIdToTrackedFile.Count, _contentIdToTrackedFile.Values.Sum(x => x.Length) / (1024.0 * 1024.0));
@@ -1733,7 +1733,7 @@ namespace EpicGames.Perforce.Managed
 
 				// Handle the case where two machines may try to write to the cache file at once by writing to a temporary file
 				FileReference tempCacheFile = new FileReference(String.Format("{0}.{1}", cacheFile, Guid.NewGuid()));
-				await contents.Save(tempCacheFile, basePath);
+				await contents.SaveAsync(tempCacheFile, basePath);
 
 				// Try to move it into place
 				try
@@ -2014,7 +2014,7 @@ namespace EpicGames.Perforce.Managed
 							{
 								(int batchBeginIdx, int batchEndIdx) = batches[nextBatchIdx];
 
-								Task task = Task.Run(() => SyncBatch(client, filesToSync, batchBeginIdx, batchEndIdx, fakeSync, cancellationToken), cancellationToken);
+								Task task = Task.Run(() => SyncBatchAsync(client, filesToSync, batchBeginIdx, batchEndIdx, fakeSync, cancellationToken), cancellationToken);
 								tasks[task] = nextBatchIdx++;
 							}
 
@@ -2075,7 +2075,7 @@ namespace EpicGames.Perforce.Managed
 		/// <param name="fakeSync">Whether to fake a sync</param>
 		/// <param name="cancellationToken">Cancellation token for the request</param>
 		/// <returns>Async task</returns>
-		async Task SyncBatch(IPerforceConnection client, WorkspaceFileToSync[] filesToSync, int beginIdx, int endIdx, bool fakeSync, CancellationToken cancellationToken)
+		async Task SyncBatchAsync(IPerforceConnection client, WorkspaceFileToSync[] filesToSync, int beginIdx, int endIdx, bool fakeSync, CancellationToken cancellationToken)
 		{
 			if (fakeSync)
 			{

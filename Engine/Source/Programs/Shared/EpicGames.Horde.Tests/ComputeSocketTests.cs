@@ -70,18 +70,18 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task TestAgentMessageLoopPipe()
+		public async Task TestAgentMessageLoopPipeAsync()
 		{
 			Pipe recvPipe = new Pipe();
 			Pipe sendPipe = new Pipe();
 			await using RemoteComputeSocket localSocket = new RemoteComputeSocket(new PipeTransport(sendPipe.Reader, recvPipe.Writer), new TestLogger());
 			await using RemoteComputeSocket agentSocket = new RemoteComputeSocket(new PipeTransport(recvPipe.Reader, sendPipe.Writer), new TestLogger());
 
-			await RunAgentTests(localSocket, agentSocket);
+			await RunAgentTestsAsync(localSocket, agentSocket);
 		}
 
 		[TestMethod]
-		public async Task TestAgentMessageLoopTcp()
+		public async Task TestAgentMessageLoopTcpAsync()
 		{
 			const int Port = 9990;
 			TcpListener listener = new TcpListener(IPAddress.Loopback, Port);
@@ -96,13 +96,13 @@ namespace EpicGames.Horde.Tests
 			await using RemoteComputeSocket localSocket = new RemoteComputeSocket(new TcpTransport(clientSocket), new TestLogger());
 			await using RemoteComputeSocket agentSocket = new RemoteComputeSocket(new TcpTransport(serverSocket), new TestLogger());
 
-			await RunAgentTests(localSocket, agentSocket);
+			await RunAgentTestsAsync(localSocket, agentSocket);
 		}
 
-		static async Task RunAgentTests(RemoteComputeSocket localSocket, RemoteComputeSocket agentSocket)
+		static async Task RunAgentTestsAsync(RemoteComputeSocket localSocket, RemoteComputeSocket agentSocket)
 		{
 			DirectoryReference tempDir = new DirectoryReference("test-temp");
-			await using (BackgroundTask agentTask = BackgroundTask.StartNew(ctx => RunAgent(agentSocket, tempDir, ctx)))
+			await using (BackgroundTask agentTask = BackgroundTask.StartNew(ctx => RunAgentAsync(agentSocket, tempDir, ctx)))
 			{
 				const int PrimaryChannelId = 0;
 				using (AgentMessageChannel channel = localSocket.CreateAgentMessageChannel(PrimaryChannelId, 4 * 1024 * 1024))
@@ -188,7 +188,7 @@ namespace EpicGames.Horde.Tests
 			await agentSocket.CloseAsync(CancellationToken.None);
 		}
 
-		static async Task RunAgent(ComputeSocket socket, DirectoryReference tempDir, CancellationToken cancellationToken)
+		static async Task RunAgentAsync(ComputeSocket socket, DirectoryReference tempDir, CancellationToken cancellationToken)
 		{
 			using StorageCache storageCache = new StorageCache();
 			AgentMessageHandler handler = new AgentMessageHandler(tempDir, storageCache, null, true, null, NullLogger.Instance);

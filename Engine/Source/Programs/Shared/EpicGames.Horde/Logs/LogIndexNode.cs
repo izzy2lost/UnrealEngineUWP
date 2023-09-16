@@ -180,7 +180,7 @@ namespace EpicGames.Horde.Logs
 		/// <param name="stats">Receives stats for the search</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of line numbers for the text</returns>
-		public async IAsyncEnumerable<int> Search(int firstLineIndex, SearchTerm text, SearchStats stats, [EnumeratorCancellation] CancellationToken cancellationToken)
+		public async IAsyncEnumerable<int> SearchAsync(int firstLineIndex, SearchTerm text, SearchStats stats, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			int lastBlockCount = 0;
 			foreach (int blockIdx in EnumeratePossibleChunks(text.Bytes, firstLineIndex))

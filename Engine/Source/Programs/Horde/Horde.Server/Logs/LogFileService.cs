@@ -1898,7 +1898,7 @@ namespace Horde.Server.Logs
 				if(root != null)
 				{
 					LogIndexNode index = await root.IndexRef.ExpandAsync(cancellationToken);
-					await foreach (int lineIdx in index.Search(firstLine, searchText, searchStats, cancellationToken))
+					await foreach (int lineIdx in index.SearchAsync(firstLine, searchText, searchStats, cancellationToken))
 					{
 						yield return lineIdx;
 					}

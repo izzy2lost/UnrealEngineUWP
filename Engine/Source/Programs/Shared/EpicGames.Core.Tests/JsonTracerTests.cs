@@ -96,7 +96,7 @@ namespace EpicGames.Core.Tests
 			Assert.AreEqual(tracer.ActiveSpan, null);
 		}
 
-		private static async Task<bool> AsyncSpanTest(JsonTracer tracer, IScope parentScope)
+		private static async Task<bool> AsyncSpanTestAsync(JsonTracer tracer, IScope parentScope)
 		{
 			for (int index = 0; index < 100; index++)
 			{
@@ -126,14 +126,14 @@ namespace EpicGames.Core.Tests
 			using (IScope parentScope = tracer.BuildSpan("Parent").StartActive())
 			{
 				Assert.AreEqual(tracer.ActiveSpan, parentScope.Span);
-				AsyncSpanTest(tracer, parentScope).Wait();
+				AsyncSpanTestAsync(tracer, parentScope).Wait();
 				Assert.AreEqual(tracer.ActiveSpan, parentScope.Span);
 			}
 
 			Assert.AreEqual(tracer.ActiveSpan, null);
 		}
 
-		private static async Task ForEachAsyncSpanTest(JsonTracer tracer, IScope parentScope)
+		private static async Task ForEachAsyncSpanTestAsync(JsonTracer tracer, IScope parentScope)
 		{
 			int[] values = Enumerable.Range(0, 10000).ToArray();
 			await Parallel.ForEachAsync(values, new ParallelOptions { MaxDegreeOfParallelism = 10000 }, async (i, token) =>
@@ -155,7 +155,7 @@ namespace EpicGames.Core.Tests
 			using (IScope parentScope = tracer.BuildSpan("Parent").StartActive())
 			{
 				Assert.AreEqual(tracer.ActiveSpan, parentScope.Span);
-				ForEachAsyncSpanTest(tracer, parentScope).Wait();
+				ForEachAsyncSpanTestAsync(tracer, parentScope).Wait();
 				Assert.AreEqual(tracer.ActiveSpan, parentScope.Span);
 			}
 

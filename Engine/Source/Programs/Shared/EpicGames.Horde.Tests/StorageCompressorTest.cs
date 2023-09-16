@@ -41,7 +41,7 @@ namespace EpicGames.Horde.Tests
 	public class FakeStorageCompressorTest
 	{
 		[TestMethod]
-		public async Task CompressAndDecompress()
+		public async Task CompressAndDecompressAsync()
 		{
 			FakeStorageCompressor compressor = new ();
 			byte[] uncompressedData = { 0x41, 0x42, 0x43 };

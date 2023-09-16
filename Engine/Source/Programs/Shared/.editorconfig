@@ -7,8 +7,7 @@
 
 csharp_style_prefer_switch_expression = false
 csharp_style_implicit_object_creation_when_type_is_apparent = false
-dotnet_remove_unnecessary_suppression_exclusions = false
-dotnet_diagnostic.IDE0079.severity = silent
+dotnet_remove_unnecessary_suppression_exclusions = all
 
 # Sort using and Import directives with System.* appearing first
 dotnet_sort_system_directives_first = true
@@ -115,8 +114,9 @@ dotnet_naming_symbols.all_members.applicable_kinds = *
 
 dotnet_naming_style.pascal_case_style.capitalization = pascal_case
 
-# IDE0005: Using directive is unnecessary
-dotnet_diagnostic.IDE0005.severity = warning
+# IDE0073: File header
+dotnet_diagnostic.IDE0073.severity = warning
+file_header_template = Copyright Epic Games, Inc. All Rights Reserved.
 
 # IDE0035: Remove unreachable code
 dotnet_diagnostic.IDE0035.severity = warning
@@ -151,18 +151,23 @@ dotnet_diagnostic.IDE0059.severity = warning
 # IDE0060: Remove unused parameter
 dotnet_diagnostic.IDE0060.severity = warning
 
-# IDE0073: File header
-dotnet_diagnostic.IDE0073.severity = warning
-file_header_template = Copyright Epic Games, Inc. All Rights Reserved.
-
-# IDE1006: Enforce naming conventions
-dotnet_diagnostic.IDE1006.severity = warning
-
 # CA1012: Abstract types should not have public constructors
 dotnet_diagnostic.CA1012.severity = warning
 
 # CA1822: Make member static
 dotnet_diagnostic.CA1822.severity = warning
+
+# IDE0005: Using directive is unnecessary
+dotnet_diagnostic.IDE0005.severity = warning
+
+# IDE0073: Null check can be simplified
+dotnet_diagnostic.IDE0270.severity = silent
+
+# IDE0090: 'new' expression can be simplified
+dotnet_diagnostic.IDE0090.severity = silent
+
+# IDE1006: Enforce naming conventions
+dotnet_diagnostic.IDE1006.severity = warning
 
 # dotnet_style_allow_multiple_blank_lines_experimental
 dotnet_diagnostic.IDE2000.severity = warning
@@ -260,6 +265,19 @@ csharp_prefer_braces = true:silent
 csharp_preserve_single_line_blocks = true
 csharp_preserve_single_line_statements = true
 
+# Async methods should have "Async" suffix
+dotnet_naming_rule.async_methods_end_in_async.symbols = any_async_methods
+dotnet_naming_rule.async_methods_end_in_async.style = end_in_async
+dotnet_naming_rule.async_methods_end_in_async.severity = warning
+
+dotnet_naming_symbols.any_async_methods.applicable_kinds = method
+dotnet_naming_symbols.any_async_methods.applicable_accessibilities = *
+dotnet_naming_symbols.any_async_methods.required_modifiers = async
+
+dotnet_naming_style.end_in_async.required_prefix = 
+dotnet_naming_style.end_in_async.required_suffix = Async
+dotnet_naming_style.end_in_async.capitalization = pascal_case
+dotnet_naming_style.end_in_async.word_separator = 
 
 # All Rules Enabled as build warnings
 # Description: All Rules are enabled as build warnings. Rules with IsEnabledByDefault = false are force enabled as build warnings.
@@ -1077,3 +1095,9 @@ dotnet_diagnostic.CA5404.severity = none
 
 # CA5405: Do not always skip token validation in delegates
 dotnet_diagnostic.CA5405.severity = warning
+
+
+[*Test*.cs]
+
+# CA1707: Identifiers should not contain underscores
+dotnet_diagnostic.CA1707.severity = none

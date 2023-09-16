@@ -21,7 +21,7 @@ namespace EpicGames.Horde.Tests
 		const int ChannelId = 0;
 
 		[TestMethod]
-		public async Task TestSimpleBuffer()
+		public async Task TestSimpleBufferAsync()
 		{
 			using PooledBuffer buffer = new PooledBuffer(2, 1024);
 			using ComputeBufferWriter bufferWriter = buffer.CreateWriter();
@@ -81,13 +81,13 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task TestPooledBuffer()
+		public async Task TestPooledBufferAsync()
 		{
 			await TestProducerConsumerAsync(length => new PooledBuffer(length), CancellationToken.None);
 		}
 
 		[TestMethod]
-		public async Task TestSharedMemoryBuffer()
+		public async Task TestSharedMemoryBufferAsync()
 		{
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
@@ -161,7 +161,7 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task TestSendBufferComplete()
+		public async Task TestSendBufferCompleteAsync()
 		{
 			Pipe recvPipe = new Pipe();
 			Pipe sendPipe = new Pipe();

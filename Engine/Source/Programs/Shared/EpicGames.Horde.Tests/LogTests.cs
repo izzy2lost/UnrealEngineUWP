@@ -41,7 +41,7 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task IndexTests()
+		public async Task IndexTestsAsync()
 		{
 			using MemoryStorageClient store = new MemoryStorageClient();
 
@@ -102,7 +102,7 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task PartialTokenTests()
+		public async Task PartialTokenTestsAsync()
 		{
 			using MemoryStorageClient store = new MemoryStorageClient();
 
@@ -140,7 +140,7 @@ namespace EpicGames.Horde.Tests
 						string str = lines[lineIdx].Substring(strOfs, strLen);
 
 						SearchStats stats = new SearchStats();
-						List<int> results = await index.Search(0, new SearchTerm(str), stats, CancellationToken.None).ToListAsync();
+						List<int> results = await index.SearchAsync(0, new SearchTerm(str), stats, CancellationToken.None).ToListAsync();
 						Assert.AreEqual(1, results.Count);
 						Assert.AreEqual(lineIdx, results[0]);
 
@@ -208,7 +208,7 @@ namespace EpicGames.Horde.Tests
 		static async Task SearchLogDataTestAsync(LogIndexNode index, string text, int firstLine, int count, int[] expectedLines)
 		{
 			SearchStats stats = new SearchStats();
-			List<int> lines = await index.Search(firstLine, new SearchTerm(text), stats, CancellationToken.None).Take(count).ToListAsync();
+			List<int> lines = await index.SearchAsync(firstLine, new SearchTerm(text), stats, CancellationToken.None).Take(count).ToListAsync();
 			Assert.IsTrue(lines.SequenceEqual(expectedLines));
 		}
 	}

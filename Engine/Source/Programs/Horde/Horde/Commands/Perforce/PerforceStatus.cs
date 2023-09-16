@@ -12,7 +12,7 @@ namespace Horde.Commands.Perforce
 	{
 		protected override async Task ExecuteAsync(IPerforceConnection perforce, ManagedWorkspace repo, ILogger logger)
 		{
-			await repo.Status();
+			await repo.StatusAsync();
 		}
 	}
 }

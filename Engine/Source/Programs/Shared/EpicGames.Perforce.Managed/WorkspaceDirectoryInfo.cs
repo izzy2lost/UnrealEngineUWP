@@ -127,12 +127,12 @@ namespace EpicGames.Perforce.Managed
 		/// </summary>
 		/// <param name="removeUntracked">Whether to remove files that are not part of the stream</param>
 		/// <param name="numWorkers">Number of concurrent workers to use when refreshing</param>
-		public async Task<(FileInfo[] filesToDelete, DirectoryInfo[] directoriesToDelete)> Refresh(bool removeUntracked, int numWorkers)
+		public async Task<(FileInfo[] filesToDelete, DirectoryInfo[] directoriesToDelete)> RefreshAsync(bool removeUntracked, int numWorkers)
 		{
 			ConcurrentQueue<FileInfo> concurrentFilesToDelete = new ConcurrentQueue<FileInfo>();
 			ConcurrentQueue<DirectoryInfo> concurrentDirectoriesToDelete = new ConcurrentQueue<DirectoryInfo>();
 			using AsyncThreadPoolWorkQueue queue = new (numWorkers);
-			await queue.EnqueueAsync(_ => Refresh(new DirectoryInfo(GetFullName()), removeUntracked, concurrentFilesToDelete, concurrentDirectoriesToDelete, queue));
+			await queue.EnqueueAsync(_ => RefreshAsync(new DirectoryInfo(GetFullName()), removeUntracked, concurrentFilesToDelete, concurrentDirectoriesToDelete, queue));
 			await queue.ExecuteAsync();
 			return (concurrentFilesToDelete.ToArray(), concurrentDirectoriesToDelete.ToArray());
 		}
@@ -145,7 +145,7 @@ namespace EpicGames.Perforce.Managed
 		/// <param name="filesToDelete"></param>
 		/// <param name="directoriesToDelete"></param>
 		/// <param name="queue"></param>
-		async Task Refresh(DirectoryInfo info, bool removeUntracked, ConcurrentQueue<FileInfo> filesToDelete, ConcurrentQueue<DirectoryInfo> directoriesToDelete, AsyncThreadPoolWorkQueue queue)
+		async Task RefreshAsync(DirectoryInfo info, bool removeUntracked, ConcurrentQueue<FileInfo> filesToDelete, ConcurrentQueue<DirectoryInfo> directoriesToDelete, AsyncThreadPoolWorkQueue queue)
 		{
 			// Recurse through subdirectories
 			Dictionary<Utf8String, WorkspaceDirectoryInfo> newNameToSubDirectory = new Dictionary<Utf8String, WorkspaceDirectoryInfo>(NameToSubDirectory.Count, NameToSubDirectory.Comparer);
@@ -155,7 +155,7 @@ namespace EpicGames.Perforce.Managed
 				if (NameToSubDirectory.TryGetValue(subDirectoryInfo.Name, out subDirectory))
 				{
 					newNameToSubDirectory.Add(subDirectory.Name, subDirectory);
-					await queue.EnqueueAsync(_ => subDirectory.Refresh(subDirectoryInfo, removeUntracked, filesToDelete, directoriesToDelete, queue));
+					await queue.EnqueueAsync(_ => subDirectory.RefreshAsync(subDirectoryInfo, removeUntracked, filesToDelete, directoriesToDelete, queue));
 				}
 				else if (removeUntracked)
 				{

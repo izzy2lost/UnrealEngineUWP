@@ -47,7 +47,7 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task EmptyNodeTest()
+		public async Task EmptyNodeTestAsync()
 		{
 			using MemoryStorageClient store = new MemoryStorageClient();
 
@@ -70,7 +70,7 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task FixedSizeChunkingTests()
+		public async Task FixedSizeChunkingTestsAsync()
 		{
 			ChunkingOptions options = new ChunkingOptions();
 			options.LeafOptions = new LeafChunkedDataNodeOptions(64, 64, 64);
@@ -80,7 +80,7 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task VariableSizeChunkingTests()
+		public async Task VariableSizeChunkingTestsAsync()
 		{
 			ChunkingOptions options = new ChunkingOptions();
 			options.LeafOptions = new LeafChunkedDataNodeOptions(32, 64, 96);
@@ -136,10 +136,10 @@ namespace EpicGames.Horde.Tests
 				Assert.IsTrue(spanData.Span.SequenceEqual(data));
 			}
 
-			await CheckSizes(root, options, true);
+			await CheckSizesAsync(root, options, true);
 		}
 
-		static async Task CheckSizes(ChunkedDataNode node, ChunkingOptions options, bool rightmost)
+		static async Task CheckSizesAsync(ChunkedDataNode node, ChunkingOptions options, bool rightmost)
 		{
 			if (node is LeafChunkedDataNode leafNode)
 			{
@@ -157,7 +157,7 @@ namespace EpicGames.Horde.Tests
 				for (int idx = 0; idx < childCount; idx++)
 				{
 					ChunkedDataNode childNode = await interiorNode.Children[idx].ExpandAsync(CancellationToken.None);
-					await CheckSizes(childNode, options, idx == childCount - 1);
+					await CheckSizesAsync(childNode, options, idx == childCount - 1);
 				}
 			}
 		}

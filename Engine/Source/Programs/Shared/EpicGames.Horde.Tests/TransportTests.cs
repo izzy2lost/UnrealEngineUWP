@@ -16,7 +16,7 @@ namespace EpicGames.Horde.Tests
 	public class TransportTests
 	{
 		[TestMethod]
-		public async Task TestStreamTransport()
+		public async Task TestStreamTransportAsync()
 		{
 			byte[] input = new byte[256 * 1024];
 			new Random(0).NextBytes(input);
@@ -45,7 +45,7 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task TestAesTransport()
+		public async Task TestAesTransportAsync()
 		{
 			byte[] key = new byte[AesTransport.KeyLength];
 			new Random(1).NextBytes(key);

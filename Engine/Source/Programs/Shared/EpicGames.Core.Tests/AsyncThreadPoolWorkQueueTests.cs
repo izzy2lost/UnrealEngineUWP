@@ -19,7 +19,7 @@ public sealed class AsyncThreadPoolWorkQueueTests : IDisposable
 	}
 
 	[TestMethod]
-	public async Task ExecuteEnqueuedTasks()
+	public async Task ExecuteEnqueuedTasksAsync()
 	{
 		int c = 0;
 		await _queue.EnqueueAsync((_) => 
@@ -37,7 +37,7 @@ public sealed class AsyncThreadPoolWorkQueueTests : IDisposable
 	}
 	
 	[TestMethod]
-	public async Task ExecuteManyEnqueuedTasks()
+	public async Task ExecuteManyEnqueuedTasksAsync()
 	{
 		int c = 0;
 		int numTasks = 100000;
@@ -56,7 +56,7 @@ public sealed class AsyncThreadPoolWorkQueueTests : IDisposable
 	}
 	
 	[TestMethod]
-	public async Task ExecuteNestedEnqueuedTasks()
+	public async Task ExecuteNestedEnqueuedTasksAsync()
 	{
 		bool task1 = false;
 		bool task2 = false;
@@ -86,7 +86,7 @@ public sealed class AsyncThreadPoolWorkQueueTests : IDisposable
 	
 	[Ignore]
 	[TestMethod]
-	public async Task VerifyMaxConcurrency()
+	public async Task VerifyMaxConcurrencyAsync()
 	{
 		const int NumTasks = 10000;
 		const int NumWorkers = 3;

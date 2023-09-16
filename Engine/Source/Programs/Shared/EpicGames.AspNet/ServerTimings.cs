@@ -112,7 +112,7 @@ namespace EpicGames.AspNet
 			_next = next ?? throw new ArgumentNullException(nameof(next));
 		}
 
-		public async Task Invoke(HttpContext context)
+		public async Task InvokeAsync(HttpContext context)
 		{
 			IServerTiming serverTiming = context.RequestServices.GetRequiredService<IServerTiming>();
 			if (AllowsTrailers(context.Request) && context.Response.SupportsTrailers())

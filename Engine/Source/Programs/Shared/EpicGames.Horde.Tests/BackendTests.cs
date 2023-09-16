@@ -37,14 +37,14 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task TestMemoryBackend()
+		public async Task TestMemoryBackendAsync()
 		{
 			using MemoryStorageBackend backend = new MemoryStorageBackend();
 			await TestBackendAsync(backend);
 		}
 
 		[TestMethod]
-		public async Task TestFileBackend()
+		public async Task TestFileBackendAsync()
 		{
 			using (TempDir tempDir = new TempDir("Cache"))
 			{
@@ -54,7 +54,7 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task TestFileBackendFileMapping()
+		public async Task TestFileBackendFileMappingAsync()
 		{
 			using (TempDir tempDir = new TempDir("Cache"))
 			{
@@ -77,7 +77,7 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task TestCacheBackend()
+		public async Task TestCacheBackendAsync()
 		{
 			using (TempDir tempDir = new TempDir("Cache"))
 			{
