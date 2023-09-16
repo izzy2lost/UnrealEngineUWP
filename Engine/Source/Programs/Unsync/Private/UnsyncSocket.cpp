@@ -235,6 +235,8 @@ SocketSend(FSocketHandle Socket, const void* Data, size_t DataSize)
 	if (DataSize == 0)
 		return 0;
 
+	UNSYNC_ASSERT(DataSize < INT_MAX);
+
 	int Result = send(Socket, reinterpret_cast<const char*>(Data), (int)DataSize, 0);
 	return Result;
 }
@@ -245,7 +247,25 @@ SocketRecvAll(FSocketHandle Socket, void* Data, size_t DataSize)
 	if (DataSize == 0)
 		return 0;
 
-	return recv(Socket, reinterpret_cast<char*>(Data), (int)DataSize, MSG_WAITALL);
+	UNSYNC_ASSERT(DataSize < INT_MAX);
+
+	// If socket timeout is set, recv may read partial data and return the
+	// number of bytes read before timeout or <=0 if another error occurred.
+
+	int ProcessedBytes = 0;
+	while (ProcessedBytes < int(DataSize))
+	{
+		char* BatchPtr		= reinterpret_cast<char*>(Data) + ProcessedBytes;
+		int	  BatchSize		= (int)DataSize - ProcessedBytes;
+		int	  Res = recv(Socket, BatchPtr, BatchSize, MSG_WAITALL);
+		if (Res <= 0)
+		{
+			break;
+		}
+		ProcessedBytes += Res;
+	}
+
+	return ProcessedBytes;
 }
 
 int
@@ -254,7 +274,25 @@ SocketRecvAny(FSocketHandle Socket, void* Data, size_t DataSize)
 	if (DataSize == 0)
 		return 0;
 
+	UNSYNC_ASSERT(DataSize < INT_MAX);
+
 	return recv(Socket, reinterpret_cast<char*>(Data), (int)DataSize, 0);
+}
+
+bool
+SocketSetRecvTimeout(FSocketHandle Socket, uint32 Seconds)
+{
+#if UNSYNC_PLATFORM_WINDOWS
+	uint32 Timeout = Seconds * 1000;  // Winsock uses timeout in milliseconds
+#else
+	struct timeval Timeout;
+	Timeout.tv_sec	= long(Seconds);
+	Timeout.tv_usec = 0;
+#endif
+
+	int Result = setsockopt(Socket, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&Timeout), int(sizeof(Timeout)));
+
+	return Result == 0;
 }
 
 bool
@@ -387,6 +425,8 @@ FSocketTls::Send(const void* Data, size_t DataSize)
 	if (DataSize == 0)
 		return 0;
 
+	UNSYNC_ASSERT(DataSize < INT_MAX);
+
 	int ProcessedBytes = 0;
 	while (ProcessedBytes < DataSize)
 	{
@@ -407,6 +447,8 @@ FSocketTls::RecvAll(void* Data, size_t DataSize)
 	if (DataSize == 0)
 		return 0;
 
+	UNSYNC_ASSERT(DataSize < INT_MAX);
+
 	int ProcessedBytes = 0;
 	while (ProcessedBytes < DataSize)
 	{
@@ -426,6 +468,8 @@ FSocketTls::RecvAny(void* Data, size_t DataSize)
 {
 	if (DataSize == 0)
 		return 0;
+
+	UNSYNC_ASSERT(DataSize < INT_MAX);
 
 	int ProcessedBytes = 0;
 	do

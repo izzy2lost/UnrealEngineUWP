@@ -218,13 +218,19 @@ LogPrintf(ELogLevel Level, const wchar_t* Str, ...)
 	bool		   bShouldIndent = false;
 	const wchar_t* Prefix		 = nullptr;
 
+	const uint32 ThreadIndex = GetLogThreadIndex();
+
+	bool bShouldOutputThreadIndex = false;
+
 	if (Level == ELogLevel::Error)
 	{
 		Prefix = L"ERROR: ";
+		bShouldOutputThreadIndex = true;
 	}
 	else if (Level == ELogLevel::Warning)
 	{
 		Prefix = L"WARNING: ";
+		bShouldOutputThreadIndex = true;
 	}
 	else if (GLogIndent)
 	{
@@ -255,6 +261,11 @@ LogPrintf(ELogLevel Level, const wchar_t* Str, ...)
 			fwprintf(LogStream, Prefix);
 		}
 
+		if (bShouldOutputThreadIndex)
+		{
+			fwprintf(LogStream, L"[Thread %d] ", ThreadIndex);
+		}
+
 		if (bShouldIndent)
 		{
 			fwprintf(LogStream, L"%*c", GLogIndent, L' ');
@@ -272,7 +283,6 @@ LogPrintf(ELogLevel Level, const wchar_t* Str, ...)
 	{
 		FILE* LogFileStream = GLogFile->Handle;
 
-		uint32 ThreadIndex = GetLogThreadIndex();
 		fwprintf(LogFileStream, L"[%3d] ", ThreadIndex);
 
 		switch (Level)

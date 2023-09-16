@@ -78,6 +78,8 @@ FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 	if (RemoteDesc.bTlsEnable && TlsSettings)
 	{
 		FSocketHandle RawSocketHandle = SocketConnectTcp(RemoteDesc.HostAddress.c_str(), RemoteDesc.HostPort);
+		SocketSetRecvTimeout(RawSocketHandle, RemoteDesc.RecvTimeoutSeconds);
+
 		if (RawSocketHandle)
 		{
 			FSocketTls* TlsSocket = new FSocketTls(RawSocketHandle, *TlsSettings);
@@ -95,7 +97,9 @@ FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 	if (!SocketHandle)
 	{
 		FSocketHandle RawSocketHandle = SocketConnectTcp(RemoteDesc.HostAddress.c_str(), RemoteDesc.HostPort);
-		SocketHandle				  = std::unique_ptr<FSocketRaw>(new FSocketRaw(RawSocketHandle));
+		SocketSetRecvTimeout(RawSocketHandle, RemoteDesc.RecvTimeoutSeconds);
+
+		SocketHandle = std::unique_ptr<FSocketRaw>(new FSocketRaw(RawSocketHandle));
 	}
 
 	if (SocketHandle)
@@ -331,9 +335,21 @@ FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBl
 		uint64 CompressedDataSize = 0;
 		bOk &= SocketRecvT(*SocketHandle, CompressedDataSize);
 
+		if (!bOk)
+		{
+			UNSYNC_WARNING(L"Failed to receive block header");
+			break;
+		}
+
 		BlockPacket.CompressedData.Resize(CompressedDataSize);
 
 		bOk &= (SocketRecvAll(*SocketHandle, BlockPacket.CompressedData.Data(), BlockPacket.CompressedData.Size()) == CompressedDataSize);
+
+		if (!bOk)
+		{
+			UNSYNC_WARNING(L"Failed to receive block buffer");
+			break;
+		}
 
 		static const FHash128 TerminatorHash = FHash128{};	// response is always terminated with an empty packet
 

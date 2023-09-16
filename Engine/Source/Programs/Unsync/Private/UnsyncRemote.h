@@ -48,6 +48,8 @@ struct FRemoteDesc
 
 	bool bAuthenticationRequired = false;
 
+	uint32 RecvTimeoutSeconds = 0;
+
 	uint32 MaxConnections = 8;	// Limit on concurrent connections to this server
 
 	bool IsValid() const { return Protocol != EProtocolFlavor::Unknown && !HostAddress.empty() && HostPort != 0; }

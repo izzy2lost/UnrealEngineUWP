@@ -47,6 +47,8 @@ int			   SocketRecvAll(FSocketHandle Socket, void* Data, size_t DataSize);
 int			   SocketRecvAny(FSocketHandle Socket, void* Data, size_t DataSize);
 FSocketAddress SocketMakeAddress(const char* Address, uint16 Port);
 
+bool SocketSetRecvTimeout(FSocketHandle Socket, uint32 Seconds);
+
 bool SocketValid(FSocketHandle Socket);
 
 template<typename T>

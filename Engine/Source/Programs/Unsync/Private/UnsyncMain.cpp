@@ -94,6 +94,7 @@ InnerMain(int Argc, char** Argv)
 	bool					 bShouldLogin		 = false;
 	bool					 bQuickLogin		 = false;
 	bool					 bForceRefreshAuth	 = false;
+	bool					 bNoSocketTimeout	 = false;
 	int32					 CompressionLevel	 = 3;
 	uint32					 DiffBlockSize		 = uint32(4_KB);
 	uint32					 HashOrSyncBlockSize = uint32(64_KB);
@@ -257,6 +258,7 @@ InnerMain(int Argc, char** Argv)
 	SubSync->add_option("-b, --block", HashOrSyncBlockSize, "Block size in bytes (default=64KB)");
 	SubSync->add_option("--scavenge", ScavengeRootUtf8, "Search for unsync manifests and reusable blocks in this directory (EXPERIMENTAL)");
 	SubSync->add_flag("--login", bShouldLogin, "Use user authentication when accessing unsync server");
+	SubSync->add_flag("--no-timeout", bNoSocketTimeout, "Disable the default 60 second timeout on network socket operations");
 
 	SubCommands.push_back(SubSync);
 
@@ -766,6 +768,15 @@ InnerMain(int Argc, char** Argv)
 			{
 				UNSYNC_VERBOSE(L"Authentication enabled");
 			}
+		}
+
+		if (bNoSocketTimeout)
+		{
+			RemoteDesc.RecvTimeoutSeconds = 0;
+		}
+		else
+		{
+			RemoteDesc.RecvTimeoutSeconds = 60;
 		}
 
 		FCmdSyncOptions SyncOptions;
