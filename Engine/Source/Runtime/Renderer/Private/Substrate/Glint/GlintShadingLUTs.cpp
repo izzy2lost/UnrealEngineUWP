@@ -18,7 +18,7 @@ void FGlintShadingLUTsStateData::Init(FRDGBuilder& GraphBuilder, FViewInfo& View
 {
 #if OVERRIDE_GLINT_LUT_ASSSET_WITH_EMBEDDED_DATA
 
-	if (Substrate::IsGlintEnabled())
+	if (Substrate::IsGlintEnabled(View->GetShaderPlatform()))
 	{
 		if (View.ViewState && View.ViewState->GlintShadingLUTsData.GlintShadingLUTs == nullptr)
 		{

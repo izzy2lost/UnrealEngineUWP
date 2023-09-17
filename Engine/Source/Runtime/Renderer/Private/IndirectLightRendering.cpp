@@ -1737,7 +1737,7 @@ static void AddSkyReflectionPass(
 		PassParameters->PS.ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
 
 		PassParameters->PS.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
-		if (Substrate::IsGlintEnabled())
+		if (Substrate::IsGlintEnabled(View.GetShaderPlatform()))
 		{
 			FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
 			PassParameters->PS.BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);

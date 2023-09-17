@@ -8000,10 +8000,10 @@ void GlobalBeginCompileShader(
 			const bool bSubstrateDBufferPass = Substrate::IsDBufferPassEnabled(Target.GetPlatform());
 			SET_SHADER_DEFINE(Input.Environment, SUBSTRATE_USE_DBUFFER_PASS, bSubstrateDBufferPass ? 1 : 0);
 
-			const bool bSubstrateGlints = Substrate::IsGlintEnabled();
+			const bool bSubstrateGlints = Substrate::IsGlintEnabled(Target.GetPlatform());
 			SET_SHADER_DEFINE(Input.Environment, PLATFORM_ENABLES_SUBSTRATE_GLINTS, bSubstrateGlints ? 1 : 0);
 
-			const bool bSpecularProfileEnabled = Substrate::IsSpecularProfileEnabled();
+			const bool bSpecularProfileEnabled = Substrate::IsSpecularProfileEnabled(Target.GetPlatform());
 			SET_SHADER_DEFINE(Input.Environment, PLATFORM_ENABLES_SUBSTRATE_SPECULAR_PROFILE, bSpecularProfileEnabled ? 1 : 0);
 		}
 

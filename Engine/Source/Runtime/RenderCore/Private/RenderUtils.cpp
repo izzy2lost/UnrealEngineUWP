@@ -1802,6 +1802,12 @@ namespace Substrate
 		return IsSubstrateEnabled() && CVarSubstrateGlints.GetValueOnAnyThread() > 0;
 	}
 
+	bool IsGlintEnabled(EShaderPlatform InPlatform)
+	{
+		static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.Substrate.Glints"));
+		return IsSubstrateEnabled() && CVar.Get(InPlatform);
+	}
+
 	uint32 GlintLUTIndex()
 	{
 		return CVarSubstrateGlintsLUT.GetValueOnAnyThread()<= 0 ? 0u : 1u;
@@ -1823,6 +1829,12 @@ namespace Substrate
 		return IsSubstrateEnabled() && CVarSubstrateSpecularProfile.GetValueOnAnyThread() > 0;
 	}
 
+	bool IsSpecularProfileEnabled(EShaderPlatform InPlatform)
+	{
+		static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.Substrate.SpecularProfile"));
+		return IsSubstrateEnabled() && CVar.Get(InPlatform) > 0;
+	}
+
 	bool Is8bitTileCoordEnabled()
 	{
 		return CVarSubstrateTileCoord8Bits.GetValueOnAnyThread() > 0 ? 1 : 0;
@@ -1831,6 +1843,12 @@ namespace Substrate
 	uint32 GetSheenQuality()
 	{
 		return CVarSubstrateSheenQuality.GetValueOnAnyThread();
+	}
+
+	uint32 GetSheenQuality(EShaderPlatform InPlatform)
+	{
+		static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.Substrate.SheenQuality"));
+		return CVar.Get(InPlatform);
 	}
 
 	uint32 GetShadingQuality()

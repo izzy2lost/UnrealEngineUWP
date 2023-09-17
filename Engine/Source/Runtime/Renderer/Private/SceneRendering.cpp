@@ -2572,12 +2572,12 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 			ShouldRenderLumenReflections(*ViewInfo) || 
 			ShouldRenderVolumetricCloudWithBlueNoise_GameThread(Scene, *ViewInfo) || 
 			UseVirtualShadowMaps(Scene->GetShaderPlatform(), Scene->GetFeatureLevel()) ||
-			Substrate::IsGlintEnabled())
+			Substrate::IsGlintEnabled(ViewInfo->GetShaderPlatform()))
 		{
 			GEngine->LoadBlueNoiseTexture();
 		}
 
-		if (Substrate::IsGlintEnabled())
+		if (Substrate::IsGlintEnabled(ViewInfo->GetShaderPlatform()))
 		{
 			GEngine->LoadGlintTextures();
 		}

@@ -2032,15 +2032,15 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		}
 
 		{
-			KeyString += FString::Printf(TEXT("_SSHEEN%u"), Substrate::GetSheenQuality());
+			KeyString += FString::Printf(TEXT("_SSHEEN%u"), Substrate::GetSheenQuality(Platform));
 		}
 
-		if (Substrate::IsGlintEnabled())
+		if (Substrate::IsGlintEnabled(Platform))
 		{
 			KeyString += FString::Printf(TEXT("_STRTGLT"));
 		}
 
-		if (Substrate::IsSpecularProfileEnabled())
+		if (Substrate::IsSpecularProfileEnabled(Platform))
 		{
 			KeyString += FString::Printf(TEXT("_STRTSP"));
 		}

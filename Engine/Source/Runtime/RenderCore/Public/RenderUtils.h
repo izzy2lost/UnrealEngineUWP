@@ -489,10 +489,12 @@ namespace Substrate
 	RENDERCORE_API bool IsSubstrateEnabled();
 	RENDERCORE_API bool IsRoughDiffuseEnabled();
 	RENDERCORE_API bool IsGlintEnabled();
+	RENDERCORE_API bool IsGlintEnabled(EShaderPlatform InPlatform);
 	RENDERCORE_API uint32 GlintLUTIndex();
 	RENDERCORE_API float GlintLevelBias();
 	RENDERCORE_API float GlintLevelMin();
 	RENDERCORE_API bool IsSpecularProfileEnabled();
+	RENDERCORE_API bool IsSpecularProfileEnabled(EShaderPlatform InPlatform);
 	RENDERCORE_API bool IsBackCompatibilityEnabled();
 	RENDERCORE_API bool IsDBufferPassEnabled(EShaderPlatform InPlatform);
 	RENDERCORE_API bool IsOpaqueRoughRefractionEnabled();
@@ -508,6 +510,7 @@ namespace Substrate
 	RENDERCORE_API uint32 GetNormalQuality();
 
 	RENDERCORE_API uint32 GetSheenQuality();
+	RENDERCORE_API uint32 GetSheenQuality(EShaderPlatform InPlatform);
 
 	RENDERCORE_API uint32 GetShadingQuality();
 	RENDERCORE_API uint32 GetShadingQuality(EShaderPlatform InPlatform);
