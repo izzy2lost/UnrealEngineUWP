@@ -66,7 +66,7 @@ public:
 	const TArray<UGameFeatureAction*>& GetActions() const { return Actions; }
 
 #if WITH_EDITOR
-	TArray<UGameFeatureAction*>& GetMutableActionsInEditor() { return Actions; }
+	TArray<TObjectPtr<UGameFeatureAction>>& GetMutableActionsInEditor() { return Actions; }
 #endif
 
 private:
