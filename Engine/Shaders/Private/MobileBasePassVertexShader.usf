@@ -111,36 +111,11 @@ void Main(
 
 	// Apply local fog volume to if enabled
 #if LOCAL_FOG_VOLUME_ON_TRANSLUCENT
-	float4 VertexClipSpacePosition = mul(float4(WorldPosition.xyz, 1), ResolvedView.TranslatedWorldToClip);
-	float2 SvPosition = (VertexClipSpacePosition.xy / VertexClipSpacePosition.w * float2(.5f, -.5f) + .5f) * ResolvedView.ViewSizeAndInvSize.xy;
-	uint2 TilePos = clamp(uint2(SvPosition.xy / float(LFVTilePixelSize)), uint2(0, 0), LFVTileDataResolution - 1);
-
-	uint LFVCount = LFVTileDataTex[uint3(TilePos, 0)];
-	const float4 DefaultColorTransmittance = float4(0.0, 0.0, 0.0, 1.0);
-	float4 LFVContribution = DefaultColorTransmittance;
-	for (int LFVIndex = 0; LFVIndex < LFVCount; ++LFVIndex)
-	{
-		uint InstanceIndex = LFVTileDataTex[uint3(TilePos, 1 + LFVIndex)];
-
-		float3 CamRayTranslatedWorldOrigin = ResolvedView.TranslatedWorldCameraOrigin;
-		float3 CamRayWorldOrigin = CamRayTranslatedWorldOrigin - LWCHackToFloat(ResolvedView.PreViewTranslation);
-		float3 CamRayTranslatedWorldDir = normalize(WorldPosition - CamRayTranslatedWorldOrigin);	// WorldPosition is expressed in TranslatedWorld space
-		float3 CamRayWorldDir = CamRayTranslatedWorldDir;
-
-		float3 DepthBufferTranslatedWorldPos = WorldPosition.xyz;
-
-		float4 LFVLuminanceColorTransmittance = GetLFVInstanceContribution(
-			InstanceIndex,
-			CamRayWorldOrigin,
-			CamRayWorldDir,
-			CamRayTranslatedWorldOrigin,
-			CamRayTranslatedWorldDir,
-			DepthBufferTranslatedWorldPos);
-
-		LFVContribution = float4(LFVContribution.rgb * LFVLuminanceColorTransmittance.a + LFVLuminanceColorTransmittance.rgb, LFVContribution.a * LFVLuminanceColorTransmittance.a);
-	}
-
-	VertexFog = float4(LFVContribution.rgb + VertexFog.rgb * LFVContribution.a, LFVContribution.a * VertexFog.a);
+	float4 VertexClipSpacePosition	= mul(float4(WorldPosition.xyz, 1), ResolvedView.TranslatedWorldToClip);
+	float2 SvPosition				= (VertexClipSpacePosition.xy / VertexClipSpacePosition.w * float2(.5f, -.5f) + .5f) * ResolvedView.ViewSizeAndInvSize.xy;
+	uint2 TilePos					= clamp(uint2(SvPosition.xy / float(LFVTilePixelSize)), uint2(0, 0), LFVTileDataResolution - 1);
+	float4 LFVContribution			= GetLFVContribution(ResolvedView, TilePos, WorldPosition);
+	VertexFog						= float4(LFVContribution.rgb + VertexFog.rgb * LFVContribution.a, LFVContribution.a * VertexFog.a);
 #endif // LOCAL_FOG_VOLUME_ON_TRANSLUCENT
 
 #if PACK_INTERPOLANTS

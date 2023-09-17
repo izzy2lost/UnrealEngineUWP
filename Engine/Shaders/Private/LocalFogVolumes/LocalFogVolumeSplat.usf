@@ -153,50 +153,34 @@ void LocalFogVolumeTiledPS(
 {
 	ResolvedView = ResolveView();
 
-	float3 CamRayTranslatedWorldOrigin = PrimaryView.TranslatedWorldCameraOrigin;
-	float3 CamRayTranslatedWorldDir = normalize(SvPositionToTranslatedWorld(float4(SVPos.xy, 0.5, 1.0)));
-	float3 CamRayWorldDir = CamRayTranslatedWorldDir;
-	float3 CamRayWorldOrigin = CamRayTranslatedWorldOrigin - LWCHackToFloat(PrimaryView.PreViewTranslation);
-
 #if SHADING_PATH_MOBILE
 	// LookupDeviceZ with uint2 SVPos.xy as input does not work on mobile.
 	float2 UV = SVPos * View.BufferSizeAndInvSize.zw;
-	const float DeviceZ = LookupDeviceZ(UV);
+	float DeviceZ = LookupDeviceZ(UV);
 #else
-	const float DeviceZ = LookupDeviceZ(uint2(SVPos.xy));
+	float DeviceZ = LookupDeviceZ(uint2(SVPos.xy));
 #endif
-
+#if HAS_INVERTED_Z_BUFFER
+	DeviceZ = max(0.000000000001, DeviceZ);	// Make sure SvPositionToWorld does not return bad values when DeviceZ is far=0 when using inverted z
+#endif
 	float3 DepthBufferTranslatedWorldPos = SvPositionToTranslatedWorld(float4(SVPos.xy, DeviceZ, 1.0));
 
 	uint2 TilePos = LFVUnpackTile(OtherVertexOutput.TileData);
-	uint LFVCount = LFVTileDataTex[uint3(TilePos,0)];
-	const float4 DefaultColorTransmittance = float4(0.0, 0.0, 0.0, 1.0);
-	float4 LuminanceColorTransmittance = DefaultColorTransmittance;
-	for (int LFVIndex = 0; LFVIndex < LFVCount; ++LFVIndex)
-	{
-		uint InstanceIndex = LFVTileDataTex[uint3(TilePos, 1 + LFVIndex)];
 
-		float4 LFVLuminanceColorTransmittance = GetLFVInstanceContribution(
-			InstanceIndex,
-			CamRayWorldOrigin,
-			CamRayWorldDir,
-			CamRayTranslatedWorldOrigin,
-			CamRayTranslatedWorldDir,
-			DepthBufferTranslatedWorldPos);
-
-		LuminanceColorTransmittance = float4(LuminanceColorTransmittance.rgb * LFVLuminanceColorTransmittance.a + LFVLuminanceColorTransmittance.rgb, LuminanceColorTransmittance.a * LFVLuminanceColorTransmittance.a);
-	}
+	uint LFVCount = 0;
+	float4 LFVContribution = GetLFVContribution(ResolvedView, TilePos, DepthBufferTranslatedWorldPos, LFVCount);
 	
 	OutColor = float4(
-		LuminanceColorTransmittance.rgb * PrimaryView.PreExposure,
-		LuminanceColorTransmittance.a);
+		LFVContribution.rgb * PrimaryView.PreExposure,
+		LFVContribution.a);
 
 	bool bDoClip = true;
 #if USE_DEVELOPMENT_SHADERS
 	bDoClip = LocalFogVolumeTileDebug == 2;
 #endif
 
-	if (all(DefaultColorTransmittance == OutColor) && bDoClip)
+	const float4 IdentityLuminanceTransmittance = float4(0.0, 0.0, 0.0, 1.0);
+	if (all(LFVContribution == IdentityLuminanceTransmittance) && bDoClip)
 	{
 		clip(-1.0f);
 	}
