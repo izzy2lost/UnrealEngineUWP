@@ -922,7 +922,8 @@ FInstanceSceneData GetInstanceSceneData(uint InstanceId, uint SOAStride, bool bC
 
 	// Only process valid instances
 	LoadInstancePrimitiveIdAndFlags(InstanceId, SOAStride, InstanceData.PrimitiveId, InstanceData.Flags);
-	InstanceData.ValidInstance = InstanceData.PrimitiveId != INVALID_PRIMITIVE_ID;
+	InstanceData.ValidInstance = InstanceData.PrimitiveId != INVALID_PRIMITIVE_ID &&
+								 ((InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HIDDEN) == 0u);
 
 	// Payload Data Layout
 	// NOTE: Per-instance local bounds and hierarchy offset are always mutually inclusive, so pack together.

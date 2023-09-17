@@ -74,8 +74,7 @@ uint GetPayloadDataFlags()
 void CullInstance(uint InstanceId)
 {
 	// This will minimally initialize the instance data such that it will be ignored and culled
-	// NOTE: Must use flags (instead of zero) to prevent the element getting flushed to zero when it happens to be denormal
-	WriteInstancePrimitiveIdAndFlags(InstanceId, INVALID_PRIMITIVE_ID, GetPayloadDataFlags());
+	WriteInstancePrimitiveIdAndFlags(InstanceId, PrimitiveId, INSTANCE_SCENE_DATA_FLAG_HIDDEN);
 }
 
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
@@ -123,11 +122,11 @@ void UpdateMeshInstancesCS(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_Grou
 	Params.ParticleIndex				= ParticleIndex;
 	Params.SystemLWCTile				= SystemLWCTile;
 	Params.bLocalSpace					= bLocalSpace;
-	#if ENABLE_PRECISE_MOTION_VECTORS
-		Params.bPreciseMotionVectors 	= true;
-	#else
-		Params.bPreciseMotionVectors 	= false;		
-	#endif
+#if ENABLE_PRECISE_MOTION_VECTORS
+	Params.bPreciseMotionVectors 		= true;
+#else
+	Params.bPreciseMotionVectors 		= false;
+#endif
 	Params.FacingMode					= FacingMode;
 	Params.DeltaSeconds					= DeltaSeconds;
 	Params.MeshScale 					= MeshScale;
@@ -167,7 +166,7 @@ void UpdateMeshInstancesCS(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_Grou
 	Params.PrimitiveInvNonUniformScale	= PrimitiveData.InvNonUniformScale;
 
 	NiagaraMeshParticleTransforms Transforms = NiagaraCalculateMeshParticleTransforms(Params);
-	
+
 	// Transform the bounding center to world-space and distance cull
 	{
 		const FLWCVector3 BCenter = LWCMultiply(LocalBoundingCenter, Transforms.LocalToWorld);
