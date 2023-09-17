@@ -7,6 +7,7 @@
 #include "ScenePrivate.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "LumenSceneData.h"
+#include "RenderUtils.h"
 
 int32 GLumenSupported = 1;
 FAutoConsoleVariableRef CVarLumenSupported(
@@ -29,13 +30,6 @@ static TAutoConsoleVariable<int32> CVarLumenThreadGroupSize32(
 	TEXT("Whether to prefer dispatches in groups of 32 threads on HW which supports it (instead of standard 64)."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
-
-bool DoesPlatformSupportLumenGI(EShaderPlatform Platform, bool bSkipProjectCheck)
-{
-	return (bSkipProjectCheck || GLumenSupported)
-		&& FDataDrivenShaderPlatformInfo::GetSupportsLumenGI(Platform)
-		&& !IsForwardShadingEnabled(Platform);
-}
 
 bool DoesRuntimePlatformSupportLumen()
 {

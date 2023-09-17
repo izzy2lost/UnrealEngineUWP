@@ -124,6 +124,7 @@ public:
 			bool bSupportsNaniteRendering = SupportsNaniteRendering(StaticMesh->VertexFactory, PrimitiveSceneProxy, Mesh.MaterialRenderProxy, FeatureLevel);
 			bool bSupportsGPUScene = StaticMesh->VertexFactory->SupportsGPUScene(FeatureLevel);
 			bool bUseForWaterInfoTextureDepth = Mesh.bUseForWaterInfoTextureDepth;
+			bool bUseForLumenSceneCapture = Mesh.bUseForLumenSurfaceCacheCapture;
 
 			FStaticMeshBatchRelevance* StaticMeshRelevance = new(PrimitiveSceneInfo->StaticMeshRelevances) FStaticMeshBatchRelevance(
 				*StaticMesh, 
@@ -135,6 +136,7 @@ public:
 				bSupportsNaniteRendering,
 				bSupportsGPUScene,
 				bUseForWaterInfoTextureDepth,
+				bUseForLumenSceneCapture,
 				FeatureLevel
 				);
 		}

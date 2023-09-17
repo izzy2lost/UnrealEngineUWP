@@ -27,7 +27,8 @@ FStaticMeshBatch::~FStaticMeshBatch()
 	Scene->StaticMeshes.RemoveAt(Id);
 }
 
-FStaticMeshBatchRelevance::FStaticMeshBatchRelevance(const FStaticMeshBatch& StaticMesh, float InScreenSize, bool InbSupportsCachingMeshDrawCommands, bool InbUseSkyMaterial, bool bInUseSingleLayerWaterMaterial, bool bInUseAnisotropy, bool bInSupportsNaniteRendering, bool bInSupportsGPUScene, bool bInUseForWaterInfoTextureDepth, ERHIFeatureLevel::Type FeatureLevel)
+
+FStaticMeshBatchRelevance::FStaticMeshBatchRelevance(const FStaticMeshBatch& StaticMesh, float InScreenSize, bool InbSupportsCachingMeshDrawCommands, bool InbUseSkyMaterial, bool bInUseSingleLayerWaterMaterial, bool bInUseAnisotropy, bool bInSupportsNaniteRendering, bool bInSupportsGPUScene, bool bInUseForWaterInfoTextureDepth, bool bInUseForLumenSceneCapture, ERHIFeatureLevel::Type FeatureLevel)
 	: Id(StaticMesh.Id)
 	, ScreenSize(InScreenSize)
 	, NumElements(StaticMesh.Elements.Num())
@@ -50,6 +51,7 @@ FStaticMeshBatchRelevance::FStaticMeshBatchRelevance(const FStaticMeshBatch& Sta
 	, bSupportsNaniteRendering(bInSupportsNaniteRendering)
 	, bSupportsGPUScene(bInSupportsGPUScene)
 	, bUseForWaterInfoTextureDepth(bInUseForWaterInfoTextureDepth)
+	, bUseForLumenSceneCapture(bInUseForLumenSceneCapture)
 {
 }
 

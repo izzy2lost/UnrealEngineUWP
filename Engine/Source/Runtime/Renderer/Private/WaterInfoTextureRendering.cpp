@@ -806,7 +806,6 @@ void RenderWaterInfoTexture(
 			WaterView.ViewRect = Viewport;
 
 			WaterView.CachedViewUniformShaderParameters = MakeUnique<FViewUniformShaderParameters>();
-			WaterView.CachedViewUniformShaderParameters->OverrideLandscapeLOD = 0.0f;
 			FBox VolumeBounds[TVC_MAX];
 			WaterView.SetupUniformBufferParameters(VolumeBounds, TVC_MAX, *WaterView.CachedViewUniformShaderParameters);
 

@@ -414,6 +414,9 @@ struct FMeshBatch
 
 	/** Whether the mesh batch should be used in the depth-only passes of rendering the water info texture for the water plugin */
 	uint32 bUseForWaterInfoTextureDepth : 1;
+	
+	/** Gives the opportunity to select a different VF for the landscape for the lumen surface cache capture */
+	uint32 bUseForLumenSurfaceCacheCapture : 1;
 
 #if UE_ENABLE_DEBUG_DRAWING
 	/** Conceptual HLOD index used for the HLOD Coloration visualization. */
@@ -495,6 +498,7 @@ struct FMeshBatch
 #endif
 	,	bViewDependentArguments(false)
 	,	bUseForWaterInfoTextureDepth(false)
+	,	bUseForLumenSurfaceCacheCapture(false)
 #if (!(UE_BUILD_SHIPPING || UE_BUILD_TEST) || WITH_EDITOR)
 	,	VisualizeHLODIndex(INDEX_NONE)
 #endif

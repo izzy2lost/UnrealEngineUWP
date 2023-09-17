@@ -1885,3 +1885,13 @@ namespace Substrate
 		return CVarSubstrateDebugAdvancedVisualizationShaders.GetValueOnAnyThread() > 0;
 	}
 }
+
+bool DoesPlatformSupportLumenGI(EShaderPlatform Platform, bool bSkipProjectCheck)
+{
+	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Lumen.Supported"));
+	const bool bLumenSupported = CVar->GetInt() != 0;
+
+	return (bSkipProjectCheck || bLumenSupported)
+		&& FDataDrivenShaderPlatformInfo::GetSupportsLumenGI(Platform)
+		&& !IsForwardShadingEnabled(Platform);
+}

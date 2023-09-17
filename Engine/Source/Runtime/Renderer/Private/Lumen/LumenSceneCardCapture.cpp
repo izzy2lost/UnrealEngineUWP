@@ -135,7 +135,7 @@ void FLumenCardMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch,
 {
 	LLM_SCOPE_BYTAG(Lumen);
 
-	if (MeshBatch.bUseForMaterial
+	if ((MeshBatch.bUseForMaterial || MeshBatch.bUseForLumenSurfaceCacheCapture)
 		&& DoesPlatformSupportLumenGI(GetFeatureLevelShaderPlatform(FeatureLevel))
 		&& (PrimitiveSceneProxy && PrimitiveSceneProxy->ShouldRenderInMainPass() && PrimitiveSceneProxy->AffectsDynamicIndirectLighting()))
 	{
@@ -645,7 +645,6 @@ void FCardPageRenderData::PatchView(const FScene* Scene, FViewInfo* View) const
 
 	View->CachedViewUniformShaderParameters->NearPlane = 0;
 	View->CachedViewUniformShaderParameters->FarShadowStaticMeshLODBias = 0;
-	View->CachedViewUniformShaderParameters->OverrideLandscapeLOD = LumenCardCapture::LandscapeLOD;
 }
 
 void LumenScene::AddCardCaptureDraws(
@@ -744,7 +743,9 @@ void LumenScene::AddCardCaptureDraws(
 					const FStaticMeshBatchRelevance& StaticMeshRelevance = PrimitiveSceneInfo->StaticMeshRelevances[MeshIndex];
 					const FStaticMeshBatch& StaticMesh = PrimitiveSceneInfo->StaticMeshes[MeshIndex];
 
-					if (StaticMeshRelevance.bUseForMaterial && StaticMeshRelevance.LODIndex == LODToRender)
+					bool bBuildMeshDrawCommands = (PrimitiveGroup.bHeightfield ? StaticMeshRelevance.bUseForLumenSceneCapture : StaticMeshRelevance.bUseForMaterial) && StaticMeshRelevance.LODIndex == LODToRender;
+
+					if (bBuildMeshDrawCommands)
 					{
 						const int32 StaticMeshCommandInfoIndex = StaticMeshRelevance.GetStaticMeshCommandInfoIndex(MeshPass);
 						if (StaticMeshCommandInfoIndex >= 0)

@@ -481,6 +481,8 @@ extern RENDERCORE_API ERayTracingMode GetRayTracingMode();
 // Returns 'true' when static lighting is enabled for the project
 extern RENDERCORE_API bool IsStaticLightingAllowed();
 
+extern RENDERCORE_API bool DoesPlatformSupportLumenGI(EShaderPlatform Platform, bool bSkipProjectCheck = false);
+
 /** Whether or not the platform supports the scene spline texture for spline meshes */
 RENDERCORE_API bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform);
 

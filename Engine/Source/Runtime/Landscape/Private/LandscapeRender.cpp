@@ -1389,8 +1389,9 @@ void FLandscapeComponentSceneProxy::CreateRenderThreadResources(FRHICommandListB
 			SharedBuffers->VertexFactory = LandscapeXYOffsetVertexFactory;
 		}
 
-		// We need the fixed grid vertex factory for virtual texturing, grass and for rendering the water info texture : 
-		bool bNeedsFixedGridVertexFactory = UseVirtualTexturing(FeatureLevel);
+		// We need the fixed grid vertex factory for virtual texturing, grass and for rendering the water info texture and for rendering Landscape into Lumen Surface Cache: 
+		bool bNeedsFixedGridVertexFactory = UseVirtualTexturing(FeatureLevel) || DoesPlatformSupportLumenGI(GMaxRHIShaderPlatform);
+
 		// This cvar is defined in the water plugin and searching for it should return nullptr if the plugin is not loaded
 		const bool bWaterPluginLoaded = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Water.WaterInfo.RenderMethod")) != nullptr;
 		bNeedsFixedGridVertexFactory |= bWaterPluginLoaded;
@@ -2148,6 +2149,7 @@ void FLandscapeComponentSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInter
 	int32 TotalBatchCount = 1 + LastLOD - FirstLOD;
 	TotalBatchCount += (1 + LastVirtualTextureLOD - FirstVirtualTextureLOD) * RuntimeVirtualTextureMaterialTypes.Num();
 	TotalBatchCount += 1; // TODO: Currently we always add a single LOD0 fixed grid landscape mesh batch for rendering the water info texture. Higher LODs might be better and we might not always need to do this.
+	TotalBatchCount += 1; // LOD0 for lumen surface cache capture
 
 	StaticBatchParamArray.Empty(TotalBatchCount);
 	PDI->ReserveMemoryForMeshes(TotalBatchCount);
@@ -2178,6 +2180,25 @@ void FLandscapeComponentSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInter
 		if (GetMeshElementForFixedGrid(LODIndex, AvailableMaterials[MaterialIndex], MeshBatch, StaticBatchParamArray))
 		{
 			MeshBatch.bUseForWaterInfoTextureDepth = true;
+			PDI->DrawMesh(MeshBatch, FLT_MAX);
+		}
+	}
+
+	// add fixed grid for lumen card captures
+	{
+		FMeshBatch MeshBatch;
+
+		if (GetStaticMeshElement(0, false, MeshBatch, StaticBatchParamArray))
+		{
+			MeshBatch.VertexFactory = FixedGridVertexFactory;
+			MeshBatch.CastShadow = false;
+			MeshBatch.bUseForDepthPass = false;
+			MeshBatch.bUseAsOccluder = false;
+			MeshBatch.bUseForMaterial = false;
+			MeshBatch.bDitheredLODTransition = false;
+			MeshBatch.bRenderToVirtualTexture = false;
+			MeshBatch.bUseForLumenSurfaceCacheCapture = true;
+
 			PDI->DrawMesh(MeshBatch, FLT_MAX);
 		}
 	}
