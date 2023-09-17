@@ -102,6 +102,12 @@ bool IsAttributeValid(uint InOffset)
 #include "/Engine/Private/HairStrands/HairStrandsVertexFactoryCommon.ush"
 
 #if HAIR_STRAND_MESH_FACTORY
-#define HAIR_STRANDS_ATTRIBUTE_ACCESSORS(Name) HairStrandsVF_##Name
+	#if HAIR_STRANDS_PARAMETERS == 1
+		// Global constants access
+		#define HAIR_STRANDS_ATTRIBUTE_ACCESSORS(Name) HairStrandsVF_##Name
+	#else
+		// Uniform Buffer access
+		#define HAIR_STRANDS_ATTRIBUTE_ACCESSORS(Name) HairStrandsVF.##Name
+	#endif
 #include "/Engine/Private/HairStrands/HairStrandsAttributeTemplate.ush"
 #endif

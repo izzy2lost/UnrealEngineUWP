@@ -50,6 +50,6 @@
 	Buffer<float>		Prefix##_CullingRadiusScaleBuffer; \
 	Buffer<uint>		Prefix##_CullingIndirectBufferArgs;
 
-#if defined(HAIR_STRANDS_PARAMETERS) && HAIR_STRANDS_PARAMETERS == 1
+#if HAIR_STRANDS_PARAMETERS == 1
 	HAIR_STRANDS_INSTANCE_PARAMETERS(HairStrandsVF)
 #endif
