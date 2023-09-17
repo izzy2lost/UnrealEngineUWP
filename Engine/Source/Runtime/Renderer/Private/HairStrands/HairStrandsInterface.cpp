@@ -447,7 +447,7 @@ void UpdateHairStrandsBookmarkParameters(FScene* Scene, TArray<FViewInfo>& Views
 			const bool bCardsOrMeshes = Instance->GetHairGeometry() == EHairGeometryType::Cards || Instance->GetHairGeometry() == EHairGeometryType::Meshes;
 			const bool bCompatible = bStrands || bCardsOrMeshes;
 
-			if (Instance->RegisteredIndex >= 0 && Instance->RegisteredIndex < ActiveInstanceCount && !Out.InstancesVisibility[Instance->RegisteredIndex] && bCompatible)
+			if (Out.InstancesVisibility.IsValidIndex(Instance->RegisteredIndex) && !Out.InstancesVisibility[Instance->RegisteredIndex] && bCompatible)
 			{
 				if (IsHairStrandsVisibleInShadows(Views[0], *Instance))
 				{

@@ -285,7 +285,7 @@ void CreateHairStrandsMacroGroups(
 	{
 		for (FHairStrandsInstance* Instance : Scene->HairStrandsSceneData.RegisteredProxies)
 		{
-			if (Instance && Instance->RegisteredIndex >= 0 && Instance->RegisteredIndex < ActiveInstanceCount && !InstancesVisibility[Instance->RegisteredIndex])
+			if (Instance && InstancesVisibility.IsValidIndex(Instance->RegisteredIndex) && !InstancesVisibility[Instance->RegisteredIndex])
 			{
 				if (IsHairStrandsVisibleInShadows(View, *Instance))
 				{

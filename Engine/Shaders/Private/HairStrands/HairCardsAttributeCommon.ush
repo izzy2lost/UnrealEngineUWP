@@ -49,7 +49,7 @@ float GetHairStrandsCoverage(float2 InAtlasUV)
 {
 	const bool bInvertUV = HairCardsVF.Flags & EHairCardsFVFlags_InvertedUV;
 	InAtlasUV.y = bInvertUV ? 1 - InAtlasUV.y : InAtlasUV.y;
-	return Texture2DSample(HairCardsVF.CoverageTexture, HairCardsVF.CoverageSampler, InAtlasUV).x;
+	return Texture2DSampleBias(HairCardsVF.CoverageTexture, HairCardsVF.CoverageSampler, InAtlasUV, HairCardsVF.CoverageBias).x;
 }
 
 FHairVertexAttributes GetHairStrandsAttributes(float2 InAtlasUV, float2 InRootUV = float2(0, 0), float InCardLength = 0.f, float InCardGroupIndex = 0.f, float3 InCardBaseColor = 0.f, float InCardRoughness = 0.f)
