@@ -65,6 +65,10 @@ public:
 
 	const TArray<UGameFeatureAction*>& GetActions() const { return Actions; }
 
+#if WITH_EDITOR
+	TArray<UGameFeatureAction*>& GetMutableActionsInEditor() { return Actions; }
+#endif
+
 private:
 	/** Internal helper function to reload config data on objects as a result of a plugin INI being loaded */
 	void ReloadConfigs(FConfigFile& PluginConfig) const;
