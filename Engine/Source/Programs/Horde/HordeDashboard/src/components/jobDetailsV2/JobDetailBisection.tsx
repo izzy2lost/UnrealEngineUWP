@@ -64,6 +64,7 @@ class StepBisectionView extends JobDataView {
    }
 
    bisectionUpdated() {
+      this.gotoRail = true;
       this.handler?.stop();
       this.handler?.start();
    }
@@ -83,7 +84,6 @@ class StepBisectionView extends JobDataView {
       }
 
       this.updateReady();
-
    }
 
    // 
@@ -167,6 +167,8 @@ class StepBisectionView extends JobDataView {
 
    bisectionJobId?: string;
 
+   gotoRail = false;
+
    order = 9;
 
 }
@@ -189,6 +191,11 @@ export const BisectionPanel: React.FC<{ jobDetails: JobDetailsV2, stepId?: strin
 
    if (!dataView.bisections?.length) {
       return null;
+   }
+
+   if (dataView.gotoRail) {
+      dataView.gotoRail = false;
+      window.location.hash = sideRail.url;
    }
 
    return (<Stack id={sideRail.url} styles={{ root: { paddingTop: 18, paddingRight: 12 } }}>
