@@ -195,8 +195,8 @@ private:
 
 	mutable FRWLock TrackedComponentsLock;
 
-	// Keep track of actors that aren't yet ready (or if the subsystem is not yet ready) and add them in next tick.
-	TSet<TTuple<TObjectKey<AActor>, bool>> DelayedAddedActors;
+	// Keep track of actors that aren't yet ready (or if the subsystem is not yet ready), whether we should dirty them and their instance level depth so we can add them in next tick.
+	TSet<TTuple<TObjectKey<AActor>, bool, int>> DelayedAddedActors;
 
 	/** Keep a mapping between tracked actors and their dependencies. */
 	TMap<TObjectKey<AActor>, TSet<TObjectPtr<UObject>>> TrackedActorsToDependenciesMap;
