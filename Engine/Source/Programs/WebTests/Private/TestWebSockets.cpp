@@ -98,6 +98,7 @@ public:
 		while (!bQuitRequested)
 		{
 			FTSBackgroundableTicker::GetCoreTicker().Tick(TickFrequency);
+			FTSTicker::GetCoreTicker().Tick(TickFrequency);
 
 			FPlatformProcess::Sleep(TickFrequency);
 		}

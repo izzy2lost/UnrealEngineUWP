@@ -28,6 +28,8 @@
 #define HTTP_TAG "[HTTP]"
 #define HTTP_TIME_DIFF_TOLERANCE 0.5f
 
+extern TAutoConsoleVariable<bool> CVarHttpInsecureProtocolEnabled;
+
 class FHttpModuleTestFixture
 {
 public:
@@ -42,6 +44,8 @@ public:
 		HttpModule = new FHttpModule();
 		IModuleInterface* Module = HttpModule;
 		Module->StartupModule();
+
+		CVarHttpInsecureProtocolEnabled->Set(true);
 	}
 
 	virtual ~FHttpModuleTestFixture()

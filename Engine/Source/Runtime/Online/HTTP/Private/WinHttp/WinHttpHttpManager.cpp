@@ -9,6 +9,14 @@
 #include "Misc/CoreDelegates.h"
 #include "Stats/Stats.h"
 
+#if !UE_BUILD_SHIPPING
+#include "HAL/IConsoleManager.h"
+#endif
+
+#if !UE_BUILD_SHIPPING
+extern TAutoConsoleVariable<bool> CVarHttpInsecureProtocolEnabled;
+#endif
+
 namespace
 {
 	FWinHttpHttpManager* GWinHttpManager = nullptr;
@@ -133,7 +141,12 @@ FWinHttpSession* FWinHttpHttpManager::FindOrCreateSession(const uint32 SecurityP
 	FWinHttpSession* SessionPtr = SessionPtrPtr ? SessionPtrPtr->Get() : nullptr;
 	if (!SessionPtr)
 	{
-		SessionPtr = ActiveSessions.Emplace(SecurityProtocols, MakeUnique<FWinHttpSession>(SecurityProtocols, bPlatformForcesSecureConnections)).Get();
+#if !UE_BUILD_SHIPPING
+		bool bForceSecureConnections = !CVarHttpInsecureProtocolEnabled.GetValueOnAnyThread();
+#else
+		bool bForceSecureConnections = true;
+#endif
+		SessionPtr = ActiveSessions.Emplace(SecurityProtocols, MakeUnique<FWinHttpSession>(SecurityProtocols, bForceSecureConnections)).Get();
 	}
 
 	return SessionPtr;

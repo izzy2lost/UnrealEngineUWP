@@ -83,10 +83,10 @@ FWinHttpSession::FWinHttpSession(uint32 SecurityProtocolFlags, const bool bInFor
 	}
 
 	FHttpModule& HttpModule = FHttpModule::Get();
-	const FTimespan ConnectionTimeout = FTimespan::FromSeconds(HttpModule.GetHttpConnectionTimeout());
+	const FTimespan ConnectionTimeout = FTimespan::FromSeconds(HttpModule.GetHttpConnectionTimeout() > 0 ? HttpModule.GetHttpConnectionTimeout() : 0);
 	const FTimespan ResolveTimeout = ConnectionTimeout;
-	const FTimespan SendTimeout = FTimespan::FromSeconds(HttpModule.GetHttpSendTimeout());
-	const FTimespan ReceiveTimeout = FTimespan::FromSeconds(HttpModule.GetHttpReceiveTimeout());
+	const FTimespan SendTimeout = FTimespan::FromSeconds(HttpModule.GetHttpSendTimeout() > 0 ? HttpModule.GetHttpSendTimeout() : 0);
+	const FTimespan ReceiveTimeout = FTimespan::FromSeconds(HttpModule.GetHttpReceiveTimeout() > 0 ? HttpModule.GetHttpReceiveTimeout() : 0);
 
 	if (!WinHttpSetTimeouts(SessionHandle.Get(), ResolveTimeout.GetTotalMilliseconds(), ConnectionTimeout.GetTotalMilliseconds(), SendTimeout.GetTotalMilliseconds(), ReceiveTimeout.GetTotalMilliseconds()))
 	{

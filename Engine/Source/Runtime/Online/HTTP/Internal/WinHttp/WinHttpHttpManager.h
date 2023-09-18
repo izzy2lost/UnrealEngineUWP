@@ -67,8 +67,6 @@ protected:
 	HTTP_API FWinHttpSession* FindOrCreateSession(const uint32 SecurityProtocols);
 
 protected:
-	bool bPlatformForcesSecureConnections = false;
-
 	/** Map of Security Flags to WinHttp Session objects */
 	TMap<uint32, TUniquePtr<FWinHttpSession>> ActiveSessions;
 };

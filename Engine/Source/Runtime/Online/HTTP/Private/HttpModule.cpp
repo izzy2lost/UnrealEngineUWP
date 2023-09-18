@@ -10,6 +10,18 @@
 #include "Misc/CommandLine.h"
 #include "Misc/CoreDelegates.h"
 
+#if !UE_BUILD_SHIPPING
+#include "HAL/IConsoleManager.h"
+#endif
+
+#if !UE_BUILD_SHIPPING
+TAutoConsoleVariable<bool> CVarHttpInsecureProtocolEnabled(
+	TEXT("Http.InsecureProtocolEnabled"),
+	false,
+	TEXT("Enable insecure http protocol")
+);
+#endif
+
 DEFINE_LOG_CATEGORY(LogHttp);
 
 // FHttpModule
