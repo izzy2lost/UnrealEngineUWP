@@ -604,7 +604,7 @@ class URendererSettings : public UDeveloperSettings
 	FVector TranslucentSortAxis;
 
 	UPROPERTY(config, EditAnywhere, Category=Translucency, meta=(
-		ConsoleVariable="r.LocalFogVolume.ApplyOnTransclucent",
+		ConsoleVariable="r.LocalFogVolume.ApplyOnTranslucent",
 		ToolTip="Allow translucency to be rendered to a separate render targeted and composited after depth of field. Prevents translucency from appearing out of focus."))
 	uint32 bLocalFogVolumeApplyOnTranslucent:1;
 

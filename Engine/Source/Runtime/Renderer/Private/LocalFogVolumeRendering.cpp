@@ -14,8 +14,8 @@ static TAutoConsoleVariable<int32> CVarLocalFogVolume(
 	TEXT("LocalFogVolume components are rendered when this is not 0, otherwise ignored.\n"),
 	ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarLocalFogVolumeApplyOnTransclucent(
-	TEXT("r.LocalFogVolume.ApplyOnTransclucent"), 0,
+static TAutoConsoleVariable<int32> CVarLocalFogVolumeApplyOnTranslucent(
+	TEXT("r.LocalFogVolume.ApplyOnTranslucent"), 0,
 	TEXT("Project settings enabling the sampling of local fog volumes on translucent elements.\n"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
