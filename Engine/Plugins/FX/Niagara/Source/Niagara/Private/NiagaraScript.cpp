@@ -2129,11 +2129,11 @@ void UNiagaraScript::PostLoad()
 	CheckVersionDataAvailable();
 #endif
 	
-	RapidIterationParameters.PostLoad();
+	RapidIterationParameters.PostLoad(this);
 
 	if (FPlatformProperties::RequiresCookedData() || IsScriptCooked())
 	{
-		ScriptExecutionParamStore.PostLoad();
+		ScriptExecutionParamStore.PostLoad(this);
 
 		// if our bindings aren't valid, then something has gone wrong with our cook and we need to disable this Script, which will in turn
 		// disable the owning script and system

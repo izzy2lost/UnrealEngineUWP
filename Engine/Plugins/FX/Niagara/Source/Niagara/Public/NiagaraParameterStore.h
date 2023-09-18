@@ -256,7 +256,7 @@ public:
 	NIAGARA_API virtual ~FNiagaraParameterStore();
 	
 #if WITH_EDITORONLY_DATA
-	UPROPERTY()
+	UPROPERTY(Transient)
 	FString DebugName;
 
 	/** Guid data to remap rapid iteration parameters after a function input was renamed. */
@@ -477,7 +477,7 @@ public:
 
 	NIAGARA_API virtual const int32* FindParameterOffset(const FNiagaraVariableBase& Parameter, bool IgnoreType = false) const;
 
-	NIAGARA_API void PostLoad();
+	NIAGARA_API void PostLoad(UObject* InOwner);
 	NIAGARA_API void SortParameters();
 
 	/** Returns the UObject at the passed offset. */

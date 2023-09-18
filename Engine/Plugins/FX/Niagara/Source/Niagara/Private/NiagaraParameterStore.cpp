@@ -1448,7 +1448,7 @@ const int32* FNiagaraParameterStore::FindParameterOffset(const FNiagaraVariableB
 	return nullptr;
 }
 
-void FNiagaraParameterStore::PostLoad()
+void FNiagaraParameterStore::PostLoad(UObject* InOwner)
 {
 #if WITH_EDITORONLY_DATA
 	// Convert ParameterOffsets map to the new SortedParameterOffsets array.
@@ -1473,6 +1473,8 @@ void FNiagaraParameterStore::PostLoad()
 		SeenGuids.Add(Entry.Value);
 	}
 #endif
+
+	SetOwner(InOwner);
 
 	// Not always required if NIAGARA_VARIABLE_LEXICAL_SORTING
 	SortParameters();

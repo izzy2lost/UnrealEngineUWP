@@ -2877,7 +2877,7 @@ void UNiagaraComponent::PostLoad()
 	PostLoadVariantDIs(InstanceParameterOverrides);
 #endif
 
-	OverrideParameters.PostLoad();
+	OverrideParameters.PostLoad(this);
 	OverrideParameters.SanityCheckData();
 
 #if WITH_EDITOR

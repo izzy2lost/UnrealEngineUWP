@@ -203,7 +203,7 @@ void UNiagaraNodeAssignment::PostLoad()
 				check(Script);
 				if (Script->HasAnyFlags(RF_NeedPostLoad))
 				{
-					Script->RapidIterationParameters.PostLoad();
+					Script->RapidIterationParameters.PostLoad(Script);
 				}
 				if (Script->HandleVariableRenames(Converted, Emitter ? Emitter->GetUniqueEmitterName() : FString()))
 				{

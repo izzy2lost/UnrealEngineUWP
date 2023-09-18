@@ -940,10 +940,15 @@ void UNiagaraSystem::PostLoad()
 		}
 	}
 
-	ExposedParameters.PostLoad();
+	ExposedParameters.PostLoad(this);
 	ExposedParameters.SanityCheckData();
 
-	SystemCompiledData.InstanceParamStore.PostLoad();
+#if WITH_EDITORONLY_DATA
+	EditorOnlyAddedParameters.PostLoad(this);
+	EditorOnlyAddedParameters.SanityCheckData();
+#endif
+
+	SystemCompiledData.InstanceParamStore.PostLoad(this);
 
 	if (GIsEditor)
 	{
