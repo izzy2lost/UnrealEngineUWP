@@ -1014,6 +1014,8 @@ private:
 	UPROPERTY(transient)
 	TArray<TObjectPtr<UNiagaraComponent>> ComponentsToNotifySimDestroy;
 	UPROPERTY(transient)
+	TArray<TObjectPtr<UNiagaraComponent>> ComponentsToDestroyInstance;
+	UPROPERTY(transient)
 	TArray<TObjectPtr<UNiagaraSystem>> SystemSimsToDestroy;
 	UPROPERTY(transient)
 	TArray<TObjectPtr<UNiagaraSystem>> SystemSimsToRecache;
