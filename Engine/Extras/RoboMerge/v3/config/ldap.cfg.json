@@ -18,10 +18,6 @@
 		{
 			"group": "Robomerge_FTE_Access",
 			"tags": ["fte"]
-		},
-		{
-			"group": "Robomerge_Contractor_Twinmotion_Access",
-			"tags": ["twinmotion"]
 		}
 	]
 }
