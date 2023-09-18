@@ -62,7 +62,7 @@ bool IStreamedCompressedInfo::ReadCompressedInfo(const uint8* InSrcBufferData, u
 	check(SrcBufferData != nullptr);
 
 	// Sample Stride is 
-	SampleStride = NumChannels * sizeof(int16);
+	SampleStride = NumChannels * MONO_PCM_SAMPLE_SIZE;
 
 	MaxFrameSizeSamples = GetMaxFrameSizeSamples();
 		
@@ -171,8 +171,7 @@ void IStreamedCompressedInfo::ExpandFile(uint8* DstBuffer, struct FSoundQualityI
 		}
 		else
 		{
-			IncrementCurrentSampleCount(DecodedFrames * NumChannels);
-			LastPCMByteSize = DecodedFrames * SampleStride;
+			LastPCMByteSize = IncrementCurrentSampleCount(DecodedFrames * NumChannels) * MONO_PCM_SAMPLE_SIZE;
 			RawPCMOffset += WriteFromDecodedPCM(DstBuffer + RawPCMOffset, QualityInfo->SampleDataSize - RawPCMOffset);
 		}
 	}
@@ -417,8 +416,7 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 		}
 		else
 		{
-			IncrementCurrentSampleCount(DecodedFrames * NumChannels);
-			LastPCMByteSize = DecodedFrames * SampleStride;
+			LastPCMByteSize = IncrementCurrentSampleCount(DecodedFrames * NumChannels) * MONO_PCM_SAMPLE_SIZE;
 
 			// update OutNumBytesStreamed as we write out data
 			RawPCMOffset += WriteFromDecodedPCM(Destination + RawPCMOffset, BufferSize - RawPCMOffset);
@@ -929,7 +927,7 @@ void FAsyncAudioDecompressWorker::DoWork()
 			{
 				LLM_SCOPE(ELLMTag::AudioRealtimePrecache);
 #if PLATFORM_NUM_AUDIODECOMPRESSION_PRECACHE_BUFFERS > 0
-				const uint32 PCMBufferSize = NumPrecacheFrames * sizeof(int16) * Wave->NumChannels * PLATFORM_NUM_AUDIODECOMPRESSION_PRECACHE_BUFFERS;
+				const uint32 PCMBufferSize = NumPrecacheFrames * MONO_PCM_SAMPLE_SIZE * Wave->NumChannels * PLATFORM_NUM_AUDIODECOMPRESSION_PRECACHE_BUFFERS;
 				Wave->NumPrecacheFrames = NumPrecacheFrames;
 				if (Wave->CachedRealtimeFirstBuffer == nullptr)
 				{

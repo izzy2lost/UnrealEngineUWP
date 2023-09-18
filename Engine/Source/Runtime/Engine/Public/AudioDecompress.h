@@ -17,8 +17,9 @@
 // 100ms of 48KHz data
 // 108ms of 44.1KHz data
 // 218ms of 22KHz data
-#define MONO_PCM_BUFFER_SAMPLES		(4800)
-#define MONO_PCM_BUFFER_SIZE		( MONO_PCM_BUFFER_SAMPLES * sizeof( int16 ) )
+constexpr int32 MONO_PCM_BUFFER_SAMPLES = 4800;
+constexpr uint32 MONO_PCM_SAMPLE_SIZE = sizeof(int16);
+constexpr uint32 MONO_PCM_BUFFER_SIZE = MONO_PCM_BUFFER_SAMPLES * MONO_PCM_SAMPLE_SIZE;
 
 struct FSoundQualityInfo;
 class FStreamedAudioChunkSeekTable;
