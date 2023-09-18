@@ -939,6 +939,7 @@ public:
 #endif
 
 #if WITH_EDITOR
+	ENGINE_API virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
 	ENGINE_API virtual bool NeedsLoadForTargetPlatform(const ITargetPlatform* TargetPlatform) const;
 	ENGINE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	ENGINE_API virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
