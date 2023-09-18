@@ -1613,12 +1613,38 @@ UMetaSoundSourceBuilder* UMetaSoundBuilderSubsystem::CreateSourcePresetBuilder(F
 	return nullptr;
 }
 
+UMetaSoundBuilderSubsystem* UMetaSoundBuilderSubsystem::Get()
+{
+	if (GEngine)
+	{
+		if (UMetaSoundBuilderSubsystem* BuilderSubsystem = GEngine->GetEngineSubsystem<UMetaSoundBuilderSubsystem>())
+		{
+			return BuilderSubsystem;
+		}
+	}
+
+	return nullptr;
+}
+
 UMetaSoundBuilderSubsystem& UMetaSoundBuilderSubsystem::GetChecked()
 {
 	checkf(GEngine, TEXT("Cannot access UMetaSoundBuilderSubsystem without engine loaded"));
 	UMetaSoundBuilderSubsystem* BuilderSubsystem = GEngine->GetEngineSubsystem<UMetaSoundBuilderSubsystem>();
 	checkf(BuilderSubsystem, TEXT("Failed to find initialized 'UMetaSoundBuilderSubsystem"));
 	return *BuilderSubsystem;
+}
+
+const UMetaSoundBuilderSubsystem* UMetaSoundBuilderSubsystem::GetConst()
+{
+	if (GEngine)
+	{
+		if (const UMetaSoundBuilderSubsystem* BuilderSubsystem = GEngine->GetEngineSubsystem<const UMetaSoundBuilderSubsystem>())
+		{
+			return BuilderSubsystem;
+		}
+	}
+
+	return nullptr;
 }
 
 const UMetaSoundBuilderSubsystem& UMetaSoundBuilderSubsystem::GetConstChecked()

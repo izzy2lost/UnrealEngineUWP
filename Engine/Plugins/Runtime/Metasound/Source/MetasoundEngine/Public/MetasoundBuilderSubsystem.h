@@ -571,7 +571,9 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void InvalidateDocumentCache(const FMetasoundFrontendClassName& InClassName) const override;
 
+	static UMetaSoundBuilderSubsystem* Get();
 	static UMetaSoundBuilderSubsystem& GetChecked();
+	static const UMetaSoundBuilderSubsystem* GetConst();
 	static const UMetaSoundBuilderSubsystem& GetConstChecked();
 
 	UMetaSoundBuilderBase& AttachBuilderToAssetChecked(UObject& InMetaSound) const;
