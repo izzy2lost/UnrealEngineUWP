@@ -3,88 +3,67 @@
 using System;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Core;
-using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Clients;
-using Microsoft.Extensions.Http;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Extensions.Http;
-using Polly.Retry;
 
 namespace EpicGames.Horde
 {
 	/// <summary>
+	/// Options for configuring a Horde HTTP client
+	/// </summary>
+	public class HordeHttpClientOptions
+	{
+		/// <summary>
+		/// URL of the Horde server
+		/// </summary>
+		public Uri ServerUrl { get; set; } = new Uri("http://localhost:5000");
+	}
+
+	/// <summary>
 	/// Wraps an Http client which communicates with the Horde server
 	/// </summary>
-	public sealed class HordeHttpClient : IDisposable
+	public sealed class HordeHttpClient
 	{
-		readonly HttpMessageHandler _httpMessageHandler;
-		readonly Uri _baseUri;
-		readonly AuthenticationHeaderValue? _authHeader;
-		readonly JsonSerializerOptions _jsonSerializerOptions;
-		readonly ILogger _logger;
+		readonly HttpClient _httpClient;
+
+		static readonly JsonSerializerOptions s_jsonSerializerOptions = CreateJsonSerializerOptions();
+
+		/// <summary>
+		/// Static instance of the default retry policy
+		/// </summary>
+		public static IAsyncPolicy<HttpResponseMessage> DefaultRetryPolicy { get; } = CreateDefaultRetryPolicy();
+
+		/// <summary>
+		/// Accessor for the underlying HTTP client
+		/// </summary>
+		public HttpClient HttpClient => _httpClient;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="uri">Base URI of the server</param>
-		/// <param name="token">Access token for the connection</param>
-		/// <param name="logger">Logger for output</param>
-		public HordeHttpClient(Uri uri, string token, ILogger logger)
+		/// <param name="httpClient">The inner HTTP client instance</param>
+		/// <param name="options">Options for the client</param>
+		public HordeHttpClient(HttpClient httpClient, IOptions<HordeHttpClientOptions> options)
 		{
-			_baseUri = uri;
-			_authHeader = new AuthenticationHeaderValue("Bearer", token);
-
-			_httpMessageHandler = CreateHttpMessageHandler();
-
-			_jsonSerializerOptions = new JsonSerializerOptions();
-			ConfigureJsonSerializer(_jsonSerializerOptions);
-
-			_logger = logger;
-		}
-
-		/// <inheritdoc/>
-		public void Dispose()
-		{
-			_httpMessageHandler.Dispose();
+			_httpClient = httpClient;
+			_httpClient.BaseAddress = options.Value.ServerUrl;
 		}
 
 		/// <summary>
-		/// Creates an HTTP client using the underlying message handler
+		/// Create the shared instance of JSON options for HordeHttpClient instances
 		/// </summary>
-		public HttpClient CreateHttpClient()
+		static JsonSerializerOptions CreateJsonSerializerOptions()
 		{
-			HttpClient httpClient = new HttpClient(_httpMessageHandler, false);
-			httpClient.BaseAddress = _baseUri;
-			httpClient.DefaultRequestHeaders.Authorization = _authHeader;
-			return httpClient;
-		}
-
-		/// <summary>
-		/// Creates an HTTP client using the underlying message handler
-		/// </summary>
-		public HttpClient CreateRedirectHttpClient()
-		{
-			return new HttpClient(_httpMessageHandler, false);
-		}
-
-		/// <summary>
-		/// Creates a HTTP message handler
-		/// </summary>
-		/// <returns></returns>
-		public static HttpMessageHandler CreateHttpMessageHandler()
-		{
-			AsyncRetryPolicy<HttpResponseMessage> retryPolicy = HttpPolicyExtensions
-				.HandleTransientHttpError()
-				.WaitAndRetryAsync(new[] { TimeSpan.FromSeconds(2.0), TimeSpan.FromSeconds(5.0), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) });
-
-			SocketsHttpHandler socketsHandler = new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(15) };
-			return new PolicyHttpMessageHandler(retryPolicy) { InnerHandler = socketsHandler };
+			JsonSerializerOptions options = new JsonSerializerOptions();
+			ConfigureJsonSerializer(options);
+			return options;
 		}
 
 		/// <summary>
@@ -104,40 +83,6 @@ namespace EpicGames.Horde
 		}
 
 		/// <summary>
-		/// Creates a storage client for this Horde instance
-		/// </summary>
-		/// <param name="namespaceId">Namespace to manipulate</param>
-		/// <param name="storageCache">Cache for storage operations</param>
-		/// <returns>New storage client instance</returns>
-		public HttpStorageClient CreateStorageClient(NamespaceId namespaceId, StorageCache storageCache) => CreateStorageClient($"api/v1/storage/{namespaceId}/", storageCache);
-
-		/// <summary>
-		/// Creates a storage client for this Horde instance
-		/// </summary>
-		/// <param name="path">Base path for storage requests</param>
-		/// <param name="storageCache">Cache for storage operations</param>
-		/// <returns>New storage client instance</returns>
-		public HttpStorageClient CreateStorageClient(string path, StorageCache storageCache)
-		{
-			if (!path.EndsWith("/", StringComparison.Ordinal))
-			{
-				path += "/";
-			}
-
-			Uri baseUri = new Uri(_baseUri, path);
-
-			HttpClient CreateStorageHttpClient()
-			{
-				HttpClient httpClient = new HttpClient(_httpMessageHandler, false);
-				httpClient.BaseAddress = baseUri;
-				httpClient.DefaultRequestHeaders.Authorization = _authHeader;
-				return httpClient;
-			}
-
-			return new HttpStorageClient(CreateStorageHttpClient, CreateRedirectHttpClient, storageCache, _logger);
-		}
-
-		/// <summary>
 		/// Gets a resource from an HTTP endpoint and parses it as a JSON object
 		/// </summary>
 		/// <typeparam name="TResponse">The object type to return</typeparam>
@@ -146,8 +91,8 @@ namespace EpicGames.Horde
 		/// <returns>New instance of the object</returns>
 		public async Task<TResponse> GetAsync<TResponse>(string relativePath, CancellationToken cancellationToken = default)
 		{
-			using HttpClient httpClient = CreateHttpClient();
-			return await httpClient.GetAsync<TResponse>(relativePath, cancellationToken);
+			TResponse? response = await _httpClient.GetFromJsonAsync<TResponse>(relativePath, s_jsonSerializerOptions, cancellationToken);
+			return response ?? throw new InvalidCastException($"Expected non-null response from GET to {relativePath}");
 		}
 
 		/// <summary>
@@ -160,8 +105,7 @@ namespace EpicGames.Horde
 		/// <returns>The response parsed into the requested type</returns>
 		public async Task<HttpResponseMessage> PostAsync<TRequest>(string relativePath, TRequest request, CancellationToken cancellationToken = default)
 		{
-			using HttpClient httpClient = CreateHttpClient();
-			return await httpClient.PostAsync<TRequest>(relativePath, request, cancellationToken);
+			return await _httpClient.PostAsJsonAsync<TRequest>(relativePath, request, s_jsonSerializerOptions, cancellationToken);
 		}
 
 		/// <summary>
@@ -175,8 +119,13 @@ namespace EpicGames.Horde
 		/// <returns>The response parsed into the requested type</returns>
 		public async Task<TResponse> PostAsync<TResponse, TRequest>(string relativePath, TRequest request, CancellationToken cancellationToken = default)
 		{
-			using HttpClient httpClient = CreateHttpClient();
-			return await httpClient.PostAsync<TResponse, TRequest>(relativePath, request, cancellationToken);
+			using (HttpResponseMessage response = await PostAsync<TRequest>(relativePath, request, cancellationToken))
+			{
+				response.EnsureSuccessStatusCode();
+
+				TResponse? responseValue = await response.Content.ReadFromJsonAsync<TResponse>(s_jsonSerializerOptions, cancellationToken);
+				return responseValue ?? throw new InvalidCastException($"Expected non-null response from POST to {relativePath}");
+			}
 		}
 
 		/// <summary>
@@ -189,8 +138,7 @@ namespace EpicGames.Horde
 		/// <returns>Response message</returns>
 		public async Task<HttpResponseMessage> PutAsync<TRequest>(string relativePath, TRequest request, CancellationToken cancellationToken)
 		{
-			using HttpClient httpClient = CreateHttpClient();
-			return await httpClient.PutAsync<TRequest>(relativePath, request, cancellationToken);
+			return await _httpClient.PutAsJsonAsync<TRequest>(relativePath, request, s_jsonSerializerOptions, cancellationToken);
 		}
 
 		/// <summary>
@@ -204,8 +152,83 @@ namespace EpicGames.Horde
 		/// <returns>Response message</returns>
 		public async Task<TResponse> PutAsync<TResponse, TRequest>(string relativePath, TRequest request, CancellationToken cancellationToken)
 		{
-			using HttpClient httpClient = CreateHttpClient();
-			return await httpClient.PutAsync<TResponse, TRequest>(relativePath, request, cancellationToken);
+			using (HttpResponseMessage response = await _httpClient.PutAsJsonAsync<TRequest>(relativePath, request, s_jsonSerializerOptions, cancellationToken))
+			{
+				response.EnsureSuccessStatusCode();
+
+				TResponse? responseValue = await response.Content.ReadFromJsonAsync<TResponse>(s_jsonSerializerOptions, cancellationToken);
+				return responseValue ?? throw new InvalidCastException($"Expected non-null response from PUT to {relativePath}");
+			}
+		}
+
+		/// <summary>
+		/// Helper method to construct a default retry policy for Horde requests
+		/// </summary>
+		static IAsyncPolicy<HttpResponseMessage> CreateDefaultRetryPolicy()
+		{
+			return HttpPolicyExtensions
+				.HandleTransientHttpError()
+				.WaitAndRetryAsync(new[] { TimeSpan.FromSeconds(2.0), TimeSpan.FromSeconds(5.0), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) });
+		}
+	}
+
+	/// <summary>
+	/// Factory for creating HordeHttpClient instances
+	/// </summary>
+	public class HordeHttpClientFactory
+	{
+		readonly IServiceProvider _serviceProvider;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public HordeHttpClientFactory(IServiceProvider serviceProvider) => _serviceProvider = serviceProvider;
+
+		/// <inheritdoc/>
+		public HordeHttpClient CreateClient() => _serviceProvider.GetRequiredService<HordeHttpClient>();
+	}
+
+	/// <summary>
+	/// Extension methods for Horde HTTP clients
+	/// </summary>
+	public static class HordeHttpClientExtensions
+	{
+		/// <summary>
+		/// Registers a Horde HTTP client type, and configures it to use the default OIDC message handler.
+		/// </summary>
+		/// <param name="services">Service collection to add services to</param>
+		public static void AddHordeHttpClient(this IServiceCollection services)
+		{
+			services.AddSingleton<HordeHttpAuthHandler>();
+			services.AddHttpClient<HordeHttpClient>().AddPolicyHandler(HordeHttpClient.DefaultRetryPolicy).AddHttpMessageHandler<HordeHttpAuthHandler>();
+			services.AddTransient<HordeHttpClientFactory>();
+		}
+
+		/// <summary>
+		/// Registers a Horde HTTP client type, and configures it to use the default OIDC message handler.
+		/// </summary>
+		/// <param name="services">Service collection to add services to</param>
+		/// <param name="configureOptions">Callback to modify options for the http client</param>
+		public static void AddHordeHttpClient(this IServiceCollection services, Action<HordeHttpClientOptions> configureOptions)
+		{
+			services.AddHordeHttpClient((sp, options) => configureOptions(options));
+		}
+		/// <summary>
+		/// Registers a Horde HTTP client type, and configures it to use the default OIDC message handler.
+		/// </summary>
+		/// <param name="services">Service collection to add services to</param>
+		/// <param name="configureOptions">Callback to modify options for the http client</param>
+		public static void AddHordeHttpClient(this IServiceCollection services, Action<IServiceProvider, HordeHttpClientOptions> configureOptions)
+		{
+			IOptions<HordeHttpClientOptions> CreateOptions(IServiceProvider serviceProvider)
+			{
+				HordeHttpClientOptions options = new HordeHttpClientOptions();
+				configureOptions(serviceProvider, options);
+				return Options.Create(options);
+			}
+
+			services.AddSingleton<IOptions<HordeHttpClientOptions>>(CreateOptions);
+			services.AddHordeHttpClient();
 		}
 	}
 }

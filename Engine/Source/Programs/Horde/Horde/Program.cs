@@ -11,6 +11,7 @@ using Serilog;
 using Serilog.Formatting.Json;
 using EpicGames.Horde.Storage;
 using Microsoft.Extensions.Options;
+using EpicGames.Horde;
 
 namespace Horde
 {
@@ -34,9 +35,10 @@ namespace Horde
 			services.AddSingleton(loggerFactory);
 			services.AddLogging();
 			services.AddMemoryCache();
+			services.AddSingleton(sp => Options.Create(CmdConfig.Read()));
+			services.AddHordeHttpClient((sp, options) => options.ServerUrl = sp.GetRequiredService<IOptions<CmdConfig>>().Value.Server);
 			services.AddSingleton<StorageCache>(CreateStorageClientCache);
 			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
-			services.AddSingleton(sp => Options.Create(CmdConfig.Read()));
 
 			// Execute all the commands
 			await using ServiceProvider serviceProvider = services.BuildServiceProvider();

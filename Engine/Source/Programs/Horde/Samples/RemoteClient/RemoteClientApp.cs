@@ -1,17 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Buffers.Binary;
-using System.Net.Http.Headers;
 using System.Reflection;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
-using EpicGames.OIDC;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace RemoteClient
@@ -49,8 +48,22 @@ namespace RemoteClient
 			arguments.ApplyTo(options);
 			arguments.CheckAllArgumentsUsed(logger);
 
+			// Create a DI container that can create and authenticate Horde HTTP clients for us
+			ServiceCollection services = new ServiceCollection();
+			if (options.Server == null)
+			{
+				DirectoryReference sandboxDir = DirectoryReference.Combine(new FileReference(Assembly.GetExecutingAssembly().Location).Directory, "Sandbox");
+				services.AddSingleton<IComputeClient>(sp => new LocalComputeClient(2000, sandboxDir, options.InProc, new PrefixLogger("[REMOTE]", logger)));
+			}
+			else
+			{
+				services.AddHordeHttpClient(x => x.ServerUrl = new Uri(options.Server));
+				services.AddSingleton<IComputeClient, ServerComputeClient>();
+			}
+
 			// Create the client to handle our requests
-			await using IComputeClient client = await CreateClientAsync(options, logger);
+			await using ServiceProvider serviceProvider = services.BuildServiceProvider();
+			IComputeClient client = serviceProvider.GetRequiredService<IComputeClient>();
 
 			// Allocate a worker
 			Requirements? requirements = null;
@@ -59,7 +72,7 @@ namespace RemoteClient
 				requirements = new Requirements(Condition.Parse(options.Condition));
 			}
 
-			await using IComputeLease? lease = await client.TryAssignWorkerAsync(new ClusterId("default"), requirements, null, logger);
+			await using IComputeLease? lease = await client.TryAssignWorkerAsync(new ClusterId("default"), requirements, null, new PrefixLogger("[CLIENT]", logger));
 			if (lease == null)
 			{
 				logger.LogInformation("Unable to connect to remote");
@@ -160,67 +173,6 @@ namespace RemoteClient
 			}
 
 			await channel.CloseAsync();
-		}
-
-		static async Task<IComputeClient> CreateClientAsync(ClientAppOptions options, ILogger logger)
-		{
-			if (options.Server == null)
-			{
-				DirectoryReference sandboxDir = DirectoryReference.Combine(new FileReference(Assembly.GetExecutingAssembly().Location).Directory, "Sandbox");
-				return new LocalComputeClient(2000, sandboxDir, options.InProc, logger);
-			}
-			else
-			{
-				AuthenticationHeaderValue? authHeader = await GetAuthHeaderAsync(options, logger);
-				return new ServerComputeClient(new Uri(options.Server), authHeader, logger);
-			}
-		}
-
-		static async Task<AuthenticationHeaderValue?> GetAuthHeaderAsync(ClientAppOptions options, ILogger logger)
-		{
-			if (options.OidcProvider == null)
-			{
-				return null;
-			}
-
-			for (DirectoryReference? currentDir = CurrentAssemblyFile.Directory; currentDir != null; currentDir = currentDir.ParentDirectory)
-			{
-				FileReference buildVersionFile = FileReference.Combine(currentDir, "Build/Build.version");
-				if (FileReference.Exists(buildVersionFile))
-				{
-					string bearerToken = await GetOidcBearerTokenAsync(currentDir, null, options.OidcProvider, logger);
-					return new AuthenticationHeaderValue("Bearer", bearerToken);
-				}
-			}
-
-			throw new Exception($"Unable to find engine directory above {CurrentAssemblyFile}");
-		}
-
-		static async Task<string> GetOidcBearerTokenAsync(DirectoryReference engineDir, DirectoryReference? projectDir, string oidcProvider, ILogger logger)
-		{
-			logger.LogInformation("Performing OIDC token refresh...");
-
-			using ITokenStore tokenStore = TokenStoreFactory.CreateTokenStore();
-			IConfiguration providerConfiguration = ProviderConfigurationFactory.ReadConfiguration(engineDir.ToDirectoryInfo(), projectDir?.ToDirectoryInfo());
-			OidcTokenManager oidcTokenManager = OidcTokenManager.CreateTokenManager(providerConfiguration, tokenStore, new List<string>() { oidcProvider });
-
-			OidcTokenInfo result;
-			try
-			{
-				result = await oidcTokenManager.GetAccessToken(oidcProvider);
-			}
-			catch (NotLoggedInException)
-			{
-				result = await oidcTokenManager.Login(oidcProvider);
-			}
-
-			if (result.AccessToken == null)
-			{
-				throw new Exception($"Unable to get access token for {oidcProvider}");
-			}
-
-			logger.LogInformation("Received bearer token for {OidcProvider}", oidcProvider);
-			return result.AccessToken;
 		}
 	}
 }

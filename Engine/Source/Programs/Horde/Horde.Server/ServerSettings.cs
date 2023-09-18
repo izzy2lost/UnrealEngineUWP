@@ -8,6 +8,7 @@ using System.Security.Claims;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde;
+using EpicGames.Horde.Api;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
@@ -130,27 +131,6 @@ namespace Horde.Server
 
 		/// <inheritdoc/>
 		public ChunkingOptions Chunking { get; set; } = new ChunkingOptions();
-	}
-
-	/// <summary>
-	/// Authentication method used for logging users in
-	/// </summary>
-	public enum AuthMethod
-	{
-		/// <summary>
-		/// No authentication enabled, mainly for demo and testing purposes
-		/// </summary>
-		Anonymous,
-
-		/// <summary>
-		/// OpenID Connect authentication, tailored for Okta
-		/// </summary>
-		Okta,
-		
-		/// <summary>
-		/// Generic OpenID Connect authentication, recommended for most
-		/// </summary>
-		OpenIdConnect,
 	}
 
 	/// <summary>

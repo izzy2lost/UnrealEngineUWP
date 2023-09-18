@@ -2,6 +2,7 @@
 
 using System.Diagnostics;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
@@ -34,8 +35,8 @@ namespace Horde.Commands.Workspace
 		[CommandLine("-Stats")]
 		public bool Stats { get; set; }
 
-		public WorkspaceSync(StorageCache storageCache, IOptions<CmdConfig> config)
-			: base(storageCache, config)
+		public WorkspaceSync(HordeHttpClientFactory httpClientFactory, StorageCache storageCache, IOptions<CmdConfig> config)
+			: base(httpClientFactory, storageCache, config)
 		{
 		}
 

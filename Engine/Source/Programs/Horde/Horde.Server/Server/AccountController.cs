@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
+using EpicGames.Horde.Api;
 using Horde.Server.Acls;
 using Horde.Server.Authentication;
 using Microsoft.AspNetCore.Authentication;

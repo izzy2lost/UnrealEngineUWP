@@ -1,11 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Diagnostics;
-using System.Reflection;
-using System.Runtime.InteropServices;
 
-namespace Horde.Server.Server
+namespace EpicGames.Horde.Api
 {
 	/// <summary>
 	/// Server Info
@@ -15,7 +12,7 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Server version info
 		/// </summary>
-		public string ServerVersion { get; set; }
+		public string ServerVersion { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The current agent version string
@@ -25,18 +22,7 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// The operating system server is hosted on
 		/// </summary>
-		public string OsDescription { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public GetServerInfoResponse(string? agentVersion)
-		{
-			FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
-			ServerVersion = versionInfo.ProductVersion ?? String.Empty;
-			AgentVersion = agentVersion;
-			OsDescription = RuntimeInformation.OSDescription;
-		}
+		public string OsDescription { get; set; } = String.Empty;
 	}
 
 	/// <summary>
@@ -77,29 +63,50 @@ namespace Horde.Server.Server
 	}
 
 	/// <summary>
+	/// Authentication method used for logging users in
+	/// </summary>
+	public enum AuthMethod
+	{
+		/// <summary>
+		/// No authentication enabled, mainly for demo and testing purposes
+		/// </summary>
+		Anonymous,
+
+		/// <summary>
+		/// OpenID Connect authentication, tailored for Okta
+		/// </summary>
+		Okta,
+
+		/// <summary>
+		/// Generic OpenID Connect authentication, recommended for most
+		/// </summary>
+		OpenIdConnect,
+	}
+
+	/// <summary>
 	/// Describes the auth config for this server
 	/// </summary>
 	public class GetAuthConfigResponse
 	{
-		/// <inheritdoc cref="ServerSettings.AuthMethod"/>
-		public AuthMethod Method { get; }
+		/// <summary>
+		/// Issuer for tokens from the auth provider
+		/// </summary>
+		public AuthMethod Method { get; set; }
 
-		/// <inheritdoc cref="ServerSettings.OidcAuthority"/>
-		public string? ServerUrl { get; }
+		/// <summary>
+		/// Issuer for tokens from the auth provider
+		/// </summary>
+		public string? ServerUrl { get; set; }
 
-		/// <inheritdoc cref="ServerSettings.OidcClientId"/>
-		public string? ClientId { get; }
+		/// <summary>
+		/// Client id for the OIDC authority
+		/// </summary>
+		public string? ClientId { get; set; }
 
-		/// <inheritdoc cref="ServerSettings.OidcLocalRedirectUrls"/>
-		public string[]? LocalRedirectUrls { get; }
-
-		internal GetAuthConfigResponse(ServerSettings settings)
-		{
-			Method = settings.AuthMethod;
-			ServerUrl = settings.OidcAuthority;
-			ClientId = settings.OidcClientId;
-			LocalRedirectUrls = settings.OidcLocalRedirectUrls;
-		}
+		/// <summary>
+		/// Optional redirect url provided to OIDC login for external tools (typically to a local server)
+		/// </summary>
+		public string[]? LocalRedirectUrls { get; set; }
 	}
 
 	/// <summary>

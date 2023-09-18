@@ -392,7 +392,7 @@ dotnet_diagnostic.CA1054.severity = warning
 dotnet_diagnostic.CA1055.severity = warning
 
 # CA1056: URI-like properties should not be strings
-dotnet_diagnostic.CA1056.severity = warning
+dotnet_diagnostic.CA1056.severity = silent
 
 # CA1058: Types should not extend certain base types
 dotnet_diagnostic.CA1058.severity = warning
@@ -559,8 +559,8 @@ dotnet_diagnostic.CA1815.severity = none
 # CA1816: Dispose methods should call SuppressFinalize
 dotnet_diagnostic.CA1816.severity = warning
 
-# CA1819: Properties should not return arrays
-dotnet_diagnostic.CA1819.severity = warning
+# CA1819: Properties should not return arrays (rationale: System.Text.Json serialization requires array properties)
+dotnet_diagnostic.CA1819.severity = silent
 
 # CA1820: Test for empty strings using string length
 dotnet_diagnostic.CA1820.severity = warning

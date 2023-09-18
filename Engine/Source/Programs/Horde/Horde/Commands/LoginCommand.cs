@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde;
+using EpicGames.Horde.Api;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -21,10 +24,12 @@ namespace Horde.Commands
 		public string? Server { get; set; }
 
 		readonly CmdConfig _config;
+		readonly IServiceProvider _serviceProvider;
 
-		public LoginCommand(IOptions<CmdConfig> config)
+		public LoginCommand(IOptions<CmdConfig> config, IServiceProvider serviceProvider)
 		{
 			_config = config.Value;
+			_serviceProvider = serviceProvider;
 		}
 
 		/// <inheritdoc/>
@@ -36,12 +41,10 @@ namespace Horde.Commands
 				await _config.WriteAsync();
 			}
 
-			if (await _config.GetAccessTokenAsync(logger) == null)
-			{
-				logger.LogError("Unable to log in to server");
-				return 1;
-			}
-
+			HordeHttpClient httpClient = _serviceProvider.GetRequiredService<HordeHttpClient>();
+			GetServerInfoResponse serverInfo = await httpClient.GetAsync<GetServerInfoResponse>("api/v1/server/info");
+			logger.LogInformation("Connected to server version: {Version}", serverInfo.ServerVersion);
+			
 			return 0;
 		}
 	}

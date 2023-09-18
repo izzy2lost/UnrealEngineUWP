@@ -4,7 +4,6 @@ using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Api;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Horde.Commands.Bundles
 {
@@ -14,18 +13,16 @@ namespace Horde.Commands.Bundles
 		[CommandLine("-Key=")]
 		public List<string> Keys { get; } = new List<string>();
 
-		readonly CmdConfig _config;
+		readonly HordeHttpClient _hordeHttpClient;
 
-		public ArtifactFind(IOptions<CmdConfig> config)
+		public ArtifactFind(HordeHttpClient httpClient)
 		{
-			_config = config.Value;
+			_hordeHttpClient = httpClient;
 		}
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			using HordeHttpClient horde = await _config.GetHttpClientAsync(logger);
-
-			List<GetArtifactResponse> artifacts = await horde.FindArtifactsAsync(keys: Keys);
+			List<GetArtifactResponse> artifacts = await _hordeHttpClient.FindArtifactsAsync(keys: Keys);
 			foreach (GetArtifactResponse artifact in artifacts)
 			{
 				logger.LogInformation("");

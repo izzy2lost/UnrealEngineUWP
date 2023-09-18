@@ -3,6 +3,7 @@
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Clients;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -11,10 +12,8 @@ namespace Horde.Commands
 	/// <summary>
 	/// Base class for commands that require a configured storage client
 	/// </summary>
-	abstract class StorageCommandBase : Command, IDisposable
+	abstract class StorageCommandBase : Command
 	{
-		HordeHttpClient? _hordeHttpClient;
-
 		/// <summary>
 		/// Namespace to use
 		/// </summary>
@@ -37,19 +36,17 @@ namespace Horde.Commands
 		/// </summary>
 		public CmdConfig Config { get; }
 
+		readonly HordeHttpClientFactory _httpClientFactory;
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageCommandBase(StorageCache storageCache, IOptions<CmdConfig> config)
+		public StorageCommandBase(HordeHttpClientFactory httpClientFactory, StorageCache storageCache, IOptions<CmdConfig> config)
 		{
+			_httpClientFactory = httpClientFactory;
+
 			StorageCache = storageCache;
 			Config = config.Value;
-		}
-
-		/// <inheritdoc/>
-		public void Dispose()
-		{
-			_hordeHttpClient?.Dispose();
 		}
 
 		/// <summary>
@@ -57,17 +54,36 @@ namespace Horde.Commands
 		/// </summary>
 		/// <param name="logger">Logger for output messages</param>
 		/// <param name="cancellationToken"></param>
-		public async Task<IStorageClient> CreateStorageClientAsync(ILogger logger, CancellationToken cancellationToken = default)
+		public Task<IStorageClient> CreateStorageClientAsync(ILogger logger, CancellationToken cancellationToken = default)
 		{
-			_hordeHttpClient ??= await Config.GetHttpClientAsync(logger, cancellationToken);
-			if (String.IsNullOrEmpty(Path))
+			_ = cancellationToken;
+
+			string? path = Path;
+			if (String.IsNullOrEmpty(path))
 			{
-				return _hordeHttpClient.CreateStorageClient(Namespace, StorageCache);
+				path = $"api/v1/storage/{Namespace}/";
 			}
-			else
+			else if (!path.EndsWith("/", StringComparison.Ordinal))
 			{
-				return _hordeHttpClient.CreateStorageClient(Path, StorageCache);
+				path += "/";
 			}
+
+			HttpClient CreateClient()
+			{
+				HttpClient client = _httpClientFactory.CreateClient().HttpClient;
+				client.BaseAddress = new Uri(client.BaseAddress!, path);
+				return client;
+			}
+
+			HttpClient CreateRedirectClient()
+			{
+				HttpClient client = _httpClientFactory.CreateClient().HttpClient;
+				client.BaseAddress = null;
+				client.DefaultRequestHeaders.Authorization = null;
+				return client;
+			}
+
+			return Task.FromResult<IStorageClient>(new HttpStorageClient(CreateClient, CreateRedirectClient, StorageCache, logger));
 		}
 	}
 }

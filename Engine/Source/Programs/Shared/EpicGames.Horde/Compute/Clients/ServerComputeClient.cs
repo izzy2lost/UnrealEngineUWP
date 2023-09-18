@@ -8,7 +8,6 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
@@ -81,49 +80,20 @@ namespace EpicGames.Horde.Compute.Clients
 			}
 		}
 
-		readonly HttpClient? _defaultHttpClient;
-		readonly Func<CancellationToken, Task<HttpClient>> _createHttpClientAsync;
+		readonly HordeHttpClientFactory _hordeHttpClientFactory;
 		readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="serverUri">Uri of the server to connect to</param>
-		/// <param name="authHeader">Authentication header</param>
+		/// <param name="hordeHttpClientFactory">Factory for constructing Horde http client instances</param>
 		/// <param name="logger">Logger for diagnostic messages</param>
-		public ServerComputeClient(Uri serverUri, AuthenticationHeaderValue? authHeader, ILogger logger)
+		public ServerComputeClient(HordeHttpClientFactory hordeHttpClientFactory, ILogger logger)
 		{
-#pragma warning disable CA2000 // Dispose objects before losing scope
-			// This is disposed via HttpClient
-			SocketsHttpHandler handler = new SocketsHttpHandler();
-			handler.PooledConnectionLifetime = TimeSpan.FromMinutes(2.0);
-
-			_defaultHttpClient = new HttpClient(handler, true);
-			_defaultHttpClient.BaseAddress = serverUri;
-			_defaultHttpClient.DefaultRequestHeaders.Authorization = authHeader;
-#pragma warning restore CA2000 // Dispose objects before losing scope
-
-			_createHttpClientAsync = GetDefaultHttpClientAsync;
+			_hordeHttpClientFactory = hordeHttpClientFactory;
 			_logger = logger;
 		}
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="createHttpClientAsync">Creates an HTTP client with the correct base address for the server</param>
-		/// <param name="logger">Logger for diagnostic messages</param>
-		public ServerComputeClient(Func<CancellationToken, Task<HttpClient>> createHttpClientAsync, ILogger logger)
-		{
-			_createHttpClientAsync = createHttpClientAsync;
-			_logger = logger;
-		}
-
-		/// <summary>
-		/// Gets the default http client
-		/// </summary>
-		/// <returns></returns>
-		Task<HttpClient> GetDefaultHttpClientAsync(CancellationToken cancellationToken) => Task.FromResult(_defaultHttpClient!);
 
 		/// <inheritdoc/>
 		public ValueTask DisposeAsync()
@@ -136,7 +106,6 @@ namespace EpicGames.Horde.Compute.Clients
 		public void Dispose()
 		{
 			_cancellationSource.Dispose();
-			_defaultHttpClient?.Dispose();
 		}
 
 		/// <inheritdoc/>
@@ -160,7 +129,7 @@ namespace EpicGames.Horde.Compute.Clients
 			HordeHttpClient.ConfigureJsonSerializer(jsonSerializerOptions);
 
 			// Assign a compute worker
-			HttpClient client = await _createHttpClientAsync(cancellationToken);
+			HordeHttpClient client = _hordeHttpClientFactory.CreateClient();
 
 			AssignComputeRequest request = new AssignComputeRequest();
 			request.Requirements = requirements;

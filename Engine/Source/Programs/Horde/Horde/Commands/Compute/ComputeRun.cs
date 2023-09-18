@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text.Json;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
@@ -11,7 +11,6 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Horde.Commands.Compute
 {
@@ -51,20 +50,20 @@ namespace Horde.Commands.Compute
 		[CommandLine("-Task=", Required = true)]
 		FileReference TaskFile { get; set; } = null!;
 
-		readonly CmdConfig _config;
+		readonly HordeHttpClientFactory _hordeHttpClientFactory;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeRun(IOptions<CmdConfig> config)
+		public ComputeRun(HordeHttpClientFactory hordeHttpClientFactory)
 		{
-			_config = config.Value;
+			_hordeHttpClientFactory = hordeHttpClientFactory;
 		}
 
 		/// <inheritdoc/>
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			await using IComputeClient client = await CreateClientAsync(logger);
+			await using IComputeClient client = CreateComputeClient(logger);
 
 			Requirements? requirements = null;
 			if (Requirements != null)
@@ -82,7 +81,7 @@ namespace Horde.Commands.Compute
 			return result ? 0 : 1;
 		}
 
-		async Task<IComputeClient> CreateClientAsync(ILogger logger)
+		IComputeClient CreateComputeClient(ILogger logger)
 		{
 			if (Local)
 			{
@@ -94,8 +93,7 @@ namespace Horde.Commands.Compute
 			}
 			else
 			{
-				string? accessToken = await _config.GetAccessTokenAsync(logger);
-				return new ServerComputeClient(_config.Server, new AuthenticationHeaderValue("Bearer", accessToken), logger);
+				return new ServerComputeClient(_hordeHttpClientFactory, logger);
 			}
 		}
 

@@ -2,6 +2,7 @@
 
 using System.Diagnostics;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
@@ -29,8 +30,8 @@ namespace Horde.Commands.Bundles
 		[CommandLine("-OutputDir=", Required = true)]
 		public DirectoryReference OutputDir { get; set; } = null!;
 
-		public BundleExtract(StorageCache storageCache, IOptions<CmdConfig> config)
-			: base(storageCache, config)
+		public BundleExtract(HordeHttpClientFactory httpClientFactory, StorageCache storageCache, IOptions<CmdConfig> config)
+			: base(httpClientFactory, storageCache, config)
 		{
 		}
 
@@ -50,7 +51,7 @@ namespace Horde.Commands.Bundles
 			}
 			else if (Node != null)
 			{
-				BundleStorageClient store = (BundleStorageClient)await CreateStorageClientAsync(logger);
+				using BundleStorageClient store = (BundleStorageClient)await CreateStorageClientAsync(logger);
 				BlobHandle handle = store.CreateNodeHandle(BundleNodeLocator.Parse(Node));
 				await ExecuteInternalAsync(store, handle, logger);
 			}

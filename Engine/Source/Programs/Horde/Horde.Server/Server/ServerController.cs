@@ -4,9 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Api;
 using EpicGames.Perforce;
 using Horde.Server.Agents;
 using Horde.Server.Configuration;
@@ -67,7 +69,11 @@ namespace Horde.Server.Server
 		[ProducesResponseType(typeof(GetServerInfoResponse), 200)]
 		public async Task<ActionResult<GetServerInfoResponse>> GetServerInfoAsync()
 		{
-			string? agentVersion = null;
+			GetServerInfoResponse response = new GetServerInfoResponse();
+
+			FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
+			response.ServerVersion = versionInfo.ProductVersion ?? String.Empty;
+			response.OsDescription = RuntimeInformation.OSDescription;
 
 			ITool? tool = await _toolCollection.GetAsync(AgentExtensions.DefaultAgentSoftwareToolId, _globalConfig.Value);
 			if (tool != null)
@@ -75,11 +81,11 @@ namespace Horde.Server.Server
 				IToolDeployment? deployment = tool.GetCurrentDeployment(1.0, _clock.UtcNow);
 				if (deployment != null)
 				{
-					agentVersion = deployment.Version;
+					response.AgentVersion = deployment.Version;
 				}
 			}
 
-			return new GetServerInfoResponse(agentVersion);
+			return response;
 		}
 
 		/// <summary>
@@ -121,7 +127,14 @@ namespace Horde.Server.Server
 		[Route("/api/v1/server/auth")]
 		public ActionResult<GetAuthConfigResponse> GetAuthConfig()
 		{
-			return new GetAuthConfigResponse(_globalConfig.Value.ServerSettings);
+			ServerSettings settings = _globalConfig.Value.ServerSettings;
+
+			GetAuthConfigResponse response = new GetAuthConfigResponse();
+			response.Method = settings.AuthMethod;
+			response.ServerUrl = settings.OidcAuthority;
+			response.ClientId = settings.OidcClientId;
+			response.LocalRedirectUrls = settings.OidcLocalRedirectUrls;
+			return response;
 		}
 
 		/// <summary>
