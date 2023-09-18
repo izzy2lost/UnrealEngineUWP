@@ -324,6 +324,7 @@ namespace UnrealGameSync
 			Controls.Add(OkBtn);
 			Controls.Add(CancelBtn);
 			Controls.Add(groupBox2);
+			FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
 			Icon = Properties.Resources.Icon;
 			Name = "OpenProjectWindow";
 			ShowInTaskbar = false;
