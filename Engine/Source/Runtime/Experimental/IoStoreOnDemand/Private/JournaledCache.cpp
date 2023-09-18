@@ -1282,7 +1282,7 @@ uint32 FCache::DebugVisit(void* Param, FDebugCacheEntry::Callback* Callback)
 class FGovernor
 {
 public:
-			FGovernor() = default;
+			FGovernor();
 	void	Set(uint32 Allowance, uint32 Ops, uint32 Seconds);
 	void	SetDemands(uint32 Threshold, uint32 Boost, uint32 SuperBoost);
 	uint32	BeginAllowance(uint32 DemandPercent);
@@ -1308,6 +1308,12 @@ private:
 	uint8	DemandSuperBoost = 87;
 	EState	State = EState::Waiting;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+FGovernor::FGovernor()
+{
+	Set(1, 1, 86400);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 void FGovernor::Set(uint32 Allowance, uint32 Ops, uint32 Seconds)
