@@ -50,7 +50,6 @@ namespace UE::IO::IAS::JournaledCache
 
 ////////////////////////////////////////////////////////////////////////////////
 static bool LoadCache(class FDiskCache&);
-using		EntryHandle = UPTRINT;
 
 ////////////////////////////////////////////////////////////////////////////////
 enum class EAilments
@@ -139,8 +138,7 @@ public:
 	uint32			GetCount() const	{ return Items.Num(); }
 	uint32			GetUsed() const		{ return UsedSize; }
 	uint32			GetMax() const		{ return MaxSize; }
-	EntryHandle		Get(uint64 Key) const;
-	bool			Materialize(EntryHandle Handle, FIoBuffer& Out, uint32 Offset=0) const;
+	const FIoBuffer*Get(uint64 Key) const;
 	bool			Put(uint64 Key, FIoBuffer&& Data);
 	int32			Peel(int32 PeelSize, PeelItems& Out);
 	uint32			DebugVisit(void* Param, FDebugCacheEntry::Callback* Callback);
@@ -167,50 +165,23 @@ uint32 FMemCache::GetDemand() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-EntryHandle FMemCache::Get(uint64 Key) const
+const FIoBuffer* FMemCache::Get(uint64 Key) const
 {
 	for (auto& Item : Items)
 	{
 		if (Item.Key == Key)
 		{
-			return UPTRINT(&Item);
+			return &(Item.Data);
 		}
 	}
 
-	return 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-bool FMemCache::Materialize(EntryHandle Handle, FIoBuffer& Out, uint32 Offset) const
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(IasCache::Materialize_Memory);
-
-	FItem& Item = *(FItem*)Handle;
-
-	if (Out.GetData() == nullptr)
-	{
-		Out = Item.Data;
-		return true;
-	}
-
-	uint32 Size = uint32(Out.GetSize());
-
-	FMemoryView View = Item.Data.GetView();
-	View = View.RightChop(Offset);
-	if (View.GetSize() > Size)
-	{
-		View = View.Mid(0, Size);
-	}
-
-	Out.GetMutableView().CopyFrom(View);
-
-	return true;
+	return nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 bool FMemCache::Put(uint64 Key, FIoBuffer&& Data)
 {
-	if (Get(Key) != 0)
+	if (Get(Key) != nullptr)
 	{
 		uint32 DataSize = uint32(Data.GetSize());
 		FOnDemandIoBackendStats::Get()->OnCachePutExisting(DataSize);
@@ -587,8 +558,8 @@ public:
 	uint32					GetAilments() const;
 	FDiskPhrase				OpenPhrase(uint32 DataSize);
 	void					ClosePhrase(FDiskPhrase&& Phrase);
-	EntryHandle				Get(uint64 Key) const;
-	bool					Materialize(EntryHandle Handle, FIoBuffer& Out, uint32 Offset=0) const;
+	bool					Has(uint64 Key) const;
+	bool					Materialize(uint64 Key, FIoBuffer& Out, uint32 Offset=0) const;
 	int32					Flush();
 	void					Drop();
 	uint32					DebugVisit(void* Param, FDebugCacheEntry::Callback* Callback);
@@ -701,13 +672,13 @@ void FDiskCache::ClosePhrase(FDiskPhrase&& Phrase)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-EntryHandle FDiskCache::Get(uint64 Key) const
+bool FDiskCache::Has(uint64 Key) const
 {
-	return UPTRINT(DataMap.Find(Key));
+	return (DataMap.Find(Key) != nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool FDiskCache::Materialize(EntryHandle Handle, FIoBuffer& Out, uint32 Offset) const
+bool FDiskCache::Materialize(uint64 Key, FIoBuffer& Out, uint32 Offset) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasCache::Materialize_Disk);
 
@@ -716,9 +687,13 @@ bool FDiskCache::Materialize(EntryHandle Handle, FIoBuffer& Out, uint32 Offset) 
 		return false;
 	}
 
-	const FMapEntry& Entry = *(FMapEntry*)Handle;
+	const FMapEntry* Entry = DataMap.Find(Key);
+	if (Entry == nullptr)
+	{
+		return false;
+	}
 
-	uint32 ReadSize = uint32(Entry.Size) - Offset;
+	uint32 ReadSize = uint32(Entry->Size) - Offset;
 
 	if (Out.GetData() == nullptr)
 	{
@@ -727,7 +702,7 @@ bool FDiskCache::Materialize(EntryHandle Handle, FIoBuffer& Out, uint32 Offset) 
 
 	ReadSize = FMath::Min<uint32>(uint32(Out.GetSize()), ReadSize);
 
-	DataHandle->Seek(Entry.DataCursor + Offset);
+	DataHandle->Seek(Entry->DataCursor + Offset);
 	return DataHandle->Read(Out.GetData(), ReadSize);
 }
 
@@ -1118,38 +1093,17 @@ public:
 		FString	Path;
 	};
 
-	enum class EHit
-	{
-		None, Memory, Disk
-	};
-
-	class FEntry
-	{
-	public:
-					FEntry() = default;
-					FEntry(FEntry&& Rhs)		= default;
-		FEntry&		operator = (FEntry&& Rhs)	= default;
-		bool		IsHit() const		{ return GetHitType() != EHit::None; }
-		EHit		GetHitType() const	{ return HitType; }
-		bool		Materialize(FIoBuffer& Out, uint32 Offset=0);
-
-	private:
-		friend		FCache;
-		EntryHandle	Handle;
-		EHit		HitType = EHit::None;
-		FReadAccess	Lock;
-		const void*	Owner = nullptr;
-					FEntry(const FEntry& Rhs) = delete;
-		FEntry&		operator = (const FEntry& Rhs) = delete;
-	};
+	using FGetToken = UPTRINT;
 
 					FCache(FConfig&& Config);
 	uint32			GetAilments() const;
 	bool			Load();
 	void			Drop();
 	uint32			GetDemand() const;
-	FEntry			Get(uint64 Key) const;
+	bool			Has(uint64 Key) const;
+	FGetToken		Get(uint64 Key, FIoBuffer& OutData) const;
 	bool			Put(uint64 Key, FIoBuffer& Data);
+	bool			Materialize(FGetToken Token, FIoBuffer& OutData, uint32 Offset=0) const;
 	uint32			Flush();
 	uint32			WriteMemToDisk(int32 Allowance);
 	uint32			DebugVisit(void* Param, FDebugCacheEntry::Callback* Callback);
@@ -1161,31 +1115,6 @@ private:
 	FDiskCache		DiskCache;
 	std::atomic_int	Demand;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-bool FCache::FEntry::Materialize(FIoBuffer& Out, uint32 Offset)
-{
-	if (Owner == nullptr)
-	{
-		return false;
-	}
-
-	bool Ret = false;
-	switch (HitType)
-	{
-	case EHit::Memory:	Ret = ((const FMemCache*)Owner)->Materialize(Handle, Out, Offset); break;
-	case EHit::Disk:	Ret = ((const FDiskCache*)Owner)->Materialize(Handle, Out, Offset); break;
-	case EHit::None:	return false;
-	}
-
-	if (!Ret)
-	{
-		return false;
-	}
-
-	FOnDemandIoBackendStats::Get()->OnCacheGet(Out.GetSize());
-	return true;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 FCache::FCache(FConfig&& Config)
@@ -1227,28 +1156,34 @@ uint32 FCache::GetDemand() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-FCache::FEntry FCache::Get(uint64 Key) const
+bool FCache::Has(uint64 Key) const
 {
-	FEntry Ret;
-
-	Ret.Lock = FReadAccess(FsLock);
-	if (Ret.Handle = DiskCache.Get(Key); Ret.Handle)
+	if (FReadAccess _(FsLock); DiskCache.Has(Key))
 	{
-		Ret.HitType = EHit::Disk;
-		Ret.Owner = &DiskCache;
-		return Ret;
-	}
-		
-	Ret.Lock = FReadAccess(MemLock);
-	if (Ret.Handle = MemCache.Get(Key); Ret.Handle)
-	{
-		Ret.HitType = EHit::Memory;
-		Ret.Owner = &MemCache;
-		return Ret;
+		return true;
 	}
 
-	Ret.Lock = FReadAccess();
-	return Ret;
+	FReadAccess _(MemLock);
+	return (MemCache.Get(Key) != nullptr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+FCache::FGetToken FCache::Get(uint64 Key, FIoBuffer& OutData) const
+{
+	// Disk first as that will have more data and is more likely to hit
+	if (FReadAccess _(FsLock); DiskCache.Has(Key))
+	{
+		return FGetToken(Key);
+	}
+
+	// Nothing's on disk, so lets try the memory cache
+	FReadAccess _(MemLock);
+	if (const FIoBuffer* Data = MemCache.Get(Key); Data != nullptr)
+	{
+		OutData = *Data;
+	}
+
+	return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1263,6 +1198,21 @@ bool FCache::Put(uint64 Key, FIoBuffer& Data)
 		Demand.store(NewDemand, std::memory_order_relaxed);
 	}
 	return Ok;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool FCache::Materialize(FGetToken Token, FIoBuffer& OutData, uint32 Offset) const
+{
+	FReadAccess _(FsLock);
+
+	uint64 Key = Token;
+	if (!DiskCache.Materialize(Key, OutData, Offset))
+	{
+		return false;
+	}
+
+	FOnDemandIoBackendStats::Get()->OnCacheGet(OutData.GetSize());
+	return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1472,13 +1422,12 @@ class FJournaledCache
 	, public FRunnable
 {
 public:
-	using GetRetType = UE::Tasks::TTask<TIoStatusOr<FIoBuffer>>;
-
 								FJournaledCache() = default;
 	bool						Initialize(const TCHAR* RootDir, const FIasCacheConfig& Config);
 	virtual void				Abandon() override;
 	virtual bool				ContainsChunk(const FIoHash& Key) const override;
-	virtual GetRetType			Get(const FIoHash& Key, const FIoReadOptions& Options, const FIoCancellationToken* CancellationToken) override;
+	virtual FGetToken			Get(const FIoHash& Key, FIoBuffer& OutData) override;
+	virtual FGetWork			Materialize(FGetToken Token, const FIoReadOptions& Options, const FIoCancellationToken* CancelToken) override;
 	virtual FIoStatus			Put(const FIoHash& Key, FIoBuffer& Data) override;
 
 private:
@@ -1621,24 +1570,33 @@ void FJournaledCache::Stop()
 bool FJournaledCache::ContainsChunk(const FIoHash& Key) const
 {
 	uint64 InnerKey = ReduceKey(Key);
-	return Cache->Get(InnerKey).IsHit();
+	return Cache->Has(InnerKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-FJournaledCache::GetRetType	FJournaledCache::Get(
-	const FIoHash& Key,
+FJournaledCache::FGetToken FJournaledCache::Get(const FIoHash& Key, FIoBuffer& OutData)
+{
+	uint64 InnerKey = ReduceKey(Key);
+
+	auto Entry = Cache->Get(InnerKey, OutData);
+	if (Entry == 0)
+	{
+		return 0;
+	}
+
+	static_assert(sizeof(InnerKey) == sizeof(FGetToken));
+	return FGetToken(InnerKey);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+FJournaledCache::FGetWork FJournaledCache::Materialize(
+	FGetToken Token,
 	const FIoReadOptions& Options,
 	const FIoCancellationToken* CancelToken)
 {
-	uint64 InnerKey = ReduceKey(Key);
-	return GetPipe.Launch(TEXT("IasCacheGet"), [this, InnerKey, Options, CancelToken] () {
+	return GetPipe.Launch(TEXT("IasCacheGet"), [this, Token, Options, CancelToken] ()
+	{
 		LLM_SCOPE_BYTAG(Ias);
-
-		FCacheInner::FEntry Entry = Cache->Get(InnerKey);
-		if (!Entry.IsHit())
-		{
-			return TIoStatusOr<FIoBuffer>(FIoStatus(EIoErrorCode::Unknown));
-		}
 
 		if (CancelToken != nullptr && CancelToken->IsCancelled())
 		{
@@ -1659,7 +1617,7 @@ FJournaledCache::GetRetType	FJournaledCache::Get(
 		}
 
 		uint32 Offset = uint32(Options.GetOffset());
-		if (!Entry.Materialize(Buffer, Offset))
+		if (!Cache->Materialize(Token, Buffer, Offset))
 		{
 			return TIoStatusOr<FIoBuffer>(FIoStatus(EIoErrorCode::ReadError));
 		}

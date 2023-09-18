@@ -1336,9 +1336,28 @@ bool FOnDemandIoBackend::Resolve(FIoRequestImpl* Request)
 
 	if (Cache.IsValid())
 	{
+		const FIoHash& Key = ChunkRequest->Params.ChunkKey;
+		FIoBuffer& Buffer = ChunkRequest->Chunk;
+		IIasCache::FGetToken GetToken = Cache->Get(Key, Buffer);
+
+		if (Buffer.GetData() != nullptr)
+		{
+			ChunkRequest->bCached = true;
+			Launch(UE_SOURCE_LOCATION, [this, ChunkRequest] { CompleteRequest(ChunkRequest); });
+			return true;
+		}
+
+		if (GetToken == 0)
+		{
+			Stats.OnHttpEnqueue();
+			HttpRequests.EnqueueByPriority(ChunkRequest);
+			TickBackendEvent->Trigger();
+			return true;
+		}
+
 		//TODO: Pass priority to cache
 		InflightCacheRequestCount.fetch_add(1, std::memory_order_relaxed);
-		ChunkRequest->CacheTask = Cache->Get(ChunkRequest->Params.ChunkKey, FIoReadOptions(), &ChunkRequest->CancellationToken);
+		ChunkRequest->CacheTask = Cache->Materialize(GetToken, FIoReadOptions(), &ChunkRequest->CancellationToken);
 	}
 
 	const ETaskPriority TaskPriority = ChunkRequest->Priority > IoDispatcherPriority_Medium ? ETaskPriority::High : ETaskPriority::Normal;

@@ -19,6 +19,9 @@ namespace UE::IO::IAS {
 class IIasCache
 {
 public:
+	using FGetToken = UPTRINT;
+	using FGetWork = UE::Tasks::TTask<TIoStatusOr<FIoBuffer>>;
+
 	virtual ~IIasCache() = default;
 
 	/** Deletes the IAS object, dropping all data persisted to disk and releasing
@@ -30,9 +33,14 @@ public:
 	/** Returns whether the specified cache key is present in the cache. */
 	virtual bool ContainsChunk(const FIoHash& Key) const = 0;
 
-	/** Get the chunk associated with the specified cache key. */
-	virtual UE::Tasks::TTask<TIoStatusOr<FIoBuffer>> Get(
-		const FIoHash& Key,
+	/** Get the chunk associated with the specified cache key. If the data is
+	 already in memory it is return in OutData. Otherwise a FGetToken value is
+	 returned; zero if Key is not found, or non-zero for use with Materialize. */
+	virtual FGetToken Get(const FIoHash& Key, FIoBuffer& OutData) = 0;
+
+	/** Materialize the data for a Get() if it was not immediately available */
+	virtual FGetWork Materialize(
+		FGetToken Token,
 		const FIoReadOptions& Options,
 		const FIoCancellationToken* CancellationToken) = 0;
 
