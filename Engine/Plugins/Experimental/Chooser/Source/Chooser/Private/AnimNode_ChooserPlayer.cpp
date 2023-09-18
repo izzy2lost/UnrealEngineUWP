@@ -3,15 +3,19 @@
 #include "AnimNode_ChooserPlayer.h"
 
 #include "IObjectChooser.h"
-#include "../../../../Animation/BlendStack/Source/Runtime/Public/BlendStack/AnimNode_BlendStack.h"
+#include "BlendStack/AnimNode_BlendStack.h"
 #include "Animation/AnimInstanceProxy.h"
-#include "Animation/AnimSequence.h"
 #include "Animation/AnimTrace.h"
 #include "Animation/AnimStats.h"
-#include "Animation/AnimSyncScope.h"
 #include "Animation/BlendSpace.h"
+#include "StructUtilsTypes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_ChooserPlayer)
+
+void FAnimCurveOverrideList::ComputeHash()
+{
+	Hash = UE::StructUtils::GetStructCrc32(*StaticStruct(), reinterpret_cast<const uint8*>(this));
+}
 
 FAnimNode_ChooserPlayer::FAnimNode_ChooserPlayer()
 {
@@ -91,9 +95,9 @@ void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& C
 	if (bJustBecameRelevant || NewAsset != CurrentAsset ||
 		CurrentMirror != Settings.bMirror ||
 		(CurrentStartTime != Settings.StartTime && Settings.PlaybackRate == 0.0f) ||
-		CurrentCurveOverrides != Settings.CurveOverrides)
+		CurrentCurveOverridesHash != Settings.CurveOverrides.Hash)
 	{
-		CurrentCurveOverrides = Settings.CurveOverrides;
+		CurrentCurveOverridesHash = Settings.CurveOverrides.Hash;
 		CurrentMirror = Settings.bMirror;
 		
 		float BlendTime = bJustBecameRelevant ? 0 : Settings.BlendTime;

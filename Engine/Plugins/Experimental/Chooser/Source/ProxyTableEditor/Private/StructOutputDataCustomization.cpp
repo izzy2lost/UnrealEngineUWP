@@ -2,6 +2,7 @@
 
 #include "StructOutputDataCustomization.h"
 
+#include "AnimNode_ChooserPlayer.h"
 #include "Chooser.h"
 #include "ChooserPropertyAccess.h"
 #include "PropertyHandle.h"
@@ -124,6 +125,42 @@ void FStructOutputDataCustomization::CustomizeHeader(TSharedRef<IPropertyHandle>
 							// reset the type of the FInstancedStruct storing the value
 							ValueHandle->GetValueData(ValuePtr);
 							FInstancedStruct* ValueStruct = reinterpret_cast<FInstancedStruct*>(ValuePtr);
+
+         	 				// begin Temporary data conversion codepath
+         	 				if (StructPropertyBinding->StructType == FChooserPlayerSettings::StaticStruct() &&
+								(ValueStruct->IsValid() && ValueStruct->GetScriptStruct()->GetName() == "ProxyPropPoseParams"))
+         	 				{
+         	 					const UScriptStruct* Struct = ValueStruct->GetScriptStruct();
+         	 					const void* StructData = ValueStruct->GetMemory();
+
+         	 					FDoubleProperty* FrameProperty = CastField<FDoubleProperty>(Struct->CustomFindProperty("Frame"));
+         	 					double Frame = 0.0;
+         	 					FrameProperty->GetValue_InContainer(StructData, &Frame);
+         	 							
+         	 					FBoolProperty* IsMirroredProperty = CastField<FBoolProperty>(Struct->CustomFindProperty("IsMirrored"));
+         	 					bool bIsMirrored = false;
+         	 					IsMirroredProperty->GetValue_InContainer(StructData, &bIsMirrored);
+         	 						
+         	 					FMapProperty* CurvesProperty = CastField<FMapProperty>(Struct->CustomFindProperty("Curves"));
+         	 					// copy Map
+         	 					TMap<FName,double> Map = *reinterpret_cast<const TMap<FName, double>*>(static_cast<const uint8*>(StructData) + CurvesProperty->GetOffset_ForInternal());
+         	 						
+								ValueStruct->InitializeAs(StructPropertyBinding->StructType);
+
+         	 					FChooserPlayerSettings* ChooserPlayerSettings = reinterpret_cast<FChooserPlayerSettings*>(ValueStruct->GetMutableMemory());
+
+         	 					ChooserPlayerSettings->PlaybackRate = 0.0;
+         	 					ChooserPlayerSettings->StartTime = Frame / 30.0;
+         	 					ChooserPlayerSettings->bMirror = bIsMirrored;
+
+         	 					for (auto& pair : Map)
+         	 					{
+         	 						ChooserPlayerSettings->CurveOverrides.Values.Add(FAnimCurveOverride{pair.Key, (float)pair.Value});
+         	 					}
+         	 						
+         	 				}
+         	 				else
+       	 					// END Temporary data conversion codepath
          	 				if (ValueStruct->GetScriptStruct() != StructPropertyBinding->StructType)
          	 				{
          	 					ValueStruct->InitializeAs(StructPropertyBinding->StructType);

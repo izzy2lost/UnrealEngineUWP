@@ -43,13 +43,13 @@ USTRUCT(BlueprintType)
 struct FAnimCurveOverrideList
 {
 	GENERATED_BODY()
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Values")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Values", meta=(ExpandByDefault=true))
 	TArray<FAnimCurveOverride> Values;
 
-	bool operator != (const FAnimCurveOverrideList& Other) const
-	{
-		return Values != Other.Values;
-	}
+	UPROPERTY()
+	uint32 Hash = 0;
+	
+	CHOOSER_API void ComputeHash();
 };
 
 
@@ -75,7 +75,7 @@ struct FChooserPlayerSettings
     float PlaybackRate = 1.0;
 
 	// List of curve values to set 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta=(ExpandByDefault=true))
 	FAnimCurveOverrideList CurveOverrides;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Blending")
@@ -155,7 +155,7 @@ private:
 	UAnimationAsset* CurrentAsset = nullptr;
 	float CurrentStartTime = 0;
 	bool CurrentMirror = false;
-	FAnimCurveOverrideList CurrentCurveOverrides;
+	uint32 CurrentCurveOverridesHash = 0;
 
 	// Update Counter for detecting being relevant
 	FGraphTraversalCounter UpdateCounter;

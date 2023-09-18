@@ -31,6 +31,7 @@ namespace UnrealBuildTool.Rules
 					"GameplayTagsEditor",
 					"StructUtils",
 					"KismetCompiler",
+					"BlendStack",
 					// ... add private dependencies that you statically link with here ...
 				}
 			);
