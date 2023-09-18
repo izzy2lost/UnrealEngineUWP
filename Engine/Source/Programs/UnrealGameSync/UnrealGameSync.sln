@@ -38,6 +38,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.Serialization", "
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.IoHash", "..\Shared\EpicGames.IoHash\EpicGames.IoHash.csproj", "{3FFDE25F-2A92-4F1E-AE23-1033AC12C695}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.Oodle", "..\Shared\EpicGames.Oodle\EpicGames.Oodle.csproj", "{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Analyze|Any CPU = Analyze|Any CPU
@@ -273,6 +275,22 @@ Global
 		{3FFDE25F-2A92-4F1E-AE23-1033AC12C695}.Release|Any CPU.Build.0 = Release|Any CPU
 		{3FFDE25F-2A92-4F1E-AE23-1033AC12C695}.Release|x64.ActiveCfg = Release|Any CPU
 		{3FFDE25F-2A92-4F1E-AE23-1033AC12C695}.Release|x64.Build.0 = Release|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Analyze|Any CPU.ActiveCfg = Analyze|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Analyze|Any CPU.Build.0 = Analyze|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Analyze|x64.ActiveCfg = Analyze|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Analyze|x64.Build.0 = Analyze|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Debug|x64.Build.0 = Debug|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Development|Any CPU.ActiveCfg = Development|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Development|Any CPU.Build.0 = Development|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Development|x64.ActiveCfg = Development|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Development|x64.Build.0 = Development|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Release|x64.ActiveCfg = Release|Any CPU
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -284,6 +302,7 @@ Global
 		{AFD1642C-7440-4163-AE82-C4371D340516} = {86C488DC-E003-4A1E-919E-A04960D03479}
 		{6BA98FF6-4EEC-4208-B338-AC026ADFDB6C} = {86C488DC-E003-4A1E-919E-A04960D03479}
 		{3FFDE25F-2A92-4F1E-AE23-1033AC12C695} = {86C488DC-E003-4A1E-919E-A04960D03479}
+		{6D3D0EA4-AD63-43D9-B3A2-0A9584829901} = {86C488DC-E003-4A1E-919E-A04960D03479}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {6C0E1053-4340-4A65-8391-B546D52F4098}

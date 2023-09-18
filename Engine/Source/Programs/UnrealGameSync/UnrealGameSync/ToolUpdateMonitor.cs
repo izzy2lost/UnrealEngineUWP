@@ -44,8 +44,9 @@ namespace UnrealGameSync
 		public string ConfigPath;
 		public int ConfigChange;
 		public HashSet<Guid> DependsOnToolIds;
+		public bool SafeWhenBusy;
 
-		public ToolDefinition(Guid id, string name, string description, string zipPath, int zipChange, string configPath, int configChange, HashSet<Guid> dependsOnToolIds)
+		public ToolDefinition(Guid id, string name, string description, string zipPath, int zipChange, string configPath, int configChange, HashSet<Guid> dependsOnToolIds, bool safeWhenBusy)
 		{
 			Id = id;
 			Name = name;
@@ -55,6 +56,7 @@ namespace UnrealGameSync
 			ConfigPath = configPath;
 			ConfigChange = configChange;
 			DependsOnToolIds = dependsOnToolIds;
+			SafeWhenBusy = safeWhenBusy;
 		}
 	}
 
@@ -292,6 +294,7 @@ namespace UnrealGameSync
 			int toolZipChange = GetToolChange(toolName);
 			string toolConfigPath = depotPath;
 			int toolConfigChange = change;
+			bool toolSafeWhenBusy = configFile.GetValue("Settings.SafeWhenBusy", false);
 
 			HashSet<Guid> dependsOnToolIds = new HashSet<Guid>();
 			foreach (string line in configFile.GetValues("Settings.DependsOnTool", Array.Empty<string>()))
@@ -302,7 +305,7 @@ namespace UnrealGameSync
 				}
 			}
 
-			ToolDefinition tool = new ToolDefinition(toolId, toolName, toolDescription, toolZipPath, toolZipChange, toolConfigPath, toolConfigChange, dependsOnToolIds);
+			ToolDefinition tool = new ToolDefinition(toolId, toolName, toolDescription, toolZipPath, toolZipChange, toolConfigPath, toolConfigChange, dependsOnToolIds, toolSafeWhenBusy);
 
 			string? installCommand = configFile.GetValue("Settings.InstallCommand", null);
 			if (!String.IsNullOrEmpty(installCommand))
