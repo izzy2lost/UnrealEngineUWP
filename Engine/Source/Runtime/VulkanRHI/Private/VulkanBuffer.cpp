@@ -609,7 +609,11 @@ void FVulkanResourceMultiBuffer::ReleaseOwnership()
 
 FBufferRHIRef FVulkanDynamicRHI::RHICreateBuffer(FRHICommandListBase& RHICmdList, FRHIBufferDesc const& Desc, ERHIAccess ResourceState, FRHIResourceCreateInfo& CreateInfo)
 {
+#if VULKAN_USE_LLM
 	LLM_SCOPE_VULKAN(ELLMTagVulkan::VulkanBuffers);
+#else
+	LLM_SCOPE(EnumHasAnyFlags(Desc.Usage, EBufferUsageFlags::VertexBuffer | EBufferUsageFlags::IndexBuffer) ? ELLMTag::Meshes : ELLMTag::RHIMisc);
+#endif
 	return new FVulkanResourceMultiBuffer(Device, Desc, CreateInfo, &RHICmdList);
 }
 

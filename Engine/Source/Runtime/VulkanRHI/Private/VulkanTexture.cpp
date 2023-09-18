@@ -52,13 +52,13 @@ struct FTextureLock
 	}
 };
 
-#if VULKAN_USE_LLM
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
 inline ELLMTagVulkan GetMemoryTagForTextureFlags(ETextureCreateFlags UEFlags)
 {
 	bool bRenderTarget = EnumHasAnyFlags(UEFlags, TexCreate_RenderTargetable | TexCreate_ResolveTargetable | TexCreate_DepthStencilTargetable);
 	return bRenderTarget ? ELLMTagVulkan::VulkanRenderTargets : ELLMTagVulkan::VulkanTextures;
 }
-#endif // VULKAN_USE_LLM
+#endif // ENABLE_LOW_LEVEL_MEM_TRACKER
 
 inline bool operator == (const FTextureLock& A, const FTextureLock& B)
 {

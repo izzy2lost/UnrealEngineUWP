@@ -961,6 +961,9 @@ namespace VulkanRHI
 		LLM_PLATFORM_SCOPE_VULKAN(ELLMTagVulkan::VulkanDriverMemoryGPU);
 		LLM(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, (void*)NewAllocation->Handle, AllocationSize, ELLMTag::GraphicsPlatform, ELLMAllocType::System));
 		LLM_TRACK_VULKAN_SPARE_MEMORY_GPU((int64)AllocationSize);
+#else
+		LLM(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, (void*)NewAllocation->Handle, AllocationSize, ELLMTag::GraphicsPlatform));
+		LLM(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, (void*)NewAllocation->Handle, AllocationSize, ELLMTag::Untagged));
 #endif
 
 		INC_DWORD_STAT(STAT_VulkanNumPhysicalMemAllocations);
@@ -1041,6 +1044,9 @@ namespace VulkanRHI
 #if VULKAN_USE_LLM
 		LLM(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, (void*)Allocation->Handle, ELLMAllocType::System));
 		LLM_TRACK_VULKAN_SPARE_MEMORY_GPU(-(int64)Allocation->Size);
+#else
+		LLM(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, (void*)Allocation->Handle));
+		LLM(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Default, (void*)Allocation->Handle));
 #endif
 
 		--NumAllocations;
@@ -5045,6 +5051,8 @@ void* FVulkanCustomMemManager::Alloc(void* UserData, size_t Size, size_t Alignme
 {
 	check(AllocScope < VK_SYSTEM_ALLOCATION_SCOPE_RANGE_SIZE);
 	LLM_SCOPE_VULKAN(ELLMTagVulkan::VulkanDriverMemoryCPU);
+	LLM_PLATFORM_SCOPE(ELLMTag::GraphicsPlatform);
+
 	FScopeLock Lock(&GMemMgrCS);
 	void* Data = FMemory::Malloc(Size, Alignment);
 	FType& Type = GetType(UserData, AllocScope);
@@ -5057,6 +5065,8 @@ void* FVulkanCustomMemManager::Alloc(void* UserData, size_t Size, size_t Alignme
 void FVulkanCustomMemManager::Free(void* UserData, void* Mem)
 {
 	LLM_SCOPE_VULKAN(ELLMTagVulkan::VulkanDriverMemoryCPU);
+	LLM_PLATFORM_SCOPE(ELLMTag::GraphicsPlatform);
+
 	FScopeLock Lock(&GMemMgrCS);
 	FMemory::Free(Mem);
 	for (int32 Index = 0; Index < GVulkanInstrumentedMemMgr.Types.Num(); ++Index)
@@ -5075,6 +5085,8 @@ void* FVulkanCustomMemManager::Realloc(void* UserData, void* Original, size_t Si
 {
 	check(AllocScope < VK_SYSTEM_ALLOCATION_SCOPE_RANGE_SIZE);
 	LLM_SCOPE_VULKAN(ELLMTagVulkan::VulkanDriverMemoryCPU);
+	LLM_PLATFORM_SCOPE(ELLMTag::GraphicsPlatform);
+
 	FScopeLock Lock(&GMemMgrCS);
 	void* Data = FMemory::Realloc(Original, Size, Alignment);
 	FType& Type = GetType(UserData, AllocScope);
