@@ -7,6 +7,7 @@ public class IoStoreOnDemand : ModuleRules
 	public IoStoreOnDemand(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PublicDependencyModuleNames.Add("Core");
+		PublicDependencyModuleNames.Add("TraceLog");
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"HTTP",
