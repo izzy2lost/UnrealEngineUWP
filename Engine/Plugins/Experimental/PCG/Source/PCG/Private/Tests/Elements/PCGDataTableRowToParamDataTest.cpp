@@ -63,7 +63,7 @@ CCC,"C Name","C String","333","3333","3.3","3.33","(X=3.0,Y=3.0)","(X=3.0,Y=3.0,
 	bSuccess |= PCGDataTableRowToParamDataTestHelpers::TestAttribute<FVector2D,FVector2D>(*this, RowData, *Params, TEXT("V2"), FVector2D(2.0, 2.0));
 	bSuccess |= PCGDataTableRowToParamDataTestHelpers::TestAttribute<FVector,FVector>(*this, RowData, *Params, TEXT("V3"), FVector(2.0, 2.0, 2.0));
 	bSuccess |= PCGDataTableRowToParamDataTestHelpers::TestAttribute<FVector4,FVector4>(*this, RowData, *Params, TEXT("V4"), FVector4(2.0, 2.0, 2.0, 2.0));
-	bSuccess |= PCGDataTableRowToParamDataTestHelpers::TestAttribute<FSoftObjectPath,FString>(*this, RowData, *Params, TEXT("SoftPath"), TEXT("/Script/PCG"));
+	bSuccess |= PCGDataTableRowToParamDataTestHelpers::TestAttribute<FSoftObjectPath, FSoftObjectPath>(*this, RowData, *Params, TEXT("SoftPath"), FSoftObjectPath(TEXT("/Script/PCG")));
 
 	return bSuccess;
 }
@@ -88,7 +88,7 @@ CCC,"C Name","C String","333","3333","3.3","3.33","(X=3.0,Y=3.0)","(X=3.0,Y=3.0,
 
 	{
 		UPCGParamData* InputParamData = NewObject<UPCGParamData>();
-		InputParamData->MutableMetadata()->CreateStringAttribute(TEXT("DataTable"), TestDataTable->GetPathName(), false);
+		InputParamData->MutableMetadata()->CreateStringAttribute(TEXT("PathOverride"), TestDataTable->GetPathName(), false);
 		InputParamData->MutableMetadata()->CreateStringAttribute(TEXT("RowName"), RowNameOverride.ToString(), false);
 		FPCGTaggedData& ParamInput = TestData.InputData.TaggedData.Emplace_GetRef();
 		ParamInput.Data = InputParamData;
@@ -101,8 +101,10 @@ CCC,"C Name","C String","333","3333","3.3","3.33","(X=3.0,Y=3.0)","(X=3.0,Y=3.0,
 
 	while (!TestElement->Execute(Context.Get())) {}
 
-	const UPCGParamData* Params = Context->OutputData.GetFirstParamsOnParamsPin();
-	UTEST_NOT_NULL("Output params", Params);
+	TArray<FPCGTaggedData> AllParams = Context->OutputData.GetParamsByPin(PCGPinConstants::DefaultOutputLabel);
+	UTEST_EQUAL("Output params", AllParams.Num(), 1);
+
+	const UPCGParamData* Params = CastChecked<const UPCGParamData>(AllParams[0].Data);
 
 	// For static analysis
 	if (!Params)

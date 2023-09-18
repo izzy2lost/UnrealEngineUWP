@@ -113,8 +113,8 @@ bool FPCGAttributeSingleGetPropertyTest::RunTest(const FString& Parameters)
 	bTestPassed &= Verify(Struct.RotatorValue, PCG_STRUCT_NAME_CHECK(RotatorValue));
 	bTestPassed &= Verify(Struct.QuatValue, PCG_STRUCT_NAME_CHECK(QuatValue));
 	bTestPassed &= Verify(Struct.TransformValue, PCG_STRUCT_NAME_CHECK(TransformValue));
-	bTestPassed &= Verify(Struct.SoftClassPathValue.ToString(), PCG_STRUCT_NAME_CHECK(SoftClassPathValue));
-	bTestPassed &= Verify(Struct.SoftObjectPathValue.ToString(), PCG_STRUCT_NAME_CHECK(SoftObjectPathValue));
+	bTestPassed &= Verify(Struct.SoftClassPathValue, PCG_STRUCT_NAME_CHECK(SoftClassPathValue));
+	bTestPassed &= Verify(Struct.SoftObjectPathValue, PCG_STRUCT_NAME_CHECK(SoftObjectPathValue));
 
 	TempMetadata->MarkAsGarbage();
 
@@ -419,6 +419,7 @@ bool FPCGAttributePropertyMultipleDepthTest::RunTest(const FString& Parameters)
 	FPCGAttributeExtractorTestStruct TestStruct{};
 	TestStruct.Object = NewObject<UPCGAttributeExtractorTestObject>();
 	TestStruct.Object->DoubleValue = 0.5;
+	TestStruct.Object->SetFlags(RF_Transient);
 
 	TestStruct.DepthStruct.FloatValue = 0.324f;
 	TestStruct.DepthStruct.Depth2Struct.IntValue = 5;
@@ -442,8 +443,7 @@ bool FPCGAttributePropertyMultipleDepthTest::RunTest(const FString& Parameters)
 	TUniquePtr<IPCGAttributeAccessor> DepthStructFloatAccessor = PCGAttributeAccessorHelpers::CreatePropertyAccessor(GET_MEMBER_NAME_CHECKED(FPCGAttributeExtractorTestStructDepth1, FloatValue), FPCGAttributeExtractorTestStructDepth1::StaticStruct());
 	TUniquePtr<IPCGAttributeAccessor> Depth2StructIntAccessor = PCGAttributeAccessorHelpers::CreatePropertyAccessor(GET_MEMBER_NAME_CHECKED(FPCGAttributeExtractorTestStructDepth2, IntValue), FPCGAttributeExtractorTestStructDepth2::StaticStruct());
 
-	// Objects not yet supported
-	UTEST_TRUE(TEXT("Invalid object accessor"), !ObjectAccessor.IsValid());
+	UTEST_TRUE(TEXT("Valid object accessor"), ObjectAccessor.IsValid());
 	UTEST_TRUE(TEXT("Valid object double accessor"), ObjectDoubleAccessor.IsValid());
 	UTEST_TRUE(TEXT("Valid depth struct float accessor"), DepthStructFloatAccessor.IsValid());
 	UTEST_TRUE(TEXT("Valid deptch struct 2 int accessor"), Depth2StructIntAccessor.IsValid());

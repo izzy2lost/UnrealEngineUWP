@@ -88,6 +88,7 @@ namespace PCGTestsCommon
 	{
 		check(InElement);
 		TUniquePtr<FPCGContext> Context{ InElement->Initialize(InputData, InSourceComponent, InNode) };
+		Context->InitializeSettings();
 		Context->AsyncState.NumAvailableTasks = 1;
 		return Context;
 	}
@@ -149,8 +150,6 @@ namespace PCGTestsCommon
 			FPCGPoint& Point = Points.Emplace_GetRef(FTransform(Rotation, Location, Scale), 1.f, I);
 			Point.Color = RandomSource.VRand();
 			Point.Density = bRandomDensity ? RandomSource.GetFraction() : 1.0f;
-			
-			Point.Seed = I;
 		}
 
 		return PointData;

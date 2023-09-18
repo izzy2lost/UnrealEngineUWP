@@ -101,12 +101,20 @@ namespace
 
 bool FPCGStaticMeshSpawnerInstancePackerByAttributeTest::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData;
-	PCGTestsCommon::GenerateSettings<UPCGStaticMeshSpawnerSettings>(TestData);
-	UPCGStaticMeshSpawnerSettings* Settings = CastChecked<UPCGStaticMeshSpawnerSettings>(TestData.Settings);
+	PCGTestsCommon::FTestData TestData{};
+	UPCGStaticMeshSpawnerSettings* Settings = PCGTestsCommon::GenerateSettings<UPCGStaticMeshSpawnerSettings>(TestData);
+	check(Settings);
 
 	FPCGTaggedData& SourceTaggedData = TestData.InputData.TaggedData.Emplace_GetRef(FPCGTaggedData());
 	TObjectPtr<UPCGPointData> SourceData = PCGTestsCommon::CreateRandomPointData(5, TestData.Seed);
+
+	// TODO - remove this code when the tests support flipped instances (generates multiple ISMC components)
+	TArray<FPCGPoint>& Points = SourceData->GetMutablePoints();
+	for (FPCGPoint& Point : Points)
+	{
+		Point.Transform.SetScale3D(Point.Transform.GetScale3D().GetAbs());
+	}
+
 	SourceTaggedData.Data = SourceData;
 	SourceData->TargetActor = TestData.TestActor;
 
@@ -258,12 +266,20 @@ bool FPCGStaticMeshSpawnerInstancePackerByAttributeTest::RunTest(const FString& 
 
 bool FPCGStaticMeshSpawnerInstancePackerByRegexTest::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData;
-	PCGTestsCommon::GenerateSettings<UPCGStaticMeshSpawnerSettings>(TestData);
-	UPCGStaticMeshSpawnerSettings* Settings = CastChecked<UPCGStaticMeshSpawnerSettings>(TestData.Settings);
+	PCGTestsCommon::FTestData TestData{};
+	UPCGStaticMeshSpawnerSettings* Settings = PCGTestsCommon::GenerateSettings<UPCGStaticMeshSpawnerSettings>(TestData);
+	check(Settings);
 
 	FPCGTaggedData& SourceTaggedData = TestData.InputData.TaggedData.Emplace_GetRef(FPCGTaggedData());
 	TObjectPtr<UPCGPointData> SourceData = PCGTestsCommon::CreateRandomPointData(5, TestData.Seed);
+
+	// TODO - remove this code when the tests support flipped instances (generates multiple ISMC components)
+	TArray<FPCGPoint>& Points = SourceData->GetMutablePoints();
+	for (FPCGPoint& Point : Points)
+	{
+		Point.Transform.SetScale3D(Point.Transform.GetScale3D().GetAbs());
+	}
+
 	SourceTaggedData.Data = SourceData;
 	SourceData->TargetActor = TestData.TestActor;
 
