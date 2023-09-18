@@ -487,7 +487,7 @@ namespace BuoyancyAlgorithms
 		const FImplicitObject* WaterRootImplicit = WaterParticle->GetGeometry();
 		const EImplicitObjectType WaterShapeType = Chaos::Private::GetImplicitCollisionType(WaterParticle, WaterRootImplicit);
 		const FShapeInstanceArray& WaterShapeInstances = WaterParticle->ShapeInstances();
-		const FShapeInstance* WaterShapeInstance = ShapeInstances[0].Get();
+		const FShapeInstance* WaterShapeInstance = WaterShapeInstances[0].Get();
 
 		// Initialize submersion values
 		SubmergedVol = 0.f;
