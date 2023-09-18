@@ -1590,12 +1590,6 @@ bool AActor::GetSoftReferencedContentObjects(TArray<FSoftObjectPath>& SoftObject
 
 EDataValidationResult AActor::IsDataValid(FDataValidationContext& Context) const
 {
-	// Do not run asset validation on external actors, validation will be caught through map check
-	if (IsPackageExternal())
-	{
-		return EDataValidationResult::NotValidated;
-	}
-
 	bool bSuccess = CheckDefaultSubobjects();
 	if (!bSuccess)
 	{

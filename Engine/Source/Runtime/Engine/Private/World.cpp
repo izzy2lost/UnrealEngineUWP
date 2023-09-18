@@ -787,6 +787,20 @@ void UWorld::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collecto
 }
 
 #if WITH_EDITOR
+EDataValidationResult UWorld::IsDataValid(FDataValidationContext& Context) const 
+{
+	EDataValidationResult Result = EDataValidationResult::NotValidated;
+	for (FActorIterator It(this); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (Actor)
+		{
+			Result = CombineDataValidationResults(Result, Actor->IsDataValid(Context));
+		}
+	}
+	return CombineDataValidationResults(Result, Super::IsDataValid(Context));
+}
+
 bool UWorld::Rename(const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags)
 {
 	check(PersistentLevel);
