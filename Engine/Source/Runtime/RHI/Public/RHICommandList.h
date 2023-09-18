@@ -987,6 +987,20 @@ public:
 	}
 #endif
 
+	FORCEINLINE void BindDebugLabelName(FRHITexture* Texture, const TCHAR* Name)
+	{
+		GDynamicRHI->RHIBindDebugLabelName(*this, Texture, Name);
+	}
+
+	FORCEINLINE void BindDebugLabelName(FRHIBuffer* Buffer, const TCHAR* Name)
+	{
+		GDynamicRHI->RHIBindDebugLabelName(*this, Buffer, Name);
+	}
+
+	FORCEINLINE void BindDebugLabelName(FRHIUnorderedAccessView* UnorderedAccessViewRHI, const TCHAR* Name)
+	{
+		GDynamicRHI->RHIBindDebugLabelName(*this, UnorderedAccessViewRHI, Name);
+	}
 
 	inline FRHIBatchedShaderParameters& GetScratchShaderParameters()
 	{
@@ -5311,6 +5325,21 @@ FORCEINLINE FRayTracingAccelerationStructureSize RHICalcRayTracingGeometrySize(c
 	return FRHICommandListExecutor::GetImmediateCommandList().CalcRayTracingGeometrySize(Initializer);
 }
 #endif
+
+FORCEINLINE void RHIBindDebugLabelName(FRHITexture* Texture, const TCHAR* Name)
+{
+	FRHICommandListImmediate::Get().BindDebugLabelName(Texture, Name);
+}
+
+FORCEINLINE void RHIBindDebugLabelName(FRHIBuffer* Buffer, const TCHAR* Name)
+{
+	FRHICommandListImmediate::Get().BindDebugLabelName(Buffer, Name);
+}
+
+FORCEINLINE void RHIBindDebugLabelName(FRHIUnorderedAccessView* UnorderedAccessViewRHI, const TCHAR* Name)
+{
+	FRHICommandListImmediate::Get().BindDebugLabelName(UnorderedAccessViewRHI, Name);
+}
 
 namespace UE::RHI
 {

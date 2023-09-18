@@ -158,7 +158,7 @@ TRefCountPtr<IPooledRenderTarget> FRenderTargetPool::FindFreeElement(FRHICommand
 	Found->UnusedForNFrames = 0;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	RHIBindDebugLabelName(Found->GetRHI(), Name);
+	RHICmdList.BindDebugLabelName(Found->GetRHI(), Name);
 #endif
 
 	return TRefCountPtr<IPooledRenderTarget>(MoveTemp(Found));
@@ -187,7 +187,7 @@ bool FRenderTargetPool::FindFreeElement(FRHICommandListBase& RHICmdList, const F
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 			if (Current->GetRHI())
 			{
-				RHIBindDebugLabelName(Current->GetRHI(), Name);
+				RHICmdList.BindDebugLabelName(Current->GetRHI(), Name);
 			}
 #endif
 			check(!Out->IsFree());

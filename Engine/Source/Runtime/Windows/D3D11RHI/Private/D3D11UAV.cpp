@@ -132,7 +132,7 @@ FUnorderedAccessViewRHIRef FD3D11DynamicRHI::RHICreateUnorderedAccessView(class 
 	return new FD3D11UnorderedAccessView(RHICmdList, Resource, ViewDesc);
 }
 
-void FD3D11DynamicRHI::RHIBindDebugLabelName(FRHIUnorderedAccessView* UnorderedAccessViewRHI, const TCHAR* Name)
+void FD3D11DynamicRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHIUnorderedAccessView* UnorderedAccessViewRHI, const TCHAR* Name)
 {
 #if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
 	FD3D11UnorderedAccessView* UAV = ResourceCast(UnorderedAccessViewRHI);

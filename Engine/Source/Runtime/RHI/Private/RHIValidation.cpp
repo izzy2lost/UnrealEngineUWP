@@ -759,42 +759,42 @@ static FString GetBreadcrumbPath()
 }
 
 // FlushType: Thread safe
-void FValidationRHI::RHIBindDebugLabelName(FRHITexture* Texture, const TCHAR* Name)
+void FValidationRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHITexture* Texture, const TCHAR* Name)
 {
 	check(IsInRenderingThread());
 
 	FString NameCopyRT = Name;
-	FRHICommandListExecutor::GetImmediateCommandList().EnqueueLambda([Texture, NameCopyRHIT = MoveTemp(NameCopyRT)](FRHICommandListImmediate& RHICmdList)
-		{
-			((FValidationContext&)RHICmdList.GetContext()).Tracker->Rename(Texture->GetTrackerResource(), *NameCopyRHIT);
-		});
+	RHICmdList.EnqueueLambda([Texture, NameCopyRHIT = MoveTemp(NameCopyRT)](FRHICommandListBase& RHICmdList)
+	{
+		((FValidationContext&)RHICmdList.GetContext()).Tracker->Rename(Texture->GetTrackerResource(), *NameCopyRHIT);
+	});
 
-	RHI->RHIBindDebugLabelName(Texture, Name);
+	RHI->RHIBindDebugLabelName(RHICmdList, Texture, Name);
 }
 
-void FValidationRHI::RHIBindDebugLabelName(FRHIBuffer* Buffer, const TCHAR* Name)
+void FValidationRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, const TCHAR* Name)
 {
 	check(IsInRenderingThread());
 
 	FString NameCopyRT = Name;
-	FRHICommandListExecutor::GetImmediateCommandList().EnqueueLambda([Buffer, NameCopyRHIT = MoveTemp(NameCopyRT)](FRHICommandListImmediate& RHICmdList)
-		{
-			((FValidationContext&)RHICmdList.GetContext()).Tracker->Rename(Buffer, *NameCopyRHIT);
-		});
+	RHICmdList.EnqueueLambda([Buffer, NameCopyRHIT = MoveTemp(NameCopyRT)](FRHICommandListBase& RHICmdList)
+	{
+		((FValidationContext&)RHICmdList.GetContext()).Tracker->Rename(Buffer, *NameCopyRHIT);
+	});
 
-	RHI->RHIBindDebugLabelName(Buffer, Name);
+	RHI->RHIBindDebugLabelName(RHICmdList, Buffer, Name);
 }
 
-void FValidationRHI::RHIBindDebugLabelName(FRHIUnorderedAccessView* UnorderedAccessViewRHI, const TCHAR* Name)
+void FValidationRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHIUnorderedAccessView* UnorderedAccessViewRHI, const TCHAR* Name)
 {
 	RHIValidation::FResource* Resource = UnorderedAccessViewRHI->GetViewIdentity().Resource;
 	FString NameCopyRT = Name;
-	FRHICommandListExecutor::GetImmediateCommandList().EnqueueLambda([Resource, NameCopyRHIT = MoveTemp(NameCopyRT)](FRHICommandListImmediate& RHICmdList)
+	RHICmdList.EnqueueLambda([Resource, NameCopyRHIT = MoveTemp(NameCopyRT)](FRHICommandListBase& RHICmdList)
 	{
 		((FValidationContext&)RHICmdList.GetContext()).Tracker->Rename(Resource, *NameCopyRHIT);
 	});
 
-	RHI->RHIBindDebugLabelName(UnorderedAccessViewRHI, Name);
+	RHI->RHIBindDebugLabelName(RHICmdList, UnorderedAccessViewRHI, Name);
 }
 
 void FValidationRHI::ReportValidationFailure(const TCHAR* InMessage)

@@ -520,7 +520,11 @@ FGameInstancePIEResult UGameInstance::StartPlayInEditorGameInstance(ULocalPlayer
 		PlayWorld->CreateAISystem();
 
 		SlowTask.EnterProgressFrame(10, NSLOCTEXT("UnrealEd", "PIEInitializingActors", "Starting PIE (Initializing Actors)..."));
-		PlayWorld->InitializeActorsForPlay(URL);
+		{
+			FRegisterComponentContext Context(PlayWorld);
+			PlayWorld->InitializeActorsForPlay(URL, true, &Context);
+			Context.Process();
+		}
 		// calling it after InitializeActorsForPlay has been called to have all potential bounding boxed initialized
 		FNavigationSystem::AddNavigationSystemToWorld(*PlayWorld, FNavigationSystemRunMode::PIEMode);
 

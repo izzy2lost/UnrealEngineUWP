@@ -1813,42 +1813,24 @@ void FOpenGLDynamicRHI::RHIUnlockTextureCubeFace(FRHITextureCube* TextureCubeRHI
 	ResourceCast(TextureCubeRHI)->Unlock(MipIndex, FaceIndex + ArrayIndex * 6);
 }
 
-void FOpenGLDynamicRHI::RHIBindDebugLabelName(FRHITexture* TextureRHI, const TCHAR* Name)
+void FOpenGLDynamicRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHITexture* TextureRHI, const TCHAR* Name)
 {
 #if GLDEBUG_LABELS_ENABLED
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-	if (ShouldRunGLRenderContextOpOnThisThread(RHICmdList))
+	FAnsiCharArray TextureDebugName;
+	TextureDebugName.Append(TCHAR_TO_ANSI(Name), FCString::Strlen(Name) + 1);
+	RHICmdList.EnqueueLambda([TextureRHI, TextureDebugName = MoveTemp(TextureDebugName)] (FRHICommandListBase& RHICmdList)
 	{
 		VERIFY_GL_SCOPE();
 		FOpenGLTexture* Texture = ResourceCast(TextureRHI);
 		if (Texture->IsEvicted())
 		{
-			Texture->EvictionParamsPtr->SetDebugLabelName(TCHAR_TO_ANSI(Name));
+			Texture->EvictionParamsPtr->SetDebugLabelName(TextureDebugName);
 		}
 		else
 		{
-			FOpenGL::LabelObject(GL_TEXTURE, Texture->GetResource(), TCHAR_TO_ANSI(Name));
+			FOpenGL::LabelObject(GL_TEXTURE, Texture->GetResource(), TextureDebugName.GetData());
 		}
-	}
-	else
-	{
-		// copy string name for RHIT version.
-		FAnsiCharArray TextureDebugName;
-		TextureDebugName.Append(TCHAR_TO_ANSI(Name), FCString::Strlen(Name) + 1);
-		RunOnGLRenderContextThread([TextureRHI, TextureDebugName = MoveTemp(TextureDebugName)]()
-		{
-			VERIFY_GL_SCOPE();
-			FOpenGLTexture* Texture = ResourceCast(TextureRHI);
-			if (Texture->IsEvicted())
-			{
-				Texture->EvictionParamsPtr->SetDebugLabelName(TextureDebugName);
-			}
-			else
-			{
-				FOpenGL::LabelObject(GL_TEXTURE, Texture->GetResource(), TextureDebugName.GetData());
-			}
-		});
-	}
+	});
 #endif
 }
 

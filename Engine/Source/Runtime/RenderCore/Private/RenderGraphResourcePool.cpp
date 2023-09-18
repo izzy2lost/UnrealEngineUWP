@@ -106,7 +106,7 @@ TRefCountPtr<FRDGPooledBuffer> FRDGBufferPool::FindFreeBuffer(FRHICommandListBas
 		PooledBuffer->Name = InDebugName;
 
 	#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		RHIBindDebugLabelName(PooledBuffer->GetRHI(), InDebugName);
+		RHICmdList.BindDebugLabelName(PooledBuffer->GetRHI(), InDebugName);
 	#endif
 
 		// We need the external-facing desc to match what the user requested.
@@ -134,7 +134,7 @@ TRefCountPtr<FRDGPooledBuffer> FRDGBufferPool::FindFreeBuffer(FRHICommandListBas
 		TRefCountPtr<FRHIBuffer> BufferRHI = RHICmdList.CreateBuffer(NumBytes, Desc.Usage, Desc.BytesPerElement, InitialAccess, CreateInfo);
 
 	#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		RHIBindDebugLabelName(BufferRHI, InDebugName);
+		RHICmdList.BindDebugLabelName(BufferRHI, InDebugName);
 	#endif
 
 		TRefCountPtr<FRDGPooledBuffer> PooledBuffer = new FRDGPooledBuffer(RHICmdList, MoveTemp(BufferRHI), Desc, AlignedDesc.NumElements, InDebugName);

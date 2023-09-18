@@ -1431,7 +1431,7 @@ void FD3D11DynamicRHI::RHIUnlockTextureCubeFace_RenderThread(
 	}
 }
 
-void FD3D11DynamicRHI::RHIBindDebugLabelName(FRHITexture* TextureRHI, const TCHAR* Name)
+void FD3D11DynamicRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHITexture* TextureRHI, const TCHAR* Name)
 {
 	FD3D11Texture* Texture = ResourceCast(TextureRHI);
 

@@ -271,8 +271,8 @@ public:
 		FName VelocityTextureName(PARTICLE_STATE_VELOCITY_TEXTURE_NAME, ParticleStateIndex + 1);
 		PositionTextureRHI->SetName(PositionTextureName);
 		VelocityTextureRHI->SetName(VelocityTextureName);
-		RHIBindDebugLabelName(PositionTextureRHI, *PositionTextureName.ToString());
-		RHIBindDebugLabelName(VelocityTextureRHI, *VelocityTextureName.ToString());
+		RHICmdList.BindDebugLabelName(PositionTextureRHI, *PositionTextureName.ToString());
+		RHICmdList.BindDebugLabelName(VelocityTextureRHI, *VelocityTextureName.ToString());
 #undef PARTICLE_STATE_VELOCITY_TEXTURE_NAME
 #undef PARTICLE_STATE_POSITION_TEXTURE_NAME
 

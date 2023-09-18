@@ -1800,7 +1800,7 @@ void FMetalDynamicRHI::RHIUnlockTextureCubeFace(FRHITextureCube* TextureCubeRHI,
 	}
 }
 
-void FMetalDynamicRHI::RHIBindDebugLabelName(FRHITexture* TextureRHI, const TCHAR* Name)
+void FMetalDynamicRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHITexture* TextureRHI, const TCHAR* Name)
 {
 	@autoreleasepool {
 		FMetalSurface* Surf = GetMetalSurfaceFromRHITexture(TextureRHI);

@@ -298,7 +298,7 @@ void FD3D11DynamicRHI::RHITransferBufferUnderlyingResource(FRHICommandListBase& 
 	Dst->UpdateLinkedViews();
 }
 
-void FD3D11DynamicRHI::RHIBindDebugLabelName(FRHIBuffer* BufferRHI, const TCHAR* Name)
+void FD3D11DynamicRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHIBuffer* BufferRHI, const TCHAR* Name)
 {
 	check(BufferRHI);
 	FName DebugName(Name);

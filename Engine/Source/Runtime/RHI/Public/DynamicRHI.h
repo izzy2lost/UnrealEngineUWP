@@ -579,9 +579,9 @@ public:
 	virtual void RHIUnlockTextureCubeFace(FRHITextureCube* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail) = 0;
 
 	// FlushType: Thread safe
-	virtual void RHIBindDebugLabelName(FRHITexture* Texture, const TCHAR* Name) = 0;
-	virtual void RHIBindDebugLabelName(FRHIBuffer* Buffer, const TCHAR* Name) {}
-	virtual void RHIBindDebugLabelName(FRHIUnorderedAccessView* UnorderedAccessViewRHI, const TCHAR* Name) {}
+	virtual void RHIBindDebugLabelName(FRHICommandListBase& RHICmdList,FRHITexture* Texture, const TCHAR* Name) = 0;
+	virtual void RHIBindDebugLabelName(FRHICommandListBase& RHICmdList,FRHIBuffer* Buffer, const TCHAR* Name) {}
+	virtual void RHIBindDebugLabelName(FRHICommandListBase& RHICmdList,FRHIUnorderedAccessView* UnorderedAccessViewRHI, const TCHAR* Name) {}
 
 	/**
 	* Reads the contents of a texture to an output buffer (non MSAA and MSAA) and returns it as a FColor array.
@@ -1294,21 +1294,6 @@ FORCEINLINE void RHIGetTextureMemoryStats(FTextureMemoryStats& OutStats)
 FORCEINLINE uint32 RHIComputeMemorySize(FRHITexture* TextureRHI)
 {
 	return GDynamicRHI->RHIComputeMemorySize(TextureRHI);
-}
-
-FORCEINLINE void RHIBindDebugLabelName(FRHITexture* Texture, const TCHAR* Name)
-{
-	GDynamicRHI->RHIBindDebugLabelName(Texture, Name);
-}
-
-FORCEINLINE void RHIBindDebugLabelName(FRHIBuffer* Buffer, const TCHAR* Name)
-{
-	GDynamicRHI->RHIBindDebugLabelName(Buffer, Name);
-}
-
-FORCEINLINE void RHIBindDebugLabelName(FRHIUnorderedAccessView* UnorderedAccessViewRHI, const TCHAR* Name)
-{
-	GDynamicRHI->RHIBindDebugLabelName(UnorderedAccessViewRHI, Name);
 }
 
 FORCEINLINE bool RHIGetRenderQueryResult(FRHIRenderQuery* RenderQuery, uint64& OutResult, bool bWait, uint32 GPUIndex = INDEX_NONE)

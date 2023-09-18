@@ -272,7 +272,7 @@ public:
 
 	}
 
-	virtual void RHIBindDebugLabelName(FRHITexture* Texture, const TCHAR* Name) final override
+	virtual void RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHITexture* Texture, const TCHAR* Name) final override
 	{
 
 	}
