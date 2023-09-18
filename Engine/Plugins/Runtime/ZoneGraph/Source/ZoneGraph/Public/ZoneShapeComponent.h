@@ -184,7 +184,7 @@ private:
 	bool bReverseLaneProfile = false;
 
 	/** Array of lane templates indexed by the points when the shape is polygon. */
-	UPROPERTY(meta = (IncludeInHash))
+	UPROPERTY(Category = Zone, VisibleAnywhere, meta = (IncludeInHash, EditCondition = "false", EditConditionHides))
 	TArray<FZoneLaneProfileRef> PerPointLaneProfiles;
 
 	/** Shape points */
