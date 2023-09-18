@@ -58,6 +58,7 @@ using Horde.Server.Devices;
 using Moq;
 using Horde.Server.Telemetry;
 using Horde.Server.Artifacts;
+using Horde.Server.Compute;
 using Horde.Server.Dashboard;
 using OpenTelemetry.Trace;
 using Horde.Server.Jobs.Bisect;
@@ -115,6 +116,7 @@ namespace Horde.Server.Tests
 		public DeviceService DeviceService => ServiceProvider.GetRequiredService<DeviceService>();
 		public StorageService StorageService => ServiceProvider.GetRequiredService<StorageService>();
 		public TestDataService TestDataService => ServiceProvider.GetRequiredService<TestDataService>();
+		public ComputeService ComputeService => ServiceProvider.GetRequiredService<ComputeService>();
 
 		public ServerSettings ServerSettings => ServiceProvider.GetRequiredService<IOptions<ServerSettings>>().Value;
 		public IOptionsMonitor<ServerSettings> ServerSettingsMon => ServiceProvider.GetRequiredService<IOptionsMonitor<ServerSettings>>();
@@ -260,6 +262,7 @@ namespace Horde.Server.Tests
 			services.AddSingleton<ScheduleService>();
 			services.AddSingleton<DeviceService>();
 			services.AddSingleton<TestDataService>();
+			services.AddSingleton<ComputeService>();
 
 			services.AddScoped<JobRpcCommon>();
 

@@ -62,7 +62,7 @@ namespace Horde.Server.Compute
 
 			Requirements requirements = request.Requirements ?? new Requirements();
 
-			ComputeResource? computeResource = await _computeService.TryAllocateResourceAsync(requirements, parentLeaseId, cancellationToken);
+			ComputeResource? computeResource = await _computeService.TryAllocateResourceAsync(request.RequestId, requirements, parentLeaseId, cancellationToken);
 			if (computeResource == null)
 			{
 				return StatusCode((int)HttpStatusCode.ServiceUnavailable);

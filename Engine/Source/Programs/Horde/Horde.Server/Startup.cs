@@ -733,6 +733,7 @@ namespace Horde.Server
 				services.AddHostedService(provider => provider.GetRequiredService<DeviceService>());
 				services.AddHostedService<DeviceReportService>();
 				services.AddHostedService(provider => provider.GetRequiredService<TestDataService>());
+				services.AddHostedService(provider => provider.GetRequiredService<ComputeService>());
 				
 				if (settings.Commits.ReplicateMetadata)
 				{
