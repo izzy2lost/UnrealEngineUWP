@@ -266,7 +266,6 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 		LocalFogVolumeGPUInstanceDataIt->Density = LHF->FogDensity;
 		LocalFogVolumeGPUInstanceDataIt->HeightFalloff = LHF->FogHeightFalloff * 0.01f;	// This scale is used to have artist author reasonable range.
 		LocalFogVolumeGPUInstanceDataIt->HeightOffset = LHF->FogHeightOffset;
-		LocalFogVolumeGPUInstanceDataIt->RadialAttenuation = LHF->FogRadialAttenuation;
 
 		LocalFogVolumeGPUInstanceDataIt->FogMode = float(LHF->FogMode);
 

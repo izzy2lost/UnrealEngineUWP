@@ -47,7 +47,7 @@ public:
 	float Density;
 	float HeightFalloff;
 	float HeightOffset;
-	float RadialAttenuation;
+	float Unused;
 
 	FVector3f Albedo;
 	float PhaseG;

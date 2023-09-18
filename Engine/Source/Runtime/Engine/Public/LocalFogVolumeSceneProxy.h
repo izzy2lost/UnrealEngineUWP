@@ -23,7 +23,6 @@ public:
 	float FogDensity;
 	float FogHeightFalloff;
 	float FogHeightOffset;
-	float FogRadialAttenuation;
 
 	uint8 FogMode;
 	uint8 FogSortPriority;
