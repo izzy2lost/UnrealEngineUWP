@@ -2207,6 +2207,11 @@ void ARecastNavMesh::SetPolyArrayArea(const TArray<FNavPoly>& Polys, TSubclassOf
 
 int32 ARecastNavMesh::ReplaceAreaInTileBounds(const FBox& Bounds, TSubclassOf<UNavArea> OldArea, TSubclassOf<UNavArea> NewArea, bool ReplaceLinks, TArray<NavNodeRef>* OutTouchedNodes)
 {
+	if (!ensureMsgf(Bounds.IsValid, TEXT("%hs Bounds is not valid"), __FUNCTION__))
+	{
+		return 0;
+	}
+
 	int32 PolysTouched = 0;
 
 	if (RecastNavMeshImpl && RecastNavMeshImpl->GetRecastMesh())
@@ -2716,23 +2721,30 @@ void ARecastNavMesh::ApplyWorldOffset(const FVector& InOffset, bool bWorldShift)
 
 void ARecastNavMesh::FillNavigationDataChunkActor(const FBox& QueryBounds, ANavigationDataChunkActor& DataChunkActor, FBox& OutTilesBounds) const
 {
-	if (RecastNavMeshImpl)
+	if (!RecastNavMeshImpl)
 	{
-		UE_LOG(LogNavigation, Verbose, TEXT("%s Bounds pos: (%s)  size: (%s)."), ANSI_TO_TCHAR(__FUNCTION__), *QueryBounds.GetCenter().ToString(), *QueryBounds.GetSize().ToString());
+		return;
+	}
 
-		const TArray<FBox> Boxes({ QueryBounds });
-		TArray<int32> TileIndices;
-		RecastNavMeshImpl->GetNavMeshTilesIn(Boxes, TileIndices);
-		if (!TileIndices.IsEmpty())
-		{
-			// Add a data chunk for this navmesh
-			URecastNavMeshDataChunk* DataChunk = NewObject<URecastNavMeshDataChunk>(&DataChunkActor);
-			DataChunk->NavigationDataName = GetFName();
-			DataChunkActor.GetMutableNavDataChunk().Add(DataChunk);
+	if (!ensureMsgf(QueryBounds.IsValid, TEXT("%hs QueryBounds is not valid"), __FUNCTION__))
+	{
+		return;
+	}
 
-			DataChunk->GetTiles(RecastNavMeshImpl, TileIndices, SupportsRuntimeGeneration() ? EGatherTilesCopyMode::CopyDataAndCacheData : EGatherTilesCopyMode::CopyData);
-			DataChunk->GetTilesBounds(*RecastNavMeshImpl, TileIndices, OutTilesBounds);
-		}
+	UE_LOG(LogNavigation, Verbose, TEXT("%s Bounds pos: (%s)  size: (%s)."), ANSI_TO_TCHAR(__FUNCTION__), *QueryBounds.GetCenter().ToString(), *QueryBounds.GetSize().ToString());
+
+	const TArray<FBox> Boxes({ QueryBounds });
+	TArray<int32> TileIndices;
+	RecastNavMeshImpl->GetNavMeshTilesIn(Boxes, TileIndices);
+	if (!TileIndices.IsEmpty())
+	{
+		// Add a data chunk for this navmesh
+		URecastNavMeshDataChunk* DataChunk = NewObject<URecastNavMeshDataChunk>(&DataChunkActor);
+		DataChunk->NavigationDataName = GetFName();
+		DataChunkActor.GetMutableNavDataChunk().Add(DataChunk);
+
+		DataChunk->GetTiles(RecastNavMeshImpl, TileIndices, SupportsRuntimeGeneration() ? EGatherTilesCopyMode::CopyDataAndCacheData : EGatherTilesCopyMode::CopyData);
+		DataChunk->GetTilesBounds(*RecastNavMeshImpl, TileIndices, OutTilesBounds);
 	}
 }
 
@@ -3657,6 +3669,11 @@ void ARecastNavMesh::RebuildTile(const TArray<FNavMeshDirtyTileElement>& Tiles)
 
 void ARecastNavMesh::DirtyTilesInBounds(const FBox& Bounds)
 {
+	if (!ensureMsgf(Bounds.IsValid, TEXT("%hs Bounds is not valid"), __FUNCTION__))
+	{
+		return;
+	}
+
 	if (HasValidNavmesh() == false)
 	{
 		return;
@@ -3814,6 +3831,11 @@ const dtNavMesh* ARecastNavMesh::GetRecastMesh() const
 //----------------------------------------------------------------------//
 bool ARecastNavMesh::K2_ReplaceAreaInTileBounds(FBox Bounds, TSubclassOf<UNavArea> OldArea, TSubclassOf<UNavArea> NewArea, bool ReplaceLinks)
 {
+	if (!ensureMsgf(Bounds.IsValid, TEXT("%hs Attempting to use Bounds which are not valid"), __FUNCTION__))
+	{
+		return false;
+	}
+
 	bool bReplaced = false;
 #if WITH_RECAST
 	bReplaced = ReplaceAreaInTileBounds(Bounds, OldArea, NewArea, ReplaceLinks) > 0;

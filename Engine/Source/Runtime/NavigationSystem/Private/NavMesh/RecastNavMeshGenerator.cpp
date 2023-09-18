@@ -5869,6 +5869,11 @@ namespace
 
 bool FRecastNavMeshGenerator::HasDirtyTiles(const FBox& AreaBounds) const
 {
+	if (!ensureMsgf(AreaBounds.IsValid, TEXT("%hs AreaBounds is not valid"), __FUNCTION__))
+	{
+		return false;
+	}
+
 	if (HasDirtyTiles() == false)
 	{
 		return false;
@@ -5892,6 +5897,11 @@ bool FRecastNavMeshGenerator::HasDirtyTiles(const FBox& AreaBounds) const
 
 int32 FRecastNavMeshGenerator::GetDirtyTilesCount(const FBox& AreaBounds) const
 {
+	if (!ensureMsgf(AreaBounds.IsValid, TEXT("%hs AreaBounds is not valid"), __FUNCTION__))
+	{
+		return 0;
+	}
+
 	const FVector::FReal TileSizeInWorldUnits = Config.GetTileSizeUU();
 	const FRcTileBox TileBox(AreaBounds, RcNavMeshOrigin, TileSizeInWorldUnits);
 
@@ -5962,6 +5972,11 @@ void FRecastNavMeshGenerator::MarkDirtyTiles(const TArray<FNavigationDirtyArea>&
 #endif
 	for (const FNavigationDirtyArea& DirtyArea : DirtyAreas)
 	{
+		if (!ensureMsgf(DirtyArea.Bounds.IsValid, TEXT("%hs Attempting to use DirtyArea.Bounds which are not valid. SourceObject: %s"), __FUNCTION__, *GetFullNameSafe(DirtyArea.OptionalSourceObject.Get())))
+		{
+			continue;
+		}
+
 		// Static navmeshes accept only area modifiers updates
 		if (bGameStaticNavMesh && (!DirtyArea.HasFlag(ENavigationDirtyFlag::DynamicModifier) || DirtyArea.HasFlag(ENavigationDirtyFlag::NavigationBounds)))
 		{
@@ -6027,7 +6042,10 @@ void FRecastNavMeshGenerator::MarkDirtyTiles(const TArray<FNavigationDirtyArea>&
 		}
 		else
 		{
-			SubAreaBoundsArray.Add(AdjustedAreaBounds);
+			if (ensureMsgf(AdjustedAreaBounds.IsValid, TEXT("%hs Attempting to use AdjustedAreaBounds which are not valid"), __FUNCTION__))
+			{
+				SubAreaBoundsArray.Add(AdjustedAreaBounds);
+			}
 		}
 
 		uint32 PendingTilesMarked = 0;

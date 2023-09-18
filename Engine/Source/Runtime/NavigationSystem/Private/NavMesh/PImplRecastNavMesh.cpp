@@ -3188,14 +3188,17 @@ void FPImplRecastNavMesh::GetNavMeshTilesIn(const TArray<FBox>& InclusionBounds,
 		TSet<FIntPoint>	TileCoords;	
 		for (const FBox& Bounds : InclusionBounds)
 		{
-			const FVector RcNavMeshOrigin(NavMeshOrigin[0], NavMeshOrigin[1], NavMeshOrigin[2]);
-			const FRcTileBox TileBox(Bounds, RcNavMeshOrigin, TileSize);
-
-			for (int32 y = TileBox.YMin; y <= TileBox.YMax; ++y)
+			if (ensureMsgf(Bounds.IsValid, TEXT("%hs Bounds is not valid"), __FUNCTION__))
 			{
-				for (int32 x = TileBox.XMin; x <= TileBox.XMax; ++x)
+				const FVector RcNavMeshOrigin(NavMeshOrigin[0], NavMeshOrigin[1], NavMeshOrigin[2]);
+				const FRcTileBox TileBox(Bounds, RcNavMeshOrigin, TileSize);
+
+				for (int32 y = TileBox.YMin; y <= TileBox.YMax; ++y)
 				{
-					TileCoords.Add(FIntPoint(x, y));
+					for (int32 x = TileBox.XMin; x <= TileBox.XMax; ++x)
+					{
+						TileCoords.Add(FIntPoint(x, y));
+					}
 				}
 			}
 		}
