@@ -9719,10 +9719,21 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 		UE::Cook::FCookMetadataState MetadataState;
 		UE::Cook::FCookMetadataPluginHierarchy PluginHierarchy;
 
+
 		PluginHierarchy.PluginsEnabledAtCook = MoveTemp(PluginsToAdd);
 		PluginHierarchy.PluginDependencies = MoveTemp(PluginChildArray);
 		PluginHierarchy.RootPlugins = MoveTemp(RootPlugins);
 		PluginHierarchy.CustomFieldNames = MoveTemp(CustomFieldNames);
+
+
+		// Sanity check we assigned plugin types
+		for (UE::Cook::FCookMetadataPluginEntry& Entry : PluginHierarchy.PluginsEnabledAtCook)
+		{
+			if (Entry.Type == UE::Cook::ECookMetadataPluginType::Unassigned)
+			{
+				UE_LOG(LogCook, Warning, TEXT("Found unassigned plugin type in cook metadata generation: %s"), *Entry.Name);
+			}
+		}
 
 		MetadataState.SetPluginHierarchyInfo(MoveTemp(PluginHierarchy));
 		MetadataState.SetAssociatedDevelopmentAssetRegistryHash(InDevelopmentAssetRegistryHash);

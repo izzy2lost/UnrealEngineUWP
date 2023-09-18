@@ -21,6 +21,7 @@ enum class ECookMetadataStateVersion : uint8
 	FixSerialization = 3,
 	AddedCustomFields = 4,
 	AddedShaderPseudoHierarchy = 5,
+	AddedPluginEntryType = 6,
 
 	// Add new versions above this.
 	VersionCount,
@@ -119,6 +120,9 @@ enum class ECookMetadataSizesPresent
 
 enum class ECookMetadataPluginType
 {
+	// For sanity tracking. All types _should_ be assigned when they are added.
+	Unassigned,
+		
 	Normal,
 
 	// Root plugins are used to separate and classify game "modes" within a single project.
@@ -133,7 +137,9 @@ enum class ECookMetadataPluginType
 	// When a shader is referenced by multiple plugins then it has no natural home for assigning
 	// its size. Instead we create a set of shader pseudo plugins based on the set of root plugins
 	// referencing the shader, including possibly an "Unrooted" plugin.
-	ShaderPseudo
+	ShaderPseudo,
+
+
 };
 
 /** The name and dependency information for a plugin that was enabled during cooking. */
@@ -141,7 +147,7 @@ struct COOKMETADATA_API FCookMetadataPluginEntry
 {
 	FString Name;
 
-	ECookMetadataPluginType Type;
+	ECookMetadataPluginType Type = ECookMetadataPluginType::Unassigned;
 
 	// These contain values pulled from the uplugin json file and hold fields that are not
 	// part of the engine FPluginDescriptor. They are for per-project values. The keys for the maps
@@ -175,7 +181,7 @@ struct COOKMETADATA_API FCookMetadataPluginEntry
 	{
 		Ar << Entry.Name << Entry.DependencyIndexStart << Entry.DependencyIndexEnd;
 		Ar << Entry.InclusiveSizes << Entry.ExclusiveSizes;
-		Ar << Entry.CustomBoolFields << Entry.CustomStringFields;
+		Ar << Entry.CustomBoolFields << Entry.CustomStringFields << Entry.Type;
 		return Ar;
 	}
 };

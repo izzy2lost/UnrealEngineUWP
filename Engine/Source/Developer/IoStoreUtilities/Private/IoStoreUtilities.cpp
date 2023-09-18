@@ -3634,6 +3634,10 @@ static void InsertShadersInPluginHierarchy(UE::Cook::FCookMetadataState& InCookM
 	TArray<UE::Cook::FCookMetadataPluginEntry> PluginEntries = PluginHierarchy.PluginsEnabledAtCook;
 	for (int32 PluginIndex = 0; PluginIndex < PluginEntries.Num(); PluginIndex++)
 	{
+		if (PluginEntries[PluginIndex].Type == UE::Cook::ECookMetadataPluginType::Unassigned)
+		{
+			UE_LOG(LogIoStore, Warning, TEXT("Found unassigned plugin type in cook metadata! %s"), *PluginEntries[PluginIndex].Name);
+		}
 		if (PluginEntries[PluginIndex].Type == UE::Cook::ECookMetadataPluginType::ShaderPseudo)
 		{
 			// We can do a swap because we insert these at the end in a group so there shouldn't
@@ -3711,6 +3715,15 @@ static void InsertShadersInPluginHierarchy(UE::Cook::FCookMetadataState& InCookM
 	UE::Cook::FCookMetadataPluginHierarchy& MutablePluginHierarchy = InCookMetadata.GetMutablePluginHierarchy();
 	MutablePluginHierarchy.PluginDependencies = MoveTemp(DependencyList);
 	MutablePluginHierarchy.PluginsEnabledAtCook = PluginEntries;
+
+	// Sanity check we assigned plugin types
+	for (UE::Cook::FCookMetadataPluginEntry& Entry : MutablePluginHierarchy.PluginsEnabledAtCook)
+	{
+		if (Entry.Type == UE::Cook::ECookMetadataPluginType::Unassigned)
+		{
+			UE_LOG(LogIoStore, Warning, TEXT("We caused an unassigned plugin type in shader pseudo plugin generation! %s"), *Entry.Name);
+		}
+	}
 }
 
 /**
