@@ -145,7 +145,7 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Maximum number of changes to query from Perforce in one go
 		/// </summary>
-		const int MaxChanges = 250;
+		const int MaxChanges = 1000;
 
 		readonly IJobStepRefCollection _jobStepRefs;
 		readonly IIssueCollection _issueCollection;
