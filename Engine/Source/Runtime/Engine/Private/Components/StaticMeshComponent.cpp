@@ -3089,7 +3089,12 @@ FBox UStaticMeshComponent::GetNavigationBounds() const
 
 		if (const UNavCollisionBase* NavCollision = GetStaticMesh()->GetNavCollision())
 		{
-			return NavCollision->GetBounds().TransformBy(GetComponentTransform());
+			FBox NavBounds = NavCollision->GetBounds();
+			if (!NavBounds.IsValid)
+			{
+				NavBounds = GetStaticMesh()->GetBounds().GetBox();
+			}
+			return NavBounds.TransformBy(GetComponentTransform());
 		}
 	}
 

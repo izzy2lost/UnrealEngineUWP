@@ -145,7 +145,7 @@ void FNavigationOctree::AddNode(UObject* ElementOb, INavRelevantInterface* NavEl
 
 	if (!Bounds.IsValid)
 	{
-		UE_LOG(LogNavigation, Warning, TEXT("%hs: Ignoring %s because bounds are invalid."), __FUNCTION__, *GetNameSafe(ElementOb));
+		UE_LOG(LogNavigation, Warning, TEXT("%hs: Ignoring %s because bounds are invalid."), __FUNCTION__, *GetFullNameSafe(ElementOb));
 		return;
 	}
 	

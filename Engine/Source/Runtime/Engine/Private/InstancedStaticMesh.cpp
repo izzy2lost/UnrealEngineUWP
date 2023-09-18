@@ -5454,7 +5454,8 @@ FBox UInstancedStaticMeshComponent::GetInstanceNavigationBounds() const
 	if (const UStaticMesh* Mesh = GetStaticMesh())
 	{
 		const UNavCollisionBase* NavCollision = Mesh->GetNavCollision();
-		return NavCollision ? NavCollision->GetBounds() : Mesh->GetBounds().GetBox();
+		const FBox NavBounds = NavCollision ? NavCollision->GetBounds() : FBox();
+		return NavBounds.IsValid ? NavBounds : Mesh->GetBounds().GetBox();
 	}
 
 	return FBox();
