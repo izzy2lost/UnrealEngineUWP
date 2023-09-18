@@ -1169,6 +1169,22 @@ bool FExpression::EmitCustomHLSLParameter(FEmitContext& Context, FEmitScope& Sco
 
 FEmitShaderExpression* FExpression::GetValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, const FPreparedType& PreparedType, const Shader::FType& ResultType) const
 {
+	FXxHash64 Hash;
+	{
+		FHasher Hasher;
+		AppendHash(Hasher, this);
+		AppendHash(Hasher, &Scope);
+		AppendHash(Hasher, RequestedType);
+		AppendHash(Hasher, ResultType);
+		Hash = Hasher.Finalize();
+	}
+
+	FEmitShaderExpression** Found = Context.EmitValueMap.Find(Hash);
+	if (Found)
+	{
+		return *Found;
+	}
+
 	FEmitOwnerScope OwnerScope(Context, this);
 
 	const EExpressionEvaluation Evaluation = PreparedType.GetEvaluation(Scope, RequestedType);
@@ -1190,7 +1206,10 @@ FEmitShaderExpression* FExpression::GetValueShader(FEmitContext& Context, FEmitS
 		check(Result.Code);
 		Value = Result.Code;
 	}
-	return Context.EmitCast(Scope, Value, ResultType);
+	Value = Context.EmitCast(Scope, Value, ResultType);
+
+	Context.EmitValueMap.Add(Hash, Value);
+	return Value;
 }
 
 FEmitShaderExpression* FExpression::GetValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, const Shader::FType& ResultType) const

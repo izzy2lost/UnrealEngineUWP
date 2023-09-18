@@ -121,7 +121,9 @@
 #include "Materials/MaterialExpressionParticleSpeed.h"
 #include "Materials/MaterialExpressionParticleSubUVProperties.h"
 #include "Materials/MaterialExpressionPathTracingQualitySwitch.h"
+#include "Materials/MaterialExpressionPerInstanceCustomData.h"
 #include "Materials/MaterialExpressionPerInstanceFadeAmount.h"
+#include "Materials/MaterialExpressionPerInstanceRandom.h"
 #include "Materials/MaterialExpressionPixelDepth.h"
 #include "Materials/MaterialExpressionPixelNormalWS.h"
 #include "Materials/MaterialExpressionPower.h"
@@ -129,6 +131,7 @@
 #include "Materials/MaterialExpressionPreSkinnedNormal.h"
 #include "Materials/MaterialExpressionPreSkinnedPosition.h"
 #include "Materials/MaterialExpressionPreviousFrameSwitch.h"
+#include "Materials/MaterialExpressionSamplePhysicsField.h"
 #include "Materials/MaterialExpressionQualitySwitch.h"
 #include "Materials/MaterialExpressionRayTracingQualitySwitch.h"
 #include "Materials/MaterialExpressionReflectionVectorWS.h"
@@ -3337,8 +3340,30 @@ bool UMaterialExpressionCloudSampleAttribute::GenerateHLSLExpression(FMaterialHL
 bool UMaterialExpressionPerInstanceFadeAmount::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	using namespace UE::HLSLTree;
-	using namespace UE::Shader;
-	OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(EValueType::Float1, TEXT("GetPerInstanceFadeAmount(Parameters)"));
+	OutExpression = Generator.NewExternalInput(Material::EExternalInput::PerInstanceFadeAmount);
+	return true;
+}
+
+bool UMaterialExpressionPerInstanceRandom::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	OutExpression = Generator.NewExternalInput(Material::EExternalInput::PerInstanceRandom);
+	return true;
+}
+
+bool UMaterialExpressionPerInstanceCustomData::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	const FExpression* DefaultValueExpression = DefaultValue.AcquireHLSLExpressionOrConstant(Generator, Scope, ConstDefaultValue);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionPerInstanceCustomData>(DefaultValueExpression, (int32)DataIndex, false);
+	return true;
+}
+
+bool UMaterialExpressionPerInstanceCustomData3Vector::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	const FExpression* DefaultValueExpression = DefaultValue.AcquireHLSLExpressionOrConstant(Generator, Scope, ConstDefaultValue);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionPerInstanceCustomData>(DefaultValueExpression, (int32)DataIndex, true);
 	return true;
 }
 
@@ -3652,18 +3677,7 @@ bool UMaterialExpressionDeriveNormalZ::GenerateHLSLExpression(FMaterialHLSLGener
 bool UMaterialExpressionDistanceToNearestSurface::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	using namespace UE::HLSLTree;
-
-	const FExpression* PositionExpression;
-
-	if (Position.GetTracedInput().Expression)
-	{
-		PositionExpression = Position.AcquireHLSLExpression(Generator, Scope);
-	}
-	else
-	{
-		PositionExpression = Generator.NewExternalInput(Material::EExternalInput::WorldPosition);
-	}
-
+	const FExpression* PositionExpression = Position.AcquireHLSLExpressionOrExternalInput(Generator, Scope, Material::EExternalInput::WorldPosition);
 	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionDistanceToNearestSurface>(PositionExpression);
 	return true;
 }
@@ -3671,18 +3685,7 @@ bool UMaterialExpressionDistanceToNearestSurface::GenerateHLSLExpression(FMateri
 bool UMaterialExpressionDistanceFieldGradient::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	using namespace UE::HLSLTree;
-
-	const FExpression* PositionExpression;
-
-	if (Position.GetTracedInput().Expression)
-	{
-		PositionExpression = Position.AcquireHLSLExpression(Generator, Scope);
-	}
-	else
-	{
-		PositionExpression = Generator.NewExternalInput(Material::EExternalInput::WorldPosition);
-	}
-
+	const FExpression* PositionExpression = Position.AcquireHLSLExpressionOrExternalInput(Generator, Scope, Material::EExternalInput::WorldPosition);
 	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionDistanceFieldGradient>(PositionExpression);
 	return true;
 }
@@ -3691,27 +3694,8 @@ bool UMaterialExpressionDistanceFieldApproxAO::GenerateHLSLExpression(FMaterialH
 {
 	using namespace UE::HLSLTree;
 
-	const FExpression* PositionExpression;;
-
-	if (Position.GetTracedInput().Expression)
-	{
-		PositionExpression = Position.AcquireHLSLExpression(Generator, Scope);
-	}
-	else
-	{
-		PositionExpression = Generator.NewExternalInput(Material::EExternalInput::WorldPosition);
-	}
-
-	const FExpression* NormalExpression;
-
-	if (Normal.GetTracedInput().Expression)
-	{
-		NormalExpression = Normal.AcquireHLSLExpression(Generator, Scope);
-	}
-	else
-	{
-		NormalExpression = Generator.NewExternalInput(Material::EExternalInput::WorldVertexNormal);
-	}
+	const FExpression* PositionExpression = Position.AcquireHLSLExpressionOrExternalInput(Generator, Scope, Material::EExternalInput::WorldPosition);
+	const FExpression* NormalExpression = Normal.AcquireHLSLExpressionOrExternalInput(Generator, Scope, Material::EExternalInput::WorldVertexNormal);
 
 	const FExpression* BaseDistanceExpression = BaseDistance.AcquireHLSLExpressionOrConstant(Generator, Scope, BaseDistanceDefault);
 	const FExpression* RadiusExpression = Radius.AcquireHLSLExpressionOrConstant(Generator, Scope, RadiusDefault);
@@ -3750,6 +3734,51 @@ bool UMaterialExpressionDistanceFieldApproxAO::GenerateHLSLExpression(FMaterialH
 		MaxDistanceExpression,
 		LocalNumSteps,
 		LocalStepScale);
+	return true;
+}
+
+bool UMaterialExpressionSamplePhysicsVectorField::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const int32 TargetIndex = (int32)FieldTarget;
+	if (TargetIndex < 0 || TargetIndex >= Vector_TargetMax)
+	{
+		return Generator.Errorf(TEXT("Invalid physics field target %d"), TargetIndex);
+	}
+
+	const FExpression* PositionExpression = WorldPosition.AcquireHLSLExpressionOrExternalInput(Generator, Scope, Material::EExternalInput::WorldPosition);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionSamplePhysicsField>(PositionExpression, Field_Output_Vector, TargetIndex);
+	return true;
+}
+
+bool UMaterialExpressionSamplePhysicsScalarField::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const int32 TargetIndex = (int32)FieldTarget;
+	if (TargetIndex < 0 || TargetIndex >= Vector_TargetMax)
+	{
+		return Generator.Errorf(TEXT("Invalid physics field target %d"), TargetIndex);
+	}
+
+	const FExpression* PositionExpression = WorldPosition.AcquireHLSLExpressionOrExternalInput(Generator, Scope, Material::EExternalInput::WorldPosition);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionSamplePhysicsField>(PositionExpression, Field_Output_Scalar, TargetIndex);
+	return true;
+}
+
+bool UMaterialExpressionSamplePhysicsIntegerField::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const int32 TargetIndex = (int32)FieldTarget;
+	if (TargetIndex < 0 || TargetIndex >= Vector_TargetMax)
+	{
+		return Generator.Errorf(TEXT("Invalid physics field target %d"), TargetIndex);
+	}
+
+	const FExpression* PositionExpression = WorldPosition.AcquireHLSLExpressionOrExternalInput(Generator, Scope, Material::EExternalInput::WorldPosition);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionSamplePhysicsField>(PositionExpression, Field_Output_Integer, TargetIndex);
 	return true;
 }
 

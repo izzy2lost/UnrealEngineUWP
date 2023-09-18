@@ -154,6 +154,9 @@ FExternalInputDescription GetExternalInputDescription(EExternalInput Input)
 	case EExternalInput::ParticleSubUVCoords1: return FExternalInputDescription(TEXT("ParticleSubUVCoords1"), Shader::EValueType::Float2);
 	case EExternalInput::ParticleSubUVLerp: return FExternalInputDescription(TEXT("ParticleSubUVLerp"), Shader::EValueType::Float1);
 
+	case EExternalInput::PerInstanceFadeAmount: return FExternalInputDescription(TEXT("PerInstanceFadeAmount"), Shader::EValueType::Float1);
+	case EExternalInput::PerInstanceRandom: return FExternalInputDescription(TEXT("PerInstanceRandom"), Shader::EValueType::Float1);
+
 	case EExternalInput::IsOrthographic: return FExternalInputDescription(TEXT("IsOrthographic"), Shader::EValueType::Float1);
 
 	default: checkNoEntry(); return FExternalInputDescription(TEXT("Invalid"), Shader::EValueType::Void);
@@ -221,6 +224,18 @@ bool FExpressionExternalInput::PrepareValue(FEmitContext& Context, FEmitScope& S
 		FEmitData& EmitMaterialData = Context.FindData<FEmitData>();
 		const int32 TypeIndex = (int32)InputType;
 		EmitMaterialData.ExternalInputMask[Context.ShaderFrequency][TypeIndex] = true;
+
+		if (Context.MaterialCompilationOutput)
+		{
+			switch (InputType)
+			{
+			case EExternalInput::PerInstanceRandom:
+				Context.MaterialCompilationOutput->bUsesPerInstanceRandom = true;
+				break;
+			default:
+				break;
+			}
+		}
 	}
 
 	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, InputDesc.Type);
@@ -351,6 +366,9 @@ void FExpressionExternalInput::EmitValueShader(FEmitContext& Context, FEmitScope
 		case EExternalInput::ParticleSubUVCoords0: Code = TEXT("Parameters.Particle.SubUVCoords[0].xy"); break;
 		case EExternalInput::ParticleSubUVCoords1: Code = TEXT("Parameters.Particle.SubUVCoords[1].xy"); break;
 		case EExternalInput::ParticleSubUVLerp: Code = TEXT("Parameters.Particle.SubUVLerp"); break;
+
+		case EExternalInput::PerInstanceFadeAmount: Code = TEXT("GetPerInstanceFadeAmount(Parameters)"); break;
+		case EExternalInput::PerInstanceRandom: Code = TEXT("GetPerInstanceRandom(Parameters)"); break;
 
 		case EExternalInput::IsOrthographic: Code = TEXT("((View.ViewToClip[3][3] < 1.0f) ? 0.0f : 1.0f)"); break;
 
@@ -1868,6 +1886,83 @@ void FExpressionDistanceFieldGradient::EmitValueShader(FEmitContext& Context, FE
 	const FPreparedType& PositionType = Context.GetPreparedType(PositionExpression, Shader::EValueType::Double3);
 	FEmitShaderExpression* EmitPosition = PositionExpression->GetValueShader(Context, Scope, IsLWCType(PositionType.Type.ValueType) ? Shader::EValueType::Double3 : Shader::EValueType::Float3);
 	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float3, TEXT("GetDistanceFieldGradientGlobal(%)"), EmitPosition);
+}
+
+bool FExpressionPerInstanceCustomData::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	const FPreparedType& DefaultValueType = Context.PrepareExpression(DefaultValueExpression, Scope, GetCustomDataType());
+	if (DefaultValueType.IsVoid())
+	{
+		return false;
+	}
+
+	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
+	{
+		Context.MaterialCompilationOutput->bUsesPerInstanceCustomData = true;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, GetCustomDataType());
+}
+
+void FExpressionPerInstanceCustomData::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitDefaultValue = DefaultValueExpression->GetValueShader(Context, Scope, GetCustomDataType());
+	OutResult.Code = Context.EmitInlineExpression(Scope, GetCustomDataType(), TEXT("GetPerInstanceCustomData%(Parameters, %, %)"), b3Vector ? TEXT("3Vector") : TEXT(""), DataIndex, EmitDefaultValue);
+}
+
+Shader::EValueType FExpressionPerInstanceCustomData::GetCustomDataType() const
+{
+	return b3Vector ? Shader::EValueType::Float3 : Shader::EValueType::Float1;
+}
+
+bool FExpressionSamplePhysicsField::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	// LWC_TODO: LWC aware physics field
+	const FPreparedType& PositionType = Context.PrepareExpression(PositionExpression, Scope, Shader::EValueType::Float3);
+	if (PositionType.IsVoid())
+	{
+		return false;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, GetOutputType());
+}
+
+void FExpressionSamplePhysicsField::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitPosition = PositionExpression->GetValueShader(Context, Scope, Shader::EValueType::Float3);
+	OutResult.Code = Context.EmitInlineExpression(Scope, GetOutputType(), GetEmitExpressionFormat(), EmitPosition, TargetIndex);
+}
+
+Shader::EValueType FExpressionSamplePhysicsField::GetOutputType() const
+{
+	switch (FieldOutputType)
+	{
+	case Field_Output_Vector:
+		return Shader::EValueType::Float3;
+	case Field_Output_Scalar:
+		return Shader::EValueType::Float1;
+	case Field_Output_Integer:
+		return Shader::EValueType::Int1;
+	default:
+		checkNoEntry();
+		return Shader::EValueType::Void;
+	}
+}
+
+const TCHAR* FExpressionSamplePhysicsField::GetEmitExpressionFormat() const
+{
+	switch (FieldOutputType)
+	{
+	case Field_Output_Vector:
+		return TEXT("MatPhysicsField_SamplePhysicsVectorField(%, %)");
+	case Field_Output_Scalar:
+		return TEXT("MatPhysicsField_SamplePhysicsScalarField(%, %)");
+	case Field_Output_Integer:
+		return TEXT("MatPhysicsField_SamplePhysicsIntegerField(%, %)");
+	default:
+		checkNoEntry();
+		return nullptr;
+	}
 }
 
 bool FExpressionDistanceFieldApproxAO::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const

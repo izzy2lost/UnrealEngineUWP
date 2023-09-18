@@ -9,6 +9,7 @@
 #include "RHIDefinitions.h"
 #include "Engine/Texture.h" // enum TextureAddress for VTStackEntry
 #include "VT/RuntimeVirtualTextureEnum.h"
+#include "Field/FieldSystemTypes.h"
 #include "MaterialCompiler.h"
 
 class UTexture;
@@ -190,6 +191,9 @@ enum class EExternalInput : uint8
 	ParticleSubUVCoords0,
 	ParticleSubUVCoords1,
 	ParticleSubUVLerp,
+
+	PerInstanceFadeAmount,
+	PerInstanceRandom,
 
 	IsOrthographic,
 
@@ -631,6 +635,47 @@ public:
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionPerInstanceCustomData : public FExpression
+{
+public:
+	const FExpression* DefaultValueExpression;
+	int32 DataIndex;
+	bool b3Vector;
+
+	FExpressionPerInstanceCustomData(const FExpression* InDefaultValueExpression, int32 InDataIndex, bool bIn3Vector)
+		: DefaultValueExpression(InDefaultValueExpression)
+		, DataIndex(InDataIndex)
+		, b3Vector(bIn3Vector)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+
+private:
+	Shader::EValueType GetCustomDataType() const;
+};
+
+class FExpressionSamplePhysicsField : public FExpression
+{
+public:
+	const FExpression* PositionExpression;
+	EFieldOutputType FieldOutputType;
+	int32 TargetIndex;
+
+	FExpressionSamplePhysicsField(const FExpression* InPositionExpression, EFieldOutputType InFieldOutputType, int32 InTargetIndex)
+		: PositionExpression(InPositionExpression)
+		, FieldOutputType(InFieldOutputType)
+		, TargetIndex(InTargetIndex)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+
+private:
+	Shader::EValueType GetOutputType() const;
+	const TCHAR* GetEmitExpressionFormat() const;
 };
 
 class FExpressionDistanceFieldApproxAO : public FExpression
