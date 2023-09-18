@@ -4783,6 +4783,18 @@ export type GetBisectTaskResponse = {
 	/// Next step id of a running bisect
 	nextJobChange?: number;
 
+	/// Lower job id bounds
+	minJobId?: string;
+
+	/// Lower step id bounds
+	minStepId?: string;
+	
+	/// Lower change id bounds
+	minChange?: number;
+
+	/// Lower outcome id bounds
+	minOutcome?: JobStepOutcome
+
 	/// The steps that have been run on bisect
 	steps?: GetJobStepRefResponse[];
 
