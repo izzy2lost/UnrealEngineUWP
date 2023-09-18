@@ -12,7 +12,7 @@ class FLocalFogVolumeSceneProxy;
 UENUM()
 enum class ELocalFogMode : uint8
 {
-	LocalFogVolume = 0,
+	LocalHeightFog = 0,
 	LocalSphereFog = 1,
 };
 
@@ -25,7 +25,7 @@ class ULocalFogVolumeComponent : public USceneComponent
 
 	/** Controls the softness of the transition region when the volume is fading out. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fog Mode")
-	ELocalFogMode FogMode = ELocalFogMode::LocalFogVolume;
+	ELocalFogMode FogMode = ELocalFogMode::LocalHeightFog;
 
 	/** Global density factor for this fog. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Fog Distribution", meta = (UIMin = "0", UIMax = "10.0", SliderExponent = 2.0, ClampMin = 0.0))
