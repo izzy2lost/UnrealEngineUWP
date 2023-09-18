@@ -239,8 +239,9 @@ class TUserOnlineAccountEOS :
 	public TOnlineUserEOS<BaseClass, IAttributeAccessInterface>
 {
 public:
-	TUserOnlineAccountEOS(const FUniqueNetIdEOSRef& InNetIdRef)
+	TUserOnlineAccountEOS(const FUniqueNetIdEOSRef& InNetIdRef, const FOnlineSubsystemEOS& InSubsystem)
 		: TOnlineUserEOS<BaseClass, IAttributeAccessInterface>(InNetIdRef)
+		, EOSSubsystem(InSubsystem)
 	{
 	}
 
@@ -248,7 +249,13 @@ public:
 	virtual FString GetAccessToken() const override
 	{
 		FString Token;
-		GetAuthAttribute(AUTH_ATTR_ID_TOKEN, Token);
+
+		if (const IOnlineIdentityPtr Identity = EOSSubsystem.GetIdentityInterface())
+		{
+			const int32 LocalUserNum = Identity->GetLocalUserNumFromPlatformUserId(Identity->GetPlatformUserIdFromUniqueNetId(*this->UserIdRef));
+			Token = EOSSubsystem.GetIdentityInterface()->GetAuthToken(LocalUserNum);
+		}
+
 		return Token;
 	}
 
@@ -283,6 +290,7 @@ public:
 protected:
 	/** Additional key/value pair data related to auth */
 	TMap<FString, FString> AdditionalAuthData;
+	const FOnlineSubsystemEOS& EOSSubsystem;
 };
 
 typedef TSharedRef<FOnlineUserPresence> FOnlineUserPresenceRef;
