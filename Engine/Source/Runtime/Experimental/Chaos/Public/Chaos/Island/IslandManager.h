@@ -503,6 +503,7 @@ namespace Chaos::Private
 		CHAOS_API void RemoveNodeFromIsland(FPBDIslandParticle* Node);
 		CHAOS_API void AddEdgeToIsland(FPBDIslandConstraint* Edge, FPBDIsland* Island);
 		CHAOS_API void RemoveEdgeFromIsland(FPBDIslandConstraint* Edge);
+		CHAOS_API void WakeNodeIslands(const FPBDIslandParticle* Node);
 		CHAOS_API void EnqueueIslandCheckSleep(FPBDIsland* Island, const bool bIsSleepAllowed);
 
 		// Island merge set management

@@ -115,7 +115,7 @@ namespace ChaosTest
 	}
 
 	// Start with a kinematic connected to a dynamic. Verify that removing the
-	// constraint removed both particles.
+	// constraint removes both particles.
 	// This version explicitly removes the constraint from the graph.
 	// 
 	//		(d=dynamic, s=sleeping, k=kinematic)
@@ -151,7 +151,7 @@ namespace ChaosTest
 	}
 
 	// Start with a kinematic connected to a dynamic. Verify that removing the
-	// constraint removed both particles.
+	// constraint removes both particles.
 	// This version has the constraint removed by making all particles kinematic
 	//		(d=dynamic, s=sleeping, k=kinematic)
 	//		Ak - Bd
@@ -183,6 +183,62 @@ namespace ChaosTest
 		EXPECT_FALSE(Test.ParticleHandles[0]->IsInConstraintGraph());
 		EXPECT_FALSE(Test.ParticleHandles[1]->IsInConstraintGraph());
 		EXPECT_FALSE(Test.ConstraintHandles[0]->IsInConstraintGraph());
+	}
+
+	// Start with a kinematic connected to a sleeping dynamic. Verify that removing the
+	// kinematic removes both particles from the graph (because we do not keep islands 
+	// unless there are constraints in them), but the dynamic particle is now awake.
+	//		(d=dynamic, s=sleeping, k=kinematic)
+	//		Ak - Bs
+	// =>	{} (B is dynamic/awake but the graph is empty)
+	//
+	// This tests a bug where we were not waking a particle if we removed all other particles 
+	// from its island. We now defer island destruction to after sleep handling.
+	//
+	GTEST_TEST(GraphEvolutionTests, TestConstraintGraph_KinematicDynamic_RemoveKinematic)
+	{
+		FGraphEvolutionTest Test(2);
+		Test.MakeChain();
+
+		Test.Evolution.SetParticleObjectState(Test.ParticleHandles[0], EObjectStateType::Kinematic);
+
+		Test.AdvanceUntilSleeping();
+
+		// Should have 1 island
+		EXPECT_EQ(Test.IslandManager->GetNumIslands(), 1);
+		EXPECT_TRUE(Test.ParticleHandles[0]->IsInConstraintGraph());
+		EXPECT_TRUE(Test.ParticleHandles[1]->IsInConstraintGraph());
+		EXPECT_TRUE(Test.ConstraintHandles[0]->IsInConstraintGraph());
+
+		// B should be asleep
+		EXPECT_TRUE(Test.ParticleHandles[1]->IsSleeping());
+
+		// Remove A
+		Test.Evolution.DisableParticle(Test.ParticleHandles[0]);
+
+		// A and the constraint should have been removed from the graph
+		EXPECT_FALSE(Test.ParticleHandles[0]->IsInConstraintGraph());
+		EXPECT_FALSE(Test.ConstraintHandles[0]->IsInConstraintGraph());
+
+		// B will be removed from the graph because we do not track islands without
+		// constraints, but not until the next tick. For now it will still be in
+		// the graph and still asleep.
+		EXPECT_EQ(Test.IslandManager->GetNumIslands(), 1);
+		EXPECT_TRUE(Test.ParticleHandles[1]->IsInConstraintGraph());
+		EXPECT_TRUE(Test.ParticleHandles[1]->IsSleeping());
+
+		// Tick physics. This will update the graph, waking B's island and therefore B.
+		// B's island will then be destroyed because it has no constraints.
+		Test.Advance();
+
+		// Graph should be empty
+		EXPECT_EQ(Test.IslandManager->GetNumIslands(), 0);
+		EXPECT_FALSE(Test.ParticleHandles[0]->IsInConstraintGraph());
+		EXPECT_FALSE(Test.ParticleHandles[1]->IsInConstraintGraph());
+		EXPECT_FALSE(Test.ConstraintHandles[0]->IsInConstraintGraph());
+		
+		// B should be awake
+		EXPECT_FALSE(Test.ParticleHandles[1]->IsSleeping());
 	}
 
 	// Start with an island containing 4 particle connected in a chain, then make the second one kinematic.
@@ -240,9 +296,10 @@ namespace ChaosTest
 		// Invalidate B
 		Test.Evolution.InvalidateParticle(Test.ParticleHandles[1]);
 
-		// Everything was kicked from the graph
-		EXPECT_FALSE(Test.ParticleHandles[0]->IsInConstraintGraph());
-		EXPECT_FALSE(Test.ParticleHandles[1]->IsInConstraintGraph());
+		// Constraint was kicked from the graph, but particles remain until
+		// explicitly removed or they have no constraint on next update
+		EXPECT_TRUE(Test.ParticleHandles[0]->IsInConstraintGraph());
+		EXPECT_TRUE(Test.ParticleHandles[1]->IsInConstraintGraph());
 		EXPECT_FALSE(Test.ConstraintHandles[0]->IsInConstraintGraph());
 
 		Test.Advance();

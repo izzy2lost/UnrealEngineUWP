@@ -447,11 +447,14 @@ public:
 		TestModeParticleDisabled(Particle);
 #endif
 
+		// NOTE: kinematics must visit their graph edges to determine what islands they are in, so we must remove the 
+		// particle from the graph before we disable its constraints or we don't know what island(s) to wake.
+		IslandManager.RemoveParticle(Particle);
+
 		RemoveParticleFromAccelerationStructure(*Particle);
 		Particles.DisableParticle(Particle);
 		DisableConstraints(Particle);
 		DestroyTransientConstraints(Particle);
-		IslandManager.RemoveParticle(Particle);
 	}
 
 	/**
