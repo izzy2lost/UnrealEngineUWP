@@ -12,3 +12,4 @@ struct IUnknown;
 #include <assert.h>
 #include <stdio.h>
 #include <shlwapi.h>
+#include <winver.h>
