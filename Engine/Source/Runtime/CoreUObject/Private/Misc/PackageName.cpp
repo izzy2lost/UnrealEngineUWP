@@ -893,6 +893,11 @@ FString FPackageName::FilenameToLongPackageName(const FString& InFilename)
 
 bool FPackageName::TryConvertLongPackageNameToFilename(const FString& InLongPackageName, FString& OutFilename, const FString& InExtension)
 {
+	return TryConvertLongPackageNameToFilename(FStringView(InLongPackageName), OutFilename, InExtension);
+}
+
+bool FPackageName::TryConvertLongPackageNameToFilename(FStringView InLongPackageName, FString& OutFilename, FStringView InExtension)
+{
 	const auto& Paths = FLongPackagePathsSingleton::Get();
 	FReadScopeLock ScopeLock(Paths.MountLock);
 	const FMountPoint* const* MountPointPtr = Paths.RootPathTree.FindClosestValue(InLongPackageName);

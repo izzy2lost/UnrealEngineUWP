@@ -142,7 +142,7 @@ public:
 		FARCompiledFilter& OutCompiledFilter) const;
 	void SetTemporaryCachingMode(bool bEnable);
 	void SetTemporaryCachingModeInvalidated();
-	bool AddPath(Impl::FEventContext& EventContext, const FString& PathToAdd);
+	bool AddPath(Impl::FEventContext& EventContext, FStringView PathToAdd);
 	void SearchAllAssets(Impl::FEventContext& EventContext, Impl::FClassInheritanceContext& InheritanceContext,
 		bool bSynchronousSearch);
 	bool GetVerseFilesByPath(FName PackagePath, TArray<FName>* OutFilePaths, bool bRecursive) const;

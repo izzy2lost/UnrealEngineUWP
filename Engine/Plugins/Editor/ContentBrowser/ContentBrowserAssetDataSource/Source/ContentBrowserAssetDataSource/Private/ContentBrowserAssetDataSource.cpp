@@ -64,8 +64,8 @@ void UContentBrowserAssetDataSource::Initialize(const bool InAutoRegister)
 	AssetRegistry->OnAssetRenamed().AddUObject(this, &UContentBrowserAssetDataSource::OnAssetRenamed);
 	AssetRegistry->OnAssetUpdated().AddUObject(this, &UContentBrowserAssetDataSource::OnAssetUpdated);
 	AssetRegistry->OnAssetUpdatedOnDisk().AddUObject(this, &UContentBrowserAssetDataSource::OnAssetUpdatedOnDisk);
-	AssetRegistry->OnPathAdded().AddUObject(this, &UContentBrowserAssetDataSource::OnPathAdded);
-	AssetRegistry->OnPathRemoved().AddUObject(this, &UContentBrowserAssetDataSource::OnPathRemoved);
+	AssetRegistry->OnPathsAdded().AddUObject(this, &UContentBrowserAssetDataSource::OnPathsAdded);
+	AssetRegistry->OnPathsRemoved().AddUObject(this, &UContentBrowserAssetDataSource::OnPathsRemoved);
 
 	// Listen for when assets are loaded or changed
 	FCoreUObjectDelegates::OnObjectPropertyChanged.AddUObject(this, &UContentBrowserAssetDataSource::OnObjectPropertyChanged);
@@ -188,8 +188,8 @@ void UContentBrowserAssetDataSource::Shutdown()
 			AssetRegistryMaybe->OnAssetRenamed().RemoveAll(this);
 			AssetRegistryMaybe->OnAssetUpdated().RemoveAll(this);
 			AssetRegistryMaybe->OnAssetUpdatedOnDisk().RemoveAll(this);	
-			AssetRegistryMaybe->OnPathAdded().RemoveAll(this);
-			AssetRegistryMaybe->OnPathRemoved().RemoveAll(this);
+			AssetRegistryMaybe->OnPathsAdded().RemoveAll(this);
+			AssetRegistryMaybe->OnPathsRemoved().RemoveAll(this);
 			AssetRegistryMaybe->OnFilesLoaded().RemoveAll(this);
 		}
 	}
@@ -2857,42 +2857,48 @@ void UContentBrowserAssetDataSource::OnObjectPreSave(UObject* InObject, FObjectP
 	}
 }
 
-void UContentBrowserAssetDataSource::OnPathAdded(const FString& InPath)
+void UContentBrowserAssetDataSource::OnPathsAdded(TConstArrayView<FStringView> Paths)
 {
-	// Completely ignore paths that do not pass the most inclusive filter
-	if (!ContentBrowserDataUtils::PathPassesAttributeFilter(InPath, 0, EContentBrowserItemAttributeFilter::IncludeAll))
+	for (FStringView InPath : Paths)
 	{
-		return;
-	}
+		// Completely ignore paths that do not pass the most inclusive filter
+		if (!ContentBrowserDataUtils::PathPassesAttributeFilter(InPath, 0, EContentBrowserItemAttributeFilter::IncludeAll))
+		{
+			return;
+		}
 
-	FName PathName(InPath);
-	RecentlyPopulatedAssetFolders.Empty();
-	
-	QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemAddedUpdate(CreateAssetFolderItem(PathName)));
+		FName PathName(InPath);
+		RecentlyPopulatedAssetFolders.Empty();
+		
+		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemAddedUpdate(CreateAssetFolderItem(PathName)));
 
-	FStringView PathView(InPath);
-	// Minus one because the test depth start at zero
-	const int32 CurrentDepth = ContentBrowserDataUtils::CalculateFolderDepthOfPath(PathView) - 1;
-	int32 Index;
-	if (PathView.FindLastChar(TEXT('/'), Index))
-	{ 
-		uint32 PathNameHash = GetTypeHash(PathName);
-		FName ParentPath(PathView.Left(Index));
-		uint32 ParentPathHash = GetTypeHash(ParentPath);
-		OnAssetPathAddedDelegate.Broadcast(PathName, PathView, PathNameHash, ParentPath, ParentPathHash, CurrentDepth);
+		FStringView PathView(InPath);
+		// Minus one because the test depth start at zero
+		const int32 CurrentDepth = ContentBrowserDataUtils::CalculateFolderDepthOfPath(PathView) - 1;
+		int32 Index;
+		if (PathView.FindLastChar(TEXT('/'), Index))
+		{ 
+			uint32 PathNameHash = GetTypeHash(PathName);
+			FName ParentPath(PathView.Left(Index));
+			uint32 ParentPathHash = GetTypeHash(ParentPath);
+			OnAssetPathAddedDelegate.Broadcast(PathName, PathView, PathNameHash, ParentPath, ParentPathHash, CurrentDepth);
+		}
 	}
 }
 
-void UContentBrowserAssetDataSource::OnPathRemoved(const FString& InPath)
+void UContentBrowserAssetDataSource::OnPathsRemoved(TConstArrayView<FStringView> Paths)
 {
-	// Deleted paths are no longer relevant for tracking
-	FName PathName(InPath);
-	RecentlyPopulatedAssetFolders.Remove(PathName);
-	AssetFolderToAttributes.Remove(PathName);
+	for (FStringView InPath : Paths)
+	{
+		// Deleted paths are no longer relevant for tracking
+		FName PathName(InPath);
+		RecentlyPopulatedAssetFolders.Remove(PathName);
+		AssetFolderToAttributes.Remove(PathName);
 
-	QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemRemovedUpdate(CreateAssetFolderItem(PathName)));
+		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemRemovedUpdate(CreateAssetFolderItem(PathName)));
 
-	OnAssetPathRemovedDelegate.Broadcast(PathName, GetTypeHash(PathName));
+		OnAssetPathRemovedDelegate.Broadcast(PathName, GetTypeHash(PathName));
+	}
 }
 
 void UContentBrowserAssetDataSource::OnPathPopulated(const FAssetData& InAssetData)

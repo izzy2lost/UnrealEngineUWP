@@ -127,6 +127,10 @@ public:
 	DECLARE_DERIVED_EVENT( UAssetRegistryImpl, IAssetRegistry::FFilesBlockedEvent, FFilesBlockedEvent);
 	virtual FFilesBlockedEvent& OnFilesBlocked() override;
 
+	DECLARE_DERIVED_EVENT( UAssetRegistryImpl, IAssetRegistry::FPathsEvent, FPathsEvent);
+	virtual FPathsEvent& OnPathsAdded() override;
+	virtual FPathsEvent& OnPathsRemoved() override;
+	
 	DECLARE_DERIVED_EVENT( UAssetRegistryImpl, IAssetRegistry::FPathAddedEvent, FPathAddedEvent);
 	virtual FPathAddedEvent& OnPathAdded() override;
 
@@ -295,6 +299,12 @@ private:
 	/** The delegate to execute when one or more files have been blocked from the registry */
 	FFilesBlockedEvent FilesBlockedEvent;
 
+	/** The delegate to execute when a batch of paths are added to the registry */
+	FPathsEvent PathsAddedEvent;
+
+	/** The delegate to execute when a batch of paths are removed from the registry */
+	FPathsEvent PathsRemovedEvent;
+	
 	/** The delegate to execute when an asset path is added to the registry */
 	FPathAddedEvent PathAddedEvent;
 

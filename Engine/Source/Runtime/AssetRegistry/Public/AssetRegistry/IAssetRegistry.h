@@ -642,12 +642,17 @@ public:
 	DECLARE_EVENT_OneParam( IAssetRegistry, FFilesBlockedEvent, const TArray<FString>& /*Files*/ );
 	virtual FFilesBlockedEvent& OnFilesBlocked() = 0;
 
-	/** Event for when paths are added to the registry */
+	/**
+	 * Events for when paths (folders/directories) are added to and removed from the asset registry.
+	 * Both batch and singular events will be called for the same set of paths in all cases.
+	 * Prefer the batched versions as the singular versions will be deprecated in a future release.
+	 */
+	DECLARE_TS_MULTICAST_DELEGATE_OneParam( FPathsEvent, TConstArrayView<FStringView> /* Paths */);
 	DECLARE_TS_MULTICAST_DELEGATE_OneParam( FPathAddedEvent, const FString& /*Path*/ );
-	virtual FPathAddedEvent& OnPathAdded() = 0;
-
-	/** Event for when paths are removed from the registry */
 	DECLARE_EVENT_OneParam( IAssetRegistry, FPathRemovedEvent, const FString& /*Path*/ );
+	virtual FPathsEvent& OnPathsAdded() = 0;
+	virtual FPathsEvent& OnPathsRemoved() = 0;
+	virtual FPathAddedEvent& OnPathAdded() = 0;
 	virtual FPathRemovedEvent& OnPathRemoved() = 0;
 
 	/** Informs the asset registry that an in-memory asset has been created */

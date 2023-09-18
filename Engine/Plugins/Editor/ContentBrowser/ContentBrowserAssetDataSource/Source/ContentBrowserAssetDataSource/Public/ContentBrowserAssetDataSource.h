@@ -417,9 +417,9 @@ private:
 
 	void OnObjectPreSave(UObject* InObject, class FObjectPreSaveContext InObjectPreSaveContext);
 
-	void OnPathAdded(const FString& InPath);
+	void OnPathsAdded(TConstArrayView<FStringView> Paths);
 
-	void OnPathRemoved(const FString& InPath);
+	void OnPathsRemoved(TConstArrayView<FStringView> Paths);
 
 	void OnPathPopulated(const FAssetData& InAssetData);
 

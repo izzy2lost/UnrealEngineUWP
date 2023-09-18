@@ -35,6 +35,7 @@
 #include "Serialization/ArrayReader.h"
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryWriter.h"
+#include "String/RemoveFrom.h"
 #include "Templates/UnrealTemplate.h"
 #include "TelemetryRouter.h"
 #include "UObject/ConstructorHelpers.h"
@@ -916,7 +917,7 @@ void FAssetRegistryImpl::Initialize(Impl::FInitializeContext& Context)
 	Context.bUpdateDiskCacheAfterLoad = bUpdateDiskCacheAfterLoad;
 
 	// Content roots always exist; add them as paths
-	FPackageName::QueryRootContentPaths(Context.RootContentPaths);
+	FPackageName::QueryRootContentPaths(Context.RootContentPaths, false, false, true);
 	for (const FString& AssetPath : Context.RootContentPaths)
 	{
 		AddPath(Context.Events, AssetPath);
@@ -3544,7 +3545,7 @@ bool UAssetRegistryImpl::AddPath(const FString& PathToAdd)
 namespace UE::AssetRegistry
 {
 
-bool FAssetRegistryImpl::AddPath(Impl::FEventContext& EventContext, const FString& PathToAdd)
+bool FAssetRegistryImpl::AddPath(Impl::FEventContext& EventContext, FStringView PathToAdd)
 {
 	bool bIsDenied = false;
 	// If no GlobalGatherer, then we are in the game or non-cook commandlet and we do not implement deny listing
@@ -3560,7 +3561,7 @@ bool FAssetRegistryImpl::AddPath(Impl::FEventContext& EventContext, const FStrin
 	{
 		return false;
 	}
-	return AddAssetPath(EventContext, FName(*PathToAdd));
+	return AddAssetPath(EventContext, FName(PathToAdd));
 }
 
 }
@@ -5226,6 +5227,8 @@ void FAssetRegistryImpl::PathDataGathered(Impl::FEventContext& EventContext, con
 		FPackageName::QueryRootContentPaths(MountPointsArray, /*bIncludeReadOnlyRoots=*/ true, /*bWithoutLeadingSlashes*/ false, /*WithoutTrailingSlashes=*/ true);
 		MountPoints.Append(MoveTemp(MountPointsArray));
 	}
+	
+	CachedPathTree.EnsureAdditionalCapacity(PathResults.Num());
 
 	while (PathResults.Num() > 0)
 	{
@@ -6371,7 +6374,7 @@ void FAssetRegistryImpl::OnContentPathMounted(Impl::FEventContext& EventContext,
 	const FString& AssetPathWithTrailingSlash, const FString& FileSystemPath)
 {
 	// Content roots always exist
-	AddPath(EventContext, AssetPathWithTrailingSlash);
+	AddPath(EventContext, UE::String::RemoveFromEnd(FStringView(AssetPathWithTrailingSlash), TEXTVIEW("/")));
 
 	if (GlobalGatherer.IsValid() && bSearchAllAssets)
 	{
@@ -7293,17 +7296,42 @@ void UAssetRegistryImpl::Broadcast(UE::AssetRegistry::Impl::FEventContext& Event
 
 	if (EventContext.PathEvents.Num())
 	{
+		// Batch add/remove events 
+		TArray<FStringView> Params;
+		// Ensure loop batch condition is always false first iteration
+		bool bCurrentBatchIsAdd = EventContext.PathEvents[0].Get<1>() == FEventContext::EEvent::Added;
 		for (const TPair<FString, FEventContext::EEvent>& PathEvent : EventContext.PathEvents)
 		{
 			const FString& Path = PathEvent.Get<0>();
-			switch (PathEvent.Get<1>())
+			bool bEventIsAdd = PathEvent.Get<1>() == FEventContext::EEvent::Added;
+			if (bEventIsAdd != bCurrentBatchIsAdd)
 			{
-			case FEventContext::EEvent::Added:
-				PathAddedEvent.Broadcast(Path);
-				break;
-			case FEventContext::EEvent::Removed:
-				PathRemovedEvent.Broadcast(Path);
-				break;
+				(bCurrentBatchIsAdd ? PathsAddedEvent : PathsRemovedEvent).Broadcast(MakeArrayView(Params));
+				Params.Reset();
+				bCurrentBatchIsAdd = bEventIsAdd;
+			}
+			Params.Add(FStringView(Path));
+		}
+		if (Params.Num() != 0)
+		{
+			(bCurrentBatchIsAdd ? PathsAddedEvent : PathsRemovedEvent).Broadcast(MakeArrayView(Params));
+		}
+
+		// Legacy single events 
+		if (PathAddedEvent.IsBound() || PathRemovedEvent.IsBound())
+		{
+			for (const TPair<FString, FEventContext::EEvent>& PathEvent : EventContext.PathEvents)
+			{
+				const FString& Path = PathEvent.Get<0>();
+				switch (PathEvent.Get<1>())
+				{
+				case FEventContext::EEvent::Added:
+					PathAddedEvent.Broadcast(Path);
+					break;
+				case FEventContext::EEvent::Removed:
+					PathRemovedEvent.Broadcast(Path);
+					break;
+				}
 			}
 		}
 		EventContext.PathEvents.Empty();
@@ -7413,6 +7441,16 @@ void UAssetRegistryImpl::Broadcast(UE::AssetRegistry::Impl::FEventContext& Event
 UAssetRegistryImpl::FFilesBlockedEvent& UAssetRegistryImpl::OnFilesBlocked()
 {
 	return FilesBlockedEvent;
+}
+
+UAssetRegistryImpl::FPathsEvent& UAssetRegistryImpl::OnPathsAdded()
+{
+	return PathsAddedEvent;
+}
+
+UAssetRegistryImpl::FPathsEvent& UAssetRegistryImpl::OnPathsRemoved()
+{
+	return PathsRemovedEvent;
 }
 
 UAssetRegistryImpl::FPathAddedEvent& UAssetRegistryImpl::OnPathAdded()

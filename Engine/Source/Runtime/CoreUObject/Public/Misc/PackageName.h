@@ -122,6 +122,7 @@ public:
 	 * @return Package filename.
 	 */
 	static COREUOBJECT_API bool TryConvertLongPackageNameToFilename(const FString& InLongPackageName, FString& OutFilename, const FString& InExtension = TEXT(""));
+	static COREUOBJECT_API bool TryConvertLongPackageNameToFilename(FStringView InLongPackageName, FString& OutFilename, FStringView InExtension = {});
 
 	/** 
 	 * Find the MountPoint for a LocalPath, LongPackageName, or ObjectPath and return its elements. Use this function instead of TryConvertFilenameToLongPackageName or
@@ -149,6 +150,7 @@ public:
 
 	/** 
 	 * Returns the path to the specified package, excluding the short package name
+	 * e.g. given /Game/Maps/MyMap returns /Game/Maps
 	 *
 	 * @param InLongPackageName Long Package Name.
 	 * @return The path containing the specified package.
