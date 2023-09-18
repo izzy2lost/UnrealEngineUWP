@@ -2910,6 +2910,7 @@ void FGeometryCollectionPhysicsProxy::PushStateOnGameThread(Chaos::FPBDRigidsSol
 	if (GameThreadPerFrameData.DamageModel.IsSet())
 	{
 		Parameters.DamageModel = GameThreadPerFrameData.DamageModel.GetValue();
+		Parameters.DamageEvaluationModel = GetDamageEvaluationModel(Parameters.DamageModel);
 		GameThreadPerFrameData.DamageModel.Reset();
 		bIsDamageThresholdDataDirty = true;
 	}
