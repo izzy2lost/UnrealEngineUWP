@@ -24,11 +24,11 @@ namespace UE::Chaos::ClothAsset::Private
 		uint32 Checksum = 0;
 		for (const TSharedRef<FManagedArrayCollection>& ClothCollection : InClothCollections)
 		{
-			constexpr bool bIncludeWeightMapsFalse = false;
+			constexpr bool bIncludeWeightMapsTrue = true; // Currently, editing weight maps is destructive
 			FCollectionClothConstFacade Cloth(ClothCollection);
 			if (Cloth.HasValidData())
 			{
-				Checksum = Cloth.CalculateTypeHash(bIncludeWeightMapsFalse, Checksum);
+				Checksum = Cloth.CalculateTypeHash(bIncludeWeightMapsTrue, Checksum);
 			}
 		}
 		return Checksum;

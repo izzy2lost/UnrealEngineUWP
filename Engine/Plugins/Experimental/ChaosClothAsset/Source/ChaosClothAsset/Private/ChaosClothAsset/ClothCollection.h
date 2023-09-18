@@ -139,6 +139,9 @@ namespace UE::Chaos::ClothAsset
 
 		static void CopyArrayViewDataAndApplyOffset(const TArrayView<TArray<int32>>& To, const TConstArrayView<TArray<int32>>& From, const int32 Offset);
 
+		template<typename T>
+		static inline uint32 GetElementsTypeHash(const TManagedArray<T>* ElementArray);
+
 		//~ Weight maps
 		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		TArray<FName> GetUserDefinedAttributeNames(const FName& GroupName) const;
@@ -446,5 +449,15 @@ namespace UE::Chaos::ClothAsset
 		{
 			To[Index] = From[Index] + Offset;
 		}
+	}
+
+	template<typename T>
+	inline uint32 FClothCollection::GetElementsTypeHash(const TManagedArray<T>* ElementArray)
+	{
+		if (ElementArray)
+		{
+			return GetTypeHash(*ElementArray);
+		}
+		return GetTypeHash(ElementArray);
 	}
 }  // End namespace UE::Chaos::ClothAsset
