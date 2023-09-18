@@ -424,9 +424,6 @@ public:
 		// Forcing primitive uniform as we don't support robustly GPU scene data
 		bVFRequiresPrimitiveUniformBuffer = true;
 		bCastDeepShadow = true;
-		
-		// TEMP - Force OnTransformChanged and {Create, Destroy}RenderThreadResources onto the render thread.
-		bConstrainToRenderThread = true;
 
 		HairGroupMaterialProxies.SetNum(Component->HairGroupInstances.Num());
 		HairGroupInstances = Component->HairGroupInstances;
