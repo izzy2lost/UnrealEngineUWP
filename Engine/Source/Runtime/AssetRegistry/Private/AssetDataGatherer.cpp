@@ -2304,29 +2304,25 @@ void FAssetDataDiscovery::Shrink()
 	DirToScanBuffers.Empty();
 }
 
-void FAssetDataDiscovery::AddMountPoint(const FString& LocalAbsPath, FStringView LongPackageName, bool& bOutAlreadyExisted)
+void FAssetDataDiscovery::AddMountPoint(const FString& LocalAbsPath, FStringView LongPackageName)
 {
 	CHECK_IS_NOT_LOCKED_CURRENT_THREAD(ResultsLock);
 	FGathererScopeLock TreeScopeLock(&TreeLock);
-	bool bAlreadyExisted = false;
-	AddMountPointInternal(LocalAbsPath, LongPackageName, bAlreadyExisted);
-	if (!bAlreadyExisted)
-	{
-		SetIsIdle(false);
-	}
+	SetIsIdle(false);
+	AddMountPointInternal(LocalAbsPath, LongPackageName);
 }
 
-void FAssetDataDiscovery::AddMountPointInternal(const FString& LocalAbsPath, FStringView LongPackageName, bool& bOutAlreadyExisted)
+void FAssetDataDiscovery::AddMountPointInternal(const FString& LocalAbsPath, FStringView LongPackageName)
 {
 	CHECK_IS_LOCKED_CURRENT_THREAD(TreeLock);
 	TArray<FMountDir*> ChildMounts;
 	FMountDir* ParentMount = nullptr;
-	bOutAlreadyExisted = false;
+	bool bExists = false;
 	for (TUniquePtr<FMountDir>& ExistingMount : MountDirs)
 	{
 		if (FPathViews::Equals(ExistingMount->GetLocalAbsPath(), LocalAbsPath))
 		{
-			bOutAlreadyExisted = true;
+			bExists = true;
 			break;
 		}
 		else if (FPathViews::IsParentPathOf(ExistingMount->GetLocalAbsPath(), LocalAbsPath))
@@ -2345,7 +2341,7 @@ void FAssetDataDiscovery::AddMountPointInternal(const FString& LocalAbsPath, FSt
 			}
 		}
 	}
-	if (bOutAlreadyExisted)
+	if (bExists)
 	{
 		return;
 	}
@@ -4662,10 +4658,7 @@ void FAssetDataGatherer::Shrink()
 
 void FAssetDataGatherer::AddMountPoint(FStringView LocalPath, FStringView LongPackageName)
 {
-	bool bAlreadyExisted = false;
-	Discovery->AddMountPoint(NormalizeLocalPath(LocalPath), NormalizeLongPackageName(LongPackageName), bAlreadyExisted);
-
-	if (!bAlreadyExisted)
+	Discovery->AddMountPoint(NormalizeLocalPath(LocalPath), NormalizeLongPackageName(LongPackageName));
 	{
 		FGathererScopeLock ResultsScopeLock(&ResultsLock);
 		SetIsIdle(false);
@@ -4682,18 +4675,13 @@ void FAssetDataGatherer::AddRequiredMountPoints(TArrayView<FString> LocalPaths)
 	TStringBuilder<128> MountPackageName;
 	TStringBuilder<128> MountFilePath;
 	TStringBuilder<128> RelPath;
-	bool bAllExisted = true;
 	for (const FString& LocalPath : LocalPaths)
 	{
 		if (FPackageName::TryGetMountPointForPath(LocalPath, MountPackageName, MountFilePath, RelPath))
 		{
-			bool bAlreadyExisted = false;
-			Discovery->AddMountPoint(NormalizeLocalPath(MountFilePath), NormalizeLongPackageName(MountPackageName), bAlreadyExisted);
-			bAllExisted = bAllExisted && bAlreadyExisted;
+			Discovery->AddMountPoint(NormalizeLocalPath(MountFilePath), NormalizeLongPackageName(MountPackageName));
 		}
 	}
-
-	if (!bAllExisted)
 	{
 		FGathererScopeLock ResultsScopeLock(&ResultsLock);
 		SetIsIdle(false);

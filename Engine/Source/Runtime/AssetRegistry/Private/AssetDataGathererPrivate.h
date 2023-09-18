@@ -622,7 +622,7 @@ public:
 	 * Register the given LocalAbsPath/LongPackageName pair that came from FPackageName's list of mount points as
 	 * a mountpoint to track. Will not be scanned until allow listed.
 	 */
-	void AddMountPoint(const FString& LocalAbsPath, FStringView LongPackageName, bool& bOutAlreadyExisted);
+	void AddMountPoint(const FString& LocalAbsPath, FStringView LongPackageName);
 	/** Remove the mountpoint because FPackageName has removed it. */
 	void RemoveMountPoint(const FString& LocalAbsPath);
 	/** Raise the priority until completion of scans of the given path and its subdirs. */
@@ -682,7 +682,7 @@ private:
 		const UE::AssetDataGather::Private::FSetPathProperties& Properties, bool bConfirmedExists);
 
 	/** Add the given path as a MountPoint and update child registrations. */
-	void AddMountPointInternal(const FString& LocalAbsPath, FStringView LongPackageName, bool& bOutAlreadyExisted);
+	void AddMountPointInternal(const FString& LocalAbsPath, FStringView LongPackageName);
 	/** Remove the given path as a MountPoint and update child registrations. */
 	void RemoveMountPointInternal(const FString& LocalAbsPath);
 
