@@ -207,6 +207,11 @@ public:
 	 * Set customization function for this Gizmo
 	 */
 	void SetCustomizationFunction(const TFunction<const FGizmoCustomization()>& InFunction);
+
+	/**
+	 * Handle widget mode changed.
+	 */
+	void HandleWidgetModeChanged(UE::Widget::EWidgetMode InWidgetMode);
 	
 public:
 
@@ -267,6 +272,14 @@ public:
 	 */
 	UPROPERTY()
 	bool bSnapToWorldRotGrid = false;
+
+	/** Broadcast at the end of a SetActiveTarget call. */
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnSetActiveTarget, UTransformGizmo*, UTransformProxy*);
+	FOnSetActiveTarget OnSetActiveTarget;
+	
+	/** Broadcast at the beginning of a ClearActiveTarget call, when the ActiveTarget is not yet disconnected. */
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClearActiveTarget, UTransformGizmo*, UTransformProxy*);
+	FOnClearActiveTarget OnAboutToClearActiveTarget;
 
 protected:
 

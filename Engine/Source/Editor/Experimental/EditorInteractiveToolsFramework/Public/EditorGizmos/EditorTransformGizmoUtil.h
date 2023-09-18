@@ -12,6 +12,10 @@ class UInteractiveToolManager;
 class UTransformGizmo;
 class FEditorModeTools;
 class FEditorViewportClient;
+class UEditorInteractiveGizmoManager;
+class UEditorTransformGizmoContextObject;
+class UTransformProxy;
+class FEditorTransformGizmoDataBinder;
 
 namespace UE
 {
@@ -78,7 +82,14 @@ public:
 	EDITORINTERACTIVETOOLSFRAMEWORK_API void Initialize(FEditorModeTools* InModeTools);
 	EDITORINTERACTIVETOOLSFRAMEWORK_API void Shutdown();
 
-	EDITORINTERACTIVETOOLSFRAMEWORK_API const FEditorModeTools* GetModeTools() const;
+	EDITORINTERACTIVETOOLSFRAMEWORK_API UTransformGizmo* CreateTransformGizmo(
+		UEditorInteractiveGizmoManager* InGizmoManager, const FString& InInstanceIdentifier, void* InOwner) const;
+	
+	EDITORINTERACTIVETOOLSFRAMEWORK_API FEditorModeTools* GetModeTools() const;
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnGizmoCreated, UTransformGizmo*);
+	FOnGizmoCreated& OnGizmoCreatedDelegate();
+
 	
 private:
 
@@ -90,8 +101,12 @@ private:
 	EDITORINTERACTIVETOOLSFRAMEWORK_API void RemoveCVarBinding();
 	EDITORINTERACTIVETOOLSFRAMEWORK_API void RemoveViewportsBinding();
 
+	FOnGizmoCreated OnGizmoCreated;
+	
 	FEditorModeTools* ModeTools = nullptr;
 	FDelegateHandle ViewportClientsChangedHandle;
 	FDelegateHandle UseLegacyChangedHandled;
 	bool bGizmosRegistered = false;
+
+	TSharedPtr<FEditorTransformGizmoDataBinder> DataBinder;
 };

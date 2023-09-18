@@ -52,7 +52,6 @@ void UTransformGizmo::Setup()
 	SetModeLastHitPart(EGizmoTransformMode::Translate, ETransformGizmoPartIdentifier::TranslateScreenSpace);
 	SetModeLastHitPart(EGizmoTransformMode::Rotate, ETransformGizmoPartIdentifier::RotateArcball);
 	SetModeLastHitPart(EGizmoTransformMode::Scale, ETransformGizmoPartIdentifier::ScaleUniform);
-	SetModeLastHitPart(EGizmoTransformMode::Max, ETransformGizmoPartIdentifier::Default);
 }
 
 void UTransformGizmo::SetupBehaviors()
@@ -163,6 +162,8 @@ void UTransformGizmo::SetupMaterials()
 void UTransformGizmo::Shutdown()
 {
 	ClearActiveTarget();
+	OnSetActiveTarget.Clear();
+	OnAboutToClearActiveTarget.Clear();
 }
 
 FTransform UTransformGizmo::GetGizmoTransform() const
@@ -747,8 +748,9 @@ void UTransformGizmo::SetActiveTarget(UTransformProxy* Target, IToolContextTrans
 			LOCTEXT("UTransformGizmoTransaction", "Transform"), TransactionProvider, this);	
 	}
 
-
 	CameraAxisSource = NewObject<UGizmoConstantFrameAxisSource>(this);
+
+	OnSetActiveTarget.Broadcast(this, ActiveTarget);
 }
 
 // @todo: This should either be named to "SetScale" or removed, since it can be done with ReinitializeGizmoTransform
@@ -769,6 +771,46 @@ void UTransformGizmo::SetVisibility(bool bVisibleIn)
 void UTransformGizmo::SetCustomizationFunction(const TFunction<const FGizmoCustomization()>& InFunction)
 {
 	CustomizationFunction = InFunction;
+}
+
+void UTransformGizmo::HandleWidgetModeChanged(UE::Widget::EWidgetMode InWidgetMode)
+{
+	auto GetTransformMode = [InWidgetMode]()
+	{
+		switch (InWidgetMode)
+		{
+		case UE::Widget::EWidgetMode::WM_Translate: return EGizmoTransformMode::Translate;
+		case UE::Widget::EWidgetMode::WM_Rotate: return EGizmoTransformMode::Rotate;
+		case UE::Widget::EWidgetMode::WM_Scale: return EGizmoTransformMode::Scale;
+		default: return EGizmoTransformMode::None;
+		}
+		return EGizmoTransformMode::None;
+	};
+	const EGizmoTransformMode NewMode = GetTransformMode();
+
+	if (CurrentMode != EGizmoTransformMode::None && NewMode == CurrentMode)
+	{
+		auto GetModeDefaultHitPart = [NewMode]()
+		{
+			switch (NewMode)
+			{
+			case EGizmoTransformMode::Translate: return ETransformGizmoPartIdentifier::TranslateScreenSpace;
+			case EGizmoTransformMode::Rotate: return ETransformGizmoPartIdentifier::RotateArcball;
+			case EGizmoTransformMode::Scale: return ETransformGizmoPartIdentifier::ScaleUniform;
+			default: return ETransformGizmoPartIdentifier::Default;
+			}
+			return ETransformGizmoPartIdentifier::Default;
+		};
+
+		const ETransformGizmoPartIdentifier DefaultHitPart = GetModeDefaultHitPart();
+		if (DefaultHitPart != GetCurrentModeLastHitPart())
+		{
+			// reset indirect manipulation to default
+			UpdateInteractingState(false, GetCurrentModeLastHitPart(), true);
+			SetModeLastHitPart(CurrentMode, DefaultHitPart);
+			UpdateInteractingState(true, DefaultHitPart, true);
+		}
+	}
 }
 
 UGizmoElementArrow* UTransformGizmo::MakeTranslateAxis(ETransformGizmoPartIdentifier InPartId, const FVector& InAxisDir, const FVector& InSideDir, UMaterialInterface* InMaterial)
@@ -949,6 +991,8 @@ void UTransformGizmo::ClearActiveTarget()
 
 	if (ActiveTarget)
 	{
+		OnAboutToClearActiveTarget.Broadcast(this, ActiveTarget);
+		
 		ActiveTarget->OnBeginTransformEdit.RemoveAll(this);
 		ActiveTarget->OnEndTransformEdit.RemoveAll(this);
 		ActiveTarget = nullptr;
@@ -1912,7 +1956,8 @@ void UTransformGizmo::OnClickReleaseArcBallRotate(const FInputDeviceRay& Release
 float UTransformGizmo::GetArcBallWorldRadius() const
 {
 	const float PixelToWorldScale = GizmoRenderingUtil::CalculateLocalPixelToWorldScale(GizmoViewContext, CurrentTransform.GetLocation());
-	return RotateArcballSphereRadius * GetSizeCoefficient() * PixelToWorldScale;
+	const float GizmoScale = TransformGizmoSource ? TransformGizmoSource->GetGizmoScale() : 1.0f;
+	return RotateArcballSphereRadius * GetSizeCoefficient() * PixelToWorldScale * GizmoScale;
 }
 
 float UTransformGizmo::GetSizeCoefficient() const

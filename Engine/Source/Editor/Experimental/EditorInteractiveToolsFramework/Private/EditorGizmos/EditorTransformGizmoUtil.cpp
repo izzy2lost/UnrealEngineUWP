@@ -10,6 +10,7 @@
 #include "EdModeInteractiveToolsContext.h"
 #include "EditorGizmos/TransformGizmo.h"
 #include "EditorGizmos/EditorTransformGizmoBuilder.h"
+#include "EditorGizmos/EditorTransformGizmoDataBinder.h"
 #include "EditorViewportClient.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(EditorTransformGizmoUtil)
@@ -72,12 +73,7 @@ UTransformGizmo* UE::EditorTransformGizmoUtil::CreateTransformGizmo(
 		return nullptr;
 	}
 
-	UInteractiveGizmo* NewGizmo = GizmoManager->CreateGizmo(
-		UEditorInteractiveGizmoManager::TransformBuilderIdentifier(), InInstanceIdentifier, InOwner);
-
-	ensure(NewGizmo);
-	
-	return Cast<UTransformGizmo>(NewGizmo);
+	return Found->CreateTransformGizmo(GizmoManager, InInstanceIdentifier, InOwner);
 }
 
 UTransformGizmo* UE::EditorTransformGizmoUtil::GetDefaultTransformGizmo(UInteractiveToolManager* InToolManager)
@@ -166,11 +162,19 @@ void UEditorTransformGizmoContextObject::Initialize(FEditorModeTools* InModeTool
 	{
 		ModeTools = InModeTools;
 		InitializeCVarBinding();
+
+		DataBinder = MakeShared<FEditorTransformGizmoDataBinder>();
+		DataBinder->BindToGizmoContextObject(this);
 	}
 }
 
 void UEditorTransformGizmoContextObject::Shutdown()
 {
+	if (ensure(DataBinder))
+	{
+		DataBinder.Reset();
+	}
+	
 	if (ensure(ModeTools))
 	{
 		UpdateGizmo({});
@@ -179,6 +183,35 @@ void UEditorTransformGizmoContextObject::Shutdown()
 		
 		ModeTools = nullptr;
 	}
+}
+
+UTransformGizmo* UEditorTransformGizmoContextObject::CreateTransformGizmo(
+	UEditorInteractiveGizmoManager* InGizmoManager, const FString& InInstanceIdentifier, void* InOwner) const
+{
+	if (!InGizmoManager)
+	{
+		return nullptr;
+	}
+	
+	UTransformGizmo* NewGizmo = Cast<UTransformGizmo>( InGizmoManager->CreateGizmo(
+		UEditorInteractiveGizmoManager::TransformBuilderIdentifier(), InInstanceIdentifier, InOwner) );
+
+	if (ensure(NewGizmo))
+	{
+		OnGizmoCreated.Broadcast(NewGizmo);
+	}
+	
+	return NewGizmo;
+}
+
+FEditorModeTools* UEditorTransformGizmoContextObject::GetModeTools() const
+{
+	return ModeTools;
+}
+
+UEditorTransformGizmoContextObject::FOnGizmoCreated& UEditorTransformGizmoContextObject::OnGizmoCreatedDelegate()
+{
+	return OnGizmoCreated;
 }
 
 void UEditorTransformGizmoContextObject::UpdateGizmo(const TArray<FEditorViewportClient*>& InViewportClients) const
@@ -319,9 +352,4 @@ void UEditorTransformGizmoContextObject::RemoveViewportsBinding()
 		}
 		ViewportClientsChangedHandle.Reset();
 	}
-}
-
-const FEditorModeTools* UEditorTransformGizmoContextObject::GetModeTools() const
-{
-	return ModeTools;
 }
