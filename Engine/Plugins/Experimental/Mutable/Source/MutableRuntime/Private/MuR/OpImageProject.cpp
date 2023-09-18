@@ -536,6 +536,8 @@ namespace Private
 					};
 
 					FPixelData Result;
+					FMemory::Memzero(Result);
+
 					if constexpr (EnumHasAnyFlags(Features, EPixelProcessorFeatures::SamplingLinear))
 					{
 						auto SampleImageBilinear = [&](FVector2f Uv, FUInt16Vector2 Size, const uint8* DataPtr)
