@@ -3,23 +3,22 @@
 #include "SStartPageWindow.h"
 
 #include "DesktopPlatformModule.h"
-#include "IPAddress.h"
-#include "SlateOptMacros.h"
-#include "SocketSubsystem.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/MetaData/DriverMetaData.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
 #include "Internationalization/Text.h"
+#include "IPAddress.h"
 #include "Logging/MessageLog.h"
 #include "Misc/MessageDialog.h"
 #include "Misc/PathViews.h"
+#include "SlateOptMacros.h"
+#include "SocketSubsystem.h"
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
 #include "Trace/ControlClient.h"
 #include "Trace/StoreClient.h"
-#include "Widgets/SBoxPanel.h"
-#include "Widgets/SToolTip.h"
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
@@ -33,29 +32,28 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Notifications/SNotificationList.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/SToolTip.h"
 #include "Widgets/Testing/SStarshipSuite.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/STileView.h"
 
 #if WITH_EDITOR
-	#include "EngineAnalytics.h"
 	#include "AnalyticsEventAttribute.h"
+	#include "EngineAnalytics.h"
 	#include "Interfaces/IAnalyticsProvider.h"
 #endif // WITH_EDITOR
 
 // Insights
+#include "Insights/Common/Stopwatch.h"
+#include "Insights/ImportTool/TableImportTool.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/Log.h"
-#include "Insights/Version.h"
-#include "Insights/Common/Stopwatch.h"
-#include "Insights/ImportTool/TableImportTool.h"
 #include "Insights/StoreService/StoreBrowser.h"
+#include "Insights/Version.h"
 #include "Insights/Widgets/SInsightsSettings.h"
 #include "Insights/Widgets/SLazyToolTip.h"
-
-// Driver
-#include "Framework/MetaData/DriverMetaData.h"
 
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
@@ -2573,7 +2571,6 @@ void STraceStoreWindow::EnableAutoConnect()
 	if (AutoConnectEvent == nullptr || GetLastError() != ERROR_SUCCESS)
 	{
 		UE_LOG(TraceInsights, Warning, TEXT("[TraceStore] Failed to create AutoConnect event."));
-
 	}
 #endif
 }

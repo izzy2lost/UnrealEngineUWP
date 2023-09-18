@@ -2328,7 +2328,8 @@ void FAllocationsProvider::EditOnAnalysisCompleted(double Time)
 			++NumHeapSpecs;
 		}
 	}
-	UE_LOG(LogTraceServices, Log, TEXT("[MemAlloc] Analysis Completed (%llu events, %llu allocs, %llu frees, %llu heaps, %d heap specs)"), TotalEventCount, AllocCount, FreeCount, HeapCount, NumHeapSpecs);
+	UE_LOG(LogTraceServices, Log, TEXT("[MemAlloc] Analysis completed (%llu events, %llu allocs, %llu frees, %llu heaps, %d heap specs)."),
+		TotalEventCount, AllocCount, FreeCount, HeapCount, NumHeapSpecs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
