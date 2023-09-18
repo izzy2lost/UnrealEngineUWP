@@ -789,6 +789,12 @@ namespace Chaos
 			}
 		}
 
+		// If we don't actually make a change to the cluster union then we don't actually want to trigger any further changes.
+		if (ParticleIndicesToRemove.IsEmpty())
+		{
+			return;
+		}
+
 		ParticleIndicesToRemove.Sort();
 		for (int32 Index = ParticleIndicesToRemove.Num() - 1; Index >= 0; --Index)
 		{

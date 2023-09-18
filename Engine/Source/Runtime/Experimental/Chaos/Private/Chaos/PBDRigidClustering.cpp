@@ -686,21 +686,43 @@ namespace Chaos
 			ProcessingQueue.Add(Child);
 			while (ProcessingQueue.Num())
 			{
-				FPBDRigidParticleHandle* ChildToProcess = ProcessingQueue.Pop();
-				if (!ProcessedChildren.Contains(ChildToProcess))
+				if (FPBDRigidParticleHandle* ChildToProcess = ProcessingQueue.Pop())
 				{
-					ProcessedChildren.Add(ChildToProcess);
 					Island.Add(ChildToProcess);
 					for (const TConnectivityEdge<FReal>& Edge : ChildToProcess->CastToClustered()->ConnectivityEdges())
 					{
-						if (IsInterclusterEdge(*ChildToProcess, Edge) && !bTraverseInterclusterEdges)
+						FPBDRigidParticleHandle* Sibling = Edge.Sibling;
+						if (IsInterclusterEdge(*ChildToProcess, Edge))
 						{
-							continue;
+							if (!bTraverseInterclusterEdges)
+							{
+								continue;
+							}
+
+							// Intercluster edges need to find the parent particle that's actually a child of the input ClusteredParticle
+							while (Sibling)
+							{
+								if (FPBDRigidClusteredParticleHandle* ClusterSibling = Sibling->CastToClustered())
+								{
+									if (ClusterSibling->Parent() == ClusteredParticle)
+									{
+										break;
+									}
+
+									Sibling = ClusterSibling->Parent();
+								}
+								else
+								{
+									Sibling = nullptr;
+									break;
+								}
+							}
 						}
 
-						if (!ProcessedChildren.Contains(Edge.Sibling))
+						if (Sibling && !ProcessedChildren.Contains(Sibling))
 						{
-							ProcessingQueue.Add(Edge.Sibling);
+							ProcessingQueue.Add(Sibling);
+							ProcessedChildren.Add(Sibling);
 						}
 					}
 				}
