@@ -150,7 +150,7 @@ private:
 	bool IsValidContextSwitchEventSelected() const;
 
 	void Command_NavigateToCpuThreadEvent_Execute();
-	bool Command_NavigateToCpuThreadEvent_CanExecute() const { return AreContextSwitchesAvailable() && AreContextSwitchesVisible() && IsValidCpuCoreEventSelected(); }
+	bool Command_NavigateToCpuThreadEvent_CanExecute() const;
 
 	void Command_DockCpuThreadTrackToBottom_Execute();
 	bool Command_DockCpuThreadTrackToBottom_CanExecute() const { return AreContextSwitchesAvailable() && AreContextSwitchesVisible() && IsValidCpuCoreEventSelected(); }
