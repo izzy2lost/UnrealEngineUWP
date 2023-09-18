@@ -1441,6 +1441,7 @@ void FCameraCalibrationStepsController::TogglePlay()
 	}
 	else
 	{
+		// TODO: Trigger the current step (and ultimately the algo) to cache any data it cares about (like 3D scene data)
 		MediaPlayer->Pause();
 	}
 }
@@ -1683,7 +1684,7 @@ bool FCameraCalibrationStepsController::CalculateNormalizedMouseClickPosition(co
 	return true;
 }
 
-bool FCameraCalibrationStepsController::ReadMediaPixels(TArray<FColor>& Pixels, FIntPoint& Size, ETextureRenderTargetFormat& PixelFormat, FText& OutErrorMessage, ESimulcamViewportPortion ViewportPortion) const
+bool FCameraCalibrationStepsController::ReadMediaPixels(TArray<FColor>& Pixels, FIntPoint& Size, FText& OutErrorMessage, ESimulcamViewportPortion ViewportPortion) const
 {
 	// Get the media plate texture render target 2d
 
@@ -1702,7 +1703,11 @@ bool FCameraCalibrationStepsController::ReadMediaPixels(TArray<FColor>& Pixels, 
 		return false;
 	}
 
-	PixelFormat = MediaPlateRenderTarget->RenderTargetFormat;
+	if (MediaPlateRenderTarget->RenderTargetFormat != ETextureRenderTargetFormat::RTF_RGBA8)
+	{
+		OutErrorMessage = LOCTEXT("InvalidFormat", "MediaPlateRenderTarget did not have the expected RTF_RGBA8 format");
+		return false;
+	}
 
 	// Read the pixels onto CPU
 	TArray<FColor> MediaPixels;

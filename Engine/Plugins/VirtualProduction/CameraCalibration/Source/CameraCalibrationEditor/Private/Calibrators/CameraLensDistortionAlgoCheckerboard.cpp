@@ -19,8 +19,8 @@
 #include "JsonObjectConverter.h"
 #include "LensComponent.h"
 #include "LensFile.h"
-#include "Misc/MessageDialog.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Misc/MessageDialog.h"
 #include "Models/AnamorphicLensModel.h"
 #include "Models/SphericalLensModel.h"
 #include "OpenCVHelper.h"
@@ -143,7 +143,7 @@ void UCameraLensDistortionAlgoCheckerboard::Initialize(ULensDistortionTool* InTo
 	// Guess which calibrator to use.
 	SetCalibrator(FindFirstCalibrator());
 
-	// Initialize coverage matrix
+	// Initialize coverage texture
 	FCameraCalibrationStepsController* StepsController = Tool->GetCameraCalibrationStepsController();
 
 	if (!ensure(StepsController))
@@ -310,16 +310,9 @@ bool UCameraLensDistortionAlgoCheckerboard::AddCalibrationRow(FText& OutErrorMes
 
 	TArray<FColor> Pixels;
 	FIntPoint Size;
-	ETextureRenderTargetFormat PixelFormat;
 
-	if (!StepsController->ReadMediaPixels(Pixels, Size, PixelFormat, OutErrorMessage, ESimulcamViewportPortion::CameraFeed))
+	if (!StepsController->ReadMediaPixels(Pixels, Size, OutErrorMessage, ESimulcamViewportPortion::CameraFeed))
 	{
-		return false;
-	}
-
-	if (PixelFormat != ETextureRenderTargetFormat::RTF_RGBA8)
-	{
-		OutErrorMessage = LOCTEXT("InvalidFormat", "MediaPlateRenderTarget did not have the expected RTF_RGBA8 format");
 		return false;
 	}
 

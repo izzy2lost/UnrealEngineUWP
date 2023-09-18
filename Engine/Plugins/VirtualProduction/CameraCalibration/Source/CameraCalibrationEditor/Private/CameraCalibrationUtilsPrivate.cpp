@@ -3,8 +3,11 @@
 #include "CameraCalibrationUtilsPrivate.h"
 
 #include "CalibrationPointComponent.h"
+#include "Editor.h"
+#include "Engine/Level.h"
 #include "Engine/Texture2D.h"
 #include "TextureResource.h"
+#include "UObject/UObjectIterator.h"
 
 namespace UE::CameraCalibration::Private
 {
@@ -102,26 +105,118 @@ namespace UE::CameraCalibration::Private
 		return Dictionary;
 	}
 
+	void FindActorsWithCalibrationComponents(TArray<AActor*>& ActorsWithCalibrationComponents)
+	{
+		ActorsWithCalibrationComponents.Empty();
+
+		const UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		const EObjectFlags ExcludeFlags = RF_ClassDefaultObject; // We don't want the calibrator CDOs.
+
+		for (TObjectIterator<UCalibrationPointComponent> It(ExcludeFlags, true, EInternalObjectFlags::Garbage); It; ++It)
+		{
+			AActor* Actor = It->GetOwner();
+			
+			if (Actor && (Actor->GetWorld() == World))
+			{
+				// Exclude any actors belonging to a level that is not currently visible
+				ULevel* Level = Actor->GetLevel();
+				if (Level && Level->bIsVisible)
+				{
+					ActorsWithCalibrationComponents.Add(Actor);
+				}
+			}
+		}
+	}
+
+	void SortArucoCalibrationPoints(const TArray<FArucoCalibrationPoint>& ArucoCalibrationPoints, TMap<UObject*, TArray<FArucoCalibrationPoint>>& OutSortedArucoCalibrationPointMap)
+	{
+		for (const FArucoCalibrationPoint& ArucoCalibrationPoint : ArucoCalibrationPoints)
+		{
+			if (TArray<FArucoCalibrationPoint>* ArucoCalibrationPointSet = OutSortedArucoCalibrationPointMap.Find(ArucoCalibrationPoint.Owner))
+			{
+				ArucoCalibrationPointSet->Add(ArucoCalibrationPoint);
+			}
+			else
+			{
+				TArray<FArucoCalibrationPoint> NewArucoCalibrationPointSet;
+				NewArucoCalibrationPointSet.Add(ArucoCalibrationPoint);
+
+				OutSortedArucoCalibrationPointMap.Add(ArucoCalibrationPoint.Owner, NewArucoCalibrationPointSet);
+			}
+		}
+	}
+
+	bool FindArucoCalibrationPoint(const TArray<UCalibrationPointComponent*>& CalibrationComponents, EArucoDictionary ArucoDictionary, const FArucoMarker& ArucoMarker, FArucoCalibrationPoint& OutArucoCalibrationPoint)
+	{
+		// Build calibrator point name based on the detected marker
+		const FString DictionaryName = GetArucoDictionaryName(ArucoDictionary);
+
+		constexpr int32 NumExpectedCorners = 4;
+		static const TArray<FString> CornerNames = { TEXT("TL"), TEXT("TR"), TEXT("BR"), TEXT("BL") };
+
+		OutArucoCalibrationPoint.MarkerID = ArucoMarker.MarkerID;
+		OutArucoCalibrationPoint.Name = FString::Printf(TEXT("%s-%d"), *DictionaryName, ArucoMarker.MarkerID);
+
+		for (UCalibrationPointComponent* Component : CalibrationComponents)
+		{
+			if (!Component)
+			{
+				continue;
+			}
+
+			// Check each corner to see if it belongs to the current calibration component (lookup is based on the corner name)
+			int32 FoundCorners = 0;
+			for (int32 CornerIndex = 0; CornerIndex < NumExpectedCorners; ++CornerIndex)
+			{
+				const FString CornerName = FString::Printf(TEXT("%s-%s"), *OutArucoCalibrationPoint.Name, *CornerNames[CornerIndex]); //-V557
+				OutArucoCalibrationPoint.Corners2D[CornerIndex] = ArucoMarker.Corners[CornerIndex];
+
+				// If the current corner is a subpoint of the current calibration component being inspected, get its 3D world location
+				FVector Corner;
+				if (Component->GetWorldLocation(CornerName, Corner))
+				{
+					OutArucoCalibrationPoint.Corners3D[CornerIndex] = Corner;
+					++FoundCorners;
+				}
+			}
+
+			// If all four corners were found, we're done. Otherwise, check the next calibration component for the four corners
+			if (FoundCorners == NumExpectedCorners)
+			{
+				OutArucoCalibrationPoint.Owner = Component;
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	void ClearTexture(UTexture2D* Texture, FColor ClearColor)
 	{
-		TArray<FColor> Pixels;
-		Pixels.Init(ClearColor, Texture->GetSizeX() * Texture->GetSizeY());
+		if (Texture)
+		{
+			TArray<FColor> Pixels;
+			Pixels.Init(ClearColor, Texture->GetSizeX() * Texture->GetSizeY());
 
-		void* TextureData = Texture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
+			void* TextureData = Texture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
 
-		FMemory::Memcpy(TextureData, Pixels.GetData(), Pixels.Num() * sizeof(FColor));
+			FMemory::Memcpy(TextureData, Pixels.GetData(), Pixels.Num() * sizeof(FColor));
 
-		Texture->GetPlatformData()->Mips[0].BulkData.Unlock();
-		Texture->UpdateResource();
+			Texture->GetPlatformData()->Mips[0].BulkData.Unlock();
+			Texture->UpdateResource();
+		}
 	}
 
 	void SetTextureData(UTexture2D* Texture, const TArray<FColor>& PixelData)
 	{
-		void* TextureData = Texture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
+		if (Texture)
+		{
+			void* TextureData = Texture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
 
-		FMemory::Memcpy(TextureData, PixelData.GetData(), PixelData.Num() * sizeof(FColor));
+			FMemory::Memcpy(TextureData, PixelData.GetData(), PixelData.Num() * sizeof(FColor));
 
-		Texture->GetPlatformData()->Mips[0].BulkData.Unlock();
-		Texture->UpdateResource();
+			Texture->GetPlatformData()->Mips[0].BulkData.Unlock();
+			Texture->UpdateResource();
+		}
 	}
 }
