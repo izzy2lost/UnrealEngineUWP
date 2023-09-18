@@ -771,6 +771,7 @@ void UObjectReplicationBridge::PreUpdateAndPoll()
 	// Update every relevant objects from here
 	FReplicationSystemInternal* ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
 	const FNetRefHandleManager& LocalNetRefHandleManager = ReplicationSystemInternal->GetNetRefHandleManager();
+	FDirtyNetObjectTracker& DirtyNetObjectTracker = ReplicationSystemInternal->GetDirtyNetObjectTracker();
 	const FNetBitArrayView RelevantObjects = LocalNetRefHandleManager.GetRelevantObjectsInternalIndices();
 	const FNetBitArrayView WantToBeDormantObjects = MakeNetBitArrayView(LocalNetRefHandleManager.GetWantToBeDormantInternalIndices());
 
@@ -778,18 +779,18 @@ void UObjectReplicationBridge::PreUpdateAndPoll()
 	FNetBitArrayView ObjectsConsideredForPolling = LocalNetRefHandleManager.GetPolledObjectsInternalIndices();
 	ObjectsConsideredForPolling.Reset();
 
-	// We always want to consider objects marked as dirty and their subobjects
-	const FNetBitArrayView AccumulatedDirtyObjects = ReplicationSystemInternal->GetDirtyNetObjectTracker().GetAccumulatedDirtyNetObjects();
-
 	if (bUseFrequencyBasedPolling)
 	{
 		if (bEnableForceNetUpdate)
 		{
-			const FNetBitArrayView ForceNetUpdateObjects = ReplicationSystemInternal->GetDirtyNetObjectTracker().GetForceNetUpdateObjects();
+			// Find objects ready to be polled and add objects that called ForceNetupdate
+			const FNetBitArrayView ForceNetUpdateObjects = DirtyNetObjectTracker.GetForceNetUpdateObjects();
 			PollFrequencyLimiter->Update(RelevantObjects, ForceNetUpdateObjects, ObjectsConsideredForPolling);
 		}
 		else
 		{
+			// Find objects ready to be polled and add objects that were flagged Dirty.
+			const FNetBitArrayView AccumulatedDirtyObjects = DirtyNetObjectTracker.GetAccumulatedDirtyNetObjects();
 			PollFrequencyLimiter->Update(RelevantObjects, AccumulatedDirtyObjects, ObjectsConsideredForPolling);
 		}
 	}
@@ -804,6 +805,7 @@ void UObjectReplicationBridge::PreUpdateAndPoll()
 		IRIS_PROFILER_SCOPE(PreUpdateAndPoll_Dormancy);
 
 		// Mask off objects pending dormancy that are not dirty
+		const FNetBitArrayView AccumulatedDirtyObjects = DirtyNetObjectTracker.GetAccumulatedDirtyNetObjects();
 		ObjectsConsideredForPolling.CombineMultiple(FNetBitArrayView::AndNotOp, WantToBeDormantObjects, FNetBitArrayView::AndNotOp, AccumulatedDirtyObjects);
 
 		FNetBitArrayView ForceNetUpdateObjects = ReplicationSystemInternal->GetDirtyNetObjectTracker().GetForceNetUpdateObjects();
@@ -850,7 +852,7 @@ void UObjectReplicationBridge::PreUpdateAndPoll()
 
 		// Update subobjects' owner first and owners' subobjects second. It's the only way to properly mark all groups of objects in two passes.
 		const FNetBitArrayView SubObjects = MakeNetBitArrayView(LocalNetRefHandleManager.GetSubObjectInternalIndices());
-		const FNetBitArrayView ForceNetUpdateObjects = ReplicationSystemInternal->GetDirtyNetObjectTracker().GetForceNetUpdateObjects();
+		const FNetBitArrayView ForceNetUpdateObjects = DirtyNetObjectTracker.GetForceNetUpdateObjects();
 
 		if (bEnableForceNetUpdate)
 		{
@@ -899,23 +901,28 @@ void UObjectReplicationBridge::PreUpdateAndPoll()
 		}
 	}
 	
+	FObjectPoller::FInitParams PollerInitParams;
+	PollerInitParams.ObjectReplicationBridge = this;
+	PollerInitParams.ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
+
+	FObjectPoller Poller(PollerInitParams);
+
+	{
+		IRIS_PROFILER_SCOPE(PreUpdateAndPoll_PreUpdate);
+		Poller.PreUpdatePass(ObjectsConsideredForPolling);
+	}
+
 	{
 		IRIS_PROFILER_SCOPE(PreUpdateAndPoll_Poll);
-
-		FObjectPoller::FInitParams PollerInitParams;
-		PollerInitParams.ObjectReplicationBridge = this;
-		PollerInitParams.ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
-
-		FObjectPoller Poller(PollerInitParams);
 		Poller.PollObjects(ObjectsConsideredForPolling);
-	
-		FObjectPoller::FPreUpdateAndPollStats Stats = Poller.GetPollStats();
-
-		// Report stats
-		UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), ReplicationSystem.PreUpdatedObjectCount, Stats.PreUpdatedObjectCount, ENetTraceVerbosity::Trace);
-		UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), ReplicationSystem.PolledObjectCount, Stats.PolledObjectCount, ENetTraceVerbosity::Trace);
-		UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), ReplicationSystem.PolledReferencesObjectCount, Stats.PolledReferencesObjectCount, ENetTraceVerbosity::Trace);
 	}
+	
+	FObjectPoller::FPreUpdateAndPollStats Stats = Poller.GetPollStats();
+
+	// Report stats
+	UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), ReplicationSystem.PreUpdatedObjectCount, Stats.PreUpdatedObjectCount, ENetTraceVerbosity::Trace);
+	UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), ReplicationSystem.PolledObjectCount, Stats.PolledObjectCount, ENetTraceVerbosity::Trace);
+	UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), ReplicationSystem.PolledReferencesObjectCount, Stats.PolledReferencesObjectCount, ENetTraceVerbosity::Trace);
 }
 
 void UObjectReplicationBridge::UpdateInstancesWorldLocation()

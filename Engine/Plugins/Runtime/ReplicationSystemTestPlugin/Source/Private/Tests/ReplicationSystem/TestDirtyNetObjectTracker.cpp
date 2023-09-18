@@ -86,7 +86,7 @@ UE_NET_TEST_FIXTURE(FDirtyNetObjectTrackerTestFixture, CanClearDirtyObjects)
 	CleanedObjects.SetBit(NetObjectIndexRangeEnd);
 
 	DirtyNetObjectTracker->UpdateAccumulatedDirtyList();
-	DirtyNetObjectTracker->ClearDirtyNetObjects(MakeNetBitArrayView(CleanedObjects));
+	DirtyNetObjectTracker->ReconcilePolledList(MakeNetBitArrayView(CleanedObjects));
 
 	const FNetBitArrayView AccumulatedDirtyObjects = DirtyNetObjectTracker->GetAccumulatedDirtyNetObjects();
 	UE_NET_ASSERT_FALSE(AccumulatedDirtyObjects.IsAnyBitSet());
@@ -107,7 +107,7 @@ UE_NET_TEST_FIXTURE(FDirtyNetObjectTrackerTestFixture, DelayedDirtyBitTracking)
 		CleanedObjects.SetBit(FirstObjectIndex);
 
 		DirtyNetObjectTracker->UpdateAccumulatedDirtyList();
-		DirtyNetObjectTracker->ClearDirtyNetObjects(MakeNetBitArrayView(CleanedObjects));
+		DirtyNetObjectTracker->ReconcilePolledList(MakeNetBitArrayView(CleanedObjects));
 	}
 
 	const FNetBitArrayView AccumulatedDirtyObjects = DirtyNetObjectTracker->GetAccumulatedDirtyNetObjects();
@@ -122,7 +122,7 @@ UE_NET_TEST_FIXTURE(FDirtyNetObjectTrackerTestFixture, DelayedDirtyBitTracking)
 		CleanedObjects.SetBit(SecondObjectIndex);
 
 		DirtyNetObjectTracker->UpdateAccumulatedDirtyList();
-		DirtyNetObjectTracker->ClearDirtyNetObjects(MakeNetBitArrayView(CleanedObjects));
+		DirtyNetObjectTracker->ReconcilePolledList(MakeNetBitArrayView(CleanedObjects));
 	}
 
 	UE_NET_ASSERT_FALSE(AccumulatedDirtyObjects.GetBit(FirstObjectIndex));
@@ -180,7 +180,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, GlobalDirtyTracke
 	Server->DestroyObject(ServerObject);
 }
 
-/* This test exposes a problem when an object's PreUpdate calls dirty on a different object.
+/** Test that validates behavior when dirtying other actors inside PreUpdate/PreReplication */
 UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, DirtyInsidePreUpdateTest)
 {
 	// Add client
@@ -188,7 +188,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, DirtyInsidePreUpd
 
 	// Spawn object on server that is polled late in order to test ForceNetUpdate
 	UObjectReplicationBridge::FCreateNetRefHandleParams Params;
-	const uint32 PollPeriod = 10;
+	const uint32 PollPeriod = 100;
 	const float PollFrequency = Server->ConvertPollPeriodIntoFrequency(PollPeriod);
 	Params.PollFrequency = PollFrequency;
 	Params.bCanReceive = true;
@@ -206,13 +206,12 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, DirtyInsidePreUpd
 	UTestReplicatedIrisObject* ClientObjectB = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObjectB->NetRefHandle));
 	UE_NET_ASSERT_NE(ClientObjectB, nullptr);
 	
-
 	// Send and deliver packet twice
 	Server->UpdateAndSend({ Client });
 	Server->UpdateAndSend({ Client });
 
 	// Set a replicated variable, but don't mark it dirty
-	ServerObjectA->IntA = 0xFF;
+	ServerObjectA->IntA = 0xAA;
 
 	// Send and deliver packet
 	Server->UpdateAndSend({ Client });
@@ -221,7 +220,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, DirtyInsidePreUpd
 	UE_NET_ASSERT_NE(ClientObjectA->IntA, ServerObjectA->IntA);
 
 	// Set a replicated variable, but don't mark it dirty
-	ServerObjectB->IntA = 0xFF;
+	ServerObjectB->IntA = 0xAA;
 
 	// Send and deliver packet
 	Server->UpdateAndSend({ Client });
@@ -230,34 +229,70 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, DirtyInsidePreUpd
 	UE_NET_ASSERT_NE(ClientObjectA->IntA, ServerObjectA->IntA);
 	UE_NET_ASSERT_NE(ClientObjectB->IntA, ServerObjectB->IntA);
 	
-	// Make the first object dirty
+	// Force ObjectA to replicate
 	Server->ReplicationSystem->ForceNetUpdate(ServerObjectA->NetRefHandle);
 
-	auto PreUpdate = [&](FNetRefHandle NetHandle, UObject* ReplicatedObject, const UReplicationBridge* ReplicationBridge)
+	auto PreUpdateObjectA = [&](FNetRefHandle NetHandle, UObject* ReplicatedObject, const UReplicationBridge* ReplicationBridge)
 	{
-		// When ObjectA is updated, make ObjectB dirty
+		// Inside ObjectA PreReplicationUpdate, force ObjectB to be replicated
 		if (ServerObjectA == ReplicatedObject)
 		{
-			// This will cause an ensure now
-			Server->ReplicationSystem->MarkDirty(ServerObjectB->NetRefHandle);
+			Server->ReplicationSystem->ForceNetUpdate(ServerObjectB->NetRefHandle);
 		}
 	};
 
 	// Now add a dependency where the poll of the first object makes the second one dirty
-	Server->GetReplicationBridge()->SetExternalPreUpdateFunctor(PreUpdate);
+	Server->GetReplicationBridge()->SetExternalPreUpdateFunctor(PreUpdateObjectA);
 
 	// Send and deliver packet
 	Server->UpdateAndSend({ Client });
 
-	// Client property should have changed now
+	// ObjectA should be replicated now
 	UE_NET_ASSERT_EQ(ClientObjectA->IntA, ServerObjectA->IntA);
 
-	// This fails because MarkDirty of a different object in PreUpdate is ignored and flushed.
+	// But not ObjectB because it was called inside PreUpdate
+	UE_NET_ASSERT_NE(ClientObjectB->IntA, ServerObjectB->IntA);
+
+	// Send and deliver packet
+	Server->UpdateAndSend({ Client });
+
+	// Now the ForceNetUpdate on ObjectB is applied and it is replicated
 	UE_NET_ASSERT_EQ(ClientObjectB->IntA, ServerObjectB->IntA);
+
+	auto PreUpdateObjectB = [&](FNetRefHandle NetHandle, UObject* ReplicatedObject, const UReplicationBridge* ReplicationBridge)
+	{
+		// Inside ObjectB PreReplicationUpdate, force ObjectA to be replicated
+		if (ServerObjectB == ReplicatedObject)
+		{
+			Server->ReplicationSystem->ForceNetUpdate(ServerObjectA->NetRefHandle);
+		}
+	};
+	Server->GetReplicationBridge()->SetExternalPreUpdateFunctor(PreUpdateObjectB);
+
+	// Dirty both Objects
+	ServerObjectA->IntA = 0xBB;
+	ServerObjectB->IntA = 0xBB;
+
+	// But only force update ObjectB
+	Server->ReplicationSystem->ForceNetUpdate(ServerObjectB->NetRefHandle);
+
+	// Send and deliver packet
+	Server->UpdateAndSend({ Client });
+
+	// ObjectB should have replicated
+	UE_NET_ASSERT_EQ(ClientObjectB->IntA, ServerObjectB->IntA);
+
+	// But not ObjectA because it was forced inside PreReplicate()
+	UE_NET_ASSERT_NE(ClientObjectA->IntA, ServerObjectA->IntA);
+
+	// Send and deliver packet
+	Server->UpdateAndSend({ Client });
+
+	// Now ObjectA's force net update is applied and ObjectA is replicated
+	UE_NET_ASSERT_EQ(ClientObjectA->IntA, ServerObjectA->IntA);
 
 	Server->DestroyObject(ServerObjectA);
 	Server->DestroyObject(ServerObjectB);
-}*/
-
+}
 
 }

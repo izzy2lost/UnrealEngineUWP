@@ -48,6 +48,12 @@ public:
 
 	const FPreUpdateAndPollStats& GetPollStats() const { return PollStats; }
 
+	/**
+	 * Call the PreUpdateFunction, generally AActor::PreReplication, on polled objects that need it.
+	 * @param ObjectsConsideredForPolling The list of actors set to be polled this frame
+	 */
+	void PreUpdatePass(const FNetBitArrayView& ObjectsConsideredForPolling);
+
 	/** Poll all the objects whose bit index is set in the array */
 	void PollObjects(const FNetBitArrayView& ObjectsConsideredForPolling);
 
@@ -55,6 +61,9 @@ public:
 	void PollSingleObject(FNetRefHandle Handle);
 
 private:
+
+	/** Calls the PreUpdate function if the object needs it */
+	void CallPreUpdate(FInternalNetRefIndex ObjectIndex);
 
 	/** Polls an object in every circumstance */
 	void ForcePollObject(FInternalNetRefIndex ObjectIndex);

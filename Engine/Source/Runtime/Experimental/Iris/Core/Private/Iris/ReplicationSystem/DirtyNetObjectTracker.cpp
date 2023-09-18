@@ -30,9 +30,6 @@ namespace UE::Net::Private
 FDirtyNetObjectTracker::FDirtyNetObjectTracker()
 : ReplicationSystemId(InvalidReplicationSystemId)
 {
-#if UE_NET_IRIS_VALIDATE_POLLED_OBJECT
-	CurrentPolledObject = FNetRefHandleManager::InvalidInternalIndex;
-#endif
 }
 
 FDirtyNetObjectTracker::~FDirtyNetObjectTracker()
@@ -138,12 +135,6 @@ void FDirtyNetObjectTracker::MarkNetObjectDirty(FInternalNetRefIndex NetObjectIn
 
 	if ((NetObjectIndex >= NetObjectIdRangeStart) & (NetObjectIndex <= NetObjectIdRangeEnd))
 	{
-#if UE_NET_IRIS_VALIDATE_POLLED_OBJECT
-		ensureMsgf(FNetRefHandleManager::InvalidInternalIndex == CurrentPolledObject || CurrentPolledObject == NetObjectIndex, 
-			TEXT("While calling NetUpdate on %s, a different replicated object %s was dirtied. Only the updated object can be dirtied for now."),
-			*GetNameSafe(NetRefHandleManager->GetReplicatedObjectInstance(CurrentPolledObject)), *GetNameSafe(NetRefHandleManager->GetReplicatedObjectInstance(NetObjectIndex)));
-#endif
-
 		const uint32 BitOffset = NetObjectIndex;
 		const StorageType BitMask = StorageType(1) << (BitOffset & (StorageTypeBitCount - 1));
 
@@ -186,7 +177,7 @@ FNetBitArrayView FDirtyNetObjectTracker::GetDirtyNetObjectsThisFrame()
 	return FNetBitArrayView(DirtyNetObjectContainer, NetObjectIdCount);
 }
 
-void FDirtyNetObjectTracker::ClearDirtyNetObjects(const FNetBitArrayView& CleanNetObjects)
+void FDirtyNetObjectTracker::ReconcilePolledList(const FNetBitArrayView& ObjectsPolled)
 {
 	LockExternalAccess();
 
@@ -196,17 +187,14 @@ void FDirtyNetObjectTracker::ClearDirtyNetObjects(const FNetBitArrayView& CleanN
 		FGlobalDirtyNetObjectTracker::ResetDirtyNetObjects(GlobalDirtyTrackerPollHandle);
 	}
 
-	// Keep dirty flags for objects not cleaned this frame.
-	MakeNetBitArrayView(AccumulatedDirtyNetObjects).Combine(CleanNetObjects, FNetBitArrayView::AndNotOp);
+	// Clear ForceNetUpdate from every object that were polled.
+	MakeNetBitArrayView(ForceNetUpdateObjects).Combine(ObjectsPolled, FNetBitArrayView::AndNotOp);
+
+	// Clear dirty flags for objects that were polled
+	MakeNetBitArrayView(AccumulatedDirtyNetObjects).Combine(ObjectsPolled, FNetBitArrayView::AndNotOp);
 
 	// Clear the current frame dirty objects
 	FMemory::Memzero(DirtyNetObjectContainer, DirtyNetObjectWordCount*sizeof(StorageType));
-
-	ForceNetUpdateObjects.Reset();
-
-#if UE_NET_IRIS_VALIDATE_POLLED_OBJECT
-	CurrentPolledObject = 0;
-#endif
 
 	AllowExternalAccess();
 

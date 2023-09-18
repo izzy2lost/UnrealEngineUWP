@@ -99,6 +99,8 @@ const TSet<FNetHandle>& FGlobalDirtyNetObjectTracker::GetDirtyNetObjects(const F
 {
 	if (Instance && Handle.IsValid())
 	{
+		//$IRIS TODO: Once a poller reads the dirty list, we should make this list immutable and prevent any changes to it.
+		//			  Otherwise any changes between the first Get and the final Reset will get discarded and never seen by all the Pollers.
 		Instance->Pollers.SetBit(Handle.Index);
 		return Instance->DirtyObjects;
 	}
@@ -111,6 +113,7 @@ void FGlobalDirtyNetObjectTracker::ResetDirtyNetObjects(const FPollHandle& Handl
 	if (Instance && Handle.IsValid())
 	{
 		Instance->Pollers.ClearBit(Handle.Index);
+		//$IRIS TODO: This assumes every Poller called Get before anyone called Reset. We should make sure this is the case all the time.
 		if (Instance->Pollers.IsNoBitSet())
 		{
 			Instance->DirtyObjects.Reset();

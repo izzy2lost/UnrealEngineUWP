@@ -30,16 +30,42 @@ FObjectPoller::FObjectPoller(const FInitParams& InitParams)
 	// DirtyObjectsThisFrame is acquired only during polling 
 }
 
+void FObjectPoller::PreUpdatePass(const FNetBitArrayView& ObjectsConsideredForPolling)
+{
+	IRIS_PROFILER_SCOPE_VERBOSE(PreUpdatePass);
+
+	ObjectsConsideredForPolling.ForAllSetBits([this](FInternalNetRefIndex Objectindex)
+	{
+		CallPreUpdate(Objectindex);
+	});
+}
+
+void FObjectPoller::CallPreUpdate(FInternalNetRefIndex ObjectIndex)
+{
+	FNetRefHandleManager::FReplicatedObjectData& ObjectData = LocalNetRefHandleManager.GetReplicatedObjectDataNoCheck(ObjectIndex);
+	if (UNLIKELY(ObjectData.InstanceProtocol == nullptr))
+	{
+		return;
+	}
+
+	IRIS_PROFILER_PROTOCOL_NAME(ObjectData.Protocol->DebugName->Name);
+
+	// Call per-instance PreUpdate function
+	if (ObjectReplicationBridge->PreUpdateInstanceFunction && EnumHasAnyFlags(ObjectData.InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPreSendUpdate))
+	{
+		ObjectReplicationBridge->PreUpdateInstanceFunction(ObjectData.RefHandle, ReplicatedInstances[ObjectIndex], ObjectReplicationBridge);
+		++PollStats.PreUpdatedObjectCount;
+	}
+}
+
 void FObjectPoller::PollObjects(const FNetBitArrayView& ObjectsConsideredForPolling)
 {
 	FDirtyObjectsAccessor DirtyObjectsAccessor(ReplicationSystemInternal->GetDirtyNetObjectTracker());
 	DirtyObjectsThisFrame = DirtyObjectsAccessor.GetDirtyNetObjects();
 
-	// From here we call into user code via PreUpdateInstanceFunction, so allow external code to set dirty flags since DirtyObjects is not read anymore.
-	ReplicationSystemInternal->GetDirtyNetObjectTracker().AllowExternalAccess();
-
 	if (IsIrisPushModelEnabled())
 	{
+		IRIS_PROFILER_SCOPE_VERBOSE(PollPushBased);
 		ObjectsConsideredForPolling.ForAllSetBits([this](FInternalNetRefIndex Objectindex)
 		{
 			PushModelPollObject(Objectindex);
@@ -47,29 +73,28 @@ void FObjectPoller::PollObjects(const FNetBitArrayView& ObjectsConsideredForPoll
 	}
 	else
 	{
+		IRIS_PROFILER_SCOPE_VERBOSE(ForcePoll);
 		ObjectsConsideredForPolling.ForAllSetBits([this](FInternalNetRefIndex Objectindex)
 		{
 			ForcePollObject(Objectindex);
 		});
 	}
-
-	// Clear ref to locked dirty bit array
-	DirtyObjectsThisFrame = FNetBitArrayView();
-
-	ReplicationSystemInternal->GetDirtyNetObjectTracker().SetCurrentPolledObject(FNetRefHandleManager::InvalidInternalIndex);
 }
 
 void FObjectPoller::PollSingleObject(FNetRefHandle Handle)
 {
 	if (uint32 InternalObjectIndex = LocalNetRefHandleManager.GetInternalIndex(Handle))
 	{
+		CallPreUpdate(InternalObjectIndex);
+
 		FDirtyObjectsAccessor DirtyObjectsAccessor(ReplicationSystemInternal->GetDirtyNetObjectTracker());
 		DirtyObjectsThisFrame = DirtyObjectsAccessor.GetDirtyNetObjects();
-
 		// From here we call into user code via PreUpdateInstanceFunction, so allow external code to set dirty flags since DirtyObjects is not read anymore.
 		ReplicationSystemInternal->GetDirtyNetObjectTracker().AllowExternalAccess();
 
-		ForcePollObject(InternalObjectIndex);
+		{
+			ForcePollObject(InternalObjectIndex);
+		}
 
 		// Clear ref to locked dirty bit array
 		DirtyObjectsThisFrame = FNetBitArrayView();
@@ -79,7 +104,7 @@ void FObjectPoller::PollSingleObject(FNetRefHandle Handle)
 void FObjectPoller::ForcePollObject(FInternalNetRefIndex ObjectIndex)
 {
 	FNetRefHandleManager::FReplicatedObjectData& ObjectData = LocalNetRefHandleManager.GetReplicatedObjectDataNoCheck(ObjectIndex);
-	if (ObjectData.InstanceProtocol == nullptr)
+	if (UNLIKELY(ObjectData.InstanceProtocol == nullptr))
 	{
 		return;
 	}
@@ -88,14 +113,6 @@ void FObjectPoller::ForcePollObject(FInternalNetRefIndex ObjectIndex)
 
 	// We always poll all states here.
 	ObjectData.bWantsFullPoll = 0U;
-
-	// Call per-instance PreUpdate function
-	if (ObjectReplicationBridge->PreUpdateInstanceFunction && EnumHasAnyFlags(ObjectData.InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPreSendUpdate))
-	{
-		IRIS_PROFILER_SCOPE_VERBOSE(PreReplicationUpdate);
-		ObjectReplicationBridge->PreUpdateInstanceFunction(ObjectData.RefHandle, ReplicatedInstances[ObjectIndex], ObjectReplicationBridge);
-		++PollStats.PreUpdatedObjectCount;
-	}
 
 	// Poll properties if the instance protocol requires it
 	if (EnumHasAnyFlags(ObjectData.InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPoll))
@@ -128,44 +145,21 @@ void FObjectPoller::ForcePollObject(FInternalNetRefIndex ObjectIndex)
 void FObjectPoller::PushModelPollObject(FInternalNetRefIndex ObjectIndex)
 {
 	FNetRefHandleManager::FReplicatedObjectData& ObjectData = LocalNetRefHandleManager.GetReplicatedObjectDataNoCheck(ObjectIndex);
-	if (ObjectData.InstanceProtocol == nullptr)
+	if (UNLIKELY(ObjectData.InstanceProtocol == nullptr))
 	{
 		return;
 	}
 
 	IRIS_PROFILER_PROTOCOL_NAME(ObjectData.Protocol->DebugName->Name);
 
-	ReplicationSystemInternal->GetDirtyNetObjectTracker().SetCurrentPolledObject(ObjectIndex);
-
 	const FReplicationInstanceProtocol* InstanceProtocol = ObjectData.InstanceProtocol;
 
 	const EReplicationInstanceProtocolTraits InstanceTraits = InstanceProtocol->InstanceTraits;
 	const bool bNeedsPoll = EnumHasAnyFlags(InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPoll);
 
-	bool bIsDirtyObject = AccumulatedDirtyObjects.GetBit(ObjectIndex);
+	bool bIsDirtyObject = AccumulatedDirtyObjects.GetBit(ObjectIndex) || DirtyObjectsThisFrame.GetBit(ObjectIndex);
 
-	// Call per-instance PreUpdate function
-	if (ObjectReplicationBridge->PreUpdateInstanceFunction && EnumHasAnyFlags(InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPreSendUpdate))
-	{
-		IRIS_PROFILER_SCOPE_VERBOSE(PreReplicationUpdate);
-
-		ObjectReplicationBridge->PreUpdateInstanceFunction(ObjectData.RefHandle, ReplicatedInstances[ObjectIndex], ObjectReplicationBridge);
-		++PollStats.PreUpdatedObjectCount;
-
-		// Pre update may have called MarkDirty. Detect it.
-		bIsDirtyObject = bIsDirtyObject || DirtyObjectsThisFrame.GetBit(ObjectIndex);
-		if (bNeedsPoll && !bIsDirtyObject)
-		{
-			bIsDirtyObject = FGlobalDirtyNetObjectTracker::IsNetObjectStateDirty(ObjectData.NetHandle);
-		}
-
-		if (bIsDirtyObject)
-		{
-			DirtyObjectsToCopy.SetBit(ObjectIndex);
-			DirtyObjectsThisFrame.SetBit(ObjectIndex);
-		}
-	}
-	else if (bIsDirtyObject)
+	if (bIsDirtyObject)
 	{
 		DirtyObjectsToCopy.SetBit(ObjectIndex);
 		DirtyObjectsThisFrame.SetBit(ObjectIndex);
