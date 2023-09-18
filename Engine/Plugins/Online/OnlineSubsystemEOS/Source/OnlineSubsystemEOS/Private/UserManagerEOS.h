@@ -68,6 +68,12 @@ public:
 		TOnlineFriendEOS<FOnlineFriend>(InUserId)
 	{
 	}
+
+	FOnlineFriendEOS(FUniqueNetIdEOSRef InUserId, const TMap<FString, FString>& InUserAttributes) :
+		TOnlineFriendEOS<FOnlineFriend>(InUserId, InUserAttributes)
+	{
+	}
+
 	virtual ~FOnlineFriendEOS() = default;
 };
 
@@ -197,8 +203,27 @@ struct FLocalUserEOS
 	/** Friends information for the local user */
 	FFriendsListEOSPtr FriendsList;
 
-	/** Epic ids for friends with ongoing queries */
-	TArray<EOS_EpicAccountId> OngoingFriendQueryUserInfo;
+	/** Epic ids for users with ongoing queries */
+	TArray<EOS_EpicAccountId> OngoingQueryUserInfoAccounts;
+
+	struct FReadUserInfoResults
+	{
+		/** UniqueNetIds gathered as a result of successful queries */
+		TArray<FUniqueNetIdEOSRef> ProcessedIds;
+
+		/** Whether all queries for this given operation were successful */
+		bool bAllWasSuccessful = true;
+
+		/** Combined error str for all operations */
+		FString AllErrorStr;
+
+		void Reset()
+		{
+			ProcessedIds.Empty();
+			bAllWasSuccessful = true;
+			AllErrorStr.Empty();
+		}
+	} OngoingQueryUserInfoResults;
 
 	/** External ids still in process of resolution for local user */
 	TArray<FString> OngoingPlayerQueryExternalMappings;
@@ -336,10 +361,13 @@ public:
 	bool IsLocalUser(const EOS_ProductUserId& ProductUserId) const;
 
 	typedef TFunction<void(TMap<EOS_ProductUserId, FUniqueNetIdEOSRef> ResolvedUniqueNetIds)> FResolveUniqueNetIdsCallback;
+	typedef TFunction<void(bool bWasSuccessful, TMap<EOS_EpicAccountId, FUniqueNetIdEOSRef> ResolvedUniqueNetIds, FString ErrorStr)> FResolveEpicAccountIdsCallback;
 	typedef TFunction<void(FUniqueNetIdEOSRef ResolvedUniqueNetId)> FResolveUniqueNetIdCallback;
 	bool GetEpicAccountIdFromProductUserId(int32 LocalUserNum, const EOS_ProductUserId& ProductUserId, EOS_EpicAccountId& OutEpicAccountId) const;
 	void ResolveUniqueNetId(int32 LocalUserNum, const EOS_ProductUserId& ProductUserId, const FResolveUniqueNetIdCallback& Callback) const;
 	void ResolveUniqueNetIds(int32 LocalUserNum, const TArray<EOS_ProductUserId>& ProductUserIds, const FResolveUniqueNetIdsCallback& Callback) const;
+	void ResolveUniqueNetId(int32 LocalUserNum, const EOS_EpicAccountId& EpicAccountId, const FResolveUniqueNetIdCallback& Callback);
+	void ResolveUniqueNetIds(int32 LocalUserNum, const TArray<EOS_EpicAccountId>& EpicAccountId, const FResolveEpicAccountIdsCallback& Callback);
 
 	FOnlineUserPtr GetLocalOnlineUser(int32 LocalUserNum) const;
 	FOnlineUserPtr GetOnlineUser(EOS_ProductUserId UserId) const;
@@ -359,6 +387,7 @@ public:
 
 	void FullLoginCallback(int32 LocalUserNum, EOS_EpicAccountId AccountId, EOS_ProductUserId UserId, const FOnlineAccountCredentials& AccountCredentials);
 	void FriendStatusChanged(const EOS_Friends_OnFriendsUpdateInfo* Data);
+	void FriendStatusChangedImpl(EOS_EpicAccountId LocalUserId, EOS_EpicAccountId TargetUserId, EOS_EFriendsStatus PreviousStatus, EOS_EFriendsStatus CurrentStatus);
 	void LoginStatusChanged(const EOS_Auth_LoginStatusChangedCallbackInfo* Data);
 
 	int32 GetDefaultLocalUser() const { return DefaultLocalUser; }
@@ -371,11 +400,14 @@ private:
 	void RemoveLocalUser(int32 LocalUserNum);
 	FLocalUserEOS& AddLocalUser(int32 LocalUserNum, EOS_EpicAccountId EpicAccountId, EOS_ProductUserId UserId, const FOnlineAccountCredentials& AccountCredentials);
 
-	FOnlineFriendEOSRef AddFriend(int32 LocalUserNum, EOS_EpicAccountId EpicAccountId);
-	void AddRemotePlayer(int32 LocalUserNum, EOS_EpicAccountId EpicAccountId);
-	void AddRemotePlayer(int32 LocalUserNum, EOS_EpicAccountId EpicAccountId, IAttributeAccessInterfaceRef AttributeRef);
-	void UpdateRemotePlayerProductUserId(EOS_EpicAccountId AccountId, EOS_ProductUserId UserId);
-	void ReadUserInfo(int32 LocalUserNum, EOS_EpicAccountId EpicAccountId);
+	typedef TFunction<void(bool bWasSuccessful, FUniqueNetIdEOSRef RemotePlayerNetId, const FString& ErrorStr)> FRemoteUserProcessedCallback;
+	void AddRemotePlayer(int32 LocalUserNum, EOS_EpicAccountId EpicAccountId, const FRemoteUserProcessedCallback& Callback);
+	typedef TFunction<void(bool bWasSuccessful, TArray<FUniqueNetIdEOSRef> RemotePlayerNetIds, const FString& ErrorStr)> FRemoteUsersProcessedCallback;
+	void AddRemotePlayers(int32 LocalUserNum, TArray<EOS_EpicAccountId> EpicAccountIds, const FRemoteUsersProcessedCallback& Callback);
+	void ReadUserInfo(int32 LocalUserNum, EOS_EpicAccountId EpicAccountId, const FRemoteUserProcessedCallback& Callback);
+
+	// This method does not call AddRemotePlayer, only registers an already existing remote player as a friend for a local user
+	FOnlineFriendEOSRef AddFriend(int32 LocalUserNum, const FUniqueNetIdEOS& FriendNetId);
 
 	void UpdateUserInfo(IAttributeAccessInterfaceRef AttriubteAccessRef, EOS_EpicAccountId LocalId, EOS_EpicAccountId TargetId);
 	bool IsFriendQueryUserInfoOngoing(int32 LocalUserNum);
@@ -409,7 +441,7 @@ private:
 	// Online user info
 
 	/** Ids mapped to attribute access information for any user */
-	TUniqueNetIdMap<IAttributeAccessInterfaceRef> UniqueNetIdToAttributeAccessMap;
+	TUniqueNetIdMap<FOnlineUserEOSRef> UniqueNetIdToUserRefMap;
 
 	/** Ids mapped to user presence information for any user */
 	TUniqueNetIdMap<FOnlineUserPresenceRef> UniqueNetIdToOnlineUserPresenceMap;

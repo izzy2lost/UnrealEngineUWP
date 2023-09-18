@@ -165,6 +165,12 @@ public:
 	{
 	}
 
+	TOnlineUserEOS(const FUniqueNetIdEOSRef& InNetIdRef, const TMap<FString, FString>& InUserAttributes)
+		: UserIdRef(InNetIdRef)
+		, UserAttributes(InUserAttributes)
+	{
+	}
+
 	virtual ~TOnlineUserEOS()
 	{
 	}
@@ -291,6 +297,11 @@ class TOnlineFriendEOS :
 public:
 	TOnlineFriendEOS(const FUniqueNetIdEOSRef& InNetIdRef)
 		: TOnlineUserEOS<BaseClass, IAttributeAccessInterface>(InNetIdRef)
+	{
+	}
+
+	TOnlineFriendEOS(const FUniqueNetIdEOSRef& InNetIdRef, const TMap<FString, FString>& InUserAttributes)
+		: TOnlineUserEOS<BaseClass, IAttributeAccessInterface>(InNetIdRef, InUserAttributes)
 	{
 	}
 
