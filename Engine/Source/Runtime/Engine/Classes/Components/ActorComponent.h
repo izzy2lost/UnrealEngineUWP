@@ -19,6 +19,7 @@
 #include "UObject/StructOnScope.h"
 #include "PropertyPairsMap.h"
 #include "ComponentInstanceDataCache.h"
+#include "Experimental/ConcurrentLinearAllocator.h"
 #include "ActorComponent.generated.h"
 
 struct FTypedElementHandle;
@@ -48,12 +49,21 @@ public:
 		AddPrimitiveBatches.Add(PrimitiveComponent);
 	}
 
+	void AddSendRenderDynamicData(UPrimitiveComponent* PrimitiveComponent)
+	{
+		checkSlow(!SendRenderDynamicDataPrimitives.Contains(PrimitiveComponent));
+		SendRenderDynamicDataPrimitives.Add(PrimitiveComponent);
+	}
+
+	ENGINE_API static void SendRenderDynamicData(FRegisterComponentContext* Context, UPrimitiveComponent* PrimitiveComponent);
+
 	int32 Count() const { return AddPrimitiveBatches.Num(); }
 	void Process();
 
 private:
 	UWorld* World;
-	TArray<UPrimitiveComponent*> AddPrimitiveBatches;
+	TArray<UPrimitiveComponent*, FConcurrentLinearArrayAllocator> AddPrimitiveBatches;
+	TArray<UPrimitiveComponent*, FConcurrentLinearArrayAllocator> SendRenderDynamicDataPrimitives;
 };
 
 #if WITH_EDITOR

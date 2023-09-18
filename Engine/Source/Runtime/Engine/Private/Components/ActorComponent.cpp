@@ -141,6 +141,24 @@ void FRegisterComponentContext::Process()
 		bSingleThreaded
 	);
 	AddPrimitiveBatches.Empty();
+
+	for (UPrimitiveComponent* Primitive : SendRenderDynamicDataPrimitives)
+	{
+		Primitive->SendRenderDynamicData_Concurrent();
+	}
+	SendRenderDynamicDataPrimitives.Empty();
+}
+
+void FRegisterComponentContext::SendRenderDynamicData(FRegisterComponentContext* Context, UPrimitiveComponent* PrimitiveComponent)
+{
+	if (Context)
+	{
+		Context->AddSendRenderDynamicData(PrimitiveComponent);
+	}
+	else
+	{
+		PrimitiveComponent->SendRenderDynamicData_Concurrent();
+	}
 }
 
 void UpdateAllPrimitiveSceneInfosForSingleComponent(UActorComponent* InComponent, TSet<FSceneInterface*>* InScenesToUpdateAllPrimitiveSceneInfosForBatching /* = nullptr*/)

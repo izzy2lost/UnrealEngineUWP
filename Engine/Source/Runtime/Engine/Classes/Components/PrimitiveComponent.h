@@ -2344,6 +2344,7 @@ public:
 #endif
 
 	//~ Begin UActorComponent Interface
+	using Super::SendRenderDynamicData_Concurrent;
 	ENGINE_API virtual void CreateRenderState_Concurrent(FRegisterComponentContext* Context) override;
 	ENGINE_API virtual void SendRenderTransform_Concurrent() override;
 	ENGINE_API virtual void OnRegister()  override;

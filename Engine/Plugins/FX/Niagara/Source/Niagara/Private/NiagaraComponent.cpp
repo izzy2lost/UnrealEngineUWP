@@ -2151,9 +2151,10 @@ void UNiagaraComponent::OnEndOfFrameUpdateDuringTick()
 void UNiagaraComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Context)
 {
 	Super::CreateRenderState_Concurrent(Context);
+
 	// The emitter instance may not tick again next frame so we send the dynamic data here so that the current state
 	// renders.  This can happen when while editing, or any time the age update mode is set to desired age.
-	SendRenderDynamicData_Concurrent();
+	FRegisterComponentContext::SendRenderDynamicData(Context, this);
 }
 
 void UNiagaraComponent::DestroyRenderState_Concurrent()

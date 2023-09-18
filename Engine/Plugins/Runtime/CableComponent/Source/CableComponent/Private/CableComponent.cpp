@@ -974,7 +974,7 @@ void UCableComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Co
 {
 	Super::CreateRenderState_Concurrent(Context);
 
-	SendRenderDynamicData_Concurrent();
+	FRegisterComponentContext::SendRenderDynamicData(Context, this);
 }
 
 void UCableComponent::ApplyWorldOffset(const FVector & InOffset, bool bWorldShift)
