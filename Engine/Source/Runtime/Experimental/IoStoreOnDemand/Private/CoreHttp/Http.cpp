@@ -1991,7 +1991,7 @@ static int32 DoRecvMessage(FActivity* Activity)
 				ContentLength = int32(CrudeToInt(Value));
 				return true;
 			}
-			
+
 			else if (Name.Equals("Connection", ESearchCase::IgnoreCase))
 			{
 				IsKeepAlive = !Value.Equals("close");
@@ -2233,7 +2233,6 @@ private:
 		LIMITLESS	= 0x7fff'ffff,
 		THRESHOLD	= 2 << 10,
 	};
-	
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2740,7 +2739,7 @@ static void MiscTest()
 
 	bool AllIsWell = true;
 	auto NotExpectedToBeCalled = [&AllIsWell] (auto, auto)
-	{ 
+	{
 		AllIsWell = false;
 		return false;
 	};
