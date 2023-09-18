@@ -476,7 +476,7 @@ private:
 	TMap<FName, FDiskCachedAssetData*> DiskCachedAssetDataMap;
 	/** Map of PackageName to cached discovered assets that will be written to disk at shutdown. */
 	TMap<FName, FDiskCachedAssetData*> NewCachedAssetDataMap;
-	/** Used to block on gather results. If non-zero, tick should end when WaitBatchCount files have been processed. */
+	/** Used to block on gather results. If non-negative, tick should end when WaitBatchCount files have been processed. */
 	int32 WaitBatchCount;
 	/** How many uncached asset files had been discovered at the last async cache save */
 	int32 LastMonolithicCacheSaveUncachedAssetFiles;
