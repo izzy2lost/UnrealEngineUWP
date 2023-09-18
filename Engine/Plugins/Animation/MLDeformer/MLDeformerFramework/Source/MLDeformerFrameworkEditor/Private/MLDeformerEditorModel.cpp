@@ -286,11 +286,68 @@ namespace UE::MLDeformer
 		Settings.LabelColor = LabelColor;
 		Settings.LabelText = LOCTEXT("TestMLDeformedActorLabelText", "ML Deformed");
 		Settings.bIsTrainingActor = false;
-		FMLDeformerEditorActor* EditorActor = static_cast<FMLDeformerEditorActor*>(CreateEditorActor(Settings));
+		FMLDeformerEditorActor* EditorActor = CreateEditorActor(Settings);
 		EditorActor->SetSkeletalMeshComponent(SkelMeshComponent);
 		EditorActor->SetMLDeformerComponent(MLDeformerComponent);
 		EditorActor->SetMeshOffsetFactor(1.0f);
 		EditorActors.Add(EditorActor);
+	}
+
+	void FMLDeformerEditorModel::CreateTestCompareActors(UWorld* World)
+	{
+		const FLinearColor MLDeformedWireColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.MLCompareMesh.WireframeColor");
+		USkeletalMesh* SkelMesh = Model->GetSkeletalMesh();
+
+		const TArray<FMLDeformerCompareActor>& CompareActors = Model->GetVizSettings()->GetCompareActors();
+		for (int32 ActorIndex = 0; ActorIndex < CompareActors.Num(); ++ActorIndex)
+		{
+			const FMLDeformerCompareActor& CompareActor = CompareActors[ActorIndex];
+
+			// Create the ML deformed actor.
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.Name = MakeUniqueObjectName(World, AActor::StaticClass(), "Test Compare Actor");
+			AActor* Actor = World->SpawnActor<AActor>(SpawnParams);
+			Actor->SetFlags(RF_Transient);
+
+			// Create the skeletal mesh component.
+			UDebugSkelMeshComponent* SkelMeshComponent = NewObject<UDebugSkelMeshComponent>(Actor);
+			UMLDeformerAsset* DeformerAsset = CompareActor.DeformerAsset.LoadSynchronous();
+			if (!IsCompatibleDeformer(DeformerAsset))
+			{
+				SkelMesh = nullptr;
+			}
+			SkelMeshComponent->SetSkeletalMesh(SkelMesh);
+			Actor->SetRootComponent(SkelMeshComponent);
+			SkelMeshComponent->RegisterComponent();
+			SkelMeshComponent->SetWireframeMeshOverlayColor(MLDeformedWireColor);
+			SkelMeshComponent->SetVisibility(false);
+			SkelMeshComponent->MarkRenderStateDirty();
+
+			// Create the ML Deformer component.
+			UMLDeformerAsset* FinalDeformerAsset = IsCompatibleDeformer(DeformerAsset) ? DeformerAsset : nullptr;
+			UMLDeformerComponent* MLDeformerComponent = NewObject<UMLDeformerComponent>(Actor);
+			MLDeformerComponent->SetSuppressMeshDeformerLogWarnings(true);
+			MLDeformerComponent->SetDeformerAsset(FinalDeformerAsset);
+			MLDeformerComponent->RegisterComponent();
+			MLDeformerComponent->SetupComponent(FinalDeformerAsset, SkelMeshComponent);
+
+			// Create the editor actor.
+			const FLinearColor LabelColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.MLCompareMesh.LabelColor");
+			FMLDeformerEditorActor::FConstructSettings Settings;
+			Settings.Actor = Actor;
+			Settings.TypeID = ActorID_Test_Compare;
+			Settings.LabelColor = LabelColor;
+			Settings.LabelText = LOCTEXT("TestCompareActorLabelText", "ML Compare");
+			Settings.bIsTrainingActor = false;
+			Settings.ActorTypeInstanceIndex = ActorIndex;
+			FMLDeformerEditorActor* EditorActor = CreateEditorActor(Settings);
+			EditorActor->SetSkeletalMeshComponent(SkelMeshComponent);
+			EditorActor->SetMLDeformerComponent(MLDeformerComponent);
+			EditorActor->SetMeshOffsetFactor(2.0f + static_cast<float>(ActorIndex));
+			EditorActors.Add(EditorActor);
+		}
+
+		UpdateCompareActorLabels();
 	}
 
 	void FMLDeformerEditorModel::CreateActors(const TSharedRef<IPersonaPreviewScene>& InPersonaPreviewScene)
@@ -301,11 +358,43 @@ namespace UE::MLDeformer
 		CreateTestMLDeformedActor(World);
 		CreateTrainingGroundTruthActor(World);
 		CreateTestGroundTruthActor(World);
+		CreateTestCompareActors(World);
 
+		UpdateMeshOffsetFactors();
+	}
+
+	int32 FMLDeformerEditorModel::CalcNumValidCompareActorsPriorTo(int32 CompareActorIndex) const
+	{
+		int Result = 0;
+
+		const TArray<FMLDeformerCompareActor>& CompareActors = Model->GetVizSettings()->GetCompareActors();
+		for (int32 CompareInstanceIndex = 0; CompareInstanceIndex < CompareActors.Num(); ++CompareInstanceIndex)
+		{
+			if (CompareInstanceIndex < CompareActorIndex)
+			{
+				const FMLDeformerCompareActor& CompareActor = CompareActors[CompareInstanceIndex];
+				UMLDeformerAsset* CompareDeformerAsset = CompareActor.DeformerAsset.LoadSynchronous();
+				if (IsCompatibleDeformer(CompareDeformerAsset))
+				{
+					Result++;
+				}
+			}
+		}
+
+		return Result;
+	}
+
+	void FMLDeformerEditorModel::UpdateMeshOffsetFactors()
+	{
 		// Set the default mesh translation offsets for our ground truth actors.
 		for (FMLDeformerEditorActor* EditorActor : EditorActors)
 		{
-			if (EditorActor && EditorActor->IsGroundTruthActor())
+			if (EditorActor == nullptr)
+			{
+				continue;
+			}
+
+			if (EditorActor->IsGroundTruthActor())
 			{			
 				// The mesh offset factor basically just offsets the actor position by a given factor.
 				// The amount the actor is moved from the origin is: (MeshSpacing * MeshOffsetFactor).
@@ -313,7 +402,25 @@ namespace UE::MLDeformer
 				// It is 2.0 because the ground truth actor in testing mode is all the way on the right, next to the ML Deformed model.
 				// In training mode we have only the Linear Skinned actor and the ground truth, so there the spacing factor is 1.0.
 				// TLDR: Basically 1.0 means its the first actor next to the linear skinned actor while 2.0 means its the second character, etc.
-				EditorActor->SetMeshOffsetFactor(EditorActor->IsTestActor() ? 2.0f : 1.0f);
+				float MeshOffsetFactor = 1.0f;
+				if (EditorActor->IsTestActor())
+				{
+					MeshOffsetFactor = 2.0f;
+
+					if (Model->GetVizSettings()->GetDrawMLCompareActors())
+					{
+						const TArray<FMLDeformerCompareActor>& CompareActors = Model->GetVizSettings()->GetCompareActors();
+						const int32 NumValidCompareActors = static_cast<float>(CalcNumValidCompareActorsPriorTo(CompareActors.Num()));
+						MeshOffsetFactor += static_cast<float>(NumValidCompareActors);
+					}
+				}
+
+				EditorActor->SetMeshOffsetFactor(MeshOffsetFactor);
+			}
+			else if (EditorActor->GetTypeID() == ActorID_Test_Compare)
+			{
+				const int32 NumValidCompareActorsBefore = static_cast<float>(CalcNumValidCompareActorsPriorTo(EditorActor->GetActorTypeInstanceIndex()));
+				EditorActor->SetMeshOffsetFactor(2.0f + static_cast<float>(NumValidCompareActorsBefore));
 			}
 		}
 	}
@@ -341,6 +448,22 @@ namespace UE::MLDeformer
 			World->EditorDestroyActor(Actor, true);
 			Actor->Destroy();
 		}
+	}
+
+	bool FMLDeformerEditorModel::IsCompatibleDeformer(UMLDeformerAsset* Deformer) const
+	{
+		if (Deformer == nullptr)
+		{
+			return false;
+		}
+
+		UMLDeformerModel* CompareModel = Deformer->GetModel();
+		if (CompareModel->GetInputInfo()->GetSkeletalMesh() != Model->GetSkeletalMesh())
+		{
+			return false;
+		}
+
+		return true;
 	}
 
 	void FMLDeformerEditorModel::ClearPersonaPreviewScene()
@@ -426,18 +549,18 @@ namespace UE::MLDeformer
 			}
 		}
 
+		UpdateMeshOffsetFactors();
 		UpdateActorTransforms();
 		UpdateLabels();
 		CheckTrainingDataFrameChanged();
 
-		// Update the ML Deformer component of the ML Deformed test actor.
-		FMLDeformerEditorActor* EditorActor = FindEditorActor(ActorID_Test_MLDeformed);
-		if (EditorActor)
+		// Update the ML Deformer components.
+		for (FMLDeformerEditorActor* EditorActor : EditorActors)
 		{
-			UMLDeformerComponent* DeformerComponent = EditorActor->GetMLDeformerComponent();
-			if (DeformerComponent)
+			if (EditorActor && EditorActor->GetMLDeformerComponent())
 			{		
 				const UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
+				UMLDeformerComponent* DeformerComponent = EditorActor->GetMLDeformerComponent();
 				DeformerComponent->SetWeight(VizSettings->GetWeight());
 				DeformerComponent->SetQualityLevel(VizSettings->GetQualityLevel());
 			}
@@ -474,7 +597,7 @@ namespace UE::MLDeformer
 				LabelComponent->SetRelativeScale3D(FVector(VizSettings->GetLabelScale() * 0.3f));
 
 				// Update visibility.
-				const bool bLabelIsVisible = (bDrawTrainingActors && EditorActor->IsTrainingActor()) || (bDrawTestActors && EditorActor->IsTestActor());
+				const bool bLabelIsVisible = ((bDrawTrainingActors && EditorActor->IsTrainingActor()) || (bDrawTestActors && EditorActor->IsTestActor())) && EditorActor->IsVisible();
 				LabelComponent->SetVisibility(bLabelIsVisible);
 
 				// Handle test ground truth, disable its label when no ground truth asset was selected.
@@ -526,6 +649,13 @@ namespace UE::MLDeformer
 				{
 					bIsVisible &= VizSettings->GetDrawGroundTruthActor();
 				}
+				else if (EditorActor->GetTypeID() == ActorID_Test_Compare)
+				{
+					bIsVisible &= VizSettings->GetDrawMLCompareActors();
+				}
+
+				bIsVisible &= EditorActor->HasVisualMesh();
+
 				EditorActor->SetVisibility(bIsVisible);
 			}
 		}
@@ -609,6 +739,35 @@ namespace UE::MLDeformer
 			SkeletalMeshComponent->SetPlayRate(TestAnimSpeed);
 			SkeletalMeshComponent->Play(true);
 		}
+
+		// Update all compare actors.
+		for (FMLDeformerEditorActor* EditorActor : EditorActors)
+		{
+			if (EditorActor->GetTypeID() != ActorID_Test_Compare)
+			{
+				continue;
+			}
+
+			SkeletalMeshComponent = EditorActor->GetSkeletalMeshComponent();
+			if (SkeletalMeshComponent)
+			{
+				USkeletalMesh* CompareSkelMesh = Model->GetSkeletalMesh();
+				const int32 InstanceIndex = EditorActor->GetActorTypeInstanceIndex();
+				const FMLDeformerCompareActor& CompareActor = VizSettings->GetCompareActors()[InstanceIndex];
+				UMLDeformerAsset* DeformerAsset = CompareActor.DeformerAsset.LoadSynchronous();
+				if (!IsCompatibleDeformer(DeformerAsset))
+				{
+					CompareSkelMesh = nullptr;
+				}
+				SkeletalMeshComponent->SetSkeletalMesh(CompareSkelMesh);
+				SkeletalMeshComponent->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+				const float CurrentPlayTime = SkeletalMeshComponent->GetPosition();
+				SkeletalMeshComponent->SetAnimation(TestAnimSequence);
+				SkeletalMeshComponent->SetPosition(CurrentPlayTime);
+				SkeletalMeshComponent->SetPlayRate(TestAnimSpeed);
+				SkeletalMeshComponent->Play(true);
+			}
+		}
 	}
 
 	void FMLDeformerEditorModel::OnPostInputAssetChanged()
@@ -617,6 +776,7 @@ namespace UE::MLDeformer
 		UpdateTimelineTrainingAnimList();
 		Editor->UpdateTimeSliderRange();
 		Model->UpdateCachedNumVertices();
+		UpdateActorVisibility();
 		UpdateNumTrainingFrames();
 		UpdateDeformerGraph();
 		RefreshMLDeformerComponents();
@@ -765,6 +925,60 @@ namespace UE::MLDeformer
 		{
 			TriggerInputAssetChanged(true);
 		}
+		else if (Property->GetFName() == UMLDeformerVizSettings::GetCompareActorsPropertyName())
+		{
+			const int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(PropertyChangedEvent.Property->GetFName().ToString());
+
+			// Make sure we're not moving elements.
+			switch (PropertyChangedEvent.ChangeType)
+			{
+				case EPropertyChangeType::ArrayAdd:
+				{
+					check(ArrayIndex != INDEX_NONE);
+					AddCompareActor(ArrayIndex);
+					break;
+				}
+				case EPropertyChangeType::ArrayRemove:
+				{
+					check(ArrayIndex != INDEX_NONE);
+					RemoveCompareActor(ArrayIndex);
+					break;
+				}
+				case EPropertyChangeType::ArrayClear:
+				{
+					RemoveAllCompareActors();
+					break;
+				}
+				case EPropertyChangeType::Duplicate:
+				{
+					check(ArrayIndex != INDEX_NONE);
+					AddCompareActor(ArrayIndex);
+					break;
+				}
+				default:;
+			};
+
+			TriggerInputAssetChanged(true);
+			UpdateActorVisibility();
+			UpdateCompareActorLabels();
+		}
+		else if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(FMLDeformerCompareActor, DeformerAsset))
+		{
+			if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
+			{
+				TriggerInputAssetChanged(true);
+				UpdateActorVisibility();
+				UpdateCompareActorLabels();
+			}
+		}
+		else if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(FMLDeformerCompareActor, Name))
+		{
+			if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
+			{
+				UpdateCompareActorLabels();
+			}
+		}
+		else
 		if (Property->GetFName() == UMLDeformerModel::GetAlignmentTransformPropertyName() ||
 		    Property->GetFName() == UMLDeformerModel::GetDeltaCutoffLengthPropertyName())
 		{
@@ -811,7 +1025,8 @@ namespace UE::MLDeformer
 		else
 		if (Property->GetFName() == UMLDeformerVizSettings::GetDrawLinearSkinnedActorPropertyName() ||
 			Property->GetFName() == UMLDeformerVizSettings::GetDrawMLDeformedActorPropertyName() ||
-			Property->GetFName() == UMLDeformerVizSettings::GetDrawGroundTruthActorPropertyName())
+			Property->GetFName() == UMLDeformerVizSettings::GetDrawGroundTruthActorPropertyName() ||
+			Property->GetFName() == UMLDeformerVizSettings::GetDrawMLCompareActorsPropertyName())
 		{
 			UpdateActorVisibility();
 		}
@@ -1467,18 +1682,40 @@ namespace UE::MLDeformer
 
 	void FMLDeformerEditorModel::RefreshMLDeformerComponents()
 	{
-		for (FMLDeformerEditorActor* EditorActor : EditorActors)
+		// Update the ML Deformed actor.
+		FMLDeformerEditorActor* EditorActor = FindEditorActor(ActorID_Test_MLDeformed);
+		if (EditorActor && EditorActor->GetMLDeformerComponent())
 		{
-			if (EditorActor && EditorActor->GetMLDeformerComponent())
+			USkeletalMeshComponent* SkelMeshComponent = EditorActor ? EditorActor->GetSkeletalMeshComponent() : nullptr;
+			UMLDeformerAsset* DeformerAsset = GetModel()->GetDeformerAsset();
+			EditorActor->GetMLDeformerComponent()->SetupComponent(DeformerAsset, SkelMeshComponent);
+			UMLDeformerModelInstance* ModelInstance = EditorActor->GetMLDeformerComponent()->GetModelInstance();
+			if (ModelInstance)
 			{
-				USkeletalMeshComponent* SkelMeshComponent = EditorActor ? EditorActor->GetSkeletalMeshComponent() : nullptr;
-				UMLDeformerAsset* DeformerAsset = GetModel()->GetDeformerAsset();
-				EditorActor->GetMLDeformerComponent()->SetupComponent(DeformerAsset, SkelMeshComponent);
-				UMLDeformerModelInstance* ModelInstance = EditorActor->GetMLDeformerComponent()->GetModelInstance();
-				if (ModelInstance)
+				ModelInstance->UpdateCompatibilityStatus();
+			}
+		}
+
+		// Update all compare actors.
+		for (FMLDeformerEditorActor* CompareEditorActor : EditorActors)
+		{
+			if (CompareEditorActor->GetTypeID() != ActorID_Test_Compare)
+			{
+				continue;
+			}
+
+			const int32 InstanceIndex = CompareEditorActor->GetActorTypeInstanceIndex();
+			const FMLDeformerCompareActor& CompareActor = Model->GetVizSettings()->GetCompareActors()[InstanceIndex];
+
+			if (CompareEditorActor->GetMLDeformerComponent())
+			{
+				USkeletalMeshComponent* SkelMeshComponent = CompareEditorActor->GetSkeletalMeshComponent();
+				UMLDeformerAsset* DeformerAsset = CompareActor.DeformerAsset.LoadSynchronous();
+				if (!IsCompatibleDeformer(DeformerAsset))
 				{
-					ModelInstance->UpdateCompatibilityStatus();
+					DeformerAsset = nullptr;
 				}
+				CompareEditorActor->GetMLDeformerComponent()->SetupComponent(DeformerAsset, SkelMeshComponent);
 			}
 		}
 	}
@@ -1582,26 +1819,45 @@ namespace UE::MLDeformer
 	}
 
 	void FMLDeformerEditorModel::UpdateDeformerGraph()
-	{	
-		for (FMLDeformerEditorActor* EditorActor : EditorActors)
+	{
+		UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
+
+		FMLDeformerEditorActor* EditorActor = FindEditorActor(ActorID_Test_MLDeformed);
+		if (EditorActor && EditorActor->GetMLDeformerComponent())
 		{
-			if (EditorActor == nullptr || EditorActor->GetMLDeformerComponent() == nullptr)
-			{
-				continue;
-			}
-
 			USkeletalMeshComponent* SkelMeshComponent = EditorActor->GetSkeletalMeshComponent();
-			if (SkelMeshComponent == nullptr)
-			{
-				continue;
-			}
-
 			if (SkelMeshComponent)
 			{
-				const UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
 				UMeshDeformer* MeshDeformer = IsTrained() ? VizSettings->GetDeformerGraph() : nullptr;	
 				const bool bUseHeatMapDeformer = VizSettings->GetShowHeatMap();
 				SkelMeshComponent->SetMeshDeformer(bUseHeatMapDeformer ? HeatMapDeformerGraph.Get() : MeshDeformer);
+			}
+		}
+
+		// Overwrite the comparison model's deformer graph, as that might require a different one.
+		for (FMLDeformerEditorActor* CompareEditorActor : EditorActors)
+		{
+			if (CompareEditorActor->GetTypeID() != ActorID_Test_Compare)
+			{
+				continue;
+			}
+
+			if (CompareEditorActor->GetMLDeformerComponent())
+			{
+				const int32 InstanceIndex = CompareEditorActor->GetActorTypeInstanceIndex();
+				const FMLDeformerCompareActor& CompareActor = VizSettings->GetCompareActors()[InstanceIndex];
+
+				USkeletalMeshComponent* SkelMeshComponent = CompareEditorActor->GetSkeletalMeshComponent();
+				if (SkelMeshComponent)
+				{
+					const UMLDeformerAsset* Asset = CompareActor.DeformerAsset.LoadSynchronous();
+					if (Asset && Asset->GetModel())
+					{
+						UMeshDeformer* MeshDeformer = Asset->GetModel()->GetVizSettings()->GetDeformerGraph();	
+						const bool bUseHeatMapDeformer = VizSettings->GetShowHeatMap();
+						SkelMeshComponent->SetMeshDeformer(bUseHeatMapDeformer ? HeatMapDeformerGraph.Get() : MeshDeformer);
+					}
+				}
 			}
 		}
 	}
@@ -2336,6 +2592,170 @@ namespace UE::MLDeformer
 			return EditorActor->GetMLDeformerComponent();
 		}
 		return nullptr;
+	}
+
+	void FMLDeformerEditorModel::AddCompareActor(int32 ArrayIndex)
+	{
+		// Renumber the instance index values of other editor compare actors.
+		for (FMLDeformerEditorActor* EditorActor : EditorActors)
+		{
+			if (EditorActor->GetTypeID() == ActorID_Test_Compare)
+			{
+				if (EditorActor->GetActorTypeInstanceIndex() >= ArrayIndex)
+				{
+					EditorActor->SetActorTypeInstanceIndex(EditorActor->GetActorTypeInstanceIndex() + 1);
+				}
+			}
+		}
+
+		const FLinearColor MLDeformedWireColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.MLCompareMesh.WireframeColor");
+		USkeletalMesh* SkelMesh = Model->GetSkeletalMesh();
+
+		TArray<FMLDeformerCompareActor>& CompareActors = Model->GetVizSettings()->GetCompareActors();
+		FMLDeformerCompareActor& CompareActor = CompareActors[ArrayIndex];
+
+		// Create the ML deformed actor.
+		FActorSpawnParameters SpawnParams;
+		UWorld* World = GetWorld();
+		SpawnParams.Name = MakeUniqueObjectName(World, AActor::StaticClass(), "Test Compare Actor");
+		AActor* Actor = World->SpawnActor<AActor>(SpawnParams);
+		Actor->SetFlags(RF_Transient);
+
+		// Create the skeletal mesh component.
+		UDebugSkelMeshComponent* SkelMeshComponent = NewObject<UDebugSkelMeshComponent>(Actor);
+		UMLDeformerAsset* DeformerAsset = CompareActor.DeformerAsset.LoadSynchronous();
+		if (!IsCompatibleDeformer(DeformerAsset))
+		{
+			SkelMesh = nullptr;
+		}
+		SkelMeshComponent->SetSkeletalMesh(SkelMesh);
+		Actor->SetRootComponent(SkelMeshComponent);
+		SkelMeshComponent->RegisterComponent();
+		SkelMeshComponent->SetWireframeMeshOverlayColor(MLDeformedWireColor);
+		SkelMeshComponent->SetVisibility(false);
+		SkelMeshComponent->MarkRenderStateDirty();
+		if (SkelMeshComponent->GetAnimInstance())
+		{
+			SkelMeshComponent->GetAnimInstance()->GetRequiredBones().SetUseRAWData(true);
+		}
+
+		// Create the ML Deformer component.
+		UMLDeformerAsset* FinalDeformerAsset = IsCompatibleDeformer(DeformerAsset) ? DeformerAsset : nullptr;
+		UMLDeformerComponent* MLDeformerComponent = NewObject<UMLDeformerComponent>(Actor);
+		MLDeformerComponent->SetSuppressMeshDeformerLogWarnings(true);
+		MLDeformerComponent->SetDeformerAsset(FinalDeformerAsset);
+		MLDeformerComponent->RegisterComponent();
+		MLDeformerComponent->SetupComponent(FinalDeformerAsset, SkelMeshComponent);
+
+		// Create the editor actor.
+		const FLinearColor LabelColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.MLCompareMesh.LabelColor");
+		FMLDeformerEditorActor::FConstructSettings Settings;
+		Settings.Actor = Actor;
+		Settings.TypeID = ActorID_Test_Compare;
+		Settings.LabelColor = LabelColor;
+		Settings.LabelText = LOCTEXT("TestCompareActorLabelText", "ML Compare");
+		Settings.bIsTrainingActor = false;
+		Settings.ActorTypeInstanceIndex = ArrayIndex;
+		FMLDeformerEditorActor* EditorActor = CreateEditorActor(Settings);
+		EditorActor->SetSkeletalMeshComponent(SkelMeshComponent);
+		EditorActor->SetMLDeformerComponent(MLDeformerComponent);
+		EditorActor->SetMeshOffsetFactor(2.0f + static_cast<float>(ArrayIndex));
+		EditorActors.Add(EditorActor);
+	}
+
+	void FMLDeformerEditorModel::RemoveCompareActor(int32 ArrayIndex)
+	{
+		UWorld* World = GetWorld();
+
+		FMLDeformerEditorActor* EditorActorToDestroy = nullptr;
+		AActor* ActorToDestroy = nullptr;
+		for (FMLDeformerEditorActor* EditorActor : EditorActors)
+		{
+			if (EditorActor && EditorActor->GetTypeID() == ActorID_Test_Compare && EditorActor->GetActorTypeInstanceIndex() == ArrayIndex)
+			{
+				EditorActorToDestroy = EditorActor;
+				ActorToDestroy = EditorActor->GetActor();
+				World->DestroyActor(EditorActor->GetActor(), true);
+				EditorActors.Remove(EditorActor);
+				delete EditorActor;
+				break;
+			}
+		}
+
+		// Renumber other editor actors that come after.
+		for (FMLDeformerEditorActor* EditorActor : EditorActors)
+		{
+			if (EditorActor && EditorActor->GetTypeID() == ActorID_Test_Compare && EditorActor->GetActorTypeInstanceIndex() > ArrayIndex)
+			{
+				EditorActor->SetActorTypeInstanceIndex(EditorActor->GetActorTypeInstanceIndex() - 1);
+			}
+		}
+
+		if (ActorToDestroy)
+		{
+			ActorToDestroy->Destroy();
+		}
+	}
+
+	void FMLDeformerEditorModel::RemoveAllCompareActors()
+	{
+		UWorld* World = GetWorld();
+
+		TArray<AActor*> ActorsToDestroy;
+		TArray<FMLDeformerEditorActor*> EditorActorsToDestroy;
+		for (FMLDeformerEditorActor* EditorActor : EditorActors)
+		{
+			if (EditorActor && EditorActor->GetTypeID() == ActorID_Test_Compare)
+			{				
+				ActorsToDestroy.Add(EditorActor->GetActor());
+				World->DestroyActor(EditorActor->GetActor(), true);
+				EditorActorsToDestroy.Add(EditorActor);
+			}
+		}
+
+		// Now delete the editor actors, which removes components.
+		for (FMLDeformerEditorActor* EditorActor : EditorActorsToDestroy)
+		{
+			EditorActors.Remove(EditorActor);
+			delete EditorActor;
+		}
+
+		for (AActor* Actor : ActorsToDestroy)
+		{
+			if (Actor)
+			{
+				Actor->Destroy();
+			}
+		}
+	}
+
+	void FMLDeformerEditorModel::UpdateCompareActorLabels()
+	{
+		for (FMLDeformerEditorActor* EditorActor : EditorActors)
+		{
+			if (EditorActor && EditorActor->GetTypeID() == ActorID_Test_Compare)
+			{
+				UTextRenderComponent* LabelComponent = EditorActor->GetLabelComponent();
+				if (LabelComponent)
+				{
+					const int32 InstanceIndex = EditorActor->GetActorTypeInstanceIndex();
+					const FMLDeformerCompareActor& CompareActor = Model->GetVizSettings()->GetCompareActors()[InstanceIndex];
+					FText LabelText;				
+					if (!CompareActor.Name.IsNone() && CompareActor.Name.IsValid())
+					{
+						LabelText = FText::FromName(CompareActor.Name);
+					}
+					else
+					{
+						UMLDeformerAsset* DeformerAsset = CompareActor.DeformerAsset.LoadSynchronous();
+						LabelText = DeformerAsset ? FText::FromString(DeformerAsset->GetName()) : FText::Format(LOCTEXT("DefaultCompareActorDeformerName", "ML Compare #{0}"), InstanceIndex);
+					}
+					const FLinearColor LabelColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.MLCompareMesh.LabelColor");
+					LabelComponent->SetText(LabelText);
+					LabelComponent->SetTextRenderColor(LabelColor.ToFColor(true));
+				}
+			}
+		}
 	}
 
 	int32 FMLDeformerEditorModel::GetActiveTrainingInputAnimIndex() const

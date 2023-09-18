@@ -17,6 +17,7 @@ namespace UE::MLDeformer
 		Actor = Settings.Actor;
 		LabelComponent = CreateLabelComponent(Settings.Actor, Settings.LabelColor, Settings.LabelText);
 		bIsTrainingActor = Settings.bIsTrainingActor;
+		ActorTypeInstanceIndex = Settings.ActorTypeInstanceIndex;
 	}
 
 	FMLDeformerEditorActor::~FMLDeformerEditorActor()

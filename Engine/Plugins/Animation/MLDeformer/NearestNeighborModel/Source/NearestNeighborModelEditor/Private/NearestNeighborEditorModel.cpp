@@ -116,16 +116,6 @@ namespace UE::NearestNeighborModel
 		return false;
 	}
 
-	bool FNearestNeighborEditorModel::IsTrained() const
-	{
-		const UNearestNeighborModel* NearestNeighborModel = GetNearestNeighborModel();
-		if (NearestNeighborModel)
-		{
-			return NearestNeighborModel->DoesUseOptimizedNetwork() && NearestNeighborModel->GetOptimizedNetwork() != nullptr;
-		}
-		return false;
-	}
-
 	FString FNearestNeighborEditorModel::GetTrainedNetworkOnnxFile() const
 	{
 		const UNearestNeighborModel* NearestNeighborModel = GetNearestNeighborModel();
@@ -230,7 +220,7 @@ namespace UE::NearestNeighborModel
 			FNearestNeighborEditorModelActor* NearestNeighborActor = static_cast<FNearestNeighborEditorModelActor*>(EditorActors.Last());
 			UMLDeformerComponent* MLDeformerComponent = GetTestMLDeformerComponent();
 			NearestNeighborActor->InitNearestNeighborActor(PartId, MLDeformerComponent);
-			NearestNeighborActor->SetMeshOffsetFactor(Offset);
+			NearestNeighborActor->SetMeshOffsetFactor(Offset * 2.0f);
 			NearestNeighborActors[PartId] = NearestNeighborActor;
 		}
 	}
@@ -390,7 +380,7 @@ namespace UE::NearestNeighborModel
 					FNearestNeighborEditorModelActor* EditorActor = NearestNeighborActors[i];
 					NearestNeighborActors.RemoveAt(i);
 					EditorActors.Remove(EditorActor);
-					EditorWorld->RemoveActor(EditorActor->GetActor(), true/*ShouldModifyLevel*/);
+					EditorWorld->DestroyActor(EditorActor->GetActor(), true/*ShouldModifyLevel*/);
 					delete EditorActor;
 				}
 			}

@@ -46,6 +46,8 @@ public:
 	int32 GetEndFrame() const									{ return EndFrame; }
 	const UAnimSequence* GetAnimSequence() const				{ return AnimSequence.LoadSynchronous(); }
 	UAnimSequence* GetAnimSequence()							{ return AnimSequence.LoadSynchronous(); }
+	const TSoftObjectPtr<UAnimSequence>& GetAnimSequenceSoftObjectPtr() const	{ return AnimSequence; } 
+	TSoftObjectPtr<UAnimSequence>& GetAnimSequenceSoftObjectPtr()				{ return AnimSequence; } 
 
 	static FName GetAnimSequencePropertyName()					{ return GET_MEMBER_NAME_CHECKED(FMLDeformerTrainingInputAnim, AnimSequence); }
 	static FName GetEnabledPropertyName()						{ return GET_MEMBER_NAME_CHECKED(FMLDeformerTrainingInputAnim, bEnabled); }
@@ -56,7 +58,7 @@ public:
 private:
 	/** The animation sequence. */
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 0))	// Show as first property.
-	TSoftObjectPtr<UAnimSequence> AnimSequence = nullptr;
+	TSoftObjectPtr<UAnimSequence> AnimSequence;
 
 	/** On default all frames are included, unless we specify a custom frame include range. */
 	UPROPERTY(EditAnywhere, Category = "Frame Settings")

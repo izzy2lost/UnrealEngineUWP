@@ -29,7 +29,8 @@ public:
 	UVertexDeltaModel(const FObjectInitializer& ObjectInitializer);
 
 	// UObject overrides.
-	void PostLoad() override;
+	virtual void PostLoad() override;
+	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 	// ~END UObject overrides.
 
 	// UMLDeformerModel overrides.
@@ -37,6 +38,7 @@ public:
 	virtual UMLDeformerModelInstance* CreateModelInstance(UMLDeformerComponent* Component) override;
 	virtual bool IsNeuralNetworkOnGPU() const override		{ return true; }	// GPU neural network.
 	virtual FString GetDefaultDeformerGraphAssetPath() const override;
+	virtual bool IsTrained() const override;
 	// ~END UMLDeformerModel overrides.
 
 #if WITH_EDITORONLY_DATA

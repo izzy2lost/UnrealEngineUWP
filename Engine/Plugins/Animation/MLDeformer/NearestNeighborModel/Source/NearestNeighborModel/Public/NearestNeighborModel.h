@@ -176,6 +176,10 @@ class NEARESTNEIGHBORMODEL_API UNearestNeighborModel
 public:
 	UNearestNeighborModel(const FObjectInitializer& ObjectInitializer);
 
+	// UObject overrides.
+	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
+	// ~END UObject overrides.
+
 	// UMLDeformerModel overrides.
 	virtual void PostLoad() override;
 	virtual void Serialize(FArchive& Archive) override;
@@ -183,9 +187,7 @@ public:
 	virtual UMLDeformerModelInstance* CreateModelInstance(UMLDeformerComponent* Component) override;
 	virtual UMLDeformerInputInfo* CreateInputInfo() override;
 	virtual FString GetDisplayName() const override { return "Nearest Neighbor Model"; }
-#if WITH_EDITOR
-	virtual void UpdateMemoryUsage() override;
-#endif
+	virtual bool IsTrained() const override;
 	// ~END UMLDeformerModel overrides.
 
 	friend class UNearestNeighborModelInstance;

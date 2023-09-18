@@ -36,7 +36,6 @@ namespace UE::NeuralMorphModel
 		// FMLDeformerEditorModel overrides.
 		virtual void Init(const InitSettings& Settings) override;
 		virtual ETrainingResult Train() override;
-		virtual bool IsTrained() const override;
 		virtual void InitInputInfo(UMLDeformerInputInfo* InputInfo) override;
 		virtual FText GetOverlayText() const override;
 		virtual void OnPropertyChanged(FPropertyChangedEvent& PropertyChangedEvent) override;

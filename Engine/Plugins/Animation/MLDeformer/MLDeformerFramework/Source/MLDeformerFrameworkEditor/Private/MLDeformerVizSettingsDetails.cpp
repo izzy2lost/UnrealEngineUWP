@@ -46,7 +46,6 @@ namespace UE::MLDeformer
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	// END UE_DEPRECATED(5.4)
 
-
 	bool FMLDeformerVizSettingsDetails::UpdateMemberPointers(const TArray<TWeakObjectPtr<UObject>>& Objects)
 	{
 		Model = nullptr;
@@ -169,6 +168,9 @@ namespace UE::MLDeformer
 
 		AddGroundTruth();
 
+		IDetailPropertyRow& CompareAssetRow = TestAssetsCategory->AddProperty(UMLDeformerVizSettings::GetCompareActorsPropertyName(), UMLDeformerVizSettings::StaticClass())
+			.ShouldAutoExpand(true);
+
 		LiveSettingsCategory->SetCategoryVisibility(bShowTestData);
 		LiveSettingsCategory->AddProperty(UMLDeformerVizSettings::GetWeightPropertyName(), UMLDeformerVizSettings::StaticClass());
 		LiveSettingsCategory->AddProperty(UMLDeformerVizSettings::GetAnimPlaySpeedPropertyName(), UMLDeformerVizSettings::StaticClass());
@@ -189,6 +191,8 @@ namespace UE::MLDeformer
 		VisGroup.AddPropertyRow(DetailBuilder.GetProperty(UMLDeformerVizSettings::GetDrawMLDeformedActorPropertyName(), UMLDeformerVizSettings::StaticClass()));
 		VisGroup.AddPropertyRow(DetailBuilder.GetProperty(UMLDeformerVizSettings::GetDrawGroundTruthActorPropertyName(), UMLDeformerVizSettings::StaticClass()))
 			.Visibility(VizSettings->HasTestGroundTruth() ? EVisibility::Visible : EVisibility::Collapsed);
+		VisGroup.AddPropertyRow(DetailBuilder.GetProperty(UMLDeformerVizSettings::GetDrawMLCompareActorsPropertyName(), UMLDeformerVizSettings::StaticClass()))
+			.Visibility(!VizSettings->GetCompareActors().IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed);
 
 		TrainingMeshesCategoryBuilder->SetCategoryVisibility(bShowTrainingData);
 		TrainingMeshesCategoryBuilder->AddProperty(UMLDeformerVizSettings::GetTrainingFrameNumberPropertyName(), UMLDeformerVizSettings::StaticClass());

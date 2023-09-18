@@ -30,6 +30,7 @@ public:
 	// UObject overrides.
 	virtual void Serialize(FArchive& Archive) override;
 	virtual void PostLoad() override;
+	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 	// ~END UObject overrides.
 
 	// UMLDeformerModel overrides.

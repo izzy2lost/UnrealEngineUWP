@@ -188,6 +188,9 @@ public:
 	 */
 	virtual int32 GetNumFloatsPerCurve() const				{ return 1; }
 
+	/** Check whether this model has been trained or not. */
+	virtual bool IsTrained() const							{ ensureMsgf(false, TEXT("Please override the UMLDeformerModel::IsTrained() inside your model.")); return false; }
+
 	/**
 	 * Get the skeletal mesh that is used during training.
 	 * You typically want to apply the ML Deformer on this specific skeletal mesh in your game as well.
@@ -297,6 +300,7 @@ public:
 	virtual void PostLoad() override;
 	virtual void BeginDestroy() override;
 	virtual bool IsReadyForFinishDestroy() override;
+	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 	// ~END UObject overrides.
 
 	// IBoneReferenceSkeletonProvider overrides.

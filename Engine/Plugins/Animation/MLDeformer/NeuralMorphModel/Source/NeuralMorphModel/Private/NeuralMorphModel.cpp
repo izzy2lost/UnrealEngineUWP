@@ -127,4 +127,35 @@ int32 UNeuralMorphModel::GetNumFloatsPerCurve() const
 	return (Mode == ENeuralMorphMode::Local) ? 6 : 1;
 }
 
+bool UNeuralMorphModel::IsTrained() const
+{
+	return (NeuralMorphNetwork && NeuralMorphNetwork->GetMainModel() != nullptr);
+}
+
+void UNeuralMorphModel::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
+{
+	Super::GetAssetRegistryTags(OutTags);
+
+	const UNeuralMorphInputInfo* NeuralInputInfo = Cast<UNeuralMorphInputInfo>(GetInputInfo());
+	if (NeuralInputInfo)
+	{
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NeuralMorphModel.Trained.NumBoneGroups", FString::FromInt(NeuralInputInfo->GetBoneGroups().Num()), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NeuralMorphModel.Trained.NumCurveGroups", FString::FromInt(NeuralInputInfo->GetCurveGroups().Num()), FAssetRegistryTag::TT_Numerical));
+	}
+
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NeuralMorphModel.Mode", Mode == ENeuralMorphMode::Local ? TEXT("Local") : TEXT("Global"), FAssetRegistryTag::TT_Alphabetical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NeuralMorphModel.NumMorphsPerBone", FString::FromInt(LocalNumMorphTargetsPerBone), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NeuralMorphModel.NumMorphTargets", FString::FromInt(GlobalNumMorphTargets), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NeuralMorphModel.NumIterations", FString::FromInt(NumIterations), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NeuralMorphModel.LocalNumHiddenLayers", FString::FromInt(LocalNumHiddenLayers), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NeuralMorphModel.LocalNumNeuronsPerLayer", FString::FromInt(LocalNumNeuronsPerLayer), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NeuralMorphModel.GlobalNumHiddenLayers", FString::FromInt(GlobalNumHiddenLayers), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NeuralMorphModel.GlobalNumNeuronsPerLayer", FString::FromInt(GlobalNumNeuronsPerLayer), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NeuralMorphModel.BatchSize", FString::FromInt(BatchSize), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NeuralMorphModel.LearningRate", FString::Printf(TEXT("%f"), LearningRate), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NeuralMorphModel.RegularizationFactor", FString::Printf(TEXT("%f"), RegularizationFactor), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NeuralMorphModel.SmoothLossBeta", FString::Printf(TEXT("%f"), SmoothLossBeta), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NeuralMorphModel.EnableBoneMasks", bEnableBoneMasks ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
+}
+
 #undef LOCTEXT_NAMESPACE

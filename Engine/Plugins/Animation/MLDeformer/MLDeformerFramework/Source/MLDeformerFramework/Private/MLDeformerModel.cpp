@@ -14,6 +14,7 @@
 #include "RHICommandList.h"
 #include "UObject/UObjectGlobals.h"
 #include "RHICommandList.h"
+#include "AssetRegistry/AssetData.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MLDeformerModel)
 
@@ -150,6 +151,29 @@ void UMLDeformerModel::BeginDestroy()
 bool UMLDeformerModel::IsReadyForFinishDestroy()
 {
 	return Super::IsReadyForFinishDestroy() && RenderResourceDestroyFence.IsFenceComplete();
+}
+
+void UMLDeformerModel::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
+{
+	Super::GetAssetRegistryTags(OutTags);
+
+	OutTags.Add(FAssetRegistryTag("MLDeformer.ModelType", GetClass()->GetName(), FAssetRegistryTag::TT_Alphabetical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.IsTrained", IsTrained() ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NumBaseMeshVerts", FString::FromInt(NumBaseMeshVerts), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NumTargetMeshVerts", FString::FromInt(NumTargetMeshVerts), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.SkeletalMesh", SkeletalMesh ? FAssetData(SkeletalMesh).ToSoftObjectPath().ToString() : TEXT("None"), FAssetRegistryTag::TT_Alphabetical));
+
+	#if WITH_EDITORONLY_DATA
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NumBones", FString::FromInt(BoneIncludeList.Num()), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NumCurves", FString::FromInt(CurveIncludeList.Num()), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.DeltaCutoffLength", FString::Printf(TEXT("%f"), DeltaCutoffLength), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.MaxTrainingFrames", FString::FromInt(MaxTrainingFrames), FAssetRegistryTag::TT_Numerical));
+	#endif
+
+	if (InputInfo)
+	{
+		InputInfo->GetAssetRegistryTags(OutTags);
+	}
 }
 
 void UMLDeformerModel::InitGPUData()

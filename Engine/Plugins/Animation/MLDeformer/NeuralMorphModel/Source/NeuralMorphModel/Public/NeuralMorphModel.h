@@ -42,6 +42,7 @@ public:
 	// UObject overrides.
 	virtual void Serialize(FArchive& Archive) override;
 	virtual void PostLoad() override;
+	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 	// ~END UObject overrides.
 
 	// UMLDeformerModel overrides.
@@ -49,6 +50,7 @@ public:
 	virtual UMLDeformerModelInstance* CreateModelInstance(UMLDeformerComponent* Component) override;
 	virtual UMLDeformerInputInfo* CreateInputInfo() override;
 	virtual int32 GetNumFloatsPerCurve() const override;
+	virtual bool IsTrained() const override;
 	// ~END UMLDeformerModel overrides.
 
 	const TArray<FNeuralMorphBoneGroup>& GetBoneGroups() const		{ return BoneGroups; }
@@ -71,7 +73,6 @@ public:
 
 	void UpdateMissingGroupNames();
 	void SetNeuralMorphNetwork(UNeuralMorphNetwork* Net);
-
 	void SetNumIterations(int32 InNumIterations)					{ check(InNumIterations > 0); NumIterations = InNumIterations; }
 
 public:

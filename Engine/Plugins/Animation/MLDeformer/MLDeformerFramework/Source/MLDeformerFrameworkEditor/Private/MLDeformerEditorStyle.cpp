@@ -38,6 +38,9 @@ namespace UE::MLDeformer
 		Set("MLDeformer.MLDeformedMesh.WireframeColor", FLinearColor(1.0f, 0.0f, 0.0f));
 		Set("MLDeformer.MLDeformedMesh.LabelColor", FLinearColor(1.0f, 0.0f, 0.0f));
 
+		Set("MLDeformer.MLCompareMesh.WireframeColor", FLinearColor(1.0f, 0.4f, 0.0f));
+		Set("MLDeformer.MLCompareMesh.LabelColor", FLinearColor(1.0f, 0.4f, 0.0f));
+
 		Set("MLDeformer.GroundTruth.WireframeColor", FLinearColor(0.0f, 0.0f, 1.0f));
 		Set("MLDeformer.GroundTruth.LabelColor", FLinearColor(0.0f, 0.0f, 1.0f));
 

@@ -90,17 +90,6 @@ namespace UE::NeuralMorphModel
 			.EditorModel(this);
 	}
 
-	bool FNeuralMorphEditorModel::IsTrained() const
-	{
-		UNeuralMorphNetwork* MorphNetwork = GetNeuralMorphModel()->GetNeuralMorphNetwork();
-		if (MorphNetwork != nullptr && MorphNetwork->GetMainModel() != nullptr)
-		{
-			return true;
-		}
-
-		return false;
-	}
-
 	void FNeuralMorphEditorModel::Init(const InitSettings& Settings)
 	{
 		FMLDeformerMorphModelEditorModel::Init(Settings);

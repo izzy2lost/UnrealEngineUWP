@@ -2,6 +2,9 @@
 
 #include "MLDeformerAsset.h"
 #include "MLDeformerObjectVersion.h"
+#include "MLDeformerModel.h"
+#include "MLDeformerInputInfo.h"
+#include "Engine/SkeletalMesh.h"
 
 void UMLDeformerAsset::Serialize(FArchive& Archive)
 {
@@ -9,4 +12,13 @@ void UMLDeformerAsset::Serialize(FArchive& Archive)
 
 	Archive.UsingCustomVersion(UE::MLDeformer::FMLDeformerObjectVersion::GUID);
 	Super::Serialize(Archive);
+}
+
+void UMLDeformerAsset::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
+{
+	Super::GetAssetRegistryTags(OutTags);
+	if (Model)
+	{
+		Model->GetAssetRegistryTags(OutTags);
+	}
 }

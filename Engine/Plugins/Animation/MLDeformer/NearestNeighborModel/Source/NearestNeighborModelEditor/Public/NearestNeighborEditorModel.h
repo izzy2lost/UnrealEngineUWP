@@ -45,7 +45,6 @@ namespace UE::NearestNeighborModel
 
 		virtual void InitInputInfo(UMLDeformerInputInfo* InputInfo) override;
 		virtual ETrainingResult Train() override;
-		virtual bool IsTrained() const override;
 		virtual bool LoadTrainedNetwork() const override;
 		virtual void OnPropertyChanged(FPropertyChangedEvent& PropertyChangedEvent) override;
 		virtual void OnPostTraining(ETrainingResult TrainingResult, bool bUsePartiallyTrainedWhenAborted) override;

@@ -25,16 +25,17 @@ public:
 	virtual int32 ExtractNumAnimFrames() const override;
 	// ~END FMLDeformerTrainingInputAnim overrides
 
-	void SetGeometryCache(TSoftObjectPtr<UGeometryCache> GeomCache)	{ GeometryCache = GeomCache; }
+	void SetGeometryCache(TSoftObjectPtr<UGeometryCache> GeomCache)				{ GeometryCache = GeomCache; }
 
-	const UGeometryCache* GetGeometryCache() const					{ return GeometryCache.LoadSynchronous(); }
-	UGeometryCache* GetGeometryCache()								{ return GeometryCache.LoadSynchronous(); }
-
-	static FName GetGeomCachePropertyName()							{ return GET_MEMBER_NAME_CHECKED(FMLDeformerGeomCacheTrainingInputAnim, GeometryCache); }
+	const UGeometryCache* GetGeometryCache() const								{ return GeometryCache.LoadSynchronous(); }
+	UGeometryCache* GetGeometryCache()											{ return GeometryCache.LoadSynchronous(); }
+	TSoftObjectPtr<UGeometryCache>& GetGeometryCacheSoftObjectPtr()				{ return GeometryCache; }
+	const TSoftObjectPtr<UGeometryCache>& GetGeometryCacheSoftObjectPtr() const { return GeometryCache; }
+	static FName GetGeomCachePropertyName()										{ return GET_MEMBER_NAME_CHECKED(FMLDeformerGeomCacheTrainingInputAnim, GeometryCache); }
 
 private:
 	/** The geometry cache which contains the target deformations. */
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 10))
-	TSoftObjectPtr<UGeometryCache> GeometryCache = nullptr;
+	TSoftObjectPtr<UGeometryCache> GeometryCache;
 #endif	// #if WITH_EDITORONLY_DATA
 };

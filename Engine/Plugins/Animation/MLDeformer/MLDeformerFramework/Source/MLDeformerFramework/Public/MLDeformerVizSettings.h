@@ -8,8 +8,8 @@
 #include "UObject/SoftObjectPtr.h"
 #include "Animation/MeshDeformer.h"
 #include "Animation/AnimSequence.h"
+#include "MLDeformerAsset.h"
 #include "MLDeformerVizSettings.generated.h"
-
 
 /** The visualization mode, which selects whether you want to view the training data, or test your already trained model. */
 UENUM()
@@ -31,6 +31,21 @@ enum class EMLDeformerHeatMapMode : uint8
 
 	/** Visualize the error versus the ground truth model. Requires a ground truth model to be setup. */
 	GroundTruth
+};
+
+/** A comparison actor. */
+USTRUCT()
+struct MLDEFORMERFRAMEWORK_API FMLDeformerCompareActor
+{
+	GENERATED_BODY()
+
+	/** The name of the comparison actor, which is the label shown above it. */
+	UPROPERTY(EditAnywhere, Category = "Actor Settings")
+	FName Name;
+
+	/** The ML Deformer asset that this actor should use. */
+	UPROPERTY(EditAnywhere, Category = "Actor Settings")
+	TSoftObjectPtr<UMLDeformerAsset> DeformerAsset;
 };
 
 /**
@@ -74,6 +89,7 @@ public:
 	bool GetDrawLinearSkinnedActor() const					{ return bDrawLinearSkinnedActor; }
 	bool GetDrawMLDeformedActor() const						{ return bDrawMLDeformedActor; }
 	bool GetDrawGroundTruthActor() const					{ return bDrawGroundTruthActor; }
+	bool GetDrawMLCompareActors() const						{ return bDrawMLCompareActors; }
 	bool GetShowHeatMap() const								{ return bShowHeatMap; }
 	EMLDeformerHeatMapMode GetHeatMapMode() const			{ return HeatMapMode; }
 	float GetHeatMapMax() const								{ return HeatMapMax; }
@@ -83,6 +99,8 @@ public:
 	bool GetXRayDeltas() const								{ return bXRayDeltas; }
 	bool GetDrawVertexDeltas() const						{ return bDrawDeltas; }
 	int32 GetQualityLevel() const							{ return QualityLevel; }
+	const TArray<FMLDeformerCompareActor>& GetCompareActors() const { return CompareActors; }
+	TArray<FMLDeformerCompareActor>& GetCompareActors()		{ return CompareActors; }
 
 	// Get property names.
 	static FName GetVisualizationModePropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, VisualizationMode); }
@@ -97,6 +115,7 @@ public:
 	static FName GetDrawLinearSkinnedActorPropertyName()	{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, bDrawLinearSkinnedActor); }
 	static FName GetDrawMLDeformedActorPropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, bDrawMLDeformedActor); }
 	static FName GetDrawGroundTruthActorPropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, bDrawGroundTruthActor); }
+	static FName GetDrawMLCompareActorsPropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, bDrawMLCompareActors); }
 	static FName GetShowHeatMapPropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, bShowHeatMap); }
 	static FName GetHeatMapModePropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, HeatMapMode); }
 	static FName GetHeatMapMaxPropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, HeatMapMax); }
@@ -106,6 +125,7 @@ public:
 	static FName GetXRayDeltasPropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, bXRayDeltas); }
 	static FName GetDrawVertexDeltasPropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, bDrawDeltas); }
 	static FName GetQualityLevelPropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, QualityLevel); }
+	static FName GetCompareActorsPropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, CompareActors); }
 #endif
 
 protected:
@@ -116,11 +136,18 @@ protected:
 
 	/** The animation sequence to play on the skeletal mesh. */
 	UPROPERTY(EditAnywhere, Category = "Test Assets")
-	TSoftObjectPtr<UAnimSequence> TestAnimSequence = nullptr;
+	TSoftObjectPtr<UAnimSequence> TestAnimSequence;
 
 	/** The deformer graph to use on the asset editor's deformed test actor. */
 	UPROPERTY(EditAnywhere, Category = "Test Assets")
-	TSoftObjectPtr<UMeshDeformer> DeformerGraph = nullptr;
+	TSoftObjectPtr<UMeshDeformer> DeformerGraph;
+
+	/**
+	 * The model comparison actors. Each will create a skeletal mesh with the selected ML Deformer applied to it.
+	 * This is useful to compare the output of different models side by side. 
+	 */
+	UPROPERTY(EditAnywhere, Category = "Test Assets")
+	TArray<FMLDeformerCompareActor> CompareActors;
 
 	/** The play speed factor of the test anim sequence. */
 	UPROPERTY(EditAnywhere, Category = "Live Settings", meta = (ClampMin = "0.0", ClampMax = "2.0", ForceUnits="Multiplier"))
@@ -195,6 +222,10 @@ protected:
 	/** Specifies whether we draw the ground truth model or not. */
 	UPROPERTY(EditAnywhere, Category = "Live Settings")
 	bool bDrawGroundTruthActor = true;
+
+	/** Specifies whether we draw the comparison actors or not. */
+	UPROPERTY(EditAnywhere, Category = "Live Settings", DisplayName = "Draw ML Compare Actors")
+	bool bDrawMLCompareActors = true;
 
 	/** The scale factor of the ML deformer deltas being applied on top of the linear skinned results. */
 	UPROPERTY(EditAnywhere, Transient, Category = "Live Settings", meta = (ClampMin = "0.0", ClampMax = "1.0"))

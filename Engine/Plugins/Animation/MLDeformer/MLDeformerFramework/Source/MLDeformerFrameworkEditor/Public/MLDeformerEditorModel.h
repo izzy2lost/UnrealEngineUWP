@@ -282,6 +282,10 @@ namespace UE::MLDeformer
 		 */
 		virtual void CreateTestMLDeformedActor(UWorld* World);
 
+		virtual void CreateTestCompareActors(UWorld* World);
+		virtual bool IsCompatibleDeformer(UMLDeformerAsset* Deformer) const;
+		virtual void UpdateMeshOffsetFactors();
+
 		/**
 		 * Create the training ground truth actor.
 		 * This is the training target, so the actor that has the complex deformations, for example using a geometry cache.
@@ -572,7 +576,7 @@ namespace UE::MLDeformer
 		 * This is determined by looking whether the neural network pointer is nullptr or not.
 		 * @return Returns true when the model is trained already, or false if it hasn't been trained yet.
 		 */
-		virtual bool IsTrained() const { return false; }
+		virtual bool IsTrained() const { return Model->IsTrained(); }
 
 		/**
 		 * Get the editor actor that defines the timeline play position.
@@ -974,6 +978,13 @@ namespace UE::MLDeformer
 		 * Update the timeline related ranges, based on the length of the training or testing data.
 		 */
 		void UpdateRanges();
+
+		void AddCompareActor(int32 ArrayIndex);
+		void RemoveCompareActor(int32 ArrayIndex);
+		void RemoveAllCompareActors();
+		void UpdateCompareActorLabels();		
+
+		int32 CalcNumValidCompareActorsPriorTo(int32 CompareActorIndex) const;
 
 	protected:
 		/** The runtime model associated with this editor model. */

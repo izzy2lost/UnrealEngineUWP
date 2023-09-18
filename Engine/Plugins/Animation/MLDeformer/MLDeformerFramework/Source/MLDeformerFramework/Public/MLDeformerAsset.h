@@ -22,6 +22,7 @@ class MLDEFORMERFRAMEWORK_API UMLDeformerAsset
 public:
 	// UObject overrides.
 	virtual void Serialize(FArchive& Archive) override;
+	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 	// ~END UObject overrides.
 
 	/**

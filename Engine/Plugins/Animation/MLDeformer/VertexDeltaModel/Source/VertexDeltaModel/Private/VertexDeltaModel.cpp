@@ -57,9 +57,27 @@ FString UVertexDeltaModel::GetDefaultDeformerGraphAssetPath() const
 	return FString(TEXT("/VertexDeltaModel/Deformers/DG_VertexDeltaModel.DG_VertexDeltaModel"));
 }
 
+bool UVertexDeltaModel::IsTrained() const
+{
+	return NNEModel.Get() != nullptr;
+}
+
 void UVertexDeltaModel::PostLoad()
 {
 	Super::PostLoad();
+}
+
+void UVertexDeltaModel::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
+{
+	Super::GetAssetRegistryTags(OutTags);
+
+	#if WITH_EDITORONLY_DATA
+		OutTags.Add(FAssetRegistryTag("MLDeformer.VertexDeltaModel.NumHiddenLayers", FString::FromInt(NumHiddenLayers), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.VertexDeltaModel.NumNeuronsPerLayer", FString::FromInt(NumNeuronsPerLayer), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.VertexDeltaModel.NumIterations", FString::FromInt(NumIterations), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.VertexDeltaModel.BatchSize", FString::FromInt(BatchSize), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.VertexDeltaModel.LearningRate", FString::Printf(TEXT("%f"), LearningRate), FAssetRegistryTag::TT_Numerical));
+	#endif
 }
 
 #undef LOCTEXT_NAMESPACE

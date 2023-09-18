@@ -75,11 +75,6 @@ namespace UE::VertexDeltaModel
 		return false;
 	}
 
-	bool FVertexDeltaEditorModel::IsTrained() const
-	{
-		return GetVertexDeltaModel()->NNEModel != nullptr;
-	}
-
 	FString FVertexDeltaEditorModel::GetHeatMapDeformerGraphPath() const
 	{
 		return FString(TEXT("/VertexDeltaModel/Deformers/DG_VertexDeltaModel_HeatMap.DG_VertexDeltaModel_HeatMap"));

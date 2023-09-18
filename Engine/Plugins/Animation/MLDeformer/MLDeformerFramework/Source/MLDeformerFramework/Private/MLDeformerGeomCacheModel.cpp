@@ -53,6 +53,28 @@ void UMLDeformerGeomCacheModel::PostLoad()
 	#endif
 }
 
+void UMLDeformerGeomCacheModel::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
+{
+	Super::GetAssetRegistryTags(OutTags);
+
+	#if WITH_EDITORONLY_DATA
+		FString AnimInputString;
+		for (const FMLDeformerGeomCacheTrainingInputAnim& Anim : TrainingInputAnims)
+		{
+			AnimInputString += Anim.GetAnimSequenceSoftObjectPtr().ToSoftObjectPath().ToString();
+			AnimInputString += TEXT("\n");
+			AnimInputString += Anim.GetGeometryCacheSoftObjectPtr().ToSoftObjectPath().ToString();
+			AnimInputString += TEXT("\n");
+		}
+		if (AnimInputString.IsEmpty())
+		{
+			AnimInputString = TEXT("None");
+		}
+		OutTags.Add(FAssetRegistryTag("MLDeformer.TrainingAnims", AnimInputString, FAssetRegistryTag::TT_Alphabetical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NumTrainingAnims", FString::FromInt(TrainingInputAnims.Num()), FAssetRegistryTag::TT_Numerical));
+	#endif
+}
+
 #if WITH_EDITOR
 void UMLDeformerGeomCacheModel::UpdateNumTargetMeshVertices()
 {

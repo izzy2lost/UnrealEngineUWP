@@ -55,6 +55,38 @@ UNearestNeighborModel::UNearestNeighborModel(const FObjectInitializer& ObjectIni
 #endif
 }
 
+void UNearestNeighborModel::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
+{
+	Super::GetAssetRegistryTags(OutTags);
+
+	#if WITH_EDITORONLY_DATA
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.NumEpochs", FString::FromInt(NumEpochs), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.BatchSize", FString::FromInt(BatchSize), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.BasisSmoothIter", FString::FromInt(BasisSmoothIter), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.NumHiddenLayers", FString::FromInt(HiddenLayerDims.Num()), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.NumClusters", FString::FromInt(NumClusters), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.NumClusterAnims", FString::FromInt(SourceAnims.Num()), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.NumNearestNeighborAnims", FString::FromInt(NearestNeighborData.Num()), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.KMeansPartID", FString::FromInt(KMeansPartId), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.LearningRate", FString::Printf(TEXT("%f"), LearningRate), FAssetRegistryTag::TT_Numerical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.IsPartDataValid", bClothPartDataValid ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.UseDualQuaternions", bUseDualQuaternionDeltas ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.IsNearestNeighborDataValid", bNearestNeighborDataValid ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.IsMorphTargetDataValid", bMorphTargetDataValid ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.UseFileCache", bUseFileCache ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.RecomputDeltas", bRecomputeDeltas ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
+		OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.RecomputPCA", bRecomputePCA ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
+	#endif
+
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.UseInputMultipliers", bUseInputMultipliers ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.UseRBF", bUseRBF ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.NumParts", FString::FromInt(ClothPartData.Num()), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.DecayFactor", FString::Printf(TEXT("%f"), DecayFactor), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.NearestNeighborOffsetWeight", FString::Printf(TEXT("%f"), NearestNeighborOffsetWeight), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.RBFSigma", FString::Printf(TEXT("%f"), RBFSigma), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.NearestNeighborModel.NumInputMultipliers", FString::FromInt(InputMultipliers.Num()), FAssetRegistryTag::TT_Numerical));
+}
+
 UMLDeformerInputInfo* UNearestNeighborModel::CreateInputInfo()
 {
 	UNearestNeighborModelInputInfo* NearestNeighborModelInputInfo = NewObject<UNearestNeighborModelInputInfo>(this);
@@ -64,25 +96,10 @@ UMLDeformerInputInfo* UNearestNeighborModel::CreateInputInfo()
 	return NearestNeighborModelInputInfo;
 }
 
-#if WITH_EDITOR
-void UNearestNeighborModel::UpdateMemoryUsage()
+bool UNearestNeighborModel::IsTrained() const
 {
-	Super::UpdateMemoryUsage();
-
-	uint64 ClothDataSize = 0;
-	for (const FClothPartData& Part : ClothPartData)
-	{
-		ClothDataSize += Part.PCABasis.GetTypeSize() * Part.PCABasis.Num();
-		ClothDataSize += Part.AssetNeighborOffsets.GetTypeSize() * Part.AssetNeighborOffsets.Num();
-		ClothDataSize += Part.AssetNeighborCoeffs.GetTypeSize() * Part.AssetNeighborCoeffs.Num();
-		ClothDataSize += Part.VertexMean.GetTypeSize() * Part.VertexMean.Num();
-		ClothDataSize += Part.VertexMap.GetTypeSize() * Part.VertexMap.Num();
-	}
-
-	CookedAssetSizeInBytes -= ClothDataSize;
-	MemUsageInBytes -= ClothDataSize;
+	return DoesUseOptimizedNetwork() && GetOptimizedNetwork() != nullptr;
 }
-#endif
 
 UMLDeformerModelInstance* UNearestNeighborModel::CreateModelInstance(UMLDeformerComponent* Component)
 {
