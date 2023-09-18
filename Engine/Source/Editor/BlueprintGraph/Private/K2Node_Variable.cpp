@@ -561,10 +561,10 @@ void UK2Node_Variable::ValidateNodeDuringCompilation(class FCompilerResultsLog& 
 			UBlueprint* Blueprint = GetBlueprint();
 			if (Blueprint != nullptr)
 			{
-				OwnerName = Blueprint->GetName();
+				OwnerName = Blueprint->GetPathName();
 				if (UClass* VarOwnerClass = VariableReference.GetMemberParentClass(Blueprint->GeneratedClass))
 				{
-					OwnerName = VarOwnerClass->GetName();
+					OwnerName = VarOwnerClass->GetPathName();
 				}
 			}
 
