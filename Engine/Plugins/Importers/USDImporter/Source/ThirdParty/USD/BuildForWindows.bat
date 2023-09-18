@@ -116,6 +116,9 @@ rmdir /S /Q "%INSTALL_BIN_LOCATION%"
 echo Moving shared libraries to bin directory...
 mkdir %INSTALL_BIN_LOCATION%
 move "%INSTALL_LIB_LOCATION%\*.dll" "%INSTALL_BIN_LOCATION%"
+if exist "%INSTALL_LIB_LOCATION%\*.pdb" (
+    move "%INSTALL_LIB_LOCATION%\*.pdb" "%INSTALL_BIN_LOCATION%"
+)
 
 echo Moving built-in USD plugins to UsdResources plugins directory...
 set INSTALL_RESOURCES_LOCATION=%INSTALL_LOCATION%\Resources\UsdResources\Win64
@@ -127,6 +130,9 @@ echo Moving USD plugin shared libraries to bin directory...
 set INSTALL_PLUGIN_LOCATION=%INSTALL_LOCATION%\plugin
 set INSTALL_PLUGIN_USD_LOCATION=%INSTALL_PLUGIN_LOCATION%\usd
 move "%INSTALL_PLUGIN_USD_LOCATION%\*.dll" "%INSTALL_BIN_LOCATION%"
+if exist "%INSTALL_PLUGIN_USD_LOCATION%\*.pdb" (
+    move "%INSTALL_PLUGIN_USD_LOCATION%\*.pdb" "%INSTALL_BIN_LOCATION%"
+)
 
 echo Moving USD plugin import libraries to lib directory...
 move "%INSTALL_PLUGIN_USD_LOCATION%\*.lib" "%INSTALL_LIB_LOCATION%"

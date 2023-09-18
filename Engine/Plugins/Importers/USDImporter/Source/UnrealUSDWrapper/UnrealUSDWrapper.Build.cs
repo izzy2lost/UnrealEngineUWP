@@ -72,6 +72,12 @@ namespace UnrealBuildTool.Rules
 						// We can't delay-load the USD dlls as they contain data and vtables: They need to be next to the executable and implicitly linked
 						RuntimeDependencies.Add(Path.Combine("$(TargetOutputDir)", Path.GetFileName(UsdDll)), UsdDll);
 					}
+
+					// If OpenUSD was rebuilt with debug information, add the .pdb files as well
+					foreach (string UsdPdb in Directory.EnumerateFiles(USDBinDir, "*.pdb", SearchOption.AllDirectories))
+					{
+						RuntimeDependencies.Add(Path.Combine("$(TargetOutputDir)", Path.GetFileName(UsdPdb)), UsdPdb, StagedFileType.DebugNonUFS);
+					}
 				}
 				else if (Target.Platform == UnrealTargetPlatform.Linux)
 				{
