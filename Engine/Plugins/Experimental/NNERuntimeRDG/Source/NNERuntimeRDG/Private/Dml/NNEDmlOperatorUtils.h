@@ -13,192 +13,473 @@
 namespace UE::NNERuntimeRDG::Private::Dml
 {
 
+//
+//
+//
 enum EAutoPad
 {
-    NOTSET,
-    SAME_UPPER,
-    SAME_LOWER,
-    VALID
+	NOTSET,
+	SAME_UPPER,
+	SAME_LOWER,
+	VALID
 };
 
+//
+//
+//
 static EAutoPad AutoPadFromString(FStringView StringVal) 
 {
-    if (FCString::Stricmp(StringVal.GetData(), TEXT("NOTSET")) == 0) 
-    {
-        return EAutoPad::NOTSET;
-    }
-    else if (FCString::Stricmp(StringVal.GetData(), TEXT("SAME_UPPER")) == 0)
-    {
-        return EAutoPad::SAME_UPPER;
-    }
-    else if (FCString::Stricmp(StringVal.GetData(), TEXT("SAME_LOWER")) == 0)
-    {
-        return EAutoPad::SAME_LOWER;
-    }
-    else if (FCString::Stricmp(StringVal.GetData(), TEXT("VALID")) == 0)
-    {
-        return EAutoPad::VALID;
-    }
-    else
-    {
-        return EAutoPad::NOTSET;
-    }
+	if (FCString::Stricmp(StringVal.GetData(), TEXT("NOTSET")) == 0) 
+	{
+		return EAutoPad::NOTSET;
+	}
+	else if (FCString::Stricmp(StringVal.GetData(), TEXT("SAME_UPPER")) == 0)
+	{
+		return EAutoPad::SAME_UPPER;
+	}
+	else if (FCString::Stricmp(StringVal.GetData(), TEXT("SAME_LOWER")) == 0)
+	{
+		return EAutoPad::SAME_LOWER;
+	}
+	else if (FCString::Stricmp(StringVal.GetData(), TEXT("VALID")) == 0)
+	{
+		return EAutoPad::VALID;
+	}
+	else
+	{
+		return EAutoPad::NOTSET;
+	}
 }
 
+//
+//
+//
 template<typename T>
 static bool IsEqualOrBroadcastable(TConstArrayView<T> ShapeA, TConstArrayView<T> ShapeB)
 {
-    if(ShapeA.Num() < ShapeB.Num())
-    {
-        return false;
-    }
+	if (ShapeA.Num() < ShapeB.Num())
+	{
+		return false;
+	}
 
-    int32 BIdx = 0;
+	int32 BIdx = 0;
 
-    for(int32 Idx = 0; Idx < ShapeA.Num() && BIdx < ShapeB.Num(); ++Idx)
-    {
-        if(BIdx != 0)
-        {
-            if(ShapeA[Idx] != ShapeB[BIdx])
-            {
-                if(ShapeB[BIdx] != 1)
-                {
-                    return false;
-                }
-            }
-            ++BIdx;
-        }
-        if(BIdx == 0 && ShapeA[Idx] == ShapeB[BIdx])
-        {
-            ++BIdx;
-        }
-    }
+	for(int32 Idx = 0; Idx < ShapeA.Num() && BIdx < ShapeB.Num(); ++Idx)
+	{
+		if (BIdx != 0)
+		{
+			if (ShapeA[Idx] != ShapeB[BIdx])
+			{
+				if (ShapeB[BIdx] != 1)
+				{
+					return false;
+				}
+			}
+			++BIdx;
+		}
+		if (BIdx == 0 && ShapeA[Idx] == ShapeB[BIdx])
+		{
+			++BIdx;
+		}
+	}
 
-    if(BIdx == 0)
-    {
-        return false;
-    }
+	if (BIdx == 0)
+	{
+		return false;
+	}
 
-    return true;
+	return true;
 }
 
+//
+//
+//
 static bool CheckGenericTensor(ENNETensorDataType DataType, const NNE::FSymbolicTensorShape& TensorShape)
 {
-    if(!TensorShape.IsConcrete())
-    {
-        UE_LOG(LogNNE, Warning, TEXT("DML tensor shape must be concrete"));
-        return false;
-    }
+	const int32 MinTensorRank(0), MaxTensorRank(DML_TENSOR_DIMENSION_COUNT_MAX1);
 
-    if (NNE::FTensorShape::MakeFromSymbolic(TensorShape).Volume() == 0)
-    {
-        UE_LOG(LogNNE, Warning, TEXT("Invalid DML tensor size, it's 0"));
-        return false;
-    }
+	if (TensorShape.Rank() < MinTensorRank || TensorShape.Rank() > MaxTensorRank)
+	{
+		UE_LOG(LogNNE, Warning, TEXT("Invalid DML tensor rank: %d [%d,%d]"), TensorShape.Rank(), MinTensorRank, MaxTensorRank);
+		return false;
+	}
 
-    const int32 MinTensorRank(0), MaxTensorRank(DML_TENSOR_DIMENSION_COUNT_MAX1);
-
-    if (TensorShape.Rank() < MinTensorRank || TensorShape.Rank() > MaxTensorRank)
-    {
-        UE_LOG(LogNNE, Warning, TEXT("Invalid DML tensor rank: %d [%d,%d]"), TensorShape.Rank(), MinTensorRank, MaxTensorRank);
-        return false;
-    }
-
-    return true;
+	return true;
 }
 
+//
+//
+//
 static bool CheckElementwiseTensor(ENNETensorDataType DataType, const NNE::FSymbolicTensorShape& TensorShape)
 {
-    if (DataType != ENNETensorDataType::Float)
-    {
-        UE_LOG(LogNNE, Warning, TEXT("Invalid DML tensor data type"));
-        return false;
-    }
+	if (DataType != ENNETensorDataType::Float)
+	{
+		UE_LOG(LogNNE, Warning, TEXT("Invalid DML tensor data type"));
+		return false;
+	}
 
-    if(!CheckGenericTensor(DataType, TensorShape))
-    {
-        return false;
-    }
+	if(!CheckGenericTensor(DataType, TensorShape))
+	{
+		return false;
+	}
 
-    return true;
+	return true;
 }
 
+//
+//
+//
 static Util::FSmallUIntArray KernelPadding(
-    TConstArrayView<uint32> InputShape, TConstArrayView<uint32> WindowSize, 
-    TConstArrayView<uint32> Dilations, TConstArrayView<uint32> Strides
-    )
+	TConstArrayView<uint32> InputShape, TConstArrayView<uint32> WindowSize, 
+	TConstArrayView<uint32> Dilations, TConstArrayView<uint32> Strides
+	)
 {
-    const uint32 NumSpatialDimensions = InputShape.Num() - NonspatialDimensionCount;
-    check(NumSpatialDimensions >= 1);
+	const uint32 NumSpatialDimensions = InputShape.Num() - NonspatialDimensionCount;
+	check(NumSpatialDimensions >= 1);
 
-    Util::FSmallUIntArray Padding;
-    Padding.SetNumUninitialized(NumSpatialDimensions);
+	Util::FSmallUIntArray Padding;
+	Padding.SetNumUninitialized(NumSpatialDimensions);
 
-    for (uint32 Dim = 0; Dim < NumSpatialDimensions; ++Dim)
-    {
-        uint32 InputLen = uint32(InputShape[Dim + NonspatialDimensionCount]);
-        uint32 StridedOutLen = (InputLen + Strides[Dim] - 1) / Strides[Dim];
-        uint32 KernelLen = 1 + (WindowSize[Dim] - 1) * Dilations[Dim];
-        uint32 Len = Strides[Dim] * (StridedOutLen - 1) + KernelLen;
-        
-        Padding[Dim] = (Len <= InputLen) ? 0 : (Len - InputLen);
-    }
+	for (uint32 Dim = 0; Dim < NumSpatialDimensions; ++Dim)
+	{
+		uint32 InputLen = uint32(InputShape[Dim + NonspatialDimensionCount]);
+		uint32 StridedOutLen = (InputLen + Strides[Dim] - 1) / Strides[Dim];
+		uint32 KernelLen = 1 + (WindowSize[Dim] - 1) * Dilations[Dim];
+		uint32 Len = Strides[Dim] * (StridedOutLen - 1) + KernelLen;
 
-    return Padding;
+		Padding[Dim] = (Len <= InputLen) ? 0 : (Len - InputLen);
+	}
+
+	return Padding;
 }
 
-static void ComputeStartEndPaddings(
-    TConstArrayView<uint32> InputShape,
-    const NNE::FAttributeMap& Attributes, 
-    Util::FSmallUIntArray &OutStartPadding, 
-	Util::FSmallUIntArray &OutEndPadding,
-    TConstArrayView<uint32> Padding)
+//
+// Used by FKernelArgs
+//
+class FPaddingsHelper
 {
-    const uint32 NumSpatialDimensions = InputShape.Num() - NonspatialDimensionCount;
-    check(NumSpatialDimensions >= 1);
+	Util::FSmallUIntArray	Pads;
+	EAutoPad				AutoPad;
+	uint32					NumSpatialDimensions;
 
-    EAutoPad AutoPad = AutoPadFromString(*Attributes.GetValue<FString>(TEXT("auto_pad")));
+public:
 
-    if (AutoPad == EAutoPad::NOTSET)
-    {
-        Util::FSmallUIntArray Pads;
+	//
+	//
+	//
+	bool Init(const NNE::FAttributeMap& Attributes, uint32 InputRank)
+	{
+		NumSpatialDimensions = InputRank - NonspatialDimensionCount;
+		check(NumSpatialDimensions >= 1);
 
-        Pads.Init(0u, 2 * NumSpatialDimensions);
-        check(Util::GetArrayAttributeNoOverflow(Attributes.GetAttributeValue(TEXT("pads")), Pads, TConstArrayView<uint32>(Pads)))
+		const FNNEAttributeValue* AttrAutoPad = Attributes.GetAttributeValue(TEXT("auto_pad"));
+
+		if (AttrAutoPad)
+		{
+			AutoPad = AutoPadFromString(AttrAutoPad->GetValue<FString>());
+		}
+		else
+		{
+			AutoPad = EAutoPad::NOTSET;
+		}
+
+		if (AutoPad == EAutoPad::NOTSET)
+		{
+			Pads.Init(0u, 2 * NumSpatialDimensions);
+			if (!Util::GetArrayAttributeNoOverflow(Attributes.GetAttributeValue(TEXT("pads")), Pads, TConstArrayView<uint32>(Pads)))
+			{
+				UE_LOG(LogNNE, Error, TEXT("Pads attribute cast led to overflow"));
+				return false;
+			}
+		}
+		
+		return true;
+	}
+
+	//
+	//
+	//
+	bool Evaluate(Util::FSmallUIntArray& OutStartPadding, Util::FSmallUIntArray& OutEndPadding, TConstArrayView<uint32> Padding)
+	{
+		if (AutoPad == EAutoPad::NOTSET)
+		{
+			for (uint32 Dim = 0; Dim < NumSpatialDimensions; ++Dim)
+			{
+				OutStartPadding.Add(Pads[Dim]);
+				OutEndPadding.Add(Pads[Dim + NumSpatialDimensions]);
+			}
+		}
+		else if (AutoPad == EAutoPad::VALID)
+		{
+			OutStartPadding.Init(0, NumSpatialDimensions);
+			OutEndPadding.Init(0, NumSpatialDimensions);
+		}
+		else
+		{
+			OutStartPadding.Init(0, NumSpatialDimensions);
+			OutEndPadding.Init(0, NumSpatialDimensions);
+
+			for (uint32 Dim = 0; Dim < NumSpatialDimensions; ++Dim)
+			{
+				if (AutoPad == EAutoPad::SAME_LOWER)
+				{
+					OutStartPadding[Dim] = (Padding[Dim] + 1) / 2;
+				}
+				else
+				{
+					OutStartPadding[Dim] = Padding[Dim] / 2;
+				}
+
+				OutEndPadding[Dim] = Padding[Dim] - OutStartPadding[Dim];
+			}
+		}
+
+		return true;
+	}
+};
+
+//
+// This is a base class that is used for Conv, ConvTranspose, Pool (both local and global) operators and MaxUnpool
+//
+class FKernelArgs
+{
+
+public:
+
+	//
+	//
+	//
+	uint32 GetNumDimensions() const
+	{
+		return NumDimensions;
+	}
+
+	//
+	//
+	//
+	TConstArrayView<uint32> GetStrides() const
+	{
+		return Strides;
+	}
+
+	//
+	//
+	//
+	TConstArrayView<uint32> GetDilations() const
+	{
+		return Dilations;
+	}
+
+	//
+	//
+	//
+	TConstArrayView<uint32> GetStartPadding()
+	{
+		return StartPadding;
+	}
+
+	//
+	//
+	//
+	TConstArrayView<uint32> GetEndPadding()
+	{
+		return EndPadding;
+	}
+
+	//
+	//
+	//
+	TConstArrayView<uint32> GetOutputShape() const
+	{
+		return OutputShape;
+	}
+
+private:
+
+	FPaddingsHelper			Paddings;
+
+protected:
+
+	Util::FSmallUIntArray	StartPadding;
+	Util::FSmallUIntArray	EndPadding;
+	Util::FSmallUIntArray	OutPadding;
+	Util::FSmallUIntArray	Dilations;
+	Util::FSmallUIntArray	Strides;
+	Util::FSmallUIntArray	InOutputShape;
+	Util::FSmallUIntArray	WindowSize;
+	Util::FSmallUIntArray	OutputShape;
+	uint32					NumDimensions;
+	bool					bIsGlobalKernel;
+	bool					bIsTransposed;
+	bool					bHasOutputShape;
+
+protected:
+
+	//
+	//
+	//
+	bool Init(const NNE::FAttributeMap& Attributes, int32 InputShapeRank, bool bInIsGlobalKernel, bool bInIsTransposed)
+	{
+		check(InputShapeRank > NonspatialDimensionCount);
+		NumDimensions = InputShapeRank - NonspatialDimensionCount;
+		bIsGlobalKernel = bInIsGlobalKernel;
+		bIsTransposed = bInIsTransposed;
+		bHasOutputShape = false;
+
+		if (bIsGlobalKernel)
+		{
+			Strides.Init(1, NumDimensions);
+			Dilations.Init(1, NumDimensions);
+			StartPadding.Init(0, NumDimensions);
+			EndPadding.Init(0, NumDimensions);
+			OutPadding.Init(0, NumDimensions);
+
+			// NOTE: WindowSize needs to be set recomputed in the sub-class
+		}
+		else
+		{
+			const FNNEAttributeValue* AttrStrides = Attributes.GetAttributeValue(TEXT("strides"));
+
+			if (AttrStrides)
+			{
+				if (!Util::GetArrayAttributeNoOverflow(Attributes.GetAttributeValue(TEXT("strides")), Strides, TConstArrayView<uint32>(Strides)))
+				{
+					UE_LOG(LogNNE, Error, TEXT("Strides attribute cast led to overflow"));
+					return false;
+				}
+			}
+			else
+			{
+				Strides.Init(1, NumDimensions);
+			}
+
+			const FNNEAttributeValue* AttrDilations = Attributes.GetAttributeValue(TEXT("dilations"));
+
+			if (AttrDilations)
+			{
+				if (!Util::GetArrayAttributeNoOverflow(Attributes.GetAttributeValue(TEXT("dilations")), Dilations, TConstArrayView<uint32>(Dilations)))
+				{
+					UE_LOG(LogNNE, Error, TEXT("Dilations attribute cast led to overflow"));
+					return false;
+				}
+			}
+			else
+			{
+				Dilations.Init(1, NumDimensions);
+			}
+
+			if (bIsTransposed)
+			{
+				const FNNEAttributeValue* AttrOutPadding = Attributes.GetAttributeValue(TEXT("output_padding"));
+
+				if (AttrOutPadding)
+				{
+					if (!Util::GetArrayAttributeNoOverflow(Attributes.GetAttributeValue(TEXT("output_padding")), OutPadding, TConstArrayView<uint32>(OutPadding)))
+					{
+						UE_LOG(LogNNE, Error, TEXT("output_padding attribute cast led to overflow"));
+						return false;
+					}
+				}			
+				else
+				{
+					OutPadding.Init(0, NumDimensions);
+				}
+
+				const FNNEAttributeValue* AttrOutShape = Attributes.GetAttributeValue(TEXT("output_shape"));
+
+				if (AttrOutShape)
+				{
+					if (!Util::GetArrayAttributeNoOverflow(Attributes.GetAttributeValue(TEXT("output_shape")), InOutputShape, TConstArrayView<uint32>(InOutputShape)))
+					{
+						UE_LOG(LogNNE, Error, TEXT("output_shape attribute cast led to overflow"));
+						return false;
+					}
+				}
+
+				bHasOutputShape = AttrOutShape != nullptr;
+			}
+
+			if (!Paddings.Init(Attributes, InputShapeRank))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+public:
+
+	//
+	//
+	//
+	void Evaluate(TConstArrayView<uint32> InputShape, TConstArrayView<uint32> PaddingsValue = MakeEmptyConstArrayView<uint32>())
+	{
+		if (bIsGlobalKernel && WindowSize.IsEmpty())
+		{
+			for (uint32 Dim = 0; Dim < NumDimensions; ++Dim)
+			{
+				WindowSize.Add(uint32(InputShape[InputShape.Num() - NumDimensions + Dim]));
+			}
+		}
+
+		check(!WindowSize.IsEmpty());
+
+		if (!bIsGlobalKernel)
+		{
+			Paddings.Evaluate(StartPadding, EndPadding, PaddingsValue);
+		}
+
+		check(uint32(InputShape.Num()) >= NumDimensions);
+		const uint32 DimOffset = InputShape.Num() - NumDimensions;
+		
+		OutputShape.Reset(InputShape.Num());
+		
+		if (!bIsTransposed)
+		{
+			OutputShape.Append(InputShape.GetData(), InputShape.Num());
+
+			for (uint32 Dim = 0; Dim < NumDimensions; ++Dim)
+			{
+				uint32 InputLen = InputShape.GetData()[Dim + DimOffset];
+				uint32 PaddedLen = InputLen + StartPadding[Dim] + EndPadding[Dim];
+				uint32 KernelLen = 1 + (WindowSize[Dim] - 1) * Dilations[Dim];
+
+				checkf(KernelLen <= PaddedLen, TEXT("KernelLen must < PaddedLen"));
+				checkf(Strides[Dim] != 0, TEXT("Strides must be != 0"));
+
+				uint32 StridableOutLen = PaddedLen - KernelLen;
+				uint32 OutLen = 1 + (StridableOutLen / Strides[Dim]);
+
+				OutputShape[Dim + DimOffset] = OutLen;
+			}
+		}
+		else
+		{
+			if (bHasOutputShape)
+			{
+				OutputShape.Append(InOutputShape.GetData(), InOutputShape.Num());
+			}
+			else
+			{
+				OutputShape.Append(InputShape.GetData(), InputShape.Num());
+
+				for (uint32 Dim = 0; Dim < NumDimensions; ++Dim)
+				{
+					uint32 Padding = StartPadding[Dim] + EndPadding[Dim];
+					uint32 KernelLen = 1 + (WindowSize[Dim] - 1) * Dilations[Dim];
+
+					OutputShape[Dim + DimOffset] = (InputShape[Dim + DimOffset] - 1) * Strides[Dim] + KernelLen + OutPadding[Dim] - Padding;
+				}
+			}
+		}
+	}
+};
 
 
-        for (uint32 Dim = 0; Dim < NumSpatialDimensions; ++Dim)
-        {
-            OutStartPadding.Add(Pads[Dim]);
-            OutEndPadding.Add(Pads[Dim + NumSpatialDimensions]);
-        }
-    }
-    else if (AutoPad == EAutoPad::VALID)
-    {
-        OutStartPadding.Init(0, NumSpatialDimensions);
-        OutEndPadding.Init(0, NumSpatialDimensions);
-    }
-    else
-    {
-        OutStartPadding.Init(0, NumSpatialDimensions);
-        OutEndPadding.Init(0, NumSpatialDimensions);
-
-        for (uint32 Dim = 0; Dim < NumSpatialDimensions; ++Dim)
-        {
-            if (AutoPad == EAutoPad::SAME_LOWER)
-            {
-                OutStartPadding[Dim] = (Padding[Dim] + 1) / 2;
-            }
-            else
-            {
-                OutStartPadding[Dim] = Padding[Dim] / 2;
-            }
-
-            OutEndPadding[Dim] = Padding[Dim] - OutStartPadding[Dim];
-        }
-    }
-}
-
+//
+//
+//
 inline int32 HandleNegativeAxis(int32 Axis, int32 Rank)
 {
 	if (Axis < 0)
@@ -210,6 +491,9 @@ inline int32 HandleNegativeAxis(int32 Axis, int32 Rank)
 	return Axis;
 }
 
+//
+//
+//
 inline void HandleNegativeAxes(TArrayView<int32> Axes, int32 Rank)
 {
 	for (int32& Axis : Axes)
@@ -218,6 +502,9 @@ inline void HandleNegativeAxes(TArrayView<int32> Axes, int32 Rank)
 	}
 }
 
+//
+//
+//
 inline int32 GetDmlAxis(int32 OnnxAxis, int32 OnnxDim, int32 DmlDim)
 {
 	check(DmlDim >= OnnxDim);
@@ -227,6 +514,9 @@ inline int32 GetDmlAxis(int32 OnnxAxis, int32 OnnxDim, int32 DmlDim)
 	return DmlAxis;
 }
 
+//
+//
+//
 inline void SetDmlAxesFromOnnx(Util::FSmallUIntArray& DmlAxes, int32 Rank, TConstArrayView<int32> OnnxAxes)
 {
 	DmlAxes.Reset();

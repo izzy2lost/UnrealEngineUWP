@@ -9,6 +9,8 @@ namespace UE::NNERuntimeRDG::Private::Dml
 
 class FOperatorDmlGather : public FOperatorDml
 {
+	int32	Axis;
+
 public:
 
 	static FOperatorDml* Create()
@@ -25,19 +27,16 @@ public:
 	//
 	//
 	//
-	virtual bool Initialize(IDMLDevice* Device, TArrayView<const NNE::Internal::FTensor> InputTensors, TArrayView<const NNE::Internal::FTensor> OutputTensors, const NNE::FAttributeMap& Attributes) override
+	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(InputTensors.Num() == 2);
-		check(OutputTensors.Num() == 1);
-		
-		const NNE::Internal::FTensor& InputTensor = InputTensors[0];
-		const NNE::Internal::FTensor& IndicesTensor = InputTensors[1];
-		const NNE::Internal::FTensor& OutputTensor = OutputTensors[0];
+		check(Inputs.Num() == 2);
+		check(Outputs.Num() == 1);
 
-		const NNE::FTensorShape& InputShape = InputTensor.GetShape();
-		const NNE::FTensorShape& IndicesShape = IndicesTensor.GetShape();
+		const NNE::FTensorDesc& InputTensor = Inputs[0];
+		const NNE::FTensorDesc& IndicesTensor = Inputs[1];
+		const NNE::FTensorDesc& OutputTensor = Outputs[0];
 
-		if (IndicesShape.Rank() > InputShape.Rank())
+		if (IndicesTensor.GetShape().Rank() > InputTensor.GetShape().Rank())
 		{
 			UE_LOG(LogNNE, Warning, TEXT("Indices tensor rank must match input tensor rank"));
 			return false;
@@ -59,9 +58,19 @@ public:
 		}
 
 		// Read attributes
-		int32	Axis = Attributes.GetValueOrDefault<int>(TEXT("axis"), 0);
-
+		Axis = Attributes.GetValueOrDefault<int>(TEXT("axis"), 0);
 		Axis = HandleNegativeAxis(Axis, InputTensor.GetShape().Rank());
+
+		return true;
+	}
+
+	//
+	//
+	//
+	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+	{
+		const NNE::FTensorShape& InputShape = InputTensors[0]->GetShape();
+		const NNE::FTensorShape& IndicesShape = InputTensors[1]->GetShape();
 
 		// Compute output shape
 		const int32 OutputRank = IndicesShape.Rank() + InputShape.Rank() - 1;
@@ -81,11 +90,25 @@ public:
 			OutputShape.Add(InputShape.GetData()[DataRankIdx]);
 		}
 
-		if (OutputTensor.GetShape().Rank() != OutputRank)
+		if (OutputShape.Num() != OutputRank)
 		{
 			UE_LOG(LogNNE, Warning, TEXT("Output tensor rank must match computed output tensor rank"));
 			return false;
 		}
+
+		OutputTensors[0]->SetShape(NNE::FTensorShape::Make(OutputShape));
+
+		return 0;
+	}
+
+	//
+	//
+	//
+	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
+	{
+		const NNE::Internal::FTensor& InputTensor	= *InputTensors[0];
+		const NNE::Internal::FTensor& IndicesTensor = *InputTensors[1];
+		const NNE::Internal::FTensor& OutputTensor	= *OutputTensors[0];
 
 		// Initialize tensor descriptors
 		FTensorDescDml	DmlInputTensorDesc;
@@ -110,7 +133,7 @@ public:
 
 		if (!DmlOutputTensorDesc
 				.SetFromTensor(OutputTensor)
-				.SetShape(OutputShape, InputTensor.GetShape().Rank())
+				.SetShape(OutputTensor.GetShape(), InputTensor.GetShape().Rank())
 				.Validate())
 		{
 			UE_LOG(LogNNE, Error, TEXT("Failed to initialize tensor(s) for DML inference"));

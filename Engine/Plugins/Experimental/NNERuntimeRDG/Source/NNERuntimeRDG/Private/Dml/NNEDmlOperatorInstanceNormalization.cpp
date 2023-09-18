@@ -6,12 +6,20 @@
 namespace UE::NNERuntimeRDG::Private::Dml
 {
 
+//
+//
+//
 class FOperatorDmlInstanceNormalization : public FOperatorDml
 {
 	static constexpr float DefaultEpsilon = 0.00001f;
 
+	float Epsilon;
+
 public:
 
+	//
+	//
+	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlInstanceNormalization();
@@ -26,22 +34,33 @@ public:
 	//
 	//
 	//
-	virtual bool Initialize(IDMLDevice* Device, TArrayView<const NNE::Internal::FTensor> InputTensors, TArrayView<const NNE::Internal::FTensor> OutputTensors, const NNE::FAttributeMap& Attributes) override
+	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(InputTensors.Num() >= 1 && InputTensors.Num() <= 3);
-		check(OutputTensors.Num() == 1);
-
-		const NNE::Internal::FTensor& InputTensor = InputTensors[0];
-		const NNE::Internal::FTensor& OutputTensor = OutputTensors[0];
-
-		if (InputTensor.GetShape().Rank() > 8)
-		{
-			UE_LOG(LogNNE, Warning, TEXT("InstanceNormalization:InputTensor rank should be between 1 and 8, got:%d"), InputTensor.GetShape().Rank());
-			return false;
-		}
+		check(Inputs.Num() >= 1 && Inputs.Num() <= 3);
+		check(Outputs.Num() == 1);
 
 		// Read attributes
-		float	Epsilon = Attributes.GetValueOrDefault<float>(TEXT("epsilon"), DefaultEpsilon);
+		Epsilon = Attributes.GetValueOrDefault<float>(TEXT("epsilon"), DefaultEpsilon);
+
+		return true;
+	}
+
+	//
+	//
+	//
+	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+	{
+		OutputTensors[0]->SetShape(InputTensors[0]->GetShape());
+		return 0;
+	}
+
+	//
+	//
+	//
+	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
+	{
+		const NNE::Internal::FTensor& InputTensor = *InputTensors[0];
+		const NNE::Internal::FTensor& OutputTensor = *OutputTensors[0];
 
 		// Initialize tensor descriptors
 		FTensorDescDml	DmlInputTensorDesc;
@@ -61,7 +80,7 @@ public:
 
 		if (InputTensors.Num() > 1)
 		{
-			const NNE::Internal::FTensor& ScaleTensor = InputTensors[1];
+			const NNE::Internal::FTensor& ScaleTensor = *InputTensors[1];
 
 			if (!DmlScalingTensorDesc
 					.SetTensorRank(4, 4)
@@ -75,7 +94,7 @@ public:
 
 		if (InputTensors.Num() > 2)
 		{
-			const NNE::Internal::FTensor& BiasTensor = InputTensors[2];
+			const NNE::Internal::FTensor& BiasTensor = *InputTensors[2];
 
 			if (!DmlBiasTensorDesc
 					.SetTensorRank(4, 4)

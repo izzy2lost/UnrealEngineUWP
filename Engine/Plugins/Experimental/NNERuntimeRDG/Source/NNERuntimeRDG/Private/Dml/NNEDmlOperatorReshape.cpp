@@ -16,14 +16,22 @@ namespace UE::NNERuntimeRDG::Private::Dml
  */
 class FOperatorDmlReshape : public FOperatorDml
 {
+	mutable Util::FSmallUIntArray	OutputShape;
+	bool							bAllowZero;
 
 public:
 
+	//
+	//
+	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlReshape();
 	}
 
+	//
+	//
+	//
     static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
 		//TODO
@@ -33,53 +41,71 @@ public:
 	//
 	//
 	//
-	virtual bool Initialize(IDMLDevice* Device, TArrayView<const NNE::Internal::FTensor> InputTensors, TArrayView<const NNE::Internal::FTensor> OutputTensors, const NNE::FAttributeMap& Attributes) override
+	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-        check(InputTensors.Num() == 2);
-        check(OutputTensors.Num() == 1);
+		check(Inputs.Num() == 2);
+		check(Outputs.Num() == 1);
 
-        ConstantCPUInputs.Add(1);
+		ConstantCPUInputs.Add(1);
 
-        // Shape tensor must be constant!
-        check(InputTensors[1].HasPreparedData());
+		bAllowZero = Attributes.GetValueOrDefault<int32>(TEXT("allowzero"), 0) != 0;
 
-        bool bAllowZero = (bool)
-			( Attributes.GetValueOrDefault<int32>(TEXT("allowzero"), 0) );
+		return true;
+	}
 
-        Util::FSmallUIntArray ReshapedShape;
+	//
+	//
+	//
+	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+	{
+		// Shape tensor must be constant!
+		check(InputTensors[1]->HasPreparedData());
+		
+		OutputShape.Reset();
 
-        switch(InputTensors[1].GetDataType())
-        {
-        case ENNETensorDataType::Int32:
-            if(!ShapeHelper::Reshape::ReshapeTensor<int32>(InputTensors[0].GetShape(), InputTensors[1], bAllowZero, ReshapedShape))
-            {
-                return false;
-            }
-            break;
-        case ENNETensorDataType::Int64:
-			if (!ShapeHelper::Reshape::ReshapeTensor<int64>(InputTensors[0].GetShape(), InputTensors[1], bAllowZero, ReshapedShape))
-            {
-                return false;
-            }
-            break;
-        case ENNETensorDataType::UInt32:
-			if (!ShapeHelper::Reshape::ReshapeTensor<uint32>(InputTensors[0].GetShape(), InputTensors[1], bAllowZero, ReshapedShape))
-            {
-                return false;
-            }
-            break;
-        default:
-            UE_LOG(LogNNE, Warning, TEXT("Shape tensor has invalid data type"));
-			return false;
-        };
-        
-        check(ReshapedShape == OutputTensors[0].GetShape().GetData());
+		switch (InputTensors[1]->GetDataType())
+		{
+			case ENNETensorDataType::Int32:
+				if (!ShapeHelper::Reshape::ReshapeTensor<int32>(InputTensors[0]->GetShape(), *InputTensors[1], bAllowZero, OutputShape))
+				{
+					return false;
+				}
+				break;
 
+			case ENNETensorDataType::Int64:
+				if (!ShapeHelper::Reshape::ReshapeTensor<int64>(InputTensors[0]->GetShape(), *InputTensors[1], bAllowZero, OutputShape))
+				{
+					return false;
+				}
+				break;
+
+			case ENNETensorDataType::UInt32:
+				if (!ShapeHelper::Reshape::ReshapeTensor<uint32>(InputTensors[0]->GetShape(), *InputTensors[1], bAllowZero, OutputShape))
+				{
+					return false;
+				}
+				break;
+
+			default:
+				UE_LOG(LogNNE, Warning, TEXT("Shape tensor has invalid data type"));
+				return false;
+		};
+
+		OutputTensors[0]->SetShape(NNE::FTensorShape::Make(OutputShape));
+
+		return 0;
+	}
+
+	//
+	//
+	//
+	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
+	{
         FTensorDescDml DmlInputTensorDesc;
 
         if (!DmlInputTensorDesc
-				.SetFromTensor(InputTensors[0])
-				.SetShape(ReshapedShape)
+				.SetFromTensor(*InputTensors[0])
+				.SetShape(OutputShape)
 				.Validate())
 		{
 			UE_LOG(LogNNE, Warning, TEXT("Failed to initialize Reshape's input tensor for DML inference"));
@@ -89,7 +115,7 @@ public:
         FTensorDescDml DmlOutputTensorDesc;
 
         if (!DmlOutputTensorDesc
-				.SetFromTensor(OutputTensors[0])
+				.SetFromTensor(*OutputTensors[0])
 				.Validate())
 		{
 			UE_LOG(LogNNE, Warning, TEXT("Failed to initialize Reshape's output tensor for DML inference"));

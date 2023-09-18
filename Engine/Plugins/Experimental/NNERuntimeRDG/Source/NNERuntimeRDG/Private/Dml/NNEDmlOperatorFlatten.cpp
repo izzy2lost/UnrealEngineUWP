@@ -10,6 +10,7 @@ namespace UE::NNERuntimeRDG::Private::Dml
 
 class FOperatorDmlFlatten : public FOperatorDml
 {
+	int32 Axis;
 
 public:
 
@@ -27,22 +28,36 @@ public:
 	//
 	//
 	//
-	virtual bool Initialize(IDMLDevice* Device, TArrayView<const NNE::Internal::FTensor> InputTensors, TArrayView<const NNE::Internal::FTensor> OutputTensors, const NNE::FAttributeMap& Attributes) override
+	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(InputTensors.Num() == 1);
-		check(OutputTensors.Num() == 1);
+		check(Inputs.Num() == 1);
+		check(Outputs.Num() == 1);
 
-		TConstArrayView<uint32>	InputShape = InputTensors[0].GetShape().GetData();
-		int32					InputRank = InputShape.Num();
-		int32					Axis = Attributes.GetValueOrDefault(TEXT("axis"), 1);
-		
+		const int32 InputRank = Inputs[0].GetShape().Rank();
+
+		Axis = Attributes.GetValueOrDefault(TEXT("axis"), 1);
 		if (Axis > InputRank || Axis < -InputRank)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Flatten 'Axis' attribute should be in the range [-r,r] with r being the rank of the input (name: %s) however axis is %d while rank is %d."), *InputTensors[0].GetName(), Axis, InputRank);
+			UE_LOG(
+				LogNNE, 
+				Warning, 
+				TEXT("Flatten 'Axis' attribute should be in the range [-r,r] with r being the rank of the input (name: %s) however axis is %d while rank is %d."), 
+				*Inputs[0].GetName(), Axis, InputRank);
+			
 			return false;
 		}
 
-		HandleNegativeAxis(Axis, InputRank);
+		Axis = HandleNegativeAxis(Axis, InputRank);
+
+		return true;
+	}
+
+	//
+	//
+	//
+	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+	{
+		TConstArrayView<uint32> InputShape = InputTensors[0]->GetShape().GetData();
 
 		uint32 InnerDimSize = 1;
 
@@ -55,13 +70,22 @@ public:
 
 		OutputShape.Reserve(InputShape.Num());
 		OutputShape.Add(InnerDimSize);
-		OutputShape.Add(InputTensors[0].GetShape().Volume() / InnerDimSize);
-		
+		OutputShape.Add(InputTensors[0]->GetShape().Volume() / InnerDimSize);
+
+		OutputTensors[0]->SetShape(NNE::FTensorShape::Make(OutputShape));
+
+		return 0;
+	}
+
+	//
+	//
+	//
+	virtual bool Create(IDMLDevice * Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
+	{
 		FTensorDescDml DmlTensorDesc;
 		
 		if (!DmlTensorDesc
-				.SetFromTensor(OutputTensors[0])
-				.SetShape(OutputShape)
+				.SetFromTensor(*OutputTensors[0])
 				.Validate())
 		{
 			UE_LOG(LogNNE, Error, TEXT("Failed to initialize Flatten's output tensor for DML inference"));

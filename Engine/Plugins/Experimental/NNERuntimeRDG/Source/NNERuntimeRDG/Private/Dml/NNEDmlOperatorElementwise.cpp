@@ -6,7 +6,6 @@
 namespace UE::NNERuntimeRDG::Private::Dml
 {
 
-
 /**
  * Element-wise unary ML operator implementation
  */
@@ -19,20 +18,26 @@ class FOperatorDmlElementWiseUnary : public FOperatorDml
 {
 public:
 
+	//
+	//
+	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlElementWiseUnary();
 	}
 
+	//
+	//
+	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		if(InputShapes.Num() != 1)
+		if (InputShapes.Num() != 1)
 		{
 			UE_LOG(LogNNE, Warning, TEXT("Invalid number of input tensors"));
 			return false;
 		}
 
-		if(!CheckElementwiseTensor(InputTypes[0], InputShapes[0]))
+		if (!CheckElementwiseTensor(InputTypes[0], InputShapes[0]))
 		{
 			return false;
 		}
@@ -40,42 +45,50 @@ public:
 		return true;
 	}
 
+	//
+	//
+	//
 	virtual ~FOperatorDmlElementWiseUnary() = default;
 
 private:
 
-	FOperatorDmlElementWiseUnary() : Min(TNumericLimits<float>::Min()), Max(TNumericLimits<float>::Max()) {}
 	float Min;
 	float Max;
 
+	//
+	//
+	//
+	FOperatorDmlElementWiseUnary() 
+		: Min(TNumericLimits<float>::Min())
+		, Max(TNumericLimits<float>::Max()) 
+	{
+	}
+	
 public:
 
 	//
 	//
 	//
-	virtual bool Initialize(IDMLDevice* Device, TArrayView<const NNE::Internal::FTensor> InputTensors, TArrayView<const NNE::Internal::FTensor> OutputTensors, const NNE::FAttributeMap& Attributes) override
+	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-
-		const NNE::Internal::FTensor& InputTensor = InputTensors[0];
-		const NNE::Internal::FTensor& OutputTensor = OutputTensors[0];
-
 		if constexpr (std::is_same_v<DmlElementWiseOpDescType, DML_ELEMENT_WISE_CLIP_OPERATOR_DESC>)
 		{
 			const FNNEAttributeValue* MinAttr = Attributes.GetAttributeValue(TEXT("min"));
-			if(MinAttr)
+			if (MinAttr)
 			{
-				if(MinAttr->GetType() != ENNEAttributeDataType::Float)
+				if (MinAttr->GetType() != ENNEAttributeDataType::Float)
 				{
 					UE_LOG(LogNNE, Error, TEXT("Min attribute of clip must be float for DML inference"));
 					return false;
 				}
-				
+
 				Min = MinAttr->GetValue<float>();
 			}
+			
 			const FNNEAttributeValue* MaxAttr = Attributes.GetAttributeValue(TEXT("max"));
-			if(MaxAttr)
+			if (MaxAttr)
 			{
-				if(MaxAttr->GetType() != ENNEAttributeDataType::Float)
+				if (MaxAttr->GetType() != ENNEAttributeDataType::Float)
 				{
 					UE_LOG(LogNNE, Error, TEXT("Max attribute of clip must be float for DML inference"));
 					return false;
@@ -83,6 +96,29 @@ public:
 				Max = MaxAttr->GetValue<float>();
 			}
 		}
+
+		return true;
+	}
+
+	//
+	//
+	//
+	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+	{
+		check(InputTensors.Num() == 1);
+		check(OutputTensors.Num() == 1);
+		OutputTensors[0]->SetShape(InputTensors[0]->GetShape());
+
+		return 0;
+	}
+
+	//
+	//
+	//
+	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
+	{
+		const NNE::Internal::FTensor& InputTensor = *InputTensors[0];
+		const NNE::Internal::FTensor& OutputTensor = *OutputTensors[0];
 
 		// Initialize tensor descriptor (it's same for both input and output)
 		FTensorDescDml	DmlTensorDesc;
@@ -109,6 +145,9 @@ public:
 
 private:
 
+	//
+	//
+	//
 	template<typename OpDesc>
 	void InitDmlOpDesc(OpDesc& Desc, const DML_TENSOR_DESC& TensorDesc)
 	{
@@ -116,6 +155,9 @@ private:
 		Desc.OutputTensor = &TensorDesc;
 	}
 
+	//
+	//
+	//
 	void InitDmlOpDesc(DML_ELEMENT_WISE_CLIP_OPERATOR_DESC& Desc, const DML_TENSOR_DESC& TensorDesc)
 	{
 		Desc.InputTensor = &TensorDesc;
@@ -139,25 +181,31 @@ class FOperatorDmlElementWiseBinary : public FOperatorDml
 
 public:
 
+	//
+	//
+	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlElementWiseBinary();
 	}
 
+	//
+	//
+	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		if(InputShapes.Num() != 2)
+		if (InputShapes.Num() != 2)
 		{
 			UE_LOG(LogNNE, Warning, TEXT("Invalid number of input tensors"));
 			return false;
 		}
 
-		if(!CheckElementwiseTensor(InputTypes[0], InputShapes[0]))
+		if (!CheckElementwiseTensor(InputTypes[0], InputShapes[0]))
 		{
 			return false;
 		}
 
-		if(!CheckElementwiseTensor(InputTypes[1], InputShapes[1]))
+		if (!CheckElementwiseTensor(InputTypes[1], InputShapes[1]))
 		{
 			return false;
 		}
@@ -167,6 +215,9 @@ public:
 
 private:
 
+	//
+	//
+	//
 	FOperatorDmlElementWiseBinary() = default;
 
 public:
@@ -174,11 +225,55 @@ public:
 	//
 	//
 	//
-	virtual bool Initialize(IDMLDevice* Device, TArrayView<const NNE::Internal::FTensor> InputTensors, TArrayView<const NNE::Internal::FTensor> OutputTensors, const NNE::FAttributeMap& Attributes) override
+	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		const NNE::Internal::FTensor& InputATensor = InputTensors[0];
-		const NNE::Internal::FTensor& InputBTensor = InputTensors[1];
-		const NNE::Internal::FTensor& OutputTensor = OutputTensors[0];
+		return true;
+	}
+
+	//
+	//
+	//
+	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+	{
+		check(InputTensors.Num() == 2);
+		check(OutputTensors.Num() == 1);
+
+		TConstArrayView<uint32> ShapeA = InputTensors[0]->GetShape().GetData();
+		TConstArrayView<uint32> ShapeB = InputTensors[1]->GetShape().GetData();
+		const int32 OutRank = FMath::Max(ShapeA.Num(), ShapeB.Num());
+		
+		TArray<uint32> OutShape;
+
+		OutShape.SetNumUninitialized(OutRank);
+		for (int32 i = 0; i < OutRank; ++i)
+		{
+			int32 IndexA = ShapeA.Num() - 1 - i;
+			int32 IndexB = ShapeB.Num() - 1 - i;
+			int32 ValueA = IndexA >= 0 ? ShapeA[IndexA] : 1;
+			int32 ValueB = IndexB >= 0 ? ShapeB[IndexB] : 1;
+			
+			if (ValueA != ValueB && ValueA != 1 && ValueB != 1)
+			{
+				UE_LOG(LogNNE, Warning, TEXT("Error while computing shape for element wise binary op, input shapes are not compatible"));
+				return -1;
+			}
+			
+			OutShape[OutRank - 1 - i] = FMath::Max(ValueA, ValueB);
+		}
+
+		OutputTensors[0]->SetShape(NNE::FTensorShape::Make(OutShape));
+
+		return 0;
+	}
+
+	//
+	//
+	//
+	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
+	{
+		const NNE::Internal::FTensor& InputATensor = *InputTensors[0];
+		const NNE::Internal::FTensor& InputBTensor = *InputTensors[1];
+		const NNE::Internal::FTensor& OutputTensor = *OutputTensors[0];
 
 		// Initialize tensor descriptors
 		FTensorDescDml	DmlInputATensorDesc;
@@ -223,6 +318,9 @@ public:
 
 private:
 
+	//
+	//
+	//
 	template<typename OpDesc>
 	void InitDmlOpDesc(OpDesc& Desc, const DML_TENSOR_DESC& LHSTensorDesc, const DML_TENSOR_DESC& RHSTensorDesc, const DML_TENSOR_DESC& OutputTensorDesc)
 	{
@@ -231,6 +329,9 @@ private:
 		Desc.OutputTensor = &OutputTensorDesc;
 	}
 
+	//
+	//
+	//
 	void InitDmlOpDesc(DML_ELEMENT_WISE_POW_OPERATOR_DESC& Desc, const DML_TENSOR_DESC& LHSTensorDesc, const DML_TENSOR_DESC& RHSTensorDesc, const DML_TENSOR_DESC& OutputTensorDesc)
 	{
 		Desc.InputTensor = &LHSTensorDesc;

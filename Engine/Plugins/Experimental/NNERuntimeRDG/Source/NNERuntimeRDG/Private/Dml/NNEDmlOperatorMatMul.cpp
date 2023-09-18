@@ -27,16 +27,74 @@ public:
 	//
 	//
 	//
-	virtual bool Initialize(IDMLDevice* Device, TArrayView<const NNE::Internal::FTensor> InputTensors, TArrayView<const NNE::Internal::FTensor> OutputTensors, const NNE::FAttributeMap& Attributes) override
+	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(InputTensors.Num() == 2);
+		check(Inputs.Num() == 2);
+		check(Outputs.Num() == 1);
+
+		return true;
+	}
+
+	//
+	//
+	//
+	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+	{
+		check(InputTensors.Num() >= 2 && InputTensors.Num() <= 3);
 		check(OutputTensors.Num() == 1);
 
-		using namespace UE::NNE;
+		const NNE::FTensorShape& InputA = InputTensors[0]->GetShape();
+		const NNE::FTensorShape& InputB = InputTensors[1]->GetShape();
 
-		const NNE::Internal::FTensor& ATensor = InputTensors[0];
-		const NNE::Internal::FTensor& BTensor = InputTensors[1];
-		const NNE::Internal::FTensor& OutTensor = OutputTensors[0];
+		if (InputA.Rank() < 2)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("Matmul first input should be at least of rank 2"));
+			return -1;
+		}
+		
+		if (InputB.Rank() < 2)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("Matmul second input should be at least of rank 2"));
+			return -1;
+		}
+
+		if (InputA.GetData()[InputA.Rank() - 1] != InputB.GetData()[InputB.Rank() - 2])
+		{
+			UE_LOG(LogNNE, Warning, TEXT("Matmul first input last dimension should be equal to second input last dimension"));
+			return -1;
+		}
+
+		const int32 OutputRank = FMath::Max(InputA.Rank(), InputB.Rank());
+		TArray<uint32> OutputShape;
+		OutputShape.SetNumUninitialized(OutputRank);
+
+		//Broadcast
+		for (int32 i = 0; i < OutputRank; ++i)
+		{
+			int32 AIndex = InputA.Rank() - 1 - i;
+			int32 BIndex = InputB.Rank() - 1 - i;
+			int32 AValue = AIndex >= 0 ? InputA.GetData()[AIndex] : 1;
+			int32 BValue = BIndex >= 0 ? InputB.GetData()[BIndex] : 1;
+			int32 OutputValue = FMath::Max(AValue, BValue);
+			OutputShape[OutputRank - 1 - i] = OutputValue;
+		}
+
+		//2D Mat
+		OutputShape[OutputRank - 2] = InputA.GetData()[InputA.Rank() - 2];
+		OutputShape[OutputRank - 1] = InputB.GetData()[InputB.Rank() - 1];
+
+		OutputTensors[0]->SetShape(NNE::FTensorShape::Make(OutputShape));
+		return 0;
+	}
+
+	//
+	//
+	//
+	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
+	{
+		const NNE::Internal::FTensor& ATensor = *InputTensors[0];
+		const NNE::Internal::FTensor& BTensor = *InputTensors[1];
+		const NNE::Internal::FTensor& OutTensor = *OutputTensors[0];
 
 		auto TrimMatrixStackLeadingOnes = [](TConstArrayView<uint32>&& Input) -> TConstArrayView<uint32>
 		{

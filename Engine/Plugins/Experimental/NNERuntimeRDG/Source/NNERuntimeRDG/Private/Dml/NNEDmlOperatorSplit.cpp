@@ -2,21 +2,31 @@
 
 #ifdef NNE_USE_DIRECTML
 #include "NNEDmlOperator.h"
+#include "NNEDmlOperatorUtils.h"
 
 namespace UE::NNERuntimeRDG::Private::Dml
 {
-
+//
+//
+//
 class FOperatorDmlSplit : public FOperatorDml
 {
-
+	TArray<int32>	Split;
+	int				Axis;
 
 public:
 
+	//
+	//
+	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlSplit();
 	}
 
+	//
+	//
+	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
 		//TODO
@@ -26,56 +36,106 @@ public:
 	//
 	//
 	//
-	virtual bool Initialize(IDMLDevice* Device, TArrayView<const NNE::Internal::FTensor> InputTensors, TArrayView<const NNE::Internal::FTensor> OutputTensors, const NNE::FAttributeMap& Attributes) override
+	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(InputTensors.Num() == 1);
-		const NNE::Internal::FTensor& InputTensor = InputTensors[0];
+		check(Inputs.Num() == 1);
+		
+		Axis = Attributes.GetValueOrDefault<int>(TEXT("axis"), 0);
+		Axis = HandleNegativeAxis(Axis, Inputs[0].GetShape().Rank());
 
-		int Axis = Attributes.GetValueOrDefault<int>(TEXT("axis"), 0);
+		const FNNEAttributeValue* AttrSplit = Attributes.GetAttributeValue(TEXT("split"));
 
-		// Check split size is correct
-		//TODO: code should be validated by a validator which should report to the user if the contract is broken. We do it here instead.
-
-		uint32 SplitSize = 0;
-
-		for (int Idx = 0; Idx < OutputTensors.Num(); ++Idx)
+		if (AttrSplit)
 		{
-			//check(OutputTensors[Idx].GetShape().Rank() == InputTensor.GetShape().Rank());
-			if (OutputTensors[Idx].GetShape().Rank() != InputTensor.GetShape().Rank())
+			Split = AttrSplit->GetValue<TArray<int32>>();
+			
+			if (Split.Num() != Outputs.Num())
 			{
-				UE_LOG(LogNNE, Error, TEXT("Rank of output tensor and input tensor should be the same"));
+				UE_LOG(LogNNE, Error, TEXT("Attribute split needs to have same count as number of outputs"));
 				return false;
 			}
 
-			for (int Dim = 0; Dim < InputTensor.GetShape().Rank(); ++Dim)
+			if ((Split.Num() % Outputs.Num()) != 0)
 			{
-				if (Dim == Axis)
-				{
-					SplitSize += OutputTensors[Idx].GetShape().GetData()[Dim];
-				}
-				else
-				{
-					//check(OutputTensors[Idx].GetShape().GetData()[Dim] == InputTensor.GetShape().GetData()[Dim]);
-					if (OutputTensors[Idx].GetShape().GetData()[Dim] != InputTensor.GetShape().GetData()[Dim])
-					{
-						UE_LOG(LogNNE, Error, TEXT("%s"), *FString::Printf(TEXT("Output tensor %d 's dimension %d should match input tensor's"), Idx, Dim));
-						return false;
-					}
-				}
+				UE_LOG(LogNNE, Error, TEXT("Attribute split count needs to be divisible by the number of outputs"));
+				return false;
 			}
 		}
 
-		//check(SplitSize == InputTensor.GetShape().GetData()[Axis]);
-		if (SplitSize != InputTensor.GetShape().GetData()[Axis])
+		// Check split size is correct
+		//TODO: code should be validated by a validator which should report to the user if the contract is broken. We do it here instead.
+		for (int Idx = 0; Idx < Outputs.Num(); ++Idx)
 		{
-			UE_LOG(LogNNE, Error, TEXT("Input tensor's axis dimension size must be equal to the sum of output tensors' axis dimensions sizes"));
-			return false;
+			if (Outputs[Idx].GetShape().Rank() != Inputs[0].GetShape().Rank())
+			{
+				UE_LOG(LogNNE, Error, TEXT("Rank of output tensor and input tensor should be the same"));
+				return false;
+			}			
 		}
 
+		return true;
+	}
+
+	//
+	//
+	//
+	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+	{
+		const NNE::Internal::FTensor&	InputTensor = *InputTensors[0];
+		TConstArrayView<uint32>			InputShape = InputTensor.GetShape().GetData();
+
+		if (!Split.IsEmpty())
+		{
+			int32 TotalElemCount = 0;
+
+			for (int32 ElemCount : Split)
+			{
+				TotalElemCount += ElemCount;
+			}
+
+			if (TotalElemCount != InputShape[Axis])
+			{
+				UE_LOG(LogNNE, Error, TEXT("Incorrect elem count for split axis"));
+				return -1;
+			}
+		
+			for (int32 Idx = 0; Idx < OutputTensors.Num(); ++Idx)
+			{
+				Util::FSmallUIntArray OutputShape;
+
+				OutputShape.Append(InputShape.GetData(), InputShape.Num());
+				OutputShape[Axis] = Split[Idx];
+
+				OutputTensors[Idx]->SetShape(NNE::FTensorShape::Make(OutputShape));
+			}
+		}
+		else
+		{
+			uint32 EqualSplit = InputShape[Axis] / OutputTensors.Num();
+
+			for (int Idx = 0; Idx < OutputTensors.Num(); ++Idx)
+			{
+				Util::FSmallUIntArray OutputShape;
+
+				OutputShape.Append(InputShape.GetData(), InputShape.Num());
+				OutputShape[Axis] = EqualSplit;
+
+				OutputTensors[Idx]->SetShape(NNE::FTensorShape::Make(OutputShape));
+			}
+		}
+
+		return 0;
+	}
+
+	//
+	//
+	//
+	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
+	{
 		FTensorDescDml InputTensorDesc;
 		
 		if (!InputTensorDesc
-				.SetFromTensor(InputTensor)
+				.SetFromTensor(*InputTensors[0])
 				.Validate())
 		{
 			UE_LOG(LogNNE, Error, TEXT("Failed to initialize pooling operator's input tensor for DML inference"));
@@ -91,7 +151,7 @@ public:
 		for(int Idx = 0; Idx < OutputTensors.Num(); ++Idx)
 		{
 			if (!OutputTensorDescs[Idx]
-					.SetFromTensor(OutputTensors[Idx])
+					.SetFromTensor(*OutputTensors[Idx])
 					.Validate())
 			{
 				UE_LOG(LogNNE, Error, TEXT("Failed to initialize pooling operator's output tensor for DML inference"));

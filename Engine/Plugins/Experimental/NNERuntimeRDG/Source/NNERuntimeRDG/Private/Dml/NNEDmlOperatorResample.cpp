@@ -32,6 +32,25 @@ void RemoveValuesByIndex(TConstArrayView<uint32> Indices, TArray<TData, TAllocat
 template <bool IsResize>
 class FOperatorDmlResample : public FOperatorDml
 {
+	//
+	//
+	//
+	enum ECoordTransformMode : uint8
+	{
+		None,
+		AlignCorners,
+		Asymmetric,
+		TfHalfPixelForNN,
+		TfCropAndResize,
+		HalfPixel
+	};
+
+	DML_INTERPOLATION_MODE	Mode;
+	ECoordTransformMode		CoordTransformMode;
+
+	//
+	//
+	//
 	static DML_INTERPOLATION_MODE ModeFromString(FStringView StringVal)
 	{
 		if (FCString::Stricmp(StringVal.GetData(), TEXT("NEAREST")) == 0)
@@ -51,11 +70,17 @@ class FOperatorDmlResample : public FOperatorDml
 
 public:
 
+	//
+	//
+	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlResample<IsResize>();
 	}
 
+	//
+	//
+	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
 		//TODO
@@ -65,42 +90,19 @@ public:
 	//
 	//
 	//
-	virtual bool Initialize(IDMLDevice* Device, TArrayView<const NNE::Internal::FTensor> InputTensors, TArrayView<const NNE::Internal::FTensor> OutputTensors, const NNE::FAttributeMap& Attributes) override
+	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(InputTensors.Num() >= 1 && InputTensors.Num() < 4);
-		check(OutputTensors.Num() == 1);
+		check(Inputs.Num() >= 1 && Inputs.Num() < 4);
+		check(Outputs.Num() == 1);
 
-		const NNE::Internal::FTensor& InputTensor = InputTensors[0];
-		const NNE::Internal::FTensor& ScaleTensor = (InputTensors.Num() == 2)?InputTensors[1]:InputTensors[2];//Upsample have scale at position 1, while Resize at 2.
-		const NNE::Internal::FTensor& OutputTensor = OutputTensors[0];
-
-		if (InputTensors.Num() == 3 && InputTensors[2].GetDataType() == ENNETensorDataType::Int64)
+		if (Inputs.Num() == 3 && Inputs[2].GetDataType() == ENNETensorDataType::Int64)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Unsupported input type for 'sizes' of name %s, only 'scales' of type float is supported."), *InputTensors[2].GetName());
+			UE_LOG(LogNNE, Warning, TEXT("Unsupported input type for 'sizes' of name %s, only 'scales' of type float is supported."), *Inputs[2].GetName());
 			return false;
 		}
 
-		if (!ScaleTensor.HasPreparedData())
-		{
-			UE_LOG(LogNNE, Warning, TEXT("scales should be a constant tensor, it is here a variable tensor of name %s."), *ScaleTensor.GetName());
-			return false;
-		}
-
-		if (ScaleTensor.GetShape().Volume() != InputTensor.GetShape().Rank())
-		{
-			UE_LOG(LogNNE, Warning, TEXT("scales tensor should contain N entries, where N is rank of X."));
-			return false;
-		}
-		
 		// Read attributes
-		DML_INTERPOLATION_MODE Mode = ModeFromString(Attributes.GetValue<FString>(TEXT("mode")));
-
-		Util::FSmallArray<float> InputPixelOffsets, OutputPixelOffsets;
-		
-		InputPixelOffsets.Init(0.5f, InputTensor.GetShape().Rank());
-		OutputPixelOffsets.Init(-0.5f, InputTensor.GetShape().Rank());
-
-		Util::FSmallArray<float> Scales ( ScaleTensor.GetPreparedData<float>() );
+		Mode = ModeFromString(Attributes.GetValue<FString>(TEXT("mode")));
 
 		if constexpr (IsResize)
 		{
@@ -114,72 +116,170 @@ public:
 			}
 
 			FString CoordinateTransformationMode = Attributes.GetValueOrDefault<FString>(TEXT("coordinate_transformation_mode"), TEXT("half_pixel"));
+			
+			if (CoordinateTransformationMode == TEXT("align_corners"))
+			{
+				CoordTransformMode = ECoordTransformMode::AlignCorners;
+			}
+			else if (CoordinateTransformationMode == TEXT("asymmetric"))
+			{
+				CoordTransformMode = ECoordTransformMode::Asymmetric;
+			}
+			else if (CoordinateTransformationMode == TEXT("tf_half_pixel_for_nn"))
+			{
+				CoordTransformMode = ECoordTransformMode::TfHalfPixelForNN;
+			}
+			else if (CoordinateTransformationMode == TEXT("tf_crop_and_resize"))
+			{
+				CoordTransformMode = ECoordTransformMode::TfCropAndResize;
+			}
+			else
+			{
+				CoordTransformMode = ECoordTransformMode::HalfPixel;
+
+				if (CoordinateTransformationMode != TEXT("half_pixel"))
+				{
+					UE_LOG(LogNNE, Warning, TEXT("Unsupported coordinate transformation mode:%s, using half_pixel instead"), *CoordinateTransformationMode);
+				}
+			}
+		}
+
+		// Notify DML graph that we have constant CPU tensor inputs
+		for (int i = 1; i < Inputs.Num(); ++i)
+		{
+			ConstantCPUInputs.Add(i);
+		}
+
+		return true;
+	}
+
+	//
+	//
+	//
+	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+	{
+		const NNE::Internal::FTensor& InputTensor = *InputTensors[0];
+		const NNE::Internal::FTensor& ScaleTensor = (InputTensors.Num() == 2) ? *InputTensors[1] : *InputTensors[2]; // Upsample has scale at position 1, while Resize at 2
+		const NNE::Internal::FTensor& OutputTensor = *OutputTensors[0];
+
+		if (!ScaleTensor.HasPreparedData())
+		{
+			UE_LOG(LogNNE, Error, TEXT("scales should be a constant tensor, it is here a variable tensor of name %s."), *ScaleTensor.GetName());
+			return -1;
+		}
+
+		if (ScaleTensor.GetShape().Volume() != InputTensor.GetShape().Rank())
+		{
+			UE_LOG(LogNNE, Error, TEXT("scales tensor should contain N entries, where N is rank of X."));
+			return -1;
+		}
+
+		if constexpr (IsResize)
+		{
+			if (CoordTransformMode == ECoordTransformMode::TfCropAndResize)
+			{
+				const NNE::Internal::FTensor& RoiTensor = *InputTensors[1];
+
+				if (!RoiTensor.HasPreparedData())
+				{
+					UE_LOG(LogNNE, Warning, TEXT("roi should be a constant tensor, it is here a variable tensor of name %s."), *RoiTensor.GetName());
+					return -1;
+				}
+
+				if (RoiTensor.GetShape().Rank() != 1)
+				{
+					UE_LOG(LogNNE, Warning, TEXT("roi tensor should be 1-D."));
+					return -1;
+				}
+
+				if (RoiTensor.GetShape().GetData()[0] != 2 * InputTensor.GetShape().Rank())
+				{
+					UE_LOG(LogNNE, Warning, TEXT("roi tensor should contain 2*N entries, where N is rank of X."));
+					return -1;
+				}
+
+				for (int Idx = 0; Idx < InputTensor.GetShape().Rank(); ++Idx)
+				{
+					float LengthResized = (float)OutputTensor.GetShape().GetData()[Idx];
+
+					if (LengthResized <= 1)
+					{
+						UE_LOG(LogNNE, Warning, TEXT("Unsupported combination of transformation mode tf_crop_and_resize and length of resized dimension (%d) <= 1"), Idx);
+						return -1;
+					}
+				}
+			}
+		}
+
+		TConstArrayView<float>	ScalesData = ScaleTensor.GetPreparedData<float>();
+		TConstArrayView<uint32>	InputShape = InputTensor.GetShape().GetData();
+		TArray<uint32>			OutputShape;
+
+		for (int32 i = 0; i < InputShape.Num(); ++i)
+		{
+			OutputShape.Emplace(FMath::FloorToInt32(InputShape[i] * ScalesData[i]));
+		}
+
+		OutputTensors[0]->SetShape(NNE::FTensorShape::Make(OutputShape));
+
+		return 0;
+	}
+
+	//
+	//
+	//
+	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
+	{
+		const NNE::Internal::FTensor& InputTensor = *InputTensors[0];
+		const NNE::Internal::FTensor& ScaleTensor = (InputTensors.Num() == 2) ? *InputTensors[1] : *InputTensors[2]; // Upsample has scale at position 1, while Resize at 2
+		const NNE::Internal::FTensor& OutputTensor = *OutputTensors[0];
+
+		Util::FSmallArray<float> InputPixelOffsets, OutputPixelOffsets;
+
+		InputPixelOffsets.Init(0.5f, InputTensor.GetShape().Rank());
+		OutputPixelOffsets.Init(-0.5f, InputTensor.GetShape().Rank());
+
+		Util::FSmallArray<float> Scales(ScaleTensor.GetPreparedData<float>());
+
+		if constexpr (IsResize)
+		{
 			for (int Idx = 0; Idx < InputTensor.GetShape().Rank(); ++Idx)
 			{
 				float LengthResized = (float) OutputTensor.GetShape().GetData()[Idx];
 				float LengthOriginal = (float) InputTensor.GetShape().GetData()[Idx];
-				
-				if (CoordinateTransformationMode == TEXT("align_corners"))
+
+				if (CoordTransformMode == ECoordTransformMode::AlignCorners)
 				{
 					Scales[Idx] = (LengthResized - 1.0f) / (LengthOriginal - 1.0f);
 					InputPixelOffsets[Idx] = 0.f;
 					OutputPixelOffsets[Idx] = 0.f;
 				}
-				else if (CoordinateTransformationMode == TEXT("asymmetric"))
+				else if (CoordTransformMode == ECoordTransformMode::Asymmetric)
 				{
 					InputPixelOffsets[Idx] = 0.f;
 					OutputPixelOffsets[Idx] = 0.f;
 				}
-				else if (CoordinateTransformationMode == TEXT("tf_half_pixel_for_nn"))
+				else if (CoordTransformMode == ECoordTransformMode::TfHalfPixelForNN)
 				{
 					InputPixelOffsets[Idx] = 0.0f;
 					OutputPixelOffsets[Idx] = -0.5f;
 				}
-				else if (CoordinateTransformationMode == TEXT("tf_crop_and_resize"))
+				else if (CoordTransformMode == ECoordTransformMode::TfCropAndResize)
 				{
 					// NOTE: no tests for this, ORT erroneously puts all 0.0fs in the output tensor in this case.
-					
-					const NNE::Internal::FTensor& RoiTensor = InputTensors[1];
-					if (!RoiTensor.HasPreparedData())
-					{
-						UE_LOG(LogNNE, Warning, TEXT("roi should be a constant tensor, it is here a variable tensor of name %s."), *RoiTensor.GetName());
-						return false;
-					}
-					if (RoiTensor.GetShape().Rank() != 1)
-					{
-						UE_LOG(LogNNE, Warning, TEXT("roi tensor should be 1-D."));
-						return false;
-					}
-					if (RoiTensor.GetShape().GetData()[0] != 2 * InputTensor.GetShape().Rank())
-					{
-						UE_LOG(LogNNE, Warning, TEXT("roi tensor should contain 2*N entries, where N is rank of X."));
-						return false;
-					}
+					const NNE::Internal::FTensor& RoiTensor = *InputTensors[1];
 					
 					float Start = RoiTensor.GetPreparedData<float>()[Idx];
 					float End = RoiTensor.GetPreparedData<float>()[Idx + InputTensor.GetShape().Rank()];
+
 					if (LengthResized > 1)
 					{
-						Scales[Idx] = (LengthResized - 1.0f) / FMath::Max( (End - Start) * (LengthOriginal - 1.0f), 1.0f );
+						Scales[Idx] = (LengthResized - 1.0f) / FMath::Max((End - Start) * (LengthOriginal - 1.0f), 1.0f);
 						InputPixelOffsets[Idx] = Start * (1.0f - LengthOriginal);
 						OutputPixelOffsets[Idx] = 0.0f;
 					}
-					else
-					{
-						UE_LOG(LogNNE, Warning, TEXT("Unsupported combination of transformation mode tf_crop_and_resize and length of resized dimension (%d) <= 1"), Idx);
-						return false;
-					}
-					
-				}
-				else
-				{
-					if (CoordinateTransformationMode != TEXT("half_pixel"))
-					{
-						UE_LOG(LogNNE, Warning, TEXT("Unsupported coordinate transformation mode:%s, using half_pixel instead"), *CoordinateTransformationMode);
-					}
 				}
 			}
-			
 		}
 
 		// Initialize tensor descriptors
@@ -193,12 +293,6 @@ public:
 		DmlOutputTensorDesc
 			.SetTensorRank(1, 4)
 			.SetFromTensor(OutputTensor);
-
-		// Notify DML graph that we have constant CPU tensor inputs
-		for (int i = 1; i < InputTensors.Num(); ++i)
-		{
-			ConstantCPUInputs.Add(i);
-		}
 		
 		// Find any useless dimensions of size 1 that occur in both input and output
 		Util::FSmallUIntArray		SqueezeInds;

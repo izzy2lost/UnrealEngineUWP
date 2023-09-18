@@ -75,50 +75,43 @@ bool FModelInfo::ValidateGuidAndVersion(const uint8* InGuid, const uint8* InVers
 //
 //
 //
-class FModelInstance::FDebugName
+inline FModelInstance::FDebugName::FDebugName()
 {
-	static constexpr int32 Size = 128;
+	Str[0] = '\0';
+	Length = 0;
+}
 
-public:
+//
+//
+//
+inline FModelInstance::FDebugName::FDebugName(const FString& InStr)
+{
+	FTCHARToUTF8 Conv(*InStr);
 
-	FDebugName()
-	{
-		Str[0] = '\0';
-		Length = 0;
-	}
+	Length = Conv.Length() + 1 < Size ? Conv.Length() + 1 : Size - 1;
+	FCStringAnsi::Strncpy(Str, Conv.Get(), Length);
+	Str[Length] = '\0';
+}
 
-	FDebugName(const FString& InStr)
-	{
-		FTCHARToUTF8 Conv(*InStr);
+//
+//
+//
+inline FModelInstance::FDebugName::FDebugName(FStringView InStr)
+{
+	FTCHARToUTF8 Conv(InStr.GetData());
 
-		Length = Conv.Length() + 1 < Size ? Conv.Length() + 1 : Size - 1;
-		FCStringAnsi::Strncpy(Str, Conv.Get(), Length);
-		Str[Length] = '\0';
-	}
+	Length = Conv.Length() + 1 < Size ? Conv.Length() + 1 : Size - 1;
+	FCStringAnsi::Strncpy(Str, Conv.Get(), Length);
+	Str[Length] = '\0';
+}
 
-	FDebugName(FStringView InStr)
-	{
-		FTCHARToUTF8 Conv(InStr.GetData());
-
-		Length = Conv.Length() + 1 < Size ? Conv.Length() + 1 : Size - 1;
-		FCStringAnsi::Strncpy(Str, Conv.Get(), Length);
-		Str[Length] = '\0';
-	}
-
-	~FDebugName()
-	{
-	}
-
-	const char* Get() const
-	{
-		return Str;
-	}
-
-private:
-
-	char	Str[Size];
-	int32	Length;
-};
+//
+//
+//
+inline const char* FModelInstance::FDebugName::Get() const
+{
+	return Str;
+}
 
 //
 //
@@ -127,6 +120,9 @@ class FModelInstance::FBindingTable
 {
 public:
 
+	//
+	//
+	//
 	bool Init(FModelInstance* InModel)
 	{
 		Model = InModel;
@@ -135,6 +131,9 @@ public:
 		return true;
 	}
 
+	//
+	//
+	//
 	void Bind(IDMLOperatorInitializer* InOpInit, TConstArrayView<FRHIBuffer*> InputBuffers, FRHIBuffer* InPersistBuff, FRHIBuffer* InTempBuff = nullptr)
 	{
 		Reset(InOpInit);
@@ -246,7 +245,7 @@ private:
 			Res = Model->DevCtx->Device->CreateBindingTable(&Desc, DML_PPV_ARGS(&BindingTable));
 			if (!BindingTable)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Failed to create DML binding table, res:%d"), Res);
+				UE_LOG(LogNNE, Error, TEXT("Failed to create DML binding table, res:%d"), Res);
 				return false;
 			}
 		}
@@ -296,32 +295,6 @@ private:
 //
 class FModelInstance::FGraphBuilder
 {
-public:
-
-	struct FOpDesc
-	{
-		FOperatorDml*	Op;
-		int32			InputStart;
-		int32			InputCount;
-		int32			OutputStart;
-		int32			OutputCount;
-		FDebugName		DbgName;
-	};
-
-	struct FGraphDesc
-	{
-		TConstArrayView<NNE::Internal::FTensor>	AllTensors;
-		TConstArrayView<int32>		InputIndices;
-		TConstArrayView<int32>		OutputIndices;
-		TConstArrayView<int32>		WeightIndices;
-		TConstArrayView<int32>		ConstantCPUIndices;
-		TConstArrayView<int32>		IntermediateIndices;
-		TConstArrayView<FTensorRDG>	WeightTensors;
-		TConstArrayView<FOpDesc>	Operators;
-		TConstArrayView<int32>		OpInputIndices;
-		TConstArrayView<int32>		OpOutputIndices;
-	};
-	
 private:
 
 	enum class EEdgeType
@@ -331,6 +304,9 @@ private:
 		Intermediate
 	};
 
+	//
+	//
+	//
 	struct FEdge
 	{
 		EEdgeType	Type;
@@ -378,19 +354,23 @@ private:
 
 public:
 
-	IDMLCompiledOperator* Compile(FDmlDeviceContext* InDevCtx, const FGraphDesc& InGraph)
+	//
+	//
+	//
+	IDMLCompiledOperator* Compile(const FModelInstance* InModel)
 	{
-		IDMLDevice*				Device = InDevCtx->Device;
+		IDMLDevice*				Device = InModel->DevCtx->Device;
 		TComPtr<IDMLDevice1>	Device1;
 
-		Device1.FromQueryInterface(__uuidof(IDMLDevice1), InDevCtx->Device);
+		Device1.FromQueryInterface(__uuidof(IDMLDevice1), Device);
 		check(Device1);
+		
 		if (!Device1)
 		{
 			return nullptr;
 		}
 
-		if (!AddEdges(InGraph))
+		if (!AddEdges(InModel))
 		{
 			return nullptr;
 		}
@@ -402,8 +382,8 @@ public:
 		TArray<FDebugName>							DbgIntermediateNames;
 		TArray<FDebugName>							DbgOutputNames;
 
-		DbgInputNames.Reserve(InGraph.AllTensors.Num());
-		DbgIntermediateNames.Reserve(InGraph.AllTensors.Num());
+		DbgInputNames.Reserve(InModel->AllSymbolicTensorDescs.Num());
+		DbgIntermediateNames.Reserve(InModel->AllSymbolicTensorDescs.Num());
 
 		for (const FEdge& Edge : Edges)
 		{
@@ -415,7 +395,7 @@ public:
 				Input.ToNodeIndex = Edge.NodeDst;
 				Input.ToNodeInputIndex = Edge.NodeDstInput;
 				
-				const FDebugName& DbgName = DbgInputNames.Add_GetRef(InGraph.AllTensors[Edge.TensorIdx].GetName());
+				const FDebugName& DbgName = DbgInputNames.Add_GetRef(InModel->AllSymbolicTensorDescs[Edge.TensorIdx].GetName());
 				Input.Name = DbgName.Get();
 			}
 			else if (Edge.Type == EEdgeType::Output)
@@ -426,7 +406,7 @@ public:
 				Output.FromNodeIndex = Edge.NodeSrc;
 				Output.FromNodeOutputIndex = Edge.NodeSrcOutput;
 
-				const FDebugName& DbgName = DbgOutputNames.Add_GetRef(InGraph.AllTensors[Edge.TensorIdx].GetName());
+				const FDebugName& DbgName = DbgOutputNames.Add_GetRef(InModel->AllSymbolicTensorDescs[Edge.TensorIdx].GetName());
 				Output.Name = DbgName.Get();
 			}
 			else if (Edge.Type == EEdgeType::Intermediate)
@@ -438,7 +418,7 @@ public:
 				Intermediate.ToNodeIndex = Edge.NodeDst;
 				Intermediate.ToNodeInputIndex = Edge.NodeDstInput;
 
-				const FDebugName& DbgName = DbgIntermediateNames.Add_GetRef(InGraph.AllTensors[Edge.TensorIdx].GetName());
+				const FDebugName& DbgName = DbgIntermediateNames.Add_GetRef(InModel->AllSymbolicTensorDescs[Edge.TensorIdx].GetName());
 				Intermediate.Name = DbgName.Get();
 			}
 		}
@@ -501,7 +481,7 @@ public:
 		Res = Device1->CompileGraph(&Graph, DML_EXECUTION_FLAG_NONE, DML_PPV_ARGS(&Op));
 		if (FAILED(Res))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Error:Failed to compile DML graph"));
+			UE_LOG(LogNNE, Error, TEXT("Failed to compile DML graph"));
 			Op = nullptr;
 		};
 
@@ -510,7 +490,10 @@ public:
 
 private:
 
-	bool AddEdges(const FGraphDesc& InGraph)
+	//
+	//
+	//
+	bool AddEdges(const FModelInstance* InModel)
 	{
 		Edges.Reset();
 		TensorInConnCounts.Reset();
@@ -519,47 +502,47 @@ private:
 		NumInputs = 0;
 		NumOutputs = 0;
 
-		TensorInConnCounts.SetNumZeroed(InGraph.AllTensors.Num());
-		TensorOutConnCounts.SetNumZeroed(InGraph.AllTensors.Num());
-		Operators.Reset(InGraph.Operators.Num());
+		TensorInConnCounts.SetNumZeroed(InModel->AllSymbolicTensorDescs.Num());
+		TensorOutConnCounts.SetNumZeroed(InModel->AllSymbolicTensorDescs.Num());
+		Operators.Reset(InModel->GraphOperators.Num());
 
-		for (int32 Idx : InGraph.OpInputIndices)
+		for (int32 Idx : InModel->GraphOpInputIndices)
 		{
 			TensorInConnCounts[Idx] += 1;
 		}
 
-		for (int32 Idx : InGraph.OpOutputIndices)
+		for (int32 Idx : InModel->GraphOpOutputIndices)
 		{
 			TensorOutConnCounts[Idx] += 1;
 		}
 
-		if (!AddInputEdges(InGraph.InputIndices, InGraph))
+		if (!AddInputEdges(InModel->InputTensorIndices, InModel))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("DMLGraphBuilder failed to add input tensors"));
+			UE_LOG(LogNNE, Error, TEXT("DMLGraphBuilder failed to add input tensors"));
 			return false;
 		}
 		
-		if (!AddInputEdges(InGraph.WeightIndices, InGraph))
+		if (!AddInputEdges(InModel->WeightTensorIndices, InModel))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("DMLGraphBuilder failed to add weight tensors"));
+			UE_LOG(LogNNE, Error, TEXT("DMLGraphBuilder failed to add weight tensors"));
 			return false;
 		}
 		
-		if (!AddOutputEdges(InGraph))
+		if (!AddOutputEdges(InModel))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("DMLGraphBuilder failed to add output tensors"));
+			UE_LOG(LogNNE, Error, TEXT("DMLGraphBuilder failed to add output tensors"));
 			return false;
 		}
 
-		if (!AddIntermediateEdges(InGraph))
+		if (!AddIntermediateEdges(InModel))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("DMLGraphBuilder failed to add intermediate tensors"));
+			UE_LOG(LogNNE, Error, TEXT("DMLGraphBuilder failed to add intermediate tensors"));
 			return false;
 		}
 
-		if (!AddOperators(InGraph))
+		if (!AddOperators(InModel))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("DMLGraphBuilder failed to add operators"));
+			UE_LOG(LogNNE, Error, TEXT("DMLGraphBuilder failed to add operators"));
 			return false;
 		}
 
@@ -570,7 +553,7 @@ private:
 			{
 				if (Edge.NodeSrcOutput == -1 || Edge.NodeDst == -1 || Edge.NodeDstInput == -1)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("DMLGraphBuilder error invalid input graph edge detected for tensor:%s"), *InGraph.AllTensors[Edge.TensorIdx].GetName());
+					UE_LOG(LogNNE, Error, TEXT("DMLGraphBuilder error invalid input graph edge detected for tensor:%s"), *InModel->AllSymbolicTensorDescs[Edge.TensorIdx].GetName());
 					return false;
 				}
 			}
@@ -578,7 +561,7 @@ private:
 			{
 				if (Edge.NodeDstInput == -1 || Edge.NodeSrc == -1 || Edge.NodeSrcOutput == -1)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("DMLGraphBuilder error invalid output graph edge detected for tensor:%s"), *InGraph.AllTensors[Edge.TensorIdx].GetName());
+					UE_LOG(LogNNE, Error, TEXT("DMLGraphBuilder error invalid output graph edge detected for tensor:%s"), *InModel->AllSymbolicTensorDescs[Edge.TensorIdx].GetName());
 					return false;
 				}
 			}
@@ -586,7 +569,7 @@ private:
 			{
 				if (Edge.NodeSrc == -1 || Edge.NodeSrcOutput == -1 || Edge.NodeDst == -1 || Edge.NodeDstInput == -1)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("DMLGraphBuilder error invalid intermediate graph edge detected for tensor:%s"), *InGraph.AllTensors[Edge.TensorIdx].GetName());
+					UE_LOG(LogNNE, Error, TEXT("DMLGraphBuilder error invalid intermediate graph edge detected for tensor:%s"), *InModel->AllSymbolicTensorDescs[Edge.TensorIdx].GetName());
 					return false;
 				}
 			}
@@ -595,7 +578,10 @@ private:
 		return true;
 	}
 
-	bool AddInputEdges(TConstArrayView<int32> InTensorIndices, const FGraphDesc& InGraph)
+	//
+	//
+	//
+	bool AddInputEdges(TConstArrayView<int32> InTensorIndices, const FModelInstance* InModel)
 	{
 		for (int32 Idx = 0; Idx < InTensorIndices.Num(); ++Idx)
 		{
@@ -604,20 +590,23 @@ private:
 
 			if (ConnCount == 0)
 			{
-				if (InGraph.ConstantCPUIndices.Find(TensorIdx) == INDEX_NONE)
+				if (InModel->ConstantCPUTensorIndices.Find(TensorIdx) == INDEX_NONE)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("DmlGraphBuilder tensor:%d has no connections"), *InGraph.AllTensors[TensorIdx].GetName());
+					UE_LOG(LogNNE, Error, TEXT("DmlGraphBuilder tensor:%d has no connections"), *InModel->AllSymbolicTensorDescs[TensorIdx].GetName());
 					return false;
 				}
 			}
 
-			for (int32 ConnIdx = 0; ConnIdx < ConnCount; ++ConnIdx)
-			{
-				AddInputEdge(TensorIdx);
-			}
+			// Check if tensor is a constant CPU
+			const int32 ConstantCPUIdx = InModel->ConstantCPUTensorIndices.Find(TensorIdx);
 
-			if (InGraph.ConstantCPUIndices.Find(TensorIdx) == INDEX_NONE)
+			if (ConstantCPUIdx == INDEX_NONE)
 			{
+				for (int32 ConnIdx = 0; ConnIdx < ConnCount; ++ConnIdx)
+				{
+					AddInputEdge(TensorIdx);
+				}
+			
 				++NumInputs;
 			}
 		}
@@ -625,16 +614,19 @@ private:
 		return true;
 	}
 
-	bool AddOutputEdges(const FGraphDesc& InGraph)
+	//
+	//
+	//
+	bool AddOutputEdges(const FModelInstance* InModel)
 	{
-		for (int32 Idx = 0; Idx < InGraph.OutputIndices.Num(); ++Idx)
+		for (int32 Idx = 0; Idx < InModel->OutputTensorIndices.Num(); ++Idx)
 		{
-			const int32 TensorIdx = InGraph.OutputIndices[Idx];
+			const int32 TensorIdx = InModel->OutputTensorIndices[Idx];
 			const int32 ConnCount = TensorOutConnCounts[TensorIdx];
 
 			if (ConnCount == 0)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("DmlGraphBuilder tensor:%d has no connections"), *InGraph.AllTensors[TensorIdx].GetName());
+				UE_LOG(LogNNE, Error, TEXT("DmlGraphBuilder tensor:%d has no connections"), *InModel->AllSymbolicTensorDescs[TensorIdx].GetName());
 				return false;
 			}
 
@@ -647,17 +639,20 @@ private:
 		return true;
 	}
 
-	bool AddIntermediateEdges(const FGraphDesc& InGraph)
+	//
+	//
+	//
+	bool AddIntermediateEdges(const FModelInstance* InModel)
 	{
-		for (int32 Idx = 0; Idx < InGraph.IntermediateIndices.Num(); ++Idx)
+		for (int32 Idx = 0; Idx < InModel->IntermediateTensorIndices.Num(); ++Idx)
 		{
-			const int32 TensorIdx = InGraph.IntermediateIndices[Idx];
+			const int32 TensorIdx = InModel->IntermediateTensorIndices[Idx];
 			const int32 InputConnCount = TensorInConnCounts[TensorIdx];
 			const int32 OutputConnCount = TensorOutConnCounts[TensorIdx];
 
 			if (InputConnCount == 0 || OutputConnCount == 0)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("DmlGraphBuilder tensor:%d has no connections"), *InGraph.AllTensors[TensorIdx].GetName());
+				UE_LOG(LogNNE, Error, TEXT("DmlGraphBuilder tensor:%d has no connections"), *InModel->AllSymbolicTensorDescs[TensorIdx].GetName());
 				return false;
 			}
 
@@ -670,31 +665,44 @@ private:
 		return true;
 	}
 
-	bool AddOperators(const FGraphDesc& InGraph)
+	//
+	//
+	//
+	bool AddOperators(const FModelInstance* InModel)
 	{
-		for (const FOpDesc& CurrOp : InGraph.Operators) 
+		for (const FGraphOpDesc& CurrOp : InModel->GraphOperators) 
 		{
-			DML_OPERATOR_GRAPH_NODE_DESC& OpDesc = Operators.Add_GetRef({});
-
-			OpDesc.Operator = CurrOp.Op->GetOperator();
+			DML_OPERATOR_GRAPH_NODE_DESC&	OpDesc = Operators.Add_GetRef({});
+			FOperatorDml*					Op = InModel->Operators[CurrOp.OpIndex];
+			
+			OpDesc.Operator = Op->GetOperator();
 			OpDesc.Name = CurrOp.DbgName.Get();
 
-			const int32 NodeIdx = Operators.Num() - 1;
+			const int32		NodeIdx = Operators.Num() - 1;
+			int32			InputConnIdx = 0;
 
 			for (int32 Idx = 0; Idx < CurrOp.InputCount; ++Idx)
 			{
-				const int32 TensorIdx = InGraph.OpInputIndices[Idx + CurrOp.InputStart];
+				const int32 TensorIdx = InModel->GraphOpInputIndices[Idx + CurrOp.InputStart];
 
-				if (!ConnectEdgeDst(TensorIdx, NodeIdx, Idx))
+				// Filter out the constant CPU inputs from the graph node inputs
+				if (InModel->ConstantCPUTensorIndices.Find(TensorIdx) != INDEX_NONE)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("DmlGraphBuilder failed to connect intermediate edge dst for tensor:%s"), *InGraph.AllTensors[TensorIdx].GetName());
+					continue;
+				}
+
+				if (!ConnectEdgeDst(TensorIdx, NodeIdx, InputConnIdx))
+				{
+					UE_LOG(LogNNE, Error, TEXT("DmlGraphBuilder failed to connect intermediate edge dst for tensor:%s"), *InModel->AllSymbolicTensorDescs[TensorIdx].GetName());
 					return false;
 				}
+
+				++InputConnIdx;
 			}
 
 			for (int32 Idx = 0; Idx < CurrOp.OutputCount; ++Idx)
 			{
-				const int32 TensorIdx = InGraph.OpOutputIndices[Idx + CurrOp.OutputStart];
+				const int32 TensorIdx = InModel->GraphOpOutputIndices[Idx + CurrOp.OutputStart];
 				int32 ConnCount = TensorInConnCounts[TensorIdx];
 
 				if (ConnCount == 0)
@@ -707,7 +715,7 @@ private:
 				{
 					if (!ConnectEdgeSrc(TensorIdx, NodeIdx, Idx))
 					{
-						UE_LOG(LogNNE, Warning, TEXT("DmlGraphBuilder failed to connect intermediate edge src for tensor:%s"), *InGraph.AllTensors[TensorIdx].GetName());
+						UE_LOG(LogNNE, Error, TEXT("DmlGraphBuilder failed to connect intermediate edge src for tensor:%s"), *InModel->AllSymbolicTensorDescs[TensorIdx].GetName());
 						return false;
 					}
 				}
@@ -717,6 +725,9 @@ private:
 		return true;
 	}
 
+	//
+	//
+	//
 	void AddInputEdge(int32 TensorIdx)
 	{
 		Edges.Emplace(
@@ -726,6 +737,9 @@ private:
 		);
 	}
 
+	//
+	//
+	//
 	void AddOutputEdge(int32 TensorIdx)
 	{
 		Edges.Emplace(
@@ -737,6 +751,9 @@ private:
 		++NumOutputs;
 	}
 
+	//
+	//
+	//
 	void AddIntermediateEdge(int32 TensorIdx, int32 NodeSrc, int32 NodeSrcOutput)
 	{
 		Edges.Emplace(
@@ -747,6 +764,9 @@ private:
 			);
 	}
 
+	//
+	//
+	//
 	bool ConnectEdgeDst(int32 TensorIdx, int32 NodeDst, int32 NodeDstInput)
 	{
 		FEdge* StartEdge = Edges.FindByPredicate(
@@ -773,6 +793,9 @@ private:
 		return bFoundEdge;
 	}
 
+	//
+	//
+	//
 	bool ConnectEdgeSrc(int32 TensorIdx, int32 NodeSrc, int32 NodeSrcOutput)
 	{
 		FEdge* StartEdge =
@@ -820,16 +843,10 @@ FModelInstance::FModelInstance()
 //
 FModelInstance::~FModelInstance()
 {
-
 #if STATS
 	DEC_MEMORY_STAT_BY(STAT_MemSizeWeights, MemSizeWeights);
 	DEC_MEMORY_STAT_BY(STAT_MemSizeTemp, MemSizeTemp);
 	DEC_MEMORY_STAT_BY(STAT_MemSizePersist, MemSizePersist);
-
-//	if (CompiledOp)
-//	{
-//		DEC_DWORD_STAT(STAT_InferenceCount);
-//	}
 #endif
 }
 
@@ -856,37 +873,27 @@ bool FModelInstance::Init(TConstArrayView<uint8> ModelData, FDmlDeviceContext* I
 	HRESULT Res = DevCtx->Device->CreateOperatorInitializer(0, nullptr, DML_PPV_ARGS(&OpInit));
 	if (!OpInit)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Error:Failed to create DML operator initializer"));
+		UE_LOG(LogNNE, Error, TEXT("Failed to create DML operator initializer"));
 		return false;
 	}
 
-	// DirectML requires all tensors to be concrete
-	// Notes: to handle dynamic tensor desc, op should init from symbolic shapes
-	TArray<NNE::Internal::FTensor>	Tensors;
-
-	Tensors.Reset(AllSymbolicTensorDescs.Num());
-	for (const NNE::FTensorDesc& TensorDesc : AllSymbolicTensorDescs)
-	{
-		Tensors.Emplace(NNE::Internal::FTensor::MakeFromSymbolicDesc(TensorDesc));
-	}
-
-	TArray<FGraphBuilder::FOpDesc>	DmlGraphOperators;
-	TArray<int32>					OpInputIndices;
-	TArray<int32>					OpOutputIndices;
-	uint64							TensorDataSize = 0;
+	GraphOperators.Reset();
+	GraphOpInputIndices.Reset();
+	GraphOpOutputIndices.Reset();
+	MemSizeWeights = 0;
 
 	// Loop over all operators in the model and create them
 	for (int32 Idx = 0; Idx < Format.Operators.Num(); ++Idx)
 	{
 		const FString TypeName = Format.Operators[Idx].TypeName;
 
-		FGraphBuilder::FOpDesc					OpDesc;
-		TArray<NNE::Internal::FTensor>		OpInputTensors;
-		TArray<NNE::Internal::FTensor>		OpOutputTensors;
-		NNE::FAttributeMap					AttributeMap;
+		FGraphOpDesc				OpDesc;
+		TArray<NNE::FTensorDesc>	OpInputTensors;
+		TArray<NNE::FTensorDesc>	OpOutputTensors;
+		NNE::FAttributeMap			AttributeMap;
 
-		OpDesc.InputStart = OpInputIndices.Num();
-		OpDesc.OutputStart = OpOutputIndices.Num();
+		OpDesc.InputStart = GraphOpInputIndices.Num();
+		OpDesc.OutputStart = GraphOpOutputIndices.Num();
 
 		for (int32 InputTensorIndex : Format.Operators[Idx].InTensors)
 		{
@@ -894,26 +901,19 @@ bool FModelInstance::Init(TConstArrayView<uint8> ModelData, FDmlDeviceContext* I
 
 			if (WeightTensorIdx >= 0)
 			{
-				TConstArrayView<uint8> TensorData = OpInputTensors.Emplace_GetRef(WeightTensorRDGs[WeightTensorIdx]).GetPreparedData<uint8>();
+				TConstArrayView<uint8> TensorData = WeightTensorRDGs[WeightTensorIdx].GetPreparedData<uint8>();
 				
-				TensorDataSize += Align(TensorData.Num(), DML_MINIMUM_BUFFER_TENSOR_ALIGNMENT);
-			}
-			else
-			{
-				NNE::FTensorDesc SymbolicTensorDesc = AllSymbolicTensorDescs[InputTensorIndex];
-				// Notes: to handle dynamic tensor desc, op should init from symbolic shapes
-				OpInputTensors.Emplace(NNE::Internal::FTensor::MakeFromSymbolicDesc(SymbolicTensorDesc));
+				MemSizeWeights += Align(TensorData.Num(), DML_MINIMUM_BUFFER_TENSOR_ALIGNMENT);
 			}
 
-			OpInputIndices.Emplace(InputTensorIndex);
+			OpInputTensors.Emplace(AllSymbolicTensorDescs[InputTensorIndex]);
+			GraphOpInputIndices.Emplace(InputTensorIndex);
 		}
 
 		for (int32 OutputTensorIndex : Format.Operators[Idx].OutTensors)
 		{
-			NNE::FTensorDesc SymbolicTensorDesc = AllSymbolicTensorDescs[OutputTensorIndex];
-			// Notes: to handle dynamic tensor desc, op should init from symbolic shapes
-			OpOutputTensors.Emplace(NNE::Internal::FTensor::MakeFromSymbolicDesc(SymbolicTensorDesc));
-			OpOutputIndices.Emplace(OutputTensorIndex);
+			OpOutputTensors.Emplace(AllSymbolicTensorDescs[OutputTensorIndex]);
+			GraphOpOutputIndices.Emplace(OutputTensorIndex);
 		}
 
 		for (const FNNEFormatAttributeDesc& Desc : Format.Operators[Idx].Attributes)
@@ -921,70 +921,60 @@ bool FModelInstance::Init(TConstArrayView<uint8> ModelData, FDmlDeviceContext* I
 			AttributeMap.SetAttribute(Desc.Name, Desc.Value);
 		}
 
-		OpDesc.Op = OpCreate(TypeName, OpInputTensors, OpOutputTensors, AttributeMap);
+		FOperatorDml* Op = OpCreate(TypeName, OpInputTensors, OpOutputTensors, AttributeMap);
 
-		if (!OpDesc.Op)
+		if (!Op)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Error:Failed to create DML operator:%s"), *TypeName);
+			UE_LOG(LogNNE, Error, TEXT("Failed to create DML operator:%s"), *TypeName);
 			return false;
 		}
 
+		OpDesc.OpIndex = Operators.Num();
+		Operators.Add(Op);
+
 		// Remap inputs
-		TConstArrayView<int32> OpRemappedInputs = OpDesc.Op->GetRemappedInputs();
+		TConstArrayView<int32> OpRemappedInputs = Op->GetRemappedInputs();
 
 		for (int32 InputIdx = 0; InputIdx < OpRemappedInputs.Num(); ++InputIdx)
 		{
-			OpInputIndices[OpDesc.InputStart + InputIdx] = OpRemappedInputs[InputIdx];
-		}
-
-		// Filter out the constant CPU inputs from the graph node inputs
-		TConstArrayView<int32> OpConstantCPUInputs = OpDesc.Op->GetConstantCPUInputs();
-
-		for (int32 InputIdx = OpConstantCPUInputs.Num() - 1; InputIdx >= 0; --InputIdx)
-		{
-			const int32 ConstIdx = OpConstantCPUInputs[InputIdx];
-			const int32 TensorIdx = OpInputIndices[OpDesc.InputStart + ConstIdx];
-
-			OpInputTensors.RemoveAt(ConstIdx);
-			OpInputIndices.RemoveAt(OpDesc.InputStart + ConstIdx);
-
-			ConstantCPUTensorIndices.AddUnique(TensorIdx);
+			GraphOpInputIndices[OpDesc.InputStart + InputIdx] = OpRemappedInputs[InputIdx];
 		}
 
 		OpDesc.InputCount = OpInputTensors.Num();
 		OpDesc.OutputCount = OpOutputTensors.Num();
 		OpDesc.DbgName = TypeName;
 
-		DmlGraphOperators.Emplace(OpDesc);
+		GraphOperators.Emplace(OpDesc);
+
+		// Add constant CPU tensor indices
+		TConstArrayView<int32> OpConstantCPUInputs = Op->GetConstantCPUInputs();
+
+		for (int32 InputIdx = OpConstantCPUInputs.Num() - 1; InputIdx >= 0; --InputIdx)
+		{
+			const int32 ConstIdx = OpConstantCPUInputs[InputIdx];
+			const int32 TensorIdx = GraphOpInputIndices[OpDesc.InputStart + ConstIdx];
+
+			ConstantCPUTensorIndices.AddUnique(TensorIdx);
+		}
+
+		// FIXME: TODO: Find a way to test/validate if tensor is constant, for now we can only do that in FOperatorDml::PrepareOutputs()
+		//for (int32 TensorIdx : ConstantCPUTensorIndices)
+		//{
+		//	if (!AllTensorRDGRefs[TensorIdx]->HasPreparedData())
+		//	{
+		//		UE_LOG(LogNNE, Error, TEXT("DirectML requires tensor %s needs to be constant"), *AllTensorRDGRefs[TensorIdx]->GetName());
+		//		return false;
+		//	}
+		//}
 	}
 
-	FGraphBuilder				DmlGraphBuilder;
-	FGraphBuilder::FGraphDesc	DmlGraphDesc;
-
-	DmlGraphDesc.AllTensors = Tensors;
-	DmlGraphDesc.InputIndices = InputTensorIndices;
-	DmlGraphDesc.OutputIndices = OutputTensorIndices;
-	DmlGraphDesc.WeightIndices = WeightTensorIndices;
-	DmlGraphDesc.ConstantCPUIndices = ConstantCPUTensorIndices;
-	DmlGraphDesc.IntermediateIndices = IntermediateTensorIndices;
-	DmlGraphDesc.WeightTensors = WeightTensorRDGs;
-	DmlGraphDesc.Operators = DmlGraphOperators;
-	DmlGraphDesc.OpInputIndices = OpInputIndices;
-	DmlGraphDesc.OpOutputIndices = OpOutputIndices;
-
-	CompiledOp = DmlGraphBuilder.Compile(DevCtx, DmlGraphDesc);
-	if (!CompiledOp)
-	{
-		return false;
-	}
-
-	return InitCompiledOp(OpInputIndices, TensorDataSize);
+	return true;	
 }
 
 //
 //
 //
-bool FModelInstance::InitCompiledOp(TConstArrayView<int32> OpInputIndices, uint64 TensorDataSize)
+bool FModelInstance::InitCompiledOp()
 {
 	static constexpr EBufferUsageFlags	WeightBuffUsage = BUF_UnorderedAccess;
 	static constexpr ERHIAccess			WeightBuffAccess = ERHIAccess::UAVMask;
@@ -1002,7 +992,7 @@ bool FModelInstance::InitCompiledOp(TConstArrayView<int32> OpInputIndices, uint6
 	Res = OpInit->Reset(UE_ARRAY_COUNT(CompiledOps), CompiledOps);
 	if (FAILED(Res))
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Error:Failed to reset DML operator initializer"));
+		UE_LOG(LogNNE, Error, TEXT("Failed to reset DML operator initializer"));
 		return false;
 	}
 
@@ -1020,7 +1010,7 @@ bool FModelInstance::InitCompiledOp(TConstArrayView<int32> OpInputIndices, uint6
 	Res = DevCtx->D3D12Device->CreateDescriptorHeap(&HeapDesc, IID_PPV_ARGS(&DescHeap));
 	if (!DescHeap)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Failed to create descriptor heap, res:%x"), Res);
+		UE_LOG(LogNNE, Error, TEXT("Failed to create descriptor heap, res:%x"), Res);
 		return false;
 	}
 
@@ -1032,7 +1022,6 @@ bool FModelInstance::InitCompiledOp(TConstArrayView<int32> OpInputIndices, uint6
 		return false;
 	}
 
-	MemSizeWeights = TensorDataSize;
 	MemSizeTemp = ExecBindProps.TemporaryResourceSize;
 	MemSizePersist = ExecBindProps.PersistentResourceSize;
 
@@ -1043,8 +1032,7 @@ bool FModelInstance::InitCompiledOp(TConstArrayView<int32> OpInputIndices, uint6
 		[
 			this, 
 			Signal, 
-			InitTempMemSize = InitBindProps.TemporaryResourceSize,
-			TensorDataSize
+			InitTempMemSize = InitBindProps.TemporaryResourceSize
 		]
 		(FRHICommandListImmediate& RHICmdList)
 		{
@@ -1061,12 +1049,12 @@ bool FModelInstance::InitCompiledOp(TConstArrayView<int32> OpInputIndices, uint6
 			TArray<CD3DX12_RESOURCE_BARRIER, TInlineAllocator<MaxNumInputs>>	Barriers;
 			FGPUFenceRHIRef	UploadFence = nullptr;
 
-			if (TensorDataSize)
+			if (MemSizeWeights)
 			{
 				UploadFence = RHICreateGPUFence(TEXT("FDmlModelInstance_UploadFence"));
 
-				FBufferRHIRef	UploadBuff = CreateRHIBuffer(RHICmdList, TensorDataSize, BUF_ShaderResource | BUF_Dynamic | BUF_FastVRAM, ERHIAccess::CopySrc, TEXT("FDmlModelInstance_UploadBuffer"));
-				uint8*			UploadBuffPtr = static_cast<uint8*>(RHICmdList.LockBuffer(UploadBuff, 0, TensorDataSize, RLM_WriteOnly_NoOverwrite));
+				FBufferRHIRef	UploadBuff = CreateRHIBuffer(RHICmdList, MemSizeWeights, BUF_ShaderResource | BUF_Dynamic | BUF_FastVRAM, ERHIAccess::CopySrc, TEXT("FDmlModelInstance_UploadBuffer"));
+				uint8*			UploadBuffPtr = static_cast<uint8*>(RHICmdList.LockBuffer(UploadBuff, 0, MemSizeWeights, RLM_WriteOnly_NoOverwrite));
 				uint64			UploadOffset = 0;
 
 				for (int32 WeightIdx = 0; WeightIdx < WeightTensorIndices.Num(); ++WeightIdx)
@@ -1100,7 +1088,7 @@ bool FModelInstance::InitCompiledOp(TConstArrayView<int32> OpInputIndices, uint6
 				RHICmdList.UnlockBuffer(UploadBuff);
 				RHICmdList.WriteGPUFence(UploadFence);
 
-				INC_MEMORY_STAT_BY(STAT_MemSizeWeights, TensorDataSize);
+				INC_MEMORY_STAT_BY(STAT_MemSizeWeights, MemSizeWeights);
 			}
 
 			if (MemSizePersist)
@@ -1299,31 +1287,32 @@ void FModelInstance::AddDispatchOps_RenderThread(FRDGBuilder& GraphBuilder)
 //
 // Create operator
 //
-FOperatorDml* FModelInstance::OpCreate(const FString& OpName, TArrayView<const NNE::Internal::FTensor> InputTensorDescs, TArrayView<const NNE::Internal::FTensor> OutputTensorDescs, const NNE::FAttributeMap& Attributes)
+FOperatorDml* FModelInstance::OpCreate(const FString& OpName, TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes)
 {
 	FOperatorRegistryDml::OperatorCreateFunc CreateFn = FOperatorRegistryDml::Get()->OpFind(OpName);
 
 	if (!CreateFn)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Error:failed to find DML operator:%s"), *OpName);
+		UE_LOG(LogNNE, Error, TEXT("Failed to find DML operator:%s"), *OpName);
 		return nullptr;
 	}
 
 	FOperatorDml* Op = CreateFn();
 
-	if (!Op->Initialize(DevCtx->Device, InputTensorDescs, OutputTensorDescs, Attributes))
+	if (!Op->Initialize(Inputs, Outputs, Attributes))
 	{
 		delete Op;
 
-		UE_LOG(LogNNE, Warning, TEXT("Error:Failed to initialize DML operator:%s"), *OpName);
+		UE_LOG(LogNNE, Error, TEXT("Failed to initialize DML operator:%s"), *OpName);
 		return nullptr;
 	}
-
-	Op->GetOperator()->SetName(*OpName);
 
 	return Op;
 }
 
+//
+//
+//
 FBufferRHIRef FModelInstance::CreateRHIBuffer(FRHICommandListImmediate& RHICmdList, uint32 Size, EBufferUsageFlags Usage, ERHIAccess Access, const TCHAR* DbgName)
 {
 	FBufferRHIRef Buff = nullptr;
@@ -1339,53 +1328,75 @@ FBufferRHIRef FModelInstance::CreateRHIBuffer(FRHICommandListImmediate& RHICmdLi
 	return Buff;
 }
 
-ID3D12Resource* FModelInstance::CreateD3D12Buffer(uint32 Size, D3D12_RESOURCE_STATES ResourceState, D3D12_HEAP_TYPE HeapType, const TCHAR* DebugName)
-{
-	ID3D12Resource* Resource = nullptr;
-
-	D3D12_RESOURCE_DESC ResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(Size,D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-	CD3DX12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(HeapType);
-	HRESULT Res;
-
-	Res = DevCtx->D3D12Device->CreateCommittedResource(
-		&HeapProps,
-		D3D12_HEAP_FLAG_NONE,
-		&ResourceDesc,
-		ResourceState,
-		nullptr,
-		IID_PPV_ARGS(&Resource));
-
-	if (FAILED(Res))
-	{
-		UE_LOG(LogNNE, Warning, TEXT("Error:FDmlModelInstance failed to create D3D12 resource"));
-		return nullptr;
-	}
-
-	if (Resource && DebugName)
-	{
-		Resource->SetName(DebugName);
-	}
-
-	return Resource;
-}
-
 //
 //
 //
 int FModelInstance::PrepareTensorShapesAndData()
 {
-	for (NNE::FTensorDesc SymbolicTensorDesc : AllSymbolicTensorDescs)
+	check(AllTensorRDGRefs.Num() == AllSymbolicTensorDescs.Num());
+
+	if (Operators.Num() == 0)
 	{
-		if (!SymbolicTensorDesc.GetShape().IsConcrete())
+		UE_LOG(LogNNE, Error, TEXT("No operators in model"));
+		return -1;
+	}
+
+	// Loop through all operators:
+	// 1. Run shape inference with PrepareOutputs()
+	// 2. Create DML operator
+	TArray<NNE::Internal::FTensorRef>	OpInputs;
+	TArray<NNE::Internal::FTensorRef>	OpOutputs;
+
+	for (const FGraphOpDesc& OpDesc : GraphOperators)
+	{
+		OpInputs.Reset();
+		OpOutputs.Reset();
+
+		FOperatorDml* Op = Operators[OpDesc.OpIndex];
+
+		for (int32 Idx = 0; Idx < OpDesc.InputCount; ++Idx)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("FDmlModelInstance does not support model with variable shapes yet."));
+			const int32 InputIdx = GraphOpInputIndices[OpDesc.InputStart + Idx];
+			OpInputs.Emplace(AllTensorRDGRefs[InputIdx]);
+		}
+
+		for (int32 Idx = 0; Idx < OpDesc.OutputCount; ++Idx)
+		{
+			const int32 OutputIdx = GraphOpOutputIndices[OpDesc.OutputStart + Idx];
+			OpOutputs.Emplace(AllTensorRDGRefs[OutputIdx]);
+		}
+
+		if (Op->PrepareOutputs(OpInputs, OpOutputs) != 0)
+		{
 			return -1;
 		}
+
+		if (!Op->Create(DevCtx->Device, OpInputs, OpOutputs))
+		{
+			return -1;
+		}
+	}
+
+	FGraphBuilder DmlGraphBuilder;
+
+	CompiledOp = DmlGraphBuilder.Compile(this);
+	if (!CompiledOp)
+	{
+		UE_LOG(LogNNE, Error, TEXT("Failed to compile DML graph"));
+		return -1;
+	}
+
+	if (!InitCompiledOp())
+	{
+		return -1;
 	}
 
 	return 0;
 }
 
+//
+//
+//
 TSharedPtr<NNE::IModelInstanceRDG> FModel::CreateModelInstanceRDG()
 {
 	FModelInstance* ModelInstance = new FModelInstance();
@@ -1401,6 +1412,9 @@ TSharedPtr<NNE::IModelInstanceRDG> FModel::CreateModelInstanceRDG()
 	return TSharedPtr<NNE::IModelInstanceRDG>(IModelInstance);
 }
 
+//
+//
+//
 FModel::FModel(const TSharedPtr<NNE::FSharedModelData>& InModelData, FDmlDeviceContext* InDevCtx)
 	: ModelData(InModelData), DevCtx(InDevCtx)
 {

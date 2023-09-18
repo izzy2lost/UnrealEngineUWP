@@ -7,25 +7,33 @@
 
 namespace UE::NNERuntimeRDG::Private::Dml
 {
-
+//
+//
+//
 class FOperatorDmlCast : public FOperatorDml
 {
 public:
 
+	//
+	//
+	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlCast();
 	}
 
+	//
+	//
+	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		if(InputShapes.Num() != 1)
+		if (InputShapes.Num() != 1)
 		{
 			UE_LOG(LogNNE, Warning, TEXT("There must be only 1 DML input tensor"));
         	return false;
 		}
 
-		if(!CheckGenericTensor(InputTypes[0], InputShapes[0]))
+		if (!CheckGenericTensor(InputTypes[0], InputShapes[0]))
 		{
 			return false;
 		}
@@ -36,24 +44,21 @@ public:
 	//
 	//
 	//
-	virtual bool Initialize(IDMLDevice* Device, TArrayView<const NNE::Internal::FTensor> InputTensors, TArrayView<const NNE::Internal::FTensor> OutputTensors, const NNE::FAttributeMap& Attributes) override
+	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(InputTensors.Num() == 1);
-		check(OutputTensors.Num() == 1);
+		check(Inputs.Num() == 1);
+		check(Outputs.Num() == 1);
 		
-		const NNE::Internal::FTensor& InputTensor = InputTensors[0];
-		const NNE::Internal::FTensor& OutputTensor = OutputTensors[0];
+		TConstArrayView<int32> InputShape = Inputs[0].GetShape().GetData();
+		TConstArrayView<int32> OutputShape = Outputs[0].GetShape().GetData();
 
 		ENNETensorDataType To = (ENNETensorDataType) Attributes.GetValue<int32>(TEXT("to"));
 		
-		if (To != OutputTensor.GetDataType())
+		if (To != Outputs[0].GetDataType())
 		{
-			UE_LOG(LogNNE, Error, TEXT("Cast should output a tensor of type %d but was of type %d."), int(To), int(OutputTensor.GetDataType()));
+			UE_LOG(LogNNE, Error, TEXT("Cast should output a tensor of type %d but was of type %d."), int(To), int(Outputs[0].GetDataType()));
 			return false;
 		}
-
-		TConstArrayView<uint32> InputShape = InputTensor.GetShape().GetData();
-		TConstArrayView<uint32> OutputShape = OutputTensor.GetShape().GetData();
 
 		if (InputShape.Num() != OutputShape.Num())
 		{
@@ -69,6 +74,29 @@ public:
 				return false;
 			}
 		}
+
+		return true;
+	}
+
+	//
+	//
+	//
+	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+	{
+		check(InputTensors.Num() == 1);
+		check(OutputTensors.Num() == 1);
+		OutputTensors[0]->SetShape(InputTensors[0]->GetShape());
+
+		return 0;
+	};
+
+	//
+	//
+	//
+	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
+	{
+		const NNE::Internal::FTensor& InputTensor = *InputTensors[0];
+		const NNE::Internal::FTensor& OutputTensor = *OutputTensors[0];
 
 		// Initialize tensor descriptors
 		FTensorDescDml DmlInputTensorDesc;

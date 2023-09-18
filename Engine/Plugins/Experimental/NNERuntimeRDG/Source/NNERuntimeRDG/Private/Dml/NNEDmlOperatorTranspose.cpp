@@ -15,14 +15,36 @@ namespace UE::NNERuntimeRDG::Private::Dml
  */
 class FOperatorDmlTranspose : public FOperatorDml
 {
+	//
+	// Apply permutations to input array view
+	//
+	Util::FSmallUIntArray Permute(TConstArrayView<uint32> InputView) const
+	{
+		Util::FSmallUIntArray Permuted;
+
+		for (int32 PermVal : Perm)
+		{
+			Permuted.Add(InputView[PermVal]);
+		}
+
+		return Permuted;
+	};
+
+	TArray<int32> Perm;
 
 public:
 
+	//
+	//
+	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlTranspose();
 	}
 
+	//
+	//
+	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
 		//TODO
@@ -32,49 +54,57 @@ public:
 	//
 	//
 	//
-	virtual bool Initialize(IDMLDevice* Device, TArrayView<const NNE::Internal::FTensor> InputTensors, TArrayView<const NNE::Internal::FTensor> OutputTensors, const NNE::FAttributeMap& Attributes) override
+	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(InputTensors.Num() == 1);
-		check(OutputTensors.Num() == 1);
+		check(Inputs.Num() == 1);
+		check(Outputs.Num() == 1);
 
-		int32 NumDims = InputTensors[0].GetShape().Rank();
+		const int32 NumDims = Inputs[0].GetShape().Rank();
 		check(NumDims > 0);
-		check(NumDims == OutputTensors[0].GetShape().Rank());
+		check(NumDims == Outputs[0].GetShape().Rank());
 
 		// Default permutation is reverse
 		Util::FSmallIntArray ReversePerm;
 
-		for(int Idx = NumDims-1; Idx >= 0; Idx--)
+		for (int Idx = NumDims - 1; Idx >= 0; Idx--)
 		{
 			ReversePerm.Add(Idx);
 		}
 
-		TArray<int32> Perm = 
-			Attributes.GetValueOrDefault<TArray<int32>>(TEXT("perm"), (TArray<int32>) ReversePerm);
-
+		Perm = Attributes.GetValueOrDefault<TArray<int32>>(TEXT("perm"), (TArray<int32>) ReversePerm);
 		check(Perm.Num() == NumDims);
+		return true;
 
-		// Initialize Input tensor desc
-		// Apply permutations to both sizes and strides
-		auto PermuteFunc = [&, Perm] (TConstArrayView<uint32> InputView) -> Util::FSmallUIntArray
-		{
-			Util::FSmallUIntArray Permuted;
-			
-			for (int32 PermVal : Perm)
-			{
-				Permuted.Add(InputView[PermVal]);
-			}
-			
-			return Permuted;
-		};
+	}
+
+	//
+	//
+	//
+	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+	{
+		Util::FSmallUIntArray OutputShape = Permute(InputTensors[0]->GetShape().GetData());
+
+		OutputTensors[0]->SetShape(NNE::FTensorShape::Make(OutputShape));
+
+		return 0;
+	}
+
+	//
+	//
+	//
+	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
+	{
+		TConstArrayView<uint32>	InputShape = InputTensors[0]->GetShape().GetData();
 
 		FTensorDescDml DmlInputTensorDesc;
 
-		DmlInputTensorDesc.SetFromTensor(InputTensors[0]);
-		DmlInputTensorDesc.SetShape(PermuteFunc(DmlInputTensorDesc.GetSizes()));
+		DmlInputTensorDesc
+			.SetFromTensor(*InputTensors[0])
+			.SetShape(Permute(InputShape))
+			.SetStridesFromShape(InputShape)
+		;
 
-		DmlInputTensorDesc.SetStridesFromShape(InputTensors[0].GetShape());
-		DmlInputTensorDesc.SetStrides(PermuteFunc(DmlInputTensorDesc.GetStrides()));
+		DmlInputTensorDesc.SetStrides(Permute(DmlInputTensorDesc.GetStrides()));
 
 		if (!DmlInputTensorDesc.Validate())
 		{
@@ -82,11 +112,10 @@ public:
 			return false;
 		}
 
-		// Initialize Output tensor desc
 		FTensorDescDml DmlOutputTensorDesc;
 
 		if (!DmlOutputTensorDesc
-				.SetFromTensor(OutputTensors[0])
+				.SetFromTensor(*OutputTensors[0])
 				.Validate())
 		{
 			UE_LOG(LogNNE, Error, TEXT("Failed to initialize Transpose output for DML inference"));
@@ -100,7 +129,7 @@ public:
 		DmlIdentityOpDesc.InputTensor = DmlInputTensorDesc.GetDmlDesc();
 		DmlIdentityOpDesc.OutputTensor = DmlOutputTensorDesc.GetDmlDesc();
 
-		return CreateOperator(Device, DML_OPERATOR_DESC{ DML_OPERATOR_ELEMENT_WISE_IDENTITY, &DmlIdentityOpDesc} );
+		return CreateOperator(Device, DML_OPERATOR_DESC{ DML_OPERATOR_ELEMENT_WISE_IDENTITY, &DmlIdentityOpDesc });
 	}
 };
 
