@@ -230,9 +230,6 @@ protected:
 	/** Destroy the handle and all internal book keeping associated with it. */
 	IRISCORE_API void InternalDestroyNetObject(FNetRefHandle Handle);
 	
-	/** Get the handle of the root object of any given subobject. */
-	IRISCORE_API FNetRefHandle InternalGetRootObjectOfSubObject(FNetRefHandle SubObjectHandle) const;
-
 	/** Add SubObjectHandle as SubObject to OwnerHandle. */
 	IRISCORE_API void InternalAddSubObject(FNetRefHandle OwnerHandle, FNetRefHandle SubObjectHandle, FNetRefHandle InsertRelativeToSubObjectHandle, ESubObjectInsertionOrder InsertionOrder);
 

@@ -449,25 +449,6 @@ void UReplicationBridge::DestroyLocalNetHandle(FNetRefHandle Handle, EEndReplica
 	UE_LOG_REPLICATIONBRIDGE(Verbose, TEXT("DestroyLocalNetHandle Local %s"), *Handle.ToString());
 }
 
-UE::Net::FNetRefHandle UReplicationBridge::InternalGetRootObjectOfSubObject(FNetRefHandle SubObjectHandle) const
-{
-	using namespace UE::Net::Private;
-
-	const FInternalNetRefIndex InternalNetRefIndex = NetRefHandleManager->GetInternalIndex(SubObjectHandle);
-	if (InternalNetRefIndex != FNetRefHandleManager::InvalidInternalIndex)
-	{
-		const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalNetRefIndex);
-		const FInternalNetRefIndex OwnerInternalNetRefIndex = ObjectData.SubObjectRootIndex;
-
-		if (OwnerInternalNetRefIndex != FNetRefHandleManager::InvalidInternalIndex)
-		{
-			return NetRefHandleManager->GetReplicatedObjectDataNoCheck(OwnerInternalNetRefIndex).RefHandle;
-		}
-	}
-
-	return FNetRefHandle();
-}
-
 void UReplicationBridge::InternalAddSubObject(FNetRefHandle OwnerHandle, FNetRefHandle SubObjectHandle, FNetRefHandle InsertRelativeToSubObjectHandle, ESubObjectInsertionOrder InsertionOrder)
 {
 	using namespace UE::Net::Private;

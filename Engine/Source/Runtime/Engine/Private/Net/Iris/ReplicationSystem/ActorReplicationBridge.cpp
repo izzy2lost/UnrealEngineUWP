@@ -481,7 +481,7 @@ bool UActorReplicationBridge::WriteCreationHeader(UE::Net::FNetSerializationCont
 	}
 	else if (Object)
 	{
-		const UObject* RootObject = GetReplicatedObject(InternalGetRootObjectOfSubObject(Handle));
+		const UObject* RootObject = GetReplicatedObject(GetRootObjectOfSubObject(Handle));
 
 		// Get Header
 		FSubObjectCreationHeader Header;
@@ -767,7 +767,7 @@ void UActorReplicationBridge::EndInstantiateFromRemote(FNetRefHandle Handle)
 
 void UActorReplicationBridge::OnSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle)
 {
-	AActor* RootObject = Cast<AActor>(GetReplicatedObject(InternalGetRootObjectOfSubObject(SubObjectHandle)));
+	AActor* RootObject = Cast<AActor>(GetReplicatedObject(GetRootObjectOfSubObject(SubObjectHandle)));
 	UObject* SubObject = GetReplicatedObject(SubObjectHandle);
 	if (IsValid(RootObject) && IsValid(SubObject))
 	{

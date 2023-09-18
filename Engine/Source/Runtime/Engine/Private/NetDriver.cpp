@@ -46,6 +46,7 @@
 #include "UObject/Stack.h"
 #if UE_WITH_IRIS
 #include "Iris/IrisConfig.h"
+#include "Iris/Core/IrisDebugging.h"
 #include "Iris/Core/IrisProfiler.h"
 #include "Iris/Core/IrisMemoryTracker.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
@@ -5630,6 +5631,11 @@ void UNetDriver::DrawNetDriverDebug()
 		return;
 	}
 
+	if (!IsInGameThread())
+	{
+		return;
+	}
+
 	ULocalPlayer*	LocalPlayer = NULL;
 	for(FLocalPlayerIterator It(GEngine, LocalWorld);It;++It)
 	{
@@ -5646,6 +5652,10 @@ void UNetDriver::DrawNetDriverDebug()
 	const FVector Extent(20.f);
 	// Used to draw additional boxes to show more state
 	const FBox BoxExpansion = FBox(&Extent, 1);
+
+#if UE_WITH_IRIS
+		const UObjectReplicationBridge* Bridge = ReplicationSystem ? ReplicationSystem->GetReplicationBridgeAs<UObjectReplicationBridge>() : nullptr;
+#endif
 
 	for (FActorIterator It(LocalWorld); It; ++It)
 	{
@@ -5692,7 +5702,7 @@ void UNetDriver::DrawNetDriverDebug()
 		const FNetworkObjectInfo* NetworkObjectInfo = Connection->Driver->FindNetworkObjectInfo( *It );
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-		FColor DrawColor;
+		FColor DrawColor = FColor::White;
 		if ( NetworkObjectInfo && NetworkObjectInfo->DormantConnections.Contains( Connection ) )
 		{
 			DrawColor = FColor::Blue;
@@ -5707,7 +5717,35 @@ void UNetDriver::DrawNetDriverDebug()
 			DrawColor = FColor::Orange;
 		}
 
-		DrawDebugBox( LocalWorld, Box.GetCenter(), Box.GetExtent(), FQuat::Identity, DrawColor, false );
+		// Draw NetGUID or NetHandle
+		FVector AboveActor(0.f, 0.f, 32.f);
+#if UE_WITH_IRIS
+		if (Bridge)
+		{
+			AActor* Actor = *It;
+			const UE::Net::FNetRefHandle ActorRefHandle = Bridge->GetReplicatedRefHandle(Actor);
+			if (ActorRefHandle.IsValid() && UE::Net::IrisDebugHelper::FilterDebuggedObject(Actor))
+			{
+				DrawColor = FColor::Green;
+				DrawDebugString(Actor->GetWorld(), AboveActor, ActorRefHandle.ToString(), Actor, FColor::White, 0.f);
+			}
+			else
+			{
+				continue;
+			}
+		}
+		else
+#else
+		{
+			FNetworkGUID NetGUID = Connection->PackageMap->GetNetGUIDFromObject(*It);
+			if (NetGUID.IsValid())
+			{
+				DrawDebugString(LocalWorld, AboveActor, NetGUID.ToString(), *It, FColor::White, 0.f);
+			}
+		}
+#endif
+
+		DrawDebugBox(LocalWorld, Box.GetCenter(), Box.GetExtent(), FQuat::Identity, DrawColor, false);
 		const bool bDrawSecondBox = bWasCulled || bIsAlwaysRelevant;
 		// Draw a second box around the object if it was net culled
 		if (bDrawSecondBox)
@@ -5716,6 +5754,25 @@ void UNetDriver::DrawNetDriverDebug()
 			DrawDebugBox(LocalWorld, Box.GetCenter(), Box.GetExtent(), FQuat::Identity, ExtraStateDrawColor, false);
 		}
 	}
+
+	// Draw state
+#if UE_WITH_IRIS
+	if (Bridge)
+	{
+		UE::Net::FNetRefHandle DebugRefHandle = UE::Net::IrisDebugHelper::GetDebugNetRefHandle();
+		if (DebugRefHandle.IsValid() && Bridge)
+		{
+			UE::Net::FNetRefHandle RootObjectHandle = Bridge->GetRootObjectOfSubObject(DebugRefHandle);
+			UObject* Object = Bridge->GetReplicatedObject(RootObjectHandle.IsValid() ? RootObjectHandle : DebugRefHandle);
+			if (AActor* Actor = Cast<AActor>(Object))
+			{
+				DrawDebugString(LocalWorld, FVector(0.f, 0.f, 0.f), UE::Net::IrisDebugHelper::DebugNetObjectStateToString(DebugRefHandle.GetId(), ReplicationSystem->GetId()), Actor, FColor::White, 0.f);
+			}
+		}
+	}
+#endif
+
+
 #endif
 }
 
