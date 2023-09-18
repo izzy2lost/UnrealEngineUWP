@@ -110,6 +110,26 @@ namespace Horde.Server.Jobs.Bisect
 		public int InitialChange { get; }
 
 		/// <summary>
+		/// Lower bound of bisection job Id
+		/// </summary>
+		public JobId? MinJobId { get; }
+
+		/// <summary>
+		/// Lower bound of bisection step id
+		/// </summary>
+		public SubResourceId? MinStepId { get; }
+
+		/// <summary>
+		/// Lower bound of bisection changelist number
+		/// </summary>
+		public int? MinChange { get; }
+
+		/// <summary>
+		/// Lower bound job step outcome
+		/// </summary>
+		public JobStepOutcome? MinOutcome { get; }
+
+		/// <summary>
 		/// First known job id that is broken
 		/// </summary>
 		public JobId CurrentJobId { get; }

@@ -117,6 +117,12 @@ namespace Horde.Server.Jobs.Bisect
 				return BisectTaskState.Running;
 			}
 
+			// Update bisection lower bound
+			if (bisectTask.MinJobId == null)
+			{
+				await _bisectTaskCollection.TryUpdateAsync(bisectTask, new UpdateBisectTaskOptions { MinJob = (previousJobStepRef.Id.JobId, previousJobStepRef.Id.StepId, previousJobStepRef.Change, previousJobStepRef.Outcome.Value) }, cancellationToken);
+			}
+
 			// Find the next commit to test
 			StreamConfig? streamConfig;
 			if (!globalConfig.TryGetStream(bisectTask.StreamId, out streamConfig))

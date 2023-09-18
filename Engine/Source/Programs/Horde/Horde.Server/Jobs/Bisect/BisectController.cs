@@ -104,6 +104,18 @@ namespace Horde.Server.Jobs.Bisect
 		/// <inheritdoc cref="IBisectTask.InitialChange"/>
 		public int InitialChange => _bisectTask.InitialChange;
 
+		/// <inheritdoc cref="IBisectTask.MinJobId"/>
+		public string? MinJobId => _bisectTask.MinJobId?.ToString();
+
+		/// <inheritdoc cref="IBisectTask.MinStepId"/>
+		public string? MinStepId => _bisectTask.MinStepId?.ToString();
+
+		/// <inheritdoc cref="IBisectTask.MinChange"/>
+		public int? MinChange => _bisectTask.MinChange;
+
+		/// <inheritdoc cref="IBisectTask.Outcome"/>
+		public JobStepOutcome? MinOutcome => _bisectTask.MinOutcome;
+
 		/// <inheritdoc cref="IBisectTask.CurrentJobId"/>
 		public JobId CurrentJobId => _bisectTask.CurrentJobId;
 

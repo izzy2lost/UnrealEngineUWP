@@ -98,6 +98,11 @@ namespace Horde.Server.Jobs.Bisect
 		public (JobId JobId, int Change)? CurrentJob { get; set; }
 
 		/// <summary>
+		/// The lower bounds of the bisection task
+		/// </summary>
+		public (JobId JobId, SubResourceId StepId, int Change, JobStepOutcome Outcome)? MinJob { get; set; }
+
+		/// <summary>
 		/// New state for the task
 		/// </summary>
 		public BisectTaskState? State { get; set; }

@@ -66,6 +66,19 @@ namespace Horde.Server.Jobs.Bisect
 			[BsonElement("curChg")]
 			public int CurrentChange { get; set; }
 
+			// Lower bounds of bisection
+			[BsonElement("minJob"), BsonIgnoreIfNull]
+			public JobId? MinJobId { get; set; }
+
+			[BsonElement("minStepId"), BsonIgnoreIfNull]
+			public SubResourceId? MinStepId { get; set; }
+
+			[BsonElement("minChg"), BsonIgnoreIfNull]
+			public int? MinChange { get; set; }
+
+			[BsonElement("minOut"), BsonIgnoreIfNull]
+			public JobStepOutcome? MinOutcome { get; set; }
+
 			[BsonElement("idx")]
 			public int UpdateIdx { get; set; }
 
@@ -201,6 +214,12 @@ namespace Horde.Server.Jobs.Bisect
 			{
 				update = update.Set(x => x.CurrentJobId, options.CurrentJob.Value.JobId).Set(x => x.CurrentChange, options.CurrentJob.Value.Change);
 			}
+
+			if (options.MinJob != null)
+			{
+				update = update.Set(x => x.MinJobId, options.MinJob.Value.JobId).Set(x => x.MinStepId, options.MinJob.Value.StepId).Set(x => x.MinChange, options.MinJob.Value.Change).Set(x => x.MinOutcome, options.MinJob.Value.Outcome);
+			}
+
 			if (options.State != null)
 			{
 				update = update.Set(x => x.State, options.State.Value);
