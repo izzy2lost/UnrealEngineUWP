@@ -1285,7 +1285,7 @@ void FNiagaraRendererMeshes::GetDynamicMeshElements(const TArray<const FSceneVie
 	FParticleMeshRenderData ParticleMeshRenderData;
 	PrepareParticleMeshRenderData(ParticleMeshRenderData, ViewFamily, Collector, DynamicDataRender, SceneProxy, false, ENiagaraGpuComputeTickStage::Last);
 
-	if (ParticleMeshRenderData.SourceParticleData == nullptr )
+	if (ParticleMeshRenderData.SourceParticleData == nullptr || GbEnableNiagaraMeshRendering == 0)
 	{
 		return;
 	}

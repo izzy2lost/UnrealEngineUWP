@@ -18,6 +18,14 @@
 
 DECLARE_CYCLE_STAT(TEXT("Generate Particle Lights"), STAT_NiagaraGenLights, STATGROUP_Niagara);
 
+static int32 GbEnableNiagaraLightRendering = 1;
+static FAutoConsoleVariableRef CVarEnableNiagaraLightRendering(
+	TEXT("fx.EnableNiagaraLightRendering"),
+	GbEnableNiagaraLightRendering,
+	TEXT("If == 0, Niagara Light Renderers are disabled. \n"),
+	ECVF_Default
+);
+
 struct FNiagaraDynamicDataLights : public FNiagaraDynamicDataBase
 {
 	FNiagaraDynamicDataLights(const FNiagaraEmitterInstance* InEmitter)
@@ -177,6 +185,11 @@ FNiagaraDynamicDataBase* FNiagaraRendererLights::GenerateDynamicData(const FNiag
 
 void FNiagaraRendererLights::GatherSimpleLights(FSimpleLightArray& OutParticleLights)const
 {
+	if (GbEnableNiagaraLightRendering == 0)
+	{
+		return;
+	}
+
 	if (const FNiagaraDynamicDataLights* DynamicData = static_cast<const FNiagaraDynamicDataLights*>(DynamicDataRender))
 	{
 		const int32 LightCount = DynamicData->LightArray.Num();
