@@ -13,6 +13,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "UnrealClient.h"
 #include "HitProxies.h"
+#include "SkeletonClipboard.h"
 #include "ToolSetupUtil.h"
 #include "BaseBehaviors/ClickDragBehavior.h"
 #include "BaseGizmos/GizmoViewContext.h"
@@ -351,18 +352,29 @@ void USkeletonEditingTool::Shutdown(EToolShutdownType ShutdownType)
 	}
 }
 
-void USkeletonEditingTool::RegisterActions(FInteractiveToolActionSet& ActionSet)
+void USkeletonEditingTool::RegisterActions(FInteractiveToolActionSet& InOutActionSet)
 {
-	Super::RegisterActions(ActionSet);
+	Super::RegisterActions(InOutActionSet);
 
 	int32 ActionId = static_cast<int32>(EStandardToolActions::BaseClientDefinedActionID) + 400;
 	auto GetActionId = [&ActionId]
 	{
 		return ActionId++;
 	};
-	
-	// register New key
-	ActionSet.RegisterAction(this, GetActionId(), TEXT("CreateNewBone"),
+
+	RegisterCreateAction(InOutActionSet, GetActionId());
+	RegisterDeleteAction(InOutActionSet, GetActionId());
+	RegisterSelectAction(InOutActionSet, GetActionId());
+	RegisterParentAction(InOutActionSet, GetActionId());
+	RegisterUnParentAction(InOutActionSet, GetActionId());
+	RegisterCopyAction(InOutActionSet, GetActionId());
+	RegisterPasteAction(InOutActionSet, GetActionId());
+	RegisterDuplicateAction(InOutActionSet, GetActionId());
+}
+
+void USkeletonEditingTool::RegisterCreateAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId)
+{
+	InOutActionSet.RegisterAction(this, InActionId, TEXT("CreateNewBone"),
 		LOCTEXT("CreateNewBone", "Create New Bone"),
 		LOCTEXT("CreateNewBoneDesc", "Create New Bone"),
 		EModifierKey::None, EKeys::N,
@@ -372,9 +384,11 @@ void USkeletonEditingTool::RegisterActions(FInteractiveToolActionSet& ActionSet)
 			UpdateGizmo();
 			GetToolManager()->DisplayMessage(LOCTEXT("Create", "Click & Drag to place a new bone."), EToolMessageLevel::UserNotification);
 		});
-	
-	// register Delete key
-	ActionSet.RegisterAction(this, GetActionId(), TEXT("DeleteSelectedBones"),
+}
+
+void USkeletonEditingTool::RegisterDeleteAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId)
+{
+	InOutActionSet.RegisterAction(this, InActionId, TEXT("DeleteSelectedBones"),
 		LOCTEXT("DeleteSelectedBones", "Delete Selected Bone(s)"),
 		LOCTEXT("DeleteSelectedBonesDesc", "Delete Selected Bone(s)"),
 		EModifierKey::None, EKeys::Delete,
@@ -382,9 +396,11 @@ void USkeletonEditingTool::RegisterActions(FInteractiveToolActionSet& ActionSet)
 		{
 			RemoveBones();
 		});
+}
 
-	// register Select key
-	ActionSet.RegisterAction(this, GetActionId(), TEXT("SelectBones"),
+void USkeletonEditingTool::RegisterSelectAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId)
+{
+	InOutActionSet.RegisterAction(this, InActionId, TEXT("SelectBones"),
 		LOCTEXT("SelectBone", "Select Bone"),
 		LOCTEXT("SelectDesc", "Select Bone"),
 		EModifierKey::None, EKeys::Escape,
@@ -397,19 +413,11 @@ void USkeletonEditingTool::RegisterActions(FInteractiveToolActionSet& ActionSet)
 				GetToolManager()->DisplayMessage(LOCTEXT("Select", "Click on a bone to select it."), EToolMessageLevel::UserNotification);
 			}
 		});
+}
 
-	// register UnParent key
-	ActionSet.RegisterAction(this, GetActionId(), TEXT("UnparentBones"),
-		LOCTEXT("UnparentBones", "Unparent Bones"),
-		LOCTEXT("UnparentBonesDesc", "Unparent Bones"),
-		EModifierKey::Shift, EKeys::P,
-		[this]()
-		{
-			UnParentBones();
-		});
-		
-	// register Parent key
-	ActionSet.RegisterAction(this, GetActionId(), TEXT("ParentBones"),
+void USkeletonEditingTool::RegisterParentAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId)
+{
+	InOutActionSet.RegisterAction(this, InActionId, TEXT("ParentBones"),
 		LOCTEXT("ParentBones", "Parent Bones"),
 		LOCTEXT("ParentBonesDesc", "Parent Bones"),
 		EModifierKey::None, EKeys::B, // FIXME find another shortcut
@@ -418,6 +426,112 @@ void USkeletonEditingTool::RegisterActions(FInteractiveToolActionSet& ActionSet)
 			Operation = EEditingOperation::Parent;
 			UpdateGizmo();
 			GetToolManager()->DisplayMessage(LOCTEXT("Parent", "Click on a bone to be set as the new parent."), EToolMessageLevel::UserNotification);
+		});
+}
+
+void USkeletonEditingTool::RegisterUnParentAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId)
+{
+	InOutActionSet.RegisterAction(this, InActionId, TEXT("UnparentBones"),
+		LOCTEXT("UnparentBones", "Unparent Bones"),
+		LOCTEXT("UnparentBonesDesc", "Unparent Bones"),
+		EModifierKey::Shift, EKeys::P,
+		[this]()
+		{
+			UnParentBones();
+		});
+}
+
+void USkeletonEditingTool::RegisterCopyAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId)
+{
+	InOutActionSet.RegisterAction(this, InActionId, TEXT("CopyBones"),
+		LOCTEXT("CopyBones", "Copy Bone(s)"),
+		LOCTEXT("CopyBonesDesc", "Copy Bone(s)"),
+		EModifierKey::Control, EKeys::C,
+		[this]()
+		{
+			if (Selection.IsEmpty())
+			{
+				return;
+			}
+			SkeletonClipboard::CopyToClipboard(*Modifier.Get(), Selection);
+		});
+}
+
+void USkeletonEditingTool::RegisterPasteAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId)
+{
+	InOutActionSet.RegisterAction(this, InActionId, TEXT("PasteBones"),
+		LOCTEXT("PasteBones", "Paste Bone(s)"),
+		LOCTEXT("PasteBonesDesc", "Paste Bone(s)"),
+		EModifierKey::Control, EKeys::V,
+		[this]()
+		{
+			if (!SkeletonClipboard::IsClipboardValid())
+			{
+				return;
+			}
+			
+			const FName DefaultParent = Selection.IsEmpty() ? NAME_None : Selection[0];
+
+			TGuardValue OperationGuard(Operation, EEditingOperation::Create);
+			BeginChange();
+				
+			const TArray<FName> NewBones = SkeletonClipboard::PasteFromClipboard(*Modifier.Get(), DefaultParent);
+			if (!NewBones.IsEmpty())
+			{
+				Selection = NewBones;
+
+				if (NeedsNotification())
+				{
+					GetNotifier().Notify(NewBones, ESkeletalMeshNotifyType::HierarchyChanged);
+					GetNotifier().Notify(NewBones, ESkeletalMeshNotifyType::BonesSelected);
+				}
+
+				EndChange();
+			}
+			
+			CancelChange();
+		});
+}
+
+void USkeletonEditingTool::RegisterDuplicateAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId)
+{
+	InOutActionSet.RegisterAction(this, InActionId, TEXT("DuplicateBones"),
+		LOCTEXT("DuplicateBones", "Duplicate Bone(s)"),
+		LOCTEXT("DuplicateBonesDesc", "Duplicate Bone(s)"),
+		EModifierKey::Control, EKeys::D,
+		[this]()
+		{
+			if (Selection.IsEmpty())
+			{
+				return;
+			}
+			
+			SkeletonClipboard::CopyToClipboard(*Modifier.Get(), Selection);
+
+			if (!SkeletonClipboard::IsClipboardValid())
+			{
+				return;
+			} 
+
+			TGuardValue OperationGuard(Operation, EEditingOperation::Create);
+			BeginChange();
+				
+			const TArray<FName> NewBones = SkeletonClipboard::PasteFromClipboard(*Modifier.Get(), NAME_None);
+			if (!NewBones.IsEmpty())
+			{
+				Selection = NewBones;
+
+				if (NeedsNotification())
+				{
+					GetNotifier().Notify(NewBones, ESkeletalMeshNotifyType::HierarchyChanged);
+					GetNotifier().Notify(NewBones, ESkeletalMeshNotifyType::BonesSelected);
+				}
+
+				EndChange();
+				return;
+			}
+			
+			CancelChange();
 		});
 }
 

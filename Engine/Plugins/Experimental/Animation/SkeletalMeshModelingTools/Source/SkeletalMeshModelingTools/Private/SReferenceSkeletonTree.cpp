@@ -4,6 +4,7 @@
 
 #include "SkeletonModifier.h"
 #include "SkeletalMeshModelingToolsCommands.h"
+#include "SkeletonClipboard.h"
 
 #include "SPositiveActionButton.h"
 
@@ -13,6 +14,7 @@
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Editor.h"
+
 #include "Misc/ITransaction.h"
 
 #define LOCTEXT_NAMESPACE "SReferenceSkeletonTree"
@@ -359,6 +361,18 @@ void SReferenceSkeletonTree::BindCommands()
 	CommandList->MapAction(Commands.UnParentBone,
 		FExecuteAction::CreateSP(this, &SReferenceSkeletonTree::HandleUnParentBone),
 		FCanExecuteAction::CreateSP(this, &SReferenceSkeletonTree::CanUnParentBone));
+
+	CommandList->MapAction(Commands.CopyBones,
+		FExecuteAction::CreateSP(this, &SReferenceSkeletonTree::HandleCopyBones),
+		FCanExecuteAction::CreateSP(this, &SReferenceSkeletonTree::CanCopyBones));
+	
+	CommandList->MapAction(Commands.PasteBones,
+		FExecuteAction::CreateSP(this, &SReferenceSkeletonTree::HandlePasteBones),
+		FCanExecuteAction::CreateSP(this, &SReferenceSkeletonTree::CanPasteBones));
+	
+	CommandList->MapAction(Commands.UnParentBone,
+		FExecuteAction::CreateSP(this, &SReferenceSkeletonTree::HandleDuplicateBones),
+		FCanExecuteAction::CreateSP(this, &SReferenceSkeletonTree::CanDuplicateBones));
 }
 
 void SReferenceSkeletonTree::HandleNewBone()
@@ -464,6 +478,99 @@ void SReferenceSkeletonTree::HandleUnParentBone()
 bool SReferenceSkeletonTree::CanUnParentBone() const
 {
 	return HasSelectedItems();
+}
+
+void SReferenceSkeletonTree::HandleCopyBones() const
+{
+	if (!ensure(Modifier.IsValid()))
+	{
+		return;
+	}
+
+	TArray<FName> BoneNames;
+	GetSelectedBoneNames(BoneNames);
+
+	if (BoneNames.IsEmpty())
+	{
+		return;
+	}
+
+	SkeletonClipboard::CopyToClipboard(*Modifier.Get(), BoneNames);
+}
+
+bool SReferenceSkeletonTree::CanCopyBones() const
+{
+	return Modifier.IsValid() && HasSelectedItems();
+}
+
+void SReferenceSkeletonTree::HandlePasteBones()
+{
+	TArray<FName> BoneNames;
+	GetSelectedBoneNames(BoneNames);
+
+	const FName DefaultParent = BoneNames.IsEmpty() ? NAME_None : BoneNames[0];  
+
+	BeginChange();
+	
+	const TArray<FName> NewBones = SkeletonClipboard::PasteFromClipboard(*Modifier.Get(), DefaultParent);
+	if (NewBones.IsEmpty())
+	{
+		CancelChange();
+		return;
+	}
+
+	static constexpr bool bRebuildAll = true;
+	RefreshTreeView(bRebuildAll);
+	SelectItemFromNames(NewBones);
+
+	if (Notifier.IsValid())
+	{
+		Notifier->Notify(NewBones, ESkeletalMeshNotifyType::HierarchyChanged);
+		Notifier->Notify(NewBones, ESkeletalMeshNotifyType::BonesSelected);
+	}
+
+	EndChange();
+}
+
+bool SReferenceSkeletonTree::CanPasteBones() const
+{
+	return Modifier.IsValid() && SkeletonClipboard::IsClipboardValid();
+}
+
+void SReferenceSkeletonTree::HandleDuplicateBones()
+{
+	HandleCopyBones();
+
+	if (!SkeletonClipboard::IsClipboardValid())
+	{
+		return;
+	}  
+
+	BeginChange();
+	
+	const TArray<FName> NewBones = SkeletonClipboard::PasteFromClipboard(*Modifier.Get(), NAME_None);
+	if (NewBones.IsEmpty())
+	{
+		CancelChange();
+		return;
+	}
+
+	static constexpr bool bRebuildAll = true;
+	RefreshTreeView(bRebuildAll);
+	SelectItemFromNames(NewBones);
+
+	if (Notifier.IsValid())
+	{
+		Notifier->Notify(NewBones, ESkeletalMeshNotifyType::HierarchyChanged);
+		Notifier->Notify(NewBones, ESkeletalMeshNotifyType::BonesSelected);
+	}
+
+	EndChange();
+}
+
+bool SReferenceSkeletonTree::CanDuplicateBones() const
+{
+	return CanCopyBones();
 }
 
 void SReferenceSkeletonTree::GetSelectedBoneNames(TArray<FName>& OutSelectedBoneNames) const
@@ -768,6 +875,12 @@ TSharedPtr<SWidget> SReferenceSkeletonTree::CreateContextMenu()
 		MenuBuilder.AddMenuEntry(Commands.NewBone);
 
 		MenuBuilder.EndSection();
+
+		MenuBuilder.BeginSection("CopyPasteBones", LOCTEXT("CopyPasteBonesOperations", "Copy & Paste"));
+
+		MenuBuilder.AddMenuEntry(Commands.PasteBones);
+
+		MenuBuilder.EndSection();
 	}
 	else
 	{
@@ -777,6 +890,14 @@ TSharedPtr<SWidget> SReferenceSkeletonTree::CreateContextMenu()
 		MenuBuilder.AddMenuEntry(Commands.RemoveBone);
 		MenuBuilder.AddMenuEntry(Commands.UnParentBone);
 		MenuBuilder.AddMenuEntry(Commands.RenameBone);
+
+		MenuBuilder.EndSection();
+
+		MenuBuilder.BeginSection("CopyPasteBones", LOCTEXT("CopyPasteBonesOperations", "Copy & Paste"));
+
+		MenuBuilder.AddMenuEntry(Commands.CopyBones);
+		MenuBuilder.AddMenuEntry(Commands.PasteBones);
+		MenuBuilder.AddMenuEntry(Commands.DuplicateBones);
 
 		MenuBuilder.EndSection();
 	}

@@ -201,6 +201,14 @@ private:
 	void HandleUnParentBone();
 	bool CanUnParentBone() const;
 
+	// Copy & Paste
+	void HandleCopyBones() const;
+	bool CanCopyBones() const;
+	void HandlePasteBones();
+	bool CanPasteBones() const;
+	void HandleDuplicateBones();
+	bool CanDuplicateBones() const;
+
 	// Filter
 	void OnFilterTextChanged(const FText& SearchText);
 	

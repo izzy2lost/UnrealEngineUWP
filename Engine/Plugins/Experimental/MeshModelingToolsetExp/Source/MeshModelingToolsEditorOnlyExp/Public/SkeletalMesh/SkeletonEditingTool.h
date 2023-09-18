@@ -241,6 +241,17 @@ private:
 
 	void NormalizeSelection();
 
+	// actions
+	void RegisterCreateAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId);
+	void RegisterDeleteAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId);
+	void RegisterSelectAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId);
+	void RegisterParentAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId);
+	void RegisterUnParentAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId);
+	void RegisterCopyAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId);
+	void RegisterPasteAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId);
+	void RegisterDuplicateAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId);
+
+	
 	TValueWatcher<TArray<FName>> SelectionWatcher;
 	TValueWatcher<EToolContextCoordinateSystem> CoordinateSystemWatcher; 
 	
