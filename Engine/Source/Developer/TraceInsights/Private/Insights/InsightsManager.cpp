@@ -446,6 +446,10 @@ void FInsightsManager::OnSessionInfoTabClosed(TSharedRef<SDockTab> TabBeingClose
 FString FInsightsManager::GetStoreDir()
 {
 	using namespace UE::Trace;
+	if (!StoreClient.IsValid())
+	{
+		return FString();
+	}
 	FScopeLock _(&StoreClientCriticalSection);
 	const FStoreClient::FStatus* Status = StoreClient->GetStatus();
 	return Status ? FString(Status->GetStoreDir()) : FString();
