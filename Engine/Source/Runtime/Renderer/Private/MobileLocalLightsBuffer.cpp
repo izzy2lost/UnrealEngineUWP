@@ -72,6 +72,9 @@ class FLocalLightBufferPS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FLocalLightBufferPS);
 	SHADER_USE_PARAMETER_STRUCT(FLocalLightBufferPS, FGlobalShader)
 
+	class FGenerateLightFunctionDepthStencil : SHADER_PERMUTATION_BOOL("GENERATE_LIGHT_FUNCTION_DEPTH_STENCIL");
+	using FPermutationDomain = TShaderPermutationDomain<FGenerateLightFunctionDepthStencil>;
+
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
@@ -200,6 +203,19 @@ static bool TryGetLightFunctionShaders(FMaterialRenderProxy const*& OutMaterialP
 	return false;
 }
 
+template <bool DepthWrite>
+using LightFunctionMainPassDepthStencilState = TStaticDepthStencilState<
+	DepthWrite, CF_Always,
+	true, CF_Always, SO_Keep, SO_Keep, SO_Replace,
+	true, CF_Always, SO_Keep, SO_Keep, SO_Replace,
+	0, STENCIL_MOBILE_LIGHTFUNCTION_MASK>;
+
+template <ECompareFunction CompareFunction>
+using LightFunctionMaterialPassDepthStencilState = TStaticDepthStencilState<
+	false, CompareFunction,
+	true, CF_Equal, SO_Keep, SO_Keep, SO_Keep,
+	true, CF_Equal, SO_Keep, SO_Keep, SO_Keep,
+	STENCIL_MOBILE_LIGHTFUNCTION_MASK, 0>;
 
 void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures, bool bIsPrepass, const FSortedLightSetSceneInfo& SortedLights)
 {
@@ -250,6 +266,26 @@ void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuild
 				FIntVector(FMath::DivideAndRoundUp<uint32>(GroupSize.Y * GroupSize.X, GLocalLightPrepassTileSizeX), 1, 1));
 		}
 
+		bool bRenderLightFunctions = false;
+		{
+			// Check if there are any light functions
+			for (const FSortedLightSceneInfo& SortedLightSceneInfo : SortedLights.SortedLights)
+			{
+				// Directional lights are currently not supported
+				if (SortedLightSceneInfo.SortKey.Fields.LightType == LightType_Directional)
+				{
+					continue;
+				}
+
+				if (!SortedLightSceneInfo.SortKey.Fields.bLightFunction)
+				{
+					continue;
+				}
+
+				bRenderLightFunctions = true;
+				break;
+			}
+		}
 
 		{
 			FLocalLightBufferPrepassParameters* PassParameters = GraphBuilder.AllocParameters<FLocalLightBufferPrepassParameters>();
@@ -262,6 +298,24 @@ void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuild
 			{
 				PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneTextures.Color.Resolve, ERenderTargetLoadAction::ELoad);
 			}
+
+			bool bRestoreDepthBuffer = false;
+			if (bRenderLightFunctions)
+			{
+				if (MobileRequiresSceneDepthAux(ShaderPlatform))
+				{
+					// In this case the depth buffer is typically memoryless and not preserved, so we restore it from SceneDepthAux
+					PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneTextures.Depth.Resolve, ERenderTargetLoadAction::EClear, ERenderTargetLoadAction::EClear, FExclusiveDepthStencil::DepthWrite_StencilWrite);
+					bRestoreDepthBuffer = true;
+				}
+				else
+				{
+					// If the main depth buffer is not memoryless we rely on STENCIL_MOBILE_LIGHTFUNCTION_MASK being cleared to 0 already
+					const ERenderTargetLoadAction LoadAction = EnumHasAnyFlags(SceneTextures.Depth.Resolve->Desc.Flags, TexCreate_Memoryless) ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad;
+					PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneTextures.Depth.Resolve, LoadAction, LoadAction, FExclusiveDepthStencil::DepthRead_StencilWrite);
+				}
+			}
+		
 			PassParameters->SceneTextures = SceneTextures.GetSceneTextureShaderParameters(View.FeatureLevel);
 
 			PassParameters->VS.View = GetShaderBinding(View.ViewUniformBuffer);
@@ -271,20 +325,22 @@ void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuild
 			PassParameters->PS.View = GetShaderBinding(View.ViewUniformBuffer);
 
 			auto VertexShader = View.ShaderMap->GetShader<FLocalLightBufferVS>();
-			auto PixelShader = View.ShaderMap->GetShader<FLocalLightBufferPS>();
+
+			FLocalLightBufferPS::FPermutationDomain PermutationVectorPS;
+			PermutationVectorPS.Set<FLocalLightBufferPS::FGenerateLightFunctionDepthStencil>(bRenderLightFunctions);
+			auto PixelShader = View.ShaderMap->GetShader<FLocalLightBufferPS>(PermutationVectorPS);
 
 			GraphBuilder.AddPass(
 				RDG_EVENT_NAME("RenderMobileLocalLightsBuffer %s", bIsPrepass ? TEXT("Prepass") : TEXT("PostProcess")),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[PassParameters, VertexShader, PixelShader, &View, GroupSize, bIsPrepass, &SortedLights](FRHICommandList& RHICmdList)
+				[PassParameters, VertexShader, PixelShader, &View, GroupSize, bIsPrepass, &SortedLights, bRenderLightFunctions, bRestoreDepthBuffer](FRHICommandList& RHICmdList)
 				{
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
 					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 
 					RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 					GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
-					GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
 					if (bIsPrepass)
 					{
 						GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
@@ -293,13 +349,33 @@ void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuild
 					{
 						GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_DestColor, BF_Zero>::GetRHI();
 					}
+					
+					// The main non-lightfunction pass creates a stencil mask of the lit area
+					// Later lightfunction passes use it for stencil test to avoid redundant PS execution
+					uint32 StencilRef = 0;
+					if (bRenderLightFunctions)
+					{
+						StencilRef = STENCIL_MOBILE_LIGHTFUNCTION_MASK;
+						if (bRestoreDepthBuffer)
+						{
+							GraphicsPSOInit.DepthStencilState = LightFunctionMainPassDepthStencilState<true>::GetRHI();
+						}
+						else
+						{
+							GraphicsPSOInit.DepthStencilState = LightFunctionMainPassDepthStencilState<false>::GetRHI();
+						}
+					}
+					else
+					{
+						GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+					}
 
 					GraphicsPSOInit.PrimitiveType = PT_TriangleList;
 					GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GTileVertexDeclaration.VertexDeclarationRHI;
 					GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
 					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 
-					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, StencilRef);
 
 					SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), PassParameters->VS);
 					SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters->PS);
@@ -313,6 +389,10 @@ void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuild
 						2,
 						GroupSize.X * GroupSize.Y);
 
+					if (!bRenderLightFunctions)
+					{
+						return;
+					}
 
 					// Draws a pass for each visible light with a light function and blends on top of the color texture 
 					// generated by last pass
@@ -369,12 +449,19 @@ void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuild
 						{
 							// Render backfaces with depth tests disabled since the camera is inside (or close to inside) the light function geometry
 							GraphicsPSOInit.RasterizerState = View.bReverseCulling ? TStaticRasterizerState<FM_Solid, CM_CW>::GetRHI() : TStaticRasterizerState<FM_Solid, CM_CCW>::GetRHI();
+							GraphicsPSOInit.DepthStencilState = LightFunctionMaterialPassDepthStencilState<CF_Always>::GetRHI();
+						}
+						else
+						{
+							// Render frontfaces with depth test so that less pixel are shaded
+							GraphicsPSOInit.RasterizerState = View.bReverseCulling ? TStaticRasterizerState<FM_Solid, CM_CCW>::GetRHI() : TStaticRasterizerState<FM_Solid, CM_CW>::GetRHI();
+							GraphicsPSOInit.DepthStencilState = LightFunctionMaterialPassDepthStencilState<CF_DepthNearOrEqual>::GetRHI();
 						}
 
 						// Set the light's scissor rectangle.
 						LightSceneInfo->Proxy->SetScissorRect(RHICmdList, View, View.ViewRect);
 
-						SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+						SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, StencilRef);
 
 						SetShaderParameters(RHICmdList, LightFunctionVertexShader, LightFunctionVertexShader.GetVertexShader(), ParametersVS);
 						SetShaderParametersMixedPS(RHICmdList, LightFunctionPixelShader, ParametersPS, View, MaterialProxyForRendering, *MaterialForRendering);

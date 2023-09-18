@@ -91,6 +91,8 @@ void Main(float4 SvPosition : SV_POSITION
 	, out float3 OutColorA : SV_Target0
 #if POST_PROCESS_LOCAL_LIGHTS == 0
 	, out float4 OutColorB : SV_Target1
+#elif GENERATE_LIGHT_FUNCTION_DEPTH_STENCIL && USE_SCENE_DEPTH_AUX
+	, out float OutDepth : SV_Depth
 #endif
 )
 {
@@ -99,7 +101,8 @@ void Main(float4 SvPosition : SV_POSITION
 	const uint EyeIndex = 0;
 
 	float2 ScreenUV = ScreenPosition * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz;
-	float SceneDepth = CalcSceneDepth(ScreenUV);
+	float DeviceZ = LookupDeviceZ(ScreenUV);
+	float SceneDepth = ConvertFromDeviceZ(DeviceZ);
 
 	float3 TranslatedWorldPosition = mul(float4(ScreenPosition * SceneDepth, SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;
 	float3 CameraVector = normalize(TranslatedWorldPosition);
@@ -166,6 +169,10 @@ void Main(float4 SvPosition : SV_POSITION
 	{
 		OutColorA = float3(0, 0, 0);
 		OutColorB = float4(0.5,0.5,0.5, 0.5);
+		#if GENERATE_LIGHT_FUNCTION_DEPTH_STENCIL
+			// Clip to avoid writing to stencil
+			clip(-1);
+		#endif
 	}
 #else
 	if (TotalWeight > 0)
@@ -176,17 +183,23 @@ void Main(float4 SvPosition : SV_POSITION
 		float NoL = max(0, dot(N, L));
 		float3 Diffuse =  (1 / PI) * NoL * Color;
 		OutColorA = 1 + Diffuse;
+		#if GENERATE_LIGHT_FUNCTION_DEPTH_STENCIL && USE_SCENE_DEPTH_AUX
+			// Copy depth value from scene depth aux to the real depth buffer
+			OutDepth = DeviceZ;
+		#endif
 	}
 	else
 	{
 		OutColorA = float3(1, 1, 1);
+		#if GENERATE_LIGHT_FUNCTION_DEPTH_STENCIL
+			// Clip to avoid writing to stencil
+			clip(-1);
+		#endif
 	}
 #endif
 }
 
-
 #else // !LIGHT_FUNCTION
-
 
 float4x4 SvPositionToLight;
 /** Fade distance in x, disabled brightness in y */
@@ -201,18 +214,6 @@ void MainLightFunction(
 	float2 ScreenUV = SvPositionToBufferUV(SvPosition);
 	SvPosition.z = LookupDeviceZ(ScreenUV);
 	float3 TranslatedWorldPosition = SvPositionToTranslatedWorld(SvPosition);
-	float ViewDistance = length(GetPrimaryView().TranslatedWorldCameraOrigin - TranslatedWorldPosition);
-	float GreyScale;
-	{
-		float4 Hom = mul(float4(SvPosition.xyz, 1), SvPositionToLight);
-		float3 LightVector = Hom.xyz / Hom.w;
-		float3 Color = GetLightFunctionColor(LightVector, TranslatedWorldPosition);
-		GreyScale = dot(Color, .3333f);
-	}
-	float DistanceFadeAlpha = saturate((LightFunctionParameters2.x - ViewDistance) / (LightFunctionParameters2.x * .2f));
-	GreyScale = lerp(LightFunctionParameters2.y, GreyScale, DistanceFadeAlpha);
-	GreyScale = lerp(LightFunctionParameters2.y, GreyScale, LightFunctionParameters.y); 
-	float EncodedLightAttenuation = EncodeLightAttenuation(GreyScale);
 
 	FDeferredLightData LightData = InitDeferredLightFromUniforms();
 	float3 L = LightData.Direction;	// Already normalized
@@ -222,6 +223,26 @@ void MainLightFunction(
 	// if (LightData.bRadialLight)
 	{
 		LightMask = GetLocalLightAttenuation( TranslatedWorldPosition, LightData, ToLight, L );
+	}
+
+	if (LightMask <= 0)
+	{
+		OutColorA = float3(0, 0, 0);
+		return;
+	}
+
+	float EncodedLightAttenuation;
+	{
+		float ViewDistance = length(GetPrimaryView().TranslatedWorldCameraOrigin - TranslatedWorldPosition);
+		float4 Hom = mul(float4(SvPosition.xyz, 1), SvPositionToLight);
+		float3 LightVector = Hom.xyz / Hom.w;
+		float3 Color = GetLightFunctionColor(LightVector, TranslatedWorldPosition);
+		float GreyScale = dot(Color, .3333f);
+
+		float DistanceFadeAlpha = saturate((LightFunctionParameters2.x - ViewDistance) / (LightFunctionParameters2.x * .2f));
+		GreyScale = lerp(LightFunctionParameters2.y, GreyScale, DistanceFadeAlpha);
+		GreyScale = lerp(LightFunctionParameters2.y, GreyScale, LightFunctionParameters.y); 
+		EncodedLightAttenuation = EncodeLightAttenuation(GreyScale);
 	}
 
 	float3 Color = LightData.Color * LightMask * EncodedLightAttenuation;

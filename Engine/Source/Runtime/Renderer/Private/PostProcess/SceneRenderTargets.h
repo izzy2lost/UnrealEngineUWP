@@ -50,7 +50,9 @@
 #define STENCIL_LIGHTING_CHANNELS_MASK(Value) uint8(((Value) & 0x7) << STENCIL_LIGHTING_CHANNELS_BIT_ID)
 
 // Mobile specific
-// Store shading model into stencil [1-2] bits
+// Store shading model into stencil [1-2] bits (only used in mobile deferred)
 #define GET_STENCIL_MOBILE_SM_MASK(Value) uint8(((Value) & 0x3) << 1)
+// Forward local light buffer mask for light function - bit 2
+#define STENCIL_MOBILE_LIGHTFUNCTION_MASK uint8(1 << 2)
 // Sky material mask - bit 3
 #define STENCIL_MOBILE_SKY_MASK uint8(1 << 3)
