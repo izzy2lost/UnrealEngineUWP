@@ -294,6 +294,11 @@ void WriteElementToLDS(const uint SharedIndex, tsr_ushort X)
 	WriteElementToLDS(SharedIndex, tsr_ushort4(X, 0.0, 0.0, 0.0));
 }
 
+void WriteElementToLDS(const uint SharedIndex, tsr_ushort2 X)
+{
+	WriteElementToLDS(SharedIndex, tsr_ushort4(X, 0.0, 0.0));
+}
+
 void WriteElementToLDS(const uint SharedIndex, tsr_ushort3 X)
 {
 	WriteElementToLDS(SharedIndex, tsr_ushort4(X, 0.0));
@@ -302,6 +307,11 @@ void WriteElementToLDS(const uint SharedIndex, tsr_ushort3 X)
 void WriteElementToLDS(const uint SharedIndex, tsr_half X)
 {
 	WriteElementToLDS(SharedIndex, as_tsr_ushort(X));
+}
+
+void WriteElementToLDS(const uint SharedIndex, tsr_half2 X)
+{
+	WriteElementToLDS(SharedIndex, tsr_ushort2(as_tsr_ushort(X.x), as_tsr_ushort(X.y)));
 }
 
 void WriteElementToLDS(const uint SharedIndex, tsr_half3 X)
@@ -321,6 +331,13 @@ void ReadElementFromLDS(const uint SharedIndex, out tsr_ushort X)
 	X = UX.x;
 }
 
+void ReadElementFromLDS(const uint SharedIndex, out tsr_ushort2 X)
+{
+	tsr_ushort4 UX;
+	ReadElementFromLDS(SharedIndex, /* out */ UX);
+	X = UX.xy;
+}
+
 void ReadElementFromLDS(const uint SharedIndex, out tsr_ushort3 X)
 {
 	tsr_ushort4 UX;
@@ -333,6 +350,14 @@ void ReadElementFromLDS(const uint SharedIndex, out tsr_half X)
 	tsr_ushort4 UX;
 	ReadElementFromLDS(SharedIndex, /* out */ UX);
 	X = as_tsr_half(UX.x);
+}
+
+void ReadElementFromLDS(const uint SharedIndex, out tsr_half2 X)
+{
+	tsr_ushort4 UX;
+	ReadElementFromLDS(SharedIndex, /* out */ UX);
+	X.x = as_tsr_half(UX.x);
+	X.y = as_tsr_half(UX.y);
 }
 
 void ReadElementFromLDS(const uint SharedIndex, out tsr_half3 X)

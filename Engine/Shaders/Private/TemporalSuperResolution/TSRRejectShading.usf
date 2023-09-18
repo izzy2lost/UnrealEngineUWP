@@ -199,8 +199,7 @@ void ComputeMoireError(
 	}
 		
 	// Convolve the input luma to have the exact same moire pattern as FilteredInput below.
-	InputLuma = Blur3x3(InputLuma);
-	InputLumaModification = Blur3x3(InputLumaModification);
+	Deconcatenate(Blur3x3(Concatenate(InputLuma, InputLumaModification)), /* out */ InputLuma, /* out */ InputLumaModification);
 
 	// Unpack history
 	tsr_simd_half PrevFlickeringHistory = PrevMoireHistory[0];
@@ -266,8 +265,9 @@ void ComputeMoireError(
 
 	// Dilates the total variation and contribution to keep stability despite inacuracies in the history reprojection
 	// of these need a nearest filter which isn't precise at all.
-	tsr_simd_half TotalVariationContribution = Max3x3(GradientVariation);
-	tsr_simd_half TotalVariationCountContribution = Max3x3(IsFlicker);
+	tsr_simd_half TotalVariationContribution;
+	tsr_simd_half TotalVariationCountContribution;
+	Deconcatenate(Max3x3(Concatenate(GradientVariation, IsFlicker)), /* out */ TotalVariationContribution, /* out */ TotalVariationCountContribution);
 
 	UNROLL_N(SIMD_SIZE)
 	for (uint SimdIndex = 0; SimdIndex < SIMD_SIZE; SimdIndex++)
