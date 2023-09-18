@@ -760,11 +760,7 @@ void FTextRenderSceneProxy::ReleaseRenderThreadResources()
 	VertexFactory.ReleaseResource();
 
 #if RHI_RAYTRACING
-	if (RayTracingGeometry.IsValid())
-	{
-		check(IsRayTracingAllowed());
-		RayTracingGeometry.ReleaseResource();
-	}
+	RayTracingGeometry.ReleaseResource();
 #endif
 }
 
