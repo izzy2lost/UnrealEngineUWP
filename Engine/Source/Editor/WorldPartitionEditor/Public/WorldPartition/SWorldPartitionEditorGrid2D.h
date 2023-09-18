@@ -67,6 +67,8 @@ protected:
 			void Construct(const FArguments& InArgs);
 
 	private:
+		EVisibility IsOptionsMenuVisible() const;
+		
 		TSharedRef<SWidget> GenerateOptionsMenu() const;
 		TSharedRef<SWidget> GenerateShowMenu() const;
 		TSharedRef<SWidget> GenerateBuildMenu() const;
@@ -97,6 +99,9 @@ protected:
 	bool IsInteractive() const;
 
 	virtual int64 GetSelectionSnap() const;
+	
+	TSharedRef<SWidget> GenerateContextualMenu() const;
+
 
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;

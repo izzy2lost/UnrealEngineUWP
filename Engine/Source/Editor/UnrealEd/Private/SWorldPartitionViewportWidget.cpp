@@ -80,8 +80,8 @@ EVisibility SWorldPartitionViewportWidget::GetVisibility(UWorld* InWorld)
 		{
 			if (!WorldPartition->HasLoadedUserCreatedRegions() && WorldPartitionEditorModule->GetEnableLoadingInEditor())
 			{
-				Message = LOCTEXT("NoRegionsLoadedText","No Regions Loaded");
-				Tooltip = LOCTEXT("NoRegionsLoadedToolTip", "To load a region, drag select an area in the World Partition map and choose 'Load Region From Selection' from the context menu.");
+				Message = LOCTEXT("NoLoadedRegionsText","No Loaded Region(s)");
+				Tooltip = LOCTEXT("NoLoadedRegionsToolTip", "To load a region, drag select an area in the World Partition map and choose 'Load Region From Selection' from the context menu.");
 				InvokeTab = TEXT("WorldBrowserPartitionEditor");
 				return EVisibility::Visible;
 			}

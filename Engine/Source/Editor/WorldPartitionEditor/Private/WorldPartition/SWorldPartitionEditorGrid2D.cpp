@@ -259,9 +259,9 @@ void SWorldPartitionEditorGrid2D::FEditorCommands::RegisterCommands()
 {
 	// Context Menu
 	UI_COMMAND(CreateRegionFromSelection, "Load Region From Selection", "Load region from selection.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(LoadSelectedRegions, "Load Selected Regions", "Load the selected regions.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(UnloadSelectedRegions, "Unload Selected Regions", "Unload the selected regions.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(ConvertSelectedRegionsToActors, "Convert Selected Regions To Actors", "Convert the selected regions to actors.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(ConvertSelectedRegionsToActors, "Convert Selected Region(s) To Actor(s)", "Convert the selected region(s) to actor(s).", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(LoadSelectedRegions, "Load Selected Region(s)", "Load the selected region(s).", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(UnloadSelectedRegions, "Unload Selected Region(s)", "Unload the selected region(s).", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(MoveCameraHere, "Move Camera Here", "Move the camera to the selected location.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(PlayFromHere, "Play From Here", "Play from here.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(LoadFromHere, "Load From Here", "Load from here.", EUserInterfaceActionType::Button, FInputChord());
@@ -337,6 +337,7 @@ void SWorldPartitionEditorGrid2D::SToolBar::Construct(const FArguments& InArgs)
 			.Cursor(EMouseCursor::Default)
 			.Image("EditorViewportToolBar.OptionsDropdown")
 			.OnGetMenuContent(this, &SToolBar::GenerateOptionsMenu)
+			.Visibility(this, &SToolBar::IsOptionsMenuVisible)
 		];
 
 	// Show menu
@@ -372,15 +373,25 @@ void SWorldPartitionEditorGrid2D::SToolBar::Construct(const FArguments& InArgs)
 		];
 }
 
+EVisibility SWorldPartitionEditorGrid2D::SToolBar::IsOptionsMenuVisible() const
+{
+	if (GetDefault<UWorldPartitionEditorSettings>()->bDisablePIE && !GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor)
+	{
+		return EVisibility::Collapsed;
+	}
+
+	return EVisibility::Visible;
+}
+
 TSharedRef<SWidget> SWorldPartitionEditorGrid2D::SToolBar::GenerateOptionsMenu() const
 {
 	static const FName MenuName(TEXT("WorldPartition.OptionsMenu"));
 	static const FName SectionName(TEXT("Options"));
 
+	const FEditorCommands& Commands = FEditorCommands::Get();
 	UToolMenu* ShowMenu = UToolMenus::Get()->RegisterMenu(MenuName);
 
 	FToolMenuSection& Section = ShowMenu->FindOrAddSection(SectionName);
-	const FEditorCommands& Commands = FEditorCommands::Get();
 	Section.AddMenuEntry(Commands.FollowPlayerInPIE);
 	Section.AddMenuEntry(Commands.BugItGoLoadRegion);
 
@@ -392,10 +403,10 @@ TSharedRef<SWidget> SWorldPartitionEditorGrid2D::SToolBar::GenerateShowMenu() co
 	static const FName MenuName(TEXT("WorldPartition.ShowMenu"));
 	static const FName SectionName(TEXT("Show"));
 
+	const FEditorCommands& Commands = FEditorCommands::Get();
 	UToolMenu* ShowMenu = UToolMenus::Get()->RegisterMenu(MenuName);
 
 	FToolMenuSection& Section = ShowMenu->FindOrAddSection(SectionName);
-	const FEditorCommands& Commands = FEditorCommands::Get();
 	Section.AddMenuEntry(Commands.ShowActors);
 	Section.AddMenuEntry(Commands.ShowGrid);
 	Section.AddMenuEntry(Commands.ShowMiniMap);
@@ -783,6 +794,7 @@ void SWorldPartitionEditorGrid2D::LoadFromHere()
 
 	// Load box
 	UWorldPartitionEditorLoaderAdapter* EditorLoaderAdapter = GetWorldPartition()->CreateEditorLoaderAdapter<FLoaderAdapterShape>(GetWorld(), LoadCellsBox, TEXT("Loaded Region"));
+	EditorLoaderAdapter->GetLoaderAdapter()->SetUserCreated(true);
 	EditorLoaderAdapter->GetLoaderAdapter()->Load();
 }
 
@@ -859,6 +871,48 @@ FReply SWorldPartitionEditorGrid2D::OnMouseButtonDown(const FGeometry& MyGeometr
 	return FReply::Unhandled();
 }
 
+TSharedRef<SWidget> SWorldPartitionEditorGrid2D::GenerateContextualMenu() const
+{
+	static const FName MenuName(TEXT("WorldPartition.ContextualMenu"));
+	
+	const FEditorCommands& Commands = FEditorCommands::Get();
+	UToolMenu* ConxtextualMenu = UToolMenus::Get()->RegisterMenu(MenuName);
+
+	if (GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor)
+	{
+		static const FName SectionSelectionName(TEXT("ContextMenu.Selection"));
+		FToolMenuSection& SectionSelection = ConxtextualMenu->AddSection(SectionSelectionName, LOCTEXT("WorldPartitionSelectionHeader", "Selection"));
+		SectionSelection.AddMenuEntry(Commands.CreateRegionFromSelection);
+		SectionSelection.AddMenuEntry(Commands.ConvertSelectedRegionsToActors);
+		
+		static const FName SectionRegionsName(TEXT("ContextMenu.Regions"));
+		FToolMenuSection& SectionRegions = ConxtextualMenu->AddSection(SectionRegionsName, LOCTEXT("WorldPartitionRegionsHeader", "Region(s)"));
+		SectionRegions.AddMenuEntry(Commands.LoadSelectedRegions);
+		SectionRegions.AddMenuEntry(Commands.UnloadSelectedRegions);
+	}
+
+	static const FName SectionMiscName(TEXT("ContextMenu.Misc"));
+	FToolMenuSection& SectionMisc = ConxtextualMenu->AddSection(SectionMiscName, LOCTEXT("WorldPartitionMiscHeader", "Misc"));
+	SectionMisc.AddMenuEntry(Commands.MoveCameraHere);
+
+	if (!GetDefault<UWorldPartitionEditorSettings>()->bDisableBugIt)
+	{
+		SectionMisc.AddMenuEntry(Commands.BugItHere);
+	}
+
+	if (!GetDefault<UWorldPartitionEditorSettings>()->bDisablePIE)
+	{
+		SectionMisc.AddMenuEntry(Commands.PlayFromHere);
+	}
+
+	if (GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor)
+	{
+		SectionMisc.AddMenuEntry(Commands.LoadFromHere);
+	}
+
+	return UToolMenus::Get()->GenerateWidget(MenuName, FToolMenuContext(CommandList));
+}
+
 FReply SWorldPartitionEditorGrid2D::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	const bool bIsLeftMouseButtonEffecting = MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton;
@@ -879,50 +933,15 @@ FReply SWorldPartitionEditorGrid2D::OnMouseButtonUp(const FGeometry& MyGeometry,
 		MouseCursorPosWorld = ScreenToWorld.TransformPoint(MouseCursorPos);
 
 		if (!bHasMouseCapture && bIsRightMouseButtonEffecting)
-		{			
+		{
 			if (HoveredLoaderInterface.IsValid() && !SelectedLoaderInterfaces.Contains(HoveredLoaderInterface))
 			{
 				SelectedLoaderInterfaces.Reset();
 				SelectedLoaderInterfaces.Add(HoveredLoaderInterface);
 			}
-			
-			FMenuBuilder MenuBuilder(true, CommandList);
-
-			const FEditorCommands& Commands = FEditorCommands::Get();
-
-			if (GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor)
-			{
-				MenuBuilder.BeginSection(NAME_None, LOCTEXT("WorldPartitionSelection", "Selection"));
-					MenuBuilder.AddMenuEntry(Commands.CreateRegionFromSelection);
-					MenuBuilder.AddMenuSeparator();
-					MenuBuilder.AddMenuEntry(Commands.LoadSelectedRegions);
-					MenuBuilder.AddMenuEntry(Commands.UnloadSelectedRegions);
-					MenuBuilder.AddMenuSeparator();
-					MenuBuilder.AddMenuEntry(Commands.ConvertSelectedRegionsToActors);
-				MenuBuilder.EndSection();
-			}
-
-			MenuBuilder.BeginSection(NAME_None, LOCTEXT("WorldPartitionMisc", "Misc"));
-				MenuBuilder.AddMenuEntry(Commands.MoveCameraHere);
-
-				if (!GetDefault<UWorldPartitionEditorSettings>()->bDisableBugIt)
-				{
-					MenuBuilder.AddMenuEntry(Commands.BugItHere);
-				}
-
-				if (!GetDefault<UWorldPartitionEditorSettings>()->bDisablePIE)
-				{
-					MenuBuilder.AddMenuEntry(Commands.PlayFromHere);
-				}
-				
-				if (GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor)
-				{
-					MenuBuilder.AddMenuEntry(Commands.LoadFromHere);
-				}
-			MenuBuilder.EndSection();			
 
 			FWidgetPath WidgetPath = MouseEvent.GetEventPath() != nullptr ? *MouseEvent.GetEventPath() : FWidgetPath();
-			FSlateApplication::Get().PushMenu(AsShared(), WidgetPath, MenuBuilder.MakeWidget(), MouseEvent.GetScreenSpacePosition(), FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
+			FSlateApplication::Get().PushMenu(AsShared(), WidgetPath, GenerateContextualMenu(), MouseEvent.GetScreenSpacePosition(), FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
 		}
 
 		if (bIsLeftMouseButtonEffecting)
