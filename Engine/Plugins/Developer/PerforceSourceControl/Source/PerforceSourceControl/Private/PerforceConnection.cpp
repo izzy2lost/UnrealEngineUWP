@@ -844,6 +844,10 @@ bool EnsureValidConnectionInternal(const FPerforceConnectionInfo& InSettings, FP
 			return false;
 		}
 	}
+	else
+	{
+		OutSettings.Workspace = InSettings.Workspace;
+	}
 
 	//whether successful or not, disconnect to clean up
 	TestP4.Final(&P4Error);
