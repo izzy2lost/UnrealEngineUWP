@@ -287,6 +287,484 @@ void FPakPlatformFile::GetFilenamesFromIostoreByBlockIndex(const FString& InCont
 	}
 }
 
+bool FPakPlatformFile::DirectoryExistsInPrunedPakFiles(const TCHAR* Directory)
+{
+	FString StandardPath = Directory;
+	FPaths::MakeStandardFilename(StandardPath);
+
+	TArray<FPakListEntry> Paks;
+	GetMountedPaks(Paks);
+
+	// Check all pak files.
+	for (int32 PakIndex = 0; PakIndex < Paks.Num(); PakIndex++)
+	{
+		if (Paks[PakIndex].PakFile->DirectoryExistsInPruned(*StandardPath))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool FPakPlatformFile::FindFileInPakFiles(TArray<FPakListEntry>& Paks, const TCHAR* Filename,
+	TRefCountPtr<FPakFile>* OutPakFile, FPakEntry* OutEntry)
+{
+	FString StandardFilename(Filename);
+	FPaths::MakeStandardFilename(StandardFilename);
+
+	int32 DeletedReadOrder = -1;
+
+	for (int32 PakIndex = 0; PakIndex < Paks.Num(); PakIndex++)
+	{
+		int32 PakReadOrder = Paks[PakIndex].ReadOrder;
+		if (DeletedReadOrder != -1 && DeletedReadOrder > PakReadOrder)
+		{
+			// Found a delete record in a higher priority patch level, but now we're at a lower priority set.
+			// Don't search further back or we'll find the original, old file.
+			UE_LOG(LogPakFile, Verbose, TEXT("Delete Record: Accepted a delete record for %s"), Filename);
+			return false;
+		}
+
+		FPakFile::EFindResult FindResult = Paks[PakIndex].PakFile->Find(StandardFilename, OutEntry);
+		if (FindResult == FPakFile::EFindResult::Found)
+		{
+			if (OutPakFile != NULL)
+			{
+				*OutPakFile = Paks[PakIndex].PakFile;
+			}
+			UE_CLOG(DeletedReadOrder != -1, LogPakFile, Verbose,
+				TEXT("Delete Record: Ignored delete record for %s - found it in %s instead (asset was moved between chunks)"),
+				Filename, *Paks[PakIndex].PakFile->GetFilename());
+			return true;
+		}
+		else if (FindResult == FPakFile::EFindResult::FoundDeleted)
+		{
+			DeletedReadOrder = PakReadOrder;
+			UE_LOG(LogPakFile, Verbose, TEXT("Delete Record: Found a delete record for %s in %s"),
+				Filename, *Paks[PakIndex].PakFile->GetFilename());
+		}
+	}
+
+	UE_CLOG(DeletedReadOrder != -1, LogPakFile, Warning,
+		TEXT("Delete Record: No lower priority pak files looking for %s. (maybe not downloaded?)"),
+		Filename);
+	return false;
+}
+
+bool FPakPlatformFile::FindFileInPakFiles(const TCHAR* Filename, TRefCountPtr<FPakFile>* OutPakFile,
+	FPakEntry* OutEntry)
+{
+	TArray<FPakListEntry> Paks;
+	GetMountedPaks(Paks);
+
+	return FindFileInPakFiles(Paks, Filename, OutPakFile, OutEntry);
+}
+
+bool FPakPlatformFile::DirectoryExists(const TCHAR* Directory)
+{
+	// Check pak files first.
+	if (DirectoryExistsInPrunedPakFiles(Directory))
+	{
+		return true;
+	}
+	// Directory does not exist in any of the pak files, continue searching using inner platform file.
+	bool Result = LowerLevel->DirectoryExists(Directory);
+	return Result;
+}
+
+bool FPakPlatformFile::CreateDirectory(const TCHAR* Directory)
+{
+	// Directories can be created only under the normal path
+	return LowerLevel->CreateDirectory(Directory);
+}
+
+bool FPakPlatformFile::DeleteDirectory(const TCHAR* Directory)
+{
+	// Even if the same directory exists outside of pak files it will never
+	// get truly deleted from pak and will still be reported by Iterate functions.
+	// Fail in cases like this.
+	if (DirectoryExistsInPrunedPakFiles(Directory))
+	{
+		return false;
+	}
+	// Directory does not exist in pak files so it's safe to delete.
+	return LowerLevel->DeleteDirectory(Directory);
+}
+
+FFileStatData FPakPlatformFile::GetStatData(const TCHAR* FilenameOrDirectory)
+{
+	// Check pak files first.
+	FPakEntry FileEntry;
+	TRefCountPtr<FPakFile> PakFile;
+	if (FindFileInPakFiles(FilenameOrDirectory, &PakFile, &FileEntry))
+	{
+		return FFileStatData(
+			PakFile->GetTimestamp(),
+			PakFile->GetTimestamp(),
+			PakFile->GetTimestamp(),
+			(FileEntry.CompressionMethodIndex != 0) ? FileEntry.UncompressedSize : FileEntry.Size,
+			false,	// IsDirectory
+			true	// IsReadOnly
+		);
+	}
+
+	// Then check pak directories
+	if (DirectoryExistsInPrunedPakFiles(FilenameOrDirectory))
+	{
+		FDateTime DirectoryTimeStamp = FDateTime::MinValue();
+		return FFileStatData(
+			DirectoryTimeStamp,
+			DirectoryTimeStamp,
+			DirectoryTimeStamp,
+			-1,		// FileSize
+			true,	// IsDirectory
+			true	// IsReadOnly
+		);
+	}
+
+	// Fall back to lower level.
+	FFileStatData FileStatData;
+	if (IsNonPakFilenameAllowed(FilenameOrDirectory))
+	{
+		FileStatData = LowerLevel->GetStatData(FilenameOrDirectory);
+	}
+
+	return FileStatData;
+}
+
+namespace UE::PakFile::Private
+{
+
+/** Helper class to filter out files which have already been visited in one of the pak files. */
+class FPreventDuplicatesVisitorBase
+{
+public:
+	/** Visited files. */
+	TSet<FString>& VisitedFiles;
+	FString NormalizedFilename;
+
+	FPreventDuplicatesVisitorBase(TSet<FString>& InVisitedFiles)
+		: VisitedFiles(InVisitedFiles)
+	{
+	}
+
+	bool CheckDuplicate(const TCHAR* FilenameOrDirectory)
+	{
+		NormalizedFilename.Reset();
+		NormalizedFilename.AppendChars(FilenameOrDirectory, TCString<TCHAR>::Strlen(FilenameOrDirectory));
+		FPaths::MakeStandardFilename(NormalizedFilename);
+		if (VisitedFiles.Contains(NormalizedFilename))
+		{
+			return true;
+		}
+		VisitedFiles.Add(NormalizedFilename);
+		return false;
+	}
+};
+
+class FPreventDuplicatesVisitor : public FPreventDuplicatesVisitorBase, public IPlatformFile::FDirectoryVisitor
+{
+public:
+	/** Wrapped visitor. */
+	FDirectoryVisitor& Visitor;
+
+	/** Constructor. */
+	FPreventDuplicatesVisitor(FDirectoryVisitor& InVisitor, TSet<FString>& InVisitedFiles)
+		: FPreventDuplicatesVisitorBase(InVisitedFiles)
+		, Visitor(InVisitor)
+	{}
+	virtual bool Visit(const TCHAR* FilenameOrDirectory, bool bIsDirectory)
+	{
+		if (CheckDuplicate(FilenameOrDirectory))
+		{
+			// Already visited, continue iterating.
+			return true;
+		}
+		return Visitor.Visit(*NormalizedFilename, bIsDirectory);
+	}
+};
+
+}
+
+bool FPakPlatformFile::IterateDirectory(const TCHAR* Directory, IPlatformFile::FDirectoryVisitor& Visitor)
+{
+	return IterateDirectoryInternal(Directory, Visitor, false /* bRecursive */);
+}
+
+bool FPakPlatformFile::IterateDirectoryInternal(const TCHAR* Directory,
+	IPlatformFile::FDirectoryVisitor& Visitor, bool bRecursive)
+{
+	using namespace UE::PakFile::Private;
+
+	TUniqueFunction<bool(const FString&, const FString&, bool, FPakFile&)> VisitFunction =
+		[&Visitor](const FString& Filename, const FString& NormalizedFilename, bool bIsDir, FPakFile& PakFile)
+	{
+		return Visitor.Visit(*NormalizedFilename, bIsDir);
+	};
+	TSet<FString> FilesVisitedInPak;
+	bool Result = IterateDirectoryInternal(Directory, VisitFunction, bRecursive, FilesVisitedInPak);
+	if (Result && LowerLevel->DirectoryExists(Directory))
+	{
+		// Iterate inner filesystem but don't visit any files that were found in the Paks
+		FPreventDuplicatesVisitor PreventDuplicatesVisitor(Visitor, FilesVisitedInPak);
+		IPlatformFile::FDirectoryVisitor& LowerLevelVisitor(
+			// For performance, skip using PreventDuplicatedVisitor if there were no hits in pak
+			FilesVisitedInPak.Num() ? PreventDuplicatesVisitor : Visitor
+		);
+		if (bRecursive)
+		{
+			Result = LowerLevel->IterateDirectoryRecursively(Directory, LowerLevelVisitor);
+		}
+		else
+		{
+			Result = LowerLevel->IterateDirectory(Directory, LowerLevelVisitor);
+		}
+	}
+	return Result;
+}
+
+bool FPakPlatformFile::IterateDirectoryInternal(const TCHAR* Directory,
+	TUniqueFunction<bool(const FString&, const FString&, bool, FPakFile&)>& VisitFunction,
+	bool bRecursive, TSet<FString>& FilesVisitedInPak)
+{
+	bool Result = true;
+
+	TArray<FPakListEntry> Paks;
+	FString StandardDirectory = Directory;
+	FPaths::MakeStandardFilename(StandardDirectory);
+
+	bool bIsDownloadableDir =
+		(
+			FPaths::HasProjectPersistentDownloadDir() &&
+			StandardDirectory.StartsWith(FPaths::ProjectPersistentDownloadDir())
+			) ||
+		StandardDirectory.StartsWith(FPaths::CloudDir());
+
+	// don't look for in pak files for target-only locations
+	if (!bIsDownloadableDir)
+	{
+		GetMountedPaks(Paks);
+	}
+
+	// Iterate pak files first
+	FString NormalizationBuffer;
+	TSet<FString> FilesVisitedInThisPak;
+	for (int32 PakIndex = 0; PakIndex < Paks.Num(); PakIndex++)
+	{
+		FPakFile& PakFile = *Paks[PakIndex].PakFile;
+
+		const bool bIncludeFiles = true;
+		const bool bIncludeFolders = true;
+
+		FilesVisitedInThisPak.Reset();
+		PakFile.FindPrunedFilesAtPathInternal(*StandardDirectory, FilesVisitedInThisPak,
+			bIncludeFiles, bIncludeFolders, bRecursive);
+		for (TSet<FString>::TConstIterator SetIt(FilesVisitedInThisPak); SetIt && Result; ++SetIt)
+		{
+			const FString& Filename = *SetIt;
+			bool bIsDir = Filename.Len() && Filename[Filename.Len() - 1] == '/';
+			const FString* NormalizedFilename;
+			if (bIsDir)
+			{
+				NormalizationBuffer.Reset(Filename.Len());
+				NormalizationBuffer.AppendChars(*Filename, Filename.Len() - 1); // Chop off the trailing /
+				NormalizedFilename = &NormalizationBuffer;
+			}
+			else
+			{
+				NormalizedFilename = &Filename;
+			}
+			if (!FilesVisitedInPak.Contains(*NormalizedFilename))
+			{
+				FilesVisitedInPak.Add(*NormalizedFilename);
+				Result = VisitFunction(Filename, *NormalizedFilename, bIsDir, PakFile) && Result;
+			}
+		}
+	}
+	return Result;
+}
+
+bool FPakPlatformFile::IterateDirectoryRecursively(const TCHAR* Directory, IPlatformFile::FDirectoryVisitor& Visitor)
+{
+	return IterateDirectoryInternal(Directory, Visitor, true /* bRecursive */);
+}
+
+namespace UE::PakFile::Private
+{
+
+class FPreventDuplicatesStatVisitor : public FPreventDuplicatesVisitorBase, public IPlatformFile::FDirectoryStatVisitor
+{
+public:
+	/** Wrapped visitor. */
+	FDirectoryStatVisitor& Visitor;
+
+	/** Constructor. */
+	FPreventDuplicatesStatVisitor(FDirectoryStatVisitor& InVisitor, TSet<FString>& InVisitedFiles)
+		: FPreventDuplicatesVisitorBase(InVisitedFiles)
+		, Visitor(InVisitor)
+	{}
+	virtual bool Visit(const TCHAR* FilenameOrDirectory, const FFileStatData& StatData)
+	{
+		if (CheckDuplicate(FilenameOrDirectory))
+		{
+			// Already visited, continue iterating.
+			return true;
+		}
+		return Visitor.Visit(*NormalizedFilename, StatData);
+	}
+};
+
+}
+
+bool FPakPlatformFile::IterateDirectoryStat(const TCHAR* Directory, IPlatformFile::FDirectoryStatVisitor& Visitor)
+{
+	return IterateDirectoryStatInternal(Directory, Visitor, false /* bRecursive */);
+}
+
+bool FPakPlatformFile::IterateDirectoryStatInternal(const TCHAR* Directory,
+	IPlatformFile::FDirectoryStatVisitor& Visitor, bool bRecursive)
+{
+	using namespace UE::PakFile::Private;
+
+	TUniqueFunction<bool(const FString&, const FString&, bool, FPakFile&)> VisitFunction =
+		[&Visitor, this](const FString& Filename, const FString& NormalizedFilename, bool bIsDir, FPakFile& PakFile)
+	{
+		int64 FileSize = -1;
+		if (!bIsDir)
+		{
+			FPakEntry FileEntry;
+			if (FindFileInPakFiles(*Filename, nullptr, &FileEntry))
+			{
+				FileSize = (FileEntry.CompressionMethodIndex != 0) ? FileEntry.UncompressedSize : FileEntry.Size;
+			}
+		}
+
+		const FFileStatData StatData(
+			PakFile.GetTimestamp(),
+			PakFile.GetTimestamp(),
+			PakFile.GetTimestamp(),
+			FileSize,
+			bIsDir,
+			true	// IsReadOnly
+		);
+
+		return Visitor.Visit(*NormalizedFilename, StatData);
+	};
+
+	TSet<FString> FilesVisitedInPak;
+	bool Result = IterateDirectoryInternal(Directory, VisitFunction, bRecursive, FilesVisitedInPak);
+	if (Result && LowerLevel->DirectoryExists(Directory))
+	{
+		// Iterate inner filesystem but don't visit any files that were found in the Paks
+		FPreventDuplicatesStatVisitor PreventDuplicatesVisitor(Visitor, FilesVisitedInPak);
+		IPlatformFile::FDirectoryStatVisitor& LowerLevelVisitor(
+			// For performance, skip using PreventDuplicatedVisitor if there were no hits in pak
+			FilesVisitedInPak.Num() ? PreventDuplicatesVisitor : Visitor);
+		if (bRecursive)
+		{
+			Result = LowerLevel->IterateDirectoryStatRecursively(Directory, LowerLevelVisitor);
+		}
+		else
+		{
+			Result = LowerLevel->IterateDirectoryStat(Directory, LowerLevelVisitor);
+		}
+	}
+	return Result;
+}
+
+bool FPakPlatformFile::IterateDirectoryStatRecursively(const TCHAR* Directory,
+	IPlatformFile::FDirectoryStatVisitor& Visitor)
+{
+	return IterateDirectoryStatInternal(Directory, Visitor, true/* bRecursive */);
+}
+
+void FPakPlatformFile::FindFiles(TArray<FString>& FoundFiles, const TCHAR* Directory, const TCHAR* FileExtension)
+{
+	if (LowerLevel->DirectoryExists(Directory))
+	{
+		LowerLevel->FindFiles(FoundFiles, Directory, FileExtension);
+	}
+
+	bool bRecursive = false;
+	FindFilesInternal(FoundFiles, Directory, FileExtension, bRecursive);
+}
+
+void FPakPlatformFile::FindFilesRecursively(TArray<FString>& FoundFiles,
+	const TCHAR* Directory, const TCHAR* FileExtension)
+{
+	if (LowerLevel->DirectoryExists(Directory))
+	{
+		LowerLevel->FindFilesRecursively(FoundFiles, Directory, FileExtension);
+	}
+
+	bool bRecursive = true;
+	FindFilesInternal(FoundFiles, Directory, FileExtension, bRecursive);
+}
+
+void FPakPlatformFile::FindFilesInternal(TArray<FString>& FoundFiles,
+	const TCHAR* Directory, const TCHAR* FileExtension, bool bRecursive)
+{
+	TArray<FPakListEntry> Paks;
+	GetMountedPaks(Paks);
+	if (Paks.Num())
+	{
+		TSet<FString> FilesVisited;
+		FilesVisited.Append(FoundFiles);
+
+		FString StandardDirectory = Directory;
+		FString FileExtensionStr = FileExtension;
+		FPaths::MakeStandardFilename(StandardDirectory);
+		bool bIncludeFiles = true;
+		bool bIncludeFolders = false;
+
+		TArray<FString> FilesInPak;
+		FilesInPak.Reserve(64);
+		for (int32 PakIndex = 0; PakIndex < Paks.Num(); PakIndex++)
+		{
+			FPakFile& PakFile = *Paks[PakIndex].PakFile;
+			PakFile.FindPrunedFilesAtPathInternal(*StandardDirectory, FilesInPak,
+				bIncludeFiles, bIncludeFolders, bRecursive);
+		}
+
+		for (const FString& Filename : FilesInPak)
+		{
+			// filter out files by FileExtension
+			if (FileExtensionStr.Len())
+			{
+				if (!Filename.EndsWith(FileExtensionStr))
+				{
+					continue;
+				}
+			}
+
+			// make sure we don't add duplicates to FoundFiles
+			bool bVisited = false;
+			FilesVisited.Add(Filename, &bVisited);
+			if (!bVisited)
+			{
+				FoundFiles.Add(Filename);
+			}
+		}
+	}
+}
+
+bool FPakPlatformFile::DeleteDirectoryRecursively(const TCHAR* Directory)
+{
+	// Can't delete directories existing in pak files. See DeleteDirectory(..) for more info.
+	if (DirectoryExistsInPrunedPakFiles(Directory))
+	{
+		return false;
+	}
+	// Directory does not exist in pak files so it's safe to delete.
+	return LowerLevel->DeleteDirectoryRecursively(Directory);
+}
+
+bool FPakPlatformFile::CreateDirectoryTree(const TCHAR* Directory)
+{
+	// Directories can only be created only under the normal path
+	return LowerLevel->CreateDirectoryTree(Directory);
+}
+
 void FPakPlatformFile::GetPrunedFilenamesInPakFile(const FString& InPakFilename, TArray<FString>& OutFileList)
 {
 	TArray<FPakListEntry> Paks;
@@ -7033,6 +7511,115 @@ void FPakFile::GetPrunedFilenamesInChunk(const TArray<int32>& InChunkIDs, TArray
 	}
 }
 
+
+/**
+ * Search the given FDirectoryIndex for all files under the given Directory.  Helper for FindFilesAtPath, called separately on the DirectoryIndex or Pruned DirectoryIndex. Does not use
+ * FScopedPakDirectoryIndexAccess internally; caller is responsible for calling from within a lock.
+ * Returned paths are full paths (include the mount point)
+ */
+template <class ContainerType>
+void FPakFile::FindFilesAtPathInIndex(const FDirectoryIndex& TargetIndex, ContainerType& OutFiles, const FString& Directory,
+	bool bIncludeFiles, bool bIncludeDirectories, bool bRecursive) const
+{
+	// Early out if MountPoint is not matching directory
+	if (!Directory.StartsWith(MountPoint))
+	{
+		return;
+	}
+
+	FStringView RelativeSearch(FStringView(Directory).RightChop(MountPoint.Len()));
+
+	TArray<FString> DirectoriesInPak; // List of all unique directories at path
+	for (TMap<FString, FPakDirectory>::TConstIterator It(TargetIndex); It; ++It)
+	{
+		// Check if the file is under the specified path.
+		if (FStringView(It.Key()).StartsWith(RelativeSearch))
+		{
+			FString PakPath = PakPathCombine(MountPoint, It.Key());
+			if (bRecursive == true)
+			{
+				// Add everything
+				if (bIncludeFiles)
+				{
+					for (FPakDirectory::TConstIterator DirectoryIt(It.Value()); DirectoryIt; ++DirectoryIt)
+					{
+						OutFiles.Add(PakPathCombine(PakPath, DirectoryIt.Key()));
+					}
+				}
+				if (bIncludeDirectories)
+				{
+					if (Directory != PakPath)
+					{
+						DirectoriesInPak.Add(MoveTemp(PakPath));
+					}
+				}
+			}
+			else
+			{
+				int32 SubDirIndex = PakPath.Len() > Directory.Len() ? PakPath.Find(TEXT("/"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Directory.Len() + 1) : INDEX_NONE;
+				// Add files in the specified folder only.
+				if (bIncludeFiles && SubDirIndex == INDEX_NONE)
+				{
+					for (FPakDirectory::TConstIterator DirectoryIt(It.Value()); DirectoryIt; ++DirectoryIt)
+					{
+						OutFiles.Add(PakPathCombine(PakPath, DirectoryIt.Key()));
+					}
+				}
+				// Add sub-folders in the specified folder only
+				if (bIncludeDirectories && SubDirIndex >= 0)
+				{
+					DirectoriesInPak.AddUnique(PakPath.Left(SubDirIndex + 1));
+				}
+			}
+		}
+	}
+	OutFiles.Append(MoveTemp(DirectoriesInPak));
+}
+
+template <class ContainerType>
+void FPakFile::FindPrunedFilesAtPathInternal(const TCHAR* InPath, ContainerType& OutFiles,
+	bool bIncludeFiles, bool bIncludeDirectories, bool bRecursive) const
+{
+	// Make sure all directory names end with '/'.
+	FString Directory(InPath);
+	MakeDirectoryFromPath(Directory);
+
+	// Check the specified path is under the mount point of this pak file.
+	// The reverse case (MountPoint StartsWith Directory) is needed to properly handle
+	// pak files that are a subdirectory of the actual directory.
+	if (!Directory.StartsWith(MountPoint) && !MountPoint.StartsWith(Directory))
+	{
+		return;
+	}
+
+	FScopedPakDirectoryIndexAccess ScopeAccess(*this);
+#if ENABLE_PAKFILE_RUNTIME_PRUNING_VALIDATE
+	if (ShouldValidatePrunedDirectory())
+	{
+		TSet<FString> FullFoundFiles, PrunedFoundFiles;
+		FindFilesAtPathInIndex(DirectoryIndex, FullFoundFiles, Directory, bIncludeFiles, bIncludeDirectories, bRecursive);
+		FindFilesAtPathInIndex(PrunedDirectoryIndex, PrunedFoundFiles, Directory, bIncludeFiles, bIncludeDirectories, bRecursive);
+		ValidateDirectorySearch(FullFoundFiles, PrunedFoundFiles, InPath);
+
+		for (const FString& FoundFile : FullFoundFiles)
+		{
+			OutFiles.Add(FoundFile);
+		}
+	}
+	else
+#endif
+	{
+		FindFilesAtPathInIndex(DirectoryIndex, OutFiles, Directory, bIncludeFiles, bIncludeDirectories, bRecursive);
+	}
+}
+
+void FPakFile::FindPrunedFilesAtPath(const TCHAR* InPath, TArray<FString>& OutFiles,
+	bool bIncludeFiles, bool bIncludeDirectories, bool bRecursive) const
+{
+	FindPrunedFilesAtPathInternal(InPath, OutFiles, bIncludeFiles, bIncludeDirectories, bRecursive);
+}
+
+
 #if ENABLE_PAKFILE_RUNTIME_PRUNING_VALIDATE
 void FPakFile::ValidateDirectorySearch(const TSet<FString>& FullFoundFiles, const TSet<FString>& PrunedFoundFiles, const TCHAR* InPath) const
 {
@@ -8248,23 +8835,6 @@ IPakFile* FPakPlatformFile::HandleMountPakDelegate(const FString& PakFilePath, i
 	return nullptr;
 }
 
-bool FPakPlatformFile::HandleOnMountPakDelegate(const FString& PakFilePath, int32 PakOrder, IPlatformFile::FDirectoryVisitor* Visitor)
-{
-	IPakFile* PakFile = HandleMountPakDelegate(PakFilePath, PakOrder);
-	if (PakFile)
-	{
-		if (Visitor)
-		{
-			PakFile->PakVisitPrunedFilenames(*Visitor);
-		}
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
 bool FPakPlatformFile::HandleUnmountPakDelegate(const FString& PakFilePath)
 {
 	FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Unmounting pak file: %s \n"), *PakFilePath);
@@ -8366,6 +8936,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 	return Result;
+}
+
+IFileHandle* FPakPlatformFile::OpenWrite(const TCHAR* Filename, bool bAppend, bool bAllowRead)
+{
+	// No modifications allowed on pak files.
+	if (FindFileInPakFiles(Filename))
+	{
+		return nullptr;
+	}
+	// Use lower level to handle writing.
+	return LowerLevel->OpenWrite(Filename, bAppend, bAllowRead);
 }
 
 const TCHAR* FPakPlatformFile::GetMountStartupPaksWildCard()
