@@ -10,14 +10,14 @@ void UCustomizableObjectNodeMaterialVariation::BackwardsCompatibleFixup()
 {
 	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::DeduplicateNodeVariant)
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NodeVariationSerializationIssue)
 	{
 		for (const FCustomizableObjectMaterialVariation& OldVariation : Variations_DEPRECATED)
 		{
 			FCustomizableObjectVariation Variation;
 			Variation.Tag = OldVariation.Tag;
 			
-			Variations.Add(Variation);
+			VariationsData.Add(Variation);
 		}
 	}
 

@@ -34,9 +34,10 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeVariation : public UCu
 
 protected:
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	TArray<FCustomizableObjectVariation> Variations;
+	TArray<FCustomizableObjectVariation> VariationsData; // The variable name can not be Variations due issues with the on to UObject Serialization system
 
 private:
+	UPROPERTY()
 	TArray<FEdGraphPinReference> VariationsPins;
 	
 public:

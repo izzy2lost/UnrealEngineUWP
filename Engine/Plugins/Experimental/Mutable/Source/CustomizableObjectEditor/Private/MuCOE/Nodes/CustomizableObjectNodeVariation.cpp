@@ -32,13 +32,13 @@ void UCustomizableObjectNodeVariation::AllocateDefaultPins(UCustomizableObjectNo
 		CustomCreatePin(EGPD_Output, Category, PinName);
 	}
 	
-	VariationsPins.SetNum(Variations.Num());
-	for (int32 VariationIndex = Variations.Num() - 1; VariationIndex >= 0; --VariationIndex)
+	VariationsPins.SetNum(VariationsData.Num());
+	for (int32 VariationIndex = VariationsData.Num() - 1; VariationIndex >= 0; --VariationIndex)
 	{
 		const FName PinName = FName(FString::Printf( TEXT("Variation %d"), VariationIndex));
 		UEdGraphPin* VariationPin = CustomCreatePin(EGPD_Input, Category, PinName, bIsInputPinArray);
 
-		VariationPin->PinFriendlyName = FText::Format(LOCTEXT("Variation_Pin_FriendlyName", "Variation {0} [{1}]"), VariationIndex, FText::FromString(*Variations[VariationIndex].Tag));
+		VariationPin->PinFriendlyName = FText::Format(LOCTEXT("Variation_Pin_FriendlyName", "Variation {0} [{1}]"), VariationIndex, FText::FromString(*VariationsData[VariationIndex].Tag));
 		
 		VariationsPins[VariationIndex] = VariationPin;
 	}
@@ -55,13 +55,13 @@ bool UCustomizableObjectNodeVariation::IsInputPinArray() const
 
 int32 UCustomizableObjectNodeVariation::GetNumVariations() const
 {
-	return Variations.Num();
+	return VariationsData.Num();
 }
 
 
 const FCustomizableObjectVariation& UCustomizableObjectNodeVariation::GetVariation(int32 Index) const
 {
-	return Variations[Index];
+	return VariationsData[Index];
 }
 
 
@@ -102,7 +102,7 @@ void UCustomizableObjectNodeVariation::BackwardsCompatibleFixup()
 
 	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
 
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::DeduplicateNodeVariant)
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NodeVariationSerializationIssue)
 	{
 		ReconstructNode();
 	}
