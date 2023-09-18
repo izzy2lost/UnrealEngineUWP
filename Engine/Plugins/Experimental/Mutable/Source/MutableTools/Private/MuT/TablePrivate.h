@@ -13,32 +13,32 @@
 
 namespace mu
 {
-	MUTABLE_DEFINE_ENUM_SERIALISABLE(TABLE_COLUMN_TYPE)
+	MUTABLE_DEFINE_ENUM_SERIALISABLE(ETableColumnType)
 
 
-	struct TABLE_COLUMN
+	struct FTableColumn
 	{
-		string m_name;
+		FString Name;
 
-		TABLE_COLUMN_TYPE m_type;
+		ETableColumnType Type;
 	};
 
 
-	struct TABLE_VALUE
+	struct FTableValue
 	{
 		// TODO: Union
-		float m_scalar;
-		FVector4f m_colour;
-		Ptr<ResourceProxy<Image>> m_pProxyImage;
-		MeshPtr m_pMesh;
-		string m_string;
+		float Scalar;
+		FVector4f Color;
+		Ptr<ResourceProxy<Image>> ProxyImage;
+		Ptr<Mesh> Mesh;
+		FString String;
 	};
 
 
-	struct TABLE_ROW
+	struct FTableRow
 	{
-        uint32_t m_id;
-		TArray<TABLE_VALUE> m_values;
+        uint32 Id;
+		TArray<FTableValue> Values;
 	};
 
 
@@ -47,118 +47,148 @@ namespace mu
 	{
 	public:
 
-		string m_name;
-		TArray<TABLE_COLUMN> m_columns;
-		TArray<TABLE_ROW> m_rows;
-		bool m_NoneOption = false;
+		FString Name;
+		TArray<FTableColumn> Columns;
+		TArray<FTableRow> Rows;
+		bool bNoneOption = false;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 2;
+            uint32 ver = 3;
 			arch << ver;
 
-            arch << (uint32_t)m_columns.Num();
-			for ( int32 c=0; c<m_columns.Num(); ++c )
+            arch << Columns.Num();
+			for ( int32 c=0; c< Columns.Num(); ++c )
 			{
-				arch << m_columns[c].m_name;
-				arch << m_columns[c].m_type;
+				arch << Columns[c].Name;
+				arch << Columns[c].Type;
 			}
 
-            arch << (uint32_t)m_rows.Num();
-			for (int32 r=0; r<m_rows.Num(); ++r )
+            arch << Rows.Num();
+			for (int32 r=0; r< Rows.Num(); ++r )
 			{
-				arch << m_rows[r].m_id;
+				arch << Rows[r].Id;
 
-				for (int32 c=0; c<m_columns.Num(); ++c )
+				for (int32 c=0; c<Columns.Num(); ++c )
 				{
-					const TABLE_VALUE& v = m_rows[r].m_values[c];
+					const FTableValue& v = Rows[r].Values[c];
 
-					switch (m_columns[c].m_type)
+					switch (Columns[c].Type)
 					{
-					case TCT_SCALAR: 	arch << v.m_scalar; break;
-					case TCT_COLOUR: 	arch << v.m_colour; break;
-					case TCT_MESH: 		arch << v.m_pMesh; break;
-					case TCT_IMAGE:		
+					case ETableColumnType::Scalar: 	arch << v.Scalar; break;
+					case ETableColumnType::Color: 	arch << v.Color; break;
+					case ETableColumnType::Mesh: 	arch << v.Mesh; break;
+					case ETableColumnType::Image:
 					{
-						Ptr<const Image> image;
-						if (v.m_pProxyImage)
+						Ptr<const Image> Value;
+						if (v.ProxyImage)
 						{
-							image = v.m_pProxyImage->Get();
+							Value = v.ProxyImage->Get();
 						}
-						arch << image;
+						arch << Value;
 						break;
 					}
-					case TCT_STRING:	arch << v.m_string; break;
+					case ETableColumnType::String:	arch << v.String; break;
 					default: check( false);
 					}
 				}
 			}
 
-			arch << m_NoneOption;
+			arch << bNoneOption;
 		}
 
 		//!
 		void Unserialise( InputArchive& arch )
 		{
-            uint32_t ver;
+            uint32 ver;
 			arch >> ver;
-			check(ver<=2);
+			check(ver<=3);
 
-            uint32_t columnCount;
-			arch >> columnCount;
-			m_columns.SetNum( columnCount );
-            for (uint32_t c=0; c<columnCount; ++c )
+            uint32 ColumnCount;
+			arch >> ColumnCount;
+			Columns.SetNum(ColumnCount);
+            for (uint32 c=0; c<ColumnCount; ++c )
 			{
-				arch >> m_columns[c].m_name;
-				arch >> m_columns[c].m_type;
+				if (ver <= 2)
+				{
+					string LegacyString;
+					arch >> LegacyString;
+					Columns[c].Name = LegacyString.c_str();
+				}
+				else
+				{
+					arch >> Columns[c].Name;
+				}
+				arch >> Columns[c].Type;
 			}
 
-            uint32_t rowCount;
-			arch >> rowCount;
-			m_rows.SetNum( rowCount );
-            for ( uint32_t r=0; r<rowCount; ++r )
+            uint32 RowCount;
+			arch >> RowCount;
+			Rows.SetNum( RowCount );
+            for ( uint32 r=0; r<RowCount; ++r )
 			{
-				arch >> m_rows[r].m_id;
-				m_rows[r].m_values.SetNum( columnCount );
+				arch >> Rows[r].Id;
+				Rows[r].Values.SetNum( ColumnCount );
 
-                for (uint32_t c=0; c<columnCount; ++c )
+                for (uint32_t c=0; c<ColumnCount; ++c )
 				{
-					TABLE_VALUE& v = m_rows[r].m_values[c];
+					FTableValue& v = Rows[r].Values[c];
 
-					switch (m_columns[c].m_type)
+					switch (Columns[c].Type)
 					{
-					case TCT_SCALAR:	arch >> v.m_scalar; break;
-					case TCT_COLOUR:
+					case ETableColumnType::Scalar:	
+					{
+						arch >> v.Scalar;
+						break;
+					}
+					case ETableColumnType::Color:
 					{
 						if (ver <= 1)
 						{
 							vec3<float> Value;
 							arch >> Value;
 
-							v.m_colour = FVector4f(Value[0], Value[1], Value[2], 1.0f);
+							v.Color = FVector4f(Value[0], Value[1], Value[2], 1.0f);
 						}
 						else
 						{
-							arch >> v.m_colour;
+							arch >> v.Color;
 						}
 						break;
 					}
-					case TCT_MESH:		arch >> v.m_pMesh; break;
-					case TCT_IMAGE:		
+					case ETableColumnType::Mesh:		
+					{
+						arch >> v.Mesh;
+						break;
+					}
+					case ETableColumnType::Image:
 					{
 						// Are we using proxies?
-						v.m_pProxyImage = arch.NewImageProxy();
-						if (!v.m_pProxyImage)
+						v.ProxyImage = arch.NewImageProxy();
+						if (!v.ProxyImage)
 						{
 							// Normal serialisation
-							ImagePtr image;
-							arch >> image;
-							v.m_pProxyImage = new ResourceProxyMemory<Image>(image.get());
+							Ptr<Image> Value;
+							arch >> Value;
+							v.ProxyImage = new ResourceProxyMemory<Image>(Value.get());
 						}
 						break;
 					}
-					case TCT_STRING:	arch >> v.m_string; break;
+					case ETableColumnType::String:
+					{
+						if (ver <= 2)
+						{
+							string LegacyString;
+							arch >> LegacyString;
+							v.String = LegacyString.c_str();
+						}
+						else
+						{
+							arch >> v.String;
+						}
+						break;
+					}
 					default: check( false);
 					}
 				}
@@ -166,21 +196,21 @@ namespace mu
 
 			if (ver >= 1)
 			{
-				arch >> m_NoneOption;
+				arch >> bNoneOption;
 			}
 		}
 
 
 		//! Find a row in the table by id. Return -1 if not found.
-        int FindRow( uint32_t id ) const
+        int32 FindRow( uint32 id ) const
 		{
-			int res = -1;
+			int32 res = -1;
 
-			for ( std::size_t r=0; res<0 && r<m_rows.Num(); ++r )
+			for ( int32 r=0; res<0 && r<Rows.Num(); ++r )
 			{
-				if ( m_rows[r].m_id==id )
+				if ( Rows[r].Id==id )
 				{
-					res = (int)r;
+					res = (int32)r;
 				}
 			}
 

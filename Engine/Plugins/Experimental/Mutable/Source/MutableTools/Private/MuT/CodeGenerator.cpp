@@ -304,7 +304,7 @@ namespace mu
         param.m_name = strName;
         if ( param.m_name.size()==0 )
         {
-            param.m_name = pTable->GetName();
+            param.m_name = TCHAR_TO_ANSI(*pTable->GetName());
         }
         param.m_type = PARAMETER_TYPE::T_INT;
         param.m_defaultValue.Set<ParamIntType>(0);
@@ -314,16 +314,16 @@ namespace mu
 			// See if there is a string column. If there is one, we will use it as names for the
 			// options. Only the first string column will be used.
 			int nameCol = -1;
-			int32 cols = pTable->GetPrivate()->m_columns.Num();
+			int32 cols = pTable->GetPrivate()->Columns.Num();
 			for (int32 c = 0; c < cols && nameCol < 0; ++c)
 			{
-				if (pTable->GetPrivate()->m_columns[c].m_type == TCT_STRING)
+				if (pTable->GetPrivate()->Columns[c].Type == ETableColumnType::String)
 				{
 					nameCol = c;
 				}
 			}
 
-			if (pTable->GetPrivate()->m_NoneOption)
+			if (pTable->GetPrivate()->bNoneOption)
 			{
 				FParameterDesc::INT_VALUE_DESC nullValue;
 				nullValue.m_value = -1;
@@ -333,15 +333,15 @@ namespace mu
 			}
 
 			// Add every row
-			int32 rows = pTable->GetPrivate()->m_rows.Num();
+			int32 rows = pTable->GetPrivate()->Rows.Num();
 			for (size_t i = 0; i < rows; ++i)
 			{
 				FParameterDesc::INT_VALUE_DESC value;
-				value.m_value = (int16_t)pTable->GetPrivate()->m_rows[i].m_id;
+				value.m_value = (int16_t)pTable->GetPrivate()->Rows[i].Id;
 
 				if (nameCol > -1)
 				{
-					value.m_name = pTable->GetPrivate()->m_rows[i].m_values[nameCol].m_string;
+					value.m_name = TCHAR_TO_ANSI(*pTable->GetPrivate()->Rows[i].Values[nameCol].String);
 				}
 
 				param.m_possibleValues.Add(value);

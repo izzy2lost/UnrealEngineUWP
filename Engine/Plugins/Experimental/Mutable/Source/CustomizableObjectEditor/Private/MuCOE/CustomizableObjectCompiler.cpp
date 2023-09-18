@@ -862,7 +862,8 @@ void FCustomizableObjectCompiler::UpdatePendingTextureConversion(bool UseTimeLim
 						int32 ColumnIndx = ArrayTextureUnrealToMutableTask[j].TableColumn;
 						int32 RowIndx = ArrayTextureUnrealToMutableTask[j].TableRow;
 
-						ArrayTextureUnrealToMutableTask[j].TableNode->SetCell(ColumnIndx, RowIndx, Image.get());
+						mu::Ptr<mu::ResourceProxyMemory<mu::Image>> ImageProxy = new mu::ResourceProxyMemory<mu::Image>(Image);
+						ArrayTextureUnrealToMutableTask[j].TableNode->SetCell(ColumnIndx, RowIndx, ImageProxy.get());
 
 						ArrayTextureUnrealToMutableTask[j].Texture = nullptr;
 					}

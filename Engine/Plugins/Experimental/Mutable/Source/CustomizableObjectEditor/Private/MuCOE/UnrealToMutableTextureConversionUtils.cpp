@@ -160,6 +160,8 @@ void BlurNormalForComposite(FImage& Image)
 
 TTuple<mu::ImagePtr, EUnrealToMutableConversionError> ConvertTextureUnrealToMutable(UTexture2D* Texture, bool bIsNormalComposite)
 {
+	MUTABLE_CPUPROFILER_SCOPE(ConvertTextureUnrealToMutableTuple);
+
     using namespace UnrealToMutableImageConversion_Interanl;
 
     const int32 LODs = 1;
@@ -192,6 +194,7 @@ TTuple<mu::ImagePtr, EUnrealToMutableConversionError> ConvertTextureUnrealToMuta
     // If any post processes of the image is needed, convert to RGBA32F
     if (bFlipGreenChannel || bIsNormalComposite)
     { 
+		MUTABLE_CPUPROFILER_SCOPE(FlipOrComposite);
 
         TempImage0.CopyTo(TempImage1, ERawImageFormat::RGBA32F, EGammaSpace::Linear);
 
@@ -239,6 +242,8 @@ TTuple<mu::ImagePtr, EUnrealToMutableConversionError> ConvertTextureUnrealToMuta
     // Convert to RGBA8 in place if needed 
     if (MutableCompatibleFormat == ERawImageFormat::BGRA8)
     {
+		MUTABLE_CPUPROFILER_SCOPE(ToRGBA8);
+
         TArrayView64<FColor> ImageDataView = TempImage1.AsBGRA8();
 
         for (FColor& Color : ImageDataView)
@@ -251,32 +256,35 @@ TTuple<mu::ImagePtr, EUnrealToMutableConversionError> ConvertTextureUnrealToMuta
 	switch (MutableCompatibleFormat)
 	{
 	case ERawImageFormat::G8:
+	{
+		MUTABLE_CPUPROFILER_SCOPE(NoConvert);
 		Image = new mu::Image(SizeX, SizeY, LODs, mu::EImageFormat::IF_L_UBYTE, mu::EInitializationType::NotInitialized);
 		FMemory::Memcpy(Image->GetData(), TempImage1.RawData.GetData(), Image->GetDataSize());
 		break;
+	}
 
 	case ERawImageFormat::BGRA8:
 	{
 		// Try to find out if the texture has and actually makes use of the alpha channel
-		bool bHasAlphaChannel = true;
-		FImage SourceImage;
-		if (FImageUtils::GetTexture2DSourceImage(Texture, SourceImage))
-		{
-			bHasAlphaChannel = Texture->AdjustMinAlpha != Texture->AdjustMaxAlpha
-				&& Texture->CompressionSettings != TextureCompressionSettings::TC_Normalmap
-				&& !Texture->CompressionNoAlpha
-				&& (Texture->CompressionForceAlpha
-					|| FImageCore::DetectAlphaChannel(SourceImage));
-		}
+		bool bHasAlphaChannel = 
+			Texture->AdjustMinAlpha != Texture->AdjustMaxAlpha
+			&& Texture->CompressionSettings != TextureCompressionSettings::TC_Normalmap
+			&& !Texture->CompressionNoAlpha
+			&& (Texture->CompressionForceAlpha 
+				||
+				FImageCore::DetectAlphaChannel(TempImage0));
 
 		// TODO: If we ever manage to get Pixel Format data on cook compilation time, remove the code that sets bHasAlphaChannel and just use Texture->HasAlphaChannel() here. Currently unreliable, it always returns EPixelFormat::PF_Unknown when cooking, which returns always "false" to HasAlphaChannel().
 		if (bHasAlphaChannel)
 		{
+			MUTABLE_CPUPROFILER_SCOPE(NoConvert);
 			Image = new mu::Image(SizeX, SizeY, LODs, mu::EImageFormat::IF_RGBA_UBYTE, mu::EInitializationType::NotInitialized);
 			FMemory::Memcpy(Image->GetData(), TempImage1.RawData.GetData(), Image->GetDataSize());
 		}
 		else
 		{
+			MUTABLE_CPUPROFILER_SCOPE(ToRGB);
+
 			Image = new mu::Image(SizeX, SizeY, LODs, mu::EImageFormat::IF_RGB_UBYTE, mu::EInitializationType::NotInitialized);
 			// Manual copy
 			const uint8* DataSource = TempImage1.RawData.GetData();

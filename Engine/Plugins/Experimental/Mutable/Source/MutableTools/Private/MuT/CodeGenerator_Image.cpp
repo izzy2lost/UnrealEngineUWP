@@ -1700,14 +1700,14 @@ namespace mu
 	{
 		const NodeImageTable::Private& node = *InNode->GetPrivate();
 
-		Result.op = GenerateTableSwitch<NodeImageTable::Private, TCT_IMAGE, OP_TYPE::IM_SWITCH>(node,
+		Result.op = GenerateTableSwitch<NodeImageTable::Private, ETableColumnType::Image, OP_TYPE::IM_SWITCH>(node,
 			[this,Options](const NodeImageTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
 			{
-				TABLE_VALUE CellData = node.m_pTable->GetPrivate()->m_rows[row].m_values[colIndex];
+				const FTableValue& CellData = node.m_pTable->GetPrivate()->Rows[row].Values[colIndex];
 				ImagePtrConst pImage = nullptr;
 				NodeImagePtr CellImage = nullptr;
 
-				if (Ptr<ResourceProxy<Image>> pProxyImage = CellData.m_pProxyImage)
+				if (Ptr<ResourceProxy<Image>> pProxyImage = CellData.ProxyImage)
 				{
 					pImage = pProxyImage->Get();
 				}

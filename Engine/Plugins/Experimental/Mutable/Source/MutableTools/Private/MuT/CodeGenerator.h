@@ -310,7 +310,7 @@ namespace mu
         Ptr<ASTOp> GenerateMissingBoolCode(const TCHAR* strWhere, bool value, const void* errorContext );
 
         //!
-		template<class NODE_TABLE_PRIVATE, TABLE_COLUMN_TYPE TYPE, OP_TYPE OPTYPE, typename F>
+		template<class NODE_TABLE_PRIVATE, ETableColumnType TYPE, OP_TYPE OPTYPE, typename F>
 		Ptr<ASTOp> GenerateTableSwitch( const NODE_TABLE_PRIVATE& node, F&& GenerateOption );
 
 
@@ -755,7 +755,7 @@ namespace mu
 
 	
     //---------------------------------------------------------------------------------------------
-    template<class NODE_TABLE_PRIVATE, TABLE_COLUMN_TYPE TYPE, OP_TYPE OPTYPE, typename F>
+    template<class NODE_TABLE_PRIVATE, ETableColumnType TYPE, OP_TYPE OPTYPE, typename F>
     Ptr<ASTOp> CodeGenerator::GenerateTableSwitch
         (
             const NODE_TABLE_PRIVATE& node, F&& GenerateOption
@@ -791,7 +791,7 @@ namespace mu
             return nullptr;
         }
 
-        if ( pTable->GetPrivate()->m_columns[ colIndex ].m_type != TYPE )
+        if ( pTable->GetPrivate()->Columns[ colIndex ].Type != TYPE )
         {
             m_pErrorLog->GetPrivate()->Add("Table column type is not the right type.",
                                            ELMT_ERROR, node.m_errorContext);
@@ -800,20 +800,20 @@ namespace mu
 
         // Create the switch to cover all the options
         Ptr<ASTOp> lastSwitch;
-        std::size_t rows = pTable->GetPrivate()->m_rows.Num();
+        int32 rows = pTable->GetPrivate()->Rows.Num();
 
         Ptr<ASTOpSwitch> SwitchOp = new ASTOpSwitch();
 		SwitchOp->type = OPTYPE;
 		SwitchOp->variable = variable;
 		SwitchOp->def = nullptr;
 
-		for (size_t i = 0; i < rows; ++i)
+		for (int32 i = 0; i < rows; ++i)
         {
-            check( pTable->GetPrivate()->m_rows[i].m_id <= 0xFFFF);
-            auto condition = (uint16)pTable->GetPrivate()->m_rows[i].m_id;
+            check( pTable->GetPrivate()->Rows[i].Id <= 0xFFFF);
+            auto condition = (uint16)pTable->GetPrivate()->Rows[i].Id;
             Ptr<ASTOp> Branch = GenerateOption( node, colIndex, (int)i, m_pErrorLog.get() );
 
-			if (Branch || TYPE != TCT_MESH)
+			if (Branch || TYPE != ETableColumnType::Mesh)
 			{
 				SwitchOp->cases.Add(ASTOpSwitch::FCase(condition, SwitchOp, Branch));
 			}

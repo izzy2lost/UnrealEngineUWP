@@ -130,15 +130,15 @@ namespace mu
         Ptr<const Image> pImage;
 
         std::size_t i = 0;
-        while ( !pImage && i<node.m_pTable->GetPrivate()->m_rows.Num() )
+        while ( !pImage && i<node.m_pTable->GetPrivate()->Rows.Num() )
         {
-			if (node.m_pTable->GetPrivate()->m_rows[i].m_values[colIndex].m_pProxyImage->Get()->IsReference())
+			if (node.m_pTable->GetPrivate()->Rows[i].Values[colIndex].ProxyImage->Get()->IsReference())
 			{
 				// Image References do not need an image desc
 				break;
 			}
 
-            pImage = node.m_pTable->GetPrivate()->m_rows[i].m_values[ colIndex ].m_pProxyImage->Get();
+            pImage = node.m_pTable->GetPrivate()->Rows[i].Values[ colIndex ].ProxyImage->Get();
             ++i;
         }
 

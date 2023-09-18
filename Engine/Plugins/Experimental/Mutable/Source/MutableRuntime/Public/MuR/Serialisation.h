@@ -373,9 +373,9 @@ namespace mu
 	MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(FVector4f);
 	
 	//---------------------------------------------------------------------------------------------
-	void operator<< (OutputArchive& arch, const FString& t);
+	MUTABLERUNTIME_API void operator<<(OutputArchive& arch, const FString& t);
 	
-	void operator>> (InputArchive& arch, FString& t);
+	MUTABLERUNTIME_API void operator>>(InputArchive& arch, FString& t);
 
 
 	//---------------------------------------------------------------------------------------------

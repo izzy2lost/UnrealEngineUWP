@@ -566,7 +566,7 @@ struct FMutableGraphGenerationContext
 		FKey Key;
 
 		/** Generated mesh. */
-		mu::MeshPtr Generated;
+		mu::Ptr<mu::Mesh> Generated;
 	};
 	TArray<FGeneratedMeshData> GeneratedMeshes;
 
@@ -575,7 +575,7 @@ struct FMutableGraphGenerationContext
 	TArray<EMutableMeshConversionFlags> MeshGenerationFlags;
 
 	/** Find a mesh if already generated for a given source and flags. */
-	mu::MeshPtr FindGeneratedMesh(const FGeneratedMeshData::FKey& Key);
+	mu::Ptr<mu::Mesh> FindGeneratedMesh(const FGeneratedMeshData::FKey& Key);
 
 	/** Adds to ParameterNamesMap the node Node to the array of elements with name Name */
 	void AddParameterNameUnique(const UCustomizableObjectNode* Node, FString Name);
@@ -791,7 +791,7 @@ mu::NodeMeshApplyPosePtr CreateNodeMeshApplyPose(FMutableGraphGenerationContext&
 /** Adds Tag to MutableMesh uniquely, returns the index were the tag has been inserted or the index where an intance of the tag has been found */
 int32 AddTagToMutableMeshUnique(mu::Mesh& MutableMesh, const FString& Tag);
 
-void AddSocketTagsToMesh(const USkeletalMesh* SourceMesh, mu::MeshPtr MutableMesh, FMutableGraphGenerationContext& GenerationContext);
+void AddSocketTagsToMesh(const USkeletalMesh* SourceMesh, mu::Ptr<mu::Mesh> MutableMesh, FMutableGraphGenerationContext& GenerationContext);
 
 // Generates the tag for an animation instance
 FString GenerateAnimationInstanceTag(const FString& AnimInstance, const FName& SlotIndex);
