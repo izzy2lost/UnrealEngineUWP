@@ -15,9 +15,14 @@ namespace mu
 	class WhitePixelProcessor
 	{
 	public:
-		inline void ProcessPixel( unsigned char* pBufferPos, float[1] ) const
+		inline void ProcessPixel(uint8* pBufferPos, float[1]) const
 		{
 			pBufferPos[0] = 255;
+		}
+
+		inline void operator()(uint8* BufferPos, float Interpolators[1]) const
+		{
+			ProcessPixel(BufferPos, Interpolators);
 		}
 	};
 
@@ -84,7 +89,8 @@ namespace mu
 				vertices, indices, pImage, sizeX, sizeY, pixelProc
 			] (int32 f)
 			{
-				Triangle(pImage->GetData(), pImage->GetDataSize(),
+				constexpr int32 NumInterpolators = 1;
+				Triangle<NumInterpolators>(pImage->GetData(), pImage->GetDataSize(),
 					sizeX, sizeY,
 					1,
 					vertices[indices[f * 3 + 0]],
@@ -122,7 +128,8 @@ namespace mu
 				// TODO: Select faces outside for loop?
 				if (blocks[indices[f * 3 + 0]] == BlockId)
 				{
-					Triangle(pImage->GetData(), pImage->GetDataSize(),
+					constexpr int32 NumInterpolators = 1;
+					Triangle<NumInterpolators>(pImage->GetData(), pImage->GetDataSize(),
 						sizeX, sizeY,
 						1,
 						vertices[indices[f * 3 + 0]],

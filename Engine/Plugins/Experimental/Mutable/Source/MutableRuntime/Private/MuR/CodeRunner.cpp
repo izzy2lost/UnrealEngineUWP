@@ -4409,9 +4409,9 @@ namespace mu
 				}
 
 				// Allocate memory for the temporary buffers
-				SCRATCH_IMAGE_PROJECT scratch;
-				scratch.vertices.SetNum( pMesh->GetVertexCount() );
-				scratch.culledVertex.SetNum( pMesh->GetVertexCount() );
+				FScratchImageProject Scratch;
+				Scratch.Vertices.SetNum(pMesh->GetVertexCount());
+				Scratch.CulledVertex.SetNum(pMesh->GetVertexCount());
 
 				ESamplingMethod SamplingMethod = Invoke([&]() -> ESamplingMethod
 				{
@@ -4462,7 +4462,7 @@ namespace mu
 							FadeStartRad, FadeEndRad, FMath::Frac(Data.RasterMesh.MipValue),
 							args.LayoutIndex, args.blockId,
 							CropMin, UncroppedSize,
-							&scratch, bUseProjectionVectorImpl);
+							&Scratch, bUseProjectionVectorImpl);
 						break;
 
 					case PROJECTOR_TYPE::WRAPPING:
@@ -4473,18 +4473,19 @@ namespace mu
 							FadeStartRad, FadeEndRad, FMath::Frac(Data.RasterMesh.MipValue),
 							args.LayoutIndex, args.blockId,
 							CropMin, UncroppedSize,
-							&scratch);
+							&Scratch, bUseProjectionVectorImpl);
 						break;
 
 					case PROJECTOR_TYPE::CYLINDRICAL:
 						ImageRasterProjectedCylindrical(pMesh.get(), New.get(),
 							Source.get(), Mask.get(),
 							args.bIsRGBFadingEnabled, args.bIsAlphaFadingEnabled,
-							FadeStartRad, FadeEndRad,
+							SamplingMethod,
+							FadeStartRad, FadeEndRad, FMath::Frac(Data.RasterMesh.MipValue),
 							args.LayoutIndex,
 							Projector.projectionAngle,
 							CropMin, UncroppedSize,
-							&scratch);
+							&Scratch, bUseProjectionVectorImpl);
 						break;
 
 					default:
@@ -4821,8 +4822,8 @@ namespace mu
             break;
         }
     }
-
-    //---------------------------------------------------------------------------------------------
+    
+	//---------------------------------------------------------------------------------------------
     Ptr<RangeIndex> CodeRunner::BuildCurrentOpRangeIndex( const FScheduledOp& item, const Parameters* pParams, const Model* pModel, int32 parameterIndex )
     {
         if (!item.ExecutionIndex)
