@@ -971,6 +971,10 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				ComputeLightGrid(GraphBuilder, bEnableClusteredLocalLights, SortedLightSet);
 			}
 		}
+		else
+		{
+			SetDummyForwardLightUniformBufferOnViews(GraphBuilder, ShaderPlatform, Views);
+		}
 
 		// Notify the FX system that the scene is about to be rendered.
 		if (FXSystem)
@@ -983,10 +987,6 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				GPUSortManager->OnPreRender(GraphBuilder);
 			}
 		}
-	else
-	{
-		SetDummyForwardLightUniformBufferOnViews(GraphBuilder, ShaderPlatform, Views);
-	}
 
 		// Generate the Sky/Atmosphere look up tables
 		const bool bShouldRenderSkyAtmosphere = ShouldRenderSkyAtmosphere(Scene, ViewFamily.EngineShowFlags);
