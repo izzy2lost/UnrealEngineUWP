@@ -87,7 +87,7 @@ public:
 	TARGETINGSYSTEM_API static const FTargetingTaskSet** Find(FTargetingRequestHandle Handle);
 
 	/** The set of tasks that will be used to satisfy a targeting request  */
-	UPROPERTY(EditAnywhere, Instanced, Category="Targeting Task Set")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category="Targeting Task Set")
 	TArray<TObjectPtr<UTargetingTask>> Tasks;
 };
 

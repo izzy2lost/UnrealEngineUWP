@@ -32,11 +32,8 @@ public:
 	/** Get the set of tasks defined for this targeting preset */
 	FORCEINLINE const FTargetingTaskSet* GetTargetingTaskSet() const { return &TargetingTaskSet; }
 	FORCEINLINE FTargetingTaskSet& GetMutableTargetingTaskSet() { return TargetingTaskSet; }
-	UFUNCTION(BlueprintCallable, Category="Targeting")
-	FORCEINLINE TArray<UTargetingTask*> GetTasks() { return TargetingTaskSet.Tasks; }
 
-private:
 	/** The tasks that make up this targeting preset */
-	UPROPERTY(EditAnywhere, Category = "Targeting", meta = (ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Targeting", meta = (ShowOnlyInnerProperties))
 	FTargetingTaskSet TargetingTaskSet;
 };
