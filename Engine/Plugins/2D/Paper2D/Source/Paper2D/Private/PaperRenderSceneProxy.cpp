@@ -177,6 +177,21 @@ FPaperRenderSceneProxy::FPaperRenderSceneProxy(const UPrimitiveComponent* InComp
 	bSpritesUseVertexBufferPath = CVarDrawSpritesUsingPrebuiltVertexBuffers.GetValueOnAnyThread() != 0;
 }
 
+FPaperRenderSceneProxy::~FPaperRenderSceneProxy()
+{
+	for (FSpriteTextureOverrideRenderProxy* Proxy : MaterialTextureOverrideProxies)
+	{
+		if (Proxy != nullptr)
+		{
+			Proxy->ReleasePrimitiveResource();
+		}
+	}
+	MaterialTextureOverrideProxies.Empty();
+
+	VertexBuffer.ReleaseResource();
+	VertexFactory.ReleaseResource();
+}
+
 SIZE_T FPaperRenderSceneProxy::GetTypeHash() const
 {
 	static size_t UniquePointer;
@@ -262,21 +277,6 @@ void FPaperRenderSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RH
 		VertexBuffer.InitResource(RHICmdList);
 		VertexFactory.Init(RHICmdList, &VertexBuffer);
 	}
-}
-
-void FPaperRenderSceneProxy::DestroyRenderThreadResources()
-{
-	for (FSpriteTextureOverrideRenderProxy* Proxy : MaterialTextureOverrideProxies)
-	{
-		if (Proxy != nullptr)
-		{
-			Proxy->ReleasePrimitiveResource();
-		}
-	}
-	MaterialTextureOverrideProxies.Empty();
-
-	VertexBuffer.ReleaseResource();
-	VertexFactory.ReleaseResource();
 }
 
 void FPaperRenderSceneProxy::DebugDrawCollision(const FSceneView* View, int32 ViewIndex, FMeshElementCollector& Collector, bool bDrawSolid) const

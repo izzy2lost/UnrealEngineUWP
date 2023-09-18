@@ -125,6 +125,7 @@ public:
 	SIZE_T GetTypeHash() const override;
 
 	FPaperRenderSceneProxy(const UPrimitiveComponent* InComponent);
+	~FPaperRenderSceneProxy();
 
 	// FPrimitiveSceneProxy interface.
 	virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override;
@@ -133,7 +134,6 @@ public:
 	virtual bool CanBeOccluded() const override;
 	virtual bool IsUsingDistanceCullFade() const override;
 	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
-	virtual void DestroyRenderThreadResources() override;
 	// End of FPrimitiveSceneProxy interface.
 
 	void SetBodySetup_RenderThread(UBodySetup* NewSetup);
