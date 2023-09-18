@@ -368,8 +368,8 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::PrepareProcessQueue(FReplic
 	}
 
 	// Figure out if we have any attachments to objects going out of scope.
-	const FNetBitArray& ScopableObjects = InNetRefHandleManager->GetScopableInternalIndices();
-	const FNetBitArray& PrevScopableObjects = InNetRefHandleManager->GetPrevFrameScopableInternalIndices();
+	const FNetBitArrayView ScopableObjects = InNetRefHandleManager->GetScopableInternalIndicesView();
+	const FNetBitArrayView PrevScopableObjects = InNetRefHandleManager->GetPrevFrameScopableInternalIndicesView();
 	
 	uint32 CurrentEntryIndex = 0U;
 	for (const FNetObjectAttachmentQueueEntry& Entry : MakeArrayView(AttachmentQueue))

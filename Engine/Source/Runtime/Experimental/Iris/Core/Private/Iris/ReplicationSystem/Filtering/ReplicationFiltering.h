@@ -201,7 +201,7 @@ private:
 	bool HasFragmentFilters() const;
 
 	// Helper to update and reset group filter effects if objects are removed from a filter or after a filter status change, returns true if the group filter was changed
-	bool UpdateGroupFilterEffectsForObject(uint32 ObjectIndex, uint32 ConnectionId, const FNetBitArray& ScopableObjects);
+	bool UpdateGroupFilterEffectsForObject(uint32 ObjectIndex, uint32 ConnectionId);
 	bool HasOwnerFilter(uint32 ObjectIndex) const;
 	bool HasConnectionFilter(uint32 ObjectIndex) const;
 

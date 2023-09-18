@@ -241,6 +241,25 @@ public:
 		}
 	}
 
+	void CallPreSendUpdate(float DeltaSeconds)
+	{
+		ReplicationSystemInternal.GetReplicationBridge()->CallPreSendUpdate(DeltaSeconds);
+	}
+
+	void EndPostSendUpdate()
+	{
+		ReplicationSystemInternal.GetChangeMaskCache().ResetCache();
+
+		// Store the state of the previous frames scopable objects
+		ReplicationSystemInternal.GetNetRefHandleManager().SetPrevFrameScopableInternalIndicesToCurrent();
+
+		// Update handles pending tear-off
+		ReplicationSystemInternal.GetReplicationBridge()->UpdateHandlesPendingTearOff();
+
+		// Reset baseline invalidation
+		ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker().PostSendUpdate();
+	}
+
 	void UpdateDirtyObjectList()
 	{
 		ReplicationSystemInternal.GetDirtyNetObjectTracker().UpdateDirtyNetObjects();
@@ -599,11 +618,11 @@ void UReplicationSystem::PreSendUpdate(float DeltaSeconds)
 		// Update world locations. We need this to happen before both filtering and prioritization.
 		Impl->UpdateWorldLocations();
 
-		// Filters to reduce the top-level scoped object list
+		// Update filters, reduce the top-level scoped object list and set each connection's scope.
 		Impl->UpdateFilterPrePoll();
 
 		// Invoke any operations we need to do before copying state data
-		InternalSys.GetReplicationBridge()->CallPreSendUpdate(DeltaSeconds);
+		Impl->CallPreSendUpdate(DeltaSeconds);
 
 		// Finalize the dirty list with objects set dirty during the poll phase
 		Impl->UpdateDirtyListPostPoll();
@@ -659,30 +678,19 @@ void UReplicationSystem::PostSendUpdate()
 
 	IRIS_PROFILER_SCOPE(FReplicationSystem_PostSendUpdate);
 	
-	FReplicationSystemInternal& InternalSys = Impl->ReplicationSystemInternal;
-
 	Impl->ResetObjectStateDirtiness();
 
-	InternalSys.GetChangeMaskCache().ResetCache();
-
-	// Store the state of the previous frames scopable objects
-	InternalSys.GetNetRefHandleManager().SetPrevFrameScopableInternalIndicesToCurrent();
-
-	// Update handles pending tear-off
-	InternalSys.GetReplicationBridge()->UpdateHandlesPendingTearOff();
-
-	// Reset baseline invalidation
-	InternalSys.GetDeltaCompressionBaselineInvalidationTracker().PostSendUpdate();
+	Impl->EndPostSendUpdate();
 
 	if (bAllowObjectReplication)
 	{
 		FDeltaCompressionBaselineManagerPostSendUpdateParams UpdateParams;
-		InternalSys.GetDeltaCompressionBaselineManager().PostSendUpdate(UpdateParams);
+		Impl->ReplicationSystemInternal.GetDeltaCompressionBaselineManager().PostSendUpdate(UpdateParams);
 	}
 
 #if UE_NET_IRIS_CSV_STATS && CSV_PROFILER
 	{
-		UE::Net::FNetSendStats& SendStats = InternalSys.GetSendStats();
+		UE::Net::FNetSendStats& SendStats = Impl->ReplicationSystemInternal.GetSendStats();
 		SendStats.ReportCsvStats();
 	}
 #endif

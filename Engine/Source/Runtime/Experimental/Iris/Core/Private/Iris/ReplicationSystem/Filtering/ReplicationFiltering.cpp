@@ -328,11 +328,11 @@ void FReplicationFiltering::FilterNonRelevantObjects()
 	if (!bCVarRepFilterCullNonRelevant)
 	{
 		// Make every object in the global scope part of the relevant list
-		NetRefHandleManager->GetRelevantObjectsInternalIndices().Copy(MakeNetBitArrayView(NetRefHandleManager->GetScopableInternalIndices()));
+		NetRefHandleManager->GetRelevantObjectsInternalIndices().Copy(NetRefHandleManager->GetScopableInternalIndicesView());
 		return;
 	}
 
-	const uint32* const GlobalScopeData = NetRefHandleManager->GetScopableInternalIndices().GetData();
+	const uint32* const GlobalScopeData = NetRefHandleManager->GetScopableInternalIndicesView().GetData();
 	const uint32* const WithOwnerData = ObjectsWithOwnerFilter.GetData();
 	const uint32* const ConnectionFiltersData = AllConnectionFilteredObjects.GetData();
 	const uint32* const DynamicFilteredData = DynamicFilterEnabledObjects.GetData();
@@ -663,7 +663,7 @@ void FReplicationFiltering::InitNewConnections()
 	auto InitNewConnection = [this](uint32 ConnectionId)
 	{
 		// Copy default scope
-		const FNetBitArray& ScopableInternalIndices = NetRefHandleManager->GetScopableInternalIndices();
+		const FNetBitArrayView ScopableInternalIndices = NetRefHandleManager->GetScopableInternalIndicesView();
 		FPerConnectionInfo& ConnectionInfo = this->ConnectionInfos[ConnectionId];
 
 		ConnectionInfo.ConnectionFilteredObjects.Init(MaxObjectCount);
@@ -778,8 +778,8 @@ void FReplicationFiltering::ResetRemovedConnections()
 
 void FReplicationFiltering::UpdateObjectsInScope()
 {
-	const FNetBitArray& ObjectsInScope = NetRefHandleManager->GetScopableInternalIndices();
-	const FNetBitArray& PrevObjectsInScope = NetRefHandleManager->GetPrevFrameScopableInternalIndices();
+	const FNetBitArrayView ObjectsInScope = NetRefHandleManager->GetScopableInternalIndicesView();
+	const FNetBitArrayView PrevObjectsInScope = NetRefHandleManager->GetPrevFrameScopableInternalIndicesView();
 
 	/**
 	 * It's possible for an object to be created, have some filtering applied and then be removed later the same frame.
@@ -996,7 +996,7 @@ void FReplicationFiltering::UpdateOwnerAndConnectionFiltering()
 		ObjectsWithDirtyOwner.ForAllSetBits(UpdateOwners);
 	}
 
-	const FNetBitArray& GlobalObjectsInScope = NetRefHandleManager->GetScopableInternalIndices();
+	const FNetBitArrayView GlobalObjectsInScope = NetRefHandleManager->GetScopableInternalIndicesView();
 
 	// Update filtering
 	if (bHasDirtyConnectionFilter)
@@ -1078,13 +1078,14 @@ void FReplicationFiltering::UpdateGroupFiltering()
 			const FNetObjectGroup* Group = this->Groups->GetGroupByIndex(FNetObjectGroupHandle::FGroupIndexType(GroupIndex));
 			FPerConnectionInfo* LocalConnectionInfos = this->ConnectionInfos.GetData();
 
-			auto UpdateGroupFilterForConnection = [this, ConnectionStateInfo, Group, LocalConnectionInfos](uint32 ConnectionId)
+			const FNetBitArrayView GlobalScopableObjects = NetRefHandleManager->GetScopableInternalIndicesView();
+
+			auto UpdateGroupFilterForConnection = [this, ConnectionStateInfo, Group, LocalConnectionInfos, GlobalScopableObjects](uint32 ConnectionId)
 			{
 				if (this->GetConnectionFilterStatus(*ConnectionStateInfo, ConnectionId) == ENetFilterStatus::Disallow)
 				{
 					FNetBitArray& GroupFilteredOutObjects = LocalConnectionInfos[ConnectionId].GroupFilteredOutObjects;
 					FNetBitArray& ObjectsInScopeBeforeDynamicFiltering = LocalConnectionInfos[ConnectionId].ObjectsInScopeBeforeDynamicFiltering;
-					const FNetBitArray& GlobalScopableObjects = NetRefHandleManager->GetScopableInternalIndices();
 
 					for (uint32 ObjectIndex : Group->Members)
 					{
@@ -1789,7 +1790,7 @@ bool FReplicationFiltering::GetIsFilteredOutByAnyGroup(uint32 ObjectInternalInde
 	return false;
 }
 
-bool FReplicationFiltering::UpdateGroupFilterEffectsForObject(uint32 ObjectIndex, uint32 ConnectionId, const FNetBitArray& ScopableObjects)
+bool FReplicationFiltering::UpdateGroupFilterEffectsForObject(uint32 ObjectIndex, uint32 ConnectionId)
 {
 	FPerConnectionInfo& ConnectionInfo = ConnectionInfos[ConnectionId];
 	FNetBitArray& GroupFilteredOutObjects = ConnectionInfo.GroupFilteredOutObjects;
@@ -1859,7 +1860,7 @@ void FReplicationFiltering::InternalSetGroupFilterStatus(FNetObjectGroupHandle G
 					FPerConnectionInfo& ConnectionInfo = ConnectionInfos[ConnectionId];
 					FNetBitArray& GroupFilteredOutObjects = ConnectionInfo.GroupFilteredOutObjects;
 					FNetBitArray& ObjectsInScopeBeforeDynamicFiltering = ConnectionInfo.ObjectsInScopeBeforeDynamicFiltering;
-					const FNetBitArray& ScopableObjects = NetRefHandleManager->GetScopableInternalIndices();
+					const FNetBitArrayView ScopableObjects = NetRefHandleManager->GetScopableInternalIndicesView();
 					for (uint32 ObjectIndex : MakeArrayView(Group->Members.GetData(), Group->Members.Num()))
 					{
 						GroupFilteredOutObjects.SetBit(ObjectIndex);
@@ -1896,11 +1897,9 @@ void FReplicationFiltering::InternalSetGroupFilterStatus(FNetObjectGroupHandle G
 					const FNetObjectGroup* Group = Groups->GetGroup(GroupHandle);
 
 					// Update group filter mask for the connection
-					const FNetBitArray& ScopedObjects = NetRefHandleManager->GetScopableInternalIndices();
-			
 					for (uint32 ObjectIndex : MakeArrayView(Group->Members.GetData(), Group->Members.Num()))
 					{
-						UpdateGroupFilterEffectsForObject(ObjectIndex, ConnectionId, ScopedObjects);
+						UpdateGroupFilterEffectsForObject(ObjectIndex, ConnectionId);
 					}
 				}
 			}
@@ -1943,14 +1942,13 @@ void FReplicationFiltering::NotifyObjectRemovedFromGroup(FNetObjectGroupHandle G
 	if (FilterGroups.GetBit(GroupHandle.GetGroupIndex()))
 	{
 		FPerObjectInfo* ConnectionState = GetPerObjectInfo(GroupInfos[GroupHandle.GetGroupIndex()].ConnectionStateIndex);
-		const FNetBitArray& ScopedObjects = NetRefHandleManager->GetScopableInternalIndices();
 
-		auto MarkGroupsDirty = [this, ObjectIndex, GroupHandle, ConnectionState, &ScopedObjects](uint32 ConnectionId)
+		auto MarkGroupsDirty = [this, ObjectIndex, GroupHandle, ConnectionState](uint32 ConnectionId)
 		{
 			if (GetConnectionFilterStatus(*ConnectionState, ConnectionId) == ENetFilterStatus::Disallow)
 			{
 				FNetBitArray& GroupFilteredOutObjects = this->ConnectionInfos[ConnectionId].GroupFilteredOutObjects;
-				UpdateGroupFilterEffectsForObject(ObjectIndex, ConnectionId, ScopedObjects);
+				UpdateGroupFilterEffectsForObject(ObjectIndex, ConnectionId);
 			}
 		};
 
