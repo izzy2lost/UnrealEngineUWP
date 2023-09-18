@@ -70,18 +70,6 @@ UPCGComponent::UPCGComponent(const FObjectInitializer& InObjectInitializer)
 #endif // WITH_EDITOR
 }
 
-UPCGComponent::~UPCGComponent()
-{
-#if WITH_EDITOR
-	// For the special case where a component is part of a reconstruction script (from a BP),
-	// but gets destroyed immediately, we need to force the unregistering. 
-	if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
-	{
-		PCGSubsystem->UnregisterPCGComponent(this, /*bForce=*/true);
-	}
-#endif // WITH_EDITOR
-}
-
 bool UPCGComponent::CanPartition() const
 {
 	// Support/Force partitioning on non-PCG partition actors in WP worlds.
@@ -1055,7 +1043,6 @@ void UPCGComponent::OnUnregister()
 		if (!PCGHelpers::IsRuntimeOrPIE())
 		{
 			Subsystem->CancelGeneration(this);
-			Subsystem->UnregisterPCGComponent(this);
 		}
 	}
 #endif // WITH_EDITOR
@@ -1082,6 +1069,17 @@ void UPCGComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 	{
 		PAOwner->RemoveLocalComponent(this);
 	}
+
+#if WITH_EDITOR
+	// Don't do the unregister in OnUnregister, because we have flows where the component gets Unregistered/Registered without getting destroyed.
+	if (UPCGSubsystem* Subsystem = GetSubsystem())
+	{
+		if (!PCGHelpers::IsRuntimeOrPIE())
+		{
+			Subsystem->UnregisterPCGComponent(this);
+		}
+	}
+#endif // WITH_EDITOR
 
 	Super::OnComponentDestroyed(bDestroyingHierarchy);
 }
@@ -1166,7 +1164,14 @@ void UPCGComponent::BeginDestroy()
 	{
 		GraphInstance->OnGraphChangedDelegate.RemoveAll(this);
 	}
-#endif
+
+	// For the special case where a component is part of a reconstruction script (from a BP),
+	// but gets destroyed immediately, we need to force the unregistering. 
+	if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+	{
+		PCGSubsystem->UnregisterPCGComponent(this, /*bForce=*/true);
+	}
+#endif // WITH_EDITOR
 
 	Super::BeginDestroy();
 }
@@ -1244,10 +1249,14 @@ void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, bool b
 	// In editor, since we've changed the graph, we might have changed the tracked actor tags as well
 	if (!PCGHelpers::IsRuntimeOrPIE())
 	{
-		UpdateTrackingCache();
 		if (UPCGSubsystem* Subsystem = GetSubsystem())
 		{
-			Subsystem->UpdateComponentTracking(this, /*bInShouldDirtyActors=*/ true);
+			// Don't update the tracking if nothing changed for the tracking.
+			TArray<FPCGActorSelectionKey> ChangedKeys;
+			if (UpdateTrackingCache(&ChangedKeys))
+			{
+				Subsystem->UpdateComponentTracking(this, /*bInShouldDirtyActors=*/ true, &ChangedKeys);
+			}
 		}
 
 		DirtyGenerated(bDirtyInputs ? (EPCGComponentDirtyFlag::Actor | EPCGComponentDirtyFlag::Landscape) : EPCGComponentDirtyFlag::None);
@@ -1320,7 +1329,11 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 	{
 		if (UPCGSubsystem* Subsystem = GetSubsystem())
 		{
-			Subsystem->UpdateComponentTracking(this);
+			TArray<FPCGActorSelectionKey> ChangedKeys;
+			if (UpdateTrackingCache(&ChangedKeys))
+			{
+				Subsystem->UpdateComponentTracking(this, /*bInShouldDirtyActors=*/true, &ChangedKeys);
+			}
 		}
 
 		DirtyGenerated(EPCGComponentDirtyFlag::Input);
@@ -1382,20 +1395,29 @@ void UPCGComponent::PostEditUndo()
 	Super::PostEditUndo();
 }
 
-void UPCGComponent::UpdateTrackingCache()
+bool UPCGComponent::UpdateTrackingCache(TArray<FPCGActorSelectionKey>* OptionalChangedKeys)
 {
 	// Without an owner, it probably means we are in a BP template, so no need to setup callbacks
 	if (!GetOwner())
 	{
-		return;
+		return false;
 	}
 
-	CachedTrackedKeysToSettings.Reset();
-	CachedTrackedKeysToCulling.Reset();
+	// Store in a temporary map to detect key changes.
+	TMap<FPCGActorSelectionKey, bool> NewTrackedKeysToCulling;
+
+	int32 FoundKeys = 0;
 
 	if (UPCGGraph* PCGGraph = GetGraph())
 	{
 		CachedTrackedKeysToSettings = PCGGraph->GetTrackedActorKeysToSettings();
+
+		// Also add a key for the landscape, with settings null and always culled, if we should track the landscape
+		if (ShouldTrackLandscape())
+		{
+			FPCGActorSelectionKey LandscapeKey = FPCGActorSelectionKey(ALandscapeProxy::StaticClass());
+			CachedTrackedKeysToSettings.FindOrAdd(LandscapeKey).Emplace(/*Settings*/nullptr, /*bIsCulled*/true);
+		}
 
 		// A tag should be culled, if only all the settings that track this tag should cull.
 		// Note that is only impact the fact that we track (or not) this tag.
@@ -1415,9 +1437,38 @@ void UPCGComponent::UpdateTrackingCache()
 				}
 			}
 
-			CachedTrackedKeysToCulling.Emplace(Key, bShouldCull);
+			NewTrackedKeysToCulling.Emplace(Key, bShouldCull);
+
+			bool* OldCulling = CachedTrackedKeysToCulling.Find(Key);
+			if (OldCulling && (*OldCulling == bShouldCull))
+			{
+				++FoundKeys;
+			}
+
+			// Remove the key from the previous cached map. If nothing is removed, it means it is a new key
+			if ((CachedTrackedKeysToCulling.Remove(Key) == 0) && OptionalChangedKeys)
+			{
+				OptionalChangedKeys->Add(Key);
+			}
+		}
+
+		// At the end, we also have keys that were tracked but no more, so add them at the list of tracked keys
+		if (OptionalChangedKeys)
+		{
+			OptionalChangedKeys->Reserve(OptionalChangedKeys->Num() + CachedTrackedKeysToCulling.Num());
+
+			for (const TPair<FPCGActorSelectionKey, bool>& It : CachedTrackedKeysToCulling)
+			{
+				OptionalChangedKeys->Add(It.Key);
+			}
 		}
 	}
+
+	bool bHasChanged = CachedTrackedKeysToSettings.Num() != FoundKeys;
+
+	CachedTrackedKeysToCulling = MoveTemp(NewTrackedKeysToCulling);
+
+	return bHasChanged;
 }
 
 void UPCGComponent::DirtyGenerated(EPCGComponentDirtyFlag DirtyFlag, const bool bDispatchToLocalComponents)
@@ -2269,7 +2320,7 @@ bool UPCGComponent::DirtyTrackedActor(AActor* InActor, bool bIntersect, const TS
 				}
 
 				const TWeakObjectPtr<const UPCGSettings>& Settings = SettingsAndCulling.Key;
-				if (ensure(Settings.IsValid()))
+				if (Settings.IsValid())
 				{
 					GetSubsystem()->CleanFromCache(Settings->GetElement().Get(), Settings.Get());
 				}

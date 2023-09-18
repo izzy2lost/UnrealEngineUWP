@@ -17,7 +17,7 @@ namespace EEndPlayReason { enum Type : int; }
 
 class APCGPartitionActor;
 struct FPCGContext;
-class UPCGActorAndComponentMapping;
+class FPCGActorAndComponentMapping;
 class UPCGComponent;
 class UPCGGraph;
 class UPCGGraphInterface;
@@ -67,13 +67,12 @@ UCLASS(BlueprintType, ClassGroup = (Procedural), meta = (BlueprintSpawnableCompo
 class PCG_API UPCGComponent : public UActorComponent
 {
 	UPCGComponent(const FObjectInitializer& InObjectInitializer);
-	~UPCGComponent();
 
 	GENERATED_BODY()
 
 	friend class UPCGManagedActors;
 	friend class UPCGSubsystem;
-	friend class UPCGActorAndComponentMapping;
+	friend class FPCGActorAndComponentMapping;
 
 public:
 	/** ~Begin UObject interface */
@@ -349,7 +348,8 @@ private:
 	/** Sets up actor, tracking, landscape and graph callbacks */
 	void SetupCallbacksOnCreation();
 
-	void UpdateTrackingCache();
+	/** Returns true if something changed in the tracking. */
+	bool UpdateTrackingCache(TArray<FPCGActorSelectionKey>* OptionalChangedKeys = nullptr);
 
 	// InOriginatingChangeObject can be null
 	bool DirtyTrackedActor(AActor* InActor, bool bIntersect, const TSet<FName>& InRemovedTags, const UObject* InOriginatingChangeObject);

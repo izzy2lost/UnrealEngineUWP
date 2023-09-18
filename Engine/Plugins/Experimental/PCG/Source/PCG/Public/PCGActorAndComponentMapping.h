@@ -32,12 +32,12 @@ class UPCGSubsystem;
 * - Tracking non partitioned PCG Components that has tracking actors needs.
 * - Tracking actors: Be able to react to actors changes, and potentially dirty/refresh affected components
 */
-class UPCGActorAndComponentMapping
+class FPCGActorAndComponentMapping
 {
 public:
 	friend UPCGSubsystem;
 
-	~UPCGActorAndComponentMapping() = default;
+	~FPCGActorAndComponentMapping() = default;
 	
 	/** Should be called by the subsystem to handle delayed operations. */
 	void Tick();
@@ -51,8 +51,8 @@ public:
 
 	void AddDelayedActors();
 
-	/** Will register/update tracking if a component was registered/updated. */
-	void RegisterOrUpdateTracking(UPCGComponent* InComponent, bool bInShouldDirtyActors);
+	void RegisterTracking(UPCGComponent* InComponent);
+	void UpdateTracking(UPCGComponent* InComponent, bool bInShouldDirtyActors, const TArray<FPCGActorSelectionKey>* OptionalChangedKeys = nullptr);
 #endif // WITH_EDITOR
 
 	/** Register a new PCG Component or update it. Returns true if it was added/updated. Thread safe */
@@ -86,8 +86,8 @@ private:
 	// This class is only meant to be used as part of the PCG Subsytem and owned by it.
 	// So we put constructors private.
 	// We also need this class to be default constructible, since the PCGSubsytem needs to be default constructible.
-	UPCGActorAndComponentMapping() = default;
-	explicit UPCGActorAndComponentMapping(UPCGSubsystem* PCGSubsystem);
+	FPCGActorAndComponentMapping() = default;
+	explicit FPCGActorAndComponentMapping(UPCGSubsystem* PCGSubsystem);
 
 	bool RegisterOrUpdatePartitionedPCGComponent(UPCGComponent* InComponent, bool bDoActorMapping = true);
 	bool RegisterOrUpdateNonPartitionedPCGComponent(UPCGComponent* InComponent);
@@ -113,6 +113,9 @@ private:
 	/** Delete the current mapping between a PCG component and its PCG Partition actors */
 	void DeleteMappingPCGComponentPartitionActor(UPCGComponent* InComponent);
 
+	/** Returns true if a component is registered */
+	bool IsComponentRegistered(const UPCGComponent* InComponent) const;
+
 #if WITH_EDITOR
 	/* Return true if something is still tracked or was just untracked. */
 	bool AddOrUpdateTrackedActor(AActor* InActor);
@@ -136,8 +139,11 @@ private:
 	/** Remap the tracking in case of BP components. */
 	void RemapTracking(const UPCGComponent* InOldComponent, UPCGComponent* InNewComponent);
 
-	/** Unregister tracking when a component is removed. */
+	/** Unregister tracking when a component is removed */
 	void UnregisterTracking(UPCGComponent* InComponent);
+
+	/** Unregister tracking when a component is removed or keys are unregistered */
+	void UnregisterTracking(UPCGComponent* InComponent, const TSet<TObjectKey<AActor>>* OptionalActorsToUntrack, const TSet<FPCGActorSelectionKey>* OptionalKeysToUntrack);
 
 	/** Trigger an update when the actor changed. 
 	* Can specify if the actor has moved to also update components that were at its previous position.

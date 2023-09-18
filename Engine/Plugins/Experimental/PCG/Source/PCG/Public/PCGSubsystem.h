@@ -41,7 +41,7 @@ class PCG_API UPCGSubsystem : public UTickableWorldSubsystem
 	GENERATED_BODY()
 
 public:
-	friend UPCGActorAndComponentMapping;
+	friend FPCGActorAndComponentMapping;
 
 	UPCGSubsystem();
 
@@ -179,7 +179,7 @@ public:
 	void NotifyGraphChanged(UPCGGraph* InGraph);
 
 	/** Update the tracking on a given component. */
-	void UpdateComponentTracking(UPCGComponent* InComponent, bool bInShouldDirtyActors = false) { ActorAndComponentMapping.RegisterOrUpdateTracking(InComponent, bInShouldDirtyActors); }
+	void UpdateComponentTracking(UPCGComponent* InComponent, bool bShouldDirtyActors, const TArray<FPCGActorSelectionKey>* OptionalChangedKeys = nullptr) { ActorAndComponentMapping.UpdateTracking(InComponent, bShouldDirtyActors, OptionalChangedKeys); }
 
 	/** Cleans up the graph cache on an element basis. InSettings is used for debugging and is optional. */
 	void CleanFromCache(const IPCGElement* InElement, const UPCGSettings* InSettings = nullptr);
@@ -224,7 +224,7 @@ private:
 	APCGWorldActor* PCGWorldActor = nullptr;
 	FPCGGraphExecutor* GraphExecutor = nullptr;
 	bool bHasTickedOnce = false;
-	UPCGActorAndComponentMapping ActorAndComponentMapping;
+	FPCGActorAndComponentMapping ActorAndComponentMapping;
 
 #if WITH_EDITOR
 	FCriticalSection PCGWorldActorLock;
