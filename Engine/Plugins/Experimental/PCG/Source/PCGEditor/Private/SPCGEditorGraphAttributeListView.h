@@ -17,13 +17,14 @@ template <typename OptionType> class SComboBox;
 
 class FPCGEditor;
 class FPCGMetadataAttributeBase;
+class FUICommandList;
 class SPCGEditorGraphAttributeListView;
 class UPCGComponent;
-class UPCGPointData;
 class UPCGData;
 class UPCGEditorGraphNodeBase;
 class UPCGMetadata;
 class UPCGParamData;
+class UPCGPointData;
 struct FPCGDataCollection;
 struct FPCGPoint;
 enum class EPCGMetadataTypes : uint8;
@@ -191,10 +192,14 @@ private:
 	void OnFilterTextChanged(const FText& InFilterText);
 	void OnFilterTextCommitted(const FText& NewText, ETextCommit::Type CommitInfo);
 
-	void AddColumn(const UPCGPointData* InPCGPointData, const FName& InColumnId, const FText& ColumnLabel, EHorizontalAlignment HeaderHAlign = HAlign_Center, EHorizontalAlignment CellHAlign = HAlign_Right);
-	void AddIndexColumn();
+	FReply OnListViewKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) const;
+
+	void AddColumn(const UPCGData* InPCGData, const FName& InColumnId, const FText& ColumnLabel);
 	void AddPointDataColumns(const UPCGPointData* InPCGPointData);
 	void AddMetadataColumn(const UPCGData* InPCGData, const FName& InColumnId, EPCGMetadataTypes InMetadataType, const TCHAR* PostFix = nullptr);
+
+	void CopySelectionToClipboard() const;
+	bool CanCopySelectionToClipboard() const;
 
 	/** Pointer back to the PCG editor that owns us */
 	TWeakPtr<FPCGEditor> PCGEditorPtr;
@@ -204,6 +209,8 @@ private:
 
 	/** Cached PCGGraphNode being viewed */
 	TWeakObjectPtr<UPCGEditorGraphNodeBase> PCGEditorGraphNode;
+
+	TSharedPtr<FUICommandList> ListViewCommands;
 
 	TSharedPtr<FTextFilterExpressionEvaluator> TextFilter;
 
