@@ -21,6 +21,7 @@ class APCGPartitionActor;
 class FLandscapeProxyComponentDataChangedParams;
 class UObject;
 class UPCGComponent;
+class UPCGGraph;
 class UPCGSubsystem;
 
 /**
@@ -77,6 +78,9 @@ public:
 
 	/** Return a copy of all the registered components. Thread safe */
 	TSet<UPCGComponent*> GetAllRegisteredComponents() const;
+
+	/** Retrieves a local component using grid size and grid coordinates, returns nullptr if no such component found. */
+	UPCGComponent* GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent);
 
 private:
 	// This class is only meant to be used as part of the PCG Subsytem and owned by it.

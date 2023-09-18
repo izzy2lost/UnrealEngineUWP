@@ -154,6 +154,9 @@ public:
 	/** Traverses the hierarchy associated with the given component and calls InFunc for each overlapping component. */
 	void ForAllOverlappingComponentsInHierarchy(UPCGComponent* InComponent, const TFunction<void(UPCGComponent*)>& InFunc) const;
 
+	/** Retrieves a local component using grid size and grid coordinates, returns nullptr if no such component found. */
+	UPCGComponent* GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent);
+
 	/** True if graph cache debugging is enabled. */
 	bool IsGraphCacheDebuggingEnabled() const;
 

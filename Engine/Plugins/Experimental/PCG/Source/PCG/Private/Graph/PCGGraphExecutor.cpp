@@ -17,6 +17,7 @@
 #include "Graph/PCGGraphCache.h"
 #include "Graph/PCGStackContext.h"
 #include "Grid/PCGPartitionActor.h"
+#include "Helpers/PCGActorHelpers.h"
 #include "Helpers/PCGHelpers.h"
 #include "Metadata/PCGMetadata.h"
 #include "Utils/PCGGraphExecutionLogging.h"
@@ -1464,6 +1465,7 @@ namespace PCGGraphExecutor
 		const UPCGNode* InDownstreamNode,
 		FPCGGridLinkageContext* InContext)
 	{
+		check(InContext && InContext->SourceComponent.IsValid());
 		TRACE_CPUPROFILER_EVENT_SCOPE(PCGGraphExecutor::ExecuteGridLinkage);
 
 		// Non-hierarchical generation - no linkage required - data should just pass through.
@@ -1540,15 +1542,14 @@ namespace PCGGraphExecutor
 			}
 			else
 			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(PCGGraphExecutor::ExecuteGridLinkage::FindComponent);
-
-				Subsystem->ForAllOverlappingComponentsInHierarchy(InContext->SourceComponent.Get(), [FromGridSize, &ComponentWithData](UPCGComponent* InLocalComponent)
+				const APCGWorldActor* PCGWorldActor = Subsystem->GetPCGWorldActor();
+				const AActor* ComponentActor = InContext->SourceComponent->GetOwner();
+				if (PCGWorldActor && ComponentActor)
 				{
-					if (InLocalComponent->GetGenerationGridSize() == FromGridSize)
-					{
-						ComponentWithData = InLocalComponent;
-					}
-				});
+					// Get grid coords using the parent grid (FromGridSize).
+					const FIntVector CellCoords = UPCGActorHelpers::GetCellCoord(ComponentActor->GetActorLocation(), FromGridSize, PCGWorldActor->bUse2DGrid);
+					ComponentWithData = Subsystem->GetLocalComponent(FromGridSize, CellCoords, InContext->SourceComponent->GetOriginalComponent());
+				}
 			}
 
 			if (!ComponentWithData)

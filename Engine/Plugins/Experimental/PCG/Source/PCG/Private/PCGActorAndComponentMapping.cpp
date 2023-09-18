@@ -623,6 +623,30 @@ TSet<UPCGComponent*> UPCGActorAndComponentMapping::GetAllRegisteredComponents() 
 	return Res;
 }
 
+UPCGComponent* UPCGActorAndComponentMapping::GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent)
+{
+	FReadScopeLock ReadLock(PartitionActorsMapLock);
+
+	if (const TMap<FIntVector, TObjectPtr<APCGPartitionActor>>* PartitionActorsOnGrid = PartitionActorsMap.Find(GridSize))
+	{
+		const TObjectPtr<APCGPartitionActor>* PartitionActor = PartitionActorsOnGrid->Find(CellCoords);
+		if (PartitionActor && *PartitionActor)
+		{
+			TArray<UPCGComponent*, TInlineAllocator<4>> PCGComponents;
+			(*PartitionActor)->GetComponents(PCGComponents);
+
+			UPCGComponent** MatchingComponent = PCGComponents.FindByPredicate([InOriginalComponent](UPCGComponent* Comp)
+			{
+				return Comp->GetOriginalComponent() == InOriginalComponent;
+			});
+
+			return MatchingComponent ? *MatchingComponent : nullptr;
+		}
+	}
+
+	return nullptr;
+}
+
 #if WITH_EDITOR
 void UPCGActorAndComponentMapping::RegisterOrUpdateTracking(UPCGComponent* InComponent, bool bInShouldDirtyActors)
 {

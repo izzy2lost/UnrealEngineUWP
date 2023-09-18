@@ -652,6 +652,11 @@ void UPCGSubsystem::ForAllOverlappingComponentsInHierarchy(UPCGComponent* InComp
 	});
 }
 
+UPCGComponent* UPCGSubsystem::GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent)
+{
+	return ActorAndComponentMapping.GetLocalComponent(GridSize, CellCoords, InOriginalComponent);
+}
+
 bool UPCGSubsystem::IsGraphCacheDebuggingEnabled() const
 {
 	return GraphExecutor && GraphExecutor->IsGraphCacheDebuggingEnabled();
