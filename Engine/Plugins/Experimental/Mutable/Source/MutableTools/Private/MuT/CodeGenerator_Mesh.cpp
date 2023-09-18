@@ -804,6 +804,7 @@ class Node;
 			// Setting bReshapeVertices to false the bind op will remove all mesh members except 
 			// PhysicsBodies and the Skeleton.
             OpBind->bReshapeVertices = false;
+            OpBind->bApplyLaplacian = false;
 		    OpBind->bReshapeSkeleton = node.bReshapeSkeleton;
 		    OpBind->BonesToDeform = node.BonesToDeform;
     	    OpBind->bReshapePhysicsVolumes = node.bReshapePhysicsVolumes; 
@@ -1777,42 +1778,44 @@ class Node;
 
 
 	//---------------------------------------------------------------------------------------------
-	void CodeGenerator::GenerateMesh_Reshape(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult, const NodeMeshReshape* reshape)
+	void CodeGenerator::GenerateMesh_Reshape(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult, const NodeMeshReshape* Reshape)
 	{
-		const NodeMeshReshape::Private& node = *reshape->GetPrivate();
+		const NodeMeshReshape::Private& Node = *Reshape->GetPrivate();
 
 		Ptr<ASTOpMeshBindShape> OpBind = new ASTOpMeshBindShape();
 		Ptr<ASTOpMeshApplyShape> OpApply = new ASTOpMeshApplyShape();
 
-		OpBind->bReshapeSkeleton = node.m_reshapeSkeleton;	
-		OpBind->BonesToDeform = node.BonesToDeform;
-    	OpBind->bReshapePhysicsVolumes = node.m_reshapePhysicsVolumes;
-		OpBind->PhysicsToDeform = node.PhysicsToDeform;
-		OpBind->bReshapeVertices = node.m_reshapeVertices;
+		OpBind->bReshapeSkeleton = Node.bReshapeSkeleton;	
+		OpBind->BonesToDeform = Node.BonesToDeform;
+    	OpBind->bReshapePhysicsVolumes = Node.bReshapePhysicsVolumes;
+		OpBind->PhysicsToDeform = Node.PhysicsToDeform;
+		OpBind->bReshapeVertices = Node.bReshapeVertices;
+		OpBind->bApplyLaplacian = Node.bApplyLaplacian;
 		OpBind->BindingMethod = static_cast<uint32>(EShapeBindingMethod::ReshapeClosestProject);
 
-		OpBind->RChannelUsage = node.ColorRChannelUsage;
-		OpBind->GChannelUsage = node.ColorGChannelUsage;
-		OpBind->BChannelUsage = node.ColorBChannelUsage;
-		OpBind->AChannelUsage = node.ColorAChannelUsage;
+		OpBind->RChannelUsage = Node.ColorRChannelUsage;
+		OpBind->GChannelUsage = Node.ColorGChannelUsage;
+		OpBind->BChannelUsage = Node.ColorBChannelUsage;
+		OpBind->AChannelUsage = Node.ColorAChannelUsage;
 
 		OpApply->bReshapeVertices = OpBind->bReshapeVertices;
 		OpApply->bReshapeSkeleton = OpBind->bReshapeSkeleton;
+		OpApply->bApplyLaplacian = OpBind->bApplyLaplacian;
 		OpApply->bReshapePhysicsVolumes = OpBind->bReshapePhysicsVolumes;
 
 		// Base Mesh
-		if (node.m_pBaseMesh)
+		if (Node.BaseMesh)
 		{
 			FMeshGenerationOptions BaseOptions = InOptions;
 			BaseOptions.bUniqueVertexIDs = true;
 
-			GenerateMesh(BaseOptions, OutResult, node.m_pBaseMesh);
+			GenerateMesh(BaseOptions, OutResult, Node.BaseMesh);
 			OpBind->Mesh = OutResult.meshOp;
 		}
 		else
 		{
 			// This argument is required
-			m_pErrorLog->GetPrivate()->Add("Mesh reshape base node is not set.", ELMT_ERROR, node.m_errorContext);
+			m_pErrorLog->GetPrivate()->Add("Mesh reshape base node is not set.", ELMT_ERROR, Node.m_errorContext);
 		}
 
 		// Base and target shapes shouldn't have layouts or modifiers.
@@ -1823,20 +1826,20 @@ class Node;
 		ShapeOptions.ActiveTags.Empty();
 
 		// Base Shape
-		if (node.m_pBaseShape)
+		if (Node.BaseShape)
 		{
 			FMeshGenerationResult baseResult;
-			GenerateMesh(ShapeOptions, baseResult, node.m_pBaseShape);
+			GenerateMesh(ShapeOptions, baseResult, Node.BaseShape);
 			OpBind->Shape = baseResult.meshOp;
 		}
 
 		OpApply->Mesh = OpBind;
 
 		// Target Shape
-		if (node.m_pTargetShape)
+		if (Node.TargetShape)
 		{
 			FMeshGenerationResult targetResult;
-			GenerateMesh(ShapeOptions, targetResult, node.m_pTargetShape);
+			GenerateMesh(ShapeOptions, targetResult, Node.TargetShape);
 			OpApply->Shape = targetResult.meshOp;
 		}
 

@@ -2334,7 +2334,7 @@ namespace mu
 						if (!EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::ReshapeVertices))
 						{
 							Ptr<Mesh> BindMeshNoVertsResult = CloneOrTakeOver(BaseMesh);
-							BindMeshNoVertsResult->m_AdditionalBuffers = MoveTemp(BindMeshResult->m_AdditionalBuffers);
+							BindMeshNoVertsResult->AdditionalBuffers = MoveTemp(BindMeshResult->AdditionalBuffers);
 
 							Release(BaseMesh);
 							Release(BindMeshResult);

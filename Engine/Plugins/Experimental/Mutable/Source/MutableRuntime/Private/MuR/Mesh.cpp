@@ -59,7 +59,7 @@ MeshPtr Mesh::Clone() const
     pResult->m_FaceBuffers = m_FaceBuffers;
 
 	// Clone additional buffers
-	pResult->m_AdditionalBuffers = m_AdditionalBuffers;
+	pResult->AdditionalBuffers = AdditionalBuffers;
 
     // Clone the layouts
 	pResult->m_layouts = m_layouts;
@@ -134,7 +134,7 @@ MeshPtr Mesh::Clone(EMeshCopyFlags Flags) const
 	// Clone additional buffers
 	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithAdditionalBuffers))
 	{
-		pResult->m_AdditionalBuffers = m_AdditionalBuffers;
+		pResult->AdditionalBuffers = AdditionalBuffers;
 	}
 
     // Clone the layout	
@@ -226,7 +226,7 @@ void Mesh::CopyFrom(const Mesh& From, EMeshCopyFlags Flags)
 	// Copy additional buffers
 	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithAdditionalBuffers))
 	{
-		m_AdditionalBuffers = From.m_AdditionalBuffers;
+		AdditionalBuffers = From.AdditionalBuffers;
 	}
 
     // Copy the layout	
@@ -698,7 +698,7 @@ int32 Mesh::GetDataSize() const
 
 	// Should be allocation sizes used for this?
 	int32 AdditionalBuffersSize = 0;
-	for (const TPair<EMeshBufferType, FMeshBufferSet>&  AdditionalBuffer : m_AdditionalBuffers)
+	for (const TPair<EMeshBufferType, FMeshBufferSet>&  AdditionalBuffer : AdditionalBuffers)
 	{
 		AdditionalBuffersSize += AdditionalBuffer.Value.GetDataSize();
 	}
@@ -1275,7 +1275,7 @@ void Mesh::Serialise(OutputArchive& arch) const
 	arch << m_IndexBuffers;
 	arch << m_VertexBuffers;
 	arch << m_FaceBuffers;
-	arch << m_AdditionalBuffers;
+	arch << AdditionalBuffers;
 	arch << m_layouts;
 
 	arch << SkeletonIDs;
@@ -1306,7 +1306,7 @@ void Mesh::Unserialise(InputArchive& arch)
 	arch >> m_IndexBuffers;
 	arch >> m_VertexBuffers;
 	arch >> m_FaceBuffers;
-	arch >> m_AdditionalBuffers;
+	arch >> AdditionalBuffers;
 	arch >> m_layouts;
 
 	if (ver >= 14)

@@ -57,6 +57,9 @@ namespace mu
 
 		/** Also deform the mesh skeleton. Disabled by default. */
 		void SetReshapeSkeleton(bool);
+	
+		/** Apply Laplacian smoothing to the reshaped mesh.  */
+		void SetApplyLaplacian(bool);
 		
 		/** Set vertex color channel usages for Reshape operations. */
 		void SetColorUsages(EVertexColorUsage R, EVertexColorUsage G, EVertexColorUsage B, EVertexColorUsage A);

@@ -343,6 +343,7 @@ namespace mu
         COUNT
 
     };
+
 	enum class EMeshBindShapeFlags : uint32
 	{
 		None				   = 0,
@@ -350,6 +351,7 @@ namespace mu
 		EnableRigidParts       = 1 << 2,
 		ReshapePhysicsVolumes  = 1 << 4,
 		ReshapeVertices		   = 1 << 5,
+		ApplyLaplacian		   = 1 << 6,
 	};
 	ENUM_CLASS_FLAGS(EMeshBindShapeFlags);
 

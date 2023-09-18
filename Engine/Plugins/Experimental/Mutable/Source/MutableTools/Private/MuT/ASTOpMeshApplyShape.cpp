@@ -40,7 +40,8 @@ namespace mu
 			const bool bSameFlags =
 				bReshapePhysicsVolumes == Other->bReshapePhysicsVolumes &&
 				bReshapeSkeleton == Other->bReshapeSkeleton &&
-				bReshapeVertices == Other->bReshapeVertices;
+				bReshapeVertices == Other->bReshapeVertices &&
+				bApplyLaplacian == Other->bApplyLaplacian;
 
 			return Mesh == Other->Mesh && Shape == Other->Shape && bSameFlags;
 		}
@@ -50,12 +51,14 @@ namespace mu
 
 	uint64 ASTOpMeshApplyShape::Hash() const
 	{
-		uint64 res = std::hash<void*>()(Mesh.child().get());
-		hash_combine(res, Shape.child().get());
-		hash_combine(res, bool(bReshapeSkeleton));
-		hash_combine(res, bool(bReshapePhysicsVolumes));
-		hash_combine(res, bool(bReshapeVertices));
-		return res;
+		uint64 Result = std::hash<void*>()(Mesh.child().get());
+		hash_combine(Result, Shape.child().get());
+		hash_combine(Result, bool(bReshapeSkeleton));
+		hash_combine(Result, bool(bReshapePhysicsVolumes));
+		hash_combine(Result, bool(bReshapeVertices));
+		hash_combine(Result, bool(bApplyLaplacian));
+
+		return Result;
 	}
 
 
@@ -71,10 +74,10 @@ namespace mu
 	}
 
 
-	void ASTOpMeshApplyShape::ForEachChild(const TFunctionRef<void(ASTChild&)> f)
+	void ASTOpMeshApplyShape::ForEachChild(const TFunctionRef<void(ASTChild&)> Func)
 	{
-		f(Mesh);
-		f(Shape);
+		Func(Mesh);
+		Func(Shape);
 	}
 
 
@@ -91,6 +94,7 @@ namespace mu
 			EnumAddFlags(BindFlags, bReshapeSkeleton ? EMeshBindShapeFlags::ReshapeSkeleton : NoFlags);
 			EnumAddFlags(BindFlags, bReshapePhysicsVolumes ? EMeshBindShapeFlags::ReshapePhysicsVolumes : NoFlags);
 			EnumAddFlags(BindFlags, bReshapeVertices ? EMeshBindShapeFlags::ReshapeVertices : NoFlags);
+			EnumAddFlags(BindFlags, bApplyLaplacian ? EMeshBindShapeFlags::ApplyLaplacian : NoFlags);
 
 			Args.flags = static_cast<uint32>(BindFlags);
 

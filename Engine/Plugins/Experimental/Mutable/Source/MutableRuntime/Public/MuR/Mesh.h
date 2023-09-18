@@ -105,7 +105,10 @@ namespace mu
 		SkeletonDeformBinding,
 		PhysicsBodyDeformBinding,
 		PhysicsBodyDeformSelection,
-		PhysicsBodyDeformOffsets
+		PhysicsBodyDeformOffsets,
+		MeshLaplacianData,
+		MeshLaplacianOffsets,
+		UniqueVertexMap
 	};
 
 	//!
@@ -370,7 +373,7 @@ namespace mu
 		FMeshBufferSet m_FaceBuffers;
 
 		//! Additional buffers used for temporary or custom data in different algorithms.
-		TArray< TPair<EMeshBufferType, FMeshBufferSet> > m_AdditionalBuffers;
+		TArray<TPair<EMeshBufferType, FMeshBufferSet>> AdditionalBuffers;
 
 		//! This is bit-mask on the STATIC_MESH_FORMATS enumeration, marking what static formats
 		//! are compatible with this one. Usually precalculated at model compilation time.
@@ -482,10 +485,10 @@ namespace mu
 				equal &= (*m_layouts[i]) == (*o.m_layouts[i]);
 			}
 
-			equal &= m_AdditionalBuffers.Num() == o.m_AdditionalBuffers.Num();
-			for (int32 i = 0; equal && i < m_AdditionalBuffers.Num(); ++i)
+			equal &= AdditionalBuffers.Num() == o.AdditionalBuffers.Num();
+			for (int32 i = 0; equal && i < AdditionalBuffers.Num(); ++i)
 			{
-				equal &= m_AdditionalBuffers[i] == o.m_AdditionalBuffers[i];
+				equal &= AdditionalBuffers[i] == o.AdditionalBuffers[i];
 			}
 
 			equal &= BonePoses.Num() == o.BonePoses.Num();

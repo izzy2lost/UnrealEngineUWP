@@ -32,6 +32,7 @@ struct FProgram;
 		uint32 bReshapeSkeleton	      : 1;
 		uint32 bReshapePhysicsVolumes : 1;
 		uint32 bReshapeVertices       : 1;
+		uint32 bApplyLaplacian        : 1;
 
 		EVertexColorUsage RChannelUsage = EVertexColorUsage::None;
 		EVertexColorUsage GChannelUsage = EVertexColorUsage::None;

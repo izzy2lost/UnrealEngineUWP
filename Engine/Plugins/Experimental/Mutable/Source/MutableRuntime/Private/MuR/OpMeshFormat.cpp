@@ -683,7 +683,7 @@ namespace mu
 
 		Result->m_tags = pSource->m_tags;
 
-		Result->m_AdditionalBuffers = pSource->m_AdditionalBuffers;
+		Result->AdditionalBuffers = pSource->AdditionalBuffers;
 
 		Result->BonePoses = pSource->BonePoses;
 		Result->BoneMap = pSource->BoneMap;
