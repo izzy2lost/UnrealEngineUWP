@@ -334,7 +334,7 @@ void FCustomizableObjectInstanceEditor::UpdatePreviewVisibility()
 
 void FCustomizableObjectInstanceEditor::SaveAsset_Execute()
 {
-	if (CustomizableObjectInstance)
+	if (!CustomizableObjectInstance)
 	{
 		return;
 	}
