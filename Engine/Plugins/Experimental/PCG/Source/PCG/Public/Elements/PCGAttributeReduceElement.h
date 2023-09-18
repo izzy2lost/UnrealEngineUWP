@@ -19,8 +19,9 @@ enum class EPCGAttributeReduceOperation
 /**
 * Take all the entries/points from the input and perform a reduce operation on the given attribute/property
 * and output the result into a ParamData.
-* 
-* If the OutputAttributeName is None, we will use the InputSource name
+* Note: Special case for average on Quaternion since they are not trivially averageable. We have a simplistic approximation
+* that would be accurate only if the quaternions are close to each other. The accurate version of the average is using eigenvectors/eigenvalues
+* which is way more complicated and computationally expensive. Quaternion will also be normatilzed at the end. Beware if you are using this average.
 */
 UCLASS(BlueprintType, ClassGroup = (Procedural))
 class PCG_API UPCGAttributeReduceSettings : public UPCGSettings
@@ -38,7 +39,11 @@ public:
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Metadata; }
 	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
+	virtual TArray<FPCGPreConfiguredSettingsInfo> GetPreconfiguredInfo() const override;
+	virtual bool OnlyExposePreconfiguredSettings() const override { return true; }
 #endif
+
+	virtual void ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfiguredInfo) override;
 
 	virtual FName AdditionalTaskName() const override;
 
@@ -46,14 +51,18 @@ public:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	//~End UPCGSettings interface
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FName OutputAttributeName = NAME_None;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	EPCGAttributeReduceOperation Operation = EPCGAttributeReduceOperation::Average;
+
+	/** Option to merge all results into a single attribute set with multiple entries, instead of multiple attribute sets with a single value in them.*/
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bMergeOutputAttributes = false;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()

@@ -15,7 +15,7 @@
 
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMakeTransformTest, FPCGTestBaseClass, "pcg.tests.Metadata.MakeTransform", PCGTestsCommon::TestFlags)
 
-namespace
+namespace PCGMetadataMakeTransformTest
 {
 	const FName Vec3Attribute = TEXT("Vec3");
 	const FName QuatAttribute = TEXT("Quat");
@@ -214,11 +214,11 @@ bool FPCGMetadataMakeTransformTest::RunTest(const FString& Parameters)
 
 	PCGTestsCommon::FTestData TestDataSpatial;
 	PCGTestsCommon::GenerateSettings<UPCGMetadataMakeTransformSettings>(TestDataSpatial);
-	GenerateSpatialData(TestDataSpatial);
+	PCGMetadataMakeTransformTest::GenerateSpatialData(TestDataSpatial);
 
 	PCGTestsCommon::FTestData TestDataParams;
 	PCGTestsCommon::GenerateSettings<UPCGMetadataMakeTransformSettings>(TestDataParams);
-	GenerateParamData(TestDataParams);
+	PCGMetadataMakeTransformTest::GenerateParamData(TestDataParams);
 
 	using PairWhatData = TPair<FString, PCGTestsCommon::FTestData*>;
 
@@ -235,9 +235,9 @@ bool FPCGMetadataMakeTransformTest::RunTest(const FString& Parameters)
 
 		Settings->ForceOutputConnections[0] = true;
 
-		Settings->InputSource1.SetAttributeName(Vec3Attribute);
-		Settings->InputSource2.SetAttributeName(QuatAttribute);
-		Settings->InputSource3.SetAttributeName(Vec3Attribute);
+		Settings->InputSource1.SetAttributeName(PCGMetadataMakeTransformTest::Vec3Attribute);
+		Settings->InputSource2.SetAttributeName(PCGMetadataMakeTransformTest::QuatAttribute);
+		Settings->InputSource3.SetAttributeName(PCGMetadataMakeTransformTest::Vec3Attribute);
 
 		bTestPassed &= ValidateMetadataMakeVector(*TestData);
 	}
