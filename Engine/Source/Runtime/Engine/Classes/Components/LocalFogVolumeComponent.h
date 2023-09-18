@@ -41,7 +41,7 @@ class ULocalFogVolumeComponent : public USceneComponent
 
 	/** Controls the phase `G` parameter, describing the directionality of the scattering within this fog volume. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Fog Shading", meta = (DisplayName = "Scattering Distribution", UIMin = "0.0", UIMax = "0.999", ClampMin = 0.0, ClampMax = 0.999))
-	float FogPhaseG = 0.8f;
+	float FogPhaseG = 0.2f;
 
 	/** Controls the albedo of this fog volume. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Fog Shading", meta = (ClampMin = 0.0, ClampMax = 1.0))

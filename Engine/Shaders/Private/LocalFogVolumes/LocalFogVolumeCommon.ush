@@ -13,9 +13,6 @@ struct FLocalFogVolumeGPUInstanceData
 	float4x4 Transform;
 	float4x4 InvTransform;
 
-	float4x4 InvTranformNoScale;
-	float4x4 TransformScaleOnly;
-
 	float Density;
 	float HeightFalloff;
 	float HeightOffset;
@@ -61,24 +58,21 @@ Texture2DArray<uint>			LFV_LocalFogVolumeTileDataTexture;
 FLocalFogVolumeGPUInstanceData GetLocalFogVolumeGPUInstanceData(uint Index)
 {
 	FLocalFogVolumeGPUInstanceData Data;
-	uint Offset = Index * 19;
+	uint Offset = Index * 11;
 
 	Data.Transform			= float4x4(LFVInsts[Offset + 0 ], LFVInsts[Offset + 1 ], LFVInsts[Offset + 2 ], LFVInsts[Offset + 3 ]);
 	Data.InvTransform		= float4x4(LFVInsts[Offset + 4 ], LFVInsts[Offset + 5 ], LFVInsts[Offset + 6 ], LFVInsts[Offset + 7 ]);
 
-	Data.InvTranformNoScale = float4x4(LFVInsts[Offset + 8 ], LFVInsts[Offset + 9 ], LFVInsts[Offset + 10], LFVInsts[Offset + 11]);
-	Data.TransformScaleOnly = float4x4(LFVInsts[Offset + 12], LFVInsts[Offset + 13], LFVInsts[Offset + 14], LFVInsts[Offset + 15]);
-
-	float4 Temp0 = LFVInsts[Offset + 16];
+	float4 Temp0 = LFVInsts[Offset + 8];
 	Data.Density = Temp0.x;
 	Data.HeightFalloff = Temp0.y;
 	Data.HeightOffset = Temp0.z;
 
-	float4 Temp1 = LFVInsts[Offset + 17];
+	float4 Temp1 = LFVInsts[Offset + 9];
 	Data.Albedo = Temp1.xyz;
 	Data.PhaseG = Temp1.w;
 
-	float4 Temp2 = LFVInsts[Offset + 18];
+	float4 Temp2 = LFVInsts[Offset + 10];
 	Data.Emissive = Temp2.xyz;
 	Data.FogMode = Temp2.w;
 
@@ -235,11 +229,11 @@ float3 LocalFogVolumeEvaluateInScattering(in FLocalFogVolumeGPUInstanceData FogI
 	// Accumulate directional lights if needed
 	if (View.AtmosphereLightIlluminanceOnGroundPostTransmittance[0].a > 0.0f)
 	{
-		InScattering += View.AtmosphereLightIlluminanceOnGroundPostTransmittance[0].rgb * SchlickPhase(-FogInstance.PhaseG, dot(RayDirWorld, View.AtmosphereLightDirection[0].xyz));
+		InScattering += View.AtmosphereLightIlluminanceOnGroundPostTransmittance[0].rgb * HenyeyGreensteinPhase(-FogInstance.PhaseG, dot(RayDirWorld, View.AtmosphereLightDirection[0].xyz));
 	}
 	if (View.AtmosphereLightIlluminanceOnGroundPostTransmittance[1].a > 0.0f)
 	{
-		InScattering += View.AtmosphereLightIlluminanceOnGroundPostTransmittance[0].rgb * SchlickPhase(-FogInstance.PhaseG, dot(RayDirWorld, View.AtmosphereLightDirection[1].xyz));
+		InScattering += View.AtmosphereLightIlluminanceOnGroundPostTransmittance[0].rgb * HenyeyGreensteinPhase(-FogInstance.PhaseG, dot(RayDirWorld, View.AtmosphereLightDirection[1].xyz));
 	}
 
 	// Weight by user control
@@ -265,8 +259,6 @@ float3 LocalFogVolumeEvaluateInScattering(in FLocalFogVolumeGPUInstanceData FogI
 #ifndef LFV_CAN_CLIP
 #define LFV_CAN_CLIP 0
 #endif
-
-#define LHFV_FOLLOWS_ROTATIONS 1
 
 // Returns color transmittance
 float4 GetLFVInstanceContribution(
@@ -294,20 +286,11 @@ float4 GetLFVInstanceContribution(
 
 		float3 P0U = RayPosU + max(0.0, TsU.x) * RayDirU;
 		float3 P1U = RayPosU + max(0.0, TsU.y) * RayDirU;
-#if LHFV_FOLLOWS_ROTATIONS
-		// Computations are all done transformed with Space = local fog volume but ignoring scaling.
-		float3 P0Space = mul(float4(P0U, 1.0), FogInstance.TransformScaleOnly).xyz;
-		float3 P1Space = mul(float4(P1U, 1.0), FogInstance.TransformScaleOnly).xyz;
-		float3 CamRayOriginSpace = mul(float4(CamRayWorldOrigin, 1.0), FogInstance.InvTranformNoScale).xyz;
-		float3 CamRayDirSpace = mul(float4(CamRayWorldDir, 0.0), FogInstance.InvTranformNoScale).xyz;	// No scale so no need for a special InverseTranspose matrix.
-		CamRayDirSpace = normalize(CamRayDirSpace);
-#else
 		// Computations are all done with Space = world space
 		float3 P0Space = mul(float4(P0U, 1.0), FogInstance.Transform).xyz;
 		float3 P1Space = mul(float4(P1U, 1.0), FogInstance.Transform).xyz;
 		float3 CamRayOriginSpace = CamRayWorldOrigin;
 		float3 CamRayDirSpace = CamRayWorldDir;
-#endif
 
 		float Length0 = length(P0Space - CamRayOriginSpace);
 		float Length1 = length(P1Space - CamRayOriginSpace);

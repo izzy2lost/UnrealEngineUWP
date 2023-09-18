@@ -41,9 +41,6 @@ public:
 	FMatrix44f Transform;
 	FMatrix44f InvTransform;
 
-	FMatrix44f InvTranformNoScale;
-	FMatrix44f TransformScaleOnly;
-
 	float Density;
 	float HeightFalloff;
 	float HeightOffset;
