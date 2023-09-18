@@ -47,6 +47,7 @@
 #include "Materials/MaterialExpressionCrossProduct.h"
 #include "Materials/MaterialExpressionCurveAtlasRowParameter.h"
 #include "Materials/MaterialExpressionCustom.h"
+#include "Materials/MaterialExpressionDataDrivenShaderPlatformInfoSwitch.h"
 #include "Materials/MaterialExpressionDDX.h"
 #include "Materials/MaterialExpressionDDY.h"
 #include "Materials/MaterialExpressionDecalColor.h"
@@ -73,6 +74,7 @@
 #include "Materials/MaterialExpressionFeatureLevelSwitch.h"
 #include "Materials/MaterialExpressionFloor.h"
 #include "Materials/MaterialExpressionFmod.h"
+#include "Materials/MaterialExpressionAtmosphericFogColor.h"
 #include "Materials/MaterialExpressionFontSample.h"
 #include "Materials/MaterialExpressionForLoop.h"
 #include "Materials/MaterialExpressionFrac.h"
@@ -101,6 +103,7 @@
 #include "Materials/MaterialExpressionMin.h"
 #include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialExpressionNamedReroute.h"
+#include "Materials/MaterialExpressionNaniteReplace.h"
 #include "Materials/MaterialExpressionNoise.h"
 #include "Materials/MaterialExpressionNormalize.h"
 #include "Materials/MaterialExpressionObjectBounds.h"
@@ -121,6 +124,7 @@
 #include "Materials/MaterialExpressionParticleSpeed.h"
 #include "Materials/MaterialExpressionParticleSubUVProperties.h"
 #include "Materials/MaterialExpressionPathTracingQualitySwitch.h"
+#include "Materials/MaterialExpressionPathTracingRayTypeSwitch.h"
 #include "Materials/MaterialExpressionPerInstanceCustomData.h"
 #include "Materials/MaterialExpressionPerInstanceFadeAmount.h"
 #include "Materials/MaterialExpressionPerInstanceRandom.h"
@@ -166,6 +170,7 @@
 #include "Materials/MaterialExpressionStaticSwitchParameter.h"
 #include "Materials/MaterialExpressionStep.h"
 #include "Materials/MaterialExpressionSubtract.h"
+#include "Materials/MaterialExpressionSwitch.h"
 #include "Materials/MaterialExpressionTangent.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
 #include "Materials/MaterialExpressionTextureObject.h"
@@ -348,12 +353,95 @@ bool UMaterialExpressionFeatureLevelSwitch::GenerateHLSLExpression(FMaterialHLSL
 	return true;
 }
 
+bool UMaterialExpressionDataDrivenShaderPlatformInfoSwitch::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	if (bContainsInvalidProperty || DDSPIPropertyNames.IsEmpty())
+	{
+		return Generator.Error(TEXT("DataDrivenShaderPlatformInfoSwitch with invalid condition"));
+	}
+
+	bool bAllNamesAreNone = true;
+	TArray<Material::DataDrivenShaderPlatformData> Table;
+
+	// we don't want any padding in DataDrivenShaderPlatformData due to argument hashing, so assert that the size is what we expect and there is no extra
+	static_assert(sizeof(Material::DataDrivenShaderPlatformData) == sizeof(FName) + sizeof(int32));
+
+	for (const FDataDrivenShaderPlatformInfoInput& DDSPIInput : DDSPIPropertyNames)
+	{
+		if (DDSPIInput.InputName == NAME_None)
+		{
+			continue;
+		}
+
+		Table.Add({ DDSPIInput.InputName, DDSPIInput.PropertyCondition == EDataDrivenShaderPlatformInfoCondition::COND_True ? 1 : 0 });
+
+		bAllNamesAreNone = false;
+		break;
+	}
+
+	if (bAllNamesAreNone)
+	{
+		return Generator.Error(TEXT("DataDrivenShaderPlatformInfoSwitch with empty condition"));
+	}
+
+	const FExpression* TrueExpression = InputTrue.TryAcquireHLSLExpression(Generator, Scope);
+	const FExpression* FalseExpression = InputFalse.TryAcquireHLSLExpression(Generator, Scope);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionDataDrivenShaderPlatformInfoSwitch>(TrueExpression, FalseExpression, Table);
+	return OutExpression != nullptr;
+}
+
+bool UMaterialExpressionPathTracingRayTypeSwitch::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	if (!Main.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing PathTracingRayTypeSwitch input 'Main'"));
+	}
+
+	const FExpression* MainExpr = Main.AcquireHLSLExpression(Generator, Scope);
+	const FExpression* ShadowExpr = Shadow.TryAcquireHLSLExpression(Generator, Scope);
+	const FExpression* IndirectDiffuseExpr = IndirectDiffuse.TryAcquireHLSLExpression(Generator, Scope);
+	const FExpression* IndirectSpecExpr = IndirectSpecular.TryAcquireHLSLExpression(Generator, Scope);
+	const FExpression* IndirectVolumeExpr = IndirectVolume.TryAcquireHLSLExpression(Generator, Scope);
+
+	const FExpression* TmpA = MainExpr;
+	if (ShadowExpr)
+	{
+		const FExpression* ShadowCond = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Bool1, TEXT("GetPathTracingIsShadow()"));
+		TmpA = Generator.GetTree().NewExpression<FExpressionSelect>(ShadowCond, ShadowExpr, MainExpr);
+	}
+
+	const FExpression* TmpB = IndirectDiffuseExpr ? IndirectDiffuseExpr : MainExpr;
+	if (TmpB != TmpA)
+	{
+		const FExpression* IndirectDiffuseCond = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Bool1, TEXT("GetPathTracingIsIndirectDiffuse()"));
+		TmpB = Generator.GetTree().NewExpression<FExpressionSelect>(IndirectDiffuseCond, TmpB, TmpA);
+	}
+
+	const FExpression* TmpC = IndirectSpecExpr ? IndirectSpecExpr : MainExpr;
+	if (TmpC != TmpB)
+	{
+		const FExpression* IndirectSpecCond = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Bool1, TEXT("GetPathTracingIsIndirectSpecular()"));
+		TmpC = Generator.GetTree().NewExpression<FExpressionSelect>(IndirectSpecCond, TmpC, TmpB);
+	}
+
+	OutExpression = IndirectVolumeExpr ? IndirectVolumeExpr : MainExpr;
+	if (OutExpression != TmpC)
+	{
+		const FExpression* IndirectVolumeCond = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Bool1, TEXT("GetPathTracingIsIndirectVolume()"));
+		OutExpression = Generator.GetTree().NewExpression<FExpressionSelect>(IndirectVolumeCond, OutExpression, TmpC);
+	}
+
+	return OutExpression != nullptr;
+}
+
 bool UMaterialExpressionShadingPathSwitch::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	using namespace UE::HLSLTree;
 	if (!Default.GetTracedInput().Expression)
 	{
-		return Generator.Error(TEXT("Missing default input"));
+		return Generator.Error(TEXT("Missing Default input"));
 	}
 
 	const FExpression* ExpressionDefault = nullptr;
@@ -379,6 +467,25 @@ bool UMaterialExpressionShadingPathSwitch::GenerateHLSLExpression(FMaterialHLSLG
 
 	OutExpression = Generator.GetTree().NewExpression<FExpressionShadingPathSwitch>(ExpressionInputs);
 	return true;
+}
+
+bool UMaterialExpressionNaniteReplace::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	if (!Default.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing Default input"));
+	}
+	if (!Nanite.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing Nanite input"));
+	}
+
+	const FExpression* DefaultExpr = Default.AcquireHLSLExpression(Generator, Scope);
+	const FExpression* NaniteExpr = Nanite.AcquireHLSLExpression(Generator, Scope);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionNaniteReplaceFunction>(DefaultExpr,NaniteExpr);
+
+	return OutExpression != nullptr;
 }
 
 bool UMaterialExpressionQualitySwitch::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
@@ -500,6 +607,14 @@ bool UMaterialExpressionDistanceFieldsRenderingSwitch::GenerateHLSLExpression(FM
 		OutExpression = Generator.GetTree().NewExpression<FExpressionDistanceFieldsRenderingSwitch>(ExpressionInputs);
 		return true;
 	}
+}
+
+bool UMaterialExpressionAtmosphericFogColor::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	const FExpression* WorldPositionExpression = WorldPosition.AcquireHLSLExpressionOrExternalInput(Generator, Scope, Material::EExternalInput::WorldPosition);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionAtmosphericFogColorFunction>(WorldPositionExpression);
+	return true;
 }
 
 bool UMaterialExpressionShadowReplace::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
@@ -2005,10 +2120,11 @@ bool UMaterialExpressionPathTracingQualitySwitch::GenerateHLSLExpression(FMateri
 
 bool UMaterialExpressionDepthOfFieldFunction::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
-	//const FExpression* ExpressionDepth = Depth.AcquireHLSLExpression(Generator, Scope);
-	//FunctionValue
-	//MaterialExpressionDepthOfFieldFunction(%s, %d)
-	return Generator.Error(TEXT("UMaterialExpressionDepthOfFieldFunction::GenerateHLSLExpression unimplemented"));
+	using namespace UE::HLSLTree;
+
+	const FExpression* DepthExpression = Depth.AcquireHLSLExpressionOrExternalInput(Generator, Scope, Material::EExternalInput::PixelDepth);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionDepthOfFieldFunction>(DepthExpression, FunctionValue);
+	return OutExpression != nullptr;
 }
 
 static bool GenerateHLSLExpressionTrig(FMaterialHLSLGenerator& Generator,

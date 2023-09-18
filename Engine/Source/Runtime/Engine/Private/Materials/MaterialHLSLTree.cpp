@@ -2029,6 +2029,164 @@ void FExpressionDistanceFieldApproxAO::EmitValueShader(FEmitContext& Context, FE
 		EmitMaxDistance);
 }
 
+bool FExpressionDepthOfFieldFunction::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	const FPreparedType& DepthType = Context.PrepareExpression(DepthExpression, Scope, Shader::EValueType::Float1);
+	if (DepthType.IsVoid())
+	{
+		return false;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float1);
+}
+
+void FExpressionDepthOfFieldFunction::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitDepth = DepthExpression->GetValueShader(Context, Scope, Shader::EValueType::Float1);
+
+	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float1,
+		TEXT("MaterialExpressionDepthOfFieldFunction(%, %)"),
+		EmitDepth,
+		FunctionValue);
+}
+
+bool FExpressionNaniteReplaceFunction::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	const FPreparedType& DefaultType = Context.PrepareExpression(DefaultExpression, Scope, RequestedType);
+	if (DefaultType.IsVoid())
+	{
+		return false;
+	}
+
+	// skip preparing if platform doesn't support Nanite
+	if (FDataDrivenShaderPlatformInfo::GetSupportsNanite(Context.TargetParameters.ShaderPlatform) || Context.TargetParameters.IsGenericTarget())
+	{
+		const FPreparedType& NaniteType = Context.PrepareExpression(NaniteExpression, Scope, RequestedType);
+		if (NaniteType.IsVoid())
+		{
+			return false;
+		}
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, RequestedType.Type);
+}
+
+void FExpressionNaniteReplaceFunction::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	const Shader::FType LocalType = Context.GetResultType(this, RequestedType);
+	FEmitShaderExpression* DefaultValue = DefaultExpression->GetValueShader(Context, Scope, RequestedType, LocalType);
+
+	if (FDataDrivenShaderPlatformInfo::GetSupportsNanite(Context.TargetParameters.ShaderPlatform))
+	{
+		FEmitShaderExpression* NaniteValue = NaniteExpression->GetValueShader(Context, Scope, RequestedType, LocalType);
+		OutResult.Code = Context.EmitExpression(Scope, LocalType, TEXT("(GetNaniteReplaceState() ? % : %)"), NaniteValue, DefaultValue);
+	}
+	else
+	{
+		OutResult.Code = Context.EmitExpression(Scope, LocalType, TEXT("%"), DefaultValue);
+	}
+}
+
+void FExpressionDataDrivenShaderPlatformInfoSwitch::CheckDataTable(FEmitContext& Context, bool& bFalse, bool& bTrue) const
+{
+	// When generic, all values are live
+	if (Context.TargetParameters.IsGenericTarget())
+	{
+		bFalse = true;
+		bTrue = true;
+		return;
+	}
+
+	// Otherwise only one is
+	const EShaderPlatform ShaderPlatform = Context.TargetParameters.ShaderPlatform;
+	check(FDataDrivenShaderPlatformInfo::IsValid(ShaderPlatform));
+
+	bool bCheck = true;
+	for (const DataDrivenShaderPlatformData& Data : DataTable)
+	{
+		// Preprocessed this in GenerateHLSLExpression so there are no empty slots
+		check(Data.PlatformName != NAME_None);
+
+		bool bCheckProperty = FGenericDataDrivenShaderPlatformInfo::PropertyToShaderPlatformFunctionMap[Data.PlatformName.ToString()](ShaderPlatform);
+		if (Data.Condition)
+		{
+			bCheck &= bCheckProperty;
+		}
+		else
+		{
+			bCheck &= !bCheckProperty;
+		}
+	}
+
+	bTrue = bCheck;
+	bFalse = !bCheck;
+}
+
+bool FExpressionDataDrivenShaderPlatformInfoSwitch::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	bool bFalse, bTrue;
+	CheckDataTable(Context, bFalse, bTrue);
+
+	if (bTrue)
+	{
+		const FPreparedType& TrueType = Context.PrepareExpression(TrueExpression, Scope, RequestedType);
+		if (TrueType.IsVoid())
+		{
+			return false;
+		}
+	}
+
+	if (bFalse)
+	{
+		const FPreparedType& FalseType = Context.PrepareExpression(FalseExpression, Scope, RequestedType);
+		if (FalseType.IsVoid())
+		{
+			return false;
+		}
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, RequestedType.Type);
+}
+
+void FExpressionDataDrivenShaderPlatformInfoSwitch::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	bool bFalse, bTrue;
+	CheckDataTable(Context, bFalse, bTrue);
+
+	// Here there an be only one
+	check(bFalse != bTrue);
+
+	if (bTrue)
+	{
+		FEmitShaderExpression* EmitTrue = TrueExpression->GetValueShader(Context, Scope, RequestedType.Type);
+		OutResult.Code = Context.EmitExpression(Scope, RequestedType.Type, TEXT("%"), EmitTrue);
+	}
+	else
+	{
+		FEmitShaderExpression* EmitFalse = FalseExpression->GetValueShader(Context, Scope, RequestedType.Type);
+		OutResult.Code = Context.EmitExpression(Scope, RequestedType.Type, TEXT("%"), EmitFalse);
+	}
+}
+
+bool FExpressionAtmosphericFogColorFunction::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	const FPreparedType& PositionType = Context.PrepareExpression(PositionExpression, Scope, Shader::EValueType::Double3);
+	if (PositionType.IsVoid())
+	{
+		return false;
+	}
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float4);
+}
+
+void FExpressionAtmosphericFogColorFunction::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitPosition = PositionExpression->GetValueShader(Context, Scope, Shader::EValueType::Double3);
+
+	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float4,
+		TEXT("MaterialExpressionSkyAtmosphereAerialPerspective(Parameters, %)"),
+		EmitPosition);
+}
+
 int32 FEmitData::FindInterpolatorIndex(const FExpression* Expression) const
 {
 	for (int32 Index = 0; Index < VertexInterpolators.Num(); ++Index)

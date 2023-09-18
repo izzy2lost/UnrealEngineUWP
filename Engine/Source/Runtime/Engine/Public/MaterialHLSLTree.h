@@ -332,6 +332,77 @@ public:
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
 
+class FExpressionDepthOfFieldFunction : public FExpression
+{
+public:
+	const FExpression* DepthExpression;
+	int FunctionValue;
+
+	FExpressionDepthOfFieldFunction(const FExpression* InDepthExpression, int InFunctionValue)
+		: DepthExpression(InDepthExpression)
+		, FunctionValue(InFunctionValue)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+struct DataDrivenShaderPlatformData
+{
+	FName PlatformName;
+	int32 Condition;		// intentional size, this struct is hashed so do not want any padding
+};
+
+class FExpressionDataDrivenShaderPlatformInfoSwitch : public FExpression
+{
+public:
+	const FExpression* TrueExpression;
+	const FExpression* FalseExpression;
+
+	TArray<DataDrivenShaderPlatformData> DataTable;
+
+	FExpressionDataDrivenShaderPlatformInfoSwitch(
+		const FExpression* InTrueExpression,
+		const FExpression* InFalseExpression,
+		TArray<DataDrivenShaderPlatformData>& InDataTable)
+		: TrueExpression(InTrueExpression)
+		, FalseExpression(InFalseExpression)
+		, DataTable(InDataTable)
+	{}
+
+	void CheckDataTable(FEmitContext& Context, bool& bFalse, bool& bTrue) const;
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionNaniteReplaceFunction : public FExpression
+{
+public:
+	const FExpression* DefaultExpression;
+	const FExpression* NaniteExpression;
+
+	FExpressionNaniteReplaceFunction(const FExpression* InDefaultExpression, const FExpression* InNaniteExpression)
+		: DefaultExpression(InDefaultExpression)
+		, NaniteExpression(InNaniteExpression)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionAtmosphericFogColorFunction : public FExpression
+{
+public:
+	const FExpression* PositionExpression;
+
+	FExpressionAtmosphericFogColorFunction(const FExpression* InPositionExpression)
+		: PositionExpression(InPositionExpression)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
 class FExpressionTextureSample : public FExpression
 {
 public:
