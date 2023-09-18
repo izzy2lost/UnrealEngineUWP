@@ -10,6 +10,7 @@
 #include "EOSSharedTypes.h"
 #include "IPAddress.h"
 #include "OnlineSubsystem.h"
+#include "OnlineSubsystemEOS.h"
 #include "OnlineSubsystemTypes.h"
 #include "OnlineSubsystemEOSPackage.h" // IWYU pragma: keep
 
