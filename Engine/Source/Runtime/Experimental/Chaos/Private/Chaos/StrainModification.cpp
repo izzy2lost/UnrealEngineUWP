@@ -72,7 +72,7 @@ static void ForEachRootChildParticle(const Chaos::FStrainedProxyAndRoot& ProxyAn
 			for (int32 RestChildIdx : *RestChildren)
 			{
 				Chaos::FPBDRigidClusteredParticleHandle* ChildHandle = ProxyGC->GetSolverParticleHandles()[RestChildIdx];
-				if (ChildHandle->Parent() == nullptr) { continue; }
+				if ((ChildHandle == nullptr) || (ChildHandle->Parent() == nullptr)) { continue; }
 
 				Func(ChildHandle);
 			}
