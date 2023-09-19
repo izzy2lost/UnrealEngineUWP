@@ -75,7 +75,7 @@ inline bool TryGetDefaultTargetName(const FString& ProjectFile, EBuildTargetType
 	const TArray<FTargetInfo>& Targets = FDesktopPlatformModule::Get()->GetTargetsForProject(ProjectFile);
 	for (const FTargetInfo& Target : Targets)
 	{
-		if (Target.Type == TargetType)
+		if (Target.Type == TargetType && Target.DefaultTarget.Get(true))
 		{
 			OutTargetName = Target.Name;
 			return true;
