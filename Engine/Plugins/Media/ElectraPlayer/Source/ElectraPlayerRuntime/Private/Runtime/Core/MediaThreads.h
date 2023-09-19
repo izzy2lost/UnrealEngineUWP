@@ -16,6 +16,8 @@
 #include "Containers/UnrealString.h"
 #include "Containers/StringConv.h"
 #include "Templates/SharedPointer.h"
+#include "Templates/Function.h"
+
 
 /**
  *
@@ -40,6 +42,10 @@ public:
 		uint32				StackSize;
 		int32				CoreAffinity;
 	};
+
+	static void Startup();
+	static void Shutdown();
+	static void EnqueueTerminationFunction(TFunction<void()>&& InFunctionToExecuteOnTerminationThread);
 
 	static FMediaRunnable* Create(int32 CoreAffinityMask, EThreadPriority Priority, uint32 StackSize, const FString& InThreadName);
 	static void Destroy(FMediaRunnable* Thread);

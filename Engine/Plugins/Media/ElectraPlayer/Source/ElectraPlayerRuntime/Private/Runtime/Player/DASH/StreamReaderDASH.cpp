@@ -188,13 +188,14 @@ UEMediaError FStreamReaderDASH::Create(IPlayerSessionServices* InPlayerSessionSe
 		StreamHandlers[i].bSilentCancellation  = false;
 		StreamHandlers[i].bHasErrored   	   = false;
 		StreamHandlers[i].IsIdleSignal.Signal();
-
+#if 0
+	// Disabled because the thread pool is timing sensitive and does not really allow for jobs like this.
 		// Subtitles get fetched running on the thread pool.
 		if (i == 2)
 		{
 			StreamHandlers[i].bRunOnThreadPool = true;
 		}
-
+#endif
 		StreamHandlers[i].ThreadSetName(i==0 ? "ElectraPlayer::DASH Video" : 
 										i==1 ? "ElectraPlayer::DASH Audio" :
 											   "ElectraPlayer::DASH Subtitle");

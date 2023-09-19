@@ -14,8 +14,6 @@
 #include "VideoDecoderResourceDelegate.h"
 #include "Utilities/Utilities.h"
 
-#include "Async/Async.h"
-
 #include "CoreGlobals.h"
 #include "Misc/ConfigCacheIni.h"
 
@@ -516,22 +514,7 @@ void FElectraPlayer::FInternalPlayerImpl::DoCloseAsync(TSharedPtr<FInternalPlaye
 	// Fallback to simple, sequential execution if the engine is already shutting down...
 	if (GIsRunning)
 	{
-		Async(EAsyncExecution::ThreadPool, MoveTemp(CloseTask));
-
-		#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			FInternalPlayerImpl* PlayerImpl = Player.Get();
-
-			TFunction<void()> CheckTimeoutTask = [bClosedSig, PlayerImpl]()
-			{
-				// Wait for 3 seconds and if the player did not close by then log an error!
-				FPlatformProcess::Sleep(3.0f);
-				if (*bClosedSig == false)
-				{
-					UE_LOG(LogElectraPlayer, Error, TEXT("[%p] DoCloseAsync() did not complete in time. Player may be dead and dangling!"), PlayerImpl);
-				}
-			};
-			Async(EAsyncExecution::Thread, MoveTemp(CheckTimeoutTask));
-		#endif
+		FMediaRunnable::EnqueueTerminationFunction(MoveTemp(CloseTask));
 	}
 	else
 	{

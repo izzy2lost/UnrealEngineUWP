@@ -68,7 +68,7 @@ namespace Electra
 				{
 					delete InInstanceToDelete;
 				};
-				Async(EAsyncExecution::ThreadPool, MoveTemp(DeleteTask));
+				FMediaRunnable::EnqueueTerminationFunction(MoveTemp(DeleteTask));
 			}
 		};
 

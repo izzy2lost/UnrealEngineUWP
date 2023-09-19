@@ -1,9 +1,59 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Core/MediaThreads.h"
+#include "Core/MediaMessageQueue.h"
 
 #include "HAL/RunnableThread.h"
 #include "Misc/ScopeLock.h"
+
+
+namespace MediaRunnablePrivate
+{
+
+static TMediaMessageQueueDynamicNoTimeout<TFunction<void()>> TerminationFunctions;
+static volatile bool bEndForShutdown = false;
+static FMediaThread* TerminationThread = nullptr;
+static void TerminationThreadFN()
+{
+	while(!bEndForShutdown)
+	{
+		TFunction<void()> TerminateFN = TerminationFunctions.ReceiveMessage();
+		if (TerminateFN)
+		{
+			TerminateFN();
+		}
+	}
+}
+
+}
+
+void FMediaRunnable::Startup()
+{
+	MediaRunnablePrivate::bEndForShutdown = false;
+	MediaRunnablePrivate::TerminationThread = new FMediaThread("Electra::Termination");
+	MediaRunnablePrivate::TerminationThread->ThreadStart(FMediaRunnable::FStartDelegate::CreateStatic(&MediaRunnablePrivate::TerminationThreadFN));
+}
+
+void FMediaRunnable::Shutdown()
+{
+	check(MediaRunnablePrivate::TerminationThread);
+	
+	TFunction<void()> FinishTask = []()
+	{
+		MediaRunnablePrivate::bEndForShutdown = true;
+	};
+	EnqueueTerminationFunction(MoveTemp(FinishTask));
+
+	MediaRunnablePrivate::TerminationThread->ThreadWaitDone();
+	delete MediaRunnablePrivate::TerminationThread;
+	MediaRunnablePrivate::TerminationThread = nullptr;
+}
+
+void FMediaRunnable::EnqueueTerminationFunction(TFunction<void()>&& InFunctionToExecuteOnTerminationThread)
+{
+	MediaRunnablePrivate::TerminationFunctions.SendMessage(MoveTemp(InFunctionToExecuteOnTerminationThread));
+}
+
 
 // ----------------------------------------------------------------------------
 /**

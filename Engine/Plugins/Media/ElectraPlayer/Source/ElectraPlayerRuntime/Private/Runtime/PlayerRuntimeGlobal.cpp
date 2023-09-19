@@ -5,6 +5,7 @@
 #include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
 
+
 namespace Electra
 {
 	namespace Global
@@ -81,6 +82,8 @@ namespace Electra
 	 */
 	bool Startup(const Configuration& InConfiguration)
 	{
+		FMediaRunnable::Startup();
+
 		if (!ApplicationTerminatingDelegate.IsValid())
 		{
 			ApplicationTerminatingDelegate = FCoreDelegates::GetApplicationWillTerminateDelegate().AddStatic(&HandleApplicationWillTerminate);
@@ -128,6 +131,8 @@ namespace Electra
 		{
 			FCoreDelegates::GetApplicationWillTerminateDelegate().Remove(ApplicationTerminatingDelegate);
 		}
+
+		FMediaRunnable::Shutdown();
 	}
 
 
@@ -154,6 +159,12 @@ namespace Electra
 	{
 		FScopeLock lock(&ApplicationHandlerLock);
 		ApplicationBGFGHandlers.Remove(InHandlers);
+	}
+
+
+	void EnqueueTerminationFunction(TFunction<void()>&& InFunctionToExecuteOnTerminationThread)
+	{
+		FMediaRunnable::EnqueueTerminationFunction(MoveTemp(InFunctionToExecuteOnTerminationThread));
 	}
 
 

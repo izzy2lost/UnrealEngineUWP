@@ -6,7 +6,6 @@
 #include "CoreMinimal.h"
 #include "Misc/Guid.h"
 #include "Misc/Optional.h"
-#include "Async/Async.h"
 #include "Tickable.h"
 #include "CoreGlobals.h"
 #include "Stats/Stats.h"
@@ -1200,7 +1199,7 @@ void FSimpleElectraAudioPlayer::DoClosePlayerAsync(TSharedPtr<FClosePlayerInstan
 
 	if (GIsRunning)
 	{
-		Async(EAsyncExecution::ThreadPool, MoveTemp(CloseTask));
+		FMediaRunnable::EnqueueTerminationFunction(MoveTemp(CloseTask));
 	}
 	else
 	{
