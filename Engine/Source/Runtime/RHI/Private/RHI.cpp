@@ -1175,8 +1175,8 @@ static FAutoConsoleVariableRef CVarEnableVariableRateShading(
 static FAutoConsoleVariableRef CVarEnableAttachmentVariableRateShading(
 	TEXT("r.VRS.EnableImage"),
 	GRHIAttachmentVariableRateShadingEnabled,
-	TEXT("Toggle to enable image-based Variable Rate Shading."),
-	ECVF_RenderThreadSafe);
+	TEXT("Enable image-based Variable Rate Shading."),
+	ECVF_ReadOnly);
 
 
 FString GRHIBindlessResourceConfiguration = TEXT("Disabled");

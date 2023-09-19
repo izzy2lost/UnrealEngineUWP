@@ -2621,7 +2621,8 @@ void FMaterial::SetupMaterialEnvironment(
 		SET_SHADER_DEFINE(OutEnvironment, USE_STENCIL_LOD_DITHER_DEFAULT, CVar->GetValueOnAnyThread() != 0 ? 1 : 0);
 	}
 
-	if (GetShadingRate() != MSR_1x1)
+	if (FDataDrivenShaderPlatformInfo::GetSupportsVariableRateShading(Platform) && 
+		(GRHIAttachmentVariableRateShadingEnabled || GetShadingRate() != MSR_1x1))
 	{
 		OutEnvironment.SetCompileArgument(TEXT("USING_VARIABLE_RATE_SHADING"), true);
 	}
