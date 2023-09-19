@@ -208,16 +208,11 @@ public:
 	
 	UIKRetargeter(const FObjectInitializer& ObjectInitializer);
 
-	// Get read-only access to the source IK Rig asset 
-	const UIKRigDefinition* GetSourceIKRig() const;
-	// Get read-only access to the target IK Rig asset 
-	const UIKRigDefinition* GetTargetIKRig() const;
+	// Get read-only access to the source or target IK Rig asset 
+	const UIKRigDefinition* GetIKRig(ERetargetSourceOrTarget SourceOrTarget) const;
 	// Get read-write access to the source IK Rig asset.
 	// WARNING: do not use for editing the data model. Use Controller class instead. 
-	UIKRigDefinition* GetSourceIKRigWriteable() const;
-	// Get read-write access to the target IK Rig asset.
-	// WARNING: do not use for editing the data model. Use Controller class instead. 
-	UIKRigDefinition* GetTargetIKRigWriteable() const;
+	UIKRigDefinition* GetIKRigWriteable(ERetargetSourceOrTarget SourceOrTarget) const;
 	#if WITH_EDITORONLY_DATA
 	// Get read-only access to preview meshes
 	const USkeletalMesh* GetPreviewMesh(ERetargetSourceOrTarget SourceOrTarget) const;

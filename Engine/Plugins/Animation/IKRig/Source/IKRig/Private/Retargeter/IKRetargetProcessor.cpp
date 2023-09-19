@@ -1469,42 +1469,6 @@ FVector FPoleVectorMatcher::GetChainNormal(
 	return ChainAxis.GetSafeNormal();
 }
 
-bool FRetargetOps::Initialize(
-	const FRetargetSkeleton& SourceSkeleton,
-	const FTargetSkeleton& TargetSkeleton,
-	const TArray<TObjectPtr<URetargetOpBase>>& OpStackFromAsset,
-	UIKRetargetProcessor* Processor,
-	FIKRigLogger& Log)
-{
-	bool bAllOpsInitialized = true;
-	// create copies of all the operations in the retarget asset for runtime use
-	OpStack.Reset(OpStackFromAsset.Num());
-	int32 OpIndex = 0;
-	for (const URetargetOpBase* OpFromAsset : OpStackFromAsset)
-	{
-		if (!OpFromAsset)
-		{
-			// this can happen if asset references deleted op type which should only happen during development (if at all)
-			Log.LogWarning(FText(LOCTEXT("UnknownPostOperation", "Retargeter has null/unknown post operation in it. Please remove it.")));
-			continue;
-		}
-
-		// create duplicate solver instance with unique name
-		FString Name = "RetargetOpInstance";
-		Name.AppendInt(OpIndex++);
-		URetargetOpBase* NewOp  = DuplicateObject(OpFromAsset, Processor, FName(*Name));
-		
-		// initialize it and store in the processor
-		if (!NewOp->Initialize(SourceSkeleton, TargetSkeleton, Processor, Log))
-		{
-			bAllOpsInitialized = false;
-		}
-		OpStack.Add(NewOp);
-	}
-
-	return bAllOpsInitialized;
-}
-
 UIKRetargetProcessor::UIKRetargetProcessor()
 {
 	const FName LogName = FName("IKRetarget_",GetUniqueID());
@@ -1526,8 +1490,8 @@ void UIKRetargetProcessor::Initialize(
 	// record source asset
 	RetargeterAsset = InRetargeterAsset;
 
-	const UIKRigDefinition* SourceIKRig = RetargeterAsset->GetSourceIKRig();
-	const UIKRigDefinition* TargetIKRig = RetargeterAsset->GetTargetIKRig();
+	const UIKRigDefinition* SourceIKRig = RetargeterAsset->GetIKRig(ERetargetSourceOrTarget::Source);
+	const UIKRigDefinition* TargetIKRig = RetargeterAsset->GetIKRig(ERetargetSourceOrTarget::Target);
 
 	// check prerequisite assets
 	if (!SourceSkeletalMesh)
@@ -1590,7 +1554,7 @@ void UIKRetargetProcessor::Initialize(
 
 	// initialize the post operations
 	const TArray<TObjectPtr<URetargetOpBase>>& OpsFromAsset = RetargeterAsset->GetPostSettingsUObject()->RetargetOps;
-	const bool bAllOpsInitialized = RetargetOps.Initialize(SourceSkeleton, TargetSkeleton, OpsFromAsset, this, Log);
+	const bool bAllOpsInitialized = InitializeOpStack(OpsFromAsset);
 	if (!bAllOpsInitialized)
 	{
 		Log.LogWarning(FText(LOCTEXT("PostOperationInitError", "One of the retarget post operations has warnings. See output log for details.")));
@@ -1617,7 +1581,7 @@ bool UIKRetargetProcessor::InitializeRoots()
 	RootRetargeter.Reset();
 	
 	// initialize root encoder
-	const FName SourceRootBoneName = RetargeterAsset->GetSourceIKRig()->GetRetargetRoot();
+	const FName SourceRootBoneName = RetargeterAsset->GetIKRig(ERetargetSourceOrTarget::Source)->GetRetargetRoot();
 	const bool bRootEncoderInit = RootRetargeter.InitializeSource(SourceRootBoneName, SourceSkeleton, Log);
 	if (!bRootEncoderInit)
 	{
@@ -1627,7 +1591,7 @@ bool UIKRetargetProcessor::InitializeRoots()
 	}
 
 	// initialize root decoder
-	const FName TargetRootBoneName = RetargeterAsset->GetTargetIKRig()->GetRetargetRoot();
+	const FName TargetRootBoneName =RetargeterAsset->GetIKRig(ERetargetSourceOrTarget::Target)->GetRetargetRoot();
 	const bool bRootDecoderInit = RootRetargeter.InitializeTarget(TargetRootBoneName, TargetSkeleton, Log);
 	if (!bRootDecoderInit)
 	{
@@ -1643,18 +1607,17 @@ bool UIKRetargetProcessor::InitializeBoneChainPairs()
 {
 	ChainPairsFK.Reset();
 	ChainPairsIK.Reset();
-	
-	const UIKRigDefinition* TargetIKRig = RetargeterAsset->GetTargetIKRig();
-	const UIKRigDefinition* SourceIKRig = RetargeterAsset->GetSourceIKRig();
-	
+
+	const UIKRigDefinition* SourceIKRig = RetargeterAsset->GetIKRig(ERetargetSourceOrTarget::Source);
+	const UIKRigDefinition* TargetIKRig = RetargeterAsset->GetIKRig(ERetargetSourceOrTarget::Target);
 	check(SourceIKRig && TargetIKRig);
 
 	// check that chains are available in both IKRig assets before sorting them based on StartBone index
 	const TArray<TObjectPtr<URetargetChainSettings>>& ChainMapping = RetargeterAsset->GetAllChainSettings();	
-	for (URetargetChainSettings* ChainMap : ChainMapping)
+	for (const URetargetChainSettings* ChainMap : ChainMapping)
 	{
 		// get target bone chain
-		const FBoneChain* TargetBoneChain = RetargeterAsset->GetTargetIKRig()->GetRetargetChainByName(ChainMap->TargetChain);
+		const FBoneChain* TargetBoneChain = TargetIKRig->GetRetargetChainByName(ChainMap->TargetChain);
 		if (!TargetBoneChain)
 		{
 			Log.LogWarning( FText::Format(
@@ -1670,7 +1633,7 @@ bool UIKRetargetProcessor::InitializeBoneChainPairs()
 		}
 		
 		// get source bone chain
-		const FBoneChain* SourceBoneChain = RetargeterAsset->GetSourceIKRig()->GetRetargetChainByName(ChainMap->SourceChain);
+		const FBoneChain* SourceBoneChain = SourceIKRig->GetRetargetChainByName(ChainMap->SourceChain);
 		if (!SourceBoneChain)
 		{
 			Log.LogWarning( FText::Format(
@@ -1760,7 +1723,7 @@ bool UIKRetargetProcessor::InitializeBoneChainPairs()
 bool UIKRetargetProcessor::InitializeIKRig(UObject* Outer, const USkeletalMesh* InSkeletalMesh)
 {
 	// get the target IK Rig asset
-	UIKRigDefinition* IKRig = RetargeterAsset->GetTargetIKRigWriteable();
+	UIKRigDefinition* IKRig = RetargeterAsset->GetIKRigWriteable(ERetargetSourceOrTarget::Target);
 	
 	// gather list of excluded goals based on any chain mapping that has it's IK disabled
 	TArray<FName> GoalsToExclude;
@@ -1865,6 +1828,35 @@ bool UIKRetargetProcessor::InitializeIKRig(UObject* Outer, const USkeletalMesh* 
 	}
 	
 	return true;
+}
+
+bool UIKRetargetProcessor::InitializeOpStack(const TArray<TObjectPtr<URetargetOpBase>>& OpStackFromAsset)
+{
+	bool bAllOpsInitialized = true;
+	// create copies of all the operations in the retarget asset for runtime use
+	OpStack.Reset(OpStackFromAsset.Num());
+	int32 OpIndex = 0;
+	for (const URetargetOpBase* OpFromAsset : OpStackFromAsset)
+	{
+		if (!OpFromAsset)
+		{
+			// this can happen if asset references deleted op type which should only happen during development (if at all)
+			Log.LogWarning(FText(LOCTEXT("UnknownPostOperation", "Retargeter has null/unknown post operation in it. Please remove it.")));
+			continue;
+		}
+
+		// create duplicate op instance with unique name
+		const FName BaseName = FName(*(OpFromAsset->GetName() + "_RetargetOpInstance_"));
+		const FName UniqueName = MakeUniqueObjectName(this, OpFromAsset->GetClass(), BaseName, EUniqueObjectNameOptions::GloballyUnique);
+		URetargetOpBase* NewOp = DuplicateObject(OpFromAsset, this, UniqueName);
+		
+		// initialize it and store in the processor
+		NewOp->bIsInitialized = NewOp->Initialize(this, SourceSkeleton, TargetSkeleton, Log);
+		bAllOpsInitialized &= NewOp->bIsInitialized;
+		OpStack.Add(NewOp);
+	}
+
+	return bAllOpsInitialized;
 }
 
 TArray<FTransform>&  UIKRetargetProcessor::RunRetargeter(
@@ -2137,11 +2129,11 @@ void UIKRetargetProcessor::RunRetargetOps(
 	const TArray<FTransform>& InSourceGlobalPose,
 	TArray<FTransform>& OutTargetGlobalPose)
 {
-	for (URetargetOpBase* RetargetOp : RetargetOps.OpStack)
+	for (URetargetOpBase* RetargetOp : OpStack)
 	{
-		if (RetargetOp->bIsEnabled)
+		if (RetargetOp->bIsEnabled && RetargetOp->bIsInitialized)
 		{
-			RetargetOp->Run(InSourceGlobalPose, OutTargetGlobalPose);
+			RetargetOp->Run(this, InSourceGlobalPose, OutTargetGlobalPose);
 		}
 	}
 }
@@ -2248,7 +2240,7 @@ FName UIKRetargetProcessor::GetChainNameForBone(const int32& BoneIndex, const in
 void UIKRetargetProcessor::ApplySettingsFromAsset()
 {
 	// copy IK Rig settings
-	if (const UIKRigDefinition* TargetIKRig = RetargeterAsset->GetTargetIKRig())
+	if (const UIKRigDefinition* TargetIKRig = RetargeterAsset->GetIKRig(ERetargetSourceOrTarget::Target))
 	{
 		IKRigProcessor->CopyAllInputsFromSourceAssetAtRuntime(TargetIKRig);
 	}
@@ -2362,8 +2354,8 @@ void UIKRetargetProcessor::ApplyNewRetargetPose(
 	RetargetSkeleton.GenerateRetargetPose(NewRetargetPoseName, NewRetargetPose, RootBoneName);
 
 	// re-initialize the bone chains using the newly generated retarget pose
-	const UIKRigDefinition* SourceIKRig = RetargeterAsset->GetSourceIKRig();
-	const UIKRigDefinition* TargetIKRig = RetargeterAsset->GetTargetIKRig();
+	const UIKRigDefinition* SourceIKRig = RetargeterAsset->GetIKRig(ERetargetSourceOrTarget::Source);
+	const UIKRigDefinition* TargetIKRig = RetargeterAsset->GetIKRig(ERetargetSourceOrTarget::Target);
 	if (!(SourceIKRig && TargetIKRig))
 	{
 		return;

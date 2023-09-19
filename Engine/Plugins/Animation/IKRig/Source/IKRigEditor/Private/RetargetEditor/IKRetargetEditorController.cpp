@@ -198,20 +198,20 @@ void FIKRetargetEditorController::BindToIKRigAssets()
 
 	BoundIKRigs.Empty();
 	
-	if (Asset->GetSourceIKRigWriteable())
+	if (UIKRigDefinition* SourceIKRig = Asset->GetIKRigWriteable(ERetargetSourceOrTarget::Source))
 	{
-		BoundIKRigs.Emplace(FBoundIKRig(Asset->GetSourceIKRigWriteable(), *this));
+		BoundIKRigs.Emplace(FBoundIKRig(SourceIKRig, *this));
 	}
 
-	if (Asset->GetTargetIKRigWriteable())
+	if (UIKRigDefinition* TargetIKRig = Asset->GetIKRigWriteable(ERetargetSourceOrTarget::Target))
 	{
-		BoundIKRigs.Emplace(FBoundIKRig(Asset->GetTargetIKRigWriteable(), *this));
+		BoundIKRigs.Emplace(FBoundIKRig(TargetIKRig, *this));
 	}
 }
 
 void FIKRetargetEditorController::HandleIKRigNeedsInitialized(UIKRigDefinition* ModifiedIKRig) const
 {
-	UIKRetargeter* Retargeter = AssetController->GetAsset();
+	const UIKRetargeter* Retargeter = AssetController->GetAsset();
 	check(Retargeter)
 	HandleRetargeterNeedsInitialized();
 }

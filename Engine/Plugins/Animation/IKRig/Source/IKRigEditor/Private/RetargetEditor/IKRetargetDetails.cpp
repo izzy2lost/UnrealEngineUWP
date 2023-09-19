@@ -1461,6 +1461,11 @@ void FRetargetOpStackCustomization::CustomizeDetails(IDetailLayoutBuilder& Detai
 			const TSharedPtr<IPropertyHandle> PropertyHandle = DetailBuilder.AddObjectPropertyData({Op}, Prop->GetFName());
 			if (PropertyHandle && PropertyHandle->IsValidHandle())
 			{
+				PropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([this]()
+				{
+					Controller->ReinitializeProcessor();
+				}));
+				
 				PropertyHandle->SetOnChildPropertyValueChanged(FSimpleDelegate::CreateLambda([this]()
 				{
 					Controller->ReinitializeProcessor();

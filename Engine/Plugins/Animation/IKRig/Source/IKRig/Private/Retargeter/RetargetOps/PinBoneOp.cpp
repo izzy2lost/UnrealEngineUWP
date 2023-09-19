@@ -1,14 +1,13 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "Retargeter/RetargetOps/PinBoneOp.h"
 
 #define LOCTEXT_NAMESPACE "UPinBoneOp"
 
 bool UPinBoneOp::Initialize(
+	const UIKRetargetProcessor* Processor,
 	const FRetargetSkeleton& SourceSkeleton,
 	const FTargetSkeleton& TargetSkeleton,
-	const UIKRetargetProcessor* Processor,
 	FIKRigLogger& Log)
 {
 	bool bFullyInitialized = true;
@@ -47,11 +46,11 @@ bool UPinBoneOp::Initialize(
 			const FTransform& BoneToPinTransform = TargetSkeleton.RetargetGlobalPose[BoneToPin.BoneToPinIndex];
 			const TArray<FTransform>& PinToPose = PinTo == ERetargetSourceOrTarget::Source ? SourceSkeleton.RetargetGlobalPose : TargetSkeleton.RetargetGlobalPose;
 			const FTransform& BoneToPinToTransform = PinToPose[BoneToPin.BoneToPinToIndex];
-			BoneToPin.OffsetInRefPose =  BoneToPinToTransform.Inverse() * BoneToPinTransform;
+			BoneToPin.OffsetInRefPose =  BoneToPinToTransform.GetRelativeTransform(BoneToPinTransform);
 		}
 	}
 
-	#if WITH_EDITORONLY_DATA
+#if WITH_EDITOR
 	if (bFullyInitialized)
 	{
 		Message = FText::Format(LOCTEXT("ReadyToRun", "Pinning {0} bones."), FText::AsNumber(BonesToPin.Num()));
@@ -60,16 +59,20 @@ bool UPinBoneOp::Initialize(
 	{
 		Message = FText(LOCTEXT("MissingBonesWarning", "Bone(s) not found. See output log."));
 	}
-	#endif
-	
-	return bFullyInitialized;
+#endif
+
+	// always treat this op as "initialized", individual pins will only execute if their prerequisites are met
+	return true;
 }
 
-void UPinBoneOp::Run(const TArray<FTransform>& InSourceGlobalPose, TArray<FTransform>& OutTargetGlobalPose)
+void UPinBoneOp::Run(
+	const UIKRetargetProcessor* Processor,
+	const TArray<FTransform>& InSourceGlobalPose,
+	TArray<FTransform>& OutTargetGlobalPose)
 {
 	for (const FPinBoneData& BoneToPin : BonesToPin)
 	{
-		if (!bEnabled || BoneToPin.BoneToPinIndex == INDEX_NONE || BoneToPin.BoneToPinToIndex == INDEX_NONE)
+		if (BoneToPin.BoneToPinIndex == INDEX_NONE || BoneToPin.BoneToPinToIndex == INDEX_NONE)
 		{
 			continue; // disabled or not successfully initialized
 		}

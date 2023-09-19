@@ -86,13 +86,13 @@ void UIKRetargeterController::SetIKRig(const ERetargetSourceOrTarget SourceOrTar
 const UIKRigDefinition* UIKRetargeterController::GetIKRig(const ERetargetSourceOrTarget SourceOrTarget) const
 {
 	FScopeLock Lock(&ControllerLock);
-	return SourceOrTarget == ERetargetSourceOrTarget::Source ? Asset->GetSourceIKRig() : Asset->GetTargetIKRig();
+	return Asset->GetIKRig(SourceOrTarget);
 }
 
 UIKRigDefinition* UIKRetargeterController::GetIKRigWriteable(const ERetargetSourceOrTarget SourceOrTarget) const
 {
 	FScopeLock Lock(&ControllerLock);
-	return SourceOrTarget == ERetargetSourceOrTarget::Source ? Asset->GetSourceIKRigWriteable() : Asset->GetTargetIKRigWriteable();
+	return Asset->GetIKRigWriteable(SourceOrTarget);
 }
 
 void UIKRetargeterController::SetPreviewMesh(
@@ -359,7 +359,7 @@ void UIKRetargeterController::GetChainNames(const ERetargetSourceOrTarget Source
 
 void UIKRetargeterController::CleanChainMapping() const
 {
-	if (IsValid(Asset->GetTargetIKRig()))
+	if (IsValid(Asset->GetIKRig(ERetargetSourceOrTarget::Target)))
 	{
 		TArray<FName> TargetChainNames;
 		GetChainNames(ERetargetSourceOrTarget::Target, TargetChainNames);
@@ -398,7 +398,7 @@ void UIKRetargeterController::CleanChainMapping() const
 		}
 	}
 
-	if (IsValid(Asset->GetSourceIKRig()))
+	if (IsValid(Asset->GetIKRig(ERetargetSourceOrTarget::Source)))
 	{
 		TArray<FName> SourceChainNames;
 		GetChainNames(ERetargetSourceOrTarget::Source,SourceChainNames);
@@ -536,7 +536,7 @@ void UIKRetargeterController::AutoMapChains(const EAutoMapChainType AutoMapType,
 
 void UIKRetargeterController::HandleRetargetChainAdded(UIKRigDefinition* IKRig) const
 {
-	const bool bIsTargetRig = IKRig == Asset->GetTargetIKRig();
+	const bool bIsTargetRig = IKRig == Asset->GetIKRig(ERetargetSourceOrTarget::Target);
 	if (!bIsTargetRig)
 	{
 		// if a source chain is added, it will simply be available as a new option, no need to reinitialize until it's used
@@ -550,8 +550,9 @@ void UIKRetargeterController::HandleRetargetChainAdded(UIKRigDefinition* IKRig) 
 
 void UIKRetargeterController::HandleRetargetChainRenamed(UIKRigDefinition* IKRig, FName OldChainName, FName NewChainName) const
 {
-	const bool bIsSourceRig = IKRig == Asset->GetSourceIKRig();
-	check(bIsSourceRig || IKRig == Asset->GetTargetIKRig())
+	const bool bIsSourceRig = IKRig == Asset->GetIKRig(ERetargetSourceOrTarget::Source);
+	const bool bIsTargetRig = IKRig == Asset->GetIKRig(ERetargetSourceOrTarget::Target);
+	check(bIsSourceRig || bIsTargetRig)
 	for (URetargetChainSettings* ChainMap : Asset->ChainSettings)
 	{
 		FName& ChainNameToUpdate = bIsSourceRig ? ChainMap->SourceChain : ChainMap->TargetChain;
@@ -566,8 +567,9 @@ void UIKRetargeterController::HandleRetargetChainRenamed(UIKRigDefinition* IKRig
 
 void UIKRetargeterController::HandleRetargetChainRemoved(UIKRigDefinition* IKRig, const FName& InChainRemoved) const
 {
-	const bool bIsSourceRig = IKRig == Asset->GetSourceIKRig();
-	check(bIsSourceRig || IKRig == Asset->GetTargetIKRig())
+	const bool bIsSourceRig = IKRig == Asset->GetIKRig(ERetargetSourceOrTarget::Source);
+	const bool bIsTargetRig = IKRig == Asset->GetIKRig(ERetargetSourceOrTarget::Target);
+	check(bIsSourceRig || bIsTargetRig)
 
 	// set source chain name to NONE if it has been deleted 
 	if (bIsSourceRig)
@@ -868,7 +870,7 @@ void UIKRetargeterController::SetRotationOffsetForRetargetPoseBone(
 	FScopeLock Lock(&ControllerLock);
 	FIKRetargetPose& Pose = GetCurrentRetargetPose(SourceOrTarget);
 	Pose.SetDeltaRotationForBone(BoneName, RotationOffset);
-	const UIKRigDefinition* IKRig = SourceOrTarget == ERetargetSourceOrTarget::Source ? GetAsset()->GetSourceIKRig() : GetAsset()->GetTargetIKRig();
+	const UIKRigDefinition* IKRig = GetAsset()->GetIKRig(SourceOrTarget);
 	Pose.SortHierarchically(IKRig->GetSkeleton());
 }
 
@@ -936,7 +938,7 @@ URetargetChainSettings* UIKRetargeterController::GetChainSettings(const FName& T
 
 void UIKRetargeterController::SortChainMapping() const
 {
-	const UIKRigDefinition* TargetIKRig = Asset->GetTargetIKRig();
+	const UIKRigDefinition* TargetIKRig = Asset->GetIKRig(ERetargetSourceOrTarget::Target);
 	if (!IsValid(TargetIKRig))
 	{
 		return;

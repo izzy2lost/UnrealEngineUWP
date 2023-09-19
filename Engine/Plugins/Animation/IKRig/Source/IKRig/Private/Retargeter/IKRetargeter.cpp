@@ -42,61 +42,58 @@ UIKRetargeter::UIKRetargeter(const FObjectInitializer& ObjectInitializer)
 	CleanAndInitialize();
 }
 
-const UIKRigDefinition* UIKRetargeter::GetSourceIKRig() const
+const UIKRigDefinition* UIKRetargeter::GetIKRig(ERetargetSourceOrTarget SourceOrTarget) const
 {
-	if (IsInGameThread())
+	if (!IsInGameThread())
 	{
-		return SourceIKRigAsset.LoadSynchronous();	
+		return nullptr;
 	}
-	
-	return nullptr;
+
+	const TSoftObjectPtr<UIKRigDefinition> SoftIKRig = SourceOrTarget == ERetargetSourceOrTarget::Source ? SourceIKRigAsset : TargetIKRigAsset;
+	return SoftIKRig.LoadSynchronous();
 }
 
-const UIKRigDefinition* UIKRetargeter::GetTargetIKRig() const
+UIKRigDefinition* UIKRetargeter::GetIKRigWriteable(ERetargetSourceOrTarget SourceOrTarget) const
 {
-	if (IsInGameThread())
+	if (!IsInGameThread())
 	{
-		return TargetIKRigAsset.LoadSynchronous();	
+		return nullptr;
 	}
-	
-	return nullptr;
-}
 
-UIKRigDefinition* UIKRetargeter::GetSourceIKRigWriteable() const
-{
-	if (IsInGameThread())
-	{
-		return SourceIKRigAsset.LoadSynchronous();	
-	}
-	
-	return nullptr;
-}
-
-UIKRigDefinition* UIKRetargeter::GetTargetIKRigWriteable() const
-{
-	if (IsInGameThread())
-	{
-		return TargetIKRigAsset.LoadSynchronous();	
-	}
-	
-	return nullptr;
+	const TSoftObjectPtr<UIKRigDefinition> SoftIKRig = SourceOrTarget == ERetargetSourceOrTarget::Source ? SourceIKRigAsset : TargetIKRigAsset;
+	return SoftIKRig.LoadSynchronous();
 }
 
 #if WITH_EDITORONLY_DATA
 const USkeletalMesh* UIKRetargeter::GetPreviewMesh(ERetargetSourceOrTarget SourceOrTarget) const
 {
-	if (IsInGameThread())
+	if (!IsInGameThread())
 	{
-		if (SourceOrTarget == ERetargetSourceOrTarget::Source)
+		return nullptr;
+	}
+
+	// the preview mesh override on the retarget takes precedence
+	if (SourceOrTarget == ERetargetSourceOrTarget::Source)
+	{
+		if (SourcePreviewMesh.IsValid())
 		{
-			return SourcePreviewMesh.LoadSynchronous();	
-		}
-		else
-		{
-			return TargetPreviewMesh.LoadSynchronous();	
+			return SourcePreviewMesh.LoadSynchronous();
 		}
 	}
-	
+	else
+	{
+		if (TargetPreviewMesh.IsValid())
+		{
+			return TargetPreviewMesh.LoadSynchronous();
+		}
+	}
+
+	// fallback to preview mesh from the IK Rig itself
+	if (const UIKRigDefinition* IKRig = GetIKRig(SourceOrTarget))
+	{
+		return IKRig->GetPreviewMesh();
+	}
+
 	return nullptr;
 }
 #endif
@@ -204,6 +201,9 @@ void UIKRetargeter::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConst
 
 void UIKRetargeter::CleanAndInitialize()
 {
+	// remove null retarget ops
+	OpStack->RetargetOps.Remove(nullptr);
+	
 	// remove null settings
 	ChainSettings.Remove(nullptr);
 
@@ -412,7 +412,7 @@ FTargetChainSettings UIKRetargeter::GetChainUsingGoalFromRetargetAsset(
 		return EmptySettings;
 	}
 
-	const UIKRigDefinition* IKRig = RetargetAsset->GetTargetIKRig();
+	const UIKRigDefinition* IKRig = RetargetAsset->GetIKRig(ERetargetSourceOrTarget::Target);
 	if (!IKRig)
 	{
 		return EmptySettings;

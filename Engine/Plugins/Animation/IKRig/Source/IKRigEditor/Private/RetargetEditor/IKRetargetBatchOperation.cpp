@@ -505,7 +505,7 @@ void UIKRetargetBatchOperation::RunRetarget(FIKRetargetBatchOperationContext& Co
 	}
 
 	// validate a source IK rig was provided
-	const UIKRigDefinition* SrcIKRig = Context.IKRetargetAsset->GetSourceIKRig();
+	const UIKRigDefinition* SrcIKRig = Context.IKRetargetAsset->GetIKRig(ERetargetSourceOrTarget::Source);
 	if (!SrcIKRig)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Batch retarget aborted. Specified IK Retargeter does not reference a source IK Rig."));
@@ -513,7 +513,7 @@ void UIKRetargetBatchOperation::RunRetarget(FIKRetargetBatchOperationContext& Co
 	}
 
 	// validate a target IK rig was provided
-	const UIKRigDefinition* TgtIKRig = Context.IKRetargetAsset->GetTargetIKRig();
+	const UIKRigDefinition* TgtIKRig = Context.IKRetargetAsset->GetIKRig(ERetargetSourceOrTarget::Target);
 	if (!TgtIKRig)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Batch retarget aborted. Specified IK Retargeter does not reference a target IK Rig."));

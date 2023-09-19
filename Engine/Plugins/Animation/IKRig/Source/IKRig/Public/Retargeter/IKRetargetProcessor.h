@@ -454,18 +454,6 @@ struct FRetargetDebugData
 	FTransform StrideWarpingFrame;
 };
 
-struct FRetargetOps
-{
-	TArray<TObjectPtr<URetargetOpBase>> OpStack;
-
-	bool Initialize(
-		const FRetargetSkeleton& SourceSkeleton,
-		const FTargetSkeleton& TargetSkeleton,
-		const TArray<TObjectPtr<URetargetOpBase>>& OpStackFromAsset,
-		UIKRetargetProcessor* Processor,
-		FIKRigLogger& Log);
-};
-
 /** The runtime processor that converts an input pose from a source skeleton into an output pose on a target skeleton.
  * To use:
  * 1. Initialize a processor with a Source/Target skeletal mesh and a UIKRetargeter asset.
@@ -546,7 +534,7 @@ public:
 	const FRootRetargeter& GetRootRetargeter() const { return RootRetargeter; };
 	
 	// Get read only access to the retarget ops currently running in processor
-	const FRetargetOps& GetRetargetOps() const {return RetargetOps; };
+	const TArray<TObjectPtr<URetargetOpBase>>& GetRetargetOps() const {return OpStack; };
 	
 	/** Reset the IK planting state. */
 	void ResetPlanting();
@@ -602,7 +590,8 @@ private:
 	FRetargetGlobalSettings GlobalSettings;
 
 	/** The collection of operations to run in the final phase of retargeting */
-	FRetargetOps RetargetOps;
+	UPROPERTY(Transient) // must be property to keep from being GC'd
+	TArray<TObjectPtr<URetargetOpBase>> OpStack;
 	
 	/** Initializes the FRootRetargeter */
 	bool InitializeRoots();
@@ -612,6 +601,9 @@ private:
 
 	/** Initializes the IK Rig that evaluates the IK solve for the target IK chains */
 	bool InitializeIKRig(UObject* Outer, const USkeletalMesh* InSkeletalMesh);
+
+	// Initialize the retarget op stack
+	bool InitializeOpStack(const TArray<TObjectPtr<URetargetOpBase>>& OpStackFromAsset);
 	
 	/** Internal retarget phase for the root. */
 	void RunRootRetarget(const TArray<FTransform>& InGlobalTransforms, TArray<FTransform>& OutGlobalTransforms);

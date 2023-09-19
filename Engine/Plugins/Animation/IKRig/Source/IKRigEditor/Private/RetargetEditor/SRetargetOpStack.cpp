@@ -146,11 +146,11 @@ bool SRetargetOpStackItem::GetWarningMessage(FText& Message) const
 		return false;
 	}
 
-	const FRetargetOps& RetargetOps = Processor->GetRetargetOps();
+	const TArray<TObjectPtr<URetargetOpBase>>& RetargetOps = Processor->GetRetargetOps();
 	const int32 OpIndex = StackElement.Pin()->IndexInStack;
-	if (RetargetOps.OpStack.IsValidIndex(OpIndex))
+	if (RetargetOps.IsValidIndex(OpIndex))
 	{
-		Message = RetargetOps.OpStack[OpIndex]->WarningMessage();
+		Message = RetargetOps[OpIndex]->WarningMessage();
 		return true;
 	}
 	
@@ -358,7 +358,6 @@ void SRetargetOpStack::RefreshStackView()
 	}
 
 	// generate all list items
-	static const FText UnknownOpTxt = FText::FromString("Unknown Retarget Op");
 	ListViewItems.Reset();
 	UIKRetargeterController* AssetController = Controller->AssetController;
 	const int32 NumOps = AssetController->GetNumRetargetOps();
@@ -366,8 +365,7 @@ void SRetargetOpStack::RefreshStackView()
 	{
 		const URetargetOpBase* Op = AssetController->GetRetargetOpAtIndex(i);
 		FString UniqueName =  FString::FromInt(i+1) + " - " + Op->GetNiceName().ToString();
-		const FText DisplayName = Op ? FText::FromString(UniqueName) : UnknownOpTxt;
-		TSharedPtr<FRetargetOpStackElement> StackElement = FRetargetOpStackElement::Make(DisplayName, i);
+		TSharedPtr<FRetargetOpStackElement> StackElement = FRetargetOpStackElement::Make(FText::FromString(UniqueName), i);
 		ListViewItems.Add(StackElement);
 	}
 

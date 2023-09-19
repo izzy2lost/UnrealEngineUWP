@@ -44,12 +44,13 @@ class UPinBoneOp : public URetargetOpBase
 public:
 	
 	virtual bool Initialize(
+	const UIKRetargetProcessor* Processor,
 		const FRetargetSkeleton& SourceSkeleton,
 		const FTargetSkeleton& TargetSkeleton,
-		const UIKRetargetProcessor* Processor,
 		FIKRigLogger& Log) override;
 	
 	virtual void Run(
+		const UIKRetargetProcessor* Processor,
 		const TArray<FTransform>& InSourceGlobalPose,
 		TArray<FTransform>& OutTargetGlobalPose) override;
 
@@ -75,12 +76,8 @@ public:
 	// A manual offset to apply in local space
 	UPROPERTY(EditAnywhere, Category=Settings)
 	FTransform LocalOffset;
-
-	// Toggle this constraint on/off
-	UPROPERTY(EditAnywhere, Category=Settings)
-	bool bEnabled = true;
 	
-#if WITH_EDITORONLY_DATA
+#if WITH_EDITOR
 	virtual FText GetNiceName() const override { return FText(LOCTEXT("OpName", "Pin Bone")); };
 	virtual FText WarningMessage() const override { return Message; };
 	FText Message;

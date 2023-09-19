@@ -258,7 +258,7 @@ void SRetargetAnimAssetsWindow::Construct(const FArguments& InArgs)
 								return false;
 							}
 							
-							return BatchContext.IKRetargetAsset->GetSourceIKRig() != nullptr;
+							return BatchContext.IKRetargetAsset->GetIKRig(ERetargetSourceOrTarget::Source) != nullptr;
 						})
 						.ObjectPath(this, &SRetargetAnimAssetsWindow::GetCurrentSourceMeshPath)
 						.OnObjectChanged(this, &SRetargetAnimAssetsWindow::SourceMeshAssigned)
@@ -312,7 +312,7 @@ void SRetargetAnimAssetsWindow::Construct(const FArguments& InArgs)
 								return false;
 							}
 							
-							return BatchContext.IKRetargetAsset->GetTargetIKRig() != nullptr;
+							return BatchContext.IKRetargetAsset->GetIKRig(ERetargetSourceOrTarget::Target) != nullptr;
 						})
 						.ObjectPath(this, &SRetargetAnimAssetsWindow::GetCurrentTargetMeshPath)
 						.OnObjectChanged(this, &SRetargetAnimAssetsWindow::TargetMeshAssigned)

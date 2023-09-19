@@ -21,18 +21,21 @@ public:
 	
 	// override to cache internal data when initializing the processor
 	virtual bool Initialize(
+	const UIKRetargetProcessor* Processor,
 		const FRetargetSkeleton& SourceSkeleton,
 		const FTargetSkeleton& TargetSkeleton,
-		const UIKRetargetProcessor* Processor,
 		FIKRigLogger& Log) PURE_VIRTUAL(, return false;);
 
 	// override to evaluate this operation and modify the output pose
 	virtual void Run(
+		const UIKRetargetProcessor* Processor,
 		const TArray<FTransform>& InSourceGlobalPose,
 		TArray<FTransform>& OutTargetGlobalPose) PURE_VIRTUAL(,);
 
 	UPROPERTY()
 	bool bIsEnabled = true;
+
+	bool bIsInitialized = false;
 	
 #if WITH_EDITOR
 	// override to automate initial setup after being added to the stack
