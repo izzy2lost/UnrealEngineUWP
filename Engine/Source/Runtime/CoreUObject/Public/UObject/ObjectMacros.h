@@ -1337,6 +1337,9 @@ namespace UM
 		/// [PropertyMetadata] Deprecated.
 		FixedIncrement,
 
+		/// [PropertyMetaData] Force the specified sibling Editor PropertyNode to refresh itself when this property changes.  Useful to trigger an Editor refresh of an unrelated Property when this one is modified in PostEditChangeProperty or similar.
+		ForceRebuildProperty,
+
 		/// [PropertyMetadata] Used by asset properties. Indicates that the asset pickers should always show engine content
 		ForceShowEngineContent,
 
