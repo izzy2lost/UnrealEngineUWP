@@ -11,7 +11,6 @@
 
 #include "HierarchicalInstancedStaticMeshComponent.generated.h"
 
-class FClusterBuilder;
 class FStaticLightingTextureMapping_InstancedStaticMesh;
 
 
@@ -205,10 +204,88 @@ class UHierarchicalInstancedStaticMeshComponent : public UInstancedStaticMeshCom
 	bool bCanEnableDensityScaling : 1;
 #endif
 
+public:
+	struct FClusterTree
+	{
+		TArray<FClusterNode> Nodes;
+		TArray<int32> SortedInstances;
+		TArray<int32> InstanceReorderTable;
+		int32 OutOcclusionLayerNum = 0;
+
+		bool PrintLevel(int32 NodeIndex, int32 Level, int32 CurrentLevel, int32 Parent);
+	};
+
+	class FClusterBuilder
+	{
+	public:
+		ENGINE_API FClusterBuilder(TArray<FMatrix> InTransforms, TArray<float> InCustomDataFloats, int32 InNumCustomDataFloats, const FBox& InInstBox, int32 InMaxInstancesPerLeaf, float InDensityScaling, int32 InInstancingRandomSeed, bool InGenerateInstanceScalingRange);
+		ENGINE_API void BuildTreeAndBufferAsync(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
+		ENGINE_API void BuildTreeAndBuffer();
+		ENGINE_API void BuildTree();
+
+	protected:
+		void Split(int32 InNum);
+		void Split(int32 Start, int32 End);
+		void BuildInstanceBuffer();
+		void Init();
+
+	public:
+		TUniquePtr<FClusterTree> Result;
+		TUniquePtr<FStaticMeshInstanceData> BuiltInstanceData;
+
+	protected:
+		int32 OriginalNum;
+		int32 Num;
+		FBox InstBox;
+		int32 BranchingFactor;
+		int32 InternalNodeBranchingFactor;
+		int32 OcclusionLayerTarget;
+		int32 MaxInstancesPerLeaf;
+		int32 NumRoots;
+
+		int32 InstancingRandomSeed;
+		float DensityScaling;
+		bool GenerateInstanceScalingRange;
+
+		TArray<int32> SortIndex;
+		TArray<FVector> SortPoints;
+		TArray<FMatrix> Transforms;
+		TArray<float> CustomDataFloats;
+		int32 NumCustomDataFloats;
+
+		struct FRunPair
+		{
+			int32 Start;
+			int32 Num;
+
+			FRunPair(int32 InStart, int32 InNum)
+				: Start(InStart)
+				, Num(InNum)
+			{
+			}
+
+			bool operator< (const FRunPair& Other) const
+			{
+				return Start < Other.Start;
+			}
+		};
+		TArray<FRunPair> Clusters;
+
+		struct FSortPair
+		{
+			float d;
+			int32 Index;
+
+			bool operator< (const FSortPair& Other) const
+			{
+				return d < Other.d;
+			}
+		};
+		TArray<FSortPair> SortPairs;
+	};
+
 	// Apply the results of the async build
 	ENGINE_API void ApplyBuildTreeAsync(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent, TSharedRef<FClusterBuilder, ESPMode::ThreadSafe> Builder, double StartTime);
-
-public:
 
 	//Begin UObject Interface
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
@@ -253,10 +330,6 @@ public:
 	ENGINE_API void GetOverlappingBoxTransforms(const FBox& Box, TArray<FTransform>& OutTransforms) const;
 
 	ENGINE_API bool BuildTreeIfOutdated(bool Async, bool ForceUpdate);
-	UE_DEPRECATED(5.1, "The BuildTreeAnyThread method is moving to UGrassInstancedStaticMeshComponent. Please update your project to use the new component and method or your project may not compile in the next udpate.")
-	static ENGINE_API void BuildTreeAnyThread(TArray<FMatrix>& InstanceTransforms, TArray<float>& InstanceCustomDataFloats, int32 NumCustomDataFloats, const FBox& MeshBox, TArray<FClusterNode>& OutClusterTree, TArray<int32>& OutSortedInstances, TArray<int32>& OutInstanceReorderTable, int32& OutOcclusionLayerNum, int32 MaxInstancesPerLeaf, bool InGenerateInstanceScalingRange);
-	UE_DEPRECATED(5.1, "The AcceptPrebuiltTree method is moving to UGrassInstancedStaticMeshComponent. Please update your project to use the new component and method or your project may not compile in the next udpate.")
-	ENGINE_API void AcceptPrebuiltTree(TArray<FInstancedStaticMeshInstanceData>& InInstanceData, TArray<FClusterNode>& InClusterTree, int32 InOcclusionLayerNumNodes, int32 InNumBuiltRenderInstances);
 	bool IsAsyncBuilding() const { return bIsAsyncBuilding; }
 	bool IsTreeFullyBuilt() const { return !bIsOutOfDate; }
 	ENGINE_API void GetTree(TArray<FClusterNode>& OutClusterTree) const;
@@ -304,6 +377,8 @@ protected:
 
 	virtual FVector GetTranslatedInstanceSpaceOrigin() const override { return TranslatedInstanceSpaceOrigin; }
 
+	ENGINE_API static FBox GetClusterTreeBounds(TArray<FClusterNode> const& InClusterTree, const FVector& InOffset);
+
 	ENGINE_API virtual void GetNavigationPerInstanceTransforms(const FBox& AreaBox, TArray<FTransform>& InstanceData) const override;
 	ENGINE_API virtual void PartialNavigationUpdate(int32 InstanceIdx) override;
 	virtual bool SupportsPartialNavigationUpdate() const override { return true; }
@@ -321,6 +396,6 @@ protected:
 	friend FStaticLightingTextureMapping_InstancedStaticMesh;
 	friend FInstancedLightMap2D;
 	friend FInstancedShadowMap2D;
-	friend class FClusterBuilder;
+	friend FClusterBuilder;
 };
 

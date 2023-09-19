@@ -20,6 +20,7 @@ public:
 
 	inline bool RequiresInstanceDataForTree() const
 	{
+		// We only need to copy off the instances if it is a Nanite mesh, since the Nanite scene proxy uses them instead
 		return ShouldCreateNaniteProxy();
 	}
 };

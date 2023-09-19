@@ -318,12 +318,6 @@ void ULandscapeComponent::BeginCacheForCookedPlatformData(const ITargetPlatform*
 	}
 }
 
-// Deprecated, use CheckGenerateMobilePlatformData
-void ALandscapeProxy::CheckGenerateLandscapePlatformData(bool bIsCooking, const ITargetPlatform* TargetPlatform)
-{
-	return CheckGenerateMobilePlatformData(bIsCooking, TargetPlatform);
-}
-
 void ALandscapeProxy::CheckGenerateMobilePlatformData(bool bIsCooking, const ITargetPlatform* TargetPlatform)
 {
 	for (ULandscapeComponent* Component : LandscapeComponents)
@@ -3158,13 +3152,6 @@ void ALandscapeProxy::OnFeatureLevelChanged(ERHIFeatureLevel::Type NewFeatureLev
 	UpdateRenderingMethod();
 }
 #endif
-
-void ALandscapeProxy::PreSave(const class ITargetPlatform* TargetPlatform)
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	Super::PreSave(TargetPlatform);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-}
 
 void ALandscapeProxy::PreSave(FObjectPreSaveContext ObjectSaveContext)
 {

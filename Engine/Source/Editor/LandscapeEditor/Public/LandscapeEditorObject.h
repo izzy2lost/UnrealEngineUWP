@@ -127,17 +127,6 @@ enum class ELandscapeConvertMode : int8
 	Resample = 2,
 };
 
-namespace EColorChannel
-{
-	enum UE_DEPRECATED(5.2, "Use ELandscapeTextureColorChannel") Type : int
-	{
-		Red,
-		Green,
-		Blue,
-		Alpha,
-	};
-}
-
 UENUM()
 enum class ELandscapeTextureColorChannel : int32
 {

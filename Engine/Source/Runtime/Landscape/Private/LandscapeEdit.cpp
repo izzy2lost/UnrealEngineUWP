@@ -3553,46 +3553,8 @@ LANDSCAPE_API void ALandscapeProxy::Import(const FGuid& InGuid, int32 InMinX, in
 	
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-bool ALandscapeProxy::ExportToRawMesh(int32 InExportLOD, FMeshDescription& OutRawMesh) const
-{
-	ALandscapeProxy::FRawMeshExportParams Params;
-	Params.ExportLOD = InExportLOD;
 
-	return ExportToRawMesh(Params, OutRawMesh);
-}
-
-bool ALandscapeProxy::ExportToRawMesh(int32 InExportLOD, FMeshDescription& OutRawMesh, const FBoxSphereBounds& InBounds, bool bIgnoreBounds) const
-{
-	ALandscapeProxy::FRawMeshExportParams Params;
-	Params.ExportLOD = InExportLOD;
-	if (!bIgnoreBounds)
-	{
-		Params.ExportBounds = InBounds;
-	}
-
-	return ExportToRawMesh(Params, OutRawMesh);
-}
-
-bool ALandscapeProxy::ExportToRawMesh(
-	const TArrayView<ULandscapeComponent*>& RegisteredLandscapeComponents,
-	int32 InExportLOD,
-	FMeshDescription& OutRawMesh,
-	const FBoxSphereBounds& InBounds,
-	bool bIgnoreBounds,
-	bool bGenerateOnePolygonGroupPerComponent) const
-{
-	ALandscapeProxy::FRawMeshExportParams Params;
-	Params.ExportLOD = InExportLOD;
-	if (!bIgnoreBounds)
-	{
-		Params.ExportBounds = InBounds;
-	}
-	Params.ComponentsToExport = RegisteredLandscapeComponents;
-
-	return ExportToRawMesh(Params, OutRawMesh);
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+// ----------------------------------------------------------------------------------
 
 ALandscapeProxy::FRawMeshExportParams::FUVConfiguration::FUVConfiguration()
 {
@@ -3617,6 +3579,9 @@ int32 ALandscapeProxy::FRawMeshExportParams::FUVConfiguration::GetNumUVChannelsN
 	return Result;
 }
 
+
+// ----------------------------------------------------------------------------------
+
 const ALandscapeProxy::FRawMeshExportParams::FUVConfiguration& ALandscapeProxy::FRawMeshExportParams::GetUVConfiguration(int32 InComponentIndex) const
 {
 	return ComponentsUVConfiguration.IsSet() ? (*ComponentsUVConfiguration)[InComponentIndex] : UVConfiguration;
@@ -3639,6 +3604,9 @@ int32 ALandscapeProxy::FRawMeshExportParams::GetNumUVChannelsNeeded() const
 	}
 	return Result;
 }
+
+
+// ----------------------------------------------------------------------------------
 
 namespace UE::Landscape
 {

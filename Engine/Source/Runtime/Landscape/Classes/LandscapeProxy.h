@@ -716,9 +716,6 @@ public:
 	UPROPERTY(EditAnywhere, Category=Collision, meta = (LandscapeOverridable))
 	int32 SimpleCollisionMipLevel;
 
-	UE_DEPRECATED(5.2, "CollisionThickness is not supported by Chaos Physics and therefore deprecated. Please remove any usage of this property")
-	float CollisionThickness;
-
 	/** Collision profile settings for this landscape */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Collision, meta=(ShowOnlyInnerProperties))
 	FBodyInstance BodyInstance;
@@ -1066,10 +1063,6 @@ public:
 #endif // WITH_EDITOR
 
 	//~ Begin UObject Interface.
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS // Suppress compiler warning on override of deprecated function
-	UE_DEPRECATED(5.0, "Use version that takes FObjectPreSaveContext instead.")
-	virtual void PreSave(const class ITargetPlatform* TargetPlatform) override;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	virtual void Serialize(FArchive& Ar) override;
 	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
@@ -1231,41 +1224,6 @@ public:
 	LANDSCAPE_API void Import(const FGuid& InGuid, int32 InMinX, int32 InMinY, int32 InMaxX, int32 InMaxY, int32 InNumSubsections, int32 InSubsectionSizeQuads, const TMap<FGuid, TArray<uint16>>& InImportHeightData,
 							  const TCHAR* const InHeightmapFileName, const TMap<FGuid, TArray<FLandscapeImportLayerInfo>>& InImportMaterialLayerInfos, ELandscapeImportAlphamapType InImportMaterialLayerType, const TArray<struct FLandscapeLayer>* InImportLayers = nullptr);
 
-	/**
-	 * Exports landscape into raw mesh
-	 * 
-	 * @param InExportLOD Landscape LOD level to use while exporting, INDEX_NONE will use ALanscapeProxy::ExportLOD settings
-	 * @param OutRawMesh - Resulting raw mesh
-	 * @return true if successful
-	 */
-	UE_DEPRECATED(5.2, "Use the version of this function taking a FRawMeshExportParams as a parameter")
-	LANDSCAPE_API bool ExportToRawMesh(int32 InExportLOD, FMeshDescription& OutRawMesh) const;
-
-	/**
-	* Exports landscape geometry contained within InBounds into a raw mesh
-	*
-	* @param InExportLOD - Landscape LOD level to use while exporting, INDEX_NONE will use ALanscapeProxy::ExportLOD settings
-	* @param OutRawMesh - Resulting raw mesh
-	* @param InBounds - Box/Sphere bounds which limit the geometry exported out into OutRawMesh
-	* @param bIgnoreBounds - If false, InBounds will be ignored during export
-	* @return true if successful
-	*/
-	UE_DEPRECATED(5.2, "Use the version of this function taking a FRawMeshExportParams as a parameter")
-	LANDSCAPE_API bool ExportToRawMesh(int32 InExportLOD, FMeshDescription& OutRawMesh, const FBoxSphereBounds& InBounds, bool bIgnoreBounds = false) const;
-
-	/**
-	* Exports landscape geometry contained within InBounds into a raw mesh
-	*
-	* @param InComponents - Specific landscape component(s) to export
-	* @param InExportLOD - Landscape LOD level to use while exporting, INDEX_NONE will use ALanscapeProxy::ExportLOD settings
-	* @param OutRawMesh - Resulting raw mesh
-	* @param InBounds - Box/Sphere bounds which limit the geometry exported out into OutRawMesh
-	* @param bIgnoreBounds - If false, InBounds will be ignored during export
-	* @return true if successful
-	*/
-	UE_DEPRECATED(5.2, "Use the version of this function taking a FRawMeshExportParams as a parameter")
-	LANDSCAPE_API bool ExportToRawMesh(const TArrayView<ULandscapeComponent*>& InComponents, int32 InExportLOD, FMeshDescription& OutRawMesh, const FBoxSphereBounds& InBounds, bool bIgnoreBounds = false, bool bGenerateOnePolygonGroupPerComponent = false) const;
-
 	struct FRawMeshExportParams
 	{
 		static constexpr int32 MaxUVCount = 6;
@@ -1360,10 +1318,6 @@ public:
 
 	bool ExportToRawMeshDataCopyOld(const FRawMeshExportParams& InExportParams, FMeshDescription& OutRawMesh, const UE::Landscape::Nanite::FAsyncBuildData& AsyncData) const;
 
-	UE_DEPRECATED(5.1, "CheckGenerateLandscapePlatformData has been deprecated, please use CheckGenerateMobilePlatformData instead.")
-	LANDSCAPE_API void CheckGenerateLandscapePlatformData(bool bIsCooking, const ITargetPlatform* TargetPlatform);
-
-	/** Generate mobile platform data if it's missing or outdated */
 	LANDSCAPE_API void CheckGenerateMobilePlatformData(bool bIsCooking, const ITargetPlatform* TargetPlatform);
 
 	/** Returns true if the Nanite representation is missing or outdated */

@@ -1136,13 +1136,6 @@ void ULandscapeSplinesComponent::RequestSplineLayerUpdate()
 	}
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void ULandscapeSplinesComponent::SetDefaultEditorSplineMesh()
-{
-	SplineEditorMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/EditorLandscapeResources/SplineEditorMesh"));
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 void ULandscapeSplinesComponent::ShowSplineEditorMesh(bool bShow)
 {
 	bShowSplineEditorMesh = bShow;
