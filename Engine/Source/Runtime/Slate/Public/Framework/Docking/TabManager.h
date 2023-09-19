@@ -1041,7 +1041,7 @@ class FTabManager : public TSharedFromThis<FTabManager>
 
 		SLATE_API void MakeSpawnerMenuEntry( FMenuBuilder &PopulateMe, const TSharedPtr<FTabSpawnerEntry> &InSpawnerNode );
 
-		SLATE_API TSharedPtr<SDockTab> InvokeTab_Internal(const FTabId& TabId, bool bInvokeAsInactive = false);
+		SLATE_API TSharedPtr<SDockTab> InvokeTab_Internal(const FTabId& TabId, bool bInvokeAsInactive = false, bool bForceOpenWindowIfNeeded = false);
 
 		/** Finds the last major or nomad tab in a particular window. */
 		SLATE_API TSharedPtr<SDockTab> FindLastTabInWindow(TSharedPtr<SWindow> Window) const;
@@ -1057,10 +1057,12 @@ class FTabManager : public TSharedFromThis<FTabManager>
 
 		SLATE_API FTabManager( const TSharedPtr<SDockTab>& InOwnerTab, const TSharedRef<FTabManager::FTabSpawner> & InNomadTabSpawner );
 
-		SLATE_API TSharedPtr<SDockingArea> RestoreArea(
-			const TSharedRef<FArea>& AreaToRestore, const TSharedPtr<SWindow>& InParentWindow, const bool bEmbedTitleAreaContent = false, const EOutputCanBeNullptr OutputCanBeNullptr = EOutputCanBeNullptr::Never);
+	SLATE_API TSharedPtr<SDockingArea> RestoreArea(
+		const TSharedRef<FArea>& AreaToRestore, const TSharedPtr<SWindow>& InParentWindow, const bool bEmbedTitleAreaContent = false,
+		const EOutputCanBeNullptr OutputCanBeNullptr = EOutputCanBeNullptr::Never, bool bForceOpenWindowIfNeeded = false);
 
-		SLATE_API TSharedPtr<class SDockingNode> RestoreArea_Helper(const TSharedRef<FLayoutNode>& LayoutNode, const TSharedPtr<SWindow>& ParentWindow, const bool bEmbedTitleAreaContent, FSidebarTabLists& OutSidebarTabs, const EOutputCanBeNullptr OutputCanBeNullptr = EOutputCanBeNullptr::Never);
+	SLATE_API TSharedPtr<class SDockingNode> RestoreArea_Helper(const TSharedRef<FLayoutNode>& LayoutNode, const TSharedPtr<SWindow>& ParentWindow, const bool bEmbedTitleAreaContent,
+		FSidebarTabLists& OutSidebarTabs, const EOutputCanBeNullptr OutputCanBeNullptr = EOutputCanBeNullptr::Never, bool bForceOpenWindowIfNeeded = false);
 
 		/**
 		 * Use CanRestoreSplitterContent + RestoreSplitterContent when the output of its internal RestoreArea_Helper can be a nullptr.
@@ -1099,6 +1101,13 @@ class FTabManager : public TSharedFromThis<FTabManager>
 		 * @return It returns true if there is at least a valid open tab in the input SomeNode.
 		 */
 		SLATE_API bool HasValidOpenTabs( const TSharedRef<FTabManager::FLayoutNode>& SomeNode ) const;
+
+		/**
+		 * Gets a TSharedPtr<FArea> with the given FTabId if present, else it return nullptr
+		 *
+		 * @param InTabIdToMatch the const &FTabId for which to find the FArea
+		 */
+	    SLATE_API TSharedPtr<FArea> GetFAreaFromInitialLayoutWithTabType(const FTabId& InTabIdToMatch ) const;
 
 	protected:
 		SLATE_API bool HasValidTabs( const TSharedRef<FTabManager::FLayoutNode>& SomeNode ) const;
@@ -1139,6 +1148,16 @@ class FTabManager : public TSharedFromThis<FTabManager>
 	private:
 		/** Checks all dock areas and adds up the number of open tabs and unique parent windows in the manager */
 		SLATE_API void GetRecordableStats( int32& OutTabCount, TArray<TSharedPtr<SWindow>>& OutUniqueParentWindows ) const;
+
+	TSharedPtr<SDockingTabStack> AttemptToOpenTab( const FTabId& ClosedTabId, bool bForceOpenWindowIfNeeded = false );
+
+	/**
+	 * Returns true if the given FLayoutNode contains a tab with the given FTabId.TabType
+	 *
+	 * @param InTabTypeToMatch the given FTabId.TabType to look to see if this tab manager manages it
+	 * @param SomeNode the TSharedRef<FLayoutNode> in which to look for the tab with FTabId.TabType == InTabTypeToMatch
+	 */
+	bool HasAnyTabWithTabId( const TSharedRef<FTabManager::FLayoutNode>& SomeNode, const FName& InTabTypeToMatch ) const;
 
 	protected:
 		FTabSpawner TabSpawner;
@@ -1346,7 +1365,20 @@ protected:
 public:
 	SLATE_API virtual void OnTabManagerClosing() override;
 
+	/**
+	 * Sets the initial layout shared pointer, which can be used later to get the current layout for tabs which were not
+	 * spawned on initialization
+	 *
+	 * @param InLayout the FLayout which was loaded at layout load time
+	 */
+	SLATE_API void SetInitialLayoutSP(TSharedPtr<FTabManager::FLayout> InLayout);
 
+	/**
+	 * Gets the initial layout shared pointer, which can be used later to get the current layout for tabs which were not
+	 * spawned on initialization
+	 */
+	SLATE_API TSharedPtr<FTabManager::FLayout> GetInitialLayoutSP();
+	
 private:
 	
 	/** Pairs of Major Tab and the TabManager that manages tabs within it. */
@@ -1424,6 +1456,12 @@ private:
 
 	/**  */
 	TSharedPtr<FProxyTabmanager> ProxyTabManager;
+
+	/**
+	 * the initial layout shared pointer, which can be used to get the current layout for tabs which were not
+	 * spawned on initialization
+	 */
+	TSharedPtr<FTabManager::FLayout> InitialLayoutSP;
 };
 
 //#HACK VREDITOR - Had to introduce the proxy tab manager to steal asset tabs.

@@ -115,7 +115,7 @@ void SLevelEditor::BindCommands()
 		Actions.EditAssetNoConfirmMultiple, 
 		FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::EditAsset_Clicked, EToolkitMode::Standalone, TWeakPtr< SLevelEditor >( SharedThis( this ) ), false ),
 		FCanExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::EditAsset_CanExecute ) );
-	
+
 	LevelEditorCommands->MapAction(
 		Actions.OpenSelectionInPropertyMatrix,
 		FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::OpenSelectionInPropertyMatrix_Clicked ),
@@ -1640,6 +1640,9 @@ TSharedRef<SWidget> SLevelEditor::RestoreContentArea( const TSharedRef<SDockTab>
 				)
 			)
 		));
+
+	FGlobalTabmanager::Get()->SetInitialLayoutSP(DefaultLayout);
+	
 	const EOutputCanBeNullptr OutputCanBeNullptr = EOutputCanBeNullptr::IfNoTabValid;
 	TArray<FString> RemovedOlderLayoutVersions;
 	const TSharedRef<FTabManager::FLayout> Layout = FLayoutSaveRestore::LoadFromConfig(GEditorLayoutIni,
