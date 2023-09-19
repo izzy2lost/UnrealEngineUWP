@@ -784,7 +784,7 @@ private:
 };
 
 USTRUCT()
-struct FStreamingLevelsToConsider
+struct ENGINE_API FStreamingLevelsToConsider
 {
 	GENERATED_BODY()
 
