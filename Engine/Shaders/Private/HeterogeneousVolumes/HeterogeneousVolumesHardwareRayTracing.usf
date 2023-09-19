@@ -182,7 +182,8 @@ RAY_TRACING_ENTRY_INTERSECTION(SparseVoxelsIntersectionShader)
 	if (HitT.y > HitT.x)
 	{
 		uint HitKind = 0;
-		ReportHit(HitT.x, HitKind, CreateVolumeIntersectionAttributes(HitT));
+		FSparseVoxelIntersectionAttributes IntersectionAttributes = CreateVolumeIntersectionAttributes(HitT);
+		ReportHit(HitT.x, HitKind, IntersectionAttributes);
 	}
 }
 
