@@ -384,6 +384,13 @@ namespace UnrealBuildTool
 		public string? ObjSrcMapFile = null;
 
 		/// <summary>
+		/// Whether to have the linker or library tool to generate a link repro in the specified directory
+		/// See https://learn.microsoft.com/en-us/cpp/build/reference/linkrepro for more information
+		/// </summary>
+		[CommandLine("-LinkRepro=")]
+		public string? LinkReproDir = null;
+
+		/// <summary>
 		/// Provides a Module Definition File (.def) to the linker to describe various attributes of a DLL.
 		/// Necessary when exporting functions by ordinal values instead of by name.
 		/// </summary>
@@ -752,6 +759,8 @@ namespace UnrealBuildTool
 		public bool bWriteSarif => Inner.bWriteSarif;
 
 		public string? ObjSrcMapFile => Inner.ObjSrcMapFile;
+
+		public string? LinkReproDir => Inner.LinkReproDir;
 
 		public string? ModuleDefinitionFile => Inner.ModuleDefinitionFile;
 

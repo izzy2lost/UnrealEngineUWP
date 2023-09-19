@@ -2563,6 +2563,18 @@ namespace UnrealBuildTool
 			// Allow remote linking. Note that this may be overriden by the executor (eg. XGE.bAllowRemoteLinking)
 			LinkAction.bCanExecuteRemotely = true;
 
+			// Create link repro if requested, this argument is intentionally not added to the response file
+			if (Target.WindowsPlatform.LinkReproDir != null)
+			{
+				DirectoryReference LinkReproRoot = new DirectoryReference(Target.WindowsPlatform.LinkReproDir);
+				DirectoryReference LinkReproPath = DirectoryReference.Combine(LinkReproRoot, OutputFile.Name);
+				DirectoryReference.CreateDirectory(LinkReproPath);
+				LinkAction.CommandArguments = $"{LinkAction.CommandArguments} /LINKREPRO:{Utils.MakePathSafeToUseWithCommandLine(LinkReproPath.FullName)}";
+
+				LinkAction.bCanExecuteRemotely = false;
+				LinkAction.bCanExecuteInBox = false;
+			}
+
 			Logger.LogDebug("     Linking: {StatusDescription}", LinkAction.StatusDescription);
 			Logger.LogDebug("     Command: {CommandArguments}", LinkAction.CommandArguments);
 
@@ -2640,6 +2652,7 @@ namespace UnrealBuildTool
 			"/errorReport:",
 			"/d2:",
 			"/NATVIS:",
+			"/LINKREPRO:",
 			"/experimental:deterministic"
 		};
 		private IEnumerable<string> RemovePGOIgnoredSwitches(IEnumerable<string> SourceArguments)
