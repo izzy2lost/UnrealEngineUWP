@@ -24,6 +24,7 @@
 #include "Materials/MaterialExpressionArctangent2.h"
 #include "Materials/MaterialExpressionArctangent2Fast.h"
 #include "Materials/MaterialExpressionArctangentFast.h"
+#include "Materials/MaterialExpressionAtmosphericLightColor.h"
 #include "Materials/MaterialExpressionAtmosphericLightVector.h"
 #include "Materials/MaterialExpressionBinaryOp.h"
 #include "Materials/MaterialExpressionBlendMaterialAttributes.h"
@@ -51,6 +52,7 @@
 #include "Materials/MaterialExpressionDDX.h"
 #include "Materials/MaterialExpressionDDY.h"
 #include "Materials/MaterialExpressionDecalColor.h"
+#include "Materials/MaterialExpressionDecalDerivative.h"
 #include "Materials/MaterialExpressionDecalLifetimeOpacity.h"
 #include "Materials/MaterialExpressionDeltaTime.h"
 #include "Materials/MaterialExpressionDepthFade.h"
@@ -85,12 +87,14 @@
 #include "Materials/MaterialExpressionGetLocal.h"
 #include "Materials/MaterialExpressionGetMaterialAttributes.h"
 #include "Materials/MaterialExpressionHairAttributes.h"
+#include "Materials/MaterialExpressionHairColor.h"
 #include "Materials/MaterialExpressionIf.h"
 #include "Materials/MaterialExpressionIfThenElse.h"
 #include "Materials/MaterialExpressionInverseLinearInterpolate.h"
 #include "Materials/MaterialExpressionIsOrthographic.h"
 #include "Materials/MaterialExpressionLength.h"
 #include "Materials/MaterialExpressionLightmapUVs.h"
+#include "Materials/MaterialExpressionLightVector.h"
 #include "Materials/MaterialExpressionLinearInterpolate.h"
 #include "Materials/MaterialExpressionLogarithm.h"
 #include "Materials/MaterialExpressionLogarithm10.h"
@@ -172,6 +176,7 @@
 #include "Materials/MaterialExpressionSubtract.h"
 #include "Materials/MaterialExpressionSwitch.h"
 #include "Materials/MaterialExpressionTangent.h"
+#include "Materials/MaterialExpressionTangentOutput.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
 #include "Materials/MaterialExpressionTextureObject.h"
 #include "Materials/MaterialExpressionTextureObjectParameter.h"
@@ -3321,9 +3326,49 @@ bool UMaterialExpressionSkyAtmosphereLightDirection::GenerateHLSLExpression(FMat
 	return true;
 }
 
+bool UMaterialExpressionAtmosphericLightColor::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	OutExpression = Generator.GetTree().NewExpression<UE::HLSLTree::FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float3, TEXT("MaterialExpressionAtmosphericLightColor(Parameters)"));
+	return true;
+}
+
 bool UMaterialExpressionAtmosphericLightVector::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	OutExpression = Generator.GetTree().NewExpression<UE::HLSLTree::FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float3, TEXT("MaterialExpressionAtmosphericLightVector(Parameters)"));
+	return true;
+}
+
+bool UMaterialExpressionDecalDerivative::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	if (Generator.GetTargetMaterial()->MaterialDomain != MD_DeferredDecal)
+	{
+		return Generator.Errorf(TEXT("Decal derivatives only available in the decal material domain."));
+	}
+
+	if (OutputIndex == 1)
+	{
+		// DDY Case
+		OutExpression = Generator.GetTree().NewExpression<UE::HLSLTree::FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float2, TEXT("ComputeDecalDDY(Parameters)"));
+	}
+	else
+	{
+		OutExpression = Generator.GetTree().NewExpression<UE::HLSLTree::FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float2, TEXT("ComputeDecalDDX(Parameters)"));
+	}
+	return true;
+}
+
+bool UMaterialExpressionLightVector::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	EMaterialDomain Domain = Generator.GetTargetMaterial()->MaterialDomain;
+	if (Domain != MD_LightFunction && Domain != MD_DeferredDecal)
+	{
+		return Generator.Errorf(TEXT("LightVector can only be used in LightFunction or DeferredDecal materials"));
+	}
+
+	const FExpression* Expression = Generator.NewExternalInput(Material::EExternalInput::LightVector);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionLightVector>(Expression);
 	return true;
 }
 
@@ -3435,6 +3480,19 @@ bool UMaterialExpressionHairAttributes::GenerateHLSLExpression(FMaterialHLSLGene
 	default: return Generator.Error(TEXT("Invalid output"));
 	}
 	return OutExpression != nullptr;
+}
+
+bool UMaterialExpressionHairColor::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	using namespace UE::Shader;
+
+	const FExpression* MelaninExpression = Melanin.AcquireHLSLExpressionOrConstant(Generator, Scope, 0.5f);
+	const FExpression* RednessExpression = Redness.AcquireHLSLExpressionOrConstant(Generator, Scope, 0.0f);
+	const FExpression* DyeColorExpression = DyeColor.AcquireHLSLExpressionOrConstant(Generator, Scope, FValue(1.0f, 1.0f, 1.0f));
+
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionHairColor>(MelaninExpression, RednessExpression, DyeColorExpression);
+	return true;
 }
 
 bool UMaterialExpressionCloudSampleAttribute::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
@@ -3608,6 +3666,12 @@ bool UMaterialExpressionCustom::GenerateHLSLExpression(FMaterialHLSLGenerator& G
 }
 
 bool UMaterialExpressionClearCoatNormalCustomOutput::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	OutExpression = Input.AcquireHLSLExpression(Generator, Scope);
+	return OutExpression != nullptr;
+}
+
+bool UMaterialExpressionTangentOutput::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	OutExpression = Input.AcquireHLSLExpression(Generator, Scope);
 	return OutExpression != nullptr;

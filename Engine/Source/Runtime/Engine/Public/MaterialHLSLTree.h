@@ -140,6 +140,7 @@ enum class EExternalInput : uint8
 	RcpResolutionFraction,
 
 	CameraVector,
+	LightVector,
 	CameraWorldPosition,
 	ViewWorldPosition,
 	PreViewTranslation,
@@ -779,6 +780,36 @@ public:
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionHairColor : public FExpression
+{
+public:
+	const FExpression* MelaninExpression;
+	const FExpression* RednessExpression;
+	const FExpression* DyeColorExpression;
+
+	FExpressionHairColor(
+		const FExpression* InMelaninExpression,
+		const FExpression* InRednessExpression,
+		const FExpression* InDyeColorExpression)
+		: MelaninExpression(InMelaninExpression)
+		, RednessExpression(InRednessExpression)
+		, DyeColorExpression(InDyeColorExpression)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionLightVector : public FExpressionForward
+{
+public:
+	FExpressionLightVector(const FExpression* InExpression)
+		: FExpressionForward(InExpression)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 };
 
 struct FVertexInterpolator

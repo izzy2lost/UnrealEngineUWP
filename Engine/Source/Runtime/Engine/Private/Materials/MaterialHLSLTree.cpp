@@ -103,6 +103,7 @@ FExternalInputDescription GetExternalInputDescription(EExternalInput Input)
 	case EExternalInput::RcpResolutionFraction: return FExternalInputDescription(TEXT("RcpResolutionFraction"), Shader::EValueType::Float1);
 
 	case EExternalInput::CameraVector: return FExternalInputDescription(TEXT("CameraVector"), Shader::EValueType::Float3);
+	case EExternalInput::LightVector: return FExternalInputDescription(TEXT("LightVector"), Shader::EValueType::Float3);
 	case EExternalInput::CameraWorldPosition: return FExternalInputDescription(TEXT("CameraWorldPosition"), Shader::EValueType::Double3, EExternalInput::None, EExternalInput::None, EExternalInput::PrevCameraWorldPosition);
 	case EExternalInput::ViewWorldPosition: return FExternalInputDescription(TEXT("ViewWorldPosition"), Shader::EValueType::Double3, EExternalInput::None, EExternalInput::None, EExternalInput::PrevViewWorldPosition);
 	case EExternalInput::PreViewTranslation: return FExternalInputDescription(TEXT("PreViewTranslation"), Shader::EValueType::Double3, EExternalInput::None, EExternalInput::None, EExternalInput::PrevPreViewTranslation);
@@ -318,6 +319,7 @@ void FExpressionExternalInput::EmitValueShader(FEmitContext& Context, FEmitScope
 		case EExternalInput::RcpResolutionFraction: Code = TEXT("View.ResolutionFractionAndInv.y"); break;
 
 		case EExternalInput::CameraVector: Code = TEXT("Parameters.CameraVector"); break;
+		case EExternalInput::LightVector: Code = TEXT("Parameters.LightVector"); break;
 		case EExternalInput::CameraWorldPosition: Code = TEXT("ResolvedView.WorldCameraOrigin"); break;
 		case EExternalInput::ViewWorldPosition: Code = TEXT("ResolvedView.WorldViewOrigin"); break;
 		case EExternalInput::PreViewTranslation: Code = TEXT("ResolvedView.PreViewTranslation"); break;
@@ -1963,6 +1965,52 @@ const TCHAR* FExpressionSamplePhysicsField::GetEmitExpressionFormat() const
 		checkNoEntry();
 		return nullptr;
 	}
+}
+
+bool FExpressionHairColor::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	const FPreparedType& MelaninType = Context.PrepareExpression(MelaninExpression, Scope, Shader::EValueType::Float1);
+	if (MelaninType.IsVoid())
+	{
+		return false;
+	}
+
+	const FPreparedType& RednessType = Context.PrepareExpression(RednessExpression, Scope, Shader::EValueType::Float1);
+	if (RednessType.IsVoid())
+	{
+		return false;
+	}
+
+	const FPreparedType& DyeColorType = Context.PrepareExpression(DyeColorExpression, Scope, Shader::EValueType::Float3);
+	if (DyeColorType.IsVoid())
+	{
+		return false;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+}
+
+void FExpressionHairColor::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitMelanin = MelaninExpression->GetValueShader(Context, Scope, Shader::EValueType::Float1);
+	FEmitShaderExpression* EmitRedness = RednessExpression->GetValueShader(Context, Scope, Shader::EValueType::Float1);
+	FEmitShaderExpression* EmitDyeColor = DyeColorExpression->GetValueShader(Context, Scope, Shader::EValueType::Float3);
+
+	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float3,
+		TEXT("MaterialExpressionGetHairColorFromMelanin(%, %, %)"),
+		EmitMelanin,
+		EmitRedness,
+		EmitDyeColor);
+}
+
+bool FExpressionLightVector::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Context.ShaderFrequency != SF_Pixel && Context.ShaderFrequency != SF_Compute)
+	{
+		return Context.Error(TEXT("LightVector can only be used in Pixel and Compute shaders."));
+	}
+
+	return FExpressionForward::PrepareValue(Context, Scope, RequestedType, OutResult);
 }
 
 bool FExpressionDistanceFieldApproxAO::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
