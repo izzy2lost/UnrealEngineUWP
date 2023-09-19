@@ -13,8 +13,6 @@
 
 void FWinHttpWebSocketsManager::InitWebSockets(TArrayView<const FString> Protocols)
 {
-	(void)FModuleManager::LoadModuleChecked<FHttpModule>(TEXT("Http"));
-
 	if (FWinHttpHttpManager::GetManager() == nullptr)
 	{
 		InitHttpManager();
