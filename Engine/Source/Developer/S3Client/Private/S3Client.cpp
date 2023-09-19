@@ -27,12 +27,10 @@
 #include "Microsoft/HideMicrosoftPlatformTypes.h"
 #endif
 
-#if WITH_SSL
 #include "Ssl.h"
 #include <openssl/hmac.h>
 #include <openssl/sha.h>
 #include <openssl/ssl.h>
-#endif
 
 IMPLEMENT_MODULE(FDefaultModuleImpl, S3Client);
 

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Containers/BackgroundableTicker.h"
 #include "CoreMinimal.h"
+#include "HAL/IConsoleManager.h"
 #include "HAL/PlatformProcess.h"
 #include "Http.h"
 #include "Misc/CommandLine.h"
@@ -23,6 +24,8 @@
 
 #define WEBSOCKETS_TAG "[WebSockets]"
 
+extern TAutoConsoleVariable<bool> CVarHttpInsecureProtocolEnabled;
+
 class FWebSocketsModuleTestFixture
 {
 public:
@@ -31,6 +34,8 @@ public:
 		, WebServerWebSocketsPort(8000)
 		, OldVerbosity(LogWebSockets.GetVerbosity())
 	{
+		CVarHttpInsecureProtocolEnabled->Set(true);
+
 		ParseSettingsFromCommandLine();
 
 		// Init HTTP module because websockets module has dependency on it when get proxy
