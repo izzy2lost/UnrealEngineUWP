@@ -26,7 +26,11 @@ final class WebRTCClient: NSObject {
         let videoEncoderFactory = RTCDefaultVideoEncoderFactory()
         let videoDecoderFactory = RTCDefaultVideoDecoderFactory()
 
-        let fieldTrials = ["WebRTC-MaxPacketBufferSize": "8192"]
+        let fieldTrials = [
+            "WebRTC-MaxPacketBufferSize": "8192",
+            "WebRTC-ForcePlayoutDelay" : "min_ms:1,max_ms:1",
+            "WebRTC-ZeroPlayoutDelay" : "min_pacing:4ms,max_decode_queue_size:1"
+        ]
         RTCInitFieldTrialDictionary(fieldTrials)
 
 
@@ -296,8 +300,8 @@ extension WebRTCClient {
     private func configureAudioSession() {
         self.rtcAudioSession.lockForConfiguration()
         do {
-            try self.rtcAudioSession.setCategory(AVAudioSession.Category.ambient) /* Playback only */
-            try self.rtcAudioSession.setMode(AVAudioSession.Mode.default) /* Mode to default mode */
+            try self.rtcAudioSession.setCategory(AVAudioSession.Category.ambient.rawValue) /* Playback only */
+            try self.rtcAudioSession.setMode(AVAudioSession.Mode.default.rawValue) /* Mod.rawValuee to default mode */
         } catch let error {
             debugPrint("Error changeing AVAudioSession category: \(error)")
         }
