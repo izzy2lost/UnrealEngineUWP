@@ -383,8 +383,6 @@ bool UDatasmithConsumer::Initialize()
 			FPropertyChangedEvent PropertyUpdateStruct( Property );
 			PostEditChangeProperty( PropertyUpdateStruct );
 
-			MarkPackageDirty();
-
 			DatasmithSceneObjectPath = FSoftObjectPath(DatasmithSceneWeakPtr.Get()).GetAssetPathString();
 		}
 	}
@@ -1161,6 +1159,16 @@ bool UDatasmithConsumer::ValidateAssets()
 	{
 		if(UObject* Asset = AssetPtr.Get())
 		{
+			// If the asset has not been created by a Datasmith producer
+			const FString SourcePackagePath = Asset->GetOutermost()->GetName();
+			if (SourcePackagePath.StartsWith(Context.TransientContentFolder, ESearchCase::CaseSensitive))
+			{
+				const FString DestinationPackagePath = SourcePackagePath.Replace(*Context.TransientContentFolder, *TargetContentFolder, ESearchCase::CaseSensitive);
+
+				Asset->ClearFlags(RF_Transient);
+				Asset = FDatasmithImporterImpl::FinalizeAsset(Asset, *DestinationPackagePath, nullptr, nullptr);
+			}
+
 			TPair<FString, FString>& AssetPackageInfo = AssetPackageInfoMap.Add(Asset);
 
 			bool bAssetWithMarker = false;

@@ -1537,7 +1537,7 @@ AActor* FDatasmithImporter::FinalizeActor( FDatasmithImportContext& ImportContex
 
 		// Actors that were created via blueprint (can happen with Dataprep) will have their components destroyed by the finalizer after this scope's end.
 		// This will disallow destruction of such components.
-		DestinationActor->bActorSeamlessTraveled = 1;
+		//DestinationActor->bActorSeamlessTraveled = 1;
 	}
 
 	// Update label to match the source actor's
