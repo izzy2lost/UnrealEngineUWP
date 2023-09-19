@@ -137,7 +137,7 @@ public:
 private:
 	void EnableAutomationTest();
 	void BuildPackageMapping(FName Original, FName Instanced);
-	FName FindPackageMapping(FName Original) const;
+	bool FindPackageMapping(FName Original, FName& Instanced) const;
 
 	friend class FLinkerLoad;
 	friend struct FAsyncPackage2;

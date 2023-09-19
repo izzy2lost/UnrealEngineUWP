@@ -45,11 +45,16 @@ public:
 		InstancedPackageMap.AddPackageMapping(Original, Instanced);
 	}
 
-	FName FindPackageMapping(FName Original) const
+	bool FindPackageMapping(FName Original, FName& Instanced) const
 	{
 		FReadScopeLock ScopeLock(Lock);
 		LLM_SCOPE_BYTAG(Loading_LinkerInstancingContext);
-		return InstancedPackageMap.InstancedPackageMapping.FindRef(Original);
+		if (const FName* InstancedPtr = InstancedPackageMap.InstancedPackageMapping.Find(Original))
+		{
+			Instanced = *InstancedPtr;
+			return true;
+		}
+		return false;
 	}
 
 	void FixupSoftObjectPath(FSoftObjectPath& InOutSoftObjectPath) const
@@ -190,9 +195,9 @@ void FLinkerInstancingContext::BuildPackageMapping(FName Original, FName Instanc
 	SharedData->BuildPackageMapping(Original, Instanced, GetSoftObjectPathRemappingEnabled());
 }
 
-FName FLinkerInstancingContext::FindPackageMapping(FName Original) const
+bool FLinkerInstancingContext::FindPackageMapping(FName Original, FName& Instanced) const
 {
-	return SharedData->FindPackageMapping(Original);
+	return SharedData->FindPackageMapping(Original, Instanced);
 }
 
 bool FLinkerInstancingContext::IsInstanced() const
@@ -283,14 +288,20 @@ void FLinkerInstancedPackageMap::AddPackageMapping(FName Original, FName Instanc
 {
 	if (InstanceMappingDirection == EInstanceMappingDirection::OriginalToInstanced)
 	{
-		InstancedPackageMapping.Add(Original, Instanced);
-		bIsInstanced |= !Instanced.IsNone();
+		if (!InstancedPackageMapping.Contains(Original))
+		{
+			InstancedPackageMapping.Add(Original, Instanced);
+			bIsInstanced |= !Instanced.IsNone();
+		}
 	}
 	else
 	{
 		check(InstanceMappingDirection == EInstanceMappingDirection::InstancedToOriginal);
-		InstancedPackageMapping.Add(Instanced, Original);
-		bIsInstanced |= !Original.IsNone();
+		if (!InstancedPackageMapping.Contains(Instanced))
+		{
+			InstancedPackageMapping.Add(Instanced, Original);
+			bIsInstanced |= !Original.IsNone();
+		}
 	}
 }
 

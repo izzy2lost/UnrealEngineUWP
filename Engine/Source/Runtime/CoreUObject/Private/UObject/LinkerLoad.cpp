@@ -2064,9 +2064,9 @@ FLinkerLoad::ELinkerStatus FLinkerLoad::PopulateInstancingContext()
 		{
 			auto AddInstancedMapping = [this](const FString& OuterPackageName, FName InstancingPackageName) -> bool
 			{
-				FName InstancedName = InstancingContext.FindPackageMapping(InstancingPackageName);
+				FName InstancedName;
 				// if there's isn't already a remapping for that package, create one
-				if (InstancedName.IsNone())
+				if (!InstancingContext.FindPackageMapping(InstancingPackageName, InstancedName))
 				{
 					InstancedName = *FLinkerInstancingContext::GetInstancedPackageName(OuterPackageName, InstancingPackageName.ToString());
 					InstancingContext.AddPackageMapping(InstancingPackageName, InstancedName);
