@@ -65,12 +65,12 @@ namespace Gauntlet.SelfTest
 
 		public TestUnrealBase()
 		{
-			ProjectName = "Fortnite";
+			ProjectName = "FortniteGame";
 			ProjectFile = new FileReference("FortniteGame/FortniteGame.uproject");
 			UsesSharedBuildType = false;
 			DevkitName = "Default";
 
-			string BuildPath = Gauntlet.Globals.Params.ParseValue("Build", null);
+			BuildPath = Gauntlet.Globals.Params.ParseValue("Build", null);
 
 			if (BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Win64)
 			{
