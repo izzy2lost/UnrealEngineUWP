@@ -22,6 +22,7 @@ namespace mu
 		, bReshapeSkeleton(false)
 		, bReshapePhysicsVolumes(false)
 		, bReshapeVertices(true)
+		, bApplyLaplacian(false)
 	{
 	}
 
@@ -62,14 +63,15 @@ namespace mu
 	}
 
 
-	mu::Ptr<ASTOp> ASTOpMeshApplyShape::Clone(MapChildFuncRef mapChild) const
+	mu::Ptr<ASTOp> ASTOpMeshApplyShape::Clone(MapChildFuncRef MapChild) const
 	{
 		Ptr<ASTOpMeshApplyShape> NewOp = new ASTOpMeshApplyShape();
-		NewOp->Mesh = mapChild(Mesh.child());
-		NewOp->Shape = mapChild(Shape.child());
+		NewOp->Mesh = MapChild(Mesh.child());
+		NewOp->Shape = MapChild(Shape.child());
 		NewOp->bReshapeSkeleton = bReshapeSkeleton;
 		NewOp->bReshapePhysicsVolumes = bReshapePhysicsVolumes;
 		NewOp->bReshapeVertices = bReshapeVertices;
+		NewOp->bApplyLaplacian = bApplyLaplacian;
 		return NewOp;
 	}
 
