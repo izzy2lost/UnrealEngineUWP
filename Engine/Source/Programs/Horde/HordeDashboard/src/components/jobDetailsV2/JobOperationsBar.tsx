@@ -323,7 +323,7 @@ const StepOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = o
 
    const canRunDisabled = !node?.allowRetry || !!step.retriedByUserInfo;
    const canTryFix = jobDetails.template?.allowPreflights;
-   const canBisect = (step.outcome === JobStepOutcome.Failure || step.outcome === JobStepOutcome.Warnings);
+   const canBisect = (step.outcome === JobStepOutcome.Failure || step.outcome === JobStepOutcome.Warnings) && !!jobDetails.template?.allowPreflights;
 
    const opsList: IContextualMenuItem[] = [];
 

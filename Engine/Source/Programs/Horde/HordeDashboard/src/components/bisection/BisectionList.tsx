@@ -539,7 +539,7 @@ export const BisectionList: React.FC<{ bisections?: GetBisectTaskResponse[] }> =
                                     <Text style={{ fontWeight: 600, width: statusWidth }}>Suspect:</Text>
                                  </Stack>
                                  <Stack>
-                                    <ChangeButton job={{ streamId: bisection.streamId, change: bisection.currentChange }} />
+                                    <ChangeButton job={{ streamId: bisection.streamId, id: bisection.currentJobId, change: bisection.currentChange }} />
                                  </Stack>
                               </Stack>}
                               {!succeeded && !running && <Text style={{ fontWeight: 600, width: statusWidth }}>{bisection.state}</Text>}
