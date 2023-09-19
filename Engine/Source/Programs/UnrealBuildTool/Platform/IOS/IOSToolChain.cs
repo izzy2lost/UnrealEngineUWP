@@ -225,17 +225,20 @@ namespace UnrealBuildTool
 			// Add additional frameworks so that their headers can be found
 			foreach (UEBuildFramework Framework in CompileEnvironment.AdditionalFrameworks)
 			{
-				DirectoryReference? FrameworkDirectory = Framework.GetFrameworkDirectory(CompileEnvironment.Platform, CompileEnvironment.Architecture, Logger);
-				if (FrameworkDirectory != null)
+				if (Framework.bLinkFramework)
 				{
-					string FrameworkDir = FrameworkDirectory.FullName;
-					// embedded frameworks have a framework inside of this directory, so we use this directory. regular frameworks need to go one up to point to the 
-					// directory containing the framework. -F gives a path to look for the -framework
-					if (FrameworkDir.EndsWith(".framework"))
+					DirectoryReference? FrameworkDirectory = Framework.GetFrameworkDirectory(CompileEnvironment.Platform, CompileEnvironment.Architecture, Logger);
+					if (FrameworkDirectory != null)
 					{
-						FrameworkDir = Path.GetDirectoryName(FrameworkDir)!;
+						string FrameworkDir = FrameworkDirectory.FullName;
+						// embedded frameworks have a framework inside of this directory, so we use this directory. regular frameworks need to go one up to point to the 
+						// directory containing the framework. -F gives a path to look for the -framework
+						if (FrameworkDir.EndsWith(".framework"))
+						{
+							FrameworkDir = Path.GetDirectoryName(FrameworkDir)!;
+						}
+						Arguments.Add($"-F\"{FrameworkDir}\"");
 					}
-					Arguments.Add($"-F\"{FrameworkDir}\"");
 				}
 			}
 		}
