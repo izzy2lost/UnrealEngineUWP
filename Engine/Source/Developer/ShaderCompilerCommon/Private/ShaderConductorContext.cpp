@@ -320,6 +320,71 @@ namespace CrossCompiler
 		}
 	}
 
+
+	/*
+	 * Reduced list of SPIRV-Tools optimization passes to avoid nested expressions in GLSL output.
+	 * The order of passes has been adopted from the standard '-O' optimization configuration with the following passes removed:
+	 * - LocalSingleBlockLoadStoreElimPass
+	 * - LocalSingleStoreElimPass
+	 * - LocalMultiStoreElimPass
+	 * - SSARewritePass
+	 */
+	static const TCHAR* GSpirvTools_OptPasses_PresetRelaxNestedExpr = TEXT(
+		"--wrap-opkill,"
+		"--eliminate-dead-branches,"
+		"--merge-return,"
+		"--inline-entry-points-exhaustive,"
+		"--eliminate-dead-functions,"
+		"--eliminate-dead-code-aggressive,"
+		"--private-to-local,"
+		"--eliminate-dead-code-aggressive,"
+		"--scalar-replacement,"
+		"--convert-local-access-chains,"
+		"--eliminate-dead-code-aggressive,"
+		"--ccp,"
+		"--eliminate-dead-code-aggressive,"
+		"--loop-unroll,"
+		"--eliminate-dead-branches,"
+		"--redundancy-elimination,"
+		"--combine-access-chains,"
+		"--simplify-instructions,"
+		"--scalar-replacement,"
+		"--convert-local-access-chains,"
+		"--eliminate-dead-code-aggressive,"
+		"--vector-dce,"
+		"--eliminate-dead-inserts,"
+		"--eliminate-dead-branches,"
+		"--simplify-instructions,"
+		"--if-conversion,"
+		"--copy-propagate-arrays,"
+		"--reduce-load-size,"
+		"--eliminate-dead-code-aggressive,"
+		"--merge-blocks,"
+		"--redundancy-elimination,"
+		"--eliminate-dead-branches,"
+		"--merge-blocks,"
+		"--simplify-instructions,"
+		"--eliminate-dead-members,"
+		"--merge-blocks,"
+		"--redundancy-elimination,"
+		"--simplify-instructions,"
+		"--eliminate-dead-code-aggressive,"
+		"--cfg-cleanup"
+	);
+
+	static const TCHAR* SelectSpirvCustomOptimizationPasses(const FString& OptimizationPasses)
+	{
+		if (OptimizationPasses == TEXT("preset(relax-nested-expr)"))
+		{
+			return GSpirvTools_OptPasses_PresetRelaxNestedExpr;
+		}
+		else
+		{
+			// Interpret input argument as set of optimization passes
+			return *OptimizationPasses;
+		}
+	}
+
 	static void ConvertScOptions(FShaderConductorContext::FShaderConductorIntermediates& Intermediates, const FShaderConductorOptions& InOptions, ShaderConductor::Compiler::Options& OutOptions, bool bIgnoreCustomDxcArgs = false)
 	{
 		// Validate input shader model with respect to certain language features.
@@ -426,7 +491,7 @@ namespace CrossCompiler
 
 		if (!InOptions.SpirvCustomOptimizationPasses.IsEmpty())
 		{
-			ConvertFStringToAnsiString(FString::Printf(TEXT("-Oconfig=%s"), *InOptions.SpirvCustomOptimizationPasses), Intermediates.InternalDxcArgs);
+			ConvertFStringToAnsiString(FString::Printf(TEXT("-Oconfig=%s"), SelectSpirvCustomOptimizationPasses(InOptions.SpirvCustomOptimizationPasses)), Intermediates.InternalDxcArgs);
 			DxcArgRefs.Add(Intermediates.InternalDxcArgs.GetData());
 		}
 

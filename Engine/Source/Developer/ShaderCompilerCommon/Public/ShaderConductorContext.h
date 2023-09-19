@@ -111,7 +111,10 @@ namespace CrossCompiler
 		/** HLSL language input version: 2015, 2016, 2017, 2018 (Default), 2021 (Breaking changes in short-circuiting evaluation). */
 		uint32 HlslVersion = 2018;
 
-		/** SPIR-V specific optimization passes to override the default '-O' argument. This will be passed to DXC via the '-Oconfig=...' argument. */
+		/**
+		 * SPIR-V specific optimization passes to override the default '-O' argument. This will be passed to DXC via the '-Oconfig=...' argument.
+		 * Use "preset(relax-nested-expr)" for pre-defined set of optimization passes to relax nested expressions.
+		 */
 		FString SpirvCustomOptimizationPasses;
 	};
 
