@@ -300,8 +300,8 @@ extension WebRTCClient {
     private func configureAudioSession() {
         self.rtcAudioSession.lockForConfiguration()
         do {
-            try self.rtcAudioSession.setCategory(AVAudioSession.Category.ambient.rawValue) /* Playback only */
-            try self.rtcAudioSession.setMode(AVAudioSession.Mode.default.rawValue) /* Mod.rawValuee to default mode */
+            try self.rtcAudioSession.setCategory(AVAudioSession.Category.ambient) /* Playback only */
+            try self.rtcAudioSession.setMode(AVAudioSession.Mode.default) /* Mod.rawValuee to default mode */
         } catch let error {
             debugPrint("Error changeing AVAudioSession category: \(error)")
         }
