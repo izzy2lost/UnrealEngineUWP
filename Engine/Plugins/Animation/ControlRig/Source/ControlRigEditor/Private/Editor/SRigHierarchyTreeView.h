@@ -63,6 +63,7 @@ DECLARE_DELEGATE_RetVal(const FRigTreeDisplaySettings&, FOnGetRigTreeDisplaySett
 DECLARE_DELEGATE_RetVal_TwoParams(FName, FOnRigTreeRenameElement, const FRigElementKey& /*OldKey*/, const FString& /*NewName*/);
 DECLARE_DELEGATE_RetVal_ThreeParams(bool, FOnRigTreeVerifyElementNameChanged, const FRigElementKey& /*OldKey*/, const FString& /*NewName*/, FText& /*OutErrorMessage*/);
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FOnRigTreeCompareKeys, const FRigElementKey& /*A*/, const FRigElementKey& /*B*/);
+DECLARE_DELEGATE_RetVal_OneParam(FRigElementKey, FOnRigTreeGetResolvedKey, const FRigElementKey&);
 
 typedef STableRow<TSharedPtr<FRigTreeElement>>::FOnCanAcceptDrop FOnRigTreeCanAcceptDrop;
 typedef STableRow<TSharedPtr<FRigTreeElement>>::FOnAcceptDrop FOnRigTreeAcceptDrop;
@@ -86,6 +87,7 @@ struct CONTROLRIGEDITOR_API FRigTreeDelegates
 	FOnRigTreeMouseButtonDoubleClick OnMouseButtonDoubleClick;
 	FOnRigTreeSetExpansionRecursive OnSetExpansionRecursive;
 	FOnRigTreeCompareKeys OnCompareKeys;
+	FOnRigTreeGetResolvedKey OnGetResolvedKey;
 
 	FRigTreeDelegates()
 	{
@@ -136,6 +138,15 @@ struct CONTROLRIGEDITOR_API FRigTreeDelegates
 		}
 		TGuardValue<bool> Guard(bIsChangingRigHierarchy, true);
 		OnSelectionChanged.ExecuteIfBound(Selection, SelectInfo);
+	}
+
+	FRigElementKey GetResolvedKey(const FRigElementKey& InKey)
+	{
+		if(OnGetResolvedKey.IsBound())
+		{
+			return OnGetResolvedKey.Execute(InKey);
+		}
+		return InKey;
 	}
 
 	static FRigTreeDisplaySettings DefaultDisplaySettings;

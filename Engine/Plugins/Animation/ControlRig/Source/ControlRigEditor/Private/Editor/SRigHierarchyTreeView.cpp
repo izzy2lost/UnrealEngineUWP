@@ -481,6 +481,14 @@ bool SRigHierarchyTreeView::AddElement(const FRigBaseElement* InElement)
 		if(const URigHierarchy* Hierarchy = Delegates.GetHierarchy())
 		{
 			FRigElementKey ParentKey = Hierarchy->GetFirstParent(InElement->GetKey());
+			if(InElement->GetType() == ERigElementType::Connector)
+			{
+				ParentKey = Delegates.GetResolvedKey(InElement->GetKey());
+				if(ParentKey == InElement->GetKey())
+				{
+					ParentKey.Reset();
+				}
+			}
 
 			TArray<FRigElementWeight> ParentWeights = Hierarchy->GetParentWeightArray(InElement->GetKey());
 			if(ParentWeights.Num() > 0)
@@ -621,11 +629,25 @@ void SRigHierarchyTreeView::RefreshTreeView(bool bRebuildContent)
 		const URigHierarchy* Hierarchy = Delegates.GetHierarchy();
 		if(Hierarchy)
 		{
+			TArray<FRigConnectorElement*> Connectors;
 			Hierarchy->Traverse([&](FRigBaseElement* Element, bool& bContinue)
 			{
-				AddElement(Element);
+				if(FRigConnectorElement* Connector = Cast<FRigConnectorElement>(Element))
+				{
+					Connectors.Add(Connector);
+				}
+				else
+				{
+					AddElement(Element);
+				}
 				bContinue = true;
 			});
+
+			// add all of the connectors. their parent relationship in the tree represents resolval
+			for(FRigConnectorElement* Connector : Connectors)
+			{
+				AddElement(Connector);
+			}
 
 			// expand all elements upon the initial construction of the tree
 			if (ExpansionState.Num() == 0)

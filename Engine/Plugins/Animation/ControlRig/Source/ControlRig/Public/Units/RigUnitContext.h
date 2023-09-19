@@ -100,6 +100,8 @@ struct FControlRigExecuteContext : public FRigVMExecuteContext
 	FControlRigExecuteContext()
 		: FRigVMExecuteContext()
 		, Hierarchy(nullptr)
+		, ModuleInstanceName(NAME_None)
+		, ModuleInstanceNameSpace()
 	{
 	}
 
@@ -135,6 +137,18 @@ struct FControlRigExecuteContext : public FRigVMExecuteContext
 		return nullptr;
 	}
 
+	/**
+	 * Add the namespace from a given name
+	 */
+	FName AddRigModuleNameSpace(const FName& InName) const;
+	FString AddRigModuleNameSpace(const FString& InName) const;
+
+	/**
+	 * Remove the namespace from a given name
+	 */
+	FName RemoveRigModuleNameSpace(const FName& InName) const;
+	FString RemoveRigModuleNameSpace(const FString& InName) const;
+
 	/** The list of available asset user data object */
 	TArray<const UAssetUserData*> AssetUserData;
 
@@ -146,6 +160,8 @@ struct FControlRigExecuteContext : public FRigVMExecuteContext
 	
 	FRigUnitContext UnitContext;
 	URigHierarchy* Hierarchy;
+	FName ModuleInstanceName;
+	FString ModuleInstanceNameSpace;
 };
 
 #if WITH_EDITOR

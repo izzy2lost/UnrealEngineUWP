@@ -459,27 +459,29 @@ void UControlRig::InitializeFromCDO()
 		// where CDO is initialized from BP there,
 		// we initialize all other instances of Control Rig from the CDO here
 		UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>();
+		URigHierarchy* Hierarchy = GetHierarchy();
 
 		// copy hierarchy
 		{
-			FRigHierarchyValidityBracket ValidityBracketA(GetHierarchy());
+			FRigHierarchyValidityBracket ValidityBracketA(Hierarchy);
 			FRigHierarchyValidityBracket ValidityBracketB(CDO->GetHierarchy());
 			
-			TGuardValue<bool> Guard(GetHierarchy()->GetSuspendNotificationsFlag(), true);
-			GetHierarchy()->CopyHierarchy(CDO->GetHierarchy());
-			GetHierarchy()->ResetPoseToInitial(ERigElementType::All);
+			TGuardValue<bool> Guard(Hierarchy->GetSuspendNotificationsFlag(), true);
+			Hierarchy->CopyHierarchy(CDO->GetHierarchy());
+			Hierarchy->ResetPoseToInitial(ERigElementType::All);
 		}
 
 #if WITH_EDITOR
 		// current hierarchy should always mirror CDO's hierarchy whenever a change of interest happens
-		CDO->GetHierarchy()->RegisterListeningHierarchy(GetHierarchy());
+		CDO->GetHierarchy()->RegisterListeningHierarchy(Hierarchy);
 #endif
 
 		// notify clients that the hierarchy has changed
-		GetHierarchy()->Notify(ERigHierarchyNotification::HierarchyReset, nullptr);
+		Hierarchy->Notify(ERigHierarchyNotification::HierarchyReset, nullptr);
 
 		// copy hierarchy settings
 		HierarchySettings = CDO->HierarchySettings;
+		ElementKeyRedirector = FRigElementKeyRedirector(CDO->ElementKeyRedirector, Hierarchy); 
 		
 		// increment the procedural limit based on the number of elements in the CDO
 		if(const URigHierarchy* CDOHierarchy = CDO->GetHierarchy())
@@ -567,6 +569,7 @@ bool UControlRig::Execute(const FName& InEventName)
 	PublicContext.SetDeltaTime(DeltaTime);
 	PublicContext.SetAbsoluteTime(AbsoluteTime);
 	PublicContext.SetFramesPerSecond(GetCurrentFramesPerSecond());
+
 #if UE_RIGVM_DEBUG_EXECUTION
 	PublicContext.bDebugExecution = bDebugExecutionEnabled;
 #endif
@@ -1313,6 +1316,12 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 #endif
 		FRigHierarchyExecuteContextBracket HierarchyContextGuard(Hierarchy, &Context);
 
+		// setup the module information
+		FControlRigExecuteContext& PublicContext = Context.GetPublicDataSafe<FControlRigExecuteContext>();
+		TGuardValue<FName> ModuleInstanceNameGuard(PublicContext.ModuleInstanceName, GetModuleInstanceName());
+		TGuardValue<FString> ModuleInstanceNameSpaceGuard(PublicContext.ModuleInstanceNameSpace, GetRigModuleNameSpace());
+		FRigHierarchyRedirectorGuard ElementRedirectorGuard(DynamicHierarchy, GetElementKeyRedirector());
+
 		TArray<TRigVMMemoryStorage*> LocalMemory = VM->GetLocalMemoryArray(Context);
 		const bool bSuccess = VM->Execute(Context, LocalMemory, InEventName) != ERigVMExecuteResult::Failed;
 
@@ -1525,6 +1534,82 @@ void UControlRig::PostLoad()
 		NewInfluences.FindOrAdd(EventName).Merge(Map, true);
 	}
 	Influences = NewInfluences;
+}
+
+const FRigModuleSettings& UControlRig::GetRigModuleSettings() const
+{
+	if(HasAnyFlags(RF_ClassDefaultObject))
+	{
+		return RigModuleSettings;
+	}
+	if (const UControlRig* CDO = Cast<UControlRig>(GetClass()->GetDefaultObject()))
+	{
+		return CDO->GetRigModuleSettings();
+	}
+	return RigModuleSettings;
+}
+
+bool UControlRig::IsRigModule() const
+{
+	return GetRigModuleSettings().IsValidModule();
+}
+
+bool UControlRig::IsRigModuleInstance() const
+{
+	if(IsRigModule())
+	{
+		return GetParentRig() != nullptr;
+	}
+	return false;
+}
+
+UControlRig* UControlRig::GetParentRig() const
+{
+	return GetTypedOuter<UControlRig>();
+}
+
+FName UControlRig::GetModuleInstanceName() const
+{
+	if(IsRigModuleInstance())
+	{
+		return GetFName();
+	}
+	return NAME_None;
+}
+
+const FString& UControlRig::GetRigModuleNameSpace() const
+{
+	if(IsRigModule())
+	{
+		if(const UControlRig* ParentRig = GetParentRig())
+		{
+			const FString& ParentNameSpace = ParentRig->GetRigModuleNameSpace();
+			static constexpr TCHAR JoinFormat[] = TEXT("%s%s::");
+			RigModuleNameSpace = FString::Printf(JoinFormat, *ParentNameSpace, *GetName());
+			return RigModuleNameSpace;
+		}
+	}
+
+	static const FString EmptyNameSpace;
+	return EmptyNameSpace;
+}
+
+FRigElementKeyRedirector& UControlRig::GetElementKeyRedirector()
+{
+	// if we are an instance on a modular rig, use our local info
+	if(IsRigModuleInstance())
+	{
+		return ElementKeyRedirector;
+	}
+
+	// if we are a rig module ( but not an instance on a rig)
+	if(IsRigModule())
+	{
+		return ElementKeyRedirector;
+	}
+
+	static FRigElementKeyRedirector EmptyRedirector = FRigElementKeyRedirector();
+	return EmptyRedirector;
 }
 
 TArray<FRigControlElement*> UControlRig::AvailableControls() const
@@ -2978,6 +3063,11 @@ void UControlRig::PostInitInstance(URigVMHost* InCDO)
 			VM->AddToRoot();
 			DynamicHierarchy->AddToRoot();
 		}
+	}
+
+	if(UControlRig* CDOControlRig = Cast<UControlRig>(InCDO))
+	{
+		ElementKeyRedirector = FRigElementKeyRedirector(CDOControlRig->ElementKeyRedirector, DynamicHierarchy);
 	}
 
 	RequestInit();

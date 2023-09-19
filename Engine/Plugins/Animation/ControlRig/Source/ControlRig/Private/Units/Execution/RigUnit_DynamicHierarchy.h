@@ -423,6 +423,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControl_Settings
 	{}
 	virtual ~FRigUnit_HierarchyAddControl_Settings(){}
 
+	virtual void ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings);
 	virtual void Configure(FRigControlSettings& OutSettings) const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
@@ -441,6 +442,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControl_ShapeSettings
 		, Transform(FTransform::Identity)
 	{}
 
+	void ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings);
 	void Configure(FRigControlSettings& OutSettings) const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
@@ -466,6 +468,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControl_ProxySettings
 		, ShapeVisibility(ERigControlVisibility::BasedOnSelection)
 	{}
 
+	void ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings);
 	void Configure(FRigControlSettings& OutSettings) const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
@@ -490,6 +493,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlFloat_LimitSettings
 		, bDrawLimits(true)
 	{}
 
+	void ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings);
 	void Configure(FRigControlSettings& OutSettings) const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
@@ -517,6 +521,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlFloat_Settings : public FRigUn
 	{}
 	virtual ~FRigUnit_HierarchyAddControlFloat_Settings() override {}
 
+	virtual void ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings) override;
 	virtual void Configure(FRigControlSettings& OutSettings) const override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
@@ -615,6 +620,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlInteger_LimitSettings
 		, bDrawLimits(true)
 	{}
 
+	void ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings);
 	void Configure(FRigControlSettings& OutSettings) const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
@@ -641,6 +647,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlInteger_Settings : public FRig
 	{}
 	virtual ~FRigUnit_HierarchyAddControlInteger_Settings() override {}
 
+	virtual void ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings) override;
 	virtual void Configure(FRigControlSettings& OutSettings) const override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
@@ -701,6 +708,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlVector2D_LimitSettings
 		, bDrawLimits(true)
 	{}
 
+	void ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings);
 	void Configure(FRigControlSettings& OutSettings) const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
@@ -732,6 +740,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlVector2D_Settings : public FRi
 	}
 	virtual ~FRigUnit_HierarchyAddControlVector2D_Settings() override {}
 
+	virtual void ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings) override;
 	virtual void Configure(FRigControlSettings& OutSettings) const override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
@@ -796,6 +805,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlVector_LimitSettings
 		, bDrawLimits(true)
 	{}
 
+	void ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings);
 	void Configure(FRigControlSettings& OutSettings) const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
@@ -831,6 +841,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlVector_Settings : public FRigU
 	}
 	virtual ~FRigUnit_HierarchyAddControlVector_Settings() override {}
 
+	virtual void ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings) override;
 	virtual void Configure(FRigControlSettings& OutSettings) const override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
@@ -901,6 +912,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlRotator_LimitSettings
 		, bDrawLimits(true)
 	{}
 
+	void ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings);
 	void Configure(FRigControlSettings& OutSettings) const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
@@ -935,6 +947,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlRotator_Settings : public FRig
 	}
 	virtual ~FRigUnit_HierarchyAddControlRotator_Settings() override {}
 
+	virtual void ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings) override;
 	virtual void Configure(FRigControlSettings& OutSettings) const override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
@@ -1000,6 +1013,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlTransform_Settings : public FR
 	}
 	virtual ~FRigUnit_HierarchyAddControlTransform_Settings() override {}
 
+	virtual void ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings) override;
 	virtual void Configure(FRigControlSettings& OutSettings) const override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")

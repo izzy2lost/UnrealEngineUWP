@@ -1666,6 +1666,16 @@ bool FRigConnectorElement::CanConnect(const FRigConnectionInfo* InConnectionInfo
 	return true;
 }
 
+FRigConnectorInfo FRigConnectorElement::GetConnectorInfo(const URigHierarchy* InHierarchy) const
+{
+	FRigConnectorInfo Info;
+	Info.Name = Key.Name;
+	Info.ResolvedTarget = InHierarchy->GetResolvedTarget(Key);
+	Info.LocalTransform = InHierarchy->GetInitialLocalTransform(Key);
+	Info.Settings = Settings;
+	return Info;
+}
+
 void FRigConnectorElement::CopyFrom(URigHierarchy* InHierarchy, FRigBaseElement* InOther, URigHierarchy* InOtherHierarchy)
 {
 	Super::CopyFrom(InHierarchy, InOther, InOtherHierarchy);

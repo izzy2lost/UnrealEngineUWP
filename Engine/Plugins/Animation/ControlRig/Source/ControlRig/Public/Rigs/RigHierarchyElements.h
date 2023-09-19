@@ -766,6 +766,7 @@ protected:
 	friend struct FRigUnit_SetMetadataTag;
 	friend struct FRigUnit_SetMetadataTagArray;
 	friend struct FRigUnit_RemoveMetadataTag;
+	friend class FControlRigEditor;
 };
 
 USTRUCT(BlueprintType)
@@ -1631,15 +1632,15 @@ public:
 
 	// The keys of the connectors in the source hierarchy
 	// mapping to the to-be-linked keys of the elements in the target hierarchy
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Limit)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connections)
 	TMap<FRigElementKey, FRigElementKey> ConnectionMap;
 
 	// The hierarchy owning the connectors
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Limit)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connections)
 	URigHierarchy* SourceHierarchy; 
 
 	// The hierarchy to be linked into
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Limit)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connections)
 	URigHierarchy* TargetHierarchy; 
 };
 
@@ -1655,10 +1656,10 @@ struct CONTROLRIG_API FRigConnectorSettings
 
 	friend uint32 GetTypeHash(const FRigConnectorSettings& Settings);
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Control)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
 	FString Description;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Control)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
 	TArray<FRigConnectionRuleStash> Rules;
 
 	bool operator == (const FRigConnectorSettings& InOther) const;
@@ -1675,6 +1676,31 @@ struct CONTROLRIG_API FRigConnectorSettings
 	}
 
 	uint32 GetRulesHash() const;
+};
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigConnectorInfo
+{
+	GENERATED_BODY()
+	
+	FRigConnectorInfo()
+		: Name(NAME_None)
+		, ResolvedTarget()
+		, LocalTransform(FTransform::Identity)
+		, Settings()
+	{}
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
+	FName Name;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
+	FRigElementKey ResolvedTarget;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
+	FTransform LocalTransform;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
+	FRigConnectorSettings Settings;
 };
 
 USTRUCT(BlueprintType)
@@ -1699,6 +1725,8 @@ public:
 	virtual void Load(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase) override;
 
 	bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const;
+
+	FRigConnectorInfo GetConnectorInfo(const URigHierarchy* InHierarchy) const;
 	
 private:
 

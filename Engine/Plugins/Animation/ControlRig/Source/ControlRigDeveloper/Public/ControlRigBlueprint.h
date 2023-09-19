@@ -6,6 +6,7 @@
 #include "ControlRigBlueprintGeneratedClass.h"
 #include "UObject/ObjectMacros.h"
 #include "Engine/Blueprint.h"
+#include "Engine/Texture2D.h"
 #include "ControlRigDefines.h"
 #include "Rigs/RigHierarchyContainer.h"
 #include "Rigs/RigHierarchy.h"
@@ -90,15 +91,55 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Control Rig Blueprint")
 	bool IsControlRigModule() const;
 
+#if WITH_EDITORONLY_DATA
+	
+	bool CanTurnIntoControlRigModule_Blueprint(bool InAutoConvertHierarchy = false) const { return CanTurnIntoControlRigModule(InAutoConvertHierarchy); }
+
+	bool CanTurnIntoControlRigModule(bool InAutoConvertHierarchy, FString* OutErrorMessage = nullptr) const;
+
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "TurnIntoControlRigModule", ScriptName = "TurnIntoControlRigModule"), Category = "Control Rig Blueprint")
+	bool TurnIntoControlRigModule_Blueprint() { return TurnIntoControlRigModule(); }
+
+	bool TurnIntoControlRigModule(bool InAutoConvertHierarchy = false, FString* OutErrorMessage = nullptr);
+
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "CanTurnIntoStandaloneRig", ScriptName = "CanTurnIntoStandaloneRig"), Category = "Control Rig Blueprint")
+	bool CanTurnIntoStandaloneRig_Blueprint() const { return CanTurnIntoStandaloneRig(); }
+
+	bool CanTurnIntoStandaloneRig(FString* OutErrorMessage = nullptr) const;
+
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "TurnIntoStandaloneRig", ScriptName = "TurnIntoStandaloneRig"), Category = "Control Rig Blueprint")
+	bool TurnIntoStandaloneRig_Blueprint() { return TurnIntoStandaloneRig(); }
+
+	bool TurnIntoStandaloneRig(FString* OutErrorMessage = nullptr);
+
+	UFUNCTION(BlueprintCallable, Category = "Control Rig Blueprint")
+	TArray<URigVMNode*> ConvertHierarchyElementsToSpawnerNodes(URigHierarchy* InHierarchy, TArray<FRigElementKey> InKeys, bool bRemoveElements = true);
+
+#endif // WITH_EDITORONLY_DATA
+
+	UFUNCTION(BlueprintPure, Category = "Control Rig Blueprint")
+	UTexture2D* GetRigModuleIcon() const;
+
+	DECLARE_EVENT_OneParam(UControlRigBlueprint, FOnRigTypeChanged, UControlRigBlueprint*);
+
+	FOnRigTypeChanged& OnRigTypeChanged() { return OnRigTypeChangedDelegate; }
+
 	UPROPERTY(EditAnywhere, Category = "Hierarchy")
 	FRigHierarchySettings HierarchySettings;
 
 	UPROPERTY(EditAnywhere, Category = "Hierarchy", AssetRegistrySearchable)
-	FRigModuleSettings ModuleSettings;
+	FRigModuleSettings RigModuleSettings;
+
+	UPROPERTY()
+	TMap<FRigElementKey, FRigElementKey> ConnectionMap;
 
 protected:
 
-	void UpdateExposedModuleConnectors();
+	FOnRigTypeChanged OnRigTypeChangedDelegate;
+	
+	void UpdateExposedModuleConnectors() const;
+
+	bool ResolveConnector(const FRigElementKey& DraggedKey, const FRigElementKey& TargetKey, bool bSetupUndoRedo = true);
 
 	/** Asset searchable information about exposed public functions on this rig */
 	UPROPERTY(AssetRegistrySearchable)
@@ -205,6 +246,7 @@ protected:
 	virtual void PatchVariableNodesOnLoad() override;
 
 public:
+	void UpdateElementKeyRedirector(UControlRig* InControlRig) const;
 	void PropagatePoseFromInstanceToBP(UControlRig* InControlRig) const;
 	void PropagatePoseFromBPToInstances() const;
 	void PropagateHierarchyFromBPToInstances() const;

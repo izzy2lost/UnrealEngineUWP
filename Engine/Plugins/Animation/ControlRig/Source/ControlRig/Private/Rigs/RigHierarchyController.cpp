@@ -550,7 +550,7 @@ FRigElementKey URigHierarchyController::AddReference(FName InName, FRigElementKe
 	return NewElement->Key;
 }
 
-FRigElementKey URigHierarchyController::AddConnector(FName InName, FRigElementKey InParent, FTransform InTransform,
+FRigElementKey URigHierarchyController::AddConnector(FName InName, FTransform InTransform,
 	bool bTransformInGlobal, FRigConnectorSettings InSettings, bool bSetupUndo, bool bPrintPythonCommand)
 {
 	if(!IsValid())
@@ -573,7 +573,7 @@ FRigElementKey URigHierarchyController::AddConnector(FName InName, FRigElementKe
 		NewElement->Key.Type = ERigElementType::Connector;
 		NewElement->Key.Name = Hierarchy->GetSafeNewName(InName, NewElement->Key.Type);
 		NewElement->Settings = InSettings;
-		AddElement(NewElement, Hierarchy->Get(Hierarchy->GetIndex(InParent)), true);
+		AddElement(NewElement, nullptr, true);
 
 		if(bTransformInGlobal)
 		{
@@ -1681,9 +1681,8 @@ TArray<FString> URigHierarchyController::GetAddConnectorPythonCommands(FRigConne
 	}
 
 	// AddConnector(FName InName, FRigElementKey InParent, FTransform InTransform, bool bTransformInGlobal = true, FRigConnectorSettings InSettings = FRigConnectorSettings(), bool bSetupUndo = false);
-	Commands.Add(FString::Printf(TEXT("hierarchy_controller.add_connector('%s', %s, %s, False, %s)"),
+	Commands.Add(FString::Printf(TEXT("hierarchy_controller.add_connector('%s', %s, False, %s)"),
 		*Connector->GetName(),
-		*ParentKeyStr,
 		*TransformStr,
 		*SettingsStr
 	));

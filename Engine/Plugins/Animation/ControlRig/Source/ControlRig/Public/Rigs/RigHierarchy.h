@@ -199,6 +199,11 @@ public:
 	void CopyHierarchy(URigHierarchy* InHierarchy);
 
 	/**
+	 * Returns true if the hierarchy currently has an execute context / the rig is running
+	 */
+	bool HasExecuteContext() const { return ExecuteContext != nullptr; }
+
+	/**
 	 * Returns a hash for the hierarchy representing all names
 	 * as well as the topology version.
 	 */
@@ -397,17 +402,18 @@ public:
 	 */
 	int32 GetIndex(const FRigElementKey& InKey) const
 	{
-		if(ElementRedirector)
+		if(ElementKeyRedirector)
 		{
-			if(FCachedRigElement* CachedRigElement = ElementRedirector->Find(InKey))
+			if(FCachedRigElement* CachedRigElement = ElementKeyRedirector->Find(InKey))
 			{
+				TGuardValue<bool> GuardRecursion(bIsRunningGetIndex, true);
 				if(CachedRigElement->UpdateCache(this))
 				{
 					return CachedRigElement->GetIndex();
 				}
 				return INDEX_NONE;
 			}
-			if(ElementRedirector->ContainsExternalKey(InKey))
+			if(!bIsRunningGetIndex && ElementKeyRedirector->ContainsExternalKey(InKey))
 			{
 				return INDEX_NONE;
 			}
@@ -967,6 +973,19 @@ public:
 	{
 		return GetKeysOfType<FRigConnectorElement>(bTraverse);
 	}
+
+	/**
+	 * Returns all of the connectors' infos
+	 */
+	UFUNCTION(BlueprintPure, Category = URigHierarchy)
+	TArray<FRigConnectorInfo> GetConnectorInfos() const;
+
+	/**
+	 * Try to restore the connectors from the info structs
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchy)
+	TArray<FRigElementKey> RestoreConnectorsFromInfos(TArray<FRigConnectorInfo> InInfos, bool bSetupUndoRedo = false);
+	
 	/**
 	 * Returns all root elements
 	 */
@@ -3281,6 +3300,11 @@ public:
 	bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason = nullptr) const;
 
 	/**
+	 * Returns the currently resolved target for given connector key
+	 */
+	const FRigElementKey& GetResolvedTarget(const FRigElementKey& InConnectorKey) const;
+
+	/**
 	 * Performs undo for one transform change
 	 */
 	bool Undo();
@@ -3361,6 +3385,21 @@ public:
 	 * Returns the topology version of this hierarchy
 	 */
 	uint16 GetTopologyVersion() const { return TopologyVersion; }
+
+	/**
+	 * Returns the hash of this hierarchy used for cached element keys
+	 */
+	uint32 GetTopologyVersionHash() const
+	{
+		const uint32 Hash = HashCombine(
+			(uint32)reinterpret_cast<long long>(this),
+			GetTypeHash(TopologyVersion));
+		if(ElementKeyRedirector)
+		{
+			return HashCombine(Hash, ElementKeyRedirector->GetHash());
+		}
+		return Hash;
+	}
 
 	/**
 	 * Increments the topology version
@@ -4163,6 +4202,11 @@ private:
 	bool bSuspendNotifications;
 
 	/**
+	 * If set to true the hierarchy is currently running GetIndex - flag to avoid infinite recursion
+	 */
+	mutable bool bIsRunningGetIndex;
+
+	/**
 	 * The event fired during undo / redo
 	 */
 	FRigHierarchyUndoRedoTransformEvent UndoRedoEvent;
@@ -4522,7 +4566,7 @@ protected:
 	mutable TMap<FRigElementKey, FRigElementKey> DefaultParentPerElement;
 
 	bool bUpdatePreferedEulerAngleWhenSettingTransform;
-	
+
 private:
 	
 	void EnsureCacheValidityImpl();
@@ -4564,7 +4608,7 @@ private:
 		}
 	}
 
-	FRigElementKeyRedirector* ElementRedirector;
+	FRigElementKeyRedirector* ElementKeyRedirector;
 
 	void UpdateVisibilityOnProxyControls();
 
@@ -4716,7 +4760,7 @@ struct CONTROLRIG_API FRigHierarchyRedirectorGuard
 {
 public:
 	FRigHierarchyRedirectorGuard(URigHierarchy* InHierarchy, FRigElementKeyRedirector& InRedirector)
-		: Guard(InHierarchy->ElementRedirector, &InRedirector)
+		: Guard(InHierarchy->ElementKeyRedirector, &InRedirector)
 	{
 	}
 

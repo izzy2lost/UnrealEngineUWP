@@ -24,6 +24,8 @@
 #include "RigVMModel/Nodes/RigVMAggregateNode.h"
 #include "Rigs/RigControlHierarchy.h"
 #include "Settings/ControlRigSettings.h"
+#include "Units/Execution/RigUnit_PrepareForExecution.h"
+#include "Units/Execution/RigUnit_DynamicHierarchy.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigBlueprint)
 
@@ -34,6 +36,7 @@
 #include "Editor/UnrealEdEngine.h"
 #include "Editor/Transactor.h"
 #include "CookOnTheSide/CookOnTheFlyServer.h"
+#include "ScopedTransaction.h"
 #endif//WITH_EDITOR
 
 #define LOCTEXT_NAMESPACE "ControlRigBlueprint"
@@ -138,11 +141,447 @@ USkeletalMesh* UControlRigBlueprint::GetPreviewMesh() const
 
 bool UControlRigBlueprint::IsControlRigModule() const
 {
+	return RigModuleSettings.Identifier.IsValid();
+}
+
+#if WITH_EDITORONLY_DATA
+
+bool UControlRigBlueprint::CanTurnIntoControlRigModule(bool InAutoConvertHierarchy, FString* OutErrorMessage) const
+{
+	if(IsControlRigModule())
+	{
+		if(OutErrorMessage)
+		{
+			static const FString Message = TEXT("This asset is already a Control Rig Module.");
+			*OutErrorMessage = Message;
+		}
+		return false;
+	}
+
+	if(Hierarchy == nullptr)
+	{
+		if(OutErrorMessage)
+		{
+			static const FString Message = TEXT("This asset contains no hierarchy.");
+			*OutErrorMessage = Message;
+		}
+		return false;
+	}
+
+	const TArray<FRigElementKey> Keys = Hierarchy->GetAllKeys(true);
+	for(const FRigElementKey& Key : Keys)
+	{
+		if(!InAutoConvertHierarchy)
+		{
+			if(Key.Type != ERigElementType::Bone &&
+				Key.Type != ERigElementType::Curve &&
+				Key.Type != ERigElementType::Connector)
+			{
+				if(OutErrorMessage)
+				{
+					static constexpr TCHAR Format[] = TEXT("The hierarchy contains elements other than bones (for example '%s'). Modules only allow imported bones and user authored connectors.");
+					*OutErrorMessage = FString::Printf(Format, *Key.ToString());
+				}
+				return false;
+			}
+
+			if(Key.Type == ERigElementType::Bone)
+			{
+				if(Hierarchy->FindChecked<FRigBoneElement>(Key)->BoneType != ERigBoneType::Imported)
+				{
+					if(OutErrorMessage)
+					{
+						static constexpr TCHAR Format[] = TEXT("The hierarchy contains a user defined bone ('%s') - only imported bones are allowed.");
+						*OutErrorMessage = FString::Printf(Format, *Key.ToString());
+					}
+					return false;
+				}
+			}
+		}
+	}
+	
+	return true;
+}
+
+bool UControlRigBlueprint::TurnIntoControlRigModule(bool InAutoConvertHierarchy, FString* OutErrorMessage)
+{
+	if(!CanTurnIntoControlRigModule(InAutoConvertHierarchy, OutErrorMessage))
+	{
+		return false;
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("TurnIntoControlRigModule", "Turn Rig into Module"));
+
+	Modify();
+	RigModuleSettings.Identifier = FRigModuleIdentifier();
+	RigModuleSettings.Identifier.Name = GetName();
+
 	if(Hierarchy)
 	{
-		return Hierarchy->Num(ERigElementType::Connector) > 0;
+		URigHierarchyController* Controller = Hierarchy->GetController(true);
+
+		// create a copy of this hierarchy
+		URigHierarchy* CopyOfHierarchy = NewObject<URigHierarchy>(GetTransientPackage());
+		CopyOfHierarchy->CopyHierarchy(Hierarchy);
+
+		// also create a hierarchy based on the preview mesh
+		URigHierarchy* PreviewMeshHierarchy = NewObject<URigHierarchy>(GetTransientPackage());
+		if(PreviewSkeletalMesh)
+		{
+			PreviewMeshHierarchy->GetController(true)->ImportBones(PreviewSkeletalMesh->GetSkeleton());
+		}
+
+		// disable compilation
+		{
+			FRigVMBlueprintCompileScope CompileScope(this);
+
+			// remove everything from the hierarchy
+			Hierarchy->Reset();
+
+			const TArray<FRigElementKey> AllKeys = CopyOfHierarchy->GetAllKeys(true);
+			TArray<FRigElementKey> KeysToSpawn;
+
+			for(const FRigElementKey& Key : AllKeys)
+			{
+				if(Key.Type == ERigElementType::Curve)
+				{
+					continue;
+				}
+				if(Key.Type == ERigElementType::Bone)
+				{
+					if(PreviewMeshHierarchy->Contains(Key))
+					{
+						continue;
+					}
+				}
+				KeysToSpawn.Add(Key);
+			}
+
+			(void)ConvertHierarchyElementsToSpawnerNodes(CopyOfHierarchy, KeysToSpawn, false);
+
+			if(Hierarchy->Num(ERigElementType::Connector) == 0)
+			{
+				static const FName RootName = TEXT("Root");
+				Controller->AddConnector(RootName, FTransform::Identity);
+			}
+		}
 	}
-	return false;
+
+	OnRigTypeChangedDelegate.Broadcast(this);
+	return true;
+}
+
+bool UControlRigBlueprint::CanTurnIntoStandaloneRig(FString* OutErrorMessage) const
+{
+	return IsControlRigModule();
+}
+
+bool UControlRigBlueprint::TurnIntoStandaloneRig(FString* OutErrorMessage)
+{
+	if(!CanTurnIntoStandaloneRig(OutErrorMessage))
+	{
+		return false;
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("TurnIntoControlRigModule", "Turn Rig into Module"));
+
+	Modify();
+	RigModuleSettings = FRigModuleSettings();
+
+	if(Hierarchy)
+	{
+		Hierarchy->Modify();
+		Hierarchy->Reset();
+		if(PreviewSkeletalMesh)
+		{
+			Hierarchy->GetController(true)->ImportBones(PreviewSkeletalMesh->GetSkeleton());
+		}
+	}
+
+	OnRigTypeChangedDelegate.Broadcast(this);
+	return true;
+}
+
+TArray<URigVMNode*> UControlRigBlueprint::ConvertHierarchyElementsToSpawnerNodes(URigHierarchy* InHierarchy, TArray<FRigElementKey> InKeys, bool bRemoveElements)
+{
+	TArray<URigVMNode*> SpawnerNodes;
+
+	// find the construction event 
+	const URigVMNode* EventNode = nullptr;
+	for(const URigVMGraph* Graph : GetRigVMClient()->GetAllModels(false, false))
+	{
+		for(const URigVMNode* Node : Graph->GetNodes())
+		{
+			if(Node->IsEvent() && Node->GetEventName() == FRigUnit_PrepareForExecution::EventName)
+			{
+				EventNode = Node;
+				break;
+			}
+		}
+		if(EventNode)
+		{
+			break;
+		}
+	}
+
+	FVector2D NodePosition = FVector2D::ZeroVector;
+	const FVector2D NodePositionIncrement = FVector2D(400, 0);
+	
+	// if we didn't find the construction event yet, create it
+	if(EventNode == nullptr)
+	{
+		const URigVMGraph* ConstructionGraph = GetRigVMClient()->AddModel(TEXT("ConstructionGraph"), true);
+		URigVMController* GraphController = GetRigVMClient()->GetOrCreateController(ConstructionGraph);
+		EventNode = GraphController->AddUnitNode(FRigUnit_PrepareForExecution::StaticStruct(), FRigUnit::GetMethodName(), NodePosition);
+		NodePosition += NodePositionIncrement;
+	}
+
+	const URigVMPin* LastPin = EventNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_PrepareForExecution, ExecuteContext));
+	if(LastPin)
+	{
+		// follow the node's execution links to find the last one
+		bool bCarryOn = true;
+		while(bCarryOn)
+		{
+			static const TArray<FString> ExecutePinPaths = {
+				FRigVMStruct::ControlFlowCompletedName.ToString(),
+				FRigVMStruct::ExecuteContextName.ToString()
+			};
+
+			for(const FString& ExecutePinPath : ExecutePinPaths)
+			{
+				if(const URigVMPin* ExecutePin = LastPin->GetNode()->FindPin(ExecutePinPath))
+				{
+					const TArray<URigVMPin*> TargetPins = ExecutePin->GetLinkedTargetPins();
+					if(TargetPins.IsEmpty())
+					{
+						bCarryOn = false;
+						break;
+					}
+					LastPin = TargetPins[0];
+					NodePosition = LastPin->GetNode()->GetPosition() + NodePositionIncrement;
+				}
+			}
+		}
+	}
+
+	const URigVMGraph* ConstructionGraph = EventNode->GetGraph();
+	URigVMController* GraphController = GetRigVMClient()->GetOrCreateController(ConstructionGraph);
+
+	auto GetParentAndTransformDefaults = [InHierarchy](const FRigElementKey& InKey, FString& OutParentDefault, FString& OutTransformDefault)
+	{
+		const FRigElementKey Parent = InHierarchy->GetFirstParent(InKey);
+		OutParentDefault.Reset();
+		FRigElementKey::StaticStruct()->ExportText(OutParentDefault, &Parent, nullptr, nullptr, PPF_None, nullptr);
+
+		const FTransform Transform = InHierarchy->GetInitialLocalTransform(InKey);
+		OutTransformDefault.Reset();
+		TBaseStructure<FTransform>::Get()->ExportText(OutTransformDefault, &Transform, nullptr, nullptr, PPF_None, nullptr);
+	};
+
+	TMap<FRigElementKey, const URigVMPin*> ParentItemPinMap;
+	auto AddParentItemLink = [GraphController, InHierarchy, &SpawnerNodes, &ParentItemPinMap]
+		(const FRigElementKey& Key, URigVMNode* Node)
+		{
+			SpawnerNodes.Add(Node);
+			ParentItemPinMap.Add(Key, Node->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddElement, Item)));
+
+			if(const URigVMPin** SourcePin = ParentItemPinMap.Find(InHierarchy->GetFirstParent(Key)))
+			{
+				if(const URigVMPin* TargetPin = Node->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddElement, Parent)))
+				{
+					GraphController->AddLink((*SourcePin)->GetPinPath(), TargetPin->GetPinPath(), true);
+				}
+			}
+		};
+	
+	for(const FRigElementKey& Key : InKeys)
+	{
+		if(Key.Type == ERigElementType::Bone)
+		{
+			FString ParentDefault, TransformDefault;
+			GetParentAndTransformDefaults(Key, ParentDefault, TransformDefault);
+
+			URigVMNode* AddBoneNode = GraphController->AddUnitNode(FRigUnit_HierarchyAddBone::StaticStruct(), FRigUnit::GetMethodName(), NodePosition);
+			NodePosition += NodePositionIncrement;
+			AddParentItemLink(Key, AddBoneNode);
+
+			if(LastPin)
+			{
+				if(const URigVMPin* NextPin = AddBoneNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddBone, ExecuteContext)))
+				{
+					GraphController->AddLink(LastPin->GetPinPath(), NextPin->GetPinPath(), true);
+					LastPin = NextPin;
+				}
+			}
+
+			GraphController->SetPinDefaultValue(AddBoneNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddElement, Name))->GetPinPath(), Key.Name.ToString(), true, true);
+			GraphController->SetPinDefaultValue(AddBoneNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddElement, Parent))->GetPinPath(), ParentDefault, true, true);
+			GraphController->SetPinDefaultValue(AddBoneNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddBone, Space))->GetPinPath(), TEXT("LocalSpace"), true, true);
+			GraphController->SetPinDefaultValue(AddBoneNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddBone, Transform))->GetPinPath(), TransformDefault, true, true);
+		}
+		else if(Key.Type == ERigElementType::Null)
+		{
+			FString ParentDefault, TransformDefault;
+			GetParentAndTransformDefaults(Key, ParentDefault, TransformDefault);
+
+			URigVMNode* AddNullNode = GraphController->AddUnitNode(FRigUnit_HierarchyAddNull::StaticStruct(), FRigUnit::GetMethodName(), NodePosition);
+			NodePosition += NodePositionIncrement;
+			SpawnerNodes.Add(AddNullNode);
+
+			if(LastPin)
+			{
+				if(const URigVMPin* NextPin = AddNullNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddBone, ExecuteContext)))
+				{
+					GraphController->AddLink(LastPin->GetPinPath(), NextPin->GetPinPath(), true);
+					LastPin = NextPin;
+				}
+			}
+
+			GraphController->SetPinDefaultValue(AddNullNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddElement, Name))->GetPinPath(), Key.Name.ToString(), true, true);
+			GraphController->SetPinDefaultValue(AddNullNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddElement, Parent))->GetPinPath(), ParentDefault, true, true);
+			GraphController->SetPinDefaultValue(AddNullNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddNull, Space))->GetPinPath(), TEXT("LocalSpace"), true, true);
+			GraphController->SetPinDefaultValue(AddNullNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddNull, Transform))->GetPinPath(), TransformDefault, true, true);
+		}
+		else if(Key.Type == ERigElementType::Control)
+		{
+			FRigControlElement* ControlElement = InHierarchy->FindChecked<FRigControlElement>(Key);
+			
+			FString ParentDefault, TransformDefault;
+			GetParentAndTransformDefaults(Key, ParentDefault, TransformDefault);
+
+			const FTransform OffsetTransform = InHierarchy->GetControlOffsetTransform(ControlElement, ERigTransformType::InitialLocal);
+			FString OffsetDefault;
+			TBaseStructure<FTransform>::Get()->ExportText(OffsetDefault, &OffsetTransform, nullptr, nullptr, PPF_None, nullptr);
+			
+			if(ControlElement->Settings.AnimationType == ERigControlAnimationType::AnimationChannel)
+			{
+				// todo
+			}
+			else
+			{
+				UScriptStruct* UnitNodeStruct = nullptr;
+				TRigVMTypeIndex TypeIndex = INDEX_NONE;
+				FString InitialValue;
+				switch(ControlElement->Settings.ControlType)
+				{
+					case ERigControlType::Float:
+					case ERigControlType::ScaleFloat:
+					{
+						UnitNodeStruct = FRigUnit_HierarchyAddControlFloat::StaticStruct();
+						TypeIndex = RigVMTypeUtils::TypeIndex::Float;
+						InitialValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Initial).ToString<float>();
+						break;
+					}
+					case ERigControlType::Integer:
+					{
+						UnitNodeStruct = FRigUnit_HierarchyAddControlInteger::StaticStruct();
+						TypeIndex = RigVMTypeUtils::TypeIndex::Int32; 
+						InitialValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Initial).ToString<int32>();
+						break;
+					}
+					case ERigControlType::Vector2D:
+					{
+						UnitNodeStruct = FRigUnit_HierarchyAddControlVector2D::StaticStruct();
+						TypeIndex = FRigVMRegistry::Get().GetTypeIndex<FVector2D>(); 
+						InitialValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Initial).ToString<FVector2D>();
+						break;
+					}
+					case ERigControlType::Position:
+					case ERigControlType::Scale:
+					{
+						UnitNodeStruct = FRigUnit_HierarchyAddControlVector::StaticStruct();
+						TypeIndex = FRigVMRegistry::Get().GetTypeIndex<FVector>(); 
+						InitialValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Initial).ToString<FVector>();
+						break;
+					}
+					case ERigControlType::Rotator:
+					{
+						UnitNodeStruct = FRigUnit_HierarchyAddControlRotator::StaticStruct();
+						TypeIndex = FRigVMRegistry::Get().GetTypeIndex<FRotator>(); 
+						InitialValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Initial).ToString<FRotator>();
+						break;
+					}
+					case ERigControlType::Transform:
+					case ERigControlType::TransformNoScale:
+					case ERigControlType::EulerTransform:
+					{
+						UnitNodeStruct = FRigUnit_HierarchyAddControlTransform::StaticStruct();
+						TypeIndex = FRigVMRegistry::Get().GetTypeIndex<FTransform>(); 
+						const FTransform InitialTransform = InHierarchy->GetInitialLocalTransform(Key);
+						TBaseStructure<FTransform>::Get()->ExportText(InitialValue, &InitialTransform, nullptr, nullptr, PPF_None, nullptr);
+						break;
+					}
+					default:
+					{
+						break;
+					}
+				}
+
+				if(UnitNodeStruct == nullptr)
+				{
+					continue;
+				}
+
+				URigVMNode* AddControlNode = GraphController->AddUnitNode(UnitNodeStruct, FRigUnit::GetMethodName(), NodePosition);
+				NodePosition += NodePositionIncrement;
+				AddParentItemLink(Key, AddControlNode);
+
+				if(LastPin)
+				{
+					if(const URigVMPin* NextPin = AddControlNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddBone, ExecuteContext)))
+					{
+						GraphController->AddLink(LastPin->GetPinPath(), NextPin->GetPinPath(), true);
+						LastPin = NextPin;
+					}
+				}
+
+				GraphController->ResolveWildCardPin(AddControlNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddControlInteger, InitialValue))->GetPinPath(), TypeIndex, true);
+				GraphController->SetPinDefaultValue(AddControlNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddElement, Name))->GetPinPath(), Key.Name.ToString(), true, true);
+				GraphController->SetPinDefaultValue(AddControlNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddElement, Parent))->GetPinPath(), ParentDefault, true, true);
+				GraphController->SetPinDefaultValue(AddControlNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddControlElement, OffsetSpace))->GetPinPath(), TEXT("LocalSpace"), true, true);
+				GraphController->SetPinDefaultValue(AddControlNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddControlElement, OffsetTransform))->GetPinPath(), OffsetDefault, true, true);
+				GraphController->SetPinDefaultValue(AddControlNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddControlInteger, InitialValue))->GetPinPath(), InitialValue, true, true);
+
+				if(const FStructProperty* SettingsProperty = CastField<FStructProperty>(UnitNodeStruct->FindPropertyByName(TEXT("Settings"))))
+				{
+					UScriptStruct* SettingsStruct = CastChecked<UScriptStruct>(SettingsProperty->Struct);
+					FStructOnScope SettingsScope(SettingsStruct);
+					FRigUnit_HierarchyAddControl_Settings* Settings = (FRigUnit_HierarchyAddControl_Settings*)SettingsScope.GetStructMemory();
+					Settings->ConfigureFrom(ControlElement, ControlElement->Settings);
+					FString SettingsDefault;
+					SettingsStruct->ExportText(SettingsDefault, Settings, nullptr, nullptr, PPF_None, nullptr);
+
+					GraphController->SetPinDefaultValue(AddControlNode->FindPin(SettingsProperty->GetName())->GetPinPath(), SettingsDefault, true, true);
+				}
+			}
+		}
+	}
+
+	if(bRemoveElements && InHierarchy)
+	{
+		InHierarchy->Modify();
+		for(const FRigElementKey& Key : InKeys)
+		{
+			InHierarchy->GetController(true)->RemoveElement(Key, true);
+		}
+	}
+
+	return SpawnerNodes;
+}
+
+#endif // WITH_EDITORONLY_DATA
+
+UTexture2D* UControlRigBlueprint::GetRigModuleIcon() const
+{
+	if(IsControlRigModule())
+	{
+		if(UTexture2D* Icon = Cast<UTexture2D>(RigModuleSettings.Icon.TryLoad()))
+		{
+			return Icon;
+		}
+	}
+	return nullptr;
 }
 
 void UControlRigBlueprint::SetPreviewMesh(USkeletalMesh* PreviewMesh, bool bMarkAsDirty/*=true*/)
@@ -234,18 +673,46 @@ void UControlRigBlueprint::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	UpdateExposedModuleConnectors();
 }
 
-void UControlRigBlueprint::UpdateExposedModuleConnectors()
+void UControlRigBlueprint::UpdateExposedModuleConnectors() const
 {
-	ModuleSettings.ExposedConnectors.Reset();
-	Hierarchy->ForEach<FRigConnectorElement>([this](const FRigConnectorElement* ConnectorElement) -> bool
+	UControlRigBlueprint* MutableThis = ((UControlRigBlueprint*)this);
+	MutableThis->RigModuleSettings.ExposedConnectors.Reset();
+	Hierarchy->ForEach<FRigConnectorElement>([MutableThis](const FRigConnectorElement* ConnectorElement) -> bool
 	{
 		FRigModuleConnector ExposedConnector;
 		ExposedConnector.Name = ConnectorElement->GetName();
-		ExposedConnector.bIsRoot = Hierarchy->GetNumberOfParents(ConnectorElement) == 0;
+		ExposedConnector.bIsRoot = MutableThis->Hierarchy->GetNumberOfParents(ConnectorElement) == 0;
 		ExposedConnector.Settings = ConnectorElement->Settings;
-		ModuleSettings.ExposedConnectors.Add(ExposedConnector);
+		MutableThis->RigModuleSettings.ExposedConnectors.Add(ExposedConnector);
 		return true;
 	});
+}
+
+bool UControlRigBlueprint::ResolveConnector(const FRigElementKey& DraggedKey, const FRigElementKey& TargetKey, bool bSetupUndoRedo)
+{
+	FScopedTransaction Transaction(LOCTEXT("ResolveConnector", "Resolve connector"));
+
+	if(bSetupUndoRedo)
+	{
+		Modify();
+	}
+	if(TargetKey.IsValid())
+	{
+		FRigElementKey& ExistingTargetKey = ConnectionMap.FindOrAdd(DraggedKey);
+		if(ExistingTargetKey == TargetKey)
+		{
+			return false;
+		}
+		ExistingTargetKey = TargetKey;
+	}
+	else
+	{
+		ConnectionMap.Remove(DraggedKey);
+	}
+
+	PropagateHierarchyFromBPToInstances();
+
+	return true;
 }
 
 void UControlRigBlueprint::PostLoad()
@@ -508,6 +975,11 @@ void UControlRigBlueprint::PostTransacted(const FTransactionObjectEvent& Transac
 		if (PropertiesChanged.Contains(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, DrawContainer)))
 		{
 			PropagateDrawInstructionsFromBPToInstances();
+		}
+
+		if (PropertiesChanged.Contains(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ConnectionMap)))
+		{
+			PropagateHierarchyFromBPToInstances();
 		}
 	}
 }
@@ -1159,6 +1631,13 @@ void UControlRigBlueprint::PatchVariableNodesOnLoad()
 	Super::PatchVariableNodesOnLoad();
 }
 
+void UControlRigBlueprint::UpdateElementKeyRedirector(UControlRig* InControlRig) const
+{
+	InControlRig->HierarchySettings = HierarchySettings;
+	InControlRig->RigModuleSettings = RigModuleSettings;
+	InControlRig->ElementKeyRedirector = FRigElementKeyRedirector(ConnectionMap, Hierarchy);
+}
+
 void UControlRigBlueprint::PropagatePoseFromInstanceToBP(UControlRig* InControlRig) const
 {
 	check(InControlRig);
@@ -1199,7 +1678,9 @@ void UControlRigBlueprint::PropagateHierarchyFromBPToInstances() const
 		{
 			DefaultObject->PostInitInstanceIfRequired();
 			DefaultObject->GetHierarchy()->CopyHierarchy(Hierarchy);
-			DefaultObject->HierarchySettings = HierarchySettings;
+
+			UpdateElementKeyRedirector(DefaultObject);
+
 			if (!DefaultObject->HasAnyFlags(RF_NeedPostLoad)) // If CDO is loading, skip Init, it will be done later
 			{
 				DefaultObject->Initialize(true);

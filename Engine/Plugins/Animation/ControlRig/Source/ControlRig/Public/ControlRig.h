@@ -18,6 +18,7 @@
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimInstanceProxy.h"
 #include "Animation/AttributesRuntime.h"
+#include "Rigs/RigModuleDefines.h"
 
 #if WITH_EDITOR
 #include "RigVMModel/RigVMPin.h"
@@ -83,6 +84,28 @@ public:
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
 	virtual UScriptStruct* GetPublicContextStruct() const override { return FControlRigExecuteContext::StaticStruct(); }
+
+	// Returns the settings of the module this instance belongs to
+	const FRigModuleSettings& GetRigModuleSettings() const;
+
+	// Returns true if the rig is defined as a rig module
+	bool IsRigModule() const;
+
+	// Returns true if this rig is an instance module. Rigs may be a module but not instance
+	// when being interacted with the asset editor
+	bool IsRigModuleInstance() const;
+
+	// Returns the parent rig hosting this module instance
+	UControlRig* GetParentRig() const;
+
+	// Returns the name of this module instance
+	FName GetModuleInstanceName() const;
+
+	// Returns the namespace of this module (for example ArmModule::)
+	const FString& GetRigModuleNameSpace() const;
+
+	// Returns the redirector from key to key for this rig
+	FRigElementKeyRedirector& GetElementKeyRedirector();
 
 	/** Creates a transformable control handle for the specified control to be used by the constraints system. Should use the UObject from 
 	ConstraintsScriptingLibrary::GetManager(UWorld* InWorld)*/
@@ -482,6 +505,8 @@ private:
 	TSubclassOf<UControlRig> InteractionRigClass_DEPRECATED;
 #endif
 
+	FRigElementKeyRedirector ElementKeyRedirector;
+
 public:
 
 	UE_DEPRECATED(5.4, "InteractionRig is no longer used")
@@ -672,6 +697,12 @@ private:
 		FRigPose CachedPose;
 		ERigTransformType::Type TransformType;
 	};
+
+	UPROPERTY()
+	FRigModuleSettings RigModuleSettings;
+
+	UPROPERTY(transient)
+	mutable FString RigModuleNameSpace;
 
 #if WITH_EDITOR
 

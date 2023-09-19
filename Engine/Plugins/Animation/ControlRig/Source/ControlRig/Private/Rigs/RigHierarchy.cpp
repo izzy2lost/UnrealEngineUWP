@@ -108,6 +108,7 @@ URigHierarchy::URigHierarchy()
 , bIsInteracting(false)
 , LastInteractedKey()
 , bSuspendNotifications(false)
+, bIsRunningGetIndex(false)
 , HierarchyController(nullptr)
 , bIsControllerAvailable(true)
 , ResetPoseHash(INDEX_NONE)
@@ -124,7 +125,7 @@ URigHierarchy::URigHierarchy()
 #if WITH_EDITOR
 , bRecordTransformsAtRuntime(true)
 #endif
-, ElementRedirector(nullptr)
+, ElementKeyRedirector(nullptr)
 {
 	Reset();
 #if WITH_EDITOR
@@ -957,6 +958,41 @@ bool URigHierarchy::IsProcedural(const FRigBaseElement* InElement) const
 		return false;
 	}
 	return InElement->IsProcedural();
+}
+
+TArray<FRigConnectorInfo> URigHierarchy::GetConnectorInfos() const
+{
+	const TArray<FRigElementKey> Keys = GetConnectorKeys(true);
+	TArray<FRigConnectorInfo> Infos;
+	Infos.Reserve(Keys.Num());
+	for(const FRigElementKey& Key : Keys)
+	{
+		const FRigConnectorElement* Connector = FindChecked<FRigConnectorElement>(Key);
+		Infos.Add(Connector->GetConnectorInfo(this));
+	}
+	return Infos;
+}
+
+TArray<FRigElementKey> URigHierarchy::RestoreConnectorsFromInfos(TArray<FRigConnectorInfo> InInfos, bool bSetupUndoRedo)
+{
+	TArray<FRigElementKey> Keys;
+	for(const FRigConnectorInfo& Info : InInfos)
+	{
+		FRigElementKey Key(Info.Name, ERigElementType::Connector);
+
+		if(const FRigConnectorElement* Connector = Find<FRigConnectorElement>(Key))
+		{
+			SetInitialLocalTransform(Connector->Index, Info.LocalTransform, true, bSetupUndoRedo, false);
+			SetConnectorSettings(Key, Info.Settings, bSetupUndoRedo, false, false);
+		}
+		else
+		{
+			Key = GetController()->AddConnector(Info.Name, Info.LocalTransform, false, Info.Settings, bSetupUndoRedo, false);
+		}
+
+		Keys.Add(Key);
+	}
+	return Keys;
 }
 
 TArray<FName> URigHierarchy::GetMetadataNames(FRigElementKey InItem)
@@ -2406,6 +2442,19 @@ bool URigHierarchy::CanConnect(const FRigConnectionInfo* InConnectionInfo, FStri
 		}
 	}
 	return true;
+}
+
+const FRigElementKey& URigHierarchy::GetResolvedTarget(const FRigElementKey& InConnectorKey) const
+{
+	if(ElementKeyRedirector)
+	{
+		if(const FCachedRigElement* Target = ElementKeyRedirector->Find(InConnectorKey))
+		{
+			return Target->GetKey();
+		}
+	}
+	static const FRigElementKey InValidKey;
+	return InValidKey;
 }
 
 bool URigHierarchy::Undo()

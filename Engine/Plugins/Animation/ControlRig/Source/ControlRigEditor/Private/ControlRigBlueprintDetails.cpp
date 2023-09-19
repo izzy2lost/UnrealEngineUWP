@@ -34,6 +34,6 @@ void FControlRigBlueprintDetails::CustomizeDetails(IDetailLayoutBuilder& DetailL
 	
 	if(!bIsValidRigModule)
 	{
-		DetailLayout.HideProperty(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ModuleSettings));
+		DetailLayout.HideProperty(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, RigModuleSettings));
 	}
 }

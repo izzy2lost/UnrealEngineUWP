@@ -7,6 +7,27 @@
 #include "RigModuleDefines.generated.h"
 
 USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigModuleIdentifier
+{
+	GENERATED_BODY()
+	
+	FRigModuleIdentifier()
+		: Name()
+		, Type(TEXT("Module"))
+	{}
+
+	// The name of the module used to find it in the module library
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
+	FString Name;
+
+	// The kind of module this is (for example "Arm")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
+	FString Type;
+
+	bool IsValid() const { return !Name.IsEmpty(); }
+};
+
+USTRUCT(BlueprintType)
 struct CONTROLRIG_API FRigModuleConnector
 {
 	GENERATED_BODY()
@@ -33,12 +54,22 @@ struct CONTROLRIG_API FRigModuleSettings
 	FRigModuleSettings()
 	{}
 
-	bool IsValidModule() const { return !ExposedConnectors.IsEmpty(); }
+	bool IsValidModule() const
+	{
+		return
+			Identifier.IsValid() &&
+			!ExposedConnectors.IsEmpty();
+	}
 
+	// The identifier used to retrieve the module in the module library
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Module)
+	FRigModuleIdentifier Identifier;
+
+	// The icon used for the module in the module library
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Module,  meta = (AllowedClasses = "/Script/Engine.Texture2D"))
 	FSoftObjectPath Icon;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Module)
+	UPROPERTY(BlueprintReadOnly, Category = Module)
 	TArray<FRigModuleConnector> ExposedConnectors;
 };
 

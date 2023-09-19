@@ -139,6 +139,8 @@ public:
 	void OnHierarchyModified(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 	void OnHierarchyModified_AnyThread(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 
+	void HandleRigTypeChanged(UControlRigBlueprint* InBlueprint);
+
 	const FName RigHierarchyToGraphDragAndDropMenuName = TEXT("ControlRigEditor.RigHierarchyToGraphDragAndDropMenu");
 	void CreateRigHierarchyToGraphDragAndDropMenu() const;
 	void OnGraphNodeDropToPerform(TSharedPtr<FGraphNodeDragDropOp> InDragDropOp, UEdGraph* InGraph, const FVector2D& InNodePosition, const FVector2D& InScreenPosition);
@@ -294,9 +296,11 @@ protected:
 	TWeakObjectPtr<AStaticMeshActor> WeakGroundActorPtr;
 
 	void OnPreForwardsSolve_AnyThread(UControlRig* InRig, const FName& InEventName);
+	void OnPreConstructionForUI_AnyThread(UControlRig* InRig, const FName& InEventName);
 	void OnPreConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
 	void OnPostConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
 	FRigPose PreConstructionPose;
+	TArray<FRigConnectorInfo> ConnectorInfos;
 
 	bool bIsConstructionEventRunning;
 	uint32 LastHierarchyHash;

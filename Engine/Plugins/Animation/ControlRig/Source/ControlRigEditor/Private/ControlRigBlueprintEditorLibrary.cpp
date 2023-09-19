@@ -103,7 +103,7 @@ TArray<FRigModuleDescription> UControlRigBlueprintEditorLibrary::GetAvailableRig
 
 	for(const FAssetData& AssetData : AssetDataList)
 	{
-		static const FName ModuleSettingsName = GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ModuleSettings);
+		static const FName ModuleSettingsName = GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, RigModuleSettings);
 		if(AssetData.FindTag(ModuleSettingsName))
 		{
 			const FString TagValue = AssetData.GetTagValueRef<FString>(ModuleSettingsName);

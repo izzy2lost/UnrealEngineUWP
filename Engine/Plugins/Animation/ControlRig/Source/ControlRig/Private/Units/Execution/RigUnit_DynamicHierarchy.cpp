@@ -383,9 +383,22 @@ FTransform FRigUnit_HierarchyAddControlElement::ProjectOffsetTransform(const FTr
 	return InOffsetTransform;
 }
 
+void FRigUnit_HierarchyAddControl_Settings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
+{
+	DisplayName = InSettings.DisplayName;
+}
+
 void FRigUnit_HierarchyAddControl_Settings::Configure(FRigControlSettings& OutSettings) const
 {
 	OutSettings.DisplayName = DisplayName;
+}
+
+void FRigUnit_HierarchyAddControl_ShapeSettings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
+{
+	bVisible = InSettings.bShapeVisible;
+	Name = InSettings.ShapeName;
+	Color = InSettings.ShapeColor;
+	Transform = InControlElement->Shape.Get(ERigTransformType::InitialLocal);
 }
 
 void FRigUnit_HierarchyAddControl_ShapeSettings::Configure(FRigControlSettings& OutSettings) const
@@ -395,11 +408,26 @@ void FRigUnit_HierarchyAddControl_ShapeSettings::Configure(FRigControlSettings& 
 	OutSettings.ShapeColor = Color;
 }
 
+void FRigUnit_HierarchyAddControl_ProxySettings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
+{
+	bIsProxy = InSettings.AnimationType == ERigControlAnimationType::ProxyControl;
+	DrivenControls = InSettings.DrivenControls;
+	ShapeVisibility = InSettings.ShapeVisibility;
+}
+
 void FRigUnit_HierarchyAddControl_ProxySettings::Configure(FRigControlSettings& OutSettings) const
 {
 	OutSettings.AnimationType = bIsProxy ? ERigControlAnimationType::ProxyControl : ERigControlAnimationType::AnimationControl;
 	OutSettings.DrivenControls = DrivenControls;
 	OutSettings.ShapeVisibility = ShapeVisibility;
+}
+
+void FRigUnit_HierarchyAddControlFloat_LimitSettings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
+{
+	Limit = InSettings.LimitEnabled[0];
+	MinValue = InSettings.MinimumValue.Get<float>();
+	MaxValue = InSettings.MaximumValue.Get<float>();
+	bDrawLimits = InSettings.bDrawLimits;
 }
 
 void FRigUnit_HierarchyAddControlFloat_LimitSettings::Configure(FRigControlSettings& OutSettings) const
@@ -409,6 +437,18 @@ void FRigUnit_HierarchyAddControlFloat_LimitSettings::Configure(FRigControlSetti
 	OutSettings.MinimumValue = FRigControlValue::Make<float>(MinValue);
 	OutSettings.MaximumValue = FRigControlValue::Make<float>(MaxValue);
 	OutSettings.bDrawLimits = bDrawLimits;
+}
+
+void FRigUnit_HierarchyAddControlFloat_Settings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
+{
+	FRigUnit_HierarchyAddControl_Settings::ConfigureFrom(InControlElement, InSettings);
+
+	bIsScale = InSettings.ControlType == ERigControlType::ScaleFloat;
+	PrimaryAxis = InSettings.PrimaryAxis;
+
+	Proxy.ConfigureFrom(InControlElement, InSettings);
+	Limits.ConfigureFrom(InControlElement, InSettings);
+	Shape.ConfigureFrom(InControlElement, InSettings);
 }
 
 void FRigUnit_HierarchyAddControlFloat_Settings::Configure(FRigControlSettings& OutSettings) const
@@ -452,6 +492,14 @@ FRigUnit_HierarchyAddControlFloat_Execute()
 	}
 }
 
+void FRigUnit_HierarchyAddControlInteger_LimitSettings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
+{
+	Limit = InSettings.LimitEnabled[0];
+	MinValue = InSettings.MinimumValue.Get<int32>();
+	MaxValue = InSettings.MaximumValue.Get<int32>();
+	bDrawLimits = InSettings.bDrawLimits;
+}
+
 void FRigUnit_HierarchyAddControlInteger_LimitSettings::Configure(FRigControlSettings& OutSettings) const
 {
 	OutSettings.SetupLimitArrayForType(false, false, false);
@@ -459,6 +507,17 @@ void FRigUnit_HierarchyAddControlInteger_LimitSettings::Configure(FRigControlSet
 	OutSettings.MinimumValue = FRigControlValue::Make<int32>(MinValue);
 	OutSettings.MaximumValue = FRigControlValue::Make<int32>(MaxValue);
 	OutSettings.bDrawLimits = bDrawLimits;
+}
+
+void FRigUnit_HierarchyAddControlInteger_Settings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
+{
+	FRigUnit_HierarchyAddControl_Settings::ConfigureFrom(InControlElement, InSettings);
+
+	PrimaryAxis = InSettings.PrimaryAxis;
+
+	Proxy.ConfigureFrom(InControlElement, InSettings);
+	Limits.ConfigureFrom(InControlElement, InSettings);
+	Shape.ConfigureFrom(InControlElement, InSettings);
 }
 
 void FRigUnit_HierarchyAddControlInteger_Settings::Configure(FRigControlSettings& OutSettings) const
@@ -502,6 +561,15 @@ FRigUnit_HierarchyAddControlInteger_Execute()
 	}
 }
 
+void FRigUnit_HierarchyAddControlVector2D_LimitSettings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
+{
+	LimitX = InSettings.LimitEnabled[0];
+	LimitY = InSettings.LimitEnabled[1];
+	MinValue = FVector2D(InSettings.MinimumValue.Get<FVector3f>().X, InSettings.MinimumValue.Get<FVector3f>().Y);
+	MaxValue = FVector2D(InSettings.MaximumValue.Get<FVector3f>().X, InSettings.MaximumValue.Get<FVector3f>().Y);
+	bDrawLimits = InSettings.bDrawLimits;
+}
+
 void FRigUnit_HierarchyAddControlVector2D_LimitSettings::Configure(FRigControlSettings& OutSettings) const
 {
 	OutSettings.SetupLimitArrayForType(false, false, false);
@@ -510,6 +578,18 @@ void FRigUnit_HierarchyAddControlVector2D_LimitSettings::Configure(FRigControlSe
 	OutSettings.MinimumValue = FRigControlValue::Make<FVector3f>(FVector3f(MinValue.X, MinValue.Y, 0.f));
 	OutSettings.MaximumValue = FRigControlValue::Make<FVector3f>(FVector3f(MaxValue.X, MaxValue.Y, 0.f));
 	OutSettings.bDrawLimits = bDrawLimits;
+}
+
+void FRigUnit_HierarchyAddControlVector2D_Settings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
+{
+	FRigUnit_HierarchyAddControl_Settings::ConfigureFrom(InControlElement, InSettings);
+
+	PrimaryAxis = InSettings.PrimaryAxis;
+	FilteredChannels = InSettings.FilteredChannels;
+
+	Proxy.ConfigureFrom(InControlElement, InSettings);
+	Limits.ConfigureFrom(InControlElement, InSettings);
+	Shape.ConfigureFrom(InControlElement, InSettings);
 }
 
 void FRigUnit_HierarchyAddControlVector2D_Settings::Configure(FRigControlSettings& OutSettings) const
@@ -554,6 +634,16 @@ FRigUnit_HierarchyAddControlVector2D_Execute()
 	}
 }
 
+void FRigUnit_HierarchyAddControlVector_LimitSettings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
+{
+	LimitX = InSettings.LimitEnabled[0];
+	LimitY = InSettings.LimitEnabled[1];
+	LimitZ = InSettings.LimitEnabled[2];
+	MinValue = FVector(InSettings.MinimumValue.Get<FVector3f>());
+	MaxValue = FVector(InSettings.MaximumValue.Get<FVector3f>());
+	bDrawLimits = InSettings.bDrawLimits;
+}
+
 void FRigUnit_HierarchyAddControlVector_LimitSettings::Configure(FRigControlSettings& OutSettings) const
 {
 	OutSettings.SetupLimitArrayForType(false, false, false);
@@ -563,6 +653,18 @@ void FRigUnit_HierarchyAddControlVector_LimitSettings::Configure(FRigControlSett
 	OutSettings.MinimumValue = FRigControlValue::Make<FVector3f>(FVector3f(MinValue));
 	OutSettings.MaximumValue = FRigControlValue::Make<FVector3f>(FVector3f(MaxValue));
 	OutSettings.bDrawLimits = bDrawLimits;
+}
+
+void FRigUnit_HierarchyAddControlVector_Settings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
+{
+	FRigUnit_HierarchyAddControl_Settings::ConfigureFrom(InControlElement, InSettings);
+
+	bIsPosition = InSettings.ControlType == ERigControlType::Position;
+	FilteredChannels = InSettings.FilteredChannels;
+
+	Proxy.ConfigureFrom(InControlElement, InSettings);
+	Limits.ConfigureFrom(InControlElement, InSettings);
+	Shape.ConfigureFrom(InControlElement, InSettings);
 }
 
 void FRigUnit_HierarchyAddControlVector_Settings::Configure(FRigControlSettings& OutSettings) const
@@ -622,6 +724,16 @@ FRigUnit_HierarchyAddControlVector_Execute()
 	}
 }
 
+void FRigUnit_HierarchyAddControlRotator_LimitSettings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
+{
+	LimitPitch = InSettings.LimitEnabled[0];
+	LimitYaw = InSettings.LimitEnabled[1];
+	LimitRoll = InSettings.LimitEnabled[2];
+	MinValue = FRotator::MakeFromEuler(FVector(InSettings.MinimumValue.Get<FVector3f>()));
+	MaxValue = FRotator::MakeFromEuler(FVector(InSettings.MaximumValue.Get<FVector3f>()));
+	bDrawLimits = InSettings.bDrawLimits;
+}
+
 void FRigUnit_HierarchyAddControlRotator_LimitSettings::Configure(FRigControlSettings& OutSettings) const
 {
 	OutSettings.SetupLimitArrayForType(false, false, false);
@@ -631,6 +743,17 @@ void FRigUnit_HierarchyAddControlRotator_LimitSettings::Configure(FRigControlSet
 	OutSettings.MinimumValue = FRigControlValue::Make<FVector3f>(FVector3f(MinValue.Euler()));
 	OutSettings.MaximumValue = FRigControlValue::Make<FVector3f>(FVector3f(MaxValue.Euler()));
 	OutSettings.bDrawLimits = bDrawLimits;
+}
+
+void FRigUnit_HierarchyAddControlRotator_Settings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
+{
+	FRigUnit_HierarchyAddControl_Settings::ConfigureFrom(InControlElement, InSettings);
+
+	FilteredChannels = InSettings.FilteredChannels;
+
+	Proxy.ConfigureFrom(InControlElement, InSettings);
+	Limits.ConfigureFrom(InControlElement, InSettings);
+	Shape.ConfigureFrom(InControlElement, InSettings);
 }
 
 void FRigUnit_HierarchyAddControlRotator_Settings::Configure(FRigControlSettings& OutSettings) const
@@ -682,6 +805,18 @@ FRigUnit_HierarchyAddControlRotator_Execute()
 		FRigHierarchyControllerInstructionBracket InstructionBracket(Controller, ExecuteContext.GetInstructionIndex());
 		Item = Controller->AddControl(Name, Parent, ControlSettings, Value, Offset, ShapeTransform, false, false);
 	}
+}
+
+void FRigUnit_HierarchyAddControlTransform_Settings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
+{
+	FRigUnit_HierarchyAddControl_Settings::ConfigureFrom(InControlElement, InSettings);
+
+	FilteredChannels = InSettings.FilteredChannels;
+	bUsePreferredRotationOrder = InSettings.bUsePreferredRotationOrder;
+	PreferredRotationOrder = InSettings.PreferredRotationOrder;
+
+	Proxy.ConfigureFrom(InControlElement, InSettings);
+	Shape.ConfigureFrom(InControlElement, InSettings);
 }
 
 void FRigUnit_HierarchyAddControlTransform_Settings::Configure(FRigControlSettings& OutSettings) const

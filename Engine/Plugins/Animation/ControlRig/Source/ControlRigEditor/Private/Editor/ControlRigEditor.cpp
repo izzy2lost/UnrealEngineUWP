@@ -145,6 +145,8 @@ FControlRigEditor::~FControlRigEditor()
 			RigBlueprint->OnHierarchyModified().RemoveAll(EditMode);
 			EditMode->OnEditorClosed();
 		}
+
+		RigBlueprint->OnRigTypeChanged().RemoveAll(this);
 	}
 
 	if (PersonaToolkit.IsValid())
@@ -244,6 +246,8 @@ void FControlRigEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSh
 		{
 			ControlRigBlueprint->OnHierarchyModified().AddSP(EditMode, &FControlRigEditMode::OnHierarchyModified_AnyThread);
 		}
+
+		ControlRigBlueprint->OnRigTypeChanged().AddSP(this, &FControlRigEditor::HandleRigTypeChanged);
 	}
 
 	CreateRigHierarchyToGraphDragAndDropMenu();
@@ -502,6 +506,100 @@ void FControlRigEditor::FillToolbar(FToolBarBuilder& ToolbarBuilder, bool bEndSe
 	FRigVMEditor::FillToolbar(ToolbarBuilder, false);
 	
 	{
+		if(CVarControlRigHierarchyEnableModules.GetValueOnAnyThread())
+		{
+			TWeakObjectPtr<UControlRigBlueprint> WeakBlueprint = GetControlRigBlueprint();
+			ToolbarBuilder.AddToolBarButton(
+				FUIAction(
+					FExecuteAction::CreateLambda([WeakBlueprint]()
+					{
+						if(WeakBlueprint.IsValid())
+						{
+							if(WeakBlueprint->IsControlRigModule())
+							{
+								WeakBlueprint->TurnIntoStandaloneRig();
+							}
+							else
+							{
+								if(!WeakBlueprint->CanTurnIntoControlRigModule(false))
+								{
+									static const FText Message(LOCTEXT("TurnIntoControlRigModuleMessage", "This rig requires some changes to the hierarchy to turn it into a module.\n\nWe'll try to recreate the hierarchy by relying on nodes in the construction event instead.\n\nDo you want to continue?"));
+									EAppReturnType::Type Ret = FMessageDialog::Open(EAppMsgType::YesNo, Message);
+									if(Ret == EAppReturnType::No)
+									{
+										return;
+									}
+								}
+								WeakBlueprint->TurnIntoControlRigModule(true);
+							}
+						}
+					}),
+					FCanExecuteAction::CreateLambda([WeakBlueprint]
+					{
+						if(WeakBlueprint.IsValid())
+						{
+							if(WeakBlueprint->IsControlRigModule())
+							{
+								return WeakBlueprint->CanTurnIntoStandaloneRig();
+							}
+							return WeakBlueprint->CanTurnIntoControlRigModule(true);
+						}
+						return false;
+					})
+				),
+				NAME_None,
+				TAttribute<FText>::CreateLambda([WeakBlueprint]()
+				{
+					static const FText StandaloneRig = LOCTEXT("StandaloneRig", "Standalone Rig"); 
+					static const FText RigModule = LOCTEXT("RigModule", "Rig Module");
+					if(WeakBlueprint.IsValid())
+					{
+						if(WeakBlueprint->IsControlRigModule())
+						{
+							return RigModule;
+						}
+					}
+					return StandaloneRig;
+				}),
+				TAttribute<FText>::CreateLambda([WeakBlueprint]()
+				{
+					static const FText StandaloneRigTooltip = LOCTEXT("StandaloneRigTooltip", "A standalone control rig."); 
+					static const FText RigModuleTooltip = LOCTEXT("RigModuleTooltip", "A rig module used to build rigs.");
+					if(WeakBlueprint.IsValid())
+					{
+						if(!WeakBlueprint->IsControlRigModule())
+						{
+							FString FailureReason;
+							if(!WeakBlueprint->CanTurnIntoControlRigModule(true, &FailureReason))
+							{
+								return FText::Format(
+									LOCTEXT("StandaloneRigTooltipFormat", "{0}\n\nThis rig cannot be turned into a module:\n\n{1}"),
+									StandaloneRigTooltip,
+									FText::FromString(FailureReason)
+								);
+							}
+							return StandaloneRigTooltip;
+						}
+					}
+					return RigModuleTooltip;
+				}),
+				TAttribute<FSlateIcon>::CreateLambda([WeakBlueprint]()
+				{
+					static const FSlateIcon ModuleIcon = FSlateIcon(FControlRigEditorStyle::Get().GetStyleSetName(), "ControlRig.Tree.Connector");
+					static const FSlateIcon RigIcon = FSlateIcon(FControlRigEditorStyle::Get().GetStyleSetName(),"ClassIcon.ControlRigBlueprint"); 
+					if(WeakBlueprint.IsValid())
+					{
+						if(WeakBlueprint->IsControlRigModule())
+						{
+							return ModuleIcon;
+						}
+					}
+					return RigIcon;
+				}),
+				EUserInterfaceActionType::Button
+			);
+		}
+
 		if(CVarControlRigShowTestingToolbar.GetValueOnAnyThread())
 		{
 			ToolbarBuilder.AddSeparator();
@@ -804,6 +902,7 @@ void FControlRigEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 			PreviouslyDebuggedControlRig->GetHierarchy()->OnModified().RemoveAll(this);
 			PreviouslyDebuggedControlRig->OnPreForwardsSolve_AnyThread().RemoveAll(this);
 			PreviouslyDebuggedControlRig->OnPreConstructionForUI_AnyThread().RemoveAll(this);
+			PreviouslyDebuggedControlRig->OnPreConstruction_AnyThread().RemoveAll(this);
 			PreviouslyDebuggedControlRig->OnPostConstruction_AnyThread().RemoveAll(this);
 			PreviouslyDebuggedControlRig->ControlModified().RemoveAll(this);
 		}
@@ -859,15 +958,17 @@ void FControlRigEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 		DebuggedControlRig->GetHierarchy()->OnModified().RemoveAll(this);
 		DebuggedControlRig->OnPreForwardsSolve_AnyThread().RemoveAll(this);
 		DebuggedControlRig->OnPreConstructionForUI_AnyThread().RemoveAll(this);
+		DebuggedControlRig->OnPreConstruction_AnyThread().RemoveAll(this);
 		DebuggedControlRig->OnPostConstruction_AnyThread().RemoveAll(this);
 		DebuggedControlRig->ControlModified().RemoveAll(this);
 
 		DebuggedControlRig->GetHierarchy()->OnModified().AddSP(this, &FControlRigEditor::OnHierarchyModified_AnyThread);
 		DebuggedControlRig->OnPreForwardsSolve_AnyThread().AddSP(this, &FControlRigEditor::OnPreForwardsSolve_AnyThread);
-		DebuggedControlRig->OnPreConstructionForUI_AnyThread().AddSP(this, &FControlRigEditor::OnPreConstruction_AnyThread);
+		DebuggedControlRig->OnPreConstructionForUI_AnyThread().AddSP(this, &FControlRigEditor::OnPreConstructionForUI_AnyThread);
+		DebuggedControlRig->OnPreConstruction_AnyThread().AddSP(this, &FControlRigEditor::OnPreConstruction_AnyThread);
 		DebuggedControlRig->OnPostConstruction_AnyThread().AddSP(this, &FControlRigEditor::OnPostConstruction_AnyThread);
 		DebuggedControlRig->ControlModified().AddSP(this, &FControlRigEditor::HandleOnControlModified);
-
+		
 		LastHierarchyHash = INDEX_NONE;
 
 		if(EditorSkelComp)
@@ -1118,6 +1219,14 @@ void FControlRigEditor::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM*
 		RefreshDirectManipulationTextList();
 		bRefreshDirectionManipulationTargetsRequired = false;
 	}
+
+	if(UControlRigBlueprint* ControlRigBlueprint = GetControlRigBlueprint())
+	{
+		if(UControlRig* ControlRig = InVM->GetTypedOuter<UControlRig>())
+		{
+			ControlRigBlueprint->UpdateElementKeyRedirector(ControlRig);
+		}
+	}
 }
 
 void FControlRigEditor::SaveAsset_Execute()
@@ -1128,8 +1237,9 @@ void FControlRigEditor::SaveAsset_Execute()
 	UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(GetBlueprintObj());
 	if(const UControlRig* ControlRig = GetControlRig())
 	{
-		const UControlRig* CDO = ControlRig->GetClass()->GetDefaultObject<UControlRig>();
+		UControlRig* CDO = ControlRig->GetClass()->GetDefaultObject<UControlRig>();
 		CDO->DynamicHierarchy->CopyHierarchy(RigBlueprint->Hierarchy);
+		RigBlueprint->UpdateElementKeyRedirector(CDO);
 	}
 
 	FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
@@ -1145,8 +1255,9 @@ void FControlRigEditor::SaveAssetAs_Execute()
 	UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(GetBlueprintObj());
 	if(const UControlRig* ControlRig = GetControlRig())
 	{
-		const UControlRig* CDO = ControlRig->GetClass()->GetDefaultObject<UControlRig>();
+		UControlRig* CDO = ControlRig->GetClass()->GetDefaultObject<UControlRig>();
 		CDO->DynamicHierarchy->CopyHierarchy(RigBlueprint->Hierarchy);
+		RigBlueprint->UpdateElementKeyRedirector(CDO);
 	}
 
 	FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
@@ -1367,6 +1478,7 @@ void FControlRigEditor::HandleVMExecutedEvent(URigVMHost* InHost, const FName& I
 		{
 			if(!DebuggedControlRig->RigUnitManipulationInfos.IsEmpty())
 			{
+				const FRigHierarchyRedirectorGuard RedirectorGuard(DebuggedControlRig->GetHierarchy(), DebuggedControlRig->ElementKeyRedirector);
 				FControlRigExecuteContext& ExecuteContext = DebuggedControlRig->GetExtendedExecuteContext().GetPublicDataSafe<FControlRigExecuteContext>();
 				
 				for(const TSharedPtr<FRigDirectManipulationInfo>& ManipulationInfo : DebuggedControlRig->RigUnitManipulationInfos)
@@ -2296,6 +2408,11 @@ void FControlRigEditor::OnFinishedChangingProperties(const FPropertyChangedEvent
 		{
 			ControlRigBP->PropagateDrawInstructionsFromBPToInstances();
 		}
+
+		else if (PropertyChangedEvent.MemberProperty->GetNameCPP() == GET_MEMBER_NAME_STRING_CHECKED(UControlRigBlueprint, RigModuleSettings))
+		{
+			ControlRigBP->PropagateHierarchyFromBPToInstances();
+		}
 	}
 }
 
@@ -2747,13 +2864,15 @@ void FControlRigEditor::OnHierarchyModified(ERigHierarchyNotification InNotif, U
 			{
 				if(InHierarchy->GetConnectors().Num() == 1)
 				{
-					FNotificationInfo Info(LOCTEXT("FirstConnectorEncountered", "Looks like you have added the first connector. This rig can now be configured as a module in the class settings Hierarchy -> Module Settings."));
+					FNotificationInfo Info(LOCTEXT("FirstConnectorEncountered", "Looks like you have added the first connector. This rig will now be configured as a module, settings can be found in the class settings Hierarchy -> Module Settings."));
 					Info.bFireAndForget = true;
 					Info.FadeOutDuration = 5.0f;
 					Info.ExpireDuration = 5.0f;
 
 					TSharedPtr<SNotificationItem> NotificationPtr = FSlateNotificationManager::Get().AddNotification(Info);
 					NotificationPtr->SetCompletionState(SNotificationItem::CS_Success);
+
+					RigBlueprint->TurnIntoControlRigModule();
 				}
 			}
 			// no break - fall through
@@ -3072,6 +3191,14 @@ void FControlRigEditor::OnHierarchyModified_AnyThread(ERigHierarchyNotification 
 			Task();
 		}, TStatId(), NULL, ENamedThreads::GameThread);
 	}
+}
+
+void FControlRigEditor::HandleRigTypeChanged(UControlRigBlueprint* InBlueprint)
+{
+	// todo: fire a notification.
+	// todo: reapply the preview mesh and react to it accordingly.
+
+	Compile();
 }
 
 void FControlRigEditor::SynchronizeViewportBoneSelection()
@@ -4090,6 +4217,7 @@ void FControlRigEditor::HandleOnControlModified(UControlRig* Subject, FRigContro
 			// update the node based on the incoming pose. once that is done we'll need to compare the node instance
 			// with the settings on the node in the graph and update them accordingly.
 			FControlRigExecuteContext& ExecuteContext = DebuggedControlRig->GetExtendedExecuteContext().GetPublicDataSafe<FControlRigExecuteContext>();
+			const FRigHierarchyRedirectorGuard RedirectorGuard(DebuggedControlRig->GetHierarchy(), DebuggedControlRig->ElementKeyRedirector);
 			if(UnitInstance->UpdateDirectManipulationFromHierarchy(UnitNode, NodeInstance, ExecuteContext, ManipulationInfo))
 			{
 				UnitNode->UpdateHostFromStructInstance(DebuggedControlRig, NodeInstance);
@@ -4236,16 +4364,66 @@ void FControlRigEditor::OnPreForwardsSolve_AnyThread(UControlRig* InRig, const F
 	}
 }
 
-void FControlRigEditor::OnPreConstruction_AnyThread(UControlRig* InRig, const FName& InEventName)
+void FControlRigEditor::OnPreConstructionForUI_AnyThread(UControlRig* InRig, const FName& InEventName)
 {
 	bIsConstructionEventRunning = true;
 	const TArrayView<const FRigElementKey> Elements;
 	PreConstructionPose = InRig->GetHierarchy()->GetPose(false, ERigElementType::ToResetAfterConstructionEvent, Elements);
+
+	if(const UControlRigBlueprint* RigBlueprint = GetControlRigBlueprint())
+	{
+		if(RigBlueprint->IsControlRigModule())
+		{
+			ConnectorInfos = RigBlueprint->Hierarchy->GetConnectorInfos();
+		}
+	}
+}
+
+void FControlRigEditor::OnPreConstruction_AnyThread(UControlRig* InRig, const FName& InEventName)
+{
+	if(UControlRigBlueprint* RigBlueprint = GetControlRigBlueprint())
+	{
+		if(RigBlueprint->IsControlRigModule())
+		{
+			if(RigBlueprint->PreviewSkeletalMesh)
+			{
+				if(URigHierarchyController* Controller = InRig->GetHierarchy()->GetController(true))
+				{
+					const TArray<FRigElementKey> Bones = Controller->ImportBones(RigBlueprint->PreviewSkeletalMesh->GetSkeleton());
+
+					if(URigVM* VM = InRig->GetVM())
+					{
+						const int32 EntryIndex = VM->GetByteCode().FindEntryIndex(FRigUnit_PrepareForExecution::EventName);
+						if(EntryIndex != INDEX_NONE)
+						{
+							const int32 InstructionIndex = VM->GetByteCode().GetEntry(EntryIndex).InstructionIndex;
+							for(const FRigElementKey& Bone : Bones)
+							{
+								if(FRigBaseElement* Element = InRig->GetHierarchy()->Find(Bone))
+								{
+									Element->CreatedAtInstructionIndex = InstructionIndex;
+								}
+							}
+						}
+					}
+					//(void)RigBlueprint->UpdateConnectionRedirectorOnCDO();
+				}
+			}
+		}
+	}
 }
 
 void FControlRigEditor::OnPostConstruction_AnyThread(UControlRig* InRig, const FName& InEventName)
 {
 	bIsConstructionEventRunning = false;
+
+	if(UControlRigBlueprint* RigBlueprint = GetControlRigBlueprint())
+	{
+		if(RigBlueprint->IsControlRigModule())
+		{
+			RigBlueprint->Hierarchy->RestoreConnectorsFromInfos(ConnectorInfos);
+		}
+	}
 	
 	const int32 HierarchyHash = InRig->GetHierarchy()->GetTopologyHash(false);
 	if(LastHierarchyHash != HierarchyHash)

@@ -46,6 +46,8 @@ public:
 
 	FString GetJoinedElementNames() const;
 
+	bool IsDraggingSingleConnector() const;
+
 private:
 
 	/** Data for the property paths this item represents */
@@ -195,6 +197,7 @@ private:
 	URigHierarchy* GetHierarchy() const;
 	URigHierarchy* GetDefaultHierarchy() const;
 	const URigHierarchy* GetHierarchyForTreeView() const { return GetHierarchy(); }
+	FRigElementKey OnGetResolvedKey(const FRigElementKey& InKey);
 	
 	void ImportHierarchy(const FAssetData& InAssetData);
 	void CreateImportMenu(FMenuBuilder& MenuBuilder);
@@ -218,7 +221,8 @@ private:
 	void HandleParent(const FToolMenuContext& Context);
 	void HandleAlign(const FToolMenuContext& Context);
 	FReply ReparentOrMatchTransform(const TArray<FRigElementKey>& DraggedKeys, FRigElementKey TargetKey, bool bReparentItems, int32 LocalIndex = INDEX_NONE);
-
+	FReply ResolveConnector(const FRigElementKey& DraggedKey, const FRigElementKey& TargetKey);
+	
 	FName CreateUniqueName(const FName& InBaseName, ERigElementType InElementType) const;
 
 	void ClearDetailPanel() const;

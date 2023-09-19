@@ -240,7 +240,6 @@ public:
 	/**
 	 * Adds a connector to the hierarchy
 	 * @param InName The suggested name of the new connector - will eventually be corrected by the namespace
-	 * @param InParent The (optional) parent of the new connector. If you don't need a parent, pass FRigElementKey()
 	 * @param InTransform The transform for the new connector - either in local or global space, based on bTransformInGlobal
 	 * @param bTransformInGlobal Set this to true if the Transform passed is expressed in global space, false for local space.
 	 * @param InSettings All of the connector's settings
@@ -249,7 +248,7 @@ public:
 	 * @return The key for the newly created bone.
 	 */
 	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
-	FRigElementKey AddConnector(FName InName, FRigElementKey InParent, FTransform InTransform, bool bTransformInGlobal = true, FRigConnectorSettings InSettings = FRigConnectorSettings(), bool bSetupUndo = false, bool bPrintPythonCommand = false);
+	FRigElementKey AddConnector(FName InName, FTransform InTransform, bool bTransformInGlobal = true, FRigConnectorSettings InSettings = FRigConnectorSettings(), bool bSetupUndo = false, bool bPrintPythonCommand = false);
 
 	/**
 	 * Returns the control settings of a given control

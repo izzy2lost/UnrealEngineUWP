@@ -23,12 +23,16 @@ public:
 		, ContainerVersion(INDEX_NONE)
 	{}
 
-	FCachedRigElement(const FRigElementKey& InKey, const URigHierarchy* InHierarchy)
+	FCachedRigElement(const FRigElementKey& InKey, const URigHierarchy* InHierarchy, bool bForceStoreKey = false)
 		: Key()
 		, Index(UINT16_MAX)
 		, ContainerVersion(INDEX_NONE)
 	{
 		UpdateCache(InKey, InHierarchy);
+		if(bForceStoreKey)
+		{
+			Key = InKey;
+		}
 	}
 
 	bool IsValid() const
@@ -157,17 +161,21 @@ public:
 
 	FRigElementKeyRedirector()
 		: InternalKeyToExternalKey()
+		, Hash(UINT32_MAX)
 	{}
 
 	FRigElementKeyRedirector(const TMap<FRigElementKey, FRigElementKey>& InMap, const URigHierarchy* InHierarchy);
-	
+	FRigElementKeyRedirector(const FRigElementKeyRedirector& InOther, const URigHierarchy* InHierarchy);
+
 	bool Contains(const FRigElementKey& InKey) const { return InternalKeyToExternalKey.Contains(InKey); }
 	bool ContainsExternalKey(const FRigElementKey& InKey) const { return ExternalKeys.Contains(InKey); }
 	const FCachedRigElement* Find(const FRigElementKey& InKey) const { return InternalKeyToExternalKey.Find(InKey); }
 	FCachedRigElement* Find(const FRigElementKey& InKey) { return InternalKeyToExternalKey.Find(InKey); }
-
+	uint32 GetHash() const { return Hash; }
+	
 private:
 
 	TMap<FRigElementKey, FCachedRigElement> InternalKeyToExternalKey;
 	TSet<FRigElementKey> ExternalKeys;
+	uint32 Hash;
 };
