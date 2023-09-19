@@ -122,17 +122,6 @@ namespace GameFeatureVersePathMapper
 		}
 	};
 
-	FString GetGameFeatureRootVersePath()
-	{
-		FString AppDomain;
-		if (!GConfig->GetString(TEXT("Verse"), TEXT("AppDomain"), AppDomain, GGameIni))
-		{
-			AppDomain = FPaths::Combine(TEXTVIEW("/"), FString(FApp::GetProjectName()) + TEXTVIEW(".com"));
-		}
-
-		return FPaths::Combine(AppDomain, TEXTVIEW("GameFeatures"));
-	}
-
 	FString GetChunkPatternFormat()
 	{
 		FString ChunkPatternFormat;
@@ -367,7 +356,7 @@ namespace GameFeatureVersePathMapper
 
 		FInstallBundleResolver InstallBundleResolver(TargetPlatform ? *TargetPlatform->IniPlatformName() : nullptr);
 
-		const FString GameFeatureRootVersePath = GetGameFeatureRootVersePath();
+		const FString GameFeatureRootVersePath = UGameFeatureVersePathMapperCommandlet::GetGameFeatureRootVersePath();
 		const FString ChunkPatternFormat = GetChunkPatternFormat();
 
 		const TArray<int32> AlwaysResidentChunks = GetAlwaysResidentChunks();
@@ -533,4 +522,14 @@ int32 UGameFeatureVersePathMapperCommandlet::Main(const FString& CmdLineParams)
 	}
 
 	return 0;
+}
+
+/*static*/ FString UGameFeatureVersePathMapperCommandlet::GetGameFeatureRootVersePath()
+{
+	FString AppDomain;
+	if (!GConfig->GetString(TEXT("Verse"), TEXT("AppDomain"), AppDomain, GGameIni))
+	{
+		AppDomain = FPaths::Combine(TEXTVIEW("/"), FString(FApp::GetProjectName()) + TEXTVIEW(".com"));
+	}
+	return FPaths::Combine(AppDomain, TEXTVIEW("GameFeatures"));
 }

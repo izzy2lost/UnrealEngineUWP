@@ -96,4 +96,6 @@ class UGameFeatureVersePathMapperCommandlet : public UCommandlet
 
 public:
 	virtual int32 Main(const FString& CmdLineParams) override;
+
+	GAMEFEATURES_API static FString GetGameFeatureRootVersePath();
 };
