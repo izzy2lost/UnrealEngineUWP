@@ -31,13 +31,12 @@ namespace Chaos
 			const int32 OldShapeNum = ShapesArray.Num();
 			if (const FImplicitObjectUnion* Union = Geometry->template GetObject<FImplicitObjectUnion>())
 			{
-				const int32 NumImplicits = Union->NumImplicits();
-				ShapesArray.Reserve(NumImplicits);
-				ShapesArray.SetNum(NumImplicits);
+				const int32 NumShapes = Union->GetObjects().Num();
+				ShapesArray.SetNum(NumShapes);
 				
-				for (int32 ShapeIndex = 0; ShapeIndex < ShapesArray.Num(); ++ShapeIndex)
+				for (int32 ShapeIndex = 0; ShapeIndex < NumShapes; ++ShapeIndex)
 				{
-					FImplicitObjectPtr ShapeGeometry = Union->GetImplicit(ShapeIndex);
+					FImplicitObjectPtr ShapeGeometry = Union->GetObjects()[ShapeIndex];
 					
 					if (ShapeIndex >= OldShapeNum)
 					{

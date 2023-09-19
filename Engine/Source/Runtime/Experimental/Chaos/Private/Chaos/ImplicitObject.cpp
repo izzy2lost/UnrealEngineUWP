@@ -377,6 +377,7 @@ namespace Chaos
 		static const FName TriangleMeshName = TEXT("TriangleMesh");
 		static const FName HeightFieldName = TEXT("HeightField");
 		static const FName TaperedCapsuleName = TEXT("TaperedCapsule");
+		static const FName UnionClusteredName = TEXT("UnionClustered");
 
 		switch(GetInnerType(InType))
 		{
@@ -394,6 +395,7 @@ namespace Chaos
 		case ImplicitObjectType::TriangleMesh: return TriangleMeshName;
 		case ImplicitObjectType::HeightField: return HeightFieldName;
 		case ImplicitObjectType::TaperedCapsule: return TaperedCapsuleName;
+		case ImplicitObjectType::UnionClustered: return UnionClusteredName;
 		}
 		return NAME_None;
 	}

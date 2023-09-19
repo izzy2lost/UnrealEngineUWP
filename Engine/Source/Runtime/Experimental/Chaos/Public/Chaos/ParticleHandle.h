@@ -26,6 +26,11 @@ namespace Chaos
 {
 	class FConstraintHandle;
 	class FPBDRigidsEvolutionBase;
+	
+	namespace Private
+	{
+		class FConvexOptimizer;
+	}
 
 struct FGeometryParticleParameters
 {
@@ -1456,6 +1461,10 @@ public:
 
 	int32 TransientParticleIndex() const { return ParticleIdx; }
 
+	// Get the clustered particle convex optmizer
+	const TPimplPtr<Private::FConvexOptimizer>& ConvexOptimizer() const {return PBDRigidClusteredParticles->ConvexOptimizers(ParticleIdx); }
+	TPimplPtr<Private::FConvexOptimizer>& ConvexOptimizer() {return PBDRigidClusteredParticles->ConvexOptimizers(ParticleIdx); }
+
 private:
 	void SetInternalStrains(const FRealSingle Value) { PBDRigidClusteredParticles->Strains(ParticleIdx) = Value; }
 	void SetExternalStrains(const FRealSingle Value) { PBDRigidClusteredParticles->ExternalStrains(ParticleIdx) = Value; }
@@ -2606,7 +2615,6 @@ public:
 	void MergeShapesArray(FShapesArray&& InShapesArray)
 	{
 		MergeShapeInstances(reinterpret_cast<FShapeInstanceProxyArray&&>(InShapesArray));
-		UpdateSimpleShapes();
 	}
 
 	const FShapesArray& ShapesArray() const { return reinterpret_cast<const FShapesArray&>(MShapesArray); }
@@ -2629,7 +2637,7 @@ public:
 	// provided as a utility for use in FPhysInterface_Chaos::AddGeometry. Ideally we would remove this
 	void MergeShapeInstances(FShapeInstanceProxyArray&& InShapes)
 	{
-		check(InShapes.Num() <= MShapesArray.Num());
+		check(InShapes.Num() <= (MShapesArray.Num()));
 		int Idx = MShapesArray.Num() - InShapes.Num();
 		for (FShapeInstanceProxyPtr& Shape : InShapes)
 		{
@@ -2783,37 +2791,6 @@ public:
 
 protected:
 
-	/** Update the simple shapes materials, collisions... */
-	void UpdateSimpleShapes()
-	{
-		if (const FImplicitObjectUnion* Union = GetGeometry()->template GetObject<FImplicitObjectUnion>())
-		{
-			const int32 ObjectsOffset = Union->GetConvexes().Num();
-			if(ObjectsOffset > 0)
-			{
-				for(int32 ShapeIndex = 0; ShapeIndex < MShapesArray.Num(); ++ShapeIndex)
-				{
-					if(ShapeIndex < ObjectsOffset)
-					{
-						MShapesArray[ShapeIndex]->SetQueryData(MShapesArray[ObjectsOffset]->GetQueryData());
-						MShapesArray[ShapeIndex]->SetSimData(MShapesArray[ObjectsOffset]->GetSimData());
-						MShapesArray[ShapeIndex]->SetCollisionTraceType(MShapesArray[ObjectsOffset]->GetCollisionTraceType());
-				
-						// Only sim enabled if the underlying shapes could be used for physics
-						MShapesArray[ShapeIndex]->SetSimEnabled(MShapesArray[ObjectsOffset]->GetSimEnabled());
-
-						// Disable simple shapes for query 
-						MShapesArray[ShapeIndex]->SetQueryEnabled(false);
-					}
-					else
-					{
-						MShapesArray[ShapeIndex]->SetSimEnabled(false);
-					}
-				}
-			}
-		}
-	}
-
 	// Pointer to any data that the solver wants to associate with this particle
 	// TODO: It's important to eventually hide this!
 	// Right now it's exposed to lubricate the creation of the whole proxy system.
@@ -2887,6 +2864,46 @@ protected:
 		MNonFrequentData.SyncRemote(Manager, DataIdx, RemoteData);
 	}
 };
+
+// Update all the shapes datas including the convexes ones
+template<typename ParticleType>
+void UpdateParticleShapes(const TArray<ParticleType*>& ShapesParticles, const FImplicitObject* ImplicitObject,
+	const FShapesArray& ShapesArray, const int32 ActorId, const int32 ComponentID)
+{
+	if (!ShapesParticles.IsEmpty() && (ShapesParticles.Num() <= (ShapesArray.Num())))
+	{
+		for (int32 ParticleIndex = 0; ParticleIndex < ShapesParticles.Num(); ++ParticleIndex)
+		{
+			const TUniquePtr<Chaos::FPerShapeData>& ShapeData = ShapesArray[ParticleIndex];
+			const TUniquePtr<Chaos::FPerShapeData>& TemplateShape = ShapesParticles[ParticleIndex]->ShapesArray()[0];
+			
+			if (ShapeData && TemplateShape)
+			{
+				{
+					FCollisionData Data = TemplateShape->GetCollisionData();
+					Data.UserData = nullptr;
+					ShapeData->SetCollisionData(Data);
+				}
+    
+				{
+					FCollisionFilterData Data = TemplateShape->GetQueryData();
+					Data.Word0 = ActorId;
+					ShapeData->SetQueryData(Data);
+				}
+    
+				{
+					FCollisionFilterData Data = TemplateShape->GetSimData();
+					Data.Word0 = 0;
+					Data.Word2 = ComponentID;
+					ShapeData->SetSimData(Data);
+				}
+    
+				ShapeData->SetSimEnabled(TemplateShape->GetSimEnabled());
+				ShapeData->SetQueryEnabled(TemplateShape->GetQueryEnabled());
+			}
+		}
+	}
+}
 
 template <typename T, int d>
 FChaosArchive& operator<<(FChaosArchive& Ar, TGeometryParticle<T, d>& Particle)

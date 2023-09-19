@@ -489,13 +489,13 @@ namespace Chaos
 		// BVH on ParticleA versus implicit hierarchy of ParticleB
 		CHAOS_API void GenerateCollisionsBVHImplicitHierarchy(
 			FGeometryParticleHandle* ParticleA, const Private::FImplicitBVH* BVHA,
-			FGeometryParticleHandle* ParticleB, const FImplicitObject* RootImplicitB,
+			FGeometryParticleHandle* ParticleB, const FImplicitObject* RootImplicitB, const Private::FConvexOptimizer* ConvexOptimizerB,
 			const FReal CullDistance, const FReal Dt, const FCollisionContext& Context);
 
 		// Implicit hierarchy of particle A versus implicit hierarchy of ParticleB (used when no BVH present on either)
 		CHAOS_API void GenerateCollisionsImplicitHierarchyImplicitHierarchy(
-			FGeometryParticleHandle* ParticleA, const FImplicitObject* RootImplicitA,
-			FGeometryParticleHandle* ParticleB, const FImplicitObject* RootImplicitB,
+			FGeometryParticleHandle* ParticleA, const FImplicitObject* RootImplicitA, const Private::FConvexOptimizer* ConvexOptimizerA,
+			FGeometryParticleHandle* ParticleB, const FImplicitObject* RootImplicitB, const Private::FConvexOptimizer* ConvexOptimizerB,
 			const FReal CullDistance, const FReal Dt, const FCollisionContext& Context);
 
 		// BVH on particle A versus a Leaf Implicit of ParticleB

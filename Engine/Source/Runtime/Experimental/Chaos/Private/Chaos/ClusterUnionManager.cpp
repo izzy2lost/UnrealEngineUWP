@@ -62,7 +62,7 @@ namespace Chaos
 						// NOTE: This will need to be re-thought if we ever decide to make the mapping between child shapes and child particles not 1-to-1 (e.g. if we ever attempt to simplify the cluster union shape).
 
 						// Ignore intersections against the same particle since we just added the particle (potentially) into the geometry.
-						if (Particle == ClusterUnion.ChildParticles[RootObjectIndex])
+						if ((RootObjectIndex >= ClusterUnion.ChildParticles.Num()) || ((RootObjectIndex < ClusterUnion.ChildParticles.Num()) && (Particle == ClusterUnion.ChildParticles[RootObjectIndex])))
 						{
 							return;
 						}
@@ -915,6 +915,9 @@ namespace Chaos
 		{
 			FlushIncrementalGeometryOperations(ClusterUnion);
 		}
+
+		// Build the convex optimizer if required
+		FRigidClustering::BuildConvexOptimizer(ClusterUnion.InternalCluster);
 		
 		if (ClusterUnion.bGenerateConnectivityEdges)
 		{

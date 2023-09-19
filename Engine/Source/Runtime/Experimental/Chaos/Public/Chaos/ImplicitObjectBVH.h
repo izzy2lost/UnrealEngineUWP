@@ -112,6 +112,8 @@ namespace Chaos
 			// Utility for processing the hierarchy
 			static int32 CountLeafObjects(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects);
 			static FObjects CollectLeafObjects(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects);
+			static void CollectLeafObject(const FImplicitObject* Object, const FRigidTransform3& ParentTransform, const int32 RootObjectIndex,
+				TArray<FImplicitBVHObject>& LeafObjects);
 
 			// Create a BVH around a set of ImplicitObjects. Usually these are the immediate child elements of an FImplcitObjectUnion
 			// TryMake will then recurse into the geometry hierachy and add all descendents to the BVH. Will return null if the 
@@ -122,7 +124,7 @@ namespace Chaos
 
 			int32 GetNumObjects() const { return Objects.Num(); }
 			int32 GetDepth() const { return TreeDepth; }
-
+			
 			const FImplicitBVHObject& GetObject(const int32 ObjectIndex) const { return Objects[ObjectIndex]; }
 
 			const FImplicitObject* GetGeometry(const int32 ObjectIndex) const { return Objects[ObjectIndex].GetGeometry(); }

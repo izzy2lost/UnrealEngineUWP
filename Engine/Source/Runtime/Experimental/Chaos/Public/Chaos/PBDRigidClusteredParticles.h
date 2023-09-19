@@ -4,9 +4,15 @@
 #include "Chaos/ArrayCollectionArray.h"
 #include "Chaos/PBDRigidParticles.h"
 #include "Chaos/ImplicitObjectUnion.h"
+#include "Templates/PimplPtr.h"
 
 namespace Chaos
 {
+
+namespace Private
+{
+	class FConvexOptimizer;
+}
 
 /** 
  * Used within the clustering system to describe the clustering hierarchy. The ClusterId
@@ -157,6 +163,7 @@ class TPBDRigidClusteredParticles : public TPBDRigidParticles<T, d>
 	, MConnectivityEdges(MoveTemp(Other.MConnectivityEdges))
 	, MExternalStrains(MoveTemp(Other.MExternalStrains))
 	, MRigidClusteredFlags(MoveTemp(Other.MRigidClusteredFlags))
+	, MConvexOptimizers(MoveTemp(Other.MConvexOptimizers))
 	{
 		InitHelper();
 	}
@@ -227,6 +234,8 @@ class TPBDRigidClusteredParticles : public TPBDRigidParticles<T, d>
 	const auto& RigidClusteredFlags() const { return MRigidClusteredFlags; }
 	auto& RigidClusteredFlags() { return MRigidClusteredFlags; }
 
+	const auto& ConvexOptimizers(int32 Idx) const { return MConvexOptimizers[Idx]; }
+	auto& ConvexOptimizers(int32 Idx) { return MConvexOptimizers[Idx]; }
 	
 	typedef TPBDRigidClusteredParticleHandle<T, d> THandleType;
 	const THandleType* Handle(int32 Index) const { return static_cast<const THandleType*>(TGeometryParticles<T,d>::Handle(Index)); }
@@ -250,6 +259,7 @@ class TPBDRigidClusteredParticles : public TPBDRigidParticles<T, d>
 		  TArrayCollection::AddArray(&MConnectivityEdges);
 	  	  TArrayCollection::AddArray(&MExternalStrains);
 	  	  TArrayCollection::AddArray(&MRigidClusteredFlags);
+	  	  TArrayCollection::AddArray(&MConvexOptimizers);
 	  }
 
 	  TArrayCollectionArray<ClusterId> MClusterIds;
@@ -273,6 +283,9 @@ class TPBDRigidClusteredParticles : public TPBDRigidParticles<T, d>
 	  TArrayCollectionArray<TArray<TConnectivityEdge<T>>> MConnectivityEdges;
   
 	  TArrayCollectionArray<FRigidClusteredFlags> MRigidClusteredFlags;
+
+	  // Per clustered particle convex optimizer to reduce the collision cost
+	  TArrayCollectionArray<TPimplPtr<Private::FConvexOptimizer>> MConvexOptimizers;
 };
 
 using FPBDRigidClusteredParticles = TPBDRigidClusteredParticles<FReal, 3>;

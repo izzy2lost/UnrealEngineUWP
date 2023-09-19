@@ -362,7 +362,7 @@ namespace Chaos
 					if (Shape->GetSimEnabled() && (CVars::bCCDAxisThresholdUsesProbeShapes || !Shape->GetIsProbe()))
 					{
 						const FImplicitObjectRef Geometry = Shape->GetGeometry();
-						if (Geometry->HasBoundingBox())
+						if (Geometry && Geometry->HasBoundingBox())
 						{
 							const TVector<T, d> ShapeExtents = Geometry->BoundingBox().Extents();
 							TVector<T, d>& CCDAxisThreshold = MCCDAxisThreshold[Index];

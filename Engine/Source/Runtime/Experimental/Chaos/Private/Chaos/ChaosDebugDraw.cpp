@@ -25,6 +25,7 @@
 #include "Chaos/PBDRigidParticles.h"
 #include "Chaos/PBDSuspensionConstraints.h"
 #include "Chaos/Sphere.h"
+#include "Chaos/ConvexOptimizer.h"
 #include "Chaos/Utilities.h"
 #include "Chaos/CCDUtilities.h"
 
@@ -56,6 +57,9 @@ namespace Chaos
 
 		bool bChaosDebugDebugDrawColorShapesByInternalCluster = false;
 		FAutoConsoleVariableRef CVarChaosDebugDebugDrawColorShapesByInternalCluster(TEXT("p.Chaos.DebugDraw.ColorShapesByInternalCluster"), bChaosDebugDebugDrawColorShapesByInternalCluster, TEXT("Whether to check if the particle is an internal cluster to define its color (black : regular particle: red :internal cluster )"));
+
+		bool bChaosDebugDebugDrawColorShapesBySimQueryType = false;
+		FAutoConsoleVariableRef CVarChaosDebugDebugDrawColorShapesBySimQueryType(TEXT("p.Chaos.DebugDraw.ColorShapesBySimQueryType"), bChaosDebugDebugDrawColorShapesBySimQueryType, TEXT("Whether to show with different colors shapes that are sim enabled and query enabled (sim : blue, query : orange)"));
 
 		bool bChaosDebugDebugDrawColorShapesByClusterUnion = false;
 		FAutoConsoleVariableRef CVarChaosDebugDebugDrawColorShapesByClusterUnion(TEXT("p.Chaos.DebugDraw.ColorShapesByClusterUnion"), bChaosDebugDebugDrawColorShapesByClusterUnion, TEXT("An extension of the ColorShapesByInternalCluster option: instead of using a single color for every internal cluster, will use a unique color per cluster union. Non-cluster unions will be black."));
@@ -582,39 +586,60 @@ namespace Chaos
 				DrawShapesImpl(Particle, TransformedTransform, Transformed->GetTransformedObject(), Shapes, Margin, Color, Duration, Settings);
 				return;
 			}
-			else if (InnerType == ImplicitObjectType::Union)
+			else if ((InnerType == ImplicitObjectType::Union) || (InnerType == ImplicitObjectType::UnionClustered))
 			{
-				const FImplicitObjectUnion* Union = Implicit->template GetObject<FImplicitObjectUnion>();
-
-				for (int32 UnionIdx = 0; UnionIdx < Union->NumImplicits(); ++UnionIdx)
+				if(InnerType == ImplicitObjectType::Union)
 				{
-					// Retrieve shape from union's shapes array
-					const FPerShapeData* PerShapeData = nullptr;
-					if (!Shapes.IsSingleShape())
+					const FImplicitObjectUnion* Union = Implicit->template GetObject<FImplicitObjectUnion>();
+					for (int32 UnionIdx = 0; UnionIdx < Union->GetObjects().Num(); ++UnionIdx)
 					{
-						const FShapesArray& ShapesArray = *Shapes.GetShapesArray();
-						PerShapeData = ShapesArray[UnionIdx].Get();
+						// Retrieve shape from union's shapes array
+						const FPerShapeData* PerShapeData = nullptr;
+						if (!Shapes.IsSingleShape())
+						{
+							const FShapesArray& ShapesArray = *Shapes.GetShapesArray();
+							PerShapeData = ShapesArray[UnionIdx].Get();
+						}
+						DrawShapesImpl(Particle, ShapeTransform, Union->GetObjects()[UnionIdx].GetReference(), FShapeOrShapesArray(PerShapeData), Margin, Color, Duration, Settings);
 					}
-					
-					DrawShapesImpl(Particle, ShapeTransform, Union->GetImplicit(UnionIdx).GetReference(), FShapeOrShapesArray(PerShapeData), Margin, Color, Duration, Settings);
-					
+				}
+				else
+				{
+					// For union clustered if we have simplified convexes we are generating the particle
+					// shapes since we have more than children. Otherwise we can grab the shape from the original particle lookup
+					const FImplicitObjectUnionClustered* Union = Implicit->template GetObject<FImplicitObjectUnionClustered>();
+					for (auto& UnionImplicit : Union->GetObjects())
+					{
+						const TPBDRigidParticleHandle<FReal, 3>* OriginalParticle = Union->FindParticleForImplicitObject(UnionImplicit.GetReference());
+						if (ensure(OriginalParticle))
+						{
+							DrawShapesImpl(Particle, ShapeTransform, UnionImplicit.GetReference(), FShapeOrShapesArray(OriginalParticle), Margin, Color, Duration, Settings);
+						}
+					}
+				}
+				// Draw the manager shapes if the implicit is the root union 
+				if(Particle->GetGeometry() == Implicit)
+				{
+					if(auto ClusteredParticle = Particle->CastToClustered())
+					{
+						const TPimplPtr<Private::FConvexOptimizer>& ConvexOptimizer = ClusteredParticle->ConvexOptimizer();
+						if(ConvexOptimizer && ConvexOptimizer->IsValid())
+						{
+							for (auto& PerShapeData : ConvexOptimizer->GetShapeInstances())
+							{
+								if(FImplicitObjectUnion* Union = PerShapeData->GetGeometry()->AsA<FImplicitObjectUnion>())
+								{
+									for(auto& UnionConvex : Union->GetObjects())
+									{
+										DrawShapesImpl(Particle, ShapeTransform, UnionConvex, FShapeOrShapesArray(PerShapeData.Get()), Margin, Color, Duration, Settings);
+									}
+								}
+							}
+						}
+					}
 				}
 				return;
 			}
-			else if (InnerType == ImplicitObjectType::UnionClustered)
-			{
-				const FImplicitObjectUnionClustered* Union = Implicit->template GetObject<FImplicitObjectUnionClustered>();
-				for (auto& UnionImplicit : Union->GetObjects())
-				{
-					const TPBDRigidParticleHandle<FReal, 3>* OriginalParticle = Union->FindParticleForImplicitObject(UnionImplicit.GetReference());
-					if (ensure(OriginalParticle))
-					{
-						DrawShapesImpl(Particle, ShapeTransform, UnionImplicit.GetReference(), FShapeOrShapesArray(OriginalParticle), Margin, Color, Duration, Settings);
-					}
-				}
-				return;
-			}
-
 
 			// Whether we should show meshes and non-mesh shapes
 			bool bShowMeshes = Settings.bShowComplexCollision;
@@ -677,6 +702,32 @@ namespace Chaos
 							}
 						}
 					}
+				}
+			}
+			if (ShapeData && bChaosDebugDebugDrawColorShapesBySimQueryType)
+			{
+				if (ShapeData->GetSimEnabled())
+				{
+					const bool bIsUnion = Particle->GetGeometry()->IsUnderlyingUnion();
+					if (bIsUnion)
+					{
+						if(Implicit->GetDoCollide())
+						{
+							ShapeColor = FColor::Green;
+						}
+						else
+						{
+							ShapeColor = FColor::Blue;
+						}
+					}
+					else
+					{
+						ShapeColor = FColor::Orange;
+					}
+				}
+				else if (ShapeData->GetQueryEnabled())
+				{
+					ShapeColor = FColor::Red;
 				}
 			}
 

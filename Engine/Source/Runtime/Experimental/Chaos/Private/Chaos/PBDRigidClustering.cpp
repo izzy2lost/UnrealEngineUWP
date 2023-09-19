@@ -21,6 +21,7 @@
 #include "Chaos/PerParticleEtherDrag.h"
 #include "Chaos/PerParticlePBDEulerStep.h"
 #include "Chaos/StrainModification.h"
+#include "Chaos/ConvexOptimizer.h"
 #include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
 #include "PhysicsProxy/ClusterUnionPhysicsProxy.h"
 #include "CoreMinimal.h"
@@ -227,6 +228,10 @@ namespace Chaos
 		}
 		UpdateKinematicProperties(NewParticle, MChildren, MEvolution);
 		UpdateGeometry(NewParticle, ChildrenSet, MChildren, ProxyGeometry, Parameters);
+		
+		// Build the convex optimizer if required
+		BuildConvexOptimizer(NewParticle);
+		
 		GenerateConnectionGraph(NewParticle, Parameters);
 
 		NewParticle->SetSleeping(bClusterIsAsleep);
@@ -308,6 +313,13 @@ namespace Chaos
 
 		Cluster->ClusterIds().NumChildren = Children.Num();
 		Cluster->SetInternalStrains(Cluster->GetInternalStrains() / static_cast<FRealSingle>(Children.Num()));
+	}
+
+	void FRigidClustering::BuildConvexOptimizer(FPBDRigidClusteredParticleHandle* Particle)
+	{
+		Particle->ConvexOptimizer() = MakePimpl<Private::FConvexOptimizer>();
+		Particle->ConvexOptimizer()->SimplifyRootConvexes( Particle->GetGeometry()->template AsA<FImplicitObjectUnion>(),
+					Particle->ShapesArray());
 	}
 
 	DECLARE_CYCLE_STAT(TEXT("TPBDRigidClustering<>::RemoveParticlesFromCluster"), STAT_RemoveParticlesFromCluster, STATGROUP_Chaos);
@@ -497,6 +509,9 @@ namespace Chaos
 		UpdateKinematicProperties(NewParticle, MChildren, MEvolution);
 
 		UpdateGeometry(NewParticle, ChildrenSet, MChildren, FImplicitObjectPtr(nullptr), NoCleanParams);
+		
+		// Build the convex optimizer if required
+		BuildConvexOptimizer(NewParticle);
 
 		return NewParticle;
 	}

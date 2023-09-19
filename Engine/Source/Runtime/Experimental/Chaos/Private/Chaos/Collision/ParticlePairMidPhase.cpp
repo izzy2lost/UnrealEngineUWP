@@ -16,6 +16,7 @@
 #include "Chaos/PBDCollisionConstraints.h"
 #include "ChaosStats.h"
 #include "Misc/MemStack.h"
+#include "Chaos/ConvexOptimizer.h"
 #include "ProfilingDebugging/CountersTrace.h"
 
 TRACE_DECLARE_INT_COUNTER_EXTERN(ChaosTraceCounter_MidPhase_NumShapePair);
@@ -109,10 +110,17 @@ namespace Chaos
 	// Get the ShapeInstance data from the particle for the implicit with the specified root object index (its index
 	// in the root union implicit if there is one). Usually every implicit in the root union is represented in the
 	// ShapesArray, but not always. GCS and ClusterUnions sometimes have a Union at the root but only a single ShapeInstance
-	const FShapeInstance* GetShapeInstance(const FShapeInstanceArray& ShapeInstances, const int32 RootObjectIndex)
+	const FShapeInstance* GetShapeInstance(const FShapeInstanceArray& ShapeInstances, const int32 RootObjectIndex, const Private::FConvexOptimizer* ConvexOptimizer = nullptr)
 	{
-		const int32 ShapeIndex = (ShapeInstances.IsValidIndex(RootObjectIndex)) ? RootObjectIndex : 0;
-		return ShapeInstances[ShapeIndex].Get();
+		if(ConvexOptimizer && ConvexOptimizer->IsValid() && (RootObjectIndex == INDEX_NONE))
+		{
+			return ConvexOptimizer->GetShapeInstances()[0].Get();
+		}
+		else
+		{
+			const int32 ShapeIndex = (ShapeInstances.IsValidIndex(RootObjectIndex)) ? RootObjectIndex : 0;
+			return ShapeInstances[ShapeIndex].Get();
+		}
 	}
 
 
@@ -1119,6 +1127,11 @@ namespace Chaos
 		const FImplicitObjectRef Implicit0 = GetParticle0()->GetGeometry();
 		const FImplicitObjectRef Implicit1 = GetParticle1()->GetGeometry();
 
+		FPBDRigidClusteredParticleHandle* ClusteredHandle0 = GetParticle0()->CastToClustered();
+		FPBDRigidClusteredParticleHandle* ClusteredHandle1 = GetParticle1()->CastToClustered();
+
+		Private::FConvexOptimizer* ConvexOptimizer0 = ClusteredHandle0 ? ClusteredHandle0->ConvexOptimizer().Get() : nullptr;
+		Private::FConvexOptimizer* ConvexOptimizer1 = ClusteredHandle1 ? ClusteredHandle1->ConvexOptimizer().Get() : nullptr;
 
 		// See if we have a BVH for either/both of the particles
 		const Private::FImplicitBVH* BVH0 = nullptr;
@@ -1127,11 +1140,19 @@ namespace Chaos
 		{
 			if (const FImplicitObjectUnion* Union0 = Implicit0->template AsA<FImplicitObjectUnion>())
 			{
-				BVH0 = Union0->GetBVH();
+				const bool bHasConvexOptimizer0 = (ConvexOptimizer0 != nullptr) && ConvexOptimizer0->IsValid();
+				if(!bHasConvexOptimizer0)
+				{
+					BVH0 = Union0->GetBVH();
+				}
 			}
 			if (const FImplicitObjectUnion* Union1 = Implicit1->template AsA<FImplicitObjectUnion>())
 			{
-				BVH1 = Union1->GetBVH();
+				const bool bHasConvexOptimizer1 = (ConvexOptimizer1 != nullptr) && ConvexOptimizer1->IsValid();
+				if(!bHasConvexOptimizer1)
+				{
+					BVH1 = Union1->GetBVH();
+				}
 			}
 		}
 
@@ -1144,15 +1165,15 @@ namespace Chaos
 		}
 		else if (BVH0 != nullptr)
 		{
-			GenerateCollisionsBVHImplicitHierarchy(GetParticle0(), BVH0, GetParticle1(), Implicit1, CullDistance, Dt, Context);
+			GenerateCollisionsBVHImplicitHierarchy(GetParticle0(), BVH0, GetParticle1(), Implicit1, ConvexOptimizer1, CullDistance, Dt, Context);
 		}
 		else if (BVH1 != nullptr)
 		{
-			GenerateCollisionsBVHImplicitHierarchy(GetParticle1(), BVH1, GetParticle0(), Implicit0, CullDistance, Dt, Context);
+			GenerateCollisionsBVHImplicitHierarchy(GetParticle1(), BVH1, GetParticle0(), Implicit0, ConvexOptimizer0, CullDistance, Dt, Context);
 		}
 		else
 		{
-			GenerateCollisionsImplicitHierarchyImplicitHierarchy(GetParticle0(), Implicit0, GetParticle1(), Implicit1, CullDistance, Dt, Context);
+			GenerateCollisionsImplicitHierarchyImplicitHierarchy(GetParticle0(), Implicit0, ConvexOptimizer0, GetParticle1(), Implicit1, ConvexOptimizer1, CullDistance, Dt, Context);
 		}
 
 		// Generate manifolds for each constraint we created/recovered and (re)activate if necessary
@@ -1193,18 +1214,20 @@ namespace Chaos
 					CullDistance, Dt, &Context]
 					(const FImplicitObject* ImplicitA, const FRigidTransform3f& RelativeTransformfA, const FAABB3f& RelativeBoundsfA, const int32 RootObjectIndexA, const int32 LeafObjectIndexA) -> void
 					{
-						const FRigidTransform3 RelativeTransformA = FRigidTransform3(RelativeTransformfA);
 						const FShapeInstance* ShapeInstanceA = GetShapeInstance(ShapeInstancesA, RootObjectIndexA);
-
+						if (!FilterHasSimEnabled(ShapeInstanceA)) return;
+						
+						const FRigidTransform3 RelativeTransformA = FRigidTransform3(RelativeTransformfA);
 						BVHB->VisitNodeObjects(NodeIndexB,
 							[this, ParticleA, ImplicitA, ShapeInstanceA, &ParticleWorldTransformA, &RelativeTransformA, LeafObjectIndexA,
 							ParticleB, BVHB, &ParticleWorldTransformB, &ShapeInstancesB,
 							CullDistance, Dt, &Context]
 							(const FImplicitObject* ImplicitB, const FRigidTransform3f& RelativeTransformfB, const FAABB3f& RelativeBoundsfB, const int32 RootObjectIndexB, const int32 LeafObjectIndexB) -> void
 							{
-								const FRigidTransform3 RelativeTransformB = FRigidTransform3(RelativeTransformfB);
 								const FShapeInstance* ShapeInstanceB = GetShapeInstance(ShapeInstancesB, RootObjectIndexB);
-
+								if (!FilterHasSimEnabled(ShapeInstanceB)) return;
+								
+								const FRigidTransform3 RelativeTransformB = FRigidTransform3(RelativeTransformfB);
 								// Detect collisions between the single implicit object pair
 								GenerateCollisionsImplicitLeafImplicitLeaf(
 									ParticleA, ImplicitA, ShapeInstanceA, ParticleWorldTransformA, RelativeTransformA, LeafObjectIndexA,
@@ -1218,17 +1241,18 @@ namespace Chaos
 	// Detect collisions between a BVH and some other implicit object (which may be a hierarchy)
 	void FGenericParticlePairMidPhase::GenerateCollisionsBVHImplicitHierarchy(
 		FGeometryParticleHandle* ParticleA, const Private::FImplicitBVH* BVHA,
-		FGeometryParticleHandle* ParticleB, const FImplicitObject* RootImplicitB,
+		FGeometryParticleHandle* ParticleB, const FImplicitObject* RootImplicitB, const Private::FConvexOptimizer* ConvexOptimizerB,
 		const FReal CullDistance, const FReal Dt, const FCollisionContext& Context)
 	{
 		const FShapeInstanceArray& ShapeInstancesB = ParticleB->ShapeInstances();
 
 		// Visit all the leaf implicits in RootImplicitB and collide against the BVH
-		RootImplicitB->VisitLeafObjects(
-			[this, ParticleA, BVHA, ParticleB, &ShapeInstancesB, CullDistance, Dt, &Context]
+		VisitCollisionObjects(ConvexOptimizerB, RootImplicitB,
+			[this, ParticleA, BVHA, ParticleB, &ShapeInstancesB, CullDistance, Dt, &Context, &ConvexOptimizerB]
 			(const FImplicitObject* ImplicitB, const FRigidTransform3& RelativeTransformB, const int32 RootObjectIndexB, const int32 ObjectIndexB, const int32 LeafObjectIndexB) -> void
 			{
-				const FShapeInstance* ShapeInstanceB = GetShapeInstance(ShapeInstancesB, RootObjectIndexB);
+				const FShapeInstance* ShapeInstanceB = GetShapeInstance(ShapeInstancesB, RootObjectIndexB, ConvexOptimizerB);
+				if (!FilterHasSimEnabled(ShapeInstanceB)) return;
 
 				// ImplicitB is a single object. We perform the bounds tests in A space
 				GenerateCollisionsBVHImplicitLeaf(
@@ -1240,8 +1264,8 @@ namespace Chaos
 
 	// Detect collisions between two implicits, where either or both may be a hierarchy, but neither has a BVH
 	void FGenericParticlePairMidPhase::GenerateCollisionsImplicitHierarchyImplicitHierarchy(
-		FGeometryParticleHandle* ParticleA, const FImplicitObject* RootImplicitA,
-		FGeometryParticleHandle* ParticleB, const FImplicitObject* RootImplicitB,
+		FGeometryParticleHandle* ParticleA, const FImplicitObject* RootImplicitA, const Private::FConvexOptimizer* ConvexOptimizerA,
+		FGeometryParticleHandle* ParticleB, const FImplicitObject* RootImplicitB, const Private::FConvexOptimizer* ConvexOptimizerB,
 		const FReal CullDistance,
 		const FReal Dt,
 		const FCollisionContext& Context)
@@ -1259,25 +1283,26 @@ namespace Chaos
 		// Detect collisions between Implicit Hierarchy of ParticleA and Implicit Hierarchy of ParticleB
 		// Given an ImplicitObject from ParticleA (which we know overlaps the bounds of some parts of ParticleB),
 		// run collision detection on ImplicitA against the implicit object hierarchy of ParticleB.
-		RootImplicitA->VisitLeafObjects(
-			[this, ParticleA, &ShapeInstancesA, &ParticleWorldTransformA,
+		VisitCollisionObjects(ConvexOptimizerA, RootImplicitA, [this, ParticleA, &ShapeInstancesA, &ParticleWorldTransformA,
 			ParticleB, &ShapeInstancesB, RootImplicitB, &ParticleWorldTransformB, &ParticleTransformAToB,
-			CullDistance, Dt, &Context]
-			(const FImplicitObject* ImplicitA, const FRigidTransform3& RelativeTransformA, const int32 RootObjectIndexA, const int32 ObjectIndex, const int32 LeafObjectIndexA)
+			CullDistance, Dt, &Context, &ConvexOptimizerA, &ConvexOptimizerB]
+			(const FImplicitObject* ImplicitA, const FRigidTransform3& RelativeTransformA, const int32 RootObjectIndexA, const int32 ObjectIndexA, const int32 LeafObjectIndexA)
 			{
+				const FShapeInstance* ShapeInstanceA = GetShapeInstance(ShapeInstancesA, RootObjectIndexA, ConvexOptimizerA);
+				if (!FilterHasSimEnabled(ShapeInstanceA)) return;
+
 				const FAABB3 RelativeBoundsA = ImplicitA->CalculateTransformedBounds(RelativeTransformA);
 				const FAABB3 ShapeBoundsAInB = RelativeBoundsA.TransformedAABB(ParticleTransformAToB).ThickenSymmetrically(FVec3(CullDistance));
 
-				const FShapeInstance* ShapeInstanceA = GetShapeInstance(ShapeInstancesA, RootObjectIndexA);
-
 				// Detect collisions between ImplicitA and Implicit Hierarchy of ParticleB
-				RootImplicitB->VisitOverlappingLeafObjects(ShapeBoundsAInB,
+				VisitOverlappingObjects(ConvexOptimizerB, RootImplicitB, ShapeBoundsAInB,
 					[this, ParticleA, ImplicitA, ShapeInstanceA, &ParticleWorldTransformA, &RelativeTransformA, LeafObjectIndexA,
 					ParticleB, &ParticleWorldTransformB, &ShapeInstancesB,
-					CullDistance, Dt, &Context]
+					CullDistance, Dt, &Context, &ConvexOptimizerB]
 					(const FImplicitObject* ImplicitB, const FRigidTransform3& RelativeTransformB, const int32 RootObjectIndexB, const int32 ObjectIndexB, const int32 LeafObjectIndexB)
 					{
-						const FShapeInstance* ShapeInstanceB = GetShapeInstance(ShapeInstancesB, RootObjectIndexB);
+						const FShapeInstance* ShapeInstanceB = GetShapeInstance(ShapeInstancesB, RootObjectIndexB, ConvexOptimizerB);
+						if (!FilterHasSimEnabled(ShapeInstanceB)) return;
 
 						// Detect collisions between ImplicitA and ImplicitB (both leaf implicits)
 						GenerateCollisionsImplicitLeafImplicitLeaf(
@@ -1320,6 +1345,8 @@ namespace Chaos
 			(const FImplicitObject* ImplicitA, const FRigidTransform3f& RelativeTransformfA, const FAABB3f& RelativeBoundsfA, const int32 RootObjectIndexA, const int32 LeafObjectIndexA) -> void
 			{
 				const FShapeInstance* ShapeInstanceA = GetShapeInstance(ShapeInstancesA, RootObjectIndexA);
+				if (!FilterHasSimEnabled(ShapeInstanceA)) return;
+				
 				const FRigidTransform3 RelativeTransformA = FRigidTransform3(RelativeTransformfA);
 
 				GenerateCollisionsImplicitLeafImplicitLeaf(

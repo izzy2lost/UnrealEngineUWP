@@ -54,6 +54,23 @@ namespace Chaos
 			}
 			return NumObjects;
 		}
+		
+		void FImplicitBVH::CollectLeafObject(const FImplicitObject* Object, 
+			const FRigidTransform3& ParentTransform, const int32 RootObjectIndex, TArray<FImplicitBVHObject>& LeafObjects)
+		{
+			// @todo(chaos): clean this up (SetFromRawLowLevel). We know all the objects we visit are children of a UniquePtr because we own it
+			TSerializablePtr<FImplicitObject> SerializableObject;
+			SerializableObject.SetFromRawLowLevel(Object);
+
+			const int32 ObjectIndex = LeafObjects.Num();
+			LeafObjects.Emplace(
+				SerializableObject,
+				ParentTransform.GetTranslation(),
+				ParentTransform.GetRotation(),
+				Object->CalculateTransformedBounds(ParentTransform),
+				RootObjectIndex,
+				ObjectIndex);
+		}
 
 		FImplicitBVH::FObjects FImplicitBVH::CollectLeafObjects(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects)
 		{
@@ -64,24 +81,12 @@ namespace Chaos
 
 			for (int32 RootObjectIndex = 0; RootObjectIndex < InRootObjects.Num(); ++RootObjectIndex)
 			{
-				const Chaos::FImplicitObjectPtr& RootObject = InRootObjects[RootObjectIndex];
-
-				RootObject->VisitLeafObjects(
-					[RootObjectIndex, &Objects](const FImplicitObject* Object, const FRigidTransform3& ParentTransform, const int32 UnusedRootObjectIndex, const int32 UnusedObjectIndex, const int32 UnusedLeafObjectIndex)
-					{
-						// @todo(chaos): clean this up (SetFromRawLowLevel). We know all the objects we visit are children of a UniquePtr because we own it
-						TSerializablePtr<FImplicitObject> SerializableObject;
-						SerializableObject.SetFromRawLowLevel(Object);
-
-						const int32 ObjectIndex = Objects.Num();
-						Objects.Emplace(
-							SerializableObject,
-							ParentTransform.GetTranslation(),
-							ParentTransform.GetRotation(),
-							Object->CalculateTransformedBounds(ParentTransform),
-							RootObjectIndex,
-							ObjectIndex);
-					});
+				InRootObjects[RootObjectIndex]->VisitLeafObjects(
+				[RootObjectIndex, &Objects](const FImplicitObject* Object, const FRigidTransform3& ParentTransform,
+					const int32 UnusedRootObjectIndex, const int32 UnusedObjectIndex, const int32 UnusedLeafObjectIndex)
+				{
+					CollectLeafObject(Object, ParentTransform, RootObjectIndex, Objects);
+				});
 			}
 
 			return Objects;
@@ -94,10 +99,10 @@ namespace Chaos
 
 		TUniquePtr<FImplicitBVH> FImplicitBVH::TryMake(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects, const int32 InMinObjects, const int32 InMaxBVHDepth)
 		{
-			TArray<FImplicitBVHObject> Objects = CollectLeafObjects(InRootObjects);
-			if (Objects.Num() > InMinObjects)
+			TArray<FImplicitBVHObject> LeafObjects = CollectLeafObjects(InRootObjects);
+			if (LeafObjects.Num() > InMinObjects)
 			{
-				return TUniquePtr<FImplicitBVH>(new FImplicitBVH(MoveTemp(Objects), InMaxBVHDepth));
+				return TUniquePtr<FImplicitBVH>(new FImplicitBVH(MoveTemp(LeafObjects), InMaxBVHDepth));
 			}
 			return TUniquePtr<FImplicitBVH>();
 		}

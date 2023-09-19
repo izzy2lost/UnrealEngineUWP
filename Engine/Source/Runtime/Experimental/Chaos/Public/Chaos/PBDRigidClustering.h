@@ -396,6 +396,14 @@ public:
 	CHAOS_API void SetInternalStrain(FPBDRigidClusteredParticleHandle* Particle, FRealSingle Strain);
 	CHAOS_API void SetExternalStrain(FPBDRigidClusteredParticleHandle* Particle, FRealSingle Strain);
 
+	/*
+	*  BuildConvexOptimizer
+	*    Create the convex optimizer unique ptr and loop over the particle geometry to simplify
+	*    all the convexes within the hierarchy
+	*    @param Particle particle on which the geometry will be simplified   
+	*/
+	static CHAOS_API void BuildConvexOptimizer(FPBDRigidClusteredParticleHandle* Particle);
+	
 	static CHAOS_API bool ShouldUnionsHaveCollisionParticles();
 
 	FClusterUnionManager& GetClusterUnionManager() { return ClusterUnionManager; }

@@ -50,11 +50,8 @@ class FImplicitObjectUnion : public FImplicitObject
 	// The total number of root objects in the hierarchy (same as GetObjects().Num())
 	int32 GetNumRootObjects() const
 	{
-		return GetObjects().Num();
+		return MObjects.Num();
 	}
-
-	// Return true if the union has a simplified list of shapes
-	CHAOS_API bool HasSimpleShapes() const;
 	
 	// The total number of leaf objects in the hierarchy
 	int32 GetNumLeafObjects() const
@@ -79,7 +76,7 @@ class FImplicitObjectUnion : public FImplicitObject
 	
 	virtual FReal PhiWithNormal(const FVec3& x, FVec3& Normal) const override
 	{
-		const Chaos::FImplicitObjectsArray& Objects = HasSimpleShapes() ? GetConvexes() : GetObjects();
+		const Chaos::FImplicitObjectsArray& Objects = MObjects;
 		FReal Phi = TNumericLimits<FReal>::Max();
 		bool NeedsNormalize = false;
 		for (int32 i = 0; i < Objects.Num(); ++i)
@@ -128,8 +125,7 @@ class FImplicitObjectUnion : public FImplicitObject
 		FReal MinTime = 0;	//initialization not needed, but doing it to avoid warning
 		bool bFound = false;
 
-		const Chaos::FImplicitObjectsArray& Objects = HasSimpleShapes() ? GetConvexes() : GetObjects();
-		for (const Chaos::FImplicitObjectPtr& Obj : Objects)
+		for (const Chaos::FImplicitObjectPtr& Obj : MObjects)
 		{
 			FVec3 Position;
 			FVec3 Normal;
@@ -154,8 +150,7 @@ class FImplicitObjectUnion : public FImplicitObject
 
 	virtual bool Overlap(const FVec3& Point, const FReal Thickness) const override
 	{
-		const Chaos::FImplicitObjectsArray& Objects = HasSimpleShapes() ? GetConvexes() : GetObjects();
-		for (const Chaos::FImplicitObjectPtr& Obj : Objects)
+		for (const Chaos::FImplicitObjectPtr& Obj : MObjects)
 		{
 			if (Obj->Overlap(Point, Thickness))
 			{
@@ -175,18 +170,12 @@ class FImplicitObjectUnion : public FImplicitObject
 		return bValid;
 	}
 
+	// Return the list of objects that will be part of the union
 	CHAOS_API const TArray<Chaos::FImplicitObjectPtr>& GetObjects() const { return MObjects; }
 
+	// Return the const list of objects that will be part of the union
 	CHAOS_API TArray<Chaos::FImplicitObjectPtr>& GetObjects() { return MObjects; }
 	
-	CHAOS_API const TArray<Chaos::FImplicitObjectPtr>& GetConvexes() const { return Convexes; }
-
-	CHAOS_API TArray<Chaos::FImplicitObjectPtr>& GetConvexes() { return Convexes; }
-
-	CHAOS_API int32 NumImplicits() const { return Convexes.Num() + MObjects.Num(); }
-
-	CHAOS_API Chaos::FImplicitObjectPtr GetImplicit(const int32 ImplicitIndex) const { return (ImplicitIndex < Convexes.Num()) ? Convexes[ImplicitIndex] : MObjects[ImplicitIndex-Convexes.Num()]; }
-
 	// The lambda returns TRUE if an object was found and iteration should stop.
 	CHAOS_API void ForEachObject(TFunctionRef<bool(const FImplicitObject&, const FRigidTransform3&)> Lambda) const;
 
@@ -221,17 +210,15 @@ class FImplicitObjectUnion : public FImplicitObject
 #endif // #if INTEL_ISPC
 
 protected:
-	
+
 	virtual Pair<FVec3, bool> FindClosestIntersectionImp(const FVec3& StartPoint, const FVec3& EndPoint, const FReal Thickness) const override
 	{
-		const Chaos::FImplicitObjectsArray& Objects = HasSimpleShapes() ? GetConvexes() : GetObjects();
-		
-		check(Objects.Num());
-		auto ClosestIntersection = Objects[0]->FindClosestIntersection(StartPoint, EndPoint, Thickness);
+		check(MObjects.Num());
+		auto ClosestIntersection = MObjects[0]->FindClosestIntersection(StartPoint, EndPoint, Thickness);
 		FReal Length = ClosestIntersection.Second ? (ClosestIntersection.First - StartPoint).Size() : 0;
-		for (int32 i = 1; i < Objects.Num(); ++i)
+		for (int32 i = 1; i < MObjects.Num(); ++i)
 		{
-			auto NextClosestIntersection = Objects[i]->FindClosestIntersection(StartPoint, EndPoint, Thickness);
+			auto NextClosestIntersection = MObjects[i]->FindClosestIntersection(StartPoint, EndPoint, Thickness);
 			if (!NextClosestIntersection.Second)
 				continue;
 			FReal NewLength = (NextClosestIntersection.First - StartPoint).Size();
@@ -282,7 +269,7 @@ protected:
 	CHAOS_API void RebuildBVH();
 
 	CHAOS_API void LegacySerializeBVH(FChaosArchive& Ar);
-
+	
 	union FFLags
 	{
 	public:
@@ -299,14 +286,8 @@ protected:
 	// Check if the BVH could be used and valid
 	bool HasValidBVH() const;
 
-	// Rebuild all the convexes used for physics
-	void RebuildConvexes();
-
 	// list of implicit objects that are part of the union
 	TArray<Chaos::FImplicitObjectPtr> MObjects;
-
-	// List of implicit convexes that could be used by the union
-	TArray<Chaos::FImplicitObjectPtr> Convexes;
 	
 	FAABB3 MLocalBoundingBox;
 
@@ -375,6 +356,5 @@ struct TImplicitTypeInfo<FImplicitObjectUnion>
 		return (InType == FImplicitObjectUnion::StaticType()) || TImplicitTypeInfo<FImplicitObjectUnionClustered>::IsBaseOf(InType);
 	}
 };
-
 
 }

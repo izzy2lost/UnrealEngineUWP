@@ -1952,15 +1952,14 @@ void FChaosEngineInterface::SetLocalTransform(const FPhysicsShapeHandle& InShape
 			const FImplicitObjectUnion* AsUnion = static_cast<const FImplicitObjectUnion*>(CurrentGeom);
 			const int32 ShapeIndex = InShape.Shape->GetShapeIndex();
 			const TArray<Chaos::FImplicitObjectPtr>& ObjectArray = AsUnion->GetObjects();
-			const TArray<Chaos::FImplicitObjectPtr>& ConvexesArray = AsUnion->GetConvexes();
 
-			if(ensure(ShapeIndex < (ObjectArray.Num()+ConvexesArray.Num())) && (ShapeIndex > ConvexesArray.Num()))
+			if(ensure(ShapeIndex < ObjectArray.Num()))
 			{
 				TArray<Chaos::FImplicitObjectPtr> NewGeoms;
 				NewGeoms.Reserve(ObjectArray.Num());
 
 				// Duplicate the union and either set transforms, or wrap in transforms
-				int32 CurrentIndex = ConvexesArray.Num();
+				int32 CurrentIndex = 0;
 				for(const Chaos::FImplicitObjectPtr& Obj : ObjectArray)
 				{
 					if(CurrentIndex == ShapeIndex)
@@ -1991,11 +1990,13 @@ int32 GetAllShapesInternalImp_AssumedLocked(const FPhysicsActorHandle& InActorHa
 	if(InActorHandle)
 	{
 		const Chaos::FShapesArray& ShapesArray = InActorHandle->GetGameThreadAPI().ShapesArray();
-		OutShapes.Reset(ShapesArray.Num());
+		const int32 NumRelevantShapes = ShapesArray.Num();
+		OutShapes.Reset(NumRelevantShapes);
+		
 		//todo: can we avoid this construction?
-		for(const TUniquePtr<Chaos::FPerShapeData>& Shape : ShapesArray)
+		for(int32 ShapeIndex = 0; ShapeIndex < NumRelevantShapes; ++ShapeIndex)
 		{
-			OutShapes.Add(FPhysicsShapeReference_Chaos(Shape.Get(),InActorHandle));
+			OutShapes.Add(FPhysicsShapeReference_Chaos(ShapesArray[ShapeIndex].Get(),InActorHandle));
 		}
 
 		return OutShapes.Num();
