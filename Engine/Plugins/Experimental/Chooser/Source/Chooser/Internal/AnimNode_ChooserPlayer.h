@@ -63,7 +63,7 @@ struct FChooserPlayerSettings
 	bool bMirror = false;
 	
 	// Start offset when starting the Animation Asset
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta=(FrameTimeEditor))
     float StartTime = 0;
 
 	// Loop the animation asset, even if the asset is not set as looping
@@ -78,7 +78,7 @@ struct FChooserPlayerSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta=(ExpandByDefault=true))
 	FAnimCurveOverrideList CurveOverrides;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Blending")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Blending", meta=(FrameTimeEditor))
 	float BlendTime = 0.2;
 	
 	// Set Blend Profiles (editable in the skeleton) to determine how the blending is distributed among your character's bones. It could be used to differentiate between upper body and lower body to blend timing.
