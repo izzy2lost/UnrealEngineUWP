@@ -741,6 +741,11 @@ bool FSceneRenderer::ShouldPrepareDistanceFieldScene() const
 		return false;
 	}
 
+	if (ViewFamily.EngineShowFlags.PathTracing)
+	{
+		return false;
+	}
+
 	bool bShouldPrepareForAO = SupportsDistanceFieldAO(Scene->GetFeatureLevel(), Scene->GetShaderPlatform()) && ShouldPrepareForDistanceFieldAO();
 	bool bShouldPrepareGlobalDistanceField = ShouldPrepareGlobalDistanceField();
 	bool bShouldPrepareForDFInsetIndirectShadow = ShouldPrepareForDFInsetIndirectShadow();
@@ -757,6 +762,11 @@ bool FSceneRenderer::ShouldPrepareGlobalDistanceField() const
 	}
 
 	if (!DoesProjectSupportDistanceFields())
+	{
+		return false;
+	}
+
+	if (ViewFamily.EngineShowFlags.PathTracing)
 	{
 		return false;
 	}
@@ -919,5 +929,6 @@ bool FSceneRenderer::ShouldRenderDistanceFieldAO() const
 		&& !bShouldRenderRTAO
 		&& !ViewFamily.EngineShowFlags.VisualizeDistanceFieldAO
 		&& !ViewFamily.EngineShowFlags.VisualizeMeshDistanceFields
-		&& !ViewFamily.EngineShowFlags.VisualizeGlobalDistanceField;
+		&& !ViewFamily.EngineShowFlags.VisualizeGlobalDistanceField
+		&& !ViewFamily.EngineShowFlags.PathTracing;
 }

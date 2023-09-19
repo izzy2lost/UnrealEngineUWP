@@ -2684,6 +2684,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	const ERendererOutput RendererOutput = GetRendererOutput();
 
 	const bool bNaniteEnabled = IsNaniteEnabled();
+	const bool bHasRayTracedOverlay = HasRayTracedOverlay(ViewFamily);
 
 #if !UE_BUILD_SHIPPING
 	RenderCaptureInterface::FScopedCapture RenderCapture(GCaptureNextDeferredShadingRendererFrame-- == 0, GraphBuilder, TEXT("DeferredShadingSceneRenderer"));
@@ -2726,7 +2727,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			// Important that this uses consistent logic throughout the frame, so evaluate once and pass in the flag from here
 			// NOTE: Must be done after  system texture initialization
 			// TODO: This doesn't take into account the potential for split screen views with separate shadow caches
-			const bool bEnableVirtualShadowMaps = UseVirtualShadowMaps(ShaderPlatform, FeatureLevel) && ViewFamily.EngineShowFlags.DynamicShadows;
+			const bool bEnableVirtualShadowMaps = UseVirtualShadowMaps(ShaderPlatform, FeatureLevel) && ViewFamily.EngineShowFlags.DynamicShadows && !bHasRayTracedOverlay;
 			VirtualShadowMapArray.Initialize(GraphBuilder, Scene->GetVirtualShadowMapCache(), bEnableVirtualShadowMaps, ViewFamily.EngineShowFlags);
 
 			if (InitViewTaskDatas.LumenFrameTemporaries)
@@ -2938,7 +2939,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	FSceneTexturesConfig& SceneTexturesConfig = GetActiveSceneTexturesConfig();
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Create(GraphBuilder);
 
-	const bool bHasRayTracedOverlay = HasRayTracedOverlay(ViewFamily);
 	const bool bAllowStaticLighting = !bHasRayTracedOverlay && IsStaticLightingAllowed();
 
 	// if DDM_AllOpaqueNoVelocity was used, then velocity should have already been rendered as well
@@ -3147,12 +3147,14 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				bComputeLightGrid = ViewFamily.EngineShowFlags.Lighting;
 			}
 
-			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+			if (!bHasRayTracedOverlay)
 			{
-				FViewInfo& View = Views[ViewIndex];
-				bAnyLumenEnabled = bAnyLumenEnabled
-					|| GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen
-					|| GetViewPipelineState(View).ReflectionsMethod == EReflectionsMethod::Lumen;
+				for (const FViewInfo& View : Views)
+				{
+					bAnyLumenEnabled = bAnyLumenEnabled
+						|| GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen
+						|| GetViewPipelineState(View).ReflectionsMethod == EReflectionsMethod::Lumen;
+				}
 			}
 
 			bComputeLightGrid |= (
@@ -3162,6 +3164,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				bAnyLumenEnabled ||
 				VirtualShadowMapArray.IsEnabled() ||
 				ShouldVisualizeLightGrid());
+			bComputeLightGrid &= !ViewFamily.EngineShowFlags.PathTracing;
 		}
 	}
 
@@ -3713,7 +3716,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		// Post base pass for material classification
 		// This needs to run before virtual shadow map, in order to have ready&cleared classified SSS data
-		if (Substrate::IsSubstrateEnabled())
+		if (Substrate::IsSubstrateEnabled() && !bHasRayTracedOverlay)
 		{
 			Substrate::AddSubstrateMaterialClassificationPass(GraphBuilder, SceneTextures, DBufferTextures, Views);
 			Substrate::AddSubstrateDBufferPass(GraphBuilder, SceneTextures, DBufferTextures, Views);
