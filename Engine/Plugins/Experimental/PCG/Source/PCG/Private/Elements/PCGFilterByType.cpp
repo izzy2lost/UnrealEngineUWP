@@ -12,6 +12,11 @@
 #if WITH_EDITOR
 FText UPCGFilterByTypeSettings::GetDefaultNodeTitle() const
 {
+	if (this == GetClass()->GetDefaultObject())
+	{
+		return LOCTEXT("DefaultNodeTitle", "Filter By Type");
+	}
+
 	const FText TypeText = FText::FromString(StaticEnum<EPCGDataType>()->GetDisplayNameTextByValue(static_cast<int64>(TargetType)).ToString());
 	return FText::Format(LOCTEXT("NodeTitleFormat", "Filter - {0}"), TypeText);
 }
