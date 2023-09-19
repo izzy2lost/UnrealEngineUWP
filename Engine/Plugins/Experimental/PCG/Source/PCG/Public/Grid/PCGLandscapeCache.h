@@ -186,6 +186,10 @@ private:
 	TSet<TWeakObjectPtr<ALandscapeProxy>> Landscapes;
 #endif
 
+	// Keep "merged" landscape caches alive so that the bulk data is reachable
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UPCGLandscapeCache>> EmbeddedCaches;
+
 #if WITH_EDITOR
 	FRWLock CacheLock;
 #endif

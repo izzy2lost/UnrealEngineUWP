@@ -717,6 +717,11 @@ void UPCGLandscapeCache::TakeOwnership(UPCGLandscapeCache* InLandscapeCache)
 	CacheEntryCount = CachedData.Num();
 #endif
 
+	if (bShouldDirty)
+	{
+		EmbeddedCaches.AddUnique(InLandscapeCache);
+	}
+
 	if (bShouldDirty && SerializationMode != EPCGLandscapeCacheSerializationMode::NeverSerialize)
 	{
 		MarkPackageDirty();
