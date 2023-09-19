@@ -72,7 +72,7 @@ TAutoConsoleVariable<bool> CVarClearWorkingMemoryOnUpdateEnd(
 
 TAutoConsoleVariable<bool> CVarReuseImagesBetweenInstances(
 	TEXT("mutable.ReuseImagesBetweenInstances"),
-	true,
+	false,
 	TEXT("Enables or disables the reuse of images between instances."),
 	ECVF_Scalability);
 
