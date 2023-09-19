@@ -71,6 +71,7 @@ FScreenPassTexture AddVisualizeTemporalUpscalerPass(FRDGBuilder& GraphBuilder, c
 		}
 
 		// Translucency
+		if (Inputs.TAAConfig == EMainTAAPassConfig::TSR)
 		{
 			FVisualizeBufferTile& Tile = Tiles[4 * 0 + 2];
 			if (Inputs.Inputs.PostDOFTranslucencyResources.IsValid())
@@ -87,6 +88,7 @@ FScreenPassTexture AddVisualizeTemporalUpscalerPass(FRDGBuilder& GraphBuilder, c
 		}
 
 		// Translucency alpha
+		if (Inputs.TAAConfig == EMainTAAPassConfig::TSR)
 		{
 			FVisualizeBufferTile& Tile = Tiles[4 * 0 + 3];
 			if (Inputs.Inputs.PostDOFTranslucencyResources.IsValid())
