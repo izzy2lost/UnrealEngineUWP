@@ -277,11 +277,6 @@ static void ParsePreviewPlatforms(const FConfigFile& IniFile)
 				FName PlatformName = *GetSectionString(Section.Value, FName("PlatformName"));
 				checkf(PlatformName != NAME_None, TEXT("DataDrivenPlatformInfo section [%s] must specify a PlatformName"), *SectionName);
 				
-				if (!FDataDrivenPlatformInfoRegistry::GetPlatformInfo(PlatformName).bEnabledForUse)
-				{
-					continue;
-				}
-
 				FPreviewPlatformMenuItem Item;
 				Item.PlatformName = PlatformName;
 				Item.PreviewShaderPlatformName = PreviewPlatformName;

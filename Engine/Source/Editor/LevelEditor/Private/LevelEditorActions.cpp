@@ -3930,7 +3930,15 @@ void FLevelEditorCommands::RegisterCommands()
 		if (!IsRunningCommandlet() && !GUsingNullRHI)
 		{
 			EShaderPlatform ShaderPlatform = FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.PreviewShaderPlatformName);
-			FriendlyNameBuilder.AppendLine(FDataDrivenShaderPlatformInfo::GetFriendlyName(ShaderPlatform));
+			if (ShaderPlatform == SP_NumPlatforms)
+			{
+				// if the shader platform isn't compiled in, we don't have a friendly name available, so use ugly name
+				FriendlyNameBuilder.AppendLine(FText::FromName(Item.PreviewShaderPlatformName));
+			}
+			else
+			{
+				FriendlyNameBuilder.AppendLine(FDataDrivenShaderPlatformInfo::GetFriendlyName(ShaderPlatform));
+			}
 			if (FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.ShaderPlatformToPreview) == GMaxRHIShaderPlatform)
 			{
 				FriendlyNameBuilder.AppendLine(NSLOCTEXT("PreviewPlatform", "PreviewMenuText_DisablePreview", "(Disable Preview)"));
