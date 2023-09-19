@@ -171,7 +171,7 @@ bool UPCGLandscapeData::ProjectPoint(const FTransform& InTransform, const FBox& 
 	ULandscapeComponent* LandscapeComponent = LandscapeInfo->XYtoComponentMap.FindRef(ComponentMapKey);
 	const FPCGLandscapeCacheEntry * LandscapeCacheEntry = (LandscapeComponent ? LandscapeCache->GetCacheEntry(LandscapeComponent, ComponentMapKey) : nullptr);
 #else
-	const FPCGLandscapeCacheEntry* LandscapeCacheEntry = LandscapeCache->GetCacheEntry(LandscapeInfo->GetLandscapeProxy()->GetOriginalLandscapeGuid(), ComponentMapKey);
+	const FPCGLandscapeCacheEntry* LandscapeCacheEntry = LandscapeCache->GetCacheEntry(LandscapeInfo->GetLandscapeProxy(), LandscapeInfo->GetLandscapeProxy()->GetOriginalLandscapeGuid(), ComponentMapKey);
 #endif
 
 	if (!LandscapeCacheEntry)
@@ -304,7 +304,7 @@ const UPCGPointData* UPCGLandscapeData::CreatePointData(FPCGContext* Context, co
 				ULandscapeComponent* LandscapeComponent = LandscapeInfo->XYtoComponentMap.FindRef(ComponentMapKey);
 				const FPCGLandscapeCacheEntry* LandscapeCacheEntry = LandscapeComponent ? LandscapeCache->GetCacheEntry(LandscapeComponent, ComponentMapKey) : nullptr;
 #else
-				const FPCGLandscapeCacheEntry* LandscapeCacheEntry = LandscapeCache->GetCacheEntry(LandscapeGuid, ComponentMapKey);
+				const FPCGLandscapeCacheEntry* LandscapeCacheEntry = LandscapeCache->GetCacheEntry(LandscapeInfo->GetLandscapeProxy(), LandscapeGuid, ComponentMapKey);
 #endif
 
 				if (!LandscapeCacheEntry)

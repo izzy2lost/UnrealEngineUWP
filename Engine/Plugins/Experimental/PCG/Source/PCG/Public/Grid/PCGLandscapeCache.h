@@ -2,7 +2,11 @@
 
 #pragma once
 
+#include "Engine/World.h"
+#include "Engine/Level.h"
+#include "GameFramework/Actor.h"
 #include "Serialization/BulkData.h"
+#include "WorldPartition/WorldPartitionRuntimeCellInterface.h"
 
 #include "PCGLandscapeCache.generated.h"
 
@@ -139,7 +143,7 @@ public:
 #endif
 
 	/** Gets landscape cache entry, works both in editor (but does not create) but works in game mode too. */
-	const FPCGLandscapeCacheEntry* GetCacheEntry(const FGuid& LandscapeGuid, const FIntPoint& ComponentKey);
+	const FPCGLandscapeCacheEntry* GetCacheEntry(AActor* HintActor, const FGuid& LandscapeGuid, const FIntPoint& ComponentKey);
 
 	TArray<FName> GetLayerNames(ALandscapeProxy* Landscape);
 
@@ -170,8 +174,44 @@ private:
 	void RemoveComponentFromCache(const ALandscapeProxy* LandscapeProxy);
 #endif
 
+	struct CacheMapKey
+	{
+		FGuid LandscapeGuid;
+		FIntPoint Coordinate;
+		FObjectKey WorldKey;
+
+		CacheMapKey(const FGuid& InLandscapeGuid, const FIntPoint& InCoordinate, const FObjectKey& InWorldKey)
+			: LandscapeGuid(InLandscapeGuid), Coordinate(InCoordinate), WorldKey(InWorldKey)
+		{}
+
+		CacheMapKey(const FGuid& InLandscapeGuid, const FIntPoint& InCoordinate, AActor* InHintActor)
+			: LandscapeGuid(InLandscapeGuid), Coordinate(InCoordinate)
+		{
+			if (InHintActor && InHintActor->GetLevel())
+			{
+				if (InHintActor->GetLevel()->GetWorldPartitionRuntimeCell())
+				{
+					WorldKey = FObjectKey(InHintActor->GetLevel()->GetWorldPartitionRuntimeCell()->GetOuterWorld());
+				}
+				else
+				{
+					WorldKey = FObjectKey(InHintActor->GetTypedOuter<UWorld>());
+				}
+			}
+		}
+
+		friend inline uint32 GetTypeHash(const CacheMapKey& Key)
+		{
+			return HashCombine(HashCombine(GetTypeHash(Key.LandscapeGuid), GetTypeHash(Key.Coordinate)), GetTypeHash(Key.WorldKey));
+		}
+
+		bool operator==(const CacheMapKey& Rhs) const { return LandscapeGuid == Rhs.LandscapeGuid && Coordinate == Rhs.Coordinate && WorldKey == Rhs.WorldKey; }
+	};
+
+	void UpdateCacheWorldKeys();
+
 	// Mapping of landscape guid + coordinates to entries. This is manually serialized as needed (depends on the serialize options).
-	TMap<TPair<FGuid, FIntPoint>, FPCGLandscapeCacheEntry*> CachedData;
+	TMap<CacheMapKey, FPCGLandscapeCacheEntry*> CachedData;
 
 	//TODO: separate by landscape
 	UPROPERTY(VisibleAnywhere, Category = "Cache")
