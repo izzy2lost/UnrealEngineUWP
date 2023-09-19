@@ -661,6 +661,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
 	GEOMETRYCOLLECTIONENGINE_API FTransform GetRootCurrentTransform() const;
 
+	/** return true if the root cluster is not longer active at runtime */
+	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
+	GEOMETRYCOLLECTIONENGINE_API bool IsRootBroken() const;
+
 	/** 
 	* Get the initial rest transforms in component (local) space  space, 
 	* they are the transforms as defined in the rest collection asset 
@@ -1501,10 +1505,6 @@ private:
 	GEOMETRYCOLLECTIONENGINE_API void RegisterCustomRenderer();
 	GEOMETRYCOLLECTIONENGINE_API void UnregisterCustomRenderer();
 	GEOMETRYCOLLECTIONENGINE_API void RefreshCustomRenderer();
-
-	/** return true if the root cluster is not longer active at runtime */
-	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
-	GEOMETRYCOLLECTIONENGINE_API bool IsRootBroken() const;
 
 	GEOMETRYCOLLECTIONENGINE_API void IncrementSleepTimer(float DeltaTime);
 	GEOMETRYCOLLECTIONENGINE_API void IncrementBreakTimer(float DeltaTime);
