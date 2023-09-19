@@ -3011,6 +3011,12 @@ namespace Horde.Server.Notifications.Sinks
 		/// <inheritdoc/>
 		public async Task SendAgentReportAsync(AgentReport report)
 		{
+			if (report.ConformLoop.Count == 0 && report.UpgradeLoop.Count == 0)
+			{
+				_logger.LogInformation("Skipping sending agent report to {Channel}; no current issues.", _settings.AgentNotificationChannel);
+				return;
+			}
+
 			if (!String.IsNullOrEmpty(_settings.AgentNotificationChannel))
 			{
 				_logger.LogInformation("Sending agent report to {Channel}", _settings.AgentNotificationChannel);
