@@ -37,12 +37,14 @@
 #include "Async/MappedFileHandle.h"
 #include "IoDispatcherFileBackend.h"
 #include "Misc/PackageName.h"
+#include "Misc/PathViews.h"
 
 #include "ProfilingDebugging/LoadTimeTracker.h"
 #include "IO/IoContainerHeader.h"
 #include "FilePackageStore.h"
 #include "Compression/OodleDataCompression.h"
 #include "IO/IoStore.h"
+#include "String/RemoveFrom.h"
 
 DEFINE_LOG_CATEGORY(LogPakFile);
 
@@ -480,8 +482,46 @@ public:
 			// Already visited, continue iterating.
 			return true;
 		}
-		return Visitor.Visit(*NormalizedFilename, bIsDirectory);
+		return Visitor.CallShouldVisitAndVisit(*NormalizedFilename, bIsDirectory);
 	}
+};
+
+/**
+ * A file/directory visitor for files in PakFiles, used to share code for FDirectoryVisitor and FDirectoryStatVisitor
+ * when iterating over files in pakfiles.
+ */
+class FPakFileDirectoryVisitorBase
+{
+public:
+	FPakFileDirectoryVisitorBase()
+	{
+	}
+	virtual ~FPakFileDirectoryVisitorBase() { }
+
+	virtual bool ShouldVisitLeafPathname(FStringView LeafNormalizedPathname) = 0;
+	virtual bool Visit(const FString& Filename, const FString& NormalizedFilename, bool bIsDir, FPakFile& PakFile) = 0;
+	// No need for CallShouldVisitAndVisit because we call ShouldVisitLeafPathname separately in all cases
+};
+
+/** FPakFileDirectoryVisitorBase for a FDirectoryVisitor. */
+class FPakFileDirectoryVisitor : public FPakFileDirectoryVisitorBase
+{
+public:
+	FPakFileDirectoryVisitor(IPlatformFile::FDirectoryVisitor& InInner)
+		: Inner(InInner)
+	{
+	}
+	virtual bool ShouldVisitLeafPathname(FStringView LeafNormalizedPathname) override
+	{
+		return Inner.ShouldVisitLeafPathname(LeafNormalizedPathname);
+	}
+	virtual bool Visit(const FString& Filename, const FString& NormalizedFilename,
+		bool bIsDir, FPakFile& PakFile) override
+	{
+		return Inner.Visit(*NormalizedFilename, bIsDir);
+	}
+
+	IPlatformFile::FDirectoryVisitor& Inner;
 };
 
 }
@@ -496,13 +536,9 @@ bool FPakPlatformFile::IterateDirectoryInternal(const TCHAR* Directory,
 {
 	using namespace UE::PakFile::Private;
 
-	TUniqueFunction<bool(const FString&, const FString&, bool, FPakFile&)> VisitFunction =
-		[&Visitor](const FString& Filename, const FString& NormalizedFilename, bool bIsDir, FPakFile& PakFile)
-	{
-		return Visitor.Visit(*NormalizedFilename, bIsDir);
-	};
+	FPakFileDirectoryVisitor PakVisitor(Visitor);
 	TSet<FString> FilesVisitedInPak;
-	bool Result = IterateDirectoryInternal(Directory, VisitFunction, bRecursive, FilesVisitedInPak);
+	bool Result = IterateDirectoryInPakFiles(Directory, PakVisitor, bRecursive, FilesVisitedInPak);
 	if (Result && LowerLevel->DirectoryExists(Directory))
 	{
 		// Iterate inner filesystem but don't visit any files that were found in the Paks
@@ -523,9 +559,8 @@ bool FPakPlatformFile::IterateDirectoryInternal(const TCHAR* Directory,
 	return Result;
 }
 
-bool FPakPlatformFile::IterateDirectoryInternal(const TCHAR* Directory,
-	TUniqueFunction<bool(const FString&, const FString&, bool, FPakFile&)>& VisitFunction,
-	bool bRecursive, TSet<FString>& FilesVisitedInPak)
+bool FPakPlatformFile::IterateDirectoryInPakFiles(const TCHAR* Directory,
+	UE::PakFile::Private::FPakFileDirectoryVisitorBase& Visitor, bool bRecursive, TSet<FString>& FilesVisitedInPak)
 {
 	bool Result = true;
 
@@ -549,6 +584,11 @@ bool FPakPlatformFile::IterateDirectoryInternal(const TCHAR* Directory,
 	// Iterate pak files first
 	FString NormalizationBuffer;
 	TSet<FString> FilesVisitedInThisPak;
+	auto ShouldVisit = [&Visitor](FStringView UnnormalizedPath)
+	{
+		FStringView NormalizedPath = UE::String::RemoveFromEnd(UnnormalizedPath, TEXTVIEW("/"));
+		return Visitor.ShouldVisitLeafPathname(FPathViews::GetCleanFilename(NormalizedPath));
+	};
 	for (int32 PakIndex = 0; PakIndex < Paks.Num(); PakIndex++)
 	{
 		FPakFile& PakFile = *Paks[PakIndex].PakFile;
@@ -557,7 +597,7 @@ bool FPakPlatformFile::IterateDirectoryInternal(const TCHAR* Directory,
 		const bool bIncludeFolders = true;
 
 		FilesVisitedInThisPak.Reset();
-		PakFile.FindPrunedFilesAtPathInternal(*StandardDirectory, FilesVisitedInThisPak,
+		PakFile.FindPrunedFilesAtPathInternal(*StandardDirectory, ShouldVisit, FilesVisitedInThisPak,
 			bIncludeFiles, bIncludeFolders, bRecursive);
 		for (TSet<FString>::TConstIterator SetIt(FilesVisitedInThisPak); SetIt && Result; ++SetIt)
 		{
@@ -577,7 +617,7 @@ bool FPakPlatformFile::IterateDirectoryInternal(const TCHAR* Directory,
 			if (!FilesVisitedInPak.Contains(*NormalizedFilename))
 			{
 				FilesVisitedInPak.Add(*NormalizedFilename);
-				Result = VisitFunction(Filename, *NormalizedFilename, bIsDir, PakFile) && Result;
+				Result = Visitor.Visit(Filename, *NormalizedFilename, bIsDir, PakFile) && Result;
 			}
 		}
 	}
@@ -610,30 +650,31 @@ public:
 			// Already visited, continue iterating.
 			return true;
 		}
-		return Visitor.Visit(*NormalizedFilename, StatData);
+		return Visitor.CallShouldVisitAndVisit(*NormalizedFilename, StatData);
 	}
 };
 
-}
-
-bool FPakPlatformFile::IterateDirectoryStat(const TCHAR* Directory, IPlatformFile::FDirectoryStatVisitor& Visitor)
+/** FPakFileDirectoryVisitorBase for a FDirectoryStatVisitor. */
+class FPakFileDirectoryStatVisitor : public FPakFileDirectoryVisitorBase
 {
-	return IterateDirectoryStatInternal(Directory, Visitor, false /* bRecursive */);
-}
-
-bool FPakPlatformFile::IterateDirectoryStatInternal(const TCHAR* Directory,
-	IPlatformFile::FDirectoryStatVisitor& Visitor, bool bRecursive)
-{
-	using namespace UE::PakFile::Private;
-
-	TUniqueFunction<bool(const FString&, const FString&, bool, FPakFile&)> VisitFunction =
-		[&Visitor, this](const FString& Filename, const FString& NormalizedFilename, bool bIsDir, FPakFile& PakFile)
+public:
+	FPakFileDirectoryStatVisitor(FPakPlatformFile& InPlatformFile, IPlatformFile::FDirectoryStatVisitor& InInner)
+		: PlatformFile(InPlatformFile)
+		, Inner(InInner)
+	{
+	}
+	virtual bool ShouldVisitLeafPathname(FStringView LeafNormalizedPathname) override
+	{
+		return Inner.ShouldVisitLeafPathname(LeafNormalizedPathname);
+	}
+	virtual bool Visit(const FString& Filename, const FString& NormalizedFilename,
+		bool bIsDir, FPakFile& PakFile) override
 	{
 		int64 FileSize = -1;
 		if (!bIsDir)
 		{
 			FPakEntry FileEntry;
-			if (FindFileInPakFiles(*Filename, nullptr, &FileEntry))
+			if (PlatformFile.FindFileInPakFiles(*Filename, nullptr, &FileEntry))
 			{
 				FileSize = (FileEntry.CompressionMethodIndex != 0) ? FileEntry.UncompressedSize : FileEntry.Size;
 			}
@@ -648,11 +689,28 @@ bool FPakPlatformFile::IterateDirectoryStatInternal(const TCHAR* Directory,
 			true	// IsReadOnly
 		);
 
-		return Visitor.Visit(*NormalizedFilename, StatData);
-	};
+		return Inner.Visit(*NormalizedFilename, StatData);
+	}
 
+	FPakPlatformFile& PlatformFile;
+	IPlatformFile::FDirectoryStatVisitor& Inner;
+};
+
+}
+
+bool FPakPlatformFile::IterateDirectoryStat(const TCHAR* Directory, IPlatformFile::FDirectoryStatVisitor& Visitor)
+{
+	return IterateDirectoryStatInternal(Directory, Visitor, false /* bRecursive */);
+}
+
+bool FPakPlatformFile::IterateDirectoryStatInternal(const TCHAR* Directory,
+	IPlatformFile::FDirectoryStatVisitor& Visitor, bool bRecursive)
+{
+	using namespace UE::PakFile::Private;
+
+	FPakFileDirectoryStatVisitor PakVisitor(*this, Visitor);
 	TSet<FString> FilesVisitedInPak;
-	bool Result = IterateDirectoryInternal(Directory, VisitFunction, bRecursive, FilesVisitedInPak);
+	bool Result = IterateDirectoryInPakFiles(Directory, PakVisitor, bRecursive, FilesVisitedInPak);
 	if (Result && LowerLevel->DirectoryExists(Directory))
 	{
 		// Iterate inner filesystem but don't visit any files that were found in the Paks
@@ -712,31 +770,28 @@ void FPakPlatformFile::FindFilesInternal(TArray<FString>& FoundFiles,
 		FilesVisited.Append(FoundFiles);
 
 		FString StandardDirectory = Directory;
-		FString FileExtensionStr = FileExtension;
+		FStringView FileExtensionStr = FileExtension;
 		FPaths::MakeStandardFilename(StandardDirectory);
 		bool bIncludeFiles = true;
 		bool bIncludeFolders = false;
+
+		auto ShouldVisit = [FileExtensionStr](FStringView Filename)
+		{
+			// filter out files by FileExtension
+			return FileExtensionStr.Len() == 0 || Filename.EndsWith(FileExtensionStr, ESearchCase::IgnoreCase);
+		};
 
 		TArray<FString> FilesInPak;
 		FilesInPak.Reserve(64);
 		for (int32 PakIndex = 0; PakIndex < Paks.Num(); PakIndex++)
 		{
 			FPakFile& PakFile = *Paks[PakIndex].PakFile;
-			PakFile.FindPrunedFilesAtPathInternal(*StandardDirectory, FilesInPak,
+			PakFile.FindPrunedFilesAtPathInternal(*StandardDirectory, ShouldVisit, FilesInPak,
 				bIncludeFiles, bIncludeFolders, bRecursive);
 		}
 
 		for (const FString& Filename : FilesInPak)
 		{
-			// filter out files by FileExtension
-			if (FileExtensionStr.Len())
-			{
-				if (!Filename.EndsWith(FileExtensionStr))
-				{
-					continue;
-				}
-			}
-
 			// make sure we don't add duplicates to FoundFiles
 			bool bVisited = false;
 			FilesVisited.Add(Filename, &bVisited);
@@ -7517,9 +7572,10 @@ void FPakFile::GetPrunedFilenamesInChunk(const TArray<int32>& InChunkIDs, TArray
  * FScopedPakDirectoryIndexAccess internally; caller is responsible for calling from within a lock.
  * Returned paths are full paths (include the mount point)
  */
-template <class ContainerType>
-void FPakFile::FindFilesAtPathInIndex(const FDirectoryIndex& TargetIndex, ContainerType& OutFiles, const FString& Directory,
-	bool bIncludeFiles, bool bIncludeDirectories, bool bRecursive) const
+template <typename ShouldVisitFunc, class ContainerType>
+void FPakFile::FindFilesAtPathInIndex(const FDirectoryIndex& TargetIndex, ContainerType& OutFiles,
+	const FString& Directory, const ShouldVisitFunc& ShouldVisit, bool bIncludeFiles, bool bIncludeDirectories,
+	bool bRecursive) const
 {
 	// Early out if MountPoint is not matching directory
 	if (!Directory.StartsWith(MountPoint))
@@ -7543,14 +7599,21 @@ void FPakFile::FindFilesAtPathInIndex(const FDirectoryIndex& TargetIndex, Contai
 				{
 					for (FPakDirectory::TConstIterator DirectoryIt(It.Value()); DirectoryIt; ++DirectoryIt)
 					{
-						OutFiles.Add(PakPathCombine(PakPath, DirectoryIt.Key()));
+						const FString& FilePathUnderDirectory = DirectoryIt.Key();
+						if (ShouldVisit(FilePathUnderDirectory))
+						{
+							OutFiles.Add(PakPathCombine(PakPath, FilePathUnderDirectory));
+						}
 					}
 				}
 				if (bIncludeDirectories)
 				{
 					if (Directory != PakPath)
 					{
-						DirectoriesInPak.Add(MoveTemp(PakPath));
+						if (ShouldVisit(PakPath))
+						{
+							DirectoriesInPak.Add(MoveTemp(PakPath));
+						}
 					}
 				}
 			}
@@ -7562,13 +7625,21 @@ void FPakFile::FindFilesAtPathInIndex(const FDirectoryIndex& TargetIndex, Contai
 				{
 					for (FPakDirectory::TConstIterator DirectoryIt(It.Value()); DirectoryIt; ++DirectoryIt)
 					{
-						OutFiles.Add(PakPathCombine(PakPath, DirectoryIt.Key()));
+						const FString& FilePathUnderDirectory = DirectoryIt.Key();
+						if (ShouldVisit(FilePathUnderDirectory))
+						{
+							OutFiles.Add(PakPathCombine(PakPath, FilePathUnderDirectory));
+						}
 					}
 				}
 				// Add sub-folders in the specified folder only
 				if (bIncludeDirectories && SubDirIndex >= 0)
 				{
-					DirectoriesInPak.AddUnique(PakPath.Left(SubDirIndex + 1));
+					FString SubDirPath = PakPath.Left(SubDirIndex + 1);
+					if (ShouldVisit(SubDirPath))
+					{
+						DirectoriesInPak.AddUnique(MoveTemp(SubDirPath));
+					}
 				}
 			}
 		}
@@ -7576,8 +7647,8 @@ void FPakFile::FindFilesAtPathInIndex(const FDirectoryIndex& TargetIndex, Contai
 	OutFiles.Append(MoveTemp(DirectoriesInPak));
 }
 
-template <class ContainerType>
-void FPakFile::FindPrunedFilesAtPathInternal(const TCHAR* InPath, ContainerType& OutFiles,
+template <typename ShouldVisitFunc, class ContainerType>
+void FPakFile::FindPrunedFilesAtPathInternal(const TCHAR* InPath, const ShouldVisitFunc& ShouldVisit, ContainerType& OutFiles,
 	bool bIncludeFiles, bool bIncludeDirectories, bool bRecursive) const
 {
 	// Make sure all directory names end with '/'.
@@ -7597,8 +7668,10 @@ void FPakFile::FindPrunedFilesAtPathInternal(const TCHAR* InPath, ContainerType&
 	if (ShouldValidatePrunedDirectory())
 	{
 		TSet<FString> FullFoundFiles, PrunedFoundFiles;
-		FindFilesAtPathInIndex(DirectoryIndex, FullFoundFiles, Directory, bIncludeFiles, bIncludeDirectories, bRecursive);
-		FindFilesAtPathInIndex(PrunedDirectoryIndex, PrunedFoundFiles, Directory, bIncludeFiles, bIncludeDirectories, bRecursive);
+		FindFilesAtPathInIndex(DirectoryIndex, FullFoundFiles, Directory, ShouldVisit,
+			bIncludeFiles, bIncludeDirectories, bRecursive);
+		FindFilesAtPathInIndex(PrunedDirectoryIndex, PrunedFoundFiles, Directory, ShouldVisit,
+			bIncludeFiles, bIncludeDirectories, bRecursive);
 		ValidateDirectorySearch(FullFoundFiles, PrunedFoundFiles, InPath);
 
 		for (const FString& FoundFile : FullFoundFiles)
@@ -7609,14 +7682,16 @@ void FPakFile::FindPrunedFilesAtPathInternal(const TCHAR* InPath, ContainerType&
 	else
 #endif
 	{
-		FindFilesAtPathInIndex(DirectoryIndex, OutFiles, Directory, bIncludeFiles, bIncludeDirectories, bRecursive);
+		FindFilesAtPathInIndex(DirectoryIndex, OutFiles, Directory, ShouldVisit,
+			bIncludeFiles, bIncludeDirectories, bRecursive);
 	}
 }
 
 void FPakFile::FindPrunedFilesAtPath(const TCHAR* InPath, TArray<FString>& OutFiles,
 	bool bIncludeFiles, bool bIncludeDirectories, bool bRecursive) const
 {
-	FindPrunedFilesAtPathInternal(InPath, OutFiles, bIncludeFiles, bIncludeDirectories, bRecursive);
+	auto ShouldVisit = [](FStringView Path) { return true; };
+	FindPrunedFilesAtPathInternal(InPath, ShouldVisit, OutFiles, bIncludeFiles, bIncludeDirectories, bRecursive);
 }
 
 

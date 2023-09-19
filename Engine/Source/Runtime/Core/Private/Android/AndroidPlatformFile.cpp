@@ -1963,12 +1963,12 @@ public:
 		auto InternalVisitor = [&](const FString& InLocalPath, struct dirent* InEntry) -> bool
 		{
 			const FString DirPath = DirectoryStr / UTF8_TO_TCHAR(InEntry->d_name);
-			return Visitor.Visit(*DirPath, InEntry->d_type == DT_DIR);
+			return Visitor.CallShouldVisitAndVisit(*DirPath, InEntry->d_type == DT_DIR);
 		};
 		
 		auto InternalResourceVisitor = [&](const FString& InResourceName, bool IsDirectory) -> bool
 		{
-			return Visitor.Visit(*InResourceName, IsDirectory);
+			return Visitor.CallShouldVisitAndVisit(*InResourceName, IsDirectory);
 		};
 		
 		auto InternalAssetVisitor = [&](const char* InAssetPath) -> bool
@@ -1981,7 +1981,7 @@ public:
 				AAssetDir_close(subdir);
 			}
 
-			return Visitor.Visit(UTF8_TO_TCHAR(InAssetPath), isDirectory);
+			return Visitor.CallShouldVisitAndVisit(UTF8_TO_TCHAR(InAssetPath), isDirectory);
 		};
 
 		return IterateDirectoryCommon(Directory, InternalVisitor, InternalResourceVisitor, InternalAssetVisitor, AllowLocal, AllowAsset);
@@ -2003,7 +2003,7 @@ public:
 			struct stat FileInfo;
 			if (stat(TCHAR_TO_UTF8(*(InLocalPath / UTF8_TO_TCHAR(InEntry->d_name))), &FileInfo) != -1)
 			{
-				return Visitor.Visit(*DirPath, AndroidStatToUEFileData(FileInfo));
+				return Visitor.CallShouldVisitAndVisit(*DirPath, AndroidStatToUEFileData(FileInfo));
 			}
 
 			return true;
@@ -2011,7 +2011,7 @@ public:
 		
 		auto InternalResourceVisitor = [&](const FString& InResourceName, bool IsDir) -> bool
 		{
-			return Visitor.Visit(
+			return Visitor.CallShouldVisitAndVisit(
 				*InResourceName, 
 				FFileStatData(
 					FDateTime::MinValue(),						// CreationTime
@@ -2042,7 +2042,7 @@ public:
 				AAssetDir_close(subdir);
 			}
 
-			return Visitor.Visit(
+			return Visitor.CallShouldVisitAndVisit(
 				UTF8_TO_TCHAR(InAssetPath), 
 				FFileStatData(
 					FDateTime::MinValue(),	// CreationTime

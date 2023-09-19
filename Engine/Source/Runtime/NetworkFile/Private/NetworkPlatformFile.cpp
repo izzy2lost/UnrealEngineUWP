@@ -555,7 +555,7 @@ bool FNetworkPlatformFile::IterateDirectory(const TCHAR* InDirectory, IPlatformF
 				bool bIsDirectory = It.Value() == 0;
 			
 				// visit (stripping off the path if needed)
-				RetVal = Visitor.Visit(bHadNoPath ? *FPaths::GetCleanFilename(It.Key()) : *It.Key(), bIsDirectory);
+				RetVal = Visitor.CallShouldVisitAndVisit(bHadNoPath ? *FPaths::GetCleanFilename(It.Key()) : *It.Key(), bIsDirectory);
 			}
 		}
 	}
@@ -592,7 +592,7 @@ bool FNetworkPlatformFile::IterateDirectoryRecursively(const TCHAR* InDirectory,
 				bool bIsDirectory = It.Value() == 0;
 
 				// visit!
-				RetVal = Visitor.Visit(*It.Key(), bIsDirectory);
+				RetVal = Visitor.CallShouldVisitAndVisit(*It.Key(), bIsDirectory);
 			}
 		}
 	}
@@ -641,7 +641,7 @@ bool FNetworkPlatformFile::IterateDirectoryStat(const TCHAR* InDirectory, IPlatf
 					);
 
 				// visit (stripping off the path if needed)
-				RetVal = Visitor.Visit(bHadNoPath ? *FPaths::GetCleanFilename(It.Key()) : *It.Key(), StatData);
+				RetVal = Visitor.CallShouldVisitAndVisit(bHadNoPath ? *FPaths::GetCleanFilename(It.Key()) : *It.Key(), StatData);
 			}
 		}
 	}
@@ -688,7 +688,7 @@ bool FNetworkPlatformFile::IterateDirectoryStatRecursively(const TCHAR* InDirect
 					);
 
 				// visit!
-				RetVal = Visitor.Visit(*It.Key(), StatData);
+				RetVal = Visitor.CallShouldVisitAndVisit(*It.Key(), StatData);
 			}
 		}
 	}

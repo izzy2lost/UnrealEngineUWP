@@ -593,7 +593,7 @@ bool FConcertSandboxPlatformFile::IterateDirectory(const TCHAR* Directory, FDire
 		const TArray<FDirectoryItem> DirectoryItems = GetDirectoryContents(ResolvedPath, Directory);
 		for (const FDirectoryItem& DirectoryItem : DirectoryItems)
 		{
-			if (!Visitor.Visit(*DirectoryItem.Path, DirectoryItem.StatData.bIsDirectory))
+			if (!Visitor.CallShouldVisitAndVisit(*DirectoryItem.Path, DirectoryItem.StatData.bIsDirectory))
 			{
 				return false;
 			}
@@ -619,7 +619,7 @@ bool FConcertSandboxPlatformFile::IterateDirectoryStat(const TCHAR* Directory, F
 		const TArray<FDirectoryItem> DirectoryItems = GetDirectoryContents(ResolvedPath, Directory);
 		for (const FDirectoryItem& DirectoryItem : DirectoryItems)
 		{
-			if (!Visitor.Visit(*DirectoryItem.Path, DirectoryItem.StatData))
+			if (!Visitor.CallShouldVisitAndVisit(*DirectoryItem.Path, DirectoryItem.StatData))
 			{
 				return false;
 			}

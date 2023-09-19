@@ -940,7 +940,7 @@ bool FIOSPlatformFile::IterateDirectory(const TCHAR* Directory, FDirectoryVisito
 		const FString NormalizedFilename = UTF8_TO_TCHAR(([[[NSString stringWithUTF8String:InEntry->d_name] precomposedStringWithCanonicalMapping] cStringUsingEncoding:NSUTF8StringEncoding]));
 		const FString FullPath = DirectoryStr / NormalizedFilename;
 
-		return Visitor.Visit(*FullPath, InEntry->d_type == DT_DIR);
+		return Visitor.CallShouldVisitAndVisit(*FullPath, InEntry->d_type == DT_DIR);
 	});
 }
 
@@ -972,7 +972,7 @@ bool FIOSPlatformFile::IterateDirectoryStat(const TCHAR* Directory, FDirectorySt
 			}
 		}
 
-		return Visitor.Visit(*FullPath, IOSStatToUEFileData(FileInfo));
+		return Visitor.CallShouldVisitAndVisit(*FullPath, IOSStatToUEFileData(FileInfo));
 	});
 }
 

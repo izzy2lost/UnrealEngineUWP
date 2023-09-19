@@ -743,7 +743,7 @@ bool FApplePlatformFile::IterateDirectory(const TCHAR* Directory, FDirectoryVisi
 			}
 		}
 
-		return Visitor.Visit(*(DirectoryStr / NormalizedFilename), bIsDirectory);
+		return Visitor.CallShouldVisitAndVisit(*(DirectoryStr / NormalizedFilename), bIsDirectory);
 	});
 }
 
@@ -762,7 +762,7 @@ bool FApplePlatformFile::IterateDirectoryStat(const TCHAR* Directory, FDirectory
 		struct stat StatInfo;
 		if (stat(TCHAR_TO_UTF8(*(NormalizedDirectoryStr / NormalizedFilename)), &StatInfo) == 0)
 		{
-			return Visitor.Visit(*(DirectoryStr / NormalizedFilename), MacStatToUEFileData(StatInfo));
+			return Visitor.CallShouldVisitAndVisit(*(DirectoryStr / NormalizedFilename), MacStatToUEFileData(StatInfo));
 		}
 
 		return true;

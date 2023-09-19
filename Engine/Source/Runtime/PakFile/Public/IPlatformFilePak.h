@@ -55,6 +55,7 @@ class FFilePackageStoreBackend;
 class FOutputDevice;
 class IAsyncReadFileHandle;
 class IMappedFileHandle;
+namespace UE::PakFile::Private { class FPakFileDirectoryVisitorBase; }
 struct FIoContainerHeader;
 
 PAKFILE_API DECLARE_LOG_CATEGORY_EXTERN(LogPakFile, Log, All);
@@ -888,7 +889,7 @@ public:
 	{
 		for (FFilenameIterator It(*this); It; ++It)
 		{
-			Visitor.Visit(*It.Filename(), false);
+			Visitor.CallShouldVisitAndVisit(*It.Filename(), false);
 		}
 	}
 
@@ -1659,8 +1660,8 @@ private:
 	/* Manually add a file to a pak file */
 	PAKFILE_API void AddSpecialFile(const FPakEntry& Entry, const FString& Filename);
 
-	template <class ContainerType>
-	void FindPrunedFilesAtPathInternal(const TCHAR* InPath, ContainerType& OutFiles,
+	template <typename ShouldVisitFunc, class ContainerType>
+	void FindPrunedFilesAtPathInternal(const TCHAR* InPath, const ShouldVisitFunc& ShouldVisit, ContainerType& OutFiles,
 		bool bIncludeFiles = true, bool bIncludeDirectories = false, bool bRecursive = false) const;
 
 	/**
@@ -1668,9 +1669,10 @@ private:
 	 * FScopedPakDirectoryIndexAccess internally; caller is responsible for calling from within a lock.
 	 * Returned paths are full paths (include the mount point)
 	 */
-	template <class ContainerType>
+	template <typename ShouldVisitFunc, class ContainerType>
 	void FindFilesAtPathInIndex(const FDirectoryIndex& TargetIndex, ContainerType& OutFiles, const FString& Directory,
-		bool bIncludeFiles = true, bool bIncludeDirectories = false, bool bRecursive = false) const;
+		const ShouldVisitFunc& ShouldVisit, bool bIncludeFiles = true, bool bIncludeDirectories = false,
+		bool bRecursive = false) const;
 
 	/** Converts the path to a RelativePathFromMount and normalizes it to the expected format for Pak Directories.  Returns false if Path is not under the MountDir and hence can not be in this PakFile. */
 	PAKFILE_API bool NormalizeDirectoryQuery(const TCHAR* InPath, FString& OutRelativePathFromMount) const;
@@ -2591,9 +2593,9 @@ public:
 
 private:
 	bool IterateDirectoryInternal(const TCHAR* Directory, IPlatformFile::FDirectoryVisitor& Visitor, bool bRecursive);
-	bool IterateDirectoryInternal(const TCHAR* Directory,
-		TUniqueFunction<bool(const FString&, const FString&, bool, FPakFile&)>& VisitFunction,
-		bool bRecursive, TSet<FString>& FilesVisitedInPak);
+	bool IterateDirectoryInPakFiles(const TCHAR* Directory,
+		UE::PakFile::Private::FPakFileDirectoryVisitorBase& Visitor, bool bRecursive,
+		TSet<FString>& FilesVisitedInPak);
 	bool IterateDirectoryStatInternal(const TCHAR* Directory,
 		IPlatformFile::FDirectoryStatVisitor& Visitor, bool bRecursive);
 	void FindFilesInternal(TArray<FString>& FoundFiles,

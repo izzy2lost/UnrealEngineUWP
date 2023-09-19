@@ -744,7 +744,7 @@ public:
 			if (NormalizedFilename == SandboxFile.InjectedSourceDirectoryParent)
 			{
 				// "fake" the injected directory so everything falls into place
-				Visitor.Visit(*SandboxFile.InjectedSourceDirectory, true);
+				Visitor.CallShouldVisitAndVisit(*SandboxFile.InjectedSourceDirectory, true);
 
 				// for recursive visiting, we need to recurse into the forced directory
 				if (bIsRecursive)
@@ -791,7 +791,7 @@ public:
 
 		if (CanVisit)
 		{
-			bool Result = Visitor.Visit(*LocalFilename, bIsDirectory);
+			bool Result = Visitor.CallShouldVisitAndVisit(*LocalFilename, bIsDirectory);
 			return Result;
 		}
 		else
@@ -861,7 +861,7 @@ public:
 			{
 				// "fake" the injected directory so everything falls into place
 				FFileStatData InjectedStat = SandboxFile.LowerLevel->GetStatData(*SandboxFile.InjectedSourceDirectory);
-				Visitor.Visit(*SandboxFile.InjectedSourceDirectory, InjectedStat);
+				Visitor.CallShouldVisitAndVisit(*SandboxFile.InjectedSourceDirectory, InjectedStat);
 
 				// for recursive visiting, we need to recurse into the forced directory
 				if (bIsRecursive)
@@ -906,7 +906,7 @@ public:
 
 		if (CanVisit)
 		{
-			bool Result = Visitor.Visit(*LocalFilename, StatData);
+			bool Result = Visitor.CallShouldVisitAndVisit(*LocalFilename, StatData);
 			return Result;
 		}
 		else

@@ -551,7 +551,7 @@ bool FStorageServerPlatformFile::IterateDirectory(const TCHAR* Directory, IPlatf
 			bool bConverted = MakeLocalPath(FilenameOrDirectory, LocalPath);
 			check(bConverted);
 			const bool bDirectory = !FileChunkId.IsValid();
-			return Visitor.Visit(*LocalPath, bDirectory);
+			return Visitor.CallShouldVisitAndVisit(*LocalPath, bDirectory);
 		});
 	}
 	else
@@ -588,7 +588,7 @@ bool FStorageServerPlatformFile::IterateDirectoryStat(const TCHAR* Directory, FD
 					true,
 					true);
 			}
-			return Visitor.Visit(*LocalPath, FileStatData);
+			return Visitor.CallShouldVisitAndVisit(*LocalPath, FileStatData);
 		});
 	}
 	else

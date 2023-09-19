@@ -394,6 +394,16 @@ public:
 
 		virtual ~FDirectoryVisitor() { }
 
+		/**
+		 * Called with the LeafPathname (FullPath == Path/LeafPathname, LeafPathname == BaseName.Extension) before
+		 * calling Visit. If it returns true, Visit will be called on the path, otherwise Visit will be skipped, and
+		 * the return value of Visit is treated as true (continue iterating). Called both for directories and files.
+		 */
+		virtual bool ShouldVisitLeafPathname(FStringView LeafPathname)
+		{
+			return true;
+		}
+
 		/** 
 		 * Callback for a single file or a directory in a directory iteration.
 		 * @param FilenameOrDirectory		If bIsDirectory is true, this is a directory (with no trailing path delimiter), otherwise it is a file name.
@@ -401,6 +411,12 @@ public:
 		 * @return							true if the iteration should continue.
 		**/
 		virtual bool Visit(const TCHAR* FilenameOrDirectory, bool bIsDirectory) = 0;
+
+		/**
+		 * Helper function for receivers of FDirectoryVisitor. Enforces the contract for whether Visit should be
+		 * called after calling ShouldVisitLeafPathName.
+		 */
+		CORE_API bool CallShouldVisitAndVisit(const TCHAR* FilenameOrDirectory, bool bIsDirectory);
 
 		/** True if the Visit function can be called from multiple threads at once. **/
 		FORCEINLINE bool IsThreadSafe() const
@@ -419,13 +435,30 @@ public:
 	{
 	public:
 		virtual ~FDirectoryStatVisitor() { }
-		/** 
+
+		/**
+		 * Called with the LeafPathname (FullPath == Path/LeafPathname, LeafPathname == BaseName.Extension) before
+		 * calling Visit. If it returns true, Visit will be called on the path, otherwise Visit will be skipped, and
+		 * the return value of Visit is treated as true (continue iterating). Called both for directories and files.
+		 */
+		virtual bool ShouldVisitLeafPathname(FStringView LeafPathname)
+		{
+			return true;
+		}
+
+		/**
 		 * Callback for a single file or a directory in a directory iteration.
 		 * @param FilenameOrDirectory		If bIsDirectory is true, this is a directory (with no trailing path delimiter), otherwise it is a file name.
 		 * @param StatData					The stat data for the file or directory.
 		 * @return							true if the iteration should continue.
 		**/
 		virtual bool Visit(const TCHAR* FilenameOrDirectory, const FFileStatData& StatData) = 0;
+
+		/**
+		 * Helper function for receivers of FDirectoryStatVisitor. Enforces the contract for whether Visit should be
+		 *  called after calling ShouldVisitLeafPathName.
+		 */
+		CORE_API bool CallShouldVisitAndVisit(const TCHAR* FilenameOrDirectory, const FFileStatData& StatData);
 	};
 
 	/** File and directory visitor function that takes all the stat data */

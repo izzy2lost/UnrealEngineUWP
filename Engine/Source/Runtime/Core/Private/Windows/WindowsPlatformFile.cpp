@@ -1492,7 +1492,7 @@ public:
 			DirTemp.RemoveSuffix(DirTemp.Len() - DirLen);
 			FPathViews::Append(DirTemp, InData.cFileName);
 			const bool bIsDirectory = !!(InData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
-			return Visitor.Visit(*DirTemp, bIsDirectory);
+			return Visitor.CallShouldVisitAndVisit(*DirTemp, bIsDirectory);
 		});
 	}
 	virtual bool IterateDirectoryStat(const TCHAR* Directory, FDirectoryStatVisitor& Visitor) override
@@ -1511,7 +1511,7 @@ public:
 				FileSize = static_cast<int64>(li.QuadPart);
 			}
 
-			return Visitor.Visit(
+			return Visitor.CallShouldVisitAndVisit(
 				*(DirectoryStr / InData.cFileName), 
 				FFileStatData(
 					WindowsFileTimeToUEDateTime(InData.ftCreationTime),

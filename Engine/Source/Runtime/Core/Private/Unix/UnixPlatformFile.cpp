@@ -1300,7 +1300,7 @@ bool FUnixPlatformFile::IterateDirectory(const TCHAR* Directory, FDirectoryVisit
 			}
 		}
 
-		return Visitor.Visit(*(DirectoryStr / UnicodeEntryName), bIsDirectory);
+		return Visitor.CallShouldVisitAndVisit(*(DirectoryStr / UnicodeEntryName), bIsDirectory);
 	});
 }
 
@@ -1317,7 +1317,7 @@ bool FUnixPlatformFile::IterateDirectoryStat(const TCHAR* Directory, FDirectoryS
 		const FString AbsoluteUnicodeName = NormalizedDirectoryStr / UnicodeEntryName;	
 		if (stat(TCHAR_TO_UTF8(*AbsoluteUnicodeName), &FileInfo) != -1)
 		{
-			return Visitor.Visit(*(DirectoryStr / UnicodeEntryName), UnixStatToUEFileData(FileInfo));
+			return Visitor.CallShouldVisitAndVisit(*(DirectoryStr / UnicodeEntryName), UnixStatToUEFileData(FileInfo));
 		}
 
 		return true;

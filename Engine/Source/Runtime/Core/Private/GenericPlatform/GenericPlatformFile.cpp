@@ -4,6 +4,7 @@
 #include "Algo/Accumulate.h"
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
+#include "Misc/PathViews.h"
 #include "HAL/PlatformMisc.h"
 #include "HAL/ThreadSafeCounter.h"
 #include "Stats/Stats.h"
@@ -538,6 +539,27 @@ FDateTime IPlatformFile::GetTimeStampLocal(const TCHAR* Filename)
 	return FileTimeStamp;
 }
 
+bool IPlatformFile::FDirectoryVisitor::CallShouldVisitAndVisit(const TCHAR* FilenameOrDirectory, bool bIsDirectory)
+{
+	FStringView LeafPathname = FPathViews::GetCleanFilename(FilenameOrDirectory);
+	if (!ShouldVisitLeafPathname(LeafPathname))
+	{
+		return true; // Continue iterating
+	}
+	return Visit(FilenameOrDirectory, bIsDirectory);
+}
+
+bool IPlatformFile::FDirectoryStatVisitor::CallShouldVisitAndVisit(const TCHAR* FilenameOrDirectory,
+	const FFileStatData& StatData)
+{
+	FStringView LeafPathname = FPathViews::GetCleanFilename(FilenameOrDirectory);
+	if (!ShouldVisitLeafPathname(LeafPathname))
+	{
+		return true; // Continue iterating
+	}
+	return Visit(FilenameOrDirectory, StatData);
+}
+
 class FDirectoryVisitorFuncWrapper : public IPlatformFile::FDirectoryVisitor
 {
 public:
@@ -593,7 +615,7 @@ bool IPlatformFile::IterateDirectoryRecursively(const TCHAR* Directory, FDirecto
 		}
 		virtual bool Visit(const TCHAR* FilenameOrDirectory, bool bIsDirectory) override
 		{
-			bool bResult = Visitor.Visit(FilenameOrDirectory, bIsDirectory);
+			bool bResult = Visitor.CallShouldVisitAndVisit(FilenameOrDirectory, bIsDirectory);
 			if (bResult && bIsDirectory)
 			{
 				Directories.Emplace(FilenameOrDirectory);
@@ -649,7 +671,7 @@ bool IPlatformFile::IterateDirectoryStatRecursively(const TCHAR* Directory, FDir
 		}
 		virtual bool Visit(const TCHAR* FilenameOrDirectory, const FFileStatData& StatData) override
 		{
-			bool bResult = Visitor.Visit(FilenameOrDirectory, StatData);
+			bool bResult = Visitor.CallShouldVisitAndVisit(FilenameOrDirectory, StatData);
 			if (bResult && StatData.bIsDirectory)
 			{
 				bResult = PlatformFile.IterateDirectoryStat(FilenameOrDirectory, *this);

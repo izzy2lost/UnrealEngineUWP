@@ -427,12 +427,19 @@ namespace FileManagerGenericImpl
 			, bStoreFullPath(bInStoreFullPath)
 		{
 		}
+
+		virtual bool ShouldVisitLeafPathname(FStringView LeafFilename) override
+		{
+			return FString(LeafFilename).MatchesWildcard(WildCard);
+		}
+
 		virtual bool Visit(const TCHAR* FilenameOrDirectory, bool bIsDirectory)
 		{
 			if ((bIsDirectory && bDirectories) || (!bIsDirectory && bFiles))
 			{
 				FString Filename = FPaths::GetCleanFilename(FilenameOrDirectory);
-				if (Filename.MatchesWildcard(WildCard))
+				if (ensureMsgf(ShouldVisitLeafPathname(Filename),
+					TEXT("PlatformFile.IterateDirectory needs to call ShouldVisitLeafFilename before calling Visit.")))
 				{
 					FString FullPath = bStoreFullPath ? FString(FilenameOrDirectory) : MoveTemp(Filename);
 					FWriteScopeLock ScopeLock(ResultLock);
