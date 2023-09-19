@@ -29,6 +29,7 @@ namespace Metasound
 		class IInterfaceRegistryEntry;
 
 		METASOUNDFRONTEND_API float GetDefaultBlockRate();
+		METASOUNDFRONTEND_API int32 GetDefaultSampleRate();
 
 		class FProxyDataCache;
 

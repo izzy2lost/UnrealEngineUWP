@@ -152,7 +152,15 @@ UMetaSoundSource::UMetaSoundSource(const FObjectInitializer& ObjectInitializer)
 	NumChannels = 1;
 
 	// todo: ensure that we have a method so that the audio engine can be authoritative over the sample rate the UMetaSoundSource runs at.
-	SampleRate = 48000.f;
+	const int32 SampleRateOverride = Metasound::Frontend::GetDefaultSampleRate();
+	if (SampleRateOverride != INDEX_NONE)
+	{
+		SampleRate = SampleRateOverride;
+	}
+	else
+	{
+		SampleRate = 48000.f;
+	}
 }
 
 const UClass& UMetaSoundSource::GetBaseMetaSoundUClass() const
@@ -585,8 +593,10 @@ ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorI
 	METASOUND_LLM_SCOPE;
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetaSoundSource::CreateSoundGenerator);
 
-	SampleRate = InParams.SampleRate;
-	FOperatorSettings InSettings = GetOperatorSettings(static_cast<FSampleRate>(SampleRate));
+	FOperatorSettings InSettings = GetOperatorSettings(static_cast<FSampleRate>(InParams.SampleRate));
+
+	SampleRate = InSettings.GetSampleRate();
+
 	FMetasoundEnvironment Environment = CreateEnvironment(InParams);
 	FParameterRouter& Router = GetParameterRouter();
 	TSharedPtr<TSpscQueue<FMetaSoundParameterTransmitter::FParameter>> DataChannel = Router.FindOrCreateDataChannelForReader(InParams.AudioDeviceID, InParams.InstanceID);
@@ -964,6 +974,11 @@ TSharedPtr<Audio::IParameterTransmitter> UMetaSoundSource::CreateParameterTransm
 Metasound::FOperatorSettings UMetaSoundSource::GetOperatorSettings(Metasound::FSampleRate InSampleRate) const
 {
 	const float BlockRate = Metasound::Frontend::GetDefaultBlockRate();
+	const int32 SampleRateOverride = Metasound::Frontend::GetDefaultSampleRate();
+	if (SampleRateOverride != INDEX_NONE)
+	{
+		return Metasound::FOperatorSettings(SampleRateOverride, BlockRate);
+	}
 	return Metasound::FOperatorSettings(InSampleRate, BlockRate);
 }
 

@@ -48,6 +48,9 @@ namespace Metasound
 		{
 			static float BlockRate = 100.f;
 
+			// Negative value means we use the audio mixer device sample rate
+			static int32 SampleRate = INDEX_NONE;
+
 			TScriptInterface<IMetaSoundDocumentInterface> BuildRegistryDocument(TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface)
 			{
 				using namespace Metasound::Frontend;
@@ -255,9 +258,26 @@ namespace Metasound
 			TEXT("Default: 100.0f, Min: 1.0f, Max: 1000.0f"),
 			ECVF_Default);
 
+		FAutoConsoleVariableRef CVarMetaSoundSampleRate(
+			TEXT("au.MetaSound.SampleRate"),
+			AssetBasePrivate::SampleRate,
+			TEXT("Overrides the sample rate of metasounds. Negative values default to audio mixer sample rate.\n")
+			TEXT("Default: -1, Min: 8000, Max: 48000"),
+			ECVF_Default);
+
+
 		float GetDefaultBlockRate()
 		{
 			return FMath::Clamp(AssetBasePrivate::BlockRate, 1.0f, 1000.0f);
+		}
+
+		int32 GetDefaultSampleRate()
+		{
+			if (AssetBasePrivate::SampleRate > 0)
+			{
+				return FMath::Clamp(AssetBasePrivate::SampleRate, 8000, 48000);
+			}
+			return AssetBasePrivate::SampleRate;
 		}
 	} // namespace Frontend
 } // namespace Metasound
