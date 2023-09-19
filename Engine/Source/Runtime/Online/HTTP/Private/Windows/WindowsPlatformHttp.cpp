@@ -108,9 +108,9 @@ FHttpManager * FWindowsPlatformHttp::CreatePlatformHttpManager()
 IHttpRequest* FWindowsPlatformHttp::ConstructRequest()
 {
 #if WITH_CURL
-		return new FCurlHttpRequest();
+	return new FCurlHttpRequest();
 #else // ^^^ WITH_CURL  ^^^ // vvv WITH_CURL  vvv
-		return new FWinHttpHttpRequest();
+	return FGenericPlatformHttp::ConstructRequest();
 #endif // !WITH_CURL 
 }
 
