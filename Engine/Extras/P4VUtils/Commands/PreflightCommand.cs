@@ -4,6 +4,7 @@ using EpicGames.Perforce;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -321,6 +322,53 @@ namespace P4VUtils.Commands
 		{
 			string BaseUrl = PreflightCommand.GetHordeServerAddress(ConfigValues);
 			return $"{BaseUrl}/job/{preflightId}";
+		}
+	}
+
+	[Command("preflighthordeconfig", CommandCategory.Horde, 4)]
+	class PreflightHordeConfigCommand : PreflightCommand
+	{
+		public override string Description => "If the changelist contains Horde configuration file(s), open Horde in the browser to validate the configuration file(s)";
+
+		public override CustomToolInfo CustomTool => new CustomToolInfo("Horde: Validate Configuration Files...", "%p");
+
+		/// <summary>
+		/// Is it a Horde server configuration file, ie: ends with .stream.json, .project.json, or is named globals.json
+		/// </summary>
+		/// <param name="DepotPath"></param>
+		/// <returns></returns>
+		static internal bool IsHordeConfigurationFile(string DepotPath)
+		{
+			string FileName = Path.GetFileName(DepotPath);
+			return (FileName.EndsWith(".stream.json", StringComparison.OrdinalIgnoreCase) || 
+					FileName.EndsWith(".project.json", StringComparison.OrdinalIgnoreCase) || 
+					FileName.Equals("globals.json", StringComparison.OrdinalIgnoreCase));
+		}
+
+		internal override async Task<bool> ParseArguments(string[] Args, IReadOnlyDictionary<string, string> ConfigValues, ILogger Logger)
+		{
+			if (!await base.ParseArguments(Args, ConfigValues, Logger))
+			{
+				return false;
+			}
+
+			if (!DescribeRecord!.Files.Any(x => IsHordeConfigurationFile(x.DepotFile)))
+			{
+				Logger.LogError("No Horde Configuration Files");
+				Logger.LogError("'{Change}' does not contain Horde Configuration files.", Change);
+				UserInterface.ShowSimpleDialog(
+					$"The specified changelist, {Change}, does not contain any Horde Configuration files.",
+					"Invalid Changelist", Logger);
+				return false;
+			}
+
+			return true;
+		}
+
+		public override string GetUrl(string Stream, int Change, IReadOnlyDictionary<string, string> ConfigValues)
+		{
+			string BaseUrl = PreflightCommand.GetHordeServerAddress(ConfigValues);
+			return $"{BaseUrl}/preflightconfig?shelvedchange={Change}";
 		}
 	}
 }
