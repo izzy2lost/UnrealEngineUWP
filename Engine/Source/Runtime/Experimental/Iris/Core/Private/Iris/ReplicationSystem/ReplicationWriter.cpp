@@ -277,7 +277,8 @@ static bool s_ValidateReplicationRecord(const FReplicationRecord* ReplicationRec
 		for (uint32 It = 0U; It < RecordInfoCount; ++It)
 		{
  			const FReplicationRecord::FRecordInfo& RecordInfo = ReplicationRecord->PeekInfoAtOffset(It + Offset);
-			if (BitArray.GetBit(RecordInfo.Index))
+			// We allow multiple entries for the OOB attachments but do not expect multiple entires for normal replicated objects
+			if (RecordInfo.Index != 0U && BitArray.GetBit(RecordInfo.Index))
 			{
 				ensure(false);
 				return false;
@@ -309,7 +310,7 @@ bool FReplicationWriter::IsReplicationEnabled() const
 
 // $IRIS TODO : May need to introduce queue and send behaviors. For example one may want to send only with object.
 // One may not want to send unless the object is replicated very soon etc.
-void FReplicationWriter::QueueNetObjectAttachments(FInternalNetRefIndex OwnerInternalIndex, FInternalNetRefIndex SubObjectInternalIndex, TArrayView<const TRefCountPtr<FNetBlob>> InAttachments)
+void FReplicationWriter::QueueNetObjectAttachments(FInternalNetRefIndex OwnerInternalIndex, FInternalNetRefIndex SubObjectInternalIndex, TArrayView<const TRefCountPtr<FNetBlob>> InAttachments, ENetObjectAttachmentSendPolicyFlags SendFlags)
 {
 	if (InAttachments.Num() <= 0)
 	{
@@ -323,9 +324,12 @@ void FReplicationWriter::QueueNetObjectAttachments(FInternalNetRefIndex OwnerInt
 		UE_CLOG_REPLICATIONWRITER_WARNING(bWarnAboutDroppedAttachmentsToObjectsNotInScope, TEXT("Dropping %s attachment due to object ( InternalIndex: %u ) not in scope."), (EnumHasAnyFlags(InAttachments[0]->GetCreationInfo().Flags, ENetBlobFlags::Reliable) ? TEXT("reliable") : TEXT("unreliable")), OwnerInternalIndex);
 		return;
 	}
+	
+	// Route attachments flagged with ScheduleAsOOB through OOB channel if we have started replicating the owner.
+	const bool bScheduleUsingOOBChannel = EnumHasAnyFlags(SendFlags, ENetObjectAttachmentSendPolicyFlags::ScheduleAsOOB) && (GetReplicationInfo(OwnerInternalIndex).GetState() >= EReplicatedObjectState::WaitOnCreateConfirmation);
 
-	const uint32 TargetIndex = bObjectInScope ? (SubObjectInternalIndex != FNetRefHandleManager::InvalidInternalIndex ? SubObjectInternalIndex : OwnerInternalIndex) : ObjectIndexForOOBAttachment;
-	ENetObjectAttachmentType AttachmentType = (bObjectInScope ? ENetObjectAttachmentType::Normal : ENetObjectAttachmentType::OutOfBand);
+	const uint32 TargetIndex = (bObjectInScope && !bScheduleUsingOOBChannel) ? (SubObjectInternalIndex != FNetRefHandleManager::InvalidInternalIndex ? SubObjectInternalIndex : OwnerInternalIndex) : ObjectIndexForOOBAttachment;
+	ENetObjectAttachmentType AttachmentType = ((bObjectInScope && !bScheduleUsingOOBChannel) ? ENetObjectAttachmentType::Normal : ENetObjectAttachmentType::OutOfBand);
 	if (!Attachments.Enqueue(AttachmentType, TargetIndex, InAttachments))
 	{
 		return;
@@ -336,7 +340,6 @@ void FReplicationWriter::QueueNetObjectAttachments(FInternalNetRefIndex OwnerInt
 	{
 		return;
 	}
-
 
 	FReplicationInfo& TargetInfo = GetReplicationInfo(TargetIndex);
 	TargetInfo.HasAttachments = 1;

@@ -16,6 +16,7 @@
 #include "Iris/ReplicationSystem/ReplicationOperationsInternal.h"
 #include "Iris/ReplicationSystem/ReplicationReader.h"
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
+#include "Iris/ReplicationSystem/ReplicationSystemTypes.h"
 #include "Iris/ReplicationSystem/ReplicationTypes.h"
 #include "Iris/ReplicationSystem/ReplicationWriter.h"
 #include "Iris/Serialization/InternalNetSerializationContext.h"
@@ -32,6 +33,10 @@ namespace ReplicationSystemCVars
 static bool bForcePruneBeforeUpdate = false;
 static FAutoConsoleVariableRef CVarForcePruneBeforeUpdate(TEXT("net.Iris.ForcePruneBeforeUpdate"), bForcePruneBeforeUpdate, TEXT("Verify integrity of all tracked instances at the start of every update."));
 #endif
+
+static bool bAllowAttachmentSendPolicyFlags = true;
+static FAutoConsoleVariableRef CVarAllowAttachmentSendPolicyFlags(TEXT("net.Iris.Attachments.AllowSendPolicyFlags"), bAllowAttachmentSendPolicyFlags, TEXT("Allow use of ENetObjectAttachmentSendPolicyFlags to specify behavior of RPCs."));
+
 }
 
 namespace UE::Net::Private
@@ -46,6 +51,8 @@ public:
 	FNetObjectGroupHandle NotReplicatedNetObjectGroupHandle;
 	FNetObjectGroupHandle NetGroupOwnerNetObjectGroupHandle;
 	FNetObjectGroupHandle NetGroupReplayNetObjectGroupHandle;
+
+	TMap<FObjectKey, ENetObjectAttachmentSendPolicyFlags> AttachmentSendPolicyFlags;
 
 	explicit FReplicationSystemImpl(UReplicationSystem* InReplicationSystem, const UReplicationSystem::FReplicationSystemParams& Params)
 	: ReplicationSystem(InReplicationSystem)
@@ -450,7 +457,8 @@ public:
 			  * the client to the server, if the RPC is allowed to be sent in the first place.
 			  */
 			Params.bAllowSendingAttachmentsToObjectsNotInScope = !ReplicationSystem->IsServer();
-			Params.bAllowReceivingAttachmentsFromRemoteObjectsNotInScope = !Params.bAllowSendingAttachmentsToObjectsNotInScope;
+			Params.bAllowReceivingAttachmentsFromRemoteObjectsNotInScope = true;
+
 			// Delaying attachments with unresolved references on the server could cause massive queues of RPCs, potentially an OOM situation.
 			Params.bAllowDelayingAttachmentsWithUnresolvedReferences = !ReplicationSystem->IsServer();
 
@@ -818,8 +826,39 @@ bool UReplicationSystem::QueueNetObjectAttachment(uint32 ConnectionId, const UE:
 
 bool UReplicationSystem::SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters)
 {
+	UE::Net::ENetObjectAttachmentSendPolicyFlags SendFlags = UE::Net::ENetObjectAttachmentSendPolicyFlags::None;
+	if (ReplicationSystemCVars::bAllowAttachmentSendPolicyFlags)
+	{
+		if (UE::Net::ENetObjectAttachmentSendPolicyFlags* Flags = Impl->AttachmentSendPolicyFlags.Find(FObjectKey(Function)))
+		{
+			SendFlags = *Flags;
+		}
+	}
+
 	UE::Net::Private::FNetBlobManager& NetBlobManager = Impl->ReplicationSystemInternal.GetNetBlobManager();
-	return NetBlobManager.SendRPC(Object, SubObject, Function, Parameters);
+	return NetBlobManager.SendRPC(Object, SubObject, Function, Parameters, SendFlags);
+}
+
+bool UReplicationSystem::SetRPCSendPolicyFlags(const UFunction* Function, UE::Net::ENetObjectAttachmentSendPolicyFlags SendFlags)
+{
+	if (!Function)
+	{	
+		return false;
+	}
+
+	if (EnumHasAnyFlags(SendFlags, UE::Net::ENetObjectAttachmentSendPolicyFlags::SendImmediate) && (Function->FunctionFlags & FUNC_NetReliable))
+	{
+		ensureAlwaysMsgf(false, TEXT("ENetObjectAttachmentSendPolicyFlags::SendImmediate is not allowed to use on Reliable RPC: %s"), *GetNameSafe(Function));
+		return false;
+	}
+		
+	Impl->AttachmentSendPolicyFlags.Add(FObjectKey(Function), SendFlags);
+	return true;
+}
+
+void UReplicationSystem::ResetRPCSendPolicyFlags()
+{
+	Impl->AttachmentSendPolicyFlags.Reset();
 }
 
 bool UReplicationSystem::SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters)

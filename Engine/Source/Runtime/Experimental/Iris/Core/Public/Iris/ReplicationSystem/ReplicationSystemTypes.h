@@ -29,4 +29,22 @@ enum class EDependentObjectSchedulingHint : uint8
 using FForwardNetRPCCallDelegate = TDelegate<void(UObject* RootObject,UObject* SubObject, UFunction* Function, void* Params)>;
 using FForwardNetRPCCallMulticastDelegate = TMulticastDelegate<typename FForwardNetRPCCallDelegate::TFuncType>;
 
+enum class ENetObjectAttachmentSendPolicyFlags : uint32
+{
+	// Default
+	None = 0,
+
+	// Schedule attachment to use the Out of bounds channel, essentially schedule the attachment to be sent as early as possible. Note: Only valid for unreliable attachments.
+	ScheduleAsOOB = 1U << 0U,
+
+	// Hint that this attachment like to be sent during PostTickDispatch. 
+	// If one attachment has this flag all unreliable attachments scheduled to use the OOB channel they all will be sent during PostTickDispatch.
+	SendInPostTickDispatch = ScheduleAsOOB << 1U,	
+
+	// SendImmediate, Attachment should be sent using OOB channel and from PostTickDispatch.
+	SendImmediate = ScheduleAsOOB | SendInPostTickDispatch,
+};
+
+ENUM_CLASS_FLAGS(ENetObjectAttachmentSendPolicyFlags);
+
 }

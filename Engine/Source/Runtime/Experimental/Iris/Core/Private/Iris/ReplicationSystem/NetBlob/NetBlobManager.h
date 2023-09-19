@@ -2,6 +2,7 @@
 
 #pragma once
 #include "CoreTypes.h"
+#include "Iris/ReplicationSystem/ReplicationSystemTypes.h"
 #include "Iris/ReplicationSystem/NetBlob/NetBlob.h"
 #include "Iris/ReplicationSystem/NetBlob/NetBlobHandlerManager.h"
 #include "Iris/ReplicationSystem/NetRefHandleManager.h" // For FInternalNetRefIndex
@@ -15,6 +16,7 @@ class UNetRPCHandler;
 namespace UE::Net
 {
 	class FNetObjectReference;
+
 	namespace Private
 	{
 		class FNetRefHandleManager;
@@ -32,7 +34,6 @@ struct FNetBlobManagerInitParams
 	bool bSendAttachmentsWithObject = false;
 };
 
-
 class FNetBlobManager
 {
 public:
@@ -42,9 +43,9 @@ public:
 
 	bool RegisterNetBlobHandler(UNetBlobHandler* Handler);
 
-	bool QueueNetObjectAttachment(uint32 ConnectionId, const FNetObjectReference& TargetRef, const TRefCountPtr<FNetObjectAttachment>& Attachment);
-	bool SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters);
-	bool SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters);
+	bool QueueNetObjectAttachment(uint32 ConnectionId, const FNetObjectReference& TargetRef, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
+	bool SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
+	bool SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
 
 	enum class EProcessMode 
 	{
@@ -78,10 +79,10 @@ private:
 		void Init(FNetBlobManager* Manager);
 
 		// Unicast
-		void Enqueue(uint32 ConnectionId, FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment);
+		void Enqueue(uint32 ConnectionId, FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags);
 
 		// Multicast
-		void Enqueue(FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment);
+		void Enqueue(FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags);
 
 		void PrepareProcessQueue(FReplicationConnections* InConnections, const FNetRefHandleManager* InNetRefHandleManager);
 		void ProcessQueue(EProcessMode ProcessMode);
@@ -93,6 +94,7 @@ private:
 			uint32 ConnectionId;
 			FInternalNetRefIndex OwnerIndex;
 			FInternalNetRefIndex SubObjectIndex;
+			ENetObjectAttachmentSendPolicyFlags SendFlags;
 			TRefCountPtr<FNetObjectAttachment> Attachment;
 		};
 		typedef TArray<FNetObjectAttachmentQueueEntry> FQueue;

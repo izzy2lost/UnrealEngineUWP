@@ -214,6 +214,17 @@ public:
 	IRISCORE_API bool SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters);
 
 	/**
+	 * Set the policy flags for an RPC identified by its function
+	 * @param Function a pointer to a valid function identifying the RPC
+	 * @param SendFlags the ENetObjectAttachmentSendPolicyFlags to set for the RPC
+	 * @return Whether the specified SendFlags is valid for the specific RPC
+	 */
+	IRISCORE_API bool SetRPCSendPolicyFlags(const UFunction* Function, UE::Net::ENetObjectAttachmentSendPolicyFlags SendFlags);
+
+	/** Resets all set RPCSendPolicy flags */
+	IRISCORE_API void ResetRPCSendPolicyFlags();
+	
+	/**
 	 * Unicast an RPC targeting a object/subobject.
 	 * @param ConnectionId A valid connection ID. Only this connection will replicate the RPC.
 	 * @param Object A valid Owner/Actor. If no SubObject is specified the function will be called in this instance on the remote side.

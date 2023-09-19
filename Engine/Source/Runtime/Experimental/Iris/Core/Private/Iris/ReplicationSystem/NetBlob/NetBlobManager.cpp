@@ -50,7 +50,7 @@ bool FNetBlobManager::RegisterNetBlobHandler(UNetBlobHandler* Handler)
 	return BlobHandlerManager.RegisterHandler(Handler);
 }
 
-bool FNetBlobManager::QueueNetObjectAttachment(uint32 ConnectionId, const FNetObjectReference& TargetRef, const TRefCountPtr<FNetObjectAttachment>& Attachment)
+bool FNetBlobManager::QueueNetObjectAttachment(uint32 ConnectionId, const FNetObjectReference& TargetRef, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags)
 {
 	if (!Attachment.IsValid())
 	{
@@ -89,11 +89,11 @@ bool FNetBlobManager::QueueNetObjectAttachment(uint32 ConnectionId, const FNetOb
 	}
 
 	Attachment->SetNetObjectReference(OwnerReference, OwnerOrSubObjectReference);
-	AttachmentSendQueue.Enqueue(ConnectionId, OwnerIndex, SubObjectIndex, Attachment);
+	AttachmentSendQueue.Enqueue(ConnectionId, OwnerIndex, SubObjectIndex, Attachment, SendFlags);
 	return true;
 }
 
-bool FNetBlobManager::SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters)
+bool FNetBlobManager::SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, UE::Net::ENetObjectAttachmentSendPolicyFlags SendFlags)
 {
 	if (CVarEnableIrisRPCs.GetValueOnGameThread() <= 0)
 	{
@@ -150,11 +150,11 @@ bool FNetBlobManager::SendRPC(const UObject* Object, const UObject* SubObject, c
 	}
 
 	RPC->SetNetObjectReference(OwnerReference, OwnerOrSubObjectReference);
-	AttachmentSendQueue.Enqueue(OwnerIndex, SubObjectIndex, reinterpret_cast<const TRefCountPtr<FNetObjectAttachment>&>(RPC));
+	AttachmentSendQueue.Enqueue(OwnerIndex, SubObjectIndex, reinterpret_cast<const TRefCountPtr<FNetObjectAttachment>&>(RPC), SendFlags);
 	return true;
 }
 
-bool FNetBlobManager::SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters)
+bool FNetBlobManager::SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, UE::Net::ENetObjectAttachmentSendPolicyFlags SendFlags)
 {
 	if (CVarEnableIrisRPCs.GetValueOnGameThread() <= 0)
 	{
@@ -210,7 +210,7 @@ bool FNetBlobManager::SendRPC(uint32 ConnectionId, const UObject* Object, const 
 	}
 
 	RPC->SetNetObjectReference(OwnerReference, OwnerOrSubObjectReference);
-	AttachmentSendQueue.Enqueue(ConnectionId, OwnerIndex, SubObjectIndex, reinterpret_cast<const TRefCountPtr<FNetObjectAttachment>&>(RPC));
+	AttachmentSendQueue.Enqueue(ConnectionId, OwnerIndex, SubObjectIndex, reinterpret_cast<const TRefCountPtr<FNetObjectAttachment>&>(RPC), SendFlags);
 	return true;
 }
 
@@ -320,21 +320,23 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::Init(FNetBlobManager* InMan
 	Manager = InManager;
 }
 
-void FNetBlobManager::FNetObjectAttachmentSendQueue::Enqueue(uint32 ConnectionId, FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment)
+void FNetBlobManager::FNetObjectAttachmentSendQueue::Enqueue(uint32 ConnectionId, FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags)
 {
 	FNetObjectAttachmentQueueEntry& QueueEntry = AttachmentQueue.AddDefaulted_GetRef();
 	QueueEntry.ConnectionId = ConnectionId;
 	QueueEntry.OwnerIndex = OwnerIndex;
 	QueueEntry.SubObjectIndex = SubObjectIndex;
+	QueueEntry.SendFlags = SendFlags;
 	QueueEntry.Attachment = Attachment;
 }
 
-void FNetBlobManager::FNetObjectAttachmentSendQueue::Enqueue(FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment)
+void FNetBlobManager::FNetObjectAttachmentSendQueue::Enqueue(FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags)
 {
 	FNetObjectAttachmentQueueEntry& QueueEntry = AttachmentQueue.AddDefaulted_GetRef();
 	QueueEntry.ConnectionId = 0;
 	QueueEntry.OwnerIndex = OwnerIndex;
 	QueueEntry.SubObjectIndex = SubObjectIndex;
+	QueueEntry.SendFlags = SendFlags;
 	QueueEntry.Attachment = Attachment;
 
 	bHasMulticastAttachments = true;
@@ -458,14 +460,14 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::ProcessQueue(EProcessMode P
 
 				FReplicationConnection* Connection = ProcessContext.Connections->GetConnection(ConnectionId);
 				// We're only iterating over valid connections so the Connection pointer must be valid.
-				Connection->ReplicationWriter->QueueNetObjectAttachments(Entry.OwnerIndex, Entry.SubObjectIndex, AttachmentsView);
+				Connection->ReplicationWriter->QueueNetObjectAttachments(Entry.OwnerIndex, Entry.SubObjectIndex, AttachmentsView, Entry.SendFlags);
 			}
 		}
 		else
 		{
 			if (FReplicationConnection* Connection = ProcessContext.Connections->GetConnection(Entry.ConnectionId))
 			{
-				Connection->ReplicationWriter->QueueNetObjectAttachments(Entry.OwnerIndex, Entry.SubObjectIndex, AttachmentsView);
+				Connection->ReplicationWriter->QueueNetObjectAttachments(Entry.OwnerIndex, Entry.SubObjectIndex, AttachmentsView, Entry.SendFlags);
 			}
 		}
 	});
