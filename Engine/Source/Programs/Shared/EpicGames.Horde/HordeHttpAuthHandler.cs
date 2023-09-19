@@ -26,7 +26,6 @@ namespace EpicGames.Horde
 		const string ClientName = "HordeHttpAuth";
 
 		readonly IHttpClientFactory _httpClientFactory;
-		readonly Uri _serverUrl;
 		readonly ILogger _logger;
 
 		AuthenticationHeaderValue? _authHeader;
@@ -34,10 +33,9 @@ namespace EpicGames.Horde
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HordeHttpAuthHandler(IHttpClientFactory httpClientFactory, IOptions<HordeHttpClientOptions> options, ILogger<HordeHttpAuthHandler> logger)
+		public HordeHttpAuthHandler(IHttpClientFactory httpClientFactory, ILogger<HordeHttpAuthHandler> logger)
 		{
 			_httpClientFactory = httpClientFactory;
-			_serverUrl = options.Value.ServerUrl;
 			_logger = logger;
 		}
 
@@ -52,7 +50,11 @@ namespace EpicGames.Horde
 			}
 			if (response == null || response.StatusCode == HttpStatusCode.Unauthorized)
 			{
-				await RefreshAccessTokenAsync(cancellationToken);
+				if (request.RequestUri != null)
+				{
+					await RefreshAccessTokenAsync(request.RequestUri, cancellationToken);
+				}
+
 				request.Headers.Authorization = _authHeader;
 				response = await base.SendAsync(request, cancellationToken);
 			}
@@ -62,14 +64,15 @@ namespace EpicGames.Horde
 		/// <summary>
 		/// Get an access token for the server specified in a config instance
 		/// </summary>
-		async Task RefreshAccessTokenAsync(CancellationToken cancellationToken)
+		async Task RefreshAccessTokenAsync(Uri requestUrl, CancellationToken cancellationToken)
 		{
-			_logger.LogInformation("Getting access token for {Server}", _serverUrl);
+			Uri serverUrl = new Uri(requestUrl, "/");
+			_logger.LogInformation("Getting access token for {Server}", serverUrl);
 
 			GetAuthConfigResponse? authConfig;
 			using (HttpClient httpClient = _httpClientFactory.CreateClient(ClientName))
 			{
-				Uri uri = new Uri(_serverUrl, "api/v1/server/auth");
+				Uri uri = new Uri(serverUrl, "api/v1/server/auth");
 
 				JsonSerializerOptions jsonOptions = new JsonSerializerOptions();
 				HordeHttpClient.ConfigureJsonSerializer(jsonOptions);
@@ -113,10 +116,10 @@ namespace EpicGames.Horde
 
 			if (result.AccessToken == null)
 			{
-				throw new Exception($"Unable to get access token for {_serverUrl}");
+				throw new Exception($"Unable to get access token for {serverUrl}");
 			}
 
-			_logger.LogInformation("Received bearer token for {Server}", _serverUrl);
+			_logger.LogInformation("Received bearer token for {Server}", serverUrl);
 			_authHeader = new AuthenticationHeaderValue("Bearer", result.AccessToken);
 		}
 	}

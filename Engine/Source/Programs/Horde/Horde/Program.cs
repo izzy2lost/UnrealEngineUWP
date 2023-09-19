@@ -36,7 +36,7 @@ namespace Horde
 			services.AddLogging();
 			services.AddMemoryCache();
 			services.AddSingleton(sp => Options.Create(CmdConfig.Read()));
-			services.AddHordeHttpClient((sp, options) => options.ServerUrl = sp.GetRequiredService<IOptions<CmdConfig>>().Value.Server);
+			services.AddHordeHttpClient((sp, client) => client.BaseAddress = sp.GetRequiredService<IOptions<CmdConfig>>().Value.Server);
 			services.AddSingleton<StorageCache>(CreateStorageClientCache);
 			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
 

@@ -15,17 +15,6 @@ using Polly.Extensions.Http;
 namespace EpicGames.Horde
 {
 	/// <summary>
-	/// Options for configuring a Horde HTTP client
-	/// </summary>
-	public class HordeHttpClientOptions
-	{
-		/// <summary>
-		/// URL of the Horde server
-		/// </summary>
-		public Uri ServerUrl { get; set; } = new Uri("http://localhost:5000");
-	}
-
-	/// <summary>
 	/// Wraps an Http client which communicates with the Horde server
 	/// </summary>
 	public sealed class HordeHttpClient
@@ -48,11 +37,9 @@ namespace EpicGames.Horde
 		/// Constructor
 		/// </summary>
 		/// <param name="httpClient">The inner HTTP client instance</param>
-		/// <param name="options">Options for the client</param>
-		public HordeHttpClient(HttpClient httpClient, IOptions<HordeHttpClientOptions> options)
+		public HordeHttpClient(HttpClient httpClient)
 		{
 			_httpClient = httpClient;
-			_httpClient.BaseAddress = options.Value.ServerUrl;
 		}
 
 		/// <summary>
@@ -200,36 +187,28 @@ namespace EpicGames.Horde
 		/// <param name="services">Service collection to add services to</param>
 		public static void AddHordeHttpClient(this IServiceCollection services)
 		{
+			services.AddHordeHttpClient((sp, client) => { });
+		}
+
+		/// <summary>
+		/// Registers a Horde HTTP client type, and configures it to use the default OIDC message handler.
+		/// </summary>
+		/// <param name="services">Service collection to add services to</param>
+		/// <param name="configureClient">Callback to modify options for the http client</param>
+		public static void AddHordeHttpClient(this IServiceCollection services, Action<HttpClient> configureClient)
+		{
+			services.AddHordeHttpClient((sp, client) => configureClient(client));
+		}
+		/// <summary>
+		/// Registers a Horde HTTP client type, and configures it to use the default OIDC message handler.
+		/// </summary>
+		/// <param name="services">Service collection to add services to</param>
+		/// <param name="configureClient">Callback to modify options for the http client</param>
+		public static void AddHordeHttpClient(this IServiceCollection services, Action<IServiceProvider, HttpClient> configureClient)
+		{
 			services.AddSingleton<HordeHttpAuthHandler>();
-			services.AddHttpClient<HordeHttpClient>().AddPolicyHandler(HordeHttpClient.DefaultRetryPolicy).AddHttpMessageHandler<HordeHttpAuthHandler>();
+			services.AddHttpClient<HordeHttpClient>(configureClient).AddPolicyHandler(HordeHttpClient.DefaultRetryPolicy).AddHttpMessageHandler<HordeHttpAuthHandler>();
 			services.AddTransient<HordeHttpClientFactory>();
-		}
-
-		/// <summary>
-		/// Registers a Horde HTTP client type, and configures it to use the default OIDC message handler.
-		/// </summary>
-		/// <param name="services">Service collection to add services to</param>
-		/// <param name="configureOptions">Callback to modify options for the http client</param>
-		public static void AddHordeHttpClient(this IServiceCollection services, Action<HordeHttpClientOptions> configureOptions)
-		{
-			services.AddHordeHttpClient((sp, options) => configureOptions(options));
-		}
-		/// <summary>
-		/// Registers a Horde HTTP client type, and configures it to use the default OIDC message handler.
-		/// </summary>
-		/// <param name="services">Service collection to add services to</param>
-		/// <param name="configureOptions">Callback to modify options for the http client</param>
-		public static void AddHordeHttpClient(this IServiceCollection services, Action<IServiceProvider, HordeHttpClientOptions> configureOptions)
-		{
-			IOptions<HordeHttpClientOptions> CreateOptions(IServiceProvider serviceProvider)
-			{
-				HordeHttpClientOptions options = new HordeHttpClientOptions();
-				configureOptions(serviceProvider, options);
-				return Options.Create(options);
-			}
-
-			services.AddSingleton<IOptions<HordeHttpClientOptions>>(CreateOptions);
-			services.AddHordeHttpClient();
 		}
 	}
 }
