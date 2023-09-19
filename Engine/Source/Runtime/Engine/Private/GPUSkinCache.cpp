@@ -1856,7 +1856,22 @@ bool FGPUSkinCache::ProcessEntry(
 	if (bShouldBatchDispatches)
 	{
 		InOutEntry->bQueuedForDispatch = true;
-		BatchDispatches.Add({ InOutEntry, RevisionNumber, uint32(Section) });
+
+		bool bFoundEntry = false;
+		for (FDispatchEntry& Entry : BatchDispatches)
+		{
+			// Check if the combo of skin cache entry and section index already exists, if so use the entry and update to latest revision number.
+			if (Entry.SkinCacheEntry == InOutEntry && Entry.Section == Section && Entry.RevisionNumber < RevisionNumber)
+			{
+				Entry.RevisionNumber = RevisionNumber;
+				bFoundEntry = true;
+				break;
+			}
+		}
+		if (!bFoundEntry)
+		{
+			BatchDispatches.Add({ InOutEntry, RevisionNumber, uint32(Section) });
+		}
 	}
 	else
 	{
