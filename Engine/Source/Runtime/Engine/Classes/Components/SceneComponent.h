@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "UObject/ObjectMacros.h"
 #include "Math/BoxSphereBounds.h"
 #include "UObject/UObjectGlobals.h"
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
