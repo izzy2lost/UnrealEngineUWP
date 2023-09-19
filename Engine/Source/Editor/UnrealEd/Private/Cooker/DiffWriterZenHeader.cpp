@@ -400,7 +400,7 @@ void FZenPackageExportsForDiff::InitializeFromMemory(FAccumulatorGlobals& Global
 			{
 				ExportPaths.Add(PublicExportHash, FString(PackageRelativePath));
 			}
-		}, false /* bIncludeNestedObjects */);
+		}, true /* bIncludeNestedObjects */);
 }
 
 FStringView FZenPackageExportsForDiff::GetExportPackageRelativePath(uint64 PublicExportHash)
