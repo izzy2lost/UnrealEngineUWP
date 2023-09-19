@@ -143,7 +143,8 @@ bool UDataLayerInstance::IsLocked() const
 
 bool UDataLayerInstance::IsReadOnly() const
 {
-	return GetWorld()->IsGameWorld();
+	const UWorld* World = GetWorld();
+	return !World || World->IsGameWorld();
 }
 
 const TCHAR* UDataLayerInstance::GetDataLayerIconName() const
