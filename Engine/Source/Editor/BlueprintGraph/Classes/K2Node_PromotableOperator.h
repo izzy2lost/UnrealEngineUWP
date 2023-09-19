@@ -164,6 +164,7 @@ private:
 	void CreateConversionMenu(struct FToolMenuSection& ConversionSection, UEdGraphPin* ContextPin) const;
 
 	/** The name that this operation uses ("Add", "Multiply", etc) */
+	UPROPERTY()
 	FName OperationName;
 
 	/** The current number of additional pins on this node */
