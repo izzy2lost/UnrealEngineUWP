@@ -297,6 +297,8 @@ private:
 /** Parameter struct for editor viewport view modifiers */
 struct FEditorViewportViewModifierParams
 {
+	FEditorViewportClient* ViewportClient = nullptr;
+
 	FMinimalViewInfo ViewInfo;
 
 	void AddPostProcessBlend(const FPostProcessSettings& Settings, float Weight)

@@ -895,6 +895,7 @@ FSceneView* FEditorViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily, c
 	// Apply view modifiers.
 	FEditorViewportViewModifierParams ViewModifierParams;
 	{
+		ViewModifierParams.ViewportClient = this;
 		ViewModifierParams.ViewInfo.Location = ViewTransform.GetLocation();
 		ViewModifierParams.ViewInfo.Rotation = ViewTransform.GetRotation();
 
