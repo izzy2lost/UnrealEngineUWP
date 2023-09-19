@@ -116,6 +116,12 @@ public:
 		snprintf(WatcherName, sizeof(WatcherName), "%s-%p", "FileWatcher", this);
 		DispatchQueue = dispatch_queue_create(WatcherName, DISPATCH_QUEUE_SERIAL);
 	}
+
+	~FDirWatcher()
+	{
+		cancel();
+	}
+
 	void async_wait(HandlerType InHandler);
 	void cancel()
 	{
