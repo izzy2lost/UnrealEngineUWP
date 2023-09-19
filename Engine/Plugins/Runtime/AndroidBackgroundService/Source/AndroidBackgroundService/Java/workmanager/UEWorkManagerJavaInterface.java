@@ -165,6 +165,7 @@ public class UEWorkManagerJavaInterface
 				BackoffPolicyToUse = BackoffPolicy.LINEAR;
 			}
 			
+			@SuppressWarnings("unchecked")
 			OneTimeWorkRequest newWorkRequest =  new OneTimeWorkRequest.Builder(InParams.WorkerJavaClass)
 				.setConstraints(constraintsBuilder.build())
 				.addTag(TaskID)
