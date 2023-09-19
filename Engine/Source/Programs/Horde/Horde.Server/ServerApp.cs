@@ -57,7 +57,7 @@ namespace Horde.Server
 		}
 	}
 
-	class Program
+	class ServerApp
 	{
 		public static SemVer Version { get; } = GetVersion();
 

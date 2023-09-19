@@ -137,7 +137,7 @@ namespace Horde.Server.Commands
 				FileReference? serverPrivateCert;
 				if (!Path.IsPathRooted(hordeSettings.ServerPrivateCert))
 				{
-					serverPrivateCert = FileReference.Combine(Program.AppDir, hordeSettings.ServerPrivateCert);
+					serverPrivateCert = FileReference.Combine(ServerApp.AppDir, hordeSettings.ServerPrivateCert);
 				}
 				else
 				{

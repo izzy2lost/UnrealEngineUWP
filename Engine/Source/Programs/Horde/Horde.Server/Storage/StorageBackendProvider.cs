@@ -175,7 +175,7 @@ namespace Horde.Server.Storage
 			switch (config.Type ?? StorageBackendType.FileSystem)
 			{
 				case StorageBackendType.FileSystem:
-					return new FileStorageBackend(DirectoryReference.Combine(Program.DataDir, config.BaseDir ?? "Storage"));
+					return new FileStorageBackend(DirectoryReference.Combine(ServerApp.DataDir, config.BaseDir ?? "Storage"));
 				case StorageBackendType.Aws:
 					return new AwsStorageBackend(_serviceProvider.GetRequiredService<IConfiguration>(), config, _serviceProvider.GetRequiredService<ILogger<AwsStorageBackend>>());
 				case StorageBackendType.Memory:

@@ -105,7 +105,7 @@ namespace Horde.Server.Server
 				}
 				else
 				{
-					throw new Exception($"Unable to connect to Redis. Please set {nameof(ServerSettings.RedisConnectionConfig)} in {Program.UserConfigFile}");
+					throw new Exception($"Unable to connect to Redis. Please set {nameof(ServerSettings.RedisConnectionConfig)} in {ServerApp.UserConfigFile}");
 				}
 			}
 
@@ -183,14 +183,14 @@ namespace Horde.Server.Server
 				return false;
 			}
 
-			FileReference redisExe = FileReference.Combine(Program.AppDir, "ThirdParty", "Redis", "redis-server.exe");
+			FileReference redisExe = FileReference.Combine(ServerApp.AppDir, "ThirdParty", "Redis", "redis-server.exe");
 			if (!FileReference.Exists(redisExe))
 			{
 				_logger.LogDebug("Redis executable does not exist at {ExePath}", redisExe);
 				return false;
 			}
 
-			DirectoryReference redisDir = DirectoryReference.Combine(Program.DataDir, "Redis");
+			DirectoryReference redisDir = DirectoryReference.Combine(ServerApp.DataDir, "Redis");
 			DirectoryReference.CreateDirectory(redisDir);
 
 			FileReference redisConfigFile = FileReference.Combine(redisDir, "redis.conf");

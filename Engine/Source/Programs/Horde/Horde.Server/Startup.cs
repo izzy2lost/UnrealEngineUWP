@@ -284,7 +284,7 @@ namespace Horde.Server
 			switch (options.Type ?? StorageBackendType.FileSystem)
 			{
 				case StorageBackendType.FileSystem:
-					return new FileStorageBackend(DirectoryReference.Combine(Program.DataDir, options.BaseDir ?? "Storage"));
+					return new FileStorageBackend(DirectoryReference.Combine(ServerApp.DataDir, options.BaseDir ?? "Storage"));
 				case StorageBackendType.Aws:
 					return new AwsStorageBackend(sp.GetRequiredService<IConfiguration>(), options, sp.GetRequiredService<ILogger<AwsStorageBackend>>());
 				case StorageBackendType.Memory:
@@ -851,7 +851,7 @@ namespace Horde.Server
 				};
 			});
 
-			DirectoryReference dashboardDir = DirectoryReference.Combine(Program.AppDir, "DashboardApp");
+			DirectoryReference dashboardDir = DirectoryReference.Combine(ServerApp.AppDir, "DashboardApp");
 			if (DirectoryReference.Exists(dashboardDir)) 
 			{
 				services.AddSpaStaticFiles(config => { config.RootPath = "DashboardApp"; });
@@ -1135,7 +1135,7 @@ namespace Horde.Server
 			app.UseDefaultFiles();
 			app.UseStaticFiles();
 
-			DirectoryReference dashboardDir = DirectoryReference.Combine(Program.AppDir, "DashboardApp");
+			DirectoryReference dashboardDir = DirectoryReference.Combine(ServerApp.AppDir, "DashboardApp");
 
 			if (DirectoryReference.Exists(dashboardDir)) 
 			{

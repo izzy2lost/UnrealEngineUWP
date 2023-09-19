@@ -211,7 +211,7 @@ namespace Horde.Agent
 		/// <summary>
 		/// Working directory
 		/// </summary>
-		public string? WorkingDir { get; set; } = DirectoryReference.Combine(Program.DataDir, "Data").FullName;
+		public string? WorkingDir { get; set; } = DirectoryReference.Combine(AgentApp.DataDir, "Data").FullName;
 
 		/// <summary>
 		/// Whether to mount the specified list of network shares

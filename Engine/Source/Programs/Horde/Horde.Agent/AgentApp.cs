@@ -55,7 +55,7 @@ namespace Horde.Agent
 	/// <summary>
 	/// Entry point
 	/// </summary>
-	public static class Program
+	public static class AgentApp
 	{
 		/// <summary>
 		/// Name of the http client
@@ -94,7 +94,7 @@ namespace Horde.Agent
 		/// <returns>Exit code</returns>
 		public static async Task<int> Main(string[] args)
 		{
-			Program.Args = args;
+			AgentApp.Args = args;
 
 			string? environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
 			if (String.IsNullOrEmpty(environment))
@@ -149,12 +149,12 @@ namespace Horde.Agent
 			configSection.Bind(settings);
 
 			ServerProfile serverProfile = settings.GetCurrentServerProfile();
-			ConfigureTracing(serverProfile.Environment, Program.Version);
+			ConfigureTracing(serverProfile.Environment, AgentApp.Version);
 
 			Logging.SetEnv(serverProfile.Environment);
 
 			ILogger certificateLogger = loggerFactory.CreateLogger(typeof(CertificateHelper).FullName!);
-			services.AddHttpClient(Program.HordeServerClientName, config =>
+			services.AddHttpClient(AgentApp.HordeServerClientName, config =>
 			{
 				config.BaseAddress = serverProfile.Url;
 				config.DefaultRequestHeaders.Add("Accept", "application/json");

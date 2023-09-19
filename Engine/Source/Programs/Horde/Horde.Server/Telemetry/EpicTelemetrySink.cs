@@ -103,8 +103,8 @@ namespace Horde.Server.Telemetry
 				{
 					["SessionID"] = Guid.NewGuid().ToString(),
 					["AppID"] = config.AppId,
-					["AppVersion"] = Program.Version.ToString(),
-					["AppEnvironment"] = Program.DeploymentEnvironment,
+					["AppVersion"] = ServerApp.Version.ToString(),
+					["AppEnvironment"] = ServerApp.DeploymentEnvironment,
 					["UploadType"] = "eteventstream"
 				};
 				_uri = new Uri(QueryHelpers.AddQueryString(config.Url.ToString(), queryParams));
@@ -152,7 +152,7 @@ namespace Horde.Server.Telemetry
 			{
 				request.RequestUri = _uri;
 				request.Method = HttpMethod.Post;
-				request.Headers.UserAgent.Add(new ProductInfoHeaderValue("Horde", Program.Version.ToString()));
+				request.Headers.UserAgent.Add(new ProductInfoHeaderValue("Horde", ServerApp.Version.ToString()));
 				request.Content = new ByteArrayContent(packet);
 				request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 

@@ -198,7 +198,7 @@ namespace Horde.Agent.Services
 				sessionRequest.Id = registrationInfo.Id;
 				sessionRequest.Status = AgentStatus.Ok;
 				sessionRequest.Capabilities = capabilities;
-				sessionRequest.Version = Program.Version;
+				sessionRequest.Version = AgentApp.Version;
 
 				// Create a session
 				createSessionResponse = await rpcClient.CreateSessionAsync(sessionRequest, null, null, cancellationToken);
@@ -246,7 +246,7 @@ namespace Horde.Agent.Services
 			if (FileReference.Exists(settingsFile))
 			{
 				byte[] settingsData = await FileReference.ReadAllBytesAsync(settingsFile, cancellationToken);
-				registrationList = JsonSerializer.Deserialize<AgentRegistrationList>(settingsData, Program.DefaultJsonSerializerOptions);
+				registrationList = JsonSerializer.Deserialize<AgentRegistrationList>(settingsData, AgentApp.DefaultJsonSerializerOptions);
 				registrationList?.Entries.RemoveAll(x => x.Server == null || x.Id == null || x.Token == null);
 				logger.LogInformation("Read agent registration settings from {SettingsFile}", settingsFile);
 			}
@@ -269,7 +269,7 @@ namespace Horde.Agent.Services
 					registration = new AgentRegistration(grpcService.ServerProfile.Url, createAgentResponse.Id, createAgentResponse.Token);
 					registrationList.Entries.Add(registration);
 
-					byte[] data = JsonSerializer.SerializeToUtf8Bytes(registrationList, new JsonSerializerOptions(Program.DefaultJsonSerializerOptions) { WriteIndented = true });
+					byte[] data = JsonSerializer.SerializeToUtf8Bytes(registrationList, new JsonSerializerOptions(AgentApp.DefaultJsonSerializerOptions) { WriteIndented = true });
 					DirectoryReference.CreateDirectory(settingsDir);
 					await FileReference.WriteAllBytesAsync(settingsFile, data, cancellationToken);
 

@@ -310,7 +310,7 @@ namespace Horde.Server.Server
 					}
 					else
 					{
-						throw new Exception($"Unable to connect to MongoDB server. Setup a MongoDB server and set the connection string in {Program.UserConfigFile}");
+						throw new Exception($"Unable to connect to MongoDB server. Setup a MongoDB server and set the connection string in {ServerApp.UserConfigFile}");
 					}
 				}
 
@@ -341,7 +341,7 @@ namespace Horde.Server.Server
 				throw;
 			}
 
-			_setSchemaVersionTask = SetSchemaVersionAsync(Program.Version);
+			_setSchemaVersionTask = SetSchemaVersionAsync(ServerApp.Version);
 		}
 
 		internal const int CtrlCEvent = 0;
@@ -401,14 +401,14 @@ namespace Horde.Server.Server
 				return false;
 			}
 
-			FileReference mongoExe = FileReference.Combine(Program.AppDir, "ThirdParty", "Mongo", "mongod.exe");
+			FileReference mongoExe = FileReference.Combine(ServerApp.AppDir, "ThirdParty", "Mongo", "mongod.exe");
 			if (!FileReference.Exists(mongoExe))
 			{
 				logger.LogWarning("Unable to find Mongo executable.");
 				return false;
 			}
 
-			DirectoryReference mongoDir = DirectoryReference.Combine(Program.DataDir, "Mongo");
+			DirectoryReference mongoDir = DirectoryReference.Combine(ServerApp.DataDir, "Mongo");
 
 			DirectoryReference mongoDataDir = DirectoryReference.Combine(mongoDir, "Data");
 			DirectoryReference.CreateDirectory(mongoDataDir);
@@ -815,7 +815,7 @@ namespace Horde.Server.Server
 					SemVer currentVersion = SemVer.Parse(currentSchema.Version);
 					if (schemaVersion < currentVersion)
 					{
-						_logger.LogInformation("Ignoring upgrade command; server is older than current schema version ({ProgramVer} < {CurrentVer})", Program.Version, currentVersion);
+						_logger.LogInformation("Ignoring upgrade command; server is older than current schema version ({ProgramVer} < {CurrentVer})", ServerApp.Version, currentVersion);
 						return false;
 					}
 					if (schemaVersion == currentVersion)

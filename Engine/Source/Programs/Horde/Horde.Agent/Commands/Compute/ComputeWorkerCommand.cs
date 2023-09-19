@@ -47,7 +47,7 @@ namespace Horde.Agent.Commands.Compute
 
 		public static async Task RunWorkerAsync(ComputeSocket socket, StorageCache storageCache, ILogger logger, CancellationToken cancellationToken)
 		{
-			DirectoryReference sandboxDir = DirectoryReference.Combine(Program.DataDir, "Sandbox");
+			DirectoryReference sandboxDir = DirectoryReference.Combine(AgentApp.DataDir, "Sandbox");
 
 			AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, storageCache, null, false, null, logger);
 			await worker.RunAsync(socket, cancellationToken);

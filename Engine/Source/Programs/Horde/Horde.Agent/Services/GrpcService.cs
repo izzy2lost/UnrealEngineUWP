@@ -123,7 +123,7 @@ namespace Horde.Agent.Services
 				_logger.LogInformation("Querying server {BaseUrl} for rpc port", serverUri);
 				using (HttpResponseMessage response = await httpClient.GetAsync(new Uri(serverUri, "api/v1/server/ports"), cancellationToken))
 				{
-					GetPortsResponse? ports = await response.Content.ReadFromJsonAsync<GetPortsResponse>(Program.DefaultJsonSerializerOptions, cancellationToken);
+					GetPortsResponse? ports = await response.Content.ReadFromJsonAsync<GetPortsResponse>(AgentApp.DefaultJsonSerializerOptions, cancellationToken);
 					if (ports != null && ports.UnencryptedHttp2 != 0)
 					{
 						UriBuilder builder = new UriBuilder(serverUri);
@@ -155,7 +155,7 @@ namespace Horde.Agent.Services
 		{
 			CallInvoker invoker = channel.Intercept(headers =>
 			{
-				headers.Add("Horde-Agent-Version", Program.Version);
+				headers.Add("Horde-Agent-Version", AgentApp.Version);
 				headers.Add("Horde-Agent-Name", _settings.Value.GetAgentName());
 				return headers;
 			});

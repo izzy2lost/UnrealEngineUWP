@@ -68,7 +68,7 @@ namespace Horde.Agent.Services
 		internal async Task ExecuteInnerAsync(CancellationToken stoppingToken)
 		{
 			// Show the current client id
-			string version = Program.Version;
+			string version = AgentApp.Version;
 			_logger.LogInformation("Version: {Version}", version);
 
 			// Print the server info

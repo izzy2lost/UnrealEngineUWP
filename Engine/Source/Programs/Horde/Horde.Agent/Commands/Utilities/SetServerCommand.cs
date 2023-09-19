@@ -38,7 +38,7 @@ namespace Horde.Agent.Commands.Utilities
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
 			// Update the agent to recognize the server certificate, and give it a custom token for being able to connect
-			FileReference agentConfigFile = FileReference.Combine(Program.AppDir, "appsettings.json");
+			FileReference agentConfigFile = FileReference.Combine(AgentApp.AppDir, "appsettings.json");
 			JsonObject agentConfig = await ReadConfigAsync(agentConfigFile);
 
 			JsonObject hordeConfig = FindOrAddNode(agentConfig, "Horde", () => new JsonObject());

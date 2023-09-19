@@ -459,7 +459,7 @@ namespace Horde.Server.Configuration
 			else
 			{
 				// relative (development) or perforce path
-				return ConfigType.CombinePaths(new Uri(FileReference.Combine(Program.AppDir, "_").FullName), _serverSettings.ConfigPath);
+				return ConfigType.CombinePaths(new Uri(FileReference.Combine(ServerApp.AppDir, "_").FullName), _serverSettings.ConfigPath);
 			}
 		}
 
@@ -475,7 +475,7 @@ namespace Horde.Server.Configuration
 			try
 			{
 				ConfigSnapshot snapshot = new ConfigSnapshot();
-				snapshot.ServerVersion = Program.Version.ToString();
+				snapshot.ServerVersion = ServerApp.Version.ToString();
 
 				// Read the new config in
 				Uri globalConfigUri = GetGlobalConfigUri();
@@ -527,7 +527,7 @@ namespace Horde.Server.Configuration
 		async Task<bool> IsOutOfDateAsync(ConfigSnapshot snapshot, CancellationToken cancellationToken)
 		{
 			// Always re-read the config file when switching server versions
-			string newServerVersion = Program.Version.ToString();
+			string newServerVersion = ServerApp.Version.ToString();
 			if (!snapshot.ServerVersion.Equals(newServerVersion, StringComparison.Ordinal))
 			{
 				_logger.LogInformation("Config is out of date (server version {OldVersion} -> {NewVersion})", snapshot.ServerVersion, newServerVersion);
@@ -567,7 +567,7 @@ namespace Horde.Server.Configuration
 			await _redisService.GetDatabase().StringSetAsync(_snapshotKey, data);
 			await _redisService.PublishAsync(_updateChannel, RedisValue.EmptyString);
 
-			_logger.LogInformation("Published new config snapshot (hash: {Hash}, server: {Server}, size: {Size})", hash.ToString(), Program.Version.ToString(), data.Length);
+			_logger.LogInformation("Published new config snapshot (hash: {Hash}, server: {Server}, size: {Size})", hash.ToString(), ServerApp.Version.ToString(), data.Length);
 		}
 
 		async Task<ReadOnlyMemory<byte>> ReadSnapshotDataAsync()

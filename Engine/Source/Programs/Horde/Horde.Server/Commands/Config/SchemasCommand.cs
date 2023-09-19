@@ -17,7 +17,7 @@ namespace Horde.Server.Commands.Config
 
 		public override Task<int> ExecuteAsync(ILogger logger)
 		{
-			_outputDir ??= DirectoryReference.Combine(Program.AppDir, "Schemas");
+			_outputDir ??= DirectoryReference.Combine(ServerApp.AppDir, "Schemas");
 
 			DirectoryReference.CreateDirectory(_outputDir);
 			foreach (Type schemaType in SchemaController.ConfigSchemas)

@@ -22,7 +22,7 @@ namespace Horde.Server.Commands.Config
 	class DocsCommand : Command
 	{
 		[CommandLine]
-		public DirectoryReference OutputDir { get; set; } = DirectoryReference.Combine(Program.AppDir, "Docs");
+		public DirectoryReference OutputDir { get; set; } = DirectoryReference.Combine(ServerApp.AppDir, "Docs");
 
 		[CommandLine]
 		public FileReference? Agent { get; set; }

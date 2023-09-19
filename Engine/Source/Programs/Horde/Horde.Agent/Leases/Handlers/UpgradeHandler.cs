@@ -31,9 +31,9 @@ namespace Horde.Agent.Leases.Handlers
 			string requiredVersion = task.SoftwareId;
 
 			// Check if we're running the right version
-			if (requiredVersion != null && requiredVersion != Program.Version)
+			if (requiredVersion != null && requiredVersion != AgentApp.Version)
 			{
-				logger.LogInformation("Upgrading from {CurrentVersion} to {TargetVersion}", Program.Version, requiredVersion);
+				logger.LogInformation("Upgrading from {CurrentVersion} to {TargetVersion}", AgentApp.Version, requiredVersion);
 
 				// Clear out the working directory
 				DirectoryReference upgradeDir = DirectoryReference.Combine(session.WorkingDir, "Upgrade");
@@ -81,7 +81,7 @@ namespace Horde.Agent.Leases.Handlers
 				}
 
 				StringBuilder currentArguments = new StringBuilder();
-				foreach (string arg in Program.Args)
+				foreach (string arg in AgentApp.Args)
 				{
 					currentArguments.AppendArgument(arg);
 				}

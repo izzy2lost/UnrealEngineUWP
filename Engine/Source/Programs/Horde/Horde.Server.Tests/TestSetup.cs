@@ -159,7 +159,7 @@ namespace Horde.Server.Tests
 
 		protected override void ConfigureSettings(ServerSettings settings)
 		{
-			DirectoryReference baseDir = DirectoryReference.Combine(Program.DataDir, "Tests");
+			DirectoryReference baseDir = DirectoryReference.Combine(ServerApp.DataDir, "Tests");
 			try
 			{
 				FileUtils.ForceDeleteDirectoryContents(baseDir);

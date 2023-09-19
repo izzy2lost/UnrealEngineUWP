@@ -27,7 +27,7 @@ namespace Horde.Server.Commands.Install
 		string? ServerUrl { get; set; }
 
 		[CommandLine("-BaseDir")]
-		DirectoryReference BaseDir { get; set; } = Program.AppDir.ParentDirectory!;
+		DirectoryReference BaseDir { get; set; } = ServerApp.AppDir.ParentDirectory!;
 
 		/// <inheritdoc/>
 		public override async Task<int> ExecuteAsync(ILogger logger)

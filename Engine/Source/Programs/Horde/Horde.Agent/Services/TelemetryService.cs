@@ -532,7 +532,7 @@ class TelemetryService : BackgroundService
 			Region = null,
 			AvailabilityZone = null,
 			Environment = null,
-			AgentVersion = Program.Version,
+			AgentVersion = AgentApp.Version,
 			Os = GetOs(),
 			OsVersion = Environment.OSVersion.Version.ToString(),
 			Architecture = RuntimeInformation.OSArchitecture.ToString(),

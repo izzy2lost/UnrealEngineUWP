@@ -31,7 +31,7 @@ namespace Horde.Agent
 			{
 				logEvent.AddOrUpdateProperty(propertyFactory.CreateProperty("dd.env", s_env));
 				logEvent.AddOrUpdateProperty(propertyFactory.CreateProperty("dd.service", "hordeagent"));
-				logEvent.AddOrUpdateProperty(propertyFactory.CreateProperty("dd.version", Program.Version));
+				logEvent.AddOrUpdateProperty(propertyFactory.CreateProperty("dd.version", AgentApp.Version));
 
 				ISpan? span = GlobalTracer.Instance?.ActiveSpan;
 				if (span != null)
@@ -50,7 +50,7 @@ namespace Horde.Agent
 
 		static Serilog.ILogger CreateSerilogLogger(IConfiguration configuration)
 		{
-			DirectoryReference.CreateDirectory(Program.DataDir);
+			DirectoryReference.CreateDirectory(AgentApp.DataDir);
 
 			ConsoleTheme theme;
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && Environment.OSVersion.Version < new Version(10, 0))
@@ -64,8 +64,8 @@ namespace Horde.Agent
 
 			return new LoggerConfiguration()
 				.WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:w3}] {Indent}{Message:l}{NewLine}{Exception}", theme: theme)
-				.WriteTo.File(FileReference.Combine(Program.DataDir, "Log-.txt").FullName, fileSizeLimitBytes: 50 * 1024 * 1024, rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true, retainedFileCountLimit: 10)
-				.WriteTo.File(new JsonFormatter(renderMessage: true), FileReference.Combine(Program.DataDir, "Log-.json").FullName, fileSizeLimitBytes: 50 * 1024 * 1024, rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true, retainedFileCountLimit: 10)
+				.WriteTo.File(FileReference.Combine(AgentApp.DataDir, "Log-.txt").FullName, fileSizeLimitBytes: 50 * 1024 * 1024, rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true, retainedFileCountLimit: 10)
+				.WriteTo.File(new JsonFormatter(renderMessage: true), FileReference.Combine(AgentApp.DataDir, "Log-.json").FullName, fileSizeLimitBytes: 50 * 1024 * 1024, rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true, retainedFileCountLimit: 10)
 				.ReadFrom.Configuration(configuration)
 				.MinimumLevel.ControlledBy(LogLevelSwitch)
 				.Enrich.FromLogContext()
