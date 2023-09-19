@@ -20,10 +20,16 @@ public:
 		TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData,
 		FTextureRHIRef InTexture) override;
 
+	virtual void OnRHIResourceCaptured_AnyThread(
+		const FCaptureBaseData& InBaseData, 
+		TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, 
+		FTextureRHIRef InTexture) override;
+
 	virtual bool InitializeCapture() override;
 	virtual bool PostInitializeCaptureViewport(TSharedPtr<FSceneViewport>& InSceneViewport) override;
 	virtual bool ShouldCaptureRHIResource() const { return true; }
 	virtual void StopCaptureImpl(bool bAllowPendingFrameToBeProcess) override;
+	virtual bool SupportsAnyThreadCapture() const override;
 	//~ End UMediaCapture interface
 
 	TSharedPtr<FSceneViewport> GetViewport() const { return SceneViewport.Pin(); }

@@ -18,17 +18,40 @@ void UPixelStreamingMediaCapture::OnRHIResourceCaptured_RenderingThread(
 	}
 }
 
+void UPixelStreamingMediaCapture::OnRHIResourceCaptured_AnyThread(
+	const FCaptureBaseData & InBaseData,
+	TSharedPtr<FMediaCaptureUserData,ESPMode::ThreadSafe> InUserData,
+	FTextureRHIRef InTexture)
+{
+	TSharedPtr<FPixelStreamingVideoInputVCam> VideoInputPtr = VideoInput.Pin();
+	if (VideoInputPtr)
+	{
+		VideoInputPtr->OnFrame(FPixelCaptureInputFrameRHI(InTexture));
+	}
+}
+
 bool UPixelStreamingMediaCapture::InitializeCapture()
 {
 	UE_LOG(LogPixelStreamingVCam, Log, TEXT("Initializing media capture for Pixel Streaming VCam."));
 	bViewportResized = false;
 	SetState(EMediaCaptureState::Capturing);
 
-	// Force the MediaCapture readback to be completed on the render thread
-	IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("MediaIO.ScheduleOnAnyThread"));
-	if (CVar)
+	// The following CVars condontionally force the MediaCapture capture/readback to be completed on the render thread (or any thread).
+	static bool bForceRenderThread = false;
+	static char ForceRenderThreadBit = bForceRenderThread ? 0 : 1;
+
+	// Whether to wait for resource readback in a separate thread. (Experimental)
+	IConsoleVariable* CVarScheduleAnyThread = IConsoleManager::Get().FindConsoleVariable(TEXT("MediaIO.ScheduleOnAnyThread"));
+	if (CVarScheduleAnyThread)
 	{
-		CVar->Set(0, EConsoleVariableFlags::ECVF_SetByCode);
+		CVarScheduleAnyThread->Set(ForceRenderThreadBit, EConsoleVariableFlags::ECVF_SetByCode);
+	}
+
+	// Whether to send out frame  in a separate thread. (Experimental)
+	IConsoleVariable* CVarExperimentalScheduling = IConsoleManager::Get().FindConsoleVariable(TEXT("MediaIO.EnableExperimentalScheduling"));
+	if (CVarExperimentalScheduling)
+	{
+		CVarExperimentalScheduling->Set(ForceRenderThreadBit, EConsoleVariableFlags::ECVF_SetByCode);
 	}
 
 	return true;
@@ -37,6 +60,12 @@ bool UPixelStreamingMediaCapture::InitializeCapture()
 void UPixelStreamingMediaCapture::StopCaptureImpl(bool bAllowPendingFrameToBeProcess)
 {
 	// Todo: Any cleanup on capture stop should happen here.
+}
+
+bool UPixelStreamingMediaCapture::SupportsAnyThreadCapture() const
+{
+	// This will activate the _AnyThread method calls when true.
+	return true;
 }
 
 bool UPixelStreamingMediaCapture::PostInitializeCaptureViewport(TSharedPtr<FSceneViewport>& InSceneViewport)

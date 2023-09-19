@@ -244,6 +244,7 @@ namespace UE::PixelStreamingVCam::Private
 		}
 
 		FMediaCaptureOptions Options;
+		Options.bSkipFrameWhenRunningExpensiveTasks = false;
 		Options.OverrunAction = EMediaCaptureOverrunAction::Skip;
 		Options.ResizeMethod = EMediaCaptureResizeMethod::ResizeSource;
 
