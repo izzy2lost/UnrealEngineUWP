@@ -12,6 +12,7 @@
 #include "LumenSceneLighting.h"
 #include "LumenTracingUtils.h"
 #include "LumenHardwareRayTracingCommon.h"
+#include "BlueNoise.h"
 
 int32 GLumenRadiosity = 1;
 FAutoConsoleVariableRef CVarLumenRadiosity(
@@ -299,6 +300,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLumenRadiosityTexelTraceParameters, )
 	SHADER_PARAMETER(uint32, NumViews)
 	SHADER_PARAMETER(uint32, ViewIndex)
 	SHADER_PARAMETER(uint32, MaxCardTiles)
+	SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
 END_SHADER_PARAMETER_STRUCT()
 
 class FLumenRadiosityIndirectArgsCS : public FGlobalShader
@@ -642,6 +644,9 @@ void LumenRadiosity::AddRadiosityPass(
 		// Needs to be set to valid value inside view loop
 		RadiosityTexelTraceParameters.ViewIndex = Views.Num();
 		RadiosityTexelTraceParameters.MaxCardTiles = MaxCardTiles;
+
+		FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
+		RadiosityTexelTraceParameters.BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
 	}
 
 	const FGlobalShaderMap* GlobalShaderMap = FirstView.ShaderMap;
