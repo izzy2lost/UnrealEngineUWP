@@ -350,7 +350,7 @@ class FDistanceFieldShadowingUpsamplePS : public FGlobalShader
 		SHADER_PARAMETER(float, OneOverDownsampleFactor)
 	END_SHADER_PARAMETER_STRUCT()
 
-	class FUpsample : SHADER_PERMUTATION_BOOL("UPSAMPLE_REQUIRED");
+	class FUpsample : SHADER_PERMUTATION_BOOL("SHADOW_FACTORS_UPSAMPLE_REQUIRED");
 	using FPermutationDomain = TShaderPermutationDomain<FUpsample>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)

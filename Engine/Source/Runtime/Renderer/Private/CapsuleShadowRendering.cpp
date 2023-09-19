@@ -333,7 +333,7 @@ public:
 		SHADER_PARAMETER(float, OutputtingToLightAttenuation)
 	END_SHADER_PARAMETER_STRUCT()
 
-	class FUpsampleRequired : SHADER_PERMUTATION_BOOL("UPSAMPLE_REQUIRED");
+	class FUpsampleRequired : SHADER_PERMUTATION_BOOL("SHADOW_FACTORS_UPSAMPLE_REQUIRED");
 	class FApplySSAO : SHADER_PERMUTATION_BOOL("APPLY_TO_SSAO");
 	using FPermutationDomain = TShaderPermutationDomain<FUpsampleRequired, FApplySSAO>;
 
