@@ -139,8 +139,21 @@ void FIKRetargetEditor::BindCommands()
 
 
 	//
-	// Show global / root settings in details panel
+	// Show various settings in details panel
 	//
+	ToolkitCommands->MapAction(
+		Commands.ShowAssetSettings,
+		FExecuteAction::CreateLambda([this]()
+		{
+			UIKRetargeter* Asset = EditorController->AssetController->GetAsset();
+			return EditorController->SetDetailsObject(Asset);
+		}),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateLambda([this]() ->bool
+		{
+			const UIKRetargeter* Asset = EditorController->AssetController->GetAsset();
+			return EditorController->IsObjectInDetailsView(Asset);	
+		}));
 	ToolkitCommands->MapAction(
 		Commands.ShowGlobalSettings,
 		FExecuteAction::CreateSP(EditorController, &FIKRetargetEditorController::ShowGlobalSettings),
@@ -288,6 +301,13 @@ void FIKRetargetEditor::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 
 	ToolbarBuilder.BeginSection("Show Settings");
 	{
+		ToolbarBuilder.AddToolBarButton(
+		FIKRetargetCommands::Get().ShowAssetSettings,
+		NAME_None,
+		TAttribute<FText>(),
+		TAttribute<FText>(),
+		FSlateIcon(FIKRetargetEditorStyle::Get().GetStyleSetName(),"IKRetarget.AssetSettings"));
+		
 		ToolbarBuilder.AddToolBarButton(
 		FIKRetargetCommands::Get().ShowGlobalSettings,
 		NAME_None,

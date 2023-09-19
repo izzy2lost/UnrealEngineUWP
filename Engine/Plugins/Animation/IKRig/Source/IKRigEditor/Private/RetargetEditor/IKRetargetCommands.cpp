@@ -10,9 +10,10 @@ void FIKRetargetCommands::RegisterCommands()
 	UI_COMMAND(EditRetargetPose, "Edit Retarget Pose", "Enter into mode allowing manual editing of the target skeleton pose in the viewport.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ShowRetargetPose, "Show Retarget Pose", "Display the retarget pose and retarget to the target skeleton.", EUserInterfaceActionType::Button, FInputChord());
 
-	UI_COMMAND(ShowGlobalSettings, "Global Settings", "Open global settings in detail tab.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(ShowRootSettings, "Root Settings", "Open root settings in detail tab.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(ShowPostSettings, "Post Settings", "Open post phase settings in detail tab.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(ShowAssetSettings, "Asset Settings", "Set the source or target IK Rigs, preview meshes. Adjust debug settings.", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(ShowGlobalSettings, "Global Settings", "Access Stride Warping and retarget phases.", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(ShowRootSettings, "Root Settings", "Adjust the motion of the Pelvis.", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(ShowPostSettings, "Post Settings", "Create a stack of operations that run after the retarget.", EUserInterfaceActionType::ToggleButton, FInputChord());
 	
 	UI_COMMAND(ResetAllBones, "Reset All", "Sets the selected bones to the mesh reference pose.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ResetSelectedBones, "Reset Selected Bones", "Sets the selected bones to the mesh reference pose.", EUserInterfaceActionType::Button, FInputChord());

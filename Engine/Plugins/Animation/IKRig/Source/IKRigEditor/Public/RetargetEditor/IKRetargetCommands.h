@@ -25,11 +25,13 @@ public:
 	// edit retarget pose
 	TSharedPtr< FUICommandInfo > EditRetargetPose;
 
+	// open asset settings
+	TSharedPtr< FUICommandInfo > ShowAssetSettings;
 	// open global settings
 	TSharedPtr< FUICommandInfo > ShowGlobalSettings;
-	// open global settings
+	// open root settings
 	TSharedPtr< FUICommandInfo > ShowRootSettings;
-	// open global settings
+	// open post settings
 	TSharedPtr< FUICommandInfo > ShowPostSettings;
 
 	// enable Root retarget pass

@@ -996,9 +996,6 @@ void FIKRetargetEditorController::ClearSelection(const bool bKeepBoneSelection)
 		SetRootSelected(false);
 		SelectedBoneNames[ERetargetSourceOrTarget::Source].Reset();
 		SelectedBoneNames[ERetargetSourceOrTarget::Target].Reset();
-
-		// show global details
-		SetDetailsObject(AssetController->GetAsset());
 	}
 
 	LastSelectedItem = ERetargetSelectionType::NONE;
