@@ -29,14 +29,12 @@ namespace PCGSurfaceSamplerConstants
 
 namespace PCGSurfaceSampler
 {
-	bool FSurfaceSamplerSettings::Initialize(const UPCGSurfaceSamplerSettings* InSettings, FPCGContext* Context, const FBox& InputBounds)
+	bool FSurfaceSamplerExecutionSettings::Initialize(const UPCGSurfaceSamplerSettings* Settings, const FPCGContext* Context, const FBox& InputBounds)
 	{
 		if (!Context)
 		{
 			return false;
 		}
-
-		Settings = InSettings;
 
 		if (Settings)
 		{
@@ -121,7 +119,7 @@ namespace PCGSurfaceSampler
 		return true;
 	}
 
-	FIntVector2 FSurfaceSamplerSettings::ComputeCellIndices(int32 Index) const
+	FIntVector2 FSurfaceSamplerExecutionSettings::ComputeCellIndices(int32 Index) const
 	{
 		check(Index >= 0 && Index < CellCount);
 		const int32 CellCountX = 1 + CellMaxX - CellMinX;
@@ -129,26 +127,20 @@ namespace PCGSurfaceSampler
 		return FIntVector2(CellMinX + (Index % CellCountX), CellMinY + (Index / CellCountX));
 	}
 
-	UPCGPointData* SampleSurface(FPCGContext* Context, const UPCGSpatialData* InSurface, const UPCGSpatialData* InBoundingShape, const FSurfaceSamplerSettings& LoopData)
+	UPCGPointData* SampleSurface(FPCGContext* Context, const UPCGSpatialData* InSurface, const UPCGSpatialData* InBoundingShape, const FSurfaceSamplerExecutionSettings& ExecutionSettings)
 	{
-		// We don't support time slicing here
-		if (LoopData.bEnableTimeSlicing)
-		{
-			PCGE_LOG_C(Error, LogOnly, Context, LOCTEXT("MissingOutputPointData", "An output point data must be provided to support sampling with time slicing"));
-			return nullptr;
-		}
-
 		UPCGPointData* SampledData = NewObject<UPCGPointData>();
 		SampledData->InitializeFromData(InSurface);
 
-		SampleSurface(Context, InSurface, InBoundingShape, LoopData, SampledData);
+		// We don't support time slicing here
+		SampleSurface(Context, ExecutionSettings, InSurface, InBoundingShape, SampledData, /*bTimeSlicingIsEnabled=*/false);
 
 		return SampledData;
 	}
 
-	bool SampleSurface(FPCGContext* Context, const UPCGSpatialData* InSurface, const UPCGSpatialData* InBoundingShape, const FSurfaceSamplerSettings& LoopData, UPCGPointData* SampledData)
+	bool SampleSurface(FPCGContext* Context, const FSurfaceSamplerExecutionSettings& Settings, const UPCGSpatialData* InSurface, const UPCGSpatialData* InBoundingShape, UPCGPointData* SampledData, const bool bTimeSlicingIsEnabled)
 	{
-		check(InSurface);
+		check(InSurface && SampledData);
 
 		TArray<FPCGPoint>& SampledPoints = SampledData->GetMutablePoints();
 
@@ -160,26 +152,26 @@ namespace PCGSurfaceSampler
 		constexpr FVector::FReal ZMultiplier = 1.0 - UE_DOUBLE_SMALL_NUMBER;
 		// Try to use a multiplier instead of a simply offset to combat loss of precision in floats. However if MaxZ is very small,
 		// then multiplier will not work, so just use an offset.
-		FVector::FReal SampleZ = (FMath::Abs(LoopData.InputBoundsMaxZ) > UE_DOUBLE_SMALL_NUMBER) ? LoopData.InputBoundsMaxZ * ZMultiplier : -UE_DOUBLE_SMALL_NUMBER;
+		FVector::FReal SampleZ = (FMath::Abs(Settings.InputBoundsMaxZ) > UE_DOUBLE_SMALL_NUMBER) ? Settings.InputBoundsMaxZ * ZMultiplier : -UE_DOUBLE_SMALL_NUMBER;
 		// Make sure we're still in bounds though!
-		SampleZ = FMath::Max(SampleZ, LoopData.InputBoundsMinZ);
+		SampleZ = FMath::Max(SampleZ, Settings.InputBoundsMinZ);
 
 		// Cache pointer ahead of time to avoid dereferencing object pointer which does access tracking and supports lazy loading, and can come with substantial
 		// overhead (add trace marker to FObjectPtr::Get to see).
 		UPCGMetadata* OutMetadata = SampledData->Metadata.Get();
 
-		auto AsyncProcessFunc = [&LoopData, SampledData, InBoundingShape, InSurface, &ProjectionParams, SampleZ, OutMetadata](int32 Index, FPCGPoint& OutPoint)
+		auto AsyncProcessFunc = [&Settings, InBoundingShape, InSurface, &ProjectionParams, SampleZ, OutMetadata](int32 Index, FPCGPoint& OutPoint)
 		{
-			const FIntVector2 Indices = LoopData.ComputeCellIndices(Index);
+			const FIntVector2 Indices = Settings.ComputeCellIndices(Index);
 
-			const FVector::FReal CurrentX = Indices.X * LoopData.CellSize.X;
-			const FVector::FReal CurrentY = Indices.Y * LoopData.CellSize.Y;
-			const FVector InnerCellSize = LoopData.InnerCellSize;
+			const FVector::FReal CurrentX = Indices.X * Settings.CellSize.X;
+			const FVector::FReal CurrentY = Indices.Y * Settings.CellSize.Y;
+			const FVector InnerCellSize = Settings.InnerCellSize;
 
-			FRandomStream RandomSource(PCGHelpers::ComputeSeed(LoopData.Seed, Indices.X, Indices.Y));
-			float Chance = RandomSource.FRand();
+			FRandomStream RandomSource(PCGHelpers::ComputeSeed(Settings.Seed, Indices.X, Indices.Y));
+			const float Chance = RandomSource.FRand();
 
-			const float Ratio = LoopData.Ratio;
+			const float Ratio = Settings.Ratio;
 
 			if (Chance >= Ratio)
 			{
@@ -190,7 +182,7 @@ namespace PCGSurfaceSampler
 			const float RandY = RandomSource.FRand();
 
 			const FVector TentativeLocation = FVector(CurrentX + RandX * InnerCellSize.X, CurrentY + RandY * InnerCellSize.Y, SampleZ);
-			const FBox LocalBound(-LoopData.PointExtents, LoopData.PointExtents);
+			const FBox LocalBound(-Settings.PointExtents, Settings.PointExtents);
 
 			// The output at this point is not initialized
 			OutPoint = FPCGPoint();
@@ -202,15 +194,15 @@ namespace PCGSurfaceSampler
 			}
 
 			// Set physical properties that are needed for the bounding shape checks, etc.
-			OutPoint.SetExtents(LoopData.PointExtents);
-			OutPoint.Steepness = LoopData.PointSteepness;
+			OutPoint.SetExtents(Settings.PointExtents);
+			OutPoint.Steepness = Settings.PointSteepness;
 
 			// Now run gauntlet of shape network (if there is one) to accept or reject the point.
 			if (InBoundingShape)
 			{
 				FPCGPoint BoundingShapeSample;
 #if WITH_EDITOR
-				if (!InBoundingShape->SamplePoint(OutPoint.Transform, OutPoint.GetLocalBounds(), BoundingShapeSample, nullptr) && !LoopData.bKeepZeroDensityPoints)
+				if (!InBoundingShape->SamplePoint(OutPoint.Transform, OutPoint.GetLocalBounds(), BoundingShapeSample, nullptr) && !Settings.bKeepZeroDensityPoints)
 #else
 				if (!InBoundingShape->SamplePoint(OutPoint.Transform, OutPoint.GetLocalBounds(), BoundingShapeSample, nullptr))
 #endif
@@ -223,20 +215,15 @@ namespace PCGSurfaceSampler
 			}
 
 			// Apply final parameters on the point
-			OutPoint.Density *= (LoopData.bApplyDensityToPoints ? ((Ratio - Chance) / Ratio) : 1.0f);
+			OutPoint.Density *= (Settings.bApplyDensityToPoints ? ((Ratio - Chance) / Ratio) : 1.0f);
 			OutPoint.Seed = RandomSource.GetCurrentSeed();
 
 			return true;
 		};
 
-		bool bAsyncDone = FPCGAsync::AsyncProcessing<FPCGPoint>(Context ? &Context->AsyncState : nullptr, LoopData.CellCount, SampledPoints, AsyncProcessFunc, LoopData.bEnableTimeSlicing);
-
-		if (Context && bAsyncDone)
-		{
-			PCGE_LOG_C(Verbose, LogOnly, Context, FText::Format(LOCTEXT("GenerationInfo", "Generated {0} points in {1} cells"), SampledPoints.Num(), LoopData.CellCount));
-		}
-
-		return bAsyncDone;
+		FPCGAsyncState* AsyncState = Context ? &Context->AsyncState : nullptr;
+		const bool bEnableTimeSlicing = Context ? bTimeSlicingIsEnabled : false;
+		return FPCGAsync::AsyncProcessing<FPCGPoint>(AsyncState, Settings.CellCount, SampledPoints, AsyncProcessFunc, bEnableTimeSlicing);
 	}
 
 #if WITH_EDITOR
@@ -313,192 +300,185 @@ bool UPCGSurfaceSamplerSettings::IsPinUsedByNodeExecution(const UPCGPin* InPin) 
 }
 #endif
 
-FPCGSurfaceSamplerContext::~FPCGSurfaceSamplerContext()
-{
-	if (bUnionDataCreated && BoundingShapeSpatialInput)
-	{
-		// We created the data so can cast away constness
-		UPCGSpatialData* BoundingShapeMutable = const_cast<UPCGSpatialData*>(BoundingShapeSpatialInput);
-		BoundingShapeMutable->RemoveFromRoot();
-		BoundingShapeMutable->MarkAsGarbage();
-
-		BoundingShapeSpatialInput = nullptr;
-	}
-}
-
 FPCGElementPtr UPCGSurfaceSamplerSettings::CreateElement() const
 {
 	return MakeShared<FPCGSurfaceSamplerElement>();
 }
 
-FPCGContext* FPCGSurfaceSamplerElement::Initialize(const FPCGDataCollection& InInputData, TWeakObjectPtr<UPCGComponent> InSourceComponent, const UPCGNode* InNode)
+namespace PCGSurfaceSamplerHelpers
 {
-	FPCGSurfaceSamplerContext* Context = new FPCGSurfaceSamplerContext();
-	Context->InputData = InInputData;
-	Context->SourceComponent = InSourceComponent;
-	Context->Node = InNode;
+	using ContextType = FPCGSurfaceSamplerElement::ContextType;
+	using ExecStateType = FPCGSurfaceSamplerElement::ExecStateType;
 
-	return Context;
-}
-
-bool FPCGSurfaceSamplerElement::AddGeneratingShapesToContext(FPCGSurfaceSamplerContext* InContext) const
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSurfaceSamplerElement::SetupContextForGeneratingShape);
-
-	check(InContext);
-	const UPCGSurfaceSamplerSettings* Settings = InContext->GetInputSettings<UPCGSurfaceSamplerSettings>();
-	check(Settings);
-
-	TArray<FPCGTaggedData>& Outputs = InContext->OutputData.TaggedData;
-
-	// Early out on invalid settings
-	// TODO: we could compute an approximate radius based on the points per squared meters if that's useful
-	const FVector& PointExtents = Settings->PointExtents;
-	if (PointExtents.X <= 0 || PointExtents.Y <= 0)
+	const UPCGSpatialData* FindBoundingShape(const FPCGContext* Context, bool& bOutUnionWasCreated)
 	{
-		PCGE_LOG_C(Warning, GraphAndLog, InContext, LOCTEXT("SkippedInvalidPointExtents", "Skipped - Invalid point extents"));
-		return false;
-	}
+		const UPCGSpatialData* BoundingShape = Context->InputData.GetSpatialUnionOfInputsByPin(PCGSurfaceSamplerConstants::BoundingShapeLabel, bOutUnionWasCreated);
 
-	TArray<FPCGTaggedData> SurfaceInputs = InContext->InputData.GetInputsByPin(PCGSurfaceSamplerConstants::SurfaceLabel);
-
-	// If there are no surfaces to sample, early out
-	if (SurfaceInputs.IsEmpty())
-	{
-		return false;
-	}
-
-	// Construct a list of shapes to generate samples from. Get these directly from the first input pin.
-	for (FPCGTaggedData& TaggedData : SurfaceInputs)
-	{
-		if (const UPCGSpatialData* SurfaceData = Cast<UPCGSpatialData>(TaggedData.Data))
+		// Fallback to getting bounds from actor
+		if (!BoundingShape && Context->SourceComponent.IsValid())
 		{
-			InContext->GeneratingShapes.Add(SurfaceData);
-			Outputs.Add(TaggedData);
-		}
-	}
-
-	// If there are no generating shapes, early out
-	if (InContext->GeneratingShapes.IsEmpty())
-	{
-		PCGE_LOG_C(Warning, GraphAndLog, InContext, LOCTEXT("NoSurfaceFound", "No valid surfaces found from which to generate"));
-		return false;
-	}
-
-	// Grab the Bounding Shape input if there is one.
-	const TArray<FPCGTaggedData> BoundingShapeInputs = InContext->InputData.GetInputsByPin(PCGSurfaceSamplerConstants::BoundingShapeLabel);
-
-	if (!Settings->bUnbounded)
-	{
-		InContext->BoundingShapeSpatialInput = InContext->InputData.GetSpatialUnionOfInputsByPin(PCGSurfaceSamplerConstants::BoundingShapeLabel, InContext->bUnionDataCreated);
-
-		// Root dynamically created data to keep it safe from GC
-		if (InContext->bUnionDataCreated && InContext->BoundingShapeSpatialInput)
-		{
-			const_cast<UPCGSpatialData*>(InContext->BoundingShapeSpatialInput)->AddToRoot();
+			check(bOutUnionWasCreated == false);
+			BoundingShape = Cast<UPCGSpatialData>(Context->SourceComponent->GetActorPCGData());
 		}
 
-		// Fallback to getting bounds from actor but only if we actually have some inputs
-		if (!InContext->BoundingShapeSpatialInput && InContext->SourceComponent.IsValid() && !InContext->GeneratingShapes.IsEmpty())
+		return BoundingShape;
+	}
+
+	bool InitializePerExecutionData(ContextType* Context, ExecStateType& OutState)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSurfaceSamplerElement::InitializePerExecutionData);
+
+		check(Context);
+		const UPCGSurfaceSamplerSettings* Settings = Context->GetInputSettings<UPCGSurfaceSamplerSettings>();
+		check(Settings);
+
+		const TArray<FPCGTaggedData> SurfaceInputs = Context->InputData.GetInputsByPin(PCGSurfaceSamplerConstants::SurfaceLabel);
+		// If there are no surfaces to sample, early out
+		if (SurfaceInputs.IsEmpty())
 		{
-			InContext->BoundingShapeSpatialInput = Cast<UPCGSpatialData>(InContext->SourceComponent->GetActorPCGData());
+			PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("NoSurfaceInputs", "No Surface input was provided."));
+			return false;
 		}
-	}
-	else if (BoundingShapeInputs.Num() > 0)
-	{
-		PCGE_LOG_C(Verbose, LogOnly, InContext, LOCTEXT("BoundsIgnored", "The bounds of the Bounding Shape input pin will be ignored because the Unbounded option is enabled."));
-	}
 
-	if (InContext->BoundingShapeSpatialInput)
-	{
-		InContext->BoundingShapeBounds = InContext->BoundingShapeSpatialInput->GetBounds();
-	}
-
-	// Warn if something is connected but no shape could be obtained for sampling
-	if (InContext->GeneratingShapes.Num() == 0 && (BoundingShapeInputs.Num() > 0 || SurfaceInputs.Num() > 0))
-	{
-		PCGE_LOG_C(Warning, GraphAndLog, InContext, LOCTEXT("NoGenerator", "No Surface input was provided, and no surface could be found in the Bounding Shape input for sampling. Connect the surface to be sampled to the Surface input."));
-		return false;
-	}
-
-	return true;
-}
-
-void FPCGSurfaceSamplerElement::AllocateOutputs(FPCGSurfaceSamplerContext* InContext) const
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSurfaceSamplerElement::AllocateOutputs);
-
-	check(InContext);
-	TArray<FPCGTaggedData>& Outputs = InContext->OutputData.TaggedData;
-
-	const UPCGSurfaceSamplerSettings* Settings = InContext->GetInputSettings<UPCGSurfaceSamplerSettings>();
-	check(Settings);
-
-	int32 GeneratingShapeIndex = 0;
-	while (GeneratingShapeIndex < InContext->GeneratingShapes.Num())
-	{
-		// If we have generating shape inputs, use them
-		const UPCGSpatialData* GeneratingShape = InContext->GeneratingShapes[GeneratingShapeIndex];
-		check(GeneratingShape);
-
-		// Calculate the intersection of bounds of the provided inputs
-		FBox InputBounds = FBox(EForceInit::ForceInit);
-
-		if (GeneratingShape->IsBounded())
+		// Early out on invalid settings
+		// TODO: we could compute an approximate radius based on the points per squared meters if that's useful
+		const FVector& PointExtents = Settings->PointExtents;
+		if (PointExtents.X <= 0 || PointExtents.Y <= 0)
 		{
-			InputBounds = GeneratingShape->GetBounds();
+			PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("SkippedInvalidPointExtents", "Skipped - Invalid point extents"));
+			return false;
+		}
 
-			if (InContext->BoundingShapeBounds.IsValid)
+		// Grab the Bounding Shape input if there is one.
+		const TArray<FPCGTaggedData> BoundingShapeInputs = Context->InputData.GetInputsByPin(PCGSurfaceSamplerConstants::BoundingShapeLabel);
+		if (!Settings->bUnbounded)
+		{
+			bool bUnionWasCreated;
+			const UPCGSpatialData* BoundingShape = FindBoundingShape(Context, bUnionWasCreated);
+			if (BoundingShape && bUnionWasCreated)
 			{
-				InputBounds = PCGHelpers::OverlapBounds(InputBounds, InContext->BoundingShapeBounds);
-			}
-		}
-		else
-		{
-			InputBounds = InContext->BoundingShapeBounds;
-		}
-
-		PCGSurfaceSampler::FSurfaceSamplerSettings TentativeLoopData = PCGSurfaceSampler::FSurfaceSamplerSettings{};
-		TentativeLoopData.bEnableTimeSlicing = true;
-		if (!InputBounds.IsValid || !TentativeLoopData.Initialize(Settings, InContext, InputBounds))
-		{
-			if (!GeneratingShape->IsBounded())
-			{
-				// Some inputs are unable to provide bounds, like the WorldRayHit, in which case the user must provide bounds.
-				PCGE_LOG_C(Warning, GraphAndLog, InContext, LOCTEXT("CouldNotObtainInputBounds", "Input data is not bounded, so bounds must be provided for sampling. Consider providing a Bounding Shape input."));
-			}
-			else if(!InputBounds.IsValid)
-			{
-				PCGE_LOG_C(Verbose, LogOnly, InContext, LOCTEXT("InvalidSamplingBounds", "Final sampling bounds is invalid/zero-sized."));
+				// Must cast away const to root the union object
+				Context->RootAndTrackObject(const_cast<UPCGSpatialData*>(BoundingShape));
 			}
 
-			Outputs.RemoveAt(GeneratingShapeIndex);
-			InContext->GeneratingShapes.RemoveAt(GeneratingShapeIndex);
-			continue;
+			if (BoundingShape)
+			{
+				OutState.BoundingShapeBounds = BoundingShape->GetBounds();
+			}
 		}
-		
-		InContext->LoopData.Emplace(std::move(TentativeLoopData));
+		else if (BoundingShapeInputs.Num() > 0)
+		{
+			PCGE_LOG_C(Verbose, LogOnly, Context, LOCTEXT("BoundsIgnored", "The bounds of the Bounding Shape input pin will be ignored because the Unbounded option is enabled."));
+		}
 
-		UPCGPointData* NewPointData = NewObject<UPCGPointData>();
-		NewPointData->InitializeFromData(GeneratingShape);
+		TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
+		// Find the generating shapes to sample
+		TArray<const UPCGSpatialData*>& GeneratingShapes = OutState.GeneratingShapes;
+		GeneratingShapes.Reserve(SurfaceInputs.Num());
 
-		// Directly set in the output, will allow for the data to be rooted if we are postponed.
-		Outputs[GeneratingShapeIndex].Data = NewPointData;
-		++GeneratingShapeIndex;
+		// Construct a list of shapes to generate samples from. Get these directly from the first input pin.
+		for (const FPCGTaggedData& TaggedData : SurfaceInputs)
+		{
+			if (const UPCGSpatialData* SurfaceData = Cast<UPCGSpatialData>(TaggedData.Data))
+			{
+				GeneratingShapes.Add(SurfaceData);
+				Outputs.Add(TaggedData);
+			}
+		}
+
+		// If there are no generating shapes, early out
+		if (GeneratingShapes.IsEmpty())
+		{
+			PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("NoSurfaceFound", "No surfaces found from which to generate"));
+			return false;
+		}
+
+		// Iterate over the generating shapes to compute the bounds
+		int32 GeneratingShapeIndex = 0;
+		while (GeneratingShapeIndex < GeneratingShapes.Num())
+		{
+			// If we have generating shape inputs, use them
+			const UPCGSpatialData* GeneratingShape = GeneratingShapes[GeneratingShapeIndex];
+			check(GeneratingShape);
+
+			// Calculate the intersection of bounds of the provided inputs
+			FBox InputBounds = FBox(EForceInit::ForceInit);
+
+			if (GeneratingShape->IsBounded())
+			{
+				InputBounds = GeneratingShape->GetBounds();
+
+				if (OutState.BoundingShapeBounds.IsValid)
+				{
+					InputBounds = PCGHelpers::OverlapBounds(InputBounds, OutState.BoundingShapeBounds);
+				}
+			}
+			else
+			{
+				InputBounds = OutState.BoundingShapeBounds;
+			}
+
+			if (!InputBounds.IsValid || !OutState.Settings.Initialize(Settings, Context, InputBounds))
+			{
+				if (!GeneratingShape->IsBounded())
+				{
+					// Some inputs are unable to provide bounds, like the WorldRayHit, in which case the user must provide bounds.
+					PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("CouldNotObtainInputBounds", "Input data is not bounded, so bounds must be provided for sampling. Consider providing a Bounding Shape input."));
+				}
+				else if(!InputBounds.IsValid)
+				{
+					// TODO [REVIEWERS]: Should this not be at least a warning, since the generating shape is being culled here?
+					PCGE_LOG_C(Verbose, LogOnly, Context, LOCTEXT("InvalidSamplingBounds", "Final sampling bounds is invalid/zero-sized."));
+				}
+
+				Outputs.RemoveAt(GeneratingShapeIndex);
+				GeneratingShapes.RemoveAt(GeneratingShapeIndex);
+				continue;
+			}
+
+			++GeneratingShapeIndex;
+		}
+
+		// If there are still no generating shapes
+		if (GeneratingShapes.IsEmpty())
+		{
+			PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("InvalidSurface", "No surfaces from which to generate are valid"));
+		}
+
+		return true;
 	}
 }
 
 bool FPCGSurfaceSamplerElement::PrepareDataInternal(FPCGContext* InContext) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSurfaceSamplerElement::PrepareData);
-	FPCGSurfaceSamplerContext* Context = static_cast<FPCGSurfaceSamplerContext*>(InContext);
-
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSurfaceSamplerElement::PrepareDataInternal);
+	ContextType* Context = static_cast<ContextType*>(InContext);
 	check(Context);
 
-	if (AddGeneratingShapesToContext(Context))
+	// Initialize the per-execution state data that won't change over the duration of the time slicing
+	if (!Context->InitializePerExecutionState(PCGSurfaceSamplerHelpers::InitializePerExecutionData))
 	{
-		AllocateOutputs(Context);
-		Context->bDataPrepared = true;
+		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("CouldNotInitializeExecutionState", "Could not initialize per-execution timeslice state data"));
+		return true;
+	}
+
+	TArray<const UPCGSpatialData*>& GeneratingShapes = Context->GetPerExecutionState().GeneratingShapes;
+	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
+
+	// Initialize the per-iteration data, using the generating shapes as the source of iteration
+	const bool bInitSuccess = Context->InitializePerIterationStates(GeneratingShapes.Num(),
+		[&GeneratingShapes, &Outputs](IterStateType& OutState, const uint32 IterationIndex)->bool
+		{
+			OutState.OutputPoints = NewObject<UPCGPointData>();
+			OutState.OutputPoints->InitializeFromData(GeneratingShapes[IterationIndex]);
+			// Assigning this here prevents the need to root
+			Outputs[IterationIndex].Data = OutState.OutputPoints;
+			return true;
+		});
+
+	if (!bInitSuccess)
+	{
+		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("CouldNotInitializeIterationState", "Could not initialize per-iteration timeslice state data"));
 	}
 
 	return true;
@@ -507,36 +487,28 @@ bool FPCGSurfaceSamplerElement::PrepareDataInternal(FPCGContext* InContext) cons
 bool FPCGSurfaceSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSurfaceSamplerElement::Execute);
-	FPCGSurfaceSamplerContext* Context = static_cast<FPCGSurfaceSamplerContext*>(InContext);
-
-	check(Context);
+	ContextType* TimeSlicedContext = static_cast<ContextType*>(InContext);
+	check(TimeSlicedContext);
 
 	// Prepare data failed, no need to execute
-	if (!Context->bDataPrepared)
+	if (!TimeSlicedContext->DataIsPrepared())
 	{
 		return true;
 	}
 
-	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
-
-	while (Context->CurrentGeneratingShape < Context->GeneratingShapes.Num())
+	// The context will iterate over per-iteration states and execute the lambda until it returns true
+	return ExecuteSlice(TimeSlicedContext, [](ContextType* Context, const ExecStateType& ExecutionState, const IterStateType& IterationState, const uint32 IterationIndex)->bool
 	{
-		UPCGPointData* PointData = const_cast<UPCGPointData*>(Cast<UPCGPointData>(Outputs[Context->CurrentGeneratingShape].Data));
+		// Run the execution until the time slice is finished
+		const bool bAsyncDone = PCGSurfaceSampler::SampleSurface(Context, ExecutionState.Settings, ExecutionState.GeneratingShapes[IterationIndex], ExecutionState.BoundingShape, IterationState.OutputPoints, Context->TimeSliceIsEnabled());
 
-		if (PointData)
+		if (Context && bAsyncDone)
 		{
-			bool bIsDone = PCGSurfaceSampler::SampleSurface(Context, Context->GeneratingShapes[Context->CurrentGeneratingShape], Context->BoundingShapeSpatialInput, Context->LoopData[Context->CurrentGeneratingShape], PointData);
-
-			if (!bIsDone)
-			{
-				return false;
-			}
+			PCGE_LOG_C(Verbose, LogOnly, Context, FText::Format(LOCTEXT("GenerationInfo", "Generated {0} points in {1} cells"), IterationState.OutputPoints->GetPoints().Num(), ExecutionState.Settings.CellCount));
 		}
 
-		Context->CurrentGeneratingShape++;
-	}
-
-	return true;
+		return bAsyncDone;
+	});
 }
 
 void FPCGSurfaceSamplerElement::GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const

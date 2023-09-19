@@ -366,7 +366,6 @@ const UPCGPointData* UPCGWorldRayHitData::CreatePointData(FPCGContext* Context, 
 {
 	UPCGPointData* Data = NewObject<UPCGPointData>();
 	Data->InitializeFromData(this);
-	TArray<FPCGPoint>& Points = Data->GetMutablePoints();
 
 	FBox EffectiveBounds = Bounds;
 	if (InBounds.IsValid)
@@ -392,10 +391,10 @@ const UPCGPointData* UPCGWorldRayHitData::CreatePointData(FPCGContext* Context, 
 		return Data;
 	}
 
-	PCGSurfaceSampler::FSurfaceSamplerSettings SamplerSettings;
+	PCGSurfaceSampler::FSurfaceSamplerExecutionSettings SamplerSettings;
 	if (SamplerSettings.Initialize(nullptr, Context, EffectiveBounds))
 	{
-		PCGSurfaceSampler::SampleSurface(Context, this, nullptr, SamplerSettings, Data);
+		Data = PCGSurfaceSampler::SampleSurface(Context, this, nullptr, SamplerSettings);
 	}
 
 	return Data;

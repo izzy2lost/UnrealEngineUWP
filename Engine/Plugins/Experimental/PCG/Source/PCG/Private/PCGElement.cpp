@@ -9,7 +9,6 @@
 #include "Data/PCGPointData.h"
 #include "Elements/PCGDebugElement.h"
 #include "Elements/PCGSelfPruning.h"
-#include "Grid/PCGPartitionActor.h"
 
 #include "HAL/IConsoleManager.h"
 #include "Utils/PCGExtraCapture.h"
@@ -329,6 +328,11 @@ void IPCGElement::DisabledPassThroughData(FPCGContext* Context) const
 	}
 }
 
+FPCGContext* IPCGElement::CreateContext()
+{
+	return new FPCGContext();
+}
+
 #if WITH_EDITOR
 void IPCGElement::DebugDisplay(FPCGContext* Context) const
 {
@@ -480,6 +484,16 @@ void IPCGElement::CleanupAndValidateOutput(FPCGContext* Context) const
 	}
 }
 
+FPCGContext* IPCGElement::Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node)
+{
+	FPCGContext* Context = CreateContext();
+	Context->InputData = InputData;
+	Context->SourceComponent = SourceComponent;
+	Context->Node = Node;
+
+	return Context;
+}
+
 bool IPCGElement::IsCacheableInstance(const UPCGSettingsInterface* InSettingsInterface) const
 {
 	if (InSettingsInterface)
@@ -519,16 +533,6 @@ void IPCGElement::GetDependenciesCrc(const FPCGDataCollection& InInput, const UP
 	}
 
 	OutCrc = Crc;
-}
-
-FPCGContext* FSimplePCGElement::Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node)
-{
-	FPCGContext* Context = new FPCGContext();
-	Context->InputData = InputData;
-	Context->SourceComponent = SourceComponent;
-	Context->Node = Node;
-
-	return Context;
 }
 
 #undef LOCTEXT_NAMESPACE

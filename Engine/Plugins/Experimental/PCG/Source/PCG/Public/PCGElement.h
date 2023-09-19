@@ -70,7 +70,7 @@ public:
 	virtual ~IPCGElement() = default;
 
 	/** Creates a custom context object paired to this element */
-	virtual FPCGContext* Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node) = 0;
+	virtual FPCGContext* Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node);
 
 	/** Returns true if the element, in its current phase can be executed only from the main thread */
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const { return false; }
@@ -119,6 +119,9 @@ protected:
 	/** Passes through data when the element is Disabled. Can be implemented to override what gets passed through. */
 	virtual void DisabledPassThroughData(FPCGContext* Context) const;
 
+	/** Let each element optionally act as a concrete factory for its own context */
+	virtual FPCGContext* CreateContext();
+
 #if WITH_EDITOR
 	virtual bool ShouldLog() const { return true; }
 #endif
@@ -132,8 +135,8 @@ private:
 */
 class PCG_API FSimplePCGElement : public IPCGElement
 {
-public:
-	virtual FPCGContext* Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node) override;
+	// TODO: Will be scrubbed and cleaned up in a following CL
+	// TODO: In the same CL, go through and have classes with simple initializations replaced with CreateContext only
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
