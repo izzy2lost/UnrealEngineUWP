@@ -9,6 +9,8 @@
 #define ESlateShader::ColorFont		3
 #define ESlateShader::LineSegment	4
 #define ESlateShader::RoundedBox    7
+#define ESlateShader::SdfFont       8
+#define ESlateShader::MsdfFont      9
 
 #define USE_LEGACY_DISABLED_EFFECT 0
 
@@ -73,6 +75,35 @@ float4 GetColorFontElementColor(VertexOut InVertex)
 	float4 OutColor = InVertex.Color;
 
 	OutColor *= ElementTexture.Sample(ElementTextureSampler, InVertex.TextureCoordinates.xy);
+
+	return OutColor;
+}
+
+float GetOpacityFromSignedDistance(float SampledDistance, float2 SdfCoord)
+{
+	const float2 ScreenSpaceTextureSize = float2(1.0, 1.0) / fwidth(SdfCoord);
+	const float ScreenSpaceSpread = max(dot(ShaderParams.xy, ScreenSpaceTextureSize), 1.0);
+	const float ScreenSpaceDistance = (SampledDistance - ShaderParams.z) * ScreenSpaceSpread;
+	return saturate(ScreenSpaceDistance + 0.5);
+}
+
+float4 GetSdfFontElementColor(VertexOut InVertex)
+{
+	float4 OutColor = InVertex.Color;
+
+	const float SampledDistance = float(ElementTexture.Sample(ElementTextureSampler, InVertex.TextureCoordinates.xy).a);
+	OutColor.a *= GetOpacityFromSignedDistance(SampledDistance, InVertex.TextureCoordinates.xy);
+
+	return OutColor;
+}
+
+float4 GetMsdfFontElementColor(VertexOut InVertex)
+{
+	float4 OutColor = InVertex.Color;
+
+	const float4 MultiDistance = float4(ElementTexture.Sample(ElementTextureSampler, InVertex.TextureCoordinates.xy));
+	const float SampledDistance = max(min(MultiDistance.r, MultiDistance.g), min(max(MultiDistance.r, MultiDistance.g), MultiDistance.b));
+	OutColor.a *= GetOpacityFromSignedDistance(SampledDistance, InVertex.TextureCoordinates.xy);
 
 	return OutColor;
 }
@@ -219,6 +250,14 @@ float4 Main( VertexOut InVertex ) : SV_Target
 	else if (ShaderType == ESlateShader::ColorFont)
 	{
 		OutColor = GetColorFontElementColor(InVertex);
+	}
+	else if (ShaderType == ESlateShader::SdfFont)
+	{
+		OutColor = GetSdfFontElementColor(InVertex);
+	}
+	else if (ShaderType == ESlateShader::MsdfFont)
+	{
+		OutColor = GetMsdfFontElementColor(InVertex);
 	}
 	else
 	{

@@ -56,7 +56,7 @@ enum class ESlateShader : uint8
 	Border = 1,
 	/** Grayscale font shader. Uses an alpha only texture */
 	GrayscaleFont = 2,
-	/** Grayscale font shader. Uses an color texture */
+	/** Color font shader. Uses an sRGB texture */
 	ColorFont = 3,
 	/** Line segment shader. For drawing anti-aliased lines */
 	LineSegment = 4,
@@ -66,6 +66,10 @@ enum class ESlateShader : uint8
 	PostProcess = 6,
 	/** Rounded Box shader. **/
 	RoundedBox = 7,
+	/** Signed distance field font shader */
+	SdfFont = 8,
+	/** Multi-channel signed distance field font shader */
+	MsdfFont = 9,
 };
 
 /**

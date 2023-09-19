@@ -135,7 +135,7 @@ void FSlateVectorGraphicsCache::UpdateCache()
 
 						Atlases.Add(MoveTemp(NewAtlas));
 
-						UpdateFlushCounters(0, Atlases.Num(), 0);
+						UpdateFlushCounters(0, Atlases.Num(), 0, 0);
 					}
 
 
@@ -151,7 +151,7 @@ void FSlateVectorGraphicsCache::UpdateCache()
 						NewProxy->ActualSize = FIntPoint(PixelSize.X, PixelSize.Y);
 					}
 				}
-				UpdateFlushCounters(0, Atlases.Num(), NonAtlasedTextures.Num());
+				UpdateFlushCounters(0, Atlases.Num(), 0, NonAtlasedTextures.Num());
 			}
 		}
 	}

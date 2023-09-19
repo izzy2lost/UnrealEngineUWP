@@ -1477,6 +1477,12 @@ TShaderRef<FSlateElementPS> FSlateRHIRenderingPolicy::GetTexturePixelShader(FGlo
 		case ESlateShader::RoundedBox:
 			PixelShader = TShaderMapRef<TSlateElementPS<ESlateShader::RoundedBox, true> >(ShaderMap);
 			break;
+		case ESlateShader::SdfFont:
+			PixelShader = TShaderMapRef<TSlateElementPS<ESlateShader::SdfFont, true> >(ShaderMap);
+			break;
+		case ESlateShader::MsdfFont:
+			PixelShader = TShaderMapRef<TSlateElementPS<ESlateShader::MsdfFont, true> >(ShaderMap);
+			break;
 		}
 	}
 	else
@@ -1558,6 +1564,12 @@ TShaderRef<FSlateElementPS> FSlateRHIRenderingPolicy::GetTexturePixelShader(FGlo
 		case ESlateShader::RoundedBox:
 			PixelShader = TShaderMapRef<TSlateElementPS<ESlateShader::RoundedBox, false> >(ShaderMap);
 			break;
+		case ESlateShader::SdfFont:
+			PixelShader = TShaderMapRef<TSlateElementPS<ESlateShader::SdfFont, false> >(ShaderMap);
+			break;
+		case ESlateShader::MsdfFont:
+			PixelShader = TShaderMapRef<TSlateElementPS<ESlateShader::MsdfFont, false> >(ShaderMap);
+			break;
 		}
 	}
 	}
@@ -1587,6 +1599,12 @@ void FSlateRHIRenderingPolicy::ChooseMaterialShaderTypes(ESlateShader ShaderType
 		break;
 	case ESlateShader::Custom:
 		OutShaderTypes.AddShaderType<TSlateMaterialShaderPS<ESlateShader::Custom>>();
+		break;
+	case ESlateShader::SdfFont:
+		OutShaderTypes.AddShaderType<TSlateMaterialShaderPS<ESlateShader::SdfFont>>();
+		break;
+	case ESlateShader::MsdfFont:
+		OutShaderTypes.AddShaderType<TSlateMaterialShaderPS<ESlateShader::MsdfFont>>();
 		break;
 	default:
 		checkf(false, TEXT("Unsupported Slate shader type for use with materials"));

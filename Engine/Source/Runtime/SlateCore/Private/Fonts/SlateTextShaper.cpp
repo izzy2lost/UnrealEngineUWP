@@ -3,6 +3,7 @@
 #include "Fonts/SlateTextShaper.h"
 #include "Fonts/FontCacheCompositeFont.h"
 #include "Fonts/SlateFontRenderer.h"
+#include "Fonts/FontProviderInterface.h"
 #include "Internationalization/BreakIterator.h"
 #include "SlateGlobals.h"
 
@@ -307,7 +308,15 @@ FShapedGlyphSequenceRef FSlateTextShaper::FinalizeTextShaping(TArray<FShapedGlyp
 	}
 #endif // WITH_FREETYPE
 
-	return MakeShared<FShapedGlyphSequence>(MoveTemp(InGlyphsToRender), TextBaseline, MaxHeight, InFontInfo.FontMaterial, InFontInfo.OutlineSettings, InSourceTextRange);
+	const IFontProviderInterface* const FontObject = Cast<const IFontProviderInterface>(InFontInfo.FontObject);
+	return MakeShared<FShapedGlyphSequence>(MoveTemp(InGlyphsToRender), 
+											TextBaseline, 
+											MaxHeight, 
+											InFontInfo.FontMaterial.Get(),
+											InFontInfo.OutlineSettings,
+											FontObject ? FontObject->GetFontRasterizationMode() : EFontRasterizationMode::Bitmap,
+											FontObject ? FontObject->GetSdfSettings() : FFontSdfSettings(),
+											InSourceTextRange);
 }
 
 #if WITH_FREETYPE
@@ -695,9 +704,23 @@ void FSlateTextShaper::PerformHarfBuzzTextShaping(const TCHAR* InText, const int
 			const float FinalFontScale = InFontScale * HarfBuzzTextSequenceEntry.SubFontScalingFactor;
 
 			hb_font_t* HarfBuzzFont = HarfBuzzFontFactory.CreateFont(*HarfBuzzTextSequenceEntry.FaceAndMemory, GlyphFlags, InFontInfo, FinalFontScale);
-			TSharedRef<FShapedGlyphFaceData> ShapedGlyphFaceData = MakeShared<FShapedGlyphFaceData>(HarfBuzzTextSequenceEntry.FaceAndMemory, GlyphFlags, InFontInfo.Size, FinalFontScale, InFontInfo.GetClampSkew());
-			TSharedPtr<FFreeTypeKerningCache> KerningCache = FTCacheDirectory->GetKerningCache(HarfBuzzTextSequenceEntry.FaceAndMemory->GetFace(), FT_KERNING_DEFAULT, InFontInfo.Size, FinalFontScale);
-			TSharedRef<FFreeTypeAdvanceCache> AdvanceCache = FTCacheDirectory->GetAdvanceCache(HarfBuzzTextSequenceEntry.FaceAndMemory->GetFace(), ShapedGlyphFaceData->GlyphFlags, InFontInfo.Size, FinalFontScale);
+			if (!HarfBuzzFont)
+			{
+				continue;
+			}
+			TSharedRef<FShapedGlyphFaceData> ShapedGlyphFaceData = MakeShared<FShapedGlyphFaceData>(HarfBuzzTextSequenceEntry.FaceAndMemory, 
+																									GlyphFlags, 
+																									InFontInfo.Size, 
+																									FinalFontScale, 
+																									InFontInfo.GetClampSkew());
+			TSharedPtr<FFreeTypeKerningCache> KerningCache = FTCacheDirectory->GetKerningCache(HarfBuzzTextSequenceEntry.FaceAndMemory->GetFace(), 
+																							   FT_KERNING_DEFAULT,
+																							   InFontInfo.Size, 
+																							   FinalFontScale);
+			TSharedRef<FFreeTypeAdvanceCache> AdvanceCache = FTCacheDirectory->GetAdvanceCache(HarfBuzzTextSequenceEntry.FaceAndMemory->GetFace(), 
+																							   GlyphFlags,
+																							   InFontInfo.Size, 
+																							   FinalFontScale);
 
 			for (const FHarfBuzzTextSequenceEntry::FSubSequenceEntry& HarfBuzzTextSubSequenceEntry : HarfBuzzTextSequenceEntry.SubSequence)
 			{

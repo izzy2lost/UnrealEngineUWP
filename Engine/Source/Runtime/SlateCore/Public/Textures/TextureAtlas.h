@@ -10,6 +10,19 @@
 
 class FSlateShaderResource;
 
+/**
+ * Specifies the type of content of font atlas, based on which the texture format is determined.
+ */
+enum class ESlateFontAtlasContentType
+{
+	/** Alpha channel only (linear, formerly IsGrayscale = true) */
+	Alpha,
+	/** RGBA color data - sRGB color space */
+	Color,
+	/** Multi-channel signed distance field - linear color space */
+	Msdf
+};
+
 /** 
  * Specifies how to handle texture atlas padding (when specified for the atlas). 
  * We only support one pixel of padding because we don't support mips or aniso filtering on atlas textures right now.
@@ -41,6 +54,11 @@ enum class ESlateTextureAtlasThreadId
  * Get the correct atlas thread ID based on the thread we're currently in 
  */
 SLATECORE_API ESlateTextureAtlasThreadId GetCurrentSlateTextureAtlasThreadId();
+
+/**
+ * Returns the byte size of a single pixel of a font atlas with the specified content type
+ */
+SLATECORE_API uint32 GetSlateFontAtlasContentBytesPerPixel(ESlateFontAtlasContentType InContentType);
 
 /**
  * Structure holding information about where a texture is located in the atlas. Inherits a linked-list interface.
@@ -284,7 +302,7 @@ public:
 	void ResetFlushCounters();
 
 	/** Increments counters that determine if a flush is needed.  If a flush is needed RequestFlushCache will be called from here */
-	void UpdateFlushCounters(int32 NumGrayscale, int32 NumColor, int32 NumNonAtlased);
+	void UpdateFlushCounters(int32 NumGrayscale, int32 NumColor, int32 NumMsdf, int32 NumNonAtlased);
 
 private:
 	bool UpdateInternal(int32 CurrentNum, int32& MaxNum, int32 InitialMax, int32 FrameWindowNum);
@@ -297,6 +315,9 @@ private:
 
 	/** Number of color atlas pages we can have before we request that the cache be flushed */
 	int32 CurrentMaxColorAtlasPagesBeforeFlushRequest;
+
+	/** Number of multi-channel signed distance field atlas pages we can have before we request that the cache be flushed */
+	int32 CurrentMaxMsdfAtlasPagesBeforeFlushRequest;
 
 	/** Number of non-atlased textures we can have before we request that the cache be flushed */
 	int32 CurrentMaxNonAtlasedTexturesBeforeFlushRequest;
