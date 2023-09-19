@@ -88,9 +88,6 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 {
 	GENERATED_UCLASS_BODY()
 
-	friend class ALightWeightInstanceStaticMeshManager;
-	friend class ALightWeightInstanceManager;
-	
 	/** Needs implementation in InstancedStaticMesh.cpp to compile UniquePtr for forward declared class */
 	ENGINE_API UInstancedStaticMeshComponent(FVTableHelper& Helper);
 	ENGINE_API virtual ~UInstancedStaticMeshComponent();
@@ -476,6 +473,9 @@ public:
 	ENGINE_API void GetInstancesMinMaxScale(FVector& MinScale, FVector& MaxScale) const;
 
 	ENGINE_API void FlushInstanceUpdateCommands(bool bFlushInstanceUpdateCmdBuffer);
+
+	UE_DEPRECATED(5.4, "This function has been added only for the purposes of moving LWI code outside of the engine. Don't use it, it will be removed soon.")
+	ENGINE_API void OnPostPopulatePerInstanceData() { OnPostLoadPerInstanceData(); }
 
 	TArray<int32> PerInstanceIds;
 

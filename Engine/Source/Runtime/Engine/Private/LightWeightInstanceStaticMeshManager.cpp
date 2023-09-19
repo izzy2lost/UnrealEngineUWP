@@ -71,7 +71,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			ISMComponent->AddInstance(InstanceTransform, /*bWorldSpace*/false);
 		}
 
-		ISMComponent->OnPostLoadPerInstanceData();
+		ISMComponent->OnPostPopulatePerInstanceData();
 
 		// release all instances in the HISM
 		InstancedStaticMeshComponent_DEPRECATED->ClearInstances();
@@ -110,7 +110,9 @@ void ALightWeightInstanceStaticMeshManager::SetRepresentedClass(UClass* ActorCla
 
 	if (ISMComponent)
 	{
-		ISMComponent->OnPostLoadPerInstanceData();
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		ISMComponent->OnPostPopulatePerInstanceData();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
