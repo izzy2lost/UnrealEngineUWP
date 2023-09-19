@@ -56,7 +56,7 @@ void FLogTrace::OutputLogMessageSpec(const void* LogPoint, const FLogCategoryBas
 		<< LogMessageSpec.FormatString(Format, FormatStringLen);
 }
 
-void FLogTrace::OutputLogMessageInternal(const void* LogPoint, uint16 EncodedFormatArgsSize, uint8* EncodedFormatArgs)
+void FLogTrace::OutputLogMessageInternal(const void* LogPoint, int32 EncodedFormatArgsSize, const uint8* EncodedFormatArgs)
 {
 	UE_TRACE_LOG(Logging, LogMessage, LogChannel)
 		<< LogMessage.LogPoint(LogPoint)
