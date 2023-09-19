@@ -1,3 +1,5 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
 
 #include "Chaos/ConvexOptimizer.h"
 #include "Chaos/Tribox.h"
