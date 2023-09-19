@@ -3420,7 +3420,7 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)
 		AsyncOps |= EUpdateAllPrimitiveSceneInfosAsyncOps::CacheMeshDrawCommands;
 	}
 
-	if (GAsyncCacheMaterialUniformExpressions > 0)
+	if (GAsyncCacheMaterialUniformExpressions > 0 && !IsMobilePlatform(ShaderPlatform))
 	{
 		AsyncOps |= EUpdateAllPrimitiveSceneInfosAsyncOps::CacheMaterialUniformExpressions;
 	}
