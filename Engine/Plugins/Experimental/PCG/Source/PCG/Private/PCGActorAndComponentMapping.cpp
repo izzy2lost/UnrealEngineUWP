@@ -882,6 +882,7 @@ void FPCGActorAndComponentMapping::UnregisterTracking(UPCGComponent* InComponent
 	else
 	{
 		RemoveAllFromMap(CulledTrackedActorsToComponentsMap, CandidatesForUntrack);
+		RemoveAllFromMap(AlwaysTrackedActorsToComponentsMap, CandidatesForUntrack);
 	}
 
 	if (OptionalKeysToUntrack)
