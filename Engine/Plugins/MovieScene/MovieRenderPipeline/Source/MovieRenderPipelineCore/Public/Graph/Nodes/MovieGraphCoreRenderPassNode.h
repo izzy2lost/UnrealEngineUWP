@@ -191,7 +191,6 @@ protected:
 			, FrameIndex(-1)
 			, bCameraCut(false)
 			, AntiAliasingMethod(EAntiAliasingMethod::AAM_None)
-			, View(nullptr)
 			, SceneViewStateReference(nullptr)
 		{
 		}
@@ -206,9 +205,6 @@ protected:
 		int32 FrameIndex;
 		bool bCameraCut;
 		EAntiAliasingMethod AntiAliasingMethod;
-
-		// Ownership of this will be passed to the FSceneViewFamilyContext
-		FSceneView* View;
 
 		FSceneViewStateInterface* SceneViewStateReference;
 

@@ -44,7 +44,9 @@ public:
 	virtual FFrameRate GetTickResolution() const override;
 	virtual FFrameRate GetDisplayRate() const override;
 	virtual void SyncDataSourceTime(const FFrameTime& InTime) override;
-	virtual void InitializeShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) override;
+	virtual void PlayDataSource() override;
+	virtual void PauseDataSource() override;
+	virtual void JumpDataSource(const FFrameTime& InTimeToJumpTo) override;
 	virtual void CacheHierarchyForShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) override;
 	virtual void RestoreHierarchyForShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) override;
 	virtual void MuteShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) override;

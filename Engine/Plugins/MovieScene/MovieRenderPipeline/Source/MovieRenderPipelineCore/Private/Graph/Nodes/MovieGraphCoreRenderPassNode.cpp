@@ -363,10 +363,10 @@ void UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::Render(const FMovieGr
 	GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.ToSharedPtr().Get());
 
 	// If this was just to contribute to the history buffer, no need to go any further.
-	//if (InSampleState.bDiscardResult)
-	//{
-	//	return;
-	//}
+	if (InTimeData.bDiscardOutput)
+	{
+		return;
+	}
 
 	// Take our per-frame Traversal Context and update it with context specific to this sample.
 	FMovieGraphTraversalContext UpdatedTraversalContext = InFrameTraversalContext;
@@ -401,7 +401,7 @@ void UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::PostRendererSubmissio
 	UE::MovieGraph::DefaultRenderer::FSurfaceAccumulatorPool::FInstancePtr AccumulatorInstance = nullptr;
 	{
 		// SCOPE_CYCLE_COUNTER(STAT_MoviePipeline_WaitForAvailableAccumulator);
-		AccumulatorInstance = SampleAccumulatorPool->BlockAndGetAccumulator_GameThread(InSampleState.TraversalContext.Time.OutputFrameNumber, InSampleState.TraversalContext.RenderDataIdentifier);
+		AccumulatorInstance = SampleAccumulatorPool->BlockAndGetAccumulator_GameThread(InSampleState.TraversalContext.Time.RenderedFrameNumber, InSampleState.TraversalContext.RenderDataIdentifier);
 	}
 
 	FMoviePipelineSurfaceQueuePtr LocalSurfaceQueue = Renderer->GetOrCreateSurfaceQueue(InRenderTargetInitParams);
@@ -547,16 +547,16 @@ FSceneView* UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::AllocateSceneV
 
 void UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::ApplyMoviePipelineOverridesToViewFamily(TSharedRef<FSceneViewFamilyContext> InOutFamily, const FViewFamilyContextInitData& InInitData)
 {
-	/*// A third set of overrides required to properly configure views to match the given showflags/etc.
-	// ToDo: There's now five(!) identical implementations of this, we should unify them.
+	// A third set of overrides required to properly configure views to match the given showflags/etc.
 	// SetupViewForViewModeOverride(View);
 
 	// Override the view's FrameIndex to be based on our progress through the sequence. This greatly increases
 	// determinism with things like TAA.
-	InInitData.View->OverrideFrameIndexValue = InInitData.FrameIndex;
-	InInitData.View->bCameraCut = InInitData.bCameraCut;
-	InInitData.View->bIsOfflineRender = true;
-	InInitData.View->AntiAliasingMethod = InInitData.AntiAliasingMethod;
+	FSceneView* View = const_cast<FSceneView*>(InOutFamily->Views[0]);
+	View->OverrideFrameIndexValue = InInitData.FrameIndex;
+	View->bCameraCut = InInitData.bCameraCut;
+	View->bIsOfflineRender = true;
+	View->AntiAliasingMethod = InInitData.AntiAliasingMethod;
 
 	// Add any view extensions that were added to the scene to this View too
 	// OutViewFamily->ViewExtensions.Append(GEngine->ViewExtensions->GatherActiveExtensions(FSceneViewExtensionContext(GetWorld()->Scene)));
@@ -576,12 +576,9 @@ void UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::ApplyMoviePipelineOve
 
 	// Override the Motion Blur settings since these are controlled by the movie pipeline.
 	{
-		// FFrameRate OutputFrameRate = GetPipeline()->GetPipelinePrimaryConfig()->GetEffectiveFrameRate(GetPipeline()->GetTargetSequence());
-		FFrameRate OutputFrameRate = FFrameRate(24, 1); // ToDo, get this from config.
-
 		// We need to inversly scale the target FPS by time dilation to counteract slowmo. If scaling isn't applied then motion blur length
 		// stays the same length despite the smaller delta time and the blur ends up too long.
-		View->FinalPostProcessSettings.MotionBlurTargetFPS = FMath::RoundToInt(OutputFrameRate.AsDecimal() / FMath::Max(SMALL_NUMBER, InInitData.TimeData.TimeDilation));
+		View->FinalPostProcessSettings.MotionBlurTargetFPS = FMath::RoundToInt(InInitData.TimeData.FrameRate.AsDecimal() / FMath::Max(SMALL_NUMBER, InInitData.TimeData.WorldTimeDilation));
 		View->FinalPostProcessSettings.MotionBlurAmount = InInitData.TimeData.MotionBlurFraction;
 		View->FinalPostProcessSettings.MotionBlurMax = 100.f;
 		View->FinalPostProcessSettings.bOverride_MotionBlurAmount = true;
@@ -591,12 +588,12 @@ void UMovieGraphCoreRenderPassNode::FMovieGraphRenderPass::ApplyMoviePipelineOve
 		// Skip the whole pass if they don't want motion blur.
 		if (FMath::IsNearlyZero(InInitData.TimeData.MotionBlurFraction))
 		{
-			OutViewFamily->EngineShowFlags.SetMotionBlur(false);
+			InOutFamily->EngineShowFlags.SetMotionBlur(false);
 		}
 	}
 
 	// Warn the user for invalid setting combinations / enforce hardware limitations
-	{
+	/*{
 
 		// Locked Exposure
 		const bool bAutoExposureAllowed = IsAutoExposureAllowed(InOutSampleState);

@@ -28,7 +28,7 @@ public:
 	uint8 bOverride_NumWarmUpFrames : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_EmulateMotionBlur : 1;
+	uint8 bOverride_bEmulateMotionBlur : 1;
 
 	/** At the start of each shot, how many frames should we run the engine (without writing renders to disk) to warm up various systems. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta=(EditCondition="bOverride_NumWarmUpFrames"))
@@ -37,6 +37,6 @@ public:
 	/** 
 	If true, we will evaluate frame 0, and then wait NumWarmUpFrames frames, rendering each one as we go. Then we will evaluate frame 1, and then frame 0 again. This emulates motion blur on the first frame (which normally needs data before frame 0). If false, we will "walk" towards the first frame of the shot, starting NumWarmUpFrames before the shot normally starts. 
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (EditCondition = "bOverride_EmulateMotionBlur"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (EditCondition = "bOverride_bEmulateMotionBlur"))
 	bool bEmulateMotionBlur;
 };

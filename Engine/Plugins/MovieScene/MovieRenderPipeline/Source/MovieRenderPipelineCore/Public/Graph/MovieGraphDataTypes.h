@@ -151,8 +151,16 @@ public:
 
 	/** Called by the Time Step system when it wants the external data source to update. Time is in TickResolution scale. */
 	virtual void SyncDataSourceTime(const FFrameTime& InTime) {}
+	
+	/** Called by the Time Step system when the external data source should start playback (time values will have been set by SyncDataSourceTime */
+	virtual void PlayDataSource() {}
 
-	virtual void BuildTimeRanges() { }
+	/** Called by the Time Step system when the external data source should pause playback. */
+	virtual void PauseDataSource() {}
+
+	/** Called by the Time Step system when the external data source should jump to the given time. Time is in TickResolution scale. */
+	virtual void JumpDataSource(const FFrameTime& InTimeToJumpTo) {}
+
 	/** 
 	* Called when the Movie Graph Pipeline starts before anything has happened, allowing you to 
 	* cache your datasource before making any modifications to it as a result of rendering.

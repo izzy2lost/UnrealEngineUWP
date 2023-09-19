@@ -321,6 +321,8 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 		ExpandShot(Shot, OutputNode->HandleFrameCount, bExpandForTemporalSubSample, bPrePass, FinalFrameRate, TickResolution, WarmUpNode->NumWarmUpFrames);
 
 		Shot->ShotInfo.CurrentTimeInRoot = Shot->ShotInfo.TotalOutputRangeRoot.GetLowerBoundValue();
+		Shot->ShotInfo.NumEngineWarmUpFramesRemaining = WarmUpNode->NumWarmUpFrames;
+		Shot->ShotInfo.bEmulateFirstFrameMotionBlur = WarmUpNode->bEmulateMotionBlur;
 		Shot->ShotInfo.CalculateWorkMetrics(GetDataSourceInstance());
 	}
 
@@ -1019,12 +1021,12 @@ void UMovieGraphPipeline::ProcessOutstandingFinishedFrames()
 		UE::MovieGraph::FMovieGraphOutputMergerFrame OutputFrame;
 		OutputMerger->GetFinishedFrames().Dequeue(OutputFrame);
 
-		UE::MovieGraph::FRenderTimeStatistics* TimeStats = GetRendererInstance()->GetRenderTimeStatistics(OutputFrame.TraversalContext.Time.OutputFrameNumber);
+		UE::MovieGraph::FRenderTimeStatistics* TimeStats = GetRendererInstance()->GetRenderTimeStatistics(OutputFrame.TraversalContext.Time.RenderedFrameNumber);
 		if (ensure(TimeStats))
 		{
 			TimeStats->EndTime = FDateTime::UtcNow();
 
-			int32 FrameNumber = OutputFrame.TraversalContext.Time.OutputFrameNumber;
+			int32 FrameNumber = OutputFrame.TraversalContext.Time.RenderedFrameNumber;
 			FString DurationTimeStr = (TimeStats->EndTime - TimeStats->StartTime).ToString();
 			// UE_LOG(LogTemp, Log, TEXT("Frame: %d Duration: %s"), FrameNumber, *DurationTimeStr);
 		}

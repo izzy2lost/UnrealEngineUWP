@@ -35,6 +35,12 @@ public:
 	// ~UMovieGraphTimeStepBase Interface
 
 protected:
+	/** Update CurrentFrameData.RangeShutterOpen and CurrentFrameData.RangeShutterClosed. */
+	virtual void UpdateShutterRanges();
+	
+	/** Update CurrentFrameData.TemporalRanges. */
+	virtual void UpdateTemporalRanges();
+
 	/**
 	 * Gets the index of the next temporal range. The index returned should not be the index returned by the prior call
 	 * (this would result in a frame delta time of zero, causing the engine to crash).
@@ -101,6 +107,7 @@ protected:
 			: TemporalSampleIndex(0)
 			, TemporalSampleCount(0)
 			, OutputFrameNumber(0)
+			, RenderedFrameNumber(0)
 		{
 		}
 
@@ -112,6 +119,12 @@ protected:
 		
 		/** Which output frame are we working on, relative to zero.*/
 		int32 OutputFrameNumber;
+
+		/** 
+		* Index of which frames we've submitted for rendering. Doesn't line up with OutputFrameNumber when using warm-up frames.
+		* Used internally by the rendering engine to keep track of which frames need to be read back.
+		*/
+		int32 RenderedFrameNumber;
 
 		/** A range of time (in Tick Resolution) for the last output frame being worked on. Updated before first TS of next frame. */
 		TRange<FFrameTime> LastOutputFrameRange;

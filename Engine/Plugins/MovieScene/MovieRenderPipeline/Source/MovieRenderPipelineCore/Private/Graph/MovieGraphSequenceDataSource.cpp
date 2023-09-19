@@ -131,19 +131,6 @@ FFrameRate UMovieGraphSequenceDataSource::GetDisplayRate() const
 	return FFrameRate(24, 1);
 }
 
-void UMovieGraphSequenceDataSource::InitializeShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
-{
-	//if (!InShot->ShotInfo.bEmulateFirstFrameMotionBlur)
-	{
-		// Real warm up frames walk through the Sequence
-		LevelSequenceActor->GetSequencePlayer()->Play();
-	}
-	//else
-	//{
-	//	// Ensure we don't try to evaluate as we want to sit and wait during warm up and motion blur frames.
-	//	LevelSequenceActor->GetSequencePlayer()->Pause();
-	//}
-}
 void UMovieGraphSequenceDataSource::CacheHierarchyForShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
 {
 	// Save the whole hierarchy for this shot, then set it to be inactive.
@@ -271,6 +258,21 @@ void UMovieGraphSequenceDataSource::SyncDataSourceTime(const FFrameTime& InTime)
 {
 	FFrameRate TickResolution = LevelSequenceActor->GetSequence()->GetMovieScene()->GetTickResolution();
 	CustomSequenceTimeController->SetCachedFrameTiming(FQualifiedFrameTime(InTime, TickResolution));
+}
+void UMovieGraphSequenceDataSource::PlayDataSource()
+{
+	LevelSequenceActor->GetSequencePlayer()->Play();
+}
+
+void UMovieGraphSequenceDataSource::PauseDataSource() 
+{
+	LevelSequenceActor->GetSequencePlayer()->Pause();
+}
+
+void UMovieGraphSequenceDataSource::JumpDataSource(const FFrameTime& InTimeToJumpTo) 
+{
+	LevelSequenceActor->GetSequencePlayer()->SetPlaybackPosition(FMovieSceneSequencePlaybackParams(InTimeToJumpTo, EUpdatePositionMethod::Jump));
+
 }
 
 namespace UE::MovieGraph

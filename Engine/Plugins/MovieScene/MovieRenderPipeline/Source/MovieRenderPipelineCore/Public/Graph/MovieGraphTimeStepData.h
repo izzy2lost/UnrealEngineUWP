@@ -20,17 +20,23 @@ struct MOVIERENDERPIPELINECORE_API FMovieGraphTimeStepData
 public:
 	FMovieGraphTimeStepData()
 		: OutputFrameNumber(0)
+		, RenderedFrameNumber(0)
 		, FrameDeltaTime(0.f)
 		, WorldTimeDilation(0.f)
 		, WorldSeconds(0.f)
 		, MotionBlurFraction(0.f)
+		, FrameRate(0, 0)
 		, bIsFirstTemporalSampleForFrame(false)
 		, bIsLastTemporalSampleForFrame(false)
+		, bDiscardOutput(false)
 		, bRequiresAccumulator(false)
 	{}
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	int32 OutputFrameNumber;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	int32 RenderedFrameNumber;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	float FrameDeltaTime;
@@ -43,6 +49,9 @@ public:
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	float MotionBlurFraction;
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	FFrameRate FrameRate;
 
 	/** 
 	* Should be set to true for the first sample of each output frame. Used to determine
@@ -59,6 +68,13 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	bool bIsLastTemporalSampleForFrame;
 
+	/**
+	* Should the rendered result be discarded after a render? This will skip any
+	* accumulators or readback and is used for frames that are only produced to
+	* warm up the renderer.
+	*/
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	bool bDiscardOutput;
 
 	/**
 	* Should be set to true for every sample if there is more than one temporal sample
