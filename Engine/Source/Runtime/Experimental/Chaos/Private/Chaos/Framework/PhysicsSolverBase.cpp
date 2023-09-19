@@ -8,6 +8,7 @@
 #include "PBDRigidsSolver.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 #include "Chaos/Framework/ChaosResultsManager.h"
+#include "ChaosSolversModule.h"
 #include "Framework/Threading.h"
 #include "RewindData.h"
 
@@ -182,8 +183,24 @@ namespace Chaos
 	CHAOS_API int32 ForceDisableAsyncPhysics = 0;
 	FAutoConsoleVariableRef CVarForceDisableAsyncPhysics(TEXT("p.ForceDisableAsyncPhysics"), ForceDisableAsyncPhysics, TEXT("Whether to force async physics off regardless of other settings"));
 
+	auto LambdaMul = FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
+		{
+			for (FPhysicsSolverBase* Solver : FChaosSolversModule::GetModule()->GetAllSolvers())
+			{
+				Solver->SetAsyncInterpolationMultiplier(InVariable->GetFloat());
+			}
+		});
+
+	auto LambdaAsyncMode = FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
+		{
+			for (FPhysicsSolverBase* Solver : FChaosSolversModule::GetModule()->GetAllSolvers())
+			{
+				Solver->SetAsyncPhysicsBlockMode(EAsyncBlockMode(InVariable->GetInt()));
+			}
+		});
+
 	CHAOS_API FRealSingle AsyncInterpolationMultiplier = 2.f;
-	FAutoConsoleVariableRef CVarAsyncInterpolationMultiplier(TEXT("p.AsyncInterpolationMultiplier"), AsyncInterpolationMultiplier, TEXT("How many multiples of the fixed dt should we look behind for interpolation"));
+	FAutoConsoleVariableRef CVarAsyncInterpolationMultiplier(TEXT("p.AsyncInterpolationMultiplier"), AsyncInterpolationMultiplier, TEXT("How many multiples of the fixed dt should we look behind for interpolation"), LambdaMul);
 
 	// 0 blocks on any physics steps generated from past GT Frames, and blocks on none of the tasks from current frame.
 	// 1 blocks on everything except the single most recent task (including tasks from current frame)
@@ -192,8 +209,7 @@ namespace Chaos
 	int32 AsyncPhysicsBlockMode = 0;
 	FAutoConsoleVariableRef CVarAsyncPhysicsBlockMode(TEXT("p.AsyncPhysicsBlockMode"), AsyncPhysicsBlockMode, TEXT("Setting to 0 blocks on any physics steps generated from past GT Frames, and blocks on none of the tasks from current frame."
 		" 1 blocks on everything except the single most recent task (including tasks from current frame). 1 should gurantee we will always have a future output for interpolation from 2 frames in the past."
-		" 2 doesn't block the game thread, physics steps could be eventually be dropped if taking too much time."));
-
+		" 2 doesn't block the game thread, physics steps could be eventually be dropped if taking too much time."), LambdaAsyncMode);
 
 	FPhysicsSolverBase::FPhysicsSolverBase(const EMultiBufferMode BufferingModeIn,const EThreadingModeTemp InThreadingMode,UObject* InOwner, Chaos::FReal InAsyncDt)
 		: BufferMode(BufferingModeIn)
@@ -212,6 +228,8 @@ namespace Chaos
 		, MMinDeltaTime(UE_SMALL_NUMBER)
 		, MMaxSubSteps(1)
 		, ExternalSteps(0)
+		, AsyncBlockMode(EAsyncBlockMode(AsyncPhysicsBlockMode))
+		, AsyncMultiplier(AsyncInterpolationMultiplier)
 #if !UE_BUILD_SHIPPING
 		, bStealAdvanceTasksForTesting(false)
 #endif
@@ -425,7 +443,7 @@ namespace Chaos
 		}
 
 		// Eventually drop physics steps in mode 2
-		if (AsyncPhysicsBlockMode == 2)
+		if (AsyncBlockMode == EAsyncBlockMode::DoNoBlock)
 		{
 			// Make sure not to accumulate too many physics solver tasks.
 			constexpr int32 MaxPhysicsStepToKeep = 3;
@@ -475,7 +493,7 @@ namespace Chaos
 			else
 			{
 				// If enabled, block on all but most recent physics task, even tasks generated this frame.
-				if (AsyncPhysicsBlockMode == 1)
+				if (AsyncBlockMode == EAsyncBlockMode::BlockForBestInterpolation)
 				{
 					BlockingTasks = PendingTasks;
 				}
@@ -510,7 +528,7 @@ namespace Chaos
 				break;
 			}
 		}
-		if (AsyncPhysicsBlockMode == 2)
+		if (AsyncBlockMode == EAsyncBlockMode::DoNoBlock)
 		{
 			return {};
 		}

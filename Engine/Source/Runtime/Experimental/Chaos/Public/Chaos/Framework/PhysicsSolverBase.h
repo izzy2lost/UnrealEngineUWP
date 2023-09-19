@@ -86,6 +86,14 @@ namespace Chaos
 		bool bSolverSubstepped;
 	};
 
+
+	enum EAsyncBlockMode
+	{
+		BlockOnlyPastFrames = 0,
+		BlockForBestInterpolation = 1,
+		DoNoBlock = 2
+	};
+
 	/**
 	 * Task responsible for processing the command buffer of a single solver and preparing data before solver task and callbacks are run
 	 */
@@ -633,7 +641,7 @@ namespace Chaos
 			if (IsUsingFixedDt())
 			{
 				//fixed dt uses interpolation and looks into the past
-				return ExternalTime - AsyncDt * AsyncInterpolationMultiplier;
+				return ExternalTime - AsyncDt * AsyncMultiplier;
 			}
 			else
 			{
@@ -650,6 +658,22 @@ namespace Chaos
 
 		/**/
 		FReal GetLastDt() const { return MLastDt; }
+
+		/** 
+		  Set the Async Block Mode, valid mode can be 0, 1, or 2
+		  0 blocks on any physics steps generated from past GT Frames, and blocks on none of the tasks from current frame.
+		  1 blocks on everything except the single most recent task (including tasks from current frame)
+		  1 should guarantee we will always have a future output for interpolation from 2 frames in the past
+		  2 doesn't block the game thread. Physics steps could be eventually be dropped if taking too much time.
+		*/
+		void SetAsyncPhysicsBlockMode(EAsyncBlockMode InAsyncBlockMode) { AsyncBlockMode = InAsyncBlockMode; }
+
+		/** 
+		* Set the async interpolation multiplier which is how many multiples of the fixed dt should we look behind for interpolation.
+		*/
+		void SetAsyncInterpolationMultiplier(FRealSingle InAsyncInterpolationMultiplier) { AsyncMultiplier = InAsyncInterpolationMultiplier; }
+
+		float GetAsyncInterpolationMultiplier() const { return AsyncMultiplier; }
 
 		/** Check if we can enable debugging informations for network physics */
 		static bool CanDebugNetworkPhysicsPrediction()
@@ -797,6 +821,8 @@ namespace Chaos
 		int32 MMaxSubSteps;
 		int32 ExternalSteps;
 		TArray<FGeometryParticle*> UniqueIdxToGTParticles;
+		EAsyncBlockMode AsyncBlockMode;
+		float AsyncMultiplier;
 
 	public:
 

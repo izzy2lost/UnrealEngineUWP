@@ -775,7 +775,7 @@ namespace ChaosTest {
 					TickSolverHelper(Solver);
 
 					Time += GTDt;
-					const FReal InterpolatedTime = Time - SimDt * Chaos::AsyncInterpolationMultiplier;
+					const FReal InterpolatedTime = Time - SimDt * Solver->GetAsyncInterpolationMultiplier();
 
 
 					if (InterpolatedTime <= InterpStartTime)
@@ -2111,7 +2111,7 @@ namespace ChaosTest {
 				FReal LastCorrectionStep = 0;
 
 				Solver->SetRewindCallback(MoveTemp(UniqueRewindCallback));
-
+				Solver->SetAsyncInterpolationMultiplier(4.0f);
 				{
 					auto& Particle = Proxy->GetGameThreadAPI();
 					Solver->GetEvolution()->GetGravityForces().SetAcceleration(FVec3(0, 0, -1), 0);
@@ -2124,7 +2124,7 @@ namespace ChaosTest {
 						TickSolverHelper(Solver);
 
 						Time += GTDt;
-						const FReal InterpolatedTime = Time - SimDt * Chaos::AsyncInterpolationMultiplier;
+						const FReal InterpolatedTime = Time - SimDt * Solver->GetAsyncInterpolationMultiplier();
 						if (InterpolatedTime < 0)
 						{
 							//not enough time to interpolate so just take initial value
@@ -2138,13 +2138,14 @@ namespace ChaosTest {
 					}
 
 					//resim happened
+					Solver->SetAsyncInterpolationMultiplier(2.0f);
 					for (int Step = LastGameStep; Step < 2*LastGameStep; ++Step)
 					{
 						const FReal PrevZ = Particle.X()[2];
 						TickSolverHelper(Solver);
 
 						Time += GTDt;
-						const FReal InterpolatedTime = Time - SimDt * Chaos::AsyncInterpolationMultiplier;
+						const FReal InterpolatedTime = Time - SimDt * Solver->GetAsyncInterpolationMultiplier();
 
 						if(InterpolatedTime > 20)	//resim happened
 						{
@@ -4327,6 +4328,7 @@ namespace ChaosTest {
 
 	GTEST_TEST(AllTraits, RewindTest_InterpolatedTwoChannels)
 	{
+		Chaos::AsyncInterpolationMultiplier = 3.0f;
 		int32 PrevNumActiveChannels = Chaos::DefaultNumActiveChannels;
 		Chaos::DefaultNumActiveChannels = 2;
 		//Have two moving particles, one in each channel to see that there's a delay in time on second channel
@@ -4354,7 +4356,7 @@ namespace ChaosTest {
 				TickSolverHelper(Solver);
 
 				Time += GtDt;
-				const FReal InterpolatedTime0 = Time - SimDt * Chaos::AsyncInterpolationMultiplier;
+				const FReal InterpolatedTime0 = Time - SimDt * Solver->GetAsyncInterpolationMultiplier();
 				const FReal InterpolatedTime1 = InterpolatedTime0 - Chaos::SecondChannelDelay;
 
 				if (InterpolatedTime0 < 0)
