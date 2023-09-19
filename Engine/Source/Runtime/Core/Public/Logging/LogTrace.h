@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreTypes.h"
+#include "Containers/Array.h"
 #include "HAL/PreprocessorHelpers.h"
 #include "Logging/LogVerbosity.h"
 #include "Misc/Build.h"
