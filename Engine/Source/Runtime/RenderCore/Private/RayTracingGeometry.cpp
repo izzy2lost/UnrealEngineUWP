@@ -34,15 +34,16 @@ void FRayTracingGeometry::InitRHIForStreaming(FRHIRayTracingGeometry* Intermedia
 
 void FRayTracingGeometry::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
 {
+	RemoveBuildRequest();
+
 	Initializer = {};
 
-	RemoveBuildRequest();
 	EnumRemoveFlags(GeometryState, EGeometryStateFlags::StreamedIn);
+	EnumRemoveFlags(GeometryState, EGeometryStateFlags::Valid);
 
 	if (RayTracingGeometryRHI)
 	{
 		Batcher.QueueUpdateRequest(RayTracingGeometryRHI, nullptr);
-		EnumRemoveFlags(GeometryState, EGeometryStateFlags::Valid);
 	}
 }
 
