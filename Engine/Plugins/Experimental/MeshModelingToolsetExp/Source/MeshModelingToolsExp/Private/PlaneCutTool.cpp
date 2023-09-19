@@ -192,8 +192,8 @@ void UPlaneCutTool::SetupPreviews()
 		// set initial preview to un-processed mesh, so stuff doesn't just disappear if the first cut takes a while
 		Preview->PreviewMesh->UpdatePreview(MeshesToCut[PreviewIdx]->GetMesh().Get());
 		Preview->PreviewMesh->SetTransform((FTransform)UE::ToolTarget::GetLocalToWorldTransform(Targets[PreviewIdx]));
-		Preview->SetVisibility(BasicProperties->bShowPreview);
 	}
+	UpdateVisibility();
 }
 
 
@@ -345,18 +345,24 @@ void UPlaneCutTool::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 #endif
 
 
+void UPlaneCutTool::UpdateVisibility()
+{
+	for (int Idx = 0; Idx < Targets.Num(); Idx++)
+	{
+		UE::ToolTarget::SetSourceObjectVisible(Targets[Idx], !BasicProperties->bShowPreview);
+	}
+	for (UMeshOpPreviewWithBackgroundCompute* Preview : Previews)
+	{
+		Preview->SetVisibility(BasicProperties->bShowPreview);
+	}
+}
+
+
 void UPlaneCutTool::OnPropertyModified(UObject* PropertySet, FProperty* Property)
 {
 	if (Property && (Property->GetFName() == GET_MEMBER_NAME_CHECKED(UPlaneCutToolProperties, bShowPreview)))
 	{
-		for (int Idx = 0; Idx < Targets.Num(); Idx++)
-		{
-			UE::ToolTarget::SetSourceObjectVisible(Targets[Idx], !BasicProperties->bShowPreview);
-		}
-		for (UMeshOpPreviewWithBackgroundCompute* Preview : Previews)
-		{
-			Preview->SetVisibility(BasicProperties->bShowPreview);
-		}
+		UpdateVisibility();
 	}
 
 	InvalidatePreviews();
