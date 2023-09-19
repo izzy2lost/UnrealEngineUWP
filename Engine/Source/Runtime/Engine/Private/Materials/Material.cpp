@@ -5026,7 +5026,7 @@ void UMaterial::RebuildShadingModelField()
 				MaterialDomain = EMaterialDomain::MD_Surface;
 				ShadingModel = MSM_DefaultLit;
 			}
-			else if (SubstrateMaterialInfo.HasOnlyShadingModel(SSM_SubsurfaceProfile))
+			else if (SubstrateMaterialInfo.HasOnlyShadingModel(SSM_SubsurfaceProfile) || SubstrateMaterialInfo.HasOnlyShadingModel(SSM_SubsurfaceMFP))
 			{
 				MaterialDomain = EMaterialDomain::MD_Surface;
 				ShadingModel = MSM_SubsurfaceProfile;
