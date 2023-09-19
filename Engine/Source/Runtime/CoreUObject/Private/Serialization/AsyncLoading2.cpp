@@ -3063,6 +3063,10 @@ private:
 		void CallCompletionCallbacks()
 		{
 			checkSlow(IsInGameThread());
+
+#if WITH_EDITOR
+			UE::Core::Private::FPlayInEditorLoadingScope PlayInEditorIDScope(AsyncPackage ? AsyncPackage->Desc.PIEInstanceID : INDEX_NONE);
+#endif
 			
 			if (CompletionCallbacks.Num() != 0)
 			{
