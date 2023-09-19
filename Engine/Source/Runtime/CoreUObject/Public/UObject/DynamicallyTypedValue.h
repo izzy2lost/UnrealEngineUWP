@@ -8,6 +8,7 @@
 #include "Misc/AssertionMacros.h"
 #include "Serialization/StructuredArchive.h"
 #include "Templates/UnrealTemplate.h"
+#include "UObject/Object.h"
 #include "UObject/UObjectGlobals.h"
 
 class FReferenceCollector;
