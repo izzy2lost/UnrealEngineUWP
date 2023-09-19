@@ -93,7 +93,8 @@ public:
 		uint32 InstanceFlags,
 		uint32 LastUpdateFrame,
 		uint32 CustomDataCount,
-		float RandomID
+		float RandomID,
+		bool bIsVisible = true
 	);
 
 	ENGINE_API void Build
@@ -105,7 +106,8 @@ public:
 		uint32 CustomDataCount,
 		float RandomID,
 		const FRenderTransform& LocalToPrimitive,
-		const FRenderTransform& PrimitiveToWorld
+		const FRenderTransform& PrimitiveToWorld,
+		bool bIsVisible = true
 	);
 
 	ENGINE_API void BuildInternal
@@ -116,7 +118,8 @@ public:
 		uint32 LastUpdateFrame,
 		uint32 CustomDataCount,
 		float RandomID,
-		const FRenderTransform& LocalToWorld
+		const FRenderTransform& LocalToWorld,
+		bool bIsVisible = true
 	);
 
 	TStaticArray<FVector4f, UnCompressedTransformDataStrideInFloat4s> Data;

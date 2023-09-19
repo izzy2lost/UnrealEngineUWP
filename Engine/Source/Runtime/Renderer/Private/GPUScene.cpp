@@ -296,6 +296,7 @@ struct FInstanceUploadInfo
 	FRenderTransform PrevPrimitiveToWorld;
 	int32 PrimitiveID = INDEX_NONE;
 	uint32 LastUpdateSceneFrameNumber = ~uint32(0);
+	bool bIsPrimitiveForceHidden = false;
 };
 
 void ValidateInstanceUploadInfo(const FInstanceUploadInfo& UploadInfo, FRDGBuffer* InstancePayloadDataBuffer)
@@ -364,13 +365,6 @@ struct FLightMapUploadInfo
 	FPrimitiveSceneProxy::FLCIArray LCIs;
 	int32 LightmapDataOffset = 0;
 };
-
-// TODO: Temporary hack : For FPrimitiveSceneProxy::IsForceHidden() to work with Nanite proxies, return an invalid primitive ID if IsForceHidden() returns true.
-static FORCEINLINE int32 GetPrimitiveID(const FScene& InScene, const int32 InPrimitiveID)
-{
-	const FPrimitiveSceneProxy* PrimitiveSceneProxy = InScene.PrimitiveSceneProxies[InPrimitiveID];
-	return (PrimitiveSceneProxy->IsNaniteMesh() && PrimitiveSceneProxy->IsForceHidden()) ? INVALID_PRIMITIVE_ID : InPrimitiveID;
-}
 
 /**
  * Implements a thin data abstraction such that the UploadGeneral function can upload primitive data from
@@ -467,8 +461,9 @@ struct FUploadDataSourceAdapterScenePrimitives
 		InstanceUploadInfo.InstancePayloadDataStride = PrimitiveSceneInfo->GetInstancePayloadDataStride();
 
 		InstanceUploadInfo.LastUpdateSceneFrameNumber = SceneFrameNumber;
-		InstanceUploadInfo.PrimitiveID = GetPrimitiveID(Scene, PrimitiveID);
+		InstanceUploadInfo.PrimitiveID = PrimitiveID;
 		InstanceUploadInfo.PrimitiveToWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(AbsoluteOrigin.GetTileOffset(), LocalToWorld);
+		InstanceUploadInfo.bIsPrimitiveForceHidden = PrimitiveSceneProxy->IsForceHidden();
 
 		{
 			bool bHasPrecomputedVolumetricLightmap{};
@@ -693,10 +688,10 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 {
 	LLM_SCOPE_BYTAG(GPUScene);
 
-	ensure(bInBeginEndBlock);
-	ensure(bIsEnabled == UseGPUScene(GMaxRHIShaderPlatform, Scene.GetFeatureLevel()));
-	ensure(NumScenePrimitives == Scene.Primitives.Num());
-	ensure(DynamicPrimitivesOffset >= Scene.Primitives.Num());
+	check(bInBeginEndBlock);
+	check(bIsEnabled == UseGPUScene(GMaxRHIShaderPlatform, Scene.GetFeatureLevel()));
+	check(NumScenePrimitives == Scene.Primitives.Num());
+	check(DynamicPrimitivesOffset >= Scene.Primitives.Num());
 
 	CSV_CUSTOM_STAT(GPUScene, InstanceAllocMaxSize, InstanceSceneDataAllocator.GetMaxSize(), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(GPUScene, InstanceAllocUsedSize, InstanceSceneDataAllocator.GetSparselyAllocatedSize(), ECsvCustomStatOp::Set);
@@ -771,7 +766,7 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 			{
 				const FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene.Primitives[PrimitiveId];
 				check(PrimitiveSceneInfo->GetInstanceSceneDataOffset() >= 0 || PrimitiveSceneInfo->GetNumInstanceSceneDataEntries() == 0);
-				IdOnlyUpdateData.Add(PrimitiveSceneInfo->GetInstanceSceneDataOffset(), PrimitiveSceneInfo->GetNumInstanceSceneDataEntries(), GetPrimitiveID(Scene, PrimitiveId));
+				IdOnlyUpdateData.Add(PrimitiveSceneInfo->GetInstanceSceneDataOffset(), PrimitiveSceneInfo->GetNumInstanceSceneDataEntries(), PrimitiveId);
 			}
 		}
 		AddUpdatePrimitiveIdsPass(GraphBuilder, IdOnlyUpdateData);
@@ -797,9 +792,9 @@ void FGPUScene::UpdateBufferState(FRDGBuilder& GraphBuilder, FSceneUniformBuffer
 {
 	LLM_SCOPE_BYTAG(GPUScene);
 
-	ensure(bInBeginEndBlock);
-	ensure(bIsEnabled == UseGPUScene(GMaxRHIShaderPlatform, Scene.GetFeatureLevel()));
-	ensure(NumScenePrimitives == Scene.Primitives.Num());
+	check(bInBeginEndBlock);
+	check(bIsEnabled == UseGPUScene(GMaxRHIShaderPlatform, Scene.GetFeatureLevel()));
+	check(NumScenePrimitives == Scene.Primitives.Num());
 
 	RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
@@ -1157,7 +1152,8 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& Scene, FRDGExte
 							UploadInfo.InstanceCustomDataCount,
 							RandomID,
 							SceneData.LocalToPrimitive,
-							UploadInfo.PrimitiveToWorld
+							UploadInfo.PrimitiveToWorld,
+							!UploadInfo.bIsPrimitiveForceHidden
 						);
 
 						// RefIndex* BufferState.InstanceSceneDataSOAStride + UploadInfo.InstanceSceneDataOffset + InstanceIndex
@@ -1446,6 +1442,7 @@ struct FUploadDataSourceAdapterDynamicPrimitives
 			InstanceUploadInfo.InstanceEditorData			= TConstArrayView<uint32>();
 #endif
 
+			InstanceUploadInfo.bIsPrimitiveForceHidden = false;
 			// upload dummies where applicable
 			if (InstanceUploadInfo.PrimitiveInstances.Num() == 0)
 			{
@@ -2053,9 +2050,6 @@ void FGPUScene::GetWriteParameters(FRDGBuilder& GraphBuilder, FGPUSceneWriterPar
 	GPUSceneWriterParametersOut.GPUScenePrimitiveSceneDataRW = GraphBuilder.CreateUAV(BufferState.PrimitiveBuffer, ERDGUnorderedAccessViewFlags::SkipBarrier);
 }
 
-/**
- * Compute shader to project and invalidate the rectangles of given instances.
- */
 class FGPUSceneSetInstancePrimitiveIdCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FGPUSceneSetInstancePrimitiveIdCS);
