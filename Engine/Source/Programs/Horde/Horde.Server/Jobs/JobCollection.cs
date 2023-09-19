@@ -1091,7 +1091,7 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public Task<IJob?> TryUpdateGraphAsync(IJob job, IGraph newGraph)
+		public Task<IJob?> TryUpdateGraphAsync(IJob job, IGraph newGraph, IReadOnlyList<string>? newArguments)
 		{
 			JobDocument jobDocument = (JobDocument)job;
 
@@ -1101,6 +1101,12 @@ namespace Horde.Server.Jobs
 
 			jobDocument.GraphHash = newGraph.Id;
 			updates.Add(updateBuilder.Set(x => x.GraphHash, job.GraphHash));
+
+			if (newArguments != null)
+			{
+				jobDocument.Arguments = new List<string>(newArguments);
+				updates.Add(updateBuilder.Set(x => x.Arguments, job.Arguments));
+			}
 
 			UpdateBatches(jobDocument, newGraph, updates, _logger);
 

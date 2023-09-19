@@ -89,7 +89,7 @@ namespace Horde.Server.Tests
 			AddNode(publishGroup, "Post-Publish Client", null, x => x.OrderDependencies = new List<string> { "Publish Client" });
 
 			IGraph graph = await GraphCollection.AppendAsync(baseGraph, newGroups, null, null);
-			job = Deref(await JobCollection.TryUpdateGraphAsync(job, graph));
+			job = Deref(await JobCollection.TryUpdateGraphAsync(job, graph, null));
 
 			job = await StartBatchAsync(job, graph, 1);
 			job = await RunStepAsync(job, graph, 1, 0, JobStepOutcome.Success); // Update Version Files
@@ -157,7 +157,7 @@ namespace Horde.Server.Tests
 			AddNode(initialGroup, "Step 3", new[] { "Step 2" });
 
 			IGraph graph = await GraphCollection.AppendAsync(baseGraph, newGroups, null, null);
-			job = Deref(await JobCollection.TryUpdateGraphAsync(job, graph));
+			job = Deref(await JobCollection.TryUpdateGraphAsync(job, graph, null));
 
 			job = await StartBatchAsync(job, graph, 1);
 			job = await RunStepAsync(job, graph, 1, 0, JobStepOutcome.Success); // Step 1

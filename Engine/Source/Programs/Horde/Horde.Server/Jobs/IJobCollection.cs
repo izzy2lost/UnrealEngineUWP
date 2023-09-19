@@ -249,8 +249,9 @@ namespace Horde.Server.Jobs
 		/// </summary>
 		/// <param name="job">The job to update</param>
 		/// <param name="newGraph">New graph for this job</param>
+		/// <param name="newArguments">New arguments for the job</param>
 		/// <returns>True if the groups were updated to the given list. False if another write happened first.</returns>
-		Task<IJob?> TryUpdateGraphAsync(IJob job, IGraph newGraph);
+		Task<IJob?> TryUpdateGraphAsync(IJob job, IGraph newGraph, IReadOnlyList<string>? newArguments);
 
 		/// <summary>
 		/// Removes a job from the dispatch queue. Ignores the state of any batches still remaining to execute. Should only be used to correct for inconsistent state.

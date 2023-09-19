@@ -865,7 +865,7 @@ namespace Horde.Server.Jobs
 				IGraph graph = await _jobService.GetGraphAsync(job);
 				graph = await _graphs.AppendAsync(graph, requests, null, null);
 
-				IJob? newJob = await _jobService.TryUpdateGraphAsync(job, graph);
+				IJob? newJob = await _jobService.TryUpdateGraphAsync(job, graph, null);
 				if (newJob != null)
 				{
 					return Ok();

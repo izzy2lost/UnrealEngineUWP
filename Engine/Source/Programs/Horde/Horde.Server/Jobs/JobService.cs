@@ -644,8 +644,9 @@ namespace Horde.Server.Jobs
 		/// </summary>
 		/// <param name="job">The job to update</param>
 		/// <param name="newGraph">New graph for this job</param>
+		/// <param name="newArguments">New arguments for the jobs</param>
 		/// <returns>True if the groups were updated to the given list. False if another write happened first.</returns>
-		public async Task<IJob?> TryUpdateGraphAsync(IJob job, IGraph newGraph)
+		public async Task<IJob?> TryUpdateGraphAsync(IJob job, IGraph newGraph, IReadOnlyList<string>? newArguments)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(TryUpdateGraphAsync)}");
 			span.SetAttribute("Job", job.Id.ToString());
@@ -655,7 +656,7 @@ namespace Horde.Server.Jobs
 
 			IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates = job.GetLabelStates(newGraph);
 
-			IJob? newJob = await _jobs.TryUpdateGraphAsync(job, newGraph);
+			IJob? newJob = await _jobs.TryUpdateGraphAsync(job, newGraph, newArguments);
 			if(newJob != null)
 			{
 				await _jobTaskSource.UpdateUgsBadgesAsync(newJob, newGraph, oldLabelStates);
