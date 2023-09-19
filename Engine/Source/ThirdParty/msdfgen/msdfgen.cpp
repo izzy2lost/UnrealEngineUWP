@@ -129,8 +129,8 @@ void Vector2::reset() {
     x = 0, y = 0;
 }
 
-void Vector2::set(double x, double y) {
-    Vector2::x = x, Vector2::y = y;
+void Vector2::set(double a_x, double a_y) {
+    x = a_x, y = a_y;
 }
 
 double Vector2::length() const {
@@ -386,14 +386,14 @@ void Scanline::preprocess() {
     }
 }
 
-void Scanline::setIntersections(const std::vector<Intersection> &intersections) {
-    this->intersections = intersections;
+void Scanline::setIntersections(const std::vector<Intersection> &a_intersections) {
+	this->intersections = a_intersections;
     preprocess();
 }
 
 #ifdef MSDFGEN_USE_CPP11
-void Scanline::setIntersections(std::vector<Intersection> &&intersections) {
-    this->intersections = (std::vector<Intersection> &&) intersections;
+void Scanline::setIntersections(std::vector<Intersection> &&a_intersections) {
+	this->intersections = (std::vector<Intersection> &&) a_intersections;
     preprocess();
 }
 #endif
@@ -1584,18 +1584,18 @@ static void uncolorSameNeighbors(std::queue<int> &uncolored, int *coloring, cons
     }
 }
 
-static bool tryAddEdge(int *coloring, int * const *edgeMatrix, int vertexCount, int vertexA, int vertexB, int *coloringBuffer) {
+static bool tryAddEdge(int *a_coloring, int * const *edgeMatrix, int vertexCount, int vertexA, int vertexB, int *coloringBuffer) {
     static const int FIRST_POSSIBLE_COLOR[8] = { -1, 0, 1, 0, 2, 2, 1, 0 };
     edgeMatrix[vertexA][vertexB] = 1;
     edgeMatrix[vertexB][vertexA] = 1;
-    if (coloring[vertexA] != coloring[vertexB])
+	if (a_coloring[vertexA] != a_coloring[vertexB])
         return true;
-    int bPossibleColors = vertexPossibleColors(coloring, edgeMatrix[vertexB], vertexCount);
+	int bPossibleColors = vertexPossibleColors(a_coloring, edgeMatrix[vertexB], vertexCount);
     if (bPossibleColors) {
-        coloring[vertexB] = FIRST_POSSIBLE_COLOR[bPossibleColors];
+		a_coloring[vertexB] = FIRST_POSSIBLE_COLOR[bPossibleColors];
         return true;
     }
-    memcpy(coloringBuffer, coloring, sizeof(int)*vertexCount);
+	memcpy(coloringBuffer, a_coloring, sizeof(int)*vertexCount);
     std::queue<int> uncolored;
     {
         int *coloring = coloringBuffer;
@@ -1621,7 +1621,7 @@ static bool tryAddEdge(int *coloring, int * const *edgeMatrix, int vertexCount, 
         edgeMatrix[vertexB][vertexA] = 0;
         return false;
     }
-    memcpy(coloring, coloringBuffer, sizeof(int)*vertexCount);
+	memcpy(a_coloring, coloringBuffer, sizeof(int)*vertexCount);
     return true;
 }
 
@@ -1641,12 +1641,14 @@ void edgeColoringByDistance(Shape &shape, double angleThreshold, unsigned long l
             // Identify corners
             corners.clear();
             Vector2 prevDirection = contour->edges.back()->direction(1);
-            int index = 0;
-            for (std::vector<EdgeHolder>::const_iterator edge = contour->edges.begin(); edge != contour->edges.end(); ++edge, ++index) {
-                if (isCorner(prevDirection.normalize(), (*edge)->direction(0).normalize(), crossThreshold))
-                    corners.push_back(index);
-                prevDirection = (*edge)->direction(1);
-            }
+			{
+				int index = 0;
+				for (std::vector<EdgeHolder>::const_iterator edge = contour->edges.begin(); edge != contour->edges.end(); ++edge, ++index) {
+					if (isCorner(prevDirection.normalize(), (*edge)->direction(0).normalize(), crossThreshold))
+						corners.push_back(index);
+					prevDirection = (*edge)->direction(1);
+				}
+			}
 
             splineStarts.push_back((int) edgeSegments.size());
             // Smooth contour
@@ -1769,10 +1771,10 @@ void edgeColoringByDistance(Shape &shape, double angleThreshold, unsigned long l
 
 TrueDistanceSelector::EdgeCache::EdgeCache() : absDistance(0) { }
 
-void TrueDistanceSelector::reset(const Point2 &p) {
-    double delta = DISTANCE_DELTA_FACTOR*(p-this->p).length();
+void TrueDistanceSelector::reset(const Point2 &a_p) {
+	double delta = DISTANCE_DELTA_FACTOR*(a_p-this->p).length();
     minDistance.distance += nonZeroSign(minDistance.distance)*delta;
-    this->p = p;
+	this->p = a_p;
 }
 
 void TrueDistanceSelector::addEdge(EdgeCache &cache, const EdgeSegment *prevEdge, const EdgeSegment *edge, const EdgeSegment *nextEdge) {
@@ -1879,10 +1881,10 @@ SignedDistance PseudoDistanceSelectorBase::trueDistance() const {
     return minTrueDistance;
 }
 
-void PseudoDistanceSelector::reset(const Point2 &p) {
-    double delta = DISTANCE_DELTA_FACTOR*(p-this->p).length();
+void PseudoDistanceSelector::reset(const Point2 &a_p) {
+	double delta = DISTANCE_DELTA_FACTOR*(a_p-this->p).length();
     PseudoDistanceSelectorBase::reset(delta);
-    this->p = p;
+	this->p = a_p;
 }
 
 void PseudoDistanceSelector::addEdge(EdgeCache &cache, const EdgeSegment *prevEdge, const EdgeSegment *edge, const EdgeSegment *nextEdge) {
@@ -1922,12 +1924,12 @@ PseudoDistanceSelector::DistanceType PseudoDistanceSelector::distance() const {
     return computeDistance(p);
 }
 
-void MultiDistanceSelector::reset(const Point2 &p) {
-    double delta = DISTANCE_DELTA_FACTOR*(p-this->p).length();
+void MultiDistanceSelector::reset(const Point2 &a_p) {
+	double delta = DISTANCE_DELTA_FACTOR*(a_p-this->p).length();
     r.reset(delta);
     g.reset(delta);
     b.reset(delta);
-    this->p = p;
+	this->p = a_p;
 }
 
 void MultiDistanceSelector::addEdge(EdgeCache &cache, const EdgeSegment *prevEdge, const EdgeSegment *edge, const EdgeSegment *nextEdge) {
@@ -2068,10 +2070,10 @@ OverlappingContourCombiner<EdgeSelector>::OverlappingContourCombiner(const Shape
 }
 
 template <class EdgeSelector>
-void OverlappingContourCombiner<EdgeSelector>::reset(const Point2 &p) {
-    this->p = p;
+void OverlappingContourCombiner<EdgeSelector>::reset(const Point2 &a_p) {
+	this->p = a_p;
     for (typename std::vector<EdgeSelector>::iterator contourEdgeSelector = edgeSelectors.begin(); contourEdgeSelector != edgeSelectors.end(); ++contourEdgeSelector)
-        contourEdgeSelector->reset(p);
+		contourEdgeSelector->reset(a_p);
 }
 
 template <class EdgeSelector>
@@ -2334,8 +2336,7 @@ public:
                 Vector2 tVector = t*direction;
                 float oldMSD[N], newMSD[3];
                 // Compute the color that would be currently interpolated at the artifact candidate's position.
-                Point2 sdfCoord = parent->sdfCoord+tVector;
-                interpolate(oldMSD, parent->sdf, sdfCoord);
+				interpolate(oldMSD, parent->sdf, parent->sdfCoord+tVector);
                 // Compute the color that would be interpolated at the artifact candidate's position if error correction was applied on the current texel.
                 double aWeight = (1-fabs(tVector.x))*(1-fabs(tVector.y));
                 float aPSD = median(parent->msd[0], parent->msd[1], parent->msd[2]);
@@ -2381,12 +2382,12 @@ MSDFErrorCorrection::MSDFErrorCorrection(const BitmapRef<byte, 1> &stencil, cons
     memset(stencil.pixels, 0, sizeof(byte)*stencil.width*stencil.height);
 }
 
-void MSDFErrorCorrection::setMinDeviationRatio(double minDeviationRatio) {
-    this->minDeviationRatio = minDeviationRatio;
+void MSDFErrorCorrection::setMinDeviationRatio(double a_minDeviationRatio) {
+	this->minDeviationRatio = a_minDeviationRatio;
 }
 
-void MSDFErrorCorrection::setMinImproveRatio(double minImproveRatio) {
-    this->minImproveRatio = minImproveRatio;
+void MSDFErrorCorrection::setMinImproveRatio(double a_minImproveRatio) {
+	this->minImproveRatio = a_minImproveRatio;
 }
 
 void MSDFErrorCorrection::protectCorners(const Shape &shape) {
