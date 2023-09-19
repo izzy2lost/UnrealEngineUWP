@@ -917,8 +917,7 @@ void FDisplayClusterMeshProjectionRenderer::Render(FCanvas* Canvas, FSceneInterf
 				RenderTarget,
 				Scene,
 				RenderSettings.EngineShowFlags)
-				.SetTime(FGameTime::GetTimeSinceAppStart())
-				.SetGammaCorrection(1.0f));
+				.SetTime(FGameTime::GetTimeSinceAppStart()));
 
 			if (Scene)
 			{

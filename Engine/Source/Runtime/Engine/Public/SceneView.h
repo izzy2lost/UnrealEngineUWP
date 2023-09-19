@@ -1931,6 +1931,13 @@ public:
 	*/
 	struct ConstructionValues
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		ConstructionValues(ConstructionValues&&) = default;
+		ConstructionValues(const ConstructionValues& Other) = default;
+		ConstructionValues& operator=(ConstructionValues&&) = default;
+		ConstructionValues& operator=(const ConstructionValues& Other) = default;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 		ENGINE_API ConstructionValues(
 			const FRenderTarget* InRenderTarget,
 			FSceneInterface* InScene,
@@ -1955,6 +1962,7 @@ public:
 		FGameTime Time;
 
 		/** Gamma correction used when rendering this family. Default is 1.0 */
+		UE_DEPRECATED(5.4, "Unused gamma correction.")
 		float GammaCorrection;
 
 		/** Indicates whether the view family is additional. */
@@ -1999,7 +2007,13 @@ public:
 		ConstructionValues& SetResolveScene(const bool Value) { bResolveScene = Value; return *this; }
 		
 		/** Set Gamma correction used when rendering this family. */
-		ConstructionValues& SetGammaCorrection(const float Value) { GammaCorrection = Value; return *this; }		
+		UE_DEPRECATED(5.4, "Unused gamma correction.")
+		ConstructionValues& SetGammaCorrection(const float Value)
+		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			GammaCorrection = Value; return *this;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
 
 		/** Set the view param. */
 		ConstructionValues& SetViewModeParam(const int InViewModeParam, const FName& InViewModeParamName) { ViewModeParam = InViewModeParam; ViewModeParamName = InViewModeParamName; return *this; }		
@@ -2105,6 +2119,7 @@ public:
 	bool bRequireMultiView;
 
 	/** Gamma correction used when rendering this family. Default is 1.0 */
+	UE_DEPRECATED(5.4, "Unused gamma correction.")
 	float GammaCorrection;
 	
 	/** DPI scale to be used for debugging font. */

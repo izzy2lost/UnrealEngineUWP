@@ -270,7 +270,6 @@ private:
 	struct FCachedViewInitOptions
 	{
 		FGameTime	GameTime;
-		float		GammaCorrection		= 1.0f;
 		FIntRect	ViewRect			= FIntRect(0, 0, 64, 64);
 		FVector		ViewOrigin			= FVector::ZeroVector;
 		FMatrix		ViewRotationMatrix	= FMatrix::Identity;

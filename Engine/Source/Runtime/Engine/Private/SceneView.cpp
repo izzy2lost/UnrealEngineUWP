@@ -2712,7 +2712,9 @@ FSceneViewFamily::ConstructionValues::ConstructionValues(
 ,	Scene(InScene)
 ,	EngineShowFlags(InEngineShowFlags)
 ,	ViewModeParam(-1)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 ,	GammaCorrection(1.0f)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 ,	bAdditionalViewFamily(false)
 ,	bRealtimeUpdate(false)
 ,	bDeferClear(false)
@@ -2751,7 +2753,9 @@ FSceneViewFamily::FSceneViewFamily(const ConstructionValues& CVS)
 	bWorldIsPaused(false),
 	bIsHDR(false),
 	bRequireMultiView(false),
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	GammaCorrection(CVS.GammaCorrection),
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	SecondaryViewFraction(1.0f),
 	SecondaryScreenPercentageMethod(ESecondaryScreenPercentageMethod::LowerPixelDensitySimulation),
 	ProfileSceneRenderTime(nullptr),

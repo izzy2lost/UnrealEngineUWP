@@ -406,7 +406,6 @@ void FNiagaraGpuComputeDispatch::ProcessPendingTicksFlush(FRHICommandListImmedia
 			FSceneViewFamilyContext ViewFamily(
 				FSceneViewFamily::ConstructionValues(nullptr, GetSceneInterface(), FEngineShowFlags(ESFIM_Game))
 				.SetTime(CachedViewInitOptions.GameTime)
-				.SetGammaCorrection(CachedViewInitOptions.GammaCorrection)
 			);
 
 			FSceneViewInitOptions ViewInitOptions;
@@ -2026,7 +2025,6 @@ void FNiagaraGpuComputeDispatch::PostRenderOpaque(FRDGBuilder& GraphBuilder, TCo
 		if (const FSceneViewFamily* ViewFamily = Views[0].Family)
 		{
 			CachedViewInitOptions.GameTime			= ViewFamily->Time;
-			CachedViewInitOptions.GammaCorrection	= ViewFamily->GammaCorrection;
 		}
 
 		CachedViewInitOptions.ViewRect				= UE::FXRenderingUtils::GetRawViewRectUnsafe(Views[0]);

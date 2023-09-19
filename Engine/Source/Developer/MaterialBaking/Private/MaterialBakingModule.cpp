@@ -715,8 +715,7 @@ private:
 
 				FSceneViewFamily ViewFamily(FSceneViewFamily::ConstructionValues(RenderTarget->GetRenderTargetResource(), nullptr,
 					FEngineShowFlags(ESFIM_Game))
-					.SetTime(FGameTime())
-					.SetGammaCorrection(RenderTarget->GetRenderTargetResource()->GetDisplayGamma()));
+					.SetTime(FGameTime()));
 
 				RenderItem->MaterialRenderProxy = ExportMaterialProxy;
 				RenderItem->ViewFamily = &ViewFamily;

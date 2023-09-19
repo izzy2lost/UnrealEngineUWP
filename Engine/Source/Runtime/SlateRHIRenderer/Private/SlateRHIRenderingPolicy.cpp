@@ -747,7 +747,6 @@ void FSlateRHIRenderingPolicy::DrawElements(
 					DefaultShowFlags
 				)
 				.SetTime(Params.Time)
-				.SetGammaCorrection(DisplayGamma)
 				.SetRealtimeUpdate(true)
 			);
 			SceneViews[i] = CreateSceneView(SceneViewFamilyContexts[i], BackBuffer, FMatrix(Params.ViewProjectionMatrix));
@@ -762,7 +761,6 @@ void FSlateRHIRenderingPolicy::DrawElements(
 				DefaultShowFlags
 			)
 			.SetTime(Params.Time)
-			.SetGammaCorrection(DisplayGamma)
 			.SetRealtimeUpdate(true)
 		);
 		SceneViews[NumScenes - 1] = CreateSceneView(SceneViewFamilyContexts[NumScenes - 1], BackBuffer, FMatrix(Params.ViewProjectionMatrix));

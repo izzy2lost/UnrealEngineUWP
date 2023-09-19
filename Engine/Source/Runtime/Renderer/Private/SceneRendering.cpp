@@ -5386,7 +5386,6 @@ static void DisplayInternals(FRDGBuilder& GraphBuilder, FViewInfo& InView)
 			CANVAS_LINE(false, TEXT("  Time (Real/World/DeltaWorld): %.2f/%.2f/%.2f"), Family->Time.GetRealTimeSeconds(), Family->Time.GetWorldTimeSeconds(), Family->Time.GetDeltaWorldTimeSeconds())
 			CANVAS_LINE(false, TEXT("  FrameNumber: %u"), Family->FrameNumber)
 			CANVAS_LINE(false, TEXT("  ExposureSettings: %s"), *Family->ExposureSettings.ToString())
-			CANVAS_LINE(false, TEXT("  GammaCorrection: %.2f"), Family->GammaCorrection)
 
 			CANVAS_HEADER(TEXT("View:"))
 			CANVAS_LINE(false, TEXT("  TemporalJitter: %.2f/%.2f"), ViewInfo.TemporalJitterPixels.X, ViewInfo.TemporalJitterPixels.Y)

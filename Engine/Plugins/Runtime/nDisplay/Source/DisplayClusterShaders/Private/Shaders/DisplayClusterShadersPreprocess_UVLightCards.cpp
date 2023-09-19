@@ -232,8 +232,7 @@ bool FDisplayClusterShadersPreprocess_UVLightCards::RenderPreprocess_UVLightCard
 		InRenderTarget,
 		InScene,
 		EngineShowFlags)
-		.SetTime(FGameTime::GetTimeSinceAppStart())
-		.SetGammaCorrection(1.0f));
+		.SetTime(FGameTime::GetTimeSinceAppStart()));
 
 	FScenePrimitiveRenderingContextScopeHelper ScenePrimitiveRenderingContextScopeHelper(GetRendererModule().BeginScenePrimitiveRendering(GraphBuilder, &ViewFamily));
 

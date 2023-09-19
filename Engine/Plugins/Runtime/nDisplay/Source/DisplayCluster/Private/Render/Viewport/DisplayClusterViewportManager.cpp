@@ -737,7 +737,6 @@ FSceneViewFamily::ConstructionValues FDisplayClusterViewportManager::CreateViewF
 	return FSceneViewFamily::ConstructionValues(InFrameTarget.RenderTargetPtr, InScene, InEngineShowFlags)
 		.SetResolveScene(bResolveScene)
 		.SetRealtimeUpdate(true)
-		.SetGammaCorrection(1.0f)
 		.SetAdditionalViewFamily(bInAdditionalViewFamily);
 }
 

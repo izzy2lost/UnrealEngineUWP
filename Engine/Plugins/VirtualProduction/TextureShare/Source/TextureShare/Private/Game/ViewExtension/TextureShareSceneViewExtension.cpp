@@ -66,7 +66,6 @@ namespace UE::TextureShare::SceneViewExtension
 
 		OutViewFamily.FrameNumber = InViewFamily.FrameNumber;
 		OutViewFamily.bIsHDR = InViewFamily.bIsHDR;
-		OutViewFamily.GammaCorrection = InViewFamily.GammaCorrection;
 		OutViewFamily.SecondaryViewFraction = InViewFamily.SecondaryViewFraction;
 	}
 };

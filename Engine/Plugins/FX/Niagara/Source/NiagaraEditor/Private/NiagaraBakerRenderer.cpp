@@ -418,7 +418,6 @@ void FNiagaraBakerRenderer::RenderBufferVisualization(UTextureRenderTarget2D* Re
 	}
 
 	const FIntRect ViewRect = FIntRect(0, 0, RenderTarget->GetSurfaceWidth(), RenderTarget->GetSurfaceHeight());
-	const float GammaCorrection = 1.0f;
 	const float WorldTime = GetWorldTime();
 	UWorld* World = GetWorld();
 
@@ -429,7 +428,6 @@ void FNiagaraBakerRenderer::RenderBufferVisualization(UTextureRenderTarget2D* Re
 	FSceneViewFamilyContext ViewFamily(
 		FSceneViewFamily::ConstructionValues(RenderTarget->GameThread_GetRenderTargetResource(), World->Scene, FEngineShowFlags(ESFIM_Game))
 		.SetTime(FGameTime::CreateUndilated(WorldTime, FApp::GetDeltaTime()))
-		.SetGammaCorrection(GammaCorrection)
 	);
 	
 	ViewFamily.EngineShowFlags.SetScreenPercentage(false);
