@@ -335,6 +335,8 @@ private:
 	// Returns scalability state if one exists, this function is not designed for runtime performance and for debugging only
 	bool GetScalabilityState(UNiagaraComponent* Component, FNiagaraScalabilityState& OutState) const;
 
+	void HandleCSVStats(float DeltaSeconds);
+
 	static FDelegateHandle OnWorldInitHandle;
 	static FDelegateHandle OnWorldCleanupHandle;
 	static FDelegateHandle OnPostWorldCleanupHandle;
@@ -407,6 +409,10 @@ private:
 	TUniquePtr<FNiagaraDataChannelManager> DataChannelManager;
 
 	TUniquePtr<FNiagaraSimpleObjectPool> ObjectPool;
+
+#if WITH_PER_FXTYPE_PARTICLE_PERF_STATS
+	FParticlePerfStatsListenerPtr FXTypeCSVListener;
+#endif
 };
 
 

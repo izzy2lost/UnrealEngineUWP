@@ -1088,11 +1088,20 @@ void FNiagaraWorldManager::PostActorTick(float DeltaSeconds)
 		}
 	}
 
+	HandleCSVStats(DeltaSeconds);
+
+	DataChannelManager->EndFrame(DeltaSeconds);
+}
+
+void FNiagaraWorldManager::HandleCSVStats(float DeltaSeconds)
+{
+	bool bCSVStatsEnabled = false;
 #if WITH_PARTICLE_PERF_CSV_STATS
 	if (FCsvProfiler* CSVProfiler = FCsvProfiler::Get())
 	{
 		if (CSVProfiler->IsCapturing() && FParticlePerfStats::GetCSVStatsEnabled())
 		{
+			bCSVStatsEnabled = true;
 			//Record custom events marking split times at set intervals. Allows us to generate summary tables for averages over shorter bursts.
 			if (GNiagaraCSVSplitTime > 0.0f)
 			{
@@ -1115,11 +1124,24 @@ void FNiagaraWorldManager::PostActorTick(float DeltaSeconds)
 
 				ScalabilityMan.CSVProfilerUpdate(CSVProfiler);
 			}
+			#if WITH_PER_FXTYPE_PARTICLE_PERF_STATS
+			if (FXTypeCSVListener.IsValid() == false)
+			{
+				FXTypeCSVListener = MakeShared<FParticlePerfStatsListener_EffectType, ESPMode::ThreadSafe>();
+				FParticlePerfStatsManager::AddListener(FXTypeCSVListener);
+			}
+			#endif
 		}
 	}
 #endif 
 
-	DataChannelManager->EndFrame(DeltaSeconds);
+#if WITH_PER_FXTYPE_PARTICLE_PERF_STATS
+	if (bCSVStatsEnabled == false && FXTypeCSVListener.IsValid())
+	{
+		FParticlePerfStatsManager::RemoveListener(FXTypeCSVListener.Get());
+		FXTypeCSVListener.Reset();
+	}
+#endif
 }
 
 void FNiagaraWorldManager::PreSendAllEndOfFrameUpdates()

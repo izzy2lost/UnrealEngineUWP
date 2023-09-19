@@ -83,6 +83,18 @@ struct FParticlePerfStats_GT
 		return *this;
 	}
 
+	FParticlePerfStats_GT& operator+=(FParticlePerfStats_GT& Other)
+	{
+		NumInstances += Other.NumInstances;
+		TickGameThreadCycles += Other.TickGameThreadCycles;
+		TickConcurrentCycles += Other.TickConcurrentCycles.Load();
+		FinalizeCycles += Other.FinalizeCycles;
+		EndOfFrameCycles += Other.EndOfFrameCycles.Load();
+		ActivationCycles += Other.ActivationCycles.Load();
+		WaitCycles += Other.WaitCycles;
+		return *this;
+	}
+
 	FORCEINLINE void Reset()
 	{
 		NumInstances = 0;
@@ -114,6 +126,14 @@ struct FParticlePerfStats_RT
 	}
 	FORCEINLINE uint64 GetTotalCycles() const { return RenderUpdateCycles + GetDynamicMeshElementsCycles; }
 	FORCEINLINE uint64 GetPerInstanceAvgCycles() const { return NumInstances > 0 ? (RenderUpdateCycles + GetDynamicMeshElementsCycles) / NumInstances : 0; }
+
+	FParticlePerfStats_RT& operator+=(FParticlePerfStats_RT& Other)
+	{
+		NumInstances += Other.NumInstances;
+		RenderUpdateCycles += Other.RenderUpdateCycles;
+		GetDynamicMeshElementsCycles += Other.GetDynamicMeshElementsCycles;
+		return *this;
+	}
 };
 
 /** Stats gathered from the GPU */
@@ -130,6 +150,13 @@ struct FParticlePerfStats_GPU
 	{
 		NumInstances = 0;
 		TotalMicroseconds = 0;
+	}
+
+	FParticlePerfStats_GPU& operator+=(FParticlePerfStats_GPU& Other)
+	{
+		NumInstances += Other.NumInstances;
+		TotalMicroseconds += Other.TotalMicroseconds;
+		return *this;
 	}
 };
 
