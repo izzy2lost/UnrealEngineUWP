@@ -433,6 +433,10 @@ namespace Gauntlet
 			return LinuxApp;
 		}
 
+		public void ClearSavedDirectory(UnrealAppConfig AppConfiguration)
+		{
+
+		}
 
 		public IAppInstall InstallApplication(UnrealAppConfig AppConfig)
 		{
@@ -456,7 +460,7 @@ namespace Gauntlet
 
 			LinuxApp.WorkingDirectory = Path.GetDirectoryName(EditorBuild.ExecutablePath);
 			LinuxApp.RunOptions = RunOptions;
-	
+
 			// Force this to stop logs and other artifacts going to different places
 			LinuxApp.CommandArguments = AppConfig.CommandLine + string.Format(" -userdir=\"{0}\"", UserDir);
 			LinuxApp.ArtifactPath = Path.Combine(UserDir, @"Saved");
@@ -471,7 +475,12 @@ namespace Gauntlet
 
 			return LinuxApp;
 		}
-		
+
+		public void CopyAppConfigurationFiles(UnrealAppConfig AppConfiguration)
+		{
+
+		}
+
 		public bool CanRunFromPath(string InPath)
 		{
 			return !Utils.SystemHelpers.IsNetworkPath(InPath);

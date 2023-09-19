@@ -85,7 +85,11 @@ namespace Gauntlet
 		/// <returns></returns>
 		Dictionary<EIntendedBaseCopyDirectory, string> GetPlatformDirectoryMappings();
 
+		void ClearSavedDirectory(UnrealAppConfig AppConfiguration);
+
 		IAppInstall InstallApplication(UnrealAppConfig AppConfiguration);
+
+		void CopyAppConfigurationFiles(UnrealAppConfig AppConfiguration);
 
 		IAppInstance Run(IAppInstall App);
 

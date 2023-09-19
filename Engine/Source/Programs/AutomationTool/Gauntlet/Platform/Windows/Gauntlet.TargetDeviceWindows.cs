@@ -570,6 +570,10 @@ namespace Gauntlet
 			return WinApp;
 		}
 
+		public void ClearSavedDirectory(UnrealAppConfig AppConfiguration)
+		{
+
+		}
 
 		protected IAppInstall InstallSelfInstallingBuild(UnrealAppConfig AppConfig, IWindowsSelfInstallingBuild Build)
 		{
@@ -628,7 +632,7 @@ namespace Gauntlet
 
 			WinApp.WorkingDirectory = Path.GetDirectoryName(EditorBuild.ExecutablePath);
 			WinApp.RunOptions = RunOptions;
-	
+
 			// Force this to stop logs and other artifacts going to different places
 			WinApp.CommandArguments = AppConfig.CommandLine + string.Format(" -userdir=\"{0}\"", UserDir);
 			WinApp.ArtifactPath = Path.Combine(UserDir, @"Saved");
@@ -643,7 +647,12 @@ namespace Gauntlet
 
 			return WinApp;
 		}
-		
+
+		public void CopyAppConfigurationFiles(UnrealAppConfig AppConfiguration)
+		{
+
+		}
+
 		public bool CanRunFromPath(string InPath)
 		{
 			return !Utils.SystemHelpers.IsNetworkPath(InPath);

@@ -61,7 +61,7 @@ namespace Gauntlet
 		public ITargetDevice Device { get; protected set; }
 
 		public string Name { get; protected set; }
-			
+
 		public string CommandLine { get; protected set; }
 
 		public NullAppInstall(string InName, TargetDeviceNull InDevice, string InCommandLine)
@@ -151,13 +151,19 @@ namespace Gauntlet
 			return new NullAppInstance(this);
 		}
 
-		public IAppInstall InstallApplication(UnrealAppConfig AppConfig)
+		public void ClearSavedDirectory(UnrealAppConfig AppConfiguration)
 		{
 
-			NullAppInstall NullApp = new NullAppInstall(AppConfig.Name, this, AppConfig.CommandLine);
+		}
 
-	
-			return NullApp;
+		public IAppInstall InstallApplication(UnrealAppConfig AppConfig)
+		{
+			return new NullAppInstall(AppConfig.Name, this, AppConfig.CommandLine);
+		}
+
+		public void CopyAppConfigurationFiles(UnrealAppConfig AppConfiguration)
+		{
+
 		}
 
 		public UnrealTargetPlatform? Platform { get { return null; } }

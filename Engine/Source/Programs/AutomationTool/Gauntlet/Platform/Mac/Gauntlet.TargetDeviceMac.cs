@@ -12,7 +12,7 @@ using static AutomationTool.ProcessResult;
 
 namespace Gauntlet
 {
-	
+
 	public class MacDeviceFactory : IDeviceFactory
 	{
 		public bool CanSupportPlatform(UnrealTargetPlatform? Platform)
@@ -364,7 +364,7 @@ namespace Gauntlet
 				Log.Verbose("LocalFile exists: {0}. Newer: {1}", LocalFileExists, LocalFileNewer);
 
 				if (LocalFileExists && LocalFileNewer)
-				{					
+				{
 					// need to -basedir to have our exe load content from the path that the bundle sits in
 					MacApp.CommandArguments += string.Format(" -basedir={0}", Path.GetDirectoryName(BundlePath));
 					MacApp.ExecutablePath = LocalProjectBinary;
@@ -374,6 +374,10 @@ namespace Gauntlet
 			return MacApp;
 		}
 
+		public void ClearSavedDirectory(UnrealAppConfig AppConfiguration)
+		{
+
+		}
 
 		public IAppInstall InstallApplication(UnrealAppConfig AppConfig)
 		{
@@ -413,6 +417,11 @@ namespace Gauntlet
 				PopulateDirectoryMappings(AppPath);
 			}
 			return MacApp;
+		}
+
+		public void CopyAppConfigurationFiles(UnrealAppConfig AppConfiguration)
+		{
+
 		}
 
 		public IAppInstance Run(IAppInstall App)

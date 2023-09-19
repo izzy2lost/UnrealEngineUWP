@@ -873,6 +873,11 @@ namespace Gauntlet
 			return true;
 		}
 
+		public void ClearSavedDirectory(UnrealAppConfig AppConfiguration)
+		{
+
+		}
+
 		public IAppInstall InstallApplication(UnrealAppConfig AppConfig)
 		{
 			// todo - pass this through
@@ -886,7 +891,7 @@ namespace Gauntlet
 
 			// kill any currently running instance:
 			KillRunningProcess(Build.AndroidPackageName);
-	
+
 			string DeviceStorageQueryCommand = AndroidPlatform.GetStorageQueryCommand();
 			IProcessResult StorageQueryResult = RunAdbDeviceCommand(DeviceStorageQueryCommand);
 			string StorageLocation = StorageQueryResult.Output.Trim(); // "/mnt/sdcard";
@@ -1096,6 +1101,11 @@ namespace Gauntlet
 			AndroidAppInstall AppInstall = new AndroidAppInstall(this, AppConfig.ProjectName, Build.AndroidPackageName, AppConfig.CommandLine);
 
 			return AppInstall;
+		}
+
+		public void CopyAppConfigurationFiles(UnrealAppConfig AppConfiguration)
+		{
+
 		}
 
 		public IAppInstance Run(IAppInstall App)
