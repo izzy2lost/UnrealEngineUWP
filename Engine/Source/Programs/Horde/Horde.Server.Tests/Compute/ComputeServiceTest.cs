@@ -15,7 +15,7 @@ namespace Horde.Server.Tests.Compute
 	public class ComputeServiceTest : TestSetup
 	{
 		[TestMethod]
-		public async Task DeniedRequest()
+		public async Task DeniedRequestAsync()
 		{
 			await ComputeService.LogRequestAsync(AllocationOutcome.Denied, "req1", new Requirements { Pool = "pool1" }, null, Tracer.CurrentSpan);
 			await Clock.AdvanceAsync(TimeSpan.FromSeconds(5));
@@ -28,7 +28,7 @@ namespace Horde.Server.Tests.Compute
 		}
 		
 		[TestMethod]
-		public async Task AcceptedRequest()
+		public async Task AcceptedRequestAsync()
 		{
 			await ComputeService.LogRequestAsync(AllocationOutcome.Accepted, "req1", new Requirements { Pool = "pool1" }, null, Tracer.CurrentSpan);
 			await Clock.AdvanceAsync(TimeSpan.FromSeconds(5));
@@ -41,7 +41,7 @@ namespace Horde.Server.Tests.Compute
 		}
 		
 		[TestMethod]
-		public async Task DeniedThenAcceptedRequest()
+		public async Task DeniedThenAcceptedRequestAsync()
 		{
 			await ComputeService.LogRequestAsync(AllocationOutcome.Denied, "req1", new Requirements { Pool = "pool1" }, null, Tracer.CurrentSpan);
 			await Clock.AdvanceAsync(TimeSpan.FromSeconds(5));
@@ -54,7 +54,7 @@ namespace Horde.Server.Tests.Compute
 		}
 		
 		[TestMethod]
-		public async Task OnlyIncludeLastMinute()
+		public async Task OnlyIncludeLastMinuteAsync()
 		{
 			await ComputeService.LogRequestAsync(AllocationOutcome.Denied, "req1", new Requirements { Pool = "pool1" }, null, Tracer.CurrentSpan);
 			await Clock.AdvanceAsync(TimeSpan.FromMinutes(61));
@@ -66,7 +66,7 @@ namespace Horde.Server.Tests.Compute
 		}
 		
 		[TestMethod]
-		public async Task Complex()
+		public async Task ComplexAsync()
 		{
 			await ComputeService.LogRequestAsync(AllocationOutcome.Denied, "req1", new Requirements { Pool = "pool1" }, null, Tracer.CurrentSpan);
 			await Clock.AdvanceAsync(TimeSpan.FromSeconds(5));

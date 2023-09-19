@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Generic;
 using EpicGames.Horde.Compute;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
