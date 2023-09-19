@@ -260,7 +260,7 @@ FActorFolderTreeItem::FActorFolderTreeItem(const FFolder& InFolder, const TWeakO
 
 	if (World.IsValid())
 	{
-		Flags.bIsExpanded = FActorFolders::Get().IsFolderExpanded(*World, GetFolder());
+		Flags.bIsExpanded = !World->IsGameWorld() ? FActorFolders::Get().IsFolderExpanded(*World, GetFolder()) : true;
 	}
 }
 
@@ -374,6 +374,17 @@ bool FActorFolderTreeItem::ShouldShowVisibilityState() const
 	// if it is an actual sub-level that is not instanced (sublevels prior to level instances or editing level instance)
 	ULevel* Level = FFolder::GetRootObjectAssociatedLevel(GetRootObject());
 	return World.IsValid() && Level && (Level->IsPersistentLevel() || !Level->IsInstancedLevel());
+}
+
+bool FActorFolderTreeItem::ShouldRemoveOnceLastChildRemoved() const
+{
+	if (FFolderTreeItem::ShouldRemoveOnceLastChildRemoved())
+	{
+		return true;
+	}
+	// Don't show empty folders in game world
+	const bool bIsGameWorld = World.IsValid() && World->IsGameWorld();
+	return bIsGameWorld;
 }
 
 FFolder FActorFolderTreeItem::GetFolder() const

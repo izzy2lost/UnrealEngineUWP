@@ -865,10 +865,13 @@ void SSceneOutliner::RepopulateEntireTree()
 
 void SSceneOutliner::OnChildRemovedFromParent(ISceneOutlinerTreeItem& Parent)
 {
-	if (Parent.Flags.bIsFilteredOut && !Parent.GetChildren().Num())
+	if (!Parent.GetChildren().Num())
 	{
-		// The parent no longer has any children that match the current search terms. Remove it.
-		RemoveItemFromTree(Parent.AsShared());
+		if (Parent.ShouldRemoveOnceLastChildRemoved())
+		{
+			// The parent no longer has any children that match the current search terms. Remove it.
+			RemoveItemFromTree(Parent.AsShared());
+		}
 	}
 }
 

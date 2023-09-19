@@ -19,6 +19,8 @@ DEFINE_LOG_CATEGORY(LogWorldFolders);
 
 void UWorldFolders::Initialize(UWorld* InWorld)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldFolders::Initialize);
+
 	check(!World.IsValid());
 	check(IsValidChecked(InWorld));
 	
@@ -35,6 +37,13 @@ void UWorldFolders::Initialize(UWorld* InWorld)
 
 void UWorldFolders::RebuildList()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldFolders::RebuildList);
+
+	if (GetWorld()->IsGameWorld())
+	{
+		return;
+	}
+
 	Modify();
 	
 	// Clear folders with a Root Object.

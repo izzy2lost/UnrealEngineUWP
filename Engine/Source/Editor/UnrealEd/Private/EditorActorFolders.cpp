@@ -134,45 +134,33 @@ void FActorFolders::BroadcastOnActorFolderMoved(UWorld& InWorld, const FFolder& 
 	BroadcastOnActorEditorContextClientChanged(InWorld);
 }
 
+static bool IsRunningGameOrPIE()
+{
+	return (GIsEditor && GEditor && GEditor->GetPIEWorldContext()) || IsRunningGame();
+}
+
 void FActorFolders::OnLevelActorListChanged()
 {
-	bAnyLevelsChanged = true;
+	if (!IsRunningGameOrPIE())
+	{
+		bAnyLevelsChanged = true;
+	}
 }
 
 void FActorFolders::OnAllLevelsChanged()
 {
-	if (!bAnyLevelsChanged)
-	{
-		return;
-	}
-	QUICK_SCOPE_CYCLE_COUNTER(FActorFolders_OnAllLevelsChanged);
-	bAnyLevelsChanged = false;
-	Housekeeping();
+	TRACE_CPUPROFILER_EVENT_SCOPE(FActorFolders::OnAllLevelsChanged);
 
-	check(GEngine);
-
-	UWorld* World = nullptr;
-	for (const FWorldContext& Context : GEngine->GetWorldContexts())
+	if (bAnyLevelsChanged && !IsRunningGameOrPIE())
 	{
-		UWorld* ThisWorld = Context.World();
-		if (!ThisWorld)
-		{
-			continue;
-		}
-		else if (Context.WorldType == EWorldType::PIE)
-		{
-			World = ThisWorld;
-			break;
-		}
-		else if (Context.WorldType == EWorldType::Editor)
-		{
-			World = ThisWorld;
-		}
-	}
+		QUICK_SCOPE_CYCLE_COUNTER(FActorFolders_OnAllLevelsChanged);
+		bAnyLevelsChanged = false;
+		Housekeeping();
 
-	if (World)
-	{
-		RebuildFolderListForWorld(*World);
+		if (UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr)
+		{
+			RebuildFolderListForWorld(*World);
+		}
 	}
 }
 
@@ -226,6 +214,8 @@ void FActorFolders::OnActorFolderChanged(const AActor* InActor, FName OldPath)
 
 void FActorFolders::RebuildFolderListForWorld(UWorld& InWorld)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FActorFolders::RebuildFolderListForWorld);
+
 	if (auto* Folders = WorldFolders.Find(&InWorld))
 	{
 		// For world folders, we don't empty the existing folders so that we keep empty ones.

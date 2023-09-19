@@ -387,6 +387,12 @@ bool FActorHierarchy::IsShowingUnloadedActors() const
 
 void FActorHierarchy::CreateFolderItems(UWorld* InWorld, TArray<FSceneOutlinerTreeItemPtr>& OutItems) const
 {
+	// In game world, create folder through FindOrCreateParentItem
+	if (InWorld->IsGameWorld())
+	{
+		return;
+	}
+
 	if (Mode->ShouldShowFolders() && bShowingEmptyFolders)
 	{
 		// Add any folders which might match the current search terms
@@ -540,6 +546,12 @@ void FActorHierarchy::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TArr
 {
 	auto CreateChildrenFolders = [this](UWorld* InWorld, const FFolder& InParentFolder, const FFolder::FRootObject& InFolderRootObject, TArray<FSceneOutlinerTreeItemPtr>& OutChildren)
 	{
+		// In game world, create folder through FindOrCreateParentItem
+		if (InWorld->IsGameWorld())
+		{
+			return;
+		}
+
 		FActorFolders::Get().ForEachFolderWithRootObject(*InWorld, InFolderRootObject, [this, InWorld, &InParentFolder, &OutChildren](const FFolder& Folder)
 		{
 			if (Folder.IsChildOf(InParentFolder))
