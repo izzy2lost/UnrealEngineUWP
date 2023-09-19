@@ -472,6 +472,18 @@ FORCENOINLINE void FDebug::EnsureFailed(const ANSICHAR* Expr, const ANSICHAR* Fi
 #endif
 			GLog->Flush();
 
+			// Trace the error
+#if !NO_LOGGING
+			if (GEnsuresAreErrors)
+			{
+				TRACE_LOG_MESSAGE(LogOutputDevice, Error, TEXT("%s"), ErrorMsg);
+			}
+			else
+			{
+				TRACE_LOG_MESSAGE(LogOutputDevice, Warning, TEXT("%s"), ErrorMsg);
+			}
+#endif
+			
 			// Submit the error report to the server! (and display a balloon in the system tray)
 			{
 				// How many unique previous errors we should keep track of
