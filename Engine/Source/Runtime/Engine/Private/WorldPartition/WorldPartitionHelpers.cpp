@@ -16,6 +16,7 @@
 #if WITH_EDITOR
 #include "Misc/RedirectCollector.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/AssetRegistryHelpers.h"
 #include "Modules/ModuleManager.h"
 #endif
 
@@ -326,85 +327,12 @@ bool FWorldPartitionHelpers::ConvertRuntimePathToEditorPath(const FSoftObjectPat
 
 bool FWorldPartitionHelpers::FixupRedirectedAssetPath(FSoftObjectPath& InOutSoftObjectPath)
 {
-	if (InOutSoftObjectPath.IsNull())
-	{
-		// Empty path, no redirect
-		return true;
-	}
-
-	// Check GRedirectCollector first for faster fixup
-	FSoftObjectPath FoundRedirection = GRedirectCollector.GetAssetPathRedirection(InOutSoftObjectPath.GetWithoutSubPath());
-	if (!FoundRedirection.IsNull())
-	{
-		InOutSoftObjectPath.SetPath(FoundRedirection.GetAssetPath(), InOutSoftObjectPath.GetSubPathString());
-		return true;
-	}
-
-	if (InOutSoftObjectPath.GetAssetName().IsEmpty())
-	{
-		// A package name. No need to ask the asset registry for assets, it wont find any
-		return true;
-	}
-
-	const FAssetData* AssetData;
-	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
-
-	FTopLevelAssetPath AssetPath = InOutSoftObjectPath.GetAssetPath();
-
-	for (;;)
-	{
-		TArray<FAssetData> Assets;
-		AssetRegistry.ScanFilesSynchronous({ AssetPath.GetPackageName().ToString() }, /*bForceRescan*/false);
-		AssetRegistry.GetAssetsByPackageName(AssetPath.GetPackageName(), Assets, /*bIncludeOnlyOnDiskAssets*/true);
-
-		if (!Assets.Num())
-		{
-			UE_LOG(LogWorldPartition, Warning, TEXT("Failed to find assets for asset path '%s'"), *AssetPath.ToString());
-			return false;
-		}
-
-		AssetData = Assets.FindByPredicate([&AssetPath](const FAssetData& AssetData)
-		{
-			return (AssetData.ToSoftObjectPath().GetAssetPath() == AssetPath);
-		});
-
-		if (!AssetData)
-		{
-			UE_LOG(LogWorldPartition, Warning, TEXT("Failed to find asset for asset path '%s'"), *AssetPath.ToString());
-			return false;
-		}
-
-		if (!AssetData->IsRedirector())
-		{
-			break;
-		}
-
-		FString DestinationObjectPath;
-		if (!AssetData->GetTagValue(TEXT("DestinationObject"), DestinationObjectPath))
-		{
-			UE_LOG(LogWorldPartition, Warning, TEXT("Failed to follow redirector for '%s'"), *AssetPath.ToString());
-			return false;
-		}
-
-		// Update asset path
-		AssetPath = FTopLevelAssetPath(DestinationObjectPath);
-	}
-
-	InOutSoftObjectPath.SetPath(AssetPath, InOutSoftObjectPath.GetSubPathString());
-
-	return true;
+	return UAssetRegistryHelpers::FixupRedirectedAssetPath(InOutSoftObjectPath);
 }
 
 bool FWorldPartitionHelpers::FixupRedirectedAssetPath(FName& InOutAssetPath)
 {
-	FSoftObjectPath SoftObjectPath(InOutAssetPath.ToString());
-	if (FixupRedirectedAssetPath(SoftObjectPath))
-	{
-		InOutAssetPath = FName(*SoftObjectPath.ToString());
-		return true;
-	}
-
-	return false;
+	return UAssetRegistryHelpers::FixupRedirectedAssetPath(InOutAssetPath);
 }
 
 #endif // #if WITH_EDITOR

@@ -142,18 +142,10 @@ public:
 	// Runtime/Editor conversions
 	static ENGINE_API bool ConvertRuntimePathToEditorPath(const FSoftObjectPath& InPath, FSoftObjectPath& OutPath);
 
-	/**
-	 * Resolves the provided asset path using asset redirectors.
-	 * @param	InOutAssetPath	Asset path to resolve [In/Out].
-	 * @return	False if an error occured while trying to resolve, else true.
-	 */
+	UE_DEPRECATED(5.4, "Use UAssetRegistryHelpers::FixupRedirectedAssetPath instead.")
 	static ENGINE_API bool FixupRedirectedAssetPath(FName& InOutAssetPath);
 	
-	/**
-	 * Resolves the provided soft object asset path using asset redirectors.
-	 * @param	InOutSoftObjectPath	Asset path to resolve [In/Out].
-	 * @return	False if an error occured while trying to resolve, else true.
-	 */
+	UE_DEPRECATED(5.4, "Use UAssetRegistryHelpers::FixupRedirectedAssetPath instead.")
 	static ENGINE_API bool FixupRedirectedAssetPath(FSoftObjectPath& InOutSoftObjectPath);
 #endif // WITH_EDITOR
 

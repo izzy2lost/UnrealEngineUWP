@@ -12,6 +12,7 @@
 #include "UObject/FortniteSeasonBranchObjectVersion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryHelpers.h"
 
 FActorDescArchive::FActorDescArchive(FArchive& InArchive, FWorldPartitionActorDesc* InActorDesc)
 	: FArchiveProxy(InArchive)
@@ -117,7 +118,7 @@ FArchive& FActorDescArchive::operator<<(FSoftObjectPath& Value)
 
 	if (IsLoading())
 	{
-		FWorldPartitionHelpers::FixupRedirectedAssetPath(Value);
+		UAssetRegistryHelpers::FixupRedirectedAssetPath(Value);
 	}
 
 	return *this;

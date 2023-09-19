@@ -137,4 +137,17 @@ public:
 	/** Checks to see if the given asset data is a blueprint with a base class in the ClassNameSet. This checks the parent asset tag */
 	static bool ASSETREGISTRY_API IsAssetDataBlueprintOfClassSet(const FAssetData& AssetData, const TSet<FTopLevelAssetPath>& ClassNameSet);
 
+	/**
+	 * Resolves the provided asset path using asset redirectors.
+	 * @param	InOutAssetPath	Asset path to resolve [In/Out].
+	 * @return	False if an error occurred while trying to resolve, else true.
+	 */
+	static ASSETREGISTRY_API bool FixupRedirectedAssetPath(FName& InOutAssetPath);
+	
+	/**
+	 * Resolves the provided soft object asset path using asset redirectors.
+	 * @param	InOutSoftObjectPath	Asset path to resolve [In/Out].
+	 * @return	False if an error occurred while trying to resolve, else true.
+	 */
+	static ASSETREGISTRY_API bool FixupRedirectedAssetPath(FSoftObjectPath& InOutSoftObjectPath);
 };

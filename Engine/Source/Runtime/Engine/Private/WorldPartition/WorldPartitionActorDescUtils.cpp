@@ -4,6 +4,7 @@
 #include "WorldPartition/WorldPartitionActorDescUtils.h"
 #include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryHelpers.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Modules/ModuleManager.h"
 #include "WorldPartition/WorldPartitionLog.h"
@@ -174,6 +175,6 @@ void FWorldPartitionActorDescUtils::ReplaceActorDescriptorPointerFromActor(const
 
 bool FWorldPartitionActorDescUtils::FixupRedirectedAssetPath(FName& InOutAssetPath)
 {
-	return FWorldPartitionHelpers::FixupRedirectedAssetPath(InOutAssetPath);
+	return UAssetRegistryHelpers::FixupRedirectedAssetPath(InOutAssetPath);
 }
 #endif

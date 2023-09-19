@@ -8,6 +8,7 @@
 #include "Misc/ArchiveMD5.h"
 #include "UObject/MetaData.h"
 #include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryHelpers.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
@@ -689,7 +690,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		for (FName& DataLayer : DataLayers)
 		{
-			FWorldPartitionHelpers::FixupRedirectedAssetPath(DataLayer);
+			UAssetRegistryHelpers::FixupRedirectedAssetPath(DataLayer);
 		}
 	}
 }
