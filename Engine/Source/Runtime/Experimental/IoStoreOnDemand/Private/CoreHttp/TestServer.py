@@ -1,10 +1,13 @@
 import io
+import os
 import base64
 import random
 import socket
 import asyncio
 import threading
 from flask import request, Flask, Response
+
+os.chdir("c:/")
 
 #-------------------------------------------------------------------------------
 async def proxy_impl(loop, client):
