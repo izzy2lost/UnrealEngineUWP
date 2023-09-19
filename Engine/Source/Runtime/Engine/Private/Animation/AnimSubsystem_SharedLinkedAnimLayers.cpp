@@ -213,8 +213,13 @@ FAnimSubsystem_SharedLinkedAnimLayers* FAnimSubsystem_SharedLinkedAnimLayers::Ge
 	}
 #endif
 	check(SkelMesh);
-	check(SkelMesh->GetAnimInstance());
-	return SkelMesh->GetAnimInstance()->FindSubsystem<FAnimSubsystem_SharedLinkedAnimLayers>();
+
+	// In some cases we have a PostProcessAnimInstance but no AnimScriptInstance
+	if (SkelMesh->GetAnimInstance())
+	{
+		return SkelMesh->GetAnimInstance()->FindSubsystem<FAnimSubsystem_SharedLinkedAnimLayers>();
+	}
+	return nullptr;
 }
 
 void FAnimSubsystem_SharedLinkedAnimLayers::Reset()
