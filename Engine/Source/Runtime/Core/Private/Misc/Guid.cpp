@@ -249,9 +249,15 @@ FGuid FGuid::NewDeterministicGuid(FStringView ObjectPath, uint64 Seed)
 	Builder.Update(&Seed, sizeof(Seed));
 	Builder.Update(Utf8ObjectPath.GetData(), Utf8ObjectPath.Len() * sizeof(UTF8CHAR));
 
+	FBlake3Hash Hash = Builder.Finalize();
+
+	return NewGuidFromHash(Hash);
+}
+
+FGuid FGuid::NewGuidFromHash(const FBlake3Hash& Hash)
+{
 	// We use the first 16 bytes of the BLAKE3 hash to create the guid, there is no specific reason why these were
 	// chosen, we could take any pattern or combination of bytes.
-	FBlake3Hash Hash = Builder.Finalize();
 	uint32* HashBytes = (uint32*)Hash.GetBytes();
 	uint32 A = uint32(HashBytes[0]);
 	uint32 B = uint32(HashBytes[1]);

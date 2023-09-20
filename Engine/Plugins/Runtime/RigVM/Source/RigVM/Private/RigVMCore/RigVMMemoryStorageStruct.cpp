@@ -3,7 +3,8 @@
 #include "RigVMCore/RigVMMemoryStorageStruct.h"
 #include "RigVMTypeUtils.h"
 #include "RigVMModule.h"
-
+#include "Misc/Guid.h"
+#include "Hash/Blake3.h"
 
 namespace UE::RigVM::RigVMCore::Private
 {
@@ -567,6 +568,14 @@ void FRigVMMemoryStorageStruct::SetDefaultValues(const TArray<FRigVMPropertyDesc
 		{
 			Result = FPropertyBagPropertyDesc(RigVMDescriptor.Name, PropertyBagType, RigVMDescriptor.CPPTypeObject);
 		}
+
+		const FString Name = RigVMDescriptor.Name.ToString();
+
+		FBlake3 Builder;
+		Builder.Update(*Name, Name.Len());
+		Builder.Update(*RigVMDescriptor.CPPType, RigVMDescriptor.CPPType.Len());
+		FBlake3Hash Hash = Builder.Finalize();
+		Result.ID = FGuid::NewGuidFromHash(Hash);
 	}
 
 	return Result;
