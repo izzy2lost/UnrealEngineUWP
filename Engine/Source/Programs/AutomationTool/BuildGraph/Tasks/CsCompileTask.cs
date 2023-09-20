@@ -417,7 +417,7 @@ namespace AutomationTool.Tasks
 
 			HashSet<FileReference> BuildProducts = new HashSet<FileReference>();
 			Dictionary<string, HashSet<FileReference>> TagNameToFileSet = new Dictionary<string, HashSet<FileReference>>();
-			await new CsCompileTask(Parameters).ExecuteAsync(new JobContext(null!), BuildProducts, TagNameToFileSet);
+			await new CsCompileTask(Parameters).ExecuteAsync(new JobContext(null!, null!), BuildProducts, TagNameToFileSet);
 
 			FileSet Binaries = FileSet.Empty;
 			FileSet References = FileSet.Empty;

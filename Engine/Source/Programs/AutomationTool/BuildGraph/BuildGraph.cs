@@ -691,14 +691,14 @@ namespace AutomationTool
 			{
 				if(SingleNode != null)
 				{
-					if(!await BuildNodeAsync(new JobContext(this), Graph, SingleNode, NodeToExecutor, Storage, bWithBanner: true))
+					if(!await BuildNodeAsync(Graph, SingleNode, NodeToExecutor, Storage, bWithBanner: true))
 					{
 						return ExitCode.Error_Unknown;
 					}
 				}
 				else
 				{
-					if(!await BuildAllNodesAsync(new JobContext(this), Graph, NodeToExecutor, Storage))
+					if(!await BuildAllNodesAsync(Graph, NodeToExecutor, Storage))
 					{
 						return ExitCode.Error_Unknown;
 					}
@@ -922,12 +922,11 @@ namespace AutomationTool
 		/// <summary>
 		/// Builds all the nodes in the graph
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
 		/// <param name="Graph">The graph instance</param>
 		/// <param name="NodeToExecutor">Map from node to executor</param>
 		/// <param name="Storage">The temp storage backend which stores the shared state</param>
 		/// <returns>True if everything built successfully</returns>
-		async Task<bool> BuildAllNodesAsync(JobContext Job, BgGraphDef Graph, Dictionary<BgNodeDef, BgNodeExecutor> NodeToExecutor, TempStorage Storage)
+		async Task<bool> BuildAllNodesAsync(BgGraphDef Graph, Dictionary<BgNodeDef, BgNodeExecutor> NodeToExecutor, TempStorage Storage)
 		{
 			// Build a flat list of nodes to execute, in order
 			BgNodeDef[] NodesToExecute = Graph.Agents.SelectMany(x => x.Nodes).ToArray();
@@ -952,7 +951,7 @@ namespace AutomationTool
 				if(!Storage.IsComplete(NodeToExecute.Name))
 				{
 					Logger.LogInformation("");
-					if(!await BuildNodeAsync(Job, Graph, NodeToExecute, NodeToExecutor, Storage, bWithBanner: false))
+					if(!await BuildNodeAsync(Graph, NodeToExecute, NodeToExecutor, Storage, bWithBanner: false))
 					{
 						return false;
 					} 
@@ -1008,14 +1007,13 @@ namespace AutomationTool
 		/// <summary>
 		/// Build a node
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
 		/// <param name="Graph">The graph to which the node belongs. Used to determine which outputs need to be transferred to temp storage.</param>
 		/// <param name="Node">The node to build</param>
 		/// <param name="NodeToExecutor">Map from node to executor</param>
 		/// <param name="Storage">The temp storage backend which stores the shared state</param>
 		/// <param name="bWithBanner">Whether to write a banner before and after this node's log output</param>
 		/// <returns>True if the node built successfully, false otherwise.</returns>
-		async Task<bool> BuildNodeAsync(JobContext Job, BgGraphDef Graph, BgNodeDef Node, Dictionary<BgNodeDef, BgNodeExecutor> NodeToExecutor, TempStorage Storage, bool bWithBanner)
+		async Task<bool> BuildNodeAsync(BgGraphDef Graph, BgNodeDef Node, Dictionary<BgNodeDef, BgNodeExecutor> NodeToExecutor, TempStorage Storage, bool bWithBanner)
 		{
 			DirectoryReference RootDir = new DirectoryReference(CommandUtils.CmdEnv.LocalRoot);
 
@@ -1075,7 +1073,7 @@ namespace AutomationTool
 				Console.WriteLine();
 				Logger.LogInformation("========== Starting: {Arg0} ==========", Node.Name);
 			}
-			if(!await NodeToExecutor[Node].ExecuteAsync(Job, TagNameToFileSet))
+			if(!await NodeToExecutor[Node].ExecuteAsync(new JobContext(Node.Name, this), TagNameToFileSet))
 			{
 				return false;
 			}
