@@ -25,6 +25,7 @@ void UGLTFExportOptions::ResetToDefault()
 	DefaultLevelOfDetail = 0;
 	bExportVertexColors = false;
 	bExportVertexSkinWeights = true;
+	bMakeSkinnedMeshesRoot = true;
 	bUseMeshQuantization = false;
 	bExportLevelSequences = true;
 	bExportAnimationSequences = true;
