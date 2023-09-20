@@ -194,7 +194,7 @@ bool TPCGTimeSlicedElementBase<PerExecutionStateT, PerIterationStateT>::ExecuteS
 	++Context->ExecutionCount;
 
 	// The user is responsible to check for this before execution, but just in case
-	if (!ensureMsgf(Context->DataIsPrepared() && !Context->PerIterationStateArray.IsEmpty(), TEXT("State data was not properly initialized.")))
+	if (!ensureMsgf(Context->DataIsPrepared(), TEXT("State data was not properly initialized.")) || Context->PerIterationStateArray.IsEmpty())
 	{
 		return true;
 	}
