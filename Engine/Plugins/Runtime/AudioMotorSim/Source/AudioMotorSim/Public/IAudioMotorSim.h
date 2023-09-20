@@ -49,6 +49,10 @@ public:
 	// Called when something Resets this component
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="AudioMotorSim", DisplayName = "OnReset")
 	void BP_Reset();
+	
+	// controls whether this will run its update function
+	UFUNCTION(BlueprintCallable, Category="AudioMotorSim")
+	void SetEnabled(bool bNewEnabled);
 
 #if WITH_EDITORONLY_DATA
 	// Input data after running this component
@@ -61,4 +65,9 @@ public:
 
 	virtual void GetCachedData(FAudioMotorSimInputContext& OutInput, FAudioMotorSimRuntimeContext& OutRuntimeInfo);
 #endif
+
+protected:
+	// will only update if enabled
+    UPROPERTY(BlueprintReadOnly, Category="AudioMotorSim")
+    bool bEnabled = true;
 };
