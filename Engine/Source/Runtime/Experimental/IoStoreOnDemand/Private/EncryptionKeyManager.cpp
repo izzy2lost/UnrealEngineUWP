@@ -68,6 +68,12 @@ bool FEncryptionKeyManager::TryGetKey(const FGuid& Id, FAES::FAESKey& OutKey)
 	return false;
 }
 
+TMap<FGuid, FAES::FAESKey> FEncryptionKeyManager::GetAllKeys()
+{
+	FScopeLock _(&CriticalSection);
+	return Keys;
+}
+
 FEncryptionKeyManager& FEncryptionKeyManager::Get()
 {
 	static FEncryptionKeyManager Mgr;

@@ -27,6 +27,7 @@ enum class EIoStoreTocVersion : uint8
 	PartitionSize,
 	PerfectHash,
 	PerfectHashWithOverflow,
+	OnDemandMetaData,
 	LatestPlusOne,
 	Latest = LatestPlusOne - 1
 };
@@ -90,6 +91,18 @@ struct FIoStoreTocEntryMeta
 	// Source data hash (i.e. not the on disk data)
 	FIoChunkHash ChunkHash;
 	FIoStoreTocEntryMetaFlags Flags;
+};
+
+struct FIoStoreTocOnDemandChunkMeta
+{
+	/** Hash of the chunk on disk after both compression and encryption */
+	FIoHash DiskHash;
+};
+
+struct FIoStoreTocOnDemandCompressedBlockMeta
+{
+	/** Hash of the block on disk */
+	FIoHash DiskHash;
 };
 
 /**
@@ -193,9 +206,12 @@ struct FIoStoreTocResource
 	
 	TArray<FSHAHash> ChunkBlockSignatures;
 
+	TArray<uint8> DirectoryIndexBuffer; 
+	
 	TArray<FIoStoreTocEntryMeta> ChunkMetas;
 
-	TArray<uint8> DirectoryIndexBuffer;
+	TArray<FIoStoreTocOnDemandChunkMeta> OnDemandChunkMeta;
+	TArray<FIoStoreTocOnDemandCompressedBlockMeta> OnDemandCompressedBlockMeta;
 
 	UE_NODISCARD CORE_API static FIoStatus Read(const TCHAR* TocFilePath, EIoStoreTocReadOptions ReadOptions, FIoStoreTocResource& OutTocResource);
 

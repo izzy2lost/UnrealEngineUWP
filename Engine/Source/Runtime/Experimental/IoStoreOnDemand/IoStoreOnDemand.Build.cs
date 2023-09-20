@@ -12,7 +12,7 @@ public class IoStoreOnDemand : ModuleRules
 			new string[] {
 				"HTTP",
 				"Json",
-				"Analytics",
+				"Analytics"
 			}
 		);
 
@@ -23,6 +23,18 @@ public class IoStoreOnDemand : ModuleRules
 			(Target.Type == TargetType.Editor || Target.Type == TargetType.Program))
 		{
 			PrivateDependencyModuleNames.AddRange(new string[] { "S3Client", "RSA" });
+		}
+
+		bool bFindUcasViaPakFileModule = false;
+
+		if (bFindUcasViaPakFileModule)
+		{
+			PrivateDependencyModuleNames.Add("PakFile");
+			PublicDefinitions.Add("UE_IAS_LINKPAKFILE=1");
+		}
+		else
+		{
+			PublicDefinitions.Add("UE_IAS_LINKPAKFILE=0");
 		}
 	}
 }

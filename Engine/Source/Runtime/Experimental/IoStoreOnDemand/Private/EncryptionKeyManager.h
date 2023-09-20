@@ -26,6 +26,8 @@ public:
 	FAES::FAESKey* GetKey(const FGuid& Id);
 	/** Try retrieve the encryption key for the specified key ID. */
 	bool TryGetKey(const FGuid& Id, FAES::FAESKey& OutKey);
+	/** Returns a map of all available keys */
+	TMap<FGuid, FAES::FAESKey> GetAllKeys();
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FEncryptionKeyAddedDelegate, const FGuid&, const FAES::FAESKey&);
 	/** Event triggered when a new key as been added. */
