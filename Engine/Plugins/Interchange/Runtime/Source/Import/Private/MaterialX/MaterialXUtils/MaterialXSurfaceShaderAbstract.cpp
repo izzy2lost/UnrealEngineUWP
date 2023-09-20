@@ -60,24 +60,42 @@ bool FMaterialXSurfaceShaderAbstract::AddAttribute(MaterialX::InputPtr Input, co
 	return false;
 }
 
-bool FMaterialXSurfaceShaderAbstract::AddAttributeFromValueOrInterface(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode) const
+bool FMaterialXSurfaceShaderAbstract::AddAttributeFromValueOrInterface(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode)
 {
+	bool bAttribute = false;
+
 	if(Input)
 	{
+		UInterchangeShaderNode* ShaderNodeToConnectTo = ShaderNode;
+		FString InputToConnectTo = InputChannelName;
+
+		if(Input->hasChannels())
+		{
+			using namespace UE::Interchange::Materials::Standard::Nodes;
+
+			UInterchangeShaderNode* SwizzleNode = CreateShaderNode(Input->getParent()->asA<mx::Node>()->getName().c_str() + FString{ TEXT("_Channels_") } + Input->getName().c_str(), Swizzle::Name.ToString());
+			SwizzleNode->AddStringAttribute(Swizzle::Attributes::Channels.ToString(), Input->getChannels().c_str());
+
+			UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(ShaderNode, InputChannelName, SwizzleNode->GetUniqueID());
+
+			ShaderNodeToConnectTo = SwizzleNode;
+			InputToConnectTo = TEXT("Input");
+		}
+
 		if(Input->hasValue())
 		{
-			return AddAttribute(Input, InputChannelName, ShaderNode);
+			bAttribute = AddAttribute(Input, InputToConnectTo, ShaderNodeToConnectTo);
 		}
 		else if(Input->hasInterfaceName())
 		{
 			if(mx::InputPtr InputInterface = Input->getInterfaceInput(); InputInterface->hasValue())
 			{
-				return AddAttribute(InputInterface, InputChannelName, ShaderNode);
+				bAttribute = AddAttribute(InputInterface, InputToConnectTo, ShaderNodeToConnectTo);
 			}
 		}
 	}
 
-	return false;
+	return bAttribute;
 }
 
 bool FMaterialXSurfaceShaderAbstract::AddFloatAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode, float DefaultValue) const
@@ -229,6 +247,9 @@ void FMaterialXSurfaceShaderAbstract::ConnectNodeCategoryOutputToInput(const Mat
 
 		FString OutputChannelName = OutputName;
 
+		// Swizzle node for the attribute 'channels'
+		UInterchangeShaderNode* ChannelsNode = nullptr;
+
 		if(mx::ElementPtr DownstreamElement = Edge.getDownstreamElement())
 		{
 			if(mx::NodePtr DownstreamNode = DownstreamElement->asA<mx::Node>())
@@ -239,6 +260,13 @@ void FMaterialXSurfaceShaderAbstract::ConnectNodeCategoryOutputToInput(const Mat
 					if(ConnectedInput->hasOutputString())
 					{
 						OutputChannelName = ConnectedInput->getOutputString().c_str();
+					}
+
+					if(ConnectedInput->hasChannels())
+					{
+						using namespace UE::Interchange::Materials::Standard::Nodes;
+						ChannelsNode = CreateShaderNode((UpstreamNode->getName() + ConnectedInput->getName()).c_str() + FString{ TEXT("_Channels") }, Swizzle::Name.ToString());
+						ChannelsNode->AddStringAttribute(Swizzle::Attributes::Channels.ToString(), ConnectedInput->getChannels().c_str());
 					}
 				}
 
@@ -253,6 +281,14 @@ void FMaterialXSurfaceShaderAbstract::ConnectNodeCategoryOutputToInput(const Mat
 				{
 					if(UInterchangeShaderNode** FoundNode = ShaderNodes.Find({ GetAttributeParentName(DownstreamNode), Outputs[i]->getName().c_str()}))
 					{
+						//Connect the swizzle node between the upstream and downstream node
+						if(ChannelsNode)
+						{
+							UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(*FoundNode, InputChannelName, ChannelsNode->GetUniqueID());
+							InputChannelName = TEXT("Input");
+							FoundNode = &ChannelsNode;
+						}
+
 						ParentShaderNodeOutputs.Emplace(*FoundNode);
 					}
 				}
@@ -882,11 +918,11 @@ void FMaterialXSurfaceShaderAbstract::ConnectHeightToNormalInputToOutput(const F
 			//we need to copy the content of the image node to this node
 			Connect.UpstreamNode->copyContentFrom(ConnectedNode);
 
-			SetMatchingInputsNames(Connect.UpstreamNode);
-
-			//the copy overwrite every attribute of the node, so we need to get them back, essentially the type and the renaming
+			// the copy overwrite every attribute of the node, so we need to get them back, essentially the type and the renaming
 			// the output is always a vec3
 			Connect.UpstreamNode->setType(mx::Type::Vector3);
+
+			SetMatchingInputsNames(Connect.UpstreamNode);
 
 			mx::NodeGraphPtr Graph = Connect.UpstreamNode->getParent()->asA<mx::NodeGraph>();
 			Graph->removeNode(ConnectedNode->getName());
@@ -932,10 +968,10 @@ void FMaterialXSurfaceShaderAbstract::ConnectBlurInputToOutput(const FConnectNod
 			//we need to copy the content of the image node to this node
 			Connect.UpstreamNode->copyContentFrom(ConnectedNode);
 
-			SetMatchingInputsNames(Connect.UpstreamNode);
-
 			//the copy overwrites every attribute of the node, so we need to get them back, essentially the type and the renaming
 			Connect.UpstreamNode->setType(NodeType);
+
+			SetMatchingInputsNames(Connect.UpstreamNode);
 
 			mx::NodeGraphPtr Graph = Connect.UpstreamNode->getParent()->asA<mx::NodeGraph>();
 			Graph->removeNode(ConnectedNode->getName());
