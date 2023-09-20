@@ -370,7 +370,9 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 		OutEnvironment.SetDefine(TEXT("NEEDS_PARTICLE_TIME"), 1);
 	}
 
-	if (false)//bUsesParticleMotionBlur)
+	const bool bUsesParticleMotionBlur = EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::ParticleMotionBlurFade);
+
+	if (bUsesParticleMotionBlur)
 	{
 		OutEnvironment.SetDefine(TEXT("USES_PARTICLE_MOTION_BLUR"), 1);
 	}
@@ -504,7 +506,7 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 		OutEnvironment.SetDefine(PageTableName.ToString(), PageTableValue.ToString());
 	}
 
-	const TArray<UMaterialParameterCollection*>& ParameterCollections = InMaterial.GetCachedHLSLTree()->GetParameterCollections();
+	const TConstArrayView<const UMaterialParameterCollection*> ParameterCollections = EmitMaterialData.ParameterCollections;
 	for (int32 CollectionIndex = 0; CollectionIndex < ParameterCollections.Num(); CollectionIndex++)
 	{
 		// Add uniform buffer declarations for any parameter collections referenced
@@ -1005,7 +1007,7 @@ bool MaterialEmitHLSL(const FMaterialCompileTargetParameters& InCompilerTarget,
 			OutCompilationOutput);
 	}
 
-	OutCompilationOutput.UniformExpressionSet.SetParameterCollections(CachedTree->GetParameterCollections());
+	OutCompilationOutput.UniformExpressionSet.SetParameterCollections(EmitMaterialData.ParameterCollections);
 
 	OutMaterialEnvironment = new FSharedShaderCompilerEnvironment();
 	OutMaterialEnvironment->TargetPlatform = InCompilerTarget.TargetPlatform;

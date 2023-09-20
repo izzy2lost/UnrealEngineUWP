@@ -493,6 +493,10 @@ bool FExpressionSelect::PrepareValue(FEmitContext& Context, FEmitScope& Scope, c
 			return Context.Error(TEXT("Cannot mix numeric vectors with different number of components"));
 		}
 	}
+	else if (LhsType.IsObject() && !IsConstantEvaluation(ConditionEvaluation))
+	{
+		return Context.Error(TEXT("Condition must be constant when selecting between objects"));
+	}
 
 	ResultType.MergeEvaluation(ConditionEvaluation);
 	return OutResult.SetType(Context, RequestedType, ResultType);
@@ -575,6 +579,14 @@ void FExpressionSelect::EmitValuePreshader(FEmitContext& Context, FEmitScope& Sc
 		OutResult.Preshader.SetLabel(Label1);
 		OutResult.Type = ResultType;
 	}
+}
+
+bool FExpressionSelect::EmitValueObject(FEmitContext& Context, FEmitScope& Scope, const FName& ObjectTypeName, void* OutObjectBase) const
+{
+	// We have already checked that the condition is constant during PrepareValue
+	const bool bCondition = ConditionExpression->GetValueConstant(Context, Scope, Shader::EValueType::Bool1).AsBoolScalar();
+	const FExpression* SelectedExpression = bCondition ? TrueExpression : FalseExpression;
+	return SelectedExpression->GetValueObject(Context, Scope, ObjectTypeName, OutObjectBase);
 }
 
 void FExpressionDerivative::ComputeAnalyticDerivatives(FTree& Tree, FExpressionDerivatives& OutResult) const
@@ -717,7 +729,7 @@ void SwizzleEmitValueShader(FEmitContext& Context,
 
 	// Make sure the input is cast to the explicit requested type, this ensures it will have enough components for the swizzle
 	// Alternately, we could avoid the cast, and update the logic to insert 0s for swizzle access to invalid components
-	FEmitShaderExpression* EmitInput = Input->GetValueShader(Context, Scope, RequestedInputType, RequestedInputType.Type);
+	FEmitShaderExpression* EmitInput = Input->GetValueShader(Context, Scope, RequestedInputType, RequestedInputType.Type.GetConcreteType());
 
 	const Shader::FValueTypeDescription InputTypeDesc = Shader::GetValueTypeDescription(EmitInput->Type);
 	bool bSkipSwizzle = (InputTypeDesc.NumComponents == Parameters.NumComponents);
@@ -1023,6 +1035,11 @@ void FExpressionAppend::EmitValuePreshader(FEmitContext& Context, FEmitScope& Sc
 	OutResult.Type = Types.ResultType.GetResultType();
 }
 
+const FExpression* FTree::NewAppend(const FExpression* Lhs, const FExpression* Rhs)
+{
+	return NewExpression<FExpressionAppend>(Lhs, Rhs);
+}
+
 void FExpressionSwitchBase::ComputeAnalyticDerivatives(FTree& Tree, FExpressionDerivatives& OutResult) const
 {
 	const FExpression* InputDdx[MaxInputs];
@@ -1192,6 +1209,11 @@ FExpressionVirtualTextureFeatureSwitch::FExpressionVirtualTextureFeatureSwitch(T
 
 bool FExpressionVirtualTextureFeatureSwitch::IsInputActive(const FEmitContext& Context, int32 Index) const
 {
+	if (Context.TargetParameters.IsGenericTarget())
+	{
+		return true;
+	}
+
 	if (UseVirtualTexturing(Context.TargetParameters.FeatureLevel, Context.TargetParameters.TargetPlatform))
 	{
 		return Index == 0;

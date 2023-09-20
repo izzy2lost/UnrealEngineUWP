@@ -154,9 +154,12 @@ FExternalInputDescription GetExternalInputDescription(EExternalInput Input)
 	case EExternalInput::ParticleSubUVCoords0: return FExternalInputDescription(TEXT("ParticleSubUVCoords0"), Shader::EValueType::Float2);
 	case EExternalInput::ParticleSubUVCoords1: return FExternalInputDescription(TEXT("ParticleSubUVCoords1"), Shader::EValueType::Float2);
 	case EExternalInput::ParticleSubUVLerp: return FExternalInputDescription(TEXT("ParticleSubUVLerp"), Shader::EValueType::Float1);
+	case EExternalInput::ParticleMotionBlurFade: return FExternalInputDescription(TEXT("ParticleMotionBlurFade"), Shader::EValueType::Float1);
 
 	case EExternalInput::PerInstanceFadeAmount: return FExternalInputDescription(TEXT("PerInstanceFadeAmount"), Shader::EValueType::Float1);
 	case EExternalInput::PerInstanceRandom: return FExternalInputDescription(TEXT("PerInstanceRandom"), Shader::EValueType::Float1);
+
+	case EExternalInput::SkyAtmosphereViewLuminance: return FExternalInputDescription(TEXT("SkyAtmosphereViewLuminance"), Shader::EValueType::Float3);
 
 	case EExternalInput::IsOrthographic: return FExternalInputDescription(TEXT("IsOrthographic"), Shader::EValueType::Float1);
 
@@ -233,6 +236,8 @@ bool FExpressionExternalInput::PrepareValue(FEmitContext& Context, FEmitScope& S
 			case EExternalInput::PerInstanceRandom:
 				Context.MaterialCompilationOutput->bUsesPerInstanceRandom = true;
 				break;
+			case EExternalInput::SkyAtmosphereViewLuminance:
+				Context.bUsesSkyAtmosphere = true;
 			default:
 				break;
 			}
@@ -368,9 +373,12 @@ void FExpressionExternalInput::EmitValueShader(FEmitContext& Context, FEmitScope
 		case EExternalInput::ParticleSubUVCoords0: Code = TEXT("Parameters.Particle.SubUVCoords[0].xy"); break;
 		case EExternalInput::ParticleSubUVCoords1: Code = TEXT("Parameters.Particle.SubUVCoords[1].xy"); break;
 		case EExternalInput::ParticleSubUVLerp: Code = TEXT("Parameters.Particle.SubUVLerp"); break;
+		case EExternalInput::ParticleMotionBlurFade: Code = TEXT("Parameters.Particle.MotionBlurFade"); break;
 
 		case EExternalInput::PerInstanceFadeAmount: Code = TEXT("GetPerInstanceFadeAmount(Parameters)"); break;
 		case EExternalInput::PerInstanceRandom: Code = TEXT("GetPerInstanceRandom(Parameters)"); break;
+
+		case EExternalInput::SkyAtmosphereViewLuminance: Code = TEXT("MaterialExpressionSkyAtmosphereViewLuminance(Parameters)"); break;
 
 		case EExternalInput::IsOrthographic: Code = TEXT("((View.ViewToClip[3][3] < 1.0f) ? 0.0f : 1.0f)"); break;
 
@@ -661,11 +669,24 @@ void FExpressionCollectionParameter::ComputeAnalyticDerivatives(FTree& Tree, FEx
 
 bool FExpressionCollectionParameter::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
+	if (Context.bMarkLiveValues && !Context.TargetParameters.IsGenericTarget())
+	{
+		FEmitData& EmitMaterialData = Context.FindData<FEmitData>();
+		const int32 CollectionIndex = EmitMaterialData.FindOrAddParameterCollection(ParameterCollection);
+
+		if (CollectionIndex == INDEX_NONE)
+		{
+			return Context.Error(TEXT("Material references too many MaterialParameterCollections! A material may only reference 2 different collections."));
+		}
+	}
 	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float4);
 }
 
 void FExpressionCollectionParameter::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
 {
+	FEmitData& EmitMaterialData = Context.FindData<FEmitData>();
+	const int32 CollectionIndex = EmitMaterialData.ParameterCollections.Find(ParameterCollection);
+	check(CollectionIndex != INDEX_NONE);
 	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float4, TEXT("MaterialCollection%.Vectors[%]"), CollectionIndex, ParameterIndex);
 }
 
@@ -1599,6 +1620,44 @@ void FExpressionSceneDepth::EmitValueShader(FEmitContext& Context, FEmitScope& S
 	OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float1, TEXT("CalcSceneDepth(%)"), EmitScreenUV);
 }
 
+bool FExpressionSceneDepthWithoutWater::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Context.ShaderFrequency == SF_Vertex)
+	{
+		// Mobile currently does not support this, we need to read a separate copy of the depth, we must disable framebuffer fetch and force scene texture reads.
+		// (Texture bindings are not setup properly for any platform so we're disallowing usage in vertex shader altogether now)
+		return Context.Error(TEXT("Cannot read scene depth without water from the vertex shader."));
+	}
+
+	// Need to check again since material instances can override shading models and blend modes
+	if (Context.Material)
+	{
+		if (!Context.Material->GetShadingModels().HasShadingModel(MSM_SingleLayerWater))
+		{
+			return Context.Error(TEXT("Can only read scene depth below water when material Shading Model is Single Layer Water or when material Domain is PostProcess."));
+		}
+
+		if (IsTranslucentBlendMode(*Context.Material))
+		{
+			return Context.Error(TEXT("Can only read scene depth below water when material Blend Mode isn't translucent."));
+		}
+	}
+
+	const FPreparedType& ScreenUVType = Context.PrepareExpression(ScreenUVExpression, Scope, Shader::EValueType::Float2);
+	if (ScreenUVType.IsVoid())
+	{
+		return false;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float1);
+}
+
+void FExpressionSceneDepthWithoutWater::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitScreenUV = ScreenUVExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
+	OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float1, TEXT("MaterialExpressionSceneDepthWithoutWater(%, %)"), EmitScreenUV, FallbackDepth);
+}
+
 bool FExpressionSceneColor::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
 	if (Context.ShaderFrequency != SF_Pixel)
@@ -1794,7 +1853,15 @@ void FExpressionVertexInterpolator::EmitValueShader(FEmitContext& Context, FEmit
 			}
 		}
 
-		FEmitShaderExpression* EmitPreshader = Context.EmitPreshaderOrConstant(Scope, RequestedPreshaderType, LocalType, VertexExpression);
+		FEmitShaderExpression* EmitPreshader;
+		if (RequestedPreshaderType.IsEmpty())
+		{
+			EmitPreshader = Context.EmitConstantZero(Scope, LocalType);
+		}
+		else
+		{
+			EmitPreshader = Context.EmitPreshaderOrConstant(Scope, RequestedPreshaderType, LocalType, VertexExpression);
+		}
 		OutResult.Code = Context.EmitExpression(Scope, LocalType, TEXT("MaterialVertexInterpolator%(Parameters, %)"), InterpolatorIndex, EmitPreshader);
 	}
 	else
@@ -1812,13 +1879,46 @@ void FExpressionVertexInterpolator::EmitValuePreshader(FEmitContext& Context, FE
 
 bool FExpressionSkyAtmosphereLightDirection::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
+	if (Context.bMarkLiveValues)
+	{
+		Context.bUsesSkyAtmosphere = true;
+	}
 	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
 }
 
 void FExpressionSkyAtmosphereLightDirection::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
 {
-	Context.bUsesSkyAtmosphere = true;
 	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float3, TEXT("MaterialExpressionSkyAtmosphereLightDirection(Parameters, %)"), LightIndex);
+}
+
+bool FExpressionSkyAtmosphereLightDiskLuminance::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Context.bMarkLiveValues)
+	{
+		Context.bUsesSkyAtmosphere = true;
+	}
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+}
+
+void FExpressionSkyAtmosphereLightDiskLuminance::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitCosHalfDiskRadius = CosHalfDiskRadiusExpression->GetValueShader(Context, Scope, Shader::EValueType::Float1);
+	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float3, TEXT("MaterialExpressionSkyAtmosphereLightDiskLuminance(Parameters, %, %)"), LightIndex, EmitCosHalfDiskRadius);
+}
+
+bool FExpressionSkyAtmosphereAerialPerspective::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Context.bMarkLiveValues)
+	{
+		Context.bUsesSkyAtmosphere = true;
+	}
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float4);
+}
+
+void FExpressionSkyAtmosphereAerialPerspective::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitWorldPosition = WorldPositionExpression->GetValueShader(Context, Scope, Shader::EValueType::Double3);
+	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float4, TEXT("MaterialExpressionSkyAtmosphereAerialPerspective(Parameters, %)"), EmitWorldPosition);
 }
 
 namespace Private
@@ -2107,7 +2207,7 @@ bool FExpressionNaniteReplaceFunction::PrepareValue(FEmitContext& Context, FEmit
 	}
 
 	// skip preparing if platform doesn't support Nanite
-	if (FDataDrivenShaderPlatformInfo::GetSupportsNanite(Context.TargetParameters.ShaderPlatform) || Context.TargetParameters.IsGenericTarget())
+	if (Context.TargetParameters.IsGenericTarget() || FDataDrivenShaderPlatformInfo::GetSupportsNanite(Context.TargetParameters.ShaderPlatform))
 	{
 		const FPreparedType& NaniteType = Context.PrepareExpression(NaniteExpression, Scope, RequestedType);
 		if (NaniteType.IsVoid())
@@ -2384,6 +2484,24 @@ void FEmitData::EmitInterpolatorShader(FEmitContext& Context, FStringBuilderBase
 	}
 
 	NumInterpolatorComponents = InterpolatorOffset;
+}
+
+int32 FEmitData::FindOrAddParameterCollection(const class UMaterialParameterCollection* ParameterCollection)
+{
+	int32 CollectionIndex = ParameterCollections.Find(ParameterCollection);
+
+	if (CollectionIndex == INDEX_NONE)
+	{
+		if (ParameterCollections.Num() >= MaxNumParameterCollectionsPerMaterial)
+		{
+			return INDEX_NONE;
+		}
+
+		ParameterCollections.Add(ParameterCollection);
+		CollectionIndex = ParameterCollections.Num() - 1;
+	}
+
+	return CollectionIndex;
 }
 
 } // namespace UE::HLSLTree::Material

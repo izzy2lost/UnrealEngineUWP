@@ -1942,24 +1942,6 @@ void UMaterialInterface::GetStaticParameterValues(FStaticParameterSet& OutStatic
 }
 #endif // WITH_EDITORONLY_DATA
 
-template<typename TArrayType>
-static void RemapLayersForParent(TArrayType& LayerIndexRemap, int32 NumParentLayers, TArrayView<const int32> ParentLayerIndexRemap)
-{
-	TArrayType NewLayerIndexRemap;
-	NewLayerIndexRemap.Init(INDEX_NONE, NumParentLayers);
-
-	check(LayerIndexRemap.Num() == ParentLayerIndexRemap.Num());
-	for (int32 i = 0; i < ParentLayerIndexRemap.Num(); ++i)
-	{
-		const int32 ParentLayerIndex = ParentLayerIndexRemap[i];
-		if (ParentLayerIndex != INDEX_NONE)
-		{
-			NewLayerIndexRemap[ParentLayerIndex] = LayerIndexRemap[i];
-		}
-	}
-	LayerIndexRemap = MoveTemp(NewLayerIndexRemap);
-}
-
 void UMaterialInstance::GetAllParametersOfType(EMaterialParameterType Type, TMap<FMaterialParameterInfo, FMaterialParameterMetadata>& OutParameters) const
 {
 	FMaterialInheritanceChain InstanceChain;

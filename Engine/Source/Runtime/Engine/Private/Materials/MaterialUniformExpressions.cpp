@@ -339,7 +339,7 @@ FString FUniformExpressionSet::GetSummaryString() const
 		);
 }
 
-void FUniformExpressionSet::SetParameterCollections(const TArray<UMaterialParameterCollection*>& InCollections)
+void FUniformExpressionSet::SetParameterCollections(TConstArrayView<const UMaterialParameterCollection*> InCollections)
 {
 	ParameterCollections.Empty(InCollections.Num());
 

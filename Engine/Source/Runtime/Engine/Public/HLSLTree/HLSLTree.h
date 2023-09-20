@@ -678,6 +678,14 @@ public:
 
 	const FExpression* NewTruncateLWC(const FExpression* Input) { return NewUnaryOp(EOperation::TruncateLWC, Input); }
 
+	const FExpression* NewAppend(const FExpression* Lhs, const FExpression* Rhs);
+
+	template <typename... ArgTypes>
+	const FExpression* NewAppend(const FExpression* Lhs, ArgTypes&&... Rhs)
+	{
+		return NewAppend(Lhs, NewAppend(Forward<ArgTypes>(Rhs)...));
+	}
+
 	FActiveStructFieldStack ActiveStructFieldStack;
 
 private:

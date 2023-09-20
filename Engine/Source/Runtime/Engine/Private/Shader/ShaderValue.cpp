@@ -171,7 +171,7 @@ EValueType FType::GetFlatFieldType(int32 Index) const
 	}
 }
 
-FType CombineTypes(const FType& Lhs, const FType& Rhs)
+FType CombineTypes(const FType& Lhs, const FType& Rhs, bool bMergeMatrixTypes)
 {
 	if (Lhs.IsVoid() || Lhs.IsAny())
 	{
@@ -182,7 +182,7 @@ FType CombineTypes(const FType& Lhs, const FType& Rhs)
 		return Lhs;
 	}
 
-	if (Lhs.IsNumericVector() && Rhs.IsNumericVector())
+	if ((Lhs.IsNumericVector() && Rhs.IsNumericVector()) || (bMergeMatrixTypes && Lhs.IsNumericMatrix() && Rhs.IsNumericMatrix()))
 	{
 		const FValueTypeDescription& LhsDesc = GetValueTypeDescription(Lhs);
 		const FValueTypeDescription& RhsDesc = GetValueTypeDescription(Rhs);

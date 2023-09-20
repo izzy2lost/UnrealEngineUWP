@@ -11,6 +11,7 @@
 #include "VT/RuntimeVirtualTextureEnum.h"
 #include "Field/FieldSystemTypes.h"
 #include "MaterialCompiler.h"
+#include "ParameterCollection.h"
 
 class UTexture;
 enum class EMaterialParameterType : uint8;
@@ -192,9 +193,12 @@ enum class EExternalInput : uint8
 	ParticleSubUVCoords0,
 	ParticleSubUVCoords1,
 	ParticleSubUVLerp,
+	ParticleMotionBlurFade,
 
 	PerInstanceFadeAmount,
 	PerInstanceRandom,
+
+	SkyAtmosphereViewLuminance,
 
 	IsOrthographic,
 
@@ -289,11 +293,11 @@ public:
 class FExpressionCollectionParameter : public FExpression
 {
 public:
-	int32 CollectionIndex;
+	const class UMaterialParameterCollection* ParameterCollection;
 	int32 ParameterIndex;
 
-	FExpressionCollectionParameter(int32 InCollectionIndex, int32 InParameterIndex)
-		: CollectionIndex(InCollectionIndex)
+	FExpressionCollectionParameter(const class UMaterialParameterCollection* InParameterCollection, int32 InParameterIndex)
+		: ParameterCollection(InParameterCollection)
 		, ParameterIndex(InParameterIndex)
 	{}
 
@@ -578,6 +582,21 @@ public:
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
 
+class FExpressionSceneDepthWithoutWater : public FExpression
+{
+public:
+	FExpressionSceneDepthWithoutWater(const FExpression* InScreenUVExpression, float InFallbackDepth)
+		: ScreenUVExpression(InScreenUVExpression)
+		, FallbackDepth(InFallbackDepth)
+	{}
+
+	const FExpression* ScreenUVExpression;
+	float FallbackDepth;
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
 class FExpressionSceneColor : public FExpression
 {
 public:
@@ -677,6 +696,34 @@ public:
 
 	FExpressionSkyAtmosphereLightDirection(int32 InLightIndex)
 		: LightIndex(InLightIndex)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionSkyAtmosphereLightDiskLuminance : public FExpression
+{
+public:
+	const FExpression* CosHalfDiskRadiusExpression;
+	int32 LightIndex;
+
+	FExpressionSkyAtmosphereLightDiskLuminance(const FExpression* InCosHalfDiskRaidusExpression, int32 InLightIndex)
+		: CosHalfDiskRadiusExpression(InCosHalfDiskRaidusExpression)
+		, LightIndex(InLightIndex)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionSkyAtmosphereAerialPerspective : public FExpression
+{
+public:
+	const FExpression* WorldPositionExpression;
+
+	FExpressionSkyAtmosphereAerialPerspective(const FExpression* InWorldPositionExpression)
+		: WorldPositionExpression(InWorldPositionExpression)
 	{}
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
@@ -858,6 +905,7 @@ public:
 	TMap<Shader::FValue, uint32> DefaultUniformValues;
 	TArray<FVertexInterpolator, TInlineAllocator<8>> VertexInterpolators;
 	TArray<FVTStackEntry, TInlineAllocator<8>> VTStacks;
+	TArray<const class UMaterialParameterCollection*, TInlineAllocator<MaxNumParameterCollectionsPerMaterial>> ParameterCollections;
 	FHashTable VTStackHash;
 	TBitArray<> ExternalInputMask[SF_NumFrequencies];
 	FMaterialShadingModelField ShadingModelsFromCompilation;
@@ -872,6 +920,8 @@ public:
 	void PrepareInterpolators(FEmitContext& Context, FEmitScope& Scope);
 	void EmitInterpolatorStatements(FEmitContext& Context, FEmitScope& Scope) const;
 	void EmitInterpolatorShader(FEmitContext& Context, FStringBuilderBase& OutCode);
+
+	int32 FindOrAddParameterCollection(const class UMaterialParameterCollection* ParameterCollection);
 };
 
 } // namespace UE::HLSLTree::Material

@@ -588,7 +588,7 @@ public:
 
 	FShaderParametersMetadata* CreateBufferStruct();
 
-	void SetParameterCollections(const TArray<class UMaterialParameterCollection*>& Collections);
+	void SetParameterCollections(TConstArrayView<const class UMaterialParameterCollection*> Collections);
 
 	ENGINE_API void FillUniformBuffer(const FMaterialRenderContext& MaterialRenderContext, const FUniformExpressionCache& UniformExpressionCache, const FRHIUniformBufferLayout* UniformBufferLayout, uint8* TempBuffer, int TempBufferSize) const;
 

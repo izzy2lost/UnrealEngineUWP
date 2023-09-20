@@ -242,7 +242,7 @@ inline bool operator!=(const EValueType& Lhs, const FType& Rhs)
 	return !operator==(Lhs, Rhs);
 }
 
-ENGINE_API FType CombineTypes(const FType& Lhs, const FType& Rhs);
+ENGINE_API FType CombineTypes(const FType& Lhs, const FType& Rhs, bool bMergeMatrixTypes = false);
 
 struct FStructField
 {

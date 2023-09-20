@@ -492,7 +492,9 @@ FPreparedType FEmitContext::PrepareExpression(const FExpression* InExpression, F
 		}
 		else
 		{
-			const Shader::FType CombinedType = Shader::CombineTypes(RequestedType.Type, PastRequestedType.Type);
+			checkf(!RequestedType.Type.IsNumericMatrix() || RequestedType.Type.ValueType != Shader::EValueType::DoubleInverse4x4,
+				TEXT("DoubleInverse4x4 shouldn't be explicitly requested"));
+			const Shader::FType CombinedType = Shader::CombineTypes(RequestedType.Type, PastRequestedType.Type, true);
 			check(!CombinedType.IsVoid());
 
 			if (CombinedType == PastRequestedType.Type && AllComponentsRequestedInPast(RequestedType, PastRequestedType))

@@ -899,22 +899,4 @@ int32 FMaterialHLSLGenerator::FindOrAddCustomExpressionOutputStructId(TArrayView
 	}
 }
 
-int32 FMaterialHLSLGenerator::FindOrAddParameterCollection(UMaterialParameterCollection* ParameterCollection)
-{
-	int32 CollectionIndex = CachedTree.ParameterCollections.Find(ParameterCollection);
-
-	if (CollectionIndex == INDEX_NONE)
-	{
-		if (CachedTree.ParameterCollections.Num() >= MaxNumParameterCollectionsPerMaterial)
-		{
-			return Error(TEXT("Material references too many MaterialParameterCollections!  A material may only reference 2 different collections."));
-		}
-
-		CachedTree.ParameterCollections.Add(ParameterCollection);
-		CollectionIndex = CachedTree.ParameterCollections.Num() - 1;
-	}
-
-	return CollectionIndex;
-}
-
 #endif // WITH_EDITOR
