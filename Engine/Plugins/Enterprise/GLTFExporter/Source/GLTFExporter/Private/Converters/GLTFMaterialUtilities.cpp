@@ -6,17 +6,19 @@
 #include "Converters/GLTFProxyMaterialCompiler.h"
 #include "Utilities/GLTFProxyMaterialUtilities.h"
 #include "Materials/Material.h"
-#include "Misc/DefaultValueHelper.h"
+#include "Modules/ModuleManager.h"
+#include "Engine/RendererSettings.h"
+#include "Materials/MaterialExpressionTextureObject.h"
+#include "Materials/MaterialExpressionTextureObjectParameter.h"
 #if WITH_EDITOR
 #include "IMaterialBakingModule.h"
 #include "MaterialBakingStructures.h"
-#include "Materials/MaterialExpressionTextureSample.h"
 #include "Materials/MaterialAttributeDefinitionMap.h"
-#endif
-#include "Engine/RendererSettings.h"
-#include "Modules/ModuleManager.h"
 #include "Materials/MaterialExpressionCustomOutput.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
+#include "Materials/MaterialExpressionTextureSample.h"
+#include "Materials/MaterialExpressionTextureSampleParameter2D.h"
+#endif
 
 UMaterialInterface* FGLTFMaterialUtilities::GetDefaultMaterial()
 {
@@ -30,6 +32,7 @@ bool FGLTFMaterialUtilities::IsClearCoatBottomNormalEnabled()
 }
 
 #if WITH_EDITOR
+
 
 bool FGLTFMaterialUtilities::IsNormalMap(const FMaterialPropertyEx& Property)
 {
@@ -198,24 +201,117 @@ uint32 FGLTFMaterialUtilities::GetMaskComponentCount(const FExpressionInput& Exp
 	return ExpressionInput.MaskR + ExpressionInput.MaskG + ExpressionInput.MaskB + ExpressionInput.MaskA;
 }
 
-bool FGLTFMaterialUtilities::TryGetTextureCoordinateIndex(const UMaterialExpressionTextureSample* TextureSampler, int32& TexCoord, FGLTFJsonTextureTransform& Transform)
+bool FGLTFMaterialUtilities::TryGetMaxTextureSize(const UMaterialInterface* Material, const FMaterialPropertyEx& Property, FIntPoint& OutMaxSize)
 {
-	const UMaterialExpression* Expression = TextureSampler->Coordinates.Expression;
+	TArray<UMaterialExpressionTextureSample*> TextureSamples;
+	GetAllInputExpressionsOfType(Material, Property, TextureSamples);
+
+	if (TextureSamples.Num() == 0)
+	{
+		return false;
+	}
+
+	FIntPoint MaxSize = { 0, 0 };
+
+	for (const UMaterialExpressionTextureSample* TextureSample : TextureSamples)
+	{
+		const UTexture* Texture = GetTextureFromSample(Material, TextureSample);
+		if (Texture == nullptr || !FGLTFTextureUtilities::Is2D(Texture))
+		{
+			return false;
+		}
+
+		FGLTFTextureUtilities::FullyLoad(Texture);
+		FIntPoint TextureSize = FGLTFTextureUtilities::GetInGameSize(Texture);
+
+		MaxSize = MaxSize.ComponentMax(TextureSize);
+	}
+
+	OutMaxSize = MaxSize;
+	return true;
+}
+
+bool FGLTFMaterialUtilities::TryGetMaxTextureSize(const UMaterialInterface* Material, const FMaterialPropertyEx& PropertyA, const FMaterialPropertyEx& PropertyB, FIntPoint& OutMaxSize)
+{
+	FIntPoint MaxSizeA;
+	if (!TryGetMaxTextureSize(Material, PropertyA, MaxSizeA))
+	{
+		return false;
+	}
+
+	FIntPoint MaxSizeB;
+	if (!TryGetMaxTextureSize(Material, PropertyB, MaxSizeB))
+	{
+		return false;
+	}
+
+	OutMaxSize = MaxSizeA.ComponentMax(MaxSizeB);
+	return true;
+}
+
+UTexture* FGLTFMaterialUtilities::GetTextureFromSample(const UMaterialInterface* Material, const UMaterialExpressionTextureSample* SampleExpression)
+{
+	if (const UMaterialExpressionTextureSampleParameter2D* SampleParameter = ExactCast<UMaterialExpressionTextureSampleParameter2D>(SampleExpression))
+	{
+		UTexture* ParameterValue = SampleParameter->Texture;
+
+		if (!Material->GetTextureParameterValue(SampleParameter->GetParameterName(), ParameterValue))
+		{
+			return nullptr;
+		}
+
+		return ParameterValue;
+	}
+
+	if (const UMaterialExpressionTextureSample* Sample = ExactCast<UMaterialExpressionTextureSample>(SampleExpression))
+	{
+		UMaterialExpression* ObjectExpression = Sample->TextureObject.Expression;
+		if (ObjectExpression == nullptr)
+		{
+			return Sample->Texture;
+		}
+
+		if (const UMaterialExpressionTextureObjectParameter* ObjectParameter = ExactCast<UMaterialExpressionTextureObjectParameter>(ObjectExpression))
+		{
+			UTexture* ParameterValue = ObjectParameter->Texture;
+
+			if (!Material->GetTextureParameterValue(ObjectParameter->GetParameterName(), ParameterValue))
+			{
+				return nullptr;
+			}
+
+			return ParameterValue;
+		}
+
+		if (const UMaterialExpressionTextureObject* Object = ExactCast<UMaterialExpressionTextureObject>(ObjectExpression))
+		{
+			return Object->Texture;
+		}
+
+		return nullptr;
+	}
+
+	return nullptr;
+}
+
+bool FGLTFMaterialUtilities::TryGetTextureCoordinateIndex(const UMaterialExpressionTextureSample* TextureSample, int32& OutTexCoord, FGLTFJsonTextureTransform& OutTransform)
+{
+	const UMaterialExpression* Expression = TextureSample->Coordinates.Expression;
 	if (Expression == nullptr)
 	{
-		TexCoord = TextureSampler->ConstCoordinate;
-		Transform = {};
+		OutTexCoord = TextureSample->ConstCoordinate;
+		OutTransform = {};
 		return true;
 	}
 
 	if (const UMaterialExpressionTextureCoordinate* TextureCoordinate = Cast<UMaterialExpressionTextureCoordinate>(Expression))
 	{
-		TexCoord = TextureCoordinate->CoordinateIndex;
-		Transform.Offset.X = TextureCoordinate->UnMirrorU ? TextureCoordinate->UTiling * 0.5f : 0.0f;
-		Transform.Offset.Y = TextureCoordinate->UnMirrorV ? TextureCoordinate->VTiling * 0.5f : 0.0f;
-		Transform.Scale.X = TextureCoordinate->UTiling * (TextureCoordinate->UnMirrorU ? 0.5f : 1.0f);
-		Transform.Scale.Y = TextureCoordinate->VTiling * (TextureCoordinate->UnMirrorV ? 0.5f : 1.0f);
-		Transform.Rotation = 0;
+		OutTexCoord = TextureCoordinate->CoordinateIndex;
+		OutTransform.Offset.X = TextureCoordinate->UnMirrorU ? TextureCoordinate->UTiling * 0.5f : 0.0f;
+		OutTransform.Offset.Y = TextureCoordinate->UnMirrorV ? TextureCoordinate->VTiling * 0.5f : 0.0f;
+		OutTransform.Scale.X = TextureCoordinate->UTiling * (TextureCoordinate->UnMirrorU ? 0.5f : 1.0f);
+		OutTransform.Scale.Y = TextureCoordinate->VTiling * (TextureCoordinate->UnMirrorV ? 0.5f : 1.0f);
+		OutTransform.Rotation = 0;
 		return true;
 	}
 
@@ -224,10 +320,10 @@ bool FGLTFMaterialUtilities::TryGetTextureCoordinateIndex(const UMaterialExpress
 	return false;
 }
 
-void FGLTFMaterialUtilities::GetAllTextureCoordinateIndices(const UMaterialInterface* InMaterial, const FMaterialPropertyEx& InProperty, FGLTFIndexArray& OutTexCoords)
+void FGLTFMaterialUtilities::GetAllTextureCoordinateIndices(const UMaterialInterface* Material, const FMaterialPropertyEx& Property, FGLTFIndexArray& OutTexCoords)
 {
 	FMaterialAnalysisResult Analysis;
-	AnalyzeMaterialProperty(InMaterial, InProperty, Analysis);
+	AnalyzeMaterialProperty(Material, Property, Analysis);
 
 	const TBitArray<>& TexCoords = Analysis.TextureCoordinates;
 	for (int32 Index = 0; Index < TexCoords.Num(); Index++)
@@ -279,6 +375,56 @@ FMaterialShadingModelField FGLTFMaterialUtilities::EvaluateShadingModelExpressio
 	FMaterialAnalysisResult Analysis;
 	AnalyzeMaterialProperty(Material, MP_ShadingModel, Analysis);
 	return Analysis.ShadingModels;
+}
+
+template <typename ExpressionType>
+void FGLTFMaterialUtilities::GetAllInputExpressionsOfType(const UMaterialInterface* Material, const FMaterialPropertyEx& Property, TArray<ExpressionType*>& OutExpressions)
+{
+	const FExpressionInput* Input = GetInputForProperty(Material, Property);
+	if (Input == nullptr)
+	{
+		return;
+	}
+
+	UMaterialExpression* InputExpression = Input->Expression;
+	if (InputExpression == nullptr)
+	{
+		return;
+	}
+
+	TArray<UMaterialExpression*> AllInputExpressions;
+	InputExpression->GetAllInputExpressions(AllInputExpressions);
+
+	for (UMaterialExpression* Expression : AllInputExpressions)
+	{
+		if (ExpressionType* ExpressionOfType = Cast<ExpressionType>(Expression))
+		{
+			OutExpressions.Add(ExpressionOfType);
+		}
+
+		if (UMaterialFunctionInterface* MaterialFunction = UMaterial::GetExpressionFunctionPointer(Expression))
+		{
+			MaterialFunction->GetAllExpressionsOfType<ExpressionType>(OutExpressions);
+		}
+		else if (TOptional<UMaterial::FLayersInterfaces> LayersInterfaces = UMaterial::GetExpressionLayers(Expression))
+		{
+			for (UMaterialFunctionInterface* Layer : LayersInterfaces->Layers)
+			{
+				if (Layer != nullptr)
+				{
+					Layer->GetAllExpressionsOfType<ExpressionType>(OutExpressions);
+				}
+			}
+
+			for (UMaterialFunctionInterface* Blend : LayersInterfaces->Blends)
+			{
+				if (Blend != nullptr)
+				{
+					Blend->GetAllExpressionsOfType<ExpressionType>(OutExpressions);
+				}
+			}
+		}
+	}
 }
 
 #endif

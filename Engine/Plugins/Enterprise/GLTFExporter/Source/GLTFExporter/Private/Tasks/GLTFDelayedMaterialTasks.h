@@ -99,6 +99,9 @@ private:
 
 	bool StoreBakedPropertyTexture(const FMaterialPropertyEx& Property, FGLTFJsonTextureInfo& OutTexInfo, FGLTFPropertyBakeOutput& PropertyBakeOutput, const FString& PropertyName) const;
 
+	FIntPoint GetBakeSize(const FMaterialPropertyEx& Property) const;
+	FIntPoint GetBakeSize(const FMaterialPropertyEx& PropertyA,const FMaterialPropertyEx& PropertyB) const;
+
 	static EGLTFMaterialPropertyGroup GetPropertyGroup(const FMaterialPropertyEx& Property);
 
 	template <typename CallbackType>

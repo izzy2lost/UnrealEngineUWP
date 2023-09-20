@@ -580,7 +580,7 @@ bool FGLTFDelayedMaterialTask::TryGetBaseColorAndOpacity(FGLTFJsonPBRMetallicRou
 		return false;
 	}
 
-	const FIntPoint TextureSize = Builder.GetBakeSizeForMaterialProperty(Material, GetPropertyGroup(BaseColorProperty));
+	const FIntPoint TextureSize = GetBakeSize(BaseColorProperty, OpacityProperty);
 	const TextureAddress TextureAddress = Builder.GetBakeTilingForMaterialProperty(Material, GetPropertyGroup(BaseColorProperty));
 	const TextureFilter TextureFilter = Builder.GetBakeFilterForMaterialProperty(Material, GetPropertyGroup(BaseColorProperty));
 
@@ -702,8 +702,7 @@ bool FGLTFDelayedMaterialTask::TryGetMetallicAndRoughness(FGLTFJsonPBRMetallicRo
 		return false;
 	}
 
-	// TODO: add support for calculating the ideal resolution to use for baking based on connected (texture) nodes
-	const FIntPoint TextureSize = Builder.GetBakeSizeForMaterialProperty(Material, GetPropertyGroup(MetallicProperty));
+	const FIntPoint TextureSize = GetBakeSize(MetallicProperty, RoughnessProperty);
 	const TextureAddress TextureAddress = Builder.GetBakeTilingForMaterialProperty(Material, GetPropertyGroup(MetallicProperty));
 	const TextureFilter TextureFilter = Builder.GetBakeFilterForMaterialProperty(Material, GetPropertyGroup(MetallicProperty));
 
@@ -822,7 +821,7 @@ bool FGLTFDelayedMaterialTask::TryGetClearCoatRoughness(FGLTFJsonClearCoatExtens
 		return false;
 	}
 
-	const FIntPoint TextureSize = Builder.GetBakeSizeForMaterialProperty(Material, GetPropertyGroup(IntensityProperty));
+	const FIntPoint TextureSize = GetBakeSize(IntensityProperty, RoughnessProperty);
 	const TextureAddress TextureAddress = Builder.GetBakeTilingForMaterialProperty(Material,GetPropertyGroup(IntensityProperty));
 	const TextureFilter TextureFilter = Builder.GetBakeFilterForMaterialProperty(Material, GetPropertyGroup(IntensityProperty));
 
@@ -1779,7 +1778,7 @@ bool FGLTFDelayedMaterialTask::TryGetBakedMaterialPropertyOntoAlphaChannel(FGLTF
 
 FGLTFPropertyBakeOutput FGLTFDelayedMaterialTask::BakeMaterialProperty(const FMaterialPropertyEx& Property, int32& OutTexCoord, FGLTFJsonTextureTransform& OutTransform)
 {
-	const FIntPoint TextureSize = Builder.GetBakeSizeForMaterialProperty(Material, GetPropertyGroup(Property));
+	const FIntPoint TextureSize = GetBakeSize(Property);
 	return BakeMaterialProperty(Property, OutTexCoord, OutTransform, TextureSize, true);
 }
 
@@ -1869,6 +1868,32 @@ bool FGLTFDelayedMaterialTask::StoreBakedPropertyTexture(const FMaterialProperty
 
 	OutTexInfo.Index = Texture;
 	return true;
+}
+
+FIntPoint FGLTFDelayedMaterialTask::GetBakeSize(const FMaterialPropertyEx& Property) const
+{
+	FGLTFMaterialBakeSize BakeSize = Builder.GetBakeSizeForMaterialProperty(Material, GetPropertyGroup(Property));
+
+	FIntPoint MaxSize;
+	if (BakeSize.bAutoDetect && FGLTFMaterialUtilities::TryGetMaxTextureSize(Material, Property, MaxSize))
+	{
+		return MaxSize;
+	}
+
+	return { BakeSize.X, BakeSize.Y };
+}
+
+FIntPoint FGLTFDelayedMaterialTask::GetBakeSize(const FMaterialPropertyEx& PropertyA, const FMaterialPropertyEx& PropertyB) const
+{
+	FGLTFMaterialBakeSize BakeSize = Builder.GetBakeSizeForMaterialProperty(Material, GetPropertyGroup(PropertyA));
+
+	FIntPoint MaxSize;
+	if (BakeSize.bAutoDetect && FGLTFMaterialUtilities::TryGetMaxTextureSize(Material, PropertyA, PropertyB, MaxSize))
+	{
+		return MaxSize;
+	}
+
+	return { BakeSize.X, BakeSize.Y };
 }
 
 EGLTFMaterialPropertyGroup FGLTFDelayedMaterialTask::GetPropertyGroup(const FMaterialPropertyEx& Property)

@@ -20,7 +20,7 @@ void UGLTFExportOptions::ResetToDefault()
 	bExportClothMaterials = true;
 	bExportEmissiveStrength = true;
 	BakeMaterialInputs = EGLTFMaterialBakeMode::UseMeshData;
-	DefaultMaterialBakeSize = EGLTFMaterialBakeSizePOT::POT_1024;
+	DefaultMaterialBakeSize = FGLTFMaterialBakeSize::Default;
 	DefaultMaterialBakeFilter = TF_Trilinear;
 	DefaultMaterialBakeTiling = TA_Wrap;
 	DefaultLevelOfDetail = 0;
