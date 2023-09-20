@@ -31,7 +31,7 @@
 
 #include "pas_deferred_decommit_log.h"
 #include "pas_log.h"
-#include "pas_page_base.h"
+#include "pas_page_base_config.h"
 #include "pas_page_malloc.h"
 
 static const bool verbose = false;
@@ -55,7 +55,7 @@ void pas_commit_span_add_to_change(pas_commit_span* span, uintptr_t granule_inde
 }
 
 void pas_commit_span_add_unchanged(pas_commit_span* span,
-                                   pas_page_base* page,
+                                   void* boundary,
                                    uintptr_t granule_index,
                                    const pas_page_base_config* config,
                                    void (*commit_or_decommit)(void* base, size_t size, void* arg),
@@ -73,11 +73,7 @@ void pas_commit_span_add_unchanged(pas_commit_span* span,
 
     size = (granule_index - span->index_of_start_of_span) * config->granule_size;
     
-    commit_or_decommit(
-        (char*)pas_page_base_boundary(page, *config)
-        + span->index_of_start_of_span * config->granule_size,
-        size,
-        arg);
+    commit_or_decommit((char*)boundary + span->index_of_start_of_span * config->granule_size, size, arg);
     span->index_of_start_of_span = UINTPTR_MAX;
     span->did_add_first = true;
     span->total_bytes += size;
@@ -93,11 +89,11 @@ static void commit(void* base, size_t size, void* arg)
 }
 
 void pas_commit_span_add_unchanged_and_commit(pas_commit_span* span,
-                                              pas_page_base* page,
+                                              void* boundary,
                                               uintptr_t granule_index,
                                               const pas_page_base_config* config)
 {
-    pas_commit_span_add_unchanged(span, page, granule_index, config, commit, span);
+    pas_commit_span_add_unchanged(span, boundary, granule_index, config, commit, span);
 }
 
 typedef struct {
@@ -127,7 +123,7 @@ static void decommit(void* base, size_t size, void* arg)
 }
 
 void pas_commit_span_add_unchanged_and_decommit(pas_commit_span* span,
-                                                pas_page_base* page,
+                                                void* boundary,
                                                 uintptr_t granule_index,
                                                 pas_deferred_decommit_log* log,
                                                 pas_lock* commit_lock,
@@ -139,7 +135,7 @@ void pas_commit_span_add_unchanged_and_decommit(pas_commit_span* span,
     data.log = log;
     data.commit_lock = commit_lock;
     data.heap_lock_hold_mode = heap_lock_hold_mode;
-    pas_commit_span_add_unchanged(span, page, granule_index, config, decommit, &data);
+    pas_commit_span_add_unchanged(span, boundary, granule_index, config, decommit, &data);
 }
 
 #endif /* LIBPAS_ENABLED */

@@ -76,6 +76,7 @@ void verse_heap_object_set_start_iterate_before_handshake(verse_heap_object_set*
     
     PAS_ASSERT(!verse_heap_current_iteration_state.version);
     PAS_ASSERT(!verse_heap_is_sweeping);
+	PAS_ASSERT(verse_heap_mark_bits_page_commit_controller_is_locked);
     verse_heap_current_iteration_state.set_being_iterated = set;
     verse_heap_current_iteration_state.filter = filter;
     verse_heap_current_iteration_state.callback = callback;
@@ -91,6 +92,7 @@ size_t verse_heap_object_set_start_iterate_after_handshake(verse_heap_object_set
 {
     PAS_ASSERT(verse_heap_current_iteration_state.version == verse_heap_latest_version);
     PAS_ASSERT(!verse_heap_is_sweeping);
+	PAS_ASSERT(verse_heap_mark_bits_page_commit_controller_is_locked);
     return 1 + set->views.size;
 }
 
@@ -109,6 +111,7 @@ void verse_heap_object_set_end_iterate(verse_heap_object_set* set)
 {
     PAS_ASSERT(verse_heap_current_iteration_state.version == verse_heap_latest_version);
     PAS_ASSERT(!verse_heap_is_sweeping);
+	PAS_ASSERT(verse_heap_mark_bits_page_commit_controller_is_locked);
     verse_heap_current_iteration_state.version = 0;
     pas_store_store_fence();
     verse_heap_current_iteration_state.set_being_iterated = NULL;

@@ -172,7 +172,9 @@ PAS_SEGREGATED_PAGE_CONFIG_SPECIALIZATION_DECLARATIONS(verse_small_segregated_pa
 PAS_SEGREGATED_PAGE_CONFIG_SPECIALIZATION_DECLARATIONS(verse_medium_segregated_page_config);
 PAS_HEAP_CONFIG_SPECIALIZATION_DECLARATIONS(verse_heap_config);
 
-#define VERSE_HEAP_SEGREGATED_CONFIG(variant_lowercase, variant_uppercase) { \
+PAS_API extern const unsigned verse_heap_config_medium_segregated_non_committable_granule_bitvector[];
+
+#define VERSE_HEAP_SEGREGATED_CONFIG(variant_lowercase, variant_uppercase, passed_non_committable_granule_bitvector) { \
         .base = { \
             .is_enabled = true, \
             .heap_config_ptr = &verse_heap_config, \
@@ -181,6 +183,7 @@ PAS_HEAP_CONFIG_SPECIALIZATION_DECLARATIONS(verse_heap_config);
             .min_align_shift = VERSE_HEAP_ ## variant_uppercase ## _SEGREGATED_MIN_ALIGN_SHIFT, \
             .page_size = VERSE_HEAP_ ## variant_uppercase ## _SEGREGATED_PAGE_SIZE, \
             .granule_size = VERSE_HEAP_ ## variant_uppercase ## _SEGREGATED_GRANULE_SIZE, \
+			.non_committable_granule_bitvector = (passed_non_committable_granule_bitvector), \
             .max_object_size = VERSE_HEAP_ ## variant_uppercase ## _SEGREGATED_MAX_OBJECT_SIZE, \
             .page_header_for_boundary = \
                 verse_heap_ ## variant_lowercase ## _segregated_page_base_for_boundary, \
@@ -222,8 +225,8 @@ PAS_HEAP_CONFIG_SPECIALIZATION_DECLARATIONS(verse_heap_config);
         .get_type_alignment = verse_heap_type_get_alignment, \
         .dump_type = verse_heap_type_dump, \
         .large_alignment = VERSE_HEAP_CHUNK_SIZE, \
-        .small_segregated_config = VERSE_HEAP_SEGREGATED_CONFIG(small, SMALL), \
-        .medium_segregated_config = VERSE_HEAP_SEGREGATED_CONFIG(medium, MEDIUM), \
+        .small_segregated_config = VERSE_HEAP_SEGREGATED_CONFIG(small, SMALL, NULL), \
+        .medium_segregated_config = VERSE_HEAP_SEGREGATED_CONFIG(medium, MEDIUM, verse_heap_config_medium_segregated_non_committable_granule_bitvector), \
         .small_bitfit_config = { \
             .base = { \
                 .is_enabled = false \

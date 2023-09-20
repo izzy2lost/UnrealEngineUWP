@@ -13,9 +13,12 @@
 #include "pas_segregated_page_config_inlines.h"
 #include "verse_heap.h"
 #include "verse_heap_chunk_map_entry.h"
+#include "verse_heap_mark_bits_page_commit_controller.h"
 #include "verse_heap_runtime_config.h"
 
 #if PAS_ENABLE_VERSE
+
+const unsigned verse_heap_config_medium_segregated_non_committable_granule_bitvector[4] = { 1, 0, 0, 0 };
 
 const pas_heap_config verse_heap_config = VERSE_HEAP_CONFIG;
 
@@ -110,6 +113,8 @@ static pas_aligned_allocation_result small_segregated_page_allocate_aligned(size
 
     PAS_ASSERT(allocation_result.zero_mode == pas_zero_mode_is_all_zero);
 
+	verse_heap_mark_bits_page_commit_controller_create_not_large(allocation_result.begin);
+
     header_size = pas_max_uintptr(VERSE_HEAP_PAGE_SIZE, VERSE_HEAP_SMALL_SEGREGATED_PAGE_SIZE);
 
     result.left_padding = (void*)allocation_result.begin + header_size;
@@ -165,11 +170,14 @@ void* verse_heap_allocate_medium_segregated_page(
     pas_segregated_heap* heap, pas_physical_memory_transaction* transaction, pas_segregated_page_role role)
 {
     verse_heap_runtime_config* runtime_config;
+	void* result;
     PAS_ASSERT(role == pas_segregated_page_exclusive_role);
     runtime_config = (verse_heap_runtime_config*)heap->runtime_config;
     PAS_ASSERT(VERSE_HEAP_CHUNK_SIZE == VERSE_HEAP_MEDIUM_SEGREGATED_PAGE_SIZE);
-    return (void*)verse_heap_runtime_config_allocate_chunks(
+    result = (void*)verse_heap_runtime_config_allocate_chunks(
 		runtime_config, VERSE_HEAP_CHUNK_SIZE, transaction, pas_primordial_page_is_committed).begin;
+	verse_heap_mark_bits_page_commit_controller_create_not_large((uintptr_t)result);
+	return result;
 }
 
 pas_segregated_shared_page_directory* verse_heap_segregated_shared_page_directory_selector(

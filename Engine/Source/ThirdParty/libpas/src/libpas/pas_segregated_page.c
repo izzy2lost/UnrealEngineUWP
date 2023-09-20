@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2022 Apple Inc. All rights reserved.
+ * Copyright Epic Games, Inc. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -362,9 +363,9 @@ bool pas_segregated_page_take_empty_granules(
     PAS_ASSERT(!page->is_committing_fully);
 
     if (page_is_dead)
-        pas_free_granules_compute_not_decommitted(&free_granules, use_counts, num_granules);
+        pas_free_granules_compute_not_decommitted(&free_granules, use_counts, &page_config_ptr->base);
     else
-        pas_free_granules_compute_and_mark_decommitted(&free_granules, use_counts, num_granules);
+        pas_free_granules_compute_and_mark_decommitted(&free_granules, use_counts, &page_config_ptr->base);
     
     pas_lock_switch(held_lock, NULL);
 
@@ -385,7 +386,7 @@ bool pas_segregated_page_take_empty_granules(
         PAS_ASSERT(!page->is_committing_fully);
 
         if (!page_is_dead)
-            pas_free_granules_unmark_decommitted(&free_granules, use_counts, num_granules);
+            pas_free_granules_unmark_decommitted(&free_granules, use_counts, &page_config_ptr->base);
         
         return false;
     }
@@ -512,8 +513,9 @@ void pas_segregated_page_commit_fully(
         pas_commit_span_construct(&commit_span, page_config.base.heap_config_ptr->mmap_capability);
 
         for (granule_index = 0; granule_index < num_granules; ++granule_index) {
-            if (use_counts[granule_index] != PAS_PAGE_GRANULE_DECOMMITTED) {
-                pas_commit_span_add_unchanged_and_commit(&commit_span, &page->base, granule_index,
+            if (pas_page_base_config_granule_is_non_committable(page_config.base, granule_index)
+				|| use_counts[granule_index] != PAS_PAGE_GRANULE_DECOMMITTED) {
+                pas_commit_span_add_unchanged_and_commit(&commit_span, pas_segregated_page_boundary(page, page_config), granule_index,
                                                          &page_config_ptr->base);
                 continue;
             }
@@ -521,7 +523,7 @@ void pas_segregated_page_commit_fully(
             pas_commit_span_add_to_change(&commit_span, granule_index);
         }
 
-        pas_commit_span_add_unchanged_and_commit(&commit_span, &page->base, granule_index,
+        pas_commit_span_add_unchanged_and_commit(&commit_span, pas_segregated_page_boundary(page, page_config), granule_index,
                                                  &page_config_ptr->base);
 
         pas_compiler_fence();

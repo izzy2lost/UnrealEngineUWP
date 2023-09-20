@@ -455,9 +455,9 @@ pas_page_sharing_pool_take_result pas_bitfit_directory_take_last_empty(
             use_counts = pas_bitfit_page_get_granule_use_counts(page, *page_config);
 
             if (page_is_dead)
-                pas_free_granules_compute_not_decommitted(&free_granules, use_counts, num_granules);
+                pas_free_granules_compute_not_decommitted(&free_granules, use_counts, &page_config->base);
             else
-                pas_free_granules_compute_and_mark_decommitted(&free_granules, use_counts, num_granules);
+                pas_free_granules_compute_and_mark_decommitted(&free_granules, use_counts, &page_config->base);
 
             PAS_ASSERT(free_granules.num_free_granules <= num_granules);
 

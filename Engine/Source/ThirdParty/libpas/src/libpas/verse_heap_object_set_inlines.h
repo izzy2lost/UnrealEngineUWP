@@ -404,6 +404,7 @@ static PAS_ALWAYS_INLINE void verse_heap_object_set_iterate_range_inline(
     PAS_ASSERT(verse_heap_current_iteration_state.version == verse_heap_latest_version);
     PAS_ASSERT(set == verse_heap_current_iteration_state.set_being_iterated);
     PAS_ASSERT(filter == verse_heap_current_iteration_state.filter);
+	PAS_ASSERT(verse_heap_mark_bits_page_commit_controller_is_locked);
 
     if (!begin) {
         if (!end)

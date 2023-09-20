@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021 Apple Inc. All rights reserved.
+ * Copyright Epic Games, Inc. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,6 +27,7 @@
 #ifndef PAS_PAGE_BASE_CONFIG_H
 #define PAS_PAGE_BASE_CONFIG_H
 
+#include "pas_bitvector.h"
 #include "pas_lock.h"
 #include "pas_page_config_kind.h"
 #include "pas_page_kind.h"
@@ -83,6 +85,10 @@ struct pas_page_base_config {
     /* The commit granule size. */
     size_t granule_size;
 
+	/* Bitvector telling us which granules are off limits to commit/decommit. This only applies if
+	   page_size > granule_size. Also, if the bitvector is NULL, then it's treated as if it's all zeroes. */
+	const unsigned* non_committable_granule_bitvector;
+
     /* Hard cut-off for object sizes for this variant. For segregated page configs, it's recommended
        that this is something that divides cleanly into page_object_payload_size. For bitfit page
        configs, this must be strictly smaller than PAS_BITFIT_MAX_FREE_UNPROCESSED * min_align. */
@@ -138,6 +144,29 @@ pas_page_base_config_get_bitfit(const pas_page_base_config* config)
 {
     PAS_ASSERT(pas_page_base_config_is_bitfit(*config));
     return (const pas_bitfit_page_config*)config;
+}
+
+static inline bool pas_page_base_config_supports_partial_decommit(pas_page_base_config config)
+{
+	PAS_ASSERT(config.page_size >= config.granule_size);
+	return config.page_size > config.granule_size;
+}
+
+static inline size_t pas_page_base_config_num_granules(pas_page_base_config config)
+{
+	return config.page_size / config.granule_size;
+}
+
+static inline bool pas_page_base_config_granule_is_committable(pas_page_base_config config, size_t granule_index)
+{
+	if (!config.non_committable_granule_bitvector)
+		return true;
+	return !pas_bitvector_get(config.non_committable_granule_bitvector, granule_index);
+}
+
+static inline bool pas_page_base_config_granule_is_non_committable(pas_page_base_config config, size_t granule_index)
+{
+	return !pas_page_base_config_granule_is_committable(config, granule_index);
 }
 
 PAS_API const char* pas_page_base_config_get_kind_string(const pas_page_base_config* config);

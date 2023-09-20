@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021 Apple Inc. All rights reserved.
+ * Copyright Epic Games, Inc. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,10 +29,14 @@
 
 #include "bmalloc_heap_config.h"
 #include "hotbit_heap_config.h"
+#include "inline_medium_page_header_config.h"
+#include "inline_non_committable_granules_config.h"
 #include "iso_heap_config.h"
 #include "iso_test_heap_config.h"
 #include "jit_heap_config.h"
 #include "minalign32_heap_config.h"
+#include "outline_medium_page_header_config.h"
+#include "outline_non_committable_granules_config.h"
 #include "pagesize64k_heap_config.h"
 #include "pas_utility_heap_config.h"
 #include "thingy_heap_config.h"

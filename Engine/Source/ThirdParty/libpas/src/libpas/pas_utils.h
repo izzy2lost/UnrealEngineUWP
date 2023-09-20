@@ -1037,6 +1037,20 @@ static inline uintptr_t pas_compare_and_swap_uintptr_strong(uintptr_t* ptr, uint
     return (uintptr_t)pas_compare_and_swap_uint64_strong((uint64_t*)ptr, (uint64_t)old_value, (uint64_t)new_value);
 }
 
+static inline uintptr_t pas_atomic_exchange_add_uintptr(uintptr_t* ptr, uintptr_t delta)
+{
+	for (;;) {
+		uintptr_t old_value;
+		uintptr_t new_value;
+
+		old_value = *ptr;
+		new_value = old_value + delta;
+
+		if (pas_compare_and_swap_uintptr_weak(ptr, old_value, new_value))
+			return old_value;
+	}
+}
+
 static inline bool pas_compare_and_swap_ptr_weak(void* ptr, const void* old_value, const void* new_value)
 {
     return pas_compare_and_swap_uint64_weak((uint64_t*)ptr, (uint64_t)old_value, (uint64_t)new_value);

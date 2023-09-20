@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2021 Apple Inc. All rights reserved.
+ * Copyright Epic Games, Inc. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,10 +32,14 @@
 
 #include "bmalloc_heap_innards.h"
 #include "hotbit_heap_innards.h"
+#include "inline_medium_page_header_heap.h"
+#include "inline_non_committable_granules_heap.h"
 #include "iso_heap_innards.h"
 #include "iso_test_heap.h"
 #include "jit_heap.h"
 #include "minalign32_heap.h"
+#include "outline_medium_page_header_heap.h"
+#include "outline_non_committable_granules_heap.h"
 #include "pagesize64k_heap.h"
 #include "pas_bitfit_heap.h"
 #include "pas_heap.h"
@@ -102,6 +107,26 @@ bool pas_all_heaps_for_each_static_heap(pas_all_heaps_for_each_heap_callback cal
 #if PAS_ENABLE_JIT
     if (!callback(&jit_common_primitive_heap, arg))
         return false;
+#endif
+
+#if PAS_ENABLE_INLINE_MEDIUM_PAGE_HEADER
+	if (!callback(&inline_medium_page_header_common_primitive_heap, arg))
+		return false;
+#endif
+
+#if PAS_ENABLE_OUTLINE_MEDIUM_PAGE_HEADER
+	if (!callback(&outline_medium_page_header_common_primitive_heap, arg))
+		return false;
+#endif
+
+#if PAS_ENABLE_INLINE_NON_COMMITTABLE_GRANULES
+	if (!callback(&inline_non_committable_granules_common_primitive_heap, arg))
+		return false;
+#endif
+
+#if PAS_ENABLE_OUTLINE_NON_COMMITTABLE_GRANULES
+	if (!callback(&outline_non_committable_granules_common_primitive_heap, arg))
+		return false;
 #endif
 
     return true;
@@ -503,7 +528,7 @@ pas_heap_summary pas_all_heaps_compute_total_non_utility_large_summary(void)
 
 pas_heap_summary pas_all_heaps_compute_total_non_utility_summary(void)
 {
-    return pas_heap_summary_add(
+    return pas_heap_summary_add(
         pas_heap_summary_add(
             pas_all_heaps_compute_total_non_utility_segregated_summary(),
             pas_all_heaps_compute_total_non_utility_bitfit_summary()),

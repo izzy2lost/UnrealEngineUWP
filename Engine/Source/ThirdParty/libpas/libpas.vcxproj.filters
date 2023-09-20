@@ -1158,6 +1158,39 @@
     <ClInclude Include="src\libpas\verse_heap_medium_page_header_object.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\libpas\inline_medium_page_header_config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libpas\inline_medium_page_header_heap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libpas\outline_medium_page_header_config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libpas\outline_medium_page_header_heap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libpas\inline_non_committable_granules_config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libpas\inline_non_committable_granules_heap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libpas\outline_non_committable_granules_config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libpas\outline_non_committable_granules_heap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libpas\ue_include\verse_heap_mark_bits_page_commit_controller_ue.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libpas\verse_heap_compact_mark_bits_page_commit_controller_ptr.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libpas\verse_heap_mark_bits_page_commit_controller.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\libpas\bmalloc_heap.c">
@@ -1632,6 +1665,33 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\libpas\verse_heap_medium_page_header_object.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libpas\inline_medium_page_header_config.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libpas\inline_medium_page_header_heap.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libpas\outline_medium_page_header_config.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libpas\outline_medium_page_header_heap.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libpas\inline_non_committable_granules_config.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libpas\inline_non_committable_granules_heap.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libpas\outline_non_committable_granules_config.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libpas\outline_non_committable_granules_heap.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libpas\verse_heap_mark_bits_page_commit_controller.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -136,6 +136,7 @@ PAS_HEAP_CONFIG_SPECIALIZATION_DECLARATIONS(jit_heap_config);
             .min_align_shift = JIT_ ## variant_uppercase ## _BITFIT_MIN_ALIGN_SHIFT, \
             .page_size = JIT_ ## variant_uppercase ## _PAGE_SIZE, \
             .granule_size = JIT_ ## variant_uppercase ## _GRANULE_SIZE, \
+			.non_committable_granule_bitvector = NULL, \
             .max_object_size = \
                 PAS_BITFIT_MAX_FREE_MAX_VALID << JIT_ ## variant_uppercase ## _BITFIT_MIN_ALIGN_SHIFT, \
             .page_header_for_boundary = jit_ ## variant_lowercase ## _page_header_for_boundary, \
@@ -169,6 +170,7 @@ PAS_HEAP_CONFIG_SPECIALIZATION_DECLARATIONS(jit_heap_config);
                 .min_align_shift = JIT_SMALL_SEGREGATED_MIN_ALIGN_SHIFT, \
                 .page_size = JIT_SMALL_PAGE_SIZE, \
                 .granule_size = JIT_SMALL_GRANULE_SIZE, \
+			    .non_committable_granule_bitvector = NULL, \
                 .max_object_size = PAS_MAX_OBJECT_SIZE(JIT_SMALL_PAGE_SIZE), \
                 .page_header_for_boundary = jit_small_page_header_for_boundary, \
                 .boundary_for_page_header = jit_small_boundary_for_page_header, \

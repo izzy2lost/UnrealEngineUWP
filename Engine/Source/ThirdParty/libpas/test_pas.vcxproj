@@ -239,6 +239,7 @@
     <ClCompile Include="src\test\LotsOfHeapsAndThreads.cpp" />
     <ClCompile Include="src\test\MemalignTests.cpp" />
     <ClCompile Include="src\test\MinHeapTests.cpp" />
+    <ClCompile Include="src\test\OddMediumPageHeaderTests.cpp" />
     <ClCompile Include="src\test\RedBlackTreeTests.cpp" />
     <ClCompile Include="src\test\TestHarness.cpp" />
     <ClCompile Include="src\test\ThingyAndUtilityHeapAllocationTests.cpp" />

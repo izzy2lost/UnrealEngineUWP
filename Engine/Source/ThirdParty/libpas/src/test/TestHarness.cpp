@@ -389,6 +389,7 @@ void addLockFreeReadPtrPtrHashtableTests();
 void addLotsOfHeapsAndThreadsTests();
 void addMemalignTests();
 void addMinHeapTests();
+void addOddMediumPageHeaderTests();
 void addRedBlackTreeTests();
 void addTLCDecommitTests();
 void addTSDTests();
@@ -866,6 +867,7 @@ int main(int argc, char** argv)
     ADD_SUITE(LotsOfHeapsAndThreads);
     ADD_SUITE(Memalign);
     ADD_SUITE(MinHeap);
+	ADD_SUITE(OddMediumPageHeader);
     ADD_SUITE(RedBlackTree);
     ADD_SUITE(TLCDecommit);
     ADD_SUITE(TSD);

@@ -37,6 +37,10 @@
     <ClInclude Include="src\libpas\hotbit_heap_config.h" />
     <ClInclude Include="src\libpas\hotbit_heap_inlines.h" />
     <ClInclude Include="src\libpas\hotbit_heap_innards.h" />
+    <ClInclude Include="src\libpas\inline_medium_page_header_config.h" />
+    <ClInclude Include="src\libpas\inline_medium_page_header_heap.h" />
+    <ClInclude Include="src\libpas\inline_non_committable_granules_config.h" />
+    <ClInclude Include="src\libpas\inline_non_committable_granules_heap.h" />
     <ClInclude Include="src\libpas\iso_heap.h" />
     <ClInclude Include="src\libpas\iso_heap_config.h" />
     <ClInclude Include="src\libpas\iso_heap_inlines.h" />
@@ -49,6 +53,10 @@
     <ClInclude Include="src\libpas\jit_heap_config_root_data.h" />
     <ClInclude Include="src\libpas\minalign32_heap.h" />
     <ClInclude Include="src\libpas\minalign32_heap_config.h" />
+    <ClInclude Include="src\libpas\outline_medium_page_header_config.h" />
+    <ClInclude Include="src\libpas\outline_medium_page_header_heap.h" />
+    <ClInclude Include="src\libpas\outline_non_committable_granules_config.h" />
+    <ClInclude Include="src\libpas\outline_non_committable_granules_heap.h" />
     <ClInclude Include="src\libpas\pagesize64k_heap.h" />
     <ClInclude Include="src\libpas\pagesize64k_heap_config.h" />
     <ClInclude Include="src\libpas\pas_aligned_allocation_result.h" />
@@ -387,6 +395,7 @@
     <ClInclude Include="src\libpas\ue_include\pas_status_reporter_ue.h" />
     <ClInclude Include="src\libpas\ue_include\verse_heap_config_ue.h" />
     <ClInclude Include="src\libpas\ue_include\verse_heap_iterate_filter_ue.h" />
+    <ClInclude Include="src\libpas\ue_include\verse_heap_mark_bits_page_commit_controller_ue.h" />
     <ClInclude Include="src\libpas\ue_include\verse_heap_object_set_ue.h" />
     <ClInclude Include="src\libpas\ue_include\verse_heap_ue.h" />
     <ClInclude Include="src\libpas\ue_include\verse_local_allocator_ue.h" />
@@ -395,11 +404,13 @@
     <ClInclude Include="src\libpas\verse_heap_chunk_map.h" />
     <ClInclude Include="src\libpas\verse_heap_chunk_map_entry.h" />
     <ClInclude Include="src\libpas\verse_heap_compact_large_entry_ptr.h" />
+    <ClInclude Include="src\libpas\verse_heap_compact_mark_bits_page_commit_controller_ptr.h" />
     <ClInclude Include="src\libpas\verse_heap_config.h" />
     <ClInclude Include="src\libpas\verse_heap_inlines.h" />
     <ClInclude Include="src\libpas\verse_heap_iterate_filter.h" />
     <ClInclude Include="src\libpas\verse_heap_iteration_state.h" />
     <ClInclude Include="src\libpas\verse_heap_large_entry.h" />
+    <ClInclude Include="src\libpas\verse_heap_mark_bits_page_commit_controller.h" />
     <ClInclude Include="src\libpas\verse_heap_medium_page_header_object.h" />
     <ClInclude Include="src\libpas\verse_heap_object_set.h" />
     <ClInclude Include="src\libpas\verse_heap_object_set_inlines.h" />
@@ -415,6 +426,10 @@
     <ClCompile Include="src\libpas\bmalloc_type.c" />
     <ClCompile Include="src\libpas\hotbit_heap.c" />
     <ClCompile Include="src\libpas\hotbit_heap_config.c" />
+    <ClCompile Include="src\libpas\inline_medium_page_header_config.c" />
+    <ClCompile Include="src\libpas\inline_medium_page_header_heap.c" />
+    <ClCompile Include="src\libpas\inline_non_committable_granules_config.c" />
+    <ClCompile Include="src\libpas\inline_non_committable_granules_heap.c" />
     <ClCompile Include="src\libpas\iso_heap.c" />
     <ClCompile Include="src\libpas\iso_heap_config.c" />
     <ClCompile Include="src\libpas\iso_test_heap.c" />
@@ -423,6 +438,10 @@
     <ClCompile Include="src\libpas\jit_heap_config.c" />
     <ClCompile Include="src\libpas\minalign32_heap.c" />
     <ClCompile Include="src\libpas\minalign32_heap_config.c" />
+    <ClCompile Include="src\libpas\outline_medium_page_header_config.c" />
+    <ClCompile Include="src\libpas\outline_medium_page_header_heap.c" />
+    <ClCompile Include="src\libpas\outline_non_committable_granules_config.c" />
+    <ClCompile Include="src\libpas\outline_non_committable_granules_heap.c" />
     <ClCompile Include="src\libpas\pagesize64k_heap.c" />
     <ClCompile Include="src\libpas\pagesize64k_heap_config.c" />
     <ClCompile Include="src\libpas\pas_alignment.c" />
@@ -561,6 +580,7 @@
     <ClCompile Include="src\libpas\verse_heap_chunk_map_entry.c" />
     <ClCompile Include="src\libpas\verse_heap_config.c" />
     <ClCompile Include="src\libpas\verse_heap_large_entry.c" />
+    <ClCompile Include="src\libpas\verse_heap_mark_bits_page_commit_controller.c" />
     <ClCompile Include="src\libpas\verse_heap_medium_page_header_object.c" />
     <ClCompile Include="src\libpas\verse_heap_object_set.c" />
     <ClCompile Include="src\libpas\verse_heap_object_set_set.c" />

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021 Apple Inc. All rights reserved.
+ * Copyright Epic Games, Inc. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -181,6 +182,9 @@ PAS_API void pas_page_base_add_free_range(pas_page_base* page,
                                           pas_heap_summary* result,
                                           pas_range range,
                                           pas_free_range_kind kind);
+
+PAS_API void pas_page_base_commit_with_boundary(void* boundary,
+												const pas_page_base_config* config);
 
 PAS_END_EXTERN_C;
 

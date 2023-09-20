@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021 Apple Inc. All rights reserved.
+ * Copyright Epic Games, Inc. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,15 +33,18 @@
 #include "pas_commit_span.h"
 #include "pas_heap_config.h"
 #include "pas_log.h"
-#include "pas_page_base_config.h"
+#include "pas_page_base.h"
 
 void pas_free_granules_compute_and_mark_decommitted(pas_free_granules* free_granules,
                                                     pas_page_granule_use_count* use_counts,
-                                                    size_t num_granules)
+                                                    const pas_page_base_config* page_config)
 {
     static const bool verbose = false;
-    
+
+	size_t num_granules;
     size_t granule_index;
+
+	num_granules = pas_page_base_config_num_granules(*page_config);
     
     PAS_ASSERT(num_granules >= 2); /* If there is only one granule then we don't have use counts. */
     PAS_ASSERT(num_granules <= PAS_MAX_GRANULES);
@@ -48,6 +52,9 @@ void pas_free_granules_compute_and_mark_decommitted(pas_free_granules* free_gran
     pas_zero_memory(free_granules, sizeof(pas_free_granules));
 
     for (granule_index = num_granules; granule_index--;) {
+		if (pas_page_base_config_granule_is_non_committable(*page_config, granule_index))
+			continue;
+		
         if (use_counts[granule_index])
             continue;
 
@@ -64,11 +71,14 @@ void pas_free_granules_compute_and_mark_decommitted(pas_free_granules* free_gran
 
 void pas_free_granules_compute_not_decommitted(pas_free_granules* free_granules,
                                                pas_page_granule_use_count* use_counts,
-                                               size_t num_granules)
+                                               const pas_page_base_config* page_config)
 {
     static const bool verbose = false;
     
+	size_t num_granules;
     size_t granule_index;
+    
+	num_granules = pas_page_base_config_num_granules(*page_config);
     
     PAS_ASSERT(num_granules >= 2); /* If there is only one granule then we don't have use counts. */
     PAS_ASSERT(num_granules <= PAS_MAX_GRANULES);
@@ -76,8 +86,17 @@ void pas_free_granules_compute_not_decommitted(pas_free_granules* free_granules,
     pas_zero_memory(free_granules, sizeof(pas_free_granules));
 
     for (granule_index = num_granules; granule_index--;) {
-        if (use_counts[granule_index] == PAS_PAGE_GRANULE_DECOMMITTED)
+		if (pas_page_base_config_granule_is_non_committable(*page_config, granule_index)) {
+			if (verbose)
+				pas_log("Skipping non-committable granule with index = %zu\n", granule_index);
+			continue;
+		}
+		
+        if (use_counts[granule_index] == PAS_PAGE_GRANULE_DECOMMITTED) {
+			if (verbose)
+				pas_log("Skipping already-decommitted granule with index = %zu\n", granule_index);
             continue;
+		}
 
         if (verbose)
             pas_log("Freeing granule with index = %zu\n", granule_index);
@@ -89,11 +108,14 @@ void pas_free_granules_compute_not_decommitted(pas_free_granules* free_granules,
 
 void pas_free_granules_unmark_decommitted(pas_free_granules* free_granules,
                                           pas_page_granule_use_count* use_counts,
-                                          size_t num_granules)
+										  const pas_page_base_config* page_config)
 {
+	size_t num_granules;
     size_t num_free_granules;
     size_t granule_index;
 
+	num_granules = pas_page_base_config_num_granules(*page_config);
+    
     PAS_ASSERT(num_granules >= 2); /* If there is only one granule then we don't have use counts. */
     PAS_ASSERT(num_granules <= PAS_MAX_GRANULES);
 
@@ -104,6 +126,7 @@ void pas_free_granules_unmark_decommitted(pas_free_granules* free_granules,
             continue;
         
         PAS_ASSERT(use_counts[granule_index] == PAS_PAGE_GRANULE_DECOMMITTED);
+		PAS_ASSERT(pas_page_base_config_granule_is_committable(*page_config, granule_index));
         use_counts[granule_index] = 0;
         num_free_granules++;
     }
@@ -122,7 +145,7 @@ void pas_free_granules_decommit_after_locking_range(pas_free_granules* free_gran
     size_t num_granules;
     pas_commit_span commit_span;
 
-    num_granules = page_config->page_size / page_config->granule_size;
+	num_granules = pas_page_base_config_num_granules(*page_config);
     
     PAS_ASSERT(num_granules >= 2); /* If there is only one granule then we don't have use counts. */
     PAS_ASSERT(num_granules <= PAS_MAX_GRANULES);
@@ -131,16 +154,17 @@ void pas_free_granules_decommit_after_locking_range(pas_free_granules* free_gran
 
     for (granule_index = 0; granule_index < num_granules; ++granule_index) {
         if (pas_free_granules_is_free(free_granules, granule_index)) {
+			PAS_ASSERT(pas_page_base_config_granule_is_committable(*page_config, granule_index));
             pas_commit_span_add_to_change(&commit_span, granule_index);
             continue;
         }
 
         pas_commit_span_add_unchanged_and_decommit(
-            &commit_span, page, granule_index, log, commit_lock, page_config, heap_lock_hold_mode);
+            &commit_span, pas_page_base_boundary(page, *page_config), granule_index, log, commit_lock, page_config, heap_lock_hold_mode);
     }
     
     pas_commit_span_add_unchanged_and_decommit(
-        &commit_span, page, num_granules, log, commit_lock, page_config, heap_lock_hold_mode);
+        &commit_span, pas_page_base_boundary(page, *page_config), num_granules, log, commit_lock, page_config, heap_lock_hold_mode);
 }
 
 #endif /* LIBPAS_ENABLED */

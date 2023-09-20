@@ -210,6 +210,15 @@ static PAS_ALWAYS_INLINE void verse_heap_notify_sweep(uintptr_t bytes_swept)
 	}
 }
 
+/* Shorthand for verse_heap_find_allocated_object_start((uintptr_t)ptr) == (uintptr_t)ptr.
+   
+   For now, this is only intended for testing. A byproduct of calling this in a test is that it causes us to look at the
+   page header of any page that the chunk map says is allocated. Tests rely on that.
+   
+   If we wanted to use this outside testing, we'd have to combine it with a GC state check and a mark bit check, plus some
+   other logic. */
+PAS_API bool verse_heap_object_is_allocated(void* ptr);
+
 PAS_END_EXTERN_C;
 
 #endif /* PAS_ENABLE_VERSE */

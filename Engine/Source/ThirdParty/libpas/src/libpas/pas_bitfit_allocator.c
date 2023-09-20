@@ -188,8 +188,7 @@ bool pas_bitfit_allocator_commit_view(pas_bitfit_view* view,
         PAS_ASSERT(view->page_boundary);
         PAS_ASSERT(!view->is_owned);
 
-        pas_page_malloc_commit(
-            view->page_boundary, config->base.page_size, config->base.heap_config_ptr->mmap_capability);
+		pas_page_base_commit_with_boundary(view->page_boundary, &config->base);
         config->base.create_page_header(
             view->page_boundary,
             pas_page_kind_for_bitfit_variant(config->variant),

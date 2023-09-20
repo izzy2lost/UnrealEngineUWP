@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021 Apple Inc. All rights reserved.
+ * Copyright Epic Games, Inc. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,6 +31,7 @@
 #include "pas_page_base.h"
 
 #include "pas_bitfit_page.h"
+#include "pas_commit_span.h"
 #include "pas_segregated_page.h"
 
 size_t pas_page_base_header_size(const pas_page_base_config* config,
@@ -208,6 +210,26 @@ void pas_page_base_add_free_range(pas_page_base* page,
             break;
         }
     }
+}
+
+void pas_page_base_commit_with_boundary(void* boundary,
+										const pas_page_base_config* config)
+{
+	pas_commit_span span;
+	size_t granule_index;
+
+	pas_commit_span_construct(&span, config->heap_config_ptr->mmap_capability);
+
+	for (granule_index = 0; granule_index < pas_page_base_config_num_granules(*config); ++granule_index) {
+		if (pas_page_base_config_granule_is_committable(*config, granule_index)) {
+			pas_commit_span_add_to_change(&span, granule_index);
+			continue;
+		}
+
+		pas_commit_span_add_unchanged_and_commit(&span, boundary, granule_index, config);
+	}
+	
+	pas_commit_span_add_unchanged_and_commit(&span, boundary, granule_index, config);
 }
 
 #endif /* LIBPAS_ENABLED */

@@ -3,7 +3,7 @@
 #ifndef VERSE_HEAP_LARGE_ENTRY_H
 #define VERSE_HEAP_LARGE_ENTRY_H
 
-#include "pas_utils.h"
+#include "verse_heap_mark_bits_page_commit_controller.h"
 
 #if PAS_ENABLE_VERSE
 
@@ -18,6 +18,7 @@ struct verse_heap_large_entry {
     uintptr_t begin;
     uintptr_t end;
     pas_heap* heap;
+	verse_heap_mark_bits_page_commit_controller mark_bits_page_commit_controller;
 };
 
 /* These must be called with the heap lock held. */

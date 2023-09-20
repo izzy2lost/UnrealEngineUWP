@@ -152,14 +152,15 @@ static PAS_ALWAYS_INLINE unsigned pas_bitfit_page_allocation_commit_granules_or_
         for (granule_index = index_of_first_granule;
              granule_index <= index_of_last_granule;
              ++granule_index) {
-            if (use_counts[granule_index] == PAS_PAGE_GRANULE_DECOMMITTED) {
+            if (pas_page_base_config_granule_is_committable(page_config.base, granule_index)
+				&& use_counts[granule_index] == PAS_PAGE_GRANULE_DECOMMITTED) {
                 pas_commit_span_add_to_change(&commit_span, granule_index);
                 use_counts[granule_index] = 1;
                 continue;
             }
             
             pas_commit_span_add_unchanged_and_commit(
-                &commit_span, &page->base, granule_index, page_config.base.page_config_ptr);
+                &commit_span, pas_bitfit_page_boundary(page, page_config), granule_index, page_config.base.page_config_ptr);
             
             use_counts[granule_index]++;
             PAS_ASSERT(use_counts[granule_index] != PAS_PAGE_GRANULE_DECOMMITTED);
@@ -167,7 +168,7 @@ static PAS_ALWAYS_INLINE unsigned pas_bitfit_page_allocation_commit_granules_or_
         PAS_ASSERT(granule_index == index_of_last_granule + 1);
         
         pas_commit_span_add_unchanged_and_commit(
-            &commit_span, &page->base, granule_index, page_config.base.page_config_ptr);
+            &commit_span, pas_bitfit_page_boundary(page, page_config), granule_index, page_config.base.page_config_ptr);
 
         *bytes_committed += commit_span.total_bytes;
 

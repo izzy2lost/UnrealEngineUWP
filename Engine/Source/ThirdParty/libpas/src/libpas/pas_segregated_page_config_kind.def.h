@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2022 Apple Inc. All rights reserved.
+ * Copyright Epic Games, Inc. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -115,3 +116,24 @@ PAS_DEFINE_SEGREGATED_PAGE_CONFIG_KIND(verse_small_segregated,
 PAS_DEFINE_SEGREGATED_PAGE_CONFIG_KIND(verse_medium_segregated,
                                        VERSE_HEAP_CONFIG.medium_segregated_config)
 #endif
+
+#if PAS_ENABLE_INLINE_MEDIUM_PAGE_HEADER
+PAS_DEFINE_SEGREGATED_PAGE_CONFIG_KIND(inline_medium_page_header,
+									   INLINE_MEDIUM_PAGE_HEADER_CONFIG.small_segregated_config)
+#endif
+
+#if PAS_ENABLE_OUTLINE_MEDIUM_PAGE_HEADER
+PAS_DEFINE_SEGREGATED_PAGE_CONFIG_KIND(outline_medium_page_header,
+									   OUTLINE_MEDIUM_PAGE_HEADER_CONFIG.small_segregated_config)
+#endif
+
+#if PAS_ENABLE_INLINE_NON_COMMITTABLE_GRANULES
+PAS_DEFINE_SEGREGATED_PAGE_CONFIG_KIND(inline_non_committable_granules,
+									   INLINE_NON_COMMITTABLE_GRANULES_CONFIG.small_segregated_config)
+#endif
+
+#if PAS_ENABLE_OUTLINE_NON_COMMITTABLE_GRANULES
+PAS_DEFINE_SEGREGATED_PAGE_CONFIG_KIND(outline_non_committable_granules,
+									   OUTLINE_NON_COMMITTABLE_GRANULES_CONFIG.small_segregated_config)
+#endif
+

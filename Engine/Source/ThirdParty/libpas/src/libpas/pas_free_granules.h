@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020 Apple Inc. All rights reserved.
+ * Copyright Epic Games, Inc. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,6 +30,7 @@
 #include "pas_bitvector.h"
 #include "pas_config.h"
 #include "pas_lock.h"
+#include "pas_page_base_config.h"
 #include "pas_page_granule_use_count.h"
 
 PAS_BEGIN_EXTERN_C;
@@ -51,7 +53,7 @@ struct pas_free_granules {
    lock for segregated exclusive). */
 PAS_API void pas_free_granules_compute_and_mark_decommitted(pas_free_granules* free_granules,
                                                             pas_page_granule_use_count* use_counts,
-                                                            size_t num_granules);
+                                                            const pas_page_base_config* page_config);
 
 /* If the page is totally empty then we can decommit not just the free granules but the whole page. So,
    this is for finding any not-decommitted granules. This doesn't edit the use_counts at all (so no need
@@ -59,11 +61,11 @@ PAS_API void pas_free_granules_compute_and_mark_decommitted(pas_free_granules* f
    if we succeed then the whole page (use_counts included) goes away. */
 PAS_API void pas_free_granules_compute_not_decommitted(pas_free_granules* free_granules,
                                                        pas_page_granule_use_count* use_counts,
-                                                       size_t num_granules);
+                                                       const pas_page_base_config* page_config);
 
 PAS_API void pas_free_granules_unmark_decommitted(pas_free_granules* free_granules,
                                                   pas_page_granule_use_count* use_count,
-                                                  size_t num_granules);
+                                                  const pas_page_base_config* page_config);
 
 static inline bool pas_free_granules_is_free(pas_free_granules* free_granules,
                                              size_t index)

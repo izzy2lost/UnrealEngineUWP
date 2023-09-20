@@ -467,6 +467,7 @@ void* verse_heap_allocate_with_alignment(pas_heap* heap, size_t size, size_t ali
 void verse_heap_start_allocating_black_before_handshake(void)
 {
     PAS_ASSERT(verse_heap_allocating_black_version == (uint64_t)verse_heap_do_not_allocate_black);
+	PAS_ASSERT(verse_heap_mark_bits_page_commit_controller_is_locked);
     verse_heap_allocating_black_version = (uint64_t)verse_heap_allocate_black;
 }
 
@@ -477,6 +478,7 @@ void verse_heap_start_sweep_before_handshake(void)
     PAS_ASSERT(verse_heap_allocating_black_version == (uint64_t)verse_heap_allocate_black);
     PAS_ASSERT(!verse_heap_is_sweeping);
     PAS_ASSERT(!verse_heap_current_iteration_state.version);
+	PAS_ASSERT(verse_heap_mark_bits_page_commit_controller_is_locked);
     verse_heap_allocating_black_version = ++verse_heap_latest_version;
     verse_heap_is_sweeping = true;
 	verse_heap_swept_bytes = 0;
@@ -492,6 +494,7 @@ size_t verse_heap_start_sweep_after_handshake(void)
     PAS_ASSERT(verse_heap_is_sweeping);
     PAS_ASSERT(!verse_heap_current_iteration_state.version);
 	PAS_ASSERT(!verse_heap_swept_bytes);
+	PAS_ASSERT(verse_heap_mark_bits_page_commit_controller_is_locked);
     return 1 + verse_heap_all_objects.views.size;
 }
 
@@ -500,8 +503,10 @@ void verse_heap_end_sweep(void)
     PAS_ASSERT(verse_heap_allocating_black_version >= VERSE_HEAP_FIRST_VERSION);
     PAS_ASSERT(verse_heap_is_sweeping);
     PAS_ASSERT(!verse_heap_current_iteration_state.version);
+	PAS_ASSERT(verse_heap_mark_bits_page_commit_controller_is_locked);
     verse_heap_allocating_black_version = (uint64_t)verse_heap_do_not_allocate_black;
     verse_heap_is_sweeping = false;
+	pas_scavenger_notify_eligibility_if_needed();
 }
 
 /* It's possible that pages got allocated in the new heap version, meaning that their objects were allocated
@@ -862,6 +867,7 @@ void verse_heap_sweep_range(size_t begin, size_t end)
     
     PAS_ASSERT(verse_heap_is_sweeping);
     PAS_ASSERT(!verse_heap_current_iteration_state.version);
+	PAS_ASSERT(verse_heap_mark_bits_page_commit_controller_is_locked);
 
     if (!begin) {
         if (!end)
@@ -966,6 +972,11 @@ uintptr_t verse_heap_get_allocation_size(uintptr_t inner_ptr)
 bool verse_heap_owns_address(uintptr_t ptr)
 {
     return !verse_heap_chunk_map_entry_is_empty(verse_heap_get_chunk_map_entry(ptr));
+}
+
+bool verse_heap_object_is_allocated(void* ptr)
+{
+	return verse_heap_find_allocated_object_start((uintptr_t)ptr) == (uintptr_t)ptr;
 }
 
 #endif /* PAS_ENABLE_VERSE */

@@ -294,8 +294,13 @@ static bool virtual_decommit_operation(void* ptr, size_t size)
 
 static void commit_impl(void* ptr, size_t size, bool do_mprotect, pas_mmap_capability mmap_capability)
 {
+    static const bool verbose = false;
+    
     uintptr_t base_as_int;
     uintptr_t end_as_int;
+
+    if (verbose)
+        pas_log("Committing %p...%p\n", ptr, (char*)ptr + size);
 
     base_as_int = (uintptr_t)ptr;
     end_as_int = base_as_int + size;

@@ -17,6 +17,7 @@
 #include "VerseVM/VVMNeverDestroyed.h"
 #include "VerseVM/VVMSubspace.h"
 #include "pas_scavenger_ue.h"
+#include "verse_heap_mark_bits_page_commit_controller_ue.h"
 #include "verse_heap_ue.h"
 
 namespace Verse
@@ -247,6 +248,9 @@ void FHeap::BeginCollection(FIOContext Context)
 			}
 		}
 	}
+
+	// Make sure mark bits are locked (i.e. committed and prevented from being decommitted by the libpas scavenger) before we tell folks to start using them.
+	verse_heap_mark_bits_page_commit_controller_lock();
 
 	{
 		TUniqueLock Lock(Mutex);
@@ -565,6 +569,10 @@ void FHeap::EndCollection(FIOContext Context)
 	V_DIE_IF(bIsMarking);
 	V_DIE_UNLESS(bIsCollecting);
 	V_DIE_UNLESS(bIsTerminated);
+
+	// Make it possible for the libpas scavenger to decommit the mark bits.
+	verse_heap_mark_bits_page_commit_controller_unlock();
+
 	TUniqueLock Lock(Mutex);
 	V_DIE_UNLESS(RequestedCycleVersion > CompletedCycleVersion);
 	V_DIE_UNLESS(verse_heap_live_bytes_trigger_threshold == SIZE_MAX);
