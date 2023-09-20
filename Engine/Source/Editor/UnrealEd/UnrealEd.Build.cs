@@ -182,6 +182,7 @@ public class UnrealEd : ModuleRules
 				"HeadMountedDisplay",
 				"FieldNotification",
 				"VirtualizationEditor",
+				"GeometryCore",
 			}
 		);
 
