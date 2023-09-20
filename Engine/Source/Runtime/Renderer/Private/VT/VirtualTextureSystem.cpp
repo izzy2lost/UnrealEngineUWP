@@ -1197,7 +1197,7 @@ void FVirtualTextureSystem::RequestTilesInternal(const IAllocatedVirtualTexture*
 	}
 }
 
-void FVirtualTextureSystem::RequestTilesForRegion(IAllocatedVirtualTexture* AllocatedVT, const FVector2D& InScreenSpaceSize, const FVector2D& InViewportPosition, const FVector2D& InViewportSize, const FVector2D& InUV0, const FVector2D& InUV1, int32 InMipLevel)
+void FVirtualTextureSystem::RequestTiles(IAllocatedVirtualTexture* AllocatedVT, const FVector2D& InScreenSpaceSize, const FVector2D& InViewportPosition, const FVector2D& InViewportSize, const FVector2D& InUV0, const FVector2D& InUV1, int32 InMipLevel)
 {
 	UE::TScopeLock Lock(Mutex);
 	if (InMipLevel >= 0)
@@ -1207,7 +1207,7 @@ void FVirtualTextureSystem::RequestTilesForRegion(IAllocatedVirtualTexture* Allo
 	else
 	{
 		const uint32 vMaxLevel = AllocatedVT->GetMaxLevel();
-		const float vLevel = ComputeMipLevel(AllocatedVT, InScreenSpaceSize);
+		const float vLevel = ComputeMipLevel(AllocatedVT, InScreenSpaceSize); // TODO: ComputeMipLevel() is incorrect if not using the whole UV range
 		const int32 vMipLevelDown = FMath::Clamp((int32)FMath::FloorToInt(vLevel), 0, (int32)vMaxLevel);
 
 		RequestTilesForRegionInternal(AllocatedVT, InScreenSpaceSize, InViewportPosition, InViewportSize, InUV0, InUV1, vMipLevelDown);
@@ -1217,6 +1217,12 @@ void FVirtualTextureSystem::RequestTilesForRegion(IAllocatedVirtualTexture* Allo
 			RequestTilesForRegionInternal(AllocatedVT, InScreenSpaceSize, InViewportPosition, InViewportSize, InUV0, InUV1, vMipLevelDown + 1u);
 		}
 	}
+}
+
+void FVirtualTextureSystem::RequestTilesForRegion(IAllocatedVirtualTexture* AllocatedVT, const FVector2D& InScreenSpaceSize, const FVector2D& InViewportPosition, const FVector2D& InViewportSize, const FVector2D& InUV0, const FVector2D& InUV1, int32 InMipLevel)
+{
+	// RequestTilesForRegion() used to require that the viewport position was negated which felt wrong. Correct this when calling the new implementation.
+	RequestTiles(AllocatedVT, InScreenSpaceSize, -InViewportPosition, InViewportSize, InUV0, InUV1, InMipLevel);
 }
 
 void FVirtualTextureSystem::LoadPendingTiles(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel)
@@ -1280,23 +1286,30 @@ static int32 WrapTilePosition(int32 Position, int32 Size)
 
 void FVirtualTextureSystem::RequestTilesForRegionInternal(const IAllocatedVirtualTexture* AllocatedVT, const FVector2D& InScreenSpaceSize, const FVector2D& InViewportPosition, const FVector2D& InViewportSize, const FVector2D& InUV0, const FVector2D& InUV1, int32 InMipLevel)
 {
-	const float ScreenSpaceSizeX = FMath::Max(InScreenSpaceSize.X, 1.0f);
-	const float ScreenSpaceSizeY = FMath::Max(InScreenSpaceSize.Y, 1.0f);
+	// Screen size must be a least a pixel
+	FVector2D ScreenSize = FVector2D::Max(InScreenSpaceSize, FVector2D::One());
 
-	// Determine the screen-space coordinates of the texture we're trying to display
-	const float SrcPositionX0 = FMath::Max(InViewportPosition.X, 0.0f);
-	const float SrcPositionY0 = FMath::Max(InViewportPosition.Y, 0.0f);
-	const float SrcPositionX1 = FMath::Max(FMath::Min(InViewportPosition.X + InViewportSize.X, ScreenSpaceSizeX), 0.0f);
-	const float SrcPositionY1 = FMath::Max(FMath::Min(InViewportPosition.Y + InViewportSize.Y, ScreenSpaceSizeY), 0.0f);
+	// TopLeft vs BottomRight - In viewport space
+	FVector2D TextureTopLeftViewportSpace = InViewportPosition;
+	FVector2D TextureBottomRightViewportSpace = InViewportPosition + ScreenSize;
 
+	// TopLeft vs BottomRight - Clamped to viewport
+	FVector2D TextureTopLeftViewportSpaceClamped = FVector2D::Clamp(TextureTopLeftViewportSpace, FVector2D::Zero(), InViewportSize);
+	FVector2D TextureBottomRightViewportSpaceClamped = FVector2D::Clamp(TextureBottomRightViewportSpace, FVector2D::Zero(), InViewportSize);
+
+	// Range of initial screen size for TopLeft & BottomRight
+	// For example, if 10% of the image is outside each side of the viewport, LerpTopLeft & LerpBottomRight would be (0.1, 0.1) & (0.9, 0.9), respectively
+	FVector2D LerpTopLeft = FVector2D::Clamp((TextureTopLeftViewportSpaceClamped - TextureTopLeftViewportSpace) / ScreenSize, FVector2D::Zero(), FVector2D::One());
+	FVector2D LerpBottomRight = FVector2D::Clamp((TextureBottomRightViewportSpaceClamped - TextureTopLeftViewportSpace) / ScreenSize, FVector2D::Zero(), FVector2D::One());
+	
 	const int32 WidthInBlocks = AllocatedVT->GetWidthInBlocks();
 	const int32 HeightInBlocks = AllocatedVT->GetHeightInBlocks();
 
 	// Map coordinates to UV space
-	const float PositionU0 = FMath::Lerp(InUV0.X, InUV1.X, SrcPositionX0 / ScreenSpaceSizeX) / WidthInBlocks;
-	const float PositionV0 = FMath::Lerp(InUV0.Y, InUV1.Y, SrcPositionY0 / ScreenSpaceSizeY) / HeightInBlocks;
-	const float PositionU1 = FMath::Lerp(InUV0.X, InUV1.X, SrcPositionX1 / ScreenSpaceSizeX) / WidthInBlocks;
-	const float PositionV1 = FMath::Lerp(InUV0.Y, InUV1.Y, SrcPositionY1 / ScreenSpaceSizeY) / HeightInBlocks;
+	const float PositionU0 = FMath::Lerp(InUV0.X, InUV1.X, LerpTopLeft.X) / WidthInBlocks;
+	const float PositionV0 = FMath::Lerp(InUV0.Y, InUV1.Y, LerpTopLeft.Y) / HeightInBlocks;
+	const float PositionU1 = FMath::Lerp(InUV0.X, InUV1.X, LerpBottomRight.X) / WidthInBlocks;
+	const float PositionV1 = FMath::Lerp(InUV0.Y, InUV1.Y, LerpBottomRight.Y) / HeightInBlocks;
 
 	// Map UVs to tile coordinates
 	const int32 MipWidthInTiles = FMath::Max<int32>(AllocatedVT->GetWidthInTiles() >> InMipLevel, 1);

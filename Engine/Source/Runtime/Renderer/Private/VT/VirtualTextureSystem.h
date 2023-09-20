@@ -128,7 +128,23 @@ public:
 
 	void RequestTiles(const FVector2D& InScreenSpaceSize, int32 InMipLevel = -1);
 	void RequestTiles(const FMaterialRenderProxy* InMaterialRenderProxy, const FVector2D& InScreenSpaceSize, ERHIFeatureLevel::Type InFeatureLevel);
+
+	/**
+	 * Helper function to request loading of tiles for a virtual texture that will be displayed in the UI. 
+	 * It will request only the tiles that will be visible after clipping to the provided viewport.
+	 * @param AllocatedVT			The virtual texture.
+	 * @param InScreenSpaceSize		Size on screen at which the texture is to be displayed.
+	 * @param InViewportPosition	Position in the viewport where the texture will be displayed.
+	 * @param InViewportSize		Size of the viewport.
+	 * @param InUV0					UV coordinate to use for the top left corner of the texture.
+	 * @param InUV1					UV coordinate to use for the bottom right corner of the texture.
+	 * @param InMipLevel [optional] Specific mip level to fetch tiles for.
+	 */
+	void RequestTiles(IAllocatedVirtualTexture* AllocatedVT, const FVector2D& InScreenSpaceSize, const FVector2D& InViewportPosition, const FVector2D& InViewportSize, const FVector2D& InUV0, const FVector2D& InUV1, int32 InMipLevel = -1);
+
+	UE_DEPRECATED(5.4, "Use RequestTiles() overloads that takes similar parameters. Make sure not to negate the InViewportPosition.")
 	void RequestTilesForRegion(IAllocatedVirtualTexture* AllocatedVT, const FVector2D& InScreenSpaceSize, const FVector2D& InViewportPosition, const FVector2D& InViewportSize, const FVector2D& InUV0, const FVector2D& InUV1, int32 InMipLevel = -1);
+
 	void LoadPendingTiles(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel);
 	
 #if WITH_EDITOR
