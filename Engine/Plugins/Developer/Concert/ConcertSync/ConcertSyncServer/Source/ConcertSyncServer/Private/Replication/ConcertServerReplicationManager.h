@@ -38,6 +38,7 @@ namespace UE::ConcertSyncServer::Replication
 		, public FNoncopyable
 	{
 	public:
+
 		explicit FConcertServerReplicationManager(TSharedRef<IConcertServerSession> InLiveSession);
 		virtual ~FConcertServerReplicationManager() override;
 
@@ -65,21 +66,24 @@ namespace UE::ConcertSyncServer::Replication
 		/** Clients that have requested to join replication. Maps client ID to replication info. */
 		TMap<FGuid, TSharedRef<FConcertReplicationClient>> Clients;
 
-		// Event handlers
+		// Joining
 		EConcertSessionResponseCode HandleJoinReplicationSessionRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_Join_Request& Request, FConcertReplication_Join_Response& Response);
 		EConcertSessionResponseCode InternalHandleJoinReplicationSessionRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_Join_Request& Request, FConcertReplication_Join_Response& Response);
 
+		// Querying
 		EConcertSessionResponseCode HandleQueryReplicationInfoRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertQueryReplicationInfo_Request& Request, FConcertQueryReplicationInfo_Response& Response);
 		/** Gets all registered streams and optionally removes the properties. */
 		TArray<FSharedReplicationStreamDescription> BuildClientStreamInfo(const FConcertReplicationClient& Client, bool bSkipProperties) const;
 		/** Maps the client's streams to the objects in that stream the client has taken authority over. */
 		TArray<FReplicationAuthorityInfo> BuildClientAuthorityInfo(const FConcertReplicationClient& Client) const;
-		
+
+		// Changing streams
+		EConcertSessionResponseCode HandleChangeStreamRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertChangeStream_Request& Request, FConcertChangeStream_Response& Response);
+
+		// Leaving
 		void HandleLeaveReplicationSessionRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_LeaveEvent& EventData);
-		
 		void OnConnectionChanged(IConcertServerSession& ConcertServerSession, EConcertClientStatus ConcertClientStatus, const FConcertSessionClientInfo& ConcertSessionClientInfo);
 
-	private:
 		/**
 		 * Ticks all clients which causes clients to process pending data and send it to the corresponding endpoints.
 		 * 

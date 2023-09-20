@@ -50,6 +50,7 @@ namespace UE::ConcertSyncClient::Replication
 		virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const override;
 		virtual TFuture<FAuthorityChangeResponse> RequestAuthorityChange(FAuthorityChangeRequest Args) override;
 		virtual TFuture<FClientQueryResponse> QueryClientInfo(FClientQueryRequest Args) override;
+		virtual TFuture<FChangeStreamResponse> ChangeStream(FChangeStreamRequest Args) override;
 		//~ End IConcertClientReplicationManager Interface
 
 	private:
@@ -58,8 +59,8 @@ namespace UE::ConcertSyncClient::Replication
 		const TSharedRef<IConcertClientSession> LiveSession;
 		/** Passed to FReplicationManagerState_Disconnected */
 		IConcertClientReplicationBridge* const ReplicationBridge;
-		/** The streams that were registered during the handshake. */
-		const TArray<FReplicationStreamDescription> RegisteredStreams;
+		/** The streams this client has registered with the server. */
+		TArray<FReplicationStreamDescription> RegisteredStreams;
 		
 		/** The format this client will use for sending & receiving data. */
 		const TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;

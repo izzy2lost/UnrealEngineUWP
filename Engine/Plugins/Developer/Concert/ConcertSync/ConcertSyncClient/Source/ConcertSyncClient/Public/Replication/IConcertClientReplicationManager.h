@@ -41,6 +41,8 @@ namespace UE::ConcertSyncClient::Replication
 	struct FAuthorityChangeResponse : FConcertChangeAuthority_Response {};
 	struct FClientQueryRequest : FConcertQueryReplicationInfo_Request {};
 	struct FClientQueryResponse : FConcertQueryReplicationInfo_Response {};
+	struct FChangeStreamRequest : FConcertChangeStream_Request {};
+	struct FChangeStreamResponse : FConcertChangeStream_Response {};
 }
 
 /**
@@ -73,13 +75,15 @@ public:
 
 	enum class EStreamEnumerationResult { NoRegisteredStreams, Iterated };
 	/**
-	 * Iterates the streams that were registered in the JoinReplicationSession request.
+	 * Iterates the streams the client has registered with the server.
 	 * It only makes sense to call this function the manager has joined a replication session.
 	 * @return Whether this manager is connected to a session (Iterated) or not (NoRegisteredStreams).
 	 */
 	virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const = 0;
 	/** @return Whether this manager is currently in a replication session (basically whether ForEachRegisteredStream returns EStreamEnumerationResult::Iterated). */
 	bool HasRegisteredStreams() const;
+	/** @return The streams registered with the server. */
+	TArray<FReplicationStreamDescription> GetRegisteredStreams() const;
 	
 	/**
 	 * Requests from the server to change the authority over some objects.
@@ -95,7 +99,13 @@ public:
 	 * Requests replication info about other clients, including the streams registered and which objects they have authority over (i.e. are sending).
 	 * @note The future may execute on any thread. Take care to synchronize correctly with the game thread if needed.
 	 */
-	virtual TFuture<UE::ConcertSyncClient::Replication::FClientQueryResponse> QueryClientInfo(UE::ConcertSyncClient::Replication::FClientQueryRequest Args) = 0; 
+	virtual TFuture<UE::ConcertSyncClient::Replication::FClientQueryResponse> QueryClientInfo(UE::ConcertSyncClient::Replication::FClientQueryRequest Args) = 0;
+
+	/**
+	 * Requests to change the client's registered streams
+	 * @note The future may execute on any thread. Take care to synchronize correctly with the game thread if needed.
+	 */
+	virtual TFuture<UE::ConcertSyncClient::Replication::FChangeStreamResponse> ChangeStream(UE::ConcertSyncClient::Replication::FChangeStreamRequest Args) = 0;
 	
 	virtual ~IConcertClientReplicationManager() = default;
 };

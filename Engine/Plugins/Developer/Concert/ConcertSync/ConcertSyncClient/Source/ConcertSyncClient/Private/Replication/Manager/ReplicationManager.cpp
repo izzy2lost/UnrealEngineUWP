@@ -77,6 +77,13 @@ namespace UE::ConcertSyncClient::Replication
 			: MakeFulfilledPromise<FClientQueryResponse>().GetFuture();
 	}
 
+	TFuture<FChangeStreamResponse> FReplicationManager::ChangeStream(FChangeStreamRequest Args)
+	{
+		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
+			? CurrentState->ChangeStream(MoveTemp(Args))
+			: MakeFulfilledPromise<FChangeStreamResponse>().GetFuture(); 
+	}
+
 	void FReplicationManager::OnChangeState(TSharedRef<FReplicationManagerState> NewState)
 	{
 		CurrentState = MoveTemp(NewState);

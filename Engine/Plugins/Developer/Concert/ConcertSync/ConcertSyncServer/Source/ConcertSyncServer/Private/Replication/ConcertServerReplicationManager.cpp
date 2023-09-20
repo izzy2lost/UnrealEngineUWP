@@ -22,6 +22,7 @@ namespace UE::ConcertSyncServer::Replication
 	{
 		Session->RegisterCustomRequestHandler<FConcertReplication_Join_Request, FConcertReplication_Join_Response>(this, &FConcertServerReplicationManager::HandleJoinReplicationSessionRequest);
 		Session->RegisterCustomRequestHandler<FConcertQueryReplicationInfo_Request, FConcertQueryReplicationInfo_Response>(this, &FConcertServerReplicationManager::HandleQueryReplicationInfoRequest);
+		Session->RegisterCustomRequestHandler<FConcertChangeStream_Request, FConcertChangeStream_Response>(this, &FConcertServerReplicationManager::HandleChangeStreamRequest);
 		Session->RegisterCustomEventHandler<FConcertReplication_LeaveEvent>(this, &FConcertServerReplicationManager::HandleLeaveReplicationSessionRequest);
 		Session->OnSessionClientChanged().AddRaw(this, &FConcertServerReplicationManager::OnConnectionChanged);
 
@@ -187,7 +188,7 @@ namespace UE::ConcertSyncServer::Replication
 				ObjectInfo.Object = Pair.Key;
 				ObjectInfo.StreamId = StreamId;
 				
-				if (AuthorityManager->IsObjectChangeAllowed(ObjectInfo))
+				if (AuthorityManager->HasAuthorityToChange(ObjectInfo))
 				{
 					Info.AuthoredObjects.Add(Pair.Key);
 				}
@@ -204,8 +205,7 @@ namespace UE::ConcertSyncServer::Replication
 
 	void FConcertServerReplicationManager::HandleLeaveReplicationSessionRequest(
 		const FConcertSessionContext& ConcertSessionContext,
-		const FConcertReplication_LeaveEvent& EventData
-		)
+		const FConcertReplication_LeaveEvent& EventData)
 	{
 		const FGuid ClientEndpointId = ConcertSessionContext.SourceEndpointId;
 		UE_LOG(LogConcert, Log, TEXT("Received replication leave request from endpoint %s"), *ClientEndpointId.ToString());

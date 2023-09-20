@@ -25,6 +25,6 @@ namespace UE::ConcertSyncServer::Replication
 		) const
 	{
 		const FReplicatedObjectId ReplicatedObjectInfo { { StreamEvent.StreamId, ObjectEvent.ReplicatedObject }, SessionContext.SourceEndpointId };
-		return AuthorityManager->IsObjectChangeAllowed(ReplicatedObjectInfo);
+		return AuthorityManager->HasAuthorityToChange(ReplicatedObjectInfo);
 	}
 }

@@ -4,6 +4,7 @@
 
 #include "ConcertMessageData.h"
 #include "Replication/Data/ClientQueriedInfo.h"
+#include "Replication/Data/ObjectIds.h"
 #include "ConcertReplicationEvents.generated.h"
 
 /** Contains data to be applied to a replicated object. */
@@ -178,4 +179,130 @@ struct FConcertQueryReplicationInfo_Response
 	 */
 	UPROPERTY()
 	TMap<FGuid, FReplicationClientQueriedInfo> ClientInfo;
+};
+
+/** A request to add a new object to a stream or overwrite a pre-existing object's properties / class. */
+USTRUCT()
+struct FConcertChangeStream_PutObject
+{
+	GENERATED_BODY()
+
+	/**
+	 * The property selection the object should have.
+	 * Objects must always have a non-empty selection: use FConcertChangeStream_Request::ObjectsToRemove to remove objects.
+	 *
+	 * Any request that would leave an object's property selection empty will result in failure.
+	 */
+	UPROPERTY()
+	FConcertPropertySelection Properties;
+
+	/**
+	 * If Object is pre-existing, this property is optional. If different than None, this will change the class
+	 * If a new object is added, this property is mandatory. Not doing so will fail the request.
+	 *
+	 * Not specifying ClassPath nor Properties is an error: use FConcertChangeStream_Request::ObjectsToRemove to remove objects.
+	 */
+	UPROPERTY()
+	FSoftClassPath ClassPath;
+};
+
+/**
+ * Let's a client changing its streams owned on the server.
+ * 
+ * This request is processed atomically: it either succeeds completely or fails completely.
+ * If any sub-change causes a failure, the failure reason will be returned in the response and the client must make a new request.
+ */
+USTRUCT()
+struct FConcertChangeStream_Request
+{
+	GENERATED_BODY()
+
+	/**
+	 * Removes objects from pre-existing streams.
+	 * Supplying an object that is not in the specified stream does not cause failure (but is nonsensical).
+	 * 
+	 * If a stream has no registered objects after this operation, it is automatically removed.
+	 * If the requesting client has authority over these objects, authority is removed.
+	 */
+	UPROPERTY()
+	TSet<FObjectInStreamID> ObjectsToRemove;
+
+	/**
+	 * Adds new or modifies preexisting object definitions in pre-existing streams.
+	 *
+	 * If the requesting client and a different client have authority over the same object, you will get a conflict
+	 * if the different client already has authority over one of the properties you're adding here.
+	 * @see FConcertChangeStream_Response::AuthorityConflicts for some examples of conflicts.
+	 *
+	 * If the key identifies a stream that does not exist, the request will fail.
+	 */
+	UPROPERTY()
+	TMap<FObjectInStreamID, FConcertChangeStream_PutObject> ObjectsToPut;
+	
+	/**
+	 * New streams to add to the server.
+	 * Fails if any ID overlaps with a pre-existing one.
+	 */
+	UPROPERTY()
+	TArray<FReplicationStreamDescription_NetPacked> StreamsToAdd;
+
+	/**
+	 * Streams to remove from the server.
+	 * Supplying a stream that does not exist does not cause failure (but is nonsensical).
+	 * 
+	 * If the requesting client has authority over any of the objects contained in the stream, authority is removed.
+	 */
+	UPROPERTY()
+	TSet<FGuid> StreamsToRemove;
+};
+
+UENUM()
+enum class EConcertPutObjectErrorCode : uint8
+{
+	/** Stream that ObjectsToPut referenced was not registered on the server. */
+	UnresolvedStream,
+	/**
+	 * Either PutObject contained no data to update with (ensure either ClassPath or Properties is set),
+	 * or it tried to create a new object with insufficient data (make sure ClassPath and Properties are both specified).
+	 */
+	MissingData
+};
+
+/**
+ * Contains information about why a request failed. This info could be parsed and displayed to the end user as error.
+ * If there is even just one error, the entire requested has failed and no changes were made server-side.
+ */
+USTRUCT()
+struct FConcertChangeStream_Response
+{
+	GENERATED_BODY()
+
+	/**
+	 * Reports dynamic authority errors with ObjectsToPut:
+	 * Changing an object over which a client already has authority can yield unresolvable conflicts for which the entire FConcertChangeStream_Request is rejected.
+	 *
+	 * Let client R be the requester and client A be another client.
+	 * Example 1: Overlapping authority on different clients > Conflict
+	 * - R has authority over Foo's relative rotation property in stream S.
+	 * - A has authority over actor Foo's relative location property in some stream.
+	 * - R requests S to include Foo's relative location property: this conflicts with client A's authority.
+	 *
+	 * Example 2: Overlapping, properties on same client > No conflict
+	 * There is no conflict if another stream owned by the requester already has authority over a property you're adding to a different stream.
+	 * Streams of the same client may overlap properties. While this may not make much sense and actually be performance degrading, it would result in no logical errors so it is allowed.
+	 * Example: R has two streams S1 and S2. S1 contains the transform properties and S2 does not. Both S1 and S2 have authority over object Foo. It is legal to request S2 to contain the transform properties.
+	 */
+	UPROPERTY()
+	TMap<FObjectInStreamID, FReplicatedObjectId> AuthorityConflicts;
+
+	/** Reports semantic errors with ObjectsToPut. */
+	UPROPERTY()
+	TMap<FObjectInStreamID, EConcertPutObjectErrorCode> ObjectsToPutSemanticErrors;
+	
+	/** Streams that were in StreamsToAdd but that were not created. */
+	UPROPERTY()
+	TSet<FGuid> FailedStreamCreation;
+
+	bool IsSuccess() const { return AuthorityConflicts.IsEmpty() && ObjectsToPutSemanticErrors.IsEmpty() && FailedStreamCreation.IsEmpty(); }
+	bool IsFailure() const { return !IsSuccess(); }
 };

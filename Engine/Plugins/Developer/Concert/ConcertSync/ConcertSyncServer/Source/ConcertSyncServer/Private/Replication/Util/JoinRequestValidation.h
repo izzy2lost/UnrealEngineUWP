@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Containers/Array.h"
-#include "Templates/SharedPointer.h"
 #include "Templates/Tuple.h"
 
 enum class EJoinReplicationErrorCode : uint8;
@@ -12,10 +11,6 @@ struct FReplicationStreamDescription;
 
 namespace UE::ConcertSyncServer::Replication
 {
-	class FConcertReplicationClient;
-
-	using FGetClientName = TFunctionRef<FString(const FGuid& ClientEndpointID)>;
-	
 	/**
 	 * Attempts to unpack the request and validates it.
 	 * Constraints:

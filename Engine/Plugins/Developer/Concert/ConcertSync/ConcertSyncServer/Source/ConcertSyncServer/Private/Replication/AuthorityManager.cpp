@@ -39,16 +39,89 @@ namespace UE::ConcertSyncServer::Replication
 		Session->UnregisterCustomRequestHandler<FConcertChangeAuthority_Request>();
 	}
 
-	bool FAuthorityManager::IsObjectChangeAllowed(const FReplicatedObjectId& ObjectChange) const
+	bool FAuthorityManager::HasAuthorityToChange(const FReplicatedObjectId& ObjectChange) const
 	{
 		const FClientAuthorityData* AuthorityData = ClientAuthorityData.Find(ObjectChange.SenderEndpointId);
 		const TSet<FSoftObjectPath>* OwnedObjects = AuthorityData ? AuthorityData->OwnedObjects.Find(ObjectChange.StreamId) : nullptr;
 		return OwnedObjects && OwnedObjects->Contains(ObjectChange.Object);
 	}
 
+	FAuthorityManager::EAuthorityResult FAuthorityManager::EnumerateAuthorityConflicts(
+		const FReplicatedObjectId& Object, 
+		const FConcertPropertySelection* OverwriteProperties,
+		FProcessAuthorityConflict ProcessConflict
+		) const
+	{
+		const FClientId& ClientId = Object.SenderEndpointId;
+		const FConcertPropertySelection* PropertiesToCheck = OverwriteProperties;
+		if (!PropertiesToCheck)
+		{
+			const FReplicationStreamDescription* Description = FindClientStreamById(ClientId, Object.StreamId);
+			const FReplicatedObjectInfo* PropertyInfo = Description ? Description->BaseDescription.ReplicationMap.ReplicatedObjects.Find(Object.Object) : nullptr;
+			PropertiesToCheck = PropertyInfo ? &PropertyInfo->PropertySelection : nullptr;
+		}
+
+		if (!PropertiesToCheck)
+		{
+			return EAuthorityResult::NoRegisteredProperties;
+		}
+
+		bool bFreeOfPropertyOverlaps = true;
+		const FClientId IgnoredClients[] = { ClientId };
+		ForEachClientWithPotentialConflict(
+			Object.Object,
+			[this, &ProcessConflict, PropertiesToCheck, &bFreeOfPropertyOverlaps](const FClientId& ClientId, const FStreamId& StreamId, const FConcertPropertySelection& WrittenProperties) mutable
+			{
+				// At this point we know that WritingClientId is sending WrittenProperties - if the properties overlap, the authority request is not possible
+				const bool bHasNoConflict = !WrittenProperties.OverlapsWith(*PropertiesToCheck);
+				bFreeOfPropertyOverlaps &= bHasNoConflict;
+				return bHasNoConflict
+					? EBreakBehavior::Continue
+					: ProcessConflict(ClientId, StreamId, WrittenProperties);
+			},
+			IgnoredClients
+			);
+		return bFreeOfPropertyOverlaps ? EAuthorityResult::Allowed : EAuthorityResult::Conflict;
+	}
+
+	bool FAuthorityManager::CanTakeAuthority(const FReplicatedObjectId& Object) const
+	{
+		return EnumerateAuthorityConflicts(Object) == EAuthorityResult::Allowed;
+	}
+
 	void FAuthorityManager::OnClientLeft(const FClientId& ClientEndpointId)
 	{
 		ClientAuthorityData.Remove(ClientEndpointId);
+	}
+
+	void FAuthorityManager::RemoveAuthority(const FReplicatedObjectId& Object)
+	{
+		const FClientId& ClientId = Object.SenderEndpointId;
+		FClientAuthorityData* ClientData = ClientAuthorityData.Find(ClientId);
+		if (!ClientData)
+		{
+			return;
+		}
+
+		const FStreamId& StreamId = Object.StreamId;
+		TSet<FSoftObjectPath>* AuthoredObjects = ClientData->OwnedObjects.Find(StreamId);
+		if (!AuthoredObjects)
+		{
+			return;
+		}
+
+		// This is all that is needed to remove authority.
+		AuthoredObjects->Remove(Object.Object);
+		
+		// Clean-up potentially empty entries
+		if (AuthoredObjects->IsEmpty())
+		{
+			ClientAuthorityData.Remove(StreamId);
+			if (ClientData->OwnedObjects.IsEmpty())
+			{
+				ClientAuthorityData.Remove(ClientId);
+			}
+		}
 	}
 
 	EConcertSessionResponseCode FAuthorityManager::HandleChangeAuthorityRequest(
@@ -64,7 +137,8 @@ namespace UE::ConcertSyncServer::Replication
 		const FClientId& ClientId = ConcertSessionContext.SourceEndpointId;
 		Private::ForEachReplicatedObject(Request.TakeAuthority, [this, &Response, &AuthorityData, &ClientId](const FStreamId& StreamId, const FSoftObjectPath& ObjectPath)
 		{
-			if (CanTakeAuthority(AuthorityData, ClientId, { StreamId, ObjectPath }))
+			const FReplicatedObjectId ObjectToAuthor{ { StreamId, ObjectPath }, ClientId };
+			if (CanTakeAuthority(ObjectToAuthor))
 			{
 				UE_LOG(LogConcert, Log, TEXT("Transferred authority of %s to client %s for their stream %s"), *ObjectPath.ToString(), *ClientId.ToString(EGuidFormats::Short), *StreamId.ToString(EGuidFormats::Short));
 				AuthorityData.OwnedObjects.FindOrAdd(StreamId).Add(ObjectPath);
@@ -78,7 +152,8 @@ namespace UE::ConcertSyncServer::Replication
 		
 		Private::ForEachReplicatedObject(Request.TakeAuthority, [this, &Response, &AuthorityData, &ClientId](const FStreamId& StreamId, const FSoftObjectPath& ObjectPath)
 		{
-			if (CanTakeAuthority(AuthorityData, ClientId, { StreamId, ObjectPath }))
+			const FReplicatedObjectId ObjectToAuthor{ { StreamId, ObjectPath }, ClientId };
+			if (CanTakeAuthority(ObjectToAuthor))
 			{
 				UE_LOG(LogConcert, Log, TEXT("Transferred authority of %s to client %s for their stream %s"), *ObjectPath.ToString(), *ClientId.ToString(EGuidFormats::Short), *StreamId.ToString(EGuidFormats::Short));
 				AuthorityData.OwnedObjects.FindOrAdd(StreamId).Add(ObjectPath);
@@ -90,7 +165,7 @@ namespace UE::ConcertSyncServer::Replication
 			}
 		});
 		
-		Private::ForEachReplicatedObject(Request.ReleaseAuthority, [this, &Response, &AuthorityData, &ClientId](const FStreamId& StreamId, const FSoftObjectPath& ObjectPath)
+		Private::ForEachReplicatedObject(Request.ReleaseAuthority, [this, &AuthorityData](const FStreamId& StreamId, const FSoftObjectPath& ObjectPath)
 		{
 			TSet<FSoftObjectPath>* OwnedObjects = AuthorityData.OwnedObjects.Find(StreamId);
 			// Though dubious, it is a valid request for the client to release non-owned objects
@@ -108,38 +183,6 @@ namespace UE::ConcertSyncServer::Replication
 		});
 
 		return EConcertSessionResponseCode::Success;
-	}
-
-	bool FAuthorityManager::CanTakeAuthority(const FClientAuthorityData& ClientData, const FClientId& ClientId, const FObjectInStreamID& Object) const
-	{
-		/*
-		 * This function is unoptimized: it repeatedly iterates through every client's registered streams and properties.
-		 * However it should be fine since:
-		 * 1. Changing authority does not happen too often though,
-		 * 2. There will be a relatively small number of clients, streams, objects & properties.
-		 */
-		
-		const FReplicationStreamDescription* Description = FindClientStreamById(ClientId, Object.StreamId);
-		const FSoftObjectPath& ObjectPath = Object.Object;
-		const FReplicatedObjectInfo* PropertyInfo = Description ? Description->BaseDescription.ReplicationMap.ReplicatedObjects.Find(ObjectPath) : nullptr;
-		if (!PropertyInfo)
-		{
-			return false;
-		}
-
-		bool bFreeOfPropertyOverlaps = true;
-		const FClientId IgnoredClients[] = { ClientId };
-		ForEachClientWithPotentialConflict(ObjectPath, [this, &ClientId, &PropertyInfo, &bFreeOfPropertyOverlaps](const FClientId& WritingClientId, const FConcertPropertySelection& WrittenProperties) mutable
-		{
-			// At this point we know that WritingClientId is sending WrittenProperties - if the properties overlap, the authority request is not possible
-			bFreeOfPropertyOverlaps &= !WrittenProperties.OverlapsWith(PropertyInfo->PropertySelection);
-			if (bFreeOfPropertyOverlaps)
-			{
-				return EBreakBehavior::Continue;
-			}
-			return EBreakBehavior::Break;
-		}, IgnoredClients);
-		return bFreeOfPropertyOverlaps;
 	}
 	
 	const FReplicationStreamDescription* FAuthorityManager::FindClientStreamById(const FClientId& ClientId, const FStreamId& StreamId) const
@@ -159,7 +202,7 @@ namespace UE::ConcertSyncServer::Replication
 
 	void FAuthorityManager::ForEachClientWithPotentialConflict(
 		const FSoftObjectPath& Object,
-		TFunctionRef<EBreakBehavior(const FClientId& ClientId, const FConcertPropertySelection& WrittenProperties)> Callback,
+		FProcessAuthorityConflict Callback,
 		TArrayView<const FClientId> IgnoredClients
 		) const
 	{
@@ -181,7 +224,7 @@ namespace UE::ConcertSyncServer::Replication
 			Getters.ForEachStream(ClientEndpointId, [&Object, &Callback, &ClientEndpointId, OtherClientData, &Result](const FReplicationStreamDescription& Stream) mutable
 			{
 				// If client has not claimed authority over this object in this stream, skip
-				const FGuid& StreamId = Stream.BaseDescription.Identifier;
+				const FStreamId& StreamId = Stream.BaseDescription.Identifier;
 				const TSet<FSoftObjectPath>* ClientControlledObjects = OtherClientData->OwnedObjects.Find(StreamId);
 				const bool bClientHasSomeAuthorityOverObject = ClientControlledObjects && ClientControlledObjects->Contains(Object);
 				if (!bClientHasSomeAuthorityOverObject)
@@ -192,7 +235,7 @@ namespace UE::ConcertSyncServer::Replication
 				// This client is using the request object: report the potential conflict ...
 				const FObjectReplicationMap& ObjectReplicationMap = Stream.BaseDescription.ReplicationMap;
 				const FReplicatedObjectInfo* ReplicationObjectInfo = ObjectReplicationMap.ReplicatedObjects.Find(Object);
-				if (ReplicationObjectInfo && Callback(ClientEndpointId, ReplicationObjectInfo->PropertySelection) == EBreakBehavior::Break)
+				if (ReplicationObjectInfo && Callback(ClientEndpointId, StreamId, ReplicationObjectInfo->PropertySelection) == EBreakBehavior::Break)
 				{
 					// ... conflict ends iteration
 					Result = EBreakBehavior::Break;

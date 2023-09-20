@@ -35,6 +35,13 @@ bool IConcertClientReplicationManager::HasRegisteredStreams() const
 	return ForEachRegisteredStream([](const auto&){ return EBreakBehavior::Break; }) == EStreamEnumerationResult::Iterated;
 }
 
+TArray<FReplicationStreamDescription> IConcertClientReplicationManager::GetRegisteredStreams() const
+{
+	TArray<FReplicationStreamDescription> Result;
+	ForEachRegisteredStream([&Result](const FReplicationStreamDescription& Description){ Result.Add(Description); return EBreakBehavior::Continue; });
+	return Result;
+}
+
 TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> IConcertClientReplicationManager::TakeAuthorityOver(TArrayView<const FSoftObjectPath> Objects)
 {
 	using namespace UE::ConcertSyncClient::Replication;
@@ -59,7 +66,7 @@ TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> IConcertCl
 	{
 		// Not only does this warn about incorrect API use at runtime, this also helps debug (incorrectly written) unit tests
 		const FString ObjectsAsString = FString::JoinBy(Objects, TEXT(","), [](const FSoftObjectPath& Path){ return Path.ToString(); });
-		UE_LOG(LogConcert, Warning, TEXT("Local client did not registered any stream for the given objects. This take authority request will not be sent. Objects: %s"), *ObjectsAsString);
+		UE_LOG(LogConcert, Warning, TEXT("Local client did not register any stream for the given objects. This take authority request will not be sent. Objects: %s"), *ObjectsAsString);
 		return MakeFulfilledPromise<FAuthorityChangeResponse>(FAuthorityChangeResponse{}).GetFuture();
 	}
 	

@@ -23,6 +23,15 @@ struct FSharedReplicationStreamDescription
 	FObjectReplicationMap ReplicationMap;
 
 	// TODO: Add override settings to objects, such as override update frequency etc. Do it via TMap<FSoftObjectPath, FObjectReplicationSettings>.
+	
+	friend bool operator==(const FSharedReplicationStreamDescription& Left, const FSharedReplicationStreamDescription& Right)
+	{
+		return Left.Identifier == Right.Identifier && Left.ReplicationMap == Right.ReplicationMap;
+	}
+	friend bool operator!=(const FSharedReplicationStreamDescription& Left, const FSharedReplicationStreamDescription& Right)
+	{
+		return !(Left == Right);
+	}
 };
 
 /**

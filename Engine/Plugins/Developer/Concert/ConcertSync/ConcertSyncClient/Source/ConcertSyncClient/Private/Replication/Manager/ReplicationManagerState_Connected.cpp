@@ -6,6 +6,7 @@
 #include "ConcertTransportMessages.h"
 #include "IConcertSession.h"
 #include "ReplicationManagerState_Disconnected.h"
+#include "Replication/ChangeStreamSharedUtils.h"
 #include "Replication/Formats/FullObjectFormat.h"
 #include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
 #include "Replication/Processing/ClientReplicationDataCollector.h"
@@ -91,6 +92,22 @@ namespace UE::ConcertSyncClient::Replication
 			.Next([](FConcertQueryReplicationInfo_Response&& Response)
 			{
 				return FClientQueryResponse { MoveTemp(Response) };
+			});
+	}
+
+	TFuture<FChangeStreamResponse> FReplicationManagerState_Connected::ChangeStream(FChangeStreamRequest Args)
+	{
+		return LiveSession->SendCustomRequest<FConcertChangeStream_Request, FConcertChangeStream_Response>(Args, LiveSession->GetSessionServerEndpointId())
+			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args](FConcertChangeStream_Response&& Response)
+			{
+				const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin();
+				if (ThisPin && Response.IsSuccess())
+				{
+					// Need to update local cache of streams
+					ConcertSyncCore::Replication::ChangeStreamUtils::ApplyValidatedRequest(Args, ThisPin->RegisteredStreams);
+				}
+				
+				return FChangeStreamResponse { MoveTemp(Response) };
 			});
 	}
 
