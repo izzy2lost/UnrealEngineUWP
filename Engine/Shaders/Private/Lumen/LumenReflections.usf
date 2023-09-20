@@ -439,25 +439,13 @@ float Luma(float3 Color)
 
 float3 TonemapLighting(float3 Lighting)
 {
-	float Weight = 1.0f;
-
-	if (SpatialResolveTonemapStrength > 0)
-	{
-		Weight = 1.0f / (1.0f + Luma(Lighting));
-	}
-
+	float Weight = 1.0f / (1.0f + SpatialResolveTonemapStrength * Luma(Lighting));
 	return Lighting * Weight;
 }
 
 float3 InverseTonemapLighting(float3 TonemappedLighting)
 {
-	float InvertWeight = 1.0f;
-
-	if (SpatialResolveTonemapStrength > 0)
-	{
-		InvertWeight = 1.0f / (1.0f - Luma(TonemappedLighting));
-	}
-
+	float InvertWeight = 1.0f / (1.0f - SpatialResolveTonemapStrength * Luma(TonemappedLighting));
 	return TonemappedLighting * InvertWeight;
 }
 
