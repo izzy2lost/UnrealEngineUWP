@@ -101,6 +101,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = SpatialData)
 	const TArray<FPCGPoint>& GetPoints() const { return Points; }
 
+	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = SpatialData)
+	TArray<FPCGPoint> GetPointsCopy() const { return Points; }
+
 	UFUNCTION(BlueprintCallable, Category = SpatialData)
 	FPCGPoint GetPoint(int32 Index) const;
 
