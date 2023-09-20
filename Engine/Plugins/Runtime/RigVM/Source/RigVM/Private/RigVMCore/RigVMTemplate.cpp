@@ -502,13 +502,20 @@ FRigVMTemplate::FRigVMTemplate(UScriptStruct* InStruct, const FString& InTemplat
 	{
 		const FString NotationStr = FString::Printf(TEXT("%s(%s)"), *InTemplateName, *FString::Join(ArgumentNotations, TEXT(",")));
 		Notation = *NotationStr;
-		Permutations.Add(InFunctionIndex);
+		if (InFunctionIndex != INDEX_NONE)
+		{
+			Permutations.Add(InFunctionIndex);
+			for (const FRigVMTemplateArgument& Argument : Arguments)
+			{
+				check(Argument.TypeIndices.Num() == 1);
+			}
+		}
 
 		UpdateTypesHashToPermutation(Permutations.Num()-1);
 	}
 }
 
-FRigVMTemplate::FRigVMTemplate(const FName& InTemplateName, const TArray<FRigVMTemplateArgument>& InArguments, int32 InFunctionIndex)
+FRigVMTemplate::FRigVMTemplate(const FName& InTemplateName, const TArray<FRigVMTemplateArgument>& InArguments)
 	: Index(INDEX_NONE)
 	, Notation(NAME_None)
 	, Hash(UINT32_MAX)
@@ -533,7 +540,6 @@ FRigVMTemplate::FRigVMTemplate(const FName& InTemplateName, const TArray<FRigVMT
 	{
 		const FString NotationStr = FString::Printf(TEXT("%s(%s)"), *InTemplateName.ToString(), *FString::Join(ArgumentNotations, TEXT(",")));
 		Notation = *NotationStr;
-		Permutations.Add(InFunctionIndex);
 
 		UpdateTypesHashToPermutation(Permutations.Num()-1);
 	}

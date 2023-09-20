@@ -1536,7 +1536,7 @@ const FRigVMTemplate* FRigVMRegistry::GetOrAddTemplateFromArguments(const FName&
 {
 	FScopeLock RegisterTemplateScopeLock(&RegisterTemplateMutex);
 	
-	FRigVMTemplate Template(InName, InArguments, INDEX_NONE);
+	FRigVMTemplate Template(InName, InArguments);
 
 	// avoid reentry in FindTemplate. try to find an existing
 	// template only if we are not yet in ::FindTemplate.
@@ -1556,10 +1556,10 @@ const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments(const FName& InNa
 
 const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FName& InName, const TArray<FRigVMTemplateArgument>& InArguments, const FRigVMTemplateDelegates& InDelegates)
 {
-	FRigVMTemplate Template(InName, InArguments, INDEX_NONE);
+	FRigVMTemplate Template(InName, InArguments);
 	
 	// we only support to ask for templates here which provide singleton types
-	int32 NumPermutations = 1;
+	int32 NumPermutations = 0;
 	for(const FRigVMTemplateArgument& Argument : InArguments)
 	{
 		if(!Argument.IsSingleton() && NumPermutations > 1)

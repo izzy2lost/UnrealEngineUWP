@@ -443,10 +443,10 @@ public:
 private:
 
 	// Constructor from a struct, a template name and a function index
-	FRigVMTemplate(UScriptStruct* InStruct, const FString& InTemplateName, int32 InFunctionIndex);
+	FRigVMTemplate(UScriptStruct* InStruct, const FString& InTemplateName, int32 InFunctionIndex = INDEX_NONE);
 
 	// Constructor from a template name, arguments and a function index
-	FRigVMTemplate(const FName& InTemplateName, const TArray<FRigVMTemplateArgument>& InArguments, int32 InFunctionIndex);
+	FRigVMTemplate(const FName& InTemplateName, const TArray<FRigVMTemplateArgument>& InArguments);
 
 	static FLinearColor GetColorFromMetadata(FString InMetadata);
 
