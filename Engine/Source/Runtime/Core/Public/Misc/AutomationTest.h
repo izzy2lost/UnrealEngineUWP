@@ -24,7 +24,6 @@
 #include "HAL/ThreadSafeBool.h"
 #include "Internationalization/Regex.h"
 #include "Logging/LogVerbosity.h"
-#include "Logging/StructuredLog.h"
 #include "Math/Color.h"
 #include "Math/MathFwd.h"
 #include "Math/Rotator.h"
@@ -1235,8 +1234,7 @@ private:
 	 private:
 		 std::atomic<FAutomationTestBase*> CurTest;
 		 std::atomic<FFeedbackContext*> DestinationContext;
-		 FCriticalSection ActionCS;
-		 TQueue<UE::FLogRecord> Backlog;
+		 FCriticalSection ActionCS;;
 	 };
 
 	friend class FAutomationTestOutputDevice;
@@ -2153,7 +2151,7 @@ private:
 	TSet<FAutomationExpectedMessage> ExpectedMessages;
 
 	/** Critical section lock */
-	FRWLock ActionCS;
+	FCriticalSection ActionCS;
 };
 
 class FBDDAutomationTestBase : public FAutomationTestBase
