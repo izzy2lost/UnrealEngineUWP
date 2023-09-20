@@ -2,12 +2,13 @@
 
 #pragma once
 
+#include "Algo/Transform.h"
 #include "HAL/UnrealMemory.h"
 #include "NNE.h"
 #include "NNERuntimeCPU.h"
-#include "NNETypes.h"
 #include "NNETensor.h"
 #include "NNEThirdPartyWarningDisabler.h"
+#include "NNETypes.h"
 NNE_THIRD_PARTY_INCLUDES_START
 #undef check
 #undef TEXT
@@ -18,8 +19,39 @@ DECLARE_STATS_GROUP(TEXT("NNE"), STATGROUP_NNE, STATCAT_Advanced);
 
 namespace UE::NNERuntimeORTCpu::Private
 {
+	namespace OrtHelper
+	{
+		inline TArray<uint32> GetShape(const Ort::Value &OrtTensor)
+		{
+			OrtTensorTypeAndShapeInfo *TypeAndShapeInfoPtr = nullptr;
+			size_t DimensionsCount = 0;
 
-	using TypeInfoORT = std::pair<ENNETensorDataType, uint64>;
+			Ort::ThrowOnError(Ort::GetApi().GetTensorTypeAndShape(OrtTensor, &TypeAndShapeInfoPtr));
+			Ort::ThrowOnError(Ort::GetApi().GetDimensionsCount(TypeAndShapeInfoPtr, &DimensionsCount));
+
+			TArray<int64_t> OrtShape;
+			OrtShape.SetNumUninitialized(DimensionsCount);
+
+			Ort::ThrowOnError(Ort::GetApi().GetDimensions(TypeAndShapeInfoPtr, OrtShape.GetData(), OrtShape.Num()));
+
+			Ort::GetApi().ReleaseTensorTypeAndShapeInfo(TypeAndShapeInfoPtr);
+
+			TArray<uint32> Result;
+			Algo::Transform(OrtShape, Result, [] (int64_t Value)
+			{
+				check(Value >= 0);
+				return (uint32)Value;
+			});
+
+			return Result;
+		}
+	}
+
+	struct TypeInfoORT
+	{
+		ENNETensorDataType DataType = ENNETensorDataType::None;
+		uint64 ElementSize = 0;
+	};
 
 	inline TypeInfoORT TranslateTensorTypeORTToNNE(unsigned int OrtDataType)
 	{
@@ -183,16 +215,9 @@ namespace UE::NNERuntimeORTCpu::Private
 			const NNE::FTensorBindingCPU& Binding = InBindingTensors[Index];
 			const NNE::FTensorDesc& TensorDesc = InTensorDescs[Index];
 			const Ort::Value& OrtTensor = InOrtTensors[Index];
-			const std::vector<int64_t>& OrtShape = OrtTensor.GetTensorTypeAndShapeInfo().GetShape();
+			TArray<uint32> OrtShape = OrtHelper::GetShape(OrtTensor);
 
-			TArray<uint32> ShapeData;
-			for (int32 DimIndex = 0; DimIndex < OrtShape.size(); ++DimIndex)
-			{
-				check(OrtShape[DimIndex] >= 0);
-				ShapeData.Add(OrtShape[DimIndex]);
-			}
-
-			NNE::FTensorShape Shape = NNE::FTensorShape::Make(ShapeData);
+			NNE::FTensorShape Shape = NNE::FTensorShape::Make(OrtShape);
 			NNE::Internal::FTensor Tensor = NNE::Internal::FTensor::Make(TensorDesc.GetName(), Shape, TensorDesc.GetDataType());
 			OutTensors.Emplace(Tensor);
 

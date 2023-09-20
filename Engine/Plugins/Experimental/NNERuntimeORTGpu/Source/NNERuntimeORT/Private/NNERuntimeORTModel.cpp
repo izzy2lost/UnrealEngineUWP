@@ -102,9 +102,14 @@ namespace UE::NNERuntimeORT::Private
 			}
 		}
 #if WITH_EDITOR
-		catch (const std::exception& Exception)
+		catch (const Ort::Exception& Exception)
 		{
 			UE_LOG(LogNNE, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
+			return false;
+		}
+		catch (...)
+		{
+			UE_LOG(LogNNE, Error, TEXT("Unknown exception!"));
 			return false;
 		}
 #endif //WITH_EDITOR
@@ -168,7 +173,7 @@ namespace UE::NNERuntimeORT::Private
 
 			TensorsORTType.Emplace(ONNXTensorElementDataTypeEnum);
 
-			std::pair<ENNETensorDataType, uint64> TypeAndSize = TranslateTensorTypeORTToNNE(ONNXTensorElementDataTypeEnum);
+			TypeInfoORT TypeInfo = TranslateTensorTypeORTToNNE(ONNXTensorElementDataTypeEnum);
 
 			TArray<int32> ShapeData;
 			ShapeData.Reserve(CurrentTensorInfo.GetShape().size());
@@ -178,9 +183,9 @@ namespace UE::NNERuntimeORT::Private
 			}
 
 			NNE::FSymbolicTensorShape Shape = NNE::FSymbolicTensorShape::Make(ShapeData);
-			NNE::FTensorDesc SymbolicTensorDesc = NNE::FTensorDesc::Make(FString(TensorNames.Last()), Shape, TypeAndSize.first);
+			NNE::FTensorDesc SymbolicTensorDesc = NNE::FTensorDesc::Make(FString(TensorNames.Last()), Shape, TypeInfo.DataType);
 
-			check(SymbolicTensorDesc.GetElementByteSize() == TypeAndSize.second);
+			check(SymbolicTensorDesc.GetElementByteSize() == TypeInfo.ElementSize);
 			SymbolicTensorDescs.Emplace(SymbolicTensorDesc);
 		}
 
@@ -293,9 +298,15 @@ namespace UE::NNERuntimeORT::Private
 			}
 		}
 #if WITH_EDITOR
-		catch (const std::exception& Exception)
+		catch (const Ort::Exception& Exception)
 		{
 			UE_LOG(LogNNE, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
+			return false;
+		}
+		catch (...)
+		{
+			UE_LOG(LogNNE, Error, TEXT("Unknown exception!"));
+			return false;
 		}
 #endif //WITH_EDITOR
 
