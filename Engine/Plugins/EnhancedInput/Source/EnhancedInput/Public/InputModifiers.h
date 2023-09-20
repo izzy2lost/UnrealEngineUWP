@@ -164,7 +164,13 @@ public:
 	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
 #endif
 
-	// TODO: Detail customization to only show modifiable axes for the relevant binding? This thing has no idea what it's bound to...
+	/**
+	 * The scalar that will be applied to the input value.
+	 *
+	 * For example, if you have a scalar of (2.0, 2.0, 2.0), each input axis will be multiplied by 2.0.
+	 *  
+	 * Note: This will do nothing on boolean input action types, as they can only be true or false.
+	 */
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category=Settings)
 	FVector Scalar = FVector::OneVector;
 
