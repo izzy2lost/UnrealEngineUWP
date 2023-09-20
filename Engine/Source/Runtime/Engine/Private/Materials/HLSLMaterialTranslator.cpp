@@ -10869,6 +10869,12 @@ int32 FHLSLMaterialTranslator::SkyAtmosphereLightIlluminance(int32 WorldPosition
 	return AddCodeChunk(MCT_Float3, TEXT("MaterialExpressionSkyAtmosphereLightIlluminance(Parameters, %s, %d)"), *WorldPosCode, LightIndex);
 }
 
+int32 FHLSLMaterialTranslator::SkyAtmosphereLightIlluminanceOnGround(int32 LightIndex)
+{
+	bUsesSkyAtmosphere = true;
+	return AddCodeChunk(MCT_Float3, TEXT("MaterialExpressionSkyAtmosphereLightIlluminanceOnGround(Parameters, %d)"), LightIndex);
+}
+
 int32 FHLSLMaterialTranslator::SkyAtmosphereLightDirection(int32 LightIndex)
 {
 	bUsesSkyAtmosphere = true;

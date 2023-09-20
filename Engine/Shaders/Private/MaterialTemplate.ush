@@ -1720,9 +1720,18 @@ float3 MaterialExpressionGetHairColorFromMelanin(float Melanin, float Redness, f
 DEFINE_ATMOSPHERELIGHTVECTOR(FMaterialPixelParameters)
 DEFINE_ATMOSPHERELIGHTVECTOR(FMaterialVertexParameters)
 
-float3 MaterialExpressionAtmosphericLightColor(FMaterialPixelParameters Parameters)
+float3 MaterialExpressionSkyAtmosphereLightIlluminanceOnGround(FMaterialPixelParameters Parameters, uint LightIndex)
 {
-	return ResolvedView.AtmosphereLightIlluminanceOnGroundPostTransmittance[0].rgb;
+#if PROJECT_SUPPORT_SKY_ATMOSPHERE // can be used anywhere, not only in sky material with MATERIAL_SKY_ATMOSPHERE
+	return ResolvedView.AtmosphereLightIlluminanceOnGroundPostTransmittance[LightIndex].rgb;
+#else
+	return float3(0.0f, 0.0f, 0.0f);
+#endif
+}
+
+float3 MaterialExpressionAtmosphericLightColor(FMaterialPixelParameters Parameters) // Deprecated but back compatible.
+{
+	return MaterialExpressionSkyAtmosphereLightIlluminanceOnGround(Parameters, 0);
 }
 
 float3 MaterialExpressionSkyAtmosphereLightIlluminance(FMaterialPixelParameters Parameters, FLWCVector3 WorldPosition, uint LightIndex)
