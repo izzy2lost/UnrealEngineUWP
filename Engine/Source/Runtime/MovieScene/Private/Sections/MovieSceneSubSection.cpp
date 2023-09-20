@@ -220,6 +220,11 @@ void UMovieSceneSubSection::ImportEntityImpl(UMovieSceneEntitySystemLinker* Enti
 
 void UMovieSceneSubSection::SetSequence(UMovieSceneSequence* Sequence)
 {
+	if (!TryModify())
+	{
+		return;
+	}
+
 	SubSequence = Sequence;
 
 #if WITH_EDITOR
