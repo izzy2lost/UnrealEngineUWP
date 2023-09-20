@@ -425,7 +425,6 @@ namespace Chaos
 
 		if (!PendingClusterIndexOperations.IsEmpty())
 		{
-			TArray<FClusterUnionIndex> ClustersRequiringConnectivityChecks;
 			for (TPair<FClusterUnionIndex, FClusterOpMap>& OpMap : PendingClusterIndexOperations)
 			{
 				// Is this sort necessary? Better to be safe than sorry. Since we need to guarantee that the UpdateChildToParent happens after add.
@@ -446,7 +445,6 @@ namespace Chaos
 						HandleAddOperation(OpMap.Key, Op.Value, Op.Key == EClusterUnionOperation::AddReleased);
 						break;
 					case EClusterUnionOperation::Remove:
-						ClustersRequiringConnectivityChecks.Add(OpMap.Key);
 						HandleRemoveOperation(OpMap.Key, Op.Value, EClusterUnionOperationTiming::Defer);
 						break;
 					case EClusterUnionOperation::UpdateChildToParent:
@@ -456,18 +454,6 @@ namespace Chaos
 				}
 			}
 			PendingClusterIndexOperations.Empty();
-
-			// Needs to be after the emptying of the cluster index operations because otherwise it might remove the removals
-			// added in by the connectivity check.
-			for (FClusterUnionIndex UnionIndex : ClustersRequiringConnectivityChecks)
-			{
-				if (FClusterUnion* ClusterUnion = FindClusterUnion(UnionIndex))
-				{
-					// TODO: Can probably argue that cluster union connectivity should be moved into the
-					// cluster union manager instead?
-					MClustering.HandleConnectivityOnReleaseClusterParticle(ClusterUnion->InternalCluster, false);
-				}
-			}
 
 			if (FRewindData* RewindData = MEvolution.GetRewindData())
 			{
@@ -815,7 +801,8 @@ namespace Chaos
 
 		constexpr EUpdateClusterUnionPropertiesFlags RemoveUpdateFlags = EUpdateClusterUnionPropertiesFlags::IncrementalGenerateConnectionGraph
 			| EUpdateClusterUnionPropertiesFlags::UpdateKinematicProperties
-			| EUpdateClusterUnionPropertiesFlags::IncrementalGenerateGeometry;
+			| EUpdateClusterUnionPropertiesFlags::IncrementalGenerateGeometry
+			| EUpdateClusterUnionPropertiesFlags::ConnectivityCheck;
 		switch (UpdateClusterPropertiesTiming)
 		{
 		case EClusterUnionOperationTiming::Immediate:
@@ -929,6 +916,13 @@ namespace Chaos
 			else if (EnumHasAnyFlags(Flags, EUpdateClusterUnionPropertiesFlags::IncrementalGenerateConnectionGraph))
 			{
 				FlushIncrementalConnectivityGraphOperations(ClusterUnion);
+			}
+
+			if (EnumHasAnyFlags(Flags, EUpdateClusterUnionPropertiesFlags::ConnectivityCheck))
+			{
+				// TODO: Can probably argue that cluster union connectivity should be moved into the
+				// cluster union manager instead?
+				MClustering.HandleConnectivityOnReleaseClusterParticle(ClusterUnion.InternalCluster, false);
 			}
 		}
 

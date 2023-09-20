@@ -42,7 +42,8 @@ namespace Chaos
 		UpdateKinematicProperties = 1 << 3,
 		ForceGenerateGeometry = 1 << 4,
 		IncrementalGenerateGeometry = 1 << 5,
-		All = RecomputeMassOrientation | ForceGenerateConnectionGraph | UpdateKinematicProperties | ForceGenerateGeometry
+		ConnectivityCheck = 1 << 6,
+		All = RecomputeMassOrientation | ForceGenerateConnectionGraph | UpdateKinematicProperties | ForceGenerateGeometry | ConnectivityCheck
 	};
 	ENUM_CLASS_FLAGS(EUpdateClusterUnionPropertiesFlags);
 
