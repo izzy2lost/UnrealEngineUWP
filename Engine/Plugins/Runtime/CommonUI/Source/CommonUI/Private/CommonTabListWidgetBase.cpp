@@ -155,9 +155,24 @@ bool UCommonTabListWidgetBase::RemoveTab(FName TabNameID)
 
 void UCommonTabListWidgetBase::RemoveAllTabs()
 {
+	// We don't call RemoveTab_Internal(Iter->Key, Iter->Value); because that would individually remove TabButtonGroup buttons one by one
+	// Which is something we don't want when we are removing all tabs
+	if (TabButtonGroup)
+	{
+		TabButtonGroup->RemoveAll();
+	}
+	
 	for (TMap<FName, FCommonRegisteredTabInfo>::TIterator Iter(RegisteredTabsByID); Iter; ++Iter)
 	{
-		RemoveTab_Internal(Iter->Key, Iter->Value);
+		if (UCommonButtonBase* const TabButton =  Iter->Value.TabButton)
+		{
+			TabButton->RemoveFromParent();
+
+			RegisteredTabsByID.Remove(Iter->Key);
+			
+			HandleTabRemoval(Iter->Key, TabButton);
+			OnTabButtonRemoval.Broadcast(Iter->Key, TabButton);
+		}
 	}
 }
 
