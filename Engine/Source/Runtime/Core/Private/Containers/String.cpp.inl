@@ -10,7 +10,11 @@
  * #includes needed to compile this file need to be specified in StringIncludes.cpp.inl file rather than here.       *
  *********************************************************************************************************************/
 
-/* FString implementation
+#ifndef UE_STRING_CLASS
+	#error "String.cpp.inl should only be included after defining UE_STRING_CLASS"
+#endif
+
+ /* String implementation
  *****************************************************************************/
 
 namespace UE::Core::Private
@@ -216,20 +220,20 @@ namespace UE::Core::Private
 	}
 } // namespace UE::Core::Private
 
-FString::FString(const ANSICHAR* Str)								{ UE::Core::Private::ConstructFromCString(Data, Str); }
-FString::FString(const WIDECHAR* Str)								{ UE::Core::Private::ConstructFromCString(Data, Str); }
-FString::FString(const UTF8CHAR* Str)								{ UE::Core::Private::ConstructFromCString(Data, Str); }
-FString::FString(const UCS2CHAR* Str)								{ UE::Core::Private::ConstructFromCString(Data, Str); }
-FString::FString(int32 Len, const ANSICHAR* Str)					{ UE::Core::Private::ConstructWithLength(Data, Len, Str); }
-FString::FString(int32 Len, const WIDECHAR* Str)					{ UE::Core::Private::ConstructWithLength(Data, Len, Str); }
-FString::FString(int32 Len, const UTF8CHAR* Str)					{ UE::Core::Private::ConstructWithLength(Data, Len, Str); }
-FString::FString(int32 Len, const UCS2CHAR* Str)					{ UE::Core::Private::ConstructWithLength(Data, Len, Str); }
-FString::FString(const ANSICHAR* Str, int32 ExtraSlack)				{ UE::Core::Private::ConstructWithSlack(Data, Str, ExtraSlack); }
-FString::FString(const WIDECHAR* Str, int32 ExtraSlack)				{ UE::Core::Private::ConstructWithSlack(Data, Str, ExtraSlack); }
-FString::FString(const UTF8CHAR* Str, int32 ExtraSlack)				{ UE::Core::Private::ConstructWithSlack(Data, Str, ExtraSlack); }
-FString::FString(const UCS2CHAR* Str, int32 ExtraSlack)				{ UE::Core::Private::ConstructWithSlack(Data, Str, ExtraSlack); }
+UE_STRING_CLASS::UE_STRING_CLASS(const ANSICHAR* Str)								{ UE::Core::Private::ConstructFromCString(Data, Str); }
+UE_STRING_CLASS::UE_STRING_CLASS(const WIDECHAR* Str)								{ UE::Core::Private::ConstructFromCString(Data, Str); }
+UE_STRING_CLASS::UE_STRING_CLASS(const UTF8CHAR* Str)								{ UE::Core::Private::ConstructFromCString(Data, Str); }
+UE_STRING_CLASS::UE_STRING_CLASS(const UCS2CHAR* Str)								{ UE::Core::Private::ConstructFromCString(Data, Str); }
+UE_STRING_CLASS::UE_STRING_CLASS(int32 Len, const ANSICHAR* Str)					{ UE::Core::Private::ConstructWithLength(Data, Len, Str); }
+UE_STRING_CLASS::UE_STRING_CLASS(int32 Len, const WIDECHAR* Str)					{ UE::Core::Private::ConstructWithLength(Data, Len, Str); }
+UE_STRING_CLASS::UE_STRING_CLASS(int32 Len, const UTF8CHAR* Str)					{ UE::Core::Private::ConstructWithLength(Data, Len, Str); }
+UE_STRING_CLASS::UE_STRING_CLASS(int32 Len, const UCS2CHAR* Str)					{ UE::Core::Private::ConstructWithLength(Data, Len, Str); }
+UE_STRING_CLASS::UE_STRING_CLASS(const ANSICHAR* Str, int32 ExtraSlack)				{ UE::Core::Private::ConstructWithSlack(Data, Str, ExtraSlack); }
+UE_STRING_CLASS::UE_STRING_CLASS(const WIDECHAR* Str, int32 ExtraSlack)				{ UE::Core::Private::ConstructWithSlack(Data, Str, ExtraSlack); }
+UE_STRING_CLASS::UE_STRING_CLASS(const UTF8CHAR* Str, int32 ExtraSlack)				{ UE::Core::Private::ConstructWithSlack(Data, Str, ExtraSlack); }
+UE_STRING_CLASS::UE_STRING_CLASS(const UCS2CHAR* Str, int32 ExtraSlack)				{ UE::Core::Private::ConstructWithSlack(Data, Str, ExtraSlack); }
 
-FString& FString::operator=( const ElementType* Other )
+UE_STRING_CLASS& UE_STRING_CLASS::operator=( const ElementType* Other )
 {
 	if (Data.GetData() != Other)
 	{
@@ -246,7 +250,7 @@ FString& FString::operator=( const ElementType* Other )
 }
 
 
-void FString::AssignRange(const ElementType* OtherData, int32 OtherLen)
+void UE_STRING_CLASS::AssignRange(const ElementType* OtherData, int32 OtherLen)
 {
 	if (OtherLen == 0)
 	{
@@ -274,7 +278,7 @@ void FString::AssignRange(const ElementType* OtherData, int32 OtherLen)
 	}
 }
 
-void FString::Reserve(int32 CharacterCount)
+void UE_STRING_CLASS::Reserve(int32 CharacterCount)
 {
 	checkSlow(CharacterCount >= 0 && CharacterCount < MAX_int32);
 	if (CharacterCount > 0)
@@ -283,17 +287,17 @@ void FString::Reserve(int32 CharacterCount)
 	}	
 }
 
-void FString::Empty(int32 Slack)
+void UE_STRING_CLASS::Empty(int32 Slack)
 {
 	Data.Empty(Slack ? Slack + 1 : 0);
 }
 
-void FString::Empty()
+void UE_STRING_CLASS::Empty()
 {
 	Data.Empty(0);
 }
 
-void FString::Reset(int32 NewReservedSize)
+void UE_STRING_CLASS::Reset(int32 NewReservedSize)
 {
 	const int32 NewSizeIncludingTerminator = (NewReservedSize > 0) ? (NewReservedSize + 1) : 0;
 	Data.Reset(NewSizeIncludingTerminator);
@@ -303,14 +307,14 @@ void FString::Reset(int32 NewReservedSize)
 	}
 }
 
-void FString::Shrink()
+void UE_STRING_CLASS::Shrink()
 {
 	Data.Shrink();
 }
 
 #ifdef __OBJC__
-/** Convert FString to Objective-C NSString */
-NSString* FString::GetNSString() const
+/** Convert string to Objective-C NSString */
+NSString* UE_STRING_CLASS::GetNSString() const
 {
 #if PLATFORM_TCHAR_IS_4_BYTES
     return [[[NSString alloc] initWithBytes:Data.GetData() length:Len() * sizeof(ElementType) encoding:NSUTF32LittleEndianStringEncoding] autorelease];
@@ -320,7 +324,7 @@ NSString* FString::GetNSString() const
 }
 #endif
 
-FString& FString::AppendChar(ElementType InChar)
+UE_STRING_CLASS& UE_STRING_CLASS::AppendChar(ElementType InChar)
 {
 	CheckInvariants();
 
@@ -341,31 +345,31 @@ FString& FString::AppendChar(ElementType InChar)
 	return *this;
 }
 
-void FString::AppendChars(const ANSICHAR* Str, int32 Count)
+void UE_STRING_CLASS::AppendChars(const ANSICHAR* Str, int32 Count)
 {
 	CheckInvariants();
 	UE::Core::Private::AppendCharacters(Data, Str, Count);
 }
 
-void FString::AppendChars(const WIDECHAR* Str, int32 Count)
+void UE_STRING_CLASS::AppendChars(const WIDECHAR* Str, int32 Count)
 {
 	CheckInvariants();
 	UE::Core::Private::AppendCharacters(Data, Str, Count);
 }
 
-void FString::AppendChars(const UCS2CHAR* Str, int32 Count)
+void UE_STRING_CLASS::AppendChars(const UCS2CHAR* Str, int32 Count)
 {
 	CheckInvariants();
 	UE::Core::Private::AppendCharacters(Data, Str, Count);
 }
 
-void FString::AppendChars(const UTF8CHAR* Str, int32 Count)
+void UE_STRING_CLASS::AppendChars(const UTF8CHAR* Str, int32 Count)
 {
 	CheckInvariants();
 	UE::Core::Private::AppendCharacters(Data, Str, Count);
 }
 
-void FString::TrimToNullTerminator()
+void UE_STRING_CLASS::TrimToNullTerminator()
 {
 	if( Data.Num() )
 	{
@@ -379,7 +383,7 @@ void FString::TrimToNullTerminator()
 }
 
 
-int32 FString::Find(const ElementType* SubStr, int32 SubStrLen, ESearchCase::Type SearchCase, ESearchDir::Type SearchDir, int32 StartPosition) const
+int32 UE_STRING_CLASS::Find(const ElementType* SubStr, int32 SubStrLen, ESearchCase::Type SearchCase, ESearchDir::Type SearchDir, int32 StartPosition) const
 {
 	checkf(SubStrLen >= 0, TEXT("Invalid SubStrLen: %d"), SubStrLen);
 
@@ -405,7 +409,7 @@ int32 FString::Find(const ElementType* SubStr, int32 SubStrLen, ESearchCase::Typ
 		// times in the loop below
 		if ( SearchCase == ESearchCase::IgnoreCase)
 		{
-			return ToUpper().Find(FString(SubStrLen, SubStr).ToUpper(), ESearchCase::CaseSensitive, SearchDir, StartPosition);
+			return ToUpper().Find(UE_STRING_CLASS(SubStrLen, SubStr).ToUpper(), ESearchCase::CaseSensitive, SearchDir, StartPosition);
 		}
 		else
 		{
@@ -437,7 +441,7 @@ int32 FString::Find(const ElementType* SubStr, int32 SubStrLen, ESearchCase::Typ
 	}
 }
 
-bool FString::Split(const FString& InS, FString* LeftS, FString* RightS, ESearchCase::Type SearchCase, ESearchDir::Type SearchDir) const
+bool UE_STRING_CLASS::Split(const UE_STRING_CLASS& InS, UE_STRING_CLASS* LeftS, UE_STRING_CLASS* RightS, ESearchCase::Type SearchCase, ESearchDir::Type SearchDir) const
 {
 	check(LeftS != RightS || LeftS == nullptr);
 
@@ -467,25 +471,25 @@ bool FString::Split(const FString& InS, FString* LeftS, FString* RightS, ESearch
 	return true;
 }
 
-bool FString::Split(const FString& InS, FString* LeftS, FString* RightS) const
+bool UE_STRING_CLASS::Split(const UE_STRING_CLASS& InS, UE_STRING_CLASS* LeftS, UE_STRING_CLASS* RightS) const
 {
 	return Split(InS, LeftS, RightS, ESearchCase::IgnoreCase);
 }
 
-FString FString::ToUpper() const &
+UE_STRING_CLASS UE_STRING_CLASS::ToUpper() const &
 {
-	FString New = *this;
+	UE_STRING_CLASS New = *this;
 	New.ToUpperInline();
 	return New;
 }
 
-FString FString::ToUpper() &&
+UE_STRING_CLASS UE_STRING_CLASS::ToUpper() &&
 {
 	this->ToUpperInline();
 	return MoveTemp(*this);
 }
 
-void FString::ToUpperInline()
+void UE_STRING_CLASS::ToUpperInline()
 {
 	const int32 StringLength = Len();
 	ElementType* RawData = Data.GetData();
@@ -496,20 +500,20 @@ void FString::ToUpperInline()
 }
 
 
-FString FString::ToLower() const &
+UE_STRING_CLASS UE_STRING_CLASS::ToLower() const &
 {
-	FString New = *this;
+	UE_STRING_CLASS New = *this;
 	New.ToLowerInline();
 	return New;
 }
 
-FString FString::ToLower() &&
+UE_STRING_CLASS UE_STRING_CLASS::ToLower() &&
 {
 	this->ToLowerInline();
 	return MoveTemp(*this);
 }
 
-void FString::ToLowerInline()
+void UE_STRING_CLASS::ToLowerInline()
 {
 	const int32 StringLength = Len();
 	ElementType* RawData = Data.GetData();
@@ -519,7 +523,7 @@ void FString::ToLowerInline()
 	}
 }
 
-void FString::RemoveSpacesInline()
+void UE_STRING_CLASS::RemoveSpacesInline()
 {
 	const int32 StringLength = Len();
 	if (StringLength == 0)
@@ -546,7 +550,7 @@ void FString::RemoveSpacesInline()
 	}
 }
 
-bool FString::StartsWith(const ElementType* InPrefix, int32 InPrefixLen, ESearchCase::Type SearchCase) const
+bool UE_STRING_CLASS::StartsWith(const ElementType* InPrefix, int32 InPrefixLen, ESearchCase::Type SearchCase) const
 {
 	if (SearchCase == ESearchCase::IgnoreCase)
 	{
@@ -558,7 +562,7 @@ bool FString::StartsWith(const ElementType* InPrefix, int32 InPrefixLen, ESearch
 	}
 }
 
-bool FString::EndsWith(const ElementType* InSuffix, int32 InSuffixLen, ESearchCase::Type SearchCase ) const
+bool UE_STRING_CLASS::EndsWith(const ElementType* InSuffix, int32 InSuffixLen, ESearchCase::Type SearchCase ) const
 {
 	if (SearchCase == ESearchCase::IgnoreCase)
 	{
@@ -574,7 +578,7 @@ bool FString::EndsWith(const ElementType* InSuffix, int32 InSuffixLen, ESearchCa
 	}
 }
 
-void FString::InsertAt(int32 Index, ElementType Character)
+void UE_STRING_CLASS::InsertAt(int32 Index, ElementType Character)
 {
 	if (Character != 0)
 	{
@@ -589,7 +593,7 @@ void FString::InsertAt(int32 Index, ElementType Character)
 	}
 }
 
-void FString::InsertAt(int32 Index, const FString& Characters)
+void UE_STRING_CLASS::InsertAt(int32 Index, const UE_STRING_CLASS& Characters)
 {
 	if (Characters.Len())
 	{
@@ -604,12 +608,12 @@ void FString::InsertAt(int32 Index, const FString& Characters)
 	}
 }
 
-void FString::RemoveAt(int32 Index, int32 Count, bool bAllowShrinking)
+void UE_STRING_CLASS::RemoveAt(int32 Index, int32 Count, bool bAllowShrinking)
 {
 	Data.RemoveAt(Index, FMath::Clamp(Count, 0, Len()-Index), bAllowShrinking);
 }
 
-bool FString::RemoveFromStart(const ElementType* InPrefix, int32 InPrefixLen, ESearchCase::Type SearchCase)
+bool UE_STRING_CLASS::RemoveFromStart(const ElementType* InPrefix, int32 InPrefixLen, ESearchCase::Type SearchCase)
 {
 	if (InPrefixLen == 0 )
 	{
@@ -625,7 +629,7 @@ bool FString::RemoveFromStart(const ElementType* InPrefix, int32 InPrefixLen, ES
 	return false;
 }
 
-bool FString::RemoveFromEnd(const ElementType* InSuffix, int32 InSuffixLen, ESearchCase::Type SearchCase)
+bool UE_STRING_CLASS::RemoveFromEnd(const ElementType* InSuffix, int32 InSuffixLen, ESearchCase::Type SearchCase)
 {
 	if (InSuffixLen == 0)
 	{
@@ -645,7 +649,7 @@ namespace UE::String::Private
 {
 
 template <typename LhsType, typename RhsType>
-UE_NODISCARD FORCEINLINE FString ConcatFStrings(LhsType&& Lhs, RhsType&& Rhs)
+UE_NODISCARD FORCEINLINE UE_STRING_CLASS ConcatFStrings(LhsType&& Lhs, RhsType&& Rhs)
 {
 	Lhs.CheckInvariants();
 	Rhs.CheckInvariants();
@@ -657,16 +661,16 @@ UE_NODISCARD FORCEINLINE FString ConcatFStrings(LhsType&& Lhs, RhsType&& Rhs)
 
 	int32 RhsLen = Rhs.Len();
 
-	FString Result(Forward<LhsType>(Lhs), /* extra slack */ RhsLen);
+	UE_STRING_CLASS Result(Forward<LhsType>(Lhs), /* extra slack */ RhsLen);
 	Result.AppendChars(Rhs.GetCharArray().GetData(), RhsLen);
 		
 	return Result;
 }
 
 template <typename LhsCharType, typename RhsType>
-UE_NODISCARD FORCEINLINE FString ConcatRangeFString(const LhsCharType* Lhs, int32 LhsLen, RhsType&& Rhs)
+UE_NODISCARD FORCEINLINE UE_STRING_CLASS ConcatRangeFString(const LhsCharType* Lhs, int32 LhsLen, RhsType&& Rhs)
 {
-	using ElementType = FString::ElementType;
+	using ElementType = UE_STRING_CLASS::ElementType;
 
 	checkSlow(LhsLen >= 0);
 	Rhs.CheckInvariants();
@@ -680,7 +684,7 @@ UE_NODISCARD FORCEINLINE FString ConcatRangeFString(const LhsCharType* Lhs, int3
 	// This is not entirely optimal, as if the Rhs is an rvalue and has enough slack space to hold Lhs, then
 	// the memory could be reused here without constructing a new object.  However, until there is proof otherwise,
 	// I believe this will be relatively rare and isn't worth making the code a lot more complex right now.
-	FString Result;
+	UE_STRING_CLASS Result;
 	Result.GetCharArray().Reserve(LhsLen + RhsLen + 1);
 	Result.GetCharArray().AddUninitialized(LhsLen + RhsLen + 1);
 
@@ -693,7 +697,7 @@ UE_NODISCARD FORCEINLINE FString ConcatRangeFString(const LhsCharType* Lhs, int3
 }
 
 template <typename LhsType, typename RhsCharType>
-UE_NODISCARD FORCEINLINE FString ConcatFStringRange(LhsType&& Lhs, const RhsCharType* Rhs, int32 RhsLen)
+UE_NODISCARD FORCEINLINE UE_STRING_CLASS ConcatFStringRange(LhsType&& Lhs, const RhsCharType* Rhs, int32 RhsLen)
 {
 	Lhs.CheckInvariants();
 	checkSlow(RhsLen >= 0);
@@ -702,14 +706,14 @@ UE_NODISCARD FORCEINLINE FString ConcatFStringRange(LhsType&& Lhs, const RhsChar
 		return Forward<LhsType>(Lhs);
 	}
 
-	FString Result(Forward<LhsType>(Lhs), /* extra slack */ RhsLen);
+	UE_STRING_CLASS Result(Forward<LhsType>(Lhs), /* extra slack */ RhsLen);
 	Result.AppendChars(Rhs, RhsLen);
 		
 	return Result;
 }
 
 template <typename LhsCharType, typename RhsType>
-UE_NODISCARD FORCEINLINE FString ConcatCStringFString(const LhsCharType* Lhs, RhsType&& Rhs)
+UE_NODISCARD FORCEINLINE UE_STRING_CLASS ConcatCStringFString(const LhsCharType* Lhs, RhsType&& Rhs)
 {
 	checkSlow(Lhs);
 	if (!Lhs)
@@ -721,7 +725,7 @@ UE_NODISCARD FORCEINLINE FString ConcatCStringFString(const LhsCharType* Lhs, Rh
 }
 
 template <typename LhsType, typename RhsCharType>
-UE_NODISCARD FORCEINLINE FString ConcatFStringCString(LhsType&& Lhs, const RhsCharType* Rhs)
+UE_NODISCARD FORCEINLINE UE_STRING_CLASS ConcatFStringCString(LhsType&& Lhs, const RhsCharType* Rhs)
 {
 	checkSlow(Rhs);
 	if (!Rhs)
@@ -733,18 +737,18 @@ UE_NODISCARD FORCEINLINE FString ConcatFStringCString(LhsType&& Lhs, const RhsCh
 
 } // namespace UE::String::Private
 
-FString FString::ConcatFF(const FString& Lhs, const FString& Rhs)						{ return UE::String::Private::ConcatFStrings(Lhs, Rhs); }
-FString FString::ConcatFF(FString&& Lhs, const FString& Rhs)							{ return UE::String::Private::ConcatFStrings(MoveTemp(Lhs), Rhs); }
-FString FString::ConcatFF(const FString& Lhs, FString&& Rhs)							{ return UE::String::Private::ConcatFStrings(Lhs, MoveTemp(Rhs)); }
-FString FString::ConcatFF(FString&& Lhs, FString&& Rhs)									{ return UE::String::Private::ConcatFStrings(MoveTemp(Lhs), MoveTemp(Rhs)); }
-FString FString::ConcatFC(const FString& Lhs, const ElementType* Rhs)					{ return UE::String::Private::ConcatFStringCString(Lhs, Rhs); }
-FString FString::ConcatFC(FString&& Lhs, const ElementType* Rhs)						{ return UE::String::Private::ConcatFStringCString(MoveTemp(Lhs), Rhs); }
-FString FString::ConcatCF(const ElementType* Lhs,	const FString& Rhs)					{ return UE::String::Private::ConcatCStringFString(Lhs, Rhs); }
-FString FString::ConcatCF(const ElementType* Lhs,	FString&& Rhs)						{ return UE::String::Private::ConcatCStringFString(Lhs, MoveTemp(Rhs)); }
-FString FString::ConcatFR(const FString& Lhs, const ElementType* Rhs, int32 RhsLen)		{ return UE::String::Private::ConcatFStringRange(Lhs, Rhs, RhsLen); }
-FString FString::ConcatFR(FString&& Lhs, const ElementType* Rhs, int32 RhsLen)			{ return UE::String::Private::ConcatFStringRange(MoveTemp(Lhs), Rhs, RhsLen); }
-FString FString::ConcatRF(const ElementType* Lhs, int32 LhsLen, const FString& Rhs)		{ return UE::String::Private::ConcatRangeFString(Lhs, LhsLen, Rhs); }
-FString FString::ConcatRF(const ElementType* Lhs, int32 LhsLen, FString&& Rhs)			{ return UE::String::Private::ConcatRangeFString(Lhs, LhsLen, MoveTemp(Rhs)); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFF(const UE_STRING_CLASS& Lhs, const UE_STRING_CLASS& Rhs)				{ return UE::String::Private::ConcatFStrings(Lhs, Rhs); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFF(UE_STRING_CLASS&& Lhs, const UE_STRING_CLASS& Rhs)					{ return UE::String::Private::ConcatFStrings(MoveTemp(Lhs), Rhs); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFF(const UE_STRING_CLASS& Lhs, UE_STRING_CLASS&& Rhs)					{ return UE::String::Private::ConcatFStrings(Lhs, MoveTemp(Rhs)); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFF(UE_STRING_CLASS&& Lhs, UE_STRING_CLASS&& Rhs)							{ return UE::String::Private::ConcatFStrings(MoveTemp(Lhs), MoveTemp(Rhs)); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFC(const UE_STRING_CLASS& Lhs, const ElementType* Rhs)					{ return UE::String::Private::ConcatFStringCString(Lhs, Rhs); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFC(UE_STRING_CLASS&& Lhs, const ElementType* Rhs)						{ return UE::String::Private::ConcatFStringCString(MoveTemp(Lhs), Rhs); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatCF(const ElementType* Lhs,	const UE_STRING_CLASS& Rhs)					{ return UE::String::Private::ConcatCStringFString(Lhs, Rhs); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatCF(const ElementType* Lhs, UE_STRING_CLASS&& Rhs)						{ return UE::String::Private::ConcatCStringFString(Lhs, MoveTemp(Rhs)); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFR(const UE_STRING_CLASS& Lhs, const ElementType* Rhs, int32 RhsLen)		{ return UE::String::Private::ConcatFStringRange(Lhs, Rhs, RhsLen); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFR(UE_STRING_CLASS&& Lhs, const ElementType* Rhs, int32 RhsLen)			{ return UE::String::Private::ConcatFStringRange(MoveTemp(Lhs), Rhs, RhsLen); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatRF(const ElementType* Lhs, int32 LhsLen, const UE_STRING_CLASS& Rhs)		{ return UE::String::Private::ConcatRangeFString(Lhs, LhsLen, Rhs); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatRF(const ElementType* Lhs, int32 LhsLen, UE_STRING_CLASS&& Rhs)			{ return UE::String::Private::ConcatRangeFString(Lhs, LhsLen, MoveTemp(Rhs)); }
 
 /**
  * Concatenate this path with given path ensuring the / character is used between them
@@ -752,7 +756,7 @@ FString FString::ConcatRF(const ElementType* Lhs, int32 LhsLen, FString&& Rhs)		
  * @param Str       Pointer to an array of TCHARs (not necessarily null-terminated) to be concatenated onto the end of this.
  * @param StrLength Exact number of characters from Str to append.
  */
-void FString::PathAppend(const ElementType* Str, int32 StrLength)
+void UE_STRING_CLASS::PathAppend(const ElementType* Str, int32 StrLength)
 {
 	int32 DataNum = Data.Num();
 	if (StrLength == 0)
@@ -784,14 +788,14 @@ void FString::PathAppend(const ElementType* Str, int32 StrLength)
 	}
 }
 
-FString FString::RightChop(int32 Count) const &
+UE_STRING_CLASS UE_STRING_CLASS::RightChop(int32 Count) const &
 {
 	const int32 Length = Len();
 	const int32 Skip = FMath::Clamp(Count, 0, Length);
-	return FString(Length - Skip, **this + Skip);
+	return UE_STRING_CLASS(Length - Skip, **this + Skip);
 }
 
-FString FString::Mid(int32 Start, int32 Count) const &
+UE_STRING_CLASS UE_STRING_CLASS::Mid(int32 Start, int32 Count) const &
 {
 	if (Count >= 0)
 	{
@@ -799,19 +803,19 @@ FString FString::Mid(int32 Start, int32 Count) const &
 		const int32 RequestedStart = Start;
 		Start = FMath::Clamp(Start, 0, Length);
 		const int32 End = (int32)FMath::Clamp((int64)Count + RequestedStart, (int64)Start, (int64)Length);
-		return FString(End-Start, **this + Start);
+		return UE_STRING_CLASS(End-Start, **this + Start);
 	}
 
-	return FString();
+	return UE_STRING_CLASS();
 }
 
-FString FString::Mid(int32 Start, int32 Count) &&
+UE_STRING_CLASS UE_STRING_CLASS::Mid(int32 Start, int32 Count) &&
 {
 	MidInline(Start, Count, false);
 	return MoveTemp(*this);
 }
 
-void FString::ReplaceCharInlineCaseSensitive(const ElementType SearchChar, const ElementType ReplacementChar)
+void UE_STRING_CLASS::ReplaceCharInlineCaseSensitive(const ElementType SearchChar, const ElementType ReplacementChar)
 {
 	for (ElementType& Character : Data)
 	{
@@ -819,33 +823,33 @@ void FString::ReplaceCharInlineCaseSensitive(const ElementType SearchChar, const
 	}
 }
 
-void FString::ReplaceCharInlineIgnoreCase(const ElementType SearchChar, const ElementType ReplacementChar)
+void UE_STRING_CLASS::ReplaceCharInlineIgnoreCase(const ElementType SearchChar, const ElementType ReplacementChar)
 {
 	ElementType OtherCaseSearchChar = TChar<ElementType>::IsUpper(SearchChar) ? TChar<ElementType>::ToLower(SearchChar) : TChar<ElementType>::ToUpper(SearchChar);
 	ReplaceCharInlineCaseSensitive(OtherCaseSearchChar, ReplacementChar);
 	ReplaceCharInlineCaseSensitive(SearchChar, ReplacementChar);
 }
 
-void FString::TrimStartAndEndInline()
+void UE_STRING_CLASS::TrimStartAndEndInline()
 {
 	TrimEndInline();
 	TrimStartInline();
 }
 
-FString FString::TrimStartAndEnd() const &
+UE_STRING_CLASS UE_STRING_CLASS::TrimStartAndEnd() const &
 {
-	FString Result(*this);
+	UE_STRING_CLASS Result(*this);
 	Result.TrimStartAndEndInline();
 	return Result;
 }
 
-FString FString::TrimStartAndEnd() &&
+UE_STRING_CLASS UE_STRING_CLASS::TrimStartAndEnd() &&
 {
 	TrimStartAndEndInline();
 	return MoveTemp(*this);
 }
 
-void FString::TrimStartInline()
+void UE_STRING_CLASS::TrimStartInline()
 {
 	int32 Pos = 0;
 	while(Pos < Len() && TChar<ElementType>::IsWhitespace((*this)[Pos]))
@@ -855,20 +859,20 @@ void FString::TrimStartInline()
 	RemoveAt(0, Pos);
 }
 
-FString FString::TrimStart() const &
+UE_STRING_CLASS UE_STRING_CLASS::TrimStart() const &
 {
-	FString Result(*this);
+	UE_STRING_CLASS Result(*this);
 	Result.TrimStartInline();
 	return Result;
 }
 
-FString FString::TrimStart() &&
+UE_STRING_CLASS UE_STRING_CLASS::TrimStart() &&
 {
 	TrimStartInline();
 	return MoveTemp(*this);
 }
 
-void FString::TrimEndInline()
+void UE_STRING_CLASS::TrimEndInline()
 {
 	int32 End = Len();
 	while(End > 0 && TChar<ElementType>::IsWhitespace((*this)[End - 1]))
@@ -878,20 +882,20 @@ void FString::TrimEndInline()
 	RemoveAt(End, Len() - End);
 }
 
-FString FString::TrimEnd() const &
+UE_STRING_CLASS UE_STRING_CLASS::TrimEnd() const &
 {
-	FString Result(*this);
+	UE_STRING_CLASS Result(*this);
 	Result.TrimEndInline();
 	return Result;
 }
 
-FString FString::TrimEnd() &&
+UE_STRING_CLASS UE_STRING_CLASS::TrimEnd() &&
 {
 	TrimEndInline();
 	return MoveTemp(*this);
 }
 
-void FString::TrimCharInline(const ElementType CharacterToTrim, bool* bCharRemoved)
+void UE_STRING_CLASS::TrimCharInline(const ElementType CharacterToTrim, bool* bCharRemoved)
 {
 	bool bQuotesWereRemoved=false;
 	int32 Start = 0, Count = Len();
@@ -918,59 +922,59 @@ void FString::TrimCharInline(const ElementType CharacterToTrim, bool* bCharRemov
 	MidInline(Start, Count, false);
 }
 
-void FString::TrimQuotesInline(bool* bQuotesRemoved)
+void UE_STRING_CLASS::TrimQuotesInline(bool* bQuotesRemoved)
 {
 	TrimCharInline(ElementType('"'), bQuotesRemoved);
 }
 
-FString FString::TrimQuotes(bool* bQuotesRemoved) const &
+UE_STRING_CLASS UE_STRING_CLASS::TrimQuotes(bool* bQuotesRemoved) const &
 {
-	FString Result(*this);
+	UE_STRING_CLASS Result(*this);
 	Result.TrimQuotesInline(bQuotesRemoved);
 	return Result;
 }
 
-FString FString::TrimQuotes(bool* bQuotesRemoved) &&
+UE_STRING_CLASS UE_STRING_CLASS::TrimQuotes(bool* bQuotesRemoved) &&
 {
 	TrimQuotesInline(bQuotesRemoved);
 	return MoveTemp(*this);
 }
 
-FString FString::TrimChar(const ElementType CharacterToTrim, bool* bCharRemoved) const &
+UE_STRING_CLASS UE_STRING_CLASS::TrimChar(const ElementType CharacterToTrim, bool* bCharRemoved) const &
 {
-	FString Result(*this);
+	UE_STRING_CLASS Result(*this);
 	Result.TrimCharInline(CharacterToTrim, bCharRemoved);
 	return Result;
 }
 
-FString FString::TrimChar(const ElementType CharacterToTrim, bool* bCharRemoved) &&
+UE_STRING_CLASS UE_STRING_CLASS::TrimChar(const ElementType CharacterToTrim, bool* bCharRemoved) &&
 {
 	TrimCharInline(CharacterToTrim, bCharRemoved);
 	return MoveTemp(*this);
 }
 
-int32 FString::CullArray( TArray<FString>* InArray )
+int32 UE_STRING_CLASS::CullArray( TArray<UE_STRING_CLASS>* InArray )
 {
 	check(InArray);
-	FString Empty;
+	UE_STRING_CLASS Empty;
 	InArray->Remove(Empty);
 	return InArray->Num();
 }
 
-FString FString::Reverse() const &
+UE_STRING_CLASS UE_STRING_CLASS::Reverse() const &
 {
-	FString New(*this);
+	UE_STRING_CLASS New(*this);
 	New.ReverseString();
 	return New;
 }
 
-FString FString::Reverse() &&
+UE_STRING_CLASS UE_STRING_CLASS::Reverse() &&
 {
 	ReverseString();
 	return MoveTemp(*this);
 }
 
-void FString::ReverseString()
+void UE_STRING_CLASS::ReverseString()
 {
 	if ( Len() > 0 )
 	{
@@ -990,9 +994,9 @@ void FString::ReverseString()
 	}
 }
 
-FString FString::FormatAsNumber( int32 InNumber )
+UE_STRING_CLASS UE_STRING_CLASS::FormatAsNumber( int32 InNumber )
 {
-	FString Number = FString::FromInt( InNumber ), Result;
+	UE_STRING_CLASS Number = UE_STRING_CLASS::FromInt( InNumber ), Result;
 
 	int32 dec = 0;
 	for( int32 x = Number.Len()-1 ; x > -1 ; --x )
@@ -1017,7 +1021,7 @@ FString FString::FormatAsNumber( int32 InNumber )
  * @param	Ar				Archive to serialize with
  * @param	MinCharacters	Minimum number of characters to serialize.
  */
-void FString::SerializeAsANSICharArray( FArchive& Ar, int32 MinCharacters ) const
+void UE_STRING_CLASS::SerializeAsANSICharArray( FArchive& Ar, int32 MinCharacters ) const
 {
 	int32	Length = FMath::Max( Len(), MinCharacters );
 	Ar << Length;
@@ -1036,7 +1040,7 @@ void FString::SerializeAsANSICharArray( FArchive& Ar, int32 MinCharacters ) cons
 	}
 }
 
-void FString::AppendInt( int32 Num )
+void UE_STRING_CLASS::AppendInt( int32 Num )
 {
 	const ElementType* DigitToChar	= CHARTEXT(ElementType, "9876543210123456789");
 	constexpr int32 ZeroDigitIndex	= 9;
@@ -1063,24 +1067,24 @@ void FString::AppendInt( int32 Num )
 }
 
 
-bool FString::ToBool() const
+bool UE_STRING_CLASS::ToBool() const
 {
 	return TCString<ElementType>::ToBool(**this);
 }
 
-FString FString::FromBlob(const uint8* SrcBuffer,const uint32 SrcSize)
+UE_STRING_CLASS UE_STRING_CLASS::FromBlob(const uint8* SrcBuffer,const uint32 SrcSize)
 {
-	FString Result;
+	UE_STRING_CLASS Result;
 	Result.Reserve( SrcSize * 3 );
 	// Convert and append each byte in the buffer
 	for (uint32 Count = 0; Count < SrcSize; Count++)
 	{
-		Result += FString::Printf(CHARTEXT(ElementType, "%03d"),(uint8)SrcBuffer[Count]);
+		Result += UE_STRING_CLASS::Printf(CHARTEXT(ElementType, "%03d"),(uint8)SrcBuffer[Count]);
 	}
 	return Result;
 }
 
-bool FString::ToBlob(const FString& Source,uint8* DestBuffer,const uint32 DestSize)
+bool UE_STRING_CLASS::ToBlob(const UE_STRING_CLASS& Source,uint8* DestBuffer,const uint32 DestSize)
 {
 	// Make sure the buffer is at least half the size and that the string is an
 	// even number of characters long
@@ -1103,19 +1107,19 @@ bool FString::ToBlob(const FString& Source,uint8* DestBuffer,const uint32 DestSi
 	return false;
 }
 
-FString FString::FromHexBlob( const uint8* SrcBuffer, const uint32 SrcSize )
+UE_STRING_CLASS UE_STRING_CLASS::FromHexBlob( const uint8* SrcBuffer, const uint32 SrcSize )
 {
-	FString Result;
+	UE_STRING_CLASS Result;
 	Result.Reserve( SrcSize * 2 );
 	// Convert and append each byte in the buffer
 	for (uint32 Count = 0; Count < SrcSize; Count++)
 	{
-		Result += FString::Printf( CHARTEXT(ElementType,  "%02X" ), (uint8)SrcBuffer[Count] );
+		Result += UE_STRING_CLASS::Printf( CHARTEXT(ElementType,  "%02X" ), (uint8)SrcBuffer[Count] );
 	}
 	return Result;
 }
 
-bool FString::ToHexBlob( const FString& Source, uint8* DestBuffer, const uint32 DestSize )
+bool UE_STRING_CLASS::ToHexBlob( const UE_STRING_CLASS& Source, uint8* DestBuffer, const uint32 DestSize )
 {
 	// Make sure the buffer is at least half the size and that the string is an
 	// even number of characters long
@@ -1148,13 +1152,13 @@ void StripNegativeZero(double& InFloat)
 }
 UE_ENABLE_OPTIMIZATION_SHIP
 
-FString FString::SanitizeFloat( double InFloat, const int32 InMinFractionalDigits )
+UE_STRING_CLASS UE_STRING_CLASS::SanitizeFloat( double InFloat, const int32 InMinFractionalDigits )
 {
 	// Avoids negative zero
 	StripNegativeZero(InFloat);
 
 	// First create the string
-	FString TempString = FString::Printf(CHARTEXT(ElementType, "%f"), InFloat);
+	UE_STRING_CLASS TempString = UE_STRING_CLASS::Printf(CHARTEXT(ElementType, "%f"), InFloat);
 	if (!TempString.IsNumeric())
 	{
 		// String did not format as a valid decimal number so avoid messing with it
@@ -1205,18 +1209,18 @@ FString FString::SanitizeFloat( double InFloat, const int32 InMinFractionalDigit
 	return TempString;
 }
 
-FString FString::Chr(ElementType Ch)
+UE_STRING_CLASS UE_STRING_CLASS::Chr(ElementType Ch)
 {
 	ElementType Temp[2]= { Ch, CHARTEXT(ElementType, '\0') };
-	return FString(Temp);
+	return UE_STRING_CLASS(Temp);
 }
 
 
-FString FString::ChrN( int32 NumCharacters, ElementType Char )
+UE_STRING_CLASS UE_STRING_CLASS::ChrN( int32 NumCharacters, ElementType Char )
 {
 	check( NumCharacters >= 0 );
 
-	FString Temp;
+	UE_STRING_CLASS Temp;
 	Temp.Data.AddUninitialized(NumCharacters+1);
 	for( int32 Cx = 0; Cx < NumCharacters; ++Cx )
 	{
@@ -1226,7 +1230,7 @@ FString FString::ChrN( int32 NumCharacters, ElementType Char )
 	return Temp;
 }
 
-FString FString::LeftPad( int32 ChCount ) const
+UE_STRING_CLASS UE_STRING_CLASS::LeftPad( int32 ChCount ) const
 {
 	int32 Pad = ChCount - Len();
 
@@ -1239,7 +1243,7 @@ FString FString::LeftPad( int32 ChCount ) const
 		return *this;
 	}
 }
-FString FString::RightPad( int32 ChCount ) const
+UE_STRING_CLASS UE_STRING_CLASS::RightPad( int32 ChCount ) const
 {
 	int32 Pad = ChCount - Len();
 
@@ -1253,7 +1257,7 @@ FString FString::RightPad( int32 ChCount ) const
 	}
 }
 
-bool FString::IsNumeric() const
+bool UE_STRING_CLASS::IsNumeric() const
 {
 	if (IsEmpty())
 	{
@@ -1263,7 +1267,7 @@ bool FString::IsNumeric() const
 	return TCString<ElementType>::IsNumeric(Data.GetData());
 }
 
-int32 FString::ParseIntoArray( TArray<FString>& OutArray, const ElementType* pchDelim, const bool InCullEmpty ) const
+int32 UE_STRING_CLASS::ParseIntoArray( TArray<UE_STRING_CLASS>& OutArray, const ElementType* pchDelim, const bool InCullEmpty ) const
 {
 	check(pchDelim);
 	OutArray.Reset();
@@ -1279,7 +1283,7 @@ int32 FString::ParseIntoArray( TArray<FString>& OutArray, const ElementType* pch
 	return OutArray.Num();
 }
 
-bool FString::MatchesWildcard(const ElementType* InWildcard, int32 InWildcardLen, ESearchCase::Type SearchCase) const
+bool UE_STRING_CLASS::MatchesWildcard(const ElementType* InWildcard, int32 InWildcardLen, ESearchCase::Type SearchCase) const
 {
 	const ElementType* Target = **this;
 	int32        TargetLength = Len();
@@ -1296,7 +1300,7 @@ bool FString::MatchesWildcard(const ElementType* InWildcard, int32 InWildcardLen
 
 
 /** Caution!! this routine is O(N^2) allocations...use it for parsing very short text or not at all */
-int32 FString::ParseIntoArrayWS( TArray<FString>& OutArray, const ElementType* pchExtraDelim, bool InCullEmpty ) const
+int32 UE_STRING_CLASS::ParseIntoArrayWS( TArray<UE_STRING_CLASS>& OutArray, const ElementType* pchExtraDelim, bool InCullEmpty ) const
 {
 	// default array of White Spaces, the last entry can be replaced with the optional pchExtraDelim string
 	// (if you want to split on white space and another character)
@@ -1320,7 +1324,7 @@ int32 FString::ParseIntoArrayWS( TArray<FString>& OutArray, const ElementType* p
 	return ParseIntoArray(OutArray, WhiteSpace, NumWhiteSpaces, InCullEmpty);
 }
 
-int32 FString::ParseIntoArrayLines(TArray<FString>& OutArray, bool InCullEmpty) const
+int32 UE_STRING_CLASS::ParseIntoArrayLines(TArray<UE_STRING_CLASS>& OutArray, bool InCullEmpty) const
 {
 	// default array of LineEndings
 	static const ElementType* LineEndings[] =
@@ -1335,7 +1339,7 @@ int32 FString::ParseIntoArrayLines(TArray<FString>& OutArray, bool InCullEmpty) 
 	return ParseIntoArray(OutArray, LineEndings, NumLineEndings, InCullEmpty);
 }
 
-int32 FString::ParseIntoArray(TArray<FString>& OutArray, const ElementType* const * DelimArray, int32 NumDelims, bool InCullEmpty) const
+int32 UE_STRING_CLASS::ParseIntoArray(TArray<UE_STRING_CLASS>& OutArray, const ElementType* const * DelimArray, int32 NumDelims, bool InCullEmpty) const
 {
 	// Make sure the delimit string is not null or empty
 	check(DelimArray);
@@ -1398,7 +1402,7 @@ int32 FString::ParseIntoArray(TArray<FString>& OutArray, const ElementType* cons
 	return OutArray.Num();
 }
 
-FString FString::Replace(const ElementType* From, const ElementType* To, ESearchCase::Type SearchCase) const &
+UE_STRING_CLASS UE_STRING_CLASS::Replace(const ElementType* From, const ElementType* To, ESearchCase::Type SearchCase) const &
 {
 	// Previous code used to accidentally accept a nullptr replacement string - this is no longer accepted.
 	check(To);
@@ -1415,7 +1419,7 @@ FString FString::Replace(const ElementType* From, const ElementType* To, ESearch
 	int32 FromLength = TCString<ElementType>::Strlen(From);
 	int32 ToLength   = TCString<ElementType>::Strlen(To);
 
-	FString Result;
+	UE_STRING_CLASS Result;
 	while (true)
 	{
 		// look for From in the remaining string
@@ -1440,13 +1444,13 @@ FString FString::Replace(const ElementType* From, const ElementType* To, ESearch
 	return Result;
 }
 
-FString FString::Replace(const ElementType* From, const ElementType* To, ESearchCase::Type SearchCase) &&
+UE_STRING_CLASS UE_STRING_CLASS::Replace(const ElementType* From, const ElementType* To, ESearchCase::Type SearchCase) &&
 {
 	ReplaceInline(From, To, SearchCase);
 	return MoveTemp(*this);
 }
 
-int32 FString::ReplaceInline(const ElementType* SearchText, const ElementType* ReplacementText, ESearchCase::Type SearchCase)
+int32 UE_STRING_CLASS::ReplaceInline(const ElementType* SearchText, const ElementType* ReplacementText, ESearchCase::Type SearchCase)
 {
 	int32 ReplacementCount = 0;
 
@@ -1482,7 +1486,7 @@ int32 FString::ReplaceInline(const ElementType* SearchText, const ElementType* R
 		}
 		else if (Contains(SearchText, SearchCase))
 		{
-			FString Copy(MoveTemp(*this));
+			UE_STRING_CLASS Copy(MoveTemp(*this));
 
 			// get a pointer into the character data
 			ElementType* WritePosition = (ElementType*)Copy.Data.GetData();
@@ -1492,7 +1496,7 @@ int32 FString::ReplaceInline(const ElementType* SearchText, const ElementType* R
 			{
 				ReplacementCount++;
 
-				// replace the first letter of the From with 0 so we can do a strcpy (FString +=)
+				// replace the first letter of the From with 0 so we can do a strcpy (via operator+=)
 				*SearchPosition = CHARTEXT(ElementType, '\0');
 
 				// copy everything up to the SearchPosition
@@ -1520,11 +1524,11 @@ int32 FString::ReplaceInline(const ElementType* SearchText, const ElementType* R
 /**
  * Returns a copy of this string with all quote marks escaped (unless the quote is already escaped)
  */
-FString FString::ReplaceQuotesWithEscapedQuotes() &&
+UE_STRING_CLASS UE_STRING_CLASS::ReplaceQuotesWithEscapedQuotes() &&
 {
 	if (Contains(CHARTEXT(ElementType, "\""), ESearchCase::CaseSensitive))
 	{
-		FString Copy(MoveTemp(*this));
+		UE_STRING_CLASS Copy(MoveTemp(*this));
 
 		const ElementType* pChar = *Copy;
 
@@ -1566,7 +1570,7 @@ static const CharType* CharToEscapeSeqMap[6][2] =
 template <typename CharType>
 static const uint32 MaxSupportedEscapeChars = UE_ARRAY_COUNT(CharToEscapeSeqMap<CharType>);
 
-void FString::ReplaceCharWithEscapedCharInline(const TArray<ElementType>* Chars/*=nullptr*/)
+void UE_STRING_CLASS::ReplaceCharWithEscapedCharInline(const TArray<ElementType>* Chars/*=nullptr*/)
 {
 	if ( Len() > 0 && (Chars == nullptr || Chars->Num() > 0) )
 	{
@@ -1581,7 +1585,7 @@ void FString::ReplaceCharWithEscapedCharInline(const TArray<ElementType>* Chars/
 	}
 }
 
-void FString::ReplaceEscapedCharWithCharInline(const TArray<ElementType>* Chars/*=nullptr*/)
+void UE_STRING_CLASS::ReplaceEscapedCharWithCharInline(const TArray<ElementType>* Chars/*=nullptr*/)
 {
 	if ( Len() > 0 && (Chars == nullptr || Chars->Num() > 0) )
 	{
@@ -1603,7 +1607,7 @@ void FString::ReplaceEscapedCharWithCharInline(const TArray<ElementType>* Chars/
  * Replaces all instances of '\t' with TabWidth number of spaces
  * @param InSpacesPerTab - Number of spaces that a tab represents
  */
-void FString::ConvertTabsToSpacesInline(const int32 InSpacesPerTab)
+void UE_STRING_CLASS::ConvertTabsToSpacesInline(const int32 InSpacesPerTab)
 {
 	//must call this with at least 1 space so the modulus operation works
 	check(InSpacesPerTab > 0);
@@ -1611,7 +1615,7 @@ void FString::ConvertTabsToSpacesInline(const int32 InSpacesPerTab)
 	int32 TabIndex = 0;
 	while ((TabIndex = Find(CHARTEXT(ElementType, "\t"), ESearchCase::CaseSensitive)) != INDEX_NONE )
 	{
-		FString RightSide = Mid(TabIndex+1);
+		UE_STRING_CLASS RightSide = Mid(TabIndex+1);
 		LeftInline(TabIndex, false);
 
 		//for a tab size of 4, 
@@ -1634,7 +1638,7 @@ void FString::ConvertTabsToSpacesInline(const int32 InSpacesPerTab)
 // This starting size catches 99.97% of printf calls - there are about 700k printf calls per level
 #define STARTING_BUFFER_SIZE		512
 
-FString FString::PrintfImpl(const ElementType* Fmt, ...)
+UE_STRING_CLASS UE_STRING_CLASS::PrintfImpl(const ElementType* Fmt, ...)
 {
 	int32		BufferSize	= STARTING_BUFFER_SIZE;
 	ElementType	StartingBuffer[STARTING_BUFFER_SIZE];
@@ -1658,7 +1662,7 @@ FString FString::PrintfImpl(const ElementType* Fmt, ...)
 
 	Buffer[Result] = CHARTEXT(ElementType, '\0');
 
-	FString ResultString(Buffer);
+	UE_STRING_CLASS ResultString(Buffer);
 
 	if( BufferSize != STARTING_BUFFER_SIZE )
 	{
@@ -1668,7 +1672,7 @@ FString FString::PrintfImpl(const ElementType* Fmt, ...)
 	return ResultString;
 }
 
-void FString::AppendfImpl(FString& AppendToMe, const ElementType* Fmt, ...)
+void UE_STRING_CLASS::AppendfImpl(UE_STRING_CLASS& AppendToMe, const ElementType* Fmt, ...)
 {
 	int32		BufferSize = STARTING_BUFFER_SIZE;
 	ElementType	StartingBuffer[STARTING_BUFFER_SIZE];
@@ -1700,11 +1704,11 @@ void FString::AppendfImpl(FString& AppendToMe, const ElementType* Fmt, ...)
 	}
 }
 
-static_assert(PLATFORM_LITTLE_ENDIAN, "FString serialization needs updating to support big-endian platforms!");
+static_assert(PLATFORM_LITTLE_ENDIAN, PREPROCESSOR_TO_STRING(UE_STRING_CLASS) " serialization needs updating to support big-endian platforms!");
 
-FArchive& operator<<( FArchive& Ar, FString& A )
+FArchive& operator<<( FArchive& Ar, UE_STRING_CLASS& A )
 {
-	using ElementType = FString::ElementType;
+	using ElementType = UE_STRING_CLASS::ElementType;
 
 	if constexpr (std::is_same_v<ElementType, TCHAR>)
 	{
@@ -1842,14 +1846,14 @@ FArchive& operator<<( FArchive& Ar, FString& A )
 	return Ar;
 }
 
-int32 HexToBytes(const FString& HexString, uint8* OutBytes)
+int32 HexToBytes(const UE_STRING_CLASS& HexString, uint8* OutBytes)
 {
 	return UE::String::HexToBytes(HexString, OutBytes);
 }
 
-int32 FindMatchingClosingParenthesis(const FString& TargetString, const int32 StartSearch)
+int32 FindMatchingClosingParenthesis(const UE_STRING_CLASS& TargetString, const int32 StartSearch)
 {
-	using ElementType = FString::ElementType;
+	using ElementType = UE_STRING_CLASS::ElementType;
 
 	check(StartSearch >= 0 && StartSearch <= TargetString.Len());// Check for usage, we do not accept INDEX_NONE like other string functions
 
@@ -1892,11 +1896,11 @@ int32 FindMatchingClosingParenthesis(const FString& TargetString, const int32 St
 	return INDEX_NONE;
 }
 
-FString SlugStringForValidName(const FString& DisplayString, const FString::ElementType* ReplaceWith /*= CHARTEXT(ElementType, "")*/)
+UE_STRING_CLASS SlugStringForValidName(const UE_STRING_CLASS& DisplayString, const UE_STRING_CLASS::ElementType* ReplaceWith /*= CHARTEXT(ElementType, "")*/)
 {
-	using ElementType = FString::ElementType;
+	using ElementType = UE_STRING_CLASS::ElementType;
 
-	FString GeneratedName = DisplayString;
+	UE_STRING_CLASS GeneratedName = DisplayString;
 
 	// Convert the display label, which may consist of just about any possible character, into a
 	// suitable name for a UObject (remove whitespace, certain symbols, etc.)

@@ -5,10 +5,12 @@
 
 #pragma once
 
-// Include UnrealString.h.inl's includes before defining (upcoming) macros, in case the macros 'poison' other headers or there are re-entrant includes.
+// Include UnrealString.h.inl's includes before defining the macros, in case the macros 'poison' other headers or there are re-entrant includes.
 #include "Containers/UnrealStringIncludes.h.inl"
 
-#include "Containers/UnrealString.h.inl"
+#define UE_STRING_CLASS FString
+	#include "Containers/UnrealString.h.inl"
+#undef UE_STRING_CLASS
 
 /**
  * Convert an array of bytes to a string
