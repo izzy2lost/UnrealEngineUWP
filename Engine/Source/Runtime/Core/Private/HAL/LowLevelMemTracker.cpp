@@ -80,7 +80,7 @@ FAutoConsoleCommand DumpLLM(
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* InWorld, FOutputDevice& Ar)
 	{
-		FString Command = FString::Join(Args, TEXT(","));
+		FString Command = FString::Join(Args, TEXT(" "));
 
 		bool bCSV = FParse::Param(*Command, TEXT("CSV"));
 		bool bSnapshot = FParse::Param(*Command, TEXT("SNAPSHOT"));
