@@ -4,8 +4,8 @@
 
 #include "Engine/Texture2D.h"
 #include "ImageCoreUtils.h"
-//#include "MuCO/CustomizableObject.h"	// For the LogMutable logging category
 #include "ImageUtils.h"
+#include "Async/ParallelFor.h"
 
 namespace UnrealToMutableImageConversion_Interanl
 {
