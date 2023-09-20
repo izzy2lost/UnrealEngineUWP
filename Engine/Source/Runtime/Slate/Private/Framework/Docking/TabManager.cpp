@@ -1476,7 +1476,7 @@ TSharedPtr<SDockTab> FTabManager::InvokeTab_Internal(const FTabId& TabId, bool b
 	else if ( FGlobalTabmanager::Get() != SharedThis(this) && NomadTabSpawner->Contains(TabId.TabType) )
 	{
 		// This tab could have been spawned in the global tab manager since it has a nomad tab spawner
-		return FGlobalTabmanager::Get()->InvokeTab_Internal(TabId, bInvokeAsInactive);
+		return FGlobalTabmanager::Get()->InvokeTab_Internal(TabId, bInvokeAsInactive, bForceOpenWindowIfNeeded);
 	}
 	else
 	{
