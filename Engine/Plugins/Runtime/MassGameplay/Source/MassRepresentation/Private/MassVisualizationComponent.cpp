@@ -138,16 +138,24 @@ int16 UMassVisualizationComponent::AddVisualDescWithISMComponents(const FStaticM
 	return (int16)VisualIndex;
 }
 
-void UMassVisualizationComponent::RemoveISMComponent(UInstancedStaticMeshComponent& ISMComponent)
+void UMassVisualizationComponent::RemoveVisualDescByIndex(const int32 VisualizationIndex)
 {
-	const uint32 ISMComponentPathHash = GetTypeHash(ISMComponent.GetPathName());
-	const int32* VisualIndexPtr = ISMComponentMap.Find(ISMComponentPathHash);
-	if (ensure(VisualIndexPtr))
-	{
-		ISMCSharedData.Remove(ISMComponentPathHash);
+	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
 
-		InstancedStaticMeshInfos[*VisualIndexPtr].Reset();
-		InstancedStaticMeshInfosFreeIndices.Add(*VisualIndexPtr);
+	if (ensure(InstancedStaticMeshInfos.IsValidIndex(VisualizationIndex))
+		&& ensureMsgf(InstancedStaticMeshInfos[VisualizationIndex].IsValid(), TEXT("Trying to remove visualization data that has already been cleaned")))
+	{
+		for (TObjectPtr<UInstancedStaticMeshComponent>& ISMComponent : InstancedStaticMeshInfos[VisualizationIndex].InstancedStaticMeshComponents)
+		{
+			const uint32 ISMComponentPathHash = GetTypeHash(ISMComponent.GetPathName());
+			const int32 StoredVisualizationIndex = ISMComponentMap.FindAndRemoveChecked(ISMComponentPathHash);
+			ensure(StoredVisualizationIndex == VisualizationIndex);
+		
+			ISMCSharedData.Remove(ISMComponentPathHash);
+		}
+		
+		InstancedStaticMeshInfos[VisualizationIndex].Reset();
+		InstancedStaticMeshInfosFreeIndices.Add(VisualizationIndex);
 	}
 }
 
@@ -779,3 +787,16 @@ void UMassVisualizationComponent::BuildLODSignificanceForInfo(FMassInstancedStat
 {
 	BuildLODSignificanceForInfo(Info, MakeArrayView(&ForcedStaticMeshRefKeys, 1));
 }
+
+void UMassVisualizationComponent::RemoveISMComponent(UInstancedStaticMeshComponent& ISMComponent)
+{
+	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
+
+	const uint32 ISMComponentPathHash = GetTypeHash(ISMComponent.GetPathName());
+	const int32* VisualIndexPtr = ISMComponentMap.Find(ISMComponentPathHash);
+	if (VisualIndexPtr)
+	{
+		RemoveVisualDescByIndex(*VisualIndexPtr);
+	}
+}
+

@@ -565,6 +565,11 @@ public:
 
 	int32 GetLODSignificanceRangesNum() const { return LODSignificanceRanges.Num(); }
 
+	bool IsValid() const
+	{
+		return Desc.Meshes.Num() && InstancedStaticMeshComponents.Num() && LODSignificanceRanges.Num();
+	}
+
 protected:
 
 	/** Destroy the visual instance */

@@ -40,8 +40,16 @@ int16 UMassRepresentationSubsystem::AddVisualDescWithISMComponents(const FStatic
 
 void UMassRepresentationSubsystem::RemoveISMComponent(UInstancedStaticMeshComponent& ISMComponent)
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	check(VisualizationComponent);
 	return VisualizationComponent->RemoveISMComponent(ISMComponent);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+void UMassRepresentationSubsystem::RemoveVisualDescByIndex(const int32 VisualizationIndex)
+{
+	check(VisualizationComponent);
+	return VisualizationComponent->RemoveVisualDescByIndex(VisualizationIndex);
 }
 
 FMassInstancedStaticMeshInfoArrayView UMassRepresentationSubsystem::GetMutableInstancedStaticMeshInfos()

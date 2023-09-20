@@ -43,10 +43,19 @@ public:
 	int16 AddVisualDescWithISMComponents(const FStaticMeshInstanceVisualizationDesc& Desc, TArrayView<TObjectPtr<UInstancedStaticMeshComponent>> ISMComponents);
 
 	/** 
-	 * Removes the visualization data associated with the given ISM component. Note that this is safe to do only when
-	 * there are no entities relying on this data. No entity data patching will take place. 
+	 * Removes all the visualization data associated with the given ISM component. The function resolves the VisualizationIndex
+	 * associated with the given ISMComponent and calls RemoveVisualDescByIndex which will remove data on all ISMComponents
+	 * associated with the index. Note that this is safe to do only when there are no entities relying on this data. 
+	 * No entity data patching will take place. 
 	 */
+	UE_DEPRECATED(5.4, "RemoveISMComponent has been deprecated in favor of RemoveVisualDescByIndex. Please use that instead.")
 	void RemoveISMComponent(UInstancedStaticMeshComponent& ISMComponent);
+
+	/**
+	 * Removes all data associated with a given VisualizationIndex. Note that this is safe to do only if there are no
+	 * entities relying on this index. No entity data patching will take place.
+	 */
+	void RemoveVisualDescByIndex(const int32 VisualizationIndex);
 
 	/** Get the array of all visual instance informations */
 	FMassInstancedStaticMeshInfoArrayView GetMutableVisualInfos()

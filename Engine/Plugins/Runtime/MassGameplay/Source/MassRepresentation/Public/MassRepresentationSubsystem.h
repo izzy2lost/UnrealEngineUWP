@@ -53,8 +53,17 @@ public:
 	/**
 	 * Removes the visualization data associated with the given ISM component. Note that this is safe to do only when
 	 * there are no entities relying on this data. No entity data patching will take place.
+	 * Note that the function will assert if there's more ISM components associated with given visualization. Also, in 
+	 * that case RemoveVisualDescByIndex will be called under the hood. 
 	 */
+	UE_DEPRECATED(5.4, "RemoveISMComponent has been deprecated in favor of RemoveVisualDescByIndex. Please use that instead.")
 	void RemoveISMComponent(UInstancedStaticMeshComponent& ISMComponent);
+
+	/** 
+	 * Removes all data associated with a given VisualizationIndex. Note that this is safe to do only if there are no
+	 * entities relying on this index. No entity data patching will take place.
+	 */
+	void RemoveVisualDescByIndex(const int32 VisualizationIndex);
 
 	/** 
 	 * @return the array of all the static mesh instance component information
