@@ -41,7 +41,7 @@ public:
 	 * @param CurrentValue - The modified value returned by the previous modifier in the chain, or the base raw value if this is the first modifier in the chain.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Modifier")
-	FInputActionValue ModifyRaw(const UEnhancedPlayerInput* PlayerInput, FInputActionValue CurrentValue, float DeltaTime);
+	FInputActionValue ModifyRaw(const UEnhancedPlayerInput* PlayerInput, FInputActionValue CurrentValue, float DeltaTime) const;
 
 	/**
 	 * Helper to allow debug visualization of the modifier.
