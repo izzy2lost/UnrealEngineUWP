@@ -3298,7 +3298,7 @@ bool PreprocessOpenGLShader(const FShaderCompilerInput& Input, const FShaderComp
 	}
 
 	// This requires removing the HLSLCC_NoPreprocess flag later on!
-	RemoveUniformBuffersFromSource(Environment, PreprocessOutput.EditSource());
+	CleanupUniformBufferCode(Input.Environment, PreprocessOutput.EditSource());
 
 	// Process TEXT macro.
 	TransformStringIntoCharacterArray(PreprocessOutput.EditSource());

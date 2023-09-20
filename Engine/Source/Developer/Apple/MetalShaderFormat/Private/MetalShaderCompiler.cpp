@@ -878,7 +878,7 @@ bool PreprocessMetalShader(const FShaderCompilerInput& Input, const FShaderCompi
 		return false;
 	}
 
-	RemoveUniformBuffersFromSource(Input.Environment, PreprocessOutput.EditSource());
+	CleanupUniformBufferCode(Input.Environment, PreprocessOutput.EditSource());
 
 	// Process TEXT macro.
 	TransformStringIntoCharacterArray(PreprocessOutput.EditSource());

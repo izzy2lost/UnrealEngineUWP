@@ -232,15 +232,12 @@ const TCHAR* FindNextWhitespace(const TCHAR* StringPtr)
 
 const TCHAR* FindNextNonWhitespace(const TCHAR* StringPtr)
 {
-	bool bFoundWhitespace = false;
-
-	while (*StringPtr && (FChar::IsWhitespace(*StringPtr) || !bFoundWhitespace))
+	while (*StringPtr && FChar::IsWhitespace(*StringPtr))
 	{
-		bFoundWhitespace = true;
 		StringPtr++;
 	}
 
-	if (bFoundWhitespace && *StringPtr && !FChar::IsWhitespace(*StringPtr))
+	if (*StringPtr && !FChar::IsWhitespace(*StringPtr))
 	{
 		return StringPtr;
 	}
@@ -323,7 +320,7 @@ void ParseHLSLTypeName(const TCHAR* SearchString, const TCHAR*& TypeNameStartPtr
 	check(TypeNameEndPtr);
 }
 
-const TCHAR* ParseHLSLSymbolName(const TCHAR* SearchString, FString& SymboName)
+FStringView ParseHLSLSymbolName(const TCHAR* SearchString)
 {
 	const TCHAR* SymbolNameStartPtr = FindNextNonWhitespace(SearchString);
 	check(SymbolNameStartPtr);
@@ -334,101 +331,16 @@ const TCHAR* ParseHLSLSymbolName(const TCHAR* SearchString, FString& SymboName)
 		SymbolNameEndPtr++;
 	}
 
-	SymboName = FString(SymbolNameEndPtr - SymbolNameStartPtr, SymbolNameStartPtr);
-
-	return SymbolNameEndPtr;
+	return FStringView(SymbolNameStartPtr, SymbolNameEndPtr - SymbolNameStartPtr);
 }
 
-class FUniformBufferMemberInfo
+const TCHAR* ParseHLSLSymbolName(const TCHAR* SearchString, FString& SymbolName)
 {
-public:
-	// eg View.WorldToClip
-	FString NameAsStructMember;
-	// eg View_WorldToClip
-	FString GlobalName;
-};
+	FStringView Result = ParseHLSLSymbolName(SearchString);
 
-const TCHAR* ParseStructRecursive(
-	const TCHAR* StructStartPtr,
-	FString& UniformBufferName,
-	int32 StructDepth,
-	const FString& StructNamePrefix, 
-	const FString& GlobalNamePrefix, 
-	TMap<FString, TArray<FUniformBufferMemberInfo>>& UniformBufferNameToMembers)
-{
-	const TCHAR* OpeningBracePtr = FCString::Strstr(StructStartPtr, TEXT("{"));
-	check(OpeningBracePtr);
+	SymbolName = FString(Result);
 
-	const TCHAR* ClosingBracePtr = FindMatchingClosingBrace(OpeningBracePtr + 1);
-	check(ClosingBracePtr);
-
-	FString StructName;
-	const TCHAR* StructNameEndPtr = ParseHLSLSymbolName(ClosingBracePtr + 1, StructName);
-	check(StructName.Len() > 0);
-
-	FString NestedStructNamePrefix = StructNamePrefix + StructName + TEXT(".");
-	FString NestedGlobalNamePrefix = GlobalNamePrefix + StructName + TEXT("_");
-
-	if (StructDepth == 0)
-	{
-		UniformBufferName = StructName;
-	}
-
-	const TCHAR* LastMemberSemicolon = ClosingBracePtr;
-
-	// Search backward to find the last member semicolon so we know when to stop parsing members
-	while (LastMemberSemicolon > OpeningBracePtr && *LastMemberSemicolon != ';')
-	{
-		LastMemberSemicolon--;
-	}
-
-	const TCHAR* MemberSearchPtr = OpeningBracePtr + 1;
-
-	do
-	{
-		const TCHAR* MemberTypeStartPtr = nullptr;
-		const TCHAR* MemberTypeEndPtr = nullptr;
-		ParseHLSLTypeName(MemberSearchPtr, MemberTypeStartPtr, MemberTypeEndPtr);
-		FString MemberTypeName(MemberTypeEndPtr - MemberTypeStartPtr, MemberTypeStartPtr);
-
-		if (FCString::Strcmp(*MemberTypeName, TEXT("struct")) == 0)
-		{
-			MemberSearchPtr = ParseStructRecursive(MemberTypeStartPtr, UniformBufferName, StructDepth + 1, NestedStructNamePrefix, NestedGlobalNamePrefix, UniformBufferNameToMembers);
-		}
-		else
-		{
-			FString MemberName;
-			const TCHAR* SymbolEndPtr = ParseHLSLSymbolName(MemberTypeEndPtr, MemberName);
-			check(MemberName.Len() > 0);
-			
-			MemberSearchPtr = SymbolEndPtr;
-
-			// Skip over trailing tokens '[1];'
-			while (*MemberSearchPtr && *MemberSearchPtr != ';')
-			{
-				MemberSearchPtr++;
-			}
-
-			// Add this member to the map
-			TArray<FUniformBufferMemberInfo>& UniformBufferMembers = UniformBufferNameToMembers.FindOrAdd(UniformBufferName);
-
-			FUniformBufferMemberInfo NewMemberInfo;
-			NewMemberInfo.NameAsStructMember = NestedStructNamePrefix + MemberName;
-			NewMemberInfo.GlobalName = NestedGlobalNamePrefix + MemberName;
-			UniformBufferMembers.Add(MoveTemp(NewMemberInfo));
-		}
-	} 
-	while (MemberSearchPtr < LastMemberSemicolon);
-
-	const TCHAR* StructEndPtr = StructNameEndPtr;
-
-	// Skip over trailing tokens '[1];'
-	while (*StructEndPtr && *StructEndPtr != ';')
-	{
-		StructEndPtr++;
-	}
-
-	return StructEndPtr;
+	return Result.GetData() + Result.Len();
 }
 
 bool MatchStructMemberName(const FString& SymbolName, const TCHAR* SearchPtr, const FString& PreprocessedShaderSource)
@@ -875,35 +787,113 @@ void AddUnboundShaderParameterError(
 	AddNoteToDisplayShaderParameterStructureOnCppSide(CompilerInput.RootParametersStructure, CompilerOutput);
 }
 
-// The cross compiler doesn't yet support struct initializers needed to construct static structs for uniform buffers
-// Replace all uniform buffer struct member references (View.WorldToClip) with a flattened name that removes the struct dependency (View_WorldToClip)
 void RemoveUniformBuffersFromSource(const FShaderCompilerEnvironment& Environment, FString& PreprocessedShaderSource)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(RemoveUniformBuffersFromSource);
+	CleanupUniformBufferCode(Environment, PreprocessedShaderSource);
+}
+
+struct FUniformBufferMemberInfo
+{
+	// eg View.WorldToClip
+	FString NameAsStructMember;
+	// eg View_WorldToClip
+	FString GlobalName;
+};
+
+const TCHAR* ParseUniformBufferDefinition(const TCHAR* ReadStart, TMap<FString, TArray<FUniformBufferMemberInfo>>& UniformBufferNameToMembers)
+{
+	const FString UniformBufferName(ParseHLSLSymbolName(ReadStart));
+
+	const TCHAR* OpeningBrace = FCString::Strstr(ReadStart, TEXT("{"));
+	const TCHAR* ClosingBrace = FindMatchingClosingBrace(OpeningBrace + 1);
+
+	const TCHAR* CurrentParseStart = OpeningBrace + 1;
+	const TCHAR* NextSemicolon = FCString::Strstr(CurrentParseStart, TEXT(";"));
+	
+	while (NextSemicolon < ClosingBrace)
+	{
+		const TCHAR* NextEquals = FCString::Strstr(CurrentParseStart, TEXT("="));
+		if (NextEquals < NextSemicolon)
+		{
+			const TCHAR* StructStart = CurrentParseStart;
+			const TCHAR* StructEnd = NextEquals - 1;
+
+			const TCHAR* GlobalStart = NextEquals + 1;
+			const TCHAR* GlobalEnd = NextSemicolon - 1;
+
+			FString StructName(StructEnd - StructStart, StructStart);
+			StructName.TrimStartAndEndInline();
+			StructName.ReplaceInline(TEXT(" "), TEXT(""));
+
+			FString GlobalName(GlobalEnd - GlobalStart, GlobalStart);
+			GlobalName.TrimStartAndEndInline();
+			GlobalName.ReplaceInline(TEXT(" "), TEXT(""));
+
+			// Avoid unnecessary conversions
+			if (StructName != GlobalName)
+			{
+				FUniformBufferMemberInfo NewMemberInfo;
+				NewMemberInfo.NameAsStructMember = StructName;
+				NewMemberInfo.GlobalName = GlobalName;
+
+				// Add this member to the map
+				TArray<FUniformBufferMemberInfo>& UniformBufferMembers = UniformBufferNameToMembers.FindOrAdd(UniformBufferName);
+				UniformBufferMembers.Add(MoveTemp(NewMemberInfo));
+			}
+		}
+
+		CurrentParseStart = NextSemicolon + 1;
+		NextSemicolon = FCString::Strstr(CurrentParseStart, TEXT(";"));
+	}
+
+	const TCHAR* EndPtr = ClosingBrace;
+
+	// Skip to the end of the UniformBuffer
+	while (*EndPtr && *EndPtr != ';')
+	{
+		EndPtr++;
+	}
+
+	return EndPtr;
+}
+
+// The cross compiler doesn't yet support struct initializers needed to construct static structs for uniform buffers
+// Replace all uniform buffer struct member references (View.WorldToClip) with a flattened name that removes the struct dependency (View_WorldToClip)
+void CleanupUniformBufferCode(const FShaderCompilerEnvironment& Environment, FString& PreprocessedShaderSource)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(CleanupUniformBufferCode);
 
 	TMap<FString, TArray<FUniformBufferMemberInfo>> UniformBufferNameToMembers;
 	UniformBufferNameToMembers.Reserve(Environment.UniformBufferMap.Num());
 
 	// Build a mapping from uniform buffer name to its members
 	{
-		const TCHAR* UniformBufferStructIdentifier = TEXT("static const struct");
-		const int32 StructPrefixLen = FCString::Strlen(TEXT("static const "));
+		const TCHAR* UniformBufferStructIdentifier = TEXT("UniformBuffer");
 		const int32 StructIdentifierLen = FCString::Strlen(UniformBufferStructIdentifier);
+
+		const TCHAR* SourceStart = &PreprocessedShaderSource[0];
 		TCHAR* SearchPtr = FCString::Strstr(&PreprocessedShaderSource[0], UniformBufferStructIdentifier);
 
 		while (SearchPtr)
 		{
-			FString UniformBufferName;
-			const TCHAR* ConstStructEndPtr = ParseStructRecursive(SearchPtr + StructPrefixLen, UniformBufferName, 0, TEXT(""), TEXT(""), UniformBufferNameToMembers);
-			TCHAR* StructEndPtr = &PreprocessedShaderSource[ConstStructEndPtr - &PreprocessedShaderSource[0]];
+			const ptrdiff_t Offset = SearchPtr - SourceStart;
+			if (Offset > 0 && FChar::IsWhitespace(*(SearchPtr - 1)) && FChar::IsWhitespace(*(SearchPtr + StructIdentifierLen)))
+			{
+				const TCHAR* ConstStructEndPtr = ParseUniformBufferDefinition(SearchPtr + StructIdentifierLen, UniformBufferNameToMembers);
+				TCHAR* StructEndPtr = &PreprocessedShaderSource[ConstStructEndPtr - &PreprocessedShaderSource[0]];
 
-			// Comment out the uniform buffer struct and initializer
-			*SearchPtr = '/';
-			*(SearchPtr + 1) = '*';
-			*(StructEndPtr - 1) = '*';
-			*StructEndPtr = '/';
+				// Comment out the uniform buffer struct and initializer
+				*SearchPtr = '/';
+				*(SearchPtr + 1) = '*';
+				*(StructEndPtr - 1) = '*';
+				*StructEndPtr = '/';
 
-			SearchPtr = FCString::Strstr(StructEndPtr, UniformBufferStructIdentifier);
+				SearchPtr = FCString::Strstr(StructEndPtr, UniformBufferStructIdentifier);
+			}
+			else
+			{
+				SearchPtr = FCString::Strstr(SearchPtr + 1, UniformBufferStructIdentifier);
+			}
 		}
 	}
 

@@ -176,7 +176,6 @@ static const TCHAR* const s_AllSRVTypes[] =
 	TEXT("Buffer"),
 	TEXT("ByteAddressBuffer"),
 	TEXT("StructuredBuffer"),
-	TEXT("ConstantBuffer"),
 	TEXT("RaytracingAccelerationStructure"),
 };
 
@@ -869,7 +868,6 @@ void FShaderParameterParser::RemoveMovingParametersFromSource(FString& Preproces
 
 FString FShaderParameterParser::GenerateBindlessParameterDeclaration(const FParsedShaderParameter& ParsedParameter) const
 {
-	// NOTE: Macros AUTO_BINDLESS_SAMPLER_INDEX/VARIABLE and AUTO_BINDLESS_RESOURCE_INDEX/VARIABLE in BindlessResources.ush must be kept in sync with this function
 	const bool bIsSampler = (ParsedParameter.BindlessConversionType == EBindlessConversionType::Sampler);
 	const FStringView Name = ParsedParameter.ParsedName;
 	const FStringView Type = ParsedParameter.ParsedType;

@@ -2242,7 +2242,7 @@ bool PreprocessVulkanShader(const FShaderCompilerInput& Input, const FShaderComp
 		return false;
 	}
 
-	RemoveUniformBuffersFromSource(Input.Environment, PreprocessedShaderSource);
+	CleanupUniformBufferCode(Input.Environment, PreprocessedShaderSource);
 
 	// Process TEXT macro.
 	TransformStringIntoCharacterArray(PreprocessedShaderSource);

@@ -42,17 +42,21 @@ void ImageInterlockedMaxUInt64(RWTexture2D<UlongType> Dest, uint2 Coord, UlongTy
 	COMPILER_DEFINE VULKAN_SAMPLER_HEAP(Type) VULKAN_HEAP_NAME(VULKAN_BINDLESS_SAMPLER_ARRAY_PREFIX,Type)
 	COMPILER_DEFINE VULKAN_RESOURCE_HEAP(Type) VULKAN_HEAP_NAME(VULKAN_BINDLESS_RESOURCE_ARRAY_PREFIX,Type)
 
-	// Bindless resource heaps are filled in by the shader compiler
-	COMPILER_DEFINE GetResourceFromHeap(Type, Index)  /* filled by compiler */
+	#define UB_RESOURCE_MEMBER_RESOURCE(Type, UBName, Name) \
+		typedef Type SafeType##UBName##_##Name; \
+		SafeType##UBName##_##Name VULKAN_RESOURCE_HEAP(SafeType##UBName##_##Name)[]; \
+		Type GetBindlessResource##UBName##_##Name() { \
+			return VULKAN_RESOURCE_HEAP(SafeType##UBName##_##Name)[UB_CB_MEMBER_ACCESS(UBName, BindlessResource_##Name)]; \
+		} \
+		static const Type UBName##_##Name = GetBindlessResource##UBName##_##Name();
 
-	// Override the UB_RESOURCE_MEMBER_RESOURCE to use the Vulkan resource heaps
-	#define UB_RESOURCE_MEMBER_RESOURCE(Type, Name) typedef Type SafeType##Name; SafeType##Name VULKAN_RESOURCE_HEAP(SafeType##Name)[]; static const Type Name = VULKAN_RESOURCE_HEAP(SafeType##Name)[BindlessResource_##Name]
-
-	// bindless sampler heaps (specify a register so AUTO_BINDLESS macros aren't applied on them)
-	COMPILER_DEFINE GetSamplerFromHeap(Type, Index)  /* filled by compiler */
-
-	// Override the UB_RESOURCE_MEMBER_SAMPLER to use the Vulkan sampler heaps
-	#define UB_RESOURCE_MEMBER_SAMPLER(Type, Name) typedef Type SafeType##Name; SafeType##Name VULKAN_SAMPLER_HEAP(SafeType##Name)[]; static const Type Name = VULKAN_SAMPLER_HEAP(SafeType##Name)[BindlessSampler_##Name]
+	#define UB_RESOURCE_MEMBER_SAMPLER(Type, UBName, Name) \
+		typedef Type SafeType##UBName##_##Name; \
+		SafeType##UBName##_##Name VULKAN_RESOURCE_HEAP(SafeType##UBName##_##Name)[]; \
+		Type GetBindlessSampler##UBName##_##Name() { \
+			return VULKAN_RESOURCE_HEAP(SafeType##UBName##_##Name)[UB_CB_MEMBER_ACCESS(UBName, BindlessSampler_##Name)]; \
+		} \
+		static const Type UBName##_##Name = GetBindlessSampler##UBName##_##Name();
 #endif
 
 #if VULKAN_SUPPORTS_SUBGROUP_SIZE_CONTROL

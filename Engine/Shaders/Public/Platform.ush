@@ -249,19 +249,17 @@
 #define COMPILER_SUPPORTS_HLSL2021 0
 #endif
 
-#ifndef PLATFORM_SUPPORTS_UB_STRUCT
-#define PLATFORM_SUPPORTS_UB_STRUCT 0
+#ifndef PLATFORM_SUPPORTS_CONSTANTBUFFER_OBJECT
+#define PLATFORM_SUPPORTS_CONSTANTBUFFER_OBJECT 0
+#endif
+
+#ifndef PLATFORM_SUPPORTS_UNIFORM_BUFFER_OBJECTS
+#define PLATFORM_SUPPORTS_UNIFORM_BUFFER_OBJECTS 0
 #endif
 
 #ifndef PLATFORM_GPU_ARCH
 #define PLATFORM_GPU_ARCH PLATFORM_GPU_ARCH_UNKNOWN
 #endif 
-
-#if PLATFORM_SUPPORTS_UB_STRUCT
-	#define UB_CB_NAME(X) UniformBufferConstants_##X
-#else
-	#define UB_CB_NAME(X) X
-#endif
 
 #ifndef PLATFORM_NEEDS_DEPTH_TEXTURE_READS
 #define PLATFORM_NEEDS_DEPTH_TEXTURE_READS 0
@@ -451,6 +449,32 @@
 	#define UB_HALF_FLOAT(Dim)  float##Dim
 	#define UB_FIXED_FLOAT(Dim) float##Dim
 #endif
+
+// 16KB by default. Must match Platform.h
+#ifndef PLATFORM_MAX_UNIFORM_BUFFER_RANGE
+	#define PLATFORM_MAX_UNIFORM_BUFFER_RANGE (16u*1024u)
+#endif
+#define PLATFORM_MAX_UNIFORM_BUFFER_RANGE_FLOAT4 (PLATFORM_MAX_UNIFORM_BUFFER_RANGE/16u)
+
+#if PLATFORM_SUPPORTS_CONSTANTBUFFER_OBJECT
+	#define UB_CB_DEFINITION_START(UBName            ) struct F##UBName##Constants {
+	#define UB_CB_MEMBER_NAME(     UBName, MemberName) MemberName
+	#define UB_CB_DEFINITION_END(  UBName            ) }; ConstantBuffer<F##UBName##Constants> UBName;
+	#define UB_CB_MEMBER_ACCESS(   UBName, MemberName) UBName##.##MemberName
+
+	#define UB_DECL_PARAMETER(UBName, StructName, GlobalName) UBName##.##StructName = UBName##.##GlobalName
+	#define UB_DECL_RESOURCE(UBName, StructName, GlobalName)  UBName##.##StructName = UBName##_##GlobalName
+#else
+	#define UB_CB_DEFINITION_START(UBName            ) cbuffer UBName {
+	#define UB_CB_MEMBER_NAME(     UBName, MemberName) UBName##_##MemberName
+	#define UB_CB_DEFINITION_END(  UBName            ) }
+	#define UB_CB_MEMBER_ACCESS(   UBName, MemberName) UBName##_##MemberName
+
+	#define UB_DECL_PARAMETER(UBName, StructName, GlobalName) UBName##.##StructName = UBName##_##GlobalName
+	#define UB_DECL_RESOURCE(UBName, StructName, GlobalName)  UBName##.##StructName = UBName##_##GlobalName
+#endif
+
+#define UB_CB_UNIFORM_BLOCK(UBName, MemberName) UB_FLOAT(4) UB_CB_MEMBER_NAME(UBName,MemberName)[PLATFORM_MAX_UNIFORM_BUFFER_RANGE_FLOAT4]
 
 // Use interpolator for platforms that do not support ClipDistance
 #if !PLATFORM_SUPPORTS_CLIP_DISTANCE
@@ -1290,16 +1314,4 @@ uint WaveGetActiveLaneIndexLast()
 #ifndef GET_SCALAR_ARRAY_ELEMENT
 #define GET_SCALAR_ARRAY_ELEMENT(PackedArray, ElementIndex) PackedArray[(uint)ElementIndex>>2u][(uint)ElementIndex&3u]
 #endif
-
-#ifndef PLATFORM_SUPPORTS_UNIFORM_BUFFER_OBJECTS
-#define PLATFORM_SUPPORTS_UNIFORM_BUFFER_OBJECTS 0
-#endif 
-
-// 16KB by default. Must match Platform.h
-#ifndef PLATFORM_MAX_UNIFORM_BUFFER_RANGE
-	#define PLATFORM_MAX_UNIFORM_BUFFER_RANGE (16u*1024)
-#endif
-#define PLATFORM_MAX_UNIFORM_BUFFER_RANGE_FLOAT4 (PLATFORM_MAX_UNIFORM_BUFFER_RANGE/16u)
-
-#define UB_MEMBER_UNIFORM_BLOCK(Name) float4 Name[PLATFORM_MAX_UNIFORM_BUFFER_RANGE_FLOAT4]
 

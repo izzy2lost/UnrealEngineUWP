@@ -1194,11 +1194,7 @@ bool PreprocessD3DShader(
 		return false;
 	}
 
-	// Only use UniformBuffer structs on SM6 until we can fully vet SM5
-	if (!IsUsingSM66(Input, Language))
-	{
-		RemoveUniformBuffersFromSource(Environment, PreprocessedSource);
-	}
+	CleanupUniformBufferCode(Input.Environment, PreprocessedSource);
 
 	// Process TEXT macro.
 	TransformStringIntoCharacterArray(PreprocessedSource, &Output.EditDiagnosticDatas());

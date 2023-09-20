@@ -8,6 +8,7 @@
 #include "Containers/List.h"
 #include "ShaderCore.h"
 #include "Shader.h"
+#include "ShaderParameterParser.h"
 #include "VertexFactory.h"
 #include "ShaderCodeLibrary.h"
 #include "Misc/ScopeRWLock.h"
@@ -137,68 +138,91 @@ void FShaderUniformBufferParameter::Bind(const FShaderParameterMap& ParameterMap
 struct FUniformBufferDecl
 {
 	/** Members to place in the constant buffer. */
-	FString ConstantBufferMembers;
+	FStringBuilderBase ConstantBufferMembers;
 	/** Members to place in the resource table. */
-	FString ResourceMembers;
+	FStringBuilderBase ResourceMembers;
 	/** Members in the struct HLSL shader code will access. */
-	FString StructMembers;
-	/** The HLSL initializer that will copy constants and resources in to the struct. */
-	FString Initializer;
+	FStringBuilderBase StructMembers;
 };
 
 /** Generates a HLSL struct declaration for a uniform buffer struct. */
 static void CreateHLSLUniformBufferStructMembersDeclaration(
-	const FShaderParametersMetadata& UniformBufferStruct, 
-	const FString& NamePrefix, 
-	uint32 StructOffset, 
-	FUniformBufferDecl& Decl, 
+	const FShaderParametersMetadata& UniformBufferStruct,
+	const FString& UniformBufferName,
+	const FString& StructPrefix,
+	const FString& GlobalPrefix,
+	uint32 StructOffset,
+	FUniformBufferDecl& Decl,
 	uint32& HLSLBaseOffset)
 {
 	const TArray<FShaderParametersMetadata::FMember>& StructMembers = UniformBufferStruct.GetMembers();
-	
-	const bool bUniformView = (UniformBufferStruct.GetUsageFlags() & (uint32)FShaderParametersMetadata::EUsageFlags::UniformView) != 0;
-	if (bUniformView)
+
+	auto AddStructMember = [&](const FShaderParametersMetadata::FMember& Member, bool bResource)
+	{
+		// UB_DECL_PARAMETER(UniformBufferName, StructPrefix_Name, GlobalPrefix_Name)
+
+		Decl.StructMembers << (bResource ? TEXT("UB_DECL_RESOURCE(") : TEXT("UB_DECL_PARAMETER(")) << UniformBufferName << TEXT(",");
+		if (!StructPrefix.IsEmpty())
+		{
+			Decl.StructMembers << StructPrefix << TEXT(".");
+		}
+		Decl.StructMembers << Member.GetName() << TEXT(",");
+		if (!GlobalPrefix.IsEmpty())
+		{
+			Decl.StructMembers << GlobalPrefix << TEXT("_");
+		}
+		Decl.StructMembers << Member.GetName() << TEXT(");\r\n");
+	};
+
+	if ((UniformBufferStruct.GetUsageFlags() & (uint32)FShaderParametersMetadata::EUsageFlags::UniformView) != 0)
 	{
 		// UniformView struct is expected to have a single SRV member which serves as a uniform view
 		check(StructMembers.Num() == 1);
 		const FShaderParametersMetadata::FMember& Member = StructMembers[0];
 		check(Member.GetBaseType() == UBMT_SRV || Member.GetBaseType() == UBMT_RDG_BUFFER_SRV);
-		
-		FString ParameterName = FString::Printf(TEXT("%s%s"),*NamePrefix,Member.GetName());
-		Decl.ConstantBufferMembers += FString::Printf(TEXT("UB_MEMBER_UNIFORM_BLOCK(%s);\r\n"), *ParameterName);
-		Decl.StructMembers += FString::Printf(TEXT("UB_MEMBER_UNIFORM_BLOCK(%s);\r\n"), Member.GetName());
-		Decl.Initializer += FString::Printf(TEXT("%s,"),*ParameterName);
+
+		TStringBuilder<256> ParameterName;
+		if (!GlobalPrefix.IsEmpty())
+		{
+			ParameterName << GlobalPrefix << TEXT("_");
+		}
+		ParameterName << Member.GetName();
+
+		Decl.ConstantBufferMembers.Appendf(TEXT("UB_CB_UNIFORM_BLOCK(%s, %s);\r\n"), *UniformBufferName, *ParameterName);
+
+		AddStructMember(Member, false);
 		return;
 	}
-		
+
 	const TCHAR* PreviousBaseTypeName = TEXT("UB_FLOAT");
 	for (int32 MemberIndex = 0; MemberIndex < StructMembers.Num(); ++MemberIndex)
 	{
 		const FShaderParametersMetadata::FMember& Member = StructMembers[MemberIndex];
-		
-		FString ArrayDim;
-		if(Member.GetNumElements() > 0)
+
+		TStringBuilder<8> ArrayDim;
+		if (Member.GetNumElements() > 0)
 		{
-			ArrayDim = FString::Printf(TEXT("[%u]"),Member.GetNumElements());
+			ArrayDim.Appendf(TEXT("[%u]"), Member.GetNumElements());
 		}
 
-		if(Member.GetBaseType() == UBMT_NESTED_STRUCT)
+		if (Member.GetBaseType() == UBMT_NESTED_STRUCT)
 		{
 			checkf(Member.GetNumElements() == 0, TEXT("SHADER_PARAMETER_STRUCT_ARRAY() is not supported in uniform buffer yet."));
-			Decl.StructMembers += TEXT("struct {\r\n");
-			Decl.Initializer += TEXT("{");
-			CreateHLSLUniformBufferStructMembersDeclaration(*Member.GetStructMetadata(), FString::Printf(TEXT("%s%s_"), *NamePrefix, Member.GetName()), StructOffset + Member.GetOffset(), Decl, HLSLBaseOffset);
-			Decl.Initializer += TEXT("},");
-			Decl.StructMembers += FString::Printf(TEXT("} %s%s;\r\n"),Member.GetName(),*ArrayDim);
+
+			FString NewStructPrefix = StructPrefix.IsEmpty() ? FString(Member.GetName()) : FString::Printf(TEXT("%s.%s"), *StructPrefix, Member.GetName());
+			FString NewGlobalPrefix = GlobalPrefix.IsEmpty() ? FString(Member.GetName()) : FString::Printf(TEXT("%s_%s"), *GlobalPrefix, Member.GetName());
+
+			CreateHLSLUniformBufferStructMembersDeclaration(*Member.GetStructMetadata(), UniformBufferName, NewStructPrefix, NewGlobalPrefix, StructOffset + Member.GetOffset(), Decl, HLSLBaseOffset);
 		}
 		else if (Member.GetBaseType() == UBMT_INCLUDED_STRUCT)
 		{
-			CreateHLSLUniformBufferStructMembersDeclaration(*Member.GetStructMetadata(), NamePrefix, StructOffset + Member.GetOffset(), Decl, HLSLBaseOffset);
+			CreateHLSLUniformBufferStructMembersDeclaration(*Member.GetStructMetadata(), UniformBufferName, StructPrefix, GlobalPrefix, StructOffset + Member.GetOffset(), Decl, HLSLBaseOffset);
 		}
 		else if (IsShaderParameterTypeForUniformBufferLayout(Member.GetBaseType()))
 		{
-			// Generate the type dimensions for vectors and matrices.
-			uint32 HLSLMemberSize = 4;
+			// Add the constant buffer entry for bindless resource indices
+
+			constexpr uint32 HLSLMemberSize = 4;
 
 			const uint32 AbsoluteMemberOffset = StructOffset + Member.GetOffset();
 
@@ -208,7 +232,7 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 				check(HLSLBaseOffset < AbsoluteMemberOffset);
 				while (HLSLBaseOffset < AbsoluteMemberOffset)
 				{
-					Decl.ConstantBufferMembers += FString::Printf(TEXT("\t%s() PrePadding_%s%u;\r\n"), PreviousBaseTypeName, *NamePrefix, HLSLBaseOffset);
+					Decl.ConstantBufferMembers.Appendf(TEXT("\t%s() UB_CB_MEMBER_NAME(%s, Padding%u);\r\n"), PreviousBaseTypeName, *UniformBufferName, HLSLBaseOffset);
 					HLSLBaseOffset += 4;
 				};
 				check(HLSLBaseOffset == AbsoluteMemberOffset);
@@ -217,73 +241,73 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 			HLSLBaseOffset = AbsoluteMemberOffset + HLSLMemberSize;
 
 			// Generate the member declaration.
-			const FString ParameterName = FString::Printf(TEXT("%s%s"), *NamePrefix, Member.GetName());
 
-			if (Member.GetBaseType() == UBMT_SAMPLER)
+			TStringBuilder<256> ParameterName;
+			ParameterName << (Member.GetBaseType() == UBMT_SAMPLER ? FShaderParameterParser::kBindlessSamplerPrefix : FShaderParameterParser::kBindlessResourcePrefix);
+			if (!GlobalPrefix.IsEmpty())
 			{
-				Decl.ConstantBufferMembers += FString::Printf(TEXT("\tDEFINE_SAMPLER_INDEX(%s);\r\n"), *ParameterName);
+				ParameterName << GlobalPrefix << TEXT("_");
 			}
-			else
-			{
-				Decl.ConstantBufferMembers += FString::Printf(TEXT("\tDEFINE_RESOURCE_INDEX(%s);\r\n"), *ParameterName);
-			}
+			ParameterName << Member.GetName();
+
+			Decl.ConstantBufferMembers.Appendf(TEXT("\tUB_UINT() UB_CB_MEMBER_NAME(%s, %s);\r\n"), *UniformBufferName, *ParameterName);
 		}
-		else 
+		else
 		{
 			// Generate the base type name.
 			const TCHAR* BaseTypeName = TEXT("");
-			switch(Member.GetBaseType())
+			switch (Member.GetBaseType())
 			{
 			case UBMT_INT32:   BaseTypeName = TEXT("UB_INT"); break;
 			case UBMT_UINT32:  BaseTypeName = TEXT("UB_UINT"); break;
-			case UBMT_FLOAT32: 
+			case UBMT_FLOAT32:
 				if (Member.GetPrecision() == EShaderPrecisionModifier::Float)
 				{
-					BaseTypeName = TEXT("UB_FLOAT"); 
+					BaseTypeName = TEXT("UB_FLOAT");
 				}
 				else if (Member.GetPrecision() == EShaderPrecisionModifier::Half)
 				{
-					BaseTypeName = TEXT("UB_HALF_FLOAT"); 
+					BaseTypeName = TEXT("UB_HALF_FLOAT");
 				}
 				else if (Member.GetPrecision() == EShaderPrecisionModifier::Fixed)
 				{
-					BaseTypeName = TEXT("UB_FIXED_FLOAT"); 
+					BaseTypeName = TEXT("UB_FIXED_FLOAT");
 				}
 				break;
-			default:           UE_LOG(LogShaders, Fatal,TEXT("Unrecognized uniform buffer struct member base type."));
+			default:           UE_LOG(LogShaders, Fatal, TEXT("Unrecognized uniform buffer struct member base type."));
 			};
 
 			// Generate the type dimensions for vectors and matrices.
-			FString TypeDim;
+			TStringBuilder<16> TypeDim;
 			uint32 HLSLMemberSize = 4;
-			if(Member.GetNumRows() > 1)
+			if (Member.GetNumRows() > 1)
 			{
-				TypeDim = FString::Printf(TEXT("%ux%u"),Member.GetNumRows(),Member.GetNumColumns());
+				TypeDim.Appendf(TEXT("%ux%u"), Member.GetNumRows(), Member.GetNumColumns());
 
 				// Each row of a matrix is 16 byte aligned.
 				HLSLMemberSize = (Member.GetNumRows() - 1) * 16 + Member.GetNumColumns() * 4;
 			}
-			else if(Member.GetNumColumns() > 1)
+			else if (Member.GetNumColumns() > 1)
 			{
-				TypeDim = FString::Printf(TEXT("%u"),Member.GetNumColumns());
+				TypeDim.Appendf(TEXT("%u"), Member.GetNumColumns());
 				HLSLMemberSize = Member.GetNumColumns() * 4;
 			}
 
 			// Array elements are 16 byte aligned.
-			if(Member.GetNumElements() > 0)
+			if (Member.GetNumElements() > 0)
 			{
-				HLSLMemberSize = (Member.GetNumElements() - 1) * Align(HLSLMemberSize,16) + HLSLMemberSize;
+				HLSLMemberSize = (Member.GetNumElements() - 1) * Align(HLSLMemberSize, 16) + HLSLMemberSize;
 			}
 
 			const uint32 AbsoluteMemberOffset = StructOffset + Member.GetOffset();
 
 			// If the HLSL offset doesn't match the C++ offset, generate padding to fix it.
-			if(HLSLBaseOffset != AbsoluteMemberOffset)
+			if (HLSLBaseOffset != AbsoluteMemberOffset)
 			{
 				check(HLSLBaseOffset < AbsoluteMemberOffset);
-				while(HLSLBaseOffset < AbsoluteMemberOffset)
+				while (HLSLBaseOffset < AbsoluteMemberOffset)
 				{
-					Decl.ConstantBufferMembers += FString::Printf(TEXT("\t%s() PrePadding_%s%u;\r\n"), PreviousBaseTypeName, *NamePrefix, HLSLBaseOffset);
+					Decl.ConstantBufferMembers.Appendf(TEXT("\t%s() UB_CB_MEMBER_NAME(%s, Padding%u);\r\n"), PreviousBaseTypeName, *UniformBufferName, HLSLBaseOffset);
 					HLSLBaseOffset += 4;
 				};
 				check(HLSLBaseOffset == AbsoluteMemberOffset);
@@ -291,11 +315,16 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 			PreviousBaseTypeName = BaseTypeName;
 			HLSLBaseOffset = AbsoluteMemberOffset + HLSLMemberSize;
 
-			// Generate the member declaration.
-			FString ParameterName = FString::Printf(TEXT("%s%s"),*NamePrefix,Member.GetName());
-			Decl.ConstantBufferMembers += FString::Printf(TEXT("\t%s(%s) %s%s;\r\n"),BaseTypeName,*TypeDim,*ParameterName,*ArrayDim);
-			Decl.StructMembers += FString::Printf(TEXT("\t%s(%s) %s%s;\r\n"),BaseTypeName,*TypeDim,Member.GetName(),*ArrayDim);
-			Decl.Initializer += FString::Printf(TEXT("%s,"),*ParameterName);
+			TStringBuilder<256> ParameterName;
+			if (!GlobalPrefix.IsEmpty())
+			{
+				ParameterName << GlobalPrefix << TEXT("_");
+			}
+			ParameterName << Member.GetName();
+
+			Decl.ConstantBufferMembers.Appendf(TEXT("\t%s(%s) UB_CB_MEMBER_NAME(%s, %s%s);\r\n"), BaseTypeName, *TypeDim, *UniformBufferName, *ParameterName, *ArrayDim);
+
+			AddStructMember(Member, false);
 		}
 	}
 
@@ -308,71 +337,67 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 			// TODO: handle arrays?
 			checkf(!IsRDGResourceAccessType(Member.GetBaseType()), TEXT("RDG access parameter types (e.g. RDG_TEXTURE_ACCESS) are not allowed in uniform buffers."));
 
-			const FString ParameterName = FString::Printf(TEXT("%s%s"), *NamePrefix, Member.GetName());
+			TStringBuilder<256> ParameterName;
+			if (!GlobalPrefix.IsEmpty())
+			{
+				ParameterName << GlobalPrefix << TEXT("_");
+			}
+			ParameterName << Member.GetName();
 
 			if (Member.GetBaseType() == UBMT_SAMPLER)
 			{
-				Decl.ResourceMembers += FString::Printf(TEXT("UB_RESOURCE_MEMBER_SAMPLER(%s, %s);\r\n"), Member.GetShaderType(), *ParameterName);
-				Decl.StructMembers += FString::Printf(TEXT("\t%s %s;\r\n"), Member.GetShaderType(), Member.GetName());
-				Decl.Initializer += FString::Printf(TEXT("%s,"), *ParameterName);
+				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_SAMPLER(%s, %s, %s);\r\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
+				AddStructMember(Member, true);
 			}
 			else if (Member.GetBaseType() == UBMT_SRV)
 			{
-				Decl.ResourceMembers += FString::Printf(TEXT("UB_RESOURCE_MEMBER_RESOURCE(%s, %s);\r\n"), Member.GetShaderType(), *ParameterName);
-				Decl.StructMembers += FString::Printf(TEXT("\t%s %s;\r\n"), Member.GetShaderType(), Member.GetName());
-				Decl.Initializer += FString::Printf(TEXT("%s,"), *ParameterName);
+				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_RESOURCE(%s, %s, %s);\r\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
+				AddStructMember(Member, true);
 			}
 			else
 			{
-				Decl.ResourceMembers += FString::Printf(TEXT("UB_RESOURCE_MEMBER_RESOURCE(%s, %s);\r\n"), Member.GetShaderType(), *ParameterName);
-				Decl.StructMembers += FString::Printf(TEXT("\t%s %s;\r\n"), Member.GetShaderType(), Member.GetName());
-				Decl.Initializer += FString::Printf(TEXT("%s,"), *ParameterName);
+				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_RESOURCE(%s, %s, %s);\r\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
+				AddStructMember(Member, true);
 			}
 		}
 	}
 }
 
 /** Creates a HLSL declaration of a uniform buffer with the given structure. */
-static FString CreateHLSLUniformBufferDeclaration(const TCHAR* Name, const FShaderParametersMetadata& UniformBufferStruct)
+static FString CreateHLSLUniformBufferDeclaration(const TCHAR* UniformBufferName, const FShaderParametersMetadata& UniformBufferStruct)
 {
 	// If the uniform buffer has no members, we don't want to write out anything.  Shader compilers throw errors when faced with empty cbuffers and structs.
 	if (UniformBufferStruct.GetMembers().Num() > 0)
 	{
-		FString NamePrefix(FString(Name) + FString(TEXT("_")));
 		FUniformBufferDecl Decl;
 		uint32 HLSLBaseOffset = 0;
-		CreateHLSLUniformBufferStructMembersDeclaration(UniformBufferStruct, NamePrefix, 0, Decl, HLSLBaseOffset);
+		CreateHLSLUniformBufferStructMembersDeclaration(UniformBufferStruct, UniformBufferName, TEXT(""), TEXT(""), 0, Decl, HLSLBaseOffset);
 
 		return FString::Printf(
-			TEXT("#ifndef __UniformBuffer_%s_Definition__\r\n")
-			TEXT("#define __UniformBuffer_%s_Definition__\r\n")
-			TEXT("cbuffer UB_CB_NAME(%s)\r\n")
+			TEXT("#pragma once\r\n")
+			TEXT("UB_CB_DEFINITION_START(%s)\r\n")
+			TEXT("%s")
+			TEXT("UB_CB_DEFINITION_END(%s)\r\n")
+			TEXT("%s")
+			TEXT("UniformBuffer %s\r\n")
 			TEXT("{\r\n")
 			TEXT("%s")
-			TEXT("}\r\n")
-				TEXT("%s")
-				TEXT("static const struct\r\n")
-				TEXT("{\r\n")
-				TEXT("%s")
-				TEXT("} %s = {%s};\r\n")
-			TEXT("#endif\r\n"),
-			Name,
-			Name,
-			Name,
+			TEXT("};\r\n"),
+			UniformBufferName,
 			*Decl.ConstantBufferMembers,
+			UniformBufferName,
 			*Decl.ResourceMembers,
-			*Decl.StructMembers,
-			Name,
-			*Decl.Initializer
-			);
+			UniformBufferName,
+			*Decl.StructMembers
+		);
 	}
 
 	return FString(TEXT("\n"));
 }
 
-FString UE::ShaderParameters::CreateUniformBufferShaderDeclaration(const TCHAR* Name, const FShaderParametersMetadata& UniformBufferStruct)
+FString UE::ShaderParameters::CreateUniformBufferShaderDeclaration(const TCHAR* UniformBufferName, const FShaderParametersMetadata& UniformBufferStruct)
 {
-	return CreateHLSLUniformBufferDeclaration(Name, UniformBufferStruct);
+	return CreateHLSLUniformBufferDeclaration(UniformBufferName, UniformBufferStruct);
 }
 
 static FShaderParametersMetadata* FindShaderParametersMetadataWithVariableName(uint32 InVariableNameHash, FStringView InVariableNameView)

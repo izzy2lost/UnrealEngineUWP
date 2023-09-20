@@ -1919,6 +1919,22 @@ Done:
 		return EParseResult::Matched;
 	}
 
+	bool MatchConstantBufferNoTemplate(FHlslParser& Parser)
+	{
+		const FHlslToken* Peek = Parser.Scanner.PeekToken();
+		if (Peek && Peek->Token == EHlslToken::ConstantBuffer)
+		{
+			const FHlslToken* Peek1 = Parser.Scanner.PeekToken(1);
+			if (!Peek1 || Peek1->Token != EHlslToken::Lower)
+			{
+				// it's a standard one, make sure we match it
+				return Parser.Scanner.MatchToken(EHlslToken::ConstantBuffer);
+			}
+		}
+
+		return false;
+	}
+
 	EParseResult TryTranslationUnit(FHlslParser& Parser, FLinearAllocator* Allocator, AST::FNode** OutNode)
 	{
 		if (MatchPragma(Parser, Allocator, OutNode))
@@ -1926,7 +1942,7 @@ Done:
 			return EParseResult::Matched;
 		}
 
-		if (Parser.Scanner.MatchToken(EHlslToken::ConstantBuffer) || Parser.Scanner.MatchToken(EHlslToken::CBuffer))
+		if (Parser.Scanner.MatchToken(EHlslToken::CBuffer) || MatchConstantBufferNoTemplate(Parser))
 		{
 			auto Result = ParseCBuffer(Parser, Allocator, OutNode);
 			if (Result == EParseResult::Error || Result == EParseResult::Matched)

@@ -133,7 +133,7 @@ public:
 		{
 			Input.Environment.SetDefine(TEXT("SM6_PROFILE"), 1);
 			Input.Environment.SetDefine(TEXT("COMPILER_DXC"), 1);
-			Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_UB_STRUCT"), 1);
+			Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_CONSTANTBUFFER_OBJECT"), 1);
 
 			AddShaderTargetDefines(Input, 6, 6);
 		}
@@ -144,6 +144,7 @@ public:
 				Input.Environment.CompilerFlags.Contains(CFLAG_WaveOperations)
 				|| Input.Environment.CompilerFlags.Contains(CFLAG_ForceDXC);
 			Input.Environment.SetDefine(TEXT("COMPILER_DXC"), bUseDXC);
+			Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_CONSTANTBUFFER_OBJECT"), bUseDXC);
 
 			if (bUseDXC)
 			{
