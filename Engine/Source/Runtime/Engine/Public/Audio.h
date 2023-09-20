@@ -885,10 +885,10 @@ class FWaveModInfo
 public:
 
 	// Format specifiers
-	static constexpr uint16 WAVE_FORMAT_PCM = 0x0001;
-	static constexpr uint16 WAVE_FORMAT_ADPCM = 0x0002;
-	static constexpr uint16 WAVE_FORMAT_IEEE_FLOAT = 0x0003;
-	static constexpr uint16 WAVE_FORMAT_DVI_ADPCM = 0x0011;
+	static constexpr uint16 WAVE_INFO_FORMAT_PCM = 0x0001;
+	static constexpr uint16 WAVE_INFO_FORMAT_ADPCM = 0x0002;
+	static constexpr uint16 WAVE_INFO_FORMAT_IEEE_FLOAT = 0x0003;
+	static constexpr uint16 WAVE_INFO_FORMAT_DVI_ADPCM = 0x0011;
 
 	// Pointers to variables in the in-memory WAVE file.
 	const uint32* pSamplesPerSec;

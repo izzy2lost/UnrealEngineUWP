@@ -1915,16 +1915,16 @@ uint32 FWaveModInfo::GetNumSamples() const
 
 bool FWaveModInfo::IsFormatSupported() const
 {
-	return (*pFormatTag == WAVE_FORMAT_PCM
-		|| *pFormatTag == WAVE_FORMAT_ADPCM
-		|| *pFormatTag == WAVE_FORMAT_DVI_ADPCM
-		|| *pFormatTag == WAVE_FORMAT_IEEE_FLOAT);
+	return (*pFormatTag == WAVE_INFO_FORMAT_PCM
+		|| *pFormatTag == WAVE_INFO_FORMAT_ADPCM
+		|| *pFormatTag == WAVE_INFO_FORMAT_DVI_ADPCM
+		|| *pFormatTag == WAVE_INFO_FORMAT_IEEE_FLOAT);
 }
 
 bool FWaveModInfo::IsFormatUncompressed() const
 {
-	return (*pFormatTag == WAVE_FORMAT_PCM
-		|| *pFormatTag == WAVE_FORMAT_IEEE_FLOAT);
+	return (*pFormatTag == WAVE_INFO_FORMAT_PCM
+		|| *pFormatTag == WAVE_INFO_FORMAT_IEEE_FLOAT);
 }
 
 static void WriteUInt32ToByteArrayLE(TArray<uint8>& InByteArray, int32& Index, const uint32 Value)
