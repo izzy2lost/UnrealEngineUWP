@@ -140,7 +140,6 @@ struct STATETREEMODULE_API FStateTreeDebugger : FTickableGameObject
 
 	/**
 	 * Queue a request to auto start an analysis session on the next available live trace.
-	 * This will replace the current analysis session if any.
 	 * @return True if connection was successfully requested or was able to use active trace, false otherwise.
 	 */
 	bool RequestAnalysisOfEditorSession();
@@ -234,6 +233,12 @@ private:
 	void SendNotifications();
 
 	void SetActiveStates(const TConstArrayView<FStateTreeStateHandle> NewActiveStates);
+
+	/**
+	 * Request an analysis session on the latest next available live trace.
+	 * This will replace the current analysis session if any.
+	 */
+	void RequestAnalysisOfLatestTrace();
 
 	/**
 	 * Looks for a new live traces to start an analysis session.
