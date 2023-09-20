@@ -105,7 +105,6 @@ namespace Horde.Agent.Execution
 
 		protected class ExportedGraph
 		{
-			public List<string> Arguments { get; set; } = new List<string>();
 			public List<ExportedGroup> Groups { get; set; } = new List<ExportedGroup>();
 			public List<ExportedAggregate> Aggregates { get; set; } = new List<ExportedAggregate>();
 			public List<ExportedLabel> Labels { get; set; } = new List<ExportedLabel>();
@@ -567,7 +566,6 @@ namespace Horde.Agent.Execution
 
 			UpdateGraphRequest updateGraph = new UpdateGraphRequest();
 			updateGraph.JobId = JobId;
-			updateGraph.Arguments.AddRange(graph.Arguments);
 
 			List<string> missingAgentTypes = new List<string>();
 			foreach (ExportedGroup exportedGroup in graph.Groups)

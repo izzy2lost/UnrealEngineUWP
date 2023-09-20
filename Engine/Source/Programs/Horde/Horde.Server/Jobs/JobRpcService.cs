@@ -775,14 +775,7 @@ namespace Horde.Server.Jobs
 				IGraph graph = await _jobService.GetGraphAsync(job);
 				graph = await _graphs.AppendAsync(graph, newGroups, newAggregates, newLabels);
 
-				List<string>? newArguments = null;
-				if (request.Arguments != null)
-				{
-					newArguments = new List<string>(job.Arguments);
-					newArguments.AddRange(request.Arguments);
-				}
-
-				IJob? newJob = await _jobService.TryUpdateGraphAsync(job, graph, newArguments);
+				IJob? newJob = await _jobService.TryUpdateGraphAsync(job, graph);
 				if (newJob != null)
 				{
 					_logger.LogInformation("Updating graph for {JobId} from {OldGraphHash} to {NewGraphHash}", job.Id, oldGraphHash, newJob.GraphHash);
