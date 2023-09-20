@@ -175,6 +175,24 @@ public:
 	virtual void StartContinuousInputInjectionForPlayerMapping(UPARAM(Meta=(GetOptions="EnhancedInput.PlayerMappableKeySettings.GetKnownMappingNames")) const FName MappingName, FInputActionValue RawValue, const TArray<UInputModifier*>& Modifiers, const TArray<UInputTrigger*>& Triggers);
 
 	/**
+	 * Update the value of a continuous input injection, preserving the state of triggers and modifiers.
+	 *
+	 * @param Action	The Input Action to set inject input for
+	 * @param RawValue	The value to set the action to (the type will be controlled by the Action)
+	 */
+	UFUNCTION(BlueprintCallable, Category="Input")
+	virtual void UpdateValueOfContinuousInputInjectionForAction(const UInputAction* Action, FInputActionValue RawValue);
+
+	/**
+	 * Update the value of a continuous input injection for the given player mapping name, preserving the state of triggers and modifiers.
+	 *
+	 * @param MappingName	The name of the player mapping that can be used for look up an associated UInputAction object.
+	 * @param RawValue		The value to set the action to (the type will be controlled by the Action)
+	 */
+	UFUNCTION(BlueprintCallable, Category="Input")
+	virtual void UpdateValueOfContinuousInputInjectionForPlayerMapping(UPARAM(Meta=(GetOptions="EnhancedInput.PlayerMappableKeySettings.GetKnownMappingNames")) const FName MappingName, FInputActionValue RawValue);
+
+	/**
 	 * Stops continuous input injection for the given action.
 	 *
 	 * @param Action		The action to stop injecting input for

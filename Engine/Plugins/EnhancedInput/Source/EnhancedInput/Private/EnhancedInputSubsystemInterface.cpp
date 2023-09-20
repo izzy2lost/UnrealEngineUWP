@@ -30,6 +30,19 @@ static FAutoConsoleVariableRef GCVarGlobalAxisConfigMode(
 	TEXT("Whether or not to apply Global Axis Config settings. 0 = Default (Mouse Only), 1 = All, 2 = None")
 );
 
+template<typename T>
+void DeepCopyPtrArray(const TArray<T*>& From, TArray<T*>& To)
+{
+	To.Empty(From.Num());
+	for (T* ToDuplicate : From)
+	{
+		if (ToDuplicate)
+		{
+			To.Add(DuplicateObject<T>(ToDuplicate, nullptr));
+		}
+	}
+}
+
 void IEnhancedInputSubsystemInterface::InitalizeUserSettings()
 {
 	// Not every implementer of the EI subsystem wants user settings, so leave it up to them to determine if they want it or not
@@ -98,8 +111,8 @@ void IEnhancedInputSubsystemInterface::StartContinuousInputInjectionForAction(co
 	FInjectedInput& Injection = ContinuouslyInjectedInputs.FindOrAdd(Action);
 	
 	Injection.RawValue = RawValue;
-	Injection.Modifiers = Modifiers;
-	Injection.Triggers = Triggers;
+	DeepCopyPtrArray<UInputModifier>(Modifiers, Injection.Modifiers);
+	DeepCopyPtrArray<UInputTrigger>(Triggers, Injection.Triggers);	
 }
 
 void IEnhancedInputSubsystemInterface::StartContinuousInputInjectionForPlayerMapping(const FName MappingName, FInputActionValue RawValue, const TArray<UInputModifier*>& Modifiers, const TArray<UInputTrigger*>& Triggers)
@@ -109,6 +122,33 @@ void IEnhancedInputSubsystemInterface::StartContinuousInputInjectionForPlayerMap
 		if (const UInputAction* Action = UserSettings->FindInputActionForMapping(MappingName))
 		{
 			StartContinuousInputInjectionForAction(Action, RawValue, Modifiers, Triggers);
+		}
+		else
+		{
+			UE_LOG(LogEnhancedInput, Warning, TEXT("Could not find a Input Action for mapping name '%s'"), *MappingName.ToString());
+		}
+	}
+	else
+	{
+		UE_LOG(LogEnhancedInput, Warning, TEXT("Could not find a valid UEnhancedInputUserSettings object, is it enabled in the project settings?"));
+	}
+}
+
+void IEnhancedInputSubsystemInterface::UpdateValueOfContinuousInputInjectionForAction(const UInputAction* Action, FInputActionValue RawValue)
+{
+	FInjectedInput& Injection = ContinuouslyInjectedInputs.FindOrAdd(Action);
+	Injection.RawValue = RawValue;
+
+	// Do NOT update the triggers/modifiers here to preserve their state
+}
+
+void IEnhancedInputSubsystemInterface::UpdateValueOfContinuousInputInjectionForPlayerMapping(const FName MappingName, FInputActionValue RawValue)
+{
+	if (const UEnhancedInputUserSettings* UserSettings = GetUserSettings())
+	{
+		if (const UInputAction* Action = UserSettings->FindInputActionForMapping(MappingName))
+		{
+			UpdateValueOfContinuousInputInjectionForAction(Action, RawValue);
 		}
 		else
 		{
@@ -724,19 +764,6 @@ void IEnhancedInputSubsystemInterface::RemovePlayerMappableConfig(const UPlayerM
 }
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-template<typename T>
-void DeepCopyPtrArray(const TArray<T*>& From, TArray<T*>& To)
-{
-	To.Empty(From.Num());
-	for (T* ToDuplicate : From)
-	{
-		if (ToDuplicate)
-		{
-			To.Add(DuplicateObject<T>(ToDuplicate, nullptr));
-		}
-	}
-}
 
 // TODO: This should be a delegate (along with InjectChordBlockers), moving chording out of the underlying subsystem and enabling implementation of custom mapping handlers.
 /**
