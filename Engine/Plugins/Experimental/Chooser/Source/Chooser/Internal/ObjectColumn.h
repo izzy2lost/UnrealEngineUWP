@@ -48,7 +48,7 @@ struct FChooserObjectRowData
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category = "Runtime")
+	UPROPERTY(EditAnywhere, Category = Runtime, Meta = (ValidEnumValues = "MatchEqual, MatchNotEqual, MatchAny"))
 	EObjectColumnCellValueComparison Comparison = EObjectColumnCellValueComparison::MatchEqual;
 
 	UPROPERTY(EditAnywhere, Category = "Runtime")

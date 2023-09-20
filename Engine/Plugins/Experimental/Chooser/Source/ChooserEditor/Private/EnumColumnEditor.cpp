@@ -191,13 +191,24 @@ TSharedRef<SWidget> CreateEnumColumnWidget(UChooserTable* Chooser, FChooserColum
 	return SNew(SHorizontalBox)
     		+ SHorizontalBox::Slot().AutoWidth()
     		[
-    			SNew(SBox).WidthOverride(Row < 0 ? 0 : 45)
+    			SNew(SBox).WidthOverride(Row < 0 ? 0 : 55)
     			[
     				SNew(SButton).ButtonStyle(FAppStyle::Get(),"FlatButton").TextStyle(FAppStyle::Get(),"RichTextBlock.Bold").HAlign(HAlign_Center)
     				.Visibility(Row < 0 ? EVisibility::Hidden : EVisibility::Visible)
 					.Text_Lambda([EnumColumn, Row]()
 					{
-						return (EnumColumn->RowValues.IsValidIndex(Row) && EnumColumn->RowValues[Row].CompareNotEqual ? LOCTEXT("Not Equal", "!=") : LOCTEXT("Equal", "="));
+						switch (EnumColumn->RowValues[Row].Comparison)
+						{
+						case EEnumColumnCellValueComparison::MatchEqual:
+							return LOCTEXT("CompEqual", "=");
+
+						case EEnumColumnCellValueComparison::MatchNotEqual:
+							return LOCTEXT("CompNotEqual", "!=");
+
+						case EEnumColumnCellValueComparison::MatchAny:
+							return LOCTEXT("CompAny", "Any");
+						}
+						return FText::GetEmpty();
 					})
 					.OnClicked_Lambda([EnumColumn, Chooser, Row]()
 					{
@@ -205,7 +216,10 @@ TSharedRef<SWidget> CreateEnumColumnWidget(UChooserTable* Chooser, FChooserColum
 						{
 							const FScopedTransaction Transaction(LOCTEXT("Edit Comparison", "Edit Comparison Operation"));
 							Chooser->Modify(true);
-							EnumColumn->RowValues[Row].CompareNotEqual = !EnumColumn->RowValues[Row].CompareNotEqual;
+							// cycle through comparison options
+							EEnumColumnCellValueComparison& Comparison = EnumColumn->RowValues[Row].Comparison;
+							const int32 NextComparison = (static_cast<int32>(Comparison) + 1) % static_cast<int32>(EEnumColumnCellValueComparison::Modulus);
+							Comparison = static_cast<EEnumColumnCellValueComparison>(NextComparison);
 						}
 						return FReply::Handled();
 					})
@@ -214,6 +228,13 @@ TSharedRef<SWidget> CreateEnumColumnWidget(UChooserTable* Chooser, FChooserColum
 			+ SHorizontalBox::Slot().FillWidth(1)
 			[
 				SNew(SEnumCell<FEnumColumn>).TransactionObject(Chooser).EnumColumn(EnumColumn).RowIndex(Row)
+				.Visibility_Lambda([EnumColumn,Column, Row]()
+					{
+						return (EnumColumn->RowValues.IsValidIndex(Row) &&
+								EnumColumn->RowValues[Row].Comparison == EEnumColumnCellValueComparison::MatchAny)
+								   ? EVisibility::Collapsed
+								   : EVisibility::Visible;
+					})
 			];
 }
 

@@ -2,9 +2,6 @@
 #include "EnumColumn.h"
 #include "ChooserPropertyAccess.h"
 
-#if WITH_EDITOR
-#include "IPropertyAccessEditor.h"
-#endif
 
 bool FEnumContextProperty::GetValue(FChooserEvaluationContext& Context, uint8& OutResult) const
 {
@@ -23,10 +20,45 @@ FEnumColumn::FEnumColumn()
 #endif
 }
 
+#if WITH_EDITORONLY_DATA
+void FEnumColumn::PostLoad()
+
+{
+	Super::PostLoad();
+	
+	if (InputValue.IsValid())
+	{
+		InputValue.GetMutable<FChooserParameterBase>().PostLoad();
+	}
+
+	// upgrade data for "Any" support
+	for(FChooserEnumRowData& CellData : RowValues)
+	{
+		if (CellData.CompareNotEqual_DEPRECATED)
+		{
+			CellData.CompareNotEqual_DEPRECATED = false;
+			CellData.Comparison = EEnumColumnCellValueComparison::MatchNotEqual;
+		}
+	}
+}
+#endif
+
 bool FChooserEnumRowData::Evaluate(const uint8 LeftHandSide) const
 {
-	bool Equal = LeftHandSide == Value;
-	return Equal ^ CompareNotEqual;
+	switch (Comparison)
+	{
+		case EEnumColumnCellValueComparison::MatchEqual:
+			return LeftHandSide == Value;
+
+		case EEnumColumnCellValueComparison::MatchNotEqual:
+			return LeftHandSide != Value;
+
+		case EEnumColumnCellValueComparison::MatchAny:
+			return true;
+
+		default:
+			return false;
+	}
 }
 
 void FEnumColumn::Filter(FChooserEvaluationContext& Context, const TArray<uint32>& IndexListIn, TArray<uint32>& IndexListOut) const

@@ -10,6 +10,16 @@
 
 struct FBindingChainElement;
 
+UENUM()
+enum class EEnumColumnCellValueComparison
+{
+	MatchEqual,
+	MatchNotEqual,
+	MatchAny,
+
+	Modulus // used for cycling through the other values
+};
+
 USTRUCT(DisplayName = "Enum Property Binding")
 struct CHOOSER_API FEnumContextProperty : public FChooserParameterEnumBase
 {
@@ -71,8 +81,13 @@ struct FChooserEnumRowData
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category = Runtime)
-	bool CompareNotEqual = false;
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	bool CompareNotEqual_DEPRECATED = false;
+#endif
+	
+	UPROPERTY(EditAnywhere, Category = Runtime, Meta = (ValidEnumValues = "MatchEqual, MatchNotEqual, MatchAny"))
+	EEnumColumnCellValueComparison Comparison = EEnumColumnCellValueComparison::MatchEqual;
 	
 	UPROPERTY(EditAnywhere, Category = Runtime)
 	uint8 Value = 0;
@@ -113,16 +128,8 @@ public:
 	
 	CHOOSER_COLUMN_BOILERPLATE(FChooserParameterEnumBase);
 
-#if WITH_EDITOR
-	virtual void PostLoad() override
-	{
-		Super::PostLoad();
-		
-		if (InputValue.IsValid())
-		{
-			InputValue.GetMutable<FChooserParameterBase>().PostLoad();
-		}
-	}
+#if WITH_EDITORONLY_DATA
+	virtual void PostLoad() override;
 #endif
 };
 
