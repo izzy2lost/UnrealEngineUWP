@@ -156,6 +156,11 @@ public:
 			// is raytracing enabled at all?
 			return false;
 		}
+		if (!GetSupportsPathTracing(Parameters.Platform))
+		{
+			// this shader is currently only used by the path tracer
+			return false;
+		}
 		if (Parameters.MaterialParameters.MaterialDomain != MD_DeferredDecal)
 		{
 			// only compile callable shader permutation of deferred decal material
@@ -246,6 +251,11 @@ public:
 		if (!ShouldCompileRayTracingShadersForProject(Parameters.Platform))
 		{
 			// is raytracing enabled at all?
+			return false;
+		}
+		if (!GetSupportsPathTracing(Parameters.Platform))
+		{
+			// this shader is currently only used by the path tracer
 			return false;
 		}
 		if (!Parameters.VertexFactoryType->SupportsRayTracing())
