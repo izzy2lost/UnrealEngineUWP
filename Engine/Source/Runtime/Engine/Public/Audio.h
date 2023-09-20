@@ -884,6 +884,12 @@ class FWaveModInfo
 {
 public:
 
+	// Format specifiers
+	static constexpr uint16 WAVE_FORMAT_PCM = 0x0001;
+	static constexpr uint16 WAVE_FORMAT_ADPCM = 0x0002;
+	static constexpr uint16 WAVE_FORMAT_IEEE_FLOAT = 0x0003;
+	static constexpr uint16 WAVE_FORMAT_DVI_ADPCM = 0x0011;
+
 	// Pointers to variables in the in-memory WAVE file.
 	const uint32* pSamplesPerSec;
 	const uint32* pAvgBytesPerSec;
@@ -938,6 +944,11 @@ public:
 
 	/** Return total number of samples */
 	ENGINE_API uint32 GetNumSamples() const;
+
+	/** Return whether file format is supported for import */
+	ENGINE_API bool IsFormatSupported() const;
+	/** Return whether file format contains uncompressed PCM data */
+	ENGINE_API bool IsFormatUncompressed() const;
 
 };
 

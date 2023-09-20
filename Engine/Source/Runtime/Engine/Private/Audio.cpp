@@ -1620,10 +1620,7 @@ bool FWaveModInfo::ReadWaveInfo( const uint8* WaveData, int32 WaveDataSize, FStr
 	SampleDataSize = INTEL_ORDER32( RiffChunk->ChunkLen );
 	SampleDataEnd = SampleDataStart + SampleDataSize;
 
-	if (*pFormatTag != 0x0001 // WAVE_FORMAT_PCM
-		&& *pFormatTag != 0x0002 // WAVE_FORMAT_ADPCM
-		&& *pFormatTag != 0x0011 // WAVE_FORMAT_DVI_ADPCM
-		&& *pFormatTag != 0x0003) // WAVE_FORMAT_IEEE_FLOAT
+	if (!IsFormatSupported())
 	{
 		ReportImportFailure();
 		if (ErrorReason) *ErrorReason = TEXT("Unsupported wave file format.  Only PCM, ADPCM, and DVI ADPCM can be imported.");
@@ -1906,12 +1903,28 @@ void FWaveModInfo::ReportImportFailure() const
 
 uint32 FWaveModInfo::GetNumSamples() const
 {
-	if (*pBitsPerSample != 0)
+	// The calculation below only works for uncompressed formats.
+	// For compressed formats see Audio::SoundFileUtils::GetNumSamples().
+	if (IsFormatUncompressed() && *pBitsPerSample >= 8)
 	{
 		return SampleDataSize / (*pBitsPerSample / 8);
 	}
 
 	return 0;
+}
+
+bool FWaveModInfo::IsFormatSupported() const
+{
+	return (*pFormatTag == WAVE_FORMAT_PCM
+		|| *pFormatTag == WAVE_FORMAT_ADPCM
+		|| *pFormatTag == WAVE_FORMAT_DVI_ADPCM
+		|| *pFormatTag == WAVE_FORMAT_IEEE_FLOAT);
+}
+
+bool FWaveModInfo::IsFormatUncompressed() const
+{
+	return (*pFormatTag == WAVE_FORMAT_PCM
+		|| *pFormatTag == WAVE_FORMAT_IEEE_FLOAT);
 }
 
 static void WriteUInt32ToByteArrayLE(TArray<uint8>& InByteArray, int32& Index, const uint32 Value)

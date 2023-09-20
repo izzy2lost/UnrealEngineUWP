@@ -207,7 +207,7 @@ UObject* USoundFactory::FactoryCreateBinary
 
 		// Convert audio data to a wav file in memory
 		TArray<uint8> RawWaveData;
-		if (Audio::ConvertAudioToWav(RawAudioData, RawWaveData))
+		if (Audio::SoundFileUtils::ConvertAudioToWav(RawAudioData, RawWaveData))
 		{
 			const uint8* Ptr = &RawWaveData[0];
 
@@ -376,10 +376,10 @@ UObject* USoundFactory::CreateObject
 		if (*WaveInfo.pBitsPerSample != 16)
 		{
 #if WITH_SNDFILE_IO
-			const uint32 OrigNumSamples = WaveInfo.GetNumSamples();
+			const uint32 OrigNumSamples = Audio::SoundFileUtils::GetNumSamples(RawWaveData);
 
 			// Attempt to convert to 16 bit audio
-			if (Audio::ConvertAudioToWav(RawWaveData, ConvertedRawWaveData))
+			if (Audio::SoundFileUtils::ConvertAudioToWav(RawWaveData, ConvertedRawWaveData))
 			{
 				WaveInfo = FWaveModInfo();				
 				if (!WaveInfo.ReadWaveInfo(ConvertedRawWaveData.GetData(), ConvertedRawWaveData.Num(), &ErrorMessage))
