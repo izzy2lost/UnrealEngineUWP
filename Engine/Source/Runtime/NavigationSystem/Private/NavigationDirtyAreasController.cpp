@@ -90,6 +90,15 @@ void FNavigationDirtyAreasController::AddArea(const FBox& NewArea, const int32 F
 		}		
 	}
 
+	if (ShouldSkipObjectPredicate.IsBound() && ObjectProviderFunc)
+	{
+		UObject* Object = ObjectProviderFunc();
+		if (Object && ShouldSkipObjectPredicate.Execute(*Object))
+		{
+			return;
+		}
+	}
+
 #if !UE_BUILD_SHIPPING
 	auto DumpExtraInfo = [ObjectProviderFunc, DebugReason, BoundsSize, NewArea]() {
 		FString ObjectInfo;
@@ -104,9 +113,9 @@ void FNavigationDirtyAreasController::AddArea(const FBox& NewArea, const int32 F
 			}
 		}
 
-		return FString::Printf(TEXT("Object: %s (from: %s)%s | Bounds: %s"),
-			*GetFullNameSafe(Object),
+		return FString::Printf(TEXT("From: %s | Object: %s %s | Bounds: %s"),
 			*DebugReason.ToString(),
+			*GetFullNameSafe(Object),
 			*ObjectInfo,
 			*BoundsSize.ToString());
 	};
