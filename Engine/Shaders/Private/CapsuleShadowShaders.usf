@@ -13,16 +13,16 @@
 #include "ReflectionEnvironmentShared.ush"
 #include "Substrate/Substrate.ush"
 
-#ifdef SHADOW_FACTORS_UPSAMPLE_REQUIRED
+#ifdef UPSAMPLE_PASS
 #	include "ShadowFactorsUpsampleCommon.ush"
 #endif
 
 #ifndef THREADGROUP_SIZEX
-#define THREADGROUP_SIZEX 1
+#	define THREADGROUP_SIZEX 1
 #endif
 
 #ifndef THREADGROUP_SIZEY
-#define THREADGROUP_SIZEY 1
+#	define THREADGROUP_SIZEY 1
 #endif
 
 #ifndef LIGHT_SOURCE_MODE
@@ -1186,6 +1186,8 @@ void CapsuleShadowingUpsampleVS(
 	}
 }
 
+#ifdef UPSAMPLE_PASS
+
 Texture2D ShadowFactorsTexture;
 SamplerState ShadowFactorsSampler;
 
@@ -1223,3 +1225,5 @@ void CapsuleShadowingUpsamplePS(
 	OutAmbientOcclusion = Output;
 #endif
 }
+
+#endif // UPSAMPLE_PASS

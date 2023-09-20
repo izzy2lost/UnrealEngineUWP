@@ -11,7 +11,7 @@
 #include "DistanceFieldShadowingShared.ush"
 #include "Substrate/Substrate.ush"
 
-#ifdef SHADOW_FACTORS_UPSAMPLE_REQUIRED
+#ifdef UPSAMPLE_PASS
 #	include "ShadowFactorsUpsampleCommon.ush"
 #endif
 
@@ -772,6 +772,8 @@ void DistanceFieldShadowingCS(
 	RWShadowFactors[DispatchThreadId.xy] = float2(Result, SceneDepth);
 }
 
+#ifdef UPSAMPLE_PASS
+
 float FadePlaneOffset;
 float InvFadePlaneLength;
 float NearFadePlaneOffset;
@@ -795,6 +797,8 @@ void DistanceFieldShadowingUpsamplePS(
 
 	OutColor = EncodeLightAttenuation(half4(Output, Output, Output, Output));
 }
+
+#endif // UPSAMPLE_PASS
 
 #ifdef SHADOW_TILE_VS
 
