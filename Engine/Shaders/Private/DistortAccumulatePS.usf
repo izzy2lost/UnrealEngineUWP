@@ -130,7 +130,7 @@ void Main(
 		const float3 V = MaterialParameters.CameraVector;
 
 		// Update tree (coverage/transmittance/luminace weights)
-		const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(false /*bForceFullyRough*/, Substrate.bRoughDiffuse /*bRoughDiffuseEnabled*/, Substrate.PeelLayersAboveDepth, Substrate.bRoughnessTracking);
+		const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(false /*bForceFullyRough*/, false /*bRoughDiffuseEnabled*/, 0, true/*bRoughnessTracking*/);
 		SubstratePixelHeader.SubstrateUpdateTree(V, Settings);
 
 		RefractionWorldNormal = SubstratePixelHeader.SubstrateTree.Operators[SubstrateData.OperatorIndex].TopDownRefractionWorldNormal;
