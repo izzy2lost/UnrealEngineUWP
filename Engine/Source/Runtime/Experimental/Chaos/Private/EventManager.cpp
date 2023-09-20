@@ -31,10 +31,10 @@ namespace Chaos
 	void FEventManager::UnregisterHandler(const EEventType& EventType, const void* InHandler)
 	{
 		const FEventID EventID = (FEventID)EventType;
-		ContainerLock.WriteLock();
+		ContainerLock.ReadLock();
 		checkf(EventID < EventContainers.Num(), TEXT("Unregistering event Handler for an event ID that does not exist"));
 		EventContainers[EventID]->UnregisterHandler(InHandler);
-		ContainerLock.WriteUnlock();
+		ContainerLock.ReadUnlock();
 	}
 
 	void FEventManager::FillProducerData(const Chaos::FPBDRigidsSolver* Solver, bool bResetData)
