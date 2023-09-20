@@ -2797,7 +2797,6 @@ void FGlobalTabmanager::SaveAllVisualState()
 		const TSharedPtr<FTabManager> SubManagerTab = SubTabManagers[ManagerIndex].TabManager.Pin();		
 		if (SubManagerTab.IsValid())
 		{
-			ensure(SubTabManagers[ManagerIndex].MajorTab.IsValid());
 			SubManagerTab->SavePersistentLayout();
 		}
 	}
