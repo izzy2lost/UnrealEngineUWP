@@ -160,7 +160,7 @@ private:
 struct FGameFeaturePreMountingContext : public FGameFeatureStateChangeContext
 {
 public:
-	//@TODO: Add rules specific to pre-mounting when required
+	bool bOpenPluginShaderLibrary = true;
 
 private:
 

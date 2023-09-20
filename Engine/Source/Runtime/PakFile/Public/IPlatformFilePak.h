@@ -2111,6 +2111,19 @@ public:
 	}
 
 	/**
+	* Get a list of all pak files which have been successfully mounted
+	*/
+	FORCEINLINE void GetMountedPakFilenames(TSet<FString>& PakFilenames)
+	{
+		FScopeLock ScopedLock(&PakListCritical);
+		PakFilenames.Empty(PakFiles.Num());
+		for (FPakListEntry& Entry : PakFiles)
+		{
+			PakFilenames.Add(Entry.PakFile->GetFilename());
+		}
+	}
+
+	/**
 	 * Checks if pak files exist in any of the known pak file locations.
 	 */
 	PAKFILE_API static bool CheckIfPakFilesExist(IPlatformFile* LowLevelFile, const TArray<FString>& PakFolders);
@@ -2177,7 +2190,7 @@ public:
 	 * @param InPakFilename Pak filename.
 	 * @param InPath Path to mount the pak at.
 	 */
-	PAKFILE_API bool Mount(const TCHAR* InPakFilename, uint32 PakOrder, const TCHAR* InPath = NULL, bool bLoadIndex = true);
+	PAKFILE_API bool Mount(const TCHAR* InPakFilename, uint32 PakOrder, const TCHAR* InPath = nullptr, bool bLoadIndex = true, FPakListEntry* OutPakListEntry = nullptr);
 
 	PAKFILE_API bool Unmount(const TCHAR* InPakFilename);
 

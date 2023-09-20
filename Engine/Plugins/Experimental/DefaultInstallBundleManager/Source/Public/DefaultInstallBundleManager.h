@@ -148,6 +148,7 @@ protected:
 		TArray<FString> ContentPaths;
 		TArray<FString> AdditionalRootDirs;
 		TSet<FString> NonUFSShaderLibPaths;
+		bool bContainsChunks = false;
 	};
 
 	friend struct FBundleInfo;
@@ -629,7 +630,7 @@ public:
 	virtual void CancelAllGetInstallStateRequestsForTag(FName RequestTag) override;
 	virtual void CancelAllGetInstallStateRequests(FDelegateHandle Handle) override;
 
-	virtual TValueOrError<FInstallBundleRequestInfo, EInstallBundleResult> RequestReleaseContent(TArrayView<const FName> ReleaseNames, EInstallBundleReleaseRequestFlags Flags, TArrayView<const FName> KeepNames = TArrayView<const FName>(), ELogVerbosity::Type LogVerbosityOverride = ELogVerbosity::NoLogging) override;
+	virtual TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> RequestReleaseContent(TArrayView<const FName> ReleaseNames, EInstallBundleReleaseRequestFlags Flags, TArrayView<const FName> KeepNames = TArrayView<const FName>(), ELogVerbosity::Type LogVerbosityOverride = ELogVerbosity::NoLogging) override;
 	
 	virtual EInstallBundleResult FlushCache(FInstallBundleSourceOrCache SourceOrCache, FInstallBundleManagerFlushCacheCompleteDelegate Callback, ELogVerbosity::Type LogVerbosityOverride = ELogVerbosity::NoLogging) override;
 

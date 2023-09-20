@@ -63,6 +63,10 @@ namespace UE::GameFeatures
 		false,
 		TEXT("Enable to use aysnc loading"));
 
+	static TAutoConsoleVariable<bool> CVarAllowForceMonolithicShaderLibrary(TEXT("GameFeaturePlugin.AllowForceMonolithicShaderLibrary"),
+		true,
+		TEXT("Enable to force only searching for monolithic shader libs when possible"));
+
 	#define GAME_FEATURE_PLUGIN_STATE_TO_STRING(inEnum, inText) case EGameFeaturePluginState::inEnum: return TEXT(#inEnum);
 	FString ToString(EGameFeaturePluginState InType)
 	{
@@ -1083,7 +1087,7 @@ struct FBaseDataReleaseGameFeaturePluginState : public FGameFeaturePluginState
 		const TArray<FName>& InstallBundles = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>().InstallBundles;
 
 		EInstallBundleReleaseRequestFlags ReleaseFlags = GetReleaseRequestFlags();
-		TValueOrError<FInstallBundleRequestInfo, EInstallBundleResult> MaybeRequestInfo = BundleManager->RequestReleaseContent(InstallBundles, ReleaseFlags);
+		TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> MaybeRequestInfo = BundleManager->RequestReleaseContent(InstallBundles, ReleaseFlags);
 
 		if (MaybeRequestInfo.HasError())
 		{
@@ -1094,7 +1098,7 @@ struct FBaseDataReleaseGameFeaturePluginState : public FGameFeaturePluginState
 			return;
 		}
 
-		FInstallBundleRequestInfo RequestInfo = MaybeRequestInfo.StealValue();
+		FInstallBundleReleaseRequestInfo RequestInfo = MaybeRequestInfo.StealValue();
 
 		if (EnumHasAnyFlags(RequestInfo.InfoFlags, EInstallBundleRequestInfoFlags::SkippedUnknownBundles))
 		{
@@ -1730,7 +1734,7 @@ struct FGameFeaturePluginState_Unmounting : public FGameFeaturePluginState
 		//Make sure we don't remove files here early, that should only be done in Uninstalling
 		ReleaseFlags &= ~(EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible);
 
-		TValueOrError<FInstallBundleRequestInfo, EInstallBundleResult> MaybeRequestInfo = BundleManager->RequestReleaseContent(InstallBundles, ReleaseFlags);
+		TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> MaybeRequestInfo = BundleManager->RequestReleaseContent(InstallBundles, ReleaseFlags);
 
 		if (MaybeRequestInfo.HasError())
 		{
@@ -1740,7 +1744,7 @@ struct FGameFeaturePluginState_Unmounting : public FGameFeaturePluginState
 			return;
 		}
 
-		FInstallBundleRequestInfo RequestInfo = MaybeRequestInfo.StealValue();
+		FInstallBundleReleaseRequestInfo RequestInfo = MaybeRequestInfo.StealValue();
 
 		if (EnumHasAnyFlags(RequestInfo.InfoFlags, EInstallBundleRequestInfoFlags::SkippedUnknownBundles))
 		{
@@ -1858,6 +1862,7 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 	ESubState StartedSubStates = ESubState::None;
 	ESubState CompletedSubStates = ESubState::None;
 	bool bCheckedRealtimeMode = false;
+	bool bForceMonolithicShaderLibrary = false;
 
 	void OnInstallBundleCompleted(FInstallBundleRequestResultInfo BundleResult)
 	{
@@ -1878,6 +1883,11 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 			{
 				Result = GetErrorResult(TEXT("BundleManager.OnComplete."), BundleResult.OptionalErrorCode, BundleResult.OptionalErrorText);
 			}
+		}
+
+		if (bForceMonolithicShaderLibrary && BundleResult.bContainsChunks)
+		{
+			bForceMonolithicShaderLibrary = false;
 		}
 
 		if (PendingBundles.IsEmpty())
@@ -1932,11 +1942,15 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 		StartedSubStates = ESubState::None;
 		CompletedSubStates = ESubState::None;
 		bCheckedRealtimeMode = false;
+		bForceMonolithicShaderLibrary = false;
 
 		if (StateProperties.GetPluginProtocol() != EGameFeaturePluginProtocol::InstallBundle)
 		{
 			return;
 		}
+
+		// Assume monolithic shader, will be set to false if chunks are detected
+		bForceMonolithicShaderLibrary = UE::GameFeatures::CVarAllowForceMonolithicShaderLibrary.GetValueOnGameThread();
 		
 		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
 
@@ -1980,6 +1994,14 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 				PakFileMountedDelegateHandle = FCoreDelegates::GetOnPakFileMounted2().AddRaw(this, &FGameFeaturePluginState_Mounting::OnPakFileMounted);
 			}
 		}
+
+		for (const FInstallBundleRequestResultInfo& BundleResult : RequestInfo.BundleResults)
+		{
+			if (bForceMonolithicShaderLibrary && BundleResult.bContainsChunks)
+			{
+				bForceMonolithicShaderLibrary = false;
+			}
+		}
 	}
 
 	void UpdateState_MountPlugin()
@@ -2000,9 +2022,11 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 		}
 
 		// Pre-mount
+		bool bOpenPluginShaderLibrary = true;
 		{
 			FGameFeaturePreMountingContext Context;
 			UGameFeaturesSubsystem::Get().OnGameFeaturePreMounting(StateProperties.PluginName, StateProperties.PluginIdentifier, Context);
+			bOpenPluginShaderLibrary = Context.bOpenPluginShaderLibrary;
 		}
 
 		checkf(!StateProperties.PluginInstalledFilename.IsEmpty(), TEXT("PluginInstalledFilename must be set by the Mounting. PluginURL: %s"), *StateProperties.PluginIdentifier.GetFullPluginURL());
@@ -2038,25 +2062,33 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 			return;
 		}
 
+		if (bOpenPluginShaderLibrary)
+		{
+			// We want to control opening the shader lib
+			FShaderCodeLibrary::DontOpenPluginShaderLibraryOnMount(StateProperties.PluginName);
+		}
+
 		if (!UseAsyncLoading())
 		{
 			verify(IPluginManager::Get().MountExplicitlyLoadedPlugin(StateProperties.PluginName));
+			if (bOpenPluginShaderLibrary)
+			{
+				TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(StateProperties.PluginName);
+				FShaderCodeLibrary::OpenPluginShaderLibrary(*Plugin, bForceMonolithicShaderLibrary);
+			}
 			CompletedSubStates |= ESubState::MountPlugin;
 			return;
 		}
-
-		// We want to make sure opening the shader lib happens async
-		FShaderCodeLibrary::DontOpenPluginShaderLibraryOnMount(StateProperties.PluginName);
 
 		verify(IPluginManager::Get().MountExplicitlyLoadedPlugin(StateProperties.PluginName));
 
 		// Now load the shader lib in the background
 		TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(StateProperties.PluginName);
-		if (Plugin->CanContainContent() && Plugin->IsEnabled()) // TODO: possibly skip this if there is no shaderlib (need to figure out the file name)
+		if (bOpenPluginShaderLibrary && Plugin->CanContainContent() && Plugin->IsEnabled())
 		{
 			UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, PluginName=Plugin->GetName(), PluginDir=Plugin->GetContentDir()]
 			{
-				FShaderCodeLibrary::OpenLibrary(PluginName, PluginDir);
+				FShaderCodeLibrary::OpenLibrary(PluginName, PluginDir, bForceMonolithicShaderLibrary);
 
 				ExecuteOnGameThread(UE_SOURCE_LOCATION, [this]
 				{

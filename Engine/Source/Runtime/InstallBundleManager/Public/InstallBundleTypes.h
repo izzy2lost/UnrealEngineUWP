@@ -173,12 +173,6 @@ enum class EInstallBundleReleaseRequestFlags : uint32
 };
 ENUM_CLASS_FLAGS(EInstallBundleReleaseRequestFlags)
 
-struct FInstallBundleRequestInfo
-{
-	EInstallBundleRequestInfoFlags InfoFlags = EInstallBundleRequestInfoFlags::None;
-	TArray<FName> BundlesEnqueued;
-};
-
 enum class EInstallBundlePauseFlags : uint32
 {
 	None = 0,

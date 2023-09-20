@@ -1840,7 +1840,7 @@ public:
 		return PakchunkIndex;
 	}
 
-	static CORE_API int32 GetPakchunkIndexFromPakFile(const FString& InFilename);
+	static CORE_API int32 GetPakchunkIndexFromPakFile(FStringView InFilename);
 
 	FORCEINLINE static bool Expand16BitIndicesTo32BitOnLoad()
 	{

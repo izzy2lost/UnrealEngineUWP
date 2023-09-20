@@ -16,6 +16,7 @@
 #include "Misc/Parse.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Paths.h"
+#include "Misc/PathViews.h"
 #include "Misc/FileHelper.h"
 #include "Internationalization/Text.h"
 #include "Internationalization/Internationalization.h"
@@ -1982,29 +1983,27 @@ void FGenericPlatformMisc::ParseChunkIdPakchunkIndexMapping(TArray<FString> Chun
 	}
 }
 
-int32 FGenericPlatformMisc::GetPakchunkIndexFromPakFile(const FString& InFilename)
+int32 FGenericPlatformMisc::GetPakchunkIndexFromPakFile(FStringView InFilename)
 {
-	FString ChunkIdentifier(TEXT("pakchunk"));
-	FString BaseFilename = FPaths::GetBaseFilename(InFilename);
+	FStringView ChunkIdentifier(TEXTVIEW("pakchunk"));
+	FStringView BaseFilename = FPathViews::GetBaseFilename(InFilename);
 	int32 ChunkNumber = INDEX_NONE;
 
 	if (BaseFilename.StartsWith(ChunkIdentifier))
 	{
-		int32 StartOfNumber = ChunkIdentifier.Len();
+		const int32 StartOfNumber = ChunkIdentifier.Len();
 		int32 DigitCount = 0;
-		if (FChar::IsDigit(BaseFilename[StartOfNumber]))
+		
+		while ((DigitCount + StartOfNumber) < BaseFilename.Len() && FChar::IsDigit(BaseFilename[StartOfNumber + DigitCount]))
 		{
-			while ((DigitCount + StartOfNumber) < BaseFilename.Len() && FChar::IsDigit(BaseFilename[StartOfNumber + DigitCount]))
-			{
-				DigitCount++;
-			}
+			DigitCount++;
+		}
 
-			if ((StartOfNumber + DigitCount) < BaseFilename.Len())
-			{
-				FString ChunkNumberString = BaseFilename.Mid(StartOfNumber, DigitCount);
-				check(ChunkNumberString.IsNumeric());
-				TTypeFromString<int32>::FromString(ChunkNumber, *ChunkNumberString);
-			}
+		if (DigitCount > 0 && (StartOfNumber + DigitCount) < BaseFilename.Len())
+		{
+			// FromString can't take a view
+			TStringBuilder<16> ChunkNumberString = WriteToString<16>(BaseFilename.Mid(StartOfNumber, DigitCount));
+			TTypeFromString<int32>::FromString(ChunkNumber, *ChunkNumberString);
 		}
 	}
 

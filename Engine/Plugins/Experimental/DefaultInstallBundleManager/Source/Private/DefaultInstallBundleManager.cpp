@@ -1243,6 +1243,21 @@ void FDefaultInstallBundleManager::UpdateBundleSourceComplete(TSharedRef<IInstal
 	}
 	Request->SourceRequestResults.Empty();
 
+	// If there are no content paths, its likely this is a chunk that doesn't exist on the current platfrom, so set bContainsChunks true.
+	// This is a corner case but as far as I know there is no other situation that would allow for an empty bundle that was not chunked.
+	// If such a case were to arise, then bContainsChunks would need to be determined by each bundle source individually.
+	BundleInfo.ContentPaths.bContainsChunks = BundleInfo.ContentPaths.ContentPaths.IsEmpty();
+	for (const FString& ContentPath : BundleInfo.ContentPaths.ContentPaths)
+	{
+		BundleInfo.ContentPaths.bContainsChunks = 
+			ContentPath.EndsWith(TEXTVIEW(".pak")) &&
+			FPlatformMisc::GetPakchunkIndexFromPakFile(ContentPath) != INDEX_NONE;
+		if (BundleInfo.ContentPaths.bContainsChunks)
+		{
+			break;
+		}
+	}
+
 	if (StateSignifiesNeedsInstall(GetBundleStatus(BundleInfo)))
 	{
 		if (Request->Result == EInstallBundleResult::OK)
@@ -1435,7 +1450,7 @@ void FDefaultInstallBundleManager::MountPaks(FContentRequestRef Request)
 
 	LOG_INSTALL_BUNDLE_MAN_OVERRIDE(Request->LogVerbosityOverride, Display, TEXT("Mounting Paks for Request %s"), *BundleInfo.BundleNameString);
 
-	TSharedRef<bool, ESPMode::ThreadSafe> bMountedPaks = MakeShared<bool, ESPMode::ThreadSafe>(false);
+	TSharedRef<bool> bMountedPaks = MakeShared<bool>(false);
 
 	TUniqueFunction<void()> WorkFunc =
 		[ContentPaths = BundleInfo.ContentPaths.ContentPaths
@@ -1484,34 +1499,37 @@ void FDefaultInstallBundleManager::MountPaks(FContentRequestRef Request)
 
 bool FDefaultInstallBundleManager::MountPaksInList(TArrayView<FString> Paths, ELogVerbosity::Type LogVerbosityOverride)
 {
-	if (!FCoreDelegates::MountPak.IsBound())
+	FPakPlatformFile* PakPlatformFile = static_cast<FPakPlatformFile*>(FPlatformFileManager::Get().FindPlatformFile(TEXT("PakFile")));
+	if (!PakPlatformFile)
 	{
 		ensureMsgf(false, TEXT("Pak files have not been correctly initalized. Use -UsePaks on the cmdline if you are using the UnrealEditor.exe"));
 		return false; // if FCoreDelegates::MountPak is unbound there is a major issue.
 	}
 
+	// Sort in descending order.
+	Paths.Sort(TGreater<FString>());
+
 	// Find already mounted paks
-	TArray<FString> MountedPaks;
-	FPakPlatformFile* PakPlatformFile = static_cast<FPakPlatformFile*>(FPlatformFileManager::Get().FindPlatformFile(TEXT("PakFile")));
-	check(PakPlatformFile);
+	TSet<FString> MountedPaks;
 	PakPlatformFile->GetMountedPakFilenames(MountedPaks);
 
-	// Sort in descending order.
 	bool bMountedPaks = false;
-	Paths.Sort(TGreater<FString>());
 	for (const FString& File : Paths)
 	{
-		if (!File.EndsWith(TEXT(".pak")))
+		if (!File.EndsWith(TEXTVIEW(".pak")))
+		{
 			continue;
+		}
 
 		if (MountedPaks.Contains(File))
 		{
-			LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Display, TEXT("Pak file: %s already mounted, skipping. \n"), *File);
+			LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Warning, TEXT("Pak file: %s already mounted, skipping. \n"), *File);
 			continue;
 		}
 
 		LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Verbose, TEXT("Mounting pak file: %s \n"), *File);
-		if (FCoreDelegates::MountPak.Execute(File, INDEX_NONE)) //May fail  on encrypted Paks
+
+		if (FCoreDelegates::MountPak.Execute(File, INDEX_NONE)) //May fail on encrypted Paks
 		{
 			bMountedPaks = true;
 		}
@@ -1523,13 +1541,17 @@ bool FDefaultInstallBundleManager::MountPaksInList(TArrayView<FString> Paths, EL
 bool FDefaultInstallBundleManager::UnmountPaksInList(TArrayView<FString> Paths, ELogVerbosity::Type LogVerbosityOverride)
 {
 	if (!FCoreDelegates::OnUnmountPak.IsBound())
+	{
 		return false;
+	}
 
 	bool bUnmountedPaks = false;
 	for (const FString& File : Paths)
 	{
-		if (!File.EndsWith(TEXT(".pak")))
+		if (!File.EndsWith(TEXTVIEW(".pak")))
+		{
 			continue;
+		}
 
 		LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Display, TEXT("Unmounting pak file: %s \n"), *File);
 
@@ -1643,6 +1665,7 @@ void FDefaultInstallBundleManager::FinishRequest(FContentRequestRef Request)
 		ResultInfo.Result = Request->Result;
 		ResultInfo.bIsStartup = BundleInfo.bIsStartup;
 		ResultInfo.bContentWasInstalled = Request->bContentWasInstalled;
+		ResultInfo.bContainsChunks = BundleInfo.ContentPaths.bContainsChunks;
 		ResultInfo.OptionalErrorText = Request->OptionalErrorText;
 		ResultInfo.OptionalErrorCode = Request->OptionalErrorCode;
 
@@ -3049,20 +3072,31 @@ TValueOrError<FInstallBundleRequestInfo, EInstallBundleResult> FDefaultInstallBu
 		// Don't request finished bundles
 		if (ActiveQueuedRequest == nullptr)
 		{
+			bool bIsFinished = false;
+
 			// If we canceled a release during an async op, that op could change bundle status when it completes, so enqueue the request to run after the 
 			// canceled release has finished.
 			if (!bCanceledRelease && EnumHasAnyFlags(Flags, EInstallBundleRequestFlags::SkipMount) && GetBundleStatus(*BundleInfo) == EBundleState::NeedsMount)
 			{
 				RetInfo.InfoFlags |= EInstallBundleRequestInfoFlags::SkippedAlreadyUpdatedBundles;
 				LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Verbose, TEXT("RequestUpdateContent Bundle %s  - Already Updated"), *BundleInfo->BundleNameString);
-				continue;
+				bIsFinished = true;
 			}
-
 			// No need to check bCanceledRelease here.  Unmounting is not Async so if we canceled it early enough we will remain mounted
-			if (!GetMustWaitForPSOCache(*BundleInfo) && GetBundleStatus(*BundleInfo) == EBundleState::Mounted)
+			else if (!GetMustWaitForPSOCache(*BundleInfo) && GetBundleStatus(*BundleInfo) == EBundleState::Mounted)
 			{
 				RetInfo.InfoFlags |= EInstallBundleRequestInfoFlags::SkippedAlreadyMountedBundles;
 				LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Verbose, TEXT("RequestUpdateContent Bundle %s  - Already Mounted"), *BundleInfo->BundleNameString);
+				bIsFinished = true;
+			}
+
+			if (bIsFinished)
+			{
+				FInstallBundleRequestResultInfo& ResultInfo = RetInfo.BundleResults.Emplace_GetRef();
+				ResultInfo.BundleName = BundleName;
+				ResultInfo.Result = EInstallBundleResult::OK;
+				ResultInfo.bIsStartup = BundleInfo->bIsStartup;
+				ResultInfo.bContainsChunks = BundleInfo->ContentPaths.bContainsChunks;
 				continue;
 			}
 		}
@@ -3321,12 +3355,12 @@ void FDefaultInstallBundleManager::CancelAllGetInstallStateRequests(FDelegateHan
 	}
 }
 
-TValueOrError<FInstallBundleRequestInfo, EInstallBundleResult> FDefaultInstallBundleManager::RequestReleaseContent(
+TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> FDefaultInstallBundleManager::RequestReleaseContent(
 	TArrayView<const FName> ReleaseNames, EInstallBundleReleaseRequestFlags Flags, TArrayView<const FName> KeepNames /*= TArrayView<const FName>()*/, ELogVerbosity::Type LogVerbosityOverride /*= ELogVerbosity::NoLogging*/)
 {
 	CSV_SCOPED_TIMING_STAT(InstallBundleManager, InstallBundleManager_RequestReleaseContent);
 
-	FInstallBundleRequestInfo RetInfo;
+	FInstallBundleReleaseRequestInfo RetInfo;
 
 	// Check for failing init, this is not recoverable and we can't safely enqueue requests.
 	// bUnrecoverableInitError usually means something is wrong with the build.

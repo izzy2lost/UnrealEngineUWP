@@ -88,31 +88,7 @@ static FString GMountStartupPaksWildCard = TEXT(MOUNT_STARTUP_PAKS_WILDCARD);
 
 int32 GetPakchunkIndexFromPakFile(const FString& InFilename)
 {
-	FString ChunkIdentifier(TEXT("pakchunk"));
-	FString BaseFilename = FPaths::GetBaseFilename(InFilename);
-	int32 ChunkNumber = INDEX_NONE;
-
-	if (BaseFilename.StartsWith(ChunkIdentifier))
-	{
-		int32 StartOfNumber = ChunkIdentifier.Len();
-		int32 DigitCount = 0;
-		if (FChar::IsDigit(BaseFilename[StartOfNumber]))
-		{
-			while ((DigitCount + StartOfNumber) < BaseFilename.Len() && FChar::IsDigit(BaseFilename[StartOfNumber + DigitCount]))
-			{
-				DigitCount++;
-			}
-
-			if ((StartOfNumber + DigitCount) < BaseFilename.Len())
-			{
-				FString ChunkNumberString = BaseFilename.Mid(StartOfNumber, DigitCount);
-				check(ChunkNumberString.IsNumeric());
-				TTypeFromString<int32>::FromString(ChunkNumber, *ChunkNumberString);
-			}
-		}
-	}
-
-	return ChunkNumber;
+	return FGenericPlatformMisc::GetPakchunkIndexFromPakFile(InFilename);
 }
 
 // Registered encryption key cache
@@ -8491,7 +8467,7 @@ void FPakPlatformFile::OptimizeMemoryUsageForMountedPaks()
 }
 
 
-bool FPakPlatformFile::Mount(const TCHAR* InPakFilename, uint32 PakOrder, const TCHAR* InPath /*= NULL*/, bool bLoadIndex /*= true*/)
+bool FPakPlatformFile::Mount(const TCHAR* InPakFilename, uint32 PakOrder, const TCHAR* InPath /*= nullptr*/, bool bLoadIndex /*= true*/, FPakListEntry* OutPakListEntry /*= nullptr*/)
 {
 	LLM_SCOPE(ELLMTag::FileSystem);
 	bool bPakSuccess = false;
@@ -8503,7 +8479,7 @@ bool FPakPlatformFile::Mount(const TCHAR* InPakFilename, uint32 PakOrder, const 
 		{
 			if (!Pak->GetInfo().EncryptionKeyGuid.IsValid() || GetRegisteredEncryptionKeys().HasKey(Pak->GetInfo().EncryptionKeyGuid))
 			{
-				if (InPath != NULL)
+				if (InPath != nullptr)
 				{
 					Pak->SetMountPoint(InPath);
 				}
@@ -8544,6 +8520,11 @@ bool FPakPlatformFile::Mount(const TCHAR* InPakFilename, uint32 PakOrder, const 
 					Pak->SetIsMounted(true);
 					PakFiles.Add(Entry);
 					PakFiles.StableSort();
+
+					if (OutPakListEntry)
+					{
+						*OutPakListEntry = MoveTemp(Entry);
+					}
 				}
 				bPakSuccess = true;
 			}
@@ -8824,7 +8805,7 @@ int32 FPakPlatformFile::MountAllPakFiles(const TArray<FString>& PakFolders, cons
 		GetMountedPaks(ExistingPaks);
 		TSet<FString> ExistingPaksFileName;
 		// Find the single pak we just mounted
-		for (auto Pak : ExistingPaks)
+		for (const FPakListEntry& Pak : ExistingPaks)
 		{
 			ExistingPaksFileName.Add(Pak.PakFile->GetFilename());
 		}
@@ -8892,20 +8873,10 @@ IPakFile* FPakPlatformFile::HandleMountPakDelegate(const FString& PakFilePath, i
 		PakOrder = GetPakOrderFromPakFilePath(PakFilePath);
 	}
 	
-	if (Mount(*PakFilePath, PakOrder))
+	FPakListEntry Pak;
+	if (Mount(*PakFilePath, PakOrder, nullptr, true, &Pak))
 	{
-		TArray<FPakListEntry> Paks;
-		GetMountedPaks(Paks);
-		// Find the single pak we just mounted
-		for (auto Pak : Paks)
-		{
-			if (PakFilePath == Pak.PakFile->GetFilename())
-			{
-				return Pak.PakFile;
-			}
-		}
-
-		check(false); // Should have found the pak since Mount returned true
+		return Pak.PakFile;
 	}
 	return nullptr;
 }
