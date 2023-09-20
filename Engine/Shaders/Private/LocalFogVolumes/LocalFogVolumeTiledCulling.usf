@@ -9,6 +9,7 @@ float4 RightPlane;
 float4 TopPlane;
 float4 BottomPlane;
 float4 NearPlane;
+float2 ViewToTileSpaceRatio;
 
 Buffer<float4> LocalFogVolumeCullingDataBuffer;
 
@@ -40,6 +41,12 @@ void LocalFogVolumeTiledCullingCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 
 	float2 MinTileLerp =  float2(TileCoord)       / float2(LFVTileDataResolution);
 	float2 MaxTileLerp = (float2(TileCoord)+1.0f) / float2(LFVTileDataResolution);
+
+	// Apply the view to tile space ratio to account ofr the fact that tiles can span outside the view pixel due to their discretised nature.
+	MinTileLerp *= ViewToTileSpaceRatio;
+	MaxTileLerp *= ViewToTileSpaceRatio;
+	// Still clamp MaxTileLerp to not include not visible volumes to the right and up part of the screen.
+	MaxTileLerp = min(MaxTileLerp, 1.0f.xx);
 
 	float4 TilePlanes[5];
 	TilePlanes[0] = lerp(LeftPlane, RightPlane, MinTileLerp.xxxx);		// Left tile plane
