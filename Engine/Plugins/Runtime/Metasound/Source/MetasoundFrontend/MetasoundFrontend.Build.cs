@@ -18,7 +18,6 @@ namespace UnrealBuildTool.Rules
 					"AudioExtensions",
 					"Core",
 					"CoreUObject",
-					"Engine",
 					"Serialization",
 					"SignalProcessing",
 					"MetasoundGraphCore"
