@@ -163,6 +163,7 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		}
 
 		UE::MovieGraph::FMovieGraphSampleState* Payload = RenderData.Value->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
+		const TObjectPtr<UMoviePipelineExecutorShot>& Shot = InPipeline->GetActiveShotList()[Payload->TraversalContext.ShotIndex];
 
 		const bool bIncludeCDOs = true;
 		UMovieGraphOutputSettingNode* OutputSettingNode = InRawFrameData->EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(RenderData.Key.RootBranchName, bIncludeCDOs);
@@ -224,6 +225,7 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		Params.bEnsureAbsolutePath = true;
 		Params.FileNameFormatOverrides = AdditionalFormatArgs;
 		Params.InitializationTime = InPipeline->GetInitializationTime();
+		Params.Shot = Shot;
 		Params.Job = InPipeline->GetCurrentJob();
 		Params.EvaluatedConfig = InRawFrameData->EvaluatedConfig.Get();
 
@@ -276,7 +278,7 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		}
 
 		UE::MovieGraph::FMovieGraphOutputFutureData OutputData;
-		OutputData.Shot = nullptr;
+		OutputData.Shot = Shot;
 		OutputData.FilePath = FileName;
 		OutputData.DataIdentifier = RenderData.Key;
 
@@ -540,6 +542,7 @@ FString UMovieGraphImageSequenceOutputNode_EXR::ResolveOutputFilename(
 	Params.FileNameFormatOverrides = FormatOverrides;
 	Params.InitializationTime = InPipeline->GetInitializationTime();
 	Params.Job = InPipeline->GetCurrentJob();
+	Params.Shot = InPipeline->GetActiveShotList()[InRawFrameData->TraversalContext.ShotIndex];
 	Params.EvaluatedConfig = InRawFrameData->EvaluatedConfig.Get();
 	
 	FString FinalFilePath = UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(FilePathFormatString, Params, OutResolveArgs);

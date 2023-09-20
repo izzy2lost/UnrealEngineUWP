@@ -4,11 +4,13 @@
 #include "Graph/MovieGraphDefaultRenderer.h"
 #include "Graph/MovieGraphSequenceDataSource.h"
 #include "Graph/MovieGraphPipeline.h"
+#include "Graph/MovieGraphDefaultAudioRenderer.h"
 
 FMovieGraphInitConfig::FMovieGraphInitConfig()
 {
 	RendererClass = UMovieGraphDefaultRenderer::StaticClass();
 	DataSourceClass = UMovieGraphSequenceDataSource::StaticClass();
+	AudioRendererClass = UMovieGraphDefaultAudioRenderer::StaticClass();
 	bRenderViewport = false;
 }
 
@@ -25,4 +27,14 @@ UMovieGraphPipeline* UMovieGraphRendererBase::GetOwningGraph() const
 UMovieGraphPipeline* UMovieGraphDataSourceBase::GetOwningGraph() const
 {
 	return GetTypedOuter<UMovieGraphPipeline>();
+}
+
+UMovieGraphPipeline* UMovieGraphAudioRendererBase::GetOwningGraph() const
+{
+	return GetTypedOuter<UMovieGraphPipeline>();
+}
+
+const MoviePipeline::FAudioState& UMovieGraphAudioRendererBase::GetAudioState() const
+{
+	return AudioState;
 }

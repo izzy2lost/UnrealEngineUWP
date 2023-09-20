@@ -1220,12 +1220,14 @@ namespace MoviePipeline
 			: bIsRecordingAudio(false)
 			, PrevUnfocusedAudioMultiplier(1.f)
 			, PrevRenderEveryTickValue(1)
+			, PrevNeverMuteNRTAudioValue(0)
 		{}
 
 		bool bIsRecordingAudio;
 
 		float PrevUnfocusedAudioMultiplier;
 		int32 PrevRenderEveryTickValue;
+		int32 PrevNeverMuteNRTAudioValue;
 
 		/** Float Buffers for Movie Segments we've finished rendering. Stored until shutdown. Fully available during Finalize stage. */
 		TArray<FAudioSegment> FinishedSegments;

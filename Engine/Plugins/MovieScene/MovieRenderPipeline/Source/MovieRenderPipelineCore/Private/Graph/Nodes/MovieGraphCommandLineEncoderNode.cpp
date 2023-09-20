@@ -4,6 +4,7 @@
 
 #include "Graph/MovieGraphBlueprintLibrary.h"
 #include "Graph/MovieGraphPipeline.h"
+#include "Graph/Nodes/MovieGraphAudioOutputNode.h"
 #include "Graph/Nodes/MovieGraphOutputSettingNode.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
@@ -279,7 +280,7 @@ TMap<FMovieGraphRenderDataIdentifier, UMovieGraphCommandLineEncoderNode::FEncode
 		TMap<FString, TArray<FString>> AudioPathsByExtension;
 		for (const TPair<FMovieGraphRenderDataIdentifier, FMovieGraphRenderLayerOutputData>& InnerRenderLayer : GeneratedRenderData.RenderLayerData)
 		{
-			if (InnerRenderLayer.Key.RendererName == FString(TEXT("Audio")))
+			if (InnerRenderLayer.Key.RendererName == UMovieGraphAudioOutputNode::RendererName)
 			{
 				for (const FString& FilePath : InnerRenderLayer.Value.FilePaths)
 				{
@@ -296,8 +297,7 @@ TMap<FMovieGraphRenderDataIdentifier, UMovieGraphCommandLineEncoderNode::FEncode
 			const FMovieGraphRenderDataIdentifier& RenderIdentifier = RenderLayer.Key;
 			const FMovieGraphRenderLayerOutputData& RenderOutputData = RenderLayer.Value;
 			
-			// TODO: Is "Audio" set on the renderer name or something else? We don't have audio yet...
-			if (RenderIdentifier.RendererName == FString(TEXT("Audio")))
+			if (RenderIdentifier.RendererName == UMovieGraphAudioOutputNode::RendererName)
 			{
 				continue;
 			}
@@ -423,8 +423,9 @@ void UMovieGraphCommandLineEncoderNode::GenerateTemporaryEncoderInputFiles(const
 		{
 			StringBuilder.Appendf(TEXT("file 'file:%s'%s"), *Path, LINE_TERMINATOR);
 
-			// Some encoders require the duration of each file to be listed after the file.
-			if (Pair.Key != TEXT("wav"))
+			// Some video encoders require the duration of each file to be listed after the file. Write duration for all
+			// video encoders; providing the extra information doesn't hurt.
+			if (Pair.Key != UMovieGraphAudioOutputNode::OutputExtension)
 			{
 				StringBuilder.Appendf(TEXT("duration %f%s"), FrameRateAsDuration, LINE_TERMINATOR);
 			}
@@ -433,8 +434,8 @@ void UMovieGraphCommandLineEncoderNode::GenerateTemporaryEncoderInputFiles(const
 		// Save this to disk.
 		FFileHelper::SaveStringToFile(StringBuilder.ToString(), *FinalFilePath);
 
-		// Not a great solution but best we've got right now
-		if (Pair.Key == TEXT("wav"))
+		// Separate audio and video files
+		if (Pair.Key == UMovieGraphAudioOutputNode::OutputExtension)
 		{
 			OutAudioInputFilePaths.Add(FinalFilePath);
 		}

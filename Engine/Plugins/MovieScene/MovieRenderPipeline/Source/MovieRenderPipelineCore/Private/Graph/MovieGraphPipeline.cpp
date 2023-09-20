@@ -84,6 +84,7 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 	// Create instances of our different classes from the InitConfig
 	GraphRendererInstance = NewObject<UMovieGraphRendererBase>(this, InitConfig.RendererClass);
 	GraphDataSourceInstance = NewObject<UMovieGraphDataSourceBase>(this, InitConfig.DataSourceClass);
+	GraphAudioRendererInstance = NewObject<UMovieGraphAudioRendererBase>(this, InitConfig.AudioRendererClass);
 	
 	CurrentJob = InJob;
 	CurrentShotIndex = 0;
@@ -97,7 +98,8 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 
 	// Construct the viewport preview UI and bind it to this instance.
 	LoadPreviewWidget();
-	// SetupAudioRendering();
+
+	GraphAudioRendererInstance->SetupAudioRendering();
 
 	// Update our list of shots from our data source, and then
 	// create our list of active shots, so we don't try to render
@@ -564,6 +566,11 @@ void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>
 
 void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
 {
+	// Teardown happens at the start of the first frame the shot is finished so we'll stop recording
+	// audio, which will prevent it from capturing any samples for this frame. We don't do a similar
+	// start in InitializeShot() because we don't want to record samples during warm up/motion blur.
+	GraphAudioRendererInstance->StopAudioRecording();
+	
 	// Teardown any rendering architecture for this shot. This needs to happen first because it'll flush outstanding rendering commands
 	GraphRendererInstance->TeardownRenderingPipelineForShot(InShot);
 
@@ -574,18 +581,18 @@ void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorSh
 
 	// some other stuff
 
-	CurrentShotIndex++;
-
 	// Revert the cvar values that were initially applied for the shot
 	CVarManager->RevertAllCVars();
 
 	// Check to see if this was the last shot in the Pipeline, otherwise on the next
 	// tick the new shot will be initialized and processed.
-	if (CurrentShotIndex >= ActiveShotList.Num())
+	if (CurrentShotIndex >= (ActiveShotList.Num() - 1))
 	{
 		UE_LOG(LogMovieRenderPipeline, Log, TEXT("MovieGraph Finished rendering last shot. Moving to Finalize to finish writing items to disk."));
 		TransitionToState(EMovieRenderPipelineState::Finalize);
 	}
+
+	CurrentShotIndex++;
 }
 
 void UMovieGraphPipeline::SetSoloShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
@@ -723,7 +730,8 @@ void UMovieGraphPipeline::OnEngineTickEndFrame()
 
 	UE_LOG(LogMovieRenderPipeline, VeryVerbose, TEXT("MovieGraph OnEngineTickEndFrame (Start)"));
 
-	// ProcessAudioTick();
+	GraphAudioRendererInstance->ProcessAudioTick();
+	
 	RenderFrame();
 
 	UE_LOG(LogMovieRenderPipeline, VeryVerbose, TEXT("MovieGraph OnEngineTickEndFrame (End)"));
@@ -847,7 +855,7 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 
 			// If we had naturally finished the last shot before doing this transition it will have
 			// already been torn down, so this only catches mid-shot transitions to ensure teardown.
-			if (CurrentShotIndex < ActiveShotList.Num())
+			if (CurrentShotIndex < (ActiveShotList.Num() - 1))
 			{
 				// Ensures all in-flight work for that shot is handled.
 				TeardownShot(ActiveShotList[CurrentShotIndex]);
@@ -931,7 +939,7 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 			//	Setting->OnPipelineFinished();
 			//}
 			//
-			//TeardownAudioRendering();
+			GraphAudioRendererInstance->TeardownAudioRendering();
 			//LevelSequenceActor->GetSequencePlayer()->Stop();
 			//RestoreTargetSequenceToOriginalState();
 			//

@@ -9,6 +9,8 @@
 #include "ImagePixelData.h"
 #include "Containers/Queue.h"
 #include "Misc/FrameRate.h"
+#include "MovieRenderPipelineDataTypes.h"
+
 #include "MovieGraphDataTypes.generated.h"
 
 // Forward Declares
@@ -48,6 +50,13 @@ struct MOVIERENDERPIPELINECORE_API FMovieGraphInitConfig
 	*/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	TSubclassOf<UMovieGraphDataSourceBase> DataSourceClass;
+
+	/**
+	 * Which class should the UMovieGraphPipeline use to generate audio. Defaults to
+	 * UMovieGraphDefaultAudioOutput.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	TSubclassOf<UMovieGraphAudioRendererBase> AudioRendererClass;
 
 	/**
 	* Should the UMovieGraphPipeline render the full player viewport? Defaults
@@ -177,6 +186,38 @@ public:
 		const int32 InRightDeltaFrames, const bool bInPrepass) {}
 
 	UMovieGraphPipeline* GetOwningGraph() const;
+};
+
+/** Base class for generating audio while the pipeline is running. */
+UCLASS(BlueprintType, Abstract)
+class MOVIERENDERPIPELINECORE_API UMovieGraphAudioRendererBase : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	/** Tell our submixes to start capturing the data they are generating. Should only be called once output frames are being produced. */
+	virtual void StartAudioRecording() {}
+
+	/** Tell our submixes to stop capturing the data, and then store a copy of it. */
+	virtual void StopAudioRecording() {}
+
+	/** Attempt to process the audio thread work. This is complicated by non-linear time steps. */
+	virtual void ProcessAudioTick() {}
+
+	/** Prepares for audio rendering (ensuring volume is set correctly, the needed cvars are set, etc). */
+	virtual void SetupAudioRendering() {}
+
+	/** Undoes the work done in SetupAudioRendering(). */
+	virtual void TeardownAudioRendering() const {}
+
+	/** Gets the pipeline that owns this audio output instance. */
+	UMovieGraphPipeline* GetOwningGraph() const;
+
+	/** Gets the current state of the audio renderer. This is the main data source that audio-related nodes can reference. */
+	const MoviePipeline::FAudioState& GetAudioState() const;
+
+protected:
+	MoviePipeline::FAudioState AudioState;
 };
 
 // ToDo: Both of these can probably go into the Default Renderer implementation.

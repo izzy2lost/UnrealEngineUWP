@@ -83,6 +83,9 @@ public:
 	
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
 	UMovieGraphDataSourceBase* GetDataSourceInstance() const { return GraphDataSourceInstance; }
+
+	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
+	UMovieGraphAudioRendererBase* GetAudioRendererInstance() const { return GraphAudioRendererInstance; }
 	
 	/** Gets the Output Merger for this Movie Pipeline which is responsible for gathering all of the data coming in for a given output frame, before making it available to the MovieGraphPipeline. */
 	TSharedPtr<UE::MovieGraph::IMovieGraphOutputMerger> GetOutputMerger() const { return OutputMerger; }
@@ -154,7 +157,6 @@ protected:
 	virtual EMovieRenderPipelineState GetPipelineStateImpl() const override { return PipelineState; }
 	// ~UMoviePipelineBase Interface
 
-
 protected:
 	/** Time step instances for each shot, where the index into the array corresponds to the shot index. */
 	UPROPERTY(Transient)
@@ -173,6 +175,9 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMovieGraphDataSourceBase> GraphDataSourceInstance;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMovieGraphAudioRendererBase> GraphAudioRendererInstance;
 
 protected:
 	UPROPERTY(Transient)
