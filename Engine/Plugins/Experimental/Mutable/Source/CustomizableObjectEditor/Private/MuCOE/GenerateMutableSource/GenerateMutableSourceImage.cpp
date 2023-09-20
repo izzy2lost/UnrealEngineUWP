@@ -56,6 +56,8 @@
 
 mu::ImagePtr ConvertTextureUnrealToMutable(UTexture2D* Texture, const UCustomizableObjectNode* Node, FCustomizableObjectCompiler* Compiler, bool bIsNormalComposite)
 {     
+	MUTABLE_CPUPROFILER_SCOPE(ConvertTextureUnrealToMutable);
+
 	mu::ImagePtr MutableImage;
 	EUnrealToMutableConversionError Error = EUnrealToMutableConversionError::Unknown;
 
