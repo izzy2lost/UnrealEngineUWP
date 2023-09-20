@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, Intel Corporation
+ * Copyright (c) 2020-2023, Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -63,9 +63,9 @@ std::vector<float> DpcppApp::transformIspc(const std::vector<float> &in) {
     ze_device_mem_alloc_desc_t alloc_desc = {};
 
     // Allocate memory on the device
-    L0_SAFE_CALL(zeMemAllocDevice(m_context, &alloc_desc, count * sizeof(float), 0, m_device, &in_dev));
-    L0_SAFE_CALL(zeMemAllocDevice(m_context, &alloc_desc, count * sizeof(float), 0, m_device, &out_dev));
-    L0_SAFE_CALL(zeMemAllocDevice(m_context, &alloc_desc, sizeof(Parameters), 0, m_device, &params_dev));
+    L0_SAFE_CALL(zeMemAllocDevice(m_context, &alloc_desc, count * sizeof(float), 64, m_device, &in_dev));
+    L0_SAFE_CALL(zeMemAllocDevice(m_context, &alloc_desc, count * sizeof(float), 64, m_device, &out_dev));
+    L0_SAFE_CALL(zeMemAllocDevice(m_context, &alloc_desc, sizeof(Parameters), 64, m_device, &params_dev));
 
     params.in = reinterpret_cast<float *>(in_dev);
     params.out = reinterpret_cast<float *>(out_dev);
@@ -141,7 +141,7 @@ std::vector<float> DpcppApp::transformDpcpp(const std::vector<float> &in) {
 
     // Use accessor to transfer data from the device
     std::vector<float> res(count);
-    const auto out_host_access = out_buffer.get_access<cl::sycl::access::mode::read>();
+    const auto out_host_access = out_buffer.get_host_access();
     for (int i = 0; i < out_host_access.size(); i++) {
         res[i] = out_host_access[i];
     }

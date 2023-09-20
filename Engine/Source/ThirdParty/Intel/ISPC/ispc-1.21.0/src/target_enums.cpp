@@ -1,34 +1,7 @@
 /*
   Copyright (c) 2019-2023, Intel Corporation
-  All rights reserved.
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 /** @file target_enums.cpp
@@ -55,8 +28,8 @@ Arch ParseArch(std::string arch) {
         return Arch::aarch64;
     } else if (arch == "wasm32") {
         return Arch::wasm32;
-    } else if (arch == "xe32") {
-        return Arch::xe32;
+    } else if (arch == "wasm64") {
+        return Arch::wasm64;
     } else if (arch == "xe64") {
         return Arch::xe64;
     }
@@ -77,8 +50,8 @@ std::string ArchToString(Arch arch) {
         return "aarch64";
     case Arch::wasm32:
         return "wasm32";
-    case Arch::xe32:
-        return "xe32";
+    case Arch::wasm64:
+        return "wasm64";
     case Arch::xe64:
         return "xe64";
     case Arch::error:
@@ -102,14 +75,22 @@ ISPCTarget ParseISPCTarget(std::string target) {
         return ISPCTarget::sse2_i32x4;
     } else if (target == "sse2-i32x8" || target == "sse2-x2") {
         return ISPCTarget::sse2_i32x8;
-    } else if (target == "sse4-i8x16") {
+    } else if (target == "sse4-i8x16" || target == "sse4.2-i8x16") {
         return ISPCTarget::sse4_i8x16;
-    } else if (target == "sse4-i16x8") {
+    } else if (target == "sse4-i16x8" || target == "sse4.2-i16x8") {
         return ISPCTarget::sse4_i16x8;
-    } else if (target == "sse4-i32x4" || target == "sse4") {
+    } else if (target == "sse4-i32x4" || target == "sse4" || target == "sse4.2-i32x4") {
         return ISPCTarget::sse4_i32x4;
-    } else if (target == "sse4-i32x8" || target == "sse4-x2" || target == "sse4x2") {
+    } else if (target == "sse4-i32x8" || target == "sse4-x2" || target == "sse4x2" || target == "sse4.2-i32x8") {
         return ISPCTarget::sse4_i32x8;
+    } else if (target == "sse4.1-i8x16") {
+        return ISPCTarget::sse41_i8x16;
+    } else if (target == "sse4.1-i16x8") {
+        return ISPCTarget::sse41_i16x8;
+    } else if (target == "sse4.1-i32x4") {
+        return ISPCTarget::sse41_i32x4;
+    } else if (target == "sse4.1-i32x8") {
+        return ISPCTarget::sse41_i32x8;
     } else if (target == "avx1-i32x4") {
         return ISPCTarget::avx1_i32x4;
     } else if (target == "avx1-i32x8" || target == "avx" || target == "avx1") {
@@ -178,6 +159,10 @@ ISPCTarget ParseISPCTarget(std::string target) {
         return ISPCTarget::xehpc_x16;
     } else if (target == "xehpc-x32") {
         return ISPCTarget::xehpc_x32;
+    } else if (target == "xelpg-x8") {
+        return ISPCTarget::xelpg_x8;
+    } else if (target == "xelpg-x16") {
+        return ISPCTarget::xelpg_x16;
     }
 
     return ISPCTarget::error;
@@ -194,7 +179,7 @@ std::pair<std::vector<ISPCTarget>, std::string> ParseISPCTargets(const char *tar
     bool done = false;
     while (!done) {
         const char *tend = strchr(tstart, ',');
-        if (tend == NULL) {
+        if (tend == nullptr) {
             done = true;
             tend = strchr(tstart, '\0');
         }
@@ -221,14 +206,22 @@ std::string ISPCTargetToString(ISPCTarget target) {
         return "sse2-i32x4";
     case ISPCTarget::sse2_i32x8:
         return "sse2-i32x8";
+    case ISPCTarget::sse41_i8x16:
+        return "sse4.1-i8x16";
+    case ISPCTarget::sse41_i16x8:
+        return "sse4.1-i16x8";
+    case ISPCTarget::sse41_i32x4:
+        return "sse4.1-i32x4";
+    case ISPCTarget::sse41_i32x8:
+        return "sse4.1-i32x8";
     case ISPCTarget::sse4_i8x16:
-        return "sse4-i8x16";
+        return "sse4.2-i8x16";
     case ISPCTarget::sse4_i16x8:
-        return "sse4-i16x8";
+        return "sse4.2-i16x8";
     case ISPCTarget::sse4_i32x4:
-        return "sse4-i32x4";
+        return "sse4.2-i32x4";
     case ISPCTarget::sse4_i32x8:
-        return "sse4-i32x8";
+        return "sse4.2-i32x8";
     case ISPCTarget::avx1_i32x4:
         return "avx1-i32x4";
     case ISPCTarget::avx1_i32x8:
@@ -297,6 +290,10 @@ std::string ISPCTargetToString(ISPCTarget target) {
         return "xehpc-x16";
     case ISPCTarget::xehpc_x32:
         return "xehpc-x32";
+    case ISPCTarget::xelpg_x8:
+        return "xelpg-x8";
+    case ISPCTarget::xelpg_x16:
+        return "xelpg-x16";
     case ISPCTarget::none:
     case ISPCTarget::error:
         // Fall through
@@ -310,6 +307,10 @@ bool ISPCTargetIsX86(ISPCTarget target) {
     switch (target) {
     case ISPCTarget::sse2_i32x4:
     case ISPCTarget::sse2_i32x8:
+    case ISPCTarget::sse41_i8x16:
+    case ISPCTarget::sse41_i16x8:
+    case ISPCTarget::sse41_i32x4:
+    case ISPCTarget::sse41_i32x8:
     case ISPCTarget::sse4_i8x16:
     case ISPCTarget::sse4_i16x8:
     case ISPCTarget::sse4_i32x4:
@@ -372,6 +373,8 @@ bool ISPCTargetIsGen(ISPCTarget target) {
     case ISPCTarget::xehpg_x16:
     case ISPCTarget::xehpc_x16:
     case ISPCTarget::xehpc_x32:
+    case ISPCTarget::xelpg_x8:
+    case ISPCTarget::xelpg_x16:
         return true;
     default:
         return false;

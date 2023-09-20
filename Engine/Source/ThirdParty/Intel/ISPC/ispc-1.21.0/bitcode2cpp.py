@@ -12,8 +12,10 @@ parser.add_argument("src", help="Source file to process")
 parser.add_argument("--type", help="Type of processed file", choices=['dispatch', 'builtins-c', 'ispc-target'], required=True)
 parser.add_argument("--runtime", help="Runtime", choices=['32', '64'], nargs='?', default='')
 parser.add_argument("--os", help="Target OS", choices=['windows', 'linux', 'macos', 'freebsd', 'android', 'ios', 'ps4', 'web', 'WINDOWS', 'UNIX', 'WEB'], default='')
-parser.add_argument("--arch", help="Target architecture", choices=['i686', 'x86_64', 'armv7', 'arm64', 'aarch64', 'wasm32', 'xe32', 'xe64'], default='')
+parser.add_argument("--arch", help="Target architecture", choices=['i686', 'x86_64', 'armv7', 'arm64', 'aarch64', 'wasm32', 'wasm64', 'xe64'], default='')
 parser.add_argument("--llvm_as", help="Path to LLVM assembler executable", dest="path_to_llvm_as")
+parser.add_argument("--opaque_flags", help="Flags to enable/disable opaque pointers", default='')
+
 args = parser.parse_known_args()
 src = args[0].src
 length=0
@@ -33,8 +35,14 @@ else:
     if platform.system() == 'Windows' or platform.system().find("CYGWIN_NT") != -1:
         llvm_as = os.getenv("LLVM_INSTALL_DIR").replace("\\", "/") + "/bin/" + llvm_as
 
+opaque_flags = args[0].opaque_flags
+
+llvm_as_command = [llvm_as, "-", "-o", "-"]
+if opaque_flags != '':
+    llvm_as_command.insert(2, opaque_flags)
+
 try:
-    as_out=subprocess.Popen([llvm_as, "-", "-o", "-"], stdout=subprocess.PIPE)
+    as_out=subprocess.Popen(llvm_as_command, stdout=subprocess.PIPE)
 except IOError:
     sys.stderr.write("Couldn't open " + src + "\n")
     sys.exit(1)
@@ -63,7 +71,7 @@ else:
 
 target_arch = ""
 ispc_arch = ""
-if args[0].arch in ["i686", "x86_64", "amd64", "armv7", "arm64", "aarch64", "wasm32", "xe32", "xe64"]:
+if args[0].arch in ["i686", "x86_64", "amd64", "armv7", "arm64", "aarch64", "wasm32", "wasm64", "xe64"]:
     target_arch = args[0].arch + "_"
     # Canoncalization of arch value for Arch enum in ISPC.
     if args[0].arch == "i686":
@@ -76,7 +84,9 @@ if args[0].arch in ["i686", "x86_64", "amd64", "armv7", "arm64", "aarch64", "was
         ispc_arch = "aarch64"
     elif args[0].arch == "wasm32":
         ispc_arch = "wasm32"
-    elif args[0].arch == "xe32" or args[0].arch == "xe64":
+    elif args[0].arch == "wasm64":
+        ispc_arch = "wasm64"
+    elif args[0].arch == "xe64":
         ispc_arch = args[0].arch
 
 width = 16
@@ -126,9 +136,9 @@ elif args[0].type == 'ispc-target':
     elif "neon" in target:
         arch = "arm" if args[0].runtime == "32" else "aarch64" if args[0].runtime == "64" else "error"
     elif "wasm" in target:
-        arch = "wasm32"
+        arch = "wasm32" if args[0].runtime == "32" else "wasm64" if args[0].runtime == "64" else "error"
     elif ("gen9" in target) or ("xe" in target):
-        arch = "xe32" if args[0].runtime == "32" else "xe64" if args[0].runtime == "64" else "error"
+        arch = "xe64"
     else:
         sys.stderr.write("Unknown target detected: " + target + "\n")
         sys.exit(1)

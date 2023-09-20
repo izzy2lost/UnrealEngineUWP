@@ -1,43 +1,12 @@
-
-
 /*
-  Copyright (c) 2022, Intel Corporation
-  All rights reserved.
+  Copyright (c) 2022-2023, Intel Corporation
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 #include "PeepholePass.h"
 
 namespace ispc {
-
-char PeepholePass::ID = 0;
 
 using namespace llvm::PatternMatch;
 
@@ -95,7 +64,7 @@ template <typename Op_t> struct UDiv2_match {
         llvm::BinaryOperator *bop;
         llvm::ConstantDataVector *cdv;
         if ((bop = llvm::dyn_cast<llvm::BinaryOperator>(V)) &&
-            (cdv = llvm::dyn_cast<llvm::ConstantDataVector>(bop->getOperand(1))) && cdv->getSplatValue() != NULL) {
+            (cdv = llvm::dyn_cast<llvm::ConstantDataVector>(bop->getOperand(1))) && cdv->getSplatValue() != nullptr) {
             const llvm::APInt &apInt = cdv->getUniqueInteger();
 
             switch (bop->getOpcode()) {
@@ -124,7 +93,7 @@ template <typename Op_t> struct SDiv2_match {
         llvm::BinaryOperator *bop;
         llvm::ConstantDataVector *cdv;
         if ((bop = llvm::dyn_cast<llvm::BinaryOperator>(V)) &&
-            (cdv = llvm::dyn_cast<llvm::ConstantDataVector>(bop->getOperand(1))) && cdv->getSplatValue() != NULL) {
+            (cdv = llvm::dyn_cast<llvm::ConstantDataVector>(bop->getOperand(1))) && cdv->getSplatValue() != nullptr) {
             const llvm::APInt &apInt = cdv->getUniqueInteger();
 
             switch (bop->getOpcode()) {
@@ -159,7 +128,7 @@ static bool lHasIntrinsicInDefinition(llvm::Function *func) {
 
 static llvm::Instruction *lGetBinaryIntrinsic(const char *name, llvm::Value *opa, llvm::Value *opb) {
     llvm::Function *func = m->module->getFunction(name);
-    Assert(func != NULL);
+    Assert(func != nullptr);
 
     // Make sure that the definition of the llvm::Function has a call to an
     // intrinsic function in its instructions; otherwise we will generate
@@ -169,7 +138,7 @@ static llvm::Instruction *lGetBinaryIntrinsic(const char *name, llvm::Value *opa
     if (lHasIntrinsicInDefinition(func))
         return LLVMCallInst(func, opa, opb, name);
     else
-        return NULL;
+        return nullptr;
 }
 
 //////////////////////////////////////////////////
@@ -183,11 +152,11 @@ static llvm::Instruction *lMatchAvgUpUInt8(llvm::Value *inst) {
                                     m_Add(m_Add(m_ZExt8To16(m_Value(opa)), m_APInt(delta)), m_ZExt8To16(m_Value(opb)))),
                         m_Add(m_Add(m_ZExt8To16(m_Value(opa)), m_ZExt8To16(m_Value(opb))), m_APInt(delta))))))) {
         if (delta->isIntN(1) == false)
-            return NULL;
+            return nullptr;
 
         return lGetBinaryIntrinsic("__avg_up_uint8", opa, opb);
     }
-    return NULL;
+    return nullptr;
 }
 
 static llvm::Instruction *lMatchAvgDownUInt8(llvm::Value *inst) {
@@ -196,7 +165,7 @@ static llvm::Instruction *lMatchAvgDownUInt8(llvm::Value *inst) {
     if (match(inst, m_Trunc16To8(m_UDiv2(m_Add(m_ZExt8To16(m_Value(opa)), m_ZExt8To16(m_Value(opb))))))) {
         return lGetBinaryIntrinsic("__avg_down_uint8", opa, opb);
     }
-    return NULL;
+    return nullptr;
 }
 
 static llvm::Instruction *lMatchAvgUpUInt16(llvm::Value *inst) {
@@ -209,11 +178,11 @@ static llvm::Instruction *lMatchAvgUpUInt16(llvm::Value *inst) {
                               m_Add(m_Add(m_ZExt16To32(m_Value(opa)), m_APInt(delta)), m_ZExt16To32(m_Value(opb)))),
                   m_Add(m_Add(m_ZExt16To32(m_Value(opa)), m_ZExt16To32(m_Value(opb))), m_APInt(delta))))))) {
         if (delta->isIntN(1) == false)
-            return NULL;
+            return nullptr;
 
         return lGetBinaryIntrinsic("__avg_up_uint16", opa, opb);
     }
-    return NULL;
+    return nullptr;
 }
 
 static llvm::Instruction *lMatchAvgDownUInt16(llvm::Value *inst) {
@@ -222,7 +191,7 @@ static llvm::Instruction *lMatchAvgDownUInt16(llvm::Value *inst) {
     if (match(inst, m_Trunc32To16(m_UDiv2(m_Add(m_ZExt16To32(m_Value(opa)), m_ZExt16To32(m_Value(opb))))))) {
         return lGetBinaryIntrinsic("__avg_down_uint16", opa, opb);
     }
-    return NULL;
+    return nullptr;
 }
 
 static llvm::Instruction *lMatchAvgUpInt8(llvm::Value *inst) {
@@ -234,11 +203,11 @@ static llvm::Instruction *lMatchAvgUpInt8(llvm::Value *inst) {
                                     m_Add(m_Add(m_SExt8To16(m_Value(opa)), m_APInt(delta)), m_SExt8To16(m_Value(opb)))),
                         m_Add(m_Add(m_SExt8To16(m_Value(opa)), m_SExt8To16(m_Value(opb))), m_APInt(delta))))))) {
         if (delta->isIntN(1) == false)
-            return NULL;
+            return nullptr;
 
         return lGetBinaryIntrinsic("__avg_up_int8", opa, opb);
     }
-    return NULL;
+    return nullptr;
 }
 
 static llvm::Instruction *lMatchAvgDownInt8(llvm::Value *inst) {
@@ -247,7 +216,7 @@ static llvm::Instruction *lMatchAvgDownInt8(llvm::Value *inst) {
     if (match(inst, m_Trunc16To8(m_SDiv2(m_Add(m_SExt8To16(m_Value(opa)), m_SExt8To16(m_Value(opb))))))) {
         return lGetBinaryIntrinsic("__avg_down_int8", opa, opb);
     }
-    return NULL;
+    return nullptr;
 }
 
 static llvm::Instruction *lMatchAvgUpInt16(llvm::Value *inst) {
@@ -260,11 +229,11 @@ static llvm::Instruction *lMatchAvgUpInt16(llvm::Value *inst) {
                               m_Add(m_Add(m_SExt16To32(m_Value(opa)), m_APInt(delta)), m_SExt16To32(m_Value(opb)))),
                   m_Add(m_Add(m_SExt16To32(m_Value(opa)), m_SExt16To32(m_Value(opb))), m_APInt(delta))))))) {
         if (delta->isIntN(1) == false)
-            return NULL;
+            return nullptr;
 
         return lGetBinaryIntrinsic("__avg_up_int16", opa, opb);
     }
-    return NULL;
+    return nullptr;
 }
 
 static llvm::Instruction *lMatchAvgDownInt16(llvm::Value *inst) {
@@ -273,16 +242,18 @@ static llvm::Instruction *lMatchAvgDownInt16(llvm::Value *inst) {
     if (match(inst, m_Trunc32To16(m_SDiv2(m_Add(m_SExt16To32(m_Value(opa)), m_SExt16To32(m_Value(opb))))))) {
         return lGetBinaryIntrinsic("__avg_down_int16", opa, opb);
     }
-    return NULL;
+    return nullptr;
 }
 
 bool PeepholePass::matchAndReplace(llvm::BasicBlock &bb) {
     DEBUG_START_BB("PeepholePass");
 
     bool modifiedAny = false;
-restart:
-    for (llvm::BasicBlock::iterator iter = bb.begin(), e = bb.end(); iter != e; ++iter) {
-        llvm::Instruction *inst = &*iter;
+
+    // Note: we do modify instruction list during the traversal, so the iterator
+    // is moved forward before the instruction is processed.
+    for (llvm::BasicBlock::iterator iter = bb.begin(), e = bb.end(); iter != e;) {
+        llvm::Instruction *inst = &*(iter++);
 
         llvm::Instruction *builtinCall = lMatchAvgUpUInt8(inst);
         if (!builtinCall)
@@ -299,10 +270,9 @@ restart:
             builtinCall = lMatchAvgDownInt8(inst);
         if (!builtinCall)
             builtinCall = lMatchAvgDownInt16(inst);
-        if (builtinCall != NULL) {
+        if (builtinCall != nullptr) {
             llvm::ReplaceInstWithInst(inst, builtinCall);
             modifiedAny = true;
-            goto restart;
         }
     }
 
@@ -311,16 +281,21 @@ restart:
     return modifiedAny;
 }
 
-bool PeepholePass::runOnFunction(llvm::Function &F) {
+llvm::PreservedAnalyses PeepholePass::run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM) {
 
-    llvm::TimeTraceScope FuncScope("PeepholePass::runOnFunction", F.getName());
+    llvm::TimeTraceScope FuncScope("PeepholePass::run", F.getName());
     bool modifiedAny = false;
     for (llvm::BasicBlock &BB : F) {
         modifiedAny |= matchAndReplace(BB);
     }
-    return modifiedAny;
-}
+    if (!modifiedAny) {
+        // No changes, all analyses are preserved.
+        return llvm::PreservedAnalyses::all();
+    }
 
-llvm::Pass *CreatePeepholePass() { return new PeepholePass; }
+    llvm::PreservedAnalyses PA;
+    PA.preserveSet<llvm::CFGAnalyses>();
+    return PA;
+}
 
 } // namespace ispc

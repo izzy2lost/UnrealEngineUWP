@@ -1,41 +1,12 @@
 /*
   Copyright (c) 2022-2023, Intel Corporation
-  All rights reserved.
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 #include "IsCompileTimeConstant.h"
 
 namespace ispc {
-
-char IsCompileTimeConstantPass::ID = 0;
 
 bool IsCompileTimeConstantPass::lowerCompileTimeConstant(llvm::BasicBlock &bb) {
     DEBUG_START_BB("IsCompileTimeConstantPass");
@@ -45,18 +16,21 @@ bool IsCompileTimeConstantPass::lowerCompileTimeConstant(llvm::BasicBlock &bb) {
                                m->module->getFunction("__is_compile_time_constant_varying_int32")};
 
     bool modifiedAny = false;
-restart:
-    for (llvm::BasicBlock::iterator i = bb.begin(), e = bb.end(); i != e; ++i) {
+
+    // Note: we do modify instruction list during the traversal, so the iterator
+    // is moved forward before the instruction is processed.
+    for (llvm::BasicBlock::iterator iter = bb.begin(), e = bb.end(); iter != e;) {
+        llvm::BasicBlock::iterator curIter = iter++;
         // Iterate through the instructions looking for calls to the
         // __is_compile_time_constant_*() functions
-        llvm::CallInst *callInst = llvm::dyn_cast<llvm::CallInst>(&*i);
-        if (callInst == NULL)
+        llvm::CallInst *callInst = llvm::dyn_cast<llvm::CallInst>(&*(curIter));
+        if (callInst == nullptr)
             continue;
 
         int j;
         int nFuncs = sizeof(funcs) / sizeof(funcs[0]);
         for (j = 0; j < nFuncs; ++j) {
-            if (funcs[j] != NULL && callInst->getCalledFunction() == funcs[j])
+            if (funcs[j] != nullptr && callInst->getCalledFunction() == funcs[j])
                 break;
         }
         if (j == nFuncs)
@@ -67,18 +41,18 @@ restart:
         // named) disableGatherScatterFlattening option and
         // disableMaskAllOnOptimizations.
         if (g->opt.disableGatherScatterFlattening || g->opt.disableMaskAllOnOptimizations) {
-            ReplaceInstWithValueWrapper(i, LLVMFalse);
+            ReplaceInstWithValueWrapper(curIter, LLVMFalse);
             modifiedAny = true;
-            goto restart;
+            continue;
         }
 
         // Is it a constant?  Bingo, turn the call's value into a constant
         // true value.
         llvm::Value *operand = callInst->getArgOperand(0);
         if (llvm::isa<llvm::Constant>(operand)) {
-            ReplaceInstWithValueWrapper(i, LLVMTrue);
+            ReplaceInstWithValueWrapper(curIter, LLVMTrue);
             modifiedAny = true;
-            goto restart;
+            continue;
         }
 
         // This pass runs multiple times during optimization.  Up until the
@@ -88,9 +62,9 @@ restart:
         // value.  The last time through, it eventually has to give up, and
         // replaces any remaining ones with 'false' constants.
         if (isLastTry) {
-            ReplaceInstWithValueWrapper(i, LLVMFalse);
+            ReplaceInstWithValueWrapper(curIter, LLVMFalse);
             modifiedAny = true;
-            goto restart;
+            continue;
         }
     }
 
@@ -99,16 +73,21 @@ restart:
     return modifiedAny;
 }
 
-bool IsCompileTimeConstantPass::runOnFunction(llvm::Function &F) {
+llvm::PreservedAnalyses IsCompileTimeConstantPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM) {
 
-    llvm::TimeTraceScope FuncScope("IsCompileTimeConstantPass::runOnFunction", F.getName());
+    llvm::TimeTraceScope FuncScope("IsCompileTimeConstantPass::run", F.getName());
     bool modifiedAny = false;
     for (llvm::BasicBlock &BB : F) {
         modifiedAny |= lowerCompileTimeConstant(BB);
     }
-    return modifiedAny;
-}
+    if (!modifiedAny) {
+        // No changes, all analyses are preserved.
+        return llvm::PreservedAnalyses::all();
+    }
 
-llvm::Pass *CreateIsCompileTimeConstantPass(bool isLastTry) { return new IsCompileTimeConstantPass(isLastTry); }
+    llvm::PreservedAnalyses PA;
+    PA.preserveSet<llvm::CFGAnalyses>();
+    return PA;
+}
 
 } // namespace ispc

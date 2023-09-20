@@ -1,34 +1,7 @@
 /*
-  Copyright (c) 2019-2022, Intel Corporation
-  All rights reserved.
+  Copyright (c) 2019-2023, Intel Corporation
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -189,12 +162,7 @@ static void L0InitContext(ze_device_handle_t &hDevice, ze_module_handle_t &hModu
     is.read((char *)codeBin, codeSize);
     is.close();
 
-    std::string igcOptions = "-vc-codegen -no-optimize -Xfinalizer '-presched'";
-#ifdef ISPC_IS_LINUX
-    // `newspillcost` is not yet supported on Windows in open source
-    // TODO: use `newspillcost` for all platforms as soon as it available
-    igcOptions += " -Xfinalizer '-newspillcost'";
-#endif
+    std::string igcOptions = "-vc-codegen -no-optimize -Xfinalizer '-presched' -Xfinalizer '-newspillcostispc'";
     const char *userIgcOptionsEnv = getenv("ISPCRT_IGC_OPTIONS");
     if (userIgcOptionsEnv) {
         std::string userIgcOptions(userIgcOptionsEnv);
@@ -287,7 +255,7 @@ static void L0Launch_F_V(ze_device_handle_t &hDevice, ze_module_handle_t &hModul
     // allocate buffers
     ze_device_mem_alloc_desc_t allocDesc = {};
     void *OUTBuff = nullptr;
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), N * sizeof(float), hDevice, &OUTBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), 64, hDevice, &OUTBuff));
     // copy buffers to device
     L0_SAFE_CALL(
         zeCommandListAppendMemoryCopy(hCommandList, OUTBuff, return_data, N * sizeof(float), nullptr, 0, nullptr));
@@ -310,7 +278,7 @@ static void L0Launch_F_Threads(ze_device_handle_t &hDevice, ze_module_handle_t &
     // allocate buffers
     ze_device_mem_alloc_desc_t allocDesc = {};
     void *OUTBuff = nullptr;
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), N * sizeof(float), hDevice, &OUTBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), 64, hDevice, &OUTBuff));
     // copy buffers to device
     L0_SAFE_CALL(
         zeCommandListAppendMemoryCopy(hCommandList, OUTBuff, return_data, N * sizeof(float), nullptr, 0, nullptr));
@@ -332,8 +300,8 @@ static void L0Launch_F_F(ze_device_handle_t &hDevice, ze_module_handle_t &hModul
     // allocate buffers
     ze_device_mem_alloc_desc_t allocDesc = {};
     void *OUTBuff = nullptr, *INBuff = nullptr;
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), N * sizeof(float), hDevice, &OUTBuff));
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), N * sizeof(float), hDevice, &INBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), 64, hDevice, &OUTBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), 64, hDevice, &INBuff));
     // copy buffers to device
     L0_SAFE_CALL(
         zeCommandListAppendMemoryCopy(hCommandList, OUTBuff, return_data, N * sizeof(float), nullptr, 0, nullptr));
@@ -362,9 +330,9 @@ static void L0Launch_F_FI(ze_device_handle_t &hDevice, ze_module_handle_t &hModu
     // allocate buffers
     ze_device_mem_alloc_desc_t allocDesc = {};
     void *OUTBuff = nullptr, *INBuff = nullptr, *IN1Buff = nullptr;
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), N * sizeof(float), hDevice, &OUTBuff));
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), N * sizeof(float), hDevice, &INBuff));
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(int), N * sizeof(int), hDevice, &IN1Buff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), 64, hDevice, &OUTBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), 64, hDevice, &INBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(int), 64, hDevice, &IN1Buff));
     // copy buffers to device
     L0_SAFE_CALL(
         zeCommandListAppendMemoryCopy(hCommandList, OUTBuff, return_data, N * sizeof(float), nullptr, 0, nullptr));
@@ -395,8 +363,8 @@ static void L0Launch_F_FU(ze_device_handle_t &hDevice, ze_module_handle_t &hModu
     // allocate buffers
     ze_device_mem_alloc_desc_t allocDesc = {};
     void *OUTBuff = nullptr, *INBuff = nullptr;
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), N * sizeof(float), hDevice, &OUTBuff));
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), N * sizeof(float), hDevice, &INBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), 64, hDevice, &OUTBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), 64, hDevice, &INBuff));
     // copy buffers to device
     L0_SAFE_CALL(
         zeCommandListAppendMemoryCopy(hCommandList, OUTBuff, return_data, N * sizeof(float), nullptr, 0, nullptr));
@@ -425,8 +393,8 @@ static void L0Launch_F_DU(ze_device_handle_t &hDevice, ze_module_handle_t &hModu
     // allocate buffers
     ze_device_mem_alloc_desc_t allocDesc = {};
     void *OUTBuff = nullptr, *INBuff = nullptr;
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), N * sizeof(float), hDevice, &OUTBuff));
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(double), N * sizeof(double), hDevice, &INBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), 64, hDevice, &OUTBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(double), 64, hDevice, &INBuff));
     // copy buffers to device
     L0_SAFE_CALL(
         zeCommandListAppendMemoryCopy(hCommandList, OUTBuff, return_data, N * sizeof(float), nullptr, 0, nullptr));
@@ -455,8 +423,8 @@ static void L0Launch_F_DUF(ze_device_handle_t &hDevice, ze_module_handle_t &hMod
     // allocate buffers
     ze_device_mem_alloc_desc_t allocDesc = {};
     void *OUTBuff = nullptr, *INBuff = nullptr;
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), N * sizeof(float), hDevice, &OUTBuff));
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(double), N * sizeof(double), hDevice, &INBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), 64, hDevice, &OUTBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(double), 64, hDevice, &INBuff));
     // copy buffers to device
     L0_SAFE_CALL(
         zeCommandListAppendMemoryCopy(hCommandList, OUTBuff, return_data, N * sizeof(float), nullptr, 0, nullptr));
@@ -486,9 +454,9 @@ static void L0Launch_F_DI(ze_device_handle_t &hDevice, ze_module_handle_t &hModu
     // allocate buffers
     ze_device_mem_alloc_desc_t allocDesc = {};
     void *OUTBuff = nullptr, *INBuff = nullptr, *IN1Buff = nullptr;
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), N * sizeof(float), hDevice, &OUTBuff));
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(double), N * sizeof(double), hDevice, &INBuff));
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(int), N * sizeof(int), hDevice, &IN1Buff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), 64, hDevice, &OUTBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(double), 64, hDevice, &INBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(int), 64, hDevice, &IN1Buff));
 
     // copy buffers to device
     L0_SAFE_CALL(
@@ -536,7 +504,7 @@ static void L0Launch_Print_F(ze_device_handle_t &hDevice, ze_module_handle_t &hM
     // allocate buffers
     ze_device_mem_alloc_desc_t allocDesc = {};
     void *INBuff = nullptr;
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), N * sizeof(float), hDevice, &INBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), 64, hDevice, &INBuff));
     // copy buffers to device
     L0_SAFE_CALL(
         zeCommandListAppendMemoryCopy(hCommandList, INBuff, vfloat_data, N * sizeof(float), nullptr, 0, nullptr));
@@ -560,7 +528,7 @@ static void L0Launch_Print_FUF(ze_device_handle_t &hDevice, ze_module_handle_t &
     // allocate buffers
     ze_device_mem_alloc_desc_t allocDesc = {};
     void *INBuff = nullptr;
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), N * sizeof(float), hDevice, &INBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), 64, hDevice, &INBuff));
     // copy buffers to device
     L0_SAFE_CALL(
         zeCommandListAppendMemoryCopy(hCommandList, INBuff, vfloat_data, N * sizeof(float), nullptr, 0, nullptr));
@@ -597,7 +565,7 @@ static void L0Launch_Result(ze_device_handle_t &hDevice, ze_module_handle_t &hMo
     // allocate buffers
     ze_device_mem_alloc_desc_t allocDesc = {};
     void *OUTBuff = nullptr;
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), N * sizeof(float), hDevice, &OUTBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), 64, hDevice, &OUTBuff));
     // copy buffers to device
     L0_SAFE_CALL(
         zeCommandListAppendMemoryCopy(hCommandList, OUTBuff, return_data, N * sizeof(float), nullptr, 0, nullptr));
@@ -631,7 +599,7 @@ static void L0Launch_Result_Threads(ze_device_handle_t &hDevice, ze_module_handl
     // allocate buffers
     ze_device_mem_alloc_desc_t allocDesc = {};
     void *OUTBuff = nullptr;
-    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), N * sizeof(float), hDevice, &OUTBuff));
+    L0_SAFE_CALL(zeMemAllocDevice(hContext, &allocDesc, N * sizeof(float), 64, hDevice, &OUTBuff));
     // copy buffers to device
     L0_SAFE_CALL(
         zeCommandListAppendMemoryCopy(hCommandList, OUTBuff, return_data, N * sizeof(float), nullptr, 0, nullptr));

@@ -1,13 +1,18 @@
+#
+#  Copyright (c) 2017-2023, Intel Corporation
+#
+#  SPDX-License-Identifier: BSD-3-Clause
+
 FROM ubuntu:20.04
 LABEL maintainer="Arina Neshlyaeva <arina.neshlyaeva@intel.com>"
-SHELL ["/bin/bash", "-c"]
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG REPO=ispc/ispc
 ARG SHA=main
-ARG LLVM_VERSION=14.0
-ARG L0L_VER=1.9.4
-ARG VC_INTRINSICS_COMMIT_SHA="3ac855c9253d608a36d10b8ff87e62aa413bbf23"
-ARG SPIRV_TRANSLATOR_COMMIT_SHA="c469fa86d54380231123f2b5adb4e1239392b814"
+ARG LLVM_VERSION=15.0
+ARG L0L_VER=1.13.5
+ARG VC_INTRINSICS_COMMIT_SHA="910db4801d4a029834606e3e42a8d60358e74fdf"
+ARG SPIRV_TRANSLATOR_COMMIT_SHA="e82ecc2bd7295604fcf1824e47c95fa6a09c6e63"
 
 # !!! Make sure that your docker config provides enough memory to the container,
 # otherwise LLVM build may fail, as it will use all the cores available to container.
@@ -15,7 +20,7 @@ ARG SPIRV_TRANSLATOR_COMMIT_SHA="c469fa86d54380231123f2b5adb4e1239392b814"
 # Packages
 RUN apt-get -y update && DEBIAN_FRONTEND=noninteractive apt-get --no-install-recommends install -y clang-8 build-essential \
     libnuma1 opencl-headers ocl-icd-libopencl1 clinfo vim gcc g++ git python3-dev imagemagick m4 bison flex libncurses-dev \
-    libtinfo-dev libc6-dev-i386 cpio lsb-core wget gnupg netcat-openbsd libtbb-dev libglfw3-dev pkgconf gdb gcc-multilib g++-multilib curl libomp-dev ca-certificates && \
+    libtinfo-dev libc6-dev-i386 cpio lsb-core wget gnupg netcat-openbsd libtbb-dev libglfw3-dev pkgconf gdb gcc-multilib g++-multilib curl ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 # Download and install required version of cmake (3.14) for ISPC build
@@ -39,7 +44,7 @@ RUN python3 ./alloy.py -b --version="$LLVM_VERSION" --selfbuild && \
 WORKDIR /home/packages
 
 # Add package repository and install graphics packages
-RUN wget -qO - https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg && \
+RUN set -eux && wget -qO - https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg && \
     echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/graphics/ubuntu focal-devel main' | \
     tee  /etc/apt/sources.list.d/intel.gpu.focal.list && \
     apt-get -y update && apt-get --no-install-recommends install -y intel-opencl-icd intel-level-zero-gpu level-zero \
@@ -49,14 +54,13 @@ RUN wget -qO - https://repositories.intel.com/graphics/intel-graphics.key | gpg 
     mesa-vdpau-drivers mesa-vulkan-drivers va-driver-all && \
     rm -rf /var/lib/apt/lists/*
 
-# L0 loaader
-RUN wget -q --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 5 https://github.com/oneapi-src/level-zero/releases/download/v${L0L_VER}/level-zero-devel_${L0L_VER}+u18.04_amd64.deb && \
-    wget -q --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 5 https://github.com/oneapi-src/level-zero/releases/download/v${L0L_VER}/level-zero_${L0L_VER}+u18.04_amd64.deb
-
-# Install packages and clean up
-RUN dpkg -i ./*.deb
-WORKDIR /home
-RUN rm -rf packages
+# L0 loader
+WORKDIR /home/src
+RUN git clone https://github.com/oneapi-src/level-zero.git
+WORKDIR /home/src/level-zero
+RUN git checkout v$L0L_VER && mkdir -p build
+WORKDIR /home/src/level-zero/build
+RUN cmake -DCMAKE_INSTALL_PREFIX=/home/deps ../ && make install -j"$(nproc)"
 
 # vc-intrinsics
 WORKDIR /home/src
@@ -76,15 +80,9 @@ RUN cmake -DLLVM_DIR=$LLVM_HOME/bin-$LLVM_VERSION/lib/cmake/llvm/ -DCMAKE_INSTAL
 
 # ISPC build
 ENV PATH=$LLVM_HOME/bin-$LLVM_VERSION/bin:$PATH
-# A note about libomp discoverability (required for libispcrt.so).
-# In Ubuntu 18.04 and earlier installing libomp-dev is what you need.
-# Starting Ubuntu 20.04 installing libomp-dev is not installing OpenMP libraries and
-# they need to be installed with your compiler. We build them as part of LLVM, so
-# adding LLVM lib path to LD_LIBRARY_PATH for libomp discoverability.
-ENV LD_LIBRARY_PATH=$LLVM_HOME/bin-$LLVM_VERSION/lib:$LD_LIBRARY_PATH
 WORKDIR /home/src/ispc
 RUN mkdir -p build
 WORKDIR /home/src/ispc/build
-RUN cmake -DXE_ENABLED=ON -DCMAKE_INSTALL_PREFIX=/home/ispc/ -DXE_DEPS_DIR=/home/deps ../ && make install -j"$(nproc)" && make check-all -j"$(nproc)"
+RUN cmake -DXE_ENABLED=ON -DCMAKE_INSTALL_PREFIX=/home/ispc/ -DXE_DEPS_DIR=/home/deps -DLEVEL_ZERO_ROOT=/home/deps ../ && make install -j"$(nproc)" && make check-all -j"$(nproc)"
 # Add ISPC to PATH
 ENV PATH=/home/ispc/bin:$PATH

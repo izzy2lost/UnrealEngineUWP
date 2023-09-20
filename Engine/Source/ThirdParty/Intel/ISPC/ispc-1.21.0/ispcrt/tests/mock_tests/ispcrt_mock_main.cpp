@@ -132,8 +132,7 @@ class MockTestWithModuleQueueKernel : public MockTestWithModule {
             if (expectError && i >= errorIter) {
                 ASSERT_NE(sm_rt_error, ISPCRT_NO_ERROR);
                 return;
-            }
-            else {
+            } else {
                 ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
             }
             futures.push_back(f);
@@ -143,7 +142,7 @@ class MockTestWithModuleQueueKernel : public MockTestWithModule {
         tq.sync();
         ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
         ASSERT_TRUE(Config::checkCmdList({}));
-        for (const auto& f : futures) {
+        for (const auto &f : futures) {
             ASSERT_TRUE(f.valid());
         }
     }
@@ -154,12 +153,6 @@ class MockTestWithModuleQueueKernel : public MockTestWithModule {
 
 /////////////////////////////////////////////////////////////////////
 // Device tests
-
-TEST_F(MockTest, Device_Constructor_zeInit) {
-    Config::setRetValue("zeInit", ZE_RESULT_ERROR_DEVICE_LOST);
-    ispcrt::Device d(ISPCRT_DEVICE_TYPE_GPU);
-    ASSERT_EQ(sm_rt_error, ISPCRT_DEVICE_LOST);
-}
 
 TEST_F(MockTest, Device_Constructor_zeDeviceGet) {
     Config::setRetValue("zeDeviceGet", ZE_RESULT_ERROR_DEVICE_LOST);
@@ -179,16 +172,24 @@ TEST_F(MockTest, Device_Constructor_zeContextCreate) {
     ASSERT_EQ(sm_rt_error, ISPCRT_DEVICE_LOST);
 }
 
-TEST_F(MockTest, Context_Constructor_zeInit) {
-    Config::setRetValue("zeInit", ZE_RESULT_ERROR_DEVICE_LOST);
-    ispcrt::Context c(ISPCRT_DEVICE_TYPE_GPU);
-    ASSERT_EQ(sm_rt_error, ISPCRT_DEVICE_LOST);
-}
-
 TEST_F(MockTest, Device_Constructor_FromContext) {
     ispcrt::Context c(ISPCRT_DEVICE_TYPE_GPU);
     ispcrt::Device d(c);
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
+}
+
+TEST_F(MockTest, Device_Type_CPU) {
+    ispcrt::Context c(ISPCRT_DEVICE_TYPE_CPU);
+    ispcrt::Device d(c);
+    ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
+    ASSERT_EQ(d.getType(), ISPCRT_DEVICE_TYPE_CPU);
+}
+
+TEST_F(MockTest, Device_Type_GPU) {
+    ispcrt::Context c(ISPCRT_DEVICE_TYPE_GPU);
+    ispcrt::Device d(c);
+    ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
+    ASSERT_EQ(d.getType(), ISPCRT_DEVICE_TYPE_GPU);
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -203,34 +204,31 @@ TEST_F(MockTestWithContext, SharedMemAlloc1) {
 
 TEST_F(MockTestWithContext, SharedMemAlloc4) {
     ispcrt::SharedMemoryAllocator<char> sma(m_ctxt);
-    for(int i = 0; i < 4; i++)
+    for (int i = 0; i < 4; i++)
         sma.allocate(1);
     ASSERT_EQ(CallCounters::get("zeMemAllocShared"), 4);
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
 }
 
 TEST_F(MockTestWithContext, SharedMemAllocHDRW) {
-    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt,
-                                            ispcrt::SharedMemoryUsageHint::HostDeviceReadWrite);
-    for(int i = 0; i < 10; i++)
+    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt, ispcrt::SharedMemoryUsageHint::HostDeviceReadWrite);
+    for (int i = 0; i < 10; i++)
         sma.allocate(1ULL << 10);
     ASSERT_EQ(CallCounters::get("zeMemAllocShared"), 10);
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
 }
 
 TEST_F(MockTestWithContext, SharedMemAllocHRDW) {
-    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt,
-                                            ispcrt::SharedMemoryUsageHint::HostReadDeviceWrite);
-    for(int i = 0; i < 5; i++)
+    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt, ispcrt::SharedMemoryUsageHint::HostReadDeviceWrite);
+    for (int i = 0; i < 5; i++)
         sma.allocate(1ULL << 5);
     ASSERT_EQ(CallCounters::get("zeMemAllocShared"), 5);
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
 }
 
 TEST_F(MockTestWithContext, SharedMemAllocHWDR) {
-    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt,
-                                            ispcrt::SharedMemoryUsageHint::HostWriteDeviceRead);
-    for(int i = 0; i < 7; i++)
+    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt, ispcrt::SharedMemoryUsageHint::HostWriteDeviceRead);
+    for (int i = 0; i < 7; i++)
         sma.allocate((1ULL << 7) - 100);
     ASSERT_EQ(CallCounters::get("zeMemAllocShared"), 7);
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
@@ -251,38 +249,33 @@ TEST_F(MockTestWithContextMemPool, SharedMemAlloc1) {
 }
 
 TEST_F(MockTestWithContextMemPool, SharedMemAllocHDRW) {
-    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt,
-                                            ispcrt::SharedMemoryUsageHint::HostDeviceReadWrite);
-    for(int i = 0; i < 10; i++)
+    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt, ispcrt::SharedMemoryUsageHint::HostDeviceReadWrite);
+    for (int i = 0; i < 10; i++)
         sma.allocate(1ULL << 10);
     ASSERT_EQ(CallCounters::get("zeMemAllocShared"), 10);
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
 }
 
 TEST_F(MockTestWithContextMemPool, SharedMemAllocHRDW) {
-    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt,
-                                            ispcrt::SharedMemoryUsageHint::HostReadDeviceWrite);
-    for(int i = 0; i < 5; i++)
+    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt, ispcrt::SharedMemoryUsageHint::HostReadDeviceWrite);
+    for (int i = 0; i < 5; i++)
         sma.allocate(1ULL << 5);
     ASSERT_EQ(CallCounters::get("zeMemAllocShared"), 1);
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
 }
 
 TEST_F(MockTestWithContextMemPool, SharedMemAllocHWDR) {
-    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt,
-                                            ispcrt::SharedMemoryUsageHint::HostWriteDeviceRead);
-    for(int i = 0; i < 7; i++)
+    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt, ispcrt::SharedMemoryUsageHint::HostWriteDeviceRead);
+    for (int i = 0; i < 7; i++)
         sma.allocate((1ULL << 7) - 100);
     ASSERT_EQ(CallCounters::get("zeMemAllocShared"), 1);
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
 }
 
 TEST_F(MockTestWithContextMemPool, SharedMemAllocMemPool) {
-    ispcrt::SharedMemoryAllocator<char> sma_hrdw(m_ctxt,
-                                                 ispcrt::SharedMemoryUsageHint::HostReadDeviceWrite);
-    ispcrt::SharedMemoryAllocator<char> sma_hwdr(m_ctxt,
-                                                 ispcrt::SharedMemoryUsageHint::HostWriteDeviceRead);
-    for(int i = 0; i < 5; i++) {
+    ispcrt::SharedMemoryAllocator<char> sma_hrdw(m_ctxt, ispcrt::SharedMemoryUsageHint::HostReadDeviceWrite);
+    ispcrt::SharedMemoryAllocator<char> sma_hwdr(m_ctxt, ispcrt::SharedMemoryUsageHint::HostWriteDeviceRead);
+    for (int i = 0; i < 5; i++) {
         sma_hrdw.allocate(256);
         sma_hwdr.allocate(512);
     }
@@ -291,12 +284,9 @@ TEST_F(MockTestWithContextMemPool, SharedMemAllocMemPool) {
 }
 
 TEST_F(MockTestWithContextMemPool, SharedMemAllocAllDiff) {
-    ispcrt::SharedMemoryAllocator<char> sma_hdrw(m_ctxt,
-                                                 ispcrt::SharedMemoryUsageHint::HostDeviceReadWrite);
-    ispcrt::SharedMemoryAllocator<char> sma_hrdw(m_ctxt,
-                                                 ispcrt::SharedMemoryUsageHint::HostReadDeviceWrite);
-    ispcrt::SharedMemoryAllocator<char> sma_hwdr(m_ctxt,
-                                                 ispcrt::SharedMemoryUsageHint::HostWriteDeviceRead);
+    ispcrt::SharedMemoryAllocator<char> sma_hdrw(m_ctxt, ispcrt::SharedMemoryUsageHint::HostDeviceReadWrite);
+    ispcrt::SharedMemoryAllocator<char> sma_hrdw(m_ctxt, ispcrt::SharedMemoryUsageHint::HostReadDeviceWrite);
+    ispcrt::SharedMemoryAllocator<char> sma_hwdr(m_ctxt, ispcrt::SharedMemoryUsageHint::HostWriteDeviceRead);
     auto *p1 = sma_hdrw.allocate(128);
     auto *p2 = sma_hrdw.allocate(256);
     auto *p3 = sma_hwdr.allocate(512);
@@ -308,26 +298,23 @@ TEST_F(MockTestWithContextMemPool, SharedMemAllocAllDiff) {
 }
 
 TEST_F(MockTestWithContextMemPool, SeveralBulksUnderSameChunkSize1) {
-    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt,
-                                            ispcrt::SharedMemoryUsageHint::HostWriteDeviceRead);
-    for(int i = 0; i < 3; i++)
+    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt, ispcrt::SharedMemoryUsageHint::HostWriteDeviceRead);
+    for (int i = 0; i < 3; i++)
         sma.allocate(1ULL << 20);
     ASSERT_EQ(CallCounters::get("zeMemAllocShared"), 2);
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
 }
 
 TEST_F(MockTestWithContextMemPool, SeveralBulksUnderSameChunkSize2) {
-    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt,
-                                            ispcrt::SharedMemoryUsageHint::HostWriteDeviceRead);
-    for(int i = 0; i < 23; i++)
+    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt, ispcrt::SharedMemoryUsageHint::HostWriteDeviceRead);
+    for (int i = 0; i < 23; i++)
         sma.allocate(1ULL << 19);
     ASSERT_EQ(CallCounters::get("zeMemAllocShared"), 6);
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
 }
 
 TEST_F(MockTestWithContextMemPool, CheckFreeList) {
-    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt,
-                                            ispcrt::SharedMemoryUsageHint::HostWriteDeviceRead);
+    ispcrt::SharedMemoryAllocator<char> sma(m_ctxt, ispcrt::SharedMemoryUsageHint::HostWriteDeviceRead);
     const size_t size = 1ULL << 20;
     auto *p1 = sma.allocate(size);
     auto *p2 = sma.allocate(size);
@@ -338,8 +325,8 @@ TEST_F(MockTestWithContextMemPool, CheckFreeList) {
     sma.deallocate(p2, size);
     auto *p4 = sma.allocate(size);
     ASSERT_EQ(p2, p4);
-    sma.deallocate(p3,size);
-    sma.deallocate(p4,size);
+    sma.deallocate(p3, size);
+    sma.deallocate(p4, size);
     auto *p5 = sma.allocate(size);
     auto *p6 = sma.allocate(size);
     ASSERT_EQ(p5, p1);
@@ -358,17 +345,33 @@ TEST_F(MockTestWithDevice, Module_Constructor) {
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
 }
 
+TEST_F(MockTestWithDevice, Module_Constructor_zeModuleCreateWithOptionsEmpty) {
+    // Create module with options
+    ispcrt::ModuleOptions opts{m_device};
+    ispcrt::Module m(m_device, "", opts);
+    ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
+}
+
 TEST_F(MockTestWithDevice, Module_Constructor_zeModuleCreateWithOptions) {
     // Create module with options
-    ISPCRTModuleOptions opts = {};
+    ispcrt::ModuleOptions opts{m_device, ISPCRTModuleType::ISPCRT_VECTOR_MODULE, false, 0};
     ispcrt::Module m(m_device, "", opts);
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
 }
 
 TEST_F(MockTestWithDevice, Module_Constructor_zeModuleCreateWithStackSize) {
     // Create module with stack size
-    ISPCRTModuleOptions opts;
-    opts.stackSize = 32000;
+    ispcrt::ModuleOptions opts{m_device, ISPCRTModuleType::ISPCRT_VECTOR_MODULE, false, 32000};
+    ispcrt::Module m(m_device, "", opts);
+    ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
+}
+
+TEST_F(MockTestWithDevice, Module_Constructor_zeModuleCreateWithOptionsSetters) {
+    // Create module with stack size
+    ispcrt::ModuleOptions opts{m_device};
+    opts.setStackSize(32000);
+    opts.setLibraryCompilation(true);
+    opts.setModuleType(ISPCRTModuleType::ISPCRT_SCALAR_MODULE);
     ispcrt::Module m(m_device, "", opts);
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
 }
@@ -389,8 +392,7 @@ TEST_F(MockTestWithDevice, Module_DynamicLink) {
     ispcrt::Module m1(m_device, "");
     ispcrt::Module m2(m_device, "");
     Config::setRetValue("zeModuleBuildLogDestroy", ZE_RESULT_SUCCESS);
-    std::array<ISPCRTModule, 2> modules = {
-        (ISPCRTModule)m1.handle(), (ISPCRTModule)m2.handle()};
+    std::array<ISPCRTModule, 2> modules = {(ISPCRTModule)m1.handle(), (ISPCRTModule)m2.handle()};
     m_device.dynamicLinkModules(modules.data(), modules.size());
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
 }
@@ -425,8 +427,7 @@ TEST_F(MockTestWithDevice, Module_StaticLink) {
     ispcrt::Module m1(m_device, "");
     ispcrt::Module m2(m_device, "");
     Config::setRetValue("zeModuleBuildLogDestroy", ZE_RESULT_SUCCESS);
-    std::array<ISPCRTModule, 2> modules = {
-        (ISPCRTModule)m1.handle(), (ISPCRTModule)m2.handle()};
+    std::array<ISPCRTModule, 2> modules = {(ISPCRTModule)m1.handle(), (ISPCRTModule)m2.handle()};
     ispcrt::Module m3 = m_device.staticLinkModules(modules.data(), modules.size());
     ispcrt::Kernel k(m_device, m3, "");
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
@@ -718,8 +719,7 @@ TEST_F(MockTestWithModuleQueueKernel, TaskQueue_FullKernelLaunchNoFuture) {
     ASSERT_TRUE(Config::checkCmdList({CmdListElem::MemoryCopy, CmdListElem::KernelLaunch}));
     tq.barrier();
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
-    ASSERT_TRUE(Config::checkCmdList(
-        {CmdListElem::MemoryCopy, CmdListElem::KernelLaunch, CmdListElem::Barrier}));
+    ASSERT_TRUE(Config::checkCmdList({CmdListElem::MemoryCopy, CmdListElem::KernelLaunch, CmdListElem::Barrier}));
     tq.sync();
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
     ASSERT_TRUE(Config::checkCmdList({}));
@@ -741,8 +741,7 @@ TEST_F(MockTestWithModuleQueueKernel, TaskQueue_FullKernelLaunch) {
     ASSERT_TRUE(Config::checkCmdList({CmdListElem::MemoryCopy, CmdListElem::KernelLaunch}));
     tq.barrier();
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
-    ASSERT_TRUE(Config::checkCmdList(
-        {CmdListElem::MemoryCopy, CmdListElem::KernelLaunch, CmdListElem::Barrier}));
+    ASSERT_TRUE(Config::checkCmdList({CmdListElem::MemoryCopy, CmdListElem::KernelLaunch, CmdListElem::Barrier}));
     tq.sync();
     ASSERT_EQ(sm_rt_error, ISPCRT_NO_ERROR);
     ASSERT_TRUE(Config::checkCmdList({}));
@@ -750,9 +749,7 @@ TEST_F(MockTestWithModuleQueueKernel, TaskQueue_FullKernelLaunch) {
 }
 
 // Try to submit a lot of kernel launches
-TEST_F(MockTestWithModuleQueueKernel, TaskQueue_MultipleKernelLaunchesBasic) {
-    testMultipleKernelLaunches(1000);
-}
+TEST_F(MockTestWithModuleQueueKernel, TaskQueue_MultipleKernelLaunchesBasic) { testMultipleKernelLaunches(1000); }
 
 // Check some other sizes
 TEST_F(MockTestWithModuleQueueKernel, TaskQueue_MultipleKernelLaunchesAdvanced) {
@@ -773,7 +770,6 @@ TEST_F(MockTestWithModuleQueueKernel, TaskQueue_MultipleKernelLaunchesLimit) {
     Config::resetCmdList();
     // Double check that we still can enqueue correct amount of events;
     testMultipleKernelLaunches(LIMIT);
-
 }
 
 // Check if setting the expected maximum of kernel launches with env var works
@@ -793,7 +789,7 @@ TEST_F(MockTestWithModuleQueueKernel, TaskQueue_MultipleKernelLaunchesEnvLimitCa
 // Check that capping the value of kernel launches limit works
 // and produces expected warning
 TEST_F(MockTestWithModuleQueueKernel, TaskQueue_MultipleKernelLaunchesEnvLimit) {
-    constexpr const char* EXPECTED_WARNING =
+    constexpr const char *EXPECTED_WARNING =
         "[ISPCRT][WARNING] ISPCRT_MAX_KERNEL_LAUNCHES value too large, using 100000 instead.\n";
     // Set the limit to 200000
     setenv("ISPCRT_MAX_KERNEL_LAUNCHES", "200000", 1);
@@ -959,11 +955,8 @@ TEST_F(MockTest, C_API_DeviceInfoCPU) {
 
 TEST_F(MockTest, C_API_DeviceInfoGPU) {
     std::vector<DeviceProperties> dps = {
-        DeviceProperties(VendorId::Intel, DeviceId::Gen9),
-        DeviceProperties(VendorId::Nvidia, DeviceId::GenericNvidia),
-        DeviceProperties(VendorId::AMD, DeviceId::GenericAMD),
-        DeviceProperties(VendorId::Intel, DeviceId::Gen12)
-    };
+        DeviceProperties(VendorId::Intel, DeviceId::Gen9), DeviceProperties(VendorId::Nvidia, DeviceId::GenericNvidia),
+        DeviceProperties(VendorId::AMD, DeviceId::GenericAMD), DeviceProperties(VendorId::Intel, DeviceId::Gen12)};
     constexpr uint devices = 4;
     Config::setDeviceCount(devices);
     for (int d = 0; d < devices; d++)
@@ -976,8 +969,8 @@ TEST_F(MockTest, C_API_DeviceInfoGPU) {
     for (int d = 0; d < devCnt; d++) {
         ISPCRTDeviceInfo di;
         ispcrtGetDeviceInfo(ISPCRT_DEVICE_TYPE_GPU, d, &di);
-        ASSERT_EQ(dps[d == 0?0:3].deviceId, di.deviceId);
-        ASSERT_EQ(dps[d == 0?0:3].vendorId, di.vendorId);
+        ASSERT_EQ(dps[d == 0 ? 0 : 3].deviceId, di.deviceId);
+        ASSERT_EQ(dps[d == 0 ? 0 : 3].vendorId, di.vendorId);
     }
 }
 
@@ -1027,7 +1020,8 @@ TEST_F(MockTest, C_API_AllocateDeviceMemory) {
     mem_flags.allocType = ISPCRT_ALLOC_TYPE_DEVICE;
     mem_flags.smHint = ISPCRT_SM_HOST_WRITE_DEVICE_READ;
     ISPCRTMemoryView mem = ispcrtNewMemoryViewForContext(context, buffer.data(), buffer.size(), &mem_flags);
-    if (mem) ispcrtRelease(mem);
+    if (mem)
+        ispcrtRelease(mem);
     ispcrtRelease(context);
     ASSERT_EQ(sm_rt_error, ISPCRT_UNKNOWN_ERROR);
 }
@@ -1054,17 +1048,17 @@ TEST_F(MockTest, C_API_CreateDeviceFromNativeHandler) {
 
 TEST_F(MockTest, C_API_MemPoolGeneralTest) {
     setenv("ISPCRT_MEM_POOL", "1", 1);
-    void *p = NULL;
+    void *p = nullptr;
     ISPCRTContext context = ispcrtNewContext(ISPCRT_DEVICE_TYPE_GPU);
-    ISPCRTNewMemoryViewFlags flags = { ISPCRT_ALLOC_TYPE_SHARED, ISPCRT_SM_HOST_WRITE_DEVICE_READ };
-    ISPCRTMemoryView view = ispcrtNewMemoryViewForContext(context, NULL, 1ULL<<10, &flags);
+    ISPCRTNewMemoryViewFlags flags = {ISPCRT_ALLOC_TYPE_SHARED, ISPCRT_SM_HOST_WRITE_DEVICE_READ};
+    ISPCRTMemoryView view = ispcrtNewMemoryViewForContext(context, nullptr, 1ULL << 10, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), 1ULL<<10);
+    ASSERT_EQ(ispcrtSize(view), 1ULL << 10);
     ispcrtRelease(view);
-    flags = { ISPCRT_ALLOC_TYPE_SHARED, ISPCRT_SM_HOST_READ_DEVICE_WRITE };
-    view = ispcrtNewMemoryViewForContext(context, NULL, 1ULL<<10, &flags);
+    flags = {ISPCRT_ALLOC_TYPE_SHARED, ISPCRT_SM_HOST_READ_DEVICE_WRITE};
+    view = ispcrtNewMemoryViewForContext(context, nullptr, 1ULL << 10, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), 1ULL<<10);
+    ASSERT_EQ(ispcrtSize(view), 1ULL << 10);
     ispcrtRelease(view);
     ispcrtRelease(context);
     unsetenv("ISPCRT_MEM_POOL");
@@ -1072,16 +1066,16 @@ TEST_F(MockTest, C_API_MemPoolGeneralTest) {
 
 TEST_F(MockTest, C_API_MemPoolFallBack) {
     setenv("ISPCRT_MEM_POOL", "1", 1);
-    void *p = NULL;
+    void *p = nullptr;
     ISPCRTContext context = ispcrtNewContext(ISPCRT_DEVICE_TYPE_GPU);
-    ISPCRTNewMemoryViewFlags flags = { ISPCRT_ALLOC_TYPE_SHARED, ISPCRT_SM_HOST_WRITE_DEVICE_READ };
-    ISPCRTMemoryView view = ispcrtNewMemoryViewForContext(context, NULL, (1ULL<<21) + 1, &flags);
+    ISPCRTNewMemoryViewFlags flags = {ISPCRT_ALLOC_TYPE_SHARED, ISPCRT_SM_HOST_WRITE_DEVICE_READ};
+    ISPCRTMemoryView view = ispcrtNewMemoryViewForContext(context, nullptr, (1ULL << 21) + 1, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), (1ULL<<21) + 1);
+    ASSERT_EQ(ispcrtSize(view), (1ULL << 21) + 1);
     ispcrtRelease(view);
-    view = ispcrtNewMemoryViewForContext(context, NULL, (1ULL<<10) - 12, &flags);
+    view = ispcrtNewMemoryViewForContext(context, nullptr, (1ULL << 10) - 12, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), 1ULL<<10);
+    ASSERT_EQ(ispcrtSize(view), 1ULL << 10);
     ispcrtRelease(view);
     ispcrtRelease(context);
     unsetenv("ISPCRT_MEM_POOL");
@@ -1089,29 +1083,29 @@ TEST_F(MockTest, C_API_MemPoolFallBack) {
 
 TEST_F(MockTest, C_API_MemPoolRoundUpPow2) {
     setenv("ISPCRT_MEM_POOL", "1", 1);
-    void *p = NULL;
+    void *p = nullptr;
     ISPCRTContext context = ispcrtNewContext(ISPCRT_DEVICE_TYPE_GPU);
-    ISPCRTNewMemoryViewFlags flags = { ISPCRT_ALLOC_TYPE_SHARED, ISPCRT_SM_HOST_WRITE_DEVICE_READ };
+    ISPCRTNewMemoryViewFlags flags = {ISPCRT_ALLOC_TYPE_SHARED, ISPCRT_SM_HOST_WRITE_DEVICE_READ};
     ISPCRTMemoryView view;
-    view = ispcrtNewMemoryViewForContext(context, NULL, 1ULL<<21, &flags);
+    view = ispcrtNewMemoryViewForContext(context, nullptr, 1ULL << 21, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), 1ULL<<21);
+    ASSERT_EQ(ispcrtSize(view), 1ULL << 21);
     ispcrtRelease(view);
-    view = ispcrtNewMemoryViewForContext(context, NULL, (1ULL<<21) - 1, &flags);
+    view = ispcrtNewMemoryViewForContext(context, nullptr, (1ULL << 21) - 1, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), 1ULL<<21);
+    ASSERT_EQ(ispcrtSize(view), 1ULL << 21);
     ispcrtRelease(view);
-    view = ispcrtNewMemoryViewForContext(context, NULL, 1ULL<<7, &flags);
+    view = ispcrtNewMemoryViewForContext(context, nullptr, 1ULL << 7, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), 1ULL<<7);
+    ASSERT_EQ(ispcrtSize(view), 1ULL << 7);
     ispcrtRelease(view);
-    view = ispcrtNewMemoryViewForContext(context, NULL, 1ULL<<20, &flags);
+    view = ispcrtNewMemoryViewForContext(context, nullptr, 1ULL << 20, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), 1ULL<<20);
+    ASSERT_EQ(ispcrtSize(view), 1ULL << 20);
     ispcrtRelease(view);
-    view = ispcrtNewMemoryViewForContext(context, NULL, (1ULL<<20) + 1, &flags);
+    view = ispcrtNewMemoryViewForContext(context, nullptr, (1ULL << 20) + 1, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), 1ULL<<21);
+    ASSERT_EQ(ispcrtSize(view), 1ULL << 21);
     ispcrtRelease(view);
     ispcrtRelease(context);
     unsetenv("ISPCRT_MEM_POOL");
@@ -1119,11 +1113,11 @@ TEST_F(MockTest, C_API_MemPoolRoundUpPow2) {
 
 TEST_F(MockTest, C_API_MemPoolLiveRange) {
     setenv("ISPCRT_MEM_POOL", "1", 1);
-    void *p = NULL;
+    void *p = nullptr;
     ISPCRTContext context = ispcrtNewContext(ISPCRT_DEVICE_TYPE_GPU);
     ASSERT_EQ(ispcrtUseCount(context), 1);
-    ISPCRTNewMemoryViewFlags flags = { ISPCRT_ALLOC_TYPE_SHARED, ISPCRT_SM_HOST_WRITE_DEVICE_READ };
-    ISPCRTMemoryView view = ispcrtNewMemoryViewForContext(context, NULL, 1ULL<<10, &flags);
+    ISPCRTNewMemoryViewFlags flags = {ISPCRT_ALLOC_TYPE_SHARED, ISPCRT_SM_HOST_WRITE_DEVICE_READ};
+    ISPCRTMemoryView view = ispcrtNewMemoryViewForContext(context, nullptr, 1ULL << 10, &flags);
     ASSERT_EQ(ispcrtUseCount(context), 2);
     ASSERT_EQ(ispcrtUseCount(view), 1);
     p = ispcrtHostPtr(view);
@@ -1140,20 +1134,20 @@ TEST_F(MockTest, C_API_MemPoolChunkSizes1) {
     setenv("ISPCRT_MEM_POOL", "1", 1);
     setenv("ISPCRT_MEM_POOL_MIN_CHUNK_POW2", "10", 1);
     setenv("ISPCRT_MEM_POOL_MAX_CHUNK_POW2", "12", 1);
-    void *p = NULL;
+    void *p = nullptr;
     ISPCRTContext context = ispcrtNewContext(ISPCRT_DEVICE_TYPE_GPU);
-    ISPCRTNewMemoryViewFlags flags = { ISPCRT_ALLOC_TYPE_SHARED, ISPCRT_SM_HOST_WRITE_DEVICE_READ };
-    ISPCRTMemoryView view = ispcrtNewMemoryViewForContext(context, NULL, 1, &flags);
+    ISPCRTNewMemoryViewFlags flags = {ISPCRT_ALLOC_TYPE_SHARED, ISPCRT_SM_HOST_WRITE_DEVICE_READ};
+    ISPCRTMemoryView view = ispcrtNewMemoryViewForContext(context, nullptr, 1, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), 1ULL<<10);
+    ASSERT_EQ(ispcrtSize(view), 1ULL << 10);
     ispcrtRelease(view);
-    view = ispcrtNewMemoryViewForContext(context, NULL, (1ULL<<12) - 1, &flags);
+    view = ispcrtNewMemoryViewForContext(context, nullptr, (1ULL << 12) - 1, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), 1ULL<<12);
+    ASSERT_EQ(ispcrtSize(view), 1ULL << 12);
     ispcrtRelease(view);
-    view = ispcrtNewMemoryViewForContext(context, NULL, (1ULL<<12) + 1, &flags);
+    view = ispcrtNewMemoryViewForContext(context, nullptr, (1ULL << 12) + 1, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), (1ULL<<12) + 1);
+    ASSERT_EQ(ispcrtSize(view), (1ULL << 12) + 1);
     ispcrtRelease(view);
     ispcrtRelease(context);
     unsetenv("ISPCRT_MEM_POOL");
@@ -1165,24 +1159,24 @@ TEST_F(MockTest, C_API_MemPoolChunkSizes2) {
     setenv("ISPCRT_MEM_POOL", "1", 1);
     setenv("ISPCRT_MEM_POOL_MIN_CHUNK_POW2", "6", 1);
     setenv("ISPCRT_MEM_POOL_MAX_CHUNK_POW2", "9", 1);
-    void *p = NULL;
+    void *p = nullptr;
     ISPCRTContext context = ispcrtNewContext(ISPCRT_DEVICE_TYPE_GPU);
-    ISPCRTNewMemoryViewFlags flags = { ISPCRT_ALLOC_TYPE_SHARED, ISPCRT_SM_HOST_WRITE_DEVICE_READ };
-    ISPCRTMemoryView view = ispcrtNewMemoryViewForContext(context, NULL, 1, &flags);
+    ISPCRTNewMemoryViewFlags flags = {ISPCRT_ALLOC_TYPE_SHARED, ISPCRT_SM_HOST_WRITE_DEVICE_READ};
+    ISPCRTMemoryView view = ispcrtNewMemoryViewForContext(context, nullptr, 1, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), 1ULL<<6);
+    ASSERT_EQ(ispcrtSize(view), 1ULL << 6);
     ispcrtRelease(view);
-    view = ispcrtNewMemoryViewForContext(context, NULL, (1ULL<<6) - 1, &flags);
+    view = ispcrtNewMemoryViewForContext(context, nullptr, (1ULL << 6) - 1, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), 1ULL<<6);
+    ASSERT_EQ(ispcrtSize(view), 1ULL << 6);
     ispcrtRelease(view);
-    view = ispcrtNewMemoryViewForContext(context, NULL, (1ULL<<9) - 1, &flags);
+    view = ispcrtNewMemoryViewForContext(context, nullptr, (1ULL << 9) - 1, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), 1ULL<<9);
+    ASSERT_EQ(ispcrtSize(view), 1ULL << 9);
     ispcrtRelease(view);
-    view = ispcrtNewMemoryViewForContext(context, NULL, (1ULL<<9) + 1, &flags);
+    view = ispcrtNewMemoryViewForContext(context, nullptr, (1ULL << 9) + 1, &flags);
     p = ispcrtHostPtr(view);
-    ASSERT_EQ(ispcrtSize(view), (1ULL<<9) + 1);
+    ASSERT_EQ(ispcrtSize(view), (1ULL << 9) + 1);
     ispcrtRelease(view);
     ispcrtRelease(context);
     unsetenv("ISPCRT_MEM_POOL");
@@ -1231,11 +1225,8 @@ TEST_F(MockTest, Device_DeviceInfoCPU) {
 
 TEST_F(MockTest, Device_DeviceInfoGPU) {
     std::vector<DeviceProperties> dps = {
-        DeviceProperties(VendorId::Intel, DeviceId::Gen9),
-        DeviceProperties(VendorId::Nvidia, DeviceId::GenericNvidia),
-        DeviceProperties(VendorId::AMD, DeviceId::GenericAMD),
-        DeviceProperties(VendorId::Intel, DeviceId::Gen12)
-    };
+        DeviceProperties(VendorId::Intel, DeviceId::Gen9), DeviceProperties(VendorId::Nvidia, DeviceId::GenericNvidia),
+        DeviceProperties(VendorId::AMD, DeviceId::GenericAMD), DeviceProperties(VendorId::Intel, DeviceId::Gen12)};
     constexpr uint devices = 4;
     Config::setDeviceCount(devices);
     for (int d = 0; d < devices; d++)
@@ -1244,18 +1235,15 @@ TEST_F(MockTest, Device_DeviceInfoGPU) {
     auto devCnt = ispcrt::Device::deviceCount(ISPCRT_DEVICE_TYPE_GPU);
     for (int d = 0; d < devCnt; d++) {
         auto di = ispcrt::Device::deviceInformation(ISPCRT_DEVICE_TYPE_GPU, d);
-        ASSERT_EQ(dps[d == 0?0:3].deviceId, di.deviceId);
-        ASSERT_EQ(dps[d == 0?0:3].vendorId, di.vendorId);
+        ASSERT_EQ(dps[d == 0 ? 0 : 3].deviceId, di.deviceId);
+        ASSERT_EQ(dps[d == 0 ? 0 : 3].vendorId, di.vendorId);
     }
 }
 
 TEST_F(MockTest, Device_DeviceInfoAllGPUs) {
     std::vector<DeviceProperties> dps = {
-        DeviceProperties(VendorId::Intel, DeviceId::Gen9),
-        DeviceProperties(VendorId::Nvidia, DeviceId::GenericNvidia),
-        DeviceProperties(VendorId::AMD, DeviceId::GenericAMD),
-        DeviceProperties(VendorId::Intel, DeviceId::Gen12)
-    };
+        DeviceProperties(VendorId::Intel, DeviceId::Gen9), DeviceProperties(VendorId::Nvidia, DeviceId::GenericNvidia),
+        DeviceProperties(VendorId::AMD, DeviceId::GenericAMD), DeviceProperties(VendorId::Intel, DeviceId::Gen12)};
     constexpr uint devices = 4;
     Config::setDeviceCount(devices);
     for (int d = 0; d < devices; d++)
@@ -1264,18 +1252,15 @@ TEST_F(MockTest, Device_DeviceInfoAllGPUs) {
     auto di = ispcrt::Device::allDevicesInformation(ISPCRT_DEVICE_TYPE_GPU);
     ASSERT_EQ(di.size(), 2);
     for (int d = 0; d < di.size(); d++) {
-        ASSERT_EQ(dps[d == 0?0:3].deviceId, di[d].deviceId);
-        ASSERT_EQ(dps[d == 0?0:3].vendorId, di[d].vendorId);
+        ASSERT_EQ(dps[d == 0 ? 0 : 3].deviceId, di[d].deviceId);
+        ASSERT_EQ(dps[d == 0 ? 0 : 3].vendorId, di[d].vendorId);
     }
 }
 
 TEST_F(MockTest, Device_SecondGPU) {
     std::vector<DeviceProperties> dps = {
-        DeviceProperties(VendorId::Intel, DeviceId::Gen9),
-        DeviceProperties(VendorId::Nvidia, DeviceId::GenericNvidia),
-        DeviceProperties(VendorId::AMD, DeviceId::GenericAMD),
-        DeviceProperties(VendorId::Intel, DeviceId::Gen12)
-    };
+        DeviceProperties(VendorId::Intel, DeviceId::Gen9), DeviceProperties(VendorId::Nvidia, DeviceId::GenericNvidia),
+        DeviceProperties(VendorId::AMD, DeviceId::GenericAMD), DeviceProperties(VendorId::Intel, DeviceId::Gen12)};
     constexpr uint devices = 4;
     Config::setDeviceCount(devices);
     for (int d = 0; d < devices; d++)
@@ -1323,11 +1308,8 @@ TEST_F(MockTest, Device_SecondGPU) {
 TEST_F(MockTest, Device_ManyGPUs) {
     // Have 4 Gen12s and run on each of them
     std::vector<DeviceProperties> dps = {
-        DeviceProperties(VendorId::Intel, DeviceId::Gen12),
-        DeviceProperties(VendorId::Intel, DeviceId::Gen12),
-        DeviceProperties(VendorId::Intel, DeviceId::Gen12),
-        DeviceProperties(VendorId::Intel, DeviceId::Gen12)
-    };
+        DeviceProperties(VendorId::Intel, DeviceId::Gen12), DeviceProperties(VendorId::Intel, DeviceId::Gen12),
+        DeviceProperties(VendorId::Intel, DeviceId::Gen12), DeviceProperties(VendorId::Intel, DeviceId::Gen12)};
     Config::setDeviceCount(dps.size());
     for (int d = 0; d < dps.size(); d++)
         Config::setDeviceProperties(d, dps[d]);
@@ -1380,11 +1362,8 @@ TEST_F(MockTest, Device_ManyGPUs) {
 TEST_F(MockTest, Device_ManyGPUs_EnvOverride) {
     // Have 4 Gen12s and run on just one of them using env variable override
     std::vector<DeviceProperties> dps = {
-        DeviceProperties(VendorId::Intel, DeviceId::Gen12),
-        DeviceProperties(VendorId::Intel, DeviceId::Gen12),
-        DeviceProperties(VendorId::Intel, DeviceId::Gen12),
-        DeviceProperties(VendorId::Intel, DeviceId::Gen12)
-    };
+        DeviceProperties(VendorId::Intel, DeviceId::Gen12), DeviceProperties(VendorId::Intel, DeviceId::Gen12),
+        DeviceProperties(VendorId::Intel, DeviceId::Gen12), DeviceProperties(VendorId::Intel, DeviceId::Gen12)};
     Config::setDeviceCount(dps.size());
     for (int d = 0; d < dps.size(); d++)
         Config::setDeviceProperties(d, dps[d]);
@@ -1439,7 +1418,9 @@ TEST_F(MockTest, Device_ManyGPUs_EnvOverride) {
 /// Compilation tests
 TEST_F(MockTest, Compilation_SharedArray) {
     auto c = Context(ISPCRT_DEVICE_TYPE_CPU);
-    struct Parameters { int i; };
+    struct Parameters {
+        int i;
+    };
     auto pmv = ispcrt::Array<Parameters, ispcrt::AllocType::Shared>(c);
     auto p = pmv.sharedPtr();
     p->i = 1234;
@@ -1448,6 +1429,261 @@ TEST_F(MockTest, Compilation_SharedArray) {
     p->i = 1234;
     ispcrt::SharedMemoryAllocator<float> sma(c);
     ispcrt::SharedVector<float> v(16, sma);
+}
+
+/// C Command Queue/List/Fence API
+TEST_F(MockTest, C_API_ispcrtNewCommandQueue) {
+    ISPCRTContext ctx = ispcrtNewContext(ISPCRT_DEVICE_TYPE_GPU);
+    ISPCRTDevice dev = ispcrtGetDeviceFromContext(ctx, 0);
+    ISPCRTCommandQueue q = ispcrtNewCommandQueue(dev, 0);
+    ASSERT_EQ(CallCounters::get("zeCommandQueueCreate"), 1);
+    ispcrtRelease(q);
+    ASSERT_EQ(CallCounters::get("zeCommandQueueDestroy"), 1);
+    ispcrtRelease(dev);
+    ispcrtRelease(ctx);
+}
+
+TEST_F(MockTest, C_API_ispcrtCommandQueueCreateCommandList) {
+    ISPCRTContext ctx = ispcrtNewContext(ISPCRT_DEVICE_TYPE_GPU);
+    ISPCRTDevice dev = ispcrtGetDeviceFromContext(ctx, 0);
+    ISPCRTCommandQueue q = ispcrtNewCommandQueue(dev, 0);
+    ISPCRTCommandList l = ispcrtCommandQueueCreateCommandList(q);
+    ASSERT_EQ(CallCounters::get("zeCommandListCreate"), 1);
+    ispcrtRelease(l);
+    ASSERT_EQ(CallCounters::get("zeCommandListDestroy"), 1);
+    ispcrtRelease(q);
+    ispcrtRelease(dev);
+    ispcrtRelease(ctx);
+}
+
+TEST_F(MockTest, C_API_ispcrtCommandListBarrierCloseSubmitReset) {
+    ISPCRTContext ctx = ispcrtNewContext(ISPCRT_DEVICE_TYPE_GPU);
+    ISPCRTDevice dev = ispcrtGetDeviceFromContext(ctx, 0);
+    ISPCRTCommandQueue q = ispcrtNewCommandQueue(dev, 0);
+    ISPCRTCommandList l = ispcrtCommandQueueCreateCommandList(q);
+    ASSERT_EQ(CallCounters::get("zeCommandListCreate"), 1);
+    ispcrtCommandListBarrier(l);
+    ASSERT_EQ(CallCounters::get("zeCommandListAppendBarrier"), 1);
+    ispcrtCommandListClose(l);
+    ASSERT_EQ(CallCounters::get("zeCommandListClose"), 1);
+    ispcrtCommandListClose(l);
+    ASSERT_EQ(CallCounters::get("zeCommandListClose"), 1);
+    ispcrtCommandListSubmit(l);
+    ASSERT_EQ(CallCounters::get("zeCommandQueueExecuteCommandLists"), 1);
+    ispcrtCommandListReset(l);
+    ASSERT_EQ(CallCounters::get("zeCommandListReset"), 1);
+    ispcrtRelease(l);
+    ASSERT_EQ(CallCounters::get("zeCommandListDestroy"), 1);
+    ispcrtRelease(q);
+    ispcrtRelease(dev);
+    ispcrtRelease(ctx);
+}
+
+TEST_F(MockTest, C_API_ispcrtCommandListCopyLaunchSyncQueue) {
+    ISPCRTContext ctx = ispcrtNewContext(ISPCRT_DEVICE_TYPE_GPU);
+    ISPCRTDevice dev = ispcrtGetDeviceFromContext(ctx, 0);
+    ISPCRTModule m = ispcrtLoadModule(dev, "");
+    ISPCRTKernel k = ispcrtNewKernel(dev, m, "");
+    ISPCRTNewMemoryViewFlags flags = {ISPCRT_ALLOC_TYPE_SHARED};
+    char mem[100] = {0};
+    ISPCRTMemoryView mem1 = ispcrtNewMemoryView(dev, &mem, 10, &flags);
+    ISPCRTMemoryView mem2 = ispcrtNewMemoryView(dev, &mem[15], 10, &flags);
+    ISPCRTMemoryView mem3 = ispcrtNewMemoryView(dev, &mem[50], 50, &flags);
+
+    ISPCRTCommandQueue q = ispcrtNewCommandQueue(dev, 0);
+    ISPCRTCommandList l = ispcrtCommandQueueCreateCommandList(q);
+    ASSERT_EQ(CallCounters::get("zeCommandListCreate"), 1);
+    ispcrtCommandListCopyToDevice(l, mem1);
+    ispcrtCommandListBarrier(l);
+    ispcrtCommandListLaunch1D(l, k, mem1, 128);
+    ispcrtCommandListBarrier(l);
+    ispcrtCommandListCopyMemoryView(l, mem1, mem2, 10);
+    ispcrtCommandListBarrier(l);
+    ispcrtCommandListLaunch2D(l, k, mem1, 128, 128);
+    ispcrtCommandListBarrier(l);
+    ispcrtCommandListLaunch3D(l, k, mem1, 128, 128, 128);
+    ispcrtCommandListBarrier(l);
+    ispcrtCommandListCopyToHost(l, mem3);
+    ASSERT_EQ(CallCounters::get("zeCommandListAppendLaunchKernel"), 3);
+    ASSERT_EQ(CallCounters::get("zeCommandListAppendMemoryCopy"), 3);
+    ispcrtCommandListSubmit(l);
+    ispcrtCommandQueueSync(q);
+    ASSERT_EQ(CallCounters::get("zeCommandListAppendBarrier"), 5);
+    ASSERT_EQ(CallCounters::get("zeCommandListClose"), 1);
+    ASSERT_EQ(CallCounters::get("zeCommandQueueExecuteCommandLists"), 1);
+    ASSERT_EQ(CallCounters::get("zeCommandQueueSynchronize"), 1);
+    ispcrtCommandListReset(l);
+    ASSERT_EQ(CallCounters::get("zeCommandListReset"), 1);
+    ispcrtRelease(l);
+    ASSERT_EQ(CallCounters::get("zeCommandListDestroy"), 1);
+    ispcrtRelease(q);
+    ispcrtRelease(mem3);
+    ispcrtRelease(mem2);
+    ispcrtRelease(mem1);
+    ispcrtRelease(k);
+    ispcrtRelease(m);
+    ispcrtRelease(dev);
+    ispcrtRelease(ctx);
+}
+
+TEST_F(MockTest, C_API_ispcrtCommandListCopyLaunchFence) {
+    ISPCRTContext ctx = ispcrtNewContext(ISPCRT_DEVICE_TYPE_GPU);
+    ISPCRTDevice dev = ispcrtGetDeviceFromContext(ctx, 0);
+    ISPCRTModule m = ispcrtLoadModule(dev, "");
+    ISPCRTKernel k = ispcrtNewKernel(dev, m, "");
+    ISPCRTNewMemoryViewFlags flags = {ISPCRT_ALLOC_TYPE_SHARED};
+    char mem[100] = {0};
+    ISPCRTMemoryView mem1 = ispcrtNewMemoryView(dev, &mem, 10, &flags);
+    ISPCRTMemoryView mem2 = ispcrtNewMemoryView(dev, &mem[15], 10, &flags);
+    ISPCRTMemoryView mem3 = ispcrtNewMemoryView(dev, &mem[50], 50, &flags);
+
+    ISPCRTCommandQueue q = ispcrtNewCommandQueue(dev, 0);
+    ISPCRTCommandList l = ispcrtCommandQueueCreateCommandList(q);
+    ASSERT_EQ(CallCounters::get("zeCommandListCreate"), 1);
+    ispcrtCommandListCopyToDevice(l, mem1);
+    ispcrtCommandListBarrier(l);
+    ispcrtCommandListLaunch1D(l, k, mem1, 128);
+    ispcrtCommandListBarrier(l);
+    ispcrtCommandListCopyMemoryView(l, mem1, mem2, 10);
+    ispcrtCommandListBarrier(l);
+    ispcrtCommandListLaunch2D(l, k, mem1, 128, 128);
+    ispcrtCommandListBarrier(l);
+    ispcrtCommandListLaunch3D(l, k, mem1, 128, 128, 128);
+    ispcrtCommandListBarrier(l);
+    ispcrtCommandListCopyToHost(l, mem3);
+    ASSERT_EQ(CallCounters::get("zeCommandListAppendLaunchKernel"), 3);
+    ASSERT_EQ(CallCounters::get("zeCommandListAppendMemoryCopy"), 3);
+    ISPCRTFence f = ispcrtCommandListSubmit(l);
+    ASSERT_EQ(CallCounters::get("zeFenceCreate"), 1);
+    ISPCRTFenceStatus status = ispcrtFenceStatus(f);
+    ASSERT_EQ(CallCounters::get("zeFenceQueryStatus"), 1);
+    ASSERT_EQ(status, ISPCRT_FENCE_UNSIGNALED);
+    ispcrtFenceSync(f);
+    status = ispcrtFenceStatus(f);
+    ASSERT_EQ(status, ISPCRT_FENCE_SIGNALED);
+    ASSERT_EQ(CallCounters::get("zeFenceHostSynchronize"), 1);
+    ASSERT_EQ(CallCounters::get("zeCommandListAppendBarrier"), 5);
+    ASSERT_EQ(CallCounters::get("zeCommandListClose"), 1);
+    ASSERT_EQ(CallCounters::get("zeCommandQueueExecuteCommandLists"), 1);
+    ASSERT_EQ(CallCounters::get("zeCommandQueueSynchronize"), 0);
+    ispcrtCommandListReset(l);
+    ASSERT_EQ(CallCounters::get("zeCommandListReset"), 1);
+    ispcrtRelease(l);
+    ASSERT_EQ(CallCounters::get("zeCommandListDestroy"), 1);
+    ispcrtRelease(q);
+    ispcrtRelease(mem3);
+    ispcrtRelease(mem2);
+    ispcrtRelease(mem1);
+    ispcrtRelease(k);
+    ispcrtRelease(m);
+    ispcrtRelease(dev);
+    ispcrtRelease(ctx);
+}
+
+/// C++ Command Queue/List/Fence API
+TEST_F(MockTest, CPP_API_NewCommandQueue) {
+    auto ctx = Context(ISPCRT_DEVICE_TYPE_GPU);
+    auto dev = Device(ctx);
+    auto q = CommandQueue(dev, 0);
+    ASSERT_EQ(CallCounters::get("zeCommandQueueCreate"), 1);
+}
+
+TEST_F(MockTest, CPP_API_CommandQueueCreateCommandList) {
+    auto ctx = Context(ISPCRT_DEVICE_TYPE_GPU);
+    auto dev = Device(ctx);
+    auto q = CommandQueue(dev, 0);
+    auto l = q.createCommandList();
+    ASSERT_EQ(CallCounters::get("zeCommandListCreate"), 1);
+}
+
+TEST_F(MockTest, CPP_API_CommandListBarrierCloseSubmitReset) {
+    auto ctx = Context(ISPCRT_DEVICE_TYPE_GPU);
+    auto dev = Device(ctx);
+    auto q = CommandQueue(dev, 0);
+    auto l = q.createCommandList();
+    ASSERT_EQ(CallCounters::get("zeCommandListCreate"), 1);
+    l.barrier();
+    ASSERT_EQ(CallCounters::get("zeCommandListAppendBarrier"), 1);
+    l.close();
+    ASSERT_EQ(CallCounters::get("zeCommandListClose"), 1);
+    l.close();
+    ASSERT_EQ(CallCounters::get("zeCommandListClose"), 1);
+    l.submit();
+    ASSERT_EQ(CallCounters::get("zeCommandQueueExecuteCommandLists"), 1);
+    l.reset();
+    ASSERT_EQ(CallCounters::get("zeCommandListReset"), 1);
+}
+
+TEST_F(MockTest, CPP_API_CommandListCopyLaunchSyncQueue) {
+    auto ctx = Context(ISPCRT_DEVICE_TYPE_GPU);
+    auto dev = Device(ctx);
+    auto m = Module(dev, "");
+    auto k = Kernel(dev, m, "");
+    std::vector<float> buf(64 * 1024);
+    ispcrt::Array<float> buf_dev(dev, buf);
+
+    auto q = CommandQueue(dev, 0);
+    auto l = q.createCommandList();
+    ASSERT_EQ(CallCounters::get("zeCommandListCreate"), 1);
+    l.copyToDevice(buf_dev);
+    l.barrier();
+    l.launch(k, 128);
+    l.barrier();
+    l.barrier();
+    l.launch(k, 128, 128);
+    l.barrier();
+    l.launch(k, 128, 128, 128);
+    l.barrier();
+    l.copyToHost(buf_dev);
+    ASSERT_EQ(CallCounters::get("zeCommandListAppendLaunchKernel"), 3);
+    ASSERT_EQ(CallCounters::get("zeCommandListAppendMemoryCopy"), 2);
+    l.submit();
+    q.sync();
+    ASSERT_EQ(CallCounters::get("zeCommandListAppendBarrier"), 5);
+    ASSERT_EQ(CallCounters::get("zeCommandListClose"), 1);
+    ASSERT_EQ(CallCounters::get("zeCommandQueueExecuteCommandLists"), 1);
+    ASSERT_EQ(CallCounters::get("zeCommandQueueSynchronize"), 1);
+    l.reset();
+    ASSERT_EQ(CallCounters::get("zeCommandListReset"), 1);
+}
+
+TEST_F(MockTest, CPP_API_CommandListCopyLaunchFence) {
+    auto ctx = Context(ISPCRT_DEVICE_TYPE_GPU);
+    auto dev = Device(ctx);
+    auto m = Module(dev, "");
+    auto k = Kernel(dev, m, "");
+    std::vector<float> buf(64 * 1024);
+    ispcrt::Array<float> buf_dev(dev, buf);
+
+    auto q = CommandQueue(dev, 0);
+    auto l = q.createCommandList();
+    ASSERT_EQ(CallCounters::get("zeCommandListCreate"), 1);
+    l.copyToDevice(buf_dev);
+    l.barrier();
+    l.launch(k, 128);
+    l.barrier();
+    l.barrier();
+    l.launch(k, 128, 128);
+    l.barrier();
+    l.launch(k, 128, 128, 128);
+    l.barrier();
+    l.copyToHost(buf_dev);
+    ASSERT_EQ(CallCounters::get("zeCommandListAppendLaunchKernel"), 3);
+    ASSERT_EQ(CallCounters::get("zeCommandListAppendMemoryCopy"), 2);
+    auto f = l.submit();
+    ASSERT_EQ(CallCounters::get("zeFenceCreate"), 1);
+    ISPCRTFenceStatus status = f.status();
+    ASSERT_EQ(CallCounters::get("zeFenceQueryStatus"), 1);
+    ASSERT_EQ(status, ISPCRT_FENCE_UNSIGNALED);
+    f.sync();
+    status = f.status();
+    ASSERT_EQ(status, ISPCRT_FENCE_SIGNALED);
+    ASSERT_EQ(CallCounters::get("zeCommandListAppendBarrier"), 5);
+    ASSERT_EQ(CallCounters::get("zeCommandListClose"), 1);
+    ASSERT_EQ(CallCounters::get("zeCommandQueueExecuteCommandLists"), 1);
+    ASSERT_EQ(CallCounters::get("zeCommandQueueSynchronize"), 0);
+    l.reset();
+    ASSERT_EQ(CallCounters::get("zeCommandListReset"), 1);
 }
 
 } // namespace mock

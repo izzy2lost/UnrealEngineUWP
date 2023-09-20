@@ -1,34 +1,7 @@
 /*
   Copyright (c) 2010-2023, Intel Corporation
-  All rights reserved.
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 /** @file expr.h
@@ -64,7 +37,7 @@ class Expr : public ASTNode {
         this function should emit IR that computes the expression's lvalue
         and returns the corresponding llvm::Value.  Expressions that can't
         provide an lvalue should leave this unimplemented; the default
-        implementation returns NULL.  */
+        implementation returns nullptr.  */
     virtual llvm::Value *GetLValue(FunctionEmitContext *ctx) const;
 
     /** Returns the Type of the expression. */
@@ -84,7 +57,7 @@ class Expr : public ASTNode {
         corresponding llvm::Constant value and a flag denoting if it's
         valid for multi-target compilation for use as an initializer of
         a global variable. Otherwise it should return the llvm::constant
-        value as NULL. */
+        value as nullptr. */
     virtual std::pair<llvm::Constant *, bool> GetStorageConstant(const Type *type) const;
 
     /** If this is a constant expression that can be converted to a
@@ -92,18 +65,18 @@ class Expr : public ASTNode {
         corresponding llvm::Constant value and a flag denoting if it's
         valid for multi-target compilation for use as an initializer of
         a global variable. Otherwise it should return the llvm::constant
-        value as NULL. */
+        value as nullptr. */
     virtual std::pair<llvm::Constant *, bool> GetConstant(const Type *type) const;
 
     /** This method should perform early optimizations of the expression
         (constant folding, etc.) and return a pointer to the resulting
-        expression.  If an error is encountered during optimization, NULL
+        expression.  If an error is encountered during optimization, nullptr
         should be returned. */
     virtual Expr *Optimize() = 0;
 
     /** This method should perform type checking of the expression and
         return a pointer to the resulting expression.  If an error is
-        encountered, NULL should be returned. */
+        encountered, nullptr should be returned. */
     virtual Expr *TypeCheck() = 0;
 
     virtual Expr *Instantiate(TemplateInstantiation &templInst) const = 0;
@@ -276,13 +249,34 @@ class ExprList : public Expr {
     bool HasAmbiguousVariability(std::vector<const Expr *> &warn) const;
 
     std::vector<Expr *> exprs;
+
+    // Utility structs to support initializers lists for vectors
+    struct ExprPosMapping {
+        Expr *expr;
+        int pos;
+        ExprPosMapping(Expr *e, int p) : expr(e), pos(p) {}
+    };
+
+    struct ExprPosMappingVectorForVector {
+        int vec_mem_pos_from;
+        int vec_mem_pos_to;
+        Expr *expr;
+        ExprPosMappingVectorForVector(int from, int to, Expr *e)
+            : vec_mem_pos_from(from), vec_mem_pos_to(to), expr(e) {}
+        ExprPosMappingVectorForVector(int from, ExprPosMapping map)
+            : vec_mem_pos_from(from), vec_mem_pos_to(map.pos), expr(map.expr) {}
+    };
+
+    // Returns true if each expression in expression list has AtomicType.
+    // It also constructs a map of initializers for each atomic basetype.
+    bool HasAtomicInitializerList(std::map<AtomicType::BasicType, std::vector<ExprPosMapping>> &map);
 };
 
 /** @brief Expression representing a function call.
  */
 class FunctionCallExpr : public Expr {
   public:
-    FunctionCallExpr(Expr *func, ExprList *args, SourcePos p, bool isLaunch = false, Expr *launchCountExpr[3] = NULL,
+    FunctionCallExpr(Expr *func, ExprList *args, SourcePos p, bool isLaunch = false, Expr *launchCountExpr[3] = nullptr,
                      bool isInvoke = false);
 
     static inline bool classof(FunctionCallExpr const *) { return true; }
@@ -685,8 +679,8 @@ class SizeOfExpr : public Expr {
     SizeOfExpr *Instantiate(TemplateInstantiation &templInst) const;
     std::pair<llvm::Constant *, bool> GetConstant(const Type *type) const;
 
-    /* One of expr or type should be non-NULL (but not both of them).  The
-       SizeOfExpr returns the size of whichever one of them isn't NULL. */
+    /* One of expr or type should be non-nullptr (but not both of them).  The
+       SizeOfExpr returns the size of whichever one of them isn't nullptr. */
     Expr *expr;
     const Type *type;
 };
@@ -761,18 +755,18 @@ class FunctionSymbolExpr : public Expr {
     /** Given the types of the function arguments, in the presence of
         function overloading, this method resolves which actual function
         the arguments match best.  If the argCouldBeNULL parameter is
-        non-NULL, each element indicates whether the corresponding argument
-        is the number zero, indicating that it could be a NULL pointer, and
-        if argIsConstant is non-NULL, each element indicates whether the
+        non-nullptr, each element indicates whether the corresponding argument
+        is the number zero, indicating that it could be a nullptr pointer, and
+        if argIsConstant is non-nullptr, each element indicates whether the
         corresponding argument is a compile-time constant value.  Both of
-        these parameters may be NULL (for cases where overload resolution
+        these parameters may be nullptr (for cases where overload resolution
         is being done just given type information without the parameter
         argument expressions being available.  This function returns true
         on success.
      */
     bool ResolveOverloads(SourcePos argPos, const std::vector<const Type *> &argTypes,
-                          const std::vector<bool> *argCouldBeNULL = NULL,
-                          const std::vector<bool> *argIsConstant = NULL);
+                          const std::vector<bool> *argCouldBeNULL = nullptr,
+                          const std::vector<bool> *argIsConstant = nullptr);
 
   private:
     std::vector<Symbol *> getCandidateFunctions(int argCount) const;
@@ -816,7 +810,7 @@ class SyncExpr : public Expr {
     SyncExpr *Instantiate(TemplateInstantiation &templInst) const;
 };
 
-/** @brief An expression that represents a NULL pointer. */
+/** @brief An expression that represents a nullptr pointer. */
 class NullPointerExpr : public Expr {
   public:
     NullPointerExpr(SourcePos p) : Expr(p, NullPointerExprID) {}
@@ -855,7 +849,7 @@ class NewExpr : public Expr {
     /** Type of object to allocate storage for. */
     const Type *allocType;
     /** Expression giving the number of elements to allocate, when the
-        "new Foo[expr]" form is used.  This may be NULL, in which case a
+        "new Foo[expr]" form is used.  This may be nullptr, in which case a
         single element of the given type will be allocated. */
     Expr *countExpr;
     /** Optional initializer expression used to initialize the allocated
@@ -876,12 +870,12 @@ class NewExpr : public Expr {
     are provided, then an error message is issued if the type conversion
     isn't possible.
  */
-bool CanConvertTypes(const Type *fromType, const Type *toType, const char *errorMsgBase = NULL,
+bool CanConvertTypes(const Type *fromType, const Type *toType, const char *errorMsgBase = nullptr,
                      SourcePos pos = SourcePos());
 
 /** This function attempts to convert the given expression to the given
     type, returning a pointer to a new expression that is the result.  If
-    the required type conversion is illegal, it returns NULL and prints an
+    the required type conversion is illegal, it returns nullptr and prints an
     error message using the provided string to indicate the context for
     which type conversion was being applied (e.g. "function call
     parameter").

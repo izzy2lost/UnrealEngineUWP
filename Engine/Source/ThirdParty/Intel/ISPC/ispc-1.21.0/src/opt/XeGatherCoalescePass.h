@@ -1,34 +1,7 @@
 /*
-  Copyright (c) 2022, Intel Corporation
-  All rights reserved.
+  Copyright (c) 2022-2023, Intel Corporation
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 #pragma once
@@ -77,7 +50,11 @@ namespace ispc {
  * directly, but can be used by several coalescing implementations.
  * Such helpers contains some general stuff.
  */
-class MemoryCoalescing : public llvm::FunctionPass {
+class MemoryCoalescing : public llvm::PassInfoMixin<MemoryCoalescing> {
+  public:
+    // Optimization runner
+    llvm::PreservedAnalyses run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
+
   protected:
     typedef int64_t OffsetT;
     typedef llvm::SmallVector<OffsetT, 16> OffsetsVecT;
@@ -228,10 +205,7 @@ class MemoryCoalescing : public llvm::FunctionPass {
 
   protected:
     // Initialization
-    MemoryCoalescing(char &ID, MemType OptType, AddressSpace AddrSpace)
-        : FunctionPass(ID), AddrSpace(AddrSpace), OptType(OptType) {}
-    // Optimization runner
-    bool runOnFunction(llvm::Function &Fn) override;
+    MemoryCoalescing(MemType OptType, AddressSpace AddrSpace) : AddrSpace(AddrSpace), OptType(OptType) {}
 
     /* ------ Handlers ------ */
     // Methods in this block are interface for different coalescing types.
@@ -256,8 +230,8 @@ class MemoryCoalescing : public llvm::FunctionPass {
     // TODO: this handler must call runOnBasicBlockImpl to run optimization.
     // This function is needed due to DEBUG_START/END_PASS logic. Maybe there is
     // a better way to solve it.
-    virtual void runOnBasicBlock(llvm::BasicBlock &BB) = 0;
-    void runOnBasicBlockImpl(llvm::BasicBlock &BB);
+    virtual bool runOnBasicBlock(llvm::BasicBlock &BB) = 0;
+    bool runOnBasicBlockImpl(llvm::BasicBlock &BB);
 
     /* ------- Helpers ------ */
     // Methods in this block are not used in optimization directly
@@ -290,20 +264,16 @@ class XeGatherCoalescing : public MemoryCoalescing {
     OffsetsVecT getOffset(llvm::Instruction *Inst) const;
     llvm::Value *getStoredValue(llvm::Instruction *Inst) const { return nullptr; }
     void optimizePtr(llvm::Value *Ptr, PtrData &PD, llvm::Instruction *InsertPoint);
-    void runOnBasicBlock(llvm::BasicBlock &BB);
+    bool runOnBasicBlock(llvm::BasicBlock &BB);
 
     llvm::CallInst *getPseudoGatherConstOffset(llvm::Instruction *Inst) const;
     bool isConstOffsetPseudoGather(llvm::CallInst *CI) const;
 
   public:
-    static char ID;
-    explicit XeGatherCoalescing()
-        : MemoryCoalescing(ID, MemoryCoalescing::MemType::OPT_LOAD, AddressSpace::ispc_global) {}
+    explicit XeGatherCoalescing() : MemoryCoalescing(MemoryCoalescing::MemType::OPT_LOAD, AddressSpace::ispc_global) {}
 
     llvm::StringRef getPassName() const { return "Xe Gather Coalescing"; }
 };
-
-llvm::Pass *CreateXeGatherCoalescingPass();
 
 } // namespace ispc
 

@@ -1,34 +1,7 @@
 /*
   Copyright (c) 2010-2023, Intel Corporation
-  All rights reserved.
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 /** @file util.cpp
@@ -81,7 +54,7 @@ int ispc::TerminalWidth() {
 
 #if defined(ISPC_HOST_IS_WINDOWS)
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-    if (h == INVALID_HANDLE_VALUE || h == NULL)
+    if (h == INVALID_HANDLE_VALUE || h == nullptr)
         return 80;
     CONSOLE_SCREEN_BUFFER_INFO bufferInfo = {{0}};
     GetConsoleScreenBufferInfo(h, &bufferInfo);
@@ -95,7 +68,7 @@ int ispc::TerminalWidth() {
 }
 
 static bool lHaveANSIColors() {
-    static bool r = (getenv("TERM") != NULL && strcmp(getenv("TERM"), "dumb") != 0);
+    static bool r = (getenv("TERM") != nullptr && strcmp(getenv("TERM"), "dumb") != 0);
 #ifndef ISPC_HOST_IS_WINDOWS
     r &= (bool)isatty(2);
     r |= g->forceColoredOutput;
@@ -278,8 +251,8 @@ void ispc::PrintWithWordBreaks(const char *buf, int indent, int columnWidth, FIL
 #ifdef ISPC_HOST_IS_WINDOWS
 // we cover for the lack vasprintf and asprintf on windows (also covers mingw)
 int vasprintf(char **sptr, const char *fmt, va_list argv) {
-    int wanted = vsnprintf(*sptr = NULL, 0, fmt, argv);
-    if ((wanted < 0) || ((*sptr = (char *)malloc(1 + wanted)) == NULL))
+    int wanted = vsnprintf(*sptr = nullptr, 0, fmt, argv);
+    if ((wanted < 0) || ((*sptr = (char *)malloc(1 + wanted)) == nullptr))
         return -1;
 
     return vsprintf(*sptr, fmt, argv);
@@ -351,7 +324,7 @@ static void lPrint(const char *type, bool isError, SourcePos p, const char *fmt,
 }
 
 void ispc::Error(SourcePos p, const char *fmt, ...) {
-    if (m != NULL) {
+    if (m != nullptr) {
         ++m->errorCount;
         if ((g->errorLimit != -1) && (g->errorLimit <= m->errorCount - 1))
             return;
@@ -382,7 +355,7 @@ void ispc::Warning(SourcePos p, const char *fmt, ...) {
     if ((turnOffWarnings_it != g->turnOffWarnings.end()) && (turnOffWarnings_it->second == false))
         return;
 
-    if (g->warningsAsErrors && m != NULL)
+    if (g->warningsAsErrors && m != nullptr)
         ++m->errorCount;
 
     if (g->disableWarnings || g->quiet)
@@ -408,7 +381,7 @@ void ispc::PerformanceWarning(SourcePos p, const char *fmt, ...) {
     if (turnOffWarnings_it != g->turnOffWarnings.end())
         return;
 
-    if (g->warningsAsErrors && m != NULL)
+    if (g->warningsAsErrors && m != nullptr)
         ++m->errorCount;
 
     va_list args;
@@ -518,7 +491,7 @@ void ispc::GetDirectoryAndFileName(const std::string &currentDirectory, const st
 #ifdef ISPC_HOST_IS_WINDOWS
     char path[MAX_PATH];
     const char *combPath = PathCombine(path, currentDirectory.c_str(), relativeName.c_str());
-    Assert(combPath != NULL);
+    Assert(combPath != nullptr);
     const char *filenamePtr = PathFindFileName(combPath);
     *filename = filenamePtr;
     *directory = std::string(combPath, filenamePtr - combPath);
@@ -540,7 +513,7 @@ void ispc::GetDirectoryAndFileName(const std::string &currentDirectory, const st
     // now, we need to separate it into the base name and the directory
     const char *fp = fullPath.c_str();
     const char *basenameStart = strrchr(fp, '/');
-    Assert(basenameStart != NULL);
+    Assert(basenameStart != nullptr);
     ++basenameStart;
     Assert(basenameStart[0] != '\0');
     *filename = basenameStart;

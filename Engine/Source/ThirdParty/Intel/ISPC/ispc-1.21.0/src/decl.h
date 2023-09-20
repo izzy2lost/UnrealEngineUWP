@@ -1,34 +1,7 @@
 /*
-  Copyright (c) 2010-2022, Intel Corporation
-  All rights reserved.
+  Copyright (c) 2010-2023, Intel Corporation
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 /** @file decl.h
@@ -87,9 +60,9 @@ class Declarator;
     In other words, this represents all of the stuff that applies to all of
     the (possibly multiple) variables in a declaration.
  */
-class DeclSpecs {
+class DeclSpecs : public Traceable {
   public:
-    DeclSpecs(const Type *t = NULL, StorageClass sc = SC_NONE, int tq = TYPEQUAL_NONE);
+    DeclSpecs(const Type *t = nullptr, StorageClass sc = SC_NONE, int tq = TYPEQUAL_NONE);
 
     void Print() const;
 
@@ -127,7 +100,7 @@ enum DeclaratorKind { DK_BASE, DK_POINTER, DK_REFERENCE, DK_ARRAY, DK_FUNCTION }
     In conjunction with an instance of the DeclSpecs, this gives us
     everything we need for a full variable declaration.
  */
-class Declarator {
+class Declarator : public Traceable {
   public:
     Declarator(DeclaratorKind dk, SourcePos p);
 
@@ -151,7 +124,7 @@ class Declarator {
         int). */
     const DeclaratorKind kind;
 
-    /** Child pointer if needed; this can only be non-NULL if the
+    /** Child pointer if needed; this can only be non-nullptr if the
         declarator's kind isn't DK_BASE. */
     Declarator *child;
 
@@ -167,10 +140,10 @@ class Declarator {
     /** Name associated with the declarator. */
     std::string name;
 
-    /** Initialization expression for the variable.  May be NULL. */
+    /** Initialization expression for the variable.  May be nullptr. */
     Expr *initExpr;
 
-    /** Type of the declarator.  This is NULL until InitFromDeclSpecs() or
+    /** Type of the declarator.  This is nullptr until InitFromDeclSpecs() or
         InitFromType() is called. */
     const Type *type;
 
@@ -182,9 +155,9 @@ class Declarator {
 /** @brief Representation of a full declaration of one or more variables,
     including the shared DeclSpecs as well as the per-variable Declarators.
  */
-class Declaration {
+class Declaration : public Traceable {
   public:
-    Declaration(DeclSpecs *ds, std::vector<Declarator *> *dlist = NULL);
+    Declaration(DeclSpecs *ds, std::vector<Declarator *> *dlist = nullptr);
     Declaration(DeclSpecs *ds, Declarator *d);
 
     void Print() const;
@@ -207,8 +180,14 @@ class Declaration {
 
 /** The parser creates instances of StructDeclaration for the members of
     structs as it's parsing their declarations. */
-struct StructDeclaration {
+struct StructDeclaration : public Traceable {
     StructDeclaration(const Type *t, std::vector<Declarator *> *d) : type(t), declarators(d) {}
+    ~StructDeclaration() { delete declarators; }
+
+    // We don't copy these objects at the moment. If we will then proper
+    // implementations are needed considering the ownership of declarators.
+    StructDeclaration(const StructDeclaration &) = delete;
+    StructDeclaration &operator=(const StructDeclaration &) = delete;
 
     const Type *type;
     std::vector<Declarator *> *declarators;

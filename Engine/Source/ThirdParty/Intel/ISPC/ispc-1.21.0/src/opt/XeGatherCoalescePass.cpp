@@ -1,34 +1,7 @@
 /*
   Copyright (c) 2022-2023, Intel Corporation
-  All rights reserved.
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 #include "XeGatherCoalescePass.h"
@@ -38,13 +11,21 @@
 namespace ispc {
 
 // Optimization runner
-bool MemoryCoalescing::runOnFunction(llvm::Function &Fn) {
-    llvm::TimeTraceScope FuncScope("MemoryCoalescing::runOnFunction", Fn.getName());
+llvm::PreservedAnalyses MemoryCoalescing::run(llvm::Function &Fn, llvm::FunctionAnalysisManager &FAM) {
+    llvm::TimeTraceScope FuncScope("MemoryCoalescing::run", Fn.getName());
+    bool modifiedAny = false;
     for (llvm::BasicBlock &BB : Fn) {
-        runOnBasicBlock(BB);
+        modifiedAny |= runOnBasicBlock(BB);
     }
 
-    return modifiedAny;
+    if (!modifiedAny) {
+        // No changes, all analyses are preserved.
+        return llvm::PreservedAnalyses::all();
+    }
+
+    llvm::PreservedAnalyses PA;
+    PA.preserveSet<llvm::CFGAnalyses>();
+    return PA;
 }
 
 // Find base pointer info for ptr operand.
@@ -178,11 +159,12 @@ MemoryCoalescing::BasePtrInfo MemoryCoalescing::analyseArithmetics(llvm::BinaryO
 
 // Basic block optimization runner.
 // TODO: runOnBasicBlock must call it to run optimization. See comment above.
-void MemoryCoalescing::runOnBasicBlockImpl(llvm::BasicBlock &BB) {
+bool MemoryCoalescing::runOnBasicBlockImpl(llvm::BasicBlock &BB) {
     analyseInsts(BB);
     applyOptimization();
     deletePossiblyDeadInsts();
     clear();
+    return modifiedAny;
 }
 
 void MemoryCoalescing::deletePossiblyDeadInsts() {
@@ -206,7 +188,7 @@ void MemoryCoalescing::analyseInsts(llvm::BasicBlock &BB) {
     Assert(OptType == MemType::OPT_LOAD || OptType == MemType::OPT_STORE);
     OptBlock CurrentBlock;
     for (; (OptType == MemType::OPT_LOAD) ? (bi != be) : (rbi != rbe);) {
-        llvm::Instruction *Inst = NULL;
+        llvm::Instruction *Inst = nullptr;
         if (OptType == MemType::OPT_LOAD) {
             Inst = &*bi;
             ++bi;
@@ -485,12 +467,12 @@ llvm::Value *MemoryCoalescing::extractValueFromBlock(const MemoryCoalescing::Blo
     }
 }
 
-char XeGatherCoalescing::ID = 0;
-
-void XeGatherCoalescing::runOnBasicBlock(llvm::BasicBlock &bb) {
+bool XeGatherCoalescing::runOnBasicBlock(llvm::BasicBlock &bb) {
     DEBUG_START_BB("XeGatherCoalescing");
-    runOnBasicBlockImpl(bb);
+    bool modifiedAny = false;
+    modifiedAny = runOnBasicBlockImpl(bb);
     DEBUG_END_BB("XeGatherCoalescing");
+    return modifiedAny;
 }
 
 void XeGatherCoalescing::optimizePtr(llvm::Value *Ptr, PtrData &PD, llvm::Instruction *InsertPoint) {
@@ -554,19 +536,22 @@ void XeGatherCoalescing::optimizePtr(llvm::Value *Ptr, PtrData &PD, llvm::Instru
         llvm::Constant *Offset = llvm::ConstantInt::get(LLVMTypes::Int64Type, MinIdx + i * ReqSize);
         llvm::PtrToIntInst *PtrToInt =
             new llvm::PtrToIntInst(Ptr, LLVMTypes::Int64Type, "vectorized_ptrtoint", InsertPoint);
+
         llvm::Instruction *Addr = llvm::BinaryOperator::CreateAdd(PtrToInt, Offset, "vectorized_address", InsertPoint);
         llvm::Type *RetType = llvm::FixedVectorType::get(LargestType, ReqSize / LargestTypeSize);
-        llvm::Instruction *LD = nullptr;
-        if (g->opt.buildLLVMLoadsOnXeGatherCoalescing) {
-            // Experiment: build standard llvm load instead of block ld
-            llvm::IntToPtrInst *PtrForLd =
-                new llvm::IntToPtrInst(Addr, llvm::PointerType::get(RetType, 0), "vectorized_address_ptr", InsertPoint);
-            LD = new llvm::LoadInst(RetType, PtrForLd, "vectorized_ld_exp", InsertPoint);
-        } else {
-            llvm::Function *Fn = llvm::GenXIntrinsic::getGenXDeclaration(
-                m->module, llvm::GenXIntrinsic::genx_svm_block_ld_unaligned, {RetType, Addr->getType()});
-            LD = llvm::CallInst::Create(Fn, {Addr}, "vectorized_ld", InsertPoint);
+        llvm::IntToPtrInst *PtrForLd =
+            new llvm::IntToPtrInst(Addr, llvm::PointerType::get(RetType, 0), "vectorized_address_ptr", InsertPoint);
+        llvm::LoadInst *LD = new llvm::LoadInst(RetType, PtrForLd, "vectorized_ld_exp", InsertPoint);
+
+        //  If the Offset is zero, we generate a LD with default alignment for the target.
+        //  If the Offset is non-zero, we should re-align the LD based on its value.
+        if (Offset != nullptr && !Offset->isZeroValue()) {
+            const uint64_t offset{llvm::dyn_cast<llvm::ConstantInt>(Offset)->getZExtValue()};
+            const uint64_t alignment{
+                llvm::MinAlign(offset, std::min(llvm::PowerOf2Floor(offset), static_cast<uint64_t>(OWORD)))};
+            LD->setAlignment(llvm::Align{alignment});
         }
+
         BlockLDs.push_back(LD);
     }
 
@@ -656,8 +641,6 @@ llvm::Value *XeGatherCoalescing::getPointer(llvm::Instruction *Inst) const {
 
     return nullptr;
 }
-
-llvm::Pass *CreateXeGatherCoalescingPass() { return new XeGatherCoalescing; }
 
 } // namespace ispc
 

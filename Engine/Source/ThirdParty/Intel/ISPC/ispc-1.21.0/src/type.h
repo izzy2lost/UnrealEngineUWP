@@ -1,34 +1,7 @@
 /*
   Copyright (c) 2010-2023, Intel Corporation
-  All rights reserved.
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 /** @file type.h
@@ -112,14 +85,28 @@ class Type : public Traceable {
         integer types. */
     virtual bool IsUnsignedType() const = 0;
 
+    /** Returns true if the underlying type is signed.  In other words,
+        this is true for signed integers and short vectors of signed
+        integer types. */
+    virtual bool IsSignedType() const = 0;
+
     /** Returns true if the underlying type is either a pointer type */
     bool IsPointerType() const;
 
     /** Returns true if the underlying type is a array type */
     bool IsArrayType() const;
 
+    /** Returns true if the underlying type is an atomic type */
+    bool IsAtomicType() const;
+
+    /** Returns true if the underlying type is an varying atomic or uniform vector type */
+    bool IsVaryingAtomicOrUniformVectorType() const;
+
     /** Returns true if the underlying type is a reference type */
     bool IsReferenceType() const;
+
+    /** Returns true if the underlying type is vector type */
+    bool IsVectorType() const;
 
     /** Returns true if the underlying type is either a pointer or an array */
     bool IsVoidType() const;
@@ -186,6 +173,10 @@ class Type : public Traceable {
         the type.  Otherwise, return the original type. */
     virtual const Type *GetAsUnsignedType() const;
 
+    /** If this is a signed integer type, return the unsigned version of
+        the type.  Otherwise, return the original type. */
+    virtual const Type *GetAsSignedType() const;
+
     /** Returns the basic root type of the given type.  For example, for an
         array or short-vector, this returns the element type.  For a struct
         or atomic type, it returns itself. */
@@ -238,7 +229,7 @@ class Type : public Traceable {
 
     /** Given two types, returns the least general Type that is more general
         than both of them.  (i.e. that can represent their values without
-        any loss of data.)  If there is no such Type, return NULL.
+        any loss of data.)  If there is no such Type, return nullptr.
 
         @param type0        First of the two types
         @param type1        Second of the two types
@@ -291,6 +282,7 @@ class AtomicType : public Type {
     bool IsFloatType() const;
     bool IsIntType() const;
     bool IsUnsignedType() const;
+    bool IsSignedType() const;
     bool IsConstType() const;
 
     /** For AtomicTypes, the base type is just the same as the AtomicType
@@ -304,6 +296,7 @@ class AtomicType : public Type {
     const AtomicType *ResolveDependence(TemplateInstantiation &templInst) const;
     const AtomicType *ResolveUnboundVariability(Variability v) const;
     const AtomicType *GetAsUnsignedType() const;
+    const AtomicType *GetAsSignedType() const;
     const AtomicType *GetAsConstType() const;
     const AtomicType *GetAsNonConstType() const;
 
@@ -375,6 +368,7 @@ class TemplateTypeParmType : public Type {
     bool IsFloatType() const;
     bool IsIntType() const;
     bool IsUnsignedType() const;
+    bool IsSignedType() const;
     bool IsConstType() const;
 
     const Type *GetBaseType() const;
@@ -423,6 +417,7 @@ class EnumType : public Type {
     bool IsFloatType() const;
     bool IsIntType() const;
     bool IsUnsignedType() const;
+    bool IsSignedType() const;
     bool IsConstType() const;
 
     const EnumType *GetBaseType() const;
@@ -503,6 +498,7 @@ class PointerType : public Type {
     bool IsFloatType() const;
     bool IsIntType() const;
     bool IsUnsignedType() const;
+    bool IsSignedType() const;
     bool IsConstType() const;
 
     bool IsSlice() const { return isSlice; }
@@ -612,6 +608,7 @@ class ArrayType : public SequentialType {
     bool IsFloatType() const;
     bool IsIntType() const;
     bool IsUnsignedType() const;
+    bool IsSignedType() const;
     bool IsConstType() const;
 
     const Type *GetBaseType() const;
@@ -623,6 +620,7 @@ class ArrayType : public SequentialType {
     const ArrayType *ResolveUnboundVariability(Variability v) const;
 
     const ArrayType *GetAsUnsignedType() const;
+    const ArrayType *GetAsSignedType() const;
     const ArrayType *GetAsConstType() const;
     const ArrayType *GetAsNonConstType() const;
 
@@ -680,6 +678,7 @@ class VectorType : public SequentialType {
     bool IsFloatType() const;
     bool IsIntType() const;
     bool IsUnsignedType() const;
+    bool IsSignedType() const;
     bool IsConstType() const;
 
     const Type *GetBaseType() const;
@@ -691,6 +690,7 @@ class VectorType : public SequentialType {
     const VectorType *ResolveUnboundVariability(Variability v) const;
 
     const VectorType *GetAsUnsignedType() const;
+    const VectorType *GetAsSignedType() const;
     const VectorType *GetAsConstType() const;
     const VectorType *GetAsNonConstType() const;
 
@@ -733,6 +733,7 @@ class StructType : public CollectionType {
     bool IsFloatType() const;
     bool IsIntType() const;
     bool IsUnsignedType() const;
+    bool IsSignedType() const;
     bool IsConstType() const;
     bool IsDefined() const;
 
@@ -756,7 +757,7 @@ class StructType : public CollectionType {
     llvm::DIType *GetDIType(llvm::DIScope *scope) const;
 
     /** Returns the type of the structure element with the given name (if any).
-        Returns NULL if there is no such named element. */
+        Returns nullptr if there is no such named element. */
     const Type *GetElementType(const std::string &name) const;
 
     /** Returns the type of the i'th structure element.  The value of \c i must
@@ -826,6 +827,7 @@ class UndefinedStructType : public Type {
     bool IsFloatType() const;
     bool IsIntType() const;
     bool IsUnsignedType() const;
+    bool IsSignedType() const;
     bool IsConstType() const;
 
     const Type *GetBaseType() const;
@@ -869,6 +871,7 @@ class ReferenceType : public Type {
     bool IsFloatType() const;
     bool IsIntType() const;
     bool IsUnsignedType() const;
+    bool IsSignedType() const;
     bool IsConstType() const;
 
     const Type *GetBaseType() const;
@@ -927,6 +930,7 @@ class FunctionType : public Type {
     bool IsFloatType() const;
     bool IsIntType() const;
     bool IsUnsignedType() const;
+    bool IsSignedType() const;
     bool IsConstType() const;
 
     bool IsISPCKernel() const;
@@ -974,7 +978,7 @@ class FunctionType : public Type {
     llvm::FunctionType *LLVMFunctionType(llvm::LLVMContext *ctx, bool disableMask = false) const;
 
     /* This method returns appropriate llvm::CallingConv for the function*/
-    const unsigned int GetCallingConv() const;
+    unsigned int GetCallingConv() const;
 
     /* Get string representation of calling convention */
     const std::string GetNameForCallConv() const;
@@ -1030,7 +1034,7 @@ class FunctionType : public Type {
     const llvm::SmallVector<const Type *, 8> paramTypes;
     const llvm::SmallVector<std::string, 8> paramNames;
     /** Default values of the function's arguments.  For arguments without
-        default values provided, NULL is stored. */
+        default values provided, nullptr is stored. */
     mutable llvm::SmallVector<Expr *, 8> paramDefaults;
     /** The names provided (if any) with the function arguments in the
         function's signature.  These should only be used for error messages
@@ -1040,102 +1044,102 @@ class FunctionType : public Type {
 };
 
 /* Efficient dynamic casting of Types.  First, we specify a default
-   template function that returns NULL, indicating a failed cast, for
+   template function that returns nullptr, indicating a failed cast, for
    arbitrary types. */
-template <typename T> inline const T *CastType(const Type *type) { return NULL; }
+template <typename T> inline const T *CastType(const Type *type) { return nullptr; }
 
 /* Now we have template specializaitons for the Types implemented in this
    file.  Each one checks the Type::typeId member and then performs the
    corresponding static cast if it's safe as per the typeId.
  */
 template <> inline const AtomicType *CastType(const Type *type) {
-    if (type != NULL && type->typeId == ATOMIC_TYPE)
+    if (type != nullptr && type->typeId == ATOMIC_TYPE)
         return (const AtomicType *)type;
     else
-        return NULL;
+        return nullptr;
 }
 
 template <> inline const TemplateTypeParmType *CastType(const Type *type) {
-    if (type != NULL && type->typeId == TEMPLATE_TYPE_PARM_TYPE)
+    if (type != nullptr && type->typeId == TEMPLATE_TYPE_PARM_TYPE)
         return (const TemplateTypeParmType *)type;
     else
-        return NULL;
+        return nullptr;
 }
 
 template <> inline const EnumType *CastType(const Type *type) {
-    if (type != NULL && type->typeId == ENUM_TYPE)
+    if (type != nullptr && type->typeId == ENUM_TYPE)
         return (const EnumType *)type;
     else
-        return NULL;
+        return nullptr;
 }
 
 template <> inline const PointerType *CastType(const Type *type) {
-    if (type != NULL && type->typeId == POINTER_TYPE)
+    if (type != nullptr && type->typeId == POINTER_TYPE)
         return (const PointerType *)type;
     else
-        return NULL;
+        return nullptr;
 }
 
 template <> inline const ArrayType *CastType(const Type *type) {
-    if (type != NULL && type->typeId == ARRAY_TYPE)
+    if (type != nullptr && type->typeId == ARRAY_TYPE)
         return (const ArrayType *)type;
     else
-        return NULL;
+        return nullptr;
 }
 
 template <> inline const VectorType *CastType(const Type *type) {
-    if (type != NULL && type->typeId == VECTOR_TYPE)
+    if (type != nullptr && type->typeId == VECTOR_TYPE)
         return (const VectorType *)type;
     else
-        return NULL;
+        return nullptr;
 }
 
 template <> inline const SequentialType *CastType(const Type *type) {
     // Note that this function must be updated if other sequential type
     // implementations are added.
-    if (type != NULL && (type->typeId == ARRAY_TYPE || type->typeId == VECTOR_TYPE))
+    if (type != nullptr && (type->typeId == ARRAY_TYPE || type->typeId == VECTOR_TYPE))
         return (const SequentialType *)type;
     else
-        return NULL;
+        return nullptr;
 }
 
 template <> inline const CollectionType *CastType(const Type *type) {
     // Similarly a new collection type implementation requires updating
     // this function.
-    if (type != NULL && (type->typeId == ARRAY_TYPE || type->typeId == VECTOR_TYPE || type->typeId == STRUCT_TYPE))
+    if (type != nullptr && (type->typeId == ARRAY_TYPE || type->typeId == VECTOR_TYPE || type->typeId == STRUCT_TYPE))
         return (const CollectionType *)type;
     else
-        return NULL;
+        return nullptr;
 }
 
 template <> inline const StructType *CastType(const Type *type) {
-    if (type != NULL && type->typeId == STRUCT_TYPE)
+    if (type != nullptr && type->typeId == STRUCT_TYPE)
         return (const StructType *)type;
     else
-        return NULL;
+        return nullptr;
 }
 
 template <> inline const UndefinedStructType *CastType(const Type *type) {
-    if (type != NULL && type->typeId == UNDEFINED_STRUCT_TYPE)
+    if (type != nullptr && type->typeId == UNDEFINED_STRUCT_TYPE)
         return (const UndefinedStructType *)type;
     else
-        return NULL;
+        return nullptr;
 }
 
 template <> inline const ReferenceType *CastType(const Type *type) {
-    if (type != NULL && type->typeId == REFERENCE_TYPE)
+    if (type != nullptr && type->typeId == REFERENCE_TYPE)
         return (const ReferenceType *)type;
     else
-        return NULL;
+        return nullptr;
 }
 
 template <> inline const FunctionType *CastType(const Type *type) {
-    if (type != NULL && type->typeId == FUNCTION_TYPE)
+    if (type != nullptr && type->typeId == FUNCTION_TYPE)
         return (const FunctionType *)type;
     else
-        return NULL;
+        return nullptr;
 }
 
-inline bool IsReferenceType(const Type *t) { return CastType<ReferenceType>(t) != NULL; }
+inline bool IsReferenceType(const Type *t) { return CastType<ReferenceType>(t) != nullptr; }
 
 } // namespace ispc

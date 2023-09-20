@@ -1,34 +1,7 @@
 #
 #  Copyright (c) 2018-2023, Intel Corporation
-#  All rights reserved.
 #
-#  Redistribution and use in source and binary forms, with or without
-#  modification, are permitted provided that the following conditions are
-#  met:
-#
-#    * Redistributions of source code must retain the above copyright
-#      notice, this list of conditions and the following disclaimer.
-#
-#    * Redistributions in binary form must reproduce the above copyright
-#      notice, this list of conditions and the following disclaimer in the
-#      documentation and/or other materials provided with the distribution.
-#
-#    * Neither the name of Intel Corporation nor the names of its
-#      contributors may be used to endorse or promote products derived from
-#      this software without specific prior written permission.
-#
-#
-#   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-#   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-#   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-#   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-#   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-#   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-#   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-#   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-#   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-#   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-#   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#  SPDX-License-Identifier: BSD-3-Clause
 
 #
 # ispc GenerateBuiltins.cmake
@@ -79,12 +52,18 @@ function(target_ll_to_cpp llFileName bit os_name resultFileName)
         return()
     endif()
 
+    # Xe targets are implemented only for 64 bit.
+    string(REGEX MATCH "^target-xe" isXe "${llFileName}")
+    if ("${bit}" STREQUAL "32" AND isXe)
+        return()
+    endif()
+
     set(output ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/builtins-${llFileName}-${bit}bit-${os_name}.cpp)
     add_custom_command(
         OUTPUT ${output}
         COMMAND ${M4_EXECUTABLE} -I${includePath}
             -DLLVM_VERSION=${LLVM_VERSION} -DBUILD_OS=${os_name_macro} -DRUNTIME=${bit} ${inputFilePath}
-            | \"${Python3_EXECUTABLE}\" bitcode2cpp.py ${inputFilePath} --type=ispc-target --runtime=${bit} --os=${os_name_macro} --llvm_as ${LLVM_AS_EXECUTABLE}
+            | \"${Python3_EXECUTABLE}\" bitcode2cpp.py ${inputFilePath} --type=ispc-target --runtime=${bit} --os=${os_name_macro} --llvm_as ${LLVM_AS_EXECUTABLE} --opaque_flags="${LLVM_TOOLS_OPAQUE_FLAGS}"
             > ${output}
         DEPENDS ${inputFilePath} bitcode2cpp.py ${M4_IMPLICIT_DEPENDENCIES}
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -99,7 +78,7 @@ function(dispatch_ll_to_cpp llFileName os_name resultFileName)
     add_custom_command(
         OUTPUT ${output}
         COMMAND ${M4_EXECUTABLE} -DLLVM_VERSION=${LLVM_VERSION} ${inputFilePath}
-            | \"${Python3_EXECUTABLE}\" bitcode2cpp.py ${inputFilePath} --type=dispatch --os=${os_name} --llvm_as ${LLVM_AS_EXECUTABLE}
+            | \"${Python3_EXECUTABLE}\" bitcode2cpp.py ${inputFilePath} --type=dispatch --os=${os_name} --llvm_as ${LLVM_AS_EXECUTABLE} --opaque_flags="${LLVM_TOOLS_OPAQUE_FLAGS}"
             > ${output}
         DEPENDS ${inputFilePath} bitcode2cpp.py
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -116,9 +95,8 @@ function(builtin_to_cpp bit os_name arch supported_archs supported_oses resultFi
         set(SKIP ON)
     endif()
 
-    if ((    ${os_name} STREQUAL "web" AND NOT ${arch} STREQUAL "wasm32") OR
-        (NOT ${os_name} STREQUAL "web" AND     ${arch} STREQUAL "wasm32") OR
-        (    ${os_name} STREQUAL "web" AND     ${arch} STREQUAL "wasm32" AND NOT "${bit}" STREQUAL "32"))
+    if ((    ${os_name} STREQUAL "web" AND NOT ${arch} STREQUAL "wasm") OR
+        (NOT ${os_name} STREQUAL "web" AND     ${arch} STREQUAL "wasm"))
         return()
     endif()
 
@@ -130,8 +108,10 @@ function(builtin_to_cpp bit os_name arch supported_archs supported_oses resultFi
         set(target_arch "armv7")
     elseif ("${bit}" STREQUAL "64" AND ${arch} STREQUAL "arm")
         set(target_arch "aarch64")
-    elseif ("${bit}" STREQUAL "32" AND ${arch} STREQUAL "wasm32")
+    elseif ("${bit}" STREQUAL "32" AND ${arch} STREQUAL "wasm")
         set(target_arch "wasm32")
+    elseif ("${bit}" STREQUAL "64" AND ${arch} STREQUAL "wasm")
+        set(target_arch "wasm64")
     else()
         message(FATAL_ERROR "Error")
     endif()
@@ -282,11 +262,14 @@ function(builtin_to_cpp bit os_name arch supported_archs supported_oses resultFi
 
     set(output ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/builtins-cpp-${bit}-${os_name}-${target_arch}.cpp)
     if (${os_name} STREQUAL "web")
+        if("${bit}" STREQUAL "64")
+            list(APPEND emcc_flags "-sMEMORY64")
+        endif()
         add_custom_command(
             OUTPUT ${output}
-            COMMAND ${EMCC_EXECUTABLE} -DWASM -s WASM_OBJECT_FILES=0 -I${CMAKE_SOURCE_DIR} -c ${inputFilePath} --std=gnu++17 -emit-llvm -c -o -
-                | (\"${LLVM_DIS_EXECUTABLE}\" - || echo "builtins-c-*.cpp compile error")
-                | \"${Python3_EXECUTABLE}\" bitcode2cpp.py c --type=builtins-c --runtime=${bit} --os=${os_name} --arch=${target_arch} --llvm_as ${LLVM_AS_EXECUTABLE}
+            COMMAND ${EMCC_EXECUTABLE} -DWASM -s WASM_OBJECT_FILES=0 ${emcc_flags} ${ISPC_OPAQUE_FLAGS} -I${CMAKE_SOURCE_DIR} -c ${inputFilePath} --std=gnu++17 -emit-llvm -c -o -
+                | (\"${LLVM_DIS_EXECUTABLE}\" ${LLVM_TOOLS_OPAQUE_FLAGS} - || echo "builtins-c-*.cpp compile error")
+                | \"${Python3_EXECUTABLE}\" bitcode2cpp.py c --type=builtins-c --runtime=${bit} --os=${os_name} --arch=${target_arch} --llvm_as ${LLVM_AS_EXECUTABLE} --opaque_flags="${LLVM_TOOLS_OPAQUE_FLAGS}"
                 > ${output}
             DEPENDS ${inputFilePath} bitcode2cpp.py
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -294,8 +277,8 @@ function(builtin_to_cpp bit os_name arch supported_archs supported_oses resultFi
     else()
         add_custom_command(
             OUTPUT ${output}
-            COMMAND ${CLANGPP_EXECUTABLE} ${target_flags} -I${CMAKE_SOURCE_DIR} -m${bit} -emit-llvm ${ISPC_OPAQUE_FLAGS} --std=gnu++17 -c ${inputFilePath} -o - | (\"${LLVM_DIS_EXECUTABLE}\" - || echo "builtins-c-*.cpp compile error")
-                | \"${Python3_EXECUTABLE}\" bitcode2cpp.py c --type=builtins-c --runtime=${bit} --os=${os_name} --arch=${target_arch} --llvm_as ${LLVM_AS_EXECUTABLE}
+            COMMAND ${CLANGPP_EXECUTABLE} ${target_flags} -I${CMAKE_SOURCE_DIR} -m${bit} -emit-llvm ${ISPC_OPAQUE_FLAGS} --std=gnu++17 -c ${inputFilePath} -o - | (\"${LLVM_DIS_EXECUTABLE}\" ${LLVM_TOOLS_OPAQUE_FLAGS} - || echo "builtins-c-*.cpp compile error")
+                | \"${Python3_EXECUTABLE}\" bitcode2cpp.py c --type=builtins-c --runtime=${bit} --os=${os_name} --arch=${target_arch} --llvm_as ${LLVM_AS_EXECUTABLE} --opaque_flags="${LLVM_TOOLS_OPAQUE_FLAGS}"
                 > ${output}
             DEPENDS ${inputFilePath} bitcode2cpp.py
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -317,11 +300,8 @@ function(builtin_xe_to_cpp bit resultFileName)
         set(os_name "linux")
     endif()
 
-    if ("${bit}" STREQUAL "32")
-        set(target_arch "xe32")
-    elseif ("${bit}" STREQUAL "64")
-        set(target_arch "xe64")
-    else()
+    set(target_arch "xe64")
+    if (NOT "${bit}" STREQUAL "64")
         set(SKIP ON)
     endif()
 
@@ -331,7 +311,7 @@ function(builtin_xe_to_cpp bit resultFileName)
           OUTPUT ${output}
           COMMAND cat ${inputFilePath}
               | \"${Python3_EXECUTABLE}\" bitcode2cpp.py cm --type=builtins-c --runtime=${bit}
-              --os=${os_name} --arch=${target_arch} --llvm_as ${LLVM_AS_EXECUTABLE}
+              --os=${os_name} --arch=${target_arch} --llvm_as ${LLVM_AS_EXECUTABLE} --opaque_flags="${LLVM_TOOLS_OPAQUE_FLAGS}"
               > ${output}
           DEPENDS ${inputFilePath} bitcode2cpp.py
           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -371,13 +351,18 @@ function (generate_target_builtins resultList)
             endforeach()
         endforeach()
     endforeach()
+
     # WASM targets.
     if (WASM_ENABLED)
         set(wasm_targets ${ARGN})
         list(FILTER wasm_targets INCLUDE REGEX wasm)
         foreach (wasm_target ${wasm_targets})
             target_ll_to_cpp(target-${wasm_target} 32 web outputweb32)
-            list(APPEND tmpList ${outputweb32})
+            target_ll_to_cpp(target-${wasm_target} 64 web outputweb64)
+            list(APPEND tmpList ${outputweb32} ${outputweb64})
+            if(MSVC)
+                source_group("Generated Builtins" FILES ${outputweb32} ${outputweb64})
+            endif()
         endforeach()
     endif()
     # Return the list
@@ -393,7 +378,7 @@ function (generate_common_builtins resultList)
         list (APPEND supported_archs "arm")
     endif()
     if (WASM_ENABLED)
-        list (APPEND supported_archs "wasm32")
+        list (APPEND supported_archs "wasm")
         list (APPEND supported_oses "web")
     endif()
 
@@ -423,7 +408,7 @@ function (generate_common_builtins resultList)
     message (STATUS "ISPC will be built with support of ${supported_oses} for ${supported_archs}")
     foreach (bit 32 64)
         foreach (os_name "windows" "linux" "freebsd" "macos" "android" "ios" "ps4" "web")
-            foreach (arch "x86" "arm" "wasm32")
+            foreach (arch "x86" "arm" "wasm")
                 builtin_to_cpp(${bit} ${os_name} ${arch} "${supported_archs}" "${supported_oses}" res${bit}${os_name}${arch})
                 list(APPEND tmpList ${res${bit}${os_name}${arch}} )
                 if(MSVC)
@@ -434,14 +419,13 @@ function (generate_common_builtins resultList)
         endforeach()
     endforeach()
     if (XE_ENABLED)
-        foreach (bit 32 64)
-            builtin_xe_to_cpp(${bit} res_xe_${bit})
-            list(APPEND tmpList ${res_xe_${bit}} )
-            if(MSVC)
-                # Group generated files inside Visual Studio
-                source_group("Generated Builtins" FILES ${res_xe_${bit}})
-            endif()
-        endforeach()
+        set(bit 64)
+        builtin_xe_to_cpp(${bit} res_xe_${bit})
+        list(APPEND tmpList ${res_xe_${bit}} )
+        if(MSVC)
+            # Group generated files inside Visual Studio
+            source_group("Generated Builtins" FILES ${res_xe_${bit}})
+        endif()
     endif()
     set(${resultList} ${tmpList} PARENT_SCOPE)
 endfunction()

@@ -1,34 +1,7 @@
 /*
   Copyright (c) 2010-2023, Intel Corporation
-  All rights reserved.
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 /** @file ctx.h
@@ -67,7 +40,7 @@ class AddressInfo : public Traceable {
     // Return the type of the values stored in this address.
     llvm::Type *getElementType() const { return elementType; }
 
-    // Return the ISPC type. May be NULL.
+    // Return the ISPC type. May be nullptr.
     const Type *getISPCType() const { return ispcType; }
 
     // Return the address space that this address resides in.
@@ -240,7 +213,7 @@ class FunctionEmitContext {
     /** Emits code for a "switch" statement in the program.
         @param expr         Gives the value of the expression after the "switch"
         @param defaultBlock Basic block to execute for the "default" case.  This
-                            should be NULL if there is no "default" label inside
+                            should be nullptr if there is no "default" label inside
                             the switch.
         @param caseBlocks   vector that stores the mapping from label values
                             after "case" statements to basic blocks corresponding
@@ -296,7 +269,7 @@ class FunctionEmitContext {
     std::vector<std::string> GetLabels();
 
     /** Called to generate code for 'return' statement; value is the
-        expression in the return statement (if non-NULL), and
+        expression in the return statement (if non-nullptr), and
         doCoherenceCheck indicates whether instructions should be generated
         to see if all of the currently-running lanes have returned (if
         we're under varying control flow).  */
@@ -347,7 +320,7 @@ class FunctionEmitContext {
     llvm::Value *GetStringPtr(const std::string &str);
 
     /** Create a new basic block with given name */
-    llvm::BasicBlock *CreateBasicBlock(const llvm::Twine &name, llvm::BasicBlock *insertAfter = NULL);
+    llvm::BasicBlock *CreateBasicBlock(const llvm::Twine &name, llvm::BasicBlock *insertAfter = nullptr);
 
     /** Given a vector with element type i1, return a vector of type
         LLVMTypes::BoolVectorType.  This method handles the conversion for
@@ -371,7 +344,7 @@ class FunctionEmitContext {
 
     SourcePos GetDebugPos() const;
 
-    /** Adds debugging metadata to the given instruction.  If pos == NULL,
+    /** Adds debugging metadata to the given instruction.  If pos == nullptr,
         use FunctionEmitContext::currentPos as the source file position for
         the instruction.  Similarly, if a DIScope is provided, it's used
         and otherwise the scope is found from a GetDIScope() call.  This
@@ -379,8 +352,8 @@ class FunctionEmitContext {
         llvm::Instruction for convenience; in calling code we often have
         Instructions stored using Value pointers; the code here returns
         silently if it's not actually given an instruction. */
-    void AddDebugPos(llvm::Value *instruction, const SourcePos *pos = NULL, llvm::DIScope *scope = NULL);
-    // llvm::MDScope *scope = NULL );
+    void AddDebugPos(llvm::Value *instruction, const SourcePos *pos = nullptr, llvm::DIScope *scope = nullptr);
+    // llvm::MDScope *scope = nullptr );
 
     /** Inform the debugging information generation code that a new scope
         is starting in the source program. */
@@ -423,13 +396,32 @@ class FunctionEmitContext {
     /** Emit the binary operator given by the inst parameter.  If
         llvm::Values corresponding to VectorTypes are given as operands,
         this also handles applying the given operation to the vector
-        elements. */
+        elements.
+
+        The isSigned parameter toggles whether the nsw attribute is applied
+        to signed integer arithmetic operations.
+        The value of isSigned is determined either by
+        1.  the sign of the incoming generated expression's type
+            (e.g. using type->IsSignedType()), or
+        2.  the sign of a constructed expression (e.g. false for pointer
+            arithmetic, true for foreach induction variables).
+        The only arithmetic oparations modified by this parameter are Add, Sub, and Mul.
+        Shl supports the attribute (https://llvm.org/docs/LangRef.html#shl-instruction),
+        but we elect not to emit nsw for these operations to match Clang/GCC behavior.
+        Care should be used, as some optimizations may rely on undefined behavior
+        for signed integer overflow.
+        See the Expressions section of docs/ispc.rst for more information on this
+        optimization.
+    */
     llvm::Value *BinaryOperator(llvm::Instruction::BinaryOps inst, llvm::Value *v0, llvm::Value *v1,
-                                const llvm::Twine &name = "");
+                                WrapSemantics wrapSemantics, const llvm::Twine &name = "");
 
     /** Emit the "not" operator.  Like BinaryOperator(), this also handles
         a VectorType-based operand. */
     llvm::Value *NotOperator(llvm::Value *v, const llvm::Twine &name = "");
+
+    /** Emit FNeg instruction. */
+    llvm::Value *FNegInst(llvm::Value *v, const llvm::Twine &name = "");
 
     /** Emit a comparison instruction.  If the operands are VectorTypes,
         then a value for the corresponding boolean VectorType is
@@ -464,7 +456,7 @@ class FunctionEmitContext {
     llvm::Value *MakeSlicePointer(llvm::Value *ptr, llvm::Value *offset);
 
     /* Regularize to a standard pointer type.
-       May return NULL if type is not PointerType or ReferenceType */
+       May return nullptr if type is not PointerType or ReferenceType */
     const PointerType *RegularizePointer(const Type *ptrRefType);
 
     /** These GEP methods are generalizations of the standard ones in LLVM;
@@ -484,7 +476,7 @@ class FunctionEmitContext {
         structure type that the base pointer points to.  (The provided
         pointer in AddressInfo must be a pointer to a structure type.) */
     llvm::Value *AddElementOffset(AddressInfo *basePtrInfo, int elementNum, const llvm::Twine &name = "",
-                                  const PointerType **resultPtrType = NULL);
+                                  const PointerType **resultPtrType = nullptr);
 
     /** Bool is stored as i8 and <WIDTH x i8> but represented in IR as i1 and
      * <WIDTH x MASK>. This is a helper function to match bool size at storage
@@ -494,15 +486,15 @@ class FunctionEmitContext {
         mask.  The lvalue may be varying, in which case this corresponds to
         a gather from the multiple memory locations given by the array of
         pointer values given by the lvalue.  If the lvalue is not varying,
-        then both the mask pointer and the type pointer may be NULL. */
+        then both the mask pointer and the type pointer may be nullptr. */
     llvm::Value *LoadInst(llvm::Value *ptr, llvm::Value *mask, const Type *ptrType, const llvm::Twine &name = "",
                           bool one_elem = false);
 
     /* Load from memory location(s) given.
      * 'type' needs to be provided when storage type is different from IR type. For example,
      * 'unform bool' is 'i1' in IR but stored as 'i8'.
-     * Otherwise leave this as NULL. */
-    llvm::Value *LoadInst(AddressInfo *ptrInfo, const Type *type = NULL, const llvm::Twine &name = "");
+     * Otherwise leave this as nullptr. */
+    llvm::Value *LoadInst(AddressInfo *ptrInfo, const Type *type = nullptr, const llvm::Twine &name = "");
 
     /** Emits addrspacecast instruction. Depending on atEntryBlock it is generated in
         alloca block or in the current block.
@@ -542,7 +534,7 @@ class FunctionEmitContext {
         'ptrType' needs to be provided when storage type is different from IR type. For example,
         'unform bool' is 'i1' in IR but stored as 'i8'. */
     /*  TODO: keep all info about type in ptrInfo so we can eliminate usage of ptrType optional arg */
-    void StoreInst(llvm::Value *value, AddressInfo *ptrInfo, const Type *ptrType = NULL);
+    void StoreInst(llvm::Value *value, AddressInfo *ptrInfo, const Type *ptrType = nullptr);
 
     /** In this variant of StoreInst(), the lvalue may be varying.  If so,
         this corresponds to a scatter.  Whether the lvalue is uniform of
@@ -554,7 +546,7 @@ class FunctionEmitContext {
     /** Copy count bytes of memory from the location pointed to by src to
         the location pointed to by dest.  (src and dest must not be
         overlapping.) */
-    void MemcpyInst(llvm::Value *dest, llvm::Value *src, llvm::Value *count, llvm::Value *align = NULL);
+    void MemcpyInst(llvm::Value *dest, llvm::Value *src, llvm::Value *count, llvm::Value *align = nullptr);
 
     void setLoopUnrollMetadata(llvm::Instruction *inst, std::pair<Globals::pragmaUnrollType, int> loopAttribute,
                                SourcePos pos);
@@ -585,7 +577,7 @@ class FunctionEmitContext {
 
     /** Emits IR to do a function call with the given arguments.  If the
         function type is a varying function pointer type, its full type
-        must be provided in funcType.  funcType can be NULL if func is a
+        must be provided in funcType.  funcType can be nullptr if func is a
         uniform function pointer. */
     llvm::Value *CallInst(llvm::Value *func, const FunctionType *funcType, const std::vector<llvm::Value *> &args,
                           const llvm::Twine &name = "");
@@ -620,7 +612,7 @@ class FunctionEmitContext {
 
     /** Emit genx_simdcf_predicate intrinsic
         Required when Xe hardware mask is emitted. */
-    llvm::Value *XeSimdCFPredicate(llvm::Value *values, llvm::Value *defaults = NULL);
+    llvm::Value *XeSimdCFPredicate(llvm::Value *values, llvm::Value *defaults = nullptr);
 
     /** Start unmasked region. Sets execution mask to all-active, and return the old mask.*/
     llvm::Value *XeStartUnmaskedRegion();
@@ -714,7 +706,7 @@ class FunctionEmitContext {
     /** If currently in a loop body or switch statement, this is an AddressInfo with pointer
         to memory to store a mask value that represents which of the lanes
         have executed a 'break' statement.  If we're not in a loop body or
-        switch, this should be NULL. */
+        switch, this should be nullptr. */
     AddressInfo *breakLanesAddressInfo;
 
     /** Similar to breakLanesAddressInfo, if we're inside a loop, this is an AddressInfo with a pointer
@@ -741,7 +733,7 @@ class FunctionEmitContext {
     /** @name Switch statement state
 
         These variables store various state that's active when we're
-        generating code for a switch statement.  They should all be NULL
+        generating code for a switch statement.  They should all be nullptr
         outside of a switch.
         @{
     */
@@ -836,6 +828,10 @@ class FunctionEmitContext {
     bool inSwitchStatement() const;
     llvm::Value *getMaskAtSwitchEntry();
 
+    // Returns pointer to CFInfo object allocated on heap. This function
+    // doesn't create or allocate this object. It removes CFInfo object from
+    // controlFlowInfo vector and passes the ownership to the outer context.
+    // The outer context should deconstruct this object.
     CFInfo *popCFState();
 
     void scatter(llvm::Value *value, llvm::Value *ptr, const Type *valueType, const Type *ptrType, llvm::Value *mask);

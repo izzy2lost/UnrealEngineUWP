@@ -1,34 +1,7 @@
 /*
   Copyright (c) 2010-2023, Intel Corporation
-  All rights reserved.
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 /** @file sym.cpp
@@ -52,8 +25,8 @@ using namespace ispc;
 // Symbol
 
 Symbol::Symbol(const std::string &n, SourcePos p, const Type *t, StorageClass sc)
-    : pos(p), name(n), storageInfo(NULL), function(NULL), exportedFunction(NULL), type(t), constValue(NULL),
-      storageClass(sc), varyingCFDepth(0), parentFunction(NULL) {}
+    : pos(p), name(n), storageInfo(nullptr), function(nullptr), exportedFunction(nullptr), type(t), constValue(nullptr),
+      storageClass(sc), varyingCFDepth(0), parentFunction(nullptr) {}
 
 ///////////////////////////////////////////////////////////////////////////
 // TemplateSymbol
@@ -71,6 +44,18 @@ SymbolTable::~SymbolTable() {
     // Otherwise we have mismatched push/pop scopes
     Assert(variables.size() == 1);
     PopScope();
+
+    for (auto p : freeSymbolMaps) {
+        delete p;
+    }
+
+    for (auto const &x : functionTemplates) {
+        for (auto *p : x.second) {
+            if (p) {
+                delete p;
+            }
+        }
+    }
 }
 
 void SymbolTable::PushScope() {
@@ -94,8 +79,14 @@ void SymbolTable::PopScope() {
     types.pop_back();
 }
 
+void SymbolTable::PopInnerScopes() {
+    while (variables.size() > 1) {
+        PopScope();
+    }
+}
+
 bool SymbolTable::AddVariable(Symbol *symbol) {
-    Assert(symbol != NULL);
+    Assert(symbol != nullptr);
 
     // Check to see if a symbol of the same name has already been declared.
     for (int i = (int)variables.size() - 1; i >= 0; --i) {
@@ -132,13 +123,13 @@ Symbol *SymbolTable::LookupVariable(const char *name) {
         if (iter != sm.end())
             return iter->second;
     }
-    return NULL;
+    return nullptr;
 }
 
 bool SymbolTable::AddFunction(Symbol *symbol) {
     const FunctionType *ft = CastType<FunctionType>(symbol->type);
-    Assert(ft != NULL);
-    if (LookupFunction(symbol->name.c_str(), ft) != NULL)
+    Assert(ft != nullptr);
+    if (LookupFunction(symbol->name.c_str(), ft) != nullptr)
         // A function of the same name and type has already been added to
         // the symbol table
         return false;
@@ -151,7 +142,7 @@ bool SymbolTable::AddFunction(Symbol *symbol) {
 bool SymbolTable::LookupFunction(const char *name, std::vector<Symbol *> *matches) {
     FunctionMapType::iterator iter = functions.find(name);
     if (iter != functions.end()) {
-        if (matches == NULL)
+        if (matches == nullptr)
             return true;
         else {
             const std::vector<Symbol *> &funcs = iter->second;
@@ -171,11 +162,11 @@ Symbol *SymbolTable::LookupFunction(const char *name, const FunctionType *type) 
                 return funcs[j];
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 bool SymbolTable::AddIntrinsics(Symbol *symbol) {
-    if (LookupIntrinsics(symbol->function) != NULL) {
+    if (LookupIntrinsics(symbol->function) != nullptr) {
         // A function of the same type has already been added to
         // the symbol table
         return false;
@@ -239,7 +230,7 @@ TemplateSymbol *SymbolTable::LookupFunctionTemplate(const TemplateParms *templat
 
 bool SymbolTable::AddType(const char *name, const Type *type, SourcePos pos) {
     const Type *t = LookupLocalType(name);
-    if (t != NULL && CastType<UndefinedStructType>(t) == NULL) {
+    if (t != nullptr && CastType<UndefinedStructType>(t) == nullptr) {
         // If we have a previous declaration of anything other than an
         // UndefinedStructType with this struct name, issue an error.  If
         // we have an UndefinedStructType, then we'll fall through to the
@@ -409,7 +400,7 @@ inline int ispcRand() {
 Symbol *SymbolTable::RandomSymbol() {
     int v = ispcRand() % variables.size();
     if (variables[v]->size() == 0)
-        return NULL;
+        return nullptr;
     int count = ispcRand() % variables[v]->size();
     SymbolMapType::iterator iter = variables[v]->begin();
     while (count-- > 0) {

@@ -1,34 +1,7 @@
 /*
   Copyright (c) 2010-2023, Intel Corporation
-  All rights reserved.
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 /** @file main.cpp
@@ -46,6 +19,7 @@
 #include <stdlib.h>
 #ifdef ISPC_HOST_IS_WINDOWS
 #include <time.h>
+#include <windows.h>
 #else
 #include <unistd.h>
 #endif // ISPC_HOST_IS_WINDOWS
@@ -86,12 +60,11 @@ static void lPrintVersion() {
 [[noreturn]] static void usage(int ret) {
     lPrintVersion();
     printf("\nusage: ispc\n");
-    printf("    [--addressing={32,64}]\t\tSelect 32- or 64-bit addressing. (Note that 32-bit\n");
-    printf("                          \t\taddressing calculations are done by default, even\n");
-    printf("                          \t\ton 64-bit target architectures.)\n");
+    printf("    [--addressing={32,64}]\t\tSelect 32- or 64-bit addressing. (Note that 32-bit addressing calculations "
+           "are done by default, even on 64-bit target architectures.)\n");
     printf("    [--arch={%s}]\t\tSelect target architecture\n", g->target_registry->getSupportedArchs().c_str());
 #ifndef ISPC_HOST_IS_WINDOWS
-    printf("    [--colored-output]\t\tAlways use terminal colors in error/warning messages\n");
+    printf("    [--colored-output]\t\t\tAlways use terminal colors in error/warning messages\n");
 #endif
     printf("    [--cpu=<type>]\t\t\tAn alias for [--device=<type>] switch\n");
     printf("    [-D<foo>]\t\t\t\t#define given value when running preprocessor\n");
@@ -133,30 +106,37 @@ static void lPrintVersion() {
     printf("        fast\t\t\t\tUse high-performance but lower-accuracy math functions\n");
     printf("        svml\t\t\t\tUse the Intel(r) SVML math libraries\n");
     printf("        system\t\t\t\tUse the system's math library (*may be quite slow*)\n");
-    printf("    [-MMM <filename>]\t\t\tWrite #include dependencies to given file.\n");
+    printf("    [--mcmodel=<value>]\t\t\tDefine the code model to use for code generation\n");
+    printf("        small\t\t\t\tThe program and its symbols must be linked in the lower 2GB of the address space "
+           "(default)\n");
+    printf("        large\t\t\t\tThe program has no assumprion about addresses and sizes of sections\n");
+    printf("    [-MMM <filename>]\t\t\tWrite #include dependencies to given file\n");
     printf("    [-M]\t\t\t\tOutput a rule suitable for `make' describing the dependencies of the main source file to "
-           "stdout.\n");
-    printf("    [-MF <filename>]\t\t\tWhen used with `-M', specifies a file to write the dependencies to.\n");
+           "stdout\n");
+    printf("    [-MF <filename>]\t\t\tWhen used with `-M', specifies a file to write the dependencies to\n");
     printf("    [-MT <filename>]\t\t\tWhen used with `-M', changes the target of the rule emitted by dependency "
-           "generation.\n");
+           "generation\n");
     printf("    [--no-omit-frame-pointer]\t\tDisable frame pointer omission. It may be useful for profiling\n");
     printf("    [--nostdlib]\t\t\tDon't make the ispc standard library available\n");
     printf("    [--no-pragma-once]\t\t\tDon't use #pragma once in created headers\n");
     printf("    [--nocpp]\t\t\t\tDon't run the C preprocessor\n");
     printf("    [-o <name>/--outfile=<name>]\tOutput filename (may be \"-\" for standard output)\n");
-    printf("    [-O0/-O(1/2/3)]\t\t\tSet optimization level. Default behavior is to optimize for speed.\n");
-    printf("        -O0\t\t\t\tOptimizations disabled.\n");
-    printf("        -O1\t\t\t\tOptimization for size.\n");
-    printf("        -O2/O3\t\t\t\tOptimization for speed.\n");
+    printf("    [-O0/-O(1/2/3)]\t\t\tSet optimization level. Default behavior is to optimize for speed\n");
+    printf("        -O0\t\t\t\tOptimizations disabled\n");
+    printf("        -O1\t\t\t\tOptimization for size\n");
+    printf("        -O2/O3\t\t\t\tOptimization for speed\n");
     printf("    [--opt=<option>]\t\t\tSet optimization option\n");
-    printf("        disable-assertions\t\tRemove assertion statements from final code.\n");
+    printf("        disable-assertions\t\tRemove assertion statements from final code\n");
     printf("        disable-fma\t\t\tDisable 'fused multiply-add' instructions (on targets that support them)\n");
-    printf("        disable-loop-unroll\t\tDisable loop unrolling.\n");
-    printf("        disable-zmm\t\tDisable using zmm registers for avx512 targets in favour of ymm. This also affects "
-           "ABI.\n");
+    printf("        disable-gathers\t\t\tDisable gathers generation on targets that support them\n");
+    printf("        disable-scatters\t\tDisable scatters generation on targets that support them\n");
+    printf("        disable-loop-unroll\t\tDisable loop unrolling\n");
+    printf(
+        "        disable-zmm\t\t\tDisable using zmm registers for avx512 targets in favour of ymm. This also affects "
+        "ABI\n");
 #ifdef ISPC_XE_ENABLED
-    printf("        emit-xe-hardware-mask\t\tEnable emitting of Xe implicit hardware mask.\n");
-    printf("        enable-xe-foreach-varying\t\tEnable experimental foreach support inside varying control flow.\n");
+    printf("        emit-xe-hardware-mask\t\tEnable emitting of Xe implicit hardware mask\n");
+    printf("        enable-xe-foreach-varying\t\tEnable experimental foreach support inside varying control flow\n");
 #endif
     printf("        fast-masked-vload\t\tFaster masked vector loads on SSE (may go past end of array)\n");
     printf("        fast-math\t\t\tPerform non-IEEE-compliant optimizations of numeric expressions\n");
@@ -168,7 +148,7 @@ static void lPrintVersion() {
     printf("    ");
     char targetHelp[2048];
     snprintf(targetHelp, sizeof(targetHelp),
-             "[--target=<t>]\t\t\tSelect target ISA and width.\n"
+             "[--target=<t>]\t\t\tSelect target ISA and width\n"
              "<t>={%s}",
              g->target_registry->getSupportedTargets().c_str());
     PrintWithWordBreaks(targetHelp, 24, TerminalWidth(), stdout);
@@ -176,9 +156,6 @@ static void lPrintVersion() {
     snprintf(targetHelp, sizeof(targetHelp), "[--target-os=<os>]\t\t\tSelect target OS.  <os>={%s}",
              g->target_registry->getSupportedOSes().c_str());
     PrintWithWordBreaks(targetHelp, 24, TerminalWidth(), stdout);
-    printf("    [--time-trace]\t\t\tTurn on time profiler. Generates JSON file based on output filename.\n");
-    printf("    [--time-trace-granularity=<value>]\tMinimum time granularity (in microseconds) traced by time "
-           "profiler.\n");
     printf("    [--vectorcall/--no-vectorcall]\tEnable/disable vectorcall calling convention on Windows (x64 only). "
            "Disabled by default\n");
     printf("    [--version]\t\t\t\tPrint ispc version\n");
@@ -188,11 +165,13 @@ static void lPrintVersion() {
     printf("    [--werror]\t\t\t\tTreat warnings as errors\n");
     printf("    [--woff]\t\t\t\tDisable warnings\n");
     printf("    [--wno-perf]\t\t\tDon't issue warnings related to performance-related issues\n");
+    printf("    [--[no-]wrap-signed-int]\t\t[Do not] preserve wraparound on signed integer overflow (default: do not "
+           "preserve)\n");
     printf("    [--x86-asm-syntax=<option>]\t\tSelect style of code if generating assembly\n");
     printf("        intel\t\t\t\tEmit Intel-style assembly\n");
     printf("        att\t\t\t\tEmit AT&T-style assembly\n");
 #ifdef ISPC_XE_ENABLED
-    printf("    [--xe-stack-mem-size=<value>\t\tSet size of stateless stack memory in VC backend.\n");
+    printf("    [--xe-stack-mem-size=<value>\t\tSet size of stateless stack memory in VC backend\n");
 #endif
     printf("    [@<filename>]\t\t\tRead additional arguments from the given file\n");
     printf("    <file to compile or \"-\" for stdin>\n");
@@ -225,9 +204,11 @@ static void lPrintVersion() {
            "given, dump AST for user code only\n");
     printf("    [--debug]\t\t\t\tPrint information useful for debugging ispc\n");
     printf("    [--debug-llvm]\t\t\tEnable LLVM debugging information (dumps to stderr)\n");
+    printf("    [--debug-pm]\t\t\tPrint verbose information from ispc pass manager\n");
+    printf("    [--debug-pm-time-trace]\t\tPrint time tracing information from ispc pass manager\n");
     printf("    [--debug-phase=<value>]\t\tSet optimization phases to dump. "
            "--debug-phase=first,210:220,300,305,310:last\n");
-    printf("    [--[no-]discard-value-names]\tDo not discard/Discard value names when generating LLVM IR.\n");
+    printf("    [--[no-]discard-value-names]\tDo not discard/Discard value names when generating LLVM IR\n");
     printf("    [--dump-file[=<path>]]\t\tDump module IR to file(s) in "
            "current directory, or to <path> if specified\n");
     printf("    [--fuzz-seed=<value>]\t\tSeed value for RNG for fuzz testing\n");
@@ -247,11 +228,15 @@ static void lPrintVersion() {
 #ifdef ISPC_XE_ENABLED
     printf("        disable-xe-gather-coalescing\t\tDisable Xe gather coalescing\n");
     printf("        threshold-for-xe-gather-coalescing=<0>\tMinimal number of eliminated memory instructions for "
-           "Xe gather coalescing.\n");
+           "Xe gather coalescing\n");
     printf("        build-llvm-loads-on-xe-gather-coalescing\t\tExperimental: build standard llvm loads on "
-           "Xe gather coalescing.\n");
+           "Xe gather coalescing\n");
     printf("        enable-xe-unsafe-masked-load\t\tEnable Xe unsafe masked load\n");
 #endif
+    printf("    [--time-trace]\t\t\tTurn on time profiler. Generates JSON file based on output filename\n");
+    printf("    [--time-trace-granularity=<value>]\tMinimum time granularity (in microseconds) traced by time "
+           "profiler\n");
+    printf("    [--time-trace-pm]\t\t\tPrint time tracing information from ispc pass manager\n");
     printf("    [--print-target]\t\t\tPrint target's information\n");
     printf("    [--yydebug]\t\t\t\tPrint debugging information during parsing\n");
     exit(ret);
@@ -264,7 +249,9 @@ class ArgFactory {
   private:
     char *AllocateString(std::string string) {
         int len = string.length();
-        char *ptr = new char[len + 1];
+        // We use malloc here because of strdup in lAddSingleArg
+        char *ptr = (char *)malloc(len + 1);
+        memset(ptr, 0, len + 1);
         strncpy(ptr, string.c_str(), len);
         ptr[len] = '\0';
         return ptr;
@@ -289,7 +276,7 @@ class ArgFactory {
 
         if (c == '\0')
             // Reached the end so no more arguments
-            return NULL;
+            return nullptr;
 
         // c now has the first character of the next argument, so collect the rest
         while (c != '\0' && !(isspace(c) && !insideDQ && !insideSQ)) {
@@ -348,7 +335,7 @@ class StringArgFactory : public ArgFactory {
 };
 
 // Forward reference
-static void lAddSingleArg(char *arg, std::vector<char *> &argv);
+static void lAddSingleArg(char *arg, std::vector<char *> &argv, bool duplicate);
 
 /** Add all args from a given factory to the argv passed as parameters, which could
  *  include recursing into another ArgFactory.
@@ -356,9 +343,9 @@ static void lAddSingleArg(char *arg, std::vector<char *> &argv);
 static void lAddArgsFromFactory(ArgFactory &Args, std::vector<char *> &argv) {
     while (true) {
         char *NextArg = Args.GetNextArg();
-        if (NextArg == NULL)
+        if (NextArg == nullptr)
             break;
-        lAddSingleArg(NextArg, argv);
+        lAddSingleArg(NextArg, argv, false);
     }
 }
 
@@ -378,18 +365,23 @@ static void lAddArgsFromString(const char *string, std::vector<char *> &argv) {
  *  form @<filename> and <filename> exists and is readable, the arguments in the file will be
  *  inserted into argv in place of the original argument.
  */
-static void lAddSingleArg(char *arg, std::vector<char *> &argv) {
+static void lAddSingleArg(char *arg, std::vector<char *> &argv, bool duplicate) {
     if (arg[0] == '@') {
         char *filename = &arg[1];
         FILE *file = fopen(filename, "r");
-        if (file != NULL) {
+        if (file != nullptr) {
             lAddArgsFromFile(file, argv);
             fclose(file);
-            arg = NULL;
+            arg = nullptr;
         }
     }
-    if (arg != NULL) {
-        argv.push_back(arg);
+    if (arg != nullptr) {
+        if (duplicate) {
+            // duplicate arg from main argv to make deallocation straightforward.
+            argv.push_back(strdup(arg));
+        } else {
+            argv.push_back(arg);
+        }
     }
 }
 
@@ -401,7 +393,7 @@ static void lAddSingleArg(char *arg, std::vector<char *> &argv) {
 static void lGetAllArgs(int Argc, char *Argv[], std::vector<char *> &argv) {
     // Copy over the command line arguments (passed in)
     for (int i = 0; i < Argc; ++i)
-        lAddSingleArg(Argv[i], argv);
+        lAddSingleArg(Argv[i], argv, true);
 
     // See if we have any set via the environment variable
     const char *env = getenv("ISPC_ARGS");
@@ -565,15 +557,32 @@ static void lParseInclude(const char *path) {
     } while (pos_end != std::string::npos);
 }
 
+void lFreeArgv(std::vector<char *> &argv) {
+    // argv vector consists of pointers to arguments as C strings alloced on
+    // heap and collected form three source:  environment variable ISPC_ARGS,
+    // @filename, inputs argv. They are needed to be deallocated.
+    for (auto p : argv) {
+        free(p);
+    }
+}
+
 extern int yydebug;
 
 int main(int Argc, char *Argv[]) {
     std::vector<char *> argv;
     lGetAllArgs(Argc, Argv, argv);
     int argc = argv.size();
-
-    llvm::sys::AddSignalHandler(lSignal, NULL);
-
+#ifdef ISPC_HOST_IS_WINDOWS
+    // While ispc doesn't load any libraries explicitly using LoadLibrary API (or alternatives), it uses vcruntime that
+    // loads vcruntime140.dll and msvcp140.dll. Moreover LLVM loads dbghelp.dll.
+    // There is no way to modify DLL search order for vcruntime140.dll and msvcp140.dll but we
+    // can prevent searching in CWD while loading dbghelp.dll.
+    // So before initiating any LLVM call, remove CWD from the search path to reduce the risk of DLL injection
+    // when Safe DLL search mode is OFF.
+    // https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order
+    SetDllDirectory("");
+#endif
+    llvm::sys::AddSignalHandler(lSignal, nullptr);
     // initialize available LLVM targets
 #ifdef ISPC_X86_ENABLED
     LLVMInitializeX86TargetInfo();
@@ -608,13 +617,13 @@ int main(int Argc, char *Argv[]) {
     LLVMInitializeWebAssemblyTargetInfo();
     LLVMInitializeWebAssemblyTargetMC();
 #endif
-    char *file = NULL;
-    const char *headerFileName = NULL;
-    const char *outFileName = NULL;
-    const char *depsFileName = NULL;
-    const char *depsTargetName = NULL;
-    const char *hostStubFileName = NULL;
-    const char *devStubFileName = NULL;
+    char *file = nullptr;
+    const char *headerFileName = nullptr;
+    const char *outFileName = nullptr;
+    const char *depsFileName = nullptr;
+    const char *depsTargetName = nullptr;
+    const char *hostStubFileName = nullptr;
+    const char *devStubFileName = nullptr;
 
     std::vector<std::string> linkFileNames;
     // Initiailize globals early so that we can set various option values
@@ -622,12 +631,13 @@ int main(int Argc, char *Argv[]) {
     g = new Globals;
 
     Module::OutputType ot = Module::Object;
-    Module::OutputFlags flags = Module::NoFlags;
+    Module::OutputFlags flags;
     Arch arch = Arch::none;
     std::vector<ISPCTarget> targets;
-    const char *cpu = NULL, *intelAsmSyntax = NULL;
+    const char *cpu = nullptr, *intelAsmSyntax = nullptr;
     BooleanOptValue vectorCall = BooleanOptValue::none;
     BooleanOptValue discardValueNames = BooleanOptValue::none;
+    BooleanOptValue wrapSignedInt = BooleanOptValue::none;
 
     ArgErrors errorHandler;
 
@@ -675,13 +685,15 @@ int main(int Argc, char *Argv[]) {
             exit(1);
         }
 
-        if (outFileName == NULL) {
+        if (outFileName == nullptr) {
             Warning(SourcePos(), "No output file name specified. "
                                  "The inputs will be linked and warnings/errors will "
                                  "be issued, but no output will be generated.");
         }
 
-        return Module::LinkAndOutput(linkFileNames, ot, outFileName);
+        int ret = Module::LinkAndOutput(linkFileNames, ot, outFileName);
+        lFreeArgv(argv);
+        return ret;
     }
 
     for (int i = 1; i < argc; ++i) {
@@ -737,7 +749,7 @@ int main(int Argc, char *Argv[]) {
         } else if (!strncmp(argv[i], "--x86-asm-syntax=", 17)) {
             intelAsmSyntax = argv[i] + 17;
             if (!((std::string(intelAsmSyntax) == "intel") || (std::string(intelAsmSyntax) == "att"))) {
-                intelAsmSyntax = NULL;
+                intelAsmSyntax = nullptr;
                 errorHandler.AddError("Invalid value for --x86-asm-syntax: \"%s\" -- "
                                       "only intel and att are allowed.",
                                       argv[i] + 17);
@@ -755,6 +767,10 @@ int main(int Argc, char *Argv[]) {
             g->debugPrint = true;
         else if (!strcmp(argv[i], "--debug-llvm"))
             llvm::DebugFlag = true;
+        else if (!strcmp(argv[i], "--debug-pm"))
+            g->debugPM = true;
+        else if (!strcmp(argv[i], "--debug-pm-time-trace"))
+            g->debugPMTimeTrace = true;
         else if (!strcmp(argv[i], "--discard-value-names"))
             discardValueNames = BooleanOptValue::enabled;
         else if (!strcmp(argv[i], "--no-discard-value-names"))
@@ -864,6 +880,10 @@ int main(int Argc, char *Argv[]) {
                 g->opt.fastMaskedVload = true;
             else if (!strcmp(opt, "disable-assertions"))
                 g->opt.disableAsserts = true;
+            else if (!strcmp(opt, "disable-gathers"))
+                g->opt.disableGathers = true;
+            else if (!strcmp(opt, "disable-scatters"))
+                g->opt.disableScatters = true;
             else if (!strcmp(opt, "disable-loop-unroll"))
                 g->opt.unrollLoops = false;
             else if (!strcmp(opt, "disable-fma"))
@@ -902,8 +922,6 @@ int main(int Argc, char *Argv[]) {
                 g->opt.disableXeGatherCoalescing = true;
             else if (!strncmp(opt, "threshold-for-xe-gather-coalescing=", 37))
                 g->opt.thresholdForXeGatherCoalescing = atoi(opt + 37);
-            else if (!strcmp(opt, "build-llvm-loads-on-xe-gather-coalescing"))
-                g->opt.buildLLVMLoadsOnXeGatherCoalescing = true;
             else if (!strcmp(opt, "emit-xe-hardware-mask"))
                 g->opt.emitXeHardwareMask = true;
             else if (!strcmp(opt, "enable-xe-foreach-varying"))
@@ -920,11 +938,17 @@ int main(int Argc, char *Argv[]) {
             g->enableTimeTrace = true;
         } else if (!strncmp(argv[i], "--time-trace-granularity=", 25)) {
             g->timeTraceGranularity = atoi(argv[i] + 25);
+        } else if (!strcmp(argv[i], "--time-trace-pm")) {
+            g->debugPMTimeTrace = true;
         } else if (!strcmp(argv[i], "--woff") || !strcmp(argv[i], "-woff")) {
             g->disableWarnings = true;
             g->emitPerfWarnings = false;
         } else if (!strcmp(argv[i], "--werror"))
             g->warningsAsErrors = true;
+        else if (!strcmp(argv[i], "--wrap-signed-int"))
+            wrapSignedInt = BooleanOptValue::enabled;
+        else if (!strcmp(argv[i], "--no-wrap-signed-int"))
+            wrapSignedInt = BooleanOptValue::disabled;
         else if (!strncmp(argv[i], "--error-limit=", 14)) {
             int errLimit = atoi(argv[i] + 14);
             if (errLimit >= 0)
@@ -968,8 +992,18 @@ int main(int Argc, char *Argv[]) {
             g->includeStdlib = false;
         else if (!strcmp(argv[i], "--nocpp"))
             g->runCPP = false;
-        else if (!strcmp(argv[i], "--pic"))
-            flags |= Module::GeneratePIC;
+        else if (!strncmp(argv[i], "--mcmodel=", 10)) {
+            const char *value = argv[i] + 10;
+            if (!strcmp(value, "small")) {
+                flags.setMCModel(MCModel::Small);
+            } else if (!strcmp(value, "large")) {
+                flags.setMCModel(MCModel::Large);
+            } else {
+                errorHandler.AddError("Unsupported code model \"%s\". Only small and large models are supported.",
+                                      value);
+            }
+        } else if (!strcmp(argv[i], "--pic"))
+            flags.setPIC(true);
 #ifndef ISPC_IS_HOST_WINDOWS
         else if (!strcmp(argv[i], "--colored-output"))
             g->forceColoredOutput = true;
@@ -981,12 +1015,13 @@ int main(int Argc, char *Argv[]) {
         } else if (!strcmp(argv[i], "-MMM")) {
             if (++i != argc) {
                 depsFileName = argv[i];
-                flags |= Module::GenerateFlatDeps;
+                flags.setFlatDeps();
             } else {
                 errorHandler.AddError("No output file name specified after -MMM option.");
             }
         } else if (!strcmp(argv[i], "-M")) {
-            flags |= Module::GenerateMakeRuleForDeps | Module::OutputDepsToStdout;
+            flags.setMakeRuleDeps();
+            flags.setDepsToStdout();
         } else if (!strcmp(argv[i], "-MF")) {
             depsFileName = nullptr;
             if (++i != argc) {
@@ -1036,11 +1071,12 @@ int main(int Argc, char *Argv[]) {
 #endif
         } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--version")) {
             lPrintVersion();
+            lFreeArgv(argv);
             return 0;
         } else if (argv[i][0] == '-') {
             errorHandler.AddError("Unknown option \"%s\".", argv[i]);
         } else {
-            if (file != NULL) {
+            if (file != nullptr) {
                 errorHandler.AddError("Multiple input files specified on command "
                                       "line: \"%s\" and \"%s\".",
                                       file, argv[i]);
@@ -1054,7 +1090,7 @@ int main(int Argc, char *Argv[]) {
     // All the rest of errors and warnigns will be processed in regullar way.
     errorHandler.Emit();
 
-    if (file == NULL) {
+    if (file == nullptr) {
         Error(SourcePos(), "No input file were specified. To read text from stdin use \"-\" as file name.");
         exit(1);
     }
@@ -1076,7 +1112,7 @@ int main(int Argc, char *Argv[]) {
 
     // Default settings for PS4
     if (g->target_os == TargetOS::ps4 || g->target_os == TargetOS::ps5) {
-        flags |= Module::GeneratePIC;
+        flags.setPIC();
         if (!cpu) {
             if (g->target_os == TargetOS::ps4) {
                 // Default for PS4 is btver2, but do not enforce it.
@@ -1094,7 +1130,7 @@ int main(int Argc, char *Argv[]) {
 
     // Default setting for "custom_linux"
     if (g->target_os == TargetOS::custom_linux) {
-        flags |= Module::GeneratePIC;
+        flags.setPIC();
         if (!cpu) {
             cpu = "cortex-a57";
         }
@@ -1108,10 +1144,34 @@ int main(int Argc, char *Argv[]) {
         }
     }
 
+#ifdef ISPC_WASM_ENABLED
+    // Default setting for wasm
+    if (arch == Arch::wasm32 || arch == Arch::wasm64) {
+        g->target_os = TargetOS::web;
+    }
+    for (auto target : targets) {
+        if (target == ISPCTarget::wasm_i32x4) {
+            Assert(targets.size() == 1 && "wasm supports only one target: i32x4");
+            g->target_os = TargetOS::web;
+            if (arch == Arch::none) {
+                arch = Arch::wasm32;
+            }
+        }
+    }
+    if (g->target_os == TargetOS::web) {
+        if (arch == Arch::none) {
+            arch = Arch::wasm32;
+        }
+        if (targets.empty()) {
+            targets.push_back(ISPCTarget::wasm_i32x4);
+        }
+    }
+#endif
+
     if (g->enableFuzzTest) {
         if (g->fuzzTestSeed == -1) {
 #ifdef ISPC_HOST_IS_WINDOWS
-            int seed = (unsigned)time(NULL);
+            int seed = (unsigned)time(nullptr);
 #else
             int seed = getpid();
 #endif
@@ -1125,36 +1185,35 @@ int main(int Argc, char *Argv[]) {
 #endif
     }
 
-    if (depsFileName != NULL)
-        flags &= ~Module::OutputDepsToStdout;
+    if (depsFileName != nullptr) {
+        flags.setDepsToStdout(false);
+    }
 
-    if (depsFileName != NULL && 0 == (flags & (Module::GenerateFlatDeps | Module::GenerateMakeRuleForDeps))) {
+    if (depsFileName != nullptr && !flags.isFlatDeps() && !flags.isMakeRuleDeps()) {
         Warning(SourcePos(), "Dependency file name specified with -MF, but no "
                              "mode specified; did you forget to specify -M or -MMM? "
                              "No dependency output will be generated.");
-        depsFileName = NULL;
+        depsFileName = nullptr;
     }
 
-    if ((Module::GenerateFlatDeps | Module::GenerateMakeRuleForDeps) ==
-        (flags & (Module::GenerateFlatDeps | Module::GenerateMakeRuleForDeps))) {
+    if (flags.isFlatDeps() && flags.isMakeRuleDeps()) {
         Warning(SourcePos(), "Both -M and -MMM specified on the command line. "
                              "-MMM takes precedence.");
-        flags &= Module::GenerateMakeRuleForDeps;
+        flags.setFlatDeps(false);
     }
 
     if (g->onlyCPP && outFileName == nullptr) {
         outFileName = "-"; // Assume stdout by default (-E mode)
     }
 
-    if (outFileName == NULL && headerFileName == NULL &&
-        (depsFileName == NULL && 0 == (flags & Module::OutputDepsToStdout)) && hostStubFileName == NULL &&
-        devStubFileName == NULL) {
+    if (outFileName == nullptr && headerFileName == nullptr && (depsFileName == nullptr && !flags.isDepsToStdout()) &&
+        hostStubFileName == nullptr && devStubFileName == nullptr) {
         Warning(SourcePos(), "No output file or header file name specified. "
                              "Program will be compiled and warnings/errors will "
                              "be issued, but no output will be generated.");
     }
 
-    if (g->target_os == TargetOS::windows && (flags & Module::GeneratePIC) != 0) {
+    if (g->target_os == TargetOS::windows && flags.isPIC()) {
         Warning(SourcePos(), "--pic switch for Windows target will be ignored.");
     }
 
@@ -1173,7 +1232,7 @@ int main(int Argc, char *Argv[]) {
     if (targets.size() > 1)
         g->isMultiTargetCompilation = true;
 
-    if ((ot == Module::Asm) && (intelAsmSyntax != NULL)) {
+    if ((ot == Module::Asm) && (intelAsmSyntax != nullptr)) {
         std::vector<const char *> Args(3);
         Args[0] = "ispc (LLVM option parsing)";
         Args[2] = nullptr;
@@ -1184,14 +1243,11 @@ int main(int Argc, char *Argv[]) {
         llvm::cl::ParseCommandLineOptions(2, Args.data());
     }
 
-    for (auto target : targets) {
-        if (target == ISPCTarget::wasm_i32x4) {
-            Assert(targets.size() == 1 && "wasm32 supports only one target: i32x4");
-            arch = Arch::wasm32;
-            g->target_os = TargetOS::web;
-        }
+    bool targetIsGen = false;
 #ifdef ISPC_XE_ENABLED
+    for (auto target : targets) {
         if (ISPCTargetIsGen(target)) {
+            targetIsGen = true;
             Assert(targets.size() == 1 && "multi-target is not supported for Xe targets yet.");
             // Generate .spv for Xe target instead of object by default.
             if (ot == Module::Object) {
@@ -1199,7 +1255,20 @@ int main(int Argc, char *Argv[]) {
                 ot = Module::SPIRV;
             }
         }
+    }
 #endif
+
+    // If [no]wrap-signed-int is explicitly specified, then use this value.
+    // Disable NSW bit optimization by default due to performance regressions
+    // on some GPU workloads.  Otherwise enable it by default only for CPU targets.
+    if (wrapSignedInt == BooleanOptValue::enabled) {
+        g->wrapSignedInt = true;
+    } else if (wrapSignedInt == BooleanOptValue::disabled) {
+        g->wrapSignedInt = false;
+    } else if (targetIsGen) {
+        g->wrapSignedInt = true;
+    } else {
+        g->wrapSignedInt = false;
     }
 
     // This needs to happen after the TargetOS is decided.
@@ -1216,7 +1285,7 @@ int main(int Argc, char *Argv[]) {
 
     if (g->enableTimeTrace) {
         // Write to file only if compilation is successfull.
-        if ((ret == 0) && (outFileName != NULL)) {
+        if ((ret == 0) && (outFileName != nullptr)) {
             writeCompileTimeFile(outFileName);
         }
         llvm::timeTraceProfilerCleanup();
@@ -1225,5 +1294,6 @@ int main(int Argc, char *Argv[]) {
     // Free all bookkeeped objects.
     BookKeeper::in().freeAll();
 
+    lFreeArgv(argv);
     return ret;
 }

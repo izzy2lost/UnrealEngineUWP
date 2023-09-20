@@ -1,35 +1,8 @@
 #!/usr/bin/env python3
 #
 #  Copyright (c) 2013-2023, Intel Corporation
-#  All rights reserved.
 #
-#  Redistribution and use in source and binary forms, with or without
-#  modification, are permitted provided that the following conditions are
-#  met:
-#
-#    * Redistributions of source code must retain the above copyright
-#      notice, this list of conditions and the following disclaimer.
-#
-#    * Redistributions in binary form must reproduce the above copyright
-#      notice, this list of conditions and the following disclaimer in the
-#      documentation and/or other materials provided with the distribution.
-#
-#    * Neither the name of Intel Corporation nor the names of its
-#      contributors may be used to endorse or promote products derived from
-#      this software without specific prior written permission.
-#
-#
-#   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-#   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-#   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-#   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-#   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-#   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-#   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-#   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-#   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-#   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-#   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#  SPDX-License-Identifier: BSD-3-Clause
 
 # // Author: Filippov Ilia
 
@@ -120,8 +93,10 @@ def checkout_LLVM(component, version_LLVM, target_dir, from_validation, verbose)
     # git: "release/16.x"
     if  version_LLVM == "trunk":
         GIT_TAG="main"
+    elif  version_LLVM == "17_0":
+        GIT_TAG="release/17.x"
     elif  version_LLVM == "16_0":
-        GIT_TAG="release/16.x"
+        GIT_TAG="llvmorg-16.0.6"
     elif  version_LLVM == "15_0":
         GIT_TAG="llvmorg-15.0.7"
     elif  version_LLVM == "14_0":
@@ -160,7 +135,7 @@ def get_llvm_disable_assertions_switch(llvm_disable_assertions):
     else:
         return "  -DLLVM_ENABLE_ASSERTIONS=ON"
 
-def build_LLVM(version_LLVM, folder, debug, selfbuild, extra, from_validation, force, make, gcc_toolchain_path, llvm_disable_assertions, verbose):
+def build_LLVM(version_LLVM, folder, debug, selfbuild, extra, from_validation, force, make, gcc_toolchain_path, llvm_disable_assertions, verbose, macos_version_min, macos_universal_bin):
     print_debug("Building LLVM. Version: " + version_LLVM + ".\n", from_validation, alloy_build)
     # Here we understand what and where do we want to build
     current_path = os.getcwd()
@@ -232,6 +207,22 @@ def build_LLVM(version_LLVM, folder, debug, selfbuild, extra, from_validation, f
         # An option to build seems to be a better one.
         llvm_enable_runtimes +=" -DLLVM_ENABLE_RUNTIMES=\"libcxx;libcxxabi\""
 
+    # macOS deployment target sets the minimim OS requirement to run the compiled program.
+    # All of the object files and static libraries passed to the linker need to be compiled for the same
+    # version of the macOS to enable resulting executable to be able to run on the older macOS.
+    # So we build LLVM for old macOS to enable ISPC builds targeting an old macOS.
+    osx_deployment = ""
+    if current_OS == "MacOS" and macos_version_min != "":
+        osx_deployment = f"  -DCMAKE_OSX_DEPLOYMENT_TARGET={macos_version_min}"
+        print_debug(f"Targeting macOS {macos_version_min}\n", from_validation, alloy_build)
+
+    # macOS Universal Binaries is a fat binary for x86_64 and arm64.
+    # This doesn't affect self-build phase1, as this binary is assumed to be used only once to build phase2.
+    osx_universal = ""
+    if current_OS == "MacOS" and macos_universal_bin:
+        osx_universal = "  -DCMAKE_OSX_ARCHITECTURES=\"x86_64;arm64\""
+        print_debug("Building Universal Binary for macOS (x86_64 + arm64)\n", from_validation, alloy_build)
+
     llvm_enable_projects = llvm_enable_runtimes + " -DLLVM_ENABLE_PROJECTS=\"clang"
     if current_OS == "Linux":
         # OpenMP is needed for Xe enabled builds.
@@ -274,6 +265,7 @@ def build_LLVM(version_LLVM, folder, debug, selfbuild, extra, from_validation, f
                 (("  -DCMAKE_C_COMPILER=" + gcc_toolchain_path+"/bin/gcc") if gcc_toolchain_path != "" else "") +
                 (("  -DCMAKE_CXX_COMPILER=" + gcc_toolchain_path+"/bin/g++") if gcc_toolchain_path != "" else "") +
                 (("  -DDEFAULT_SYSROOT=" + mac_system_root) if mac_system_root != "" else "") +
+                osx_deployment +
                 targets_and_common_options +
                 " ../" + cmakelists_path,
                 from_validation, verbose)
@@ -308,6 +300,8 @@ def build_LLVM(version_LLVM, folder, debug, selfbuild, extra, from_validation, f
                     (("  -DCMAKE_C_COMPILER=" + gcc_toolchain_path+"/bin/gcc") if gcc_toolchain_path != "" and selfbuild_compiler == "" else "") +
                     (("  -DCMAKE_CXX_COMPILER=" + gcc_toolchain_path+"/bin/g++") if gcc_toolchain_path != "" and selfbuild_compiler == "" else "") +
                     (("  -DDEFAULT_SYSROOT=" + mac_system_root) if mac_system_root != "" else "") +
+                    osx_deployment +
+                    osx_universal +
                     targets_and_common_options +
                     " ../" + cmakelists_path,
                     from_validation, verbose)
@@ -370,18 +364,22 @@ def check_targets():
     target_dict = OrderedDict([
       ("SSE2",   [["sse2-i32x4",  "sse2-i32x8"],
                  ["SSE2"], "-p4", False]),
-      ("SSE4",   [["sse4-i32x4",  "sse4-i32x8",   "sse4-i16x8", "sse4-i8x16"],
-                 ["SSE2", "SSE4"], "-wsm", False]),
+      ("SSE4.1", [["sse4.1-i32x4",  "sse4.1-i32x8",   "sse4.1-i16x8", "sse4.1-i8x16"],
+                 ["SSE2", "SSE4.1"], "-pnr", False]),
+      ("SSE4.2", [["sse4.2-i32x4",  "sse4.2-i32x8",   "sse4.2-i16x8", "sse4.2-i8x16", "sse4-i32x4",  "sse4-i32x8",   "sse4-i16x8", "sse4-i8x16"],
+                 ["SSE2", "SSE4.1", "SSE4.2"], "-nhm", False]),
       ("AVX",    [["avx1-i32x4",  "avx1-i32x8",  "avx1-i32x16",  "avx1-i64x4"],
-                 ["SSE2", "SSE4", "AVX"], "-snb", False]),
+                 ["SSE2", "SSE4.1", "SSE4.2", "AVX"], "-snb", False]),
       ("AVX1.1", [["avx1-i32x4",  "avx1-i32x8",  "avx1-i32x16",  "avx1-i64x4"],
-                 ["SSE2", "SSE4", "AVX"], "-snb", False]),
+                 ["SSE2", "SSE4.1", "SSE4.2", "AVX"], "-snb", False]),
       ("AVX2",   [["avx2-i32x4", "avx2-i32x8",  "avx2-i32x16",  "avx2-i64x4", "avx2-i8x32", "avx2-i16x16"],
-                 ["SSE2", "SSE4", "AVX", "AVX2"], "-hsw", False]),
+                 ["SSE2", "SSE4.1", "SSE4.2", "AVX", "AVX2"], "-hsw", False]),
       ("KNL",    [["avx512knl-x16"],
-                 ["SSE2", "SSE4", "AVX", "AVX2", "KNL"], "-knl", False]),
+                 ["SSE2", "SSE4.1", "SSE4.2", "AVX", "AVX2", "KNL"], "-knl", False]),
       ("SKX",    [["avx512skx-x16", "avx512skx-x8", "avx512skx-x4", "avx512skx-x64", "avx512skx-x32"],
-                 ["SSE2", "SSE4", "AVX", "AVX2", "SKX"], "-skx", False])
+                 ["SSE2", "SSE4.1", "SSE4.2", "AVX", "AVX2", "SKX"], "-skx", False]),
+      ("SPR",    [["avx512spr-x16", "avx512spr-x8", "avx512spr-x4", "avx512spr-x64", "avx512spr-x32"],
+                 ["SSE2", "SSE4.1", "SSE4.2", "AVX", "AVX2", "SKX", "SPR"], "-spr", False])
     ])
 
     hw_arch = take_lines("check_isa.exe", "first").split()[1]
@@ -604,7 +602,7 @@ def validation_run(only, only_targets, reference_branch, number, update, speed_n
             archs.append("x86-64")
         if "native" in only:
             sde_targets_t = []
-        for i in ["6.0", "7.0", "8.0", "9.0", "10.0", "11.0", "12.0", "13.0", "14.0", "15.0", "16.0", "trunk"]:
+        for i in ["6.0", "7.0", "8.0", "9.0", "10.0", "11.0", "12.0", "13.0", "14.0", "15.0", "16.0", "17.0", "trunk"]:
             if i in only:
                 LLVM.append(i)
         if "current" in only:
@@ -648,7 +646,7 @@ def validation_run(only, only_targets, reference_branch, number, update, speed_n
             LLVM = [newest_LLVM, "trunk"]
         need_LLVM = check_LLVM(LLVM)
         for i in range(0,len(need_LLVM)):
-            build_LLVM(need_LLVM[i], "", "", "", False, False, False, True, False, make, options.gcc_toolchain_path, False, True, False)
+            build_LLVM(need_LLVM[i], "", "", "", False, False, False, True, False, make, options.gcc_toolchain_path, False, True, options.macos_version_min, options.macos_universal_bin)
 # begin validation run for stabitily
         common.remove_if_exists(stability.in_file)
         R = [[[],[]],[[],[]],[[],[]],[[],[]]]
@@ -729,7 +727,7 @@ def validation_run(only, only_targets, reference_branch, number, update, speed_n
 # prepare newest LLVM
         need_LLVM = check_LLVM([newest_LLVM])
         if len(need_LLVM) != 0:
-            build_LLVM(need_LLVM[0], "", "", "", False, False, False, True, False, make, options.gcc_toolchain_path, True, False)
+            build_LLVM(need_LLVM[0], "", "", "", False, False, False, True, False, make, options.gcc_toolchain_path, True, False, options.macos_version_min, options.macos_universal_bin)
         if perf_llvm == False:
             # prepare reference point. build both test and reference compilers
             try_do_LLVM("apply git", "git branch", True)
@@ -810,7 +808,7 @@ def Main():
     if os.environ.get("ISPC_HOME") == None:
         alloy_error("you have no ISPC_HOME", 1)
     if options.only != "":
-        test_only_r = " 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 trunk current build stability performance x86 x86-64 x86_64 -O0 -O1 -O2 native debug nodebug "
+        test_only_r = " 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 trunk current build stability performance x86 x86-64 x86_64 -O0 -O1 -O2 native debug nodebug "
         test_only = options.only.split(" ")
         for iterator in test_only:
             if not (" " + iterator + " " in test_only_r):
@@ -847,7 +845,7 @@ def Main():
         start_time = time.time()
         if options.build_llvm:
             build_LLVM(options.version, options.folder,
-                    options.debug, selfbuild, options.extra, False, options.force, make, options.gcc_toolchain_path, options.llvm_disable_assertions, options.verbose)
+                    options.debug, selfbuild, options.extra, False, options.force, make, options.gcc_toolchain_path, options.llvm_disable_assertions, options.verbose, options.macos_version_min, options.macos_universal_bin)
         if options.validation_run:
             validation_run(options.only, options.only_targets, options.branch,
                     options.number_for_performance, options.update, int(options.speed),
@@ -933,7 +931,7 @@ if __name__ == '__main__':
     llvm_group = OptionGroup(parser, "Options for building LLVM",
                     "These options must be used with -b option.")
     llvm_group.add_option('--version', dest='version',
-        help='version of llvm to build: 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 trunk. Default: trunk', default="trunk")
+        help='version of llvm to build: 6.0-17.0 trunk. Default: trunk', default="trunk")
     llvm_group.add_option('--full-checkout', dest='full_checkout', action='store_true', default=False,
         help=('Disable a shallow clone and checkout a whole LLVM repository.\n'
               'By default it clones LLVM with --depth=1 to save space and time'))
@@ -953,6 +951,10 @@ if __name__ == '__main__':
         help='make selfbuild of LLVM and clang, second phase only', default=False, action="store_true")
     llvm_group.add_option('--llvm-disable-assertions', dest='llvm_disable_assertions',
         help='build LLVM with assertions disabled', default=False, action="store_true")
+    llvm_group.add_option('--macos-version-min', dest='macos_version_min',
+        help='Minimal macOS version to target with this LLVM build (ignored on other OSes)', default="10.12" if platform.machine() == 'x86_64' else "11.0")
+    llvm_group.add_option('--macos-universal-binary', dest='macos_universal_bin',
+        help='Build Universal Binaries (x86_64+arm64) on macOS', default=False, action='store_true')
     llvm_group.add_option('--force', dest='force',
         help='rebuild LLVM', default=False, action='store_true')
     llvm_group.add_option('--extra', dest='extra',
@@ -980,7 +982,7 @@ if __name__ == '__main__':
     run_group.add_option('--only', dest='only',
         help='set types of tests. Possible values:\n' +
             '-O0, -O1, -O2, x86, x86-64, stability (test only stability), performance (test only performance),\n' +
-            'build (only build with different LLVM), 6.0-16.0, trunk, native (do not use SDE),\n' +
+            'build (only build with different LLVM), 6.0-17.0, trunk, native (do not use SDE),\n' +
             'current (do not rebuild ISPC), debug (only with debug info), nodebug (only without debug info, default).',
             default="")
     run_group.add_option('--perf_LLVM', dest='perf_llvm',

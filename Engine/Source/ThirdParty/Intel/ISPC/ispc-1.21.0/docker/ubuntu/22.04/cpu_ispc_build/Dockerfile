@@ -1,4 +1,9 @@
-ARG LLVM_VERSION=14.0
+#
+#  Copyright (c) 2017-2023, Intel Corporation
+#
+#  SPDX-License-Identifier: BSD-3-Clause
+
+ARG LLVM_VERSION=15.0
 
 FROM ubuntu:22.04 AS llvm_build_only
 LABEL maintainer="Dmitry Babokin <dmitry.y.babokin@intel.com>"
@@ -15,7 +20,7 @@ ARG EXTRA_BUILD_ARG
 RUN uname -a
 
 # Packages
-RUN apt-get -y update && DEBIAN_FRONTEND=noninteractive apt-get --no-install-recommends install -y wget cmake build-essential gcc g++ git python3-dev ncurses-dev libtinfo-dev ca-certificates && \
+RUN apt-get -y update && DEBIAN_FRONTEND=noninteractive apt-get --no-install-recommends install -y wget cmake build-essential gcc g++ git python3-dev ncurses-dev libtinfo-dev ca-certificates libtbb2-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # If you are behind a proxy, you need to configure git.

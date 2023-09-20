@@ -1,34 +1,7 @@
 /*
   Copyright (c) 2010-2023, Intel Corporation
-  All rights reserved.
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 /** @file module.h
@@ -73,6 +46,12 @@ class Module {
 
     ~Module();
 
+    // We don't copy Module objects at the moment. If we will then proper
+    // implementations are needed considering the ownership of heap-allocated
+    // fields like symbolTable.
+    Module(const Module &) = delete;
+    Module &operator=(const Module &) = delete;
+
     /** Compiles the source file passed to the Module constructor, adding
         its global variables and functions to both the llvm::Module and
         SymbolTable.  Returns the number of errors during compilation.  */
@@ -82,7 +61,7 @@ class Module {
     void AddTypeDef(const std::string &name, const Type *type, SourcePos pos);
 
     /** Add a new global variable corresponding to the given Symbol to the
-        module.  If non-NULL, initExpr gives the initiailizer expression
+        module.  If non-nullptr, initExpr gives the initiailizer expression
         for the global's inital value. */
     void AddGlobalVariable(const std::string &name, const Type *type, Expr *initExpr, bool isConst,
                            StorageClass storageClass, SourcePos pos);
@@ -111,6 +90,14 @@ class Module {
                                           const std::vector<std::pair<const Type *, SourcePos>> &types,
                                           const FunctionType *ftype, SourcePos pos);
 
+    void AddFunctionTemplateSpecializationDeclaration(const std::string &name, const FunctionType *ftype,
+                                                      const std::vector<std::pair<const Type *, SourcePos>> &types,
+                                                      SourcePos pos);
+
+    void AddFunctionTemplateSpecializationDefinition(const std::string &name, const FunctionType *ftype,
+                                                     const std::vector<std::pair<const Type *, SourcePos>> &types,
+                                                     SourcePos pos, Stmt *code);
+
     /** Adds the given type to the set of types that have their definitions
         included in automatically generated header files. */
     void AddExportedTypes(const std::vector<std::pair<const Type *, SourcePos>> &types);
@@ -118,6 +105,14 @@ class Module {
     /** Verify LLVM intrinsic called from ISPC source code is valid and return
         function symbol for it. */
     Symbol *AddLLVMIntrinsicDecl(const std::string &name, ExprList *args, SourcePos po);
+
+    /** Returns pointer to FunctionTemplate based on template name and template argument types provided. Also makes
+       template argument types normalization, i.e apply "varying type default":
+       template <typename T> void foo(T t);
+       foo<int>(1); // T is assumed to be "varying int" here.
+    */
+    FunctionTemplate *MatchFunctionTemplate(const std::string &name, const FunctionType *ftype,
+                                            std::vector<std::pair<const Type *, SourcePos>> &normTypes, SourcePos pos);
 
     /** After a source file has been compiled, output can be generated in a
         number of different formats. */
@@ -139,12 +134,45 @@ class Module {
 #endif
     };
 
-    enum OutputFlags : int {
-        NoFlags = 0,
-        GeneratePIC = 0x1,
-        GenerateFlatDeps = 0x2,        /** Dependencies will be output as a flat list. */
-        GenerateMakeRuleForDeps = 0x4, /** Dependencies will be output in a make rule format instead of a flat list. */
-        OutputDepsToStdout = 0x8,      /** Dependency information will be output to stdout instead of file. */
+    class OutputFlags {
+      public:
+        OutputFlags()
+            : pic(false), flatDeps(false), makeRuleDeps(false), depsToStdout(false), mcModel(MCModel::Default) {}
+        OutputFlags(OutputFlags &o)
+            : pic(o.pic), flatDeps(o.flatDeps), makeRuleDeps(o.makeRuleDeps), depsToStdout(o.depsToStdout),
+              mcModel(o.mcModel) {}
+
+        OutputFlags &operator=(const OutputFlags &o) {
+            pic = o.pic;
+            flatDeps = o.flatDeps;
+            makeRuleDeps = o.makeRuleDeps;
+            depsToStdout = o.depsToStdout;
+            mcModel = o.mcModel;
+            return *this;
+        };
+
+        void setPIC(bool v = true) { pic = v; }
+        bool isPIC() const { return pic; }
+        void setFlatDeps(bool v = true) { flatDeps = v; }
+        bool isFlatDeps() const { return flatDeps; }
+        void setMakeRuleDeps(bool v = true) { makeRuleDeps = v; }
+        bool isMakeRuleDeps() const { return makeRuleDeps; }
+        void setDepsToStdout(bool v = true) { depsToStdout = v; }
+        bool isDepsToStdout() const { return depsToStdout; }
+        void setMCModel(MCModel m) { mcModel = m; }
+        MCModel getMCModel() const { return mcModel; }
+
+      private:
+        // --pic
+        bool pic;
+        // -MMM
+        bool flatDeps;
+        // -M
+        bool makeRuleDeps;
+        // deps output to stdout
+        bool depsToStdout;
+        // --mcmodel value
+        MCModel mcModel;
     };
 
     /** Compile the given source file, generating assembly, object file, or
@@ -157,8 +185,7 @@ class Module {
         @param targets      %Target ISAs; this parameter may give a single target
                             ISA, or may give a comma-separated list of them in
                             case we are compiling to multiple ISAs.
-        @param generatePIC  Indicates whether position-independent code should
-                            be generated.
+        @param OutputFlags  A set of flags for output generation.
         @param outputType   %Type of output to generate (object files, assembly,
                             LLVM bitcode.)
         @param outFileName  Base name of output filename for object files, etc.
@@ -166,7 +193,7 @@ class Module {
                             are specified in the "targets" parameter and if this
                             parameter is "foo.o", then we'll generate multiple
                             output files, like "foo.o", "foo_sse2.o", "foo_avx.o".
-        @param headerFileName If non-NULL, emit a header file suitable for
+        @param headerFileName If non-nullptr, emit a header file suitable for
                               inclusion from C/C++ code with declarations of
                               types and functions exported from the given ispc
                               source file.
@@ -222,14 +249,14 @@ class Module {
 
     /** Write the corresponding output type to the given file.  Returns
         true on success, false if there has been an error.  The given
-        filename may be NULL, indicating that output should go to standard
+        filename may be nullptr, indicating that output should go to standard
         output. */
-    bool writeOutput(OutputType ot, OutputFlags flags, const char *filename, const char *depTargetFileName = NULL,
-                     const char *sourceFileName = NULL, DispatchHeaderInfo *DHI = 0);
+    bool writeOutput(OutputType ot, OutputFlags flags, const char *filename, const char *depTargetFileName = nullptr,
+                     const char *sourceFileName = nullptr, DispatchHeaderInfo *DHI = 0);
     bool writeHeader(const char *filename);
     bool writeDispatchHeader(DispatchHeaderInfo *DHI);
-    bool writeDeps(const char *filename, bool generateMakeRule, const char *targetName = NULL,
-                   const char *srcFilename = NULL);
+    bool writeDeps(const char *filename, bool generateMakeRule, const char *targetName = nullptr,
+                   const char *srcFilename = nullptr);
     bool writeDevStub(const char *filename);
     bool writeHostStub(const char *filename);
     bool writeCPPStub(const char *outFileName);
@@ -253,13 +280,4 @@ class Module {
     void clearCPPBuffer();
 };
 
-inline Module::OutputFlags &operator|=(Module::OutputFlags &lhs, const __underlying_type(Module::OutputFlags) rhs) {
-    return lhs = (Module::OutputFlags)((__underlying_type(Module::OutputFlags))lhs | rhs);
-}
-inline Module::OutputFlags &operator&=(Module::OutputFlags &lhs, const __underlying_type(Module::OutputFlags) rhs) {
-    return lhs = (Module::OutputFlags)((__underlying_type(Module::OutputFlags))lhs & rhs);
-}
-inline Module::OutputFlags operator|(const Module::OutputFlags lhs, const Module::OutputFlags rhs) {
-    return (Module::OutputFlags)((__underlying_type(Module::OutputFlags))lhs | rhs);
-}
 } // namespace ispc

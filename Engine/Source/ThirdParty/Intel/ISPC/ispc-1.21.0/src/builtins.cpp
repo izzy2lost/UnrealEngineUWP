@@ -1,34 +1,7 @@
 /*
   Copyright (c) 2010-2023, Intel Corporation
-  All rights reserved.
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 /** @file builtins.cpp
@@ -48,7 +21,6 @@
 #include <math.h>
 #include <stdlib.h>
 
-#include <llvm/ADT/Triple.h>
 #include <llvm/Bitcode/BitcodeReader.h>
 #include <llvm/IR/Attributes.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -60,6 +32,11 @@
 #include <llvm/Linker/Linker.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Target/TargetMachine.h>
+#if ISPC_LLVM_VERSION >= ISPC_LLVM_17_0
+#include <llvm/TargetParser/Triple.h>
+#else
+#include <llvm/ADT/Triple.h>
+#endif
 
 #ifdef ISPC_XE_ENABLED
 #include <llvm/GenXIntrinsics/GenXIntrinsics.h>
@@ -158,7 +135,7 @@ static const Type *lLLVMTypeToISPCType(const llvm::Type *t, bool intAsUnsigned) 
     else if (t == LLVMTypes::DoubleVectorPointerType)
         return PointerType::GetUniform(AtomicType::VaryingDouble);
 
-    return NULL;
+    return nullptr;
 }
 
 static void lCreateSymbol(const std::string &name, const Type *returnType, llvm::SmallVector<const Type *, 8> &argTypes,
@@ -217,7 +194,7 @@ static bool lCreateISPCSymbol(llvm::Function *func, SymbolTable *symbolTable) {
         bool intAsUnsigned = (i == 1);
 
         const Type *returnType = lLLVMTypeToISPCType(ftype->getReturnType(), intAsUnsigned);
-        if (returnType == NULL) {
+        if (returnType == nullptr) {
             Debug(SourcePos(),
                   "Return type not representable for "
                   "builtin %s.",
@@ -233,7 +210,7 @@ static bool lCreateISPCSymbol(llvm::Function *func, SymbolTable *symbolTable) {
         for (unsigned int j = 0; j < ftype->getNumParams(); ++j) {
             const llvm::Type *llvmArgType = ftype->getParamType(j);
             const Type *type = lLLVMTypeToISPCType(llvmArgType, intAsUnsigned);
-            if (type == NULL) {
+            if (type == nullptr) {
                 Debug(SourcePos(),
                       "Type of parameter %d not "
                       "representable for builtin %s",
@@ -255,7 +232,7 @@ static bool lCreateISPCSymbol(llvm::Function *func, SymbolTable *symbolTable) {
 
 Symbol *ispc::CreateISPCSymbolForLLVMIntrinsic(llvm::Function *func, SymbolTable *symbolTable) {
     Symbol *existingSym = symbolTable->LookupIntrinsics(func);
-    if (existingSym != NULL) {
+    if (existingSym != nullptr) {
         return existingSym;
     }
     SourcePos noPos;
@@ -263,7 +240,7 @@ Symbol *ispc::CreateISPCSymbolForLLVMIntrinsic(llvm::Function *func, SymbolTable
     const llvm::FunctionType *ftype = func->getFunctionType();
     std::string name = std::string(func->getName());
     const Type *returnType = lLLVMTypeToISPCType(ftype->getReturnType(), false);
-    if (returnType == NULL) {
+    if (returnType == nullptr) {
         Error(SourcePos(),
               "Return type not representable for "
               "Intrinsic %s.",
@@ -275,7 +252,7 @@ Symbol *ispc::CreateISPCSymbolForLLVMIntrinsic(llvm::Function *func, SymbolTable
     for (unsigned int j = 0; j < ftype->getNumParams(); ++j) {
         const llvm::Type *llvmArgType = ftype->getParamType(j);
         const Type *type = lLLVMTypeToISPCType(llvmArgType, false);
-        if (type == NULL) {
+        if (type == nullptr) {
             Error(SourcePos(),
                   "Type of parameter %d not "
                   "representable for Intrinsic %s",
@@ -321,6 +298,12 @@ static void lUpdateIntrinsicsAttributes(llvm::Module *module) {
             Fn->setAttributes(
                 llvm::GenXIntrinsic::getAttributes(Fn->getContext(), llvm::GenXIntrinsic::getGenXIntrinsicID(Fn)));
         }
+#if ISPC_LLVM_VERSION >= ISPC_LLVM_16_0
+        // ReadNone, ReadOnly and WriteOnly are not supported for intrinsics anymore:
+        FixFunctionAttribute(*Fn, llvm::Attribute::ReadNone, llvm::MemoryEffects::none());
+        FixFunctionAttribute(*Fn, llvm::Attribute::ReadOnly, llvm::MemoryEffects::readOnly());
+        FixFunctionAttribute(*Fn, llvm::Attribute::WriteOnly, llvm::MemoryEffects::writeOnly());
+#endif
     }
 #endif
 }
@@ -988,7 +971,7 @@ static void lSetInternalFunctions(llvm::Module *module) {
     // clang-format on
     for (auto name : names) {
         llvm::Function *f = module->getFunction(name);
-        if (f != NULL && f->empty() == false) {
+        if (f != nullptr && f->empty() == false) {
             f->setLinkage(llvm::GlobalValue::InternalLinkage);
             // TO-DO : Revisit adding this back for ARM support.
             // g->target->markFuncWithTargetAttr(f);
@@ -1086,7 +1069,7 @@ void ispc::AddBitcodeToModule(const BitcodeLib *lib, llvm::Module *module, Symbo
 
         lSetInternalFunctions(module);
 
-        if (symbolTable != NULL)
+        if (symbolTable != nullptr)
             lAddModuleSymbols(module, symbolTable);
         lCheckModuleIntrinsics(module);
     }
@@ -1106,7 +1089,7 @@ static void lDefineConstantInt(const char *name, int val, llvm::Module *module, 
     sym->storageInfo = new AddressInfo(GV, GV->getValueType());
     symbolTable->AddVariable(sym);
 
-    if (m->diBuilder != NULL) {
+    if (m->diBuilder != nullptr) {
         llvm::DIFile *file = m->diCompileUnit->getFile();
         llvm::DICompileUnit *cu = m->diCompileUnit;
         llvm::DIType *diType = sym->type->GetDIType(file);
@@ -1134,7 +1117,7 @@ static void lDefineConstantIntFunc(const char *name, int val, llvm::Module *modu
 
     llvm::Function *func = module->getFunction(name);
     dbg_sym.push_back(func);
-    Assert(func != NULL); // it should be declared already...
+    Assert(func != nullptr); // it should be declared already...
     func->addFnAttr(llvm::Attribute::AlwaysInline);
     llvm::BasicBlock *bblock = llvm::BasicBlock::Create(*g->ctx, "entry", func, 0);
     llvm::ReturnInst::Create(*g->ctx, LLVMInt32(val), bblock);
@@ -1161,7 +1144,7 @@ static void lDefineProgramIndex(llvm::Module *module, SymbolTable *symbolTable,
     sym->storageInfo = new AddressInfo(GV, GV->getValueType());
     symbolTable->AddVariable(sym);
 
-    if (m->diBuilder != NULL) {
+    if (m->diBuilder != nullptr) {
         llvm::DIFile *file = m->diCompileUnit->getFile();
         llvm::DICompileUnit *cu = m->diCompileUnit;
         llvm::DIType *diType = sym->type->GetDIType(file);

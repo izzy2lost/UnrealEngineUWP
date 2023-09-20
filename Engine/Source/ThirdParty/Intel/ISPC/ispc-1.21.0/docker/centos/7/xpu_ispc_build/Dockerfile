@@ -1,13 +1,18 @@
+#
+#  Copyright (c) 2017-2023, Intel Corporation
+#
+#  SPDX-License-Identifier: BSD-3-Clause
+
 FROM centos:7
 LABEL maintainer="Dmitry Babokin <dmitry.y.babokin@intel.com>"
 SHELL ["/bin/bash", "-c"]
 
 ARG REPO=ispc/ispc
 ARG SHA=main
-ARG LLVM_VERSION=14.0
-ARG L0L_VER=1.9.4
-ARG VC_INTRINSICS_COMMIT_SHA="3ac855c9253d608a36d10b8ff87e62aa413bbf23"
-ARG SPIRV_TRANSLATOR_COMMIT_SHA="c469fa86d54380231123f2b5adb4e1239392b814"
+ARG LLVM_VERSION=15.0
+ARG L0L_VER=1.13.5
+ARG VC_INTRINSICS_COMMIT_SHA="910db4801d4a029834606e3e42a8d60358e74fdf"
+ARG SPIRV_TRANSLATOR_COMMIT_SHA="e82ecc2bd7295604fcf1824e47c95fa6a09c6e63"
 
 # !!! Make sure that your docker config provides enough memory to the container,
 # otherwise LLVM build may fail, as it will use all the cores available to container.
@@ -15,17 +20,17 @@ ARG SPIRV_TRANSLATOR_COMMIT_SHA="c469fa86d54380231123f2b5adb4e1239392b814"
 # Packages required to build ISPC and Clang.
 RUN yum -y update; yum -y install centos-release-scl epel-release; yum clean all
 RUN yum install -y vim wget yum-utils gcc gcc-c++ git python3 m4 bison flex patch make && \
-    yum install -y ncurses-devel glibc-devel.x86_64 glibc-devel.i686 xz devtoolset-7 && \
-    yum install -y libtool autopoint gettext-devel texinfo help2man && \
+    yum install -y glibc-devel.x86_64 glibc-devel.i686 xz devtoolset-8 && \
+    yum install -y libtool autopoint gettext-devel texinfo tbb-devel help2man && \
     yum clean -y all
 
 # These packages are required if you need to link ISPC with -static.
-RUN yum install -y ncurses-static libstdc++-static && \
+RUN yum install -y libstdc++-static && \
     yum clean -y all
 
-# Download and install required version of cmake (3.14) for ISPC build
-RUN wget -q --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 5 https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh && mkdir /opt/cmake && sh cmake-3.14.0-Linux-x86_64.sh --prefix=/opt/cmake --skip-license && \
-    ln -s /opt/cmake/bin/cmake /usr/local/bin/cmake && rm cmake-3.14.0-Linux-x86_64.sh
+# Download and install required version of CMake. CMake 3.20 is required starting from LLVM 16.0.
+RUN wget -q --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 5 https://github.com/Kitware/CMake/releases/download/v3.20.5/cmake-3.20.5-linux-x86_64.sh && mkdir /opt/cmake && sh cmake-3.20.5-linux-x86_64.sh --prefix=/opt/cmake --skip-license && \
+    ln -s /opt/cmake/bin/cmake /usr/local/bin/cmake && rm cmake-3.20.5-linux-x86_64.sh
 
 # If you are behind a proxy, you need to configure git.
 RUN if [ -v "$http_proxy" ]; then git config --global --add http.proxy "$http_proxy"; fi
@@ -55,11 +60,18 @@ RUN git checkout $SHA
 # i.e. if clang was built by gcc, you may need to use gcc to build ispc (i.e. run "make gcc"),
 # or better do clang selfbuild and use it for ispc build as well (i.e. just "make").
 # "rm" are just to keep docker image small.
-RUN source /opt/rh/devtoolset-7/enable && \
+RUN source /opt/rh/devtoolset-8/enable && \
     ./alloy.py -b --version="$LLVM_VERSION" --selfbuild --llvm-disable-assertions --full-checkout && \
     rm -rf "$LLVM_HOME"/build-"$LLVM_VERSION" "$LLVM_HOME"/llvm-"$LLVM_VERSION" "$LLVM_HOME"/bin-"$LLVM_VERSION"_temp "$LLVM_HOME"/build-"$LLVM_VERSION"_temp
 
 ENV PATH=$LLVM_HOME/bin-$LLVM_VERSION/bin:$PATH
+
+# Build ncurses with -fPIC: https://github.com/ispc/ispc/pull/2502#issuecomment-1526931698
+WORKDIR /usr/local/src
+RUN git clone https://github.com/mirror/ncurses.git
+WORKDIR /usr/local/src/ncurses
+# Checkout version with fix for CVE-2023-29491
+RUN git checkout 87c2c84 && CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --with-termlib && make -j"$(nproc)" && make install -j"$(nproc)"
 
 # Install news flex (2.6.4)
 WORKDIR /usr/local/src

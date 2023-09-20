@@ -1,41 +1,12 @@
 /*
   Copyright (c) 2022-2023, Intel Corporation
-  All rights reserved.
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 #include "ReplacePseudoMemoryOps.h"
 
 namespace ispc {
-
-char ReplacePseudoMemoryOpsPass::ID = 0;
 
 /** This routine attempts to determine if the given pointer in lvalue is
     pointing to stack-allocated memory.  It's conservative in that it
@@ -46,7 +17,7 @@ char ReplacePseudoMemoryOpsPass::ID = 0;
 */
 static bool lIsSafeToBlend(llvm::Value *lvalue) {
     llvm::BitCastInst *bc = llvm::dyn_cast<llvm::BitCastInst>(lvalue);
-    if (bc != NULL)
+    if (bc != nullptr)
         return lIsSafeToBlend(bc->getOperand(0));
     else {
         llvm::AllocaInst *ai = llvm::dyn_cast<llvm::AllocaInst>(lvalue);
@@ -57,10 +28,10 @@ static bool lIsSafeToBlend(llvm::Value *lvalue) {
                 type = at->getElementType();
             }
             llvm::FixedVectorType *vt = llvm::dyn_cast<llvm::FixedVectorType>(type);
-            return (vt != NULL && (int)vt->getNumElements() == g->target->getVectorWidth());
+            return (vt != nullptr && (int)vt->getNumElements() == g->target->getVectorWidth());
         } else {
             llvm::GetElementPtrInst *gep = llvm::dyn_cast<llvm::GetElementPtrInst>(lvalue);
-            if (gep != NULL)
+            if (gep != nullptr)
                 return lIsSafeToBlend(gep->getOperand(0));
             else
                 return false;
@@ -74,7 +45,7 @@ static bool lReplacePseudoMaskedStore(llvm::CallInst *callInst) {
             pseudoFunc = m->module->getFunction(pname);
             blendFunc = m->module->getFunction(bname);
             maskedStoreFunc = m->module->getFunction(msname);
-            Assert(pseudoFunc != NULL && blendFunc != NULL && maskedStoreFunc != NULL);
+            Assert(pseudoFunc != nullptr && blendFunc != nullptr && maskedStoreFunc != nullptr);
         }
         llvm::Function *pseudoFunc;
         llvm::Function *blendFunc;
@@ -89,14 +60,14 @@ static bool lReplacePseudoMaskedStore(llvm::CallInst *callInst) {
         LMSInfo("__pseudo_masked_store_float", "__masked_store_blend_float", "__masked_store_float"),
         LMSInfo("__pseudo_masked_store_i64", "__masked_store_blend_i64", "__masked_store_i64"),
         LMSInfo("__pseudo_masked_store_double", "__masked_store_blend_double", "__masked_store_double")};
-    LMSInfo *info = NULL;
+    LMSInfo *info = nullptr;
     for (unsigned int i = 0; i < sizeof(msInfo) / sizeof(msInfo[0]); ++i) {
-        if (msInfo[i].pseudoFunc != NULL && callInst->getCalledFunction() == msInfo[i].pseudoFunc) {
+        if (msInfo[i].pseudoFunc != nullptr && callInst->getCalledFunction() == msInfo[i].pseudoFunc) {
             info = &msInfo[i];
             break;
         }
     }
-    if (info == NULL)
+    if (info == nullptr)
         return false;
 
     llvm::Value *lvalue = callInst->getArgOperand(0);
@@ -132,21 +103,49 @@ static bool lReplacePseudoGS(llvm::CallInst *callInst) {
     };
 
     LowerGSInfo lgsInfo[] = {
-        LowerGSInfo("__pseudo_gather32_i8", "__gather32_i8", true, false),
-        LowerGSInfo("__pseudo_gather32_i16", "__gather32_i16", true, false),
-        LowerGSInfo("__pseudo_gather32_half", "__gather32_half", true, false),
-        LowerGSInfo("__pseudo_gather32_i32", "__gather32_i32", true, false),
-        LowerGSInfo("__pseudo_gather32_float", "__gather32_float", true, false),
-        LowerGSInfo("__pseudo_gather32_i64", "__gather32_i64", true, false),
-        LowerGSInfo("__pseudo_gather32_double", "__gather32_double", true, false),
+        LowerGSInfo("__pseudo_gather32_i8",
+                    g->target->hasGather() && g->opt.disableGathers ? "__gather32_generic_i8" : "__gather32_i8", true,
+                    false),
+        LowerGSInfo("__pseudo_gather32_i16",
+                    g->target->hasGather() && g->opt.disableGathers ? "__gather32_generic_i16" : "__gather32_i16", true,
+                    false),
+        LowerGSInfo("__pseudo_gather32_half",
+                    g->target->hasGather() && g->opt.disableGathers ? "__gather32_generic_half" : "__gather32_half",
+                    true, false),
+        LowerGSInfo("__pseudo_gather32_i32",
+                    g->target->hasGather() && g->opt.disableGathers ? "__gather32_generic_i32" : "__gather32_i32", true,
+                    false),
+        LowerGSInfo("__pseudo_gather32_float",
+                    g->target->hasGather() && g->opt.disableGathers ? "__gather32_generic_float" : "__gather32_float",
+                    true, false),
+        LowerGSInfo("__pseudo_gather32_i64",
+                    g->target->hasGather() && g->opt.disableGathers ? "__gather32_generic_i64" : "__gather32_i64", true,
+                    false),
+        LowerGSInfo("__pseudo_gather32_double",
+                    g->target->hasGather() && g->opt.disableGathers ? "__gather32_generic_double" : "__gather32_double",
+                    true, false),
 
-        LowerGSInfo("__pseudo_gather64_i8", "__gather64_i8", true, false),
-        LowerGSInfo("__pseudo_gather64_i16", "__gather64_i16", true, false),
-        LowerGSInfo("__pseudo_gather64_half", "__gather64_half", true, false),
-        LowerGSInfo("__pseudo_gather64_i32", "__gather64_i32", true, false),
-        LowerGSInfo("__pseudo_gather64_float", "__gather64_float", true, false),
-        LowerGSInfo("__pseudo_gather64_i64", "__gather64_i64", true, false),
-        LowerGSInfo("__pseudo_gather64_double", "__gather64_double", true, false),
+        LowerGSInfo("__pseudo_gather64_i8",
+                    g->target->hasGather() && g->opt.disableGathers ? "__gather64_generic_i8" : "__gather64_i8", true,
+                    false),
+        LowerGSInfo("__pseudo_gather64_i16",
+                    g->target->hasGather() && g->opt.disableGathers ? "__gather64_generic_i16" : "__gather64_i16", true,
+                    false),
+        LowerGSInfo("__pseudo_gather64_half",
+                    g->target->hasGather() && g->opt.disableGathers ? "__gather64_generic_half" : "__gather64_half",
+                    true, false),
+        LowerGSInfo("__pseudo_gather64_i32",
+                    g->target->hasGather() && g->opt.disableGathers ? "__gather64_generic_i32" : "__gather64_i32", true,
+                    false),
+        LowerGSInfo("__pseudo_gather64_float",
+                    g->target->hasGather() && g->opt.disableGathers ? "__gather64_generic_float" : "__gather64_float",
+                    true, false),
+        LowerGSInfo("__pseudo_gather64_i64",
+                    g->target->hasGather() && g->opt.disableGathers ? "__gather64_generic_i64" : "__gather64_i64", true,
+                    false),
+        LowerGSInfo("__pseudo_gather64_double",
+                    g->target->hasGather() && g->opt.disableGathers ? "__gather64_generic_double" : "__gather64_double",
+                    true, false),
 
         LowerGSInfo("__pseudo_gather_factored_base_offsets32_i8", "__gather_factored_base_offsets32_i8", true, false),
         LowerGSInfo("__pseudo_gather_factored_base_offsets32_i16", "__gather_factored_base_offsets32_i16", true, false),
@@ -186,21 +185,53 @@ static bool lReplacePseudoGS(llvm::CallInst *callInst) {
         LowerGSInfo("__pseudo_gather_base_offsets64_i64", "__gather_base_offsets64_i64", true, false),
         LowerGSInfo("__pseudo_gather_base_offsets64_double", "__gather_base_offsets64_double", true, false),
 
-        LowerGSInfo("__pseudo_scatter32_i8", "__scatter32_i8", false, false),
-        LowerGSInfo("__pseudo_scatter32_i16", "__scatter32_i16", false, false),
-        LowerGSInfo("__pseudo_scatter32_half", "__scatter32_half", false, false),
-        LowerGSInfo("__pseudo_scatter32_i32", "__scatter32_i32", false, false),
-        LowerGSInfo("__pseudo_scatter32_float", "__scatter32_float", false, false),
-        LowerGSInfo("__pseudo_scatter32_i64", "__scatter32_i64", false, false),
-        LowerGSInfo("__pseudo_scatter32_double", "__scatter32_double", false, false),
+        LowerGSInfo("__pseudo_scatter32_i8",
+                    g->target->hasScatter() && g->opt.disableScatters ? "__scatter32_generic_i8" : "__scatter32_i8",
+                    false, false),
+        LowerGSInfo("__pseudo_scatter32_i16",
+                    g->target->hasScatter() && g->opt.disableScatters ? "__scatter32_generic_i16" : "__scatter32_i16",
+                    false, false),
+        LowerGSInfo("__pseudo_scatter32_half",
+                    g->target->hasScatter() && g->opt.disableScatters ? "__scatter32_generic_half" : "__scatter32_half",
+                    false, false),
+        LowerGSInfo("__pseudo_scatter32_i32",
+                    g->target->hasScatter() && g->opt.disableScatters ? "__scatter32_generic_i32" : "__scatter32_i32",
+                    false, false),
+        LowerGSInfo("__pseudo_scatter32_float",
+                    g->target->hasScatter() && g->opt.disableScatters ? "__scatter32_generic_float"
+                                                                      : "__scatter32_float",
+                    false, false),
+        LowerGSInfo("__pseudo_scatter32_i64",
+                    g->target->hasScatter() && g->opt.disableScatters ? "__scatter32_generic_i64" : "__scatter32_i64",
+                    false, false),
+        LowerGSInfo("__pseudo_scatter32_double",
+                    g->target->hasScatter() && g->opt.disableScatters ? "__scatter32_generic_double"
+                                                                      : "__scatter32_double",
+                    false, false),
 
-        LowerGSInfo("__pseudo_scatter64_i8", "__scatter64_i8", false, false),
-        LowerGSInfo("__pseudo_scatter64_i16", "__scatter64_i16", false, false),
-        LowerGSInfo("__pseudo_scatter64_half", "__scatter64_half", false, false),
-        LowerGSInfo("__pseudo_scatter64_i32", "__scatter64_i32", false, false),
-        LowerGSInfo("__pseudo_scatter64_float", "__scatter64_float", false, false),
-        LowerGSInfo("__pseudo_scatter64_i64", "__scatter64_i64", false, false),
-        LowerGSInfo("__pseudo_scatter64_double", "__scatter64_double", false, false),
+        LowerGSInfo("__pseudo_scatter64_i8",
+                    g->target->hasScatter() && g->opt.disableScatters ? "__scatter64_generic_i8" : "__scatter64_i8",
+                    false, false),
+        LowerGSInfo("__pseudo_scatter64_i16",
+                    g->target->hasScatter() && g->opt.disableScatters ? "__scatter64_generic_i16" : "__scatter64_i16",
+                    false, false),
+        LowerGSInfo("__pseudo_scatter64_half",
+                    g->target->hasScatter() && g->opt.disableScatters ? "__scatter64_generic_half" : "__scatter64_half",
+                    false, false),
+        LowerGSInfo("__pseudo_scatter64_i32",
+                    g->target->hasScatter() && g->opt.disableScatters ? "__scatter64_generic_i32" : "__scatter64_i32",
+                    false, false),
+        LowerGSInfo("__pseudo_scatter64_float",
+                    g->target->hasScatter() && g->opt.disableScatters ? "__scatter64_generic_float"
+                                                                      : "__scatter64_float",
+                    false, false),
+        LowerGSInfo("__pseudo_scatter64_i64",
+                    g->target->hasScatter() && g->opt.disableScatters ? "__scatter64_generic_i64" : "__scatter64_i64",
+                    false, false),
+        LowerGSInfo("__pseudo_scatter64_double",
+                    g->target->hasScatter() && g->opt.disableScatters ? "__scatter64_generic_double"
+                                                                      : "__scatter64_double",
+                    false, false),
 
         LowerGSInfo("__pseudo_scatter_factored_base_offsets32_i8", "__scatter_factored_base_offsets32_i8", false,
                     false),
@@ -272,17 +303,17 @@ static bool lReplacePseudoGS(llvm::CallInst *callInst) {
 
     llvm::Function *calledFunc = callInst->getCalledFunction();
 
-    LowerGSInfo *info = NULL;
+    LowerGSInfo *info = nullptr;
     for (unsigned int i = 0; i < sizeof(lgsInfo) / sizeof(lgsInfo[0]); ++i) {
-        if (lgsInfo[i].pseudoFunc != NULL && calledFunc == lgsInfo[i].pseudoFunc) {
+        if (lgsInfo[i].pseudoFunc != nullptr && calledFunc == lgsInfo[i].pseudoFunc) {
             info = &lgsInfo[i];
             break;
         }
     }
-    if (info == NULL)
+    if (info == nullptr)
         return false;
 
-    Assert(info->actualFunc != NULL);
+    Assert(info->actualFunc != nullptr);
 
     // Get the source position from the metadata attached to the call
     // instruction so that we can issue PerformanceWarning()s below.
@@ -305,18 +336,17 @@ bool ReplacePseudoMemoryOpsPass::replacePseudoMemoryOps(llvm::BasicBlock &bb) {
 
     bool modifiedAny = false;
 
-restart:
-    for (llvm::BasicBlock::iterator iter = bb.begin(), e = bb.end(); iter != e; ++iter) {
-        llvm::CallInst *callInst = llvm::dyn_cast<llvm::CallInst>(&*iter);
-        if (callInst == NULL || callInst->getCalledFunction() == NULL)
+    // Note: we do modify instruction list during the traversal, so the iterator
+    // is moved forward before the instruction is processed.
+    for (llvm::BasicBlock::iterator iter = bb.begin(), e = bb.end(); iter != e;) {
+        llvm::CallInst *callInst = llvm::dyn_cast<llvm::CallInst>(&*(iter++));
+        if (callInst == nullptr || callInst->getCalledFunction() == nullptr)
             continue;
 
         if (lReplacePseudoGS(callInst)) {
             modifiedAny = true;
-            goto restart;
         } else if (lReplacePseudoMaskedStore(callInst)) {
             modifiedAny = true;
-            goto restart;
         }
     }
 
@@ -325,16 +355,20 @@ restart:
     return modifiedAny;
 }
 
-bool ReplacePseudoMemoryOpsPass::runOnFunction(llvm::Function &F) {
-
-    llvm::TimeTraceScope FuncScope("ReplacePseudoMemoryOpsPass::runOnFunction", F.getName());
+llvm::PreservedAnalyses ReplacePseudoMemoryOpsPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM) {
+    llvm::TimeTraceScope FuncScope("ReplacePseudoMemoryOpsPass::run", F.getName());
     bool modifiedAny = false;
     for (llvm::BasicBlock &BB : F) {
         modifiedAny |= replacePseudoMemoryOps(BB);
     }
-    return modifiedAny;
-}
+    if (!modifiedAny) {
+        // No changes, all analyses are preserved.
+        return llvm::PreservedAnalyses::all();
+    }
 
-llvm::Pass *CreateReplacePseudoMemoryOpsPass() { return new ReplacePseudoMemoryOpsPass; }
+    llvm::PreservedAnalyses PA;
+    PA.preserveSet<llvm::CFGAnalyses>();
+    return PA;
+}
 
 } // namespace ispc

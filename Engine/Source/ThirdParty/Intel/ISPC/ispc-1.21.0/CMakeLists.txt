@@ -1,39 +1,14 @@
 #
 #  Copyright (c) 2018-2023, Intel Corporation
-#  All rights reserved.
 #
-#  Redistribution and use in source and binary forms, with or without
-#  modification, are permitted provided that the following conditions are
-#  met:
-#
-#    * Redistributions of source code must retain the above copyright
-#      notice, this list of conditions and the following disclaimer.
-#
-#    * Redistributions in binary form must reproduce the above copyright
-#      notice, this list of conditions and the following disclaimer in the
-#      documentation and/or other materials provided with the distribution.
-#
-#    * Neither the name of Intel Corporation nor the names of its
-#      contributors may be used to endorse or promote products derived from
-#      this software without specific prior written permission.
-#
-#
-#   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-#   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-#   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-#   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-#   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-#   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-#   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-#   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-#   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-#   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-#   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#  SPDX-License-Identifier: BSD-3-Clause
 
 #
 # ispc CMakeLists.txt
 #
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.14)
+
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 if (UNIX)
     if (NOT CMAKE_C_COMPILER)
@@ -44,9 +19,45 @@ if (UNIX)
     endif()
 endif()
 
+# Generate compile_commands.json by default - this enables VSCode to do better job interpretting
+# C++ files form the project.
+set(CMAKE_EXPORT_COMPILE_COMMANDS "ON" CACHE BOOL "Export compile commands")
+
+if (APPLE)
+    # Setting ISPC_MACOS_UNIVERSAL_BINARIES to ON is conventional way of building ISPC as Universal Binary.
+    # If cross compilation is needed (arm64->x86_64 or x86_64->arm64), specify CMAKE_OSX_ARCHITECTURES
+    # on the command line explicitly
+    option(ISPC_MACOS_UNIVERSAL_BINARIES "Build Universal Binaries on macOS" OFF)
+    if (ISPC_MACOS_UNIVERSAL_BINARIES)
+        message(STATUS "Building Universal Binaries (x86_64+arm64)")
+        set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "OSX architectures")
+    endif()
+
+    # We need to target different minimum macOS versions on x86 and arm by default, but before
+    # we execute project() command, the regular CMAKE_* variables with host info are not initialized,
+    # so we do this hack to detect the platform. It's not perfect, but good enough.
+    execute_process(COMMAND uname -m OUTPUT_VARIABLE UNAME)
+    if (UNAME MATCHES "x86_64" OR CMAKE_OSX_ARCHITECTURES MATCHES "x86_64")
+        # Note: it's ok to have 10.12 for Universal Binaries.
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "10.12" CACHE STRING "Minimum macOS version to support")
+    else()
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version to support")
+    endif()
+    message(STATUS "Targeting minimum macOS version: ${CMAKE_OSX_DEPLOYMENT_TARGET}")
+
+endif()
+
 set(PROJECT_NAME ispc)
 set(ISPC_BUILD TRUE)
 project(${PROJECT_NAME})
+
+## Check PIE support
+include(CheckPIESupported)
+check_pie_supported(OUTPUT_VARIABLE CHECK_PIE_OUTPUT LANGUAGES CXX)
+if(NOT CMAKE_CXX_LINK_PIE_SUPPORTED)
+    message(WARNING "PIE is not supported at link time: ${CHECK_PIE_OUTPUT}.\n"
+                    "PIE link options will not be passed to linker.")
+endif()
 
 set(X86_HOST FALSE)
 if (${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "amd64|AMD64|86")
@@ -134,6 +145,15 @@ if (APPLE)
             OUTPUT_STRIP_TRAILING_WHITESPACE
         )
         message(STATUS "Using macOS SDK path ${ISPC_MACOS_SDK_PATH}")
+    endif()
+
+    # Workaround CMake/CPack issue https://gitlab.kitware.com/cmake/cmake/-/issues/24601
+    # When llvm toolchain is presented in PATH, llvm-strip is preferred over
+    # macOS strip. However, CPack fails to correctly call llvm-strip because it
+    # adds flags like `-u` that are macOS strip specific.
+    # It may be removed later when CMake fixes ambiguity.
+    if (${CMAKE_VERSION} VERSION_LESS "3.27.0")
+        set(CMAKE_STRIP strip)
     endif()
 endif()
 
@@ -272,7 +292,8 @@ if (X86_ENABLED)
     list(APPEND ISPC_TARGETS
         sse2-i32x4 sse2-i32x8
         sse4-i32x4 sse4-i32x8 sse4-i8x16 sse4-i16x8
-        # Note here that avx1-i32x4 is aliased to sse4-i32x4 plus avx attribute.
+        # Note here that avx1-i32x4 is aliased to sse4-i32x4 plus avx attribute,
+        # sse41* targets are aliased to corresponding sse4 targets.
         avx1-i32x8 avx1-i32x16 avx1-i64x4
         avx2-i8x32 avx2-i16x16
         avx2-i32x4 avx2-i32x8 avx2-i32x16 avx2-i64x4
@@ -296,7 +317,7 @@ if (WASM_ENABLED)
     list(APPEND ISPC_TARGETS wasm-i32x4)
 endif()
 
-set(CLANG_LIBRARY_LIST clangFrontend clangDriver clangSerialization clangParse clangSema clangAnalysis clangAST clangBasic clangEdit clangLex)
+set(CLANG_LIBRARY_LIST clangFrontend clangBasic clangEdit clangLex)
 if (${LLVM_VERSION_NUMBER} VERSION_GREATER_EQUAL "15.0.0")
     list(APPEND CLANG_LIBRARY_LIST clangSupport)
 endif()
@@ -304,11 +325,8 @@ if (${LLVM_VERSION_NUMBER} VERSION_GREATER_EQUAL "16.0.0")
     list(APPEND CLANG_LIBRARY_LIST clangASTMatchers)
 endif()
 
-set(LLVM_COMPONENTS engine ipo bitreader bitwriter instrumentation linker option frontendopenmp)
-if (XE_ENABLED AND ${LLVM_VERSION_NUMBER} VERSION_GREATER_EQUAL "14.0.0")
-    # passes component is required for SPIR-V usage.
-    list(APPEND LLVM_COMPONENTS passes)
-endif()
+set(LLVM_COMPONENTS engine ipo bitreader bitwriter instrumentation linker option frontendopenmp passes)
+
 if (${LLVM_VERSION_NUMBER} VERSION_GREATER_EQUAL "15.0.0")
     # windowsdriver is a small library introduced in LLVM 15. While it's targeted at Windows only,
     # it's used in the LLVM code without any ifdef and is needed on all platforms.
@@ -327,7 +345,7 @@ if (WASM_ENABLED)
     list(APPEND LLVM_COMPONENTS webassembly)
 endif()
 if (XE_ENABLED)
-    list(APPEND ISPC_TARGETS gen9-x16 gen9-x8 xelp-x16 xelp-x8 xehpg-x16 xehpg-x8 xehpc-x16 xehpc-x32)
+    list(APPEND ISPC_TARGETS gen9-x16 gen9-x8 xelp-x16 xelp-x8 xehpg-x16 xehpg-x8 xehpc-x16 xehpc-x32 xelpg-x16 xelpg-x8)
     if(CMAKE_SIZEOF_VOID_P EQUAL 4)
         set(TARGET_MODIFIER "32")
         set(PB_PATH_MODIFIER "x86")
@@ -339,8 +357,18 @@ if (XE_ENABLED)
     list(APPEND XE_LIBRARY_LIST LLVMGenXIntrinsics LLVMSPIRVLib)
 endif()
 
-# Set the flag responsible for generation of opaque pointers in builtins
+# Set the flags responsible for generation of opaque pointers in builtins
 set(ISPC_OPAQUE_FLAGS)
+set(LLVM_TOOLS_OPAQUE_FLAGS)
+# Starting LLVM version 17.0 enable opaque pointers by default for CPU build
+if (${LLVM_VERSION_NUMBER} VERSION_GREATER_EQUAL "17.0.0")
+    set(ISPC_OPAQUE_PTR_MODE ON)
+endif()
+# On Xe-enabled build, turn off opaque pointers.
+# IGC software stack is not ready yet.
+if (XE_ENABLED)
+    set(ISPC_OPAQUE_PTR_MODE OFF)
+endif()
 if (ISPC_OPAQUE_PTR_MODE)
     if (${LLVM_VERSION_NUMBER} VERSION_GREATER_EQUAL "15.0.0")
     # Do nothing, opaque pointers mode is default
@@ -351,9 +379,10 @@ if (ISPC_OPAQUE_PTR_MODE)
         message(FATAL_ERROR "ISPC opaque pointers mode is not supported with LLVM " ${LLVM_VERSION_NUMBER})
     endif()
 else()
-    # Explicitly disable opaque pointers starting LLVM 15.0
-    if (${LLVM_VERSION_NUMBER} VERSION_GREATER_EQUAL "15.0.0")
+    # Explicitly disable opaque pointers starting LLVM 15.0 till LLVM 17.0
+    if (${LLVM_VERSION_NUMBER} VERSION_GREATER_EQUAL "15.0.0" AND ${LLVM_VERSION_NUMBER} VERSION_LESS "17.0.0")
         set(ISPC_OPAQUE_FLAGS "-Xclang" "-no-opaque-pointers")
+        set(LLVM_TOOLS_OPAQUE_FLAGS "-opaque-pointers=0")
     endif()
 endif()
 message(STATUS "ISPC opaque pointers mode is " ${ISPC_OPAQUE_PTR_MODE})
@@ -423,7 +452,6 @@ if (WIN32)
 endif()
 
 # Build definitions
-target_compile_definitions(${PROJECT_NAME} PRIVATE ${LLVM_VERSION})
 string(TIMESTAMP BUILD_DATE "%Y%m%d")
 target_compile_definitions(${PROJECT_NAME} PRIVATE BUILD_DATE=\"${BUILD_DATE}\"
                                                    BUILD_VERSION=\"${GIT_COMMIT_HASH}\")
@@ -497,11 +525,11 @@ if (MSVC)
     set_source_files_properties(${FLEX_OUTPUT} PROPERTIES COMPILE_FLAGS "/wd4005 /wd4003")
     set_source_files_properties(${BISON_OUTPUT} PROPERTIES COMPILE_FLAGS "/wd4005 /wd4065")
 else()
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wno-sign-compare -Wno-unused-function ${LLVM_CPP_FLAGS})
+    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare -Wno-unused-function ${LLVM_CPP_FLAGS})
     # Security options
     target_compile_options(${PROJECT_NAME} PRIVATE -fstack-protector-strong
                            -fdata-sections -ffunction-sections -fno-delete-null-pointer-checks
-                           -Wformat -Wformat-security -fpie -fwrapv)
+                           -Wformat -Wformat-security -fwrapv)
     # LLVM 14 switches default DWARF version from v4 to v5
     # but gdb < 10.1 can't read DWARF v5.
     # https://discourse.llvm.org/t/gdb-10-1-cant-read-clangs-dwarf-v5/6035
@@ -517,9 +545,22 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED YES)
 
+# Set hidden visibility for inline functions.
+# This is needed to be in sync with LLVM libraries, we do include some template code from LLVM that requires
+# this options to be in sync with LLVM. Otherwise it causes link warnings.
+set_target_properties(${PROJECT_NAME} PROPERTIES VISIBILITY_INLINES_HIDDEN ON)
+
 if (NOT MSVC)
     set_target_properties(${PROJECT_NAME} PROPERTIES CXX_EXTENSIONS OFF)
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wno-c99-extensions -Wno-deprecated-register -fno-rtti)
+    target_compile_options(${PROJECT_NAME} PRIVATE -fno-rtti)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(${PROJECT_NAME} PRIVATE -Wno-register -Wno-error=comment)
+        # The GCC warning issues false positives when one of the allocation and
+        # deallocation functions is inlined into its caller but not the other.
+        target_compile_options(${PROJECT_NAME} PRIVATE -Wno-mismatched-new-delete)
+    else()
+        target_compile_options(${PROJECT_NAME} PRIVATE -Wno-c99-extensions -Wno-deprecated-register)
+    endif()
     if (ISPC_USE_ASAN)
         target_compile_options(${PROJECT_NAME} PRIVATE -fsanitize=address)
     endif()
@@ -731,12 +772,15 @@ if (ISPC_PREPARE_PACKAGE)
 
     # CPack configuration
     if (WIN32)
-        set(CPACK_GENERATOR "WIX" "ZIP")
+        set(CPACK_GENERATOR "ZIP")
         set(ISPC_SYSTEM_NAME "windows")
+        # WIX generator is currently turned off.
+        # To turn it on uncomment code below:
+        # set(CPACK_GENERATOR "WIX" "ZIP")
+        # set(CPACK_WIX_UPGRADE_GUID "EDD858F2-19B0-4E5B-B9B9-2A09B85D451C")
+        # set(CPACK_WIX_CMAKE_PACKAGE_REGISTRY "ISPC")
         # WIX generator expects version in format x.y.z where x, y, z are numbers
         set(CPACK_PACKAGE_VERSION "${ISPC_VERSION_MAJOR}.${ISPC_VERSION_MINOR}.${ISPC_VERSION_PATCH}")
-        set(CPACK_WIX_UPGRADE_GUID "EDD858F2-19B0-4E5B-B9B9-2A09B85D451C")
-        set(CPACK_WIX_CMAKE_PACKAGE_REGISTRY "ISPC")
     else()
         set(CPACK_GENERATOR "TGZ")
         if (APPLE)
@@ -754,18 +798,48 @@ if (ISPC_PREPARE_PACKAGE)
     set(CPACK_PACKAGE_VERSION_PATCH ${ISPC_VERSION_PATCH}${ISPC_VERSION_SUFFIX})
     set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.txt")
     set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+
+    # Sign files in the package if ISPC_SIGN_KEY is set
+    if (DEFINED ISPC_SIGN_KEY)
+        configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Signing.cmake.in"
+                       "${CMAKE_CURRENT_BINARY_DIR}/Signing.cmake" @ONLY)
+        set(CPACK_PRE_BUILD_SCRIPTS "${CMAKE_CURRENT_BINARY_DIR}/Signing.cmake")
+    endif()
     # Allow use custom package name with -DISPC_PACKAGE_NAME
     if (NOT ISPC_PACKAGE_NAME)
+        set(ISPC_ARCH_SUFFIX)
+        if (APPLE)
+            if (CMAKE_OSX_ARCHITECTURES MATCHES "x86_64" AND CMAKE_OSX_ARCHITECTURES MATCHES "arm64")
+                set(ISPC_ARCH_SUFFIX ".universal")
+            elseif(CMAKE_OSX_ARCHITECTURES MATCHES "x86_64" OR
+                   (CMAKE_OSX_ARCHITECTURES STREQUAL "" AND CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "x86_64"))
+                set(ISPC_ARCH_SUFFIX ".x86_64")
+            elseif(CMAKE_OSX_ARCHITECTURES MATCHES "arm64" OR
+                   (CMAKE_OSX_ARCHITECTURES STREQUAL "" AND CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64"))
+                set(ISPC_ARCH_SUFFIX ".arm64")
+            else()
+                message (FATAL_ERROR "Was not able to detect package architecture")
+            endif()
+        elseif (UNIX)
+            # Add .aarch64 suffix if the package is built on AARCH64 system.
+	    # On Linux we don't build cross packages, so host corresponds to target platform.
+            if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+                set(ISPC_ARCH_SUFFIX ".aarch64")
+            endif()
+        endif()
+
         if (${CPACK_PACKAGE_VERSION_PATCH} MATCHES ".*dev")
             string(CONCAT CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}"
                                 "-trunk"
-                                "-${ISPC_SYSTEM_NAME}")
+                                "-${ISPC_SYSTEM_NAME}"
+                                "${ISPC_ARCH_SUFFIX}")
         else()
             string(CONCAT CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}"
                                 "-v${CPACK_PACKAGE_VERSION_MAJOR}"
                                 ".${CPACK_PACKAGE_VERSION_MINOR}"
                                 ".${CPACK_PACKAGE_VERSION_PATCH}"
-                                "-${ISPC_SYSTEM_NAME}")
+                                "-${ISPC_SYSTEM_NAME}"
+                                "${ISPC_ARCH_SUFFIX}")
 
         endif()
     else()
@@ -776,5 +850,9 @@ if (ISPC_PREPARE_PACKAGE)
         set(CPACK_PACKAGE_INSTALL_DIRECTORY "ISPC/${CPACK_PACKAGE_FILE_NAME}")
     endif()
     set(CPACK_PACKAGE_VENDOR "Intel Corporation")
+
+    # Strip binaries
+    set(CPACK_STRIP_FILES TRUE)
+
     include(CPack)
 endif()

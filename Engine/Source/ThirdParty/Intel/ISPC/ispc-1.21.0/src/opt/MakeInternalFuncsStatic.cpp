@@ -1,43 +1,14 @@
 /*
-  Copyright (c) 2022, Intel Corporation
-  All rights reserved.
+  Copyright (c) 2022-2023, Intel Corporation
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 #include "MakeInternalFuncsStatic.h"
 
 namespace ispc {
 
-char MakeInternalFuncsStaticPass::ID = 0;
-
-bool MakeInternalFuncsStaticPass::runOnModule(llvm::Module &module) {
+llvm::PreservedAnalyses MakeInternalFuncsStaticPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
     const char *names[] = {
         "__avg_up_uint8",
         "__avg_up_int8",
@@ -83,6 +54,13 @@ bool MakeInternalFuncsStaticPass::runOnModule(llvm::Module &module) {
         "__gather32_half",
         "__gather32_float",
         "__gather32_double",
+        "__gather32_generic_i8",
+        "__gather32_generic_i16",
+        "__gather32_generic_i32",
+        "__gather32_generic_i64",
+        "__gather32_generic_half",
+        "__gather32_generic_float",
+        "__gather32_generic_double",
         "__gather64_i8",
         "__gather64_i16",
         "__gather64_i32",
@@ -90,6 +68,13 @@ bool MakeInternalFuncsStaticPass::runOnModule(llvm::Module &module) {
         "__gather64_half",
         "__gather64_float",
         "__gather64_double",
+        "__gather64_generic_i8",
+        "__gather64_generic_i16",
+        "__gather64_generic_i32",
+        "__gather64_generic_i64",
+        "__gather64_generic_half",
+        "__gather64_generic_float",
+        "__gather64_generic_double",
         "__gather_elt32_i8",
         "__gather_elt32_i16",
         "__gather_elt32_i32",
@@ -181,6 +166,20 @@ bool MakeInternalFuncsStaticPass::runOnModule(llvm::Module &module) {
         "__scatter64_half",
         "__scatter64_float",
         "__scatter64_double",
+        "__scatter32_generic_i8",
+        "__scatter32_generic_i16",
+        "__scatter32_generic_i32",
+        "__scatter32_generic_i64",
+        "__scatter32_generic_half",
+        "__scatter32_generic_float",
+        "__scatter32_generic_double",
+        "__scatter64_generic_i8",
+        "__scatter64_generic_i16",
+        "__scatter64_generic_i32",
+        "__scatter64_generic_i64",
+        "__scatter64_generic_half",
+        "__scatter64_generic_float",
+        "__scatter64_generic_double",
         "__prefetch_read_varying_1",
         "__prefetch_read_varying_2",
         "__prefetch_read_varying_3",
@@ -200,19 +199,17 @@ bool MakeInternalFuncsStaticPass::runOnModule(llvm::Module &module) {
 #endif
     };
 
-    bool modifiedAny = false;
     int count = sizeof(names) / sizeof(names[0]);
     for (int i = 0; i < count; ++i) {
         llvm::Function *f = m->module->getFunction(names[i]);
-        if (f != NULL && f->empty() == false) {
+        if (f != nullptr && f->empty() == false) {
             f->setLinkage(llvm::GlobalValue::InternalLinkage);
-            modifiedAny = true;
         }
     }
 
-    return modifiedAny;
+    llvm::PreservedAnalyses PA;
+    PA.preserveSet<llvm::CFGAnalyses>();
+    return PA;
 }
-
-llvm::Pass *CreateMakeInternalFuncsStaticPass() { return new MakeInternalFuncsStaticPass; }
 
 } // namespace ispc

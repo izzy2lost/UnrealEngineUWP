@@ -80,7 +80,7 @@ endmacro()
 
 define_ispc_supported_arch(X86 "x86|x86-64")
 define_ispc_supported_arch(ARM "arm|aarch64")
-define_ispc_supported_arch(XE "xe32|xe64")
+define_ispc_supported_arch(XE "xe64")
 
 macro(define_ispc_isa_options ISA_NAME)
   set(ISPC_TARGET_${ISA_NAME} ${ARGV1} CACHE STRING "ispc target used for ${ISA_NAME} ISA")
@@ -334,7 +334,8 @@ function(ispc_gpu_target_add_sources TARGET_NAME PARENT_TARGET_NAME)
     set(ISPC_GPU_OUTPUT_OPT "--emit-zebin")
     set(TARGET_OUTPUT_EXT "bin")
   elseif (ISPC_XE_FORMAT STREQUAL "bc")
-    message(FATAL_ERROR "LLVM BC is an intermediate format and not valid for final output")
+    set(ISPC_GPU_OUTPUT_OPT "--emit-llvm")
+    set(TARGET_OUTPUT_EXT "bc")
   endif()
 
   # Support old global includes as well
@@ -372,6 +373,8 @@ function(ispc_gpu_target_add_sources TARGET_NAME PARENT_TARGET_NAME)
       set(result "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}_${fname}.tmp.spv")
     elseif (ISPC_XE_FORMAT STREQUAL "zebin")
       set(result "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}_${fname}.tmp.bin")
+    elseif (ISPC_XE_FORMAT STREQUAL "bc")
+      set(result "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}_${fname}.tmp.bc")
     endif()
 
     add_custom_command(
@@ -416,6 +419,7 @@ function(ispc_gpu_target_add_sources TARGET_NAME PARENT_TARGET_NAME)
   set(NEEDS_ISPC_LINK_EXPR
       "$<OR:$<BOOL:${LINK_GPU_LIBRARIES_PROP}>,$<BOOL:${LINK_DPCPP_LIBRARIES_PROP}>>")
   set(LINKS_DPCPP_LIBS "$<BOOL:${LINK_DPCPP_LIBRARIES_PROP}>")
+
   set(LINKS_DPCPP_ESIMD_LIBS
     "$<BOOL:$<TARGET_PROPERTY:${TARGET_NAME},ISPC_DPCPP_LINKING_ESIMD>>")
   set(LINKS_DPCPP_SCALAR_LIBS
@@ -499,10 +503,9 @@ function(ispc_gpu_target_add_sources TARGET_NAME PARENT_TARGET_NAME)
 
       # True case arguments for ispc link
       "$<${NEEDS_ISPC_LINK_EXPR}:${ISPC_XE_COMPILE_OUTPUTS};${LINK_GPU_LIBRARIES_PROP}>"
-      # For targets that are doing DPCPP linking we need to emit BC here
-      "$<${NEEDS_ISPC_LINK_EXPR}:$<IF:${LINKS_DPCPP_LIBS},--emit-llvm,--emit-spirv>>"
+      "$<${NEEDS_ISPC_LINK_EXPR}:--emit-spirv>"
       "$<${NEEDS_ISPC_LINK_EXPR}:-o>"
-      "$<${NEEDS_ISPC_LINK_EXPR}:${TARGET_OUTPUT_FILE}.$<IF:${LINKS_DPCPP_LIBS},bc,spv>>"
+      "$<${NEEDS_ISPC_LINK_EXPR}:${TARGET_OUTPUT_FILE}.spv>"
 
       # False case arguments for cmake -E copy
       # We also pick between zebin/spv suffixes here, zebin and spv are both valid
@@ -512,26 +515,32 @@ function(ispc_gpu_target_add_sources TARGET_NAME PARENT_TARGET_NAME)
 
     # For targets doing DPCPP linking we need to do the dpcpp link step against the
     # extracted DPCPP library bitcode and then translate to the final SPV output target
-    # First we link the bitcode using DPCPP LLVM link. We have the ISPC targets
-    # linked to bitcode plus all the DPCPP library's extracted bitcode to combine here
+    # First we link the bitcode extracted from DPCPP using DPCPP LLVM link.
     COMMAND
-      "$<${LINKS_DPCPP_LIBS}:${DPCPP_LLVM_LINK};${TARGET_OUTPUT_FILE}.bc>"
+      "$<${LINKS_DPCPP_LIBS}:${DPCPP_LLVM_LINK}>"
       ${LINK_DPCPP_LIBRARIES_PROP}
-      "$<${LINKS_DPCPP_LIBS}:-o;${TARGET_OUTPUT_FILE}.linked.bc>"
+      "$<${LINKS_DPCPP_LIBS}:-o;${TARGET_OUTPUT_FILE}.linked.dpcpp.bc>"
 
     # Now we run SYCL post link if we're linking against a scalar DPCPP library
     # ESIMD linking skips this step
     COMMAND
-      "$<${LINKS_DPCPP_SCALAR_LIBS}:${DPCPP_SYCL_POST_LINK};${TARGET_OUTPUT_FILE}.linked.bc>"
+      "$<${LINKS_DPCPP_SCALAR_LIBS}:${DPCPP_SYCL_POST_LINK};${TARGET_OUTPUT_FILE}.linked.dpcpp.bc>"
       "$<${LINKS_DPCPP_SCALAR_LIBS}:${SYCL_POST_LINK_ARGS}>"
       "$<${LINKS_DPCPP_SCALAR_LIBS}:-o;${TARGET_OUTPUT_FILE}.postlink.bc>"
+
+    # Now link with ISPC bitcode with DPCPP extracted and post-processed bitcode.
+    COMMAND
+      "$<${LINKS_DPCPP_LIBS}:${DPCPP_LLVM_LINK};${result}>"
+      "$<${LINKS_DPCPP_SCALAR_LIBS}:${TARGET_OUTPUT_FILE}.postlink_0.bc>"
+      "$<${LINKS_DPCPP_ESIMD_LIBS}:${TARGET_OUTPUT_FILE}.linked.dpcpp.bc>"
+      "$<${LINKS_DPCPP_LIBS}:-o;${TARGET_OUTPUT_FILE}.linked.bc>"
 
     # And finally back to SPV to the original expected target SPV name
     COMMAND
       "$<${LINKS_DPCPP_LIBS}:${DPCPP_LLVM_SPIRV}>"
       # Pick the right input to llvm-spirv based on if we're linking scalar or esimd
       # DPCPP libraries.
-      "$<${LINKS_DPCPP_SCALAR_LIBS}:${TARGET_OUTPUT_FILE}.postlink_0.bc>"
+      "$<${LINKS_DPCPP_SCALAR_LIBS}:${TARGET_OUTPUT_FILE}.linked.bc>"
       "$<${LINKS_DPCPP_ESIMD_LIBS}:${TARGET_OUTPUT_FILE}.linked.bc>"
 
       "$<${LINKS_DPCPP_LIBS}:${DPCPP_LLVM_SPIRV_ARGS}>"
@@ -541,7 +550,6 @@ function(ispc_gpu_target_add_sources TARGET_NAME PARENT_TARGET_NAME)
     COMMAND_EXPAND_LISTS
     VERBATIM
   )
-
   unset(ISPC_PROGRAM_COUNT)
 endfunction()
 

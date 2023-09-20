@@ -1,35 +1,8 @@
 #!/usr/bin/env python3
 #
-#  Copyright (c) 2013-2022, Intel Corporation
-#  All rights reserved.
+#  Copyright (c) 2013-2023, Intel Corporation
 #
-#  Redistribution and use in source and binary forms, with or without
-#  modification, are permitted provided that the following conditions are
-#  met:
-#
-#    * Redistributions of source code must retain the above copyright
-#      notice, this list of conditions and the following disclaimer.
-#
-#    * Redistributions in binary form must reproduce the above copyright
-#      notice, this list of conditions and the following disclaimer in the
-#      documentation and/or other materials provided with the distribution.
-#
-#    * Neither the name of Intel Corporation nor the names of its
-#      contributors may be used to endorse or promote products derived from
-#      this software without specific prior written permission.
-#
-#
-#   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-#   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-#   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-#   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-#   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-#   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-#   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-#   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-#   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-#   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-#   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#  SPDX-License-Identifier: BSD-3-Clause
 
 # Supported operating systems
 from enum import Enum, unique
@@ -128,6 +101,9 @@ class TargetConfig(object):
             # Alias all of acm-* devices to dg2.
             if cpu.startswith("acm-"):
                 self.cpu = "dg2"
+            # Alias all of mtl-* devices to mtl.
+            if cpu.startswith("mtl-"):
+                self.cpu = "mtl"
         else:
             self.cpu = "unspec"
 
@@ -285,9 +261,8 @@ def add_prefix(path, host, target):
 #
 # Examples:
 #
-# 1. Run only on arch xe32 or arch xe64:
+# 1. Run only on arch xe64:
 # // rule: skip on arch=*
-# // rule: run on arch=xe32
 # // rule: run on arch=xe64
 #
 # 2. Run only on Linux OS:
@@ -421,7 +396,7 @@ def run_test(testname, host, target):
                 else:
                     obj_name = "%s.obj" % os.path.basename(filename)
 
-                if target.arch == "wasm32":
+                if target.arch == "wasm32" or target.arch == "wasm64":
                     exe_name = "%s.js" % os.path.realpath(filename)
                 else:
                     exe_name = "%s.exe" % os.path.basename(filename)
@@ -440,17 +415,19 @@ def run_test(testname, host, target):
                 else:
                     obj_name = "%s.o" % testname
 
-                if target.arch == "wasm32":
+                if target.arch == "wasm32" or target.arch == "wasm64":
                     exe_name = "%s.js" % os.path.realpath(testname)
                 else:
                     exe_name = "%s.run" % testname
 
                 if target.arch == 'arm':
                     gcc_arch = '--with-fpu=hardfp -marm -mfpu=neon -mfloat-abi=hard'
-                elif target.arch == 'x86' or target.arch == "wasm32" or target.arch == 'xe32':
+                elif target.arch == 'x86' or target.arch == "wasm32":
                     gcc_arch = '-m32'
                 elif target.arch == 'aarch64':
                     gcc_arch = '-march=armv8-a'
+                elif target.arch == 'wasm64':
+                    gcc_arch = '-sMEMORY64'
                 else:
                     gcc_arch = '-m64'
 
@@ -490,9 +467,11 @@ def run_test(testname, host, target):
                 ispc_cmd += " -O2"
 
         exe_wd = "."
-        if target.arch == "wasm32":
+        if target.arch == "wasm32" or target.arch == "wasm64":
             cc_cmd += " -D__WASM__"
-            options.wrapexe = "v8 --experimental-wasm-simd"
+            options.wrapexe = os.environ["EMSDK_NODE"]
+            if target.arch == "wasm64":
+                options.wrapexe += " --experimental-wasm-memory64"
             exe_wd = os.path.realpath("./tests")
         # compile the ispc code, make the executable, and run it...
         ispc_cmd += " -h " + filename + ".h"
@@ -725,6 +704,7 @@ def verify():
              ["Linux","Windows","Mac"],["LLVM 3.2","LLVM 3.3","LLVM 3.4","LLVM 3.5","LLVM 3.6","LLVM trunk"],
              ["sse2-i32x4", "sse2-i32x8",
               "sse4-i32x4", "sse4-i32x8", "sse4-i16x8", "sse4-i8x16",
+              "sse4.1-i32x4", "sse4.1-i32x8", "sse4.1-i16x8", "sse4.1-i8x16",
               "avx1-i32x4", "avx1-i32x8", "avx1-i32x16", "avx1-i64x4",
               "avx2-i32x4", "avx2-i32x8", "avx2-i32x16", "avx2-i64x4",
               "avx512knl-x16", "avx512skx-x16", "avx512skx-x8", "avx512skx-x4", "avx512skx-x64", "avx512skx-x32"]]
@@ -764,7 +744,7 @@ def populate_ex_state(options, target, total_tests, test_result):
 # set compiler exe depending on the OS
 def set_compiler_exe(host, options):
     if options.compiler_exe == None:
-        if options.arch == "wasm32":
+        if options.arch == "wasm32" or options.arch == "wasm64":
           options.compiler_exe = "emcc"
         elif host.is_windows():
             options.compiler_exe = "cl.exe"
@@ -1026,7 +1006,7 @@ if __name__ == "__main__":
     parser.add_option('-t', '--target', dest='target',
                   help=('Set compilation target. For example: sse4-i32x4, avx2-i32x8, avx512skx-x16, etc.'), default=default_target)
     parser.add_option('-a', '--arch', dest='arch',
-                  help='Set architecture (arm, aarch64, x86, x86-64, xe32, xe64)', default=default_arch)
+                  help='Set architecture (arm, aarch64, x86, x86-64, xe64)', default=default_arch)
     parser.add_option("-c", "--compiler", dest="compiler_exe", help="C/C++ compiler binary to use to run tests",
                   default=None)
     parser.add_option('-o', '--opt', dest='opt', choices=['', 'O0', 'O1', 'O2'], help='Set optimization level passed to the compiler (O0, O1, O2).',

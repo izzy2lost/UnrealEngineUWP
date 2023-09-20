@@ -1,34 +1,7 @@
 /*
   Copyright (c) 2010-2023, Intel Corporation
-  All rights reserved.
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 /** @file sym.h
@@ -63,11 +36,11 @@ class ConstExpr;
    function symbols (and vice versa, for non-function symbols)?
  */
 
-class Symbol {
+class Symbol : public Traceable {
   public:
     /** The Symbol constructor takes the name of the symbol, its
         position in a source file, and its type (if known). */
-    Symbol(const std::string &name, SourcePos pos, const Type *t = NULL, StorageClass sc = SC_NONE);
+    Symbol(const std::string &name, SourcePos pos, const Type *t = nullptr, StorageClass sc = SC_NONE);
 
     SourcePos pos;            /*!< Source file position where the symbol was defined */
     std::string name;         /*!< Symbol's name */
@@ -88,9 +61,9 @@ class Symbol {
                                     declaration around the symbol has been parsed.  */
     ConstExpr *constValue;     /*!< For symbols with const-qualified types, this may store
                                     the symbol's compile-time constant value.  This value may
-                                    validly be NULL for a const-qualified type, however; for
+                                    validly be nullptr for a const-qualified type, however; for
                                     example, the ConstExpr class can't currently represent
-                                    struct types.  For cases like these, ConstExpr is NULL,
+                                    struct types.  For cases like these, ConstExpr is nullptr,
                                     though for all const symbols, the value pointed to by the
                                     storageInfo pointer member will be its constant value.  (This
                                     messiness is due to needing an ispc ConstExpr for the early
@@ -132,6 +105,7 @@ class TemplateSymbol {
     // The reason to keep them here for now is that for regular functions it's not stored anywhere in AST,
     // but attached as attrubutes to llvm::Function when it's created. For templates we need to store this
     // information in here and use later when the template is instantiated.
+    // These attributes will be inherited by template functions specializations.
     bool isInline;
     bool isNoInline;
 };
@@ -161,6 +135,10 @@ class SymbolTable {
         that scope. */
     void PopScope();
 
+    /** Pop all scopes except the outermost scope. It's needed to clean up SymbolTable in case of any error during
+        parsing to avoid assertion in destructor. */
+    void PopInnerScopes();
+
     /** Adds the given variable symbol to the symbol table.
         @param symbol The symbol to be added
 
@@ -175,7 +153,7 @@ class SymbolTable {
         returning the first match found.
 
         @param  name The name of the variable to be searched for.
-        @return A pointer to the Symbol, if a match is found.  NULL if no
+        @return A pointer to the Symbol, if a match is found.  nullptr if no
         Symbol with the given name is in the symbol table. */
     Symbol *LookupVariable(const char *name);
 
@@ -193,7 +171,7 @@ class SymbolTable {
         be returned in the provided vector and it's up the the caller to
         resolve which one (if any) to use.  Returns true if any matches
         were found. */
-    bool LookupFunction(const char *name, std::vector<Symbol *> *matches = NULL);
+    bool LookupFunction(const char *name, std::vector<Symbol *> *matches = nullptr);
 
     /** Adds the given function symbol for LLVM intrinsic to the symbol table.
         @param symbol The function symbol to be added.
@@ -205,13 +183,13 @@ class SymbolTable {
 
     /** Looks for a LLVM intrinsic function in the symbol table.
 
-        @return pointer to matching Symbol; NULL if none is found. */
+        @return pointer to matching Symbol; nullptr if none is found. */
     Symbol *LookupIntrinsics(llvm::Function *func);
 
     /** Looks for a function with the given name and type
         in the symbol table.
 
-        @return pointer to matching Symbol; NULL if none is found. */
+        @return pointer to matching Symbol; nullptr if none is found. */
     Symbol *LookupFunction(const char *name, const FunctionType *type);
 
     /** Adds the given function template to the symbol table.
@@ -233,7 +211,7 @@ class SymbolTable {
     /** Looks for a function template with the given name and type
         in the symbol table.
 
-        @return pointer to matching FunctionTemplate; NULL if none is found. */
+        @return pointer to matching FunctionTemplate; nullptr if none is found. */
     TemplateSymbol *LookupFunctionTemplate(const TemplateParms *templateParmList, const std::string &name,
                                            const FunctionType *type);
 
@@ -275,7 +253,7 @@ class SymbolTable {
 
     /** Looks for a type of the given name in the symbol table.
 
-        @return Pointer to the Type, if found; otherwise NULL is returned.
+        @return Pointer to the Type, if found; otherwise nullptr is returned.
     */
     const Type *LookupType(const char *name) const;
 

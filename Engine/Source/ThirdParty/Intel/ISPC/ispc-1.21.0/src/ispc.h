@@ -1,34 +1,7 @@
 /*
   Copyright (c) 2010-2023, Intel Corporation
-  All rights reserved.
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 /** @file ispc.h
@@ -138,7 +111,7 @@ enum class AddressSpace {
     lexing code).  Both lines and columns are counted starting from one.
  */
 struct SourcePos {
-    SourcePos(const char *n = NULL, int fl = 0, int fc = 0, int ll = 0, int lc = 0);
+    SourcePos(const char *n = nullptr, int fl = 0, int fc = 0, int ll = 0, int lc = 0);
 
     const char *name;
     int first_line;
@@ -183,6 +156,13 @@ enum class PerfWarningType : PerfWarningTypeUnderlyingType {
     VariableShiftRight = 0x8,
 };
 
+/** Code model */
+enum class MCModel {
+    Default, /** default model - i.e. not specified on the command line */
+    Small,   /** small model */
+    Large,   /** large model */
+};
+
 /** @brief Structure that defines a compilation target
 
     This structure defines a compilation target for the ispc compiler.
@@ -192,19 +172,20 @@ class Target {
     /** Enumerator giving the instruction sets that the compiler can
         target.  These should be ordered from "worse" to "better" in that
         if a processor supports multiple target ISAs, then the most
-        flexible/performant of them will apear last in the enumerant.  Note
+        flexible/performant of them will appear last in the enumeration.  Note
         also that __best_available_isa() needs to be updated if ISAs are
         added or the enumerant values are reordered.  */
     enum ISA {
         SSE2 = 0,
-        SSE4 = 1,
-        AVX = 2,
+        SSE41 = 1,
+        SSE42 = 2,
+        AVX = 3,
         // Not supported anymore. Use either AVX or AVX2.
-        // AVX11 = 3,
-        AVX2 = 3,
-        KNL_AVX512 = 4,
-        SKX_AVX512 = 5,
-        SPR_AVX512 = 6,
+        // AVX11 = 4,
+        AVX2 = 4,
+        KNL_AVX512 = 5,
+        SKX_AVX512 = 6,
+        SPR_AVX512 = 7,
 #ifdef ISPC_ARM_ENABLED
         NEON,
 #endif
@@ -216,6 +197,7 @@ class Target {
         XELP,
         XEHPG,
         XEHPC,
+        XELPG,
 #endif
         NUM_ISAS
     };
@@ -225,6 +207,7 @@ class Target {
         gen9,
         xe_lp,
         xe_hpg,
+        xe_lpg,
         xe_hpc,
     };
 #endif
@@ -232,7 +215,15 @@ class Target {
     /** Initializes the given Target pointer for a target of the given
         name, if the name is a known target.  Returns true if the
         target was initialized and false if the name is unknown. */
-    Target(Arch arch, const char *cpu, ISPCTarget isa, bool pic, bool printTarget);
+    Target(Arch arch, const char *cpu, ISPCTarget isa, bool pic, MCModel code_model, bool printTarget);
+
+    ~Target();
+
+    // We don't copy Target objects at the moment. If we will then proper
+    // implementations are needed considering the ownership of heap-allocated
+    // fields like m_dataLayout.
+    Target(const Target &) = delete;
+    Target &operator=(const Target &) = delete;
 
     /** Check if LLVM intrinsic is supported for the current target. */
     bool checkIntrinsticSupport(llvm::StringRef name, SourcePos pos);
@@ -297,7 +288,8 @@ class Target {
 
     bool isXeTarget() {
 #ifdef ISPC_XE_ENABLED
-        return m_isa == Target::GEN9 || m_isa == Target::XELP || m_isa == Target::XEHPG || m_isa == Target::XEHPC;
+        return m_isa == Target::GEN9 || m_isa == Target::XELP || m_isa == Target::XEHPG || m_isa == Target::XEHPC ||
+               m_isa == Target::XELPG;
 #else
         return false;
 #endif
@@ -325,6 +317,8 @@ class Target {
 
     bool getGeneratePIC() const { return m_generatePIC; }
 
+    MCModel getMCModel() const { return m_codeModel; }
+
     bool getMaskingIsFree() const { return m_maskingIsFree; }
 
     int getMaskBitCount() const { return m_maskBitCount; }
@@ -337,7 +331,11 @@ class Target {
 
     bool hasGather() const { return m_hasGather; }
 
+    bool useGather() const;
+
     bool hasScatter() const { return m_hasScatter; }
+
+    bool useScatter() const;
 
     bool hasTranscendentals() const { return m_hasTranscendentals; }
 
@@ -363,11 +361,10 @@ class Target {
     /** llvm Target object representing this target. */
     const llvm::Target *m_target;
 
-    /** llvm TargetMachine.
-        Note that it's not destroyed during Target destruction, as
-        Module::CompileAndOutput() uses TargetMachines after Target is destroyed.
-        This needs to be changed. */
+    /** llvm TargetMachine. Deconstrcted in ~Target. */
     llvm::TargetMachine *m_targetMachine;
+
+    /** This is deconstructed in ~Target. */
     llvm::DataLayout *m_dataLayout;
 
     /** flag to report invalid state after construction
@@ -422,6 +419,9 @@ class Target {
 
     /** Indicates whether position independent code should be generated. */
     bool m_generatePIC;
+
+    /** Code model */
+    MCModel m_codeModel;
 
     /** Is there overhead associated with masking on the target
         architecture; e.g. there is on SSE, due to extra blends and the
@@ -518,6 +518,14 @@ struct Opt {
         performance in the generated code). */
     bool disableAsserts;
 
+    /** Indicates whether gathers should be disabled for the targets that support them (for
+        performance in the generated code). */
+    bool disableGathers;
+
+    /** Indicates whether scatters should be disabled for the targets that support them (for
+        performance in the generated code). */
+    bool disableScatters;
+
     /** Indicates whether FMA instructions should be disabled (on targets
         that support them). */
     bool disableFMA;
@@ -608,10 +616,6 @@ struct Opt {
         the default value should be adjusted with some experiments. */
     int thresholdForXeGatherCoalescing;
 
-    /** Experimental: Xe gather coalescing will generate standard
-        vectorized llvm loads instead of block ld intrinsics. */
-    bool buildLLVMLoadsOnXeGatherCoalescing;
-
     /** Enables experimental support of foreach statement inside varying CF.
         Current implementation brings performance degradation due to ineffective
         implementation of unmasked.*/
@@ -684,6 +688,16 @@ struct Globals {
         ispc's execution. */
     bool debugPrint;
 
+    /** When \c true, print verbose output from PassManager.
+     * (Default is false.)
+     */
+    bool debugPM;
+
+    /** When \c true, print time trace output from PassManager.
+     * (Default is false.)
+     */
+    bool debugPMTimeTrace;
+
     /** When \c true, dump AST.
         None - don't dump AST
         User - dump AST only for user code, but not for stdlib functions
@@ -719,6 +733,12 @@ struct Globals {
 
     /** Indicates whether warnings should be issued as errors. */
     bool warningsAsErrors;
+
+    /** Preserve wrap-around on signed integer overflow by disabling the
+        nsw attribute when emitting arithmetic for signed integer
+        expressions.  Without this disabled, the compiler may rely on UB
+        behavior for optimizations on signed integer types.  */
+    bool wrapSignedInt;
 
     /** Indicates whether line wrapping of error messages to the terminal
         width should be disabled. */
@@ -897,5 +917,12 @@ class Traceable {
   public:
     void *operator new(size_t size) { return BookKeeper::in().add(static_cast<Traceable *>(::operator new(size))); }
     virtual ~Traceable() = default;
+};
+
+// An enum class enumerating wrap semantic settings for use with BinaryOperator and other
+// signed arithmetic IR emitters in cases of signed overflow
+enum class WrapSemantics {
+    NSW = 0, // Do not preserve wraparound behavior
+    None = 1 // Preserve wraparound behavior
 };
 } // namespace ispc

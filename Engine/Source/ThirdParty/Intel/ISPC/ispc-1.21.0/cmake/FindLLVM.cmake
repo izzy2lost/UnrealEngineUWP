@@ -1,52 +1,29 @@
 #
 #  Copyright (c) 2018-2023, Intel Corporation
-#  All rights reserved.
 #
-#  Redistribution and use in source and binary forms, with or without
-#  modification, are permitted provided that the following conditions are
-#  met:
-#
-#    * Redistributions of source code must retain the above copyright
-#      notice, this list of conditions and the following disclaimer.
-#
-#    * Redistributions in binary form must reproduce the above copyright
-#      notice, this list of conditions and the following disclaimer in the
-#      documentation and/or other materials provided with the distribution.
-#
-#    * Neither the name of Intel Corporation nor the names of its
-#      contributors may be used to endorse or promote products derived from
-#      this software without specific prior written permission.
-#
-#
-#   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-#   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-#   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-#   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-#   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-#   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-#   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-#   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-#   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-#   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-#   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#  SPDX-License-Identifier: BSD-3-Clause
 
 #
 # ispc FindLLVM.cmake
 #
-find_package(LLVM REQUIRED CONFIG)
-    if (NOT LLVM_FOUND )
-        message(FATAL_ERROR "LLVM package can't be found. \
-                Set CMAKE_PREFIX_PATH variable to LLVM's installation prefix.")
-    endif()
-    set(LLVM_VERSION "LLVM_${LLVM_VERSION_MAJOR}_${LLVM_VERSION_MINOR}")
-    message(STATUS "Found LLVM ${LLVM_VERSION}")
-
-find_program(LLVM_CONFIG_EXECUTABLE NAMES llvm-config
-    PATHS ${LLVM_TOOLS_BINARY_DIR} PATH_SUFFIXES bin NO_DEFAULT_PATH)
+if (NOT LLVM_CONFIG_EXECUTABLE)
+    find_program(LLVM_CONFIG_EXECUTABLE NAMES llvm-config)
     if (NOT LLVM_CONFIG_EXECUTABLE)
         message(FATAL_ERROR "Failed to find llvm-config")
     endif()
-    message(STATUS "LLVM_CONFIG_EXECUTABLE: ${LLVM_CONFIG_EXECUTABLE}")
+endif()
+message(STATUS "LLVM_CONFIG_EXECUTABLE: ${LLVM_CONFIG_EXECUTABLE}")
+# It is better to use cmake_path here if we are OK to raise CMake version up to 3.20.
+# cmake_path(GET LLVM_CONFIG_EXECUTABLE PARENT_PATH LLVM_TOOLS_BINARY_DIR)
+get_filename_component(LLVM_TOOLS_BINARY_DIR "${LLVM_CONFIG_EXECUTABLE}" DIRECTORY)
+message(STATUS "LLVM_TOOLS_BINARY_DIR: ${LLVM_TOOLS_BINARY_DIR}")
+
+if (NOT LLVM_DIR)
+    # It is better to use cmake_path here if we are OK to raise CMake version up to 3.20.
+    # cmake_path(SET LLVM_DIR NORMALIZE "${LLVM_TOOLS_BINARY_DIR}/../lib/cmake/llvm")
+    set(LLVM_DIR "${LLVM_TOOLS_BINARY_DIR}/../lib/cmake/llvm")
+endif()
+message(STATUS "LLVM_DIR is ${LLVM_DIR}")
 
 find_program(CLANG_EXECUTABLE NAMES clang
     PATHS ${LLVM_TOOLS_BINARY_DIR} PATH_SUFFIXES bin NO_DEFAULT_PATH)
@@ -61,23 +38,6 @@ find_program(CLANGPP_EXECUTABLE NAMES clang++
         message(FATAL_ERROR "Failed to find clang++" )
     endif()
     message(STATUS "CLANGPP_EXECUTABLE: ${CLANGPP_EXECUTABLE}")
-
-if (XE_ENABLED)
-    find_program(CMC_EXECUTABLE NAMES cmc
-        PATHS ${LLVM_TOOLS_BINARY_DIR} PATH_SUFFIXES bin NO_DEFAULT_PATH)
-    if (NOT CMC_EXECUTABLE)
-        message(STATUS "Failed to find cmc" )
-    endif()
-    message(STATUS "CMC_EXECUTABLE: ${CMC_EXECUTABLE}")
-    get_filename_component(CM_INSTALL_PATH ${CMC_EXECUTABLE} DIRECTORY)
-    set(CM_INSTALL_PATH ${CM_INSTALL_PATH}/..)
-    set(CM_INCLUDE_PATH ${CM_INSTALL_PATH}/include)
-    if (NOT EXISTS ${CM_INCLUDE_PATH} OR NOT EXISTS ${CM_INCLUDE_PATH}/cm)
-        message(STATUS "Cannot find path to CM library headers (CM_INCLUDE_PATH)")
-    endif()
-    message(STATUS "CM_INCLUDE_PATH: ${CM_INCLUDE_PATH}")
-    set(CM_LIBRARY_PATH ${CM_INSTALL_PATH}/lib)
-endif()
 
 find_program(LLVM_DIS_EXECUTABLE NAMES llvm-dis
     PATHS ${LLVM_TOOLS_BINARY_DIR} PATH_SUFFIXES bin NO_DEFAULT_PATH)
@@ -148,6 +108,9 @@ if (NOT CMAKE_BUILD_TYPE STREQUAL "DEBUG" )
         endforeach()
     endif()
 endif()
+
+run_llvm_config(LLVM_LIBRARY_DIRS "--libdir")
+run_llvm_config(LLVM_INCLUDE_DIRS "--includedir")
 
 function(get_llvm_libfiles resultList)
     run_llvm_config(LLVM_LIBS "--libfiles" ${ARGN})

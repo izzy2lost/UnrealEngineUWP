@@ -1,41 +1,12 @@
 /*
   Copyright (c) 2022-2023, Intel Corporation
-  All rights reserved.
 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
-
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  SPDX-License-Identifier: BSD-3-Clause
 */
 
 #include "IntrinsicsOptPass.h"
 
 namespace ispc {
-
-char IntrinsicsOpt::ID = 0;
 
 bool IntrinsicsOpt::optimizeIntrinsics(llvm::BasicBlock &bb) {
     DEBUG_START_BB("IntrinsicsOpt");
@@ -78,22 +49,25 @@ bool IntrinsicsOpt::optimizeIntrinsics(llvm::BasicBlock &bb) {
         m->module->getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::x86_avx_maskstore_pd_256));
 
     bool modifiedAny = false;
-restart:
-    for (llvm::BasicBlock::iterator iter = bb.begin(), e = bb.end(); iter != e; ++iter) {
-        llvm::CallInst *callInst = llvm::dyn_cast<llvm::CallInst>(&*iter);
-        if (callInst == NULL || callInst->getCalledFunction() == NULL)
+
+    // Note: we do modify instruction list during the traversal, so the iterator
+    // is moved forward before the instruction is processed.
+    for (llvm::BasicBlock::iterator iter = bb.begin(), e = bb.end(); iter != e;) {
+        llvm::BasicBlock::iterator curIter = iter++;
+        llvm::CallInst *callInst = llvm::dyn_cast<llvm::CallInst>(&*(curIter));
+        if (callInst == nullptr || callInst->getCalledFunction() == nullptr)
             continue;
 
         BlendInstruction *blend = matchingBlendInstruction(callInst->getCalledFunction());
-        if (blend != NULL) {
+        if (blend != nullptr) {
             llvm::Value *v[2] = {callInst->getArgOperand(blend->op0), callInst->getArgOperand(blend->op1)};
             llvm::Value *factor = callInst->getArgOperand(blend->opFactor);
 
             // If the values are the same, then no need to blend..
             if (v[0] == v[1]) {
-                ReplaceInstWithValueWrapper(iter, v[0]);
+                ReplaceInstWithValueWrapper(curIter, v[0]);
                 modifiedAny = true;
-                goto restart;
+                continue;
             }
 
             // If one of the two is undefined, we're allowed to replace
@@ -103,18 +77,18 @@ restart:
             // otherwise the result is undefined and any value is fine,
             // ergo the defined one is an acceptable result.)
             if (LLVMIsValueUndef(v[0])) {
-                ReplaceInstWithValueWrapper(iter, v[1]);
+                ReplaceInstWithValueWrapper(curIter, v[1]);
                 modifiedAny = true;
-                goto restart;
+                continue;
             }
             if (LLVMIsValueUndef(v[1])) {
-                ReplaceInstWithValueWrapper(iter, v[0]);
+                ReplaceInstWithValueWrapper(curIter, v[0]);
                 modifiedAny = true;
-                goto restart;
+                continue;
             }
 
             MaskStatus maskStatus = GetMaskStatusFromValue(factor);
-            llvm::Value *value = NULL;
+            llvm::Value *value = nullptr;
             if (maskStatus == MaskStatus::all_off) {
                 // Mask all off -> replace with the first blend value
                 value = v[0];
@@ -123,10 +97,10 @@ restart:
                 value = v[1];
             }
 
-            if (value != NULL) {
-                ReplaceInstWithValueWrapper(iter, value);
+            if (value != nullptr) {
+                ReplaceInstWithValueWrapper(curIter, value);
                 modifiedAny = true;
-                goto restart;
+                continue;
             }
         } else if (matchesMaskInstruction(callInst->getCalledFunction())) {
             llvm::Value *factor = callInst->getArgOperand(0);
@@ -136,9 +110,9 @@ restart:
                 // with the corresponding integer mask from its elements
                 // high bits.
                 llvm::Value *value = (callInst->getType() == LLVMTypes::Int32Type) ? LLVMInt32(mask) : LLVMInt64(mask);
-                ReplaceInstWithValueWrapper(iter, value);
+                ReplaceInstWithValueWrapper(curIter, value);
                 modifiedAny = true;
-                goto restart;
+                continue;
             }
         } else if (callInst->getCalledFunction() == avxMaskedLoad32 ||
                    callInst->getCalledFunction() == avxMaskedLoad64) {
@@ -149,9 +123,9 @@ restart:
                 llvm::Type *returnType = callInst->getType();
                 Assert(llvm::isa<llvm::VectorType>(returnType));
                 llvm::Value *undefValue = llvm::UndefValue::get(returnType);
-                ReplaceInstWithValueWrapper(iter, undefValue);
+                ReplaceInstWithValueWrapper(curIter, undefValue);
                 modifiedAny = true;
-                goto restart;
+                continue;
             } else if (maskStatus == MaskStatus::all_on) {
                 // all lanes active; replace with a regular load
                 llvm::Type *returnType = callInst->getType();
@@ -168,11 +142,11 @@ restart:
                     align = callInst->getCalledFunction() == avxMaskedLoad32 ? 4 : 8;
                 llvm::Instruction *loadInst = new llvm::LoadInst(
                     returnType, castPtr, llvm::Twine(callInst->getArgOperand(0)->getName()) + "_load",
-                    false /* not volatile */, llvm::MaybeAlign(align).valueOrOne(), (llvm::Instruction *)NULL);
+                    false /* not volatile */, llvm::MaybeAlign(align).valueOrOne(), (llvm::Instruction *)nullptr);
                 LLVMCopyMetadata(loadInst, callInst);
                 llvm::ReplaceInstWithInst(callInst, loadInst);
                 modifiedAny = true;
-                goto restart;
+                continue;
             }
         } else if (callInst->getCalledFunction() == avxMaskedStore32 ||
                    callInst->getCalledFunction() == avxMaskedStore64) {
@@ -183,7 +157,7 @@ restart:
                 // nothing actually being stored, just remove the inst
                 callInst->eraseFromParent();
                 modifiedAny = true;
-                goto restart;
+                continue;
             } else if (maskStatus == MaskStatus::all_on) {
                 // all lanes storing, so replace with a regular store
                 llvm::Value *rvalue = callInst->getArgOperand(2);
@@ -198,13 +172,13 @@ restart:
                     align = g->target->getNativeVectorAlignment();
                 else
                     align = callInst->getCalledFunction() == avxMaskedStore32 ? 4 : 8;
-                llvm::StoreInst *storeInst = new llvm::StoreInst(rvalue, castPtr, (llvm::Instruction *)NULL,
+                llvm::StoreInst *storeInst = new llvm::StoreInst(rvalue, castPtr, (llvm::Instruction *)nullptr,
                                                                  llvm::MaybeAlign(align).valueOrOne());
                 LLVMCopyMetadata(storeInst, callInst);
                 llvm::ReplaceInstWithInst(callInst, storeInst);
 
                 modifiedAny = true;
-                goto restart;
+                continue;
             }
         }
     }
@@ -214,19 +188,26 @@ restart:
     return modifiedAny;
 }
 
-bool IntrinsicsOpt::runOnFunction(llvm::Function &F) {
+llvm::PreservedAnalyses IntrinsicsOpt::run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM) {
 
-    llvm::TimeTraceScope FuncScope("IntrinsicsOpt::runOnFunction", F.getName());
+    llvm::TimeTraceScope FuncScope("IntrinsicsOpt::run", F.getName());
     bool modifiedAny = false;
     for (llvm::BasicBlock &BB : F) {
         modifiedAny |= optimizeIntrinsics(BB);
     }
-    return modifiedAny;
+    if (!modifiedAny) {
+        // No changes, all analyses are preserved.
+        return llvm::PreservedAnalyses::all();
+    }
+
+    llvm::PreservedAnalyses PA;
+    PA.preserveSet<llvm::CFGAnalyses>();
+    return PA;
 }
 
 bool IntrinsicsOpt::matchesMaskInstruction(llvm::Function *function) {
     for (unsigned int i = 0; i < maskInstructions.size(); ++i) {
-        if (maskInstructions[i].function != NULL && function == maskInstructions[i].function) {
+        if (maskInstructions[i].function != nullptr && function == maskInstructions[i].function) {
             return true;
         }
     }
@@ -235,13 +216,11 @@ bool IntrinsicsOpt::matchesMaskInstruction(llvm::Function *function) {
 
 IntrinsicsOpt::BlendInstruction *IntrinsicsOpt::matchingBlendInstruction(llvm::Function *function) {
     for (unsigned int i = 0; i < blendInstructions.size(); ++i) {
-        if (blendInstructions[i].function != NULL && function == blendInstructions[i].function) {
+        if (blendInstructions[i].function != nullptr && function == blendInstructions[i].function) {
             return &blendInstructions[i];
         }
     }
-    return NULL;
+    return nullptr;
 }
-
-llvm::Pass *CreateIntrinsicsOptPass() { return new IntrinsicsOpt; }
 
 } // namespace ispc

@@ -1,34 +1,7 @@
 #
-#  Copyright (c) 2019-2022, Intel Corporation
-#  All rights reserved.
+#  Copyright (c) 2019-2023, Intel Corporation
 #
-#  Redistribution and use in source and binary forms, with or without
-#  modification, are permitted provided that the following conditions are
-#  met:
-#
-#    * Redistributions of source code must retain the above copyright
-#      notice, this list of conditions and the following disclaimer.
-#
-#    * Redistributions in binary form must reproduce the above copyright
-#      notice, this list of conditions and the following disclaimer in the
-#      documentation and/or other materials provided with the distribution.
-#
-#    * Neither the name of Intel Corporation nor the names of its
-#      contributors may be used to endorse or promote products derived from
-#      this software without specific prior written permission.
-#
-#
-#   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-#   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-#   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-#   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-#   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-#   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-#   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-#   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-#   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-#   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-#   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#  SPDX-License-Identifier: BSD-3-Clause
 
 cmake_minimum_required(VERSION 3.12)
 
@@ -51,17 +24,6 @@ else(NOT CMAKE_BUILD_TYPE)
     message(STATUS "Build type not specified: Use Release by default.")
 endif(CMAKE_BUILD_TYPE)
 
-# CMC is needed for ISPC build so it should have been already found but it is possible to overwrite this with CM_INSTALL_PATH.
-if (CM_INSTALL_PATH)
-    find_program (CMC_EXECUTABLE cmc PATHS ${CM_INSTALL_PATH}/bin NO_DEFAULT_PATH)
-endif()
-
-if (NOT CMC_EXECUTABLE)
-    message(STATUS "CM compiler was not found so CM tests will not run. If you want to run them set path to CM install root with -DCM_INSTALL_PATH")
-else()
-    message(STATUS "Found CMC to use in examples: ${CMC_EXECUTABLE}")
-endif()
-
 if (NOT DEFINED ISPC_EXECUTABLE)
     find_program (ISPC_EXECUTABLE ispc)
 endif()
@@ -74,7 +36,14 @@ if (ISPC_BUILD)
     set(GBENCH_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/../../benchmarks/vendor/google/benchmark/include)
     include_directories_ispc(${ISPCRT_INCLUDE_DIR})
 else()
+    list(APPEND CMAKE_PREFIX_PATH ${CMAKE_CURRENT_LIST_DIR}/../../lib64/cmake)
     find_package(ispcrt REQUIRED)
+
+    # L0 is required, e.g., for sgemm
+    list(APPEND CMAKE_MODULE_PATH ${ISPCRT_DIR})
+    find_package(level_zero REQUIRED)
+    message(STATUS "LEVEL_ZERO_INCLUDE_DIR is ${LEVEL_ZERO_INCLUDE_DIR}")
+    message(STATUS "LEVEL_ZERO_LIB_LOADER is ${LEVEL_ZERO_LIB_LOADER}")
 endif()
 if (NOT ISPC_EXECUTABLE)
     message(FATAL_ERROR "Failed to find ispc")
@@ -97,6 +66,7 @@ add_subdirectory(aobench)
 add_subdirectory(mandelbrot)
 add_subdirectory(simple)
 add_subdirectory(simple-usm)
+add_subdirectory(simple-fence)
 add_subdirectory(usm-mem)
 
 # DPC++ related examples should not run as part of ISPC_BUILD
@@ -112,6 +82,8 @@ if (NOT ISPC_BUILD AND ISPC_INCLUDE_DPCPP_EXAMPLES)
     add_subdirectory(simple-esimd)
     add_subdirectory(vadd-esimd)
     add_subdirectory(callback-esimd)
+    add_subdirectory(invoke-sycl-aobench)
+    add_subdirectory(invoke-simd-vadd)
 endif()
 
 include(TestLists.txt)
