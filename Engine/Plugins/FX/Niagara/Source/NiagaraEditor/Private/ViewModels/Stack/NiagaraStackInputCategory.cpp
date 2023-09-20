@@ -176,17 +176,41 @@ void UNiagaraStackInputCategory::ToClipboardFunctionInputs(UObject* InOuter, TAr
 	}
 }
 
-template<typename Predicate>
-void SetValuesFromFunctionInputsInternal(UNiagaraStackInputCategory* Category, const TArray<const UNiagaraClipboardFunctionInput*>& ClipboardFunctionInputs, Predicate InputMatchesFilter, UNiagaraStackFunctionInputCollection* OwningFunctionCollection)
+bool UNiagaraStackInputCategory::TrySetStaticSwitchValuesFromClipboardFunctionInput(const UNiagaraClipboardFunctionInput& ClipboardFunctionInput)
 {
+	TArray<UNiagaraStackFunctionInput*> ChildInputs;
+	GetUnfilteredChildrenOfType(ChildInputs);
+	for (UNiagaraStackFunctionInput* ChildInput : ChildInputs)
+	{
+		if (ChildInput->IsStaticParameter() &&
+			ChildInput->GetInputParameterHandle().GetName() == ClipboardFunctionInput.InputName &&
+			ChildInput->GetInputType() == ClipboardFunctionInput.InputType)
+		{
+			if (ClipboardFunctionInput.ValueMode == ENiagaraClipboardFunctionInputValueMode::ResetToDefault)
+			{
+				ChildInput->Reset();
+			}
+			else
+			{
+				ChildInput->SetValueFromClipboardFunctionInput(ClipboardFunctionInput);
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
+void  UNiagaraStackInputCategory::SetStandardValuesFromClipboardFunctionInputs(const TArray<const UNiagaraClipboardFunctionInput*>& ClipboardFunctionInputs)
+{
+	TArray<UNiagaraStackFunctionInput*> ChildInputs;
+	GetUnfilteredChildrenOfType(ChildInputs);
 	for (const UNiagaraClipboardFunctionInput* ClipboardFunctionInput : ClipboardFunctionInputs)
 	{
-		TArray<UNiagaraStackFunctionInput*> ChildInputs;
-		Category->GetUnfilteredChildrenOfType(ChildInputs);
-		
 		for (UNiagaraStackFunctionInput* ChildInput : ChildInputs)
 		{
-			if (InputMatchesFilter(ChildInput) && ChildInput->GetInputParameterHandle().GetName() == ClipboardFunctionInput->InputName && ChildInput->GetInputType() == ClipboardFunctionInput->InputType)
+			if (ChildInput->IsStaticParameter() == false && 
+				ChildInput->GetInputParameterHandle().GetName() == ClipboardFunctionInput->InputName &&
+				ChildInput->GetInputType() == ClipboardFunctionInput->InputType)
 			{
 				if (ClipboardFunctionInput->ValueMode == ENiagaraClipboardFunctionInputValueMode::ResetToDefault)
 				{
@@ -196,24 +220,9 @@ void SetValuesFromFunctionInputsInternal(UNiagaraStackInputCategory* Category, c
 				{
 					ChildInput->SetValueFromClipboardFunctionInput(*ClipboardFunctionInput);
 				}
-				if(OwningFunctionCollection)
-				{
-					OwningFunctionCollection->RefreshChildren();
-				}
-				break;
 			}
 		}
 	}
-}
-
-void  UNiagaraStackInputCategory::SetStaticSwitchValuesFromClipboardFunctionInputs(const TArray<const UNiagaraClipboardFunctionInput*>& ClipboardFunctionInputs, UNiagaraStackFunctionInputCollection& OwningFunctionCollection)
-{
-	SetValuesFromFunctionInputsInternal(this, ClipboardFunctionInputs, [](UNiagaraStackFunctionInput* ChildInput) { return ChildInput->IsStaticParameter(); }, &OwningFunctionCollection);
-}
-
-void  UNiagaraStackInputCategory::SetStandardValuesFromClipboardFunctionInputs(const TArray<const UNiagaraClipboardFunctionInput*>& ClipboardFunctionInputs)
-{
-	SetValuesFromFunctionInputsInternal(this, ClipboardFunctionInputs, [](UNiagaraStackFunctionInput* ChildInput) { return ChildInput->IsStaticParameter() == false; }, nullptr);
 }
 
 void UNiagaraStackInputCategory::GetFilteredChildInputs(TArray<UNiagaraStackFunctionInput*>& OutFilteredChildInputs) const
