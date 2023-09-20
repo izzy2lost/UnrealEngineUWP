@@ -5793,15 +5793,8 @@ FSkeletalMeshSceneProxy::FSkeletalMeshSceneProxy(const USkinnedMeshComponent* Co
 	if (FeatureLevel > ERHIFeatureLevel::ES3_1) // TODO: support gpuscene for a mobile SkinVF
 	{
 		EnableGPUSceneSupportFlags();
-		const bool bUseGPUScene = UseGPUScene(GMaxRHIShaderPlatform, FeatureLevel);
 
-		if (bUseGPUScene)
-		{
-			bSupportsInstanceDataBuffer = true;
-			UpdateDefaultInstanceSceneData();
-		}
 	}
-
 #if RHI_RAYTRACING
 	if (IsRayTracingAllowed())
 	{
@@ -6915,9 +6908,6 @@ void FSkeletalMeshSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList
 	// OnTransformChanged is called on the following frame after FSkeletalMeshObject::Update(), thus omit '+ 1' to frame number.
 	MeshObject->SetTransform(GetLocalToWorld(), GetScene().GetFrameNumber());
 	MeshObject->RefreshClothingTransforms(GetLocalToWorld(), GetScene().GetFrameNumber());
-
-	// Update the default-instance
-	UpdateDefaultInstanceSceneData();
 }
 
 //////////////////////////////////////////////////////////////////////////
