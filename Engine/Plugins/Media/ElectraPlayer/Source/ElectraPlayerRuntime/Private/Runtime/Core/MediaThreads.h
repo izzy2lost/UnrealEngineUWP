@@ -45,7 +45,7 @@ public:
 
 	static void Startup();
 	static void Shutdown();
-	static void EnqueueTerminationFunction(TFunction<void()>&& InFunctionToExecuteOnTerminationThread);
+	static void EnqueueAsyncTask(TFunction<void()>&& InFunctionToExecuteOnAsyncThread);
 
 	static FMediaRunnable* Create(int32 CoreAffinityMask, EThreadPriority Priority, uint32 StackSize, const FString& InThreadName);
 	static void Destroy(FMediaRunnable* Thread);

@@ -162,12 +162,6 @@ namespace Electra
 	}
 
 
-	void EnqueueTerminationFunction(TFunction<void()>&& InFunctionToExecuteOnTerminationThread)
-	{
-		FMediaRunnable::EnqueueTerminationFunction(MoveTemp(InFunctionToExecuteOnTerminationThread));
-	}
-
-
 	/**
 	 * Check if the provided analytics event is enabled
 	 *

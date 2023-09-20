@@ -68,7 +68,7 @@ namespace Electra
 				{
 					delete InInstanceToDelete;
 				};
-				FMediaRunnable::EnqueueTerminationFunction(MoveTemp(DeleteTask));
+				FMediaRunnable::EnqueueAsyncTask(MoveTemp(DeleteTask));
 			}
 		};
 
@@ -899,9 +899,6 @@ namespace Electra
 
 	void FElectraHttpManager::HandlePeriodicCallbacks(const FTimeValue& Now)
 	{
-		SCOPE_CYCLE_COUNTER(STAT_ElectraPlayer_FElectraHttpManager_Worker);
-		CSV_SCOPED_TIMING_STAT(ElectraPlayer, ElectraHttpManager_Worker);
-
 		for(TMap<FHandle*, TSharedPtrTS<FRequest>>::TIterator It = ActiveRequests.CreateIterator(); It; ++It)
 		{
 			FHandle* Handle = It.Key();

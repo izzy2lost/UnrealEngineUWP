@@ -10,17 +10,17 @@
 namespace MediaRunnablePrivate
 {
 
-static TMediaMessageQueueDynamicNoTimeout<TFunction<void()>> TerminationFunctions;
+static TMediaMessageQueueDynamicNoTimeout<TFunction<void()>> AsyncFunctionsToRun;
 static volatile bool bEndForShutdown = false;
-static FMediaThread* TerminationThread = nullptr;
-static void TerminationThreadFN()
+static FMediaThread* AsyncExecutionThread = nullptr;
+static void AsyncWorkerThreadFN()
 {
 	while(!bEndForShutdown)
 	{
-		TFunction<void()> TerminateFN = TerminationFunctions.ReceiveMessage();
-		if (TerminateFN)
+		TFunction<void()> AsyncRunFN = AsyncFunctionsToRun.ReceiveMessage();
+		if (AsyncRunFN)
 		{
-			TerminateFN();
+			AsyncRunFN();
 		}
 	}
 }
@@ -30,28 +30,28 @@ static void TerminationThreadFN()
 void FMediaRunnable::Startup()
 {
 	MediaRunnablePrivate::bEndForShutdown = false;
-	MediaRunnablePrivate::TerminationThread = new FMediaThread("Electra::Termination");
-	MediaRunnablePrivate::TerminationThread->ThreadStart(FMediaRunnable::FStartDelegate::CreateStatic(&MediaRunnablePrivate::TerminationThreadFN));
+	MediaRunnablePrivate::AsyncExecutionThread = new FMediaThread("Electra::ExecAsync");
+	MediaRunnablePrivate::AsyncExecutionThread->ThreadStart(FMediaRunnable::FStartDelegate::CreateStatic(&MediaRunnablePrivate::AsyncWorkerThreadFN));
 }
 
 void FMediaRunnable::Shutdown()
 {
-	check(MediaRunnablePrivate::TerminationThread);
+	check(MediaRunnablePrivate::AsyncExecutionThread);
 	
 	TFunction<void()> FinishTask = []()
 	{
 		MediaRunnablePrivate::bEndForShutdown = true;
 	};
-	EnqueueTerminationFunction(MoveTemp(FinishTask));
+	EnqueueAsyncTask(MoveTemp(FinishTask));
 
-	MediaRunnablePrivate::TerminationThread->ThreadWaitDone();
-	delete MediaRunnablePrivate::TerminationThread;
-	MediaRunnablePrivate::TerminationThread = nullptr;
+	MediaRunnablePrivate::AsyncExecutionThread->ThreadWaitDone();
+	delete MediaRunnablePrivate::AsyncExecutionThread;
+	MediaRunnablePrivate::AsyncExecutionThread = nullptr;
 }
 
-void FMediaRunnable::EnqueueTerminationFunction(TFunction<void()>&& InFunctionToExecuteOnTerminationThread)
+void FMediaRunnable::EnqueueAsyncTask(TFunction<void()>&& InFunctionToExecuteOnAsyncThread)
 {
-	MediaRunnablePrivate::TerminationFunctions.SendMessage(MoveTemp(InFunctionToExecuteOnTerminationThread));
+	MediaRunnablePrivate::AsyncFunctionsToRun.SendMessage(MoveTemp(InFunctionToExecuteOnAsyncThread));
 }
 
 

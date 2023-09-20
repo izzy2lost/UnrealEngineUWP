@@ -45,8 +45,5 @@ namespace Electra
 	};
 	bool AddBGFGNotificationHandler(TSharedPtrTS<FFGBGNotificationHandlers> InHandlers);
 	void RemoveBGFGNotificationHandler(TSharedPtrTS<FFGBGNotificationHandlers> InHandlers);
-
-
-	void EnqueueTerminationFunction(TFunction<void()>&& InFunctionToExecuteOnTerminationThread);
 };
 

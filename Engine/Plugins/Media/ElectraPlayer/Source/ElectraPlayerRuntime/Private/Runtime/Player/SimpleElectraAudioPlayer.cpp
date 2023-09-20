@@ -168,6 +168,9 @@ public:
 	}
 	static void SendAnalyticMetrics(const TSharedPtr<IAnalyticsProviderET>& InAnalyticsProvider);
 
+	static TSharedPtr<ICacheElementBase, ESPMode::ThreadSafe> GetCustomCacheElement(const FString& InForURL);
+	static void SetCustomCacheElement(const FString& InForURL, const TSharedPtr<ICacheElementBase, ESPMode::ThreadSafe>& InElement);
+
 	FSimpleElectraAudioPlayer(const FCreateParams& InCreateParams);
 	~FSimpleElectraAudioPlayer();
 	bool Open(const TMap<FString, FVariant>& InOptions, const FString& InManifestURL, const FTimespan& InStartPosition, const FTimespan& InEncodedDuration, bool bInAutoPlay, bool bInSetLooping, TSharedPtr<IElectraPlayerDataCache, ESPMode::ThreadSafe> InPlayerDataCache) override;
@@ -511,6 +514,7 @@ private:
 	struct FBlobCacheEntry
 	{
 		TSharedPtr<TArray<uint8>, ESPMode::ThreadSafe> Data;
+		TSharedPtr<ISimpleElectraAudioPlayer::ICacheElementBase, ESPMode::ThreadSafe> CustomData;
 		FString URL;
 		double TimeAdded = 0.0;
 	};
@@ -520,6 +524,9 @@ private:
 	public:
 		TSharedPtr<TArray<uint8>, ESPMode::ThreadSafe> GetData(const FString& InForURL);
 		void AddData(const FString& InForURL, const TSharedPtr<TArray<uint8>, ESPMode::ThreadSafe>& InData);
+
+		TSharedPtr<ISimpleElectraAudioPlayer::ICacheElementBase, ESPMode::ThreadSafe> GetCustomData(const FString& InForURL);
+		void AddCustomData(const FString& InForURL, const TSharedPtr<ISimpleElectraAudioPlayer::ICacheElementBase, ESPMode::ThreadSafe>& InData);
 	private:
 		void CheckLimits(int32 InBytesNeeded);
 		FCriticalSection Lock;
@@ -550,6 +557,7 @@ private:
 		OpenBlob,
 		OpeningStream,
 		TryReopeningStream,
+		CreatingPlayer,
 		Active,
 		Stopped,
 		Errored
@@ -617,7 +625,7 @@ private:
 
 	void ActivateBlockReadSequence()
 	{
-		if (!CurrentReadSampleBlock.IsValid() && NextPendingSampleBlocks.Num())
+		if ((!CurrentReadSampleBlock.IsValid() || CurrentReadSampleBlock->SequenceIndex == -1) && NextPendingSampleBlocks.Num())
 		{
 			CurrentReadSampleBlock = NextPendingSampleBlocks[0];
 			NextPendingSampleBlocks.RemoveAt(0);
@@ -651,8 +659,10 @@ private:
 	void InternalApplyOptions();
 	void HandleOpenStream(bool bOnlyIfAvailable);
 	static void MaybeRestartAStoppedStream(FSimpleElectraAudioPlayer* This);
+	void CreatePlayerAsync();
+	void CreateIdleBufferIfNecessary();
 
-	FBlobCache& GetBlobCache() const
+	static FBlobCache& GetBlobCache()
 	{
 		static FBlobCache Cache;
 		return Cache;
@@ -805,7 +815,25 @@ void ISimpleElectraAudioPlayer::SendAnalyticMetrics(const TSharedPtr<IAnalyticsP
 	}
 }
 
+TSharedPtr<ISimpleElectraAudioPlayer::ICacheElementBase, ESPMode::ThreadSafe> ISimpleElectraAudioPlayer::GetCustomCacheElement(const FString& InForURL)
+{
+	return FSimpleElectraAudioPlayer::GetCustomCacheElement(InForURL);
+}
 
+void ISimpleElectraAudioPlayer::SetCustomCacheElement(const FString& InForURL, const TSharedPtr<ISimpleElectraAudioPlayer::ICacheElementBase, ESPMode::ThreadSafe>& InElement)
+{
+	FSimpleElectraAudioPlayer::SetCustomCacheElement(InForURL, InElement);
+}
+
+TSharedPtr<ISimpleElectraAudioPlayer::ICacheElementBase, ESPMode::ThreadSafe> FSimpleElectraAudioPlayer::GetCustomCacheElement(const FString& InForURL)
+{
+	return GetBlobCache().GetCustomData(InForURL);
+}
+
+void FSimpleElectraAudioPlayer::SetCustomCacheElement(const FString& InForURL, const TSharedPtr<ISimpleElectraAudioPlayer::ICacheElementBase, ESPMode::ThreadSafe>& InElement)
+{
+	GetBlobCache().AddCustomData(InForURL, InElement);
+}
 
 FSimpleElectraAudioPlayer::FSimpleElectraAudioPlayer(const FCreateParams& InCreateParams)
 	: CreateParams(InCreateParams)
@@ -891,6 +919,10 @@ void FSimpleElectraAudioPlayer::Tick(float DeltaTime)
 			HandleOpenStream(true);
 			break;
 		}
+		case EState::CreatingPlayer:
+		{
+			return;
+		}
 		case EState::Errored:
 		{
 			return;
@@ -907,7 +939,7 @@ void FSimpleElectraAudioPlayer::Tick(float DeltaTime)
 		}
 	}
 
-	if (bAskedToBeReleased)
+	if (bAskedToBeReleased && CurrentState != EState::CreatingPlayer)
 	{
 		FString Msg = FString::Printf(TEXT("%s: Stopping due to limit"), *AssetName);
 		UE_LOG(LogSimpleElectraPlayer, Verbose, TEXT("%s"), *Msg);
@@ -969,7 +1001,6 @@ void FSimpleElectraAudioPlayer::HandleOpenStream(bool bOnlyIfAvailable)
 
 	if (bCreateNow)
 	{
-		// No. Go!
 		FString Msg = FString::Printf(TEXT("%s: %s playback"), *AssetName, !bAskedToBeReleased ? TEXT("Preparing") : TEXT("Resuming"));
 		UE_LOG(LogSimpleElectraPlayer, Verbose, TEXT("%s"), *Msg);
 
@@ -993,17 +1024,6 @@ void FSimpleElectraAudioPlayer::HandleOpenStream(bool bOnlyIfAvailable)
 		bIsFirstSampleBlock = true;
 		Lock.Unlock();
 
-		CreatePlayerInstance();
-		InternalApplyOptions();
-		Player->SetPlayerDataCache(PlayerDataCache.Pin());
-		Player->LoadManifest(URL);
-		if (bSetLooping)
-		{
-			IAdaptiveStreamingPlayer::FLoopParam lp;
-			lp.bEnableLooping = true;
-			Player->SetLooping(lp);
-		}
-			
 		// Add to the list of active instances.
 		InstanceLock.Lock();
 		ActiveInstances.AddUnique(this);
@@ -1012,12 +1032,51 @@ void FSimpleElectraAudioPlayer::HandleOpenStream(bool bOnlyIfAvailable)
 
 		// Set state to active.
 		bIsResuming = bAskedToBeReleased;
-		CurrentState = EState::Active;
+		CurrentState = EState::CreatingPlayer;
 		bAskedToBeReleased = false;
 		bMaybeReopenAfterSeek = false;
 		TimeStopped = -1.0;
+
+		TWeakPtr<FSimpleElectraAudioPlayer, ESPMode::ThreadSafe> This(AsShared());
+		TFunction<void()> CreateTask = [This]()
+		{
+			TSharedPtr<FSimpleElectraAudioPlayer, ESPMode::ThreadSafe> That = This.Pin();
+			if (That.IsValid())
+			{
+				That->CreatePlayerAsync();
+			}
+		};
+		FMediaRunnable::EnqueueAsyncTask(MoveTemp(CreateTask));
 	}
 }
+
+void FSimpleElectraAudioPlayer::CreatePlayerAsync()
+{
+	CreatePlayerInstance();
+	InternalApplyOptions();
+	Player->SetPlayerDataCache(PlayerDataCache.Pin());
+	Player->LoadManifest(URL);
+	if (bSetLooping)
+	{
+		IAdaptiveStreamingPlayer::FLoopParam lp;
+		lp.bEnableLooping = true;
+		Player->SetLooping(lp);
+	}
+	CurrentState = EState::Active;
+}
+
+void FSimpleElectraAudioPlayer::CreateIdleBufferIfNecessary()
+{
+	Lock.Lock();
+	if (!CurrentReadSampleBlock.IsValid() && NextPendingSampleBlocks.IsEmpty())
+	{
+		TSharedPtr<FBlockSequence, ESPMode::ThreadSafe> NewSeq = MakeShared<FBlockSequence, ESPMode::ThreadSafe>();
+		NewSeq->SequenceIndex = -1;
+		NextPendingSampleBlocks.Emplace(NewSeq);
+	}
+	Lock.Unlock();
+}
+
 
 void FSimpleElectraAudioPlayer::MergeAnalytics(const FString& AssetId, const FAnalyticsEntry& InAnalytics)
 {
@@ -1182,6 +1241,10 @@ void FSimpleElectraAudioPlayer::DoClosePlayerAsync(TSharedPtr<FClosePlayerInstan
 			InPlayerHelper->PlayerInstance->Stop();
 			InPlayerHelper->PlayerInstance.Reset();
 		}
+		if (!InPlayerHelper->bDeleteThis)
+		{
+			InPlayerHelper->This->CreateIdleBufferIfNecessary();
+		}
 		InstanceLock.Lock();
 		ActiveInstances.Remove(InPlayerHelper->This);
 		if (!InPlayerHelper->bDeleteThis)
@@ -1199,7 +1262,7 @@ void FSimpleElectraAudioPlayer::DoClosePlayerAsync(TSharedPtr<FClosePlayerInstan
 
 	if (GIsRunning)
 	{
-		FMediaRunnable::EnqueueTerminationFunction(MoveTemp(CloseTask));
+		FMediaRunnable::EnqueueAsyncTask(MoveTemp(CloseTask));
 	}
 	else
 	{
@@ -1674,6 +1737,24 @@ void FSimpleElectraAudioPlayer::FBlobCache::AddData(const FString& InForURL, con
 		EntryLRU.Emplace(*Entry);
 	}
 }
+
+TSharedPtr<ISimpleElectraAudioPlayer::ICacheElementBase, ESPMode::ThreadSafe> FSimpleElectraAudioPlayer::FBlobCache::GetCustomData(const FString& InForURL)
+{
+	FScopeLock lock(&Lock);
+	TSharedPtr<FBlobCacheEntry, ESPMode::ThreadSafe>* Entry = EntryMap.Find(InForURL);
+	return Entry ? (*Entry)->CustomData : nullptr;
+}
+
+void FSimpleElectraAudioPlayer::FBlobCache::AddCustomData(const FString& InForURL, const TSharedPtr<ISimpleElectraAudioPlayer::ICacheElementBase, ESPMode::ThreadSafe>& InData)
+{
+	FScopeLock lock(&Lock);
+	TSharedPtr<FBlobCacheEntry, ESPMode::ThreadSafe>* Entry = EntryMap.Find(InForURL);
+	if (Entry)
+	{
+		(*Entry)->CustomData = InData;
+	}
+}
+
 
 void FSimpleElectraAudioPlayer::FBlobCache::CheckLimits(int32 InBytesNeeded)
 {

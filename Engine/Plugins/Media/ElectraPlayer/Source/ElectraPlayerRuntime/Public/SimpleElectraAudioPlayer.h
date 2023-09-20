@@ -27,6 +27,16 @@ public:
 	 */
 	static void SendAnalyticMetrics(const TSharedPtr<IAnalyticsProviderET>& InAnalyticsProvider);
 
+
+	class ICacheElementBase : public TSharedFromThis<ICacheElementBase, ESPMode::ThreadSafe>
+	{
+	public:
+		virtual ~ICacheElementBase() {};
+	};
+	static TSharedPtr<ICacheElementBase, ESPMode::ThreadSafe> GetCustomCacheElement(const FString& InForURL);
+	static void SetCustomCacheElement(const FString& InForURL, const TSharedPtr<ICacheElementBase, ESPMode::ThreadSafe>& InElement);
+
+
 	virtual ~ISimpleElectraAudioPlayer() = default;
 	virtual bool Open(const TMap<FString, FVariant>& InOptions, const FString& ManifestURL, const FTimespan& StartPosition, const FTimespan& EncodedDuration, bool bAutoPlay, bool bSetLooping, TSharedPtr<IElectraPlayerDataCache, ESPMode::ThreadSafe> InPlayerDataCache) = 0;
 	virtual void SeekTo(const FTimespan& NewPosition) = 0;

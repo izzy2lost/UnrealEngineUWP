@@ -514,7 +514,7 @@ void FElectraPlayer::FInternalPlayerImpl::DoCloseAsync(TSharedPtr<FInternalPlaye
 	// Fallback to simple, sequential execution if the engine is already shutting down...
 	if (GIsRunning)
 	{
-		FMediaRunnable::EnqueueTerminationFunction(MoveTemp(CloseTask));
+		FMediaRunnable::EnqueueAsyncTask(MoveTemp(CloseTask));
 	}
 	else
 	{
