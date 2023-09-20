@@ -1791,6 +1791,24 @@ void UAssetRegistryImpl::WaitForCompletion()
 	}
 }
 
+#if WITH_EDITOR
+void UAssetRegistryImpl::FlushDirectoryWatcherAndWaitForCompletion()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UAssetRegistryImpl::FlushDirectoryWatcherAndWaitForCompletion);
+
+	// Operating system might take a few milliseconds before detecting the change
+	FPlatformProcess::Sleep(0.100f);
+
+	// Tick the directory watcher to pick up the new files and pass them into OnDirectoryChanged
+	IDirectoryWatcher* DirectoryWatcher = FModuleManager::LoadModuleChecked<FDirectoryWatcherModule>(TEXT("DirectoryWatcher")).Get();
+	DirectoryWatcher->Tick(0.0f);
+
+	// Wait for the results to be processed.
+	// TODO: Change this wait to only wait for the new files
+	WaitForCompletion();
+}
+#endif
+
 void UAssetRegistryImpl::ClearGathererCache()
 {
 	LLM_SCOPE(ELLMTag::AssetRegistry);

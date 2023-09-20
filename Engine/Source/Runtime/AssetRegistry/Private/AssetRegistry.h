@@ -99,6 +99,9 @@ public:
 	virtual bool IsSearchAllAssets() const override;
 	virtual bool IsSearchAsync() const override;
 	virtual void WaitForCompletion() override;
+#if WITH_EDITOR
+	virtual void FlushDirectoryWatcherAndWaitForCompletion() override;
+#endif
 	virtual void ClearGathererCache() override;
 	virtual void WaitForPackage(const FString& PackageName) override;
 	virtual void ScanSynchronous(const TArray<FString>& InPaths, const TArray<FString>& InFilePaths, UE::AssetRegistry::EScanFlags InScanFlags = UE::AssetRegistry::EScanFlags::None) override;
