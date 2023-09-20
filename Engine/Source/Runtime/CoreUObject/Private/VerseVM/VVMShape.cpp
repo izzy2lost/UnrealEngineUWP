@@ -61,8 +61,8 @@ VShape::VShape(FAllocationContext Context, VShape::FieldsMap&& InFields)
 void VShape::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
 {
 	VHeapValue::MarkReferencedCellsImpl(ThisCell, MarkStack);
-	VShape* This = static_cast<VShape*>(ThisCell);
-	for (auto It = This->Fields.CreateIterator(); It; ++It)
+	VShape& This = ThisCell->StaticCast<VShape>();
+	for (auto It = This.Fields.CreateIterator(); It; ++It)
 	{
 		switch (It->Value.Type)
 		{

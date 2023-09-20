@@ -2,6 +2,7 @@
 
 #if WITH_VERSE_VM
 #include "VerseVM/VVMFrame.h"
+#include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 
 namespace Verse
@@ -12,15 +13,15 @@ TGlobalTrivialEmergentTypePtr<&VFrame::StaticCppClassInfo> VFrame::GlobalTrivial
 
 void VFrame::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
 {
-	VFrame* This = static_cast<VFrame*>(ThisCell);
-	VCell::MarkReferencedCellsImpl(This, MarkStack);
-	This->ReturnEffectToken.MarkReferencedCell(MarkStack);
-	This->Procedure.Mark(MarkStack);
-	This->ReturnSlot.Mark(MarkStack);
-	This->CallerFrame.Mark(MarkStack);
-	for (uint32 Index = This->NumRegisters; Index--;)
+	VFrame& This = ThisCell->StaticCast<VFrame>();
+	VCell::MarkReferencedCellsImpl(&This, MarkStack);
+	This.ReturnEffectToken.MarkReferencedCell(MarkStack);
+	This.Procedure.Mark(MarkStack);
+	This.ReturnSlot.Mark(MarkStack);
+	This.CallerFrame.Mark(MarkStack);
+	for (uint32 Index = This.NumRegisters; Index--;)
 	{
-		This->Registers[Index].MarkReferencedCell(MarkStack);
+		This.Registers[Index].MarkReferencedCell(MarkStack);
 	}
 }
 

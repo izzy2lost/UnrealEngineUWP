@@ -12,9 +12,9 @@ TGlobalTrivialEmergentTypePtr<&VVar::StaticCppClassInfo> VVar::GlobalTrivialEmer
 
 void VVar::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
 {
-	VVar* This = static_cast<VVar*>(ThisCell);
-	VCell::MarkReferencedCellsImpl(This, MarkStack);
-	This->Value.MarkReferencedCell(MarkStack);
+	VVar& This = ThisCell->StaticCast<VVar>();
+	VCell::MarkReferencedCellsImpl(&This, MarkStack);
+	This.Value.MarkReferencedCell(MarkStack);
 }
 
 } // namespace Verse

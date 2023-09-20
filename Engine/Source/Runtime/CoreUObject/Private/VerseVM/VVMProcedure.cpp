@@ -49,11 +49,11 @@ void VProcedure::RunDestructorImpl(VCell* This)
 
 void VProcedure::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
 {
-	VProcedure* This = static_cast<VProcedure*>(ThisCell);
-	VHeapValue::MarkReferencedCellsImpl(This, MarkStack);
-	for (uint32 Index = This->NumConstants; Index--;)
+	VProcedure& This = ThisCell->StaticCast<VProcedure>();
+	VHeapValue::MarkReferencedCellsImpl(&This, MarkStack);
+	for (uint32 Index = This.NumConstants; Index--;)
 	{
-		This->Constants[Index].Mark(MarkStack);
+		This.Constants[Index].Mark(MarkStack);
 	}
 }
 

@@ -2,6 +2,7 @@
 
 #if WITH_VERSE_VM
 #include "VerseVM/VVMPlaceholder.h"
+#include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 
 namespace Verse
@@ -12,9 +13,9 @@ TGlobalTrivialEmergentTypePtr<&VPlaceholder::StaticCppClassInfo> VPlaceholder::G
 
 void VPlaceholder::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
 {
-	VPlaceholder* This = static_cast<VPlaceholder*>(ThisCell);
-	VCell::MarkReferencedCellsImpl(This, MarkStack);
-	This->Value.Mark(MarkStack);
+	VPlaceholder& This = ThisCell->StaticCast<VPlaceholder>();
+	VCell::MarkReferencedCellsImpl(&This, MarkStack);
+	This.Value.Mark(MarkStack);
 }
 
 } // namespace Verse

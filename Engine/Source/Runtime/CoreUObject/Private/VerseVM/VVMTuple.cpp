@@ -15,11 +15,11 @@ DEFINE_VCPPCLASSINFO(VTuple, VHeapValue, TEXT("Tuple"));
 
 void VTuple::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
 {
-	VTuple* This = static_cast<VTuple*>(ThisCell);
-	VHeapValue::MarkReferencedCellsImpl(This, MarkStack);
-	for (uint32 Index = This->NumValues; Index--;)
+	VTuple& This = ThisCell->StaticCast<VTuple>();
+	VHeapValue::MarkReferencedCellsImpl(&This, MarkStack);
+	for (uint32 Index = This.NumValues; Index--;)
 	{
-		This->Values[Index].Mark(MarkStack);
+		This.Values[Index].Mark(MarkStack);
 	}
 }
 

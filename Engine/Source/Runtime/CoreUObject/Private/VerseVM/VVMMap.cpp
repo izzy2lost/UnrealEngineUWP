@@ -60,11 +60,12 @@ VValue VMap::GetValue(const int32 Index)
 
 void VMap::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
 {
-	VMap* This = static_cast<VMap*>(ThisCell);
-	UE::TUniqueLock Lock(This->MapMutex);
+	VMap& This = ThisCell->StaticCast<VMap>();
+	VHeapValue::MarkReferencedCellsImpl(&This, MarkStack);
 
-	VHeapValue::MarkReferencedCellsImpl(This, MarkStack);
-	for (VMapInternal::TIterator MapIt = This->InternalMap.CreateIterator(); MapIt; ++MapIt)
+	UE::TUniqueLock Lock(This.MapMutex);
+
+	for (VMapInternal::TIterator MapIt = This.InternalMap.CreateIterator(); MapIt; ++MapIt)
 	{
 		MapIt.Key().Mark(MarkStack);
 		MapIt.Value().Mark(MarkStack);
@@ -113,9 +114,9 @@ uint32 VMap::GetTypeHashImpl(VCell* ThisCell)
 
 void VMap::RunDestructorImpl(VCell* ThisCell)
 {
-	VMap* This = static_cast<VMap*>(ThisCell);
-	FHeap::ReportDeallocatedNativeBytes(This->GetAllocatedSize());
-	This->~VMap();
+	VMap& This = ThisCell->StaticCast<VMap>();
+	FHeap::ReportDeallocatedNativeBytes(This.GetAllocatedSize());
+	This.~VMap();
 }
 
 } // namespace Verse

@@ -17,9 +17,9 @@ TGlobalTrivialEmergentTypePtr<&VArray::StaticCppClassInfo> VArray::GlobalTrivial
 
 void VArray::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
 {
-	VArray* This = static_cast<VArray*>(ThisCell);
-	VHeapValue::MarkReferencedCellsImpl(This, MarkStack);
-	This->Tuple.Mark(MarkStack);
+	VArray& This = ThisCell->StaticCast<VArray>();
+	VHeapValue::MarkReferencedCellsImpl(&This, MarkStack);
+	This.Tuple.Mark(MarkStack);
 }
 
 bool VArray::EqualImpl(FRunningContext Context, VCell* ThisCell, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder)

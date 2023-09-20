@@ -12,12 +12,12 @@ TGlobalTrivialEmergentTypePtr<&VFunction::StaticCppClassInfo> VFunction::GlobalT
 
 void VFunction::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
 {
-	VFunction* This = static_cast<VFunction*>(ThisCell);
-	VCell::MarkReferencedCellsImpl(This, MarkStack);
-	This->Procedure.Mark(MarkStack);
-	for (uint32 Index = This->NumCaptures; Index--;)
+	VFunction& This = ThisCell->StaticCast<VFunction>();
+	VCell::MarkReferencedCellsImpl(&This, MarkStack);
+	This.Procedure.Mark(MarkStack);
+	for (uint32 Index = This.NumCaptures; Index--;)
 	{
-		This->Captures[Index].Mark(MarkStack);
+		This.Captures[Index].Mark(MarkStack);
 	}
 }
 
