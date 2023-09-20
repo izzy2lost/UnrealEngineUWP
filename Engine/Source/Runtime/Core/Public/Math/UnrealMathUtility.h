@@ -2295,7 +2295,8 @@ public:
 	UE_NODISCARD static CORE_API FVector GetBaryCentric2D(const FVector2D& Point, const FVector2D& A, const FVector2D& B, const FVector2D& C);
 
 	/**
-	 * Computes the barycentric coordinates for a given point in a triangle
+	 * Computes the barycentric coordinates for a given point in a 3D triangle.
+	 * Note: Prefer the more accurately-named ComputeBarycentricTri instead.
 	 *
 	 * @param	Point			point to convert to barycentric coordinates (in plane of ABC)
 	 * @param	A,B,C			three non-collinear points defining a triangle in CCW
@@ -2304,6 +2305,19 @@ public:
 	 *							                               or Point = A + b*(B-A) + c*(C-A) = (1-b-c)*A + b*B + c*C
 	 */
 	UE_NODISCARD static CORE_API FVector ComputeBaryCentric2D(const FVector& Point, const FVector& A, const FVector& B, const FVector& C);
+
+	/**
+	 * Computes the barycentric coordinates for a given point in a triangle
+	 *
+	 * @param	Point			point to convert to barycentric coordinates (in plane of ABC)
+	 * @param	A,B,C			three non-collinear points defining a triangle in CCW
+	 * @param	OutBarycentric	Vector containing the three weights a,b,c such that Point = a*A + b*B + c*C
+	 *							                               or Point = A + b*(B-A) + c*(C-A) = (1-b-c)*A + b*B + c*C
+	 * @param	Tolerance		Tolerance for ignoring too-small triangles
+	 * 
+	 * @return false if the result could not be computed (occurs when the triangle area is too small)
+	 */
+	UE_NODISCARD static CORE_API bool ComputeBarycentricTri(const FVector& Point, const FVector& A, const FVector& B, const FVector& C, FVector& OutBarycentric, double Tolerance = UE_DOUBLE_SMALL_NUMBER);
 
 	/**
 	 * Computes the barycentric coordinates for a given point on a tetrahedron (3D)
