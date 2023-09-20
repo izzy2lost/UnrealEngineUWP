@@ -29,8 +29,6 @@
 
 #define LOCTEXT_NAMESPACE "WorldDataLayers"
 
-int32 AWorldDataLayers::DataLayersStateEpoch = 0;
-
 static FString JoinDataLayerShortNamesFromInstanceNames(AWorldDataLayers* InWorldDataLayers, const TArray<FName>& InDataLayerInstanceNames)
 {
 	check(InWorldDataLayers);
@@ -51,6 +49,7 @@ AWorldDataLayers::AWorldDataLayers(const FObjectInitializer& ObjectInitializer)
 #if WITH_EDITORONLY_DATA
 	, bAllowRuntimeDataLayerEditing(true)
 #endif
+	, DataLayersStateEpoch(0)
 {
 	bAlwaysRelevant = true;
 	bReplicates = true;

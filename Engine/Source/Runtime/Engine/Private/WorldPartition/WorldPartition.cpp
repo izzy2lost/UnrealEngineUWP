@@ -1255,6 +1255,14 @@ bool UWorldPartition::UseMakingInvisibleTransactionRequests() const
 	return bCachedUseMakingInvisibleTransactionRequests.Get(false);
 }
 
+int32 UWorldPartition::GetStreamingStateEpoch() const
+{
+	// Merge WorldPartition's StreamingStateEpoch and AWorldDataLayers DataLayersStateEpoch
+	const UWorld* OuterWorld = GetTypedOuter<UWorld>();
+	const AWorldDataLayers* WorldDataLayers = OuterWorld->GetWorldDataLayers();
+	return HashCombineFast(StreamingStateEpoch, WorldDataLayers ? WorldDataLayers->GetDataLayersStateEpoch() : 0);
+}
+
 bool UWorldPartition::IsSimulating(bool bIncludeTestEnableSimulationStreamingSource)
 {
 #if WITH_EDITOR

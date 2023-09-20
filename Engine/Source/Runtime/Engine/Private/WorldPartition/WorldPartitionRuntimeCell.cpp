@@ -130,17 +130,20 @@ UDataLayerManager* UWorldPartitionRuntimeCell::GetDataLayerManager() const
 
 EDataLayerRuntimeState UWorldPartitionRuntimeCell::GetCellEffectiveWantedState() const
 {
-	if (EffectiveWantedStateEpoch != AWorldDataLayers::GetDataLayersStateEpoch())
+	if (!HasDataLayers())
 	{
-		if (!HasDataLayers())
-		{
-			EffectiveWantedState = EDataLayerRuntimeState::Activated;
-		}
-		else
+		EffectiveWantedState = EDataLayerRuntimeState::Activated;
+	}
+	else
+	{
+		const UWorld* OuterWorld = GetOuterWorld();
+		const AWorldDataLayers* WorldDataLayers = OuterWorld->GetWorldDataLayers();
+		check(WorldDataLayers);
+		if (EffectiveWantedStateEpoch != WorldDataLayers->GetDataLayersStateEpoch())
 		{
 			EffectiveWantedState = EDataLayerRuntimeState::Unloaded;
 
-			UWorldPartition* WorldPartition = GetOuterWorld()->GetWorldPartition();
+			UWorldPartition* WorldPartition = OuterWorld->GetWorldPartition();
 			if (const UDataLayerManager* DataLayerManager = WorldPartition->GetDataLayerManager())
 			{
 				switch (WorldPartition->GetDataLayersLogicOperator())
@@ -169,9 +172,9 @@ EDataLayerRuntimeState UWorldPartitionRuntimeCell::GetCellEffectiveWantedState()
 					checkNoEntry();
 				}
 			}
-		}
 
-		EffectiveWantedStateEpoch = AWorldDataLayers::GetDataLayersStateEpoch();
+			EffectiveWantedStateEpoch = WorldDataLayers->GetDataLayersStateEpoch();
+		}
 	}
 
 	return EffectiveWantedState;

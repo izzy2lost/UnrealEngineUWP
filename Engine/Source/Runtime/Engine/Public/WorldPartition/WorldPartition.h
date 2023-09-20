@@ -389,7 +389,7 @@ public:
 
 public:
 	static ENGINE_API bool IsSimulating(bool bIncludeTestEnableSimulationStreamingSource = true);
-	int32 GetStreamingStateEpoch() const { return StreamingStateEpoch; }
+	ENGINE_API int32 GetStreamingStateEpoch() const;
 
 	ENGINE_API bool CanInitialize(UWorld* InWorld) const;
 	ENGINE_API void Initialize(UWorld* World, const FTransform& InTransform);

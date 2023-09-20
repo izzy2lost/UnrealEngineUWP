@@ -69,7 +69,6 @@ UWorldPartitionStreamingPolicy::UWorldPartitionStreamingPolicy(const FObjectInit
 	, ProcessedToLoadCells(0)
 	, bCriticalPerformanceRequestedBlockTillOnWorld(false)
 	, CriticalPerformanceBlockTillLevelStreamingCompletedEpoch(0)
-	, ServerDataLayersStatesEpoch(INT_MIN)
 	, ServerStreamingStateEpoch(INT_MIN)
 	, ServerStreamingEnabledEpoch(INT_MIN)
 	, UpdateStreamingHash(0)
@@ -163,8 +162,7 @@ uint32 UWorldPartitionStreamingPolicy::ComputeUpdateStreamingHash(bool bCanOptim
 			HashBuilder << WorldPartition->RuntimeHash->ComputeUpdateStreamingHash();
 		}
 		HashBuilder << ComputeServerStreamingEnabledEpoch();
-		HashBuilder << GetOuterUWorldPartition()->GetStreamingStateEpoch();
-		HashBuilder << AWorldDataLayers::GetDataLayersStateEpoch();
+		HashBuilder << WorldPartition->GetStreamingStateEpoch();
 		HashBuilder << bIsStreaming3D;
 		for (const FWorldPartitionStreamingSource& Source : StreamingSources)
 		{
@@ -365,8 +363,7 @@ void UWorldPartitionStreamingPolicy::UpdateStreamingState()
 			if (!bIsServerStreamingEnabled && 
 				bLastUpdateCompletedLoadingAndActivation && 
 				(ServerStreamingEnabledEpoch == NewServerStreamingEnabledEpoch) &&
-				(ServerStreamingStateEpoch == WorldPartition->GetStreamingStateEpoch()) &&
-				(ServerDataLayersStatesEpoch == AWorldDataLayers::GetDataLayersStateEpoch()))
+				(ServerStreamingStateEpoch == WorldPartition->GetStreamingStateEpoch()))
 			{
 				// Server as nothing to do early out
 				return; 
@@ -599,7 +596,6 @@ void UWorldPartitionStreamingPolicy::UpdateStreamingState()
 	{
 		if (bUpdateServerEpoch)
 		{
-			ServerDataLayersStatesEpoch = AWorldDataLayers::GetDataLayersStateEpoch();
 			ServerStreamingStateEpoch = WorldPartition->GetStreamingStateEpoch();
 			ServerStreamingEnabledEpoch = NewServerStreamingEnabledEpoch;
 			UE_LOG(LogWorldPartition, Verbose, TEXT("Server epoch updated"));

@@ -122,7 +122,7 @@ public:
 	const TSet<FName>& GetEffectiveLoadedDataLayerNames() const;
 	UFUNCTION(NetMulticast, Reliable)
 	ENGINE_API void OnDataLayerRuntimeStateChanged(const UDataLayerInstance* InDataLayer, EDataLayerRuntimeState InState);
-	static int32 GetDataLayersStateEpoch() { return DataLayersStateEpoch; }
+	ENGINE_API int32 GetDataLayersStateEpoch() const { return DataLayersStateEpoch; }
 
 	//~ Begin Deprecated
 
@@ -258,7 +258,7 @@ private:
 	mutable int32 AllEffectiveLoadedDataLayerNamesEpoch;
 	mutable TSet<FName> AllEffectiveLoadedDataLayerNames;
 
-	static ENGINE_API int32 DataLayersStateEpoch;
+	int32 DataLayersStateEpoch;
 
 	static_assert(DATALAYER_TO_INSTANCE_RUNTIME_CONVERSION_ENABLED, "bHasDeprecatedDataLayers is deprecated and needs to be deleted.");
 	bool bHasDeprecatedDataLayers;
