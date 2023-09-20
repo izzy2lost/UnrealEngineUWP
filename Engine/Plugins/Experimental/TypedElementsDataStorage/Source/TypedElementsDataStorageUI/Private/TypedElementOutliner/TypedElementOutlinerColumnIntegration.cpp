@@ -340,16 +340,29 @@ FTypedElementSceneOutlinerQueryBinder& FTypedElementSceneOutlinerQueryBinder::Ge
 
 void FTypedElementSceneOutlinerQueryBinder::AssignQuery(TypedElementQueryHandle Query, const TSharedPtr<ISceneOutliner>& Outliner)
 {
-	FTypedElementSceneOutliner* QueryMapping = SceneOutliners.Find(Outliner);
+	CleanupStaleOutliners();
+
+	TSharedPtr<FTypedElementSceneOutliner>* QueryMapping = SceneOutliners.Find(Outliner);
 	if (QueryMapping == nullptr)
 	{
-		QueryMapping = &SceneOutliners.Add(Outliner);
-		QueryMapping->Initialize(*Storage, *StorageUi, *StorageCompatibility, Outliner);
+		QueryMapping = &SceneOutliners.Add(Outliner, MakeShared<FTypedElementSceneOutliner>());
+		
+		(*QueryMapping)->Initialize(*Storage, *StorageUi, *StorageCompatibility, Outliner);
 	}
-	QueryMapping->AssignQuery(Query);
+	(*QueryMapping)->AssignQuery(Query);
 }
 
-
+void FTypedElementSceneOutlinerQueryBinder::CleanupStaleOutliners()
+{
+	for (TMap<TWeakPtr<ISceneOutliner>, TSharedPtr<FTypedElementSceneOutliner>>::TIterator It(SceneOutliners); It; ++It)
+	{
+		// Remove any query mappings where the target Outliner doesn't exist anymore
+		if(!It.Key().IsValid())
+		{
+			It.RemoveCurrent();
+		}
+	}
+}
 
 //
 // FTypedElementSceneOutliner
@@ -469,12 +482,20 @@ void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query)
 				{
 					TSharedPtr<FTypedElementWidgetConstructor> CellConstructor(Constructor.Release());
 
+					/* If we have a fallback column for this query, remove it, take over it's priority and 
+					 * replace it with the TEDS column. But also allow the TEDS-Outliner column to fallback to it for
+					 * data not in TEDS yet.
+				 	 */
 					FName FallbackColumn = Binder.FindOutlinerColumnFromTEDSColumns(ColumnTypes);
+					const FSceneOutlinerColumnInfo* FallbackColumnInfo = OutlinerPinned->GetSharedData().ColumnMap.Find(FallbackColumn);
+					int32 ColumnPriority = FallbackColumnInfo ? FallbackColumnInfo->PriorityIndex : DefaultPriorityIndex + IndexOffset;
+
+					OutlinerPinned->RemoveColumn(FallbackColumn);
 
 					FName NameId = FindLongestMatchingName(ColumnTypes, IndexOffset);
 					AddedColumns.Add(NameId);
 					OutlinerPinned->AddColumn(NameId,
-						FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, DefaultPriorityIndex + IndexOffset,
+						FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, ColumnPriority,
 							FCreateSceneOutlinerColumn::CreateLambda(
 								[this, Query, NameId, &ColumnTypes, CellConstructor, &OutlinerPinned, FallbackColumn](ISceneOutliner&)
 								{

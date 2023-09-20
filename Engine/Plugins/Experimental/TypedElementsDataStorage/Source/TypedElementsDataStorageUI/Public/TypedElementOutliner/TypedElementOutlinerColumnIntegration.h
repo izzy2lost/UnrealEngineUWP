@@ -67,8 +67,9 @@ public:
 private:
 	FTypedElementSceneOutlinerQueryBinder();
 	void SetupDefaultColumnMapping();
-
-	TMap<TWeakPtr<ISceneOutliner>, FTypedElementSceneOutliner> SceneOutliners;
+	void CleanupStaleOutliners();
+	
+	TMap<TWeakPtr<ISceneOutliner>, TSharedPtr<FTypedElementSceneOutliner>> SceneOutliners;
 
 	ITypedElementDataStorageInterface* Storage{ nullptr };
 	ITypedElementDataStorageUiInterface* StorageUi{ nullptr };

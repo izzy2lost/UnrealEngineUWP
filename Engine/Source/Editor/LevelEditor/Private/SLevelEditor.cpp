@@ -68,6 +68,7 @@
 #include "Elements/Actor/ActorElementLevelEditorCommonActionsCustomization.h"
 #include "Elements/Component/ComponentElementLevelEditorSelectionCustomization.h"
 #include "Elements/Component/ComponentElementLevelEditorCommonActionsCustomization.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/SMInstance/SMInstanceElementId.h"
 #include "Elements/SMInstance/SMInstanceElementLevelEditorSelectionCustomization.h"
 #include "DerivedDataEditorModule.h"
@@ -838,20 +839,31 @@ TSharedRef<ISceneOutliner> SLevelEditor::CreateSceneOutliner(FName TabIdentifier
 	
 	TSharedPtr<FLevelEditorOutlinerSettings> OutlinerSettings = LevelEditorModule.GetLevelEditorOutlinerSettings();
 	OutlinerSettings->GetOutlinerFilters(InitOptions.FilterBarOptions);
-
 	InitOptions.FilterBarOptions.CategoryToExpand = OutlinerSettings->GetFilterCategory(FLevelEditorOutlinerBuiltInCategories::Common());
 
 	FSceneOutlinerModule& SceneOutlinerModule = FModuleManager::Get().LoadModuleChecked<FSceneOutlinerModule>("SceneOutliner");
-	TSharedRef<ISceneOutliner> SceneOutlinerRef = SceneOutlinerModule.CreateActorBrowser(
-		InitOptions);
+	TSharedPtr<ISceneOutliner> NewSceneOutlinerPtr;
 
+	// Check if the Typed Element Registry has registered a custom outliner factory for us to use
+	if(SceneOutlinerModule.IsCustomSceneOutlinerFactoryRegistered(UTypedElementRegistry::GetInstance()->GetFName()))
+	{
+		NewSceneOutlinerPtr = SceneOutlinerModule.CreateCustomRegisteredOutliner(UTypedElementRegistry::GetInstance()->GetFName(), InitOptions);
+	}
+	// Fallback to the regular Actor Browser otherwise
+	else
+	{
+		NewSceneOutlinerPtr = SceneOutlinerModule.CreateActorBrowser(
+			InitOptions);
+
+	}
+	
 	// Add this to the map of all outliners
-	SceneOutliners.Add(TabIdentifier, SceneOutlinerRef);
+	SceneOutliners.Add(TabIdentifier, NewSceneOutlinerPtr);
 
 	// Update the most recently used outliner
 	SetMostRecentlyUsedSceneOutliner(TabIdentifier);
 
-	return SceneOutlinerRef;
+	return NewSceneOutlinerPtr.ToSharedRef();
 }
 
 void SLevelEditor::OnExtendSceneOutlinerTabContextMenu(FMenuBuilder& InMenuBuilder)
