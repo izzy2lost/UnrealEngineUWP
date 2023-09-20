@@ -303,7 +303,7 @@ public:
 
 	// UInstancedStaticMesh interface
 	ENGINE_API virtual int32 AddInstance(const FTransform& InstanceTransform, bool bWorldSpace = false) override;
-	ENGINE_API virtual TArray<int32> AddInstances(const TArray<FTransform>& InstanceTransforms, bool bShouldReturnIndices, bool bWorldSpace = false) override;
+	ENGINE_API virtual TArray<int32> AddInstances(const TArray<FTransform>& InstanceTransforms, bool bShouldReturnIndices, bool bWorldSpace = false, bool bUpdateNavigation = true) override;
 	ENGINE_API virtual bool RemoveInstance(int32 InstanceIndex) override;
 	ENGINE_API virtual bool RemoveInstances(const TArray<int32>& InstancesToRemove) override;
 	ENGINE_API virtual bool RemoveInstances(const TArray<int32>& InstancesToRemove, bool bInstanceArrayAlreadySortedInReverseOrder) override;

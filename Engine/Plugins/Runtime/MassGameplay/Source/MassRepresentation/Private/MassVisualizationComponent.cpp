@@ -425,9 +425,6 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 			// remove instance
 			if (ISMComponent.PerInstanceSMData.IsValidIndex(InstanceIndex))
 			{
-				// Request navigation update
-				ISMComponent.PartialNavigationUpdate(InstanceIndex);
-				
 				ISMComponent.PerInstanceSMData.RemoveAtSwap(InstanceIndex, 1, false);
 				ISMComponent.PerInstanceSMCustomData.RemoveAt(InstanceIndex * ISMComponent.NumCustomDataFloats, ISMComponent.NumCustomDataFloats, false);
 			}
@@ -499,6 +496,8 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 		}
 	}
 
+	const bool bInitiallyEmpty = ISMComponent.PerInstanceSMData.Num() == 0;
+	
 	if (SharedData.UpdateInstanceIds.Num())
 	{
 		INC_DWORD_STAT_BY(STAT_Mass_VisualizationComponent_InstancesAddedNum, SharedData.UpdateInstanceIds.Num());
@@ -544,7 +543,7 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 			}
 
 			check(InstanceIds.Num() == InstanceTransforms.Num());
-			const TArray<int32> NewIndices = ISMComponent.AddInstances(InstanceTransforms, /*bShouldReturnIndices=*/true, /*bWorldSpace=*/true);
+			const TArray<int32> NewIndices = ISMComponent.AddInstances(InstanceTransforms, /*bShouldReturnIndices=*/true, /*bWorldSpace=*/true, /*bUpdateNavigation=*/bInitiallyEmpty);
 
 			check(InstanceIds.Num() == NewIndices.Num());
 			// note that in this case ISMComponent.PerInstanceSMData.Num() is always going to be greater than ISMComponent.PerInstanceIds
