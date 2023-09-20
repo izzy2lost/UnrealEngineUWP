@@ -287,7 +287,7 @@ void FPackageStoreOptimizer::AppendPathForPublicExportHash(UObject* Object, FStr
 
 	TArray<FName, TInlineAllocator<10>> PathNames;
 	int32 PathNameLen = 0;
-	for (UObject* Iter = Object; Iter->GetOuter(); Iter = Object->GetOuter())
+	for (UObject* Iter = Object; Iter->GetOuter(); Iter = Iter->GetOuter())
 	{
 		FName PathName = Iter->GetFName();
 		PathNames.Add(PathName);
