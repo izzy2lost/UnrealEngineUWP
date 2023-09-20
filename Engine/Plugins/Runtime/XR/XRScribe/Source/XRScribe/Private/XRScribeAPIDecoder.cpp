@@ -521,7 +521,7 @@ void FOpenXRCaptureDecoder::DecodeWaitFrame(const FOpenXRAPIPacketBase& BasePack
 void FOpenXRCaptureDecoder::DecodeBeginFrame(const FOpenXRAPIPacketBase& BasePacket)
 {
 	check(BasePacket.ApiId == EOpenXRAPIPacketId::BeginFrame);
-	check(BasePacket.Result == XR_SUCCESS);
+	check(BasePacket.Result == XR_SUCCESS || BasePacket.Result == XR_FRAME_DISCARDED);
 
 	FOpenXRBeginFramePacket Data(XrResult::XR_ERROR_RUNTIME_FAILURE);
 
