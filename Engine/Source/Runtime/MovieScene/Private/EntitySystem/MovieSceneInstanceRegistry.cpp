@@ -6,6 +6,7 @@
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "EntitySystem/MovieSceneEntityInstantiatorSystem.h"
 #include "EntitySystem/MovieSceneEntitySystemTask.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "EntitySystem/EntityAllocationIterator.h"
 #include "EntitySystem/BuiltInComponentTypes.h"
 
@@ -63,7 +64,9 @@ FRootInstanceHandle FInstanceRegistry::AllocateRootInstance(IMovieScenePlayer* P
 	FSparseArrayAllocationInfo NewAllocation = Instances.AddUninitialized();
 	FRootInstanceHandle InstanceHandle { (uint16)NewAllocation.Index, InstanceSerial };
 
-	new (NewAllocation) FSequenceInstance(Linker, Player, InstanceHandle);
+	TSharedRef<FSharedPlaybackState> NewPlaybackState = MakeShared<FSharedPlaybackState>();
+
+	new (NewAllocation) FSequenceInstance(Linker, Player, NewPlaybackState, InstanceHandle);
 
 	return InstanceHandle;
 }
@@ -75,8 +78,10 @@ FInstanceHandle FInstanceRegistry::AllocateSubInstance(IMovieScenePlayer* Player
 	const uint16 InstanceSerial = InstanceSerialNumber++;
 	FSparseArrayAllocationInfo NewAllocation = Instances.AddUninitialized();
 	FInstanceHandle InstanceHandle { (uint16)NewAllocation.Index, InstanceSerial };
+	
+	TSharedRef<FSharedPlaybackState> PlaybackState = GetInstance(RootInstanceHandle).GetSharedPlaybackState();
 
-	new (NewAllocation) FSequenceInstance(Linker, Player, InstanceHandle, ParentInstanceHandle, RootInstanceHandle, SequenceID);
+	new (NewAllocation) FSequenceInstance(Linker, Player, PlaybackState, InstanceHandle, ParentInstanceHandle, RootInstanceHandle, SequenceID);
 
 	return InstanceHandle;
 }
@@ -86,6 +91,7 @@ void FInstanceRegistry::DestroyInstance(FInstanceHandle InstanceHandle)
 	if (ensureMsgf(Instances.IsValidIndex(InstanceHandle.InstanceID) && Instances[InstanceHandle.InstanceID].GetSerialNumber() == InstanceHandle.InstanceSerial, TEXT("Attempting to destroy an instance an invalid instance handle.")))
 	{
 		FSequenceInstance& Instance = Instances[InstanceHandle.InstanceID];
+		const bool bIsRootInstance = Instance.IsRootSequence();
 		const bool bHasFinished = (GExitPurge || Instance.HasFinished());
 		if (!bHasFinished)
 		{

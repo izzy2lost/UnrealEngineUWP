@@ -31,6 +31,7 @@ namespace MovieScene
 struct FCompiledDataVolatilityManager;
 struct FPreAnimatedStateExtension;
 struct FSequenceInstance;
+struct FSharedPlaybackState;
 struct FSubSequencePath;
 struct ISequenceUpdater;
 
@@ -129,6 +130,14 @@ public:
 	MOVIESCENE_API void RunLegacyTrackTemplates();
 
 public:
+
+	/**
+	 * Retrieve the shared playback state for this instance's hierarchy
+	 */
+	TSharedRef<FSharedPlaybackState> GetSharedPlaybackState() const
+	{
+		return SharedPlaybackState;
+	}
 
 	/**
 	 * Retrieve the IMovieScenePlayer that is playing back the top level sequence for this instance
@@ -311,10 +320,10 @@ public:
 public:
 
 	/** Constructor for top level sequences */
-	MOVIESCENE_API explicit FSequenceInstance(UMovieSceneEntitySystemLinker* Linker, IMovieScenePlayer* Player, FRootInstanceHandle ThisInstanceHandle);
+	MOVIESCENE_API explicit FSequenceInstance(UMovieSceneEntitySystemLinker* Linker, IMovieScenePlayer* Player, TSharedRef<FSharedPlaybackState> PlaybackState, FRootInstanceHandle ThisInstanceHandle);
 
 	/** Constructor for sub sequences */
-	MOVIESCENE_API explicit FSequenceInstance(UMovieSceneEntitySystemLinker* Linker, IMovieScenePlayer* Player, FInstanceHandle ThisInstanceHandle, FInstanceHandle InParentInstanceHandle, FRootInstanceHandle RootInstanceHandle, FMovieSceneSequenceID InSequenceID);
+	MOVIESCENE_API explicit FSequenceInstance(UMovieSceneEntitySystemLinker* Linker, IMovieScenePlayer* Player, TSharedRef<FSharedPlaybackState> PlaybackState, FInstanceHandle ThisInstanceHandle, FInstanceHandle InParentInstanceHandle, FRootInstanceHandle RootInstanceHandle, FMovieSceneSequenceID InSequenceID);
 
 	/** Destructor */
 	MOVIESCENE_API ~FSequenceInstance();
@@ -346,6 +355,9 @@ private:
 	TUniquePtr<ISequenceUpdater> SequenceUpdater;
 	/** For top-level sequences only - a utility class that is used to ensure that volatile sequences are up to date. Only valid in editor, or for sequences that have the volatile flag. */
 	TUniquePtr<FCompiledDataVolatilityManager> VolatilityManager;
+
+	/** Playback state shared by the entire sequence hierarchy */
+	TSharedRef<FSharedPlaybackState> SharedPlaybackState;
 
 
 	/** Delegate Binding for when an object binding is invalidated in this instance . */

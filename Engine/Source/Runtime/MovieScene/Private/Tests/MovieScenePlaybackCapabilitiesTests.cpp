@@ -1,0 +1,328 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "CoreTypes.h"
+#include "MovieSceneFwd.h"
+#include "Misc/AutomationTest.h"
+#include "Evaluation/MovieScenePlaybackCapabilities.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+namespace UE::MovieScene::Tests
+{
+
+// A couple of simple test capabilities.
+struct FTestSimpleCapability
+{
+	static int32 TimesDestroyed;
+
+	int32 IntValue;
+	FString StringValue;
+
+	FTestSimpleCapability() 
+		: IntValue(0)
+	{}
+	FTestSimpleCapability(int32 InIntValue, const FString& InStringValue) 
+		: IntValue(InIntValue)
+		, StringValue(InStringValue)
+	{}
+	~FTestSimpleCapability()
+	{
+		++TimesDestroyed;
+	}
+
+	static TPlaybackCapabilityID<FTestSimpleCapability> ID;
+};
+
+TPlaybackCapabilityID<FTestSimpleCapability> FTestSimpleCapability::ID = TPlaybackCapabilityID<FTestSimpleCapability>::Register();
+
+int32 FTestSimpleCapability::TimesDestroyed = 0;
+
+struct FTestOtherSimpleCapability
+{
+	float FloatValue = 0.f;
+
+	static TPlaybackCapabilityID<FTestOtherSimpleCapability> ID;
+};
+
+TPlaybackCapabilityID<FTestOtherSimpleCapability> FTestOtherSimpleCapability::ID = TPlaybackCapabilityID<FTestOtherSimpleCapability>::Register();
+
+// Interface capability and sample implementation.
+struct FTestCapabilityBase
+{
+	static int32 TimesDestroyedBase;
+
+	float FloatValue = 0.f;
+
+	virtual ~FTestCapabilityBase() { ++TimesDestroyedBase; }
+
+	virtual int32 GetIntValue() { return 0; }
+	virtual FString GetStringValue() { return FString(); }
+
+	static TPlaybackCapabilityID<FTestCapabilityBase> ID;
+};
+
+TPlaybackCapabilityID<FTestCapabilityBase> FTestCapabilityBase::ID = TPlaybackCapabilityID<FTestCapabilityBase>::Register();
+
+int32 FTestCapabilityBase::TimesDestroyedBase = 0;
+
+struct FTestCapabilityDerived : FTestCapabilityBase
+{
+	static int32 TimesDestroyedDerived;
+
+	int32 IntValue;
+	FString StringValue;
+
+	FTestCapabilityDerived(int32 InIntValue, const FString& InStringValue)
+		: IntValue(InIntValue)
+		, StringValue(InStringValue)
+	{}
+	virtual ~FTestCapabilityDerived() { ++TimesDestroyedDerived; }
+
+	virtual int32 GetIntValue() override { return IntValue; }
+	virtual FString GetStringValue() override { return StringValue; }
+};
+
+int32 FTestCapabilityDerived::TimesDestroyedDerived = 0;
+
+// Base capability that implements the IPlaybackCapability interface.
+struct FTestInvalidatableCapability : IPlaybackCapability
+{
+	int32 TimesInvalidated = 0;
+
+	virtual void InvalidateCachedData(UMovieSceneEntitySystemLinker* Linker) override
+	{
+		++TimesInvalidated;
+	}
+
+	static TPlaybackCapabilityID<FTestInvalidatableCapability> ID;
+};
+
+TPlaybackCapabilityID<FTestInvalidatableCapability> FTestInvalidatableCapability::ID = TPlaybackCapabilityID<FTestInvalidatableCapability>::Register();
+
+// Derived version of the simple test capability, but with interface
+struct FTestSimpleCapabilityDerivedWithInterface : FTestSimpleCapability, IPlaybackCapability
+{
+	int32 TimesInvalidated = 0;
+
+	virtual void InvalidateCachedData(UMovieSceneEntitySystemLinker* Linker) override
+	{
+		++TimesInvalidated;
+	}
+};
+
+} // namespace UE::MovieScene::Tests
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMovieScenePlaybackCapabilitiesSimpleTest, 
+		"System.Engine.Sequencer.Capabilities.Simple", 
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMovieScenePlaybackCapabilitiesSimpleTest::RunTest(const FString& Parameters)
+{
+	using namespace UE::MovieScene;
+	using namespace UE::MovieScene::Tests;
+
+	FTestSimpleCapability::TimesDestroyed = 0;
+	{
+		FPlaybackCapabilities Caps;
+		UTEST_FALSE("No capability", Caps.HasCapability(FTestSimpleCapability::ID));
+
+		FTestSimpleCapability& SimpleCap = Caps.AddCapability(FTestSimpleCapability::ID, 42, TEXT("Just a test"));
+		UTEST_EQUAL("Int value", SimpleCap.IntValue, 42);
+		UTEST_EQUAL("String value", SimpleCap.StringValue, TEXT("Just a test"));
+
+		UTEST_TRUE("Found capability", Caps.HasCapability(FTestSimpleCapability::ID));
+
+		FTestSimpleCapability* SimpleCap2 = Caps.FindCapability(FTestSimpleCapability::ID);
+		UTEST_NOT_NULL("Retrived test capacity", SimpleCap2);
+		UTEST_EQUAL("Same capacity?", SimpleCap2, &SimpleCap);
+	}
+	UTEST_EQUAL("Destroyed", FTestSimpleCapability::TimesDestroyed, 1);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMovieScenePlaybackCapabilitiesInlineInterfaceTest, 
+		"System.Engine.Sequencer.Capabilities.InlineInterface", 
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMovieScenePlaybackCapabilitiesInlineInterfaceTest::RunTest(const FString& Parameters)
+{
+	using namespace UE::MovieScene;
+	using namespace UE::MovieScene::Tests;
+
+	FTestCapabilityBase::TimesDestroyedBase = 0;
+	FTestCapabilityDerived::TimesDestroyedDerived = 0;
+	{
+		FPlaybackCapabilities Caps;
+		UTEST_FALSE("No capability", Caps.HasCapability(FTestCapabilityBase::ID));
+
+		FTestCapabilityBase& InterfaceCap = Caps.AddCapabilityImplementation<FTestCapabilityDerived>(
+				FTestCapabilityBase::ID, 42, TEXT("Just a test"));
+		UTEST_EQUAL("Int value", InterfaceCap.GetIntValue(), 42);
+		UTEST_EQUAL("String value", InterfaceCap.GetStringValue(), TEXT("Just a test"));
+
+		UTEST_TRUE("Found capability", Caps.HasCapability(FTestCapabilityBase::ID));
+
+		FTestCapabilityBase* InterfaceCap2 = Caps.FindCapability(FTestCapabilityBase::ID);
+		UTEST_NOT_NULL("Retrived interface capacity", InterfaceCap2);
+		UTEST_EQUAL("Same capacity?", InterfaceCap2, &InterfaceCap);
+	}
+	UTEST_EQUAL("Times destroyed", FTestCapabilityBase::TimesDestroyedBase, 1);
+	UTEST_EQUAL("Times destroyed", FTestCapabilityDerived::TimesDestroyedDerived, 1);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMovieScenePlaybackCapabilitiesRawPointerTest, 
+		"System.Engine.Sequencer.Capabilities.RawPointer", 
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMovieScenePlaybackCapabilitiesRawPointerTest::RunTest(const FString& Parameters)
+{
+	using namespace UE::MovieScene;
+	using namespace UE::MovieScene::Tests;
+
+	FTestSimpleCapability::TimesDestroyed = 0;
+	{
+		FTestSimpleCapability ActualCap;
+		{
+			FPlaybackCapabilities Caps;
+			UTEST_FALSE("No capability", Caps.HasCapability(FTestSimpleCapability::ID));
+
+			FTestSimpleCapability& PtrCap = Caps.AddCapabilityRaw(FTestSimpleCapability::ID, &ActualCap);
+			UTEST_TRUE("Found capability", Caps.HasCapability(FTestSimpleCapability::ID));
+
+			FTestSimpleCapability* PtrCap2 = Caps.FindCapability(FTestSimpleCapability::ID);
+			UTEST_NOT_NULL("Retrived test capacity", PtrCap2);
+			UTEST_EQUAL("Same capacity?", PtrCap2, &PtrCap);
+			UTEST_EQUAL("Same capacity?", PtrCap2, &ActualCap);
+		}
+		UTEST_EQUAL("Not destroyed", FTestSimpleCapability::TimesDestroyed, 0);
+	}
+	UTEST_EQUAL("Destroyed", FTestSimpleCapability::TimesDestroyed, 1);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMovieScenePlaybackCapabilitiesSharedTest, 
+		"System.Engine.Sequencer.Capabilities.Shared", 
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMovieScenePlaybackCapabilitiesSharedTest::RunTest(const FString& Parameters)
+{
+	using namespace UE::MovieScene;
+	using namespace UE::MovieScene::Tests;
+
+	FTestSimpleCapability::TimesDestroyed = 0;
+	{
+		TSharedRef<FTestSimpleCapability> ActualCap = MakeShared<FTestSimpleCapability>();
+		UTEST_EQUAL("Ref count", ActualCap.GetSharedReferenceCount(), 1);
+		{
+			FPlaybackCapabilities Caps;
+			UTEST_FALSE("No capability", Caps.HasCapability(FTestSimpleCapability::ID));
+
+			FTestSimpleCapability& PtrCap = Caps.AddCapabilityShared(FTestSimpleCapability::ID, ActualCap);
+			UTEST_TRUE("Found capability", Caps.HasCapability(FTestSimpleCapability::ID));
+			UTEST_EQUAL("Ref count", ActualCap.GetSharedReferenceCount(), 2);
+
+			FTestSimpleCapability* PtrCap2 = Caps.FindCapability(FTestSimpleCapability::ID);
+			UTEST_NOT_NULL("Retrived test capacity", PtrCap2);
+			UTEST_EQUAL("Same capacity?", PtrCap2, &PtrCap);
+			UTEST_EQUAL("Same capacity?", PtrCap2, ActualCap.ToSharedPtr().Get());
+		}
+		UTEST_EQUAL("Not destroyed", FTestSimpleCapability::TimesDestroyed, 0);
+		UTEST_EQUAL("Ref count", ActualCap.GetSharedReferenceCount(), 1);
+	}
+	UTEST_EQUAL("Destroyed", FTestSimpleCapability::TimesDestroyed, 1);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMovieScenePlaybackCapabilitiesInvalidateTest, 
+		"System.Engine.Sequencer.Capabilities.Invalidate", 
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMovieScenePlaybackCapabilitiesInvalidateTest::RunTest(const FString& Parameters)
+{
+	using namespace UE::MovieScene;
+	using namespace UE::MovieScene::Tests;
+
+	// Test simple inline
+	{
+		FPlaybackCapabilities Caps;
+		FTestInvalidatableCapability& Cap = Caps.AddCapability(FTestInvalidatableCapability::ID);
+		UTEST_EQUAL("Not invalidated", Cap.TimesInvalidated, 0);
+		Caps.InvalidateCachedData(nullptr);
+		UTEST_EQUAL("Invalidated", Cap.TimesInvalidated, 1);
+	}
+
+	// Test inline subclass implementing interface when base class doesn't
+	{
+		FPlaybackCapabilities Caps;
+		FTestSimpleCapability& Cap = Caps.AddCapabilityImplementation<FTestSimpleCapabilityDerivedWithInterface>(FTestSimpleCapability::ID);
+		FTestSimpleCapabilityDerivedWithInterface* ActualCap = static_cast<FTestSimpleCapabilityDerivedWithInterface*>(&Cap);
+		UTEST_EQUAL("Not invalidated", ActualCap->TimesInvalidated, 0);
+		Caps.InvalidateCachedData(nullptr);
+		UTEST_EQUAL("Invalidated", ActualCap->TimesInvalidated, 1);
+	}
+
+	// Test raw pointer
+	{
+		FTestInvalidatableCapability ActualCap;
+
+		FPlaybackCapabilities Caps;
+		Caps.AddCapabilityRaw(FTestInvalidatableCapability::ID, &ActualCap);
+		UTEST_EQUAL("Not invalidated", ActualCap.TimesInvalidated, 0);
+		Caps.InvalidateCachedData(nullptr);
+		UTEST_EQUAL("Invalidated", ActualCap.TimesInvalidated, 1);
+	}
+
+	// Test shared pointer
+	{
+		TSharedRef<FTestInvalidatableCapability> ActualCap = MakeShared<FTestInvalidatableCapability>();
+
+		FPlaybackCapabilities Caps;
+		Caps.AddCapabilityShared(FTestInvalidatableCapability::ID, ActualCap);
+		UTEST_EQUAL("Not invalidated", ActualCap->TimesInvalidated, 0);
+		Caps.InvalidateCachedData(nullptr);
+		UTEST_EQUAL("Invalidated", ActualCap->TimesInvalidated, 1);
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMovieScenePlaybackCapabilitiesMultipleTest, 
+		"System.Engine.Sequencer.Capabilities.Multiple", 
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMovieScenePlaybackCapabilitiesMultipleTest::RunTest(const FString& Parameters)
+{
+	using namespace UE::MovieScene;
+	using namespace UE::MovieScene::Tests;
+
+	FTestOtherSimpleCapability RawPtrCap;
+	TSharedRef<FTestInvalidatableCapability> SharedCap = MakeShared<FTestInvalidatableCapability>();
+	{
+		FPlaybackCapabilities Caps;
+
+		Caps.AddCapabilityRaw(FTestOtherSimpleCapability::ID, &RawPtrCap);
+		Caps.AddCapabilityShared(FTestInvalidatableCapability::ID, SharedCap);
+
+		UTEST_FALSE("Found capability", Caps.HasCapability(FTestSimpleCapability::ID));
+		UTEST_FALSE("Found capability", Caps.HasCapability(FTestCapabilityBase::ID));
+		UTEST_TRUE("Found capability", Caps.HasCapability(FTestOtherSimpleCapability::ID));
+		UTEST_TRUE("Found capability", Caps.HasCapability(FTestInvalidatableCapability::ID));
+
+		Caps.AddCapability(FTestSimpleCapability::ID, 8, TEXT("Other simple test"));
+		Caps.AddCapabilityImplementation<FTestCapabilityDerived>(
+				FTestCapabilityBase::ID, 12, TEXT("Another implementation test"));
+
+		UTEST_TRUE("Found capability", Caps.HasCapability(FTestSimpleCapability::ID));
+		UTEST_TRUE("Found capability", Caps.HasCapability(FTestCapabilityBase::ID));
+		UTEST_TRUE("Found capability", Caps.HasCapability(FTestOtherSimpleCapability::ID));
+		UTEST_TRUE("Found capability", Caps.HasCapability(FTestInvalidatableCapability::ID));
+
+		UTEST_EQUAL("Before invalidation", SharedCap->TimesInvalidated, 0);
+		Caps.InvalidateCachedData(nullptr);
+		UTEST_EQUAL("After invalidation", SharedCap->TimesInvalidated, 1);
+	}
+
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS
+
