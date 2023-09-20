@@ -16,6 +16,7 @@ struct FLocalFogVolumeGPUInstanceData
 	float Density;
 	float HeightFalloff;
 	float HeightOffset;
+	float UniformScale;
 
 	float3 Albedo;
 	float  PhaseG;
@@ -29,28 +30,31 @@ struct FLocalFogVolumeGPUInstanceData
 
 #if defined(LFVStruct)
 
-#define LFVInsts				LFVStruct.LFV.LocalFogVolumeInstances
-#define LFVTileDataTex			LFVStruct.LFV.LocalFogVolumeTileDataTexture
+#define LFVInsts					LFVStruct.LFV.LocalFogVolumeInstances
+#define LFVTileDataTex				LFVStruct.LFV.LocalFogVolumeTileDataTexture
 
-#define LFVTileDataResolution	LFVStruct.LFV.LocalFogVolumeTileDataTextureResolution
-#define LFVInstcount			LFVStruct.LFV.LocalFogVolumeInstanceCount
-#define LFVTilePixelSize		LFVStruct.LFV.LocalFogVolumeTilePixelSize
+#define LFVTileDataResolution		LFVStruct.LFV.LocalFogVolumeTileDataTextureResolution
+#define LFVInstcount				LFVStruct.LFV.LocalFogVolumeInstanceCount
+#define LFVTilePixelSize			LFVStruct.LFV.LocalFogVolumeTilePixelSize
+#define LFVRenderInVolumetricFog	LFVStruct.LFV.ShouldRenderLocalFogVolumeInVolumetricFog
 
 #else
 
-uint2							LFV_LocalFogVolumeTileDataTextureResolution;
-uint							LFV_LocalFogVolumeInstanceCount;
-uint							LFV_LocalFogVolumeTilePixelSize;
+uint2								LFV_LocalFogVolumeTileDataTextureResolution;
+uint								LFV_LocalFogVolumeInstanceCount;
+uint								LFV_LocalFogVolumeTilePixelSize;
+uint								LFV_ShouldRenderLocalFogVolumeInVolumetricFog;
 
-Buffer<float4>					LFV_LocalFogVolumeInstances;
-Texture2DArray<uint>			LFV_LocalFogVolumeTileDataTexture;
+Buffer<float4>						LFV_LocalFogVolumeInstances;
+Texture2DArray<uint>				LFV_LocalFogVolumeTileDataTexture;
 
-#define LFVInsts				LFV_LocalFogVolumeInstances
-#define LFVTileDataTex			LFV_LocalFogVolumeTileDataTexture
+#define LFVInsts					LFV_LocalFogVolumeInstances
+#define LFVTileDataTex				LFV_LocalFogVolumeTileDataTexture
 
-#define LFVTileDataResolution	LFV_LocalFogVolumeTileDataTextureResolution
-#define LFVInstcount			LFV_LocalFogVolumeInstanceCount
-#define LFVTilePixelSize		LFV_LocalFogVolumeTilePixelSize
+#define LFVTileDataResolution		LFV_LocalFogVolumeTileDataTextureResolution
+#define LFVInstcount				LFV_LocalFogVolumeInstanceCount
+#define LFVTilePixelSize			LFV_LocalFogVolumeTilePixelSize
+#define LFVRenderInVolumetricFog	LFV_ShouldRenderLocalFogVolumeInVolumetricFog
 
 #endif
 
@@ -67,6 +71,7 @@ FLocalFogVolumeGPUInstanceData GetLocalFogVolumeGPUInstanceData(uint Index)
 	Data.Density = Temp0.x;
 	Data.HeightFalloff = Temp0.y;
 	Data.HeightOffset = Temp0.z;
+	Data.UniformScale = Temp0.w;
 
 	float4 Temp1 = LFVInsts[Offset + 9];
 	Data.Albedo = Temp1.xyz;
@@ -294,6 +299,16 @@ float4 GetLFVInstanceContribution(
 
 		float Length0 = length(P0Space - CamRayOriginSpace);
 		float Length1 = length(P1Space - CamRayOriginSpace);
+
+		if (LFVRenderInVolumetricFog)
+		{
+			// Volumetric fog covers up to MaxDistance along ViewZ, exclude analytical fog from this range
+			float CosAngle = dot(CamRayWorldDir, View.ViewForward);
+			float InvCosAngle = (CosAngle > 0.0001) ? rcp(CosAngle) : 0;
+			float ExcludeDistance = View.VolumetricFogMaxDistance * InvCosAngle;
+			Length0 = max(Length0, ExcludeDistance);
+			Length1 = max(Length1, ExcludeDistance);
+		}
 
 		// Clamp the traced distance to depth and compute world length.
 		Length0 = min(LengthD, Length0);

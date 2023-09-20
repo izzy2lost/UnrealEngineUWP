@@ -24,6 +24,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLocalFogVolumeCommonParameters, )
 	SHADER_PARAMETER(FUintVector2, LocalFogVolumeTileDataTextureResolution)
 	SHADER_PARAMETER(uint32, LocalFogVolumeInstanceCount)
 	SHADER_PARAMETER(uint32, LocalFogVolumeTilePixelSize)
+	SHADER_PARAMETER(uint32, ShouldRenderLocalFogVolumeInVolumetricFog)
 END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, )
@@ -44,7 +45,7 @@ public:
 	float Density;
 	float HeightFalloff;
 	float HeightOffset;
-	float Unused;
+	float UniformScale;
 
 	FVector3f Albedo;
 	float PhaseG;
@@ -117,23 +118,24 @@ struct FLocalFogVolumeViewData
 	Local height fog rendering functions
 =============================================================================*/
 
-bool ShouldRenderLocalFogVolume(const FScene* Scene, const FSceneViewFamily& Family);
+bool ShouldRenderLocalFogVolume(const FScene* Scene, const FSceneViewFamily& SceneViewFamily);
+bool ShouldRenderLocalFogVolumeInVolumetricFog(const FScene* Scene, const FSceneViewFamily& SceneViewFamily, bool bShouldRenderVolumetricFog);
 
 void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& Out);
 
-void CreateViewLocalFogVolumeBufferSRV(FViewInfo& View, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& SortingData);
 void SetDummyLocalFogVolumeForView(FRDGBuilder& GraphBuilder, FViewInfo& View);
 
 void InitLocalFogVolumesForViews(
 	const FScene* Scene,
 	TArray<FViewInfo>& Views,
-	const FSceneViewFamily& Family,
-	FRDGBuilder& GraphBuilder);
+	const FSceneViewFamily& SceneViewFamily,
+	FRDGBuilder& GraphBuilder,
+	bool bShouldRenderVolumetricFog);
 
 void RenderLocalFogVolume(
 	const FScene* Scene,
 	TArray<FViewInfo>& Views,
-	const FSceneViewFamily& Family,
+	const FSceneViewFamily& SceneViewFamily,
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
 	FRDGTextureRef LightShaftOcclusionTexture);

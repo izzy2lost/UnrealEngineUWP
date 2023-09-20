@@ -28,6 +28,10 @@
 #include "VirtualShadowMaps/VirtualShadowMapProjectionCommon.ush"
 #endif
 
+#if USE_LOCAL_FOG_VOLUMES
+#include "LocalFogVolumes/LocalFogVolumeCommon.ush"
+#endif
+
 #ifndef USE_EMISSIVE
 #define USE_EMISSIVE 1
 #endif
@@ -149,11 +153,68 @@ void MaterialSetupCS(
 	float3 Scattering = Albedo * Extinction;
 	float Absorption = max(Extinction - Luminance(Scattering), 0.0f);
 
+	float3 AdditionalEmissive = 0.0f;
+
+#if USE_LOCAL_FOG_VOLUMES
+	float3 CamRayTranslatedWorldOrigin = PrimaryView.TranslatedWorldCameraOrigin;
+	float3 PreViewTranslation = LWCHackToFloat(PrimaryView.PreViewTranslation);
+	//float3 TranslatedWorldPosition = WorldPosition + PreViewTranslation;
+
+	float CellOffset = .5f;
+	float SceneDepth;
+	float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, SceneDepth);
+
+	float4 VertexClipSpacePosition = mul(float4(TranslatedWorldPosition.xyz, 1), PrimaryView.TranslatedWorldToClip);
+	float2 SvPosition = (VertexClipSpacePosition.xy / VertexClipSpacePosition.w * float2(.5f, -.5f) + .5f) * PrimaryView.ViewSizeAndInvSize.xy;
+	uint2 TilePos = clamp(uint2(SvPosition.xy / float(LFVTilePixelSize)), uint2(0, 0), LFVTileDataResolution - 1);
+
+	uint LFVCount = LFVTileDataTex[uint3(TilePos, 0)];
+
+	//AdditionalEmissive += float3(TilePos.x * 0.00001, TilePos.y * 0.00001, 0.0);
+	//AdditionalEmissive += LFVCount * 0.00001;
+
+	for (int LFVIndex = 0; LFVIndex < LFVCount; ++LFVIndex)
+	{
+		uint InstanceIndex = LFVTileDataTex[uint3(TilePos, 1 + LFVIndex)];
+
+		float3 CamRayWorldOrigin = CamRayTranslatedWorldOrigin - PreViewTranslation;
+		float3 CamRayTranslatedWorldDir = normalize(TranslatedWorldPosition - CamRayTranslatedWorldOrigin);
+		float3 CamRayWorldDir = CamRayTranslatedWorldDir;
+
+		// LFV_TODO skip if out of sphere of influence
+		FLocalFogVolumeGPUInstanceData FogInstance = GetLocalFogVolumeGPUInstanceData(InstanceIndex);
+
+		float3 UnitSpacePos = mul(float4(WorldPosition, 1.0), FogInstance.InvTransform).xyz;
+
+		float SphereFade = saturate(1.0 - length(UnitSpacePos - float3(0, 0, 0)));
+
+		float LFVExtinction = 0.0;
+		if (FogInstance.FogMode == 0)
+		{
+			LFVExtinction = SphereFade <= 0.0f ? 0.0f : FogInstance.Density * exp(-FogInstance.HeightFalloff * UnitSpacePos.z) / FogInstance.UniformScale;
+		}
+		else // (FogInstance.FogMode == 1)
+		{
+			LFVExtinction = FogInstance.Density * SphereFade / FogInstance.UniformScale;
+		}
+
+		float3 LFVScattering = LFVExtinction * FogInstance.Albedo;
+
+		Scattering += LFVScattering;
+		Absorption += max(LFVExtinction - Luminance(LFVScattering), 0.0f);
+
+#if USE_EMISSIVE
+		// Emissive follow the density of the medium
+		AdditionalEmissive += LFVExtinction * FogInstance.Emissive;
+#endif
+	}
+#endif // USE_LOCAL_FOG_VOLUMES
+
 	if (all((int3)GridCoordinate < VolumetricFog.ResourceGridSizeInt))
 	{
 		RWVBufferA[GridCoordinate] = float4(Scattering, Absorption);
 #if USE_EMISSIVE
-		RWVBufferB[GridCoordinate] = float4(GlobalEmissive.rgb, 0); 
+		RWVBufferB[GridCoordinate] = float4(GlobalEmissive.rgb + AdditionalEmissive, 0);
 #endif
 	}
 }

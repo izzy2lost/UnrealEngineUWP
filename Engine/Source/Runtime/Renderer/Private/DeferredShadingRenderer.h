@@ -629,7 +629,8 @@ private:
 	void RenderFog(
 		FRDGBuilder& GraphBuilder,
 		const FMinimalSceneTextures& SceneTextures,
-		FRDGTextureRef LightShaftOcclusionTexture);
+		FRDGTextureRef LightShaftOcclusionTexture,
+		bool bFogComposeLocalFogVolumes);
 
 	void RenderUnderWaterFog(
 		FRDGBuilder& GraphBuilder,

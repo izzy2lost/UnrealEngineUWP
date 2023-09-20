@@ -3114,6 +3114,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	FSceneTextures& SceneTextures = GetActiveSceneTextures();
 
 	const bool bUseGBuffer = IsUsingGBuffers(ShaderPlatform);
+	const bool bShouldRenderVolumetricFog = ShouldRenderVolumetricFog();
+	const bool bShouldRenderLocalFogVolume = ShouldRenderLocalFogVolume(Scene, ViewFamily);
+	const bool bShouldRenderLocalFogVolumeInVolumetricFog = ShouldRenderLocalFogVolumeInVolumetricFog(Scene, ViewFamily, bShouldRenderLocalFogVolume);
 
 	const bool bRenderDeferredLighting = ViewFamily.EngineShowFlags.Lighting
 		&& FeatureLevel >= ERHIFeatureLevel::SM5
@@ -3158,7 +3161,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			}
 
 			bComputeLightGrid |= (
-				ShouldRenderVolumetricFog() ||
+				bShouldRenderVolumetricFog ||
 				VolumetricCloudWantsToSampleLocalLights(Scene, ViewFamily.EngineShowFlags) ||
 				ViewFamily.ViewMode != VMI_Lit ||
 				bAnyLumenEnabled ||
@@ -3428,7 +3431,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		InitVolumetricCloudsForViews(GraphBuilder, bShouldRenderVolumetricCloudBase, InstanceCullingManager);
 
 		// Run local fog volume initialization before base pass for when data is needed in forward
-		InitLocalFogVolumesForViews(Scene, Views, ViewFamily, GraphBuilder);
+		InitLocalFogVolumesForViews(Scene, Views, ViewFamily, GraphBuilder, bShouldRenderVolumetricFog);
 
 		if (SkyAtmospherePassLocation == ESkyAtmospherePassLocation::BeforeOcclusion && bShouldRenderSkyAtmosphere)
 		{
@@ -4097,12 +4100,26 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 
 		// Draw fog.
+		bool bHeightFogHasComposedLocalFogVolume = false;
 		if (!bHasRayTracedOverlay && ShouldRenderFog(ViewFamily))
 		{
 			RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderFog);
 			SCOPED_NAMED_EVENT(RenderFog, FColor::Emerald);
 			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_RenderFog);
-			RenderFog(GraphBuilder, SceneTextures, LightShaftOcclusionTexture);
+			const bool bFogComposeLocalFogVolumes = bShouldRenderLocalFogVolumeInVolumetricFog && bShouldRenderVolumetricFog;
+			RenderFog(GraphBuilder, SceneTextures, LightShaftOcclusionTexture, bFogComposeLocalFogVolumes);
+			bHeightFogHasComposedLocalFogVolume = bFogComposeLocalFogVolumes;
+		}
+
+		// Local Fog Volumes (LFV) rendering order is first HeightFog, then LFV, then volumetric fog on top.
+		// LFVs are rendered as part of the regular height fog + volumetric fog pass when volumetric fog is enabled and it is requested to voxelise LFVs into volumetric fog.
+		// Otherwise, they are rendered in an independent pass (this for instance make it independent of the near clip plane optimization).
+		if (!bHasRayTracedOverlay && !bHeightFogHasComposedLocalFogVolume)
+		{
+			RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderLocalFogVolume);
+			SCOPED_NAMED_EVENT(RenderLocalFogVolume, FColor::Emerald);
+			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_RenderLocalFogVolume);
+			RenderLocalFogVolume(Scene, Views, ViewFamily, GraphBuilder, SceneTextures, LightShaftOcclusionTexture);
 		}
 
 		// After the height fog, Draw volumetric clouds (having fog applied on them already) when using per pixel tracing,
@@ -4118,14 +4135,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		if (bVolumetricRenderTargetRequired)
 		{
 			ComposeVolumetricRenderTargetOverScene(GraphBuilder, Views, SceneTextures.Color.Target, SceneTextures.Depth.Target, bShouldRenderSingleLayerWater, SceneWithoutWaterTextures, SceneTextures);
-		}
-
-		if (!bHasRayTracedOverlay && ShouldRenderLocalFogVolume(Scene, ViewFamily))
-		{
-			RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderLocalFogVolume);
-			SCOPED_NAMED_EVENT(RenderLocalFogVolume, FColor::Emerald);
-			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_RenderLocalFogVolume);
-			RenderLocalFogVolume(Scene, Views, ViewFamily, GraphBuilder, SceneTextures, LightShaftOcclusionTexture);
 		}
 
 		FRDGTextureRef ExposureIlluminance = AddCalculateExposureIlluminancePass(GraphBuilder, Views, SceneTextures, TranslucencyLightingVolumeTextures, ExposureIlluminanceSetup);

@@ -998,6 +998,9 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_Shadows));
 		RenderShadowDepthMaps(GraphBuilder, InstanceCullingManager, ExternalAccessQueue);
 
+		// Run local fog volume initialization before base pass and volumetric fog for all the culled instance instance data to be ready.
+		InitLocalFogVolumesForViews(Scene, Views, ViewFamily, GraphBuilder, ShouldRenderVolumetricFog());
+
 		if (ShouldRenderVolumetricFog())
 		{
 			ComputeVolumetricFog(GraphBuilder, SceneTextures);
@@ -1270,9 +1273,6 @@ void FMobileSceneRenderer::RenderForward(FRDGBuilder& GraphBuilder, FRDGTextureR
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 
-	// Run local fog volume initialization before base pass for when data is needed in forward
-	InitLocalFogVolumesForViews(Scene, Views, ViewFamily, GraphBuilder);
-
 	FRenderViewContextArray RenderViews;
 	GetRenderViews(Views, RenderViews);
 
@@ -1366,7 +1366,6 @@ void FMobileSceneRenderer::RenderForwardSinglePass(FRDGBuilder& GraphBuilder, FM
 		{
 			RenderFog(RHICmdList, View);
 		}
-		RenderLocalFogVolumeMobile(RHICmdList, View);
 		// Draw translucency.
 		RenderTranslucency(RHICmdList, View);
 
@@ -1466,7 +1465,6 @@ void FMobileSceneRenderer::RenderForwardMultiPass(FRDGBuilder& GraphBuilder, FMo
 		RenderDecals(RHICmdList, View);
 		RenderModulatedShadowProjections(RHICmdList, ViewContext.ViewIndex, View);
 		RenderFog(RHICmdList, View);
-		RenderLocalFogVolumeMobile(RHICmdList, View);
 		// Draw translucency.
 		RenderTranslucency(RHICmdList, View);
 
@@ -1609,9 +1607,6 @@ void FMobileSceneRenderer::RenderDeferred(FRDGBuilder& GraphBuilder, const FSort
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 
-	// Run local fog volume initialization before base pass for when data is needed in forward
-	InitLocalFogVolumesForViews(Scene, Views, ViewFamily, GraphBuilder);
-
 	FRenderViewContextArray RenderViews;
 	GetRenderViews(Views, RenderViews);
 
@@ -1702,7 +1697,6 @@ void FMobileSceneRenderer::RenderDeferredSinglePass(FRDGBuilder& GraphBuilder, c
 			MobileDeferredCopyBuffer<FMobileDeferredCopyPLSPS>(RHICmdList, View);
 		}
 		RenderFog(RHICmdList, View);
-		RenderLocalFogVolumeMobile(RHICmdList, View);
 		// Draw translucency.
 		RenderTranslucency(RHICmdList, View);
 
@@ -1784,8 +1778,8 @@ void FMobileSceneRenderer::RenderDeferredMultiPass(FRDGBuilder& GraphBuilder, cl
 			
 		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Translucency));
 		MobileDeferredShadingPass(RHICmdList, ViewContext.ViewIndex, Views.Num(), View, *Scene, SortedLightSet, VisibleLightInfos);
-		RenderLocalFogVolumeMobile(RHICmdList, View);
 		RenderFog(RHICmdList, View);
+
 		// Draw translucency.
 		RenderTranslucency(RHICmdList, View);
 

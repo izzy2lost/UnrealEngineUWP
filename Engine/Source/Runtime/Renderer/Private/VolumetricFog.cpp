@@ -221,6 +221,7 @@ static const uint32 VolumetricFogGridInjectionGroupSize = 4;
 namespace
 {
 class FPermutationUseEmissive : SHADER_PERMUTATION_BOOL("USE_EMISSIVE");
+class FPermutationLocalFogVolume : SHADER_PERMUTATION_BOOL("USE_LOCAL_FOG_VOLUMES");
 }
 
 class FVolumetricFogMaterialSetupCS : public FGlobalShader
@@ -228,7 +229,7 @@ class FVolumetricFogMaterialSetupCS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FVolumetricFogMaterialSetupCS);
 	SHADER_USE_PARAMETER_STRUCT(FVolumetricFogMaterialSetupCS, FGlobalShader);
 
-	using FPermutationDomain = TShaderPermutationDomain<FPermutationUseEmissive>;
+	using FPermutationDomain = TShaderPermutationDomain<FPermutationUseEmissive, FPermutationLocalFogVolume>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(FLinearColor, GlobalAlbedo)
@@ -239,6 +240,8 @@ class FVolumetricFogMaterialSetupCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 
 		SHADER_PARAMETER_STRUCT_INCLUDE(FVolumetricFogIntegrationParameters, VolumetricFogParameters)
+
+		SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
 
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float4>, RWVBufferA)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float4>, RWVBufferB)
@@ -1454,12 +1457,15 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 			PassParameters->RWVBufferA = IntegrationData.VBufferA_UAV;
 			PassParameters->RWVBufferB = IntegrationData.VBufferB_UAV; // FVolumetricFogMaterialSetupCS uses a permutation to not reference that UAV when bUseEmissive is false.
 
+			PassParameters->LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
+
 			PassParameters->Fog = FogUniformBuffer; 
 			PassParameters->View = View.ViewUniformBuffer;
 			SetupVolumetricFogIntegrationParameters(PassParameters->VolumetricFogParameters, View, IntegrationData);
 
 			FVolumetricFogMaterialSetupCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set< FPermutationUseEmissive >(bUseEmissive);
+			PermutationVector.Set< FPermutationLocalFogVolume >(ShouldRenderLocalFogVolumeInVolumetricFog(Scene, ViewFamily, ShouldRenderLocalFogVolume(Scene, ViewFamily)));
 			auto ComputeShader = View.ShaderMap->GetShader< FVolumetricFogMaterialSetupCS >(PermutationVector);
 			ClearUnusedGraphResources(ComputeShader, PassParameters);
 

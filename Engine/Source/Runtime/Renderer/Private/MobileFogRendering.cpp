@@ -18,6 +18,7 @@
 #include "ProfilingDebugging/RealtimeGPUProfiler.h"
 #include "MobileBasePassRendering.h"
 #include "SkyAtmosphereRendering.h"
+#include "LocalFogVolumeRendering.h"
 
 static TAutoConsoleVariable<int32> CVarPixelFogQuality(
 	TEXT("r.Mobile.PixelFogQuality"),
@@ -63,6 +64,7 @@ class FMobileFogPS : public FGlobalShader
 	class FSupportFogDirectionalLightInScattering	: SHADER_PERMUTATION_BOOL("PERMUTATION_SUPPORT_FOG_DIRECTIONAL_LIGHT_INSCATTERING");
 	class FSupportAerialPerspective					: SHADER_PERMUTATION_BOOL("PERMUTATION_SUPPORT_AERIAL_PERSPECTIVE");
 	class FSupportVolumetricFog						: SHADER_PERMUTATION_BOOL("PERMUTATION_SUPPORT_VOLUMETRIC_FOG");
+	class FSupportLocalFogVolume					: SHADER_PERMUTATION_BOOL("PERMUTATION_SUPPORT_LOCAL_FOG_VOLUME");
 	
 	using FPermutationDomain = TShaderPermutationDomain< 
 		FSupportHeightFog, 
@@ -71,7 +73,8 @@ class FMobileFogPS : public FGlobalShader
 		FSupportFogSecondTerm,
 		FSupportFogDirectionalLightInScattering,
 		FSupportAerialPerspective,
-		FSupportVolumetricFog
+		FSupportVolumetricFog,
+		FSupportLocalFogVolume
 	>;
 
 	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
@@ -111,14 +114,24 @@ class FMobileFogPS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FMobileBasePassUniformParameters, MobileBasePass)
+		SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
 	END_SHADER_PARAMETER_STRUCT()
 };
 
 IMPLEMENT_SHADER_TYPE(, FMobileFogPS, TEXT("/Engine/Private/MobileFog.usf"), TEXT("MobileFogPS"), SF_Pixel);
 
 void FMobileSceneRenderer::RenderFog(FRHICommandList& RHICmdList, const FViewInfo& View)
-{	
+{
+	// RenderFog has some extra logic to skip the rendering of fog. So we account for that inside this function using a lambda.
+	bool bFogHasComposedLocalFogVolumes = false;
+	auto RenderLocalFogVolumeMobileLambda = [&]()
+	{
+		if (!bFogHasComposedLocalFogVolumes)
+		{
+			RenderLocalFogVolumeMobile(RHICmdList, View);
+		}
+	};
+
 	static const auto* CVarDisableVertexFog = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.DisableVertexFog"));
 	if (CVarDisableVertexFog && CVarDisableVertexFog->GetValueOnRenderThread() == 0)
 	{
@@ -132,6 +145,7 @@ void FMobileSceneRenderer::RenderFog(FRHICommandList& RHICmdList, const FViewInf
 
 	if (!bUseAerialPerspective && !bUseHeightFog)
 	{
+		RenderLocalFogVolumeMobileLambda();
 		return;
 	}
 
@@ -175,6 +189,9 @@ void FMobileSceneRenderer::RenderFog(FRHICommandList& RHICmdList, const FViewInf
 	const bool bUseFogSecondTerm = PixelFogQuality > 0 && (View.ExponentialFogParameters2.X > 0);
 	const bool bUseFogDirectionalInscatering = PixelFogQuality > 0 && !bUseFogInscatteringColorCubemap && (View.DirectionalInscatteringColor.GetLuminance() > 0 || View.bUseDirectionalInscattering);
 	
+	const bool bShouldRenderVolumetricFog = ShouldRenderVolumetricFog();
+	bFogHasComposedLocalFogVolumes = bShouldRenderVolumetricFog && ShouldRenderLocalFogVolume(Scene, *View.Family) && ShouldRenderLocalFogVolumeInVolumetricFog(Scene, *View.Family, bShouldRenderVolumetricFog);
+
 	FMobileFogPS::FPermutationDomain PsPermutationVector;
 	PsPermutationVector.Set<FMobileFogPS::FSupportHeightFog>(bUseHeightFog);
 	PsPermutationVector.Set<FMobileFogPS::FSupportFogStartDistance>(bUseFogStartDistance);
@@ -182,7 +199,8 @@ void FMobileSceneRenderer::RenderFog(FRHICommandList& RHICmdList, const FViewInf
 	PsPermutationVector.Set<FMobileFogPS::FSupportFogSecondTerm>(bUseFogSecondTerm);
 	PsPermutationVector.Set<FMobileFogPS::FSupportAerialPerspective>(bUseAerialPerspective);
 	PsPermutationVector.Set<FMobileFogPS::FSupportFogDirectionalLightInScattering>(bUseFogDirectionalInscatering);
-	PsPermutationVector.Set<FMobileFogPS::FSupportVolumetricFog>(ShouldRenderVolumetricFog());
+	PsPermutationVector.Set<FMobileFogPS::FSupportVolumetricFog>(bShouldRenderVolumetricFog);
+	PsPermutationVector.Set<FMobileFogPS::FSupportLocalFogVolume>(bFogHasComposedLocalFogVolumes);
 	
 	TShaderMapRef<FMobileFogPS> PixelShader(View.ShaderMap, PsPermutationVector);
 		
@@ -218,7 +236,14 @@ void FMobileSceneRenderer::RenderFog(FRHICommandList& RHICmdList, const FViewInf
 	VSParameters.StartDepthZ = StartDepthZ;
 	SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), VSParameters);
 
+	FMobileFogPS::FParameters PSParameters;
+	PSParameters.View = View.GetShaderParameters();
+	PSParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
+	SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetVertexShader(), PSParameters);
+
 	// Draw a quad covering the view.
 	RHICmdList.SetStreamSource(0, GScreenSpaceVertexBuffer.VertexBufferRHI, 0);
 	RHICmdList.DrawIndexedPrimitive(GTwoTrianglesIndexBuffer.IndexBufferRHI, 0, 0, 4, 0, 2, 1);
+
+	RenderLocalFogVolumeMobileLambda();
 }

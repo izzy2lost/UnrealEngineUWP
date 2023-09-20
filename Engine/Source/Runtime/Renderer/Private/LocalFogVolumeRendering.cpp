@@ -14,6 +14,11 @@ static TAutoConsoleVariable<int32> CVarLocalFogVolume(
 	TEXT("LocalFogVolume components are rendered when this is not 0, otherwise ignored.\n"),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarLocalFogVolumeRenderIntoVolumetricFog(
+	TEXT("r.LocalFogVolume.RenderIntoVolumetricFog"), 0,
+	TEXT("LocalFogVolume are going to be voxelised into the volumetric fog when this is not 0, otherwise it will remain isolated.\n"),
+	ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeApplyOnTranslucent(
 	TEXT("r.LocalFogVolume.ApplyOnTranslucent"), 0,
 	TEXT("Project settings enabling the sampling of local fog volumes on translucent elements.\n"),
@@ -59,15 +64,25 @@ static uint32 GetLocalFogVolumeTileMaxInstanceCount()
 	return FMath::Max(1u, FMath::Min(256u, (uint32)CVarLocalFogVolumeTileMaxInstanceCount.GetValueOnRenderThread()));
 }
 
-bool ShouldRenderLocalFogVolume(const FScene* Scene, const FSceneViewFamily& Family)
+bool ShouldRenderLocalFogVolume(const FScene* Scene, const FSceneViewFamily& SceneViewFamily)
 {
-	const FEngineShowFlags EngineShowFlags = Family.EngineShowFlags;
-	if (Scene && Scene->HasAnyLocalFogVolume() && EngineShowFlags.Fog && !Family.UseDebugViewPS())
+	const FEngineShowFlags EngineShowFlags = SceneViewFamily.EngineShowFlags;
+	if (Scene && Scene->HasAnyLocalFogVolume() && EngineShowFlags.Fog && !SceneViewFamily.UseDebugViewPS())
 	{
 		return CVarLocalFogVolume.GetValueOnRenderThread() > 0;
 	}
 	return false;
 }
+
+bool ShouldRenderLocalFogVolumeInVolumetricFog(const FScene* Scene, const FSceneViewFamily& SceneViewFamily, bool bShouldRenderVolumetricFog)
+{
+	if (ShouldRenderLocalFogVolume(Scene, SceneViewFamily) && bShouldRenderVolumetricFog)
+	{
+		return CVarLocalFogVolumeRenderIntoVolumetricFog.GetValueOnRenderThread() > 0;
+	}
+	return false;
+}
+
 
 DECLARE_GPU_STAT(LocalFogVolumeVolumes);
 
@@ -263,9 +278,6 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 			continue; // this volume will never be visible
 		}
 
-		FTransform TransformScaleOnly;
-		TransformScaleOnly.SetScale3D(LHF->FogTransform.GetScale3D());
-
 		FLocalFogVolumeGPUInstanceData* LocalFogVolumeGPUInstanceDataIt = &Out.LocalFogVolumeGPUInstanceData[Out.LocalFogVolumeInstanceCountFinal];
 		LocalFogVolumeGPUInstanceDataIt->Transform = FMatrix44f(LHF->FogTransform.ToMatrixWithScale());
 		LocalFogVolumeGPUInstanceDataIt->InvTransform = LocalFogVolumeGPUInstanceDataIt->Transform.Inverse();
@@ -273,6 +285,7 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 		LocalFogVolumeGPUInstanceDataIt->Density = LHF->FogDensity;
 		LocalFogVolumeGPUInstanceDataIt->HeightFalloff = LHF->FogHeightFalloff * 0.01f;	// This scale is used to have artist author reasonable range.
 		LocalFogVolumeGPUInstanceDataIt->HeightOffset = LHF->FogHeightOffset;
+		LocalFogVolumeGPUInstanceDataIt->UniformScale = LHF->FogUniformScale;
 
 		LocalFogVolumeGPUInstanceDataIt->FogMode = float(LHF->FogMode);
 
@@ -293,7 +306,7 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 	Out.LocalFogVolumeSortKeys.SetNum(Out.LocalFogVolumeInstanceCountFinal, false/*bAllowShrinking*/);
 }
 
-void CreateViewLocalFogVolumeBufferSRV(FViewInfo& View, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& SortingData)
+void CreateViewLocalFogVolumeBufferSRV(FViewInfo& View, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& SortingData, bool bShouldRenderLocalFogVolumeInVolumetricFog)
 {
 	if (SortingData.LocalFogVolumeInstanceCountFinal == 0)
 	{
@@ -326,9 +339,8 @@ void CreateViewLocalFogVolumeBufferSRV(FViewInfo& View, FRDGBuilder& GraphBuilde
 		// We could also have an indirection buffer on GPU but choosing to go with the sorting + copy on CPU since it is expected to not have many local height fog volumes.
 		LocalFogVolumeGPUSortedInstanceData[i] = SortingData.LocalFogVolumeGPUInstanceData[LFVKey.FogVolume.Index];
 
-		const float LFVMaximumAxisScale = LocalFogVolumeGPUSortedInstanceData[i].Transform.GetMaximumAxisScale();
 		FVector& LFVPosition = SortingData.LocalFogVolumeCenterPos[LFVKey.FogVolume.Index];
-		LocalFogVolumeGPUSortedInstanceCullingData[i] = FVector4f(LFVPosition.X, LFVPosition.Y, LFVPosition.Z, LFVMaximumAxisScale);
+		LocalFogVolumeGPUSortedInstanceCullingData[i] = FVector4f(LFVPosition.X, LFVPosition.Y, LFVPosition.Z, LocalFogVolumeGPUSortedInstanceData[i].UniformScale);
 	}
 
 	// 3. Allocate buffer and initialize with sorted data to upload to GPU
@@ -359,12 +371,13 @@ void CreateViewLocalFogVolumeBufferSRV(FViewInfo& View, FRDGBuilder& GraphBuilde
 	View.LocalFogVolumeViewData.TileDataTextureArraySRV		= GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(View.LocalFogVolumeViewData.TileDataTextureArray));
 	View.LocalFogVolumeViewData.TileDataTextureArrayUAV		= GraphBuilder.CreateUAV(FRDGTextureUAVDesc(View.LocalFogVolumeViewData.TileDataTextureArray));
 
-	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.LocalFogVolumeTileDataTextureResolution= FUintVector2(TileDataTextureResolution.X, TileDataTextureResolution.Y);
-	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.LocalFogVolumeInstanceCount			= View.LocalFogVolumeViewData.GPUInstanceCount;
-	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.LocalFogVolumeTilePixelSize			= LocalFogVolumeTilePixelSize;
-	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.LocalFogVolumeInstances				= View.LocalFogVolumeViewData.GPUInstanceDataBufferSRV;
-	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeTileDataTexture								= View.LocalFogVolumeViewData.TileDataTextureArraySRV;
-	View.LocalFogVolumeViewData.UniformBuffer																		= GraphBuilder.CreateUniformBuffer(&View.LocalFogVolumeViewData.UniformParametersStruct);
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.LocalFogVolumeTileDataTextureResolution	= FUintVector2(TileDataTextureResolution.X, TileDataTextureResolution.Y);
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.LocalFogVolumeInstanceCount				= View.LocalFogVolumeViewData.GPUInstanceCount;
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.LocalFogVolumeTilePixelSize				= LocalFogVolumeTilePixelSize;
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.ShouldRenderLocalFogVolumeInVolumetricFog	= bShouldRenderLocalFogVolumeInVolumetricFog ? 1 : 0;
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.LocalFogVolumeInstances					= View.LocalFogVolumeViewData.GPUInstanceDataBufferSRV;
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeTileDataTexture									= View.LocalFogVolumeViewData.TileDataTextureArraySRV;
+	View.LocalFogVolumeViewData.UniformBuffer																			= GraphBuilder.CreateUniformBuffer(&View.LocalFogVolumeViewData.UniformParametersStruct);
 
 	// This buffer must remain a basic vertex buffer for mobile to be able to read it from vertex shader
 	View.LocalFogVolumeViewData.GPUTileDataBuffer = CreateVertexBuffer(
@@ -381,11 +394,13 @@ void CreateViewLocalFogVolumeBufferSRV(FViewInfo& View, FRDGBuilder& GraphBuilde
 void InitLocalFogVolumesForViews(
 	const FScene* Scene,
 	TArray<FViewInfo>& Views,
-	const FSceneViewFamily& Family,
-	FRDGBuilder& GraphBuilder)
+	const FSceneViewFamily& SceneViewFamily,
+	FRDGBuilder& GraphBuilder,
+	bool bShouldRenderVolumetricFog)
 {
 	const uint32 LocalFogVolumeInstanceCount = Scene->LocalFogVolumes.Num();
-	if (LocalFogVolumeInstanceCount > 0 && ShouldRenderLocalFogVolume(Scene, Family))
+	const bool bShouldRenderLocalFogVolume = ShouldRenderLocalFogVolume(Scene, SceneViewFamily);
+	if (LocalFogVolumeInstanceCount > 0 && bShouldRenderLocalFogVolume)
 	{
 		RDG_GPU_STAT_SCOPE(GraphBuilder, LocalFogVolumeVolumes);
 
@@ -394,7 +409,7 @@ void InitLocalFogVolumesForViews(
 
 		for (FViewInfo& View : Views)
 		{
-			CreateViewLocalFogVolumeBufferSRV(View, GraphBuilder, SortingData);
+			CreateViewLocalFogVolumeBufferSRV(View, GraphBuilder, SortingData, ShouldRenderLocalFogVolumeInVolumetricFog(Scene, SceneViewFamily, bShouldRenderVolumetricFog));
 
 			LocalFogVolumeViewTiledCullingPass(View, GraphBuilder);
 		}
@@ -553,13 +568,13 @@ END_SHADER_PARAMETER_STRUCT()
 void RenderLocalFogVolume(
 	const FScene* Scene,
 	TArray<FViewInfo>& Views,
-	const FSceneViewFamily& Family,
+	const FSceneViewFamily& SceneViewFamily,
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
 	FRDGTextureRef LightShaftOcclusionTexture)
 {
 	uint32 LocalFogVolumeInstanceCount = Scene->LocalFogVolumes.Num();
-	if (LocalFogVolumeInstanceCount > 0 && ShouldRenderLocalFogVolume(Scene, Family))
+	if (LocalFogVolumeInstanceCount > 0 && ShouldRenderLocalFogVolume(Scene, SceneViewFamily))
 	{
 		RDG_GPU_STAT_SCOPE(GraphBuilder, LocalFogVolumeVolumes);
 

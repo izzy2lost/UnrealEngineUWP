@@ -13,6 +13,7 @@ FLocalFogVolumeSceneProxy::FLocalFogVolumeSceneProxy(const ULocalFogVolumeCompon
 	: FogDensity(InComponent->FogDensity)
 	, FogHeightFalloff(InComponent->FogHeightFalloff)
 	, FogHeightOffset(InComponent->FogHeightOffset)
+	, FogUniformScale(1.0f)
 	, FogMode((uint8)InComponent->FogMode)
 	, FogSortPriority(uint8(127 - int8(InComponent->FogSortPriority))) // FogSortPriority on the component is in [-127,127] and needs to be negated to match expected priority behavior.
 	, FogPhaseG(InComponent->FogPhaseG)
@@ -31,5 +32,7 @@ void FLocalFogVolumeSceneProxy::UpdateComponentTransform(const FTransform& Trans
 	FogTransform = Transform;
 	const float MaximumAxisScale = FogTransform.GetMaximumAxisScale();
 	FogTransform.SetScale3D(FVector(MaximumAxisScale, MaximumAxisScale, MaximumAxisScale));
+
+	FogUniformScale = MaximumAxisScale;
 }
 

@@ -10,6 +10,10 @@
 #include "HeightFogCommon.ush"
 #include "Random.ush"
 
+#if PERMUTATION_SUPPORT_LOCAL_FOG_VOLUME
+#include "LocalFogVolumes/LocalFogVolumeCommon.ush"
+#endif
+
 float UpsampleJitterMultiplier;
 
 float bOnlyOnRenderedOpaque;
@@ -70,6 +74,12 @@ void ExponentialPixelMain(
 	VolumeUV.xy = min(VolumeUV.xy, View.VolumetricFogUVMax);
 
 	float4 HeightFogInscatteringAndOpacity = CalculateHeightFog(WorldPositionRelativeToCamera);
+
+#if PERMUTATION_SUPPORT_LOCAL_FOG_VOLUME
+	uint2 TilePos = uint2(SVPos.xy - View.ViewRectMin.xy) / LFVTilePixelSize.xx;
+	float4 LFVContribution = GetLFVContribution(PrimaryView, TilePos, WorldPositionRelativeToCamera);
+	HeightFogInscatteringAndOpacity = float4(LFVContribution.rgb + HeightFogInscatteringAndOpacity.rgb * LFVContribution.a, LFVContribution.a * HeightFogInscatteringAndOpacity.a);
+#endif
 
 	float4 FogInscatteringAndOpacity = CombineVolumetricFog(HeightFogInscatteringAndOpacity, VolumeUV, 0, SceneDepth);
 	float2 OcclusionTexCoord = clamp(TexCoord, OcclusionTextureMinMaxUV.xy, OcclusionTextureMinMaxUV.zw);
