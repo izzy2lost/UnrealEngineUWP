@@ -21,7 +21,7 @@ public:
 
 public:
 	CastTo* Get() const { return Cast(); }
-	void IsPtrValid() const { return IsValid(); }
+	bool IsPtrValid() const { return IsValid(); }
 	void ResetPtr() { Reset(); }
 };
 
