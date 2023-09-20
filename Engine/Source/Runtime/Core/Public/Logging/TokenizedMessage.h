@@ -37,6 +37,7 @@ namespace EMessageToken
 		Action,
 		Actor,
 		AssetName,
+		AssetData,
 		Documentation,
 		Image,
 		Object,

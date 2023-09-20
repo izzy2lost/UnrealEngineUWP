@@ -113,6 +113,12 @@ void FDataValidationModule::RegisterMenus()
 					}
 					return true;
 				});
+				FAssetRegistryModule& AssetRegistryModule = FModuleManager::GetModuleChecked<FAssetRegistryModule>("AssetRegistry");
+				IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+				for (FAssetData& AssetData : SelectedActorAssets)
+				{
+					AssetData = AssetRegistry.GetAssetByObjectPath(AssetData.GetSoftObjectPath(), true);
+				}
 				ValidateAssets(SelectedActorAssets, false, EDataValidationUsecase::Manual);
 			}
 		});

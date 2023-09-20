@@ -11,6 +11,7 @@
 #include "Widgets/Input/SHyperlink.h"
 #include "Internationalization/Regex.h"
 #include "Styling/StyleColors.h"
+#include "AssetRegistry/AssetDataToken.h"
 
 #define LOCTEXT_NAMESPACE "SMessageLogMessageListRow"
 
@@ -167,6 +168,16 @@ void SMessageLogMessageListRow::CreateMessage(const TSharedRef<SHorizontalBox>& 
 	}
 		break;
 
+	case EMessageToken::AssetData:
+	{
+		const TSharedRef<FAssetDataToken> AssetDataToken = StaticCastSharedRef<FAssetDataToken>(InMessageToken);
+
+		IconBrushName = FName("Icons.Search");
+		RowContent = CreateHyperlink(InMessageToken, FAssetDataToken::DefaultOnGetAssetDisplayName().IsBound()
+			? FAssetDataToken::DefaultOnGetAssetDisplayName().Execute(AssetDataToken->GetAssetData(), true)
+			: InMessageToken->ToText());
+	}
+		break;
 	case EMessageToken::Object:
 	{
 		const TSharedRef<FUObjectToken> UObjectToken = StaticCastSharedRef<FUObjectToken>(InMessageToken);
