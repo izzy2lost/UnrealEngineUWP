@@ -47,7 +47,7 @@ namespace Horde.Server.Commands.Bundles
 			}
 			else
 			{
-				using FileStorageClient storageClient = new FileStorageClient(OutputDir, serviceProvider.GetRequiredService<StorageCache>(), logger);
+				using FileStorageClient storageClient = new FileStorageClient(OutputDir, serviceProvider.GetRequiredService<BundleReaderCache>(), logger);
 				await ExecuteInternalAsync(storageClient, logger);
 			}
 

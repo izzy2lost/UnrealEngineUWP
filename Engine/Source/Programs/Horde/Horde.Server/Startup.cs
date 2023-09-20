@@ -524,7 +524,7 @@ namespace Horde.Server
 			services.AddSingleton<StorageService>();
 			services.AddSingleton<IStorageClientFactory>(sp => sp.GetRequiredService<StorageService>());
 			services.AddSingleton<TestDataService>();
-			services.AddSingleton<StorageCache>();
+			services.AddSingleton<BundleReaderCache>();
 
 			if (settings.JiraUrl != null)
 			{

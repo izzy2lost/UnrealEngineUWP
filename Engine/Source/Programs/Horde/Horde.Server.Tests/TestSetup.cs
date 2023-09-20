@@ -274,7 +274,7 @@ namespace Horde.Server.Tests
 			services.AddSingleton<IStorageBackend<ArtifactCollectionV1>>(sp => new MemoryStorageBackend().ForType<ArtifactCollectionV1>());
 
 			services.AddSingleton<StorageService>();
-			services.AddSingleton<StorageCache>();
+			services.AddSingleton<BundleReaderCache>();
 
 			services.AddSingleton<ISingletonDocument<DevicePlatformMapV1>>(new SingletonDocumentStub<DevicePlatformMapV1>());
 		}

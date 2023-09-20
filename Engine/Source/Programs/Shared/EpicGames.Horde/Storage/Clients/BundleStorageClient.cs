@@ -161,7 +161,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		protected BundleStorageClient(IStorageBackend backend, StorageCache cache, ILogger logger)
+		protected BundleStorageClient(IStorageBackend backend, BundleReaderCache cache, ILogger logger)
 		{
 			_backend = backend;
 			BundleReader = new BundleReader(this, cache, logger);

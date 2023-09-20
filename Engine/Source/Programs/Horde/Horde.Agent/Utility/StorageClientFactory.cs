@@ -15,13 +15,13 @@ namespace Horde.Agent.Utility
 	class StorageClientFactory : IStorageClientFactory
 	{
 		readonly IOptions<AgentSettings> _settings;
-		readonly StorageCache _memoryCache;
+		readonly BundleReaderCache _memoryCache;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageClientFactory(IOptions<AgentSettings> settings, StorageCache memoryCache, ILogger<IStorageClient> logger)
+		public StorageClientFactory(IOptions<AgentSettings> settings, BundleReaderCache memoryCache, ILogger<IStorageClient> logger)
 		{
 			_settings = settings;
 			_memoryCache = memoryCache;

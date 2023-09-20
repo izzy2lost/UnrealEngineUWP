@@ -75,7 +75,7 @@ namespace EpicGames.Horde.Compute.Clients
 		{
 			using Socket tcpSocket = await listener.AcceptAsync(cancellationToken);
 
-			using StorageCache storageCache = new StorageCache();
+			using BundleReaderCache storageCache = new BundleReaderCache();
 
 			await using (RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(tcpSocket), logger))
 			{

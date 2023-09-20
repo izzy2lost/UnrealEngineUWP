@@ -188,7 +188,7 @@ namespace Horde.Server.Storage
 			public NamespaceId NamespaceId { get; }
 			public bool SupportsRedirects { get; }
 
-			public StorageClientImpl(StorageService outer, NamespaceConfig config, StorageBackendImpl backend, StorageCache storageCache, ILogger logger)
+			public StorageClientImpl(StorageService outer, NamespaceConfig config, StorageBackendImpl backend, BundleReaderCache storageCache, ILogger logger)
 				: base(backend, storageCache, logger)
 			{
 				_outer = outer;
@@ -482,7 +482,7 @@ namespace Horde.Server.Storage
 
 		readonly RedisService _redisService;
 		readonly IClock _clock;
-		readonly StorageCache _storageCache;
+		readonly BundleReaderCache _storageCache;
 		readonly IMemoryCache _memoryCache;
 		readonly IStorageBackendProvider _storageBackendProvider;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
@@ -506,7 +506,7 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageService(MongoService mongoService, RedisService redisService, IClock clock, StorageCache storageCache, IMemoryCache memoryCache, IStorageBackendProvider storageBackendProvider, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<StorageService> logger)
+		public StorageService(MongoService mongoService, RedisService redisService, IClock clock, BundleReaderCache storageCache, IMemoryCache memoryCache, IStorageBackendProvider storageBackendProvider, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<StorageService> logger)
 		{
 			_redisService = redisService;
 			_clock = clock;

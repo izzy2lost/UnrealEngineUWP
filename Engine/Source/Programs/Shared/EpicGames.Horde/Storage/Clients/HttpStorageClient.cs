@@ -65,7 +65,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HttpStorageClient(Uri baseAddress, string? bearerToken, StorageCache cache, ILogger logger)
+		public HttpStorageClient(Uri baseAddress, string? bearerToken, BundleReaderCache cache, ILogger logger)
 			: this(() => CreateAuthenticatedClient(null, baseAddress, bearerToken), () => CreateClient(null), cache, logger)
 		{
 		}
@@ -73,7 +73,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HttpStorageClient(Func<HttpClient> createClient, Func<HttpClient> createRedirectClient, StorageCache cache, ILogger logger) 
+		public HttpStorageClient(Func<HttpClient> createClient, Func<HttpClient> createRedirectClient, BundleReaderCache cache, ILogger logger) 
 			: base(new HttpStorageBackend(createClient, createRedirectClient, logger), cache, logger)
 		{
 			_createClient = createClient;
@@ -83,7 +83,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HttpStorageClient(IHttpClientFactory httpClientFactory, Uri baseAddress, string? bearerToken, StorageCache cache, ILogger logger)
+		public HttpStorageClient(IHttpClientFactory httpClientFactory, Uri baseAddress, string? bearerToken, BundleReaderCache cache, ILogger logger)
 			: this(() => CreateAuthenticatedClient(httpClientFactory, baseAddress, bearerToken), () => CreateClient(httpClientFactory), cache, logger)
 		{
 		}

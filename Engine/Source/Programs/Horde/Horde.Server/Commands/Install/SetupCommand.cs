@@ -58,7 +58,7 @@ namespace Horde.Server.Commands.Install
 
 			RefName refName = new RefName("latest");
 
-			using StorageCache storageCache = new StorageCache();
+			using BundleReaderCache storageCache = new BundleReaderCache();
 
 			using FileStorageClient client = new FileStorageClient(bundleDir, storageCache, logger);
 			await using (IStorageWriter writer = client.CreateWriter(refName))

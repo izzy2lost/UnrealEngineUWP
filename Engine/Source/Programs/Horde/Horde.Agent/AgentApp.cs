@@ -233,7 +233,7 @@ namespace Horde.Agent
 			services.AddHostedService(sp => sp.GetRequiredService<WorkerService>());
 
 			services.AddSingleton<IStorageClientFactory, StorageClientFactory>();
-			services.AddSingleton<StorageCache>();
+			services.AddSingleton<BundleReaderCache>();
 
 			services.AddSingleton<ComputeListenerService>();
 			services.AddHostedService(sp => sp.GetRequiredService<ComputeListenerService>());

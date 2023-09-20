@@ -72,13 +72,13 @@ namespace Horde.Agent.Services
 	class HttpServerStorageFactory : IServerStorageFactory
 	{
 		readonly IHttpClientFactory _httpClientFactory;
-		readonly StorageCache _storageCache;
+		readonly BundleReaderCache _storageCache;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HttpServerStorageFactory(IHttpClientFactory httpClientFactory, StorageCache storageCache, ILogger<HttpStorageClient> logger)
+		public HttpServerStorageFactory(IHttpClientFactory httpClientFactory, BundleReaderCache storageCache, ILogger<HttpStorageClient> logger)
 		{
 			_httpClientFactory = httpClientFactory;
 			_storageCache = storageCache;
