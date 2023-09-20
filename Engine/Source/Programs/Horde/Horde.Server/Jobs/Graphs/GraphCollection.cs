@@ -340,7 +340,7 @@ namespace Horde.Server.Jobs.Graphs
 							{
 								for (int outputIdx = 0; outputIdx < node.OutputNames.Length; outputIdx++)
 								{
-									string outputName = $"{node.Name}/{node.OutputNames[outputIdx]}";
+									string outputName = node.OutputNames[outputIdx];
 									nodeOutputNameToRef[outputName] = new NodeOutputRef(new NodeRef(groupIdx, nodeIdx), outputIdx);
 								}
 							}
