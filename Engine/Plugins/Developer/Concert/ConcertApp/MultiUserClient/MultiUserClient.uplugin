@@ -26,11 +26,6 @@
 			"LoadingPhase": "Default"
 		},
 		{
-			"Name": "MultiUserReplication",
-			"Type": "Runtime",
-			"LoadingPhase": "Default"
-		},
-		{
 			"Name": "MultiUserReplicationEditor",
 			"Type": "Editor",
 			"LoadingPhase": "PostDefault"
@@ -39,6 +34,10 @@
 	"Plugins": [
 		{
 			"Name": "ConcertSyncClient",
+			"Enabled": true
+		},
+		{
+			"Name": "ConcertClientSharedSlate",
 			"Enabled": true
 		},
         {

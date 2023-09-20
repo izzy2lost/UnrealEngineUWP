@@ -45,9 +45,6 @@ namespace UE::MultiUserReplicationEditor
 		{
 			Style->SetContentRoot(FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources")));
 		}
-
-		Style->Set("ReplicationTreeView.RowHeight", 20.f);
-		Style->Set("ReplicationTreeView.IconColumnWidth", 20.f);
 		
 		return Style;
 	}

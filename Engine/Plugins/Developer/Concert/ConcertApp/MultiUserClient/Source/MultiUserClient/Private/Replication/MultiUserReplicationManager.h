@@ -2,10 +2,15 @@
 
 #pragma once
 
+#include "Assets/MultiUserReplicationSessionPreset.h"
+#include "IConcertSession.h"
 #include "Templates/SharedPointer.h"
+#include "UObject/GCObject.h"
 
-class UMultiUserReplicationClientProfileAsset;
+class IConcertClientSession;
 class IConcertSyncClient;
+
+enum class EConcertConnectionStatus : uint8;
 
 namespace UE::MultiUserClient
 {
@@ -19,26 +24,39 @@ namespace UE::MultiUserClient
 	 *
 	 * This class implements the Fence design pattern. All knowledge Multi-User might need should be encapsulated by this class.
 	 */
-	class FMultiUserReplicationManager
+	class FMultiUserReplicationManager : public FGCObject
 	{
 	public:
-
+		
 		FMultiUserReplicationManager(TSharedRef<IConcertSyncClient> InClient);
+		virtual ~FMultiUserReplicationManager() override;
 
-		/** Joins a replication session. */
-		void JoinReplicationSession(const UMultiUserReplicationClientProfileAsset& Asset);
-		/** Leaves the current replication session */
-		void LeaveSession();
+		UMultiUserReplicationSessionPreset* GetSessionContent() const { return SessionContent; }
+		UMultiUserReplicationClientPreset* GetLocalClientContent() const { return LocalClientContent; }
 
-		/** Whether it is valid to call JoinReplicationSession. */
-		bool CanJoin() const;
-		/** Whether it is valid to call LeaveSession. */
-		bool IsConnectedToReplicationSession() const;
+		//~ Begin FGCObject Interface
+		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+		virtual FString GetReferencerName() const override { return TEXT("FMultiUserReplicationManager"); }
+		//~ End FGCObject Interface
 
 	private:
 
 		/** Client through which the replication bridge is accessed. */
 		TSharedRef<IConcertSyncClient> Client;
+
+		/** The state of the server is synched up with this object and displayed in the UI. */
+		TObjectPtr<UMultiUserReplicationSessionPreset> SessionContent;
+		/** Data for the local client. Also part of SessionContent->ClientPresets. */
+		TObjectPtr<UMultiUserReplicationClientPreset> LocalClientContent;
+		
+		void OnSessionConnectionChanged(IConcertClientSession& ConcertClientSession, EConcertConnectionStatus ConcertConnectionStatus);
+		
+		/** Joins a replication session. */
+		void OnJoinSession(IConcertClientSession& ConcertClientSession);
+		/** Leaves the current replication session */
+		void OnLeaveSession(IConcertClientSession& ConcertClientSession);
+		
+		void ClearSessionData();
 	};
 }
 

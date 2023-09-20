@@ -6,6 +6,8 @@ namespace UnrealBuildTool.Rules
 	{
 		public MultiUserReplicationEditor(ReadOnlyTargetRules Target) : base(Target)
 		{
+			ShortName = "MURepEditor";
+			
 			PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
@@ -15,8 +17,8 @@ namespace UnrealBuildTool.Rules
 					"Engine",
 					
 					// Concert
-					"ConcertSyncCore",
-					"MultiUserReplication"
+					"ConcertClientSharedSlate",
+					"ConcertSyncCore"
 				}
 			);
 			

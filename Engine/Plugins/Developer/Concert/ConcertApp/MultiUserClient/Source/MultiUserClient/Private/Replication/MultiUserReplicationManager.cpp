@@ -3,37 +3,73 @@
 #include "MultiUserReplicationManager.h"
 
 #include "IConcertSyncClient.h"
-#include "MultiUserReplicationClientProfileAsset.h"
 #include "ReplicationUtils.h"
+
+#include "UObject/Package.h"
 
 namespace UE::MultiUserClient
 {
 	FMultiUserReplicationManager::FMultiUserReplicationManager(TSharedRef<IConcertSyncClient> InClient)
 		: Client(MoveTemp(InClient))
-	{}
-
-	void FMultiUserReplicationManager::JoinReplicationSession(const UMultiUserReplicationClientProfileAsset& Asset)
+		, SessionContent(NewObject<UMultiUserReplicationSessionPreset>(GetTransientPackage(), NAME_None, RF_Transient))
+		, LocalClientContent(SessionContent->AddClient())
 	{
-		Replication::JoinSessionForMultiUser(Client, Asset.ToJoinArgs());
+		Client->GetConcertClient()->OnSessionConnectionChanged().AddRaw(
+			this,
+			&FMultiUserReplicationManager::OnSessionConnectionChanged
+			);
 	}
 
-	void FMultiUserReplicationManager::LeaveSession()
+	FMultiUserReplicationManager::~FMultiUserReplicationManager()
 	{
+		Client->GetConcertClient()->OnSessionConnectionChanged().RemoveAll(this);
+	}
+
+	void FMultiUserReplicationManager::AddReferencedObjects(FReferenceCollector& Collector)
+	{
+		Collector.AddReferencedObject(SessionContent);
+		Collector.AddReferencedObject(LocalClientContent);
+	}
+
+	void FMultiUserReplicationManager::OnSessionConnectionChanged(
+		IConcertClientSession& ConcertClientSession,
+		EConcertConnectionStatus ConcertConnectionStatus
+		)
+	{
+		switch (ConcertConnectionStatus)
+		{
+		case EConcertConnectionStatus::Connecting:
+			break;
+		case EConcertConnectionStatus::Connected:
+			OnJoinSession(ConcertClientSession);
+			break;
+		case EConcertConnectionStatus::Disconnecting:
+			break;
+		case EConcertConnectionStatus::Disconnected:
+			OnLeaveSession(ConcertClientSession);
+			break;
+		default: ;
+		}
+	}
+
+	void FMultiUserReplicationManager::OnJoinSession(IConcertClientSession& ConcertClientSession)
+	{
+		Replication::JoinSessionForMultiUser(Client, {});
+	}
+
+	void FMultiUserReplicationManager::OnLeaveSession(IConcertClientSession& ConcertClientSession)
+	{
+		ClearSessionData();
+		
 		if (IConcertClientReplicationManager* ReplicationManager = Client->GetReplicationManager())
 		{
 			ReplicationManager->LeaveReplicationSession();
 		}
 	}
 
-	bool FMultiUserReplicationManager::CanJoin() const
+	void FMultiUserReplicationManager::ClearSessionData()
 	{
-		IConcertClientReplicationManager* ReplicationManager = Client->GetReplicationManager();
-		return ReplicationManager && ReplicationManager->CanJoin();
-	}
-
-	bool FMultiUserReplicationManager::IsConnectedToReplicationSession() const
-	{
-		IConcertClientReplicationManager* ReplicationManager = Client->GetReplicationManager();
-		return ReplicationManager && ReplicationManager->IsConnectedToReplicationSession();
+		SessionContent->ClearClients();
+		LocalClientContent = SessionContent->AddClient();
 	}
 }

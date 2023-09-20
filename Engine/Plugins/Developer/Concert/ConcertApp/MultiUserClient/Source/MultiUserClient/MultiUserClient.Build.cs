@@ -17,7 +17,21 @@ namespace UnrealBuildTool.Rules
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
+					// Engine
 					"ApplicationCore",
+					"ContentBrowser",
+					"DesktopPlatform",
+					"EditorStyle",
+					"InputCore",
+					"MessageLog",
+					"Projects",
+					"Slate",
+					"SlateCore",
+					"SourceControl",
+					"ToolMenus",
+					"ToolWidgets",
+					
+					// Concert
 					"Concert",
 					"ConcertClient",
 					"ConcertClientSharedSlate",
@@ -25,18 +39,6 @@ namespace UnrealBuildTool.Rules
 					"ConcertSyncClient",
 					"ConcertSyncCore",
 					"ConcertTransport",
-					"ContentBrowser",
-					"DesktopPlatform",
-					"EditorStyle",
-					"InputCore",
-					"MessageLog",
-					"MultiUserReplication",
-					"Projects",
-					"Slate",
-					"SlateCore",
-					"SourceControl",
-					"ToolMenus",
-					"ToolWidgets"
 				}
 			);
 
