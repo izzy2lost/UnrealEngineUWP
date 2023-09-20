@@ -40,13 +40,39 @@
 
 namespace UE::Interchange::Private
 {
+	TArray<FString> GetAllActiveJoints(UInterchangeBaseNodeContainer* BaseNodeContainer)
+	{
+		TArray<FString> AllActiveJoints;
+		BaseNodeContainer->IterateNodesOfType<UInterchangeSkeletonFactoryNode>([&BaseNodeContainer, &AllActiveJoints](const FString& NodeUid, UInterchangeSkeletonFactoryNode* Node)
+			{
+				FString RootNodeUid;
+				if (Node->GetCustomRootJointUid(RootNodeUid))
+				{
+					AllActiveJoints.Add(RootNodeUid);
+					BaseNodeContainer->IterateNodeChildren(RootNodeUid, [&AllActiveJoints](const UInterchangeBaseNode* Node)
+						{
+							if (const UInterchangeSceneNode* SceneNode = Cast<UInterchangeSceneNode>(Node))
+							{
+								TArray<FString> SpecializeTypes;
+								SceneNode->GetSpecializedTypes(SpecializeTypes);
+								if (SpecializeTypes.Contains(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString()))
+								{
+									AllActiveJoints.Add(Node->GetUniqueID());
+								}
+							}
+						});
+				}
+			});
+		return AllActiveJoints;
+	}
+
 	//Either a (TransformSpecialized || !JointSpecialized || RootJoint) can be a parent (only those get FactoryNodes) :
-	FString FindFactoryParentSceneNodeUid(UInterchangeBaseNodeContainer* BaseNodeContainer, const UInterchangeSceneNode* SceneNode)
+	FString FindFactoryParentSceneNodeUid(UInterchangeBaseNodeContainer* BaseNodeContainer, TArray<FString>& ActiveSkeletonUids, const UInterchangeSceneNode* SceneNode)
 	{
 		FString ParentUid = SceneNode->GetParentUid();
 		if (const UInterchangeSceneNode* ParentSceneNode = Cast<UInterchangeSceneNode>(BaseNodeContainer->GetNode(ParentUid)))
 		{
-			if (ParentSceneNode->IsSpecializedTypeContains(UE::Interchange::FSceneNodeStaticData::GetTransformSpecializeTypeString()))
+			if (!ActiveSkeletonUids.Contains(ParentUid) || ParentSceneNode->IsSpecializedTypeContains(UE::Interchange::FSceneNodeStaticData::GetTransformSpecializeTypeString()))
 			{
 				return ParentUid;
 			}
@@ -63,7 +89,7 @@ namespace UE::Interchange::Private
 						bool bParentsParentIsJoint = ParentSceneNode->IsSpecializedTypeContains(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString());
 						if (bParentsParentIsJoint)
 						{
-							return FindFactoryParentSceneNodeUid(BaseNodeContainer, ParentSceneNode);
+							return FindFactoryParentSceneNodeUid(BaseNodeContainer, ActiveSkeletonUids, ParentSceneNode);
 						}
 						else
 						{
@@ -260,6 +286,9 @@ void UInterchangeGenericLevelPipeline::ExecutePipeline(UInterchangeBaseNodeConta
 	}
 #endif
 
+	/* Find all scene node that are active joint. Non active joint should be convert to actor if they are in a static mesh hierarchy */
+	TArray<FString> ActiveSkeletonUids = UE::Interchange::Private::GetAllActiveJoints(BaseNodeContainer);
+
 	for (const UInterchangeSceneNode* SceneNode : SceneNodes)
 	{
 		if (SceneNode)
@@ -273,14 +302,21 @@ void UInterchangeGenericLevelPipeline::ExecutePipeline(UInterchangeBaseNodeConta
 					bool bSkipNode = true;
 					if (SpecializeTypes.Contains(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString()))
 					{
-						//check if its the root joint (we want to create an actor for the root joint)
-						FString CurrentNodesParentUid = SceneNode->GetParentUid();
-						const UInterchangeBaseNode* ParentNode = BaseNodeContainer->GetNode(CurrentNodesParentUid);
-						if (const UInterchangeSceneNode* ParentSceneNode = Cast<UInterchangeSceneNode>(ParentNode))
+						if(!ActiveSkeletonUids.Contains(SceneNode->GetUniqueID()))
+						{ 
+							bSkipNode = false;
+						}
+						else
 						{
-							if (!ParentSceneNode->IsSpecializedTypeContains(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString()))
+							//check if its the root joint (we want to create an actor for the root joint)
+							FString CurrentNodesParentUid = SceneNode->GetParentUid();
+							const UInterchangeBaseNode* ParentNode = BaseNodeContainer->GetNode(CurrentNodesParentUid);
+							if (const UInterchangeSceneNode* ParentSceneNode = Cast<UInterchangeSceneNode>(ParentNode))
 							{
-								bSkipNode = false;
+								if (!ParentSceneNode->IsSpecializedTypeContains(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString()))
+								{
+									bSkipNode = false;
+								}
 							}
 						}
 					}
@@ -406,7 +442,9 @@ void UInterchangeGenericLevelPipeline::ExecuteSceneNodePreImport(const FTransfor
 
 	if (!SceneNode->GetParentUid().IsEmpty())
 	{
-		FString ParentNodeUid = UE::Interchange::Private::FindFactoryParentSceneNodeUid(BaseNodeContainer, SceneNode);
+		/* Find all scene node that are active joint. Non active joint should be convert to actor if they are in a static mesh hierarchy */
+		TArray<FString> ActiveSkeletonUids = UE::Interchange::Private::GetAllActiveJoints(BaseNodeContainer);
+		FString ParentNodeUid = UE::Interchange::Private::FindFactoryParentSceneNodeUid(BaseNodeContainer, ActiveSkeletonUids, SceneNode);
 		if (ParentNodeUid != UInterchangeBaseNode::InvalidNodeUid())
 		{
 			FString ParentFactoryNodeUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(ParentNodeUid);

@@ -143,10 +143,63 @@ void UInterchangeGenericAnimationPipeline::ExecutePipeline(UInterchangeBaseNodeC
 
 	if (!bSceneImport)
 	{
+		//Extract any skeleton node use by the skeletal mesh animation track
+		TArray<FString> SceneNodesUsedBySkeleton;
+		BaseNodeContainer->IterateNodesOfType<UInterchangeSkeletalAnimationTrackNode>([&](const FString& NodeUid, UInterchangeSkeletalAnimationTrackNode* Node)
+			{
+				if (Node)
+				{
+					FString SkeletonNodeUid;
+					if (Node->GetCustomSkeletonNodeUid(SkeletonNodeUid))
+					{
+						SceneNodesUsedBySkeleton.Add(SkeletonNodeUid);
+						BaseNodeContainer->IterateNodeChildren(SkeletonNodeUid, [&SceneNodesUsedBySkeleton](const UInterchangeBaseNode* Node)
+							{
+								if (const UInterchangeSceneNode* SceneNode = Cast<UInterchangeSceneNode>(Node))
+								{
+									SceneNodesUsedBySkeleton.Add(Node->GetUniqueID());
+								}
+							});
+					}
+				}
+			});
+
+		auto IsTrackOverrideBySkeletalMeshAnimation = [this, &SceneNodesUsedBySkeleton](TArray<FString>& AnimationTrackUids)
+			{
+				//Skip track node that is using one or more scene node used by any skeletal mesh skeleton.
+				bool bSomeTrackNodeUsedBySkeletalMesh = false;
+				for (const FString& AnimationTrackUid : AnimationTrackUids)
+				{
+					if (const UInterchangeTransformAnimationTrackNode* TransformTrackNode = Cast<UInterchangeTransformAnimationTrackNode>(BaseNodeContainer->GetNode(AnimationTrackUid)))
+					{
+						FString ActorNodeUid;
+						if (TransformTrackNode->GetCustomActorDependencyUid(ActorNodeUid))
+						{
+							if (SceneNodesUsedBySkeleton.Contains(ActorNodeUid))
+							{
+								bSomeTrackNodeUsedBySkeletalMesh = true;
+								break;
+							}
+						}
+					}
+				}
+				return bSomeTrackNodeUsedBySkeletalMesh;
+			};
 		//Support rigid mesh animation animation data  (UAnimSequence for rigid mesh)
 		for (UInterchangeAnimationTrackSetNode* TrackSetNode : TrackSetNodes)
 		{
-			if (!TrackSetNode) continue;
+			if (!TrackSetNode)
+			{
+				continue;
+			}
+
+			TArray<FString> AnimationTrackUids;
+			TrackSetNode->GetCustomAnimationTrackUids(AnimationTrackUids);
+			
+			if (IsTrackOverrideBySkeletalMeshAnimation(AnimationTrackUids))
+			{
+				continue;
+			}
 
 			UInterchangeSkeletalAnimationTrackNode* SkeletalAnimationNode = NewObject< UInterchangeSkeletalAnimationTrackNode >(BaseNodeContainer);
 			FString SkeletalAnimationNodeUid = "\\SkeletalAnimation\\ConvertedFromRigidAnimation\\" + TrackSetNode->GetUniqueID();
@@ -154,8 +207,7 @@ void UInterchangeGenericAnimationPipeline::ExecutePipeline(UInterchangeBaseNodeC
 
 			bool bCustomSkeletonNodeUidSet = false;
 
-			TArray<FString> AnimationTrackUids;
-			TrackSetNode->GetCustomAnimationTrackUids(AnimationTrackUids);
+			
 			float CustomFrameRate;
 			if (!TrackSetNode->GetCustomFrameRate(CustomFrameRate))
 			{

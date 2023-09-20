@@ -681,13 +681,6 @@ namespace UE
 						SkeletalAnimationTrackNode = nullptr;
 
 						SkeletalAnimationAddedToContainer = false;
-
-						//if No Skeleton Attribute then it potentially has a Rigid animation:
-						//AnimationIndex does not change the Skeletal Attributes nor the Properties from which we gather the Rigid Animation Data:
-						if (AnimationIndex == 0)
-						{
-							AddRigidAnimation(Node, UnrealNode, NodeContainer, PayloadContexts);
-						}
 					}
 					else if (SkeletalAnimationTrackNode)
 					{
@@ -698,6 +691,12 @@ namespace UE
 							SkeletalAnimationAddedToContainer = true;
 							NodeContainer.AddNode(SkeletalAnimationTrackNode);
 						}
+					}
+
+					//Add the transform payload for all node
+					if (AnimationIndex == 0)
+					{
+						AddRigidAnimation(Node, UnrealNode, NodeContainer, PayloadContexts);
 					}
 				}
 			
