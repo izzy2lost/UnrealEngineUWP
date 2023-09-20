@@ -35,6 +35,7 @@
 #include "VerseVM/VVMValue.h"
 #include "VerseVM/VVMValuePrinting.h"
 #include "VerseVM/VVMVar.h"
+#include <stdio.h>
 
 namespace Verse
 {
@@ -285,6 +286,11 @@ class FInterpreter
 
 	void BeginTrace()
 	{
+		if (CVarSingleStepTraceExecution.GetValueOnAnyThread())
+		{
+			getchar();
+		}
+
 		SavedStateForTracing = State;
 		if (State.PC == &StopInterpreterSentry)
 		{
@@ -313,6 +319,11 @@ class FInterpreter
 	template <typename CaptureType>
 	void BeginTrace(const CaptureType& Captures, VBytecodeSuspension& Suspension)
 	{
+		if (CVarSingleStepTraceExecution.GetValueOnAnyThread())
+		{
+			getchar();
+		}
+
 		ExecutionTrace = TracePrefix(Suspension.Procedure.Get(), nullptr, Suspension.PC, true);
 		ExecutionTrace += TraceInputs(Captures);
 		ExecutionTrace += TEXT(")");

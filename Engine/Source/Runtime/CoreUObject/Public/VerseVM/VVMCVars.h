@@ -11,6 +11,7 @@
 namespace Verse
 {
 extern COREUOBJECT_API TAutoConsoleVariable<bool> CVarTraceExecution;
+extern COREUOBJECT_API TAutoConsoleVariable<bool> CVarSingleStepTraceExecution;
 extern COREUOBJECT_API TAutoConsoleVariable<bool> CVarDumpBytecode;
 extern COREUOBJECT_API TAutoConsoleVariable<bool> CVarForceBytecode;
 } // namespace Verse
