@@ -102,7 +102,9 @@ void FGLTFMaterialProxyFactory::SetProxyParameters(UMaterialInstanceConstant* Pr
 	SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::BaseColor, JsonMaterial.PBRMetallicRoughness.BaseColorTexture);
 	SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::BaseColorFactor, JsonMaterial.PBRMetallicRoughness.BaseColorFactor);
 
-	if (JsonMaterial.ShadingModel == EGLTFJsonShadingModel::Default || JsonMaterial.ShadingModel == EGLTFJsonShadingModel::ClearCoat)
+	if (JsonMaterial.ShadingModel == EGLTFJsonShadingModel::Default || 
+		JsonMaterial.ShadingModel == EGLTFJsonShadingModel::ClearCoat ||
+		JsonMaterial.ShadingModel == EGLTFJsonShadingModel::Sheen)
 	{
 		SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::Emissive, JsonMaterial.EmissiveTexture);
 		SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::EmissiveFactor, JsonMaterial.EmissiveFactor);
@@ -128,6 +130,13 @@ void FGLTFMaterialProxyFactory::SetProxyParameters(UMaterialInstanceConstant* Pr
 
 			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::ClearCoatNormal, JsonMaterial.ClearCoat.ClearCoatNormalTexture);
 			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::ClearCoatNormalScale, JsonMaterial.ClearCoat.ClearCoatNormalTexture.Scale);
+		}
+		else if (JsonMaterial.ShadingModel == EGLTFJsonShadingModel::Sheen)
+		{
+			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::SheenColorFactor, JsonMaterial.Sheen.ColorFactor);
+			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::SheenColorTexture, JsonMaterial.Sheen.ColorTexture);
+			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::SheenRoughnessFactor, JsonMaterial.Sheen.RoughnessFactor);
+			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::SheenRoughnessTexture, JsonMaterial.Sheen.RoughnessTexture);
 		}
 	}
 

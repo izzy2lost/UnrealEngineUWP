@@ -36,4 +36,9 @@ public:
 	
 	static const TGLTFProxyMaterialParameterInfo<float> SpecularFactor;
 	static const FGLTFProxyMaterialTextureParameterInfo SpecularTexture; //Only using Alpha Channel
+
+	static const TGLTFProxyMaterialParameterInfo<FLinearColor> SheenColorFactor;
+	static const FGLTFProxyMaterialTextureParameterInfo        SheenColorTexture; //RGB
+	static const TGLTFProxyMaterialParameterInfo<float>        SheenRoughnessFactor;
+	static const FGLTFProxyMaterialTextureParameterInfo        SheenRoughnessTexture; //A
 };

@@ -222,6 +222,7 @@ EGLTFJsonShadingModel FGLTFCoreUtilities::ConvertShadingModel(EMaterialShadingMo
 		case MSM_Unlit:      return EGLTFJsonShadingModel::Unlit;
 		case MSM_DefaultLit: return EGLTFJsonShadingModel::Default;
 		case MSM_ClearCoat:  return EGLTFJsonShadingModel::ClearCoat;
+		case MSM_Cloth:      return EGLTFJsonShadingModel::Sheen;
 		default:             return EGLTFJsonShadingModel::None;
 	}
 }
