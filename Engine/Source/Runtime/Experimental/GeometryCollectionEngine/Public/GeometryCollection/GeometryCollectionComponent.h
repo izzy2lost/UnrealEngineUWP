@@ -438,6 +438,127 @@ struct TStructOpsTypeTraits<FGeometryCollectionRepData> : public TStructOpsTypeT
 };
 
 /**
+* Replicated state data for a geometry collection when bEnableReplication is true for that component.
+* State data means what is broken and what is not 
+* See UGeomtryCollectionComponent::UpdateRepData
+*/
+USTRUCT()
+struct FGeometryCollectionRepStateData
+{
+	GENERATED_BODY()
+
+	FGeometryCollectionRepStateData()
+	: Version(0)
+	, bIsRootAnchored(false)
+	{
+	}
+
+	// mark a transform as broken nd return true if this was a state change
+	bool SetBroken(int32 TransformIndex, int32 NumTransforms, bool bDisabled, const FVector& LinV, const FVector& AngVInRadiansPerSecond);
+
+	// version for fast comparison
+	int32 Version;
+
+	// broken state of each piece of the GC
+	TBitArray<> BrokenState;
+
+	// Is the root particle of the GC currently anchored
+	// could possibily change in the future to also be a bit array 
+	uint8 bIsRootAnchored;
+
+	// this represents the data for when a particle is released from its parent cluster 
+	// this data is added when the particle is released but will be cleared after a while
+	// so that late client will not replay the break as it is in their past 
+	struct FReleasedData
+	{
+		int16 TransformIndex;
+		FVector_NetQuantize10 LinearVelocity;
+		FVector_NetQuantize10 AngularVelocityInDegreesPerSecond;
+	};
+	TArray<FReleasedData> ReleasedData;
+
+	// Just test version to skip having to traverse the whole pose array for replication
+	bool Identical(const FGeometryCollectionRepStateData* Other, uint32 PortFlags) const;
+	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
+
+	void Reset()
+	{
+		BrokenState.Reset();
+		bIsRootAnchored = 0;
+		ReleasedData.Reset();
+	}
+};
+
+template<>
+struct TStructOpsTypeTraits<FGeometryCollectionRepStateData> : public TStructOpsTypeTraitsBase2<FGeometryCollectionRepStateData>
+{
+	enum
+	{
+		WithNetSerializer = true,
+		WithIdentical = true,
+	};
+};
+
+// this structure holds entries for the tracked pieces to be replicated
+USTRUCT()
+struct FGeometryCollectionRepDynamicData
+{
+	GENERATED_BODY()
+
+	struct FClusterData
+	{
+		FVector_NetQuantize10 Position;
+		FVector_NetQuantize10 EulerRotation;
+		FVector_NetQuantize10 LinearVelocity;
+		FVector_NetQuantize10 AngularVelocityInDegreesPerSecond;
+
+		// Index of the cluster or one of its child if the cluster is internal ( see bIsInternalCluster)
+		uint16 TransformIndex = INDEX_NONE; 
+
+		// Whether this refers to an internal cluster or directly to a cluster in the geometry collection
+		uint8  bIsInternalCluster = false;
+
+		// non serialized data, used to trimn the data back when no longer updated
+		int32 LastUpdatedVersion = 0;
+
+		// comp
+		bool IsEqualPositionsAndVelocities(const FClusterData& Data) const;
+	};
+
+	FGeometryCollectionRepDynamicData()
+		: Version(0)
+	{}
+
+	int32 Version;
+	TArray<FClusterData> ClusterData;
+
+	// return true if the data has changed from stored one
+	bool SetData(const FClusterData& Data);
+
+	// return true if any entries was removed
+	bool RemoveOutOfDateClusterData();
+
+	// Just test version to skip having to traverse the whole pose array for replication
+	bool Identical(const FGeometryCollectionRepDynamicData* Other, uint32 PortFlags) const;
+	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
+
+	void Reset()
+	{
+		ClusterData.Reset();
+	}
+};
+
+template<>
+struct TStructOpsTypeTraits<FGeometryCollectionRepDynamicData> : public TStructOpsTypeTraitsBase2<FGeometryCollectionRepDynamicData>
+{
+	enum
+	{
+		WithNetSerializer = true,
+		WithIdentical = true,
+	};
+};
+
+/**
 *	GeometryCollectionComponent
 */
 UCLASS(meta = (BlueprintSpawnableComponent), MinimalAPI)
@@ -1352,12 +1473,25 @@ protected:
 	UPROPERTY(ReplicatedUsing=OnRep_RepData)
 	FGeometryCollectionRepData RepData;
 
+	UPROPERTY(ReplicatedUsing = OnRep_RepStateData)
+	FGeometryCollectionRepStateData RepStateData;
+
+	UPROPERTY(ReplicatedUsing = OnRep_RepDynamicData)
+	FGeometryCollectionRepDynamicData RepDynamicData;
+
 	/** Called post solve to allow authoritative components to update their replication data */
 	UFUNCTION()
 	GEOMETRYCOLLECTIONENGINE_API void OnRep_RepData();
 
+	UFUNCTION()
+	GEOMETRYCOLLECTIONENGINE_API void OnRep_RepStateData();
+
+	UFUNCTION()
+	GEOMETRYCOLLECTIONENGINE_API void OnRep_RepDynamicData();
+	
 	GEOMETRYCOLLECTIONENGINE_API void RequestUpdateRepData();
 	GEOMETRYCOLLECTIONENGINE_API virtual void UpdateRepData();
+	GEOMETRYCOLLECTIONENGINE_API virtual void UpdateRepStateAndDynamicData();
 
 	/** Clear all rep data, this is required if the physics proxy has been recreated */
 	GEOMETRYCOLLECTIONENGINE_API virtual void ResetRepData();
@@ -1378,7 +1512,9 @@ protected:
 	int64 LastAsyncPhysicsTickMs = 0;
 
 private:
-	GEOMETRYCOLLECTIONENGINE_API void ProcessRepDataOnPT();
+	void ProcessRepDataOnPT();
+	void ProcessRepStateDataOnPT();
+	void ProcessRepDynamicDataOnPT();
 
 	// return the most actual transforms
 	// this can be the rest collection ones, the overriden RestTransforms or the dynamic collection ones
