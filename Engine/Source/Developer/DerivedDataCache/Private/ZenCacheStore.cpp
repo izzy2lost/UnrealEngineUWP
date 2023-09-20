@@ -253,8 +253,24 @@ public:
 		TRACE_COUNTER_ADD(ZenDDC_Put, int64(Requests.Num()));
 	}
 
+	virtual ~FPutOp()
+	{
+		FMonotonicTimeSpan AverageMainThreadTime = FMonotonicTimeSpan::FromSeconds(Requests[0].Stats.MainThreadTime.ToSeconds() / Requests.Num());
+		FMonotonicTimeSpan AverageOtherThreadTime = FMonotonicTimeSpan::FromSeconds(Requests[0].Stats.OtherThreadTime.ToSeconds() / Requests.Num());
+		FMonotonicTimeSpan AverageLatency = FMonotonicTimeSpan::FromSeconds(Requests[0].Stats.Latency.ToSeconds() / Requests.Num());
+
+		for (TRequestWithStats<FCachePutRequest>& Request : Requests)
+		{
+			Request.Stats.MainThreadTime = AverageMainThreadTime;
+			Request.Stats.OtherThreadTime = AverageOtherThreadTime;
+			Request.Stats.Latency = AverageLatency;
+		}
+	}
+
 	void IssueRequests()
 	{
+		FRequestTimer RequestTimer(Requests[0].Stats);
+
 		FRequestBarrier Barrier(Owner);
 		for (TArrayView<const TRequestWithStats<FCachePutRequest>> Batch : Batches)
 		{
@@ -297,6 +313,9 @@ public:
 
 			auto OnRpcComplete = [this, OpRef = TRefCountPtr<FPutOp>(this), Batch](THttpUniquePtr<IHttpResponse>& HttpResponse, FCbPackage& Response)
 			{
+				FRequestTimer RequestTimer(Requests[0].Stats);
+				Requests[0].Stats.Latency = FMonotonicTimeSpan::FromSeconds(HttpResponse->GetStats().StartTransferTime);
+
 				int32 RequestIndex = 0;
 				if (HttpResponse->GetErrorCode() == EHttpErrorCode::None && HttpResponse->GetStatusCode() >= 200 && HttpResponse->GetStatusCode() <= 299)
 				{
@@ -310,7 +329,6 @@ public:
 						}
 
 						const TRequestWithStats<FCachePutRequest>& RequestWithStats = Batch[RequestIndex++];
-						RequestWithStats.Stats.AddLatency(FMonotonicTimeSpan::FromSeconds(HttpResponse->GetStats().StartTransferTime));
 
 						const FCacheKey& Key = RequestWithStats.Request.Record.GetKey();
 						bool bPutSucceeded = ResponseField.AsBool();
@@ -435,10 +453,22 @@ public:
 	virtual ~FGetOp()
 	{
 		TRACE_COUNTER_SUBTRACT(ZenDDC_CacheRecordRequestCountInFlight, int64(Requests.Num()));
+		FMonotonicTimeSpan AverageMainThreadTime = FMonotonicTimeSpan::FromSeconds(Requests[0].Stats.MainThreadTime.ToSeconds() / Requests.Num());
+		FMonotonicTimeSpan AverageOtherThreadTime = FMonotonicTimeSpan::FromSeconds(Requests[0].Stats.OtherThreadTime.ToSeconds() / Requests.Num());
+		FMonotonicTimeSpan AverageLatency = FMonotonicTimeSpan::FromSeconds(Requests[0].Stats.Latency.ToSeconds() / Requests.Num());
+
+		for (TRequestWithStats<FCacheGetRequest>& Request : Requests)
+		{
+			Request.Stats.MainThreadTime = AverageMainThreadTime;
+			Request.Stats.OtherThreadTime = AverageOtherThreadTime;
+			Request.Stats.Latency = AverageLatency;
+		}
 	}
 
 	void IssueRequests()
 	{
+		FRequestTimer RequestTimer(Requests[0].Stats);
+
 		FRequestBarrier Barrier(Owner);
 		ForEachBatch(CacheStore.CacheRecordBatchSize, Requests.Num(),
 			[this](int32 BatchFirst, int32 BatchLast)
@@ -485,6 +515,9 @@ public:
 			FGetOp* OriginalOp = this;
 			auto OnRpcComplete = [this, OpRef = TRefCountPtr<FGetOp>(OriginalOp), Batch](THttpUniquePtr<IHttpResponse>& HttpResponse, FCbPackage& Response)
 			{
+				FRequestTimer RequestTimer(Requests[0].Stats);
+				Requests[0].Stats.Latency = FMonotonicTimeSpan::FromSeconds(HttpResponse->GetStats().StartTransferTime);
+
 				int32 RequestIndex = 0;
 				if (HttpResponse->GetErrorCode() == EHttpErrorCode::None && HttpResponse->GetStatusCode() >= 200 && HttpResponse->GetStatusCode() <= 299)
 				{
@@ -499,7 +532,6 @@ public:
 						}
 
 						const TRequestWithStats<FCacheGetRequest>& RequestWithStats = Batch[RequestIndex++];
-						RequestWithStats.Stats.AddLatency(FMonotonicTimeSpan::FromSeconds(HttpResponse->GetStats().StartTransferTime));
 
 						const FCacheKey& Key = RequestWithStats.Request.Key;
 						FOptionalCacheRecord Record;
@@ -528,7 +560,7 @@ public:
 						TEXT("%s: Error response received from GetCacheRecords RPC: from %s"),
 						*CacheStore.GetName(), *WriteToString<256>(*HttpResponse));
 				}
-
+					
 				for (const TRequestWithStats<FCacheGetRequest>& RequestWithStats : Batch.RightChop(RequestIndex))
 				{
 					if (HttpResponse->GetErrorCode() == EHttpErrorCode::Canceled)
@@ -623,8 +655,24 @@ public:
 			[this](const TRequestWithStats<FCachePutValueRequest>& NextRequest) { return BatchGroupingFilter(NextRequest.Request); });
 	}
 
+	virtual ~FPutValueOp()
+	{
+		FMonotonicTimeSpan AverageMainThreadTime = FMonotonicTimeSpan::FromSeconds(Requests[0].Stats.MainThreadTime.ToSeconds() / Requests.Num());
+		FMonotonicTimeSpan AverageOtherThreadTime = FMonotonicTimeSpan::FromSeconds(Requests[0].Stats.OtherThreadTime.ToSeconds() / Requests.Num());
+		FMonotonicTimeSpan AverageLatency = FMonotonicTimeSpan::FromSeconds(Requests[0].Stats.Latency.ToSeconds() / Requests.Num());
+
+		for (TRequestWithStats<FCachePutValueRequest>& Request : Requests)
+		{
+			Request.Stats.MainThreadTime = AverageMainThreadTime;
+			Request.Stats.OtherThreadTime = AverageOtherThreadTime;
+			Request.Stats.Latency = AverageLatency;
+		}
+	}
+
 	void IssueRequests()
 	{
+		FRequestTimer RequestTimer(Requests[0].Stats);
+
 		FRequestBarrier Barrier(Owner);
 		for (TArrayView<const TRequestWithStats<FCachePutValueRequest>> Batch : Batches)
 		{
@@ -669,6 +717,9 @@ public:
 
 			auto OnRpcComplete = [this, OpRef = TRefCountPtr<FPutValueOp>(this), Batch](THttpUniquePtr<IHttpResponse>& HttpResponse, FCbPackage& Response)
 			{
+				FRequestTimer RequestTimer(Requests[0].Stats);
+				Requests[0].Stats.Latency = FMonotonicTimeSpan::FromSeconds(HttpResponse->GetStats().StartTransferTime);
+
 				int32 RequestIndex = 0;
 				if (HttpResponse->GetErrorCode() == EHttpErrorCode::None && HttpResponse->GetStatusCode() >= 200 && HttpResponse->GetStatusCode() <= 299)
 				{
@@ -682,7 +733,6 @@ public:
 						}
 
 						const TRequestWithStats<FCachePutValueRequest>& RequestWithStats = Batch[RequestIndex++];
-						RequestWithStats.Stats.AddLatency(FMonotonicTimeSpan::FromSeconds(HttpResponse->GetStats().StartTransferTime));
 
 						bool bPutSucceeded = ResponseField.AsBool();
 						if (CacheStore.DebugOptions.ShouldSimulatePutMiss(RequestWithStats.Request.Key))
@@ -795,10 +845,22 @@ public:
 	virtual ~FGetValueOp()
 	{
 		TRACE_COUNTER_SUBTRACT(ZenDDC_CacheRecordRequestCountInFlight, int64(Requests.Num()));
+		FMonotonicTimeSpan AverageMainThreadTime = FMonotonicTimeSpan::FromSeconds(Requests[0].Stats.MainThreadTime.ToSeconds() / Requests.Num());
+		FMonotonicTimeSpan AverageOtherThreadTime = FMonotonicTimeSpan::FromSeconds(Requests[0].Stats.OtherThreadTime.ToSeconds() / Requests.Num());
+		FMonotonicTimeSpan AverageLatency = FMonotonicTimeSpan::FromSeconds(Requests[0].Stats.Latency.ToSeconds() / Requests.Num());
+
+		for (TRequestWithStats<FCacheGetValueRequest>& Request : Requests)
+		{
+			Request.Stats.MainThreadTime = AverageMainThreadTime;
+			Request.Stats.OtherThreadTime = AverageOtherThreadTime;
+			Request.Stats.Latency = AverageLatency;
+		}
 	}
 
 	void IssueRequests()
 	{
+		FRequestTimer RequestTimer(Requests[0].Stats);
+
 		FRequestBarrier Barrier(Owner);
 		ForEachBatch(CacheStore.CacheRecordBatchSize, Requests.Num(),
 			[this](int32 BatchFirst, int32 BatchLast)
@@ -844,6 +906,9 @@ public:
 			FGetValueOp* OriginalOp = this;
 			auto OnRpcComplete = [this, OpRef = TRefCountPtr<FGetValueOp>(OriginalOp), Batch](THttpUniquePtr<IHttpResponse>& HttpResponse, FCbPackage& Response)
 			{
+				FRequestTimer RequestTimer(Requests[0].Stats);
+				Requests[0].Stats.Latency = FMonotonicTimeSpan::FromSeconds(HttpResponse->GetStats().StartTransferTime);
+
 				int32 RequestIndex = 0;
 				if (HttpResponse->GetErrorCode() == EHttpErrorCode::None && HttpResponse->GetStatusCode() >= 200 && HttpResponse->GetStatusCode() <= 299)
 				{
@@ -858,7 +923,6 @@ public:
 						}
 
 						const TRequestWithStats<FCacheGetValueRequest>& RequestWithStats = Batch[RequestIndex++];
-						RequestWithStats.Stats.AddLatency(FMonotonicTimeSpan::FromSeconds(HttpResponse->GetStats().StartTransferTime));
 
 						FCbObjectView ResultObj = ResultField.AsObjectView();
 						TOptional<FValue> Value;
@@ -977,10 +1041,22 @@ public:
 	virtual ~FGetChunksOp()
 	{
 		TRACE_COUNTER_SUBTRACT(ZenDDC_ChunkRequestCountInFlight, int64(Requests.Num()));
+		FMonotonicTimeSpan AverageMainThreadTime = FMonotonicTimeSpan::FromSeconds(Requests[0].Stats.MainThreadTime.ToSeconds() / Requests.Num());
+		FMonotonicTimeSpan AverageOtherThreadTime = FMonotonicTimeSpan::FromSeconds(Requests[0].Stats.OtherThreadTime.ToSeconds() / Requests.Num());
+		FMonotonicTimeSpan AverageLatency = FMonotonicTimeSpan::FromSeconds(Requests[0].Stats.Latency.ToSeconds() / Requests.Num());
+
+		for (TRequestWithStats<FCacheGetChunkRequest>& Request : Requests)
+		{
+			Request.Stats.MainThreadTime = AverageMainThreadTime;
+			Request.Stats.OtherThreadTime = AverageOtherThreadTime;
+			Request.Stats.Latency = AverageLatency;
+		}
 	}
 
 	void IssueRequests()
 	{
+		FRequestTimer RequestTimer(Requests[0].Stats);
+
 		FRequestBarrier Barrier(Owner);
 		ForEachBatch(CacheStore.CacheChunksBatchSize, Requests.Num(),
 			[this](int32 BatchFirst, int32 BatchLast)
@@ -1044,6 +1120,9 @@ public:
 			FGetChunksOp* OriginalOp = this;
 			auto OnRpcComplete = [this, OpRef = TRefCountPtr<FGetChunksOp>(OriginalOp), Batch](THttpUniquePtr<IHttpResponse>& HttpResponse, FCbPackage& Response)
 			{
+				FRequestTimer RequestTimer(Requests[0].Stats);
+				Requests[0].Stats.Latency = FMonotonicTimeSpan::FromSeconds(HttpResponse->GetStats().StartTransferTime);
+
 				int32 RequestIndex = 0;
 				if (HttpResponse->GetErrorCode() == EHttpErrorCode::None && HttpResponse->GetStatusCode() >= 200 && HttpResponse->GetStatusCode() <= 299)
 				{
@@ -1057,7 +1136,6 @@ public:
 							continue;
 						}
 						const TRequestWithStats<FCacheGetChunkRequest>& RequestWithStats = Batch[RequestIndex++];
-						RequestWithStats.Stats.AddLatency(FMonotonicTimeSpan::FromSeconds(HttpResponse->GetStats().StartTransferTime));
 
 						FIoHash RawHash;
 						bool Succeeded = false;
@@ -1133,7 +1211,7 @@ private:
 			*CacheStore.GetName(), *WriteToString<96>(Request.Key, '/', Request.Id), *Request.Name);
 
 		// This is a rough estimate of physical read size until Zen communicates stats with each response.
-		RequestWithStats.Stats.LogicalReadSize += RequestedBytes.GetSize();
+		RequestWithStats.Stats.LogicalReadSize += RawSize;
 		RequestWithStats.Stats.PhysicalReadSize += RequestedBytes.GetSize();
 		RequestWithStats.EndRequest(CacheStore, EStatus::Ok);
 

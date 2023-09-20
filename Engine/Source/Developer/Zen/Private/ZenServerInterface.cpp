@@ -2355,86 +2355,262 @@ FZenServiceInstance::RequestGC(const bool* OverrideCollectSmallObjects, const ui
 bool 
 FZenServiceInstance::GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes)
 {
-	FZenCacheStats ZenStats;
+	FZenCacheStats ZenCacheStats;
+	FZenProjectStats ZenProjectStats;
 
-	if (GetCacheStats(ZenStats) == false)
+	if (GetCacheStats(ZenCacheStats) == false)
+		return false;
+
+	if (GetProjectStats(ZenProjectStats) == false)
 		return false;
 
 	const FString BaseName = TEXT("Zen_");
 
 	{
 		FString AttrName = BaseName + TEXT("Enabled");
-		Attributes.Emplace(MoveTemp(AttrName), ZenStats.bIsValid);
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.bIsValid && ZenProjectStats.bIsValid);
 	}
 
-	{
-		FString AttrName = BaseName + TEXT("Cache_HitRatio");
-		Attributes.Emplace(MoveTemp(AttrName), ZenStats.General.HitRatio);
-	}
-
-	{
-		FString AttrName = BaseName + TEXT("Cache_Hits");
-		Attributes.Emplace(MoveTemp(AttrName), ZenStats.General.Hits);
-	}
-
-	{
-		FString AttrName = BaseName + TEXT("Cache_Misses");
-		Attributes.Emplace(MoveTemp(AttrName), ZenStats.General.Misses);
-	}
-
+	///////////// Cache
 	{
 		FString AttrName = BaseName + TEXT("Cache_Size_Disk");
-		Attributes.Emplace(MoveTemp(AttrName), ZenStats.General.Size.Disk);
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.Size.Disk);
 	}
 
 	{
 		FString AttrName = BaseName + TEXT("Cache_Size_Memory");
-		Attributes.Emplace(MoveTemp(AttrName), ZenStats.General.Size.Memory);
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.Size.Memory);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Cache_Hits");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.Hits);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Cache_Misses");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.Misses);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Cache_Writes");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.Writes);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Cache_HitRatio");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.HitRatio);
 	}
 
 	{
 		FString AttrName = BaseName + TEXT("Cache_UpstreamHits");
-		Attributes.Emplace(MoveTemp(AttrName), ZenStats.General.UpstreamHits);
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.UpstreamHits);
 	}
 
 	{
 		FString AttrName = BaseName + TEXT("Cache_UpstreamRatio");
-		Attributes.Emplace(MoveTemp(AttrName), ZenStats.General.UpstreamRatio);
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.UpstreamRatio);
+	}
+
+
+	{
+		FString AttrName = BaseName + TEXT("Cache_Cas_Hits");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.CidHits);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Cache_Cas_Misses");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.CidMisses);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Cache_Cas_Writes");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.CidWrites);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Cache_Requests");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.RequestCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Cache_BadRequests");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.BadRequestCount);
+	}
+
+
+	{
+		FString AttrName = BaseName + TEXT("Cache_Requests_Count");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.Request.Count);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Cache_Requests_RateMean");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.Request.RateMean);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Cache_Requests_TAverage");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.Request.TAverage);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Cache_Requests_TMin");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.Request.TMin);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Cache_Requests_TMax");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.Request.TMax);
 	}
 
 	{
 		FString AttrName = BaseName + TEXT("Cache_TotalUploadedMB");
-		Attributes.Emplace(MoveTemp(AttrName), ZenStats.Upstream.TotalUploadedMB);
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.Upstream.TotalUploadedMB);
 	}
 
 	{
 		FString AttrName = BaseName + TEXT("Upstream_TotalDownloadedMB");
-		Attributes.Emplace(MoveTemp(AttrName), ZenStats.Upstream.TotalDownloadedMB);
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.Upstream.TotalDownloadedMB);
 	}
 
 	{
 		FString AttrName = BaseName + TEXT("Upstream_TotalUploadedMB");
-		Attributes.Emplace(MoveTemp(AttrName), ZenStats.Upstream.TotalUploadedMB);
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.Upstream.TotalUploadedMB);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Upstream_Requests_Count");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.UpstreamRequest.Count);
+	}
+	{
+		FString AttrName = BaseName + TEXT("Upstream_Requests_RateMean");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.UpstreamRequest.RateMean);
+	}
+	{
+		FString AttrName = BaseName + TEXT("Upstream_Requests_TAverage");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.UpstreamRequest.TAverage);
+	}
+	{
+		FString AttrName = BaseName + TEXT("Upstream_Requests_TMin");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.UpstreamRequest.TMin);
+	}
+	{
+		FString AttrName = BaseName + TEXT("Upstream_Requests_TMax");
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.UpstreamRequest.TMax);
 	}
 
 	{
 		FString AttrName = BaseName + TEXT("Cas_Size_Large");
-		Attributes.Emplace(MoveTemp(AttrName), ZenStats.CID.Size.Large);
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.CID.Size.Large);
 	}
 
 	{
 		FString AttrName = BaseName + TEXT("Cas_Size_Small");
-		Attributes.Emplace(MoveTemp(AttrName), ZenStats.CID.Size.Small);
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.CID.Size.Small);
 	}
 
 	{
 		FString AttrName = BaseName + TEXT("Cas_Size_Tiny");
-		Attributes.Emplace(MoveTemp(AttrName), ZenStats.CID.Size.Tiny);
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.CID.Size.Tiny);
 	}
 
 	{
 		FString AttrName = BaseName + TEXT("Cas_Size_Total");
-		Attributes.Emplace(MoveTemp(AttrName), ZenStats.CID.Size.Total);
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.CID.Size.Total);
+	}
+
+	///////////// Project
+	{
+		FString AttrName = BaseName + TEXT("Project_Size_Disk");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.Size.Disk);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_Size_Memory");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.Size.Memory);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_WriteCount");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.Project.WriteCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_ReadCount");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.Project.ReadCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_DeleteCount");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.Project.DeleteCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_Oplog_WriteCount");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.Oplog.WriteCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_Oplog_ReadCount");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.Oplog.ReadCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_Oplog_DeleteCount");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.Oplog.DeleteCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_Op_Hits");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.Op.HitCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_Op_Misses");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.Op.MissCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_Op_Writes");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.Op.WriteCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_Chunk_Hits");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.Chunk.HitCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_Chunk_Misses");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.Chunk.MissCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_Chunk_Writes");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.Chunk.WriteCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_Requests");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.RequestCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_BadRequests");
+		Attributes.Emplace(MoveTemp(AttrName), ZenProjectStats.General.BadRequestCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_Op_HitRatio");
+		double Total = static_cast<double>(ZenProjectStats.General.Op.HitCount + ZenProjectStats.General.Op.MissCount);
+		Attributes.Emplace(MoveTemp(AttrName), Total > 0 ? static_cast<double>(ZenProjectStats.General.Op.HitCount) / Total : 0.0);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("Project_Chunk_HitRatio");
+		double Total = static_cast<double>(ZenProjectStats.General.Chunk.HitCount + ZenProjectStats.General.Chunk.MissCount);
+		Attributes.Emplace(MoveTemp(AttrName), Total > 0 ? static_cast<double>(ZenProjectStats.General.Chunk.HitCount) / Total : 0.0);
 	}
 
 	return true;
