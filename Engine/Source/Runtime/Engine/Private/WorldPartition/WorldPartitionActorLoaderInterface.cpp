@@ -223,7 +223,7 @@ void IWorldPartitionActorLoaderInterface::ILoaderAdapter::OnActorDescContainerUn
 	{
 		const FActorReferenceMap* ActorReferences = GetContainerReferencesConst(It->GetContainer());
 
-		if (!ActorReferences || !ActorReferences->Find(It->GetGuid()))
+		if (ActorReferences && ActorReferences->Find(It->GetGuid()))
 		{
 			ActorsToUnload.Emplace(Container, It->GetGuid());
 		}
