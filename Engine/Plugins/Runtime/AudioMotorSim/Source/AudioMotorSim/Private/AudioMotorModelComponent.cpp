@@ -10,7 +10,7 @@ void UAudioMotorModelComponent::Update(FAudioMotorSimInputContext Input)
 {
 	for(FMotorSimEntry& Entry : SimComponents)
 	{
-		if(Entry.Sim)
+		if(Entry.Sim && Entry.Sim->GetEnabled())
 		{
 			Entry.Sim->Update(Input, CachedRuntimeContext);
 		}
