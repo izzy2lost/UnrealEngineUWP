@@ -360,7 +360,11 @@ void UAjaMediaCapture::StopCaptureImpl(bool bAllowPendingFrameToBeProcess)
 
 		if (GEngine)
 		{
-			GEngine->GetEngineSubsystem<UMediaIOCoreSubsystem>()->OnBufferReceived_AudioThread().RemoveAll(this);
+			UMediaIOCoreSubsystem* SubSystem = GEngine->GetEngineSubsystem<UMediaIOCoreSubsystem>();
+			if (SubSystem)
+			{
+				SubSystem->OnBufferReceived_AudioThread().RemoveAll(this);
+			}
 		}
 
 		AudioOutput.Reset();
