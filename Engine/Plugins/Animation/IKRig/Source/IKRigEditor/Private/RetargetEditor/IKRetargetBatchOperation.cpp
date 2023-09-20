@@ -25,6 +25,8 @@
 #include "Retargeter/IKRetargetProcessor.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Animation/AnimMontage.h"
+#include "Retargeter/IKRetargetOps.h"
+#include "Retargeter/RetargetOps/CurveRemapOp.h"
 
 #define LOCTEXT_NAMESPACE "RetargetBatchOperation"
 
@@ -245,6 +247,9 @@ void UIKRetargetBatchOperation::RetargetAssets(
 		AnimBlueprint->PostEditChange();
 		AnimBlueprint->MarkPackageDirty();
 	}
+
+	// copy/remap curves to duplicate sequences
+	RemapCurves(Context, Progress);
 }
 
 void UIKRetargetBatchOperation::ConvertAnimation(
@@ -286,18 +291,18 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 	for (TPair<UAnimationAsset*, UAnimationAsset*>& Pair : DuplicatedAnimAssets)
 	{
 		UAnimSequence* SourceSequence = Cast<UAnimSequence>(Pair.Key);
-		UAnimSequence* DestinationSequence = Cast<UAnimSequence>(Pair.Value);
-		if (!(SourceSequence && DestinationSequence))
+		UAnimSequence* TargetSequence = Cast<UAnimSequence>(Pair.Value);
+		if (!(SourceSequence && TargetSequence))
 		{
 			continue;
 		}
 
 		// increment progress bar
-		FString AssetName = DestinationSequence->GetName();
+		FString AssetName = TargetSequence->GetName();
 		Progress.EnterProgressFrame(1.f, FText::Format(LOCTEXT("RunningBatchRetarget", "Retargeting animation asset: {0}"), FText::FromString(AssetName)));
 
 		// remove all keys from the destination animation sequence
-		IAnimationDataController& TargetSeqController = DestinationSequence->GetController();
+		IAnimationDataController& TargetSeqController = TargetSequence->GetController();
 		constexpr bool bShouldTransact = false;
 		TargetSeqController.OpenBracket(FText::FromString("Generating Retargeted Animation Data"), bShouldTransact);
 		TargetSeqController.RemoveAllBoneTracks(bShouldTransact);
@@ -372,7 +377,8 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 				BoneTrack.RotKeys[FrameIndex] = FQuat4f(LocalPose.GetRotation());
 				BoneTrack.ScaleKeys[FrameIndex] = FVector3f(LocalPose.GetScale3D());
 			}
-		}
+			
+		} // END for each frame
 
 		// add keys to bone tracks
 		for (int32 TargetBoneIndex=0; TargetBoneIndex<NumTargetBones; ++TargetBoneIndex)
@@ -382,6 +388,114 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 			const FRawAnimSequenceTrack& RawTrack = BoneTracks[TargetBoneIndex];
 			TargetSeqController.AddBoneCurve(TargetBoneName, bShouldTransact);
 			TargetSeqController.SetBoneTrackKeys(TargetBoneName, RawTrack.PosKeys, RawTrack.RotKeys, RawTrack.ScaleKeys, bShouldTransact);
+		}
+
+		TargetSeqController.CloseBracket(bShouldTransact);
+	}
+}
+
+void UIKRetargetBatchOperation::RemapCurves(const FIKRetargetBatchOperationContext& Context, FScopedSlowTask& Progress)
+{
+	USkeleton* SourceSkeleton = Context.SourceMesh->GetSkeleton();
+	USkeleton* TargetSkeleton = Context.TargetMesh->GetSkeleton();
+	
+	// get map of curves to remap (Source:Target)
+	bool bCopyAllSourceCurves = true;
+	TMap<FAnimationCurveIdentifier, FAnimationCurveIdentifier> CurvesToRemap;
+	URetargetOpStack* OpStack = Context.IKRetargetAsset->GetPostSettingsUObject();
+	for (const TObjectPtr<URetargetOpBase>& RetargetOp : OpStack->RetargetOps)
+	{
+		UCurveRemapOp* CurveRemapOp = Cast<UCurveRemapOp>(RetargetOp);
+		if (!CurveRemapOp)
+		{
+			continue;
+		}
+
+		if (!CurveRemapOp->bIsEnabled)
+		{
+			continue;
+		}
+
+		for (const FCurveRemapPair& CurveToRemap : CurveRemapOp->CurvesToRemap)
+		{
+			const FAnimationCurveIdentifier SourceCurveId = UAnimationCurveIdentifierExtensions::FindCurveIdentifier(SourceSkeleton, CurveToRemap.SourceCurve, ERawCurveTrackTypes::RCT_Float);
+			const FAnimationCurveIdentifier TargetCurveId = UAnimationCurveIdentifierExtensions::FindCurveIdentifier(TargetSkeleton, CurveToRemap.TargetCurve, ERawCurveTrackTypes::RCT_Float);
+			CurvesToRemap.Add(SourceCurveId, TargetCurveId);
+		}
+
+		bCopyAllSourceCurves &= CurveRemapOp->bCopyAllSourceCurves;
+	}
+
+	// for each exported animation, remap curves from source to target anim
+	for (TPair<UAnimationAsset*, UAnimationAsset*>& Pair : DuplicatedAnimAssets)
+	{
+		UAnimSequence* SourceSequence = Cast<UAnimSequence>(Pair.Key);
+		UAnimSequence* TargetSequence = Cast<UAnimSequence>(Pair.Value);
+		if (!(SourceSequence && TargetSequence))
+		{
+			continue;
+		}
+
+		// increment progress bar
+		FString AssetName = TargetSequence->GetName();
+		Progress.EnterProgressFrame(1.f, FText::Format(LOCTEXT("RunningBatchRetarget", "Remapping Curves on Asset: {0}"), FText::FromString(AssetName)));
+
+		// all curves were copied when we duplicated the animation sequence, so now we have to rename curves
+		// based on the remapping defined in the curve remap op(s)
+		IAnimationDataController& TargetSeqController = TargetSequence->GetController();
+		constexpr bool bShouldTransact = false;
+		TargetSeqController.OpenBracket(FText::FromString("Remapping Curve Data"), bShouldTransact);
+
+		const IAnimationDataModel* SourceDataModel = SourceSequence->GetDataModel();
+		
+		for (const TTuple<FAnimationCurveIdentifier, FAnimationCurveIdentifier>& CurveToRemap : CurvesToRemap)
+		{
+			// get the source curve to copy from
+			const FFloatCurve* SourceCurve =  SourceDataModel->FindFloatCurve(CurveToRemap.Key);
+			if (!SourceCurve)
+			{
+				continue; // missing source curve to remap
+			}
+
+			// add a curve to the target to house the keys
+			FAnimationCurveIdentifier TargetCurveID = CurveToRemap.Value;
+			if (!TargetCurveID.IsValid())
+			{
+				continue; // must provide a valid name for the target curve
+			}
+			TargetSeqController.AddCurve(TargetCurveID, SourceCurve->GetCurveTypeFlags(), bShouldTransact);
+			
+			// copy data into target curve
+			TargetSeqController.SetCurveKeys(TargetCurveID, SourceCurve->FloatCurve.GetConstRefOfKeys(), bShouldTransact);
+			TargetSeqController.SetCurveColor(TargetCurveID, SourceCurve->GetColor(), bShouldTransact);
+		}
+
+		// optionally remove all source curves from the target asset
+		// (remove all curves that were copied when the source sequence was duplicated UNLESS they are remapped)
+		if (!bCopyAllSourceCurves)
+		{
+			// get list of target curves to keep
+			TArray<FAnimationCurveIdentifier> TargetCurvesToKeep;
+			CurvesToRemap.GenerateValueArray(TargetCurvesToKeep);
+
+			// get list of target curves to remove
+			const TArray<FFloatCurve>& AllTargetCurves = TargetSeqController.GetModel()->GetFloatCurves();
+			TArray<FAnimationCurveIdentifier> CurvesToRemove;
+			for (const FFloatCurve& TargetCurve : AllTargetCurves)
+			{
+				const FAnimationCurveIdentifier TargetCurveId = UAnimationCurveIdentifierExtensions::FindCurveIdentifier(TargetSkeleton, TargetCurve.GetName(), ERawCurveTrackTypes::RCT_Float);
+				if (TargetCurvesToKeep.Contains(TargetCurveId))
+				{
+					continue;
+				}
+				CurvesToRemove.Add(TargetCurveId);
+			}
+
+			// remove the curves
+			for (const FAnimationCurveIdentifier& CurveToRemove : CurvesToRemove)
+			{
+				TargetSeqController.RemoveCurve(CurveToRemove, bShouldTransact);
+			}
 		}
 
 		TargetSeqController.CloseBracket(bShouldTransact);
@@ -545,7 +659,8 @@ void UIKRetargetBatchOperation::RunRetarget(FIKRetargetBatchOperationContext& Co
 	}
 	
 	// show progress bar
-	FScopedSlowTask Progress(NumAssets + 2, LOCTEXT("GatheringBatchRetarget", "Gathering animation assets..."));
+	constexpr int NumAdditionalProgressFrames = 3;
+	FScopedSlowTask Progress(NumAssets + NumAdditionalProgressFrames, LOCTEXT("GatheringBatchRetarget", "Gathering animation assets..."));
 	Progress.MakeDialog();
 	
 	DuplicateRetargetAssets(Context, Progress);

@@ -6,6 +6,8 @@
 #include "Animation/AnimInstanceProxy.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
+#include "Retargeter/IKRetargetOps.h"
+#include "Retargeter/RetargetOps/CurveRemapOp.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_RetargetPoseFromMesh)
 
@@ -133,11 +135,8 @@ void FAnimNode_RetargetPoseFromMesh::Evaluate_AnyThread(FPoseContext& Output)
 	// convert to local space
 	FCSPose<FCompactPose>::ConvertComponentPosesToLocalPoses(ComponentPose, Output.Pose);
 
-	// copy curves over
-	if (bCopyCurves)
-	{
-		Output.Curve.CopyFrom(SourceCurves);
-	}
+	// copy and/or remap curves from the source to the target skeletal mesh
+	CopyAndRemapCurvesFromSourceToTarget(Output.Curve);
 }
 
 void FAnimNode_RetargetPoseFromMesh::PreUpdate(const UAnimInstance* InAnimInstance)
@@ -176,6 +175,50 @@ void FAnimNode_RetargetPoseFromMesh::PreUpdate(const UAnimInstance* InAnimInstan
 			UpdateSpeedValuesFromCurves();
 		}
 	}
+}
+
+void FAnimNode_RetargetPoseFromMesh::CopyAndRemapCurvesFromSourceToTarget(FBlendedCurve& OutputCurves) const
+{
+	if (!bCopyCurves)
+	{
+		return;
+	}
+	
+	if (!(Processor && Processor->IsInitialized()))
+	{
+		return;
+	}
+
+	// copy curves over to same name on target (if it exists)
+	OutputCurves.CopyFrom(SourceCurves);
+	
+	// now remap curves that have different names using the CurveRemapOp data (if there are any)
+	FBlendedCurve RemapedCurves;
+	const TArray<TObjectPtr<URetargetOpBase>>& RetargetOps = Processor->GetRetargetOps();
+	for (URetargetOpBase* RetargetOp : RetargetOps)
+	{
+		UCurveRemapOp* CurveRemapOp = Cast<UCurveRemapOp>(RetargetOp);
+		if (!CurveRemapOp)
+		{
+			continue;
+		}
+
+		if (!CurveRemapOp->bIsEnabled)
+		{
+			continue;
+		}
+		
+		for (const FCurveRemapPair& CurveToRemap : CurveRemapOp->CurvesToRemap)
+		{
+			bool bOutIsValid = false;
+			const float SourceValue = SourceCurves.Get(CurveToRemap.SourceCurve, bOutIsValid);
+			if (bOutIsValid)
+			{
+				RemapedCurves.Add(CurveToRemap.TargetCurve, SourceValue);
+			}
+		}
+	}
+	OutputCurves.Combine(RemapedCurves);
 }
 
 void FAnimNode_RetargetPoseFromMesh::UpdateSpeedValuesFromCurves()

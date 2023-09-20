@@ -115,6 +115,9 @@ private:
 	/* Convert animation on all the duplicates */
 	void ConvertAnimation(const FIKRetargetBatchOperationContext& Context, FScopedSlowTask& Progress);
 
+	/* Copy/remap curves on all the duplicates */
+	void RemapCurves(const FIKRetargetBatchOperationContext& Context, FScopedSlowTask& Progress);
+
 	/* Output notifications of results */
 	void NotifyUserOfResults(const FIKRetargetBatchOperationContext& Context, FScopedSlowTask& Progress) const;
 

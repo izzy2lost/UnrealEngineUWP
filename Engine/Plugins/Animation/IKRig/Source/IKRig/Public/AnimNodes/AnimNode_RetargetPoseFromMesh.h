@@ -72,10 +72,14 @@ private:
 
 	// mapping from required bones to actual bones within the target skeleton
 	TArray< TPair<int32, int32> > RequiredToTargetBoneMapping;
-	// cached curves, copied on the game thread
+
+	// cached curves, copied on the game thread in PreUpdate()
 	FBlendedHeapCurve SourceCurves;
 
-	/** update map of curve values containing speeds used for IK planting */
+	// remap curves for CurveRemapOp if one is present in the RetargetOp stack
+	void CopyAndRemapCurvesFromSourceToTarget(FBlendedCurve& OutputCurves) const;
+	
+	// update map of curve values containing speeds used for IK planting
 	void UpdateSpeedValuesFromCurves();
 	// map of curve names to values, passed to retargeter for IK planting (copied from source mesh)
 	TMap<FName, float> SpeedValuesFromCurves;
