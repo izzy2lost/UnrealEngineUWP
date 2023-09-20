@@ -19,6 +19,7 @@
 
 #define MSDFGEN_USE_CPP11
 #define MSDFGEN_USE_FREETYPE
+#define MSDFGEN_DISABLE_VARIABLE_FONTS
 
 #include <cstddef>
 #include <cstdlib>
