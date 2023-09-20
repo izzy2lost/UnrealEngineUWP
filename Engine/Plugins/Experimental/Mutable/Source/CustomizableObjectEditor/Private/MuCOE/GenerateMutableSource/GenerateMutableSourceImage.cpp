@@ -411,6 +411,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 
 	else if (const UCustomizableObjectNodeTextureVariation* TypedNodeImageVar = Cast<const UCustomizableObjectNodeTextureVariation>(Node))
 	{
+		// UCustomizableObjectNodePassThroughTextureVariation nodes are also handled here
 		mu::NodeImageVariationPtr TextureNode = new mu::NodeImageVariation();
 		Result = TextureNode;
 
@@ -432,10 +433,13 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		}
 
 		TextureNode->SetVariationCount(TypedNodeImageVar->Variations.Num());
-		for (int VariationIndex = 0; VariationIndex < TypedNodeImageVar->Variations.Num(); ++VariationIndex)
+		for (int32 VariationIndex = 0; VariationIndex < TypedNodeImageVar->Variations.Num(); ++VariationIndex)
 		{
 			const UEdGraphPin* VariationPin = TypedNodeImageVar->VariationPin(VariationIndex);
-			if (!VariationPin) continue;
+			if (!VariationPin)
+			{
+				continue;
+			}
 
 			TextureNode->SetVariationTag(VariationIndex, StringCast<ANSICHAR>(*TypedNodeImageVar->Variations[VariationIndex].Tag).Get());
 			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*VariationPin))
