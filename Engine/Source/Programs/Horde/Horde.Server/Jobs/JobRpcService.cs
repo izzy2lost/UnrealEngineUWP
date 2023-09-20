@@ -45,6 +45,7 @@ namespace Horde.Server.Jobs
 	using RpcGetStepResponse = HordeCommon.Rpc.GetStepResponse;
 	using RpcUpdateJobRequest = HordeCommon.Rpc.UpdateJobRequest;
 	using RpcUpdateStepRequest = HordeCommon.Rpc.UpdateStepRequest;
+	using NodeRef = Graphs.NodeRef;
 
 	/// <summary>
 	/// Implements the Horde gRPC service for bots updating their status and dequeing work
@@ -724,39 +725,6 @@ namespace Horde.Server.Jobs
 		/// <returns>Information about the new agent</returns>
 		public async Task<UpdateGraphResponse> UpdateGraphAsync(UpdateGraphRequest request, ServerCallContext context)
 		{
-			List<NewGroup> newGroups = new List<NewGroup>();
-			foreach (CreateGroupRequest group in request.Groups)
-			{
-				List<NewNode> newNodes = new List<NewNode>();
-				foreach (CreateNodeRequest node in group.Nodes)
-				{
-					NewNode newNode = new NewNode(node.Name, node.Inputs.ToList(), node.Outputs.ToList(), node.InputDependencies.ToList(), node.OrderDependencies.ToList(), node.Priority, node.AllowRetry, node.RunEarly, node.Warnings, new Dictionary<string, string>(node.Credentials), new Dictionary<string, string>(node.Properties), new NodeAnnotations(node.Annotations));
-					newNodes.Add(newNode);
-				}
-				newGroups.Add(new NewGroup(group.AgentType, newNodes));
-			}
-
-			List<NewAggregate> newAggregates = new List<NewAggregate>();
-			foreach (CreateAggregateRequest aggregate in request.Aggregates)
-			{
-				NewAggregate newAggregate = new NewAggregate(aggregate.Name, aggregate.Nodes.ToList());
-				newAggregates.Add(newAggregate);
-			}
-
-			List<NewLabel> newLabels = new List<NewLabel>();
-			foreach (CreateLabelRequest label in request.Labels)
-			{
-				NewLabel newLabel = new NewLabel();
-				newLabel.DashboardName = String.IsNullOrEmpty(label.DashboardName) ? null : label.DashboardName;
-				newLabel.DashboardCategory = String.IsNullOrEmpty(label.DashboardCategory) ? null : label.DashboardCategory;
-				newLabel.UgsName = String.IsNullOrEmpty(label.UgsName) ? null : label.UgsName;
-				newLabel.UgsProject = String.IsNullOrEmpty(label.UgsProject) ? null : label.UgsProject;
-				newLabel.Change = label.Change;
-				newLabel.RequiredNodes = label.RequiredNodes.ToList();
-				newLabel.IncludedNodes = label.IncludedNodes.ToList();
-				newLabels.Add(newLabel);
-			}
-
 			JobId jobIdValue = JobId.Parse(request.JobId);
 			for (; ; )
 			{
@@ -773,7 +741,7 @@ namespace Horde.Server.Jobs
 				ContentHash oldGraphHash = job.GraphHash;
 
 				IGraph graph = await _jobService.GetGraphAsync(job);
-				graph = await _graphs.AppendAsync(graph, newGroups, newAggregates, newLabels);
+				graph = await UpdateGraphInternalAsync(graph, request);
 
 				IJob? newJob = await _jobService.TryUpdateGraphAsync(job, graph);
 				if (newJob != null)
@@ -782,6 +750,105 @@ namespace Horde.Server.Jobs
 					return new UpdateGraphResponse();
 				}
 			}
+		}
+
+		async Task<IGraph> UpdateGraphInternalAsync(IGraph graph, UpdateGraphRequest request)
+		{
+			List<NewGroup> newGroups = new List<NewGroup>();
+			foreach (CreateGroupRequest group in request.Groups)
+			{
+				List<NewNode> newNodes = new List<NewNode>();
+				foreach (CreateNodeRequest node in group.Nodes)
+				{
+					NewNode newNode = new NewNode(node.Name, node.Inputs.ToList(), node.Outputs.ToList(), node.InputDependencies.ToList(), node.OrderDependencies.ToList(), node.Priority, node.AllowRetry, node.RunEarly, node.Warnings, new Dictionary<string, string>(node.Credentials), new Dictionary<string, string>(node.Properties), new NodeAnnotations(node.Annotations));
+
+					INode? existingNode;
+					if (!graph.TryFindNode(node.Name, out existingNode))
+					{
+						newNodes.Add(newNode);
+					}
+					else if (!NodesMatch(graph, existingNode, newNode))
+					{
+						throw new Exception($"Definition for node {newNode.Name} has changed; cannot update graph.");
+					}
+				}
+				newGroups.Add(new NewGroup(group.AgentType, newNodes));
+			}
+
+			List<NewAggregate> newAggregates = new List<NewAggregate>();
+			foreach (CreateAggregateRequest aggregate in request.Aggregates)
+			{
+				NewAggregate newAggregate = new NewAggregate(aggregate.Name, aggregate.Nodes.ToList());
+
+				IAggregate? existingAggregate;
+				if (!graph.TryFindAggregate(aggregate.Name, out existingAggregate))
+				{
+					newAggregates.Add(newAggregate);
+				}
+				else if (!AggregatesMatch(graph, existingAggregate, newAggregate))
+				{
+					throw new Exception($"Definition for node {newAggregate.Name} has changed; cannot update graph.");
+				}
+			}
+
+			HashSet<LabelKey> existingLabels = new(graph.Labels.Select(x => new LabelKey(x)));
+
+			List<NewLabel> newLabels = new List<NewLabel>();
+			foreach (CreateLabelRequest label in request.Labels)
+			{
+				NewLabel newLabel = new NewLabel();
+				newLabel.DashboardName = String.IsNullOrEmpty(label.DashboardName) ? null : label.DashboardName;
+				newLabel.DashboardCategory = String.IsNullOrEmpty(label.DashboardCategory) ? null : label.DashboardCategory;
+				newLabel.UgsName = String.IsNullOrEmpty(label.UgsName) ? null : label.UgsName;
+				newLabel.UgsProject = String.IsNullOrEmpty(label.UgsProject) ? null : label.UgsProject;
+
+				if (!existingLabels.Contains(new LabelKey(newLabel)))
+				{
+					newLabel.Change = label.Change;
+					newLabel.RequiredNodes = label.RequiredNodes.ToList();
+					newLabel.IncludedNodes = label.IncludedNodes.ToList();
+					newLabels.Add(newLabel);
+				}
+			}
+
+			return await _graphs.AppendAsync(graph, newGroups, newAggregates, newLabels);
+		}
+
+		static bool NodesMatch(IGraph graph, INode node, NewNode newNode)
+		{
+			if (!CompareLists(node.InputDependencies.Select(x => graph.GetNode(x).Name), newNode.InputDependencies))
+			{
+				return false;
+			}
+			if (!CompareLists(node.Inputs.Select(x => graph.GetNode(x.NodeRef).OutputNames[x.OutputIdx]), newNode.Inputs))
+			{
+				return false;
+			}
+			if (!CompareLists(node.OutputNames, newNode.Outputs))
+			{
+				return false;
+			}
+			return true;
+		}
+
+		static bool AggregatesMatch(IGraph graph, IAggregate aggregate, NewAggregate newAggregate)
+		{
+			return CompareLists(aggregate.Nodes.Select(x => graph.GetNode(x).Name), newAggregate.Nodes);
+		}
+
+		static bool CompareLists(IEnumerable<string>? seq1, IEnumerable<string>? seq2)
+		{
+			seq1 ??= Enumerable.Empty<string>();
+			seq2 ??= Enumerable.Empty<string>();
+			IEnumerable<string> sortedSeq1 = seq1.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).Distinct(StringComparer.OrdinalIgnoreCase);
+			IEnumerable<string> sortedSeq2 = seq2.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).Distinct(StringComparer.OrdinalIgnoreCase);
+			return Enumerable.SequenceEqual(sortedSeq1, sortedSeq2, StringComparer.OrdinalIgnoreCase);
+		}
+
+		record class LabelKey(string? DashboardName, string? DashboardCategory, string? UgsName, string? UgsProject)
+		{
+			public LabelKey(NewLabel newLabel) : this(newLabel.DashboardName, newLabel.DashboardCategory, newLabel.UgsName, newLabel.UgsProject) { }
+			public LabelKey(ILabel label) : this(label.DashboardName, label.DashboardCategory, label.UgsName, label.UgsProject) { }
 		}
 
 		/// <summary>

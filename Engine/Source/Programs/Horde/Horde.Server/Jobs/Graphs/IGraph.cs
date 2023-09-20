@@ -348,7 +348,7 @@ namespace Horde.Server.Jobs.Graphs
 		/// <param name="nodeName">Name of the node</param>
 		/// <param name="node">Receives the node</param>
 		/// <returns>True if the node was found, false otherwise</returns>
-		public static bool TryFindNode(this IGraph graph, string nodeName, out INode? node)
+		public static bool TryFindNode(this IGraph graph, string nodeName, [NotNullWhen(true)] out INode? node)
 		{
 			NodeRef nodeRef;
 			if (TryFindNode(graph, nodeName, out nodeRef))
