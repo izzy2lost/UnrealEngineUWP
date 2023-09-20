@@ -31,19 +31,22 @@ FWorldPartitionCookPackageSplitter::~FWorldPartitionCookPackageSplitter()
 
 void FWorldPartitionCookPackageSplitter::Teardown(ETeardown Status)
 {
- 	if (bInitializedWorldPartition)
+	if (UWorld* LocalWorld = ReferencedWorld.Get())
 	{
-		if (UWorld* LocalWorld = ReferencedWorld.Get())
+		check(LocalWorld->bUsedByCookSplitter);
+		LocalWorld->bUsedByCookSplitter = false;
+
+		if (bInitializedWorldPartition)
 		{
-			UWorldPartition* WorldPartition = LocalWorld->PersistentLevel->GetWorldPartition();
-			if (WorldPartition)
+			if (UWorldPartition* WorldPartition = LocalWorld->PersistentLevel->GetWorldPartition())
 			{
 				WorldPartition->EndCook(CookContext);
 				WorldPartition->Uninitialize();
 			}
 		}
-		bInitializedWorldPartition = false;
 	}
+
+	bInitializedWorldPartition = false;
 
 	if (bInitializedPhysicsSceneForSave)
 	{
@@ -89,6 +92,9 @@ TArray<ICookPackageSplitter::FGeneratedPackage> FWorldPartitionCookPackageSplitt
 	// until we have finished all of our PreSaveGeneratedPackage calls, because we store information on the World 
 	// that is necessary for populate 
 	ReferencedWorld = PartitionedWorld;
+
+	check(!PartitionedWorld->bUsedByCookSplitter);
+	PartitionedWorld->bUsedByCookSplitter = true;
 
 	check(!bInitializedPhysicsSceneForSave && !bForceInitializedWorld);
 	bInitializedPhysicsSceneForSave = GEditor->InitializePhysicsSceneForSaveIfNecessary(PartitionedWorld, bForceInitializedWorld);

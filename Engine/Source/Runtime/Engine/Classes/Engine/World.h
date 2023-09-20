@@ -1295,6 +1295,9 @@ public:
 
 	/** Indicates that the renderer scene for this editor world was purged while Play-in-Editor. */
 	uint8 bPurgedScene : 1;
+
+	/** Indicates that the world is currently being used by a cook splitter.  */
+	uint8 bUsedByCookSplitter : 1;
 #endif
 
 	/** Keeps track whether actors moved via PostEditMove and therefore constraint syncup should be performed. */
