@@ -77,6 +77,7 @@ namespace Chaos::Private
 			{
 				// Remove item from the array using the index we set in Alloc
 				const int32 Index = FItemAdapter::GetArrayIndex(*Item);
+				check(Items[Index] == Item);
 				Items.RemoveAtSwap(Index, 1, false);
 				FItemAdapter::SetArrayIndex(*Item, INDEX_NONE);
 

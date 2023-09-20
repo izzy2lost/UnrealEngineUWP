@@ -501,6 +501,7 @@ namespace Chaos::Private
 		CHAOS_API void AssignEdgeIsland(FPBDIslandConstraint* Edge);
 		CHAOS_API void AddNodeToIsland(FPBDIslandParticle* Node, FPBDIsland* Island);
 		CHAOS_API void RemoveNodeFromIsland(FPBDIslandParticle* Node);
+		CHAOS_API void DestroyIslandNodes(FPBDIsland* Island);
 		CHAOS_API void AddEdgeToIsland(FPBDIslandConstraint* Edge, FPBDIsland* Island);
 		CHAOS_API void RemoveEdgeFromIsland(FPBDIslandConstraint* Edge);
 		CHAOS_API void WakeNodeIslands(const FPBDIslandParticle* Node);
