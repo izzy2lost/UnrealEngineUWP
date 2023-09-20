@@ -23,7 +23,7 @@ namespace EpicGames.Horde.Compute
 	public class AgentMessageHandler
 	{
 		readonly DirectoryReference _sandboxDir;
-		readonly StorageCache _cache;
+		readonly BundleReaderCache _cache;
 		readonly Dictionary<string, string?> _envVars;
 		readonly bool _executeInProcess;
 		readonly string? _wineExecutablePath;
@@ -38,7 +38,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="executeInProcess">Whether to execute any external assemblies in the current process</param>
 		/// <param name="wineExecutablePath">Path to Wine executable. If null, execution under Wine is disabled</param>
 		/// <param name="logger">Logger for diagnostics</param>
-		public AgentMessageHandler(DirectoryReference sandboxDir, StorageCache cache, Dictionary<string, string?>? envVars, bool executeInProcess, string? wineExecutablePath, ILogger logger)
+		public AgentMessageHandler(DirectoryReference sandboxDir, BundleReaderCache cache, Dictionary<string, string?>? envVars, bool executeInProcess, string? wineExecutablePath, ILogger logger)
 		{
 			_sandboxDir = sandboxDir;
 			_cache = cache;

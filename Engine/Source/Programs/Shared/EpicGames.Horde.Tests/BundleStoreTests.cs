@@ -151,7 +151,7 @@ namespace EpicGames.Horde.Tests
 
 				await store.WriteRefTargetAsync(new RefName("test"), await writer.WriteNodeAsync(root));
 
-				BundleReader reader = new BundleReader(store, StorageCache.None, NullLogger.Instance);
+				BundleReader reader = new BundleReader(store, BundleReaderCache.None, NullLogger.Instance);
 				await CheckTreeAsync(root);
 			}
 
@@ -259,7 +259,7 @@ namespace EpicGames.Horde.Tests
 		{
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 			using MemoryStorageClient store = new MemoryStorageClient();
-			BundleReader reader = new BundleReader(store, StorageCache.None, NullLogger.Instance);
+			BundleReader reader = new BundleReader(store, BundleReaderCache.None, NullLogger.Instance);
 
 			// Generate a tree
 			{

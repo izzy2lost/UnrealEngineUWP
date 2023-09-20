@@ -30,7 +30,7 @@ namespace Horde.Commands.Bundles
 		[CommandLine("-OutputDir=", Required = true)]
 		public DirectoryReference OutputDir { get; set; } = null!;
 
-		public BundleExtract(HordeHttpClientFactory httpClientFactory, StorageCache storageCache, IOptions<CmdConfig> config)
+		public BundleExtract(HordeHttpClientFactory httpClientFactory, BundleReaderCache storageCache, IOptions<CmdConfig> config)
 			: base(httpClientFactory, storageCache, config)
 		{
 		}

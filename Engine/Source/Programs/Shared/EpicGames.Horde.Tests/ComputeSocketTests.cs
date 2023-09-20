@@ -190,7 +190,7 @@ namespace EpicGames.Horde.Tests
 
 		static async Task RunAgentAsync(ComputeSocket socket, DirectoryReference tempDir, CancellationToken cancellationToken)
 		{
-			using StorageCache storageCache = new StorageCache();
+			using BundleReaderCache storageCache = new BundleReaderCache();
 			AgentMessageHandler handler = new AgentMessageHandler(tempDir, storageCache, null, true, null, NullLogger.Instance);
 			await handler.RunAsync(socket, cancellationToken);
 		}

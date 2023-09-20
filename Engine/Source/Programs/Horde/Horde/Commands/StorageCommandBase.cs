@@ -29,7 +29,7 @@ namespace Horde.Commands
 		/// <summary>
 		/// Cache for storage
 		/// </summary>
-		public StorageCache StorageCache { get; }
+		public BundleReaderCache StorageCache { get; }
 
 		/// <summary>
 		/// Configuration for the tool
@@ -41,7 +41,7 @@ namespace Horde.Commands
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageCommandBase(HordeHttpClientFactory httpClientFactory, StorageCache storageCache, IOptions<CmdConfig> config)
+		public StorageCommandBase(HordeHttpClientFactory httpClientFactory, BundleReaderCache storageCache, IOptions<CmdConfig> config)
 		{
 			_httpClientFactory = httpClientFactory;
 

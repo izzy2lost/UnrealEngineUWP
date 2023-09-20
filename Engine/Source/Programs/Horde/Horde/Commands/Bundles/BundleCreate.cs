@@ -26,7 +26,7 @@ namespace Horde.Commands.Bundles
 		[CommandLine("-Filter=", Description = "Filter for files to include, in P4 syntax (eg. Foo/...).")]
 		public string Filter { get; set; } = "...";
 
-		public BundleCreate(HordeHttpClientFactory httpClientFactory, StorageCache storageCache, IOptions<CmdConfig> config)
+		public BundleCreate(HordeHttpClientFactory httpClientFactory, BundleReaderCache storageCache, IOptions<CmdConfig> config)
 			: base(httpClientFactory, storageCache, config)
 		{
 		}

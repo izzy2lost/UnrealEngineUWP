@@ -37,7 +37,7 @@ namespace Horde
 			services.AddMemoryCache();
 			services.AddSingleton(sp => Options.Create(CmdConfig.Read()));
 			services.AddHordeHttpClient((sp, client) => client.BaseAddress = sp.GetRequiredService<IOptions<CmdConfig>>().Value.Server);
-			services.AddSingleton<StorageCache>(CreateStorageClientCache);
+			services.AddSingleton<BundleReaderCache>(CreateStorageClientCache);
 			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
 
 			// Execute all the commands
@@ -45,11 +45,11 @@ namespace Horde
 			return await CommandHost.RunAsync(arguments, serviceProvider, null);
 		}
 
-		static StorageCache CreateStorageClientCache(IServiceProvider serviceProvider)
+		static BundleReaderCache CreateStorageClientCache(IServiceProvider serviceProvider)
 		{
 			CmdConfig cmdConfig = serviceProvider.GetRequiredService<IOptions<CmdConfig>>().Value;
 
-			StorageCacheOptions options = new StorageCacheOptions();
+			BundleReaderCacheOptions options = new BundleReaderCacheOptions();
 			if (cmdConfig.Cache.HeaderCacheSize.HasValue)
 			{
 				options.HeaderCacheSize = cmdConfig.Cache.HeaderCacheSize.Value * 1024 * 1024;
@@ -59,7 +59,7 @@ namespace Horde
 				options.PacketCacheSize = cmdConfig.Cache.PacketCacheSize.Value * 1024 * 1024;
 			}
 
-			return new StorageCache(options);
+			return new BundleReaderCache(options);
 		}
 
 		static StorageBackendCache CreateStorageBackendCache(IServiceProvider serviceProvider)

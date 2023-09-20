@@ -151,7 +151,7 @@ namespace AutomationTool.Tasks
 
 			BundleNodeHandle handle;
 
-			HttpStorageClient storageClient = new HttpStorageClient(CreateHttpClient, () => new HttpClient(), StorageCache.None, Logger);
+			HttpStorageClient storageClient = new HttpStorageClient(CreateHttpClient, () => new HttpClient(), BundleReaderCache.None, Logger);
 			await using (BundleWriter treeWriter = storageClient.CreateWriter())
 			{
 				DirectoryNode sandbox = new DirectoryNode();

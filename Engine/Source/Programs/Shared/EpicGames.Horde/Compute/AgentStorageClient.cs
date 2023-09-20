@@ -23,7 +23,7 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		/// <param name="channel"></param>
 		public AgentStorageClient(AgentMessageChannel channel)
-			: base(new AgentStorageBackend(channel), StorageCache.None, NullLogger.Instance)
+			: base(new AgentStorageBackend(channel), BundleReaderCache.None, NullLogger.Instance)
 		{
 		}
 
