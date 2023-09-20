@@ -38,12 +38,12 @@ protected:
 	bool FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
 		TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget) override;
 
-private:
+protected:
 
 	// Get the icon for a given row, checking the cache to see if we already have one
 	static const FSlateBrush* GetIconForRow(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row, const FTypedElementClassTypeInfoColumn* TypeInfoColumn);
 	
-private:
+protected:
 
 	// Cache to avoid looking up the icon for a class every time
 	static TMap<FName, const FSlateBrush*> CachedIconMap;
