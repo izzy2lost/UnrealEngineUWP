@@ -94,11 +94,13 @@ bool FWorldPartitionHelpers::IsActorDescClassCompatibleWith(const FWorldPartitio
 
 void FWorldPartitionHelpers::ForEachIntersectingActorDesc(UWorldPartition* WorldPartition, const FBox& Box, TSubclassOf<AActor> ActorClass, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Func)
 {
-	WorldPartition->EditorHash->ForEachIntersectingActor(Box, [&ActorClass, Func](const FWorldPartitionActorDesc* ActorDesc)
+	bool bProcessNextActors = true;
+
+	WorldPartition->EditorHash->ForEachIntersectingActor(Box, [&ActorClass, Func, &bProcessNextActors](const FWorldPartitionActorDesc* ActorDesc)
 	{
-		if (IsActorDescClassCompatibleWith(ActorDesc, ActorClass))
+		if (bProcessNextActors && IsActorDescClassCompatibleWith(ActorDesc, ActorClass))
 		{
-			Func(ActorDesc);
+			bProcessNextActors = Func(ActorDesc);
 		}
 	});
 }
