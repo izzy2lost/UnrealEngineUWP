@@ -161,6 +161,15 @@ void UTextBlock::OnLineHeightPercentageChanged(float InLineHeightPercentage)
 	}
 }
 
+void UTextBlock::OnMarginChanged(const FMargin& InMargin)
+{
+	Super::OnMarginChanged(InMargin);
+	if (MyTextBlock.IsValid())
+	{
+		MyTextBlock->SetMargin(InMargin);
+	}
+}
+
 float UTextBlock::GetMinDesiredWidth() const
 {
 	return MinDesiredWidth;

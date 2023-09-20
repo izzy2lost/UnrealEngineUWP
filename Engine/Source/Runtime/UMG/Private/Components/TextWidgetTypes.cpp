@@ -27,6 +27,18 @@ UTextLayoutWidget::UTextLayoutWidget(const FObjectInitializer& ObjectInitializer
 
 void UTextLayoutWidget::SetLineHeightPercentage(float InLineHeightPercentage)
 {
-	LineHeightPercentage = InLineHeightPercentage;
-	OnLineHeightPercentageChanged(InLineHeightPercentage);
+	if (LineHeightPercentage != InLineHeightPercentage)
+	{
+		LineHeightPercentage = InLineHeightPercentage;
+		OnLineHeightPercentageChanged(InLineHeightPercentage);
+	}
+}
+
+void UTextLayoutWidget::SetMargin(const FMargin& InMargin)
+{
+	if (Margin != InMargin)
+	{
+		Margin = InMargin;
+		OnMarginChanged(Margin);
+	}
 }

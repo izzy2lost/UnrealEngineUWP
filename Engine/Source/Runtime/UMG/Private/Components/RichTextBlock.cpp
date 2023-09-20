@@ -413,6 +413,15 @@ void URichTextBlock::OnLineHeightPercentageChanged(float InLineHeightPercentage)
 	}
 }
 
+void URichTextBlock::OnMarginChanged(const FMargin& InMargin)
+{
+	Super::OnMarginChanged(InMargin);
+	if (MyRichTextBlock.IsValid())
+	{
+		MyRichTextBlock->SetMargin(InMargin);
+	}
+}
+
 void URichTextBlock::SetMinDesiredWidth(float InMinDesiredWidth)
 {
 	MinDesiredWidth = InMinDesiredWidth;

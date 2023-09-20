@@ -364,8 +364,7 @@ const FMargin& UCommonTextBlock::GetMargin()
 
 void UCommonTextBlock::SetMargin(const FMargin& InMargin)
 {
-	Margin = InMargin;
-	SynchronizeProperties();
+	UTextLayoutWidget::SetMargin(InMargin);
 }
 
 void UCommonTextBlock::ResetScrollState()

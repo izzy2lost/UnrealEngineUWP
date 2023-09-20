@@ -66,9 +66,11 @@ public:
 	virtual void SetJustification(ETextJustify::Type InJustification) { Justification = InJustification; }
 
 	UMG_API void SetLineHeightPercentage(float InLineHeightPercentage);
+	UMG_API void SetMargin(const FMargin& InMargin);
 
 protected:
 	virtual void OnLineHeightPercentageChanged(float InLineHeightPercentage) {};
+	virtual void OnMarginChanged(const FMargin& InMargin) {};
 
 	/** Synchronize the properties with the given widget. A template as the Slate widgets conform to the same API, but don't derive from a common base. */
 	template <typename TWidgetType>
@@ -105,10 +107,10 @@ protected:
 	float WrapTextAt;
 
 	/** The amount of blank space left around the edges of text area. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Appearance, AdvancedDisplay)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Setter, Category=Appearance, AdvancedDisplay)
 	FMargin Margin;
 
 	/** The amount to scale each lines height by. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category=Appearance, AdvancedDisplay)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Setter, Category=Appearance, AdvancedDisplay)
 	float LineHeightPercentage;
 };

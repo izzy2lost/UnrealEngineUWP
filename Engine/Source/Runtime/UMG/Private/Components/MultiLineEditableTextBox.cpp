@@ -144,6 +144,15 @@ void UMultiLineEditableTextBox::OnLineHeightPercentageChanged(float InLineHeight
 	}
 }
 
+void UMultiLineEditableTextBox::OnMarginChanged(const FMargin& InMargin)
+{
+	Super::OnMarginChanged(InMargin);
+	if (MyEditableTextBlock.IsValid())
+	{
+		MyEditableTextBlock->SetMargin(InMargin);
+	}
+}
+
 FText UMultiLineEditableTextBox::GetText() const
 {
 	if ( MyEditableTextBlock.IsValid() )

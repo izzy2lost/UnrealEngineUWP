@@ -133,6 +133,15 @@ void UMultiLineEditableText::OnLineHeightPercentageChanged(float InLineHeightPer
 	}
 }
 
+void UMultiLineEditableText::OnMarginChanged(const FMargin& InMargin)
+{
+	Super::OnMarginChanged(InMargin);
+	if (MyMultiLineEditableText.IsValid())
+	{
+		MyMultiLineEditableText->SetMargin(InMargin);
+	}
+}
+
 FText UMultiLineEditableText::GetText() const
 {
 	if ( MyMultiLineEditableText.IsValid() )
