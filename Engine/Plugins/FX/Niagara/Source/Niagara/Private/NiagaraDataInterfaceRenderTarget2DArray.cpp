@@ -395,6 +395,8 @@ void UNiagaraDataInterfaceRenderTarget2DArray::SetShaderParameters(const FNiagar
 		InstanceData_RT->TransientRDGTexture = GraphBuilder.RegisterExternalTexture(InstanceData_RT->RenderTarget);
 		InstanceData_RT->TransientRDGSRV = GraphBuilder.CreateSRV(InstanceData_RT->TransientRDGTexture);
 		InstanceData_RT->TransientRDGUAV = GraphBuilder.CreateUAV(InstanceData_RT->TransientRDGTexture);
+
+		GraphBuilder.UseInternalAccessMode(InstanceData_RT->TransientRDGTexture);
 		Context.GetRDGExternalAccessQueue().Add(InstanceData_RT->TransientRDGTexture);
 	}
 
