@@ -87,6 +87,11 @@ public:
 		return CanWriteObjectWithoutIdentifier();
 	}
 
+	EJson GetCurrentElementType() const
+	{
+		return Stack.Num() > 0 ? Stack.Top() : EJson::None;
+	}
+
 	void WriteObjectStart()
 	{
 		check(CanWriteObjectWithoutIdentifier());
