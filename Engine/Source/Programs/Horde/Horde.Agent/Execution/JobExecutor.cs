@@ -545,11 +545,12 @@ namespace Horde.Agent.Execution
 			validTargets.Add("Setup Build");
 			validTargets.UnionWith(updateGraph.Groups.SelectMany(x => x.Nodes).Select(x => x.Name));
 			validTargets.UnionWith(updateGraph.Aggregates.Select(x => x.Name));
+
 			foreach (string target in _targets)
 			{
 				if (!validTargets.Contains(target))
 				{
-					logger.LogWarning("Target '{Target}' does not exist in the graph", target);
+					logger.LogInformation("Target '{Target}' does not exist in the graph.", target);
 				}
 			}
 
