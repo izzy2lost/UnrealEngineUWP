@@ -1183,6 +1183,25 @@ public:
 template<>
 class TManagedArray<FTransform3f> : public TManagedArrayBase<FTransform3f>
 {
+public:
+	FORCEINLINE TManagedArray()
+	{}
+
+	FORCEINLINE TManagedArray(const TArray<FTransform3f>& Other)
+		: TManagedArrayBase<FTransform3f>(Other)
+	{}
+
+	FORCEINLINE TManagedArray(const TManagedArray<FTransform3f>& Other) = delete;
+	FORCEINLINE TManagedArray(TManagedArray<FTransform3f>&& Other) = default;
+	FORCEINLINE TManagedArray(TArray<FTransform3f>&& Other)
+		: TManagedArrayBase<FTransform3f>(MoveTemp(Other))
+	{}
+	FORCEINLINE TManagedArray& operator=(TManagedArray<FTransform3f>&& Other) = default;
+
+	virtual ~TManagedArray()
+	{}
+
+protected:
 	/**
 	* Init from a predefined Array of matching type
 	*/

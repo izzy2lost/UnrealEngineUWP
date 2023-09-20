@@ -31,6 +31,22 @@ void FTransformDynamicCollection::Construct()
 	AddExternalAttribute<int32>(FGeometryCollection::StatusFlagsAttribute, FTransformCollection::TransformGroup, StatusFlags);
 }
 
+const FTransform3f& FTransformDynamicCollection::GetTransform(int32 Index) const
+{
+	return Transform[Index];
+}
+
+void FTransformDynamicCollection::SetTransform(int32 Index, const FTransform3f& InTransform)
+{
+	Transform[Index] = InTransform;
+}
+
+const TArray<FTransform3f>& FTransformDynamicCollection::GetTransforms() const
+{
+	return Transform.GetConstArray();
+}
+
+
 /*
 * FGeometryDynamicCollection (FTransformDynamicCollection)
 */

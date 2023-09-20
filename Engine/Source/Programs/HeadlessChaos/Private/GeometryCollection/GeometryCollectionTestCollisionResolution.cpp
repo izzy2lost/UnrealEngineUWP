@@ -49,7 +49,7 @@ namespace GeometryCollectionTest
 		}
 		{
 			// validate that Simplicials are null when CollisionType==Chaos_Volumetric
-			EXPECT_EQ(Collection->DynamicCollection->Transform.Num(), 4);
+			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 4);
 			EXPECT_EQ(Collection->DynamicCollection->Simplicials[0], nullptr);
 			EXPECT_EQ(Collection->DynamicCollection->Simplicials[1], nullptr);
 			EXPECT_EQ(Collection->DynamicCollection->Simplicials[2], nullptr);
@@ -58,7 +58,7 @@ namespace GeometryCollectionTest
 
 			const FReal MaxRestingSeparation = -UnitTest.Solver->GetEvolution()->GetGravityForces().GetAcceleration(0).Z * UnitTest.Dt * UnitTest.Dt;	// PBD resting separation will be up to this
 			EXPECT_LT(FMath::Abs(Collection->RestCollection->Transform[0].GetTranslation().Z)-10.f, KINDA_SMALL_NUMBER);
-			EXPECT_LT(FMath::Abs(Collection->DynamicCollection->Transform[0].GetTranslation().Z - 1.0), 0.1 + MaxRestingSeparation);
+			EXPECT_LT(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z - 1.0), 0.1 + MaxRestingSeparation);
 		}
 	}
 
@@ -96,14 +96,14 @@ namespace GeometryCollectionTest
 		}
 		{
 			// validate that Simplicials are null when CollisionType==Chaos_Volumetric
-			EXPECT_EQ(Collection->DynamicCollection->Transform.Num(), 4);
+			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 4);
 			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0]!=nullptr);
 			EXPECT_TRUE(UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0)!=nullptr);
 			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0]->Size() == UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0)->Size());
 			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0]->Size() != 0);
 
 			EXPECT_LT(FMath::Abs(Collection->RestCollection->Transform[0].GetTranslation().Z - (Radius + 10.f)), KINDA_SMALL_NUMBER);
-			EXPECT_NEAR(Collection->DynamicCollection->Transform[0].GetTranslation().Z, Radius, KINDA_SMALL_NUMBER); 
+			EXPECT_NEAR(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, Radius, KINDA_SMALL_NUMBER); 
 		}
 	}
 
@@ -164,16 +164,16 @@ namespace GeometryCollectionTest
 
 		UnitTest.Initialize();
 		EXPECT_EQ(
-			SimplicialSphereCollection->DynamicCollection->Transform[0].GetTranslation().Z,
-			ImplicitSphereCollection->DynamicCollection->Transform[0].GetTranslation().Z + 3);
+			SimplicialSphereCollection->DynamicCollection->GetTransform(0).GetTranslation().Z,
+			ImplicitSphereCollection->DynamicCollection->GetTransform(0).GetTranslation().Z + 3);
 
-		const FVector FirstX = FVector(SimplicialSphereCollection->DynamicCollection->Transform[0].GetTranslation());
+		const FVector FirstX = FVector(SimplicialSphereCollection->DynamicCollection->GetTransform(0).GetTranslation());
 		FVector PrevX = FirstX;
 		for (int i = 0; i < 10; i++)
 		{
 			UnitTest.Advance();
 
-			const FVector CurrX = FVector(SimplicialSphereCollection->DynamicCollection->Transform[0].GetTranslation());
+			const FVector CurrX = FVector(SimplicialSphereCollection->DynamicCollection->GetTransform(0).GetTranslation());
 			EXPECT_NE(CurrX.Z, FirstX.Z); // moved since init
 			EXPECT_GE(PrevX.Z - CurrX.Z, -KINDA_SMALL_NUMBER); // falling in -Z, or stopped
 			EXPECT_LE(FMath::Abs(CurrX.X), KINDA_SMALL_NUMBER); // straight down
@@ -184,7 +184,7 @@ namespace GeometryCollectionTest
 		{
 			// We expect the simplical sphere to drop by 0.1 in Z and come to rest
 			// on top of the implicit sphere.
-			const FVector CurrX = FVector(SimplicialSphereCollection->DynamicCollection->Transform[0].GetTranslation());
+			const FVector CurrX = FVector(SimplicialSphereCollection->DynamicCollection->GetTransform(0).GetTranslation());
 			EXPECT_LE(CurrX.Z - 2.0, 0.2); // Relative large fudge factor accounts for aliasing?
 		}
 	}
@@ -242,16 +242,16 @@ namespace GeometryCollectionTest
 */
 		UnitTest.Initialize();
 		EXPECT_EQ(
-			BoxCollection0->DynamicCollection->Transform[0].GetTranslation().Z,
-			BoxCollection1->DynamicCollection->Transform[0].GetTranslation().Z + 3);
+			BoxCollection0->DynamicCollection->GetTransform(0).GetTranslation().Z,
+			BoxCollection1->DynamicCollection->GetTransform(0).GetTranslation().Z + 3);
 
-		const FVector FirstX = FVector(BoxCollection0->DynamicCollection->Transform[0].GetTranslation());
+		const FVector FirstX = FVector(BoxCollection0->DynamicCollection->GetTransform(0).GetTranslation());
 		FVector PrevX = FirstX;
 		for (int i = 0; i < 10; i++)
 		{
 			UnitTest.Advance();
 
-			const FVector& CurrX = FVector(BoxCollection0->DynamicCollection->Transform[0].GetTranslation());
+			const FVector& CurrX = FVector(BoxCollection0->DynamicCollection->GetTransform(0).GetTranslation());
 			EXPECT_NE(CurrX.Z, FirstX.Z); // moved since init
 			EXPECT_LE(CurrX.Z, PrevX.Z); // falling in -Z, or stopped
 			EXPECT_LE(FMath::Abs(CurrX.X), KINDA_SMALL_NUMBER); // No deflection
@@ -262,7 +262,7 @@ namespace GeometryCollectionTest
 		{
 			// We expect the simplical sphere to drop by 0.1 in Z and come to rest
 			// on top of the implicit sphere.
-			const FVector& CurrX = FVector(BoxCollection0->DynamicCollection->Transform[0].GetTranslation());
+			const FVector& CurrX = FVector(BoxCollection0->DynamicCollection->GetTransform(0).GetTranslation());
 			EXPECT_LE(CurrX.Z - 2.0, 0.2); // Relative large fudge factor accounts for aliasing?
 		}
 
@@ -328,22 +328,22 @@ namespace GeometryCollectionTest
 		}
 		{
 			// validate simplicials and implicits are configured correctly
-			EXPECT_EQ(Collection->DynamicCollection->Transform.Num(), 4);
+			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 4);
 			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0] != nullptr);
 			EXPECT_TRUE(UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0) != nullptr);
 			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0]->Size() == UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0)->Size());
 			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0]->Size() != 0);
 			EXPECT_TRUE(Collection->DynamicCollection->Implicits[0]->GetType() == (int32)Chaos::ImplicitObjectType::LevelSet);
 
-			EXPECT_EQ(CollectionStaticSphere->DynamicCollection->Transform.Num(), 4);
+			EXPECT_EQ(CollectionStaticSphere->DynamicCollection->GetTransforms().Num(), 4);
 			EXPECT_TRUE(CollectionStaticSphere->DynamicCollection->Simplicials[0] == nullptr);
 			EXPECT_TRUE(CollectionStaticSphere->DynamicCollection->Implicits[0]->GetType() == (int32)Chaos::ImplicitObjectType::Sphere);
 
 			// validate the ball collides and moved away from the static ball
 			EXPECT_LT(FMath::Abs(Collection->RestCollection->Transform[0].GetTranslation().Z) - 10.f, KINDA_SMALL_NUMBER);
-			EXPECT_TRUE(FMath::Abs(Collection->DynamicCollection->Transform[0].GetTranslation().X) < 0.001); // No deflection
-			EXPECT_TRUE(FMath::Abs(Collection->DynamicCollection->Transform[0].GetTranslation().Y) < 0.001); // No deflection
-			EXPECT_LT(Collection->DynamicCollection->Transform[0].GetTranslation().Z, 2.1f); // ball fell
+			EXPECT_TRUE(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetTranslation().X) < 0.001); // No deflection
+			EXPECT_TRUE(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetTranslation().Y) < 0.001); // No deflection
+			EXPECT_LT(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 2.1f); // ball fell
 		}
 	}
 
@@ -391,15 +391,15 @@ namespace GeometryCollectionTest
 		}
 
 		UnitTest.Initialize();
-		EXPECT_EQ(SimplicialSphereCollection->DynamicCollection->Transform[0].GetTranslation().Z, ImplicitSphereCollection->DynamicCollection->Transform[0].GetTranslation().Z + 2.0f * Radius + 1.0f);
+		EXPECT_EQ(SimplicialSphereCollection->DynamicCollection->GetTransform(0).GetTranslation().Z, ImplicitSphereCollection->DynamicCollection->GetTransform(0).GetTranslation().Z + 2.0f * Radius + 1.0f);
 
-		const FVector FirstX = FVector(SimplicialSphereCollection->DynamicCollection->Transform[0].GetTranslation());
+		const FVector FirstX = FVector(SimplicialSphereCollection->DynamicCollection->GetTransform(0).GetTranslation());
 		FVector PrevX = FirstX;
 		for (int i = 0; i < 10; i++)
 		{
 			UnitTest.Advance();
 
-			const FVector& CurrX = FVector(SimplicialSphereCollection->DynamicCollection->Transform[0].GetTranslation());
+			const FVector& CurrX = FVector(SimplicialSphereCollection->DynamicCollection->GetTransform(0).GetTranslation());
 			EXPECT_NE(CurrX.Z, FirstX.Z); // moved since init
 			EXPECT_LE(FMath::Abs(CurrX.X), 0.1f); // straight down
 			EXPECT_LE(FMath::Abs(CurrX.Y), 0.1f); // straight down
@@ -409,7 +409,7 @@ namespace GeometryCollectionTest
 		{
 			// We expect the simplical sphere to drop by 0.1 in Z and come to rest
 			// on top of the implicit sphere.
-			const FVector& CurrX = FVector(SimplicialSphereCollection->DynamicCollection->Transform[0].GetTranslation());
+			const FVector& CurrX = FVector(SimplicialSphereCollection->DynamicCollection->GetTransform(0).GetTranslation());
 			EXPECT_LE(FMath::Abs(CurrX.Z - 2.0f * Radius), 0.1 * Radius);
 		}
 	}
@@ -467,16 +467,16 @@ namespace GeometryCollectionTest
 */
 		UnitTest.Initialize();
 		EXPECT_EQ(
-			BoxCollection0->DynamicCollection->Transform[0].GetTranslation().Z,
-			BoxCollection1->DynamicCollection->Transform[0].GetTranslation().Z + Length + 2.0f);
+			BoxCollection0->DynamicCollection->GetTransform(0).GetTranslation().Z,
+			BoxCollection1->DynamicCollection->GetTransform(0).GetTranslation().Z + Length + 2.0f);
 
-		const FVector FirstX = FVector(BoxCollection0->DynamicCollection->Transform[0].GetTranslation());
+		const FVector FirstX = FVector(BoxCollection0->DynamicCollection->GetTransform(0).GetTranslation());
 		FVector PrevX = FirstX;
 		for (int i = 0; i < 10; i++)
 		{
 			UnitTest.Advance();
 
-			const FVector& CurrX = FVector(BoxCollection0->DynamicCollection->Transform[0].GetTranslation());
+			const FVector& CurrX = FVector(BoxCollection0->DynamicCollection->GetTransform(0).GetTranslation());
 			EXPECT_NE(CurrX.Z, FirstX.Z); // moved since init
 			EXPECT_LE(CurrX.Z, PrevX.Z); // falling in -Z, or stopped
 			EXPECT_LE(FMath::Abs(CurrX.X), KINDA_SMALL_NUMBER); // straight down
@@ -487,7 +487,7 @@ namespace GeometryCollectionTest
 		{
 			// We expect the simplical cube to drop in Z direction and come to rest
 			// on top of the implicit cube.
-			const FVector& CurrX = FVector(BoxCollection0->DynamicCollection->Transform[0].GetTranslation());
+			const FVector& CurrX = FVector(BoxCollection0->DynamicCollection->GetTransform(0).GetTranslation());
 			EXPECT_LE(FMath::Abs(CurrX.Z - Length), 0.2 * Length); // Relative large fudge factor accounts for spatial aliasing and contact location averaging.
 		}
 	}
@@ -544,7 +544,7 @@ namespace GeometryCollectionTest
 
 			// validate the tetahedron collides and moved away from the static floor
 			FVec3 RestTranslation = Collection->RestCollection->Transform[0].GetTranslation();
-			FVec3 DynamicTranslation = Collection->DynamicCollection->Transform[0].GetTranslation();
+			FVec3 DynamicTranslation = Collection->DynamicCollection->GetTransform(0).GetTranslation();
 			EXPECT_EQ(RestTranslation.Z, 0.f);
 			EXPECT_NEAR(FMath::Abs(DynamicTranslation.X), 0.f, RestingDistanceTolerance);
 			EXPECT_NEAR(FMath::Abs(DynamicTranslation.Y), 0.f, RestingDistanceTolerance);

@@ -33,7 +33,7 @@ GTEST_TEST(AllTraits,GeometryCollection_Initilization_TransformedGeometryCollect
 		EXPECT_LT(X.Z,GlobalTranslation[2]);
 
 		TArray<FTransform> Transform;
-		GeometryCollectionAlgo::GlobalMatrices(Collection->DynamicCollection->Transform,Collection->DynamicCollection->Parent,Transform);
+		GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(Collection->DynamicCollection->GetTransforms()),Collection->DynamicCollection->Parent,Transform);
 		EXPECT_EQ(Collection->DynamicCollection->Parent[0],FGeometryCollection::Invalid); // is not a child
 		EXPECT_NEAR(Transform[0].GetTranslation().X - GlobalTranslation[0],0.0f,KINDA_SMALL_NUMBER);
 		EXPECT_NEAR(Transform[0].GetTranslation().Y - GlobalTranslation[1],0.0f,KINDA_SMALL_NUMBER);
@@ -64,7 +64,7 @@ GTEST_TEST(AllTraits,GeometryCollection_Initilization_TransformedGeometryCollect
 		EXPECT_LT(X.Z,GlobalTranslation[2]);
 
 		TArray<FTransform> Transform;
-		GeometryCollectionAlgo::GlobalMatrices(Collection->DynamicCollection->Transform,Collection->DynamicCollection->Parent,Transform);
+		GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(Collection->DynamicCollection->GetTransforms()),Collection->DynamicCollection->Parent,Transform);
 		EXPECT_EQ(Collection->DynamicCollection->Parent[0],FGeometryCollection::Invalid); // is not a child
 		EXPECT_NEAR(Transform[0].GetTranslation().X - GlobalTranslation[0],0.0f,KINDA_SMALL_NUMBER);
 		EXPECT_NEAR(Transform[0].GetTranslation().Y - GlobalTranslation[1],0.0f,KINDA_SMALL_NUMBER);
@@ -95,7 +95,7 @@ GTEST_TEST(AllTraits,GeometryCollection_Initilization_TransformedGeometryCollect
 		EXPECT_LT(X.Z,GlobalTranslation[2]);
 
 		TArray<FTransform> Transform;
-		GeometryCollectionAlgo::GlobalMatrices(Collection->DynamicCollection->Transform,Collection->DynamicCollection->Parent,Transform);
+		GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(Collection->DynamicCollection->GetTransforms()),Collection->DynamicCollection->Parent,Transform);
 		EXPECT_EQ(Collection->DynamicCollection->Parent[0],FGeometryCollection::Invalid); // is not a child
 		EXPECT_NEAR(Transform[0].GetTranslation().X - GlobalTranslation[0],0.0f,KINDA_SMALL_NUMBER);
 		EXPECT_NEAR(Transform[0].GetTranslation().Y - GlobalTranslation[1],0.0f,KINDA_SMALL_NUMBER);
@@ -146,7 +146,7 @@ GTEST_TEST(AllTraits,GeometryCollection_Initilization_TransformedGeometryCollect
 		FQuat ParticleR = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().R(0);
 
 		TArray<FTransform> Transform;
-		GeometryCollectionAlgo::GlobalMatrices(Collection->DynamicCollection->Transform, Collection->DynamicCollection->Parent, Transform);
+		GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(Collection->DynamicCollection->GetTransforms()), Collection->DynamicCollection->Parent, Transform);
 		EXPECT_EQ(Collection->DynamicCollection->Parent[0], FGeometryCollection::Invalid); // is not a child
 		EXPECT_NEAR(ParticlePos.X, GlobalTranslation[0], KINDA_SMALL_NUMBER); // Check particle position from solver 
 		EXPECT_NEAR(ParticlePos.Y, GlobalTranslation[1], KINDA_SMALL_NUMBER);

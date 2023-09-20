@@ -62,9 +62,8 @@ using namespace ChaosTest;
 			EXPECT_LT(FMath::Abs(RestTransform[0].GetTranslation().Z), SMALL_THRESHOLD);
 
 			// simulated
-			TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
-			EXPECT_EQ(Transform.Num(), 1);
-			EXPECT_LT(FMath::Abs(Transform[0].GetTranslation().Z), SMALL_THRESHOLD);
+			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1);
+			EXPECT_LT(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z), SMALL_THRESHOLD);
 		}
 	}
 
@@ -99,7 +98,6 @@ using namespace ChaosTest;
 		UnitTest.Initialize();
 
 		FVector3f StartingClusterPosition;
-		TManagedArray<FTransform3f>* Transform;
 		FReal StartingRigidDistance;
 
 		UnitTest.Solver->RegisterSimOneShotCallback([&]()
@@ -117,10 +115,10 @@ using namespace ChaosTest;
 			// Set the one cluster to disabled
 			UnitTest.Solver->GetEvolution()->DisableParticle(Collection->PhysObject->GetSolverClusterHandles()[0]);
 
-			Transform = &Collection->DynamicCollection->Transform;
-			StartingRigidDistance = ((*Transform)[1].GetTranslation() - (*Transform)[0].GetTranslation()).Size();
+
+			StartingRigidDistance = (Collection->DynamicCollection->GetTransform(1).GetTranslation() - Collection->DynamicCollection->GetTransform(0).GetTranslation()).Size();
 			EXPECT_LT(StartingRigidDistance - 20.0f,SMALL_THRESHOLD);
-			StartingClusterPosition = (*Transform)[2].GetTranslation();
+			StartingClusterPosition = Collection->DynamicCollection->GetTransform(2).GetTranslation();
 		});
 
 		FReal CurrentRigidDistance = 0.0;
@@ -130,11 +128,11 @@ using namespace ChaosTest;
 			UnitTest.Advance();
 
 			// Distance between gc cubes remains the same
-			CurrentRigidDistance = ((*Transform)[1].GetTranslation() - (*Transform)[0].GetTranslation()).Size();
+			CurrentRigidDistance = (Collection->DynamicCollection->GetTransform(1).GetTranslation() - Collection->DynamicCollection->GetTransform(0).GetTranslation()).Size();
 			EXPECT_LT(StartingRigidDistance-CurrentRigidDistance, SMALL_THRESHOLD);
 
 			// Clustered particle doesn't move
-			EXPECT_LT((StartingClusterPosition - (*Transform)[2].GetTranslation()).Size(), SMALL_THRESHOLD);
+			EXPECT_LT((StartingClusterPosition - Collection->DynamicCollection->GetTransform(2).GetTranslation()).Size(), SMALL_THRESHOLD);
 		}
 		
 	}

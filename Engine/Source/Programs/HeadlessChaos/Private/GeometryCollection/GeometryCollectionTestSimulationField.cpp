@@ -90,11 +90,10 @@ namespace GeometryCollectionTest
 		EXPECT_EQ(DynamicState[0], (int32)EObjectStateTypeEnum::Chaos_Object_Kinematic);
 
 		// simulated
-		const TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
-		EXPECT_EQ(Transform.Num(), 1);
-		const FVector Translation1 = FVector(Transform[0].GetTranslation());
+		EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1);
+		const FVector Translation1 = FVector(Collection->DynamicCollection->GetTransform(0).GetTranslation());
 		EXPECT_NEAR((Translation0 - Translation1).Size(), 0.f, KINDA_SMALL_NUMBER);
-		EXPECT_NEAR(Transform[0].GetTranslation().Z, 1.f, KINDA_SMALL_NUMBER);
+		EXPECT_NEAR(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 1.f, KINDA_SMALL_NUMBER);
 
 		FRadialIntMask* RadialMask = new FRadialIntMask();
 		RadialMask->Position = FVector(0.0, 0.0, 0.0);
@@ -110,9 +109,9 @@ namespace GeometryCollectionTest
 		}
 		EXPECT_EQ(DynamicState[0], (int32)EObjectStateTypeEnum::Chaos_Object_Dynamic);
 
-		const FVector Translation2 = FVector(Transform[0].GetTranslation());
+		const FVector Translation2 = FVector(Collection->DynamicCollection->GetTransform(0).GetTranslation());
 		EXPECT_NE(Translation1, Translation2);
-		EXPECT_LE(Transform[0].GetTranslation().Z, 0.f);
+		EXPECT_LE(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 0.f);
 	}
 
 	GTEST_TEST(AllTraits, GeometryCollection_RigidBodies_Field_KinematicActivation)
@@ -135,11 +134,10 @@ namespace GeometryCollectionTest
 		}
 
 		// simulated
-		const TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
-		EXPECT_EQ(Transform.Num(), 1);
-		const FVector Translation1 = FVector(Transform[0].GetTranslation());
+		EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1);
+		const FVector Translation1 = FVector(Collection->DynamicCollection->GetTransform(0).GetTranslation());
 		EXPECT_NEAR((Translation0 - Translation1).Size(), 0.f, KINDA_SMALL_NUMBER);
-		EXPECT_NEAR(Transform[0].GetTranslation().Z, 1.f, KINDA_SMALL_NUMBER);
+		EXPECT_NEAR(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 1.f, KINDA_SMALL_NUMBER);
 
 		FRadialIntMask* RadialMask = new FRadialIntMask();
 		RadialMask->Position = FVector(0.0, 0.0, 0.0);
@@ -155,9 +153,9 @@ namespace GeometryCollectionTest
 			UnitTest.Advance();
 		}
 
-		const FVector Translation2 = FVector(Transform[0].GetTranslation());
+		const FVector Translation2 = FVector(Collection->DynamicCollection->GetTransform(0).GetTranslation());
 		EXPECT_NE(Translation1, Translation2);
-		EXPECT_LE(Transform[0].GetTranslation().Z, 0.f);
+		EXPECT_LE(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 0.f);
 	}
 
 	GTEST_TEST(AllTraits, GeometryCollection_RigidBodies_Field_InitialLinearVelocity)
@@ -184,12 +182,11 @@ namespace GeometryCollectionTest
 
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		TManagedArray<int32>& DynamicState = Collection->DynamicCollection->DynamicState;
 
 		FReal PreviousY = 0.f;
-		EXPECT_EQ(Transform[0].GetTranslation().X, 0);
-		EXPECT_EQ(Transform[0].GetTranslation().Y, 0);
+		EXPECT_EQ(Collection->DynamicCollection->GetTransform(0).GetTranslation().X, 0);
+		EXPECT_EQ(Collection->DynamicCollection->GetTransform(0).GetTranslation().Y, 0);
 
 		for (int Frame = 0; Frame < 10; Frame++)
 		{
@@ -204,18 +201,18 @@ namespace GeometryCollectionTest
 			if (Frame >= 2)
 			{
 				EXPECT_EQ(DynamicState[0], (int32)EObjectStateTypeEnum::Chaos_Object_Dynamic);
-				EXPECT_EQ(Transform[0].GetTranslation().X, 0);
-				EXPECT_GT(Transform[0].GetTranslation().Y, PreviousY);
-				EXPECT_LT(Transform[0].GetTranslation().Z, 0);
+				EXPECT_EQ(Collection->DynamicCollection->GetTransform(0).GetTranslation().X, 0);
+				EXPECT_GT(Collection->DynamicCollection->GetTransform(0).GetTranslation().Y, PreviousY);
+				EXPECT_LT(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 0);
 			}
 			else
 			{
 				EXPECT_EQ(DynamicState[0], (int32)EObjectStateTypeEnum::Chaos_Object_Kinematic);
-				EXPECT_EQ(Transform[0].GetTranslation().X, 0);
-				EXPECT_EQ(Transform[0].GetTranslation().Y, 0);
-				EXPECT_EQ(Transform[0].GetTranslation().Z, 0);
+				EXPECT_EQ(Collection->DynamicCollection->GetTransform(0).GetTranslation().X, 0);
+				EXPECT_EQ(Collection->DynamicCollection->GetTransform(0).GetTranslation().Y, 0);
+				EXPECT_EQ(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 0);
 			}
-			PreviousY = Transform[0].GetTranslation().Y;
+			PreviousY = Collection->DynamicCollection->GetTransform(0).GetTranslation().Y;
 		}
 	}
 
@@ -241,7 +238,6 @@ namespace GeometryCollectionTest
 
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		for (int Frame = 0; Frame < 10; Frame++)
 		{
 			// Set everything inside the r=5.0 sphere to dynamic
@@ -256,16 +252,16 @@ namespace GeometryCollectionTest
 			if (Frame < 5)
 			{
 				// Before frame 5 nothing should have moved
-				EXPECT_LT(FMath::Abs(Transform[0].GetTranslation().Z - 5.f), SMALL_THRESHOLD);
+				EXPECT_LT(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z - 5.f), SMALL_THRESHOLD);
 			}
 			else
 			{
 				// Frame 5 and after should be falling
-				EXPECT_LT(Transform[0].GetTranslation().Z, PreviousHeight);
+				EXPECT_LT(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, PreviousHeight);
 			}
 
 			// Track current height of the object
-			PreviousHeight = Transform[0].GetTranslation().Z;
+			PreviousHeight = Collection->DynamicCollection->GetTransform(0).GetTranslation().Z;
 		}
 
 	}
@@ -288,7 +284,6 @@ namespace GeometryCollectionTest
 
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		FReal PreviousY = 0.0;
 		for (int Frame = 0; Frame < 10; Frame++)
 		{
@@ -302,14 +297,14 @@ namespace GeometryCollectionTest
 
 			if (Frame < 5)
 			{
-				EXPECT_LT(FMath::Abs(Transform[0].GetTranslation().Y), SMALL_THRESHOLD);
+				EXPECT_LT(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetTranslation().Y), SMALL_THRESHOLD);
 			}
 			else
 			{
-				EXPECT_GT(Transform[0].GetTranslation().Y, PreviousY);
+				EXPECT_GT(Collection->DynamicCollection->GetTransform(0).GetTranslation().Y, PreviousY);
 			}
 
-			PreviousY = Transform[0].GetTranslation().Y;
+			PreviousY = Collection->DynamicCollection->GetTransform(0).GetTranslation().Y;
 
 		}
 
@@ -336,7 +331,6 @@ namespace GeometryCollectionTest
 
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		FReal PreviousY = 0.0;
 		for (int Frame = 0; Frame < 10; Frame++)
 		{
@@ -351,11 +345,11 @@ namespace GeometryCollectionTest
 			auto& Particles = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles();
 			if (Frame < 5)
 			{
-				EXPECT_LT(FMath::Abs(Transform[0].GetRotation().Euler().Y), SMALL_THRESHOLD);
+				EXPECT_LT(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetRotation().Euler().Y), SMALL_THRESHOLD);
 			}
 			else
 			{
-				EXPECT_NE(FMath::Abs(Transform[0].GetRotation().Euler().Y), SMALL_THRESHOLD);
+				EXPECT_NE(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetRotation().Euler().Y), SMALL_THRESHOLD);
 				EXPECT_GT(Particles.W(0).Y, PreviousY);
 			}
 
@@ -385,7 +379,7 @@ namespace GeometryCollectionTest
 
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
+		
 		TManagedArray<bool>& Active = Collection->DynamicCollection->Active;
 		auto& Particles = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles();
 		for (int Frame = 0; Frame < 20; Frame++)
@@ -404,8 +398,8 @@ namespace GeometryCollectionTest
 		EXPECT_EQ(Particles.Disabled(0), true);
 
 		// hasn't fallen any further than this due to being disabled
-		EXPECT_LT(Transform[0].GetTranslation().Z, 5.f);
-		EXPECT_GT(Transform[0].GetTranslation().Z, -5.0f);
+		EXPECT_LT(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 5.f);
+		EXPECT_GT(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, -5.0f);
 	}
 
 	GTEST_TEST(AllTraits, GeometryCollection_RigidBodies_Field_LinearVelocity)
@@ -431,15 +425,15 @@ namespace GeometryCollectionTest
 		UnitTest.Advance();
 
 		FReal PreviousX = 0.0;
-		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
+		
 		for (int Frame = 1; Frame < 10; Frame++)
 		{
 			UnitTest.Solver->GetPerSolverField().AddTransientCommand({ GetFieldPhysicsName(EFieldPhysicsType::Field_LinearVelocity), VectorField->NewCopy() });
 
 			UnitTest.Advance();
 
-			EXPECT_GT(Transform[0].GetTranslation().X, PreviousX);
-			PreviousX = Transform[0].GetTranslation().X;
+			EXPECT_GT(Collection->DynamicCollection->GetTransform(0).GetTranslation().X, PreviousX);
+			PreviousX = Collection->DynamicCollection->GetTransform(0).GetTranslation().X;
 		}
 	}
 
@@ -489,9 +483,9 @@ namespace GeometryCollectionTest
 			if (Frame == 30)
 			{
 				// The boxes should have landed on each other and settled by now
-				EXPECT_NEAR(Collection[1]->DynamicCollection->Transform[0].GetTranslation().Z, (FReal)100, (FReal)20);
-				EXPECT_NEAR(Collection[2]->DynamicCollection->Transform[0].GetTranslation().Z, (FReal)300, (FReal)20);
-				EXPECT_NEAR(Collection[3]->DynamicCollection->Transform[0].GetTranslation().Z, (FReal)500, (FReal)20);
+				EXPECT_NEAR(Collection[1]->DynamicCollection->GetTransform(0).GetTranslation().Z, (FReal)100, (FReal)20);
+				EXPECT_NEAR(Collection[2]->DynamicCollection->GetTransform(0).GetTranslation().Z, (FReal)300, (FReal)20);
+				EXPECT_NEAR(Collection[3]->DynamicCollection->GetTransform(0).GetTranslation().Z, (FReal)500, (FReal)20);
 			}
 			if (Frame == 31)
 			{
@@ -501,9 +495,9 @@ namespace GeometryCollectionTest
 		}
 		// The bottom boxes should have fallen below the ground level, box 2 now on the ground with box 3 on top
 		auto& Particles = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles();
-		EXPECT_LT(Collection[1]->DynamicCollection->Transform[0].GetTranslation().Z, 0);
-		EXPECT_TRUE(FMath::IsNearlyEqual((FReal)Collection[2]->DynamicCollection->Transform[0].GetTranslation().Z, (FReal)100, (FReal)20));
-		EXPECT_TRUE(FMath::IsNearlyEqual((FReal)Collection[3]->DynamicCollection->Transform[0].GetTranslation().Z, (FReal)300, (FReal)20));
+		EXPECT_LT(Collection[1]->DynamicCollection->GetTransform(0).GetTranslation().Z, 0);
+		EXPECT_TRUE(FMath::IsNearlyEqual((FReal)Collection[2]->DynamicCollection->GetTransform(0).GetTranslation().Z, (FReal)100, (FReal)20));
+		EXPECT_TRUE(FMath::IsNearlyEqual((FReal)Collection[3]->DynamicCollection->GetTransform(0).GetTranslation().Z, (FReal)300, (FReal)20));
 
 	}
 
@@ -973,7 +967,7 @@ namespace GeometryCollectionTest
 		UnitTest.Solver->GetPerSolverField().AddTransientCommand({ TargetNameForce, VectorFieldBackward->NewCopy() });
 		UnitTest.Advance();
 
-		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
+		
 		for (int Frame = 1; Frame < 10; Frame++)
 		{
 			UnitTest.Solver->GetPerSolverField().AddTransientCommand({ GetFieldPhysicsName(EFieldPhysicsType::Field_LinearVelocity), VectorFieldRight->NewCopy() });
@@ -983,11 +977,11 @@ namespace GeometryCollectionTest
 
 			UnitTest.Advance();
 
-			EXPECT_NEAR(Transform[0].GetTranslation().X, ExpectedLocation.X, KINDA_SMALL_NUMBER);
-			EXPECT_NEAR(Transform[0].GetTranslation().Y, ExpectedLocation.Y, KINDA_SMALL_NUMBER);
-			EXPECT_LT(Transform[0].GetTranslation().Z, ExpectedLocation.Z);
-			EXPECT_LT(Transform[0].GetTranslation().Z, LastZ);
-			LastZ = Transform[0].GetTranslation().Z;
+			EXPECT_NEAR(Collection->DynamicCollection->GetTransform(0).GetTranslation().X, ExpectedLocation.X, KINDA_SMALL_NUMBER);
+			EXPECT_NEAR(Collection->DynamicCollection->GetTransform(0).GetTranslation().Y, ExpectedLocation.Y, KINDA_SMALL_NUMBER);
+			EXPECT_LT(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, ExpectedLocation.Z);
+			EXPECT_LT(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, LastZ);
+			LastZ = Collection->DynamicCollection->GetTransform(0).GetTranslation().Z;
 		}
 	}
 
@@ -1020,7 +1014,7 @@ namespace GeometryCollectionTest
 
 		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& ParticleHandles = Collection->PhysObject->GetSolverParticleHandles();
 		Chaos::TVector<float, 3> CurrV = ParticleHandles[0]->V();
-		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
+		
 
 		for (int Frame = 1; Frame < 10; Frame++)
 		{
@@ -1031,12 +1025,12 @@ namespace GeometryCollectionTest
 
 			CurrV = ParticleHandles[0]->V();
 			EXPECT_NEAR(CurrV.X, Params.InitialLinearVelocity.X, KINDA_SMALL_NUMBER); // Velocity in +x
-			EXPECT_GT(Transform[0].GetTranslation().X, LastLocation.X); // Pos in +x
+			EXPECT_GT(Collection->DynamicCollection->GetTransform(0).GetTranslation().X, LastLocation.X); // Pos in +x
 
 			// Still falling?
-			EXPECT_LT(Transform[0].GetTranslation().Z, LastLocation.Z);
+			EXPECT_LT(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, LastLocation.Z);
 
-			LastLocation = FVector(Transform[0].GetTranslation());
+			LastLocation = FVector(Collection->DynamicCollection->GetTransform(0).GetTranslation());
 
 		}
 	}
@@ -1064,9 +1058,9 @@ namespace GeometryCollectionTest
 
 		UnitTest.Initialize();
 
-		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
-		FReal PreviousHeight = Transform[0].GetTranslation().Z;
-		FReal PreviousX = Transform[0].GetRotation().Euler().X;
+		
+		FReal PreviousHeight = Collection->DynamicCollection->GetTransform(0).GetTranslation().Z;
+		FReal PreviousX = Collection->DynamicCollection->GetTransform(0).GetRotation().Euler().X;
 		for (int Frame = 0; Frame < 10; Frame++)
 		{
 			
@@ -1077,7 +1071,7 @@ namespace GeometryCollectionTest
 			UnitTest.Advance();
 
 			Chaos::TPBDGeometryCollectionParticles<Chaos::FReal, 3>& Particles = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles();
-			EXPECT_NE(FMath::Abs(Transform[0].GetRotation().Euler().Y), SMALL_THRESHOLD); // not rotating in Y?
+			EXPECT_NE(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetRotation().Euler().Y), SMALL_THRESHOLD); // not rotating in Y?
 			EXPECT_GT(Particles.W(0).X, PreviousX); // rotating in X?
 			EXPECT_LT(Particles.X(0).Z, PreviousHeight); // still falling?
 

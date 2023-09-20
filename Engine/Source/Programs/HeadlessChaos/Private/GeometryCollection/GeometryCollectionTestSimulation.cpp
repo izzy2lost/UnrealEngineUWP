@@ -40,9 +40,9 @@ namespace GeometryCollectionTest
 
 		{ // test results
 			EXPECT_LT(FMath::Abs(Collection->RestCollection->Transform[0].GetTranslation().Z), SMALL_THRESHOLD); // rest never touched
-			EXPECT_EQ(Collection->DynamicCollection->Transform.Num(), 1); // simulated is falling
-			EXPECT_LT(Collection->DynamicCollection->Transform[0].GetTranslation().Z, 0.f);
-			EXPECT_NEAR(Collection->DynamicCollection->Transform[0].GetTranslation().Z, -980.f * UnitTest.Dt * UnitTest.Dt, 1e-2);// we seem to be twice gravity
+			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1); // simulated is falling
+			EXPECT_LT(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 0.f);
+			EXPECT_NEAR(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, -980.f * UnitTest.Dt * UnitTest.Dt, 1e-2);// we seem to be twice gravity
 		}
 	}
 
@@ -70,8 +70,8 @@ namespace GeometryCollectionTest
 
 		{
 			EXPECT_LT(FMath::Abs(Collection->RestCollection->Transform[0].GetTranslation().Z), SMALL_THRESHOLD);
-			EXPECT_EQ(Collection->DynamicCollection->Transform.Num(), 1);
-			EXPECT_LT(FMath::Abs(Collection->DynamicCollection->Transform[0].GetTranslation().Z - 0.1f * Scale), MEDIUM_THRESHOLD * Scale);
+			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1);
+			EXPECT_LT(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z - 0.1f * Scale), MEDIUM_THRESHOLD * Scale);
 		}
 	}
 
@@ -98,8 +98,8 @@ namespace GeometryCollectionTest
 
 		{ // test results
 			EXPECT_LT(FMath::Abs(Collection->RestCollection->Transform[0].GetTranslation().Z), SMALL_THRESHOLD);
-			EXPECT_EQ(Collection->DynamicCollection->Transform.Num(), 1);
-			EXPECT_LT(FMath::Abs(Collection->DynamicCollection->Transform[0].GetTranslation().Z) - Scale[0], SMALL_THRESHOLD);
+			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1);
+			EXPECT_LT(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z) - Scale[0], SMALL_THRESHOLD);
 		}
 	}
 
@@ -126,8 +126,8 @@ namespace GeometryCollectionTest
 
 		{
 			EXPECT_LT(FMath::Abs(Collection->RestCollection->Transform[0].GetTranslation().Z), SMALL_THRESHOLD);
-			EXPECT_EQ(Collection->DynamicCollection->Transform.Num(), 1);
-			EXPECT_LT(FMath::Abs(Collection->DynamicCollection->Transform[0].GetTranslation().Z - 0.1f * Scale[0]), MEDIUM_THRESHOLD * Scale[0]);
+			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1);
+			EXPECT_LT(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z - 0.1f * Scale[0]), MEDIUM_THRESHOLD * Scale[0]);
 		}
 	}
 
@@ -145,10 +145,9 @@ namespace GeometryCollectionTest
 			UnitTest.Advance();
 
 		{
-			TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
-			EXPECT_EQ(Transform.Num(), 1);
+			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1);
 			//UE_LOG(LogTest, Verbose, TEXT("Position : (%3.5f,%3.5f,%3.5f)"), Transform[0].GetTranslation().X, Transform[0].GetTranslation().Y, Transform[0].GetTranslation().Z);
-			EXPECT_EQ(Transform[0].GetTranslation().Z, 0.f);
+			EXPECT_EQ(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 0.f);
 			EXPECT_EQ(Collection->DynamicCollection->DynamicState[0], (int32)EObjectStateTypeEnum::Chaos_Object_Kinematic);
 		}
 	}
@@ -168,7 +167,7 @@ namespace GeometryCollectionTest
 		UnitTest.AddSimulationObject(SleepingCollection);
 		UnitTest.Initialize();
 
-		const auto& Transform0 = SleepingCollection->DynamicCollection->Transform[0];
+		const auto& Transform0 = SleepingCollection->DynamicCollection->GetTransform(0);
 		for (int i = 0; i < 3; i++)
 		{
 			UnitTest.Advance();
@@ -178,7 +177,7 @@ namespace GeometryCollectionTest
 		{
 			// particle doesn't fall due to sleeping state
 			EXPECT_EQ(SleepingCollection->DynamicCollection->DynamicState[0], (int32)EObjectStateTypeEnum::Chaos_Object_Sleeping);
-			EXPECT_LT(FMath::Abs(SleepingCollection->DynamicCollection->Transform[0].GetTranslation().Z - InitialStartHeight), SMALL_THRESHOLD);
+			EXPECT_LT(FMath::Abs(SleepingCollection->DynamicCollection->GetTransform(0).GetTranslation().Z - InitialStartHeight), SMALL_THRESHOLD);
 		}
 
 	}
@@ -205,8 +204,8 @@ namespace GeometryCollectionTest
 		UnitTest.AddSimulationObject(MovingCollection);
 		UnitTest.Initialize();
 
-		const auto& Transform0 = MovingCollection->DynamicCollection->Transform[0];
-		const auto& Transform1 = SleepingCollection->DynamicCollection->Transform[0];
+		const auto& Transform0 = MovingCollection->DynamicCollection->GetTransform(0);
+		const auto& Transform1 = SleepingCollection->DynamicCollection->GetTransform(0);
 		for (int i = 0; i < 15; i++)
 		{
 			UnitTest.Advance();
@@ -237,7 +236,7 @@ namespace GeometryCollectionTest
 		UnitTest.AddSimulationObject(MovingCollection);
 		UnitTest.Initialize();
 
-		const auto& Transform0 = MovingCollection->DynamicCollection->Transform[0];
+		const auto& Transform0 = MovingCollection->DynamicCollection->GetTransform(0);
 		for (int i = 0; i < 5; i++)
 		{
 			UnitTest.Advance();
@@ -288,7 +287,6 @@ namespace GeometryCollectionTest
 
 		// testing...
 		auto GCParticles = Collection->PhysObject->GetSolverParticleHandles();
-		TManagedArray<FTransform3f>& Transform = Collection->DynamicCollection->Transform;
 		for (int Frame = 1; Frame < 200; Frame++)
 		{
 			if (Frame == 1)
@@ -304,38 +302,38 @@ namespace GeometryCollectionTest
 				GCParticles[3]->SetCollisionGroup(3);
 				GCParticles[4]->SetCollisionGroup(-1);
 
-				EXPECT_TRUE(Transform[0].GetRotation() == FQuat4f::Identity); // Can use defaulted zero rotation to indicate that the
-				EXPECT_TRUE(Transform[1].GetRotation() == FQuat4f::Identity); // rigid has not been affected. Should we though??
-				EXPECT_TRUE(Transform[2].GetRotation() == FQuat4f::Identity);
-				EXPECT_TRUE(Transform[3].GetRotation() == FQuat4f::Identity);
-				EXPECT_TRUE(Transform[4].GetRotation() == FQuat4f::Identity);
+				EXPECT_TRUE(Collection->DynamicCollection->GetTransform(0).GetRotation() == FQuat4f::Identity); // Can use defaulted zero rotation to indicate that the
+				EXPECT_TRUE(Collection->DynamicCollection->GetTransform(1).GetRotation() == FQuat4f::Identity); // rigid has not been affected. Should we though??
+				EXPECT_TRUE(Collection->DynamicCollection->GetTransform(2).GetRotation() == FQuat4f::Identity);
+				EXPECT_TRUE(Collection->DynamicCollection->GetTransform(3).GetRotation() == FQuat4f::Identity);
+				EXPECT_TRUE(Collection->DynamicCollection->GetTransform(4).GetRotation() == FQuat4f::Identity);
 			}
 
 			if (Frame == 100)
 			{
-				EXPECT_NEAR(Transform[0].GetTranslation().Z, 50.0f, 1.0f);
-				EXPECT_NEAR(Transform[1].GetTranslation().Z, 150.0f, 1.0f);
-				EXPECT_NEAR(Transform[2].GetTranslation().Z, 250.0f, 1.0f);
-				EXPECT_FALSE(Transform[0].GetRotation() == FQuat4f::Identity);
-				EXPECT_FALSE(Transform[1].GetRotation() == FQuat4f::Identity);
-				EXPECT_FALSE(Transform[2].GetRotation() == FQuat4f::Identity);
-				EXPECT_FALSE(Transform[3].GetRotation() == FQuat4f::Identity);
-				EXPECT_TRUE(Transform[4].GetRotation() == FQuat4f::Identity);
+				EXPECT_NEAR(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 50.0f, 1.0f);
+				EXPECT_NEAR(Collection->DynamicCollection->GetTransform(1).GetTranslation().Z, 150.0f, 1.0f);
+				EXPECT_NEAR(Collection->DynamicCollection->GetTransform(2).GetTranslation().Z, 250.0f, 1.0f);
+				EXPECT_FALSE(Collection->DynamicCollection->GetTransform(0).GetRotation() == FQuat4f::Identity);
+				EXPECT_FALSE(Collection->DynamicCollection->GetTransform(1).GetRotation() == FQuat4f::Identity);
+				EXPECT_FALSE(Collection->DynamicCollection->GetTransform(2).GetRotation() == FQuat4f::Identity);
+				EXPECT_FALSE(Collection->DynamicCollection->GetTransform(3).GetRotation() == FQuat4f::Identity);
+				EXPECT_TRUE(Collection->DynamicCollection->GetTransform(4).GetRotation() == FQuat4f::Identity);
 			}
 			UnitTest.Advance();
 		}
 
-		EXPECT_NEAR(Transform[0].GetTranslation().Z, 50.0f, 1.0f);
-		EXPECT_NEAR(Transform[1].GetTranslation().Z, 150.0f, 1.0f);
-		EXPECT_NEAR(Transform[2].GetTranslation().Z, 250.0f, 1.0f);
-		EXPECT_NEAR(Transform[3].GetTranslation().Z, 150.0f, 1.0f);
-		EXPECT_FALSE(Transform[3].GetRotation() == FQuat4f::Identity);
-		EXPECT_TRUE(Transform[4].GetRotation() == FQuat4f::Identity); // Phased through everything, good.
-		EXPECT_LT(Transform[4].GetTranslation().Z, -100.0f);
+		EXPECT_NEAR(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 50.0f, 1.0f);
+		EXPECT_NEAR(Collection->DynamicCollection->GetTransform(1).GetTranslation().Z, 150.0f, 1.0f);
+		EXPECT_NEAR(Collection->DynamicCollection->GetTransform(2).GetTranslation().Z, 250.0f, 1.0f);
+		EXPECT_NEAR(Collection->DynamicCollection->GetTransform(3).GetTranslation().Z, 150.0f, 1.0f);
+		EXPECT_FALSE(Collection->DynamicCollection->GetTransform(3).GetRotation() == FQuat4f::Identity);
+		EXPECT_TRUE(Collection->DynamicCollection->GetTransform(4).GetRotation() == FQuat4f::Identity); // Phased through everything, good.
+		EXPECT_LT(Collection->DynamicCollection->GetTransform(4).GetTranslation().Z, -100.0f);
 
 		GCParticles[0]->SetCollisionGroup(-1);
 		for (int i = 0; i < 50; i++) { UnitTest.Advance(); }
-		EXPECT_LT(Transform[0].GetTranslation().Z, -100.0f);
+		EXPECT_LT(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, -100.0f);
 
 	}
 

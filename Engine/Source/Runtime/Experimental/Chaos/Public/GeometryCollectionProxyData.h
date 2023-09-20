@@ -28,17 +28,23 @@ public:
 	FTransformDynamicCollection(FTransformDynamicCollection&&) = delete;
 	FTransformDynamicCollection& operator=(FTransformDynamicCollection&&) = delete;
 
+	const FTransform3f& GetTransform(int32 Index) const;
+	void SetTransform(int32 Index, const FTransform3f& Transform);
+	const TArray<FTransform3f>& GetTransforms() const;
+
 	// Transform Group
-	TManagedArray<FTransform3f> Transform;
 	TManagedArray<int32>        Parent;
 	TManagedArray<TSet<int32>>  Children;
 	TManagedArray<int32>        SimulationType;
 	TManagedArray<int32>        StatusFlags;
 
-protected:
-
+private:
+	TManagedArray<FTransform3f> Transform;
 	/** Construct */
 	CHAOS_API void Construct();
+
+	friend class FGeometryCollectionPhysicsProxy;
+	friend class UGeometryCollectionComponent;
 };
 
 
