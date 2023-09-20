@@ -36,7 +36,7 @@ class FMutableTaskGraph
 		uint32 Id;
 		FString DebugName;
 		TFunction<void()> Body;
-		float CreationTime = FPlatformTime::Seconds();
+		double CreationTime = FPlatformTime::Seconds();
 	};
 	
 public:

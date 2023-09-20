@@ -142,8 +142,8 @@ void FMutableTaskGraph::TryLaunchMutableTaskLowPriority(bool bFromMutableTask)
 		return;
 	}
 
-	float TimeLimit;
-	float TimeElapsed;
+	double TimeLimit;
+	double TimeElapsed;
 	
 	bool bTimeLimit;
 	
