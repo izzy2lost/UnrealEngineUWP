@@ -59,7 +59,6 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 	const FOptimus_PinToDataInterfaceMap& InLinkDataInterfaceMap,
 	const TArray<const UOptimusNode *>& InValueNodes,
 	const UComputeDataInterface* InGraphDataInterface,
-	const UOptimusComponentSourceBinding* InGraphDataComponentBinding,
 	UComputeDataInterface* InOutKernelDataInterface,
 	FOptimus_InterfaceBindingMap& OutInputDataBindings,
 	FOptimus_InterfaceBindingMap& OutOutputDataBindings,
@@ -138,7 +137,7 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 		}
 	}
 
-	TSet<UOptimusComponentSourceBinding*> PrimaryBindings = GetGroupComponentSourceBindings(GetPrimaryGroupPin());
+	TSet<UOptimusComponentSourceBinding*> PrimaryBindings = GetPrimaryGroupPin()->GetComponentSourceBindingsRecursively();
 	
 	// ValidateForCompile() should guaranteed that we don't hit this error
 	if (!ensure(PrimaryBindings.Num() == 1))
@@ -163,7 +162,7 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 				TOptional<FText> Result = ProcessInputPinForComputeKernel(
 					InTraversalContext, SubPin, GroupIndex == 0 ? FString() : Pin->GetName(),
 					InNodeDataInterfaceMap, InLinkDataInterfaceMap, InValueNodes,
-					InGraphDataInterface, InGraphDataComponentBinding,
+					InGraphDataInterface,
 					KernelSource, GeneratedFunctions, OutInputDataBindings, OutKernelConstantContainer
 					);
 				if (Result.IsSet())
@@ -179,7 +178,7 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 			ProcessOutputPinForComputeKernel(
 				InTraversalContext, Pin,
 				InNodeDataInterfaceMap, InLinkDataInterfaceMap,
-				KernelSource, GeneratedFunctions, OutOutputDataBindings, OutKernelConstantContainer);
+				KernelSource, GeneratedFunctions, OutInputDataBindings, OutOutputDataBindings, OutKernelConstantContainer);
 		}
 	}
 
@@ -241,6 +240,25 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 #endif
 	
 	return FOptimus_ComputeKernelResult(TInPlaceType<UOptimusKernelSource*>(), KernelSource);
+}
+
+
+bool UOptimusNode_ComputeKernelBase::HasMutableInput() const
+{
+	for (const UOptimusNodePin* Pin: GetPins())
+	{
+		if (Pin->IsGroupingPin())
+		{
+			for (const UOptimusNodePin* SubPin: Pin->GetSubPins())
+			{
+				if (GetOwningGraph()->IsPinMutable(SubPin))
+				{
+					return true;
+				}
+			}
+		}
+	}
+	return false;
 }
 
 TOptional<FText> UOptimusNode_ComputeKernelBase::ValidateForCompile() const
@@ -315,7 +333,7 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ValidateForCompile() const
 
 		if (Pin->GetDirection() == EOptimusNodePinDirection::Output)
 		{
-			if (GetPinSupportAtomic(Pin))
+			if (DoesOutputPinSupportAtomic(Pin) || DoesOutputPinSupportRead(Pin))
 			{
 				TArray<FOptimusRoutedNodePin> ConnectedPins = Pin->GetConnectedPinsWithRouting();
 				if (ConnectedPins.Num() > 1)
@@ -335,13 +353,13 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ValidateForCompile() const
 						}
 						else
 						{
-							return FText::Format(LOCTEXT("InvalidAtomicPinConnection", "Pin '{0}' supports Atomic writes and should be connected to either a single resource node or kernel nodes"), FText::FromName(Pin->GetUniqueName()));
+							return FText::Format(LOCTEXT("TooManyPinConnections", "Pin '{0}' supports Atomic Writes or Read Access and should be connected to either a single resource node or strictly kernel nodes"), FText::FromName(Pin->GetUniqueName()));
 						}
 					}
 
 					if (PersistentBufferCount + TransientBufferCount > 1)
 					{
-						return FText::Format(LOCTEXT("InvalidAtomicPinConnection", "Pin '{0}' supports Atomic writes and should be connected to either a single resource node or kernel nodes"), FText::FromName(Pin->GetUniqueName()));
+						return FText::Format(LOCTEXT("TooManyPinConnections", "Pin '{0}' supports Atomic Writes or Read Access and should be connected to either a single resource node or strictly kernel nodes"), FText::FromName(Pin->GetUniqueName()));
 					}
 				}
 			}
@@ -417,19 +435,7 @@ FString UOptimusNode_ComputeKernelBase::GetCookedKernelSource(
 	}
 }
 
-TSet<UOptimusComponentSourceBinding*> UOptimusNode_ComputeKernelBase::GetGroupComponentSourceBindings(const UOptimusNodePin* InGroupPin)
-{
-	TSet<UOptimusComponentSourceBinding*> Bindings;
 
-	Bindings.Append(InGroupPin->GetComponentSourceBindings());
-	
-	for (const UOptimusNodePin* Pin: InGroupPin->GetSubPins())
-	{
-		Bindings.Append(Pin->GetComponentSourceBindings());
-	}
-	
-	return Bindings;
-}
 
 FString UOptimusNode_ComputeKernelBase::GetAtomicWriteFunctionName(
 	EOptimusBufferWriteType InWriteType,
@@ -457,6 +463,11 @@ FString UOptimusNode_ComputeKernelBase::GetAtomicWriteFunctionName(
 	return FunctionName;
 }
 
+FString UOptimusNode_ComputeKernelBase::GetReadFunctionName(const FString& InBindingName)
+{
+	return FString::Printf(TEXT("Read%s"), *InBindingName);
+}
+
 
 TOptional<FText> UOptimusNode_ComputeKernelBase::ProcessInputPinForComputeKernel(
 	const FOptimusPinTraversalContext& InTraversalContext,
@@ -466,7 +477,6 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ProcessInputPinForComputeKernel
 	const FOptimus_PinToDataInterfaceMap& InLinkDataInterfaceMap,
 	const TArray<const UOptimusNode*>& InValueNodes,
 	const UComputeDataInterface* InGraphDataInterface,
-	const UOptimusComponentSourceBinding* InGraphDataComponentBinding,
 	UOptimusKernelSource* InKernelSource,
 	TArray<FString>& OutGeneratedFunctions,
 	FOptimus_InterfaceBindingMap& OutInputDataBindings,
@@ -501,18 +511,11 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ProcessInputPinForComputeKernel
 			// For transient buffers we need the function index as given by the
 			// ReadValue function. 
 			DataInterface = InLinkDataInterfaceMap[OutputPin];
-			DataInterfaceFuncIndex = UOptimusTransientBufferDataInterface::GetReadValueInputIndex();
+			DataInterfaceFuncIndex = UOptimusRawBufferDataInterface::GetReadValueInputIndex(EOptimusBufferReadType::Default);
 
 			TArray<FShaderFunctionDefinition> ReadFunctions;
 			DataInterface->GetSupportedInputs(ReadFunctions);
-
-			// Get the component binding from the upstream connection.
-			TArray<UOptimusComponentSourceBinding*> ComponentBindings = GetOwningGraph()->GetComponentSourceBindingsForPin(OutputPin).Array();
-			if (ensure(ComponentBindings.Num() == 1))
-			{
-				ComponentBinding = ComponentBindings[0];
-			}
-
+			
 			DataFunctionName = ReadFunctions[DataInterfaceFuncIndex].Name;
 		}
 		else if(InNodeDataInterfaceMap.Contains(OutputNode))
@@ -522,7 +525,6 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ProcessInputPinForComputeKernel
 			// FIXME: Sub-pin read support.
 			UOptimusComputeDataInterface const* OptimusDataInterface = InNodeDataInterfaceMap[OutputNode];
 			DataInterface = OptimusDataInterface;
-			ComponentBinding = InterfaceProvider->GetComponentBinding();
 
 			DataInterfaceFuncIndex = InterfaceProvider->GetDataFunctionIndexFromPin(OutputPin);
 			
@@ -535,14 +537,13 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ProcessInputPinForComputeKernel
 		{
 			// Value nodes bind the single graph data interface.
 			DataInterface = InGraphDataInterface;
-			ComponentBinding = InGraphDataComponentBinding;
 			DataInterfaceFuncIndex = InValueNodes.Find(OutputNode);
 			check(DataInterfaceFuncIndex != INDEX_NONE);
 			DataFunctionName = ValueProvider->GetValueName();
 		}
 
 		// If we are connected from a data interface, set the input binding up now.
-		if (DataInterface && ensure(ComponentBinding))
+		if (DataInterface)
 		{
 			if (!DataInterface->CanSupportUnifiedDispatch() && !InGroupName.IsEmpty())
 			{
@@ -570,7 +571,6 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ProcessInputPinForComputeKernel
 
 			FOptimus_InterfaceBinding InterfaceBinding;
 			InterfaceBinding.DataInterface = DataInterface;
-			InterfaceBinding.ComponentBinding = ComponentBinding;
 			InterfaceBinding.DataInterfaceBindingIndex = DataInterfaceFuncIndex;
 			InterfaceBinding.BindingFunctionName = FString::Printf(TEXT("Read%s"), *InInputPin->GetName());
 			InterfaceBinding.BindingFunctionNamespace = InGroupName;
@@ -630,7 +630,7 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ProcessInputPinForComputeKernel
 		
 		if (const UOptimusNodePin* GroupPin = InInputPin->GetParentPin())
 		{
-			TArray<UOptimusComponentSourceBinding*> ComponentBindings = GetGroupComponentSourceBindings(GroupPin).Array();
+			TArray<UOptimusComponentSourceBinding*> ComponentBindings = GroupPin->GetComponentSourceBindingsRecursively().Array();
 			if (ensure(ComponentBindings.Num() == 1))
 			{
 				ComponentBindingIndex = ComponentBindings[0]->GetIndex();
@@ -682,6 +682,7 @@ void UOptimusNode_ComputeKernelBase::ProcessOutputPinForComputeKernel(
 	const FOptimus_PinToDataInterfaceMap& InLinkDataInterfaceMap,
 	UOptimusKernelSource* InKernelSource,
 	TArray<FString>& OutGeneratedFunctions,
+	FOptimus_InterfaceBindingMap& OutInputDataBindings,
 	FOptimus_InterfaceBindingMap& OutOutputDataBindings,
 	FOptimusKernelConstantContainer& OutKernelConstantContainer
 	) const
@@ -794,7 +795,6 @@ void UOptimusNode_ComputeKernelBase::ProcessOutputPinForComputeKernel(
 			
 			FOptimus_InterfaceBinding InterfaceBinding;
 			InterfaceBinding.DataInterface = WriteConnectionDef.DataInterface;
-			InterfaceBinding.ComponentBinding = ComponentBinding;
 			InterfaceBinding.DataInterfaceBindingIndex = DataInterfaceFuncIndex;
 			InterfaceBinding.BindingFunctionName = WrapFunctionName;
 			
@@ -816,7 +816,7 @@ void UOptimusNode_ComputeKernelBase::ProcessOutputPinForComputeKernel(
 					*InOutputPin->GetName(), *FString::Join(IndexParamNames, TEXT(", ")), *ValueType->ToString(), *FString::Join(WrapFunctionNameCalls, TEXT(";\n"))));
 		}	
 		
-		if (GetPinSupportAtomic(InOutputPin))
+		if (DoesOutputPinSupportAtomic(InOutputPin) || DoesOutputPinSupportRead(InOutputPin))
 		{
 			UOptimusRawBufferDataInterface* RawBufferDataInterface = nullptr;
 			if (InLinkDataInterfaceMap.Contains(InOutputPin))
@@ -836,30 +836,53 @@ void UOptimusNode_ComputeKernelBase::ProcessOutputPinForComputeKernel(
 
 			if (ensure(RawBufferDataInterface))
 			{
-				TArray<FShaderFunctionDefinition> WriteFunctions;
-				RawBufferDataInterface->GetSupportedOutputs(WriteFunctions);
-				
-				for (uint8 WriteType = uint8(EOptimusBufferWriteType::Write) + 1; WriteType < uint8(EOptimusBufferWriteType::Count); WriteType++)
+				if (DoesOutputPinSupportAtomic(InOutputPin))
 				{
+					TArray<FShaderFunctionDefinition> WriteFunctions;
+					RawBufferDataInterface->GetSupportedOutputs(WriteFunctions);
+				
+					for (uint8 WriteType = uint8(EOptimusBufferWriteType::Write) + 1; WriteType < uint8(EOptimusBufferWriteType::Count); WriteType++)
+					{
 
-					FString WrapFunctionName = GetAtomicWriteFunctionName((EOptimusBufferWriteType)WriteType, InOutputPin->GetName());
+						FString WrapFunctionName = GetAtomicWriteFunctionName((EOptimusBufferWriteType)WriteType, InOutputPin->GetName());
 
-					const int32 OutputIndex = UOptimusTransientBufferDataInterface::GetWriteValueOutputIndex((EOptimusBufferWriteType)WriteType);
+						const int32 OutputIndex = UOptimusRawBufferDataInterface::GetWriteValueOutputIndex((EOptimusBufferWriteType)WriteType);
 					
-					FShaderFunctionDefinition FuncDef = WriteFunctions[OutputIndex];
+						FShaderFunctionDefinition FuncDef = WriteFunctions[OutputIndex];
+						for (int32 Index = 0; Index < FuncDef.ParamTypes.Num(); Index++)
+						{
+							FuncDef.ParamTypes[Index].ResetTypeDeclaration();
+						}
+				
+						FOptimus_InterfaceBinding InterfaceBinding;
+						InterfaceBinding.DataInterface = RawBufferDataInterface;
+						InterfaceBinding.DataInterfaceBindingIndex = OutputIndex;
+						InterfaceBinding.BindingFunctionName = WrapFunctionName;
+				
+						OutOutputDataBindings.Add(InKernelSource->ExternalOutputs.Num(), InterfaceBinding);
+						InKernelSource->ExternalOutputs.Emplace(FuncDef);	
+					}
+				}
+
+				if (DoesOutputPinSupportRead(InOutputPin))
+				{
+					TArray<FShaderFunctionDefinition> ReadFunctions;
+					RawBufferDataInterface->GetSupportedInputs(ReadFunctions);
+					int32 InputIndex = UOptimusRawBufferDataInterface::GetReadValueInputIndex(EOptimusBufferReadType::ForceUAV);
+
+					FShaderFunctionDefinition FuncDef = ReadFunctions[InputIndex];
 					for (int32 Index = 0; Index < FuncDef.ParamTypes.Num(); Index++)
 					{
 						FuncDef.ParamTypes[Index].ResetTypeDeclaration();
 					}
 				
 					FOptimus_InterfaceBinding InterfaceBinding;
-					InterfaceBinding.ComponentBinding = ComponentBinding;
 					InterfaceBinding.DataInterface = RawBufferDataInterface;
-					InterfaceBinding.DataInterfaceBindingIndex = OutputIndex;
-					InterfaceBinding.BindingFunctionName = WrapFunctionName;
+					InterfaceBinding.DataInterfaceBindingIndex = InputIndex;
+					InterfaceBinding.BindingFunctionName = GetReadFunctionName(InOutputPin->GetName());
 				
-					OutOutputDataBindings.Add(InKernelSource->ExternalOutputs.Num(), InterfaceBinding);
-					InKernelSource->ExternalOutputs.Emplace(FuncDef);	
+					OutInputDataBindings.Add(InKernelSource->ExternalInputs.Num(), InterfaceBinding);
+					InKernelSource->ExternalInputs.Emplace(FuncDef);		
 				}
 			}
 		}
@@ -939,7 +962,6 @@ void UOptimusNode_ComputeKernelBase::BindKernelDataInterfaceForComputeKernel(
 
 		FOptimus_InterfaceBinding InterfaceBinding;
 		InterfaceBinding.DataInterface = InOutKernelDataInterface;
-		InterfaceBinding.ComponentBinding = InKernelPrimaryComponentSourceBinding;
 		InterfaceBinding.DataInterfaceBindingIndex = FuncIndex;
 		InterfaceBinding.BindingFunctionName = FuncDef.Name;
 		InterfaceBinding.BindingFunctionNamespace = FString();

@@ -45,6 +45,20 @@ PUBLIC_TYPE ReadValue_{DataInterfaceName}(uint Index)
 	return ReturnValue;
 }
 
+PUBLIC_TYPE ReadValueUAV_{DataInterfaceName}(uint Index)
+{
+	uint BufferIndex = {DataInterfaceName}_StartOffset + Index;
+	PUBLIC_TYPE ReturnValue;
+
+#if BUFFER_TYPE_RAW
+	ReadRawBuffer({DataInterfaceName}_BufferUAV, BufferIndex, ReturnValue);
+#else
+	ReturnValue = {DataInterfaceName}_BufferUAV[BufferIndex];
+#endif
+	
+	return ReturnValue;
+}
+
 void WriteValue_{DataInterfaceName}(uint Index, PUBLIC_TYPE Value)
 {
 	uint BufferIndex = {DataInterfaceName}_StartOffset + Index;

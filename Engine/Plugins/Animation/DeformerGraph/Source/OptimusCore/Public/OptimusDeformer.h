@@ -483,8 +483,8 @@ private:
 
 	TArray<UOptimusNode*> GetAllNodesOfClass(UClass* InNodeClass) const;
 	
-	/// Compile a node graph to a compute graph. Returns a complete compute graph if compilation succeeded. 
-	UOptimusComputeGraph* CompileNodeGraphToComputeGraph(
+	/// Compile a node graph to a compute graph. Returns one or two complete compute graphs if compilation succeeded. 
+	TArray<FOptimusComputeGraphInfo> CompileNodeGraphToComputeGraphs(
 		const UOptimusNodeGraph *InNodeGraph,
 		TFunction<void(EOptimusDiagnosticLevel, FText, const UObject*)> InErrorReporter
 		);

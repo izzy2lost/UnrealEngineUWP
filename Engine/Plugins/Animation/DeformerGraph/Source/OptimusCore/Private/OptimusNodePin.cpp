@@ -187,6 +187,25 @@ TSet<UOptimusComponentSourceBinding*> UOptimusNodePin::GetComponentSourceBinding
 	return GetOwningNode()->GetOwningGraph()->GetComponentSourceBindingsForPin(this);
 }
 
+TSet<UOptimusComponentSourceBinding*> UOptimusNodePin::GetComponentSourceBindingsRecursively() const
+{
+	TArray<UOptimusNodePin*> PinsToConsider = GetSubPinsRecursively(true);
+
+	TSet<UOptimusComponentSourceBinding*> Bindings;
+
+	for (const UOptimusNodePin* Pin : PinsToConsider)
+	{
+		Bindings.Append(Pin->GetComponentSourceBindings());
+	}
+	
+	return Bindings;
+}
+
+bool UOptimusNodePin::IsMutable() const
+{
+	return GetOwningNode()->GetOwningGraph()->IsPinMutable(this);
+}
+
 
 FProperty* UOptimusNodePin::GetPropertyFromPin() const
 {

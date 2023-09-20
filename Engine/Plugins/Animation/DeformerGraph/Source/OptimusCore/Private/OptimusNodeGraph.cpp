@@ -27,6 +27,7 @@
 
 #include <limits>
 
+#include "IOptimusPinMutabilityDefiner.h"
 #include "OptimusNodeSubGraph.h"
 #include "Nodes/OptimusNode_CustomComputeKernel.h"
 #include "Nodes/OptimusNode_FunctionReference.h"
@@ -1490,6 +1491,81 @@ TSet<UOptimusComponentSourceBinding*> UOptimusNodeGraph::GetComponentSourceBindi
 	}
 
 	return Bindings;
+}
+
+
+bool UOptimusNodeGraph::IsPinMutable(const UOptimusNodePin* InNodePin) const
+{
+	TSet<FOptimusRoutedConstNode> VisitedNodes;
+	TQueue<FOptimusRoutedConstNodePin> WorkingSet;
+
+	// If given an input pin, find the other side, since output pin provides mutability definition
+	const UOptimusNodePin* StartNodePin;
+	if (InNodePin->GetDirection() == EOptimusNodePinDirection::Input)
+	{
+		TArray<FOptimusRoutedNodePin> RoutedPins = GetConnectedPinsWithRouting(InNodePin, {});
+		if (RoutedPins.IsEmpty())
+		{
+			// Nothing is connected, pin data will never change
+			return false;
+		}
+		
+		check(RoutedPins.Num() == 1);
+		StartNodePin = RoutedPins[0].NodePin;
+	}
+	else
+	{
+		StartNodePin = InNodePin;
+	}
+
+	WorkingSet.Enqueue({StartNodePin, FOptimusPinTraversalContext{}});
+	
+	FOptimusRoutedConstNodePin WorkItem;
+	while (WorkingSet.Dequeue(WorkItem))
+	{
+		TArray<const UOptimusNodePin*> InputPins; 
+		const UOptimusNodePin* NodePin = WorkItem.NodePin;
+		const UOptimusNode* Node = NodePin->GetOwningNode();
+
+		if (const IOptimusPinMutabilityDefiner* PinMutabilityDefiner = Cast<const IOptimusPinMutabilityDefiner>(Node))
+		{
+			if (PinMutabilityDefiner->IsOutputPinMutable(NodePin))
+			{
+				return true;
+			}
+		}
+		
+		// Grab all inputs.
+		for (const UOptimusNodePin* Pin: Node->GetPins())
+		{
+			if (Pin->GetDirection() == EOptimusNodePinDirection::Input)
+			{
+				InputPins.Append(Pin->GetSubPinsRecursively(true));
+			}
+		}
+		
+		// Traverse in the direction of inputs to outputs (up the graph).
+		for (const UOptimusNodePin* Pin: InputPins)
+		{
+			for (const FOptimusRoutedNodePin& ConnectedPin: Pin->GetConnectedPinsWithRouting(WorkItem.TraversalContext))
+			{
+				if (ensure(ConnectedPin.NodePin != nullptr))
+				{
+					FOptimusRoutedConstNodePin CollectedNodePin{ConnectedPin.NodePin, ConnectedPin.TraversalContext};
+					const UOptimusNode *NextNode = ConnectedPin.NodePin->GetOwningNode();
+					FOptimusRoutedConstNode CollectedNode{NextNode, ConnectedPin.TraversalContext};
+
+					if (!VisitedNodes.Contains(CollectedNode))
+					{
+						VisitedNodes.Add(CollectedNode);
+						WorkingSet.Enqueue(CollectedNodePin);
+					}
+				}
+			}
+		}
+	}
+
+	return false;
 }
 
 

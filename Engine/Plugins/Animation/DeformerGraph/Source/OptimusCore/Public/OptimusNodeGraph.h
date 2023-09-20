@@ -286,6 +286,11 @@ public:
 	TSet<UOptimusComponentSourceBinding*> GetComponentSourceBindingsForPin(
 		const UOptimusNodePin* InNodePin
 		) const;
+
+	/** Check if a pin is represents time varying data */
+	bool IsPinMutable(
+		const UOptimusNodePin* InNodePin
+		) const;
 		
 	TArray<const UOptimusNodeLink *> GetPinLinks(const UOptimusNodePin* InNodePin) const;
 

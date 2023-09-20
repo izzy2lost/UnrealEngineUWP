@@ -122,7 +122,7 @@ UComputeDataInterface* UOptimusNode_CustomComputeKernel::MakeKernelDataInterface
 	return KernelDataInterface;
 }
 
-bool UOptimusNode_CustomComputeKernel::GetPinSupportAtomic(const UOptimusNodePin* InPin) const
+bool UOptimusNode_CustomComputeKernel::DoesOutputPinSupportAtomic(const UOptimusNodePin* InPin) const
 {
 	if (ensure(InPin->GetDirection() == EOptimusNodePinDirection::Output))
 	{
@@ -133,6 +133,23 @@ bool UOptimusNode_CustomComputeKernel::GetPinSupportAtomic(const UOptimusNodePin
 				}))
 		{
 			return DoesBindingSupportAtomic(*Binding);
+		}
+	}
+
+	return false;
+}
+
+bool UOptimusNode_CustomComputeKernel::DoesOutputPinSupportRead(const UOptimusNodePin* InPin) const
+{
+	if (ensure(InPin->GetDirection() == EOptimusNodePinDirection::Output))
+	{
+		if (const FOptimusParameterBinding* Binding = OutputBindingArray.FindByPredicate(
+			[InPin](const FOptimusParameterBinding& InBinding)
+				{
+					return InBinding.Name == InPin->GetFName(); 
+				}))
+		{
+			return Binding->bSupportRead;
 		}
 	}
 
@@ -203,7 +220,7 @@ FString UOptimusNode_CustomComputeKernel::GetBindingDeclaration(
 	return FString();
 }
 
-bool UOptimusNode_CustomComputeKernel::GetBindingAtomicSupportCheckBoxVisibility(FName BindingName) const
+bool UOptimusNode_CustomComputeKernel::GetBindingSupportAtomicCheckBoxVisibility(FName BindingName) const
 {
 	auto ParameterBindingPredicate = [BindingName](const FOptimusParameterBinding& InBinding)
 	{
@@ -222,6 +239,26 @@ bool UOptimusNode_CustomComputeKernel::GetBindingAtomicSupportCheckBoxVisibility
 		{
 			return true;
 		}
+	}
+
+	return false;
+}
+
+bool UOptimusNode_CustomComputeKernel::GetBindingSupportReadCheckBoxVisibility(FName BindingName) const
+{
+	auto ParameterBindingPredicate = [BindingName](const FOptimusParameterBinding& InBinding)
+	{
+		if (InBinding.Name == BindingName)
+		{
+			return true;	
+		}
+			
+		return false;
+	};
+
+	if (const FOptimusParameterBinding* Binding = OutputBindingArray.FindByPredicate(ParameterBindingPredicate))
+	{
+		return true;
 	}
 
 	return false;
@@ -283,7 +320,7 @@ TArray<IOptimusNodeAdderPinProvider::FAdderPinAction> UOptimusNode_CustomCompute
 		if (InSourcePin->GetDirection() != InNewPinDirection)
 		{
 			const UOptimusNodePin* PrimaryGroupPin = GetPrimaryGroupPin();
-			TSet<UOptimusComponentSourceBinding*> PrimaryGroupComponentBindings = GetGroupComponentSourceBindings(PrimaryGroupPin);
+			TSet<UOptimusComponentSourceBinding*> PrimaryGroupComponentBindings = PrimaryGroupPin->GetComponentSourceBindingsRecursively();
 			TSet<UOptimusComponentSourceBinding*> MatchingBindings = PrimaryGroupComponentBindings.Intersect(SourceComponentBindings);
 		
 			if (MatchingBindings.Num() > 0 ||
@@ -333,7 +370,7 @@ TArray<IOptimusNodeAdderPinProvider::FAdderPinAction> UOptimusNode_CustomCompute
 				Action.DisplayName = GroupPin->GetFName();
 				Action.Key = GroupPin->GetFName();
 					
-				TSet<UOptimusComponentSourceBinding*> ComponentBindingsForGroup = GetGroupComponentSourceBindings(GroupPin);
+				TSet<UOptimusComponentSourceBinding*> ComponentBindingsForGroup = GroupPin->GetComponentSourceBindingsRecursively();
 				TSet<UOptimusComponentSourceBinding*> MatchingBindings = ComponentBindingsForGroup.Intersect(SourceComponentBindings);
 	
 				if (MatchingBindings.Num() > 0 ||
@@ -607,7 +644,7 @@ TArray<FName> UOptimusNode_CustomComputeKernel::GetExecutionDomains() const
 {
 	// Find all component sources for the primary pins. If we end up with any other number
 	// than one, then something's gone wrong and we can't determine the execution domains.
-	TSet<UOptimusComponentSourceBinding*> PrimaryBindings = GetGroupComponentSourceBindings(GetPrimaryGroupPin());
+	TSet<UOptimusComponentSourceBinding*> PrimaryBindings = GetPrimaryGroupPin()->GetComponentSourceBindingsRecursively();
 
 	if (PrimaryBindings.Num() == 1)
 	{
@@ -897,6 +934,11 @@ void UOptimusNode_CustomComputeKernel::PropertyValueChanged(
 		}
 	}
 	else if (InPropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_STRING_CHECKED(FOptimusParameterBinding, bSupportAtomicIfCompatibleDataType))
+	{
+		UpdatePreamble();
+		return;
+	}
+	else if (InPropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_STRING_CHECKED(FOptimusParameterBinding, bSupportRead))
 	{
 		UpdatePreamble();
 		return;
@@ -1909,6 +1951,12 @@ FString UOptimusNode_CustomComputeKernel::GetDeclarationForBinding(const FOptimu
 				Declarations.Add(FString::Printf(TEXT("%s %s(%s, %s Value);"),
 					*TypeName, *FunctionName, *FString::Join(Indexes, TEXT(", ")), *TypeName));	
 			}
+		}
+
+		if (Binding.bSupportRead)
+		{
+			Declarations.Add(FString::Printf(TEXT("%s Read%s(%s);"), 
+				*GetShaderValueTypeFriendlyName(Binding.DataType), *Binding.Name.ToString(), *FString::Join(Indexes, TEXT(", "))));
 		}
 
 		return FString::Join(Declarations, TEXT("\n"));

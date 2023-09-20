@@ -21,7 +21,7 @@ int32 UOptimusNode_Resource::GetDataFunctionIndexFromPin(const UOptimusNodePin* 
 	}
 
 	return InPin->GetDirection() == EOptimusNodePinDirection::Output 
-		? UOptimusRawBufferDataInterface::GetReadValueInputIndex() 
+		? UOptimusRawBufferDataInterface::GetReadValueInputIndex(EOptimusBufferReadType::Default) 
 		: UOptimusRawBufferDataInterface::GetWriteValueOutputIndex(EOptimusBufferWriteType::Write);
 }
 

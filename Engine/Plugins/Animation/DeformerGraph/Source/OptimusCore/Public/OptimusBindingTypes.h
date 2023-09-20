@@ -49,6 +49,10 @@ struct FOptimusParameterBinding
 	// Int type resource can optionally support atomic writes, memory is zero-initialized
 	UPROPERTY(EditAnywhere, DisplayName="Support Atomic", Category = Binding)
 	bool bSupportAtomicIfCompatibleDataType = false;
+
+	// Optionally support both read and write
+	UPROPERTY(EditAnywhere, DisplayName="Support Read", Category = Binding)
+	bool bSupportRead = false;
 };
 
 

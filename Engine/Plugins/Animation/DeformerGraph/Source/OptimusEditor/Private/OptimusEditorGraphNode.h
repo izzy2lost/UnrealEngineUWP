@@ -47,7 +47,7 @@ public:
 	bool CanUserDeleteNode() const override;
 	FText GetNodeTitle(ENodeTitleType::Type InTitleType) const override;
 	void GetNodeContextMenuActions(UToolMenu* InMenu, UGraphNodeContextMenuContext* InContext) const override;
-
+	FLinearColor GetNodeTitleColor() const override;
 	
 	// FIXME: Move to private and add accessor function.
 	UPROPERTY()

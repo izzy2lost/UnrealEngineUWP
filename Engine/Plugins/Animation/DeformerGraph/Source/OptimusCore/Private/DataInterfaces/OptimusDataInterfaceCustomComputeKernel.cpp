@@ -128,8 +128,10 @@ bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts(TArray<i
 		return GetInvocationThreadCounts_DEPRECATED(OutInvocationThreadCount, OutTotalThreadCount);
 	}
 
-	TArray<float> Values = DeformerInstance->GetConstantValuePerInvocation(ExecutionDomainIdentifier);
+	const FOptimusConstantEvaluationResult Result = DeformerInstance->GetConstantValuePerInvocation(ExecutionDomainIdentifier);
 
+	const TArray<float>& Values = Result.ValuePerInvocation;
+	
 	// Can happen if the bound component does not have actual data, like when there is no preview mesh
 	if (Values.Num() == 0)
 	{

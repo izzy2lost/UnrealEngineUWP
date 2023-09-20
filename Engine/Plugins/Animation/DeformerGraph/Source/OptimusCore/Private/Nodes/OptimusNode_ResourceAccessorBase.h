@@ -5,6 +5,7 @@
 #include "DataInterfaces/OptimusDataInterfaceRawBuffer.h"
 #include "IOptimusComponentBindingProvider.h"
 #include "IOptimusDataInterfaceProvider.h"
+#include "IOptimusPinMutabilityDefiner.h"
 #include "OptimusNode.h"
 
 #include "OptimusNode_ResourceAccessorBase.generated.h"
@@ -34,7 +35,8 @@ UCLASS(Abstract)
 class UOptimusNode_ResourceAccessorBase : 
 	public UOptimusNode,
 	public IOptimusDataInterfaceProvider,
-	public IOptimusComponentBindingProvider
+	public IOptimusComponentBindingProvider,
+	public IOptimusPinMutabilityDefiner
 {
 	GENERATED_BODY()
 
@@ -63,6 +65,9 @@ public:
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	EOptimusBufferWriteType GetDeprecatedBufferWriteType() const { return WriteType_DEPRECATED; }
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	//IOptimusPinMutabilityDefiner overrides 
+	bool IsOutputPinMutable(const UOptimusNodePin* InPin) const override { return true; };
 	
 protected:
 	void PreDuplicateRequirementActions(const UOptimusNodeGraph* InTargetGraph, FOptimusCompoundAction* InCompoundAction) override;

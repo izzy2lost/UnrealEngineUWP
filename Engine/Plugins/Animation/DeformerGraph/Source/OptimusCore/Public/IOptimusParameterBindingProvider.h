@@ -23,5 +23,6 @@ class OPTIMUSCORE_API IOptimusParameterBindingProvider
 
 public:
 	virtual FString GetBindingDeclaration(FName BindingName) const = 0;
-	virtual bool GetBindingAtomicSupportCheckBoxVisibility(FName BindingName) const = 0;
+	virtual bool GetBindingSupportAtomicCheckBoxVisibility(FName BindingName) const = 0;
+	virtual bool GetBindingSupportReadCheckBoxVisibility(FName BindingName) const = 0;
 };

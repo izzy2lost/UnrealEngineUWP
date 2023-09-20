@@ -1442,14 +1442,8 @@ bool UOptimusDeformer::Compile()
 
 	for (const UOptimusNodeGraph* Graph: Graphs)
 	{
-		if (UOptimusComputeGraph* ComputeGraph = CompileNodeGraphToComputeGraph(Graph, ErrorReporter))
-		{
-			FOptimusComputeGraphInfo Info;
-			Info.GraphType = Graph->GraphType;
-			Info.GraphName = Graph->GetFName();
-			Info.ComputeGraph = ComputeGraph;
-			ComputeGraphs.Add(Info);
-		}
+		TArray<FOptimusComputeGraphInfo> ComputeGraphInfos = CompileNodeGraphToComputeGraphs(Graph, ErrorReporter);
+		ComputeGraphs.Append(ComputeGraphInfos);
 	}
 	
 	CompileEndDelegate.Broadcast(this);
@@ -1505,7 +1499,7 @@ TArray<UOptimusNode*> UOptimusDeformer::GetAllNodesOfClass(UClass* InNodeClass) 
 }
 
 
-UOptimusComputeGraph* UOptimusDeformer::CompileNodeGraphToComputeGraph(
+TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGraphs(
 	const UOptimusNodeGraph* InNodeGraph,
 	TFunction<void(EOptimusDiagnosticLevel, FText, const UObject*)> InErrorReporter
 	)
@@ -1527,7 +1521,7 @@ UOptimusComputeGraph* UOptimusDeformer::CompileNodeGraphToComputeGraph(
 	// No nodes in the graph, nothing to do.
 	if (InNodeGraph->GetAllNodes().IsEmpty())
 	{
-		return nullptr;
+		return {};
 	}
 
 	// Clear the error state of all nodes.
@@ -1576,7 +1570,7 @@ UOptimusComputeGraph* UOptimusDeformer::CompileNodeGraphToComputeGraph(
 	if (TerminalNodes.IsEmpty())
 	{
 		AddDiagnostic(EOptimusDiagnosticLevel::Error, LOCTEXT("NoOutputDataInterfaceFound", "No connected output data interface nodes found. Compilation aborted."));
-		return nullptr;
+		return {};
 	}
 
 	TArray<FOptimusRoutedConstNode> ConnectedNodes;
@@ -1599,11 +1593,87 @@ UOptimusComputeGraph* UOptimusDeformer::CompileNodeGraphToComputeGraph(
 	}
 	if (bValidationFailed)
 	{
-		return nullptr;
+		return {};
 	}
 
-	const FName GraphName = MakeUniqueObjectName(this, UOptimusComputeGraph::StaticClass(), InNodeGraph->GetFName());
-	UOptimusComputeGraph* ComputeGraph = NewObject<UOptimusComputeGraph>(this, GraphName);
+	TArray<FOptimusComputeGraphInfo> GraphInfos;
+	TMap<const IOptimusComputeKernelProvider*, int> KernelComputeGraphIndexMap;
+	
+	if (InNodeGraph->GraphType != EOptimusNodeGraphType::Update)
+	{
+		FOptimusComputeGraphInfo GraphInfo;
+		GraphInfo.GraphName = MakeUniqueObjectName(this, UOptimusComputeGraph::StaticClass(), InNodeGraph->GetFName());;
+		GraphInfo.GraphType = InNodeGraph->GetGraphType();
+		GraphInfo.ComputeGraph = NewObject<UOptimusComputeGraph>(this, GraphInfo.GraphName);
+		GraphInfos.Add(GraphInfo);
+
+		for (FOptimusRoutedConstNode ConnectedNode: ConnectedNodes)
+		{
+			if (const IOptimusComputeKernelProvider *KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
+			{
+				KernelComputeGraphIndexMap.Add(KernelProvider) = 0;
+			}
+		}
+	}
+	else
+	{
+		bool bHasRunOnceKernels = false;
+		bool bHasRunAlwaysKernels = false;
+	
+		for (FOptimusRoutedConstNode ConnectedNode: ConnectedNodes)
+		{
+			if (const IOptimusComputeKernelProvider *KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
+			{
+				if (!KernelProvider->HasMutableInput())
+				{
+					bHasRunOnceKernels = true;
+				}
+				else
+				{
+					bHasRunAlwaysKernels = true;
+				}
+			}
+		}
+
+		// Insert a setup graph if applicable
+		if (bHasRunOnceKernels)
+		{
+			FName GraphName = InNodeGraph->GetFName();
+			GraphName = *(GraphName.ToString() + TEXT("_Setup"));
+			GraphName = MakeUniqueObjectName(this, UOptimusComputeGraph::StaticClass(), GraphName);
+		
+			FOptimusComputeGraphInfo GraphInfo;
+			GraphInfo.GraphName = GraphName;
+			GraphInfo.GraphType = EOptimusNodeGraphType::Setup;
+			GraphInfo.ComputeGraph = NewObject<UOptimusComputeGraph>(this, GraphInfo.GraphName);
+			GraphInfos.Add(GraphInfo);
+		}
+
+		if (bHasRunAlwaysKernels)
+		{
+			FOptimusComputeGraphInfo GraphInfo;
+			GraphInfo.GraphName = MakeUniqueObjectName(this, UOptimusComputeGraph::StaticClass(), InNodeGraph->GetFName());;
+			GraphInfo.GraphType = InNodeGraph->GetGraphType();
+			GraphInfo.ComputeGraph = NewObject<UOptimusComputeGraph>(this, GraphInfo.GraphName);
+			GraphInfos.Add(GraphInfo);
+		}
+
+		for (FOptimusRoutedConstNode ConnectedNode: ConnectedNodes)
+		{
+			if (const IOptimusComputeKernelProvider *KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
+			{
+				int32 ComputeGraphIndex = 0;
+				if (GraphInfos.Num() == 2)
+				{
+					ComputeGraphIndex = KernelProvider->HasMutableInput() ? 1 : 0;
+				}
+				KernelComputeGraphIndexMap.Add(KernelProvider) = ComputeGraphIndex;
+			}
+		}
+	}
+
+	check(GraphInfos.Num() <= 2);
+
 	
 	// Find all data interface nodes and create their data interfaces.
 	FOptimus_NodeToDataInterfaceMap NodeDataInterfaceMap;
@@ -1617,7 +1687,11 @@ UOptimusComputeGraph* UOptimusDeformer::CompileNodeGraphToComputeGraph(
 	FOptimus_KernelNodeToKernelDataInterfaceMap KernelDataInterfaceMap;
 
 	// Find all value nodes (constant and variable) 
-	TArray<const UOptimusNode *> ValueNodes; 
+	TArray<const UOptimusNode *> ValueNodes;
+
+	TMap<const UComputeDataInterface*, int32> DataInterfaceToBindingIndexMap;
+
+	
 
 	for (FOptimusRoutedConstNode ConnectedNode: ConnectedNodes)
 	{
@@ -1627,16 +1701,31 @@ UOptimusComputeGraph* UOptimusDeformer::CompileNodeGraphToComputeGraph(
 			if (!DataInterface)
 			{
 				AddDiagnostic(EOptimusDiagnosticLevel::Error, LOCTEXT("NoDataInterfaceOnProvider", "No data interface object returned from node. Compilation aborted."));
-				return nullptr;
+				return {};
 			}
 
 			NodeDataInterfaceMap.Add(ConnectedNode.Node, DataInterface);
+			DataInterfaceToBindingIndexMap.Add(DataInterface) = DataInterfaceNode->GetComponentBinding()->GetIndex();
 		}
 		else if (const IOptimusComputeKernelProvider* KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
 		{
 			UComputeDataInterface* KernelDataInterface = KernelProvider->MakeKernelDataInterface(this);
+			TSet<UOptimusComponentSourceBinding*> KernelPrimaryBindings = KernelProvider->GetPrimaryGroupPin()->GetComponentSourceBindingsRecursively();
+
+			if (!ensure(KernelPrimaryBindings.Num() == 1))
+			{
+				AddDiagnostic(EOptimusDiagnosticLevel::Error,
+					FText::Format(LOCTEXT("InvalidComponentBindingForKernel", "Missing or multiple component bindings found in primary group of a kernel ({0}). Compilation aborted."),
+					ConnectedNode.Node->GetDisplayName()),
+					ConnectedNode.Node);
+				return {};
+			}
+			
+			UOptimusComponentSourceBinding* KernelPrimaryBinding = *KernelPrimaryBindings.CreateConstIterator();
+			int32 PrimaryBindingIndex = KernelPrimaryBinding->GetIndex();
 
 			KernelDataInterfaceMap.Add(ConnectedNode.Node, KernelDataInterface);
+			DataInterfaceToBindingIndexMap.Add(KernelDataInterface) = PrimaryBindingIndex;	
 			
 			for (const UOptimusNodePin* Pin: ConnectedNode.Node->GetPins())
 			{
@@ -1647,32 +1736,43 @@ UOptimusComputeGraph* UOptimusDeformer::CompileNodeGraphToComputeGraph(
 					for (const FOptimusRoutedNodePin& ConnectedPin: Pin->GetConnectedPinsWithRouting(ConnectedNode.TraversalContext))
 					{
 						// Make sure it connects to another kernel node.
-						if (Cast<const IOptimusComputeKernelProvider>(ConnectedPin.NodePin->GetOwningNode()) != nullptr &&
-							ensure(Pin->GetDataType().IsValid()))
+						if (const IOptimusComputeKernelProvider* ConnectedKernel = Cast<const IOptimusComputeKernelProvider>(ConnectedPin.NodePin->GetOwningNode());
+							ConnectedKernel && ensure(Pin->GetDataType().IsValid()))
 						{
-							UOptimusTransientBufferDataInterface* TransientBufferDI =
-								NewObject<UOptimusTransientBufferDataInterface>(this);
-
-							TSet<UOptimusComponentSourceBinding*> ComponentSourceBindings = Pin->GetComponentSourceBindings();
-							if (ComponentSourceBindings.Num() != 1)
+							if (KernelComputeGraphIndexMap[KernelProvider] == KernelComputeGraphIndexMap[ConnectedKernel])
 							{
-								AddDiagnostic(EOptimusDiagnosticLevel::Error,
-									FText::Format(LOCTEXT("InvalidComponentBindingOnKernelPin", "Missing or multiple component bindings on kernel-to-kernel pin ({0}). Compilation aborted."),
-										FText::FromName(Pin->GetUniqueName())),
-									ConnectedNode.Node);
-								return nullptr;
-							}
+								UOptimusTransientBufferDataInterface* TransientBufferDI =
+									NewObject<UOptimusTransientBufferDataInterface>(this);
 
-							TransientBufferDI->ValueType = Pin->GetDataType()->ShaderValueType;
-							TransientBufferDI->DataDomain = Pin->GetDataDomain();
-							TransientBufferDI->ComponentSourceBinding = *ComponentSourceBindings.CreateConstIterator();
-							TransientBufferDI->DomainConstantIdentifier = {ConnectedNode.Node, NAME_None, Pin->GetFName()};
-							if (KernelProvider->GetPinSupportAtomic(Pin))
-							{
-								TransientBufferDI->bZeroInitForAtomicWrites = true;
-							}
+								TransientBufferDI->ValueType = Pin->GetDataType()->ShaderValueType;
+								TransientBufferDI->DataDomain = Pin->GetDataDomain();
+								TransientBufferDI->ComponentSourceBinding = KernelPrimaryBinding;
+								TransientBufferDI->DomainConstantIdentifier = {ConnectedNode.Node, NAME_None, Pin->GetFName()};
+								if (KernelProvider->DoesOutputPinSupportAtomic(Pin))
+								{
+									TransientBufferDI->bZeroInitForAtomicWrites = true;
+								}
 							
-							LinkDataInterfaceMap.Add(Pin, TransientBufferDI);
+								LinkDataInterfaceMap.Add(Pin, TransientBufferDI);
+								DataInterfaceToBindingIndexMap.Add(TransientBufferDI) = PrimaryBindingIndex;	
+							}
+							else
+							{
+								UOptimusImplicitPersistentBufferDataInterface* ImplicitPersistentBufferDI =
+									NewObject<UOptimusImplicitPersistentBufferDataInterface>(this);
+
+								ImplicitPersistentBufferDI->ValueType = Pin->GetDataType()->ShaderValueType;
+								ImplicitPersistentBufferDI->DataDomain = Pin->GetDataDomain();
+								ImplicitPersistentBufferDI->ComponentSourceBinding = KernelPrimaryBinding;
+								ImplicitPersistentBufferDI->DomainConstantIdentifier = {ConnectedNode.Node, NAME_None, Pin->GetFName()};
+								if (KernelProvider->DoesOutputPinSupportAtomic(Pin))
+								{
+									ImplicitPersistentBufferDI->bZeroInitForAtomicWrites = true;
+								}
+							
+								LinkDataInterfaceMap.Add(Pin, ImplicitPersistentBufferDI);
+								DataInterfaceToBindingIndexMap.Add(ImplicitPersistentBufferDI) = PrimaryBindingIndex;	
+							}
 						}
 					}
 				}
@@ -1705,230 +1805,192 @@ UOptimusComputeGraph* UOptimusDeformer::CompileNodeGraphToComputeGraph(
 	}
 	GraphDataInterface->Init(ValueNodeDescriptions);
 
-	// Loop through all kernels, create a kernel source, and create a compute kernel for it.
-	struct FKernelWithDataBindings
-	{
-		int32 KernelNodeIndex;
-		UComputeKernel *Kernel;
-		FOptimus_InterfaceBindingMap InputDataBindings;
-		FOptimus_InterfaceBindingMap OutputDataBindings;
-	};
-
 	// The component binding for the graph data is the primary binding on the deformer.
 	UOptimusComponentSourceBinding* GraphDataComponentBinding = Bindings->Bindings[0];
-	
-	TArray<FKernelWithDataBindings> BoundKernels;
-	for (FOptimusRoutedConstNode ConnectedNode: ConnectedNodes)
+	DataInterfaceToBindingIndexMap.Add(GraphDataInterface) = GraphDataComponentBinding->GetIndex();
+
+	for (int32 ComputeGraphIndex = 0 ; ComputeGraphIndex < GraphInfos.Num(); ComputeGraphIndex++)
 	{
-		if (const IOptimusComputeKernelProvider *KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
+		UOptimusComputeGraph* ComputeGraph = GraphInfos[ComputeGraphIndex].ComputeGraph;
+
+		// Create the binding objects.
+		for (const UOptimusComponentSourceBinding* Binding: Bindings->Bindings)
 		{
-			FKernelWithDataBindings BoundKernel;
+			ComputeGraph->Bindings.Add(Binding->GetComponentSource()->GetComponentClass());
+		}
 
-			BoundKernel.KernelNodeIndex = InNodeGraph->Nodes.IndexOfByKey(ConnectedNode.Node);
-			BoundKernel.Kernel = NewObject<UComputeKernel>(this);
+		// Now that we've collected all the pieces, time to line them up.
+		ComputeGraph->DataInterfaces.Add(GraphDataInterface);
+		ComputeGraph->DataInterfaceToBinding.Add(0);		// Graph data interface always uses the primary binding.
 
-			FOptimusKernelConstantContainer& KernelConstantContainer = ConstantContainer.AddContainerForKernel();
-			UComputeDataInterface* KernelDataInterface = KernelDataInterfaceMap[ConnectedNode.Node];
-			
-			FOptimus_ComputeKernelResult KernelSourceResult = KernelProvider->CreateComputeKernel(	
-				BoundKernel.Kernel, ConnectedNode.TraversalContext,
-				NodeDataInterfaceMap, LinkDataInterfaceMap,
-				ValueNodes,
-				GraphDataInterface, GraphDataComponentBinding,
-				KernelDataInterface,
-				BoundKernel.InputDataBindings, BoundKernel.OutputDataBindings, KernelConstantContainer
-			);
-			if (FText* ErrorMessage = KernelSourceResult.TryGet<FText>())
+		for (TPair<const UOptimusNode*, UOptimusComputeDataInterface*>& Item : NodeDataInterfaceMap)
+		{
+			ComputeGraph->DataInterfaces.Add(Item.Value);
+			ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[Item.Value]);
+		}
+		for (TPair<const UOptimusNodePin *, UOptimusComputeDataInterface *>&Item: LinkDataInterfaceMap)
+		{
+			ComputeGraph->DataInterfaces.Add(Item.Value);
+			ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[Item.Value]);
+		}
+		for (TPair<const UOptimusNode *, UComputeDataInterface *>&Item: KernelDataInterfaceMap)
+		{
+			ComputeGraph->DataInterfaces.Add(Item.Value);
+			ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[Item.Value]);
+		}
+
+		// Create bound kernels
+		struct FKernelWithDataBindings
+		{
+			UComputeKernel *Kernel;
+			FOptimus_InterfaceBindingMap InputDataBindings;
+			FOptimus_InterfaceBindingMap OutputDataBindings;
+		};
+
+		TArray<FKernelWithDataBindings> BoundKernels;
+		for (FOptimusRoutedConstNode ConnectedNode: ConnectedNodes)
+		{
+			if (const IOptimusComputeKernelProvider *KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
 			{
-				AddDiagnostic(EOptimusDiagnosticLevel::Error,
-					FText::Format(LOCTEXT("CantCreateKernelWithError", "{0}. Compilation aborted."), *ErrorMessage),
-					ConnectedNode.Node);
-				return nullptr;
-			}
+				if (KernelComputeGraphIndexMap[KernelProvider] != ComputeGraphIndex)
+				{
+					continue;
+				}
+				
+				FKernelWithDataBindings BoundKernel;
 
-			if (BoundKernel.InputDataBindings.IsEmpty() || BoundKernel.OutputDataBindings.IsEmpty())
-			{
-				AddDiagnostic(EOptimusDiagnosticLevel::Error,
-				LOCTEXT("KernelHasNoBindings", "Kernel has either no input or output bindings. Compilation aborted."),
-					ConnectedNode.Node);
-				return nullptr;
-			}
+				BoundKernel.Kernel = NewObject<UComputeKernel>(this);
 
-			bool bHasExecution = false;
+				FOptimusKernelConstantContainer& KernelConstantContainer = ConstantContainer.AddContainerForKernel();
+				UComputeDataInterface* KernelDataInterface = KernelDataInterfaceMap[ConnectedNode.Node];
+				
+				FOptimus_ComputeKernelResult KernelSourceResult = KernelProvider->CreateComputeKernel(	
+					BoundKernel.Kernel, ConnectedNode.TraversalContext,
+					NodeDataInterfaceMap, LinkDataInterfaceMap,
+					ValueNodes,
+					GraphDataInterface,
+					KernelDataInterface,
+					BoundKernel.InputDataBindings, BoundKernel.OutputDataBindings, KernelConstantContainer
+				);
+				if (FText* ErrorMessage = KernelSourceResult.TryGet<FText>())
+				{
+					AddDiagnostic(EOptimusDiagnosticLevel::Error,
+						FText::Format(LOCTEXT("CantCreateKernelWithError", "{0}. Compilation aborted."), *ErrorMessage),
+						ConnectedNode.Node);
+					return {};
+				}
+
+				if (BoundKernel.InputDataBindings.IsEmpty() || BoundKernel.OutputDataBindings.IsEmpty())
+				{
+					AddDiagnostic(EOptimusDiagnosticLevel::Error,
+					LOCTEXT("KernelHasNoBindings", "Kernel has either no input or output bindings. Compilation aborted."),
+						ConnectedNode.Node);
+					return {};
+				}
+
+				bool bHasExecution = false;
+				for (const TPair<int32, FOptimus_InterfaceBinding>& DataBinding: BoundKernel.InputDataBindings)
+				{
+					const int32 KernelBindingIndex = DataBinding.Key;
+					const FOptimus_InterfaceBinding& InterfaceBinding = DataBinding.Value;
+					const UComputeDataInterface* DataInterface = InterfaceBinding.DataInterface;
+					if (DataInterface->IsExecutionInterface())
+					{
+						bHasExecution = true;
+						break;
+					}
+				}
+				
+				if (!bHasExecution)
+				{
+					AddDiagnostic(EOptimusDiagnosticLevel::Error,
+					LOCTEXT("KernelHasNoExecutionDataInterface", "Kernel has no execution data interface connected. Compilation aborted."),
+						ConnectedNode.Node);
+					return {};
+				}
+				
+				BoundKernel.Kernel->KernelSource = KernelSourceResult.Get<UOptimusKernelSource*>();
+
+				BoundKernels.Add(BoundKernel);
+				ComputeGraph->KernelInvocations.Add(BoundKernel.Kernel);
+				ComputeGraph->KernelToNode.Add(ConnectedNode.Node);
+			}
+		}
+		
+		check(ComputeGraph->KernelInvocations.Num() == BoundKernels.Num());
+
+		// Create the graph edges.
+		for (int32 KernelIndex = 0; KernelIndex < ComputeGraph->KernelInvocations.Num(); KernelIndex++)
+		{
+			const FKernelWithDataBindings& BoundKernel = BoundKernels[KernelIndex];
+			const TArray<FShaderFunctionDefinition>& KernelInputs = BoundKernel.Kernel->KernelSource->ExternalInputs;
+
+			// FIXME: Hoist these two loops into a helper function/lambda.
 			for (const TPair<int32, FOptimus_InterfaceBinding>& DataBinding: BoundKernel.InputDataBindings)
 			{
 				const int32 KernelBindingIndex = DataBinding.Key;
 				const FOptimus_InterfaceBinding& InterfaceBinding = DataBinding.Value;
 				const UComputeDataInterface* DataInterface = InterfaceBinding.DataInterface;
-				if (DataInterface->IsExecutionInterface())
+				const int32 DataInterfaceBindingIndex = InterfaceBinding.DataInterfaceBindingIndex;
+				const FString BindingFunctionName = InterfaceBinding.BindingFunctionName;
+				const FString BindingFunctionNamespace = InterfaceBinding.BindingFunctionNamespace;
+
+				// FIXME: Collect this beforehand.
+				TArray<FShaderFunctionDefinition> DataInterfaceFunctions;
+				DataInterface->GetSupportedInputs(DataInterfaceFunctions);
+				
+				if (ensure(KernelInputs.IsValidIndex(KernelBindingIndex)) &&
+					ensure(DataInterfaceFunctions.IsValidIndex(DataInterfaceBindingIndex)))
 				{
-					bHasExecution = true;
-					break;
+					FComputeGraphEdge GraphEdge;
+					GraphEdge.bKernelInput = true;
+					GraphEdge.KernelIndex = KernelIndex;
+					GraphEdge.KernelBindingIndex = KernelBindingIndex;
+					GraphEdge.DataInterfaceIndex = ComputeGraph->DataInterfaces.IndexOfByKey(DataInterface);
+					GraphEdge.DataInterfaceBindingIndex = DataInterfaceBindingIndex;
+					GraphEdge.BindingFunctionNameOverride = BindingFunctionName;
+					GraphEdge.BindingFunctionNamespace = BindingFunctionNamespace;
+					ComputeGraph->GraphEdges.Add(GraphEdge);
 				}
 			}
-			
-			if (!bHasExecution)
+
+			const TArray<FShaderFunctionDefinition>& KernelOutputs = BoundKernels[KernelIndex].Kernel->KernelSource->ExternalOutputs;
+			for (const TPair<int32, FOptimus_InterfaceBinding>& DataBinding: BoundKernel.OutputDataBindings)
 			{
-				AddDiagnostic(EOptimusDiagnosticLevel::Error,
-				LOCTEXT("KernelHasNoExecutionDataInterface", "Kernel has no execution data interface connected. Compilation aborted."),
-					ConnectedNode.Node);
-				return nullptr;
-			}
-			
-			BoundKernel.Kernel->KernelSource = KernelSourceResult.Get<UOptimusKernelSource*>();
+				const int32 KernelBindingIndex = DataBinding.Key;
+				const FOptimus_InterfaceBinding& InterfaceBinding = DataBinding.Value;
+				const UComputeDataInterface* DataInterface = InterfaceBinding.DataInterface;
+				const int32 DataInterfaceBindingIndex = InterfaceBinding.DataInterfaceBindingIndex;
+				const FString BindingFunctionName = InterfaceBinding.BindingFunctionName;
+				const FString BindingFunctionNamespace = InterfaceBinding.BindingFunctionNamespace;
 
-			BoundKernels.Add(BoundKernel);
-
-			ComputeGraph->KernelInvocations.Add(BoundKernel.Kernel);
-			ComputeGraph->KernelToNode.Add(ConnectedNode.Node);
-		}
-	}
-
-	// Create a map from the data interfaces to the component bindings.
-	// FIXME: Instead of collecting this during compilation, we should do this when we collect data interfaces instead.
-	TMap<const UComputeDataInterface*, int32> DataInterfaceToBindingIndexMap;
-	for (int32 KernelIndex = 0; KernelIndex < ComputeGraph->KernelInvocations.Num(); KernelIndex++)
-	{
-		const FKernelWithDataBindings& BoundKernel = BoundKernels[KernelIndex];
-
-		for (const TPair<int32, FOptimus_InterfaceBinding>& DataBinding: BoundKernel.InputDataBindings)
-		{
-			const FOptimus_InterfaceBinding& InterfaceBinding = DataBinding.Value;
-			const UComputeDataInterface* DataInterface = InterfaceBinding.DataInterface;
-			const UOptimusComponentSourceBinding* ComponentBinding = InterfaceBinding.ComponentBinding; 
-
-			if (ensure(ComponentBinding))
-			{
-				int32 BindingIndex = Bindings->Bindings.IndexOfByKey(ComponentBinding);
-				if (ensure(BindingIndex != INDEX_NONE))
+				// FIXME: Collect this beforehand.
+				TArray<FShaderFunctionDefinition> DataInterfaceFunctions;
+				DataInterface->GetSupportedOutputs(DataInterfaceFunctions);
+				
+				if (ensure(KernelOutputs.IsValidIndex(KernelBindingIndex)) &&
+					ensure(DataInterfaceFunctions.IsValidIndex(DataInterfaceBindingIndex)))
 				{
-					if (DataInterfaceToBindingIndexMap.Contains(DataInterface) &&
-						DataInterfaceToBindingIndexMap[DataInterface] != BindingIndex)
-					{
-						UE_LOG(LogOptimusCore, Error, TEXT("Datainterface found with different component bindings?"));
-					}
-					DataInterfaceToBindingIndexMap.Add(DataInterface, BindingIndex);
+					FComputeGraphEdge GraphEdge;
+					GraphEdge.bKernelInput = false;
+					GraphEdge.KernelIndex = KernelIndex;
+					GraphEdge.KernelBindingIndex = KernelBindingIndex;
+					GraphEdge.DataInterfaceIndex = ComputeGraph->DataInterfaces.IndexOfByKey(DataInterface);
+					GraphEdge.DataInterfaceBindingIndex = DataInterfaceBindingIndex;
+					GraphEdge.BindingFunctionNameOverride = BindingFunctionName;
+					GraphEdge.BindingFunctionNamespace = BindingFunctionNamespace;
+					ComputeGraph->GraphEdges.Add(GraphEdge);
 				}
 			}
-		}
-		for (const TPair<int32, FOptimus_InterfaceBinding>& DataBinding: BoundKernel.OutputDataBindings)
-		{
-			const FOptimus_InterfaceBinding& InterfaceBinding = DataBinding.Value;
-			const UComputeDataInterface* DataInterface = InterfaceBinding.DataInterface;
-			const UOptimusComponentSourceBinding* ComponentBinding = InterfaceBinding.ComponentBinding; 
-
-			if (ensure(ComponentBinding))
-			{
-				int32 BindingIndex = Bindings->Bindings.IndexOfByKey(ComponentBinding);
-				if (ensure(BindingIndex != INDEX_NONE))
-				{
-					if (DataInterfaceToBindingIndexMap.Contains(DataInterface) &&
-						DataInterfaceToBindingIndexMap[DataInterface] != BindingIndex)
-					{
-						UE_LOG(LogOptimusCore, Error, TEXT("Datainterface found with different component bindings?"));
-					}
-					DataInterfaceToBindingIndexMap.Add(DataInterface, BindingIndex);
-				}
-			}
-		}
+		}	
 	}
 	
-	// Create the binding objects.
-	for (const UOptimusComponentSourceBinding* Binding: Bindings->Bindings)
-	{
-		ComputeGraph->Bindings.Add(Binding->GetComponentSource()->GetComponentClass());
-	}
-
-	// Now that we've collected all the pieces, time to line them up.
-	ComputeGraph->DataInterfaces.Add(GraphDataInterface);
-	ComputeGraph->DataInterfaceToBinding.Add(0);		// Graph data interface always uses the primary binding.
-
-	for (TPair<const UOptimusNode*, UOptimusComputeDataInterface*>& Item : NodeDataInterfaceMap)
-	{
-		ComputeGraph->DataInterfaces.Add(Item.Value);
-		ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[Item.Value]);
-	}
-	for (TPair<const UOptimusNodePin *, UOptimusComputeDataInterface *>&Item: LinkDataInterfaceMap)
-	{
-		ComputeGraph->DataInterfaces.Add(Item.Value);
-		ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[Item.Value]);
-	}
-	for (TPair<const UOptimusNode *, UComputeDataInterface *>&Item: KernelDataInterfaceMap)
-	{
-		ComputeGraph->DataInterfaces.Add(Item.Value);
-		ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[Item.Value]);
-	}
-
-	// Create the graph edges.
-	for (int32 KernelIndex = 0; KernelIndex < ComputeGraph->KernelInvocations.Num(); KernelIndex++)
-	{
-		const FKernelWithDataBindings& BoundKernel = BoundKernels[KernelIndex];
-		const TArray<FShaderFunctionDefinition>& KernelInputs = BoundKernel.Kernel->KernelSource->ExternalInputs;
-
-		// FIXME: Hoist these two loops into a helper function/lambda.
-		for (const TPair<int32, FOptimus_InterfaceBinding>& DataBinding: BoundKernel.InputDataBindings)
-		{
-			const int32 KernelBindingIndex = DataBinding.Key;
-			const FOptimus_InterfaceBinding& InterfaceBinding = DataBinding.Value;
-			const UComputeDataInterface* DataInterface = InterfaceBinding.DataInterface;
-			const int32 DataInterfaceBindingIndex = InterfaceBinding.DataInterfaceBindingIndex;
-			const FString BindingFunctionName = InterfaceBinding.BindingFunctionName;
-			const FString BindingFunctionNamespace = InterfaceBinding.BindingFunctionNamespace;
-
-			// FIXME: Collect this beforehand.
-			TArray<FShaderFunctionDefinition> DataInterfaceFunctions;
-			DataInterface->GetSupportedInputs(DataInterfaceFunctions);
-			
-			if (ensure(KernelInputs.IsValidIndex(KernelBindingIndex)) &&
-				ensure(DataInterfaceFunctions.IsValidIndex(DataInterfaceBindingIndex)))
-			{
-				FComputeGraphEdge GraphEdge;
-				GraphEdge.bKernelInput = true;
-				GraphEdge.KernelIndex = KernelIndex;
-				GraphEdge.KernelBindingIndex = KernelBindingIndex;
-				GraphEdge.DataInterfaceIndex = ComputeGraph->DataInterfaces.IndexOfByKey(DataInterface);
-				GraphEdge.DataInterfaceBindingIndex = DataInterfaceBindingIndex;
-				GraphEdge.BindingFunctionNameOverride = BindingFunctionName;
-				GraphEdge.BindingFunctionNamespace = BindingFunctionNamespace;
-				ComputeGraph->GraphEdges.Add(GraphEdge);
-			}
-		}
-
-		const TArray<FShaderFunctionDefinition>& KernelOutputs = BoundKernels[KernelIndex].Kernel->KernelSource->ExternalOutputs;
-		for (const TPair<int32, FOptimus_InterfaceBinding>& DataBinding: BoundKernel.OutputDataBindings)
-		{
-			const int32 KernelBindingIndex = DataBinding.Key;
-			const FOptimus_InterfaceBinding& InterfaceBinding = DataBinding.Value;
-			const UComputeDataInterface* DataInterface = InterfaceBinding.DataInterface;
-			const int32 DataInterfaceBindingIndex = InterfaceBinding.DataInterfaceBindingIndex;
-			const FString BindingFunctionName = InterfaceBinding.BindingFunctionName;
-			const FString BindingFunctionNamespace = InterfaceBinding.BindingFunctionNamespace;
-
-			// FIXME: Collect this beforehand.
-			TArray<FShaderFunctionDefinition> DataInterfaceFunctions;
-			DataInterface->GetSupportedOutputs(DataInterfaceFunctions);
-			
-			if (ensure(KernelOutputs.IsValidIndex(KernelBindingIndex)) &&
-				ensure(DataInterfaceFunctions.IsValidIndex(DataInterfaceBindingIndex)))
-			{
-				FComputeGraphEdge GraphEdge;
-				GraphEdge.bKernelInput = false;
-				GraphEdge.KernelIndex = KernelIndex;
-				GraphEdge.KernelBindingIndex = KernelBindingIndex;
-				GraphEdge.DataInterfaceIndex = ComputeGraph->DataInterfaces.IndexOfByKey(DataInterface);
-				GraphEdge.DataInterfaceBindingIndex = DataInterfaceBindingIndex;
-				GraphEdge.BindingFunctionNameOverride = BindingFunctionName;
-				GraphEdge.BindingFunctionNamespace = BindingFunctionNamespace;
-				ComputeGraph->GraphEdges.Add(GraphEdge);
-			}
-		}
-	}
 
 #if PRINT_COMPILED_OUTPUT
 	
 #endif
 
-	return ComputeGraph;
+	return GraphInfos;
 }
 
 void UOptimusDeformer::OnDataTypeChanged(FName InTypeName)

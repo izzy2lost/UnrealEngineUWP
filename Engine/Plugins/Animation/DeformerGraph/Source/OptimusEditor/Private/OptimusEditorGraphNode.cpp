@@ -2,6 +2,7 @@
 
 #include "OptimusEditorGraphNode.h"
 
+#include "IOptimusComputeKernelProvider.h"
 #include "OptimusEditorHelpers.h"
 #include "OptimusEditorGraph.h"
 #include "OptimusEditorGraphSchema.h"
@@ -12,6 +13,8 @@
 #include "OptimusNode.h"
 #include "OptimusNodePin.h"
 #include "IOptimusNodeAdderPinProvider.h"
+#include "IOptimusPinMutabilityDefiner.h"
+#include "OptimusNodeGraph.h"
 
 #include "Framework/Commands/GenericCommands.h"
 #include "Logging/TokenizedMessage.h"
@@ -307,6 +310,39 @@ void UOptimusEditorGraphNode::GetNodeContextMenuActions(
 
 		// FIXME: Add alignment.
 	}
+}
+
+FLinearColor UOptimusEditorGraphNode::GetNodeTitleColor() const
+{
+	const FLinearColor ImmutableColor = FLinearColor::Green;
+	if (IOptimusComputeKernelProvider* KernelProvider = Cast<IOptimusComputeKernelProvider>(ModelNode))
+	{
+		if (ModelNode->GetOwningGraph()->GetGraphType() == EOptimusNodeGraphType::Update)
+		{
+			if (!KernelProvider->HasMutableInput())
+			{
+				return ImmutableColor;
+			}	
+		}
+	}
+
+	if (IOptimusPinMutabilityDefiner* PinMutabilityDefiner = Cast<IOptimusPinMutabilityDefiner>(ModelNode))
+	{
+		for (UOptimusNodePin* Pin : ModelNode->GetPins())
+		{
+			if (Pin->GetDirection() == EOptimusNodePinDirection::Output)
+			{
+				if (PinMutabilityDefiner->IsOutputPinMutable(Pin))
+				{
+					return Super::GetNodeTitleColor();
+				}
+			}
+		}
+
+		return ImmutableColor;
+	}
+	
+	return Super::GetNodeTitleColor();
 }
 
 

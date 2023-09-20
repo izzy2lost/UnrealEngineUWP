@@ -190,6 +190,27 @@ UOptimusComponentSourceBinding* UOptimusNode_DataInterface::GetComponentBinding(
 	return nullptr;
 }
 
+bool UOptimusNode_DataInterface::IsOutputPinMutable(const UOptimusNodePin* InPin) const
+{
+	const TArray<FOptimusCDIPinDefinition> PinDefinitions = DataInterfaceData->GetPinDefinitions();
+
+	int32 PinDefinitionIndex = INDEX_NONE;
+	for (int32 Index = 0 ; Index < PinDefinitions.Num(); ++Index)
+	{
+		if (PinDefinitions[Index].PinName == InPin->GetUniqueName())
+		{
+			PinDefinitionIndex = Index;
+			break;
+		}
+	}
+	if (!ensure(PinDefinitionIndex != INDEX_NONE))
+	{
+		return true;
+	}
+
+	return PinDefinitions[PinDefinitionIndex].bMutable;
+}
+
 
 void UOptimusNode_DataInterface::PostLoad() 
 {

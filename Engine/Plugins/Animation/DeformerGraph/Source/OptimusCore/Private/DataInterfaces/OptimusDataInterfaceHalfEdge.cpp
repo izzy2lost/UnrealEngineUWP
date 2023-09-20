@@ -298,8 +298,8 @@ TArray<FOptimusCDIPinDefinition> UOptimusHalfEdgeDataInterface::GetPinDefinition
 	FName Triangle(UOptimusSkinnedMeshComponentSource::Domains::Triangle);
 
 	TArray<FOptimusCDIPinDefinition> Defs;
-	Defs.Add({ "EdgesPerVertex", "ReadEdge", Vertex, "ReadNumVertices" });
-	Defs.Add({ "TwinEdges", "ReadTwinEdge", Triangle, 3, "ReadNumTriangles" });
+	Defs.Add({ "EdgesPerVertex", "ReadEdge", Vertex, "ReadNumVertices", false});
+	Defs.Add({ "TwinEdges", "ReadTwinEdge", Triangle, 3, "ReadNumTriangles", false});
 	return Defs;
 }
 

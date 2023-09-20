@@ -5,6 +5,7 @@
 #include "Components/MeshComponent.h"
 #include "ComputeFramework/ComputeFramework.h"
 #include "ComputeWorkerInterface.h"
+#include "IOptimusPersistentBufferProvider.h"
 #include "DataInterfaces/OptimusDataInterfaceGraph.h"
 #include "DataInterfaces/OptimusDataInterfaceRawBuffer.h"
 #include "OptimusComputeGraph.h"
@@ -33,9 +34,11 @@ void FOptimusPersistentBufferPool::GetResourceBuffers(
 	int32 InElementStride,
 	int32 InRawStride,
 	TArray<int32> const& InElementCounts,
-	TArray<FRDGBufferRef>& OutBuffers)
+	TArray<FRDGBufferRef>& OutBuffers,
+	bool& bOutJustAllocated)
 {
 	OutBuffers.Reset();
+	bOutJustAllocated = false;
 
 	TMap<int32, TArray<FOptimusPersistentStructuredBuffer>>& LODResources = ResourceBuffersMap.FindOrAdd(InResourceName);  
 	TArray<FOptimusPersistentStructuredBuffer>* ResourceBuffersPtr = LODResources.Find(InLODIndex);
@@ -43,52 +46,104 @@ void FOptimusPersistentBufferPool::GetResourceBuffers(
 	{
 		// Create pooled buffers and store.
 		TArray<FOptimusPersistentStructuredBuffer> ResourceBuffers;
-		ResourceBuffers.Reserve(InElementCounts.Num());
-
-		// If we are using a raw type alias for the buffer then we need to adjust stride and count.
-		check(InRawStride == 0 || InElementStride % InRawStride == 0);
-		const int32 Stride = InRawStride ? InRawStride : InElementStride;
-		const int32 ElementStrideMultiplier = InRawStride ? InElementStride / InRawStride : 1;
-
-		for (int32 Index = 0; Index < InElementCounts.Num(); Index++)
-		{
-			FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateStructuredDesc(Stride, InElementCounts[Index] * ElementStrideMultiplier);
-			FRDGBufferRef Buffer = GraphBuilder.CreateBuffer(BufferDesc, TEXT("FOptimusPersistentBuffer"), ERDGBufferFlags::None);
-			OutBuffers.Add(Buffer);
-
-			FOptimusPersistentStructuredBuffer& PersistentBuffer = ResourceBuffers.AddDefaulted_GetRef();
-			PersistentBuffer.ElementStride = InElementStride;
-			PersistentBuffer.ElementCount = InElementCounts[Index];
-			PersistentBuffer.PooledBuffer = GraphBuilder.ConvertToExternalBuffer(Buffer);
-		}
-
+		AllocateBuffers(GraphBuilder, InElementStride, InRawStride, InElementCounts, ResourceBuffers, OutBuffers);
 		LODResources.Add(InLODIndex, MoveTemp(ResourceBuffers));
+		bOutJustAllocated = true;
 	}
 	else
 	{
-		// Verify that the buffers are correct based on the incoming information. 
-		// If there's a mismatch, then something has gone wrong upstream.
-		// Maybe either duplicated names, missing resource clearing on recompile, or something else.
-		if (!ensure(ResourceBuffersPtr->Num() == InElementCounts.Num()))
+		ValidateAndGetBuffers(GraphBuilder,InElementStride, InElementCounts, *ResourceBuffersPtr, OutBuffers);
+	}
+}
+
+void FOptimusPersistentBufferPool::GetImplicitPersistentBuffers(
+	FRDGBuilder& GraphBuilder,
+	const FOptimusConstantIdentifier& InIdentifier, 
+	const FOptimusDeformerInstanceComponentLodContext& InLodContext,
+	int32 InElementStride, 
+	int32 InRawStride,
+	TArray<int32> const& InElementCounts,
+	TArray<FRDGBuffer*>& OutBuffers,
+	bool& bOutJustAllocated)
+{
+	OutBuffers.Reset();
+	bOutJustAllocated = false;
+
+	TMap<FOptimusConstantIdentifier, TArray<FOptimusPersistentStructuredBuffer>>& LODResources = ImplicitBuffersMap.FindOrAdd(InLodContext);  
+	TArray<FOptimusPersistentStructuredBuffer>& ResourceBuffers = LODResources.FindOrAdd(InIdentifier);
+	if (ResourceBuffers.IsEmpty())
+	{
+		// Create pooled buffers and store.
+		AllocateBuffers(GraphBuilder, InElementStride, InRawStride, InElementCounts, ResourceBuffers, OutBuffers);
+		bOutJustAllocated = true;
+	}
+	else
+	{
+		ValidateAndGetBuffers(GraphBuilder,InElementStride, InElementCounts, ResourceBuffers, OutBuffers);
+	}
+}
+
+
+
+void FOptimusPersistentBufferPool::AllocateBuffers(
+	FRDGBuilder& GraphBuilder,
+	int32 InElementStride,
+	int32 InRawStride,
+	TArray<int32> const& InElementCounts,
+	TArray<FOptimusPersistentStructuredBuffer>& OutResourceBuffers,
+	TArray<FRDGBuffer*>& OutBuffers
+	)
+{
+	OutResourceBuffers.Reserve(InElementCounts.Num());
+
+	// If we are using a raw type alias for the buffer then we need to adjust stride and count.
+	check(InRawStride == 0 || InElementStride % InRawStride == 0);
+	const int32 Stride = InRawStride ? InRawStride : InElementStride;
+	const int32 ElementStrideMultiplier = InRawStride ? InElementStride / InRawStride : 1;
+
+	for (int32 Index = 0; Index < InElementCounts.Num(); Index++)
+	{
+		FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateStructuredDesc(Stride, InElementCounts[Index] * ElementStrideMultiplier);
+		FRDGBufferRef Buffer = GraphBuilder.CreateBuffer(BufferDesc, TEXT("FOptimusPersistentBuffer"), ERDGBufferFlags::None);
+		OutBuffers.Add(Buffer);
+
+		FOptimusPersistentStructuredBuffer& PersistentBuffer = OutResourceBuffers.AddDefaulted_GetRef();
+		PersistentBuffer.ElementStride = InElementStride;
+		PersistentBuffer.ElementCount = InElementCounts[Index];
+		PersistentBuffer.PooledBuffer = GraphBuilder.ConvertToExternalBuffer(Buffer);
+	}
+}
+
+void FOptimusPersistentBufferPool::ValidateAndGetBuffers(
+	FRDGBuilder& GraphBuilder,
+	int32 InElementStride,
+	TArray<int32> const& InElementCounts,
+	const TArray<FOptimusPersistentStructuredBuffer>& InResourceBuffers,
+	TArray<FRDGBuffer*>& OutBuffers
+	) const
+{
+	// Verify that the buffers are correct based on the incoming information. 
+	// If there's a mismatch, then something has gone wrong upstream.
+	// Maybe either duplicated names, missing resource clearing on recompile, or something else.
+	if (!ensure(InResourceBuffers.Num() == InElementCounts.Num()))
+	{
+		return;
+	}
+
+	for (int32 Index = 0; Index < InResourceBuffers.Num(); Index++)
+	{
+		const FOptimusPersistentStructuredBuffer& PersistentBuffer = InResourceBuffers[Index];
+		if (!ensure(PersistentBuffer.PooledBuffer.IsValid()) ||
+			!ensure(PersistentBuffer.ElementStride == InElementStride) ||
+			!ensure(PersistentBuffer.ElementCount == InElementCounts[Index]))
 		{
+			OutBuffers.Reset();
 			return;
-		}
+		}	
 
-		for (int32 Index = 0; Index < ResourceBuffersPtr->Num(); Index++)
-		{
-			FOptimusPersistentStructuredBuffer& PersistentBuffer = (*ResourceBuffersPtr)[Index];
-			if (!ensure(PersistentBuffer.PooledBuffer.IsValid()) ||
-				!ensure(PersistentBuffer.ElementStride == InElementStride) ||
-				!ensure(PersistentBuffer.ElementCount == InElementCounts[Index]))
-			{
-				OutBuffers.Reset();
-				return;
-			}	
-
-			// Register buffer back into the graph and return it.
-			FRDGBufferRef Buffer = GraphBuilder.RegisterExternalBuffer(PersistentBuffer.PooledBuffer);
-			OutBuffers.Add(Buffer);
-		}
+		// Register buffer back into the graph and return it.
+		FRDGBufferRef Buffer = GraphBuilder.RegisterExternalBuffer(PersistentBuffer.PooledBuffer);
+		OutBuffers.Add(Buffer);
 	}
 }
 
@@ -96,6 +151,7 @@ void FOptimusPersistentBufferPool::ReleaseResources()
 {
 	check(IsInRenderingThread());
 	ResourceBuffersMap.Reset();
+	ImplicitBuffersMap.Reset();
 }
 
 FOptimusDeformerInstanceExecInfo::FOptimusDeformerInstanceExecInfo()
@@ -360,10 +416,9 @@ void UOptimusDeformerInstance::SetupFromDeformer(UOptimusDeformer* InDeformer)
 		for(TObjectPtr<UComputeDataProvider> DataProvider: Info.ComputeGraphInstance.GetDataProviders())
 		{
 			// Make the persistent buffer data provider aware of the buffer pool and current LOD index.
-			// TBD: Interface-based.
-			if (UOptimusPersistentBufferDataProvider* PersistentBufferProvider = Cast<UOptimusPersistentBufferDataProvider>(DataProvider))
+			if (IOptimusPersistentBufferProvider* PersistentBufferProvider = Cast<IOptimusPersistentBufferProvider>(DataProvider))
 			{
-				PersistentBufferProvider->BufferPool = BufferPool;
+				PersistentBufferProvider->SetBufferPool(BufferPool);
 			}
 
 			// Set this instance on the graph data provider so that it can query variables.
@@ -417,15 +472,11 @@ void UOptimusDeformerInstance::SetCanBeActive(bool bInCanBeActive)
 	bCanBeActive = bInCanBeActive;
 }
 
-TArray<float> UOptimusDeformerInstance::GetConstantValuePerInvocation(const FOptimusConstantIdentifier& InIdentifier)
+FOptimusConstantEvaluationResult UOptimusDeformerInstance::GetConstantValuePerInvocation(
+	const FOptimusConstantIdentifier& InIdentifier)
 {
-	if (!InIdentifier.IsValid())
-	{
-		return {};
-	}
-	
-	FOptimusDeformerInstanceComponentContext ComponentContext;
-	
+	FOptimusConstantEvaluationResult Result;
+
 	check(WeakBoundComponents.Num() == WeakComponentSources.Num());
 	int32 NumBindings = WeakBoundComponents.Num();
 	for (int32 BindingIndex = 0; BindingIndex < NumBindings; BindingIndex++)
@@ -442,18 +493,24 @@ TArray<float> UOptimusDeformerInstance::GetConstantValuePerInvocation(const FOpt
 
 		if (LodIndex != INDEX_NONE)
 		{
-			ComponentContext.LodIndexPerComponent.Add(LodIndex);
+			Result.LodContext.LodIndexPerComponent.Add(LodIndex);
 		}
 		else
 		{
 			return {};
 		}
 	}
-
-
-	if (const FOptimusConstantContainerInstance* ConstantValues = ConstantValuesPerContext.Find(ComponentContext))
+	
+	
+	if (!InIdentifier.IsValid())
 	{
-		return ConstantValues->GetConstantValuePerInvocation(InIdentifier);
+		return Result;
+	}
+
+	if (const FOptimusConstantContainerInstance* ConstantValues = ConstantValuesPerContext.Find(Result.LodContext))
+	{
+		Result.ValuePerInvocation = ConstantValues->GetConstantValuePerInvocation(InIdentifier);
+		return Result;
 	}
 
 	TMap<int32, TMap<FName, TArray<float>>> BindingIndexToConstantValues;
@@ -501,15 +558,15 @@ TArray<float> UOptimusDeformerInstance::GetConstantValuePerInvocation(const FOpt
 
 	if (CollectAllBindingConstants())
 	{
-		FOptimusConstantContainerInstance& NewConstantValues = ConstantValuesPerContext.Add(ComponentContext);
+		FOptimusConstantContainerInstance& NewConstantValues = ConstantValuesPerContext.Add(Result.LodContext);
 		if (NewConstantValues.Initialize(ConstantContainer, BindingIndexToConstantValues))
 		{
-			return NewConstantValues.GetConstantValuePerInvocation(InIdentifier);		
+			Result.ValuePerInvocation = NewConstantValues.GetConstantValuePerInvocation(InIdentifier);
+			return Result;
 		}
 	}
 
-	return{};
-	
+	return Result;
 }
 
 void UOptimusDeformerInstance::AllocateResources()

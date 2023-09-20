@@ -23,7 +23,6 @@ struct FOptimusExecutionDomain;
 struct FOptimus_InterfaceBinding
 {
 	const UComputeDataInterface* DataInterface;
-	const UOptimusComponentSourceBinding* ComponentBinding;
 	int32 DataInterfaceBindingIndex;
 	FString BindingFunctionName;
 	FString BindingFunctionNamespace;
@@ -80,7 +79,6 @@ public:
 	 * @param InLinkDataInterfaceMap
 	 * @param InValueNodes
 	 * @param InGraphDataInterface
-	 * @param InGraphDataComponentBinding
 	 * @param InOutKernelDataInterface
 	 * @param OutInputDataBindings
 	 * @param OutOutputDataBindings
@@ -93,7 +91,6 @@ public:
 		const FOptimus_PinToDataInterfaceMap& InLinkDataInterfaceMap,
 		const TArray<const UOptimusNode*>& InValueNodes,
 		const UComputeDataInterface* InGraphDataInterface,
-		const UOptimusComponentSourceBinding* InGraphDataComponentBinding,
 		UComputeDataInterface* InOutKernelDataInterface,
 		FOptimus_InterfaceBindingMap& OutInputDataBindings,
 		FOptimus_InterfaceBindingMap& OutOutputDataBindings,
@@ -110,5 +107,10 @@ public:
 	virtual UComputeDataInterface* MakeKernelDataInterface(UObject* InOuter) const = 0;
 
 	/** Check if a specific pin needs to support atomic operation */
-	virtual bool GetPinSupportAtomic(const UOptimusNodePin* InPin) const = 0;
+	virtual bool DoesOutputPinSupportAtomic(const UOptimusNodePin* InPin) const = 0;
+	
+	/** Check if a specific pin needs to support atomic operation */
+	virtual bool DoesOutputPinSupportRead(const UOptimusNodePin* InPin) const = 0;
+
+	virtual bool HasMutableInput() const = 0;
 };
