@@ -2265,6 +2265,15 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 	{
 		KeyString += TEXT("_SLWDP");
 	}
+
+	if (IsGPUSkinPassThroughSupported(Platform))
+	{
+		KeyString += TEXT("_SKPassThrough1");
+	}
+	else
+	{
+		KeyString += TEXT("_SKPassThrough0");
+	}
 }
 
 EShaderPermutationFlags GetShaderPermutationFlags(const FPlatformTypeLayoutParameters& LayoutParams)

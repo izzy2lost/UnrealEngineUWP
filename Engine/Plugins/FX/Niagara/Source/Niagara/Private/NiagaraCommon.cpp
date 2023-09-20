@@ -3,7 +3,7 @@
 #include "NiagaraCommon.h"
 
 #include "DataDrivenShaderPlatformInfo.h"
-#include "LocalVertexFactory.h"
+#include "RenderUtils.h"
 #include "Misc/StringBuilder.h"
 #include "NiagaraComponent.h"
 #include "NiagaraConstants.h"
@@ -963,7 +963,7 @@ bool FNiagaraUtilities::AllowGPUCulling(EShaderPlatform ShaderPlatform)
 
 bool FNiagaraUtilities::AreBufferSRVsAlwaysCreated(EShaderPlatform ShaderPlatform)
 {
-	return RHISupportsManualVertexFetch(ShaderPlatform) || FLocalVertexFactory::IsGPUSkinPassThroughSupported(ShaderPlatform);
+	return RHISupportsManualVertexFetch(ShaderPlatform) || IsGPUSkinPassThroughSupported(ShaderPlatform);
 }
 
 ENiagaraCompileUsageStaticSwitch FNiagaraUtilities::ConvertScriptUsageToStaticSwitchUsage(ENiagaraScriptUsage ScriptUsage)

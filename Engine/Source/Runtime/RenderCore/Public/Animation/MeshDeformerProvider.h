@@ -22,9 +22,9 @@ class IMeshDeformerProvider : public IModularFeature
 public:
 	virtual ~IMeshDeformerProvider() {}
 
-	static ENGINE_API const FName ModularFeatureName; // "MeshDeformer"
-	static ENGINE_API bool IsAvailable();
-	static ENGINE_API IMeshDeformerProvider* Get();
+	static RENDERCORE_API const FName ModularFeatureName; // "MeshDeformer"
+	static RENDERCORE_API bool IsAvailable();
+	static RENDERCORE_API IMeshDeformerProvider* Get();
 
 	/** Returns true if the platform is supported. */
 	virtual bool IsSupported(EShaderPlatform Platform) const = 0;

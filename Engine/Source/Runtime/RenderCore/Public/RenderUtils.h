@@ -442,6 +442,22 @@ RENDERCORE_API bool UseRemoveUnsedInterpolators(EShaderPlatform ShaderPlatform);
  */
 RENDERCORE_API bool AreSkinCacheShadersEnabled(EShaderPlatform Platform);
 
+/**
+ * Checks if skin cache shaders are allowed for the platform (via r.SkinCache.Allow)
+ */
+RENDERCORE_API bool IsGPUSkinCacheAllowed(EShaderPlatform Platform);
+
+/**
+ * Can the skin cache be used (ie shaders added, etc)
+ */
+RENDERCORE_API bool IsGPUSkinCacheAvailable(EShaderPlatform Platform);
+
+/**
+ * Does the platform support GPUSkinPassthrough permutations.
+ * This knowledge can be used to indicate if we need to create SRV for index/vertex buffers.
+ */
+RENDERCORE_API bool IsGPUSkinPassThroughSupported(EShaderPlatform Platform);
+
 /*
  * Detect (at runtime) if the runtime supports rendering one-pass point light shadows (i.e., cube maps)
  */

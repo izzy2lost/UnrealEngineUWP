@@ -16,6 +16,7 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "RenderCore.h"
 #include "SubstrateDefinitions.h"
+#include "Animation/MeshDeformerProvider.h"
 
 #if WITH_EDITOR
 #include "Interfaces/ITargetPlatform.h"
@@ -1391,6 +1392,25 @@ RENDERCORE_API bool AreSkinCacheShadersEnabled(EShaderPlatform Platform)
 {
 	static FShaderPlatformCachedIniValue<bool> PerPlatformCVar(TEXT("r.SkinCache.CompileShaders"));
 	return (PerPlatformCVar.Get(Platform) != 0);
+}
+
+RENDERCORE_API bool IsGPUSkinCacheAllowed(EShaderPlatform Platform)
+{
+	static FShaderPlatformCachedIniValue<bool> PerPlatformCVar(TEXT("r.SkinCache.Allow"));
+	return PerPlatformCVar.Get(Platform);
+}
+
+RENDERCORE_API bool IsGPUSkinCacheAvailable(EShaderPlatform Platform)
+{
+	return AreSkinCacheShadersEnabled(Platform) != 0 && IsGPUSkinCacheAllowed(Platform);
+}
+
+RENDERCORE_API bool IsGPUSkinPassThroughSupported(EShaderPlatform Platform)
+{
+	// Enable the GPUSkin passthrough path if we might use the GPUSkinCache or MeshDeformers.
+	static IMeshDeformerProvider* MeshDeformerProvider = IMeshDeformerProvider::Get();
+	bool bMeshDeformersAvailable = MeshDeformerProvider && MeshDeformerProvider->IsSupported(Platform);
+	return bMeshDeformersAvailable || IsGPUSkinCacheAvailable(Platform);
 }
 
 RENDERCORE_API bool DoesRuntimeSupportOnePassPointLightShadows(EShaderPlatform Platform)

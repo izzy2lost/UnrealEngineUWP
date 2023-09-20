@@ -198,17 +198,6 @@ static int32 GGPUSkinCacheFlushCounter = 0;
 
 const float MBSize = 1048576.f; // 1024 x 1024 bytes
 
-static inline bool IsGPUSkinCacheAllowed(EShaderPlatform Platform)
-{
-	static FShaderPlatformCachedIniValue<bool> PerPlatformCVar(TEXT("r.SkinCache.Allow"));
-	return PerPlatformCVar.Get(Platform);
-}
-
-ENGINE_API bool IsGPUSkinCacheAvailable(EShaderPlatform Platform)
-{
-	return AreSkinCacheShadersEnabled(Platform) != 0 && IsGPUSkinCacheAllowed(Platform);
-}
-
 static inline bool IsGPUSkinCacheEnable(EShaderPlatform Platform)
 {
 	static FShaderPlatformCachedIniValue<int32> PerPlatformCVar(TEXT("r.SkinCache.Mode"));

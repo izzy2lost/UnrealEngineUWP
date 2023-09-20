@@ -8,7 +8,7 @@
 
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Interfaces/ITargetPlatform.h"
-#include "LocalVertexFactory.h"
+#include "RenderUtils.h"
 #include "Modules/ModuleManager.h"
 #include "RenderingThread.h"
 #include "RHIResourceUpdates.h"
@@ -328,7 +328,7 @@ FBufferRHIRef FRawStaticIndexBuffer::CreateRHIBuffer(FRHICommandListBase& RHICmd
 	if (GetNumIndices() > 0)
 	{
 		// Systems that generate data for GPUSkinPassThrough use index buffer as SRV.
-		bool bSRV = RHISupportsManualVertexFetch(GMaxRHIShaderPlatform) || FLocalVertexFactory::IsGPUSkinPassThroughSupported(GMaxRHIShaderPlatform);
+		bool bSRV = RHISupportsManualVertexFetch(GMaxRHIShaderPlatform) || IsGPUSkinPassThroughSupported(GMaxRHIShaderPlatform);
 
 		// When bAllowCPUAccess is true, the meshes is likely going to be used for Niagara to spawn particles on mesh surface.
 		// And it can be the case for CPU *and* GPU access: no differenciation today. That is why we create a SRV in this case.
@@ -446,7 +446,7 @@ void FRawStaticIndexBuffer::Discard()
 bool FRawStaticIndexBuffer16or32Interface::IsSRVNeeded(bool bAllowCPUAccess) const
 {
 	// Systems that generate data for GPUSkinPassThrough use index buffer as SRV.
-	bool bSRV = RHISupportsManualVertexFetch(GMaxRHIShaderPlatform) || FLocalVertexFactory::IsGPUSkinPassThroughSupported(GMaxRHIShaderPlatform);
+	bool bSRV = RHISupportsManualVertexFetch(GMaxRHIShaderPlatform) || IsGPUSkinPassThroughSupported(GMaxRHIShaderPlatform);
 	// When bAllowCPUAccess is true, the meshes is likely going to be used for Niagara to spawn particles on mesh surface.
 	// And it can be the case for CPU *and* GPU access: no differenciation today. That is why we create a SRV in this case.
 	// This also avoid setting lots of states on all the members of all the different buffers used by meshes. Follow up: https://jira.it.epicgames.net/browse/UE-69376.

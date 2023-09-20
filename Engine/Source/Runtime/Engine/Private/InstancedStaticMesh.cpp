@@ -1083,7 +1083,7 @@ void FInstancedStaticMeshVertexFactory::GetVertexElements(
 
 		// PreSkinPosition attribute is only used for GPUSkinPassthrough variation of local vertex factory.
 		// It is not used by ISM so fill with dummy buffer.
-		if (FLocalVertexFactory::IsGPUSkinPassThroughSupported(GMaxRHIShaderPlatform))
+		if (IsGPUSkinPassThroughSupported(GMaxRHIShaderPlatform))
 		{
 			FVertexStreamComponent NullComponent(&GNullVertexBuffer, 0, 0, VET_Float4);
 			Elements.Add(AccessStreamComponent(NullComponent, 14, Streams));

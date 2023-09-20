@@ -76,12 +76,6 @@ public:
 	static ENGINE_API void GetPSOPrecacheVertexFetchElements(EVertexInputStreamType VertexInputStreamType, FVertexDeclarationElementList& Elements);
 	static ENGINE_API void GetVertexElements(ERHIFeatureLevel::Type FeatureLevel, EVertexInputStreamType InputStreamType, bool bSupportsManualVertexFetch, FDataType& Data, FVertexDeclarationElementList& Elements);
 
-	/** 
-	 * Does the platform support GPUSkinPassthrough permutations.
-	 * This knowledge can be used to indicate if we need to create SRV for index/vertex buffers.
-	 */
-	static ENGINE_API bool IsGPUSkinPassThroughSupported(EShaderPlatform Platform);
-
 	/**
 	 * An implementation of the interface used by TSynchronizedResource to update the resource with new data from the game thread.
 	 */
