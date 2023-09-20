@@ -1564,7 +1564,7 @@ FUIAction FTabManager::GetUIActionForTabSpawnerMenuEntry(TSharedPtr<FTabSpawnerE
 
 void FTabManager::InvokeTabForMenu( FName TabId )
 {
-	TryInvokeTab(TabId, true);
+	TryInvokeTab(TabId);
 }
 
 void FTabManager::InsertDocumentTab(FName PlaceholderId, const FSearchPreference& SearchPreference, const TSharedRef<SDockTab>& UnmanagedTab, bool bPlaySpawnAnim)
