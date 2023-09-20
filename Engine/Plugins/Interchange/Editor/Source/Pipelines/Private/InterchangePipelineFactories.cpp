@@ -155,6 +155,8 @@ UObject* UInterchangePythonPipelineAssetFactory::FactoryCreateNew(UClass* Class,
 	if (PythonClass && PythonClass->IsChildOf(UInterchangePipelineBase::StaticClass()))
 	{
 		Pipeline = NewObject<UInterchangePythonPipelineAsset>(InParent, SupportedClass, InName, InFlags | RF_Transactional);
+		//Python pipeline are editor only package
+		Pipeline->GetPackage()->SetPackageFlags(PKG_EditorOnly);
 		Pipeline->PythonClass = PythonClass;
 		Pipeline->GeneratePipeline();
 	}
