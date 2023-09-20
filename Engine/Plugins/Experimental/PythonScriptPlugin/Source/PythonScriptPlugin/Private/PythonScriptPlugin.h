@@ -162,6 +162,12 @@ private:
 
 	void ShutdownPython();
 
+	void RunPipInstaller();
+
+	bool RunUBTPipAction(const FString& Action, const FText& Description, FFeedbackContext* Context);
+
+	FString GetPipSitePackagesPath();
+
 	void RequestStubCodeGeneration();
 
 	void GenerateStubCode();

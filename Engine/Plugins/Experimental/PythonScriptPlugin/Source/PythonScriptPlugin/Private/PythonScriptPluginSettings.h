@@ -77,6 +77,18 @@ public:
 	UPROPERTY(config, EditAnywhere, Category=Python, meta=(ConfigRestartRequired=true, DisplayName="Developer Mode (all users)"), AdvancedDisplay)
 	bool bDeveloperMode;
 
+	/**
+	 * Should the pip install UBT task (UBT Mode=PipInstall) be run on editor startup.
+	 *
+	 * NOTE: The project pip install directory: <ProjectDir>/Intermediate/PipInstall/Lib/site-packages
+	 *       will still be added to site package path, if it exists, to allow for pre-populated installs
+	 *       even auto-running UBT PipInstall is disabled.
+	 *
+	 *       See <ProjectDir>/Intermediate/PipInstall/merged_requirements.in for listing of required packages.
+	 */
+	UPROPERTY(config, EditAnywhere, Category=PythonPipInstall, meta=(ConfigRestartRequired=true))
+	bool bRunPipInstallOnStartup;
+
 	/** Should remote Python execution be enabled? */
 	UPROPERTY(config, EditAnywhere, Category=PythonRemoteExecution, meta=(DisplayName="Enable Remote Execution?"))
 	bool bRemoteExecution;

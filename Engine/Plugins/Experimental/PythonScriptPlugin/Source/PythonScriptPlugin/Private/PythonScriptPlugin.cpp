@@ -55,6 +55,7 @@
 #include "ContentBrowserFileDataCore.h"
 #include "ContentBrowserFileDataSource.h"
 #include "Toolkits/GlobalEditorCommonCommands.h"
+#include "Misc/FeedbackContext.h"
 #endif	// WITH_EDITOR
 
 #if PLATFORM_WINDOWS
@@ -975,6 +976,18 @@ void FPythonScriptPlugin::InitializePython()
 		// Initialize the wrapped types
 		FPyWrapperTypeRegistry::Get().GenerateWrappedTypes();
 
+#if WITH_EDITOR
+		// Run PipInstall UBT task
+		RunPipInstaller();
+#endif // WITH_EDITOR
+
+		// Add Pip UBT install path to site-packages if it exists
+		const FString PipSitePackagePath = GetPipSitePackagesPath();
+		if (FPaths::DirectoryExists(PipSitePackagePath))
+		{
+			PyUtil::AddSitePackagesPath(PipSitePackagePath);
+		}
+
 		// Initialize the tick handler
 		TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([this](float DeltaTime)
 		{
@@ -1109,6 +1122,75 @@ void FPythonScriptPlugin::ShutdownPython()
 
 	bInitialized = false;
 	bRanStartupScripts = false;
+}
+
+void FPythonScriptPlugin::RunPipInstaller()
+{
+	// Run UBT Pip installer for python dependencies (if any)
+	FFeedbackContext* Context = GWarn;
+	FScopedSlowTask PipInstallTask(0, LOCTEXT("PipInstall.RunTasks", "Running Pip Install Tasks..."), true, *Context);
+
+	const FString PipSitePackagePath = FPaths::ConvertRelativePathToFull(GetPipSitePackagesPath());
+
+	// Generate the input listing files of plugins with python dependencies and the listing of all requirements (installed or not)
+	RunUBTPipAction("GenRequirements", LOCTEXT("PipInstall.CheckingDependencies", "Checking Python Dependencies..."), Context);
+	const FString InReqsFile = FPaths::ConvertRelativePathToFull(FPaths::ProjectIntermediateDir() / TEXT("PipInstall") / TEXT("merged_requirements.in"));
+	TArray<FString> InReqLines;
+	if (!FPaths::FileExists(InReqsFile) || !FFileHelper::LoadFileToStringArray(InReqLines, *InReqsFile) || InReqLines.IsEmpty() )
+	{
+		UE_LOG(LogPython, Display, TEXT("No enabled plugins with python dependencies found, skipping"));
+		return;
+	}
+
+	// Just return immediately with warning if some python dependencies exist and pip install is disabled
+	if (!GetDefault<UPythonScriptPluginSettings>()->bRunPipInstallOnStartup)
+	{
+		if (!GIsBuildMachine)
+		{
+			UE_LOG(LogPython, Warning, TEXT("Enabled plugins have python dependencies, enable 'Run Pip Install On Startup' or install manually to: %s"), *PipSitePackagePath);
+			UE_LOG(LogPython, Warning, TEXT("  See package requirements: % s"), *InReqsFile);
+		}
+		else
+		{
+			UE_LOG(LogPython, Display, TEXT("Enabled plugins have python dependencies, install manually to: %s"), *PipSitePackagePath);
+			UE_LOG(LogPython, Display, TEXT("  See package requirements: % s"), *InReqsFile);
+		}
+		return;
+	}
+
+	// Run install of all python dependencies for enabled plugins
+	if (!RunUBTPipAction("InstallNoRegen", LOCTEXT("PipInstall.InstallingDependencies", "Installing Python Dependencies..."), Context))
+	{
+		UE_LOG(LogPython, Warning, TEXT("Unable to install plugin python dependencies"));
+		return;
+	}
+}
+
+bool FPythonScriptPlugin::RunUBTPipAction(const FString& Action, const FText& Description, FFeedbackContext* Context)
+{
+	int32 ExitCode;
+	const FString ProjectFileName = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*FPaths::GetProjectFilePath());
+	const FString Args = FString::Printf(TEXT("%s %s %s -Project=\"%s\" -Mode=PipInstall -PythonInterpreter=\"%s\" -PipAction=%s -Progress")
+		, FPlatformMisc::GetUBTTargetName()
+		, FPlatformMisc::GetUBTPlatform()
+		, FModuleManager::Get().GetUBTConfiguration()
+		, *ProjectFileName
+		, *PyUtil::GetInterpreterExecutablePath()
+		, *Action);
+
+	return FDesktopPlatformModule::Get()->RunUnrealBuildTool(Description, FPaths::RootDir(), Args, Context, ExitCode);
+}
+
+FString FPythonScriptPlugin::GetPipSitePackagesPath()
+{
+	const FString VenvPath = FPaths::ProjectIntermediateDir() / TEXT("PipInstall");
+#if PLATFORM_WINDOWS
+	return VenvPath / TEXT("Lib") / TEXT("site-packages");
+#elif PLATFORM_MAC || PLATFORM_LINUX
+	return VenvPath / TEXT("lib") / FString::Printf(TEXT("python%d.%d"), PY_MAJOR_VERSION, PY_MINOR_VERSION) / TEXT("site-packages");
+#else
+	static_assert(false, "Python not supported on this platform!");
+#endif
 }
 
 void FPythonScriptPlugin::RequestStubCodeGeneration()
