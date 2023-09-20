@@ -1321,8 +1321,13 @@ FSubstratePixelFootprint SubstrateGetPixelFootprint(float3 InWorldPosition, floa
 
 ///////////////////////////////////////////////////////////////////////////////
 // BSDF
+#if USE_ANALYTIC_DERIVATIVES
+#define GLINT_UV_TYPE FloatDeriv2
+#else
+#define GLINT_UV_TYPE float2
+#endif
 
-FSubstrateData GetSubstrateSlabBSDF(
+FSubstrateData InternalGetSubstrateSlabBSDF(
 	FSubstratePixelFootprint InPixelFootprint,
 	float3 DiffuseAlbedo, float3 F0, float3 F90,
 	float Roughness, float Anisotropy,
@@ -1330,7 +1335,7 @@ FSubstrateData GetSubstrateSlabBSDF(
 	float3 Emissive, 
 	float SecondRoughness, float SecondRoughnessWeight, float SecondRoughnessAsSimpleClearCoat,
 	float FuzzAmount, float3 FuzzColor, float FuzzRoughness,
-	float GlintValue, float2 GlintUV,
+	float GlintValue, float2 GlintUV, float2 GlintUVdx, float2 GlintUVdy,
 	float SpecularProfileId,
 	float ThicknessCm,
 	bool bIsThinSurface,
@@ -1431,9 +1436,9 @@ FSubstrateData GetSubstrateSlabBSDF(
 	{
 		BSDF_SETHASGLINT(SubstrateData.InlinedBSDF, 1);
 		SLAB_GLINT_VALUE(SubstrateData.InlinedBSDF)		= GlintValue;
-		SLAB_GLINT_UV(SubstrateData.InlinedBSDF)			= GlintUV;
-		SLAB_GLINT_UVDDX(SubstrateData.InlinedBSDF)		= ddx(GlintUV);
-		SLAB_GLINT_UVDDY(SubstrateData.InlinedBSDF)		= ddy(GlintUV);
+		SLAB_GLINT_UV(SubstrateData.InlinedBSDF)		= GlintUV;
+		SLAB_GLINT_UVDDX(SubstrateData.InlinedBSDF)		= GlintUVdx;
+		SLAB_GLINT_UVDDY(SubstrateData.InlinedBSDF)		= GlintUVdy;
 	}
 #endif // SUBSTRATE_GLINTS_ENABLED
 #if SUBSTRATE_SPECPROFILE_ENABLED
@@ -1492,6 +1497,69 @@ FSubstrateData GetSubstrateSlabBSDF(
 #endif
 
 	return SubstrateData;
+}
+
+FSubstrateData GetSubstrateSlabBSDF(
+	FSubstratePixelFootprint InPixelFootprint,
+	float3 DiffuseAlbedo, float3 F0, float3 F90,
+	float Roughness, float Anisotropy,
+	float SSSProfileID, float3 SSSMFP, float SSSMFPScale, float SSSPhaseAnisotropy, float UseSSSDiffusion,
+	float3 Emissive,
+	float SecondRoughness, float SecondRoughnessWeight, float SecondRoughnessAsSimpleClearCoat,
+	float FuzzAmount, float3 FuzzColor, float FuzzRoughness,
+	float GlintValue, FloatDeriv2 GlintUV,
+	float SpecularProfileId,
+	float ThicknessCm,
+	bool bIsThinSurface,
+	bool bIsAtTheBottomOfTopology,
+	uint SharedLocalBasisIndex, inout uint SharedLocalBasisTypes)
+{
+	return InternalGetSubstrateSlabBSDF(
+		InPixelFootprint,
+		DiffuseAlbedo, F0, F90,
+		Roughness, Anisotropy,
+		SSSProfileID, SSSMFP, SSSMFPScale, SSSPhaseAnisotropy, UseSSSDiffusion,
+		Emissive,
+		SecondRoughness, SecondRoughnessWeight, SecondRoughnessAsSimpleClearCoat,
+		FuzzAmount, FuzzColor, FuzzRoughness,
+		GlintValue, GlintUV.Value, GlintUV.Ddx, GlintUV.Ddy,
+		SpecularProfileId,
+		ThicknessCm,
+		bIsThinSurface,
+		bIsAtTheBottomOfTopology,
+		SharedLocalBasisIndex, SharedLocalBasisTypes);
+}
+
+
+FSubstrateData GetSubstrateSlabBSDF(
+	FSubstratePixelFootprint InPixelFootprint,
+	float3 DiffuseAlbedo, float3 F0, float3 F90,
+	float Roughness, float Anisotropy,
+	float SSSProfileID, float3 SSSMFP, float SSSMFPScale, float SSSPhaseAnisotropy, float UseSSSDiffusion,
+	float3 Emissive,
+	float SecondRoughness, float SecondRoughnessWeight, float SecondRoughnessAsSimpleClearCoat,
+	float FuzzAmount, float3 FuzzColor, float FuzzRoughness,
+	float GlintValue, float2 GlintUV,
+	float SpecularProfileId,
+	float ThicknessCm,
+	bool bIsThinSurface,
+	bool bIsAtTheBottomOfTopology,
+	uint SharedLocalBasisIndex, inout uint SharedLocalBasisTypes)
+{
+	return InternalGetSubstrateSlabBSDF(
+		InPixelFootprint,
+		DiffuseAlbedo, F0, F90,
+		Roughness, Anisotropy,
+		SSSProfileID, SSSMFP, SSSMFPScale, SSSPhaseAnisotropy, UseSSSDiffusion,
+		Emissive,
+		SecondRoughness, SecondRoughnessWeight, SecondRoughnessAsSimpleClearCoat,
+		FuzzAmount, FuzzColor, FuzzRoughness,
+		GlintValue, GlintUV, ddx(GlintUV), ddy(GlintUV),
+		SpecularProfileId,
+		ThicknessCm,
+		bIsThinSurface,
+		bIsAtTheBottomOfTopology,
+		SharedLocalBasisIndex, SharedLocalBasisTypes);
 }
 
 FSubstrateData GetSubstrateVolumeFogCloudBSDF(float3 Albedo, float3 Extinction, float3 Emissive, float AmbientOcclusion)
@@ -3607,7 +3675,7 @@ void FSubstratePixelHeader::SubstrateConvertFromDBuffer(
 		0.f,				// FuzzColor
 		In.Roughness,		// FuzzRoughness
 		0.f,				// GlintValue, 
-		0.f.xx,				// GlintUV,
+		(GLINT_UV_TYPE)0,	// GlintUV,
 		0.f, 				// SpecularProfileId
 		DefaultThicknessCm,
 		false,				// bIsThinSurface,

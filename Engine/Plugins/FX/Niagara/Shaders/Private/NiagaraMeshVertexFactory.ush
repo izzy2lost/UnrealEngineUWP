@@ -236,6 +236,18 @@ float3x3 GetParticleRotationNoScale(FVertexFactoryIntermediates Inters)
 	return Inters.ParticleToWorldNoScale;
 }
 
+float2 GetUV(FVertexFactoryInterpolantsVSToPS Interpolants, int UVIndex)
+{
+#if USE_PARTICLE_SUBUVS
+	return 0;
+#elif NUM_TEX_COORD_INTERPOLATORS
+	float4 UVVector = Interpolants.TexCoords[UVIndex / 2];
+	return UVIndex % 2 ? UVVector.zw : UVVector.xy;
+#else
+	return 0;
+#endif
+}
+
 /** Converts from vertex factory specific interpolants to a FMaterialPixelParameters, which is used by material inputs. */
 FMaterialPixelParameters GetMaterialPixelParameters(FVertexFactoryInterpolantsVSToPS Interpolants, float4 SvPosition)
 {

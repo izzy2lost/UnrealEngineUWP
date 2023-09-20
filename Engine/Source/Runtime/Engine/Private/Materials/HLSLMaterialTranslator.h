@@ -790,6 +790,7 @@ protected:
 	int32 GenericSwitch(const TCHAR* Function, int32 IfTrue, int32 IfFalse);
 
 	FString SubstrateGetCastParameterCode(int32 Index, EMaterialValueType DestType);
+	FString SubstrateGetCastParameterCodeWithDeriv(int32 Index, EMaterialValueType DestType);
 
 	// FMaterialCompiler interface.
 

@@ -99,57 +99,6 @@ float3 UnpackNormal(uint Packed, uint Bits)
 	return normalize(N);
 }
 
-struct FBarycentrics
-{
-	float3 UVW;
-	float3 UVW_dx;
-	float3 UVW_dy;
-};
-
-/** Calculates perspective correct barycentric coordinates and partial derivatives using screen derivatives. */
-FBarycentrics CalculateTriangleBarycentrics(float2 PixelClip, float4 PointClip0, float4 PointClip1, float4 PointClip2, float2 ViewInvSize)
-{
-	FBarycentrics Result;
-
-	const float3 RcpW = rcp(float3(PointClip0.w, PointClip1.w, PointClip2.w));
-	const float3 Pos0 = PointClip0.xyz * RcpW.x;
-	const float3 Pos1 = PointClip1.xyz * RcpW.y;
-	const float3 Pos2 = PointClip2.xyz * RcpW.z;
-
-	const float3 Pos120X = float3(Pos1.x, Pos2.x, Pos0.x);
-	const float3 Pos120Y = float3(Pos1.y, Pos2.y, Pos0.y);
-	const float3 Pos201X = float3(Pos2.x, Pos0.x, Pos1.x);
-	const float3 Pos201Y = float3(Pos2.y, Pos0.y, Pos1.y);
-
-	const float3 C_dx = Pos201Y - Pos120Y;
-	const float3 C_dy = Pos120X - Pos201X;
-
-	const float3 C = C_dx * (PixelClip.x - Pos120X) + C_dy * (PixelClip.y - Pos120Y);	// Evaluate the 3 edge functions
-	const float3 G = C * RcpW;
-
-	const float H = dot(C, RcpW);
-	const float RcpH = rcp(H);
-
-	// UVW = C * RcpW / dot(C, RcpW)
-	Result.UVW = G * RcpH;
-
-	// Texture coordinate derivatives:
-	// UVW = G / H where G = C * RcpW and H = dot(C, RcpW)
-	// UVW' = (G' * H - G * H') / H^2
-	// float2 TexCoordDX = UVW_dx.y * TexCoord10 + UVW_dx.z * TexCoord20;
-	// float2 TexCoordDY = UVW_dy.y * TexCoord10 + UVW_dy.z * TexCoord20;
-	const float3 G_dx = C_dx * RcpW;
-	const float3 G_dy = C_dy * RcpW;
-
-	const float H_dx = dot(C_dx, RcpW);
-	const float H_dy = dot(C_dy, RcpW);
-
-	Result.UVW_dx = (G_dx * H - G * H_dx) * (RcpH * RcpH) * ( 2.0f * ViewInvSize.x);
-	Result.UVW_dy = (G_dy * H - G * H_dy) * (RcpH * RcpH) * (-2.0f * ViewInvSize.y);
-
-	return Result;
-}
-
 float3 ClosestPointBarycentrics( float3 p, float3 v0, float3 v1, float3 v2 )
 {
 	// Muller-Trumbore ray triangle intersect
@@ -487,14 +436,9 @@ struct FTexCoord
 
 FTexCoord InterpolateTexCoord(float2 TexCoord0, float2 TexCoord1, float2 TexCoord2, FBarycentrics Barycentrics)
 {
-	float2 TexCoord10 = TexCoord1 - TexCoord0;
-	float2 TexCoord20 = TexCoord2 - TexCoord0;
-
-	FTexCoord Result;
-	Result.Value		= TexCoord0 + Barycentrics.UVW.y * TexCoord10 + Barycentrics.UVW.z * TexCoord20;
-	Result.DDX			= Barycentrics.UVW_dx.y * TexCoord10 + Barycentrics.UVW_dx.z * TexCoord20;
-	Result.DDY			= Barycentrics.UVW_dy.y * TexCoord10 + Barycentrics.UVW_dy.z * TexCoord20;
-	return Result;
+	FTexCoord Out;
+	ComputeDerivatives(Barycentrics, TexCoord0, TexCoord1, TexCoord2, Out.Value, Out.DDX, Out.DDY);
+	return Out;
 }
 
 float3 UnpackTangentX(float3 TangentZ, uint TangentAngleBits, uint NumTangentBits)

@@ -12423,6 +12423,19 @@ FString FHLSLMaterialTranslator::SubstrateGetCastParameterCode(int32 Index, EMat
 	return GetParameterCode(CastParameter);
 }
 
+FString FHLSLMaterialTranslator::SubstrateGetCastParameterCodeWithDeriv(int32 Index, EMaterialValueType DestType)
+{
+	int32 CastParameter = ForceCast(Index, DestType);
+	if (IsAnalyticDerivEnabled())
+	{
+		return GetParameterCodeDeriv(CastParameter, CompiledPDV_Analytic);
+	}
+	else
+	{
+		return GetParameterCode(CastParameter);
+	}
+}
+
 int32 FHLSLMaterialTranslator::SubstrateSlabBSDF(
 	int32 DiffuseAlbedo, int32 F0, int32 F90,
 	int32 Roughness, int32 Anisotropy,
@@ -12471,7 +12484,7 @@ int32 FHLSLMaterialTranslator::SubstrateSlabBSDF(
 			*SubstrateGetCastParameterCode(FuzzColor,				MCT_Float3),
 			*SubstrateGetCastParameterCode(FuzzRoughness,			MCT_Float1),
 			*SubstrateGetCastParameterCode(GlintValue,				MCT_Float),
-			*SubstrateGetCastParameterCode(GlintUV,				MCT_Float2),
+			*SubstrateGetCastParameterCodeWithDeriv(GlintUV,		MCT_Float2),
 			*SubstrateGetCastParameterCode(SpecularProfileId,		MCT_Float),
 			*SubstrateGetCastParameterCode(Thickness,				MCT_Float),
 			bIsThinSurface ? TEXT("true") : TEXT("false"),
@@ -12508,7 +12521,7 @@ int32 FHLSLMaterialTranslator::SubstrateSlabBSDF(
 		*SubstrateGetCastParameterCode(FuzzColor,				MCT_Float3),
 		*SubstrateGetCastParameterCode(FuzzRoughness,			MCT_Float1),
 		*SubstrateGetCastParameterCode(GlintValue,				MCT_Float),
-		*SubstrateGetCastParameterCode(GlintUV, 				MCT_Float2),
+		*SubstrateGetCastParameterCodeWithDeriv(GlintUV, 		MCT_Float2),
 		*SubstrateGetCastParameterCode(SpecularProfileId,		MCT_Float),
 		*SubstrateGetCastParameterCode(Thickness, MCT_Float),
 		bIsThinSurface ? TEXT("true") : TEXT("false"),

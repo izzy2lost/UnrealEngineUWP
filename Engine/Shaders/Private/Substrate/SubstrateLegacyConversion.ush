@@ -120,7 +120,7 @@ FSubstrateData CreateLegacySlab(
 		In.FuzzAmount,										// FuzzAmount
 		In.FuzzColor,										// FuzzColor
 		In.Roughness,										// FuzzRoughness
-		0.0f, 0.0f.xx,										// GlintData
+		0.0f, (GLINT_UV_TYPE)0,								// GlintData
 		0.0f,												// Specular profile
 		In.Thickness,
 		In.bIsThinSurface,

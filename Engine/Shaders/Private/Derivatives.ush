@@ -1,0 +1,144 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+struct FloatDeriv
+{
+	float Value;
+	float Ddx;
+	float Ddy;
+};
+
+struct FloatDeriv2
+{
+	float2 Value;
+	float2 Ddx;
+	float2 Ddy;
+};
+
+struct FloatDeriv3
+{
+	float3 Value;
+	float3 Ddx;
+	float3 Ddy;
+};
+
+struct FloatDeriv4
+{
+	float4 Value;
+	float4 Ddx;
+	float4 Ddy;
+};
+
+FloatDeriv ConstructFloatDeriv(float InValue, float InDdx, float InDdy)
+{
+	FloatDeriv Ret;
+	Ret.Value = InValue;
+	Ret.Ddx = InDdx;
+	Ret.Ddy = InDdy;
+	return Ret;
+}
+
+FloatDeriv2 ConstructFloatDeriv2(float2 InValue, float2 InDdx, float2 InDdy)
+{
+	FloatDeriv2 Ret;
+	Ret.Value = InValue;
+	Ret.Ddx = InDdx;
+	Ret.Ddy = InDdy;
+	return Ret;
+}
+
+FloatDeriv3 ConstructFloatDeriv3(float3 InValue, float3 InDdx, float3 InDdy)
+{
+	FloatDeriv3 Ret;
+	Ret.Value = InValue;
+	Ret.Ddx = InDdx;
+	Ret.Ddy = InDdy;
+	return Ret;
+}
+
+FloatDeriv4 ConstructFloatDeriv4(float4 InValue, float4 InDdx, float4 InDdy)
+{
+	FloatDeriv4 Ret;
+	Ret.Value = InValue;
+	Ret.Ddx = InDdx;
+	Ret.Ddy = InDdy;
+	return Ret;
+}
+
+struct FBarycentrics
+{
+	float3 UVW;
+	float3 UVW_dx;
+	float3 UVW_dy;
+};
+
+#define COMPUTE_DERIVATE_T0(Type) void ComputeDerivatives(FBarycentrics InB, Type In0, Type In1, Type In2, inout Type Out_DDX, inout Type Out_DDY)\
+{\
+	Type In10 		= In1 - In0;\
+	Type In20 		= In2 - In0;\
+	Type Out_Value	= In0 + InB.UVW.y * In10 + InB.UVW.z * In20;\
+	Out_DDX			= InB.UVW_dx.y * In10 + InB.UVW_dx.z * In20;\
+	Out_DDY			= InB.UVW_dy.y * In10 + InB.UVW_dy.z * In20;\
+}
+#define COMPUTE_DERIVATE_T1(Type) void ComputeDerivatives(FBarycentrics InB, Type In0, Type In1, Type In2, inout Type Out_Value, inout Type Out_DDX, inout Type Out_DDY)\
+{\
+	Type In10 	= In1 - In0;\
+	Type In20 	= In2 - In0;\
+	Out_Value	= In0 + InB.UVW.y * In10 + InB.UVW.z * In20;\
+	Out_DDX		= InB.UVW_dx.y * In10 + InB.UVW_dx.z * In20;\
+	Out_DDY		= InB.UVW_dy.y * In10 + InB.UVW_dy.z * In20;\
+}
+COMPUTE_DERIVATE_T0(float)
+COMPUTE_DERIVATE_T0(float2)
+COMPUTE_DERIVATE_T0(float3)
+COMPUTE_DERIVATE_T0(float4)
+
+COMPUTE_DERIVATE_T1(float)
+COMPUTE_DERIVATE_T1(float2)
+COMPUTE_DERIVATE_T1(float3)
+COMPUTE_DERIVATE_T1(float4)
+
+/** Calculates perspective correct barycentric coordinates and partial derivatives using screen derivatives. */
+FBarycentrics CalculateTriangleBarycentrics(float2 PixelClip, float4 PointClip0, float4 PointClip1, float4 PointClip2, float2 ViewInvSize)
+{
+	FBarycentrics Result;
+
+	const float3 RcpW = rcp(float3(PointClip0.w, PointClip1.w, PointClip2.w));
+	const float3 Pos0 = PointClip0.xyz * RcpW.x;
+	const float3 Pos1 = PointClip1.xyz * RcpW.y;
+	const float3 Pos2 = PointClip2.xyz * RcpW.z;
+
+	const float3 Pos120X = float3(Pos1.x, Pos2.x, Pos0.x);
+	const float3 Pos120Y = float3(Pos1.y, Pos2.y, Pos0.y);
+	const float3 Pos201X = float3(Pos2.x, Pos0.x, Pos1.x);
+	const float3 Pos201Y = float3(Pos2.y, Pos0.y, Pos1.y);
+
+	const float3 C_dx = Pos201Y - Pos120Y;
+	const float3 C_dy = Pos120X - Pos201X;
+
+	const float3 C = C_dx * (PixelClip.x - Pos120X) + C_dy * (PixelClip.y - Pos120Y);	// Evaluate the 3 edge functions
+	const float3 G = C * RcpW;
+
+	const float H = dot(C, RcpW);
+	const float RcpH = rcp(H);
+
+	// UVW = C * RcpW / dot(C, RcpW)
+	Result.UVW = G * RcpH;
+
+	// Texture coordinate derivatives:
+	// UVW = G / H where G = C * RcpW and H = dot(C, RcpW)
+	// UVW' = (G' * H - G * H') / H^2
+	// float2 TexCoordDX = UVW_dx.y * TexCoord10 + UVW_dx.z * TexCoord20;
+	// float2 TexCoordDY = UVW_dy.y * TexCoord10 + UVW_dy.z * TexCoord20;
+	const float3 G_dx = C_dx * RcpW;
+	const float3 G_dy = C_dy * RcpW;
+
+	const float H_dx = dot(C_dx, RcpW);
+	const float H_dy = dot(C_dy, RcpW);
+
+	Result.UVW_dx = (G_dx * H - G * H_dx) * (RcpH * RcpH) * ( 2.0f * ViewInvSize.x);
+	Result.UVW_dy = (G_dy * H - G * H_dy) * (RcpH * RcpH) * (-2.0f * ViewInvSize.y);
+
+	return Result;
+}

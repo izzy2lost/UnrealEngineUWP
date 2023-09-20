@@ -23,6 +23,7 @@
 
 // Ensure specular profile and glints are supported
 #define SUBSTRATE_COMPLEXSPECIALPATH 1
+#define USE_ANALYTIC_DERIVATIVES 1
 
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Private/RayTracing/RayTracingCommon.ush"
@@ -202,9 +203,11 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 #else
 	FVertexFactoryInterpolantsVSToPS Interpolants;
 	float3 GeoNormal = 0;
-	CalcInterpolants((FRayCone)0, Attributes, Interpolants, GeoNormal);
-
+	FRaytracingDerivatives RaytracingDerivatives = (FRaytracingDerivatives)0;
+	CalcInterpolants(SvPosition, (FRayCone)0, Attributes, Interpolants, RaytracingDerivatives, GeoNormal);
+	
 	FMaterialPixelParameters MaterialParameters = GetMaterialPixelParameters(Interpolants, SvPosition);
+	ApplyRaytracingDerivatives(MaterialParameters, RaytracingDerivatives);
 #endif
 
 	FPixelMaterialInputs PixelMaterialInputs;
@@ -822,10 +825,8 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 					{
 						Payload.GlintValue = SLAB_GLINT_VALUE(BSDF);
 						Payload.GlintUV = SLAB_GLINT_UV(BSDF);
-						
-						const float PlaceholderEpsilon = 0.001f;
-						Payload.GlintUVdx = float2(PlaceholderEpsilon, 0); // SUBSTRATE_TODO: SLAB_GLINT_UVDDX(BSDF)
-						Payload.GlintUVdy = float2(0, PlaceholderEpsilon); // SUBSTRATE_TODO: SLAB_GLINT_UVDDY(BSDF)
+						Payload.GlintUVdx = SLAB_GLINT_UVDDX(BSDF);
+						Payload.GlintUVdy = SLAB_GLINT_UVDDY(BSDF);
 					}
 					Payload.WeightV             = BSDF.LuminanceWeightV;
 					Payload.TransmittanceN      = BSDF.TransmittanceAboveAlongN;
