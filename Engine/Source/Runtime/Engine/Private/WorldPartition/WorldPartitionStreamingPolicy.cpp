@@ -13,7 +13,7 @@
 #include "WorldPartition/WorldPartitionReplay.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
-#include "WorldPartition/HLOD/HLODSubsystem.h"
+#include "WorldPartition/HLOD/HLODRuntimeSubsystem.h"
 #include "WorldPartition/ContentBundle/ContentBundle.h"
 #include "WorldPartition/WorldPartitionDebugHelper.h"
 #include "Engine/Level.h"
@@ -469,7 +469,7 @@ void UWorldPartitionStreamingPolicy::UpdateStreamingState()
 
 	auto ShouldSkipDisabledHLODCell = [](const UWorldPartitionRuntimeCell* Cell)
 	{
-		return Cell->GetIsHLOD() && !UHLODSubsystem::IsHLODEnabled();
+		return Cell->GetIsHLOD() && !UWorldPartitionHLODRuntimeSubsystem::IsHLODEnabled();
 	};
 
 	// Activation superseeds Loading
@@ -912,7 +912,7 @@ bool UWorldPartitionStreamingPolicy::IsStreamingCompleted(const TArray<FWorldPar
 bool UWorldPartitionStreamingPolicy::IsStreamingCompleted(EWorldPartitionRuntimeCellState QueryState, const TArray<FWorldPartitionStreamingQuerySource>& QuerySources, bool bExactState) const
 {
 	const UDataLayerManager* DataLayerManager = WorldPartition->GetDataLayerManager();
-	const bool bIsHLODEnabled = UHLODSubsystem::IsHLODEnabled();
+	const bool bIsHLODEnabled = UWorldPartitionHLODRuntimeSubsystem::IsHLODEnabled();
 
 	bool bResult = true;
 	for (const FWorldPartitionStreamingQuerySource& QuerySource : QuerySources)

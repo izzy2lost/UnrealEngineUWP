@@ -8,7 +8,7 @@
 #include "UObject/ScriptInterface.h"
 #include "WorldPartition/HLOD/DestructibleHLODComponent.h"
 #include "WorldPartition/HLOD/HLODActor.h"
-#include "WorldPartition/HLOD/HLODSubsystem.h"
+#include "WorldPartition/HLOD/HLODRuntimeSubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(HLODDestruction)
 
@@ -33,7 +33,7 @@ namespace
 
 		if (RuntimeCell)
 		{
-			for (AWorldPartitionHLOD* HLODActor : InActor->GetWorld()->GetSubsystem<UHLODSubsystem>()->GetHLODActorsForCell(RuntimeCell))
+			for (AWorldPartitionHLOD* HLODActor : InActor->GetWorld()->GetSubsystem<UWorldPartitionHLODRuntimeSubsystem>()->GetHLODActorsForCell(RuntimeCell))
 			{
 				for (UActorComponent* ActorComponent : HLODActor->GetComponents())
 				{

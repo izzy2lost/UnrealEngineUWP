@@ -2,7 +2,7 @@
 
 #include "WorldPartition/HLOD/HLODActor.h"
 #include "Engine/World.h"
-#include "WorldPartition/HLOD/HLODSubsystem.h"
+#include "WorldPartition/HLOD/HLODRuntimeSubsystem.h"
 #include "Components/PrimitiveComponent.h"
 #include "Misc/PackageName.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
@@ -94,12 +94,12 @@ void AWorldPartitionHLOD::SetVisibility(bool bInVisible)
 void AWorldPartitionHLOD::BeginPlay()
 {
 	Super::BeginPlay();
-	GetWorld()->GetSubsystem<UHLODSubsystem>()->RegisterHLODActor(this);
+	GetWorld()->GetSubsystem<UWorldPartitionHLODRuntimeSubsystem>()->RegisterHLODActor(this);
 }
 
 void AWorldPartitionHLOD::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	GetWorld()->GetSubsystem<UHLODSubsystem>()->UnregisterHLODActor(this);
+	GetWorld()->GetSubsystem<UWorldPartitionHLODRuntimeSubsystem>()->UnregisterHLODActor(this);
 	Super::EndPlay(EndPlayReason);
 }
 

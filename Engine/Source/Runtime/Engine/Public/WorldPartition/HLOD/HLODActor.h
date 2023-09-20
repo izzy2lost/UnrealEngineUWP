@@ -12,7 +12,6 @@
 #include "HLODActor.generated.h"
 
 class UHLODLayer;
-class UHLODSubsystem;
 class UWorldPartitionHLODSourceActors;
 
 ENGINE_API DECLARE_LOG_CATEGORY_EXTERN(LogHLODHash, Log, All);

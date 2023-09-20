@@ -4,7 +4,7 @@
 #include "Engine/LevelStreaming.h"
 #include "WorldPartition/WorldPartition.h"
 #include "UObject/PropertyPortFlags.h"
-#include "WorldPartition/HLOD/HLODSubsystem.h"
+#include "WorldPartition/HLOD/HLODRuntimeSubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartitionLevelStreamingDynamic)
 
@@ -673,7 +673,7 @@ bool UWorldPartitionLevelStreamingDynamic::CanChangeVisibility(bool bMakeVisible
 				{
 					if (const UWorldPartition* WorldPartition = OuterWorld->GetWorldPartition())
 					{
-						if (UHLODSubsystem* HLODSubsystem = GetWorld()->GetSubsystem<UHLODSubsystem>())
+						if (UWorldPartitionHLODRuntimeSubsystem* HLODSubsystem = GetWorld()->GetSubsystem<UWorldPartitionHLODRuntimeSubsystem>())
 						{
 							if (bMakeVisible)
 							{

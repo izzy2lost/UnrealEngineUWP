@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "WorldPartition/HLOD/HLODSubsystem.h"
+#include "WorldPartition/HLOD/HLODRuntimeSubsystem.h"
 #include "Engine/Level.h"
 #include "WorldPartition/HLOD/HLODActor.h"
 #include "Engine/LevelStreaming.h"
@@ -29,11 +29,11 @@
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
 #include "WorldPartition/HLOD/HLODStats.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(HLODSubsystem)
+#include UE_INLINE_GENERATED_CPP_BY_NAME(HLODRuntimeSubsystem)
 
-#define LOCTEXT_NAMESPACE "HLODSubsystem"
+#define LOCTEXT_NAMESPACE "HLODRuntimeSubsystem"
 
-DEFINE_LOG_CATEGORY_STATIC(LogHLODSubsystem, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogHLODRuntimeSubsystem, Log, All);
 
 static TAutoConsoleVariable<int32> CVarHLODWarmupEnabled(
 	TEXT("wp.Runtime.HLOD.WarmupEnabled"),
@@ -80,23 +80,23 @@ static TAutoConsoleVariable<int32> CVarCullDistanceDifferenceNeeded(
 	300,
 	TEXT("The difference needed for the CullDistance changed to be processed"));
 
-static void HLODSubsystemCVarSinkFunction()
+static void HLODRuntimeSubsystemCVarSinkFunction()
 {
 	for (UWorld* World : TObjectRange<UWorld>(RF_ClassDefaultObject | RF_ArchetypeObject, true, EInternalObjectFlags::Garbage))
 	{
 		if (World->WorldType == EWorldType::Game || World->WorldType == EWorldType::PIE)
 		{
-			if (UHLODSubsystem* HLODSubsystem = World->GetSubsystem<UHLODSubsystem>())
+			if (UWorldPartitionHLODRuntimeSubsystem* HLODRuntimeSubsystem = World->GetSubsystem<UWorldPartitionHLODRuntimeSubsystem>())
 			{
-				HLODSubsystem->OnCVarsChanged();
+				HLODRuntimeSubsystem->OnCVarsChanged();
 			}
 		}
 	}
 }
 
-static FAutoConsoleVariableSink CVarHLODSink(FConsoleCommandDelegate::CreateStatic(&HLODSubsystemCVarSinkFunction));
+static FAutoConsoleVariableSink CVarHLODSink(FConsoleCommandDelegate::CreateStatic(&HLODRuntimeSubsystemCVarSinkFunction));
 
-namespace FHLODSubsystem
+namespace FHLODRuntimeSubsystem
 {
     static const UWorldPartitionRuntimeCell* GetActorRuntimeCell(AActor* InActor)
     {
@@ -134,18 +134,18 @@ public:
 	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) override {}
 	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override
 	{
-		GetWorld()->GetSubsystem<UHLODSubsystem>()->OnBeginRenderViews(InViewFamily);
+		GetWorld()->GetSubsystem<UWorldPartitionHLODRuntimeSubsystem>()->OnBeginRenderViews(InViewFamily);
 	}
 };
 
 
-UHLODSubsystem::UHLODSubsystem()
+UWorldPartitionHLODRuntimeSubsystem::UWorldPartitionHLODRuntimeSubsystem()
 	: UWorldSubsystem()
 	, bCachedShouldPerformWarmup(true)
 {
 }
 
-UHLODSubsystem::~UHLODSubsystem()
+UWorldPartitionHLODRuntimeSubsystem::~UWorldPartitionHLODRuntimeSubsystem()
 {
 	if (TickHandle.IsValid())
 	{
@@ -154,7 +154,7 @@ UHLODSubsystem::~UHLODSubsystem()
 	}
 }
 
-void UHLODSubsystem::SetHLODAlwaysLoadedCullDistance(int32 InCullDistance)
+void UWorldPartitionHLODRuntimeSubsystem::SetHLODAlwaysLoadedCullDistance(int32 InCullDistance)
 {
 	const float MaxDrawDistance = FMath::Max(InCullDistance, 0);
 	const bool bNeverDistanceCull = InCullDistance <= 0;
@@ -180,7 +180,7 @@ void UHLODSubsystem::SetHLODAlwaysLoadedCullDistance(int32 InCullDistance)
 
 		if (!TickHandle.IsValid())
 		{
-			TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &UHLODSubsystem::Tick), 0.0f);
+			TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &UWorldPartitionHLODRuntimeSubsystem::Tick), 0.0f);
 		}
 	}
 	else
@@ -202,7 +202,7 @@ void UHLODSubsystem::SetHLODAlwaysLoadedCullDistance(int32 InCullDistance)
 	
 }
 
-void UHLODSubsystem::OnWorldBeginPlay(UWorld& InWorld)
+void UWorldPartitionHLODRuntimeSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	Super::OnWorldBeginPlay(InWorld);
 
@@ -221,7 +221,7 @@ void UHLODSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 
 }
 
-bool UHLODSubsystem::Tick(float DeltaTime)
+bool UWorldPartitionHLODRuntimeSubsystem::Tick(float DeltaTime)
 {
 	//If the CVarCullDistanceAllowWorkSlicer is false we will never add this function to FTSTicker
 	if (OperationQueue.Num() > 0)
@@ -251,27 +251,27 @@ bool UHLODSubsystem::Tick(float DeltaTime)
 	return true;
 }
 
-bool UHLODSubsystem::WorldPartitionHLODEnabled = true;
+bool UWorldPartitionHLODRuntimeSubsystem::WorldPartitionHLODEnabled = true;
 
-FAutoConsoleCommand UHLODSubsystem::EnableHLODCommand(
+FAutoConsoleCommand UWorldPartitionHLODRuntimeSubsystem::EnableHLODCommand(
 	TEXT("wp.Runtime.HLOD"),
 	TEXT("Turn on/off loading & rendering of world partition HLODs."),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
-		UHLODSubsystem::WorldPartitionHLODEnabled = (Args.Num() != 1) || (Args[0] != TEXT("0"));
+		UWorldPartitionHLODRuntimeSubsystem::WorldPartitionHLODEnabled = (Args.Num() != 1) || (Args[0] != TEXT("0"));
 		for (const FWorldContext& Context : GEngine->GetWorldContexts())
 		{
 			UWorld* World = Context.World();
 			if (World && World->IsGameWorld())
 			{
-				if (UHLODSubsystem* HLODSubSystem = World->GetSubsystem<UHLODSubsystem>()) 
+				if (UWorldPartitionHLODRuntimeSubsystem* HLODSubSystem = World->GetSubsystem<UWorldPartitionHLODRuntimeSubsystem>()) 
 				{
 					for (const auto& KeyValuePair : HLODSubSystem->WorldPartitionsHLODRuntimeData)
 					{
 						for (const auto& CellHLODMapping : KeyValuePair.Value.CellsData)
 						{
 							const FCellData& CellData = CellHLODMapping.Value;
-							bool bIsHLODVisible = UHLODSubsystem::WorldPartitionHLODEnabled && !CellData.bIsCellVisible;
+							bool bIsHLODVisible = UWorldPartitionHLODRuntimeSubsystem::WorldPartitionHLODEnabled && !CellData.bIsCellVisible;
 							for (AWorldPartitionHLOD* HLODActor : CellData.LoadedHLODs)
 							{
 								HLODActor->SetVisibility(bIsHLODVisible);
@@ -284,19 +284,19 @@ FAutoConsoleCommand UHLODSubsystem::EnableHLODCommand(
 	})
 );
 
-bool UHLODSubsystem::IsHLODEnabled()
+bool UWorldPartitionHLODRuntimeSubsystem::IsHLODEnabled()
 {
-	return UHLODSubsystem::WorldPartitionHLODEnabled;
+	return UWorldPartitionHLODRuntimeSubsystem::WorldPartitionHLODEnabled;
 }
 
-bool UHLODSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
+bool UWorldPartitionHLODRuntimeSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
 	return WorldType == EWorldType::Game || WorldType == EWorldType::PIE;
 }
 
-void UHLODSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+void UWorldPartitionHLODRuntimeSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-	// Ensure the WorldPartitionSubsystem gets created before the HLODSubsystem
+	// Ensure the WorldPartitionSubsystem gets created before the HLODRuntimeSubsystem
 	Collection.InitializeDependency<UWorldPartitionSubsystem>();
 
 	Super::Initialize(Collection);
@@ -304,15 +304,15 @@ void UHLODSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	UWorld* World = GetWorld();
 	check(World->IsGameWorld());
 
-	GetWorld()->OnWorldPartitionInitialized().AddUObject(this, &UHLODSubsystem::OnWorldPartitionInitialized);
-	GetWorld()->OnWorldPartitionUninitialized().AddUObject(this, &UHLODSubsystem::OnWorldPartitionUninitialized);
+	GetWorld()->OnWorldPartitionInitialized().AddUObject(this, &UWorldPartitionHLODRuntimeSubsystem::OnWorldPartitionInitialized);
+	GetWorld()->OnWorldPartitionUninitialized().AddUObject(this, &UWorldPartitionHLODRuntimeSubsystem::OnWorldPartitionUninitialized);
 
 	bCachedShouldPerformWarmup = ShouldPerformWarmup();
 
 	SceneViewExtension = FSceneViewExtensions::NewExtension<FHLODResourcesResidencySceneViewExtension>(World);
 }
 
-void UHLODSubsystem::Deinitialize()
+void UWorldPartitionHLODRuntimeSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
 
@@ -320,7 +320,7 @@ void UHLODSubsystem::Deinitialize()
 	GetWorld()->OnWorldPartitionUninitialized().RemoveAll(this);
 }
 
-void UHLODSubsystem::OnWorldPartitionInitialized(UWorldPartition* InWorldPartition)
+void UWorldPartitionHLODRuntimeSubsystem::OnWorldPartitionInitialized(UWorldPartition* InWorldPartition)
 {
 	if (InWorldPartition && InWorldPartition->IsStreamingEnabled())
 	{
@@ -333,7 +333,7 @@ void UHLODSubsystem::OnWorldPartitionInitialized(UWorldPartition* InWorldPartiti
 		{
 			InWorldPartition->RuntimeHash->ForEachStreamingCells([&WorldPartitionHLODRuntimeData](const UWorldPartitionRuntimeCell* Cell)
 			{
-				UE_LOG(LogHLODSubsystem, Verbose, TEXT("Registering cell %s - %s"), *Cell->GetGuid().ToString(), *Cell->GetDebugName());
+				UE_LOG(LogHLODRuntimeSubsystem, Verbose, TEXT("Registering cell %s - %s"), *Cell->GetGuid().ToString(), *Cell->GetDebugName());
 
 				WorldPartitionHLODRuntimeData.CellsData.Emplace(Cell->GetGuid());
 				return true;
@@ -342,7 +342,7 @@ void UHLODSubsystem::OnWorldPartitionInitialized(UWorldPartition* InWorldPartiti
 	}
 }
 
-void UHLODSubsystem::OnWorldPartitionUninitialized(UWorldPartition* InWorldPartition)
+void UWorldPartitionHLODRuntimeSubsystem::OnWorldPartitionUninitialized(UWorldPartition* InWorldPartition)
 {
 	if (InWorldPartition && InWorldPartition->IsStreamingEnabled())
 	{
@@ -352,7 +352,7 @@ void UHLODSubsystem::OnWorldPartitionUninitialized(UWorldPartition* InWorldParti
 		FWorldPartitionHLODRuntimeData& WorldPartitionHLODRuntimeData = WorldPartitionsHLODRuntimeData.FindChecked(InWorldPartition);
 		InWorldPartition->RuntimeHash->ForEachStreamingCells([&WorldPartitionHLODRuntimeData](const UWorldPartitionRuntimeCell* Cell)
 		{
-			UE_LOG(LogHLODSubsystem, Verbose, TEXT("Unregistering cell %s - %s"), *Cell->GetGuid().ToString(), *Cell->GetDebugName());
+			UE_LOG(LogHLODRuntimeSubsystem, Verbose, TEXT("Unregistering cell %s - %s"), *Cell->GetGuid().ToString(), *Cell->GetDebugName());
 			return true;
 		});
 #endif
@@ -361,7 +361,7 @@ void UHLODSubsystem::OnWorldPartitionUninitialized(UWorldPartition* InWorldParti
 	}
 }
 
-void UHLODSubsystem::OnExternalStreamingObjectInjected(URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject)
+void UWorldPartitionHLODRuntimeSubsystem::OnExternalStreamingObjectInjected(URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject)
 {
 	UWorldPartition* OwnerPartition = ExternalStreamingObject->GetOuterWorld()->GetWorldPartition();
 	FWorldPartitionHLODRuntimeData* WorldPartitionHLODRuntimeData = WorldPartitionsHLODRuntimeData.Find(OwnerPartition);
@@ -369,14 +369,14 @@ void UHLODSubsystem::OnExternalStreamingObjectInjected(URuntimeHashExternalStrea
 	{
 		ExternalStreamingObject->ForEachStreamingCells([WorldPartitionHLODRuntimeData](const UWorldPartitionRuntimeCell& Cell)
 		{
-			UE_LOG(LogHLODSubsystem, Verbose, TEXT("Registering external cell %s - %s"), *Cell.GetGuid().ToString(), *Cell.GetDebugName());
+			UE_LOG(LogHLODRuntimeSubsystem, Verbose, TEXT("Registering external cell %s - %s"), *Cell.GetGuid().ToString(), *Cell.GetDebugName());
 			WorldPartitionHLODRuntimeData->CellsData.Emplace(Cell.GetGuid());
 			return true;
 		});
 	}
 }
 
-void UHLODSubsystem::OnExternalStreamingObjectRemoved(URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject)
+void UWorldPartitionHLODRuntimeSubsystem::OnExternalStreamingObjectRemoved(URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject)
 {
 	UWorldPartition* OwnerPartition = ExternalStreamingObject->GetOuterWorld()->GetWorldPartition();
 	FWorldPartitionHLODRuntimeData* WorldPartitionHLODRuntimeData = WorldPartitionsHLODRuntimeData.Find(OwnerPartition);
@@ -384,19 +384,19 @@ void UHLODSubsystem::OnExternalStreamingObjectRemoved(URuntimeHashExternalStream
 	{
 		ExternalStreamingObject->ForEachStreamingCells([WorldPartitionHLODRuntimeData](const UWorldPartitionRuntimeCell& Cell)
 		{
-			UE_LOG(LogHLODSubsystem, Verbose, TEXT("Unregistering external cell %s - %s"), *Cell.GetGuid().ToString(), *Cell.GetDebugName());
+			UE_LOG(LogHLODRuntimeSubsystem, Verbose, TEXT("Unregistering external cell %s - %s"), *Cell.GetGuid().ToString(), *Cell.GetDebugName());
 			WorldPartitionHLODRuntimeData->CellsData.Remove(Cell.GetGuid());
 			return true;
 		});
 	}
 }
 
-const UHLODSubsystem::FCellData* UHLODSubsystem::GetCellData(const UWorldPartitionRuntimeCell* InCell) const
+const UWorldPartitionHLODRuntimeSubsystem::FCellData* UWorldPartitionHLODRuntimeSubsystem::GetCellData(const UWorldPartitionRuntimeCell* InCell) const
 {
-	return const_cast<UHLODSubsystem*>(this)->GetCellData(InCell);
+	return const_cast<UWorldPartitionHLODRuntimeSubsystem*>(this)->GetCellData(InCell);
 }
 
-UHLODSubsystem::FCellData* UHLODSubsystem::GetCellData(const UWorldPartitionRuntimeCell* InCell)
+UWorldPartitionHLODRuntimeSubsystem::FCellData* UWorldPartitionHLODRuntimeSubsystem::GetCellData(const UWorldPartitionRuntimeCell* InCell)
 {
 	const UWorldPartition* WorldPartition = InCell->GetOuterWorld()->GetWorldPartition();
 	if (WorldPartition)
@@ -412,9 +412,9 @@ UHLODSubsystem::FCellData* UHLODSubsystem::GetCellData(const UWorldPartitionRunt
 	return nullptr;
 }
 
-UHLODSubsystem::FCellData* UHLODSubsystem::GetCellData(AWorldPartitionHLOD* InWorldPartitionHLOD)
+UWorldPartitionHLODRuntimeSubsystem::FCellData* UWorldPartitionHLODRuntimeSubsystem::GetCellData(AWorldPartitionHLOD* InWorldPartitionHLOD)
 {
-	const UWorldPartition* WorldPartition = FHLODSubsystem::GetWorldPartition(InWorldPartitionHLOD);
+	const UWorldPartition* WorldPartition = FHLODRuntimeSubsystem::GetWorldPartition(InWorldPartitionHLOD);
 	if (WorldPartition)
 	{
 		FWorldPartitionHLODRuntimeData* WorldPartitionHLODRuntimeData = WorldPartitionsHLODRuntimeData.Find(WorldPartition);
@@ -429,7 +429,7 @@ UHLODSubsystem::FCellData* UHLODSubsystem::GetCellData(AWorldPartitionHLOD* InWo
 	return nullptr;		
 }
 
-const TArray<AWorldPartitionHLOD*>& UHLODSubsystem::GetHLODActorsForCell(const UWorldPartitionRuntimeCell* InCell) const
+const TArray<AWorldPartitionHLOD*>& UWorldPartitionHLODRuntimeSubsystem::GetHLODActorsForCell(const UWorldPartitionRuntimeCell* InCell) const
 {
 	if (const FCellData* CellData = GetCellData(InCell))
 	{
@@ -441,20 +441,20 @@ const TArray<AWorldPartitionHLOD*>& UHLODSubsystem::GetHLODActorsForCell(const U
 	return DummyArray;
 }
 
-void UHLODSubsystem::RegisterHLODActor(AWorldPartitionHLOD* InWorldPartitionHLOD)
+void UWorldPartitionHLODRuntimeSubsystem::RegisterHLODActor(AWorldPartitionHLOD* InWorldPartitionHLOD)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UHLODSubsystem::RegisterHLODActor);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartitionHLODRuntimeSubsystem::RegisterHLODActor);
 	
 	if (FCellData* CellData = GetCellData(InWorldPartitionHLOD))
 	{
-		UE_LOG(LogHLODSubsystem, Verbose, TEXT("Registering HLOD %s for cell %s"), *InWorldPartitionHLOD->GetActorNameOrLabel(), *InWorldPartitionHLOD->GetSourceCellGuid().ToString());
+		UE_LOG(LogHLODRuntimeSubsystem, Verbose, TEXT("Registering HLOD %s for cell %s"), *InWorldPartitionHLOD->GetActorNameOrLabel(), *InWorldPartitionHLOD->GetSourceCellGuid().ToString());
 
 		CellData->LoadedHLODs.Add(InWorldPartitionHLOD);
-		InWorldPartitionHLOD->SetVisibility(UHLODSubsystem::WorldPartitionHLODEnabled && !CellData->bIsCellVisible);
+		InWorldPartitionHLOD->SetVisibility(UWorldPartitionHLODRuntimeSubsystem::WorldPartitionHLODEnabled && !CellData->bIsCellVisible);
 	}
 	else
 	{
-		UE_LOG(LogHLODSubsystem, Verbose, TEXT("Found HLOD %s referencing nonexistent cell '%s'"), *InWorldPartitionHLOD->GetActorNameOrLabel(), *InWorldPartitionHLOD->GetSourceCellGuid().ToString());
+		UE_LOG(LogHLODRuntimeSubsystem, Verbose, TEXT("Found HLOD %s referencing nonexistent cell '%s'"), *InWorldPartitionHLOD->GetActorNameOrLabel(), *InWorldPartitionHLOD->GetSourceCellGuid().ToString());
 		InWorldPartitionHLOD->SetVisibility(false);
 
 #if WITH_EDITOR
@@ -466,13 +466,13 @@ void UHLODSubsystem::RegisterHLODActor(AWorldPartitionHLOD* InWorldPartitionHLOD
 	HLODActorRegisteredEvent.Broadcast(InWorldPartitionHLOD);
 }
 
-void UHLODSubsystem::UnregisterHLODActor(AWorldPartitionHLOD* InWorldPartitionHLOD)
+void UWorldPartitionHLODRuntimeSubsystem::UnregisterHLODActor(AWorldPartitionHLOD* InWorldPartitionHLOD)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UHLODSubsystem::UnregisterHLODActor);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartitionHLODRuntimeSubsystem::UnregisterHLODActor);
 
 	if (FCellData* CellData = GetCellData(InWorldPartitionHLOD))
 	{
-		UE_LOG(LogHLODSubsystem, Verbose, TEXT("Unregistering HLOD %s for cell %s"), *InWorldPartitionHLOD->GetActorNameOrLabel(), *InWorldPartitionHLOD->GetSourceCellGuid().ToString());
+		UE_LOG(LogHLODRuntimeSubsystem, Verbose, TEXT("Unregistering HLOD %s for cell %s"), *InWorldPartitionHLOD->GetActorNameOrLabel(), *InWorldPartitionHLOD->GetSourceCellGuid().ToString());
 
 		verify(CellData->LoadedHLODs.Remove(InWorldPartitionHLOD));
 	}
@@ -486,7 +486,7 @@ void UHLODSubsystem::UnregisterHLODActor(AWorldPartitionHLOD* InWorldPartitionHL
 	HLODActorUnregisteredEvent.Broadcast(InWorldPartitionHLOD);
 }
 
-void UHLODSubsystem::OnCellShown(const UWorldPartitionRuntimeCell* InCell)
+void UWorldPartitionHLODRuntimeSubsystem::OnCellShown(const UWorldPartitionRuntimeCell* InCell)
 {
 	if (FCellData* CellData = GetCellData(InCell))
 	{
@@ -494,18 +494,18 @@ void UHLODSubsystem::OnCellShown(const UWorldPartitionRuntimeCell* InCell)
 
 		if (!CellData->LoadedHLODs.IsEmpty())
 		{
-			UE_LOG(LogHLODSubsystem, Verbose, TEXT("Cell shown - %s - hiding %d HLOD actors"), *InCell->GetGuid().ToString(), CellData->LoadedHLODs.Num());
+			UE_LOG(LogHLODRuntimeSubsystem, Verbose, TEXT("Cell shown - %s - hiding %d HLOD actors"), *InCell->GetGuid().ToString(), CellData->LoadedHLODs.Num());
 
 			for (AWorldPartitionHLOD* HLODActor : CellData->LoadedHLODs)
 			{
-				UE_LOG(LogHLODSubsystem, Verbose, TEXT("\t\t* %s"), *HLODActor->GetActorNameOrLabel());
+				UE_LOG(LogHLODRuntimeSubsystem, Verbose, TEXT("\t\t* %s"), *HLODActor->GetActorNameOrLabel());
 				HLODActor->SetVisibility(false);
 			}
 		}
 	}
 }
 
-void UHLODSubsystem::OnCellHidden(const UWorldPartitionRuntimeCell* InCell)
+void UWorldPartitionHLODRuntimeSubsystem::OnCellHidden(const UWorldPartitionRuntimeCell* InCell)
 {
 	if (FCellData* CellData = GetCellData(InCell))
 	{
@@ -513,12 +513,12 @@ void UHLODSubsystem::OnCellHidden(const UWorldPartitionRuntimeCell* InCell)
 
 		if (!CellData->LoadedHLODs.IsEmpty())
 		{
-			UE_LOG(LogHLODSubsystem, Verbose, TEXT("Cell hidden - %s - showing %d HLOD actors"), *InCell->GetGuid().ToString(), CellData->LoadedHLODs.Num());
+			UE_LOG(LogHLODRuntimeSubsystem, Verbose, TEXT("Cell hidden - %s - showing %d HLOD actors"), *InCell->GetGuid().ToString(), CellData->LoadedHLODs.Num());
 
 			for (AWorldPartitionHLOD* HLODActor : CellData->LoadedHLODs)
 			{
-				UE_LOG(LogHLODSubsystem, Verbose, TEXT("\t\t* %s"), *HLODActor->GetActorNameOrLabel());
-				HLODActor->SetVisibility(UHLODSubsystem::WorldPartitionHLODEnabled);
+				UE_LOG(LogHLODRuntimeSubsystem, Verbose, TEXT("\t\t* %s"), *HLODActor->GetActorNameOrLabel());
+				HLODActor->SetVisibility(UWorldPartitionHLODRuntimeSubsystem::WorldPartitionHLODEnabled);
 				HLODActorsToWarmup.Remove(HLODActor);
 			}
 		}
@@ -553,9 +553,9 @@ static void PrepareNaniteRequests(TSet<Nanite::FResources*>& InOutNaniteRequests
 	}
 }
 
-bool UHLODSubsystem::PrepareToWarmup(const UWorldPartitionRuntimeCell* InCell, AWorldPartitionHLOD* InHLODActor)
+bool UWorldPartitionHLODRuntimeSubsystem::PrepareToWarmup(const UWorldPartitionRuntimeCell* InCell, AWorldPartitionHLOD* InHLODActor)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UHLODSubsystem::PrepareToWarmup)
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartitionHLODRuntimeSubsystem::PrepareToWarmup)
 
 	bool bHLODActorNeedsWarmUp = false;
 
@@ -585,12 +585,12 @@ bool UHLODSubsystem::PrepareToWarmup(const UWorldPartitionRuntimeCell* InCell, A
 	return bHLODActorNeedsWarmUp;
 }
 
-void UHLODSubsystem::OnCVarsChanged()
+void UWorldPartitionHLODRuntimeSubsystem::OnCVarsChanged()
 {
 	bCachedShouldPerformWarmup = ShouldPerformWarmup();
 }
 
-bool UHLODSubsystem::ShouldPerformWarmup() const
+bool UWorldPartitionHLODRuntimeSubsystem::ShouldPerformWarmup() const
 {
 	// Test if warmup is disabled globally.
 	const bool bWarmupEnabled = CVarHLODWarmupEnabled.GetValueOnGameThread() != 0;
@@ -627,7 +627,7 @@ bool UHLODSubsystem::ShouldPerformWarmup() const
 	return true;
 }
 
-bool UHLODSubsystem::ShouldPerformWarmupForCell(const UWorldPartitionRuntimeCell* InCell) const
+bool UWorldPartitionHLODRuntimeSubsystem::ShouldPerformWarmupForCell(const UWorldPartitionRuntimeCell* InCell) const
 {
 	if (!bCachedShouldPerformWarmup)
 	{
@@ -655,9 +655,9 @@ bool UHLODSubsystem::ShouldPerformWarmupForCell(const UWorldPartitionRuntimeCell
 	return true;
 }
 
-bool UHLODSubsystem::CanMakeVisible(const UWorldPartitionRuntimeCell* InCell)
+bool UWorldPartitionHLODRuntimeSubsystem::CanMakeVisible(const UWorldPartitionRuntimeCell* InCell)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UHLODSubsystem::CanMakeVisible)
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartitionHLODRuntimeSubsystem::CanMakeVisible)
 
 	if (!ShouldPerformWarmupForCell(InCell))
 	{
@@ -682,9 +682,9 @@ bool UHLODSubsystem::CanMakeVisible(const UWorldPartitionRuntimeCell* InCell)
 	return bCanMakeVisible;
 }
 
-bool UHLODSubsystem::CanMakeInvisible(const UWorldPartitionRuntimeCell* InCell)
+bool UWorldPartitionHLODRuntimeSubsystem::CanMakeInvisible(const UWorldPartitionRuntimeCell* InCell)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UHLODSubsystem::CanMakeInvisible)
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartitionHLODRuntimeSubsystem::CanMakeInvisible)
 
 	if (!ShouldPerformWarmupForCell(InCell))
 	{
@@ -757,9 +757,9 @@ static void MakeHLODRenderResourcesResident(TMap<UMaterialInterface*, float>& VT
 	}
 }
 
-void UHLODSubsystem::OnBeginRenderViews(const FSceneViewFamily& InViewFamily)
+void UWorldPartitionHLODRuntimeSubsystem::OnBeginRenderViews(const FSceneViewFamily& InViewFamily)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UHLODSubsystem::OnBeginRenderViews)
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartitionHLODRuntimeSubsystem::OnBeginRenderViews)
 
 	TMap<UMaterialInterface*, float> VTRequests;
 	TSet<Nanite::FResources*> NaniteRequests;
@@ -826,7 +826,7 @@ void UHLODSubsystem::OnBeginRenderViews(const FSceneViewFamily& InViewFamily)
 
 #if WITH_EDITOR
 
-bool UHLODSubsystem::WriteHLODStatsCSV(UWorld* InWorld, const FString& InFilename)
+bool UWorldPartitionHLODRuntimeSubsystem::WriteHLODStatsCSV(UWorld* InWorld, const FString& InFilename)
 {
 	UWorldPartition* WorldPartition = InWorld ? InWorld->GetWorldPartition() : nullptr;
 	if (!WorldPartition)
@@ -918,7 +918,7 @@ FAutoConsoleCommand HLODDumpStats(
 		{
 			if (UWorld* World = Context.World())
 			{
-				UHLODSubsystem::WriteHLODStatsCSV(World, HLODStatsOutputFilename);
+				UWorldPartitionHLODRuntimeSubsystem::WriteHLODStatsCSV(World, HLODStatsOutputFilename);
 			}
 		}
 	})

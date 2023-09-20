@@ -238,7 +238,7 @@ UnrealEngine.cpp: Implements the UEngine class and helpers.
 #endif
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-#include "WorldPartition/HLOD/HLODSubsystem.h"
+#include "WorldPartition/HLOD/HLODRuntimeSubsystem.h"
 #endif
 
 #if WITH_DUMPGPU
@@ -12168,7 +12168,7 @@ float DrawMapWarnings(UWorld* World, FViewport* Viewport, FCanvas* Canvas, UCanv
 	}
 
 #if WITH_EDITOR
-	if (UHLODSubsystem* HLODSubsystem = World->GetSubsystem<UHLODSubsystem>())
+	if (UWorldPartitionHLODRuntimeSubsystem* HLODSubsystem = World->GetSubsystem<UWorldPartitionHLODRuntimeSubsystem>())
 	{
 		uint32 NumOutdatedHLODActors = HLODSubsystem->GetNumOutdatedHLODActors();
 		if (NumOutdatedHLODActors)

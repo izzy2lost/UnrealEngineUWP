@@ -12,7 +12,7 @@
 #include "WorldPartition/WorldPartitionLevelStreamingPolicy.h"
 #include "WorldPartition/WorldPartitionReplay.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
-#include "WorldPartition/HLOD/HLODSubsystem.h"
+#include "WorldPartition/HLOD/HLODRuntimeSubsystem.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/WorldPartitionSettings.h"
 #include "GameFramework/WorldSettings.h"
@@ -1711,7 +1711,7 @@ bool UWorldPartition::InjectExternalStreamingObject(URuntimeHashExternalStreamin
 		{
 			StreamingPolicy->InjectExternalStreamingObject(InExternalStreamingObject);
 		}
-		GetWorld()->GetSubsystem<UHLODSubsystem>()->OnExternalStreamingObjectInjected(InExternalStreamingObject);
+		GetWorld()->GetSubsystem<UWorldPartitionHLODRuntimeSubsystem>()->OnExternalStreamingObjectInjected(InExternalStreamingObject);
 		++StreamingStateEpoch;
 
 #if DO_CHECK
@@ -1738,7 +1738,7 @@ bool UWorldPartition::RemoveExternalStreamingObject(URuntimeHashExternalStreamin
 			StreamingPolicy->RemoveExternalStreamingObject(InExternalStreamingObject);
 		}
 		
-		GetWorld()->GetSubsystem<UHLODSubsystem>()->OnExternalStreamingObjectRemoved(InExternalStreamingObject);
+		GetWorld()->GetSubsystem<UWorldPartitionHLODRuntimeSubsystem>()->OnExternalStreamingObjectRemoved(InExternalStreamingObject);
 		++StreamingStateEpoch;
 	}
 
@@ -1795,7 +1795,7 @@ void UWorldPartition::OnCellShown(const UWorldPartitionRuntimeCell* InCell)
 	{
 		if (IsStreamingEnabled())
 		{
-			GetWorld()->GetSubsystem<UHLODSubsystem>()->OnCellShown(InCell);
+			GetWorld()->GetSubsystem<UWorldPartitionHLODRuntimeSubsystem>()->OnCellShown(InCell);
 		}
 		StreamingPolicy->OnCellShown(InCell);
 	}
@@ -1809,7 +1809,7 @@ void UWorldPartition::OnCellHidden(const UWorldPartitionRuntimeCell* InCell)
 	{
 		if (IsStreamingEnabled())
 		{
-			GetWorld()->GetSubsystem<UHLODSubsystem>()->OnCellHidden(InCell);
+			GetWorld()->GetSubsystem<UWorldPartitionHLODRuntimeSubsystem>()->OnCellHidden(InCell);
 		}
 		StreamingPolicy->OnCellHidden(InCell);
 	}
