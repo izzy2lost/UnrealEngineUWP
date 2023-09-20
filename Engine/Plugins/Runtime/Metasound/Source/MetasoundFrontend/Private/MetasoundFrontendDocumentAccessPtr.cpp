@@ -409,6 +409,11 @@ namespace Metasound
 				{
 					return NodeRegistryKey::IsEqual(RegistryKey, NodeRegistryKey::CreateKey(InClass.Metadata));
 				};
+
+				bool operator()(const FMetasoundFrontendGraphClass& InGraphClass) const
+				{
+					return NodeRegistryKey::IsEqual(RegistryKey, NodeRegistryKey::CreateKey(InGraphClass));
+				};
 			private:
 				FNodeRegistryKey RegistryKey;
 			};
