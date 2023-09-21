@@ -122,6 +122,11 @@ void URigVMHost::Serialize(FArchive& Ar)
 			}
 		}
 	}
+
+	if (Ar.IsLoading())
+	{
+		RecreateCachedMemory();
+	}
 }
 
 void URigVMHost::PostLoad()
