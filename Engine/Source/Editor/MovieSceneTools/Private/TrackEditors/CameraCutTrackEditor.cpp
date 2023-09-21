@@ -570,26 +570,9 @@ ECheckBoxState FCameraCutTrackEditor::IsCameraLocked() const
 
 void FCameraCutTrackEditor::OnLockCameraClicked(ECheckBoxState CheckBoxState)
 {
-	if (CheckBoxState == ECheckBoxState::Checked)
-	{
-		for(FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
-		{
-			if (LevelVC && LevelVC->AllowsCinematicControl() && LevelVC->GetViewMode() != VMI_Unknown)
-			{
-				LevelVC->SetActorLock(nullptr);
-				LevelVC->bLockedCameraView = false;
-				LevelVC->UpdateViewForLockedActor();
-				LevelVC->Invalidate();
-			}
-		}
-		GetSequencer()->SetPerspectiveViewportCameraCutEnabled(true);
-	}
-	else
-	{
-		GetSequencer()->UpdateCameraCut(nullptr, EMovieSceneCameraCutParams());
-		GetSequencer()->SetPerspectiveViewportCameraCutEnabled(false);
-	}
 
+	const bool bEnableCameraCuts = (CheckBoxState == ECheckBoxState::Checked);
+	GetSequencer()->SetPerspectiveViewportCameraCutEnabled(bEnableCameraCuts);
 	GetSequencer()->ForceEvaluate();
 }
 

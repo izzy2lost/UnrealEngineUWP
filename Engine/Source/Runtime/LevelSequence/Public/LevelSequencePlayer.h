@@ -7,6 +7,7 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "UObject/ScriptMacros.h"
+#include "Evaluation/CameraCutPlaybackCapability.h"
 #include "Evaluation/MovieScenePlayback.h"
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
 #include "Evaluation/PersistentEvaluationData.h"
@@ -22,7 +23,7 @@ class FLevelSequenceSpawnRegister;
 class FViewportClient;
 class UCameraComponent;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLevelSequencePlayerCameraCutEvent, UCameraComponent*, CameraComponent);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLevelSequencePlayerCameraCutEvent , UCameraComponent*, CameraComponent);
 
 /**
  * Frame snapshot information for a level sequence
@@ -80,6 +81,7 @@ private:
 UCLASS(BlueprintType, MinimalAPI)
 class ULevelSequencePlayer
 	: public UMovieSceneSequencePlayer
+	, public UE::MovieScene::FCameraCutPlaybackCapability
 {
 public:
 	LEVELSEQUENCE_API ULevelSequencePlayer(const FObjectInitializer&);
@@ -127,7 +129,6 @@ public:
 protected:
 
 	// IMovieScenePlayer interface
-	LEVELSEQUENCE_API virtual void UpdateCameraCut(UObject* CameraObject, const EMovieSceneCameraCutParams& CameraCutParams) override;
 	LEVELSEQUENCE_API virtual void ResolveBoundObjects(const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& InSequence, UObject* ResolutionContext, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const override;
 
 	//~ UMovieSceneSequencePlayer interface
@@ -135,6 +136,12 @@ protected:
 	LEVELSEQUENCE_API virtual void OnStartedPlaying() override;
 	LEVELSEQUENCE_API virtual void OnStopped() override;
 	LEVELSEQUENCE_API virtual void UpdateMovieSceneInstance(FMovieSceneEvaluationRange InRange, EMovieScenePlayerStatus::Type PlayerStatus, const FMovieSceneUpdateArgs& Args) override;
+
+	//~ FCameraCutPlaybackCapability interface
+	LEVELSEQUENCE_API virtual bool ShouldUpdateCameraCut() override;
+	LEVELSEQUENCE_API virtual float GetCameraBlendPlayRate() override;
+	LEVELSEQUENCE_API virtual TOptional<EAspectRatioAxisConstraint> GetAspectRatioAxisConstraintOverride() override;
+	LEVELSEQUENCE_API virtual void OnCameraCutUpdated(const UE::MovieScene::FOnCameraCutUpdatedParams& Params) override;
 
 public:
 
@@ -150,9 +157,6 @@ public:
 private:
 
 	LEVELSEQUENCE_API void EnableCinematicMode(bool bEnable);
-
-	// Save the last view target, so that it can all be restored when the camera object is null.
-	void ValidateLastViewTarget(UObject* CameraObject, AActor* ViewTarget);
 
 private:
 
@@ -170,18 +174,6 @@ private:
 
 	/** The camera settings to use when playing the sequence */
 	FLevelSequenceCameraSettings CameraSettings;
-
-	/** The last view target to reset to when updating camera cuts to null */
-	TWeakObjectPtr<AActor> LastViewTarget;
-
-	/** The last player on which to reset the aspect ratio axis constraint in case the level is changing */
-	TWeakObjectPtr<ULocalPlayer> LastLocalPlayer;
-
-	/** The last aspect ratio axis constraint to reset to when the camera cut is null */
-	TOptional<EAspectRatioAxisConstraint> LastAspectRatioAxisConstraint;
-
-	/** The last camera cut object received during a cinematic */
-	UObject* LastCameraObject = nullptr;
 
 protected:
 

@@ -547,6 +547,24 @@ public:
 	}
 
 	/**
+	 * Get the cached value associated with a particular storage index
+	 */
+	const StorageType& GetCachedValue(FPreAnimatedStorageIndex StorageIndex) const
+	{
+		static const StorageType DefaultValue = StorageType();
+
+		if (ensure(PreAnimatedStorage.IsValidIndex(StorageIndex.Value)))
+		{
+			const FCachedData& CachedData = PreAnimatedStorage[StorageIndex.Value];
+			if (CachedData.bInitialized)
+			{
+				return CachedData.Value;
+			}
+		}
+		return DefaultValue;
+	}
+
+	/**
 	 * Look at any entity with the specified component types, and set up new associations with storage indices for those entities
 	 * The provided component values are put together to make up the storage key
 	 * WARNING: Does not cache actual pre-animated values

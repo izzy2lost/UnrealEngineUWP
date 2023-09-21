@@ -30,6 +30,7 @@
 #include "SequencerSelectionPreview.h"
 #include "SequencerCustomizationManager.h"
 #include "ITransportControl.h"
+#include "Evaluation/CameraCutPlaybackCapability.h"
 #include "Evaluation/MovieSceneSequenceTransform.h"
 #include "Evaluation/MovieScenePlayback.h"
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
@@ -108,6 +109,7 @@ class FSequencer final
 	, public FGCObject
 	, public FEditorUndoClient
 	, public FTickableEditorObject
+	, public UE::MovieScene::FCameraCutPlaybackCapability
 {
 	using FViewModel = UE::Sequencer::FViewModel;
 
@@ -813,7 +815,6 @@ public:
 
 	// IMovieScenePlayer interface
 
-	virtual void UpdateCameraCut(UObject* CameraObject, const EMovieSceneCameraCutParams& CameraCutParams) override;
 	virtual void NotifyBindingsChanged() override;
 	virtual void SetViewportSettings(const TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) override;
 	virtual void GetViewportSettings(TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) const override;
@@ -833,6 +834,17 @@ public:
 	 * Otherwise, it finds the furthest boundaries of all sections
 	 */
 	TRange<FFrameNumber> GetTimeBounds() const;
+
+protected:
+
+	// FCameraCutPlaybackCapability interface
+
+	virtual bool ShouldUpdateCameraCut() override { return IsPerspectiveViewportCameraCutEnabled(); }
+	virtual float GetCameraBlendPlayRate() override;
+	virtual void OnCameraCutUpdated(const UE::MovieScene::FOnCameraCutUpdatedParams& Params) override;
+#if WITH_EDITOR
+	virtual bool ShouldPreviewCameraCutBlends() override { return !IsInSilentMode(); }
+#endif
 
 protected:
 
@@ -1042,9 +1054,6 @@ public:
 
 private:
 
-	/** Updates a viewport client from camera cut data */
-	void UpdatePreviewLevelViewportClientFromCameraCut(FLevelEditorViewportClient& InViewportClient, UObject* InCameraObject, const EMovieSceneCameraCutParams& CameraCutParams);
-
 	/** Updates viewport clients' actor locks if they relate to sequencer cameras */
 	void UpdateLevelViewportClientsActorLocks();
 
@@ -1089,9 +1098,6 @@ private:
 
 	/** Create record transport control */
 	TSharedRef<SWidget> OnCreateTransportRecord();
-
-	/** Possess PIE viewports with the specified camera settings (a mirror of level viewport possession, but for game viewport clients) */
-	void PossessPIEViewports(UObject* CameraObject, const EMovieSceneCameraCutParams& CameraCutParams);
 
 	/** Update the locked subsequence range (displayed as playback range for subsequences), and root to local transform */
 	void UpdateSubSequenceData();
@@ -1142,9 +1148,6 @@ private:
 
 	/** Update the time bases for the current movie scene */
 	void UpdateTimeBases();
-
-	/** View modifier for level editor viewports. */
-	void ModifyViewportClientView(FEditorViewportViewModifierParams& Params);
 
 	/** User-supplied settings object for this sequencer */
 	TObjectPtr<USequencerSettings> Settings;
@@ -1454,25 +1457,8 @@ private:
 
 	FCachedViewState CachedViewState;
 	
-	struct FViewModifierInfo
-	{
-		bool bApplyViewModifier = false;
-		float BlendFactor = 1.f;
-		TWeakObjectPtr<AActor> PreviousCamera;
-		TWeakObjectPtr<AActor> NextCamera;
-	};
 	/** Frame time last evaluated at, needed to make sure we evaluate at the right time when interrogating values*/
 	FFrameTime LastEvaluatedLocalTime;
-	/** Information for previewing camera cut blends. This will be applied to the editor viewport during blends. */
-	FViewModifierInfo ViewModifierInfo;
-	/** Information cached before entering silent mode, so we can restore it afterwards. */
-	FViewModifierInfo CachedViewModifierInfo;
-	
-	/** Original editor camera info, for when previewing a sequence with a blend from/to gameplay. */
-	bool bHasPreAnimatedInfo;
-	FVector PreAnimatedViewportLocation;
-	FRotator PreAnimatedViewportRotation;
-	float PreAnimatedViewportFOV;
 
 	TOptional<FMovieSceneSequenceID> ScrubPositionParent;
 	/** Cache of all bound cameras in the sequence hierarchy */

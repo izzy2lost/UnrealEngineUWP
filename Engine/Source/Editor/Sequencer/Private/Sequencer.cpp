@@ -155,6 +155,7 @@
 #include "EntitySystem/MovieSceneEntitySystemRunner.h"
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "EntitySystem/MovieScenePreAnimatedStateSystem.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "Systems/MovieSceneMotionVectorSimulationSystem.h"
 #include "IKeyArea.h"
 #include "Editor/TransBuffer.h"
@@ -284,6 +285,7 @@ namespace UE
 
 void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSharedRef<ISequencerObjectChangeListener>& InObjectChangeListener, const TArray<FOnCreateTrackEditor>& TrackEditorDelegates, const TArray<FOnCreateEditorObjectBinding>& EditorObjectBindingDelegates, const TArray<FOnCreateOutlinerColumn>& OutlinerColumnDelegates)
 {
+	using namespace UE::MovieScene;
 	using namespace UE::Sequencer;
 
 	bIsEditingWithinLevelEditor = InitParams.bEditWithinLevelEditor;
@@ -469,6 +471,13 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 
 	InitialValueCache = UE::MovieScene::FInitialValueCache::GetGlobalInitialValues();
 	RootTemplateInstance.GetEntitySystemLinker()->AddExtension(InitialValueCache.Get());
+
+	// Add the camera cut playback capability.
+	FInstanceHandle RootInstanceHandle = RootTemplateInstance.GetRootInstanceHandle();
+	UMovieSceneEntitySystemLinker* Linker = GetEvaluationTemplate().GetEntitySystemLinker();
+	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
+	TSharedRef<FSharedPlaybackState> SharedPlaybackState = InstanceRegistry->GetInstance(RootInstanceHandle).GetSharedPlaybackState();
+	SharedPlaybackState->AddCapabilityRaw<FCameraCutPlaybackCapability>((FCameraCutPlaybackCapability*)this);
 
 	// Create tools and bind them to this sequencer
 	for( int32 DelegateIndex = 0; DelegateIndex < TrackEditorDelegates.Num(); ++DelegateIndex )
@@ -662,7 +671,6 @@ FSequencer::FSequencer()
 	, bUpdatingExternalSelection( false )
 	, bNeedsEvaluate(false)
 	, bNeedsInvalidateCachedData(false)
-	, bHasPreAnimatedInfo(false)
 {
 	// Exposes the sequencer and curve editor command lists to subscribers from other systems
 	FInputBindingManager::Get().RegisterCommandList(FSequencerCommands::Get().GetContextName(), SequencerCommandBindings);
@@ -1039,6 +1047,8 @@ UMovieSceneSubSection* FSequencer::FindSubSection(FMovieSceneSequenceID Sequence
 
 void FSequencer::ResetToNewRootSequence(UMovieSceneSequence& NewSequence)
 {
+	using namespace UE::MovieScene;
+
 	RemoveNodeGroupsCollectionChangedDelegate();
 
 	const UMovieSceneSequence* PreviousRootSequence = RootSequence.Get();
@@ -1084,6 +1094,13 @@ void FSequencer::ResetToNewRootSequence(UMovieSceneSequence& NewSequence)
 	UpdateSequencerCustomizations(PreviousRootSequence);
 
 	AddNodeGroupsCollectionChangedDelegate();
+
+	// Add the camera cut playback capability.
+	FInstanceHandle RootInstanceHandle = RootTemplateInstance.GetRootInstanceHandle();
+	UMovieSceneEntitySystemLinker* Linker = GetEvaluationTemplate().GetEntitySystemLinker();
+	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
+	TSharedRef<FSharedPlaybackState> SharedPlaybackState = InstanceRegistry->GetInstance(RootInstanceHandle).GetSharedPlaybackState();
+	SharedPlaybackState->AddCapabilityRaw<FCameraCutPlaybackCapability>((FCameraCutPlaybackCapability*)this);
 
 	OnActivateSequenceEvent.Broadcast(ActiveTemplateIDs.Top());
 }
@@ -3408,93 +3425,6 @@ void FSequencer::SetPerspectiveViewportCameraCutEnabled(bool bEnabled)
 	}
 
 	bPerspectiveViewportCameraCutEnabled = bEnabled;
-
-	for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
-	{
-		if (LevelVC != nullptr && LevelVC->AllowsCinematicControl() && LevelVC->GetViewMode() != VMI_Unknown)
-		{
-			if (bEnabled)
-			{
-				LevelVC->ViewModifiers.AddRaw(this, &FSequencer::ModifyViewportClientView);
-			}
-			else
-			{
-				LevelVC->ViewModifiers.RemoveAll(this);
-			}
-		}
-	}
-}
-
-void FSequencer::ModifyViewportClientView(FEditorViewportViewModifierParams& Params)
-{
-	if (!ViewModifierInfo.bApplyViewModifier)
-	{
-		return;
-	}
-
-	const float BlendFactor = ViewModifierInfo.BlendFactor;
-	AActor* CameraActor = ViewModifierInfo.NextCamera.Get();
-	AActor* PreviousCameraActor = ViewModifierInfo.PreviousCamera.Get();
-	
-	UCameraComponent* CameraComponent = MovieSceneHelpers::CameraComponentFromRuntimeObject(CameraActor);
-	UCameraComponent* PreviousCameraComponent = MovieSceneHelpers::CameraComponentFromRuntimeObject(PreviousCameraActor);
-
-
-	if (CameraActor)
-	{
-		const FVector ViewLocation = CameraComponent ? CameraComponent->GetComponentLocation() : CameraActor->GetActorLocation();
-		const FRotator ViewRotation = CameraComponent ? CameraComponent->GetComponentRotation() : CameraActor->GetActorRotation();
-
-		// If we have no previous camera actor or component, it means we're blending from the original
-		// editor viewport camera transform that we cached.
-		const FVector PreviousViewLocation = PreviousCameraComponent ?
-			PreviousCameraComponent->GetComponentLocation() :
-			(PreviousCameraActor ? PreviousCameraActor->GetActorLocation() : PreAnimatedViewportLocation);
-		const FRotator PreviousViewRotation = PreviousCameraComponent ?
-			PreviousCameraComponent->GetComponentRotation() :
-			(PreviousCameraActor ? PreviousCameraActor->GetActorRotation() : PreAnimatedViewportRotation);
-
-		const FVector BlendedLocation = FMath::Lerp(PreviousViewLocation, ViewLocation, BlendFactor);
-		const FRotator BlendedRotation = FMath::Lerp(PreviousViewRotation, ViewRotation, BlendFactor);
-
-		Params.ViewInfo.Location = BlendedLocation;
-		Params.ViewInfo.Rotation = BlendedRotation;
-	}
-	else
-	{
-		// Blending from a shot back to editor camera.
-
-		const FVector PreviousViewLocation = PreviousCameraComponent ?
-			PreviousCameraComponent->GetComponentLocation() :
-			(PreviousCameraActor ? PreviousCameraActor->GetActorLocation() : PreAnimatedViewportLocation);
-		const FRotator PreviousViewRotation = PreviousCameraComponent ?
-			PreviousCameraComponent->GetComponentRotation() :
-			(PreviousCameraActor ? PreviousCameraActor->GetActorRotation() : PreAnimatedViewportRotation);
-
-		const FVector BlendedLocation = FMath::Lerp(PreviousViewLocation, PreAnimatedViewportLocation, BlendFactor);
-		const FRotator BlendedRotation = FMath::Lerp(PreviousViewRotation, PreAnimatedViewportRotation, BlendFactor);
-
-		Params.ViewInfo.Location = BlendedLocation;
-		Params.ViewInfo.Rotation = BlendedRotation;
-	}
-
-	// Deal with camera properties.
-	if (CameraComponent)
-	{
-		const float PreviousFOV = PreviousCameraComponent != nullptr ?
-			PreviousCameraComponent->FieldOfView : PreAnimatedViewportFOV;
-		const float BlendedFOV = FMath::Lerp(PreviousFOV, CameraComponent->FieldOfView, BlendFactor);
-
-		Params.ViewInfo.FOV = BlendedFOV;
-	}
-	else
-	{
-		const float PreviousFOV = PreviousCameraComponent != nullptr ?
-			PreviousCameraComponent->FieldOfView : PreAnimatedViewportFOV;
-		const float BlendedFOV = FMath::Lerp(PreviousFOV, PreAnimatedViewportFOV, BlendFactor);
-
-		Params.ViewInfo.FOV = BlendedFOV;
-	}
 }
 
 FString FSequencer::GetMovieRendererName() const
@@ -3645,10 +3575,6 @@ void FSequencer::RenderMovieInternal(TRange<FFrameNumber> Range, bool bSetFrameO
 
 void FSequencer::EnterSilentMode()
 {
-	if (SilentModeCount == 0)
-	{
-		CachedViewModifierInfo = ViewModifierInfo;
-	}
 	++SilentModeCount;
 }
 
@@ -3656,10 +3582,6 @@ void FSequencer::ExitSilentMode()
 { 
 	--SilentModeCount;
 	ensure(SilentModeCount >= 0);
-	if (SilentModeCount == 0)
-	{
-		ViewModifierInfo = CachedViewModifierInfo;
-	}
 }
 
 ISequencer::FOnActorAddedToSequencer& FSequencer::OnActorAddedToSequencer()
@@ -3921,163 +3843,9 @@ ISequencerObjectChangeListener& FSequencer::GetObjectChangeListener()
 	return *ObjectChangeListener;
 }
 
-void FSequencer::PossessPIEViewports(UObject* CameraObject, const EMovieSceneCameraCutParams& CameraCutParams)
-{
-	UWorld* World = Cast<UWorld>(CachedPlaybackContext.Get());
-	if (!World || World->WorldType != EWorldType::PIE)
-	{
-		return;
-	}
-	
-	APlayerController* PC = World->GetGameInstance()->GetFirstLocalPlayerController();
-	if (PC == nullptr)
-	{
-		return;
-	}
-
-	TWeakObjectPtr<APlayerController> WeakPC = PC;
-	auto FindViewTarget = [=](const FCachedViewTarget& In){ return In.PlayerController == WeakPC; };
-
-	// skip same view target
-	AActor* ViewTarget = PC->GetViewTarget();
-
-	// save the last view target so that it can be restored when the camera object is null
-	if (!PrePossessionViewTargets.ContainsByPredicate(FindViewTarget))
-	{
-		PrePossessionViewTargets.Add(FCachedViewTarget{ PC, ViewTarget });
-	}
-
-	UCameraComponent* CameraComponent = MovieSceneHelpers::CameraComponentFromRuntimeObject(CameraObject);
-	if (CameraComponent && CameraComponent->GetOwner() != CameraObject)
-	{
-		CameraObject = CameraComponent->GetOwner();
-	}
-
-	if (CameraObject == ViewTarget)
-	{
-		if (CameraCutParams.bJumpCut)
-		{
-			if (PC->PlayerCameraManager)
-			{
-				PC->PlayerCameraManager->SetGameCameraCutThisFrame();
-			}
-
-			if (CameraComponent)
-			{
-				CameraComponent->NotifyCameraCut();
-			}
-
-			if (UMovieSceneMotionVectorSimulationSystem* MotionVectorSim = RootTemplateInstance.GetEntitySystemLinker()->FindSystem<UMovieSceneMotionVectorSimulationSystem>())
-			{
-				MotionVectorSim->SimulateAllTransforms();
-			}
-		}
-		return;
-	}
-
-	// skip unlocking if the current view target differs
-	AActor* UnlockIfCameraActor = Cast<AActor>(CameraCutParams.UnlockIfCameraObject);
-
-	// if unlockIfCameraActor is valid, release lock if currently locked to object
-	if (CameraObject == nullptr && UnlockIfCameraActor != nullptr && UnlockIfCameraActor != ViewTarget)
-	{
-		return;
-	}
-
-	// override the player controller's view target
-	AActor* CameraActor = Cast<AActor>(CameraObject);
-
-	// if the camera object is null, use the last view target so that it is restored to the state before the sequence takes control
-	if (CameraActor == nullptr)
-	{
-		if (const FCachedViewTarget* CachedTarget = PrePossessionViewTargets.FindByPredicate(FindViewTarget))
-		{
-			CameraActor = CachedTarget->ViewTarget.Get();
-		}
-	}
-
-	FViewTargetTransitionParams TransitionParams;
-	TransitionParams.BlendTime = FMath::Max(0.f, CameraCutParams.BlendTime);
-	PC->SetViewTarget(CameraActor, TransitionParams);
-
-	if (CameraComponent)
-	{
-		CameraComponent->NotifyCameraCut();
-	}
-
-	if (PC->PlayerCameraManager)
-	{
-		PC->PlayerCameraManager->bClientSimulatingViewTarget = (CameraActor != nullptr);
-		PC->PlayerCameraManager->SetGameCameraCutThisFrame();
-	}
-
-	if (UMovieSceneMotionVectorSimulationSystem* MotionVectorSim = RootTemplateInstance.GetEntitySystemLinker()->FindSystem<UMovieSceneMotionVectorSimulationSystem>())
-	{
-		MotionVectorSim->SimulateAllTransforms();
-	}
-}
-
 TSharedPtr<class ITimeSlider> FSequencer::GetTopTimeSliderWidget() const
 {
 	return SequencerWidget->GetTopTimeSliderWidget();
-}
-
-void FSequencer::UpdateCameraCut(UObject* CameraObject, const EMovieSceneCameraCutParams& CameraCutParams)
-{
-	OnCameraCutEvent.Broadcast(CameraObject, CameraCutParams.bJumpCut);
-
-	if (!IsPerspectiveViewportCameraCutEnabled())
-	{
-		return;
-	}
-
-	PossessPIEViewports(CameraObject, CameraCutParams);
-
-	// If the previous camera is null it means we are cutting from the editor camera, in which case
-	// we want to cache the current viewport's pre-animated info.
-	bool bShouldCachePreAnimatedViewportInfo = (
-			!bHasPreAnimatedInfo &&
-			(CameraObject == nullptr || CameraCutParams.PreviousCameraObject == nullptr) &&
-			!IsInSilentMode());
-
-	AActor* UnlockIfCameraActor = Cast<AActor>(CameraCutParams.UnlockIfCameraObject);
-
-	for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
-	{
-		if ((LevelVC == nullptr) || !LevelVC->AllowsCinematicControl())
-		{
-			continue;
-		}
-
-		if (CameraObject == nullptr && UnlockIfCameraActor != nullptr && !LevelVC->IsLockedToActor(UnlockIfCameraActor))
-		{
-			continue;
-		}
-
-		if (bShouldCachePreAnimatedViewportInfo)
-		{
-			PreAnimatedViewportLocation = LevelVC->GetViewLocation();
-			PreAnimatedViewportRotation = LevelVC->GetViewRotation();
-			PreAnimatedViewportFOV = LevelVC->ViewFOV;
-			bHasPreAnimatedInfo = true;
-
-			// We end-up only caching the first cinematic viewport's info, which means that
-			// if we are previewing the sequence on 2 different viewports, the second viewport
-			// will blend back to the same camera position as the first viewport, even if they
-			// started at different positions (which is very likely). It's a small downside to
-			// pay for a much simpler piece of code, and for a use-case that is frankly 
-			// probably very uncommon.
-			bShouldCachePreAnimatedViewportInfo = false;
-		}
-
-		UpdatePreviewLevelViewportClientFromCameraCut(*LevelVC, CameraObject, CameraCutParams);
-	}
-
-	// Clear pre-animated info when we exit any sequencer camera.
-	if (CameraObject == nullptr && CameraCutParams.BlendTime < 0.f)
-	{
-		bHasPreAnimatedInfo = false;
-	}
 }
 
 void FSequencer::UpdateLevelViewportClientsActorLocks()
@@ -5729,113 +5497,6 @@ void FSequencer::OnNewActorsDropped(const TArray<UObject*>& DroppedObjects, cons
 		SynchronizeSequencerSelectionWithExternalSelection();
 	}
 }
-
-
-void FSequencer::UpdatePreviewLevelViewportClientFromCameraCut(FLevelEditorViewportClient& InViewportClient, UObject* InCameraObject, const EMovieSceneCameraCutParams& CameraCutParams)
-{
-	AActor* CameraActor = Cast<AActor>(InCameraObject);
-	AActor* PreviousCameraActor = Cast<AActor>(CameraCutParams.PreviousCameraObject);
-
-	const float BlendFactor = FMath::Clamp(CameraCutParams.PreviewBlendFactor, 0.f, 1.f);
-
-	const bool bIsBlending = (
-			(CameraCutParams.bCanBlend) &&
-			(CameraCutParams.BlendTime > 0.f) &&
-			(BlendFactor < 1.f - SMALL_NUMBER) &&
-			(CameraActor != nullptr || PreviousCameraActor != nullptr));
-
-	// To preview blending we'll have to offset the viewport camera using the view modifiers API.
-	ViewModifierInfo.bApplyViewModifier = bIsBlending && !IsInSilentMode();
-	ViewModifierInfo.BlendFactor = BlendFactor;
-	ViewModifierInfo.NextCamera = CameraActor;
-	ViewModifierInfo.PreviousCamera = PreviousCameraActor;
-
-	bool bCameraHasBeenCut = CameraCutParams.bJumpCut;
-
-	// When possible, let's get values from the camera components instead of the actor itself.
-	UCameraComponent* CameraComponent = MovieSceneHelpers::CameraComponentFromRuntimeObject(InCameraObject);
-	UCameraComponent* PreviousCameraComponent = MovieSceneHelpers::CameraComponentFromRuntimeObject(CameraCutParams.PreviousCameraObject);
-
-	if (CameraActor)
-	{
-		bCameraHasBeenCut = bCameraHasBeenCut || !InViewportClient.IsLockedToActor(CameraActor);
-
-		const FVector ViewLocation = CameraComponent ? CameraComponent->GetComponentLocation() : CameraActor->GetActorLocation();
-		const FRotator ViewRotation = CameraComponent ? CameraComponent->GetComponentRotation() : CameraActor->GetActorRotation();
-
-		InViewportClient.SetViewLocation(ViewLocation);
-		InViewportClient.SetViewRotation(ViewRotation);
-	}
-	else
-	{
-		if (CameraCutParams.bCanBlend && bHasPreAnimatedInfo)
-		{
-			InViewportClient.SetViewLocation(PreAnimatedViewportLocation);
-			InViewportClient.SetViewRotation(PreAnimatedViewportRotation);
-		}
-	}
-
-	if (bCameraHasBeenCut)
-	{
-		InViewportClient.SetIsCameraCut();
-
-		if (UMovieSceneMotionVectorSimulationSystem* MotionVectorSim = RootTemplateInstance.GetEntitySystemLinker()->FindSystem<UMovieSceneMotionVectorSimulationSystem>())
-		{
-			MotionVectorSim->SimulateAllTransforms();
-		}
-	}
-
-	// Set the actor lock.
-	InViewportClient.SetCinematicActorLock(CameraActor);
-	InViewportClient.bLockedCameraView = (CameraActor != nullptr);
-	InViewportClient.RemoveCameraRoll();
-
-	// Deal with camera properties.
-	if (CameraComponent)
-	{
-		if (bCameraHasBeenCut)
-		{
-			// tell the camera we cut
-			CameraComponent->NotifyCameraCut();
-		}
-
-		// enforce aspect ratio.
-		if (CameraComponent->AspectRatio == 0)
-		{
-			InViewportClient.AspectRatio = 1.7f;
-		}
-		else
-		{
-			InViewportClient.AspectRatio = CameraComponent->AspectRatio;
-		}
-
-		// enforce viewport type.
-		if (CameraComponent->ProjectionMode == ECameraProjectionMode::Type::Perspective)
-		{
-			if (InViewportClient.GetViewportType() != LVT_Perspective)
-			{
-				InViewportClient.SetViewportType(LVT_Perspective);
-			}
-		}
-
-		// don't stop the camera from zooming when not playing back
-		InViewportClient.ViewFOV = CameraComponent->FieldOfView;
-
-		// If there are selected actors, invalidate the viewports hit proxies, otherwise they won't be selectable afterwards
-		if (InViewportClient.Viewport && GEditor->GetSelectedActorCount() > 0)
-		{
-			InViewportClient.Viewport->InvalidateHitProxy();
-		}
-	}
-	else
-	{
-		InViewportClient.ViewFOV = InViewportClient.FOVAngle;
-	}
-
-	// Update ControllingActorViewInfo, so it is in sync with the updated viewport
-	InViewportClient.UpdateViewForLockedActor();
-}
-
 
 void FSequencer::SetShowCurveEditor(bool bInShowCurveEditor)
 {
@@ -11847,6 +11508,16 @@ bool FSequencer::UsesDynamicWeighting()
 UE::Sequencer::FSequencerSelection& FSequencer::GetSelection()
 {
 	return *ViewModel->GetSelection();
+}
+
+float FSequencer::GetCameraBlendPlayRate()
+{
+	return PlaybackSpeed;
+}
+
+void FSequencer::OnCameraCutUpdated(const UE::MovieScene::FOnCameraCutUpdatedParams& Params)
+{
+	OnCameraCutEvent.Broadcast(Params.ViewTarget, Params.bIsJumpCut);
 }
 
 #undef LOCTEXT_NAMESPACE

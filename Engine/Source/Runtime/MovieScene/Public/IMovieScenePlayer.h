@@ -55,7 +55,7 @@ struct EMovieSceneViewportParams
 };
 
 /** Camera cut parameters */
-struct EMovieSceneCameraCutParams
+struct FMovieSceneCameraCutParams
 {
 	/** If this is not null, release actor lock only if currently locked to this object */
 	UObject* UnlockIfCameraObject = nullptr;
@@ -77,6 +77,9 @@ struct EMovieSceneCameraCutParams
 	bool bCanBlend = false;
 #endif
 };
+
+/** Backwards compatibility to old struct name with typo */
+using EMovieSceneCameraCutParams = FMovieSceneCameraCutParams; 
 
 /**
  * Interface for movie scene players
@@ -103,34 +106,6 @@ public:
 	 * Cast this player instance as a UObject if possible
 	 */
 	virtual UObject* AsUObject() { return nullptr; }
-
-	/**
-	 * Whether this player can update the camera cut
-	 */
-	virtual bool CanUpdateCameraCut() const { return true; }
-
-	/**
-	 * Updates the perspective viewports with the actor to view through
-	 *
-	 * @param CameraObject The object, probably a camera, that the viewports should lock to
-	 * @param UnlockIfCameraObject If this is not nullptr, release actor lock only if currently locked to this object.
-	 * @param bJumpCut Whether this is a jump cut, ie. the cut jumps from one shot to another shot
-	 */
-	void UpdateCameraCut(UObject* CameraObject, UObject* UnlockIfCameraObject = nullptr, bool bJumpCut = false)
-	{
-		EMovieSceneCameraCutParams CameraCutParams;
-		CameraCutParams.UnlockIfCameraObject = UnlockIfCameraObject;
-		CameraCutParams.bJumpCut = bJumpCut;
-		UpdateCameraCut(CameraObject, CameraCutParams);
-	}
-
-	/**
-	 * Updates the perspective viewports with the actor to view through
-	 *
-	 * @param CameraObject The object, probably a camera, that the viewports should lock to
-	 * @param CameraCutParams The parameters for this camera cut.
-	 */
-	virtual void UpdateCameraCut(UObject* CameraObject, const EMovieSceneCameraCutParams& CameraCutParams) = 0;
 
 	/*
 	 * Set the perspective viewport settings
@@ -358,6 +333,25 @@ public:
 	{
 		return UniqueIndex;
 	}
+
+public:
+
+	UE_DEPRECATED(5.4, "Camera cut management has moved to UMovieSceneCameraCutTrackInstance")
+	virtual bool CanUpdateCameraCut() const { return true; }
+
+	UE_DEPRECATED(5.4, "Camera cut management has moved to UMovieSceneCameraCutTrackInstance")
+	virtual void UpdateCameraCut(UObject* CameraObject, UObject* UnlockIfCameraObject = nullptr, bool bJumpCut = false)
+	{
+		EMovieSceneCameraCutParams CameraCutParams;
+		CameraCutParams.UnlockIfCameraObject = UnlockIfCameraObject;
+		CameraCutParams.bJumpCut = bJumpCut;
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		UpdateCameraCut(CameraObject, CameraCutParams);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	UE_DEPRECATED(5.4, "Camera cut management has moved to UMovieSceneCameraCutTrackInstance")
+	virtual void UpdateCameraCut(UObject* CameraObject, const EMovieSceneCameraCutParams& CameraCutParams) {}
 
 public:
 
