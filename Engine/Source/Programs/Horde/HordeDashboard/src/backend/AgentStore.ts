@@ -54,7 +54,7 @@ export class AgentStore {
                     toSet.push(updatedAgent);
                 }
             });            
-            this._agents = toSet.filter(a => !!a.deleted);
+            this._agents = toSet.filter(a => true /*!!a.deleted*/);
             this.agentsUpdated++;
         }
     }
