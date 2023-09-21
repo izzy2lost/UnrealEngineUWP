@@ -2078,7 +2078,7 @@ namespace UnrealBuildTool
 			Contents.AppendLine("#include <unknwn.h>");
 			Contents.AppendLine();
 
-			Contents.AppendFormat("#import \"{0}\"", TypeLibrary.FileName);
+			Contents.AppendFormat("#import \"{0}\"", TypeLibrary.FileName.Replace('\\', '/'));
 			if (!String.IsNullOrEmpty(TypeLibrary.Attributes))
 			{
 				Contents.Append(' ');
