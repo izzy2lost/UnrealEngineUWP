@@ -500,8 +500,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void UDMXPixelMappingMatrixComponent::HandleMatrixChanged()
 {
-	TGuardValue<bool>(bIsUpdatingChildren, true);
-
 	UDMXPixelMapping* PixelMapping = GetPixelMapping();
 	UDMXPixelMappingRootComponent* RootComponent = PixelMapping ? PixelMapping->GetRootComponent() : nullptr;
 	if (!RootComponent)

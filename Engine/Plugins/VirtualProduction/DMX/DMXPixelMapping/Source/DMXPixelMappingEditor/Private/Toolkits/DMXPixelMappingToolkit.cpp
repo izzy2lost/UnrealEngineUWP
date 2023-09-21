@@ -313,7 +313,7 @@ TArray<UDMXPixelMappingBaseComponent*> FDMXPixelMappingToolkit::CreateComponents
 	TArray<UDMXPixelMappingBaseComponent*> NewComponents;
 	if (Templates.Num() > 0)
 	{
-		TGuardValue<bool>(bAddingComponents, true);
+		TGuardValue Guard(bAddingComponents, true);
 
 		if (ensureMsgf(RootComponent && Target, TEXT("Tried to create components from template but RootComponent or Target were invalid.")))
 		{
@@ -344,7 +344,7 @@ void FDMXPixelMappingToolkit::DeleteSelectedComponents()
 		return;
 	}
 
-	TGuardValue<bool>(bRemovingComponents, true);
+	TGuardValue Guard(bRemovingComponents, true);
 
 	TSet<FDMXPixelMappingComponentReference> ParentComponentReferences;
 	for (const FDMXPixelMappingComponentReference& SelectedComponentReference : SelectedComponents)

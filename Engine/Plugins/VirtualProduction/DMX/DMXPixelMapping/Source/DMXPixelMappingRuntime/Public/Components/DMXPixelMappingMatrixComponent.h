@@ -105,9 +105,6 @@ protected:
 #endif // WITH_EDITORONLY_DATA
 
 private:
-	/** True while the component is updating its children */
-	bool bIsUpdatingChildren = false;
-
 	/** Position before it was changed */
 	FVector2D PreEditChangePosition;
 
