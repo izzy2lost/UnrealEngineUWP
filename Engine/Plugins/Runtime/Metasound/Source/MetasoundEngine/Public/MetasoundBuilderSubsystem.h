@@ -132,6 +132,10 @@ class METASOUNDENGINE_API UMetaSoundBuilderBase : public UObject
 	GENERATED_BODY()
 
 public:
+	// Begin UObject interface
+	virtual void FinishDestroy() override;
+	// End UObject interface
+
 	// Adds a graph input node with the given name, DataType, and sets the graph input to default value.
 	// Returns the new input node's output handle if it was successfully created, or an invalid handle if it failed.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult", AdvancedDisplay = "3"))
@@ -698,7 +702,7 @@ private:
 		check(InMetaSoundObject->IsAsset());
 
 		TScriptInterface<IMetaSoundDocumentInterface> DocInterface = InMetaSoundObject;
-		const FMetasoundFrontendDocument& Document = static_cast<const IMetaSoundDocumentInterface*>(DocInterface.GetInterface())->GetDocument();
+		const FMetasoundFrontendDocument& Document = DocInterface->GetConstDocument();
 		const FName FullClassName = Document.RootGraph.Metadata.GetClassName().GetFullName();
 		TWeakObjectPtr<UMetaSoundBuilderBase> Builder = AssetBuilders.FindRef(FullClassName);
 		if (Builder.IsValid())
