@@ -884,12 +884,6 @@ FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile,
 		}
 	}
 
-	if (InProfile->IsUsingIoStore() && 
-		InProfile->IsRetainStagedDirectory())
-	{
-		StageAdditionalCommandLine += TEXT(" -RetainStagedDirectory");
-	}
-
 	// stage/package/deploy
 	if (InProfile->GetDeploymentMode() != ELauncherProfileDeploymentModes::DoNotDeploy)
 	{

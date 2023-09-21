@@ -401,7 +401,6 @@ namespace AutomationTool
 			this.ServerDevice = InParams.ServerDevice;
             this.NullRHI = InParams.NullRHI;
 			this.WriteBackMetadataToAssetRegistry = InParams.WriteBackMetadataToAssetRegistry;
-			this.RetainStagedDirectory = InParams.RetainStagedDirectory;
             this.FakeClient = InParams.FakeClient;
             this.EditorTest = InParams.EditorTest;
             this.RunAutomationTests = InParams.RunAutomationTests;
@@ -614,8 +613,7 @@ namespace AutomationTool
 			string SessionLabel = null,
 			ParamList<string> InMapsToRebuildLightMaps = null,
             ParamList<string> InMapsToRebuildHLOD = null,
-            ParamList<string> TitleID = null,
-            bool? RetainStagedDirectory = null
+            ParamList<string> TitleID = null
 			)
 		{
 			//
@@ -983,7 +981,6 @@ namespace AutomationTool
 			this.UbtArgs = ParseParamValueIfNotSpecified(Command, UbtArgs, "ubtargs", String.Empty);
 			this.AdditionalPackageOptions = ParseParamValueIfNotSpecified(Command, AdditionalPackageOptions, "AdditionalPackageOptions", String.Empty);
 			this.WriteBackMetadataToAssetRegistry = ParseParamValueIfNotSpecified(Command, WriteBackMetadataToAssetRegistry, "WriteBackMetadataToAssetRegistry", String.Empty);
-			this.RetainStagedDirectory = GetParamValueIfNotSpecified(Command, RetainStagedDirectory, this.RetainStagedDirectory, "RetainStagedDirectory");
 
 			string SpecifiedArchString, ServerArchString, EditorArchString, ClientArchString, ProgramArchString;
 			SpecifiedArchString = ParseParamValueIfNotSpecified(Command, SpecifiedArchitecture, "specifiedarchitecture", null);
@@ -2203,9 +2200,6 @@ namespace AutomationTool
         [Help("WriteBackMetadataToAssetRegistry", "Passthru to iostore staging, see IoStoreUtilities.cpp")]
         public string WriteBackMetadataToAssetRegistry;
 
-        [Help("RetainStagedDirectory", "If set, retain the staged directory for platforms that modify the I/O store containers for deployment. This is necessary for using the reference container for patch preventing on such platforms.")]
-        public bool RetainStagedDirectory;
-
         /// <summary>
         /// Run:adds ?fake to the server URL
         /// </summary>
@@ -3246,7 +3240,6 @@ namespace AutomationTool
 				Logger.LogDebug("ForcePackageData={ForcePackageData}", ForcePackageData);
 				Logger.LogDebug("NullRHI={NullRHI}", NullRHI);
 				Logger.LogDebug("WriteBackMetadataToAssetRegistry={WriteBackMetadataToAssetRegistry}", WriteBackMetadataToAssetRegistry);
-				Logger.LogDebug("RetainStagedDirectory={RetainStagedDirectory}", RetainStagedDirectory);
 				Logger.LogDebug("FakeClient={FakeClient}", FakeClient);
                 Logger.LogDebug("EditorTest={EditorTest}", EditorTest);
                 Logger.LogDebug("RunAutomationTests={RunAutomationTests}", RunAutomationTests);

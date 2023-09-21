@@ -630,6 +630,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category=Packaging, meta=(DisplayName = "Additional builds for this project."))
 	TArray<FProjectBuildSettings> ProjectCustomBuilds;
 
+	/** If set, platforms that destructively edit the iostore containers during packaging will save a copy prior to doing so. */
+	UPROPERTY(config, EditAnywhere, Category = Packaging)
+	bool bRetainStagedDirectory;
+
 	/**
 	 * A list of custom builds, specified in engine ini files, and not editable in editor, that will show up in the Platforms menu to allow customized builds for all projects
 	 */
