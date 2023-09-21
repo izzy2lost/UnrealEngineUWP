@@ -1513,10 +1513,6 @@ public:
 	UPROPERTY(Transient)
 	TObjectPtr<class UPhysicsFieldComponent> PhysicsField;
 
-	/** Tracks the last assigned unique id for light weight instances in this world. */
-	UPROPERTY()
-	uint32 LWILastAssignedUID;
-
 private:
 
 	/** Array of components that need to wait on tasks before end of frame updates */

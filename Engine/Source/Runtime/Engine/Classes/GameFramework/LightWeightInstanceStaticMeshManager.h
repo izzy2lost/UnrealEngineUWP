@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/StaticMesh.h"
-#include "GameFramework/LightWeightInstanceManager.h"
+#include "LightWeightInstanceManager.h"
 #include "Elements/SMInstance/SMInstanceManager.h"
 
 #include "LightWeightInstanceStaticMeshManager.generated.h"
@@ -24,9 +24,7 @@ class ALightWeightInstanceStaticMeshManager : public ALightWeightInstanceManager
 	// Clears the static mesh used for rendering instances
 	ENGINE_API void ClearStaticMesh();
 
-	ENGINE_API virtual int32 ConvertCollisionIndexToLightWeightIndex(int32 InIndex) const override;
-
-	ENGINE_API virtual int32 ConvertLightWeightIndexToCollisionIndex(int32 InIndex) const override;
+	ENGINE_API virtual int32 ConvertCollisionIndexToInstanceIndex(int32 InIndex, const UPrimitiveComponent* RelevantComponent) const override;
 
 protected:
 	ENGINE_API virtual void AddNewInstanceAt(FLWIData* InitData, int32 Index) override;
