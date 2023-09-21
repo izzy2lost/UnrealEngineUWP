@@ -3629,10 +3629,10 @@ void UInstancedStaticMeshComponent::Serialize(FArchive& Ar)
 
 			// Make sure that if we inherit the PerInstanceSMCustomData we also do inherit this value
 			NumCustomDataFloats = Archetype->NumCustomDataFloats;
-		}
-		else
+		} 
+		// It is possible for a component to lose its BP archetype between a save / load so in this case we have no per instance data (usually this component gets deleted through construction script)
+		else if(bHasSkipSerializationPropertiesData)
 		{
-			check(bHasSkipSerializationPropertiesData);
 			PerInstanceSMData = MoveTemp(TempPerInstanceSMData);
 			PerInstanceSMCustomData = MoveTemp(TempPerInstanceSMCustomData);
 		}
