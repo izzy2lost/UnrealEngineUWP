@@ -352,16 +352,13 @@ const StepOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = o
       onClick: () => { setShown({ retryShown: true }); setRunType(StepRetryType.TestFix); }
    });
 
-   if (config.environment !== "production") {
-      opsList.push({
-         key: 'stepops_bisect',
-         text: "Bisect",
-         iconProps: { iconName: "FlowReview" },
-         disabled: !canBisect,
-         onClick: () => { setShown({ bisectShown: true }); }
-      });
-   }
-
+   opsList.push({
+      key: 'stepops_bisect',
+      text: "Bisect",
+      iconProps: { iconName: "FlowReview" },
+      disabled: !canBisect,
+      onClick: () => { setShown({ bisectShown: true }); }
+   });
 
    opsList.push({
       key: 'stepops_buildlocally',
