@@ -316,6 +316,11 @@ void UForceFeedbackComponent::Stop()
 
 void UForceFeedbackComponent::StopInternal(const bool bRemoveFromManager)
 {
+	if (OnForceFeedbackFinished.IsBound())
+	{
+		OnForceFeedbackFinished.Broadcast(this);	
+	}
+	
 	// Set this to immediately be inactive
 	SetActiveFlag(false);
 	PlayTime = 0.f;
