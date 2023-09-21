@@ -234,6 +234,8 @@ void FAssetSearchManager::Start()
 
 	TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FAssetSearchManager::Tick_GameThread), 0);
 
+	SearchDatabase.bEnableIntegrityChecks = GetDefault<USearchUserSettings>()->bEnableIntegrityChecks;
+	FileInfoDatabase.bEnableIntegrityChecks = GetDefault<USearchUserSettings>()->bEnableIntegrityChecks;
 	RunThread = true;
 	DatabaseThread = FRunnableThread::Create(this, TEXT("UniversalSearch"), 0, TPri_BelowNormal);
 
@@ -685,6 +687,12 @@ bool FAssetSearchManager::TryLoadIndexForAsset_Tags(const FAssetData& InAssetDat
 bool FAssetSearchManager::TryLoadIndexForAsset_DDC(const FAssetData& InAssetData)
 {
 	check(IntermediateStorage == ESearchIntermediateStorage::DerivedDataCache);
+	
+	bool bAllowFetch = !GetDefault<USearchProjectSettings>()->bDisableDDC;
+	if (!bAllowFetch)
+	{
+		return false;
+	}
 
 	const bool bSuccess = AsyncGetDerivedDataKey(InAssetData, [this, InAssetData](bool bSuccess, FString InDDCKey) {
 		if (!bSuccess)
@@ -902,9 +910,13 @@ void FAssetSearchManager::StoreIndexForAsset_DDC(const UObject* InAsset)
 			AsyncMainThreadTask([this, InAssetData, IndexedJson, InDDCKey]() {
 				check(IsInGameThread());
 
-				FTCHARToUTF8 IndexedJsonUTF8(*IndexedJson);
-				TArrayView<const uint8> IndexedJsonUTF8View((const uint8*)IndexedJsonUTF8.Get(), IndexedJsonUTF8.Length() * sizeof(UTF8CHAR));
-				GetDerivedDataCacheRef().Put(*InDDCKey, IndexedJsonUTF8View, InAssetData.GetObjectPathString(), false);
+				bool bAllowPut = !GetDefault<USearchProjectSettings>()->bDisableDDC;
+				if (bAllowPut)
+				{
+					FTCHARToUTF8 IndexedJsonUTF8(*IndexedJson);
+					TArrayView<const uint8> IndexedJsonUTF8View((const uint8*)IndexedJsonUTF8.Get(), IndexedJsonUTF8.Length() * sizeof(UTF8CHAR));
+					GetDerivedDataCacheRef().Put(*InDDCKey, IndexedJsonUTF8View, InAssetData.GetObjectPathString(), false);
+				}
 
 				AddOrUpdateAsset(InAssetData, IndexedJson, InDDCKey);
 			});
