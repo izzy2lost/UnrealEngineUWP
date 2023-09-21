@@ -733,6 +733,11 @@ public:
 	UNREALED_API void RebuildTemplateMapData();
 
 	/**
+	 * Appends the specified template maps to the list of available templates.
+	 */
+	UNREALED_API void AppendTemplateMaps( const TArray<FTemplateMapInfo>& TemplateMapInfos );
+
+	/**
 	 * Returns true if the user is currently interacting with a viewport.
 	 */
 	UNREALED_API bool IsUserInteracting();
