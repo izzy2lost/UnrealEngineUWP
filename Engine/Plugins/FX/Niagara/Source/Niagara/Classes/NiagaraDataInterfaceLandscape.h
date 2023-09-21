@@ -51,7 +51,7 @@ public:
 
 	/** Can be used to ignore virtual textures even if they are defined for the landscape. */
 	UPROPERTY(EditAnywhere, Category = "Landscape")
-	bool bVirtualTexturesSupported;
+	bool bVirtualTexturesSupported = true;
 
 	//UObject Interface
 	NIAGARA_API virtual void PostInitProperties() override;	
