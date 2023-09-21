@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Jupiter.Implementation.Bundles;
 using Microsoft.AspNetCore.Authorization;
@@ -262,8 +263,8 @@ namespace Jupiter.Controllers
 			Stream stream;
 			if (offset == null && length == null)
 			{
-				Bundle bundle = await client.ReadBundleAsync(locator, cancellationToken);
-				stream = new ReadOnlySequenceStream(bundle.AsSequence());
+				byte[] bundle = await client.Backend.ReadBytesAsync(locator.ToString(), cancellationToken);
+				stream = new ReadOnlyMemoryStream(bundle);
 			}
 			else if (offset != null && length != null)
 			{
@@ -382,7 +383,7 @@ namespace Jupiter.Controllers
 
 			StorageClient storageClient = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 
-			BundleReader reader = new BundleReader(storageClient, StorageCache.None, _logger);
+			BundleReader reader = new BundleReader(storageClient, BundleReaderCache.None, _logger);
 
 			BundleHeader header = await reader.ReadHeaderAsync(locator, cancellationToken);
 
@@ -457,7 +458,7 @@ namespace Jupiter.Controllers
 			}
 
 			StorageClient storageClient = await _storageService.GetClientAsync(namespaceId, cancellationToken);
-			BundleReader reader = new BundleReader(storageClient, StorageCache.None, _logger);
+			BundleReader reader = new BundleReader(storageClient, BundleReaderCache.None, _logger);
 
 			BundleHeader header = await reader.ReadHeaderAsync(locator, cancellationToken);
 			BundleExport export = header.Exports[exportIdx];
