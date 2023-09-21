@@ -40,13 +40,15 @@ namespace Audio
 	using DeviceID = uint32;
 }
 
+class UMetaSoundSettings;
+
 DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnGeneratorInstanceCreated, uint64, TSharedPtr<Metasound::FMetasoundGenerator>);
 DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnGeneratorInstanceDestroyed, uint64, TSharedPtr<Metasound::FMetasoundGenerator>);
 
 /**
  * This Metasound type can be played as an audio source.
  */
-UCLASS(hidecategories = object, BlueprintType)
+UCLASS(hidecategories = object, BlueprintType, config = Metasound, defaultconfig)
 class METASOUNDENGINE_API UMetaSoundSource : public USoundWaveProcedural, public FMetasoundAssetBase, public IMetaSoundDocumentInterface
 {
 	GENERATED_BODY()
@@ -78,6 +80,24 @@ public:
 	// The output audio format of the metasound source.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Metasound)
 	EMetaSoundOutputAudioFormat OutputFormat;
+
+	// The Quality this Metasound will use. These are defined in the MetaSounds project settings.
+	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, meta = (GetOptions="MetasoundEngine.MetaSoundQuality.GetQualityList"), Category = "Metasound")
+	FName QualitySetting;
+
+#if WITH_EDITORONLY_DATA
+	// This a editor only look up for the Quality Setting above. Preventing orphaning of the original name.
+	UPROPERTY()
+	FGuid QualitySettingGuid;
+#endif //WITH_EDITOR_DATA
+
+	// Override the BlockRate for this Sound (overrides the Platforms Quality Settings for this asset)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, AdvancedDisplay, Category = Metasound, meta = (UIMin = 1, UIMax = 1000, DisplayAfter="OutputFormat", DisplayName = "Override Block Rate (in Hz)"))
+	FPerPlatformFloat BlockRateOverride = 0.f;
+
+	// Override the SampleRate for this Sound (overrides the 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, AdvancedDisplay, Category = Metasound, meta = (UIMin = 100, UIMax = 96000, DisplayName = "Override Sample Rate (in Hz)"))
+	FPerPlatformInt SampleRateOverride = 0;
 
 	UPROPERTY(AssetRegistrySearchable)
 	FGuid AssetClassID;
@@ -150,8 +170,11 @@ public:
 
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InEvent) override;
 
+	virtual bool CanEditChange(const FProperty* InProperty) const override;
+
 private:
 	void PostEditChangeOutputFormat();
+	void PostEditChangeQualitySettings();
 public:
 
 #endif // WITH_EDITOR
@@ -168,6 +191,9 @@ public:
 	virtual void PreSave(FObjectPreSaveContext InSaveContext) override;
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
+
+	void PostLoadQualitySettings();
+	void ResolveQualitySettings(const UMetaSoundSettings* Settings);
 
 	virtual bool ConformObjectDataToInterfaces() override;
 
@@ -254,4 +280,8 @@ private:
 	TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> GetDynamicGeneratorTransactor() const;
 
 	TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> DynamicTransactor;
+	/*
+	 * Lazy (Cached) Operator Settings. Built in GetOperatorSettings
+	 */
+	mutable TOptional<Metasound::FOperatorSettings> OperatorSettings;
 };

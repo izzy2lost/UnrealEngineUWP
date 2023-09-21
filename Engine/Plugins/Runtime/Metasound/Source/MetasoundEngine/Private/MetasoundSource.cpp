@@ -150,17 +150,6 @@ UMetaSoundSource::UMetaSoundSource(const FObjectInitializer& ObjectInitializer)
 	bProcedural = true;
 	bRequiresStopFade = true;
 	NumChannels = 1;
-
-	// todo: ensure that we have a method so that the audio engine can be authoritative over the sample rate the UMetaSoundSource runs at.
-	const int32 SampleRateOverride = Metasound::Frontend::GetDefaultSampleRate();
-	if (SampleRateOverride != INDEX_NONE)
-	{
-		SampleRate = SampleRateOverride;
-	}
-	else
-	{
-		SampleRate = 48000.f;
-	}
 }
 
 const UClass& UMetaSoundSource::GetBaseMetaSoundUClass() const
@@ -201,6 +190,31 @@ void UMetaSoundSource::PostEditChangeProperty(FPropertyChangedEvent& InEvent)
 	{
 		PostEditChangeOutputFormat();
 	}
+	if (InEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMetaSoundSource, SampleRateOverride) ||
+		InEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMetaSoundSource, BlockRateOverride) ||
+		InEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMetaSoundSource, QualitySetting) )
+	{
+		PostEditChangeQualitySettings();
+	}
+}
+
+bool UMetaSoundSource::CanEditChange(const FProperty* InProperty) const
+{
+	if (!Super::CanEditChange(InProperty))
+	{
+		return false;
+	}
+
+	// Allow changes to quality if we don't have any overrides.
+	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UMetaSoundSource, QualitySetting))
+	{
+		const bool bBlockRateIsZero = BlockRateOverride.GetValue() == 0;
+		const bool bSampleRateIsZero = SampleRateOverride.GetValue() == 0;
+
+		return bBlockRateIsZero && bSampleRateIsZero;
+	}
+		
+	return true;
 }
 
 void UMetaSoundSource::PostEditChangeOutputFormat()
@@ -233,6 +247,25 @@ void UMetaSoundSource::PostEditChangeOutputFormat()
 			Graph->RegisterGraphWithFrontend();
 		}
 		MarkMetasoundDocumentDirty();
+	}
+}
+
+void UMetaSoundSource::PostEditChangeQualitySettings()
+{
+	// Re-cache Operator settings by clearing the Optional.
+	OperatorSettings.Reset();
+
+	// Refresh the SampleRate (which is what the engine sees from the operator settings).
+	SampleRate = GetOperatorSettings(SampleRate).GetSampleRate();
+
+	// Always refresh the GUID with the selection.
+	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())	
+	{
+		auto FindByName = [&Name = QualitySetting](const FMetaSoundQualitySettings& Q) -> bool { return Q.Name == Name; };
+		if (const FMetaSoundQualitySettings* Found = Settings->QualitySettings.FindByPredicate(FindByName))
+		{
+			QualitySettingGuid = Found->UniqueId;
+		}
 	}
 }
 #endif // WITH_EDITOR
@@ -349,6 +382,78 @@ void UMetaSoundSource::PostLoad()
 
 	Duration = GetDuration();
 	bLooping = IsLooping();
+
+	PostLoadQualitySettings();
+}
+
+void UMetaSoundSource::PostLoadQualitySettings()
+{
+#if WITH_EDITORONLY_DATA
+	
+	// Ensure that our Quality settings resolve. 
+	if (UMetaSoundSettings* Settings = GetMutableDefault<UMetaSoundSettings>())
+	{
+		ResolveQualitySettings(Settings);
+		
+		// Register for any changes to the settings while we're open in the editor.
+		Settings->OnSettingChanged().AddWeakLambda(this, [WeakSource = MakeWeakObjectPtr(this)](UObject* InObj, struct FPropertyChangedEvent& InEvent)
+		{
+			if (
+				WeakSource.IsValid() &&
+				InEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(UMetaSoundSettings, QualitySettings)
+			)
+			{
+				WeakSource->ResolveQualitySettings(CastChecked<UMetaSoundSettings>(InObj));
+			}
+		});
+	}
+#endif //WITH_EDITORONLY_DATA
+
+	// Override SampleRate with the Operator settings version which uses our Quality settings.
+	SampleRate = GetOperatorSettings(SampleRate).GetSampleRate();
+}
+
+void UMetaSoundSource::ResolveQualitySettings(const UMetaSoundSettings* Settings)
+{
+	const FMetaSoundQualitySettings* Resolved = nullptr;
+
+	// 1. Try and resolve by name. (most should resolve unless its been renamed, deleted).
+	auto FindByName = [&Name = QualitySetting](const FMetaSoundQualitySettings& Q) -> bool { return Q.Name == Name; };
+	Resolved = Settings->QualitySettings.FindByPredicate(FindByName);
+
+#if WITH_EDITORONLY_DATA
+
+	// 2. If that failed, try by guid (if its been renamed in the settings, we can still find it).
+	if (!Resolved && QualitySettingGuid.IsValid())
+	{
+		auto FindByGuid = [&Guid = QualitySettingGuid](const FMetaSoundQualitySettings& Q) -> bool { return Q.UniqueId == Guid; };
+		Resolved = Settings->QualitySettings.FindByPredicate(FindByName);
+	}
+
+	// 3. If still failed to resolve, use defaults and warn.
+	if (!Resolved)
+	{
+		UE_LOG(LogMetaSound, Warning, TEXT("Failed to resolve Quality '%s', resetting to the default."), *QualitySetting.ToString());
+
+		// Reset to defaults. (and make sure they are sane)
+		QualitySetting = GetDefault<UMetaSoundSource>()->QualitySetting;
+		QualitySettingGuid = GetDefault<UMetaSoundSource>()->QualitySettingGuid;
+		if (!Settings->QualitySettings.FindByPredicate(FindByName) && !Settings->QualitySettings.IsEmpty())
+		{
+			// Default doesn't point to anything, use first one in the list.
+			QualitySetting = Settings->QualitySettings[0].Name;
+			QualitySettingGuid = Settings->QualitySettings[0].UniqueId;
+		}				
+	}
+
+	// Refresh the guid/name now we've resolved to correctly reflect.
+	if (Resolved)
+	{
+		QualitySetting = Resolved->Name;
+		QualitySettingGuid = Resolved->UniqueId;
+	}
+
+#endif //WITH_EDITORONLY_DATA
 }
 
 void UMetaSoundSource::InitParameters(TArray<FAudioParameter>& ParametersToInit, FName InFeatureName)
@@ -972,14 +1077,67 @@ TSharedPtr<Audio::IParameterTransmitter> UMetaSoundSource::CreateParameterTransm
 }
 
 Metasound::FOperatorSettings UMetaSoundSource::GetOperatorSettings(Metasound::FSampleRate InSampleRate) const
-{
-	const float BlockRate = Metasound::Frontend::GetDefaultBlockRate();
-	const int32 SampleRateOverride = Metasound::Frontend::GetDefaultSampleRate();
-	if (SampleRateOverride != INDEX_NONE)
+{	
+	if (!OperatorSettings)
 	{
-		return Metasound::FOperatorSettings(SampleRateOverride, BlockRate);
+		using namespace Metasound;
+		using namespace Metasound::SourcePrivate;
+
+		// Lazy Query and cache on the optional.
+		auto QueryQualitySettings = [&](Metasound::FSampleRate InSampleRate) -> Metasound::FOperatorSettings
+		{
+			static const int32 DefaultSampleRateConstant = 48000;
+			static const float DefaultBlockRateConstant = 100.f;
+			
+			// 1. Sensible defaults.
+			FSampleRate SampleRate = DefaultSampleRateConstant;
+			float BlockRate = DefaultBlockRateConstant;
+
+			// 2. Query CVars. (Override with CVars if they are > 0)
+			const float BlockRateCVar = Metasound::Frontend::GetDefaultBlockRate();
+			const int32 SampleRateCvar = Metasound::Frontend::GetDefaultSampleRate();
+
+			if (SampleRateCvar != INDEX_NONE)
+			{
+				SampleRate = SampleRateCvar;
+			}
+			if (BlockRateCVar > 0)
+			{
+				BlockRate = BlockRateCVar;
+			}
+
+			// 3. Query our quality settings.
+			if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+			{
+				if (const FMetaSoundQualitySettings* Found = Settings->QualitySettings.FindByPredicate([&QT = QualitySetting](const FMetaSoundQualitySettings& Q) -> bool { return Q.Name == QT; }))
+				{
+					// Allow partial applications of settings, if some are non-zero.
+					if (Found->BlockRate > 0.f)
+					{
+						BlockRate = Found->BlockRate;
+					}
+					if (Found->SampleRate > 0.f)
+					{
+						SampleRate = Found->SampleRate;
+					}
+				}
+			}
+
+			// 4. Do per asset overrides.
+			if (const float SerializedBlockRate = BlockRateOverride.GetValue(); SerializedBlockRate > 0.0f)
+			{
+				BlockRate = SerializedBlockRate;
+			}
+			if (const int32 SerializedSampleRate = SampleRateOverride.GetValue(); SerializedSampleRate > 0)
+			{
+				SampleRate = SerializedSampleRate;
+			}
+
+			return Metasound::FOperatorSettings(SampleRate, BlockRate);
+		};
+		OperatorSettings = QueryQualitySettings(InSampleRate);
 	}
-	return Metasound::FOperatorSettings(InSampleRate, BlockRate);
+	return *OperatorSettings;
 }
 
 Metasound::FMetasoundEnvironment UMetaSoundSource::CreateEnvironment() const

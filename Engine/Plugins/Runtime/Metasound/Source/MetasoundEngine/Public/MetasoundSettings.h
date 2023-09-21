@@ -33,6 +33,32 @@ struct METASOUNDENGINE_API FDefaultMetaSoundAssetAutoUpdateSettings
 	FSoftObjectPath MetaSound;
 };
 
+USTRUCT()
+struct METASOUNDENGINE_API FMetaSoundQualitySettings
+{
+	GENERATED_BODY()
+
+#if WITH_EDITORONLY_DATA
+	/** A hidden GUID that will be generated once when adding a new entry. This prevents orphaning of renamed entries. **/
+	UPROPERTY()
+	FGuid UniqueId = FGuid::NewGuid();
+#endif //WITH_EDITORONLY_DATA
+
+	/** Name of this quality setting. This will appear in the quality dropdown list.
+		The names should be unique and adequately describe the Entry. "High", "Low" etc. **/
+	UPROPERTY(EditAnywhere, Category = "Quality")
+	FName Name;
+
+	/** Sample Rate (in Hz). NOTE: A Zero value will force the default. **/
+	UPROPERTY(EditAnywhere, Category = "Quality", meta = (ClampMin = "0", ClampMax="96000"))
+	int32 SampleRate = 0;
+
+	/** Block Rate (in Hz). NOTE: A Zero value will force the default.  **/
+	UPROPERTY(EditAnywhere, Category = "Quality", meta = (ClampMin = "0", ClampMax="100"))
+	float BlockRate = 0.f;
+};
+
+
 UCLASS(config = MetaSound, defaultconfig, meta = (DisplayName = "MetaSounds"))
 class METASOUNDENGINE_API UMetaSoundSettings : public UDeveloperSettings
 {
@@ -63,14 +89,46 @@ public:
 	  */
 	UPROPERTY(EditAnywhere, config, Category = Registration, meta = (RelativePath, LongPackageName))
 	TArray<FDirectoryPath> DirectoriesToRegister;
-
+	
+	/** Array of possible quality settings for Metasounds to chose from */
+	UPROPERTY(EditAnywhere, config, Category = Quality)
+	TArray<FMetaSoundQualitySettings> QualitySettings;
+		
 	UPROPERTY(Transient)
-	int32 DenyListCacheChangeID = 0;
+	int32 DenyListCacheChangeID = 0;	
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override
-	{
+	{		
+		Super::PostEditChangeProperty(PropertyChangedEvent);
+
 		DenyListCacheChangeID++;
 	}
 #endif // WITH_EDITOR
+};
+
+UCLASS()
+class UMetaSoundQuality : public UObject
+{
+	GENERATED_BODY()
+public:
+
+	/**
+	* Returns a list of quality settings to present to a combobox
+	* */
+	UFUNCTION()
+	static TArray<FName> GetQualityList()
+	{
+		TArray<FName> Names;
+
+		if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+		{
+			Algo::Transform(Settings->QualitySettings, Names, [](const FMetaSoundQualitySettings& Quality) -> FName 
+			{
+				return Quality.Name;
+			});
+		}
+		return Names;
+	}
+
 };
