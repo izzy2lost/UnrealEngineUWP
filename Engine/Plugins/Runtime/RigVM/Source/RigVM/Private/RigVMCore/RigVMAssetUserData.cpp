@@ -372,12 +372,12 @@ bool UNameSpacedUserData::IsPropertySupported(const FProperty* InProperty, const
 	return true;
 }
 
-void UDataAssetLink::SetDataAsset(UDataAsset* InDataAsset)
+void UDataAssetLink::SetDataAsset(TSoftObjectPtr<UDataAsset> InDataAsset)
 {
 	InvalidateCache();
 	DataAsset = InDataAsset;
 
-	if(NameSpace.IsEmpty() && DataAsset)
+	if(NameSpace.IsEmpty() && DataAsset.IsValid())
 	{
 		NameSpace = DataAsset->GetName();
 	}
@@ -391,10 +391,10 @@ const UNameSpacedUserData::FUserData* UDataAssetLink::GetUserData(const FString&
 		return ResultFromSuper;
 	}
 
-	if(DataAsset)
+	if(const UDataAsset* LoadedDataAsset = DataAsset.LoadSynchronous())
 	{
 		// this method caches as well - so the next time around Super::GetUserData should return the cache 
-		return GetUserDataWithinStruct(DataAsset->GetClass(), (const uint8*)DataAsset, InPath, FString(), OutErrorMessage);
+		return GetUserDataWithinStruct(LoadedDataAsset->GetClass(), reinterpret_cast<const uint8*>(LoadedDataAsset), InPath, FString(), OutErrorMessage);
 	}
 
 	if(OutErrorMessage && OutErrorMessage->IsEmpty())
@@ -413,13 +413,13 @@ const TArray<const UNameSpacedUserData::FUserData*>& UDataAssetLink::GetUserData
 		return ResultFromSuper;
 	}
 
-	if(DataAsset)
+	if(const UDataAsset* LoadedDataAsset = DataAsset.LoadSynchronous())
 	{
 		// we should only get here if we haven't cached this user data array before.
 		if(InParentPath.IsEmpty())
 		{
 			// this method caches as well - so the next time around Super::GetUserDataArray should return the cache 
-			return GetUserDataArrayWithinStruct(DataAsset->GetClass(), (const uint8*)DataAsset, InParentPath, OutErrorMessage);
+			return GetUserDataArrayWithinStruct(LoadedDataAsset->GetClass(), reinterpret_cast<const uint8*>(LoadedDataAsset), InParentPath, OutErrorMessage);
 		}
 
 		if(const FUserData* ParentUserData = GetUserData(InParentPath, OutErrorMessage))
