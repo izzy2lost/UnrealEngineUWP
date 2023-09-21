@@ -2269,11 +2269,15 @@ bool FTabManager::HasAnyTabWithTabId( const TSharedRef<FLayoutNode>& SomeNode, c
 
 TSharedPtr<FTabManager::FArea> FTabManager::GetFAreaFromInitialLayoutWithTabType( const FTabId& InTabIdToMatch ) const
 {
-	for (const TSharedRef<FArea>& Area : FGlobalTabmanager::Get()->GetInitialLayoutSP()->Areas)
+	const TSharedPtr<FTabManager::FLayout> InitialLayoutSP = FGlobalTabmanager::Get()->GetInitialLayoutSP();
+	if (InitialLayoutSP.IsValid())
 	{
-		if (HasAnyTabWithTabId(Area, InTabIdToMatch.TabType))
+		for (const TSharedRef<FArea>& Area : InitialLayoutSP->Areas)
 		{
-			return Area.ToSharedPtr();
+			if (HasAnyTabWithTabId(Area, InTabIdToMatch.TabType))
+			{
+				return Area.ToSharedPtr();
+			}
 		}
 	}
 	return nullptr;
