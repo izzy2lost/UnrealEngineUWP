@@ -39,6 +39,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.AspNet", "..\Shar
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.Oodle", "..\Shared\EpicGames.Oodle\EpicGames.Oodle.csproj", "{46AF27D2-AC50-42BB-AAC7-CCB26841EF81}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.OIDC", "..\Shared\EpicGames.OIDC\EpicGames.OIDC.csproj", "{5B87B143-A9A1-47AD-900D-CB275D0DE22C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Analyze|Any CPU = Analyze|Any CPU
@@ -135,6 +137,14 @@ Global
 		{46AF27D2-AC50-42BB-AAC7-CCB26841EF81}.Development|Any CPU.Build.0 = Development|Any CPU
 		{46AF27D2-AC50-42BB-AAC7-CCB26841EF81}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{46AF27D2-AC50-42BB-AAC7-CCB26841EF81}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5B87B143-A9A1-47AD-900D-CB275D0DE22C}.Analyze|Any CPU.ActiveCfg = Analyze|Any CPU
+		{5B87B143-A9A1-47AD-900D-CB275D0DE22C}.Analyze|Any CPU.Build.0 = Analyze|Any CPU
+		{5B87B143-A9A1-47AD-900D-CB275D0DE22C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5B87B143-A9A1-47AD-900D-CB275D0DE22C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5B87B143-A9A1-47AD-900D-CB275D0DE22C}.Development|Any CPU.ActiveCfg = Development|Any CPU
+		{5B87B143-A9A1-47AD-900D-CB275D0DE22C}.Development|Any CPU.Build.0 = Development|Any CPU
+		{5B87B143-A9A1-47AD-900D-CB275D0DE22C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5B87B143-A9A1-47AD-900D-CB275D0DE22C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -151,6 +161,7 @@ Global
 		{699D19DD-F666-4EC2-B36E-E8E142A46A3F} = {70ADC06D-FF15-4AF8-92B3-4EC6DD4AFEF0}
 		{C3EF59E0-F023-42A0-876E-1F386D0DF9FE} = {70ADC06D-FF15-4AF8-92B3-4EC6DD4AFEF0}
 		{46AF27D2-AC50-42BB-AAC7-CCB26841EF81} = {70ADC06D-FF15-4AF8-92B3-4EC6DD4AFEF0}
+		{5B87B143-A9A1-47AD-900D-CB275D0DE22C} = {70ADC06D-FF15-4AF8-92B3-4EC6DD4AFEF0}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {EFA381F3-6D2E-4D48-AD62-B69D91AD1E10}
