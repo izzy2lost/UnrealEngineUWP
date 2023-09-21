@@ -264,6 +264,7 @@ protected:
 #if !UE_BUILD_SHIPPING
 	/** Tile processing time per NavDataIndex */
 	TArray<TArray<FTileHistoryData>> TileHistoryData;
+	double TileHistoryStartTime = 0;
 #endif // UE_BUILD_SHIPPING
 
 	/** If there are enough tiles to process this in the Min Time Slice Duration */
