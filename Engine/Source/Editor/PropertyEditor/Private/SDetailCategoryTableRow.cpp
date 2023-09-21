@@ -19,6 +19,7 @@
 #include "UserInterface/PropertyEditor/PropertyEditorConstants.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SSeparator.h"
+#include "Brushes/SlateColorBrush.h"
 
 void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDetailTreeNode> InOwnerTreeNode, const TSharedRef<STableViewBase>& InOwnerTableView)
 {
@@ -27,6 +28,7 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 	DisplayName = InArgs._DisplayName;
 	bIsInnerCategory = InArgs._InnerCategory;
 	bShowBorder = InArgs._ShowBorder;
+	bIsEmpty = InArgs._IsEmpty;
 
 	IDetailsViewPrivate* DetailsView = InOwnerTreeNode->GetDetailsView();
 	FDetailColumnSizeData& ColumnSizeData = DetailsView->GetColumnSizeData();
@@ -67,6 +69,15 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 		.AutoWidth()
 		[
 			SNew(SDetailExpanderArrow, SharedThis(this))
+				//if this is a stub category
+				.Visibility_Lambda([this]
+				{
+					if (bIsEmpty)
+					{
+						return EVisibility::Hidden;
+					}
+					return EVisibility::Visible;
+				})
 		]
 		+ SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
@@ -119,7 +130,7 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 			.HAlign(HAlign_Right)
 			[
 			SNew(SBorder)
-			 .BorderImage(this, &SDetailCategoryTableRow::GetBackgroundImageForScrollBarWell)
+			.BorderImage(new FSlateColorBrush(FLinearColor::Transparent))
 			.Visibility(EVisibility::Visible)
 			.Padding_Lambda([this]
 			{
@@ -241,8 +252,8 @@ const FSlateBrush* SDetailCategoryTableRow::GetBackgroundImage() const
 
 		const bool bIsScrollBarNeeded = IsScrollBarVisible(OwnerTableViewWeak);
 		DisplayManager->SetIsScrollBarNeeded(bIsScrollBarNeeded);
-		const bool bIsCategoryExpanded = IsItemExpanded();
-		return DetailsViewStyle ? DetailsViewStyle->GetBackgroundImageForCategoryRow(bShowBorder, bIsInnerCategory, bIsCategoryExpanded, bIsScrollBarNeeded) : nullptr;
+		const bool bIsCategoryExpanded = IsItemExpanded() && !bIsEmpty;
+		return DetailsViewStyle ? DetailsViewStyle->GetBackgroundImageForCategoryRow(bShowBorder, bIsInnerCategory, bIsCategoryExpanded) : nullptr;
 	}
 	return nullptr;
 }
@@ -251,7 +262,7 @@ const FSlateBrush* SDetailCategoryTableRow::GetBackgroundImageForScrollBarWell()
 {
 	if (bShowBorder)
 	{
-		const bool bIsCategoryExpanded = IsItemExpanded();
+		const bool bIsCategoryExpanded = IsItemExpanded() && !bIsEmpty;
 		const bool bIsScrollBarVisible = IsScrollBarVisible(OwnerTableViewWeak);
 		return DetailsViewStyle ? DetailsViewStyle->GetBackgroundImageForScrollBarWell(
 			bShowBorder, bIsInnerCategory, bIsCategoryExpanded, bIsScrollBarVisible) : nullptr;

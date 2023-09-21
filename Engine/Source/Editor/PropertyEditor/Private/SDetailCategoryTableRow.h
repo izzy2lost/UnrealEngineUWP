@@ -20,12 +20,17 @@ public:
 	SLATE_BEGIN_ARGS(SDetailCategoryTableRow)
 		: _InnerCategory(false)
 		, _ShowBorder(true)
+		, _IsEmpty(false)
 		, _ObjectName(NAME_Name)
 	{}
 		SLATE_ARGUMENT(FText, DisplayName)
 		SLATE_ARGUMENT(bool, InnerCategory)
 		SLATE_ARGUMENT(TSharedPtr<SWidget>, HeaderContent)
 		SLATE_ARGUMENT(bool, ShowBorder)
+		
+		/** If true, this Category should have no UProperty data associated with it, and will be shown as an 
+		* empty stub with no expansion arrow */
+		SLATE_ARGUMENT(bool, IsEmpty)
 		SLATE_ARGUMENT(TSharedPtr<FOnPasteFromText>, PasteFromText)
 		SLATE_ARGUMENT(FName, ObjectName)
 	SLATE_END_ARGS()
@@ -83,6 +88,13 @@ private:
 
 	bool bIsInnerCategory = false;
 	bool bShowBorder = false;
+
+	/**
+	* If true, this Category should have no UProperty data associated with it, and will be shown as an empty stub
+	* with no expansion arrow
+	*/
+	bool bIsEmpty = false;
+
 	FUIAction CopyAction;
 	FUIAction PasteAction;
 

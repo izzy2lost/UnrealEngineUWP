@@ -215,4 +215,16 @@ public:
 
 	/** Optional PasteFromText delegate for this category */
 	virtual TSharedPtr<FOnPasteFromText> OnPasteFromText() const { return nullptr; }
+
+	/**
+	 * If true, this Category should have no UProperty data associated with it, and will be shown as an empty stub
+	 * with no expansion arrow
+	 */
+	virtual bool IsEmpty() const { return false; }
+
+	/**
+	 * Sets whether this Category is "Empty" ~ that is, should have no UProperty data associated with it, and will be shown
+	 * as an empty stub with no expansion arrow
+	 */
+	virtual void SetIsEmpty(bool bInIsEmpty) { }
 };

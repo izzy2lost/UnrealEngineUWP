@@ -62,12 +62,15 @@ const FDetailsViewStyle* FDetailsDisplayManager::GetDetailsViewStyle() const
 	return ViewStyle;
 }
 
-
-
 FMargin FDetailsDisplayManager::GetTablePadding() const
 {
 	const FDetailsViewStyle* Style = GetDetailsViewStyle();
 	return Style ? Style->GetTablePadding(bIsScrollBarNeeded) : 0;
+}
+
+bool FDetailsDisplayManager::ShowEmptyCategoryIfRootUObjectHasNoPropertyData(UObject* InNode) const
+{
+	return false;
 }
 
 bool FDetailsDisplayManager::GetIsScrollBarNeeded() const

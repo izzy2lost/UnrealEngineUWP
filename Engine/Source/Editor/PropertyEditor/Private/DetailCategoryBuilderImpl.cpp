@@ -602,6 +602,16 @@ FDetailLayoutCustomization* FDetailCategoryImpl::GetDefaultCustomization(TShared
 	return Customization;
 }
 
+bool FDetailCategoryImpl::IsEmpty() const
+{
+	return bIsEmpty;
+}
+
+void FDetailCategoryImpl::SetIsEmpty(bool bInIsEmpty)
+{
+	bIsEmpty = bInIsEmpty;
+}
+ 
 bool FDetailCategoryImpl::ShouldAdvancedBeExpanded() const
 {
 	return bUserShowAdvanced || bForceAdvanced;
@@ -824,6 +834,7 @@ TSharedRef<ITableRow> FDetailCategoryImpl::GenerateWidgetForTableView(const TSha
 	return SNew(SDetailCategoryTableRow, AsShared(), OwnerTable)
 		.PasteFromText(OnPasteFromText())
 		.ObjectName( ObjectName )
+		.IsEmpty( bIsEmpty )
 		.InnerCategory(ParentLayout.IsValid() ? ParentLayout->IsLayoutForExternalRoot() : false)
 		.DisplayName(GetDisplayName())
 		.HeaderContent(HeaderContent);

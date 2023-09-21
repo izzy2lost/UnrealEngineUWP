@@ -96,13 +96,11 @@ const FName FDetailsViewStyle::GetTypeName() const
 const FSlateBrush* FDetailsViewStyle::GetBackgroundImageForCategoryRow(
 	const bool bShowBorder, 
 	const bool bIsInnerCategory,
-	const bool bIsCategoryExpanded,
-	const bool bIsScrollBarNeeded) const
+	const bool bIsCategoryExpanded) const
 {
 	static const FSlateBrush* InnerCategoryRowBrush = FAppStyle::Get().GetBrush("DetailsView.CategoryMiddle");
 	static const FSlateBrush* ClassicStyleTopLevelCategoryRowBrush = FAppStyle::Get().GetBrush("DetailsView.CategoryTop");
 	static const FSlateBrush* CardStyleTopLevelCategoryCollapsedScrollBarNeededRowBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderRounded");
-	static const FSlateBrush* CardStyleTopLevelCategoryCollapsedScrollbarHiddenRowBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderLeftSideRounded");
 	static const FSlateBrush* CardStyleTopLevelCategoryExpandedScrollBarNeededRowBrush = FAppStyle::Get().GetBrush("DetailsView.CardHeaderTopRounded");
 
 	if (bShowBorder)
@@ -120,11 +118,7 @@ const FSlateBrush* FDetailsViewStyle::GetBackgroundImageForCategoryRow(
 		}
 		if (!bIsCategoryExpanded)
 		{
-			if (bIsScrollBarNeeded)
-			{
-				return CardStyleTopLevelCategoryCollapsedScrollBarNeededRowBrush;
-			}
-			return CardStyleTopLevelCategoryCollapsedScrollbarHiddenRowBrush;
+			return CardStyleTopLevelCategoryCollapsedScrollBarNeededRowBrush;
 		}
 		return CardStyleTopLevelCategoryExpandedScrollBarNeededRowBrush;
 	}

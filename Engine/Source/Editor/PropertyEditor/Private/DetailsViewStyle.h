@@ -72,13 +72,11 @@ public:
 	 *
  	 * @param bShowBorder a bool to indicate whether the border should be shown, at all
 	 * @param bIsCategoryExpanded a bool that indicates whether this Category is expanded 
-	 * @param bIsScrollBarVisible a bool that indicates whether the scrollbar for the details view is visible
 	 */	
 	const FSlateBrush* GetBackgroundImageForCategoryRow(
 		const bool bShowBorder,
 		const bool bIsInnerCategory,
-		const bool bIsCategoryExpanded,
-		const bool bIsScrollBarVisible) const;
+		const bool bIsCategoryExpanded) const;
 
 	/**
 	 * Returns the background image for the scroll bar well

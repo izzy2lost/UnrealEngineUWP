@@ -492,11 +492,11 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				if (PropertyNode->IsReorderable() || 
 					(CastField<FArrayProperty>(PropertyNode->GetProperty()) != nullptr && 
 					CastField<FObjectProperty>(CastField<FArrayProperty>(PropertyNode->GetProperty())->Inner) != nullptr)) // Is an object array
-				{
+						{
 					DragLeaveDelegate = FOnTableRowDragLeave::CreateSP(this, &SDetailSingleItemRow::OnArrayOrCustomDragLeave);
 					AcceptDropDelegate = FOnAcceptDrop::CreateSP(this, PropertyNode->IsReorderable() ? &SDetailSingleItemRow::OnArrayAcceptDrop : &SDetailSingleItemRow::OnArrayHeaderAcceptDrop);
 					CanAcceptDropDelegate = FOnCanAcceptDrop::CreateSP(this, &SDetailSingleItemRow::OnArrayCanAcceptDrop);
-				}
+						}
 			}
 
 			NameColumnBox->AddSlot()
@@ -674,38 +674,49 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 	};
 
 	static const FDetailsViewStyleKey& PrimaryKey = SDetailsView::GetPrimaryDetailsViewStyleKey();
-	
-	this->ChildSlot
-	[
-		SNew( SBorder )
-		.BorderImage(FAppStyle::Get().GetBrush("DetailsView.GridLine"))
-		.Padding(FMargin(0,0,0,1))
-		.Clipping(EWidgetClipping::ClipToBounds)
+
+	// If this is a stub category with no UProperty data, just show a null widget, we don't have anything useful to show here
+	if (Category.IsValid() && Category->IsEmpty())
+	{
+		this->ChildSlot
+		[ 
+			SNullWidget::NullWidget		
+		];
+	}
+	else
+	{
+		this->ChildSlot
 		[
-			SNew(SBox)
-			.MinDesiredHeight(PropertyEditorConstants::PropertyRowHeight)
+			SNew( SBorder )
+			.BorderImage(FAppStyle::Get().GetBrush("DetailsView.GridLine"))
+			.Padding(FMargin(0,0,0,1))
+			.Clipping(EWidgetClipping::ClipToBounds)
 			[
-				SNew( SHorizontalBox )
-				+ SHorizontalBox::Slot()
-				.HAlign(HAlign_Fill)
-				.VAlign(VAlign_Fill)
+				SNew(SBox)
+				.MinDesiredHeight(PropertyEditorConstants::PropertyRowHeight)
 				[
-					SNew( SBorder )
-					.BorderImage(FAppStyle::Get().GetBrush("DetailsView.Highlight"))
-					.Padding_Lambda(GetHighlightBorderPadding)
+					SNew( SHorizontalBox )
+					+ SHorizontalBox::Slot()
+					.HAlign(HAlign_Fill)
+					.VAlign(VAlign_Fill)
 					[
 						SNew( SBorder )
-						.BorderImage(FAppStyle::Get().GetBrush("DetailsView.CategoryMiddle"))
-						.BorderBackgroundColor(this, &SDetailSingleItemRow::GetOuterBackgroundColor)
-						.Padding(0)
+						.BorderImage(FAppStyle::Get().GetBrush("DetailsView.Highlight"))
+						.Padding_Lambda(GetHighlightBorderPadding)
 						[
-							Widget
+							SNew( SBorder )
+							.BorderImage(FAppStyle::Get().GetBrush("DetailsView.CategoryMiddle"))
+							.BorderBackgroundColor(this, &SDetailSingleItemRow::GetOuterBackgroundColor)
+							.Padding(0)
+							[
+								Widget
+							]
 						]
 					]
 				]
 			]
-		]
-	];
+		];
+	}
 
 	STableRow< TSharedPtr< FDetailTreeNode > >::ConstructInternal(
 		STableRow::FArguments()

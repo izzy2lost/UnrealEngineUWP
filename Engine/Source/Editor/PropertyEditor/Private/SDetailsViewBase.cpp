@@ -659,6 +659,8 @@ void SDetailsViewBase::UpdateSinglePropertyMap(TSharedPtr<FComplexPropertyNode> 
 	Args.bUpdateFavoriteSystemOnly = false;
 	DetailLayoutHelpers::UpdateSinglePropertyMapRecursive(*RootPropertyNode, NAME_None, RootPropertyNode.Get(), Args);
 
+	DetailLayout->AddEmptyCategoryIfNeeded(RootPropertyNode);
+	
 	CustomUpdatePropertyMap(LayoutData.DetailLayout);
 
 	// Ask for custom detail layouts, unless disabled. One reason for disabling custom layouts is that the custom layouts

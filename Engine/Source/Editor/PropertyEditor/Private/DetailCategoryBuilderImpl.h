@@ -322,6 +322,18 @@ public:
 	bool GetShouldBeInitiallyCollapsed() const { return bShouldBeInitiallyCollapsed; }
 
 	FDetailLayoutCustomization* GetDefaultCustomization(TSharedRef<FPropertyNode> PropertyNode);
+	
+	/**
+    * If true, this Category should have no UProperty data associated with it, and will be shown as an empty stub
+    * with no expansion arrow
+    */
+	virtual bool IsEmpty() const override;
+	
+	/**
+	 * Sets whether this Category is "Empty" ~ that is, should have no UProperty data associated with it, and will be shown
+	 * as an empty stub with no expansion arrow
+	 */
+	virtual void SetIsEmpty(bool bInIsEmpty) override;
 
 private:
 	virtual void OnItemExpansionChanged(bool bIsExpanded, bool bShouldSaveState) override;
@@ -452,4 +464,10 @@ private:
 	bool bHasVisibleAdvanced : 1;
 	bool bPendingRefresh : 1;
 	bool bPendingRefreshNeedsRefilter : 1;
+
+	/**
+	* If true, this Category should have no UProperty data associated with it, and will be shown as an empty stub
+	* with no expansion arrow
+	*/
+	bool bIsEmpty 	: 1;
 };

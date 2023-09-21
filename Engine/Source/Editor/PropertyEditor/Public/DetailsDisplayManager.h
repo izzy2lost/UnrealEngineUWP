@@ -42,7 +42,7 @@ public:
 	 *
 	 * @param InCategoryObjectName the name of the category object
 	 */
-	void SetCategoryObjectName(FName InCategoryObjectName);
+	void SetCategoryObjectName(FName InCategoryObjectName);            
 
 	/**
 	 * Gets the category menu SWidget and returns a shared pointer to it
@@ -89,6 +89,14 @@ public:
 	 * Returns the FMargin which provides the padding around the whole details view table
 	 */
 	FMargin GetTablePadding() const;
+
+	/**
+	* Returns true if the specified UObject is a Root Node Object and should show an empty Category stub even if it
+	* has no UProperty Data, else it returns false
+	*
+	* @param InNode the @code UObject* @endcode which will be tested to see if it needs an empty category stub
+	*/
+	virtual bool ShowEmptyCategoryIfRootUObjectHasNoPropertyData(UObject* InNode) const;
 
 protected:
 

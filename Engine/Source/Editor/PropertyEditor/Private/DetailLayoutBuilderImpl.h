@@ -55,6 +55,17 @@ public:
 	virtual void SortCategories(const FOnCategorySortOrderFunction& SortFunction) override;
 	virtual void SetPropertyGenerationAllowListPaths(const TSet<FString>& InPropertyGenerationAllowListPaths) override;
 	virtual bool IsPropertyPathAllowed(const FString& InPath) const override;
+
+	/**
+	 * Creates an empty category row if there currently are no categories and one is required for the
+	 * @code TSharedPtr<FComplexPropertyNode> @endcode Node
+	 *
+	 * @param Node The @code TSharedPtr<FComplexPropertyNode> @endcode that we will add an empty category for, if needed
+	 *
+	 * @return true if an empty/stub category was added, else it returns false 
+	 */
+	bool AddEmptyCategoryIfNeeded(TSharedPtr<FComplexPropertyNode> Node);
+
 	/**
 	 * Creates a default category. The SDetails view will generate widgets in default categories
 	 *
