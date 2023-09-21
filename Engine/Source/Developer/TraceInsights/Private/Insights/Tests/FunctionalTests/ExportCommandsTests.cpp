@@ -1,100 +1,16 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
-#include "CoreMinimal.h"
-#include "Misc/AutomationTest.h"
-//awful hack since SlabAllocator is private
-#include "Developer/TraceServices/Private/Common/SlabAllocator.h"
+// Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "HAL/FileManager.h"
-#include "Misc/FileHelper.h"
 #include "HAL/PlatformFileManager.h"
-#include "Common/PagedArray.h"
+#include "Misc/FileHelper.h"
 #include "Insights/InsightsManager.h"
-#include "Insights/InsightsCommands.h"
+#include "Insights/IUnrealInsightsModule.h"
 #include "Insights/Tests/InsightsTestUtils.h"
+#include "Misc/AutomationTest.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPagedArrayFilteringTest, "Insights.PagedArrayFiltering", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
-
-bool operator!=(const FInt32Interval& lhs, const FInt32Interval& rhs)
+void VerifyExportedLines(const FString& ExportReportPath, const FString& CmdLogPath, const FString& Elements, FInsightsTestUtils Utils, FAutomationTestBase* Test, double Timeout)
 {
-	return lhs.Min != rhs.Min || lhs.Max != rhs.Max;
-}
-
-bool FPagedArrayFilteringTest::RunTest(const FString& Parameters)
-{
-	using namespace TraceServices;
-	
-	TArray<int32> Integers {0,1,2,3,4,5,6,7,8,9,10};
-	TArray<int32> Integer {1};
-	
-	//first element >= Value
-	TestEqual(TEXT("First index of element found in range"), Algo::LowerBound(Integers, 4),4);
-	TestEqual(TEXT("First index of element not in range"), Algo::LowerBound(Integers, 100),11);
-	//first element > Value
-	TestEqual(TEXT("Upper bound value found in range"), Algo::UpperBound(Integers, 4), 5);
-	TestEqual(TEXT("Upper bound value not found in range"), Algo::UpperBound(Integers, 100), 11);
-	
-	TestEqual(TEXT("Upper bound value found in single-item range"), Algo::UpperBound(Integer, 10), 1);
-
-	FSlabAllocator alloc(32 << 20);
-	int32 PageSize = 4;
-
-	struct FTimeRegion
-	{
-		double BeginTime;
-		double EndTime;
-	};
-	
-	TPagedArray<FTimeRegion> EmptyLane(alloc, PageSize);
-
-	TPagedArray<FTimeRegion> OneItemLane(alloc, PageSize);
-	OneItemLane.EmplaceBack(FTimeRegion{ 1.0, 2.0 });
-
-	TPagedArray<FTimeRegion> TestLane(alloc, PageSize);
-	TestLane.EmplaceBack(FTimeRegion{ 1.0, 2.0 });
-	TestLane.EmplaceBack(FTimeRegion{ 3.0, 4.0 });
-	TestLane.EmplaceBack(FTimeRegion{ 5.0, 6.0 });
-	TestLane.EmplaceBack(FTimeRegion{ 7.0, 8.0 });
-	TestLane.EmplaceBack(FTimeRegion{ 9.0, 10.0 });
-	TestLane.EmplaceBack(FTimeRegion{ 11.0, 12.0 });
-	TestLane.EmplaceBack(FTimeRegion{ 13.0, 14.0 });
-	
-	FInt32Interval Result;
-	auto BeginProj = [](const FTimeRegion& r ){ return r.BeginTime;};
-	auto EndProj = [](const FTimeRegion& r ){ return r.EndTime;};
-	
-	Result = GetElementRangeOverlappingGivenRange<FTimeRegion>(EmptyLane, -10.0, 0.0,BeginProj, EndProj);
-	TestEqual(TEXT("No overlaps for empty range"), Result, FInt32Interval{-1,-1});
-
-	Result = GetElementRangeOverlappingGivenRange<FTimeRegion>(OneItemLane, -10.0, 10.0,BeginProj, EndProj);
-	TestEqual(TEXT("Overlap is interval is larger than element-range"), Result, {0,0});
-	
-	Result = GetElementRangeOverlappingGivenRange<FTimeRegion>(TestLane, -10.0, 0.0,BeginProj, EndProj);
-	TestEqual(TEXT("No overlaps for interval before element-range"), Result, {-1,-1});
-
-	Result = GetElementRangeOverlappingGivenRange<FTimeRegion>(TestLane, 100.0, 200.0,BeginProj, EndProj);
-	TestEqual(TEXT("No overlaps for interval after element-range"), Result, {-1,-1});
-
-	//partially overlapping begin
-	Result = GetElementRangeOverlappingGivenRange<FTimeRegion>(TestLane, 0, 5,BeginProj, EndProj);
-	TestEqual(TEXT("Overlaps for interval earlier to inside element-range"), Result, {0,2});	
-	
-	// full inside
-	Result = GetElementRangeOverlappingGivenRange<FTimeRegion>(TestLane, 4, 8,BeginProj, EndProj);
-	TestEqual(TEXT("Overlaps for interval inside element-range"), Result, {2,3});
-
-	//partially overlapping end
-	Result = GetElementRangeOverlappingGivenRange<FTimeRegion>(TestLane, 11.3, 100,BeginProj, EndProj);
-	TestEqual(TEXT("Overlaps for interval inside to after element-range"), Result, {5,6});
-
-	return !HasAnyErrors();
-}
-
-#if !WITH_EDITOR
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FСommandsExportWindowsTest, "Insights.CommandsExport(Windows)", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
-
-void VerifyExportedLines(const FString& ExportReportPath, const FString& CmdLogPath, const FString& Elements, FInsightsTestUtils Utils, FAutomationTestBase* Test, const float& Timeout)
-{
-	float StartTime = FPlatformTime::Seconds();
+	double StartTime = FPlatformTime::Seconds();
 	bool bLineFound = false;
 	FString ExpectedResult;
 
@@ -127,6 +43,9 @@ void VerifyExportedLines(const FString& ExportReportPath, const FString& CmdLogP
 	Test->AddError(FString::Printf(TEXT("VerifyExportedLines timed out while trying to find line '%s' from '%s'"), *ExpectedResult, *ExportReportPath));
 }
 
+#if !WITH_EDITOR
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FСommandsExportWindowsTest, "Insights.Analysis.ExecCmd.CommandsExport(Windows)", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 {
 	TSharedPtr<FInsightsManager> InsightsManager = FInsightsManager::Get();
@@ -158,12 +77,12 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 	const FString ExportTimingEventsNonDefaultReportPath = TEXT("/TestResults/SingleCommand/TimingEventsNonDefault.csv");
 	const FString ExportTimerStatisticsReportPath = TEXT("/TestResults/SingleCommand/TimerStatistics.csv");
 	bool bLineFound = false;
-	const float Timeout = 150.0;
+	double Timeout = 150.0;
 
 	UTEST_TRUE("Trace in project exists", PlatformFile.FileExists(*SourceTracePath));
 	UTEST_TRUE("Export in project exists", PlatformFile.FileExists(*SourceExportPath));
 	UTEST_FALSE("Trace in store should not exists before copy", PlatformFile.FileExists(*StoreTracePath));
-	
+
 	PlatformFile.CopyFile(*StoreTracePath, *SourceTracePath);
 	UTEST_TRUE(TEXT("Trace in store should exists after copy"), PlatformFile.FileExists(*StoreTracePath));
 
@@ -175,7 +94,7 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 		while ((FPlatformTime::Seconds() - StartTime) < Timeout)
 		{
 			if (!PlatformFile.DirectoryExists(*TestResultsDirPath))
-			{ 
+			{
 				break;
 			}
 			FPlatformProcess::Sleep(0.1f);
@@ -184,10 +103,10 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 		UTEST_FALSE("Previously created TestResults directory is not deleted. Execution of the next steps will cause unstable behavior.", PlatformFile.DirectoryExists(*TestResultsDirPath));
 	}
 
-    // ExportThreads
+	// ExportThreads
 	FString InsightsParameters = FString::Printf(TEXT("-OpenTraceFile=\"%s\" -ABSLOG=\"%s\" -AutoQuit -NoUI  -ExecOnAnalysisCompleteCmd=\"%s\" -log"), *StoreTracePath, *CmdThreadLogPath, *ExportThreadsTask);
 	InsightsManager->OpenUnrealInsights(*InsightsParameters);
-	
+
 	VerifyExportedLines(ExportThreadsReportPath, CmdThreadLogPath, TEXT("threads"), Utils, this, Timeout);
 
 	// ExportTimers
@@ -197,7 +116,7 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 	VerifyExportedLines(ExportTimersReportPath, CmdTimersLogPath, TEXT("timers"), Utils, this, Timeout);
 
 	// UI verification cannot be executed in that case. 
-	
+
 	// ExportTimingEvents
 	InsightsParameters = FString::Printf(TEXT("-OpenTraceFile=\"%s\" -ABSLOG=\"%s\" -AutoQuit -NoUI  -ExecOnAnalysisCompleteCmd=\"%s\" -log"), *StoreTracePath, *CmdTimingEventsLogPath, *ExportTimingEventsTask);
 	InsightsManager->OpenUnrealInsights(*InsightsParameters);
@@ -235,7 +154,7 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 	// Export.rsp
 	PlatformFile.CopyFile(*LogResultExportPath, *SourceExportPath);
 	TestTrue("Rsp in log directory should exists after copy", PlatformFile.FileExists(*LogResultExportPath));
- 
+
 	InsightsParameters = FString::Printf(TEXT("-OpenTraceFile=\"%s\" -ABSLOG=\"%s\" -AutoQuit -NoUI  -ExecOnAnalysisCompleteCmd=\"@=/TestResults/export.rsp\" -log"), *StoreTracePath, *CmdExportLogPath);
 	InsightsManager->OpenUnrealInsights(*InsightsParameters);
 
@@ -277,10 +196,10 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 
 		VerifyExportedLines(ExpectedTimingEventsRsp[i], CmdExportLogPath, TEXT("timing events"), Utils, this, Timeout);
 	}
-	
+
 	IFileManager::Get().Delete(*StoreTracePath);
 
 	return true;
 }
 
-#endif // !WITH_EDITOR
+#endif //!WITH_EDITOR

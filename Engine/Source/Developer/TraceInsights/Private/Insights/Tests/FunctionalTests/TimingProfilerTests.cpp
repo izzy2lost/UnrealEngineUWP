@@ -8,15 +8,117 @@
 
 #include "Insights/Common/Stopwatch.h"
 #include "Insights/InsightsManager.h"
+#include "Insights/Tests/InsightsTestUtils.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_LOG_CATEGORY(TimingProfilerTests);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
 #if !WITH_EDITOR && WITH_DEV_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateEventsToFile, "Insights.EnumerateEventsToFile", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnumerateTest, "Insights.Analysis.TimingInsights.Enumerate", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+bool FEnumerateTest::RunTest(const FString& Parameters)
+{
+	FInsightsTestUtils Utils(this);
+
+	FString Path = FPaths::RootDir() + TEXT("EngineTest/SourceAssets/Utrace/r424_win64_game_11590231.utrace");
+	bool ret = Utils.AnalyzeTrace(*Path);
+	if (!ret)
+	{
+		return !HasAnyErrors();
+	}
+
+	FTimingProfilerTests::FEnumerateTestParams Params;
+	Params.Interval = 0.01;
+	Params.NumEnumerations = 10000;
+
+	FTimingProfilerTests::FCheckValues CheckValues;
+	FTimingProfilerTests::RunEnumerateBenchmark(Params, CheckValues);
+
+	TestEqual(TEXT("SessionDuration"), CheckValues.SessionDuration, 307.0172116, 1.e-6);
+	TestEqual(TEXT("TotalEventDuration"), CheckValues.TotalEventDuration, 680.943945, 1.e-6);
+	TestEqual(TEXT("EventCount"), CheckValues.EventCount, 10836057ull);
+	TestEqual(TEXT("SumDepth"), (uint64)CheckValues.SumDepth, 80030008ull);
+	TestEqual(TEXT("SumTimerIndex"), (uint64)CheckValues.SumTimerIndex, 4126772211ull);
+
+	AddInfo(FString::Printf(TEXT("Enumeration Duration: %f seconds."), CheckValues.EnumerationDuration));
+
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnumeratePerformanceTest, "Insights.Analysis.TimingInsights.EnumeratePerformance", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::PerfFilter)
+bool FEnumeratePerformanceTest::RunTest(const FString& Parameters)
+{
+	FInsightsTestUtils Utils(this);
+
+	FString Path = FPaths::RootDir() + TEXT("EngineTest/SourceAssets/Utrace/r425_win64_game_13649855.utrace");
+	bool ret = Utils.AnalyzeTrace(*Path);
+	if (!ret)
+	{
+		return !HasAnyErrors();
+	}
+
+	FTimingProfilerTests::FEnumerateTestParams Params;
+	Params.Interval = 0.01;
+	Params.NumEnumerations = 100000;
+
+	FTimingProfilerTests::FCheckValues CheckValues;
+	FTimingProfilerTests::RunEnumerateBenchmark(Params, CheckValues);
+
+	TestEqual(TEXT("SessionDuration"), CheckValues.SessionDuration, 341.073285, 1.e-6);
+	TestEqual(TEXT("TotalEventDuration"), CheckValues.TotalEventDuration, 10912.775537, 1.e-6);
+	TestEqual(TEXT("EventCount"), CheckValues.EventCount, 137000700ull);
+	TestEqual(TEXT("SumDepth"), (uint64)CheckValues.SumDepth, 1134384338ull);
+	TestEqual(TEXT("SumTimerIndex"), (uint64)CheckValues.SumTimerIndex, 3499618755ull);
+
+	const double BenchmarkBaseline = 16.0;
+	AddInfo(FString::Printf(TEXT("Enumeration Duration: %f seconds."), CheckValues.EnumerationDuration));
+
+	if (CheckValues.EnumerationDuration > 1.5 * BenchmarkBaseline)
+	{
+		AddWarning(FString::Printf(TEXT("Enumeration duration (%f seconds) exceeded baseline by %.2f%%."), CheckValues.EnumerationDuration, CheckValues.EnumerationDuration / BenchmarkBaseline * 100.0));
+	}
+	else if (CheckValues.EnumerationDuration > 1.25 * BenchmarkBaseline)
+	{
+		AddInfo(FString::Printf(TEXT("Enumeration duration (%f seconds) exceeded baseline by %.2f%%."), CheckValues.EnumerationDuration, CheckValues.EnumerationDuration / BenchmarkBaseline * 100.0));
+	}
+
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnumerateFastTest, "Insights.Analysis.TimingInsights.EnumerateFast", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+bool FEnumerateFastTest::RunTest(const FString& Parameters)
+{
+	FInsightsTestUtils Utils(this);
+
+	FString Path = FPaths::RootDir() + TEXT("EngineTest/SourceAssets/Utrace/r423_win64_game_10478456.utrace");
+	bool ret = Utils.AnalyzeTrace(*Path);
+	if (!ret)
+	{
+		return !HasAnyErrors();
+	}
+
+	FTimingProfilerTests::FEnumerateTestParams Params;
+	Params.Interval = 0.01;
+	Params.NumEnumerations = 10000;
+
+	FTimingProfilerTests::FCheckValues CheckValues;
+	FTimingProfilerTests::RunEnumerateBenchmark(Params, CheckValues);
+
+	TestEqual(TEXT("SessionDuration"), CheckValues.SessionDuration, 305.232584, 1.e-6);
+	TestEqual(TEXT("TotalEventDuration"), CheckValues.TotalEventDuration, 1647.693886, 1.e-6);
+	TestEqual(TEXT("EventCount"), CheckValues.EventCount, 1759740ull);
+	TestEqual(TEXT("SumDepth"), (uint64)CheckValues.SumDepth, 15189227ull);
+	TestEqual(TEXT("SumTimerIndex"), (uint64)CheckValues.SumTimerIndex, 1239801518ull);
+
+	AddInfo(FString::Printf(TEXT("Enumeration Duration: %f seconds."), CheckValues.EnumerationDuration));
+
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateEventsToFile, "Insights.Analysis.TimingInsights.EnumerateEventsToFile", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 bool EnumerateEventsToFile::RunTest(const FString& Parameters)
 {
 	double SessionTime = 0.0;
@@ -57,9 +159,7 @@ bool EnumerateEventsToFile::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateScopesToFile, "Insights.EnumerateScopesToFile", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateScopesToFile, "Insights.Analysis.TimingInsights.EnumerateScopesToFile", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 bool EnumerateScopesToFile::RunTest(const FString& Parameters)
 {
 	double SessionTime = 0.0;
@@ -100,9 +200,7 @@ bool EnumerateScopesToFile::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(InsightsEnumerate10K, "Insights.Enumerate10K", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(InsightsEnumerate10K, "Insights.Analysis.TimingInsights.Enumerate10K", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 bool InsightsEnumerate10K::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -115,9 +213,7 @@ bool InsightsEnumerate10K::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(InsightsEnumerate100K, "Insights.Enumerate100K", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(InsightsEnumerate100K, "Insights.Analysis.TimingInsights.Enumerate100K", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 bool InsightsEnumerate100K::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -130,9 +226,7 @@ bool InsightsEnumerate100K::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAsyncAllTracks, "Insights.EnumerateByEndTimeAsyncAllTracks", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAsyncAllTracks, "Insights.Analysis.TimingInsights.EnumerateByEndTimeAsyncAllTracks", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 bool EnumerateByEndTimeAsyncAllTracks::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -145,9 +239,7 @@ bool EnumerateByEndTimeAsyncAllTracks::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAsyncGameThreadTrack, "Insights.EnumerateByEndTimeAsyncGameThreadTrack", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAsyncGameThreadTrack, "Insights.Analysis.TimingInsights.EnumerateByEndTimeAsyncGameThreadTrack", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 bool EnumerateByEndTimeAsyncGameThreadTrack::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -160,9 +252,7 @@ bool EnumerateByEndTimeAsyncGameThreadTrack::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAllTracks10sIntervals, "Insights.EnumerateByEndTimeAllTracks10sIntervals", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAllTracks10sIntervals, "Insights.Analysis.TimingInsights.EnumerateByEndTimeAllTracks10sIntervals", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 bool EnumerateByEndTimeAllTracks10sIntervals::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -175,9 +265,7 @@ bool EnumerateByEndTimeAllTracks10sIntervals::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAllTracks5sIntervals, "Insights.EnumerateByEndTimeAllTracks5sIntervals", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAllTracks5sIntervals, "Insights.Analysis.TimingInsights.EnumerateByEndTimeAllTracks5sIntervals", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 bool EnumerateByEndTimeAllTracks5sIntervals::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -194,7 +282,7 @@ bool EnumerateByEndTimeAllTracks5sIntervals::RunTest(const FString& Parameters)
 ////////////////////////////Enumerate Async Ordered by Start Time Tests/////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAsyncAllTracks, "Insights.EnumerateByStartTimeAsyncAllTracks", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAsyncAllTracks, "Insights.Analysis.TimingInsights.EnumerateByStartTimeAsyncAllTracks", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 bool EnumerateByStartTimeAsyncAllTracks::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -207,9 +295,7 @@ bool EnumerateByStartTimeAsyncAllTracks::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAsyncGameThreadTrack, "Insights.EnumerateByStartTimeAsyncGameThreadTrack", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAsyncGameThreadTrack, "Insights.Analysis.TimingInsights.EnumerateByStartTimeAsyncGameThreadTrack", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 bool EnumerateByStartTimeAsyncGameThreadTrack::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -222,9 +308,7 @@ bool EnumerateByStartTimeAsyncGameThreadTrack::RunTest(const FString& Parameters
 	return !HasAnyErrors();
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAllTracks10sIntervals, "Insights.EnumerateByStartTimeAllTracks10sIntervals", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAllTracks10sIntervals, "Insights.Analysis.TimingInsights.EnumerateByStartTimeAllTracks10sIntervals", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 bool EnumerateByStartTimeAllTracks10sIntervals::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -237,9 +321,7 @@ bool EnumerateByStartTimeAllTracks10sIntervals::RunTest(const FString& Parameter
 	return !HasAnyErrors();
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAllTracks5sIntervals, "Insights.EnumerateByStartTimeAllTracks5sIntervals", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAllTracks5sIntervals, "Insights.Analysis.TimingInsights.EnumerateByStartTimeAllTracks5sIntervals", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 bool EnumerateByStartTimeAllTracks5sIntervals::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -251,9 +333,7 @@ bool EnumerateByStartTimeAllTracks5sIntervals::RunTest(const FString& Parameters
 
 	return !HasAnyErrors();
 }
-
-#endif // #if !WITH_EDITOR && WITH_DEV_AUTOMATION_TESTS
-////////////////////////////////////////////////////////////////////////////////////////////////////
+#endif //!WITH_EDITOR && WITH_DEV_AUTOMATION_TESTS
 
 void FTimingProfilerTests::RunEnumerateBenchmark(const FEnumerateTestParams& InParams, FCheckValues& OutCheckValues)
 {
@@ -308,8 +388,6 @@ void FTimingProfilerTests::RunEnumerateBenchmark(const FEnumerateTestParams& InP
 	UE_LOG(TimingProfilerTests, Log, TEXT("TimelineIndex: %u"), TimelineIndex);
 	UE_LOG(TimingProfilerTests, Log, TEXT("Check Values: %f %llu %u %u"), OutCheckValues.TotalEventDuration, OutCheckValues.EventCount, OutCheckValues.SumDepth, OutCheckValues.SumTimerIndex);
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void FTimingProfilerTests::RunEnumerateAsyncBenchmark(const FEnumerateTestParams& InParams, FCheckValues& OutCheckValues)
 {
@@ -385,8 +463,6 @@ void FTimingProfilerTests::RunEnumerateAsyncBenchmark(const FEnumerateTestParams
 	UE_LOG(TimingProfilerTests, Log, TEXT("Check Values: %f %llu %u %u"), OutCheckValues.TotalEventDuration, OutCheckValues.EventCount, OutCheckValues.SumDepth, OutCheckValues.SumTimerIndex);
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 void FTimingProfilerTests::RunEnumerateAllTracksBenchmark(const FEnumerateTestParams& InParams, FCheckValues& OutCheckValues)
 {
 	UE_LOG(TimingProfilerTests, Log, TEXT("RUNNING ENUMERATE ALL TRACKS BENCHMARK..."));
@@ -445,8 +521,6 @@ void FTimingProfilerTests::RunEnumerateAllTracksBenchmark(const FEnumerateTestPa
 	UE_LOG(TimingProfilerTests, Log, TEXT("TimelineIndex: %u"), TimelineIndex);
 	UE_LOG(TimingProfilerTests, Log, TEXT("Check Values: %f %llu %u %u"), OutCheckValues.TotalEventDuration, OutCheckValues.EventCount, OutCheckValues.SumDepth, OutCheckValues.SumTimerIndex);
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void FTimingProfilerTests::RunEnumerateAsyncAllTracksBenchmark(const FEnumerateTestParams& InParams, FCheckValues& OutCheckValues)
 {
@@ -528,14 +602,12 @@ void FTimingProfilerTests::RunEnumerateAsyncAllTracksBenchmark(const FEnumerateT
 	UE_LOG(TimingProfilerTests, Log, TEXT("Check Values: %f %llu %u %u"), OutCheckValues.TotalEventDuration, OutCheckValues.EventCount, OutCheckValues.SumDepth, OutCheckValues.SumTimerIndex);
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 uint32 FTimingProfilerTests::GetTimelineIndex(const TCHAR* InName)
 {
 	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
 	const TraceServices::ITimingProfilerProvider& TimingProfilerProvider = *TraceServices::ReadTimingProfilerProvider(*Session.Get());
 	const TraceServices::IThreadProvider& ThreadProvider = TraceServices::ReadThreadProvider(*Session.Get());
-	uint32 TimelineIndex = (uint32) -1;
+	uint32 TimelineIndex = (uint32)-1;
 	ThreadProvider.EnumerateThreads(
 		[&TimelineIndex, &TimingProfilerProvider, InName](const TraceServices::FThreadInfo& ThreadInfo)
 		{
@@ -547,8 +619,6 @@ uint32 FTimingProfilerTests::GetTimelineIndex(const TCHAR* InName)
 
 	return TimelineIndex;
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool FTimingProfilerTests::RunEnumerateSyncAsyncComparisonTest(FAutomationTestBase& Test, const FEnumerateTestParams& InParams, bool bGameThreadOnly)
 {
@@ -574,15 +644,11 @@ bool FTimingProfilerTests::RunEnumerateSyncAsyncComparisonTest(FAutomationTestBa
 	return !Test.HasAnyErrors();
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 void FTimingProfilerTests::VerifyCheckValues(FAutomationTestBase& Test, FCheckValues First, FCheckValues Second)
 {
 	Test.TestEqual(TEXT("SessionDuration"), First.SessionDuration, Second.SessionDuration, 1.e-6);
 	Test.TestEqual(TEXT("TotalEventDuration"), First.TotalEventDuration, Second.TotalEventDuration, 1.e-3);
 	Test.TestEqual(TEXT("EventCount"), First.EventCount, Second.EventCount);
-	Test.TestEqual(TEXT("SumDepth"), (uint64) First.SumDepth, (uint64) Second.SumDepth);
-	Test.TestEqual(TEXT("SumTimerIndex"), (uint64) First.SumTimerIndex, (uint64) Second.SumTimerIndex);
+	Test.TestEqual(TEXT("SumDepth"), (uint64)First.SumDepth, (uint64)Second.SumDepth);
+	Test.TestEqual(TEXT("SumTimerIndex"), (uint64)First.SumTimerIndex, (uint64)Second.SumTimerIndex);
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
