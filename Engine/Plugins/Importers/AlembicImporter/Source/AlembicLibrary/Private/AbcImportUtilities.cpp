@@ -798,7 +798,8 @@ void AbcImporterUtilities::GenerateSmoothingGroupsIndices(FAbcMeshSample* MeshSa
 		Offset += NumVertsForFace;
 
 		// Store the averaged face normal
-		FaceNormals.Add(FaceNormal.GetSafeNormal());
+		FaceNormal.Normalize();
+		FaceNormals.Add(FaceNormal);
 	}
 		
 	MeshSample->NumSmoothingGroups = 0;

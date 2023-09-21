@@ -1388,6 +1388,7 @@ const bool FAbcImporter::CompressAnimationDataUsingPCA(const FAbcCompressionSett
 			SlowTask->MakeDialog();
 
 			uint32 GenerateMatrixSampleIndex = 0;
+			CompletedFrames = 0.0f;
 			TFunction<void(int32, FAbcFile*)> GenerateMatrixFunc =
 				[this, NumPolyMeshesToCompress, &Matrices, &NormalsMatrices, &GenerateMatrixSampleIndex, &PolyMeshesToCompress, &AverageVertexData, &AverageNormalData, &AverageSampleCenter, &SlowTask, &CompletedFrames]
 				(int32 FrameIndex, FAbcFile* InFile)
