@@ -34,7 +34,11 @@ FPreAnimatedCameraCutState FPreAnimatedCameraCutTraits::CachePreAnimatedValue(
 
 		// Save previous aspect ratio axis constraint.
 		ULocalPlayer* LocalPlayer = (PC != nullptr) ? PC->GetLocalPlayer() : nullptr;
-		EAspectRatioAxisConstraint AspectRatioAxisConstraint = LocalPlayer->AspectRatioAxisConstraint;
+		TOptional<EAspectRatioAxisConstraint> AspectRatioAxisConstraint;
+		if (LocalPlayer)
+		{
+			AspectRatioAxisConstraint = LocalPlayer->AspectRatioAxisConstraint;
+		}
 
 		return StorageType{ LocalPlayer, ViewTarget, AspectRatioAxisConstraint };
 	}
@@ -74,9 +78,9 @@ void FPreAnimatedCameraCutTraits::RestorePreAnimatedValue(
 	ULocalPlayer* LocalPlayer = (PC != nullptr) ? 
 		PC->GetLocalPlayer() : 
 		Cast<ULocalPlayer>(CachedValue.LastLocalPlayer.ResolveObjectPtr());
-	if (LocalPlayer)
+	if (LocalPlayer && CachedValue.LastAspectRatioAxisConstraint.IsSet())
 	{
-		LocalPlayer->AspectRatioAxisConstraint = CachedValue.LastAspectRatioAxisConstraint;
+		LocalPlayer->AspectRatioAxisConstraint = CachedValue.LastAspectRatioAxisConstraint.GetValue();
 	}
 }
 

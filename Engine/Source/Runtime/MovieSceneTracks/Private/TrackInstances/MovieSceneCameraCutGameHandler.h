@@ -22,7 +22,7 @@ struct FPreAnimatedCameraCutState
 {
 	FObjectKey LastLocalPlayer;
 	FObjectKey LastViewTarget;
-	EAspectRatioAxisConstraint LastAspectRatioAxisConstraint;
+	TOptional<EAspectRatioAxisConstraint> LastAspectRatioAxisConstraint;
 };
 
 /** Pre-animated traits for in-game camera cuts */
