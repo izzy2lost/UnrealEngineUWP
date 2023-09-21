@@ -222,6 +222,11 @@ const TSharedRef<SWidget> FSubstrateWidget::ProcessOperator(const FSubstrateMate
 
 void FSubstrateWidget::GetPinColor(TSharedPtr<SGraphPin>& Out, const UMaterialGraphNode* InNode)
 {	
+	if (!InNode || !InNode->MaterialExpression)
+	{
+		return;
+	}
+
 	const FLinearColor Color0 = USlateThemeManager::Get().GetColor(GetSubstrateWidgetColor0());
 	const FLinearColor Color1 = USlateThemeManager::Get().GetColor(GetSubstrateWidgetColor1());
 
