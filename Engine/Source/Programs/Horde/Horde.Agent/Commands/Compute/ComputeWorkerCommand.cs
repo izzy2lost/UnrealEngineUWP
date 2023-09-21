@@ -16,14 +16,14 @@ namespace Horde.Agent.Commands.Compute
 	[Command("computeworker", "Runs the agent as a local compute host, accepting incoming connections on the loopback adapter with a given port")]
 	class ComputeWorkerCommand : Command
 	{
-		readonly BundleReaderCache _storageCache;
+		readonly BundleReaderCache _bundleReaderCache;
 
 		[CommandLine("-Port=")]
 		int Port { get; set; } = 2000;
 
-		public ComputeWorkerCommand(BundleReaderCache storageCache)
+		public ComputeWorkerCommand(BundleReaderCache bundleReaderCache)
 		{
-			_storageCache = storageCache;
+			_bundleReaderCache = bundleReaderCache;
 		}
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
@@ -36,7 +36,7 @@ namespace Horde.Agent.Commands.Compute
 			await using (RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(tcpSocket), logger))
 			{
 				logger.LogInformation("Running worker...");
-				await RunWorkerAsync(socket, _storageCache, logger, CancellationToken.None);
+				await RunWorkerAsync(socket, _bundleReaderCache, logger, CancellationToken.None);
 				logger.LogInformation("Worker complete");
 				await socket.CloseAsync(CancellationToken.None);
 			}
@@ -45,11 +45,11 @@ namespace Horde.Agent.Commands.Compute
 			return 0;
 		}
 
-		public static async Task RunWorkerAsync(ComputeSocket socket, BundleReaderCache storageCache, ILogger logger, CancellationToken cancellationToken)
+		public static async Task RunWorkerAsync(ComputeSocket socket, BundleReaderCache bundleReaderCache, ILogger logger, CancellationToken cancellationToken)
 		{
 			DirectoryReference sandboxDir = DirectoryReference.Combine(AgentApp.DataDir, "Sandbox");
 
-			AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, storageCache, null, false, null, logger);
+			AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, bundleReaderCache, null, false, null, logger);
 			await worker.RunAsync(socket, cancellationToken);
 		}
 	}

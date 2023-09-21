@@ -72,23 +72,23 @@ namespace Horde.Agent.Services
 	class HttpServerStorageFactory : IServerStorageFactory
 	{
 		readonly IHttpClientFactory _httpClientFactory;
-		readonly BundleReaderCache _storageCache;
+		readonly BundleReaderCache _bundleReaderCache;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HttpServerStorageFactory(IHttpClientFactory httpClientFactory, BundleReaderCache storageCache, ILogger<HttpStorageClient> logger)
+		public HttpServerStorageFactory(IHttpClientFactory httpClientFactory, BundleReaderCache bundleReaderCache, ILogger<HttpStorageClient> logger)
 		{
 			_httpClientFactory = httpClientFactory;
-			_storageCache = storageCache;
+			_bundleReaderCache = bundleReaderCache;
 			_logger = logger;
 		}
 
 		/// <inheritdoc/>
 		public IStorageClient CreateStorageClient(Uri baseAddress, string token)
 		{
-			return new HttpStorageClient(() => CreateHttpClient(baseAddress, token), CreateHttpRedirectClient, _storageCache, _logger);
+			return new HttpStorageClient(() => CreateHttpClient(baseAddress, token), CreateHttpRedirectClient, _bundleReaderCache, _logger);
 		}
 
 		HttpClient CreateHttpClient(Uri baseAddress, string token)

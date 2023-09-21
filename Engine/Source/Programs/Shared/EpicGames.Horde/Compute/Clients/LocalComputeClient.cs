@@ -75,11 +75,11 @@ namespace EpicGames.Horde.Compute.Clients
 		{
 			using Socket tcpSocket = await listener.AcceptAsync(cancellationToken);
 
-			using BundleReaderCache storageCache = new BundleReaderCache();
+			using BundleReaderCache bundleReaderCache = new BundleReaderCache();
 
 			await using (RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(tcpSocket), logger))
 			{
-				AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, storageCache, null, executeInProcess, null, logger);
+				AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, bundleReaderCache, null, executeInProcess, null, logger);
 				await worker.RunAsync(socket, cancellationToken);
 				await socket.CloseAsync(cancellationToken);
 			}

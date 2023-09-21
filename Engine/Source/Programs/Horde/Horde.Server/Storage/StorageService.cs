@@ -188,8 +188,8 @@ namespace Horde.Server.Storage
 			public NamespaceId NamespaceId { get; }
 			public bool SupportsRedirects { get; }
 
-			public StorageClientImpl(StorageService outer, NamespaceConfig config, StorageBackendImpl backend, BundleReaderCache storageCache, ILogger logger)
-				: base(backend, storageCache, logger)
+			public StorageClientImpl(StorageService outer, NamespaceConfig config, StorageBackendImpl backend, BundleReaderCache bundleReaderCache, ILogger logger)
+				: base(backend, bundleReaderCache, logger)
 			{
 				_outer = outer;
 
@@ -482,7 +482,7 @@ namespace Horde.Server.Storage
 
 		readonly RedisService _redisService;
 		readonly IClock _clock;
-		readonly BundleReaderCache _storageCache;
+		readonly BundleReaderCache _bundleReaderCache;
 		readonly IMemoryCache _memoryCache;
 		readonly IStorageBackendProvider _storageBackendProvider;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
@@ -506,11 +506,11 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageService(MongoService mongoService, RedisService redisService, IClock clock, BundleReaderCache storageCache, IMemoryCache memoryCache, IStorageBackendProvider storageBackendProvider, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<StorageService> logger)
+		public StorageService(MongoService mongoService, RedisService redisService, IClock clock, BundleReaderCache bundleReaderCache, IMemoryCache memoryCache, IStorageBackendProvider storageBackendProvider, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<StorageService> logger)
 		{
 			_redisService = redisService;
 			_clock = clock;
-			_storageCache = storageCache;
+			_bundleReaderCache = bundleReaderCache;
 			_memoryCache = memoryCache;
 			_storageBackendProvider = storageBackendProvider;
 			_globalConfig = globalConfig;
@@ -628,7 +628,7 @@ namespace Horde.Server.Storage
 #pragma warning disable CA2000 // Dispose objects before losing scope (false positive?)
 						StorageBackendImpl backendImpl = new StorageBackendImpl(this, namespaceConfig.Id, prefix, backend, _tracer);
 #pragma warning restore CA2000 // Dispose objects before losing scope
-						StorageClientImpl clientImpl = new StorageClientImpl(this, namespaceConfig, backendImpl, _storageCache, _logger);
+						StorageClientImpl clientImpl = new StorageClientImpl(this, namespaceConfig, backendImpl, _bundleReaderCache, _logger);
 						nextState.Namespaces.Add(namespaceConfig.Id, clientImpl);
 					}
 				}

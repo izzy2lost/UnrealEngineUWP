@@ -30,8 +30,8 @@ namespace Horde.Commands.Bundles
 		[CommandLine("-OutputDir=", Required = true)]
 		public DirectoryReference OutputDir { get; set; } = null!;
 
-		public BundleExtract(HordeHttpClientFactory httpClientFactory, BundleReaderCache storageCache, IOptions<CmdConfig> config)
-			: base(httpClientFactory, storageCache, config)
+		public BundleExtract(HordeHttpClientFactory httpClientFactory, BundleReaderCache bundleReaderCache, IOptions<CmdConfig> config)
+			: base(httpClientFactory, bundleReaderCache, config)
 		{
 		}
 
@@ -39,7 +39,7 @@ namespace Horde.Commands.Bundles
 		{
 			if (File != null)
 			{
-				using FileStorageClient store = new FileStorageClient(File.Directory, StorageCache, logger);
+				using FileStorageClient store = new FileStorageClient(File.Directory, BundleReaderCache, logger);
 				BlobHandle handle = await store.ReadRefAsync(File);
 				await ExecuteInternalAsync(store, handle, logger);
 			}

@@ -26,8 +26,8 @@ namespace Horde.Commands.Bundles
 		[CommandLine("-Filter=", Description = "Filter for files to include, in P4 syntax (eg. Foo/...).")]
 		public string Filter { get; set; } = "...";
 
-		public BundleCreate(HordeHttpClientFactory httpClientFactory, BundleReaderCache storageCache, IOptions<CmdConfig> config)
-			: base(httpClientFactory, storageCache, config)
+		public BundleCreate(HordeHttpClientFactory httpClientFactory, BundleReaderCache bundleReaderCache, IOptions<CmdConfig> config)
+			: base(httpClientFactory, bundleReaderCache, config)
 		{
 		}
 
@@ -35,7 +35,7 @@ namespace Horde.Commands.Bundles
 		{
 			if (File != null)
 			{
-				using FileStorageClient store = new FileStorageClient(File.Directory, StorageCache, logger);
+				using FileStorageClient store = new FileStorageClient(File.Directory, BundleReaderCache, logger);
 				return await ExecuteInternalAsync(store, logger);
 			}
 			else if (!String.IsNullOrEmpty(Ref))

@@ -29,7 +29,7 @@ namespace Horde.Commands
 		/// <summary>
 		/// Cache for storage
 		/// </summary>
-		public BundleReaderCache StorageCache { get; }
+		public BundleReaderCache BundleReaderCache { get; }
 
 		/// <summary>
 		/// Configuration for the tool
@@ -41,11 +41,11 @@ namespace Horde.Commands
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageCommandBase(HordeHttpClientFactory httpClientFactory, BundleReaderCache storageCache, IOptions<CmdConfig> config)
+		public StorageCommandBase(HordeHttpClientFactory httpClientFactory, BundleReaderCache bundleReaderCache, IOptions<CmdConfig> config)
 		{
 			_httpClientFactory = httpClientFactory;
 
-			StorageCache = storageCache;
+			BundleReaderCache = bundleReaderCache;
 			Config = config.Value;
 		}
 
@@ -83,7 +83,7 @@ namespace Horde.Commands
 				return client;
 			}
 
-			return Task.FromResult<IStorageClient>(new HttpStorageClient(CreateClient, CreateRedirectClient, StorageCache, logger));
+			return Task.FromResult<IStorageClient>(new HttpStorageClient(CreateClient, CreateRedirectClient, BundleReaderCache, logger));
 		}
 	}
 }
