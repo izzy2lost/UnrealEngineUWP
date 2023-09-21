@@ -3626,12 +3626,14 @@ void APlayerController::GetStreamingSourceLocationAndRotation(FVector& OutLocati
 {
 	if (!PlayerControllerCVars::ForceUsingCameraAsStreamingSource)
 	{
-		GetActorEyesViewPoint(OutLocation, OutRotation);
+		if (const AActor* ViewTarget = GetViewTarget())
+		{
+			ViewTarget->GetActorEyesViewPoint(OutLocation, OutRotation);
+			return;
+		}
 	}
-	else
-	{
-		GetPlayerViewPoint(OutLocation, OutRotation);
-	}
+
+	GetPlayerViewPoint(OutLocation, OutRotation);
 }
 
 void APlayerController::GetStreamingSourceShapes(TArray<FStreamingSourceShape>& OutShapes) const
