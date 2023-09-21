@@ -5543,6 +5543,13 @@ void UNetDriver::PostCreation(bool bInitializeWithIris)
 #if UE_WITH_IRIS
 	bIsUsingIris = bInitializeWithIris;
 #endif //UE_WITH_IRIS
+
+	if (NetDriverDefinition == NAME_GameNetDriver)
+	{
+		//Add to CSV whether we're using Iris on the GameNetDriver or not
+		CSV_METADATA(TEXT("Iris"), IsUsingIrisReplication() ? TEXT("1") : TEXT("0"));
+	}
+
 }
 
 #if NET_DEBUG_RELEVANT_ACTORS
