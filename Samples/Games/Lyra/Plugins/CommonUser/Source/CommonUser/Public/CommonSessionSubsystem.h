@@ -225,7 +225,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FCommonSessionOnPreClientTravel, FString& /*
  * One subsystem is created for each game instance and can be accessed from blueprints or C++ code.
  * If a game-specific subclass exists, this base subsystem will not be created.
  */
-UCLASS()
+UCLASS(BlueprintType, Config=Engine)
 class COMMONUSER_API UCommonSessionSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
@@ -288,6 +288,12 @@ public:
 
 	/** Native Delegate for modifying the connect URL prior to a client travel */
 	FCommonSessionOnPreClientTravel OnPreClientTravelEvent;
+
+	// Config settings, these can overridden in child classes or config files
+
+	/** Sets the default value of bUseLobbies for session search and host requests */
+	UPROPERTY(Config)
+	bool bUseLobbiesDefault = true;
 
 protected:
 	// Functions called during the process of creating or joining a session, these can be overidden for game-specific behavior

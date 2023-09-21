@@ -429,10 +429,7 @@ UCommonSession_HostSessionRequest* UCommonSessionSubsystem::CreateOnlineHostSess
 
 	UCommonSession_HostSessionRequest* NewRequest = NewObject<UCommonSession_HostSessionRequest>(this);
 	NewRequest->OnlineMode = ECommonSessionOnlineMode::Online;
-
-	bool bUseSessions = false;
-	GConfig->GetBool(TEXT("CommonSessionSubsystem"), TEXT("bUseSessions"), bUseSessions, GEngineIni);
-	NewRequest->bUseLobbies = !bUseSessions;
+	NewRequest->bUseLobbies = bUseLobbiesDefault;
 
 	return NewRequest;
 }
@@ -444,9 +441,7 @@ UCommonSession_SearchSessionRequest* UCommonSessionSubsystem::CreateOnlineSearch
 	UCommonSession_SearchSessionRequest* NewRequest = NewObject<UCommonSession_SearchSessionRequest>(this);
 	NewRequest->OnlineMode = ECommonSessionOnlineMode::Online;
 
-	bool bUseSessions = false;
-	GConfig->GetBool(TEXT("CommonSessionSubsystem"), TEXT("bUseSessions"), bUseSessions, GEngineIni);
-	NewRequest->bUseLobbies = !bUseSessions;
+	NewRequest->bUseLobbies = bUseLobbiesDefault;
 
 	return NewRequest;
 }
@@ -838,12 +833,8 @@ void UCommonSessionSubsystem::QuickPlaySession(APlayerController* JoiningOrHosti
 	UCommonSession_SearchSessionRequest* QuickPlayRequest = CreateOnlineSearchSessionRequest();
 	QuickPlayRequest->OnSearchFinished.AddUObject(this, &UCommonSessionSubsystem::HandleQuickPlaySearchFinished, JoiningOrHostingPlayerPtr, HostRequestPtr);
 
-	bool bUseSessions = false;
-	if (GConfig->GetBool(TEXT("CommonSessionSubsystem"), TEXT("bUseSessions"), bUseSessions, GEngineIni))
-	{
-		HostRequestPtr->bUseLobbies = !bUseSessions;
-		QuickPlayRequest->bUseLobbies = !bUseSessions;
-	}
+	HostRequestPtr->bUseLobbies = bUseLobbiesDefault;
+	QuickPlayRequest->bUseLobbies = bUseLobbiesDefault;
 
 	FindSessionsInternal(JoiningOrHostingPlayer, CreateQuickPlaySearchSettings(HostRequest, QuickPlayRequest));
 }
