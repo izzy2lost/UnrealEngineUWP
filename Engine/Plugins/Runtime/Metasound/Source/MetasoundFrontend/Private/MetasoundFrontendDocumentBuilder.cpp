@@ -132,7 +132,7 @@ namespace Metasound::Frontend
 
 		const FString GetDebugName(const IMetaSoundDocumentInterface& DocumentInterface)
 		{
-			const FMetasoundFrontendClassMetadata& Metadata = DocumentInterface.GetConstDocument().RootGraph.Metadata;
+			const FMetasoundFrontendClassMetadata& Metadata = DocumentInterface.GetDocument().RootGraph.Metadata;
 			const FMetasoundFrontendVersionNumber& Version = Metadata.GetVersion();
 			const FNodeRegistryKey RegKey = NodeRegistryKey::CreateKey(EMetasoundFrontendClassType::External, Metadata.GetClassName().ToString(), Version.Major, Version.Minor);
 			if (const FMetasoundAssetBase* Asset = IMetaSoundAssetManager::GetChecked().TryLoadAssetFromKey(RegKey))
@@ -582,12 +582,12 @@ UMetaSoundBuilderDocument& UMetaSoundBuilderDocument::Create(const UClass& InBui
 UMetaSoundBuilderDocument& UMetaSoundBuilderDocument::Create(const IMetaSoundDocumentInterface& InDocToCopy)
 {
 	UMetaSoundBuilderDocument* DocObject = NewObject<UMetaSoundBuilderDocument>();
-	DocObject->Document = InDocToCopy.GetConstDocument();
+	DocObject->Document = InDocToCopy.GetDocument();
 	DocObject->MetaSoundUClass = InDocToCopy.GetBaseMetaSoundUClass();
 	return *DocObject;
 }
 
-const FMetasoundFrontendDocument& UMetaSoundBuilderDocument::GetConstDocument() const
+const FMetasoundFrontendDocument& UMetaSoundBuilderDocument::GetDocument() const
 {
 	return Document;
 }
@@ -603,16 +603,6 @@ FMetasoundFrontendDocument& UMetaSoundBuilderDocument::GetDocument()
 	return Document;
 }
 
-void UMetaSoundBuilderDocument::OnBeginActiveBuilder()
-{
-	// Nothing to do here. UMetaSoundBuilderDocuments are always being used by builders
-}
-
-void UMetaSoundBuilderDocument::OnFinishActiveBuilder()
-{
-	// Nothing to do here. UMetaSoundBuilderDocuments are always being used by builders
-}
-
 FMetaSoundFrontendDocumentBuilder::FMetaSoundFrontendDocumentBuilder()
 	: DocumentDelegates(MakeShared<Metasound::Frontend::FDocumentModifyDelegates>())
 {
@@ -624,7 +614,6 @@ FMetaSoundFrontendDocumentBuilder::FMetaSoundFrontendDocumentBuilder(TScriptInte
 {
 	if (DocumentInterface)
 	{
-		BeginBuilding();
 		InitCacheInternal();
 	}
 }
@@ -635,13 +624,8 @@ FMetaSoundFrontendDocumentBuilder::FMetaSoundFrontendDocumentBuilder(TScriptInte
 {
 	if (DocumentInterface)
 	{
-		BeginBuilding();
 		InitCacheInternal();
 	}
-}
-FMetaSoundFrontendDocumentBuilder::~FMetaSoundFrontendDocumentBuilder()
-{
-	FinishBuilding();
 }
 
 const FMetasoundFrontendClass* FMetaSoundFrontendDocumentBuilder::AddDependency(const FMetasoundFrontendClass& InClass)
@@ -2119,23 +2103,6 @@ void FMetaSoundFrontendDocumentBuilder::InitCacheInternal(bool bPrimeCache)
 {
 	using namespace Metasound::Frontend;
 	DocumentCache = FDocumentCache::Create(GetDocument(), DocumentDelegates, bPrimeCache);
-}
-
-void FMetaSoundFrontendDocumentBuilder::BeginBuilding()
-{
-	if (DocumentInterface)
-	{
-		DocumentInterface->OnBeginActiveBuilder();
-	}
-}
-
-void FMetaSoundFrontendDocumentBuilder::FinishBuilding()
-{
-	if (DocumentInterface)
-	{
-		DocumentInterface->OnFinishActiveBuilder();
-	}
-	DocumentInterface = TScriptInterface<IMetaSoundDocumentInterface>();
 }
 
 bool FMetaSoundFrontendDocumentBuilder::RemoveDependency(const FGuid& InClassID)

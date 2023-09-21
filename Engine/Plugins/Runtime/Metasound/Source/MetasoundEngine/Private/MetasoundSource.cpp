@@ -168,7 +168,7 @@ const UClass& UMetaSoundSource::GetBaseMetaSoundUClass() const
 	return *UMetaSoundSource::StaticClass();
 }
 
-const FMetasoundFrontendDocument& UMetaSoundSource::GetConstDocument() const
+const FMetasoundFrontendDocument& UMetaSoundSource::GetDocument() const
 {
 	return RootMetasoundDocument;
 }
@@ -218,7 +218,7 @@ void UMetaSoundSource::PostEditChangeOutputFormat()
 		// TODO: Once builders are notified of controller changes and can be safely persistent, this
 		// can be removed so builders can be shared and not have to be created for each change output
 		// format mutation transaction.
-		BuilderSubsystem.DetachBuilderFromAsset(GetConstDocument().RootGraph.Metadata.GetClassName());
+		BuilderSubsystem.DetachBuilderFromAsset(GetDocument().RootGraph.Metadata.GetClassName());
 	}
 
 	if (Result == EMetaSoundBuilderResult::Succeeded)
@@ -360,19 +360,10 @@ void UMetaSoundSource::InitParameters(TArray<FAudioParameter>& ParametersToInit,
 	METASOUND_LLM_SCOPE;
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetaSoundSource::InitParameters);
 
+	// Have to call register vs a simple get as the source may have yet to start playing/has not been registered
+	// via InitResources. If it has, this call is fast and returns the already cached RuntimeData.
+	RegisterGraphWithFrontend(GetInitRegistrationOptions());
 	const FRuntimeData& RuntimeData = GetRuntimeData();
-
-	// To initialize parameters, we need the PublicInputMap which lives on FRuntimeData. 
-	// If the runtime data has not valid, it can be created via a call to RegisterGraphWithFrontend(...) 
-	// which subsequently pupulates the runtime data.
-	if (!RuntimeData.IsValid())
-	{
-		// If a InitParameters is called before InitResources, the graph will not 
-		// yet be registered. RegisterGraphWithFrontend is called here to cover that 
-		// scenario. 
-		RegisterGraphWithFrontend(GetInitRegistrationOptions());
-		check(RuntimeData.IsValid());
-	}
 
 	IDataTypeRegistry& DataTypeRegistry = IDataTypeRegistry::Get();
 	const Metasound::TSortedVertexNameMap<FRuntimeInput>& PublicInputMap = RuntimeData.PublicInputMap;
@@ -658,7 +649,7 @@ ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorI
 	}
 	else
 	{
-		TSharedPtr<const IGraph> MetasoundGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(GetRegistryKey());
+		TSharedPtr<const IGraph, ESPMode::ThreadSafe> MetasoundGraph = GetRuntimeData().Graph;
 		if (!MetasoundGraph.IsValid())
 		{
 			return ISoundGeneratorPtr(nullptr);
@@ -699,12 +690,6 @@ bool UMetaSoundSource::GetAllDefaultParameters(TArray<FAudioParameter>& OutParam
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
 	using namespace Metasound::Engine;
-
-	const FRuntimeData& RuntimeData = GetRuntimeData();
-	if(!RuntimeData.IsValid())
-	{
-		UE_LOG(LogMetaSound, Warning, TEXT("Default parameters may be incorrect. Accessing invalid runtime data on MetaSound %s"), *GetOwningAssetName());
-	}
 
 	for(const TPair<FVertexName, FMetasoundAssetBase::FRuntimeInput>& Pair : GetRuntimeData().PublicInputMap)
 	{
@@ -966,10 +951,6 @@ TSharedPtr<Audio::IParameterTransmitter> UMetaSoundSource::CreateParameterTransm
 	METASOUND_LLM_SCOPE;
 
 	const FRuntimeData& RuntimeData = GetRuntimeData();
-	if(!RuntimeData.IsValid())
-	{
-		UE_LOG(LogMetaSound, Warning, TEXT("Parameter Transmitter may not work. Accessing invalid runtime data on MetaSound %s"), *GetOwningAssetName());
-	}
 
 	// Build list of parameters that can be set at runtime.
 	TArray<FName> ValidParameters;
@@ -1104,33 +1085,6 @@ Metasound::SourcePrivate::FParameterRouter& UMetaSoundSource::GetParameterRouter
 	return Router;
 }
 
-bool UMetaSoundSource::IsBuilderActive() const
-{
-	return bIsBuilderActive;
-}
-
-void UMetaSoundSource::OnBeginActiveBuilder()
-{
-	if (bIsBuilderActive)
-	{
-		UE_LOG(LogMetaSound, Error, TEXT("OnBeginActiveBuilder() call while prior builder is still active. This may indicate that multiple builders are attempting to modify the MetaSound %s concurrently."), *GetOwningAssetName())
-	}
-
-	// If a builder is activating, make sure any in-flight registration
-	// tasks have completed. Async registration tasks use the FMetasoundFrontendDocument
-	// that lives on this object. We need to make sure that registration task
-	// completes so that the FMetasoundFrontendDocument does not get modified
-	// by a builder while it is also being read by async registration.
-	WaitForAsyncGraphRegistration();
-
-	bIsBuilderActive = true;
-}
-
-void UMetaSoundSource::OnFinishActiveBuilder()
-{
-	bIsBuilderActive = false;
-}
-
 TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> UMetaSoundSource::SetDynamicGeneratorEnabled(bool bInIsEnabled)
 {
 	using namespace Metasound;
@@ -1140,25 +1094,10 @@ TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> UMetaSoundSource
 	{
 		if (!DynamicTransactor.IsValid())
 		{
-			// If a FGraph exists for this UMetaSoundSource, then we need to initialize
-			// the DynamicTransactor with the existing FGraph so it has the correct
-			// initial state. 
-			//
-			// Currently, any existing FGraph will be stored in the node registry,
-			// hence we check if the graph is registered and retrieve the current 
-			// graph to see if any FGraph already exists. 
-			if (IsRegistered())
+			TSharedPtr<FGraph> CurrentGraph = GetRuntimeData().Graph;
+			if (CurrentGraph.IsValid())
 			{
-				TSharedPtr<const FGraph> CurrentGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(GetRegistryKey());
-				if (CurrentGraph.IsValid())
-				{
-					DynamicTransactor = MakeShared<FDynamicOperatorTransactor>(*CurrentGraph);
-				}
-				else
-				{
-					UE_LOG(LogMetaSound, Warning, TEXT("Failed to get existing graph for dynamic metasound %s. Initializing to empty graph."), *GetOwningAssetName());
-					DynamicTransactor = MakeShared<FDynamicOperatorTransactor>();
-				}
+				DynamicTransactor = MakeShared<FDynamicOperatorTransactor>(*CurrentGraph);
 			}
 			else
 			{

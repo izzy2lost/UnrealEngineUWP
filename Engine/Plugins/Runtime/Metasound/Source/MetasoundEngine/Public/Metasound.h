@@ -131,7 +131,7 @@ public:
 #endif // #if WITH_EDITORONLY_DATA
 
 	virtual const UClass& GetBaseMetaSoundUClass() const final override;
-	virtual const FMetasoundFrontendDocument& GetConstDocument() const override;
+	virtual const FMetasoundFrontendDocument& GetDocument() const override;
 
 #if WITH_EDITOR
 	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
@@ -176,10 +176,4 @@ private:
 	{
 		return RootMetaSoundDocument;
 	}
-
-	virtual bool IsBuilderActive() const override;
-	virtual void OnBeginActiveBuilder() override;
-	virtual void OnFinishActiveBuilder() override;
-
-	bool bIsBuilderActive = false;
 };

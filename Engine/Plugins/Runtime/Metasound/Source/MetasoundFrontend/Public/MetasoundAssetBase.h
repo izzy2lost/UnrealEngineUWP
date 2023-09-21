@@ -220,13 +220,6 @@ protected:
 	// Returns an access pointer to the document.
 	virtual Metasound::Frontend::FConstDocumentAccessPtr GetDocumentConstAccessPtr() const = 0;
 
-	// Waits for a graph to be registered in the scenario where a graph is registered on an async task.
-	//
-	// When a graph is registered, the underlying IMetaSoundDocumentInterface may be accessed on an
-	// async tasks. If modifications need to be made to the IMetaSoundDocumentInterface, callers should
-	// wait for the inflight graph registration to complete by calling this method.
-	void WaitForAsyncGraphRegistration();
-
 protected:
 	
 	// Container for runtime data of MetaSound graph.
@@ -246,11 +239,6 @@ protected:
 
 		// Core graph.
 		TSharedPtr<Metasound::FGraph, ESPMode::ThreadSafe> Graph;
-
-		bool IsValid() const 
-		{
-			return ChangeID.IsValid();
-		}
 	};
 
 	// Returns the cached runtime data.
@@ -274,18 +262,13 @@ private:
 #if WITH_EDITORONLY_DATA
 	void UpdateAssetRegistry();
 #endif
-
-	// Returns true if the IMetaSoundDocumentInterface is currently has an active builder.
-	//
-	// If true, calls to register the graph will be performed synchronously in order to avoid
-	// race conditions with an active builder.
-	virtual bool IsBuilderActive() const = 0;
-
-	// Returns the cached registry key.
-	Metasound::Frontend::FNodeRegistryKey CacheRuntimeData(const TScriptInterface<IMetaSoundDocumentInterface>& InDoc);
+	// Returns the cached runtime data. Call updates cached data if out-of-date.
+	const FRuntimeData& CacheRuntimeData(const FMetasoundFrontendDocument& InPreprocessedDoc);
 
 	Metasound::Frontend::FNodeRegistryKey RegistryKey;
 
+	// Cache ID is used to determine whether CachedRuntimeData is out-of-date.
+	FGuid CurrentCachedRuntimeDataChangeID;
 	FRuntimeData CachedRuntimeData;
 
 	TSharedPtr<Metasound::FGraph, ESPMode::ThreadSafe> BuildMetasoundDocument(const FMetasoundFrontendDocument& InPreprocessDoc, const Metasound::Frontend::FProxyDataCache& InProxies) const;

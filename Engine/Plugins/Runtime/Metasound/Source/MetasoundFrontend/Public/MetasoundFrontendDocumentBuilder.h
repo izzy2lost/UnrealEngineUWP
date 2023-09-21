@@ -102,7 +102,7 @@ public:
 	static UMetaSoundBuilderDocument& Create(const IMetaSoundDocumentInterface& InDocToCopy);
 
 	// Returns the document
-	virtual const FMetasoundFrontendDocument& GetConstDocument() const override;
+	virtual const FMetasoundFrontendDocument& GetDocument() const override;
 
 	// Base MetaSoundClass that document is published to.
 	virtual const UClass& GetBaseMetaSoundUClass() const final override;
@@ -110,14 +110,13 @@ public:
 private:
 	virtual FMetasoundFrontendDocument& GetDocument() override;
 
-	virtual void OnBeginActiveBuilder() override;
-	virtual void OnFinishActiveBuilder() override;
-
 	UPROPERTY(Transient)
 	FMetasoundFrontendDocument Document;
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UClass> MetaSoundUClass = nullptr;
+
+	friend class FMetasoundAssetBase;
 };
 
 // Builder used to support dynamically generating MetaSound documents at runtime. Builder contains caches that speed up
@@ -135,11 +134,6 @@ public:
 	FMetaSoundFrontendDocumentBuilder();
 	FMetaSoundFrontendDocumentBuilder(TScriptInterface<IMetaSoundDocumentInterface> InDocumentInterface);
 	FMetaSoundFrontendDocumentBuilder(TScriptInterface<IMetaSoundDocumentInterface> InDocumentInterface, TSharedRef<Metasound::Frontend::FDocumentModifyDelegates> InDocumentDelegates);
-	virtual ~FMetaSoundFrontendDocumentBuilder();
-		
-	// Call when the builder will no longer modify the IMetaSoundDocumentInterface
-	void FinishBuilding();
-
 
 	const FMetasoundFrontendClass* AddDependency(const FMetasoundFrontendClass& InClass);
 	void AddEdge(FMetasoundFrontendEdge&& InNewEdge);
@@ -297,9 +291,6 @@ private:
 	void InitCacheInternal(bool bPrimeCache = false);
 
 	bool SetGraphInputInheritsDefault(FName InName, bool bInputInheritsDefault);
-
-	// Called to mark that the builder is beginning modifications to the IMetaSoundDocumentInterface
-	void BeginBuilding();
 
 	UPROPERTY(Transient)
 	TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface;

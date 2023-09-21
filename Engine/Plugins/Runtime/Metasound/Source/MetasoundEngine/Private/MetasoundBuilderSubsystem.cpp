@@ -55,15 +55,6 @@ namespace Metasound::Engine
 	} // namespace BuilderSubsystemPrivate
 } // namespace Metasound::Engine
 
-void UMetaSoundBuilderBase::FinishDestroy()
-{
-	// Need to detach before destroying UPROPERTYs as the Builder 
-	// often holds a TScriptInterface<IMetaSoundDocumentInterface> of
-	// a UPROPERTY that lives on this or derived objects. 
-	Builder.FinishBuilding();
-
-	Super::FinishDestroy();
-}
 
 FMetaSoundBuilderNodeOutputHandle UMetaSoundBuilderBase::AddGraphInputNode(FName Name, FName DataType, FMetasoundFrontendLiteral DefaultValue, EMetaSoundBuilderResult& OutResult, bool bIsConstructorInput)
 {
@@ -178,7 +169,9 @@ FMetaSoundNodeHandle UMetaSoundBuilderBase::AddNode(const TScriptInterface<IMeta
 		{
 			MetaSoundAsset->RegisterGraphWithFrontend();
 
-			const FMetasoundFrontendDocument& NodeClassDoc = NodeClass->GetConstDocument();
+			const IMetaSoundDocumentInterface* Interface = NodeClass.GetInterface();
+			check(Interface);
+			const FMetasoundFrontendDocument& NodeClassDoc = Interface->GetDocument();
 			const FMetasoundFrontendGraphClass& NodeClassGraph = NodeClassDoc.RootGraph;
 
 			if (const FMetasoundFrontendNode* NewNode = Builder.AddGraphNode(NodeClassGraph))
@@ -413,7 +406,7 @@ void UMetaSoundBuilderBase::ConvertToPreset(const TScriptInterface<IMetaSoundDoc
 		ReferencedMetaSoundAsset->RegisterGraphWithFrontend();
 	}
 
-	const FMetasoundFrontendDocument& ReferencedDocument = ReferencedInterface->GetConstDocument();
+	const FMetasoundFrontendDocument& ReferencedDocument = ReferencedInterface->GetDocument();
 	if (Builder.ConvertToPreset(ReferencedDocument))
 	{
 		OutResult = EMetaSoundBuilderResult::Succeeded;

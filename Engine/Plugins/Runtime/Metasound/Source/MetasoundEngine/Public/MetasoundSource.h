@@ -205,7 +205,7 @@ protected:
 	Metasound::Frontend::FConstDocumentAccessPtr GetDocumentConstAccessPtr() const override;
 
 	virtual const UClass& GetBaseMetaSoundUClass() const final override;
-	virtual const FMetasoundFrontendDocument& GetConstDocument() const override;
+	virtual const FMetasoundFrontendDocument& GetDocument() const override;
 
 	/** Gets all the default parameters for this Asset.  */
 	virtual bool GetAllDefaultParameters(TArray<FAudioParameter>& OutParameters) const override;
@@ -220,9 +220,6 @@ private:
 		return RootMetasoundDocument;
 	}
 
-	virtual bool IsBuilderActive() const override;
-	virtual void OnBeginActiveBuilder() override;
-	virtual void OnFinishActiveBuilder() override;
 
 	bool IsParameterValid(const FAudioParameter& InParameter, const FName& InTypeName, Metasound::Frontend::IDataTypeRegistry& InDataTypeRegistry) const;
 
@@ -257,6 +254,4 @@ private:
 	TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> GetDynamicGeneratorTransactor() const;
 
 	TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> DynamicTransactor;
-
-	bool bIsBuilderActive = false;
 };

@@ -88,7 +88,7 @@ const UClass& UMetaSoundPatch::GetBaseMetaSoundUClass() const
 	return *UMetaSoundPatch::StaticClass();
 }
 
-const FMetasoundFrontendDocument& UMetaSoundPatch::GetConstDocument() const
+const FMetasoundFrontendDocument& UMetaSoundPatch::GetDocument() const
 {
 	return RootMetaSoundDocument;
 }
@@ -194,33 +194,6 @@ const TSet<FSoftObjectPath>& UMetaSoundPatch::GetAsyncReferencedAssetClassPaths(
 void UMetaSoundPatch::OnAsyncReferencedAssetsLoaded(const TArray<FMetasoundAssetBase*>& InAsyncReferences)
 {
 	Metasound::FMetaSoundEngineAssetHelper::OnAsyncReferencedAssetsLoaded(*this, InAsyncReferences);
-}
-
-bool UMetaSoundPatch::IsBuilderActive() const
-{
-	return bIsBuilderActive;
-}
-
-void UMetaSoundPatch::OnBeginActiveBuilder()
-{
-	if (bIsBuilderActive)
-	{
-		UE_LOG(LogMetaSound, Error, TEXT("OnBeginActiveBuilder() call while prior builder is still active. This may indicate that multiple builders are attempting to modify the MetaSound %s concurrently."), *GetOwningAssetName())
-	}
-
-	// If a builder is activating, make sure any in-flight registration
-	// tasks have completed. Async registration tasks use the FMetasoundFrontendDocument
-	// that lives on this object. We need to make sure that registration task
-	// completes so that the FMetasoundFrontendDocument does not get modified
-	// by a builder while it is also being read by async registration.
-	WaitForAsyncGraphRegistration();
-
-	bIsBuilderActive = true;
-}
-
-void UMetaSoundPatch::OnFinishActiveBuilder()
-{
-	bIsBuilderActive = false;
 }
 
 #undef LOCTEXT_NAMESPACE // MetaSound
