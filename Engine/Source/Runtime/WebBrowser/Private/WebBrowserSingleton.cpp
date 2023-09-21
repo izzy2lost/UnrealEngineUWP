@@ -379,7 +379,7 @@ void FWebBrowserSingleton::WaitForTaskQueueFlush()
 {
 	// Keep pumping messages until we see the one below clear the queue
 	bTaskFinished = false;
-	CefPostTask(TID_UI, new FCEFBrowserClosureTask(nullptr, [=]()
+	CefPostTask(TID_UI, new FCEFBrowserClosureTask(nullptr, [=, this]()
 		{
 			bTaskFinished = true;
 		}));
