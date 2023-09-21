@@ -34,6 +34,25 @@ UPCGGetLandscapeSettings::UPCGGetLandscapeSettings()
 	}
 }
 
+void UPCGGetLandscapeSettings::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITOR
+	if (bGetHeightOnly_DEPRECATED)
+	{
+		SamplingProperties.bGetHeightOnly = bGetHeightOnly_DEPRECATED;
+		bGetHeightOnly_DEPRECATED = false;
+	}
+
+	if (bGetLayerWeights_DEPRECATED)
+	{
+		SamplingProperties.bGetLayerWeights = bGetLayerWeights_DEPRECATED;
+		bGetLayerWeights_DEPRECATED = false;
+	}
+#endif
+}
+
 TSubclassOf<AActor> UPCGGetLandscapeSettings::GetDefaultActorSelectorClass() const
 {
 	return ALandscapeProxy::StaticClass();
@@ -103,7 +122,7 @@ void FPCGGetLandscapeDataElement::ProcessActors(FPCGContext* Context, const UPCG
 	if (!Landscapes.IsEmpty())
 	{
 		UPCGLandscapeData* LandscapeData = NewObject<UPCGLandscapeData>();
-		LandscapeData->Initialize(Landscapes, LandscapeBounds, Settings->bGetHeightOnly, Settings->bGetLayerWeights);
+		LandscapeData->Initialize(Landscapes, LandscapeBounds, Settings->SamplingProperties);
 		
 		FPCGTaggedData& TaggedData = Context->OutputData.TaggedData.Emplace_GetRef();
 		TaggedData.Data = LandscapeData;

@@ -5,6 +5,7 @@
 #include "PCGSubsystem.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSurfaceData.h"
+#include "Data/PCGWorldData.h"
 #include "Grid/PCGLandscapeCache.h"
 #include "Helpers/PCGHelpers.h"
 
@@ -12,10 +13,17 @@
 #include "LandscapeInfo.h"
 #include "LandscapeProxy.h"
 #include "Engine/World.h"
+#include "PhysicalMaterials/PhysicalMaterial.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGLandscapeData)
 
-void UPCGLandscapeData::Initialize(const TArray<TWeakObjectPtr<ALandscapeProxy>>& InLandscapes, const FBox& InBounds, bool bInHeightOnly, bool bInUseMetadata)
+namespace PCGLandscapeDataConstants
+{
+	const FName ComponentXAttribute = TEXT("ComponentX");
+	const FName ComponentYAttribute = TEXT("ComponentY");
+}
+
+void UPCGLandscapeData::Initialize(const TArray<TWeakObjectPtr<ALandscapeProxy>>& InLandscapes, const FBox& InBounds, const FPCGLandscapeDataProps& InDataProps)
 {
 	TSet<ALandscapeProxy*> LandscapesToIgnore;
 
@@ -51,8 +59,7 @@ void UPCGLandscapeData::Initialize(const TArray<TWeakObjectPtr<ALandscapeProxy>>
 	check(FirstLandscape);
 
 	Bounds = InBounds;
-	bHeightOnly = bInHeightOnly;
-	bUseMetadata = bInUseMetadata;
+	DataProps = InDataProps;
 
 	Transform = FirstLandscape->GetActorTransform();
 
@@ -63,7 +70,7 @@ void UPCGLandscapeData::Initialize(const TArray<TWeakObjectPtr<ALandscapeProxy>>
 	// TODO: find a better way to do this - maybe there should be a prototype metadata in the landscape cache
 	if (LandscapeCache)
 	{
-		if (bUseMetadata)
+		if (DataProps.bGetLayerWeights)
 		{
 			for (TSoftObjectPtr<ALandscapeProxy> Landscape : Landscapes)
 			{
@@ -82,6 +89,23 @@ void UPCGLandscapeData::Initialize(const TArray<TWeakObjectPtr<ALandscapeProxy>>
 	else
 	{
 		UE_LOG(LogPCG, Error, TEXT("Landscape is unable to access the landscape cache"));
+	}
+
+	// Create secondary attributes as we need them
+	if (DataProps.bGetActorReference)
+	{
+		Metadata->CreateAttribute<FSoftObjectPath>(PCGPointDataConstants::ActorReferenceAttribute, FSoftObjectPath(), /*bAllowInterpolation=*/false, /*bOverrideParent=*/false);
+	}
+
+	if (DataProps.bGetPhysicalMaterial)
+	{
+		Metadata->CreateAttribute<FSoftObjectPath>(PCGWorldRayHitConstants::PhysicalMaterialReferenceAttribute, FSoftObjectPath(), /*bAllowInterpolation=*/false, /*bOverrideParent*/false);
+	}
+
+	if (DataProps.bGetComponentCoordinates)
+	{
+		Metadata->CreateInteger32Attribute(PCGLandscapeDataConstants::ComponentXAttribute, 0, /*bAllowsInterpolation=*/false);
+		Metadata->CreateInteger32Attribute(PCGLandscapeDataConstants::ComponentYAttribute, 0, /*bAllowsInterpolation=*/false);
 	}
 }
 
@@ -111,6 +135,20 @@ void UPCGLandscapeData::PostLoad()
 
 	UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetInstance(FirstLandscape ? FirstLandscape->GetWorld() : nullptr);
 	LandscapeCache = PCGSubsystem ? PCGSubsystem->GetLandscapeCache() : nullptr;
+
+#if WITH_EDITOR
+	if (bHeightOnly_DEPRECATED)
+	{
+		DataProps.bGetHeightOnly = bHeightOnly_DEPRECATED;
+		bHeightOnly_DEPRECATED = false;
+	}
+
+	if (!bUseMetadata_DEPRECATED)
+	{
+		DataProps.bGetLayerWeights = bUseMetadata_DEPRECATED;
+		bUseMetadata_DEPRECATED = true;
+	}
+#endif
 }
 
 FBox UPCGLandscapeData::GetBounds() const
@@ -181,13 +219,52 @@ bool UPCGLandscapeData::ProjectPoint(const FTransform& InTransform, const FBox& 
 
 	const FVector2D ComponentLocalPoint(LocalPoint.X - ComponentMapKey.X * LandscapeInfo->ComponentSizeQuads, LocalPoint.Y - ComponentMapKey.Y * LandscapeInfo->ComponentSizeQuads);
 
-	if (bHeightOnly)
+	if (DataProps.bGetHeightOnly)
 	{
-		LandscapeCacheEntry->GetInterpolatedPointHeightOnly(ComponentLocalPoint, OutPoint, bUseMetadata ? OutMetadata : nullptr);
+		LandscapeCacheEntry->GetInterpolatedPointHeightOnly(ComponentLocalPoint, OutPoint, DataProps.bGetLayerWeights ? OutMetadata : nullptr);
 	}
 	else
 	{
-		LandscapeCacheEntry->GetInterpolatedPoint(ComponentLocalPoint, OutPoint, bUseMetadata ? OutMetadata : nullptr);
+		LandscapeCacheEntry->GetInterpolatedPoint(ComponentLocalPoint, OutPoint, DataProps.bGetLayerWeights ? OutMetadata : nullptr);
+	}
+
+	ULandscapeHeightfieldCollisionComponent* LandscapeCollisionComponent = LandscapeInfo->XYtoCollisionComponentMap.FindRef(ComponentMapKey);
+
+	if (DataProps.bGetActorReference && OutMetadata && LandscapeCollisionComponent)
+	{
+		if (FPCGMetadataAttribute<FSoftObjectPath>* ActorReferenceAttribute = OutMetadata->GetMutableTypedAttribute<FSoftObjectPath>(PCGPointDataConstants::ActorReferenceAttribute))
+		{
+			// Landscape code seems to indicate the XYtoComponentMap can be sometimes invalid, so rely on the collision map instead
+			OutMetadata->InitializeOnSet(OutPoint.MetadataEntry);
+			ActorReferenceAttribute->SetValue(OutPoint.MetadataEntry, FSoftObjectPath(LandscapeCollisionComponent->GetOwner()));
+		}
+	}
+
+	if (DataProps.bGetPhysicalMaterial && OutMetadata && LandscapeCollisionComponent)
+	{
+		if (FPCGMetadataAttribute<FSoftObjectPath>* PhysicalMaterialAttribute = OutMetadata->GetMutableTypedAttribute<FSoftObjectPath>(PCGWorldRayHitConstants::PhysicalMaterialReferenceAttribute))
+		{
+			if(UPhysicalMaterial* PhysicalMaterial = LandscapeCollisionComponent->GetPhysicalMaterial(static_cast<float>(ComponentLocalPoint.X), static_cast<float>(ComponentLocalPoint.Y), EHeightfieldSource::Complex))
+			{
+				OutMetadata->InitializeOnSet(OutPoint.MetadataEntry);
+				PhysicalMaterialAttribute->SetValue(OutPoint.MetadataEntry, FSoftObjectPath(PhysicalMaterial));
+			}
+		}
+	}
+
+	if (DataProps.bGetComponentCoordinates && OutMetadata)
+	{
+		if(FPCGMetadataAttribute<int32>* ComponentXAttribute = OutMetadata->GetMutableTypedAttribute<int32>(PCGLandscapeDataConstants::ComponentXAttribute))
+		{
+			OutMetadata->InitializeOnSet(OutPoint.MetadataEntry);
+			ComponentXAttribute->SetValue(OutPoint.MetadataEntry, ComponentMapKey.X);
+		}
+
+		if (FPCGMetadataAttribute<int32>* ComponentYAttribute = OutMetadata->GetMutableTypedAttribute<int32>(PCGLandscapeDataConstants::ComponentYAttribute))
+		{
+			OutMetadata->InitializeOnSet(OutPoint.MetadataEntry);
+			ComponentYAttribute->SetValue(OutPoint.MetadataEntry, ComponentMapKey.Y);
+		}
 	}
 
 	// Respect projection settings
@@ -242,7 +319,7 @@ const UPCGPointData* UPCGLandscapeData::CreatePointData(FPCGContext* Context, co
 		return Data;
 	}
 
-	UPCGMetadata* OutMetadata = bUseMetadata ? Data->Metadata : nullptr;
+	UPCGMetadata* OutMetadata = DataProps.bGetLayerWeights ? Data->Metadata : nullptr;
 
 	// Most proxies we gathered will have the same landscape info, we shouldn't loop multiple times
 	// on them, unless we add the box filtering - but even then, depending on the transform we could have overlaps
@@ -328,7 +405,7 @@ const UPCGPointData* UPCGLandscapeData::CreatePointData(FPCGContext* Context, co
 						const int32 PointIndex = LocalX + LocalY * (ComponentSizeQuads + 1);
 
 						FPCGPoint& Point = Points.Emplace_GetRef();
-						if (bHeightOnly)
+						if (DataProps.bGetHeightOnly)
 						{
 							LandscapeCacheEntry->GetPointHeightOnly(PointIndex, Point);
 						}
@@ -373,16 +450,15 @@ const ULandscapeInfo* UPCGLandscapeData::GetLandscapeInfo(const FVector& InPosit
 
 UPCGSpatialData* UPCGLandscapeData::CopyInternal() const
 {
-	UPCGLandscapeData* NewLandsacapeData = NewObject<UPCGLandscapeData>();
+	UPCGLandscapeData* NewLandscapeData = NewObject<UPCGLandscapeData>();
 
-	CopyBaseSurfaceData(NewLandsacapeData);
+	CopyBaseSurfaceData(NewLandscapeData);
 
-	NewLandsacapeData->Landscapes = Landscapes;
-	NewLandsacapeData->Bounds = Bounds;
-	NewLandsacapeData->bHeightOnly = bHeightOnly;
-	NewLandsacapeData->bUseMetadata = bUseMetadata;
-	NewLandsacapeData->LandscapeInfos = LandscapeInfos;
-	NewLandsacapeData->LandscapeCache = LandscapeCache;
+	NewLandscapeData->Landscapes = Landscapes;
+	NewLandscapeData->Bounds = Bounds;
+	NewLandscapeData->DataProps = DataProps;
+	NewLandscapeData->LandscapeInfos = LandscapeInfos;
+	NewLandscapeData->LandscapeCache = LandscapeCache;
 
-	return NewLandsacapeData;
+	return NewLandscapeData;
 }

@@ -13,6 +13,32 @@ class ALandscapeProxy;
 class ULandscapeInfo;
 class UPCGLandscapeCache;
 
+USTRUCT(BlueprintType)
+struct PCG_API FPCGLandscapeDataProps
+{
+	GENERATED_BODY()
+
+	/** Controls whether the points projected on the landscape will return the normal/tangent (if false) or only the position (if true) */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bGetHeightOnly = false;
+
+	/** Controls whether data from landscape layers will be retrieved (turning it off is an optimization if that data is not needed) */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bGetLayerWeights = true;
+
+	/** Controls whether the points from this landscape will return the actor from which they originate (e.g. which Landscape Proxy) */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bGetActorReference = false;
+
+	/** Controls whether the points from the landscape will have their physical material added as the "PhysicalMaterial" attribute */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bGetPhysicalMaterial = false;
+
+	/** Controls whether the component coordinates will be added the point as attributes ('CoordinateX', 'CoordinateY') */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bGetComponentCoordinates = false;
+};
+
 /**
 * Landscape data access abstraction for PCG. Supports multi-landscape access, but it assumes that they are not overlapping.
 */
@@ -22,7 +48,7 @@ class PCG_API UPCGLandscapeData : public UPCGSurfaceData
 	GENERATED_BODY()
 
 public:
-	void Initialize(const TArray<TWeakObjectPtr<ALandscapeProxy>>& InLandscapes, const FBox& InBounds, bool bInHeightOnly, bool bInUseMetadata);
+	void Initialize(const TArray<TWeakObjectPtr<ALandscapeProxy>>& InLandscapes, const FBox& InBounds, const FPCGLandscapeDataProps& InDataProps);
 
 	// ~Begin UObject interface
 	virtual void PostLoad();
@@ -53,7 +79,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = SourceData)
 	TArray<TSoftObjectPtr<ALandscapeProxy>> Landscapes;
 
-	bool IsUsingMetadata() const { return bUseMetadata; }
+	bool IsUsingMetadata() const { return DataProps.bGetLayerWeights; }
 
 protected:
 	/** Returns the landscape info associated to the first landscape that contains the given position
@@ -65,10 +91,15 @@ protected:
 	FBox Bounds = FBox(EForceInit::ForceInit);
 
 	UPROPERTY()
-	bool bHeightOnly = false;
+	FPCGLandscapeDataProps DataProps;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	bool bHeightOnly_DEPRECATED = false;
 
 	UPROPERTY()
-	bool bUseMetadata = true;
+	bool bUseMetadata_DEPRECATED = true;
+#endif // WITH_EDITORONLY_DATA
 
 private:
 	// Transient data

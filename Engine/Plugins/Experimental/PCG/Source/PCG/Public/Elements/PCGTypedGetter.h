@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Data/PCGLandscapeData.h"
 #include "Elements/PCGDataFromActor.h"
 
 #include "PCGTypedGetter.generated.h"
@@ -14,6 +15,10 @@ class PCG_API UPCGGetLandscapeSettings : public UPCGDataFromActorSettings
 
 public:
 	UPCGGetLandscapeSettings();
+
+	//~Begin UObject interface
+	virtual void PostLoad() override;
+	//~End UObject interface
 
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
@@ -36,11 +41,16 @@ public:
 	virtual TSubclassOf<AActor> GetDefaultActorSelectorClass() const override;
 	//~End UPCGDataFromActorSettings
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	bool bGetHeightOnly = false;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, ShowOnlyInnerProperties))
+	FPCGLandscapeDataProps SamplingProperties;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	bool bGetLayerWeights = true;
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	bool bGetHeightOnly_DEPRECATED = false;
+
+	UPROPERTY()
+	bool bGetLayerWeights_DEPRECATED = true;
+#endif // WITH_EDITORONLY_DATA
 };
 
 class FPCGGetLandscapeDataElement : public FPCGDataFromActorElement

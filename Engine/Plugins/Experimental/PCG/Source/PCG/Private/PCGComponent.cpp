@@ -1976,9 +1976,12 @@ FPCGDataCollection UPCGComponent::CreateActorPCGDataCollection(AActor* Actor, co
 	{
 		UPCGLandscapeData* Data = NewObject<UPCGLandscapeData>();
 		const UPCGGraph* PCGGraph = Component ? Component->GetGraph() : nullptr;
-		const bool bUseLandscapeMetadata = (!PCGGraph || PCGGraph->bLandscapeUsesMetadata);
 
-		Data->Initialize({ LandscapeActor }, PCGHelpers::GetGridBounds(Actor, Component), /*bHeightOnly=*/false, bUseLandscapeMetadata);
+		FPCGLandscapeDataProps LandscapeDataProps;
+		LandscapeDataProps.bGetHeightOnly = false;
+		LandscapeDataProps.bGetLayerWeights = (!PCGGraph || PCGGraph->bLandscapeUsesMetadata);
+
+		Data->Initialize({ LandscapeActor }, PCGHelpers::GetGridBounds(Actor, Component), LandscapeDataProps);
 
 		FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
 		TaggedData.Data = Data;
@@ -2196,7 +2199,12 @@ UPCGData* UPCGComponent::CreateLandscapePCGData(bool bHeightOnly)
 	// TODO: we're creating separate landscape data instances here so we can do some tweaks on it (such as storing the right target actor) but this probably should change
 	UPCGLandscapeData* LandscapeData = NewObject<UPCGLandscapeData>();
 	const UPCGGraph* PCGGraph = GetGraph();
-	LandscapeData->Initialize(Landscapes, LandscapeBounds, bHeightOnly, /*bUseMetadata=*/PCGGraph && PCGGraph->bLandscapeUsesMetadata);
+
+	FPCGLandscapeDataProps LandscapeDataProps;
+	LandscapeDataProps.bGetHeightOnly = bHeightOnly;
+	LandscapeDataProps.bGetLayerWeights = (PCGGraph && PCGGraph->bLandscapeUsesMetadata);
+
+	LandscapeData->Initialize(Landscapes, LandscapeBounds, LandscapeDataProps);
 
 	return LandscapeData;
 }
