@@ -270,11 +270,14 @@ class UKismetSystemLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "Cast To Class", DeterminesOutputType = "Class"), Category="Utilities")
 	static ENGINE_API UClass* Conv_ObjectToClass(UObject* Object, TSubclassOf<UObject> Class);
 
-	/** Converts an interfance into an object */
+	/** Converts an interface instance into an object */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "To Object (Interface)", CompactNodeTitle = "->", BlueprintAutocast), Category="Utilities")
 	static ENGINE_API UObject* Conv_InterfaceToObject(const FScriptInterface& Interface); 
 
-	/** Checks if the backing object is valid. */
+	/** 
+	 * Checks if the interface instance has a valid object for blueprint interface functions.
+	 * This will return true for both natively implemented and blueprint implemented interfaces.
+	 */
 	UFUNCTION(BlueprintPure, Category="Utilities")
 	static bool IsValidInterface(const FScriptInterface& Interface); 
 
