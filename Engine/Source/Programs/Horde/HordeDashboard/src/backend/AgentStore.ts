@@ -53,8 +53,8 @@ export class AgentStore {
                 else {
                     toSet.push(updatedAgent);
                 }
-            });
-            this._agents = toSet;
+            });            
+            this._agents = toSet.filter(a => !!a.deleted);
             this.agentsUpdated++;
         }
     }
@@ -82,7 +82,7 @@ export class AgentStore {
     async update(slim = false): Promise<void> {
         return new Promise<void>((resolve, reject) => {
             const promises: any[] = [];
-            promises.push(backend.getAgents({ modifiedAfter: this.modifiedAfterDate?.toISOString() }));
+            promises.push(backend.getAgents({ includeDeleted: true, modifiedAfter: this.modifiedAfterDate?.toISOString() }));
             if (!slim) {
                 promises.push(backend.getPools());
             }

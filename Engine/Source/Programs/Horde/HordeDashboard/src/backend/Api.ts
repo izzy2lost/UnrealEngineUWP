@@ -288,6 +288,7 @@ export type JobStreamQuery = {
 export type AgentQuery = {
 	modifiedAfter?: string;
 	poolId?: string;
+	includeDeleted?: boolean;
 }
 
 export type JobQuery = {
