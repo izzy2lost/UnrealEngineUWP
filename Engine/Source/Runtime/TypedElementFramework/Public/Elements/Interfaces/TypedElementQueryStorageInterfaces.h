@@ -21,12 +21,22 @@ namespace TypedElementDataStorage
 	using SubqueryCallback = TFunction<void(const FQueryDescription&, ISubqueryContext&)>;
 	using SubqueryCallbackRef = TFunctionRef<void(const FQueryDescription&, ISubqueryContext&)>;
 
+	using IndexHash = uint64;
+
 	/**
 	 * Base interface for any contexts provided to query callbacks.
 	 */
 	struct ICommonQueryContext
 	{
 		virtual ~ICommonQueryContext() = default;
+
+		/** Returns the number rows in the batch. */
+		virtual uint32 GetRowCount() const = 0;
+		/**
+		 * Returns an immutable view that contains the row handles for all returned results. The returned size will be the same  as the
+		 * value returned by GetRowCount().
+		 */
+		virtual TConstArrayView<RowHandle> GetRowHandles() const = 0;
 
 		/** Return the address of a immutable column matching the requested type or a nullptr if not found. */
 		virtual const void* GetColumn(const UScriptStruct* ColumnType) const = 0;
@@ -45,14 +55,6 @@ namespace TypedElementDataStorage
 		 */
 		virtual void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes,
 			const EQueryAccessType* AccessTypes) = 0;
-
-		/** Returns the number rows in the batch. */
-		virtual uint32 GetRowCount() const = 0;
-		/**
-		 * Returns an immutable view that contains the row handles for all returned results. The returned size will be the same  as the
-		 * value returned by GetRowCount().
-		 */
-		virtual TConstArrayView<RowHandle> GetRowHandles() const = 0;
 
 		// Utility functions
 
@@ -99,6 +101,10 @@ namespace TypedElementDataStorage
 		virtual void GetDependencies(TArrayView<UObject*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UClass>> DependencyTypes,
 			TConstArrayView<EQueryAccessType> AccessTypes) = 0;
 
+		/** Checks whether or not a row is in use. This is true even if the row has only been reserved. */
+		virtual bool IsRowAvailable(RowHandle Row) const = 0;
+		/** Checks whether or not a row has been reserved but not yet assigned to a table. */
+		virtual bool HasRowBeenAssigned(RowHandle Row) const = 0;
 		/**
 		 * Removes the row with the provided row handle. The removal will not be immediately done but delayed until the end of the tick
 		 * group.
@@ -149,6 +155,9 @@ namespace TypedElementDataStorage
 		 * tick group.
 		 */
 		virtual void RemoveColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) = 0;
+
+		/** Retrieves the row for an indexed object. Returns an invalid row handle if the hash wasn't found. */
+		virtual RowHandle FindIndexedRow(IndexHash Index) const = 0;
 
 		/**
 		 * Runs a previously created query. This version takes an arbitrary query, but is limited to running queries that do not directly

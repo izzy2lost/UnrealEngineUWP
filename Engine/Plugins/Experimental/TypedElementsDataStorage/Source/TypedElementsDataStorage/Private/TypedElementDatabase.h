@@ -2,12 +2,13 @@
 
 #pragma once
 
-#include "Templates/SharedPointer.h"
+#include "Containers/Map.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "MassArchetypeTypes.h"
 #include "Misc/TVariant.h"
 #include "Queries/TypedElementExtendedQueryStore.h"
-#include "TypedElementDatabaseScratchBuffer.h"
+#include "Templates/SharedPointer.h"
+#include "TypedElementDatabaseEnvironment.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/StrongObjectPtr.h"
 
@@ -81,6 +82,14 @@ public:
 	FQueryResult RunQuery(TypedElementQueryHandle Query) override;
 	FQueryResult RunQuery(TypedElementQueryHandle Query, DirectQueryCallbackRef Callback) override;
 
+	TypedElementDataStorage::RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const override;
+	void IndexRow(TypedElementDataStorage::IndexHash Index, TypedElementDataStorage::RowHandle Row) override;
+	void ReindexRow(
+		TypedElementDataStorage::IndexHash OriginalIndex, 
+		TypedElementDataStorage::IndexHash NewIndex, 
+		TypedElementDataStorage::RowHandle Row) override;
+	void RemoveIndex(TypedElementDataStorage::IndexHash Index) override;
+
 	FTypedElementOnDataStorageUpdate& OnUpdate() override;
 	bool IsAvailable() const override;
 	void* GetExternalSystemAddress(UClass* Target) override;
@@ -134,9 +143,9 @@ private:
 	TArray<FMassArchetypeHandle> Tables;
 	TMap<FName, TypedElementTableHandle> TableNameLookup;
 
+	TUniquePtr<FTypedElementDatabaseEnvironment> Environment;
 	FTypedElementExtendedQueryStore Queries;
-	FTypedElementDatabaseScratchBuffer ScratchBuffer;
-
+	
 	FTypedElementOnDataStorageUpdate OnUpdateDelegate;
 
 	TSharedPtr<FMassEntityManager> ActiveEditorEntityManager;

@@ -73,31 +73,35 @@ void UTypedElementDatabase::Initialize()
 
 	ActiveEditorEntityManager = Mass->GetMutableEntityManager();
 	ActiveEditorPhaseManager = Mass->GetMutablePhaseManager();
-
-	using PhaseType = std::underlying_type_t<EQueryTickPhase>;
-	for (PhaseType PhaseId = 0; PhaseId < static_cast<PhaseType>(EQueryTickPhase::Max); ++PhaseId)
+	if (ActiveEditorEntityManager && ActiveEditorPhaseManager)
 	{
-		EQueryTickPhase Phase = static_cast<EQueryTickPhase>(PhaseId);
-		EMassProcessingPhase MassPhase = FTypedElementQueryProcessorData::MapToMassProcessingPhase(Phase);
-		
-		ActiveEditorPhaseManager->GetOnPhaseStart(MassPhase).AddLambda(
-			[this, Phase](float DeltaTime)
-			{
-				PreparePhase(Phase, DeltaTime);
-			});
+		Environment = MakeUnique<FTypedElementDatabaseEnvironment>(*ActiveEditorEntityManager, *ActiveEditorPhaseManager);
 
-		ActiveEditorPhaseManager->GetOnPhaseEnd(MassPhase).AddLambda(
-			[this, Phase](float DeltaTime)
-			{
-				FinalizePhase(Phase, DeltaTime);
-			});
+		using PhaseType = std::underlying_type_t<EQueryTickPhase>;
+		for (PhaseType PhaseId = 0; PhaseId < static_cast<PhaseType>(EQueryTickPhase::Max); ++PhaseId)
+		{
+			EQueryTickPhase Phase = static_cast<EQueryTickPhase>(PhaseId);
+			EMassProcessingPhase MassPhase = FTypedElementQueryProcessorData::MapToMassProcessingPhase(Phase);
 
-		// Guarantee that syncing to the data storage always happens before syncing to external.
-		RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage), 
-			Phase, GetQueryTickGroupName(EQueryTickGroups::SyncDataStorageToExternal), {}, false);
-		// Guarantee that widgets syncs happen after external data has been updated to the data storage.
-		RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::SyncWidgets),
-			Phase, {}, GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage), false);
+			ActiveEditorPhaseManager->GetOnPhaseStart(MassPhase).AddLambda(
+				[this, Phase](float DeltaTime)
+				{
+					PreparePhase(Phase, DeltaTime);
+				});
+
+			ActiveEditorPhaseManager->GetOnPhaseEnd(MassPhase).AddLambda(
+				[this, Phase](float DeltaTime)
+				{
+					FinalizePhase(Phase, DeltaTime);
+				});
+
+			// Guarantee that syncing to the data storage always happens before syncing to external.
+			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage),
+				Phase, GetQueryTickGroupName(EQueryTickGroups::SyncDataStorageToExternal), {}, false);
+			// Guarantee that widgets syncs happen after external data has been updated to the data storage.
+			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::SyncWidgets),
+				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage), false);
+		}
 	}
 }
 
@@ -114,7 +118,7 @@ void UTypedElementDatabase::OnPreMassTick(float DeltaTime)
 	// to complete pending work.
 	ProcessPendingCommands();
 	// Recycle any full scratch memory blocks from the previous frame.
-	ScratchBuffer.RecycleBlocks();
+	Environment->GetScratchBuffer().RecycleBlocks();
 }
 
 TSharedPtr<FMassEntityManager> UTypedElementDatabase::GetActiveMutableEditorEntityManager()
@@ -252,6 +256,7 @@ void UTypedElementDatabase::RemoveRow(TypedElementRowHandle Row)
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityValid(Entity))
 	{
+		Environment->GetIndexTable().RemoveRow(Row);
 		if (ActiveEditorEntityManager->IsEntityBuilt(FMassEntityHandle::FromNumber(Row)))
 		{
 			ActiveEditorEntityManager->DestroyEntity(FMassEntityHandle::FromNumber(Row));
@@ -622,7 +627,7 @@ void UTypedElementDatabase::UnregisterTickGroup(FName GroupName, EQueryTickPhase
 TypedElementQueryHandle UTypedElementDatabase::RegisterQuery(FQueryDescription&& Query)
 {
 	return (ActiveEditorEntityManager && ActiveEditorPhaseManager)
-		? Queries.RegisterQuery(MoveTemp(Query), ScratchBuffer, *ActiveEditorEntityManager, *ActiveEditorPhaseManager).Handle
+		? Queries.RegisterQuery(MoveTemp(Query), *Environment, *ActiveEditorEntityManager, *ActiveEditorPhaseManager).Handle
 		: TypedElementInvalidQueryHandle;
 }
 
@@ -692,6 +697,27 @@ ITypedElementDataStorageInterface::FQueryResult UTypedElementDatabase::RunQuery(
 	{
 		return FQueryResult();
 	}
+}
+
+TypedElementDataStorage::RowHandle UTypedElementDatabase::FindIndexedRow(TypedElementDataStorage::IndexHash Index) const
+{
+	return Environment->GetIndexTable().FindIndexedRow(Index);
+}
+
+void UTypedElementDatabase::IndexRow(TypedElementDataStorage::IndexHash Index, TypedElementDataStorage::RowHandle Row)
+{
+	Environment->GetIndexTable().IndexRow(Index, Row);
+}
+
+void UTypedElementDatabase::ReindexRow(TypedElementDataStorage::IndexHash OriginalIndex, TypedElementDataStorage::IndexHash NewIndex, 
+	TypedElementDataStorage::RowHandle RowHandle)
+{
+	Environment->GetIndexTable().ReindexRow(OriginalIndex, NewIndex, RowHandle);
+}
+
+void UTypedElementDatabase::RemoveIndex(TypedElementDataStorage::IndexHash Index)
+{
+	Environment->GetIndexTable().RemoveIndex(Index);
 }
 
 FTypedElementOnDataStorageUpdate& UTypedElementDatabase::OnUpdate()
@@ -827,7 +853,7 @@ void UTypedElementDatabase::PreparePhase(EQueryTickPhase Phase, float DeltaTime)
 {
 	if (ActiveEditorEntityManager)
 	{
-		Queries.RunPhasePreambleQueries(*ActiveEditorEntityManager, ScratchBuffer, Phase, DeltaTime);
+		Queries.RunPhasePreambleQueries(*ActiveEditorEntityManager, *Environment, Phase, DeltaTime);
 	}
 }
 
@@ -835,7 +861,7 @@ void UTypedElementDatabase::FinalizePhase(EQueryTickPhase Phase, float DeltaTime
 {
 	if (ActiveEditorEntityManager)
 	{
-		Queries.RunPhasePostambleQueries(*ActiveEditorEntityManager, ScratchBuffer, Phase, DeltaTime);
+		Queries.RunPhasePostambleQueries(*ActiveEditorEntityManager, *Environment, Phase, DeltaTime);
 	}
 }
 
@@ -847,6 +873,7 @@ void UTypedElementDatabase::Reset()
 	}
 	Tables.Reset();
 	TableNameLookup.Reset();
+	Environment.Reset();
 	ActiveEditorPhaseManager.Reset();
 	ActiveEditorEntityManager.Reset();
 }

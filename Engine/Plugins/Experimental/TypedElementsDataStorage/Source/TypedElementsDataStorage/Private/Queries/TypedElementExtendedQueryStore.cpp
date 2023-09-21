@@ -11,7 +11,7 @@ const ITypedElementDataStorageInterface::FQueryDescription FTypedElementExtended
 
 FTypedElementExtendedQueryStore::Handle FTypedElementExtendedQueryStore::RegisterQuery(
 	ITypedElementDataStorageInterface::FQueryDescription Query, 
-	FTypedElementDatabaseScratchBuffer& ScratchBuffer, 
+	FTypedElementDatabaseEnvironment& Environment,
 	FMassEntityManager& EntityManager, 
 	FMassProcessingPhaseManager& PhaseManager)
 {
@@ -24,7 +24,7 @@ FTypedElementExtendedQueryStore::Handle FTypedElementExtendedQueryStore::Registe
 	bContinueSetup = bContinueSetup &&	SetupConditions(StoredQuery.Description, NativeQuery);
 	bContinueSetup = bContinueSetup &&	SetupDependencies(StoredQuery.Description, NativeQuery);
 	bContinueSetup = bContinueSetup &&	SetupTickGroupDefaults(StoredQuery.Description);
-	bContinueSetup = bContinueSetup &&	SetupProcessors(Result, StoredQuery, ScratchBuffer, EntityManager, PhaseManager);
+	bContinueSetup = bContinueSetup &&	SetupProcessors(Result, StoredQuery, Environment, EntityManager, PhaseManager);
 	
 	if (!bContinueSetup)
 	{
@@ -272,16 +272,16 @@ TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQuery(
 	return Result;
 }
 void FTypedElementExtendedQueryStore::RunPhasePreambleQueries(FMassEntityManager& EntityManager,
-	FTypedElementDatabaseScratchBuffer& ScratchBuffer, ITypedElementDataStorageInterface::EQueryTickPhase Phase, float DeltaTime)
+	FTypedElementDatabaseEnvironment& Environment, ITypedElementDataStorageInterface::EQueryTickPhase Phase, float DeltaTime)
 {
-	RunPhasePreOrPostAmbleQueries(EntityManager, ScratchBuffer, Phase, DeltaTime, 
+	RunPhasePreOrPostAmbleQueries(EntityManager, Environment, Phase, DeltaTime, 
 		PhasePreparationQueries[static_cast<QueryTickPhaseType>(Phase)]);
 }
 
 void FTypedElementExtendedQueryStore::RunPhasePostambleQueries(FMassEntityManager& EntityManager,
-	FTypedElementDatabaseScratchBuffer& ScratchBuffer, ITypedElementDataStorageInterface::EQueryTickPhase Phase, float DeltaTime)
+	FTypedElementDatabaseEnvironment& Environment, ITypedElementDataStorageInterface::EQueryTickPhase Phase, float DeltaTime)
 {
-	RunPhasePreOrPostAmbleQueries(EntityManager, ScratchBuffer, Phase, DeltaTime, 
+	RunPhasePreOrPostAmbleQueries(EntityManager, Environment, Phase, DeltaTime, 
 		PhaseFinalizationQueries[static_cast<QueryTickPhaseType>(Phase)]);
 }
 
@@ -570,7 +570,7 @@ bool FTypedElementExtendedQueryStore::SetupTickGroupDefaults(ITypedElementDataSt
 }
 
 bool FTypedElementExtendedQueryStore::SetupProcessors(Handle Query, FTypedElementExtendedQuery& StoredQuery, 
-	FTypedElementDatabaseScratchBuffer& ScratchBuffer, FMassEntityManager& EntityManager, FMassProcessingPhaseManager& PhaseManager)
+	FTypedElementDatabaseEnvironment& Environment, FMassEntityManager& EntityManager, FMassProcessingPhaseManager& PhaseManager)
 {
 	using DSI = ITypedElementDataStorageInterface;
 
@@ -591,7 +591,7 @@ bool FTypedElementExtendedQueryStore::SetupProcessors(Handle Query, FTypedElemen
 		if (StoredQuery.Processor->IsA<UTypedElementQueryProcessorCallbackAdapterProcessorBase>())
 		{
 			if (static_cast<UTypedElementQueryProcessorCallbackAdapterProcessorBase*>(StoredQuery.Processor.Get())->
-				ConfigureQueryCallback(StoredQuery, *this, ScratchBuffer))
+				ConfigureQueryCallback(StoredQuery, *this, Environment))
 			{
 				PhaseManager.RegisterDynamicProcessor(*StoredQuery.Processor);
 			}
@@ -605,7 +605,7 @@ bool FTypedElementExtendedQueryStore::SetupProcessors(Handle Query, FTypedElemen
 			if (UTypedElementQueryObserverCallbackAdapterProcessorBase* Observer =
 				static_cast<UTypedElementQueryObserverCallbackAdapterProcessorBase*>(StoredQuery.Processor.Get()))
 			{
-				Observer->ConfigureQueryCallback(StoredQuery, *this, ScratchBuffer);
+				Observer->ConfigureQueryCallback(StoredQuery, *this, Environment);
 				EntityManager.GetObserverManager().AddObserverInstance(*Observer->GetObservedType(), Observer->GetObservedOperation(), *Observer);
 			}
 			else
@@ -666,7 +666,7 @@ void FTypedElementExtendedQueryStore::UnregisterPostambleQuery(ITypedElementData
 }
 
 void FTypedElementExtendedQueryStore::RunPhasePreOrPostAmbleQueries(FMassEntityManager& EntityManager,
-	FTypedElementDatabaseScratchBuffer& ScratchBuffer, ITypedElementDataStorageInterface::EQueryTickPhase Phase, 
+	FTypedElementDatabaseEnvironment& Environment, ITypedElementDataStorageInterface::EQueryTickPhase Phase,
 	float DeltaTime, TArray<Handle>& QueryHandles)
 {
 	if (!QueryHandles.IsEmpty())
@@ -675,7 +675,7 @@ void FTypedElementExtendedQueryStore::RunPhasePreOrPostAmbleQueries(FMassEntityM
 		for (Handle Query : QueryHandles)
 		{
 			FTypedElementExtendedQuery& QueryData = Queries.Get(Query);
-			Executor.ExecuteQuery(QueryData.Description, *this, ScratchBuffer, QueryData.NativeQuery, QueryData.Description.Callback.Function);
+			Executor.ExecuteQuery(QueryData.Description, *this, Environment, QueryData.NativeQuery, QueryData.Description.Callback.Function);
 		}
 	}
 }

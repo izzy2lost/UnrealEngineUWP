@@ -257,6 +257,26 @@ public:
 	virtual FQueryResult RunQuery(TypedElementQueryHandle Query, DirectQueryCallbackRef Callback) = 0;
 	
 	/**
+	 * @section Indexing
+	 * @description
+	 * In order for rows to reference each other it's often needed to find a row based on the content of one of its columns. This can be
+	 * done by linearly searching through columns, though this comes at a performance cost. As an alternative the data storage allows
+	 * one or more indexes to be created for a row. An index is a 64-bit value and typically uses a hash value of an identifying value.
+	 */
+
+	/** Retrieves the row for an indexed object. Returns an invalid row handle if the hash wasn't found. */
+	virtual TypedElementDataStorage::RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const = 0;
+	/** 
+	 * Registers a row under the index hash. The same row can be registered multiple, but an index hash can only be associated 
+	 * with a single row.
+	 */
+	virtual void IndexRow(TypedElementDataStorage::IndexHash Index, TypedElementDataStorage::RowHandle Row) = 0;
+	/** Updates the index of a row to a new value. Effectively this is the same as removing an index and adding a new one. */
+	virtual void ReindexRow(TypedElementDataStorage::IndexHash OriginalIndex, TypedElementDataStorage::IndexHash NewIndex, TypedElementDataStorage::RowHandle Row) = 0;
+	/** Removes a previously registered index hash from the index lookup table or does nothing if the hash no longer exists. */
+	virtual void RemoveIndex(TypedElementDataStorage::IndexHash Index) = 0;
+
+	/**
 	 * @section Misc
 	 */
 	

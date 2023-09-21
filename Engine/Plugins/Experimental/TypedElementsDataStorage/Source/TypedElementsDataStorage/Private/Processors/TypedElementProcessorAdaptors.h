@@ -11,7 +11,7 @@
 
 #include "TypedElementProcessorAdaptors.generated.h"
 
-class FTypedElementDatabaseScratchBuffer;
+class FTypedElementDatabaseEnvironment;
 struct FTypedElementExtendedQuery;
 class FTypedElementExtendedQueryStore;
 
@@ -23,7 +23,7 @@ struct FPhasePreOrPostAmbleExecutor
 	void ExecuteQuery(
 		ITypedElementDataStorageInterface::FQueryDescription& Description,
 		FTypedElementExtendedQueryStore& QueryStore,
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer,
+		FTypedElementDatabaseEnvironment& Environment,
 		FMassEntityQuery& NativeQuery,
 		ITypedElementDataStorageInterface::QueryCallbackRef Callback);
 
@@ -42,7 +42,7 @@ struct FTypedElementQueryProcessorData
 		UMassProcessor& InOwner, 
 		FTypedElementExtendedQuery& InQuery, 
 		FTypedElementExtendedQueryStore& InQueryStore, 
-		FTypedElementDatabaseScratchBuffer& InScratchBuffer,
+		FTypedElementDatabaseEnvironment& InEnvironment,
 		TArrayView<FMassEntityQuery> Subqueries);
 	static EMassProcessingPhase MapToMassProcessingPhase(ITypedElementDataStorageInterface::EQueryTickPhase Phase);
 	FString GetProcessorName() const;
@@ -71,7 +71,7 @@ struct FTypedElementQueryProcessorData
 	
 	FTypedElementExtendedQuery* ParentQuery{ nullptr };
 	FTypedElementExtendedQueryStore* QueryStore{ nullptr };
-	FTypedElementDatabaseScratchBuffer* ScratchBuffer{ nullptr };
+	FTypedElementDatabaseEnvironment* Environment{ nullptr };
 	FMassEntityQuery NativeQuery;
 };
 
@@ -90,7 +90,7 @@ public:
 	virtual bool ConfigureQueryCallback(
 		FTypedElementExtendedQuery& Query, 
 		FTypedElementExtendedQueryStore& QueryStore,
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer);
+		FTypedElementDatabaseEnvironment& Environment);
 
 	virtual bool ShouldAllowQueryBasedPruning(const bool bRuntimeMode) const override;
 
@@ -98,7 +98,7 @@ protected:
 	bool ConfigureQueryCallbackData(
 		FTypedElementExtendedQuery& Query, 
 		FTypedElementExtendedQueryStore& QueryStore, 
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer,
+		FTypedElementDatabaseEnvironment& Environment,
 		TArrayView<FMassEntityQuery> Subqueries);
 	void ConfigureQueries() override;
 	void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& TargetParentQuery) override;
@@ -134,7 +134,7 @@ public:
 	bool ConfigureQueryCallback(
 		FTypedElementExtendedQuery& Query, 
 		FTypedElementExtendedQueryStore& QueryStore, 
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer) override;
+		FTypedElementDatabaseEnvironment& Environment) override;
 
 private:
 	UPROPERTY(transient)
@@ -150,7 +150,7 @@ public:
 	bool ConfigureQueryCallback(
 		FTypedElementExtendedQuery& Query, 
 		FTypedElementExtendedQueryStore& QueryStore,
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer) override;
+		FTypedElementDatabaseEnvironment& Environment) override;
 
 private:
 	UPROPERTY(transient)
@@ -166,7 +166,7 @@ public:
 	bool ConfigureQueryCallback(
 		FTypedElementExtendedQuery& Query, 
 		FTypedElementExtendedQueryStore& QueryStore,
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer) override;
+		FTypedElementDatabaseEnvironment& Environment) override;
 
 private:
 	UPROPERTY(transient)
@@ -182,7 +182,7 @@ public:
 	bool ConfigureQueryCallback(
 		FTypedElementExtendedQuery& Query, 
 		FTypedElementExtendedQueryStore& QueryStore,
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer) override;
+		FTypedElementDatabaseEnvironment& Environment) override;
 
 private:
 	UPROPERTY(transient)
@@ -204,11 +204,11 @@ public:
 	const UScriptStruct* GetObservedType() const;
 	EMassObservedOperation GetObservedOperation() const;
 	virtual bool ConfigureQueryCallback(
-		FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore, FTypedElementDatabaseScratchBuffer& ScratchBuffer);
+		FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore, FTypedElementDatabaseEnvironment& Environment);
 
 protected:
 	bool ConfigureQueryCallbackData(FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore,
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer, TArrayView<FMassEntityQuery> Subqueries);
+		FTypedElementDatabaseEnvironment& Environment, TArrayView<FMassEntityQuery> Subqueries);
 	void ConfigureQueries() override;
 	void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& TargetParentQuery) override;
 
@@ -244,7 +244,7 @@ public:
 	bool ConfigureQueryCallback(
 		FTypedElementExtendedQuery& Query, 
 		FTypedElementExtendedQueryStore& QueryStore,
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer) override;
+		FTypedElementDatabaseEnvironment& Environment) override;
 
 private:
 	UPROPERTY(transient)
@@ -260,7 +260,7 @@ public:
 	bool ConfigureQueryCallback(
 		FTypedElementExtendedQuery& Query, 
 		FTypedElementExtendedQueryStore& QueryStore,
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer) override;
+		FTypedElementDatabaseEnvironment& Environment) override;
 
 private:
 	UPROPERTY(transient)
@@ -276,7 +276,7 @@ public:
 	bool ConfigureQueryCallback(
 		FTypedElementExtendedQuery& Query, 
 		FTypedElementExtendedQueryStore& QueryStore,
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer) override;
+		FTypedElementDatabaseEnvironment& Environment) override;
 
 private:
 	UPROPERTY(transient)
@@ -292,7 +292,7 @@ public:
 	bool ConfigureQueryCallback(
 		FTypedElementExtendedQuery& Query, 
 		FTypedElementExtendedQueryStore& QueryStore,
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer) override;
+		FTypedElementDatabaseEnvironment& Environment) override;
 
 private:
 	UPROPERTY(transient)

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Containers/Array.h"
+#include "Containers/Map.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
 #include "Compatibility/TypedElementObjectReinstancingManager.h"
@@ -123,8 +124,6 @@ private:
 #if TEDS_SEPARATE_ACTOR_REGISTRATION
 	TSharedPtr<FMassActorManager> ActorSubsystem;
 #endif
-
-	TMap<void*, TypedElementRowHandle> ReverseObjectLookup;
 
 	/**
 	 * Reference of objects (UObject and AActor) that need to be fully synced from the world to the database.

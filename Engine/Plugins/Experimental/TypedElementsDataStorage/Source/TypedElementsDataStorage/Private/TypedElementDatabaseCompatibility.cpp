@@ -10,6 +10,7 @@
 #include "Elements/Columns/TypedElementPackageColumns.h"
 #include "Elements/Columns/TypedElementTransformColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
+#include "Elements/Framework/TypedElementIndexHasher.h"
 #include "MassActorSubsystem.h"
 #include "TypedElementDataStorageProfilingMacros.h"
 
@@ -85,6 +86,8 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 
 TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExplicit(UObject* Object, TypedElementTableHandle Table)
 {
+	using namespace TypedElementDataStorage;
+
 #if TEDS_SEPARATE_ACTOR_REGISTRATION
 	if (Object->IsA<AActor>())
 	{
@@ -97,7 +100,7 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 			ShouldAddObject(Object))
 		{
 			TypedElementRowHandle ReservedRow = Storage->ReserveRow();
-			ReverseObjectLookup.Add(Object, ReservedRow);
+			Storage->IndexRow(GenerateIndexHash(Object), ReservedRow);
 			
 			PendingRegistration<TWeakObjectPtr<UObject>>& Pending = UObjectsPendingRegistration.FindOrAdd(Table);
 			Pending.Add(ReservedRow, Object);
@@ -145,10 +148,12 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExplicit(
 	void* Object, TWeakObjectPtr<const UScriptStruct> TypeInfo, TypedElementTableHandle Table)
 {
+	using namespace TypedElementDataStorage;
+
 	if (ensureMsgf(Storage, TEXT("Trying to add an object to Typed Element's Data Storage before the storage is available.")))
 	{
 		TypedElementRowHandle ReservedRow = Storage->ReserveRow();
-		ReverseObjectLookup.Add(Object, ReservedRow);
+		Storage->IndexRow(GenerateIndexHash(Object), ReservedRow);
 		PendingRegistration<ExternalObjectRegistration>& Pending = ExternalObjectsPendingRegistration.FindOrAdd(Table);
 		Pending.Add(ReservedRow, ExternalObjectRegistration{ .Object = Object, .TypeInfo = TypeInfo });
 		return ReservedRow;
@@ -161,6 +166,8 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 
 void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(UObject* Object)
 {
+	using namespace TypedElementDataStorage;
+
 #if TEDS_SEPARATE_ACTOR_REGISTRATION
 	if (Object->IsA<AActor>())
 	{
@@ -170,8 +177,9 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(UObject*
 #else
 	{
 		checkf(Storage, TEXT("Removing compatible objects is not supported before Typed Element's Database compatibility manager has been initialized."));
-		TypedElementRowHandle Row;
-		if (ReverseObjectLookup.RemoveAndCopyValue(Object, Row))
+		IndexHash Hash = GenerateIndexHash(Object);
+		RowHandle Row = Storage->FindIndexedRow(Hash);
+		if (Storage->IsRowAvailable(Row))
 		{
 			const FTypedElementClassTypeInfoColumn* TypeInfoColumn = Storage->GetColumn<FTypedElementClassTypeInfoColumn>(Row);
 			if (Storage->HasRowBeenAssigned(Row) && ensureMsgf(TypeInfoColumn, TEXT("Missing type information for removed UObject at ptr 0x%p [%s]"), Object, *Object->GetName()))
@@ -186,9 +194,12 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(UObject*
 
 void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(void* Object)
 {
+	using namespace TypedElementDataStorage;
+
 	checkf(Storage, TEXT("Removing compatible objects is not supported before Typed Element's Database compatibility manager has been initialized."));
-	TypedElementRowHandle Row;
-	if (ReverseObjectLookup.RemoveAndCopyValue(Object, Row))
+	IndexHash Hash = GenerateIndexHash(Object);
+	RowHandle Row = Storage->FindIndexedRow(Hash);
+	if (Storage->IsRowAvailable(Row))
 	{
 		const FTypedElementScriptStructTypeInfoColumn* TypeInfoColumn = Storage->GetColumn<FTypedElementScriptStructTypeInfoColumn>(Row);
 		if (Storage->HasRowBeenAssigned(Row) && ensureMsgf(TypeInfoColumn, TEXT("Missing type information for removed void* object at ptr 0x%p"), Object))
@@ -238,6 +249,8 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(AActor* 
 
 TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleObjectExplicit(const UObject* Object) const
 {
+	using namespace TypedElementDataStorage;
+
 	if (Object && Storage && Storage->IsAvailable())
 	{
 #if TEDS_SEPARATE_ACTOR_REGISTRATION
@@ -250,8 +263,8 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleO
 		else
 #endif
 		{
-			const TypedElementRowHandle* Row = ReverseObjectLookup.Find(Object);
-			return Row ? *Row : DealiasObject(Object);
+			RowHandle Row = Storage->FindIndexedRow(GenerateIndexHash(Object));
+			return Storage->IsRowAvailable(Row) ? Row : DealiasObject(Object);
 		}
 
 
@@ -278,12 +291,9 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleO
 
 TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleObjectExplicit(const void* Object) const
 {
-	if (Object && Storage && Storage->IsAvailable())
-	{
-		const TypedElementRowHandle* Row = ReverseObjectLookup.Find(Object);
-		return Row ? *Row : TypedElementInvalidRowHandle;
-	}
-	return TypedElementInvalidRowHandle;
+	using namespace TypedElementDataStorage;
+
+	return (Object && Storage && Storage->IsAvailable()) ? Storage->FindIndexedRow(GenerateIndexHash(Object)) : InvalidRowHandle;
 }
 
 void UTypedElementDatabaseCompatibility::Prepare()
