@@ -1234,7 +1234,8 @@ private:
 	 private:
 		 std::atomic<FAutomationTestBase*> CurTest;
 		 std::atomic<FFeedbackContext*> DestinationContext;
-		 FCriticalSection ActionCS;;
+		 FCriticalSection ActionCS;
+		 TQueue<TSharedPtr<UE::FLogRecord>> Backlog;
 	 };
 
 	friend class FAutomationTestOutputDevice;
@@ -2151,7 +2152,7 @@ private:
 	TSet<FAutomationExpectedMessage> ExpectedMessages;
 
 	/** Critical section lock */
-	FCriticalSection ActionCS;
+	FRWLock ActionCS;
 };
 
 class FBDDAutomationTestBase : public FAutomationTestBase
