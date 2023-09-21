@@ -3,6 +3,9 @@
 #include "SimModule/SuspensionModule.h"
 #include "SimModule/SimModuleTree.h"
 #include "SimModule/WheelModule.h"
+#include "Chaos/PBDSuspensionConstraints.h"
+#include "PhysicsProxy/SuspensionConstraintProxy.h"
+#include "PBDRigidsSolver.h"
 #include "VehicleUtility.h"
 
 #if VEHICLE_DEBUGGING_ENABLED
@@ -18,6 +21,10 @@ namespace Chaos
 		, LastDisplacement(0.f)
 		, SpringSpeed(0.f)
 		, WheelSimTreeIndex(INVALID_IDX)
+		, Constraint(nullptr)
+		, TargetPos(FVector::ZeroVector)
+		, ImpactNormal(FVector::ZeroVector)
+		, WheelInContact(false)
 	{
 		AccessSetup().MaxLength = FMath::Abs(Settings.MaxRaise + Settings.MaxDrop);
 	}
@@ -48,36 +55,48 @@ namespace Chaos
 
 	void FSuspensionSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
 	{
-		float ForceIntoSurface = 0.0f;
-		if (SpringDisplacement > 0)
 		{
-			float Damping = (SpringDisplacement < LastDisplacement) ? Setup().CompressionDamping : Setup().ReboundDamping;
-			SpringSpeed = (LastDisplacement - SpringDisplacement) / DeltaTime;
-
-			float StiffnessForce = SpringDisplacement * Setup().SpringRate;
-			float DampingForce = SpringSpeed * Damping;
-			float SuspensionForce = StiffnessForce - DampingForce;
-			LastDisplacement = SpringDisplacement;
-
-			if (SuspensionForce > 0)
+			float ForceIntoSurface = 0.0f;
+			if (SpringDisplacement > 0)
 			{
-				ForceIntoSurface = SuspensionForce;
-				AddLocalForce(Setup().SuspensionAxis * -SuspensionForce, true, false, true, FColor::Green);
+				float Damping = (SpringDisplacement < LastDisplacement) ? Setup().CompressionDamping : Setup().ReboundDamping;
+				SpringSpeed = (LastDisplacement - SpringDisplacement) / DeltaTime;
+
+				float StiffnessForce = SpringDisplacement * Setup().SpringRate;
+				float DampingForce = SpringSpeed * Damping;
+				float SuspensionForce = StiffnessForce - DampingForce;
+				LastDisplacement = SpringDisplacement;
+
+				if (SuspensionForce > 0)
+				{
+					ForceIntoSurface = SuspensionForce;
+
+					if (Constraint == nullptr)
+					{
+						AddLocalForce(Setup().SuspensionAxis * -SuspensionForce, true, false, true, FColor::Green);
+					}
+				}
+			}
+
+			// tell wheels how much they are being pressed into the ground
+			if (SimModuleTree && WheelSimTreeIndex != INVALID_IDX)
+			{
+				if (Chaos::ISimulationModuleBase* Module = SimModuleTree->AccessSimModule(WheelSimTreeIndex))
+				{
+					check(Module->GetSimType() == eSimType::Wheel);
+					Chaos::FWheelSimModule* Wheel = static_cast<Chaos::FWheelSimModule*>(Module);
+
+					Wheel->SetForceIntoSurface(ForceIntoSurface);
+				}
+		
 			}
 		}
 
-		// tell wheels how much they are being pressed into the ground
-		if (SimModuleTree && WheelSimTreeIndex != INVALID_IDX)
+		if (Constraint)
 		{
-			if (Chaos::ISimulationModuleBase* Module = SimModuleTree->AccessSimModule(WheelSimTreeIndex))
-			{
-				check(Module->GetSimType() == eSimType::Wheel);
-				Chaos::FWheelSimModule* Wheel = static_cast<Chaos::FWheelSimModule*>(Module);
-
-				Wheel->SetForceIntoSurface(ForceIntoSurface);
-			}
-
+			UpdateConstraint();
 		}
+
 	}
 
 	void FSuspensionSimModule::Animate(Chaos::FClusterUnionPhysicsProxy* Proxy)
@@ -92,6 +111,24 @@ namespace Chaos
 			Movement = GetComponentTransform().TransformVector(Movement);
 			FVector NewPos = RestPos - Movement;
 			ClusterChild->ChildToParent().SetTranslation(NewPos); // local frame for module
+		}
+	}
+
+	void FSuspensionSimModule::SetSuspensionConstraint(FSuspensionConstraint* InConstraint)
+	{
+		Constraint = InConstraint;
+	}
+
+	void FSuspensionSimModule::UpdateConstraint()
+	{
+		if (Constraint && Constraint->IsValid())
+		{
+			if (FSuspensionConstraintPhysicsProxy* Proxy = Constraint->GetProxy<FSuspensionConstraintPhysicsProxy>())
+			{
+				Chaos::FPhysicsSolver* Solver = Proxy->GetSolver<Chaos::FPhysicsSolver>();
+				UE_LOG(LogTemp, Warning, TEXT("TargetPos %s, WheelInContact %d"), *TargetPos.ToString(), WheelInContact);
+				Solver->SetSuspensionTarget(Constraint, TargetPos, ImpactNormal, WheelInContact);
+			}
 		}
 	}
 

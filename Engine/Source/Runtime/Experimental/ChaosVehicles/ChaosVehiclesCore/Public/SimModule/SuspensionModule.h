@@ -9,6 +9,7 @@ namespace Chaos
 	struct FAllInputs;
 	class FSimModuleTree;
 	class FClusterUnionPhysicsProxy;
+	class FSuspensionConstraint;
 
 	struct CHAOSVEHICLESCORE_API FSuspensionSimModuleDatas : public FModuleNetData
 	{
@@ -147,14 +148,28 @@ namespace Chaos
 		const FVector& GetRestLocation() const { return Setup().RestOffset; }
 
 		void SetWheelSimTreeIndex(int WheelTreeIndexIn) { WheelSimTreeIndex = WheelTreeIndexIn; }
-		int GetWheelSimTreeIndex() const { return WheelSimTreeIndex; }
+		int GetWheelSimTreeIndex() const { return WheelSimTreeIndex; } 
 
+		void UpdateConstraint();
+
+		void SetSuspensionConstraint(FSuspensionConstraint* InConstraint);
+		void SetTargetPoint(const FVector& InTargetPoint, const FVector& InImpactNormal, bool InWheelInContact)
+		{
+			TargetPos = InTargetPoint;
+			ImpactNormal = InImpactNormal;
+			WheelInContact = InWheelInContact;
+		}
 	private:
 
 		float SpringDisplacement;
 		float LastDisplacement;
 		float SpringSpeed;
 		int WheelSimTreeIndex;
+
+		FSuspensionConstraint* Constraint;
+		FVector TargetPos;
+		FVector ImpactNormal;
+		bool WheelInContact;
 	};
 
 

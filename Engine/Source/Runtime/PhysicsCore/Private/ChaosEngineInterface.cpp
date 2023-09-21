@@ -1363,23 +1363,30 @@ FPhysicsConstraintHandle FChaosEngineInterface::CreateConstraint(const FPhysicsA
 
 FPhysicsConstraintHandle FChaosEngineInterface::CreateSuspension(const FPhysicsActorHandle& InActorRef, const FVector& InLocalFrame)
 {
+	Chaos::FPhysicsObject* Body = InActorRef ? InActorRef->GetPhysicsObject() : nullptr;
+	return FChaosEngineInterface::CreateSuspension(Body, InLocalFrame);
+}
+
+FPhysicsConstraintHandle FChaosEngineInterface::CreateSuspension(Chaos::FPhysicsObject* Body, const FVector& InLocalFrame)
+{
 	FPhysicsConstraintHandle ConstraintRef;
 
 	if (bEnableChaosJointConstraints)
 	{
-		if (InActorRef)
+		if (Body)
 		{
-			if (InActorRef->GetSolverBase())
+			Chaos::FPhysicsSolver* Solver = Chaos::FPhysicsObjectInterface::GetSolver({ &Body, 1 });
+
+			if (Solver)
 			{
 				LLM_SCOPE(ELLMTag::ChaosConstraint);
 
 				auto* SuspensionConstraint = new Chaos::FSuspensionConstraint();
 				ConstraintRef.Constraint = SuspensionConstraint;
 
-				SuspensionConstraint->SetParticleProxy(InActorRef);
+				SuspensionConstraint->SetPhysicsBody(Body);
 				SuspensionConstraint->SetLocation(InLocalFrame);
 
-				Chaos::FPhysicsSolver* Solver = InActorRef->GetSolver<Chaos::FPhysicsSolver>();
 				Solver->RegisterObject(SuspensionConstraint);
 			}
 		}

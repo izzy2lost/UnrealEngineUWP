@@ -488,6 +488,7 @@ public:
 	static PHYSICSCORE_API FPhysicsConstraintHandle CreateConstraint(Chaos::FPhysicsObject* Body1, Chaos::FPhysicsObject* Body2, const FTransform& InLocalFrame1, const FTransform& InLocalFrame2);
 	static PHYSICSCORE_API FPhysicsConstraintHandle CreateConstraint(const FPhysicsActorHandle& InActorRef1,const FPhysicsActorHandle& InActorRef2,const FTransform& InLocalFrame1,const FTransform& InLocalFrame2);
 
+	static PHYSICSCORE_API FPhysicsConstraintHandle CreateSuspension(Chaos::FPhysicsObject* Body, const FVector& InLocalFrame);
 	static PHYSICSCORE_API FPhysicsConstraintHandle CreateSuspension(const FPhysicsActorHandle& InActorRef, const FVector& InLocalFrame);
 	static PHYSICSCORE_API void SetConstraintUserData(const FPhysicsConstraintHandle& InConstraintRef,void* InUserData);
 	static PHYSICSCORE_API void ReleaseConstraint(FPhysicsConstraintHandle& InConstraintRef);
