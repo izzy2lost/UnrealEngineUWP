@@ -2877,6 +2877,11 @@ void FNiagaraDebugHud::DrawComponents(FNiagaraWorldManager* WorldManager, UCanva
 						StringBuilder.Append(TEXT("\n"));
 					}
 
+					if (NiagaraComponent->bAutoManageAttachment)
+					{
+						StringBuilder.Appendf(TEXT("Auto Attachment - Parent(%s) Socket(%s)\n"), *GetNameSafe(NiagaraComponent->AutoAttachParent.Get()), *NiagaraComponent->AutoAttachSocketName.ToString());
+					}
+
 					if (UNiagaraSimCache* SimCache = NiagaraComponent->GetSimCache())
 					{
 						StringBuilder.Appendf(TEXT("SimCache(%s)\n"), *GetFullNameSafe(SimCache));
