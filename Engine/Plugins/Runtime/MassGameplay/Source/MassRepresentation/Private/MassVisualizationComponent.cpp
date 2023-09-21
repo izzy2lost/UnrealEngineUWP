@@ -185,7 +185,7 @@ void UMassVisualizationComponent::ConstructStaticMeshComponents()
 		// Check if there are any specified meshes for this visual type
 		if(Info.Desc.Meshes.Num() == 0)
 		{
-			UE_LOG(LogMassRepresentation, Error, TEXT("No associated meshes for this intanced static mesh type"));
+			UE_LOG(LogMassRepresentation, Error, TEXT("No associated meshes for this instanced static mesh type"));
 			continue;
 		}
 		for (const FMassStaticMeshInstanceVisualizationMeshDesc& MeshDesc : Info.Desc.Meshes)
