@@ -56,6 +56,8 @@ void FRayTracingDebugVisualizationMenuCommands::CreateRayTracingDebugVisualizati
 	RayTracingDebugModeNames.Add(LOCTEXT("Instances", "Instances"));
 	RayTracingDebugModeNames.Add(LOCTEXT("Instance Overlap", "Instance Overlap"));
 	RayTracingDebugModeNames.Add(LOCTEXT("Triangle Hit Count", "Triangle Hit Count"));
+	RayTracingDebugModeNames.Add(LOCTEXT("Hit Count Per Instance", "Hit Count Per Instance"));
+
 	if (GRHISupportsShaderTimestamp)
 	{
 		RayTracingDebugModeNames.Add(LOCTEXT("Performance", "Performance"));
