@@ -38,7 +38,7 @@ namespace Horde.Agent.Utility
 			}
 			else
 			{
-				client = new HttpStorageClient(() => CreateDefaultHttpClient(namespaceId), () => new HttpClient(), _memoryCache, _logger);
+				client = new HttpStorageClient(() => CreateDefaultHttpClient(namespaceId), _memoryCache, _logger);
 			}
 			return Task.FromResult(client);
 		}

@@ -33,7 +33,6 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		readonly Func<HttpClient> _createClient;
-		readonly Func<HttpClient> _createRedirectClient;
 		readonly ILogger _logger;
 		bool _supportsUploadRedirects = true;
 
@@ -43,10 +42,9 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HttpStorageBackend(Func<HttpClient> createClient, Func<HttpClient> createRedirectClient, ILogger logger)
+		public HttpStorageBackend(Func<HttpClient> createClient, ILogger logger)
 		{
 			_createClient = createClient;
-			_createRedirectClient = createRedirectClient;
 			_logger = logger;
 		}
 
@@ -111,8 +109,11 @@ namespace EpicGames.Horde.Storage.Backends
 
 			if (_supportsUploadRedirects)
 			{
-				using (HttpClient redirectHttpClient = _createRedirectClient())
+				using (HttpClient redirectHttpClient = _createClient())
 				{
+					// Don't send the auth header if we're following a redirect
+					redirectHttpClient.DefaultRequestHeaders.Authorization = null;
+
 					WriteBlobResponse redirectResponse = await SendWriteRequestAsync(null, prefix, cancellationToken);
 					if (redirectResponse.UploadUrl != null)
 					{

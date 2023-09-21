@@ -75,15 +75,7 @@ namespace Horde.Commands
 				return client;
 			}
 
-			HttpClient CreateRedirectClient()
-			{
-				HttpClient client = _httpClientFactory.CreateClient().HttpClient;
-				client.BaseAddress = null;
-				client.DefaultRequestHeaders.Authorization = null;
-				return client;
-			}
-
-			return Task.FromResult<IStorageClient>(new HttpStorageClient(CreateClient, CreateRedirectClient, BundleReaderCache, logger));
+			return Task.FromResult<IStorageClient>(new HttpStorageClient(CreateClient, BundleReaderCache, logger));
 		}
 	}
 }

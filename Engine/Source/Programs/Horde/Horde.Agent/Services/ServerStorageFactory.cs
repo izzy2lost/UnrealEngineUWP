@@ -88,7 +88,7 @@ namespace Horde.Agent.Services
 		/// <inheritdoc/>
 		public IStorageClient CreateStorageClient(Uri baseAddress, string token)
 		{
-			return new HttpStorageClient(() => CreateHttpClient(baseAddress, token), CreateHttpRedirectClient, _bundleReaderCache, _logger);
+			return new HttpStorageClient(() => CreateHttpClient(baseAddress, token), _bundleReaderCache, _logger);
 		}
 
 		HttpClient CreateHttpClient(Uri baseAddress, string token)
@@ -97,11 +97,6 @@ namespace Horde.Agent.Services
 			httpClient.BaseAddress = baseAddress;
 			httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 			return httpClient;
-		}
-
-		HttpClient CreateHttpRedirectClient()
-		{
-			return _httpClientFactory.CreateClient(HttpStorageClient.HttpClientName);
 		}
 	}
 }
