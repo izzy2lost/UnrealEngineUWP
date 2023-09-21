@@ -72,7 +72,7 @@ private:
 	friend class SInterchangeFileProducerFileProperty;
 };
 
-class FDataprepContentProducerDetails : public IDetailCustomization
+class FInterchangeContentProducerDetails : public IDetailCustomization
 {
 public:
 	virtual void CustomizeDetails( IDetailLayoutBuilder& DetailBuilder ) override;
@@ -86,7 +86,7 @@ protected:
 };
 
 // Customization of the details of the Interchange producer for the data prep editor.
-class DATAPREPCORE_API FInterchangeFileProducerDetails : public FDataprepContentProducerDetails
+class DATAPREPCORE_API FInterchangeFileProducerDetails : public FInterchangeContentProducerDetails
 {
 public:
 	static TSharedRef< IDetailCustomization > MakeDetails() { return MakeShared<FInterchangeFileProducerDetails>(); };
