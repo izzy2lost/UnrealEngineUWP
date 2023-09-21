@@ -178,6 +178,9 @@ public:
 	void AddToRootTranslationDelta(const FVector& TranslationDelta);
 	
 	void SortHierarchically(const FIKRigSkeleton& Skeleton);
+	
+	int32 GetVersion() const { return Version; };
+	void IncrementVersion() { ++Version; };
 
 private:
 	// a translational delta in GLOBAL space, applied only to the retarget root bone
@@ -187,6 +190,10 @@ private:
 	// these are LOCAL-space rotation deltas to be applied to a bone to modify it's retarget pose
 	UPROPERTY(EditAnywhere, Category = RetargetPose)
 	TMap<FName, FQuat> BoneRotationOffsets;
+	
+	// incremented by any edits to the retarget pose, indicating to any running instance that it should reinitialize
+	// this is not made "editor only" to leave open the possibility of programmatically modifying a retarget pose in cooked builds
+	int32 Version = INDEX_NONE;
 
 	friend class UIKRetargeterController;
 };

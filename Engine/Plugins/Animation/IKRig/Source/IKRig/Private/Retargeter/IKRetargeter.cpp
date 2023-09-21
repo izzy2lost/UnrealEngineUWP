@@ -44,24 +44,24 @@ UIKRetargeter::UIKRetargeter(const FObjectInitializer& ObjectInitializer)
 
 const UIKRigDefinition* UIKRetargeter::GetIKRig(ERetargetSourceOrTarget SourceOrTarget) const
 {
-	if (!IsInGameThread())
-	{
-		return nullptr;
-	}
-
 	const TSoftObjectPtr<UIKRigDefinition> SoftIKRig = SourceOrTarget == ERetargetSourceOrTarget::Source ? SourceIKRigAsset : TargetIKRigAsset;
-	return SoftIKRig.LoadSynchronous();
+	if (SoftIKRig.IsValid())
+	{
+		return SoftIKRig.Get();
+	}
+	
+	return IsInGameThread() ? SoftIKRig.LoadSynchronous() : nullptr;
 }
 
 UIKRigDefinition* UIKRetargeter::GetIKRigWriteable(ERetargetSourceOrTarget SourceOrTarget) const
 {
-	if (!IsInGameThread())
-	{
-		return nullptr;
-	}
-
 	const TSoftObjectPtr<UIKRigDefinition> SoftIKRig = SourceOrTarget == ERetargetSourceOrTarget::Source ? SourceIKRigAsset : TargetIKRigAsset;
-	return SoftIKRig.LoadSynchronous();
+	if (SoftIKRig.IsValid())
+	{
+		return SoftIKRig.Get();
+	}
+	
+	return IsInGameThread() ? SoftIKRig.LoadSynchronous() : nullptr;
 }
 
 #if WITH_EDITORONLY_DATA
@@ -304,6 +304,8 @@ FQuat FIKRetargetPose::GetDeltaRotationForBone(const FName BoneName) const
 
 void FIKRetargetPose::SetDeltaRotationForBone(FName BoneName, const FQuat& RotationDelta)
 {
+	IncrementVersion();
+
 	FQuat* RotOffset = BoneRotationOffsets.Find(BoneName);
 	if (RotOffset == nullptr)
 	{
@@ -322,6 +324,8 @@ FVector FIKRetargetPose::GetRootTranslationDelta() const
 
 void FIKRetargetPose::SetRootTranslationDelta(const FVector& TranslationDelta)
 {
+	IncrementVersion();
+	
 	RootTranslationOffset = TranslationDelta;
 	// only allow vertical offset of root in retarget pose
 	RootTranslationOffset.X = 0.0f;
@@ -330,6 +334,8 @@ void FIKRetargetPose::SetRootTranslationDelta(const FVector& TranslationDelta)
 
 void FIKRetargetPose::AddToRootTranslationDelta(const FVector& TranslateDelta)
 {
+	IncrementVersion();
+	
 	RootTranslationOffset += TranslateDelta;
 	// only allow vertical offset of root in retarget pose
 	RootTranslationOffset.X = 0.0f;

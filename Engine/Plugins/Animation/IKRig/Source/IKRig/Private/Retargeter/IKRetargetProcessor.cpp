@@ -82,6 +82,7 @@ void FRetargetSkeleton::GenerateRetargetPose(
 {
 	// record the name of the retarget pose (prevents re-initialization if profile swaps it)
 	RetargetPoseName = InRetargetPoseName;
+	RetargetPoseVersion = InRetargetPose->GetVersion();
 	
 	// initialize retarget pose to the skeletal mesh reference pose
 	RetargetLocalPose = SkeletalMesh->GetRefSkeleton().GetRefBonePose();
@@ -2272,7 +2273,14 @@ void UIKRetargetProcessor::ApplySettingsFromAsset()
 	// copy global settings
 	GlobalSettings = RetargeterAsset->GetGlobalSettings();
 
+	// apply current retarget poses (only applied if the pose has been switched to a different one OR if the current pose was modified)
+	const FName SourcePose = RetargeterAsset->GetCurrentRetargetPoseName(ERetargetSourceOrTarget::Source);
+	const FName TargetPose = RetargeterAsset->GetCurrentRetargetPoseName(ERetargetSourceOrTarget::Target);
+	ApplyNewRetargetPose(SourcePose, ERetargetSourceOrTarget::Source);
+	ApplyNewRetargetPose(TargetPose, ERetargetSourceOrTarget::Target);
+
 	// apply the current profile
+	// (this is always applied last so that profile overrides take precedence over asset settings)
 	if (const FRetargetProfile* CurrentProfile = RetargeterAsset->GetCurrentProfile())
 	{
 		ApplySettingsFromProfile(*CurrentProfile);
@@ -2331,23 +2339,25 @@ void UIKRetargetProcessor::ApplyNewRetargetPose(
 	const FName NewRetargetPoseName,
 	ERetargetSourceOrTarget SourceOrTarget)
 {
-	const bool bIsSource = SourceOrTarget == ERetargetSourceOrTarget::Source;
-	FRetargetSkeleton& RetargetSkeleton = bIsSource ? SourceSkeleton : TargetSkeleton;
-	if (NewRetargetPoseName == NAME_None || RetargetSkeleton.RetargetPoseName == NewRetargetPoseName)
-	{
-		return; // retarget pose not specified, or already in use
-	}
-
 	const FIKRetargetPose* NewRetargetPose = RetargeterAsset->GetRetargetPoseByName(SourceOrTarget, NewRetargetPoseName);
 	if (!NewRetargetPose)
 	{
-		return;
+		return; // retarget pose not found
 	}
 
+	const bool bIsSource = SourceOrTarget == ERetargetSourceOrTarget::Source;
+	FRetargetSkeleton& RetargetSkeleton = bIsSource ? SourceSkeleton : TargetSkeleton;
+	const bool bSameRetargetPose = RetargetSkeleton.RetargetPoseName == NewRetargetPoseName;
+	const bool bSameVersion = RetargetSkeleton.RetargetPoseVersion == NewRetargetPose->GetVersion();
+	if (bSameRetargetPose && bSameVersion)
+	{
+		return; // retarget pose has not changed since it was initialized
+	}
+	
 	const FName RootBoneName = bIsSource ? RootRetargeter.Source.BoneName : RootRetargeter.Target.BoneName;
 	if (RootBoneName == NAME_None)
 	{
-		return;
+		return; // cannot regenerate pose without a root bone
 	}
 
 	// re-generate the retarget pose

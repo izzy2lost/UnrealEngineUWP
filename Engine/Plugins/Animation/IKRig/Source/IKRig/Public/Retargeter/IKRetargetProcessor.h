@@ -31,6 +31,7 @@ struct IKRIG_API FRetargetSkeleton
 	TArray<FTransform> RetargetLocalPose;	// local space retarget pose
 	TArray<FTransform> RetargetGlobalPose;	// global space retarget pose
 	FName RetargetPoseName;					// the name of the retarget pose this was initialized with
+	int32 RetargetPoseVersion;				// the version of the retarget pose this was initialized with (transient)
 	USkeletalMesh* SkeletalMesh;			// the skeletal mesh this was initialized with
 	TArray<FName> ChainThatContainsBone;	// record which chain is actually controlling each bone
 
@@ -561,7 +562,7 @@ private:
 	bool bRootsInitialized = false;
 	/** true when at least one pair of bone chains is able to be retargeted */
 	bool bAtLeastOneValidBoneChainPair = false;
-	/** true when roots are able to be retargeted */
+	/** true when IK Rig has been initialized and is ready to run*/
 	bool bIKRigInitialized = false;
 
 	/** The source asset this processor was initialized with. */
@@ -627,6 +628,7 @@ private:
 	/** Run all post process operations on the retargeted result. */
 	void RunRetargetOps(const TArray<FTransform>& InSourceGlobalPose, TArray<FTransform>& OutTargetGlobalPose);
 
-	/** Does a partial reinitialization (at runtime) whenever the retarget pose is swapped to a different one. */
+	/** Does a partial reinitialization (at runtime) whenever the retarget pose is swapped to a different or if the
+	 * pose has been modified. Does nothing if the pose has not changed. */
 	void ApplyNewRetargetPose(const FName NewRetargetPoseName, ERetargetSourceOrTarget SourceOrTarget);
 };
