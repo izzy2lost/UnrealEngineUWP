@@ -10,10 +10,10 @@
  * These classes are useful if you want your system to support both memory management systems: (1) UObject Garbage Collection and (2) Smart Pointer Reference counting
  */
 template<typename CastTo>
-class TPointerContainer : public TSharedFromThis<TPointerContainer<CastTo>>
+class TPointerContainerBase : public TSharedFromThis<TPointerContainerBase<CastTo>>
 {
 public:
-	virtual ~TPointerContainer() {}
+	virtual ~TPointerContainerBase() {}
 
 	virtual CastTo* Cast() const = 0;
 	virtual bool IsValid() const = 0;
@@ -23,6 +23,17 @@ public:
 	CastTo* Get() const { return Cast(); }
 	bool IsPtrValid() const { return IsValid(); }
 	void ResetPtr() { Reset(); }
+};
+
+template<typename CastTo>
+class TPointerContainer : public TPointerContainerBase<CastTo>
+{
+public:
+	virtual ~TPointerContainer() {}
+
+	virtual CastTo* Cast() const override { return nullptr; }
+	virtual bool IsValid() const override { return false; }
+	virtual void Reset() override {}
 };
 
 /* A "Weak" Pointer Reference Container for a 'T' (UObject xOr TSharedFromThis) that can be statically casted to 'CastTo' */
