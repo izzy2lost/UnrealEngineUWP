@@ -110,6 +110,23 @@ public:
 	
 };
 
+// Settings to control the triangulation of simple collision primitives -- used for conversion to mesh or convex hull geometry
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptSimpleCollisionTriangulationOptions
+{
+	GENERATED_BODY()
+public:
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int32 SphereStepsPerSide = 4;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int32 CapsuleHemisphereSteps = 5;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int32 CapsuleCircleSteps = 8;
+};
+
 
 //
 // Triangles

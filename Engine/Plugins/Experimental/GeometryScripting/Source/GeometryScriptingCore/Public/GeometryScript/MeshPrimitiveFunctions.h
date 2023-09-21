@@ -574,7 +574,16 @@ public:
 		UGeometryScriptDebug* Debug = nullptr);
 
 
-
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives")
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	AppendSimpleCollisionShapes(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptPrimitiveOptions PrimitiveOptions,
+		FTransform Transform,
+		const FGeometryScriptSimpleCollision& SimpleCollision,
+		FGeometryScriptSimpleCollisionTriangulationOptions TriangulationOptions,
+		UGeometryScriptDebug* Debug = nullptr
+	);
 
 
 
