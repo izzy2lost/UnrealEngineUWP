@@ -16,6 +16,12 @@ struct FSharedPlaybackState
 public:
 
 	template<typename T>
+	bool HasCapability() const
+	{
+		return Capabilities.HasCapability(T::ID);
+	}
+
+	template<typename T>
 	T* FindCapability() const
 	{
 		return Capabilities.FindCapability<T>(T::ID);

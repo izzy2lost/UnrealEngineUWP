@@ -477,7 +477,10 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 	UMovieSceneEntitySystemLinker* Linker = GetEvaluationTemplate().GetEntitySystemLinker();
 	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
 	TSharedRef<FSharedPlaybackState> SharedPlaybackState = InstanceRegistry->GetInstance(RootInstanceHandle).GetSharedPlaybackState();
-	SharedPlaybackState->AddCapabilityRaw<FCameraCutPlaybackCapability>((FCameraCutPlaybackCapability*)this);
+	if (!SharedPlaybackState->HasCapability<FCameraCutPlaybackCapability>())
+	{
+		SharedPlaybackState->AddCapabilityRaw<FCameraCutPlaybackCapability>((FCameraCutPlaybackCapability*)this);
+	}
 
 	// Create tools and bind them to this sequencer
 	for( int32 DelegateIndex = 0; DelegateIndex < TrackEditorDelegates.Num(); ++DelegateIndex )
@@ -1100,7 +1103,10 @@ void FSequencer::ResetToNewRootSequence(UMovieSceneSequence& NewSequence)
 	UMovieSceneEntitySystemLinker* Linker = GetEvaluationTemplate().GetEntitySystemLinker();
 	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
 	TSharedRef<FSharedPlaybackState> SharedPlaybackState = InstanceRegistry->GetInstance(RootInstanceHandle).GetSharedPlaybackState();
-	SharedPlaybackState->AddCapabilityRaw<FCameraCutPlaybackCapability>((FCameraCutPlaybackCapability*)this);
+	if (!SharedPlaybackState->HasCapability<FCameraCutPlaybackCapability>())
+	{
+		SharedPlaybackState->AddCapabilityRaw<FCameraCutPlaybackCapability>((FCameraCutPlaybackCapability*)this);
+	}
 
 	OnActivateSequenceEvent.Broadcast(ActiveTemplateIDs.Top());
 }
