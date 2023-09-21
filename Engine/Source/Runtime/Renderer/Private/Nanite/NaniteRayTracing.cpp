@@ -91,6 +91,16 @@ static FAutoConsoleVariableRef CVarNaniteRayTracingMaxStagingBufferSizeMB(
 	ECVF_RenderThreadSafe
 );
 
+static int32 GNaniteRayTracingBLASScratchSizeMultipleMB = 64;
+static FAutoConsoleVariableRef CVarNaniteRayTracingBLASScratchSizeMultipleMBMB(
+	TEXT("r.RayTracing.Nanite.BLASScratchSizeMultipleMB"),
+	GNaniteRayTracingBLASScratchSizeMultipleMB,
+	TEXT("Round the size of the BLAS build scratch buffer to be a multiple of this value.\n")
+	TEXT("This helps maintain consistent memory usage and prevent memory usage spikes.\n")
+	TEXT("Default = 64 MB."),
+	ECVF_RenderThreadSafe
+);
+
 static bool GNaniteRayTracingProfileStreamOut = false;
 static FAutoConsoleVariableRef CVarNaniteRayTracingProfileStreamOut(
 	TEXT("r.RayTracing.Nanite.ProfileStreamOut"),
@@ -838,6 +848,9 @@ namespace Nanite
 			AddCopyBufferPass(GraphBuilder, AuxiliaryDataBufferRDG, Data.AuxiliaryDataOffset * sizeof(uint32), StagingAuxiliaryDataBufferRDG, Data.StagingAuxiliaryDataOffset * sizeof(uint32), Data.AuxiliaryDataSize * sizeof(uint32));
 			Data.StagingAuxiliaryDataOffset = INDEX_NONE;
 		}
+
+		const uint32 BLASScratchSizeMultiple = FMath::Max(GNaniteRayTracingBLASScratchSizeMultipleMB, 1) * 1024 * 1024;
+		BLASScratchSize = FMath::DivideAndRoundUp(BLASScratchSize, BLASScratchSizeMultiple) * BLASScratchSizeMultiple;
 
 		INC_DWORD_STAT_BY(STAT_NaniteRayTracingScheduledBuilds, ScheduledBuilds.Num());
 
