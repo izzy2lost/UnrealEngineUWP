@@ -759,7 +759,7 @@ void UTransformGizmo::SetNewChildScale(const FVector& NewChildScale)
 	FTransform NewTransform = ActiveTarget->GetTransform();
 	NewTransform.SetScale3D(NewChildScale);
 
-	TGuardValue<bool>(ActiveTarget->bSetPivotMode, true);
+	TGuardValue GuardValue(ActiveTarget->bSetPivotMode, true);
 	ActiveTarget->SetTransform(NewTransform);
 }
 

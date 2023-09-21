@@ -331,7 +331,7 @@ private:
 template <typename RefType, typename AssignedType = RefType>
 struct TGuardValue : private FNoncopyable
 {
-	TGuardValue(RefType& ReferenceValue, const AssignedType& NewValue)
+	[[nodiscard]] TGuardValue(RefType& ReferenceValue, const AssignedType& NewValue)
 	: RefValue(ReferenceValue), OldValue(ReferenceValue)
 	{
 		RefValue = NewValue;
@@ -368,7 +368,7 @@ private:
 template <typename RefType, typename AssignedType = RefType>
 struct TOptionalGuardValue : private FNoncopyable
 {
-	TOptionalGuardValue(RefType& ReferenceValue, const AssignedType& NewValue)
+	[[nodiscard]] TOptionalGuardValue(RefType& ReferenceValue, const AssignedType& NewValue)
 		: RefValue(ReferenceValue), OldValue(ReferenceValue)
 	{
 		if (RefValue != NewValue)
@@ -403,7 +403,7 @@ private:
 template <typename FuncType>
 struct TGuardValue_Bitfield_Cleanup : public FNoncopyable
 {
-	explicit TGuardValue_Bitfield_Cleanup(FuncType&& InFunc)
+	[[nodiscard]] explicit TGuardValue_Bitfield_Cleanup(FuncType&& InFunc)
 		: Func(MoveTemp(InFunc))
 	{
 	}
@@ -433,7 +433,7 @@ private:
 template <typename Type>
 struct TScopeCounter : private FNoncopyable
 {
-	TScopeCounter(Type& ReferenceValue)
+	[[nodiscard]] explicit TScopeCounter(Type& ReferenceValue)
 		: RefValue(ReferenceValue)
 	{
 		++RefValue;
