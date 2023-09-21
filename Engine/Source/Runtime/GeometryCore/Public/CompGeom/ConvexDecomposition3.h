@@ -330,6 +330,21 @@ public:
 		return Decomposition[HullIdx].InternalGeo;
 	}
 
+	const int32 GetHullSourceID(int32 HullIdx) const
+	{
+		return Decomposition[HullIdx].HullSourceID;
+	}
+
+	const int32 CountMergedParts() const
+	{
+		int32 Count = 0;
+		for (int32 HullIdx = 0; HullIdx < Decomposition.Num(); ++HullIdx)
+		{
+			Count += int32(Decomposition[HullIdx].HullSourceID < 0);
+		}
+		return Count;
+	}
+
 	// Representation of a convex hull in the decomposition + associated information to help further split or merge
 	struct FConvexPart
 	{
@@ -346,6 +361,7 @@ public:
 			InternalGeo.Clear();
 			HullTriangles.Reset();
 			HullPlanes.Reset();
+			HullSourceID = -1;
 			HullVolume = 0;
 			GeoVolume = 0;
 			SumHullsVolume = -FMathd::MaxReal;
@@ -374,6 +390,8 @@ public:
 
 		TArray<FIndex3i> HullTriangles;
 		TArray<FPlane3d> HullPlanes; // 1:1 with HullTriangles
+
+		int32 HullSourceID = -1; // Optional ID, cleared on merge, to track the origin of un-merged hulls
 
 		// Measurements of the geo and hull, to be used when evaluating potential further splits
 		double HullVolume = 0, GeoVolume = 0;

@@ -1513,6 +1513,7 @@ void FConvexDecomposition3::InitializeFromHulls(int32 NumHulls, TFunctionRef<dou
 	for (int32 HullIdx = 0; HullIdx < NumHulls; ++HullIdx)
 	{
 		FConvexPart* Convex = new FConvexPart(true);
+		Convex->HullSourceID = HullIdx;
 		Convex->bGeometryVolumeUnreliable = false;
 		Convex->bMustMerge = false;
 		double Volume = HullVolumes(HullIdx);

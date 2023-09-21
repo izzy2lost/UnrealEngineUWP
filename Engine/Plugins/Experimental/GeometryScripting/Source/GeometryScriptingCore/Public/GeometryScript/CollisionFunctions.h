@@ -102,6 +102,30 @@ public:
 	bool bEmitTransaction = true;
 };
 
+// Options controlling how collision shapes can be merged together
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptMergeSimpleCollisionOptions
+{
+	GENERATED_BODY()
+public:
+
+	/**
+	 * If > 0, merge down to at most this many simple shapes. (If <= 0, this value is ignored.)
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int MaxShapeCount = 0;
+
+	/**
+	 * Error tolerance to use to decide to convex hulls together, in cm.
+	 * If merging two hulls would increase the volume by more than this ErrorTolerance cubed, the merge is not accepted.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (UIMin = "0", UIMax = "100.", Units = cm))
+	double ErrorTolerance = 0.0;
+
+	// Controls for how smooth shapes can be triangulated when/if converted to a convex hull for a merge
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ConvexHulls)
+	FGeometryScriptSimpleCollisionTriangulationOptions ShapeToHullTriangulation;
+};
 
 
 UCLASS(meta = (ScriptName = "GeometryScript_Collision"))
@@ -199,6 +223,23 @@ public:
 	{
 		return SimpleCollision.AggGeom.GetElementCount();
 	}
+
+
+	/**
+	 * Attempt to merge collision shapes to create a representation with fewer overall shapes.
+	 * 
+	 * @param SimpleCollision		The collision to attempt to simplify by merging shapes
+	 * @param MergeOptions			Options controlling how shapes can be merged
+	 * @param bHasMerged			Indicates whether any shapes have been merged
+	 * @return						Simple Collision with collision shapes merged, as allowed by settings
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision")
+	static UPARAM(DisplayName = "Merged Simple Collision") FGeometryScriptSimpleCollision MergeSimpleCollisionShapes(
+		const FGeometryScriptSimpleCollision& SimpleCollision,
+		const FGeometryScriptMergeSimpleCollisionOptions& MergeOptions,
+		bool& bHasMerged,
+		UGeometryScriptDebug* Debug = nullptr
+	);
 
 
 };
