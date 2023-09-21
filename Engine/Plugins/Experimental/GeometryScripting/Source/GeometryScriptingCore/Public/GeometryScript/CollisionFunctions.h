@@ -153,5 +153,52 @@ public:
 		bool bEmitTransaction = false,
 		UGeometryScriptDebug* Debug = nullptr);
 
+	/*
+	 * Get the simple collision from a Primitive Component
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision")
+	static UPARAM(DisplayName = "Simple Collision") FGeometryScriptSimpleCollision
+	GetSimpleCollisionFromComponent(
+		UPrimitiveComponent* Component,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/*
+	 * Set the simple collision on a Dynamic Mesh Component
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision")
+	static void
+	SetSimpleCollisionOfDynamicMeshComponent(
+		const FGeometryScriptSimpleCollision& SimpleCollision,
+		UDynamicMeshComponent* DynamicMeshComponent,
+		FGeometryScriptSetSimpleCollisionOptions Options,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/*
+	 * Get the simple collision from a Static Mesh
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision")
+	static UPARAM(DisplayName = "Simple Collision") FGeometryScriptSimpleCollision
+	GetSimpleCollisionFromStaticMesh(UStaticMesh* StaticMesh, UGeometryScriptDebug* Debug = nullptr);
+
+	/*
+	 * Set the simple collision on a Static Mesh
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision")
+	static void
+	SetSimpleCollisionOfStaticMesh(
+		const FGeometryScriptSimpleCollision& SimpleCollision,
+		UStaticMesh* StaticMesh, 
+		FGeometryScriptSetSimpleCollisionOptions Options, 
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/*
+	 * Count of number of simple collision shapes
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision", meta = (ScriptMethod))
+	static int32 GetSimpleCollisionShapeCount(const FGeometryScriptSimpleCollision& SimpleCollision)
+	{
+		return SimpleCollision.AggGeom.GetElementCount();
+	}
+
 
 };

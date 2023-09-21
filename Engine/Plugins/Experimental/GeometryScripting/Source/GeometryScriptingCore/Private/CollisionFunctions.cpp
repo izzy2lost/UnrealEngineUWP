@@ -377,6 +377,98 @@ void UGeometryScriptLibrary_CollisionFunctions::ResetDynamicMeshCollision(
 }
 
 
+FGeometryScriptSimpleCollision
+UGeometryScriptLibrary_CollisionFunctions::GetSimpleCollisionFromComponent(
+	UPrimitiveComponent* Component,
+	UGeometryScriptDebug* Debug)
+{
+	FGeometryScriptSimpleCollision ToRet;
+	if (Component == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GetSimpleCollisionFromComponent_InvalidComponent", "GetSimpleCollisionFromComponent: Component is Null"));
+		return ToRet;
+	}
+	const UBodySetup* BodySetup = Component->GetBodySetup();
+	if (BodySetup == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GetSimpleCollisionFromComponent_InvalidBodySetup", "GetSimpleCollisionFromComponent: Component's BodySetup is Null"));
+		return ToRet;
+	}
+	ToRet.AggGeom = BodySetup->AggGeom;
+	
+	return ToRet;
+}
+
+void UGeometryScriptLibrary_CollisionFunctions::SetSimpleCollisionOfDynamicMeshComponent(
+	const FGeometryScriptSimpleCollision& SimpleCollision,
+	UDynamicMeshComponent* DynamicMeshComponent,
+	FGeometryScriptSetSimpleCollisionOptions Options,
+	UGeometryScriptDebug* Debug)
+{
+#if WITH_EDITOR
+	if (Options.bEmitTransaction && GEditor)
+	{
+		GEditor->BeginTransaction(LOCTEXT("UpdateDynamicMesh", "Set Simple Collision"));
+
+		DynamicMeshComponent->Modify();
+	}
+#endif
+
+#if WITH_EDITOR
+	if (Options.bEmitTransaction)
+	{
+		UBodySetup* BodySetup = DynamicMeshComponent->GetBodySetup();
+		if (BodySetup != nullptr)
+		{
+			BodySetup->Modify();
+		}
+	}
+#endif
+
+	// set new collision geometry
+	DynamicMeshComponent->SetSimpleCollisionShapes(SimpleCollision.AggGeom, true /*bUpdateCollision*/);
+
+	// do we need to do a post edit change here??
+
+#if WITH_EDITOR
+	if (Options.bEmitTransaction && GEditor)
+	{
+		GEditor->EndTransaction();
+	}
+#endif
+}
+
+
+FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::GetSimpleCollisionFromStaticMesh(
+	UStaticMesh* StaticMeshAsset, UGeometryScriptDebug* Debug)
+{
+	FGeometryScriptSimpleCollision ToRet;
+	
+	if (StaticMeshAsset == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GetSimpleCollisionFromStaticMesh_InvalidStaticMesh", "GetSimpleCollisionFromStaticMesh: Input Mesh is Null"));
+		return ToRet;
+	}
+	const UBodySetup* BodySetup = StaticMeshAsset->GetBodySetup();
+	if (BodySetup == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GetSimpleCollisionFromStaticMesh_InvalidBodySetup", "GetSimpleCollisionFromStaticMesh: Input Mesh's BodySetup is Null"));
+		return ToRet;
+	}
+
+	ToRet.AggGeom = BodySetup->AggGeom;
+
+	return ToRet;
+}
+
+void UGeometryScriptLibrary_CollisionFunctions::SetSimpleCollisionOfStaticMesh(
+	const FGeometryScriptSimpleCollision& SimpleCollision,
+	UStaticMesh* StaticMesh, 
+	FGeometryScriptSetSimpleCollisionOptions Options,
+	UGeometryScriptDebug* Debug)
+{
+	UELocal::SetStaticMeshSimpleCollision(StaticMesh, SimpleCollision.AggGeom, Options.bEmitTransaction);
+}
 
 
 #undef LOCTEXT_NAMESPACE

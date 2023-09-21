@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GeometryBase.h"
+#include "PhysicsEngine/AggregateGeom.h"
 #include "GeometryScriptTypes.generated.h"
 
 PREDECLARE_GEOMETRY(class FDynamicMesh3);
@@ -90,6 +91,24 @@ public:
 
 
 
+//
+// Collision Shapes
+//
+
+/**
+ * ~This is a wrapper to let Blueprint functions pass around the FKAggregateGeom simple collision primitives
+ * Holds simple shapes that can be used for collision
+ */
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptSimpleCollision
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	FKAggregateGeom AggGeom;
+	
+};
 
 
 //
