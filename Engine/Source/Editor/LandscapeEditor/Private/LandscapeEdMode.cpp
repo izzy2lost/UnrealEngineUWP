@@ -1722,16 +1722,16 @@ void FEdModeLandscape::ChangeBrushSize(bool bIncrease)
 	else
 	{
 		float Radius = UISettings->GetCurrentToolBrushRadius();
+		const ULandscapeSettings* LandscapeSettings = GetDefault<ULandscapeSettings>();
 		const float SliderMin = 10.0f;
-		const float SliderMax = 8192.0f;
-		float Diff = 0.05f; //6.0f / SliderMax;
+		const float SliderMax = LandscapeSettings->GetBrushSizeUIMax();
+		float Diff = 0.05f; 
 		if (!bIncrease)
 		{
 			Diff = -Diff;
 		}
 
 		float NewValue = Radius * (1.0f + Diff);
-
 		if (bIncrease)
 		{
 			NewValue = FMath::Max(NewValue, Radius + 1.0f);

@@ -18,9 +18,9 @@
 #include "Classes/ActorFactoryLandscape.h"
 #include "LandscapeFileFormatPng.h"
 #include "LandscapeFileFormatRaw.h"
-#include "Settings/EditorExperimentalSettings.h"
 #include "LandscapeEditorServices.h"
 #include "LandscapeImageFileCache.h"
+#include "SLandscapeLayerListDialog.h"
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "PropertyEditorModule.h"
@@ -60,7 +60,7 @@ struct FRegisteredLandscapeWeightmapFileFormat
 	FRegisteredLandscapeWeightmapFileFormat(TSharedRef<ILandscapeWeightmapFileFormat> InFileFormat);
 };
 
-class FLandscapeEditorModule : public ILandscapeEditorModule
+class FLandscapeEditorModule : public ILandscapeEditorModule, public ILandscapeEditorServices
 {
 public:
 
@@ -149,8 +149,7 @@ public:
 		}
 		
 		ILandscapeModule& LandscapeModule = FModuleManager::GetModuleChecked<ILandscapeModule>("Landscape");
-		LandscapeEditorServices.Reset(new FLandscapeEditorServices);
-		LandscapeModule.SetLandscapeEditorServices(LandscapeEditorServices.Get());
+		LandscapeModule.SetLandscapeEditorServices(this);
 
 		LandscapeImageFileCache.Reset(new FLandscapeImageFileCache());
 	}
@@ -185,11 +184,10 @@ public:
 		// GEditor->ActorFactories.RemoveAll([](const UActorFactory* ActorFactory) { return ActorFactory->IsA<UActorFactoryLandscape>(); });
 
 		ILandscapeModule& LandscapeModule = FModuleManager::GetModuleChecked<ILandscapeModule>("Landscape");
-		if (LandscapeModule.GetLandscapeEditorServices() == LandscapeEditorServices.Get())
+		if (LandscapeModule.GetLandscapeEditorServices() == this)
 		{
 			LandscapeModule.SetLandscapeEditorServices(nullptr);
 		}
-		LandscapeEditorServices.Reset();
 		LandscapeImageFileCache.Reset();
 	}
 
@@ -307,6 +305,9 @@ public:
 		return GLandscapeViewMode == ViewMode;
 	}
 
+	/**
+	 * ILandscapeEditorModule implementation
+	 */
 	virtual void RegisterHeightmapFileFormat(TSharedRef<ILandscapeHeightmapFileFormat> FileFormat) override
 	{
 		HeightmapFormats.Emplace(FileFormat);
@@ -364,6 +365,12 @@ public:
 
 	FLandscapeImageFileCache& GetImageFileCache() const override;
 
+	/**
+	* ILandscapeEditorServices implementation
+	*/
+	virtual int32 GetOrCreateEditLayer(FName InEditLayerName, ALandscape* InTargetLandscape) override;
+	virtual void RefreshDetailPanel() override;
+
 protected:
 	TSharedPtr<FExtender> ViewportMenuExtender;
 	TSharedPtr<FUICommandList> GlobalUICommandList;
@@ -373,7 +380,6 @@ protected:
 	mutable FString WeightmapImportDialogTypeString;
 	mutable FString HeightmapExportDialogTypeString;
 	mutable FString WeightmapExportDialogTypeString;
-	TUniquePtr<ILandscapeEditorServices> LandscapeEditorServices;
 	TUniquePtr<FLandscapeImageFileCache> LandscapeImageFileCache;
 };
 
@@ -549,5 +555,26 @@ FLandscapeImageFileCache& FLandscapeEditorModule::GetImageFileCache() const
 	return *LandscapeImageFileCache;
 }
 
+int32 FLandscapeEditorModule::GetOrCreateEditLayer(FName InEditLayerName, ALandscape* InTargetLandscape)
+{
+	// Insertion logic is left to the user through modal drag + drop dialog : 
+	int32 ExistingLayerIndex = InTargetLandscape->GetLayerIndex(InEditLayerName);
+	if (ExistingLayerIndex == INDEX_NONE)
+	{
+		InTargetLandscape->CreateLayer(InEditLayerName);
+		TSharedPtr<SLandscapeLayerListDialog> Dialog = SNew(SLandscapeLayerListDialog, InTargetLandscape->LandscapeLayers);
+		Dialog->ShowModal();
+		ExistingLayerIndex = Dialog->GetInsertedLayerIndex();
+	}
+	return ExistingLayerIndex;
+}
+
+void FLandscapeEditorModule::RefreshDetailPanel()
+{
+	if (FEdModeLandscape* LandscapeMode = (FEdModeLandscape*)GLevelEditorModeTools().GetActiveMode(FBuiltinEditorModes::EM_Landscape))
+	{
+		LandscapeMode->RefreshDetailPanel();
+	}
+}
 
 #undef LOCTEXT_NAMESPACE
