@@ -43,6 +43,14 @@ class UTextureExporterJPEG : public UExporter
 };
 
 
+UCLASS()
+class UTextureExporterOOJPEG : public UTextureExporterGeneric
+{
+	GENERATED_UCLASS_BODY()
+	
+	virtual bool SupportsTexture(UTexture* Texture) const override;
+};
+
 
 
 

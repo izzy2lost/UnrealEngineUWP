@@ -5002,6 +5002,23 @@ UVirtualTextureBuilderExporterPNG::UVirtualTextureBuilderExporterPNG(const FObje
 
 //========================================================
 
+UTextureExporterOOJPEG::UTextureExporterOOJPEG(const FObjectInitializer& ObjectInitializer)
+	: UTextureExporterGeneric(ObjectInitializer)
+{
+	FormatExtension.Add(TEXT("OOJ"));
+	FormatDescription.Add(TEXT("Oodle JPEG"));
+}
+
+bool UTextureExporterOOJPEG::SupportsTexture(UTexture* Texture) const
+{
+	ETextureSourceFormat TSF = Texture->Source.GetFormat();
+	ERawImageFormat::Type RawFormat = FImageCoreUtils::ConvertToRawImageFormat(TSF);
+	// supports all non-HDR formats :
+	return ! ERawImageFormat::IsHDR(RawFormat);
+}
+
+//========================================================
+
 UTextureExporterEXR::UTextureExporterEXR(const FObjectInitializer& ObjectInitializer)
 	: UTextureExporterGeneric(ObjectInitializer)
 {
