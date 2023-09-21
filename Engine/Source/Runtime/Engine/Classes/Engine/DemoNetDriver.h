@@ -451,11 +451,7 @@ public:
 	ENGINE_API bool ConditionallyReadDemoFrameIntoPlaybackPackets(FArchive& Ar);
 
 	ENGINE_API bool ProcessPacket(const uint8* Data, int32 Count);
-	bool ProcessPacket(const FPlaybackPacket& PlaybackPacket)
-	{
-		return ShouldSkipPlaybackPacket(PlaybackPacket) ||
-				ProcessPacket(PlaybackPacket.Data.GetData(), PlaybackPacket.Data.Num());
-	}
+	bool ProcessPacket(const FPlaybackPacket& PlaybackPacket);
 	
 	ENGINE_API void WriteDemoFrameFromQueuedDemoPackets(FArchive& Ar, TArray<FQueuedDemoPacket>& QueuedPackets, float FrameTime, EWriteDemoFrameFlags Flags);
 
