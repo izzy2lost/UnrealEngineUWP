@@ -64,6 +64,9 @@ struct FFastArrayReplicationFragmentHelper
 	template <typename FastArrayType, typename ItemArrayType>
 	static void ApplyReplicatedState(FastArrayType* DstFastArray, ItemArrayType* DstWrappedArray, FastArrayType* SrcFastArray, const ItemArrayType* SrcWrappedArray, const FReplicationStateDescriptor* ArrayElementDescriptor, FReplicationStateApplyContext& Context);
 
+	/** Apply array element, only replicated items will be applied, using the serializers' Apply function if present  */
+	IRISCORE_API static void InternalApplyArrayElement(const FReplicationStateDescriptor* ArrayElementDescriptor, void* RESTRICT Dst, const void* RESTRICT Src);
+
 	/** Copy array element, only replicated items will be copied */
 	IRISCORE_API static void InternalCopyArrayElement(const FReplicationStateDescriptor* ArrayElementDescriptor, void* RESTRICT Dst, const void* RESTRICT Src);
 
@@ -215,8 +218,8 @@ void FFastArrayReplicationFragmentHelper::ApplyReplicatedState(FastArrayType* Ds
 
 					ModifiedIndices.Add(*ExistingIndex);
 
-					// We use per element copy since we do not want to overwrite data that is not replicated
-					InternalCopyArrayElement(ArrayElementDescriptor, &(*DstWrappedArray)[*ExistingIndex], &SrcItems[It]);
+					// We use per element apply since we do not want to overwrite data that is not replicated
+					InternalApplyArrayElement(ArrayElementDescriptor, &(*DstWrappedArray)[*ExistingIndex], &SrcItems[It]);
 				}
 			}
 			else

@@ -128,10 +128,10 @@ private:
 
 	struct FTraits
 	{
-		static constexpr bool bIsForwardingSerializer = true;
+		static constexpr bool bIsForwardingSerializer = false;
 		static constexpr bool bHasConnectionSpecificSerialization = false;
-		static constexpr bool bHasCustomNetReference = true;
-		static constexpr bool bHasDynamicState = true;
+		static constexpr bool bHasCustomNetReference = false;
+		static constexpr bool bHasDynamicState = false;
 		static constexpr bool bUseDefaultDelta = true;
 		static constexpr bool bUseSerializerIsEqual = false;
 	};
@@ -234,6 +234,9 @@ private:
 	template<typename U> static ETrueType TestHasCollectNetReferences(FSignatureCheck<NetCollectNetReferencesFunction, &U::CollectNetReferences>*);
 	template<typename> static EFalseType TestHasCollectNetReferences(...);
 
+	template<typename U> static ETrueType TestHasApply(FSignatureCheck<NetApplyFunction, &U::Apply>*);
+	template<typename> static EFalseType TestHasApply(...);
+
 	enum ETraits : unsigned
 	{
 		HasVersion = unsigned(decltype(TestHasVersion<NetSerializerImpl>(nullptr))::Value),
@@ -274,6 +277,7 @@ private:
 		HasFreeDynamicState = unsigned(decltype(TestHasFreeDynamicState<NetSerializerImpl>(nullptr))::Value),
 		HasCloneDynamicState = unsigned(decltype(TestHasCloneDynamicState<NetSerializerImpl>(nullptr))::Value),
 		HasCollectNetReferences = unsigned(decltype(TestHasCollectNetReferences<NetSerializerImpl>(nullptr))::Value),
+		HasApply = unsigned(decltype(TestHasApply<NetSerializerImpl>(nullptr))::Value),
 	};
 
 public:
@@ -392,6 +396,12 @@ public:
 	template<typename T = void, typename U = typename TEnableIf<!HasCollectNetReferences, T>::Type, char V = 0>
 	static NetCollectNetReferencesFunction GetCollectNetReferencesFunction() { return NetCollectNetReferencesFunction(nullptr); }
 
+	template<typename T = void, typename U = typename TEnableIf<HasApply, T>::Type, bool V = true>
+	static NetApplyFunction GetApplyFunction() { return NetSerializerImpl::Apply; }
+
+	template<typename T = void, typename U = typename TEnableIf<!HasApply, T>::Type, char V = 0>
+	static NetApplyFunction GetApplyFunction() { return NetApplyFunction(nullptr); }
+
 	// CloneDynamicState
 	template<typename T = void, typename U = typename TEnableIf<HasCloneDynamicState && (IsForwardingSerializer() || HasDynamicState()), T>::Type, bool V = true>
 	static NetCloneDynamicStateFunction GetCloneDynamicStateFunction() { return NetSerializerImpl::CloneDynamicState; }
@@ -452,6 +462,7 @@ public:
 		Traits |= (HasCustomNetReference() ? ENetSerializerTraits::HasCustomNetReference : ENetSerializerTraits::None);
 		Traits |= (HasDynamicState() ? ENetSerializerTraits::HasDynamicState : ENetSerializerTraits::None);
 		Traits |= (UseSerializerIsEqual() ? ENetSerializerTraits::UseSerializerIsEqual : ENetSerializerTraits::None);
+		Traits |= (HasApply ? ENetSerializerTraits::HasApply : ENetSerializerTraits::None);
 
 		return Traits;
 	}

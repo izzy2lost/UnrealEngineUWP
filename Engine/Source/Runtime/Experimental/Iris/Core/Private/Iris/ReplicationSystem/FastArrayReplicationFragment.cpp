@@ -280,6 +280,11 @@ void FNativeFastArrayReplicationFragmentBase::CollectOwner(FReplicationStateOwne
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // FFastArrayReplicationFragmentHelper
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void FFastArrayReplicationFragmentHelper::InternalApplyArrayElement(const FReplicationStateDescriptor* ArrayElementDescriptor, void* RESTRICT Dst, const void* RESTRICT Src)
+{
+	InternalApplyStructProperty(ArrayElementDescriptor, Dst, Src);
+}
+
 void FFastArrayReplicationFragmentHelper::InternalCopyArrayElement(const FReplicationStateDescriptor* ArrayElementDescriptor, void* RESTRICT Dst, const void* RESTRICT Src)
 {
 	InternalCopyStructProperty(ArrayElementDescriptor, Dst, Src);

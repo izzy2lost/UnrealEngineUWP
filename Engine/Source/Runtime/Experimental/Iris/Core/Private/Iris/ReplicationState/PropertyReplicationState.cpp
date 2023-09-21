@@ -144,7 +144,7 @@ void FPropertyReplicationState::Set(const FPropertyReplicationState& Other)
 	}
 }
 
-void FPropertyReplicationState::SetPropertyValue(uint32 Index, const void* SrcValue)
+void FPropertyReplicationState::PollPropertyValue(uint32 Index, const void* SrcValue)
 {
 	const FReplicationStateDescriptor* Descriptor = ReplicationStateDescriptor;
 	void* DstValue = StateBuffer + Descriptor->MemberDescriptors[Index].ExternalMemberOffset;
@@ -174,6 +174,18 @@ void FPropertyReplicationState::SetPropertyValue(uint32 Index, const void* SrcVa
 	}
 
 	Private::InternalCopyPropertyValue(Descriptor, Index, DstValue, SrcValue);
+}
+
+void FPropertyReplicationState::SetPropertyValue(uint32 Index, const void* SrcValue)
+{
+	// We can perform the same operation as normal polling of the state does.
+	PollPropertyValue(Index, SrcValue);
+}
+
+void FPropertyReplicationState::PushPropertyValue(uint32 Index, void* DstValue) const
+{
+	void* SrcValue = StateBuffer + ReplicationStateDescriptor->MemberDescriptors[Index].ExternalMemberOffset;
+	Private::InternalApplyPropertyValue(ReplicationStateDescriptor, Index, DstValue, SrcValue);
 }
 
 void FPropertyReplicationState::GetPropertyValue(uint32 Index, void* DstValue) const
@@ -270,7 +282,7 @@ bool FPropertyReplicationState::PollPropertyReplicationState(const void* RESTRIC
 			const FProperty* Property = MemberProperties[MemberIt];
 
 			//$TODO: make special version to avoid unnecessary overhead.
-			SetPropertyValue(MemberIt, SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
+			PollPropertyValue(MemberIt, SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
 		}
 	}
 
@@ -299,7 +311,7 @@ bool FPropertyReplicationState::PollPropertyReplicationStateForRepNotifies(const
 			if (MemberPropertyDescriptor.RepNotifyFunction)
 			{
 				const FProperty* Property = MemberProperties[MemberIt];
-				SetPropertyValue(MemberIt, SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
+				PollPropertyValue(MemberIt, SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
 			}
 		}
 	}
@@ -334,7 +346,7 @@ void FPropertyReplicationState::PushPropertyReplicationState(void* RESTRICT DstD
 				const FReplicationStateMemberPropertyDescriptor& MemberPropertyDescriptor = MemberPropertyDescriptors[MemberIt];
 				const FProperty* Property = MemberProperties[MemberIt];
 
-				GetPropertyValue(MemberIt, DstBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
+				PushPropertyValue(MemberIt, DstBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
 			}
 		}
 	}
@@ -361,7 +373,7 @@ bool FPropertyReplicationState::PollObjectReferences(const void* RESTRICT SrcSta
 				const FReplicationStateMemberPropertyDescriptor& MemberPropertyDescriptor = MemberPropertyDescriptors[MemberIt];
 				const FProperty* Property = MemberProperties[MemberIt];
 
-				SetPropertyValue(MemberIt, SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
+				PollPropertyValue(MemberIt, SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
 			}
 		}
 	}
@@ -497,30 +509,6 @@ bool FPropertyReplicationState::IsCustomConditionEnabled(uint32 Index) const
 
 	FNetBitArrayView MemberConditionalChangeMask = Private::GetMemberConditionalChangeMask(StateBuffer, Descriptor);
 	return MemberConditionalChangeMask.GetBit(ChangeMaskInfo.BitOffset);
-}
-
-void FPropertyReplicationState::PollProperty(const void* SrcData, uint32 MemberIndex)
-{
-	if (IsValid())
-	{
-		const FReplicationStateDescriptor* Descriptor = ReplicationStateDescriptor;
-		const uint8* SrcBuffer = static_cast<const uint8*>(SrcData);
-
-		const FReplicationStateMemberDescriptor* MemberDescriptors = Descriptor->MemberDescriptors;
-		const FProperty** MemberProperties = Descriptor->MemberProperties;
-		const FReplicationStateMemberPropertyDescriptor* MemberPropertyDescriptors = Descriptor->MemberPropertyDescriptors;
-		const uint32 MemberCount = Descriptor->MemberCount;
-
-		if (MemberIndex < MemberCount)
-		{
-			const FReplicationStateMemberDescriptor& MemberDescriptor = MemberDescriptors[MemberIndex];
-			const FReplicationStateMemberPropertyDescriptor& MemberPropertyDescriptor = MemberPropertyDescriptors[MemberIndex];
-			const FProperty* Property = MemberProperties[MemberIndex];
-
-			//$TODO: make special version to avoid unnecessary overhead.
-			SetPropertyValue(MemberIndex, SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
-		}
-	}
 }
 
 }

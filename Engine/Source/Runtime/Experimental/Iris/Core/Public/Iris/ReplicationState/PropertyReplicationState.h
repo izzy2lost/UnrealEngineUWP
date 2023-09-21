@@ -63,12 +63,11 @@ public:
 	*/
 	IRISCORE_API void SetPropertyValue(uint32 Index, const void* SrcValue);
 
-	/** Set the value at the provided Index, written into DstValue. 
-		The UProperty is looked up from the descriptor using the index, if the value differs the statemask is updated
-		Mostly intended for test code
-		Normal use of this class is through the poll layer
-		TODO: It would be nice if we could provide some validation on property types
-	*/
+	/**
+	 * Retrieve the value at the provided Index by writing it to DstValue. 
+	 * The property is looked up from the descriptor using the index.
+	 * Mostly intended for test code. Normal use of this class is through the poll layer.
+	 */
 	IRISCORE_API void GetPropertyValue(uint32 Index, void* DstValue) const;
 
 	/** Is the property at the given index dirty, for properties with multiple bits in the statemask this will return true if any of those bits are set */
@@ -149,9 +148,6 @@ public:
 		TArrayElementChangeMaskBitOffset = 1U,
 	};
 
-	// Polls source data for a single property. If the property has changed it will be marked as dirty.
-	void PollProperty(const void* SrcData, uint32 Index);
-
 	/**
 	 * If state has custom conditionals then this function will check whether the condition is enabled or not.
 	 * If state doesn't have custom conditionals it will return true.
@@ -164,6 +160,9 @@ private:
 	void ConstructStateInternal();
 	void DestructStateInternal();
 	void InjectState(const FReplicationStateDescriptor* Descriptor, uint8* InStateBuffer);
+	void PollPropertyValue(uint32 Index, const void* SrcValue);
+	void PushPropertyValue(uint32 Index, void* DstValue) const;
+
 
 	TRefCountPtr<const FReplicationStateDescriptor> ReplicationStateDescriptor;
 	uint8* StateBuffer;
