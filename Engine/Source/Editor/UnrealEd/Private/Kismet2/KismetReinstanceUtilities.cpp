@@ -121,17 +121,29 @@ struct FReplaceReferenceHelper
 			*NamesOfClasses, *NamesOfObjects);
 	}
 
-	static void IncludeCDO(UClass* OldClass, UClass* NewClass, TMap<UObject*, UObject*> &OldToNewInstanceMap, TArray<UObject*> &SourceObjects, UObject* OriginalCDO)
+	static void IncludeCDO(UClass* OldClass, UClass* NewClass, TMap<UObject*, UObject*> &OldToNewInstanceMap, TArray<UObject*> &SourceObjects, UObject* OriginalCDO, TMap<UClass*, TMap<UObject*, UObject*>>* OldToNewTemplates = nullptr)
 	{
 		UObject* OldCDO = OldClass->GetDefaultObject();
 		UObject* NewCDO = NewClass->GetDefaultObject();
 
-		// Add the old->new CDO mapping into the fixup map
-		OldToNewInstanceMap.Add(OldCDO, NewCDO);
-		// Add in the old CDO to this pass, so CDO references are fixed up
-		SourceObjects.Add(OldCDO);
+		if (const TMap<UObject*, UObject*>* OldToNewTemplateMapping = OldToNewTemplates ? OldToNewTemplates->Find(OldClass) : nullptr)
+		{
+			OldToNewInstanceMap.Append(*OldToNewTemplateMapping);
 
-		if (OriginalCDO)
+			TArray<UObject*> SourceTemplateObjects;
+			OldToNewTemplateMapping->GenerateKeyArray(SourceTemplateObjects);
+			SourceObjects.Append(SourceTemplateObjects);
+		}
+		else
+		{
+			// Add the old->new CDO mapping into the fixup map
+			OldToNewInstanceMap.Add(OldCDO, NewCDO);
+			// Add in the old CDO to this pass, so CDO references are fixed up
+			SourceObjects.Add(OldCDO);
+		}
+
+
+		if (OriginalCDO && OriginalCDO != OldCDO)
 		{
 			OldToNewInstanceMap.Add(OriginalCDO, NewCDO);
 			SourceObjects.Add(OriginalCDO);
@@ -2610,7 +2622,7 @@ void FBlueprintCompileReinstancer::ReplaceInstancesOfClass_Inner(const TMap<UCla
 			check(OldClass && NewClass);
 			check(OldClass != NewClass || IsReloadActive());
 
-			FReplaceReferenceHelper::IncludeCDO(OldClass, NewClass, OldToNewInstanceMap, SourceObjects, InOriginalCDO);
+			FReplaceReferenceHelper::IncludeCDO(OldClass, NewClass, OldToNewInstanceMap, SourceObjects, InOriginalCDO, Params.OldToNewTemplates);
 
 			if (bClassObjectReplaced)
 			{

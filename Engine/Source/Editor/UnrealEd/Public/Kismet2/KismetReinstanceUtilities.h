@@ -55,7 +55,10 @@ struct FReplaceInstancesOfClassParameters
 	UClass* NewClass = nullptr;
 
 	/** OriginalCDO, use if OldClass->ClassDefaultObject has been overwritten (non-batch only, legacy) */
-	UObject* OriginalCDO = nullptr; 
+	UObject* OriginalCDO = nullptr;
+
+	/* Mapping of all the replaced CDOs and archetypes*/
+	TMap<UClass*, TMap<UObject*, UObject*>>* OldToNewTemplates = nullptr;
 
 	/** Set of objects that should not have their references updated if they refer to instances that are replaced */
 	TSet<UObject*>* ObjectsThatShouldUseOldStuff = nullptr;
@@ -285,6 +288,7 @@ protected:
 	/** Determine whether reinstancing actors should preserve the root component of the new actor */
 	virtual bool ShouldPreserveRootComponentOfReinstancedActor() const { return true; }
 
+public:
 	/**
 	* Attempts to copy as many properties as possible from the old object to the new. 
 	* Use during BP compilation to copy properties from the old CDO to the new one.
@@ -296,7 +300,6 @@ protected:
 	*/
 	static UNREALED_API void CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* NewObject, bool bClearExternalReferences, bool bForceDeltaSerialization = false, bool bOnlyHandleDirectSubObjects = false, TMap<UObject*, UObject*>* OldToNewInstanceMap =nullptr);
 
-public:
 	/**
 	 * This method will pre-create all non-default sub object needed for a re-instantiation, what is left is to CopyPropertiesForUnrelatedObjects on the created instances map to finish the re-instancing
 	 * If the re-instancing is done in a big batch and part to the sub object might already be re-instantiated, you will need to provide those via the OldToNewInstanceMap
