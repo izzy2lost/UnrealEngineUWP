@@ -48,6 +48,7 @@ void UNiagaraNode::PostLoad()
 			FString AssetPath = OwningGraph ? OwningGraph->GetPathName() : "Undetermined";
 			FString NodeName = GetNodeTitle(ENodeTitleType::FullTitle).ToString();
 			UE_LOG(LogNiagaraEditor, Log, TEXT("Pin of node %s in asset %s is nullptr!"), *NodeName, *AssetPath);
+			continue;
 		}
 		if(Pin->LinkedTo.Num() > 0)
 		{
