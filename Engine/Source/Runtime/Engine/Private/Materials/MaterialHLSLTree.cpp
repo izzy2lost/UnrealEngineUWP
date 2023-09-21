@@ -703,6 +703,12 @@ bool FExpressionDynamicParameter::PrepareValue(FEmitContext& Context, FEmitScope
 		return Context.Error(TEXT("Invalid node used in hull/domain shader input!"));
 	}
 
+	const FPreparedType& DefaultType = Context.PrepareExpression(DefaultValueExpression, Scope, RequestedType);
+	if (DefaultType.IsVoid())
+	{
+		return false;
+	}
+
 	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float4);
 }
 
@@ -846,7 +852,7 @@ uint32 AcquireVTStackIndex(
 	bool bGenerateFeedback)
 {
 	FHasher Hasher;
-	AppendHashes(Hasher, MipValueMode, AddressU, AddressV, AspectRatio, EmitTexCoordValue, EmitTexCoordValueDdx, EmitTexCoordValueDdy, EmitMipValue, PreallocatedStackTextureIndex, bAdaptive, bGenerateFeedback);
+	AppendHashes(Hasher, &Scope, MipValueMode, AddressU, AddressV, AspectRatio, EmitTexCoordValue, EmitTexCoordValueDdx, EmitTexCoordValueDdy, EmitMipValue, PreallocatedStackTextureIndex, bAdaptive, bGenerateFeedback);
 	const FXxHash64 Hash = Hasher.Finalize();
 
 	// First check to see if we have an existing VTStack that matches this key, that can still fit another layer
@@ -858,6 +864,7 @@ uint32 AcquireVTStackIndex(
 			Entry.EmitTexCoordValue == EmitTexCoordValue &&
 			Entry.EmitTexCoordValueDdx == EmitTexCoordValueDdx &&
 			Entry.EmitTexCoordValueDdy == EmitTexCoordValueDdy &&
+			Entry.Scope == &Scope &&
 			Entry.EmitMipValue == EmitMipValue &&
 			Entry.MipValueMode == MipValueMode &&
 			Entry.AddressU == AddressU &&
@@ -878,6 +885,7 @@ uint32 AcquireVTStackIndex(
 	Entry.EmitTexCoordValue = EmitTexCoordValue;
 	Entry.EmitTexCoordValueDdx = EmitTexCoordValueDdx;
 	Entry.EmitTexCoordValueDdy = EmitTexCoordValueDdy;
+	Entry.Scope = &Scope;
 	Entry.MipValueMode = MipValueMode;
 	Entry.AddressU = AddressU;
 	Entry.AddressV = AddressV;

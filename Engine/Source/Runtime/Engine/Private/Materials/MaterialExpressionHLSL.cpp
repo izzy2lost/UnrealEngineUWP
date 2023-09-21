@@ -3547,6 +3547,17 @@ bool UMaterialExpressionThinTranslucentMaterialOutput::GenerateHLSLExpression(FM
 	return Generator.Error(TEXT("Invalid output"));
 }
 
+UE::Shader::EValueType UMaterialExpressionThinTranslucentMaterialOutput::GetCustomOutputType(int32 OutputIndex) const
+{
+	using namespace UE::Shader;
+	if (OutputIndex == 0)
+	{
+		return EValueType::Float3;
+	}
+
+	return EValueType::Void;
+}
+
 UE::Shader::EValueType UMaterialExpressionVolumetricAdvancedMaterialOutput::GetCustomOutputType(int32 OutputIndex) const
 {
 	if (OutputIndex >= 0 && OutputIndex < 6) return UE::Shader::EValueType::Float1;

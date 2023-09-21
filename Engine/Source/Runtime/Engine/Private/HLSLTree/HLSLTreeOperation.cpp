@@ -195,6 +195,14 @@ FOperationRequestedTypes GetOperationRequestedTypes(EOperation Op, const FReques
 		Types.InputType[0] = Shader::EValueType::Float4x4;
 		Types.InputType[1] = Shader::EValueType::Float3;
 		break;
+	case EOperation::Less:
+	case EOperation::Greater:
+	case EOperation::LessEqual:
+	case EOperation::GreaterEqual:
+		// inputs for comparisons are some numeric type
+		Types.InputType[0] = Shader::EValueType::Numeric1;
+		Types.InputType[1] = Shader::EValueType::Numeric1;
+		break;
 	default:
 		break;
 	}
@@ -237,6 +245,7 @@ FOperationTypes GetOperationTypes(EOperation Op, TConstArrayView<FPreparedType> 
 				Types.InputType[0] = Shader::EValueType::Double3;
 				Types.InputType[1] = Shader::EValueType::DoubleInverse4x4;
 				Types.ResultType = FPreparedType(Shader::EValueType::Float3, IntermediateComponent);
+				Types.bIsLWC = true;
 				break;
 			default:
 				// float3 * float4x4 -> float3

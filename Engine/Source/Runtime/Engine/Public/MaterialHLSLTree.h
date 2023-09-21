@@ -875,6 +875,7 @@ struct FVTStackEntry
 	FEmitShaderExpression* EmitTexCoordValueDdx;
 	FEmitShaderExpression* EmitTexCoordValueDdy;
 	FEmitShaderExpression* EmitMipValue;
+	FEmitScope* Scope;
 	FEmitShaderExpression* EmitResult;
 	ETextureMipValueMode MipValueMode;
 	TextureAddress AddressU;
