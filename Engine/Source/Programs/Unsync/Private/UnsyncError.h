@@ -156,6 +156,8 @@ struct FAtomicError
 	std::atomic_flag	  Flag;
 	std::optional<FError> Data;
 
+	operator bool() const { return Test(); }
+
 	bool Test() const { return Flag.test(); }
 	bool Set(FError&& InData)
 	{

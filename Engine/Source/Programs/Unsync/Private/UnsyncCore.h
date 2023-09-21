@@ -300,6 +300,7 @@ enum class EFileSyncStatus
 	ErrorValidation,
 	ErrorFinalRename,
 	ErrorTargetFileCreate,
+	ErrorBuildTargetFailed,
 };
 
 const wchar_t* ToString(EFileSyncStatus Status);
