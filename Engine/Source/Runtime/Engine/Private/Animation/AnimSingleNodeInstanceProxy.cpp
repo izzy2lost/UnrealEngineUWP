@@ -316,6 +316,9 @@ void FAnimNode_SingleNode::Evaluate_AnyThread(FPoseContext& Output)
 		else if (UAnimSequence* Sequence = Cast<UAnimSequence>(Proxy->CurrentAsset))
 		{
 			FAnimExtractContext ExtractionContext(static_cast<double>(Proxy->CurrentTime), Sequence->bEnableRootMotion, Proxy->DeltaTimeRecord, Proxy->bLooping);
+#if WITH_EDITOR
+			ExtractionContext.bIgnoreRootLock = Proxy->bIgnoreRootLock;
+#endif
 
 			if (Sequence->IsValidAdditive())
 			{

@@ -404,6 +404,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = PreviewSettings)
 	FVector SourceMeshOffset;
 
+	// When true, animation sequences with "Force Root Lock" turned On will act as though it is Off.
+	// This affects the preview in the retarget editor, as well as exported animation sequences.
+	// This setting has no effect on runtime retargeting where root motion is copied from the source component.
+	UPROPERTY(EditAnywhere, Category = ExportSettings)
+	bool bIgnoreRootLock = true;
+
 	// Toggle debug drawing for retargeting in the viewport. 
 	UPROPERTY(EditAnywhere, Category = DebugSettings)
 	bool bDebugDraw = true;

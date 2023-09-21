@@ -42,6 +42,11 @@ void FIKRetargetAnimInstanceProxy::CacheBones()
 
 bool FIKRetargetAnimInstanceProxy::Evaluate(FPoseContext& Output)
 {
+	if (PreviewPoseNode->IKRetargeterAsset)
+	{
+		bIgnoreRootLock = PreviewPoseNode->IKRetargeterAsset->bIgnoreRootLock;	
+	}
+	
 	switch (OutputMode)
 	{
 	case ERetargeterOutputMode::RunRetarget:

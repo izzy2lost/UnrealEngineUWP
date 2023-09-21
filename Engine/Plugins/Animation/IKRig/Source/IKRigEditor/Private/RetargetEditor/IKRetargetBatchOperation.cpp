@@ -332,6 +332,10 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 		FAnimPoseEvaluationOptions EvaluationOptions = FAnimPoseEvaluationOptions();
 		EvaluationOptions.OptionalSkeletalMesh = SourceSkeleton.SkeletalMesh;
 
+		// optionally ignore root lock
+		const bool bIgnoreRootLock = Context.IKRetargetAsset->bIgnoreRootLock;
+		TGuardValue<bool> RootLockGuard(SourceSequence->bForceRootLock, bIgnoreRootLock ? false : SourceSequence->bForceRootLock);
+
 		// reset the planting state
 		Processor->ResetPlanting();
 		
@@ -448,7 +452,7 @@ void UIKRetargetBatchOperation::RemapCurves(const FIKRetargetBatchOperationConte
 
 		// increment progress bar
 		FString AssetName = TargetSequence->GetName();
-		Progress.EnterProgressFrame(1.f, FText::Format(LOCTEXT("RunningBatchRetarget", "Remapping Curves on Asset: {0}"), FText::FromString(AssetName)));
+		Progress.EnterProgressFrame(1.f, FText::Format(LOCTEXT("RemappingCurves", "Remapping Curves on Asset: {0}"), FText::FromString(AssetName)));
 
 		// all curves were copied when we duplicated the animation sequence, so now we have to rename curves
 		// based on the remapping defined in the curve remap op(s)
