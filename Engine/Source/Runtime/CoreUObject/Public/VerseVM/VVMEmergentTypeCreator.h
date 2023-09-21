@@ -36,7 +36,7 @@ class VEmergentTypeCreator
 public:
 	COREUOBJECT_API static void Initialize();
 	COREUOBJECT_API static VEmergentType* GetOrCreate(FAllocationContext Context, VType* Type, VCppClassInfo* CppClassInfo);
-	COREUOBJECT_API static VEmergentType* GetOrCreate(FAllocationContext Context, const VShape* InShape, VType* Type, VCppClassInfo* CppClassInfo);
+	COREUOBJECT_API static VEmergentType* GetOrCreate(FAllocationContext Context, VShape* InShape, VType* Type, VCppClassInfo* CppClassInfo);
 
 	COREUOBJECT_API static TGlobalHeapPtr<VEmergentType> EmergentTypeForEmergentType;
 	COREUOBJECT_API static TGlobalHeapPtr<VEmergentType> EmergentTypeForType;

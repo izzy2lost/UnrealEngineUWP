@@ -14,6 +14,7 @@ void VEmergentType::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkSta
 {
 	VEmergentType& This = ThisCell->StaticCast<VEmergentType>();
 	VCell::MarkReferencedCellsImpl(&This, MarkStack);
+	This.Shape.Mark(MarkStack);
 	This.Type.Mark(MarkStack);
 }
 

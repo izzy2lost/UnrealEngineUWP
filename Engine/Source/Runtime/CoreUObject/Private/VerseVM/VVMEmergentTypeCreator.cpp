@@ -21,9 +21,9 @@ VEmergentType* VEmergentTypeCreator::GetOrCreate(FAllocationContext Context, VTy
 	return UniqueCreator->GetOrCreate<VEmergentType, VType*>(Context, Type, CppClassInfo);
 };
 
-VEmergentType* VEmergentTypeCreator::GetOrCreate(FAllocationContext Context, const VShape* InShape, VType* Type, VCppClassInfo* CppClassInfo)
+VEmergentType* VEmergentTypeCreator::GetOrCreate(FAllocationContext Context, VShape* InShape, VType* Type, VCppClassInfo* CppClassInfo)
 {
-	return UniqueCreator->GetOrCreate<VEmergentType, const VShape*, VType*>(Context, InShape, Type, CppClassInfo);
+	return UniqueCreator->GetOrCreate<VEmergentType, VShape*, VType*>(Context, InShape, Type, CppClassInfo);
 };
 
 void VEmergentTypeCreator::Initialize()

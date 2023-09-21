@@ -19,8 +19,7 @@ struct VEmergentType final : VCell
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 
-	// Don't mutate this. If you need to, make a new emergent type that points to your new shape instead.
-	const VShape* const Shape = nullptr;
+	TWriteBarrier<VShape> Shape; // This is immutable. If you need to change an object's shape, transition to a new emergent type that points to your new shape instead.
 	TWriteBarrier<VType> Type;
 	VCppClassInfo* CppClassInfo = nullptr;
 
@@ -29,26 +28,26 @@ struct VEmergentType final : VCell
 		return new (Context.AllocateEmergentType(sizeof(VEmergentType))) VEmergentType(Context, VEmergentTypeCreator::EmergentTypeForEmergentType.Get(), Type, CppClassInfo);
 	}
 
-	static VEmergentType* New(FAllocationContext Context, const VShape* InShape, VType* Type, VCppClassInfo* CppClassInfo)
+	static VEmergentType* New(FAllocationContext Context, VShape* InShape, VType* Type, VCppClassInfo* CppClassInfo)
 	{
 		return new (Context.AllocateEmergentType(sizeof(VEmergentType))) VEmergentType(Context, InShape, VEmergentTypeCreator::EmergentTypeForEmergentType.Get(), Type, CppClassInfo);
 	}
 
 	static bool Equals(const VEmergentType& EmergentType, VType* Type, VCppClassInfo* CppClassInfo)
 	{
-		return EmergentType.Shape == nullptr && EmergentType.Type.Get() == Type && EmergentType.CppClassInfo == CppClassInfo;
+		return EmergentType.Shape.Get() == nullptr && EmergentType.Type.Get() == Type && EmergentType.CppClassInfo == CppClassInfo;
 	}
 
 	static bool Equals(const VEmergentType& EmergentType, const VShape* InShape, VType* Type, VCppClassInfo* CppClassInfo)
 	{
-		return EmergentType.Shape == InShape && EmergentType.Type.Get() == Type && EmergentType.CppClassInfo == CppClassInfo;
+		return EmergentType.Shape.Get() == InShape && EmergentType.Type.Get() == Type && EmergentType.CppClassInfo == CppClassInfo;
 	}
 
 	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
 
 	friend uint32 GetTypeHash(const VEmergentType& EmergentType)
 	{
-		uint32 Hash = HashCombineFast(::GetTypeHash(EmergentType.Shape), ::GetTypeHash(EmergentType.Type.Get()->Tag));
+		uint32 Hash = HashCombineFast(::GetTypeHash(EmergentType.Shape.Get()), ::GetTypeHash(EmergentType.Type.Get()->Tag));
 		Hash = HashCombineFast(Hash, ::GetTypeHash(EmergentType.CppClassInfo));
 		return Hash;
 	}
@@ -69,22 +68,20 @@ private:
 
 	VEmergentType(FAllocationContext Context, VCppClassInfo* CppClassInfo)
 		: VCell()
-		, Shape(nullptr)
 		, CppClassInfo(CppClassInfo)
 	{
 	}
 
 	VEmergentType(FAllocationContext Context, VEmergentType* EmergentType, VType* T, VCppClassInfo* CppClassInfo)
 		: VCell(Context, EmergentType)
-		, Shape(nullptr)
 		, Type(Context, T)
 		, CppClassInfo(CppClassInfo)
 	{
 	}
 
-	VEmergentType(FAllocationContext Context, const VShape* InShape, VEmergentType* EmergentType, VType* InType, VCppClassInfo* CppClassInfo)
+	VEmergentType(FAllocationContext Context, VShape* InShape, VEmergentType* EmergentType, VType* InType, VCppClassInfo* CppClassInfo)
 		: VCell(Context, EmergentType)
-		, Shape(InShape)
+		, Shape(Context, InShape)
 		, Type(Context, InType)
 		, CppClassInfo(CppClassInfo)
 	{
