@@ -130,6 +130,12 @@ bool ULevelStreaming::ShouldServerUseMakingVisibleTransactionRequest()
 
 bool ULevelStreaming::ShouldReuseUnloadedButStillAroundLevels(const ULevel* InLevel)
 {
+#if WITH_EDITOR
+	if (InLevel && InLevel->GetForceCantReuseUnloadedButStillAround())
+	{
+		return false;
+	}
+#endif
 	UWorld* OuterWorld = InLevel ? InLevel->GetTypedOuter<UWorld>() : nullptr;
 	if (OuterWorld && OuterWorld->IsGameWorld() && !LevelStreamingCVars::bShouldReuseUnloadedButStillAroundLevels)
 	{
@@ -144,7 +150,7 @@ int32 ULevelStreamingDynamic::UniqueLevelInstanceId = 0;
  * This helper function is defined here so that it can go into the 4.18.1 hotfix (for UE-51791),
  * even though it would make more logical sense to have this logic in a member function of UNetDriver.
  * We're getting away with this because UNetDriver::GuidCache is (unfortunately) public.
- *
+ * 
  * Renames any package entries in the GuidCache with a path matching UnPrefixedName to have a PIE prefix.
  * This is needed because a client may receive an export for a level package before it's loaded and
  * its name registered with FSoftObjectPath::AddPIEPackageName. In this case, the entry in the GuidCache

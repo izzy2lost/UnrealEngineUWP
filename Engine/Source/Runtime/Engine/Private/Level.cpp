@@ -391,6 +391,7 @@ ULevel::ULevel( const FObjectInitializer& ObjectInitializer )
 	bPromptWhenAddingToLevelOutsideBounds = true;
 	bUseActorFolders = false;
 	bFixupActorFoldersAtLoad = IsActorFolderObjectsFeatureAvailable();
+	bForceCantReuseUnloadedButStillAround = false;
 #endif	
 	bActorClusterCreated = false;
 	bGarbageCollectionClusteringEnabled = true;

@@ -168,6 +168,9 @@ void UWorldPartitionLevelStreamingDynamic::CreateRuntimeLevel()
 	RuntimeLevel = FWorldPartitionLevelHelper::CreateEmptyLevelForRuntimeCell(StreamingCell.Get(), World, GetWorldAsset().ToString());
 	check(RuntimeLevel);
 
+	// Force world partition level/actor packages not to be reused
+	RuntimeLevel->SetForceCantReuseUnloadedButStillAround(true);
+
 	// Make sure Actor Folders is disabled on generated runtime levels to avoid any problems with duplicate folders that
 	// can be caused by level instances injecting their actors, which can cause duplicate folders (which only happens during PIE).
 	FLevelActorFoldersHelper::SetUseActorFolders(RuntimeLevel, false);
@@ -532,38 +535,6 @@ void UWorldPartitionLevelStreamingDynamic::OnCleanupLevel()
 		check(OnCleanupLevelDelegateHandle.IsValid());
 		RuntimeLevel->OnCleanupLevel.Remove(OnCleanupLevelDelegateHandle);
 		OnCleanupLevelDelegateHandle.Reset();
-
-		// If reusing levels is enabled, trash world partition level/actor packages
-		// as it won't be done by ULevel::CleanupLevel
-		if (ShouldReuseUnloadedButStillAroundLevels(RuntimeLevel))
-		{
-			TSet<UPackage*> TrashedPackages;
-			auto TrashPackage = [&TrashedPackages](UPackage* Package)
-			{
-				bool bWasAlreadyInSet;
-				TrashedPackages.Add(Package, &bWasAlreadyInSet);
-
-				if (!bWasAlreadyInSet)
-				{
-					// Clears RF_Standalone flag on objects in package (UMetaData)
-					ForEachObjectWithPackage(Package, [](UObject* Object) { Object->ClearFlags(RF_Standalone); return true; }, false);
-
-					// Rename package to avoid having to deal with pending kill objects in subsequent RequestLevel calls
-					FName NewPackageName = MakeUniqueObjectName(nullptr, UPackage::StaticClass(), FName(*FString::Printf(TEXT("%s_Trashed"), *Package->GetName())));
-					Package->Rename(*NewPackageName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
-				}
-			};
-
-			TrashPackage(RuntimeLevel->GetPackage());
-			for (AActor* Actor : RuntimeLevel->Actors)
-			{
-				if (UPackage* ActorPackage = Actor ? Actor->GetExternalPackage() : nullptr)
-				{
-					TrashPackage(ActorPackage);
-				}
-			}
-		}
-
 		RuntimeLevel = nullptr;
 	}
 	else

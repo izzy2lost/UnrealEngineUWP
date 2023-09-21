@@ -584,8 +584,13 @@ public:
 
 	/** Whether the level should call FixupActorFolders on its actors when loading the level/actors (only used when level is using actor folder objects) */
 	uint8										bFixupActorFoldersAtLoad:1;
+
+private:
+	/** Whether the level is set not to be reusable after unload (editor-only) */
+	uint8										bForceCantReuseUnloadedButStillAround:1;
 #endif
 	
+public:
 	/** The below variables are used temporarily while making a level visible.				*/
 
 	/** Whether we already moved actors.													*/
@@ -733,6 +738,9 @@ public:
 
 	ENGINE_API void SetEditorPathOwner(UObject* InEditorPathOwner) { EditorPathOwner = InEditorPathOwner; }
 	ENGINE_API virtual UObject* GetEditorPathOwner() const override { return EditorPathOwner.Get(); }
+
+	ENGINE_API bool GetForceCantReuseUnloadedButStillAround() const { return bForceCantReuseUnloadedButStillAround; }
+	ENGINE_API void SetForceCantReuseUnloadedButStillAround(bool bNewValue) { bForceCantReuseUnloadedButStillAround = bNewValue; }
 #endif
 
 private:
