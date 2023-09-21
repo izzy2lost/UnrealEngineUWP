@@ -6,8 +6,12 @@
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
 #include "IDetailCustomization.h"
+#include "IPropertyUtilities.h"
+#include "Graph/MovieEdGraphNode.h"
 #include "Graph/MovieGraphConfig.h"
+#include "PropertyBagDetails.h"
 #include "PropertyHandle.h"
+#include "SPinTypeSelector.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -50,6 +54,28 @@ protected:
 
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
 	{
+		TSharedRef<IPropertyUtilities> PropUtils = DetailBuilder.GetPropertyUtilities();
+		
+		auto GetFilteredVariableTypeTree = [this](TArray<TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo>>& TypeTree, ETypeTreeFilter TypeTreeFilter)
+		{
+			// All types from the schema are allowed
+			check(GetDefault<UEdGraphSchema_K2>());
+			GetDefault<UPropertyBagSchema>()->GetVariableTypeTree(TypeTree, TypeTreeFilter);
+		};
+
+		auto PinInfoChanged = [PropUtils](const FEdGraphPinType& PinType, const TWeakObjectPtr<UMovieGraphMember>& GraphMember)
+		{
+			// The SPinTypeSelector popup might outlive this details view, so the member could be invalid
+			if (GraphMember.IsValid())
+			{
+				GraphMember->SetValueType(UMoviePipelineEdGraphNodeBase::GetValueTypeFromPinType(PinType), PinType.PinSubCategoryObject.Get());
+
+				// Need the ForceRefresh to make sure the details panel refreshes immediately after the data type change.
+				// Can result in a crash without it.
+				PropUtils->ForceRefresh();
+			}
+		};
+		
 		TArray<TWeakObjectPtr<UObject>> ObjectsBeingCustomized;
 		DetailBuilder.GetObjectsBeingCustomized(ObjectsBeingCustomized);
 
@@ -59,7 +85,8 @@ protected:
 			// be driven by UPROPERTY metadata. Hence why this needs to be done w/ a details customization.
 			
 			// Enable/disable the value property for inputs/outputs based on whether it is specified as a branch or not
-			if (const UMovieGraphInterfaceBase* InterfaceBase = Cast<UMovieGraphInterfaceBase>(CustomizedObject))
+			const UMovieGraphInterfaceBase* InterfaceBase = Cast<UMovieGraphInterfaceBase>(CustomizedObject);
+			if (InterfaceBase)
 			{
 				const TSharedRef<IPropertyHandle> ValueProperty = DetailBuilder.GetProperty("Value", UMovieGraphValueContainer::StaticClass());
 				if (ValueProperty->IsValidHandle())
@@ -84,9 +111,12 @@ protected:
 				continue;
 			}
 
+			const bool bIsNameRowEnabled = MemberObject->IsEditable();
+			
 			// Add a custom row for the Name property (to allow for proper validation)
 			IDetailCategoryBuilder& GeneralCategory = DetailBuilder.EditCategory("General");
 			GeneralCategory.AddCustomRow(FText::GetEmpty())
+			.IsEnabled(bIsNameRowEnabled)
 			.NameContent()
 			[
 				SNew(STextBlock)
@@ -99,8 +129,44 @@ protected:
 				.Text_Lambda([MemberObject]() { return FText::FromString(MemberObject->GetMemberName()); })
 				.OnTextChanged(this, &FMovieGraphMemberCustomization::OnNameChanged, MemberObject)
 				.OnTextCommitted(this, &FMovieGraphMemberCustomization::OnNameCommitted, MemberObject)
-				.IsReadOnly_Lambda([MemberObject]() { return !MemberObject->IsEditable(); })
 				.SelectAllTextWhenFocused(true)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+			];
+
+			// If this is an interface (eg, input/output) only enable the type selector if it's not a branch and editable.
+			// Otherwise, editability is the only factor in enable state.
+			const bool bIsTypeRowEnabled = InterfaceBase ? (!InterfaceBase->bIsBranch && MemberObject->IsEditable()) : MemberObject->IsEditable();
+
+			TWeakObjectPtr<UMovieGraphMember> WeakMemberObject = MakeWeakObjectPtr(MemberObject);
+
+			// Add a PinTypeSelector widget to pick the data type the member uses
+			IDetailCategoryBuilder& ValueCategory = DetailBuilder.EditCategory("Value");
+			ValueCategory.AddCustomRow(FText::GetEmpty())
+			.IsEnabled(bIsTypeRowEnabled)
+			.NameContent()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("MemberPropertyLabel_Type", "Type"))
+				.Font(DetailBuilder.GetDetailFont())
+			]
+			.ValueContent()
+			[
+				SNew(SPinTypeSelector, FGetPinTypeTree::CreateLambda(GetFilteredVariableTypeTree))
+				.TargetPinType_Lambda([WeakMemberObject]()
+				{
+					// The SPinTypeSelector popup might outlive this details view, so the member could be invalid
+					if (!WeakMemberObject.IsValid())
+					{
+						return FEdGraphPinType();
+					}
+
+					constexpr bool bIsBranch = false;
+					return UMoviePipelineEdGraphNodeBase::GetPinType(WeakMemberObject->GetValueType(), bIsBranch, WeakMemberObject->GetValueTypeObject());
+				})
+				.OnPinTypeChanged_Lambda(PinInfoChanged, WeakMemberObject)
+				.Schema(GetDefault<UPropertyBagSchema>())
+				.bAllowArrays(false)
+				.TypeTreeFilter(ETypeTreeFilter::None)
 				.Font(IDetailLayoutBuilder::GetDetailFont())
 			];
 		}

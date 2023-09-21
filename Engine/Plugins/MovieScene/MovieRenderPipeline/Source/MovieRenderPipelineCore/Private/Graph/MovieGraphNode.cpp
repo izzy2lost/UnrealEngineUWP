@@ -286,11 +286,11 @@ UMovieGraphConfig* UMovieGraphNode::GetGraph() const
 	return Cast<UMovieGraphConfig>(GetOuter());
 }
 
-UMovieGraphPin* UMovieGraphNode::GetInputPin(const FName& Label) const
+UMovieGraphPin* UMovieGraphNode::GetInputPin(const FName& Label, const bool bIsBuiltInPin) const
 {
 	for (UMovieGraphPin* InputPin : InputPins)
 	{
-		if (InputPin->Properties.Label == Label)
+		if ((InputPin->Properties.Label == Label) && (InputPin->Properties.bIsBuiltIn == bIsBuiltInPin))
 		{
 			return InputPin;
 		}

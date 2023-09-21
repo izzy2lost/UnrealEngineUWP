@@ -104,7 +104,7 @@ bool UMovieJobVariableAssignmentContainer::GetValueObject(const FName& PropertyN
 	return UE::MovieGraph::Private::GetOptionalValue<UObject*>(Result, OutValue);
 }
 
-bool UMovieJobVariableAssignmentContainer::GetValueClass(const FName& PropertyName, UClass* OutValue) const
+bool UMovieJobVariableAssignmentContainer::GetValueClass(const FName& PropertyName, UClass*& OutValue) const
 {
 	TValueOrError<UClass*, EPropertyBagResult> Result = Value.GetValueClass(PropertyName);
 	return UE::MovieGraph::Private::GetOptionalValue<UClass*>(Result, OutValue);
@@ -216,6 +216,19 @@ EMovieGraphContainerType UMovieJobVariableAssignmentContainer::GetValueContainer
 	}
 
 	return EMovieGraphContainerType::None;
+}
+
+bool UMovieJobVariableAssignmentContainer::GetValueContainer(const FName& PropertyName, TObjectPtr<UMovieGraphValueContainer>& OutValueContainer)
+{
+	if (const FPropertyBagPropertyDesc* Desc = Value.FindPropertyDescByName(PropertyName))
+	{
+		// TODO: This object allocation is unfortunate -- it would be nice to find a way to avoid it
+		OutValueContainer = NewObject<UMovieGraphValueContainer>();
+		OutValueContainer->SetFromDesc(Desc, GetValueSerializedString(PropertyName));
+		return true;
+	}
+
+	return false;
 }
 
 bool UMovieJobVariableAssignmentContainer::FindOrGenerateVariableOverride(

@@ -124,6 +124,15 @@ public:
 	}
 
 	/**
+	 * The same functionality as the other method that returns a string. However, this version returns true if a
+	 * resolved value could be determined, and provides the value via a UMovieGraphValueContainer.
+	 */
+	virtual bool GetResolvedValueForOutputPin(const FName& InPinName, const FMovieGraphTraversalContext* InContext, TObjectPtr<UMovieGraphValueContainer>& OutValueContainer) const
+	{
+		return false;
+	}
+
+	/**
 	 * Gets the descriptions of properties which can be dynamically added to the node. These types of properties
 	 * do not correspond to a UPROPERTY defined on the node itself.
 	 */
@@ -203,7 +212,15 @@ public:
 	void UpdatePins();
 	void UpdateDynamicProperties();
 	class UMovieGraphConfig* GetGraph() const;
-	UMovieGraphPin* GetInputPin(const FName& InPinLabel) const;
+
+	/**
+	 * Gets the input pin with the specified name, or nullptr if one could not be found. Most pins on a node are
+	 * "built-in", meaning they ship with the node. Dynamic pins (pins which are not built-in) can potentially have the
+	 * same name as a built-in (eg, the option pins on the Select node). To disambiguate between built-in and dynamic
+	 * pins, specify bIsBuiltInPin = false if trying to fetch a pin that is not built-in. */
+	UMovieGraphPin* GetInputPin(const FName& InPinLabel, const bool bIsBuiltInPin = true) const;
+
+	/** Gets the output pin with the specified name, or nullptr if one could not be found. */
 	UMovieGraphPin* GetOutputPin(const FName& InPinLabel) const;
 
 	/** Gets the first input pin on the node which has a connection, or nullptr if no pins are connected. */

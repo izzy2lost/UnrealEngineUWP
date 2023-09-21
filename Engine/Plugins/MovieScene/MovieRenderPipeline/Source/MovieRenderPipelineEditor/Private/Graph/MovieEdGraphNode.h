@@ -33,8 +33,9 @@ public:
 	virtual void GetNodeContextMenuActions(UToolMenu* Menu, UGraphNodeContextMenuContext* Context) const override;
 	//~ End UEdGraphNode Interface
 
-	static FEdGraphPinType GetPinType(EMovieGraphValueType ValueType, bool bIsBranch);
+	static FEdGraphPinType GetPinType(EMovieGraphValueType ValueType, bool bIsBranch, const UObject* InValueTypeObject = nullptr);
 	static FEdGraphPinType GetPinType(const UMovieGraphPin* InPin);
+	static EMovieGraphValueType GetValueTypeFromPinType(const FEdGraphPinType& InPinType);
 
 	// Called after PrepareForCopying to restore changes made during preparation. 
 	virtual void PostCopy();

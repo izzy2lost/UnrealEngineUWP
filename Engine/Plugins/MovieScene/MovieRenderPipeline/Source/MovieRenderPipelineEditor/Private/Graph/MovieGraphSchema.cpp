@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MovieGraphSchema.h"
+
+#include "EdGraphSchema_K2.h"
 #include "Graph/MovieGraphConfig.h"
 #include "Graph/Nodes/MovieGraphInputNode.h"
 #include "Graph/Nodes/MovieGraphOutputNode.h"
@@ -20,22 +22,23 @@ TArray<UClass*> UMovieGraphSchema::MoviePipelineNodeClasses;
 
 #define LOCTEXT_NAMESPACE "MoviePipelineGraphSchema"
 
-const FName UMovieGraphSchema::PC_Branch(TEXT("branch"));
-const FName UMovieGraphSchema::PC_Boolean(TEXT("boolean"));
-const FName UMovieGraphSchema::PC_Byte(TEXT("byte"));
-const FName UMovieGraphSchema::PC_Integer(TEXT("integer"));
-const FName UMovieGraphSchema::PC_Int64(TEXT("int64"));
-const FName UMovieGraphSchema::PC_Float(TEXT("float"));
-const FName UMovieGraphSchema::PC_Double(TEXT("double"));
-const FName UMovieGraphSchema::PC_Name(TEXT("name"));
-const FName UMovieGraphSchema::PC_String(TEXT("string"));
-const FName UMovieGraphSchema::PC_Text(TEXT("text"));
-const FName UMovieGraphSchema::PC_Enum(TEXT("enum"));
-const FName UMovieGraphSchema::PC_Struct(TEXT("struct"));
-const FName UMovieGraphSchema::PC_Object(TEXT("object"));
-const FName UMovieGraphSchema::PC_SoftObject(TEXT("softobject"));
-const FName UMovieGraphSchema::PC_Class(TEXT("class"));
-const FName UMovieGraphSchema::PC_SoftClass(TEXT("softclass"));
+const FName UMovieGraphSchema::PC_Branch(TEXT("branch"));	// The branch looks like an Exec pin, but isn't the same thing, so we don't use the BP Exec type
+const FName UMovieGraphSchema::PC_Boolean(UEdGraphSchema_K2::PC_Boolean);
+const FName UMovieGraphSchema::PC_Byte(UEdGraphSchema_K2::PC_Byte);
+const FName UMovieGraphSchema::PC_Integer(UEdGraphSchema_K2::PC_Int);
+const FName UMovieGraphSchema::PC_Int64(UEdGraphSchema_K2::PC_Int64);
+const FName UMovieGraphSchema::PC_Real(UEdGraphSchema_K2::PC_Real);
+const FName UMovieGraphSchema::PC_Float(UEdGraphSchema_K2::PC_Float);
+const FName UMovieGraphSchema::PC_Double(UEdGraphSchema_K2::PC_Double);
+const FName UMovieGraphSchema::PC_Name(UEdGraphSchema_K2::PC_Name);
+const FName UMovieGraphSchema::PC_String(UEdGraphSchema_K2::PC_String);
+const FName UMovieGraphSchema::PC_Text(UEdGraphSchema_K2::PC_Text);
+const FName UMovieGraphSchema::PC_Enum(UEdGraphSchema_K2::PC_Enum);
+const FName UMovieGraphSchema::PC_Struct(UEdGraphSchema_K2::PC_Struct);
+const FName UMovieGraphSchema::PC_Object(UEdGraphSchema_K2::PC_Object);
+const FName UMovieGraphSchema::PC_SoftObject(UEdGraphSchema_K2::PC_SoftObject);
+const FName UMovieGraphSchema::PC_Class(UEdGraphSchema_K2::PC_Class);
+const FName UMovieGraphSchema::PC_SoftClass(UEdGraphSchema_K2::PC_SoftClass);
 
 namespace UE::MovieGraph::Private
 {
@@ -97,6 +100,18 @@ void UMovieGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) const
 		GraphNode->SetRuntimeNode(RuntimeNode);
 		NodeCreator.Finalize();
 	}*/
+}
+
+bool UMovieGraphSchema::SupportsPinTypeContainer(TWeakPtr<const FEdGraphSchemaAction> SchemaAction, const FEdGraphPinType& PinType, const EPinContainerType& ContainerType) const
+{
+	// No maps, sets, or arrays
+	return ContainerType == EPinContainerType::None;
+}
+
+bool UMovieGraphSchema::ShouldHidePinDefaultValue(UEdGraphPin* Pin) const
+{
+	// The graph doesn't support editing default values for pins yet
+	return true;
 }
 
 void UMovieGraphSchema::InitMoviePipelineNodeClasses()
@@ -374,86 +389,99 @@ void UMovieGraphSchema::BreakSinglePinLink(UEdGraphPin* SourcePin, UEdGraphPin* 
 	RuntimeGraph->RemoveEdge(SourceRuntimeNode, SourcePin->PinName, TargetRuntimeNode, TargetPin->PinName);
 }
 
-FLinearColor UMovieGraphSchema::GetTypeColor(const FName& InType)
+FLinearColor UMovieGraphSchema::GetTypeColor(const FName& InPinCategory, const FName& InPinSubCategory)
 {
 	const UGraphEditorSettings* Settings = GetDefault<UGraphEditorSettings>();
 
-	if (InType == PC_Branch)
+	if (InPinCategory == PC_Branch)
 	{
 		return Settings->ExecutionPinTypeColor;
 	}
 
-	if (InType == PC_Boolean)
+	if (InPinCategory == PC_Boolean)
 	{
 		return Settings->BooleanPinTypeColor;
 	}
 	
-	if (InType == PC_Byte)
+	if (InPinCategory == PC_Byte)
 	{
 		return Settings->BytePinTypeColor;
 	}
 
-	if (InType == PC_Integer)
+	if (InPinCategory == PC_Integer)
 	{
 		return Settings->IntPinTypeColor;
 	}
 
-	if (InType == PC_Int64)
+	if (InPinCategory == PC_Int64)
 	{
 		return Settings->Int64PinTypeColor;
 	}
 
-	if (InType == PC_Float)
+	if (InPinCategory == PC_Float)
 	{
 		return Settings->FloatPinTypeColor;
 	}
 
-	if (InType == PC_Double)
+	if (InPinCategory == PC_Double)
 	{
 		return Settings->DoublePinTypeColor;
 	}
 
-	if (InType == PC_Name)
+	if (InPinCategory == PC_Real)
+	{
+		if (InPinSubCategory == PC_Float)
+		{
+			return Settings->FloatPinTypeColor;
+		}
+
+		if (InPinSubCategory == PC_Double)
+		{
+			return Settings->DoublePinTypeColor;
+		}
+	}
+
+	if (InPinCategory == PC_Name)
 	{
 		return Settings->NamePinTypeColor;
 	}
 
-	if (InType == PC_String)
+	if (InPinCategory == PC_String)
 	{
 		return Settings->StringPinTypeColor;
 	}
 
-	if (InType == PC_Text)
+	if (InPinCategory == PC_Text)
 	{
 		return Settings->TextPinTypeColor;
 	}
 
-	if (InType == PC_Enum)
+	if (InPinCategory == PC_Enum)
 	{
 		return Settings->BytePinTypeColor;
 	}
 
-	if (InType == PC_Struct)
+	if (InPinCategory == PC_Struct)
 	{
 		return Settings->StructPinTypeColor;
 	}
 	
-	if (InType == PC_Object)
+	if (InPinCategory == PC_Object)
 	{
 		return Settings->ObjectPinTypeColor;
 	}
 
-	if (InType == PC_SoftObject)
+	if (InPinCategory == PC_SoftObject)
 	{
 		return Settings->SoftObjectPinTypeColor;
 	}
 	
-	if (InType == PC_Class)
+	if (InPinCategory == PC_Class)
     {
     	return Settings->ClassPinTypeColor;
     }
 
-	if (InType == PC_SoftClass)
+	if (InPinCategory == PC_SoftClass)
 	{
 		return Settings->SoftClassPinTypeColor;
 	}
@@ -463,7 +491,7 @@ FLinearColor UMovieGraphSchema::GetTypeColor(const FName& InType)
 
 FLinearColor UMovieGraphSchema::GetPinTypeColor(const FEdGraphPinType& PinType) const
 {
-	return GetTypeColor(PinType.PinCategory);
+	return GetTypeColor(PinType.PinCategory, PinType.PinSubCategory);
 }
 
 FConnectionDrawingPolicy* UMovieGraphSchema::CreateConnectionDrawingPolicy(int32 InBackLayerID, int32 InFrontLayerID,

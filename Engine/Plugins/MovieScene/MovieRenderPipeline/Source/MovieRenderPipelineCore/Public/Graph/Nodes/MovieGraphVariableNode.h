@@ -18,6 +18,7 @@ public:
 
 	virtual TArray<FMovieGraphPinProperties> GetOutputPinProperties() const override;
 	virtual FString GetResolvedValueForOutputPin(const FName& InPinName, const FMovieGraphTraversalContext* InContext) const override;
+	virtual bool GetResolvedValueForOutputPin(const FName& InPinName, const FMovieGraphTraversalContext* InContext, TObjectPtr<UMovieGraphValueContainer>& OutValueContainer) const override;
 
 	/** Gets the variable that this node represents. */
 	UMovieGraphVariable* GetVariable() const { return GraphVariable; }
@@ -40,6 +41,9 @@ private:
 	
 	/** Updates the output pin on the node to match the provided variable. */
 	void UpdateOutputPin(UMovieGraphMember* ChangedVariable) const;
+
+	/** Determines if the job in the given context has a valid, enabled variable assignment for the variable this node represents. */
+	bool ContextHasEnabledAssignmentForVariable(const FMovieGraphTraversalContext* InContext) const;
 
 private:
 	/** The underlying graph variable this node represents. */

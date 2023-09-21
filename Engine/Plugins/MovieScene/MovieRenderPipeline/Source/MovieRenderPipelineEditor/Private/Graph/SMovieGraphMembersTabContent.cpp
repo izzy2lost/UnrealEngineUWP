@@ -34,13 +34,18 @@ namespace UE::MovieGraph::Private
 		return nullptr;
 	}
 
-	static bool GetIconAndColorFromDataType(EMovieGraphValueType VariableType, const FSlateBrush*& OutPrimaryBrush, FSlateColor& OutIconColor, const FSlateBrush*& OutSecondaryBrush, FSlateColor& OutSecondaryColor)
+	static bool GetIconAndColorFromDataType(const UMovieGraphVariable* InGraphVariable, const FSlateBrush*& OutPrimaryBrush, FSlateColor& OutIconColor, const FSlateBrush*& OutSecondaryBrush, FSlateColor& OutSecondaryColor)
 	{
+		if (!InGraphVariable)
+		{
+			return false;
+		}
+		
 		constexpr bool bIsBranch = false;
-		const FEdGraphPinType PinType = UMoviePipelineEdGraphNodeBase::GetPinType(VariableType, bIsBranch);
+		const FEdGraphPinType PinType = UMoviePipelineEdGraphNodeBase::GetPinType(InGraphVariable->GetValueType(), bIsBranch, InGraphVariable->GetValueTypeObject());
 
 		OutPrimaryBrush = FAppStyle::GetBrush("Kismet.AllClasses.VariableIcon");
-		OutIconColor = UMovieGraphSchema::GetTypeColor(PinType.PinCategory);
+		OutIconColor = UMovieGraphSchema::GetTypeColor(PinType.PinCategory, PinType.PinSubCategory);
 		OutSecondaryBrush = nullptr;
 		
 		return true;
@@ -107,7 +112,7 @@ TSharedRef<SWidget> SMovieGraphMembersTabContent::CreateActionWidget(FCreateWidg
 			static_cast<FMovieGraphSchemaAction_NewVariableNode*>(InCreateData->Action.Get());
 		const UMovieGraphVariable* Variable = Cast<UMovieGraphVariable>(VariableAction->ActionTarget);
 		const FEdGraphPinType PinType = Variable
-			? UMoviePipelineEdGraphNodeBase::GetPinType(Variable->GetValueType(), false)
+			? UMoviePipelineEdGraphNodeBase::GetPinType(Variable->GetValueType(), false, Variable->GetValueTypeObject())
 			: FEdGraphPinType();
 		const FLinearColor PinColor = CurrentGraph->PipelineEdGraph->GetSchema()->GetPinTypeColor(PinType);
 		
@@ -449,7 +454,7 @@ void FMovieGraphDragAction_Variable::GetDefaultStatusSymbol(
 {
 	const UMovieGraphVariable* VariableMember = WeakVariable.Get();
 	if (!VariableMember ||
-		!UE::MovieGraph::Private::GetIconAndColorFromDataType(VariableMember->GetValueType(), OutPrimaryBrush, OutIconColor, OutSecondaryBrush, OutSecondaryColor))
+		!UE::MovieGraph::Private::GetIconAndColorFromDataType(VariableMember, OutPrimaryBrush, OutIconColor, OutSecondaryBrush, OutSecondaryColor))
 	{
 		return FGraphSchemaActionDragDropAction::GetDefaultStatusSymbol(OutPrimaryBrush, OutIconColor, OutSecondaryBrush, OutSecondaryColor);
 	}

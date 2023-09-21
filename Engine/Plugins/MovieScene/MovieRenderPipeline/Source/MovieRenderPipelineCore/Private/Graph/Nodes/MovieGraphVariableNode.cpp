@@ -34,25 +34,33 @@ FString UMovieGraphVariableNode::GetResolvedValueForOutputPin(const FName& InPin
 {
 	if (GraphVariable && (GraphVariable->GetMemberName() == InPinName))
 	{
-		// If there's a valid job in the traversal context, and the job has an enabled variable assignment, use that
-		// instead of the variable value set in the graph
-		if (InContext && InContext->Job)
+		if (ContextHasEnabledAssignmentForVariable(InContext))
 		{
-			bool bIsEnabled = false;
-			if (InContext->Job->VariableAssignments->GetVariableAssignmentEnableState(GraphVariable, bIsEnabled))
-			{
-				if (bIsEnabled)
-				{
-					return InContext->Job->VariableAssignments->GetValueSerializedString(FName(GraphVariable->GetMemberName()));
-				}
-			}
+			return InContext->Job->VariableAssignments->GetValueSerializedString(FName(GraphVariable->GetMemberName()));
 		}
 
-		// No valid job context: just get the value from the variable
+		// No valid variable assignment: just get the value from the variable
 		return GraphVariable->GetValueSerializedString();
 	}
 	
 	return FString();
+}
+
+bool UMovieGraphVariableNode::GetResolvedValueForOutputPin(const FName& InPinName, const FMovieGraphTraversalContext* InContext, TObjectPtr<UMovieGraphValueContainer>& OutValueContainer) const
+{
+	if (GraphVariable && (GraphVariable->GetMemberName() == InPinName))
+	{
+		if (ContextHasEnabledAssignmentForVariable(InContext))
+		{
+			return InContext->Job->VariableAssignments->GetValueContainer(InPinName, OutValueContainer);
+		}
+
+		// No valid variable assignment: just get the value from the variable
+		OutValueContainer = GraphVariable;
+		return true;
+	}
+	
+	return false;
 }
 
 void UMovieGraphVariableNode::SetVariable(UMovieGraphVariable* InVariable)
@@ -117,4 +125,21 @@ void UMovieGraphVariableNode::UpdateOutputPin(UMovieGraphMember* ChangedVariable
 	}
 
 	OnNodeChangedDelegate.Broadcast(this);
+}
+
+bool UMovieGraphVariableNode::ContextHasEnabledAssignmentForVariable(const FMovieGraphTraversalContext* InContext) const
+{
+	if (InContext && InContext->Job)
+	{
+		bool bIsEnabled = false;
+		if (InContext->Job->VariableAssignments->GetVariableAssignmentEnableState(GraphVariable, bIsEnabled))
+		{
+			if (bIsEnabled)
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
 }

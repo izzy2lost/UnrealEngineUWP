@@ -13,6 +13,7 @@
 #include "ToolMenu.h"
 #include "EdGraph/EdGraphSchema.h"
 #include "GraphEditorActions.h"
+#include "MovieRenderPipelineCoreModule.h"
 #include "Framework/Commands/GenericCommands.h"
 
 #define LOCTEXT_NAMESPACE "MoviePipelineEdGraphNodeBase"
@@ -55,7 +56,7 @@ void UMoviePipelineEdGraphNodeBase::PostTransacted(const FTransactionObjectEvent
 	}
 }
 
-FEdGraphPinType UMoviePipelineEdGraphNodeBase::GetPinType(EMovieGraphValueType ValueType, bool bIsBranch)
+FEdGraphPinType UMoviePipelineEdGraphNodeBase::GetPinType(EMovieGraphValueType ValueType, bool bIsBranch, const UObject* InValueTypeObject)
 {
 	FEdGraphPinType EdPinType;
 	EdPinType.ResetToDefaults();
@@ -85,10 +86,12 @@ FEdGraphPinType UMoviePipelineEdGraphNodeBase::GetPinType(EMovieGraphValueType V
 		EdPinType.PinCategory = UMovieGraphSchema::PC_Int64;
 		break;
 	case EMovieGraphValueType::Float:
-		EdPinType.PinCategory = UMovieGraphSchema::PC_Float;
+		EdPinType.PinCategory = UMovieGraphSchema::PC_Real;
+		EdPinType.PinSubCategory = UMovieGraphSchema::PC_Float;
 		break;
 	case EMovieGraphValueType::Double:
-		EdPinType.PinCategory = UMovieGraphSchema::PC_Double;
+		EdPinType.PinCategory = UMovieGraphSchema::PC_Real;
+		EdPinType.PinSubCategory = UMovieGraphSchema::PC_Double;
 		break;
 	case EMovieGraphValueType::Name:
 		EdPinType.PinCategory = UMovieGraphSchema::PC_Name;
@@ -101,21 +104,27 @@ FEdGraphPinType UMoviePipelineEdGraphNodeBase::GetPinType(EMovieGraphValueType V
 		break;
 	case EMovieGraphValueType::Enum:
 		EdPinType.PinCategory = UMovieGraphSchema::PC_Enum;
+		EdPinType.PinSubCategoryObject = MakeWeakObjectPtr(const_cast<UObject*>(InValueTypeObject));
 		break;
 	case EMovieGraphValueType::Struct:
 		EdPinType.PinCategory = UMovieGraphSchema::PC_Struct;
+		EdPinType.PinSubCategoryObject = MakeWeakObjectPtr(const_cast<UObject*>(InValueTypeObject));
 		break;
 	case EMovieGraphValueType::Object:
 		EdPinType.PinCategory = UMovieGraphSchema::PC_Object;
+		EdPinType.PinSubCategoryObject = MakeWeakObjectPtr(const_cast<UObject*>(InValueTypeObject));
 		break;
 	case EMovieGraphValueType::SoftObject:
 		EdPinType.PinCategory = UMovieGraphSchema::PC_SoftObject;
+		EdPinType.PinSubCategoryObject = MakeWeakObjectPtr(const_cast<UObject*>(InValueTypeObject));
 		break;
 	case EMovieGraphValueType::Class:
 		EdPinType.PinCategory = UMovieGraphSchema::PC_Class;
+		EdPinType.PinSubCategoryObject = MakeWeakObjectPtr(const_cast<UObject*>(InValueTypeObject));
 		break;
 	case EMovieGraphValueType::SoftClass:
 		EdPinType.PinCategory = UMovieGraphSchema::PC_SoftClass;
+		EdPinType.PinSubCategoryObject = MakeWeakObjectPtr(const_cast<UObject*>(InValueTypeObject));
 		break;
 	default:
 		EdPinType.PinCategory = UMovieGraphSchema::PC_Float;
@@ -128,6 +137,56 @@ FEdGraphPinType UMoviePipelineEdGraphNodeBase::GetPinType(EMovieGraphValueType V
 FEdGraphPinType UMoviePipelineEdGraphNodeBase::GetPinType(const UMovieGraphPin* InPin)
 {
 	return GetPinType(InPin->Properties.Type, InPin->Properties.bIsBranch);
+}
+
+EMovieGraphValueType UMoviePipelineEdGraphNodeBase::GetValueTypeFromPinType(const FEdGraphPinType& InPinType)
+{
+	static const TMap<FName, EMovieGraphValueType> PinCategoryToValueType =
+	{
+		{UMovieGraphSchema::PC_Boolean, EMovieGraphValueType::Bool},
+		{UMovieGraphSchema::PC_Byte, EMovieGraphValueType::Byte},
+		{UMovieGraphSchema::PC_Integer, EMovieGraphValueType::Int32},
+		{UMovieGraphSchema::PC_Int64, EMovieGraphValueType::Int64},
+		{UMovieGraphSchema::PC_Float, EMovieGraphValueType::Float},
+		{UMovieGraphSchema::PC_Double, EMovieGraphValueType::Double},
+		{UMovieGraphSchema::PC_Name, EMovieGraphValueType::Name},
+		{UMovieGraphSchema::PC_String, EMovieGraphValueType::String},
+		{UMovieGraphSchema::PC_Text, EMovieGraphValueType::Text},
+		{UMovieGraphSchema::PC_Enum, EMovieGraphValueType::Enum},
+		{UMovieGraphSchema::PC_Struct, EMovieGraphValueType::Struct},
+		{UMovieGraphSchema::PC_Object, EMovieGraphValueType::Object},
+		{UMovieGraphSchema::PC_SoftObject, EMovieGraphValueType::SoftObject},
+		{UMovieGraphSchema::PC_Class, EMovieGraphValueType::Class},
+		{UMovieGraphSchema::PC_SoftClass, EMovieGraphValueType::SoftClass}
+	};
+
+	// Enums can be reported as bytes with a pin sub-category set to the enum
+	if (Cast<UEnum>(InPinType.PinSubCategoryObject))
+	{
+		return EMovieGraphValueType::Enum;
+	}
+
+	// Double/float are a bit special: they're reported as a "real" w/ a float/double sub-type
+	if (InPinType.PinCategory == UMovieGraphSchema::PC_Real)
+	{
+		if (InPinType.PinSubCategory == UMovieGraphSchema::PC_Float)
+		{
+			return EMovieGraphValueType::Float;
+		}
+
+		if (InPinType.PinSubCategory == UMovieGraphSchema::PC_Double)
+		{
+			return EMovieGraphValueType::Double;
+		}
+	}
+	
+	if (const EMovieGraphValueType* FoundValueType = PinCategoryToValueType.Find(InPinType.PinCategory))
+	{
+		return *FoundValueType;
+	}
+
+	UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Unable to convert pin type: category [%s], sub-category [%s]"), *InPinType.PinCategory.ToString(), *InPinType.PinSubCategory.ToString());
+	return EMovieGraphValueType::None;
 }
 
 void UMoviePipelineEdGraphNodeBase::UpdatePosition() const

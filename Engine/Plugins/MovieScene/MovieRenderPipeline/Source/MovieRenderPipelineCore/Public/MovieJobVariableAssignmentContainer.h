@@ -84,7 +84,7 @@ public:
 
 	/** Gets the UClass value of the specified property. Returns true on success, else false. */
 	UFUNCTION(BlueprintCallable, Category="Experimental")
-	bool GetValueClass(const FName& PropertyName, UClass* OutValue) const;
+	bool GetValueClass(const FName& PropertyName, UClass*& OutValue) const;
 
 	/** Gets the serialized string value of the specified property. */
 	UFUNCTION(BlueprintCallable, Category="Experimental")
@@ -201,6 +201,12 @@ public:
 	/** Gets the container type of the stored value in the specified property. */
 	UFUNCTION(BlueprintCallable, Category="Experimental")
 	EMovieGraphContainerType GetValueContainerType(const FName& PropertyName) const;
+
+	/**
+	 * Gets a value container object rather than a strongly-typed value. Useful if the type of the value is not known
+	 * ahead of time. If no property with the specified name exists, OutValueContainer will not be modified.
+	 */
+	bool GetValueContainer(const FName& PropertyName, TObjectPtr<UMovieGraphValueContainer>& OutValueContainer);
 
 	/**
 	 * Updates an existing variable assignment for the provided graph variable to a new enable state, or adds a new

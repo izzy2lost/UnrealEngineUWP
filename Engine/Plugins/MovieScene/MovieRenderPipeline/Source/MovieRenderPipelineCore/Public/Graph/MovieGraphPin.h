@@ -44,12 +44,20 @@ struct FMovieGraphPinProperties
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
 	bool bIsBranch = false;
 
+	/**
+	 * Whether this pin is built-in (ie, the pin ships with the node and cannot be removed). Option pins on the Select
+	 * node would be an example of pins which are not built-in (they can be added and removed dynamically).
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
+	bool bIsBuiltIn = true;
+
 	bool operator==(const FMovieGraphPinProperties& Other) const
 	{
 		return Label == Other.Label
 			&& Type == Other.Type
 			&& bAllowMultipleConnections == Other.bAllowMultipleConnections
-			&& bIsBranch == Other.bIsBranch;
+			&& bIsBranch == Other.bIsBranch
+			&& bIsBuiltIn == Other.bIsBuiltIn;
 	}
 
 	bool operator !=(const FMovieGraphPinProperties& Other) const
