@@ -253,25 +253,25 @@ EAbcImportError FAbcFile::Import(UAbcImportSettings* InImportSettings)
 	}
 
 	SecondsPerFrame = TimeStep;
-	FramesPerSecond = TimeStep > 0.f ? FMath::RoundToInt(1.f / TimeStep) : 30;
+	FramesPerSecond = TimeStep > 0.f ? (1.f / TimeStep) : 30.f;
 	ImportLength = static_cast<float>(FrameSpan) * TimeStep;
 
 	// Calculate time offset from start of import animation range
-	ImportTimeOffset = static_cast<float>(StartFrameIndex) / static_cast<float>(FramesPerSecond);
+	ImportTimeOffset = static_cast<float>(StartFrameIndex) / FramesPerSecond;
 
 	// Read first-frames for both the transforms and poly meshes
 
 	bool bValidFirstFrames = true;
 	for (FAbcTransform* Transform : Transforms)
 	{
-		bValidFirstFrames &= Transform->ReadFirstFrame(static_cast<float>(StartFrameIndex) / static_cast<float>(FramesPerSecond), StartFrameIndex);
+		bValidFirstFrames &= Transform->ReadFirstFrame(static_cast<float>(StartFrameIndex) / FramesPerSecond, StartFrameIndex);
 	}
 
 	for (FAbcPolyMesh* PolyMesh : PolyMeshes)
 	{
 		if (PolyMesh->bShouldImport)
 		{
-			bValidFirstFrames &= PolyMesh->ReadFirstFrame(static_cast<float>(StartFrameIndex) / static_cast<float>(FramesPerSecond), StartFrameIndex);
+			bValidFirstFrames &= PolyMesh->ReadFirstFrame(static_cast<float>(StartFrameIndex) / FramesPerSecond, StartFrameIndex);
 		}
 	}	
 
@@ -501,7 +501,7 @@ void FAbcFile::ReadFrame(int32 FrameIndex, const EFrameReadFlags InFlags, const 
 {
 	for (IAbcObject* Object : Objects)
 	{
-		Object->SetFrameAndTime(static_cast<float>(FrameIndex) / static_cast<float>(FramesPerSecond), FrameIndex, InFlags, ReadIndex);
+		Object->SetFrameAndTime(static_cast<float>(FrameIndex) / FramesPerSecond, FrameIndex, InFlags, ReadIndex);
 	}
 }
 
@@ -640,7 +640,7 @@ const int32 FAbcFile::GetImportNumFrames() const
 	return EndFrameIndex - StartFrameIndex;
 }
 
-const int32 FAbcFile::GetFramerate() const
+const float FAbcFile::GetFramerate() const
 {
 	return FramesPerSecond;
 }

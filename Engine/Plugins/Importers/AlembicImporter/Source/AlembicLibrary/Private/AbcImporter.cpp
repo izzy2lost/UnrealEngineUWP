@@ -423,7 +423,7 @@ UGeometryCache* FAbcImporter::ImportAsGeometryCache(UObject* InParent, EObjectFl
 					AbcImporterUtilities::MergePolyMeshesToMeshData(FrameIndex, ImportSettings->SamplingSettings.FrameStart, AbcFile->GetSecondsPerFrame(), bUseVelocitiesAsMotionVectors,
 						PolyMeshes, UniqueFaceSetNames, FrameTimes[FrameTimeIndex], MeshData, PreviousNumVertices, bConstantTopology, bStoreImportedVertexNumbers);
 					
-					const float FrameRate = static_cast<float>(InAbcFile->GetFramerate());
+					const float FrameRate = InAbcFile->GetFramerate();
 
 					// Convert frame times to frame numbers and back to time to avoid float imprecision
 					const float FrameTime = static_cast<float>(FMath::RoundToInt(FrameTimes[FrameTimeIndex] * FrameRate) - FMath::RoundToInt(InAbcFile->GetImportTimeOffset() * FrameRate)) / FrameRate;
@@ -694,7 +694,7 @@ TArray<UObject*> FAbcImporter::ImportAsSkeletalMesh(UObject* InParent, EObjectFl
 		Controller.OpenBracket(LOCTEXT("ImportAsSkeletalMesh", "Importing Alembic Animation"));
 		Controller.InitializeModel();
 
-		const FFrameRate FrameRate(AbcFile->GetFramerate(), 1);
+		const FFrameRate FrameRate(FMath::RoundToInt(AbcFile->GetFramerate()), 1);
 		Controller.SetFrameRate(FrameRate);	
 		const FFrameNumber FrameNumber = FrameRate.AsFrameNumber(AbcFile->GetImportLength());
 		Controller.SetNumberOfFrames(FrameNumber);

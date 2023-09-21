@@ -65,7 +65,7 @@ public:
 	const float GetImportTimeOffset() const;
 	const float GetImportLength() const;
 	const int32 GetImportNumFrames() const;
-	const int32 GetFramerate() const;
+	const float GetFramerate() const;
 	const float GetSecondsPerFrame() const;
 	const FBoxSphereBounds& GetArchiveBounds() const;
 	const bool ContainsHeterogeneousMeshes() const;
@@ -139,7 +139,7 @@ protected:
 	/** Total (max) number of frames in the Alembic file */
 	int32 NumFrames;
 	/** Frames per second (retrieved and specified in top Alembic object) */
-	int32 FramesPerSecond;
+	float FramesPerSecond;
 	/** Seconds per frame (calculated according to FPS) */
 	float SecondsPerFrame;
 
