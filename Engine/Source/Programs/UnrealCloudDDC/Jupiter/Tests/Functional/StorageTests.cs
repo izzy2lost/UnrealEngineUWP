@@ -480,7 +480,7 @@ namespace Jupiter.FunctionalTests.Storage
 
 		private static async Task<Bundle> CreateBundleAsync(string contents)
 		{
-			MemoryStorageClient store = new MemoryStorageClient();
+			using MemoryStorageClient store = new MemoryStorageClient();
 			await using BundleWriter writer = store.CreateWriter(options: new BundleOptions { CompressionFormat = BundleCompressionFormat.None });
 
 			TextNode node = new TextNode(contents);

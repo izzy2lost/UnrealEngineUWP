@@ -315,7 +315,7 @@ public abstract class BundlesTests
 		RefName leafRefName = new RefName("leaf");
 		HttpMessageHandler httpMessageHandler = Server!.CreateHandler();
 
-		HttpStorageClient blobStore = new HttpStorageClient(() => new HttpClient(httpMessageHandler) {BaseAddress = new Uri(Server.BaseAddress, $"api/v1/storage/{TestNamespaceName}/")}!, () => null!, StorageCache.None, NullLogger.Instance);
+		using HttpStorageClient blobStore = new HttpStorageClient(() => new HttpClient(httpMessageHandler) {BaseAddress = new Uri(Server.BaseAddress, $"api/v1/storage/{TestNamespaceName}/")}!, () => null!, BundleReaderCache.None, NullLogger.Instance);
 		await SeedTreeAsync(blobStore, rootRefName, leafRefName, new BundleOptions { MaxBlobSize = 1 });
 
 		IBlobIndex blobIndex = Server.Services.GetService<IBlobIndex>()!;
