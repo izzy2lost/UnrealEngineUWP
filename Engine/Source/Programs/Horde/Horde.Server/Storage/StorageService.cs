@@ -177,6 +177,9 @@ namespace Horde.Server.Storage
 
 				return redirect;
 			}
+
+			/// <inheritdoc/>
+			public void GetStats(StorageStats stats) { }
 		}
 
 		sealed class StorageClientImpl : BundleStorageClient
@@ -224,7 +227,7 @@ namespace Horde.Server.Storage
 			{
 				await foreach (BundleNodeLocator locator in _outer.FindAliasesAsync(NamespaceId, alias, cancellationToken))
 				{
-					yield return new FlushedNodeHandle(BundleReader, locator);
+					yield return CreateNodeHandle(locator);
 				}
 			}
 
@@ -240,7 +243,7 @@ namespace Horde.Server.Storage
 				{
 					return null;
 				}
-				return new FlushedNodeHandle(BundleReader, locator.Value);
+				return CreateNodeHandle(locator.Value);
 			}
 
 			/// <inheritdoc/>
@@ -321,6 +324,9 @@ namespace Horde.Server.Storage
 			Task<BlobHandle?> IStorageClient.TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime, CancellationToken cancellationToken) => ((IStorageClient)_impl).TryReadRefTargetAsync(name, cacheTime, cancellationToken);
 
 			#endregion
+
+			/// <inheritdoc/>
+			public void GetStats(StorageStats stats) => _impl.GetStats(stats);
 
 			public bool Authorize(AclAction action, ClaimsPrincipal user) => _impl.Config.Authorize(action, user);
 		}

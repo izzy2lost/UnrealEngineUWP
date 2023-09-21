@@ -719,18 +719,15 @@ namespace Horde.Storage.Utility
 					throw new TempStorageException($"Missing block \"{blockName}\" from node \"{nodeName}\"");
 				}
 
-				BundleStorageClient bundleStorageClient = (BundleStorageClient)storageClient;
-				long initialNumBytesRead = bundleStorageClient.BundleReader.NumBytesRead;
-				int initialNumHeaderReads = bundleStorageClient.BundleReader.NumHeaderReads;
-				int initialNumPacketReads = bundleStorageClient.BundleReader.NumPacketReads;
+				StorageStats initialStats = storageClient.GetStats();
 				Stopwatch timer = Stopwatch.StartNew();
 
 				// Add all the files and flush the ref
 				DirectoryNode rootDirNode = await rootDirEntry.ExpandAsync(cancellationToken);
 				await rootDirNode.CopyToDirectoryAsync(rootDir.ToDirectoryInfo(), new CopyStatsLogger(logger), logger, cancellationToken);
 
-				timer.Stop();
-				logger.LogInformation("Elapsed: {Elapsed}s, Num bytes: {NumBytes:n0}, Num headers: {NumHeaders:n0}, Num packets: {NumPackets:n0}, Header cache: {HeaderCacheSize:n0}mb, Packet cache {PacketCacheSize:n0}mb", (int)timer.Elapsed.TotalSeconds, bundleStorageClient.BundleReader.NumBytesRead - initialNumBytesRead, bundleStorageClient.BundleReader.NumHeaderReads - initialNumHeaderReads, bundleStorageClient.BundleReader.NumPacketReads - initialNumPacketReads, bundleStorageClient.BundleReader.Cache.HeaderCacheSize / (1024.0 * 1024.0), bundleStorageClient.BundleReader.Cache.PacketCacheSize / (1024.0 * 1024.0));
+				StorageStats deltaStats = StorageStats.GetDelta(initialStats, storageClient.GetStats());
+				logger.LogInformation("{Stats}", $"Elapsed: {(int)timer.Elapsed.TotalSeconds}s, {String.Join(", ", deltaStats.Values.Select(x => $"{x.Item1}: {x.Item2:n0}"))}");
 
 				// Read the manifest in
 				manifest = TempStorageBlockManifest.Load(localManifestFile);

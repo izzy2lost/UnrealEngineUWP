@@ -110,5 +110,8 @@ namespace EpicGames.Horde.Storage.Backends
 
 		/// <inheritdoc/>
 		public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => default;
+
+		/// <inheritdoc/>
+		public void GetStats(StorageStats stats) { }
 	}
 }

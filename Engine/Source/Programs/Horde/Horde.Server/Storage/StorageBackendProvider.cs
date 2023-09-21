@@ -104,6 +104,9 @@ namespace Horde.Server.Storage
 			/// <inheritdoc/>
 			public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => _backend.TryGetWriteRedirectAsync(prefix, cancellationToken);
 
+			/// <inheritdoc/>
+			public void GetStats(StorageStats stats) => _backend.GetStats(stats);
+
 			#endregion
 		}
 

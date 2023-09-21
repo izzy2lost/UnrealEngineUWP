@@ -620,5 +620,8 @@ namespace Horde.Server.Storage.Backends
 				}
 			}
 		}
+
+		/// <inheritdoc/>
+		public void GetStats(StorageStats stats) { }
 	}
 }

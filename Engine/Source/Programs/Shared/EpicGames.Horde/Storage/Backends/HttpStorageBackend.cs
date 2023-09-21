@@ -196,5 +196,8 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		#endregion
+
+		/// <inheritdoc/>
+		public void GetStats(StorageStats stats) { }
 	}
 }

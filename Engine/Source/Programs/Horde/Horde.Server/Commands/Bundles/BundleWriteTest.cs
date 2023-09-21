@@ -39,6 +39,8 @@ namespace Horde.Server.Commands.Bundles
 			}
 
 			IStorageWriter IStorageClient.CreateWriter(RefName refName) => CreateWriter(refName);
+
+			public void GetStats(StorageStats stats) { }
 		}
 
 		public override async Task<int> ExecuteAsync(ILogger logger)

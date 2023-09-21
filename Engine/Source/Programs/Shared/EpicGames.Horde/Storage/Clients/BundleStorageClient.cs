@@ -147,6 +147,7 @@ namespace EpicGames.Horde.Storage.Clients
 	public abstract class BundleStorageClient : IBundleStorageClient
 	{
 		readonly IStorageBackend _backend;
+		readonly BundleReader _bundleReader;
 
 		/// <summary>
 		/// Backend for this client
@@ -154,17 +155,12 @@ namespace EpicGames.Horde.Storage.Clients
 		public IStorageBackend Backend => _backend;
 
 		/// <summary>
-		/// Reader for node data
-		/// </summary>
-		public BundleReader BundleReader { get; }
-
-		/// <summary>
 		/// Constructor
 		/// </summary>
 		protected BundleStorageClient(IStorageBackend backend, BundleReaderCache cache, ILogger logger)
 		{
 			_backend = backend;
-			BundleReader = new BundleReader(this, cache, logger);
+			_bundleReader = new BundleReader(this, cache, logger);
 		}
 
 		/// <inheritdoc/>
@@ -193,10 +189,10 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Bundles
 
 		/// <inheritdoc/>
-		public Task<BundleHeader> ReadHeaderAsync(BundleLocator locator, CancellationToken cancellationToken) => BundleReader.ReadHeaderAsync(locator, cancellationToken);
+		public Task<BundleHeader> ReadHeaderAsync(BundleLocator locator, CancellationToken cancellationToken) => _bundleReader.ReadHeaderAsync(locator, cancellationToken);
 
 		/// <inheritdoc/>
-		public async Task<BlobData> ReadNodeDataAsync(BundleNodeLocator locator, CancellationToken cancellationToken) => await BundleReader.ReadNodeDataAsync(locator, cancellationToken);
+		public async Task<BlobData> ReadNodeDataAsync(BundleNodeLocator locator, CancellationToken cancellationToken) => await _bundleReader.ReadNodeDataAsync(locator, cancellationToken);
 
 		#endregion
 
@@ -205,10 +201,10 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <summary>
 		/// Creates a handle to a node from its locator
 		/// </summary>
-		public BundleNodeHandle CreateNodeHandle(BundleNodeLocator locator) => new FlushedNodeHandle(BundleReader, locator);
+		public BundleNodeHandle CreateNodeHandle(BundleNodeLocator locator) => new FlushedNodeHandle(_bundleReader, locator);
 
 		/// <inheritdoc/>
-		public BundleWriter CreateWriter(RefName refName = default, BundleOptions? options = null) => new BundleWriter(this, BundleReader, refName, options);
+		public BundleWriter CreateWriter(RefName refName = default, BundleOptions? options = null) => new BundleWriter(this, _bundleReader, refName, options);
 
 		/// <inheritdoc/>
 		IStorageWriter IStorageClient.CreateWriter(RefName refName) => CreateWriter(refName);
@@ -259,7 +255,10 @@ namespace EpicGames.Horde.Storage.Clients
 
 		/// <inheritdoc/>
 		public abstract Task WriteRefTargetAsync(RefName name, BundleNodeLocator target, RefOptions? options = null, CancellationToken cancellationToken = default);
-		
+
 		#endregion
+
+		/// <inheritdoc/>
+		public void GetStats(StorageStats stats) => _bundleReader.GetStats(stats);
 	}
 }

@@ -2,9 +2,11 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage
 {
@@ -141,6 +143,11 @@ namespace EpicGames.Horde.Storage
 		Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default);
 
 		#endregion
+
+		/// <summary>
+		/// Gets a snapshot of the stats for the storage client.
+		/// </summary>
+		void GetStats(StorageStats stats);
 	}
 
 	/// <summary>
@@ -242,6 +249,50 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
+	/// Stats for the storage system
+	/// </summary>
+	public class StorageStats
+	{
+		/// <summary>
+		/// Stat name to value
+		/// </summary>
+		public List<(string, long)> Values { get; } = new List<(string, long)>();
+
+		/// <summary>
+		/// Add a new stat to the list
+		/// </summary>
+		public void Add(string name, long value) => Values.Add((name, value));
+
+		/// <summary>
+		/// Prints the table of stats to the logger
+		/// </summary>
+		public void Print(ILogger logger)
+		{
+			foreach ((string key, long value) in Values)
+			{
+				logger.LogInformation("{Key}: {Value:n0}", key, value);
+			}
+		}
+
+		/// <summary>
+		/// Subtract a base set of stats from this one
+		/// </summary>
+		public static StorageStats GetDelta(StorageStats initial, StorageStats finish)
+		{
+			StorageStats result = new StorageStats();
+
+			Dictionary<string, long> initialValues = initial.Values.ToDictionary(x => x.Item1, x => x.Item2, StringComparer.Ordinal);
+			foreach ((string name, long value) in finish.Values.ToArray())
+			{
+				initialValues.TryGetValue(name, out long otherValue);
+				result.Add(name, value - otherValue);
+			}
+
+			return result;
+		}
+	}
+
+	/// <summary>
 	/// Extension methods for <see cref="IStorageClient"/>
 	/// </summary>
 	public static class StorageClientExtensions
@@ -277,5 +328,15 @@ namespace EpicGames.Horde.Storage
 		}
 
 		#endregion
+
+		/// <summary>
+		/// Gets a snapshot of the stats for the storage client.
+		/// </summary>
+		public static StorageStats GetStats(this IStorageClient store)
+		{
+			StorageStats stats = new StorageStats();
+			store.GetStats(stats);
+			return stats;
+		}
 	}
 }

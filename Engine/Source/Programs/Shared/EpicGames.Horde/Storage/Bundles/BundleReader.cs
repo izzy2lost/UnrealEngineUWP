@@ -140,21 +140,6 @@ namespace EpicGames.Horde.Storage.Bundles
 		long _numBytesRead;
 
 		/// <summary>
-		/// Total number of header reads
-		/// </summary>
-		public long NumBytesRead => _numBytesRead;
-
-		/// <summary>
-		/// Total number of header reads
-		/// </summary>
-		public int NumHeaderReads => _numHeaderReads;
-
-		/// <summary>
-		/// Total number of packet reads
-		/// </summary>
-		public int NumPacketReads => _numPacketReads;
-
-		/// <summary>
 		/// Accessor for the cache
 		/// </summary>
 		public BundleReaderCache Cache => _cache;
@@ -602,5 +587,15 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Node data read from the given bundle</returns>
 		public async ValueTask<TNode> ReadNodeAsync<TNode>(BundleNodeLocator locator, CancellationToken cancellationToken = default) where TNode : Node => (TNode)await ReadNodeAsync(locator, cancellationToken);
+
+		/// <summary>
+		/// Gets stats for the reader
+		/// </summary>
+		public void GetStats(StorageStats stats)
+		{
+			stats.Add("Num bytes read", _numBytesRead);
+			stats.Add("Num header reads", _numHeaderReads);
+			stats.Add("Num packet reads", _numPacketReads);
+		}
 	}
 }

@@ -74,13 +74,8 @@ namespace Horde.Commands.Bundles
 
 			if (Stats)
 			{
-				BundleStorageClient? bundleStorageClient = store as BundleStorageClient;
-				if (bundleStorageClient != null)
-				{
-					logger.LogInformation("Num bytes read: {NumBytes:n0}", bundleStorageClient.BundleReader.NumBytesRead);
-					logger.LogInformation("Num header reads: {NumReads:n0}", bundleStorageClient.BundleReader.NumHeaderReads);
-					logger.LogInformation("Num packet reads: {NumReads:n0}", bundleStorageClient.BundleReader.NumPacketReads);
-				}
+				StorageStats stats = store.GetStats();
+				stats.Print(logger);
 			}
 		}
 	}

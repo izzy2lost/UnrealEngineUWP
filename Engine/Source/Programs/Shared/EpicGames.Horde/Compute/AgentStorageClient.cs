@@ -138,5 +138,8 @@ namespace EpicGames.Horde.Compute
 
 		/// <inheritdoc/>
 		public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+		/// <inheritdoc/>
+		public void GetStats(StorageStats stats) { }
 	}
 }

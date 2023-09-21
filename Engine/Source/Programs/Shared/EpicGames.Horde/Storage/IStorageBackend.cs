@@ -108,6 +108,11 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Path for retrieval, and URI to upload the data to</returns>
 		ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Gets stats for this storage backend
+		/// </summary>
+		void GetStats(StorageStats stats);
 	}
 
 	/// <summary>
