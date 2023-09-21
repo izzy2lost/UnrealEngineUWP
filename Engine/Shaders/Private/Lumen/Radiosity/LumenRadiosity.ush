@@ -36,7 +36,7 @@ uint HemisphereProbeResolution;
 // HemisphereProbeResolution * HemisphereProbeResolution
 uint NumTracesPerProbe;
 
-uint UseProbeOcclusion;
+float ProbeOcclusionStrength;
 
 // When >= 0, specifies a fixed temporal index for debugging
 int FixedJitterIndex;
@@ -313,7 +313,12 @@ float CalculateProbeVisibility(float3 WorldPositionBeingTested, FRadiosityTexel 
 		uint2 RadiosityProbeTracingAtlasCoord = (ProbeAtlasCoord + TexelUV) * HemisphereProbeResolution;
 		float TraceHitDistance = TraceHitDistanceAtlas[RadiosityProbeTracingAtlasCoord];
 
-		VisibilityWeight = TraceHitDistance * TraceHitDistance < dot(ProbeToTexel, ProbeToTexel) ? 0 : 1;
+		float ProbeToTexelDistance = sqrt(dot(ProbeToTexel, ProbeToTexel));
+		float TransitionScale = 1.0f / max((1.0f - ProbeOcclusionStrength) * ProbeToTexelDistance, .0001f);
+		VisibilityWeight = saturate((TraceHitDistance - ProbeToTexelDistance) * TransitionScale + 1);
+
+		// Binary test for debugging
+		//VisibilityWeight = TraceHitDistance * TraceHitDistance < dot(ProbeToTexel, ProbeToTexel) ? 0 : 1;
 	}
 
 	return VisibilityWeight;

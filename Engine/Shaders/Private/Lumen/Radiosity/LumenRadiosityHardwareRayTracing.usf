@@ -128,7 +128,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenRadiosityHardwareRayTracing)
 			uint2 RadiosityProbeTracingAtlasCoord = GetRadiosityProbeAtlasCoord(CardPage, CardTile, CoordInCardTile) * HemisphereProbeResolution + TraceTexelCoord;
 			RWTraceRadianceAtlas[RadiosityProbeTracingAtlasCoord] = Radiance;
 
-			if (UseProbeOcclusion > 0)
+			if (ProbeOcclusionStrength > 0)
 			{
 				RWTraceHitDistanceAtlas[RadiosityProbeTracingAtlasCoord] = TraceHitDistance;
 			}

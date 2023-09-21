@@ -70,6 +70,14 @@ FAutoConsoleVariableRef CVarRadiosityFilteringProbeOcclusion(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+float GRadiosityFilteringProbeOcclusionStrength = .5f;
+FAutoConsoleVariableRef CVarRadiosityFilteringProbeOcclusionStrength(
+	TEXT("r.LumenScene.Radiosity.ProbeOcclusionStrength"),
+	GRadiosityFilteringProbeOcclusionStrength,
+	TEXT("Strength of probe occlusion.  0 = No probe occlusion, 1 = Attempt to stop all leaking, but has self-occlusion artifacts, .5 (default) = tradeoff between the extremes."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 float GRadiosityProbePlaneWeightingDepthScale = -100.0f;
 FAutoConsoleVariableRef CVarRadiosityProbePlaneWeightingDepthScale(
 	TEXT("r.LumenScene.Radiosity.SpatialFilterProbes.PlaneWeightingDepthScale"),
@@ -294,7 +302,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLumenRadiosityTexelTraceParameters, )
 	SHADER_PARAMETER(uint32, RadiosityTileSize)
 	SHADER_PARAMETER(uint32, HemisphereProbeResolution)
 	SHADER_PARAMETER(uint32, NumTracesPerProbe)
-	SHADER_PARAMETER(uint32, UseProbeOcclusion)
+	SHADER_PARAMETER(float, ProbeOcclusionStrength)
 	SHADER_PARAMETER(int32, FixedJitterIndex)
 	SHADER_PARAMETER(uint32, MaxFramesAccumulated)
 	SHADER_PARAMETER(uint32, NumViews)
@@ -600,6 +608,7 @@ void LumenRadiosity::AddRadiosityPass(
 		PF_FloatRGB);
 
 	const bool bUseProbeOcclusion = GRadiosityFilteringProbeOcclusion != 0 
+		&& GRadiosityFilteringProbeOcclusionStrength > 0.0f
 		// Self intersection from grazing angle traces causes noise that breaks probe occlusion
 		&& Lumen::UseHardwareRayTracedRadiosity(*FirstView.Family);
 
@@ -637,7 +646,7 @@ void LumenRadiosity::AddRadiosityPass(
 		RadiosityTexelTraceParameters.RadiosityTileSize = RadiosityTileSize;
 		RadiosityTexelTraceParameters.HemisphereProbeResolution = HemisphereProbeResolution;
 		RadiosityTexelTraceParameters.NumTracesPerProbe = HemisphereProbeResolution * HemisphereProbeResolution;
-		RadiosityTexelTraceParameters.UseProbeOcclusion = bUseProbeOcclusion ? 1 : 0;
+		RadiosityTexelTraceParameters.ProbeOcclusionStrength = bUseProbeOcclusion ? FMath::Clamp<float>(GRadiosityFilteringProbeOcclusionStrength, 0.0f, 1.0f) : 0;
 		RadiosityTexelTraceParameters.FixedJitterIndex = GLumenRadiosityFixedJitterIndex;
 		RadiosityTexelTraceParameters.MaxFramesAccumulated = LumenRadiosity::UseTemporalAccumulation() ? GLumenRadiosityTemporalMaxFramesAccumulated : 1;
 		RadiosityTexelTraceParameters.NumViews = Views.Num();
