@@ -31,7 +31,7 @@ namespace UE::RCActionPanelConditionalList
 		const FName TypeColorTag = TEXT("TypeColorTag");
 		const FName DragDropHandle = TEXT("DragDropHandle");
 		const FName Condition = TEXT("Condition");
-		const FName Description = TEXT("Description");
+		const FName Description = TEXT("PropertyID");
 		const FName Value = TEXT("Value");
 	}
 
@@ -99,7 +99,7 @@ TSharedPtr<SHeaderRow> FRCActionConditionalModel::GetHeaderRow()
 		.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 		+ SHeaderRow::Column(UE::RCActionPanelConditionalList::Columns::Description)
-		.DefaultLabel(LOCTEXT("RCActionDescColumnHeader", "Description"))
+		.DefaultLabel(LOCTEXT("RCActionDescColumnHeader", "PropertyID"))
 		.FillWidth(0.4f)
 		.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
@@ -123,6 +123,10 @@ TSharedPtr<FRCActionConditionalModel> FRCActionConditionalModel::GetModelByActio
 	else if (URCFunctionAction* FunctionAction = Cast<URCFunctionAction>(InAction))
 	{
 		return MakeShared<FRCFunctionActionConditionalModel>(FunctionAction, InBehaviourItem, InRemoteControlPanel);
+	}
+	else if (URCPropertyIdAction* PropertyIdAction = Cast<URCPropertyIdAction>(InAction))
+	{
+		return MakeShared<FRCPropertyIdActionConditionalModel>(PropertyIdAction, InBehaviourItem, InRemoteControlPanel);
 	}
 
 	return nullptr;

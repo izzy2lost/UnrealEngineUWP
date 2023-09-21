@@ -1,8 +1,9 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "Action/RCFunctionAction.h"
+#include "Action/RCPropertyIdAction.h"
 #include "Action/RCPropertyAction.h"
 #include "UI/BaseLogicUI/RCLogicModeBase.h"
 
@@ -131,12 +132,65 @@ public:
 	FLinearColor GetFunctionTypeColor() const
 	{
 		// @todo: Confirm color to be used for this with VP team.
-		return FLinearColor::Blue; 
+		return FLinearColor::Blue;
 	}
 
 protected:
 	/** The Function Action (data model) associated with us*/
 	TWeakObjectPtr<URCFunctionAction> FunctionActionWeakPtr;
+};
+
+/**
+ * FRCPropertyIdActionType
+ *
+ * Reusable class containing PropertyID action related data and functions
+ */
+class FRCPropertyIdActionType
+{
+public:
+	FRCPropertyIdActionType(URCPropertyIdAction* InPropertyIdAction);
+
+	~FRCPropertyIdActionType();
+
+	/** Color code for function actions in the Actions table */
+	FLinearColor GetPropertyIdTypeColor() const;
+
+	/** Widget representing Action Name field */
+	TSharedRef<SWidget> GetPropertyIdNameWidget() const;
+
+	/** The widget to be rendered for this PropertyId
+	 * Represents the input field which the user will use to set a value for this Action
+	 */
+	TSharedRef<SWidget> GetPropertyIdValueWidget() const;
+
+private:
+	/** Recreates the name section of this row widget. */
+	void RefreshNameWidget();
+
+	/** Recreates the value section of this row widget. */
+	void RefreshValueWidget();
+
+protected:
+	/** The PropertyId Action (data model) associated with this. */
+	TWeakObjectPtr<URCPropertyIdAction> PropertyIdActionWeakPtr;
+
+	/** The row generator used to represent name of this widget as a row, when used with SListView */
+	TSharedPtr<IPropertyRowGenerator> PropertyIdNameRowGenerator;
+	
+	/** The cache of the row generator used to not recreate it */
+	TMap<FName, TSharedPtr<IPropertyRowGenerator>> PropertyIdValueRowGenerator;
+
+	/** The row generator used to represent value of this widget as a row, when used with SListView */
+	TMap<FName, TSharedPtr<IPropertyRowGenerator>> CachedPropertyIdValueRowGenerator;
+
+	/** Used to create a generic Field Id Widget for the property row widget */
+	TWeakPtr<IDetailTreeNode> FieldIdTreeNodeWeakPtr;
+	
+	/** Used to create a generic Value Widget for the property row widget */
+	TMap<FName, TWeakPtr<IDetailTreeNode>> ValueTreeNodeWeakPtr;
+
+	/** Used to cache a generic Value Widget for the property row widget to not recreate it */
+	TMap<FName, TWeakPtr<IDetailTreeNode>> CachedValueTreeNodeWeakPtr;
 };
 
 /*
@@ -179,5 +233,37 @@ public:
 	virtual FLinearColor GetActionTypeColor() const override
 	{
 		return GetFunctionTypeColor();
+	}
+};
+
+/**
+ * FRCPropertyIdActionModel
+ *
+ * UI model for PropertyId based Actions
+ */
+class FRCPropertyIdActionModel : public FRCActionModel, public FRCPropertyIdActionType
+{
+public:
+	FRCPropertyIdActionModel(URCPropertyIdAction* InPropertyIdAction, const TSharedPtr<class FRCBehaviourModel> InBehaviourItem, const TSharedPtr<SRemoteControlPanel> InRemoteControlPanel)
+		: FRCActionModel(InPropertyIdAction, InBehaviourItem, InRemoteControlPanel)
+		, FRCPropertyIdActionType(InPropertyIdAction)
+	{}
+
+	/** Color code for this Action*/
+	virtual FLinearColor GetActionTypeColor() const override
+	{
+		return GetPropertyIdTypeColor();
+	}
+
+	/** Widget representing Action Name field */
+	virtual TSharedRef<SWidget> GetNameWidget() const override
+	{
+		return GetPropertyIdNameWidget();
+	}
+
+	/** Widget representing the Value field */
+	virtual TSharedRef<SWidget> GetWidget() const override
+	{
+		return GetPropertyIdValueWidget();
 	}
 };

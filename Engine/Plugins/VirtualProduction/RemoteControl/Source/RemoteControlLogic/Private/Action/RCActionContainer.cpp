@@ -1,9 +1,10 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Action/RCActionContainer.h"
 
 #include "Action/RCAction.h"
 #include "Action/RCFunctionAction.h"
+#include "Action/RCPropertyIdAction.h"
 #include "Action/RCPropertyAction.h"
 #include "Behaviour/Builtin/Path/RCSetAssetByPathBehaviour.h"
 #include "Behaviour/RCBehaviour.h"
@@ -39,6 +40,31 @@ TRCActionUniquenessTest URCActionContainer::GetDefaultActionUniquenessTest(const
 
 		return true;
 	};
+}
+
+URCAction* URCActionContainer::AddAction()
+{
+	// Create new PropertyIdAction
+	URCPropertyIdAction* NewPropertyIdAction = NewObject<URCPropertyIdAction>(this);
+	NewPropertyIdAction->PresetWeakPtr = PresetWeakPtr;
+	NewPropertyIdAction->Id = FGuid::NewGuid();
+	NewPropertyIdAction->Initialize();
+	NewPropertyIdAction->UpdatePropertyId();
+	AddAction(NewPropertyIdAction);
+	return NewPropertyIdAction;
+}
+
+URCAction* URCActionContainer::AddAction(FName InFieldId)
+{
+	// Create new PropertyIdAction
+	URCPropertyIdAction* NewPropertyIdAction = NewObject<URCPropertyIdAction>(this);
+	NewPropertyIdAction->PresetWeakPtr = PresetWeakPtr;
+	NewPropertyIdAction->Id = FGuid::NewGuid();
+	NewPropertyIdAction->PropertyId = InFieldId;
+	NewPropertyIdAction->Initialize();
+	NewPropertyIdAction->UpdatePropertyId();
+	AddAction(NewPropertyIdAction);
+	return NewPropertyIdAction;
 }
 
 URCAction* URCActionContainer::AddAction(const TSharedRef<const FRemoteControlField> InRemoteControlField)

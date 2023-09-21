@@ -1,14 +1,10 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "UI/BaseLogicUI/SRCLogicPanelBase.h"
 
-enum class ECheckBoxState : uint8;
-
-struct FRCPanelStyle;
 class FRCActionModel;
-struct FRemoteControlField;
 class FRCBehaviourModel;
 class SBox;
 class SCheckBox;
@@ -17,6 +13,11 @@ class SRCLogicPanelListBase;
 class SRemoteControlPanel;
 class URCAction;
 class URCBehaviour;
+
+struct FRCPanelStyle;
+struct FRemoteControlField;
+
+enum class ECheckBoxState : uint8;
 
 /*
 * ~ SRCActionPanel ~
@@ -62,6 +63,12 @@ public:
 
 	/** Provides an item suffix for the Paste context menu to provide users with useful context on the nature of the item being pasted */
 	virtual FText GetPasteItemMenuEntrySuffix() override;
+
+	/** Adds an PropertyId Action for the currently active Behaviour and broadcasts to parent panels */
+	URCAction* AddAction();
+
+	/** Adds an PropertyId Action for the currently active Behaviour and broadcasts to parent panels */
+	URCAction* AddAction(FName InFieldId);
 
 	/** Adds an Action for the currently active Behaviour and broadcasts to parent panels */
 	URCAction* AddAction(const TSharedRef<const FRemoteControlField> InRemoteControlField);
@@ -117,6 +124,12 @@ private:
 
 	/** Handles click event for Add Action button*/
 	void OnAddActionClicked(TSharedPtr<FRemoteControlField> InRemoteControlField);
+
+	/** Handles click event for Add Action (PropertyId) button */
+	void OnAddActionClicked();
+
+	/** Handles click event for Add specific PropertyId Action buttons */
+	void OnAddActionClicked(FName InFieldId);
 
 	/** Handles click event for Empty button; clear all Actions from the panel*/
 	FReply OnClickEmptyButton();

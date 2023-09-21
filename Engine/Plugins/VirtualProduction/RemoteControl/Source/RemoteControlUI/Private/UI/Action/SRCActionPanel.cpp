@@ -1,16 +1,20 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SRCActionPanel.h"
 
 #include "RemoteControlField.h"
+#include "RemoteControlPropertyIdRegistry.h"
 #include "RemoteControlPreset.h"
 
 #include "Action/RCActionContainer.h"
 #include "Action/RCFunctionAction.h"
+#include "Action/RCPropertyIdAction.h"
 #include "Action/RCPropertyAction.h"
 
-#include "Behaviour/RCBehaviour.h"
 #include "Controller/RCController.h"
+#include "Behaviour/Builtin/Conditional/RCBehaviourConditional.h"
+#include "Behaviour/Builtin/RCBehaviourOnValueChangedNode.h"
+#include "Behaviour/RCBehaviour.h"
 
 #include "EdGraphSchema_K2.h"
 #include "EdGraph/EdGraphPin.h"
@@ -70,6 +74,8 @@ void SRCActionPanel::Construct(const FArguments& InArgs, const TSharedRef<SRemot
 	{
 		Preset->Layout.OnFieldAdded().AddSP(this, &SRCActionPanel::OnRemoteControlFieldAdded);
 		Preset->Layout.OnFieldDeleted().AddSP(this, &SRCActionPanel::OnRemoteControlFieldDeleted);
+		Preset->GetPropertyIdRegistry()->OnPropertyIdUpdated().AddLambda([this](){ bAddActionMenuNeedsRefresh = true; });
+		Preset->GetPropertyIdRegistry()->OnPropertyIdActionNeedsRefresh().AddLambda([this](){ bAddActionMenuNeedsRefresh = true; });
 	}
 }
 
@@ -224,10 +230,56 @@ TSharedRef<SWidget> SRCActionPanel::GetActionMenuContentWidget()
 		return MenuBuilder.MakeWidget();
 	}
 
+	if (const URCBehaviour* Behaviour = SelectedBehaviourItemWeakPtr.Pin()->GetBehaviour())
+	{
+		if (Behaviour->IsA<URCBehaviourConditional>() || Behaviour->IsA<URCBehaviourOnValueChangedNode>())
+		{
+			MenuBuilder.BeginSection(NAME_None, LOCTEXT("PropertyIdTitle", "PropertyId"));
+			// Create property identity entry
+			FUIAction PropertyIdAction(FExecuteAction::CreateSP(this, &SRCActionPanel::OnAddActionClicked));
+			MenuBuilder.AddMenuEntry(
+				LOCTEXT("AddAction", "Add PropertyId (Property)"),
+				LOCTEXT("AddActionTooltip", "Adds an PropertyId action of type property."),
+				FSlateIcon(),
+				MoveTemp(PropertyIdAction));
+
+			if (URemoteControlPreset* Preset = GetPreset())
+			{
+				if (Preset->GetPropertyIdRegistry())
+				{
+					TSet<FName> IdList = Preset->GetPropertyIdRegistry().Get()->GetFieldIdsNameList();
+					if (IdList.Num())
+					{
+						MenuBuilder.AddSubMenu(
+						LOCTEXT("AddActionSubMenu", "Add specific ID action"),
+						LOCTEXT("AddActionSubMenu_ToolTip", "Choose the ID based on the current list of different you have"),
+						FNewMenuDelegate::CreateLambda([this, IdList](FMenuBuilder& InMenuBuilder)
+						{
+							for (FName Id : IdList)
+							{
+								FText LabelName = FText::FromString(TEXT("ID: ") + Id.ToString());
+								const FText ToolTipName = LOCTEXT("AddAction_SpecificToolTip", "Create an action widget with this Id");
+								FUIAction PropertyIdAction(FExecuteAction::CreateSP(this, &SRCActionPanel::OnAddActionClicked, Id));
+								InMenuBuilder.AddMenuEntry(LabelName, ToolTipName, FSlateIcon(), PropertyIdAction);
+							}
+						}));
+					}
+				}
+			}
+			MenuBuilder.EndSection();
+		}
+	}
+
 	// List of exposed entities
 	if (URemoteControlPreset* Preset = GetPreset())
 	{
 		const TArray<TWeakPtr<FRemoteControlField>>& RemoteControlFields = Preset->GetExposedEntities<FRemoteControlField>();
+
+		if (!RemoteControlFields.IsEmpty())
+		{
+			MenuBuilder.BeginSection(NAME_None, LOCTEXT("FieldsTitle", "Fields"));
+		}
+
 		for (const TWeakPtr<FRemoteControlField>& RemoteControlFieldWeakPtr : RemoteControlFields)
 		{
 			if (const TSharedPtr<FRemoteControlField> RemoteControlField = RemoteControlFieldWeakPtr.Pin())
@@ -313,6 +365,26 @@ void SRCActionPanel::OnAddActionClicked(TSharedPtr<FRemoteControlField> InRemote
 	FScopedTransaction Transaction(LOCTEXT("AddActionTransaction", "Add Action"));
 
 	AddAction(InRemoteControlField.ToSharedRef());
+}
+
+void SRCActionPanel::OnAddActionClicked()
+{
+	if (!SelectedBehaviourItemWeakPtr.IsValid())
+	{
+		return;
+	}
+	FScopedTransaction Transaction(LOCTEXT("AddActionTransaction", "Add Action"));
+	AddAction();
+}
+
+void SRCActionPanel::OnAddActionClicked(FName InFieldId)
+{
+	if (!SelectedBehaviourItemWeakPtr.IsValid())
+	{
+		return;
+	}
+	FScopedTransaction Transaction(LOCTEXT("AddActionTransaction", "Add Action"));
+	AddAction(InFieldId);
 }
 
 FReply SRCActionPanel::OnClickEmptyButton()
@@ -525,6 +597,46 @@ FText SRCActionPanel::GetPasteItemMenuEntrySuffix()
 	}
 
 	return FText::GetEmpty();
+}
+
+URCAction* SRCActionPanel::AddAction()
+{
+	if (const TSharedPtr<FRCBehaviourModel> BehaviourItem = SelectedBehaviourItemWeakPtr.Pin())
+	{
+		if (const URCBehaviour* Behaviour = BehaviourItem->GetBehaviour())
+		{
+			Behaviour->ActionContainer->Modify();
+			URCAction* NewAction = BehaviourItem->AddAction();
+			AddNewActionToList(NewAction);
+			// Broadcast new Action to other panels
+			if (const TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel())
+			{
+				RemoteControlPanel->OnActionAdded.Broadcast(NewAction);
+			}
+			return NewAction;
+		}
+	}
+	return nullptr;
+}
+
+URCAction* SRCActionPanel::AddAction(FName InFieldId)
+{
+	if (const TSharedPtr<FRCBehaviourModel> BehaviourItem = SelectedBehaviourItemWeakPtr.Pin())
+	{
+		if (const URCBehaviour* Behaviour = BehaviourItem->GetBehaviour())
+		{
+			Behaviour->ActionContainer->Modify();
+			URCAction* NewAction = BehaviourItem->AddAction(InFieldId);
+			AddNewActionToList(NewAction);
+			// Broadcast new Action to other panels
+			if (const TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel())
+			{
+				RemoteControlPanel->OnActionAdded.Broadcast(NewAction);
+			}
+			return NewAction;
+		}
+	}
+	return nullptr;
 }
 
 FReply SRCActionPanel::RequestDeleteSelectedItem()

@@ -33,6 +33,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboButton.h"
+#include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Notifications/SPopUpErrorText.h"
@@ -418,6 +419,33 @@ void SRCPanelExposedEntity::OnLabelCommitted(const FText& InLabel, ETextCommit::
 	}
 }
 
+FText SRCPanelExposedEntity::OnPropertyIdText() const
+{
+	if (const TSharedPtr<FRemoteControlEntity> RCEntity = GetEntity())
+	{
+		if (const TSharedPtr<FRemoteControlField> RCField = StaticCastSharedPtr<FRemoteControlField>(RCEntity))
+		{
+			return FText::FromName(RCField->PropertyId);
+		}
+	}
+	return FText::FromName(NAME_None);
+}
+
+void SRCPanelExposedEntity::OnPropertyIdTextCommitted(const FText& InText, ETextCommit::Type InCommitInfo) const
+{
+	if (URemoteControlPreset* RCPreset = Preset.Get())
+	{
+		if (const TSharedPtr<FRemoteControlEntity> RCEntity = GetEntity())
+		{
+			if (const TSharedPtr<FRemoteControlField> RCField = StaticCastSharedPtr<FRemoteControlField>(RCEntity))
+			{
+				RCField->PropertyId = FName(InText.ToString());
+				RCPreset->UpdateIdentifiedField(RCField.ToSharedRef());
+			}
+		}
+	}
+}
+
 void SRCPanelExposedEntity::OnActorSelected(AActor* InActor) const
 {
 	if (TSharedPtr<FRemoteControlEntity> Entity = GetEntity())
@@ -478,6 +506,17 @@ TSharedRef<SWidget> SRCPanelExposedEntity::CreateEntityWidget(TSharedPtr<SWidget
 		[
 			SNew(SRCPanelDragHandle<FExposedEntityDragDrop>, GetRCId())
 			.Widget(Widget)
+		];
+
+	Args.PropertyIdWidget = SNew(SBox)
+		[
+			SNew(SEditableTextBox)
+			.MinDesiredWidth(50.f)
+			.SelectAllTextWhenFocused(true)
+			.RevertTextOnEscape(true)
+			.ClearKeyboardFocusOnCommit(true)
+			.Text(this, &SRCPanelExposedEntity::OnPropertyIdText)
+			.OnTextCommitted(this, &SRCPanelExposedEntity::OnPropertyIdTextCommitted)
 		];
 
 	const FSlateBrush* TrashBrush = FAppStyle::Get().GetBrush("Icons.Delete");

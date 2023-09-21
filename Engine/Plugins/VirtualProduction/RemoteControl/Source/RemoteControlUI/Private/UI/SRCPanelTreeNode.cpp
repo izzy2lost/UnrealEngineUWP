@@ -15,6 +15,7 @@
 
 TSet<FName> SRCPanelTreeNode::DefaultColumns = {
 	RemoteControlPresetColumns::DragDropHandle,
+	RemoteControlPresetColumns::PropertyIdentifier,
 	RemoteControlPresetColumns::OwnerName,
 	RemoteControlPresetColumns::SubobjectPath,
 	RemoteControlPresetColumns::Description,
@@ -53,6 +54,10 @@ TSharedRef<SWidget> SRCPanelTreeNode::GetWidget(const FName ForColumnName, const
 	if (ForColumnName == RemoteControlPresetColumns::DragDropHandle)
 	{
 		return DragHandleWidget.ToSharedRef();
+	}
+	else if (ForColumnName == RemoteControlPresetColumns::PropertyIdentifier)
+	{
+		return PropertyIdWidget.ToSharedRef();
 	}
 	else if (ForColumnName == RemoteControlPresetColumns::OwnerName)
 	{
@@ -117,6 +122,13 @@ TSharedRef<SWidget> SRCPanelTreeNode::MakeNodeWidget(const FMakeNodeWidgetArgs& 
 		[
 			DragHandleWidget.ToSharedRef()
 		]
+		// Link identifier widget
+		+ SHorizontalBox::Slot()
+		.VAlign(VAlign_Center)
+		.AutoWidth()
+		[
+			PropertyIdWidget.ToSharedRef()
+		]
 		// Owner name
 		+ SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
@@ -168,6 +180,8 @@ void SRCPanelTreeNode::MakeNodeWidgets(const FMakeNodeWidgetArgs& Args)
 	auto WidgetOrNull = [](const TSharedPtr<SWidget>& Widget) {return Widget ? Widget.ToSharedRef() : SNullWidget::NullWidget; };
 
 	DragHandleWidget = WidgetOrNull(Args.DragHandle);
+
+	PropertyIdWidget = WidgetOrNull(Args.PropertyIdWidget);
 
 	NodeOwnerNameWidget = WidgetOrNull(Args.OwnerNameWidget);
 	

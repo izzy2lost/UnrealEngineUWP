@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RCActionModel.h"
 
@@ -177,6 +177,10 @@ TSharedPtr<FRCActionModel> FRCActionModel::GetModelByActionType(URCAction* InAct
 	{
 		return MakeShared<FRCFunctionActionModel>(FunctionAction, InBehaviourItem, InRemoteControlPanel);
 	}
+	else if (URCPropertyIdAction* PropertyIdAction = Cast<URCPropertyIdAction>(InAction))
+	{
+		return MakeShared<FRCPropertyIdActionModel>(PropertyIdAction, InBehaviourItem, InRemoteControlPanel);
+	}
 	else
 		return nullptr;
 }
@@ -287,6 +291,171 @@ void FRCActionModel::OnSelectionExit()
 	if (EditableVirtualPropertyWidget)
 	{
 		EditableVirtualPropertyWidget->ExitEditMode();
+	}
+}
+
+FRCPropertyIdActionType::FRCPropertyIdActionType(URCPropertyIdAction* InPropertyIdAction)
+	: PropertyIdActionWeakPtr(InPropertyIdAction)
+{
+	FPropertyRowGeneratorArgs Args;
+	Args.bShouldShowHiddenProperties = true;
+	
+	PropertyIdNameRowGenerator = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreatePropertyRowGenerator(Args);
+	if (InPropertyIdAction)
+	{
+		RefreshNameWidget();
+		RefreshValueWidget();
+	}
+#if WITH_EDITOR
+	if (URemoteControlPreset* Preset = InPropertyIdAction->PresetWeakPtr.Get())
+	{
+		Preset->GetPropertyIdRegistry()->OnPropertyIdActionNeedsRefresh().AddRaw(this, &FRCPropertyIdActionType::RefreshValueWidget);
+	}
+#endif
+}
+
+FRCPropertyIdActionType::~FRCPropertyIdActionType()
+{
+#if WITH_EDITOR
+	if (const URCPropertyIdAction* PropertyIdAction = PropertyIdActionWeakPtr.Get())
+	{
+		if (URemoteControlPreset* Preset = PropertyIdAction->PresetWeakPtr.Get())
+		{
+			Preset->GetPropertyIdRegistry()->OnPropertyIdActionNeedsRefresh().RemoveAll(this);
+		}
+	}
+#endif
+}
+
+FLinearColor FRCPropertyIdActionType::GetPropertyIdTypeColor() const
+{
+	// @todo: Confirm color to be used for this with VP team.
+	return FLinearColor(FColor(32, 191, 107));
+}
+
+TSharedRef<SWidget> FRCPropertyIdActionType::GetPropertyIdNameWidget() const
+{
+	if (!FieldIdTreeNodeWeakPtr.IsValid())
+	{
+		return SNullWidget::NullWidget;
+	}
+	const FNodeWidgets FieldIdNodeWidgets = FieldIdTreeNodeWeakPtr.Pin()->CreateNodeWidgets();
+	const TSharedRef<SHorizontalBox> NameWidget = SNew(SHorizontalBox);
+	if (FieldIdNodeWidgets.ValueWidget)
+	{
+		NameWidget->AddSlot()
+			.Padding(3.f, 2.f)
+			.VAlign(VAlign_Center)
+			[
+				FieldIdNodeWidgets.ValueWidget.ToSharedRef()
+			];
+	}
+	return NameWidget;
+}
+
+TSharedRef<SWidget> FRCPropertyIdActionType::GetPropertyIdValueWidget() const
+{
+	TSharedRef<SVerticalBox> VerticalBox = SNew(SVerticalBox);
+
+	for (TPair<FName, TWeakPtr<IDetailTreeNode>> ValueTreeNode : ValueTreeNodeWeakPtr)
+	{
+		// store it and just remove the unusued to not reset the value widget
+		VerticalBox->AddSlot()
+			.AutoHeight()
+			[
+				UE::RCUIHelpers::GetGenericFieldWidget(ValueTreeNode.Value.Pin())
+			];
+	}
+	return VerticalBox;
+}
+
+void FRCPropertyIdActionType::RefreshNameWidget()
+{
+	if (URCPropertyIdAction* PropertyIdAction = PropertyIdActionWeakPtr.Get())
+	{
+		// Since we must keep many PRG objects alive in order to access the handle data, validating the nodes each tick is very taxing.
+		// We can override the validation with a lambda since the validation function in PRG is not necessary for our implementation
+		auto ValidationLambda = ([](const FRootPropertyNodeList& PropertyNodeList) { return true; });
+		PropertyIdNameRowGenerator->SetObjects({ PropertyIdAction });
+		PropertyIdNameRowGenerator->SetCustomValidatePropertyNodesFunction(FOnValidatePropertyRowGeneratorNodes::CreateLambda(MoveTemp(ValidationLambda)));
+		for (const TSharedRef<IDetailTreeNode>& CategoryNode : PropertyIdNameRowGenerator->GetRootTreeNodes())
+		{
+			TArray<TSharedRef<IDetailTreeNode>> Children;
+			CategoryNode->GetChildren(Children);
+			bool bFoundFieldId = false;
+			for (const TSharedRef<IDetailTreeNode>& Child : Children)
+			{
+				const TSharedPtr<IPropertyHandle> PropertyHandle = Child->CreatePropertyHandle();
+				if (PropertyHandle && PropertyHandle->IsValidHandle())
+				{
+					if (const FProperty* Property = PropertyHandle->GetProperty())
+					{
+						if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(URCPropertyIdAction, PropertyId))
+						{
+							FieldIdTreeNodeWeakPtr = Child;
+							bFoundFieldId = true;
+						}
+						if (bFoundFieldId)
+						{
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+void FRCPropertyIdActionType::RefreshValueWidget()
+{
+	if (URCPropertyIdAction* PropertyIdAction = PropertyIdActionWeakPtr.Get())
+	{
+		// Generate UI widget for Action input
+		PropertyIdValueRowGenerator.Empty();
+		ValueTreeNodeWeakPtr.Empty();
+		for (const TPair<FName, TObjectPtr<URCVirtualPropertySelfContainer>>& PropertyContainer : PropertyIdAction->PropertySelfContainer)
+		{
+			if (IsValid(PropertyContainer.Value))
+			{
+				if (const TSharedPtr<FStructOnScope> StructOnScope = PropertyContainer.Value->CreateStructOnScope())
+				{
+					if (const TSharedPtr<IPropertyRowGenerator>* Generator = CachedPropertyIdValueRowGenerator.Find(PropertyContainer.Key))
+					{
+						PropertyIdValueRowGenerator.Add(PropertyContainer.Key, (*Generator));
+					}
+					else
+					{
+						FPropertyRowGeneratorArgs Args;
+						Args.bShouldShowHiddenProperties = true;
+
+						CachedPropertyIdValueRowGenerator.Add(PropertyContainer.Key, FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreatePropertyRowGenerator(Args));
+						CachedPropertyIdValueRowGenerator[PropertyContainer.Key]->SetStructure(StructOnScope);
+
+						PropertyIdValueRowGenerator.Add(PropertyContainer.Key, CachedPropertyIdValueRowGenerator[PropertyContainer.Key]);
+					}
+					for (const TSharedRef<IDetailTreeNode>& CategoryNode : PropertyIdValueRowGenerator[PropertyContainer.Key]->GetRootTreeNodes())
+					{
+						TArray<TSharedRef<IDetailTreeNode>> Children;
+						CategoryNode->GetChildren(Children);
+						for (const TSharedRef<IDetailTreeNode>& Child : Children)
+						{
+							// For regular properties (non-container)
+							if (const TWeakPtr<IDetailTreeNode>* ValueTreeNode = CachedValueTreeNodeWeakPtr.Find(PropertyContainer.Key))
+							{
+								ValueTreeNodeWeakPtr.Add(PropertyContainer.Key, (*ValueTreeNode));
+								break;
+							}
+							else
+							{
+								CachedValueTreeNodeWeakPtr.Add(PropertyContainer.Key, Child);
+								ValueTreeNodeWeakPtr.Add(PropertyContainer.Key, CachedValueTreeNodeWeakPtr[PropertyContainer.Key]);
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 }
 

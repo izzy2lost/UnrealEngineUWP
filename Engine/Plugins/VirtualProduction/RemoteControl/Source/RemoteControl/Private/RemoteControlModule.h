@@ -73,7 +73,11 @@ public:
 	virtual int32 EndManualEditorTransaction(const FGuid& TransactionId) override;
 	virtual const TMap<FName, TSharedPtr<IRemoteControlPropertyFactory>>& GetEntityFactories() const override { return EntityFactories; };
 	virtual bool CanBeAccessedRemotely(UObject* Object) const override;
+	virtual TSharedPtr<IPropertyIdHandler> GetPropertyIdHandlerFor(FProperty* InProperty) override;
 	//~ End IRemoteControlModule
+
+protected:
+	virtual void RegisterPropertyIdPropertyHandlerImpl(const TSharedRef<IPropertyIdHandler>& InPropertyIdPropertyHandler) override;
 
 private:
 	/** Refreshes Editor related visuals like location Gizmo for relevant properties (like Location of a SceneComponent) */
@@ -124,6 +128,11 @@ private:
 	 * Register(s) masking factories of supported types.
 	 */
 	void RegisterMaskingFactories();
+
+	/**
+ 	 * Register(s) masking factories of supported types.
+ 	 */
+	void RegisterPropertyIdHandler();
 
 	/**
 	 * Whether function can be intercepted by a remote control interceptor.
@@ -277,6 +286,8 @@ private:
 
 	/** Map of the factories which is responsible for resetting the Remote Control property to its default value. */
 	TMap<FName, TSharedPtr<IRCDefaultValueFactory>> DefaultValueFactories;
+
+	TSet<TSharedPtr<IPropertyIdHandler>> PropertyIdPropertyHandlers; 
 };
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS

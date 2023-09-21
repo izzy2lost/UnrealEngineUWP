@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -12,6 +12,7 @@ class URCAction;
 class URCBehaviour;
 class URCController;
 class URCFunctionAction;
+class URCPropertyIdAction;
 class URCPropertyAction;
 class URCPropertyBindAction;
 
@@ -36,6 +37,12 @@ public:
 	void ExecuteActions();
 
 	TRCActionUniquenessTest GetDefaultActionUniquenessTest(const TSharedRef<const FRemoteControlField> InRemoteControlField);
+
+	/** Add remote control identity action. */
+	URCAction* AddAction();
+
+	/** Add remote control identity action. */
+	URCAction* AddAction(FName InFieldId);
 
 	/** Add remote control property action  */
 	URCAction* AddAction(const TSharedRef<const FRemoteControlField> InRemoteControlField);

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Action/RCFunctionAction.h"
+#include "Action/RCPropertyIdAction.h"
 #include "Action/RCPropertyAction.h"
 #include "UI/Action/RCActionModel.h"
 
@@ -77,5 +78,34 @@ public:
 	virtual FLinearColor GetActionTypeColor() const override
 	{
 		return GetFunctionTypeColor();
+	}
+};
+
+/**
+ * FRCPropertyIdActionRangeMapModel
+ *
+ * UI model for PropertyId based RangeMap Actions
+ */
+class FRCPropertyIdActionRangeMapModel : public FRCActionRangeMapModel, public FRCPropertyIdActionType
+{
+public:
+	FRCPropertyIdActionRangeMapModel(URCPropertyIdAction* InPropertyIdAction, const TSharedPtr<class FRCBehaviourModel> InBehaviourItem, const TSharedPtr<SRemoteControlPanel> InRemoteControlPanel)
+		: FRCActionRangeMapModel(InPropertyIdAction, InBehaviourItem, InRemoteControlPanel)
+		, FRCPropertyIdActionType(InPropertyIdAction)
+	{}
+	/** Color code for this Action*/
+	virtual FLinearColor GetActionTypeColor() const override
+	{
+		return GetPropertyIdTypeColor();
+	}
+	/** Widget representing Action Name field */
+	virtual TSharedRef<SWidget> GetNameWidget() const override
+	{
+		return GetPropertyIdNameWidget();
+	}
+	/** Widget representing the Value field */
+	virtual TSharedRef<SWidget> GetWidget() const override
+	{
+		return GetPropertyIdValueWidget();
 	}
 };

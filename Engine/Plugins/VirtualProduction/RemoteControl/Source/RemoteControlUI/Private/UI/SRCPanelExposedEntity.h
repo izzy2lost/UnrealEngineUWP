@@ -61,6 +61,8 @@ protected:
 	bool bValidBinding = false;
 	/** Display name of the entity. */
 	FName CachedLabel;
+	/** Display PropertyId of the entity. */
+	FName PropertyIdLabel;
 	/** Cached entity field path. */
 	FString CachedFieldPath;
 	/** Text to be highlighted while searching. */
@@ -93,6 +95,10 @@ private:
 	bool OnVerifyItemLabelChanged(const FText& InLabel, FText& OutErrorMessage);
 	/** Handles committing a entity label. */
 	void OnLabelCommitted(const FText& InLabel, ETextCommit::Type InCommitInfo);
+	/** Handles text change of a property id label. */
+	FText OnPropertyIdText() const;
+	/** Handles committing a property id label. */
+	void OnPropertyIdTextCommitted(const FText& InText, ETextCommit::Type InCommitInfo) const;
 	/** Returns whether or not the actor is selectable for a binding replacement. */
 	bool IsActorSelectable(const AActor* Parent) const;
 	/** Handle clicking on the unexpose button. */

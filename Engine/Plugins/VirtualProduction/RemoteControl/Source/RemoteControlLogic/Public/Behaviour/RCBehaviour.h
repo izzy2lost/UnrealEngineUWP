@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -12,6 +12,7 @@ struct FRemoteControlField;
 class URCBehaviourNode;
 class URCController;
 class URCFunctionAction;
+class URCPropertyIdAction;
 class URCPropertyAction;
 class URemoteControlPreset;
 class URCAction;
@@ -40,6 +41,12 @@ public:
 
 	/** Execute the behaviour */
 	virtual void Execute();
+
+	/** Add a Logic action as an identity action. */
+	virtual URCAction* AddAction();
+
+	/** Add a Logic action as an identity action. */
+	virtual URCAction* AddAction(FName InFieldId);
 
 	/** Add a Logic action using a remote control field as input */
 	virtual URCAction* AddAction(const TSharedRef<const FRemoteControlField> InRemoteControlField);

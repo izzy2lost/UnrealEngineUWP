@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -95,6 +95,22 @@ public:
 		}
 
 		Reset();
+
+		if (URemoteControlPreset* Preset = RemoteControlPanel->GetPreset())
+		{
+			Preset->GetPropertyIdRegistry()->OnPropertyIdActionNeedsRefresh().AddSP(this, &SRCActionPanelList::Refresh);
+		}
+	}
+
+	virtual ~SRCActionPanelList()
+	{
+		if (ActionPanelWeakPtr.IsValid())
+		{
+			if (URemoteControlPreset* Preset = ActionPanelWeakPtr.Pin()->GetPreset())
+			{
+				Preset->GetPropertyIdRegistry()->OnPropertyIdActionNeedsRefresh().RemoveAll(this);
+			}
+		}
 	}
 
 	void OnActionsListModified()
@@ -264,6 +280,12 @@ private:
 			}
 		}
 
+		ListView->RebuildList();
+	}
+	
+	/** Refreshes the list */
+	void Refresh()
+	{
 		ListView->RebuildList();
 	}
 

@@ -74,6 +74,12 @@ public:
 	FName FieldName;
 
 	/**
+	 * The exposed field's identifier.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RemoteControlEntity")
+	FName PropertyId;
+
+	/**
 	 * Path information pointing to this field
 	 */
 	UPROPERTY()

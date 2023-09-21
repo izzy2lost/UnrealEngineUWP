@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RCBehaviourModel.h"
 
@@ -34,6 +34,28 @@ FRCBehaviourModel::FRCBehaviourModel(URCBehaviour* InBehaviour
 
 		RefreshIsBehaviourEnabled(BehaviourWeakPtr->bIsEnabled);
 	}
+}
+
+URCAction* FRCBehaviourModel::AddAction()
+{
+	URCAction* NewAction = nullptr;
+	if (URCBehaviour* Behaviour = BehaviourWeakPtr.Get())
+	{
+		NewAction = Behaviour->AddAction();
+		OnActionAdded(NewAction);
+	}
+	return NewAction;
+}
+
+URCAction* FRCBehaviourModel::AddAction(FName InFieldId)
+{
+	URCAction* NewAction = nullptr;
+	if (URCBehaviour* Behaviour = BehaviourWeakPtr.Get())
+	{
+		NewAction = Behaviour->AddAction(InFieldId);
+		OnActionAdded(NewAction);
+	}
+	return NewAction;
 }
 
 URCAction* FRCBehaviourModel::AddAction(const TSharedRef<const FRemoteControlField> InRemoteControlField)

@@ -14,6 +14,7 @@
 
 REMOTECONTROL_API DECLARE_LOG_CATEGORY_EXTERN(LogRemoteControl, Log, All);
 
+class IPropertyIdHandler;
 class IRemoteControlMaskingFactory;
 class IStructDeserializerBackend;
 class IStructSerializerBackend;
@@ -600,5 +601,18 @@ public:
 	 *  @note Check Remote Control project settings to configure.
 	 */
 	virtual bool CanBeAccessedRemotely(UObject* InObject) const = 0;
-};
 
+	template<class InPropertyIdPropertyHandlerType, typename... InArgTypes
+		, TEMPLATE_REQUIRES(TIsDerivedFrom<InPropertyIdPropertyHandlerType, IPropertyIdHandler>::Value)>
+	TSharedRef<InPropertyIdPropertyHandlerType> RegisterPropertyIdPropertyHandler(InArgTypes&&... InArgs)
+	{
+		TSharedRef<InPropertyIdPropertyHandlerType> KeyPropertyHandler = MakeShared<InPropertyIdPropertyHandlerType>(Forward<InArgTypes>(InArgs)...);
+		this->RegisterPropertyIdPropertyHandlerImpl(KeyPropertyHandler);
+		return KeyPropertyHandler;
+	}
+
+	virtual TSharedPtr<IPropertyIdHandler> GetPropertyIdHandlerFor(FProperty* InProperty) = 0;
+
+protected:
+	virtual void RegisterPropertyIdPropertyHandlerImpl(const TSharedRef<IPropertyIdHandler>& InKeyPropertyHandler) = 0;
+};

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
  
 #pragma once
 
@@ -124,6 +124,16 @@ public:
 	* @return true if copied successfully
 	*/
 	bool CopyCompleteValue(const FProperty* InTargetProperty, uint8* InTargetValuePtr);
+
+	/** Copy this virtual property's data onto a given FProperty
+	* 
+	* @param InTargetProperty - The property onto which our value is to be copied
+	* @param InTargetValuePtr - The memory location for the target property
+	* @param bPassByteEnumPropertyComparison - Go to the copy if the Property and the Target property are Enum and Byte
+	* 
+	* @return true if copied successfully
+	*/
+	bool CopyCompleteValue(const FProperty* InTargetProperty, uint8* InTargetValuePtr, bool bPassByteEnumPropertyComparison);
 
 	/** Copy this virtual property's data onto a given Virtual Property
 	*

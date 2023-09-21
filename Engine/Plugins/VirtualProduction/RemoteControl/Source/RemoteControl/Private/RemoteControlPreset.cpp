@@ -19,12 +19,13 @@
 #include "Misc/CoreDelegates.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "Misc/Optional.h"
-#include "RemoteControlExposeRegistry.h"
-#include "RemoteControlFieldPath.h"
 #include "RemoteControlActor.h"
 #include "RemoteControlBinding.h"
-#include "RemoteControlLogger.h"
 #include "RemoteControlEntityFactory.h"
+#include "RemoteControlExposeRegistry.h"
+#include "RemoteControlFieldPath.h"
+#include "RemoteControlPropertyIdRegistry.h"
+#include "RemoteControlLogger.h"
 #include "RemoteControlObjectVersion.h"
 #include "RemoteControlPresetRebindingManager.h"
 #include "RemoteControlTransactionListenerHelper.h"
@@ -517,6 +518,9 @@ URemoteControlPreset::URemoteControlPreset()
 	, RebindingManager(MakePimpl<FRemoteControlPresetRebindingManager>())
 {
 	Registry = CreateDefaultSubobject<URemoteControlExposeRegistry>(FName("ExposeRegistry"));
+
+	PropertyIdRegistry = CreateDefaultSubobject<URemoteControlPropertyIdRegistry>(FName("PropertyIdRegistry"));
+	PropertyIdRegistry->Initialize(this);
 }
 
 void URemoteControlPreset::PostInitProperties()
@@ -560,6 +564,8 @@ void URemoteControlPreset::PostLoad()
 	PostLoadProperties();
 
 	RemoveUnusedBindings();
+
+	PropertyIdRegistry->Initialize(this);
 }
 
 void URemoteControlPreset::PostDuplicate(bool bDuplicateForPIE)
@@ -957,6 +963,7 @@ TWeakPtr<FRemoteControlFunction> URemoteControlPreset::ExposeFunction(UObject* O
 TSharedPtr<FRemoteControlEntity> URemoteControlPreset::Expose(FRemoteControlEntity&& Entity, UScriptStruct* EntityType, const FGuid& GroupId)
 {
 	Registry->Modify();
+	PropertyIdRegistry->Modify();
 
 #if WITH_EDITOR
 	if (FEngineAnalytics::IsAvailable())
@@ -970,7 +977,12 @@ TSharedPtr<FRemoteControlEntity> URemoteControlPreset::Expose(FRemoteControlEnti
 	
 	TSharedPtr<FRemoteControlEntity> RCEntity = Registry->AddExposedEntity(MoveTemp(Entity), EntityType);
 	InitializeEntityMetadata(RCEntity);
-	
+
+	if (const TSharedPtr<FRemoteControlField> RCField = StaticCastSharedPtr<FRemoteControlField>(RCEntity))
+	{
+		PropertyIdRegistry->AddIdentifiedField(RCField.ToSharedRef());
+	}
+
 	RCEntity->OnEntityModifiedDelegate.BindUObject(this, &URemoteControlPreset::OnEntityModified);
 	FRemoteControlPresetGroup* Group = Layout.GetGroup(GroupId);
 	if (!Group)
@@ -989,6 +1001,24 @@ TSharedPtr<FRemoteControlEntity> URemoteControlPreset::Expose(FRemoteControlEnti
 	FRCTransactionListenerHelper<URemoteControlPreset*, const FGuid&>(ERCTransaction::Redo, GetPresetId(), OnEntityExposed(), this, RCEntity->GetId());
 
 	return RCEntity;
+}
+
+void URemoteControlPreset::PerformChainReaction(const FRemoteControlPropertyIdArgs& InArgs) const
+{
+	if (PropertyIdRegistry->IsEmpty())
+	{
+		return;
+	}
+	PropertyIdRegistry->PerformChainReaction(InArgs);
+}
+
+void URemoteControlPreset::UpdateIdentifiedField(const TSharedRef<FRemoteControlField>& InFieldToIdentify) const
+{
+	if (PropertyIdRegistry->IsEmpty())
+	{
+		return;
+	}
+	PropertyIdRegistry->UpdateIdentifiedField(InFieldToIdentify);
 }
 
 URemoteControlBinding* URemoteControlPreset::FindOrAddBinding(const TSoftObjectPtr<UObject>& Object)
@@ -1544,6 +1574,10 @@ void URemoteControlPreset::Unexpose(const FGuid& EntityId)
 
 		Registry->Modify();
 		Registry->RemoveExposedEntity(EntityId);
+
+		PropertyIdRegistry->Modify();
+		PropertyIdRegistry->RemoveIdentifiedField(EntityId);
+
 		if (FRCCachedFieldData* CachedData = FieldCache.Find(EntityId))
 		{
 			Layout.RemoveField(CachedData->LayoutGroupId, EntityId);
@@ -1575,6 +1609,7 @@ void URemoteControlPreset::RebindUnboundEntities()
 	Modify();
 	RebindingManager->Rebind(this);
 	Algo::Transform(Registry->GetExposedEntities(), PerFrameUpdatedEntities, [](const TSharedPtr<FRemoteControlEntity>& Entity) { return Entity->GetId(); });
+	PropertyIdRegistry->Initialize(this);
 }
 
 void URemoteControlPreset::RebindAllEntitiesUnderSameActor(const FGuid& EntityId, AActor* NewActor, bool bUseRebindingContext)

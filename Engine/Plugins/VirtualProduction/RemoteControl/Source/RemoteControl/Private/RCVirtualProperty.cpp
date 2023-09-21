@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RCVirtualProperty.h"
 
@@ -252,6 +252,51 @@ bool URCVirtualPropertyBase::CopyCompleteValue(const FProperty* InTargetProperty
 		ensureMsgf(false, TEXT("Invalid property type passed to CopyCompleteValue.\nExpected: %s, Found: %s"), *SourceProperty->GetClass()->GetName(), *InTargetProperty->GetClass()->GetName());
 
 		return false;
+	}
+
+	SourceProperty->CopyCompleteValue(InTargetValuePtr /*Dest*/, GetValuePtr() /*Source*/);
+
+	return true;
+
+}
+
+bool URCVirtualPropertyBase::CopyCompleteValue(const FProperty* InTargetProperty, uint8* InTargetValuePtr, bool bPassByteEnumPropertyComparison)
+{
+	const FProperty* SourceProperty = GetProperty();
+
+	if (SourceProperty == nullptr || InTargetProperty == nullptr || InTargetValuePtr == nullptr)
+	{
+		ensureMsgf(false, TEXT("Invalid input passed to CopyCompleteValue"));
+
+		return false;
+	}
+
+	bool bAreClassDifferent = SourceProperty->GetClass() != InTargetProperty->GetClass();
+
+	//FByteProperties are saved inside RC as FEnumProperty this will cause the original property and the RC property to differ.
+	//If it is the case than check if both has the same enum, and if they have ignore that they are different types.
+	if (bAreClassDifferent)
+	{
+		bool bShouldIgnore = false;
+		if (bPassByteEnumPropertyComparison)
+		{
+			if (const FEnumProperty* SourceEnumProperty = CastField<FEnumProperty>(SourceProperty))
+			{
+				if (const FByteProperty* ByteTargetProperty = CastField<FByteProperty>(InTargetProperty))
+				{
+					if (SourceEnumProperty->GetEnum() && ByteTargetProperty->Enum)
+					{
+						bShouldIgnore = SourceEnumProperty->GetEnum()->GetFName() == ByteTargetProperty->Enum->GetFName();
+					}
+				}
+			}
+		}
+		if (bShouldIgnore == false)
+		{
+			ensureMsgf(false, TEXT("Invalid property type passed to CopyCompleteValue.\nExpected: %s, Found: %s"), *SourceProperty->GetClass()->GetName(), *InTargetProperty->GetClass()->GetName());
+
+			return false;
+		}
 	}
 
 	SourceProperty->CopyCompleteValue(InTargetValuePtr /*Dest*/, GetValuePtr() /*Source*/);

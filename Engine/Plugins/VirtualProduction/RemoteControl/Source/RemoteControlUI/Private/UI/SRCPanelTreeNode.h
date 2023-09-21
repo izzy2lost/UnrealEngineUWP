@@ -18,7 +18,7 @@ struct SRCPanelExposedMaterial;
 namespace RemoteControlPresetColumns
 {
 	static FName DragDropHandle = TEXT("DragDropHandle");
-	static FName LinkIdentifier = TEXT("LinkID");
+	static FName PropertyIdentifier = TEXT("PropertyID");
 	static FName OwnerName = TEXT("OwnerName");
 	static FName SubobjectPath = TEXT("Subobject Path");
 	static FName Description = TEXT("Description");
@@ -89,6 +89,7 @@ protected:
 	struct FMakeNodeWidgetArgs
 	{
 		TSharedPtr<SWidget> DragHandle;
+		TSharedPtr<SWidget> PropertyIdWidget;
 		TSharedPtr<SWidget> OwnerNameWidget;
 		TSharedPtr<SWidget> SubObjectPathWidget;
 		TSharedPtr<SWidget> NameWidget;
@@ -125,6 +126,9 @@ private:
 
 	/** Cached widget of drag handle. */
 	TSharedPtr<SWidget> DragHandleWidget;
+
+	/** Cached widget of PropertyId identifier. */
+	TSharedPtr<SWidget> PropertyIdWidget;
 
 	/** Cached widget of node owner name. */
 	TSharedPtr<SWidget> NodeOwnerNameWidget;

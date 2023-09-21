@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Behaviour/RCBehaviour.h"
 
@@ -28,6 +28,24 @@ void URCBehaviour::Execute()
 		ActionContainer->ExecuteActions();
 		BehaviourNode->OnPassed(this);
 	}
+}
+
+URCAction* URCBehaviour::AddAction()
+{
+#if WITH_EDITOR
+	ActionContainer->Modify();
+#endif // WITH_EDITOR
+
+	return ActionContainer->AddAction();
+}
+
+URCAction* URCBehaviour::AddAction(FName InFieldId)
+{
+#if WITH_EDITOR
+	ActionContainer->Modify();
+#endif // WITH_EDITOR
+
+	return ActionContainer->AddAction(InFieldId);
 }
 
 URCAction* URCBehaviour::AddAction(const TSharedRef<const FRemoteControlField> InRemoteControlField)

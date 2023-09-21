@@ -11,6 +11,10 @@
 #include "Factories/RCDefaultValueFactories.h"
 #include "Factories/RemoteControlMaskingFactories.h"
 #include "Features/IModularFeatures.h"
+#include "PropertyIdHandler/BasePropertyIdHandler.h"
+#include "PropertyIdHandler/EnumPropertyIdHandler.h"
+#include "PropertyIdHandler/ObjectPropertyIdHandler.h"
+#include "PropertyIdHandler/StructPropertyIdHandler.h"
 #include "IRemoteControlInterceptionFeature.h"
 #include "IRemoteControlModule.h"
 #include "IStructDeserializerBackend.h"
@@ -640,6 +644,9 @@ void FRemoteControlModule::StartupModule()
 
 	// Register Masking Factories
 	RegisterMaskingFactories();
+
+	// Register PropertyIdHandler
+	RegisterPropertyIdHandler();
 }
 
 void FRemoteControlModule::ShutdownModule()
@@ -2164,6 +2171,23 @@ bool FRemoteControlModule::CanBeAccessedRemotely(UObject* Object) const
 	return true;
 }
 
+TSharedPtr<IPropertyIdHandler> FRemoteControlModule::GetPropertyIdHandlerFor(FProperty* InProperty)
+{
+	for (TSharedPtr<IPropertyIdHandler> Handler : PropertyIdPropertyHandlers)
+	{
+		if (Handler->IsPropertySupported(InProperty))
+		{
+			return Handler;
+		}
+	}
+	return nullptr;
+}
+
+void FRemoteControlModule::RegisterPropertyIdPropertyHandlerImpl(const TSharedRef<IPropertyIdHandler>& InPropertyIdPropertyHandler)
+{
+	PropertyIdPropertyHandlers.Add(InPropertyIdPropertyHandler);
+}
+
 void FRemoteControlModule::CachePresets() const
 {
 	TArray<FAssetData> Assets;
@@ -2475,6 +2499,14 @@ void FRemoteControlModule::RegisterMaskingFactories()
 	RegisterMaskingFactoryForType(TBaseStructure<FRotator>::Get(), FRotatorMaskingFactory::MakeInstance());
 	RegisterMaskingFactoryForType(TBaseStructure<FColor>::Get(), FColorMaskingFactory::MakeInstance());
 	RegisterMaskingFactoryForType(TBaseStructure<FLinearColor>::Get(), FLinearColorMaskingFactory::MakeInstance());
+}
+
+void FRemoteControlModule::RegisterPropertyIdHandler()
+{
+	RegisterPropertyIdPropertyHandler<FBasePropertyIdHandler>();
+	RegisterPropertyIdPropertyHandler<FStructPropertyIdHandler>();
+	RegisterPropertyIdPropertyHandler<FEnumPropertyIdHandler>();
+	RegisterPropertyIdPropertyHandler<FObjectPropertyIdHandler>();
 }
 
 bool FRemoteControlModule::CanInterceptFunction(const FRCCall& RCCall) const

@@ -18,6 +18,7 @@
 #include "Misc/MessageDialog.h"
 #include "PropertyPath.h"
 #include "RCPanelWidgetRegistry.h"
+#include "RemoteControlPropertyIdRegistry.h"
 #include "RemoteControlPanelStyle.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlUIModule.h"
@@ -269,10 +270,16 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 			.ShouldGenerateWidget(true)
 			.ShouldGenerateSubMenuEntry(false)
 
+			+ SRCHeaderRow::Column(RemoteControlPresetColumns::PropertyIdentifier)
+			.DefaultLabel(LOCTEXT("RCPresetLinkIdColumnHeader", "Property ID"))
+			.HAlignHeader(HAlign_Center)
+			.FillWidth(0.1f)
+			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
+
 			+ SRCHeaderRow::Column(RemoteControlPresetColumns::OwnerName)
 			.DefaultLabel(LOCTEXT("RCPresetOwnerNameColumnHeader", "Owner Name"))
 			.HAlignHeader(HAlign_Center)
-			.FillWidth(0.15f)
+			.FillWidth(0.1f)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 			+ SRCHeaderRow::Column(RemoteControlPresetColumns::SubobjectPath)
@@ -1452,7 +1459,7 @@ SHeaderRow::FColumn::FArguments SRCPanelExposedEntitiesList::CreateColumn(const 
 
 int32 SRCPanelExposedEntitiesList::GetColumnIndex(const FName& ForColumn) const
 {
-	if (ForColumn == RemoteControlPresetColumns::LinkIdentifier)
+	if (ForColumn == RemoteControlPresetColumns::PropertyIdentifier)
 	{
 		return GetColumnIndex_Internal(ForColumn, RemoteControlPresetColumns::DragDropHandle, ERCColumn::ERC_After);
 	}
@@ -1530,9 +1537,9 @@ FText SRCPanelExposedEntitiesList::GetColumnLabel(const FName& ForColumn) const
 	{
 		return LOCTEXT("RCPresetBindingStatusColumnHeader", "REC");
 	}
-	else if (ForColumn == RemoteControlPresetColumns::LinkIdentifier)
+	else if (ForColumn == RemoteControlPresetColumns::PropertyIdentifier)
 	{
-		return LOCTEXT("RCPresetLinkIDColumnHeader", "Link ID");
+		return LOCTEXT("RCPresetLinkIDColumnHeader", "Property ID");
 	}
 	else if (ForColumn == RemoteControlPresetColumns::Mask)
 	{
@@ -1562,7 +1569,7 @@ float SRCPanelExposedEntitiesList::GetColumnSize(const FName ForColumn) const
 {
 	float ColumnSize = ProtocolColumnConstants::ColumnSizeNormal;
 
-	if (ForColumn == RemoteControlPresetColumns::LinkIdentifier)
+	if (ForColumn == RemoteControlPresetColumns::PropertyIdentifier)
 	{
 		ColumnSize = ProtocolColumnConstants::ColumnSizeMini;
 	}
@@ -1630,6 +1637,10 @@ void SRCPanelExposedEntitiesList::ProcessRefresh()
 
 	if (Preset.IsValid())
 	{
+		//Refresh during PostUndo/Redo to keep the action updated.
+		Preset->GetPropertyIdRegistry()->Initialize(Preset.Get());
+		Preset->GetPropertyIdRegistry()->OnPropertyIdUpdated().Broadcast();
+
 		constexpr bool bForceMouseClick = true;
 
 		if (const FRemoteControlPresetGroup* SelectedGroup = Preset->Layout.GetGroup(CurrentlySelectedGroup))

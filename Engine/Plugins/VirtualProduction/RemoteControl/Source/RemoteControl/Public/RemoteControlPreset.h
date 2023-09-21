@@ -1,14 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "CoreTypes.h"
-
 #include "Algo/Transform.h"
+#include "CoreTypes.h"
 #include "RemoteControlField.h"
 #include "RemoteControlEntity.h"
-#include "UObject/SoftObjectPtr.h"
+#include "RemoteControlPropertyIdRegistry.h"
 #include "Templates/PimplPtr.h"
 #include "Templates/UnrealTypeTraits.h"
+#include "UObject/SoftObjectPtr.h"
 
 #include "RemoteControlPreset.generated.h"
 
@@ -27,6 +27,7 @@ class UBlueprint;
 class URCVirtualPropertyBase;
 class URCVirtualPropertyContainerBase;
 class URCVirtualPropertyInContainer;
+class URCVirtualPropertySelfContainer;
 class URemoteControlExposeRegistry;
 class URemoteControlBinding;
 class URemoteControlPreset;
@@ -45,6 +46,37 @@ struct REMOTECONTROL_API FRemoteControlPresetExposeArgs
 	FGuid GroupId;
 	/** Whether to automatically enable the edit condition for the exposed property. */
 	bool bEnableEditCondition;
+};
+
+/** Arguments used to expose an entity (Actor, property, function, etc.) */
+struct REMOTECONTROL_API FRemoteControlPropertyIdArgs
+{
+	FRemoteControlPropertyIdArgs() = default;
+
+	bool IsValid() const
+	{
+		return VirtualProperty && (SourceObject || SourceClass)
+			&& (!SuperType.IsNone() || !SubType.IsNone());
+	}
+
+public:
+	/** PropertyId */
+	FName PropertyId;
+
+	/** SuperType of the Property */
+	FName SuperType;
+
+	/** SubType of the Property */
+	FName SubType;
+
+	/** (Optional) The source object to use for special cases. */
+	TObjectPtr<UObject> SourceObject;
+
+	/** (Optional) The class of the source object to use for special cases. */
+	UClass* SourceClass;
+
+	/** (Optional) The virtual property to use for all the cases. */
+	TObjectPtr<URCVirtualPropertySelfContainer> VirtualProperty;
 };
 
 /**
@@ -761,9 +793,27 @@ public:
 	/** Expose an entity in the registry. */
 	TSharedPtr<FRemoteControlEntity> Expose(FRemoteControlEntity&& Entity, UScriptStruct* EntityType, const FGuid& GroupId);
 
+	/**
+	 * Calls to the PropertyIdRegistry PerformChainReaction to update the value(s) of the property(ies) that are bound to a PropertyIdAction.
+	 * @param InArgs Argument used to update the property(ies) value.
+	 */
+	void PerformChainReaction(const FRemoteControlPropertyIdArgs& InArgs) const;
+
+	/**
+	 * Calls to the PropertyIdRegistry UpdateIdentifiedField to updates a field from the set of identified fields.
+	 * @param InFieldToIdentify the entity to identify.
+	 */
+	void UpdateIdentifiedField(const TSharedRef<FRemoteControlField>& InFieldToIdentify) const;
 
 	/** Try to get a binding and creates a new one if it doesn't exist. */
 	URemoteControlBinding* FindOrAddBinding(const TSoftObjectPtr<UObject>& Object);
+
+	/**
+	 * Get the PropertyIdRegistry.
+	 * @return The PropertyIdRegistry of this Preset.
+	 */
+	TObjectPtr<URemoteControlPropertyIdRegistry> GetPropertyIdRegistry() const { return PropertyIdRegistry; }
+
 private:
 
 	/** Find a binding that has the same boundobjectmap but that currently points to the object passed as argument. */
@@ -821,6 +871,10 @@ private:
 	UPROPERTY(Instanced)
 	/** Holds exposed entities on the preset. */
 	TObjectPtr<URemoteControlExposeRegistry> Registry = nullptr;
+
+	/** Holds identities of exposed entities on the preset. */
+	UPROPERTY(Transient)
+	TObjectPtr<URemoteControlPropertyIdRegistry> PropertyIdRegistry = nullptr;
 
 	/** Delegate triggered when an entity is exposed. */
 	FOnPresetEntityEvent OnEntityExposedDelegate;
