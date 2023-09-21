@@ -81,6 +81,16 @@ public:
 
 	void Commit(FVulkanCommandListContext& Context);
 
+	void AddUBRef(FRHIUniformBuffer* UB)
+	{
+		ReferencedUniformBuffers.AddUnique(UB);
+	}
+
+	TArrayView<TRefCountPtr<FRHIUniformBuffer>> GetUBRefs()
+	{
+		return ReferencedUniformBuffers;
+	}
+
 private:
 
 	struct FVulkanShaderTableAllocation
@@ -111,6 +121,8 @@ private:
 	FVulkanShaderTableAllocation Miss;
 	FVulkanShaderTableAllocation HitGroup;
 	FVulkanShaderTableAllocation Callable;
+
+	TArray<TRefCountPtr<FRHIUniformBuffer>> ReferencedUniformBuffers;
 
 	// Convenience
 	const uint32 HandleSize;
