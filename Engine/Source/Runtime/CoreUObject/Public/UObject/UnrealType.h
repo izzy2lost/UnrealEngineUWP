@@ -4892,7 +4892,7 @@ public:
 	}
 
 	/** Finds the associated pair from hash, rather than linearly searching */
-	uint8* FindMapPairPtrFromHash(const void* KeyPtr)
+	int32 FindMapPairIndexFromHash(const void* KeyPtr)
 	{
 		int32 Index = WithScriptMap([this, KeyPtr, LocalKeyPropForCapture = this->KeyProp](auto* Map)
 		{
@@ -4903,6 +4903,13 @@ public:
 				[LocalKeyPropForCapture](const void* A, const void* B) { return LocalKeyPropForCapture->Identical(A, B); }
 			);
 		});
+		return Index;
+	}
+
+	/** Finds the associated pair from hash, rather than linearly searching */
+	uint8* FindMapPairPtrFromHash(const void* KeyPtr)
+	{
+		int32 Index = FindMapPairIndexFromHash(KeyPtr);
 		uint8* Result = (Index >= 0) ? GetPairPtr(Index) : nullptr;
 		return Result;
 	}
