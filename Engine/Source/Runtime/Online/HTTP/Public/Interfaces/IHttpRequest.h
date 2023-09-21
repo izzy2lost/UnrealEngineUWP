@@ -87,7 +87,7 @@ typedef TSharedRef<IHttpResponse, ESPMode::ThreadSafe> FHttpResponseRef;
  * @param Response response received from the server if a successful connection was established
  * @param bConnectedSuccessfully - indicates whether or not the request was able to connect successfully
  */
-using FHttpRequestCompleteDelegate = TTSDelegate<void(FHttpRequestPtr /*Request*/, FHttpResponsePtr /*Response*/, bool /*bConnectedSuccessfully*/)>;
+DECLARE_DELEGATE_ThreeParams(FHttpRequestCompleteDelegate, FHttpRequestPtr /*Request*/, FHttpResponsePtr /*Response*/, bool /*bConnectedSuccessfully*/);
 
 /**
  * Delegate called when an Http request receives a header
@@ -96,7 +96,7 @@ using FHttpRequestCompleteDelegate = TTSDelegate<void(FHttpRequestPtr /*Request*
  * @param HeaderName the name of the header
  * @param NewHeaderValue the value of the header
  */
-using FHttpRequestHeaderReceivedDelegate = TTSDelegate<void(FHttpRequestPtr /*Request*/, const FString& /*HeaderName*/, const FString& /*NewHeaderValue*/)>;
+DECLARE_DELEGATE_ThreeParams(FHttpRequestHeaderReceivedDelegate, FHttpRequestPtr /*Request*/, const FString& /*HeaderName*/, const FString& /*NewHeaderValue*/);
 
 /**
  * Delegate called per tick to update an Http request upload or download size progress
@@ -105,7 +105,7 @@ using FHttpRequestHeaderReceivedDelegate = TTSDelegate<void(FHttpRequestPtr /*Re
  * @param BytesSent the number of bytes sent / uploaded in the request so far.
  * @param BytesReceived the number of bytes received / downloaded in the response so far.
  */
-using FHttpRequestProgressDelegate = TTSDelegate<void(FHttpRequestPtr /*Request*/, int32 /*BytesSent*/, int32 /*BytesReceived*/)>;
+DECLARE_DELEGATE_ThreeParams(FHttpRequestProgressDelegate, FHttpRequestPtr /*Request*/, int32 /*BytesSent*/, int32 /*BytesReceived*/);
 
 /**
  * Delegate called per tick to update an Http request upload or download size progress
@@ -114,7 +114,7 @@ using FHttpRequestProgressDelegate = TTSDelegate<void(FHttpRequestPtr /*Request*
  * @param BytesSent the number of bytes sent / uploaded in the request so far.
  * @param BytesReceived the number of bytes received / downloaded in the response so far.
  */
-using FHttpRequestProgressDelegate64 = TTSDelegate<void(FHttpRequestPtr /*Request*/, uint64 /*BytesSent*/, uint64 /*BytesReceived*/)>;
+DECLARE_DELEGATE_ThreeParams(FHttpRequestProgressDelegate64, FHttpRequestPtr /*Request*/, uint64 /*BytesSent*/, uint64 /*BytesReceived*/);
 
 /**
  * Delegate called when an Http request will be retried in the future
@@ -123,7 +123,7 @@ using FHttpRequestProgressDelegate64 = TTSDelegate<void(FHttpRequestPtr /*Reques
  * @param Response - response received from the server if a successful connection was established
  * @param SecondsToRetry - seconds in the future when the response will be retried
  */
-using FHttpRequestWillRetryDelegate = TTSDelegate<void(FHttpRequestPtr /*Request*/, FHttpResponsePtr /*Response*/, float /*SecondsToRetry*/)>;
+DECLARE_DELEGATE_ThreeParams(FHttpRequestWillRetryDelegate, FHttpRequestPtr /*Request*/, FHttpResponsePtr /*Response*/, float /*SecondsToRetry*/);
 
 /**
  * Delegate called when an Http request will send/recv data through stream
@@ -132,7 +132,8 @@ using FHttpRequestWillRetryDelegate = TTSDelegate<void(FHttpRequestPtr /*Request
  * @param Length - The length of buffer to read/write
  * @return true if succeed, false if failed to read/write data
  */
-using FHttpRequestStreamDelegate = TTSDelegate<bool(void*/*Ptr*/, int64/*Length*/)>;
+DECLARE_DELEGATE_RetVal_TwoParams(bool, FHttpRequestStreamDelegate, void*/*Ptr*/, int64/*Length*/);
+
 
 /**
  * Delegate version of FArchive, for streaming interface
