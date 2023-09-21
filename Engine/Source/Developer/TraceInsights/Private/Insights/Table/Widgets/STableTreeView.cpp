@@ -3671,7 +3671,7 @@ bool STableTreeView::ContextMenu_ExportToFile_CanExecute() const
 
 void STableTreeView::ContextMenu_ExportToFile_Execute(bool bInExportCollapsed, bool InExportLeafs)
 {
-	FString DefaultFile = TEXT("Table.tsv");
+	FString DefaultFile = TEXT("Table");
 	if (Table.IsValid() && !Table->GetDisplayName().IsEmpty())
 	{
 		DefaultFile = Table->GetDisplayName().ToString();

@@ -1807,7 +1807,7 @@ void SMemAllocTableTreeView::OpenSourceFileInIDE(const TCHAR* InFile, uint32 Lin
 void SMemAllocTableTreeView::ExportMemorySnapshot() const
 {
 	// 1. Choose file
-	FString DefaultFile = TEXT("Table.tsv");
+	FString DefaultFile = TEXT("Table");
 	if (Table.IsValid() && !Table->GetDisplayName().IsEmpty())
 	{
 		DefaultFile = Table->GetDisplayName().ToString();
