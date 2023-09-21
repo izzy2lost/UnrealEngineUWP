@@ -50,6 +50,7 @@ public:
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 	virtual void EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const override;
+	virtual bool EmitValueObject(FEmitContext& Context, FEmitScope& Scope, const FName& ObjectTypeName, void* OutObjectBase) const override;
 
 	TArray<FLocalPHIChainEntry, TInlineAllocator<8>> Chain;
 	FName LocalName;
@@ -71,6 +72,7 @@ public:
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 	virtual void EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const override;
+	virtual bool EmitValueObject(FEmitContext& Context, FEmitScope& Scope, const FName& ObjectTypeName, void* OutObjectBase) const override;
 
 	FFunction* Function;
 	int32 OutputIndex;
@@ -489,6 +491,18 @@ void FExpressionLocalPHI::EmitValuePreshader(FEmitContext& Context, FEmitScope& 
 	}
 }
 
+bool FExpressionLocalPHI::EmitValueObject(FEmitContext& Context, FEmitScope& Scope, const FName& ObjectTypeName, void* OutObjectBase) const
+{
+	Private::FLocalPHILiveScopes LiveScopes;
+	if (!Private::GetLiveScopes(Context, *this, LiveScopes) || !LiveScopes.bCanForwardValue)
+	{
+		// Cannot get if no live scope. Don't know which scope to use if there is more than one live
+		return false;
+	}
+
+	return LiveScopes.LiveValues[0]->GetValueObject(Context, Scope, ObjectTypeName, OutObjectBase);
+}
+
 void FExpressionFunctionCall::ComputeAnalyticDerivatives(FTree& Tree, FExpressionDerivatives& OutResult) const
 {
 	check(Function->OutputExpressions.IsValidIndex(OutputIndex));
@@ -529,6 +543,10 @@ void FExpressionFunctionCall::EmitValuePreshader(FEmitContext& Context, FEmitSco
 	OutResult.Type = Function->OutputExpressions[OutputIndex]->GetValuePreshader(Context, Scope, RequestedType, OutResult.Preshader);
 }
 
+bool FExpressionFunctionCall::EmitValueObject(FEmitContext& Context, FEmitScope& Scope, const FName& ObjectTypeName, void* OutObjectBase) const
+{
+	return Function->OutputExpressions[OutputIndex]->GetValueObject(Context, Scope, ObjectTypeName, OutObjectBase);
+}
 
 FRequestedType::FRequestedType(const Shader::FType& InType, bool bDefaultRequest) : Type(InType)
 {

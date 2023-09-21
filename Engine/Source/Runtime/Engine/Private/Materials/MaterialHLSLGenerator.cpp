@@ -182,6 +182,7 @@ bool FMaterialHLSLGenerator::GenerateResult(UE::HLSLTree::FScope& Scope)
 		{
 			UMaterialExpressionFunctionOutput* ExpressionOutput = FunctionEntry->FunctionOutputs[OutputIndex];
 			//FOwnerScope TreeOwnerScope(GetTree(), ExpressionOutput);
+			FScopedGenerateFunctionOutput GenerateOutputScope(FunctionEntry, OutputIndex);
 			HLSLFunction->OutputExpressions.Add(ExpressionOutput->A.TryAcquireHLSLExpression(*this, Scope, 0));
 		}
 		FunctionEntry->bGeneratedResult = true;
@@ -708,6 +709,15 @@ const UE::HLSLTree::FExpression* FMaterialHLSLGenerator::GenerateFunctionCall(UE
 				Hasher.Update(&ConnectedInput.Expression, sizeof(ConnectedInput.Expression));
 			}
 		}
+
+		// Hash the callstack too in case this function call is inside a material function.
+		// In that case, the addresses of FExpressionInputs won't change even if the owner
+		// MF is called at different places with different inputs
+		for (int32 Index = FunctionCallStack.Num() - 1; Index >= 0; --Index)
+		{
+			const FFunctionCallEntry* CallstackEntry = FunctionCallStack[Index];
+			Hasher.Update(&CallstackEntry, sizeof(CallstackEntry));
+		}
 		Hash = Hasher.Finalize();
 	}
 
@@ -742,11 +752,34 @@ const UE::HLSLTree::FExpression* FMaterialHLSLGenerator::GenerateFunctionCall(UE
 			check(FunctionCall->bGeneratedResult);
 		}
 	}
+	else if (FunctionCall->IsGeneratingOutput(OutputIndex))
+	{
+		FString CallstackStr;
+		for (int32 Index = FunctionCallStack.Num() - 1; Index >= 0; --Index)
+		{
+			const FFunctionCallEntry* Entry = FunctionCallStack[Index];
+			if (Entry && Entry->MaterialFunction)
+			{
+				CallstackStr.Appendf(TEXT("%s%s"), CallstackStr.Len() > 0 ? TEXT("<<") : TEXT(""), *Entry->MaterialFunction->GetName());
+			}
+		}
+		if (TargetMaterial)
+		{
+			CallstackStr.Appendf(TEXT("%s%s"), CallstackStr.Len() > 0 ? TEXT("<<") : TEXT(""), *TargetMaterial->GetName());
+		}
+
+		return NewErrorExpressionf(
+			TEXT("Circle found in material graph. MaterialFunction: %s, output %d. Callstack: %s"),
+			*MaterialFunction->GetName(),
+			OutputIndex,
+			*CallstackStr);
+	}
 
 	const FExpression* Result = nullptr;
 	FunctionCallStack.Add(FunctionCall);
 	if (bInlineFunction)
 	{
+		FScopedGenerateFunctionOutput GenerateOutputScope(FunctionCall, OutputIndex);
 		Result = ExpressionOutput->A.AcquireHLSLExpression(*this, Scope);
 	}
 	else

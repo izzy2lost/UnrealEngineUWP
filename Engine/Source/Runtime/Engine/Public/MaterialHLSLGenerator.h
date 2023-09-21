@@ -243,9 +243,46 @@ private:
 		FFunctionInputArray FunctionInputs;
 		FFunctionOutputArray FunctionOutputs;
 		FConnectedInputArray ConnectedInputs;
+		uint64 GeneratingOutputMask = 0; // Do we need to support more than 64 outputs?
 		EMaterialParameterAssociation ParameterAssociation = GlobalParameter;
 		int32 ParameterIndex = INDEX_NONE;
 		bool bGeneratedResult = false;
+
+		void BeginGeneratingOutput(int32 OutputIndex)
+		{
+			check(OutputIndex < 64);
+			GeneratingOutputMask |= (1llu << OutputIndex);
+		}
+
+		void EndGeneratingOutput(int32 OutputIndex)
+		{
+			check(IsGeneratingOutput(OutputIndex));
+			GeneratingOutputMask ^= (1llu << OutputIndex);
+		}
+
+		bool IsGeneratingOutput(int32 OutputIndex) const
+		{
+			return GeneratingOutputMask & (1llu << OutputIndex);
+		}
+	};
+
+	struct FScopedGenerateFunctionOutput
+	{
+		FScopedGenerateFunctionOutput(FFunctionCallEntry* InFunctionCall, int32 InOutputIndex)
+			: FunctionCall(InFunctionCall)
+			, OutputIndex(InOutputIndex)
+		{
+			FunctionCall->BeginGeneratingOutput(OutputIndex);
+		}
+
+		~FScopedGenerateFunctionOutput()
+		{
+			FunctionCall->EndGeneratingOutput(OutputIndex);
+		}
+
+	private:
+		FFunctionCallEntry* FunctionCall;
+		int32 OutputIndex;
 	};
 
 	struct FStatementEntry
