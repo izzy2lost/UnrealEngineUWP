@@ -5,6 +5,7 @@
 #include "PCGCommon.h"
 #include "PCGComponent.h"
 #include "PCGCustomVersion.h"
+#include "PCGData.h"
 #include "PCGEdge.h"
 #include "PCGGraph.h"
 #include "PCGPin.h"
@@ -324,7 +325,7 @@ namespace PCGSurfaceSamplerHelpers
 		return BoundingShape;
 	}
 
-	bool InitializePerExecutionData(ContextType* Context, ExecStateType& OutState)
+	EPCGTimeSliceInitResult InitializePerExecutionData(ContextType* Context, ExecStateType& OutState)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSurfaceSamplerElement::InitializePerExecutionData);
 
@@ -337,7 +338,7 @@ namespace PCGSurfaceSamplerHelpers
 		if (SurfaceInputs.IsEmpty())
 		{
 			PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("NoSurfaceInputs", "No Surface input was provided."));
-			return false;
+			return EPCGTimeSliceInitResult::AbortExecution;
 		}
 
 		// Early out on invalid settings
@@ -346,24 +347,31 @@ namespace PCGSurfaceSamplerHelpers
 		if (PointExtents.X <= 0 || PointExtents.Y <= 0)
 		{
 			PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("SkippedInvalidPointExtents", "Skipped - Invalid point extents"));
-			return false;
+			return EPCGTimeSliceInitResult::AbortExecution;
 		}
 
 		// Grab the Bounding Shape input if there is one.
 		const TArray<FPCGTaggedData> BoundingShapeInputs = Context->InputData.GetInputsByPin(PCGSurfaceSamplerConstants::BoundingShapeLabel);
+		FBox BoundingShapeBounds(EForceInit::ForceInit);
 		if (!Settings->bUnbounded)
 		{
 			bool bUnionWasCreated;
-			const UPCGSpatialData* BoundingShape = FindBoundingShape(Context, bUnionWasCreated);
-			if (BoundingShape && bUnionWasCreated)
+			OutState.BoundingShape = FindBoundingShape(Context, bUnionWasCreated);
+			if (OutState.BoundingShape && bUnionWasCreated)
 			{
 				// Must cast away const to root the union object
-				Context->RootAndTrackObject(const_cast<UPCGSpatialData*>(BoundingShape));
+				Context->RootAndTrackObject(const_cast<UPCGSpatialData*>(OutState.BoundingShape));
 			}
 
-			if (BoundingShape)
+			if (OutState.BoundingShape)
 			{
-				OutState.BoundingShapeBounds = BoundingShape->GetBounds();
+				BoundingShapeBounds = OutState.BoundingShape->GetBounds();
+			}
+
+			if (!BoundingShapeBounds.IsValid)
+			{
+				// The bounding shape bounds is invalid, such as an empty intersection, so no operation will need to be performed.
+				return EPCGTimeSliceInitResult::NoOperation;
 			}
 		}
 		else if (BoundingShapeInputs.Num() > 0)
@@ -390,7 +398,7 @@ namespace PCGSurfaceSamplerHelpers
 		if (GeneratingShapes.IsEmpty())
 		{
 			PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("NoSurfaceFound", "No surfaces found from which to generate"));
-			return false;
+			return EPCGTimeSliceInitResult::AbortExecution;
 		}
 
 		// Iterate over the generating shapes to compute the bounds
@@ -408,14 +416,14 @@ namespace PCGSurfaceSamplerHelpers
 			{
 				InputBounds = GeneratingShape->GetBounds();
 
-				if (OutState.BoundingShapeBounds.IsValid)
+				if (BoundingShapeBounds.IsValid)
 				{
-					InputBounds = PCGHelpers::OverlapBounds(InputBounds, OutState.BoundingShapeBounds);
+					InputBounds = PCGHelpers::OverlapBounds(InputBounds, BoundingShapeBounds);
 				}
 			}
 			else
 			{
-				InputBounds = OutState.BoundingShapeBounds;
+				InputBounds = BoundingShapeBounds;
 			}
 
 			if (!InputBounds.IsValid || !OutState.Settings.Initialize(Settings, Context, InputBounds))
@@ -445,7 +453,7 @@ namespace PCGSurfaceSamplerHelpers
 			PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("InvalidSurface", "No surfaces from which to generate are valid"));
 		}
 
-		return true;
+		return EPCGTimeSliceInitResult::Success;
 	}
 }
 
@@ -456,7 +464,7 @@ bool FPCGSurfaceSamplerElement::PrepareDataInternal(FPCGContext* InContext) cons
 	check(Context);
 
 	// Initialize the per-execution state data that won't change over the duration of the time slicing
-	if (!Context->InitializePerExecutionState(PCGSurfaceSamplerHelpers::InitializePerExecutionData))
+	if (Context->InitializePerExecutionState(PCGSurfaceSamplerHelpers::InitializePerExecutionData) == EPCGTimeSliceInitResult::AbortExecution)
 	{
 		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("CouldNotInitializeExecutionState", "Could not initialize per-execution timeslice state data"));
 		return true;
@@ -466,17 +474,17 @@ bool FPCGSurfaceSamplerElement::PrepareDataInternal(FPCGContext* InContext) cons
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 
 	// Initialize the per-iteration data, using the generating shapes as the source of iteration
-	const bool bInitSuccess = Context->InitializePerIterationStates(GeneratingShapes.Num(),
-		[&GeneratingShapes, &Outputs](IterStateType& OutState, const uint32 IterationIndex)->bool
+	Context->InitializePerIterationStates(GeneratingShapes.Num(),
+		[&GeneratingShapes, &Outputs](IterStateType& OutState, const uint32 IterationIndex)
 		{
 			OutState.OutputPoints = NewObject<UPCGPointData>();
 			OutState.OutputPoints->InitializeFromData(GeneratingShapes[IterationIndex]);
 			// Assigning this here prevents the need to root
 			Outputs[IterationIndex].Data = OutState.OutputPoints;
-			return true;
+			return EPCGTimeSliceInitResult::Success;
 		});
 
-	if (!bInitSuccess)
+	if (!Context->DataIsPreparedForExecution())
 	{
 		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("CouldNotInitializeIterationState", "Could not initialize per-iteration timeslice state data"));
 	}
@@ -490,15 +498,43 @@ bool FPCGSurfaceSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 	ContextType* TimeSlicedContext = static_cast<ContextType*>(InContext);
 	check(TimeSlicedContext);
 
-	// Prepare data failed, no need to execute
-	if (!TimeSlicedContext->DataIsPrepared())
+	// Prepare data failed, no need to execute. Return an empty output
+	if (!TimeSlicedContext->DataIsPreparedForExecution())
 	{
+		TimeSlicedContext->OutputData.TaggedData.Empty();
+
+		return true;
+	}
+
+	// The execution would have resulted in an empty set of points for all iterations
+	if (TimeSlicedContext->GetExecutionStateResult() == EPCGTimeSliceInitResult::NoOperation)
+	{
+		for (FPCGTaggedData& Input : TimeSlicedContext->InputData.GetInputs())
+		{
+			FPCGTaggedData& Output = TimeSlicedContext->OutputData.TaggedData.Emplace_GetRef();
+			UPCGPointData* PointData = NewObject<UPCGPointData>();
+			PointData->InitializeFromData(Cast<UPCGSpatialData>(Input.Data));
+			Output.Data = PointData;
+		}
+
 		return true;
 	}
 
 	// The context will iterate over per-iteration states and execute the lambda until it returns true
 	return ExecuteSlice(TimeSlicedContext, [](ContextType* Context, const ExecStateType& ExecutionState, const IterStateType& IterationState, const uint32 IterationIndex)->bool
 	{
+		// This iteration resulted in an early out for no sampling operation. Early out with empty point data.
+		const EPCGTimeSliceInitResult InitResult = Context->GetIterationStateResult(IterationIndex);
+		if (InitResult == EPCGTimeSliceInitResult::NoOperation)
+		{
+			Context->OutputData.TaggedData[IterationIndex].Data = NewObject<UPCGPointData>();
+
+			return true;
+		}
+
+		// It should be guaranteed to be a success at this point
+		check(InitResult == EPCGTimeSliceInitResult::Success);
+
 		// Run the execution until the time slice is finished
 		const bool bAsyncDone = PCGSurfaceSampler::SampleSurface(Context, ExecutionState.Settings, ExecutionState.GeneratingShapes[IterationIndex], ExecutionState.BoundingShape, IterationState.OutputPoints, Context->TimeSliceIsEnabled());
 

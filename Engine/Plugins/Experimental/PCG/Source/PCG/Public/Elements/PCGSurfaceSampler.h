@@ -52,7 +52,6 @@ namespace PCGSurfaceSampler
 	{
 		FSurfaceSamplerExecutionSettings Settings;
 
-		FBox BoundingShapeBounds = FBox(EForceInit::ForceInit);
 		const UPCGSpatialData* BoundingShape = nullptr;
 		TArray<const UPCGSpatialData*> GeneratingShapes;
 	};

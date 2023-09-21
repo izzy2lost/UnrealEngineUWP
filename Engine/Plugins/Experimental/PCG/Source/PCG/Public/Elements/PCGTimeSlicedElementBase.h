@@ -24,6 +24,15 @@
 // Forward declaration for friending
 template <typename PerExecutionStateT, typename PerIterationStateT> class TPCGTimeSlicedElementBase;
 
+/** The result of initializing the Per Execution or Per Iteration Time Slice States */
+enum class EPCGTimeSliceInitResult : uint8
+{
+	Uninitialized = 0, // Initialization has not occurred yet
+	Success,           // Initialization was a success
+	NoOperation,       // Initialization was a success, but resulted in no operation
+	AbortExecution     // Initialization was a failure. Should abort.
+};
+
 namespace PCGTimeSlice
 {
 	struct FEmptyStruct {};
@@ -45,15 +54,28 @@ struct TPCGTimeSlicedContext : public FPCGContext
 	/** Retrieves the number of times this context was executed */
 	uint32 GetExecutionCount() const { return ExecutionCount; }
 
-	using InitSignature = bool(TPCGTimeSlicedContext* Context, PerExecutionStateT& OutState);
+	using InitExecSignature = EPCGTimeSliceInitResult(TPCGTimeSlicedContext* Context, PerExecutionStateT& OutState);
 
-	/** Initializes per execution state data if required. Returns true if data is completely initialized properly and false if a problem should result in early termination. */
-	bool InitializePerExecutionState(TFunctionRef<InitSignature> InitFunc = []{ return true; });
+	/** Initializes per execution state data if required. */
+	EPCGTimeSliceInitResult InitializePerExecutionState(TFunctionRef<InitExecSignature> InitFunc = []{ return true; });
 
-	using IterSignature = bool(PerIterationStateT& OutState, const uint32 IterationIndex);
+	using InitIterSignature = EPCGTimeSliceInitResult(PerIterationStateT& OutState, const uint32 IterationIndex);
 
-	/** Initializes per execution state data if required. An array will be created with a state element for every execution iteration in the context. */
-	bool InitializePerIterationStates(int32 NumIterations = 1, TFunctionRef<IterSignature> IterFunc = []{ return true; });
+	/** Initializes per execution state data if required. An array will be created with a state element for every execution iteration in the context. Returns the Init Result for each iteration's initialization. */
+	const TArray<EPCGTimeSliceInitResult>& InitializePerIterationStates(int32 NumIterations = 1, TFunctionRef<InitIterSignature> IterFunc = []{ return true; });
+
+	/** Will return the result of the attempt to initialize the per execution state */
+	EPCGTimeSliceInitResult GetExecutionStateResult() const { return ExecutionStateResult; }
+
+	/** Will return the result of the attempt to initialize a specific iteration, by Index */
+	EPCGTimeSliceInitResult GetIterationStateResult(const int32 Index)
+	{
+		check(Index >= 0 && Index < PerIterationStateResultArray.Num());
+
+		return PerIterationStateResultArray[Index];
+	}
+
+	const TArray<EPCGTimeSliceInitResult>& GetPerIterationStateInitResultArray() { return PerIterationStateResultArray; }
 
 	PerExecutionStateT& GetPerExecutionState() { return PerExecutionStateData; }
 	const PerExecutionStateT& GetPerExecutionState() const { return PerExecutionStateData; }
@@ -61,8 +83,26 @@ struct TPCGTimeSlicedContext : public FPCGContext
 	TArray<PerIterationStateT>& GetPerIterationStateArray() { return PerIterationStateArray; }
 	const TArray<PerIterationStateT>& GetPerIterationStateArray() const { return PerIterationStateArray; }
 
-	/** Returns true if both the execution state and iteration state were fully initialized. Can be used to bypass any further initialization. */
-	bool DataIsPrepared() const { return bPerExecutionStateIsInitialized && bPerIterationStateIsInitialized; }
+	/** Returns true if both the execution state and iteration state were fully initialized and no problems arose that should abort the execution. Can be used to bypass any further initialization. */
+	bool DataIsPreparedForExecution() const
+	{
+		if (ExecutionStateResult == EPCGTimeSliceInitResult::Uninitialized ||
+			ExecutionStateResult == EPCGTimeSliceInitResult::AbortExecution ||
+			!bPerIterationStateIsInitialized)
+		{
+			return false;
+		}
+
+		for (const EPCGTimeSliceInitResult Result : PerIterationStateResultArray)
+		{
+			if (Result == EPCGTimeSliceInitResult::Uninitialized || Result == EPCGTimeSliceInitResult::AbortExecution)
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
 
 	/** Fire and forget function to root a UObject for the duration of the Context, and then mark for garbage collection at context lifecycle end. */
 	void RootAndTrackObject(UObject* Object);
@@ -76,12 +116,21 @@ private:
 	/** The index of which iteration being processed. Ie. If a volume sampler has two volume inputs, it will be processed twice. */
 	int32 IterationIndex = 0;
 
+	/** True if time slicing is enabled for this context */
 	bool bTimeSliceIsEnabled = true;
-	bool bPerExecutionStateIsInitialized = false;
+
+	/** The result of initializing the per execution state */
+	EPCGTimeSliceInitResult ExecutionStateResult = EPCGTimeSliceInitResult::Uninitialized;
+
+	/** True if an attempt has been made to initialize the per iteration states */
 	bool bPerIterationStateIsInitialized = false;
+
+	/** Tracks the results of each attempt to initialize an iteration state */
+	TArray<EPCGTimeSliceInitResult> PerIterationStateResultArray;
 
 	/** The state of the timesliced context that won't change each iteration. Ie. the node settings. */
 	PerExecutionStateT PerExecutionStateData;
+
 	/** An array of the various states of timesliced context that will change per iteration. Ie. generating shape */
 	TArray<PerIterationStateT> PerIterationStateArray;
 
@@ -133,51 +182,53 @@ TPCGTimeSlicedContext<PerExecutionStateT, PerIterationStateT>::~TPCGTimeSlicedCo
 }
 
 template <typename PerExecutionStateT, typename PerIterationStateT>
-bool TPCGTimeSlicedContext<PerExecutionStateT, PerIterationStateT>::InitializePerExecutionState(TFunctionRef<InitSignature> InitFunc)
+EPCGTimeSliceInitResult TPCGTimeSlicedContext<PerExecutionStateT, PerIterationStateT>::InitializePerExecutionState(TFunctionRef<InitExecSignature> InitFunc)
 {
 	// Should only ever be initialized once, so if its called again, ignore it. This allows flexibility for the call to be somewhere that might be invoked numerous times
-	if (!bPerExecutionStateIsInitialized)
+	if (ExecutionStateResult == EPCGTimeSliceInitResult::Uninitialized)
 	{
-		bPerExecutionStateIsInitialized = InitFunc(this, PerExecutionStateData);
+		ExecutionStateResult = InitFunc(this, PerExecutionStateData);
 	}
 
-	return bPerExecutionStateIsInitialized;
+	return ExecutionStateResult;
 }
 
 template <typename PerExecutionStateT, typename PerIterationStateT>
-bool TPCGTimeSlicedContext<PerExecutionStateT, PerIterationStateT>::InitializePerIterationStates(int32 NumIterations, TFunctionRef<IterSignature> IterFunc)
+const TArray<EPCGTimeSliceInitResult>& TPCGTimeSlicedContext<PerExecutionStateT, PerIterationStateT>::InitializePerIterationStates(int32 NumIterations, TFunctionRef<InitIterSignature> IterFunc)
 {
 	// Same as InitializePerExecutionState. Should only ever be initialized once, so if its called again, ignore it.
 	if (bPerIterationStateIsInitialized)
 	{
-		return true;
+		return PerIterationStateResultArray;
 	}
 
 	bPerIterationStateIsInitialized = true;
 
+	// Should be guaranteed to be uninitialized
+	check(PerIterationStateResultArray.IsEmpty() && PerIterationStateArray.IsEmpty());
+	
 	// An empty iteration state is still valid
 	if (NumIterations < 1)
 	{
-		return true;
+		return PerIterationStateResultArray;
 	}
 
-	bool bAnySucceeded{false};
+	PerIterationStateResultArray.AddUninitialized(NumIterations);
 	PerIterationStateArray.Reserve(NumIterations);
 
 	for (int32 I = 0; I < NumIterations; ++I)
 	{
-		const bool bCurrentSucceeded = IterFunc(PerIterationStateArray.Emplace_GetRef(), I);
-		bAnySucceeded |= bCurrentSucceeded;
+		PerIterationStateResultArray[I] = IterFunc(PerIterationStateArray.Emplace_GetRef(), I);
 
-		if (!bCurrentSucceeded)
+		if (PerIterationStateResultArray[I] == EPCGTimeSliceInitResult::AbortExecution)
 		{
 			// If it fails, remove the new state from the array and continue
 			PerIterationStateArray.RemoveAt(PerIterationStateArray.Num() - 1);
 		}
 	}
 
-	// Returns true if any succeeded
-	return bAnySucceeded;
+	// Returns a complete array of the results
+	return PerIterationStateResultArray;
 }
 
 template <typename PerExecutionStateT, typename PerIterationStateT>
@@ -194,7 +245,7 @@ bool TPCGTimeSlicedElementBase<PerExecutionStateT, PerIterationStateT>::ExecuteS
 	++Context->ExecutionCount;
 
 	// The user is responsible to check for this before execution, but just in case
-	if (!ensureMsgf(Context->DataIsPrepared(), TEXT("State data was not properly initialized.")) || Context->PerIterationStateArray.IsEmpty())
+	if (!ensureMsgf(Context->DataIsPreparedForExecution(), TEXT("State data was not properly initialized.")) || Context->PerIterationStateArray.IsEmpty())
 	{
 		return true;
 	}
