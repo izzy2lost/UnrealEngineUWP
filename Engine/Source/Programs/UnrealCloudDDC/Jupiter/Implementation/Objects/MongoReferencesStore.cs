@@ -131,6 +131,20 @@ namespace Jupiter.Implementation
 			}
 		}
 
+		public async IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket)
+		{
+			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
+			IAsyncCursor<MongoReferencesModelV0>? cursor = await collection.FindAsync(m => m.Ns == ns.ToString() && m.Bucket == bucket.ToString());
+
+			while (await cursor.MoveNextAsync())
+			{
+				foreach (MongoReferencesModelV0 model in cursor.Current)
+				{
+					yield return (new RefId(model.Key), new BlobId(model.BlobIdentifier));
+				}
+			}
+		}
+
 		public async Task AddNamespaceIfNotExistAsync(NamespaceId ns)
 		{
 			FilterDefinition<MongoNamespacesModelV0> filter = Builders<MongoNamespacesModelV0>.Filter.Where(m => m.Ns == ns.ToString());
@@ -154,6 +168,27 @@ namespace Jupiter.Implementation
 				{
 					yield return new NamespaceId(document.Ns);
 				}
+			}
+		}
+
+		public async IAsyncEnumerable<BucketId> GetBuckets(NamespaceId ns)
+		{
+			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
+
+			IAsyncCursor<MongoReferencesModelV0> cursor = await collection.FindAsync(m => m.Ns == ns.ToString());
+			
+			HashSet<BucketId> buckets = new HashSet<BucketId>();
+			while (await cursor.MoveNextAsync())
+			{
+				foreach (MongoReferencesModelV0? document in cursor.Current)
+				{
+					buckets.Add(new BucketId(document.Bucket));
+				}
+			}
+
+			foreach (BucketId bucket in buckets)
+			{
+				yield return bucket;
 			}
 		}
 

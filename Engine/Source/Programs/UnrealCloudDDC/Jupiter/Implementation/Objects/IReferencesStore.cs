@@ -32,7 +32,10 @@ namespace Jupiter.Implementation
 		Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime);
 		IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync();
 
+		IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket);
+
 		IAsyncEnumerable<NamespaceId> GetNamespacesAsync();
+		IAsyncEnumerable<BucketId> GetBuckets(NamespaceId ns);
 		Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key);
 		Task<long> DropNamespaceAsync(NamespaceId ns);
 		Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket);

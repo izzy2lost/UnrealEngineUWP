@@ -125,6 +125,11 @@ Scylla:
 {{ $config.Scylla | toYaml | nindent 2 }}
 {{- end }}
 
+{{- if $config.Metrics }}
+Metrics: 
+{{ $config.Metrics | toYaml | nindent 2 }}
+{{- end }}
+
 {{- if $config.Serilog }}
 Serilog: 
 {{ $config.Serilog | toYaml | nindent 2 }}

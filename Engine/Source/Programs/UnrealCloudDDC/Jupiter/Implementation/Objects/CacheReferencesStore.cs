@@ -77,9 +77,19 @@ namespace Jupiter.Implementation
 			throw new NotImplementedException("GetRecords not supported on a cached reference store");
 		}
 
+		public IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket)
+		{
+			throw new NotImplementedException("GetRecordsInBucketAsync not supported on a cached reference store");
+		}
+
 		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
 		{
 			throw new NotImplementedException("GetNamespaces not supported on a cached reference store");
+		}
+
+		public IAsyncEnumerable<BucketId> GetBuckets(NamespaceId ns)
+		{
+			throw new NotImplementedException("GetBuckets not supported on a cached reference store");
 		}
 
 		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)
@@ -191,9 +201,19 @@ namespace Jupiter.Implementation
 			throw new NotImplementedException("GetRecords is not supported on a upstream reference store");
 		}
 
+		public IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket)
+		{
+			throw new NotImplementedException("GetRecordsInBucketAsync is not supported on a upstream reference store");
+		}
+
 		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
 		{
 			throw new NotImplementedException("GetNamespaces is not supported on a upstream reference store");
+		}
+
+		public IAsyncEnumerable<BucketId> GetBuckets(NamespaceId ns)
+		{
+			throw new NotImplementedException("GetBuckets is not supported on a upstream reference store");
 		}
 
 		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)

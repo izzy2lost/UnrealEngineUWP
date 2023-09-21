@@ -92,9 +92,19 @@ namespace Jupiter.Implementation.Objects
 			return _actualStore.GetRecordsAsync();
 		}
 
+		public IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket)
+		{
+			return _actualStore.GetRecordsInBucketAsync(ns, bucket);
+		}
+
 		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
 		{
 			return _actualStore.GetNamespacesAsync();
+		}
+
+		public IAsyncEnumerable<BucketId> GetBuckets(NamespaceId ns)
+		{
+			return _actualStore.GetBuckets(ns);
 		}
 
 		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)

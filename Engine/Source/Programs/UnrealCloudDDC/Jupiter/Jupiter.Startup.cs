@@ -106,6 +106,7 @@ namespace Jupiter
 			services.AddOptions<ReplicationSettings>().Configure(o => Configuration.GetSection("Replication").Bind(o)).ValidateDataAnnotations();
 			services.AddOptions<ServiceCredentialSettings>().Configure(o => Configuration.GetSection("ServiceCredentials").Bind(o)).ValidateDataAnnotations();
 			services.AddOptions<SnapshotSettings>().Configure(o => Configuration.GetSection("Snapshot").Bind(o)).ValidateDataAnnotations();
+			services.AddOptions<MetricsServiceSettings>().Configure(o => Configuration.GetSection("Metrics").Bind(o)).ValidateDataAnnotations();
 
 			services.AddOptions<ScyllaSettings>().Configure(o => Configuration.GetSection("Scylla").Bind(o)).ValidateDataAnnotations();
 
@@ -186,6 +187,9 @@ namespace Jupiter
 
 			services.AddSingleton<BlobIndexConsistencyCheckService>();
 			services.AddHostedService<BlobIndexConsistencyCheckService>(p => p.GetService<BlobIndexConsistencyCheckService>()!);
+
+			services.AddSingleton<MetricsService>();
+			services.AddHostedService<MetricsService>(p => p.GetService<MetricsService>()!);
 
 			services.AddSingleton(typeof(IPeerStatusService), typeof(PeerStatusService));
 			services.AddHostedService<PeerStatusService>(p => (PeerStatusService)p.GetService<IPeerStatusService>()!);

@@ -29,8 +29,10 @@ namespace Jupiter.Implementation
 		private readonly PreparedStatement _getNamespacesOldStatement;
 		private readonly PreparedStatement _getObjectsForPartitionRangeStatement;
 		private readonly PreparedStatement _getObjectsLastAccessForPartitionRangeStatement;
-		private readonly ConcurrentDictionary<NamespaceId, ConcurrentBag<BucketId>> _addedBuckets = new ConcurrentDictionary<NamespaceId, ConcurrentBag<BucketId>>();
+		private readonly PreparedStatement _getObjectsInBucketPartitionRangeStatement;
 
+		private readonly ConcurrentDictionary<NamespaceId, ConcurrentBag<BucketId>> _addedBuckets = new ConcurrentDictionary<NamespaceId, ConcurrentBag<BucketId>>();
+		
 		public ScyllaReferencesStore(IScyllaSessionManager scyllaSessionManager, IOptionsMonitor<ScyllaSettings> settings, INamespacePolicyResolver namespacePolicyResolver, Tracer tracer, ILogger<ScyllaReferencesStore> logger)
 		{
 			_session = scyllaSessionManager.GetSessionForReplicatedKeyspace();
@@ -88,6 +90,8 @@ namespace Jupiter.Implementation
 
 			_getObjectsForPartitionRangeStatement = _session.Prepare($"SELECT namespace, bucket, name, last_access_time FROM objects WHERE token(namespace, bucket, name) >= ? AND token(namespace, bucket, name) <= ? {cqlOptions}");
 			_getObjectsLastAccessForPartitionRangeStatement = _session.Prepare($"SELECT namespace, bucket, name, last_access_time FROM object_last_access_v2 WHERE token(namespace, bucket, name) >= ? AND token(namespace, bucket, name) <= ? {cqlOptions}");
+			
+			_getObjectsInBucketPartitionRangeStatement = _session.Prepare($"SELECT name, payload_hash FROM objects WHERE namespace = ? AND bucket = ? ALLOW FILTERING {cqlOptions}");
 		}
 
 		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId name, IReferencesStore.FieldFlags fieldFlags, IReferencesStore.OperationFlags opFlags)
@@ -256,6 +260,27 @@ namespace Jupiter.Implementation
 			}
 		}
 
+		public async IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket)
+		{
+			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get_records_in_bucket_per_shard");
+			PreparedStatement getObjectStatement = _getObjectsInBucketPartitionRangeStatement;
+
+			RowSet rowSet = await _session.ExecuteAsync(getObjectStatement.Bind(ns.ToString(), bucket.ToString()));
+			foreach (Row row in rowSet)
+			{
+				string name = row.GetValue<string>("name");
+				ScyllaBlobIdentifier? blobIdentifier = row.GetValue<ScyllaBlobIdentifier>("payload_hash");
+
+				// skip any names that are not conformant to io hash
+				if (name.Length != 40)
+				{
+					continue;
+				}
+
+				yield return (new RefId(name), blobIdentifier.AsBlobIdentifier());
+			}
+		}
+
 		/// <summary>
 		/// This implements a more efficient scanning where we fetch objects based on which shard it is in. It scans the entire database and thus returns all namespaces.
 		/// See https://www.scylladb.com/2017/03/28/parallel-efficient-full-table-scan-scylla/
@@ -325,6 +350,19 @@ namespace Jupiter.Implementation
 
 					yield return new NamespaceId(row.GetValue<string>(0));
 				}
+			}
+		}
+
+		public async IAsyncEnumerable<BucketId> GetBuckets(NamespaceId ns)
+		{
+			foreach (ScyllaBucket? scyllaBucket in await _mapper.FetchAsync<ScyllaBucket>("WHERE ns = ?", ns))
+			{
+				if (scyllaBucket == null)
+				{
+					continue;
+				}
+
+				yield return new BucketId(scyllaBucket.Bucket);
 			}
 		}
 

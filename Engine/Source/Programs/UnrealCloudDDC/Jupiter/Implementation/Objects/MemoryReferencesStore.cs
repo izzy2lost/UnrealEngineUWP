@@ -74,9 +74,33 @@ namespace Jupiter.Implementation
 			}
 		}
 
+		public async IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket)
+		{
+			foreach (MemoryStoreObject o in _objects.Values.Where(o => o.Namespace == ns && o.Bucket == bucket))
+			{
+				await Task.CompletedTask;
+				yield return (o.Name, o.BlobHash);
+			}
+		}
+
 		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
 		{
 			return _namespaces.ToAsyncEnumerable();
+		}
+
+		public async IAsyncEnumerable<BucketId> GetBuckets(NamespaceId ns)
+		{
+			HashSet<BucketId> buckets = new HashSet<BucketId>();
+			foreach (MemoryStoreObject o in _objects.Values.Where(o => o.Namespace == ns))
+			{
+				buckets.Add(o.Bucket);
+			}
+			await Task.CompletedTask;
+
+			foreach (BucketId bucket in buckets)
+			{
+				yield return bucket;
+			}
 		}
 
 		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)
