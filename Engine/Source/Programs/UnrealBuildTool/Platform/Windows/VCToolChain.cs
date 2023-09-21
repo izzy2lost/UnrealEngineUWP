@@ -770,6 +770,12 @@ namespace UnrealBuildTool
 				{
 					Arguments.Add("/Z7");
 				}
+
+				// https://clang.llvm.org/docs/UsersManual.html#cmdoption-fstandalone-debug
+				if (Target.WindowsPlatform.Compiler.IsClang() && Target.WindowsPlatform.bClangStandaloneDebug)
+				{
+					Arguments.Add("-fstandalone-debug");
+				}
 			}
 
 			// Specify the appropriate runtime library based on the platform and config.

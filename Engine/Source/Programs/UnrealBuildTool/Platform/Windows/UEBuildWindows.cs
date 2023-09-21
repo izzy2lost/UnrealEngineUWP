@@ -292,6 +292,15 @@ namespace UnrealBuildTool
 		public bool bVCFastFail = false;
 
 		/// <summary>
+		/// True if optimizations to reduce the size of debug information should be disabled
+		/// See https://clang.llvm.org/docs/UsersManual.html#cmdoption-fstandalone-debug for more information
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bClangStandaloneDebug")]
+		[XmlConfigFile(Category = "WindowsPlatform")]
+		[CommandLine("-ClangStandaloneDebug")]
+		public bool bClangStandaloneDebug = false;
+
+		/// <summary>
 		/// True if we should use the Clang linker (LLD) when we are compiling with Clang, or Intel linker (xilink\xilib) when we are compiling with Intel oneAPI, otherwise we use the MSVC linker.
 		/// </summary>
 		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bAllowClangLinker")]
@@ -741,6 +750,8 @@ namespace UnrealBuildTool
 		public bool bUseCPPWinRT => Inner.bUseCPPWinRT;
 
 		public bool bVCFastFail => Inner.bVCFastFail;
+
+		public bool bClangStandaloneDebug => Inner.bClangStandaloneDebug;
 
 		public bool bAllowClangLinker => Inner.bAllowClangLinker;
 
