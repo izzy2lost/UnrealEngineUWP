@@ -86,7 +86,7 @@ namespace Chaos
 		// Go through the children and find the one with the largest ratio of applied strain vs internal strain and return this ratio
 		// @param FatigueThreshold if the applied strains are below the fatgue threshold, they will be ignored and the returned ratio will be 0 
 		// @param StrainTypes type strain to account for ( collision and/or external )
-		CHAOS_API float GetMaxBreakStrainRatio(const float FatigueThreshold, const uint8 StrainTypes) const;
+		CHAOS_API float GetMaxBreakStrainRatio(const float FatigueThresholdPercent, const float FatigueThresholdMinimum, bool bRelative, const uint8 StrainTypes) const;
 
 		// Clear strains for all strained cluster children
 		CHAOS_API void ClearStrains();
@@ -94,7 +94,7 @@ namespace Chaos
 		// Adjust strain for all the strained children above the fatigue threshold so that their strain is large enough to break
 		// @param FatigueThreshold if the applied strains are below the fatgue threshold, they will be ignored 
 		// @param StrainTypes type strain to account for ( collision and/or external )
-		CHAOS_API void AdjustStrainForBreak(const float FatigueThreshold, const uint8 StrainTypes);
+		CHAOS_API void AdjustStrainForBreak(const float FatigueThresholdPercent, const float FatigueThresholdMinimum, const uint8 StrainTypes);
 
 	private:
 
