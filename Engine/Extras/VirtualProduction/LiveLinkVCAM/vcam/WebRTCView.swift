@@ -7,6 +7,7 @@
 import Foundation
 import UIKit
 import WebRTC
+import MetalKit
 
 protocol WebRTCViewDelegate {
     func webRTCView(_ view : WebRTCView, didChangeVideoSize size : CGSize)
@@ -131,4 +132,13 @@ class RTCMTLVideoViewWithTouch : RTCMTLVideoView {
         super.touchesCancelled(touches, with: event)
         self.touchDelegate?.touchesCancelled(touches)
     }
+    
+    func setPreferredFramerate(fps: Int) {
+        for subview in self.subviews {
+            if let mtlView = subview as? MTKView {
+                mtlView.preferredFramesPerSecond = fps
+            }
+        }
+    }
+    
 }
