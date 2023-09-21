@@ -1864,9 +1864,7 @@ void UNiagaraComponent::OnRegister()
 				// Only detach if we are not about to auto attach to the same target, that would be wasteful.
 				if (!bAutoActivate || (AutoAttachLocationRule != EAttachmentRule::KeepRelative && AutoAttachRotationRule != EAttachmentRule::KeepRelative && AutoAttachScaleRule != EAttachmentRule::KeepRelative) || (AutoAttachSocketName != GetAttachSocketName()) || (AutoAttachParent != GetAttachParent()))
 				{
-					//bIsChangingAutoAttachment = true;
 					DetachFromComponent(FDetachmentTransformRules(EDetachmentRule::KeepRelative, /*bCallModify=*/ false));
-					//bIsChangingAutoAttachment = false;
 				}
 			}
 			else
@@ -4145,9 +4143,11 @@ void UNiagaraComponent::CancelAutoAttachment(bool bDetachFromParent)
 
 		if (bDetachFromParent)
 		{
-			//bIsChangingAutoAttachment = true;
-			DetachFromComponent(FDetachmentTransformRules::KeepRelativeTransform);
-			//bIsChangingAutoAttachment = false;
+			UWorld* World = GetWorld();
+			if (!World || World->IsGameWorld())
+			{
+				DetachFromComponent(FDetachmentTransformRules(EDetachmentRule::KeepRelative, /*bCallModify=*/ false));
+			}
 		}
 	}
 }

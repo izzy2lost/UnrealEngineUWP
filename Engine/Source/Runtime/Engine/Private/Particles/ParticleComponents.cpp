@@ -6571,7 +6571,11 @@ void UParticleSystemComponent::CancelAutoAttachment(bool bDetachFromParent, cons
 
 		if (bDetachFromParent)
 		{
-			DetachFromComponent(FDetachmentTransformRules::KeepRelativeTransform);
+			UWorld* World = GetWorld();
+			if (!World || World->IsGameWorld())
+			{
+				DetachFromComponent(FDetachmentTransformRules(EDetachmentRule::KeepRelative, /*bCallModify=*/ false));
+			}
 		}
 	}
 }
