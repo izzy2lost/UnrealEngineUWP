@@ -12,7 +12,7 @@
  * Delegate invoked when in progress NSUrlSessionTask completes. It is invoked in an out of our control thread
  *
  */
-DECLARE_DELEGATE(FTaskCompleteDelegate);
+DECLARE_DELEGATE(FNewAppleHttpEventDelegate);
 
 /**
  * Apple implementation of an Http request
@@ -200,10 +200,10 @@ public:
 	void CleanSharedObjects();
 
 	/**
-	 * Sets delegate invoked after processing URLSession:task:didCompleteWithError:
+	 * Sets delegate invoked when  URLSession:dataTask:didReceiveData or URLSession:task:didCompleteWithError: are triggered
 	 * Should be set right before task is started 
 	*/
-	void SetInternalTaskCompleteDelegate(FTaskCompleteDelegate&& Delegate);
+	void SetNewAppleHttpEventDelegate(FNewAppleHttpEventDelegate&& Delegate);
 
 	/**
 	 * Constructor

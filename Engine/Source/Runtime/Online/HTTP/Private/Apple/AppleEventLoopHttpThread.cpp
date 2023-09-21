@@ -8,7 +8,7 @@ bool FAppleEventLoopHttpThread::StartThreadedRequest(IHttpThreadedRequest* Reque
 {
 	FHttpResponsePtr Response = Request->GetResponse();
 	auto AppleResponse = StaticCastSharedPtr<FAppleHttpNSUrlSessionResponse>(Response);
-	AppleResponse->SetInternalTaskCompleteDelegate(FTaskCompleteDelegate::CreateLambda([IOAccess = EventLoop->GetIOAccess()]() mutable
+	AppleResponse->SetNewAppleHttpEventDelegate(FNewAppleHttpEventDelegate::CreateLambda([IOAccess = EventLoop->GetIOAccess()]() mutable
 	{
 		IOAccess.Notify();
 	}));

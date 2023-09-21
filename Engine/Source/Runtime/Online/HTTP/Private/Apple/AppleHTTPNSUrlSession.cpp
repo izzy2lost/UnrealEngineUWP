@@ -41,8 +41,8 @@ enum class EAppleHttpRequestResponseState: uint8
 	/** flag meant to reduce locking on ResponseStreamLock*/
 	@public BOOL bInitializedWithValidStream;
 
-	/** Delegate invoked after processing URLSession:task:didCompleteWithError:*/
-	@public FTaskCompleteDelegate TaskCompleteDelegate;
+	/** Delegate invoked after processing URLSession:dataTask:didReceiveData or URLSession:task:didCompleteWithError:*/
+	@public FNewAppleHttpEventDelegate NewAppleHttpEventDelegate;
 }
 
 /** A handle for the response */
@@ -212,7 +212,7 @@ enum class EAppleHttpRequestResponseState: uint8
 			}
 		}
 	}
-	TaskCompleteDelegate.ExecuteIfBound();
+	NewAppleHttpEventDelegate.ExecuteIfBound();
 }
 
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask willCacheResponse:(NSCachedURLResponse *)proposedResponse completionHandler:(void (^)(NSCachedURLResponse *cachedResponse))completionHandler
@@ -743,8 +743,6 @@ bool FAppleHttpNSUrlSessionRequest::StartRequest()
 
 void FAppleHttpNSUrlSessionRequest::FinishRequest()
 {
-	check(IsInGameThread() || DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
-
 	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::FinishRequest()"));
 
 	// Clean up session/request handles that may have been created
@@ -881,9 +879,9 @@ FAppleHttpNSUrlSessionResponse::~FAppleHttpNSUrlSessionResponse()
 	ResponseDelegate = nil;
 }
 
-void FAppleHttpNSUrlSessionResponse::SetInternalTaskCompleteDelegate(FTaskCompleteDelegate&& Delegate)
+void FAppleHttpNSUrlSessionResponse::SetNewAppleHttpEventDelegate(FNewAppleHttpEventDelegate&& Delegate)
 {	
-	ResponseDelegate->TaskCompleteDelegate = MoveTemp(Delegate);
+	ResponseDelegate->NewAppleHttpEventDelegate = MoveTemp(Delegate);
 }
 
 void FAppleHttpNSUrlSessionResponse::CleanSharedObjects()
