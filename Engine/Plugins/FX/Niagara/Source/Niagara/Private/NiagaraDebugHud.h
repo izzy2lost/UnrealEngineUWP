@@ -267,7 +267,7 @@ private:
 
 	TMap<FName, FSystemDebugInfo>	PerSystemDebugInfo;
 
-	TArray<TWeakObjectPtr<class UNiagaraComponent>>	InWorldComponents;
+	TArray<TWeakObjectPtr<class UFXSystemComponent>>	InWorldComponents;
 
 	TMap<TWeakObjectPtr<class UNiagaraComponent>, FValidationErrorInfo> ValidationErrors;
 

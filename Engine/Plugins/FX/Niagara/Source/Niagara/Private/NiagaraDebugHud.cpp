@@ -1059,9 +1059,9 @@ void FNiagaraDebugHud::GatherSystemInfo()
 				bIsMatch &= FXComponent->GetName().MatchesWildcard(Settings.ComponentFilter);
 			}
 
-			if (bIsMatch && NiagaraComponent)//TODO: Handle Cascade?
+			if (bIsMatch)
 			{
-				InWorldComponents.Add(NiagaraComponent);
+				InWorldComponents.Add(FXComponent);
 			}
 		}
 
@@ -2497,9 +2497,9 @@ void FNiagaraDebugHud::DrawValidation(class FNiagaraWorldManager* WorldManager, 
 		return;
 	}
 
-	for (TWeakObjectPtr<UNiagaraComponent> WeakComponent : InWorldComponents)
+	for (TWeakObjectPtr<UFXSystemComponent> WeakComponent : InWorldComponents)
 	{
-		UNiagaraComponent* NiagaraComponent = WeakComponent.Get();
+		UNiagaraComponent* NiagaraComponent = Cast<UNiagaraComponent>(WeakComponent.Get());
 		if (NiagaraComponent == nullptr)
 		{
 			continue;
@@ -2681,9 +2681,29 @@ void FNiagaraDebugHud::DrawComponents(FNiagaraWorldManager* WorldManager, UCanva
 	UEnum* ExecutionStateEnum = StaticEnum<ENiagaraExecutionState>();
 	UEnum* PoolingMethodEnum = StaticEnum<ENCPoolMethod>();
 	UEnum* SystemInstanceState = StaticEnum<ENiagaraSystemInstanceState>();
-	for (TWeakObjectPtr<UNiagaraComponent> WeakComponent : InWorldComponents)
+	for (TWeakObjectPtr<UFXSystemComponent> WeakComponent : InWorldComponents)
 	{
-		UNiagaraComponent* NiagaraComponent = WeakComponent.Get();
+		UFXSystemComponent* FXComponent = WeakComponent.Get();
+		if (FXComponent == nullptr)
+		{
+			continue;
+		}
+
+		const FVector ComponentLocation = FXComponent->GetComponentLocation();
+		const FRotator ComponentRotation = FXComponent->GetComponentRotation();
+		const bool bIsActive = FXComponent->IsActive();
+
+		// Show system bounds (only active components)
+		if (Settings.bSystemShowBounds && bIsActive)
+		{
+			const FBox Bounds = FXComponent->CalcBounds(FXComponent->GetComponentTransform()).GetBox();
+			if (Bounds.IsValid)
+			{
+				DrawBox(World, Bounds.GetCenter(), Bounds.GetExtent(), FColor::Red, Settings.SystemBoundsSolidBoxAlpha);
+			}
+		}
+
+		UNiagaraComponent* NiagaraComponent = Cast<UNiagaraComponent>(FXComponent);
 		if (NiagaraComponent == nullptr)
 		{
 			continue;
@@ -2695,20 +2715,6 @@ void FNiagaraDebugHud::DrawComponents(FNiagaraWorldManager* WorldManager, UCanva
 		if (NiagaraSystem == nullptr || SystemInstance == nullptr)
 		{
 			continue;
-		}
-
-		const FVector ComponentLocation = NiagaraComponent->GetComponentLocation();
-		const FRotator ComponentRotation = NiagaraComponent->GetComponentRotation();
-		const bool bIsActive = NiagaraComponent->IsActive();
-
-		// Show system bounds (only active components)
-		if (Settings.bSystemShowBounds && bIsActive)
-		{
-			const FBox Bounds = NiagaraComponent->CalcBounds(NiagaraComponent->GetComponentTransform()).GetBox();
-			if (Bounds.IsValid)
-			{
-				DrawBox(World, Bounds.GetCenter(), Bounds.GetExtent(), FColor::Red, Settings.SystemBoundsSolidBoxAlpha);
-			}
 		}
 
 		// Get system simulation
