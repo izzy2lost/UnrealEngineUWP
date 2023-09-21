@@ -242,7 +242,7 @@ UPCGGraph::UPCGGraph(const FObjectInitializer& ObjectInitializer)
 #if WITH_EDITOR
 	InputNode->OnNodeChangedDelegate.AddUObject(this, &UPCGGraph::OnNodeChanged);
 	OutputNode->OnNodeChangedDelegate.AddUObject(this, &UPCGGraph::OnNodeChanged);
-#endif 
+#endif
 
 	// Note: default connection from input to output
 	// should be added when creating from scratch,
@@ -285,7 +285,7 @@ void UPCGGraph::PostLoad()
 	{
 		Node->ConditionalPostLoad();
 	}
-	
+
 	// Also do this for ExtraNodes
 	for (UObject* ExtraNode : ExtraEditorNodes)
 	{
@@ -370,6 +370,15 @@ void UPCGGraph::BeginDestroy()
 #endif
 
 	Super::BeginDestroy();
+}
+
+void UPCGGraph::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
+{
+#if WITH_EDITOR
+	UPCGGraph* This = CastChecked<UPCGGraph>(InThis);
+	Collector.AddReferencedObject(This->PCGEditorGraph, This);
+#endif
+	Super::AddReferencedObjects(InThis, Collector);
 }
 
 uint32 UPCGGraph::GetDefaultGridSize() const
@@ -512,7 +521,7 @@ void UPCGGraph::OnNodesRemoved(TArrayView<UPCGNode*> InNodes)
 		}
 	}
 
-	NotifyGraphChanged(EPCGChangeType::Structural); 
+	NotifyGraphChanged(EPCGChangeType::Structural);
 #endif
 }
 
@@ -552,13 +561,13 @@ bool UPCGGraph::AddLabeledEdge(UPCGNode* From, const FName& FromPinLabel, UPCGNo
 	FromPin->AddEdgeTo(ToPin, &TouchedNodes);
 
 	bool bToPinBrokeOtherEdges = false;
-	
+
 	// Add an edge to a pin that doesn't allow multiple connections requires to do some cleanup
 	if (!ToPin->AllowsMultipleConnections())
 	{
 		bToPinBrokeOtherEdges = ToPin->BreakAllIncompatibleEdges(&TouchedNodes);
 	}
-	
+
 	const EPCGChangeType ChangeType = PCGGraphUtils::NotifyTouchedNodes(TouchedNodes);
 
 #if WITH_EDITOR
@@ -642,7 +651,7 @@ void UPCGGraph::RemoveNodes_Internal(TArrayView<UPCGNode*> InNodes)
 	}
 
 	Modify();
-	
+
 	TSet<UPCGNode*> TouchedNodes;
 
 	for (UPCGNode* Node : InNodes)
@@ -1569,7 +1578,7 @@ void UPCGGraphInstance::RefreshParameters(EPCGGraphParameterEvent InChangeType, 
 		ParametersOverrides.Reset();
 	}
 	else
-	{		
+	{
 		const FInstancedPropertyBag* ParentUserParameters = Graph->GetUserParametersStruct();
 
 		// Refresh can modify nothing, but we still need to keep a snapshot of this object state, if it ever change.
@@ -1644,7 +1653,7 @@ bool UPCGGraphInstance::IsPropertyOverriddenAndNotDefault(const FProperty* InPro
 
 bool UPCGGraphInstance::IsGraphParameterOverridden(const FName PropertyName) const
 {
-	return (ParametersOverrides.Parameters.FindPropertyDescByName(PropertyName) != nullptr); 
+	return (ParametersOverrides.Parameters.FindPropertyDescByName(PropertyName) != nullptr);
 }
 
 bool FPCGOverrideInstancedPropertyBag::RefreshParameters(const FInstancedPropertyBag* ParentUserParameters, EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName)

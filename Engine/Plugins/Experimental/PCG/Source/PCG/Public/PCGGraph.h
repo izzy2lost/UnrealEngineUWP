@@ -15,6 +15,7 @@
 
 class UPCGGraphInterface;
 #if WITH_EDITOR
+class UPCGEditorGraph;
 struct FEdGraphPinType;
 #endif // WITH_EDITOR
 
@@ -182,6 +183,7 @@ public:
 #endif
 
 	virtual void BeginDestroy() override;
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
 #if WITH_EDITOR
 	virtual void PreEditChange(FProperty* InProperty) override;
@@ -331,6 +333,9 @@ protected:
 	// Extra data to hold information that is useful only in editor (like comments)
 	UPROPERTY()
 	TArray<TObjectPtr<UObject>> ExtraEditorNodes;
+
+	// Editor graph created from PCG Editor but owned by this, reference is collected using AddReferencedObjects
+	TObjectPtr<UPCGEditorGraph> PCGEditorGraph = nullptr;
 #endif // WITH_EDITORONLY_DATA
 
 	// Parameters
@@ -340,7 +345,7 @@ protected:
 #if WITH_EDITOR
 	UFUNCTION(BlueprintInternalUseOnly)
 	bool UserParametersIsPinTypeAccepted(FEdGraphPinType InPinType, bool bIsChild);
-	
+
 	UFUNCTION(BlueprintInternalUseOnly)
 	bool UserParametersCanRemoveProperty(FGuid InPropertyID, FName InPropertyName);
 #endif // WITH_EDITOR
