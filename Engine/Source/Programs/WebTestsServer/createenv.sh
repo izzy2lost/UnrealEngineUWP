@@ -1,11 +1,14 @@
 if [ -d "env" ]; then
 	. ./env/bin/activate
 else
-	if [ "$OSTYPE" = "darwin" ]; then
-		../../../Binaries/ThirdParty/Python3/Mac/bin/python3 -m venv env
-	else
-		../../../Binaries/ThirdParty/Python3/Linux/bin/python3 -m venv env
-	fi
+	case "$OSTYPE" in
+		darwin*)
+			../../../Binaries/ThirdParty/Python3/Mac/bin/python3 -m venv env
+			;;
+		*)
+			../../../Binaries/ThirdParty/Python3/Linux/bin/python3 -m venv env
+			;;
+	esac
 	. ./env/bin/activate
 	python -m pip install --upgrade pip
 	pip install -r requirements.txt
