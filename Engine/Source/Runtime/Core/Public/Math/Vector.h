@@ -2689,7 +2689,7 @@ inline TVector<T> TVector2<T>::SphericalToUnitCartesian() const
 	
 namespace LWC
 {
-constexpr FVector::FReal DefaultFloatPrecision = 1./16.;
+inline constexpr FVector::FReal DefaultFloatPrecision = 1./16.;
 
 // Validated narrowing cast for world positions. FVector -> FVector3f
 FORCEINLINE FVector3f NarrowWorldPositionChecked(const FVector& WorldPosition)

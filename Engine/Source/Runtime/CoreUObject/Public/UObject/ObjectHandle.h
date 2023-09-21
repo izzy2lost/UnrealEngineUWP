@@ -338,9 +338,9 @@ namespace UE::CoreUObject::Private
 		};
 	};
 
-	constexpr uint32 ObjectIdShift = 1;
-	constexpr uint32 PackageIdShift = 33;
-	constexpr uint32 PackageIdMask = 0x7FFF'FFFF;
+	inline constexpr uint32 ObjectIdShift = 1;
+	inline constexpr uint32 PackageIdShift = 33;
+	inline constexpr uint32 PackageIdMask = 0x7FFF'FFFF;
 
 #if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	//forward declarations
