@@ -197,191 +197,6 @@ TLaneVector2D<bool, 1, LaneStrideX, LaneStrideY> IsValidTilePixel(const uint2 Ti
 }
 
 
-//------------------------------------------------------- GROUP SHARED COMMUNICATION
-
-#if defined(LDS_SIZE)
-
-#if CONFIG_COMPILE_FP16
-
-groupshared uint2 SharedData[LDS_SIZE];
-
-void IncrementAtomic(const uint SharedIndex, uint Value)
-{
-	return InterlockedAdd(/* inout */ SharedData[SharedIndex].x, Value);
-}
-
-void WriteAtomic(const uint SharedIndex, uint X)
-{
-	SharedData[SharedIndex].x = X;
-}
-
-uint ReadAtomic(const uint SharedIndex)
-{
-	return SharedData[SharedIndex].x;
-}
-
-#if COMPILER_SUPPORT_UINT16_BITCAST
-
-void WriteElementToLDS(const uint SharedIndex, tsr_ushort4 X)
-{
-	SharedData[SharedIndex] = uint2(
-		bit_cast_uint(X.xy),
-		bit_cast_uint(X.zw));
-}
-
-void ReadElementFromLDS(const uint SharedIndex, out tsr_ushort4 X)
-{
-	uint2 RX = SharedData[SharedIndex];
-	X.xy = bit_cast_uint16_t2(RX.x);
-	X.zw = bit_cast_uint16_t2(RX.y);
-}
-
-#else
-
-void WriteElementToLDS(const uint SharedIndex, tsr_ushort4 X)
-{
-	SharedData[SharedIndex] = uint2(
-		uint(X.x) | (uint(X.y) << 16),
-		uint(X.z) | (uint(X.w) << 16));
-}
-
-void ReadElementFromLDS(const uint SharedIndex, out tsr_ushort4 X)
-{
-	uint2 RX = SharedData[SharedIndex];
-	X.x = tsr_ushort((RX.x >>  0u) & 0xFFFFu);
-	X.y = tsr_ushort((RX.x >> 16u) & 0xFFFFu);
-	X.z = tsr_ushort((RX.y >>  0u) & 0xFFFFu);
-	X.w = tsr_ushort((RX.y >> 16u) & 0xFFFFu);
-}
-
-#endif
-
-#else
-
-groupshared uint4 SharedData[LDS_SIZE];
-
-void IncrementAtomic(const uint SharedIndex, uint Value)
-{
-	return InterlockedAdd(/* inout */ SharedData[SharedIndex].x, Value);
-}
-
-void WriteAtomic(const uint SharedIndex, uint X)
-{
-	SharedData[SharedIndex].x = X;
-}
-
-uint ReadAtomic(const uint SharedIndex)
-{
-	return SharedData[SharedIndex].x;
-}
-
-void WriteElementToLDS(const uint SharedIndex, tsr_ushort4 X)
-{
-	SharedData[SharedIndex] = uint4(X);
-}
-
-void ReadElementFromLDS(const uint SharedIndex, out tsr_ushort4 X)
-{
-	X = tsr_ushort4(SharedData[SharedIndex].xyzw);
-}
-
-#endif
-
-
-
-void WriteElementToLDS(const uint SharedIndex, tsr_ushort X)
-{
-	WriteElementToLDS(SharedIndex, tsr_ushort4(X, 0.0, 0.0, 0.0));
-}
-
-void WriteElementToLDS(const uint SharedIndex, tsr_ushort2 X)
-{
-	WriteElementToLDS(SharedIndex, tsr_ushort4(X, 0.0, 0.0));
-}
-
-void WriteElementToLDS(const uint SharedIndex, tsr_ushort3 X)
-{
-	WriteElementToLDS(SharedIndex, tsr_ushort4(X, 0.0));
-}
-
-void WriteElementToLDS(const uint SharedIndex, tsr_half X)
-{
-	WriteElementToLDS(SharedIndex, as_tsr_ushort(X));
-}
-
-void WriteElementToLDS(const uint SharedIndex, tsr_half2 X)
-{
-	WriteElementToLDS(SharedIndex, tsr_ushort2(as_tsr_ushort(X.x), as_tsr_ushort(X.y)));
-}
-
-void WriteElementToLDS(const uint SharedIndex, tsr_half3 X)
-{
-	WriteElementToLDS(SharedIndex, tsr_ushort3(as_tsr_ushort(X.x), as_tsr_ushort(X.y), as_tsr_ushort(X.z)));
-}
-
-void WriteElementToLDS(const uint SharedIndex, tsr_half4 X)
-{
-	WriteElementToLDS(SharedIndex, tsr_ushort4(as_tsr_ushort(X.x), as_tsr_ushort(X.y), as_tsr_ushort(X.z), as_tsr_ushort(X.w)));
-}
-
-void ReadElementFromLDS(const uint SharedIndex, out tsr_ushort X)
-{
-	tsr_ushort4 UX;
-	ReadElementFromLDS(SharedIndex, /* out */ UX);
-	X = UX.x;
-}
-
-void ReadElementFromLDS(const uint SharedIndex, out tsr_ushort2 X)
-{
-	tsr_ushort4 UX;
-	ReadElementFromLDS(SharedIndex, /* out */ UX);
-	X = UX.xy;
-}
-
-void ReadElementFromLDS(const uint SharedIndex, out tsr_ushort3 X)
-{
-	tsr_ushort4 UX;
-	ReadElementFromLDS(SharedIndex, /* out */ UX);
-	X = UX.xyz;
-}
-
-void ReadElementFromLDS(const uint SharedIndex, out tsr_half X)
-{
-	tsr_ushort4 UX;
-	ReadElementFromLDS(SharedIndex, /* out */ UX);
-	X = as_tsr_half(UX.x);
-}
-
-void ReadElementFromLDS(const uint SharedIndex, out tsr_half2 X)
-{
-	tsr_ushort4 UX;
-	ReadElementFromLDS(SharedIndex, /* out */ UX);
-	X.x = as_tsr_half(UX.x);
-	X.y = as_tsr_half(UX.y);
-}
-
-void ReadElementFromLDS(const uint SharedIndex, out tsr_half3 X)
-{
-	tsr_ushort4 UX;
-	ReadElementFromLDS(SharedIndex, /* out */ UX);
-	X.x = as_tsr_half(UX.x);
-	X.y = as_tsr_half(UX.y);
-	X.z = as_tsr_half(UX.z);
-}
-
-void ReadElementFromLDS(const uint SharedIndex, out tsr_half4 X)
-{
-	tsr_ushort4 UX;
-	ReadElementFromLDS(SharedIndex, /* out */ UX);
-	X.x = as_tsr_half(UX.x);
-	X.y = as_tsr_half(UX.y);
-	X.z = as_tsr_half(UX.z);
-	X.w = as_tsr_half(UX.w);
-}
-
-#endif // defined(LDS_SIZE)
-
-
 //------------------------------------------------------- VOTE
 
 CALL_SITE_DEBUGLOC
@@ -392,16 +207,16 @@ bool AnyThread(bool X)
 	
 	if (GGroupThreadIndex == 0)
 	{
-		WriteAtomic(/* SharedIndex = */ 0, 0);
+		WriteDwordToLDS(/* SharedIndex = */ 0, 0);
 	}
 
 	GroupMemoryBarrierWithGroupSync();
 	
-	IncrementAtomic(/* SharedIndex = */ 0, uint(X));
+	AtomicIncrementLDSDword(/* SharedIndex = */ 0, uint(X));
 	
 	GroupMemoryBarrierWithGroupSync();
 	
-	return ReadAtomic(/* SharedIndex = */ 0) > 0;
+	return ReadDwordFromLDS(/* SharedIndex = */ 0) > 0;
 }
 #elif !COMPILER_SUPPORTS_WAVE_VOTE && !defined(LDS_SIZE)
 {
@@ -427,14 +242,12 @@ bool AnyThread(bool X)
 
 	if (WaveIsFirstLane())
 	{
-		WriteElementToLDS(GGroupThreadIndex / kLaneCount, tsr_ushort(AnyX));
+		WriteDwordToLDS(GGroupThreadIndex / kLaneCount, uint(AnyX));
 	}
 		
 	GroupMemoryBarrierWithGroupSync();
 		
-	tsr_ushort WaveX;
-	ReadElementFromLDS(GGroupThreadIndex % kWaveCount, /* out */ WaveX);
-	//WaveX = select(WaveGetLaneIndex() < kWaveCount, WaveX, 0);
+	uint WaveX = ReadDwordFromLDS(GGroupThreadIndex % kWaveCount);
 
 	return WaveActiveAnyTrue(WaveX != 0);
 }
@@ -508,7 +321,7 @@ void AccessNeighborTexels3x1(
 		UNROLL
 		for (uint SimdIndex = 0; SimdIndex < LaneStrideY; SimdIndex++)
 		{
-			WriteElementToLDS(GGroupThreadIndex + SimdIndex * TotalNumberOfLaneInGroup, CO.GetElement(SimdIndex));
+			WriteVectorToLDS(GGroupThreadIndex + SimdIndex * TotalNumberOfLaneInGroup, CO.GetElement(SimdIndex));
 		}
 		GroupMemoryBarrierWithGroupSync();
 		
@@ -517,8 +330,8 @@ void AccessNeighborTexels3x1(
 		{
 			vector<ScalarType, VectorSize> FirstElement;
 			vector<ScalarType, VectorSize> LastElement;
-			ReadElementFromLDS(((GGroupThreadIndex - 1) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ FirstElement);
-			ReadElementFromLDS(((GGroupThreadIndex + 1) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ LastElement);
+			ReadVectorFromLDS(((GGroupThreadIndex - 1) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ FirstElement);
+			ReadVectorFromLDS(((GGroupThreadIndex + 1) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ LastElement);
 	
 			CP.SetElement(SimdIndex, LastElement);
 			CN.SetElement(SimdIndex, FirstElement);
@@ -558,7 +371,7 @@ void AccessNeighborTexels1x3(
 		UNROLL
 		for (uint SimdIndex = 0; SimdIndex < LaneStrideX; SimdIndex++)
 		{
-			WriteElementToLDS(GGroupThreadIndex + SimdIndex * TotalNumberOfLaneInGroup, CO.GetElement(SimdIndex));
+			WriteVectorToLDS(GGroupThreadIndex + SimdIndex * TotalNumberOfLaneInGroup, CO.GetElement(SimdIndex));
 		}
 		GroupMemoryBarrierWithGroupSync();
 		
@@ -567,8 +380,8 @@ void AccessNeighborTexels1x3(
 		{
 			vector<ScalarType, VectorSize> FirstElement;
 			vector<ScalarType, VectorSize> LastElement;
-			ReadElementFromLDS(((GGroupThreadIndex - LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ FirstElement);
-			ReadElementFromLDS(((GGroupThreadIndex + LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ LastElement);
+			ReadVectorFromLDS(((GGroupThreadIndex - LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ FirstElement);
+			ReadVectorFromLDS(((GGroupThreadIndex + LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ LastElement);
 	
 			CP.SetElement(SimdIndex, LastElement);
 			CN.SetElement(SimdIndex, FirstElement);
@@ -576,20 +389,20 @@ void AccessNeighborTexels1x3(
 	}
 	else
 	{
-		const uint FirstSimdIndex = 0;
-		const uint LastSimdIndex = LaneStrideX * LaneStrideY - LaneStrideX;
+		const uint FirstElementIndex = 0;
+		const uint LastElementIndex = LaneStrideX * LaneStrideY - LaneStrideX;
 
 		GroupMemoryBarrierWithGroupSync();
 		UNROLL
 		for (uint SimdIndex = 0; SimdIndex < LaneStrideX; SimdIndex++)
 		{
-			WriteElementToLDS(GGroupThreadIndex + (0 + SimdIndex) * TotalNumberOfLaneInGroup, CO.GetElement(FirstSimdIndex + SimdIndex));
-			WriteElementToLDS(GGroupThreadIndex + (2 + SimdIndex) * TotalNumberOfLaneInGroup, CO.GetElement(LastSimdIndex + SimdIndex));
+			WriteVectorToLDS(GGroupThreadIndex + (0 + SimdIndex) * TotalNumberOfLaneInGroup, CO.GetElement(FirstElementIndex + SimdIndex));
+			WriteVectorToLDS(GGroupThreadIndex + (LaneStrideX + SimdIndex) * TotalNumberOfLaneInGroup, CO.GetElement(LastElementIndex + SimdIndex));
 		}
 		GroupMemoryBarrierWithGroupSync();
 	
 		UNROLL
-		for (uint SimdIndex = 0; SimdIndex < LastSimdIndex; SimdIndex++)
+		for (uint SimdIndex = 0; SimdIndex < LastElementIndex; SimdIndex++)
 		{
 			CP.SetElement(SimdIndex + 0, CO.GetElement(SimdIndex + LaneStrideX));
 			CN.SetElement(SimdIndex + LaneStrideX, CO.GetElement(SimdIndex + 0));
@@ -600,11 +413,11 @@ void AccessNeighborTexels1x3(
 		{
 			vector<ScalarType, VectorSize> FirstElement;
 			vector<ScalarType, VectorSize> LastElement;
-			ReadElementFromLDS(((GGroupThreadIndex - LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + (2 + SimdIndex) * TotalNumberOfLaneInGroup, /* out */ FirstElement);
-			ReadElementFromLDS(((GGroupThreadIndex + LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + (0 + SimdIndex) * TotalNumberOfLaneInGroup, /* out */ LastElement);
+			ReadVectorFromLDS(((GGroupThreadIndex - LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + (LaneStrideX + SimdIndex) * TotalNumberOfLaneInGroup, /* out */ FirstElement);
+			ReadVectorFromLDS(((GGroupThreadIndex + LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + (0 + SimdIndex) * TotalNumberOfLaneInGroup, /* out */ LastElement);
 	
-			CP.SetElement(LastSimdIndex + SimdIndex, LastElement);
-			CN.SetElement(FirstSimdIndex + SimdIndex, FirstElement);
+			CP.SetElement(LastElementIndex + SimdIndex, LastElement);
+			CN.SetElement(FirstElementIndex + SimdIndex, FirstElement);
 		}
 	}
 	

@@ -325,6 +325,309 @@ int16_t4 PackRegistersTightly(int16_t4 v)
 #endif // PLATFORM_SUPPORTS_REAL_TYPES
 
 
+//------------------------------------------------------- GROUP SHARED COMMUNICATION
+
+#if defined(LDS_SIZE)
+
+groupshared uint SharedData[LDS_SIZE * LDS_DWORD_COMPONENT_COUNT];
+
+void WriteDwordToLDS(const uint SharedIndex, uint V)
+{
+	SharedData[SharedIndex] = V;
+}
+
+uint ReadDwordFromLDS(const uint SharedIndex)
+{
+	return SharedData[SharedIndex];
+}
+
+void AtomicIncrementLDSDword(const uint SharedIndex, uint Value)
+{
+	return InterlockedAdd(/* inout */ SharedData[SharedIndex], Value);
+}
+
+// uint
+void WriteVectorToLDS(const uint SharedIndex, uint V)
+{
+	WriteDwordToLDS(SharedIndex, V);
+}
+
+void WriteVectorToLDS(const uint SharedIndex, uint2 V)
+{
+	WriteDwordToLDS(SharedIndex + 0 * LDS_SIZE, V.x);
+	WriteDwordToLDS(SharedIndex + 1 * LDS_SIZE, V.y);
+}
+
+void WriteVectorToLDS(const uint SharedIndex, uint3 V)
+{
+	WriteDwordToLDS(SharedIndex + 0 * LDS_SIZE, V.x);
+	WriteDwordToLDS(SharedIndex + 1 * LDS_SIZE, V.y);
+	WriteDwordToLDS(SharedIndex + 2 * LDS_SIZE, V.z);
+}
+
+void WriteVectorToLDS(const uint SharedIndex, uint4 V)
+{
+	WriteDwordToLDS(SharedIndex + 0 * LDS_SIZE, V.x);
+	WriteDwordToLDS(SharedIndex + 1 * LDS_SIZE, V.y);
+	WriteDwordToLDS(SharedIndex + 2 * LDS_SIZE, V.z);
+	WriteDwordToLDS(SharedIndex + 3 * LDS_SIZE, V.w);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out uint V)
+{
+	V = ReadDwordFromLDS(SharedIndex);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out uint2 V)
+{
+	V.x = ReadDwordFromLDS(SharedIndex + 0 * LDS_SIZE);
+	V.y = ReadDwordFromLDS(SharedIndex + 1 * LDS_SIZE);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out uint3 V)
+{
+	V.x = ReadDwordFromLDS(SharedIndex + 0 * LDS_SIZE);
+	V.y = ReadDwordFromLDS(SharedIndex + 1 * LDS_SIZE);
+	V.z = ReadDwordFromLDS(SharedIndex + 2 * LDS_SIZE);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out uint4 V)
+{
+	V.x = ReadDwordFromLDS(SharedIndex + 0 * LDS_SIZE);
+	V.y = ReadDwordFromLDS(SharedIndex + 1 * LDS_SIZE);
+	V.z = ReadDwordFromLDS(SharedIndex + 2 * LDS_SIZE);
+	V.w = ReadDwordFromLDS(SharedIndex + 3 * LDS_SIZE);
+}
+
+// float
+void WriteVectorToLDS(const uint SharedIndex, float V)
+{
+	WriteVectorToLDS(SharedIndex, asuint(V));
+}
+
+void WriteVectorToLDS(const uint SharedIndex, float2 V)
+{
+	WriteVectorToLDS(SharedIndex, uint2(asuint(V.x), asuint(V.y)));
+}
+
+void WriteVectorToLDS(const uint SharedIndex, float3 V)
+{
+	WriteVectorToLDS(SharedIndex, uint3(asuint(V.x), asuint(V.y), asuint(V.z)));
+}
+
+void WriteVectorToLDS(const uint SharedIndex, float4 V)
+{
+	WriteVectorToLDS(SharedIndex, uint4(asuint(V.x), asuint(V.y), asuint(V.z), asuint(V.w)));
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out float V)
+{
+	uint UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V = asfloat(UV);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out float2 V)
+{
+	uint2 UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V.x = asfloat(UV.x);
+	V.y = asfloat(UV.y);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out float3 V)
+{
+	uint3 UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V.x = asfloat(UV.x);
+	V.y = asfloat(UV.y);
+	V.z = asfloat(UV.z);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out float4 V)
+{
+	uint4 UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V.x = asfloat(UV.x);
+	V.y = asfloat(UV.y);
+	V.z = asfloat(UV.z);
+	V.w = asfloat(UV.w);
+}
+
+#if PLATFORM_SUPPORTS_REAL_TYPES
+
+#if COMPILER_SUPPORT_UINT16_BITCAST
+
+// uint16_t
+void WriteVectorToLDS(const uint SharedIndex, uint16_t V)
+{
+	WriteVectorToLDS(SharedIndex, uint(V));
+}
+
+void WriteVectorToLDS(const uint SharedIndex, uint16_t2 V)
+{
+	WriteVectorToLDS(SharedIndex, bit_cast_uint(V.xy));
+}
+
+void WriteVectorToLDS(const uint SharedIndex, uint16_t3 V)
+{
+	WriteVectorToLDS(SharedIndex, uint2(bit_cast_uint(V.xy), uint(V.z)));
+}
+
+void WriteVectorToLDS(const uint SharedIndex, uint16_t4 V)
+{
+	WriteVectorToLDS(SharedIndex, uint2(bit_cast_uint(V.xy), bit_cast_uint(V.zw)));
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out uint16_t V)
+{
+	uint UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V = tsr_ushort(UV);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out uint16_t2 V)
+{
+	uint UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V.xy = bit_cast_uint16_t2(UV);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out uint16_t3 V)
+{
+	uint2 UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V.xy = bit_cast_uint16_t2(UV.x);
+	V.z = tsr_ushort(UV.y);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out uint16_t4 V)
+{
+	uint2 UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V.xy = bit_cast_uint16_t2(UV.x);
+	V.zw = bit_cast_uint16_t2(UV.y);
+}
+
+#else // !COMPILER_SUPPORT_UINT16_BITCAST
+
+// uint16_t
+void WriteVectorToLDS(const uint SharedIndex, uint16_t V)
+{
+	WriteVectorToLDS(SharedIndex, uint(V));
+}
+
+void WriteVectorToLDS(const uint SharedIndex, uint16_t2 V)
+{
+	WriteVectorToLDS(SharedIndex, uint(V.x) | (uint(V.y) << 16u));
+}
+
+void WriteVectorToLDS(const uint SharedIndex, uint16_t3 V)
+{
+	WriteVectorToLDS(SharedIndex, uint2(uint(V.x) | (uint(V.y) << 16u), uint(V.z)));
+}
+
+void WriteVectorToLDS(const uint SharedIndex, uint16_t4 V)
+{
+	WriteVectorToLDS(SharedIndex, uint2(uint(V.x) | (uint(V.y) << 16u), uint(V.z) | (uint(V.w) << 16u)));
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out uint16_t V)
+{
+	uint UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V = tsr_ushort(UV);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out uint16_t2 V)
+{
+	uint UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V.x = tsr_ushort((UV >>  0u) & 0xFFFFu);
+	V.y = tsr_ushort((UV >> 16u) & 0xFFFFu);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out uint16_t3 V)
+{
+	uint2 UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V.x = tsr_ushort((UV.x >>  0u) & 0xFFFFu);
+	V.y = tsr_ushort((UV.x >> 16u) & 0xFFFFu);
+	V.z = tsr_ushort((UV.y >>  0u) & 0xFFFFu);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out uint16_t4 V)
+{
+	uint2 UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V.x = tsr_ushort((UV.x >>  0u) & 0xFFFFu);
+	V.y = tsr_ushort((UV.x >> 16u) & 0xFFFFu);
+	V.z = tsr_ushort((UV.y >>  0u) & 0xFFFFu);
+	V.w = tsr_ushort((UV.y >> 16u) & 0xFFFFu);
+}
+
+#endif // !COMPILER_SUPPORT_UINT16_BITCAST
+
+// half
+void WriteVectorToLDS(const uint SharedIndex, half V)
+{
+	WriteVectorToLDS(SharedIndex, asuint16(V));
+}
+
+void WriteVectorToLDS(const uint SharedIndex, half2 V)
+{
+	WriteVectorToLDS(SharedIndex, uint16_t2(asuint16(V.x), asuint16(V.y)));
+}
+
+void WriteVectorToLDS(const uint SharedIndex, half3 V)
+{
+	WriteVectorToLDS(SharedIndex, uint16_t3(asuint16(V.x), asuint16(V.y), asuint16(V.z)));
+}
+
+void WriteVectorToLDS(const uint SharedIndex, half4 V)
+{
+	WriteVectorToLDS(SharedIndex, uint16_t4(asuint16(V.x), asuint16(V.y), asuint16(V.z), asuint16(V.w)));
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out half V)
+{
+	uint16_t UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V = asfloat16(UV);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out half2 V)
+{
+	uint16_t2 UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V.x = asfloat16(UV.x);
+	V.y = asfloat16(UV.y);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out half3 V)
+{
+	uint16_t3 UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V.x = asfloat16(UV.x);
+	V.y = asfloat16(UV.y);
+	V.z = asfloat16(UV.z);
+}
+
+void ReadVectorFromLDS(const uint SharedIndex, out half4 V)
+{
+	uint16_t4 UV;
+	ReadVectorFromLDS(SharedIndex, /* out */ UV);
+	V.x = asfloat16(UV.x);
+	V.y = asfloat16(UV.y);
+	V.z = asfloat16(UV.z);
+	V.w = asfloat16(UV.w);
+}
+
+#endif // PLATFORM_SUPPORTS_REAL_TYPES
+
+#endif // defined(LDS_SIZE)
+
+
 //------------------------------------------------------- REGISTERS LAYOUTS
 
 /** Stores one unique vector<>. InElementCount must be == 1  */
@@ -611,7 +914,7 @@ struct FRegisters_SoA_Matrix
 	}
 }; // struct FRegisters_SoA_Matrix
 
-/** Stores an array of vector<> as a structure of array in registers using a matrix<>. Requires InElementCount a pair >= 2 */
+/** Stores an array of vector<> as a structure of array in registers using a array of vector<X, 2>. Requires InElementCount a pair >= 2 */
 template<typename ScalarType, uint InVectorSize, uint InElementCount>
 struct FRegisters_AoS_PairArray
 {
@@ -718,7 +1021,7 @@ struct FRegisters_AoS_PairArray
 	}
 }; // struct FRegisters_AoS_PairArray
 
-/** Stores an array of vector<> as a structure of array in registers using a matrix<>. Requires InElementCount a pair >= 2 */
+/** Stores an array of vector<> as a structure of array in registers using a array of vector<X, 2>. Requires InElementCount a pair >= 2 */
 template<typename ScalarType, uint InVectorSize, uint InElementCount>
 struct FRegisters_SoA_PairArray
 {
