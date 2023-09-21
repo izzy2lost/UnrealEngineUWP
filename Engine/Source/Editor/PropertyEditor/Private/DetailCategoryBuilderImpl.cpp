@@ -201,6 +201,7 @@ FDetailCategoryImpl::FDetailCategoryImpl(FName InCategoryName, TSharedRef<FDetai
 	, bHasVisibleAdvanced(false)
 	, bPendingRefresh(false)
 	, bPendingRefreshNeedsRefilter(false)
+	, bIsEmpty(false)
 {
 	const UStruct* BaseStruct = InDetailLayout->GetRootNode()->GetBaseStructure();
 
