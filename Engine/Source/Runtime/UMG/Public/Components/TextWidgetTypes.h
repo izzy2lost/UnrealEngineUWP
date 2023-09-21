@@ -107,10 +107,10 @@ protected:
 	float WrapTextAt;
 
 	/** The amount of blank space left around the edges of text area. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Setter, Category=Appearance, AdvancedDisplay)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category=Appearance, AdvancedDisplay)
 	FMargin Margin;
 
 	/** The amount to scale each lines height by. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Setter, Category=Appearance, AdvancedDisplay)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category=Appearance, AdvancedDisplay)
 	float LineHeightPercentage;
 };
