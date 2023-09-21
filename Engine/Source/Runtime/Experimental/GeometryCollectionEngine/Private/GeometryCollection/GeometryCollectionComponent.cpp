@@ -3433,8 +3433,6 @@ void UGeometryCollectionComponent::ResetDynamicCollection()
 		GetTransformArrayCopyOnWrite();
 		GetParentArrayCopyOnWrite();
 		GetChildrenArrayCopyOnWrite();
-		GetSimulationTypeArrayCopyOnWrite();
-		GetStatusFlagsArrayCopyOnWrite();
 
 		if (bStoreVelocities || bNotifyTrailing)
 		{

@@ -102,7 +102,8 @@ using namespace ChaosTest;
 
 		UnitTest.Solver->RegisterSimOneShotCallback([&]()
 		{
-			TManagedArray<int32>& SimulationType = Collection->DynamicCollection->SimulationType;
+			// Dynamic collection doesn't change the simulation type, RestCollection can be used instead
+			TManagedArray<int32>& SimulationType = RestCollection->SimulationType;
 			EXPECT_EQ(SimulationType[0],FGeometryCollection::ESimulationTypes::FST_Rigid);
 			EXPECT_EQ(SimulationType[1],FGeometryCollection::ESimulationTypes::FST_Rigid);
 			EXPECT_EQ(SimulationType[2],FGeometryCollection::ESimulationTypes::FST_Clustered);

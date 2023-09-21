@@ -35,8 +35,6 @@ public:
 	// Transform Group
 	TManagedArray<int32>        Parent;
 	TManagedArray<TSet<int32>>  Children;
-	TManagedArray<int32>        SimulationType;
-	TManagedArray<int32>        StatusFlags;
 
 private:
 	TManagedArray<FTransform3f> Transform;
