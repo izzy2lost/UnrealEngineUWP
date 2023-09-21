@@ -110,6 +110,8 @@ bool FDirectoryWatcherWindows::UnregisterDirectoryChangedCallback_Handle( const 
 
 void FDirectoryWatcherWindows::Tick( float DeltaSeconds )
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FDirectoryWatcherWindows::Tick);
+
 	TArray<HANDLE> DirectoryHandles;
 	TMap<FDirectoryWithFlags, FDirectoryWatchRequestWindows*> InvalidRequestsToDelete;
 
