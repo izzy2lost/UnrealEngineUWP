@@ -166,6 +166,64 @@ FRigUnit_HierarchyGetSiblingsItemArray_Execute()
 	Siblings = CachedSiblings.Keys;
 }
 
+FRigUnit_HierarchyGetChainItemArray_Execute()
+{
+	DECLARE_SCOPE_HIERARCHICAL_COUNTER_RIGUNIT()
+
+	if(!CachedStart.IsIdentical(Start, ExecuteContext.Hierarchy) ||
+		!CachedEnd.IsIdentical(End, ExecuteContext.Hierarchy))
+	{
+		CachedChain.Reset();
+
+		if(CachedStart.UpdateCache(Start, ExecuteContext.Hierarchy) &&
+			CachedEnd.UpdateCache(End, ExecuteContext.Hierarchy))
+		{
+			TArray<FRigElementKey> Keys;
+
+			const FRigTransformElement* StartElement = Cast<FRigTransformElement>(CachedStart.GetElement());
+			const FRigTransformElement* EndElement = Cast<FRigTransformElement>(CachedEnd.GetElement());
+			if(StartElement == nullptr || EndElement == nullptr)
+			{
+				Keys.Reset();
+			}
+			else
+			{
+				if(bIncludeEnd)
+				{
+					Keys.Add(EndElement->GetKey());
+				}
+
+				const FRigTransformElement* Parent = Cast<FRigTransformElement>(ExecuteContext.Hierarchy->GetFirstParent(EndElement));
+				while(Parent && Parent != StartElement)
+				{
+					Keys.Add(Parent->GetKey());
+					Parent = Cast<FRigTransformElement>(ExecuteContext.Hierarchy->GetFirstParent(Parent));
+				}
+
+				if(Parent != StartElement)
+				{
+					Keys.Reset();
+#if WITH_EDITOR
+					if(ExecuteContext.GetLog())
+					{
+						ExecuteContext.GetLog()->Report(EMessageSeverity::Info, ExecuteContext.GetFunctionName(), ExecuteContext.GetInstructionIndex(), TEXT("Start and End are not part of the same chain."));
+					}
+#endif
+				}
+				else if(bIncludeStart)
+				{
+					Keys.Add(StartElement->GetKey());
+				}
+
+				CachedChain = FRigElementKeyCollection(Keys);
+				CachedChain = FRigElementKeyCollection::MakeReversed(CachedChain);
+			}
+		}
+	}
+
+	Chain = CachedChain.Keys;
+}
+
 FRigUnit_HierarchyGetPose_Execute()
 {
 	FRigUnit_HierarchyGetPoseItemArray::StaticExecute(ExecuteContext, Initial, ElementType, ItemsToGet.Keys, Pose);

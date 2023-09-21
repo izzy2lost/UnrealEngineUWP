@@ -258,6 +258,53 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetSiblingsItemArray : public FRigUnit_H
 };
 
 /**
+ * Returns a chain between two items
+ */
+USTRUCT(meta=(DisplayName="Get Chain", Keywords="Chain,Siblings,Hierarchy", Varying))
+struct CONTROLRIG_API FRigUnit_HierarchyGetChainItemArray : public FRigUnit_HierarchyBase
+{
+	GENERATED_BODY()
+
+	FRigUnit_HierarchyGetChainItemArray()
+	{
+		Start = End = FRigElementKey(NAME_None, ERigElementType::Bone);
+		CachedStart = CachedEnd = FCachedRigElement();
+		CachedChain = FRigElementKeyCollection();
+		bIncludeStart = bIncludeEnd = true;
+	}
+
+	RIGVM_METHOD()
+	virtual void Execute() override;
+
+	UPROPERTY(meta = (Input, ExpandByDefault))
+	FRigElementKey Start;
+
+	UPROPERTY(meta = (Input, ExpandByDefault))
+	FRigElementKey End;
+
+	UPROPERTY(meta = (Input))
+	bool bIncludeStart;
+
+	UPROPERTY(meta = (Input))
+	bool bIncludeEnd;
+
+	UPROPERTY(meta = (Output))
+	TArray<FRigElementKey> Chain;
+
+	// Used to cache the internally used item
+	UPROPERTY()
+	FCachedRigElement CachedStart;
+
+	// Used to cache the internally used item
+	UPROPERTY()
+	FCachedRigElement CachedEnd;
+
+	// Used to cache the internally used siblings
+	UPROPERTY()
+	FRigElementKeyCollection CachedChain;
+};
+
+/**
  * Returns the hierarchy's pose
  */
 USTRUCT(meta=(DisplayName="Get Pose Cache", Keywords="Hierarchy,Pose,State", Varying, Deprecated = "5.0"))

@@ -79,7 +79,7 @@ private:
 	}
 
 	template<class T>
-	void CacheNameListForHierarchy(URigHierarchy* InHierarchy, TArray<TSharedPtr<FString>>& OutNameList, bool bFilter = true)
+	void CacheNameListForHierarchy(UControlRig* InControlRig, URigHierarchy* InHierarchy, TArray<TSharedPtr<FString>>& OutNameList, bool bFilter = true)
 	{
         TArray<FString> Names;
 		for (auto Element : *InHierarchy)
@@ -88,6 +88,14 @@ private:
 			{
 				if(!bFilter || IncludeElementInNameList<T>(Cast<T>(Element)))
 				{
+					if(InControlRig)
+					{
+						if(const FRigElementKey* SourceKey = InControlRig->GetElementKeyRedirector().FindReverse(Element->GetKey()))
+						{
+							Names.Add(SourceKey->Name.ToString());
+							continue;
+						}
+					}
 					Names.Add(Element->GetName());
 				}
 			}

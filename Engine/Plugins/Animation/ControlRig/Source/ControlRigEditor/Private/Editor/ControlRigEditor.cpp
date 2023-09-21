@@ -987,6 +987,12 @@ void FControlRigEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 
 void FControlRigEditor::SetDetailViewForRigElements()
 {
+	URigHierarchy* HierarchyBeingDebugged = GetHierarchyBeingDebugged();
+	SetDetailViewForRigElements(HierarchyBeingDebugged->GetSelectedKeys());
+}
+
+void FControlRigEditor::SetDetailViewForRigElements(const TArray<FRigElementKey>& InKeys)
+{
 	if(IsDetailsPanelRefreshSuspended())
 	{
 		return;
@@ -998,10 +1004,9 @@ void FControlRigEditor::SetDetailViewForRigElements()
 	URigHierarchy* HierarchyBeingDebugged = GetHierarchyBeingDebugged();
 	TArray<UObject*> Objects;
 
-	TArray<FRigElementKey> CurrentSelection = HierarchyBeingDebugged->GetSelectedKeys();
-	for(const FRigElementKey& SelectedKey : CurrentSelection)
+	for(const FRigElementKey& Key : InKeys)
 	{
-		FRigBaseElement* Element = HierarchyBeingDebugged->Find(SelectedKey);
+		FRigBaseElement* Element = HierarchyBeingDebugged->Find(Key);
 		if (Element == nullptr)
 		{
 			continue;
@@ -1478,7 +1483,7 @@ void FControlRigEditor::HandleVMExecutedEvent(URigVMHost* InHost, const FName& I
 		{
 			if(!DebuggedControlRig->RigUnitManipulationInfos.IsEmpty())
 			{
-				const FRigHierarchyRedirectorGuard RedirectorGuard(DebuggedControlRig->GetHierarchy(), DebuggedControlRig->ElementKeyRedirector);
+				const FRigHierarchyRedirectorGuard RedirectorGuard(DebuggedControlRig);
 				FControlRigExecuteContext& ExecuteContext = DebuggedControlRig->GetExtendedExecuteContext().GetPublicDataSafe<FControlRigExecuteContext>();
 				
 				for(const TSharedPtr<FRigDirectManipulationInfo>& ManipulationInfo : DebuggedControlRig->RigUnitManipulationInfos)
@@ -1738,7 +1743,74 @@ void FControlRigEditor::HandleViewportCreated(const TSharedRef<class IPersonaVie
 			],
 			DirectManipulationNotificationOptions
 		);
+	}
+
+	{
+		InViewport->AddNotification(
+			EMessageSeverity::Warning,
+			false,
+			SNew(SHorizontalBox)
+			.Visibility(this, &FControlRigEditor::GetConnectorWarningVisibility)
+			.ToolTipText(LOCTEXT("ConnectorWarningTooltip", "This rig has unresolved connectors."))
+			+SHorizontalBox::Slot()
+			.FillWidth(1.0f)
+			.Padding(4.0f, 4.0f)
+			[
+				SNew(SHorizontalBox)
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(0.0f, 0.0f, 4.0f, 0.0f)
+				[
+					SNew(STextBlock)
+					.TextStyle(FAppStyle::Get(), "AnimViewport.MessageText")
+					.Font(FAppStyle::Get().GetFontStyle("FontAwesome.9"))
+					.Text(FEditorFontGlyphs::Exclamation_Triangle)
+				]
+				+SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SNew(STextBlock)
+					.TextStyle(FAppStyle::Get(), "AnimViewport.MessageText")
+					.Text(this, &FControlRigEditor::GetConnectorWarningText)
+				]
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(2.0f, 0.0f)
+				[
+					SNew(SButton)
+					.ForegroundColor(FSlateColor::UseForeground())
+					.ButtonStyle(FAppStyle::Get(), "FlatButton.Primary")
+					.ToolTipText(LOCTEXT("ConnectorWarningNavigateTooltip", "Navigate to the first unresolved connector in the hierarchy"))
+					.OnClicked(this, &FControlRigEditor::OnNavigateToConnectorWarning)
+					[
+						SNew(SHorizontalBox)
+						+SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.Padding(0.0f, 0.0f, 4.0f, 0.0f)
+						[
+							SNew(STextBlock)
+							.TextStyle(FAppStyle::Get(), "AnimViewport.MessageText")
+							.Font(FAppStyle::Get().GetFontStyle("FontAwesome.9"))
+							.Text(FEditorFontGlyphs::Cog)
+						]
+						+SHorizontalBox::Slot()
+						.VAlign(VAlign_Center)
+						.AutoWidth()
+						[
+							SNew(STextBlock)
+							.TextStyle(FAppStyle::Get(), "AnimViewport.MessageText")
+							.Text(LOCTEXT("ConnectorWarningNavigateButtonLabel", "Discover"))
+						]
+					]
+				]
+			],
+			FPersonaViewportNotificationOptions(TAttribute<EVisibility>::CreateSP(this, &FControlRigEditor::GetConnectorWarningVisibility))
+		);
 	}	
+
 	InViewport->AddNotification(MakeAttributeLambda(GetErrorSeverity),
 		false,
 		SNew(SHorizontalBox)
@@ -2771,6 +2843,45 @@ void FControlRigEditor::RefreshDirectManipulationTextList()
 	{
 		DirectManipulationCombo->RefreshOptions();
 	}
+}
+
+EVisibility FControlRigEditor::GetConnectorWarningVisibility() const
+{
+	if(GetConnectorWarningText().IsEmpty())
+	{
+		return EVisibility::Hidden;
+	}
+	return EVisibility::Visible;
+}
+
+FText FControlRigEditor::GetConnectorWarningText() const
+{
+	if (const UControlRigBlueprint* Blueprint = GetControlRigBlueprint())
+	{
+		if(Blueprint->IsControlRigModule())
+		{
+			if(UControlRig* ControlRig = GetControlRig())
+			{
+				FString FailureReason;
+				if(!ControlRig->AllConnectorsAreResolved(&FailureReason))
+				{
+					if(FailureReason.IsEmpty())
+					{
+						static const FText ConnectorWarningDefault = LOCTEXT("ConnectorWarningDefault", "This rig has unresolved connectors.");
+						return ConnectorWarningDefault;
+					}
+					return FText::FromString(FailureReason);
+				}
+			}
+		}
+	}
+	return FText();
+}
+
+FReply FControlRigEditor::OnNavigateToConnectorWarning() const
+{
+	RequestNavigateToConnectorWarningDelegate.Broadcast();
+	return FReply::Handled();
 }
 
 void FControlRigEditor::BindCommands()
@@ -4217,7 +4328,7 @@ void FControlRigEditor::HandleOnControlModified(UControlRig* Subject, FRigContro
 			// update the node based on the incoming pose. once that is done we'll need to compare the node instance
 			// with the settings on the node in the graph and update them accordingly.
 			FControlRigExecuteContext& ExecuteContext = DebuggedControlRig->GetExtendedExecuteContext().GetPublicDataSafe<FControlRigExecuteContext>();
-			const FRigHierarchyRedirectorGuard RedirectorGuard(DebuggedControlRig->GetHierarchy(), DebuggedControlRig->ElementKeyRedirector);
+			const FRigHierarchyRedirectorGuard RedirectorGuard(DebuggedControlRig);
 			if(UnitInstance->UpdateDirectManipulationFromHierarchy(UnitNode, NodeInstance, ExecuteContext, ManipulationInfo))
 			{
 				UnitNode->UpdateHostFromStructInstance(DebuggedControlRig, NodeInstance);
@@ -4387,26 +4498,42 @@ void FControlRigEditor::OnPreConstruction_AnyThread(UControlRig* InRig, const FN
 		{
 			if(RigBlueprint->PreviewSkeletalMesh)
 			{
-				if(URigHierarchyController* Controller = InRig->GetHierarchy()->GetController(true))
+				if(URigHierarchy* Hierarchy = InRig->GetHierarchy())
 				{
-					const TArray<FRigElementKey> Bones = Controller->ImportBones(RigBlueprint->PreviewSkeletalMesh->GetSkeleton());
-
-					if(URigVM* VM = InRig->GetVM())
+					if(URigHierarchyController* Controller = Hierarchy->GetController(true))
 					{
-						const int32 EntryIndex = VM->GetByteCode().FindEntryIndex(FRigUnit_PrepareForExecution::EventName);
-						if(EntryIndex != INDEX_NONE)
+						// find the instruction index for the construction event
+						int32 InstructionIndex = INDEX_NONE;
+						if(URigVM* VM = InRig->GetVM())
 						{
-							const int32 InstructionIndex = VM->GetByteCode().GetEntry(EntryIndex).InstructionIndex;
-							for(const FRigElementKey& Bone : Bones)
+							const int32 EntryIndex = VM->GetByteCode().FindEntryIndex(FRigUnit_PrepareForExecution::EventName);
+							if(EntryIndex != INDEX_NONE)
 							{
-								if(FRigBaseElement* Element = InRig->GetHierarchy()->Find(Bone))
-								{
-									Element->CreatedAtInstructionIndex = InstructionIndex;
-								}
+								InstructionIndex = VM->GetByteCode().GetEntry(EntryIndex).InstructionIndex;
+							}
+						}
+
+						// import the bones for the preview hierarchy
+						const TArray<FRigElementKey> Bones = Controller->ImportBones(RigBlueprint->PreviewSkeletalMesh->GetSkeleton());
+						for(const FRigElementKey& Bone : Bones)
+						{
+							if(FRigBaseElement* Element = InRig->GetHierarchy()->Find(Bone))
+							{
+								Element->CreatedAtInstructionIndex = InstructionIndex;
+							}
+						}
+
+						// create a null to store controls under
+						static const FRigElementKey ControlParentKey(TEXT("Controls"), ERigElementType::Null);
+						if(!Hierarchy->Contains(ControlParentKey))
+						{
+							const FRigElementKey Null = Controller->AddNull(ControlParentKey.Name, FRigElementKey(), FTransform::Identity, true, false, false);
+							if(FRigBaseElement* Element = InRig->GetHierarchy()->Find(Null))
+							{
+								Element->CreatedAtInstructionIndex = InstructionIndex;
 							}
 						}
 					}
-					//(void)RigBlueprint->UpdateConnectionRedirectorOnCDO();
 				}
 			}
 		}

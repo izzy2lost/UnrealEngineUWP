@@ -12,6 +12,7 @@ struct FRigVMExecuteContext;
 struct FRigBaseElement;
 struct FRigControlElement;
 class URigHierarchy;
+class FRigElementKeyRedirector;
 
 DECLARE_DELEGATE_RetVal_ThreeParams(FTransform, FRigReferenceGetWorldTransformDelegate, const FRigVMExecuteContext*, const FRigElementKey& /* Key */, bool /* bInitial */);
 DECLARE_DELEGATE_TwoParams(FRigElementMetadataChangedDelegate, const FRigElementKey& /* Key */, const FName& /* Name */);
@@ -1619,11 +1620,13 @@ public:
 	, TargetHierarchy(nullptr)
 	{}
 
-	FRigConnectionInfo(const TMap<FRigElementKey, FRigElementKey>& InMap, URigHierarchy* InSourceHierarchy, URigHierarchy* InTargetHierarchy)
+	FRigConnectionInfo(const TMap<FRigElementKey, FRigElementKey>& InMap, const URigHierarchy* InSourceHierarchy, const URigHierarchy* InTargetHierarchy)
 	: ConnectionMap(InMap)
 	, SourceHierarchy(InSourceHierarchy)
 	, TargetHierarchy(InTargetHierarchy)
 	{}
+
+	FRigConnectionInfo(const FRigElementKeyRedirector* InRedirector, const URigHierarchy* InHierarchy);
 
 	bool IsValid() const
 	{
@@ -1637,11 +1640,11 @@ public:
 
 	// The hierarchy owning the connectors
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connections)
-	URigHierarchy* SourceHierarchy; 
+	const URigHierarchy* SourceHierarchy; 
 
 	// The hierarchy to be linked into
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connections)
-	URigHierarchy* TargetHierarchy; 
+	const URigHierarchy* TargetHierarchy; 
 };
 
 USTRUCT(BlueprintType)

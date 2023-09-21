@@ -80,9 +80,7 @@ FRigElementKeyRedirector::FRigElementKeyRedirector(const TMap<FRigElementKey, FR
 	for(const TPair<FRigElementKey, FRigElementKey>& Pair : InMap)
 	{
 		check(Pair.Key.IsValid());
-		InternalKeyToExternalKey.Add(Pair.Key, FCachedRigElement(Pair.Value, InHierarchy, true));
-		ExternalKeys.Add(Pair.Value);
-		Hash = HashCombine(Hash, HashCombine(GetTypeHash(Pair.Key), GetTypeHash(Pair.Value)));
+		Add(Pair.Key, Pair.Value, InHierarchy);
 	}
 }
 
@@ -96,9 +94,31 @@ FRigElementKeyRedirector::FRigElementKeyRedirector(const FRigElementKeyRedirecto
 	for(const TPair<FRigElementKey, FCachedRigElement>& Pair : InOther.InternalKeyToExternalKey)
 	{
 		check(Pair.Key.IsValid());
-		InternalKeyToExternalKey.Add(Pair.Key, FCachedRigElement(Pair.Value.GetKey(), InHierarchy, true));
-		ExternalKeys.Add(Pair.Value.GetKey());
-		Hash = HashCombine(Hash, HashCombine(GetTypeHash(Pair.Key), GetTypeHash(Pair.Value.GetKey())));
+		Add(Pair.Key, Pair.Value.GetKey(), InHierarchy);
 	}
+}
+
+const FRigElementKey* FRigElementKeyRedirector::FindReverse(const FRigElementKey& InKey) const
+{
+	for(const TPair<FRigElementKey, FCachedRigElement>& Pair : InternalKeyToExternalKey)
+	{
+		if(Pair.Value.GetKey() == InKey)
+		{
+			return &Pair.Key;
+		}
+	}
+	return nullptr;
+}
+
+void FRigElementKeyRedirector::Add(const FRigElementKey& InSource, const FRigElementKey& InTarget, const URigHierarchy* InHierarchy)
+{
+	if(!InSource.IsValid() || !InTarget.IsValid() || InSource == InTarget)
+	{
+		return;
+	}
+
+	InternalKeyToExternalKey.Add(InSource, FCachedRigElement(InTarget, InHierarchy, true));
+	ExternalKeys.Add(InTarget);
+	Hash = HashCombine(Hash, HashCombine(GetTypeHash(InSource), GetTypeHash(InTarget)));
 }
 

@@ -524,6 +524,64 @@ FText UControlRig::GetToolTipText() const
 }
 #endif
 
+bool UControlRig::AllConnectorsAreResolved(FString* OutFailureReason, FRigElementKey* OutConnector) const
+{
+	if(const URigHierarchy* Hierarchy = GetHierarchy())
+	{
+		// todo: introduce a cache here based on ElementKeyDirector hash and
+		// topology hash of the hierarchy
+		
+		const TArray<FRigConnectorElement*> Connectors = Hierarchy->GetConnectors(false);
+
+		// collect the connection map
+		TMap<FRigElementKey, FRigElementKey> ConnectionMap;
+		for(const FRigConnectorElement* Connector : Connectors)
+		{
+			if(const FCachedRigElement* Cache = ElementKeyRedirector.Find(Connector->GetKey()))
+			{
+				if(const_cast<FCachedRigElement*>(Cache)->UpdateCache(Hierarchy))
+				{
+					ConnectionMap.Add(Connector->GetKey(), Cache->GetKey());
+				}
+				else
+				{
+					if(OutFailureReason)
+					{
+						static constexpr TCHAR Format[] = TEXT("Connector '%s' has invalid target '%s'.");
+						*OutFailureReason = FString::Printf(Format, *Connector->GetName(), *Cache->GetKey().ToString());
+					}
+					if(OutConnector)
+					{
+						*OutConnector = Connector->GetKey();
+					}
+					return false;
+				}
+			}
+			else
+			{
+				if(OutFailureReason)
+				{
+					static constexpr TCHAR Format[] = TEXT("Connector '%s' is not resolved.");
+					*OutFailureReason = FString::Printf(Format, *Connector->GetName());
+				}
+				if(OutConnector)
+				{
+					*OutConnector = Connector->GetKey();
+				}
+				return false;
+			}
+		}
+
+		// now that we have the connection try if we can connect this way
+		const FRigConnectionInfo ConnectionInfo(ConnectionMap, Hierarchy, Hierarchy);
+		if(!Hierarchy->CanConnect(&ConnectionInfo, OutFailureReason, OutConnector))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 bool UControlRig::Execute(const FName& InEventName)
 {
 	if(!CanExecute())
@@ -1227,6 +1285,18 @@ bool UControlRig::Execute(const FName& InEventName)
 
 bool UControlRig::Execute_Internal(const FName& InEventName)
 {
+	if(IsRigModule())
+	{
+		FString ConnectorWarning;
+		if(!AllConnectorsAreResolved(&ConnectorWarning))
+		{
+#if WITH_EDITOR
+			LogOnce(EMessageSeverity::Warning, INDEX_NONE, ConnectorWarning);
+#endif
+			return false;
+		}
+	}
+	
 	if (VM)
 	{
 		FRigVMExtendedExecuteContext& Context = GetExtendedExecuteContext();
@@ -1320,7 +1390,7 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 		FControlRigExecuteContext& PublicContext = Context.GetPublicDataSafe<FControlRigExecuteContext>();
 		TGuardValue<FName> ModuleInstanceNameGuard(PublicContext.ModuleInstanceName, GetModuleInstanceName());
 		TGuardValue<FString> ModuleInstanceNameSpaceGuard(PublicContext.ModuleInstanceNameSpace, GetRigModuleNameSpace());
-		FRigHierarchyRedirectorGuard ElementRedirectorGuard(DynamicHierarchy, GetElementKeyRedirector());
+		FRigHierarchyRedirectorGuard ElementRedirectorGuard(this);
 
 		TArray<TRigVMMemoryStorage*> LocalMemory = VM->GetLocalMemoryArray(Context);
 		const bool bSuccess = VM->Execute(Context, LocalMemory, InEventName) != ERigVMExecuteResult::Failed;
@@ -1584,10 +1654,16 @@ const FString& UControlRig::GetRigModuleNameSpace() const
 		if(const UControlRig* ParentRig = GetParentRig())
 		{
 			const FString& ParentNameSpace = ParentRig->GetRigModuleNameSpace();
-			static constexpr TCHAR JoinFormat[] = TEXT("%s%s::");
+			static constexpr TCHAR JoinFormat[] = TEXT("%s%s:");
 			RigModuleNameSpace = FString::Printf(JoinFormat, *ParentNameSpace, *GetName());
 			return RigModuleNameSpace;
 		}
+
+		// this means we are not an instance - so we are authoring the rig module right now.
+		// for visualization purposes we'll use the name of the rig module chosen in the settings.
+		static constexpr TCHAR NameSpaceFormat[] = TEXT("%s:"); 
+		RigModuleNameSpace = FString::Printf(NameSpaceFormat, *GetRigModuleSettings().Identifier.Name);
+		return RigModuleNameSpace;
 	}
 
 	static const FString EmptyNameSpace;

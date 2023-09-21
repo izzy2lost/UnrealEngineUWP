@@ -108,7 +108,6 @@ URigHierarchy::URigHierarchy()
 , bIsInteracting(false)
 , LastInteractedKey()
 , bSuspendNotifications(false)
-, bIsRunningGetIndex(false)
 , HierarchyController(nullptr)
 , bIsControllerAvailable(true)
 , ResetPoseHash(INDEX_NONE)
@@ -121,6 +120,7 @@ URigHierarchy::URigHierarchy()
 , bEnableCacheValidityCheck(bEnableValidityCheckbyDefault)
 , HierarchyForCacheValidation()
 , bUpdatePreferedEulerAngleWhenSettingTransform(true)
+, bAllowNameSpaceWhenSanitizingName(false)
 , ExecuteContext(nullptr)
 #if WITH_EDITOR
 , bRecordTransformsAtRuntime(true)
@@ -1094,7 +1094,7 @@ TArray<FRigElementKey> URigHierarchy::GetSelectedKeys(ERigElementType InTypeFilt
 	return Selection;
 }
 
-void URigHierarchy::SanitizeName(FRigName& InOutName)
+void URigHierarchy::SanitizeName(FRigName& InOutName, bool bAllowNameSpaces)
 {
 	// Sanitize the name
 	FString SanitizedNameString = InOutName.GetName();
@@ -1110,6 +1110,11 @@ void URigHierarchy::SanitizeName(FRigName& InOutName)
 
 		if (!bGoodChar)
 		{
+			if(bAllowNameSpaces && C == ':')
+			{
+				continue;
+			}
+			
 			C = '_';
 			bChangedSomething = true;
 		}
@@ -1172,7 +1177,7 @@ bool URigHierarchy::IsNameAvailable(const FRigName& InPotentialNewName, ERigElem
 	}
 
 	FRigName SanitizedName = UnsanitizedName;
-	SanitizeName(SanitizedName);
+	SanitizeName(SanitizedName, bAllowNameSpaceWhenSanitizingName);
 
 	if (SanitizedName != UnsanitizedName)
 	{
@@ -1249,7 +1254,18 @@ bool URigHierarchy::IsDisplayNameAvailable(const FRigElementKey& InParentElement
 FRigName URigHierarchy::GetSafeNewName(const FRigName& InPotentialNewName, ERigElementType InType) const
 {
 	FRigName SanitizedName = InPotentialNewName;
-	SanitizeName(SanitizedName);
+	SanitizeName(SanitizedName, false);
+
+	if(ExecuteContext)
+	{
+		const FControlRigExecuteContext& CRContext = ExecuteContext->GetPublicData<FControlRigExecuteContext>();
+		if(!CRContext.ModuleInstanceNameSpace.IsEmpty())
+		{
+			SanitizedName = CRContext.ModuleInstanceNameSpace + SanitizedName.GetName();
+			bAllowNameSpaceWhenSanitizingName = true;
+		}
+	}
+
 	FRigName Name = SanitizedName;
 
 	int32 Suffix = 1;
@@ -1262,6 +1278,8 @@ FRigName URigHierarchy::GetSafeNewName(const FRigName& InPotentialNewName, ERigE
 		}
 		Name.SetName(FString::Printf(TEXT("%s_%d"), *BaseString, ++Suffix));
 	}
+
+	bAllowNameSpaceWhenSanitizingName = false;
 	return Name;
 }
 
@@ -2352,7 +2370,7 @@ void URigHierarchy::Traverse(TFunction<void(FRigBaseElement*, bool& /* continue 
 	}
 }
 
-bool URigHierarchy::CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const
+bool URigHierarchy::CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason, FRigElementKey* OutConnector) const
 {
 	check(InConnectionInfo);
 	check(InConnectionInfo->IsValid());
@@ -2367,6 +2385,10 @@ bool URigHierarchy::CanConnect(const FRigConnectionInfo* InConnectionInfo, FStri
 			{
 				static constexpr TCHAR Format[] = TEXT("Connector key '%s' not provided as part of the connection map.");
 				OutFailureReason->Appendf(Format, *ExpectedConnector->GetKey().ToString());
+			}
+			if(OutConnector)
+			{
+				*OutConnector = ExpectedConnector->GetKey();
 			}
 			return false;
 		}
@@ -2393,6 +2415,10 @@ bool URigHierarchy::CanConnect(const FRigConnectionInfo* InConnectionInfo, FStri
 				static constexpr TCHAR Format[] = TEXT("Connector key '%s' is not a connector.");
 				OutFailureReason->Appendf(Format, *ConnectorKey.ToString());
 			}
+			if(OutConnector)
+			{
+				*OutConnector = ConnectorKey;
+			}
 			return false;
 		}
 		if(!TargetKey.IsValid())
@@ -2401,6 +2427,10 @@ bool URigHierarchy::CanConnect(const FRigConnectionInfo* InConnectionInfo, FStri
 			{
 				static constexpr TCHAR Format[] = TEXT("Target key '%s' is not valid.");
 				OutFailureReason->Appendf(Format, *TargetKey.ToString());
+			}
+			if(OutConnector)
+			{
+				*OutConnector = ConnectorKey;
 			}
 			return false;
 		}
@@ -2413,6 +2443,10 @@ bool URigHierarchy::CanConnect(const FRigConnectionInfo* InConnectionInfo, FStri
 				static constexpr TCHAR Format[] = TEXT("Connector element '%s' does not exist.");
 				OutFailureReason->Appendf(Format, *ConnectorKey.ToString());
 			}
+			if(OutConnector)
+			{
+				*OutConnector = Connector->GetKey();
+			}
 			return false;
 		}
 		const FRigBaseElement* Target = Find<FRigBaseElement>(TargetKey);
@@ -2422,6 +2456,10 @@ bool URigHierarchy::CanConnect(const FRigConnectionInfo* InConnectionInfo, FStri
 			{
 				static constexpr TCHAR Format[] = TEXT("Target element '%s' does not exist.");
 				OutFailureReason->Appendf(Format, *TargetKey.ToString());
+			}
+			if(OutConnector)
+			{
+				*OutConnector = Connector->GetKey();
 			}
 			return false;
 		}
@@ -2433,11 +2471,19 @@ bool URigHierarchy::CanConnect(const FRigConnectionInfo* InConnectionInfo, FStri
 				static constexpr TCHAR Format[] = TEXT("Target element '%s' is not a transform.");
 				OutFailureReason->Appendf(Format, *TargetKey.ToString());
 			}
+			if(OutConnector)
+			{
+				*OutConnector = Connector->GetKey();
+			}
 			return false;
 		}
 
 		if(!Connector->CanConnect(InConnectionInfo, OutFailureReason))
 		{
+			if(OutConnector)
+			{
+				*OutConnector = Connector->GetKey();
+			}
 			return false;
 		}
 	}
@@ -6563,3 +6609,8 @@ TArray<FString> URigHierarchy::ConnectorSettingsToPythonCommands(const FRigConne
 }
 
 #endif
+
+FRigHierarchyRedirectorGuard::FRigHierarchyRedirectorGuard(UControlRig* InControlRig)
+: Guard(InControlRig->GetHierarchy()->ElementKeyRedirector, &InControlRig->GetElementKeyRedirector())
+{
+}

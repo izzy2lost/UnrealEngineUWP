@@ -144,6 +144,7 @@ void SRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FControlRigEd
 	Delegates.OnAcceptDrop = FOnRigTreeAcceptDrop::CreateSP(this, &SRigHierarchy::OnAcceptDrop);
 	Delegates.OnDragDetected = FOnDragDetected::CreateSP(this, &SRigHierarchy::OnDragDetected);
 	Delegates.OnGetResolvedKey = FOnRigTreeGetResolvedKey::CreateSP(this, &SRigHierarchy::OnGetResolvedKey);
+	Delegates.OnRequestDetailsInspection = FOnRigTreeRequestDetailsInspection::CreateSP(this, &SRigHierarchy::OnRequestDetailsInspection);
 
 	ChildSlot
 	[
@@ -278,6 +279,7 @@ void SRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FControlRigEd
 		ControlRigEditor.Pin()->OnGetViewportContextMenu().BindSP(this, &SRigHierarchy::GetContextMenu);
 		ControlRigEditor.Pin()->OnViewportContextMenuCommands().BindSP(this, &SRigHierarchy::GetContextMenuCommands);
 		ControlRigEditor.Pin()->OnEditorClosed().AddSP(this, &SRigHierarchy::OnEditorClose);
+		ControlRigEditor.Pin()->OnRequestNavigateToConnectorWarning().AddSP(this, &SRigHierarchy::OnNavigateToFirstConnectorWarning);
 	}
 	
 	CreateContextMenu();
@@ -292,6 +294,7 @@ void SRigHierarchy::OnEditorClose(const FRigVMEditor* InEditor, URigVMBlueprint*
 		Editor->GetKeyDownDelegate().Unbind();
 		Editor->OnGetViewportContextMenu().Unbind();
 		Editor->OnViewportContextMenuCommands().Unbind();
+		Editor->OnRequestNavigateToConnectorWarning().RemoveAll(this);
 	}
 
 	if (UControlRigBlueprint* BP = Cast<UControlRigBlueprint>(InBlueprint))
@@ -537,7 +540,8 @@ void SRigHierarchy::OnFilterTextChanged(const FText& SearchText)
 
 void SRigHierarchy::RefreshTreeView(bool bRebuildContent)
 {
-	if(const URigHierarchy* Hierarchy = GetHierarchy())
+	const URigHierarchy* Hierarchy = GetHierarchy();
+	if(Hierarchy)
 	{
 		// is the rig currently running
 		if(Hierarchy->HasExecuteContext())
@@ -958,6 +962,34 @@ void SRigHierarchy::OnPostConstruction_AnyThread(UControlRig* InRig, const FName
 			{
 				Task();
 			}, TStatId(), NULL, ENamedThreads::GameThread);
+		}
+	}
+}
+
+void SRigHierarchy::OnNavigateToFirstConnectorWarning()
+{
+	if(ControlRigEditor.IsValid())
+	{
+		if(UControlRig* ControlRig = ControlRigEditor.Pin()->GetControlRig())
+		{
+			FRigElementKey ConnectorKey;
+			if(!ControlRig->AllConnectorsAreResolved(nullptr, &ConnectorKey))
+			{
+				if(ConnectorKey.IsValid())
+				{
+					if(URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
+					{
+						if(URigHierarchyController* HierarchyController = Hierarchy->GetController())
+						{
+							{
+								const FRigHierarchyRedirectorGuard RedirectorGuard(ControlRig);
+								HierarchyController->SetSelection({ConnectorKey}, false);
+							}
+							HandleFrameSelection();
+						}
+					}
+				}
+			}
 		}
 	}
 }
@@ -1560,6 +1592,15 @@ FRigElementKey SRigHierarchy::OnGetResolvedKey(const FRigElementKey& InKey)
 		}
 	}
 	return InKey;
+}
+
+void SRigHierarchy::OnRequestDetailsInspection(const FRigElementKey& InKey)
+{
+	if(!ControlRigEditor.IsValid())
+	{
+		return;
+	}
+	ControlRigEditor.Pin()->SetDetailViewForRigElements({InKey});
 }
 
 void SRigHierarchy::ImportHierarchy(const FAssetData& InAssetData)
@@ -2459,6 +2500,31 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 		}
 	}
 
+	const TSharedPtr<FRigHierarchyTagDragDropOp> TagDragDropOp = DragDropEvent.GetOperationAs<FRigHierarchyTagDragDropOp>();
+	if(TagDragDropOp.IsValid())
+	{
+		if(DropZone != EItemDropZone::OntoItem)
+		{
+			return InvalidDropZone;
+		}
+
+		if (const URigHierarchy* Hierarchy = GetHierarchy())
+		{
+			FRigElementKey DraggedKey;
+			FRigElementKey::StaticStruct()->ImportText(*TagDragDropOp->GetIdentifier(), &DraggedKey, nullptr, EPropertyPortFlags::PPF_None, nullptr, FRigElementKey::StaticStruct()->GetName(), true);
+
+			if(Hierarchy->Contains(DraggedKey))
+			{
+				// todo: apply rules
+				ReturnDropZone = DropZone;
+			}
+			else if(!TargetItem.IsValid())
+			{
+				ReturnDropZone = DropZone;
+			}
+		}
+	}
+
 	return ReturnDropZone;
 }
 
@@ -2527,6 +2593,21 @@ FReply SRigHierarchy::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDro
 			return ReparentOrMatchTransform(RigDragDropOp->GetElements(), TargetKey, bReparentItems, LocalIndex);			
 		}
 
+	}
+
+	const TSharedPtr<FRigHierarchyTagDragDropOp> TagDragDropOp = DragDropEvent.GetOperationAs<FRigHierarchyTagDragDropOp>();
+	if(TagDragDropOp.IsValid())
+	{
+		if (const URigHierarchy* Hierarchy = GetHierarchy())
+		{
+			FRigElementKey DraggedKey;
+			FRigElementKey::StaticStruct()->ImportText(*TagDragDropOp->GetIdentifier(), &DraggedKey, nullptr, EPropertyPortFlags::PPF_None, nullptr, FRigElementKey::StaticStruct()->GetName(), true);
+			if(TargetItem.IsValid())
+			{
+				return ResolveConnector(DraggedKey, TargetItem->Key);
+			}
+			return ResolveConnector(DraggedKey, FRigElementKey());
+		}
 	}
 
 	return FReply::Unhandled();

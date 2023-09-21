@@ -117,6 +117,7 @@ public:
 	URigHierarchy* GetHierarchyBeingDebugged() const;
 
 	void SetDetailViewForRigElements();
+	void SetDetailViewForRigElements(const TArray<FRigElementKey>& InKeys);
 	bool DetailViewShowsAnyRigElement() const;
 	bool DetailViewShowsRigElement(FRigElementKey InKey) const;
 	virtual void RefreshDetailView() override;
@@ -165,6 +166,12 @@ public:
 	bool ClearDirectManipulationSubject() { return SetDirectionManipulationSubject(nullptr); }
 	void RefreshDirectManipulationTextList();
 
+	// Rig connector functionality
+	EVisibility GetConnectorWarningVisibility() const;
+	FText GetConnectorWarningText() const;
+	FReply OnNavigateToConnectorWarning() const;
+	FSimpleMulticastDelegate& OnRequestNavigateToConnectorWarning() { return RequestNavigateToConnectorWarningDelegate; }
+	
 protected:
 
 	virtual void BindCommands() override;
@@ -311,7 +318,8 @@ protected:
 	mutable TArray<TSharedPtr<FString>> DirectManipulationTextList;
 	TSharedPtr<SComboBox<TSharedPtr<FString>>> DirectManipulationCombo;
 	bool bRefreshDirectionManipulationTargetsRequired;
-	
+	FSimpleMulticastDelegate RequestNavigateToConnectorWarningDelegate;
+
 	static const TArray<FName> ForwardsSolveEventQueue;
 	static const TArray<FName> BackwardsSolveEventQueue;
 	static const TArray<FName> ConstructionEventQueue;

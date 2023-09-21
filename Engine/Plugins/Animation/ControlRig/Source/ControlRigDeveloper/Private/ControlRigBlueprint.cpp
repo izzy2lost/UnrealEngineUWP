@@ -93,6 +93,33 @@ bool UControlRigBlueprint::RequiresForceLoadMembers(UObject* InObject) const
 	return Super::RequiresForceLoadMembers(InObject);
 }
 
+void UControlRigBlueprint::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	// if this is any of our external variables we need to request construction so that the rig rebuilds itself
+	if(NewVariables.ContainsByPredicate([&PropertyChangedEvent](const FBPVariableDescription& Variable)
+	{
+		return Variable.VarName == PropertyChangedEvent.GetMemberPropertyName();
+	}))
+	{
+		if(UControlRig* DebuggedControlRig = Cast<UControlRig>(GetObjectBeingDebugged()))
+		{
+			if(const FProperty* PropertyOnRig = DebuggedControlRig->GetClass()->FindPropertyByName(PropertyChangedEvent.MemberProperty->GetFName()))
+			{
+				if(PropertyOnRig->SameType(PropertyChangedEvent.MemberProperty))
+				{
+					UControlRig* CDO = DebuggedControlRig->GetClass()->GetDefaultObject<UControlRig>();
+					const uint8* SourceMemory = PropertyOnRig->ContainerPtrToValuePtr<uint8>(CDO);
+					uint8* TargetMemory = PropertyOnRig->ContainerPtrToValuePtr<uint8>(DebuggedControlRig);
+					PropertyOnRig->CopyCompleteValue(TargetMemory, SourceMemory);
+				}
+			}
+			DebuggedControlRig->RequestConstruction();
+		}
+	}
+}
+
 void UControlRigBlueprint::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeChainProperty(PropertyChangedEvent);
@@ -711,6 +738,7 @@ bool UControlRigBlueprint::ResolveConnector(const FRigElementKey& DraggedKey, co
 	}
 
 	PropagateHierarchyFromBPToInstances();
+	RequestAutoVMRecompilation();
 
 	return true;
 }

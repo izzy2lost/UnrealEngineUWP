@@ -620,9 +620,10 @@ private:
 	 * @param InElementToAdd The new element to add to the hierarchy 
 	 * @param InFirstParent The (optional) parent of the new bone. If you don't need a parent, pass nullptr
 	 * @param bMaintainGlobalTransform If set to true the child will stay in the same place spatially, otherwise it will maintain it's local transform (and potential move).
+	 * @param InDesiredName The original desired name
 	 * @return The index of the newly added element
 	 */
-	int32 AddElement(FRigBaseElement* InElementToAdd, FRigBaseElement* InFirstParent, bool bMaintainGlobalTransform);
+	int32 AddElement(FRigBaseElement* InElementToAdd, FRigBaseElement* InFirstParent, bool bMaintainGlobalTransform, const FName& InDesiredName = NAME_None);
 
 	/**
 	 * Removes an existing element from the hierarchy.

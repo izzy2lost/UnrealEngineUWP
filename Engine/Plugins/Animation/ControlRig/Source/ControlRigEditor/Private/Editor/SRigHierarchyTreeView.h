@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Widgets/Views/STreeView.h"
 #include "Rigs/RigHierarchy.h"
+#include "SRigHierarchyTagWidget.h"
 
 class SSearchBox;
 class SRigHierarchyTreeView;
@@ -64,6 +65,7 @@ DECLARE_DELEGATE_RetVal_TwoParams(FName, FOnRigTreeRenameElement, const FRigElem
 DECLARE_DELEGATE_RetVal_ThreeParams(bool, FOnRigTreeVerifyElementNameChanged, const FRigElementKey& /*OldKey*/, const FString& /*NewName*/, FText& /*OutErrorMessage*/);
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FOnRigTreeCompareKeys, const FRigElementKey& /*A*/, const FRigElementKey& /*B*/);
 DECLARE_DELEGATE_RetVal_OneParam(FRigElementKey, FOnRigTreeGetResolvedKey, const FRigElementKey&);
+DECLARE_DELEGATE_OneParam(FOnRigTreeRequestDetailsInspection, const FRigElementKey&);
 
 typedef STableRow<TSharedPtr<FRigTreeElement>>::FOnCanAcceptDrop FOnRigTreeCanAcceptDrop;
 typedef STableRow<TSharedPtr<FRigTreeElement>>::FOnAcceptDrop FOnRigTreeAcceptDrop;
@@ -88,6 +90,7 @@ struct CONTROLRIGEDITOR_API FRigTreeDelegates
 	FOnRigTreeSetExpansionRecursive OnSetExpansionRecursive;
 	FOnRigTreeCompareKeys OnCompareKeys;
 	FOnRigTreeGetResolvedKey OnGetResolvedKey;
+	FOnRigTreeRequestDetailsInspection OnRequestDetailsInspection;
 
 	FRigTreeDelegates()
 	{
@@ -149,6 +152,14 @@ struct CONTROLRIGEDITOR_API FRigTreeDelegates
 		return InKey;
 	}
 
+	void RequestDetailsInspection(const FRigElementKey& InKey)
+	{
+		if(OnRequestDetailsInspection.IsBound())
+		{
+			return OnRequestDetailsInspection.Execute(InKey);
+		}
+	}
+
 	static FRigTreeDisplaySettings DefaultDisplaySettings;
 	bool bIsChangingRigHierarchy;
 };
@@ -206,6 +217,9 @@ public:
 
 	/** The color to use when rendering the label text */
 	FSlateColor TextColor;
+
+	/** The tag arguments for this element */
+	TArray<SRigHierarchyTagWidget::FArguments> Tags;
 };
 
 class SRigHierarchyItem : public STableRow<TSharedPtr<FRigTreeElement>>
@@ -299,6 +313,9 @@ public:
 	const TSharedPtr<FRigTreeElement>* FindItemAtPosition(FVector2D InScreenSpacePosition) const;
 
 private:
+
+	void AddConnectorResolveWarningTag(TSharedPtr<FRigTreeElement> InTreeElement, const FRigBaseElement* InRigElement, const URigHierarchy* InHierarchy);
+	FText GetConnectorWarningMessage(TSharedPtr<FRigTreeElement> InTreeElement, TWeakObjectPtr<UControlRig> InControlRigPtr, const FRigElementKey InConnectorKey) const;
 
 	/** A temporary snapshot of the SparseItemInfos in STreeView, used during RefreshTreeView() */
 	TSparseItemMap OldSparseItemInfos;

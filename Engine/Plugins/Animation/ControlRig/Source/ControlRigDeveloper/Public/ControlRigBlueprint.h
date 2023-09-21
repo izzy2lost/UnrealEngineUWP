@@ -71,6 +71,7 @@ public:
 	virtual bool RequiresForceLoadMembers(UObject* InObject) const override;
 
 	// UObject interface
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditChangeChainProperty(struct FPropertyChangedChainEvent& PropertyChangedEvent) override;
 
 #endif	// #if WITH_EDITOR

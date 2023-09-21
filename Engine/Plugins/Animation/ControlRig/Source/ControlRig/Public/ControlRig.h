@@ -188,6 +188,8 @@ public:
 	virtual bool Execute_Internal(const FName& InEventName) override;
 	virtual void RequestInit() override;
 
+	bool AllConnectorsAreResolved(FString* OutFailureReason = nullptr, FRigElementKey* OutConnector = nullptr) const;
+
 	/** Requests to perform construction during the next execution */
 	UFUNCTION(BlueprintCallable, Category = "Control Rig")
 	void RequestConstruction();

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Rigs/RigHierarchyController.h"
+#include "ControlRig.h"
 #include "AnimationCoreLibrary.h"
 #include "UObject/Package.h"
 
@@ -88,13 +89,25 @@ bool URigHierarchyController::SelectElement(FRigElementKey InKey, bool bSelect, 
 		}
 	}
 
-	FRigBaseElement* Element = Hierarchy->Find(InKey);
+	FRigElementKey Key = InKey;
+	if(Hierarchy->ElementKeyRedirector)
+	{
+		if(const FCachedRigElement* Cache = Hierarchy->ElementKeyRedirector->Find(Key))
+		{
+			if(const_cast<FCachedRigElement*>(Cache)->UpdateCache(Hierarchy.Get()))
+			{
+				Key = Cache->GetKey();
+			}
+		}
+	}
+
+	FRigBaseElement* Element = Hierarchy->Find(Key);
 	if(Element == nullptr)
 	{
 		return false;
 	}
 
-	const bool bSelectionState = Hierarchy->OrderedSelection.Contains(InKey);
+	const bool bSelectionState = Hierarchy->OrderedSelection.Contains(Key);
 	ensure(bSelectionState == Element->bSelected);
 	if(Element->bSelected == bSelect)
 	{
@@ -104,11 +117,11 @@ bool URigHierarchyController::SelectElement(FRigElementKey InKey, bool bSelect, 
 	Element->bSelected = bSelect;
 	if(bSelect)
 	{
-		Hierarchy->OrderedSelection.Add(InKey);
+		Hierarchy->OrderedSelection.Add(Key);
 	}
 	else
 	{
-		Hierarchy->OrderedSelection.Remove(InKey);
+		Hierarchy->OrderedSelection.Remove(Key);
 	}
 
 	if(Element->bSelected)
@@ -214,7 +227,7 @@ FRigElementKey URigHierarchyController::AddBone(FName InName, FRigElementKey InP
 		NewElement->Key.Type = ERigElementType::Bone;
 		NewElement->Key.Name = Hierarchy->GetSafeNewName(InName, NewElement->Key.Type);
 		NewElement->BoneType = InBoneType;
-		AddElement(NewElement, Hierarchy->Get(Hierarchy->GetIndex(InParent)), true);
+		AddElement(NewElement, Hierarchy->Get(Hierarchy->GetIndex(InParent)), true, InName);
 
 		if(bTransformInGlobal)
 		{
@@ -275,7 +288,7 @@ FRigElementKey URigHierarchyController::AddNull(FName InName, FRigElementKey InP
 		TGuardValue<bool> DisableCacheValidityChecks(Hierarchy->bEnableCacheValidityCheck, false);		
 		NewElement->Key.Type = ERigElementType::Null;
 		NewElement->Key.Name = Hierarchy->GetSafeNewName(InName, NewElement->Key.Type);
-		AddElement(NewElement, Hierarchy->Get(Hierarchy->GetIndex(InParent)), false);
+		AddElement(NewElement, Hierarchy->Get(Hierarchy->GetIndex(InParent)), false, InName);
 
 		if(bTransformInGlobal)
 		{
@@ -350,7 +363,16 @@ FRigElementKey URigHierarchyController::AddControl(
 		{
 			NewElement->Settings.DisplayName = Hierarchy->GetSafeNewDisplayName(InParent, NewElement->Settings.DisplayName); 
 		}
-		AddElement(NewElement, Hierarchy->Get(Hierarchy->GetIndex(InParent)), false);
+		else if(Hierarchy->HasExecuteContext())
+		{
+			const FControlRigExecuteContext& CRContext = Hierarchy->ExecuteContext->GetPublicData<FControlRigExecuteContext>();
+			if(!CRContext.ModuleInstanceNameSpace.IsEmpty())
+			{
+				NewElement->Settings.DisplayName = Hierarchy->GetSafeNewDisplayName(InParent, InName);
+			}
+		}
+		
+		AddElement(NewElement, Hierarchy->Get(Hierarchy->GetIndex(InParent)), false, InName);
 		
 		NewElement->Offset.Set(ERigTransformType::InitialLocal, InOffsetTransform);  
 		NewElement->Shape.Set(ERigTransformType::InitialLocal, InShapeTransform);  
@@ -434,7 +456,7 @@ FRigElementKey URigHierarchyController::AddCurve(FName InName, float InValue, bo
 		NewElement->Key.Type = ERigElementType::Curve;
 		NewElement->Key.Name = Hierarchy->GetSafeNewName(InName, NewElement->Key.Type);
 		NewElement->Value = InValue;
-		AddElement(NewElement, nullptr, false);
+		AddElement(NewElement, nullptr, false, InName);
 	}
 
 #if WITH_EDITOR
@@ -483,7 +505,7 @@ FRigElementKey URigHierarchyController::AddRigidBody(FName InName, FRigElementKe
 		NewElement->Key.Type = ERigElementType::RigidBody;
 		NewElement->Key.Name = Hierarchy->GetSafeNewName(InName, NewElement->Key.Type);
 		NewElement->Settings = InSettings;
-		AddElement(NewElement, Hierarchy->Get(Hierarchy->GetIndex(InParent)), true);
+		AddElement(NewElement, Hierarchy->Get(Hierarchy->GetIndex(InParent)), true, InName);
 
 		Hierarchy->SetTransform(NewElement, InLocalTransform, ERigTransformType::InitialLocal, true, false);
 		NewElement->Pose.Current = NewElement->Pose.Initial;
@@ -535,7 +557,7 @@ FRigElementKey URigHierarchyController::AddReference(FName InName, FRigElementKe
 		NewElement->Key.Type = ERigElementType::Reference;
 		NewElement->Key.Name = Hierarchy->GetSafeNewName(InName, NewElement->Key.Type);
 		NewElement->GetWorldTransformDelegate = InDelegate;
-		AddElement(NewElement, Hierarchy->Get(Hierarchy->GetIndex(InParent)), true);
+		AddElement(NewElement, Hierarchy->Get(Hierarchy->GetIndex(InParent)), true, InName);
 
 		Hierarchy->SetTransform(NewElement, FTransform::Identity, ERigTransformType::InitialLocal, true, false);
 		NewElement->Pose.Current = NewElement->Pose.Initial;
@@ -573,7 +595,7 @@ FRigElementKey URigHierarchyController::AddConnector(FName InName, FTransform In
 		NewElement->Key.Type = ERigElementType::Connector;
 		NewElement->Key.Name = Hierarchy->GetSafeNewName(InName, NewElement->Key.Type);
 		NewElement->Settings = InSettings;
-		AddElement(NewElement, nullptr, true);
+		AddElement(NewElement, nullptr, true, InName);
 
 		if(bTransformInGlobal)
 		{
@@ -1279,9 +1301,10 @@ TArray<FRigElementKey> URigHierarchyController::ImportFromText(FString InContent
 				continue;
 			}
 		}
-		
-		NewElement->Key.Name = Hierarchy->GetSafeNewName(NewElement->Key.Name, NewElement->Key.Type);
-		AddElement(NewElement, nullptr, true);
+
+		const FName DesiredName = NewElement->Key.Name;
+		NewElement->Key.Name = Hierarchy->GetSafeNewName(DesiredName, NewElement->Key.Type);
+		AddElement(NewElement, nullptr, true, DesiredName);
 
 		KeyMap.FindOrAdd(PerElementData.Key) = NewElement->Key;
 
@@ -1760,7 +1783,7 @@ bool URigHierarchyController::IsValid() const
 	return Hierarchy.IsValid(bPendingKillAcceptable);
 }
 
-int32 URigHierarchyController::AddElement(FRigBaseElement* InElementToAdd, FRigBaseElement* InFirstParent, bool bMaintainGlobalTransform)
+int32 URigHierarchyController::AddElement(FRigBaseElement* InElementToAdd, FRigBaseElement* InFirstParent, bool bMaintainGlobalTransform, const FName& InDesiredName)
 {
 	ensure(IsValid());
 
@@ -1772,6 +1795,54 @@ int32 URigHierarchyController::AddElement(FRigBaseElement* InElementToAdd, FRigB
 	Hierarchy->IndexLookup.Add(InElementToAdd->Key, InElementToAdd->Index);
 	Hierarchy->IncrementTopologyVersion();
 
+	FRigName DesiredName = InDesiredName;
+	URigHierarchy::SanitizeName(DesiredName);
+
+	int32 NameSpaceTokenIndex = INDEX_NONE; 
+	if(InElementToAdd->GetName().FindLastChar(':', NameSpaceTokenIndex))
+	{
+		static const FName ShortNameMetaName = TEXT("ShortName");
+		const FString ShortName = InElementToAdd->GetName().RightChop(NameSpaceTokenIndex + 1);
+		if(!ShortName.IsEmpty())
+		{
+			Hierarchy->SetNameMetadata(InElementToAdd->Key, ShortNameMetaName, *ShortName);
+		}
+	}
+
+	if(!InDesiredName.IsNone() &&
+		!InElementToAdd->GetFName().IsEqual(DesiredName.GetFName(), ENameCase::CaseSensitive))
+	{
+		static const FName DesiredNameMetaName = TEXT("DesiredName");
+		static const FName DesiredKeyMetaName = TEXT("DesiredKey");
+		Hierarchy->SetNameMetadata(InElementToAdd->Key, DesiredNameMetaName, DesiredName.GetFName());
+		Hierarchy->SetRigElementKeyMetadata(InElementToAdd->Key, DesiredKeyMetaName, FRigElementKey(DesiredName.GetFName(), InElementToAdd->Key.Type));
+	}
+	
+	if(Hierarchy->HasExecuteContext())
+	{
+		const FControlRigExecuteContext& CRContext = Hierarchy->ExecuteContext->GetPublicData<FControlRigExecuteContext>();
+
+		if(!CRContext.ModuleInstanceName.IsNone())
+		{
+			static const FName ModuleMetaName = TEXT("Module");
+			Hierarchy->SetNameMetadata(InElementToAdd->Key, ModuleMetaName, CRContext.ModuleInstanceName);
+		}
+		
+		if(!CRContext.ModuleInstanceNameSpace.IsEmpty())
+		{
+			if(InElementToAdd->GetName().StartsWith(CRContext.ModuleInstanceNameSpace, ESearchCase::CaseSensitive))
+			{
+				static const FName NameSpaceMetaName = TEXT("NameSpace");
+				Hierarchy->SetNameMetadata(InElementToAdd->Key, NameSpaceMetaName, *CRContext.ModuleInstanceNameSpace);
+
+				if(Hierarchy->ElementKeyRedirector)
+				{
+					Hierarchy->ElementKeyRedirector->Add(FRigElementKey(DesiredName.GetFName(), InElementToAdd->Key.Type), InElementToAdd->Key, Hierarchy.Get());
+				}
+			}
+		}
+	}
+	
 	{
 		const TGuardValue<bool> Guard(bSuspendAllNotifications, true);
 		SetParent(InElementToAdd, InFirstParent, bMaintainGlobalTransform);

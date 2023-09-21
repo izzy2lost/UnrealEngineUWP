@@ -198,6 +198,7 @@ private:
 	URigHierarchy* GetDefaultHierarchy() const;
 	const URigHierarchy* GetHierarchyForTreeView() const { return GetHierarchy(); }
 	FRigElementKey OnGetResolvedKey(const FRigElementKey& InKey);
+	void OnRequestDetailsInspection(const FRigElementKey& InKey);
 	
 	void ImportHierarchy(const FAssetData& InAssetData);
 	void CreateImportMenu(FMenuBuilder& MenuBuilder);
@@ -234,6 +235,7 @@ private:
 	void HandleSetObjectBeingDebugged(UObject* InObject);
 	void OnPreConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
 	void OnPostConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
+	void OnNavigateToFirstConnectorWarning();
 
 	bool bIsConstructionEventRunning;
 	uint32 LastHierarchyHash;
@@ -250,3 +252,4 @@ public:
 	friend class SRigHierarchyItem;
 	friend class UControlRigBlueprintEditorLibrary;
 };
+

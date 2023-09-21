@@ -18,6 +18,7 @@
 #include "Containers/Queue.h"
 #include "RigHierarchy.generated.h"
 
+class UControlRig;
 class URigHierarchy;
 class URigHierarchyController;
 
@@ -406,15 +407,10 @@ public:
 		{
 			if(FCachedRigElement* CachedRigElement = ElementKeyRedirector->Find(InKey))
 			{
-				TGuardValue<bool> GuardRecursion(bIsRunningGetIndex, true);
 				if(CachedRigElement->UpdateCache(this))
 				{
 					return CachedRigElement->GetIndex();
 				}
-				return INDEX_NONE;
-			}
-			if(!bIsRunningGetIndex && ElementKeyRedirector->ContainsExternalKey(InKey))
-			{
 				return INDEX_NONE;
 			}
 		}
@@ -1635,7 +1631,7 @@ public:
 	 * Sanitizes a name by removing invalid characters.
 	 * @param InOutName The name to sanitize in place.
 	 */
-	static void SanitizeName(FRigName& InOutName);
+	static void SanitizeName(FRigName& InOutName, bool bAllowNameSpaces = false);
 
 	/**
 	 * Sanitizes a name by removing invalid characters.
@@ -3297,7 +3293,7 @@ public:
 	{
 		return CanConnect(&InConnectionInfo);
 	}
-	bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason = nullptr) const;
+	bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason = nullptr, FRigElementKey* OutConnector = nullptr) const;
 
 	/**
 	 * Returns the currently resolved target for given connector key
@@ -4202,11 +4198,6 @@ private:
 	bool bSuspendNotifications;
 
 	/**
-	 * If set to true the hierarchy is currently running GetIndex - flag to avoid infinite recursion
-	 */
-	mutable bool bIsRunningGetIndex;
-
-	/**
 	 * The event fired during undo / redo
 	 */
 	FRigHierarchyUndoRedoTransformEvent UndoRedoEvent;
@@ -4479,13 +4470,13 @@ private:
 #endif
 
 	template<typename T>
-	const T& GetMetadata(const FRigElementKey& InItem, ERigMetadataType InType, const FName& InMetadataName, const T& DefaultValue) const
+	const T& GetMetadata(const FRigElementKey& InItem, ERigMetadataType InType, const FRigName& InMetadataName, const T& DefaultValue) const
 	{
 		return GetMetadata<T>(Find(InItem), InType, InMetadataName, DefaultValue);
 	}
 
 	template<typename T>
-	const T& GetMetadata(const FRigBaseElement* InElement, ERigMetadataType InType, const FName& InMetadataName, const T& DefaultValue) const
+	const T& GetMetadata(const FRigBaseElement* InElement, ERigMetadataType InType, const FRigName& InMetadataName, const T& DefaultValue) const
 	{
 		if(InElement)
 		{
@@ -4498,26 +4489,26 @@ private:
 	}
 
 	template<typename T>
-	const TArray<T>& GetArrayMetadata(const FRigElementKey& InItem, ERigMetadataType InType, const FName& InMetadataName) const
+	const TArray<T>& GetArrayMetadata(const FRigElementKey& InItem, ERigMetadataType InType, const FRigName& InMetadataName) const
 	{
 		return GetArrayMetadata<T>(Find(InItem), InType, InMetadataName);
 	}
 
 	template<typename T>
-	const TArray<T>& GetArrayMetadata(const FRigBaseElement* InElement, ERigMetadataType InType, const FName& InMetadataName) const
+	const TArray<T>& GetArrayMetadata(const FRigBaseElement* InElement, ERigMetadataType InType, const FRigName& InMetadataName) const
 	{
 		static const TArray<T> EmptyArray;
 		return GetMetadata<TArray<T>>(InElement, InType, InMetadataName, EmptyArray);
 	}
 
 	template<typename T>
-	bool SetMetadata(const FRigElementKey& InItem, ERigMetadataType InType, const FName& InMetadataName, const T& InValue)
+	bool SetMetadata(const FRigElementKey& InItem, ERigMetadataType InType, const FRigName& InMetadataName, const T& InValue)
 	{
 		return SetMetadata<T>(Find(InItem), InType, InMetadataName, InValue);
 	}
 
 	template<typename T>
-	bool SetMetadata(FRigBaseElement* InElement, ERigMetadataType InType, const FName& InMetadataName, const T& InValue)
+	bool SetMetadata(FRigBaseElement* InElement, ERigMetadataType InType, const FRigName& InMetadataName, const T& InValue)
 	{
 		if(InElement)
 		{
@@ -4527,13 +4518,13 @@ private:
 	}
 
 	template<typename T>
-	bool SetArrayMetadata(const FRigElementKey& InItem, ERigMetadataType InType, const FName& InMetadataName, const TArray<T>& InValue)
+	bool SetArrayMetadata(const FRigElementKey& InItem, ERigMetadataType InType, const FRigName& InMetadataName, const TArray<T>& InValue)
 	{
 		return SetMetadata<TArray<T>>(Find(InItem), InType, InMetadataName, InValue);
 	}
 
 	template<typename T>
-	bool SetArrayMetadata(FRigBaseElement* InElement, ERigMetadataType InType, const FName& InMetadataName, const TArray<T>& InValue)
+	bool SetArrayMetadata(FRigBaseElement* InElement, ERigMetadataType InType, const FRigName& InMetadataName, const TArray<T>& InValue)
 	{
 		return SetMetadata<TArray<T>>(InElement, InType, InMetadataName, InValue);
 	}
@@ -4566,6 +4557,7 @@ protected:
 	mutable TMap<FRigElementKey, FRigElementKey> DefaultParentPerElement;
 
 	bool bUpdatePreferedEulerAngleWhenSettingTransform;
+	mutable bool bAllowNameSpaceWhenSanitizingName;
 
 private:
 	
@@ -4763,6 +4755,8 @@ public:
 		: Guard(InHierarchy->ElementKeyRedirector, &InRedirector)
 	{
 	}
+
+	FRigHierarchyRedirectorGuard(UControlRig* InControlRig);
 
 private:
 	TGuardValue<FRigElementKeyRedirector*> Guard;

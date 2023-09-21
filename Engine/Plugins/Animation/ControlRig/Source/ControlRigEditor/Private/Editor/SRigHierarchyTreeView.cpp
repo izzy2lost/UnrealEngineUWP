@@ -17,6 +17,8 @@
 #include "Editor/SRigHierarchy.h"
 #include "Settings/ControlRigSettings.h"
 #include "Graph/ControlRigGraphSchema.h"
+#include "Rigs/AdditiveControlRig.h"
+#include "Rigs/RigHierarchyController.h"
 #include "Styling/AppStyle.h"
 
 #define LOCTEXT_NAMESPACE "SRigHierarchyTreeView"
@@ -126,6 +128,7 @@ void SRigHierarchyItem::Construct(const FArguments& InArgs, const TSharedRef<STa
 	}
 
 	TSharedPtr< SInlineEditableTextBlock > InlineWidget;
+	TSharedPtr< SHorizontalBox > HorizontalBox;
 
 	STableRow<TSharedPtr<FRigTreeElement>>::Construct(
 		STableRow<TSharedPtr<FRigTreeElement>>::FArguments()
@@ -135,7 +138,7 @@ void SRigHierarchyItem::Construct(const FArguments& InArgs, const TSharedRef<STa
 		.ShowWires(true)
 		.Content()
 		[
-			SNew(SHorizontalBox)
+			SAssignNew(HorizontalBox, SHorizontalBox)
 			+ SHorizontalBox::Slot()
 			.MaxWidth(18)
 			.FillWidth(1.0)
@@ -180,6 +183,15 @@ void SRigHierarchyItem::Construct(const FArguments& InArgs, const TSharedRef<STa
 				})
 			]
 		], OwnerTable);
+
+	for(const SRigHierarchyTagWidget::FArguments& TagArguments : InRigTreeElement->Tags)
+	{
+		HorizontalBox->AddSlot()
+		.AutoWidth()
+		[
+			SArgumentNew(TagArguments, SRigHierarchyTagWidget)
+		];
+	}
 
 	InRigTreeElement->OnRenameRequested.BindSP(InlineWidget.Get(), &SInlineEditableTextBlock::EnterEditingMode);
 }
@@ -412,6 +424,7 @@ bool SRigHierarchyTreeView::AddElement(const FRigBaseElement* InElement)
 	}
 
 	const FRigTreeDisplaySettings& Settings = Delegates.GetDisplaySettings();
+	const URigHierarchy* Hierarchy = Delegates.GetHierarchy();
 
 	switch(InElement->GetType())
 	{
@@ -465,6 +478,47 @@ bool SRigHierarchyTreeView::AddElement(const FRigBaseElement* InElement)
 		{
 			return false;
 		}
+		case ERigElementType::Connector:
+		{
+			if(Hierarchy)
+			{
+				// add the connector as a tag rather than its own element in the tree
+				if(UControlRig* ControlRig = Hierarchy->GetTypedOuter<UControlRig>())
+				{
+					FRigElementKeyRedirector& Redirector = ControlRig->GetElementKeyRedirector();
+					if(const FCachedRigElement* Cache = Redirector.Find(InElement->GetKey()))
+					{
+						if(const_cast<FCachedRigElement*>(Cache)->UpdateCache(Hierarchy))
+						{
+							if(const TSharedPtr<FRigTreeElement>* TargetElementPtr = ElementMap.Find(Cache->GetKey()))
+							{
+								const FRigElementKey ConnectorKey = InElement->GetKey();
+
+								SRigHierarchyTagWidget::FArguments TagArguments;
+								TagArguments.Text(FText::FromString(InElement->GetName()));
+								TagArguments.TextColor(FSlateColor(FLinearColor::White));
+								TagArguments.Color(FLinearColor(0.0, 112.f/255.f, 224.f/255.f));
+								TagArguments.AllowDragDrop(true);
+								FString Identifier;
+								FRigElementKey::StaticStruct()->ExportText(Identifier, &ConnectorKey, nullptr, nullptr, PPF_None, nullptr);
+								TagArguments.Identifier(Identifier);
+
+								TagArguments.OnClicked_Lambda([ConnectorKey, this]()
+								{
+									Delegates.RequestDetailsInspection(ConnectorKey);
+								});
+
+								TargetElementPtr->Get()->Tags.Add(TagArguments);
+
+								AddConnectorResolveWarningTag(*TargetElementPtr, InElement, Hierarchy);
+								return true;
+							}
+						}
+					}
+				}
+			}
+			break;
+		}
 		default:
 		{
 			break;
@@ -478,8 +532,13 @@ bool SRigHierarchyTreeView::AddElement(const FRigBaseElement* InElement)
 
 	if (ElementMap.Contains(InElement->GetKey()))
 	{
-		if(const URigHierarchy* Hierarchy = Delegates.GetHierarchy())
+		if(Hierarchy)
 		{
+			if(InElement->GetType() == ERigElementType::Connector)
+			{
+				AddConnectorResolveWarningTag(ElementMap.FindChecked(InElement->GetKey()), InElement, Hierarchy);
+			}
+			
 			FRigElementKey ParentKey = Hierarchy->GetFirstParent(InElement->GetKey());
 			if(InElement->GetType() == ERigElementType::Connector)
 			{
@@ -796,6 +855,72 @@ const TSharedPtr<FRigTreeElement>* SRigHierarchyTreeView::FindItemAtPosition(FVe
 		}
 	}
 	return nullptr;
+}
+
+void SRigHierarchyTreeView::AddConnectorResolveWarningTag(TSharedPtr<FRigTreeElement> InTreeElement,
+	const FRigBaseElement* InRigElement, const URigHierarchy* InHierarchy)
+{
+	check(InTreeElement.IsValid());
+	check(InRigElement);
+	check(InRigElement->GetType() == ERigElementType::Connector);
+
+	if(UControlRig* ControlRig = InHierarchy->GetTypedOuter<UControlRig>())
+	{
+		TWeakObjectPtr<UControlRig> ControlRigPtr(ControlRig);
+		const FRigElementKey ConnectorKey = InRigElement->GetKey();
+		
+		TAttribute<FText> GetTooltipText = TAttribute<FText>::CreateSP(this,
+			&SRigHierarchyTreeView::GetConnectorWarningMessage, InTreeElement, ControlRigPtr, ConnectorKey);
+
+		SRigHierarchyTagWidget::FArguments TagArguments;
+		TagArguments.Visibility_Lambda([GetTooltipText]() -> EVisibility
+		{
+			return GetTooltipText.Get().IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible;
+		});
+		TagArguments.Text(LOCTEXT("ConnectorWarningTagLabel", "Warning"));
+		TagArguments.ToolTipText(GetTooltipText);
+		TagArguments.TextColor(FSlateColor(FLinearColor::Black));
+		TagArguments.Color(FLinearColor(0.728f, 0.364f, 0.003f));
+		TagArguments.Icon(FAppStyle::GetBrush("AnimSlotManager.Warning"));
+		InTreeElement->Tags.Add(TagArguments);
+	}
+}
+
+FText SRigHierarchyTreeView::GetConnectorWarningMessage(TSharedPtr<FRigTreeElement> InTreeElement,
+	TWeakObjectPtr<UControlRig> InControlRigPtr, const FRigElementKey InConnectorKey) const
+{
+	if(UControlRig* ControlRig = InControlRigPtr.Get())
+	{
+		URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
+				
+		static const FText NotResolvedWarning = LOCTEXT("ConnectorWarningConnectorNotResolved", "Connector is not resolved.");
+
+		FRigElementKeyRedirector& Redirector = ControlRig->GetElementKeyRedirector();
+		if(const FCachedRigElement* Cache = Redirector.Find(InConnectorKey))
+		{
+			if(const_cast<FCachedRigElement*>(Cache)->UpdateCache(Hierarchy))
+			{
+				if(const FRigConnectorElement* ConnectorElement = Hierarchy->Find<FRigConnectorElement>(InConnectorKey))
+				{
+					const FRigConnectionInfo ConnectionInfo(&ControlRig->GetElementKeyRedirector(), Hierarchy);
+					FString FailureReason;
+					if(!ConnectorElement->CanConnect(&ConnectionInfo, &FailureReason))
+					{
+						return FText::FromString(FailureReason);
+					}
+				}
+			}
+			else
+			{
+				return NotResolvedWarning;
+			}
+		}
+		else
+		{
+			return NotResolvedWarning;
+		}
+	}
+	return FText();
 }
 
 bool SRigHierarchyItem::OnVerifyNameChanged(const FText& InText, FText& OutErrorMessage)

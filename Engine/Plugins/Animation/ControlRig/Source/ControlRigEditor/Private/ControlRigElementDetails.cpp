@@ -757,7 +757,7 @@ void FRigBaseElementDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 
 	DetailBuilder.HideCategory(TEXT("RigElement"));
 
-	if(!bAllAnimationChannels)
+	if(!bAllControls || !bAllAnimationChannels)
 	{
 		GeneralCategory.AddCustomRow(FText::FromString(TEXT("Name")))
 		.NameContent()
