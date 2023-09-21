@@ -78,16 +78,14 @@ namespace FileConstructorHelpers
 		}
 		InstallTags.Add(TEXT(""));
 		// Calculate the files that need constructing.
-		FString DummyString;
-		TSet<FString> FilesToConstruct;
-		BuildManifest->GetOutdatedFiles(CurrentManifest, DummyString, FilesToConstruct);
 		TSet<FString> TaggedFiles;
 		BuildManifest->GetTaggedFileList(InstallTags, TaggedFiles);
-		FilesToConstruct = FilesToConstruct.Intersect(TaggedFiles);
+		FString DummyString;
+		TSet<FString> FilesToConstruct;
+		BuildManifest->GetOutdatedFiles(CurrentManifest.Get(), DummyString, TaggedFiles, FilesToConstruct);
 		// Count disk space needed by each operation.
 		int64 DiskSpaceDeltaPeak = 0;
-		const bool bCurrentManifestIsValid = CurrentManifest.IsValid();
-		if (InstallMode == EInstallMode::DestructiveInstall && bCurrentManifestIsValid)
+		if (InstallMode == EInstallMode::DestructiveInstall && CurrentManifest.IsValid())
 		{
 			// The simplest method will be to run through each high level file operation, tracking peak disk usage delta.
 			int64 DiskSpaceDelta = 0;

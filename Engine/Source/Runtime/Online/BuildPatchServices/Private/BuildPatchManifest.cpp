@@ -1371,16 +1371,19 @@ void FBuildPatchAppManifest::GetOutdatedFiles(const FBuildPatchAppManifest* OldM
 			const FFileManifest* NewFile = GetFileManifest(FileToCheck);
 			if (NewFile != nullptr)
 			{
-				const int64 ExistingFileSize = IFileManager::Get().FileSize(*(InstallDirectory / NewFile->Filename));
 				// Check changed
 				if (IsFileOutdated(*OldManifest, NewFile->Filename))
 				{
 					OutDatedFiles.Add(NewFile->Filename);
 				}
 				// Double check an unchanged file is not missing (size will be -1) or is incorrect size
-				else if (bCheckExistingFile && (ExistingFileSize < 0 || ExistingFileSize != NewFile->FileSize))
+				else if (bCheckExistingFile)
 				{
-					OutDatedFiles.Add(NewFile->Filename);
+					const int64 ExistingFileSize = IFileManager::Get().FileSize(*(InstallDirectory / NewFile->Filename));
+					if ((ExistingFileSize < 0) || (ExistingFileSize != NewFile->FileSize))
+					{
+						OutDatedFiles.Add(NewFile->Filename);
+					}
 				}
 			}
 		}
