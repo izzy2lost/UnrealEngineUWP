@@ -70,6 +70,11 @@ namespace UnrealBuildTool
 				    }
 			    }
 			}
+
+			if (ModuleName == "UnrealEd")
+			{
+				Rules.DynamicallyLoadedModuleNames.Add("VisionOSPlatformEditor");
+			}
 		}
 
 		/// <summary>

@@ -62,8 +62,8 @@ namespace UnrealBuildTool
 		public static void GetSwiftIntegrationSettings(FileReference? ProjectFile, UnrealTargetPlatform Platform, out bool bUseSwiftUIMain, out bool bCreateBridgingHeader)
 		{
 			ConfigHierarchy Ini = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, ProjectFile?.Directory, Platform);
-			Ini.TryGetValue("SwiftIntegration", "bUseSwiftUIMain", out bUseSwiftUIMain);
-			Ini.TryGetValue("SwiftIntegration", "bCreateBridgingHeader", out bCreateBridgingHeader);
+			Ini.TryGetValue("/Script/VisionOSRuntimeSettings.VisionOSRuntimeSettings", "bUseSwiftUIMain", out bUseSwiftUIMain);
+			Ini.TryGetValue("/Script/VisionOSRuntimeSettings.VisionOSRuntimeSettings", "bCreateBridgingHeader", out bCreateBridgingHeader);
 		}
 
 		/// <summary>
