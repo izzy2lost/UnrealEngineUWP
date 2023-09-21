@@ -4182,6 +4182,7 @@ void FAssetDataGatherer::WaitForIdle()
 			return;
 		}
 	}
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("FAssetDataGatherer::WaitForIdle");
 	Discovery->WaitForIdle();
 	CHECK_IS_NOT_LOCKED_CURRENT_THREAD(ResultsLock);
 

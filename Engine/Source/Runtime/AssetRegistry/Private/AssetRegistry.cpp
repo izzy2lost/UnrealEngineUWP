@@ -1662,6 +1662,7 @@ bool FAssetRegistryImpl::ShouldSortReferencers() const
 
 void UAssetRegistryImpl::SearchAllAssets(bool bSynchronousSearch)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("UAssetRegistryImpl::SearchAllAssets");
 	using namespace UE::AssetRegistry::Impl;
 
 	double StartTime = FPlatformTime::Seconds();
