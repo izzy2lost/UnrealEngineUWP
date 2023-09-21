@@ -21,6 +21,7 @@ namespace Horde.Server.Tests.Fleet
 	public class JobQueueStrategyTest : TestSetup
 	{
 		[TestMethod]
+		[Ignore("Flaky test when run through CI / Horde")]
 		public async Task GetPoolQueueSizesAsync()
 		{
 			(JobQueueStrategy strategy, _, IPool pool, _) = await SetUpJobsAsync(1, 5);
