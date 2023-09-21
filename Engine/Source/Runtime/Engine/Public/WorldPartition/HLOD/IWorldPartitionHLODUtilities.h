@@ -29,7 +29,8 @@ struct FHLODCreationParams
 
 	FGuid CellGuid;
 	FString CellName;
-	FBox  CellBounds;
+	FBox CellBounds;
+	FName RuntimeGrid;
 	uint32 HLODLevel;
 	FGuid ContentBundleGuid;
 	TArray<const UDataLayerInstance*> DataLayerInstances;
