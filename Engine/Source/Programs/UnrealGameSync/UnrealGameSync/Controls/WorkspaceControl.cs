@@ -1078,12 +1078,19 @@ namespace UnrealGameSync
 					ParseUncontrolledChangelistsPersistencyFile(Path.GetDirectoryName(SelectedProject.LocalPath)!, uncontrolledFiles);
 				}
 
-				using ClobberWindow window = new ClobberWindow(context.ClobberFiles, uncontrolledFiles);
-
-				if (window.ShowDialog(this) == DialogResult.OK)
+				if (_settings.Global.AlwaysClobberFiles)
 				{
 					StartWorkspaceUpdate(context, _updateCallback);
 					return;
+				}
+				else
+				{
+					using ClobberWindow window = new ClobberWindow(context.ClobberFiles, uncontrolledFiles);
+					if (window.ShowDialog(this) == DialogResult.OK)
+					{
+						StartWorkspaceUpdate(context, _updateCallback);
+						return;
+					}
 				}
 			}
 			else if (result == WorkspaceUpdateResult.FailedToCompileWithCleanWorkspace)
@@ -4613,6 +4620,7 @@ namespace UnrealGameSync
 		private void OptionsButton_Click(object sender, EventArgs e)
 		{
 			OptionsContextMenu_AutoResolveConflicts.Checked = _settings.Global.AutoResolveConflicts;
+			OptionsContextMenu_AlwaysClobberFiles.Checked = _settings.Global.AlwaysClobberFiles;
 
 			OptionsContextMenu_SyncPrecompiledBinaries.DropDownItems.Clear();
 
@@ -5123,6 +5131,13 @@ namespace UnrealGameSync
 		{
 			OptionsContextMenu_AutoResolveConflicts.Checked ^= true;
 			_settings.Global.AutoResolveConflicts = OptionsContextMenu_AutoResolveConflicts.Checked;
+			_settings.Save(_logger);
+		}
+
+		private void OptionsContextMenu_AlwaysClobberFiles_Click(object sender, EventArgs e)
+		{
+			OptionsContextMenu_AlwaysClobberFiles.Checked ^= true;
+			_settings.Global.AlwaysClobberFiles = OptionsContextMenu_AlwaysClobberFiles.Checked;
 			_settings.Save(_logger);
 		}
 

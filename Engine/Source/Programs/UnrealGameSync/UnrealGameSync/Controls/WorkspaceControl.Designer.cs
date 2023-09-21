@@ -28,6 +28,7 @@ namespace UnrealGameSync
 			this.editorToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.editorPhysXToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.OptionsContextMenu_AutoResolveConflicts = new System.Windows.Forms.ToolStripMenuItem();
+			this.OptionsContextMenu_AlwaysClobberFiles = new System.Windows.Forms.ToolStripMenuItem();
 			this.OptionsContextMenu_SyncFilter = new System.Windows.Forms.ToolStripMenuItem();
 			this.toolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
 			this.OptionsContextMenu_EditorBuildConfiguration = new System.Windows.Forms.ToolStripMenuItem();
@@ -182,6 +183,7 @@ namespace UnrealGameSync
 			this.OptionsContextMenu_ScheduledSync,
 			this.OptionsContextMenu_SyncPrecompiledBinaries,
 			this.OptionsContextMenu_AutoResolveConflicts,
+			this.OptionsContextMenu_AlwaysClobberFiles,
 			this.OptionsContextMenu_SyncFilter,
 			this.toolStripSeparator3,
 			this.OptionsContextMenu_EditorBuildConfiguration,
@@ -256,6 +258,13 @@ namespace UnrealGameSync
 			this.OptionsContextMenu_AutoResolveConflicts.Size = new System.Drawing.Size(261, 22);
 			this.OptionsContextMenu_AutoResolveConflicts.Text = "Auto-Resolve Conflicts";
 			this.OptionsContextMenu_AutoResolveConflicts.Click += new System.EventHandler(this.OptionsContextMenu_AutoResolveConflicts_Click);
+			// 
+			// OptionsContextMenu_AlwaysClobberFiles
+			// 
+			OptionsContextMenu_AlwaysClobberFiles.Name = "OptionsContextMenu_AlwaysClobberFiles";
+			OptionsContextMenu_AlwaysClobberFiles.Size = new Size(261, 22);
+			OptionsContextMenu_AlwaysClobberFiles.Text = "Always Clobber Files";
+			OptionsContextMenu_AlwaysClobberFiles.Click += OptionsContextMenu_AlwaysClobberFiles_Click;
 			// 
 			// OptionsContextMenu_SyncFilter
 			// 
@@ -1340,6 +1349,7 @@ namespace UnrealGameSync
 		private System.Windows.Forms.ToolStripMenuItem BuildListContextMenu_LaunchEditor;
 		private System.Windows.Forms.ToolTip BuildListToolTip;
 		private System.Windows.Forms.ToolStripMenuItem OptionsContextMenu_AutoResolveConflicts;
+		private System.Windows.Forms.ToolStripMenuItem OptionsContextMenu_AlwaysClobberFiles;
 		private System.Windows.Forms.ToolStripMenuItem OptionsContextMenu_EditorArguments;
 		private System.Windows.Forms.ToolStripMenuItem BuildListContextMenu_OpenVisualStudio;
 		private System.Windows.Forms.Panel panel1;

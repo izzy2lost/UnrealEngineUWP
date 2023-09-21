@@ -56,6 +56,7 @@ namespace UnrealGameSync
 		public PerforceSyncOptions Perforce { get; set; } = new PerforceSyncOptions();
 		public FilterSettings Filter { get; set; } = new FilterSettings();
 		public bool AutoResolveConflicts { get; set; } = true;
+		public bool AlwaysClobberFiles { get; set; } = false;
 	}
 
 	public class GlobalSettingsFile
