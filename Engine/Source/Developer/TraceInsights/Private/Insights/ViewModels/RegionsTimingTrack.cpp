@@ -58,7 +58,7 @@ void FTimingRegionsViewCommands::RegisterCommands()
 		"Timing Regions Track",
 		"Shows/hides the Timing Regions track.",
 		EUserInterfaceActionType::ToggleButton,
-		FInputChord(EKeys::R));
+		FInputChord(EModifierKey::Control, EKeys::R));
 }
 UE_ENABLE_OPTIMIZATION_SHIP
 
