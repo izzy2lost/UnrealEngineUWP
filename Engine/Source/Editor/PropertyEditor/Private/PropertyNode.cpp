@@ -2301,11 +2301,9 @@ bool FPropertyNode::GetDiffersFromDefault(const uint8* PropertyValueAddress, con
 			// try to compare the values at the current and default property addresses
 			if( PropertyValueAddress != nullptr && PropertyDefaultAddress != nullptr )
 			{
-				bDiffersFromDefaultValue = !InProperty->Identical(
-					PropertyValueAddress,
-					PropertyDefaultAddress,
-					PortFlags
-					);
+				FString DefaultValue = GetDefaultValueAsString(PropertyDefaultAddress, InProperty, EValueAsStringMode::ForDiff);
+				FString CurrentValue = GetDefaultValueAsString(PropertyValueAddress, InProperty, EValueAsStringMode::ForDiff);
+				bDiffersFromDefaultValue = !(DefaultValue.Equals(CurrentValue, ESearchCase::CaseSensitive));
 			}
 		}
 	}
@@ -2419,11 +2417,21 @@ bool FPropertyNode::GetDiffersFromDefault()
 }
 
 
-FString FPropertyNode::GetDefaultValueAsString(const uint8* PropertyDefaultAddress, const FProperty* InProperty, const bool bUseDisplayName) const
+FString FPropertyNode::GetDefaultValueAsString(const uint8* PropertyDefaultAddress, const FProperty* InProperty, EValueAsStringMode Mode) const
 {
+	const bool bUseDisplayName = (Mode == EValueAsStringMode::UseDisplayName);
 	FString DefaultValue;
 
-	uint32 PortFlags = bUseDisplayName ? PPF_PropertyWindow : PPF_None;
+	uint32 PortFlags = PPF_None;
+	if (Mode == EValueAsStringMode::UseDisplayName)
+	{
+		PortFlags |= PPF_PropertyWindow;
+	}
+	else if (Mode == EValueAsStringMode::ForDiff)
+	{
+		PortFlags |= PPF_ForDiff;
+	}
+
 	if (InProperty->ContainsInstancedObjectProperty())
 	{
 		PortFlags |= PPF_DeepComparison;
@@ -2456,7 +2464,7 @@ FString FPropertyNode::GetDefaultValueAsString(const uint8* PropertyDefaultAddre
 	return DefaultValue;
 }
 
-FString FPropertyNode::GetDefaultValueAsStringForObject( FPropertyItemValueDataTrackerSlate& ValueTracker, UObject* InObject, FProperty* InProperty, bool bUseDisplayName)
+FString FPropertyNode::GetDefaultValueAsStringForObject( FPropertyItemValueDataTrackerSlate& ValueTracker, UObject* InObject, FProperty* InProperty, EValueAsStringMode Mode)
 {
 	check( InObject );
 	check( InProperty );
@@ -2468,7 +2476,7 @@ FString FPropertyNode::GetDefaultValueAsStringForObject( FPropertyItemValueDataT
 	{
 		if ( ValueTracker.IsValidTracker() && ValueTracker.HasDefaultValue() )
 		{
-			DefaultValue = GetDefaultValueAsString(ValueTracker.GetPropertyDefaultAddress(), InProperty, bUseDisplayName);
+			DefaultValue = GetDefaultValueAsString(ValueTracker.GetPropertyDefaultAddress(), InProperty, Mode);
 		}
 	}
 
@@ -2480,6 +2488,7 @@ FString FPropertyNode::GetDefaultValueAsString(bool bUseDisplayName)
 	FString DefaultValue;
 	FString DelimitedValue;
 	bool bAllSame = true;
+	const EValueAsStringMode Mode = bUseDisplayName ? EValueAsStringMode::UseDisplayName : EValueAsStringMode::None;
 
 	FProperty* Prop = GetProperty();
 	if (!Prop)
@@ -2529,7 +2538,7 @@ FString FPropertyNode::GetDefaultValueAsString(bool bUseDisplayName)
 					PropertyDefaultAddress = PropertyDefaultBaseAddress;
 				}
 
-				NodeDefaultValue = GetDefaultValueAsString(PropertyDefaultAddress, Prop, bUseDisplayName);
+				NodeDefaultValue = GetDefaultValueAsString(PropertyDefaultAddress, Prop, Mode);
 			}
 			
 			if (DefaultValue.IsEmpty())
@@ -2559,7 +2568,7 @@ FString FPropertyNode::GetDefaultValueAsString(bool bUseDisplayName)
 
 			if (Object && ValueTracker.IsValid())
 			{
-				const FString NodeDefaultValue = GetDefaultValueAsStringForObject( *ValueTracker, Object, Prop, bUseDisplayName );
+				const FString NodeDefaultValue = GetDefaultValueAsStringForObject( *ValueTracker, Object, Prop, Mode);
 
 				if (DefaultValue.IsEmpty())
 				{
@@ -3855,28 +3864,12 @@ void FPropertyNode::PropagatePropertyChange( UObject* ModifiedObject, const TCHA
 					ComplexPropertyNode = ParentNodeWeakPtr.Pin();
 				}
 				
-				uint8* DestComplexPropAddr = ComplexPropertyNode->GetValueBaseAddressFromObject(ActualObjToChange);
-				uint8* ModifiedComplexPropAddr = ComplexPropertyNode->GetValueBaseAddressFromObject(ModifiedObject);
+				const uint8* DestComplexPropAddr = ComplexPropertyNode->GetValueBaseAddressFromObject(ActualObjToChange);
 
-				bool bShouldImport = false;
-				{
-					uint8* TempComplexPropAddr = (uint8*)FMemory::Malloc(ComplexProperty->GetSize(), ComplexProperty->GetMinAlignment());
-					ComplexProperty->InitializeValue(TempComplexPropAddr);
-					ON_SCOPE_EXIT
-					{
-						ComplexProperty->DestroyValue(TempComplexPropAddr);
-						FMemory::Free(TempComplexPropAddr);
-					};
+				FString ActualCurrentValue;
+				ComplexProperty->ExportText_Direct(ActualCurrentValue, DestComplexPropAddr, DestComplexPropAddr, ActualObjToChange, PPF_ForDiff);
 
-					// Importing the previous value into the temporary property can potentially affect shared state (such as FText display string values), so we back-up the current value 
-					// before we do this, so that we can restore it once we've checked whether the two properties are identical
-					// This ensures that shared state keeps the correct value, even if the destination property itself isn't imported (or only partly imported, as is the case with arrays/maps/sets)
-					FString CurrentValue;
-					ComplexProperty->ExportText_Direct(CurrentValue, ModifiedComplexPropAddr, ModifiedComplexPropAddr, ModifiedObject, PPF_None);
-					ComplexProperty->ImportText_Direct(*PreviousValue, TempComplexPropAddr, ModifiedObject, PPF_SerializedAsImportText);
-					bShouldImport = ComplexProperty->Identical(DestComplexPropAddr, TempComplexPropAddr, PPF_DeepComparison);
-					ComplexProperty->ImportText_Direct(*CurrentValue, TempComplexPropAddr, ModifiedObject, PPF_None);
-				}
+				const bool bShouldImport = ActualCurrentValue.Equals(PreviousValue, ESearchCase::CaseSensitive);
 
 				// Only import if the value matches the previous value of the property that changed
 				if (bShouldImport)
