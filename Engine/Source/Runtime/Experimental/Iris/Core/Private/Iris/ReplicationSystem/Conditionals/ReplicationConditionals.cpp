@@ -681,8 +681,8 @@ void FReplicationConditionals::UpdateObjectsInScope()
 {
 	IRIS_PROFILER_SCOPE(FReplicationConditionals_UpdateObjectsInScope);
 
-	const FNetBitArrayView ObjectsInScope = NetRefHandleManager->GetScopableInternalIndicesView();
-	const FNetBitArrayView PrevObjectsInScope = NetRefHandleManager->GetPrevFrameScopableInternalIndicesView();
+	const FNetBitArrayView ObjectsInScope = NetRefHandleManager->GetCurrentFrameScopableInternalIndices();
+	const FNetBitArrayView PrevObjectsInScope = NetRefHandleManager->GetPrevFrameScopableInternalIndices();
 
 	const uint32 WordCountForModifiedWords = Align(FPlatformMath::Max(MaxObjectCount, 1U), 32U)/32U;
 	TArray<uint32> ModifiedWords;

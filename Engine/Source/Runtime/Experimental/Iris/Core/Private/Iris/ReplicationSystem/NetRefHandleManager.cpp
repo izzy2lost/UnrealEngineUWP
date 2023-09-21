@@ -21,8 +21,8 @@ FNetRefHandleManager::FNetRefHandleManager(FReplicationProtocolManager& InReplic
 : ActiveObjectCount(0)
 , MaxActiveObjectCount(InMaxActiveObjectCount)
 , ReplicationSystemId(InReplicationSystemId)
-, ScopableInternalIndices(MaxActiveObjectCount)
-, PrevFrameScopableInternalIndices(MaxActiveObjectCount)
+, GlobalScopableInternalIndices(MaxActiveObjectCount)
+, ScopeFrameData(MaxActiveObjectCount)
 , RelevantObjectsInternalIndices(MaxActiveObjectCount)
 , PolledObjectsInternalIndices(MaxActiveObjectCount)
 , DirtyObjectsToCopy(MaxActiveObjectCount)
@@ -112,7 +112,7 @@ FInternalNetRefIndex FNetRefHandleManager::InternalCreateNetObject(const FNetRef
 
 		// Mark Handle index as assigned and scopable for now
 		AssignedInternalIndices.SetBit(InternalIndex);
-		ScopableInternalIndices.SetBit(InternalIndex);
+		GlobalScopableInternalIndices.SetBit(InternalIndex);
 
 		// When a handle is first created, it is not set to be a subobject
 		SubObjectInternalIndices.ClearBit(InternalIndex);
@@ -370,7 +370,7 @@ void FNetRefHandleManager::RemoveFromScope(FInternalNetRefIndex InternalIndex)
 	// Can only remove an object from scope if it is assignable
 	if (ensure(AssignedInternalIndices.GetBit(InternalIndex)))
 	{
-		ScopableInternalIndices.ClearBit(InternalIndex);
+		GlobalScopableInternalIndices.ClearBit(InternalIndex);
 	}
 }
 
@@ -386,7 +386,7 @@ void FNetRefHandleManager::DestroyNetObject(FNetRefHandle RefHandle)
 		NetHandleToInternalIndex.Remove(Data.NetHandle);
 
 		// Remove from scopable objects if not already done
-		ScopableInternalIndices.ClearBit(InternalIndex);
+		GlobalScopableInternalIndices.ClearBit(InternalIndex);
 
 		// We always defer the actual destroy
 		PendingDestroyInternalIndices.Add(InternalIndex);
@@ -574,6 +574,11 @@ FNetRefHandle FNetRefHandleManager::GetRootObjectOfSubObject(FNetRefHandle SubOb
 	const FInternalNetRefIndex OwnerInternalIndex = SubObjectInternalIndex != InvalidInternalIndex ? ReplicatedObjectData[SubObjectInternalIndex].SubObjectRootIndex : InvalidInternalIndex;
 
 	return OwnerInternalIndex != InvalidInternalIndex ? ReplicatedObjectData[OwnerInternalIndex].RefHandle : FNetRefHandle();
+}
+
+FInternalNetRefIndex FNetRefHandleManager::GetRootObjectInternalIndexOfSubObject(FInternalNetRefIndex SubObjectIndex) const
+{
+	return SubObjectIndex != InvalidInternalIndex ? ReplicatedObjectData[SubObjectIndex].SubObjectRootIndex : InvalidInternalIndex;
 }
 
 bool FNetRefHandleManager::AddDependentObject(FNetRefHandle ParentRefHandle, FNetRefHandle DependentObjectRefHandle, EDependentObjectSchedulingHint SchedulingHint, EAddDependentObjectFlags Flags)
@@ -790,5 +795,22 @@ FNetRefHandle FNetRefHandleManager::MakeNetRefHandleFromId(uint64 Id)
 	return Handle;
 }
 
+void FNetRefHandleManager::OnPreSendUpdate()
+{
+	// The current frame scope is based on all indexes assigned up to this point.
+	ScopeFrameData.CurrentFrameScopableInternalIndices.Copy(GlobalScopableInternalIndices);
+
+	// Allow the list to be read.
+	ScopeFrameData.bIsValid = true;
+}
+
+void FNetRefHandleManager::OnPostSendUpdate()
+{
+	// Store the scope for the next frame.
+	ScopeFrameData.PrevFrameScopableInternalIndices.Copy(ScopeFrameData.CurrentFrameScopableInternalIndices);
+
+	// From here no-one should access the ScopeFrameData
+	ScopeFrameData.bIsValid = false;
+}
 
 }

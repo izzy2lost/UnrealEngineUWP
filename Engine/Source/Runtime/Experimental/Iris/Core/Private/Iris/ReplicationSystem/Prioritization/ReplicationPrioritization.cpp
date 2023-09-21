@@ -596,8 +596,8 @@ void FReplicationPrioritization::UpdatePrioritiesForNewAndDeletedObjects()
 {
 	IRIS_PROFILER_SCOPE(FReplicationPrioritization_UpdatePrioritiesForNewAndDeletedObjects);
 
-	const FNetBitArrayView PrevScopedIndices = NetRefHandleManager->GetPrevFrameScopableInternalIndicesView();
-	const FNetBitArrayView ScopedIndices = NetRefHandleManager->GetScopableInternalIndicesView();
+	const FNetBitArrayView PrevScopedIndices = NetRefHandleManager->GetPrevFrameScopableInternalIndices();
+	const FNetBitArrayView ScopedIndices = NetRefHandleManager->GetCurrentFrameScopableInternalIndices();
 
 	auto ForEachRemovedObject = [this](uint32 ObjectIndex)
 	{

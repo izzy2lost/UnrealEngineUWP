@@ -328,11 +328,11 @@ void FReplicationFiltering::FilterNonRelevantObjects()
 	if (!bCVarRepFilterCullNonRelevant)
 	{
 		// Make every object in the global scope part of the relevant list
-		NetRefHandleManager->GetRelevantObjectsInternalIndices().Copy(NetRefHandleManager->GetScopableInternalIndicesView());
+		NetRefHandleManager->GetRelevantObjectsInternalIndices().Copy(NetRefHandleManager->GetCurrentFrameScopableInternalIndices());
 		return;
 	}
 
-	const uint32* const GlobalScopeData = NetRefHandleManager->GetScopableInternalIndicesView().GetData();
+	const uint32* const CurrentFrameScopeData = NetRefHandleManager->GetCurrentFrameScopableInternalIndices().GetData();
 	const uint32* const WithOwnerData = ObjectsWithOwnerFilter.GetData();
 	const uint32* const ConnectionFiltersData = AllConnectionFilteredObjects.GetData();
 	const uint32* const DynamicFilteredData = DynamicFilterEnabledObjects.GetData();
@@ -347,7 +347,7 @@ void FReplicationFiltering::FilterNonRelevantObjects()
 	for (uint32 WordIndex = 0; WordIndex < MaxWords; ++WordIndex)
 	{
 		// Build the list of always relevant objects (objects that have no filters)
-		GlobalRelevantData[WordIndex] = GlobalScopeData[WordIndex] & ~(WithOwnerData[WordIndex] | ConnectionFiltersData[WordIndex] | DynamicFilteredData[WordIndex] | GroupFilteredData[WordIndex]);
+		GlobalRelevantData[WordIndex] = CurrentFrameScopeData[WordIndex] & ~(WithOwnerData[WordIndex] | ConnectionFiltersData[WordIndex] | DynamicFilteredData[WordIndex] | GroupFilteredData[WordIndex]);
 	}
 
 	// Build the list of currently relevant objects. e.g. always relevant objects + filterable objects relevant to at least one connection.	
@@ -663,7 +663,7 @@ void FReplicationFiltering::InitNewConnections()
 	auto InitNewConnection = [this](uint32 ConnectionId)
 	{
 		// Copy default scope
-		const FNetBitArrayView ScopableInternalIndices = NetRefHandleManager->GetScopableInternalIndicesView();
+		const FNetBitArrayView ScopableInternalIndices = NetRefHandleManager->GetCurrentFrameScopableInternalIndices();
 		FPerConnectionInfo& ConnectionInfo = this->ConnectionInfos[ConnectionId];
 
 		ConnectionInfo.ConnectionFilteredObjects.Init(MaxObjectCount);
@@ -778,8 +778,8 @@ void FReplicationFiltering::ResetRemovedConnections()
 
 void FReplicationFiltering::UpdateObjectsInScope()
 {
-	const FNetBitArrayView ObjectsInScope = NetRefHandleManager->GetScopableInternalIndicesView();
-	const FNetBitArrayView PrevObjectsInScope = NetRefHandleManager->GetPrevFrameScopableInternalIndicesView();
+	const FNetBitArrayView ObjectsInScope = NetRefHandleManager->GetCurrentFrameScopableInternalIndices();
+	const FNetBitArrayView PrevObjectsInScope = NetRefHandleManager->GetPrevFrameScopableInternalIndices();
 
 	/**
 	 * It's possible for an object to be created, have some filtering applied and then be removed later the same frame.
@@ -996,7 +996,7 @@ void FReplicationFiltering::UpdateOwnerAndConnectionFiltering()
 		ObjectsWithDirtyOwner.ForAllSetBits(UpdateOwners);
 	}
 
-	const FNetBitArrayView GlobalObjectsInScope = NetRefHandleManager->GetScopableInternalIndicesView();
+	const FNetBitArrayView CurrentFrameObjectsInScope = NetRefHandleManager->GetCurrentFrameScopableInternalIndices();
 
 	// Update filtering
 	if (bHasDirtyConnectionFilter)
@@ -1006,7 +1006,7 @@ void FReplicationFiltering::UpdateOwnerAndConnectionFiltering()
 			AllConnectionFilteredObjects.SetBitValue(DirtyObjectIndex, HasConnectionFilter(DirtyObjectIndex));
 		});
 
-		auto UpdateConnectionScope = [this, &GlobalObjectsInScope](uint32 ConnectionId)
+		auto UpdateConnectionScope = [this, &CurrentFrameObjectsInScope](uint32 ConnectionId)
 		{
 			FPerConnectionInfo& ConnectionInfo = this->ConnectionInfos[ConnectionId];
 			FNetBitArrayView ConnectionScope = MakeNetBitArrayView(ConnectionInfo.ConnectionFilteredObjects);
@@ -1015,7 +1015,7 @@ void FReplicationFiltering::UpdateOwnerAndConnectionFiltering()
 
 			// Update filter info
 			{
-				auto MaskObject = [this, &ConnectionScope, &GroupFilteredOutObjects, &ObjectsInScopeBeforeDynamicFiltering, ConnectionId, &GlobalObjectsInScope](uint32 ObjectIndex)
+				auto MaskObject = [this, &ConnectionScope, &GroupFilteredOutObjects, &ObjectsInScopeBeforeDynamicFiltering, ConnectionId, &CurrentFrameObjectsInScope](uint32 ObjectIndex)
 				{
 					bool bObjectIsInScope = true;
 					if (HasOwnerFilter(ObjectIndex))
@@ -1042,7 +1042,7 @@ void FReplicationFiltering::UpdateOwnerAndConnectionFiltering()
 					// Subobjects follow suit.
 					for (const FInternalNetRefIndex SubObjectIndex : NetRefHandleManager->GetSubObjects(ObjectIndex))
 					{
-						const bool bEnableObject = bObjectIsInScope && GlobalObjectsInScope.GetBit(SubObjectIndex);
+						const bool bEnableObject = bObjectIsInScope && CurrentFrameObjectsInScope.GetBit(SubObjectIndex);
 						const bool bIsGroupEnabled = !GroupFilteredOutObjects.GetBit(SubObjectIndex);
 
 						ConnectionScope.SetBitValue(SubObjectIndex, bEnableObject);
@@ -1078,9 +1078,9 @@ void FReplicationFiltering::UpdateGroupFiltering()
 			const FNetObjectGroup* Group = this->Groups->GetGroupByIndex(FNetObjectGroupHandle::FGroupIndexType(GroupIndex));
 			FPerConnectionInfo* LocalConnectionInfos = this->ConnectionInfos.GetData();
 
-			const FNetBitArrayView GlobalScopableObjects = NetRefHandleManager->GetScopableInternalIndicesView();
+			const FNetBitArrayView CurrentFrameScopableObjects = NetRefHandleManager->GetCurrentFrameScopableInternalIndices();
 
-			auto UpdateGroupFilterForConnection = [this, ConnectionStateInfo, Group, LocalConnectionInfos, GlobalScopableObjects](uint32 ConnectionId)
+			auto UpdateGroupFilterForConnection = [this, ConnectionStateInfo, Group, LocalConnectionInfos, CurrentFrameScopableObjects](uint32 ConnectionId)
 			{
 				if (this->GetConnectionFilterStatus(*ConnectionStateInfo, ConnectionId) == ENetFilterStatus::Disallow)
 				{
@@ -1095,7 +1095,7 @@ void FReplicationFiltering::UpdateGroupFiltering()
 						// Filter subobjects
 						for (const FInternalNetRefIndex SubObjectIndex : NetRefHandleManager->GetSubObjects(ObjectIndex))
 						{
-							const bool bIsScopable = GlobalScopableObjects.GetBit(SubObjectIndex);
+							const bool bIsScopable = CurrentFrameScopableObjects.GetBit(SubObjectIndex);
 							GroupFilteredOutObjects.SetBitValue(SubObjectIndex, bIsScopable);
 							ObjectsInScopeBeforeDynamicFiltering.ClearBit(SubObjectIndex);
 						}
@@ -1324,7 +1324,7 @@ void FReplicationFiltering::PostUpdateDynamicFiltering(ENetFilterType FilterType
 {
 	IRIS_PROFILER_SCOPE(FReplicationFiltering_PostUpdateDynamicFiltering);
 
-	// Give filters a chance to prepare for filtering. It's only called if any object has the filter set.
+	// Tell filters to clean up after filtering. It's only called if any object has the filter set.
 	{
 		FNetObjectPostFilteringParams PostFilteringParams;
 		for (FFilterInfo& Info : DynamicFilterInfos)
@@ -1860,15 +1860,17 @@ void FReplicationFiltering::InternalSetGroupFilterStatus(FNetObjectGroupHandle G
 					FPerConnectionInfo& ConnectionInfo = ConnectionInfos[ConnectionId];
 					FNetBitArray& GroupFilteredOutObjects = ConnectionInfo.GroupFilteredOutObjects;
 					FNetBitArray& ObjectsInScopeBeforeDynamicFiltering = ConnectionInfo.ObjectsInScopeBeforeDynamicFiltering;
-					const FNetBitArrayView ScopableObjects = NetRefHandleManager->GetScopableInternalIndicesView();
+					const FNetBitArrayView GlobalScopableObjects = NetRefHandleManager->GetGlobalScopableInternalIndices();
 					for (uint32 ObjectIndex : MakeArrayView(Group->Members.GetData(), Group->Members.Num()))
 					{
 						GroupFilteredOutObjects.SetBit(ObjectIndex);
+
+						//$IRIS TODO: ObjectsInScopeBeforeDynamicFiltering should not be accessed outside PreSendUpdate since its reset there. Is this needed ?
 						ObjectsInScopeBeforeDynamicFiltering.ClearBit(ObjectIndex);
 						// Filter subobjects
 						for (const FInternalNetRefIndex SubObjectIndex : NetRefHandleManager->GetSubObjects(ObjectIndex))
 						{
-							GroupFilteredOutObjects.SetBitValue(SubObjectIndex, ScopableObjects.GetBit(SubObjectIndex));
+							GroupFilteredOutObjects.SetBitValue(SubObjectIndex, GlobalScopableObjects.GetBit(SubObjectIndex));
 							ObjectsInScopeBeforeDynamicFiltering.ClearBit(SubObjectIndex);
 						}
 					}

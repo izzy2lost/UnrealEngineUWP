@@ -163,6 +163,8 @@ protected:
 	IRISCORE_API virtual void Deinitialize() override;
 	IRISCORE_API virtual void PreSendUpdateSingleHandle(FNetRefHandle RefHandle) override;	
 	IRISCORE_API virtual void PreSendUpdate() override;	
+	IRISCORE_API virtual void OnStartPreSendUpdate() override;
+	IRISCORE_API virtual void OnPostSendUpdate() override;
 	IRISCORE_API virtual void UpdateInstancesWorldLocation() override;
 	IRISCORE_API virtual void PruneStaleObjects() override;	
 	IRISCORE_API virtual bool WriteNetRefHandleCreationInfo(FReplicationBridgeSerializationContext& Context, FNetRefHandle Handle) override;
@@ -272,8 +274,17 @@ private:
 	/** Forcibly poll a single replicated object */
 	void ForcePollObject(FNetRefHandle RefHandle);
 
-	/** Pre update and poll all relevant objects who hit their polling period or are force net update. */
-	void PreUpdateAndPoll();
+	/** Build the list of relevant objects who hit their polling period or were flagged ForceNetUpdate. */
+	void BuildPollList(UE::Net::FNetBitArrayView ObjectsConsideredForPolling);
+
+	/** Call the user function PreUpdate (aka PreReplication) on objects about to be polled. */
+	void PreUpdate(const UE::Net::FNetBitArrayView ObjectsConsideredForPolling);
+
+	/** Find any new subobjects created inside PreUpdate and ensure they will be replicated this frame */
+	void ReconcileNewSubObjects(UE::Net::FNetBitArrayView ObjectsConsideredForPolling);
+
+	/** Poll all objects set in the list */
+	void Poll(const UE::Net::FNetBitArrayView ObjectsConsideredForPolling);
 
 	/** Remove mapping between handle and object instance. */
 	void UnregisterInstance(FNetRefHandle RefHandle);
@@ -362,6 +373,9 @@ private:
 
 	bool bHasPollOverrides = false;
 	bool bHasDirtyClassesInPollPeriodOverrides = false;
+
+	/** Set to true when the system does not allow new objects to begin replication at this moment. Useful when calling into user code and to warn them of illegal operations. */
+	bool bBlockBeginReplication = false;
 
 protected:
 	bool bSuppressCreateInstanceFailedEnsure = false;

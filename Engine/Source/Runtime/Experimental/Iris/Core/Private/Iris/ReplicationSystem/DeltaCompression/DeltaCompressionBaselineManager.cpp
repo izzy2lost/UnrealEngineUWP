@@ -158,8 +158,8 @@ void FDeltaCompressionBaselineManager::UpdateScope()
 	using SignedWordType = TSignedIntType<sizeof(WordType)>::Type;
 	constexpr SIZE_T BitsPerWord = sizeof(WordType)*8U;
 
-	const FNetBitArrayView ObjectsInScope = NetRefHandleManager->GetScopableInternalIndicesView();
-	const FNetBitArrayView PrevObjectsInScope = NetRefHandleManager->GetPrevFrameScopableInternalIndicesView();
+	const FNetBitArrayView ObjectsInScope = NetRefHandleManager->GetCurrentFrameScopableInternalIndices();
+	const FNetBitArrayView PrevObjectsInScope = NetRefHandleManager->GetPrevFrameScopableInternalIndices();
 
 	const WordType* ObjectsInScopeStorage = ObjectsInScope.GetData();
 	const WordType* PrevObjectsInScopeStorage = PrevObjectsInScope.GetData();

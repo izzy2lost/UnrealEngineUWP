@@ -120,8 +120,14 @@ public:
 public:
 	FNetRefHandleManager(FReplicationProtocolManager& InReplicationProtocolManager, uint32 InReplicationSystemId, uint32 MaxActiveObjects);
 
+	/** Callback triggered at the beginning of PreSendUpdate. Used to sync current frame data. */
+	void OnPreSendUpdate();
+
+	/** Callback triggered at the end of SendUpdate. Used to clear current frame data. */
+	void OnPostSendUpdate();
+
 	// Return true if this is a scopable index
-	bool IsScopableIndex(FInternalNetRefIndex InternalIndex) const { return ScopableInternalIndices.GetBit(InternalIndex); }
+	bool IsScopableIndex(FInternalNetRefIndex InternalIndex) const { return GlobalScopableInternalIndices.GetBit(InternalIndex); }
 
 	static FNetRefHandle MakeNetRefHandle(uint64 Id, uint32 ReplicationSystemId);
 	static FNetRefHandle MakeNetRefHandleFromId(uint64 Id);
@@ -185,12 +191,14 @@ public:
 	// Get internal index from NetHandle
 	inline FInternalNetRefIndex GetInternalIndexFromNetHandle(FNetHandle Handle) const;
 
-	/** Get bitarray for all currently scopable internal indices */
-	const FNetBitArrayView GetScopableInternalIndicesView() const { return MakeNetBitArrayView(ScopableInternalIndices); }
+	/** All scopable internal indices of the ReplicationSystem. Always up to date but should mostly be accessed in operations executed outside PreSendUpdate. */
+	const FNetBitArrayView GetGlobalScopableInternalIndices() const { return MakeNetBitArrayView(GlobalScopableInternalIndices); }
 
-	// Get bitarray for all internal indices that was scopable last update
-	const FNetBitArrayView GetPrevFrameScopableInternalIndicesView() const { return MakeNetBitArrayView(PrevFrameScopableInternalIndices); }
-	void SetPrevFrameScopableInternalIndicesToCurrent() { PrevFrameScopableInternalIndices = ScopableInternalIndices; }
+	/** All scopable internal indices of the current frame at the start of PreSendUpdate. Only accessible during that operation. */
+	const FNetBitArrayView GetCurrentFrameScopableInternalIndices() const { check(ScopeFrameData.bIsValid); return MakeNetBitArrayView(ScopeFrameData.CurrentFrameScopableInternalIndices); }
+
+	/** All scopable internal indices of the previous PreSendUpdate. Only accessible during that operation */
+	const FNetBitArrayView GetPrevFrameScopableInternalIndices() const { check(ScopeFrameData.bIsValid); return MakeNetBitArrayView(ScopeFrameData.PrevFrameScopableInternalIndices); }
 
 	/** List of objects that are always relevant or currently relevant to at least one connection. */
 	FNetBitArrayView GetRelevantObjectsInternalIndices() const { return MakeNetBitArrayView(RelevantObjectsInternalIndices); }
@@ -211,7 +219,10 @@ public:
 	bool AddSubObject(FNetRefHandle OwnerHandle, FNetRefHandle SubObjectHandle, FNetRefHandle RelativeOtherSubObjectHandle, EAddSubObjectFlags Flags = EAddSubObjectFlags::Default);
 	bool AddSubObject(FNetRefHandle OwnerHandle, FNetRefHandle SubObjectHandle, EAddSubObjectFlags Flags = EAddSubObjectFlags::Default);
 	void RemoveSubObject(FNetRefHandle SubObjectHandle);
+	
 	FNetRefHandle GetRootObjectOfSubObject(FNetRefHandle SubObjectHandle) const;
+	FInternalNetRefIndex GetRootObjectInternalIndexOfSubObject(FInternalNetRefIndex SubObjectIndex) const;
+
 	bool SetSubObjectNetCondition(FInternalNetRefIndex SubObjectInternalIndex, FLifeTimeConditionStorage SubObjectCondition);
 
 	// DependentObjects
@@ -311,12 +322,31 @@ private:
 	FRefHandleMap RefHandleToInternalIndex;
 	FNetHandleMap NetHandleToInternalIndex;
 
-	// Bitset used in order to track assigned internal which are scopable
-	FNetBitArray ScopableInternalIndices;
+	struct FScopeFrameData
+	{
+		FScopeFrameData(uint32 InMaxActiveObjectCount)
+			: bIsValid(false)
+			, CurrentFrameScopableInternalIndices(InMaxActiveObjectCount)
+			, PrevFrameScopableInternalIndices(InMaxActiveObjectCount)
+			
+		{ }
 
-	// Which internal indices were used last net frame. This can be used to find out which ones are new and deleted this frame. 
-	FNetBitArray PrevFrameScopableInternalIndices;
-	
+		// Controls if the frame data can be read or not
+		uint32 bIsValid : 1;
+
+		// Bitset used in order to track assigned internal which are scopable
+		FNetBitArray CurrentFrameScopableInternalIndices;
+
+		// Which internal indices were used last net frame. This can be used to find out which ones are new and deleted this frame. 
+		FNetBitArray PrevFrameScopableInternalIndices;
+	};
+
+	/** Bitset used in order to track assigned internal which are scopable */
+	FNetBitArray GlobalScopableInternalIndices;
+
+	/** Stores scope lists relevant to the current frame. Only valid during SendUpdate(). */
+	FScopeFrameData ScopeFrameData;
+
 	/** This contains the ScopableInternalIndices list minus filtered objects that are not relevant to any connection this frame. */
 	FNetBitArray RelevantObjectsInternalIndices;
 

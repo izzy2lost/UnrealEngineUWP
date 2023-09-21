@@ -478,13 +478,13 @@ void FReplicationWriter::StartReplication(uint32 InternalIndex)
 	// Subobject needs to mark its owner as dirty as the subobject could have been filtered out and now allowed to replicate again.
 	if (Info.IsSubObject)
 	{
-		FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalIndex);
-		if (ensureAlways(ObjectData.SubObjectRootIndex != FNetRefHandleManager::InvalidInternalIndex))
+		const uint32 RootObjectInternalIndex = NetRefHandleManager->GetRootObjectInternalIndexOfSubObject(InternalIndex);
+		if (ensure(RootObjectInternalIndex != FNetRefHandleManager::InvalidInternalIndex))
 		{
-			FReplicationInfo& OwnerInfo = ReplicatedObjects[ObjectData.SubObjectRootIndex];
+			FReplicationInfo& OwnerInfo = ReplicatedObjects[RootObjectInternalIndex];
 			if (OwnerInfo.GetState() != EReplicatedObjectState::Invalid)
 			{
-				ObjectsWithDirtyChanges.SetBit(ObjectData.SubObjectRootIndex);
+				ObjectsWithDirtyChanges.SetBit(RootObjectInternalIndex);
 				OwnerInfo.HasDirtySubObjects = 1U;
 			}
 		}

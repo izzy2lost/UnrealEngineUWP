@@ -19,13 +19,6 @@ namespace UE::Net::Private
 static TAutoConsoleVariable<int32> CVarEnableIrisRPCs(TEXT("net.Iris.EnableRPCs"), 1, TEXT( "If > 0 let Iris replicate and execute RPCs."));
 
 FNetBlobManager::FNetBlobManager()
-: ReplicationSystem(nullptr)
-, ObjectReferenceCache(nullptr)
-, Connections(nullptr)
-, PartialNetObjectAttachmentHandlerConfig(nullptr)
-, NetRefHandleManager(nullptr)
-, bIsServer(false)
-, bSendAttachmentsWithObject(false)
 {
 }
 	
@@ -39,6 +32,7 @@ void FNetBlobManager::Init(FNetBlobManagerInitParams& InitParams)
 	ObjectReferenceCache = &InitParams.ReplicationSystem->GetReplicationSystemInternal()->GetObjectReferenceCache();
 	bIsServer = ReplicationSystem->IsServer();
 	bSendAttachmentsWithObject = InitParams.bSendAttachmentsWithObject; 
+	bAllowObjectReplication = ReplicationSystem->AllowObjectReplication();
 
 	RegisterDefaultHandlers();
 
@@ -369,25 +363,37 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::PrepareProcessQueue(FReplic
 		ReplicatingConnections.GetSetBitIndices(0, ~0, ProcessContext.ConnectionIds.GetData(), ProcessContext.ConnectionIds.Num());
 	}
 
-	// Figure out if we have any attachments to objects going out of scope.
-	const FNetBitArrayView ScopableObjects = InNetRefHandleManager->GetScopableInternalIndicesView();
-	const FNetBitArrayView PrevScopableObjects = InNetRefHandleManager->GetPrevFrameScopableInternalIndicesView();
-	
-	uint32 CurrentEntryIndex = 0U;
-	for (const FNetObjectAttachmentQueueEntry& Entry : MakeArrayView(AttachmentQueue))
+	if (Manager->AllowObjectReplication())
 	{
-		const uint32 TargetInternalObjectIndex = Entry.SubObjectIndex != FNetRefHandleManager::InvalidInternalIndex ? Entry.SubObjectIndex : Entry.OwnerIndex;
+		// Figure out if we have any attachments to objects going out of scope.
+		const FNetBitArrayView ScopableObjects = InNetRefHandleManager->GetCurrentFrameScopableInternalIndices();
+		const FNetBitArrayView PrevScopableObjects = InNetRefHandleManager->GetPrevFrameScopableInternalIndices();
 
-		const bool bIsAttachmentToObjectGoingOutOfScope = !ScopableObjects.GetBit(TargetInternalObjectIndex) && PrevScopableObjects.GetBit(TargetInternalObjectIndex);
-		if (bIsAttachmentToObjectGoingOutOfScope)
+		uint32 CurrentEntryIndex = 0U;
+		for (const FNetObjectAttachmentQueueEntry& Entry : MakeArrayView(AttachmentQueue))
 		{
-			ProcessContext.AttachmentsToObjectsGoingOutOfScope.SetBit(CurrentEntryIndex);
+			const uint32 TargetInternalObjectIndex = Entry.SubObjectIndex != FNetRefHandleManager::InvalidInternalIndex ? Entry.SubObjectIndex : Entry.OwnerIndex;
+
+			const bool bIsAttachmentToObjectGoingOutOfScope = !ScopableObjects.GetBit(TargetInternalObjectIndex) && PrevScopableObjects.GetBit(TargetInternalObjectIndex);
+			if (bIsAttachmentToObjectGoingOutOfScope)
+			{
+				ProcessContext.AttachmentsToObjectsGoingOutOfScope.SetBit(CurrentEntryIndex);
+			}
+			else
+			{
+				ProcessContext.AttachmentsToObjectsInScope.SetBit(CurrentEntryIndex);
+			}
+			++CurrentEntryIndex;
 		}
-		else
+	}
+	else
+	{
+		uint32 CurrentEntryIndex = 0U;
+		for (const FNetObjectAttachmentQueueEntry& Entry : MakeArrayView(AttachmentQueue))
 		{
 			ProcessContext.AttachmentsToObjectsInScope.SetBit(CurrentEntryIndex);
+			++CurrentEntryIndex;
 		}
-		++CurrentEntryIndex;
 	}
 }
 

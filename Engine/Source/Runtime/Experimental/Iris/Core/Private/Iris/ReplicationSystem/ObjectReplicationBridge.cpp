@@ -20,6 +20,7 @@
 #include "Iris/ReplicationSystem/ObjectPollFrequencyLimiter.h"
 #include "Iris/ReplicationSystem/ObjectReplicationBridgeConfig.h"
 #include "Iris/ReplicationSystem/Prioritization/NetObjectPrioritizer.h"
+#include "Iris/ReplicationSystem/ReplicationConnections.h"
 #include "Iris/ReplicationSystem/ReplicationFragment.h"
 #include "Iris/ReplicationSystem/ReplicationFragmentInternal.h"
 #include "Iris/ReplicationState/ReplicationStateDescriptorBuilder.h"
@@ -29,6 +30,7 @@
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
 #include "Iris/ReplicationSystem/ReplicationOperations.h"
 #include "Iris/ReplicationSystem/ReplicationOperationsInternal.h"
+#include "Iris/ReplicationSystem/ReplicationWriter.h"
 #include "Iris/ReplicationSystem/RepTag.h"
 #include "Iris/ReplicationSystem/Polling/ObjectPoller.h"
 #include "Iris/Serialization/NetSerializationContext.h"
@@ -212,6 +214,12 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(UObject* Insta
 
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
+
+	if (bBlockBeginReplication)
+	{
+		ensureMsgf(false, TEXT("BeginReplication is not allowed during this operation. %s will not be replicated"), *GetNameSafe(Instance));
+		return FNetRefHandle();
+	}
 
 	FNetRefHandle AllocatedRefHandle = ObjectReferenceCache->CreateObjectReferenceHandle(Instance);
 
@@ -403,6 +411,9 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(FNetRefHandle 
 	}
 	else
 	{
+		// We support replicating new subobjects even during internal operations.
+		TGuardValue<bool> AllowBeginReplication(bBlockBeginReplication, false);
+
 		FCreateNetRefHandleParams SubObjectCreateParams = Params;
 		// The filtering system ignores subobjects so let's not waste cycles figuring out which filter to use.
 		SubObjectCreateParams.bAllowDynamicFilter = 0U;
@@ -680,11 +691,32 @@ void UObjectReplicationBridge::PreSendUpdateSingleHandle(FNetRefHandle RefHandle
 	ForcePollObject(RefHandle);
 }
 
-void UObjectReplicationBridge::PreSendUpdate()
+void UObjectReplicationBridge::OnStartPreSendUpdate()
 {
-	PreUpdateAndPoll();
+	// During SendUpdate it is not supported to start replication of new root objects.
+	bBlockBeginReplication = true;
 }
 
+void UObjectReplicationBridge::PreSendUpdate()
+{
+	using namespace UE::Net;
+
+	FNetBitArrayView ObjectsConsideredForPolling = GetReplicationSystem()->GetReplicationSystemInternal()->GetNetRefHandleManager().GetPolledObjectsInternalIndices();
+	ObjectsConsideredForPolling.Reset();
+
+	BuildPollList(ObjectsConsideredForPolling);
+
+	PreUpdate(ObjectsConsideredForPolling);
+
+	ReconcileNewSubObjects(ObjectsConsideredForPolling);
+
+	Poll(ObjectsConsideredForPolling);
+}
+
+void UObjectReplicationBridge::OnPostSendUpdate()
+{
+	bBlockBeginReplication = false;
+}
 
 void UObjectReplicationBridge::PruneStaleObjects()
 {
@@ -761,23 +793,20 @@ void UObjectReplicationBridge::ForcePollObject(FNetRefHandle Handle)
 	}
 }
 
-void UObjectReplicationBridge::PreUpdateAndPoll()
+void UObjectReplicationBridge::BuildPollList(UE::Net::FNetBitArrayView ObjectsConsideredForPolling)
 {
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
 
-	IRIS_PROFILER_SCOPE(UObjectReplicationBridge_PreUpdateAndPoll);
+	IRIS_PROFILER_SCOPE(UObjectReplicationBridge_BuildPollList);
 
 	// Update every relevant objects from here
 	FReplicationSystemInternal* ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
-	const FNetRefHandleManager& LocalNetRefHandleManager = ReplicationSystemInternal->GetNetRefHandleManager();
 	FDirtyNetObjectTracker& DirtyNetObjectTracker = ReplicationSystemInternal->GetDirtyNetObjectTracker();
+
+	const FNetRefHandleManager& LocalNetRefHandleManager = ReplicationSystemInternal->GetNetRefHandleManager();
 	const FNetBitArrayView RelevantObjects = LocalNetRefHandleManager.GetRelevantObjectsInternalIndices();
 	const FNetBitArrayView WantToBeDormantObjects = MakeNetBitArrayView(LocalNetRefHandleManager.GetWantToBeDormantInternalIndices());
-
-	// Filter the set of objects considered for pre-update and polling
-	FNetBitArrayView ObjectsConsideredForPolling = LocalNetRefHandleManager.GetPolledObjectsInternalIndices();
-	ObjectsConsideredForPolling.Reset();
 
 	if (bUseFrequencyBasedPolling)
 	{
@@ -802,7 +831,7 @@ void UObjectReplicationBridge::PreUpdateAndPoll()
 	// Mask off objects pending dormancy as we do not want to poll/pre-update them unless they are marked for flush or are dirty
 	if (bUseDormancyToFilterPolling)
 	{
-		IRIS_PROFILER_SCOPE(PreUpdateAndPoll_Dormancy);
+		IRIS_PROFILER_SCOPE(BuildPollList_Dormancy);
 
 		// Mask off objects pending dormancy that are not dirty
 		const FNetBitArrayView AccumulatedDirtyObjects = DirtyNetObjectTracker.GetAccumulatedDirtyNetObjects();
@@ -833,7 +862,7 @@ void UObjectReplicationBridge::PreUpdateAndPoll()
 	* are replicated atomically this polling propagation is required.
 	*/
 	{
-		IRIS_PROFILER_SCOPE(PreUpdateAndPoll_PropagatePolling);
+		IRIS_PROFILER_SCOPE(BuildPollList_PropagatePolling);
 
 		auto PropagateSubObjectNetForceUpdateToOwner = [&LocalNetRefHandleManager, &ObjectsConsideredForPolling](uint32 InternalObjectIndex)
 		{
@@ -885,7 +914,7 @@ void UObjectReplicationBridge::PreUpdateAndPoll()
 			
 		// If an object with dependents is about to be polled, force it's dependents to poll at the same time.
 		{
-			IRIS_PROFILER_SCOPE(PreUpdateAndPoll_PatchDependentObjects);
+			IRIS_PROFILER_SCOPE(BuildPollList_PatchDependentObjects);
 
 			FNetBitArray TempObjectsConsideredForPolling;
 			TempObjectsConsideredForPolling.InitAndCopy(ObjectsConsideredForPolling);
@@ -900,29 +929,99 @@ void UObjectReplicationBridge::PreUpdateAndPoll()
 			);
 		}
 	}
+}
 	
+void UObjectReplicationBridge::PreUpdate(const UE::Net::FNetBitArrayView ObjectsConsideredForPolling)
+{
+	using namespace UE::Net::Private;
+
+	IRIS_PROFILER_SCOPE(UObjectReplicationBridge_PreUpdate);
+
+	// TODO: Get rid of Poller
+	FObjectPoller::FInitParams PollerInitParams;
+	PollerInitParams.ObjectReplicationBridge = this;
+	PollerInitParams.ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
+	
+	FObjectPoller Poller(PollerInitParams);
+	Poller.PreUpdatePass(ObjectsConsideredForPolling);
+
+	FObjectPoller::FPreUpdateAndPollStats Stats = Poller.GetPollStats();
+	UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), ReplicationSystem.PreUpdatedObjectCount, Stats.PreUpdatedObjectCount, ENetTraceVerbosity::Trace);
+}
+
+void UObjectReplicationBridge::Poll(const UE::Net::FNetBitArrayView ObjectsConsideredForPolling)
+{
+	using namespace UE::Net::Private;
+
+	IRIS_PROFILER_SCOPE(UObjectReplicationBridge_Poll);
+
 	FObjectPoller::FInitParams PollerInitParams;
 	PollerInitParams.ObjectReplicationBridge = this;
 	PollerInitParams.ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
 
 	FObjectPoller Poller(PollerInitParams);
-
-	{
-		IRIS_PROFILER_SCOPE(PreUpdateAndPoll_PreUpdate);
-		Poller.PreUpdatePass(ObjectsConsideredForPolling);
-	}
-
-	{
-		IRIS_PROFILER_SCOPE(PreUpdateAndPoll_Poll);
-		Poller.PollObjects(ObjectsConsideredForPolling);
-	}
+	Poller.PollObjects(ObjectsConsideredForPolling);
 	
 	FObjectPoller::FPreUpdateAndPollStats Stats = Poller.GetPollStats();
 
 	// Report stats
-	UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), ReplicationSystem.PreUpdatedObjectCount, Stats.PreUpdatedObjectCount, ENetTraceVerbosity::Trace);
 	UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), ReplicationSystem.PolledObjectCount, Stats.PolledObjectCount, ENetTraceVerbosity::Trace);
 	UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), ReplicationSystem.PolledReferencesObjectCount, Stats.PolledReferencesObjectCount, ENetTraceVerbosity::Trace);
+}
+
+void UObjectReplicationBridge::ReconcileNewSubObjects(UE::Net::FNetBitArrayView ObjectsConsideredForPolling)
+{
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	IRIS_PROFILER_SCOPE(UObjectReplicationBridge_ReconcileNewSubObjects);
+
+	FReplicationSystemInternal* ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
+	const FNetRefHandleManager& LocalNetRefHandleManager = ReplicationSystemInternal->GetNetRefHandleManager();
+
+	const FNetBitArrayView SubObjectList = LocalNetRefHandleManager.GetSubObjectInternalIndicesView();
+	FReplicationConnections& Connections = ReplicationSystemInternal->GetConnections();
+	FReplicationFiltering& Filtering = ReplicationSystemInternal->GetFiltering();
+
+	auto HandleNewSubObject = [&](FInternalNetRefIndex SubObjectIndex)
+	{
+		const bool bIsSubObject = SubObjectList.IsBitSet(SubObjectIndex);
+		checkf(bIsSubObject, TEXT("Found a root object %s (Index:%u) that was created after the start of PreSendUpdate(). This is not supported"), *GetNameSafe(LocalNetRefHandleManager.GetReplicatedObjectInstance(SubObjectIndex)), SubObjectIndex);
+		if (UNLIKELY(!bIsSubObject))
+		{
+			return;
+		}
+
+		const FInternalNetRefIndex RootObjectIndex = LocalNetRefHandleManager.GetRootObjectInternalIndexOfSubObject(SubObjectIndex);
+		if (UNLIKELY(RootObjectIndex == FNetRefHandleManager::InvalidInternalIndex))
+		{
+			ensureMsgf(RootObjectIndex != FNetRefHandleManager::InvalidInternalIndex, TEXT("SubObject %s (Index:%u) had invalid RootObjectIndex"), *GetNameSafe(LocalNetRefHandleManager.GetReplicatedObjectInstance(SubObjectIndex)), SubObjectIndex);
+			return;
+		}
+
+		// Add the new subobject to the Poll list
+		ObjectsConsideredForPolling.SetBit(SubObjectIndex);
+
+		// Iterate over all connections and add the subobject if the root object is relevant to the connection
+		auto UpdateConnectionScope = [&Filtering, &Connections, RootObjectIndex, SubObjectIndex](uint32 ConnectionId)
+		{
+			FReplicationConnection* Conn = Connections.GetConnection(ConnectionId);
+			FNetBitArrayView ObjectsInScope = Filtering.GetRelevantObjectsInScope(ConnectionId);
+
+			if (ObjectsInScope.IsBitSet(RootObjectIndex))
+			{
+				ObjectsInScope.SetBit(SubObjectIndex);
+			}
+		};
+
+		const FNetBitArray& ValidConnections = Connections.GetValidConnections();
+		ValidConnections.ForAllSetBits(UpdateConnectionScope);
+	};
+
+	// Find any objects that got added since the start of the PreSendUpdate
+	const FNetBitArrayView GlobalScopeList = LocalNetRefHandleManager.GetGlobalScopableInternalIndices();
+	const FNetBitArrayView CurrentFrameScopeList = LocalNetRefHandleManager.GetCurrentFrameScopableInternalIndices();
+	FNetBitArrayView::ForAllSetBits(GlobalScopeList, CurrentFrameScopeList, FNetBitArrayView::AndNotOp, HandleNewSubObject);
 }
 
 void UObjectReplicationBridge::UpdateInstancesWorldLocation()
@@ -1518,7 +1617,7 @@ void UObjectReplicationBridge::ReinitPollFrequency()
 		}
 	};
 
-	const FNetBitArrayView RootObjects = LocalNetRefHandleManager.GetScopableInternalIndicesView();
+	const FNetBitArrayView RootObjects = LocalNetRefHandleManager.GetGlobalScopableInternalIndices();
 	const FNetBitArrayView SubObjects = MakeNetBitArrayView(LocalNetRefHandleManager.GetSubObjectInternalIndices());
 
 	FNetBitArrayView::ForAllSetBits(RootObjects, SubObjects, FNetBitArrayView::AndNotOp, UpdatePollFrequency);

@@ -1603,15 +1603,15 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestTearOffNextUp
 	UE_NET_ASSERT_EQ(uint16(1), NetRefHandleManager->GetNetObjectRefCount(ServerObjectInternalIndex));
 	UE_NET_ASSERT_EQ(uint16(1), NetRefHandleManager->GetNetObjectRefCount(SubObjectObjectInternalIndex));
 
+	Server->SendAndDeliverTo(Client, true);
+	Server->PostSendUpdate();
+
 	// Destroy the object
 	Server->DestroyObject(ServerObject);
 
 	// Verify that we no longer have any references to the object
 	UE_NET_ASSERT_EQ(uint16(0), NetRefHandleManager->GetNetObjectRefCount(ServerObjectInternalIndex));
 	UE_NET_ASSERT_EQ(uint16(0), NetRefHandleManager->GetNetObjectRefCount(SubObjectObjectInternalIndex));
-	
-	Server->SendAndDeliverTo(Client, true);
-	Server->PostSendUpdate();
 }
 
 // Test that we can replicate an object with no replicated properties

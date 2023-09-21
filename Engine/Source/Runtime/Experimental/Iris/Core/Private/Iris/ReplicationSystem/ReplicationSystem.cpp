@@ -248,6 +248,18 @@ public:
 		}
 	}
 
+	void StartPreSendUpdate()
+	{
+		// Block unsupported operations until SendUpdate is finished
+		ReplicationSystemInternal.SetBlockFilterChanges(true);
+
+		// Tell systems we are starting PreSendUpdate
+		ReplicationSystemInternal.GetReplicationBridge()->OnStartPreSendUpdate();
+
+		// Sync the state of the world at the beginning of PreSendUpdate.
+		ReplicationSystemInternal.GetNetRefHandleManager().OnPreSendUpdate();
+	}
+
 	void CallPreSendUpdate(float DeltaSeconds)
 	{
 		ReplicationSystemInternal.GetReplicationBridge()->CallPreSendUpdate(DeltaSeconds);
@@ -255,16 +267,22 @@ public:
 
 	void EndPostSendUpdate()
 	{
+		// Unblock operations
+		ReplicationSystemInternal.SetBlockFilterChanges(false);
+
 		ReplicationSystemInternal.GetChangeMaskCache().ResetCache();
 
-		// Store the state of the previous frames scopable objects
-		ReplicationSystemInternal.GetNetRefHandleManager().SetPrevFrameScopableInternalIndicesToCurrent();
+		// Store the scope list for the next SendUpdate.
+		ReplicationSystemInternal.GetNetRefHandleManager().OnPostSendUpdate();
 
 		// Update handles pending tear-off
 		ReplicationSystemInternal.GetReplicationBridge()->UpdateHandlesPendingTearOff();
 
 		// Reset baseline invalidation
 		ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker().PostSendUpdate();
+
+		// Tell systems we finished PostSendUpdate
+		ReplicationSystemInternal.GetReplicationBridge()->OnPostSendUpdate();
 	}
 
 	void UpdateDirtyObjectList()
@@ -620,6 +638,9 @@ void UReplicationSystem::PreSendUpdate(float DeltaSeconds)
 	{
 		UE_NET_TRACE_FRAME_STATSCOUNTER(GetId(), ReplicationSystem.ReplicatedObjectCount, InternalSys.GetNetRefHandleManager().GetActiveObjectCount(), ENetTraceVerbosity::Verbose);
 
+		// Tell systems we are starting PreSendUpdate
+		Impl->StartPreSendUpdate();
+
 		// Refresh the dirty objects we were told about.
 		Impl->UpdateDirtyObjectList();
 
@@ -929,6 +950,13 @@ void UReplicationSystem::SetOwningNetConnection(FNetRefHandle Handle, uint32 Con
 
 	FNetRefHandleManager& NetRefHandleManager = Impl->ReplicationSystemInternal.GetNetRefHandleManager();
 	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager.GetInternalIndex(Handle);
+
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation. Filter condition on %s (%s) failed."), *GetNameSafe(NetRefHandleManager.GetReplicatedObjectInstance(ObjectInternalIndex)), *Handle.ToString());
+		return;
+	}
+
 	if (ObjectInternalIndex == FNetRefHandleManager::InvalidInternalIndex)
 	{
 		return;
@@ -964,6 +992,12 @@ bool UReplicationSystem::SetFilter(FNetRefHandle Handle, UE::Net::FNetObjectFilt
 		return false;
 	}
 
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation. Filter condition on %s (%s) failed."), *GetNameSafe(NetRefHandleManager.GetReplicatedObjectInstance(ObjectInternalIndex)), *Handle.ToString());
+		return false;
+	}
+
 	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
 	return Filtering.SetFilter(ObjectInternalIndex, Filter);
 }
@@ -990,6 +1024,13 @@ bool UReplicationSystem::SetConnectionFilter(FNetRefHandle Handle, const TBitArr
 
 	FNetRefHandleManager& NetRefHandleManager = Impl->ReplicationSystemInternal.GetNetRefHandleManager();
 	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager.GetInternalIndex(Handle);
+
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation. Filter condition on %s (%s) failed."), *GetNameSafe(NetRefHandleManager.GetReplicatedObjectInstance(ObjectInternalIndex)), *Handle.ToString());
+		return false;
+	}
+
 	if (ObjectInternalIndex == FNetRefHandleManager::InvalidInternalIndex)
 	{
 		return false;
@@ -1052,6 +1093,12 @@ void UReplicationSystem::SetSubObjectFilterStatus(FName GroupName, uint32 Connec
 		return;
 	}
 
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation."));
+		return;
+	}
+
 	FNetObjectGroupHandle GroupHandle = GetSubObjectFilterGroupHandle(GroupName);
 	if (GroupHandle.IsValid())
 	{
@@ -1064,6 +1111,12 @@ void UReplicationSystem::RemoveSubObjectFilter(FName GroupName)
 {
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
+
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation."));
+		return;
+	}
 
 	FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
 	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
@@ -1100,6 +1153,12 @@ void UReplicationSystem::AddToGroup(FNetObjectGroupHandle GroupHandle, FNetRefHa
 	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
 
 	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager.GetInternalIndex(Handle);
+	
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation. Filter condition on %s (%s) failed."), *GetNameSafe(NetRefHandleManager.GetReplicatedObjectInstance(ObjectInternalIndex)), *Handle.ToString());
+		return;
+	}
 
 	if (ObjectInternalIndex)
 	{
@@ -1121,6 +1180,13 @@ void UReplicationSystem::RemoveFromGroup(FNetObjectGroupHandle GroupHandle, FNet
 	FNetRefHandleManager& NetRefHandleManager = Impl->ReplicationSystemInternal.GetNetRefHandleManager();
 
 	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager.GetInternalIndex(Handle);
+
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation. Filter condition on %s (%s) failed."), *GetNameSafe(NetRefHandleManager.GetReplicatedObjectInstance(ObjectInternalIndex)), *Handle.ToString());
+		return;
+	}
+
 	if (ObjectInternalIndex)
 	{
 		FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
@@ -1139,8 +1205,15 @@ void UReplicationSystem::RemoveFromAllGroups(FNetRefHandle Handle)
 	FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
 	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
 
-	uint32 NumGroupMemberShips;
+	uint32 NumGroupMemberShips = 0;
 	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager.GetInternalIndex(Handle);
+
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation. Filter condition on %s (%s) failed."), *GetNameSafe(NetRefHandleManager.GetReplicatedObjectInstance(ObjectInternalIndex)), *Handle.ToString());
+		return;
+	}
+
 	if (const FNetObjectGroupHandle* GroupHandles = Groups.GetGroupMemberships(ObjectInternalIndex, NumGroupMemberShips))
 	{
 		// We copy the membership array as it is modified during removal
@@ -1221,6 +1294,12 @@ void UReplicationSystem::AddGroupFilter(FNetObjectGroupHandle GroupHandle)
 		return;
 	}
 
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation."));
+		return;
+	}
+
 	UE::Net::Private::FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
 	Filtering.AddGroupFilter(GroupHandle);
 }
@@ -1230,6 +1309,12 @@ void UReplicationSystem::RemoveGroupFilter(FNetObjectGroupHandle GroupHandle)
 	// Early out if this is invalid group
 	if (!ensure(IsValidGroup(GroupHandle)))
 	{
+		return;
+	}
+
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation."));
 		return;
 	}
 
@@ -1245,6 +1330,12 @@ void UReplicationSystem::SetGroupFilterStatus(FNetObjectGroupHandle GroupHandle,
 		return;
 	}
 
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation."));
+		return;
+	}
+
 	UE::Net::Private::FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
 	Filtering.SetGroupFilterStatus(GroupHandle, ConnectionId, ReplicationStatus);
 }
@@ -1254,6 +1345,12 @@ void UReplicationSystem::SetGroupFilterStatus(FNetObjectGroupHandle GroupHandle,
 	// Early out if this is invalid group
 	if (!ensure(IsValidGroup(GroupHandle)))
 	{
+		return;
+	}
+
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation."));
 		return;
 	}
 
@@ -1269,6 +1366,12 @@ void UReplicationSystem::SetGroupFilterStatus(FNetObjectGroupHandle GroupHandle,
 		return;
 	}
 
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation."));
+		return;
+	}
+
 	UE::Net::Private::FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
 	Filtering.SetGroupFilterStatus(GroupHandle, ReplicationStatus);
 }
@@ -1281,6 +1384,12 @@ bool UReplicationSystem::SetReplicationConditionConnectionFilter(FNetRefHandle H
 	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager.GetInternalIndex(Handle);
 	if (ObjectInternalIndex == FNetRefHandleManager::InvalidInternalIndex)
 	{
+		return false;
+	}
+
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation. Filter condition on %s (%s) failed."), *GetNameSafe(NetRefHandleManager.GetReplicatedObjectInstance(ObjectInternalIndex)), *Handle.ToString());
 		return false;
 	}
 
@@ -1312,6 +1421,12 @@ void UReplicationSystem::SetDeltaCompressionStatus(FNetRefHandle Handle, UE::Net
 	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager.GetInternalIndex(Handle);
 	if (ObjectInternalIndex == FNetRefHandleManager::InvalidInternalIndex)
 	{
+		return;
+	}
+
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting delta compression is not yet supported during this operation. Filter condition on %s (%s) failed."), *GetNameSafe(NetRefHandleManager.GetReplicatedObjectInstance(ObjectInternalIndex)), *Handle.ToString());
 		return;
 	}
 

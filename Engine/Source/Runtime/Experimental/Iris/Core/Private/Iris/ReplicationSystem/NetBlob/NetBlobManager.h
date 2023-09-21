@@ -43,6 +43,8 @@ public:
 
 	bool RegisterNetBlobHandler(UNetBlobHandler* Handler);
 
+	bool AllowObjectReplication() const { return bAllowObjectReplication; }
+
 	bool QueueNetObjectAttachment(uint32 ConnectionId, const FNetObjectReference& TargetRef, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
 	bool SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
 	bool SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
@@ -132,13 +134,14 @@ private:
 	TStrongObjectPtr<UPartialNetObjectAttachmentHandler> PartialNetObjectAttachmentHandler;
 	TStrongObjectPtr<UNetObjectBlobHandler> NetObjectBlobHandler;
 
-	UReplicationSystem* ReplicationSystem;
-	FObjectReferenceCache* ObjectReferenceCache;
-	FReplicationConnections* Connections;
-	const UPartialNetObjectAttachmentHandlerConfig* PartialNetObjectAttachmentHandlerConfig;
-	const FNetRefHandleManager* NetRefHandleManager;
-	bool bIsServer;
-	bool bSendAttachmentsWithObject;
+	UReplicationSystem* ReplicationSystem = nullptr;
+	FObjectReferenceCache* ObjectReferenceCache = nullptr;
+	FReplicationConnections* Connections = nullptr;
+	const UPartialNetObjectAttachmentHandlerConfig* PartialNetObjectAttachmentHandlerConfig = nullptr;
+	const FNetRefHandleManager* NetRefHandleManager = nullptr;
+	bool bIsServer = false;
+	bool bSendAttachmentsWithObject = false;
+	bool bAllowObjectReplication = false;
 };
 
 }

@@ -168,6 +168,12 @@ protected:
 	/** Invoked before ReplicationSystem copies dirty state data. */
 	IRISCORE_API virtual void PreSendUpdate();
 
+	/** Invoked when the ReplicationSystem starts the PreSendUpdate tick. */
+	IRISCORE_API virtual void OnStartPreSendUpdate();
+	
+	/** Invoked after we sent data to all connections. */
+	IRISCORE_API virtual void OnPostSendUpdate();
+	
 	/** Invoked before ReplicationSystem copies dirty state data for a single replicated object. */
 	IRISCORE_API virtual void PreSendUpdateSingleHandle(FNetRefHandle Handle);
 

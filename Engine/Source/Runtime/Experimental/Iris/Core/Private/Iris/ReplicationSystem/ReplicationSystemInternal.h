@@ -108,6 +108,10 @@ public:
 		return ForwardNetRPCCallMulticastDelegate;
 	}
 
+	void SetBlockFilterChanges(bool bBlock) { bBlockFilterChanges = bBlock; }
+
+	bool AreFilterChangesBlocked() const { return bBlockFilterChanges; }
+
 private:
 	FReplicationProtocolManager ReplicationProtocolManager;
 	FNetRefHandleManager NetRefHandleManager;
@@ -133,6 +137,9 @@ private:
 	FNetSendStats SendStats;
 	FForwardNetRPCCallMulticastDelegate ForwardNetRPCCallMulticastDelegate;
 	uint32 Id;
+
+	/** When true this prevents any changes to the filter system. Enabled during times where adding filter options is unsupported. */
+	bool bBlockFilterChanges = false;
 };
 
 }

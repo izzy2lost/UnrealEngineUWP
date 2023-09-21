@@ -101,7 +101,7 @@ void FDirtyNetObjectTracker::UpdateDirtyNetObjects()
 		}
 	}
 
-	const uint32* GlobalScopeListData = NetRefHandleManager->GetScopableInternalIndicesView().GetData();
+	const uint32* GlobalScopeListData = NetRefHandleManager->GetCurrentFrameScopableInternalIndices().GetData();
 	uint32* AccumulatedDirtyNetObjectsData = AccumulatedDirtyNetObjects.GetData();
 
 	const uint32 NumWords = AccumulatedDirtyNetObjects.GetNumWords();

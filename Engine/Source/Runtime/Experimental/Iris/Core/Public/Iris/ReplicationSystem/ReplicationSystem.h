@@ -59,6 +59,7 @@ public:
 
 	struct FReplicationSystemParams
 	{
+		//$IRIS TODO: These need documentation
 		UReplicationBridge* ReplicationBridge = nullptr;
 		uint32 MaxReplicatedObjectCount = 65535U;
 		uint32 MaxDeltaCompressedObjectCount = 2048U;
@@ -76,6 +77,9 @@ public:
 
 	/** @return Whether the system is run on a server. */
 	bool IsServer() const { return bIsServer; }
+
+	/** @return Is this system configured to replicate object properties. */
+	bool AllowObjectReplication() { return bAllowObjectReplication; }
 
 	/**
 	 * PreSendUpdate performs all the necessary work, such as filtering and prioritization of objects,

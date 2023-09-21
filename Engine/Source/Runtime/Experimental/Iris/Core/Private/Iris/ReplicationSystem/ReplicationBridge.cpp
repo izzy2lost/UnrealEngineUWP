@@ -60,6 +60,14 @@ void UReplicationBridge::PreSendUpdate()
 {
 }
 
+void UReplicationBridge::OnStartPreSendUpdate()
+{
+}
+
+void UReplicationBridge::OnPostSendUpdate()
+{
+}
+
 void UReplicationBridge::UpdateInstancesWorldLocation()
 {
 }
