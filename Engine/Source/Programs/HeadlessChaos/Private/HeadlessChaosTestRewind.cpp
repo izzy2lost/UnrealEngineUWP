@@ -3833,7 +3833,7 @@ namespace ChaosTest {
 			for (int Step = 0; Step <= LastStep; ++Step)
 			{
 				UnitTest.Advance();
-				Xs.Add(Collection->DynamicCollection->Transform[0].GetTranslation()[2]);
+				Xs.Add(Collection->DynamicCollection->GetTransform(0).GetTranslation()[2]);
 			}
 
 			const int32 RewindStep = 3;
