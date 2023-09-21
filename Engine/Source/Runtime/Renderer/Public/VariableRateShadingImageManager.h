@@ -117,6 +117,7 @@ private:
 	TRefCountPtr<IPooledRenderTarget> MobileHMDFixedFoveationOverrideImage;
 	// Used to access the generators functionalities.
 	TArray<IVariableRateShadingImageGenerator*> ImageGenerators;
+	TArray<IVariableRateShadingImageGenerator*> ActiveGenerators;
 	// This is used only to own the memory of generators created in the FVariableRateShadingImageManager constructor.
 	TArray<TUniquePtr<IVariableRateShadingImageGenerator>> InternalGenerators;
 	// Guards ImageGenerators because most of the calls of the manager are on the render thread but the 
@@ -148,7 +149,10 @@ public:
 	virtual void PrepareImages(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures) = 0;
 
 	// Returns whether or not generator is enabled - can change at runtime
-	virtual bool IsEnabledForView(const FSceneView& View) const { return false; };
+	virtual bool IsEnabled() const { return false; };
+
+	// Returns whether or not the given view supports this generator
+	virtual bool IsSupportedByView(const FSceneView& View) const { return false; };
 
 	// Return bitmask of generator type
 	virtual FVariableRateShadingImageManager::EVRSSourceType GetType() const { return FVariableRateShadingImageManager::EVRSSourceType::None; };

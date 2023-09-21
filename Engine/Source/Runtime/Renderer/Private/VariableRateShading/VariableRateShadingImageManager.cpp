@@ -380,10 +380,14 @@ int32 FVariableRateShadingImageManager::GetNumberOfSupportedRates()
 FRDGTextureRef FVariableRateShadingImageManager::GetVariableRateShadingImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSPassType PassType,
 	FVariableRateShadingImageManager::EVRSSourceType VRSTypesToExclude)
 {
-	EVRSImageType ImageType = GetImageTypeFromPassType(PassType);
-
 	// If the view doesn't support VRS or this pass is disabled, bail immediately
-	if (!bVRSEnabledForFrame || !IsVRSCompatibleWithView(ViewInfo) || ImageType == EVRSImageType::Disabled)
+	if (!bVRSEnabledForFrame || ActiveGenerators.IsEmpty())
+	{
+		return nullptr;
+	}
+
+	EVRSImageType ImageType = GetImageTypeFromPassType(PassType);
+	if (ImageType == EVRSImageType::Disabled || !IsVRSCompatibleWithView(ViewInfo))
 	{
 		return nullptr;
 	}
@@ -399,21 +403,17 @@ FRDGTextureRef FVariableRateShadingImageManager::GetVariableRateShadingImage(FRD
 
 	// Otherwise collate all internal sources
 	TArray<FRDGTextureRef> InternalVRSSources;
-
+	for (IVariableRateShadingImageGenerator* const Generator : ActiveGenerators)
 	{
-		FReadScopeLock GeneratorsLock(GeneratorsMutex);	
-		for (IVariableRateShadingImageGenerator* const Generator : ImageGenerators)
+		FRDGTextureRef Image = nullptr;
+		if (Generator && Generator->IsSupportedByView(ViewInfo) && !EnumHasAnyFlags(VRSTypesToExclude, Generator->GetType()))
 		{
-			FRDGTextureRef Image = nullptr;
-			if (Generator->IsEnabledForView(ViewInfo) && !EnumHasAnyFlags(VRSTypesToExclude, Generator->GetType()))
-			{
-				Image = Generator->GetImage(GraphBuilder, ViewInfo, ImageType);
-			}
+			Image = Generator->GetImage(GraphBuilder, ViewInfo, ImageType);
+		}
 
-			if (Image)
-			{
-				InternalVRSSources.Add(Image);
-			}
+		if (Image)
+		{
+			InternalVRSSources.Add(Image);
 		}
 	}
 
@@ -439,12 +439,18 @@ void FVariableRateShadingImageManager::PrepareImageBasedVRS(FRDGBuilder& GraphBu
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "PrepareImageBasedVRS");
-	SCOPED_NAMED_EVENT(PrepareImageBasedVRS, FColor::Red);
+	// If no generators are active, bail
+	{
+		FReadScopeLock GeneratorsLock(GeneratorsMutex);
+		ActiveGenerators = ImageGenerators.FilterByPredicate([](IVariableRateShadingImageGenerator* const InGenerator) { return InGenerator && InGenerator->IsEnabled(); });
+	}
 
-	VRSForceRateForFrame = CVarVRSDebugForceRate->GetInt();
-
-	// If no views support VRS, bail immediately
+	if (ActiveGenerators.IsEmpty())
+	{
+		return;
+	}
+	
+	// If no views support VRS, bail
 	bool bIsAnyViewVRSCompatible = false;
 	for (const FSceneView* View : ViewFamily.Views)
 	{
@@ -469,25 +475,26 @@ void FVariableRateShadingImageManager::PrepareImageBasedVRS(FRDGBuilder& GraphBu
 		return;
 	}
 
-	// Invoke image generators
+	RDG_EVENT_SCOPE(GraphBuilder, "PrepareImageBasedVRS");
+	SCOPED_NAMED_EVENT(PrepareImageBasedVRS, FColor::Red);
+
+	VRSForceRateForFrame = CVarVRSDebugForceRate->GetInt();
+
+	// Invoke active image generators
+	for (IVariableRateShadingImageGenerator* const Generator : ActiveGenerators)
 	{
-		FReadScopeLock GeneratorsLock(GeneratorsMutex);
-		for (IVariableRateShadingImageGenerator* const Generator : ImageGenerators)
+		if (Generator && Generator->IsSupportedByView(*ViewFamily.Views[0]))
 		{
-			if (Generator->IsEnabledForView(*ViewFamily.Views[0]))
-			{
-				Generator->PrepareImages(GraphBuilder, ViewFamily, SceneTextures);
-			}
+			Generator->PrepareImages(GraphBuilder, ViewFamily, SceneTextures);
 		}
 	}
 }
 
 bool FVariableRateShadingImageManager::IsTypeEnabledForView(const FSceneView& View, FVariableRateShadingImageManager::EVRSSourceType Type)
 {
-	FReadScopeLock GeneratorsLock(GeneratorsMutex);
-	for (IVariableRateShadingImageGenerator* const Generator : ImageGenerators)
+	for (IVariableRateShadingImageGenerator* const Generator : ActiveGenerators)
 	{
-		if (EnumHasAnyFlags(Type, Generator->GetType()) && Generator->IsEnabledForView(View))
+		if (Generator && EnumHasAnyFlags(Type, Generator->GetType()) && Generator->IsSupportedByView(View))
 		{
 			return true;
 		}
@@ -497,6 +504,11 @@ bool FVariableRateShadingImageManager::IsTypeEnabledForView(const FSceneView& Vi
 
 void FVariableRateShadingImageManager::DrawDebugPreview(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, FRDGTextureRef OutputSceneColor)
 {
+	if (!bVRSEnabledForFrame)
+	{
+		return;
+	}
+
 	uint32 ImageTypeAsInt = CVarVRSPreview.GetValueOnRenderThread();
 	EVRSImageType PreviewImageType = EVRSImageType::Disabled;
 	if (ImageTypeAsInt >= 0 && ImageTypeAsInt <= EVRSImageType::Conservative)
@@ -528,20 +540,17 @@ void FVariableRateShadingImageManager::DrawDebugPreview(FRDGBuilder& GraphBuilde
 			{
 				TArray<FRDGTextureRef> InternalVRSSources;
 
+				for (IVariableRateShadingImageGenerator* const Generator : ActiveGenerators)
 				{
-					FReadScopeLock GeneratorsLock(GeneratorsMutex);
-					for (IVariableRateShadingImageGenerator* const Generator : ImageGenerators)
+					FRDGTextureRef Image = nullptr;
+					if (Generator && Generator->IsSupportedByView(*View))
 					{
-						FRDGTextureRef Image = nullptr;
-						if (Generator->IsEnabledForView(*View))
-						{
-							Image = Generator->GetDebugImage(GraphBuilder, *ViewInfo, PreviewImageType);
-						}
+						Image = Generator->GetDebugImage(GraphBuilder, *ViewInfo, PreviewImageType);
+					}
 
-						if (Image)
-						{
-							InternalVRSSources.Add(Image);
-						}
+					if (Image)
+					{
+						InternalVRSSources.Add(Image);
 					}
 				}
 
@@ -583,6 +592,8 @@ void FVariableRateShadingImageManager::DrawDebugPreview(FRDGBuilder& GraphBuilde
 
 			const FScreenPassTextureViewport InputViewport = FScreenPassTextureViewport(PreviewTexture, ScaledSrcRect);
 			const FScreenPassTextureViewport OutputViewport(OutputSceneColor, DestViewRect);
+
+			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Preview for frame %d\n"), ViewFamily.FrameNumber);
 
 			AddDrawScreenPass(
 				GraphBuilder,
@@ -652,6 +663,8 @@ FRDGTextureRef FVariableRateShadingImageManager::CombineShadingRateImages(FRDGBu
 		PassParameters->RWOutputTexture = GraphBuilder.CreateUAV(CombinedShadingRateTexture);
 
 		TShaderMapRef<FCombineShadingRateTexturesCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+
+		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Combiner for frame %d\n"), ViewInfo.Family->FrameNumber);
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,

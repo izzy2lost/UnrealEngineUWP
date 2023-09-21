@@ -80,13 +80,19 @@ void FFBFoveationImageGenerator::PrepareImages(FRDGBuilder& GraphBuilder, const 
 	return; //Currently not implemented as the images are prepared only when the color swapchain is reallocated.
 }
 
-bool FFBFoveationImageGenerator::IsEnabledForView(const FSceneView& View) const
+bool FFBFoveationImageGenerator::IsEnabled() const
 {
 	if (OpenXRHMD)
 	{
-		return OpenXRHMD->IsStereoEnabled() && bFoveationExtensionSupported && View.StereoPass != EStereoscopicPass::eSSP_FULL;
+		return OpenXRHMD->IsStereoEnabled() && bFoveationExtensionSupported;
 	}
 	return false;
+}
+
+bool FFBFoveationImageGenerator::IsSupportedByView(const FSceneView& View) const
+{
+	// Only used for XR views
+	return IStereoRendering::IsStereoEyeView(View);
 }
 
 // This is currently not implemented.

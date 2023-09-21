@@ -241,10 +241,15 @@ void FFoveatedImageGenerator::PrepareImages(FRDGBuilder& GraphBuilder, const FSc
 	CachedImage = ShadingRateTexture;
 }
 
-bool FFoveatedImageGenerator::IsEnabledForView(const FSceneView& View) const
+bool FFoveatedImageGenerator::IsEnabled() const
 {
-	// Enabled for stereo (XR or emulated)
-	return IStereoRendering::IsStereoEyeView(View) && CVarFoveationLevel.GetValueOnRenderThread() > 0;
+	return CVarFoveationLevel.GetValueOnRenderThread() > 0;
+}
+
+bool FFoveatedImageGenerator::IsSupportedByView(const FSceneView& View) const
+{
+	// Only used for XR views
+	return true; // IStereoRendering::IsStereoEyeView(View);
 }
 
 FVariableRateShadingImageManager::EVRSSourceType FFoveatedImageGenerator::GetType() const

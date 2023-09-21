@@ -320,11 +320,6 @@ static bool IsHDR10(const EDisplayOutputFormat& OutputFormat)
 		OutputFormat == EDisplayOutputFormat::HDR_ACES_2000nit_ST2084;
 }
 
-static bool IsContrastAdaptiveShadingEnabled()
-{
-	return GRHISupportsAttachmentVariableRateShading && GRHIAttachmentVariableRateShadingEnabled && (CVarCASContrastAdaptiveShading.GetValueOnRenderThread() != 0);
-}
-
 static FIntRect GetPostProcessOutputRect(const FViewInfo& ViewInfo)
 {
 	// If TAA/TSR is enabled, upscaling is done at the start of post-processing so the final output will match UnscaledViewRect. Otherwise use the dynamically rescale view rect since
@@ -336,17 +331,14 @@ bool AddCreateShadingRateImagePass(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View)
 {
-	//------------------------------------------------------------------------------------------------
-	// Do some sanity checks for early out
-	if (!IsContrastAdaptiveShadingEnabled() || !FVariableRateShadingImageManager::IsVRSCompatibleWithView(View) || !View.PrevViewInfo.LuminanceHistory)
+	if (!View.PrevViewInfo.LuminanceHistory)
 	{
 		// Shading Rate Image unsupported
 		return false;
 	}
+
 	FRDGTextureRef Luminance = GraphBuilder.RegisterExternalTexture(View.PrevViewInfo.LuminanceHistory);
 	const FVRSTextures& VRSTextures = FVRSTextures::Get(GraphBuilder);
-	// Complete early out sanity checks
-	//------------------------------------------------------------------------------------------------
 
 	{
 		FCalculateShadingRateImageCS::FPermutationDomain PermutationVector;
@@ -478,21 +470,16 @@ FRDGTextureRef FContrastAdaptiveImageGenerator::GetImage(FRDGBuilder& GraphBuild
 void FContrastAdaptiveImageGenerator::PrepareImages(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures)
 {
 	RDG_EVENT_SCOPE(GraphBuilder, "ContrastAdaptiveShading");
-	bool bAreAllViewsVRSCompatible = true;
+
 	for (const FSceneView* View : ViewFamily.Views)
 	{
 		check(View->bIsViewInfo);
 		const FViewInfo* ViewInfo = static_cast<const FViewInfo*>(View);
 		if (View->bCameraCut || !FVariableRateShadingImageManager::IsVRSCompatibleWithView(*ViewInfo) || !ViewInfo->PrevViewInfo.LuminanceHistory)
 		{
-			bAreAllViewsVRSCompatible = false;
-			break;
+			// CAS is not supported unless all views are set up to support it
+			return;
 		}
-	}
-	bool bPrepareImageBasedVRS = IsContrastAdaptiveShadingEnabled() && bAreAllViewsVRSCompatible;
-	if (!bPrepareImageBasedVRS)
-	{
-		return;
 	}
 
 	FVRSTextures& VRSTextures = GraphBuilder.Blackboard.Create<FVRSTextures>();
@@ -509,12 +496,16 @@ void FContrastAdaptiveImageGenerator::PrepareImages(FRDGBuilder& GraphBuilder, c
 	AddPrepareImageBasedVRSPass(GraphBuilder, SceneTextures, ViewFamily);
 }
 
-bool FContrastAdaptiveImageGenerator::IsEnabledForView(const FSceneView& View) const
+bool FContrastAdaptiveImageGenerator::IsEnabled() const
+{
+	return GRHISupportsAttachmentVariableRateShading && GRHIAttachmentVariableRateShadingEnabled && (CVarCASContrastAdaptiveShading.GetValueOnRenderThread() != 0);
+}
+
+bool FContrastAdaptiveImageGenerator::IsSupportedByView(const FSceneView& View) const
 {
 	EDisplayOutputFormat DisplayOutputFormat = GetDisplayOutputFormat(View);
-	bool bCompatibleWithOutputType = (DisplayOutputFormat == EDisplayOutputFormat::SDR_sRGB) || IsHDR10(DisplayOutputFormat);
-
-	return IsContrastAdaptiveShadingEnabled() && !View.bIsSceneCapture && bCompatibleWithOutputType;
+	const bool bCompatibleWithOutputType = (DisplayOutputFormat == EDisplayOutputFormat::SDR_sRGB) || IsHDR10(DisplayOutputFormat);
+	return !View.bIsSceneCapture && bCompatibleWithOutputType;
 }
 
 FRDGTextureRef FContrastAdaptiveImageGenerator::GetDebugImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSImageType ImageType)
