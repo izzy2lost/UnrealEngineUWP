@@ -205,7 +205,10 @@ public class Python3 : ModuleRules
 			}
 		}
 
-		RuntimeDependencies.Add("$(EngineDir)/" + PythonSDKFilePath, StagedFileType.NonUFS);
+		if ( File.Exists(Path.Combine(EngineDir, PythonSDKFilePath)) )
+		{
+			RuntimeDependencies.Add("$(EngineDir)/" + PythonSDKFilePath, StagedFileType.NonUFS);
+		}
 	}
 	
 	private void AppendPythonRuntimeDependencies(ReadOnlyTargetRules Target, bool IsEnginePython)
