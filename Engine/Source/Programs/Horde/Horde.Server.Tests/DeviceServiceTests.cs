@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Http;
 using Horde.Server.Server;
 using System;
 using EpicGames.Horde;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Tests
 {
