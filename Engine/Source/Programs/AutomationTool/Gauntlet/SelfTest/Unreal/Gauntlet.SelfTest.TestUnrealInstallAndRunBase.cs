@@ -87,7 +87,7 @@ namespace Gauntlet.SelfTest
 
 			// InstallApplication populates the directory mappings, the ensure copy additional files has proper handling for empty mappings, clear them out now
 			TargetDevice.GetPlatformDirectoryMappings().Clear();
-			if (!CheckResult(TestCopyAppConfigurationFiles(), "Could not copy {0} additional files to device {1}", AppConfig.FilesToCopy.Count, TargetDevice))
+			if (!CheckResult(TestCopyFilesToCopyToDevice(), "Could not copy {0} additional files to device {1}", AppConfig.FilesToCopy.Count, TargetDevice))
 			{
 				return false;
 			}
@@ -127,7 +127,7 @@ namespace Gauntlet.SelfTest
 		protected abstract bool TestInstallApplication(out IAppInstall Install);
 
 		// Should add a file to the AppConfig, copy it over, and then verify it exists in the target diretory
-		protected abstract bool TestCopyAppConfigurationFiles();
+		protected abstract bool TestCopyFilesToCopyToDevice();
 
 		protected FileInfo CreateDummyFile()
 		{

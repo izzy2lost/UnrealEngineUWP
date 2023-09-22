@@ -27,7 +27,7 @@ namespace Gauntlet.SelfTest
 			return true;
 		}
 
-		protected override bool TestCopyAppConfigurationFiles()
+		protected override bool TestCopyFilesToCopyToDevice()
 		{
 			return true;
 		}
