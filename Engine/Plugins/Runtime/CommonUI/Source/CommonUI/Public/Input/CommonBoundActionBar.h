@@ -13,6 +13,8 @@ class IWidgetCompilerLog;
 
 struct FUIActionBindingHandle;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FActionBarUpdated);
+
 /**
  * A box populated with current actions available per CommonUI's Input Handler.
  */
@@ -58,6 +60,9 @@ private:
 
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Display)
 	bool bIgnoreDuplicateActions = true;
+
+	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (AllowPrivateAccess = true))
+	FActionBarUpdated OnActionBarUpdated;
 
 	bool bIsRefreshQueued = false;
 };

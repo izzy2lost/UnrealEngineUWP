@@ -326,6 +326,8 @@ void UCommonBoundActionBar::HandleDeferredDisplayUpdate()
 			}
 		}
 	}
+
+	OnActionBarUpdated.Broadcast();
 }
 
 void UCommonBoundActionBar::HandlePlayerAdded(int32 PlayerIdx)
