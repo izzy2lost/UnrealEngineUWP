@@ -251,13 +251,14 @@ private:
 struct FSdfGlyphEntryKey
 {
 public:
-	FSdfGlyphEntryKey(const TWeakPtr<FFreeTypeFace> InFontFace, uint32 InGlyphIndex, int32 InPpem);
+	FSdfGlyphEntryKey(const TWeakPtr<FFreeTypeFace> InFontFace, uint32 InGlyphIndex, int32 InPpem, float InEmOuterSpread, float InEmInnerSpread);
 
 	FORCEINLINE bool operator==(const FSdfGlyphEntryKey& Other) const
 	{
 		return FontFace == Other.FontFace
 			&& GlyphIndex == Other.GlyphIndex
-			&& Ppem == Other.Ppem;
+			&& Ppem == Other.Ppem
+			&& SpreadCategory == Other.SpreadCategory;
 	}
 
 	FORCEINLINE bool operator!=(const FSdfGlyphEntryKey& Other) const
@@ -276,10 +277,15 @@ public:
 	const uint32 GlyphIndex;
 	/** The pixel size at which the sdf glyph is generated */
 	const int32 Ppem;
+	/** The spread category. The spreads of a glyph entry can be arbitrary but similar values will share the same category and therefore glyph entry */
+	const int32 SpreadCategory;
 
 private:
 	/** Cached hash value used for map lookups */
 	uint32 KeyHash;
+
+	/** Computes the discrete spread category from real spread values specified in em */
+	static int32 GetSpreadCategory(float InEmOuterSpread, float InEmInnerSpread);
 };
 
 /** Used to lookup information about specific SDF generation tasks - unlike FSdfGlyphEntryKey is also identified by em spread */
