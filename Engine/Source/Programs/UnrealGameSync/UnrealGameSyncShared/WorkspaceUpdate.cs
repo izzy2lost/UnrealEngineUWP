@@ -1137,11 +1137,15 @@ namespace UnrealGameSync
 						FileReference manifestFileName = FileReference.Combine(manifestDirectoryName, String.Format("{0}.zipmanifest", archiveType));
 						if (FileReference.Exists(manifestFileName))
 						{
-							logger.LogInformation("Removing {ArchiveType} binaries...", archiveType);
-							Progress.Set(String.Format("Removing {0} binaries...", archiveType), 0.0f);
-							ArchiveUtils.RemoveExtractedFiles(project.LocalRootPath, manifestFileName, Progress, logger);
-							FileReference.Delete(manifestFileName);
-							logger.LogInformation("");
+							bool isNotLastSyncedEditorArchive = archiveType != IArchiveInfo.EditorArchiveType || (archiveTypeAndArchive.Value != null && archiveTypeAndArchive.Value.Item2 != state.LastSyncEditorArchive);
+							if (isNotLastSyncedEditorArchive)
+							{
+								logger.LogInformation("Removing {ArchiveType} binaries...", archiveType);
+								Progress.Set(String.Format("Removing {0} binaries...", archiveType), 0.0f);
+								ArchiveUtils.RemoveExtractedFiles(project.LocalRootPath, manifestFileName, Progress, logger);
+								FileReference.Delete(manifestFileName);
+								logger.LogInformation("");
+							}
 						}
 
 						// If we have a new depot path, sync it down and extract it
@@ -1150,11 +1154,26 @@ namespace UnrealGameSync
 							IArchiveInfo archiveInfo = archiveTypeAndArchive.Value.Item1;
 							string archiveKey = archiveTypeAndArchive.Value.Item2;
 
-							logger.LogInformation("Syncing {ArchiveType} binaries...", archiveType);
-							Progress.Set(String.Format("Syncing {0} binaries...", archiveType), 0.0f);
-							if (!await archiveInfo.DownloadArchive(perforce, archiveKey, project.LocalRootPath, manifestFileName, logger, Progress, CancellationToken.None))
+							if (archiveType != IArchiveInfo.EditorArchiveType || archiveKey != state.LastSyncEditorArchive)
 							{
-								return (WorkspaceUpdateResult.FailedToSync, $"Couldn't read {archiveKey}");
+								logger.LogInformation("Syncing {ArchiveType} binaries...", archiveType);
+								Progress.Set(String.Format("Syncing {0} binaries...", archiveType), 0.0f);
+								if (!await archiveInfo.DownloadArchive(perforce, archiveKey, project.LocalRootPath, manifestFileName, logger, Progress, CancellationToken.None))
+								{
+									return (WorkspaceUpdateResult.FailedToSync, $"Couldn't read {archiveKey}");
+								}
+								// Update last synced editor archive
+								if (archiveType == IArchiveInfo.EditorArchiveType)
+								{
+									state = stateMgr.Modify(x =>
+									{
+										x.LastSyncEditorArchive = archiveKey;
+									});
+								}
+							}
+							else
+							{
+								logger.LogInformation("Skipping {ArchiveType} binaries download, already downloaded", IArchiveInfo.EditorArchiveType);
 							}
 						}
 					}

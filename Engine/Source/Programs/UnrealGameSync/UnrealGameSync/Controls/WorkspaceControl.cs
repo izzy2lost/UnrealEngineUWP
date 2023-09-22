@@ -964,17 +964,22 @@ namespace UnrealGameSync
 			{
 				if (!context.Options.HasFlag(WorkspaceUpdateOptions.ContentOnly) && (context.CustomBuildSteps == null || context.CustomBuildSteps.Count == 0))
 				{
-					FileReference targetFile = ConfigUtils.GetEditorTargetFile(_workspace.Project, _workspace.ProjectConfigFile);
-					foreach (BuildConfig config in Enum.GetValues(typeof(BuildConfig)).OfType<BuildConfig>())
+					bool usingPrecompiledEditor = context.ArchiveTypeToArchive.TryGetValue(IArchiveInfo.EditorArchiveType, out Tuple<IArchiveInfo, string>? archiveInfo) && archiveInfo != null;
+					bool usingLastSyncedEditorArchive = archiveInfo != null && archiveInfo.Item2 == _workspace.State.LastSyncEditorArchive;
+					if (!usingPrecompiledEditor || !usingLastSyncedEditorArchive)
 					{
-						FileReference receiptFile = ConfigUtils.GetReceiptFile(_workspace.Project, _workspace.ProjectConfigFile, targetFile, config.ToString());
-						if (FileReference.Exists(receiptFile))
+						FileReference targetFile = ConfigUtils.GetEditorTargetFile(_workspace.Project, _workspace.ProjectConfigFile);
+						foreach (BuildConfig config in Enum.GetValues(typeof(BuildConfig)).OfType<BuildConfig>())
 						{
-							try
+							FileReference receiptFile = ConfigUtils.GetReceiptFile(_workspace.Project, _workspace.ProjectConfigFile, targetFile, config.ToString());
+							if (FileReference.Exists(receiptFile))
 							{
-								FileReference.Delete(receiptFile);
+								try
+								{
+									FileReference.Delete(receiptFile);
+								}
+								catch (Exception) { }
 							}
-							catch (Exception) { }
 						}
 					}
 				}

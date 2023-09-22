@@ -938,6 +938,8 @@ namespace UnrealGameSync
 				currentWorkspace.LastSyncDurationSeconds = workspaceSection.GetValue("LastSyncDuration", 0);
 				currentWorkspace.LastBuiltChangeNumber = workspaceSection.GetValue("LastBuiltChangeNumber", 0);
 
+				currentWorkspace.LastSyncEditorArchive = workspaceSection.GetValue("LastSyncEditorArchive", "0");
+
 				currentWorkspace.ExpandedArchiveTypes.Clear();
 				currentWorkspace.ExpandedArchiveTypes.UnionWith(workspaceSection.GetValues("ExpandedArchiveName", Array.Empty<string>()));
 

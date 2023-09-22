@@ -46,6 +46,9 @@ namespace UnrealGameSync
 		// The last successful build, regardless of whether a failed sync has happened in the meantime. Used to determine whether to force a clean due to entries in the project config file.
 		public int LastBuiltChangeNumber { get; set; }
 
+		// The path of the last synced editor archive
+		public string LastSyncEditorArchive { get; set; } = "0";
+
 		// Expanded archives in the workspace
 		public HashSet<string> ExpandedArchiveTypes { get; init; } = new HashSet<string>(StringComparer.Ordinal);
 
@@ -101,6 +104,8 @@ namespace UnrealGameSync
 			LastSyncDurationSeconds = other.LastSyncDurationSeconds;
 
 			LastBuiltChangeNumber = other.LastBuiltChangeNumber;
+
+			LastSyncEditorArchive = other.LastSyncEditorArchive;
 
 			ExpandedArchiveTypes.Clear();
 			ExpandedArchiveTypes.UnionWith(other.ExpandedArchiveTypes);
@@ -161,6 +166,9 @@ namespace UnrealGameSync
 
 		// The last successful build, regardless of whether a failed sync has happened in the meantime. Used to determine whether to force a clean due to entries in the project config file.
 		public int LastBuiltChangeNumber => _inner.LastBuiltChangeNumber;
+
+		// The path of the last synced editor archive
+		public string LastSyncEditorArchive => _inner.LastSyncEditorArchive;
 
 		// Expanded archives in the workspace
 		public IReadOnlySet<string> ExpandedArchiveTypes { get; }

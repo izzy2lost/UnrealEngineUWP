@@ -214,6 +214,7 @@ namespace UnrealGameSync
 						x.LastSyncResultMessage = null;
 						x.LastSyncTime = null;
 						x.LastSyncDurationSeconds = 0;
+						x.LastSyncEditorArchive = "0";
 					}
 					x.SetLastSyncState(result, context, statusMessage);
 				});
