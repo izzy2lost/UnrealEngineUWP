@@ -32,10 +32,6 @@ IPersonaPreviewScene& FIKRetargetDefaultMode::GetAnimPreviewScene() const
 	return *static_cast<IPersonaPreviewScene*>(static_cast<FAssetEditorModeManager*>(Owner)->GetPreviewScene());
 }
 
-void FIKRetargetDefaultMode::GetOnScreenDebugInfo(TArray<FText>& OutDebugInfo) const
-{
-}
-
 void FIKRetargetDefaultMode::Initialize()
 {
 	const TSharedPtr<FIKRetargetEditorController> Controller = EditorController.Pin();
@@ -472,11 +468,6 @@ void FIKRetargetDefaultMode::Tick(FEditorViewportClient* ViewportClient, float D
 	{
 		Initialize();
 	}
-}
-
-void FIKRetargetDefaultMode::DrawHUD(FEditorViewportClient* ViewportClient, FViewport* Viewport, const FSceneView* View, FCanvas* Canvas)
-{
-	FEdMode::DrawHUD(ViewportClient, Viewport, View, Canvas);
 }
 
 #undef LOCTEXT_NAMESPACE
