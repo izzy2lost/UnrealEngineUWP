@@ -20,6 +20,7 @@ class AWorldPartitionHLOD;
  */
 class FHLODActorDesc : public FWorldPartitionActorDesc
 {
+	friend class AWorldPartitionHLOD;
 	friend class FHLODActorDescFactory;
 
 public:
@@ -34,6 +35,8 @@ public:
 	static ENGINE_API int64 GetPackageSize(const AWorldPartitionHLOD* InHLODActor);
 
 protected:
+	ENGINE_API FHLODActorDesc();
+
 	//~ Begin FWorldPartitionActorDesc Interface.
 	ENGINE_API virtual void Init(const AActor* InActor) override;
 	ENGINE_API virtual bool Equals(const FWorldPartitionActorDesc* Other) const override;

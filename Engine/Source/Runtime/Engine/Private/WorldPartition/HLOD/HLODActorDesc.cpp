@@ -17,6 +17,11 @@
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/HLOD/HLODSourceActorsFromCell.h"
 
+FHLODActorDesc::FHLODActorDesc()
+	: EditorBounds(ForceInit)
+{
+}
+
 
 void FHLODActorDesc::Init(const AActor* InActor)
 {
@@ -153,6 +158,10 @@ void FHLODActorDesc::Serialize(FArchive& Ar)
 		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::WorldPartitionHLODActorDescSerializeEditorBounds)
 		{
 			Ar << EditorBounds;
+		}
+		else
+		{
+			EditorBounds = GetRuntimeBounds();
 		}
 	}
 }
