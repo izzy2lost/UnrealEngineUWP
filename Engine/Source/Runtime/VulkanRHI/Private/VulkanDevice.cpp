@@ -1281,7 +1281,7 @@ void FVulkanDevice::InitGPU()
 	}
 #endif
 
-	FVulkanPlatform::SetupImageMemoryRequirementWorkaround(*this);
+	FVulkanPlatform::PostInitGPU(*this);
 }
 
 void FVulkanDevice::PrepareForDestroy()

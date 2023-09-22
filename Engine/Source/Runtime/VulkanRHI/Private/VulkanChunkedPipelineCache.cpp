@@ -170,15 +170,15 @@ namespace UE
 			}
 			check(!BinaryCacheVersionKey.IsEmpty());
 
-			return GVulkanRHI->GetName() / BinaryCacheVersionKey;
+			return BinaryCacheVersionKey;
 		}
 
 		static FString GetRHICacheRootFolder()
 		{
 #if PLATFORM_ANDROID && USE_ANDROID_FILE
-			static FString RHICacheTopFolderPath = GExternalFilePath / TEXT("RHICache");
+			static FString RHICacheTopFolderPath = GExternalFilePath / TEXT("RHICache") / GVulkanRHI->GetName();
 #else
-			static FString RHICacheTopFolderPath = FPaths::ProjectSavedDir() / TEXT("RHICache");
+			static FString RHICacheTopFolderPath = FPaths::ProjectSavedDir() / TEXT("RHICache") / GVulkanRHI->GetName();
 #endif
 			return RHICacheTopFolderPath;
 		}
@@ -191,6 +191,8 @@ namespace UE
 	}
 }
 
+using EPSOOperation = FVulkanChunkedPipelineCacheManager::EPSOOperation;
+
 // this class manages a file that combines all of the cache chunks
 // It manages access to each chunk via a single mmap alloc. mmap support is relied on for perf, as a fallback where it's not supported synchronous file access is used.
 class FVulkanCombinedChunkCacheFile
@@ -202,7 +204,7 @@ class FVulkanCombinedChunkCacheFile
 
 	TUniquePtr<FArchive> PSOFileWriter = nullptr;
 
-	static const uint32 CacheFileVersion = 2;
+	static const uint32 CacheFileVersion = 5;
 	constexpr static TCHAR FileName[] = TEXT("VulkanPSOChunks");
 
 	void UpdateMapping(uint32 Size)
@@ -247,7 +249,9 @@ public:
 	{
 		uint32 Version = CacheFileVersion;
 		uint32 ParamHash = GetCacheBuildingParamHash();
+		uint32 PrecacheHashVersion = FVulkanDynamicRHI::GetPrecachePSOHashVersion();
 		Archive << Version;
+		Archive << PrecacheHashVersion;
 		Archive << ParamHash;
 		Archive << LastValidOffset;
 	}
@@ -280,6 +284,14 @@ public:
 		if (Version != CacheFileVersion)
 		{
 			UE_LOG(LogVulkanRHI, Log, TEXT("FVulkanChunkedPipelineCacheManager: incorrect Cache file version (%d, expected %d)"), Version, CacheFileVersion);
+			return false;
+		}
+
+		uint32 PrecacheHashVersion;
+		Archive << PrecacheHashVersion;
+		if(PrecacheHashVersion != FVulkanDynamicRHI::GetPrecachePSOHashVersion())
+		{
+			UE_LOG(LogVulkanRHI, Log, TEXT("FVulkanChunkedPipelineCacheManager: mismatched hash version (%d, expected %d)"), PrecacheHashVersion, FVulkanDynamicRHI::GetPrecachePSOHashVersion());
 			return false;
 		}
 
@@ -445,7 +457,11 @@ public:
 
 	void InitNewCache()
 	{
-		FRWScopeLock Lock(CacheChunkLock, SLT_Write);
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineChunk_init);
+
+		FRWScopeLock PipelineLock(PipelineCacheObjLock, SLT_Write);
+		FRWScopeLock Lock(CacheStateLock, SLT_Write);
+
 		VkPipelineCacheCreateInfo PipelineCacheInfo;
 		ZeroVulkanStruct(PipelineCacheInfo, VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO);
 		VERIFYVULKANRESULT(VulkanRHI::vkCreatePipelineCache(UE::Vulkan::GetVulkanDeviceHandle(), &PipelineCacheInfo, VULKAN_CPU_ALLOCATOR, &PipelineCacheObj));
@@ -458,16 +474,19 @@ public:
 	void Touch()
 	{
 		LastUsedFrame = GFrameNumber;
-
+		FRWScopeLock PipelineLock(PipelineCacheObjLock, SLT_ReadOnly);
 		{
-			FRWScopeLock Lock(CacheChunkLock, SLT_ReadOnly);
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_CREATE_Chunk_Touch);
+			FRWScopeLock Lock(CacheStateLock, SLT_ReadOnly);
 			if (CacheState != ECacheState::FinalizedEvicted)
 			{
 				return;
 			}
 		}
 		{
-			FRWScopeLock Lock(CacheChunkLock, SLT_Write);
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_CREATE_Chunk_TouchReinstate);
+			PipelineLock.ReleaseReadOnlyLockAndAcquireWriteLock_USE_WITH_CAUTION();
+			FRWScopeLock Lock(CacheStateLock, SLT_Write);
 			if(CacheState == ECacheState::FinalizedEvicted)
 			{
 				ReinstateDriverBlobInternal();
@@ -475,85 +494,129 @@ public:
 		}
 	}
 
-	enum class EPSOCacheAccessType
+	enum class EPSOCacheFindResult
 	{
-		AddTo,		// Use to add new PSOs 
-		ReadFrom	// PSO is expected to be in the cache.
+		NotFound,			// PSO was not found and should contribute to the binary cache.
+		MatchedExisting,	// The PSO hash was not found but the PSO would not create a new entry in the cache, so we say there is a match in the cache.
+		Found,				// PSO hash has an entry in 
 	};
 
 	template<class TPipelineState>
-	VkResult CreatePSO(TPipelineState* Initializer, EPSOCacheAccessType PSOCacheAccessMode, TUniqueFunction<VkResult(TPipelineState*, VkPipelineCache)> PSOCreateFunc)
+	bool PSORequiresCompile(TPipelineState* Initializer, TUniqueFunction<VkResult(TPipelineState*, VkPipelineCache, EPSOOperation)>& PSOCreateFunc)
+	{
+		FRWScopeLock PipelineLock(PipelineCacheObjLock, SLT_ReadOnly);
+
+		const bool bCanTestForExistence = UE::Vulkan::GetVulkanDevice()->GetOptionalExtensions().HasEXTPipelineCreationCacheControl;
+	
+		if(!bCanTestForExistence)
+		{
+			return true;
+		}
+
+		VkResult Result = PSOCreateFunc(Initializer, PipelineCacheObj, EPSOOperation::CreateIfPresent);
+		check(Result == VK_SUCCESS || Result == VK_PIPELINE_COMPILE_REQUIRED_EXT);
+		return Result != VK_SUCCESS;
+	}
+
+	template<class TPipelineState>
+	VkResult CreatePSO(TPipelineState* Initializer, EPSOCacheFindResult PSOCacheFindResult, TUniqueFunction<VkResult(TPipelineState*, VkPipelineCache, EPSOOperation)> PSOCreateFunc)
 	{
 		FScopedTimeToLog Timer(FString::Printf(TEXT("FVulkanChunkedPipelineCacheManager: FVulkanPipelineCacheChunk.CreatePSO  tot %d "), FPlatformTLS::GetCurrentThreadId()));
 		Touch();
+
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_CREATE_CreatePSO);
+		FRWScopeLock PipelineLock(PipelineCacheObjLock, SLT_ReadOnly);
+
 		VkResult retcode;
 		uint64 PSOHash;
 		{
-			FRWScopeLock Lock(CacheChunkLock, SLT_ReadOnly);
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_CREATE_CreatePSOFUNC);
 			FScopedTimeToLog Timer2(FString::Printf(TEXT("FVulkanChunkedPipelineCacheManager: FVulkanPipelineCacheChunk.CreatePSO(lock  tot %d "), FPlatformTLS::GetCurrentThreadId()));
 			PSOHash = GetPrecacheKey(Initializer);
-			if (PSOCacheAccessMode == EPSOCacheAccessType::ReadFrom)
+			if (PSOCacheFindResult == EPSOCacheFindResult::Found)
 			{
 				// it's possible to still add a new PSO if we have hash collisions or imperfect PSO hash calc.
-				// the size will be inaccurate.
 				QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_CacheManagerCreatePSO_WARM);
-				retcode = PSOCreateFunc(Initializer, PipelineCacheObj);
+				retcode = PSOCreateFunc(Initializer, PipelineCacheObj, EPSOOperation::CreateAndStorePSO);
+			}
+			else if(PSOCacheFindResult == EPSOCacheFindResult::NotFound)
+			{
+			
+				{
+					FRWScopeLock Lock(CacheStateLock, SLT_ReadOnly);
+					check(CacheState == ECacheState::Building || CacheState == ECacheState::Closing);
+				}
+				// Even though we know we're modifying the cache, we're not taking the write lock.
+				// Holding the write lock for the duration of the create is too costly, better to let the driver manage this.
+				{
+					QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_CacheManagerCreatePSO_COLD);
+					retcode = PSOCreateFunc(Initializer, PipelineCacheObj, EPSOOperation::CreateAndStorePSO);
+				}
 			}
 			else
 			{
-				check(CacheState == ECacheState::Building || CacheState == ECacheState::Closing);
-				// Even though we know we're modifying the cache, we're not taking the write lock.
-				// Holding the write lock for the duration of the create is too costly.
-				// however, other threads can add to the cache during this time.
-				// The size is currently only used to determine if a new cache should be started.
-				// we do not need to ensure an accurate or coherent size the PSO.
-				{
-					QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_CacheManagerCreatePSO_COLD);
-					retcode = PSOCreateFunc(Initializer, PipelineCacheObj);
-				}
+				retcode = VK_SUCCESS;
 			}
 		}
 
-		if (PSOCacheAccessMode == EPSOCacheAccessType::AddTo)
+		if (PSOCacheFindResult != EPSOCacheFindResult::Found)
 		{
-			FScopedTimeToLog Timer3(FString::Printf(TEXT("FVulkanChunkedPipelineCacheManager: FVulkanPipelineCacheChunk.CreatePSO AddTo tot %d "), FPlatformTLS::GetCurrentThreadId()));
-			FRWScopeLock Lock(CacheChunkLock, SLT_Write);
-			size_t EndSize = 0;
+			size_t LocalCacheSize = 0;
+			if (PSOCacheFindResult == EPSOCacheFindResult::NotFound) // we can avoid cachestatelock for this.
 			{
+				// read the current size without the lock (i.e. expect only an approximation)
 				FScopedTimeToLog Timer4(FString::Printf(TEXT("FVulkanChunkedPipelineCacheManager: FVulkanPipelineCacheChunk.CreatePSO AddTo getdat tot %d "), FPlatformTLS::GetCurrentThreadId()));
-				VulkanRHI::vkGetPipelineCacheData(UE::Vulkan::GetVulkanDeviceHandle(), PipelineCacheObj, &EndSize, nullptr);
+				VulkanRHI::vkGetPipelineCacheData(UE::Vulkan::GetVulkanDeviceHandle(), PipelineCacheObj, &LocalCacheSize, nullptr);
 			}
 
-			PSOsToBeFlushed.Add(PSOHash);
+			// if EPSOCacheFindResult::MatchedExisting we record the hash only. 
+			// 'existing' pso's will not contribute to the cache, we dont consider them for pending compiles.
+			FRWScopeLock Lock(CacheStateLock, SLT_Write);
+			static_assert(sizeof(void*) == sizeof(uint64));
+			PSOsToBeFlushed2.Push((void*)PSOHash);
 			TotalNumPSOs++;
-			CacheSize = EndSize;
 
-			check(PendingAddToCompiles.load() != 0);
-			--PendingAddToCompiles;
-			if (CacheState == ECacheState::Closing && PendingAddToCompiles.load() == 0)
+			if (PSOCacheFindResult == EPSOCacheFindResult::NotFound)
 			{
+				QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_CREATE_Chunk_AddTo);
+				FScopedTimeToLog Timer3(FString::Printf(TEXT("FVulkanChunkedPipelineCacheManager: FVulkanPipelineCacheChunk.CreatePSO AddTo tot %d "), FPlatformTLS::GetCurrentThreadId()));
+
+				TotalNumUniquePSOs++;
+				CacheSize = LocalCacheSize;
+
+				check(PendingAddToCompiles.load() != 0);
+				--PendingAddToCompiles;
+				if (CacheState == ECacheState::Closing && PendingAddToCompiles.load() == 0)
+				{
+					QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_CREATE_Chunk_Flush);
 #if LOGCACHEINFO
-				UE_LOG(LogVulkanRHI, Log, TEXT("FVulkanChunkedPipelineCacheManager: create pso - Chunk Capacity reached %s, Finalizing as No pending jobs remain.."), *BinaryCacheFileInfo.Filename);
+					UE_LOG(LogVulkanRHI, Log, TEXT("FVulkanChunkedPipelineCacheManager: create pso - Chunk Capacity reached %s, Finalizing as No pending jobs remain.."), *BinaryCacheFileInfo.Filename);
 #endif
-				MarkPendingFlushInternal();
+					SavePSOCacheInternal();
+				}
 			}
 		}
 		return retcode;
 	}
 	
+	// Reserve is protected by the ChunkedPipelineCacheLock mutex.
 	void ReservePendingPSO()
 	{
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineChunk_Reserve);
+		FRWScopeLock PipelineLock(PipelineCacheObjLock, SLT_ReadOnly);
+		FRWScopeLock Lock(CacheStateLock, SLT_ReadOnly); // take the cache readlock, 
+
 		check(CacheState == ECacheState::Building);
-		FRWScopeLock Lock(CacheChunkLock, SLT_ReadOnly);
 		++PendingAddToCompiles;
-		if ((TotalNumPSOs + PendingAddToCompiles) >= UE::Vulkan::GMaxPSOsPerChunk)
+		if ((TotalNumUniquePSOs + PendingAddToCompiles) >= UE::Vulkan::GMaxPSOsPerChunk)
 		{
-			Lock.ReleaseReadOnlyLockAndAcquireWriteLock_USE_WITH_CAUTION();
-			if ((TotalNumPSOs + PendingAddToCompiles) >= UE::Vulkan::GMaxPSOsPerChunk)
+ 			Lock.ReleaseReadOnlyLockAndAcquireWriteLock_USE_WITH_CAUTION();
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineChunk_ReserveWrite);
+			if ((TotalNumUniquePSOs + PendingAddToCompiles) >= UE::Vulkan::GMaxPSOsPerChunk)
 			{
 				// become closed..
 #if LOGCACHEINFO
-				UE_LOG(LogVulkanRHI, Log, TEXT("FVulkanChunkedPipelineCacheManager: Chunk Capacity reached , cachestate %d, CacheSize %d, TotalNumPSOs %d, PendingAddToCompiles %d, %s, pending finalize.."), CacheState, CacheSize, TotalNumPSOs, PendingAddToCompiles.load(), *BinaryCacheFileInfo.Filename);
+				UE_LOG(LogVulkanRHI, Log, TEXT("FVulkanChunkedPipelineCacheManager: Chunk Capacity reached , cachestate %d, CacheSize %d, TotalNumPSOs %d, TotalNumUniquePSOs %d, PendingAddToCompiles %d, %s, pending finalize.."), CacheState, CacheSize, TotalNumPSOs.Load(EMemoryOrder::Relaxed), TotalNumUniquePSOs.Load(EMemoryOrder::Relaxed), PendingAddToCompiles.load(), *BinaryCacheFileInfo.Filename);
 #endif
 				CacheState = ECacheState::Closing;
 			}
@@ -562,25 +625,29 @@ public:
 
 	void LogStats(FString&& LogInfo)
 	{
-		FRWScopeLock Lock(CacheChunkLock, SLT_ReadOnly);
-		UE_LOG(LogVulkanRHI, Log, TEXT("FVulkanChunkedPipelineCacheManager: %s Cache name %s num PSOs %d, cache size %d, last used %d, resident %d, state %d"), *LogInfo, *BinaryCacheFileInfo.Filename, TotalNumPSOs, CacheSize, LastUsedFrame.load(), CacheState != ECacheState::FinalizedEvicted, (int)CacheState);
+		FRWScopeLock PipelineLock(PipelineCacheObjLock, SLT_ReadOnly);
+		FRWScopeLock Lock(CacheStateLock, SLT_ReadOnly); // take the cache readlock, 
+		UE_LOG(LogVulkanRHI, Log, TEXT("FVulkanChunkedPipelineCacheManager: %s Cache name %s num PSOs %d (%d unique), cache size %d, last used %d, resident %d, state %d"), *LogInfo, *BinaryCacheFileInfo.Filename, TotalNumPSOs.Load(EMemoryOrder::Relaxed), TotalNumUniquePSOs.Load(EMemoryOrder::Relaxed), CacheSize, LastUsedFrame.load(), CacheState != ECacheState::FinalizedEvicted, (int)CacheState);
 	}
 
 	bool CanBeEvicted() const
 	{
-		FRWScopeLock Lock(CacheChunkLock, SLT_ReadOnly);
+		FRWScopeLock PipelineLock(PipelineCacheObjLock, SLT_ReadOnly);
+		FRWScopeLock Lock(CacheStateLock, SLT_ReadOnly); // take the cache readlock, 
 		return CacheState == ECacheState::Finalized;
 	}
 
 	bool CheckCapacityReached()
 	{
-		FRWScopeLock Lock(CacheChunkLock, SLT_ReadOnly);
+		FRWScopeLock PipelineLock(PipelineCacheObjLock, SLT_ReadOnly);
+		FRWScopeLock Lock(CacheStateLock, SLT_ReadOnly); // take the cache readlock, 
 		return CacheState != ECacheState::Building;
 	}
 
 	uint32 GetResidentSize() const
 	{
-		FRWScopeLock Lock(CacheChunkLock, SLT_ReadOnly);
+		FRWScopeLock PipelineLock(PipelineCacheObjLock, SLT_ReadOnly);
+		FRWScopeLock Lock(CacheStateLock, SLT_ReadOnly); // take the cache readlock, 
 		uint32 Size = CacheState == ECacheState::FinalizedEvicted ? 0 : CacheSize;
 		return Size;
 	}
@@ -592,7 +659,9 @@ public:
 
 	void Unload()
 	{
-		FRWScopeLock Lock(CacheChunkLock, SLT_Write);
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineChunk_Unload);
+		FRWScopeLock PipelineLock(PipelineCacheObjLock, SLT_Write);
+		FRWScopeLock Lock(CacheStateLock, SLT_Write);
 		check(CacheState == ECacheState::Finalized);
 #if LOGCACHEINFO
 		UE_LOG(LogVulkanRHI, Log, TEXT("FVulkanChunkedPipelineCacheManager: Evicting cache %s, %d bytes"), *GetCombinedFilePath(), CacheSize);
@@ -608,7 +677,9 @@ public:
 	enum class ECacheChunkLoadType { LoadAsEvicted, LoadAllData };
 	void Load(FPSOArchiveReader& ArchiveReader, TArray<uint64>* PSOsFoundOUT, ECacheChunkLoadType LoadType)
 	{
-		FRWScopeLock Lock(CacheChunkLock, SLT_Write);
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineChunk_Reserve);
+		FRWScopeLock PipelineLock(PipelineCacheObjLock, SLT_Write);
+		FRWScopeLock Lock(CacheStateLock, SLT_Write);
 		FArchive& Archive = *ArchiveReader.GetArchive();
 		check(PSOsFoundOUT->IsEmpty());
 		check(CacheState == ECacheState::Initialized);
@@ -620,15 +691,20 @@ public:
 	}
 
 	private:
-		mutable FRWLock CacheChunkLock;
+		mutable FRWLock PipelineCacheObjLock;  // This locks access to the PipelineCacheObj, used for create/destroy operations. individual PSO creates use read lock, driver is thread safe, this lock can be held for 100s of ms.
+
+		mutable FRWLock CacheStateLock;
+
 
 		VkPipelineCache PipelineCacheObj = VK_NULL_HANDLE;
 
-		TArray<uint64> PSOsToBeFlushed;
+// 		TArray<uint64> PSOsToBeFlushed;
+		TLockFreePointerListUnordered<void, PLATFORM_CACHE_LINE_SIZE> PSOsToBeFlushed2;
 		int32 PSOsNotFlushed = 0;
 		int32 CacheSize = 0;
 		int32 LastSaveSize = 0;
-		int32 TotalNumPSOs = 0;
+		TAtomic<int32> TotalNumPSOs = 0; // the number of PSO hashes that are known to be represented in the cache.
+		TAtomic<int32> TotalNumUniquePSOs = 0; // the number of PSOs that have contributed to the cache.
 
 		static inline const TCHAR TempFileSuffix[] = TEXT("write");
 
@@ -688,8 +764,11 @@ public:
 			return GraphicsPipelineState->PrecacheKey;
 		}
 
-		void MarkPendingFlushInternal()
+
+		void SavePSOCacheInternal()
 		{
+			static FCriticalSection ArchiveMutex;
+			FScopeLock Lock(&ArchiveMutex);
 			CacheState = ECacheState::PendingFlush;
 
 			FArchive& Archive = FVulkanCombinedChunkCacheFile::Get().GetWriter();
@@ -712,7 +791,9 @@ public:
 		{
 			FScopedTimeToLog Timer1(FString::Printf(TEXT("FVulkanChunkedPipelineCacheManager: LoadInternal TOT  ")));
  			FArchive& Archive = *ArchiveReader.GetArchive();
-
+			int32 TotalNumUniquePSOsRead;
+			Archive << TotalNumUniquePSOsRead;
+			TotalNumUniquePSOs = TotalNumUniquePSOsRead;
 			Archive << CacheSize;
 			LastSaveSize = CacheSize;
 			BinaryCacheFileInfo.RawDataOffset = Archive.Tell();
@@ -751,17 +832,20 @@ public:
 
 			if (PSOsInFileOUT)
 			{
-				Archive << (*PSOsInFileOUT);
+				uint32 NumHashes = 0;
+				Archive << NumHashes;
+				PSOsInFileOUT->SetNumUninitialized(NumHashes);
+				Archive.Serialize(PSOsInFileOUT->GetData(), (int64)PSOsInFileOUT->Num() * PSOsInFileOUT->GetTypeSize());
 				TotalNumPSOs = PSOsInFileOUT->Num();
 			}
 		}
 
-		// Save this cache chunk to the archive.
+		// Save this cache chunk to the archive. We have the state writelock but cache object read lock, its possible for the cache to be changed (added to).
 		void SavePSOCacheInternal(FArchive& Archive)
 		{
 			FScopedTimeToLog Timer(FString::Printf(TEXT("FVulkanChunkedPipelineCacheManager: SavePSOCacheInternal TOT %s "), *BinaryCacheFileInfo.Filename));
 
-			check(CacheState == ECacheState::PendingFlush || CacheState == ECacheState::Building);
+			check(CacheState == ECacheState::PendingFlush);
 
 			QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_CacheManagerWriteCache);
 
@@ -780,20 +864,24 @@ public:
 
 				SetCacheOffset((uint32)Archive.Tell());
 
+				int32 TotalNumUniquePSOsWrite = TotalNumUniquePSOs.Load(EMemoryOrder::Relaxed);
+				Archive << TotalNumUniquePSOsWrite;
 				uint32 RawDataSize = CacheBytes.Num();
 				Archive << RawDataSize;
 				BinaryCacheFileInfo.RawDataOffset = Archive.Tell();
 				Archive.Serialize(CacheBytes.GetData(), RawDataSize);
 
-				Archive << PSOsToBeFlushed; // TODO: !Discuss! - if the PSO precaching algo changes the whole file will be incorrect, we've no way to check if the hash changes... discuss this in review.
-				check(!Archive.IsError());
-			}
 
-			if (CacheState == ECacheState::PendingFlush)
-			{
+				TArray<void*> FlushedPSOHashes;
+				PSOsToBeFlushed2.PopAll(FlushedPSOHashes);
+				// Just write out the void* as uint64s.
+				static_assert(sizeof(void*) == sizeof(uint64));
+				uint32 HashCount = FlushedPSOHashes.Num();
+				Archive << HashCount;
+				Archive.Serialize(FlushedPSOHashes.GetData(), (int64)FlushedPSOHashes.Num() * FlushedPSOHashes.GetTypeSize());
+				check(!Archive.IsError());
 				CacheState = ECacheState::Finalized;
 				UE::Vulkan::TotalResidentCacheSize += CacheSize;
-				PSOsToBeFlushed.Empty();
 			}
 		}
 };
@@ -821,6 +909,8 @@ class FVulkanChunkedPipelineCacheManagerImpl
 
 	UE::Vulkan::FVulkanRHIGraphicsPipelineStateLRU CacheChunkLRU;
 
+
+
 public:
 	static FVulkanChunkedPipelineCacheManagerImpl& Get()
 	{
@@ -834,22 +924,22 @@ public:
 	}
 
 	template<class TPipelineState>
-	VkResult CreatePSO(TPipelineState* GraphicsPipelineState, bool bIsPrecompileJob, TUniqueFunction<VkResult(TPipelineState*, VkPipelineCache)> PSOCreateFunc)
+	VkResult CreatePSO(TPipelineState* GraphicsPipelineState, bool bIsPrecompileJob, TUniqueFunction<VkResult(TPipelineState*, VkPipelineCache, EPSOOperation)> PSOCreateFunc)
 	{
 		FScopedTimeToLog Timer(FString::Printf(TEXT("FVulkanChunkedPipelineCacheManager: CreatePSO (precomp %d) tot %d "), bIsPrecompileJob, FPlatformTLS::GetCurrentThreadId()));
 
 		FCacheChunkKey ChunkKey;
-		bool bWasFoundInCache;
-		FVulkanPipelineCacheChunk* Chunk = GetOrAddCache(GraphicsPipelineState, bWasFoundInCache, ChunkKey);
+		FVulkanPipelineCacheChunk::EPSOCacheFindResult FindResult;
+		FVulkanPipelineCacheChunk* Chunk = GetOrAddCache(PSOCreateFunc, GraphicsPipelineState, FindResult, ChunkKey);
 
 		// dont need to lock ChunkedPipelineCacheLock, we never remove an Chunk once it's added. There should be no PSO create tasks during cache shutdown.
 		// Do not create cached precompile PSOs
-		if (!bIsPrecompileJob || !bWasFoundInCache)
+		if (!bIsPrecompileJob || FindResult != FVulkanPipelineCacheChunk::EPSOCacheFindResult::Found)
 		{
 			FScopedTimeToLog Timer4(FString::Printf(TEXT("FVulkanChunkedPipelineCacheManager: CreatePSO actualcreate %d "), FPlatformTLS::GetCurrentThreadId()));
 			uint64 Before = Chunk->GetLastUsedFrame();
-			using EPSOCacheAccessType = FVulkanPipelineCacheChunk::EPSOCacheAccessType;
-			VkResult Result = Chunk->CreatePSO(GraphicsPipelineState, bWasFoundInCache ? EPSOCacheAccessType::ReadFrom : EPSOCacheAccessType::AddTo, MoveTemp(PSOCreateFunc));
+
+			VkResult Result = Chunk->CreatePSO(GraphicsPipelineState, FindResult, MoveTemp(PSOCreateFunc));
 			uint64 After = Chunk->GetLastUsedFrame();
 
 			if (Before != After)
@@ -982,8 +1072,8 @@ private:
 
 	static uint64 GetPrecacheHash(const FVulkanRHIGraphicsPipelineState* GFXState) { return GFXState->PrecacheKey; }
 
-	template<class TInitializer>
-	FVulkanPipelineCacheChunk* GetChunk(const TInitializer& Initializer, bool& bWasFound, FCacheChunkKey& ChunkKeyOUT, FRWScopeLock& Lock, const bool bTryAdd = false)
+	template<class TPipelineState, class TInitializer>
+	FVulkanPipelineCacheChunk* GetChunk(TUniqueFunction<VkResult(TPipelineState*, VkPipelineCache, EPSOOperation)>& PSOCreateFunc, const TInitializer& Initializer, FVulkanPipelineCacheChunk::EPSOCacheFindResult& FindResult, FCacheChunkKey& ChunkKeyOUT, FRWScopeLock& Lock, const bool bTryAdd = false)
 	{
 		FVulkanPipelineCacheChunk* ReturnChunk = nullptr;
 		uint64 PSOPrecacheKey = GetPrecacheHash(Initializer);
@@ -994,22 +1084,22 @@ private:
 			// we have a cache for this PSO
 			ReturnChunk = CacheChunksMap.FindChecked(*FoundChunkKey).Get();
 			FoundPSOs++;
-			bWasFound = true;
+			FindResult = FVulkanPipelineCacheChunk::EPSOCacheFindResult::Found;
 			ChunkKeyOUT = *FoundChunkKey;
 		}
 		else if (!bTryAdd)
 		{
-			bWasFound = false;
+			FindResult = FVulkanPipelineCacheChunk::EPSOCacheFindResult::NotFound;
 			// Try again with the write lock, add if it's still missing.
 			Lock.ReleaseReadOnlyLockAndAcquireWriteLock_USE_WITH_CAUTION();
-			return GetChunk(Initializer, bWasFound, ChunkKeyOUT, Lock, true);
+			return GetChunk(PSOCreateFunc, Initializer, FindResult, ChunkKeyOUT, Lock, true);
 		}
 
 		if (!ReturnChunk)
 		{
 			check(bTryAdd);
 
-			auto FindChunk = [this]
+			auto FindChunk = [this,&FindResult,&Initializer,&PSOCreateFunc]
 			{
 				FVulkanPipelineCacheChunk* ReturnChunk = nullptr;
 
@@ -1032,7 +1122,18 @@ private:
 					ReturnChunk->InitNewCache();
 				}
 
-				ReturnChunk->ReservePendingPSO();
+				if(ReturnChunk->PSORequiresCompile(Initializer, PSOCreateFunc))
+				{
+					ReturnChunk->ReservePendingPSO();
+				}
+				else
+				{
+#if LOGCACHEINFO
+					UE_LOG(LogVulkanRHI, Log, TEXT("FVulkanChunkedPipelineCacheManager: redundant PSO .."));
+#endif
+					FindResult = FVulkanPipelineCacheChunk::EPSOCacheFindResult::MatchedExisting;
+				}
+
 				return ReturnChunk;
 			};
 
@@ -1046,12 +1147,12 @@ private:
 		return ReturnChunk;
 	}
 
-	template<class TInitializer>
-	FVulkanPipelineCacheChunk* GetOrAddCache(const TInitializer& Initializer, bool& bWasFoundInCache, FCacheChunkKey& ChunkKeyOUT)
+	template<class TPipelineState, class TInitializer>
+	FVulkanPipelineCacheChunk* GetOrAddCache(TUniqueFunction<VkResult(TPipelineState*, VkPipelineCache, EPSOOperation)>& PSOCreateFunc, const TInitializer& Initializer, FVulkanPipelineCacheChunk::EPSOCacheFindResult& FindResult, FCacheChunkKey& ChunkKeyOUT)
 	{
 		FScopedTimeToLog Timer(FString::Printf(TEXT("FVulkanChunkedPipelineCacheManager: GetOrAddCache tot %d "), FPlatformTLS::GetCurrentThreadId()));
 		FRWScopeLock Lock(ChunkedPipelineCacheLock, SLT_ReadOnly);
-		return GetChunk(Initializer, bWasFoundInCache, ChunkKeyOUT, Lock);
+		return GetChunk(PSOCreateFunc, Initializer, FindResult, ChunkKeyOUT, Lock);
 	}
 
 	void TryUnloadCacheChunks()
@@ -1137,7 +1238,7 @@ FVulkanChunkedPipelineCacheManager& FVulkanChunkedPipelineCacheManager::Get()
 
 
 template<class TPipelineState>
-VkResult FVulkanChunkedPipelineCacheManager::CreatePSO(TPipelineState* GraphicsPipelineState, bool bIsPrecompileJob, TUniqueFunction<VkResult(TPipelineState*, VkPipelineCache)> PSOCreateFunc)
+VkResult FVulkanChunkedPipelineCacheManager::CreatePSO(TPipelineState* GraphicsPipelineState, bool bIsPrecompileJob, TUniqueFunction<VkResult(TPipelineState*, VkPipelineCache, EPSOOperation)> PSOCreateFunc)
 {
 	check(UE::Vulkan::GUseChunkedPSOCache);
 	return VulkanPipelineCacheManagerImpl->CreatePSO(GraphicsPipelineState, bIsPrecompileJob, MoveTemp(PSOCreateFunc));
@@ -1153,5 +1254,5 @@ void FVulkanChunkedPipelineCacheManager::Tick()
 	VulkanPipelineCacheManagerImpl->Tick();
 }
 
-template VkResult FVulkanChunkedPipelineCacheManager::CreatePSO(FVulkanRHIGraphicsPipelineState* GraphicsPipelineState, bool bIsPrecompileJob, TUniqueFunction<VkResult(FVulkanRHIGraphicsPipelineState*, VkPipelineCache)> PSOCreateFunc);
+template VkResult FVulkanChunkedPipelineCacheManager::CreatePSO(FVulkanRHIGraphicsPipelineState* GraphicsPipelineState, bool bIsPrecompileJob, TUniqueFunction<VkResult(FVulkanRHIGraphicsPipelineState*, VkPipelineCache, EPSOOperation)> PSOCreateFunc);
 

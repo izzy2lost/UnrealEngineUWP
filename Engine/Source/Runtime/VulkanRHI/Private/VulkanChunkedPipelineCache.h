@@ -22,7 +22,13 @@ public:
 	static bool IsEnabled();
 	static FVulkanChunkedPipelineCacheManager& Get();
 
+	enum class EPSOOperation
+	{
+		CreateIfPresent,	// checks the PSO is already present in the cache, VK api requires it creates the PSO too.
+		CreateAndStorePSO,	// Create and store the PSO in the cache.
+	};
+
 	template<class TPipelineState>
-	VkResult CreatePSO(TPipelineState* GraphicsPipelineState, bool bIsPrecompileJob, TUniqueFunction<VkResult(TPipelineState*, VkPipelineCache)> PSOCreateFunc);
+	VkResult CreatePSO(TPipelineState* GraphicsPipelineState, bool bIsPrecompileJob, TUniqueFunction<VkResult(TPipelineState*, VkPipelineCache, EPSOOperation)> PSOCreateFunc);
 	void Tick();
 };

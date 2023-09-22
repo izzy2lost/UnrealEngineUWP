@@ -1,6 +1,6 @@
 project(libpsoservice)
 
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.4.1)
 
 add_definitions(-DHAVE_CONFIG_H -D_GNU_SOURCE -DANDROID_PLATFORM=android-26)
 
@@ -28,7 +28,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -std=c++11 \
 add_library(psoservice SHARED ${libpsoservice_source})
 find_library(log log)
 find_library(log-lib log )
-find_library(android android)
+find_library(android-lib android)
 
 		find_library(Vulkan_LIBRARY NAMES vulkan HINTS "$ENV{VULKAN_SDK}/lib" "${CMAKE_SOURCE_DIR}/libs/vulkan" REQUIRED)
 		IF (Vulkan_LIBRARY)
@@ -38,7 +38,7 @@ find_library(android android)
 			MESSAGE($(vulkan))
 		ENDIF()
 
-target_link_libraries(psoservice ${Vulkan_LIBRARY} ${log-lib})
+target_link_libraries(psoservice ${Vulkan_LIBRARY} ${log-lib} ${android-lib})
 
 # Enable support for non-4k virtual page sizes
 target_link_options(psoservice PRIVATE -z max-page-size=65536)
