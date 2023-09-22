@@ -2286,6 +2286,7 @@ FPrimitiveSceneProxy* UNiagaraComponent::CreateSceneProxy()
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraCreateSceneProxy);
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraOverview_GT);
     
+#if UE_WITH_PSO_PRECACHING
 	if (Asset != nullptr)
 	{
 		// PSO request should have been handled by the Asset itself, so here we just ensure the request gets boosted
@@ -2300,6 +2301,7 @@ FPrimitiveSceneProxy* UNiagaraComponent::CreateSceneProxy()
 			return nullptr;
 		}
 	}
+#endif // UE_WITH_PSO_PRECACHING
 
 	// The constructor will set up the System renderers from the component.
 	FNiagaraSceneProxy* Proxy = new FNiagaraSceneProxy(this);

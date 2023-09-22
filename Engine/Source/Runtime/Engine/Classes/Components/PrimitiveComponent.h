@@ -653,6 +653,7 @@ protected:
 		ToolTip = "When false, the underlying physics body will contain all sim data (mass, inertia tensor, etc) even if mobility is not set to Moveable"))
 	uint8 bStaticWhenNotMoveable:1;
 
+#if UE_WITH_PSO_PRECACHING
 	/** Helper flag to check if PSOs have been precached already */
 	uint8 bPSOPrecacheCalled : 1;
 
@@ -664,6 +665,7 @@ protected:
 
 	/** Graph event used to track all the PSO precache events */
 	FGraphEventRef PSOPrecacheCompileEvent;
+#endif
 
 	uint8 bIgnoreBoundsForEditorFocus : 1;
 #if WITH_EDITOR

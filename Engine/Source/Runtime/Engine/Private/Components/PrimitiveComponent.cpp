@@ -358,8 +358,10 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 	bBulkReregister = false;
 	LastCheckedAllCollideableDescendantsTime = 0.f;
 
+#if UE_WITH_PSO_PRECACHING
 	bPSOPrecacheCalled = false;
 	bPSOPrecacheRequestBoosted = false;
+#endif // UE_WITH_PSO_PRECACHING
 	
 	bApplyImpulseOnDamage = true;
 	bReplicatePhysicsToAutonomousProxy = true;
@@ -4581,6 +4583,7 @@ public:
 
 void UPrimitiveComponent::PrecachePSOs()
 {
+#if UE_WITH_PSO_PRECACHING
 	if (!FApp::CanEverRender() || !IsComponentPSOPrecachingEnabled())
 	{
 		return;
@@ -4604,10 +4607,12 @@ void UPrimitiveComponent::PrecachePSOs()
 	}	
 
 	RequestRecreateRenderStateWhenPSOPrecacheFinished(GraphEvents);
+#endif
 }
 
 void UPrimitiveComponent::RequestRecreateRenderStateWhenPSOPrecacheFinished(const FGraphEventArray& PSOPrecacheCompileEvents)
 {
+#if UE_WITH_PSO_PRECACHING
 	// If the proxy creation strategy relies on knowing when the precached PSO has been compiled,
 	// schedule a task to mark the render state dirty when all PSOs are compiled so the proxy gets recreated.
 	if (GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate && !PSOPrecacheCompileEvents.IsEmpty())
@@ -4616,20 +4621,30 @@ void UPrimitiveComponent::RequestRecreateRenderStateWhenPSOPrecacheFinished(cons
 	}
 
 	bPSOPrecacheCalled = true;
+#endif // UE_WITH_PSO_PRECACHING
 }
 
 bool UPrimitiveComponent::IsPSOPrecaching() const
 {
+#if UE_WITH_PSO_PRECACHING
 	return PSOPrecacheCompileEvent && !PSOPrecacheCompileEvent->IsComplete();
+#else
+	return false;
+#endif // UE_WITH_PSO_PRECACHING
 }
 
 bool UPrimitiveComponent::ShouldRenderProxyFallbackToDefaultMaterial() const
 {
+#if UE_WITH_PSO_PRECACHING
 	return IsPSOPrecaching() && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::UseDefaultMaterialUntilPSOPrecached;
+#else
+	return false;
+#endif // UE_WITH_PSO_PRECACHING
 }
 
 bool UPrimitiveComponent::CheckPSOPrecachingAndBoostPriority()
 {
+#if UE_WITH_PSO_PRECACHING
 	ensure(!IsComponentPSOPrecachingEnabled() || bPSOPrecacheCalled);
 
 	if (PSOPrecacheCompileEvent && !PSOPrecacheCompileEvent->IsComplete())
@@ -4646,6 +4661,9 @@ bool UPrimitiveComponent::CheckPSOPrecachingAndBoostPriority()
 	}
 
 	return IsPSOPrecaching();
+#else
+	return false;
+#endif
 }
 
 #if WITH_EDITOR

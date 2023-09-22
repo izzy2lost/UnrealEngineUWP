@@ -19,6 +19,11 @@ class FVertexFactoryType;
 class FGraphicsPipelineStateInitializer;
 enum class EVertexInputStreamType : uint8;
 
+// master switch that decides whether to compile out some PSO precaching code (most importantly, reduce sizeofs of common classes)
+#ifndef UE_WITH_PSO_PRECACHING
+	#define UE_WITH_PSO_PRECACHING		(PLATFORM_SUPPORTS_PSO_PRECACHING)
+#endif // UE_WITH_PSO_PRECACHING
+
 #define PSO_PRECACHING_VALIDATE !WITH_EDITOR
 
 /**

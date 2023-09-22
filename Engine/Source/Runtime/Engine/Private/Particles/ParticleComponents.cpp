@@ -3577,6 +3577,7 @@ bool UFXSystemComponent::RequiresLWCTileRecache(const FVector3f CurrentTile, con
 
 void UFXSystemComponent::PrecacheAssetPSOs(UFXSystemAsset* FXSystemAsset)
 {
+#if UE_WITH_PSO_PRECACHING
 	if (!FApp::CanEverRender() || !IsComponentPSOPrecachingEnabled() || FXSystemAsset == nullptr)
 	{
 		return;
@@ -3602,6 +3603,7 @@ void UFXSystemComponent::PrecacheAssetPSOs(UFXSystemAsset* FXSystemAsset)
 	}
 
 	bPSOPrecacheCalled = true;
+#endif // UE_WITH_PSO_PRECACHING
 }
 
 FOnSystemPreActivationChange UParticleSystemComponent::OnSystemPreActivationChange;
