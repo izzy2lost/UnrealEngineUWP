@@ -2,6 +2,13 @@
 
 #include "Tests/GraphAuthoring/PCGGraphAuthoringTestHelperSettings.h"
 
+UPCGGraphAuthoringTestHelperSettings::UPCGGraphAuthoringTestHelperSettings()
+{
+#if WITH_EDITORONLY_DATA
+	bExposeToLibrary = false;
+#endif
+}
+
 TArray<FPCGPinProperties> UPCGGraphAuthoringTestHelperSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;

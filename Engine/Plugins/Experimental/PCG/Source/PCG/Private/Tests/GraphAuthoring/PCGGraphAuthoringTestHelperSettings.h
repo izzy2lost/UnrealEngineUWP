@@ -11,6 +11,8 @@ class UPCGGraphAuthoringTestHelperSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
+	UPCGGraphAuthoringTestHelperSettings();
+	
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
@@ -19,5 +21,5 @@ protected:
 	virtual FPCGElementPtr CreateElement() const override { return nullptr; }
 
 public:
-	EPCGDataType PinType;
+	EPCGDataType PinType = EPCGDataType::None;
 };
