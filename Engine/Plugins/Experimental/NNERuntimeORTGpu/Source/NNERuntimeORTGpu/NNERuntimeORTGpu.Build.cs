@@ -3,11 +3,11 @@
 using UnrealBuildTool;
 using System.IO;
 
-public class NNERuntimeORT : ModuleRules
+public class NNERuntimeORTGpu : ModuleRules
 {
-	public NNERuntimeORT( ReadOnlyTargetRules Target ) : base( Target )
+	public NNERuntimeORTGpu( ReadOnlyTargetRules Target ) : base( Target )
 	{
-		ShortName = "NNERuntimeORT"; // Shorten to avoid path-too-long errors
+		ShortName = "NNERuntimeORTGpu"; // Shorten to avoid path-too-long errors
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
 		PublicIncludePaths.AddRange(
@@ -34,7 +34,7 @@ public class NNERuntimeORT : ModuleRules
 				"CoreUObject",
 				"ORTHelper",
 				//"ONNXRuntime",
-				"NNEOnnxruntimeEditor",
+				"NNEOnnxruntimeEditorGpu",
                 "NNEUtils"
 			}
 		);

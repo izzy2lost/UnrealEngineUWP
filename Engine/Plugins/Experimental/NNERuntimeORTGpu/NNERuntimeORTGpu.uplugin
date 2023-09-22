@@ -20,9 +20,9 @@
 	],
 	"Modules": [
 		{
-			"Name": "NNERuntimeORT",
+			"Name": "NNERuntimeORTGpu",
 			"Type": "EditorAndProgram",
-			"LoadingPhase": "Default",
+			"LoadingPhase": "PostDefault",
 			"PlatformAllowList": [ "Win64" ]
 		}
 	],

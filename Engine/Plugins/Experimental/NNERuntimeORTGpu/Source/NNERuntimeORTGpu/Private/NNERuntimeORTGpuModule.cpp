@@ -1,8 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "NNERuntimeORTModule.h"
+#include "NNERuntimeORTGpuModule.h"
 #include "NNE.h"
-#include "NNERuntimeORT.h"
+#include "NNERuntimeORTGpu.h"
+#include "Modules/ModuleManager.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
 #include "Interfaces/IPluginManager.h"
@@ -16,7 +17,7 @@ NNE_THIRD_PARTY_INCLUDES_START
 #include "core/session/onnxruntime_cxx_api.h"
 NNE_THIRD_PARTY_INCLUDES_END
 
-namespace UE::NNERuntimeORT::Private::DllHelper
+namespace UE::NNERuntimeORTGpu::Private::DllHelper
 {
 	bool GetDllHandle(const FString& DllPath, TArray<void*>& DllHandles)
 	{
@@ -41,15 +42,21 @@ namespace UE::NNERuntimeORT::Private::DllHelper
 	}
 }
 
-void FNNERuntimeORTModule::StartupModule()
+void FNNERuntimeORTGpuModule::StartupModule()
 {
 #if PLATFORM_WINDOWS
+	if (FModuleManager::Get().IsModuleLoaded("NNERuntimeORT"))
+	{
+		UE_LOG(LogNNE, Warning, TEXT("NNERuntimeORTGpu startup aborted, NNERuntimeORT plugin is active and provide the Dml runtime, please deactivate NNERuntimeORTGpu plugin and make sure it has been removed from the .uplugin."));
+		return;
+	}
+
 	const FString PluginDir = IPluginManager::Get().FindPlugin("NNERuntimeORTGpu")->GetBaseDir();
 	const FString OrtBinPath = FPaths::Combine(PluginDir, TEXT(PREPROCESSOR_TO_STRING(ONNXRUNTIME_PLATFORM_PATH)));
 	bool bAreDllsLoaded = true;
 
-	bAreDllsLoaded &= UE::NNERuntimeORT::Private::DllHelper::GetDllHandle(FPaths::Combine(OrtBinPath, TEXT("onnxruntime.dll")), DllHandles);
-	bAreDllsLoaded &= UE::NNERuntimeORT::Private::DllHelper::GetDllHandle(FPaths::Combine(OrtBinPath, TEXT("onnxruntime_providers_shared.dll")), DllHandles);
+	bAreDllsLoaded &= UE::NNERuntimeORTGpu::Private::DllHelper::GetDllHandle(FPaths::Combine(OrtBinPath, TEXT("onnxruntime.dll")), DllHandles);
+	bAreDllsLoaded &= UE::NNERuntimeORTGpu::Private::DllHelper::GetDllHandle(FPaths::Combine(OrtBinPath, TEXT("onnxruntime_providers_shared.dll")), DllHandles);
 	//Note: onnxruntime_providers_cuda.dll should not be loaded explicitly. ORT will however load it from the same path onnxruntime_providers_shared.dll was loaded from.
 
 	if (!bAreDllsLoaded)
@@ -84,7 +91,7 @@ void FNNERuntimeORTModule::StartupModule()
 #endif
 }
 
-void FNNERuntimeORTModule::ShutdownModule()
+void FNNERuntimeORTGpuModule::ShutdownModule()
 {
 #if PLATFORM_WINDOWS
 	// NNE runtime ORT Dml shutdown
@@ -117,4 +124,4 @@ void FNNERuntimeORTModule::ShutdownModule()
 #endif
 }
 
-IMPLEMENT_MODULE(FNNERuntimeORTModule, NNERuntimeORT);
+IMPLEMENT_MODULE(FNNERuntimeORTGpuModule, NNERuntimeORTGpu);

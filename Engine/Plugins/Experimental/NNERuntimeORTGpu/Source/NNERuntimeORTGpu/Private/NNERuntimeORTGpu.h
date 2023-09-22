@@ -17,7 +17,7 @@ NNE_THIRD_PARTY_INCLUDES_START
 #include "core/session/onnxruntime_cxx_api.h"
 NNE_THIRD_PARTY_INCLUDES_END
 
-#include "NNERuntimeORT.generated.h"
+#include "NNERuntimeORTGpu.generated.h"
 
 UENUM()
 enum class ENNERuntimeORTGpuProvider : uint8

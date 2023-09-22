@@ -46,7 +46,7 @@
 		{
 			"Name": "NNERuntimeORTCpu",
 			"Type": "RuntimeAndProgram",
-			"LoadingPhase": "Default",
+			"LoadingPhase": "PostDefault",
 			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		}
 	]

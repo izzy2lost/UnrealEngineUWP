@@ -17,7 +17,7 @@ NNE_THIRD_PARTY_INCLUDES_START
 #include "core/session/onnxruntime_cxx_api.h"
 NNE_THIRD_PARTY_INCLUDES_END
 
-namespace UE::NNERuntimeORT::Private
+namespace UE::NNERuntimeORTGpu::Private
 {
 	struct FRuntimeConf
 	{
@@ -129,4 +129,4 @@ namespace UE::NNERuntimeORT::Private
 	};
 #endif
 	
-} // UE::NNERuntimeORT::Private
+} // UE::NNERuntimeORTGpu::Private

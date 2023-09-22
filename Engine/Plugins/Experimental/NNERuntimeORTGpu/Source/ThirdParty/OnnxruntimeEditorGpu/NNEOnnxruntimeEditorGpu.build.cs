@@ -5,9 +5,9 @@ using System.Collections.Generic;
 using System.IO;
 using UnrealBuildTool;
 
-public class NNEOnnxruntimeEditor : ModuleRules
+public class NNEOnnxruntimeEditorGpu : ModuleRules
 {
-    public NNEOnnxruntimeEditor(ReadOnlyTargetRules Target) : base(Target)
+    public NNEOnnxruntimeEditorGpu(ReadOnlyTargetRules Target) : base(Target)
     {
 		Type = ModuleType.External;
 		if (Target.Platform == UnrealTargetPlatform.Win64)

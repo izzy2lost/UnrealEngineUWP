@@ -13,15 +13,15 @@
 #include "NNERuntimeORTCpuUtils.h"
 #include "NNEUtilsModelOptimizer.h"
 
-FGuid UNNERuntimeORTCpuImpl::GUID = FGuid((int32)'O', (int32)'C', (int32)'P', (int32)'U');
-int32 UNNERuntimeORTCpuImpl::Version = 0x00000001;
+FGuid UNNERuntimeORTCustomCpuImpl::GUID = FGuid((int32)'O', (int32)'C', (int32)'P', (int32)'U');
+int32 UNNERuntimeORTCustomCpuImpl::Version = 0x00000001;
 
-bool UNNERuntimeORTCpuImpl::CanCreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform) const
+bool UNNERuntimeORTCustomCpuImpl::CanCreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform) const
 {
 	return FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0;
 }
 
-TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpuImpl::CreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
+TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCustomCpuImpl::CreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
 {
 	if (!CanCreateModelData(FileType, FileData, FileId, TargetPlatform))
 	{
@@ -40,28 +40,28 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpuImpl::CreateModelData(FSt
 		return {};
 	}
 
-	int32 GuidSize = sizeof(UNNERuntimeORTCpuImpl::GUID);
-	int32 VersionSize = sizeof(UNNERuntimeORTCpuImpl::Version);
+	int32 GuidSize = sizeof(UNNERuntimeORTCustomCpuImpl::GUID);
+	int32 VersionSize = sizeof(UNNERuntimeORTCustomCpuImpl::Version);
 	TArray<uint8> Result;
 	FMemoryWriter Writer(Result);
-	Writer << UNNERuntimeORTCpuImpl::GUID;
-	Writer << UNNERuntimeORTCpuImpl::Version;
+	Writer << UNNERuntimeORTCustomCpuImpl::GUID;
+	Writer << UNNERuntimeORTCustomCpuImpl::Version;
 	Writer.Serialize(OutputModel.Data.GetData(), OutputModel.Data.Num());
 
 	return MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(Result)), 0);
 }
 
-FString UNNERuntimeORTCpuImpl::GetModelDataIdentifier(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
+FString UNNERuntimeORTCustomCpuImpl::GetModelDataIdentifier(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
 {
-	return FileId.ToString(EGuidFormats::Digits) + "-" + UNNERuntimeORTCpuImpl::GUID.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UNNERuntimeORTCpuImpl::Version);
+	return FileId.ToString(EGuidFormats::Digits) + "-" + UNNERuntimeORTCustomCpuImpl::GUID.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UNNERuntimeORTCustomCpuImpl::Version);
 }
 
-bool UNNERuntimeORTCpuImpl::CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelData) const
+bool UNNERuntimeORTCustomCpuImpl::CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelData) const
 {
 	check(ModelData != nullptr);
 	
-	int32 GuidSize = sizeof(UNNERuntimeORTCpuImpl::GUID);
-	int32 VersionSize = sizeof(UNNERuntimeORTCpuImpl::Version);
+	int32 GuidSize = sizeof(UNNERuntimeORTCustomCpuImpl::GUID);
+	int32 VersionSize = sizeof(UNNERuntimeORTCustomCpuImpl::Version);
 	TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
 
 	if (!SharedData.IsValid())
@@ -76,12 +76,12 @@ bool UNNERuntimeORTCpuImpl::CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelDat
 		return false;
 	}
 	
-	bool bResult = FGenericPlatformMemory::Memcmp(&(Data[0]), &(UNNERuntimeORTCpuImpl::GUID), GuidSize) == 0;
-	bResult &= FGenericPlatformMemory::Memcmp(&(Data[GuidSize]), &(UNNERuntimeORTCpuImpl::Version), VersionSize) == 0;
+	bool bResult = FGenericPlatformMemory::Memcmp(&(Data[0]), &(UNNERuntimeORTCustomCpuImpl::GUID), GuidSize) == 0;
+	bResult &= FGenericPlatformMemory::Memcmp(&(Data[GuidSize]), &(UNNERuntimeORTCustomCpuImpl::Version), VersionSize) == 0;
 	return bResult;
 }
 
-TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCpuImpl::CreateModelCPU(TObjectPtr<UNNEModelData> ModelData)
+TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCustomCpuImpl::CreateModelCPU(TObjectPtr<UNNEModelData> ModelData)
 {
 	check(ModelData != nullptr);
 	

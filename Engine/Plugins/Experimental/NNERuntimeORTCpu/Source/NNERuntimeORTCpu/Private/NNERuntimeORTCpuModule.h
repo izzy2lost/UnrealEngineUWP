@@ -7,13 +7,13 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-class UNNERuntimeORTCpuImpl;
+class UNNERuntimeORTCustomCpuImpl;
 
 class FNNERuntimeORTCpuModule : public IModuleInterface
 {
 
 public:
-	TWeakObjectPtr<UNNERuntimeORTCpuImpl> NNERuntimeORTCpu{ nullptr };
+	TWeakObjectPtr<UNNERuntimeORTCustomCpuImpl> NNERuntimeORTCpu{ nullptr };
 
 	// Begin IModuleInterface
 	virtual void StartupModule() override;

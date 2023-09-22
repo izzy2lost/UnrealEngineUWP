@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "NNERuntimeORTModel.h"
-#include "NNERuntimeORT.h"
-#include "NNERuntimeORTUtils.h"
+#include "NNERuntimeORTGpuModel.h"
+#include "NNERuntimeORTGpu.h"
+#include "NNERuntimeORTGpuUtils.h"
 #include "NNEProfilingTimer.h"
 
 #if PLATFORM_WINDOWS
@@ -34,7 +34,7 @@ NNE_THIRD_PARTY_INCLUDES_START
 
 NNE_THIRD_PARTY_INCLUDES_END
 
-namespace UE::NNERuntimeORT::Private
+namespace UE::NNERuntimeORTGpu::Private
 {
 
 	FModelInstanceORT::FModelInstanceORT() :
@@ -519,4 +519,4 @@ namespace UE::NNERuntimeORT::Private
 	}
 #endif
 	
-} // namespace UE::NNERuntimeORT::Private
+} // namespace UE::NNERuntimeORTGpu::Private

@@ -19,7 +19,7 @@ NNE_THIRD_PARTY_INCLUDES_END
 #include "NNERuntimeORTCpu.generated.h"
 
 UCLASS()
-class UNNERuntimeORTCpuImpl : public UObject, public INNERuntime, public INNERuntimeCPU
+class UNNERuntimeORTCustomCpuImpl : public UObject, public INNERuntime, public INNERuntimeCPU
 {
 	GENERATED_BODY()
 
@@ -28,8 +28,8 @@ public:
 	static int32 Version;
 
 	Ort::Env NNEEnvironmentCPU;
-	UNNERuntimeORTCpuImpl() {};
-	virtual ~UNNERuntimeORTCpuImpl() {}
+	UNNERuntimeORTCustomCpuImpl() {};
+	virtual ~UNNERuntimeORTCustomCpuImpl() {}
 		
 	virtual FString GetRuntimeName() const override { return TEXT("NNERuntimeORTCpu"); };
 

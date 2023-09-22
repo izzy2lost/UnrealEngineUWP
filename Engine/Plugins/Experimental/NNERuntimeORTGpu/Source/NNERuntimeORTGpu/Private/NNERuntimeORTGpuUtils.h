@@ -16,7 +16,7 @@ NNE_THIRD_PARTY_INCLUDES_END
 
 DECLARE_STATS_GROUP(TEXT("NNE"), STATGROUP_NNE, STATCAT_Advanced);
 
-namespace UE::NNERuntimeORT::Private
+namespace UE::NNERuntimeORTGpu::Private
 {
 	
 	namespace OrtHelper
@@ -236,4 +236,4 @@ namespace UE::NNERuntimeORT::Private
 		}
 	}
 
-} // UE::NNERuntimeORT::Private
+} // UE::NNERuntimeORTGpu::Private

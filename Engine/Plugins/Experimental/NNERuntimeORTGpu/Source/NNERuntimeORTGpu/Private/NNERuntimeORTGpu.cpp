@@ -1,19 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "NNERuntimeORT.h"
+#include "NNERuntimeORTGpu.h"
 
 #include "EngineAnalytics.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/SecureHash.h"
-#include "NNERuntimeORTModel.h"
-#include "NNERuntimeORTUtils.h"
+#include "NNERuntimeORTGpuModel.h"
+#include "NNERuntimeORTGpuUtils.h"
 #include "NNEUtilsModelOptimizer.h"
 #include "NNEAttributeMap.h"
 #include "NNEModelData.h"
 #include "NNEModelOptimizerInterface.h"
 #include "NNEProfilingTimer.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(NNERuntimeORT)
+#include UE_INLINE_GENERATED_CPP_BY_NAME(NNERuntimeORTGpu)
 
 FGuid UNNERuntimeORTGpuImpl::GUID = FGuid((int32)'O', (int32)'G', (int32)'P', (int32)'U');
 int32 UNNERuntimeORTGpuImpl::Version = 0x00000001;
@@ -123,10 +123,10 @@ TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeORTGpuImpl::CreateModelGPU(TObjectPtr<
 	switch (Provider)
 	{
 		case ENNERuntimeORTGpuProvider::Dml:  
-			IModel = static_cast<UE::NNE::IModelGPU*>(new UE::NNERuntimeORT::Private::FModelORTDml(ORTEnvironment.Get(), Data));
+			IModel = static_cast<UE::NNE::IModelGPU*>(new UE::NNERuntimeORTGpu::Private::FModelORTDml(ORTEnvironment.Get(), Data));
 			break;
 		case ENNERuntimeORTGpuProvider::Cuda: 
-			IModel = static_cast<UE::NNE::IModelGPU*>(new UE::NNERuntimeORT::Private::FModelORTCuda(ORTEnvironment.Get(), Data));
+			IModel = static_cast<UE::NNE::IModelGPU*>(new UE::NNERuntimeORTGpu::Private::FModelORTCuda(ORTEnvironment.Get(), Data));
 			break;
 		default:
 			UE_LOG(LogNNE, Error, TEXT("Failed to create model for ORT GPU runtime, unsupported provider. Runtime will not be functional."));

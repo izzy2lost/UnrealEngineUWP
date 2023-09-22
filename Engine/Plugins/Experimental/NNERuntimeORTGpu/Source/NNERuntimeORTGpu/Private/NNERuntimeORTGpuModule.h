@@ -10,7 +10,7 @@
 
 class UNNERuntimeORTGpuImpl;
 
-class FNNERuntimeORTModule : public IModuleInterface
+class FNNERuntimeORTGpuModule : public IModuleInterface
 {
 
 public:
