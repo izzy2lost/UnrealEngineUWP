@@ -114,16 +114,14 @@ void FNiagaraSystemInstanceController::GetUsedMaterials(TArray<UMaterialInterfac
 			EmitterData->ForEachEnabledRenderer(
 				[&](UNiagaraRendererProperties* Properties)
 				{
-					bool bCreateMidsForUsedMaterials = Properties->NeedsMIDsForMaterials();
 					TArray<UMaterialInterface*> Mats;
 					Properties->GetUsedMaterials(&EmitterInst.Get(), Mats);
 
-					if (bCreateMidsForUsedMaterials)
+					if (Properties->NeedsMIDsForMaterials())
 					{
 						for (const FMaterialOverride& Override : EmitterMaterials)
 						{
-							if (Override.EmitterRendererProperty == Properties &&
-								Mats.IsValidIndex(Override.MaterialSubIndex))
+							if (Override.EmitterRendererProperty == Properties && Mats.IsValidIndex(Override.MaterialSubIndex))
 							{
 								Mats[Override.MaterialSubIndex] = Override.Material;
 							}
@@ -131,6 +129,61 @@ void FNiagaraSystemInstanceController::GetUsedMaterials(TArray<UMaterialInterfac
 					}
 
 					OutMaterials.Append(Mats);
+				}
+			);
+		}
+	}
+}
+
+void FNiagaraSystemInstanceController::GetMaterialStreamingInfo(FNiagaraMaterialAndScaleArray& OutMaterialAndScales) const
+{
+	if (!SystemInstance.IsValid())
+	{
+		return;
+	}
+
+	for (const TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe>& EmitterInst : SystemInstance->GetEmitters())
+	{
+		if (FVersionedNiagaraEmitterData* EmitterData = EmitterInst->GetCachedEmitterData())
+		{
+			EmitterData->ForEachEnabledRenderer(
+				[&](UNiagaraRendererProperties* Properties)
+				{
+					TArray<UMaterialInterface*> UsedMaterials;
+					Properties->GetUsedMaterials(&EmitterInst.Get(), UsedMaterials);
+					if (UsedMaterials.Num() == 0)
+					{
+						return;
+					}
+
+					if (Properties->NeedsMIDsForMaterials())
+					{
+						for (const FMaterialOverride& Override : EmitterMaterials)
+						{
+							if (Override.EmitterRendererProperty == Properties && UsedMaterials.IsValidIndex(Override.MaterialSubIndex))
+							{
+								UsedMaterials[Override.MaterialSubIndex] = Override.Material;
+							}
+						}
+					}
+
+					const float StreamingScale = Properties->GetMaterialStreamingScale();
+					for (UMaterialInterface* UsedMaterial : UsedMaterials)
+					{
+						if (UsedMaterial == nullptr)
+						{
+							continue;
+						}
+
+						if (FNiagaraMaterialAndScale* Existing = OutMaterialAndScales.FindByPredicate([UsedMaterial](const FNiagaraMaterialAndScale& Existing) { return Existing.Material == UsedMaterial; }))
+						{
+							Existing->Scale = FMath::Max(Existing->Scale, StreamingScale);
+						}
+						else
+						{
+							OutMaterialAndScales.Emplace(UsedMaterial, StreamingScale);
+						}
+					}
 				}
 			);
 		}

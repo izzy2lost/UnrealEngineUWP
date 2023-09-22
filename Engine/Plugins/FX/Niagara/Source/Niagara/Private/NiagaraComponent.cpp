@@ -2318,11 +2318,28 @@ void UNiagaraComponent::GetUsedMaterials(TArray<UMaterialInterface*>& OutMateria
 
 void UNiagaraComponent::GetStreamingRenderAssetInfo(FStreamingTextureLevelContext& LevelContext, TArray<FStreamingRenderAssetPrimitiveInfo>& OutStreamingRenderAssets) const
 {
-	// UPrimitiveComponent::GetStreamingRenderAssetInfo takes care of getting the referenced textures
-	Super::GetStreamingRenderAssetInfo(LevelContext, OutStreamingRenderAssets);
-
 	if (SystemInstanceController.IsValid())
 	{
+		FNiagaraMaterialAndScaleArray MaterialAndScales;
+		SystemInstanceController->GetMaterialStreamingInfo(MaterialAndScales);
+
+		LevelContext.BindBuildData(nullptr);
+		if (MaterialAndScales.Num() > 0)
+		{
+			static const FMeshUVChannelInfo UVChannelData(1.f);
+
+			FPrimitiveMaterialInfo MaterialData;
+			MaterialData.PackedRelativeBox = PackedRelativeBox_Identity;
+			MaterialData.UVChannelData = &UVChannelData;
+
+			for (const FNiagaraMaterialAndScale& MaterialAndScale : MaterialAndScales)
+			{
+				check(MaterialAndScale.Material != nullptr);
+				MaterialData.Material = MaterialAndScale.Material;
+				LevelContext.ProcessMaterial(Bounds, MaterialData, Bounds.SphereRadius * MaterialAndScale.Scale, OutStreamingRenderAssets, bIsValidTextureStreamingBuiltData, this);
+			}
+		}
+
 		SystemInstanceController->GetStreamingMeshInfo(Bounds, LevelContext, OutStreamingRenderAssets);
 	}
 }

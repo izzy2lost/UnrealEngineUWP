@@ -308,6 +308,7 @@ public:
 	virtual const FVertexFactoryType* GetVertexFactoryType() const { return nullptr; }
 	virtual bool IsBackfaceCullingDisabled() const { return false; }
 
+	virtual float GetMaterialStreamingScale() const { return 1.0f; }
 	virtual void GetStreamingMeshInfo(const FBoxSphereBounds& OwnerBounds, const FNiagaraEmitterInstance* InEmitter, TArray<FStreamingRenderAssetPrimitiveInfo>& OutStreamingRenderAssets) const {}
 
 	virtual bool IsSimTargetSupported(ENiagaraSimTarget InSimTarget) const { return false; };
