@@ -1018,6 +1018,12 @@ void UContextualAnimSceneActorComponent::OnMontageBlendingOut(UAnimMontage* Mont
 		return;
 	}
 
+	// Ignore this event if the blending out montage is additive so we don't erroneously leave the interaction when that happens.
+	if (Montage && Montage->IsValidAdditive())
+	{
+		return;
+	}
+
 	UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::OnMontageBlendingOut Actor: %s Montage: %s bInterrupted: %d"),
 		*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), *GetNameSafe(Montage), bInterrupted);
 
