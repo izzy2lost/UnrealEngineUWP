@@ -66,6 +66,8 @@ protected:
 	virtual FName GetCustomIconName() const override;
 #endif // WITH_EDITOR
 
+	/** Updates all water bodies affected by this exclusion volume to rebuild due to a change in this exclusion volume. */
+	void UpdateAffectedWaterBodyCollisions(const FWaterExclusionVolumeChangedParams& Params);
 public:
 	/** Determines the behavior of the WaterBodies list. */
 	UPROPERTY(EditAnywhere, Category = Water)
