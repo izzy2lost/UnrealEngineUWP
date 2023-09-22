@@ -1283,7 +1283,7 @@ FPerInstanceRenderData::FPerInstanceRenderData(FStaticMeshInstanceData& Other, E
 	InstanceBuffer_GameThread = InstanceBuffer.InstanceData;
 	if (!InstanceBuffer.CondSetFlushToGPUPending())
 	{
-		BeginInitResource(&InstanceBuffer);
+		BeginInitResource(&InstanceBuffer, &UE::RenderCommandPipe::Scene);
 	}
 	UpdateBoundsTransforms_Concurrent();
 }
