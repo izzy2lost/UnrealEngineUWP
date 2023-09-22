@@ -1470,7 +1470,10 @@ namespace UnrealBuildTool
 
 				if (!String.IsNullOrEmpty(LayerDir))
 				{
-					string VulkanLayersDir = Path.Combine(Environment.ExpandEnvironmentVariables(LayerDir), NDKArch);
+					LayerDir = Environment.ExpandEnvironmentVariables(LayerDir);
+					if (!Path.IsPathRooted(LayerDir))
+						LayerDir = Path.Combine(Unreal.RootDirectory.ToString(), LayerDir); 
+					string VulkanLayersDir = Path.Combine(LayerDir, NDKArch);
 
 					if (Directory.Exists(VulkanLayersDir))
 					{
