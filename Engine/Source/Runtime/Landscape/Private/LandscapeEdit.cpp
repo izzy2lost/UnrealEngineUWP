@@ -8361,6 +8361,7 @@ bool ALandscapeProxy::LandscapeImportWeightmapFromRenderTarget(UTextureRenderTar
 
 bool ALandscapeProxy::LandscapeExportWeightmapToRenderTarget(UTextureRenderTarget2D* InRenderTarget, FName InLayerName)
 {
+	// TODO [jonathan.bard] : Not implemented... Is redundant with RenderWeightmap, which is available in engine as well, so it'd probably best to deprecate LandscapeExportWeightmapToRenderTarget, as well as LandscapeExportHeightmapToRenderTarget 
 	return false;
 }
 

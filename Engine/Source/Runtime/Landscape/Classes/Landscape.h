@@ -17,6 +17,7 @@ class ULandscapeComponent;
 class ILandscapeEdModeInterface;
 class SNotificationItem;
 class UStreamableRenderAsset;
+class UTextureRenderTarget;
 class FMaterialResource;
 struct FLandscapeEditLayerComponentReadbackResult;
 struct FLandscapeNotification;
@@ -264,10 +265,45 @@ public:
 	LANDSCAPE_API void SetLODGroupKey(uint32 InLODGroupKey);
 	LANDSCAPE_API uint32 GetLODGroupKey();
 
+	/**
+	* Render the final heightmap in the requested top-down window as one -atlased- texture in the provided render target 2D
+	*  Can be called at runtime.
+	* @param InWorldTransform World transform of the area where the texture should be rendered
+	* @param InExtents Extents of the area where the texture should be rendered (local to InWorldTransform). If size is zero, then the entire loaded landscape will be exported.
+	* @param OutRenderTarget Render target in which the texture will be rendered. The size/format of the render target will be respected.
+	* @return false in case of failure (e.g. invalid inputs, incompatible render target format...)
+	*/
 	UFUNCTION(BlueprintCallable, Category = "Landscape|Runtime")
-	LANDSCAPE_API void RenderHeightmap(const FTransform& InWorldTransform, const FBox2D& InExtents, UTextureRenderTarget2D* OutRenderTarget);
+	LANDSCAPE_API bool RenderHeightmap(const FTransform& InWorldTransform, const FBox2D& InExtents, UTextureRenderTarget2D* OutRenderTarget);
+
+	/**
+	* Render the final weightmap for the requested layer, in the requested top-down window, as one -atlased- texture in the provided render target 2D
+	*  Can be called at runtime.
+	* @param InWorldTransform World transform of the area where the texture should be rendered
+	* @param InExtents Extents of the area where the texture should be rendered (local to InWorldTransform). If size is zero, then the entire loaded landscape will be exported.
+	* @param InWeightmapLayerName Weightmap layer that is being requested to render
+	* @param OutRenderTarget Render target in which the texture will be rendered. The size/format of the render target will be respected.
+	* @return false in case of failure (e.g. invalid inputs, incompatible render target format...)
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Landscape|Runtime")
+	LANDSCAPE_API bool RenderWeightmap(const FTransform& InWorldTransform, const FBox2D& InExtents, FName InWeightmapLayerName, UTextureRenderTarget2D* OutRenderTarget);
+
+	/**
+	* Render the final weightmaps for the requested layers, in the requested top-down window, as one -atlased- texture in the provided render target (2D or 2DArray) 
+	*  Can be called at runtime.
+	* @param InWorldTransform World transform of the area where the texture should be rendered
+	* @param InExtents Extents of the area where the texture should be rendered (local to InWorldTransform). If size is zero, then the entire loaded landscape will be exported.
+	* @param InWeightmapLayerNames List of weightmap layers that are being requested to render
+	* @param OutRenderTarget Render target in which the texture will be rendered. The size/format of the render target will be respected.
+	*  - If a UTextureRenderTarget2D is passed, the requested layers will be packed in the RGBA channels in order (up to the number of channels available with the render target's format).
+	*  - If a UTextureRenderTarget2DArray is passed, the requested layers will be packed in the RGBA channels of each slice (up to the number of channels * slices available with the render target's format and number of slices).
+	* @return false in case of failure (e.g. invalid inputs, incompatible render target format...)
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Landscape|Runtime")
+	LANDSCAPE_API bool RenderWeightmaps(const FTransform& InWorldTransform, const FBox2D& InExtents, const TArray<FName>& InWeightmapLayerNames, UTextureRenderTarget* OutRenderTarget);
 
 	bool IsValidRenderTargetFormatHeightmap(EPixelFormat InRenderTargetFormat, bool& bOutCompressHeight);
+	bool IsValidRenderTargetFormatWeightmap(EPixelFormat InRenderTargetFormat, int32& OutNumChannels);
 
 #if WITH_EDITOR
 	/** Computes & returns bounds containing all landscape proxies (if any) or this landscape's bounds otherwise. Note that in non-WP worlds this will call GetLoadedBounds(). */
@@ -447,6 +483,7 @@ private:
 
 private:
 	void MarkAllLandscapeRenderStateDirty();
+	bool RenderMergedTextureInternal(const FTransform& InRenderAreaWorldTransform, const FBox2D& InRenderAreaExtents, const TArray<FName>& InWeightmapLayerNames, UTextureRenderTarget* OutRenderTarget);
 
 public:
 
