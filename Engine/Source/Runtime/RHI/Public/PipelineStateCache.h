@@ -114,6 +114,8 @@ namespace PipelineStateCache
 
 	extern RHI_API FGraphicsPipelineState*	GetAndOrCreateGraphicsPipelineState(FRHICommandList& RHICmdList, const FGraphicsPipelineStateInitializer& OriginalInitializer, EApplyRendertargetOption ApplyFlags, EPSOPrecacheResult PSOPrecacheResult);
 
+	extern RHI_API FComputePipelineState*	FindComputePipelineState(FRHIComputeShader* ComputeShader);
+
 	extern RHI_API FGraphicsPipelineState*	FindGraphicsPipelineState(const FGraphicsPipelineStateInitializer& Initializer);
 
 	extern RHI_API FRHIVertexDeclaration*	GetOrCreateVertexDeclaration(const FVertexDeclarationElementList& Elements);
