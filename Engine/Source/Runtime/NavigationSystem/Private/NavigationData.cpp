@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NavigationData.h"
+
+#include "AssetCompilingManager.h"
 #include "EngineGlobals.h"
 #include "AI/Navigation/NavAgentInterface.h"
 #include "Components/PrimitiveComponent.h"
@@ -540,6 +542,7 @@ void ANavigationData::RebuildAll()
 {
 	const double LoadTime = FPlatformTime::Seconds();
 	LoadBeforeGeneratorRebuild();
+	FAssetCompilingManager::Get().FinishAllCompilation();
 	UE_LOG(LogNavigationDataBuild, Display, TEXT("   %s load time: %.2fs"), ANSI_TO_TCHAR(__FUNCTION__), (FPlatformTime::Seconds() - LoadTime));
 	
 	ConditionalConstructGenerator(); //recreate generator
