@@ -121,6 +121,17 @@ UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocContainerEntry
 
 struct FOnDemandToc
 {
+	FOnDemandToc() = default;
+	~FOnDemandToc() = default;
+
+	FOnDemandToc(FOnDemandToc&&) = default;
+	FOnDemandToc& operator= (FOnDemandToc&&) = default;
+
+	// Copying this structure would be quite expensive so we want to make sure that it doesn't happen.
+
+	FOnDemandToc(const FOnDemandToc&) = delete;
+	FOnDemandToc&  operator= (const FOnDemandToc&) = delete;
+
 	FOnDemandTocHeader Header;
 	FTocMeta Meta;
 	TArray<FOnDemandTocContainerEntry> Containers;
