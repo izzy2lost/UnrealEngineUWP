@@ -372,6 +372,9 @@ struct FFortniteMainBranchObjectVersion
 		// Remove the UAnimCurveCompressionCodec::InstanceGuid which causes cook determinism issues
 		RemoveAnimCurveCompressionCodecInstanceGuid,
 
+		// Serialize the source HLOD Layer for HLOD actor descriptors.
+		WorldPartitionHLODActorDescSerializeSourceHLODLayer,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

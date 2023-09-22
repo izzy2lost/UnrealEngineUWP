@@ -26,7 +26,7 @@ public:
 	typedef TMap<FName, int64>	FStats;
 
 	inline const TArray<FGuid>& GetChildHLODActors() const { return ChildHLODActors; }
-	inline const FName GetSourceHLODLayerName() const { return SourceHLODLayerName; }
+	inline const FTopLevelAssetPath& GetSourceHLODLayer() const { return SourceHLODLayer; }
 	inline const FStats& GetStats() const { return HLODStats; }
 	inline int64 GetStat(FName InStatName) const { return HLODStats.FindRef(InStatName); }
 
@@ -44,7 +44,9 @@ protected:
 	//~ End FWorldPartitionActorDesc Interface.
 
 	TArray<FGuid> ChildHLODActors;
-	FName SourceHLODLayerName;
+
+	FTopLevelAssetPath SourceHLODLayer;
+
 	FStats HLODStats;
 };
 #endif

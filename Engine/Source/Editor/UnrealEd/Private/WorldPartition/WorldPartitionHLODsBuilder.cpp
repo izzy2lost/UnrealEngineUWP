@@ -735,7 +735,7 @@ TArray<TArray<FGuid>> UWorldPartitionHLODsBuilder::GetHLODWorkloads(int32 NumWor
 		}
 
 		// Filter by HLOD layer
-		if (!HLODLayerToBuild.IsNone() && HLODIterator->GetSourceHLODLayerName() != HLODLayerToBuild)
+		if (!HLODLayerToBuild.IsNone() && HLODIterator->GetSourceHLODLayer().GetAssetName() != HLODLayerToBuild)
 		{
 			continue;
 		}

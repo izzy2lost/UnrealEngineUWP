@@ -44,11 +44,7 @@ void FHLODActorDesc::Init(const AActor* InActor)
 
 	if (HLODSourceActors)
 	{
-		SourceHLODLayerName = NAME_None;
-		if (const UHLODLayer* SourceHLODLayer = HLODSourceActors->GetHLODLayer())
-		{
-			SourceHLODLayerName = SourceHLODLayer->GetFName();
-		}
+		SourceHLODLayer = FTopLevelAssetPath(HLODSourceActors->GetHLODLayer());
 	}
 	
 	HLODStats = HLODActor->GetStats();
@@ -130,7 +126,12 @@ void FHLODActorDesc::Serialize(FArchive& Ar)
 				Ar << SourceCellName;
 			}
 
-			Ar << SourceHLODLayerName;
+			if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WorldPartitionHLODActorDescSerializeSourceHLODLayer)
+			{
+				FString SourceHLODLayerName;
+				Ar << SourceHLODLayerName;
+			}
+
 			Ar << HLODStats;
 
 			// Update package size stat on load
@@ -138,6 +139,11 @@ void FHLODActorDesc::Serialize(FArchive& Ar)
 			{
 				HLODStats.Add(FWorldPartitionHLODStats::MemoryDiskSizeBytes, GetPackageSize());
 			}
+		}
+
+		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::WorldPartitionHLODActorDescSerializeSourceHLODLayer)
+		{
+			Ar << SourceHLODLayer;
 		}
 	}
 }
@@ -147,7 +153,7 @@ bool FHLODActorDesc::Equals(const FWorldPartitionActorDesc* Other) const
 	if (FWorldPartitionActorDesc::Equals(Other))
 	{
 		const FHLODActorDesc& HLODActorDesc = *(FHLODActorDesc*)Other;
-		return SourceHLODLayerName == HLODActorDesc.SourceHLODLayerName &&
+		return SourceHLODLayer == HLODActorDesc.SourceHLODLayer &&
 			   HLODStats.OrderIndependentCompareEqual(HLODActorDesc.GetStats()) &&
 			   CompareUnsortedArrays(ChildHLODActors, HLODActorDesc.ChildHLODActors);
 	}
