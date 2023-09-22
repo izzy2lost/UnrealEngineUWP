@@ -16,7 +16,8 @@ namespace UnrealBuildTool.Rules
 			PublicSystemIncludePaths.Add(ModuleDirectory);
 
 			if (Target.Platform != UnrealBuildTool.UnrealTargetPlatform.Win64 ||
-				Target.StaticAnalyzer == StaticAnalyzer.PVSStudio)
+				Target.StaticAnalyzer == StaticAnalyzer.PVSStudio ||
+				Target.WindowsPlatform.Compiler.IsClang())
 			{
 				PublicDefinitions.Add("WITH_VISUALSTUDIO_DTE=0");
 			}
