@@ -2866,7 +2866,7 @@ const FActiveGameplayEffect* FActiveGameplayEffectsContainer::GetActiveGameplayE
 	return nullptr;
 }
 
-FAggregatorRef& FActiveGameplayEffectsContainer::FindOrCreateAttributeAggregator(FGameplayAttribute Attribute)
+FAggregatorRef& FActiveGameplayEffectsContainer::FindOrCreateAttributeAggregator(const FGameplayAttribute& Attribute)
 {
 	FAggregatorRef* RefPtr = AttributeAggregatorMap.Find(Attribute);
 	if (RefPtr)
@@ -2891,6 +2891,23 @@ FAggregatorRef& FActiveGameplayEffectsContainer::FindOrCreateAttributeAggregator
 	}
 
 	return AttributeAggregatorMap.Add(Attribute, FAggregatorRef(NewAttributeAggregator));
+}
+
+void FActiveGameplayEffectsContainer::CleanupAttributeAggregator(const FGameplayAttribute& Attribute)
+{
+	FAggregatorRef* RefPtr = AttributeAggregatorMap.Find(Attribute);
+	if (RefPtr)
+	{
+		UE_LOG(LogGameplayEffects, Log, TEXT("Removing entry in AttributeAggregatorMap for %s."), *Attribute.GetName());
+
+		// No longer interested in OnDirty events for this aggregator, in case other sources call it.
+		RefPtr->Data->OnDirty.RemoveAll(Owner);
+		RefPtr->Data->OnDirtyRecursive.RemoveAll(Owner);
+
+		// Remove the aggregator from the map, we no longer use it. If an attribute set gets added again and gameplay effect requires an aggregator
+		// for this attribute, a new one would be created via FindOrCreateAttributeAggregator with a clean state.
+		AttributeAggregatorMap.Remove(Attribute);
+	}
 }
 
 void FActiveGameplayEffectsContainer::OnAttributeAggregatorDirty(FAggregator* Aggregator, FGameplayAttribute Attribute, bool bFromRecursiveCall)
@@ -4213,12 +4230,11 @@ void FActiveGameplayEffectsContainer::RemoveActiveGameplayEffectGrantedTagsAndMo
 	// Update AttributeAggregators: remove mods from this ActiveGE Handle
 	if (Effect.Spec.GetPeriod() <= UGameplayEffect::NO_PERIOD)
 	{
-		for(const FGameplayModifierInfo& Mod : Effect.Spec.Def->Modifiers)
+		for (const FGameplayModifierInfo& Mod : Effect.Spec.Def->Modifiers)
 		{
-			if(Mod.Attribute.IsValid())
+			if (Mod.Attribute.IsValid())
 			{
-				FAggregatorRef* RefPtr = AttributeAggregatorMap.Find(Mod.Attribute);
-				if(RefPtr)
+				if (const FAggregatorRef* RefPtr = AttributeAggregatorMap.Find(Mod.Attribute))
 				{
 					RefPtr->Get()->RemoveAggregatorMod(Effect.Handle);
 				}

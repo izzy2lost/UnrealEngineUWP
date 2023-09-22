@@ -142,17 +142,7 @@ void UAbilitySystemComponent::GetAllAttributes(TArray<FGameplayAttribute>& OutAt
 			continue;
 		}
 
-		for (TFieldIterator<FProperty> It(Set->GetClass()); It; ++It)
-		{
-			if (FFloatProperty* FloatProperty = CastField<FFloatProperty>(*It))
-			{
-				OutAttributes.Push(FGameplayAttribute(FloatProperty));
-			}
-			else if (FGameplayAttribute::IsGameplayAttributeDataProperty(*It))
-			{
-				OutAttributes.Push(FGameplayAttribute(*It));
-			}
-		}
+		UAttributeSet::GetAttributesFromSetClass(Set->GetClass(), OutAttributes);
 	}
 }
 
@@ -2619,17 +2609,16 @@ void UAbilitySystemComponent::Debug_Internal(FAbilitySystemComponentDebugInfo& I
 				continue;
 			}
 
-			for (TFieldIterator<FProperty> It(Set->GetClass()); It; ++It)
+			TArray<FGameplayAttribute> Attributes;
+			UAttributeSet::GetAttributesFromSetClass(Set->GetClass(), Attributes);
+			for (const FGameplayAttribute& Attribute : Attributes)
 			{
-				FGameplayAttribute	Attribute(*It);
-
 				if (DrawAttributes.Contains(Attribute))
 					continue;
 
 				if (Attribute.IsValid())
 				{
-					float Value = GetNumericAttribute(Attribute);
-
+					const float Value = GetNumericAttribute(Attribute);
 					DebugLine(Info, FString::Printf(TEXT("%s %.2f"), *Attribute.GetName(), Value), 4.f, 0.f);
 				}
 			}
@@ -2866,13 +2855,21 @@ void UAbilitySystemComponent::AddSpawnedAttribute(UAttributeSet* Attribute)
 	}
 }
 
-void UAbilitySystemComponent::RemoveSpawnedAttribute(UAttributeSet* Attribute)
+void UAbilitySystemComponent::RemoveSpawnedAttribute(UAttributeSet* AttributeSet)
 {
-	if (SpawnedAttributes.RemoveSingle(Attribute) > 0)
+	if (SpawnedAttributes.RemoveSingle(AttributeSet) > 0)
 	{
 		if (IsUsingRegisteredSubObjectList())
 		{
-			RemoveReplicatedSubObject(Attribute);
+			RemoveReplicatedSubObject(AttributeSet);
+		}
+
+		TArray<FGameplayAttribute> Attributes;
+		UAttributeSet::GetAttributesFromSetClass(AttributeSet->GetClass(), Attributes);
+		for (const FGameplayAttribute& Attribute : Attributes)
+		{
+			ABILITY_LOG(Log, TEXT("Cleaning up aggregator for attribute '%s' due to RemoveSpawnedAttribute removing attribute set '%s'"), *Attribute.GetName(), *AttributeSet->GetName());
+			ActiveGameplayEffects.CleanupAttributeAggregator(Attribute);
 		}
 
 		SetSpawnedAttributesListDirty();
@@ -2936,6 +2933,21 @@ void UAbilitySystemComponent::OnRep_SpawnedAttributes(const TArray<UAttributeSet
 				{
 					AddReplicatedSubObject(NewAttributeSet);
 				}
+			}
+		}
+	}
+
+	// Find the attribute sets that got removed
+	for (UAttributeSet* PreviousAttributeSet : PreviousSpawnedAttributes)
+	{
+		if (PreviousAttributeSet && SpawnedAttributes.Find(PreviousAttributeSet) == INDEX_NONE)
+		{
+			TArray<FGameplayAttribute> Attributes;
+			UAttributeSet::GetAttributesFromSetClass(PreviousAttributeSet->GetClass(), Attributes);
+			for (const FGameplayAttribute& Attribute : Attributes)
+			{
+				ABILITY_LOG(Log, TEXT("Cleaning up aggregator for attribute '%s' due to OnRep_SpawnedAttributes detecting removal of '%s'"), *Attribute.GetName(), *PreviousAttributeSet->GetName());
+				ActiveGameplayEffects.CleanupAttributeAggregator(Attribute);
 			}
 		}
 	}

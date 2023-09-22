@@ -182,6 +182,8 @@ class GAMEPLAYABILITIES_API UAttributeSet : public UObject
 	GENERATED_UCLASS_BODY()
 
 public:
+	// Populates (without emptying) a TArray with all FGameplayAttributes from an attribute set class.
+	static void GetAttributesFromSetClass(const TSubclassOf<UAttributeSet>& AttributeSetClass, TArray<FGameplayAttribute>& Attributes);
 
 	/** Override to disable initialization for specific properties */
 	virtual bool ShouldInitProperty(bool FirstInit, FProperty* PropertyToInit) const { return true; }

@@ -1908,8 +1908,9 @@ private:
 	/** A map to manage stacking while we are the source */
 	TMap<TWeakObjectPtr<UGameplayEffect>, TArray<FActiveGameplayEffectHandle> >	SourceStackingMap;
 	
+	FAggregatorRef& FindOrCreateAttributeAggregator(const FGameplayAttribute& Attribute);
 
-	FAggregatorRef& FindOrCreateAttributeAggregator(FGameplayAttribute Attribute);
+	void CleanupAttributeAggregator(const FGameplayAttribute& Attribute);
 
 	void OnAttributeAggregatorDirty(FAggregator* Aggregator, FGameplayAttribute Attribute, bool FromRecursiveCall=false);
 
