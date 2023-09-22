@@ -114,40 +114,41 @@ struct FExecutionState
 };
 } // namespace
 
-template <typename ArgFunction>
-static VFrame& MakeFrameForCallee(FRunningContext Context, VFrame* CallerFrame, FOp* CallerPC, VValue ReturnSlot, VFunction& Function, uint32 NumArgs, ArgFunction GetArg)
+// In Verse, all functions conceptually take a single argument tuple
+// To avoid unnecessary boxing and unboxing of VValues, we add an optimization where we try to avoid boxing/unboxing as much as possible
+// This function reconciles the number of expected parameters with the number of provided arguments and boxes/unboxes only as needed
+template <typename ArgFunction, typename StoreFunction>
+static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 NumArgs, ArgFunction GetArg, StoreFunction StoreArg)
 {
-	VProcedure& Procedure = Function.GetProcedure();
-	VFrame& Frame = VFrame::New(Context, Procedure.NumRegisters, CallerFrame, CallerPC, Procedure, ReturnSlot);
-
-	check(Function.NumCaptures + Procedure.NumParameters <= Procedure.NumRegisters);
-
-	if (Procedure.NumParameters == NumArgs)
+	if (NumParams == NumArgs)
 	{
+		// Calling conventions match - no boxing/unboxing is necessary
 		for (uint32 Arg = 0; Arg < NumArgs; ++Arg)
 		{
-			Frame.Registers[Arg].Set(Context, GetArg(Arg));
+			StoreArg(Arg, GetArg(Arg));
 		}
 	}
-	else if (Procedure.NumParameters)
+	else if (NumParams)
 	{
-		if (NumArgs > Procedure.NumParameters)
+		if (NumArgs > NumParams)
 		{
-			V_DIE_UNLESS(Procedure.NumParameters == 1);
+			V_DIE_UNLESS(NumParams == 1);
 
+			// Function wants arguments in a tuple - box them up
 			VTuple& ArgTuple = VTuple::New(Context, NumArgs);
 			for (uint32 Arg = 0; Arg < NumArgs; ++Arg)
 			{
 				ArgTuple.SetValue(Context, Arg, GetArg(Arg));
 			}
 
-			Frame.Registers[0].Set(Context, ArgTuple);
+			StoreArg(0, ArgTuple);
 		}
 		else
 		{
-			V_DIE_UNLESS(NumArgs < Procedure.NumParameters);
+			V_DIE_UNLESS(NumArgs < NumParams);
 			V_DIE_UNLESS(NumArgs == 1);
 
+			// Function wants loose arguments but a tuple is provided - unbox them
 			VValue IncomingArg = GetArg(0);
 			VTuple* Args = nullptr;
 			if (VArray* ArgArray = IncomingArg.DynamicCast<VArray>())
@@ -159,17 +160,31 @@ static VFrame& MakeFrameForCallee(FRunningContext Context, VFrame* CallerFrame, 
 				Args = &IncomingArg.StaticCast<VTuple>();
 			}
 
-			V_DIE_UNLESS(Args->Num() == Procedure.NumParameters);
-			for (uint32 Arg = 0; Arg < Procedure.NumParameters; ++Arg)
+			V_DIE_UNLESS(Args->Num() == NumParams);
+			for (uint32 Param = 0; Param < NumParams; ++Param)
 			{
-				Frame.Registers[Arg].Set(Context, Args->GetValue(Arg));
+				StoreArg(Param, Args->GetValue(Param));
 			}
 		}
 	}
 	else
 	{
-		V_DIE_UNLESS(NumArgs == 0);
+		V_DIE_UNLESS(false);
 	}
+}
+
+template <typename ArgFunction>
+static VFrame& MakeFrameForCallee(FRunningContext Context, VFrame* CallerFrame, FOp* CallerPC, VValue ReturnSlot, VFunction& Function, uint32 NumArgs, ArgFunction GetArg)
+{
+	VProcedure& Procedure = Function.GetProcedure();
+	VFrame& Frame = VFrame::New(Context, Procedure.NumRegisters, CallerFrame, CallerPC, Procedure, ReturnSlot);
+
+	check(Function.NumCaptures + Procedure.NumParameters <= Procedure.NumRegisters);
+
+	UnboxArguments(Context, Procedure.NumParameters, NumArgs, GetArg,
+		[&](uint32 Param, VValue Value) {
+			Frame.Registers[Param].Set(Context, Value);
+		});
 
 	for (uint32 CaptureIndex = 0; CaptureIndex < Function.NumCaptures; ++CaptureIndex)
 	{
@@ -1090,24 +1105,17 @@ class FInterpreter
 
 		if (VNativeFunction* NativeFunction = Callee.DynamicCast<VNativeFunction>())
 		{
-			// TODO SOL-5113: We can't have VNI calls with multiple args to box their parameters
-			// in a tuple. Since we emit just one Call opcode for all calls, this needs
-			// to follow the same calling convention we have for invoking VFunction.
-			VValue Argument;
-			if (Op.Arguments.Num() == 1)
-			{
-				Argument = GetOperand(Op.Arguments[0]);
-			}
-			else
-			{
-				VTuple& ArgTuple = VTuple::New(Context, Op.Arguments.Num());
-				for (int32 Arg = 0; Arg < Op.Arguments.Num(); ++Arg)
-				{
-					ArgTuple.SetValue(Context, Arg, GetOperand(Op.Arguments[Arg]));
-				}
-				Argument = ArgTuple;
-			}
-			FNativeCallResult Result = (*NativeFunction->Thunk)(Context, Argument);
+			VFunction::Args Args;
+			Args.AddUninitialized(NativeFunction->NumParameters);
+			UnboxArguments(
+				Context, NativeFunction->NumParameters, Op.Arguments.Num(),
+				[&](uint32 Arg) {
+					return GetOperand(Op.Arguments[Arg]);
+				},
+				[&](uint32 Param, VValue Value) {
+					Args[Param] = Value;
+				});
+			FNativeCallResult Result = (*NativeFunction->Thunk)(Context, Args);
 			OP_RESULT_HELPER(Result);
 			DEF(Op.Dest, Result.Value);
 		}

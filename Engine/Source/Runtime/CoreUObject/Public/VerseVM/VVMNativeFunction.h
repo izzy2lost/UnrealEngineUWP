@@ -6,6 +6,7 @@
 #error In order to use VerseVM, WITH_VERSE_VM must be set
 #endif
 
+#include "Containers/ArrayView.h"
 #include "VVMGlobalTrivialEmergentTypePtr.h"
 #include "VVMType.h"
 
@@ -21,20 +22,24 @@ struct VNativeFunction : VHeapValue
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
+	const uint32 NumParameters;
+
 	// Interface between VerseVM and C++
-	using FThunkFn = FNativeCallResult (*)(FRunningContext, VValue /* Argument */);
+	using Args = TArrayView<VValue>;
+	using FThunkFn = FNativeCallResult (*)(FRunningContext, Args /* Arguments */);
 
 	// The C++ function to call
 	FThunkFn Thunk;
 
-	static VNativeFunction& New(FAllocationContext Context, FThunkFn Thunk)
+	static VNativeFunction& New(FAllocationContext Context, uint32 NumParameters, FThunkFn Thunk)
 	{
-		return *new (Context.AllocateFastCell(sizeof(VNativeFunction))) VNativeFunction(Context, Thunk);
+		return *new (Context.AllocateFastCell(sizeof(VNativeFunction))) VNativeFunction(Context, NumParameters, Thunk);
 	}
 
 private:
-	VNativeFunction(FAllocationContext Context, FThunkFn InThunk)
+	VNativeFunction(FAllocationContext Context, uint32 InNumParameters, FThunkFn InThunk)
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
+		, NumParameters(InNumParameters)
 		, Thunk(InThunk)
 	{
 	}
