@@ -139,7 +139,6 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 #endif
 }
 
-
 #endif // End WITH_EDITOR
 
 
@@ -155,6 +154,12 @@ void UCustomizableObject::PostLoad()
 	{
 		ReferenceSkeletalMeshes.Add(ReferenceSkeletalMesh_DEPRECATED);
 		ReferenceSkeletalMesh_DEPRECATED = nullptr;
+	}
+
+	// Register to dirty delegate so we update derived data version ID each time that the package is marked as dirty.
+	if (UPackage* Package = GetOutermost())
+	{
+		Package->PackageMarkedDirtyEvent.AddWeakLambda(this, [this](UPackage* Pkg, bool bWasDirty){UpdateVersionId();});
 	}
 
 	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
@@ -1713,7 +1718,7 @@ bool UCustomizableObject::IsParameterMultidimensional(const int32& InParamIndex)
 	{
 		return PrivateData->GetModel()->IsParameterMultidimensional(InParamIndex);
 	}
-
+	
 	return false;
 }
 
