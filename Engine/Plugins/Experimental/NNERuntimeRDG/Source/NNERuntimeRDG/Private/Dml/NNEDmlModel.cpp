@@ -478,7 +478,7 @@ public:
 		IDMLCompiledOperator* Op = nullptr;
 		HRESULT Res;
 			
-		Res = Device1->CompileGraph(&Graph, DML_EXECUTION_FLAG_NONE, DML_PPV_ARGS(&Op));
+		Res = Device1->CompileGraph(&Graph, DML_EXECUTION_FLAG_DISABLE_META_COMMANDS, DML_PPV_ARGS(&Op));
 		if (FAILED(Res))
 		{
 			UE_LOG(LogNNE, Error, TEXT("Failed to compile DML graph"));
