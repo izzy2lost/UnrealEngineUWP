@@ -4873,6 +4873,10 @@ void FRendererModule::BeginRenderingViewFamilies(FCanvas* Canvas, TArrayView<FSc
 				UPlanarReflectionComponent* ReflectionComponent = Scene->PlanarReflections_GameThread[ReflectionIndex];
 				for (FSceneRenderer* SceneRenderer : SceneRenderers)
 				{
+					if (HasRayTracedOverlay(SceneRenderer->ViewFamily))
+					{
+						continue;
+					}
 					Scene->UpdatePlanarReflectionContents(ReflectionComponent, *SceneRenderer);
 				}
 			}
