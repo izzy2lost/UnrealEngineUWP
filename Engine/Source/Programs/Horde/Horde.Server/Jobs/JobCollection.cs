@@ -1091,9 +1091,47 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public Task<IJob?> TryUpdateGraphAsync(IJob job, IGraph newGraph)
+		public Task<IJob?> TryUpdateGraphAsync(IJob job, IGraph oldGraph, IGraph newGraph)
 		{
 			JobDocument jobDocument = (JobDocument)job;
+			if (job.GraphHash != oldGraph.Id)
+			{
+				throw new InvalidOperationException($"Job {job.Id} uses graph {job.GraphHash}, not {oldGraph.Id}");
+			}
+
+			// Update all the references in the job to use references within the new graph
+			foreach (JobStepBatchDocument batch in job.Batches)
+			{
+				int newGroupIdx = -1;
+				foreach (JobStepDocument step in batch.Steps)
+				{
+					INode oldNode = oldGraph.GetNode(new NodeRef(batch.GroupIdx, step.NodeIdx));
+
+					NodeRef newNodeRef;
+					if (!newGraph.TryFindNode(oldNode.Name, out newNodeRef))
+					{
+						throw new InvalidOperationException($"Node '{oldNode.Name}' exists in graph {oldGraph.Id}; does not exist in graph {newGraph.Id}");
+					}
+
+					if (newGroupIdx == -1)
+					{
+						newGroupIdx = newNodeRef.GroupIdx;
+					}
+					else if (newGroupIdx != newNodeRef.GroupIdx)
+					{
+						throw new InvalidOperationException($"Node '{oldNode.Name}' is in different group in graph {oldGraph.Id} than graph {newGraph.Id}");
+					}
+
+					INode newNode = newGraph.GetNode(newNodeRef);
+					if (!step.IsPending() && !NodesMatch(oldGraph, oldNode, newGraph, newNode))
+					{
+						throw new InvalidOperationException($"Definition for node '{oldNode.Name}' has changed.");
+					}
+					
+					step.NodeIdx = newNodeRef.NodeIdx;
+				}
+				batch.GroupIdx = newGroupIdx;
+			}
 
 			// Create the update 
 			UpdateDefinitionBuilder<JobDocument> updateBuilder = Builders<JobDocument>.Update;
@@ -1106,6 +1144,30 @@ namespace Horde.Server.Jobs
 
 			// Update the new list of job steps
 			return TryUpdateAsync(jobDocument, updates);
+		}
+
+		static bool NodesMatch(IGraph oldGraph, INode oldNode, IGraph newGraph, INode newNode)
+		{
+			IEnumerable<string> oldInputDependencies = oldNode.InputDependencies.Select(x => oldGraph.GetNode(x).Name);
+			IEnumerable<string> newInputDependencies = newNode.InputDependencies.Select(x => newGraph.GetNode(x).Name);
+			if (!CompareListsIgnoreOrder(oldInputDependencies, newInputDependencies))
+			{
+				return false;
+			}
+
+			IEnumerable<string> oldInputs = oldNode.Inputs.Select(x => oldGraph.GetNode(x.NodeRef).OutputNames[x.OutputIdx]);
+			IEnumerable<string> newInputs = newNode.Inputs.Select(x => newGraph.GetNode(x.NodeRef).OutputNames[x.OutputIdx]);
+			if (!CompareListsIgnoreOrder(oldInputs, newInputs))
+			{
+				return false;
+			}
+
+			return CompareListsIgnoreOrder(oldNode.OutputNames, newNode.OutputNames);
+		}
+
+		static bool CompareListsIgnoreOrder(IEnumerable<string> seq1, IEnumerable<string> seq2)
+		{
+			return new HashSet<string>(seq1, StringComparer.OrdinalIgnoreCase).SetEquals(seq2);
 		}
 
 		/// <inheritdoc/>

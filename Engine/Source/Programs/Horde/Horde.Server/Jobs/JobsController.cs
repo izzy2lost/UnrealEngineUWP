@@ -862,10 +862,10 @@ namespace Horde.Server.Jobs
 					return Forbid(JobAclAction.ExecuteJob, jobId);
 				}
 
-				IGraph graph = await _jobService.GetGraphAsync(job);
-				graph = await _graphs.AppendAsync(graph, requests, null, null);
+				IGraph oldGraph = await _jobService.GetGraphAsync(job);
+				IGraph newGraph = await _graphs.AppendAsync(oldGraph, requests, null, null);
 
-				IJob? newJob = await _jobService.TryUpdateGraphAsync(job, graph);
+				IJob? newJob = await _jobService.TryUpdateGraphAsync(job, oldGraph, newGraph);
 				if (newJob != null)
 				{
 					return Ok();

@@ -89,7 +89,7 @@ namespace Horde.Server.Tests
 			AddNode(publishGroup, "Post-Publish Client", null, x => x.OrderDependencies = new List<string> { "Publish Client" });
 
 			IGraph graph = await GraphCollection.AppendAsync(baseGraph, newGroups, null, null);
-			job = Deref(await JobCollection.TryUpdateGraphAsync(job, graph));
+			job = Deref(await JobCollection.TryUpdateGraphAsync(job, baseGraph, graph));
 
 			job = await StartBatchAsync(job, graph, 1);
 			job = await RunStepAsync(job, graph, 1, 0, JobStepOutcome.Success); // Update Version Files
@@ -102,6 +102,83 @@ namespace Horde.Server.Tests
 			job = await RunStepAsync(job, graph, 3, 0, JobStepOutcome.Failure); // Cook Client
 			Assert.AreEqual(JobStepState.Skipped, job.Batches[3].Steps[1].State); // Publish Client
 			Assert.AreEqual(JobStepState.Skipped, job.Batches[3].Steps[2].State); // Post-Publish Client
+		}
+
+		[TestMethod]
+		public async Task TryUpdateGraphAsync()
+		{
+			// Create the initial graph
+			Mock<ITemplate> templateMock = new Mock<ITemplate>(MockBehavior.Strict);
+			templateMock.SetupGet(x => x.InitialAgentType).Returns((string?)null);
+
+			IGraph baseGraph = await GraphCollection.AddAsync(templateMock.Object, null);
+
+			List<NewGroup> groups = new List<NewGroup>();
+			groups.Add(new NewGroup("Test", new List<NewNode> { new NewNode("Initial Node", outputs: new List<string> { "#InitialOutput" }) }));
+			groups.Add(new NewGroup("Test", new List<NewNode> { new NewNode("Split Multi-Agent Cook", inputs: new List<string> { "#InitialOutput" }, inputDependencies: new List<string> { "Initial Node" }, outputs: new List<string> { "#SplitOutput" }) }));
+			groups.Add(new NewGroup("Test", new List<NewNode> { new NewNode("Gather", inputs: new List<string> { "#SplitOutput" }, inputDependencies: new List<string> { "Split Multi-Agent Cook" }) }));
+
+			IGraph graph1 = await GraphCollection.AppendAsync(baseGraph, groups);
+
+			groups.Insert(2, new NewGroup("Test", new List<NewNode> { new NewNode("Cook Item 1", inputs: new List<string> { "#SplitOutput" }, inputDependencies: new List<string> { "Split Multi-Agent Cook" }, outputs: new List<string> { "#CookOutput1" }) }));
+			groups.Insert(3, new NewGroup("Test", new List<NewNode> { new NewNode("Cook Item 2", inputs: new List<string> { "#SplitOutput" }, inputDependencies: new List<string> { "Split Multi-Agent Cook" }, outputs: new List<string> { "#CookOutput2" }) }));
+			groups[4].Nodes[0].Inputs = new List<string> { "#CookOutput1", "#CookOutput2" };
+			groups[4].Nodes[0].InputDependencies = new List<string> { "Split Multi-Agent Cook", "Cook Item 1", "Cook Item 2" };
+
+			IGraph graph2 = await GraphCollection.AppendAsync(baseGraph, groups);
+
+			CreateJobOptions options = new CreateJobOptions();
+			options.Arguments.Add("-Target=Gather");
+
+			IJob job = await JobCollection.AddAsync(JobId.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
+
+			job = await StartBatchAsync(job, baseGraph, 0);
+			job = await RunStepAsync(job, baseGraph, 0, 0, JobStepOutcome.Success); // Setup Build
+
+			job = Deref(await JobCollection.TryUpdateGraphAsync(job, baseGraph, graph1));
+			Assert.AreEqual(4, job.Batches.Count);
+			Assert.AreEqual(JobStepState.Completed, job.Batches[0].Steps[0].State); // Setup Build
+			Assert.AreEqual(JobStepState.Ready, job.Batches[1].Steps[0].State); // Initial Node
+			Assert.AreEqual(JobStepState.Waiting, job.Batches[2].Steps[0].State); // Split Multi-Agent Cook
+			Assert.AreEqual(JobStepState.Waiting, job.Batches[3].Steps[0].State); // Gather
+
+			job = await StartBatchAsync(job, graph1, 1);
+			job = await RunStepAsync(job, graph1, 1, 0, JobStepOutcome.Success); // Initial Node
+
+			job = await StartBatchAsync(job, graph1, 2);
+			job = await RunStepAsync(job, graph1, 2, 0, JobStepOutcome.Success); // Split Multi-Agent Cook
+
+			Assert.AreEqual(4, job.Batches.Count);
+			Assert.AreEqual(JobStepState.Completed, job.Batches[0].Steps[0].State); // Setup Build
+			Assert.AreEqual(JobStepState.Completed, job.Batches[1].Steps[0].State); // Initial Node
+			Assert.AreEqual(JobStepState.Completed, job.Batches[2].Steps[0].State); // Split Multi-Agent Cook
+			Assert.AreEqual(JobStepState.Ready, job.Batches[3].Steps[0].State); // Gather
+
+			await JobCollection.TryUpdateGraphAsync(job, graph1, graph2);
+
+			Assert.AreEqual(6, job.Batches.Count);
+			Assert.AreEqual(JobStepState.Completed, job.Batches[0].Steps[0].State); // Setup Build
+			Assert.AreEqual(JobStepState.Completed, job.Batches[1].Steps[0].State); // Initial Node
+			Assert.AreEqual(JobStepState.Completed, job.Batches[2].Steps[0].State); // Split Multi-Agent Cook
+			Assert.AreEqual(JobStepState.Ready, job.Batches[3].Steps[0].State); // Cook Item 1
+			Assert.AreEqual(JobStepState.Ready, job.Batches[4].Steps[0].State); // Cook Item 2
+			Assert.AreEqual(JobStepState.Waiting, job.Batches[5].Steps[0].State); // Gather
+
+			job = await StartBatchAsync(job, graph2, 3);
+			job = await RunStepAsync(job, graph2, 3, 0, JobStepOutcome.Success); // Split Multi-Agent Cook
+
+			Assert.AreEqual(6, job.Batches.Count);
+			Assert.AreEqual(JobStepState.Completed, job.Batches[3].Steps[0].State); // Cook Item 1
+			Assert.AreEqual(JobStepState.Ready, job.Batches[4].Steps[0].State); // Cook Item 2
+			Assert.AreEqual(JobStepState.Waiting, job.Batches[5].Steps[0].State); // Gather
+
+			job = await StartBatchAsync(job, graph2, 4);
+			job = await RunStepAsync(job, graph2, 4, 0, JobStepOutcome.Success); // Split Multi-Agent Cook
+
+			Assert.AreEqual(6, job.Batches.Count);
+			Assert.AreEqual(JobStepState.Completed, job.Batches[3].Steps[0].State); // Cook Item 1
+			Assert.AreEqual(JobStepState.Completed, job.Batches[4].Steps[0].State); // Cook Item 2
+			Assert.AreEqual(JobStepState.Ready, job.Batches[5].Steps[0].State); // Gather
 		}
 
 		[TestMethod]
@@ -157,7 +234,7 @@ namespace Horde.Server.Tests
 			AddNode(initialGroup, "Step 3", new[] { "Step 2" });
 
 			IGraph graph = await GraphCollection.AppendAsync(baseGraph, newGroups, null, null);
-			job = Deref(await JobCollection.TryUpdateGraphAsync(job, graph));
+			job = Deref(await JobCollection.TryUpdateGraphAsync(job, baseGraph, graph));
 
 			job = await StartBatchAsync(job, graph, 1);
 			job = await RunStepAsync(job, graph, 1, 0, JobStepOutcome.Success); // Step 1

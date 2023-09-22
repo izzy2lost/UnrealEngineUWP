@@ -508,6 +508,16 @@ namespace Horde.Server.Jobs.Graphs
 				Annotations = new NodeAnnotations(annotations);
 			}
 		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="graph">Existing graph containing a node</param>
+		/// <param name="node">Node to copy</param>
+		public NewNode(IGraph graph, INode node)
+			: this(node.Name, node.Inputs.Select(x => graph.GetNode(x.NodeRef).Name).ToList(), node.OutputNames.ToList(), node.InputDependencies.Select(x => graph.GetNode(x).Name).ToList(), node.OrderDependencies.Select(x => graph.GetNode(x).Name).ToList(), node.Priority, node.AllowRetry, node.RunEarly, node.Warnings, node.Credentials?.ToDictionary(x => x.Key, x => x.Value), node.Properties?.ToDictionary(x => x.Key, x => x.Value), node.Annotations)
+		{
+		}
 	}
 
 	/// <summary>
@@ -534,6 +544,16 @@ namespace Horde.Server.Jobs.Graphs
 		{
 			AgentType = agentType;
 			Nodes = nodes;
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="graph">Graph containing the node group</param>
+		/// <param name="group">Node group to copy</param>
+		public NewGroup(IGraph graph, INodeGroup group)
+			: this(group.AgentType, group.Nodes.Select(x => new NewNode(graph, x)).ToList())
+		{ 
 		}
 	}
 

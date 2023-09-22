@@ -170,7 +170,8 @@ namespace Horde.Server.Tests
 
 		async Task<IJob> SetJobOutcomeAsync(IJob job, IGraph graph, JobStepOutcome outcome)
 		{
-			job = Deref(await JobCollection.TryUpdateGraphAsync(job, graph));
+			IGraph oldGraph = await GraphCollection.GetAsync(job.GraphHash);
+			job = Deref(await JobCollection.TryUpdateGraphAsync(job, oldGraph, graph));
 
 			job = Deref(await JobCollection.TryUpdateStepAsync(job, graph, job.Batches[0].Id, job.Batches[0].Steps[0].Id, JobStepState.Completed, JobStepOutcome.Success));
 			job = Deref(await JobCollection.TryUpdateBatchAsync(job, graph, job.Batches[0].Id, null, JobStepBatchState.Complete, null));
