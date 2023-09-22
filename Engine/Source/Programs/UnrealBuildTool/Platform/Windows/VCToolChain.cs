@@ -228,16 +228,34 @@ namespace UnrealBuildTool
 		{
 			string PchThroughHeaderFilePath = NormalizeCommandLinePath(PchThroughHeaderFile);
 			string CreatePchFilePath = NormalizeCommandLinePath(CreatePchFile);
-			Arguments.Add($"/Yc\"{PchThroughHeaderFilePath}\"");
-			Arguments.Add($"/Fp\"{CreatePchFilePath}\"");
+			if (CreatePchFile.Name.EndsWith(".ifc"))
+			{
+				Arguments.Add($"/exportHeader");
+				Arguments.Add($"/translateInclude");
+				Arguments.Add($"/dxifcInlineFunctions");
+				Arguments.Add($"/ifcOutput {CreatePchFilePath}");
+			}
+			else
+			{
+				Arguments.Add($"/Yc\"{PchThroughHeaderFilePath}\"");
+				Arguments.Add($"/Fp\"{CreatePchFilePath}\"");
+			}
 		}
 
 		public static void AddUsingPchFile(List<string> Arguments, FileItem PchThroughHeaderFile, FileItem UsingPchFile)
 		{
 			string PchThroughHeaderFilePath = NormalizeCommandLinePath(PchThroughHeaderFile);
 			string UsingPchFilePath = NormalizeCommandLinePath(UsingPchFile);
-			Arguments.Add($"/Yu\"{PchThroughHeaderFilePath}\"");
-			Arguments.Add($"/Fp\"{UsingPchFilePath}\"");
+			if (UsingPchFile.Name.EndsWith(".ifc"))
+			{
+				Arguments.Add($"/translateInclude");
+				Arguments.Add($"/headerUnit:quote {PchThroughHeaderFilePath}={UsingPchFilePath}");
+			}
+			else
+			{
+				Arguments.Add($"/Yu\"{PchThroughHeaderFilePath}\"");
+				Arguments.Add($"/Fp\"{UsingPchFilePath}\"");
+			}
 		}
 
 		public static void AddPreprocessedFile(List<string> Arguments, FileItem PreprocessedFile, ILogger Logger)
@@ -906,6 +924,14 @@ namespace UnrealBuildTool
 				Arguments.Add("/wd4838");
 			}
 
+			if (CompileEnvironment.bUseHeaderUnitsForPch)
+			{
+				Arguments.Add("/wd4324"); // 'struct_name' : structure was padded due to __declspec(align())
+				Arguments.Add("/wd4201"); // nonstandard extension used: nameless struct/union
+				//Arguments.Add("/wd5106");
+				//Arguments.Add("/wd5260");
+			}
+
 			if (CompileEnvironment.Architecture == UnrealArch.Arm64ec)
 			{
 				Arguments.Add("/arm64EC");
@@ -1483,7 +1509,8 @@ namespace UnrealBuildTool
 					Graph.CreateIntermediateTextFile(CompileAction.SourceFile, PchCppFile);
 
 					// Add the precompiled header file to the produced items list.
-					CompileAction.CreatePchFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, SourceFile.Location.GetFileName() + ".pch"));
+					string PchExtension = CompileEnvironment.bUseHeaderUnitsForPch ? ".ifc" : ".pch";
+					CompileAction.CreatePchFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, SourceFile.Location.GetFileName() + PchExtension));
 					CompileAction.PchThroughHeaderFile = FileItem.GetItemByFileReference(CompileEnvironment.PrecompiledHeaderIncludeFilename);
 
 					// If we're creating a PCH that will be used to compile source files for a library, we need

@@ -4807,6 +4807,7 @@ namespace UnrealBuildTool
 			GlobalCompileEnvironment.bPGOOptimize = Rules.bPGOOptimize;
 			GlobalCompileEnvironment.bPGOProfile = Rules.bPGOProfile;
 			GlobalCompileEnvironment.bAllowRemotelyCompiledPCHs = Rules.bAllowRemotelyCompiledPCHs;
+			GlobalCompileEnvironment.bUseHeaderUnitsForPch = Rules.bUseHeaderUnitsForPch;
 			GlobalCompileEnvironment.bCheckSystemHeadersForModification = Rules.bCheckSystemHeadersForModification;
 			GlobalCompileEnvironment.bPrintTimingInfo = Rules.bPrintToolChainTimingInfo;
 			GlobalCompileEnvironment.bUseRTTI = Rules.bForceEnableRTTI;

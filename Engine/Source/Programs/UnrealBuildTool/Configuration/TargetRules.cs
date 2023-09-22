@@ -2100,6 +2100,12 @@ namespace UnrealBuildTool
 		public bool bAllowRemotelyCompiledPCHs = false;
 
 		/// <summary>
+		/// Will replace pch with ifc and use header units instead. This is an experimental and msvc-only feature
+		/// </summary>
+		[CommandLine("-HeaderUnits")]
+		public bool bUseHeaderUnitsForPch = false;
+
+		/// <summary>
 		/// Whether headers in system paths should be checked for modification when determining outdated actions.
 		/// </summary>
 		[XmlConfigFile(Category = "BuildConfiguration")]
@@ -3401,6 +3407,8 @@ namespace UnrealBuildTool
 		public bool bDeployAfterCompile => Inner.bDeployAfterCompile;
 
 		public bool bAllowRemotelyCompiledPCHs => Inner.bAllowRemotelyCompiledPCHs;
+
+		public bool bUseHeaderUnitsForPch => Inner.bUseHeaderUnitsForPch;
 
 		public bool bCheckSystemHeadersForModification => Inner.bCheckSystemHeadersForModification;
 

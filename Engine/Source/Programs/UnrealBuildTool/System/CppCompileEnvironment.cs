@@ -230,6 +230,11 @@ namespace UnrealBuildTool
 		public PrecompiledHeaderAction PrecompiledHeaderAction = PrecompiledHeaderAction.None;
 
 		/// <summary>
+		/// Will replace pch with ifc and use header units instead
+		/// </summary>
+		public bool bUseHeaderUnitsForPch = false;
+
+		/// <summary>
 		/// Whether artifacts from this compile are shared with other targets. If so, we should not apply any target-wide modifications to the compile environment.
 		/// </summary>
 		public bool bUseSharedBuildEnvironment;
@@ -757,6 +762,7 @@ namespace UnrealBuildTool
 			PGODirectory = Other.PGODirectory;
 			bPrintTimingInfo = Other.bPrintTimingInfo;
 			bAllowRemotelyCompiledPCHs = Other.bAllowRemotelyCompiledPCHs;
+			bUseHeaderUnitsForPch = Other.bUseHeaderUnitsForPch;
 			UserIncludePaths = new HashSet<DirectoryReference>(Other.UserIncludePaths);
 			SystemIncludePaths = new HashSet<DirectoryReference>(Other.SystemIncludePaths);
 			SharedUserIncludePaths = new HashSet<DirectoryReference>(Other.SharedUserIncludePaths);
