@@ -57,9 +57,6 @@ namespace Metasound
 
 				METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(BuildRegistryDocument);
 
-				const IMetaSoundDocumentInterface* ConstInterface = DocumentInterface.GetInterface();
-				check(ConstInterface != nullptr);
-
 #if WITH_EDITOR
 				// Node template transform is performed on copy of local document to avoid overwriting editable data
 				constexpr bool bTransformDocumentBeforeRegistering = true;
@@ -69,7 +66,7 @@ namespace Metasound
 				const bool bTransformDocumentBeforeRegistering = MetaSoundEnableCookDeterministicIDGeneration == 0;
 #endif // WITH_EDITOR
 
-				const FMetasoundFrontendDocument& Document = ConstInterface->GetDocument();
+				const FMetasoundFrontendDocument& Document = DocumentInterface->GetConstDocument();
 				const TArray<FMetasoundFrontendClass>& Dependencies = Document.Dependencies;
 
 				if (bTransformDocumentBeforeRegistering)
@@ -181,44 +178,30 @@ namespace Metasound
 			}
 
 			// Registers node by copying document. Updates to document require re-registration.
-			class FNodeRegistryEntry : public INodeRegistryEntry
+			// This registry entry does not support node creation as it is only intended to be
+			// used when cooking MetaSounds. 
+			class FDocumentNodeRegistryEntryForCook : public INodeRegistryEntry
 			{
 			public:
-				FNodeRegistryEntry(const FString& InName, const FMetasoundFrontendDocument& InDocument, const FSoftObjectPath& InAssetPath)
-					: Name(InName)
-					, Document(InDocument)
+				FDocumentNodeRegistryEntryForCook(const FMetasoundFrontendDocument& InDocument, const FSoftObjectPath& InAssetPath)
+					: Interfaces(InDocument.Interfaces)
+					, FrontendClass(InDocument.RootGraph)
+					, ClassInfo(InDocument.RootGraph, InAssetPath)
 				{
 					// Copy FrontendClass to preserve original document.
-					FrontendClass = Document.RootGraph;
 					FrontendClass.Metadata.SetType(EMetasoundFrontendClassType::External);
-					ClassInfo = FNodeClassInfo(Document.RootGraph, InAssetPath);
 				}
 
-				FNodeRegistryEntry(const FString& InName, FMetasoundFrontendDocument&& InDocument, const FSoftObjectPath& InAssetPath)
-					: Name(InName)
-					, Document(MoveTemp(InDocument))
-				{
-					// Copy FrontendClass to preserve original document.
-					FrontendClass = Document.RootGraph;
-					FrontendClass.Metadata.SetType(EMetasoundFrontendClassType::External);
-					ClassInfo = FNodeClassInfo(Document.RootGraph, InAssetPath);
-				}
+				FDocumentNodeRegistryEntryForCook(const FDocumentNodeRegistryEntryForCook& InOther) = default;
 
-				virtual ~FNodeRegistryEntry() = default;
+				virtual ~FDocumentNodeRegistryEntryForCook() = default;
 
 				virtual const FNodeClassInfo& GetClassInfo() const override
 				{
 					return ClassInfo;
 				}
 
-				virtual TUniquePtr<INode> CreateNode(const FNodeInitData&) const override
-				{
-					FProxyDataCache ProxyDataCache;
-					ProxyDataCache.CreateAndCacheProxies(Document);
-
-					return FFrontendGraphBuilder().CreateGraph(Document, ProxyDataCache, Name);
-				}
-
+				virtual TUniquePtr<INode> CreateNode(const FNodeInitData&) const override { return nullptr; }
 				virtual TUniquePtr<INode> CreateNode(FDefaultLiteralNodeConstructorParams&&) const override { return nullptr; }
 				virtual TUniquePtr<INode> CreateNode(FDefaultNamedVertexNodeConstructorParams&&) const override { return nullptr; }
 				virtual TUniquePtr<INode> CreateNode(FDefaultNamedVertexWithLiteralNodeConstructorParams&&) const override { return nullptr; }
@@ -230,12 +213,12 @@ namespace Metasound
 
 				virtual TUniquePtr<INodeRegistryEntry> Clone() const override
 				{
-					return MakeUnique<FNodeRegistryEntry>(Name, Document, ClassInfo.AssetPath);
+					return MakeUnique<FDocumentNodeRegistryEntryForCook>(*this);
 				}
 
 				virtual const TSet<FMetasoundFrontendVersion>* GetImplementedInterfaces() const override
 				{
-					return &Document.Interfaces;
+					return &Interfaces;
 				}
 
 				virtual bool IsNative() const override
@@ -244,8 +227,7 @@ namespace Metasound
 				}
 
 			private:
-				FString Name;
-				FMetasoundFrontendDocument Document;
+				TSet<FMetasoundFrontendVersion> Interfaces;
 				FMetasoundFrontendClass FrontendClass;
 				FNodeClassInfo ClassInfo;
 			};
@@ -345,14 +327,11 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 
 	{
 		TScriptInterface<IMetaSoundDocumentInterface> RegistryDocInterface = AssetBasePrivate::BuildRegistryDocument(Owner);
-		const FMetasoundFrontendDocument& RegistryDocument = static_cast<const IMetaSoundDocumentInterface*>(RegistryDocInterface.GetInterface())->GetDocument();
-		CacheRuntimeData(RegistryDocument);
-		TUniquePtr<INodeRegistryEntry> RegistryEntry = MakeUnique<AssetBasePrivate::FNodeRegistryEntry>(AssetName, RegistryDocument, FSoftObjectPath(Owner));
 		UnregisterGraphWithFrontend();
-		RegistryKey = FMetasoundFrontendRegistryContainer::Get()->RegisterNode(MoveTemp(RegistryEntry));
+		RegistryKey = CacheRuntimeData(RegistryDocInterface);
 	}
 
-	if (NodeRegistryKey::IsValid(RegistryKey) && FMetasoundFrontendRegistryContainer::Get()->IsNodeRegistered(RegistryKey))
+	if (NodeRegistryKey::IsValid(RegistryKey))
 	{
 #if WITH_EDITORONLY_DATA
 		UpdateAssetRegistry();
@@ -398,7 +377,6 @@ void FMetasoundAssetBase::CookMetaSound()
 
 	UObject* Owner = GetOwningAsset();
 	check(Owner);
-	const FString AssetName = Owner->GetName();
 
 	{
 		// Performs document transforms on local copy, which reduces document footprint & renders transforming unnecessary unless altered at runtime when registering
@@ -409,13 +387,16 @@ void FMetasoundAssetBase::CookMetaSound()
 			DocBuilder.TransformTemplateNodes();
 		}
 
-		const IMetaSoundDocumentInterface& Interface = *TScriptInterface<IMetaSoundDocumentInterface>(Owner).GetInterface();
-		TUniquePtr<INodeRegistryEntry> RegistryEntry = MakeUnique<AssetBasePrivate::FNodeRegistryEntry>(AssetName, Interface.GetDocument(), FSoftObjectPath(Owner));
+		// During cook, we need to register the node so that it is available for other graphs, but we need to avoid
+		// creating proxies. To do so, we use a special node registration object which reflects the necessary information
+		// for the node registry, but does not create INodes.
 		UnregisterGraphWithFrontend();
+		const FMetasoundFrontendDocument& Document = TScriptInterface<IMetaSoundDocumentInterface>(Owner)->GetConstDocument();
+		TUniquePtr<INodeRegistryEntry> RegistryEntry = MakeUnique<AssetBasePrivate::FDocumentNodeRegistryEntryForCook>(Document, FSoftObjectPath(Owner));
 		RegistryKey = FMetasoundFrontendRegistryContainer::Get()->RegisterNode(MoveTemp(RegistryEntry));
 	}
 
-	if (NodeRegistryKey::IsValid(RegistryKey) && FMetasoundFrontendRegistryContainer::Get()->IsNodeRegistered(RegistryKey))
+	if (NodeRegistryKey::IsValid(RegistryKey))
 	{
 #if WITH_EDITORONLY_DATA
 		UpdateAssetRegistry();
@@ -426,7 +407,7 @@ void FMetasoundAssetBase::CookMetaSound()
 		const UClass* Class = Owner->GetClass();
 		check(Class);
 		const FString ClassName = Class->GetName();
-		UE_LOG(LogMetaSound, Error, TEXT("Registration failed during cook for MetaSound node class '%s' of UObject class '%s'"), *AssetName, *ClassName);
+		UE_LOG(LogMetaSound, Error, TEXT("Registration failed during cook for MetaSound node class '%s' of UObject class '%s'"), *GetOwningAssetName(), *ClassName);
 	}
 }
 
@@ -700,35 +681,13 @@ const FMetasoundFrontendDocumentModifyContext& FMetasoundAssetBase::GetModifyCon
 }
 #endif // WITH_EDITOR
 
-TSharedPtr<Metasound::FGraph, ESPMode::ThreadSafe> FMetasoundAssetBase::BuildMetasoundDocument(const FMetasoundFrontendDocument& InDocument, const Metasound::Frontend::FProxyDataCache& InProxies) const
-{
-	using namespace Metasound;
-	using namespace Metasound::Frontend;
 
-	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::BuildMetasoundDocument);
-
-	// Create graph which can spawn instances. 
-	TUniquePtr<FFrontendGraph> FrontendGraph = FFrontendGraphBuilder::CreateGraph(InDocument, InProxies, GetOwningAssetName());
-	if (!FrontendGraph.IsValid())
-	{
-		UE_LOG(LogMetaSound, Error, TEXT("Failed to build MetaSound graph in asset '%s'"), *GetOwningAssetName());
-	}
-
-	TSharedPtr<Metasound::FGraph, ESPMode::ThreadSafe> SharedGraph(FrontendGraph.Release());
-
-	return SharedGraph;
-}
 
 bool FMetasoundAssetBase::IsRegistered() const
 {
 	using namespace Metasound::Frontend;
 
-	if (!NodeRegistryKey::IsValid(RegistryKey))
-	{
-		return false;
-	}
-
-	return FMetasoundFrontendRegistryContainer::Get()->IsNodeRegistered(RegistryKey);
+	return NodeRegistryKey::IsValid(RegistryKey);
 }
 
 bool FMetasoundAssetBase::IsReferencedAsset(const FMetasoundAssetBase& InAsset) const
@@ -810,7 +769,10 @@ TArray<FMetasoundAssetBase::FSendInfoAndVertexName> FMetasoundAssetBase::GetSend
 	check(IsInGameThread() || IsInAudioThread());
 
 	const FRuntimeData& RuntimeData = GetRuntimeData();
-	checkf(CurrentCachedRuntimeDataChangeID == RuntimeData.ChangeID, TEXT("Asset must have up-to-date cached RuntimeData prior to calling GetSendInfos"));
+	if(!RuntimeData.IsValid())
+	{
+		UE_LOG(LogMetaSound, Warning, TEXT("Send infos may be incorrect. Accessing invalid runtime data on MetaSound %s"), *GetOwningAssetName());
+	}
 
 	TArray<FSendInfoAndVertexName> SendInfos;
 
@@ -1035,32 +997,41 @@ TSharedPtr<FMetasoundFrontendDocument> FMetasoundAssetBase::PreprocessDocument()
 	return nullptr;
 }
 
-const FMetasoundAssetBase::FRuntimeData& FMetasoundAssetBase::CacheRuntimeData(const FMetasoundFrontendDocument& InDocument)
+Metasound::Frontend::FNodeRegistryKey FMetasoundAssetBase::CacheRuntimeData(const TScriptInterface<IMetaSoundDocumentInterface>& InDocumentInterface)
 {
 	using namespace Metasound::Frontend;
 
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::CacheRuntimeData);
 
-	CurrentCachedRuntimeDataChangeID = FGuid::NewGuid();
-	CachedRuntimeData.ChangeID = CurrentCachedRuntimeDataChangeID;
+	const FMetasoundFrontendDocument& Document = InDocumentInterface->GetConstDocument();
+	Metasound::TSortedVertexNameMap<FMetasoundAssetBase::FRuntimeInput> PublicInputMap = AssetBasePrivate::GetPublicClassInputs(Document);
 
-	Metasound::TSortedVertexNameMap<FMetasoundAssetBase::FRuntimeInput> PublicInputMap = AssetBasePrivate::GetPublicClassInputs(InDocument);
+	// If the IMetaSoundDocumentInterface actively modified by a builder, then 
+	// we must build synchronously to avoid a race condition on reading/writing 
+	// the IMetaSoundDocumentInterface
+	const bool bAsync = !IsBuilderActive();
 
-	Metasound::Frontend::FProxyDataCache ProxyDataCache;
-	ProxyDataCache.CreateAndCacheProxies(InDocument);
-	TSharedPtr<Metasound::FGraph, ESPMode::ThreadSafe> Graph = BuildMetasoundDocument(InDocument, ProxyDataCache);
+	FNodeClassInfo NodeClassInfo { Document.RootGraph, FSoftObjectPath(GetOwningAsset()) };
+	FNodeRegistryKey NewRegistryKey = FMetasoundFrontendRegistryContainer::Get()->RegisterGraph(NodeClassInfo, InDocumentInterface, bAsync);
 
-	CachedRuntimeData.ChangeID = CurrentCachedRuntimeDataChangeID;
+	CachedRuntimeData.ChangeID = FGuid::NewGuid();
 	CachedRuntimeData.PublicInputMap = MoveTemp(PublicInputMap);
-	CachedRuntimeData.Graph = MoveTemp(Graph);
+	CachedRuntimeData.Graph = nullptr; // Graph will be retrieved later. Retrieving the graph forces async graph registration to complete. 
 
-	return CachedRuntimeData;
+	return NewRegistryKey;
+}
+
+void FMetasoundAssetBase::WaitForAsyncGraphRegistration()
+{
+	using namespace Metasound::Frontend;
+	if (NodeRegistryKey::IsValid(RegistryKey))
+	{
+		FMetasoundFrontendRegistryContainer::Get()->WaitForAsyncGraphRegistration(RegistryKey);
+	}
 }
 
 const FMetasoundAssetBase::FRuntimeData& FMetasoundAssetBase::GetRuntimeData() const
 {
-	ensureMsgf(CurrentCachedRuntimeDataChangeID == CachedRuntimeData.ChangeID, TEXT("Accessing out-of-date runtime data: MetaSound asset '%s'."), *GetOwningAssetName());
-
 	return CachedRuntimeData;
 }
 

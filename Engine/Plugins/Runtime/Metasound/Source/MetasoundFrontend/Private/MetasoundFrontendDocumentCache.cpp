@@ -78,10 +78,13 @@ namespace Metasound::Frontend
 
 	void FDocumentCache::Init(bool bPrimeCache)
 	{
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentCache::Init);
 		check(Document);
 
 		if (bPrimeCache)
 		{
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentCache::Init_Prime);
+
 			DependencyCache = MakeShared<FDocumentDependencyCache>(GetDocument());
 			EdgeCache = FDocumentGraphEdgeCache::Create(AsShared(), ModifyDelegates->EdgeDelegates);
 			NodeCache = FDocumentGraphNodeCache::Create(AsShared(), ModifyDelegates->NodeDelegates);

@@ -1,18 +1,31 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "MetasoundFrontendDataTypeRegistry.h"
-#include "MetasoundFrontendRegistries.h"
-
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "HAL/CriticalSection.h"
+#include "Tasks/Pipe.h"
+
+#include "MetasoundFrontendDataTypeRegistry.h"
+#include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendRegistryTransaction.h"
+
+struct FMetasoundFrontendDocument; 
 
 namespace Metasound
 {
+	class FProxyDataCache;
+	class FGraph;
+
 	namespace Frontend
 	{
+		struct FNodeClassInfo;
+
+		namespace MetasoundFrontendRegistryPrivate
+		{
+			void BuildAndRegisterGraphFromDocument(const FMetasoundFrontendDocument& InDocument, const FProxyDataCache& InProxyDataCache, const FNodeClassInfo& InNodeClassInfo);
+		}
+
 		using FNodeRegistryTransactionBuffer = TTransactionBuffer<FNodeRegistryTransaction>;
 		using FNodeRegistryTransactionStream = TTransactionStream<FNodeRegistryTransaction>; 
 
@@ -37,7 +50,8 @@ namespace Metasound
 		};
 
 		// Registry container private implementation.
-		class FRegistryContainerImpl : public FMetasoundFrontendRegistryContainer
+		class FRegistryContainerImpl
+			: public FMetasoundFrontendRegistryContainer
 		{
 
 		public:
@@ -64,8 +78,21 @@ namespace Metasound
 			// Add a function to the init command array.
 			virtual bool EnqueueInitCommand(TUniqueFunction<void()>&& InFunc) override;
 
+			virtual void SetObjectReferencer(TUniquePtr<IObjectReferencer> InReferencer) override;
+
 			// This is called on module startup. This invokes any registration commands enqueued by our registration macros.
 			virtual void RegisterPendingNodes() override;
+
+			// Register a graph from an IMetaSoundDocumentInterface
+			virtual FNodeRegistryKey RegisterGraph(const FNodeClassInfo& InAssetPath, const TScriptInterface<IMetaSoundDocumentInterface>& InDocument, bool bAsync) override;
+			
+			// Wait for async graph registration to complete for a specific graph
+			virtual void WaitForAsyncGraphRegistration(const FNodeRegistryKey& InRegistryKey) const override;
+			
+			// Retrieve a registered graph. 
+			//
+			// If the graph is registered asynchronously, this will wait until the registration task has completed.
+			virtual TSharedPtr<const FGraph> GetGraph(const FNodeRegistryKey& InRegistryKey) const override;
 
 			/** Register external node with the frontend.
 			 *
@@ -76,7 +103,6 @@ namespace Metasound
 			 */
 			virtual FNodeRegistryKey RegisterNode(TUniquePtr<Metasound::Frontend::INodeRegistryEntry>&& InEntry) override;
 
-			virtual void ForEachNodeRegistryTransactionSince(Metasound::Frontend::FRegistryTransactionID InSince, Metasound::Frontend::FRegistryTransactionID* OutCurrentRegistryTransactionID, TFunctionRef<void(const Metasound::Frontend::FNodeRegistryTransaction&)> InFunc) const override;
 			virtual bool UnregisterNode(const FNodeRegistryKey& InKey) override;
 			virtual bool IsNodeRegistered(const FNodeRegistryKey& InKey) const override;
 			virtual bool IsNodeNative(const FNodeRegistryKey& InKey) const override;
@@ -89,12 +115,8 @@ namespace Metasound
 			virtual bool FindFrontendClassFromRegistered(const FNodeRegistryKey& InKey, FMetasoundFrontendClass& OutClass) override;
 			virtual const TSet<FMetasoundFrontendVersion>* FindImplementedInterfacesFromRegistered(const Metasound::Frontend::FNodeRegistryKey& InKey) const override;
 			virtual bool FindNodeClassInfoFromRegistered(const Metasound::Frontend::FNodeRegistryKey& InKey, FNodeClassInfo& OutInfo) override;
-			UE_DEPRECATED(5.1, "Use FindInputNodeRegistryKeyForDataType with EMetasoundFrontendVertexAccessType instead.")
-			virtual bool FindInputNodeRegistryKeyForDataType(const FName& InDataTypeName, FNodeRegistryKey& OutKey) override;
 			virtual bool FindInputNodeRegistryKeyForDataType(const FName& InDataTypeName, const EMetasoundFrontendVertexAccessType InAccessType, FNodeRegistryKey& OutKey) override;
 			virtual bool FindVariableNodeRegistryKeyForDataType(const FName& InDataTypeName, FNodeRegistryKey& OutKey) override;
-			UE_DEPRECATED(5.1, "Use FindOutputNodeRegistryKeyForDataType with EMetasoundFrontendVertexAccessType instead.")
-			virtual bool FindOutputNodeRegistryKeyForDataType(const FName& InDataTypeName, FNodeRegistryKey& OutKey) override;
 			virtual bool FindOutputNodeRegistryKeyForDataType(const FName& InDataTypeName, const EMetasoundFrontendVertexAccessType InAccessType, FNodeRegistryKey& OutKey) override;
 
 			// Create a new instance of a C++ implemented node from the registry.
@@ -115,11 +137,15 @@ namespace Metasound
 			TUniquePtr<FNodeRegistryTransactionStream> CreateTransactionStream();
 
 		private:
+			friend void MetasoundFrontendRegistryPrivate::BuildAndRegisterGraphFromDocument(const FMetasoundFrontendDocument& InDocument, const FProxyDataCache& InProxyDataCache, const FNodeClassInfo& InNodeClassInfo);
+
 			static FRegistryContainerImpl* LazySingleton;
 
+			void RegisterGraph(const FNodeRegistryKey& InKey, TSharedRef<const FGraph> InGraph);
 			const INodeRegistryEntry* FindNodeEntry(const FNodeRegistryKey& InKey) const;
 
 			const INodeRegistryTemplateEntry* FindNodeTemplateEntry(const FNodeRegistryKey& InKey) const;
+
 
 			// This buffer is used to enqueue nodes and datatypes to register when the module has been initialized,
 			// in order to avoid bad behavior with ensures, logs, etc. on static initialization.
@@ -136,10 +162,24 @@ namespace Metasound
 			// Registry in which we keep all information about dynamically-generated templated nodes via in C++.
 			TMap<FNodeRegistryKey, TSharedRef<INodeRegistryTemplateEntry, ESPMode::ThreadSafe>> RegisteredNodeTemplates;
 
+			TMap<FNodeRegistryKey, TSharedRef<const FGraph>> RegisteredGraphs;
+
 			// Registry in which we keep lists of possible nodes to use to convert between two datatypes
 			TMap<FConverterNodeRegistryKey, FConverterNodeRegistryValue> ConverterNodeRegistry;
 
 			TSharedRef<FNodeRegistryTransactionBuffer> TransactionBuffer;
+
+			struct FActiveRegistrationTaskInfo
+			{
+				UE::Tasks::FTask Task;
+				TObjectPtr<UObject> OwningObject;
+			};
+
+			mutable FCriticalSection RegistryMapsCriticalSection;
+			mutable FCriticalSection ActiveRegistrationTasksCriticalSection;
+			UE::Tasks::FPipe AsyncRegistrationPipe;
+			TMap<FNodeRegistryKey, FActiveRegistrationTaskInfo> ActiveRegistrationTasks;
+			TUniquePtr<FMetasoundFrontendRegistryContainer::IObjectReferencer> ObjectReferencer;
 		};
 	}
 }

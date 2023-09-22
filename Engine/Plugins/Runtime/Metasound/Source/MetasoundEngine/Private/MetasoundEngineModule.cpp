@@ -35,6 +35,43 @@ REGISTER_METASOUND_DATATYPE(Metasound::FWaveTableBankAsset, "WaveTableBankAsset"
 
 class FMetasoundEngineModule : public IMetasoundEngineModule
 {
+	// Supplies GC referencing in the MetaSound Frontend node registry for doing
+	// async work on UObjets
+	class FObjectReferencer 
+		: public FMetasoundFrontendRegistryContainer::IObjectReferencer
+		, public FGCObject
+	{
+	public:
+		virtual void AddObject(UObject* InObject) override
+		{
+			FScopeLock LockObjectArray(&ObjectArrayCriticalSection);
+			ObjectArray.Add(InObject);
+		}
+
+		virtual void RemoveObject(UObject* InObject) override
+		{
+			FScopeLock LockObjectArray(&ObjectArrayCriticalSection);
+			ObjectArray.Remove(InObject);
+		}
+
+		virtual void AddReferencedObjects(FReferenceCollector& Collector) override
+		{
+			FScopeLock LockObjectArray(&ObjectArrayCriticalSection);
+			Collector.AddReferencedObjects(ObjectArray);
+		}
+
+		virtual FString GetReferencerName() const override
+		{
+			return TEXT("FMetasoundEngineModule::FObjectReferencer");
+		}
+
+	private:
+		mutable FCriticalSection ObjectArrayCriticalSection;
+		TArray<TObjectPtr<UObject>> ObjectArray;
+	};
+
+public:
+
 	virtual void StartupModule() override
 	{
 		using namespace Metasound;
@@ -47,6 +84,11 @@ class FMetasoundEngineModule : public IMetasoundEngineModule
 		FModuleManager::Get().LoadModuleChecked("MetasoundGenerator");
 		FModuleManager::Get().LoadModuleChecked("AudioCodecEngine");
 		FModuleManager::Get().LoadModuleChecked("WaveTable");
+		
+		// Set GCObject referencer for metasound frontend node registry. The MetaSound
+		// frontend does not have access to Engine GC tools and must have them 
+		// supplied externally.
+		FMetasoundFrontendRegistryContainer::Get()->SetObjectReferencer(MakeUnique<FObjectReferencer>());
 
 		// Register engine-level parameter interfaces if not done already.
 		// (Potentially not already called if plugin is loaded while cooking.)

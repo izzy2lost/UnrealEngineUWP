@@ -158,9 +158,7 @@ void UMetaSoundEditorSubsystem::InitAsset(UObject& InNewMetaSound, UObject* InRe
 
 		// Initialize preset with referenced Metasound 
 		TScriptInterface<IMetaSoundDocumentInterface> ReferencedDocInterface = InReferencedMetaSound;
-		const IMetaSoundDocumentInterface* ReferencedInterface = ReferencedDocInterface.GetInterface();
-		check(ReferencedInterface);
-		Builder.ConvertToPreset(ReferencedInterface->GetDocument());
+		Builder.ConvertToPreset(ReferencedDocInterface->GetConstDocument());
 
 		// Update asset object data from interfaces 
 		FMetasoundAssetBase* PresetAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InNewMetaSound);
@@ -168,7 +166,7 @@ void UMetaSoundEditorSubsystem::InitAsset(UObject& InNewMetaSound, UObject* InRe
 		PresetAsset->ConformObjectDataToInterfaces();
 
 		// Copy sound wave settings to preset for sources
-		if (&ReferencedInterface->GetBaseMetaSoundUClass() == UMetaSoundSource::StaticClass())
+		if (&ReferencedDocInterface->GetBaseMetaSoundUClass() == UMetaSoundSource::StaticClass())
 		{
 			SetSoundWaveSettingsFromTemplate(*CastChecked<USoundWave>(&InNewMetaSound), *CastChecked<USoundWave>(InReferencedMetaSound));
 		}
