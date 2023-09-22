@@ -134,6 +134,11 @@ public sealed class JupiterStorageBackend : EpicGames.Horde.Storage.IStorageBack
 		return (locator, redirectUri);
 	}
 
+	public void GetStats(StorageStats stats)
+	{
+		throw new NotImplementedException();
+	}
+
 	public Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 }
 
