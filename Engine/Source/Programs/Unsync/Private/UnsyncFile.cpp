@@ -95,7 +95,7 @@ struct FCreateFileInfo
 
 	FCreateFileInfo(EFileMode Mode)
 	{
-		switch (Mode)
+		switch (Mode & EFileMode::CommonModeMask)
 		{
 			default:
 			case EFileMode::ReadOnly:
@@ -108,7 +108,7 @@ struct FCreateFileInfo
 				break;
 			case EFileMode::CreateReadWrite:
 			case EFileMode::CreateWriteOnly:
-				UNSYNC_ASSERT(!GDryRun);
+				UNSYNC_ASSERT(!GDryRun || EnumHasAnyFlags(Mode, EFileMode::IgnoreDryRun));
 				FileAccess	= GENERIC_READ | GENERIC_WRITE;
 				Share		= FILE_SHARE_WRITE;
 				Disposition = CREATE_ALWAYS;
@@ -194,7 +194,7 @@ FWindowsFile::OpenFileHandle(EFileMode InMode)
 {
 	FCreateFileInfo Info(InMode);
 	Info.FileFlags |= FILE_FLAG_OVERLAPPED;
-	if (InMode == EFileMode::ReadOnlyUnbuffered && !GForceBufferedFiles)
+	if (EnumHasAnyFlags(InMode, EFileMode::Unbuffered) && !GForceBufferedFiles)
 	{
 		Info.FileFlags |= FILE_FLAG_NO_BUFFERING;
 	}
@@ -397,7 +397,7 @@ FWindowsFile::Write(const void* Data, uint64 DestOffset, uint64 TotalSize)
 uint64
 FWindowsFile::Read(void* Dest, uint64 SourceOffset, uint64 ReadSize)
 {
-	UNSYNC_ASSERTF(Mode != EFileMode::ReadOnlyUnbuffered, L"ReadUnbuffered mode is not supported for non-async reads");
+	UNSYNC_ASSERTF((Mode & EFileMode::Unbuffered) == 0, L"Unbuffered files only support ReadAsync");
 	UNSYNC_ASSERT(IsReadable(Mode));
 
 	LARGE_INTEGER Pos;
@@ -465,7 +465,7 @@ FWindowsFile::ReadAsync(uint64 SourceOffset, uint64 Size, uint64 UserData, IOCal
 		CompleteReadCommand(Cmd);
 	}
 
-	if (Mode == EFileMode::ReadOnlyUnbuffered)
+	if (EnumHasAnyFlags(Mode, EFileMode::Unbuffered))
 	{
 		uint64 OriginalSize	 = Size;
 		uint64 OriginalBegin = SourceOffset;
@@ -862,14 +862,27 @@ ReadFileToBuffer(const FPath& Filename)
 }
 
 bool
-WriteBufferToFile(const FPath& Filename, const uint8* Data, uint64 Size)
+WriteBufferToFile(const FPath& Filename, const uint8* Data, uint64 Size, EFileMode FileMode)
 {
 	UNSYNC_LOG_INDENT;
-	UNSYNC_ASSERT(Data);
-	UNSYNC_ASSERT(Size);
-	UNSYNC_ASSERT(!GDryRun);
 
-	FNativeFile File(Filename, EFileMode::CreateReadWrite, Size);
+	if (Data == nullptr)
+	{
+		UNSYNC_ERROR(L"WriteBufferToFile called with null buffer");
+		return false;
+	}
+	if (Size == 0)
+	{
+		UNSYNC_ERROR(L"WriteBufferToFile called with zero size buffer");
+		return false;
+	}
+	if (GDryRun && !EnumHasAnyFlags(FileMode, EFileMode::IgnoreDryRun))
+	{
+		UNSYNC_ERROR(L"WriteBufferToFile called in dry run mode");
+		return false;
+	}
+
+	FNativeFile File(Filename, FileMode, Size);
 
 	if (File.IsValid())
 	{
@@ -886,9 +899,15 @@ WriteBufferToFile(const FPath& Filename, const uint8* Data, uint64 Size)
 }
 
 bool
-WriteBufferToFile(const FPath& Filename, const FBuffer& Buffer)
+WriteBufferToFile(const FPath& Filename, const FBuffer& Buffer, EFileMode FileMode)
 {
-	return WriteBufferToFile(Filename, Buffer.Data(), Buffer.Size());
+	return WriteBufferToFile(Filename, Buffer.Data(), Buffer.Size(), FileMode);
+}
+
+bool
+WriteBufferToFile(const FPath& Filename, const std::string& Buffer, EFileMode FileMode)
+{
+	return WriteBufferToFile(Filename, (const uint8*)Buffer.data(), Buffer.length(), FileMode);
 }
 
 struct FIOBufferCache

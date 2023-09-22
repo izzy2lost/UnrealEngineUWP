@@ -330,6 +330,9 @@ void OpenUrlInDefaultBrowser(const char* Address);
 
 FPath GetUserHomeDirectory();
 
+FHash256	GetAnonymizedMachineId(std::string_view Salt = {});
+std::string GetAnonymizedMachineIdString(std::string_view Salt = {});
+
 // Returns string in format 'Error code 123: Some description.`
 std::string FormatSystemErrorMessage(int32 ErrorCode);
 

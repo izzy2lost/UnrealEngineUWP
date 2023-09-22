@@ -14,18 +14,33 @@ namespace unsync {
 
 extern bool GForceBufferedFiles;
 
-enum class EFileMode
-{
-	ReadOnly,
-	ReadOnlyUnbuffered,
-	CreateReadWrite,
-	CreateWriteOnly,
+enum class EFileMode : uint32 {
+	None	   = 0,
+
+	Read	   = 1 << 0,
+	Write	   = 1 << 1,
+	Create	   = 1 << 2,
+	Unbuffered = 1 << 3,
+
+	// Extended modes
+	IgnoreDryRun = 1 << 4,	// allow write operations even in dry run mode
+
+	// Commonly used mode combinations
+	ReadOnly		   = Read,
+	ReadOnlyUnbuffered = Read | Unbuffered,
+	CreateReadWrite	   = Read | Write | Create,
+	CreateWriteOnly	   = Write | Create,
+
+	// Masks
+	CommonModeMask	 = Create | Read | Write | Unbuffered,
+	ExtendedModeMask = ~CommonModeMask,
 };
+UNSYNC_ENUM_CLASS_FLAGS(EFileMode, uint32)
 
 inline bool
 IsReadOnly(EFileMode Mode)
 {
-	switch (Mode)
+	switch (Mode & EFileMode::CommonModeMask)
 	{
 		case EFileMode::ReadOnly:
 		case EFileMode::ReadOnlyUnbuffered:
@@ -38,32 +53,19 @@ IsReadOnly(EFileMode Mode)
 inline bool
 IsWriteOnly(EFileMode Mode)
 {
-	switch (Mode)
-	{
-		case EFileMode::CreateWriteOnly:
-			return true;
-		default:
-			return false;
-	}
+	return (Mode & EFileMode::Read) == 0;
 }
 
 inline bool
 IsReadable(EFileMode Mode)
 {
-	return !IsWriteOnly(Mode);
+	return (Mode & EFileMode::Read) != 0;
 }
 
 inline bool
 IsWritable(EFileMode Mode)
 {
-	switch (Mode)
-	{
-		case EFileMode::CreateReadWrite:
-		case EFileMode::CreateWriteOnly:
-			return true;
-		default:
-			return false;
-	}
+	return (Mode & EFileMode::Write) != 0;
 }
 
 struct FIOBuffer
@@ -422,8 +424,9 @@ struct FIOReaderStream
 };
 
 FBuffer ReadFileToBuffer(const FPath& Filename);
-bool	WriteBufferToFile(const FPath& Filename, const uint8* Data, uint64 Size);
-bool	WriteBufferToFile(const FPath& Filename, const FBuffer& Buffer);
+bool	WriteBufferToFile(const FPath& Filename, const uint8* Data, uint64 Size, EFileMode FileMode = EFileMode::CreateWriteOnly);
+bool	WriteBufferToFile(const FPath& Filename, const FBuffer& Buffer, EFileMode FileMode = EFileMode::CreateWriteOnly);
+bool	WriteBufferToFile(const FPath& Filename, const std::string& Buffer, EFileMode FileMode = EFileMode::CreateWriteOnly);
 
 struct FFileAttributes
 {

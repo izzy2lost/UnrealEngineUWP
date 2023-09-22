@@ -2951,7 +2951,7 @@ struct FPooledProxy
 };
 
 static bool
-DownloadFileIfNewer(const FRemoteDesc& RemoteDesc, const FPath& Source, const FPath& Target)
+DownloadFileIfNewer(const FRemoteDesc& RemoteDesc, const FPath& Source, const FPath& Target, EFileMode TargetFileMode)
 {
 	using FDirectoryListing		 = ProxyQuery::FDirectoryListing;
 	using FDirectoryListingEntry = ProxyQuery::FDirectoryListingEntry;
@@ -3008,7 +3008,7 @@ DownloadFileIfNewer(const FRemoteDesc& RemoteDesc, const FPath& Source, const FP
 			return false;
 		}
 
-		bool bFileWritten = WriteBufferToFile(Target, FileBuffer);
+		bool bFileWritten = WriteBufferToFile(Target, FileBuffer, TargetFileMode);
 		if (!bFileWritten)
 		{
 			UNSYNC_ERROR(L"Failed to write downloaded file '%ls'", Target.wstring().c_str());
@@ -3068,14 +3068,11 @@ LoadAndMergeSourceManifest(FDirectoryManifest& Output,
 
 	if (bDownloadManifestFromProxy)
 	{
-		// TODO: add a mechanism to suppress dry run in a scope in a thread-safe way
-		const bool bPrevDryRun = GDryRun;
-		GDryRun				   = false;
-
 		UNSYNC_LOG_INDENT;
-		bool bDownloadedOk = DownloadFileIfNewer(ProxyPool.RemoteDesc, SourceManifestPath, SourceManifestTempPath);
-
-		GDryRun = bPrevDryRun;
+		bool bDownloadedOk = DownloadFileIfNewer(ProxyPool.RemoteDesc,
+												 SourceManifestPath,
+												 SourceManifestTempPath,
+												 EFileMode::CreateWriteOnly | EFileMode::IgnoreDryRun);
 
 		if (!bDownloadedOk)
 		{
@@ -3117,20 +3114,6 @@ LoadAndMergeSourceManifest(FDirectoryManifest& Output,
 	}
 
 	return MergeManifests(Output, LoadedManifest, bCaseSensitiveTargetFileSystem);
-}
-
-static std::string
-GetAnonymizedHostName()
-{
-	std::string HostName = GetCurrentHostName();
-	if (HostName.empty())
-	{
-		return {};
-	}
-	HostName += " {22FF4421-8CAC-4A14-9E4C-780AAF8BBF2A}";
-	FHash128	MachineId = HashBlake3String<FHash128>(HostName);
-	std::string Result	  = HashToHexString(MachineId);
-	return Result;
 }
 
 struct FFileSyncTaskBatch
@@ -4104,7 +4087,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 		Event.ClientVersion		 = GetVersionString();
 		Event.Session			 = ProxyPool.GetSessionId();
 		Event.Source			 = ConvertWideToUtf8(SourcePath.wstring());
-		Event.ClientHostNameHash = GetAnonymizedHostName();
+		Event.ClientHostNameHash = GetAnonymizedMachineIdString();
 		Event.TotalBytes		 = TotalSourceSize;
 		Event.SourceBytes		 = StatSourceBytes;
 		Event.BaseBytes			 = StatBaseBytes;

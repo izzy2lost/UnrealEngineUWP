@@ -623,7 +623,11 @@ static FAuthTokenCache GAuthTokenCache;
 bool
 SaveAuthToken(const FPath& Path, const FAuthToken& AuthToken)
 {
-	bool bWrittenOk = WriteBufferToFile(Path, (const uint8*)AuthToken.Raw.data(), AuthToken.Raw.length());
+	bool bWrittenOk = WriteBufferToFile(Path,
+										(const uint8*)AuthToken.Raw.data(),
+										AuthToken.Raw.length(),
+										EFileMode::CreateWriteOnly | EFileMode::IgnoreDryRun);
+
 	if (!bWrittenOk)
 	{
 		return false;
@@ -801,15 +805,7 @@ Authenticate(const FRemoteDesc& RemoteDesc, int32 RefreshThreshold)
 	{
 		CreateDirectories(TokenCachePath->parent_path());
 
-		// Allow saving tokens during dry run
-		// TODO: need a dedicated file flag to allow writes during dry run
-
-		const bool bPrevDryRun = GDryRun;
-		GDryRun				   = false;
-
 		bool bSaved = SaveAuthToken(*TokenCachePath, FreshTokenResult.GetData());
-
-		GDryRun = bPrevDryRun;
 
 		if (bSaved)
 		{

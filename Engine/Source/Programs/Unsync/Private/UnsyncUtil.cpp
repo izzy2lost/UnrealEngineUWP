@@ -2,6 +2,7 @@
 
 #include "UnsyncUtil.h"
 #include "UnsyncFile.h"
+#include "UnsyncSocket.h"
 
 #if UNSYNC_PLATFORM_WINDOWS
 #	include <Windows.h>
@@ -14,6 +15,7 @@
 #	pragma comment(lib, "Crypt32.lib")
 #	pragma comment(lib, "Bcrypt.lib")
 #	pragma comment(lib, "Mpr.lib")
+#	pragma comment(lib, "Advapi32.lib") // for registry access
 #endif	// UNSYNC_PLATFORM_WINDOWS
 
 #include <stdlib.h>
@@ -496,6 +498,50 @@ FormatSystemErrorMessage(int32 ErrorCode)
 {
 	std::string ErrorMessage = std::system_category().message(ErrorCode);
 	return fmt::format("Error code {}: {}", ErrorCode, ErrorMessage);
+}
+
+FHash256
+GetAnonymizedMachineId(std::string_view Salt)
+{
+	std::string Seed;
+
+	Seed += Salt;
+	Seed += GetCurrentHostName();
+	Seed += " {22FF4421-8CAC-4A14-9E4C-780AAF8BBF2A}";
+
+#if UNSYNC_PLATFORM_WINDOWS
+	{
+		HKEY Key = {};
+		if (RegOpenKeyA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Cryptography", &Key) == ERROR_SUCCESS)
+		{
+			char  Buffer[512] = {};
+			DWORD BufferSize  = sizeof(Buffer);
+			auto  Status	  = RegQueryValueExA(Key, "MachineGuid", nullptr, nullptr, (LPBYTE)Buffer, &BufferSize);
+			if (Status == ERROR_SUCCESS && BufferSize > 1)
+			{
+				std::string_view MachineGuid = std::string_view(Buffer, BufferSize - 1);
+				Seed += " MachineGuid ";
+				Seed += MachineGuid;
+			}
+			RegCloseKey(Key);
+		}
+	}
+#endif	// UNSYNC_PLATFORM_WINDOWS
+
+	// TODO: read `/etc/machine-id` on linux
+	// TODO: use `ioreg -rd1 -c IOPlatformExpertDevice` to get IOPlatformUUID on mac
+
+	FHash256 Result = HashBlake3String<FHash256>(Seed);
+
+	return Result;
+}
+
+std::string
+GetAnonymizedMachineIdString(std::string_view Seed)
+{
+	FHash256	MachineId = GetAnonymizedMachineId(Seed);
+	std::string Result	  = HashToHexString(MachineId);
+	return Result;
 }
 
 }  // namespace unsync

@@ -72,4 +72,44 @@ ClobberT(T& Object)
 #	define UNSYNC_THIRD_PARTY_INCLUDES_END _Pragma("GCC diagnostic pop")
 #endif
 
+#define UNSYNC_ENUM_CLASS_FLAGS(T, S)                      \
+	inline constexpr T operator^(T a, T b)                 \
+	{                                                      \
+		return (T)(static_cast<S>(a) ^ static_cast<S>(b)); \
+	}                                                      \
+	inline constexpr T operator&(T a, T b)                 \
+	{                                                      \
+		return (T)(static_cast<S>(a) & static_cast<S>(b)); \
+	}                                                      \
+	inline constexpr T operator|(T a, T b)                 \
+	{                                                      \
+		return (T)(static_cast<S>(a) | static_cast<S>(b)); \
+	}                                                      \
+	inline constexpr bool operator!(T a)                   \
+	{                                                      \
+		return !static_cast<S>(a);                         \
+	}                                                      \
+	inline constexpr bool operator==(T a, S b)             \
+	{                                                      \
+		return static_cast<S>(a) == b;                     \
+	}                                                      \
+	inline constexpr bool operator!=(T a, S b)             \
+	{                                                      \
+		return static_cast<S>(a) != b;                     \
+	}
+
+template<typename Enum>
+constexpr bool
+EnumHasAllFlags(Enum Flags, Enum Contains)
+{
+	return (Flags & Contains) == Contains;
+}
+
+template<typename Enum>
+constexpr bool
+EnumHasAnyFlags(Enum Flags, Enum Contains)
+{
+	return (Flags & Contains) != 0;
+}
+
 }  // namespace unsync
