@@ -129,8 +129,6 @@ void FAssetTypeActions_IKRetargeter::ExtendAnimAssetMenusForBatchRetargeting()
 	{
 		"ContentBrowser.AssetContextMenu.AnimSequence",
 		"ContentBrowser.AssetContextMenu.BlendSpace",
-		"ContentBrowser.AssetContextMenu.AimOffsetBlendSpace",
-		"ContentBrowser.AssetContextMenu.BlendSpace1D",
 		"ContentBrowser.AssetContextMenu.PoseAsset",
 		"ContentBrowser.AssetContextMenu.AnimBlueprint",
 		"ContentBrowser.AssetContextMenu.AnimMontage"
