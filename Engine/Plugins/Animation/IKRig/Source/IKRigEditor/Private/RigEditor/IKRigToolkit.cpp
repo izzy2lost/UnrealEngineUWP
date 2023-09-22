@@ -262,6 +262,35 @@ void FIKRigEditorToolkit::HandleViewportCreated(const TSharedRef<IPersonaViewpor
 			return 1.0f;
 		});
 	}
+
+	// highlight viewport when processor disabled
+	auto GetBorderColorAndOpacity = [this]()
+	{
+		// no processor or processor not initialized
+		const UIKRigProcessor* Processor = EditorController.Get().GetIKRigProcessor();
+		if (!Processor || !Processor->IsInitialized() )
+		{
+			return FLinearColor::Red;
+		}
+
+		// highlight viewport if warnings
+		const TArray<FText>& Warnings = Processor->Log.GetWarnings();
+		if (!Warnings.IsEmpty())
+		{
+			return FLinearColor::Yellow;
+		}
+
+		return FLinearColor::Transparent;
+	};
+
+	InViewport->AddOverlayWidget(
+		SNew(SBorder)
+		.BorderImage(FIKRigEditorStyle::Get().GetBrush("IKRig.Viewport.Border"))
+		.BorderBackgroundColor_Lambda(GetBorderColorAndOpacity)
+		.Visibility(EVisibility::HitTestInvisible)
+		.Padding(0.0f)
+		.ShowEffectWhenDisabled(false)
+	);
 }
 
 #undef LOCTEXT_NAMESPACE
