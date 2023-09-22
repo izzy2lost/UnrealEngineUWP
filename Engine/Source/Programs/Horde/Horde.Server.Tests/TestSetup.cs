@@ -323,7 +323,8 @@ namespace Horde.Server.Tests
 
 		private AgentsController GetAgentsController()
 		{
-			AgentsController agentCtrl = new AgentsController(AgentService, GlobalConfigSnapshot);
+			ILogger<AgentsController> logger = ServiceProvider.GetRequiredService<ILogger<AgentsController>>();
+			AgentsController agentCtrl = new AgentsController(AgentService, GlobalConfigSnapshot, logger);
 			agentCtrl.ControllerContext = GetControllerContext();
 			return agentCtrl;
 		}

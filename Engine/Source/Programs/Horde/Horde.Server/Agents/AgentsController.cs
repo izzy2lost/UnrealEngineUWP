@@ -29,14 +29,16 @@ namespace Horde.Server.Agents
 	{
 		readonly AgentService _agentService;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
+		readonly ILogger<AgentsController> _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AgentsController(AgentService agentService, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public AgentsController(AgentService agentService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<AgentsController> logger)
 		{
 			_agentService = agentService;
 			_globalConfig = globalConfig;
+			_logger = logger;
 		}
 
 		/// <summary>
@@ -109,8 +111,15 @@ namespace Horde.Server.Agents
 			List<GetAgentLeaseResponse> leases = new List<GetAgentLeaseResponse>();
 			foreach (AgentLease lease in agent.Leases)
 			{
-				Dictionary<string, string>? details = _agentService.GetPayloadDetails(lease.Payload);
-				leases.Add(new GetAgentLeaseResponse(lease, details));
+				try
+				{
+					Dictionary<string, string>? details = _agentService.GetPayloadDetails(lease.Payload);
+					leases.Add(new GetAgentLeaseResponse(lease, details));
+				}
+				catch (Exception e)
+				{
+					_logger.LogError(e, "Failed getting payload details for agent lease {LeaseId}", lease.Id.ToString());
+				}
 			}
 
 			return new GetAgentResponse(agent, leases, rate).ApplyFilter(filter);
