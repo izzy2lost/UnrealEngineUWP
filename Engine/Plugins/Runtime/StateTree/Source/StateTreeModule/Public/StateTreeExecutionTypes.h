@@ -555,6 +555,12 @@ struct STATETREEMODULE_API FStateTreeExecutionState
 	/** Running status of the instance */
 	EStateTreeRunStatus TreeRunStatus = EStateTreeRunStatus::Unset;
 
+	/** Completion status stored if Stop was called during the Tick and needed to be deferred. */
+	EStateTreeRunStatus RequestedStop = EStateTreeRunStatus::Unset;
+
+	/** Current update phase used to validate reentrant calls to the main entry points of the execution context (i.e. Start, Stop, Tick). */
+	EStateTreeUpdatePhase CurrentPhase = EStateTreeUpdatePhase::Unset;
+
 	/** Handle of the state that was first to report state completed (success or failure), used to trigger completion transitions. */
 	FStateTreeStateHandle CompletedStateHandle = FStateTreeStateHandle::Invalid;
 

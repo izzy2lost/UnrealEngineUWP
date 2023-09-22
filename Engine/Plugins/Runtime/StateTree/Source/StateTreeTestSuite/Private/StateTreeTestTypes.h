@@ -200,6 +200,56 @@ struct FTestTask_PrintValue : public FStateTreeTaskBase
 
 
 USTRUCT()
+struct FTestTask_StopTreeInstanceData
+{
+	GENERATED_BODY()
+};
+
+USTRUCT()
+struct FTestTask_StopTree : public FStateTreeTaskBase
+{
+	GENERATED_BODY()
+
+	using FInstanceDataType = FTestTask_PrintValueInstanceData;
+
+	FTestTask_StopTree() = default;
+	explicit FTestTask_StopTree(const FName InName) { Name = InName; }
+	virtual ~FTestTask_StopTree() override {}
+	
+	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
+
+	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override
+	{
+		if (Phase == EStateTreeUpdatePhase::EnterStates)
+		{
+			return Context.Stop();
+		}
+		return EStateTreeRunStatus::Running;
+	}
+
+	virtual void ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override
+	{
+		if (Phase == EStateTreeUpdatePhase::ExitStates)
+		{
+			Context.Stop();
+		}
+	}
+
+	virtual EStateTreeRunStatus Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const override
+	{
+		if (Phase == EStateTreeUpdatePhase::TickStateTree)
+		{
+			return Context.Stop();
+		}
+		return EStateTreeRunStatus::Running;
+	};
+
+	/** Indicates in which phase the call to Stop should be performed. Possible values are EnterStates, ExitStats and TickStateTree */
+	UPROPERTY()
+	EStateTreeUpdatePhase Phase = EStateTreeUpdatePhase::Unset;
+};
+
+USTRUCT()
 struct FTestTask_StandInstanceData
 {
 	GENERATED_BODY()

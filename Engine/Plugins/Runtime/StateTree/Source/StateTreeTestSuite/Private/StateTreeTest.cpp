@@ -2125,6 +2125,164 @@ struct FStateTreeTest_Stop_AlreadyStopped : FStateTreeTest_Stop_ExternalStop
 };
 IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_Stop_AlreadyStopped, "System.StateTree.Stop.AlreadyStopped");
 
+//
+// The deferred stop tests validates that the tree can be properly stopped if requested in the main entry points (Start, Tick, Stop).  
+//
+struct FStateTreeTest_DeferredStop : FAITestBase
+{
+	UStateTree& SetupTree() const
+	{
+		UStateTree& StateTree = UE::StateTree::Tests::NewStateTree(&GetWorld());
+		UStateTreeEditorData& EditorData = *Cast<UStateTreeEditorData>(StateTree.EditorData);
+
+		UStateTreeState& Root = EditorData.AddSubTree(FName(TEXT("Root")));
+		UStateTreeState& StateA = Root.AddChildState(FName(TEXT("A")));
+		TStateTreeEditorNode<FTestTask_StopTree>& TaskA = StateA.AddTask<FTestTask_StopTree>(TEXT("Task"));
+		TStateTreeEditorNode<FTestTask_StopTree>& GlobalTask = EditorData.AddGlobalTask<FTestTask_StopTree>(TEXT("GlobalTask"));
+
+		StateA.AddTransition(EStateTreeTransitionTrigger::OnStateSucceeded, EStateTreeTransitionType::Succeeded);
+		StateA.AddTransition(EStateTreeTransitionTrigger::OnStateFailed, EStateTreeTransitionType::Failed);
+
+		GlobalTask.GetNode().Phase = GlobalTaskPhase;
+		TaskA.GetNode().Phase = TaskPhase;
+
+		return StateTree;
+	}
+
+	virtual bool RunDerivedTest(FTestStateTreeExecutionContext& Exec) = 0;
+
+	virtual bool InstantTest() override
+	{
+		UStateTree& StateTree = SetupTree();
+
+		FStateTreeCompilerLog Log;
+		FStateTreeCompiler Compiler(Log);
+		const bool bResult = Compiler.Compile(StateTree);
+
+		AITEST_TRUE("StateTree should get compiled", bResult);
+
+		FStateTreeInstanceData InstanceData;
+		FTestStateTreeExecutionContext Exec(StateTree, StateTree, InstanceData);
+		const bool bInitSucceeded = Exec.IsValid();
+		AITEST_TRUE("StateTree should init", bInitSucceeded);
+
+		return RunDerivedTest(Exec);
+	}
+
+protected:
+
+	EStateTreeUpdatePhase GlobalTaskPhase = EStateTreeUpdatePhase::Unset;
+	EStateTreeUpdatePhase TaskPhase = EStateTreeUpdatePhase::Unset;
+};
+
+struct FStateTreeTest_DeferredStop_EnterGlobalTask : FStateTreeTest_DeferredStop
+{
+	FStateTreeTest_DeferredStop_EnterGlobalTask() { GlobalTaskPhase = EStateTreeUpdatePhase::EnterStates; }
+	virtual bool RunDerivedTest(FTestStateTreeExecutionContext& Exec) override
+	{
+		EStateTreeRunStatus Status = EStateTreeRunStatus::Unset;
+
+		Status = Exec.Start();
+		AITEST_EQUAL("Tree should be stopped", Status, EStateTreeRunStatus::Stopped);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_DeferredStop_EnterGlobalTask, "System.StateTree.DeferredStop.EnterGlobalTask");
+
+struct FStateTreeTest_DeferredStop_TickGlobalTask : FStateTreeTest_DeferredStop
+{
+	FStateTreeTest_DeferredStop_TickGlobalTask() { GlobalTaskPhase = EStateTreeUpdatePhase::TickStateTree; }
+	virtual bool RunDerivedTest(FTestStateTreeExecutionContext& Exec) override
+	{
+		EStateTreeRunStatus Status = EStateTreeRunStatus::Unset;
+
+		Status = Exec.Start();
+		AITEST_EQUAL("Tree should be running", Status, EStateTreeRunStatus::Running);
+
+		Status = Exec.Tick(0.1f);
+		AITEST_EQUAL("Tree should be stopped", Status, EStateTreeRunStatus::Stopped);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_DeferredStop_TickGlobalTask, "System.StateTree.DeferredStop.TickGlobalTask");
+
+struct FStateTreeTest_DeferredStop_ExitGlobalTask : FStateTreeTest_DeferredStop
+{
+	FStateTreeTest_DeferredStop_ExitGlobalTask() { GlobalTaskPhase = EStateTreeUpdatePhase::ExitStates; }
+	virtual bool RunDerivedTest(FTestStateTreeExecutionContext& Exec) override
+	{
+		EStateTreeRunStatus Status = EStateTreeRunStatus::Unset;
+
+		Status = Exec.Start();
+		AITEST_EQUAL("Tree should be running", Status, EStateTreeRunStatus::Running);
+
+		Status = Exec.Tick(0.1f);
+		AITEST_EQUAL("Tree should be running", Status, EStateTreeRunStatus::Running);
+
+		Status = Exec.Stop();
+		AITEST_EQUAL("Tree should be stopped", Status, EStateTreeRunStatus::Stopped);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_DeferredStop_ExitGlobalTask, "System.StateTree.DeferredStop.ExitGlobalTask");
+
+struct FStateTreeTest_DeferredStop_EnterTask : FStateTreeTest_DeferredStop
+{
+	FStateTreeTest_DeferredStop_EnterTask() { TaskPhase = EStateTreeUpdatePhase::EnterStates; }
+	virtual bool RunDerivedTest(FTestStateTreeExecutionContext& Exec) override
+	{
+		EStateTreeRunStatus Status = EStateTreeRunStatus::Unset;
+
+		Status = Exec.Start();
+		AITEST_EQUAL("Tree should be running", Status, EStateTreeRunStatus::Stopped);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_DeferredStop_EnterTask, "System.StateTree.DeferredStop.EnterTask");
+
+struct FStateTreeTest_DeferredStop_TickTask : FStateTreeTest_DeferredStop
+{
+	FStateTreeTest_DeferredStop_TickTask() { TaskPhase = EStateTreeUpdatePhase::TickStateTree; }
+	virtual bool RunDerivedTest(FTestStateTreeExecutionContext& Exec) override
+	{
+		EStateTreeRunStatus Status = EStateTreeRunStatus::Unset;
+
+		Status = Exec.Start();
+		AITEST_EQUAL("Tree should be running", Status, EStateTreeRunStatus::Running);
+
+		Status = Exec.Tick(0.1f);
+		AITEST_EQUAL("Tree should be stopped", Status, EStateTreeRunStatus::Stopped);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_DeferredStop_TickTask, "System.StateTree.DeferredStop.TickTask");
+
+struct FStateTreeTest_DeferredStop_ExitTask : FStateTreeTest_DeferredStop
+{
+	FStateTreeTest_DeferredStop_ExitTask() { TaskPhase = EStateTreeUpdatePhase::ExitStates; }
+	virtual bool RunDerivedTest(FTestStateTreeExecutionContext& Exec) override
+	{
+		EStateTreeRunStatus Status = EStateTreeRunStatus::Unset;
+
+		Status = Exec.Start();
+		AITEST_EQUAL("Tree should be running", Status, EStateTreeRunStatus::Running);
+
+		Status = Exec.Tick(0.1f);
+		AITEST_EQUAL("Tree should be running", Status, EStateTreeRunStatus::Running);
+
+		Status = Exec.Stop();
+		AITEST_EQUAL("Tree should be stopped", Status, EStateTreeRunStatus::Stopped);
+		
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_DeferredStop_ExitTask, "System.StateTree.DeferredStop.ExitTask");
+
 
 UE_ENABLE_OPTIMIZATION_SHIP
 

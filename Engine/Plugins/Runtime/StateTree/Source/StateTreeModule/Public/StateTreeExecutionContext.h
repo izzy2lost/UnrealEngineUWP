@@ -341,6 +341,11 @@ protected:
 	bool RequestTransition(const FStateTreeStateHandle NextState, const EStateTreeTransitionPriority Priority);
 
 	/**
+	 * Sets up NextTransition based on the provided parameters and the current execution status. 
+	 */
+	void SetupNextTransition(const FStateTreeStateHandle NextState, const EStateTreeTransitionPriority Priority);
+
+	/**
 	 * Triggers transitions based on current run status. CurrentStatus is used to select which transitions events are triggered.
 	 * If CurrentStatus is "Running", "Conditional" transitions pass, "Completed/Failed" will trigger "OnCompleted/OnSucceeded/OnFailed" transitions.
 	 * Transition target state can point to a selector state. For that reason the result contains both the target state, as well ass
