@@ -12,6 +12,7 @@
 #include "ComponentReregisterContext.h"
 #include "Linux/LinuxPlatformApplicationMisc.h"
 #include "GenericPlatform/GenericPlatformFramePacer.h"
+#include "RHIUtilities.h"
 
 /*------------------------------------------------------------------------------
 	OpenGL function pointers.
