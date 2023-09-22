@@ -305,13 +305,13 @@ FRCPropertyIdActionType::FRCPropertyIdActionType(URCPropertyIdAction* InProperty
 	{
 		RefreshNameWidget();
 		RefreshValueWidget();
-	}
 #if WITH_EDITOR
-	if (URemoteControlPreset* Preset = InPropertyIdAction->PresetWeakPtr.Get())
-	{
-		Preset->GetPropertyIdRegistry()->OnPropertyIdActionNeedsRefresh().AddRaw(this, &FRCPropertyIdActionType::RefreshValueWidget);
-	}
+		if (const URemoteControlPreset* Preset = InPropertyIdAction->PresetWeakPtr.Get())
+		{
+			Preset->GetPropertyIdRegistry()->OnPropertyIdActionNeedsRefresh().AddRaw(this, &FRCPropertyIdActionType::RefreshValueWidget);
+		}
 #endif
+	}
 }
 
 FRCPropertyIdActionType::~FRCPropertyIdActionType()
