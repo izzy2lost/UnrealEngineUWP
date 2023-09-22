@@ -225,6 +225,13 @@ UCustomizableSkeletalComponent* GetPlayerCustomizableSkeletalComponent(const int
 		int32 IndexFound = INDEX_NONE;
 		for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent; ++CustomizableSkeletalComponent)
 		{
+#if WITH_EDITOR
+			if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+			{
+				continue;
+			}
+#endif
+
 			if (CustomizableSkeletalComponent->IsValidLowLevel() && !CustomizableSkeletalComponent->IsTemplate())
 			{
 				AActor* CustomizableActor = CustomizableSkeletalComponent->GetAttachmentRootActor();
@@ -249,6 +256,13 @@ UCustomizableSkeletalComponent* GetPlayerCustomizableSkeletalComponent(const int
 		int32 IndexFound = INDEX_NONE;
 		for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent; ++CustomizableSkeletalComponent)
 		{
+#if WITH_EDITOR
+			if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+			{
+				continue;
+			}
+#endif
+
 			if (CustomizableSkeletalComponent->IsValidLowLevel() && !CustomizableSkeletalComponent->IsTemplate())
 			{
 				++IndexFound;

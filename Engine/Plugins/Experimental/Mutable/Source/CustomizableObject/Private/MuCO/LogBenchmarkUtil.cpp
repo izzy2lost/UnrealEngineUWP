@@ -296,6 +296,11 @@ void LogBenchmarkUtil::UpdateStats(FMutableStats& StatsToUpdate, const TArray< T
 
 				for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent; ++CustomizableSkeletalComponent)
 				{
+					if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+					{
+						continue;
+					}
+
 					AActor* ParentActor = CustomizableSkeletalComponent->GetAttachmentRootActor();
 					UCustomizableObjectInstance* Instance = CustomizableSkeletalComponent->CustomizableObjectInstance;
 

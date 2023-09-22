@@ -2926,6 +2926,13 @@ void UCustomizableInstancePrivateData::DiscardResourcesAndSetReferenceSkeletalMe
 	{
 		UCustomizableSkeletalComponent* CustomizableSkeletalComponent = *It;
 
+#if WITH_EDITOR
+		if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+		{
+			continue;
+		}
+#endif
+
 		if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->CustomizableObjectInstance == Public)
 		{
 			UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();

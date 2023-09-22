@@ -244,6 +244,13 @@ void UCustomizableObjectSystem::LogShowData(bool bFullInfo, bool ShowMaterialInf
 	{
 		const UCustomizableSkeletalComponent* CustomizableSkeletalComponent = *It;
 
+#if WITH_EDITOR
+		if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+		{
+			continue;
+		}
+#endif
+
 		if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->CustomizableObjectInstance)
 		{
 			const AActor* ParentActor = CustomizableSkeletalComponent->GetAttachmentRootActor();
@@ -692,6 +699,13 @@ void FinishUpdateGlobal(UCustomizableObjectInstance* Instance, EUpdateResult Upd
 		// Call Customizable Skeletal Components updated callbacks.
 		for (TObjectIterator<UCustomizableSkeletalComponent> It; It; ++It) // Since iterating objects is expensive, for now CustomizableSkeletalComponent does not have a FinishUpdate function.
 		{
+#if WITH_EDITOR
+			if (It && It->IsNetMode(NM_DedicatedServer))
+			{
+				continue;
+			}
+#endif
+
 			if (const UCustomizableSkeletalComponent* CustomizableSkeletalComponent = *It;
 				CustomizableSkeletalComponent &&
 				CustomizableSkeletalComponent->CustomizableObjectInstance == Instance)
@@ -740,6 +754,13 @@ void UpdateSkeletalMesh(UCustomizableObjectInstance& CustomizableObjectInstance,
 	for (TObjectIterator<UCustomizableSkeletalComponent> It; It; ++It)
 	{
 		UCustomizableSkeletalComponent* CustomizableSkeletalComponent = *It;
+
+#if WITH_EDITOR
+		if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+		{
+			continue;
+		}
+#endif
 
 		if (CustomizableSkeletalComponent &&
 			(CustomizableSkeletalComponent->CustomizableObjectInstance == &CustomizableObjectInstance) &&
@@ -2525,6 +2546,11 @@ namespace impl
 #if WITH_EDITOR
 		for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent && !bIsInEditorViewport; ++CustomizableSkeletalComponent)
 		{
+			if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+			{
+				continue;
+			}
+
 			if (CustomizableSkeletalComponent &&
 				CustomizableSkeletalComponent->CustomizableObjectInstance == CandidateInstance)
 			{

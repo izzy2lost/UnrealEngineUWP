@@ -72,6 +72,13 @@ void UpdatePawnToInstancesDistances(const class UCustomizableObjectInstance* Onl
 {
 	for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent; ++CustomizableSkeletalComponent)
 	{
+#if WITH_EDITOR
+		if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+		{
+			continue;
+		}
+#endif
+
 		if (CustomizableSkeletalComponent->IsValidLowLevel() && (OnlyForInstance == nullptr || CustomizableSkeletalComponent->CustomizableObjectInstance == OnlyForInstance))
 		{
 			CustomizableSkeletalComponent->UpdateDistFromComponentToPlayer(ViewCenter.IsValid() ? ViewCenter.Get() : nullptr, OnlyForInstance != nullptr);
@@ -85,6 +92,12 @@ void UpdateCameraToInstancesDistance(const FVector CameraPosition)
 {
 	for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent; ++CustomizableSkeletalComponent)
 	{
+#if WITH_EDITOR
+		if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+		{
+			continue;
+		}
+#endif
 		if (CustomizableSkeletalComponent->IsValidLowLevel() && !CustomizableSkeletalComponent->IsTemplate())
 		{
 			CustomizableSkeletalComponent->UpdateDistFromComponentToLevelEditorCamera(CameraPosition);
@@ -111,6 +124,12 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 
 			for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent; ++CustomizableSkeletalComponent)
 			{
+#if WITH_EDITOR
+				if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+				{
+					continue;
+				}
+#endif
 				if (CustomizableSkeletalComponent && !CustomizableSkeletalComponent->IsTemplate())
 				{
 					UWorld* LocalWorld = CustomizableSkeletalComponent->GetWorld();
@@ -275,6 +294,13 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 
 		for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent; ++CustomizableSkeletalComponent)
 		{
+#if WITH_EDITOR
+			if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+			{
+				continue;
+			}
+#endif
+
 			if (CustomizableSkeletalComponent && !CustomizableSkeletalComponent->IsTemplate())
 			{
 				UCustomizableObjectInstance* COI = CustomizableSkeletalComponent->CustomizableObjectInstance;
