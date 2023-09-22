@@ -17,6 +17,71 @@ namespace UE
 namespace MovieScene
 {
 
+static constexpr int16 GInvalidBlendTarget = std::numeric_limits<int16>::lowest();
+
+FHierarchicalBlendTarget::FHierarchicalBlendTarget()
+	// Fill with invalid values
+	: HBiasChain{
+		GInvalidBlendTarget, GInvalidBlendTarget, GInvalidBlendTarget, GInvalidBlendTarget,
+		GInvalidBlendTarget, GInvalidBlendTarget, GInvalidBlendTarget, GInvalidBlendTarget
+	}
+{
+}
+
+void FHierarchicalBlendTarget::Add(int16 InValue)
+{
+	static constexpr int32 MaxNum = UE_ARRAY_COUNT(HBiasChain);
+
+	const int32 Index = Algo::LowerBound(HBiasChain, InValue, TGreater<>());
+	if (Index >= MaxNum)
+	{
+		checkf(false, TEXT("Unable to support more than %d levels of nested hierarchical blending"), MaxNum);
+		return;
+	}
+
+	if (HBiasChain[Index] == InValue)
+	{
+		// Already exists
+		return;
+	}
+
+	if (HBiasChain[MaxNum-1] != GInvalidBlendTarget)
+	{
+		checkf(false, TEXT("Unable to support more than %d levels of nested hierarchical blending"), MaxNum);
+		return;
+	}
+
+	// Right shift by 1 if necessary
+	if (Index < MaxNum-1 && HBiasChain[Index] != GInvalidBlendTarget)
+	{
+		void* Src = HBiasChain + Index;
+		void* Dst = HBiasChain + Index + 1;
+		int32 Slack = MaxNum-Index-2; // -2 to avoid buffer overrun. The last one will always get overwritten
+		FMemory::Memmove(Dst, Src, sizeof(int16)*Slack);
+	}
+
+	// Set the value
+	HBiasChain[Index] = InValue;
+}
+
+int32 FHierarchicalBlendTarget::Num() const
+{
+	return Algo::LowerBound(HBiasChain, GInvalidBlendTarget, TGreater<>());
+}
+
+int16 FHierarchicalBlendTarget::operator[](int32 Index) const
+{
+	static constexpr int32 MaxNum = UE_ARRAY_COUNT(HBiasChain);
+
+	check(Index < MaxNum);
+	return HBiasChain[Index];
+}
+
+TArrayView<const int16> FHierarchicalBlendTarget::AsArray() const
+{
+	return TArrayView<const int16>(HBiasChain, Num());
+}
+
 bool FObjectComponent::IsStrongReference() const
 {
 	return ObjectKey == FObjectKey();

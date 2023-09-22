@@ -327,6 +327,65 @@ private:
 };
 
 /**
+ * Specifies a unique, sorted path of hbiases that contribute to a blended output
+ * Supports up to 8 unique HBiases in its path
+ */
+struct FHierarchicalBlendTarget
+{
+	/** Default Constructor */
+	MOVIESCENE_API FHierarchicalBlendTarget();
+
+	/**
+	 * Add the specified HBias to this blend target.
+	 * Duplicates are not supported - if the HBias already exists in this chain, this function does nothing.
+	 */
+	MOVIESCENE_API void Add(int16 HBias);
+
+	/**
+	 * Return the number of hbiases that contribute to this blend target
+	 */
+	MOVIESCENE_API int32 Num() const;
+
+	/**
+	 * Return the HBias at the specified index. Out of bounds indices will fail an assertion
+	 */
+	MOVIESCENE_API int16 operator[](int32 Index) const;
+
+	/**
+	 * Convert this blend target into an array view
+	 */
+	MOVIESCENE_API TArrayView<const int16> AsArray() const;
+
+public:
+
+	friend uint32 GetTypeHash(const FHierarchicalBlendTarget& In)
+	{
+		const void* Data = In.HBiasChain;
+		const uint32* Data32 = static_cast<const uint32*>(Data);
+		static_assert(sizeof(HBiasChain) == sizeof(uint32)*4);
+
+		// Use 32 bit ints for hashing speed
+		return HashCombine(Data32[0], Data32[1]) ^ HashCombine(Data32[2], Data32[3]);
+	}
+	friend bool operator<(const FHierarchicalBlendTarget& A, const FHierarchicalBlendTarget& B)
+	{
+		return FMemory::Memcmp(A.HBiasChain, B.HBiasChain, sizeof(HBiasChain)) < 0;
+	}
+	friend bool operator==(const FHierarchicalBlendTarget& A, const FHierarchicalBlendTarget& B)
+	{
+		return FMemory::Memcmp(A.HBiasChain, B.HBiasChain, sizeof(HBiasChain)) == 0;
+	}
+	friend bool operator!=(const FHierarchicalBlendTarget& A, const FHierarchicalBlendTarget& B)
+	{
+		return FMemory::Memcmp(A.HBiasChain, B.HBiasChain, sizeof(HBiasChain)) != 0;
+	}
+
+private:
+	/** 16 bytes of hbias chain. Supports up to a maximum of 8 sub-sequences. */
+	int16 HBiasChain[8];
+};
+
+/**
  * The key to a grouping policy registered on the grouping system (see UMovieSceneEntityGroupingSystem)
  */
 struct FEntityGroupingPolicyKey
@@ -528,7 +587,7 @@ public:
 	TComponentTypeID<FMovieSceneSequenceID> HierarchicalEasingProvider;
 
 	// Defines an HBias level that is the highest blend target for a given set of components that need to blend together
-	TComponentTypeID<int16>       HierarchicalBlendTarget;
+	TComponentTypeID<FHierarchicalBlendTarget> HierarchicalBlendTarget;
 
 	// A float representing the evaluated easing weight
 	TComponentTypeID<double> WeightAndEasingResult;

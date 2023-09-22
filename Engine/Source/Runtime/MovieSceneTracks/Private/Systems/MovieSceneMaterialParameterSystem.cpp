@@ -397,12 +397,17 @@ struct TOverlappingMaterialParameterHandler : Mixin
 			};
 			FBlendInfo IgnoredBlendInfo;
 			FBlendInfo BlendInfo;
+
+			FHierarchicalBlendTarget BlendTarget;
+
 			for (FMovieSceneEntityID Input : Inputs)
 			{
 				FBlendInfo& BlendInfoToUpdate = Linker->EntityManager.HasComponent(Input, BuiltInComponents->Tags.Ignored) ? IgnoredBlendInfo : BlendInfo;
 
 				TOptionalComponentReader<int16> HBiasComponent = Linker->EntityManager.ReadComponent(Input, BuiltInComponents->HierarchicalBias);
 				const int16 HBias = HBiasComponent ? *HBiasComponent : 0;
+
+				BlendTarget.Add(HBias);
 
 				if (HBias > BlendInfoToUpdate.HBias)
 				{
@@ -440,12 +445,16 @@ struct TOverlappingMaterialParameterHandler : Mixin
 				{
 					if (!Linker->EntityManager.HasComponent(Input, BuiltInComponents->HierarchicalBlendTarget))
 					{
-						Linker->EntityManager.AddComponent(Input, BuiltInComponents->HierarchicalBlendTarget, BlendInfo.HBias);
+						Linker->EntityManager.AddComponent(Input, BuiltInComponents->HierarchicalBlendTarget, BlendTarget);
 					}
 					else
 					{
-						Linker->EntityManager.WriteComponentChecked(Input, BuiltInComponents->HierarchicalBlendTarget, BlendInfo.HBias);
+						Linker->EntityManager.WriteComponentChecked(Input, BuiltInComponents->HierarchicalBlendTarget, BlendTarget);
 					}
+				}
+				else
+				{
+					Linker->EntityManager.RemoveComponent(Input, BuiltInComponents->HierarchicalBlendTarget);
 				}
 
 				// Ensure we have the blender type tag on the inputs.

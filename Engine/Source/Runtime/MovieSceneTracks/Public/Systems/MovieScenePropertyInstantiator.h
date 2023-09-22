@@ -152,6 +152,7 @@ private:
 			bInUse = false;
 		}
 
+		UE::MovieScene::FHierarchicalBlendTarget BlendTarget;
 		int32 NumContributors = 0;
 		int16 HBias = 0;
 		uint8 bWantsRestoreState : 1;

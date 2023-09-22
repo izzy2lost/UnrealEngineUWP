@@ -652,18 +652,23 @@ void UMovieScenePropertyInstantiatorSystem::UpdatePropertyInfo(const FPropertyPa
 		{
 			MetaDataToUpdate = &IgnoredHBiasEntry;
 		}
-		else if (ThisHBias >= ActiveBiasEntry.HBias)
+		else 
 		{
-			MetaDataToUpdate = &ActiveBiasEntry;
+			ActiveBiasEntry.BlendTarget.Add(ThisHBias);
 
-			if (ThisHBias > ActiveBiasEntry.HBias)
+			if (ThisHBias >= ActiveBiasEntry.HBias)
 			{
-				// We found a greater bias than any we've encountered this far
-				// Reset the empty channel list for the active hbias
-				ActiveBiasEmptyChannels = FChannelMask(true, Params.PropertyDefinition->CompositeSize);
-				ActiveBiasEntry.HBias = ThisHBias;
-
 				MetaDataToUpdate = &ActiveBiasEntry;
+
+				if (ThisHBias > ActiveBiasEntry.HBias)
+				{
+					// We found a greater bias than any we've encountered this far
+					// Reset the empty channel list for the active hbias
+					ActiveBiasEmptyChannels = FChannelMask(true, Params.PropertyDefinition->CompositeSize);
+					ActiveBiasEntry.HBias = ThisHBias;
+
+					MetaDataToUpdate = &ActiveBiasEntry;
+				}
 			}
 		}
 
@@ -989,13 +994,20 @@ void UMovieScenePropertyInstantiatorSystem::InitializeBlendPath(const FPropertyP
 			? Contributors.CreateConstKeyIterator(ContributorKey)
 			: NewContributors.CreateConstKeyIterator(ContributorKey);
 
+		FTypelessMutation Mutation;
+		if (!Params.PropertyInfo->HierarchicalMetaData.bBlendHierarchicalBias)
+		{
+			// Make sure that the hierarchical blend target component does not exist if it no longer has one
+			Mutation.RemoveMask.Set(BuiltInComponents->HierarchicalBlendTarget);
+		}
+
 		for (; ContributorIt; ++ContributorIt)
 		{
 			FEntityBuilder()
 			.Add(BuiltInComponents->BlendChannelInput, BlendChannel)
 			.AddTag(SetupResult.CurrentInfo.BlenderTypeTag)
-			.AddConditional(BuiltInComponents->HierarchicalBlendTarget, Params.PropertyInfo->HierarchicalMetaData.HBias, Params.PropertyInfo->HierarchicalMetaData.bBlendHierarchicalBias)
-			.MutateExisting(&Linker->EntityManager, ContributorIt.Value());
+			.AddConditional(BuiltInComponents->HierarchicalBlendTarget, Params.PropertyInfo->HierarchicalMetaData.BlendTarget, Params.PropertyInfo->HierarchicalMetaData.bBlendHierarchicalBias)
+			.MutateExisting(&Linker->EntityManager, ContributorIt.Value(), Mutation);
 		}
 
 		check(!Linker->EntityManager.HasComponent(Params.PropertyInfo->FinalBlendOutputID, BuiltInComponents->BlendChannelInput));
@@ -1016,6 +1028,11 @@ void UMovieScenePropertyInstantiatorSystem::InitializeBlendPath(const FPropertyP
 	InputMutation.RemoveMask = CleanFastPathMask;
 	InputMutation.RemoveMask.Set(Params.PropertyDefinition->InitialValueType);
 	InputMutation.RemoveMask.Set(BuiltInComponents->Tags.HasAssignedInitialValue);
+	if (!Params.PropertyInfo->HierarchicalMetaData.bBlendHierarchicalBias)
+	{
+		// Make sure that the hierarchical blend target component does not exist if it no longer has one
+		InputMutation.RemoveMask.Set(BuiltInComponents->HierarchicalBlendTarget);
+	}
 	for (FComponentTypeID Component : Params.PropertyDefinition->MetaDataTypes)
 	{
 		InputMutation.RemoveMask.Set(Component);
@@ -1147,7 +1164,7 @@ void UMovieScenePropertyInstantiatorSystem::InitializeBlendPath(const FPropertyP
 
 		FEntityBuilder()
 		.Add(BuiltInComponents->BlendChannelInput, NewBlendChannel)
-		.AddConditional(BuiltInComponents->HierarchicalBlendTarget, Params.PropertyInfo->HierarchicalMetaData.HBias, Params.PropertyInfo->HierarchicalMetaData.bBlendHierarchicalBias)
+		.AddConditional(BuiltInComponents->HierarchicalBlendTarget, Params.PropertyInfo->HierarchicalMetaData.BlendTarget, Params.PropertyInfo->HierarchicalMetaData.bBlendHierarchicalBias)
 		.AddTag(SetupResult.CurrentInfo.BlenderTypeTag)
 		.MutateExisting(&Linker->EntityManager, Contributor, InputMutation);
 	}
