@@ -78,6 +78,12 @@ void UPCGBlueprintElement::PostLoad()
 			CustomInputPins.RemoveAt(i);
 		}
 	}
+
+	if (bCanBeMultithreaded_DEPRECATED)
+	{
+		bRequiresGameThread = false;
+	}
+	bCanBeMultithreaded_DEPRECATED = false;
 #endif
 }
 
@@ -356,7 +362,10 @@ void UPCGBlueprintSettings::PostLoad()
 		BlueprintElementInstance->ConditionalPostLoad();
 		BlueprintElementInstance->SetFlags(RF_Transactional);
 #if WITH_EDITOR
-		BlueprintElementInstance->bCanBeMultithreaded |= bCanBeMultithreaded_DEPRECATED;
+		if (bCanBeMultithreaded_DEPRECATED)
+		{
+			BlueprintElementInstance->bRequiresGameThread = false;
+		}
 #endif
 	}
 
@@ -943,7 +952,7 @@ bool FPCGExecuteBlueprintElement::CanExecuteOnlyOnMainThread(FPCGContext* Contex
 	const UPCGBlueprintSettings* BPSettings = Context->GetInputSettings<UPCGBlueprintSettings>();
 	if (BPSettings && BPSettings->BlueprintElementInstance)
 	{
-		return !BPSettings->BlueprintElementInstance->bCanBeMultithreaded;
+		return BPSettings->BlueprintElementInstance->bRequiresGameThread;
 	}
 	else
 	{

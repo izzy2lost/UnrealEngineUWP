@@ -162,9 +162,13 @@ public:
 
 	/** Controls whether this node execution can be run from a non-game thread. This is not related to the Loop functions provided/implemented in this class, which should always run on any thread. */
 	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly, Category = Settings)
-	bool bCanBeMultithreaded = false;
+	bool bRequiresGameThread = true;
 
 #if WITH_EDITORONLY_DATA
+	/** This property is deprecated, please use 'Requires Game Thread' instead. */
+	UPROPERTY()
+	bool bCanBeMultithreaded_DEPRECATED = false;
+
 	UPROPERTY(BlueprintGetter=CustomInputLabels, Category = "Settings|Input & Output", meta = (DeprecatedProperty, DeprecatedMessage = "Input Pin Labels are deprecated - use Input Labels instead."))
 	TSet<FName> InputPinLabels_DEPRECATED;
 
