@@ -699,6 +699,8 @@ namespace Chaos
 
 			TArray<FPBDRigidParticleHandle*> ProcessingQueue;
 			ProcessingQueue.Add(Child);
+			ProcessedChildren.Add(Child);
+
 			while (ProcessingQueue.Num())
 			{
 				if (FPBDRigidParticleHandle* ChildToProcess = ProcessingQueue.Pop())
@@ -1169,15 +1171,20 @@ namespace Chaos
 	TSet<FPBDRigidParticleHandle*> FRigidClustering::HandleConnectivityOnReleaseClusterParticle(FPBDRigidClusteredParticleHandle* ClusteredParticle, bool bCreateNewClusters)
 	{
 		SCOPE_CYCLE_COUNTER(HandleConnectivityOnReleaseClusterParticle);
+		if (!ensure(ClusteredParticle))
+		{
+			return {};
+		}
+
 		TSet<FPBDRigidParticleHandle*> ActivatedChildren;
-		TArray<FPBDRigidParticleHandle*>& Children = MChildren[ClusteredParticle];
+		const bool bHasChildren = (ClusteredParticle->ClusterIds().NumChildren > 0);
 
 		// If we're breaking a geometry collection, we'll need to create internal clusters to parent the remaining particles.
 		// However, we do not need to do this if we're currently operating on a cluster union! Its remaining particles should stay
 		// attached to the cluster union because they can handle particles being dynamically added/removed.
 		const FClusterUnion* ParentClusterUnion = ClusterUnionManager.FindClusterUnionFromParticle(ClusteredParticle);
 		const bool bIsClusterUnion = ParentClusterUnion != nullptr;
-		if (Children.Num())
+		if (bHasChildren)
 		{
 			TArray<FParticleIsland> Islands = FindIslandsInChildren(ClusteredParticle, bIsClusterUnion);
 
@@ -1289,8 +1296,8 @@ namespace Chaos
 							{
 								// Need to remove node connections here. Otherwise it may be possible for the cluster union to have erroneous intercluster edges that connect it to another cluster union.
 								RemoveNodeConnections(ChildParticle);
-								RemoveChildFromParent(ChildParticle, ClusteredParticle);
 							}
+							RemoveParticlesFromCluster(ClusteredParticle, ParticlesToRelease);
 							ActivatedChildren.Append(ParticlesToRelease);
 						}
 						IslandIndicesToRemove.Add(IslandIndex);
@@ -1298,7 +1305,7 @@ namespace Chaos
 					else if (Island.Num() == 1 && !AttachedClusterUnion) //need to break single pieces first
 					{
 						FPBDRigidParticleHandle* Child = Island[0];
-						RemoveChildFromParent(Child, ClusteredParticle);
+						RemoveParticlesFromCluster(ClusteredParticle, { Child });
 						ActivatedChildren.Add(Child);
 					}
 
@@ -1312,6 +1319,30 @@ namespace Chaos
 
 				if (bCreateNewClusters)
 				{
+					// Each island is going to be removed from the parent particle. Pre-emptively remove each island from the parent particle's book-keeping.
+					// If we don't do this, the particles will still be stored as children of the particle's previous parents in MChildren.
+					for (const FParticleIsland& Island : Islands)
+					{
+						RemoveParticlesFromCluster(ClusteredParticle, Island);
+
+						if (Island.Num() > 1)
+						{
+							// Need to subsequently disable the particle because they probably
+							// just got re-enabled in RemoveParticlesFromCluster.
+							for (FPBDRigidParticleHandle* Particle : Island)
+							{
+								if (FPBDRigidClusteredParticleHandle* ClusterParticle = Particle->CastToClustered())
+								{
+									DisableCluster(ClusterParticle);
+								}
+								else
+								{
+									MEvolution.DisableParticle(Particle);
+								}
+							}
+						}
+					}
+
 					TArray<FPBDRigidParticleHandle*> NewClusters = CreateClustersFromNewIslands(Islands, ClusteredParticle);
 					ActivatedChildren.Append(MoveTemp(NewClusters));
 				}
@@ -2018,8 +2049,6 @@ namespace Chaos
 	void FRigidClustering::ComputeStrainFromCollision(const FPBDCollisionConstraints& CollisionRule, const FReal Dt)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_ComputeStrainFromCollision);
-		FClusterMap& MParentToChildren = GetChildrenMap();
-
 		const FRealSingle InvDt = (Dt > SMALL_NUMBER) ? (FRealSingle)(1.0 / Dt) : 1.0f;
 
 		ResetCollisionImpulseArray();
@@ -2308,7 +2337,7 @@ namespace Chaos
 
 		// max strain will allow to unconditionally release the children when strain is evaluated
 		constexpr FRealSingle MaxStrain = TNumericLimits<FRealSingle>::Max();
-		if (TArray<FPBDRigidParticleHandle*>* ChildrenHandles = GetChildrenMap().Find(ClusteredParticle))
+		if (const TArray<FPBDRigidParticleHandle*>* ChildrenHandles = GetChildrenMap().Find(ClusteredParticle))
 		{
 			for (FPBDRigidParticleHandle* ChildHandle: *ChildrenHandles)
 			{

@@ -2885,7 +2885,40 @@ void FGeometryCollectionPhysicsProxy::OnRemoveFromScene()
 
 void FGeometryCollectionPhysicsProxy::SyncBeforeDestroy()
 {
+	// THIS HAPPENS ON THE PHYSICS THREAD.
 
+	if (Chaos::FPhysicsSolver* RigidSolver = GetSolver<Chaos::FPhysicsSolver>())
+	{
+		Chaos::FRigidClustering& RigidClustering = RigidSolver->GetEvolution()->GetRigidClustering();
+		Chaos::FClusterUnionManager& ClusterUnionManager = RigidClustering.GetClusterUnionManager();
+		for (Chaos::FPBDRigidClusteredParticleHandle* Handle : GetSolverParticleHandles())
+		{
+			if (Handle)
+			{
+				// If this particle is in an internal cluster that belongs to the geometry collection, the internal cluster needs to be disabled too.
+				if (Chaos::FPBDRigidClusteredParticleHandle* Parent = Handle->Parent())
+				{
+					if (Parent->PhysicsProxy() == this && !Parent->Disabled())
+					{
+						// We should be able to just disabled it - an internal cluster should never be considered in a cluster union.
+						RigidClustering.DisableCluster(Parent);
+					}
+				}
+		
+				// It should be safe to defer here without an immediate call to HandleDeferredClusterUnionUpdateProperties.
+				// This change doesn't really have to go through until FClusterUnionManager::FlushPendingOperations which happens
+				// prior to trying to advance the frame.
+				ClusterUnionManager.HandleRemoveOperationWithClusterLookup( { Handle }, Chaos::EClusterUnionOperationTiming::Defer);
+		
+				// Need to use FRigidClustering::DisableCluster instead of the evolution's to also handle the fact that the GC particle could be in the top level strained sets
+				// which would make it get considered in the breaking model which is undesirable.
+				RigidClustering.DisableCluster(Handle);
+		
+				// This ensures that this particle won't have any intercluster edges on it. This way no connectivity operations will try to add it into a cluster union.
+				RigidClustering.RemoveNodeConnections(Handle);
+			}
+		}
+	}
 }
 
 void FGeometryCollectionPhysicsProxy::BufferGameState() 

@@ -281,8 +281,8 @@ public:
 	*    the keys of the map. The value of the map is a pointer to an array  constrained
 	*    rigid bodies.
 	*/
-	FClusterMap & GetChildrenMap() { return MChildren; }
-	const FClusterMap & GetChildrenMap() const { return MChildren; }
+	FClusterMap& GetChildrenMap() { return MChildren; }
+	const FClusterMap& GetChildrenMap() const { return MChildren; }
 
 	/*
 	*  GetClusterGroupIndexArray
@@ -489,11 +489,12 @@ public:
 	* Handles leveraging the connectivity edges on the children of the clustered particle to produce the desired effects.
 	*/
 	CHAOS_API TSet<FPBDRigidParticleHandle*> HandleConnectivityOnReleaseClusterParticle(FPBDRigidClusteredParticleHandle* ClusteredParticle, bool bCreateNewClusters);
+
+	CHAOS_API void DisableCluster(FPBDRigidClusteredParticleHandle* ClusteredParticle);
  protected:
 
 	CHAOS_API void ComputeStrainFromCollision(const FPBDCollisionConstraints& CollisionRule, const FReal Dt);
 	CHAOS_API void ResetCollisionImpulseArray();
-	CHAOS_API void DisableCluster(FPBDRigidClusteredParticleHandle* ClusteredParticle);
 	CHAOS_API void ApplyStrainModifiers(const TArray<FPBDRigidClusteredParticleHandle*>& StrainedParticles);
 
 	/*
