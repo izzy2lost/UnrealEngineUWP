@@ -24,11 +24,11 @@ struct FLightSceneData
 	// 1 / light's falloff radius from Position.
 	float InvRadius;
 
-	// Color of the light.
-	float4 Color;
-
 	// The exponent for the falloff of the light intensity from the distance.
 	float FalloffExponent;
+
+	// Color of the light.
+	float4 Color;
 
 	// Direction of the light if applies.
 	float3 Direction;
@@ -67,6 +67,8 @@ struct FLightSceneData
 
 	// Extra fields
 	uint LightTypeAndShadowMapChannelMaskPacked;
+
+	float3 Padding;
 };
 
 #ifdef __cplusplus
