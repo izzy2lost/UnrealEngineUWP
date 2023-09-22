@@ -64,6 +64,10 @@
 #define CLOUD_MIN_AND_MAX_DEPTH 0
 #endif
 
+#ifndef PERMUTATION_SUPPORT_LOCAL_FOG_VOLUME
+#define PERMUTATION_SUPPORT_LOCAL_FOG_VOLUME 0
+#endif
+
 // Draw debug sample positions
 #if CLOUD_DEBUG_SAMPLES || EMPTY_SPACE_SKIPPING_DEBUG
 #include "ShaderPrint.ush"
@@ -81,6 +85,10 @@
 #include "ReflectionEnvironmentShared.ush"
 #include "ParticipatingMediaCommon.ush"
 
+#if PERMUTATION_SUPPORT_LOCAL_FOG_VOLUME
+#define LFVStruct RenderVolumetricCloudParameters
+#include "LocalFogVolumes/LocalFogVolumeCommon.ush"
+#endif
 
 #if defined(SHADER_SHADOW_PS) || SHADER_RENDERVIEW_PS || SHADER_RENDERVIEW_CS || SHADER_EMPTY_SPACE_SKIPPING_CS
 
@@ -1451,13 +1459,29 @@ void MainCommon(in FMaterialPixelParameters MaterialParameters, in float4 SvPosi
 	if (RenderVolumetricCloudParameters.EnableHeightFog && tAPWeightsSum > 0.0f)
 	{
 		float4 HeightFogInscatteringAndTransmittance = CalculateHeightFog(FogSampleWorldPositionRelativeToCameraCm);
-		
+
+	#if PERMUTATION_SUPPORT_LOCAL_FOG_VOLUME
+		uint2 TilePos = uint2(SvPosition.xy * RenderVolumetricCloudParameters.TracingCoordToFullResPixelCoordScaleBias.xy - View.ViewRectMin.xy) / LFVTilePixelSize.xx;
+		float4 LFVContribution = GetLFVContribution(PrimaryView, TilePos, FogSampleWorldPositionRelativeToCameraCm);
+		if (LFVRenderInVolumetricFog > 0)
+		{
+			HeightFogInscatteringAndTransmittance = float4(LFVContribution.rgb + HeightFogInscatteringAndTransmittance.rgb * LFVContribution.a, LFVContribution.a * HeightFogInscatteringAndTransmittance.a);
+		}
+	#endif
+
 		if (FogStruct.ApplyVolumetricFog > 0)
 		{
 			float3 VolumeUV = ComputeVolumeUVFromNDC(ClipPos);
 			const uint EyeIndex = 0;
 			HeightFogInscatteringAndTransmittance = CombineVolumetricFog(HeightFogInscatteringAndTransmittance, VolumeUV, EyeIndex, length(FogSampleWorldPositionRelativeToCameraCm));
 		}
+
+	#if PERMUTATION_SUPPORT_LOCAL_FOG_VOLUME
+		if (LFVRenderInVolumetricFog == 0)
+		{
+			HeightFogInscatteringAndTransmittance = float4(LFVContribution.rgb + HeightFogInscatteringAndTransmittance.rgb * LFVContribution.a, LFVContribution.a * HeightFogInscatteringAndTransmittance.a);
+		}
+	#endif
 
 		// Apply aerial perspective OVER the cloud, assiming coverage is from the full transmittance.
 		// skip if MeanTransmittance is 1
@@ -1508,12 +1532,28 @@ void MainCommon(in FMaterialPixelParameters MaterialParameters, in float4 SvPosi
 		{
 			float4 HeightFogInscatteringAndTransmittance = CalculateHeightFog(FogSampleWorldPositionRelativeToCameraCm);
 
+		#if PERMUTATION_SUPPORT_LOCAL_FOG_VOLUME
+			uint2 TilePos = uint2(SvPosition.xy * RenderVolumetricCloudParameters.TracingCoordToFullResPixelCoordScaleBias.xy - View.ViewRectMin.xy) / LFVTilePixelSize.xx;
+			float4 LFVContribution = GetLFVContribution(PrimaryView, TilePos, FogSampleWorldPositionRelativeToCameraCm);
+			if (LFVRenderInVolumetricFog > 0)
+			{
+				HeightFogInscatteringAndTransmittance = float4(LFVContribution.rgb + HeightFogInscatteringAndTransmittance.rgb * LFVContribution.a, LFVContribution.a * HeightFogInscatteringAndTransmittance.a);
+			}
+		#endif
+
 			if (FogStruct.ApplyVolumetricFog > 0)
 			{
 				float3 VolumeUV = ComputeVolumeUVFromNDC(ClipPos);
 				const uint EyeIndex = 0;
 				HeightFogInscatteringAndTransmittance = CombineVolumetricFog(HeightFogInscatteringAndTransmittance, VolumeUV, EyeIndex, length(FogSampleWorldPositionRelativeToCameraCm));
 			}
+
+		#if PERMUTATION_SUPPORT_LOCAL_FOG_VOLUME
+			if (LFVRenderInVolumetricFog == 0)
+			{
+				HeightFogInscatteringAndTransmittance = float4(LFVContribution.rgb + HeightFogInscatteringAndTransmittance.rgb * LFVContribution.a, LFVContribution.a * HeightFogInscatteringAndTransmittance.a);
+			}
+		#endif
 
 			// Apply aerial perspective OVER the cloud, assiming coverage is from the full transmittance.
 			// skip if MeanTransmittance is 1
