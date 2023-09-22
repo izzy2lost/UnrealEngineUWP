@@ -123,6 +123,12 @@ public:
 	 * Call to make before attempting parallel config init
 	 */
 	static CORE_API void EnsureRequiredGlobalPathsHaveBeenInitialized();
+	
+	/** Log out the config full hierarchy of a file, with various overrides to see other projects/platforms/etc hierarchies */
+	static CORE_API void VisualizeHierarchy(FOutputDevice& Ar, const TCHAR* IniName, const TCHAR* OverridePlatform, const TCHAR* OverrideProjectOrProgramDataDir, const TCHAR* OverridePluginDir=nullptr, const TArray<FString>* ChildPluginBaseDirs=nullptr);
+	
+	/** Visualize an existing hierarchy */
+	void CORE_API VisualizeHierarchy(FOutputDevice& Ar, const TCHAR* IniName);
 
 	/**
 	 * Use the context to perform the actual load operation. Note that this is where you specify the Ini name (for instance "Engine"), meaning
@@ -198,7 +204,7 @@ protected:
 	CORE_API bool PrepareForLoad(bool& bPerformLoad);
 	CORE_API bool PerformLoad();
 
-	CORE_API void AddStaticLayersToHierarchy();
+	void AddStaticLayersToHierarchy(TArray<FString>* GatheredLayerFilenames=nullptr, bool bIsForLogging=false);
 	CORE_API bool GenerateDestIniFile();
 	CORE_API FString PerformFinalExpansions(const FString& InString, const FString& Platform);
 };

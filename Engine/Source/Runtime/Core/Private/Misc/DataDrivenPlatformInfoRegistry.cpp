@@ -38,11 +38,11 @@ static const TArray<FString>& GetDataDrivenIniFilenames()
 
 		// manually look through the platform directories - we can't use GetExtensionDirs(), since that function uses the results of this function 
 		TArray<FString> PlatformDirs;
-		IFileManager::Get().FindFiles(PlatformDirs, *FPaths::Combine(FPaths::EnginePlatformExtensionsDir(), TEXT("*")), false, true);
+		IFileManager::Get().FindFiles(PlatformDirs, *FPaths::Combine(FPaths::EngineDir(), TEXT("Platforms"), TEXT("*")), false, true);
 
 		for (const FString& PlatformDir : PlatformDirs)
 		{
-			FString IniPath = FPaths::Combine(FPaths::EnginePlatformExtensionsDir(), PlatformDir, TEXT("Config/DataDrivenPlatformInfo.ini"));
+			FString IniPath = FPaths::Combine(FPaths::EnginePlatformExtensionDir(*PlatformDir), TEXT("Config/DataDrivenPlatformInfo.ini"));
 			if (IFileManager::Get().FileExists(*IniPath))
 			{
 				DataDrivenIniFilenames.Add(IniPath);
@@ -50,11 +50,12 @@ static const TArray<FString>& GetDataDrivenIniFilenames()
 		}
 
 		// look for the special files in any project config subdirectories
+		// @note: this will not work for Programs, the Platforms dir is outside of the ProjectDir in their case
 		TArray<FString> ProjectPlatformDirs;
-		IFileManager::Get().FindFiles(ProjectPlatformDirs, *FPaths::Combine(FPaths::ProjectConfigDir(), TEXT("*")), false, true);
+		IFileManager::Get().FindFiles(ProjectPlatformDirs, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Platforms"), TEXT("*")), false, true);
 		for (const FString& PlatformDir : ProjectPlatformDirs)
 		{
-			FString IniPath = FPaths::Combine(FPaths::ProjectPlatformExtensionsDir(), PlatformDir, TEXT("Config/DataDrivenPlatformInfo.ini"));
+			FString IniPath = FPaths::Combine(FPaths::ProjectPlatformExtensionDir(*PlatformDir), TEXT("Config/DataDrivenPlatformInfo.ini"));
 			if (IFileManager::Get().FileExists(*IniPath))
 			{
 				DataDrivenIniFilenames.Add(IniPath);
@@ -86,11 +87,11 @@ bool FDataDrivenPlatformInfoRegistry::LoadDataDrivenIniFile(int32 Index, FConfig
 		IniFile.ProcessInputFileContents(IniContents, IniFilenames[Index]);
 
 		// platform extension paths are different (engine/platforms/platform/config, not engine/config/platform)
-		if (IniFilenames[Index].StartsWith(FPaths::EnginePlatformExtensionsDir()))
+		if (IniFilenames[Index].StartsWith(FPaths::EnginePlatformExtensionDir(TEXT("")).TrimChar('/')))
 		{
 			PlatformName = FPaths::GetCleanFilename(FPaths::GetPath(FPaths::GetPath(IniFilenames[Index])));
 		}
-		else if (IniFilenames[Index].StartsWith(FPaths::ProjectPlatformExtensionsDir()))
+		else if (IniFilenames[Index].StartsWith(FPaths::ProjectPlatformExtensionDir(TEXT("")).TrimChar('/')))
 		{
 			PlatformName = FPaths::GetCleanFilename(FPaths::GetPath(FPaths::GetPath(IniFilenames[Index])));
 		}

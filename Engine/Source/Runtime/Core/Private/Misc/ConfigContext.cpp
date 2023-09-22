@@ -112,7 +112,8 @@ const FConfigContext::FPerPlatformDirs& FConfigContext::GetPerPlatformDirs(const
 	FConfigContext::FPerPlatformDirs* Dirs = FConfigContext::PerPlatformDirs.Find(PlatformName);
 	if (Dirs == nullptr)
 	{
-		FString PluginExtDir;
+		// default to <skip> so we don't look in non-existant platform extension directories
+		FString PluginExtDir = TEXT("<skip>");
 		if (bIsForPlugin)
 		{
 			// look if there's a plugin extension for this platform, it will have the platform name in the path
@@ -129,9 +130,9 @@ const FConfigContext::FPerPlatformDirs& FConfigContext::GetPerPlatformDirs(const
 		Dirs = &PerPlatformDirs.Emplace(PlatformName, FConfigContext::FPerPlatformDirs
 			{
 				// PlatformExtensionEngineDir
-				FPaths::Combine(*FPaths::EnginePlatformExtensionsDir(), *PlatformName).Replace(*FPaths::EngineDir(), *(EngineRootDir + "/")),
+				FPaths::ConvertPath(EngineRootDir, FPaths::EPathConversion::Engine_PlatformExtension, *PlatformName),
 				// PlatformExtensionProjectDir
-				FPaths::Combine(*FPaths::ProjectPlatformExtensionsDir(), *PlatformName).Replace(*FPaths::ProjectDir(), *(ProjectRootDir + "/")),
+				FPaths::ConvertPath(ProjectRootDir, FPaths::EPathConversion::Project_PlatformExtension, *PlatformName, *ProjectRootDir),
 				// PluginExtensionDir
 				PluginExtDir,
 			});
@@ -484,7 +485,7 @@ FString FConfigContext::PerformFinalExpansions(const FString& InString, const FS
 		OutString = OutString.Replace(TEXT("{OPT_SUBDIR}"), TEXT(""));
 	}
 	
-	if (Platform.Len() > 0)
+	if (InPlatform.Len() > 0)
 	{
 		OutString = OutString.Replace(TEXT("{EXTENGINE}"), *GetPerPlatformDirs(InPlatform).PlatformExtensionEngineDir);
 		OutString = OutString.Replace(TEXT("{EXTPROJECT}"), *GetPerPlatformDirs(InPlatform).PlatformExtensionProjectDir);
@@ -502,7 +503,7 @@ FString FConfigContext::PerformFinalExpansions(const FString& InString, const FS
 
 
 
-void FConfigContext::AddStaticLayersToHierarchy()
+void FConfigContext::AddStaticLayersToHierarchy(TArray<FString>* GatheredLayerFilenames, bool bIsLogging)
 {
 	// remember where this file was loaded from
 	ConfigFile->SourceEngineConfigDir = EngineConfigDir;
@@ -612,9 +613,28 @@ void FConfigContext::AddStaticLayersToHierarchy()
 					{
 						return;
 					}
+					
+					if (PlatformPath.StartsWith(TEXT("<skip>")))
+					{
+						continue;
+					}
 
 					// add this to the list!
-					ConfigFile->SourceIniHierarchy.AddStaticLayer(PlatformPath, LayerIndex, ExpansionIndex, PlatformIndex);
+					if (GatheredLayerFilenames != nullptr)
+					{
+						if (bIsLogging)
+						{
+							GatheredLayerFilenames->Add(FString::Printf(TEXT("%s[Exp-%d]: %s"), Layer.EditorName, ExpansionIndex, *PlatformPath));
+						}
+						else
+						{
+							GatheredLayerFilenames->Add(PlatformPath);
+						}
+					}
+					else
+					{
+						ConfigFile->SourceIniHierarchy.AddStaticLayer(PlatformPath, LayerIndex, ExpansionIndex, PlatformIndex);
+					}
 				}
 			}
 		}
@@ -633,7 +653,21 @@ void FConfigContext::AddStaticLayersToHierarchy()
 			}
 
 			// add with no expansion
-			ConfigFile->SourceIniHierarchy.AddStaticLayer(FinalPath, LayerIndex);
+			if (GatheredLayerFilenames != nullptr)
+			{
+				if (bIsLogging)
+				{
+					GatheredLayerFilenames->Add(FString::Printf(TEXT("%s: %s"), Layer.EditorName, *FinalPath));
+				}
+				else
+				{
+					GatheredLayerFilenames->Add(FinalPath);
+				}
+			}
+			else
+			{
+				ConfigFile->SourceIniHierarchy.AddStaticLayer(FinalPath, LayerIndex);
+			}
 		}
 	}
 }
@@ -944,4 +978,68 @@ int32 FConfigFileHierarchy::AddDynamicLayer(const FString& Filename)
 void FConfigContext::EnsureRequiredGlobalPathsHaveBeenInitialized()
 {
 	PerformBasicReplacements(TEXT(""), TEXT("")); // requests user directories and FConfigCacheIni::GetCustomConfigString
+}
+
+
+void FConfigContext::VisualizeHierarchy(FOutputDevice& Ar, const TCHAR* IniName, const TCHAR* OverridePlatform, const TCHAR* OverrideProjectOrProgramDataDir, const TCHAR* OverridePluginDir, const TArray<FString>* ChildPluginBaseDirs)
+{
+	FConfigFile Test;
+	FConfigContext Context(nullptr, true, OverridePlatform ? FString(OverridePlatform) : FString(), &Test);
+	if (OverridePluginDir != nullptr)
+	{
+		Context.bIsForPlugin = true;
+		Context.PluginRootDir = OverridePluginDir;
+		if (ChildPluginBaseDirs != nullptr)
+		{
+			Context.ChildPluginBaseDirs = *ChildPluginBaseDirs;
+		}
+	}
+	
+	if (OverrideProjectOrProgramDataDir != nullptr)
+	{
+		Context.ProjectConfigDir = FPaths::Combine(OverrideProjectOrProgramDataDir, "Config/");
+	}
+
+	
+	Context.VisualizeHierarchy(Ar, IniName);
+}
+
+void FConfigContext::VisualizeHierarchy(FOutputDevice& Ar, const TCHAR* IniName)
+{
+	Ar.Logf(TEXT("======================================================="));
+
+	ResetBaseIni(IniName);
+	CachePaths();
+	bool _;
+	PrepareForLoad(_);
+
+	Ar.Logf(TEXT("Config hierarchy:"));
+	if (ProjectRootDir.Contains(TEXT("/Programs/")))
+	{
+		Ar.Logf(TEXT("  Program Data Dir: %s"), *ProjectRootDir);
+	}
+	else
+	{
+		Ar.Logf(TEXT("  Project Dir: %s"), *ProjectRootDir);
+	}
+	Ar.Logf(TEXT("  Platform: %s"), *Platform);
+	if (bIsForPlugin)
+	{
+		Ar.Logf(TEXT("  Plugin Root Dir: %s"), *PluginRootDir);
+		for (FString& Child : ChildPluginBaseDirs)
+		{
+			Ar.Logf(TEXT("  Plugin Children Dir: %s"), *Child);
+		}
+	}
+	
+	TArray<FString> FileList;
+	AddStaticLayersToHierarchy(&FileList, true);
+	
+	Ar.Logf(TEXT("  Files:"));
+	for (const FString& File : FileList)
+	{
+		Ar.Logf(TEXT("    %s"), *File);
+	}
+
+	Ar.Logf(TEXT("======================================================="));
 }

@@ -832,7 +832,6 @@ void FPluginManager::ReadAllPlugins(FDiscoveredPluginMap& Plugins, const TSet<FS
 
 			// Get all the standard plugin directories
 			const FString EngineDir = FPaths::EngineDir();
-			const FString PlatformExtensionEngineDir = FPaths::EnginePlatformExtensionsDir();
 			const FString EnterpriseDir = FPaths::EnterpriseDir();
 			const FString ProjectModsDir = FPaths::ProjectModsDir();
 
@@ -843,7 +842,7 @@ void FPluginManager::ReadAllPlugins(FDiscoveredPluginMap& Plugins, const TSet<FS
 				SlowTask_ReadManifestContents.EnterProgressFrame();
 
 				EPluginType Type;
-				if (Entry.File.StartsWith(EngineDir) || Entry.File.StartsWith(PlatformExtensionEngineDir))
+				if (Entry.File.StartsWith(EngineDir))
 				{
 					Type = EPluginType::Engine;
 				}

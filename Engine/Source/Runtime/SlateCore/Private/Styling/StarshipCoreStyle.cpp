@@ -976,10 +976,10 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 			{
 				if (NormalIconPath.StartsWith(TEXT("/Platforms/")))
 				{
-#define PLATFORM_IMAGE_BRUSH( PlatformPath, ... ) FSlateImageBrush( PlatformPath.Replace(TEXT("/Platforms/"), *FPaths::EnginePlatformExtensionsDir()) + TEXT(".png") , __VA_ARGS__ )
-					Style->Set(PlatformInfo.GetIconStyleName(EPlatformIconSize::Normal), new PLATFORM_IMAGE_BRUSH(NormalIconPath, Icon24x24));
-					Style->Set(PlatformInfo.GetIconStyleName(EPlatformIconSize::Large), new PLATFORM_IMAGE_BRUSH(PlatformInfo.GetIconPath(EPlatformIconSize::Large), Icon64x64));
-					Style->Set(PlatformInfo.GetIconStyleName(EPlatformIconSize::XLarge), new PLATFORM_IMAGE_BRUSH(PlatformInfo.GetIconPath(EPlatformIconSize::XLarge), Icon128x128));
+#define PLATFORM_IMAGE_BRUSH( Platform, PlatformPath, ... ) FSlateImageBrush( PlatformPath.Replace(*(FString(TEXT("/Platforms/")) + Platform.ToString() + TEXT("/")), *FPaths::EnginePlatformExtensionDir(*Platform.ToString())) + TEXT(".png") , __VA_ARGS__ )
+					Style->Set(PlatformInfo.GetIconStyleName(EPlatformIconSize::Normal), new PLATFORM_IMAGE_BRUSH(PlatformInfo.IniPlatformName, NormalIconPath, Icon24x24));
+					Style->Set(PlatformInfo.GetIconStyleName(EPlatformIconSize::Large), new PLATFORM_IMAGE_BRUSH(PlatformInfo.IniPlatformName, PlatformInfo.GetIconPath(EPlatformIconSize::Large), Icon64x64));
+					Style->Set(PlatformInfo.GetIconStyleName(EPlatformIconSize::XLarge), new PLATFORM_IMAGE_BRUSH(PlatformInfo.IniPlatformName, PlatformInfo.GetIconPath(EPlatformIconSize::XLarge), Icon128x128));
 				}
 				else
 				{
@@ -997,11 +997,11 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 		{
 			if (!Item.ActiveIconPath.IsEmpty())
 			{
-				Style->Set(Item.ActiveIconName, new PLATFORM_IMAGE_BRUSH(Item.ActiveIconPath, Icon40x40));
+				Style->Set(Item.ActiveIconName, new PLATFORM_IMAGE_BRUSH(Item.PlatformName, Item.ActiveIconPath, Icon40x40));
 			}
 			if (!Item.InactiveIconPath.IsEmpty())
 			{
-				Style->Set(Item.InactiveIconName, new PLATFORM_IMAGE_BRUSH(Item.InactiveIconPath, Icon40x40));
+				Style->Set(Item.InactiveIconName, new PLATFORM_IMAGE_BRUSH(Item.PlatformName, Item.InactiveIconPath, Icon40x40));
 			}
 		}
 #endif

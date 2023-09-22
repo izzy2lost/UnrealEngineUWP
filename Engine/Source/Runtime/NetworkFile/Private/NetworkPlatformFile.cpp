@@ -794,17 +794,19 @@ void FNetworkPlatformFile::FillGetFileList(FNetworkFileArchive& Payload)
 		GameName = FPaths::GetProjectFilePath();
 	}
 
+	FString IniPlatformName = FPlatformProperties::IniPlatformName();
 	FString EngineRelPath = FPaths::EngineDir();
 	FString EngineRelPluginPath = FPaths::EnginePluginsDir();
 	FString GameRelPath = FPaths::ProjectDir();
 	FString GameRelPluginPath = FPaths::ProjectPluginsDir();
-	FString EnginePlatformExtensionsDir = FPaths::EnginePlatformExtensionsDir();
-	FString ProjectPlatformExtensionsDir = FPaths::ProjectPlatformExtensionsDir();
+	FString EnginePlatformExtensionsDir = FPaths::EnginePlatformExtensionDir(*IniPlatformName);
+	FString ProjectPlatformExtensionsDir = FPaths::ProjectPlatformExtensionDir(*IniPlatformName);
 
 	TArray<FString> Directories;
 	Directories.Add(EngineRelPath);
 	Directories.Add(GameRelPath);
 
+	Payload << IniPlatformName;
 	Payload << TargetPlatformNames;
 	Payload << GameName;
 	Payload << EngineRelPath;
@@ -841,14 +843,15 @@ void FNetworkPlatformFile::ProcessServerInitialResponse(FArrayReader& InResponse
 	InResponse << ServerEnginePlatformExtensionsDir;
 	InResponse << ServerProjectPlatformExtensionsDir;
 
+	FString IniPlatformName = FPlatformProperties::IniPlatformName();
 	UE_LOG(LogNetworkPlatformFile, Display, TEXT("    Server EngineDir      = %s"), *ServerEngineDir);
 	UE_LOG(LogNetworkPlatformFile, Display, TEXT("     Local EngineDir      = %s"), *FPaths::EngineDir());
 	UE_LOG(LogNetworkPlatformFile, Display, TEXT("    Server ProjectDir     = %s"), *ServerProjectDir);
 	UE_LOG(LogNetworkPlatformFile, Display, TEXT("     Local ProjectDir     = %s"), *FPaths::ProjectDir());
 	UE_LOG(LogNetworkPlatformFile, Display, TEXT("    Server EnginePlatformExtDir = %s"), *ServerEnginePlatformExtensionsDir);
-	UE_LOG(LogNetworkPlatformFile, Display, TEXT("     Local EnginePlatformExtDir = %s"), *FPaths::EnginePlatformExtensionsDir());
+	UE_LOG(LogNetworkPlatformFile, Display, TEXT("     Local EnginePlatformExtDir = %s"), *FPaths::EnginePlatformExtensionDir(*IniPlatformName));
 	UE_LOG(LogNetworkPlatformFile, Display, TEXT("    Server ProjectPlatformExtDir = %s"), *ServerProjectPlatformExtensionsDir);
-	UE_LOG(LogNetworkPlatformFile, Display, TEXT("     Local ProjectPlatformExtDir = %s"), *FPaths::ProjectPlatformExtensionsDir());
+	UE_LOG(LogNetworkPlatformFile, Display, TEXT("     Local ProjectPlatformExtDir = %s"), *FPaths::ProjectPlatformExtensionDir(*IniPlatformName));
 
 	// Receive a list of files and their timestamps.
 	TMap<FString, FDateTime> ServerFileMap;
@@ -1479,11 +1482,13 @@ void FNetworkPlatformFile::ConvertServerFilenameToClientFilename(FString& Filena
 	}
 	else if (FilenameToConvert.StartsWith(InServerEnginePlatformExtensionsDir))
 	{
-		FilenameToConvert = FilenameToConvert.Replace(*InServerEnginePlatformExtensionsDir, *(FPaths::EnginePlatformExtensionsDir()));
+		FString IniPlatformName(FPlatformProperties::IniPlatformName());
+		FilenameToConvert = FilenameToConvert.Replace(*InServerEnginePlatformExtensionsDir, *(FPaths::EnginePlatformExtensionDir(*IniPlatformName)));
 	}
 	else if (FilenameToConvert.StartsWith(InServerProjectPlatformExtensionsDir))
 	{
-		FilenameToConvert = FilenameToConvert.Replace(*InServerProjectPlatformExtensionsDir, *(FPaths::ProjectPlatformExtensionsDir()));
+		FString IniPlatformName(FPlatformProperties::IniPlatformName());
+		FilenameToConvert = FilenameToConvert.Replace(*InServerProjectPlatformExtensionsDir, *(FPaths::ProjectPlatformExtensionDir(*IniPlatformName)));
 	}
 }
 

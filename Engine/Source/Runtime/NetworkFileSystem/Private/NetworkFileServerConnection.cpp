@@ -91,8 +91,6 @@ FNetworkFileServerClientConnection::FNetworkFileServerClientConnection(const FNe
 
 	LocalEngineDir = FPaths::EngineDir();
 	LocalProjectDir = FPaths::ProjectDir();
-	LocalEnginePlatformExtensionsDir = FPaths::EnginePlatformExtensionsDir();
-	LocalProjectPlatformExtensionsDir = FPaths::ProjectPlatformExtensionsDir();
 
 	if (FPaths::IsProjectFilePathSet())
 	{
@@ -102,8 +100,6 @@ FNetworkFileServerClientConnection::FNetworkFileServerClientConnection(const FNe
 
 	LocalEngineDirAbs = MakeAbsoluteNormalizedDir(LocalEngineDir);
 	LocalProjectDirAbs = MakeAbsoluteNormalizedDir(LocalProjectDir);
-	LocalEnginePlatformExtensionsDirAbs = MakeAbsoluteNormalizedDir(LocalEnginePlatformExtensionsDir);
-	LocalProjectPlatformExtensionsDirAbs = MakeAbsoluteNormalizedDir(LocalEnginePlatformExtensionsDir);
 }
 
 
@@ -157,11 +153,11 @@ void FNetworkFileServerClientConnection::ConvertClientFilenameToServerFilename(F
 		// We do *not* want to replace the directory in that case.
 		return;
 	}
-	if (TrySubstituteDirectory(FilenameToConvert, FPaths::EnginePlatformExtensionsDir(), ConnectedEnginePlatformExtensionsDir))
+	if (TrySubstituteDirectory(FilenameToConvert, FPaths::EnginePlatformExtensionDir(*ConnectedIniPlatformName), ConnectedEnginePlatformExtensionsDir))
 	{
 		return;
 	}
-	if (TrySubstituteDirectory(FilenameToConvert, FPaths::ProjectPlatformExtensionsDir(), ConnectedProjectPlatformExtensionsDir))
+	if (TrySubstituteDirectory(FilenameToConvert, FPaths::ProjectPlatformExtensionDir(*ConnectedIniPlatformName), ConnectedProjectPlatformExtensionsDir))
 	{
 		return;
 	}
@@ -875,6 +871,7 @@ bool FNetworkFileServerClientConnection::ProcessGetFileList( FArchive& In, FArch
 	FString ClientVersionInfo;
 	FString TargetAddress;
 
+	In << ConnectedIniPlatformName;
 	In << TargetPlatformNames;
 	In << GameName;
 	In << EngineRelativePath;
@@ -961,6 +958,12 @@ bool FNetworkFileServerClientConnection::ProcessGetFileList( FArchive& In, FArch
 	ConnectedProjectDir = GameRelativePath;
 	ConnectedEnginePlatformExtensionsDir = EnginePlatformExtensionsRelativePath;
 	ConnectedProjectPlatformExtensionsDir = ProjectPlatformExtensionsRelativePath;
+	
+	// now that we have a connected platform for this connection, we can query the platform extension directory locations
+	LocalEnginePlatformExtensionsDir = FPaths::EnginePlatformExtensionDir(*ConnectedIniPlatformName);
+	LocalProjectPlatformExtensionsDir = FPaths::ProjectPlatformExtensionDir(*ConnectedIniPlatformName);
+	LocalEnginePlatformExtensionsDirAbs = MakeAbsoluteNormalizedDir(LocalEnginePlatformExtensionsDir);
+	LocalProjectPlatformExtensionsDirAbs = MakeAbsoluteNormalizedDir(LocalEnginePlatformExtensionsDir);
 
 	UE_LOG(LogFileServer, Display, TEXT("    Connected EngineDir      = %s"), *ConnectedEngineDir);
 	UE_LOG(LogFileServer, Display, TEXT("        Local EngineDir      = %s"), *LocalEngineDir);

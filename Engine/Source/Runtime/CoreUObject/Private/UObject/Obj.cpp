@@ -3122,7 +3122,7 @@ FString UObject::GetDefaultConfigFilename() const
 	FString OverridePlatform = GetFinalOverridePlatform(this);
 	if (OverridePlatform.Len())
 	{
-		bool bIsPlatformExtension = FPaths::DirectoryExists(FPaths::Combine(FPaths::EnginePlatformExtensionsDir(), OverridePlatform));
+		bool bIsPlatformExtension = FPaths::DirectoryExists(FPaths::EnginePlatformExtensionDir(*OverridePlatform));
 		FString RegularPath = FString::Printf(TEXT("%s%s"), *FPaths::SourceConfigDir(), *OverridePlatform, *OverridePlatform, *GetClass()->ClassConfigName.ToString());
 		FString SelectedPath = RegularPath;
 
@@ -3140,7 +3140,7 @@ FString UObject::GetDefaultConfigFilename() const
 		// if the project already uses platform configs in the regular directory, just use that, otherwise check if this is a platform extensions
 		if (bIsPlatformExtension && !bPlatformConfigExistsInRegular)
 		{
-			SelectedPath = FString::Printf(TEXT("%s%s/Config"), *FPaths::ProjectPlatformExtensionsDir(), *OverridePlatform);
+			SelectedPath = FPaths::Combine(FPaths::ProjectPlatformExtensionDir(*OverridePlatform), TEXT("Config"));
 		}
 
 		return FConfigCacheIni::NormalizeConfigIniPath(FString::Printf(TEXT("%s/%s%s.ini"), *SelectedPath, *OverridePlatform, *GetClass()->ClassConfigName.ToString()));

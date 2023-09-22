@@ -138,7 +138,7 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 	}
 
 	const FString PluginName = FPaths::GetBaseFilename(PluginInstalledStandardFilename);
-	const FString PlatformExtensionDir = FPaths::ProjectPlatformExtensionsDir() / (PlatformName + "/");
+	const FString PlatformExtensionDir = FPaths::ProjectPlatformExtensionDir(*PlatformName);
 	const FString EngineConfigDir = FPaths::EngineConfigDir();
 	const FString PluginConfigDir = FPaths::GetPath(PluginInstalledStandardFilename) / TEXT("Config/");
 	const FString PluginPlatformConfigDir = FPaths::Combine(PluginConfigDir, PlatformName);
