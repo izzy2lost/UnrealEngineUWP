@@ -2,7 +2,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
+using EpicGames.Horde.Api;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Horde.Server.Agents.Telemetry
@@ -44,7 +46,40 @@ namespace Horde.Server.Agents.Telemetry
 
 			List<IUtilizationTelemetry> telemetry = await _telemetryCollection.GetUtilizationTelemetryAsync(startDateOffset.UtcDateTime, endDateOffset.UtcDateTime);
 
-			return telemetry.ConvertAll(telemetry => new UtilizationTelemetryResponse(telemetry));
+			return telemetry.ConvertAll(CreateTelemetryResponse);
+		}
+
+		static UtilizationTelemetryResponse CreateTelemetryResponse(IUtilizationTelemetry telemetry)
+		{
+			UtilizationTelemetryResponse response = new UtilizationTelemetryResponse();
+			response.StartTime = telemetry.StartTime;
+			response.FinishTime = telemetry.FinishTime;
+			response.AdminTime = telemetry.AdminTime;
+			response.HibernatingTime = telemetry.HibernatingTime;
+			response.NumAgents = telemetry.NumAgents;
+
+			response.Pools.AddRange(telemetry.Pools.Select(CreatePoolTelemetryResponse));
+			return response;
+		}
+
+		static UtilizationTelemetryPool CreatePoolTelemetryResponse(IPoolUtilizationTelemetry pool)
+		{
+			UtilizationTelemetryPool response = new UtilizationTelemetryPool();
+			response.PoolId = pool.PoolId.ToString();
+			response.NumAgents = pool.NumAgents;
+			response.AdminTime = pool.AdminTime;
+			response.HibernatingTime = pool.HibernatingTime;
+			response.OtherTime = pool.OtherTime;
+			response.Streams.AddRange(pool.Streams.Select(CreateStreamTelemetryResponse));
+			return response;
+		}
+
+		static UtilizationTelemetryStream CreateStreamTelemetryResponse(IStreamUtilizationTelemetry stream)
+		{
+			UtilizationTelemetryStream response = new UtilizationTelemetryStream();
+			response.StreamId = stream.StreamId.ToString();
+			response.Time = stream.Time;
+			return response;
 		}
 	}
 }

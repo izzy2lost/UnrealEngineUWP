@@ -2,8 +2,6 @@
 
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
 
 #pragma warning disable CA2227 // Collection properties should be read only
 

@@ -29,13 +29,7 @@ namespace EpicGames.Horde
 		readonly HttpClient _httpClient;
 
 		static readonly JsonSerializerOptions s_jsonSerializerOptions = CreateJsonSerializerOptions();
-
 		internal static JsonSerializerOptions JsonSerializerOptions => s_jsonSerializerOptions;
-
-		/// <summary>
-		/// Accessor for the underlying HTTP client
-		/// </summary>
-		public HttpClient HttpClient => _httpClient;
 
 		/// <summary>
 		/// Constructor
@@ -183,6 +177,28 @@ namespace EpicGames.Horde
 		public Task<GetServerInfoResponse> GetServerInfoAsync(CancellationToken cancellationToken = default)
 		{
 			return GetAsync<GetServerInfoResponse>(_httpClient, "api/v1/server/info", cancellationToken);
+		}
+
+		#endregion
+
+		#region Telemetry
+
+		/// <summary>
+		/// Gets telemetry for Horde within a given range
+		/// </summary>
+		/// <param name="endDate">End date for the range</param>
+		/// <param name="range">Number of hours to return</param>
+		/// <param name="tzOffset">Timezone offset</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public Task<List<UtilizationTelemetryResponse>> GetTelemetryAsync(DateTime endDate, int range, int? tzOffset = null, CancellationToken cancellationToken = default)
+		{
+			QueryStringBuilder queryParams = new QueryStringBuilder();
+			queryParams.Add("Range", range.ToString());
+			if (tzOffset != null)
+			{
+				queryParams.Add("TzOffset", tzOffset.Value.ToString());
+			}
+			return GetAsync<List<UtilizationTelemetryResponse>>(_httpClient, $"api/v1/reports/utilization/{endDate}?{queryParams}", cancellationToken);
 		}
 
 		#endregion

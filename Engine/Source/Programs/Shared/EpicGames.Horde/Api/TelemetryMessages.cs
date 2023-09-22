@@ -2,11 +2,11 @@
 
 using System;
 using System.Collections.Generic;
-using EpicGames.Core;
 
-namespace Horde.Server.Agents.Telemetry
+#pragma warning disable CA2227 // Collection properties should be read only
+
+namespace EpicGames.Horde.Api
 {
-
 	/// <summary>
 	/// Represents one stream in one pool in one hour of telemetry
 	/// </summary>
@@ -15,22 +15,12 @@ namespace Horde.Server.Agents.Telemetry
 		/// <summary>
 		/// Stream Id
 		/// </summary>
-		public string StreamId { get; set; }
+		public string StreamId { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Total time
 		/// </summary>
 		public double Time { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="stream">The stream</param>
-		public UtilizationTelemetryStream(IStreamUtilizationTelemetry stream)
-		{
-			StreamId = stream.StreamId.ToString();
-			Time = stream.Time;
-		}
 	}
 
 	/// <summary>
@@ -41,7 +31,7 @@ namespace Horde.Server.Agents.Telemetry
 		/// <summary>
 		/// Pool id
 		/// </summary>
-		public string PoolId { get; set; }
+		public string PoolId { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Number of agents in this pool
@@ -56,7 +46,7 @@ namespace Horde.Server.Agents.Telemetry
 		/// <summary>
 		/// Time spent hibernating
 		/// </summary>
-		public double HibernatingTime { get; }
+		public double HibernatingTime { get; set; }
 
 		/// <summary>
 		/// Total time agents in this pool were doing work for other pools
@@ -66,22 +56,7 @@ namespace Horde.Server.Agents.Telemetry
 		/// <summary>
 		/// List of streams
 		/// </summary>
-		public List<UtilizationTelemetryStream> Streams { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="pool"></param>
-		public UtilizationTelemetryPool(IPoolUtilizationTelemetry pool)
-		{
-			PoolId = pool.PoolId.ToString();
-			NumAgents = pool.NumAgents;
-			AdminTime = pool.AdminTime;
-			HibernatingTime = pool.HibernatingTime;
-			OtherTime = pool.OtherTime;
-
-			Streams = pool.Streams.ConvertAll(stream => new UtilizationTelemetryStream(stream));
-		}
+		public List<UtilizationTelemetryStream> Streams { get; set; } = new List<UtilizationTelemetryStream>();
 	}
 
 	/// <summary>
@@ -102,7 +77,7 @@ namespace Horde.Server.Agents.Telemetry
 		/// <summary>
 		/// List of pools
 		/// </summary>
-		public List<UtilizationTelemetryPool> Pools { get; set; }
+		public List<UtilizationTelemetryPool> Pools { get; set; } = new List<UtilizationTelemetryPool>();
 
 		/// <summary>
 		/// Total admin time
@@ -118,19 +93,5 @@ namespace Horde.Server.Agents.Telemetry
 		/// Total agents
 		/// </summary>
 		public int NumAgents { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public UtilizationTelemetryResponse(IUtilizationTelemetry telemetry)
-		{
-			StartTime = telemetry.StartTime;
-			FinishTime = telemetry.FinishTime;
-			AdminTime = telemetry.AdminTime;
-			HibernatingTime = telemetry.HibernatingTime;
-			NumAgents = telemetry.NumAgents;
-
-			Pools = telemetry.Pools.ConvertAll(pool => new UtilizationTelemetryPool(pool));
-		}
 	}
 }
