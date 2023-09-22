@@ -3,7 +3,6 @@
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Api;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

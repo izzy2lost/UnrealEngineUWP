@@ -115,6 +115,39 @@ namespace EpicGames.Horde
 
 		#endregion
 
+		#region Dashboard
+
+		/// <summary>
+		/// Create a new dashboard preview item
+		/// </summary>
+		/// <param name="request">Request to create a new preview item</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Config information needed by the dashboard</returns>
+		public Task<GetDashboardPreviewResponse> CreateDashbordPreviewAsync(CreateDashboardPreviewRequest request, CancellationToken cancellationToken = default)
+		{
+			return PostAsync<GetDashboardPreviewResponse, CreateDashboardPreviewRequest>(_httpClient, $"api/v1/dashboard/preview", request, cancellationToken); 
+		}
+
+		/// <summary>
+		/// Update a dashboard preview item
+		/// </summary>
+		/// <returns>Config information needed by the dashboard</returns>
+		public Task<GetDashboardPreviewResponse> UpdateDashbordPreviewAsync(UpdateDashboardPreviewRequest request, CancellationToken cancellationToken = default)
+		{
+			return PutAsync<GetDashboardPreviewResponse, UpdateDashboardPreviewRequest>(_httpClient, $"api/v1/dashboard/preview", request, cancellationToken);
+		}
+
+		/// <summary>
+		/// Query dashboard preview items
+		/// </summary>
+		/// <returns>Config information needed by the dashboard</returns>
+		public Task<List<GetDashboardPreviewResponse>> GetDashbordPreviewsAsync(bool open = true, CancellationToken cancellationToken = default)
+		{
+			return GetAsync<List<GetDashboardPreviewResponse>>(_httpClient, $"api/v1/dashboard/preview?open={open}", cancellationToken);
+		}
+
+		#endregion
+
 		#region Projects
 
 		/// <summary>

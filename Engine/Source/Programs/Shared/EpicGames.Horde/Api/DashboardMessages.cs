@@ -2,7 +2,7 @@
 
 using System;
 
-namespace Horde.Server.Dashboard
+namespace EpicGames.Horde.Api
 {
 	/// <summary>
 	/// Setting information required by dashboard
@@ -48,7 +48,7 @@ namespace Horde.Server.Dashboard
 		/// <summary>
 		/// A summary of what the preview item changes
 		/// </summary>
-		public string Summary { get; set; }
+		public string Summary { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The CL the preview was deployed in
@@ -69,14 +69,6 @@ namespace Horde.Server.Dashboard
 		/// Optional Link for discussing the preview item
 		/// </summary>
 		public string? TrackingLink { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public CreateDashboardPreviewRequest()
-		{
-			Summary = String.Empty;
-		}
 	}
 
 	/// <summary>
@@ -118,14 +110,6 @@ namespace Horde.Server.Dashboard
 		/// Optional Link for discussing the preview item
 		/// </summary>
 		public string? TrackingLink { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public UpdateDashboardPreviewRequest()
-		{
-			Id = 0;
-		}
 	}
 
 	/// <summary>
@@ -146,7 +130,7 @@ namespace Horde.Server.Dashboard
 		/// <summary>
 		/// A summary of what the preview item changes
 		/// </summary>
-		public string Summary { get; set; }
+		public string Summary { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The CL the preview was deployed in
@@ -172,21 +156,5 @@ namespace Horde.Server.Dashboard
 		/// Optional Link for discussing the preview item
 		/// </summary>
 		public string? TrackingLink { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="preview"></param>
-		public GetDashboardPreviewResponse(IDashboardPreview preview)
-		{
-			Id = preview.Id;
-			CreatedAt = preview.CreatedAt;
-			Summary = preview.Summary;	
-			DeployedCL= preview.DeployedCL;
-			Open = preview.Open;
-			ExampleLink = preview.ExampleLink;
-			DiscussionLink = preview.DiscussionLink;
-			TrackingLink = preview.TrackingLink;
-		}
 	}
 }

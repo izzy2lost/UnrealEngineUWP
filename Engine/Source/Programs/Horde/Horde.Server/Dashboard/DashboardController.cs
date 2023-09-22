@@ -12,6 +12,7 @@ using Horde.Server.Server;
 using System.Collections.Generic;
 using System.Linq;
 using Horde.Server.Acls;
+using EpicGames.Horde.Api;
 
 namespace Horde.Server.Dashboard
 {
@@ -168,10 +169,10 @@ namespace Horde.Server.Dashboard
 					return NotFound(preview.Id);
 				}
 
-				return new GetDashboardPreviewResponse(updated);
+				return CreatePreviewResponse(updated);
 			}
 
-			return new GetDashboardPreviewResponse(preview);
+			return CreatePreviewResponse(preview);
 		}
 
 		/// <summary>
@@ -195,7 +196,7 @@ namespace Horde.Server.Dashboard
 				return NotFound(request.Id);
 			}			
 
-			return new GetDashboardPreviewResponse(preview);
+			return CreatePreviewResponse(preview);
 		}
 
 		/// <summary>
@@ -208,7 +209,21 @@ namespace Horde.Server.Dashboard
 		public async Task<ActionResult<List<GetDashboardPreviewResponse>>> GetDashbordPreviewsAsync([FromQuery] bool open = true)
 		{			
 			List <IDashboardPreview> previews = await _previewCollection.FindPreviewsAsync(open);			
-			return previews.Select(p => new GetDashboardPreviewResponse(p)).ToList();
+			return previews.Select(CreatePreviewResponse).ToList();
+		}
+
+		static GetDashboardPreviewResponse CreatePreviewResponse(IDashboardPreview preview)
+		{
+			GetDashboardPreviewResponse response = new GetDashboardPreviewResponse();
+			response.Id = preview.Id;
+			response.CreatedAt = preview.CreatedAt;
+			response.Summary = preview.Summary;
+			response.DeployedCL = preview.DeployedCL;
+			response.Open = preview.Open;
+			response.ExampleLink = preview.ExampleLink;
+			response.DiscussionLink = preview.DiscussionLink;
+			response.TrackingLink = preview.TrackingLink;
+			return response;
 		}
 	}
 }
