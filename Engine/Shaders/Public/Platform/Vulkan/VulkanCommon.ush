@@ -52,9 +52,9 @@ void ImageInterlockedMaxUInt64(RWTexture2D<UlongType> Dest, uint2 Coord, UlongTy
 
 	#define UB_RESOURCE_MEMBER_SAMPLER(Type, UBName, Name) \
 		typedef Type SafeType##UBName##_##Name; \
-		SafeType##UBName##_##Name VULKAN_RESOURCE_HEAP(SafeType##UBName##_##Name)[]; \
+		SafeType##UBName##_##Name VULKAN_SAMPLER_HEAP(SafeType##UBName##_##Name)[]; \
 		Type GetBindlessSampler##UBName##_##Name() { \
-			return VULKAN_RESOURCE_HEAP(SafeType##UBName##_##Name)[UB_CB_MEMBER_ACCESS(UBName, BindlessSampler_##Name)]; \
+			return VULKAN_SAMPLER_HEAP(SafeType##UBName##_##Name)[UB_CB_MEMBER_ACCESS(UBName, BindlessSampler_##Name)]; \
 		} \
 		static const Type UBName##_##Name = GetBindlessSampler##UBName##_##Name();
 #endif
@@ -88,9 +88,7 @@ void ImageInterlockedMaxUInt64(RWTexture2D<UlongType> Dest, uint2 Coord, UlongTy
 
 	static const FHitGroupSystemRootConstants HitGroupSystemRootConstants = VulkanHitGroupSystemParameters.RootConstants;
 
-	static const uint BindlessResource_HitGroupSystemIndexBuffer = VulkanHitGroupSystemParameters.BindlessHitGroupSystemIndexBuffer;
-	UB_RESOURCE_MEMBER_RESOURCE(ByteAddressBuffer, HitGroupSystemIndexBuffer);
-	
-	static const uint BindlessResource_HitGroupSystemVertexBuffer = VulkanHitGroupSystemParameters.BindlessHitGroupSystemVertexBuffer;
-	UB_RESOURCE_MEMBER_RESOURCE(ByteAddressBuffer, HitGroupSystemVertexBuffer);
+	ByteAddressBuffer VULKAN_RESOURCE_HEAP(HitGroupSystemBuffers)[];
+	static const ByteAddressBuffer HitGroupSystemIndexBuffer = VULKAN_RESOURCE_HEAP(HitGroupSystemBuffers)[VulkanHitGroupSystemParameters.BindlessHitGroupSystemIndexBuffer];
+	static const ByteAddressBuffer HitGroupSystemVertexBuffer = VULKAN_RESOURCE_HEAP(HitGroupSystemBuffers)[VulkanHitGroupSystemParameters.BindlessHitGroupSystemVertexBuffer];
 #endif

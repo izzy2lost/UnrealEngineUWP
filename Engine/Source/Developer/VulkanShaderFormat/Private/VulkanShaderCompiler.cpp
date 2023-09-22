@@ -2287,6 +2287,7 @@ static TArray<FString> ConvertUBToBindless(FString& PreprocessedShaderSource)
 		const FString PrefixedCBName = FString::Printf(TEXT("%s%d_%s"), *kBindlessCBPrefix, CBIndex, *CBName);
 		const FString BindlessCBType = PrefixedCBName + TEXT("_Type");
 		const FString BindlessCBHeapName = PrefixedCBName + kBindlessHeapSuffix;
+		const FString PaddingName = FString::Printf(TEXT("%s_Padding"), *CBName);
 
 		FString CBDecl;
 		CBDecl.Reserve(Members.Len() * 3);  // start somewhere approx less bad
@@ -2319,28 +2320,40 @@ static TArray<FString> ConvertUBToBindless(FString& PreprocessedShaderSource)
 			MemberSearchPtr = ParseHLSLSymbolName(MemberTypeEndPtr, MemberName);
 			check(MemberName.Len() > 0);
 
-			// Skip over trailing tokens and pick up arrays
-			FString ArrayDecl;
-			while (*MemberSearchPtr && *MemberSearchPtr != ';')
+			if (MemberName.StartsWith(PaddingName))
 			{
-				if (*MemberSearchPtr == '[')
+				while (*MemberSearchPtr && *MemberSearchPtr != ';')
 				{
-					ArrayDecl.AppendChar(*MemberSearchPtr);
-
 					MemberSearchPtr++;
-					while (*MemberSearchPtr && *MemberSearchPtr != ']')
+				}
+			}
+			else
+			{
+				// Skip over trailing tokens and pick up arrays
+				FString ArrayDecl;
+				while (*MemberSearchPtr && *MemberSearchPtr != ';')
+				{
+					if (*MemberSearchPtr == '[')
 					{
 						ArrayDecl.AppendChar(*MemberSearchPtr);
+
 						MemberSearchPtr++;
+						while (*MemberSearchPtr && *MemberSearchPtr != ']')
+						{
+							ArrayDecl.AppendChar(*MemberSearchPtr);
+							MemberSearchPtr++;
+						}
+
+						ArrayDecl.AppendChar(*MemberSearchPtr);
 					}
 
-					ArrayDecl.AppendChar(*MemberSearchPtr);
+					MemberSearchPtr++;
 				}
 
-				MemberSearchPtr++;
+				CBDecl += FString::Printf(TEXT("static const %s %s%s = %s.%s;\n"), *MemberTypeName, *MemberName, *ArrayDecl, *PrefixedCBName, *MemberName);
 			}
 
-			CBDecl += FString::Printf(TEXT("static const %s %s%s = %s.%s;\n"), *MemberTypeName, *MemberName, *ArrayDecl, *PrefixedCBName, *MemberName);
+			MemberSearchPtr++;
 
 		} while (MemberSearchPtr < LastMemberSemicolon);
 
