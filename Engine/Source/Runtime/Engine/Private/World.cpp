@@ -593,7 +593,6 @@ UWorld::UWorld( const FObjectInitializer& ObjectInitializer )
 , bDebugFrameStepExecutedThisFrame(false)
 , bToggledBetweenPIEandSIEThisFrame(false)
 , bPurgedScene(false)
-, bUsedByCookSplitter(false)
 #endif
 , bShouldTick(true)
 , bHasEverBeenInitialized(false)
@@ -5311,10 +5310,6 @@ bool UWorld::IsNavigationRebuilt() const
 
 void UWorld::CleanupWorld(bool bSessionEnded, bool bCleanupResources, UWorld* NewWorld)
 {
-#if WITH_EDITOR
-	check(!bUsedByCookSplitter);
-#endif
-
     CleanupWorldGlobalTag++;
 	if (!bIsWorldInitialized)
 	{

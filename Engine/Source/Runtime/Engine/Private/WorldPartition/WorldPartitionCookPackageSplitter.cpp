@@ -6,6 +6,7 @@
 
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Engine/Level.h"
+#include "Engine/World.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
@@ -31,33 +32,30 @@ FWorldPartitionCookPackageSplitter::~FWorldPartitionCookPackageSplitter()
 
 void FWorldPartitionCookPackageSplitter::Teardown(ETeardown Status)
 {
-	UE_LOG(LogWorldPartition, Log, TEXT("[Cook] Debug(TearDown): OwnerObject=%s bInitializedWorldPartition=%d bForceInitializedWorld=%d bInitializedPhysicsSceneForSave=%d"), *GetFullNameSafe(ReferencedWorld), bInitializedWorldPartition ? 1 : 0, bForceInitializedWorld ? 1 : 0, bInitializedPhysicsSceneForSave ? 1 : 0);
+	UE_LOG(LogWorldPartition, Log, TEXT("[Cook] Debug(TearDown): OwnerObject=%s bForceInitializedWorld=%d bInitializedPhysicsSceneForSave=%d"), *GetFullNameSafe(ReferencedWorld),  bForceInitializedWorld ? 1 : 0, bInitializedPhysicsSceneForSave ? 1 : 0);
 
-	if (UWorld* LocalWorld = ReferencedWorld.Get())
-	{
-		check(LocalWorld->bUsedByCookSplitter);
-		LocalWorld->bUsedByCookSplitter = false;
+	FWorldDelegates::OnWorldCleanup.RemoveAll(this);
 
-		if (bInitializedWorldPartition)
-		{
-			if (UWorldPartition* WorldPartition = LocalWorld->PersistentLevel->GetWorldPartition())
-			{
-				WorldPartition->EndCook(CookContext);
-				WorldPartition->Uninitialize();
-			}
-		}
-	}
+	// Assume that the world is partitioned as per FWorldPartitionCookPackageSplitter::ShouldSplit
+	UWorldPartition* WorldPartition = ReferencedWorld->PersistentLevel->GetWorldPartition();
+	check(WorldPartition);
 
-	bInitializedWorldPartition = false;
+	WorldPartition->EndCook(CookContext);
+	WorldPartition->Uninitialize();
 
 	if (bInitializedPhysicsSceneForSave)
 	{
-		GEditor->CleanupPhysicsSceneThatWasInitializedForSave(ReferencedWorld.Get(), bForceInitializedWorld);
+		GEditor->CleanupPhysicsSceneThatWasInitializedForSave(ReferencedWorld, bForceInitializedWorld);
 		bInitializedPhysicsSceneForSave = false;
 		bForceInitializedWorld = false;
 	}
 
 	ReferencedWorld = nullptr;
+}
+
+void FWorldPartitionCookPackageSplitter::OnWorldCleanup(UWorld* InWorld, bool bSessionEnded, bool bCleanupResources)
+{
+	check(InWorld != ReferencedWorld);
 }
 
 void FWorldPartitionCookPackageSplitter::AddReferencedObjects(FReferenceCollector& Collector)
@@ -70,44 +68,25 @@ FString FWorldPartitionCookPackageSplitter::GetReferencerName() const
 	return TEXT("FWorldPartitionCookPackageSplitter");
 }
 
-UWorld* FWorldPartitionCookPackageSplitter::ValidateDataObject(UObject* SplitData)
-{
-	UWorld* PartitionedWorld = CastChecked<UWorld>(SplitData);
-	check(PartitionedWorld);
-	check(PartitionedWorld->PersistentLevel);
-	check(PartitionedWorld->IsPartitionedWorld());
-	return PartitionedWorld;
-}
-
-const UWorld* FWorldPartitionCookPackageSplitter::ValidateDataObject(const UObject* SplitData)
-{
-	return ValidateDataObject(const_cast<UObject*>(SplitData));
-}
-
 TArray<ICookPackageSplitter::FGeneratedPackage> FWorldPartitionCookPackageSplitter::GetGenerateList(const UPackage* OwnerPackage, const UObject* OwnerObject)
 {
-	// TODO: Make WorldPartition functions const so we can honor the constness of the OwnerObject in this API function
-	const UWorld* ConstPartitionedWorld = ValidateDataObject(OwnerObject);
-	UWorld* PartitionedWorld = const_cast<UWorld*>(ConstPartitionedWorld);
+	UE_LOG(LogWorldPartition, Display, TEXT("[Cook] Gathering packages to cook from generators for owner object %s."), *GetFullNameSafe(OwnerObject));
 
 	// Store the World pointer to declare it to GarbageCollection; we do not want to allow the World to be Garbage Collected
 	// until we have finished all of our PreSaveGeneratedPackage calls, because we store information on the World 
 	// that is necessary for populate 
-	ReferencedWorld = PartitionedWorld;
-
-	check(!PartitionedWorld->bUsedByCookSplitter);
-	PartitionedWorld->bUsedByCookSplitter = true;
+	ReferencedWorld = const_cast<UWorld*>(CastChecked<const UWorld>(OwnerObject));
 
 	check(!bInitializedPhysicsSceneForSave && !bForceInitializedWorld);
-	bInitializedPhysicsSceneForSave = GEditor->InitializePhysicsSceneForSaveIfNecessary(PartitionedWorld, bForceInitializedWorld);
+	bInitializedPhysicsSceneForSave = GEditor->InitializePhysicsSceneForSaveIfNecessary(ReferencedWorld, bForceInitializedWorld);
 
-	// Manually initialize WorldPartition
-	UWorldPartition* WorldPartition = PartitionedWorld->PersistentLevel->GetWorldPartition();
+	// Assume that the world is partitioned as per FWorldPartitionCookPackageSplitter::ShouldSplit
+	UWorldPartition* WorldPartition = ReferencedWorld->PersistentLevel->GetWorldPartition();
+	check(WorldPartition);
+
 	// We expect the WorldPartition has not yet been initialized
 	ensure(!WorldPartition->IsInitialized());
-	WorldPartition->Initialize(PartitionedWorld, FTransform::Identity);
-	bInitializedWorldPartition = true;
-
+	WorldPartition->Initialize(ReferencedWorld, FTransform::Identity);
 	WorldPartition->BeginCook(CookContext);
 
 	bool bIsSuccess = CookContext.GatherPackagesToCook();
@@ -119,7 +98,9 @@ TArray<ICookPackageSplitter::FGeneratedPackage> FWorldPartitionCookPackageSplitt
 	BuildPackagesToGenerateList(PackagesToGenerate);
 
 	UE_LOG(LogWorldPartition, Log, TEXT("[Cook] Sending %u packages to be generated."), PackagesToGenerate.Num());
-	UE_LOG(LogWorldPartition, Log, TEXT("[Cook] Debug(GetGenerateList) : OwnerObject=%s bInitializedWorldPartition=%d bForceInitializedWorld=%d bInitializedPhysicsSceneForSave=%d"), *GetFullNameSafe(OwnerObject), bInitializedWorldPartition ? 1 : 0, bForceInitializedWorld ? 1 : 0, bInitializedPhysicsSceneForSave ? 1 : 0);
+	UE_LOG(LogWorldPartition, Log, TEXT("[Cook] Debug(GetGenerateList) : OwnerObject=%s bForceInitializedWorld=%d bInitializedPhysicsSceneForSave=%d"), *GetFullNameSafe(OwnerObject), bForceInitializedWorld ? 1 : 0, bInitializedPhysicsSceneForSave ? 1 : 0);
+
+	FWorldDelegates::OnWorldCleanup.AddRaw(this, &FWorldPartitionCookPackageSplitter::OnWorldCleanup);
 
 	return PackagesToGenerate;
 }
