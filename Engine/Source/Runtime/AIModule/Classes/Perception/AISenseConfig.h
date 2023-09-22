@@ -43,8 +43,15 @@ public:
 	AIMODULE_API FString GetSenseName() const;
 	FColor GetDebugColor() const { return DebugColor; }
 	void SetMaxAge(const float NewMaxAge) { MaxAge = NewMaxAge; }
-	float GetMaxAge() const { return MaxAge == 0.f ? FAIStimulus::NeverHappenedAge : MaxAge; }	
+	float GetMaxAge() const { return MaxAge == 0.f ? FAIStimulus::NeverHappenedAge : MaxAge; }
+	
+	UE_DEPRECATED(5.4, "Use GetStartsEnabled instead")
 	bool IsEnabled() const { return bStartsEnabled; }
+
+	bool GetStartsEnabled() const { return bStartsEnabled; }
+
+	/** Changes whether the given sense starts off enabled. Note that calling the function after given sense config has already been registered won't have any effect */
+	void SetStartsEnabled(bool bEnabled) { bStartsEnabled = bEnabled; }
 
 #if WITH_GAMEPLAY_DEBUGGER_MENU
 	AIMODULE_API virtual void DescribeSelfToGameplayDebugger(const UAIPerceptionComponent* PerceptionComponent, FGameplayDebuggerCategory* DebuggerCategory) const;

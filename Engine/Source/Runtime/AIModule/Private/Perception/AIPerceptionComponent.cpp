@@ -45,6 +45,7 @@ FActorPerceptionBlueprintInfo::FActorPerceptionBlueprintInfo(const FActorPercept
 	Target = Info.Target.Get();
 	LastSensedStimuli = Info.LastSensedStimuli;
 	bIsHostile = Info.bIsHostile;
+	bIsFriendly = Info.bIsFriendly;
 }
 
 //----------------------------------------------------------------------//
@@ -524,6 +525,7 @@ void UAIPerceptionComponent::ProcessStimuli()
 				PerceptualInfo->DominantSense = DominantSenseID;
 
 				PerceptualInfo->bIsHostile = (FGenericTeamId::GetAttitude(GetOwner(), SourceActor) == ETeamAttitude::Hostile);
+				PerceptualInfo->bIsFriendly = PerceptualInfo->bIsHostile ? false : (FGenericTeamId::GetAttitude(GetOwner(), SourceActor) == ETeamAttitude::Friendly);
 			}
 		}
 
@@ -836,6 +838,17 @@ void UAIPerceptionComponent::SetSenseEnabled(TSubclassOf<UAISense> SenseClass, c
 	{
 		UpdatePerceptionAllowList(SenseID, bEnable);
 	}
+}
+
+bool UAIPerceptionComponent::IsSenseEnabled(TSubclassOf<UAISense> SenseClass) const
+{
+	const FAISenseID SenseID = UAISense::GetSenseID(SenseClass);
+	if (!SenseID.IsValid() || GetSenseConfig(SenseID) == nullptr)
+	{
+		return false;
+	}
+
+	return PerceptionFilter.ShouldRespondToChannel(SenseID);
 }
 
 //----------------------------------------------------------------------//

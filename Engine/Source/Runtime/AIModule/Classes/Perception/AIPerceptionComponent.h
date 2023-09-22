@@ -59,8 +59,11 @@ struct FActorPerceptionInfo
 	/** indicates whether this Actor is hostile to perception holder */
 	uint32 bIsHostile : 1;
 
+	/** indicates whether this Actor is hostile to perception holder */
+	uint32 bIsFriendly : 1;
+
 	explicit FActorPerceptionInfo(AActor* InTarget = nullptr)
-		: Target(InTarget), DominantSense(FAISenseID::InvalidID()), bIsHostile(false)
+		: Target(InTarget), DominantSense(FAISenseID::InvalidID()), bIsHostile(false), bIsFriendly(false)
 	{
 		LastSensedStimuli.AddDefaulted(FAISenseID::GetSize());
 	}
@@ -189,7 +192,10 @@ struct FActorPerceptionBlueprintInfo
 	UPROPERTY(BlueprintReadWrite, Category = "AI|Perception")
 	uint32 bIsHostile : 1;
 
-	FActorPerceptionBlueprintInfo() : Target(nullptr), bIsHostile(false)
+	UPROPERTY(BlueprintReadWrite, Category = "AI|Perception")
+	uint32 bIsFriendly : 1;
+
+	FActorPerceptionBlueprintInfo() : Target(nullptr), bIsHostile(false), bIsFriendly(false)
 	{}
 	FActorPerceptionBlueprintInfo(const FActorPerceptionInfo& Info);
 };
@@ -377,6 +383,9 @@ public:
 	 *	this component instance */
 	UFUNCTION(BlueprintCallable, Category = "AI|Perception")
 	AIMODULE_API void SetSenseEnabled(TSubclassOf<UAISense> SenseClass, const bool bEnable);
+
+	UFUNCTION(BlueprintCallable, Category = "AI|Perception")
+	AIMODULE_API bool IsSenseEnabled(TSubclassOf<UAISense> SenseClass) const;
 
 	//////////////////////////////////////////////////////////////////////////
 	// Might want to move these to special "BP_AIPerceptionComponent"
