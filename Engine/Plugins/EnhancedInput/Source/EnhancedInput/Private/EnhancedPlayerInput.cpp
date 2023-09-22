@@ -40,7 +40,10 @@ UEnhancedPlayerInput::UEnhancedPlayerInput()
 		{
 			if (const UInputMappingContext* IMC = DefaultContext.InputMappingContext.LoadSynchronous())
 			{
-				AppliedInputContexts.Add(IMC, DefaultContext.Priority);
+				if (DefaultContext.bAddImmediately)
+				{
+					AppliedInputContexts.Add(IMC, DefaultContext.Priority);	
+				}
 			}
 		}
 	}
