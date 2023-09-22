@@ -593,8 +593,6 @@ void FVariableRateShadingImageManager::DrawDebugPreview(FRDGBuilder& GraphBuilde
 			const FScreenPassTextureViewport InputViewport = FScreenPassTextureViewport(PreviewTexture, ScaledSrcRect);
 			const FScreenPassTextureViewport OutputViewport(OutputSceneColor, DestViewRect);
 
-			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Preview for frame %d\n"), ViewFamily.FrameNumber);
-
 			AddDrawScreenPass(
 				GraphBuilder,
 				RDG_EVENT_NAME("Display VRS Debug Preview"),
@@ -663,8 +661,6 @@ FRDGTextureRef FVariableRateShadingImageManager::CombineShadingRateImages(FRDGBu
 		PassParameters->RWOutputTexture = GraphBuilder.CreateUAV(CombinedShadingRateTexture);
 
 		TShaderMapRef<FCombineShadingRateTexturesCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
-
-		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Combiner for frame %d\n"), ViewInfo.Family->FrameNumber);
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
