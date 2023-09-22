@@ -147,7 +147,7 @@ enum EMaterialDecalResponse : int
 UENUM()
 enum EMaterialTranslucencyPass : int
 {
-	/** Render after depth of field. */
+	/** Render before depth of field. */
 	MTP_BeforeDOF UMETA(DisplayName="Before DOF"),
 	/** Render after depth of field. */
 	MTP_AfterDOF UMETA(DisplayName="After DOF"),
