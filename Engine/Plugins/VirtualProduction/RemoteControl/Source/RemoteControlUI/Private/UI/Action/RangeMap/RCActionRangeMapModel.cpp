@@ -22,7 +22,7 @@
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 
-#define LOCTEXT_NAMESPACE "RCActionModel"
+#define LOCTEXT_NAMESPACE "RCActionRangeMapModel"
 
 namespace UE::RCActionPanelRangeMapList
 {

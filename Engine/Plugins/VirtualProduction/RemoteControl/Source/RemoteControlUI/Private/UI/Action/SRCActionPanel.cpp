@@ -238,8 +238,8 @@ TSharedRef<SWidget> SRCActionPanel::GetActionMenuContentWidget()
 			// Create property identity entry
 			FUIAction PropertyIdAction(FExecuteAction::CreateSP(this, &SRCActionPanel::OnAddActionClicked));
 			MenuBuilder.AddMenuEntry(
-				LOCTEXT("AddAction", "Add PropertyId (Property)"),
-				LOCTEXT("AddActionTooltip", "Adds an PropertyId action of type property."),
+				LOCTEXT("AddPropertyIdAction", "Add PropertyId (Property)"),
+				LOCTEXT("AddPropertyIdAction_Tooltip", "Add a PropertyId action."),
 				FSlateIcon(),
 				MoveTemp(PropertyIdAction));
 

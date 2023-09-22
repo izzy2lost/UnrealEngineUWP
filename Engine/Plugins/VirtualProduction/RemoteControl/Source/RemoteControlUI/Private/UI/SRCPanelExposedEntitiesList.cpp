@@ -271,7 +271,7 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 			.ShouldGenerateSubMenuEntry(false)
 
 			+ SRCHeaderRow::Column(RemoteControlPresetColumns::PropertyIdentifier)
-			.DefaultLabel(LOCTEXT("RCPresetLinkIdColumnHeader", "Property ID"))
+			.DefaultLabel(LOCTEXT("RCPresetPropertyIdColumnHeader", "Property ID"))
 			.HAlignHeader(HAlign_Center)
 			.FillWidth(0.1f)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
@@ -1539,7 +1539,7 @@ FText SRCPanelExposedEntitiesList::GetColumnLabel(const FName& ForColumn) const
 	}
 	else if (ForColumn == RemoteControlPresetColumns::PropertyIdentifier)
 	{
-		return LOCTEXT("RCPresetLinkIDColumnHeader", "Property ID");
+		return LOCTEXT("RCPresetPropertyIdColumnHeader_Label", "Property ID");
 	}
 	else if (ForColumn == RemoteControlPresetColumns::Mask)
 	{
