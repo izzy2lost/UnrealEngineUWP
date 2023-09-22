@@ -404,7 +404,7 @@ void UPrimitiveComponent::WakeRigidBody(FName BoneName)
 	}
 	else if (Chaos::FPhysicsObject* Object = GetPhysicsObjectByName(BoneName))
 	{
-		FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite({&Object, 1});
+		FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite({ &Object, 1 });
 		Interface->WakeUp({ &Object, 1 });
 	}
 }
@@ -442,6 +442,12 @@ void UPrimitiveComponent::SetLinearDamping(float InDamping)
 		BI->LinearDamping = InDamping;
 		BI->UpdateDampingProperties();
 	}
+
+	else if (Chaos::FPhysicsObject* Object = GetPhysicsObjectByName(NAME_None))
+	{
+		FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite({ &Object, 1 });
+		Interface->SetLinearEtherDrag({ &Object, 1 }, InDamping);
+	}
 }
 
 float UPrimitiveComponent::GetLinearDamping() const
@@ -463,6 +469,12 @@ void UPrimitiveComponent::SetAngularDamping(float InDamping)
 	{
 		BI->AngularDamping = InDamping;
 		BI->UpdateDampingProperties();
+	}
+
+	else if (Chaos::FPhysicsObject* Object = GetPhysicsObjectByName(NAME_None))
+	{
+		FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite({ &Object, 1 });
+		Interface->SetAngularEtherDrag({ &Object, 1 }, InDamping);
 	}
 }
 

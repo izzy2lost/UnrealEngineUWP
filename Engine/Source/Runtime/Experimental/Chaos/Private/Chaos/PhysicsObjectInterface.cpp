@@ -896,6 +896,7 @@ namespace Chaos
 	template<EThreadContext Id>
 	void FWritePhysicsObjectInterface<Id>::AddRadialImpulse(TArrayView<const FPhysicsObjectHandle> InObjects, FVector Origin, float Radius, float Strength, enum ERadialImpulseFalloff Falloff, bool bApplyStrain, bool bInvalidate)
 	{
+		//TODO: create a PT version of this, plus the damping functions
 		if (Chaos::FPBDRigidsSolver* RigidSolver = Chaos::FPhysicsObjectInterface::GetSolver(InObjects))
 		{
 			//put onto physics thread
@@ -975,6 +976,59 @@ namespace Chaos
 						}
 					}
 				});
+		}
+	}
+
+	template<EThreadContext Id>
+	void Chaos::FWritePhysicsObjectInterface<Id>::SetLinearEtherDrag(TArrayView<const FPhysicsObjectHandle> InObjects, float InLinearDrag)
+	{
+		if (Chaos::FPBDRigidsSolver* RigidSolver = Chaos::FPhysicsObjectInterface::GetSolver(InObjects))
+		{
+			//put onto physics thread
+			RigidSolver->EnqueueCommandImmediate([InObjects = TArray<FPhysicsObjectHandle>{ InObjects }, InLinearDrag, RigidSolver]() {
+				for (const FPhysicsObjectHandle Object : InObjects)
+				{
+					if (!Object)
+					{
+						continue;
+					}
+
+					if (TThreadParticle<EThreadContext::Internal>* Particle = Object->GetParticle<EThreadContext::Internal>())
+					{
+						if (Chaos::TThreadRigidParticle<EThreadContext::Internal>* Rigid = Particle->CastToRigidParticle())
+						{
+							Rigid->SetLinearEtherDrag(InLinearDrag);
+						}
+					}
+				}
+				});
+		}
+	}
+
+
+	template<EThreadContext Id>
+	void Chaos::FWritePhysicsObjectInterface<Id>::SetAngularEtherDrag(TArrayView<const FPhysicsObjectHandle> InObjects, float InAngularDrag)
+	{
+		if (Chaos::FPBDRigidsSolver* RigidSolver = Chaos::FPhysicsObjectInterface::GetSolver(InObjects))
+		{
+			//put onto physics thread
+			RigidSolver->EnqueueCommandImmediate([InObjects = TArray<FPhysicsObjectHandle>{ InObjects }, InAngularDrag, RigidSolver]() {
+				for (const FPhysicsObjectHandle Object : InObjects)
+				{
+					if (!Object)
+					{
+						continue;
+					}
+
+					if (TThreadParticle<EThreadContext::Internal>* Particle = Object->GetParticle<EThreadContext::Internal>())
+					{
+						if (Chaos::TThreadRigidParticle<EThreadContext::Internal>* Rigid = Particle->CastToRigidParticle())
+						{
+							Rigid->SetAngularEtherDrag(InAngularDrag);
+						}
+					}
+				}
+			});
 		}
 	}
 
