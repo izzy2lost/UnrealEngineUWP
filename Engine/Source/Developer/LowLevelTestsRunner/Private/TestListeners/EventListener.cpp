@@ -116,11 +116,24 @@ public:
 	{
 		if (ITestRunner* TestRunner = ITestRunner::Get())
 		{
-			UE_CLOG(TestRunner->HasLogOutput() && !AssertionStats.assertionResult.succeeded(),
-				LogLowLevelTests, Error, TEXT("Assertion \"%hs\" failed at %hs(%" SIZE_T_FMT ")"),
-				AssertionStats.assertionResult.getExpression().c_str(),
-				AssertionStats.assertionResult.getSourceInfo().file,
-				SIZE_T(AssertionStats.assertionResult.getSourceInfo().line));
+			const bool bShouldLogAssertion = TestRunner->HasLogOutput() && !AssertionStats.assertionResult.succeeded();
+			if (AssertionStats.assertionResult.hasExpandedExpression())
+			{
+				UE_CLOG(bShouldLogAssertion,
+					LogLowLevelTests, Error, TEXT("Assertion \"%hs\" failed with \"%hs\" at %hs(%" SIZE_T_FMT ")"),
+					AssertionStats.assertionResult.getExpression().c_str(),
+					AssertionStats.assertionResult.getExpandedExpression().c_str(),
+					AssertionStats.assertionResult.getSourceInfo().file,
+					SIZE_T(AssertionStats.assertionResult.getSourceInfo().line));
+			}
+			else
+			{
+				UE_CLOG(bShouldLogAssertion,
+					LogLowLevelTests, Error, TEXT("Assertion \"%hs\" failed at %hs(%" SIZE_T_FMT ")"),
+					AssertionStats.assertionResult.getExpression().c_str(),
+					AssertionStats.assertionResult.getSourceInfo().file,
+					SIZE_T(AssertionStats.assertionResult.getSourceInfo().line));
+			}
 		}
 	}
 };
