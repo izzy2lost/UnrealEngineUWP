@@ -3479,9 +3479,6 @@ void UStaticMesh::SetRenderData(TUniquePtr<class FStaticMeshRenderData>&& InRend
 {
 	WaitUntilAsyncPropertyReleased(EStaticMeshAsyncProperties::RenderData);
 
-	// DDC generation can cause a non-null data in non-rendering commandlets / editor
-	checkf(FApp::CanEverRender() || GIsEditor || IsRunningCommandlet() || InRenderData == nullptr, TEXT("Non-null RenderData should not be set in headless runs."));
-
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	RenderData = MoveTemp(InRenderData);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
