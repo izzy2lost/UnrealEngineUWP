@@ -23,13 +23,13 @@ namespace Horde.Commands
 		[CommandLine("-Server=")]
 		public string? Server { get; set; }
 
+		readonly IHttpClientFactory _httpClientFactory;
 		readonly CmdConfig _config;
-		readonly IServiceProvider _serviceProvider;
 
-		public LoginCommand(IOptions<CmdConfig> config, IServiceProvider serviceProvider)
+		public LoginCommand(IHttpClientFactory httpClientFactory, IOptions<CmdConfig> config)
 		{
+			_httpClientFactory = httpClientFactory;
 			_config = config.Value;
-			_serviceProvider = serviceProvider;
 		}
 
 		/// <inheritdoc/>
@@ -41,8 +41,9 @@ namespace Horde.Commands
 				await _config.WriteAsync();
 			}
 
-			HordeHttpClient httpClient = _serviceProvider.GetRequiredService<HordeHttpClient>();
-			GetServerInfoResponse serverInfo = await httpClient.GetAsync<GetServerInfoResponse>("api/v1/server/info");
+			using HordeHttpClient httpClient = _httpClientFactory.CreateHordeClient();
+
+			GetServerInfoResponse serverInfo = await httpClient.GetServerInfoAsync();
 			logger.LogInformation("Connected to server version: {Version}", serverInfo.ServerVersion);
 			
 			return 0;

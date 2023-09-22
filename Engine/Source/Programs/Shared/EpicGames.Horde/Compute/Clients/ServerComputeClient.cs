@@ -80,18 +80,18 @@ namespace EpicGames.Horde.Compute.Clients
 			}
 		}
 
-		readonly HordeHttpClientFactory _hordeHttpClientFactory;
+		readonly IHttpClientFactory _httpClientFactory;
 		readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="hordeHttpClientFactory">Factory for constructing Horde http client instances</param>
+		/// <param name="httpClientFactory">Factory for constructing http client instances</param>
 		/// <param name="logger">Logger for diagnostic messages</param>
-		public ServerComputeClient(HordeHttpClientFactory hordeHttpClientFactory, ILogger logger)
+		public ServerComputeClient(IHttpClientFactory httpClientFactory, ILogger logger)
 		{
-			_hordeHttpClientFactory = hordeHttpClientFactory;
+			_httpClientFactory = httpClientFactory;
 			_logger = logger;
 		}
 
@@ -125,18 +125,15 @@ namespace EpicGames.Horde.Compute.Clients
 		{
 			_logger.LogDebug("Requesting compute resource");
 
-			JsonSerializerOptions jsonSerializerOptions = new JsonSerializerOptions();
-			HordeHttpClient.ConfigureJsonSerializer(jsonSerializerOptions);
-
 			// Assign a compute worker
-			HordeHttpClient client = _hordeHttpClientFactory.CreateClient();
+			HttpClient client = _httpClientFactory.CreateClient(HordeHttpClient.HttpClientName);
 
 			AssignComputeRequest request = new AssignComputeRequest();
 			request.Requirements = requirements;
 			request.RequestId = requestId;
 
 			AssignComputeResponse? responseMessage;
-			using (HttpResponseMessage response = await client.PostAsync($"api/v2/compute/{clusterId}", request, _cancellationSource.Token))
+			using (HttpResponseMessage response = await HordeHttpClient.PostAsync(client, $"api/v2/compute/{clusterId}", request, _cancellationSource.Token))
 			{
 				if (response.StatusCode == HttpStatusCode.NotFound)
 				{
@@ -151,7 +148,7 @@ namespace EpicGames.Horde.Compute.Clients
 
 				response.EnsureSuccessStatusCode();
 
-				responseMessage = await response.Content.ReadFromJsonAsync<AssignComputeResponse>(jsonSerializerOptions, cancellationToken);
+				responseMessage = await response.Content.ReadFromJsonAsync<AssignComputeResponse>(HordeHttpClient.JsonSerializerOptions, cancellationToken);
 				if (responseMessage == null)
 				{
 					throw new InvalidOperationException();

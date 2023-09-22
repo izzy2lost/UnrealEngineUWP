@@ -3,7 +3,6 @@
 using System.Reflection;
 using System.Text.Json;
 using EpicGames.Core;
-using EpicGames.Horde;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
@@ -50,14 +49,14 @@ namespace Horde.Commands.Compute
 		[CommandLine("-Task=", Required = true)]
 		FileReference TaskFile { get; set; } = null!;
 
-		readonly HordeHttpClientFactory _hordeHttpClientFactory;
+		readonly IHttpClientFactory _httpClientFactory;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeRun(HordeHttpClientFactory hordeHttpClientFactory)
+		public ComputeRun(IHttpClientFactory httpClientFactory)
 		{
-			_hordeHttpClientFactory = hordeHttpClientFactory;
+			_httpClientFactory = httpClientFactory;
 		}
 
 		/// <inheritdoc/>
@@ -93,7 +92,7 @@ namespace Horde.Commands.Compute
 			}
 			else
 			{
-				return new ServerComputeClient(_hordeHttpClientFactory, logger);
+				return new ServerComputeClient(_httpClientFactory, logger);
 			}
 		}
 

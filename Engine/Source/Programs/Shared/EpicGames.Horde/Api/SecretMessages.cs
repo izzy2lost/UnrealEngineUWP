@@ -50,33 +50,4 @@ namespace EpicGames.Horde.Api
 			Data = data;
 		}
 	}
-
-	/// <summary>
-	/// Extension methods for the secrets endpoint
-	/// </summary>
-	public static class SecretExtensions
-	{
-		/// <summary>
-		/// Query all the secrets available to the current user
-		/// </summary>
-		/// <param name="horde">The horde client instance</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Information about all the projects</returns>
-		public static Task<GetSecretsResponse> GetSecretsAsync(this HordeHttpClient horde, CancellationToken cancellationToken = default)
-		{
-			return horde.GetAsync<GetSecretsResponse>($"api/v1/secrets", cancellationToken);
-		}
-
-		/// <summary>
-		/// Retrieve information about a specific project
-		/// </summary>
-		/// <param name="horde">The horde client instance</param>
-		/// <param name="secretId">Id of the secret to retrieve</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Information about the requested project</returns>
-		public static Task<GetSecretResponse> GetSecretAsync(this HordeHttpClient horde, SecretId secretId, CancellationToken cancellationToken = default)
-		{
-			return horde.GetAsync<GetSecretResponse>($"api/v1/secrets/{secretId}", cancellationToken);
-		}
-	}
 }
