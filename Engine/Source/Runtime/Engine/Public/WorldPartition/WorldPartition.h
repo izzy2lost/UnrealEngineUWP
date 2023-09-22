@@ -379,8 +379,11 @@ public:
 	ENGINE_API void LoadLastLoadedRegions();
 
 	bool HasLoadedUserCreatedRegions() const { return !!NumUserCreatedLoadedRegions; }
-	void OnUserCreatedRegionLoaded() { NumUserCreatedLoadedRegions++; }
-	void OnUserCreatedRegionUnloaded() { check(HasLoadedUserCreatedRegions()); NumUserCreatedLoadedRegions--; }
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FLoaderAdapterStateChangedDelegate, const IWorldPartitionActorLoaderInterface::ILoaderAdapter*);
+	FLoaderAdapterStateChangedDelegate LoaderAdapterStateChanged;
+		
+	ENGINE_API void OnLoaderAdapterStateChanged(IWorldPartitionActorLoaderInterface::ILoaderAdapter* InLoaderAdapter);
 
 	bool IsEnablingStreamingJustified() const { return bEnablingStreamingJustified; }
 

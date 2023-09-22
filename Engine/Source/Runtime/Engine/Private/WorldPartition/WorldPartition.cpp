@@ -2232,6 +2232,16 @@ void UWorldPartition::LoadLastLoadedRegions()
 	}
 }
 
+void UWorldPartition::OnLoaderAdapterStateChanged(IWorldPartitionActorLoaderInterface::ILoaderAdapter* InLoaderAdapter)
+{
+	if (InLoaderAdapter->GetUserCreated())
+	{
+		NumUserCreatedLoadedRegions += InLoaderAdapter->IsLoaded() ? 1 : -1;
+	}
+
+	LoaderAdapterStateChanged.Broadcast(InLoaderAdapter);
+}
+
 void UWorldPartition::OnWorldRenamed(UWorld* RenamedWorld)
 {
 	if (GetWorld() == RenamedWorld)
