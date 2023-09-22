@@ -5229,7 +5229,7 @@ void FStarshipEditorStyle::FStyle::SetupPersonaStyle()
 	{
 		Set("FindResults.FindInBlueprints", FTextBlockStyle(NormalText)
 			.SetFont(ICON_FONT(10))
-			.SetColorAndOpacity(FLinearColor(0.f, 0.f, 0.f))
+			.SetColorAndOpacity(FLinearColor::White)
 		);
 	}
 
