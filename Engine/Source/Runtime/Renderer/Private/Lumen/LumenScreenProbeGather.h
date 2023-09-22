@@ -201,7 +201,8 @@ extern void RenderHardwareRayTracingShortRangeAO(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
 	const FSceneTextureParameters& SceneTextures,
-	const FScreenProbeParameters& ScreenProbeParameters,
+	const FBlueNoise& BlueNoise,
+	float MaxScreenTraceFraction,
 	const FViewInfo& View,
 	FRDGTextureRef ScreenBentNormal,
 	uint32 NumPixelRays);
@@ -221,7 +222,9 @@ extern FLumenScreenSpaceBentNormalParameters ComputeScreenSpaceShortRangeAO(
 	const FViewInfo& View,
 	const FSceneTextures& SceneTextures,
 	FRDGTextureRef LightingChannelsTexture,
-	const FScreenProbeParameters& ScreenProbeParameters,
+	const FBlueNoise& BlueNoise,
+	float MaxScreenTraceFraction,
+	float ScreenTraceNoFallbackThicknessScale,
 	ERDGPassFlags ComputePassFlags);
 
 namespace LumenScreenProbeGatherRadianceCache

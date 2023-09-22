@@ -4,8 +4,8 @@
 #include "LumenMaterial.ush"
 #include "../DeferredShadingCommon.ush"
 #include "../BRDF.ush"
-#include "LumenScreenProbeCommon.ush"
 #include "../MonteCarlo.ush"
+#include "../BlueNoise.ush"
 #include "../ShadingModelsSampling.ush"
 #include "../SceneTextureParameters.ush"
 #include "../RayTracing/RayTracingCommon.ush"
@@ -16,10 +16,18 @@
 #define THREADGROUP_SIZE 1
 #endif
 
+float3 GetTranslatedWorldPositionFromScreenUV(float2 ScreenUV, float SceneDepth)
+{
+	float2 ScreenPosition = (ScreenUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
+	float3 TranslatedWorldPosition = mul(float4(ScreenPosition * SceneDepth, SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
+	return TranslatedWorldPosition;
+}
+
 RaytracingAccelerationStructure TLAS;
 RWTexture2D<UNORM float4> RWScreenBentNormal;
 uint NumRays;
 float NormalBias;
+float MaxScreenTraceFraction;
 
 RAY_TRACING_ENTRY_RAYGEN(LumenShortRangeAOHardwareRayTracing)
 {
@@ -42,7 +50,6 @@ RAY_TRACING_ENTRY_RAYGEN(LumenShortRangeAOHardwareRayTracing)
 	{
 		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, Depth);
 		float3x3 TangentBasis = GetTangentBasis(WorldNormal);
-		float MaxScreenTraceFraction = ScreenProbeDownsampleFactor * 2 * View.ViewSizeAndInvSize.z;
 		float TraceDistance = Depth * MaxScreenTraceFraction * 2.0 * GetTanHalfFieldOfView().x;
 
 		float3 UnoccludedSum = 0;
@@ -50,7 +57,7 @@ RAY_TRACING_ENTRY_RAYGEN(LumenShortRangeAOHardwareRayTracing)
 
 		for (uint PixelRayIndex = 0; PixelRayIndex < NumRays; PixelRayIndex++)
 		{
-			float2 UniformRandom = BlueNoiseVec2(PixelCoord, (RAY_DIRECTION_TEMPORAL_INDEX * NumRays + PixelRayIndex));
+			float2 UniformRandom = BlueNoiseVec2(PixelCoord, (View.StateFrameIndex * NumRays + PixelRayIndex));
 
 			float4 HemisphereSample = CosineSampleHemisphere(UniformRandom);
 			float3 RayDirection = mul(HemisphereSample.xyz, TangentBasis);

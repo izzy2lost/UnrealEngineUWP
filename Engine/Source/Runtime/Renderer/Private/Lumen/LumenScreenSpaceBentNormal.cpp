@@ -62,11 +62,13 @@ class FScreenSpaceShortRangeAOCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTexturesStruct)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FScreenProbeParameters, ScreenProbeParameters)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightingChannelsTexture)
+		SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
 		SHADER_PARAMETER(FVector4f, HZBUvFactorAndInvFactor)
 		SHADER_PARAMETER(float, SlopeCompareToleranceScale)
+		SHADER_PARAMETER(float, MaxScreenTraceFraction)
+		SHADER_PARAMETER(float, ScreenTraceNoFallbackThicknessScale)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, FurthestHZBTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, FurthestHZBTextureSampler)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FHairStrandsViewUniformParameters, HairStrands)
@@ -113,7 +115,9 @@ FLumenScreenSpaceBentNormalParameters ComputeScreenSpaceShortRangeAO(
 	const FViewInfo& View, 
 	const FSceneTextures& SceneTextures,
 	FRDGTextureRef LightingChannelsTexture,
-	const FScreenProbeParameters& ScreenProbeParameters,
+	const FBlueNoise& BlueNoise,
+	float MaxScreenTraceFraction,
+	float ScreenTraceNoFallbackThicknessScale,
 	ERDGPassFlags ComputePassFlags)
 {
 	FLumenScreenSpaceBentNormalParameters OutParameters;
@@ -142,7 +146,8 @@ FLumenScreenSpaceBentNormalParameters ComputeScreenSpaceShortRangeAO(
 			GraphBuilder,
 			Scene,
 			SceneTextureParameters,
-			ScreenProbeParameters,
+			BlueNoise,
+			MaxScreenTraceFraction,
 			View,
 			ScreenBentNormal,
 			NumPixelRays);
@@ -165,9 +170,11 @@ FLumenScreenSpaceBentNormalParameters ComputeScreenSpaceShortRangeAO(
 				PassParameters->SceneTextures.GBufferVelocityTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
 			}
 
-			PassParameters->ScreenProbeParameters = ScreenProbeParameters;
+			PassParameters->MaxScreenTraceFraction = MaxScreenTraceFraction;
+			PassParameters->ScreenTraceNoFallbackThicknessScale = ScreenTraceNoFallbackThicknessScale;
 			PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 			PassParameters->LightingChannelsTexture = LightingChannelsTexture;
+			PassParameters->BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
 
 			const FVector2D ViewportUVToHZBBufferUV(
 				float(View.ViewRect.Width()) / float(2 * View.HZBMipmap0Size.X),

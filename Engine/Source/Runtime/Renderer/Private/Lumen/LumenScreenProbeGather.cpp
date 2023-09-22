@@ -1715,6 +1715,18 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenFinalGather(
 	{
 		Outputs = RenderLumenIrradianceFieldGather(GraphBuilder, SceneTextures, FrameTemporaries, View, TranslucencyVolumeRadianceCacheParameters, ComputePassFlags);
 	}
+	else if (Lumen::UseReSTIRGather(*View.Family, ShaderPlatform))
+	{
+		Outputs = RenderLumenReSTIRGather(
+			GraphBuilder,
+			SceneTextures,
+			FrameTemporaries,
+			LightingChannelsTexture,
+			View,
+			PreviousViewInfos,
+			ComputePassFlags,
+			ScreenSpaceBentNormalParameters);
+	}
 	else
 	{
 		Outputs = RenderLumenScreenProbeGather(
@@ -2012,8 +2024,8 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 				RadianceCacheInputs,
 				FRadianceCacheConfiguration(),
 				View,
-				nullptr,
-				nullptr,
+				&ScreenProbeParameters,
+				BRDFProbabilityDensityFunctionSH,
 				MoveTemp(GraphicsMarkUsedRadianceCacheProbesCallbacks),
 				MoveTemp(ComputeMarkUsedRadianceCacheProbesCallbacks)));
 
@@ -2143,7 +2155,8 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 
 	if (LumenScreenProbeGather::UseShortRangeAmbientOcclusion(ViewFamily.EngineShowFlags))
 	{
-		ScreenSpaceBentNormalParameters = ComputeScreenSpaceShortRangeAO(GraphBuilder, Scene, View, SceneTextures, LightingChannelsTexture, ScreenProbeParameters, ComputePassFlags);
+		float MaxScreenTraceFraction = ScreenProbeParameters.ScreenProbeDownsampleFactor * 2.0f / (float)View.ViewRect.Width();
+		ScreenSpaceBentNormalParameters = ComputeScreenSpaceShortRangeAO(GraphBuilder, Scene, View, SceneTextures, LightingChannelsTexture, BlueNoise, MaxScreenTraceFraction, ScreenProbeParameters.ScreenTraceNoFallbackThicknessScale, ComputePassFlags);
 	}
 
 	const FIntPoint EffectiveResolution = Substrate::GetSubstrateTextureResolution(View, SceneTextures.Config.Extent);

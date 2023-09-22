@@ -61,9 +61,10 @@ class FLumenShortRangeAOHardwareRayTracing : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, TLAS)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FScreenProbeParameters, ScreenProbeParameters)
+		SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
 		SHADER_PARAMETER(uint32, NumRays)
 		SHADER_PARAMETER(float, NormalBias)
+		SHADER_PARAMETER(float, MaxScreenTraceFraction)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualVoxelParameters, HairStrandsVoxel)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 	END_SHADER_PARAMETER_STRUCT()
@@ -114,7 +115,8 @@ void RenderHardwareRayTracingShortRangeAO(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
 	const FSceneTextureParameters& SceneTextures,
-	const FScreenProbeParameters& ScreenProbeParameters,
+	const FBlueNoise& BlueNoise,
+	float MaxScreenTraceFraction,
 	const FViewInfo& View,
 	FRDGTextureRef ScreenBentNormal,
 	uint32 NumPixelRays)
@@ -129,7 +131,8 @@ void RenderHardwareRayTracingShortRangeAO(
 		PassParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
 		PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 		PassParameters->SceneTextures = SceneTextures;
-		PassParameters->ScreenProbeParameters = ScreenProbeParameters;
+		PassParameters->BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
+		PassParameters->MaxScreenTraceFraction = MaxScreenTraceFraction;
 		PassParameters->NumRays = NumPixelRays;
 		PassParameters->NormalBias = CVarLumenShortRangeAOHardwareRayTracingNormalBias.GetValueOnRenderThread();
 		PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
