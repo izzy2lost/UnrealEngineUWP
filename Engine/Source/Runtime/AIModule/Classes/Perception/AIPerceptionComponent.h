@@ -384,6 +384,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AI|Perception")
 	AIMODULE_API void SetSenseEnabled(TSubclassOf<UAISense> SenseClass, const bool bEnable);
 
+	/** Returns if a sense is active. Note that this works only if given sense has been
+	*	already configured for this component instance */
 	UFUNCTION(BlueprintCallable, Category = "AI|Perception")
 	AIMODULE_API bool IsSenseEnabled(TSubclassOf<UAISense> SenseClass) const;
 

@@ -50,7 +50,8 @@ public:
 
 	bool GetStartsEnabled() const { return bStartsEnabled; }
 
-	/** Changes whether the given sense starts off enabled. Note that calling the function after given sense config has already been registered won't have any effect */
+	/** Changes whether the given sense starts off enabled.
+	*	Note that calling the function after given sense config has already been registered won't have any effect */
 	void SetStartsEnabled(bool bEnabled) { bStartsEnabled = bEnabled; }
 
 #if WITH_GAMEPLAY_DEBUGGER_MENU
