@@ -60,7 +60,7 @@ namespace UE::GameFeatures
 		ECVF_Default);
 
 	static TAutoConsoleVariable<bool> CVarAsyncLoad(TEXT("GameFeaturePlugin.AsyncLoad"),
-		true,
+		false,
 		TEXT("Enable to use aysnc loading"));
 
 	static TAutoConsoleVariable<bool> CVarAllowForceMonolithicShaderLibrary(TEXT("GameFeaturePlugin.AllowForceMonolithicShaderLibrary"),
