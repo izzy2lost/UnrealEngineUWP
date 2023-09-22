@@ -205,7 +205,9 @@ public class StorageClient : BundleStorageClient
 			BundleLocator blobLocator = new BundleLocator(inlinePayload.BlobLocator);
 			int exportId = inlinePayload.ExportId;
 
-			return new FlushedNodeHandle(BundleReader, new BundleNodeLocator(nodeHash, blobLocator, exportId));
+			throw new NotImplementedException();
+			// Creating a BundleReader requires a BundleReaderCache and Client, which bring in a few to many types
+			//return new FlushedNodeHandle(BundleReader, new BundleNodeLocator(nodeHash, blobLocator, exportId));
 		}
 		catch (RefNotFoundException )
 		{
