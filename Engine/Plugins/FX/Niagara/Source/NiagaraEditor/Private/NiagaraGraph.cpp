@@ -675,7 +675,10 @@ void UNiagaraGraph::PostLoad()
 		for (UEdGraphNode* Node : Nodes)
 		{
 			Node->ConditionalPostLoad();
-
+		}
+		
+		for (UEdGraphNode* Node : Nodes)
+		{
 			if (UNiagaraNode* NiagaraNode = Cast<UNiagaraNode>(Node))
 			{
 				// Assume that all externally referenced assets have changed, so update to match. They will return true if they have changed.
@@ -684,7 +687,7 @@ void UNiagaraGraph::PostLoad()
 					ReferencedAsset->ConditionalPostLoad();
 					NiagaraNode->RefreshFromExternalChanges();
 				}
-
+				
 				if (UNiagaraNodeInput* InputNode = Cast<UNiagaraNodeInput>(NiagaraNode))
 				{
 					InputNodes.Add(InputNode);
@@ -1469,7 +1472,7 @@ void UNiagaraGraph::StandardizeParameterNames()
 	{
 		FNiagaraVariable Variable = VariableScriptVariablePair.Key;
 		UNiagaraScriptVariable* ScriptVariable = VariableScriptVariablePair.Value;
-		ScriptVariable->PostLoad();
+		ScriptVariable->ConditionalPostLoad();
 		
 		if (ScriptVariable->GetIsStaticSwitch() == false)
 		{
