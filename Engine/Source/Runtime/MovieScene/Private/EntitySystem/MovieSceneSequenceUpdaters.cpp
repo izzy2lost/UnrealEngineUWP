@@ -90,7 +90,6 @@ private:
 	{
 		FGuid SequenceSignature;
 		FInstanceHandle Handle;
-		bool bNeedsDestroy = false;
 	};
 	TSortedMap<FMovieSceneSequenceID, FSubInstanceData, TInlineAllocator<8>> SequenceInstances;
 
@@ -464,7 +463,6 @@ FInstanceHandle FSequenceUpdater_Hierarchical::GetOrCreateSequenceInstance(IMovi
 
 	if (FSubInstanceData* Existing = SequenceInstances.Find(SequenceID))
 	{
-		Existing->bNeedsDestroy = false;
 		return Existing->Handle;
 	}
 
@@ -734,21 +732,15 @@ void FSequenceUpdater_Hierarchical::Update(UMovieSceneEntitySystemLinker* Linker
 	for (auto InstanceIt = SequenceInstances.CreateIterator(); InstanceIt; ++InstanceIt)
 	{
 		FSubInstanceData SubData = InstanceIt.Value();
-		if (SubData.bNeedsDestroy)
-		{
-			InstanceRegistry->DestroyInstance(SubData.Handle);
-			InstanceIt.RemoveCurrent();
-			continue;
-		}
 
-		Runner->MarkForUpdate(SubData.Handle, ERunnerUpdateFlags::None);
-
+		ERunnerUpdateFlags Flags = ERunnerUpdateFlags::None;
 		if (!ActiveSequences.Contains(InstanceIt.Key()))
 		{
-			// Remove all entities from this instance since it is no longer active
-			InstanceRegistry->MutateInstance(SubData.Handle).Finish(Linker);
-			InstanceIt.Value().bNeedsDestroy = true;
+			Flags = ERunnerUpdateFlags::Finish | ERunnerUpdateFlags::Destroy;
+			InstanceIt.RemoveCurrent();
 		}
+
+		Runner->MarkForUpdate(SubData.Handle, Flags);
 	}
 }
 
