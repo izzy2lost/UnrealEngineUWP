@@ -11,16 +11,16 @@ class IAnalyticsProviderET;
 
 class ELECTRAPLAYERRUNTIME_API ISimpleElectraAudioPlayer
 {
+protected:
+	virtual ~ISimpleElectraAudioPlayer() = default;
 public:
 	struct FCreateParams
 	{
-		/** The number of audio players that can be simultaneously active at any time. 0=unlimited */
-		int32 MaxTotalPlayerInstances = 0;
-
 		/** A GUID to identify the new player instance. */
 		FGuid InstanceGUID;
 	};
-	static TSharedPtr<ISimpleElectraAudioPlayer, ESPMode::ThreadSafe> Create(const FCreateParams& InCreateParams);
+	static ISimpleElectraAudioPlayer* Create(const FCreateParams& InCreateParams);
+	static void CloseAndDestroy(ISimpleElectraAudioPlayer* InInstance);
 
 	/**
 	 * Delivers the aggregated metrics to the analytics provider and clears the internal list.
@@ -37,7 +37,6 @@ public:
 	static void SetCustomCacheElement(const FString& InForURL, const TSharedPtr<ICacheElementBase, ESPMode::ThreadSafe>& InElement);
 
 
-	virtual ~ISimpleElectraAudioPlayer() = default;
 	virtual bool Open(const TMap<FString, FVariant>& InOptions, const FString& ManifestURL, const FTimespan& StartPosition, const FTimespan& EncodedDuration, bool bAutoPlay, bool bSetLooping, TSharedPtr<IElectraPlayerDataCache, ESPMode::ThreadSafe> InPlayerDataCache) = 0;
 	virtual void SeekTo(const FTimespan& NewPosition) = 0;
 	virtual void PrepareToLoopToBeginning() = 0;
