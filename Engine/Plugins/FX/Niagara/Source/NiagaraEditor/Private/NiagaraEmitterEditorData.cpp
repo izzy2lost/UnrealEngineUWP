@@ -380,6 +380,7 @@ void UNiagaraEmitterEditorData::PostLoad_TransferModuleStackNotesToNewFormat(UOb
 		{
 			if (UNiagaraScriptSource* GraphSource = Cast<UNiagaraScriptSource>(EmitterData->GraphSource))
 			{
+				GraphSource->ConditionalPostLoad();
 				EmitterGraph = GraphSource->NodeGraph;
 			}
 		}

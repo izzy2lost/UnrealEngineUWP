@@ -239,23 +239,28 @@ void UNiagaraSystemEditorData::PostLoad_TransferModuleStackNotesToNewFormat(UObj
 	if(UNiagaraScript* SystemSpawnScript = System->GetSystemSpawnScript())
 	{
 		SystemSpawnScript->ConditionalPostLoad();
-		SourceBases.Add(SystemSpawnScript->GetLatestSource());
+		
+		if (UNiagaraScriptSource* GraphSource = Cast<UNiagaraScriptSource>(SystemSpawnScript->GetLatestSource()))
+        {
+			GraphSource->ConditionalPostLoad();
+			SourceBases.Add(GraphSource);
+        }
 	}
 	
 	if(UNiagaraScript* SystemUpdateScript = System->GetSystemUpdateScript())
 	{
 		SystemUpdateScript->ConditionalPostLoad();
-		SourceBases.Add(SystemUpdateScript->GetLatestSource());
+
+		if (UNiagaraScriptSource* GraphSource = Cast<UNiagaraScriptSource>(SystemUpdateScript->GetLatestSource()))
+		{
+			GraphSource->ConditionalPostLoad();
+			SourceBases.Add(GraphSource);
+		}
 	}
 	
 	for(UNiagaraScriptSourceBase* SourceBase : SourceBases)
-	{
+	{		
 		UNiagaraScriptSource* Source = CastChecked<UNiagaraScriptSource>(SourceBase);
-
-		if(Source->NodeGraph == nullptr)
-		{
-			continue;
-		}
 
 		TArray<UNiagaraNodeFunctionCall*> FunctionCallNodes;
 		Source->NodeGraph->GetNodesOfClass(FunctionCallNodes);
