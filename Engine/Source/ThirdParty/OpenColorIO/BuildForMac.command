@@ -1,18 +1,13 @@
 #!/bin/sh
 
-OCIO_VERSION="2.2.0"
+OCIO_VERSION="2.3.0"
 OCIO_LIB_NAME="OpenColorIO-$OCIO_VERSION"
 
 SCRIPT_DIR=`cd $(dirname "$BASH_SOURCE"); pwd`
-UE_ENGINE_DIR=`cd $SCRIPT_DIR/../../../../../..; pwd`
+UE_ENGINE_DIR=`cd $SCRIPT_DIR/../../..; pwd`
 UE_THIRD_PARTY_DIR="$UE_ENGINE_DIR/Source/ThirdParty"
 
 cd $SCRIPT_DIR
-
-# Download library source if not present
-# if [ ! -f "v2.2.0.zip" ]; then
-#     curl -L -O https://github.com/AcademySoftwareFoundation/OpenColorIO/archive/refs/tags/v2.2.0.zip
-# fi
 
 # Remove previously extracted build library folder
 if [ -d "$OCIO_LIB_NAME" ]; then
@@ -20,14 +15,11 @@ if [ -d "$OCIO_LIB_NAME" ]; then
    rm -rf "$OCIO_LIB_NAME"
 fi
 
-# echo "Extracting $OCIO_LIB_NAME.zip..."
-# unzip "v2.2.0.zip" -d .
-
-git clone --depth 1 --branch v2.2.0 https://github.com/AcademySoftwareFoundation/OpenColorIO.git $OCIO_LIB_NAME
+git clone --depth 1 --branch v$OCIO_VERSION https://github.com/AcademySoftwareFoundation/OpenColorIO.git $OCIO_LIB_NAME
 
 pushd $OCIO_LIB_NAME
 
-git apply ../ue_ocio_v22.patch
+git apply ../ue_ocio_v23.patch
 
 UE_C_FLAGS="-mmacosx-version-min=10.9 -arch x86_64 -arch arm64"
 UE_CXX_FLAGS="-mmacosx-version-min=10.9 -arch x86_64 -arch arm64"
@@ -70,8 +62,8 @@ echo "Building Release build..."
 cmake --build build --config Release
 
 echo "Copying library build files..."
-cp build/src/OpenColorIO/libOpenColorIO.2.2.0.dylib ../../../../Binaries/ThirdParty/Mac/libOpenColorIO.2.2.dylib
-cp build/src/OpenColorIO/libOpenColorIO.2.2.0.dylib ../../../../Binaries/ThirdParty/Mac/libOpenColorIO.dylib
-install_name_tool -id @rpath/libOpenColorIO.dylib ../../../../Binaries/ThirdParty/Mac/libOpenColorIO.dylib
+cp build/src/OpenColorIO/libOpenColorIO.2.3.0.dylib $UE_ENGINE_DIR/Binaries/ThirdParty/OpenColorIO/Mac/libOpenColorIO.2.3.dylib
+# cp build/src/OpenColorIO/libOpenColorIO.2.3.0.dylib $UE_ENGINE_DIR/Binaries/ThirdParty/OpenColorIO/Mac/libOpenColorIO.dylib
+# install_name_tool -id @rpath/libOpenColorIO.dylib $UE_ENGINE_DIR/Binaries/ThirdParty/OpenColorIO/Mac/libOpenColorIO.dylib
 
 popd

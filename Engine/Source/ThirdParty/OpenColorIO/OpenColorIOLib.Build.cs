@@ -13,14 +13,14 @@ public class OpenColorIOLib : ModuleRules
 
 		string PlatformDir = Target.Platform.ToString();
 		string BinaryDir = "$(EngineDir)/Binaries/ThirdParty/OpenColorIO";
-		string DeployDir = Path.Combine(ModuleDirectory, "Deploy/OpenColorIO-2.2.0");
+		string DeployDir = Path.Combine(ModuleDirectory, "Deploy/OpenColorIO-2.3.0");
 
 		PublicSystemIncludePaths.Add(Path.Combine(DeployDir, "include"));
 
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
 		{
 			string Arch = Target.Architecture.WindowsLibDir;
-			string DLLName = "OpenColorIO_2_2.dll";
+			string DLLName = "OpenColorIO_2_3.dll";
 			string LibDirectory = Path.Combine(BinaryDir, PlatformDir, Arch);
 
 			PublicAdditionalLibraries.Add(Path.Combine(DeployDir, "lib", PlatformDir, Arch, "OpenColorIO.lib"));
@@ -36,14 +36,14 @@ public class OpenColorIOLib : ModuleRules
 
 			PublicAdditionalLibraries.Add(Path.Combine(LibDirectory, SOName));
 			RuntimeDependencies.Add(Path.Combine(LibDirectory, SOName));
-			RuntimeDependencies.Add(Path.Combine(LibDirectory, "libOpenColorIO.so.2.2"));
+			RuntimeDependencies.Add(Path.Combine(LibDirectory, "libOpenColorIO.so.2.3"));
 
 			bIsPlatformAdded = true;
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			string LibDirectory = Path.Combine(BinaryDir, PlatformDir);
-			string DylibName = "libOpenColorIO.2.2.dylib";
+			string DylibName = "libOpenColorIO.2.3.dylib";
 
 			PublicAdditionalLibraries.Add(Path.Combine(LibDirectory, DylibName));
 			RuntimeDependencies.Add(Path.Combine(LibDirectory, DylibName));

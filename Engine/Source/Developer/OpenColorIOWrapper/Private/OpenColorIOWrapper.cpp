@@ -1045,6 +1045,7 @@ FOpenColorIOWrapperGPUProcessor::FOpenColorIOWrapperGPUProcessor(FOpenColorIOWra
 			ShaderDescription->setLanguage(GPU_LANGUAGE_HLSL_DX11);
 			ShaderDescription->setFunctionName(StringCast<ANSICHAR>(OpenColorIOWrapper::GetShaderFunctionName()).Get());
 			ShaderDescription->setResourcePrefix("Ocio");
+			ShaderDescription->setAllowTexture1D(false);
 
 			ConstGPUProcessorRcPtr GPUProcessor = nullptr;
 			OptimizationFlags OptFlags = FOpenColorIOProcessorPimpl::GetOptimizationFlags();
@@ -1148,10 +1149,14 @@ bool FOpenColorIOWrapperGPUProcessor::GetTexture(uint32 InIndex, FName& OutName,
 			const ANSICHAR* TextureName = nullptr;
 			const ANSICHAR* SamplerName = nullptr;
 			OCIO_NAMESPACE::GpuShaderDesc::TextureType Channel = OCIO_NAMESPACE::GpuShaderDesc::TEXTURE_RGB_CHANNEL;
+			OCIO_NAMESPACE::GpuShaderDesc::TextureDimensions Dimensions = OCIO_NAMESPACE::GpuShaderDesc::TextureDimensions::TEXTURE_2D;
 			OCIO_NAMESPACE::Interpolation Interpolation = OCIO_NAMESPACE::Interpolation::INTERP_LINEAR;
 
 			// Read texture information
-			GPUPimpl->ShaderDescription->getTexture(InIndex, TextureName, SamplerName, OutWidth, OutHeight, Channel, Interpolation);
+			GPUPimpl->ShaderDescription->getTexture(InIndex, TextureName, SamplerName, OutWidth, OutHeight, Channel, Dimensions, Interpolation);
+			
+			// 1D LUT textures will always be 2D because we disallow 1d resources.
+			check(Dimensions == OCIO_NAMESPACE::GpuShaderDesc::TextureDimensions::TEXTURE_2D);
 
 			// Read texture data
 			OutData = 0x0;
