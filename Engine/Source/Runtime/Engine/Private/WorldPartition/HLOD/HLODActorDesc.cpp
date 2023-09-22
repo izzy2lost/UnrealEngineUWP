@@ -48,6 +48,10 @@ void FHLODActorDesc::Init(const AActor* InActor)
 	}
 	
 	HLODStats = HLODActor->GetStats();
+
+	FVector Origin, Extent;
+	HLODActor->GetActorBounds(false, Origin, Extent);
+	EditorBounds = FBox::BuildAABB(Origin, Extent);
 }
 
 struct FHLODSubActorDescDeprecated
@@ -145,6 +149,11 @@ void FHLODActorDesc::Serialize(FArchive& Ar)
 		{
 			Ar << SourceHLODLayer;
 		}
+		
+		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::WorldPartitionHLODActorDescSerializeEditorBounds)
+		{
+			Ar << EditorBounds;
+		}
 	}
 }
 
@@ -155,7 +164,8 @@ bool FHLODActorDesc::Equals(const FWorldPartitionActorDesc* Other) const
 		const FHLODActorDesc& HLODActorDesc = *(FHLODActorDesc*)Other;
 		return SourceHLODLayer == HLODActorDesc.SourceHLODLayer &&
 			   HLODStats.OrderIndependentCompareEqual(HLODActorDesc.GetStats()) &&
-			   CompareUnsortedArrays(ChildHLODActors, HLODActorDesc.ChildHLODActors);
+			   CompareUnsortedArrays(ChildHLODActors, HLODActorDesc.ChildHLODActors) &&
+			   EditorBounds == HLODActorDesc.EditorBounds;
 	}
 	return false;
 }

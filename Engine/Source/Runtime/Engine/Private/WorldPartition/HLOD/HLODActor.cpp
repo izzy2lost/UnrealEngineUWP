@@ -396,11 +396,6 @@ void AWorldPartitionHLOD::SetHLODBounds(const FBox& InBounds)
 	HLODBounds = InBounds;
 }
 
-void AWorldPartitionHLOD::GetActorBounds(bool bOnlyCollidingComponents, FVector& Origin, FVector& BoxExtent, bool bIncludeFromChildActors) const
-{
-	HLODBounds.GetCenterAndExtents(Origin, BoxExtent);
-}
-
 FBox AWorldPartitionHLOD::GetStreamingBounds() const
 {
 	return HLODBounds;

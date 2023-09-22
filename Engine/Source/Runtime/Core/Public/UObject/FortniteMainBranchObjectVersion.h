@@ -375,6 +375,9 @@ struct FFortniteMainBranchObjectVersion
 		// Serialize the source HLOD Layer for HLOD actor descriptors.
 		WorldPartitionHLODActorDescSerializeSourceHLODLayer,
 
+		// Serialize custom editor bounds for HLOD actor descriptors.
+		WorldPartitionHLODActorDescSerializeEditorBounds,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

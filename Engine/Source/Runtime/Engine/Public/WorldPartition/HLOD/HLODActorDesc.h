@@ -41,6 +41,7 @@ protected:
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
 	virtual bool IsRuntimeRelevant(const FActorContainerID& InContainerID) const override { return !bIsForcedNonSpatiallyLoaded; }
 	virtual bool ShouldValidateRuntimeGrid() const override { return false; }
+	virtual FBox GetEditorBounds() const override { return EditorBounds; }
 	//~ End FWorldPartitionActorDesc Interface.
 
 	TArray<FGuid> ChildHLODActors;
@@ -48,5 +49,7 @@ protected:
 	FTopLevelAssetPath SourceHLODLayer;
 
 	FStats HLODStats;
+
+	FBox EditorBounds;
 };
 #endif
