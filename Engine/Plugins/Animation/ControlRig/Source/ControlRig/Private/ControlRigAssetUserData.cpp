@@ -2,12 +2,12 @@
 
 #include "ControlRigAssetUserData.h"
 
-void UControlRigShapeLibraryLink::SetShapeLibrary(TSoftObjectPtr<UControlRigShapeLibrary> InShapeLibrary)
+void UControlRigShapeLibraryLink::SetShapeLibrary(UControlRigShapeLibrary* InShapeLibrary)
 {
 	InvalidateCache();
 	ShapeLibrary = InShapeLibrary;
 	ShapeNames.Reset();
-	if(ShapeLibrary.IsValid())
+	if(ShapeLibrary)
 	{
 		for(const FControlRigShapeDefinition& Shape : ShapeLibrary->Shapes)
 		{
@@ -24,22 +24,22 @@ const UNameSpacedUserData::FUserData* UControlRigShapeLibraryLink::GetUserData(c
 		return ResultFromSuper;
 	}
 
-	if(const UControlRigShapeLibrary* LoadedShapeLibrary = ShapeLibrary.LoadSynchronous())
+	if(ShapeLibrary)
 	{
 		if(InPath.Equals(GET_MEMBER_NAME_STRING_CHECKED(UControlRigShapeLibraryLink, ShapeLibrary), ESearchCase::CaseSensitive))
 		{
 			static const FProperty* ShapeLibraryProperty = FindPropertyByName(StaticClass(), GET_MEMBER_NAME_CHECKED(UControlRigShapeLibraryLink, ShapeLibrary));
-			return StoreCacheForUserData({InPath, ShapeLibraryProperty, reinterpret_cast<const uint8*>(LoadedShapeLibrary)});
+			return StoreCacheForUserData({InPath, ShapeLibraryProperty, (const uint8*)ShapeLibrary});
 		}
 		if(InPath.Equals(DefaultShapePath, ESearchCase::CaseSensitive))
 		{
 			static const FProperty* DefaultShapeProperty = FindPropertyByName(FControlRigShapeDefinition::StaticStruct(), GET_MEMBER_NAME_CHECKED(FControlRigShapeDefinition, ShapeName));
-			return StoreCacheForUserData({InPath, DefaultShapeProperty, reinterpret_cast<const uint8*>(&LoadedShapeLibrary->DefaultShape.ShapeName)});
+			return StoreCacheForUserData({InPath, DefaultShapeProperty, (const uint8*)&ShapeLibrary->DefaultShape.ShapeName});
 		}
 		if(InPath.Equals(ShapeNamesPath, ESearchCase::CaseSensitive))
 		{
 			static const FProperty* ShapeNamesProperty = FindPropertyByName(StaticClass(), GET_MEMBER_NAME_CHECKED(UControlRigShapeLibraryLink, ShapeNames));
-			return StoreCacheForUserData({InPath, ShapeNamesProperty, reinterpret_cast<const uint8*>(&ShapeNames)});
+			return StoreCacheForUserData({InPath, ShapeNamesProperty, (const uint8*)&ShapeNames});
 		}
 		if(OutErrorMessage && OutErrorMessage->IsEmpty())
 		{
@@ -63,7 +63,7 @@ const TArray<const UNameSpacedUserData::FUserData*>& UControlRigShapeLibraryLink
 		return ResultFromSuper;
 	}
 
-	if(!ShapeLibrary.IsNull())
+	if(ShapeLibrary)
 	{
 		// UControlRigShapeLibraryLink doesn't offer any arrays other than the top level 
 		if(InParentPath.IsEmpty())
@@ -71,13 +71,10 @@ const TArray<const UNameSpacedUserData::FUserData*>& UControlRigShapeLibraryLink
 			const FUserData* ShapeLibraryUserData = GetUserData(GET_MEMBER_NAME_STRING_CHECKED(UControlRigShapeLibraryLink, ShapeLibrary), OutErrorMessage);
 			const FUserData* DefaultShapeUserData = GetUserData(DefaultShapePath, OutErrorMessage);
 			const FUserData* ShapeNamesUserData = GetUserData(ShapeNamesPath, OutErrorMessage);
-
-			if (ensure(ShapeLibraryUserData) &&
-				ensure(DefaultShapeUserData) &&
-				ensure(ShapeNamesUserData))
-			{
-				return StoreCacheForUserDataArray(InParentPath, {ShapeLibraryUserData, DefaultShapeUserData, ShapeNamesUserData});
-			}
+			check(ShapeLibraryUserData);
+			check(DefaultShapeUserData);
+			check(ShapeNamesUserData);
+			return StoreCacheForUserDataArray(InParentPath, {ShapeLibraryUserData, DefaultShapeUserData, ShapeNamesUserData});
 		}
 		return EmptyUserDatas;
 	}
@@ -95,11 +92,11 @@ void UControlRigShapeLibraryLink::PostEditChangeProperty(FPropertyChangedEvent& 
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	static const FProperty* ShapeLibraryProperty = FindPropertyByName(GetClass(), GET_MEMBER_NAME_CHECKED(UControlRigShapeLibraryLink, ShapeLibrary));
+	static const FProperty* ShapeLibraryProperty= FindPropertyByName(GetClass(), GET_MEMBER_NAME_CHECKED(UControlRigShapeLibraryLink, ShapeLibrary));
 	if(PropertyChangedEvent.Property == ShapeLibraryProperty ||
 		PropertyChangedEvent.MemberProperty == ShapeLibraryProperty)
 	{
-		SetShapeLibrary(ShapeLibrary.Get());
+		SetShapeLibrary(ShapeLibrary);
 	}
 }
 

@@ -18,13 +18,13 @@ public:
 
 	/** If assigned, the data asset link will provide access to the data asset's content. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = General, BlueprintGetter = GetShapeLibrary, BlueprintSetter = SetShapeLibrary, Meta = (DisplayAfter="NameSpace"))
-	TSoftObjectPtr<UControlRigShapeLibrary> ShapeLibrary;
+	TObjectPtr<UControlRigShapeLibrary> ShapeLibrary;
 
 	UFUNCTION(BlueprintGetter)
-	TSoftObjectPtr<UControlRigShapeLibrary> GetShapeLibrary() const { return ShapeLibrary; }
+	UControlRigShapeLibrary* GetShapeLibrary() const { return ShapeLibrary; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetShapeLibrary(TSoftObjectPtr<UControlRigShapeLibrary> InShapeLibrary);
+	void SetShapeLibrary(UControlRigShapeLibrary* InShapeLibrary);
 
 	virtual const FUserData* GetUserData(const FString& InPath, FString* OutErrorMessage = nullptr) const override;
 	virtual const TArray<const FUserData*>& GetUserDataArray(const FString& InParentPath = FString(), FString* OutErrorMessage = nullptr) const override;

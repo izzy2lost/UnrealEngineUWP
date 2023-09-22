@@ -192,13 +192,13 @@ public:
 
 	/** If assigned, the data asset link will provide access to the data asset's content. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = General, BlueprintGetter = GetDataAsset, BlueprintSetter = SetDataAsset, Meta = (DisplayAfter="NameSpace"))
-	TSoftObjectPtr<UDataAsset> DataAsset;
+	TObjectPtr<UDataAsset> DataAsset;
 
 	UFUNCTION(BlueprintGetter)
-	TSoftObjectPtr<UDataAsset> GetDataAsset() const { return DataAsset; }
+	UDataAsset* GetDataAsset() const { return DataAsset; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetDataAsset(TSoftObjectPtr<UDataAsset> InDataAsset);
+	void SetDataAsset(UDataAsset* InDataAsset);
 
 	virtual const FUserData* GetUserData(const FString& InPath, FString* OutErrorMessage = nullptr) const override;
 	virtual const TArray<const FUserData*>& GetUserDataArray(const FString& InParentPath = FString(), FString* OutErrorMessage = nullptr) const override;
