@@ -32,16 +32,21 @@ FMovieSceneRootEvaluationTemplateInstance::FMovieSceneRootEvaluationTemplateInst
 
 void FMovieSceneRootEvaluationTemplateInstance::TearDown()
 {
+	using namespace UE::MovieScene;
+
 	// Avoid redundant work if the linker is being destroyed anyway
 	if (EntitySystemLinker && IsValidChecked(EntitySystemLinker) && !EntitySystemLinker->IsUnreachable() && !EntitySystemLinker->HasAnyFlags(RF_BeginDestroyed))
 	{
 		if (TSharedPtr<FMovieSceneEntitySystemRunner> Runner = WeakRunner.Pin())
 		{
-			Runner->DiscardQueuedUpdates(RootInstanceHandle);
+			Runner->AbandonAndDestroyInstance(RootInstanceHandle);
+			RootInstanceHandle = FRootInstanceHandle();
 		}
-
-		EntitySystemLinker->GetInstanceRegistry()->DestroyInstance(RootInstanceHandle);
-		EntitySystemLinker->ResetActiveRunners();
+		else
+		{
+			EntitySystemLinker->GetInstanceRegistry()->DestroyInstance(RootInstanceHandle);
+			EntitySystemLinker->ResetActiveRunners();
+		}
 	}
 
 	RootInstanceHandle = UE::MovieScene::FRootInstanceHandle();
@@ -407,8 +412,10 @@ void FMovieSceneRootEvaluationTemplateInstance::PlaybackContextChanged(IMovieSce
 
 		if (TSharedPtr<FMovieSceneEntitySystemRunner> Runner = WeakRunner.Pin())
 		{
-			Runner->QueueFinalUpdate(RootInstanceHandle);
-			Runner->Flush();
+			if (Runner->QueueFinalUpdate(RootInstanceHandle))
+			{
+				Runner->Flush();
+			}
 		}
 
 		if (bGlobalCapture)
