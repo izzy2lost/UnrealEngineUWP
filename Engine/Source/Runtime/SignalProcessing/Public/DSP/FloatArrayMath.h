@@ -107,6 +107,10 @@ namespace Audio
 	 */ 
 	SIGNALPROCESSING_API void ArrayMinMaxNormalize(TArrayView<const float> InView, TArray<float>& OutArray);
 
+	/** Element-wise Max
+	 */
+	SIGNALPROCESSING_API void ArrayMax(const TArrayView<const float>& InView1, const TArrayView<const float>& InView2, const TArrayView<float>& OutView);
+
 	/** Returns the largest value of an array irrespective of sign (ex. {-3, 2, 1} would return 3).
 	 *  InView is a view of a float array to get the largest absolute value from.
 	 */
