@@ -16,7 +16,6 @@ void FNiagaraSystemDetails::CustomizeDetails(IDetailLayoutBuilder& InDetailLayou
 {
 	// we display the scalability category within scalability mode, which is why we hide it here
 	InDetailLayout.HideCategory("Scalability");
-	InDetailLayout.HideCategory("Asset Options");
 
 	InDetailLayout.SortCategories(
 		[](const TMap<FName, IDetailCategoryBuilder*>& CategoryMap)
