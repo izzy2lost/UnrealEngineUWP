@@ -50,6 +50,10 @@ static FAutoConsoleVariableRef CVarWarnAboutDroppedAttachmentsToObjectsNotInScop
 	TEXT("Warn when attachments are dropped due to object not in scope. Default is false."
 	));
 
+static int32 GReplicationWriterMaxAllowedPacketsIfNotHugeObject = 3;
+static FAutoConsoleVariableRef CVarReplicationWriterMaxAllowedPacketsIfNotHugeObject(TEXT("net.iris.ReplicationWriterMaxAllowedPacketsIfNotHugeObject"), GReplicationWriterMaxAllowedPacketsIfNotHugeObject,
+	TEXT("Allow ReplicationWriter to overcommit data if we have more data to write."));
+
 static bool bValidateObjectsWithDirtyChanges = false;
 static FAutoConsoleVariableRef CvarValidateObjectsWithDirtyChanges(TEXT("net.Iris.ReplicationWriter.ValidateObjectsWithDirtyChanges"), bValidateObjectsWithDirtyChanges, TEXT("Ensure that we don't try to mark invalid objects as dirty when they shouldn't."));
 
@@ -2919,6 +2923,8 @@ int FReplicationWriter::HandleObjectBatchSuccess(const FBatchInfo& BatchInfo, FR
 
 FReplicationWriter::EWriteObjectRetryMode FReplicationWriter::HandleObjectBatchFailure(FReplicationWriter::EWriteObjectStatus WriteObjectStatus, const FBatchInfo& BatchInfo, const FReplicationWriter::FBitStreamInfo& BatchBitStreamInfo) const
 {
+	IRIS_PROFILER_SCOPE(FReplicationWriter_HandleObjectBatchFailure);
+	
 	// Cleanup data stored in BatchInfo
 	for (const FBatchObjectInfo& BatchObjectInfo : BatchInfo.ObjectInfos)
 	{
@@ -2951,8 +2957,14 @@ FReplicationWriter::EWriteObjectRetryMode FReplicationWriter::HandleObjectBatchF
 			return EWriteObjectRetryMode::SplitHugeObject;
 		}
 	}
+	else
+	{
+		IRIS_PROFILER_SCOPE(FReplicationWriter_BlockedByHugeOBjectAlreadyBeingSent);
+	}
 
-	if (WriteContext.FailedToWriteSmallObjectCount >= Parameters.MaxFailedSmallObjectCount)	
+	// If we are allowed to request more packets to write, we should abort once we failed to write a small object
+	const uint32 MaxFailedSmallObjectCount = WriteContext.bCanWriteMoreData ? 1U : Parameters.MaxFailedSmallObjectCount;
+	if (WriteContext.FailedToWriteSmallObjectCount >= MaxFailedSmallObjectCount)	
 	{
 		return EWriteObjectRetryMode::Abort;
 	}
@@ -2962,7 +2974,7 @@ FReplicationWriter::EWriteObjectRetryMode FReplicationWriter::HandleObjectBatchF
 	return EWriteObjectRetryMode::TrySmallObject;
 }
 
-UDataStream::EWriteResult FReplicationWriter::BeginWrite()
+UDataStream::EWriteResult FReplicationWriter::BeginWrite(const UDataStream::FBeginWriteParameters& Params)
 {
 	IRIS_PROFILER_SCOPE(FReplicationWriter_PrepareWrite);
 
@@ -2994,6 +3006,8 @@ UDataStream::EWriteResult FReplicationWriter::BeginWrite()
 	WriteContext.CurrentIndex = 0U;
 	WriteContext.FailedToWriteSmallObjectCount = 0U;
 	WriteContext.SortedObjectCount = 0U;
+	WriteContext.NumWrittenPacketsInThisBatch = 0U;
+	WriteContext.bCanWriteMoreData = Params.bCanWriteMoreData;
 
 	// Reset dependent object array
 	WriteContext.DependentObjectsPendingSend.Reset();
@@ -3129,6 +3143,10 @@ UDataStream::EWriteResult FReplicationWriter::Write(FNetSerializationContext& Co
 		{
 			WriteResult = UDataStream::EWriteResult::HasMoreData;
 		}
+		else if (WriteContext.bCanWriteMoreData && ((int32)WriteContext.NumWrittenPacketsInThisBatch < GReplicationWriterMaxAllowedPacketsIfNotHugeObject))
+		{
+			WriteResult = UDataStream::EWriteResult::HasMoreData;
+		}
 		else
 		{
 			WriteResult = UDataStream::EWriteResult::Ok;
@@ -3162,6 +3180,7 @@ UDataStream::EWriteResult FReplicationWriter::Write(FNetSerializationContext& Co
 		}
 #endif
 
+		++WriteContext.NumWrittenPacketsInThisBatch;
 	}
 	else 
 	{

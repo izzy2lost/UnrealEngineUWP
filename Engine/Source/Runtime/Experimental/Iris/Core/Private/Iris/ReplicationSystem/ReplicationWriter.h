@@ -51,7 +51,7 @@ class FReplicationWriter
 {
 public:
 	// Scheduling constants
-	static constexpr float CreatePriority = 1.f;
+	static constexpr float CreatePriority = 0.f;
 	static constexpr float TearOffPriority = 1.f;
 	static constexpr float LostStatePriorityBump = 1.f;
 	static constexpr float SchedulingThresholdPriority = 1.f;
@@ -166,7 +166,7 @@ public:
 	// UpdatedPriorities contains priorities for all objects. Objects in need of a priority update should use the newly calculated priorities.
 	void UpdatePriorities(const float* UpdatedPriorities);
 
-	UDataStream::EWriteResult BeginWrite();
+	UDataStream::EWriteResult BeginWrite(const UDataStream::FBeginWriteParameters& Params);
 
 	// WriteData to Packet, returns true for now if data was written
 	UDataStream::EWriteResult Write(FNetSerializationContext& Context);
@@ -224,6 +224,10 @@ private:
 
 		// How many objects that were attempted to be replicated but which ultimately didn't fit in the packet.
 		uint32 FailedToWriteSmallObjectCount;
+
+		// How many packets have we written to?
+		uint32 NumWrittenPacketsInThisBatch = 0U;
+		bool bCanWriteMoreData = false;
 
 		uint32 bHasDestroyedObjectsToSend : 1;
 		uint32 bHasUpdatedObjectsToSend : 1;

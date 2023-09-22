@@ -250,8 +250,9 @@ bool FReplicationSystemTestNode::SendUpdate(uint32 ConnectionId, const TCHAR* De
 	FConnectionInfo& Connection = GetConnectionInfo(ConnectionId);
 
 	const FDataStreamRecord* Record = nullptr;
+	UDataStream::FBeginWriteParameters BeginWriteParameters;
 
-	const bool bResult = (Connection.DataStreamManager->BeginWrite() != UDataStream::EWriteResult::NoData) && (Connection.DataStreamManager->WriteData(Context, Record)  != UDataStream::EWriteResult::NoData);
+	const bool bResult = (Connection.DataStreamManager->BeginWrite(BeginWriteParameters) != UDataStream::EWriteResult::NoData) && (Connection.DataStreamManager->WriteData(Context, Record)  != UDataStream::EWriteResult::NoData);
 	if (bResult)
 	{
 		Writer.CommitWrites();

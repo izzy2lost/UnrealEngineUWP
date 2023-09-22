@@ -18,6 +18,7 @@
 #include "Iris/Serialization/NetSerializationContext.h"
 #include "Iris/Core/IrisProfiler.h"
 #include "Iris/Core/IrisMemoryTracker.h"
+#include "Iris/Core/IrisLog.h"
 #include "Net/Core/Trace/NetTrace.h"
 #include "PacketHandler.h"
 #include "ProfilingDebugging/CsvProfiler.h"
@@ -164,8 +165,15 @@ void UDataStreamChannel::Tick()
 		return;
 	}
 
-	if (!IsNetReady(UE::Net::Private::bIrisSaturateBandwidth) || IsPacketWindowFull() || !Connection->HasReceivedClientPacket() || (Connection->Handler != nullptr && !Connection->Handler->IsFullyInitialized()))
+	if (IsPacketWindowFull() || !Connection->HasReceivedClientPacket() || (Connection->Handler != nullptr && !Connection->Handler->IsFullyInitialized()))
 	{
+		return;
+	}
+
+	// We probably want separate bandwidth management for iris as we are not pre-filling sendbuffer before call to NetReady.
+	if (!IsNetReady(UE::Net::Private::bIrisSaturateBandwidth))
+	{
+		UE_LOG(LogIris, Warning, TEXT("Disallowed to write first object in batch, with Iris this is not good!"))
 		return;
 	}
 
@@ -183,10 +191,28 @@ void UDataStreamChannel::Tick()
 	IRIS_PROFILER_SCOPE(UDataStreamChannel_Tick);
 	LLM_SCOPE_BYTAG(Iris);
 
+	// Limit the amount of bits to minimum of a bunch and our buffer. NetBitStreamWriter requires the number of bytes to be a multiple of 4.
+	const uint32 MaxBitCount = uint32(Connection->GetMaxSingleBunchSizeBits());
+	const uint32 MaxBytes = FPlatformMath::Min((MaxBitCount/32U)*4U, (uint32)sizeof(BitStreamBuffer));
+	const int64 MaxBunchBits = MaxBytes*8;
+
+	// Try to determine if we have headroom to write more than a single packet if needed.
+	UDataStream::FBeginWriteParameters BeginWriteParams;
+	{
+		int32 CurrentQueuedBits = Connection->QueuedBits + Connection->SendBuffer.GetNumBits();
+		if (CurrentQueuedBits < 0)
+		{
+			const int32 NumBunchesThatMightBeWritten = (-CurrentQueuedBits) / MaxBunchBits;
+
+			// Indicate that DataStream can request more data
+			BeginWriteParams.bCanWriteMoreData = NumBunchesThatMightBeWritten > 1;
+		}
+	}
+
 	// Currently we want to use a full bunch so we flush if we have to
 	bool bNeedsPreSendFlush = Connection->SendBuffer.GetNumBits() > MAX_PACKET_HEADER_BITS;
 
-	auto WriteDataFunction = [this, &bNeedsPreSendFlush]()
+	auto WriteDataFunction = [this, &bNeedsPreSendFlush, &BeginWriteParams, MaxBunchBits, MaxBytes]()
 	{
 		if (bNeedsPreSendFlush)
 		{
@@ -200,10 +226,6 @@ void UDataStreamChannel::Tick()
 		{
 			Connection->WriteBitsToSendBuffer(nullptr, 0);
 		}
-
-		// Limit the amount of bits to minimum of a bunch and our buffer. NetBitStreamWriter requires the number of bytes to be a multiple of 4.
-		const uint32 MaxBitCount = uint32(Connection->GetMaxSingleBunchSizeBits());
-		const uint32 MaxBytes = FPlatformMath::Min((MaxBitCount/32U)*4U, (uint32)sizeof(BitStreamBuffer));
 
 		FNetBitStreamWriter BitWriter;
 		BitWriter.InitBytes(BitStreamBuffer, MaxBytes);
@@ -222,6 +244,7 @@ void UDataStreamChannel::Tick()
 		UDataStream::EWriteResult WriteResult = DataStreamManager->WriteData(SerializationContext, Record);
 		if (WriteResult == UDataStream::EWriteResult::NoData || SerializationContext.HasError())
 		{
+			IRIS_PROFILER_SCOPE(UDataStreamChannel_NoDataSent);
 			// Do not report the bunch
 			UE_NET_TRACE_DISCARD_BUNCH(Collector);
 			
@@ -233,7 +256,6 @@ void UDataStreamChannel::Tick()
 
 		IRIS_PROFILER_SCOPE(UDataStreamChannel_SendBunchAndFlushNet);
 
-		const int64 MaxBunchBits = MaxBytes*8;
 		FOutBunch OutBunch(MaxBunchBits);
 #if UE_NET_TRACE_ENABLED
 		SetTraceCollector(OutBunch, Collector);
@@ -274,7 +296,7 @@ void UDataStreamChannel::Tick()
 	};
 
 	// Begin the write, if we have nothing todo, just return
-	if (DataStreamManager->BeginWrite() == UDataStream::EWriteResult::NoData)
+	if (DataStreamManager->BeginWrite(BeginWriteParams) == UDataStream::EWriteResult::NoData)
 	{
 		return;
 	}
