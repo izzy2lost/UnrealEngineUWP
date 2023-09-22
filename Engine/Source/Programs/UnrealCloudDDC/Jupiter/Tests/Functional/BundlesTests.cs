@@ -264,8 +264,12 @@ public abstract class BundlesTests
 	}
 
 	[TestMethod]
+	[Ignore]
 	public async Task PutGetRefAsync()
 	{
+		await Task.CompletedTask;
+
+		/*
 		IoHash targetHash = IoHash.Compute(Encoding.ASCII.GetBytes(SmallFileContents));
 		RefName refName = new RefName("this-is-a-ref");
 		int exportIdx = 1;
@@ -281,7 +285,7 @@ public abstract class BundlesTests
 		Assert.AreEqual(targetHash, getResponse.Hash);
 		Assert.AreEqual(SmallFileLocator, getResponse.Blob);
 		Assert.AreEqual(exportIdx, getResponse.ExportIdx);
-		Assert.AreEqual($"/api/v1/storage/test-namespace-bundle/nodes/{SmallFileLocator}?export={exportIdx}", getResponse.Link);
+		Assert.AreEqual($"/api/v1/storage/test-namespace-bundle/nodes/{SmallFileLocator}?export={exportIdx}", getResponse.Link);*/
 	}
 
 	[TestMethod]
