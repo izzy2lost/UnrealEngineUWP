@@ -180,12 +180,13 @@ public:
 		}
 		return false;
 	}
-	FORCEINLINE static void ForEachShape(float InGridLoadingRange, float InDefaultRadius, bool bInProjectIn2D, const FVector& InLocation, const FRotator& InRotation, const TArray<FStreamingSourceShape>& InShapes, TFunctionRef<void(const FSphericalSector&)> InOperation)
+
+	FORCEINLINE static void ForEachShape(float InGridLoadingRange, float InDefaultRadius, bool bInProjectIn2D, const FVector& InLocation, const FRotator& InRotation, const TArray<FStreamingSourceShape>& InShapes, TFunctionRef<void(const FSphericalSector&)> InOperation, float InExtraRadius = 0.f, float InExtraAngle = 0.f)
 	{
 		const FTransform Transform(bInProjectIn2D ? FRotator(0, InRotation.Yaw, 0) : InRotation, InLocation);
 		if (InShapes.IsEmpty())
 		{
-			FSphericalSector LocalShape(FVector::ZeroVector, InDefaultRadius);
+			FSphericalSector LocalShape(FVector::ZeroVector, InDefaultRadius + InExtraRadius);
 			if (LocalShape.IsValid())
 			{
 				InOperation(LocalShape.TransformBy(Transform));
@@ -195,8 +196,8 @@ public:
 		{
 			for (const FStreamingSourceShape& Shape : InShapes)
 			{
-				const FVector::FReal ShapeRadius = Shape.bUseGridLoadingRange ? (InGridLoadingRange * Shape.LoadingRangeScale) : Shape.Radius;
-				const FVector::FReal ShapeAngle = Shape.bIsSector ? Shape.SectorAngle : 360.0f;
+				const FVector::FReal ShapeRadius = (Shape.bUseGridLoadingRange ? (InGridLoadingRange * Shape.LoadingRangeScale) : Shape.Radius) + InExtraRadius;
+				const FVector::FReal ShapeAngle = Shape.bIsSector ? (Shape.SectorAngle + InExtraAngle) : 360.0f;
 				const FVector ShapeAxis = bInProjectIn2D ? FRotator(0, Shape.Rotation.Yaw, 0).Vector() : Shape.Rotation.Vector();
 				FSphericalSector LocalShape(bInProjectIn2D ? FVector(Shape.Location.X, Shape.Location.Y, 0) : Shape.Location, ShapeRadius, ShapeAxis, ShapeAngle);
 				if (LocalShape.IsValid())
@@ -372,6 +373,8 @@ struct FWorldPartitionStreamingSource
 		, Hash3D(0)
 		, OldLocation(FVector::ZeroVector)
 		, OldRotation(FRotator::ZeroRotator)
+		, ExtraRadius(0)
+		, ExtraAngle(0)
 	{}
 
 	FWorldPartitionStreamingSource(FName InName, const FVector& InLocation, const FRotator& InRotation, EStreamingSourceTargetState InTargetState, bool bInBlockOnSlowLoading, EStreamingSourcePriority InPriority, bool bRemote, float InVelocity = 0.f)
@@ -390,6 +393,8 @@ struct FWorldPartitionStreamingSource
 		, Hash3D(0)
 		, OldLocation(InLocation)
 		, OldRotation(InRotation)
+		, ExtraRadius(0)
+		, ExtraAngle(0)
 	{}
 
 	// Define Copy Constructor to avoid deprecation warnings
@@ -416,6 +421,10 @@ struct FWorldPartitionStreamingSource
 		bRemote = Other.bRemote;
 		Hash2D = Other.Hash2D;
 		Hash3D = Other.Hash3D;
+		OldLocation = Other.OldLocation;
+		OldRotation = Other.OldRotation;
+		ExtraRadius = Other.ExtraRadius;
+		ExtraAngle = Other.ExtraAngle;
 		return *this;
 	}
 	
@@ -490,7 +499,7 @@ struct FWorldPartitionStreamingSource
 	{
 		if (FStreamingSourceShapeHelper::IsSourceAffectingGrid(TargetGrids, TargetHLODLayers, TargetBehavior, InGridName, InGridHLODLayer))
 		{
-			FStreamingSourceShapeHelper::ForEachShape(InGridLoadingRange, InGridLoadingRange, bInProjectIn2D, Location, Rotation, Shapes, InOperation);
+			FStreamingSourceShapeHelper::ForEachShape(InGridLoadingRange, InGridLoadingRange, bInProjectIn2D, Location, Rotation, Shapes, InOperation, ExtraRadius, ExtraAngle);
 		}
 	}
 
@@ -512,6 +521,41 @@ private:
 	/** Source values used for hash computations. */
 	FVector OldLocation;
 	FRotator OldRotation;
+
+	/** Used internally for server streaming */
+	float ExtraRadius;
+	float ExtraAngle;
+
+	friend struct FSetStreamingSourceExtraRadius;
+	friend struct FSetStreamingSourceExtraAngle;
+};
+
+struct FSetStreamingSourceExtraRadius
+{
+private:
+	FSetStreamingSourceExtraRadius(FWorldPartitionStreamingSource& InStreamingSource, float InExtraRadius)
+	{
+		if (ensure(InExtraRadius >= 0.f))
+		{
+			InStreamingSource.ExtraRadius = InExtraRadius;
+		}
+	}
+
+	friend class UWorldPartitionSubsystem;
+};
+
+struct FSetStreamingSourceExtraAngle
+{
+private:
+	FSetStreamingSourceExtraAngle(FWorldPartitionStreamingSource& InStreamingSource, float InExtraAngle)
+	{
+		if (ensure(InExtraAngle >= 0.f))
+		{
+			InStreamingSource.ExtraAngle = InExtraAngle;
+		}
+	}
+
+	friend class UWorldPartitionSubsystem;
 };
 
 /**

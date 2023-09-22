@@ -41,6 +41,22 @@
 extern int32 GBlockOnSlowStreaming;
 static const FName NAME_WorldPartitionRuntimeHash("WorldPartitionRuntimeHash");
 
+static int32 GServerStreamingSourceMinimumExtraRadius = 400;
+static FAutoConsoleVariableRef CVarServerStreamingSourceMinimumExtraRadius(
+	TEXT("wp.Runtime.ServerStreamingSourceMinimumExtraRadius"),
+	GServerStreamingSourceMinimumExtraRadius,
+	TEXT("Minimum value added to the radius of the streaming sources used by the server (in Unreal unit)."),
+	ECVF_Default
+);
+
+static int32 GServerStreamingSourceMinimumExtraAngle = 1;
+static FAutoConsoleVariableRef CVarServerStreamingSourceMinimumExtraAngle(
+	TEXT("wp.Runtime.ServerStreamingSourceMinimumExtraAngle"),
+	GServerStreamingSourceMinimumExtraAngle,
+	TEXT("Minimum value added to the angle of the streaming source shape sector used by the server (in degree)."),
+	ECVF_Default
+);
+
 static int32 GDrawWorldPartitionIndex = -1;
 static FAutoConsoleCommand CVarDrawWorldPartitionIndex(
 	TEXT("wp.Runtime.DrawWorldPartitionIndex"),
@@ -140,7 +156,7 @@ static FAutoConsoleCommandWithOutputDevice GDumpWorldPartitionsCmd(
 			if (World && World->IsGameWorld())
 			{
 				if (const UWorldPartitionSubsystem* WorldPartitionSubsystem = World->GetSubsystem<UWorldPartitionSubsystem>())
-				{				
+				{
 					WorldPartitionSubsystem->DumpWorldPartitions(OutputDevice);
 				}
 			}
@@ -963,7 +979,9 @@ void UWorldPartitionSubsystem::UpdateStreamingSources()
 
 	if (!bIsUsingReplayStreamingSources)
 	{
-		if (!IsServer(World) || HasAnyWorldPartitionServerStreamingEnabled() || AWorldPartitionReplay::IsRecordingEnabled(World))
+		const bool bIsServer = IsServer(World);
+		const bool bServerStreamingEnabled = HasAnyWorldPartitionServerStreamingEnabled();
+		if (!bIsServer || bServerStreamingEnabled || AWorldPartitionReplay::IsRecordingEnabled(World))
 		{
 			bool bAllowPlayerControllerStreamingSources = true;
 #if WITH_EDITOR
@@ -990,6 +1008,26 @@ void UWorldPartitionSubsystem::UpdateStreamingSources()
 						}
 					}
 				}
+			}
+		}
+
+		// Make sure the server streaming always loads a bit more than the client.
+		// This is necessary to avoid making the client wait indefinitly for the server to finish loading cells
+		// that are not even requested by the server because of a slight difference between client and server
+		// streaming source locations / rotation.
+		// Network quantization and world partition location/rotation quantization can contribute to this difference.
+		if (bIsServer && bServerStreamingEnabled)
+		{
+			// Double location quantization for safety
+			const int32 LocationQuantization = UWorldPartitionStreamingPolicy::IsUpdateStreamingOptimEnabled() && (FWorldPartitionStreamingSource::GetLocationQuantization() > 0.f) ? FWorldPartitionStreamingSource::GetLocationQuantization() : 0.f;
+			const float ExtraRadius = FMath::Max<int32>(FMath::Max<int32>(GServerStreamingSourceMinimumExtraRadius, LocationQuantization * 2), 0);
+			// Double rotation quantization for safety
+			const int32 RotationQuantization = UWorldPartitionStreamingPolicy::IsUpdateStreamingOptimEnabled() && (FWorldPartitionStreamingSource::GetRotationQuantization() > 0.f) ? FWorldPartitionStreamingSource::GetRotationQuantization() : 0.f;
+			const float ExtraAngle = FMath::Max<int32>(FMath::Max<int32>(GServerStreamingSourceMinimumExtraAngle, RotationQuantization * 2), 0);
+			for (FWorldPartitionStreamingSource& StreamingSource : StreamingSources)
+			{
+				FSetStreamingSourceExtraRadius SetExtraRadius(StreamingSource, ExtraRadius);
+				FSetStreamingSourceExtraAngle SetExtraAngle(StreamingSource, ExtraAngle);
 			}
 		}
 	}

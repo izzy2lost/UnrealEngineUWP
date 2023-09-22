@@ -68,6 +68,16 @@ FString FWorldPartitionStreamingSource::ToString() const
 		StringBuilder.RemoveSuffix(1);
 	}
 
+	if (ExtraRadius > 0.f)
+	{
+		StringBuilder.Appendf(TEXT(" | Extra Radius: %d "), (int32)ExtraRadius);
+	}
+
+	if (ExtraAngle > 0.f)
+	{
+		StringBuilder.Appendf(TEXT(" | Extra Angle: %d "), (int32)ExtraAngle);
+	}
+
 	if (TargetGrids.Num())
 	{
 		StringBuilder.Appendf(TEXT(" | %s TargetGrids: "), (TargetBehavior == EStreamingSourceTargetBehavior::Include) ? TEXT("Included") : TEXT("Excluded"));
@@ -99,7 +109,7 @@ void FWorldPartitionStreamingSource::UpdateHash()
 	}
 
 	FHashBuilder HashBuilder;
-	HashBuilder	<< Name << TargetState << bBlockOnSlowLoading << bReplay << bRemote << Priority << TargetBehavior << TargetGrids << TargetHLODLayers << Shapes;
+	HashBuilder	<< Name << TargetState << bBlockOnSlowLoading << bReplay << bRemote << Priority << TargetBehavior << TargetGrids << TargetHLODLayers << Shapes << ExtraRadius  << ExtraAngle;
 
 	if (LocationQuantization)
 	{
