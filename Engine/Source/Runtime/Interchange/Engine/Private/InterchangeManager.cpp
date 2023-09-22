@@ -515,6 +515,10 @@ FGraphEventArray UE::Interchange::FImportAsyncHelper::GetCompletionTaskGraphEven
 	TasksToComplete.Append(ImportObjectTasks);
 	TasksToComplete.Append(FinalizeImportObjectTasks);
 	TasksToComplete.Append(SceneTasks);
+	if (WaitAssetCompilationTask.GetReference())
+	{
+		TasksToComplete.Add(WaitAssetCompilationTask);
+	}
 	TasksToComplete.Append(PipelinePostImportTasks);
 
 	if (PreAsyncCompletionTask.GetReference())
