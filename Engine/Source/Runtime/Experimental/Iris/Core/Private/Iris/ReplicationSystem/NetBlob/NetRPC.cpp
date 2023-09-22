@@ -119,7 +119,6 @@ void FNetRPC::DeserializeWithObject(FNetSerializationContext& Context, FNetRefHa
 		return;
 	}
 
-	// $IRIS TODO Fix. May need to send subobject information
 	InternalDeserializeSubObjectReference(Context, RefHandle);
 	if (Context.HasErrorOrOverflow())
 	{

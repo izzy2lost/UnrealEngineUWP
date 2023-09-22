@@ -326,7 +326,12 @@ void FReplicationWriter::QueueNetObjectAttachments(FInternalNetRefIndex OwnerInt
 	}
 	
 	// Route attachments flagged with ScheduleAsOOB through OOB channel if we have started replicating the owner.
-	const bool bScheduleUsingOOBChannel = EnumHasAnyFlags(SendFlags, ENetObjectAttachmentSendPolicyFlags::ScheduleAsOOB) && (GetReplicationInfo(OwnerInternalIndex).GetState() >= EReplicatedObjectState::WaitOnCreateConfirmation);
+	const bool bScheduleUsingOOBChannel = EnumHasAnyFlags(SendFlags, ENetObjectAttachmentSendPolicyFlags::ScheduleAsOOB);
+	if (bScheduleUsingOOBChannel && (GetReplicationInfo(OwnerInternalIndex).GetState() < EReplicatedObjectState::WaitOnCreateConfirmation || GetReplicationInfo(OwnerInternalIndex).GetState() >= EReplicatedObjectState::PendingDestroy))
+	{
+		UE_CLOG_REPLICATIONWRITER_WARNING(bWarnAboutDroppedAttachmentsToObjectsNotInScope, TEXT("Dropping attachment scheduled as ScheduleAsOOB due to object ( InternalIndex: %u ) not in replicated state."),  OwnerInternalIndex);
+		return;
+	}
 
 	const uint32 TargetIndex = (bObjectInScope && !bScheduleUsingOOBChannel) ? (SubObjectInternalIndex != FNetRefHandleManager::InvalidInternalIndex ? SubObjectInternalIndex : OwnerInternalIndex) : ObjectIndexForOOBAttachment;
 	ENetObjectAttachmentType AttachmentType = ((bObjectInScope && !bScheduleUsingOOBChannel) ? ENetObjectAttachmentType::Normal : ENetObjectAttachmentType::OutOfBand);

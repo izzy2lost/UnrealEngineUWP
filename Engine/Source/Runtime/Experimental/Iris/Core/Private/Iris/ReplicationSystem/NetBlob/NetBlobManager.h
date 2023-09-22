@@ -101,7 +101,7 @@ private:
 		};
 		typedef TArray<FNetObjectAttachmentQueueEntry> FQueue;
 
-		bool PreSerializeAndSplitNetBlob(uint32 ConnectionId, const TRefCountPtr<FNetObjectAttachment>& Attachment, TArray<TRefCountPtr<FNetBlob>>& OutPartialNetBlobs) const;
+		bool PreSerializeAndSplitNetBlob(uint32 ConnectionId, const TRefCountPtr<FNetObjectAttachment>& Attachment, TArray<TRefCountPtr<FNetBlob>>& OutPartialNetBlobs, bool bInSendAttachmentsWithObject) const;
 
 		FNetBlobManager* Manager;
 		FQueue AttachmentQueue;

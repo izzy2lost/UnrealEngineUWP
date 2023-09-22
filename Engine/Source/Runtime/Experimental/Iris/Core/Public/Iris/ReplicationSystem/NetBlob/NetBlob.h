@@ -142,6 +142,7 @@ class FNetObjectAttachment : public FNetBlob
 public:
 	IRISCORE_API FNetObjectAttachment(const FNetBlobCreationInfo&);
 	const FNetObjectReference& GetNetObjectReference() const { return NetObjectReference; }
+	const FNetObjectReference& GetTargetObjectReference() const { return TargetObjectReference; }
 
 protected:
 	virtual ~FNetObjectAttachment();

@@ -76,7 +76,7 @@ bool UPartialNetObjectAttachmentHandler::PreSerializeAndSplitNetBlob(uint32 Conn
 	}
 	else
 	{
-		FShrinkWrapNetBlob* ShrinkWrapNetBlob = new FShrinkWrapNetBlob(reinterpret_cast<const TRefCountPtr<FNetBlob>&>(Blob), MoveTemp(Payload), Writer.GetPosBits());
+		FShrinkWrapNetObjectAttachment* ShrinkWrapNetBlob = new FShrinkWrapNetObjectAttachment(Blob, MoveTemp(Payload), Writer.GetPosBits());
 		OutPartialBlobs.AddDefaulted_GetRef() = ShrinkWrapNetBlob;
 		return true;
 	}
