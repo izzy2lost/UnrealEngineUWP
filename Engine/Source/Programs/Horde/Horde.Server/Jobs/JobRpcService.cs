@@ -37,7 +37,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
-using Microsoft.AspNetCore.Mvc.TagHelpers;
 
 namespace Horde.Server.Jobs
 {
@@ -46,8 +45,6 @@ namespace Horde.Server.Jobs
 	using RpcGetStepResponse = HordeCommon.Rpc.GetStepResponse;
 	using RpcUpdateJobRequest = HordeCommon.Rpc.UpdateJobRequest;
 	using RpcUpdateStepRequest = HordeCommon.Rpc.UpdateStepRequest;
-
-	using NodeRef = Horde.Server.Jobs.Graphs.NodeRef;
 
 	/// <summary>
 	/// Implements the Horde gRPC service for bots updating their status and dequeing work
@@ -739,7 +736,6 @@ namespace Horde.Server.Jobs
 				{
 					throw new StructuredRpcException(StatusCode.PermissionDenied, "Access denied");
 				}
-
 
 				// Get the graph state
 				IGraph oldGraph = await _graphs.GetAsync(job.GraphHash);
