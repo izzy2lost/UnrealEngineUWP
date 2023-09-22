@@ -510,8 +510,8 @@ TFuture<EOS_EResult> FLobbyDetailsEOS::ApplyLobbyDataUpdateFromLocalChanges(FAcc
 		const FLobbyAttributeTranslator<ELobbyTranslationType::ToService> AttributeTranslator(UpdatedAttribute.Value);
 
 		EOS_LobbyModification_AddAttributeOptions AddAttributeOptions = {};
-		AddAttributeOptions.ApiVersion = 1;
-		UE_EOS_CHECK_API_MISMATCH(EOS_LOBBYMODIFICATION_ADDATTRIBUTE_API_LATEST, 1);
+		AddAttributeOptions.ApiVersion = 2;
+		UE_EOS_CHECK_API_MISMATCH(EOS_LOBBYMODIFICATION_ADDATTRIBUTE_API_LATEST, 2);
 		AddAttributeOptions.Attribute = &AttributeTranslator.GetAttributeData();
 		AddAttributeOptions.Visibility = AttributeTranslator.GetAttributeVisibility();
 
@@ -549,8 +549,8 @@ TFuture<EOS_EResult> FLobbyDetailsEOS::ApplyLobbyDataUpdateFromLocalChanges(FAcc
 		const FLobbyAttributeTranslator<ELobbyTranslationType::ToService> AttributeTranslator(UpdatedAttribute.Value);
 
 		EOS_LobbyModification_AddMemberAttributeOptions AddMemberAttributeOptions = {};
-		AddMemberAttributeOptions.ApiVersion = 1;
-		UE_EOS_CHECK_API_MISMATCH(EOS_LOBBYMODIFICATION_ADDMEMBERATTRIBUTE_API_LATEST, 1);
+		AddMemberAttributeOptions.ApiVersion = 2;
+		UE_EOS_CHECK_API_MISMATCH(EOS_LOBBYMODIFICATION_ADDMEMBERATTRIBUTE_API_LATEST, 2);
 		AddMemberAttributeOptions.Attribute = &AttributeTranslator.GetAttributeData();
 		AddMemberAttributeOptions.Visibility = AttributeTranslator.GetAttributeVisibility();
 

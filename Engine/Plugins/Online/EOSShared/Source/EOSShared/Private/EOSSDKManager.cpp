@@ -459,9 +459,10 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(const FString& PlatformConf
 	const FTCHARToUTF8 Utf8CacheDirectory(*PlatformConfig->CacheDirectory);
 
 	EOS_Platform_Options PlatformOptions = {};
-	PlatformOptions.ApiVersion = 12;
-	UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_OPTIONS_API_LATEST, 12);
+	PlatformOptions.ApiVersion = 13;
+	UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_OPTIONS_API_LATEST, 13);
 	PlatformOptions.Reserved = nullptr;
+	PlatformOptions.SystemSpecificOptions = nullptr;
 	PlatformOptions.ProductId = Utf8ProductId.Length() ? Utf8ProductId.Get() : nullptr;
 	PlatformOptions.SandboxId = Utf8SandboxId.Length() ? Utf8SandboxId.Get() : nullptr;
 	PlatformOptions.ClientCredentials.ClientId = Utf8ClientId.Length() ? Utf8ClientId.Get() : nullptr;
@@ -489,9 +490,10 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(const FString& PlatformConf
 	PlatformOptions.TickBudgetInMilliseconds = PlatformConfig->TickBudgetInMilliseconds;
 
 	EOS_Platform_RTCOptions PlatformRTCOptions = {};
-	PlatformRTCOptions.ApiVersion = 1;
-	UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_RTCOPTIONS_API_LATEST, 1);
+	PlatformRTCOptions.ApiVersion = 2;
+	UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_RTCOPTIONS_API_LATEST, 2);
 	PlatformRTCOptions.PlatformSpecificOptions = nullptr;
+	PlatformRTCOptions.BackgroundMode = EOS_ERTCBackgroundMode::EOS_RTCBM_LeaveRooms;
 	PlatformOptions.RTCOptions = PlatformConfig->bEnableRTC ? &PlatformRTCOptions : nullptr;
 
 	PlatformOptions.IntegratedPlatformOptionsContainerHandle = nullptr;

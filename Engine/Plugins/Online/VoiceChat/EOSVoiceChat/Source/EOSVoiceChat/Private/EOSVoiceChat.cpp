@@ -132,9 +132,10 @@ void FEOSVoiceChat::Initialize(const FOnVoiceChatInitializeCompleteDelegate& Ini
 					const FTCHARToUTF8 Utf8OverrideLocaleCode(*ConfigOverrideLocaleCode);
 
 					EOS_Platform_Options PlatformOptions = {};
-					PlatformOptions.ApiVersion = 12;
-					UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_OPTIONS_API_LATEST, 12);
+					PlatformOptions.ApiVersion = 13;
+					UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_OPTIONS_API_LATEST, 13);
 					PlatformOptions.Reserved = nullptr;
+					PlatformOptions.SystemSpecificOptions = nullptr;
 					PlatformOptions.ProductId = ConfigProductId.IsEmpty() ? nullptr : Utf8ProductId.Get();
 					PlatformOptions.SandboxId = ConfigSandboxId.IsEmpty() ? nullptr : Utf8SandboxId.Get();
 					PlatformOptions.ClientCredentials.ClientId = ConfigClientId.IsEmpty() ? nullptr : Utf8ClientId.Get();
@@ -153,8 +154,9 @@ void FEOSVoiceChat::Initialize(const FOnVoiceChatInitializeCompleteDelegate& Ini
 #endif
 
 					EOS_Platform_RTCOptions PlatformRTCOptions = {};
-					PlatformRTCOptions.ApiVersion = 1;
-					UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_RTCOPTIONS_API_LATEST, 1);
+					PlatformRTCOptions.ApiVersion = 2;
+					UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_RTCOPTIONS_API_LATEST, 2);
+					PlatformRTCOptions.BackgroundMode = EOS_ERTCBackgroundMode::EOS_RTCBM_LeaveRooms;
 					PlatformOptions.RTCOptions = &PlatformRTCOptions;
 
 					EosPlatformHandle = EOSPlatformCreate(PlatformOptions);

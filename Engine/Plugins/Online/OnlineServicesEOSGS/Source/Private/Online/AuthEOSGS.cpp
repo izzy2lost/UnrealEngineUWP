@@ -156,9 +156,10 @@ FEOSConnectLoginOptions::FEOSConnectLoginOptions()
 	CredentialsData.Token = nullptr;
 
 	// EOS_Connect_UserLoginInfo init
-	UserLoginInfoData.ApiVersion = 1;
-	UE_EOS_CHECK_API_MISMATCH(EOS_CONNECT_USERLOGININFO_API_LATEST, 1);
+	UserLoginInfoData.ApiVersion = 2;
+	UE_EOS_CHECK_API_MISMATCH(EOS_CONNECT_USERLOGININFO_API_LATEST, 2);
 	UserLoginInfoData.DisplayName = DisplayNameUtf8;
+	UserLoginInfoData.NsaIdToken = nullptr;
 }
 
 TDefaultErrorResultInternal<FEOSConnectLoginOptions> FEOSConnectLoginOptions::Create(FPlatformUserId PlatformUserId, const FExternalAuthToken& ExternalAuthToken)
@@ -313,14 +314,15 @@ FEOSAuthLoginOptions& FEOSAuthLoginOptions::operator=(FEOSAuthLoginOptions&& Oth
 FEOSAuthLoginOptions::FEOSAuthLoginOptions()
 {
 	// EOS_Auth_LoginOptions init
-	UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_LOGIN_API_LATEST, 2);
+	UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_LOGIN_API_LATEST, 3);
 	ApiVersion = 2;
 	Credentials = &CredentialsData;
 	ScopeFlags = EOS_EAuthScopeFlags::EOS_AS_NoFlags;
+	LoginFlags = 0;
 
 	// EOS_Auth_Credentials init
-	UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_CREDENTIALS_API_LATEST, 3);
-	CredentialsData.ApiVersion = 3;
+	UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_CREDENTIALS_API_LATEST, 4);
+	CredentialsData.ApiVersion = 4;
 	CredentialsData.Id = nullptr;
 	CredentialsData.Token = nullptr;
 	CredentialsData.Type = EOS_ELoginCredentialType::EOS_LCT_Password;

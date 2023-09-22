@@ -143,8 +143,8 @@ TOnlineAsyncOpHandle<FCreateLobby> FLobbiesEOSGS::CreateLobby(FCreateLobby::Para
 		// Once all local members are joined and the lobby attributes have been set the privacy setting will be moved to the user setting.
 
 		EOS_Lobby_CreateLobbyOptions CreateLobbyOptions = {};
-		CreateLobbyOptions.ApiVersion = 8;
-		UE_EOS_CHECK_API_MISMATCH(EOS_LOBBY_CREATELOBBY_API_LATEST, 8);
+		CreateLobbyOptions.ApiVersion = 9;
+		UE_EOS_CHECK_API_MISMATCH(EOS_LOBBY_CREATELOBBY_API_LATEST, 9);
 		CreateLobbyOptions.LocalUserId = GetProductUserIdChecked(Params.LocalAccountId);
 		CreateLobbyOptions.MaxLobbyMembers = Params.MaxMembers;
 		// Prevent lobby from appearing in search results until fully created with all user attributes.
@@ -415,8 +415,8 @@ TOnlineAsyncOpHandle<FJoinLobby> FLobbiesEOSGS::JoinLobby(FJoinLobby::Params&& I
 		const TSharedRef<FLobbyDetailsEOS>& LobbyDetails = GetOpDataChecked<TSharedRef<FLobbyDetailsEOS>>(InAsyncOp, UE_ONLINE_LOBBY_EOS_KEY_NAME_LOBBY_DETAILS);
 
 		EOS_Lobby_JoinLobbyOptions JoinLobbyOptions = {};
-		JoinLobbyOptions.ApiVersion = 3;
-		UE_EOS_CHECK_API_MISMATCH(EOS_LOBBY_JOINLOBBY_API_LATEST, 3);
+		JoinLobbyOptions.ApiVersion = 4;
+		UE_EOS_CHECK_API_MISMATCH(EOS_LOBBY_JOINLOBBY_API_LATEST, 4);
 		JoinLobbyOptions.LobbyDetailsHandle = LobbyDetails->GetEOSHandle();
 		JoinLobbyOptions.LocalUserId = GetProductUserIdChecked(Params.LocalAccountId);
 		JoinLobbyOptions.bPresenceEnabled = Params.bPresenceEnabled;

@@ -483,8 +483,8 @@ void FUserManagerEOS::CallEOSAuthLogin(int32 LocalUserNum, const FOnlineAccountC
 		return;
 	}
 
-	EOSCredentials.ApiVersion = 3;
-	UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_CREDENTIALS_API_LATEST, 3);
+	EOSCredentials.ApiVersion = 4;
+	UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_CREDENTIALS_API_LATEST, 4);
 
 	auto IdConverter = StringCast<UTF8CHAR>(*Credentials.Id);
 	EOSCredentials.Id = IdConverter.Length() ? (const char*)IdConverter.Get() : nullptr;
@@ -496,8 +496,8 @@ void FUserManagerEOS::CallEOSAuthLogin(int32 LocalUserNum, const FOnlineAccountC
 
 	// We start preparing the Login call
 	EOS_Auth_LoginOptions LoginOptions = { };
-	LoginOptions.ApiVersion = 2;
-	UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_LOGIN_API_LATEST, 2);
+	LoginOptions.ApiVersion = 3;
+	UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_LOGIN_API_LATEST, 3);
 
 	LoginOptions.ScopeFlags = GetAuthScopeFlags();
 
@@ -667,10 +667,11 @@ bool FUserManagerEOS::ConnectLoginNoEAS(int32 LocalUserNum, const FOnlineAccount
 
 #if ADD_USER_LOGIN_INFO
 				EOS_Connect_UserLoginInfo UserLoginInfo = {};
-				UserLoginInfo.ApiVersion = 1;
-				UE_EOS_CHECK_API_MISMATCH(EOS_CONNECT_USERLOGININFO_API_LATEST, 1);
+				UserLoginInfo.ApiVersion = 2;
+				UE_EOS_CHECK_API_MISMATCH(EOS_CONNECT_USERLOGININFO_API_LATEST, 2);
 				const FTCHARToUTF8 DisplayNameUtf8(*GetPlatformDisplayName(LocalUserNum));
 				UserLoginInfo.DisplayName = DisplayNameUtf8.Get();
+				UserLoginInfo.NsaIdToken = nullptr;
 
 				Options.UserLoginInfo = &UserLoginInfo;
 #endif

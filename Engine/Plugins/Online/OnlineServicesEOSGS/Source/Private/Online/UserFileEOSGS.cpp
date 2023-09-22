@@ -53,8 +53,8 @@ TOnlineAsyncOpHandle<FUserFileEnumerateFiles> FUserFileEOSGS::EnumerateFiles(FUs
 			const FUserFileEnumerateFiles::Params& Params = Op.GetParams();
 
 			EOS_PlayerDataStorage_QueryFileListOptions Options = {};
-			Options.ApiVersion = 1;
-			UE_EOS_CHECK_API_MISMATCH(EOS_PLAYERDATASTORAGE_QUERYFILELISTOPTIONS_API_LATEST, 1);
+			Options.ApiVersion = 2;
+			UE_EOS_CHECK_API_MISMATCH(EOS_PLAYERDATASTORAGE_QUERYFILELISTOPTIONS_API_LATEST, 2);
 			Options.LocalUserId = GetProductUserIdChecked(Params.LocalAccountId);
 
 			EOS_Async(EOS_PlayerDataStorage_QueryFileList, PlayerDataStorageHandle, Options, MoveTemp(Promise));

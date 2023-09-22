@@ -188,8 +188,8 @@ bool FOnlineSubsystemEOS::PlatformCreate()
 
 	// Create platform instance
 	EOS_Platform_Options PlatformOptions = {};
-	PlatformOptions.ApiVersion = 12;
-	UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_OPTIONS_API_LATEST, 12);
+	PlatformOptions.ApiVersion = 13;
+	UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_OPTIONS_API_LATEST, 13);
 	PlatformOptions.ClientCredentials.ClientId = reinterpret_cast<const char*>(ArtifactSettings.ClientId.IsEmpty() ? nullptr : (const char*)ClientIdUtf8.Get());
 	PlatformOptions.ClientCredentials.ClientSecret = ArtifactSettings.ClientSecret.IsEmpty() ? nullptr : (const char*)ClientSecretUtf8.Get();
 	PlatformOptions.ProductId = ArtifactSettings.ProductId.IsEmpty() ? nullptr : (const char*)ProductIdUtf8.Get();
@@ -198,6 +198,7 @@ bool FOnlineSubsystemEOS::PlatformCreate()
 	PlatformOptions.EncryptionKey = ArtifactSettings.EncryptionKey.IsEmpty() ? nullptr : (const char*)EncryptionKeyUtf8.Get();
 	PlatformOptions.bIsServer = IsRunningDedicatedServer() ? EOS_TRUE : EOS_FALSE;
 	PlatformOptions.Reserved = nullptr;
+	PlatformOptions.SystemSpecificOptions = nullptr;
 
 	FEOSSettings EOSSettings = UEOSSettings::GetSettings();
 	uint64 OverlayFlags = 0;
@@ -234,9 +235,10 @@ bool FOnlineSubsystemEOS::PlatformCreate()
 
 #if WITH_EOS_RTC
 	EOS_Platform_RTCOptions RtcOptions = { 0 };
-	RtcOptions.ApiVersion = 1;
-	UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_RTCOPTIONS_API_LATEST, 1);
+	RtcOptions.ApiVersion = 2;
+	UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_RTCOPTIONS_API_LATEST, 2);
 	RtcOptions.PlatformSpecificOptions = nullptr;
+	RtcOptions.BackgroundMode = EOS_ERTCBackgroundMode::EOS_RTCBM_LeaveRooms;
 	PlatformOptions.RTCOptions = &RtcOptions;
 #endif
 

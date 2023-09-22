@@ -1334,8 +1334,8 @@ void FOnlineSessionEOS::SetJoinInProgress(EOS_HSessionModification SessionModHan
 void FOnlineSessionEOS::AddAttribute(EOS_HSessionModification SessionModHandle, const EOS_Sessions_AttributeData* Attribute)
 {
 	EOS_SessionModification_AddAttributeOptions Options = { };
-	Options.ApiVersion = 1;
-	UE_EOS_CHECK_API_MISMATCH(EOS_SESSIONMODIFICATION_ADDATTRIBUTE_API_LATEST, 1);
+	Options.ApiVersion = 2;
+	UE_EOS_CHECK_API_MISMATCH(EOS_SESSIONMODIFICATION_ADDATTRIBUTE_API_LATEST, 2);
 	Options.AdvertisementType = EOS_ESessionAttributeAdvertisementType::EOS_SAAT_Advertise;
 	Options.SessionAttribute = Attribute;
 
@@ -1458,8 +1458,8 @@ struct FSessionCreateOptions :
 	FSessionCreateOptions(const char* InSessionNameAnsi) :
 		TNamedSessionOptions<EOS_Sessions_CreateSessionModificationOptions>(InSessionNameAnsi)
 	{
-		ApiVersion = 4;
-		UE_EOS_CHECK_API_MISMATCH(EOS_SESSIONS_CREATESESSIONMODIFICATION_API_LATEST, 4);
+		ApiVersion = 5;
+		UE_EOS_CHECK_API_MISMATCH(EOS_SESSIONS_CREATESESSIONMODIFICATION_API_LATEST, 5);
 	}
 };
 
@@ -3915,8 +3915,8 @@ uint32 FOnlineSessionEOS::CreateLobbySession(int32 HostingPlayerNum, FNamedOnlin
 	}
 
 	EOS_Lobby_CreateLobbyOptions CreateLobbyOptions = { 0 };
-	CreateLobbyOptions.ApiVersion = 8;
-	UE_EOS_CHECK_API_MISMATCH(EOS_LOBBY_CREATELOBBY_API_LATEST, 8);
+	CreateLobbyOptions.ApiVersion = 9;
+	UE_EOS_CHECK_API_MISMATCH(EOS_LOBBY_CREATELOBBY_API_LATEST, 9);
 	CreateLobbyOptions.LocalUserId = LocalProductUserId;
 	CreateLobbyOptions.MaxLobbyMembers = GetLobbyMaxMembersFromSessionSettings(Session->SessionSettings);
 	CreateLobbyOptions.PermissionLevel = GetLobbyPermissionLevelFromSessionSettings(Session->SessionSettings);
@@ -4090,8 +4090,8 @@ uint32 FOnlineSessionEOS::JoinLobbySession(int32 PlayerNum, FNamedOnlineSession*
 			
 			// We retrieve the cached LobbyDetailsHandle and we start the join operation
 			EOS_Lobby_JoinLobbyOptions JoinLobbyOptions = { 0 };
-			JoinLobbyOptions.ApiVersion = 3;
-			UE_EOS_CHECK_API_MISMATCH(EOS_LOBBY_JOINLOBBY_API_LATEST, 3);
+			JoinLobbyOptions.ApiVersion = 4;
+			UE_EOS_CHECK_API_MISMATCH(EOS_LOBBY_JOINLOBBY_API_LATEST, 4);
 			JoinLobbyOptions.LocalUserId = EOSSubsystem->UserManager->GetLocalProductUserId(PlayerNum);
 			JoinLobbyOptions.bPresenceEnabled = Session->SessionSettings.bUsesPresence;
 
@@ -4197,8 +4197,8 @@ void FOnlineSessionEOS::SetLobbyMaxMembers(EOS_HLobbyModification LobbyModificat
 void FOnlineSessionEOS::AddLobbyAttribute(EOS_HLobbyModification LobbyModificationHandle, const EOS_Lobby_AttributeData* Attribute)
 {
 	EOS_LobbyModification_AddAttributeOptions Options = { };
-	Options.ApiVersion = 1;
-	UE_EOS_CHECK_API_MISMATCH(EOS_LOBBYMODIFICATION_ADDATTRIBUTE_API_LATEST, 1);
+	Options.ApiVersion = 2;
+	UE_EOS_CHECK_API_MISMATCH(EOS_LOBBYMODIFICATION_ADDATTRIBUTE_API_LATEST, 2);
 	Options.Visibility = EOS_ELobbyAttributeVisibility::EOS_LAT_PUBLIC;
 	Options.Attribute = Attribute;
 
@@ -4212,8 +4212,8 @@ void FOnlineSessionEOS::AddLobbyAttribute(EOS_HLobbyModification LobbyModificati
 void FOnlineSessionEOS::AddLobbyMemberAttribute(EOS_HLobbyModification LobbyModificationHandle, const EOS_Lobby_AttributeData* Attribute)
 {
 	EOS_LobbyModification_AddMemberAttributeOptions Options = { };
-	Options.ApiVersion = 1;
-	UE_EOS_CHECK_API_MISMATCH(EOS_LOBBYMODIFICATION_ADDMEMBERATTRIBUTE_API_LATEST, 1);
+	Options.ApiVersion = 2;
+	UE_EOS_CHECK_API_MISMATCH(EOS_LOBBYMODIFICATION_ADDMEMBERATTRIBUTE_API_LATEST, 2);
 	Options.Visibility = EOS_ELobbyAttributeVisibility::EOS_LAT_PUBLIC;
 	Options.Attribute = Attribute;
 

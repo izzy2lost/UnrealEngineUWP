@@ -190,8 +190,8 @@ void FOnlineUserCloudEOS::EnumerateUserFiles(const FUniqueNetId& UserId)
 	}
 
 	EOS_PlayerDataStorage_QueryFileListOptions Options = {};
-	Options.ApiVersion = 1;
-	UE_EOS_CHECK_API_MISMATCH(EOS_PLAYERDATASTORAGE_QUERYFILELISTOPTIONS_API_LATEST, 1);
+	Options.ApiVersion = 2;
+	UE_EOS_CHECK_API_MISMATCH(EOS_PLAYERDATASTORAGE_QUERYFILELISTOPTIONS_API_LATEST, 2);
 	Options.LocalUserId = LocalUserId;
 
 	FOnQueryFileListCallback* CallbackObj = new FOnQueryFileListCallback(FOnlineUserCloudEOSWeakPtr(AsShared()));
