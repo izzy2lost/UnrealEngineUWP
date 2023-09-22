@@ -12,6 +12,7 @@ using Serilog.Formatting.Json;
 using EpicGames.Horde.Storage;
 using Microsoft.Extensions.Options;
 using EpicGames.Horde;
+using EpicGames.Horde.Storage.Clients;
 
 namespace Horde
 {
@@ -39,6 +40,7 @@ namespace Horde
 			services.AddHordeHttpClient((sp, client) => client.BaseAddress = sp.GetRequiredService<IOptions<CmdConfig>>().Value.Server);
 			services.AddSingleton<BundleReaderCache>(CreateStorageClientCache);
 			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
+			services.AddSingleton<HttpStorageClientFactory>();
 
 			// Execute all the commands
 			await using ServiceProvider serviceProvider = services.BuildServiceProvider();

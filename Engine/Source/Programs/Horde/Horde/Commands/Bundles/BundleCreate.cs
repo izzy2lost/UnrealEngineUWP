@@ -2,7 +2,6 @@
 
 using System.Diagnostics;
 using EpicGames.Core;
-using EpicGames.Horde;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
@@ -26,8 +25,8 @@ namespace Horde.Commands.Bundles
 		[CommandLine("-Filter=", Description = "Filter for files to include, in P4 syntax (eg. Foo/...).")]
 		public string Filter { get; set; } = "...";
 
-		public BundleCreate(HordeHttpClientFactory httpClientFactory, BundleReaderCache bundleReaderCache, IOptions<CmdConfig> config)
-			: base(httpClientFactory, bundleReaderCache, config)
+		public BundleCreate(HttpStorageClientFactory storageClientFactory, BundleReaderCache bundleReaderCache, IOptions<CmdConfig> config)
+			: base(storageClientFactory, bundleReaderCache, config)
 		{
 		}
 
@@ -40,7 +39,7 @@ namespace Horde.Commands.Bundles
 			}
 			else if (!String.IsNullOrEmpty(Ref))
 			{
-				using IStorageClient store = await CreateStorageClientAsync(logger);
+				using IStorageClient store = CreateStorageClient();
 				return await ExecuteInternalAsync(store, logger);
 			}
 			else

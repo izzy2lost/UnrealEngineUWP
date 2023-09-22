@@ -265,6 +265,16 @@ namespace Horde.Agent
 		public int TelemetryReportInterval { get; set; } = 30 * 1000;
 
 		/// <summary>
+		/// Directory to use for caching bundles
+		/// </summary>
+		public string? BundleCacheDir { get; set; }
+
+		/// <summary>
+		/// Maximum size of the bundle cache, in megabytes.
+		/// </summary>
+		public long BundleCacheSize { get; set; } = 1024;
+
+		/// <summary>
 		/// Key/value properties in addition to those set internally by the agent
 		/// </summary>
 		public Dictionary<string, string> Properties { get; } = new();

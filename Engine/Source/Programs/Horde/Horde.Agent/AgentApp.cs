@@ -9,6 +9,7 @@ using Datadog.Trace;
 using Datadog.Trace.Configuration;
 using Datadog.Trace.OpenTracing;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
 using Horde.Agent.Execution;
@@ -19,6 +20,7 @@ using Horde.Agent.Utility;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenTracing.Util;
 using Polly;
 using Polly.Extensions.Http;
@@ -171,8 +173,9 @@ namespace Horde.Agent
 				return builder.WaitAndRetryAsync(new[] { TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10) });
 			});
 
-			services.AddHttpClient(HttpStorageClient.HttpClientName, builder => 
+			services.AddHttpClient(HordeHttpClient.HttpClientName, builder => 
 				{
+					builder.BaseAddress = serverProfile.Url;
 					builder.Timeout = TimeSpan.FromSeconds(240); // Global timeout
 				})
 				.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
@@ -182,7 +185,7 @@ namespace Horde.Agent
 					})
 				.AddPolicyHandler((serviceProvider, request) => Policy.TimeoutAsync<HttpResponseMessage>(30,
 					(outcome, timespan, context) => { 
-						serviceProvider.GetRequiredService<ILogger<HttpServerStorageFactory>>().LogWarning("Http request timed out after {Time}s.", (int)timespan.TotalSeconds); 
+						serviceProvider.GetRequiredService<ILogger<HttpStorageClient>>().LogWarning("Http request timed out after {Time}s.", (int)timespan.TotalSeconds); 
 						return Task.CompletedTask; 
 					}))
 				.AddPolicyHandler((serviceProvider, request) => HttpPolicyExtensions.HandleTransientHttpError()
@@ -194,7 +197,7 @@ namespace Horde.Agent
 							TimeSpan.FromSeconds(30),
 							TimeSpan.FromSeconds(30),
 						},
-						(outcome, timespan, retryAttempt, context) => serviceProvider.GetRequiredService<ILogger<HttpServerStorageFactory>>().LogWarning("Http request failed. Delaying for {DelayMs}ms (attempt #{RetryNum}).", timespan.TotalMilliseconds, retryAttempt)
+						(outcome, timespan, retryAttempt, context) => serviceProvider.GetRequiredService<ILogger<HttpStorageClient>>().LogWarning("Http request failed. Delaying for {DelayMs}ms (attempt #{RetryNum}).", timespan.TotalMilliseconds, retryAttempt)
 					));
 			services.AddHttpClient(AwsInstanceLifecycleService.HttpClientName);
 			services.AddSingleton<AwsInstanceLifecycleService>();
@@ -228,12 +231,12 @@ namespace Horde.Agent
 			services.AddSingleton<CapabilitiesService>();
 			services.AddSingleton<ISessionFactory, SessionFactory>();
 			services.AddSingleton<IServerLoggerFactory, ServerLoggerFactory>();
-			services.AddSingleton<IServerStorageFactory, HttpServerStorageFactory>();
 			services.AddSingleton<WorkerService>();
 			services.AddHostedService(sp => sp.GetRequiredService<WorkerService>());
 
-			services.AddSingleton<IStorageClientFactory, StorageClientFactory>();
 			services.AddSingleton<BundleReaderCache>();
+			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
+			services.AddSingleton<HttpStorageClientFactory>();
 
 			services.AddSingleton<ComputeListenerService>();
 			services.AddHostedService(sp => sp.GetRequiredService<ComputeListenerService>());
@@ -246,6 +249,13 @@ namespace Horde.Agent
 			// Execute all the commands
 			await using ServiceProvider serviceProvider = services.BuildServiceProvider();
 			return await CommandHost.RunAsync(arguments, serviceProvider, typeof(Horde.Agent.Modes.Service.RunCommand));
+		}
+
+		static StorageBackendCache CreateStorageBackendCache(IServiceProvider serviceProvider)
+		{
+			AgentSettings settings = serviceProvider.GetRequiredService<IOptions<AgentSettings>>().Value;
+			DirectoryReference cacheDir = DirectoryReference.Combine(GetDataDir(), String.IsNullOrEmpty(settings.BundleCacheDir) ? "Cache" : settings.BundleCacheDir);
+			return new StorageBackendCache(cacheDir, settings.BundleCacheSize * 1024 * 1024, serviceProvider.GetRequiredService<ILogger<StorageBackendCache>>());
 		}
 
 		static void ConfigureTracing(string environment, string version)

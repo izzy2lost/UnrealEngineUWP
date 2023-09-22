@@ -32,6 +32,7 @@ namespace EpicGames.Horde.Storage.Backends
 			public bool? SupportsRedirects { get; set; }
 		}
 
+		readonly string _basePath;
 		readonly Func<HttpClient> _createClient;
 		readonly ILogger _logger;
 		bool _supportsUploadRedirects = true;
@@ -42,8 +43,9 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HttpStorageBackend(Func<HttpClient> createClient, ILogger logger)
+		public HttpStorageBackend(string basePath, Func<HttpClient> createClient, ILogger logger)
 		{
+			_basePath = basePath.TrimEnd('/');
 			_createClient = createClient;
 			_logger = logger;
 		}
@@ -78,7 +80,7 @@ namespace EpicGames.Horde.Storage.Backends
 
 			using (HttpClient httpClient = _createClient())
 			{
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"blobs/{path}"))
+				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{_basePath}/blobs/{path}"))
 				{
 					if (offset != 0 || length != null)
 					{
@@ -144,7 +146,7 @@ namespace EpicGames.Horde.Storage.Backends
 		{
 			using (HttpClient httpClient = _createClient())
 			{
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"blobs"))
+				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{_basePath}/blobs"))
 				{
 					using StringContent stringContent = new StringContent(prefix ?? String.Empty);
 

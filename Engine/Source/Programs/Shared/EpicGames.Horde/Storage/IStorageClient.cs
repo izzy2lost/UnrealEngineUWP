@@ -203,9 +203,8 @@ namespace EpicGames.Horde.Storage
 		/// Creates a storage client for the given namespace
 		/// </summary>
 		/// <param name="namespaceId">Namespace to manipulate</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Storage client instance. Must be disposed by the caller.</returns>
-		Task<IStorageClient> CreateClientAsync(NamespaceId namespaceId, CancellationToken cancellationToken = default);
+		IStorageClient CreateClient(NamespaceId namespaceId);
 	}
 
 	/// <summary>

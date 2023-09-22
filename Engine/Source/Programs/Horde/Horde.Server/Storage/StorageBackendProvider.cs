@@ -111,15 +111,17 @@ namespace Horde.Server.Storage
 		}
 
 		readonly IServiceProvider _serviceProvider;
+		readonly StorageBackendCache _storageBackendCache;
 		readonly object _lockObject = new object();
 		readonly Dictionary<IoHash, RefCountedBackend> _backends = new Dictionary<IoHash, RefCountedBackend>();
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageBackendProvider(IServiceProvider serviceProvider)
+		public StorageBackendProvider(IServiceProvider serviceProvider, StorageBackendCache storageBackendCache)
 		{
 			_serviceProvider = serviceProvider;
+			_storageBackendCache = storageBackendCache;
 		}
 
 		/// <inheritdoc/>
@@ -180,7 +182,12 @@ namespace Horde.Server.Storage
 				case StorageBackendType.FileSystem:
 					return new FileStorageBackend(DirectoryReference.Combine(ServerApp.DataDir, config.BaseDir ?? "Storage"));
 				case StorageBackendType.Aws:
-					return new AwsStorageBackend(_serviceProvider.GetRequiredService<IConfiguration>(), config, _serviceProvider.GetRequiredService<ILogger<AwsStorageBackend>>());
+					{
+#pragma warning disable CA2000 // False positive? (Will be disposed with cache backend wrapper)
+						IStorageBackend backend = new AwsStorageBackend(_serviceProvider.GetRequiredService<IConfiguration>(), config, _serviceProvider.GetRequiredService<ILogger<AwsStorageBackend>>());
+						return _storageBackendCache.CreateWrapper(config.Id.ToString(), backend);
+#pragma warning restore CA2000
+					}
 				case StorageBackendType.Memory:
 					return new MemoryStorageBackend();
 				default:

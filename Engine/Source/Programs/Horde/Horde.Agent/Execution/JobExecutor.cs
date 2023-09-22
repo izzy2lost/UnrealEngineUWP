@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Grpc.Core;
 using Horde.Agent.Parser;
@@ -35,7 +36,7 @@ namespace Horde.Agent.Execution
 	class JobExecutorOptions
 	{
 		public ISession Session { get; }
-		public IServerStorageFactory StorageFactory { get; }
+		public HttpStorageClientFactory StorageFactory { get; }
 		public string JobId { get; }
 		public string BatchId { get; }
 		public BeginBatchResponse Batch { get; }
@@ -44,7 +45,7 @@ namespace Horde.Agent.Execution
 		public string Token { get; }
 		public JobOptions JobOptions { get; }
 
-		public JobExecutorOptions(ISession session, IServerStorageFactory storageFactory, string jobId, string batchId, BeginBatchResponse batch, NamespaceId namespaceId, string storagePrefix, string token, JobOptions jobOptions)
+		public JobExecutorOptions(ISession session, HttpStorageClientFactory storageFactory, string jobId, string batchId, BeginBatchResponse batch, NamespaceId namespaceId, string storagePrefix, string token, JobOptions jobOptions)
 		{
 			Session = session;
 			StorageFactory = storageFactory;
@@ -194,7 +195,7 @@ namespace Horde.Agent.Execution
 		protected bool _compileAutomationTool = true;
 
 		protected ISession Session { get; }
-		protected IServerStorageFactory StorageFactory { get; }
+		protected HttpStorageClientFactory StorageFactory { get; }
 		private readonly NamespaceId _namespaceId;
 		private readonly string _storagePrefix;
 		private readonly string _token;
@@ -498,7 +499,7 @@ namespace Horde.Agent.Execution
 
 				using (GlobalTracer.Instance.BuildSpan("TempStorage").WithTag("resource", "Write").StartActive())
 				{
-					using IStorageClient storage = StorageFactory.CreateStorageClient(Session, _namespaceId, _token);
+					using IStorageClient storage = StorageFactory.CreateClient(_namespaceId, _token);
 
 					Stopwatch timer = Stopwatch.StartNew();
 
@@ -766,7 +767,7 @@ namespace Horde.Agent.Execution
 
 				if (JobOptions.UseNewTempStorage ?? false)
 				{
-					using IStorageClient storage = StorageFactory.CreateStorageClient(Session, _namespaceId, _token);
+					using IStorageClient storage = StorageFactory.CreateClient(_namespaceId, _token);
 
 					RefName refName = TempStorage.GetRefNameForNode(_storagePrefix, SetupStepName);
 
@@ -843,7 +844,7 @@ namespace Horde.Agent.Execution
 				CreateJobArtifactResponse artifact = await jobRpc.Client.CreateArtifactAsync(new CreateJobArtifactRequest { JobId = JobId, StepId = stepId, Type = type }, cancellationToken: cancellationToken);
 				Logger.LogInformation("Created artifact {ArtifactId} with ref {RefName} in ns {Namespace}", artifact.Id, artifact.RefName, artifact.NamespaceId);
 
-				using IStorageClient storage = StorageFactory.CreateStorageClient(Session, new NamespaceId(artifact.NamespaceId), artifact.Token);
+				using IStorageClient storage = StorageFactory.CreateClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
 				await using IStorageWriter writer = storage.CreateWriter(new RefName(artifact.RefName));
 
 				DirectoryNode dir = new DirectoryNode();
@@ -861,7 +862,7 @@ namespace Horde.Agent.Execution
 		{
 			DirectoryReference manifestDir = DirectoryReference.Combine(workspaceDir, "Engine", "Saved", "BuildGraph");
 
-			using IStorageClient storage = StorageFactory.CreateStorageClient(Session, _namespaceId, _token);
+			using IStorageClient storage = StorageFactory.CreateClient(_namespaceId, _token);
 
 			// Create the mapping of tag names to file sets
 			Dictionary<string, HashSet<FileReference>> tagNameToFileSet = new Dictionary<string, HashSet<FileReference>>();

@@ -2,7 +2,6 @@
 
 using System.Diagnostics;
 using EpicGames.Core;
-using EpicGames.Horde;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
@@ -35,8 +34,8 @@ namespace Horde.Commands.Workspace
 		[CommandLine("-Stats")]
 		public bool Stats { get; set; }
 
-		public WorkspaceSync(HordeHttpClientFactory httpClientFactory, BundleReaderCache bundleReaderCache, IOptions<CmdConfig> config)
-			: base(httpClientFactory, bundleReaderCache, config)
+		public WorkspaceSync(HttpStorageClientFactory storageClientFactory, BundleReaderCache bundleReaderCache, IOptions<CmdConfig> config)
+			: base(storageClientFactory, bundleReaderCache, config)
 		{
 		}
 
@@ -50,13 +49,13 @@ namespace Horde.Commands.Workspace
 			}
 			else if (Ref != null)
 			{
-				using IStorageClient store = await CreateStorageClientAsync(logger);
+				using IStorageClient store = CreateStorageClient();
 				BlobHandle handle = await store.ReadRefTargetAsync(new RefName(Ref));
 				return await ExecuteInternalAsync(store, handle, logger);
 			}
 			else if (Node != null)
 			{
-				using IStorageClient store = await CreateStorageClientAsync(logger);
+				using IStorageClient store = CreateStorageClient();
 				BlobHandle handle = ((BundleStorageClient)store).CreateNodeHandle(BundleNodeLocator.Parse(Node));
 				return await ExecuteInternalAsync(store, handle, logger);
 			}

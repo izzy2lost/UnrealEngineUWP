@@ -157,7 +157,7 @@ namespace Horde.Commands.Vcs
 			_storageClientFactory = storageClientFactory;
 		}
 
-		protected async ValueTask<IStorageClient> CreateStorageClientAsync() => await _storageClientFactory.CreateClientAsync(NamespaceId);
+		protected IStorageClient CreateStorageClient() => _storageClientFactory.CreateClient(NamespaceId);
 
 		protected static async Task<WorkspaceState> ReadStateAsync(DirectoryReference rootDir)
 		{

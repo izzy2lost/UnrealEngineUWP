@@ -25,7 +25,7 @@ namespace Horde.Commands.Vcs
 
 			WorkspaceState workspaceState = await ReadStateAsync(rootDir);
 
-			using IStorageClient store = await CreateStorageClientAsync();
+			using IStorageClient store = CreateStorageClient();
 
 			using MemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 

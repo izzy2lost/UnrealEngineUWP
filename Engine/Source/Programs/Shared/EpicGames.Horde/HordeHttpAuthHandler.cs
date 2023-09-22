@@ -22,20 +22,16 @@ namespace EpicGames.Horde
 	/// </summary>
 	public class HordeHttpAuthHandler : DelegatingHandler
 	{
-		const string ClientName = "HordeHttpAuth";
-
-		readonly IHttpClientFactory _httpClientFactory;
-		readonly ILogger _logger;
+		readonly HordeHttpAuthHandlerState _authState;
 
 		AuthenticationHeaderValue? _authHeader;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HordeHttpAuthHandler(IHttpClientFactory httpClientFactory, ILogger<HordeHttpAuthHandler> logger)
+		public HordeHttpAuthHandler(HordeHttpAuthHandlerState authState)
 		{
-			_httpClientFactory = httpClientFactory;
-			_logger = logger;
+			_authState = authState;
 		}
 
 		/// <inheritdoc/>
@@ -45,41 +41,119 @@ namespace EpicGames.Horde
 			if (_authHeader != null)
 			{
 				request.Headers.Authorization = _authHeader;
-				response = await base.SendAsync(request, cancellationToken);
-			}
-			if (response == null || response.StatusCode == HttpStatusCode.Unauthorized)
-			{
-				if (request.RequestUri != null)
-				{
-					await RefreshAccessTokenAsync(request.RequestUri, cancellationToken);
-				}
 
+				response = await base.SendAsync(request, cancellationToken);
+				if (response.StatusCode == HttpStatusCode.Unauthorized)
+				{
+					_authState.Invalidate(_authHeader);
+					response = null;
+				}
+			}
+			if (response == null)
+			{
+				_authHeader = await _authState.GetAuthHeaderAsync(cancellationToken);
 				request.Headers.Authorization = _authHeader;
 				response = await base.SendAsync(request, cancellationToken);
 			}
 			return response;
 		}
+	}
+
+	/// <summary>
+	/// Shared object used to track the latest access obtained token
+	/// </summary>
+	public sealed class HordeHttpAuthHandlerState : IAsyncDisposable
+	{
+		/// <summary>
+		/// HTTP client name
+		/// </summary>
+		public const string HttpClientName = "HordeHttpAuthState";
+
+		readonly object _lockObject = new object();
+		readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+		Task<AuthenticationHeaderValue>? _authHeaderTask;
+		readonly IHttpClientFactory _httpClientFactory;
+		readonly ILogger _logger;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public HordeHttpAuthHandlerState(IHttpClientFactory httpClientFactory, ILogger<HordeHttpAuthHandler> logger)
+		{
+			_httpClientFactory = httpClientFactory;
+			_logger = logger;
+		}
+
+		/// <inheritdoc/>
+		public async ValueTask DisposeAsync()
+		{
+			if (_authHeaderTask != null)
+			{
+				_cancellationTokenSource.Cancel();
+				await _authHeaderTask;
+				_authHeaderTask = null;
+			}
+			_cancellationTokenSource.Dispose();
+		}
+
+		/// <summary>
+		/// Invalidate a cached header value
+		/// </summary>
+		/// <param name="authHeader">The auth header to invalidate</param>
+		public void Invalidate(AuthenticationHeaderValue authHeader)
+		{
+			lock (_lockObject)
+			{
+				if (_authHeaderTask != null && _authHeaderTask.IsCompleted && _authHeaderTask.Result.Equals(authHeader))
+				{
+					_authHeaderTask = null;
+				}
+			}
+		}
+
+		/// <summary>
+		/// Gets a new auth header
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public async ValueTask<AuthenticationHeaderValue> GetAuthHeaderAsync(CancellationToken cancellationToken)
+		{
+			Task<AuthenticationHeaderValue>? authHeaderTask = _authHeaderTask;
+			if (authHeaderTask == null)
+			{
+				lock (_lockObject)
+				{
+					_authHeaderTask ??= Task.Run(() => GetNewAuthHeaderAsync(_cancellationTokenSource.Token), _cancellationTokenSource.Token);
+					authHeaderTask = _authHeaderTask;
+				}
+			}
+			return await authHeaderTask.WaitAsync(cancellationToken);
+		}
 
 		/// <summary>
 		/// Get an access token for the server specified in a config instance
 		/// </summary>
-		async Task RefreshAccessTokenAsync(Uri requestUrl, CancellationToken cancellationToken)
+		async Task<AuthenticationHeaderValue> GetNewAuthHeaderAsync(CancellationToken cancellationToken)
 		{
-			Uri serverUrl = new Uri(requestUrl, "/");
-			_logger.LogInformation("Getting access token for {Server}", serverUrl);
+			Uri serverUrl;
 
 			GetAuthConfigResponse? authConfig;
-			using (HttpClient httpClient = _httpClientFactory.CreateClient(ClientName))
+			using (HttpClient httpClient = _httpClientFactory.CreateClient(HttpClientName))
 			{
-				Uri uri = new Uri(serverUrl, "api/v1/server/auth");
+				if (httpClient.BaseAddress == null)
+				{
+					throw new Exception("No http client is configured for Horde. Call IServiceCollection.AddHordeHttpClient().");
+				}
+
+				serverUrl = httpClient.BaseAddress;
+				_logger.LogInformation("Getting access token for {Server}", serverUrl);
 
 				JsonSerializerOptions jsonOptions = new JsonSerializerOptions();
 				HordeHttpClient.ConfigureJsonSerializer(jsonOptions);
 
-				authConfig = await httpClient.GetFromJsonAsync<GetAuthConfigResponse>(uri, jsonOptions, cancellationToken);
+				authConfig = await httpClient.GetFromJsonAsync<GetAuthConfigResponse>("api/v1/server/auth", jsonOptions, cancellationToken);
 				if (authConfig == null)
 				{
-					throw new Exception($"Invalid response from {uri}");
+					throw new Exception($"Invalid response from server");
 				}
 			}
 
@@ -119,7 +193,7 @@ namespace EpicGames.Horde
 			}
 
 			_logger.LogInformation("Received bearer token for {Server}", serverUrl);
-			_authHeader = new AuthenticationHeaderValue("Bearer", result.AccessToken);
+			return new AuthenticationHeaderValue("Bearer", result.AccessToken);
 		}
 	}
 }

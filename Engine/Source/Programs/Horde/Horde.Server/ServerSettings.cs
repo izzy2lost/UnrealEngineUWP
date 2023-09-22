@@ -807,6 +807,16 @@ namespace Horde.Server
 		public bool OpenBrowser { get; set; } = false;
 
 		/// <summary>
+		/// Directory to use for cache data
+		/// </summary>
+		public string? BundleCacheDir { get; set; }
+
+		/// <summary>
+		/// Maximum size of the storage cache on disk, in megabytes
+		/// </summary>
+		public long BundleCacheSize { get; set; } = 1024;
+
+		/// <summary>
 		/// Experimental features to enable on the server.
 		/// </summary>
 		public FeatureFlagSettings FeatureFlags { get; set; } = new ();

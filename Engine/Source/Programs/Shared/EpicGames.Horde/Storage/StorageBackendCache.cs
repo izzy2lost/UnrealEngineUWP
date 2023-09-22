@@ -3,6 +3,7 @@
 using EpicGames.Core;
 using EpicGames.Horde.Storage.Backends;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -113,10 +114,32 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageBackendCache(DirectoryReference cacheDir, long maxSize, ILogger logger)
+		public StorageBackendCache()
+			: this(null, null)
 		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public StorageBackendCache(DirectoryReference? cacheDir, long? maxSize)
+			: this(cacheDir, maxSize, NullLogger.Instance)
+		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="cacheDir">Directory to storage cache files. Will be cleared on startup. Defaults to a randomly generated directory in the users's temp folder.</param>
+		/// <param name="maxSize">Maximum size of the cache. Defaults to 50mb.</param>
+		/// <param name="logger">Logger for error/warning messages</param>
+		public StorageBackendCache(DirectoryReference? cacheDir, long? maxSize, ILogger logger)
+		{
+			cacheDir ??= new DirectoryReference(Path.Combine(Path.GetTempPath(), $"horde-{Guid.NewGuid().ToString("n")}"));
+			FileUtils.ForceDeleteDirectoryContents(cacheDir);
+
 			_backend = new FileStorageBackend(cacheDir);
-			_maxSize = maxSize;
+			_maxSize = maxSize ?? (50 * 1024 * 1024);
 			_logger = logger;
 		}
 

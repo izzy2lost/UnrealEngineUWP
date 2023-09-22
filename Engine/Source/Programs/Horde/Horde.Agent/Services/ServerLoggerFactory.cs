@@ -3,6 +3,7 @@
 using Microsoft.Extensions.Logging;
 using Horde.Agent.Utility;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Clients;
 
 namespace Horde.Agent.Services
 {
@@ -52,13 +53,13 @@ namespace Horde.Agent.Services
 	/// </summary>
 	class ServerLoggerFactory : IServerLoggerFactory
 	{
-		readonly IServerStorageFactory _storageClientFactory;
+		readonly HttpStorageClientFactory _storageClientFactory;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ServerLoggerFactory(IServerStorageFactory storageClientFactory, ILogger<ServerLoggerFactory> logger)
+		public ServerLoggerFactory(HttpStorageClientFactory storageClientFactory, ILogger<ServerLoggerFactory> logger)
 		{
 			_storageClientFactory = storageClientFactory;
 			_logger = logger;
@@ -71,7 +72,7 @@ namespace Horde.Agent.Services
 			IJsonRpcLogSink sink = new JsonRpcLogSink(session.RpcConnection, jobId, batchId, stepId, _logger);
 			if (useNewLogger ?? false)
 			{
-				IStorageClient storageClient = _storageClientFactory.CreateStorageClient(session, $"/api/v1/logs/{logId}/");
+				IStorageClient storageClient = _storageClientFactory.CreateClient($"api/v1/logs/{logId}", session.Token);
 				sink = new JsonRpcAndStorageLogSink(session.RpcConnection, logId, sink, storageClient, _logger);
 			}
 			return new JsonRpcLogger(sink, logId, warnings, outputLevel, _logger);

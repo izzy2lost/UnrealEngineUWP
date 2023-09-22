@@ -18,6 +18,11 @@ namespace EpicGames.Horde
 	/// </summary>
 	public sealed class HordeHttpClient
 	{
+		/// <summary>
+		/// Name of clients created from the http client factory
+		/// </summary>
+		public const string HttpClientName = "HordeHttpClient";
+
 		readonly HttpClient _httpClient;
 
 		static readonly JsonSerializerOptions s_jsonSerializerOptions = CreateJsonSerializerOptions();
@@ -209,11 +214,13 @@ namespace EpicGames.Horde
 		/// <param name="useAuthChallenge">Whether to prompt the user to authenticate if necessary</param>
 		public static void AddHordeHttpClient(this IServiceCollection services, Action<IServiceProvider, HttpClient> configureClient, bool useAuthChallenge = true)
 		{
-			services.AddSingleton<HordeHttpAuthHandler>();
-
-			IHttpClientBuilder builder = services.AddHttpClient<HordeHttpClient>(configureClient).AddPolicyHandler(HordeHttpClient.DefaultRetryPolicy);
+			IHttpClientBuilder builder = services.AddHttpClient<HordeHttpClient>(HordeHttpClient.HttpClientName, configureClient).AddPolicyHandler(HordeHttpClient.DefaultRetryPolicy);
 			if (useAuthChallenge)
 			{
+				services.AddSingleton<HordeHttpAuthHandlerState>();
+				services.AddTransient<HordeHttpAuthHandler>();
+				services.AddHttpClient(HordeHttpAuthHandlerState.HttpClientName, configureClient);
+
 				builder.AddHttpMessageHandler<HordeHttpAuthHandler>();
 			}
 

@@ -13,10 +13,6 @@ using System.Web;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage.Bundles;
-using Microsoft.Extensions.Http;
-using Polly.Extensions.Http;
-using Polly;
-using Polly.Retry;
 using EpicGames.Horde.Storage.Backends;
 
 namespace EpicGames.Horde.Storage.Clients
@@ -26,11 +22,6 @@ namespace EpicGames.Horde.Storage.Clients
 	/// </summary>
 	public class HttpStorageClient : BundleStorageClient
 	{
-		/// <summary>
-		/// Name of clients created from the http client factory
-		/// </summary>
-		public const string HttpClientName = "Horde.HttpStorageClient";
-
 		class WriteBlobResponse
 		{
 			public BundleLocator Blob { get; set; }
@@ -57,74 +48,19 @@ namespace EpicGames.Horde.Storage.Clients
 			public int ExportIdx { get; set; }
 		}
 
+		readonly string _basePath;
 		readonly Func<HttpClient> _createClient;
 		readonly ILogger _logger;
 
-		static readonly HttpMessageHandler s_defaultHttpMessageHandler = CreateDefaultHttpMessageHandler();
-
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HttpStorageClient(Uri baseAddress, string? bearerToken, BundleReaderCache cache, ILogger logger)
-			: this(() => CreateAuthenticatedClient(null, baseAddress, bearerToken), cache, logger)
+		public HttpStorageClient(string basePath, Func<HttpClient> createClient, IStorageBackend backend, BundleReaderCache cache, ILogger logger) 
+			: base(backend, cache, logger)
 		{
-		}
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public HttpStorageClient(Func<HttpClient> createClient, BundleReaderCache cache, ILogger logger) 
-			: base(new HttpStorageBackend(createClient, logger), cache, logger)
-		{
+			_basePath = basePath.TrimEnd('/');
 			_createClient = createClient;
 			_logger = logger;
-		}
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public HttpStorageClient(IHttpClientFactory httpClientFactory, Uri baseAddress, string? bearerToken, BundleReaderCache cache, ILogger logger)
-			: this(() => CreateAuthenticatedClient(httpClientFactory, baseAddress, bearerToken), cache, logger)
-		{
-		}
-
-		static HttpMessageHandler CreateDefaultHttpMessageHandler()
-		{
-			AsyncRetryPolicy<HttpResponseMessage> retryPolicy = HttpPolicyExtensions
-				.HandleTransientHttpError()
-				.WaitAndRetryAsync(new[] { TimeSpan.FromSeconds(2.0), TimeSpan.FromSeconds(5.0), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) });
-
-			SocketsHttpHandler socketsHandler = new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(15) };
-			return new PolicyHttpMessageHandler(retryPolicy) { InnerHandler = socketsHandler };
-		}
-
-		/// <summary>
-		/// Helper method to create an HTTP client from the given factory
-		/// </summary>
-		static HttpClient CreateClient(IHttpClientFactory? httpClientFactory)
-		{
-			if (httpClientFactory == null)
-			{
-				return new HttpClient(s_defaultHttpMessageHandler, disposeHandler: false);
-			}
-			else
-			{
-				return httpClientFactory.CreateClient(HttpClientName);
-			}
-		}
-
-		/// <summary>
-		/// Helper method to add the base address and auth header to an HTTP client
-		/// </summary>
-		static HttpClient CreateAuthenticatedClient(IHttpClientFactory? httpClientFactory, Uri baseAddress, string? bearerToken)
-		{
-			HttpClient httpClient = CreateClient(httpClientFactory);
-			httpClient.BaseAddress = baseAddress;
-			if (bearerToken != null)
-			{
-				httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
-			}
-			return httpClient;
 		}
 
 		#region Nodes
@@ -147,7 +83,7 @@ namespace EpicGames.Horde.Storage.Clients
 			_logger.LogDebug("Finding nodes with alias {Alias}", alias);
 			using (HttpClient httpClient = _createClient())
 			{
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"nodes?alias={HttpUtility.UrlEncode(alias.ToString())}"))
+				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{_basePath}/nodes?alias={HttpUtility.UrlEncode(alias.ToString())}"))
 				{
 					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
 					{
@@ -173,7 +109,7 @@ namespace EpicGames.Horde.Storage.Clients
 			_logger.LogDebug("Deleting ref {RefName}", name);
 			using (HttpClient httpClient = _createClient())
 			{
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Delete, $"refs/{name}"))
+				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Delete, $"{_basePath}/refs/{name}"))
 				{
 					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
 					{
@@ -198,7 +134,7 @@ namespace EpicGames.Horde.Storage.Clients
 		{
 			using (HttpClient httpClient = _createClient())
 			{
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"refs/{name}"))
+				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{_basePath}/refs/{name}"))
 				{
 					if (cacheTime.IsSet())
 					{
@@ -235,7 +171,7 @@ namespace EpicGames.Horde.Storage.Clients
 			_logger.LogDebug("Writing ref {RefName} -> {RefTarget}", name, locator);
 			using (HttpClient httpClient = _createClient())
 			{
-				using (HttpResponseMessage response = await httpClient.PutAsync($"refs/{name}", new { blob = locator.Blob, exportIdx = locator.ExportIdx, options }, cancellationToken))
+				using (HttpResponseMessage response = await httpClient.PutAsync($"{_basePath}/refs/{name}", new { blob = locator.Blob, exportIdx = locator.ExportIdx, options }, cancellationToken))
 				{
 					response.EnsureSuccessStatusCode();
 				}
@@ -243,5 +179,64 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		#endregion
+	}
+
+	/// <summary>
+	/// Factory for constructing HttpStorageClient instances
+	/// </summary>
+	public class HttpStorageClientFactory : IStorageClientFactory
+	{
+		readonly IHttpClientFactory _httpClientFactory;
+		readonly StorageBackendCache _backendCache;
+		readonly BundleReaderCache _readerCache;
+		readonly ILogger<HttpStorageBackend> _backendLogger;
+		readonly ILogger<HttpStorageClient> _clientLogger;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public HttpStorageClientFactory(IHttpClientFactory httpClientFactory, StorageBackendCache backendCache, BundleReaderCache readerCache, ILogger<HttpStorageBackend> backendLogger, ILogger<HttpStorageClient> clientLogger)
+		{
+			_httpClientFactory = httpClientFactory;
+			_backendCache = backendCache;
+			_readerCache = readerCache;
+			_backendLogger = backendLogger;
+			_clientLogger = clientLogger;
+		}
+
+		/// <summary>
+		/// Creates a new HTTP storage client
+		/// </summary>
+		/// <param name="basePath">Base path for all requests</param>
+		/// <param name="accessToken">Custom access token to use for requests</param>
+		public HttpStorageClient CreateClient(string basePath, string? accessToken = null)
+		{
+			HttpClient CreateClient()
+			{
+				HttpClient httpClient = _httpClientFactory.CreateClient(HordeHttpClient.HttpClientName);
+				if (accessToken != null)
+				{
+					httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+				}
+				return httpClient;
+			}
+
+			IStorageBackend backend = new HttpStorageBackend(basePath, CreateClient, _backendLogger);
+			if (_backendCache != null)
+			{
+				backend = _backendCache.CreateWrapper(basePath, backend);
+			}
+			return new HttpStorageClient(basePath, CreateClient, backend, _readerCache, _clientLogger);
+		}
+
+		/// <summary>
+		/// Creates a new HTTP storage client
+		/// </summary>
+		/// <param name="namespaceId">Namespace to create a client for</param>
+		/// <param name="accessToken">Custom access token to use for requests</param>
+		public HttpStorageClient CreateClient(NamespaceId namespaceId, string? accessToken = null) => CreateClient($"api/v1/storage/{namespaceId}", accessToken);
+
+		/// <inheritdoc/>
+		IStorageClient IStorageClientFactory.CreateClient(NamespaceId namespaceId) => CreateClient(namespaceId);
 	}
 }

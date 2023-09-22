@@ -230,7 +230,16 @@ namespace EpicGames.Horde.Storage
 			{
 				_inner = inner;
 				_offset = offset;
-				_length = length ?? (inner.Data.Length - offset);
+
+				int maxLength = inner.Data.Length - offset;
+				if (length == null)
+				{
+					_length = maxLength;
+				}
+				else
+				{
+					_length = Math.Min(length.Value, maxLength);
+				}
 			}
 
 			public void Dispose() => _inner.Dispose();

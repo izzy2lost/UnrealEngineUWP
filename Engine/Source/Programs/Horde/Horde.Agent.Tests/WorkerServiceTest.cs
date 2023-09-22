@@ -8,7 +8,9 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Clients;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Horde.Agent.Execution;
@@ -54,11 +56,6 @@ namespace Horde.Agent.Tests
 			public IServerLogger CreateLogger(ISession session, string logId, string? jobId, string? batchId, string? stepId, bool? warnings = null, bool? useNewLogger = null, LogLevel outputLevel = LogLevel.Information) => new FakeServerLogger();
 		}
 
-		class FakeSessionStorageFactory : IServerStorageFactory
-		{
-			public IStorageClient CreateStorageClient(Uri baseAddress, string token) => null!;
-		}
-
 		internal static IJobExecutor NullExecutor = new SimpleTestExecutor(async (step, logger, cancellationToken) =>
 		{
 			await Task.Delay(1, cancellationToken);
@@ -69,8 +66,11 @@ namespace Horde.Agent.Tests
 		{
 			_serviceCollection = new ServiceCollection();
 			_serviceCollection.AddLogging();
+			_serviceCollection.AddHordeHttpClient();
 			_serviceCollection.AddSingleton<IServerLoggerFactory, FakeServerLoggerFactory>();
-			_serviceCollection.AddSingleton<IServerStorageFactory, FakeSessionStorageFactory>();
+			_serviceCollection.AddSingleton<BundleReaderCache>();
+			_serviceCollection.AddSingleton<StorageBackendCache>();
+			_serviceCollection.AddSingleton<HttpStorageClientFactory>();
 
 			_serviceCollection.Configure<AgentSettings>(settings =>
 			{

@@ -191,7 +191,7 @@ namespace Horde.Server.Storage
 			public NamespaceId NamespaceId { get; }
 			public bool SupportsRedirects { get; }
 
-			public StorageClientImpl(StorageService outer, NamespaceConfig config, StorageBackendImpl backend, BundleReaderCache bundleReaderCache, ILogger logger)
+			public StorageClientImpl(StorageService outer, NamespaceConfig config, IStorageBackend backend, BundleReaderCache bundleReaderCache, ILogger logger)
 				: base(backend, bundleReaderCache, logger)
 			{
 				_outer = outer;
@@ -606,7 +606,7 @@ namespace Horde.Server.Storage
 		}
 
 		/// <inheritdoc/>
-		Task<IStorageClient> IStorageClientFactory.CreateClientAsync(NamespaceId namespaceId, CancellationToken cancellationToken) => Task.FromResult<IStorageClient>(CreateClient(namespaceId));
+		IStorageClient IStorageClientFactory.CreateClient(NamespaceId namespaceId) => CreateClient(namespaceId);
 
 		#region Config
 

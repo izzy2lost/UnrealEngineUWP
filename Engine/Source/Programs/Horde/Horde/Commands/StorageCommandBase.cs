@@ -1,10 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
-using EpicGames.Horde;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Horde.Commands
@@ -36,14 +34,14 @@ namespace Horde.Commands
 		/// </summary>
 		public CmdConfig Config { get; }
 
-		readonly HordeHttpClientFactory _httpClientFactory;
+		readonly HttpStorageClientFactory _storageClientFactory;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageCommandBase(HordeHttpClientFactory httpClientFactory, BundleReaderCache bundleReaderCache, IOptions<CmdConfig> config)
+		public StorageCommandBase(HttpStorageClientFactory storageClientFactory, BundleReaderCache bundleReaderCache, IOptions<CmdConfig> config)
 		{
-			_httpClientFactory = httpClientFactory;
+			_storageClientFactory = storageClientFactory;
 
 			BundleReaderCache = bundleReaderCache;
 			Config = config.Value;
@@ -52,30 +50,16 @@ namespace Horde.Commands
 		/// <summary>
 		/// Creates a new client instance
 		/// </summary>
-		/// <param name="logger">Logger for output messages</param>
-		/// <param name="cancellationToken"></param>
-		public Task<IStorageClient> CreateStorageClientAsync(ILogger logger, CancellationToken cancellationToken = default)
+		public IStorageClient CreateStorageClient()
 		{
-			_ = cancellationToken;
-
-			string? path = Path;
-			if (String.IsNullOrEmpty(path))
+			if (String.IsNullOrEmpty(Path))
 			{
-				path = $"api/v1/storage/{Namespace}/";
+				return _storageClientFactory.CreateClient(Namespace);
 			}
-			else if (!path.EndsWith("/", StringComparison.Ordinal))
+			else
 			{
-				path += "/";
+				return _storageClientFactory.CreateClient(Path);
 			}
-
-			HttpClient CreateClient()
-			{
-				HttpClient client = _httpClientFactory.CreateClient().HttpClient;
-				client.BaseAddress = new Uri(client.BaseAddress!, path);
-				return client;
-			}
-
-			return Task.FromResult<IStorageClient>(new HttpStorageClient(CreateClient, BundleReaderCache, logger));
 		}
 	}
 }
