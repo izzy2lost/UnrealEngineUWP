@@ -10217,7 +10217,7 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FJobInputHash& Hash, EShader
 			UE::DerivedData::FRequestOwner* RequestOwner;
 
 			static const bool PerShaderDDCAsync = CVarShaderCompilerPerShaderDDCAsync.GetValueOnAnyThread();
-			if (PerShaderDDCAsync)
+			if (PerShaderDDCAsync && FGenericPlatformProcess::SupportsMultithreading())
 			{
 				switch (JobPriority)
 				{
