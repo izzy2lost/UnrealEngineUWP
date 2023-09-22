@@ -216,7 +216,7 @@ void FAbcConversionSettingsCustomization::OnConversionPresetChanged()
 		// Set values to specified preset
 		switch (Settings->Preset)
 		{
-			case EAbcConversionPreset::Maya:
+			case EAbcConversionPreset::Max:
 			{
 				Settings->bFlipU = false;
 				Settings->bFlipV = true;
@@ -225,7 +225,7 @@ void FAbcConversionSettingsCustomization::OnConversionPresetChanged()
 				break;
 			}
 
-			case EAbcConversionPreset::Max:
+			case EAbcConversionPreset::Maya:
 			{
 				Settings->bFlipU = false;
 				Settings->bFlipV = true;
