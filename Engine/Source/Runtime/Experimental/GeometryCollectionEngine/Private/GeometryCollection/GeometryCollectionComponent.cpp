@@ -566,6 +566,7 @@ UGeometryCollectionComponent::UGeometryCollectionComponent(const FObjectInitiali
 	, bGlobalCrumblingEventIncludesChildren(false)
 	, bStoreVelocities(false)
 	, bShowBoneColors(false)
+	, bUpdateComponentTransformToRootBone(false)
 	, bUseRootProxyForNavigation(false)
 	, bUpdateNavigationInTick(true) 
 #if WITH_EDITORONLY_DATA 
@@ -3091,7 +3092,8 @@ void UGeometryCollectionComponent::OnUpdateTransform(EUpdateTransformFlags Updat
 {
 	Super::OnUpdateTransform(UpdateTransformFlags, Teleport);
 
-	if (PhysicsProxy)
+	const bool bSkipPhysicsUpdate = ((UpdateTransformFlags & EUpdateTransformFlags::SkipPhysicsUpdate) == EUpdateTransformFlags::SkipPhysicsUpdate);
+	if (!bSkipPhysicsUpdate && PhysicsProxy)
 	{
 		PhysicsProxy->SetWorldTransform_External(GetComponentTransform());
 	}
@@ -3848,10 +3850,52 @@ void UGeometryCollectionComponent::OnPostPhysicsSync()
 
 		CheckFullyDecayed();
 	}
+	else if (bUpdateComponentTransformToRootBone)
+	{
+		MoveComponentToRootTransform();
+	}
 
 	const bool bDynamicDataIsDirty = (DynamicCollection && DynamicCollection->IsDirty() && HasVisibleGeometry());
 	UpdateRenderSystemsIfNeeded(bDynamicDataIsDirty);
 	UpdateNavigationDataIfNeeded(bDynamicDataIsDirty);
+}
+
+void UGeometryCollectionComponent::MoveComponentToRootTransform()
+{
+	if (RestCollection && PhysicsProxy)
+	{
+		const TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> AssetCollection = RestCollection->GetGeometryCollection();
+
+		if (AssetCollection && DynamicCollection && DynamicCollection->IsDirty())
+		{
+			static FName MassToLocalAttributeName = "MassToLocal";
+			const TManagedArray<FTransform>& MassToLocalAttribute = RestCollection->GetGeometryCollection()->GetAttribute<FTransform>(MassToLocalAttributeName, FGeometryCollection::TransformGroup);
+
+			FGeometryCollectionDynamicStateFacade DynamicStateFacade(*DynamicCollection);
+
+			const int32 RootIndex = GetRootIndex();
+			const bool bIsRootActive = DynamicStateFacade.IsDynamicOrSleeping(RootIndex);
+			const bool bHasDynamicOPrClusterUnionParent = DynamicStateFacade.HasDynamicInternalClusterParent(RootIndex) || DynamicStateFacade.HasClusterUnionParent(RootIndex);
+			if (bIsRootActive || bHasDynamicOPrClusterUnionParent)
+			{
+				const FTransform& OriginalComponentSpaceRootTransformOffset = AssetCollection->Transform[RootIndex];
+				DynamicCollection->Transform[RootIndex] = FTransform3f(OriginalComponentSpaceRootTransformOffset);
+				const Chaos::FPBDRigidParticle* RootParticle = PhysicsProxy->GetExternalParticles()[RootIndex].Get();
+				const FTransform ParticleWorldPosition(RootParticle->R(), RootParticle->X());
+				const FTransform MassToLocal = MassToLocalAttribute[RootIndex];
+				const FTransform NewRootWorldPosition = MassToLocal.Inverse() * ParticleWorldPosition;
+
+				const FTransform CurrentComponentTransform = GetComponentTransform();
+				if (!NewRootWorldPosition.EqualsNoScale(CurrentComponentTransform))
+				{
+					const FVector NewPosition = NewRootWorldPosition.GetLocation();
+					const FVector MoveBy = NewPosition - CurrentComponentTransform.GetLocation();
+					const FRotator NewRotation = NewRootWorldPosition.Rotator();
+					MoveComponent(MoveBy, NewRotation, /* bSweep */ false,/* Hit */ NULL, MOVECOMP_SkipPhysicsMove);
+				}
+			}
+		}
+	}
 }
 
 void UGeometryCollectionComponent::UpdateRenderSystemsIfNeeded(bool bDynamicCollectionDirty)

@@ -1342,6 +1342,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|General")
 	bool bShowBoneColors;
 
+	/** 
+	* Relocate the component so that the original offset to the root bone is maintained
+	* This only works when the root bone is moving whole being dynamically simulated 
+	* Note: Once the root element is broken, the component will no longer update its position
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|General")
+	bool bUpdateComponentTransformToRootBone;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Collision, AdvancedDisplay, config)
 	bool bUseRootProxyForNavigation;
 
@@ -1663,6 +1671,8 @@ private:
 	GEOMETRYCOLLECTIONENGINE_API TArray<FMatrix> ComputeGlobalMatricesFromComponentSpaceTransforms() const;
 
 	float ComputeMassScaleRelativeToAsset() const;
+
+	void MoveComponentToRootTransform();
 
 	/** The clusters we need to replicate */
 	TUniquePtr<TSet<Chaos::FPBDRigidClusteredParticleHandle*>> ClustersToRep;

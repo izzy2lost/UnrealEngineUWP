@@ -3168,7 +3168,7 @@ void FGeometryCollectionPhysicsProxy::PushToPhysicsState()
 
 						SetClusteredParticleKinematicTarget_Internal(KinematicRootHandle, WorldTransform);
 					}
-					else if (ParentHandle)
+					else if (ParentHandle && !ParentHandle->IsDynamic())
 					{
 						if (ClusterUnionIndex == INDEX_NONE)
 						{
