@@ -183,7 +183,8 @@ bool IsExtendLuminanceRangeEnabled()
 
 bool IsAutoExposureUsingIlluminanceEnabled(const FViewInfo& View)
 {
-	return CVarAutoExposureIgnoreMaterials.GetValueOnRenderThread() && GetAutoExposureMethod(View) == AEM_Histogram;
+	// NOTE: This method cannot be supported with PathTracing because it requires a GBuffer which is not available in the path tracing case
+	return CVarAutoExposureIgnoreMaterials.GetValueOnRenderThread() && GetAutoExposureMethod(View) == AEM_Histogram && !View.Family->EngineShowFlags.PathTracing;
 }
 
 int32 GetAutoExposureIlluminanceDownscaleFactor()
