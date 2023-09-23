@@ -128,11 +128,11 @@ CmdQueryMirrors(const FCmdQueryOptions& Options)
 
 		LogPrintf(ELogLevel::MachineReadable,
 				  L"  {\"address\":\"%hs\", \"port\":%d, \"ok\":%hs, \"ping\":%d, \"name\":\"%hs\"}%hs\n",
-				  Mirror.Address.c_str(),
+				  StringEscape(Mirror.Address).c_str(),
 				  Mirror.Port,
 				  Mirror.Ping > 0 ? "true" : "false",
 				  int32(Mirror.Ping * 1000.0),
-				  Mirror.Name.c_str(),
+				  StringEscape(Mirror.Name).c_str(),
 				  I + 1 == Mirrors.size() ? "" : ",");
 	}
 
@@ -336,7 +336,7 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 	{
 		const std::string& ResultEntry	 = FoundDirectories[i];
 		const char*		   TrailingComma = i + 1 == FoundDirectories.size() ? "" : ",";
-		LogPrintf(ELogLevel::MachineReadable, L"  {\"path\":\"%hs\"}%hs\n", ResultEntry.c_str(), TrailingComma);
+		LogPrintf(ELogLevel::MachineReadable, L"  \"%hs\"%hs\n", StringEscape(ResultEntry).c_str(), TrailingComma);
 	}
 	LogPrintf(ELogLevel::MachineReadable, L"]\n");
 

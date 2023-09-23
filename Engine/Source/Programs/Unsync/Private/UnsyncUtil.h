@@ -138,6 +138,8 @@ std::string	 ConvertWideToUtf8(std::wstring_view StringWide);
 std::wstring StringToLower(const std::wstring& Input);
 std::wstring StringToUpper(const std::wstring& Input);
 
+std::string StringEscape(const std::string_view Input);
+
 // Returns a list of alternative DFS paths for a given root
 struct FDfsStorageInfo
 {

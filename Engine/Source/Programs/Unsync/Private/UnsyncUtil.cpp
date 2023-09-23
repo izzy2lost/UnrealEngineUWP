@@ -186,6 +186,71 @@ StringToUpper(const std::wstring& Input)
 	return Result;
 }
 
+std::string
+StringEscape(const std::string_view Input)
+{
+	// Adapted from Json11
+
+	std::string Result;
+
+	for (size_t i = 0; i < Input.length(); i++)
+	{
+		const char C = Input[i];
+		if (C == '\\')
+		{
+			Result += "\\\\";
+		}
+		else if (C == '"')
+		{
+			Result += "\\\"";
+		}
+		else if (C == '\b')
+		{
+			Result += "\\b";
+		}
+		else if (C == '\f')
+		{
+			Result += "\\f";
+		}
+		else if (C == '\n')
+		{
+			Result += "\\n";
+		}
+		else if (C == '\r')
+		{
+			Result += "\\r";
+		}
+		else if (C == '\t')
+		{
+			Result += "\\t";
+		}
+		else if (static_cast<uint8_t>(C) <= 0x1f)
+		{
+			char buf[8];
+			snprintf(buf, sizeof buf, "\\u%04x", C);
+			Result += buf;
+		}
+		else if (static_cast<uint8_t>(C) == 0xe2 && static_cast<uint8_t>(Input[i + 1]) == 0x80 &&
+				 static_cast<uint8_t>(Input[i + 2]) == 0xa8)
+		{
+			Result += "\\u2028";
+			i += 2;
+		}
+		else if (static_cast<uint8_t>(C) == 0xe2 && static_cast<uint8_t>(Input[i + 1]) == 0x80 &&
+				 static_cast<uint8_t>(Input[i + 2]) == 0xa9)
+		{
+			Result += "\\u2029";
+			i += 2;
+		}
+		else
+		{
+			Result += C;
+		}
+	}
+
+	return Result;
+}
+
 FDfsMirrorInfo
 DfsEnumerate(const FPath& Root)
 {
