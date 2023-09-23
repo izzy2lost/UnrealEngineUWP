@@ -217,6 +217,8 @@ struct FDirectoryListingEntry
 struct FDirectoryListing
 {
 	std::vector<FDirectoryListingEntry> Entries;
+
+	static TResult<FDirectoryListing> FromJson(const char* JsonString);
 };
 
 TResult<FDirectoryListing> ListDirectory(const FRemoteDesc& Remote, const std::string& Path);

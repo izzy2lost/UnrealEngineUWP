@@ -73,7 +73,7 @@ InnerMain(int Argc, char** Argv)
 	std::string				 ProtocolName = "jupiter";
 	std::string				 HttpHeaderFilenameUtf8;
 	std::string				 QueryStringUtf8;
-	std::string				 QueryArgsUtf8;
+	std::vector<std::string> QueryArgsUtf8;
 	std::string				 ScavengeRootUtf8;
 	bool					 bForceOperation	 = false;
 	bool					 bAllowInsecureTls	 = false;

@@ -510,31 +510,12 @@ ProxyQuery::Hello(const FRemoteDesc& RemoteDesc, bool bAnonymous)
 }
 
 TResult<ProxyQuery::FDirectoryListing>
-ProxyQuery::ListDirectory(const FRemoteDesc& Remote, const std::string& Path)
+ProxyQuery::FDirectoryListing::FromJson(const char* JsonString)
 {
 	FDirectoryListing Result;
 
-	TResult<FAuthToken> AuthToken = Authenticate(Remote, 5 * 60);
-	if (!AuthToken.IsOk())
-	{
-		return MoveError<FDirectoryListing>(AuthToken);
-	}
-
-	FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Remote);
-
-	std::string Url = fmt::format("/api/v1/list?{}", Path);
-
-	FHttpRequest Request;
-	Request.Url			= Url;
-	Request.Method		= EHttpMethod::GET;
-	Request.BearerToken = AuthToken->Access;
-
-	FHttpResponse Response = HttpRequest(Connection, Request);
-
-	Response.Buffer.PushBack(0);
-
 	std::string	 JsonErrorString;
-	json11::Json JsonObject = json11::Json::parse((const char*)Response.Buffer.Data(), JsonErrorString);
+	json11::Json JsonObject = json11::Json::parse(JsonString, JsonErrorString);
 
 	if (!JsonErrorString.empty())
 	{
@@ -572,6 +553,31 @@ ProxyQuery::ListDirectory(const FRemoteDesc& Remote, const std::string& Path)
 	}
 
 	return ResultOk(std::move(Result));
+}
+
+TResult<ProxyQuery::FDirectoryListing>
+ProxyQuery::ListDirectory(const FRemoteDesc& Remote, const std::string& Path)
+{
+	TResult<FAuthToken> AuthToken = Authenticate(Remote, 5 * 60);
+	if (!AuthToken.IsOk())
+	{
+		return MoveError<FDirectoryListing>(AuthToken);
+	}
+
+	FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Remote);
+
+	std::string Url = fmt::format("/api/v1/list?{}", Path);
+
+	FHttpRequest Request;
+	Request.Url			= Url;
+	Request.Method		= EHttpMethod::GET;
+	Request.BearerToken = AuthToken->Access;
+
+	FHttpResponse Response = HttpRequest(Connection, Request);
+
+	Response.Buffer.PushBack(0);
+
+	return FDirectoryListing::FromJson((const char*)Response.Buffer.Data());
 }
 
 TResult<>

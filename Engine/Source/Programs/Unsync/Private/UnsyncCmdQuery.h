@@ -9,10 +9,10 @@ namespace unsync {
 
 struct FCmdQueryOptions
 {
-	std::string Query;
-	std::string Args;
-	FPath		OutputPath;
-	FRemoteDesc Remote;
+	std::string				 Query;
+	std::vector<std::string> Args;
+	FPath					 OutputPath;
+	FRemoteDesc				 Remote;
 };
 
 int32 CmdQuery(const FCmdQueryOptions& Options);
