@@ -19,6 +19,7 @@ using Horde.Server.Acls;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using HordeCommon;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -214,21 +215,23 @@ namespace Horde.Server.Storage
 				}
 			}
 
-			#region Nodes
+			#region Aliases
 
 			/// <inheritdoc/>
-			public override Task AddAliasAsync(Utf8String name, BundleNodeLocator locator, int rank = 0, CancellationToken cancellationToken = default) => _outer.AddAliasAsync(NamespaceId, name, locator, rank, cancellationToken);
+			public override Task AddAliasAsync(Utf8String name, BundleNodeLocator locator, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default) => _outer.AddAliasAsync(NamespaceId, name, locator, rank, data, cancellationToken);
 
 			/// <inheritdoc/>
 			public override Task RemoveAliasAsync(Utf8String name, BundleNodeLocator locator, CancellationToken cancellationToken = default) => _outer.RemoveAliasAsync(NamespaceId, name, locator, cancellationToken);
 
 			/// <inheritdoc/>
-			public override async IAsyncEnumerable<BundleNodeHandle> FindAliasAsync(Utf8String alias, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+			public override async Task<BlobAlias[]> FindAliasesAsync(Utf8String alias, int? maxResults, CancellationToken cancellationToken = default)
 			{
-				await foreach (BundleNodeLocator locator in _outer.FindAliasesAsync(NamespaceId, alias, cancellationToken))
+				List<(BundleNodeLocator, AliasInfo)> aliases = await _outer.FindAliasesAsync(NamespaceId, alias, cancellationToken);
+				if (maxResults != null && maxResults.Value < aliases.Count)
 				{
-					yield return CreateNodeHandle(locator);
+					aliases.RemoveRange(maxResults.Value, aliases.Count - maxResults.Value);
 				}
+				return aliases.Select(x => new BlobAlias(CreateNodeHandle(x.Item1), x.Item2.Rank, x.Item2.Data)).ToArray();
 			}
 
 			#endregion
@@ -302,14 +305,13 @@ namespace Horde.Server.Storage
 
 			#region Aliases
 
-			public Task AddAliasAsync(Utf8String name, BundleNodeLocator locator, int rank = 0, CancellationToken cancellationToken = default) => _impl.AddAliasAsync(name, locator, rank, cancellationToken);
-			public Task AddAliasAsync(Utf8String name, BlobHandle handle, int rank = 0, CancellationToken cancellationToken = default) => ((IStorageClient)_impl).AddAliasAsync(name, handle, rank, cancellationToken);
+			public Task AddAliasAsync(Utf8String name, BundleNodeLocator locator, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default) => _impl.AddAliasAsync(name, locator, rank, data, cancellationToken);
+			public Task AddAliasAsync(Utf8String name, BlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default) => ((IStorageClient)_impl).AddAliasAsync(name, handle, rank, data, cancellationToken);
 
 			public Task RemoveAliasAsync(Utf8String name, BundleNodeLocator locator, CancellationToken cancellationToken = default) => _impl.RemoveAliasAsync(name, locator, cancellationToken);
 			public Task RemoveAliasAsync(Utf8String name, BlobHandle handle, CancellationToken cancellationToken = default) => ((IStorageClient)_impl).RemoveAliasAsync(name, handle, cancellationToken);
 
-			public IAsyncEnumerable<BundleNodeHandle> FindAliasAsync(Utf8String name, CancellationToken cancellationToken = default) => _impl.FindAliasAsync(name, cancellationToken);
-			IAsyncEnumerable<BlobHandle> IStorageClient.FindAliasAsync(Utf8String name, CancellationToken cancellationToken) => ((IStorageClient)_impl).FindAliasAsync(name, cancellationToken);
+			public Task<BlobAlias[]> FindAliasesAsync(Utf8String name, int? maxResults = null, CancellationToken cancellationToken = default) => _impl.FindAliasesAsync(name, maxResults, cancellationToken);
 
 			#endregion
 
@@ -361,6 +363,9 @@ namespace Horde.Server.Storage
 			[BsonElement("rank"), BsonIgnoreIfDefault]
 			public int Rank { get; set; }
 
+			[BsonElement("data"), BsonIgnoreIfNull]
+			public byte[]? Data { get; set; }
+
 			[BsonElement("idx")]
 			public int Index { get; set; }
 
@@ -368,12 +373,13 @@ namespace Horde.Server.Storage
 			{
 			}
 
-			public AliasInfo(string alias, IoHash hash, int index, int rank)
+			public AliasInfo(string alias, IoHash hash, int index, byte[]? data, int rank)
 			{
 				Alias = alias;
 				Hash = hash;
 				Index = index;
 				Rank = rank;
+				Data = (data == null || data.Length == 0) ? null : data;
 			}
 		}
 
@@ -756,9 +762,10 @@ namespace Horde.Server.Storage
 		/// <param name="alias">Alias for the node</param>
 		/// <param name="target">Target node for the alias</param>
 		/// <param name="rank">Rank for the alias. Higher ranked aliases are preferred by default.</param>
+		/// <param name="data">Inline data to store with this alias</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Sequence of thandles</returns>
-		async Task AddAliasAsync(NamespaceId namespaceId, Utf8String alias, BundleNodeLocator target, int rank, CancellationToken cancellationToken = default)
+		async Task AddAliasAsync(NamespaceId namespaceId, Utf8String alias, BundleNodeLocator target, int rank, ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
 		{
 			BlobInfo? blobInfo = await _blobCollection.Find(x => x.NamespaceId == namespaceId && x.Path == target.Blob.Path).FirstOrDefaultAsync(cancellationToken);
 			if (blobInfo == null)
@@ -772,7 +779,7 @@ namespace Horde.Server.Storage
 			}
 
 			FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Expr(x => x.NamespaceId == blobInfo.NamespaceId && x.Path == target.Blob.Path);
-			UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.Push(x => x.Aliases, new AliasInfo(alias.ToString(), target.Hash, target.ExportIdx, rank));
+			UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.Push(x => x.Aliases, new AliasInfo(alias.ToString(), target.Hash, target.ExportIdx, data.ToArray(), rank));
 			await _blobCollection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
 		}
 
@@ -798,10 +805,9 @@ namespace Horde.Server.Storage
 		/// <param name="alias">Alias for the node</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Sequence of thandles</returns>
-		async IAsyncEnumerable<BundleNodeLocator> FindAliasesAsync(NamespaceId namespaceId, Utf8String alias, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+		async Task<List<(BundleNodeLocator, AliasInfo)>> FindAliasesAsync(NamespaceId namespaceId, Utf8String alias, CancellationToken cancellationToken = default)
 		{
-			List<(BundleNodeLocator Locator, int Rank)> locators = new List<(BundleNodeLocator, int)>();
-
+			List<(BundleNodeLocator, AliasInfo)> results = new List<(BundleNodeLocator, AliasInfo)>();
 			await foreach (BlobInfo blobInfo in _blobCollection.Find(x => x.NamespaceId == namespaceId && x.Aliases!.Any(y => y.Alias == alias)).ToAsyncEnumerable(cancellationToken))
 			{
 				if (blobInfo.Aliases != null)
@@ -810,16 +816,13 @@ namespace Horde.Server.Storage
 					{
 						if (aliasInfo.Alias == alias)
 						{
-							locators.Add((new BundleNodeLocator(aliasInfo.Hash, blobInfo.Locator, aliasInfo.Index), aliasInfo.Rank));
+							BundleNodeLocator locator = new BundleNodeLocator(aliasInfo.Hash, blobInfo.Locator, aliasInfo.Index);
+							results.Add((locator, aliasInfo));
 						}
 					}
 				}
 			}
-
-			foreach ((BundleNodeLocator locator, _) in locators.OrderByDescending(x => x.Rank))
-			{
-				yield return locator;
-			}
+			return results.OrderByDescending(x => x.Item2.Rank).ToList();
 		}
 
 		#endregion
