@@ -152,8 +152,10 @@ constexpr bool IntFitsIn(InType In)
 	{
 		return bRoundtrips && (In < InType{} == Out < OutType{});
 	}
-	
-	return bRoundtrips;
+	else
+	{
+		return bRoundtrips;
+	}
 }
 
 /** Cast and check that value fits in OutType */

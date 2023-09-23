@@ -196,7 +196,7 @@ struct TTypeToString
 /** Parse a string into this type, returning whether it was successful */
 /** Specialization for arithmetic types */
 template<typename T>
-static typename TEnableIf<TIsArithmetic<T>::Value, bool>::Type
+typename TEnableIf<TIsArithmetic<T>::Value, bool>::Type
 LexTryParseString(T& OutValue, const TCHAR* Buffer)
 {
 	if (Buffer[0] == '\0')
@@ -232,7 +232,7 @@ LexTryParseString(T& OutValue, const TCHAR* Buffer)
 }
 
 /** Try and parse a bool - always returns true */
-static bool LexTryParseString(bool& OutValue, const TCHAR* Buffer)
+inline bool LexTryParseString(bool& OutValue, const TCHAR* Buffer)
 {
 	LexFromString(OutValue, Buffer);
 	return true;

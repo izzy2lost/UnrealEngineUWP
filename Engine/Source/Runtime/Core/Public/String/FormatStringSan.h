@@ -403,7 +403,7 @@ namespace UE::Core::Private
 				case TEXT('h'):
 					if (CharIsIntegerFormatSpecifier(P[1]))
 					{
-						if (!(bIsIntegralEnum<Arg> || std::is_integral_v<Arg>))
+						if constexpr (!(bIsIntegralEnum<Arg> || std::is_integral_v<Arg>))
 						{
 							return {StatusHNeedsIntegerArg, CurArgPos};
 						}

@@ -3231,6 +3231,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 namespace UE
 {
+class FAssetLog;
+COREUOBJECT_API void SerializeForLog(FCbWriter& Writer, const FAssetLog& AssetLog);
 
 class FAssetLog
 {

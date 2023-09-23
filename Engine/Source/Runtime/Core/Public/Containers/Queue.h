@@ -117,7 +117,7 @@ public:
 
 		TNode* OldHead;
 
-		if (Mode == EQueueMode::Mpsc)
+		if constexpr (Mode == EQueueMode::Mpsc)
 		{
             OldHead = (TNode*)FPlatformAtomics::InterlockedExchangePtr((void**)&Head, NewNode);
 			TSAN_BEFORE(&OldHead->NextNode);
@@ -154,7 +154,7 @@ public:
 
 		TNode* OldHead;
 
-		if (Mode == EQueueMode::Mpsc)
+		if constexpr (Mode == EQueueMode::Mpsc)
 		{
             OldHead = (TNode*)FPlatformAtomics::InterlockedExchangePtr((void**)&Head, NewNode);
 			TSAN_BEFORE(&OldHead->NextNode);

@@ -39,7 +39,7 @@ static const SourceId kInvalidSourceId = -1;
 // Defines memory alignment of audio buffers. Note that not only the first
 // element of the |data_| buffer is memory aligned but also the address of the
 // first elements of the |ChannelView|s.
-const size_t kMemoryAlignmentBytes = 64;
+inline const size_t kMemoryAlignmentBytes = 64;
 
 // Maximum Ambisonic order currently supported in vr audio, equivalent to High
 // Quality sound object rendering mode. This number is limited by a) number of
@@ -49,7 +49,7 @@ const size_t kMemoryAlignmentBytes = 64;
 static const int kMaxSupportedAmbisonicOrder = 3;
 
 // Maximum allowed size of internal buffers.
-const size_t kMaxSupportedNumFrames = 16384;
+inline const size_t kMaxSupportedNumFrames = 16384;
 
 // Number of mono channels.
 static const size_t kNumMonoChannels = 1;

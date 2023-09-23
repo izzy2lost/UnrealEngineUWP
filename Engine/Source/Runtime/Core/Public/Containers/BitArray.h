@@ -912,7 +912,7 @@ public:
 				Count -= 2;
 				while (Count != 0)
 				{
-					*Data++ = ~0;
+					*Data++ = ~0u;
 					--Count;
 				}
 				*Data |= EndMask;
@@ -1877,7 +1877,7 @@ private:
 			}
 
 			RemainingBitMask = ArrayData[this->WordIndex];
-			UnvisitedBitMask = ~0;
+			UnvisitedBitMask = ~0u;
 		}
 
 		// This operation has the effect of unsetting the lowest set bit of BitMask

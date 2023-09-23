@@ -687,7 +687,7 @@ private:
 	bool TryReplaceExisting(uint32 KeyHash, SetElementType& Element, SizeType& InOutElementIndex, bool* bIsAlreadyInSetPtr)
 	{
 		bool bIsAlreadyInSet = false;
-		if (!KeyFuncs::bAllowDuplicateKeys)
+		if constexpr (!KeyFuncs::bAllowDuplicateKeys)
 		{
 			// If the set doesn't allow duplicate keys, check for an existing element with the same key as the element being added.
 
@@ -1019,7 +1019,7 @@ private:
 				RemoveByIndex(NextElementId->Index);
 				NumRemovedElements++;
 
-				if (!KeyFuncs::bAllowDuplicateKeys)
+				if constexpr (!KeyFuncs::bAllowDuplicateKeys)
 				{
 					// If the hash disallows duplicate keys, we're done removing after the first matched key.
 					break;

@@ -680,15 +680,6 @@ public:
 	/** Destructor. */
 	~TArray()
 	{
-		#if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
-		#if defined(_MSC_VER) && !defined(__clang__)	// Relies on MSVC-specific lazy template instantiation to support arrays of incomplete types
-			// ensure that DebugGet gets instantiated.
-			// this is done to ensure DebugGet is available for the debugger watch window
-			//@todo it would be nice if we had a cleaner solution for DebugGet
-			volatile const ElementType* Dummy = &DebugGet(0);
-		#endif
-		#endif
-		
 		DestructItems(GetData(), ArrayNum);
 
 		// note ArrayNum, ArrayMax and data pointer are not invalidated
@@ -766,7 +757,7 @@ public:
 		CheckInvariants();
 
 		// Template property, branch will be optimized out
-		if (AllocatorType::RequireRangeCheck)
+		if constexpr (AllocatorType::RequireRangeCheck)
 		{
 			checkf((Index >= 0) & (Index < ArrayNum),TEXT("Array index out of bounds: %lld from an array of size %lld"),(long long)Index, (long long)ArrayNum); // & for one branch
 		}
@@ -2547,7 +2538,6 @@ public:
 
 		// Destruct items that match the specified Item.
 		DestructItems(RemovePtr, 1);
-		const SizeType NextIndex = Index + 1;
 		RelocateConstructItems<ElementType>(RemovePtr, RemovePtr + 1, ArrayNum - (Index + 1));
 
 		// Update the array count
@@ -3559,19 +3549,27 @@ struct TArrayPrivateFriend
 				A.ResizeForCopy(A.ArrayNum, A.ArrayMax);
 			}
 
-			if(TIsUECoreVariant<ElementType, double>::Value && Ar.IsLoading() && Ar.UEVer() < EUnrealEngineObjectUE5Version::LARGE_WORLD_COORDINATES)
+			if constexpr (TIsUECoreVariant<ElementType, double>::Value)
 			{
-				// Per item serialization is required for core variant types loaded from pre LWC archives, to enable conversion from float to double.
-				A.Empty(SerializeNum);
-				for (SizeType i=0; i<SerializeNum; i++)
+				if (Ar.IsLoading() && Ar.UEVer() < EUnrealEngineObjectUE5Version::LARGE_WORLD_COORDINATES)
 				{
-					Ar << A.AddDefaulted_GetRef();
+					// Per item serialization is required for core variant types loaded from pre LWC archives, to enable conversion from float to double.
+					A.Empty(SerializeNum);
+					for (SizeType i = 0; i < SerializeNum; i++)
+					{
+						Ar << A.AddDefaulted_GetRef();
+					}
+				}
+				else
+				{
+					Ar.Serialize(A.GetData(), A.Num() * sizeof(ElementType));
 				}
 			}
 			else
 			{
 				Ar.Serialize(A.GetData(), A.Num() * sizeof(ElementType));
 			}
+
 		}
 		else if (Ar.IsLoading())
 		{

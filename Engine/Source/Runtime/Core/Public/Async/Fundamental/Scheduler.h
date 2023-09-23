@@ -38,7 +38,7 @@ namespace LowLevelTasks
 	template<typename NodeType>
 	class TEventStack
 	{
-		static constexpr uint32 EVENT_INDEX_NONE = -1;
+		static constexpr uint32 EVENT_INDEX_NONE = ~0u;
 
 		struct FTopNode
 		{

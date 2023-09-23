@@ -1519,7 +1519,30 @@ public:
 	 * @param Help must not be 0
 	 * @param Flags bitmask combined from EConsoleVariableFlags
 	 */
-	TAutoConsoleVariable(const TCHAR* Name, const T& DefaultValue, const TCHAR* Help, uint32 Flags = ECVF_Default);
+	TAutoConsoleVariable(const TCHAR* Name, const T& DefaultValue, const TCHAR* Help, uint32 Flags = ECVF_Default)
+		: FAutoConsoleObject(IConsoleManager::Get().RegisterConsoleVariable(Name, DefaultValue, Help, Flags)) 
+	{
+		if constexpr (std::is_same_v<T, bool>)
+		{
+			Ref = AsVariable()->AsVariableBool();
+		}
+		else if constexpr (std::is_same_v<T, int32>)
+		{
+			Ref = AsVariable()->AsVariableInt();
+		}
+		else if constexpr (std::is_same_v<T, float>)
+		{
+			Ref = AsVariable()->AsVariableFloat();
+		}
+		else if constexpr (std::is_same_v<T, FString>)
+		{
+			Ref = AsVariable()->AsVariableString();
+		}
+		else
+		{
+			static_assert(sizeof(T) == 0, "Not supported");
+		}
+	}
 
 	/**
 	 * Create a float, int or string console variable
@@ -1571,33 +1594,6 @@ private:
 	TConsoleVariableData<T>* Ref;
 };
 
-template <>
-inline TAutoConsoleVariable<bool>::TAutoConsoleVariable(const TCHAR* Name, const bool& DefaultValue, const TCHAR* Help, uint32 Flags)
-	: FAutoConsoleObject(IConsoleManager::Get().RegisterConsoleVariable(Name, DefaultValue, Help, Flags))
-{
-	Ref = AsVariable()->AsVariableBool();
-}
-
-template <>
-inline TAutoConsoleVariable<int32>::TAutoConsoleVariable(const TCHAR* Name, const int32& DefaultValue, const TCHAR* Help, uint32 Flags)
-	: FAutoConsoleObject(IConsoleManager::Get().RegisterConsoleVariable(Name, DefaultValue, Help, Flags))
-{
-	Ref = AsVariable()->AsVariableInt();
-}
-
-template <>
-inline TAutoConsoleVariable<float>::TAutoConsoleVariable(const TCHAR* Name, const float& DefaultValue, const TCHAR* Help, uint32 Flags)
-	: FAutoConsoleObject(IConsoleManager::Get().RegisterConsoleVariable(Name, DefaultValue, Help, Flags))
-{
-	Ref = AsVariable()->AsVariableFloat();
-}
-
-template <>
-inline TAutoConsoleVariable<FString>::TAutoConsoleVariable(const TCHAR* Name, const FString& DefaultValue, const TCHAR* Help, uint32 Flags)
-	: FAutoConsoleObject(IConsoleManager::Get().RegisterConsoleVariable(Name, DefaultValue, Help, Flags))
-{
-	Ref = AsVariable()->AsVariableString();
-}
 #else
 template <class T>
 class TAutoConsoleVariable : public IConsoleVariable

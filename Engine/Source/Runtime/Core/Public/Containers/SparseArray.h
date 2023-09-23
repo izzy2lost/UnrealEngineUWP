@@ -333,7 +333,7 @@ public:
 	/** Removes Count elements from the array, starting from Index. */
 	void RemoveAt(int32 Index,int32 Count = 1)
 	{
-		if (!TIsTriviallyDestructible<ElementType>::Value)
+		if constexpr (!TIsTriviallyDestructible<ElementType>::Value)
 		{
 			FElementOrFreeListLink* DataPtr = (FElementOrFreeListLink*)Data.GetData();
 			for (int32 It = Index, ItCount = Count; ItCount; ++It, --ItCount)
@@ -376,7 +376,7 @@ public:
 	void Empty(int32 ExpectedNumElements = 0)
 	{
 		// Destruct the allocated elements.
-		if( !TIsTriviallyDestructible<ElementType>::Value )
+		if constexpr ( !TIsTriviallyDestructible<ElementType>::Value )
 		{
 			for(TIterator It(*this);It;++It)
 			{
@@ -396,7 +396,7 @@ public:
 	void Reset()
 	{
 		// Destruct the allocated elements.
-		if( !TIsTriviallyDestructible<ElementType>::Value )
+		if constexpr ( !TIsTriviallyDestructible<ElementType>::Value )
 		{
 			for(TIterator It(*this);It;++It)
 			{
@@ -774,7 +774,7 @@ public:
 			const FElementOrFreeListLink* SrcData  = (const FElementOrFreeListLink*)InCopy.Data.GetData();
 
 			// Determine whether we need per element construction or bulk copy is fine
-			if (!TIsTriviallyCopyConstructible<ElementType>::Value)
+			if constexpr (!TIsTriviallyCopyConstructible<ElementType>::Value)
 			{
 				// Use the inplace new to copy the element to an array element
 				for (int32 Index = 0; Index < SrcMax; ++Index)
@@ -809,7 +809,7 @@ private:
 	FORCEINLINE static void Move(SparseArrayType& ToArray, SparseArrayType& FromArray)
 	{
 		// Destruct the allocated elements.
-		if( !TIsTriviallyDestructible<ElementType>::Value )
+		if constexpr ( !TIsTriviallyDestructible<ElementType>::Value )
 		{
 			for (ElementType& Element : ToArray)
 			{

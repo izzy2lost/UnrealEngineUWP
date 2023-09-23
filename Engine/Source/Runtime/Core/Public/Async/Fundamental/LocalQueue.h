@@ -75,7 +75,7 @@ protected:
 			{
 				if(IdxVer == Tail.load(std::memory_order_acquire))
 				{
-					uint32 Prev = Tail.fetch_add(1, std::memory_order_release);
+					uint32 Prev = Tail.fetch_add(1, std::memory_order_release); (void)Prev;
 					checkSlow(Prev % NumItems == Idx);
 					ItemSlots[Idx].Value.store(uintptr_t(ESlotState::Free), std::memory_order_release);
 					Item = Slot;
@@ -352,7 +352,7 @@ public:
 		FSleepEvent*			SleepEvent;
 		uint32					CachedRandomIndex = InvalidIndex;
 		uint32					CachedPriorityIndex = 0;
-		uint32					AffinityIndex = ~0;
+		uint32					AffinityIndex = ~0u;
 		ELocalQueueType			QueueType;
 	};
 

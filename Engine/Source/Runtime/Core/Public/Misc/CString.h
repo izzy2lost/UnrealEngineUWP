@@ -65,8 +65,73 @@ struct TCString
 	 * Returns whether this string contains only pure ansi characters 
 	 * @param Str - string that will be checked
 	 **/
-	static FORCEINLINE bool IsPureAnsi(const CharType* Str);
-	static FORCEINLINE bool IsPureAnsi(const CharType* Str, const SIZE_T StrLen);
+	static bool IsPureAnsi(const CharType* Str)
+	{
+		if constexpr (std::is_same_v<CharType, ANSICHAR>)
+		{
+			return true;
+		}
+		else if constexpr (std::is_same_v<CharType, WIDECHAR>)
+		{
+			for (; *Str; Str++)
+			{
+				if (*Str > 0x7f)
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+		else if constexpr (std::is_same_v<CharType, UTF8CHAR>)
+		{
+			for (; *Str; Str++)
+			{
+				if ((uint8)*Str > 0x7f)
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+		else
+		{
+			static_assert(sizeof(CharType) == 0, "Not supported");
+		}
+	}
+
+	static bool IsPureAnsi(const CharType* Str, const SIZE_T StrLen)
+	{
+		if constexpr (std::is_same_v<CharType, ANSICHAR>)
+		{
+			return true;
+		}
+		else if constexpr (std::is_same_v<CharType, WIDECHAR>)
+		{
+			for (SIZE_T Idx = 0; Idx < StrLen; Idx++, Str++)
+			{
+				if (*Str > 0x7f)
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+		else if constexpr (std::is_same_v<CharType, UTF8CHAR>)
+		{
+			for (SIZE_T Idx = 0; Idx < StrLen; Idx++, Str++)
+			{
+				if ((uint8)*Str > 0x7f)
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+		else
+		{
+			static_assert(sizeof(CharType) == 0, "Not supported");
+		}
+	}
 
 	/**
 	 * Returns whether this string contains only numeric characters 
@@ -391,7 +456,25 @@ struct TCString
 	 *
 	 * @return The boolean value
 	 */
-	static FORCEINLINE bool ToBool( const CharType* String );
+	static bool ToBool(const CharType* String)
+	{
+		if constexpr (std::is_same_v<CharType, ANSICHAR>)
+		{
+			return FToBoolHelper::FromCStringAnsi(String);
+		}
+		else if constexpr (std::is_same_v<CharType, WIDECHAR>)
+		{
+			return FToBoolHelper::FromCStringWide(String);
+		}
+		else if constexpr (std::is_same_v<CharType, UTF8CHAR>)
+		{
+			return FToBoolHelper::FromCStringUtf8(String);
+		}
+		else
+		{
+			static_assert(sizeof(CharType) == 0, "Not supported");
+		}
+	}
 
 	/**
 	 * strtoi wrapper
@@ -999,144 +1082,56 @@ int32 TCString<T>::GetVarArgs( CharType* Dest, SIZE_T DestSize, const CharType*&
 	return FPlatformString::GetVarArgs(Dest, DestSize, Fmt, ArgPtr);
 }
 
-
-/*-----------------------------------------------------------------------------
-	TCString<WIDECHAR> specializations
------------------------------------------------------------------------------*/
-template <> FORCEINLINE
-bool TCString<WIDECHAR>::IsPureAnsi(const CharType* Str)
+template <typename T>
+int32 TCString<T>::SprintfImpl(CharType* Dest, const CharType* Fmt, ...)
 {
-	for( ; *Str; Str++ )
+	if constexpr (std::is_same_v<CharType, ANSICHAR>)
 	{
-		if( *Str>0x7f )
-		{
-			return false;
-		}
+		int32	Result = -1;
+		GET_VARARGS_RESULT_ANSI(Dest, MAX_SPRINTF, MAX_SPRINTF - 1, Fmt, Fmt, Result);
+		return Result;
 	}
-	return true;
-}
-
-
-template <> FORCEINLINE
-bool TCString<WIDECHAR>::IsPureAnsi(const CharType* Str, const SIZE_T StrLen)
-{
-	for (SIZE_T Idx = 0; Idx < StrLen; Idx++, Str++)
+	else if constexpr (std::is_same_v<CharType, WIDECHAR>)
 	{
-		if (*Str > 0x7f)
-		{
-			return false;
-		}
+		int32	Result = -1;
+		GET_VARARGS_RESULT_WIDE(Dest, MAX_SPRINTF, MAX_SPRINTF - 1, Fmt, Fmt, Result);
+		return Result;
 	}
-	return true;
-}
-
-
-template <>
-inline int32 TCString<WIDECHAR>::SprintfImpl(CharType* Dest, const CharType* Fmt, ...)
-{
-	int32	Result = -1;
-	GET_VARARGS_RESULT_WIDE( Dest, MAX_SPRINTF, MAX_SPRINTF-1, Fmt, Fmt, Result );
-	return Result;
-}
-
-template <>
-inline int32 TCString<WIDECHAR>::SnprintfImpl(CharType* Dest, int32 DestSize, const CharType* Fmt, ...)
-{
-	int32	Result = -1;
-	GET_VARARGS_RESULT_WIDE( Dest, DestSize, DestSize-1, Fmt, Fmt, Result );
-	return Result;
-}
-
-template <> 
-FORCEINLINE bool TCString<WIDECHAR>::ToBool(const WIDECHAR* Str)
-{
-	return FToBoolHelper::FromCStringWide(Str);
-}
-
-/*-----------------------------------------------------------------------------
-	TCString<ANSICHAR> specializations
------------------------------------------------------------------------------*/
-template <> FORCEINLINE
-bool TCString<ANSICHAR>::IsPureAnsi(const CharType* Str)
-{
-	return true;
-}
-
-template <> FORCEINLINE
-bool TCString<ANSICHAR>::IsPureAnsi(const CharType* Str, const SIZE_T StrLen)
-{
-	return true;
-}
-
-template <>
-inline int32 TCString<ANSICHAR>::SprintfImpl(CharType* Dest, const CharType* Fmt, ...)
-{
-	int32	Result = -1;
-	GET_VARARGS_RESULT_ANSI( Dest, MAX_SPRINTF, MAX_SPRINTF-1, Fmt, Fmt, Result );
-	return Result;
-}
-
-template <>
-inline int32 TCString<ANSICHAR>::SnprintfImpl(CharType* Dest, int32 DestSize, const CharType* Fmt, ...)
-{
-	int32	Result = -1;
-	GET_VARARGS_RESULT_ANSI( Dest, DestSize, DestSize-1, Fmt, Fmt, Result );
-	return Result;
-}
-
-template <>
-FORCEINLINE bool TCString<ANSICHAR>::ToBool(const ANSICHAR* Str)
-{
-	return FToBoolHelper::FromCStringAnsi(Str);
-}
-
-/*-----------------------------------------------------------------------------
-	TCString<UTF8CHAR> specializations
------------------------------------------------------------------------------*/
-template <> FORCEINLINE
-bool TCString<UTF8CHAR>::IsPureAnsi(const CharType* Str)
-{
-	for (; *Str; Str++)
+	else if constexpr (std::is_same_v<CharType, UTF8CHAR>)
 	{
-		if ((uint8)*Str > 0x7f)
-		{
-			return false;
-		}
+		int32	Result = -1;
+		GET_VARARGS_RESULT_UTF8(Dest, MAX_SPRINTF, MAX_SPRINTF - 1, Fmt, Fmt, Result);
+		return Result;
 	}
-	return true;
-}
-
-template <> FORCEINLINE
-bool TCString<UTF8CHAR>::IsPureAnsi(const CharType* Str, const SIZE_T StrLen)
-{
-	for (SIZE_T Idx = 0; Idx < StrLen; Idx++, Str++)
+	else
 	{
-		if ((uint8)*Str > 0x7f)
-		{
-			return false;
-		}
+		static_assert(sizeof(CharType) == 0, "Not supported");
 	}
-	return true;
 }
 
-template <>
-inline int32 TCString<UTF8CHAR>::SprintfImpl(CharType* Dest, const CharType* Fmt, ...)
+template <typename T>
+int32 TCString<T>::SnprintfImpl(CharType* Dest, int32 DestSize, const CharType* Fmt, ...)
 {
-	int32	Result = -1;
-	GET_VARARGS_RESULT_UTF8(Dest, MAX_SPRINTF, MAX_SPRINTF - 1, Fmt, Fmt, Result);
-	return Result;
-}
-
-template <>
-inline int32 TCString<UTF8CHAR>::SnprintfImpl(CharType* Dest, int32 DestSize, const CharType* Fmt, ...)
-{
-	int32	Result = -1;
-	GET_VARARGS_RESULT_UTF8(Dest, DestSize, DestSize - 1, Fmt, Fmt, Result);
-	return Result;
-}
-
-template <>
-FORCEINLINE bool TCString<UTF8CHAR>::ToBool(const UTF8CHAR* Str)
-{
-	return FToBoolHelper::FromCStringUtf8(Str);
+	if constexpr (std::is_same_v<CharType, ANSICHAR>)
+	{
+		int32	Result = -1;
+		GET_VARARGS_RESULT_ANSI(Dest, DestSize, DestSize - 1, Fmt, Fmt, Result);
+		return Result;
+	}
+	else if constexpr (std::is_same_v<CharType, WIDECHAR>)
+	{
+		int32	Result = -1;
+		GET_VARARGS_RESULT_WIDE(Dest, DestSize, DestSize - 1, Fmt, Fmt, Result);
+		return Result;
+	}
+	else if constexpr (std::is_same_v<CharType, UTF8CHAR>)
+	{
+		int32	Result = -1;
+		GET_VARARGS_RESULT_UTF8(Dest, DestSize, DestSize - 1, Fmt, Fmt, Result);
+		return Result;
+	}
+	else
+	{
+		static_assert(sizeof(CharType) == 0, "Not supported");
+	}
 }

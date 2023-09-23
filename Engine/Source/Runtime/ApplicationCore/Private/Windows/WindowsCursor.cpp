@@ -213,7 +213,7 @@ void* FWindowsCursor::CreateCursorFromRGBABuffer(const FColor* Pixels, int32 Wid
 	HBITMAP CursorMask = ::CreateBitmap(Width, Height, 1, 8, MaskPixels.GetData());
 
 	ICONINFO IconInfo = { 0 };
-	IconInfo.fIcon = Windows::FALSE;
+	IconInfo.fIcon = 0;
 	IconInfo.xHotspot = IntCastChecked<DWORD>(FMath::RoundToInt(InHotSpot.X * Width));
 	IconInfo.yHotspot = IntCastChecked<DWORD>(FMath::RoundToInt(InHotSpot.Y * Height));
 	IconInfo.hbmColor = CursorColor;
