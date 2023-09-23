@@ -14,6 +14,7 @@
 #include "Misc/VarArgs.h"
 #include "String/FormatStringSan.h"
 
+#ifndef UE_DEBUG_SECTION
 #if (DO_CHECK || DO_GUARD_SLOW || DO_ENSURE) && !PLATFORM_CPU_ARM_FAMILY
 	// We'll put all assert implementation code into a separate section in the linked
 	// executable. This code should never execute so using a separate section keeps
@@ -27,6 +28,7 @@
 	// is present it will generate code that it cannot link.
 	#define UE_DEBUG_SECTION
 #endif // DO_CHECK || DO_GUARD_SLOW
+#endif
 
 namespace ELogVerbosity
 {

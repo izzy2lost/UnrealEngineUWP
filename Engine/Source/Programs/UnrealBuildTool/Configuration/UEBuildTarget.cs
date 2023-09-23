@@ -4865,6 +4865,11 @@ namespace UnrealBuildTool
 				GlobalCompileEnvironment.Definitions.Add("ENABLE_PGO_PROFILE=0");
 			}
 
+			if (Rules.bUseHeaderUnitsForPch)
+			{
+				GlobalCompileEnvironment.Definitions.Add("UE_DEBUG_SECTION=");
+			}
+
 			// Toggle to enable vorbis for audio streaming where available
 			GlobalCompileEnvironment.Definitions.Add("USE_VORBIS_FOR_STREAMING=1");
 
