@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
@@ -222,8 +223,8 @@ namespace Horde.Agent.Execution
 			_token = options.Token;
 			JobOptions = options.JobOptions;
 
-			_envVars["UE_HORDE_URL"] = options.Session.ServerUrl.ToString();
-			_envVars["UE_HORDE_TOKEN"] = options.Token;
+			_envVars[HordeHttpClient.HordeUrlEnvVarName] = options.Session.ServerUrl.ToString();
+			_envVars[HordeHttpClient.HordeTokenEnvVarName] = options.Token;
 
 			Logger = logger;
 		}

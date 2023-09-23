@@ -37,25 +37,30 @@ namespace EpicGames.Horde
 		/// <inheritdoc/>
 		protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 		{
-			HttpResponseMessage? response = null;
+			// Do not try to override the auth header if the user has specified it explicitly
+			if (request.Headers.Authorization != null)
+			{
+				return await base.SendAsync(request, cancellationToken);
+			}
+
+			// Try to use the cached auth header
 			if (_authHeader != null)
 			{
 				request.Headers.Authorization = _authHeader;
 
-				response = await base.SendAsync(request, cancellationToken);
-				if (response.StatusCode == HttpStatusCode.Unauthorized)
+				HttpResponseMessage response = await base.SendAsync(request, cancellationToken);
+				if (response.StatusCode != HttpStatusCode.Unauthorized)
 				{
-					_authState.Invalidate(_authHeader);
-					response = null;
+					return response;
 				}
+
+				_authState.Invalidate(_authHeader);
 			}
-			if (response == null)
-			{
-				_authHeader = await _authState.GetAuthHeaderAsync(cancellationToken);
-				request.Headers.Authorization = _authHeader;
-				response = await base.SendAsync(request, cancellationToken);
-			}
-			return response;
+
+			// Otherwise update the auth header and try again
+			_authHeader = await _authState.GetAuthHeaderAsync(cancellationToken);
+			request.Headers.Authorization = _authHeader;
+			return await base.SendAsync(request, cancellationToken);
 		}
 	}
 
@@ -145,7 +150,7 @@ namespace EpicGames.Horde
 				}
 
 				serverUrl = httpClient.BaseAddress;
-				_logger.LogInformation("Getting access token for {Server}", serverUrl);
+				_logger.LogInformation("Retrieving auth configuration for {Server}", serverUrl);
 
 				JsonSerializerOptions jsonOptions = new JsonSerializerOptions();
 				HordeHttpClient.ConfigureJsonSerializer(jsonOptions);
@@ -174,16 +179,20 @@ namespace EpicGames.Horde
 			OidcTokenManager oidcTokenManager = OidcTokenManager.CreateTokenManager(configuration, tokenStore, new List<string>() { OidcProvider });
 
 			OidcTokenInfo? result = null;
-			try
+			if (oidcTokenManager.GetStatusForProvider(OidcProvider) != OidcStatus.NotLoggedIn)
 			{
-				result = await oidcTokenManager.TryGetAccessToken(OidcProvider, cancellationToken);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogTrace(ex, "Unable to get access token; attempting login: {Message}", ex.Message);
+				try
+				{
+					result = await oidcTokenManager.TryGetAccessToken(OidcProvider, cancellationToken);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogTrace(ex, "Unable to get access token; attempting login: {Message}", ex.Message);
+				}
 			}
 			if (result == null)
 			{
+				_logger.LogInformation("Logging in to {Server}...", serverUrl);
 				result = await oidcTokenManager.Login(OidcProvider, cancellationToken);
 			}
 
@@ -192,7 +201,7 @@ namespace EpicGames.Horde
 				throw new Exception($"Unable to get access token for {serverUrl}");
 			}
 
-			_logger.LogInformation("Received bearer token for {Server}", serverUrl);
+			_logger.LogInformation("Received access token for {Server}", serverUrl);
 			return new AuthenticationHeaderValue("Bearer", result.AccessToken);
 		}
 	}

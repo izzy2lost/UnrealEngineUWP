@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -21,6 +22,16 @@ namespace EpicGames.Horde
 	/// </summary>
 	public sealed class HordeHttpClient : IDisposable
 	{
+		/// <summary>
+		/// Name of an environment variable containing the Horde server URL
+		/// </summary>
+		public const string HordeUrlEnvVarName = "UE_HORDE_URL";
+
+		/// <summary>
+		/// Name of an environment variable containing a token for connecting to the Horde server
+		/// </summary>
+		public const string HordeTokenEnvVarName = "UE_HORDE_TOKEN";
+
 		/// <summary>
 		/// Name of clients created from the http client factory
 		/// </summary>
@@ -367,7 +378,33 @@ namespace EpicGames.Horde
 		/// <param name="useAuthChallenge">Whether to prompt the user to authenticate if necessary</param>
 		public static void AddHordeHttpClient(this IServiceCollection services, Action<IServiceProvider, HttpClient> configureClient, bool useAuthChallenge = true)
 		{
-			IHttpClientBuilder builder = services.AddHttpClient<HordeHttpClient>(HordeHttpClient.HttpClientName, configureClient)
+			// Sets defaults from the environment before calling the user provided configuration method
+			void ConfigureClientFromEnvironment(IServiceProvider serviceProvider, HttpClient httpClient)
+			{
+				configureClient(serviceProvider, httpClient);
+
+				// Only use the token from the environment if the configured base address is missing or matches the one configured in the environment
+				string? hordeUrlEnvVar = Environment.GetEnvironmentVariable(HordeHttpClient.HordeUrlEnvVarName);
+				if (!String.IsNullOrEmpty(hordeUrlEnvVar))
+				{
+					Uri hordeUrl = new Uri(hordeUrlEnvVar);
+					if (httpClient.BaseAddress == null || String.Equals(httpClient.BaseAddress.Host, hordeUrl.Host, StringComparison.OrdinalIgnoreCase))
+					{
+						httpClient.BaseAddress ??= hordeUrl;
+
+						if (httpClient.DefaultRequestHeaders.Authorization == null)
+						{
+							string? hordeToken = Environment.GetEnvironmentVariable(HordeHttpClient.HordeTokenEnvVarName);
+							if (!String.IsNullOrEmpty(hordeToken))
+							{
+								httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", hordeToken);
+							}
+						}
+					}
+				}
+			}
+
+			IHttpClientBuilder builder = services.AddHttpClient<HordeHttpClient>(HordeHttpClient.HttpClientName, ConfigureClientFromEnvironment)
 				.AddPolicyHandler(HttpPolicyExtensions
 					.HandleTransientHttpError()
 					.WaitAndRetryAsync(new[] { TimeSpan.FromSeconds(2.0), TimeSpan.FromSeconds(5.0), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) }));
