@@ -18,7 +18,6 @@
 	#define SPLINE_MESH_DEFORM_BOUNDS_METHOD SPLINE_MESH_DEFORM_BOUNDS_METHOD_SPHERES
 #endif
 
-
 FSplineMeshShaderParams SplineMeshLoadParamsFromInstancePayload(uint PayloadOffset)
 {
 	const float4 SplineParams[SPLINE_MESH_PARAMS_FLOAT4_SIZE] =
@@ -453,4 +452,3 @@ float4 SplineMeshDeformLODSphereBounds(FSplineMeshShaderParams Params, float4 LO
 
 	return float4(SpherePos, LODSphere.w * Params.MeshDeformScaleMinMax.y);
 }
-
