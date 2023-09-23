@@ -197,6 +197,7 @@ void MaterialSetupCS(
 		{
 			LFVExtinction = FogInstance.Density * SphereFade / FogInstance.UniformScale;
 		}
+		LFVExtinction = min(LFVMaxDensityIntoVolumetricFog, LFVExtinction);
 
 		float3 LFVScattering = LFVExtinction * FogInstance.Albedo;
 

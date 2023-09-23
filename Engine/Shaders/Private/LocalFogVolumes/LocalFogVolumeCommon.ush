@@ -30,31 +30,34 @@ struct FLocalFogVolumeGPUInstanceData
 
 #if defined(LFVStruct)
 
-#define LFVInsts					LFVStruct.LFV.LocalFogVolumeInstances
-#define LFVTileDataTex				LFVStruct.LFV.LocalFogVolumeTileDataTexture
+#define LFVInsts						LFVStruct.LFV.LocalFogVolumeInstances
+#define LFVTileDataTex					LFVStruct.LFV.LocalFogVolumeTileDataTexture
 
-#define LFVTileDataResolution		LFVStruct.LFV.LocalFogVolumeTileDataTextureResolution
-#define LFVInstcount				LFVStruct.LFV.LocalFogVolumeInstanceCount
-#define LFVTilePixelSize			LFVStruct.LFV.LocalFogVolumeTilePixelSize
-#define LFVRenderInVolumetricFog	LFVStruct.LFV.ShouldRenderLocalFogVolumeInVolumetricFog
+#define LFVTileDataResolution			LFVStruct.LFV.LocalFogVolumeTileDataTextureResolution
+#define LFVInstcount					LFVStruct.LFV.LocalFogVolumeInstanceCount
+#define LFVTilePixelSize				LFVStruct.LFV.LocalFogVolumeTilePixelSize
+#define LFVMaxDensityIntoVolumetricFog	LFVStruct.LFV.LocalFogVolumeMaxDensityIntoVolumetricFog
+#define LFVRenderInVolumetricFog		LFVStruct.LFV.ShouldRenderLocalFogVolumeInVolumetricFog
 
 #else
 
-uint2								LFV_LocalFogVolumeTileDataTextureResolution;
-uint								LFV_LocalFogVolumeInstanceCount;
-uint								LFV_LocalFogVolumeTilePixelSize;
-uint								LFV_ShouldRenderLocalFogVolumeInVolumetricFog;
+uint2									LFV_LocalFogVolumeTileDataTextureResolution;
+uint									LFV_LocalFogVolumeInstanceCount;
+uint									LFV_LocalFogVolumeTilePixelSize;
+float									LFV_LocalFogVolumeMaxDensityIntoVolumetricFog;
+uint									LFV_ShouldRenderLocalFogVolumeInVolumetricFog;
 
-Buffer<float4>						LFV_LocalFogVolumeInstances;
-Texture2DArray<uint>				LFV_LocalFogVolumeTileDataTexture;
+Buffer<float4>							LFV_LocalFogVolumeInstances;
+Texture2DArray<uint>					LFV_LocalFogVolumeTileDataTexture;
 
-#define LFVInsts					LFV_LocalFogVolumeInstances
-#define LFVTileDataTex				LFV_LocalFogVolumeTileDataTexture
+#define LFVInsts						LFV_LocalFogVolumeInstances
+#define LFVTileDataTex					LFV_LocalFogVolumeTileDataTexture
 
-#define LFVTileDataResolution		LFV_LocalFogVolumeTileDataTextureResolution
-#define LFVInstcount				LFV_LocalFogVolumeInstanceCount
-#define LFVTilePixelSize			LFV_LocalFogVolumeTilePixelSize
-#define LFVRenderInVolumetricFog	LFV_ShouldRenderLocalFogVolumeInVolumetricFog
+#define LFVTileDataResolution			LFV_LocalFogVolumeTileDataTextureResolution
+#define LFVInstcount					LFV_LocalFogVolumeInstanceCount
+#define LFVTilePixelSize				LFV_LocalFogVolumeTilePixelSize
+#define LFVMaxDensityIntoVolumetricFog	LFV_LocalFogVolumeMaxDensityIntoVolumetricFog
+#define LFVRenderInVolumetricFog		LFV_ShouldRenderLocalFogVolumeInVolumetricFog
 
 #endif
 
