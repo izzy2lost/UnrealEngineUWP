@@ -314,7 +314,7 @@ public:
 		VisitedKeys.Reserve(Num());
 
 		// Presize the array if we know there are supposed to be no duplicate keys
-		if (!KeyFuncs::bAllowDuplicateKeys)
+		if constexpr (!KeyFuncs::bAllowDuplicateKeys)
 		{
 			OutKeys.Reserve(Num());
 		}

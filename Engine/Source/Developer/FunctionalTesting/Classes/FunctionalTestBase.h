@@ -8,10 +8,10 @@
 /**
  * Base class for Functional test cases.  
  */
-class FUNCTIONALTESTING_API FFunctionalTestBase : public FAutomationTestBase
+class FFunctionalTestBase : public FAutomationTestBase
 {
 public:
-	FFunctionalTestBase(const FString& InName, const bool bInComplexTask);
+	FUNCTIONALTESTING_API FFunctionalTestBase(const FString& InName, const bool bInComplexTask);
 
 	/**
 	 * If true logs will not be included in test events
@@ -74,12 +74,12 @@ public:
 	/**
 	 * Marks us as actively running a functional test
 	 */
-	void SetFunctionalTestRunning(const FString& InName);
+	FUNCTIONALTESTING_API void SetFunctionalTestRunning(const FString& InName);
 
 	/**
 	 * Marks us as no longer running a test
 	 */
-	void SetFunctionalTestComplete(const FString& InName);
+	FUNCTIONALTESTING_API void SetFunctionalTestComplete(const FString& InName);
 
 	/**
 	 * Returns the name of the running functional test. Empty if no test is running

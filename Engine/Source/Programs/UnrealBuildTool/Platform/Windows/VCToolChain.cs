@@ -928,8 +928,10 @@ namespace UnrealBuildTool
 			{
 				Arguments.Add("/wd4324"); // 'struct_name' : structure was padded due to __declspec(align())
 				Arguments.Add("/wd4201"); // nonstandard extension used: nameless struct/union
-				//Arguments.Add("/wd5106");
-				//Arguments.Add("/wd5260");
+				Arguments.Add("/wd4275"); // non - DLL-interface class 'class_1' used as base for DLL-interface class 'class_2'
+				Arguments.Add("/wd4251"); // 'type' : class 'type1' needs to have dll-interface to be used by clients of class 'type2'
+				Arguments.Add("/wd4702"); // unreachable code
+				Arguments.Add("/wd4180"); // qualifier applied to function type has no meaning; ignored
 			}
 
 			if (CompileEnvironment.Architecture == UnrealArch.Arm64ec)

@@ -43,6 +43,8 @@ UGCObjectReferencer::UGCObjectReferencer(FVTableHelper& Helper)
 , Impl(new FImpl)
 {}
 
+UGCObjectReferencer::~UGCObjectReferencer() = default;
+
 void UGCObjectReferencer::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
 	UGCObjectReferencer* This = CastChecked<UGCObjectReferencer>(InThis);

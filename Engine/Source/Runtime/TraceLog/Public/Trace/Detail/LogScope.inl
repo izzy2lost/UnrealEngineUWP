@@ -105,28 +105,23 @@ inline void FLogScope::EnterNoSync(uint32 Uid, uint32 Size)
 	memcpy(Header - 1, &Uid16, sizeof(Uid16)); /* FEventHeader::Uid */
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
-template </*bMaybeHasAux*/>
-inline void TLogScope<false>::operator += (const FLogScope&) const
+template <bool bMaybeHasAux>
+inline void TLogScope<bMaybeHasAux>::operator += (const FLogScope&) const
 {
-	Commit();
+	if constexpr (bMaybeHasAux)
+	{
+		FWriteBuffer* LatestBuffer = Writer_GetBuffer();
+		LatestBuffer->Cursor[0] = uint8(EKnownEventUids::AuxDataTerminal << EKnownEventUids::_UidShift);
+		LatestBuffer->Cursor++;
+
+		Commit(LatestBuffer);
+	}
+	else
+	{
+		Commit();
+	}
 }
-
-////////////////////////////////////////////////////////////////////////////////
-template </*bMaybeHasAux*/>
-inline void TLogScope<true>::operator += (const FLogScope&) const
-{
-	FWriteBuffer* LatestBuffer = Writer_GetBuffer();
-	LatestBuffer->Cursor[0] = uint8(EKnownEventUids::AuxDataTerminal << EKnownEventUids::_UidShift);
-	LatestBuffer->Cursor++;
-
-	Commit(LatestBuffer);
-}
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 inline FScopedLogScope::~FScopedLogScope()

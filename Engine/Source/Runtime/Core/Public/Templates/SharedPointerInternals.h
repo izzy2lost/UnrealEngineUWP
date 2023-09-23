@@ -851,5 +851,5 @@ namespace SharedPointerInternals
 
 
 	/** Templated helper catch-all function, accomplice to the above helper functions */
-	FORCEINLINE void EnableSharedFromThis( ... ) { }
+	constexpr void EnableSharedFromThis( ... ) { }
 }
