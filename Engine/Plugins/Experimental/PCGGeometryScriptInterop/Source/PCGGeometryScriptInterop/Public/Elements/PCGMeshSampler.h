@@ -17,6 +17,9 @@
 
 #include "PCGMeshSampler.generated.h"
 
+template <typename T>
+class FPCGMetadataAttribute;
+
 class FProgressCancel;
 class UDynamicMesh;
 class UPCGPointData;
@@ -33,6 +36,15 @@ enum class EPCGMeshSamplingMethod
 
 	/** Use Poisson sampling to sample points on the mesh. Can be expensive and therefore it is not framebound. */
 	PoissonSampling
+};
+
+UENUM()
+enum class EPCGColorChannel
+{
+	Red,
+	Green,
+	Blue,
+	Alpha
 };
 
 /**
@@ -59,7 +71,7 @@ public:
 #endif
 
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
-	virtual TArray<FPCGPinProperties> OutputPinProperties() const override { return DefaultPointOutputPinProperties(); }
+	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 
 protected:
 	virtual FPCGElementPtr CreateElement() const override;
@@ -73,9 +85,12 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (PCG_Overridable))
 	TSoftObjectPtr<UStaticMesh> StaticMesh;
 
-	/** In "One Point Per Vertex" option, will assign point density from the red component of the vertex color. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Per-Vertex Options", meta = (PCG_Overridable, EditCondition = "SamplingMethod == EPCGMeshSamplingMethod::OnePointPerVertex"))
-	bool bUseRedAsDensity = false;
+	/** Will extract the color channel into the density. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Color & Density", meta = (PCG_Overridable, InlineEditConditionToggle, PCG_OverrideAliases="bUseRedAsDensity"))
+	bool bUseColorChannelAsDensity = false;
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Color & Density", meta = (PCG_Overridable, EditCondition="bUseColorChannelAsDensity"))
+	EPCGColorChannel ColorChannelAsDensity = EPCGColorChannel::Red;
 
 	/** Enable voxelisation as a preparation pass. Can be more expensive given the VoxelSize. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Voxelize Options", meta = (PCG_Overridable))
@@ -103,6 +118,21 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Poisson sampling", meta = (PCG_Overridable, EditCondition = "SamplingMethod == EPCGMeshSamplingMethod::PoissonSampling"))
 	FGeometryScriptNonUniformPointSamplingOptions NonUniformSamplingOptions;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|UVs", meta = (PCG_Overridable, EditCondition = "SamplingMethod != EPCGMeshSamplingMethod::OnePointPerVertex"))
+	bool bExtractUVAsAttribute = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|UVs", meta = (PCG_Overridable, EditCondition = "SamplingMethod != EPCGMeshSamplingMethod::OnePointPerVertex && bExtractUVAsAttribute", EditConditionHides))
+	FName UVAttributeName = TEXT("UV");
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|UVs", meta = (PCG_Overridable, EditCondition = "SamplingMethod != EPCGMeshSamplingMethod::OnePointPerVertex && bExtractUVAsAttribute", EditConditionHides))
+	int32 UVChannel = 0;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra", meta = (PCG_Overridable, EditCondition = "SamplingMethod != EPCGMeshSamplingMethod::OnePointPerVertex"))
+	bool bOutputTriangleIds = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra", meta = (PCG_Overridable, EditCondition = "SamplingMethod != EPCGMeshSamplingMethod::OnePointPerVertex && bOutputTriangleIds", EditConditionHides))
+	FName TriangleIdAttributeName = TEXT("TriangleId");
+
 	/** Each PCG point represents a discretized, volumetric region of world space. The points' Steepness value [0.0 to
 	 * 1.0] establishes how "hard" or "soft" that volume will be represented. From 0, it will ramp up linearly
 	 * increasing its influence over the density from the point's center to up to two times the bounds. At 1, it will
@@ -116,6 +146,9 @@ protected:
 	// Deprecated in UE 5.3 in favor of StaticMesh
 	UPROPERTY()
 	FSoftObjectPath StaticMeshPath_DEPRECATED;
+
+	UPROPERTY()
+	bool bUseRedAsDensity_DEPRECATED = false;
 #endif
 };
 
@@ -137,6 +170,10 @@ struct FPCGMeshSamplerContext : public FPCGContext
 
 	// Output point data
 	UPCGPointData* OutPointData = nullptr;
+
+	// Optional attributes.
+	FPCGMetadataAttribute<FVector2D>* UVAttribute = nullptr;
+	FPCGMetadataAttribute<int32>* TriangleIdAttribute = nullptr;
 
 	// For Poisson sampling, we are starting a future that is not framebound
 	// Store the future and synchronisation items in the context
