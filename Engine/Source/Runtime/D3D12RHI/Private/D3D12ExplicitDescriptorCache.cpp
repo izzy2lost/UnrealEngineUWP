@@ -5,7 +5,7 @@
 
 // Whether to compare the full descriptor table on cache lookup or only use FXxHash64 digest.
 #ifndef EXPLICIT_DESCRIPTOR_CACHE_FULL_COMPARE
-#define EXPLICIT_DESCRIPTOR_CACHE_FULL_COMPARE 1
+#define EXPLICIT_DESCRIPTOR_CACHE_FULL_COMPARE 0
 #endif
 
 static int32 GD3D12ExplicitDeduplicateSamplers = 1;
@@ -244,10 +244,12 @@ void FD3D12ExplicitDescriptorHeap::CopyDescriptors(int32 BaseIndex, const D3D12_
 {
 	D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor = GetDescriptorCPU(BaseIndex);
 	GetParentDevice()->GetDevice()->CopyDescriptors(1, &DestDescriptor, &InNumDescriptors, InNumDescriptors, InDescriptors, nullptr, Type);
+#if EXPLICIT_DESCRIPTOR_CACHE_FULL_COMPARE
 	for (uint32 i = 0; i < InNumDescriptors; ++i)
 	{
 		Descriptors[BaseIndex + i].ptr = InDescriptors[i].ptr;
 	}
+#endif
 }
 
 bool FD3D12ExplicitDescriptorHeap::CompareDescriptors(int32 BaseIndex, const D3D12_CPU_DESCRIPTOR_HANDLE* InDescriptors, uint32 InNumDescriptors)
@@ -350,8 +352,8 @@ void FD3D12ExplicitDescriptorCache::SetDescriptorHeaps(FD3D12CommandContext& Com
 	CommandContext.StateCache.GetDescriptorCache()->OverrideLastSetHeaps(ViewHeapToSet, SamplerHeapToSet);
 }
 
-// Returns descriptor heap base index for this descriptor table allocation or -1 if allocation failed.
-int32 FD3D12ExplicitDescriptorCache::AllocateDescriptorTable(const uint32* DescriptorVersions, const D3D12_CPU_DESCRIPTOR_HANDLE* Descriptors, uint32 NumDescriptors, D3D12_DESCRIPTOR_HEAP_TYPE Type, uint32 WorkerIndex)
+// Returns descriptor heap base index for this descriptor table allocation (checking for duplicates and reusing existing tables) or -1 if allocation failed.
+int32 FD3D12ExplicitDescriptorCache::AllocateDeduplicated(const uint32* DescriptorVersions, const D3D12_CPU_DESCRIPTOR_HANDLE* Descriptors, uint32 NumDescriptors, D3D12_DESCRIPTOR_HEAP_TYPE Type, uint32 WorkerIndex)
 {
 	checkSlow(Type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV || Type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 
@@ -369,8 +371,8 @@ int32 FD3D12ExplicitDescriptorCache::AllocateDescriptorTable(const uint32* Descr
 	if (DescriptorTableBaseIndex != INDEX_NONE)
 	{
 	#if EXPLICIT_DESCRIPTOR_CACHE_FULL_COMPARE
-		if (ensureMsgf(Heap.CompareDescriptors(DescriptorTableBaseIndex, Descriptors, NumDescriptors), 
-		               TEXT("Explicit descriptor cache hash collision detected!")))
+		if (ensureMsgf(Heap.CompareDescriptors(DescriptorTableBaseIndex, Descriptors, NumDescriptors),
+			TEXT("Explicit descriptor cache hash collision detected!")))
 	#endif
 		{
 			return DescriptorTableBaseIndex;
@@ -402,7 +404,18 @@ int32 FD3D12ExplicitDescriptorCache::AllocateDescriptorTable(const uint32* Descr
 		}
 	}
 
-	DescriptorTableBaseIndex = Heap.Allocate(NumDescriptors);
+	DescriptorTableBaseIndex = Allocate(Descriptors, NumDescriptors, Type, WorkerIndex);
+	return DescriptorTableBaseIndex;
+}
+
+// Returns descriptor heap base index for this descriptor table allocation or -1 if allocation failed.
+int32 FD3D12ExplicitDescriptorCache::Allocate(const D3D12_CPU_DESCRIPTOR_HANDLE* Descriptors, uint32 NumDescriptors, D3D12_DESCRIPTOR_HEAP_TYPE Type, uint32 WorkerIndex)
+{
+	checkSlow(Type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV || Type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+
+	FD3D12ExplicitDescriptorHeap& Heap = (Type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) ? ViewHeap : SamplerHeap;
+
+	int32 DescriptorTableBaseIndex = Heap.Allocate(NumDescriptors);
 
 	if (DescriptorTableBaseIndex == INDEX_NONE)
 	{
