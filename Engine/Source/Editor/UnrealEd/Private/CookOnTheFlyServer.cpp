@@ -8324,7 +8324,8 @@ void DumpAssetRegistryForCooker(IAssetRegistry* AssetRegistry)
 	DeleteReportDir.DeleteDirectory(DumpDir);
 	PlatformFile.CreateDirectoryTree(*DumpDir);
 	TArray<FString> Pages;
-	TArray<FString> Arguments({ TEXT("ObjectPath"),TEXT("PackageName"),TEXT("Path"),TEXT("Class"),TEXT("Tag"), TEXT("DependencyDetails"), TEXT("PackageData"), TEXT("LegacyDependencies") });
+	TArray<FString> Arguments({ TEXT("ObjectPath"),TEXT("PackageName"),TEXT("Path"),TEXT("Class"),TEXT("Tag"),
+		TEXT("DependencyDetails"), TEXT("PackageData"), TEXT("LegacyDependencies"), TEXT("AssetTags") });
 	AssetRegistry->DumpState(Arguments, Pages, 10000 /* LinesPerPage */);
 	int PageIndex = 0;
 	TStringBuilder<256> FileName;
