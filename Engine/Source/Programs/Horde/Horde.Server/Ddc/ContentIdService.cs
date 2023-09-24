@@ -3,6 +3,7 @@
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using Horde.Server.Storage;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -26,17 +27,17 @@ namespace Horde.Server.Ddc
 
 			using IStorageClient storageClient = _storageService.CreateClient(ns);
 
-			BlobAlias? blobAlias = await storageClient.FindAliasAsync(GetAlias(contentId), cancellationToken);
-			if (blobAlias == null && !mustBeContentId)
+			BlobHandle? blobHandle = await storageClient.FindAliasAsync(GetAlias(contentId), cancellationToken).FirstOrDefaultAsync(cancellationToken);
+			if (blobHandle == null && !mustBeContentId)
 			{
-				blobAlias = await storageClient.FindAliasAsync(GetAlias(contentId.AsBlobIdentifier()), cancellationToken);
+				blobHandle = await storageClient.FindAliasAsync(GetAlias(contentId.AsBlobIdentifier()), cancellationToken).FirstOrDefaultAsync(cancellationToken);
 			}
-			if (blobAlias == null)
+			if (blobHandle == null)
 			{
 				return null;
 			}
 
-			return new[] { BlobId.FromIoHash(blobAlias.Target.Hash) };
+			return new[] { BlobId.FromIoHash(blobHandle.Hash) };
 		}
 
 		public async Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobId, int contentWeight)
@@ -45,13 +46,13 @@ namespace Horde.Server.Ddc
 
 			using IStorageClient storageClient = _storageService.CreateClient(ns);
 
-			BlobAlias? blobAlias = await storageClient.FindAliasAsync(GetAlias(blobId), cancellationToken);
-			if (blobAlias == null)
+			BlobHandle? blobHandle = await storageClient.FindAliasAsync(GetAlias(blobId), cancellationToken).FirstOrDefaultAsync(cancellationToken);
+			if (blobHandle == null)
 			{
 				throw new BlobNotFoundException(ns, blobId);
 			}
 
-			await storageClient.AddAliasAsync(GetAlias(contentId), blobAlias.Target, -contentWeight, cancellationToken: cancellationToken);
+			await storageClient.AddAliasAsync(GetAlias(contentId), blobHandle, -contentWeight, cancellationToken);
 		}
 	}
 }

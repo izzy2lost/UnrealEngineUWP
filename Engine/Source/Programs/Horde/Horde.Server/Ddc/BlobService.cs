@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -63,18 +64,18 @@ namespace Horde.Server.Ddc
 		public async Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers, CancellationToken cancellationToken)
 		{
 			using IStorageClient storageClient = _storageService.CreateClient(ns);
-			return await storageClient.FindAliasAsync(GetAlias(blob), cancellationToken) != null;
+			return await storageClient.FindAliasAsync(GetAlias(blob), cancellationToken).AnyAsync(cancellationToken);
 		}
 
 		public async Task DeleteObjectAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken)
 		{
 			using IStorageClient storageClient = _storageService.CreateClient(ns);
-			Utf8String aliasName = GetAlias(blob);
+			Utf8String alias = GetAlias(blob);
 
-			BlobAlias[] aliases = await storageClient.FindAliasesAsync(aliasName, cancellationToken: cancellationToken);
-			foreach (BlobAlias alias in aliases)
+			List<BlobHandle> handles = await storageClient.FindAliasAsync(alias, cancellationToken).ToListAsync(cancellationToken);
+			foreach (BlobHandle handle in handles)
 			{
-				await storageClient.RemoveAliasAsync(aliasName, alias.Target, cancellationToken);
+				await storageClient.RemoveAliasAsync(alias, handle, cancellationToken);
 			}
 		}
 
@@ -85,7 +86,7 @@ namespace Horde.Server.Ddc
 			List<BlobId> unknownBlobIds = new List<BlobId>();
 			foreach (BlobId blobId in blobIds)
 			{
-				if (await storageClient.FindAliasAsync(GetAlias(blobId), cancellationToken) == null)
+				if (!await storageClient.FindAliasAsync(GetAlias(blobId), cancellationToken).AnyAsync(cancellationToken))
 				{
 					unknownBlobIds.Add(blobId);
 				}
@@ -98,13 +99,13 @@ namespace Horde.Server.Ddc
 		{
 			using IStorageClient storageClient = _storageService.CreateClient(ns);
 
-			BlobAlias? alias = await storageClient.FindAliasAsync(GetAlias(blob), cancellationToken);
-			if (alias == null)
+			BlobHandle? handle = await storageClient.FindAliasAsync(GetAlias(blob), cancellationToken).FirstOrDefaultAsync(cancellationToken);
+			if (handle == null)
 			{
 				throw new BlobNotFoundException(ns, blob);
 			}
 
-			BlobData data = await alias.Target.ReadAsync(cancellationToken);
+			BlobData data = await handle.ReadAsync(cancellationToken);
 			return new BlobContents(data.Data.ToArray());
 		}
 

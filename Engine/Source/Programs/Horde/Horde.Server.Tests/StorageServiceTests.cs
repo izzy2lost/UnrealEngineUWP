@@ -47,16 +47,16 @@ namespace Horde.Server.Tests
 			await client.AddAliasAsync("foo", new BundleNodeLocator(hash1, locator, 1));
 			await client.AddAliasAsync("bar", new BundleNodeLocator(hash2, locator, 2));
 
-			BlobAlias[] aliases;
+			List<BundleNodeHandle> handles;
+			
+			handles = await client.FindAliasAsync("foo").ToListAsync();
+			Assert.AreEqual(2, handles.Count);
+			Assert.AreEqual(new BundleNodeLocator(hash1, locator, 0), handles[0].GetLocator());
+			Assert.AreEqual(new BundleNodeLocator(hash1, locator, 1), handles[1].GetLocator());
 
-			aliases = await client.FindAliasesAsync("foo");
-			Assert.AreEqual(2, aliases.Length);
-			Assert.AreEqual(new BundleNodeLocator(hash1, locator, 0), ((BundleNodeHandle)aliases[0].Target).GetLocator());
-			Assert.AreEqual(new BundleNodeLocator(hash1, locator, 1), ((BundleNodeHandle)aliases[1].Target).GetLocator());
-
-			aliases = await client.FindAliasesAsync("bar");
-			Assert.AreEqual(1, aliases.Length);
-			Assert.AreEqual(new BundleNodeLocator(hash2, locator, 2), ((BundleNodeHandle)aliases[0].Target).GetLocator());
+			handles = await client.FindAliasAsync("bar").ToListAsync();
+			Assert.AreEqual(1, handles.Count);
+			Assert.AreEqual(new BundleNodeLocator(hash2, locator, 2), handles[0].GetLocator());
 		}
 	}
 }

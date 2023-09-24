@@ -43,13 +43,12 @@ namespace Horde.Server.Ddc
 		{
 			using IStorageClient storageClient = _storageService.CreateClient(ns);
 
-			BlobAlias? blobAlias = await storageClient.FindAliasAsync(BlobService.GetAlias(blobHash), cancellationToken);
-			if (blobAlias == null)
+			BlobHandle? blobHandle = await storageClient.FindAliasAsync(BlobService.GetAlias(blobHash), cancellationToken).FirstOrDefaultAsync(cancellationToken);
+			if (blobHandle == null)
 			{
 				throw new BlobNotFoundException(ns, blobHash);
 			}
 
-			BlobHandle blobHandle = blobAlias.Target;
 			BlobData blobContents = await blobHandle.ReadAsync(cancellationToken);
 			CbObject payload = new CbObject(blobContents.Data);
 
@@ -81,8 +80,8 @@ namespace Horde.Server.Ddc
 				refNode.References.Add((blobHandle.Hash, blobHandle));
 				foreach (BlobId referencedBlob in referencedBlobs)
 				{
-					BlobAlias? alias = await storageClient.FindAliasAsync(BlobService.GetAlias(referencedBlob), cancellationToken);
-					refNode.References.Add((referencedBlob.Hash, alias!.Target));
+					BlobHandle handle = await storageClient.FindAliasAsync(BlobService.GetAlias(referencedBlob), cancellationToken).FirstAsync(cancellationToken);
+					refNode.References.Add((referencedBlob.Hash, handle));
 				}
 
 				await storageClient.WriteRefAsync(GetRefName(bucket, key), refNode, cancellationToken: cancellationToken);

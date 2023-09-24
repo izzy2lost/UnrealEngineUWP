@@ -93,9 +93,8 @@ namespace EpicGames.Horde.Storage
 		/// <param name="name">Alias for the node</param>
 		/// <param name="handle">Locator for the node</param>
 		/// <param name="rank">Rank for this alias. In situations where an alias has multiple mappings, the alias with the highest rank will be returned by default.</param>
-		/// <param name="data">Additional data to be stored inline with the alias</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task AddAliasAsync(Utf8String name, BlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
+		Task AddAliasAsync(Utf8String name, BlobHandle handle, int rank = 0, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Removes an alias from a node
@@ -109,10 +108,9 @@ namespace EpicGames.Horde.Storage
 		/// Finds nodes with the given alias. Unlike refs, aliases do not serve as GC roots.
 		/// </summary>
 		/// <param name="name">Alias for the node</param>
-		/// <param name="maxResults">Maximum number of aliases to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Nodes matching the given handle</returns>
-		Task<BlobAlias[]> FindAliasesAsync(Utf8String name, int? maxResults = null, CancellationToken cancellationToken = default);
+		IAsyncEnumerable<BlobHandle> FindAliasAsync(Utf8String name, CancellationToken cancellationToken = default);
 
 		#endregion
 
@@ -210,14 +208,6 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
-	/// Data for an alias in the storage system
-	/// </summary>
-	/// <param name="Target">Handle to the target blob for the alias</param>
-	/// <param name="Rank">Rank for the alias</param>
-	/// <param name="Data">Data stored inline with the alias</param>
-	public record class BlobAlias(BlobHandle Target, int Rank, ReadOnlyMemory<byte> Data);
-
-	/// <summary>
 	/// Indicates the maximum age of a entry returned from a cache in the hierarchy
 	/// </summary>
 	/// <param name="Utc">Oldest allowed timestamp for a returned result</param>
@@ -306,23 +296,6 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public static class StorageClientExtensions
 	{
-		#region Aliases
-
-		/// <summary>
-		/// Finds nodes with the given alias. Unlike refs, aliases do not serve as GC roots.
-		/// </summary>
-		/// <param name="store">The store instance to read from</param>
-		/// <param name="name">Alias for the node</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Nodes matching the given handle</returns>
-		public static async Task<BlobAlias?> FindAliasAsync(this IStorageClient store, Utf8String name, CancellationToken cancellationToken = default)
-		{
-			BlobAlias[] aliases = await store.FindAliasesAsync(name, 1, cancellationToken);
-			return aliases.FirstOrDefault();
-		}
-
-		#endregion
-
 		#region Refs
 
 		/// <summary>

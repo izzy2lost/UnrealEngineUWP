@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -17,7 +18,7 @@ namespace EpicGames.Horde.Storage.Clients
 	/// </summary>
 	public class MemoryStorageClient : BundleStorageClient
 	{
-		record class ExportEntry(BundleNodeLocator Locator, int Rank, ReadOnlyMemory<byte> Data,  ExportEntry? Next);
+		record class ExportEntry(BundleNodeLocator Locator, int Rank, ExportEntry? Next);
 
 		/// <summary>
 		/// Backend instance
@@ -62,9 +63,9 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Aliases
 
 		/// <inheritdoc/>
-		public override Task AddAliasAsync(Utf8String name, BundleNodeLocator handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+		public override Task AddAliasAsync(Utf8String name, BundleNodeLocator handle, int rank = 0, CancellationToken cancellationToken = default)
 		{
-			_exports.AddOrUpdate(name, _ => new ExportEntry(handle, rank, data, null), (_, entry) => new ExportEntry(handle, rank, data, entry));
+			_exports.AddOrUpdate(name, _ => new ExportEntry(handle, rank, null), (_, entry) => new ExportEntry(handle, rank, entry));
 			return Task.CompletedTask;
 		}
 
@@ -75,18 +76,17 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public override Task<BlobAlias[]> FindAliasesAsync(Utf8String alias, int? maxResults = null, CancellationToken cancellationToken = default)
+		public override async IAsyncEnumerable<BundleNodeHandle> FindAliasAsync(Utf8String alias, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
-			List<BlobAlias> aliases = new List<BlobAlias>();
-			if (_exports.TryGetValue(alias, out ExportEntry? entry))
+			if(_exports.TryGetValue(alias, out ExportEntry? entry))
 			{
 				for (; entry != null; entry = entry.Next)
 				{
-					BundleNodeHandle handle = CreateNodeHandle(entry.Locator);
-					aliases.Add(new BlobAlias(handle, entry.Rank, entry.Data));
+					cancellationToken.ThrowIfCancellationRequested();
+					await Task.Yield();
+					yield return CreateNodeHandle(entry.Locator);
 				}
 			}
-			return Task.FromResult(aliases.ToArray());
 		}
 
 		#endregion

@@ -67,21 +67,13 @@ namespace Horde.Server.Storage
 		public int ExportIdx { get; set; }
 
 		/// <summary>
-		/// Inline data associated with this alias
-		/// </summary>
-		public byte[] Data { get; set; }
-
-		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FindNodeResponse(BlobAlias alias)
+		public FindNodeResponse(BundleNodeHandle target)
 		{
-			BundleNodeLocator locator = ((BundleNodeHandle)alias.Target).GetLocator();
-
-			Hash = alias.Target.Hash;
-			Blob = locator.Blob;
-			ExportIdx = locator.ExportIdx;
-			Data = alias.Data.ToArray();
+			Hash = target.Hash;
+			Blob = target.GetLocator().Blob;
+			ExportIdx = target.GetLocator().ExportIdx;
 		}
 	}
 	/// <summary>
@@ -325,11 +317,10 @@ namespace Horde.Server.Storage
 		/// </summary>
 		/// <param name="namespaceId">Namespace to fetch from</param>
 		/// <param name="alias">Alias of the node to find</param>
-		/// <param name="maxResults">Maximum number of results to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		[HttpGet]
 		[Route("/api/v1/storage/{namespaceId}/nodes")]
-		public async Task<ActionResult<FindNodesResponse>> FindNodesAsync(NamespaceId namespaceId, [FromQuery] string alias, [FromQuery] int? maxResults = null, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<FindNodesResponse>> FindNodesAsync(NamespaceId namespaceId, string alias, CancellationToken cancellationToken = default)
 		{
 			using IServerStorageClient? client = _storageService.TryCreateClient(namespaceId);
 			if (client == null)
@@ -341,10 +332,11 @@ namespace Horde.Server.Storage
 				return Forbid(StorageAclAction.ReadBlobs, namespaceId);
 			}
 
-			BlobAlias[] aliases = await client.FindAliasesAsync(alias, maxResults, cancellationToken);
-
 			FindNodesResponse response = new FindNodesResponse();
-			response.Nodes.AddRange(aliases.Select(x => new FindNodeResponse(x)));
+			await foreach (BundleNodeHandle handle in client.FindAliasAsync(alias, cancellationToken))
+			{
+				response.Nodes.Add(new FindNodeResponse(handle));
+			}
 
 			if (response.Nodes.Count == 0)
 			{
