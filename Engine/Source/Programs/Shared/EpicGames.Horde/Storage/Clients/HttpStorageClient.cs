@@ -6,7 +6,6 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
@@ -34,6 +33,8 @@ namespace EpicGames.Horde.Storage.Clients
 			public IoHash Hash { get; set; }
 			public BundleLocator Blob { get; set; }
 			public int ExportIdx { get; set; }
+			public int Rank { get; set; }
+			public byte[] Data { get; set; } = Array.Empty<byte>();
 		}
 
 		class FindNodesResponse
@@ -66,7 +67,7 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Nodes
 
 		/// <inheritdoc/>
-		public override Task AddAliasAsync(Utf8String name, BundleNodeLocator locator, int rank = 0, CancellationToken cancellationToken = default)
+		public override Task AddAliasAsync(Utf8String name, BundleNodeLocator locator, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException("Http storage client does not currently support aliases.");
 		}
@@ -78,22 +79,34 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public override async IAsyncEnumerable<BundleNodeHandle> FindAliasAsync(Utf8String alias, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+		public override async Task<BlobAlias[]> FindAliasesAsync(Utf8String alias, int? maxResults = null, CancellationToken cancellationToken = default)
 		{
 			_logger.LogDebug("Finding nodes with alias {Alias}", alias);
 			using (HttpClient httpClient = _createClient())
 			{
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{_basePath}/nodes?alias={HttpUtility.UrlEncode(alias.ToString())}"))
+				string queryPath = $"{_basePath}/nodes?alias={HttpUtility.UrlEncode(alias.ToString())}";
+				if (maxResults != null)
+				{
+					queryPath += $"&maxResults={maxResults.Value}";
+				}
+
+				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, queryPath))
 				{
 					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
 					{
 						response.EnsureSuccessStatusCode();
 
 						FindNodesResponse? message = await response.Content.ReadFromJsonAsync<FindNodesResponse>(cancellationToken: cancellationToken);
-						foreach (FindNodeResponse node in message!.Nodes)
+
+						BlobAlias[] aliases = new BlobAlias[message!.Nodes.Count];
+						for (int idx = 0; idx < message.Nodes.Count; idx++)
 						{
-							yield return CreateNodeHandle(new BundleNodeLocator(node.Hash, node.Blob, node.ExportIdx));
+							FindNodeResponse node = message.Nodes[idx];
+							BundleNodeHandle handle = CreateNodeHandle(new BundleNodeLocator(node.Hash, node.Blob, node.ExportIdx));
+							aliases[idx] = new BlobAlias(handle, node.Rank, node.Data);
 						}
+
+						return aliases;
 					}
 				}
 			}
