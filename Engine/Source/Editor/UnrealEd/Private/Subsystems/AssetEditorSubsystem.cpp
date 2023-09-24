@@ -647,7 +647,7 @@ bool UAssetEditorSubsystem::OpenEditorForAssets_Advanced(const TArray <UObject*>
 			// remove them from the list of assets to open an editor for
 			UPackage* Package = Asset->GetOutermost();
 			FText ErrorMessage;
-			if (FindEditorForAsset(Asset, true) != nullptr || CanOpenEditorForAsset(Asset, OpenedMethod, &ErrorMessage))
+			if (FindEditorForAsset(Asset, true) != nullptr || !CanOpenEditorForAsset(Asset, OpenedMethod, &ErrorMessage))
 			{
 				SkipOpenAssets.Add(Asset);
 			}
