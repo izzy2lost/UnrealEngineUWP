@@ -668,7 +668,6 @@ int32 CompileShadingModelBlendFunction(FMaterialCompiler* Compiler, const int32 
 
 int32 CompileSubstrateBlendFunction(FMaterialCompiler* Compiler, const int32 A, const int32 B, const int32 Alpha)
 {
-	check(false);	// we should never blend Substrate data from material layers.
 	return INDEX_NONE;
 }
 
@@ -2076,21 +2075,23 @@ void UMaterialExpression::ConnectToPreviewMaterial(UMaterial* InMaterial, int32 
 			}
 			else if (IsResultMaterialAttributes(0))
 			{
-				// Set preview material as unlit and not using material attribute
-				InMaterial->SetShadingModel(MSM_Unlit);
-				InMaterial->bUseMaterialAttributes = false;
-
-				// Connect the material attribute output to the material attribute break node
-				UMaterialExpressionBreakMaterialAttributes* BreakMatAtt = NewObject<UMaterialExpressionBreakMaterialAttributes>(this);
-				BreakMatAtt->MaterialAttributes.Connect(OutputIndex, this);
-
-				// Get BaseColor as unlit color preview from material attribute
-				UMaterialExpressionSubstrateUnlitBSDF* UnlitBSDF = NewObject<UMaterialExpressionSubstrateUnlitBSDF>(this);
-				UnlitBSDF->EmissiveColor.Connect(0, BreakMatAtt);
-
-				FExpressionInput* MaterialInput = InMaterial->GetExpressionInputForProperty(MP_FrontMaterial);
+				// Propagate material attributes to MaterialAttributes input
+				InMaterial->SetShadingModel(MSM_DefaultLit);
+				InMaterial->bUseMaterialAttributes = true;
+				FExpressionInput* MaterialInput = InMaterial->GetExpressionInputForProperty(MP_MaterialAttributes);
 				check(MaterialInput);
-				MaterialInput->Connect(0, UnlitBSDF);
+				ConnectExpression( MaterialInput, OutputIndex );
+
+				// Converte material input into Substrate data
+				UMaterialExpressionSubstrateConvertMaterialAttributes* ConvertAttributeNode = NewObject<UMaterialExpressionSubstrateConvertMaterialAttributes>(this);
+				ConvertAttributeNode->Material = InMaterial;
+				ConvertAttributeNode->MaterialAttributes.Connect(OutputIndex, this);
+
+				// Connect substrate data into material FrontMaterial input
+				if (UMaterialEditorOnlyData* MaterialEditorOnlyData = InMaterial->GetEditorOnlyData())
+				{
+					MaterialEditorOnlyData->FrontMaterial.Connect(0, ConvertAttributeNode);
+				}
 			}
 			else
 			{

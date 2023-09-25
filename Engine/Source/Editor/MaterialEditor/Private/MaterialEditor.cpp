@@ -2540,6 +2540,7 @@ void FMaterialEditor::UpdatePreviewMaterial( bool bForce )
 
 	if( PreviewExpression && ExpressionPreviewMaterial )
 	{
+		ExpressionPreviewMaterial->UpdateCachedExpressionData();
 		PreviewExpression->ConnectToPreviewMaterial(ExpressionPreviewMaterial,0);
 	}
 
