@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Api;
@@ -60,6 +61,11 @@ namespace Horde.Server.Compute
 		/// </summary>
 		private readonly TimeSpan _requestLogMetricInterval = TimeSpan.FromMinutes(1);
 		
+		/// <summary>
+		/// Max age before discarding a reported resource need
+		/// </summary>
+		private readonly TimeSpan _resourceNeedsMaxAge = TimeSpan.FromMinutes(2);
+		
 		readonly IAgentCollection _agentCollection;
 		readonly ILogFileService _logService;
 		readonly AgentService _agentService;
@@ -71,7 +77,8 @@ namespace Horde.Server.Compute
 		readonly ITicker _ticker;
 		readonly ILogger<ComputeService> _logger;
 		
-		List<Measurement<int>> _measurements = new ();
+		List<Measurement<int>> _unservedMeasurements = new ();
+		List<Measurement<int>> _resourceNeedsMeasurements = new ();
 
 		/// <summary>
 		/// Constructor
@@ -91,8 +98,15 @@ namespace Horde.Server.Compute
 			_allocationsDeniedCount = meter.CreateCounter<int>("horde.compute.allocations.denied");
 			meter.CreateObservableGauge("horde.compute.allocations.unserved", () =>
 			{
-				List<Measurement<int>> temp = new(_measurements);
-				_measurements.Clear();
+				List<Measurement<int>> temp = new(_unservedMeasurements);
+				_unservedMeasurements.Clear();
+				return temp;
+			});
+			
+			meter.CreateObservableGauge("horde.compute.resourceNeeds", () =>
+			{
+				List<Measurement<int>> temp = new(_resourceNeedsMeasurements);
+				_resourceNeedsMeasurements.Clear();
 				return temp;
 			});
 		}
@@ -117,17 +131,53 @@ namespace Horde.Server.Compute
 
 		private async ValueTask TickSharedAsync(CancellationToken stoppingToken)
 		{
-			List<RequestInfo> unservedRequestIds = await GetUnservedRequestsAsync();
+			_unservedMeasurements = await CalculateUnservedRequestsMetricAsync();
+			_resourceNeedsMeasurements = await CalculateResourceNeedsAsync();
+		}
 
+		private async Task<List<Measurement<int>>> CalculateUnservedRequestsMetricAsync()
+		{
+			List<RequestInfo> unservedRequestIds = await GetUnservedRequestsAsync();
 			Dictionary<string, int> poolsWithUnservedRequestCounts = GroupByPoolAndCount(unservedRequestIds);
-			List<Measurement<int>> newMeasurements = new();
+			List<Measurement<int>> measurements = new();
 			foreach ((string poolId, int reqCount) in poolsWithUnservedRequestCounts)
 			{
 				_logger.LogDebug("Unserved request count for {Pool}: {Count}", poolId, reqCount);
-				newMeasurements.Add(new Measurement<int>(reqCount, new KeyValuePair<string, object?>("pool", poolId)));
+				measurements.Add(new Measurement<int>(reqCount, new KeyValuePair<string, object?>("pool", poolId)));
 			}
 
-			_measurements = newMeasurements;
+			return measurements;
+		}
+
+		private record struct MetricKey(string ClusterId, string PoolId, string ResourceName);
+		internal async Task<List<Measurement<int>>> CalculateResourceNeedsAsync()
+		{
+			List<SessionResourceNeeds> resourceNeeds = await GetResourceNeedsAsync();
+			Dictionary<MetricKey, int> summedResourceValues = new();
+
+			foreach (SessionResourceNeeds srn in resourceNeeds)
+			{
+				foreach ((string resource, int value) in srn.ResourceNeeds)
+				{
+					MetricKey key = new (srn.ClusterId, srn.Pool, resource);
+					summedResourceValues.TryGetValue(key, out int currentValue);
+					summedResourceValues[key] = currentValue + value;
+				}
+			}
+
+			List<Measurement<int>> measurements = new();
+			foreach ((MetricKey key, int totalValue) in summedResourceValues)
+			{
+				KeyValuePair<string, object?>[] kvp =
+				{
+					new ("cluster", key.ClusterId),
+					new ("pool", key.PoolId),
+					new ("resource", key.ResourceName)
+				};
+				measurements.Add(new Measurement<int>(totalValue, kvp));
+			}
+
+			return measurements;
 		}
 
 		/// <summary>
@@ -182,6 +232,74 @@ namespace Horde.Server.Compute
 
 			await LogRequestAsync(AllocationOutcome.Denied, requestId, requirements, parentLeaseId, span);
 			return null;
+		}
+		
+		/// <summary>
+		/// Declare resource needs for a session to help server calculate current demand
+		/// Any previous declaration associated with the same session ID will be replaced.
+		/// </summary>
+		/// <param name="clusterId">Id of the compute cluster</param>
+		/// <param name="sessionId">Unique session ID performing compute resource requests</param>
+		/// <param name="pool">Pool of agents requesting resources from</param>
+		/// <param name="resourceNeeds">Resource needs</param>
+		public async Task SetResourceNeedsAsync(ClusterId clusterId, string sessionId, string pool, Dictionary<string, int> resourceNeeds)
+		{
+			SessionResourceNeeds needs = new (_clock.UtcNow, clusterId.ToString(), sessionId, pool, resourceNeeds);
+			await _redisService.GetDatabase().HashSetAsync(RedisKeyResourceNeeds(), needs.GetRedisHashKey(), needs.Serialize());
+		}
+
+		internal async Task<List<SessionResourceNeeds>> GetResourceNeedsAsync()
+		{
+			IDatabase redis = _redisService.GetDatabase();
+			HashEntry[] hashEntries = await redis.HashGetAllAsync(RedisKeyResourceNeeds());
+			List<SessionResourceNeeds> validResourceNeeds = new();
+			List<RedisValue> invalidKeys = new();
+			
+			foreach (HashEntry entry in hashEntries)
+			{
+				try
+				{
+					SessionResourceNeeds srn = SessionResourceNeeds.Deserialize(entry.Value.ToString());
+					bool isOutdated = _clock.UtcNow > srn.Timestamp + _resourceNeedsMaxAge;
+					if (isOutdated)
+					{
+						invalidKeys.Add(entry.Name.ToString());
+					}
+					else
+					{
+						validResourceNeeds.Add(srn);
+					}
+				}
+				catch (JsonException je)
+				{
+					_logger.LogWarning(je, "Failed to deserialize compute resource needs (can be normal during version upgrades). Key={Key} Value={Value}", entry.Name, entry.Value);
+					invalidKeys.Add(entry.Name.ToString());
+				}
+			}
+
+			if (invalidKeys.Any())
+			{
+				await redis.HashDeleteAsync(RedisKeyResourceNeeds(), invalidKeys.ToArray());	
+			}
+			
+			return validResourceNeeds;
+		}
+
+		private static string RedisKeyResourceNeeds() => $"compute/resource-needs";
+
+		/// <summary>
+		/// Record describing the resource needs for a session at a particular point in time
+		/// </summary>
+		/// <param name="Timestamp">Timestamp</param>
+		/// <param name="ClusterId">Cluster ID</param>
+		/// <param name="SessionId">Session ID</param>
+		/// <param name="Pool">Pool ID</param>
+		/// <param name="ResourceNeeds">Resource needs</param>
+		internal record struct SessionResourceNeeds(DateTime Timestamp, string ClusterId, string SessionId, string Pool, Dictionary<string, int> ResourceNeeds)
+		{
+			public string GetRedisHashKey() => $"{ClusterId}:{SessionId}:{Pool}";
+			public string Serialize() => JsonSerializer.Serialize(this);
+			public static SessionResourceNeeds Deserialize(string value) => JsonSerializer.Deserialize<SessionResourceNeeds>(value);
 		}
 
 		private static string RedisKeyComputeRequests(DateTimeOffset timestamp)

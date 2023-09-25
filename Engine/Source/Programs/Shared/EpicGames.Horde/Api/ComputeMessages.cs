@@ -70,4 +70,36 @@ namespace EpicGames.Horde.Api
 		/// </summary>
 		public IReadOnlyList<string> Properties { get; set; } = new List<string>();
 	}
+	
+	/// <summary>
+	/// Resource needs declaration request
+	/// </summary>
+	public class ResourceNeedsMessage
+	{
+		/// <summary>
+		/// Unique session ID performing compute resource requests
+		/// </summary>
+		public string SessionId { get; set; } = String.Empty;
+		
+		/// <summary>
+		/// Pool of agents requesting resources from
+		/// </summary>
+		public string Pool { get; set; } = String.Empty;
+
+		/// <summary>
+		/// Key/value of resources needed by session (such as CPU or memory, see KnownPropertyNames in Horde.Server)
+		/// </summary>
+		public Dictionary<string, int> ResourceNeeds { get; set; } = new();
+	}
+	
+	/// <summary>
+	/// Resource needs response
+	/// </summary>
+	public class GetResourceNeedsResponse
+	{
+		/// <summary>
+		/// List of resource needs
+		/// </summary>
+		public List<ResourceNeedsMessage> ResourceNeeds { get; set; } = new();
+	}
 }

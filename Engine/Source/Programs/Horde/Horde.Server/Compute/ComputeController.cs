@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,6 +9,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Api;
 using EpicGames.Horde.Compute;
 using Horde.Server.Acls;
+using Horde.Server.Agents;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
@@ -83,6 +85,62 @@ namespace Horde.Server.Compute
 			}
 
 			return response;
+		}
+		
+		/// <summary>
+		/// Get current resource needs for active sessions
+		/// </summary>
+		/// <param name="clusterId">ID of the compute cluster</param>
+		/// <returns>List of resource needs</returns>
+		[HttpGet]
+		[Authorize]
+		[Route("/api/v2/compute/{clusterId}/resource-needs")]
+		public async Task<ActionResult<GetResourceNeedsResponse>> GetResourceNeedsAsync(ClusterId clusterId)
+		{
+			if (!_globalConfig.Value.TryGetComputeCluster(clusterId, out ComputeClusterConfig? clusterConfig))
+			{
+				return NotFound(clusterId);
+			}
+			
+			if (!clusterConfig.Authorize(ComputeAclAction.GetComputeTasks, User))
+			{
+				return Forbid(ComputeAclAction.GetComputeTasks, clusterId);
+			}
+
+			List<ResourceNeedsMessage> resourceNeeds =
+				(await _computeService.GetResourceNeedsAsync())
+				.Where(x => x.ClusterId == clusterId.ToString())
+				.OrderBy(x => x.Timestamp)
+				.Select(x => new ResourceNeedsMessage { SessionId = x.SessionId, Pool = x.Pool, ResourceNeeds = x.ResourceNeeds })
+				.ToList();
+
+			return new GetResourceNeedsResponse { ResourceNeeds = resourceNeeds };
+		}
+		
+		/// <summary>
+		/// Declare resource needs for a session to help server calculate current demand
+		/// <see cref="KnownPropertyNames"/> for resource name property names
+		/// </summary>
+		/// <param name="clusterId">Id of the compute cluster</param>
+		/// <param name="request">Resource needs request</param>
+		/// <returns></returns>
+		[HttpPost]
+		[Authorize]
+		[Route("/api/v2/compute/{clusterId}/resource-needs")]
+		public async Task<ActionResult<AssignComputeResponse>> SetResourceNeedsAsync(ClusterId clusterId, [FromBody] ResourceNeedsMessage request)
+		{
+			if (!_globalConfig.Value.TryGetComputeCluster(clusterId, out ComputeClusterConfig? clusterConfig))
+			{
+				return NotFound(clusterId);
+			}
+			
+			if (!clusterConfig.Authorize(ComputeAclAction.AddComputeTasks, User))
+			{
+				return Forbid(ComputeAclAction.AddComputeTasks, clusterId);
+			}
+
+			await _computeService.SetResourceNeedsAsync(clusterId, request.SessionId, request.Pool, request.ResourceNeeds);
+			return Ok(new { message = "Resource needs set" });
 		}
 	}
 }
