@@ -620,6 +620,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AssetRegistry")
 	virtual void WaitForCompletion() = 0;
 
+	/**
+	 * Wait for premade asset registry load to be completed, for use when querying the asset registry prior to flushing in ScanPathSynchronous.
+	 * Will no-op if no such asset registry exists.
+	 */
+	virtual void WaitForPremadeAssetRegistry() = 0;
+
 #if WITH_EDITOR
 	/**
 	 * Make directory watcher pick up new changes to files on disk, then wait for scan to be complete.

@@ -99,6 +99,7 @@ public:
 	virtual bool IsSearchAllAssets() const override;
 	virtual bool IsSearchAsync() const override;
 	virtual void WaitForCompletion() override;
+	virtual void WaitForPremadeAssetRegistry() override;
 #if WITH_EDITOR
 	virtual void FlushDirectoryWatcherAndWaitForCompletion() override;
 #endif

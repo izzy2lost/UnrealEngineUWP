@@ -3614,6 +3614,9 @@ bool UAssetManager::GetPackageManagers(FName PackageName, bool bRecurseToParents
 
 void UAssetManager::StartInitialLoading()
 {
+	// The scan below queries asset registry, so we should make sure the premade registry is finished loading if it exists.
+	GetAssetRegistry().WaitForPremadeAssetRegistry();
+
 	GInitialBulkScan.StartOnce(this);
 
 	ScanPrimaryAssetTypesFromConfig();

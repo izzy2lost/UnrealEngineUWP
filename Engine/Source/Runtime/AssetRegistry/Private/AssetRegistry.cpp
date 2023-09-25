@@ -1792,6 +1792,23 @@ void UAssetRegistryImpl::WaitForCompletion()
 	}
 }
 
+void UAssetRegistryImpl::WaitForPremadeAssetRegistry()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UAssetRegistryImpl::WaitForPremadeAssetRegistry);
+	using namespace UE::AssetRegistry::Impl;
+
+	FEventContext EventContext;
+	{
+		LLM_SCOPE(ELLMTag::AssetRegistry);
+		FWriteScopeLock InterfaceScopeLock(InterfaceLock);
+		FClassInheritanceContext InheritanceContext;
+		FClassInheritanceBuffer InheritanceBuffer;
+		GetInheritanceContextWithRequiredLock(InterfaceScopeLock, InheritanceContext, InheritanceBuffer);
+		GuardedData.ConditionalLoadPremadeAssetRegistry(*this, EventContext, InterfaceScopeLock);
+	}
+	Broadcast(EventContext);
+}
+
 #if WITH_EDITOR
 void UAssetRegistryImpl::FlushDirectoryWatcherAndWaitForCompletion()
 {
