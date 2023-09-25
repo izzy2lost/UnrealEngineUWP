@@ -1373,14 +1373,14 @@ namespace Horde.Agent.Execution
 			return dirs;
 		}
 
-		private static string ConformEnvironmentVariableName(string InName)
+		private static string ConformEnvironmentVariableName(string name)
 		{
 			if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
 				// Non-windows platforms don't allow dashes in variable names. The engine platform layer substitutes underscores for them.
-				return InName.Replace('-','_');
+				return name.Replace('-','_');
 			}
-			return InName;
+			return name;
 		}
 
 		async Task<int> ExecuteCommandAsync(BeginStepResponse step, DirectoryReference workspaceDir, DirectoryReference? sharedStorageDir, string fileName, string arguments, ILogger jobLogger, CancellationToken cancellationToken)
