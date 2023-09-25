@@ -537,7 +537,13 @@ void FNiagaraAttributeTrimmerHelper<GraphBridge>::ResolveDependencyChain(const F
 
 										if (!bValidDefaultWriteFound || bBackCompat_AlwaysIncludeFirstReadPin)
 										{
-											ResolvedDependencies.Pins.Add(ParamMap.PerVariableReadHistory[DefaultBoundVariable][0].ReadPin);
+											const typename FParamMapHistory::FReadHistory& InitialReadHistory = ParamMap.PerVariableReadHistory[DefaultBoundVariable][0];
+
+											if (InitialReadHistory.PreviousWritePin.Pin)
+											{
+												PinsToResolve.Add(InitialReadHistory.PreviousWritePin);
+											}
+											ResolvedDependencies.Pins.Add(InitialReadHistory.ReadPin);
 										}
 									}
 								}
