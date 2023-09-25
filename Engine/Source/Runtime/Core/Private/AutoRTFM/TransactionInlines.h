@@ -175,6 +175,9 @@ UE_AUTORTFM_FORCEINLINE void FTransaction::CollectStats() const
 
     Stats.Collect<EStatsKind::AverageAbortTasks>(AbortTasks.Num());
     Stats.Collect<EStatsKind::MaximumAbortTasks>(AbortTasks.Num());
+
+    Stats.Collect<EStatsKind::AverageHitSetSize>(HitSet.GetSize());
+    Stats.Collect<EStatsKind::AverageHitSetCapacity>(HitSet.GetCapacity());
 }
 
 } // namespace AutoRTFM

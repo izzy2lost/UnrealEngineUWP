@@ -28,6 +28,8 @@ enum class EStatsKind : uint8_t
 	MaximumAbortTasks,
 	NewMemoryTrackerHit,
 	NewMemoryTrackerMiss,
+	AverageHitSetSize,
+	AverageHitSetCapacity,
 	Total
 };
 
@@ -65,6 +67,8 @@ template<EStatsKind Kind> constexpr bool IsStatsKindOneArg()
 	case EStatsKind::MaximumCommitTasks:
 	case EStatsKind::AverageAbortTasks:
 	case EStatsKind::MaximumAbortTasks:
+	case EStatsKind::AverageHitSetSize:
+	case EStatsKind::AverageHitSetCapacity:
 		return true;
 	}
 }
@@ -80,6 +84,8 @@ template<EStatsKind Kind> constexpr bool IsStatsKindAverage()
 	case EStatsKind::AverageWriteLogBytes:
 	case EStatsKind::AverageCommitTasks:
 	case EStatsKind::AverageAbortTasks:
+	case EStatsKind::AverageHitSetSize:
+	case EStatsKind::AverageHitSetCapacity:
 		return true;
 	}
 }

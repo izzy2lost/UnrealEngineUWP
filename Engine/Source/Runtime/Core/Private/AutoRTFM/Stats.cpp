@@ -98,6 +98,20 @@ template<> void AutoRTFM::FStats::Report<AutoRTFM::EStatsKind::NewMemoryTrackerM
     UE_LOG(LogAutoRTFM, Display, TEXT("  New memory misses:         %11u"), Data);
 }
 
+template<> void AutoRTFM::FStats::Report<AutoRTFM::EStatsKind::AverageHitSetSize>(const uint64_t Data) const
+{
+    const uint64_t TotalTransactions = Datas[static_cast<size_t>(AutoRTFM::EStatsKind::Transaction)];
+    UE_LOG(LogAutoRTFM, Display, TEXT("  Average hit set size:      %15.3f"), (static_cast<double>(Data) / static_cast<double>(TotalTransactions)));
+}
+
+template<> void AutoRTFM::FStats::Report<AutoRTFM::EStatsKind::AverageHitSetCapacity>(const uint64_t Data) const
+{
+    const uint64_t TotalTransactions = Datas[static_cast<size_t>(AutoRTFM::EStatsKind::Transaction)];
+    UE_LOG(LogAutoRTFM, Display, TEXT("  Average hit set capacity:  %15.3f"), (static_cast<double>(Data) / static_cast<double>(TotalTransactions)));
+
+    const uint64_t TotalHitSetSize = Datas[static_cast<size_t>(AutoRTFM::EStatsKind::AverageHitSetSize)];
+    UE_LOG(LogAutoRTFM, Display, TEXT("  Average hit set occupancy: %15.3f"), 100 * (static_cast<double>(TotalHitSetSize) / static_cast<double>(Data)));
+}
 
 void AutoRTFM::FStats::Report() const
 {
@@ -129,6 +143,8 @@ void AutoRTFM::FStats::Report() const
             REPORT_CASE(AutoRTFM::EStatsKind::MaximumAbortTasks);
             REPORT_CASE(AutoRTFM::EStatsKind::NewMemoryTrackerHit);
             REPORT_CASE(AutoRTFM::EStatsKind::NewMemoryTrackerMiss);
+			REPORT_CASE(AutoRTFM::EStatsKind::AverageHitSetSize);
+			REPORT_CASE(AutoRTFM::EStatsKind::AverageHitSetCapacity);
 #undef REPORT_CASE
 			}
 		}
