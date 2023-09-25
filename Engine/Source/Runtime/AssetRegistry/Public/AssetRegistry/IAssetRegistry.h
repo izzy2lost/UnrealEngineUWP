@@ -688,6 +688,12 @@ public:
 	 */
 	virtual void AssetFullyUpdateTags(UObject* Object) = 0;
 
+	/** Informs the asset registry that a Verse file has been created on disk */
+	virtual bool VerseCreated(const FString& FilePathOnDisk) = 0;
+
+	/** Informs the asset registry that a Verse file has been deleted from disk */
+	virtual bool VerseDeleted(const FString& FilePathOnDisk) = 0;
+
 	/** Informs the asset registry that an in-memory package has been deleted, and all associated assets should be removed */
 	virtual void PackageDeleted (UPackage* DeletedPackage) = 0;
 

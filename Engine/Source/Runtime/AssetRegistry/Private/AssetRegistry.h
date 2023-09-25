@@ -148,6 +148,9 @@ public:
 	virtual void AssetFullyUpdateTags(UObject* Object) override;
 	virtual void AssetTagsFinalized(const UObject& FinalizedAsset) override;
 
+	virtual bool VerseCreated(const FString& FilePath) override;
+	virtual bool VerseDeleted(const FString& FilePath) override;
+
 	virtual void PackageDeleted(UPackage* DeletedPackage) override;
 
 	DECLARE_DERIVED_EVENT( UAssetRegistryImpl, IAssetRegistry::FAssetAddedEvent, FAssetAddedEvent);

@@ -4005,6 +4005,64 @@ void UAssetRegistryImpl::AssetTagsFinalized(const UObject& FinalizedAsset)
 #endif
 }
 
+bool UAssetRegistryImpl::VerseCreated(const FString& FilePathOnDisk)
+{
+	checkf(GIsEditor, TEXT("Updating the AssetRegistry is only available in editor"));
+	if (!FAssetDataGatherer::IsVerseFile(FilePathOnDisk))
+	{
+		return false;
+	}
+
+	FString PackageName;
+	if (!FPackageName::TryConvertFilenameToLongPackageName(FilePathOnDisk, PackageName))
+	{
+		return false;
+	}
+
+	FNameBuilder VersePackagePathName;
+	VersePackagePathName.Append(PackageName);
+	VersePackagePathName.Append(FPathViews::GetExtension(FilePathOnDisk, /*bIncludeDot=*/true));
+
+	UE::AssetRegistry::Impl::FEventContext EventContext;
+	{
+		LLM_SCOPE(ELLMTag::AssetRegistry);
+		FWriteScopeLock InterfaceScopeLock(InterfaceLock);
+		GuardedData.AddVerseFile(EventContext, *VersePackagePathName);
+	}
+	Broadcast(EventContext);
+
+	return true;
+}
+
+bool UAssetRegistryImpl::VerseDeleted(const FString& FilePathOnDisk)
+{
+	checkf(GIsEditor, TEXT("Updating the AssetRegistry is only available in editor"));
+	if (!FAssetDataGatherer::IsVerseFile(FilePathOnDisk))
+	{
+		return false;
+	}
+
+	FString PackageName;
+	if (!FPackageName::TryConvertFilenameToLongPackageName(FilePathOnDisk, PackageName))
+	{
+		return false;
+	}
+
+	FNameBuilder VersePackagePathName;
+	VersePackagePathName.Append(PackageName);
+	VersePackagePathName.Append(FPathViews::GetExtension(FilePathOnDisk, /*bIncludeDot=*/true));
+
+	UE::AssetRegistry::Impl::FEventContext EventContext;
+	{
+		LLM_SCOPE(ELLMTag::AssetRegistry);
+		FWriteScopeLock InterfaceScopeLock(InterfaceLock);
+		GuardedData.RemoveVerseFile(EventContext, *VersePackagePathName);
+	}
+	Broadcast(EventContext);
+
+	return true;
+}
+
 void UAssetRegistryImpl::PackageDeleted(UPackage* DeletedPackage)
 {
 	checkf(GIsEditor, TEXT("Updating the AssetRegistry is only available in editor"));
@@ -5497,15 +5555,7 @@ void FAssetRegistryImpl::VerseFilesGathered(Impl::FEventContext& EventContext, c
 	{
 		FName VerseFilePath = VerseResults.PopFrontValue();
 
-		bool bAlreadyExists = false;
-		CachedVerseFiles.Add(VerseFilePath, &bAlreadyExists);
-		if (!bAlreadyExists)
-		{
-			FName VerseDirectoryPath(FPathViews::GetPath(WriteToString<256>(VerseFilePath)));
-			TArray<FName>& FilePathsArray = CachedVerseFilesByPath.FindOrAdd(VerseDirectoryPath);
-			FilePathsArray.Add(VerseFilePath);
-			EventContext.VerseEvents.Emplace(VerseFilePath, Impl::FEventContext::EEvent::Added);
-		}
+		AddVerseFile(EventContext, VerseFilePath);
 
 		// Check to see if we have run out of time in this tick
 		if (TickStartTime >= 0 && (FPlatformTime::Seconds() - TickStartTime) > Impl::MaxSecondsPerFrame)
@@ -5757,6 +5807,19 @@ void FAssetRegistryImpl::RemovePackageData(Impl::FEventContext& EventContext, co
 				}
 			}
 		}
+	}
+}
+
+void FAssetRegistryImpl::AddVerseFile(Impl::FEventContext& EventContext, FName VerseFilePathToAdd)
+{
+	bool bAlreadyExists = false;
+	CachedVerseFiles.Add(VerseFilePathToAdd, &bAlreadyExists);
+	if (!bAlreadyExists)
+	{
+		FName VerseDirectoryPath(FPathViews::GetPath(WriteToString<256>(VerseFilePathToAdd)));
+		TArray<FName>& FilePathsArray = CachedVerseFilesByPath.FindOrAdd(VerseDirectoryPath);
+		FilePathsArray.Add(VerseFilePathToAdd);
+		EventContext.VerseEvents.Emplace(VerseFilePathToAdd, Impl::FEventContext::EEvent::Added);
 	}
 }
 

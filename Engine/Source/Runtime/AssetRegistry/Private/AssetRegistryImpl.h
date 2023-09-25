@@ -236,6 +236,8 @@ public:
 	bool RemoveAssetPath(Impl::FEventContext& EventContext, FName PathToRemove, bool bEvenIfAssetsStillExist = false);
 	/** Removes the asset data associated with this package from the look-up maps */
 	void RemovePackageData(Impl::FEventContext& EventContext, const FName PackageName);
+	/** Adds the Verse file to the look up maps */
+	void AddVerseFile(Impl::FEventContext& EventContext, FName VerseFilePathToAdd);
 	/** Removes the Verse file from the look-up maps */
 	void RemoveVerseFile(Impl::FEventContext& EventContext, FName VerseFilePathToRemove);
 
