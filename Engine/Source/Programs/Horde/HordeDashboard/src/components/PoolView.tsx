@@ -1014,12 +1014,9 @@ const StreamPanel: React.FC = observer(() => {
       agents: number;
       preflights: number;
    }
-
    
-   const total = agents.length;
    const active = agents.filter(a => !!a.leases?.length).length;
    const ready = agents.filter(a => !a.leases?.length && a.online && a.enabled && !a.pendingConform && !a.pendingFullConform).length;
-
 
    const streamMetrics = new Map<string, StreamMetrics>();
 

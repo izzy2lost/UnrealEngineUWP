@@ -1,16 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { Stack, Text, ThemeSettingName } from '@fluentui/react';
+import { Stack, Text } from '@fluentui/react';
 import { observer } from 'mobx-react-lite';
 import React, { useEffect } from 'react';
 import backend from '../../backend';
 import { GetBisectTaskResponse } from '../../backend/Api';
+import { PollBase } from '../../backend/PollBase';
 import { ISideRailLink } from '../../base/components/SideRail';
 import { hordeClasses } from '../../styles/Styles';
 import { BisectionList } from '../bisection/BisectionList';
 import { JobDataView, JobDetailsV2 } from './JobDetailsViewCommon';
-import { PollBase } from '../../backend/PollBase';
-import dashboard from '../../backend/Dashboard';
 
 const sideRail: ISideRailLink = { text: "Bisection", url: "rail_detail_bisection" };
 

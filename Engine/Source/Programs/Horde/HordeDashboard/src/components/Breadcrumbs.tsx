@@ -35,7 +35,7 @@ export const classes = mergeStyleSets({
 
 export const Breadcrumbs: React.FC<{ items: BreadcrumbItem[], title?: string, suppressHome?: boolean, spinner?: boolean }> = observer((({ items: itemsIn, title, suppressHome, spinner }) => {
 
-   const [hideAlert, setHideAlert] = useState(false);
+   const [, setHideAlert] = useState(false);
 
    if (notices.updated) { }
 

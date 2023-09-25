@@ -9,9 +9,6 @@ import { useWindowSize } from '../base/utilities/hooks';
 import { hordeClasses, modeColors } from '../styles/Styles';
 import { Breadcrumbs } from './Breadcrumbs';
 import { TopNav } from './TopNav';
-import { getSiteConfig } from '../backend/Config';
-
-
 
 const colorBlind1 = new Map<StatusColor, string>([
    [StatusColor.Success, "#37A862"],
@@ -235,7 +232,6 @@ const ColorPreferenceDialog: React.FC<{ shown: boolean, statusIn: StatusColor, o
 const GeneralPanel: React.FC = observer(() => {
 
    let [colorState, setColorState] = useState<{ status?: StatusColor }>({});
-   const config = getSiteConfig();
    const defaultStatusColors = dashboard.getDefaultStatusColors();
 
    type GeneralItem = {

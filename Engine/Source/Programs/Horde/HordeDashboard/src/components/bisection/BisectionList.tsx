@@ -67,14 +67,10 @@ const GraphTooltip: React.FC<{ renderer: BisectionRenderer }> = observer(({ rend
 
    let tipX = tooltip.x;
    let offsetX = 32;
-   let translateX = "0%";
 
    if (tipX > 1000) {
       offsetX = -32;
-      translateX = "-100%";
    }
-
-   const translateY = "-50%";
 
    const titleWidth = 48;
 
@@ -503,11 +499,6 @@ export const BisectionList: React.FC<{ bisections?: GetBisectTaskResponse[] }> =
 
       const timestamp = bisection.id.substring(0, 8)
       const time = getShortNiceTime(new Date(parseInt(timestamp, 16) * 1000), true);
-      const initialChange: JobParameters = {
-         id: bisection.initialJobId,
-         change: bisection.initialChange,
-         streamId: bisection.streamId
-      }
 
       const running = bisection.state === BisectTaskState.Running;
       const succeeded = bisection.state === BisectTaskState.Succeeded;

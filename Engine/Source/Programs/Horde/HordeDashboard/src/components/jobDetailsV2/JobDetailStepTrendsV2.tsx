@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { DefaultButton, Slider, Spinner, SpinnerSize, Stack, Text } from "@fluentui/react";
+import { Slider, Spinner, SpinnerSize, Stack, Text } from "@fluentui/react";
 import * as d3 from "d3";
 import { action, makeObservable, observable } from "mobx";
 import { observer } from "mobx-react-lite";
@@ -476,8 +476,8 @@ class StepTrendsRenderer {
 
          svg!.selectAll(".linechart")
             .attr("d", scaledLine(lineI as any));
-         
-            svg!.selectAll(".y-axis").call(yAxis as any);
+
+         svg!.selectAll(".y-axis").call(yAxis as any);
 
       }
 

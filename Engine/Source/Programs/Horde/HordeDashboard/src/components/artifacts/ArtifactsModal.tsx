@@ -421,7 +421,6 @@ function formatBytes(bytes: number, decimals = 2) {
 
 const DownloadButton: React.FC<{ handler: ArtifactsHandler }> = observer(({ handler }) => {
 
-   const [downloading, setDownloading] = useState(false);
    const [selectKey, setSelectionKey] = useState(0);
 
 
@@ -455,13 +454,8 @@ const DownloadButton: React.FC<{ handler: ArtifactsHandler }> = observer(({ hand
       buttonText = `Download (${sizeText})`;
    }
 
-   if (downloading) {
-      buttonText = "Downloading";
-   }
-
-   return <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
-      {downloading && <Stack><Spinner size={SpinnerSize.large} /></Stack>}
-      <PrimaryButton styles={{ root: { fontFamily: 'Horde Open Sans SemiBold !important' } }} disabled={!selection.size || downloading} onClick={async () => {
+   return <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>      
+      <PrimaryButton styles={{ root: { fontFamily: 'Horde Open Sans SemiBold !important' } }} disabled={!selection.size} onClick={async () => {
 
          const selection = handler.currentSelection.items;
 
@@ -500,16 +494,6 @@ const DownloadButton: React.FC<{ handler: ArtifactsHandler }> = observer(({ hand
             }
             return `${path}${item.text}`;
          }).filter(f => !!f);
-
-         let context = handler.context;
-         let contextName = "step";
-         if (context === "step-output") {
-            contextName = "output";
-         }
-
-         if (context === "step-trace") {
-            contextName = "trace";
-         }
          
          try {            
             backend.downloadArtifactZipV2(handler.artifact.id, { filter: filters });
@@ -528,6 +512,7 @@ let idcounter = 0;
 
 const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifacts?: GetArtifactResponseV2[], contextType: ArtifactContextType, artifactPath?: string }> = observer(({ jobId, stepId, artifacts, contextType, artifactPath }) => {
 
+   // eslint-disable-next-line
    const handler = ArtifactsHandler.current ?? new ArtifactsHandler(jobId, stepId, contextType, artifactPath, artifacts);
 
    useEffect(() => {

@@ -184,6 +184,7 @@ class TestReportGenerator {
             return backend.getTestData(detail.testDataIds[0], "jobId,stepId");
          });
 
+         // eslint-disable-next-line
          await Promise.all(batch).then((result) => {
             result.forEach((r, index) => {
                const detail = details[index];
@@ -246,6 +247,7 @@ class TestReportGenerator {
                return backend.getLogEvents(logId);
             });
 
+            // eslint-disable-next-line
             await Promise.all(batch).then((result) => {
                result.forEach((r, index) => {
                   const logId = logBatches[index];

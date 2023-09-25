@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { CommandBar, CommandBarButton, ICommandBarItemProps, IContextualMenuItem, NavBase, Stack } from '@fluentui/react';
+import { CommandBar, CommandBarButton, ICommandBarItemProps, IContextualMenuItem, Stack } from '@fluentui/react';
 import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArtifactContextType, JobState, JobStepOutcome, JobStepState, StepData } from '../../backend/Api';
 import dashboard from '../../backend/Dashboard';
 import { hordeClasses } from '../../styles/Styles';
@@ -12,12 +12,11 @@ import { useQuery } from '../JobDetailCommon';
 import { NewBuild } from '../NewBuild';
 import { NotificationDropdown } from '../NotificationDropdown';
 import { PauseStepModal } from '../StepPauseModal';
+import { JobArtifactsModal } from '../artifacts/ArtifactsModal';
+import { BisectionCreateModal } from '../bisection/CreateModal';
 import { AbortJobModal } from './AbortJobModal';
 import { JobDetailsV2 } from './JobDetailsViewCommon';
 import { RetryStepsModal, StepRetryModal, StepRetryType } from './StepRetryModal';
-import { JobArtifactsModal } from '../artifacts/ArtifactsModal';
-import { getSiteConfig } from '../../backend/Config';
-import { BisectionCreateModal } from '../bisection/CreateModal';
 
 enum ParameterState {
    Hidden,
@@ -300,8 +299,7 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
 const StepOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = observer(({ jobDetails, stepId }) => {
 
    const [shown, setShown] = useState<{ abortShown?: boolean, retryShown?: boolean, pauseShown?: boolean, bisectShown?: boolean }>({});
-   const [runType, setRunType] = useState(StepRetryType.RunAgain);
-   const config = getSiteConfig();
+   const [runType, setRunType] = useState(StepRetryType.RunAgain);   
 
    // subscribe
    if (dashboard.updated) { }

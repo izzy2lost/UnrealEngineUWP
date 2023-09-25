@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 import { action, makeObservable, observable } from "mobx";
-import { DefaultButton, Dropdown, IContextualMenuItem, IContextualMenuProps, IDropdownOption, Label, Stack } from "@fluentui/react";
+import { DefaultButton, Dropdown, IContextualMenuItem, IContextualMenuProps, Label, Stack } from "@fluentui/react";
 import React, { useEffect, useState } from "react";
 import { useBackend } from "../backend";
 import { GetJobsTabResponse, TabType, GetTemplateRefResponse, StreamData } from "../backend/Api";

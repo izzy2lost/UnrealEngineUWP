@@ -2,13 +2,14 @@
 
 import { DefaultButton, IContextualMenuProps, mergeStyleSets, Pivot, PivotItem, PrimaryButton, Stack, Text, TextField } from '@fluentui/react';
 import { observer } from 'mobx-react-lite';
-import React, { useEffect, useState } from 'react';
-import { Navigate, useNavigate, useLocation, useParams, Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useBackend } from '../backend';
+import { JobsTabData } from '../backend/Api';
 import dashboard from '../backend/Dashboard';
 import { JobFilterSimple } from '../base/utilities/filter';
 import { useWindowSize } from '../base/utilities/hooks';
-import { modeColors, hordeClasses } from '../styles/Styles';
+import { hordeClasses, modeColors } from '../styles/Styles';
 import { BreadcrumbItem, Breadcrumbs } from './Breadcrumbs';
 import { useQuery } from './JobDetailCommon';
 import { JobSearchSimpleModal } from './JobSearchSimple';
@@ -18,7 +19,6 @@ import { JobViewIncremental } from './JobViewIncremental';
 import { NewBuild } from './NewBuild';
 import { StreamSummary } from './StreamSummary';
 import { TopNav } from './TopNav';
-import { JobsTabData } from '../backend/Api';
 
 export const SummaryPage: React.FC = () => {
 
@@ -60,8 +60,7 @@ const StreamViewInner: React.FC = observer(() => {
    const windowSize = useWindowSize();
 
    const { streamId } = useParams<{ streamId: string }>();
-   const navigate = useNavigate();
-   const location = useLocation();
+   const navigate = useNavigate();   
    const query = useQuery();
 
    const [showOthersPreflights, setShowOthersPreflights] = useState<boolean | undefined>(dashboard.showPreflights);

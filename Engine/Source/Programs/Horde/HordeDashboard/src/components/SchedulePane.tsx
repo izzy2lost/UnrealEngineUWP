@@ -8,7 +8,6 @@ import backend from '../backend';
 import { GetJobResponse, GetTemplateRefResponse, JobState } from '../backend/Api';
 import dashboard from '../backend/Dashboard';
 import { displayTimeZone } from "../base/utilities/timeUtils";
-import { projectStore } from '../backend/ProjectStore';
 
 const classes = mergeStyleSets({
    detailsRow: {

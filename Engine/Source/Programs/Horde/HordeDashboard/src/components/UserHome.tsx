@@ -542,7 +542,7 @@ class UserJobsHandler {
 
 const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ includeOtherPreflights }) => {
 
-   const [jobHandler, setJobHandler] = useState(new UserJobsHandler())
+   const [jobHandler] = useState(new UserJobsHandler())
 
    const { projectStore } = useBackend();
 
@@ -555,7 +555,7 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
          jobHandler.clear();
       };
 
-   }, []);
+   }, [jobHandler]);
 
 
    // subscribe

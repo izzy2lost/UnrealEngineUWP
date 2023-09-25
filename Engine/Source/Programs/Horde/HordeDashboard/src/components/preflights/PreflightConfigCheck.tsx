@@ -1,12 +1,9 @@
-import { FontIcon, IconButton, MaskedTextField, Modal, PrimaryButton, Spinner, SpinnerSize, Stack, Text, TextField } from "@fluentui/react";
-import { useWindowSize } from "../../base/utilities/hooks";
-import { hordeClasses, modeColors } from "../../styles/Styles";
-import { Breadcrumbs } from "../Breadcrumbs";
-import { TopNav } from "../TopNav";
+import { FontIcon, IconButton, MaskedTextField, Modal, PrimaryButton, Spinner, SpinnerSize, Stack, Text } from "@fluentui/react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import backend from "../../backend";
 import dashboard, { StatusColor } from "../../backend/Dashboard";
+import { hordeClasses } from "../../styles/Styles";
 
 const PreflightConfigPanel: React.FC = () => {
 
