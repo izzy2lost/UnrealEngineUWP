@@ -80,6 +80,10 @@ typedef FMacPlatformTypes FPlatformTypes;
 
 #define PLATFORM_GLOBAL_LOG_CATEGORY					LogMac
 
+#if WITH_EDITOR
+#define PLATFORM_FILE_READER_BUFFER_SIZE				(256*1024)
+#endif
+
 #if PLATFORM_MAC_X86
 	#define PLATFORM_BREAK()							__asm__("int $3")
 #else

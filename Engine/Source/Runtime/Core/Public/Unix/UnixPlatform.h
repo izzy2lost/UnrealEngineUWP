@@ -71,6 +71,10 @@ typedef FUnixPlatformTypes FPlatformTypes;
 
 #define PLATFORM_RETURN_ADDRESS_FOR_CALLSTACKTRACING	PLATFORM_RETURN_ADDRESS
 
+#if WITH_EDITOR
+#define PLATFORM_FILE_READER_BUFFER_SIZE				(256*1024)
+#endif
+
 #if PLATFORM_CPU_X86_FAMILY
 	#define PLATFORM_BREAK()							__asm__ volatile("int $0x03")
 #else
