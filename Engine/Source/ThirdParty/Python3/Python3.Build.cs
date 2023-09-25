@@ -3,14 +3,10 @@ using System;
 using System.IO;
 using System.Diagnostics;
 using System.Collections.Generic;
-using System.Threading;
 using UnrealBuildTool;
-using EpicGames.Core;
-using Microsoft.Extensions.Logging;
 
 public class Python3 : ModuleRules
 {
-	private static Mutex WriteMutex = new Mutex(false);
 	public Python3(ReadOnlyTargetRules Target) : base(Target)
 	{
 		Type = ModuleType.External;
@@ -73,20 +69,14 @@ public class Python3 : ModuleRules
 			{
 				// Strip the Engine directory and then combine the path with the placeholder to ensure the path is delimited correctly
 				EngineRelativePythonRoot = EngineRelativePythonRoot.Remove(0, EngineDir.Length);
-				foreach (string FileName in Directory.EnumerateFiles(PythonSDK.PythonRoot, "*", SearchOption.AllDirectories))
+				foreach(string FileName in Directory.EnumerateFiles(PythonSDK.PythonRoot, "*", SearchOption.AllDirectories))
 				{
-					if (!FileName.EndsWith(".pyc", System.StringComparison.OrdinalIgnoreCase))
+					if(!FileName.EndsWith(".pyc", System.StringComparison.OrdinalIgnoreCase))
 					{
 						RuntimeDependencies.Add(FileName);
 					}
 				}
 				EngineRelativePythonRoot = Path.Combine("{ENGINE_DIR}", EngineRelativePythonRoot); // Can't use $(EngineDir) as the placeholder here as UBT is eating it
-
-				WritePythonSDKRoot(Target, EngineRelativePythonRoot);
-			}
-			else
-			{
-				WritePythonSDKRoot(Target, PythonSDK.PythonRoot);
 			}
 
 			PublicDefinitions.Add("WITH_PYTHON=1");
@@ -176,39 +166,6 @@ public class Python3 : ModuleRules
 		}
 		
 		return PotentialSDKs;
-	}
-
-	
-	/// <summary>
-	/// Writes The file PythonSDKRoot.txt to {EngineDir}/Binaries/ThirdParty/Python3/{PlatformName} and adds this file to runtime dependencies.
-	/// The file is used by Pip Install UBT mode to identify the Python SDK that Engine was built against.
-	/// </summary>
-	/// <param name="Target">Target information</param>
-	/// <param name="PythonRoot">The Python SDK root the engine will be built against</param>
-	private void WritePythonSDKRoot(ReadOnlyTargetRules Target, string PythonRoot)
-	{
-		string EngineDir = Path.GetFullPath(Target.RelativeEnginePath);
-
-		// Store the SDKRoot file with the Python SDK shipped with the Engine
-		string PythonSDKFilePath = "Binaries/ThirdParty/Python3/" + Target.Platform.ToString() + "/PythonSDKRoot.txt";
-
-		// Avoid trying to write from multiple threads (short timeout is fine as this only needs to be upated once per-build)
-		if ( WriteMutex.WaitOne(10) )
-		{
-			try
-			{
-				File.WriteAllText(Path.Combine(EngineDir, PythonSDKFilePath), PythonRoot);
-			}
-			finally
-			{
-				WriteMutex.ReleaseMutex();
-			}
-		}
-
-		if ( File.Exists(Path.Combine(EngineDir, PythonSDKFilePath)) )
-		{
-			RuntimeDependencies.Add("$(EngineDir)/" + PythonSDKFilePath, StagedFileType.NonUFS);
-		}
 	}
 	
 	private void AppendPythonRuntimeDependencies(ReadOnlyTargetRules Target, bool IsEnginePython)
