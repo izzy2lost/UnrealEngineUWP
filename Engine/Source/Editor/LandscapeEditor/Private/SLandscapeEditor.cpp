@@ -27,6 +27,7 @@ void SLandscapeAssetThumbnail::Construct(const FArguments& InArgs, UObject* Asse
 	FIntPoint ThumbnailSize = InArgs._ThumbnailSize;
 
 	AssetThumbnail = MakeShareable(new FAssetThumbnail(Asset, ThumbnailSize.X, ThumbnailSize.Y, ThumbnailPool));
+	OnAccessAsset = InArgs._OnAccessAsset;
 
 	ChildSlot
 	[
@@ -66,6 +67,21 @@ void SLandscapeAssetThumbnail::OnMaterialCompilationFinished(UMaterialInterface*
 void SLandscapeAssetThumbnail::SetAsset(UObject* Asset)
 {
 	AssetThumbnail->SetAsset(Asset);
+}
+
+FReply SLandscapeAssetThumbnail::OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
+{
+	if (InMyGeometry.IsUnderLocation(InMouseEvent.GetScreenSpacePosition()))
+	{
+		if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && OnAccessAsset.IsBound())
+		{
+			if (OnAccessAsset.Execute(AssetThumbnail->GetAsset()))
+			{
+				return FReply::Handled();
+			}
+		}
+	}
+	return FReply::Unhandled();
 }
 
 //////////////////////////////////////////////////////////////////////////

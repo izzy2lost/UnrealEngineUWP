@@ -5302,7 +5302,7 @@ ULandscapeLayerInfoObject::ULandscapeLayerInfoObject(const FObjectInitializer& O
 	, IsReferencedFromLoadedData(false)
 #endif // WITH_EDITORONLY_DATA
 {
-	Hardness = 0.5f;
+	Hardness = 0.0f;
 #if WITH_EDITORONLY_DATA
 	MinimumCollisionRelevanceWeight = 0.0f;
 	bNoWeightBlend = false;
@@ -5332,7 +5332,6 @@ FLinearColor ULandscapeLayerInfoObject::GenerateLayerUsageDebugColor() const
 #if WITH_EDITOR
 void ULandscapeLayerInfoObject::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	static const FName NAME_Hardness = GET_MEMBER_NAME_CHECKED(ULandscapeLayerInfoObject, Hardness);
 	static const FName NAME_PhysMaterial = GET_MEMBER_NAME_CHECKED(ULandscapeLayerInfoObject, PhysMaterial);
 	static const FName NAME_LayerUsageDebugColor = GET_MEMBER_NAME_CHECKED(ULandscapeLayerInfoObject, LayerUsageDebugColor);
 	static const FName NAME_MinimumCollisionRelevanceWeight = GET_MEMBER_NAME_CHECKED(ULandscapeLayerInfoObject, MinimumCollisionRelevanceWeight);
@@ -5347,11 +5346,7 @@ void ULandscapeLayerInfoObject::PostEditChangeProperty(FPropertyChangedEvent& Pr
 
 	if (GIsEditor)
 	{
-		if (PropertyName == NAME_Hardness)
-		{
-			Hardness = FMath::Clamp<float>(Hardness, 0.0f, 1.0f);
-		}
-		else if (PropertyName == NAME_PhysMaterial || PropertyName == NAME_MinimumCollisionRelevanceWeight)
+		if (PropertyName == NAME_PhysMaterial || PropertyName == NAME_MinimumCollisionRelevanceWeight)
 		{
 			for (TObjectIterator<ALandscapeProxy> It; It; ++It)
 			{
