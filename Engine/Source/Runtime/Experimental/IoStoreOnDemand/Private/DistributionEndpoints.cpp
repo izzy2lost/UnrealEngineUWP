@@ -193,7 +193,7 @@ void FDistributionEndpoints::CompleteEndpointRequest(FResolveRequest& ResolveReq
 	using FJsonReaderPtr = TSharedRef<FJsonReader>;
 
 	TArray<FString> ServiceUrls;
-	if (HttpResponse->GetResponseCode() == 200)
+	if (HttpResponse != nullptr && HttpResponse->GetResponseCode() == 200)
 	{
 		FString Json = HttpResponse->GetContentAsString();
 		FJsonReaderPtr JsonReader = TJsonReaderFactory<TCHAR>::Create(Json);
