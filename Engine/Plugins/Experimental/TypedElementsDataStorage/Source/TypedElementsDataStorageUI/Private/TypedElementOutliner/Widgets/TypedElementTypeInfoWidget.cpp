@@ -127,7 +127,7 @@ const FSlateBrush* FTypedElementTypeInfoWidgetConstructor::GetIconForRow(ITypedE
 	 */
 	
 	const UClass* Type = TypeInfoColumn->TypeInfo.Get();
-	FName IconName = Type->GetFName();
+	FName IconName;
 
 	// Allow the actor the first chance to provide an icon override
 	FMassActorFragment* ActorStore = DataStorage->GetColumn<FMassActorFragment>(Row);
@@ -137,6 +137,11 @@ const FSlateBrush* FTypedElementTypeInfoWidgetConstructor::GetIconForRow(ITypedE
 		{
 			IconName = Actor->GetCustomIconName();
 		}
+	}
+
+	if(IconName == NAME_None)
+	{
+		IconName = Type->GetFName();
 	}
 
 	// Check the cache if we already found an icon for this class
