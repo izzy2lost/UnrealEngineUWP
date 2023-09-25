@@ -25,6 +25,7 @@
 #include "TextureResource.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Input/SSlider.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "WorldBrowserModule.h"
@@ -283,7 +284,9 @@ void SWorldPartitionEditorGrid2D::FEditorCommands::RegisterCommands()
 
 void SWorldPartitionEditorGrid2D::SToolBar::Construct(const FArguments& InArgs)
 {
-	CommandList = InArgs._CommandList;
+	WPEditorGrid2D = InArgs._WPEditorGrid2D;
+	check(WPEditorGrid2D);
+	CommandList = WPEditorGrid2D->CommandList;
 
 	auto MakeQuickActionsToolBarWidget = [this]()
 	{
@@ -383,17 +386,38 @@ EVisibility SWorldPartitionEditorGrid2D::SToolBar::IsOptionsMenuVisible() const
 	return EVisibility::Visible;
 }
 
+TSharedRef<SWidget> SWorldPartitionEditorGrid2D::SToolBar::GenerateUnloadedOpacitySlider() const
+{	
+	const float OpacityMinValue = 0.5f;
+	const float OpacityMaxValue = 0.8f;
+
+	return
+		SNew(SSlider)
+		.ToolTipText(LOCTEXT("MinimapUnloadedOpactiyToolTip", "Adjust the opacity of the unloaded regions of the minimap."))
+		.MinValue(OpacityMinValue)
+		.MaxValue(OpacityMaxValue)
+		.Value(WPEditorGrid2D, &SWorldPartitionEditorGrid2D::GetMiniMapUnloadedOpacity)
+		.OnValueChanged(WPEditorGrid2D, &SWorldPartitionEditorGrid2D::SetMiniMapUnloadedOpacity)
+		.OnMouseCaptureEnd(WPEditorGrid2D, &SWorldPartitionEditorGrid2D::SaveMiniMapUnloadedOpacityUserSetting)
+		.IsEnabled(WPEditorGrid2D, &SWorldPartitionEditorGrid2D::IsMiniMapUnloadedOpacityEnabled);
+}
+
 TSharedRef<SWidget> SWorldPartitionEditorGrid2D::SToolBar::GenerateOptionsMenu() const
 {
 	static const FName MenuName(TEXT("WorldPartition.OptionsMenu"));
-	static const FName SectionName(TEXT("Options"));
 
 	const FEditorCommands& Commands = FEditorCommands::Get();
-	UToolMenu* ShowMenu = UToolMenus::Get()->RegisterMenu(MenuName);
+	UToolMenu* OptionsMenu = UToolMenus::Get()->RegisterMenu(MenuName);
 
-	FToolMenuSection& Section = ShowMenu->FindOrAddSection(SectionName);
-	Section.AddMenuEntry(Commands.FollowPlayerInPIE);
-	Section.AddMenuEntry(Commands.BugItGoLoadRegion);
+	static const FName SectionGeneralName(TEXT("Options.General"));
+	FToolMenuSection& SectionGeneral = OptionsMenu->FindOrAddSection(SectionGeneralName);
+	SectionGeneral.AddMenuEntry(Commands.FollowPlayerInPIE);
+	SectionGeneral.AddMenuEntry(Commands.BugItGoLoadRegion);
+
+	static const FName SectionMinimapName(TEXT("Options.Minimap"));
+	FToolMenuSection& SectionMinimap = OptionsMenu->AddSection(SectionMinimapName, LOCTEXT("WorldPartitionOptionsMenuMinimap", "Minimap"));
+	static const FName SliderUnloadedOpacityName(TEXT("UnloadedOpacity"));
+	SectionMinimap.AddEntry(FToolMenuEntry::InitWidget(SliderUnloadedOpacityName, GenerateUnloadedOpacitySlider(), LOCTEXT("UnloadedOpacity", "Unloaded Opacity"), true));	
 
 	return UToolMenus::Get()->GenerateWidget(MenuName, FToolMenuContext(CommandList));
 }
@@ -455,6 +479,8 @@ SWorldPartitionEditorGrid2D::SWorldPartitionEditorGrid2D()
 	
 	FWorldBrowserModule& WorldBrowserModule = FModuleManager::LoadModuleChecked<FWorldBrowserModule>("WorldBrowser");
 	WorldBrowserModule.OnShutdown().AddLambda([](){ FEditorCommands::Unregister(); });
+
+	MiniMapUnloadedOpacity = GetMutableDefault<UWorldPartitionEditorPerProjectUserSettings>()->GetMinimapUnloadedOpacity();
 }
 
 SWorldPartitionEditorGrid2D::~SWorldPartitionEditorGrid2D()
@@ -490,7 +516,7 @@ void SWorldPartitionEditorGrid2D::Construct(const FArguments& InArgs)
 		.Padding(ToolbarSlotPadding)
 		[
 			SNew(SToolBar)
-			.CommandList(CommandList)
+			.WPEditorGrid2D(this)
 		]
 
 		// Bottom section
@@ -617,6 +643,37 @@ void SWorldPartitionEditorGrid2D::BindCommands()
 	CommandList->MapAction(Commands.FocusSelection, FExecuteAction::CreateSP(this, &SWorldPartitionEditorGrid2D::FocusSelection), FCanExecuteAction::CreateLambda(CanFocusSelection));
 	CommandList->MapAction(Commands.FocusLoadedRegions, FExecuteAction::CreateSP(this, &SWorldPartitionEditorGrid2D::FocusLoadedRegions), FCanExecuteAction::CreateLambda([this]() { return IsInteractive() && GetWorldPartition() && GetWorldPartition()->HasLoadedUserCreatedRegions(); }), FIsActionChecked(), FIsActionButtonVisible::CreateLambda([this]() { return GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor; }));
 	CommandList->MapAction(Commands.FocusWorld, FExecuteAction::CreateSP(this, &SWorldPartitionEditorGrid2D::FocusWorld), FCanExecuteAction::CreateLambda([this]() { return IsInteractive(); }));
+}
+
+void SWorldPartitionEditorGrid2D::SaveMiniMapUnloadedOpacityUserSetting()
+{
+	GetMutableDefault<UWorldPartitionEditorPerProjectUserSettings>()->SetMinimapUnloadedOpacity(MiniMapUnloadedOpacity);
+}
+
+bool SWorldPartitionEditorGrid2D::IsMiniMapUnloadedOpacityEnabled() const
+{
+	if (!bShowMiniMap)
+	{
+		return false;
+	}
+
+	if (!GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor)
+	{
+		return false;
+	}
+
+	if (!GetWorldPartition()->IsStreamingEnabled())
+	{
+		return false;
+	}
+
+	UTexture2D* Texture2D = Cast<UTexture2D>(WorldMiniMapBrush.GetResourceObject());
+	if (Texture2D == nullptr)
+	{
+		return false;
+	}
+
+	return true;
 }
 
 void SWorldPartitionEditorGrid2D::UpdateWorldMiniMapDetails()
@@ -1937,7 +1994,7 @@ int32 SWorldPartitionEditorGrid2D::PaintMinimap(const FGeometry& AllottedGeometr
 				);
 
 				const FSlateColorBrush ShadowdBrush(USlateThemeManager::Get().GetColor(EStyleColor::AccentGray));
-				const FLinearColor ShadowColor = USlateThemeManager::Get().GetColor(EStyleColor::Black).CopyWithNewOpacity(0.75f);
+				const FLinearColor ShadowColor = USlateThemeManager::Get().GetColor(EStyleColor::Black).CopyWithNewOpacity(MiniMapUnloadedOpacity);
 
 				FSlateDrawElement::MakeBox(
 					OutDrawElements,

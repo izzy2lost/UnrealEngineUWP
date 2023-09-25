@@ -60,6 +60,7 @@ public:
 		, bHighlightSelectedDataLayers(true)
 		, bHideLevelInstanceContent(true)
 		, bDisableLoadingOfLastLoadedRegions(false)
+		, MinimapUnloadedOpacity(0.66f)
 #endif
 	{}
 
@@ -99,6 +100,20 @@ public:
 		if (bShowCellCoords != bInShowCellCoords)
 		{
 			bShowCellCoords = bInShowCellCoords;
+			SaveConfig();
+		}
+	}
+
+	float GetMinimapUnloadedOpacity() const
+	{
+		return MinimapUnloadedOpacity;
+	}
+
+	void SetMinimapUnloadedOpacity(float InMinimapUnloadedOpacity)
+	{
+		if (MinimapUnloadedOpacity != InMinimapUnloadedOpacity)
+		{
+			MinimapUnloadedOpacity = InMinimapUnloadedOpacity;
 			SaveConfig();
 		}
 	}
@@ -155,6 +170,9 @@ private:
 
 	UPROPERTY(config)
 	uint32 bShowCellCoords : 1;
+
+	UPROPERTY(config)
+	float MinimapUnloadedOpacity;
 
 	UPROPERTY(config)
 	TMap<TSoftObjectPtr<UWorld>, FWorldPartitionPerWorldSettings> PerWorldEditorSettings;

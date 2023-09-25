@@ -59,21 +59,24 @@ protected:
 	// In-viewport toolbar widget used in the world partition editor
 	class SToolBar : public SViewportToolBar
 	{
-		public:
-			SLATE_BEGIN_ARGS(SToolBar) {}
-				SLATE_ARGUMENT(TSharedPtr<FUICommandList>, CommandList)
-			SLATE_END_ARGS()
+	public:
+		SLATE_BEGIN_ARGS(SToolBar) {}
+			SLATE_ARGUMENT(SWorldPartitionEditorGrid2D*, WPEditorGrid2D)
+		SLATE_END_ARGS()
 
-			void Construct(const FArguments& InArgs);
+		void Construct(const FArguments& InArgs);
 
 	private:
 		EVisibility IsOptionsMenuVisible() const;
 		
+		TSharedRef<SWidget> GenerateUnloadedOpacitySlider() const;
+
 		TSharedRef<SWidget> GenerateOptionsMenu() const;
 		TSharedRef<SWidget> GenerateShowMenu() const;
 		TSharedRef<SWidget> GenerateBuildMenu() const;
 		
 		TSharedPtr<FUICommandList> CommandList;
+		SWorldPartitionEditorGrid2D* WPEditorGrid2D;
 	};
 
 
@@ -207,6 +210,11 @@ protected:
 
 	// Minimap
 	void UpdateWorldMiniMapDetails();
+	void SaveMiniMapUnloadedOpacityUserSetting();
+	bool IsMiniMapUnloadedOpacityEnabled() const;
+	float GetMiniMapUnloadedOpacity() const { return MiniMapUnloadedOpacity; };
+	void SetMiniMapUnloadedOpacity(float InOpacity) { MiniMapUnloadedOpacity = InOpacity; };
+	float MiniMapUnloadedOpacity;
 	FBox2D WorldMiniMapBounds;
 	FSlateBrush WorldMiniMapBrush;
 
