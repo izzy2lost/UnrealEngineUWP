@@ -57,36 +57,40 @@
 #if USE_USD_SDK
 
 #include "USDIncludesStart.h"
-
-#include "pxr/usd/sdf/changeBlock.h"
-#include "pxr/usd/usd/attribute.h"
-#include "pxr/usd/usd/prim.h"
-#include "pxr/usd/usd/stage.h"
-#include "pxr/usd/usd/timeCode.h"
-#include "pxr/usd/usdGeom/camera.h"
-#include "pxr/usd/usdGeom/imageable.h"
-#include "pxr/usd/usdGeom/mesh.h"
-#include "pxr/usd/usdGeom/pointInstancer.h"
-#include "pxr/usd/usdGeom/scope.h"
-#include "pxr/usd/usdGeom/tokens.h"
-#include "pxr/usd/usdGeom/xform.h"
-#include "pxr/usd/usdGeom/xformable.h"
-#include "pxr/usd/usdGeom/xformCommonAPI.h"
-#include "pxr/usd/usdLux/diskLight.h"
-#include "pxr/usd/usdLux/distantLight.h"
-#include "pxr/usd/usdLux/lightAPI.h"
-#include "pxr/usd/usdLux/rectLight.h"
-#include "pxr/usd/usdLux/shapingAPI.h"
-#include "pxr/usd/usdLux/sphereLight.h"
-#include "pxr/usd/usdLux/tokens.h"
-#include "pxr/usd/usdShade/connectableAPI.h"
-#include "pxr/usd/usdShade/material.h"
-#include "pxr/usd/usdShade/materialBindingAPI.h"
-#include "pxr/usd/usdShade/shader.h"
-#include "pxr/usd/usdShade/tokens.h"
-#include "pxr/usd/usdSkel/animation.h"
-#include "pxr/usd/usdSkel/root.h"
-
+	#include "pxr/usd/sdf/changeBlock.h"
+	#include "pxr/usd/usd/attribute.h"
+	#include "pxr/usd/usd/prim.h"
+	#include "pxr/usd/usd/stage.h"
+	#include "pxr/usd/usd/timeCode.h"
+	#include "pxr/usd/usdGeom/camera.h"
+	#include "pxr/usd/usdGeom/capsule.h"
+	#include "pxr/usd/usdGeom/cone.h"
+	#include "pxr/usd/usdGeom/cube.h"
+	#include "pxr/usd/usdGeom/cylinder.h"
+	#include "pxr/usd/usdGeom/imageable.h"
+	#include "pxr/usd/usdGeom/mesh.h"
+	#include "pxr/usd/usdGeom/plane.h"
+	#include "pxr/usd/usdGeom/pointInstancer.h"
+	#include "pxr/usd/usdGeom/scope.h"
+	#include "pxr/usd/usdGeom/sphere.h"
+	#include "pxr/usd/usdGeom/tokens.h"
+	#include "pxr/usd/usdGeom/xform.h"
+	#include "pxr/usd/usdGeom/xformable.h"
+	#include "pxr/usd/usdGeom/xformCommonAPI.h"
+	#include "pxr/usd/usdLux/diskLight.h"
+	#include "pxr/usd/usdLux/distantLight.h"
+	#include "pxr/usd/usdLux/lightAPI.h"
+	#include "pxr/usd/usdLux/rectLight.h"
+	#include "pxr/usd/usdLux/shapingAPI.h"
+	#include "pxr/usd/usdLux/sphereLight.h"
+	#include "pxr/usd/usdLux/tokens.h"
+	#include "pxr/usd/usdShade/connectableAPI.h"
+	#include "pxr/usd/usdShade/material.h"
+	#include "pxr/usd/usdShade/materialBindingAPI.h"
+	#include "pxr/usd/usdShade/shader.h"
+	#include "pxr/usd/usdShade/tokens.h"
+	#include "pxr/usd/usdSkel/animation.h"
+	#include "pxr/usd/usdSkel/root.h"
 #include "USDIncludesEnd.h"
 
 namespace UE
@@ -336,6 +340,11 @@ bool UsdToUnreal::ConvertXformable( const pxr::UsdStageRefPtr& Stage, const pxr:
 
 	FScopedUsdAllocs UsdAllocs;
 
+	OutTransform = FTransform::Identity;
+
+	// If we're a primitive try extracting its transform as well, given that we'll always reuse the default, 1.0 size procedural meshes
+	UsdToUnreal::ConvertGeomPrimitiveTransform(Xformable.GetPrim(), EvalTime, OutTransform);
+
 	// Transform
 	pxr::GfMatrix4d UsdMatrix;
 	bool bResetXformStack = false;
@@ -343,7 +352,7 @@ bool UsdToUnreal::ConvertXformable( const pxr::UsdStageRefPtr& Stage, const pxr:
 	Xformable.GetLocalTransformation( &UsdMatrix, bResetXformStackPtr, EvalTime );
 
 	FUsdStageInfo StageInfo( Stage );
-	OutTransform = UsdToUnreal::ConvertMatrix( StageInfo, UsdMatrix );
+	OutTransform = OutTransform * UsdToUnreal::ConvertMatrix( StageInfo, UsdMatrix );
 
 	const bool bPrimIsLight = Xformable.GetPrim().HasAPI< pxr::UsdLuxLightAPI >();
 
@@ -3788,15 +3797,52 @@ TArray<UE::FUsdAttribute> UnrealToUsd::GetAttributesForProperty( const UE::FUsdP
 	// Common attributes
 	if ( PropertyPath == TransformPropertyName )
 	{
-		if ( pxr::UsdAttribute Attr = UsdPrim.GetAttribute( UnrealToUsd::ConvertToken( TEXT( "xformOp:transform" ) ).Get() ) )
+		TArray<UE::FUsdAttribute> Attrs;
+
+		if (pxr::UsdGeomXformable Xformable{UsdPrim})
 		{
-			return { UE::FUsdAttribute{ Attr } };
+			Attrs.Emplace(Xformable.GetXformOpOrderAttr());
+
+			bool bResetsXformStack = false;
+			std::vector<pxr::UsdGeomXformOp> Ops = Xformable.GetOrderedXformOps(&bResetsXformStack);
+			for (const pxr::UsdGeomXformOp& Op : Ops)
+			{
+				Attrs.Emplace(Op.GetAttr());
+			}
 		}
 
-		if ( pxr::UsdGeomXformable Xformable{ UsdPrim } )
+		// This function returns all attributes that can affect a property. For the Gprim primitives and the Transform property
+		// this will include their heights, widths, etc. too, as we also handle those with just the component transform.
+		if (pxr::UsdGeomCapsule Capsule{UsdPrim})
 		{
-			return { UE::FUsdAttribute{ Xformable.GetXformOpOrderAttr() } };
+			Attrs.Emplace(Capsule.GetHeightAttr());
+			Attrs.Emplace(Capsule.GetRadiusAttr());
 		}
+		else if (pxr::UsdGeomCone Cone{UsdPrim})
+		{
+			Attrs.Emplace(Cone.GetHeightAttr());
+			Attrs.Emplace(Cone.GetRadiusAttr());
+		}
+		else if (pxr::UsdGeomCube Cube{UsdPrim})
+		{
+			Attrs.Emplace(Cube.GetSizeAttr());
+		}
+		else if (pxr::UsdGeomCylinder Cylinder{UsdPrim})
+		{
+			Attrs.Emplace(Cylinder.GetHeightAttr());
+			Attrs.Emplace(Cylinder.GetRadiusAttr());
+		}
+		else if (pxr::UsdGeomPlane Plane{UsdPrim})
+		{
+			Attrs.Emplace(Plane.GetLengthAttr());
+			Attrs.Emplace(Plane.GetWidthAttr());
+		}
+		else if (pxr::UsdGeomSphere Sphere{UsdPrim})
+		{
+			Attrs.Emplace(Sphere.GetRadiusAttr());
+		}
+
+		return Attrs;
 	}
 	if ( PropertyPath == HiddenInGamePropertyName )
 	{

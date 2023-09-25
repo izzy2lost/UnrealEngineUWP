@@ -385,17 +385,9 @@ namespace UE::USDInfoCacheImpl::Private
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE( UE::USDInfoCacheImpl::Private::GetPrimVertexCountAndSlots );
 
-		if ( UsdPrim.IsA<pxr::UsdGeomMesh>() || UsdPrim.IsA<pxr::UsdGeomSubset>() )
+		if (UsdPrim.IsA<pxr::UsdGeomGprim>() || UsdPrim.IsA<pxr::UsdGeomSubset>())
 		{
-			if ( pxr::UsdGeomMesh Mesh{ UsdPrim } )
-			{
-				if ( pxr::UsdAttribute Points = Mesh.GetPointsAttr() )
-				{
-					pxr::VtArray< pxr::GfVec3f > PointsArray;
-					Points.Get( &PointsArray, pxr::UsdTimeCode( Context.Time ) );
-					OutVertexCount = PointsArray.size();
-				}
-			}
+			OutVertexCount = UsdUtils::GetGprimVertexCount(pxr::UsdGeomGprim{UsdPrim}, Context.Time);
 
 			pxr::TfToken RenderContextToken = pxr::UsdShadeTokens->universalRenderContext;
 			if ( !Context.RenderContext.IsNone() )

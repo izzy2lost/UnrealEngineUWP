@@ -316,7 +316,7 @@ namespace UsdGeomMeshTranslatorImpl
 			(const pxr::UsdGeomMesh& LODMesh, int32 LODIndex)
 			{
 				TArray<TUsdStore<pxr::UsdGeomPrimvar>> MeshPrimvars = UsdUtils::GetUVSetPrimvars(
-					LODMesh,
+					LODMesh.GetPrim(),
 					TNumericLimits<int32>::Max()
 				);
 

@@ -489,8 +489,8 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx( TOptional< TSu
 					// We can't just check if there's a static mesh for this prim on the cache, because the prims with meshes could be potentially invisible (and so
 					// we don't have parsed their meshes yet), so here we traverse our child hierarchy and if we have any chance of ever generating a Mesh, we go
 					// for a static mesh component
-					TArray< UE::FUsdPrim > ChildMeshPrims = UsdUtils::GetAllPrimsOfType( Prim, TEXT( "UsdGeomMesh" ) );
-					if ( ChildMeshPrims.Num() > 0 )
+					TArray< UE::FUsdPrim > ChildGprims = UsdUtils::GetAllPrimsOfType( Prim, TEXT( "UsdGeomGprim" ) );
+					if ( ChildGprims.Num() > 0 )
 					{
 						ComponentType = UStaticMeshComponent::StaticClass();
 					}

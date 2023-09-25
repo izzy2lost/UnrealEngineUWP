@@ -18,6 +18,7 @@
 #include "USDGeomPointInstancerTranslator.h"
 #include "USDGeomXformableTranslator.h"
 #include "USDGroomTranslator.h"
+#include "USDGeomPrimitiveTranslator.h"
 #include "USDLuxLightTranslator.h"
 #include "USDMemory.h"
 #include "USDShadeMaterialTranslator.h"
@@ -34,32 +35,45 @@ public:
 #if USE_USD_SDK
 		LLM_SCOPE_BYTAG(Usd);
 
+		FUsdSchemaTranslatorRegistry& Registry = GetTranslatorRegistry();
+		FUsdRenderContextRegistry& ShaderRegistry = GetRenderContextRegistry();
+
 		// Register the default translators
-		UsdGeomCameraTranslatorHandle = GetTranslatorRegistry().Register< FUsdGeomCameraTranslator >( TEXT("UsdGeomCamera") );
-		UsdGeomMeshTranslatorHandle = GetTranslatorRegistry().Register< FUsdGeomMeshTranslator >( TEXT("UsdGeomMesh") );
-		UsdGeomPointInstancerTranslatorHandle = GetTranslatorRegistry().Register< FUsdGeomPointInstancerTranslator >( TEXT("UsdGeomPointInstancer") );
-		UsdGeomXformableTranslatorHandle = GetTranslatorRegistry().Register< FUsdGeomXformableTranslator >( TEXT("UsdGeomXformable") );
-		UsdShadeMaterialTranslatorHandle = GetTranslatorRegistry().Register< FUsdShadeMaterialTranslator >( TEXT("UsdShadeMaterial") );
-		UsdLuxBoundableLightBaseTranslatorHandle = GetTranslatorRegistry().Register< FUsdLuxLightTranslator >( TEXT("UsdLuxBoundableLightBase") );
-		UsdLuxNonboundableLightBaseTranslatorHandle = GetTranslatorRegistry().Register< FUsdLuxLightTranslator >( TEXT("UsdLuxNonboundableLightBase") );
+		TranslatorHandles = {
+			Registry.Register<FUsdGeomCameraTranslator>(TEXT("UsdGeomCamera")),
+			Registry.Register<FUsdGeomMeshTranslator>(TEXT("UsdGeomMesh")),
+			Registry.Register<FUsdGeomPrimitiveTranslator>(TEXT("UsdGeomCapsule")),
+			Registry.Register<FUsdGeomPrimitiveTranslator>(TEXT("UsdGeomCone")),
+			Registry.Register<FUsdGeomPrimitiveTranslator>(TEXT("UsdGeomCube")),
+			Registry.Register<FUsdGeomPrimitiveTranslator>(TEXT("UsdGeomCylinder")),
+			Registry.Register<FUsdGeomPrimitiveTranslator>(TEXT("UsdGeomPlane")),
+			Registry.Register<FUsdGeomPrimitiveTranslator>(TEXT("UsdGeomSphere")),
+			Registry.Register<FUsdGeomPointInstancerTranslator>(TEXT("UsdGeomPointInstancer")),
+			Registry.Register<FUsdGeomXformableTranslator>(TEXT("UsdGeomXformable")),
+			Registry.Register<FUsdShadeMaterialTranslator>(TEXT("UsdShadeMaterial")),
+			Registry.Register<FUsdLuxLightTranslator>(TEXT("UsdLuxBoundableLightBase")),
+			Registry.Register<FUsdLuxLightTranslator>(TEXT("UsdLuxNonboundableLightBase"))};
 
 #if WITH_EDITOR
-		GetRenderContextRegistry().Register(FMaterialXUsdShadeMaterialTranslator::MaterialXRenderContext);
-		MaterialXUsdShadeMaterialTranslatorHandle = GetTranslatorRegistry().Register<FMaterialXUsdShadeMaterialTranslator>(TEXT("UsdShadeMaterial"));
+		ShaderRegistry.Register(FMaterialXUsdShadeMaterialTranslator::MaterialXRenderContext);
+		TranslatorHandles.Add(Registry.Register<FMaterialXUsdShadeMaterialTranslator>(TEXT("UsdShadeMaterial")));
 
 		// Creating skeletal meshes technically works in Standalone mode, but by checking for this we artificially block it
-		// to not confuse users as to why it doesn't work at runtime. Not registering the actual translators lets the inner meshes get parsed as static meshes, at least.
-		if ( GIsEditor )
+		// to not confuse users as to why it doesn't work at runtime. Not registering the actual translators lets the inner meshes get parsed as
+		// static meshes, at least.
+		if (GIsEditor)
 		{
-			UsdSkelRootTranslatorHandle = GetTranslatorRegistry().Register< FUsdSkelRootTranslator >( TEXT("UsdSkelRoot") );
-			UsdGroomTranslatorHandle = GetTranslatorRegistry().Register< FUsdGroomTranslator >( TEXT("UsdGeomXformable") );
-			// The GeometryCacheTranslator also works on UsdGeomXformable through the GroomTranslator
-			UsdGeometryCacheTranslatorHandle = GetTranslatorRegistry().Register< FUsdGeometryCacheTranslator >( TEXT("UsdGeomMesh") );
+			TranslatorHandles.Append({
+				Registry.Register<FUsdSkelRootTranslator>(TEXT("UsdSkelRoot")),
+				Registry.Register<FUsdGroomTranslator>(TEXT("UsdGeomXformable")),
+				// The GeometryCacheTranslator also works on UsdGeomXformable through the GroomTranslator
+				Registry.Register<FUsdGeometryCacheTranslator>(TEXT("UsdGeomMesh")),
+			});
 
-			if ( IMDLImporterModule* MDLImporterModule = FModuleManager::Get().LoadModulePtr< IMDLImporterModule >( TEXT("MDLImporter") ) )
+			if (IMDLImporterModule* MDLImporterModule = FModuleManager::Get().LoadModulePtr<IMDLImporterModule>(TEXT("MDLImporter")))
 			{
-				GetRenderContextRegistry().Register(FMdlUsdShadeMaterialTranslator::MdlRenderContext);
-				MdlUsdShadeMaterialTranslatorHandle = GetTranslatorRegistry().Register< FMdlUsdShadeMaterialTranslator >( TEXT("UsdShadeMaterial") );
+				ShaderRegistry.Register(FMdlUsdShadeMaterialTranslator::MdlRenderContext);
+				TranslatorHandles.Add(Registry.Register<FMdlUsdShadeMaterialTranslator>(TEXT("UsdShadeMaterial")));
 			}
 		}
 #endif // WITH_EDITOR
@@ -69,31 +83,18 @@ public:
 
 	virtual void ShutdownModule() override
 	{
-#if USE_USD_SDK
-		GetTranslatorRegistry().Unregister( UsdGeomCameraTranslatorHandle );
-		GetTranslatorRegistry().Unregister( UsdGeomMeshTranslatorHandle );
-		GetTranslatorRegistry().Unregister( UsdGeomPointInstancerTranslatorHandle );
+		FUsdSchemaTranslatorRegistry& Registry = GetTranslatorRegistry();
+		FUsdRenderContextRegistry& ShaderRegistry = GetRenderContextRegistry();
 
-#if WITH_EDITOR
-		if ( GIsEditor )
+		for (const FRegisteredSchemaTranslatorHandle& TranslatorHandle : TranslatorHandles)
 		{
-			GetTranslatorRegistry().Unregister( UsdSkelRootTranslatorHandle );
-			GetTranslatorRegistry().Unregister( UsdGroomTranslatorHandle );
-			GetTranslatorRegistry().Unregister( UsdGeometryCacheTranslatorHandle );
-
-			GetTranslatorRegistry().Unregister( MdlUsdShadeMaterialTranslatorHandle );
-			GetRenderContextRegistry().Unregister(FMdlUsdShadeMaterialTranslator::MdlRenderContext);
+			Registry.Unregister(TranslatorHandle);
 		}
 
-		GetTranslatorRegistry().Unregister(MaterialXUsdShadeMaterialTranslatorHandle);
-		GetRenderContextRegistry().Unregister(FMaterialXUsdShadeMaterialTranslator::MaterialXRenderContext);
+#if USE_USD_SDK && WITH_EDITOR
+		ShaderRegistry.Unregister(FMdlUsdShadeMaterialTranslator::MdlRenderContext);
+		ShaderRegistry.Unregister(FMaterialXUsdShadeMaterialTranslator::MaterialXRenderContext);
 #endif // WITH_EDITOR
-
-		GetTranslatorRegistry().Unregister( UsdGeomXformableTranslatorHandle );
-		GetTranslatorRegistry().Unregister( UsdShadeMaterialTranslatorHandle );
-		GetTranslatorRegistry().Unregister( UsdLuxBoundableLightBaseTranslatorHandle );
-		GetTranslatorRegistry().Unregister( UsdLuxNonboundableLightBaseTranslatorHandle );
-#endif // #if USE_USD_SDK
 	}
 
 	virtual FUsdSchemaTranslatorRegistry& GetTranslatorRegistry() override
@@ -110,20 +111,7 @@ protected:
 	FUsdSchemaTranslatorRegistry UsdSchemaTranslatorRegistry;
 	FUsdRenderContextRegistry UsdRenderContextRegistry;
 
-	FRegisteredSchemaTranslatorHandle UsdGeomCameraTranslatorHandle;
-	FRegisteredSchemaTranslatorHandle UsdGeometryCacheTranslatorHandle;
-	FRegisteredSchemaTranslatorHandle UsdGeomMeshTranslatorHandle;
-	FRegisteredSchemaTranslatorHandle UsdGeomPointInstancerTranslatorHandle;
-	FRegisteredSchemaTranslatorHandle UsdSkelRootTranslatorHandle;
-	FRegisteredSchemaTranslatorHandle UsdGeomXformableTranslatorHandle;
-	FRegisteredSchemaTranslatorHandle UsdShadeMaterialTranslatorHandle;
-	FRegisteredSchemaTranslatorHandle UsdGroomTranslatorHandle;
-	FRegisteredSchemaTranslatorHandle UsdLuxBoundableLightBaseTranslatorHandle;
-	FRegisteredSchemaTranslatorHandle UsdLuxNonboundableLightBaseTranslatorHandle;
-
-	// Custom schemas
-	FRegisteredSchemaTranslatorHandle MdlUsdShadeMaterialTranslatorHandle;
-	FRegisteredSchemaTranslatorHandle MaterialXUsdShadeMaterialTranslatorHandle;
+	TArray< FRegisteredSchemaTranslatorHandle > TranslatorHandles;
 };
 
 IMPLEMENT_MODULE_USD( FUsdSchemasModule, USDSchemas );

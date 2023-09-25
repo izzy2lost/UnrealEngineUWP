@@ -1645,7 +1645,7 @@ bool UsdToUnreal::ConvertSkinnedMesh(
 	if (MaterialAssignments.PrimvarToUVIndex.Num() > 0)
 	{
 		TArray<TUsdStore<pxr::UsdGeomPrimvar>> AllMeshUVPrimvars =
-			UsdUtils::GetUVSetPrimvars(UsdMesh, TNumericLimits<int32>::Max());
+			UsdUtils::GetUVSetPrimvars(SkinningPrim, TNumericLimits<int32>::Max());
 
 		PrimvarsByUVIndex =
 			UsdUtils::AssemblePrimvarsIntoUVSets(AllMeshUVPrimvars, MaterialAssignments.PrimvarToUVIndex);
@@ -1653,7 +1653,7 @@ bool UsdToUnreal::ConvertSkinnedMesh(
 	// Let's use the best primvar assignment for this particular mesh instead
 	else
 	{
-		PrimvarsByUVIndex = UsdUtils::GetUVSetPrimvars(UsdMesh);
+		PrimvarsByUVIndex = UsdUtils::GetUVSetPrimvars(SkinningPrim);
 
 		MaterialAssignments.PrimvarToUVIndex = UsdUtils::AssemblePrimvarsIntoPrimvarToUVIndexMap(PrimvarsByUVIndex);
 	}

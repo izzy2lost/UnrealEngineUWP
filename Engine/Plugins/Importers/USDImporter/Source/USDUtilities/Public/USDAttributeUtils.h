@@ -8,6 +8,7 @@
 
 #if USE_USD_SDK
 PXR_NAMESPACE_OPEN_SCOPE
+	class UsdAttribute;
 	class UsdPrim;
 	class UsdProperty;
 PXR_NAMESPACE_CLOSE_SCOPE
@@ -30,6 +31,13 @@ namespace UsdUtils
 	/** Returns whether this attribute has the "Muted" CustomData on the stage's UE state sublayer, meaning it shouldn't be animated when loaded into UE */
 	USDUTILITIES_API bool IsAttributeMuted( const UE::FUsdAttribute& Attribute, const UE::FUsdStage& Stage );
 
+#if USE_USD_SDK
+	/**
+	 * Calls pxr::UsdAttribute::GetTimeSamples(), and then pxr::UsdAttribute::ClearAtTime() for each timeSample value, clearing
+	 * all timeSample opinions at the current edit target.
+	 */
+	USDUTILITIES_API bool ClearAllTimeSamples(const pxr::UsdAttribute& Attribute);
+
 	/**
 	 * If Attribute has opinions authored on layers stronger than the current edit target this will emit a warning to
 	 * the user, indicating that the new value may not be visible on the USD Stage, and may cease to be visible on
@@ -38,7 +46,6 @@ namespace UsdUtils
 	 * Use this after setting any attribute: This function does nothing in case the Stage's current edit target has
 	 * the strongest opinion for the attribute already
 	 */
-#if USE_USD_SDK
 	USDUTILITIES_API void NotifyIfOverriddenOpinion( const pxr::UsdProperty& Property );
 
 	/**

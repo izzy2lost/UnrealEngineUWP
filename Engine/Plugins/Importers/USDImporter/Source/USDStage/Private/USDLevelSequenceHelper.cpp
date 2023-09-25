@@ -1485,46 +1485,88 @@ void FUsdLevelSequenceHelperImpl::AddCommonTracks(const UUsdPrimTwin& PrimTwin, 
 		}
 	}
 
-	TArray<double> TransformTimeSamples;
-	if ((Xformable.GetTimeSamples(&TransformTimeSamples) && TransformTimeSamples.Num() > 0) || bNeedTrackToCompensateResetXformOp)
+	// Check if we need to add Transform tracks.
+	// In case we're e.g. a Cube with animated "size", which needs to become animated transforms
+	if (Xformable.TransformMightBeTimeVarying() || bNeedTrackToCompensateResetXformOp || Prim.IsA(TEXT("Gprim")))
 	{
+		TArray<double> TimeSampleUnion;
+
+		// Get all *animated* attributes that may contribute to the transform
+		bool bAreAllMuted = true;
 		TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(Prim, UnrealIdentifiers::TransformPropertyName);
-		if (Attrs.Num() > 0)
+		for (int32 Index = Attrs.Num() - 1; Index >= 0; --Index)
 		{
-			if (UE::FUsdAttribute& TransformAttribute = Attrs[0])
+			const UE::FUsdAttribute& Attr = Attrs[Index];
+
+			TArray<double> TimeSamplesForAttr;
+			if (!Attr.GetTimeSamples(TimeSamplesForAttr) || TimeSamplesForAttr.Num() == 0)
 			{
-				if (ULevelSequence* AttributeSequence = FindOrAddSequenceForAttribute(TransformAttribute))
+				const int32 Count = 1;
+				const bool bAllowShrinking = false;
+				Attrs.RemoveAt(Index, Count, bAllowShrinking);
+				continue;
+			}
+
+			if (!UsdUtils::IsAttributeMuted(Attr, UsdStage))
+			{
+				bAreAllMuted = false;
+
+				// Union the time samples so we know to always sample where we have a value for a relevant attribute
+				TimeSampleUnion.Append(TimeSamplesForAttr);
+			}
+		}
+
+		// Find the strongest layer where any of these is authored. The TimeCode here is only for handling Value Clips, which
+		// we largely don't support anyway
+		const double TimeCode = 0.0;
+		const bool bIncludeSessionLayers = false;
+		UE::FSdfLayer Layer = UsdUtils::FindLayerForAttributes(Attrs, TimeCode, bIncludeSessionLayers);
+
+		// If we're creating a brand new transform track to compensate resetXformOp we may not have any animated attribute
+		// already, but we still need to do this
+		if (!Layer && bNeedTrackToCompensateResetXformOp)
+		{
+			Layer = UsdUtils::FindLayerForPrim(Prim);
+		}
+
+		// Get the Subsequence where we should create our track according to that Layer
+		if (ULevelSequence* AttributeSequence = FindOrAddSequenceForLayer(Layer, Layer.GetIdentifier(), Layer.GetDisplayName()))
+		{
+			FMovieSceneSequenceTransform SequenceTransform;
+			FMovieSceneSequenceID SequenceID = SequencesID.FindRef(AttributeSequence);
+			if (FMovieSceneSubSequenceData* SubSequenceData = SequenceHierarchyCache.FindSubData(SequenceID))
+			{
+				SequenceTransform = SubSequenceData->RootToSequenceTransform;
+			}
+
+			if (UMovieScene* MovieScene = AttributeSequence->GetMovieScene())
+			{
+				if (bNeedTrackToCompensateResetXformOp)
 				{
-					const bool bIsMuted = UsdUtils::IsAttributeMuted(TransformAttribute, UsdStage);
-
-					FMovieSceneSequenceTransform SequenceTransform;
-					FMovieSceneSequenceID SequenceID = SequencesID.FindRef(AttributeSequence);
-					if (FMovieSceneSubSequenceData* SubSequenceData = SequenceHierarchyCache.FindSubData(SequenceID))
-					{
-						SequenceTransform = SubSequenceData->RootToSequenceTransform;
-					}
-
-					if (UMovieScene* MovieScene = AttributeSequence->GetMovieScene())
-					{
-						TArray<double> TimeSamples;
-						if (Xformable.GetTimeSamples(&TimeSamples))
-						{
-							if (bNeedTrackToCompensateResetXformOp)
-							{
-								TimeSamples.Append(AncestorTimeSamples);
-								TimeSamples.Sort();
-							}
-
-							if (UMovieScene3DTransformTrack* TransformTrack = AddTrack<UMovieScene3DTransformTrack>(UnrealIdentifiers::TransformPropertyName, PrimTwin, *ComponentToBind, *AttributeSequence, bIsMuted))
-							{
-								UsdToUnreal::FPropertyTrackReader Reader = UsdToUnreal::CreatePropertyTrackReader(Prim, UnrealIdentifiers::TransformPropertyName, bIgnorePrimLocalTransform);
-								UsdToUnreal::ConvertTransformTimeSamples(UsdStage, TimeSamples, Reader.TransformReader, *TransformTrack, SequenceTransform);
-							}
-
-							PrimPathByLevelSequenceName.AddUnique(AttributeSequence->GetFName(), Prim.GetPrimPath().GetString());
-						}
-					}
+					TimeSampleUnion.Append(AncestorTimeSamples);
 				}
+
+				// Note that since we sort, we can cheaply handle duplicate timeSamples on this array because
+				// UsdToUnreal::ConvertTransformTimeSamples ignores consecutive duplicates anyway (using FMath::IsNearlyEqual too)
+				TimeSampleUnion.Sort();
+
+				if (UMovieScene3DTransformTrack* TransformTrack = AddTrack<UMovieScene3DTransformTrack>(
+						UnrealIdentifiers::TransformPropertyName,
+						PrimTwin,
+						*ComponentToBind,
+						*AttributeSequence,
+						bAreAllMuted
+					))
+				{
+					UsdToUnreal::FPropertyTrackReader Reader = UsdToUnreal::CreatePropertyTrackReader(
+						Prim,
+						UnrealIdentifiers::TransformPropertyName,
+						bIgnorePrimLocalTransform
+					);
+					UsdToUnreal::ConvertTransformTimeSamples(UsdStage, TimeSampleUnion, Reader.TransformReader, *TransformTrack, SequenceTransform);
+				}
+
+				PrimPathByLevelSequenceName.AddUnique(AttributeSequence->GetFName(), Prim.GetPrimPath().GetString());
 			}
 		}
 	}
@@ -3486,6 +3528,13 @@ void FUsdLevelSequenceHelperImpl::HandleTrackChange(const UMovieSceneTrack& Trac
 				else if (const UMovieScene3DTransformTrack* TransformTrack = Cast<const UMovieScene3DTransformTrack>(&Track))
 				{
 					UnrealToUsd::Convert3DTransformTrack(*TransformTrack, SequenceTransform, Writer.TransformWriter, UsdPrim);
+
+					// If we're a Cylinder, Cube, etc. clear the animation of the primitive attributes that can affect the
+					// primitive transform ("height", "radius", etc.) as we'll be writing the full combined primitive+local
+					// transform directly to the Xform animation instead
+					const bool bDefaultValues = false;
+					const bool bTimeSampleValues = true;
+					UsdUtils::AuthorIdentityTransformGprimAttributes(UsdPrim, bDefaultValues, bTimeSampleValues);
 				}
 
 				// Refresh tracks that needed to be updated in USD (e.g. we wrote out a new keyframe to a RectLight's width -> that

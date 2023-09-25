@@ -64,6 +64,7 @@
 	#include "pxr/usd/usd/stage.h"
 	#include "pxr/usd/usd/variantSets.h"
 	#include "pxr/usd/usdGeom/camera.h"
+	#include "pxr/usd/usdGeom/gprim.h"
 	#include "pxr/usd/usdGeom/imageable.h"
 	#include "pxr/usd/usdGeom/mesh.h"
 	#include "pxr/usd/usdGeom/metrics.h"
@@ -308,6 +309,8 @@ ValueType UsdUtils::GetUsdValue( const pxr::UsdAttribute& Attribute, pxr::UsdTim
 // Explicit template instantiation
 template USDUTILITIES_API bool							UsdUtils::GetUsdValue< bool >( const pxr::UsdAttribute& Attribute, pxr::UsdTimeCode TimeCode );
 template USDUTILITIES_API float							UsdUtils::GetUsdValue< float >( const pxr::UsdAttribute& Attribute, pxr::UsdTimeCode TimeCode );
+template USDUTILITIES_API double						UsdUtils::GetUsdValue< double >( const pxr::UsdAttribute& Attribute, pxr::UsdTimeCode TimeCode );
+template USDUTILITIES_API pxr::TfToken					UsdUtils::GetUsdValue< pxr::TfToken >( const pxr::UsdAttribute& Attribute, pxr::UsdTimeCode TimeCode );
 template USDUTILITIES_API pxr::GfVec3f					UsdUtils::GetUsdValue< pxr::GfVec3f >( const pxr::UsdAttribute& Attribute, pxr::UsdTimeCode TimeCode );
 template USDUTILITIES_API pxr::GfMatrix4d				UsdUtils::GetUsdValue< pxr::GfMatrix4d >( const pxr::UsdAttribute& Attribute, pxr::UsdTimeCode TimeCode );
 template USDUTILITIES_API pxr::SdfAssetPath				UsdUtils::GetUsdValue< pxr::SdfAssetPath >( const pxr::UsdAttribute& Attribute, pxr::UsdTimeCode TimeCode );
@@ -438,7 +441,7 @@ UClass* UsdUtils::GetComponentTypeForPrim( const pxr::UsdPrim& Prim )
 	{
 		return USkeletalMeshComponent::StaticClass();
 	}
-	else if ( Prim.IsA< pxr::UsdGeomMesh >() )
+	else if (Prim.IsA<pxr::UsdGeomGprim>())
 	{
 		return UStaticMeshComponent::StaticClass();
 	}
@@ -663,11 +666,11 @@ int32 UsdUtils::GetPrimvarUVIndex( FString PrimvarName )
 }
 
 TArray<TUsdStore<pxr::UsdGeomPrimvar>> UsdUtils::GetUVSetPrimvars(
-	const pxr::UsdGeomMesh& UsdMesh,
+	const pxr::UsdPrim& UsdPrim,
 	int32 MaxNumPrimvars
 )
 {
-	if (!UsdMesh)
+	if (!UsdPrim)
 	{
 		return {};
 	}
@@ -678,7 +681,7 @@ TArray<TUsdStore<pxr::UsdGeomPrimvar>> UsdUtils::GetUVSetPrimvars(
 	TArray<TUsdStore<pxr::UsdGeomPrimvar>> Float2Primvars;
 
 	// Collect all primvars that could be used as UV sets
-	pxr::UsdGeomPrimvarsAPI PrimvarsAPI{UsdMesh};
+	pxr::UsdGeomPrimvarsAPI PrimvarsAPI{UsdPrim};
 	for (const pxr::UsdGeomPrimvar& Primvar : PrimvarsAPI.GetPrimvars())
 	{
 		if (!Primvar || !Primvar.HasValue())
@@ -737,7 +740,7 @@ TArray<TUsdStore<pxr::UsdGeomPrimvar>> UsdUtils::GetUVSetPrimvars(
 	const pxr::TfToken& MaterialPurpose
 )
 {
-	return UsdUtils::GetUVSetPrimvars(UsdMesh);
+	return UsdUtils::GetUVSetPrimvars(UsdMesh.GetPrim());
 }
 
 TArray<TUsdStore<pxr::UsdGeomPrimvar>> UsdUtils::GetUVSetPrimvars(
@@ -746,7 +749,7 @@ TArray<TUsdStore<pxr::UsdGeomPrimvar>> UsdUtils::GetUVSetPrimvars(
 	const UsdUtils::FUsdPrimMaterialAssignmentInfo& UsdMeshMaterialAssignmentInfo
 )
 {
-	return UsdUtils::GetUVSetPrimvars(UsdMesh);
+	return UsdUtils::GetUVSetPrimvars(UsdMesh.GetPrim());
 }
 
 TArray<TUsdStore<pxr::UsdGeomPrimvar>> UsdUtils::AssemblePrimvarsIntoUVSets(

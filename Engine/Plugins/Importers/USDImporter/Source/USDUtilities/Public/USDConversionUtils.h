@@ -141,19 +141,19 @@ namespace UsdUtils
 	USDUTILITIES_API int32 GetPrimvarUVIndex( FString PrimvarName );
 
 	/**
-	 * Gets the primvars that should be used as UV sets, per index, for this UsdMesh.
+	 * Gets the primvars that should be used as UV sets, per index, for this UsdPrim.
 	 * This will return between 0 and MaxNumPrimvars primvars, where the first item of array is the primvar that should be used for
 	 * UV index 0 (if any), the second the primvar that should be used for UV set 1, etc.
 	 *
 	 * In case there are more than MaxNumPrimvars available primvars, the returned list will contain all the 'texCoord2f' role
 	 * primvars (sorted lexicographically), followed by the regular float2 primvars (also separately sorted lexicographically).
 	 *
-	 * @param UsdMesh - Mesh that contains primvars that can be used as texture coordinates.
+	 * @param UsdPrim - UsdPrim that contains primvars that can be used as texture coordinates.
 	 * @param MaxNumPrimvars - Maximum number of primvars to return from this function.
 	 * @return Array of up to MaxNumPrimvars primvars sorted by priority (most important come first)
 	 */
 	USDUTILITIES_API TArray<TUsdStore<pxr::UsdGeomPrimvar>> GetUVSetPrimvars(
-		const pxr::UsdGeomMesh& UsdMesh,
+		const pxr::UsdPrim& UsdPrim,
 		int32 MaxNumPrimvars = USD_PREVIEW_SURFACE_MAX_UV_SETS
 	);
 

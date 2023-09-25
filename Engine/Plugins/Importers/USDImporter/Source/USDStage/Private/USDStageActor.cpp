@@ -3995,6 +3995,16 @@ void AUsdStageActor::OnObjectPropertyChanged(UObject* ObjectBeingModified, FProp
 
 				UnrealToUsd::ConvertSceneComponent(CurrentStage, PrimSceneComponent, UsdPrim);
 
+				// When we parse a Gprim like a Cube or a Cylinder, we'll always generate some "default" meshes (e.g. Cylinder with
+				// height always equal 1), and combine the Xform and the effect of the prim's attributes (e.g. height/width) into
+				// a SINGLE transform, and put that on the component (this approach allows attribute animation purely with Sequencer tracks).
+				// When we modify any property and want to write back out to USD however, we'll write that combined transform as the prim's
+				// transform. This means we must also "reset" the (e.g. height/width) attributes, so that the combined transform stays
+				// consistent
+				const bool bDefaultValues = true;
+				const bool bTimeSampleValues = false;
+				UsdUtils::AuthorIdentityTransformGprimAttributes(UsdPrim, bDefaultValues, bTimeSampleValues);
+
 				if (UMeshComponent* MeshComponent = Cast< UMeshComponent >(PrimSceneComponent))
 				{
 					UnrealToUsd::ConvertMeshComponent(CurrentStage, MeshComponent, UsdPrim);

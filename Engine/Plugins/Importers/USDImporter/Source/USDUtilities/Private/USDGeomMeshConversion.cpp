@@ -39,6 +39,7 @@
 #endif // WITH_EDITOR
 
 #include "USDIncludesStart.h"
+	#include "pxr/imaging/pxOsd/meshTopology.h"
 	#include "pxr/usd/ar/resolver.h"
 	#include "pxr/usd/ar/resolverScopedCache.h"
 	#include "pxr/usd/sdf/layer.h"
@@ -47,14 +48,22 @@
 	#include "pxr/usd/usd/editContext.h"
 	#include "pxr/usd/usd/prim.h"
 	#include "pxr/usd/usd/primRange.h"
+	#include "pxr/usd/usdGeom/capsule.h"
+	#include "pxr/usd/usdGeom/cone.h"
+	#include "pxr/usd/usdGeom/cube.h"
+	#include "pxr/usd/usdGeom/cylinder.h"
+	#include "pxr/usd/usdGeom/gprim.h"
 	#include "pxr/usd/usdGeom/mesh.h"
+	#include "pxr/usd/usdGeom/plane.h"
 	#include "pxr/usd/usdGeom/pointInstancer.h"
 	#include "pxr/usd/usdGeom/primvarsAPI.h"
+	#include "pxr/usd/usdGeom/sphere.h"
 	#include "pxr/usd/usdGeom/subset.h"
 	#include "pxr/usd/usdGeom/tokens.h"
 	#include "pxr/usd/usdShade/material.h"
 	#include "pxr/usd/usdShade/materialBindingAPI.h"
 	#include "pxr/usd/usdShade/tokens.h"
+	#include "pxr/usdImaging/usdImaging/implicitSurfaceMeshUtils.h"
 #include "USDIncludesEnd.h"
 
 #define LOCTEXT_NAMESPACE "USDGeomMeshConversion"
@@ -70,6 +79,10 @@ const FName MeshAttribute::VertexInstance::Velocity("Velocity");
 namespace UE::UsdGeomMeshConversion::Private
 {
 	static const FString DisplayColorID = TEXT( "!DisplayColor" );
+
+	// Dimensions used when generating Capsule meshes
+	static const float DefaultCapsuleMeshRadius = 0.25;
+	static const float DefaultCapsuleMeshHeight = 0.50;
 
 	int32 GetPrimValueIndex( const pxr::TfToken& InterpType, const int32 VertexIndex, const int32 VertexInstanceIndex, const int32 PolygonIndex )
 	{
@@ -93,6 +106,187 @@ namespace UE::UsdGeomMeshConversion::Private
 		{
 			return 0; // return index 0 for constant or any other unsupported cases
 		}
+	}
+
+	pxr::TfToken GetAttrInterpolation(const pxr::UsdAttribute& Attr, const pxr::TfToken& DefaultValue = pxr::UsdGeomTokens->constant)
+	{
+		pxr::TfToken RetrievedValue;
+		if (Attr && Attr.GetMetadata(pxr::UsdGeomTokens->interpolation, &RetrievedValue))
+		{
+			return RetrievedValue;
+		}
+		return DefaultValue;
+	}
+
+	pxr::TfToken GetGprimOrientation(const pxr::UsdGeomGprim& Gprim, pxr::UsdTimeCode TimeCode)
+	{
+		if (pxr::UsdAttribute Attr = Gprim.GetOrientationAttr())
+		{
+			pxr::TfToken Orientation;
+			if (Attr.Get(&Orientation, TimeCode))
+			{
+				return Orientation;
+			}
+		}
+		return pxr::UsdGeomTokens->rightHanded;
+	}
+
+	pxr::VtArray<int> GetFaceVertexCounts(const pxr::UsdPrim& UsdPrim, pxr::UsdTimeCode TimeCode)
+	{
+		if (pxr::UsdGeomMesh Mesh = pxr::UsdGeomMesh{UsdPrim})
+		{
+			pxr::UsdAttribute Attr = Mesh.GetFaceVertexCountsAttr();
+
+			pxr::VtArray<int> Result;
+			if (Attr && Attr.Get(&Result, TimeCode))
+			{
+				return Result;
+			}
+		}
+
+		const pxr::PxOsdMeshTopology* Topology = nullptr;
+		if (pxr::UsdGeomCapsule Capsule = pxr::UsdGeomCapsule{UsdPrim})
+		{
+			Topology = &pxr::UsdImagingGetCapsuleMeshTopology();
+		}
+		else if (pxr::UsdGeomCone Cone = pxr::UsdGeomCone{UsdPrim})
+		{
+			Topology = &pxr::UsdImagingGetUnitConeMeshTopology();
+		}
+		else if (pxr::UsdGeomCube Cube = pxr::UsdGeomCube{UsdPrim})
+		{
+			Topology = &pxr::UsdImagingGetUnitCubeMeshTopology();
+		}
+		else if (pxr::UsdGeomCylinder Cylinder = pxr::UsdGeomCylinder{UsdPrim})
+		{
+			Topology = &pxr::UsdImagingGetUnitCylinderMeshTopology();
+		}
+		else if (pxr::UsdGeomSphere Sphere = pxr::UsdGeomSphere{UsdPrim})
+		{
+			Topology = &pxr::UsdImagingGetUnitSphereMeshTopology();
+		}
+		else if (pxr::UsdGeomPlane Plane = pxr::UsdGeomPlane{UsdPrim})
+		{
+			Topology = &pxr::UsdImagingGetPlaneTopology();
+		}
+		if (Topology)
+		{
+			return Topology->GetFaceVertexCounts();
+		}
+
+		return {};
+	}
+
+	pxr::VtArray<pxr::GfVec3f> GetUnitCylinderMeshPoints(pxr::TfToken Axis)
+	{
+		if (Axis == pxr::UsdGeomTokens->x)
+		{
+			static const pxr::VtArray<pxr::GfVec3f> XCylinder = []()
+			{
+				// The USD cylinder is aligned to the z axis by default
+				pxr::VtArray<pxr::GfVec3f> Points = pxr::UsdImagingGetUnitCylinderMeshPoints();
+
+				pxr::GfMatrix4d ZToXAxis{
+					0.0, 1.0, 0.0, 0.0,
+					0.0, 0.0, 1.0, 0.0,
+					1.0, 0.0, 0.0, 0.0,
+					0.0, 0.0, 0.0, 1.0
+				};
+
+				for (pxr::GfVec3f& Point : Points)
+				{
+					Point = ZToXAxis.Transform(Point);
+				}
+
+				return Points;
+			}();
+			return XCylinder;
+		}
+		else if (Axis == pxr::UsdGeomTokens->y)
+		{
+			static const pxr::VtArray<pxr::GfVec3f> YCylinder = []()
+			{
+				// The USD cylinder is aligned to the z axis by default
+				pxr::VtArray<pxr::GfVec3f> Points = pxr::UsdImagingGetUnitCylinderMeshPoints();
+
+				pxr::GfMatrix4d ZToYAxis{
+					0.0, 0.0, 1.0, 0.0,
+					1.0, 0.0, 0.0, 0.0,
+					0.0, 1.0, 0.0, 0.0,
+					0.0, 0.0, 0.0, 1.0
+				};
+
+				for (pxr::GfVec3f& Point : Points)
+				{
+					Point = ZToYAxis.Transform(Point);
+				}
+
+				return Points;
+			}();
+			return YCylinder;
+		}
+		else if (Axis == pxr::UsdGeomTokens->z)
+		{
+			return pxr::UsdImagingGetUnitCylinderMeshPoints();
+		}
+
+		return {};
+	}
+
+	pxr::VtArray<pxr::GfVec3f> GetUnitConeMeshPoints(pxr::TfToken Axis)
+	{
+		if (Axis == pxr::UsdGeomTokens->x)
+		{
+			static const pxr::VtArray<pxr::GfVec3f> XCylinder = []()
+			{
+				// The USD cone is aligned to the z axis by default
+				pxr::VtArray<pxr::GfVec3f> Points = pxr::UsdImagingGetUnitConeMeshPoints();
+
+				pxr::GfMatrix4d ZToXAxis{
+					0.0, 1.0, 0.0, 0.0,
+					0.0, 0.0, 1.0, 0.0,
+					1.0, 0.0, 0.0, 0.0,
+					0.0, 0.0, 0.0, 1.0
+				};
+
+				for (pxr::GfVec3f& Point : Points)
+				{
+					Point = ZToXAxis.Transform(Point);
+				}
+
+				return Points;
+			}();
+			return XCylinder;
+		}
+		else if (Axis == pxr::UsdGeomTokens->y)
+		{
+			static const pxr::VtArray<pxr::GfVec3f> YCylinder = []()
+			{
+				// The USD cone is aligned to the z axis by default
+				pxr::VtArray<pxr::GfVec3f> Points = pxr::UsdImagingGetUnitConeMeshPoints();
+
+				pxr::GfMatrix4d ZToYAxis{
+					0.0, 0.0, 1.0, 0.0,
+					1.0, 0.0, 0.0, 0.0,
+					0.0, 1.0, 0.0, 0.0,
+					0.0, 0.0, 0.0, 1.0
+				};
+
+				for (pxr::GfVec3f& Point : Points)
+				{
+					Point = ZToYAxis.Transform(Point);
+				}
+
+				return Points;
+			}();
+			return YCylinder;
+		}
+		else if (Axis == pxr::UsdGeomTokens->z)
+		{
+			return pxr::UsdImagingGetUnitConeMeshPoints();
+		}
+
+		return {};
 	}
 
 	int32 GetLODIndexFromName( const std::string& Name )
@@ -583,6 +777,11 @@ namespace UE::UsdGeomMeshConversion::Private
 		{
 			bSuccess = UsdToUnreal::ConvertGeomMesh( Mesh, OutMeshDescription, OutMaterialAssignments, Options );
 		}
+		// Check for a cube/capsule/etc. ConvertGeomPrimitive will internally check for all specific types
+		else if (pxr::UsdGeomGprim Gprim = pxr::UsdGeomGprim{Prim})
+		{
+			bSuccess = UsdToUnreal::ConvertGeomPrimitive(Prim, OutMeshDescription, OutMaterialAssignments, Options);
+		}
 		else if ( pxr::UsdGeomPointInstancer PointInstancer = pxr::UsdGeomPointInstancer{ Prim } )
 		{
 			bSuccess = UsdToUnreal::ConvertPointInstancerToMesh(
@@ -654,28 +853,7 @@ namespace UE::UsdGeomMeshConversion::Private
 
 		bool bTraverseChildren = true;
 
-		if (pxr::UsdGeomMesh Mesh = pxr::UsdGeomMesh(Prim))
-		{
-			TArray<TUsdStore<pxr::UsdGeomPrimvar>> MeshPrimvars = UsdUtils::GetUVSetPrimvars(
-				Mesh,
-				TNumericLimits<int32>::Max()
-			);
-
-			for (const TUsdStore<pxr::UsdGeomPrimvar>& MeshPrimvar : MeshPrimvars)
-			{
-				FString PrimvarName = UsdToUnreal::ConvertToken(MeshPrimvar.Get().GetName());
-				PrimvarName.RemoveFromStart(TEXT("primvars:"));
-
-				InOutAllPrimvars.Add(PrimvarName);
-
-				// Keep track of which primvars are texCoord2f as we always want to prefer these over other float2s
-				if (MeshPrimvar.Get().GetTypeName().GetRole() == pxr::SdfValueTypeNames->TexCoord2f.GetRole())
-				{
-					InOutPreferredPrimvars.Add(PrimvarName);
-				}
-			}
-		}
-		else if (pxr::UsdGeomPointInstancer PointInstancer = pxr::UsdGeomPointInstancer{Prim})
+		if (pxr::UsdGeomPointInstancer PointInstancer = pxr::UsdGeomPointInstancer{Prim})
 		{
 			pxr::SdfPathVector PrototypePaths;
 			if (!PointInstancer.GetPrototypesRel().GetTargets(&PrototypePaths))
@@ -704,6 +882,27 @@ namespace UE::UsdGeomMeshConversion::Private
 
 			// We never want to step into point instancers when fetching prims for drawing
 			bTraverseChildren = false;
+		}
+		if (Prim)
+		{
+			TArray<TUsdStore<pxr::UsdGeomPrimvar>> Primvars = UsdUtils::GetUVSetPrimvars(
+				Prim,
+				TNumericLimits<int32>::Max()
+			);
+
+			for (const TUsdStore<pxr::UsdGeomPrimvar>& Primvar : Primvars)
+			{
+				FString PrimvarName = UsdToUnreal::ConvertToken(Primvar.Get().GetName());
+				PrimvarName.RemoveFromStart(TEXT("primvars:"));
+
+				InOutAllPrimvars.Add(PrimvarName);
+
+				// Keep track of which primvars are texCoord2f as we always want to prefer these over other float2s
+				if (Primvar.Get().GetTypeName().GetRole() == pxr::SdfValueTypeNames->TexCoord2f.GetRole())
+				{
+					InOutPreferredPrimvars.Add(PrimvarName);
+				}
+			}
 		}
 
 		if (bTraverseChildren)
@@ -748,6 +947,477 @@ namespace UE::UsdGeomMeshConversion::Private
 			PreferredPrimvars
 		);
 	}
+
+	// Unconverted, raw USD mesh data to convert into a MeshDescription
+	struct FUsdMeshData
+	{
+		// So that we can reference the prim on error messages
+		FString SourcePrimPath;
+
+		pxr::VtArray<int> FaceVertexCounts;
+		pxr::VtArray<int> FaceIndices;
+		pxr::VtArray<pxr::GfVec3f> Points;
+		pxr::VtArray<pxr::GfVec3f> Normals;
+		pxr::VtArray<pxr::GfVec3f> Velocities;
+		pxr::VtArray<pxr::GfVec3f> DisplayColors;
+		pxr::VtArray<float> DisplayOpacities;
+
+		pxr::TfToken Orientation = pxr::UsdGeomTokens->rightHanded;
+		pxr::TfToken NormalInterpolation = pxr::UsdGeomTokens->vertex;
+		pxr::TfToken VelocityInterpolation = pxr::UsdGeomTokens->vertex;
+		pxr::TfToken DisplayColorInterpolation = pxr::UsdGeomTokens->constant;
+		pxr::TfToken DisplayOpacityInterpolation = pxr::UsdGeomTokens->constant;
+
+		TOptional<int32> ProvidedNumUVSets;
+		TArray<TUsdStore<pxr::UsdGeomPrimvar>> PrimvarsByUVIndex;
+
+		int32 MaterialIndexOffset = 0;
+		UsdUtils::FUsdPrimMaterialAssignmentInfo LocalMaterialInfo;
+	};
+
+	bool ConvertMeshData(
+		const FUsdMeshData& InMeshData,
+		const FUsdStageInfo& InStageInfo,
+		const UsdToUnreal::FUsdMeshConversionOptions& InOptions,
+		FMeshDescription& OutMeshDescription,
+		UsdUtils::FUsdPrimMaterialAssignmentInfo& OutMaterialAssignments
+	)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UsdToUnreal::ConvertMeshData);
+
+		FScopedUsdAllocs Allocs;
+
+		// Material assignments
+		const TArray<UsdUtils::FUsdPrimMaterialSlot>& LocalMaterialSlots = InMeshData.LocalMaterialInfo.Slots;
+		const TArray<int32>& FaceMaterialIndices = InMeshData.LocalMaterialInfo.MaterialIndices;
+
+		// Position 3 in this has the value 6 --> Local material slot #3 is actually the combined material slot #6
+		TArray<int32> LocalToCombinedMaterialSlotIndices;
+		LocalToCombinedMaterialSlotIndices.SetNumZeroed(InMeshData.LocalMaterialInfo.Slots.Num());
+
+		if (InOptions.bMergeIdenticalMaterialSlots)
+		{
+			// Build a map of our existing slots since we can hash the entire slot, and our incoming mesh may have an arbitrary number of new slots
+			TMap<UsdUtils::FUsdPrimMaterialSlot, int32> CombinedMaterialSlotsToIndex;
+			for (int32 Index = 0; Index < OutMaterialAssignments.Slots.Num(); ++Index)
+			{
+				const UsdUtils::FUsdPrimMaterialSlot& Slot = OutMaterialAssignments.Slots[Index];
+
+				// Combine entries in this way so that we can append PrimPaths
+				TMap<UsdUtils::FUsdPrimMaterialSlot, int32>::TKeyIterator KeyIt = CombinedMaterialSlotsToIndex.CreateKeyIterator(Slot);
+				if (KeyIt)
+				{
+					KeyIt.Key().PrimPaths.Append(Slot.PrimPaths);
+					KeyIt.Value() = Index;
+				}
+				else
+				{
+					CombinedMaterialSlotsToIndex.Add(Slot, Index);
+				}
+			}
+
+			// Combine our LocalSlots into CombinedMaterialSlotsToIndex
+			for (int32 LocalIndex = 0; LocalIndex < InMeshData.LocalMaterialInfo.Slots.Num(); ++LocalIndex)
+			{
+				const UsdUtils::FUsdPrimMaterialSlot& LocalSlot = InMeshData.LocalMaterialInfo.Slots[LocalIndex];
+
+				// Combine entries in this way so that we can append PrimPaths
+				TMap<UsdUtils::FUsdPrimMaterialSlot, int32>::TKeyIterator KeyIt = CombinedMaterialSlotsToIndex.CreateKeyIterator(LocalSlot);
+				if (KeyIt)
+				{
+					KeyIt.Key().PrimPaths.Append(LocalSlot.PrimPaths);
+
+					const int32 ExistingCombinedIndex = KeyIt.Value();
+					LocalToCombinedMaterialSlotIndices[LocalIndex] = ExistingCombinedIndex;
+				}
+				else
+				{
+					int32 NewIndex = OutMaterialAssignments.Slots.Add(LocalSlot);
+					CombinedMaterialSlotsToIndex.Add(LocalSlot, NewIndex);
+					LocalToCombinedMaterialSlotIndices[LocalIndex] = NewIndex;
+				}
+			}
+
+			// Now that we merged all prim paths into they keys of CombinedMaterialSlotsToIndex, let's copy them back into
+			// our output
+			for (UsdUtils::FUsdPrimMaterialSlot& Slot : OutMaterialAssignments.Slots)
+			{
+				TMap<UsdUtils::FUsdPrimMaterialSlot, int32>::TKeyIterator KeyIt = CombinedMaterialSlotsToIndex.CreateKeyIterator(Slot);
+				ensure(KeyIt);
+				Slot.PrimPaths = KeyIt.Key().PrimPaths;
+			}
+		}
+		else
+		{
+			// Just append our new local material slots at the end of MaterialAssignments
+			OutMaterialAssignments.Slots.Append(InMeshData.LocalMaterialInfo.Slots);
+			for (int32 LocalIndex = 0; LocalIndex < InMeshData.LocalMaterialInfo.Slots.Num(); ++LocalIndex)
+			{
+				LocalToCombinedMaterialSlotIndices[LocalIndex] = LocalIndex + InMeshData.MaterialIndexOffset;
+			}
+		}
+
+		const int32 VertexOffset = OutMeshDescription.Vertices().Num();
+		const int32 VertexInstanceOffset = OutMeshDescription.VertexInstances().Num();
+
+		FStaticMeshAttributes StaticMeshAttributes(OutMeshDescription);
+
+		// Vertex positions
+		TVertexAttributesRef<FVector3f> MeshDescriptionVertexPositions = StaticMeshAttributes.GetVertexPositions();
+		{
+			if (InMeshData.Points.size() < 3)
+			{
+				return false;
+			}
+
+			OutMeshDescription.ReserveNewVertices(InMeshData.Points.size());
+
+			for (size_t LocalPointIndex = 0; LocalPointIndex < InMeshData.Points.size(); ++LocalPointIndex)
+			{
+				const pxr::GfVec3f& Point = InMeshData.Points.cdata()[LocalPointIndex];
+
+				FVector Position = InOptions.AdditionalTransform.TransformPosition(UsdToUnreal::ConvertVector(InStageInfo, Point));
+
+				FVertexID AddedVertexId = OutMeshDescription.CreateVertex();
+				MeshDescriptionVertexPositions[AddedVertexId] = (FVector3f)Position;
+			}
+		}
+
+		uint32 NumSkippedPolygons = 0;
+		uint32 NumPolygons = InMeshData.FaceVertexCounts.size();
+		if (NumPolygons < 1)
+		{
+			return false;
+		}
+		if (InMeshData.FaceIndices.size() < 1)
+		{
+			return false;
+		}
+
+		// Polygons
+		{
+			TMap<int32, FPolygonGroupID> PolygonGroupMapping;
+			TArray<FVertexInstanceID> CornerInstanceIDs;
+			TArray<FVertexID> CornerVerticesIDs;
+			int32 CurrentVertexInstanceIndex = 0;
+			TPolygonGroupAttributesRef<FName> MaterialSlotNames = StaticMeshAttributes.GetPolygonGroupMaterialSlotNames();
+
+			// If we're going to share existing material slots, we'll need to share existing PolygonGroups in the mesh description,
+			// so we need to traverse it and prefill PolygonGroupMapping
+			if (InOptions.bMergeIdenticalMaterialSlots)
+			{
+				for (FPolygonGroupID PolygonGroupID : OutMeshDescription.PolygonGroups().GetElementIDs())
+				{
+					// We always create our polygon groups in order with our combined material slots, so its easy to reconstruct this mapping here
+					PolygonGroupMapping.Add(PolygonGroupID.GetValue(), PolygonGroupID);
+				}
+			}
+
+			// Material slots
+			// Note that we always create these in the order they show up in LocalInfo: If we created these on-demand when parsing polygons (like
+			// before) we could run into polygons in a different order than the material slots and end up with different material assignments. We
+			// could use the StaticMesh's SectionInfoMap to unswitch things, but that's not available at runtime so we better do this here
+			for (int32 LocalMaterialIndex = 0; LocalMaterialIndex < InMeshData.LocalMaterialInfo.Slots.Num(); ++LocalMaterialIndex)
+			{
+				const int32 CombinedMaterialIndex = LocalToCombinedMaterialSlotIndices[LocalMaterialIndex];
+				if (!PolygonGroupMapping.Contains(CombinedMaterialIndex))
+				{
+					FPolygonGroupID NewPolygonGroup = OutMeshDescription.CreatePolygonGroup();
+					PolygonGroupMapping.Add(CombinedMaterialIndex, NewPolygonGroup);
+
+					// This is important for runtime, where the material slots are matched to LOD sections based on their material slot name
+					MaterialSlotNames[NewPolygonGroup] = *LexToString(NewPolygonGroup.GetValue());
+				}
+			}
+
+			// Velocities
+			if (InMeshData.Velocities.size() > 0)
+			{
+				if (!OutMeshDescription.VertexInstanceAttributes().HasAttribute(MeshAttribute::VertexInstance::Velocity))
+				{
+					OutMeshDescription.VertexInstanceAttributes().RegisterAttribute<FVector3f>(
+						MeshAttribute::VertexInstance::Velocity,
+						1,
+						FVector3f::ZeroVector,
+						EMeshAttributeFlags::Lerpable
+					);
+				}
+			}
+
+			// UVs
+			TVertexInstanceAttributesRef<FVector2f> MeshDescriptionUVs = StaticMeshAttributes.GetVertexInstanceUVs();
+
+			struct FUVSet
+			{
+				int32 UVSetIndexUE;	   // The user may only have 'uv4' and 'uv5', so we can't just use array indices to find the target UV channel
+				TOptional<pxr::VtIntArray> UVIndices;	 // UVs might be indexed or they might be flat (one per vertex)
+				pxr::VtVec2fArray UVs;
+
+				pxr::TfToken InterpType = pxr::UsdGeomTokens->faceVarying;
+			};
+
+			TArray<FUVSet> UVSets;
+
+			int32 HighestAddedUVChannel = 0;
+			for (int32 UVChannelIndex = 0; UVChannelIndex < InMeshData.PrimvarsByUVIndex.Num(); ++UVChannelIndex)
+			{
+				const pxr::UsdGeomPrimvar& Primvar = InMeshData.PrimvarsByUVIndex[UVChannelIndex].Get();
+				if (!Primvar)
+				{
+					continue;
+				}
+
+				FUVSet UVSet;
+				UVSet.InterpType = Primvar.GetInterpolation();
+				UVSet.UVSetIndexUE = UVChannelIndex;
+
+				if (Primvar.IsIndexed())
+				{
+					UVSet.UVIndices.Emplace();
+
+					if (Primvar.GetIndices(&UVSet.UVIndices.GetValue(), InOptions.TimeCode) && Primvar.Get(&UVSet.UVs, InOptions.TimeCode))
+					{
+						if (UVSet.UVs.size() > 0)
+						{
+							UVSets.Add(MoveTemp(UVSet));
+							HighestAddedUVChannel = UVSet.UVSetIndexUE;
+						}
+					}
+				}
+				else
+				{
+					if (Primvar.Get(&UVSet.UVs))
+					{
+						if (UVSet.UVs.size() > 0)
+						{
+							UVSets.Add(MoveTemp(UVSet));
+							HighestAddedUVChannel = UVSet.UVSetIndexUE;
+						}
+					}
+				}
+			}
+
+			// When importing multiple mesh pieces to the same static mesh.  Ensure each mesh piece has the same number of UVs
+			{
+				int32 ExistingUVCount = MeshDescriptionUVs.GetNumChannels();
+				int32 NumUVs = FMath::Max(HighestAddedUVChannel + 1, ExistingUVCount);
+
+				// When we provide a PrimvarToUVIndex map to this function it means we'll end up combining this
+				// MeshDescription with others later (e.g. due to collapsing or multiple-LOD meshes).
+				// In that case we can get better results by making sure all of the individual MeshDescriptions have the
+				// same total number of UV sets, even if the unused ones are empty.
+				// Otherwise, if we e.g. have a material reading UVIndex3 when we only have a single UV set, UE seems to
+				// just read that one UV set anyway, which is somewhat unexpected and can be misleading
+				if (InMeshData.ProvidedNumUVSets.IsSet())
+				{
+					NumUVs = FMath::Max<int32>(InMeshData.ProvidedNumUVSets.GetValue(), NumUVs);
+				}
+
+				NumUVs = FMath::Min<int32>(USD_PREVIEW_SURFACE_MAX_UV_SETS, NumUVs);
+				// At least one UV set must exist.
+				NumUVs = FMath::Max<int32>(1, NumUVs);
+
+				// Make sure all Vertex instance have the correct number of UVs
+				MeshDescriptionUVs.SetNumChannels(NumUVs);
+			}
+
+			TVertexInstanceAttributesRef<FVector3f> MeshDescriptionNormals = StaticMeshAttributes.GetVertexInstanceNormals();
+			TVertexInstanceAttributesRef<FVector3f>
+				MeshDescriptionVelocities = OutMeshDescription.VertexInstanceAttributes().GetAttributesRef<FVector3f>(
+					MeshAttribute::VertexInstance::Velocity
+				);
+
+			OutMeshDescription.ReserveNewVertexInstances(InMeshData.FaceVertexCounts.size() * 3);
+			OutMeshDescription.ReserveNewPolygons(InMeshData.FaceVertexCounts.size());
+			OutMeshDescription.ReserveNewEdges(InMeshData.FaceVertexCounts.size() * 2);
+
+			// Vertex color
+			TVertexInstanceAttributesRef<FVector4f> MeshDescriptionColors = StaticMeshAttributes.GetVertexInstanceColors();
+
+			for (size_t PolygonIndex = 0; PolygonIndex < InMeshData.FaceVertexCounts.size(); ++PolygonIndex)
+			{
+				int32 PolygonVertexCount = InMeshData.FaceVertexCounts.cdata()[PolygonIndex];
+				CornerInstanceIDs.Reset(PolygonVertexCount);
+				CornerVerticesIDs.Reset(PolygonVertexCount);
+
+				for (int32 CornerIndex = 0; CornerIndex < PolygonVertexCount; ++CornerIndex, ++CurrentVertexInstanceIndex)
+				{
+					int32 VertexInstanceIndex = VertexInstanceOffset + CurrentVertexInstanceIndex;
+					const FVertexInstanceID VertexInstanceID(VertexInstanceIndex);
+					const int32 ControlPointIndex = InMeshData.FaceIndices.cdata()[CurrentVertexInstanceIndex];
+					const FVertexID VertexID(VertexOffset + ControlPointIndex);
+
+					// This data is read straight from USD so there's nothing guaranteeing we have as many positions as we need
+					if (VertexID.GetValue() >= MeshDescriptionVertexPositions.GetNumElements() || VertexID.GetValue() < 0)
+					{
+						continue;
+					}
+
+					// Make sure a face doesn't use the same vertex twice as MeshDescription doesn't like that
+					if (CornerVerticesIDs.Contains(VertexID))
+					{
+						continue;
+					}
+
+					CornerVerticesIDs.Add(VertexID);
+
+					FVertexInstanceID AddedVertexInstanceId = OutMeshDescription.CreateVertexInstance(VertexID);
+					CornerInstanceIDs.Add(AddedVertexInstanceId);
+
+					if (InMeshData.Normals.size() > 0)
+					{
+						const size_t NormalIndex = GetPrimValueIndex(
+							InMeshData.NormalInterpolation,
+							ControlPointIndex,
+							CurrentVertexInstanceIndex,
+							PolygonIndex
+						);
+
+						if (NormalIndex < InMeshData.Normals.size())
+						{
+							const pxr::GfVec3f& Normal = InMeshData.Normals.cdata()[NormalIndex];
+							FVector TransformedNormal = InOptions.AdditionalTransform.TransformVector(UsdToUnreal::ConvertVector(InStageInfo, Normal))
+															.GetSafeNormal();
+
+							MeshDescriptionNormals[AddedVertexInstanceId] = (FVector3f)TransformedNormal.GetSafeNormal();
+						}
+					}
+
+					if (InMeshData.Velocities.size() > 0)
+					{
+						const size_t VelocityIndex = GetPrimValueIndex(
+							InMeshData.VelocityInterpolation,
+							ControlPointIndex,
+							CurrentVertexInstanceIndex,
+							PolygonIndex
+						);
+
+						if (VelocityIndex < InMeshData.Velocities.size())
+						{
+							const pxr::GfVec3f& Velocity = InMeshData.Velocities.cdata()[VelocityIndex];
+							FVector TransformedVelocity = InOptions.AdditionalTransform.TransformVector(
+								UsdToUnreal::ConvertVector(InStageInfo, Velocity)
+							);
+
+							MeshDescriptionVelocities[AddedVertexInstanceId] = (FVector3f)TransformedVelocity;
+						}
+					}
+
+					for (const FUVSet& UVSet : UVSets)
+					{
+						const size_t ValueIndex = GetPrimValueIndex(UVSet.InterpType, ControlPointIndex, CurrentVertexInstanceIndex, PolygonIndex);
+
+						pxr::GfVec2f UV(0.f, 0.f);
+
+						if (UVSet.UVIndices.IsSet())
+						{
+							const pxr::VtIntArray& UVIndices = UVSet.UVIndices.GetValue();
+
+							if (ensure(ValueIndex < UVIndices.size()))
+							{
+								size_t UVIndex = UVIndices[ValueIndex];
+
+								if (ensure(UVIndex < UVSet.UVs.size()))
+								{
+									UV = UVSet.UVs[UVIndex];
+								}
+							}
+						}
+						else if (ensure(UVSet.UVs.size() > ValueIndex))
+						{
+							UV = UVSet.UVs[ValueIndex];
+						}
+
+						// Flip V for Unreal uv's which match directx
+						FVector2f FinalUVVector(UV[0], 1.f - UV[1]);
+						MeshDescriptionUVs.Set(AddedVertexInstanceId, UVSet.UVSetIndexUE, FinalUVVector);
+					}
+
+					// Vertex color
+					{
+						const size_t ValueIndex = GetPrimValueIndex(
+							InMeshData.DisplayColorInterpolation,
+							ControlPointIndex,
+							CurrentVertexInstanceIndex,
+							PolygonIndex
+						);
+
+						pxr::GfVec3f UsdColor(1.f, 1.f, 1.f);
+
+						if (!InMeshData.DisplayColors.empty() && ensure(InMeshData.DisplayColors.size() > ValueIndex))
+						{
+							UsdColor = InMeshData.DisplayColors.cdata()[ValueIndex];
+						}
+
+						MeshDescriptionColors[AddedVertexInstanceId] = UsdToUnreal::ConvertColor(UsdColor);
+					}
+
+					// Vertex opacity
+					{
+						const size_t ValueIndex = GetPrimValueIndex(
+							InMeshData.DisplayOpacityInterpolation,
+							ControlPointIndex,
+							CurrentVertexInstanceIndex,
+							PolygonIndex
+						);
+
+						if (!InMeshData.DisplayOpacities.empty() && ensure(InMeshData.DisplayOpacities.size() > ValueIndex))
+						{
+							MeshDescriptionColors[AddedVertexInstanceId][3] = InMeshData.DisplayOpacities.cdata()[ValueIndex];
+						}
+					}
+				}
+
+				// This polygon was using the same vertex instance more than once and we removed too many
+				// vertex indices, so now we're forced to skip the whole polygon. We'll show a warning about it though
+				if (CornerVerticesIDs.Num() < 3)
+				{
+					++NumSkippedPolygons;
+					continue;
+				}
+
+				// Polygon groups
+				int32 LocalMaterialIndex = 0;
+				if (FaceMaterialIndices.IsValidIndex(PolygonIndex))
+				{
+					LocalMaterialIndex = FaceMaterialIndices[PolygonIndex];
+					if (!LocalMaterialSlots.IsValidIndex(LocalMaterialIndex))
+					{
+						LocalMaterialIndex = 0;
+					}
+				}
+
+				const int32 CombinedMaterialIndex = LocalToCombinedMaterialSlotIndices[LocalMaterialIndex];
+
+				// Flip geometry if needed
+				if (InMeshData.Orientation == pxr::UsdGeomTokens->leftHanded)
+				{
+					for (int32 i = 0; i < CornerInstanceIDs.Num() / 2; ++i)
+					{
+						Swap(CornerInstanceIDs[i], CornerInstanceIDs[CornerInstanceIDs.Num() - i - 1]);
+					}
+				}
+
+				// Insert a polygon into the mesh
+				FPolygonGroupID PolygonGroupID = PolygonGroupMapping[CombinedMaterialIndex];
+				OutMeshDescription.CreatePolygon(PolygonGroupID, CornerInstanceIDs);
+			}
+		}
+
+		if (NumPolygons > 0 && NumSkippedPolygons > 0)
+		{
+			UE_LOG(
+				LogUsd,
+				Warning,
+				TEXT("Skipped %d out of %d faces when parsing the mesh for prim '%s', as those faces contained too many repeated vertex indices"),
+				NumSkippedPolygons,
+				NumPolygons,
+				*InMeshData.SourcePrimPath
+			);
+		}
+
+		return true;
+	}
 }
 namespace UsdGeomMeshImpl = UE::UsdGeomMeshConversion::Private;
 
@@ -784,249 +1454,61 @@ bool UsdToUnreal::ConvertGeomMesh(
 
 	pxr::UsdPrim UsdPrim = UsdMesh.GetPrim();
 	pxr::UsdStageRefPtr Stage = UsdPrim.GetStage();
-	const FUsdStageInfo StageInfo( Stage );
+	const FUsdStageInfo StageInfo(Stage);
 
-	const double TimeCodeValue = Options.TimeCode.GetValue();
+	UsdGeomMeshImpl::FUsdMeshData MeshData;
+	MeshData.SourcePrimPath = UsdToUnreal::ConvertPath(UsdPrim.GetPrimPath());
 
-	const int32 MaterialIndexOffset = OutMaterialAssignments.Slots.Num();
-
-	// Material assignments
-	const bool bProvideMaterialIndices = true;
-	UsdUtils::FUsdPrimMaterialAssignmentInfo LocalInfo = UsdUtils::GetPrimMaterialAssignments(
-		UsdPrim,
-		Options.TimeCode,
-		bProvideMaterialIndices,
-		Options.RenderContext,
-		Options.MaterialPurpose
-	);
-	TArray< UsdUtils::FUsdPrimMaterialSlot >& LocalMaterialSlots = LocalInfo.Slots;
-	TArray< int32 >& FaceMaterialIndices = LocalInfo.MaterialIndices;
-
-	// Position 3 in this has the value 6 --> Local material slot #3 is actually the combined material slot #6
-	TArray<int32> LocalToCombinedMaterialSlotIndices;
-	LocalToCombinedMaterialSlotIndices.SetNumZeroed( LocalInfo.Slots.Num() );
-
-	if ( Options.bMergeIdenticalMaterialSlots )
+	// Face counts
+	if (pxr::UsdAttribute Attr = UsdMesh.GetFaceVertexCountsAttr())
 	{
-		// Build a map of our existing slots since we can hash the entire slot, and our incoming mesh may have an arbitrary number of new slots
-		TMap< UsdUtils::FUsdPrimMaterialSlot, int32 > CombinedMaterialSlotsToIndex;
-		for ( int32 Index = 0; Index < OutMaterialAssignments.Slots.Num(); ++Index )
-		{
-			const UsdUtils::FUsdPrimMaterialSlot& Slot = OutMaterialAssignments.Slots[ Index ];
-
-			// Combine entries in this way so that we can append PrimPaths
-			TMap< UsdUtils::FUsdPrimMaterialSlot, int32 >::TKeyIterator KeyIt = CombinedMaterialSlotsToIndex.CreateKeyIterator( Slot );
-			if ( KeyIt )
-			{
-				KeyIt.Key().PrimPaths.Append( Slot.PrimPaths );
-				KeyIt.Value() = Index;
-			}
-			else
-			{
-				CombinedMaterialSlotsToIndex.Add( Slot, Index );
-			}
-		}
-
-		// Combine our LocalSlots into CombinedMaterialSlotsToIndex
-		for ( int32 LocalIndex = 0; LocalIndex < LocalInfo.Slots.Num(); ++LocalIndex )
-		{
-			const UsdUtils::FUsdPrimMaterialSlot& LocalSlot = LocalInfo.Slots[ LocalIndex ];
-
-			// Combine entries in this way so that we can append PrimPaths
-			TMap< UsdUtils::FUsdPrimMaterialSlot, int32 >::TKeyIterator KeyIt = CombinedMaterialSlotsToIndex.CreateKeyIterator( LocalSlot );
-			if ( KeyIt )
-			{
-				KeyIt.Key().PrimPaths.Append( LocalSlot.PrimPaths );
-
-				const int32 ExistingCombinedIndex = KeyIt.Value();
-				LocalToCombinedMaterialSlotIndices[ LocalIndex ] = ExistingCombinedIndex;
-			}
-			else
-			{
-				int32 NewIndex = OutMaterialAssignments.Slots.Add( LocalSlot );
-				CombinedMaterialSlotsToIndex.Add( LocalSlot, NewIndex );
-				LocalToCombinedMaterialSlotIndices[ LocalIndex ] = NewIndex;
-			}
-		}
-
-		// Now that we merged all prim paths into they keys of CombinedMaterialSlotsToIndex, let's copy them back into
-		// our output
-		for ( UsdUtils::FUsdPrimMaterialSlot& Slot : OutMaterialAssignments.Slots )
-		{
-			TMap< UsdUtils::FUsdPrimMaterialSlot, int32 >::TKeyIterator KeyIt = CombinedMaterialSlotsToIndex.CreateKeyIterator( Slot );
-			ensure(KeyIt);
-			Slot.PrimPaths = KeyIt.Key().PrimPaths;
-		}
-	}
-	else
-	{
-		// Just append our new local material slots at the end of MaterialAssignments
-		OutMaterialAssignments.Slots.Append( LocalInfo.Slots );
-		for ( int32 LocalIndex = 0; LocalIndex < LocalInfo.Slots.Num(); ++LocalIndex )
-		{
-			LocalToCombinedMaterialSlotIndices[ LocalIndex ] = LocalIndex + MaterialIndexOffset;
-		}
+		Attr.Get(&MeshData.FaceVertexCounts, Options.TimeCode);
 	}
 
-	const int32 VertexOffset = OutMeshDescription.Vertices().Num();
-	const int32 VertexInstanceOffset = OutMeshDescription.VertexInstances().Num();
-	const int32 PolygonOffset = OutMeshDescription.Polygons().Num();
-
-	FStaticMeshAttributes StaticMeshAttributes( OutMeshDescription );
-
-	// Vertex positions
-	TVertexAttributesRef< FVector3f > MeshDescriptionVertexPositions = StaticMeshAttributes.GetVertexPositions();
+	// Face indices
+	if (pxr::UsdAttribute Attr = UsdMesh.GetFaceVertexIndicesAttr())
 	{
-		pxr::UsdAttribute Points = UsdMesh.GetPointsAttr();
-		if ( Points )
-		{
-			pxr::VtArray< pxr::GfVec3f > PointsArray;
-			Points.Get( &PointsArray, TimeCodeValue );
-			if (PointsArray.size() < 3)
-			{
-				return false;
-			}
-
-			OutMeshDescription.ReserveNewVertices( PointsArray.size() );
-
-			for ( int32 LocalPointIndex = 0; LocalPointIndex < PointsArray.size(); ++LocalPointIndex )
-			{
-				const pxr::GfVec3f& Point = PointsArray[ LocalPointIndex ];
-
-				FVector Position = Options.AdditionalTransform.TransformPosition( UsdToUnreal::ConvertVector( StageInfo, Point ) );
-
-				FVertexID AddedVertexId = OutMeshDescription.CreateVertex();
-				MeshDescriptionVertexPositions[ AddedVertexId ] = ( FVector3f ) Position;
-			}
-		}
+		Attr.Get(&MeshData.FaceIndices, Options.TimeCode);
 	}
 
-	uint32 NumSkippedPolygons = 0;
-	uint32 NumPolygons = 0;
-
-	// Polygons
+	// Points
+	if (pxr::UsdAttribute Attr = UsdMesh.GetPointsAttr())
 	{
-		TMap<int32, FPolygonGroupID> PolygonGroupMapping;
-		TArray<FVertexInstanceID> CornerInstanceIDs;
-		TArray<FVertexID> CornerVerticesIDs;
-		int32 CurrentVertexInstanceIndex = 0;
-		TPolygonGroupAttributesRef<FName> MaterialSlotNames = StaticMeshAttributes.GetPolygonGroupMaterialSlotNames();
+		Attr.Get(&MeshData.Points, Options.TimeCode);
+	}
 
-		// If we're going to share existing material slots, we'll need to share existing PolygonGroups in the mesh description,
-		// so we need to traverse it and prefill PolygonGroupMapping
-		if ( Options.bMergeIdenticalMaterialSlots )
-		{
-			for ( FPolygonGroupID PolygonGroupID : OutMeshDescription.PolygonGroups().GetElementIDs() )
-			{
-				// We always create our polygon groups in order with our combined material slots, so its easy to reconstruct this mapping here
-				PolygonGroupMapping.Add( PolygonGroupID.GetValue(), PolygonGroupID );
-			}
-		}
+	// Normals
+	if (pxr::UsdAttribute Attr = UsdMesh.GetNormalsAttr())
+	{
+		Attr.Get(&MeshData.Normals, Options.TimeCode);
+		MeshData.NormalInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Attr, pxr::UsdGeomTokens->vertex);
+	}
 
-		// Material slots
-		// Note that we always create these in the order they show up in LocalInfo: If we created these on-demand when parsing polygons (like before)
-		// we could run into polygons in a different order than the material slots and end up with different material assignments.
-		// We could use the StaticMesh's SectionInfoMap to unswitch things, but that's not available at runtime so we better do this here
-		for ( int32 LocalMaterialIndex = 0; LocalMaterialIndex < LocalInfo.Slots.Num(); ++LocalMaterialIndex )
-		{
-			const int32 CombinedMaterialIndex = LocalToCombinedMaterialSlotIndices[ LocalMaterialIndex ];
-			if ( !PolygonGroupMapping.Contains( CombinedMaterialIndex ) )
-			{
-				FPolygonGroupID NewPolygonGroup = OutMeshDescription.CreatePolygonGroup();
-				PolygonGroupMapping.Add( CombinedMaterialIndex, NewPolygonGroup );
+	// Velocities
+	if (pxr::UsdAttribute Attr = UsdMesh.GetVelocitiesAttr())
+	{
+		Attr.Get(&MeshData.Velocities, Options.TimeCode);
+		MeshData.VelocityInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Attr, pxr::UsdGeomTokens->vertex);
+	}
 
-				// This is important for runtime, where the material slots are matched to LOD sections based on their material slot name
-				MaterialSlotNames[ NewPolygonGroup ] = *LexToString( NewPolygonGroup.GetValue() );
-			}
-		}
+	// Vertex colors
+	if (pxr::UsdGeomPrimvar Primvar = pxr::UsdGeomPrimvar(UsdPrim.GetAttribute(pxr::UsdGeomTokens->primvarsDisplayColor)))
+	{
+		Primvar.ComputeFlattened(&MeshData.DisplayColors, Options.TimeCode);
+		MeshData.DisplayColorInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Primvar);
+	}
 
-		bool bFlipThisGeometry = false;
+	// Vertex opacity
+	if (pxr::UsdGeomPrimvar Primvar = pxr::UsdGeomPrimvar(UsdPrim.GetAttribute(pxr::UsdGeomTokens->primvarsDisplayOpacity)))
+	{
+		Primvar.ComputeFlattened(&MeshData.DisplayOpacities, Options.TimeCode);
+		MeshData.DisplayOpacityInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Primvar);
+	}
 
-		if ( IUsdPrim::GetGeometryOrientation( UsdMesh ) == EUsdGeomOrientation::LeftHanded )
-		{
-			bFlipThisGeometry = !bFlipThisGeometry;
-		}
-
-		// Face counts
-		pxr::UsdAttribute FaceCountsAttribute = UsdMesh.GetFaceVertexCountsAttr();
-		pxr::VtArray< int > FaceCounts;
-
-		if ( FaceCountsAttribute )
-		{
-			FaceCountsAttribute.Get( &FaceCounts, TimeCodeValue );
-			NumPolygons = FaceCounts.size();
-			if (NumPolygons < 1)
-			{
-				return false;
-			}
-		}
-
-		// Face indices
-		pxr::UsdAttribute FaceIndicesAttribute = UsdMesh.GetFaceVertexIndicesAttr();
-		pxr::VtArray< int > FaceIndices;
-
-		if ( FaceIndicesAttribute )
-		{
-			FaceIndicesAttribute.Get( &FaceIndices, TimeCodeValue );
-			if (FaceIndices.size() < 1)
-			{
-				return false;
-			}
-		}
-
-		// Normals
-		pxr::UsdAttribute NormalsAttribute = UsdMesh.GetNormalsAttr();
-		pxr::VtArray< pxr::GfVec3f > Normals;
-
-		if ( NormalsAttribute )
-		{
-			NormalsAttribute.Get( &Normals, TimeCodeValue );
-		}
-
-		pxr::TfToken NormalsInterpType = UsdMesh.GetNormalsInterpolation();
-
-		// Velocities
-		pxr::UsdAttribute VelocitiesAttribute = UsdMesh.GetVelocitiesAttr();
-		pxr::TfToken VelocitiesInterpType = pxr::UsdGeomTokens->vertex;
-		pxr::VtArray<pxr::GfVec3f> Velocities;
-		if (VelocitiesAttribute)
-		{
-			VelocitiesAttribute.Get(&Velocities, TimeCodeValue);
-
-			if (Velocities.size() > 0)
-			{
-				if (!OutMeshDescription.VertexInstanceAttributes().HasAttribute(MeshAttribute::VertexInstance::Velocity))
-				{
-					OutMeshDescription.VertexInstanceAttributes().RegisterAttribute<FVector3f>(MeshAttribute::VertexInstance::Velocity, 1, FVector3f::ZeroVector, EMeshAttributeFlags::Lerpable);
-				}
-
-				pxr::TfToken InterpType;
-				if (VelocitiesAttribute.GetMetadata(pxr::UsdGeomTokens->interpolation, &InterpType))
-				{
-					VelocitiesInterpType = InterpType;
-				}
-			}
-		}
-
-		// UVs
-		TVertexInstanceAttributesRef< FVector2f > MeshDescriptionUVs = StaticMeshAttributes.GetVertexInstanceUVs();
-
-		struct FUVSet
-		{
-			int32 UVSetIndexUE; // The user may only have 'uv4' and 'uv5', so we can't just use array indices to find the target UV channel
-			TOptional< pxr::VtIntArray > UVIndices; // UVs might be indexed or they might be flat (one per vertex)
-			pxr::VtVec2fArray UVs;
-
-			pxr::TfToken InterpType = pxr::UsdGeomTokens->faceVarying;
-		};
-
-		TArray< FUVSet > UVSets;
-
-		TOptional<int32> ProvidedNumUVSets;
-
+	// UVs
+	{
 		// If we already have a primvar to UV index assignment, let's just use that.
 		// When collapsing, we'll do a pre-pass on all meshes to translate and determine this beforehand.
-		TArray<TUsdStore<pxr::UsdGeomPrimvar>> PrimvarsByUVIndex;
 		if (OutMaterialAssignments.PrimvarToUVIndex.Num() > 0)
 		{
 			int32 HighestProvidedUVIndex = 0;
@@ -1034,274 +1516,37 @@ bool UsdToUnreal::ConvertGeomMesh(
 			{
 				HighestProvidedUVIndex = FMath::Max(HighestProvidedUVIndex, Pair.Value);
 			}
-			ProvidedNumUVSets = HighestProvidedUVIndex + 1;
+			MeshData.ProvidedNumUVSets = HighestProvidedUVIndex + 1;
 
-			TArray<TUsdStore<pxr::UsdGeomPrimvar>> AllMeshUVPrimvars =
-				UsdUtils::GetUVSetPrimvars(UsdMesh, TNumericLimits<int32>::Max());
-
-			PrimvarsByUVIndex =
-				UsdUtils::AssemblePrimvarsIntoUVSets(AllMeshUVPrimvars, OutMaterialAssignments.PrimvarToUVIndex);
+			TArray<TUsdStore<pxr::UsdGeomPrimvar>> AllMeshUVPrimvars = UsdUtils::GetUVSetPrimvars(UsdPrim, TNumericLimits<int32>::Max());
+			MeshData.PrimvarsByUVIndex = UsdUtils::AssemblePrimvarsIntoUVSets(AllMeshUVPrimvars, OutMaterialAssignments.PrimvarToUVIndex);
 		}
 		// Let's use the best primvar assignment for this particular mesh instead
 		else
 		{
-			PrimvarsByUVIndex = UsdUtils::GetUVSetPrimvars(UsdMesh);
-
-			OutMaterialAssignments.PrimvarToUVIndex =
-				UsdUtils::AssemblePrimvarsIntoPrimvarToUVIndexMap(PrimvarsByUVIndex);
-		}
-
-		int32 HighestAddedUVChannel = 0;
-		for (int32 UVChannelIndex = 0; UVChannelIndex < PrimvarsByUVIndex.Num(); ++UVChannelIndex)
-		{
-			pxr::UsdGeomPrimvar& Primvar = PrimvarsByUVIndex[UVChannelIndex].Get();
-			if (!Primvar)
-			{
-				continue;
-			}
-
-			FUVSet UVSet;
-			UVSet.InterpType = Primvar.GetInterpolation();
-			UVSet.UVSetIndexUE = UVChannelIndex;
-
-			if ( Primvar.IsIndexed() )
-			{
-				UVSet.UVIndices.Emplace();
-
-				if ( Primvar.GetIndices( &UVSet.UVIndices.GetValue(), Options.TimeCode ) && Primvar.Get( &UVSet.UVs, Options.TimeCode ) )
-				{
-					if ( UVSet.UVs.size() > 0 )
-					{
-						UVSets.Add( MoveTemp( UVSet ) );
-						HighestAddedUVChannel = UVSet.UVSetIndexUE;
-					}
-				}
-			}
-			else
-			{
-				if ( Primvar.Get( &UVSet.UVs ) )
-				{
-					if ( UVSet.UVs.size() > 0 )
-					{
-						UVSets.Add( MoveTemp( UVSet ) );
-						HighestAddedUVChannel = UVSet.UVSetIndexUE;
-					}
-				}
-			}
-		}
-
-		// When importing multiple mesh pieces to the same static mesh.  Ensure each mesh piece has the same number of UVs
-		{
-			int32 ExistingUVCount = MeshDescriptionUVs.GetNumChannels();
-			int32 NumUVs = FMath::Max( HighestAddedUVChannel + 1, ExistingUVCount );
-
-			// When we provide a PrimvarToUVIndex map to this function it means we'll end up combining this
-			// MeshDescription with others later (e.g. due to collapsing or multiple-LOD meshes).
-			// In that case we can get better results by making sure all of the individual MeshDescriptions have the
-			// same total number of UV sets, even if the unused ones are empty.
-			// Otherwise, if we e.g. have a material reading UVIndex3 when we only have a single UV set, UE seems to
-			// just read that one UV set anyway, which is somewhat unexpected and can be misleading
-			if (ProvidedNumUVSets.IsSet())
-			{
-				NumUVs = FMath::Max<int32>(ProvidedNumUVSets.GetValue(), NumUVs);
-			}
-
-			NumUVs = FMath::Min<int32>( USD_PREVIEW_SURFACE_MAX_UV_SETS, NumUVs );
-			// At least one UV set must exist.
-			NumUVs = FMath::Max<int32>(1, NumUVs);
-
-			//Make sure all Vertex instance have the correct number of UVs
-			MeshDescriptionUVs.SetNumChannels( NumUVs );
-		}
-
-		TVertexInstanceAttributesRef< FVector3f > MeshDescriptionNormals = StaticMeshAttributes.GetVertexInstanceNormals();
-		TVertexInstanceAttributesRef<FVector3f> MeshDescriptionVelocities = OutMeshDescription.VertexInstanceAttributes().GetAttributesRef<FVector3f>(MeshAttribute::VertexInstance::Velocity);
-
-		OutMeshDescription.ReserveNewVertexInstances( FaceCounts.size() * 3 );
-		OutMeshDescription.ReserveNewPolygons( FaceCounts.size() );
-		OutMeshDescription.ReserveNewEdges( FaceCounts.size() * 2 );
-
-		// Vertex color
-		TVertexInstanceAttributesRef< FVector4f > MeshDescriptionColors = StaticMeshAttributes.GetVertexInstanceColors();
-
-		pxr::UsdGeomPrimvar ColorPrimvar = UsdMesh.GetDisplayColorPrimvar();
-		pxr::TfToken ColorInterpolation = pxr::UsdGeomTokens->constant;
-		pxr::VtArray< pxr::GfVec3f > UsdColors;
-
-		if ( ColorPrimvar )
-		{
-			ColorPrimvar.ComputeFlattened( &UsdColors, Options.TimeCode );
-			ColorInterpolation = ColorPrimvar.GetInterpolation();
-		}
-
-		// Vertex opacity
-		pxr::UsdGeomPrimvar OpacityPrimvar = UsdMesh.GetDisplayOpacityPrimvar();
-		pxr::TfToken OpacityInterpolation = pxr::UsdGeomTokens->constant;
-		pxr::VtArray< float > UsdOpacities;
-
-		if ( OpacityPrimvar )
-		{
-			OpacityPrimvar.ComputeFlattened( &UsdOpacities );
-			OpacityInterpolation = OpacityPrimvar.GetInterpolation();
-		}
-
-		for ( int32 PolygonIndex = 0; PolygonIndex < FaceCounts.size(); ++PolygonIndex )
-		{
-			int32 PolygonVertexCount = FaceCounts[ PolygonIndex ];
-			CornerInstanceIDs.Reset( PolygonVertexCount );
-			CornerVerticesIDs.Reset( PolygonVertexCount );
-
-			for ( int32 CornerIndex = 0; CornerIndex < PolygonVertexCount; ++CornerIndex, ++CurrentVertexInstanceIndex )
-			{
-				int32 VertexInstanceIndex = VertexInstanceOffset + CurrentVertexInstanceIndex;
-				const FVertexInstanceID VertexInstanceID( VertexInstanceIndex );
-				const int32 ControlPointIndex = FaceIndices[ CurrentVertexInstanceIndex ];
-				const FVertexID VertexID( VertexOffset + ControlPointIndex );
-
-				// This data is read straight from USD so there's nothing guaranteeing we have as many positions as we need
-				if (VertexID.GetValue() >= MeshDescriptionVertexPositions.GetNumElements() || VertexID.GetValue() < 0)
-				{
-					continue;
-				}
-
-				// Make sure a face doesn't use the same vertex twice as MeshDescription doesn't like that
-				if ( CornerVerticesIDs.Contains( VertexID ) )
-				{
-					continue;
-				}
-
-				const FVector VertexPosition = (FVector)MeshDescriptionVertexPositions[VertexID];
-
-				CornerVerticesIDs.Add( VertexID );
-
-				FVertexInstanceID AddedVertexInstanceId = OutMeshDescription.CreateVertexInstance( VertexID );
-				CornerInstanceIDs.Add( AddedVertexInstanceId );
-
-				if ( Normals.size() > 0 )
-				{
-					const int32 NormalIndex = UsdGeomMeshImpl::GetPrimValueIndex( NormalsInterpType, ControlPointIndex, CurrentVertexInstanceIndex, PolygonIndex );
-
-					if ( NormalIndex < Normals.size() )
-					{
-						const pxr::GfVec3f& Normal = Normals[ NormalIndex ];
-						FVector TransformedNormal = Options.AdditionalTransform.TransformVector( UsdToUnreal::ConvertVector( StageInfo, Normal ) ).GetSafeNormal();
-
-						MeshDescriptionNormals[ AddedVertexInstanceId ] = ( FVector3f ) TransformedNormal.GetSafeNormal();
-					}
-				}
-
-				if (Velocities.size() > 0)
-				{
-					const int32 VelocityIndex = UsdGeomMeshImpl::GetPrimValueIndex(VelocitiesInterpType, ControlPointIndex, CurrentVertexInstanceIndex, PolygonIndex);
-
-					if (VelocityIndex < Velocities.size())
-					{
-						const pxr::GfVec3f& Velocity = Velocities[VelocityIndex];
-						FVector TransformedVelocity = Options.AdditionalTransform.TransformVector(UsdToUnreal::ConvertVector(StageInfo, Velocity));
-
-						MeshDescriptionVelocities[AddedVertexInstanceId] = (FVector3f) TransformedVelocity;
-					}
-				}
-
-				for ( const FUVSet& UVSet : UVSets )
-				{
-					const int32 ValueIndex = UsdGeomMeshImpl::GetPrimValueIndex( UVSet.InterpType, ControlPointIndex, CurrentVertexInstanceIndex, PolygonIndex );
-
-					pxr::GfVec2f UV( 0.f, 0.f );
-
-					if ( UVSet.UVIndices.IsSet() )
-					{
-						const pxr::VtIntArray& UVIndices = UVSet.UVIndices.GetValue();
-
-						if (ensure(ValueIndex < UVIndices.size()))
-						{
-							int UVIndex = UVIndices[ValueIndex];
-
-							if (ensure(UVIndex < UVSet.UVs.size()))
-							{
-								UV = UVSet.UVs[UVIndex];
-							}
-						}
-					}
-					else if ( ensure( UVSet.UVs.size() > ValueIndex ) )
-					{
-						UV = UVSet.UVs[ ValueIndex ];
-					}
-
-					// Flip V for Unreal uv's which match directx
-					FVector2f FinalUVVector( UV[ 0 ], 1.f - UV[ 1 ] );
-					MeshDescriptionUVs.Set( AddedVertexInstanceId, UVSet.UVSetIndexUE, FinalUVVector );
-				}
-
-				// Vertex color
-				{
-					const int32 ValueIndex = UsdGeomMeshImpl::GetPrimValueIndex( ColorInterpolation, ControlPointIndex, CurrentVertexInstanceIndex, PolygonIndex );
-
-					pxr::GfVec3f UsdColor( 1.f, 1.f, 1.f );
-
-					if ( !UsdColors.empty() && ensure( UsdColors.size() > ValueIndex ) )
-					{
-						UsdColor = UsdColors[ ValueIndex ];
-					}
-
-					MeshDescriptionColors[ AddedVertexInstanceId ] = UsdToUnreal::ConvertColor( UsdColor );
-				}
-
-				// Vertex opacity
-				{
-					const int32 ValueIndex = UsdGeomMeshImpl::GetPrimValueIndex( OpacityInterpolation, ControlPointIndex, CurrentVertexInstanceIndex, PolygonIndex );
-
-					if ( !UsdOpacities.empty() && ensure( UsdOpacities.size() > ValueIndex ) )
-					{
-						MeshDescriptionColors[ AddedVertexInstanceId ][ 3 ] = UsdOpacities[ ValueIndex ];
-					}
-				}
-			}
-
-			// This polygon was using the same vertex instance more than once and we removed too many
-			// vertex indices, so now we're forced to skip the whole polygon. We'll show a warning about it though
-			if ( CornerVerticesIDs.Num() < 3 )
-			{
-				++NumSkippedPolygons;
-				continue;
-			}
-
-			// Polygon groups
-			int32 LocalMaterialIndex = 0;
-			if ( FaceMaterialIndices.IsValidIndex( PolygonIndex ) )
-			{
-				LocalMaterialIndex = FaceMaterialIndices[ PolygonIndex ];
-				if ( !LocalMaterialSlots.IsValidIndex( LocalMaterialIndex ) )
-				{
-					LocalMaterialIndex = 0;
-				}
-			}
-
-			const int32 CombinedMaterialIndex = LocalToCombinedMaterialSlotIndices[ LocalMaterialIndex ];
-
-			if ( bFlipThisGeometry )
-			{
-				for ( int32 i = 0; i < CornerInstanceIDs.Num() / 2; ++i )
-				{
-					Swap( CornerInstanceIDs[ i ], CornerInstanceIDs[ CornerInstanceIDs.Num() - i - 1 ] );
-				}
-			}
-			// Insert a polygon into the mesh
-			FPolygonGroupID PolygonGroupID = PolygonGroupMapping[ CombinedMaterialIndex ];
-			const FPolygonID NewPolygonID = OutMeshDescription.CreatePolygon( PolygonGroupID, CornerInstanceIDs );
+			MeshData.PrimvarsByUVIndex = UsdUtils::GetUVSetPrimvars(UsdPrim);
+			OutMaterialAssignments.PrimvarToUVIndex = UsdUtils::AssemblePrimvarsIntoPrimvarToUVIndexMap(MeshData.PrimvarsByUVIndex);
 		}
 	}
 
-	if ( NumPolygons > 0 && NumSkippedPolygons > 0 )
+	// Orientation
+	MeshData.Orientation = UsdGeomMeshImpl::GetGprimOrientation(UsdMesh, Options.TimeCode);
+
+	// Material assignments
 	{
-		UE_LOG( LogUsd, Warning, TEXT( "Skipped %d out of %d faces when parsing the mesh for prim '%s', as those faces contained too many repeated vertex indices" ),
-			NumSkippedPolygons,
-			NumPolygons,
-			*UsdToUnreal::ConvertPath( UsdPrim.GetPath() )
+		const bool bProvideMaterialIndices = true;
+		MeshData.LocalMaterialInfo = UsdUtils::GetPrimMaterialAssignments(
+			UsdPrim,
+			Options.TimeCode,
+			bProvideMaterialIndices,
+			Options.RenderContext,
+			Options.MaterialPurpose
 		);
+
+		MeshData.MaterialIndexOffset = OutMaterialAssignments.Slots.Num();
 	}
 
-	return true;
+	return UsdGeomMeshImpl::ConvertMeshData(MeshData, StageInfo, Options, OutMeshDescription, OutMaterialAssignments);
 }
 
 bool UsdToUnreal::ConvertPointInstancerToMesh(
@@ -1542,6 +1787,376 @@ bool UsdToUnreal::ConvertGeomMeshHierarchy(
 	);
 }
 
+bool UsdToUnreal::ConvertGeomPrimitive(
+	const pxr::UsdPrim& InPrim,
+	FMeshDescription& InOutMeshDescription,
+	UsdUtils::FUsdPrimMaterialAssignmentInfo& InOutMaterialAssignments,
+	const FUsdMeshConversionOptions& InOptions
+)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UsdToUnreal::ConvertGeomPrimitive);
+
+	if (!InPrim)
+	{
+		return false;
+	}
+
+	FScopedUsdAllocs UsdAllocs;
+
+	pxr::UsdStageRefPtr Stage = InPrim.GetStage();
+	const FUsdStageInfo StageInfo(Stage);
+
+	// Remember that USD arrays are copy-on-write, so these are both "pointers", as long as we
+	// don't try writing (or using non-const operator[]) from PrimitivePoints
+	pxr::VtVec3fArray PrimitivePoints;
+	const pxr::PxOsdMeshTopology* PrimitiveTopology = nullptr;
+
+	if (pxr::UsdGeomCapsule Capsule = pxr::UsdGeomCapsule{InPrim})
+	{
+		pxr::TfToken Axis = pxr::UsdGeomTokens->z;
+		if (pxr::UsdAttribute Attr = Capsule.GetAxisAttr())
+		{
+			Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
+		}
+
+		PrimitivePoints = pxr::UsdImagingGenerateCapsuleMeshPoints(
+			UsdGeomMeshImpl::DefaultCapsuleMeshHeight,
+			UsdGeomMeshImpl::DefaultCapsuleMeshRadius,
+			Axis
+		);
+		PrimitiveTopology = &pxr::UsdImagingGetCapsuleMeshTopology();
+	}
+	else if (pxr::UsdGeomCone Cone = pxr::UsdGeomCone{InPrim})
+	{
+		pxr::TfToken Axis = pxr::UsdGeomTokens->z;
+		if (pxr::UsdAttribute Attr = Capsule.GetAxisAttr())
+		{
+			Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
+		}
+
+		PrimitivePoints = UsdGeomMeshImpl::GetUnitConeMeshPoints(Axis);
+		PrimitiveTopology = &pxr::UsdImagingGetUnitConeMeshTopology();
+	}
+	else if (pxr::UsdGeomCube Cube = pxr::UsdGeomCube{InPrim})
+	{
+		PrimitivePoints = pxr::UsdImagingGetUnitCubeMeshPoints();
+		PrimitiveTopology = &pxr::UsdImagingGetUnitCubeMeshTopology();
+	}
+	else if (pxr::UsdGeomCylinder Cylinder = pxr::UsdGeomCylinder{InPrim})
+	{
+		pxr::TfToken Axis = pxr::UsdGeomTokens->z;
+		if (pxr::UsdAttribute Attr = Capsule.GetAxisAttr())
+		{
+			Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
+		}
+
+		PrimitivePoints = UsdGeomMeshImpl::GetUnitCylinderMeshPoints(Axis);
+		PrimitiveTopology = &pxr::UsdImagingGetUnitCylinderMeshTopology();
+	}
+	else if (pxr::UsdGeomPlane Plane = pxr::UsdGeomPlane{InPrim})
+	{
+		const double Width = 1.0f;
+		const double Length = 1.0f;
+
+		pxr::TfToken Axis = pxr::UsdGeomTokens->z;
+		if (pxr::UsdAttribute Attr = Capsule.GetAxisAttr())
+		{
+			Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
+		}
+
+		PrimitivePoints = pxr::UsdImagingGeneratePlaneMeshPoints(Width, Length, Axis);
+		PrimitiveTopology = &pxr::UsdImagingGetPlaneTopology();
+	}
+	else if (pxr::UsdGeomSphere Sphere = pxr::UsdGeomSphere{InPrim})
+	{
+		PrimitivePoints = pxr::UsdImagingGetUnitSphereMeshPoints();
+		PrimitiveTopology = &pxr::UsdImagingGetUnitSphereMeshTopology();
+	}
+
+	if (!PrimitiveTopology || PrimitivePoints.empty())
+	{
+		return false;
+	}
+
+	UsdGeomMeshImpl::FUsdMeshData MeshData;
+	MeshData.SourcePrimPath = UsdToUnreal::ConvertPath(InPrim.GetPrimPath());
+	MeshData.FaceVertexCounts = PrimitiveTopology->GetFaceVertexCounts();
+	MeshData.FaceIndices = PrimitiveTopology->GetFaceVertexIndices();
+	MeshData.Points = PrimitivePoints;
+
+	// Normals
+	if (pxr::UsdAttribute Attr = InPrim.GetAttribute(pxr::UsdGeomTokens->normals))
+	{
+		Attr.Get(&MeshData.Normals, InOptions.TimeCode);
+		MeshData.NormalInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Attr, pxr::UsdGeomTokens->vertex);
+	}
+
+	// Velocities
+	if (pxr::UsdGeomPointBased PointBased{InPrim})
+	{
+		if (pxr::UsdAttribute Attr = PointBased.GetVelocitiesAttr())
+		{
+			Attr.Get(&MeshData.Velocities, InOptions.TimeCode);
+			MeshData.VelocityInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Attr, pxr::UsdGeomTokens->vertex);
+		}
+	}
+
+	// Vertex colors
+	if (pxr::UsdGeomPrimvar Primvar = pxr::UsdGeomPrimvar(InPrim.GetAttribute(pxr::UsdGeomTokens->primvarsDisplayColor)))
+	{
+		Primvar.ComputeFlattened(&MeshData.DisplayColors, InOptions.TimeCode);
+		MeshData.DisplayColorInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Primvar);
+	}
+
+	// Vertex opacity
+	if (pxr::UsdGeomPrimvar Primvar = pxr::UsdGeomPrimvar(InPrim.GetAttribute(pxr::UsdGeomTokens->primvarsDisplayOpacity)))
+	{
+		Primvar.ComputeFlattened(&MeshData.DisplayOpacities, InOptions.TimeCode);
+		MeshData.DisplayOpacityInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Primvar);
+	}
+
+	// UVs
+	{
+		// If we already have a primvar to UV index assignment, let's just use that.
+		// When collapsing, we'll do a pre-pass on all meshes to translate and determine this beforehand.
+		if (InOutMaterialAssignments.PrimvarToUVIndex.Num() > 0)
+		{
+			int32 HighestProvidedUVIndex = 0;
+			for (const TPair<FString, int32>& Pair : InOutMaterialAssignments.PrimvarToUVIndex)
+			{
+				HighestProvidedUVIndex = FMath::Max(HighestProvidedUVIndex, Pair.Value);
+			}
+			MeshData.ProvidedNumUVSets = HighestProvidedUVIndex + 1;
+
+			TArray<TUsdStore<pxr::UsdGeomPrimvar>> AllMeshUVPrimvars = UsdUtils::GetUVSetPrimvars(InPrim, TNumericLimits<int32>::Max());
+			MeshData.PrimvarsByUVIndex = UsdUtils::AssemblePrimvarsIntoUVSets(AllMeshUVPrimvars, InOutMaterialAssignments.PrimvarToUVIndex);
+		}
+		// Let's use the best primvar assignment for this particular mesh instead
+		else
+		{
+			MeshData.PrimvarsByUVIndex = UsdUtils::GetUVSetPrimvars(InPrim);
+			InOutMaterialAssignments.PrimvarToUVIndex = UsdUtils::AssemblePrimvarsIntoPrimvarToUVIndexMap(MeshData.PrimvarsByUVIndex);
+		}
+	}
+
+	// Orientation
+	MeshData.Orientation = UsdGeomMeshImpl::GetGprimOrientation(pxr::UsdGeomGprim{InPrim}, InOptions.TimeCode);
+
+	// Material assignments
+	{
+		const bool bProvideMaterialIndices = true;
+		MeshData.LocalMaterialInfo = UsdUtils::GetPrimMaterialAssignments(
+			InPrim,
+			InOptions.TimeCode,
+			bProvideMaterialIndices,
+			InOptions.RenderContext,
+			InOptions.MaterialPurpose
+		);
+
+		MeshData.MaterialIndexOffset = InOutMaterialAssignments.Slots.Num();
+	}
+
+	return ConvertMeshData(MeshData, StageInfo, InOptions, InOutMeshDescription, InOutMaterialAssignments);
+}
+
+bool UsdToUnreal::ConvertGeomPrimitiveTransform(
+	const pxr::UsdPrim& InPrim,
+	const pxr::UsdTimeCode& InTimeCode,
+	FTransform& OutTransform
+)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UsdToUnreal::ConvertGeomPrimitive);
+
+	if (!InPrim || !InPrim.IsA<pxr::UsdGeomGprim>())
+	{
+		return false;
+	}
+
+	FScopedUsdAllocs UsdAllocs;
+
+	pxr::UsdStageRefPtr Stage = InPrim.GetStage();
+	const FUsdStageInfo StageInfo(Stage);
+
+	TFunction<pxr::GfMatrix4d(pxr::TfToken, double, double)> GetScalingTransform =
+		[](pxr::TfToken Axis, double Longitudinal, double Transversal)
+	{
+		if (Axis == pxr::UsdGeomTokens->x)
+		{
+			return pxr::GfMatrix4d(
+				Longitudinal, 		  0.0, 		   0.0, 0.0,
+						 0.0, Transversal, 		   0.0, 0.0,
+						 0.0, 		  0.0, Transversal, 0.0,
+						 0.0, 		  0.0, 		   0.0, 1.0
+			);
+		}
+		else if (Axis == pxr::UsdGeomTokens->y)
+		{
+			return pxr::GfMatrix4d(
+				Transversal, 		  0.0, 		   0.0, 0.0,
+						0.0, Longitudinal, 		   0.0, 0.0,
+						0.0, 		  0.0, Transversal, 0.0,
+						0.0, 		  0.0, 		   0.0, 1.0
+			);
+		}
+		else
+		{
+			return pxr::GfMatrix4d(
+				Transversal, 		 0.0, 		   0.0, 0.0,
+						0.0, Transversal, 		   0.0, 0.0,
+						0.0, 		 0.0, Longitudinal, 0.0,
+						0.0, 		 0.0, 		   0.0, 1.0
+			);
+		}
+	};
+
+	if (pxr::UsdGeomCapsule Capsule = pxr::UsdGeomCapsule{InPrim})
+	{
+		const double Radius = UsdUtils::GetUsdValue<double>(Capsule.GetRadiusAttr(), InTimeCode);
+		const double Height = UsdUtils::GetUsdValue<double>(Capsule.GetHeightAttr(), InTimeCode);
+
+		pxr::TfToken Axis = pxr::UsdGeomTokens->z;
+		if (pxr::UsdAttribute Attr = Capsule.GetAxisAttr())
+		{
+			Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
+			if (Attr.ValueMightBeTimeVarying())
+			{
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT("Animation of the 'axis' attribute for prim '%s' is not supported!"),
+					*UsdToUnreal::ConvertPath(InPrim.GetPrimPath())
+				);
+			}
+		}
+
+		// We use these "Scaling" factors instead of direct height/radius because we're assuming
+		// we'll have generated this capsule mesh using ConvertGeomPrimitive, where we provide
+		// UsdImagingGenerateCapsuleMeshPoints with DefaultCapsuleMeshHeight and
+		// DefaultCapsuleMeshRadius. If our current height/radius match those, we need to create
+		// an identity transform. If our height is twice as that, our axis direction needs to have
+		// a scaling of 2.0, etc.
+		// Also keep in mind that the capsule total height is (Radius + Height + Radius).
+		double HeightScaling = (Height + 2.0f * Radius)
+							   / (UsdGeomMeshImpl::DefaultCapsuleMeshHeight + 2.0f * UsdGeomMeshImpl::DefaultCapsuleMeshRadius);
+		double RadiusScaling = (Radius / UsdGeomMeshImpl::DefaultCapsuleMeshRadius);
+		pxr::GfMatrix4d PrimitiveTransform = GetScalingTransform(Axis, HeightScaling, RadiusScaling);
+
+		OutTransform = UsdToUnreal::ConvertMatrix(StageInfo, PrimitiveTransform);
+		return true;
+	}
+	else if (pxr::UsdGeomCone Cone = pxr::UsdGeomCone{InPrim})
+	{
+		const double Radius = UsdUtils::GetUsdValue<double>(Cone.GetRadiusAttr(), InTimeCode);
+		const double Height = UsdUtils::GetUsdValue<double>(Cone.GetHeightAttr(), InTimeCode);
+
+		pxr::TfToken Axis = pxr::UsdGeomTokens->z;
+		if (pxr::UsdAttribute Attr = Cone.GetAxisAttr())
+		{
+			Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
+			if (Attr.ValueMightBeTimeVarying())
+			{
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT("Animation of the 'axis' attribute for prim '%s' is not supported!"),
+					*UsdToUnreal::ConvertPath(InPrim.GetPrimPath())
+				);
+			}
+		}
+
+		const double Diameter = 2.0 * Radius;
+		pxr::GfMatrix4d PrimitiveTransform = GetScalingTransform(Axis, Height, Diameter);
+
+		OutTransform = UsdToUnreal::ConvertMatrix(StageInfo, PrimitiveTransform);
+		return true;
+	}
+	else if (pxr::UsdGeomCube Cube = pxr::UsdGeomCube{InPrim})
+	{
+		const double Size = UsdUtils::GetUsdValue<double>(Cube.GetSizeAttr(), InTimeCode);
+		const pxr::GfMatrix4d UsdTransform = pxr::UsdImagingGenerateSphereOrCubeTransform(Size);
+
+		OutTransform = UsdToUnreal::ConvertMatrix(StageInfo, UsdTransform);
+		return true;
+	}
+	else if (pxr::UsdGeomCylinder Cylinder = pxr::UsdGeomCylinder{InPrim})
+	{
+		const double Radius = UsdUtils::GetUsdValue<double>(Cone.GetRadiusAttr(), InTimeCode);
+		const double Height = UsdUtils::GetUsdValue<double>(Cone.GetHeightAttr(), InTimeCode);
+
+		pxr::TfToken Axis = pxr::UsdGeomTokens->z;
+		if (pxr::UsdAttribute Attr = Cone.GetAxisAttr())
+		{
+			Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
+			if (Attr.ValueMightBeTimeVarying())
+			{
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT("Animation of the 'axis' attribute for prim '%s' is not supported!"),
+					*UsdToUnreal::ConvertPath(InPrim.GetPrimPath())
+				);
+			}
+		}
+
+		const double Diameter = 2.0 * Radius;
+		pxr::GfMatrix4d PrimitiveTransform = GetScalingTransform(Axis, Height, Diameter);
+
+		OutTransform = UsdToUnreal::ConvertMatrix(StageInfo, PrimitiveTransform);
+		return true;
+	}
+	else if (pxr::UsdGeomPlane Plane = pxr::UsdGeomPlane{InPrim})
+	{
+		const double Width = UsdUtils::GetUsdValue<double>(Plane.GetWidthAttr(), InTimeCode);
+		const double Length = UsdUtils::GetUsdValue<double>(Plane.GetLengthAttr(), InTimeCode);
+
+		pxr::TfToken Axis = pxr::UsdGeomTokens->z;
+		if (pxr::UsdAttribute Attr = Plane.GetAxisAttr())
+		{
+			Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
+			if (Attr.ValueMightBeTimeVarying())
+			{
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT("Animation of the 'axis' attribute for prim '%s' is not supported!"),
+					*UsdToUnreal::ConvertPath(InPrim.GetPrimPath())
+				);
+			}
+		}
+
+		OutTransform = FTransform::Identity;
+
+		// Generate a scaling transform in USD coordinate system
+		if (Axis == pxr::UsdGeomTokens->x)
+		{
+			OutTransform.SetScale3D(FVector{1.0f, Length, Width});
+		}
+		else if (Axis == pxr::UsdGeomTokens->y)
+		{
+			OutTransform.SetScale3D(FVector{Width, 1.0f, Length});
+		}
+		else if (Axis == pxr::UsdGeomTokens->z)
+		{
+			OutTransform.SetScale3D(FVector{Width, Length, 1.0f});
+		}
+
+		// Convert that transform to the UE coordinate system
+		OutTransform = UsdUtils::ConvertAxes(StageInfo.UpAxis == EUsdUpAxis::ZAxis, OutTransform);
+		return true;
+	}
+	else if (pxr::UsdGeomSphere Sphere = pxr::UsdGeomSphere{InPrim})
+	{
+		const double Radius = UsdUtils::GetUsdValue<double>(Sphere.GetRadiusAttr(), InTimeCode);
+		const double Diameter = Radius * 2.0;
+		const pxr::GfMatrix4d UsdTransform = pxr::UsdImagingGenerateSphereOrCubeTransform(Diameter);
+
+		OutTransform = UsdToUnreal::ConvertMatrix(StageInfo, UsdTransform);
+		return true;
+	}
+
+	return false;
+}
+
 UMaterialInstanceDynamic* UsdUtils::CreateDisplayColorMaterialInstanceDynamic( const UsdUtils::FDisplayColorMaterial& DisplayColorDescription )
 {
 	const UUsdProjectSettings* Settings = GetDefault<UUsdProjectSettings>();
@@ -1728,15 +2343,7 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 
 	uint64 NumFaces = 0;
 	{
-		pxr::UsdGeomMesh Mesh = pxr::UsdGeomMesh( UsdPrim );
-		pxr::UsdAttribute FaceCounts = Mesh.GetFaceVertexCountsAttr();
-		if ( !Mesh || !FaceCounts )
-		{
-			return Result;
-		}
-
-		pxr::VtArray<int> FaceVertexCounts;
-		FaceCounts.Get( &FaceVertexCounts, TimeCode );
+		pxr::VtArray<int> FaceVertexCounts = UsdGeomMeshImpl::GetFaceVertexCounts(UsdPrim, TimeCode);
 		NumFaces = FaceVertexCounts.size();
 		if ( NumFaces < 1 )
 		{
@@ -1950,7 +2557,7 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 		// for displayColor and displayOpacity
 		if (!bHasMainAssignment)
 		{
-			DisplayColor = ExtractDisplayColorMaterial(pxr::UsdGeomMesh(UsdPrim), TimeCode);
+			DisplayColor = ExtractDisplayColorMaterial(pxr::UsdGeomGprim{UsdPrim}, TimeCode);
 			if (DisplayColor)
 			{
 				FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
@@ -2346,14 +2953,14 @@ TOptional<UsdUtils::FDisplayColorMaterial> UsdUtils::FDisplayColorMaterial::From
 	return Result;
 }
 
-TOptional<UsdUtils::FDisplayColorMaterial> UsdUtils::ExtractDisplayColorMaterial( const pxr::UsdGeomMesh& UsdMesh, const pxr::UsdTimeCode TimeCode )
+TOptional<UsdUtils::FDisplayColorMaterial> UsdUtils::ExtractDisplayColorMaterial(const pxr::UsdGeomGprim& Gprim, const pxr::UsdTimeCode TimeCode)
 {
-	if ( !UsdMesh )
+	if (!Gprim)
 	{
 		return {};
 	}
 
-	if ( !UsdMesh.GetDisplayOpacityAttr().IsDefined() && !UsdMesh.GetDisplayColorAttr().IsDefined() )
+	if (!Gprim.GetDisplayOpacityAttr().IsDefined() && !Gprim.GetDisplayColorAttr().IsDefined())
 	{
 		return {};
 	}
@@ -2361,20 +2968,20 @@ TOptional<UsdUtils::FDisplayColorMaterial> UsdUtils::ExtractDisplayColorMaterial
 	UsdUtils::FDisplayColorMaterial Desc;
 
 	// Opacity
-	pxr::VtArray< float > UsdOpacities = UsdUtils::GetUsdValue< pxr::VtArray< float > >( UsdMesh.GetDisplayOpacityAttr(), TimeCode );
-	for ( float Opacity : UsdOpacities )
+	pxr::VtArray<float> UsdOpacities = UsdUtils::GetUsdValue<pxr::VtArray<float>>(Gprim.GetDisplayOpacityAttr(), TimeCode);
+	for (float Opacity : UsdOpacities)
 	{
-		Desc.bHasOpacity = !FMath::IsNearlyEqual( Opacity, 1.f );
-		if ( Desc.bHasOpacity )
+		Desc.bHasOpacity = !FMath::IsNearlyEqual(Opacity, 1.f);
+		if (Desc.bHasOpacity)
 		{
 			break;
 		}
 	}
 
 	// Double-sided
-	if ( UsdMesh.GetDoubleSidedAttr().IsDefined() )
+	if (Gprim.GetDoubleSidedAttr().IsDefined())
 	{
-		Desc.bIsDoubleSided = UsdUtils::GetUsdValue< bool >( UsdMesh.GetDoubleSidedAttr(), TimeCode );
+		Desc.bIsDoubleSided = UsdUtils::GetUsdValue<bool>(Gprim.GetDoubleSidedAttr(), TimeCode);
 	}
 
 	return Desc;
@@ -2951,7 +3558,7 @@ FString UsdUtils::HashGeomMeshPrim( const UE::FUsdStage& Stage, const FString& P
 
 	// TODO: This is not providing render context or material purpose, so it will never consider float2f primvars
 	// for the hash, which could be an issue in very exotic cases
-	TArray< TUsdStore< UsdGeomPrimvar > > PrimvarsByUVIndex = UsdUtils::GetUVSetPrimvars( UsdMesh );
+	TArray< TUsdStore< UsdGeomPrimvar > > PrimvarsByUVIndex = UsdUtils::GetUVSetPrimvars( UsdPrim );
 	for ( int32 UVChannelIndex = 0; UVChannelIndex < PrimvarsByUVIndex.Num(); ++UVChannelIndex )
 	{
 		if ( !PrimvarsByUVIndex.IsValidIndex( UVChannelIndex ) )
@@ -3105,6 +3712,126 @@ UsdUtils::EMeshTopologyVariance UsdUtils::GetMeshTopologyVariance(const pxr::Usd
 	}
 
 	return EMeshTopologyVariance::Constant;
+}
+
+uint64 UsdUtils::GetGprimVertexCount(const pxr::UsdGeomGprim& Gprim, double TimeCode)
+{
+	if (pxr::UsdGeomMesh Mesh{Gprim})
+	{
+		if (pxr::UsdAttribute Points = Mesh.GetPointsAttr())
+		{
+			pxr::VtArray<pxr::GfVec3f> PointsArray;
+			Points.Get(&PointsArray, pxr::UsdTimeCode(TimeCode));
+			return PointsArray.size();
+		}
+	}
+	else if (pxr::UsdGeomCapsule Capsule{Gprim})
+	{
+		// These numbers come from inspecting USD's implicitSurfaceMeshUtils.cpp
+		// and comparing with the generated UStaticMesh vertex counts.
+		// In practice it doesn't matter much though: These small Gprims are likely
+		// never going to significantly affect whether a subtree should collapse or not
+		return 82;
+	}
+	else if (pxr::UsdGeomCone Cone{Gprim})
+	{
+		return 31;
+	}
+	else if (pxr::UsdGeomCube Cube{Gprim})
+	{
+		return 8;
+	}
+	else if (pxr::UsdGeomCylinder Cylinder{Gprim})
+	{
+		return 42;
+	}
+	else if (pxr::UsdGeomSphere Sphere{Gprim})
+	{
+		return 92;
+	}
+	else if (pxr::UsdGeomPlane Plane{Gprim})
+	{
+		return 4;
+	}
+
+	return 0;
+}
+
+void UsdUtils::AuthorIdentityTransformGprimAttributes(const pxr::UsdPrim& UsdPrim, bool bDefaultValues, bool bTimeSampleValues)
+{
+	pxr::UsdGeomGprim Gprim{UsdPrim};
+	if (!Gprim)
+	{
+		return;
+	}
+
+	FScopedUsdAllocs Allocs;
+
+	// We can't just "clear" these opinions because we may cause some weaker opinion
+	// to pop up, and the caller will likely be relying on this function to make sure our
+	// prim has attributes in such a way that its "primitive transform" is the identity.
+	// In other words, after we call this function on UsdPrim, calling
+	// ConvertGeomPrimitiveTransform on the same prim should generate the identity transform.
+	auto SetAttrValue = [bDefaultValues, bTimeSampleValues](const pxr::UsdAttribute& Attr, auto Value)
+	{
+		if (!Attr)
+		{
+			return;
+		}
+
+		if (bDefaultValues)
+		{
+			Attr.Set(Value);
+		}
+
+		if (bTimeSampleValues)
+		{
+			UsdUtils::ClearAllTimeSamples(Attr);
+
+			// Ideally we'd use pxr::UsdTimeCode::EarliestTime() but that seems to be -DBL_MAX, which
+			// could look weird to a user when written on the USD file. Since this is going to be the
+			// only timeSample it doesn't really matter anyway
+			const pxr::UsdTimeCode TimeCode{0.0};
+			Attr.Set(Value, TimeCode);
+		}
+	};
+
+	// In here we must author the attribute values that cause ConvertGeomPrimitive
+	// to generate meshes in the [-0.5, 0.5] bounding box, as that will correspond to the
+	// identity "primitive transform".
+	// Note that these values *do not* correspond to the fallback values for the attributes.
+	// For whatever reason the attribute fallback values all lead to a scaling factor of 2 instead.
+	// If we want our primitives to end up with a scale of 2 when writing out to USD however,
+	// we will put the scale of 2 directly on the Xform/component transform instead, and with this
+	// function have the attributes generate a scale of 1 instead.
+	if (pxr::UsdGeomCapsule Capsule = pxr::UsdGeomCapsule{UsdPrim})
+	{
+		SetAttrValue(Capsule.CreateRadiusAttr(), 0.25);
+		SetAttrValue(Capsule.CreateHeightAttr(), 0.5);
+	}
+	else if (pxr::UsdGeomCone Cone = pxr::UsdGeomCone{UsdPrim})
+	{
+		SetAttrValue(Cone.CreateRadiusAttr(), 0.5);
+		SetAttrValue(Cone.CreateHeightAttr(), 1.0);
+	}
+	else if (pxr::UsdGeomCube Cube = pxr::UsdGeomCube{UsdPrim})
+	{
+		SetAttrValue(Cube.CreateSizeAttr(), 1.0);
+	}
+	else if (pxr::UsdGeomCylinder Cylinder = pxr::UsdGeomCylinder{UsdPrim})
+	{
+		SetAttrValue(Cylinder.CreateRadiusAttr(), 0.5);
+		SetAttrValue(Cylinder.CreateHeightAttr(), 1.0);
+	}
+	else if (pxr::UsdGeomSphere Sphere = pxr::UsdGeomSphere{UsdPrim})
+	{
+		SetAttrValue(Sphere.CreateRadiusAttr(), 0.5);
+	}
+	else if (pxr::UsdGeomPlane Plane = pxr::UsdGeomPlane{UsdPrim})
+	{
+		SetAttrValue(Plane.CreateWidthAttr(), 1.0);
+		SetAttrValue(Plane.CreateLengthAttr(), 1.0);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

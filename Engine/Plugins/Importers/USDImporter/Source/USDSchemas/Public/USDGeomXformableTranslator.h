@@ -27,7 +27,7 @@ public:
 
 	virtual void CreateAssets() override;
 	virtual USceneComponent* CreateComponents() override;
-	virtual void UpdateComponents( USceneComponent* SceneComponent );
+	virtual void UpdateComponents( USceneComponent* SceneComponent ) override;
 
 	virtual bool CollapsesChildren( ECollapsingType CollapsingType ) const override;
 	virtual bool CanBeCollapsed( ECollapsingType CollapsingType ) const override;

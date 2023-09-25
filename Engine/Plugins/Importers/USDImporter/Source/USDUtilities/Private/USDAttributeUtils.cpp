@@ -175,6 +175,24 @@ bool UsdUtils::IsAttributeMuted( const UE::FUsdAttribute& Attribute, const UE::F
 }
 
 #if USE_USD_SDK
+bool UsdUtils::ClearAllTimeSamples(const pxr::UsdAttribute& Attribute)
+{
+	FScopedUsdAllocs Allocs;
+
+	std::vector<double> Times;
+	if (Attribute.GetTimeSamples(&Times))
+	{
+		for (double Time : Times)
+		{
+			Attribute.ClearAtTime(Time);
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
 void UsdUtils::NotifyIfOverriddenOpinion(const pxr::UsdProperty& Property)
 {
 	FScopedUsdAllocs Allocs;
