@@ -365,6 +365,14 @@ private:
 	
 	ECOInstanceFlags InstanceFlagsPrivate = ECOInstanceFlags::ECONone;
 
+public:
+	/** Hash of the UCustomizableObjectInstance::Descriptor on the last update request. */
+	FDescriptorRuntimeHash UpdateDescriptorRuntimeHash;
+	
+	/** Hash of the UCustomizableObjectInstance::Descriptor on the last successful update. */
+	FDescriptorRuntimeHash DescriptorRuntimeHash;
+
+private:
 	// Struct used by BuildMaterials() to identify common materials between LODs
 	struct FMutableMaterialPlaceholder
 	{

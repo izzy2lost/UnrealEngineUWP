@@ -278,18 +278,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	void UpdateSkeletalMeshAsyncResult(FInstanceUpdateDelegate Callback, bool bIgnoreCloseDist = false, bool bForceHighPriority = false);
 
-private:
-	/** Perform all the checks required to see if the update should begin. */
-	EUpdateRequired IsUpdateRequired(bool bOnlyUpdateIfNotGenerated, bool bIgnoreCloseDist) const;
-
-public:
-	/** Private API.
-	 *
-	 * Update Skeletal Mesh asynchronously. Immersive function.
-	 * Once the update reaches this function, the update has been considered started and must complete all the update flow.
-	 * Starting at this function, all Update code paths must end up in FinishUpdateGlobal! */
-	void EnqueueUpdateSkeletalMesh(bool bOnlyUpdateIfNotGenerated, bool bIgnoreCloseDist, bool bForceHighPriority, const EUpdateRequired* OptionalUpdateRequired, FInstanceUpdateDelegate* UpdateCallback);
-
 	// Clones the instance creating a new identical transient instance.
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	UCustomizableObjectInstance* Clone();
@@ -306,9 +294,6 @@ public:
 	
 	// Releases all the mutable resources this instance holds, should only be called when it is not going to be used any more.
 	void ReleaseMutableResources(bool bCalledFromBeginDestroy);
-
-	/** Returns the priority an update issued by EnqueueUpdateSkeletalMesh would get in the current instance configuration and state */
-	EQueuePriorityType GetUpdatePriority(bool bForceHighPriority) const;
 
 	// Returns de description texture (ex: color bar) for this parameter and DescIndex
 	// This will only be valid if bBuildParameterDecorations was set to true before the last update.
@@ -726,12 +711,6 @@ private:
 
 	UPROPERTY( Transient )
 	TObjectPtr<UCustomizableInstancePrivateData> PrivateData;
-	
-	/** Hash of the UCustomizableObjectInstance::Descriptor on the last update request. */
-	FDescriptorRuntimeHash UpdateDescriptorRuntimeHash;
-	
-	/** Hash of the UCustomizableObjectInstance::Descriptor on the last successful update. */
-	FDescriptorRuntimeHash DescriptorRuntimeHash;
 
 	/** LODs applied on the beginning of the last update. Represent the actual LODs the Instance is using (not strictly true since an update can fail). */
 	int32 CurrentMinLOD = -1;
@@ -800,26 +779,11 @@ public:
 		CustomizableObjectInstance(const_cast<UCustomizableObjectInstance*>(InCustomizableObjectInstance)), MinLOD(InMinLOD), MaxLOD(InMaxLOD),
 		RequestedLODLevels(InRequestedLODLevels) {}
 
-	bool HasBeenIssued()
-	{
-		return bHasBeenIssued;
-	}
+	bool HasBeenIssued() const;
 
-	void Issue()
-	{
-		bHasBeenIssued = true;
-	}
+	void Issue();
 
-	void ApplyLODUpdateParamsToInstance()
-	{
-		CustomizableObjectInstance->Descriptor.MinLOD = MinLOD;
-		CustomizableObjectInstance->Descriptor.MaxLOD = MaxLOD;
-
-		CustomizableObjectInstance->Descriptor.RequestedLODLevels = RequestedLODLevels;
-
-		CustomizableObjectInstance->UpdateDescriptorRuntimeHash.UpdateMinMaxLOD(MinLOD, MaxLOD);
-		CustomizableObjectInstance->UpdateDescriptorRuntimeHash.UpdateRequestedLODs(CustomizableObjectInstance->Descriptor.RequestedLODLevels);
-	}
+	void ApplyLODUpdateParamsToInstance();
 
 private:
 	/** If true it means that EnqueueUpdateSkeletalMesh has decided this update should be performed, if false it should be ignored. Just used for consistency checks */
