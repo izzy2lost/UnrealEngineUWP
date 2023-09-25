@@ -289,6 +289,7 @@ export type AgentQuery = {
 	modifiedAfter?: string;
 	poolId?: string;
 	includeDeleted?: boolean;
+	filter?: string;
 }
 
 export type JobQuery = {
@@ -733,7 +734,7 @@ export type GetAgentResponse = {
 	pendingShutdown: boolean;
 
 	/** agent workspaces */
-	workspaces: GetAgentWorkspaceResponse[];
+	workspaces?: GetAgentWorkspaceResponse[];
 
 }
 
