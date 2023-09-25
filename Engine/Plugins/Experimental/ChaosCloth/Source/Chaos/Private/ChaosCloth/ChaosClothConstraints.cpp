@@ -34,9 +34,11 @@ FClothConstraints::FClothConstraints()
 	, ConstraintInitOffset(INDEX_NONE)
 	, ConstraintRuleOffset(INDEX_NONE)
 	, PostCollisionConstraintRuleOffset(INDEX_NONE)
+	, PostprocessingConstraintRuleOffset(INDEX_NONE)
 	, NumConstraintInits(0)
 	, NumConstraintRules(0)
 	, NumPostCollisionConstraintRules(0)
+	, NumPostprocessingConstraintRules(0)
 {
 }
 
@@ -95,6 +97,10 @@ void FClothConstraints::Enable(bool bEnable)
 	if (PostCollisionConstraintRuleOffset != INDEX_NONE)
 	{
 		Evolution->ActivatePostCollisionConstraintRuleRange(PostCollisionConstraintRuleOffset, bEnable);
+	}
+	if (PostprocessingConstraintRuleOffset != INDEX_NONE)
+	{
+		Evolution->ActivateConstraintPostprocessingsRange(PostprocessingConstraintRuleOffset, bEnable);
 	}
 }
 
@@ -188,8 +194,6 @@ void FClothConstraints::CreateSelfCollisionConstraints(const Softs::FCollectionP
 			}
 		}
 
-		const bool bUseSelfIntersections = ConfigProperties.GetValue<bool>(TEXT("UseSelfIntersections"));
-
 		SelfCollisionInit = MakeShared<Softs::FPBDTriangleMeshCollisions>(
 			ParticleOffset,
 			NumParticles,
@@ -212,6 +216,7 @@ void FClothConstraints::CreateSelfCollisionConstraints(const Softs::FCollectionP
 			NumParticles,
 			TriangleMesh);
 		++NumConstraintInits;
+		++NumPostprocessingConstraintRules;
 	}
 }
 
@@ -510,14 +515,23 @@ void FClothConstraints::CreateRules()
 	{
 		PostCollisionConstraintRuleOffset = Evolution->AddPostCollisionConstraintRuleRange(NumPostCollisionConstraintRules, false);
 	}
+	check(PostprocessingConstraintRuleOffset == INDEX_NONE);
+	if (NumPostprocessingConstraintRules)
+	{
+		PostprocessingConstraintRuleOffset = Evolution->AddConstraintPostprocessingsRange(NumPostprocessingConstraintRules, false);
+	}
 
 	TFunction<void(Softs::FSolverParticles&, const Softs::FSolverReal)>* const ConstraintInits = Evolution->ConstraintInits().GetData() + ConstraintInitOffset;
 	TFunction<void(Softs::FSolverParticles&, const Softs::FSolverReal)>* const ConstraintRules = Evolution->ConstraintRules().GetData() + ConstraintRuleOffset;
 	TFunction<void(Softs::FSolverParticles&, const Softs::FSolverReal)>* const PostCollisionConstraintRules = Evolution->PostCollisionConstraintRules().GetData() + PostCollisionConstraintRuleOffset;
+	TFunction<void(Softs::FSolverParticles&, const Softs::FSolverReal)>* const
+		PostprocessingConstraintRules = Evolution->ConstraintPostprocessings().GetData() +
+		PostprocessingConstraintRuleOffset;
 
 	int32 ConstraintInitIndex = 0;
 	int32 ConstraintRuleIndex = 0;
 	int32 PostCollisionConstraintRuleIndex = 0;
+	int32 PostprocessingConstraintRuleIndex = 0;
 
 	if (XStretchBiasConstraints)
 	{
@@ -810,17 +824,29 @@ void FClothConstraints::CreateRules()
 			{
 				SelfCollisionConstraints->Apply(Particles, Dt);
 			};
+
 	}
 
-	// The following constraints only run once per subframe, so we do their Apply as part of the Init() which modifies P
-	// To avoid possible dependency order issues, add them last
 	if (SelfCollisionInit && SelfIntersectionConstraints)
 	{
+		// The following constraints only run once per subframe, so we do their Apply as part of the Init() which modifies P
+		// To avoid possible dependency order issues, add them last
 		ConstraintInits[ConstraintInitIndex++] =
 			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal Dt)
 			{
 				SelfIntersectionConstraints->Apply(Particles, SelfCollisionInit->GetContourMinimizationIntersections(), Dt);
 			};
+
+		PostprocessingConstraintRules[PostprocessingConstraintRuleIndex++] =
+			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal Dt)
+		{
+			const int32 NumContourIterations = SelfCollisionInit->GetNumContourMinimizationPostSteps();
+			for (int32 Iter = 0; Iter < NumContourIterations; ++Iter)
+			{
+				SelfCollisionInit->PostStepInit(Particles);
+				SelfIntersectionConstraints->Apply(Particles, SelfCollisionInit->GetPostStepContourMinimizationIntersections(), Dt);
+			}
+		};
 	}
 
 	// Long range constraints modify particle P as part of Init. To avoid possible dependency order issues,
@@ -1252,6 +1278,10 @@ void FClothConstraints::Update(
 	if (SelfCollisionConstraints)
 	{
 		SelfCollisionConstraints->SetProperties(ConfigProperties);
+	}
+	if (SelfCollisionInit)
+	{
+		SelfCollisionInit->SetProperties(ConfigProperties);
 	}
 }
 

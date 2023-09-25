@@ -2013,7 +2013,10 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 			static const FLinearColor White(1.f, 1.f, 1.f);
 			static const FLinearColor Black(0.f, 0.f, 0.f);
 			static const FLinearColor Teal(0.f, 0.5f, 0.5f);
+			static const FLinearColor Orange(1.f, .5f, 0.f);
 			static const FLinearColor Green(0.f, 1.f, 0.f);
+			static const FLinearColor Yellow(1.f, 1.f, 0.f);
+			static const FLinearColor Blue(0.f, 0.f, 1.f);
 
 			if (const Softs::FPBDTriangleMeshCollisions* const SelfCollisionInit = ClothConstraints.GetSelfCollisionInit().Get())
 			{
@@ -2022,6 +2025,7 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 				// Draw contours
 				const TArray<TArray<Softs::FPBDTriangleMeshCollisions::FBarycentricPoint>>& ContourPoints = SelfCollisionInit->GetIntersectionContourPoints();
+				const TArray<TArray<Softs::FPBDTriangleMeshCollisions::FBarycentricPoint>>& PostStepContourPoints = SelfCollisionInit->GetPostStepIntersectionContourPoints();
 				const TArray<Softs::FPBDTriangleMeshCollisions::FContourType>& ContourTypes = SelfCollisionInit->GetIntersectionContourTypes();
 				check(ContourPoints.Num() == ContourTypes.Num());
 
@@ -2029,23 +2033,38 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 				{
 					Teal,
 					Red,
+					Blue,
+					Yellow,
 					White,
 					Black
 				};
-				for( int32 ContourIndex = 0; ContourIndex < ContourPoints.Num(); ++ContourIndex)
+
+				auto DrawContour = [&LocalSpaceLocation, PDI, &Positions](const TArray<Softs::FPBDTriangleMeshCollisions::FBarycentricPoint>& Contour,
+					const FLinearColor& ContourColor)
 				{
-					const TArray<Softs::FPBDTriangleMeshCollisions::FBarycentricPoint>& Contour = ContourPoints[ContourIndex];
-					const FLinearColor& ContourColor = ColorsForType[(int8)ContourTypes[ContourIndex]];
 					for (int32 PointIdx = 0; PointIdx < Contour.Num() - 1; ++PointIdx)
 					{
 						const Softs::FPBDTriangleMeshCollisions::FBarycentricPoint& Point0 = Contour[PointIdx];
 						const FVector EndPoint0 = LocalSpaceLocation + (1.f - Point0.Bary[0] - Point0.Bary[1]) * Positions[Point0.Vertices[0]] + Point0.Bary[0] * Positions[Point0.Vertices[1]] + Point0.Bary[1] * Positions[Point0.Vertices[2]];
-						const Softs::FPBDTriangleMeshCollisions::FBarycentricPoint& Point1 = Contour[PointIdx+1];
+						const Softs::FPBDTriangleMeshCollisions::FBarycentricPoint& Point1 = Contour[PointIdx + 1];
 						const FVector EndPoint1 = LocalSpaceLocation + (1.f - Point1.Bary[0] - Point1.Bary[1]) * Positions[Point1.Vertices[0]] + Point1.Bary[0] * Positions[Point1.Vertices[1]] + Point1.Bary[1] * Positions[Point1.Vertices[2]];
 						DrawLine(PDI, EndPoint0, EndPoint1, ContourColor);
 						DrawPoint(PDI, EndPoint0, ContourColor, nullptr, 1.f);
 						DrawPoint(PDI, EndPoint1, ContourColor, nullptr, 1.f);
 					}
+
+				};
+
+				for( int32 ContourIndex = 0; ContourIndex < ContourPoints.Num(); ++ContourIndex)
+				{
+					const TArray<Softs::FPBDTriangleMeshCollisions::FBarycentricPoint>& Contour = ContourPoints[ContourIndex];
+					const FLinearColor& ContourColor = ColorsForType[(int8)ContourTypes[ContourIndex]];
+					DrawContour(Contour, ContourColor);
+				}
+				for (int32 ContourIndex = 0; ContourIndex < PostStepContourPoints.Num(); ++ContourIndex)
+				{
+					const TArray<Softs::FPBDTriangleMeshCollisions::FBarycentricPoint>& Contour = PostStepContourPoints[ContourIndex];
+					DrawContour(Contour, Orange);
 				}
 
 				// Draw GIA colors
@@ -2059,9 +2078,10 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 						if (VertexGIAColors[ParticleIdx].ContourIndexBits)
 						{
 							const bool bIsLoop = VertexGIAColors[ParticleIdx].IsLoop();
+							const bool bIsBoundary = VertexGIAColors[ParticleIdx].IsBoundary();
 							const bool bAnyWhite = (VertexGIAColors[ParticleIdx].ContourIndexBits & ~VertexGIAColors[ParticleIdx].ColorBits);
 							const bool bAnyBlack = (VertexGIAColors[ParticleIdx].ContourIndexBits & VertexGIAColors[ParticleIdx].ColorBits);
-							const FLinearColor& VertColor = bIsLoop ? Red : (bAnyWhite && bAnyBlack) ? Gray : bAnyWhite ? White : Black;
+							const FLinearColor& VertColor = bIsLoop ? Red : bIsBoundary ? Blue : (bAnyWhite && bAnyBlack) ? Gray : bAnyWhite ? White : Black;
 						
 							DrawPoint(PDI, LocalSpaceLocation + Positions[ParticleIdx], VertColor, nullptr, 5.f);
 						}

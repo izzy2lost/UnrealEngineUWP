@@ -18,16 +18,32 @@ public:
 	float SelfCollisionThickness = 0.5f;
 
 	/** The stiffness of the springs used to control self collision. */
-	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties", meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000", EditCondition = "bUseSelfCollisions"))
+	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties", meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000"))
 	float SelfCollisionStiffness = 0.5f;
 
 	/** Friction coefficient for cloth - cloth interaction. */
-	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties", meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "10", EditCondition = "bUseSelfCollisions"))
+	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties", meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "10"))
 	float SelfCollisionFriction = 0.0f;
 
 	/** Enable self intersection resolution. This will try to fix any cloth intersections that are not handled by collision repulsions. */
-	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties", meta = (EditCondition = "bUseSelfCollisions"))
+	UPROPERTY(EditAnywhere, Category = "Experimental")
 	bool bUseSelfIntersections = false;
+
+	/** Do global intersection analysis to determine the correct normals for the collision springs */
+	UPROPERTY(EditAnywhere, Category = "Experimental", meta = (EditCondition = "bUseSelfIntersections"))
+	bool bUseGlobalIntersectionAnalysis = true;
+
+	/** Do a step of contour minimization at the beginning of the timestep. */
+	UPROPERTY(EditAnywhere, Category = "Experimental", meta = (EditCondition = "bUseSelfIntersections"))
+	bool bUseContourMinimization = true;
+
+	/** Number of post timestep contour minimization steps to do. (Expensive!)*/
+	UPROPERTY(EditAnywhere, Category = "Experimental", meta = (ClampMin = "0", EditCondition = "bUseSelfIntersections"))
+	int32 NumContourMinimizationPostSteps = 0;
+
+	/** Use global contour gradients when doing post timestep contour minimization */
+	UPROPERTY(EditAnywhere, Category = "Experimental", meta = (EditCondition = "bUseSelfIntersections && NumContourMinimizationPostSteps > 0"))
+	bool bUseGlobalPostStepContours = true;
 
 	FChaosClothAssetSimulationSelfCollisionConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 

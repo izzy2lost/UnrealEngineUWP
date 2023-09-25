@@ -89,9 +89,27 @@ void FPBDCollisionSpringConstraintsBase::Init(const FSolverParticles& Particles,
 					[this, &VertexGIAColors, &TriangleGIAColors](const int32 PointIndex, const int32 TriangleIndex)->bool
 					{
 						const TVector<int32, 3>& Elem = Elements[TriangleIndex];
-						if (bGlobalIntersectionAnalysis && VertexGIAColors[PointIndex].IsLoop() && (VertexGIAColors[Elem[0]].IsLoop() || VertexGIAColors[Elem[1]].IsLoop() || VertexGIAColors[Elem[2]].IsLoop() || TriangleGIAColors[TriangleIndex].IsLoop()))
+						if (bGlobalIntersectionAnalysis)
 						{
-							return false;
+							const bool bIsAnyBoundary = VertexGIAColors[PointIndex].IsBoundary()
+								|| VertexGIAColors[Elem[0]].IsBoundary() 
+								|| VertexGIAColors[Elem[1]].IsBoundary() 
+								|| VertexGIAColors[Elem[2]].IsBoundary();
+							if (bIsAnyBoundary)
+							{
+								return false;
+							}
+
+							const bool bAreBothLoop = VertexGIAColors[PointIndex].IsLoop() &&
+								(VertexGIAColors[Elem[0]].IsLoop() 
+									|| VertexGIAColors[Elem[1]].IsLoop() 
+									|| VertexGIAColors[Elem[2]].IsLoop() 
+									|| TriangleGIAColors[TriangleIndex].IsLoop());
+
+							if (bAreBothLoop)
+							{
+								return false;
+							}
 						}
 
 						if (DisabledCollisionElements.Contains({ PointIndex, Elem[0] }) ||

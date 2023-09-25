@@ -272,8 +272,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		int32 ConstraintInitOffset;
 		int32 ConstraintRuleOffset;
 		int32 PostCollisionConstraintRuleOffset;
+		int32 PostprocessingConstraintRuleOffset;
 		int32 NumConstraintInits;
 		int32 NumConstraintRules;
 		int32 NumPostCollisionConstraintRules;
+		int32 NumPostprocessingConstraintRules;
 	};
 } // namespace Chaos
