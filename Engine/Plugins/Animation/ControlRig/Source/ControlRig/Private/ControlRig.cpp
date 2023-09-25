@@ -2804,7 +2804,7 @@ const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 						{
 							ExternalVariableDataAssetLinks.Add(
 								ExternalVariable.Name,
-								NewObject<UDataAssetLink>((UObject*)this));
+								NewObject<UDataAssetLink>(GetTransientPackage(), UDataAssetLink::StaticClass(), NAME_None, RF_Transient));
 						}
 
 						TObjectPtr<UDataAssetLink>& DataAssetLink = ExternalVariableDataAssetLinks.FindChecked(ExternalVariable.Name);
