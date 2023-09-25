@@ -347,7 +347,7 @@ void FSessionsLAN::FindLANSessions(const FAccountId& LocalAccountId)
 	}
 	else
 	{
-		UE_LOG(LogOnlineServices, Warning, TEXT("[]FSessionsLAN::FindLANSessions] Searching...."));
+		UE_LOG(LogOnlineServices, Verbose, TEXT("[]FSessionsLAN::FindLANSessions] Searching...."));
 	}
 }
 
