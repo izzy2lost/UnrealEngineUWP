@@ -208,8 +208,6 @@ FShader* FOpenColorIOShaderType::FinishCompileShader(
 void FOpenColorIOShaderType::SetupCompileEnvironment(EShaderPlatform InPlatform, const FOpenColorIOTransformResource* InColorTransform, FShaderCompilerEnvironment& OutEnvironment) const
 {
 	ModifyCompilationEnvironment(FOpenColorIOShaderPermutationParameters(GetFName(), InPlatform, InColorTransform), OutEnvironment);
-
-	OutEnvironment.SetDefine(TEXT("WORKING_COLOR_SPACE_TRANSFORM_TYPE"), (int32)InColorTransform->GetWorkingColorSpaceTransformType());
 }
 
 #endif // WITH_EDITOR

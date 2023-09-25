@@ -2,7 +2,6 @@
 
 #include "OpenColorIORendering.h"
 
-#include "ColorSpace.h"
 #include "Engine/RendererSettings.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/World.h"
@@ -17,30 +16,12 @@
 #include "OpenColorIOShaderType.h"
 #include "OpenColorIOShared.h"
 #include "OpenColorIOColorTransform.h"
-#include "OpenColorIOWrapperDefines.h"
 #include "SceneInterface.h"
 #include "ScreenPass.h"
 #include "TextureResource.h"
 
 
 float FOpenColorIORendering::DefaultDisplayGamma = 2.2f;
-
-namespace {
-	using namespace UE::Color;
-
-	// Static local storage to prevent color space recomputation every frame. This is viable since a WCS change requires a project relaunch.
-	const FMatrix44f& GetWorkingColorSpaceToInterchangeTransform()
-	{
-		static FMatrix44f Transform = Transpose<float>(FColorSpaceTransform(FColorSpace::GetWorking(), FColorSpace(EColorSpace::ACESAP0)));
-		return Transform;
-	}
-
-	const FMatrix44f& GetInterchangeToWorkingColorSpaceTransform()
-	{
-		static FMatrix44f Transform = Transpose<float>(FColorSpaceTransform(FColorSpace(EColorSpace::ACESAP0), FColorSpace::GetWorking()));
-		return Transform;
-	}
-}
 
 // static
 void FOpenColorIORendering::AddPass_RenderThread(
@@ -69,21 +50,6 @@ void FOpenColorIORendering::AddPass_RenderThread(
 		Parameters->InputTexture = Input.Texture;
 		Parameters->InputTextureSampler = TStaticSamplerState<>::GetRHI();
 		OpenColorIOBindTextureResources(Parameters, InPassResource.TextureResources);
-
-		// Apply a transform between the working color space and the interchange color space, if necessary.
-		switch (InPassResource.ShaderResource->GetWorkingColorSpaceTransformType())
-		{
-		case EOpenColorIOWorkingColorSpaceTransform::Source:
-			Parameters->WorkingColorSpaceToInterchange = GetWorkingColorSpaceToInterchangeTransform();
-			break;
-		case EOpenColorIOWorkingColorSpaceTransform::Destination:
-			Parameters->InterchangeToWorkingColorSpace = GetInterchangeToWorkingColorSpaceTransform();
-			break;
-
-		default:
-			// do nothing, shader parameter is unused.
-			break;	
-		}
 		Parameters->Gamma = InGamma;
 		Parameters->TransformAlpha = (uint32)TransformAlpha;
 		Parameters->RenderTargets[0] = Output.GetRenderTargetBinding();

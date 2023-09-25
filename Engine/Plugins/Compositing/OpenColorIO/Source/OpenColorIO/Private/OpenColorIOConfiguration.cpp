@@ -2,6 +2,7 @@
 
 #include "OpenColorIOConfiguration.h"
 
+#include "ColorSpace.h"
 #include "Containers/SortedMap.h"
 #include "EngineAnalytics.h"
 #include "Engine/VolumeTexture.h"
@@ -183,6 +184,18 @@ void UOpenColorIOConfiguration::ReloadExistingColorspaces(bool bForce)
 		if (Settings->bSupportInverseViewTransforms)
 		{
 			LoadedConfigHash += FString(TEXT("_Inv"));
+		}
+
+		const UE::Color::FColorSpace& WCS = UE::Color::FColorSpace::GetWorking();
+		if (!WCS.IsSRGB())
+		{
+			// The working color space is uniquely defined by its chromaticities (as loaded from renderer settings).
+			uint32 WCSHash = 0;
+			WCSHash ^= GetTypeHash(WCS.GetRedChromaticity());
+			WCSHash ^= GetTypeHash(WCS.GetGreenChromaticity());
+			WCSHash ^= GetTypeHash(WCS.GetBlueChromaticity());
+			WCSHash ^= GetTypeHash(WCS.GetWhiteChromaticity());
+			LoadedConfigHash += FString::Printf(TEXT("_WCS-%u"), WCSHash);
 		}
 
 		// Hash is different, proceed with the regeneration...

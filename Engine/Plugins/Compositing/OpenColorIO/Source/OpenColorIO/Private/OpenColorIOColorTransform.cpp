@@ -9,7 +9,6 @@
 #include "OpenColorIOConfiguration.h"
 #include "OpenColorIOModule.h"
 #include "OpenColorIOSettings.h"
-#include "OpenColorIOWrapperDefines.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/UObjectIterator.h"
 #include "DataDrivenShaderPlatformInfo.h"
@@ -133,7 +132,6 @@ void UOpenColorIOColorTransform::GetOpenColorIOLUTKeyGuid(const FString& InProce
 UOpenColorIOColorTransform::UOpenColorIOColorTransform(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	WorkingColorSpaceTransformType = EOpenColorIOWorkingColorSpaceTransform::None;
 }
 
 bool UOpenColorIOColorTransform::Initialize(UOpenColorIOConfiguration* InOwner, const FString& InSourceColorSpace, const FString& InDestinationColorSpace, const TMap<FString, FString>& InContextKeyValues)
@@ -191,15 +189,6 @@ bool UOpenColorIOColorTransform::Initialize(const FString& InSourceColorSpace, c
 		return false;
 	}
 
-	if (InSourceColorSpace == OpenColorIOWrapper::GetWorkingColorSpaceName())
-	{
-		WorkingColorSpaceTransformType = EOpenColorIOWorkingColorSpaceTransform::Source;
-	}
-	else if (InDestinationColorSpace == OpenColorIOWrapper::GetWorkingColorSpaceName())
-	{
-		WorkingColorSpaceTransformType = EOpenColorIOWorkingColorSpaceTransform::Destination;
-	}
-
 	SourceColorSpace = InSourceColorSpace;
 	DestinationColorSpace = InDestinationColorSpace;
 	bIsDisplayViewType = false;
@@ -216,18 +205,6 @@ bool UOpenColorIOColorTransform::Initialize(const FString& InSourceColorSpace, c
 	if (InSourceColorSpace.IsEmpty() || InDisplay.IsEmpty() || InView.IsEmpty())
 	{
 		return false;
-	}
-
-	if (InSourceColorSpace == OpenColorIOWrapper::GetWorkingColorSpaceName())
-	{
-		if (InDirection == EOpenColorIOViewTransformDirection::Forward)
-		{
-			WorkingColorSpaceTransformType = EOpenColorIOWorkingColorSpaceTransform::Source;
-		}
-		else
-		{
-			WorkingColorSpaceTransformType = EOpenColorIOWorkingColorSpaceTransform::Destination;
-		}
 	}
 
 	SourceColorSpace = InSourceColorSpace;
@@ -251,7 +228,7 @@ void UOpenColorIOColorTransform::CacheResourceShadersForCooking(EShaderPlatform 
 	FOpenColorIOTransformResource* NewResource = new FOpenColorIOTransformResource();
 
 	FName AssetPath = GetOutermost()->GetFName();
-	NewResource->SetupResource((ERHIFeatureLevel::Type)TargetFeatureLevel, InShaderHash, InShaderCode, InRawConfigHash, GetTransformFriendlyName(), AssetPath, WorkingColorSpaceTransformType);
+	NewResource->SetupResource((ERHIFeatureLevel::Type)TargetFeatureLevel, InShaderHash, InShaderCode, InRawConfigHash, GetTransformFriendlyName(), AssetPath);
 
 	const bool bApplyCompletedShaderMap = false;
 	const bool bIsCooking = true;
@@ -468,7 +445,7 @@ void UOpenColorIOColorTransform::CacheResourceShadersForRendering(bool bRegenera
 				RawConfigHash = ConfigurationOwner->GetConfigWrapper()->GetCacheID();
 				AssetPath = GetOutermost()->GetFName();
 #endif // WITH_EDITOR
-				TransformResource->SetupResource(CacheFeatureLevel, ShaderCodeHash, ShaderCode, RawConfigHash, GetTransformFriendlyName(), AssetPath, WorkingColorSpaceTransformType);
+				TransformResource->SetupResource(CacheFeatureLevel, ShaderCodeHash, ShaderCode, RawConfigHash, GetTransformFriendlyName(), AssetPath);
 
 				const bool bApplyCompletedShaderMap = true;
 

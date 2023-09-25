@@ -12,7 +12,6 @@
 #include "Templates/UniquePtr.h"
 
 #include "ColorManagementDefines.h"
-#include "OpenColorIOWrapperDefines.h"
 
 struct FImageView;
 enum TextureFilter : int;
@@ -248,8 +247,6 @@ public:
 private:
 
 	TPimplPtr<struct FOpenColorIOProcessorPimpl, EPimplPtrMode::DeepCopy> Pimpl;
-
-	EOpenColorIOWorkingColorSpaceTransform WorkingColorSpaceTransformType;
 
 	friend class FOpenColorIOWrapperGPUProcessor;
 };

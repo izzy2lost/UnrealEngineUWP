@@ -24,7 +24,13 @@
 #include "Templates/RefCounting.h"
 #include "OpenColorIOShaderCompilationManager.h"
 
-enum class EOpenColorIOWorkingColorSpaceTransform : uint8;
+/** Enum used to indicate whether the working color space should be used as a source or destination. */
+enum class EOpenColorIOWorkingColorSpaceTransform : uint8
+{
+	None = 0,
+	Source = 1,
+	Destination = 2
+};
 
 class FOpenColorIOTransformResource;
 class FOpenColorIOShaderMap;
@@ -446,7 +452,7 @@ public:
 
 	const FString& GetFriendlyName()	const { return FriendlyName; }
 
-
+	UE_DEPRECATED(5.4, "SetupResource with EOpenColorIOWorkingColorSpaceTransform deprecated.")
 	void SetupResource(
 		ERHIFeatureLevel::Type InFeatureLevel,
 		const FString& InShaderCodeHash,
@@ -455,6 +461,15 @@ public:
 		const FString& InFriendlyName,
 		const FName& InAssetPath,
 		EOpenColorIOWorkingColorSpaceTransform InWorkingColorSpaceTransformType
+	);
+
+	void SetupResource(
+		ERHIFeatureLevel::Type InFeatureLevel,
+		const FString& InShaderCodeHash,
+		const FString& InShadercode,
+		const FString& InRawConfigHash,
+		const FString& InFriendlyName,
+		const FName& InAssetPath
 	);
 
 	void SetCompileErrors(TArray<FString> &InErrors)
@@ -489,7 +504,9 @@ public:
 
 	
 	bool IsSame(const FOpenColorIOShaderMapId& InId) const;
-	EOpenColorIOWorkingColorSpaceTransform GetWorkingColorSpaceTransformType() const { return WorkingColorSpaceTransformType; }
+
+	UE_DEPRECATED(5.4, "GetWorkingColorSpaceTransformType is deprecated.")
+	EOpenColorIOWorkingColorSpaceTransform GetWorkingColorSpaceTransformType() const { return EOpenColorIOWorkingColorSpaceTransform::None; }
 protected:
 #if WITH_EDITOR
 	/**
@@ -546,7 +563,6 @@ private:
 	uint32 bContainsInlineShaders : 1;
 	uint32 bLoadedCookedShaderMapId : 1;
 	FOpenColorIOShaderMapId CookedShaderMapId;
-	EOpenColorIOWorkingColorSpaceTransform WorkingColorSpaceTransformType;
 
 #if WITH_EDITOR
 	/**

@@ -68,7 +68,6 @@ struct FOpenColorIOConfigPimpl
 struct FOpenColorIOProcessorPimpl
 {
 	OCIO_NAMESPACE::ConstProcessorRcPtr Processor = nullptr;
-	OCIO_NAMESPACE::ConstProcessorRcPtr InterchangeProcessor = nullptr;
 
 	/** Get processor optimization flags. */
 	static OCIO_NAMESPACE::OptimizationFlags GetOptimizationFlags()
@@ -77,29 +76,6 @@ struct FOpenColorIOProcessorPimpl
 			OCIO_NAMESPACE::OptimizationFlags::OPTIMIZATION_DEFAULT |
 			OCIO_NAMESPACE::OptimizationFlags::OPTIMIZATION_NO_DYNAMIC_PROPERTIES
 		);
-	}
-
-	/** Create the interchange processor used for conversion between the working color space and the interchange space. */
-	void SetupInterchangeProcessor(const OCIO_NAMESPACE::ConstConfigRcPtr& InConfig, const OCIO_NAMESPACE::ConstConfigRcPtr& InterchangeConfig, EOpenColorIOWorkingColorSpaceTransform InWorkingColorSpaceTransformType)
-	{
-		const TUniquePtr<ANSICHAR[]> AnsiWorkingColorSpaceName = OpenColorIOWrapper::MakeAnsiString(OpenColorIOWrapper::GetWorkingColorSpaceName());
-
-		if (InWorkingColorSpaceTransformType == EOpenColorIOWorkingColorSpaceTransform::Source)
-		{
-			InterchangeProcessor = InterchangeConfig->GetProcessorFromConfigs(
-				InterchangeConfig,
-				AnsiWorkingColorSpaceName.Get(),
-				InConfig,
-				InConfig->getCanonicalName(OCIO_NAMESPACE::ROLE_INTERCHANGE_SCENE));
-		}
-		else if (InWorkingColorSpaceTransformType == EOpenColorIOWorkingColorSpaceTransform::Destination)
-		{
-			InterchangeProcessor = InterchangeConfig->GetProcessorFromConfigs(
-				InConfig,
-				InConfig->getCanonicalName(OCIO_NAMESPACE::ROLE_INTERCHANGE_SCENE),
-				InterchangeConfig,
-				AnsiWorkingColorSpaceName.Get());
-		}
 	}
 };
 
@@ -422,17 +398,7 @@ FOpenColorIOWrapperProcessor::FOpenColorIOWrapperProcessor(
 	FStringView InDestinationColorSpace,
 	const TMap<FString, FString>& InContextKeyValues)
 	: Pimpl(MakePimpl<FOpenColorIOProcessorPimpl, EPimplPtrMode::DeepCopy>())
-	, WorkingColorSpaceTransformType(EOpenColorIOWorkingColorSpaceTransform::None)
 {
-	if (InSourceColorSpace == OpenColorIOWrapper::GetWorkingColorSpaceName())
-	{
-		WorkingColorSpaceTransformType = EOpenColorIOWorkingColorSpaceTransform::Source;
-	}
-	else if (InDestinationColorSpace == OpenColorIOWrapper::GetWorkingColorSpaceName())
-	{
-		WorkingColorSpaceTransformType = EOpenColorIOWorkingColorSpaceTransform::Destination;
-	}
-
 	OCIO_EXCEPTION_HANDLING_TRY();
 		if (InConfig != nullptr && InConfig->IsValid())
 		{
@@ -444,15 +410,36 @@ FOpenColorIOWrapperProcessor::FOpenColorIOWrapperProcessor(
 				Context->setStringVar(TCHAR_TO_ANSI(*KeyValue.Key), TCHAR_TO_ANSI(*KeyValue.Value));
 			}
 
-			Pimpl->Processor = Config->getProcessor(
-				Context,
-				StringCast<ANSICHAR>(InSourceColorSpace.GetData()).Get(),
-				StringCast<ANSICHAR>(InDestinationColorSpace.GetData()).Get()
-			);
+			const TCHAR* WCSColorSpaceName = OpenColorIOWrapper::GetWorkingColorSpaceName();
+			const TUniquePtr<ANSICHAR[]> AnsiWorkingColorSpaceName = OpenColorIOWrapper::MakeAnsiString(WCSColorSpaceName);
 
-			if (WorkingColorSpaceTransformType != EOpenColorIOWorkingColorSpaceTransform::None)
+			if (InSourceColorSpace == WCSColorSpaceName)
 			{
-				Pimpl->SetupInterchangeProcessor(Config, IOpenColorIOWrapperModule::Get().GetEngineBuiltInConfig().Pimpl->Config, WorkingColorSpaceTransformType);
+				Pimpl->Processor = OCIO_NAMESPACE::Config::GetProcessorFromConfigs(
+					Context,
+					IOpenColorIOWrapperModule::Get().GetEngineBuiltInConfig().Pimpl->Config,
+					AnsiWorkingColorSpaceName.Get(),
+					Context,
+					Config,
+					StringCast<ANSICHAR>(InDestinationColorSpace.GetData()).Get());
+			}
+			else if (InDestinationColorSpace == WCSColorSpaceName)
+			{
+				Pimpl->Processor = OCIO_NAMESPACE::Config::GetProcessorFromConfigs(
+					Context,
+					Config,
+					StringCast<ANSICHAR>(InSourceColorSpace.GetData()).Get(),
+					Context,
+					IOpenColorIOWrapperModule::Get().GetEngineBuiltInConfig().Pimpl->Config,
+					AnsiWorkingColorSpaceName.Get());
+			}
+			else
+			{
+				Pimpl->Processor = Config->getProcessor(
+					Context,
+					StringCast<ANSICHAR>(InSourceColorSpace.GetData()).Get(),
+					StringCast<ANSICHAR>(InDestinationColorSpace.GetData()).Get()
+				);
 			}
 		}
 	OCIO_EXCEPTION_HANDLING_CATCH(Log, TEXT("Failed to create processor for [%s, %s]. Error message: %s"), InSourceColorSpace.GetData(), InDestinationColorSpace.GetData());
@@ -466,20 +453,7 @@ FOpenColorIOWrapperProcessor::FOpenColorIOWrapperProcessor(
 	bool bInverseDirection,
 	const TMap<FString, FString>& InContextKeyValues)
 	: Pimpl(MakePimpl<FOpenColorIOProcessorPimpl, EPimplPtrMode::DeepCopy>())
-	, WorkingColorSpaceTransformType(EOpenColorIOWorkingColorSpaceTransform::None)
 {
-	if (InSourceColorSpace == OpenColorIOWrapper::GetWorkingColorSpaceName())
-	{
-		if (bInverseDirection)
-		{
-			WorkingColorSpaceTransformType = EOpenColorIOWorkingColorSpaceTransform::Destination;
-		}
-		else
-		{
-			WorkingColorSpaceTransformType = EOpenColorIOWorkingColorSpaceTransform::Source;
-		}
-	}
-
 	OCIO_EXCEPTION_HANDLING_TRY();
 		if (InConfig != nullptr && InConfig->IsValid())
 		{
@@ -491,16 +465,30 @@ FOpenColorIOWrapperProcessor::FOpenColorIOWrapperProcessor(
 				Context->setStringVar(TCHAR_TO_ANSI(*KeyValue.Key), TCHAR_TO_ANSI(*KeyValue.Value));
 			}
 
-			Pimpl->Processor = Config->getProcessor(
-				StringCast<ANSICHAR>(InSourceColorSpace.GetData()).Get(),
-				StringCast<ANSICHAR>(InDisplay.GetData()).Get(),
-				StringCast<ANSICHAR>(InView.GetData()).Get(),
-				static_cast<OCIO_NAMESPACE::TransformDirection>(bInverseDirection)
-			);
+			const TCHAR* WCSColorSpaceName = OpenColorIOWrapper::GetWorkingColorSpaceName();
+			const TUniquePtr<ANSICHAR[]> AnsiWorkingColorSpaceName = OpenColorIOWrapper::MakeAnsiString(WCSColorSpaceName);
 
-			if (WorkingColorSpaceTransformType != EOpenColorIOWorkingColorSpaceTransform::None)
+			if (InSourceColorSpace == WCSColorSpaceName)
 			{
-				Pimpl->SetupInterchangeProcessor(Config, IOpenColorIOWrapperModule::Get().GetEngineBuiltInConfig().Pimpl->Config, WorkingColorSpaceTransformType);
+				Pimpl->Processor = OCIO_NAMESPACE::Config::GetProcessorFromConfigs(
+					Context,
+					IOpenColorIOWrapperModule::Get().GetEngineBuiltInConfig().Pimpl->Config,
+					AnsiWorkingColorSpaceName.Get(),
+					Context,
+					Config,
+					StringCast<ANSICHAR>(InDisplay.GetData()).Get(),
+					StringCast<ANSICHAR>(InView.GetData()).Get(),
+					static_cast<OCIO_NAMESPACE::TransformDirection>(bInverseDirection));
+			}
+			else
+			{
+				Pimpl->Processor = Config->getProcessor(
+					Context,
+					StringCast<ANSICHAR>(InSourceColorSpace.GetData()).Get(),
+					StringCast<ANSICHAR>(InDisplay.GetData()).Get(),
+					StringCast<ANSICHAR>(InView.GetData()).Get(),
+					static_cast<OCIO_NAMESPACE::TransformDirection>(bInverseDirection)
+				);
 			}
 		}
 	OCIO_EXCEPTION_HANDLING_CATCH(Log, TEXT("Failed to create processor for [%s, %s, %s, %s]. Error message: %s"), InSourceColorSpace.GetData(), InDisplay.GetData(), InView.GetData(), (bInverseDirection ? TEXT("Inverse") : TEXT("Forward")));
@@ -508,7 +496,6 @@ FOpenColorIOWrapperProcessor::FOpenColorIOWrapperProcessor(
 
 FOpenColorIOWrapperProcessor::FOpenColorIOWrapperProcessor(const FOpenColorIOWrapperConfig* InConfig, FStringView InNamedTransform, bool bInverseDirection, const TMap<FString, FString>& InContextKeyValues)
 	: Pimpl(MakePimpl<FOpenColorIOProcessorPimpl, EPimplPtrMode::DeepCopy>())
-	, WorkingColorSpaceTransformType(EOpenColorIOWorkingColorSpaceTransform::None)
 {
 	OCIO_EXCEPTION_HANDLING_TRY();
 		if (InConfig != nullptr && InConfig->IsValid())
@@ -522,6 +509,7 @@ FOpenColorIOWrapperProcessor::FOpenColorIOWrapperProcessor(const FOpenColorIOWra
 			}
 
 			Pimpl->Processor = Config->getProcessor(
+				Context,
 				StringCast<ANSICHAR>(InNamedTransform.GetData()).Get(),
 				static_cast<OCIO_NAMESPACE::TransformDirection>(bInverseDirection)
 			);
@@ -934,36 +922,13 @@ bool FOpenColorIOWrapperProcessor::TransformImage(const FImageView& InOutImage) 
 				// Primary transform processor
 				ConstCPUProcessorRcPtr CPUProcessor = Pimpl->Processor->getOptimizedCPUProcessor(BitDepth, BitDepth, OPTIMIZATION_DEFAULT);
 
-				// Note: This special "interchange to working color space" logic should be removed
-				// once these features are supported by the library.
-				ConstCPUProcessorRcPtr InterchangeCPUProcessor = nullptr;
-				if (WorkingColorSpaceTransformType != EOpenColorIOWorkingColorSpaceTransform::None)
-				{
-					if (ensure(Pimpl->InterchangeProcessor))
-					{
-						InterchangeCPUProcessor = Pimpl->InterchangeProcessor->getOptimizedCPUProcessor(BitDepth, BitDepth, OPTIMIZATION_DEFAULT);
-					}
-				}
-
 				// Apply parallelized color transformation
 				FImageCore::ImageParallelFor(TEXT("FOpenColorIOWrapperProcessor.TransformImage.PF"), InOutImage, [&](FImageView& ImagePart)
 					{
 						OCIO_NAMESPACE::PackedImageDesc ImagePartDesc = GetImageDesc(ImagePart);
 
-						// Conditionally apply a conversion from the working color space to interchange space
-						if (WorkingColorSpaceTransformType == EOpenColorIOWorkingColorSpaceTransform::Source)
-						{
-							InterchangeCPUProcessor->apply(ImagePartDesc);
-						}
-
 						// Apply the main color transformation
 						CPUProcessor->apply(ImagePartDesc);
-
-						// Conditionally apply a conversion from the interchange space to the working color space
-						if (WorkingColorSpaceTransformType == EOpenColorIOWorkingColorSpaceTransform::Destination)
-						{
-							InterchangeCPUProcessor->apply(ImagePartDesc);
-						}
 					});
 
 				return true;
@@ -993,29 +958,9 @@ bool FOpenColorIOWrapperProcessor::TransformImage(const FImageView& SrcImage, co
 				BitDepth SrcBitDepth = SrcImageDesc.getBitDepth();
 				BitDepth DestBitDepth = DestImageDesc.getBitDepth();
 
-				// Conditionally apply a conversion from the working color space to interchange space
-				if (WorkingColorSpaceTransformType == EOpenColorIOWorkingColorSpaceTransform::Source)
-				{
-					if (ensure(Pimpl->InterchangeProcessor))
-					{
-						ConstCPUProcessorRcPtr InterchangeCPUProcessor = Pimpl->InterchangeProcessor->getOptimizedCPUProcessor(SrcBitDepth, SrcBitDepth, OPTIMIZATION_DEFAULT);
-						InterchangeCPUProcessor->apply(SrcImageDesc);
-					}
-				}
-
 				// Apply the main color transformation
 				ConstCPUProcessorRcPtr CPUProcessor = Pimpl->Processor->getOptimizedCPUProcessor(SrcBitDepth, DestBitDepth, OPTIMIZATION_DEFAULT);
 				CPUProcessor->apply(SrcImageDesc, DestImageDesc);
-
-				// Conditionally apply a conversion from the interchange space to the working color space
-				if (WorkingColorSpaceTransformType == EOpenColorIOWorkingColorSpaceTransform::Destination)
-				{
-					if (ensure(Pimpl->InterchangeProcessor))
-					{
-						ConstCPUProcessorRcPtr InterchangeCPUProcessor = Pimpl->InterchangeProcessor->getOptimizedCPUProcessor(DestBitDepth, DestBitDepth, OPTIMIZATION_DEFAULT);
-						InterchangeCPUProcessor->apply(DestImageDesc);
-					}
-				}
 
 				return true;
 			}

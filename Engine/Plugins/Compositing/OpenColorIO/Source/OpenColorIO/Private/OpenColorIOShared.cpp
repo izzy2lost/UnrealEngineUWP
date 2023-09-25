@@ -13,7 +13,6 @@
 #include "OpenColorIOShaderType.h"
 #include "OpenColorIOShader.h"
 #include "OpenColorIOShaderCompilationManager.h"
-#include "OpenColorIOWrapperDefines.h"
 #include "RendererInterface.h"
 #include "ShaderCompiler.h"
 #include "Stats/StatsMisc.h"
@@ -34,7 +33,6 @@ FOpenColorIOTransformResource::FOpenColorIOTransformResource()
 	, FeatureLevel(ERHIFeatureLevel::SM5)
 	, bContainsInlineShaders(false)
 	, bLoadedCookedShaderMapId(false)
-	, WorkingColorSpaceTransformType(EOpenColorIOWorkingColorSpaceTransform::None)
 {}
 
 FOpenColorIOTransformResource::~FOpenColorIOTransformResource()
@@ -211,7 +209,12 @@ void FOpenColorIOTransformResource::SerializeShaderMap(FArchive& Ar)
 	}
 }
 
-void FOpenColorIOTransformResource::SetupResource(ERHIFeatureLevel::Type InFeatureLevel, const FString& InShaderCodeHash, const FString& InShadercode, const FString& InRawConfigHash, const FString& InFriendlyName, const FName& InAssetPath, EOpenColorIOWorkingColorSpaceTransform InWorkingColorSpaceTransformType)
+void FOpenColorIOTransformResource::SetupResource(ERHIFeatureLevel::Type InFeatureLevel, const FString& InShaderCodeHash, const FString& InShadercode, const FString& InRawConfigHash, const FString& InFriendlyName, const FName& InAssetPath, EOpenColorIOWorkingColorSpaceTransform /*InWorkingColorSpaceTransformType*/)
+{
+	SetupResource(InFeatureLevel, InShadercode, InShadercode, InRawConfigHash, InFriendlyName, InAssetPath);
+}
+
+void FOpenColorIOTransformResource::SetupResource(ERHIFeatureLevel::Type InFeatureLevel, const FString& InShaderCodeHash, const FString& InShadercode, const FString& InRawConfigHash, const FString& InFriendlyName, const FName& InAssetPath)
 {
 	// When this happens we assume that shader was cooked and we don't need to do anything. 
 	if (InShaderCodeHash.IsEmpty() && InRawConfigHash.IsEmpty())
@@ -219,15 +222,13 @@ void FOpenColorIOTransformResource::SetupResource(ERHIFeatureLevel::Type InFeatu
 		return;
 	}
 
-
-	const FString ConcatHashes = InShaderCodeHash + InRawConfigHash + FString::FromInt((int32)InWorkingColorSpaceTransformType);
+	const FString ConcatHashes = InShaderCodeHash + InRawConfigHash;
 	FSHAHash FullHash;
 	FSHA1::HashBuffer(TCHAR_TO_ANSI(*(ConcatHashes)), ConcatHashes.Len(), FullHash.Hash);
 
 	ShaderCodeAndConfigHash = FullHash.ToString();
 	ShaderCode = InShadercode;
 	FriendlyName = InFriendlyName.Replace(TEXT("/"), TEXT(""));
-	WorkingColorSpaceTransformType = InWorkingColorSpaceTransformType;
 	AssetPath = InAssetPath;
 
 	SetFeatureLevel(InFeatureLevel);
