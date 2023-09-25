@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;

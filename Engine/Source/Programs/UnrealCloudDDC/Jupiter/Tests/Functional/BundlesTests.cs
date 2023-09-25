@@ -14,20 +14,16 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
 using Jupiter.Controllers;
 using Jupiter.Implementation;
-using Jupiter.Implementation.Blob;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Serilog;
 using Serilog.Core;
-using EpicGames.Horde.Storage.Clients;
 
 namespace Jupiter.FunctionalTests.Storage;
 
@@ -402,7 +398,7 @@ public abstract class BundlesTests
 			writer.WriteVariableLengthArray(Refs, x => writer.WriteNodeRef(x));
 		}
 	}
-
+/*
 	static async Task SeedTreeAsync(BundleStorageClient store, RefName rootRefName, RefName leafRefName, BundleOptions options)
 	{
 		// Generate a tree
@@ -419,5 +415,5 @@ public abstract class BundlesTests
 			await store.WriteRefAsync(rootRefName, root);
 			await store.WriteRefAsync(leafRefName, node1);
 		}
-	}
+	}*/
 }

@@ -6,7 +6,6 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
 using Jupiter.Implementation;
-using Jupiter;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.VisualStudio.TestTools.UnitTesting;

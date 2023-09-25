@@ -38,7 +38,6 @@ using IBlobStore = Jupiter.Implementation.IBlobStore;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage.Clients;
 using Jupiter.Tests.Functional;
-using Azure;
 
 namespace Jupiter.FunctionalTests.Storage
 {

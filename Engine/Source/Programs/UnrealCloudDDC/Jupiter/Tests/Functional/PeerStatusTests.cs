@@ -8,7 +8,6 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Jupiter.Implementation;
-using Jupiter;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;

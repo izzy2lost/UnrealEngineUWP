@@ -20,9 +20,8 @@ namespace EpicGames.Core.Tests
 		private static DirectoryReference s_tempDirectory = null!;
 
 		[ClassInitialize]
-		public static void Setup(TestContext testContext)
+		public static void Setup()
 		{
-			_ = testContext;
 			JsonObjectTests.s_tempDirectory = CreateTempDir();
 		}
 

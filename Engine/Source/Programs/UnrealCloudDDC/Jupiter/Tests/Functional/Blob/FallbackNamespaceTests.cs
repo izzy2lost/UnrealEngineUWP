@@ -19,7 +19,7 @@ namespace Jupiter.FunctionalTests.Storage
 {
 
 	[TestClass]
-	public class FallbackNamespaceTests
+	public sealed class FallbackNamespaceTests : IDisposable
 	{
 		private TestServer? _server;
 		private HttpClient? _httpClient;
@@ -27,9 +27,9 @@ namespace Jupiter.FunctionalTests.Storage
 		private readonly NamespaceId TestNamespace = new NamespaceId("first-namespace");
 		private readonly NamespaceId FallbackNamespace = new NamespaceId("fallback-namespace");
 
-		protected const string FileContents = "This is some test contents for fallback namespaces";
-		protected static readonly byte[] FileContentsBytes = Encoding.ASCII.GetBytes(FileContents);
-		protected BlobId FileHash { get; } = BlobId.FromBlob(FileContentsBytes);
+		const string FileContents = "This is some test contents for fallback namespaces";
+		static readonly byte[] FileContentsBytes = Encoding.ASCII.GetBytes(FileContents);
+		BlobId FileHash { get; } = BlobId.FromBlob(FileContentsBytes);
 
 		[TestInitialize]
 		public async Task SetupAsync()
@@ -55,6 +55,12 @@ namespace Jupiter.FunctionalTests.Storage
 			_httpClient = server.CreateClient();
 
 			await SeedDbAsync(server.Services);
+		}
+
+		public void Dispose()
+		{
+			_httpClient?.Dispose();
+			_server?.Dispose();
 		}
 
 		private async Task SeedDbAsync(IServiceProvider provider)
