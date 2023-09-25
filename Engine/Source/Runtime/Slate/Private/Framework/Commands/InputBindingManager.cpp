@@ -279,13 +279,8 @@ void FUserDefinedChords::RemoveAll()
 
 FInputBindingManager& FInputBindingManager::Get()
 {
-	static FInputBindingManager* Instance= NULL;
-	if( Instance == NULL )
-	{
-		Instance = new FInputBindingManager();
-	}
-
-	return *Instance;
+	static FInputBindingManager Instance;
+	return Instance;
 }
 
 
