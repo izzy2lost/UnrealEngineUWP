@@ -655,7 +655,6 @@ float GetDirectionalLightFunction(float3 TranslatedWorldPosition) // directional
 	return Texture2DSampleLevel(LightFunctionTexture, LightFunctionSampler, LightFunctionUV, 0).x;
 }
 
-float SkyLightVolumetricScatteringIntensity;
 float4 SkySH[3];
 float2 UseHeightFogColors;	// x=override directional light using height fog inscattering color, y=override sky light using heigh fog inscattering cubemap
 float UseDirectionalLightShadowing;
@@ -779,7 +778,7 @@ void LightScatteringCS(
 		float3 BrickTextureUVs = 0;
 
 #if ALLOW_STATIC_LIGHTING
-		if (SkyLightVolumetricScatteringIntensity > 0 || StaticLightingScatteringIntensity > 0)
+		if (View.SkyLightVolumetricScatteringIntensity > 0 || StaticLightingScatteringIntensity > 0)
 		{
 			BrickTextureUVs = ComputeVolumetricLightmapBrickTextureUVs(WorldPosition);
 		}
@@ -794,7 +793,7 @@ void LightScatteringCS(
 
 #else
 		// Skylight
-		if (SkyLightVolumetricScatteringIntensity > 0)
+		if (View.SkyLightVolumetricScatteringIntensity > 0)
 		{
 			float3 SkyLighting;
 
@@ -820,7 +819,7 @@ void LightScatteringCS(
 			}
 
 			float SkyVisibility = ComputeSkyVisibility(TranslatedWorldPosition, BrickTextureUVs);
-			LightScattering += (SkyVisibility * SkyLightVolumetricScatteringIntensity) * SkyLighting;
+			LightScattering += (SkyVisibility * View.SkyLightVolumetricScatteringIntensity) * SkyLighting;
 		}
 #endif
 

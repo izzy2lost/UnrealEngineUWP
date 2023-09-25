@@ -992,7 +992,6 @@ class FVolumetricFogLightScatteringCS : public FGlobalShader
 		SHADER_PARAMETER(FVector2f, UseHeightFogColors)
 		SHADER_PARAMETER(FVector2f, LightScatteringHistoryPreExposureAndInv)
 		SHADER_PARAMETER(float, StaticLightingScatteringIntensity)
-		SHADER_PARAMETER(float, SkyLightVolumetricScatteringIntensity)
 		SHADER_PARAMETER(float, SkyLightUseStaticShadowing)
 		SHADER_PARAMETER(float, PhaseG)
 		SHADER_PARAMETER(float, InverseSquaredLightDistanceBiasScale)
@@ -1564,7 +1563,6 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 				&& View.Family->EngineShowFlags.SkyLighting)
 			{
 				PassParameters->SkyLightUseStaticShadowing = SkyLight->bWantsStaticShadowing && SkyLight->bCastShadows ? 1.0f : 0.0f;
-				PassParameters->SkyLightVolumetricScatteringIntensity = SkyLight->VolumetricScatteringIntensity;
 
 				const FSHVectorRGB3& SkyIrradiance = SkyLight->IrradianceEnvironmentMap;
 				PassParameters->SkySH[0] = (FVector4f&)SkyIrradiance.R.V;
@@ -1574,7 +1572,6 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 			else
 			{
 				PassParameters->SkyLightUseStaticShadowing = 0.0f;
-				PassParameters->SkyLightVolumetricScatteringIntensity = 0.0f;
 				PassParameters->SkySH[0] = FVector4f(0, 0, 0, 0);
 				PassParameters->SkySH[1] = FVector4f(0, 0, 0, 0);
 				PassParameters->SkySH[2] = FVector4f(0, 0, 0, 0);

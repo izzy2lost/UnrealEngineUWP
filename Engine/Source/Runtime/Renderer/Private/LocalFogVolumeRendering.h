@@ -26,6 +26,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLocalFogVolumeCommonParameters, )
 	SHADER_PARAMETER(uint32, LocalFogVolumeTilePixelSize)
 	SHADER_PARAMETER(float,  LocalFogVolumeMaxDensityIntoVolumetricFog)
 	SHADER_PARAMETER(uint32, ShouldRenderLocalFogVolumeInVolumetricFog)
+	SHADER_PARAMETER(FVector3f, DirectionalLightColor)
+	SHADER_PARAMETER(FVector3f, DirectionalLightDirection)
 END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, )

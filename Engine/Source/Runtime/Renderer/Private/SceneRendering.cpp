@@ -1761,6 +1761,7 @@ void FViewInfo::SetupUniformBufferParameters(
 		ViewUniformShaderParameters.SkyLightApplyPrecomputedBentNormalShadowingFlag = bApplyPrecomputedBentNormalShadowing ? 1.0f : 0.0f;
 		ViewUniformShaderParameters.SkyLightAffectReflectionFlag = SkyLight->bAffectReflection ? 1.0f : 0.0f;
 		ViewUniformShaderParameters.SkyLightAffectGlobalIlluminationFlag = SkyLight->bAffectGlobalIllumination ? 1.0f : 0.0f;
+		ViewUniformShaderParameters.SkyLightVolumetricScatteringIntensity = SkyLight->VolumetricScatteringIntensity;
 	}
 	else
 	{
@@ -1768,6 +1769,7 @@ void FViewInfo::SetupUniformBufferParameters(
 		ViewUniformShaderParameters.SkyLightApplyPrecomputedBentNormalShadowingFlag = 0.0f;
 		ViewUniformShaderParameters.SkyLightAffectReflectionFlag = 0.0f;
 		ViewUniformShaderParameters.SkyLightAffectGlobalIlluminationFlag = 0.0f;
+		ViewUniformShaderParameters.SkyLightVolumetricScatteringIntensity = 0.0f;
 	}
 
 	if (RHIFeatureLevel == ERHIFeatureLevel::ES3_1)

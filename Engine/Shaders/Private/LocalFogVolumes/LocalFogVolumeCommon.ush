@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "../Common.ush"
 
+#include "../SHCommon.ush"
 #include "../ParticipatingMediaCommon.ush"
+#include "../ReflectionEnvironmentShared.ush"
 
 
 
@@ -39,6 +41,9 @@ struct FLocalFogVolumeGPUInstanceData
 #define LFVMaxDensityIntoVolumetricFog	LFVStruct.LFV.LocalFogVolumeMaxDensityIntoVolumetricFog
 #define LFVRenderInVolumetricFog		LFVStruct.LFV.ShouldRenderLocalFogVolumeInVolumetricFog
 
+#define LFVDirectionalLightColor		LFVStruct.LFV.DirectionalLightColor
+#define LFVDirectionalLightDirection	LFVStruct.LFV.DirectionalLightDirection
+
 #else
 
 uint2									LFV_LocalFogVolumeTileDataTextureResolution;
@@ -46,6 +51,9 @@ uint									LFV_LocalFogVolumeInstanceCount;
 uint									LFV_LocalFogVolumeTilePixelSize;
 float									LFV_LocalFogVolumeMaxDensityIntoVolumetricFog;
 uint									LFV_ShouldRenderLocalFogVolumeInVolumetricFog;
+
+float3									LFV_DirectionalLightColor;
+float3									LFV_DirectionalLightDirection;
 
 Buffer<float4>							LFV_LocalFogVolumeInstances;
 Texture2DArray<uint>					LFV_LocalFogVolumeTileDataTexture;
@@ -58,6 +66,9 @@ Texture2DArray<uint>					LFV_LocalFogVolumeTileDataTexture;
 #define LFVTilePixelSize				LFV_LocalFogVolumeTilePixelSize
 #define LFVMaxDensityIntoVolumetricFog	LFV_LocalFogVolumeMaxDensityIntoVolumetricFog
 #define LFVRenderInVolumetricFog		LFV_ShouldRenderLocalFogVolumeInVolumetricFog
+
+#define LFVDirectionalLightColor		LFV_DirectionalLightColor
+#define LFVDirectionalLightDirection	LFV_DirectionalLightDirection
 
 #endif
 
@@ -227,29 +238,24 @@ LocalFogVolumeCommonLightingInput LocalFogVolumeEvaluateCommonLightingInput()
 
 float3 LocalFogVolumeEvaluateInScattering(in FLocalFogVolumeGPUInstanceData FogInstance, in FFogData FogData, in LocalFogVolumeCommonLightingInput CommonLightingInput, in float3 RayDirWorld)
 {
-	half3 InScattering = 0;
+	half3 InScattering = 0.0f;
 
-#if PROJECT_SUPPORT_SKY_ATMOSPHERE_AFFECTS_HEIGHFOG
+	// Lighting equation here matches the volumetric fog.
 
-	// Accumulate distant sky light
-	InScattering += CommonLightingInput.DistantSkyLight;
+	// Main forward directional light intensity
+	InScattering += LFVDirectionalLightColor * HenyeyGreensteinPhase(-FogInstance.PhaseG, dot(RayDirWorld, LFVDirectionalLightDirection));
 
-	// Accumulate directional lights if needed
-	if (View.AtmosphereLightIlluminanceOnGroundPostTransmittance[0].a > 0.0f)
+	// Sky light
+	if (View.SkyLightVolumetricScatteringIntensity > 0)
 	{
-		InScattering += View.AtmosphereLightIlluminanceOnGroundPostTransmittance[0].rgb * HenyeyGreensteinPhase(-FogInstance.PhaseG, dot(RayDirWorld, View.AtmosphereLightDirection[0].xyz));
-	}
-	if (View.AtmosphereLightIlluminanceOnGroundPostTransmittance[1].a > 0.0f)
-	{
-		InScattering += View.AtmosphereLightIlluminanceOnGroundPostTransmittance[0].rgb * HenyeyGreensteinPhase(-FogInstance.PhaseG, dot(RayDirWorld, View.AtmosphereLightDirection[1].xyz));
-	}
+		float3 SkyLighting = View.SkyLightColor.rgb * GetSkySHDiffuseSimple(RayDirWorld * -FogInstance.PhaseG);
 
-	// Weight by user control
-	InScattering *= View.SkyAtmosphereHeightFogContribution.xxx;
-
+		float SkyVisibility = 1.0f; // Not possible to reach with analytical integration
+		InScattering += (SkyVisibility * View.SkyLightVolumetricScatteringIntensity) * SkyLighting;
+	}
+	
 	// Apply the medium uniform single scattering albedo
 	InScattering *= FogInstance.Albedo;
-#endif
 
 	// Now account for emissive luminance after albedo and heighfog contribution has been accounted for.
 	// This do mean that the emissive color follows the medium density variation.

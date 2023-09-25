@@ -3175,7 +3175,8 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				ViewFamily.ViewMode != VMI_Lit ||
 				bAnyLumenEnabled ||
 				VirtualShadowMapArray.IsEnabled() ||
-				ShouldVisualizeLightGrid());
+				ShouldVisualizeLightGrid() ||
+				ShouldRenderLocalFogVolume(Scene, ViewFamily)); // Needed when accessing forward light data for the directional light
 			bComputeLightGrid &= !ViewFamily.EngineShowFlags.PathTracing;
 		}
 	}
