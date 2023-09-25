@@ -294,7 +294,6 @@ void SRigHierarchy::OnEditorClose(const FRigVMEditor* InEditor, URigVMBlueprint*
 		Editor->GetKeyDownDelegate().Unbind();
 		Editor->OnGetViewportContextMenu().Unbind();
 		Editor->OnViewportContextMenuCommands().Unbind();
-		Editor->OnRequestNavigateToConnectorWarning().RemoveAll(this);
 	}
 
 	if (UControlRigBlueprint* BP = Cast<UControlRigBlueprint>(InBlueprint))
