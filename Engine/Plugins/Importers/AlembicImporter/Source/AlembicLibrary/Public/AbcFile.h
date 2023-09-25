@@ -25,6 +25,7 @@ class FAbcTransform;
 class UAbcImportSettings;
 class UMaterialInterface;
 class IMeshUtilities;
+struct FSlowTask;
 
 enum EAbcImportError : uint32;
 
@@ -56,8 +57,8 @@ public:
 	/** Get file path for currently opened ABC file*/
 	const FString GetFilePath() const;
 
-	/** Process all to-import frames for each poly mesh inside of the ABC file */
-	void ProcessFrames(TFunctionRef<void(int32, FAbcFile*)> InCallback, const EFrameReadFlags InFlags);
+	/** Process all to-import frames for each poly mesh inside of the ABC file, optional SlowTask to interrupt process and returns 'completed' */
+	bool ProcessFrames(TFunctionRef<void(int32, FAbcFile*)> InCallback, const EFrameReadFlags InFlags, const FSlowTask* SlowTask = nullptr);
 	
 	/** Returns ABC specific frame and timing information */
 	const int32 GetMinFrameIndex() const; // index of the first frame with data regardless of the imported range
@@ -96,10 +97,16 @@ public:
 	void CleanupFrameData(const int32 ReadIndex);
 	/** Returns the list of unique face set names from the meshes to be imported */
 	const TArray<FString>& GetUniqueFaceSetNames() const { return UniqueFaceSetNames; }
+	/** Returns the mapping from material index (stored in per triangle material indices of FAbcMeshSample) to material slot (one for each unique faceset name) */
+	const TArray<int32>& GetLookupMaterialSlot() const { return LookupMaterialSlot; }
+	/** Returns the number of material slots ( == number of unique facesets ) */
+	int32 GetNumMaterialSlots() const { return GetUniqueFaceSetNames().Num(); }
 
 	typedef TPair<FString, FString> FMetaData;
 	/** Returns the metadata of the Alembic archive */
 	TArray<FMetaData> GetArchiveMetaData() const;
+
+	static const FString NoFaceSetNameStr;
 
 protected:
 	void TraverseAbcHierarchy(const Alembic::Abc::IObject& InObject, IAbcObject* InParent);
@@ -135,6 +142,7 @@ protected:
 	/** Map of material created for the imported alembic file identified by material names */
 	TMap<FString, UMaterialInterface*> MaterialMap;
 	TArray<FString> UniqueFaceSetNames;
+	TArray<int32> LookupMaterialSlot;
 
 	/** Total (max) number of frames in the Alembic file */
 	int32 NumFrames;

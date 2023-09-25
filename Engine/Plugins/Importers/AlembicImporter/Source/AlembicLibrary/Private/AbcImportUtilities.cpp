@@ -57,36 +57,41 @@ uint32 AbcImporterUtilities::GenerateMaterialIndicesFromFaceSets(Alembic::AbcGeo
 	std::vector<std::string> FaceSetNames;
 	Schema.getFaceSetNames(FaceSetNames);
 
+	if (FaceSetNames.size() == 0)
+	{
+		return 1; // We will create a default unnamed faceset
+	}
+
 	// Number of unique face sets found in the Alembic Object
 	uint32 NumUniqueFaceSets = 0;
-	if (FaceSetNames.size() != 0)
+	
+	// Loop over the face-set names
+	for (uint32 FaceSetIndex = 0; FaceSetIndex < FaceSetNames.size(); ++FaceSetIndex)
 	{
-		// Loop over the face-set names
-		for (uint32 FaceSetIndex = 0; FaceSetIndex < FaceSetNames.size(); ++FaceSetIndex)
+		const std::string& FaceSetName = FaceSetNames[FaceSetIndex];
+
+		Alembic::AbcGeom::IFaceSet FaceSet = Schema.getFaceSet(FaceSetName);
+		Alembic::AbcGeom::IFaceSetSchema FaceSetSchema = FaceSet.getSchema();
+		Alembic::AbcGeom::IFaceSetSchema::Sample FaceSetSample;
+		FaceSetSchema.get(FaceSetSample, FrameSelector);
+
+		// Retrieve face indices that are part of this face set
+		Alembic::Abc::Int32ArraySamplePtr Faces = FaceSetSample.getFaces();
+		const bool bFacesAvailable = (Faces != nullptr);
+		const int NumFaces = Faces->size();
+
+		// Set the shared Material index for all the contained faces
+		for (int32 i = 0; i < NumFaces && NumFaces < MaterialIndicesOut.Num(); ++i)
 		{
-			Alembic::AbcGeom::IFaceSet FaceSet = Schema.getFaceSet(FaceSetNames[FaceSetIndex]);
-			Alembic::AbcGeom::IFaceSetSchema FaceSetSchema = FaceSet.getSchema();
-			Alembic::AbcGeom::IFaceSetSchema::Sample FaceSetSample;
-			FaceSetSchema.get(FaceSetSample, FrameSelector);
-
-			// Retrieve face indices that are part of this face set
-			Alembic::Abc::Int32ArraySamplePtr Faces = FaceSetSample.getFaces();
-			const bool bFacesAvailable = (Faces != nullptr);
-			const int NumFaces = Faces->size();
-
-			// Set the shared Material index for all the contained faces
-			for (int32 i = 0; i < NumFaces && NumFaces < MaterialIndicesOut.Num(); ++i)
+			const int32 FaceIndex = Faces->get()[i];
+			if (MaterialIndicesOut.IsValidIndex(FaceIndex))
 			{
-				const int32 FaceIndex = Faces->get()[i];
-				if (MaterialIndicesOut.IsValidIndex(FaceIndex))
-				{
-					MaterialIndicesOut[FaceIndex] = FaceSetIndex;
-				}
+				MaterialIndicesOut[FaceIndex] = FaceSetIndex;
 			}
-
-			// Found a new unique faceset
-			NumUniqueFaceSets++;
 		}
+
+		// Found a new unique faceset
+		NumUniqueFaceSets++;
 	}
 
 	return NumUniqueFaceSets;
@@ -101,6 +106,11 @@ void AbcImporterUtilities::RetrieveFaceSetNames(Alembic::AbcGeom::IPolyMeshSchem
 	for (const std::string& Name : FaceSetNames)
 	{
 		NamesOut.Add(FString(Name.c_str()));
+	}
+
+	if (NamesOut.IsEmpty()) 
+	{
+		NamesOut.Add(FAbcFile::NoFaceSetNameStr);
 	}
 }
 
@@ -262,7 +272,14 @@ ESampleReadFlags AbcImporterUtilities::GenerateAbcMeshSampleReadFlags(const Alem
 		bool bConstantFaceSets = true;
 		for (int32 FaceSetIndex = 0; FaceSetIndex < FaceSetNames.size(); ++FaceSetIndex)
 		{
-			Alembic::AbcGeom::IFaceSet FaceSet = MutableSchema->getFaceSet(FaceSetNames[FaceSetIndex]);
+			const std::string& FaceSetName = FaceSetNames[FaceSetIndex];
+
+			if (!MutableSchema->hasFaceSet(FaceSetName))
+			{
+				continue;
+			}
+
+			Alembic::AbcGeom::IFaceSet FaceSet = MutableSchema->getFaceSet(FaceSetName);
 			Alembic::AbcGeom::IFaceSetSchema FaceSetSchema = FaceSet.getSchema();
 			bConstantFaceSets &= FaceSetSchema.isConstant();
 		}
@@ -662,24 +679,14 @@ bool AbcImporterUtilities::GenerateAbcMeshSampleDataForFrame(const Alembic::AbcG
 		}
 	}
 
-	if (EnumHasAnyFlags(ReadFlags, ESampleReadFlags::MaterialIndices))
-	{
-		// Pre initialize face-material indices
-		Sample->MaterialIndices.AddZeroed(Sample->Indices.Num() / 3);
-		Sample->NumMaterials = GenerateMaterialIndicesFromFaceSets(*const_cast<Alembic::AbcGeom::IPolyMeshSchema*>(&Schema), FrameSelector, Sample->MaterialIndices);
+	// Pre initialize face-material indices
+	Sample->MaterialIndices.AddZeroed(Sample->Indices.Num() / 3);
+	Sample->NumMaterials = GenerateMaterialIndicesFromFaceSets(*const_cast<Alembic::AbcGeom::IPolyMeshSchema*>(&Schema), FrameSelector, Sample->MaterialIndices);
 
-		// Triangulate material face indices if needed
-		if (bNeedsTriangulation)
-		{
-			TriangulateMaterialIndices(FaceCounts, Sample->MaterialIndices);
-		}
-	}
-	else
+	// Triangulate material face indices if needed
+	if (bNeedsTriangulation)
 	{
-		if (Sample->MaterialIndices.Num() < ( Sample->Indices.Num() / 3))
-		{
-			Sample->MaterialIndices.AddZeroed((Sample->Indices.Num() / 3) - Sample->MaterialIndices.Num());
-		}
+		TriangulateMaterialIndices(FaceCounts, Sample->MaterialIndices);
 	}
 
 	return bRetrievalResult;
@@ -1537,8 +1544,6 @@ void AbcImporterUtilities::GeometryCacheDataForMeshSample(FGeometryCacheMeshData
 	OutMeshData.VertexInfo.bHasMotionVectors = bHasVelocities;
 	OutMeshData.VertexInfo.bHasImportedVertexNumbers = bHasImportedVertexNumbers;
 
-	uint32 NumMaterials = MaterialOffset;
-
 	const int32 NumTriangles = MeshSample->Indices.Num() / 3;
 	const uint32 NumSections = MeshSample->NumMaterials ? MeshSample->NumMaterials : 1;
 
@@ -1609,8 +1614,10 @@ void AbcImporterUtilities::GeometryCacheDataForMeshSample(FGeometryCacheMeshData
 		}
 	}
 
+	uint32 NumMaterials = MaterialOffset;
+
 	TArray<uint32>& Indices = OutMeshData.Indices;
-	for (uint32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
+	for (uint32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex, ++NumMaterials)
 	{
 		// Sometimes empty sections seem to be in the file, filter these out
 		// as empty batches are not allowed by the geometry cache (They ultimately trigger checks in the renderer)
@@ -1623,8 +1630,6 @@ void AbcImporterUtilities::GeometryCacheDataForMeshSample(FGeometryCacheMeshData
 		FGeometryCacheMeshBatchInfo BatchInfo;
 		BatchInfo.StartIndex = Indices.Num();
 		BatchInfo.MaterialIndex = NumMaterials;
-		NumMaterials++;
-
 
 		BatchInfo.NumTriangles = SectionIndices[SectionIndex].Num() / 3;
 		Indices.Append(SectionIndices[SectionIndex]);
@@ -1633,7 +1638,9 @@ void AbcImporterUtilities::GeometryCacheDataForMeshSample(FGeometryCacheMeshData
 }
 
 void AbcImporterUtilities::MergePolyMeshesToMeshData(int32 FrameIndex, int32 FrameStart, float SecondsPerFrame, bool bUseVelocitiesAsMotionVectors,
-	const TArray<FAbcPolyMesh*>& PolyMeshes, const TArray<FString>& UniqueFaceSetNames, float& FrameTime,
+	const TArray<FAbcPolyMesh*>& PolyMeshes, 
+	const TArray<int32> LookupMaterialSlot,
+	float& FrameTime,
 	FGeometryCacheMeshData& MeshData, int32& PreviousNumVertices, bool& bConstantTopology, bool bStoreImportedVertexNumbers)
 {
 	FAbcMeshSample MergedSample;
@@ -1643,34 +1650,30 @@ void AbcImporterUtilities::MergePolyMeshesToMeshData(int32 FrameIndex, int32 Fra
 		if (PolyMesh->bShouldImport)
 		{
 			const int32 Offset = MergedSample.MaterialIndices.Num();
-			const int32 MaterialIndexOffset = MergedSample.NumMaterials;
 			bConstantTopology = bConstantTopology && PolyMesh->bConstantTopology;
+
+			// The caller expects this value to be calculated regardless of mesh visibility
+			FrameTime = PolyMesh->GetTimeForFrameIndex(FrameIndex);
+
 			if (PolyMesh->GetVisibility(FrameIndex))
 			{
 				const FAbcMeshSample* Sample = PolyMesh->GetSample(FrameIndex);
-				FrameTime = PolyMesh->GetTimeForFrameIndex(FrameIndex);
 				AbcImporterUtilities::AppendMeshSample(&MergedSample, Sample);
-				if (PolyMesh->FaceSetNames.Num() == 0)
+			
+				for (int32 Index = Offset; Index < MergedSample.MaterialIndices.Num(); ++Index)
 				{
-					FMemory::Memzero(MergedSample.MaterialIndices.GetData() + Offset, (MergedSample.MaterialIndices.Num() - Offset) * sizeof(int32));
-				}
-				else
-				{
-					for (int32 Index = Offset; Index < MergedSample.MaterialIndices.Num(); ++Index)
-					{
-						int32& MaterialIndex = MergedSample.MaterialIndices[Index];
-						if (PolyMesh->FaceSetNames.IsValidIndex(MaterialIndex - MaterialIndexOffset))
-						{
-							int32 FaceSetMaterialIndex = UniqueFaceSetNames.IndexOfByKey(PolyMesh->FaceSetNames[MaterialIndex - MaterialIndexOffset]);
-							MaterialIndex = FaceSetMaterialIndex != INDEX_NONE ? FaceSetMaterialIndex : 0;
-						}
-						else
-						{
-							MaterialIndex = 0;
-						}
-					}
+					int32 MaterialID = MergedSample.MaterialIndices[Index];
+					MergedSample.MaterialIndices[Index] = LookupMaterialSlot[MaterialID];
 				}
 			}
+			else
+			{
+				MergedSample.NumMaterials += PolyMesh->FaceSetNames.Num();
+
+				// If this mesh is invisible on this frame then the topology is not constant!
+				bConstantTopology = false;
+			}
+
 		}
 	}
 
@@ -1680,7 +1683,6 @@ void AbcImporterUtilities::MergePolyMeshesToMeshData(int32 FrameIndex, int32 Fra
 	}
 	PreviousNumVertices = MergedSample.Vertices.Num();
 
-	MergedSample.NumMaterials = UniqueFaceSetNames.Num();
 
 	// Generate the mesh data for this sample
 	AbcImporterUtilities::GeometryCacheDataForMeshSample(MeshData, &MergedSample, 0, SecondsPerFrame, bUseVelocitiesAsMotionVectors, bStoreImportedVertexNumbers);

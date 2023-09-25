@@ -372,7 +372,22 @@ UGeometryCache* FAbcImporter::ImportAsGeometryCache(UObject* InParent, EObjectFl
 		// Load the default material for later usage
 		UMaterial* DefaultMaterial = UMaterial::GetDefaultMaterial(MD_Surface);
 		check(DefaultMaterial);
-		uint32 MaterialOffset = 0;
+
+		auto CreateMaterial = [this, GeometryCache, DefaultMaterial, InParent, Flags](const FString& FaceSetName)
+		{
+			FName MaterialName(*FaceSetName);
+
+			UMaterialInterface* Material = AbcImporterUtilities::RetrieveMaterial(*AbcFile, FaceSetName, InParent, Flags);
+			check(Material);
+
+			if (Material != DefaultMaterial)
+			{
+				Material->PostEditChange();
+			}
+
+			GeometryCache->Materials.Add(Material);
+			GeometryCache->MaterialSlotNames.Add(MaterialName);
+		};
 
 		// Add tracks
 		const int32 NumPolyMeshes = AbcFile->GetNumPolyMeshes();
@@ -380,15 +395,16 @@ UGeometryCache* FAbcImporter::ImportAsGeometryCache(UObject* InParent, EObjectFl
 		{
 			TArray<UGeometryCacheTrackStreamable*> Tracks;
 
-			TArray<FAbcPolyMesh*> ImportPolyMeshes;
-			TArray<int32> MaterialOffsets;
-
 			const bool bContainsHeterogeneousMeshes = AbcFile->ContainsHeterogeneousMeshes();
 			if (ImportSettings->GeometryCacheSettings.bApplyConstantTopologyOptimizations && bContainsHeterogeneousMeshes)
 			{
 				TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Warning, LOCTEXT("HeterogeneousMeshesAndForceSingle", "Unable to enforce constant topology optimizations as the imported tracks contain topology varying data."));
 				FAbcImportLogger::AddImportMessage(Message);
 			}
+
+			FScopedSlowTask SlowTask(static_cast<float>((ImportSettings->SamplingSettings.FrameEnd + 1) - ImportSettings->SamplingSettings.FrameStart), FText::FromString(FString(TEXT("Importing Frames"))));
+			SlowTask.MakeDialog(true);
+			float CompletedFrames = 0.0f;
 
 			if (ImportSettings->GeometryCacheSettings.bFlattenTracks)
 			{
@@ -401,18 +417,13 @@ UGeometryCache* FAbcImporter::ImportAsGeometryCache(UObject* InParent, EObjectFl
 				Track->BeginCoding(Codec, ImportSettings->GeometryCacheSettings.bApplyConstantTopologyOptimizations && !bContainsHeterogeneousMeshes, bCalculateMotionVectors, ImportSettings->GeometryCacheSettings.bOptimizeIndexBuffers);
 				Tracks.Add(Track);
 				
-				FScopedSlowTask SlowTask(static_cast<float>((ImportSettings->SamplingSettings.FrameEnd + 1) - ImportSettings->SamplingSettings.FrameStart), FText::FromString(FString(TEXT("Importing Frames"))));
-				SlowTask.MakeDialog();
-
-				const TArray<FString>& UniqueFaceSetNames = AbcFile->GetUniqueFaceSetNames();
 				const TArray<FAbcPolyMesh*>& PolyMeshes = AbcFile->GetPolyMeshes();
 				TArray<float> FrameTimes;
 				FrameTimes.SetNum(ImportSettings->SamplingSettings.FrameEnd - ImportSettings->SamplingSettings.FrameStart + 1);
 				
 				const int32 NumTracks = Tracks.Num();
 				int32 PreviousNumVertices = 0;
-				float CompletedFrames = 0.0f;
-				TFunction<void(int32, FAbcFile*)> Callback = [this, &Tracks, &SlowTask, &UniqueFaceSetNames, &PolyMeshes, &PreviousNumVertices, &FrameTimes, &CompletedFrames](int32 FrameIndex, const FAbcFile* InAbcFile)
+				TFunction<void(int32, FAbcFile*)> Callback = [this, &Tracks, &PolyMeshes, &PreviousNumVertices, &FrameTimes, &SlowTask, &CompletedFrames](int32 FrameIndex, const FAbcFile* InAbcFile)
 				{
 					const bool bUseVelocitiesAsMotionVectors = (ImportSettings->GeometryCacheSettings.MotionVectors == EAbcGeometryCacheMotionVectorsImport::ImportAbcVelocitiesAsMotionVectors);
 					FGeometryCacheMeshData MeshData;
@@ -421,7 +432,10 @@ UGeometryCache* FAbcImporter::ImportAsGeometryCache(UObject* InParent, EObjectFl
 
 					int32 FrameTimeIndex = FrameIndex - ImportSettings->SamplingSettings.FrameStart;
 					AbcImporterUtilities::MergePolyMeshesToMeshData(FrameIndex, ImportSettings->SamplingSettings.FrameStart, AbcFile->GetSecondsPerFrame(), bUseVelocitiesAsMotionVectors,
-						PolyMeshes, UniqueFaceSetNames, FrameTimes[FrameTimeIndex], MeshData, PreviousNumVertices, bConstantTopology, bStoreImportedVertexNumbers);
+						PolyMeshes,
+						AbcFile->GetLookupMaterialSlot(),
+						FrameTimes[FrameTimeIndex],
+						MeshData, PreviousNumVertices, bConstantTopology, bStoreImportedVertexNumbers);
 					
 					const float FrameRate = InAbcFile->GetFramerate();
 
@@ -437,23 +451,23 @@ UGeometryCache* FAbcImporter::ImportAsGeometryCache(UObject* InParent, EObjectFl
 					}					
 				};
 
-				AbcFile->ProcessFrames(Callback, EFrameReadFlags::ApplyMatrix);
-
-				// Now add materials for all the face set names
-				for (const FString& FaceSetName : UniqueFaceSetNames)
+				if (!AbcFile->ProcessFrames(Callback, EFrameReadFlags::ApplyMatrix, &SlowTask))
 				{
-					UMaterialInterface* Material = AbcImporterUtilities::RetrieveMaterial(*AbcFile, FaceSetName, InParent, Flags);
-					GeometryCache->Materials.Add((Material != nullptr) ? Material : DefaultMaterial);		
-					GeometryCache->MaterialSlotNames.Add(FaceSetName != TEXT("DefaultMaterial") ? FName(FaceSetName) : NoFaceSetName);
+					UE_LOG(LogAbcImporter, Warning, TEXT("Alembic geometry cache import was interrupted"));
+				}
 
-					if (Material != UMaterial::GetDefaultMaterial(MD_Surface))
-					{
-						Material->PostEditChange();
-					}
+				// Now add materials for all the unique face set names
+				for (const FString& FaceSetName : AbcFile->GetUniqueFaceSetNames())
+				{
+					CreateMaterial(FaceSetName);
 				}
 			}
 			else
 			{
+				uint32 MaterialOffset = 0;
+				TArray<int32> MaterialOffsets;
+				TArray<FAbcPolyMesh*> ImportPolyMeshes;
+
 				const TArray<FAbcPolyMesh*>& PolyMeshes = AbcFile->GetPolyMeshes();
 				for (FAbcPolyMesh* PolyMesh : PolyMeshes)
 				{
@@ -476,36 +490,17 @@ UGeometryCache* FAbcImporter::ImportAsGeometryCache(UObject* InParent, EObjectFl
 						MaterialOffsets.Add(MaterialOffset);
 
 						// Add materials for this Mesh Object
-						const uint32 NumMaterials = (PolyMesh->FaceSetNames.Num() > 0) ? PolyMesh->FaceSetNames.Num() : 1;
+						const uint32 NumMaterials = PolyMesh->FaceSetNames.Num();
 						for (uint32 MaterialIndex = 0; MaterialIndex < NumMaterials; ++MaterialIndex)
 						{
-							UMaterialInterface* Material = nullptr;
-							if (PolyMesh->FaceSetNames.IsValidIndex(MaterialIndex))
-							{
-								Material = AbcImporterUtilities::RetrieveMaterial(*AbcFile, PolyMesh->FaceSetNames[MaterialIndex], InParent, Flags);
-								GeometryCache->MaterialSlotNames.Add(FName(PolyMesh->FaceSetNames[MaterialIndex]));
-								if (Material != UMaterial::GetDefaultMaterial(MD_Surface))
-								{
-									Material->PostEditChange();
-								}
-							}
-							else
-							{
-								GeometryCache->MaterialSlotNames.Add(NoFaceSetName);
-							}
-
-							GeometryCache->Materials.Add((Material != nullptr) ? Material : DefaultMaterial);
+							CreateMaterial(PolyMesh->FaceSetNames[MaterialIndex]);
 						}
 
 						MaterialOffset += NumMaterials;
 					}
 				}
 
-				FScopedSlowTask SlowTask(static_cast<float>((ImportSettings->SamplingSettings.FrameEnd + 1) - ImportSettings->SamplingSettings.FrameStart), FText::FromString(FString(TEXT("Importing Frames"))));
-				SlowTask.MakeDialog();
-
 				const int32 NumTracks = Tracks.Num();
-				float CompletedFrames = 0.0f;
 				TFunction<void(int32, FAbcFile*)> Callback = [this, NumTracks, &ImportPolyMeshes, &Tracks, &MaterialOffsets, &SlowTask, &CompletedFrames](int32 FrameIndex, const FAbcFile* InAbcFile)
 				{
 					const float FrameRate = static_cast<float>(InAbcFile->GetFramerate());
@@ -533,7 +528,7 @@ UGeometryCache* FAbcImporter::ImportAsGeometryCache(UObject* InParent, EObjectFl
 							Track->AddVisibilitySample(bVisible, FrameTime);
 						}
 					}
-					
+
 					++CompletedFrames;
 					if (IsInGameThread())
 					{
@@ -542,7 +537,10 @@ UGeometryCache* FAbcImporter::ImportAsGeometryCache(UObject* InParent, EObjectFl
 					}					
 				};
 
-				AbcFile->ProcessFrames(Callback, EFrameReadFlags::ApplyMatrix);
+				if (!AbcFile->ProcessFrames(Callback, EFrameReadFlags::ApplyMatrix, &SlowTask))
+				{
+					UE_LOG(LogAbcImporter, Warning, TEXT("Alembic geometry cache import was interrupted"));
+				}
 			}
 
 			TArray<FMatrix> Mats;
@@ -930,7 +928,7 @@ const bool FAbcImporter::CompressAnimationDataUsingPCA(const FAbcCompressionSett
 			int32 NumSamples = 0;
 
 			TUniquePtr<FScopedSlowTask> SlowTask = MakeUnique<FScopedSlowTask>(static_cast<float>((ImportSettings->SamplingSettings.FrameEnd + 1) - ImportSettings->SamplingSettings.FrameStart + 1), FText::FromString(FString(TEXT("Merging meshes"))));
-			SlowTask->MakeDialog();
+			SlowTask->MakeDialog(true);
 
 			TArray<uint32> ObjectVertexOffsets;
 			TArray<uint32> ObjectIndexOffsets;
@@ -1027,8 +1025,8 @@ const bool FAbcImporter::CompressAnimationDataUsingPCA(const FAbcCompressionSett
 					const EAppReturnType::Type DialogResponse = FMessageDialog::Open(EAppMsgType::OkCancel, EAppReturnType::Ok, Message, Title);
 					if (DialogResponse != EAppReturnType::Ok)
 					{
-						return false;
-					}
+					return false;
+				}
 				}
 
 				AverageVertexData.Reset();
@@ -1041,7 +1039,11 @@ const bool FAbcImporter::CompressAnimationDataUsingPCA(const FAbcCompressionSett
 				NumSamples = 0;
 			}
 
-			AbcFile->ProcessFrames(MergedMeshesFunc, Flags);
+			if (!AbcFile->ProcessFrames(MergedMeshesFunc, Flags, SlowTask.Get()))
+			{
+				UE_LOG(LogAbcImporter, Warning, TEXT("Alembic skeletal mesh import was interrupted"));
+				return false;
+			}
 			SlowTask.Reset();
 
 			// Average out vertex data
@@ -1098,7 +1100,7 @@ const bool FAbcImporter::CompressAnimationDataUsingPCA(const FAbcCompressionSett
 			}
 
 			SlowTask = MakeUnique<FScopedSlowTask>(static_cast<float>((ImportSettings->SamplingSettings.FrameEnd + 1) - ImportSettings->SamplingSettings.FrameStart), FText::FromString(FString(TEXT("Generating matrices"))));
-			SlowTask->MakeDialog();
+			SlowTask->MakeDialog(true);
 
 			CompletedFrames = 0.0f;
 
@@ -1149,7 +1151,11 @@ const bool FAbcImporter::CompressAnimationDataUsingPCA(const FAbcCompressionSett
 					}					
 				};
 
-			AbcFile->ProcessFrames(GenerateMatrixFunc, Flags);
+			if (!AbcFile->ProcessFrames(GenerateMatrixFunc, Flags, SlowTask.Get()))
+			{
+				UE_LOG(LogAbcImporter, Warning, TEXT("Alembic skeletal mesh import was interrupted"));
+				return false;
+			}
 			SlowTask.Reset();
 
 			// Perform compression
@@ -1217,8 +1223,8 @@ const bool FAbcImporter::CompressAnimationDataUsingPCA(const FAbcCompressionSett
 			AverageNormalData.AddDefaulted(NumPolyMeshesToCompress);
 			
 			TUniquePtr<FScopedSlowTask> SlowTask = MakeUnique<FScopedSlowTask>(static_cast<float>((ImportSettings->SamplingSettings.FrameEnd + 1) - ImportSettings->SamplingSettings.FrameStart + 1), FText::FromString(FString(TEXT("Processing meshes"))));
-			SlowTask->MakeDialog();
-
+			SlowTask->MakeDialog(true);
+			
 			int32 NumSamples = 0;
 			float CompletedFrames = 0.0f;
 			TFunction<void(int32, FAbcFile*)> IndividualMeshesFunc =
@@ -1345,7 +1351,11 @@ const bool FAbcImporter::CompressAnimationDataUsingPCA(const FAbcCompressionSett
 				NumSamples = 0;
 			}
 
-			AbcFile->ProcessFrames(IndividualMeshesFunc, Flags);
+			if (!AbcFile->ProcessFrames(IndividualMeshesFunc, Flags, SlowTask.Get()))
+			{
+				UE_LOG(LogAbcImporter, Warning, TEXT("Alembic skeletal mesh import was interrupted"));
+				return false;
+			}
 			SlowTask.Reset();
 
 			// Average out vertex data
@@ -1385,7 +1395,7 @@ const bool FAbcImporter::CompressAnimationDataUsingPCA(const FAbcCompressionSett
 			}
 
 			SlowTask = MakeUnique<FScopedSlowTask>(static_cast<float>((ImportSettings->SamplingSettings.FrameEnd + 1) - ImportSettings->SamplingSettings.FrameStart), FText::FromString(FString(TEXT("Generating matrices"))));
-			SlowTask->MakeDialog();
+			SlowTask->MakeDialog(true);
 
 			uint32 GenerateMatrixSampleIndex = 0;
 			CompletedFrames = 0.0f;
@@ -1439,9 +1449,13 @@ const bool FAbcImporter::CompressAnimationDataUsingPCA(const FAbcCompressionSett
 						SlowTask->EnterProgressFrame(CompletedFrames);
 						CompletedFrames = 0.0f;
 					}					
-			};
+				};
 
-			AbcFile->ProcessFrames(GenerateMatrixFunc, Flags);
+			if (!AbcFile->ProcessFrames(GenerateMatrixFunc, Flags, SlowTask.Get()))
+			{
+				UE_LOG(LogAbcImporter, Warning, TEXT("Alembic skeletal mesh import was interrupted"));
+				return false;
+			}
 			SlowTask.Reset();
 
 			for (int32 MeshIndex = 0; MeshIndex < NumPolyMeshesToCompress; ++MeshIndex)

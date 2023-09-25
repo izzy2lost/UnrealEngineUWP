@@ -18,6 +18,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Logging/TokenizedMessage.h"
 #include "AbcImportLogger.h"
+#include "Misc/ScopedSlowTask.h"
 
 
 
@@ -36,6 +37,8 @@ THIRD_PARTY_INCLUDES_END
 
 
 #define LOCTEXT_NAMESPACE "AbcFile"
+
+const FString FAbcFile::NoFaceSetNameStr(TEXT("NoFaceSetName"));
 
 FAbcFile::FAbcFile(const FString& InFilePath)
 	: FilePath(InFilePath)
@@ -377,24 +380,47 @@ EAbcImportError FAbcFile::Import(UAbcImportSettings* InImportSettings)
 		}
 	}
 
+	// Count total number of facesets (1 or more per mesh)
+	int32 NumFacesets = 0;
+	for (const FAbcPolyMesh* PolyMesh : PolyMeshes)
+	{
+		if (PolyMesh->bShouldImport)
+		{
+			check(!PolyMesh->FaceSetNames.IsEmpty());
+			NumFacesets += PolyMesh->FaceSetNames.Num();
+		}
+	}
+	
+	if (NumFacesets == 0)
+	{
+		return AbcImportError_NoMeshes;
+	}
+
 	// Populate the list of unique face set names from the meshes that should be imported regardless of the import material settings
-	bool bRequiresDefaultMaterial = false;
-	for (FAbcPolyMesh* PolyMesh : PolyMeshes)
+	// and construct mapping from faceset index (in flat list of imported mesh facesets) to material slot
+	LookupMaterialSlot.SetNum(NumFacesets);
+
+	int32 FacesetMaterialIndex = 0;
+	for (const FAbcPolyMesh* PolyMesh : PolyMeshes)
 	{
 		if (PolyMesh->bShouldImport)
 		{
 			for (const FString& FaceSetName : PolyMesh->FaceSetNames)
 			{
-				UniqueFaceSetNames.AddUnique(FaceSetName);
+				int32 MaterialSlotIndex = UniqueFaceSetNames.Find(FaceSetName);
+				if (MaterialSlotIndex == INDEX_NONE)
+				{
+					MaterialSlotIndex = UniqueFaceSetNames.Num();
+					UniqueFaceSetNames.Add(FaceSetName);
+				}
+
+				LookupMaterialSlot[FacesetMaterialIndex] = MaterialSlotIndex;
+				FacesetMaterialIndex++;
 			}
-			bRequiresDefaultMaterial |= PolyMesh->FaceSetNames.Num() == 0;
 		}
 	}
 
-	if (bRequiresDefaultMaterial)
-	{
-		UniqueFaceSetNames.Insert(TEXT("DefaultMaterial"), 0);
-	}
+	check(FacesetMaterialIndex == NumFacesets);
 
 	return AbcImportError_NoError;
 }
@@ -541,17 +567,24 @@ void FAbcFile::CleanupFrameData(const int32 ReadIndex)
 	}
 }
 
-void FAbcFile::ProcessFrames(TFunctionRef<void(int32, FAbcFile*)> InCallback, const EFrameReadFlags InFlags)
+bool FAbcFile::ProcessFrames(TFunctionRef<void(int32, FAbcFile*)> InCallback, const EFrameReadFlags InFlags, const FSlowTask* SlowTask)
 {
 	const int32 NumWorkerThreads = FMath::Clamp(FTaskGraphInterface::Get().GetNumWorkerThreads(), 1, MaxNumberOfResidentSamples);
 	const bool bSingleThreaded = ImportSettings->NumThreads == 1 ||
 								 EnumHasAnyFlags(InFlags, EFrameReadFlags::ForceSingleThreaded) || !FApp::ShouldUseThreadingForPerformance();
 
+	volatile bool bIsCancelled = false;
+
 	if (bSingleThreaded)
 	{
 		for (int32 FrameIndex = StartFrameIndex; FrameIndex <= EndFrameIndex; ++FrameIndex)
 		{
-			ReadFrame(FrameIndex, InFlags, 0);
+			if (SlowTask && SlowTask->ShouldCancel())
+			{
+				return false;
+			}
+
+			ReadFrame(FrameIndex, InFlags, 0);		
 			InCallback(FrameIndex, this);
 			CleanupFrameData(0);
 		}
@@ -566,15 +599,21 @@ void FAbcFile::ProcessFrames(TFunctionRef<void(int32, FAbcFile*)> InCallback, co
 		{
 			TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Error, LOCTEXT("NoSynchEvent", "Unable to get synchronization event for parallelized Alembic frame data import."));
 			FAbcImportLogger::AddImportMessage(Message);
-			return;
+			return false;
 		}
 
-		ParallelFor(NumWorkerThreads, [this, InFlags, InCallback, bSingleThreaded, NumWorkerThreads, &WriteFrameIndex, &Mutex, &FrameWrittenEvent](int32 ThreadIndex)
+		ParallelFor(NumWorkerThreads, [this, InFlags, InCallback, bSingleThreaded, NumWorkerThreads, &WriteFrameIndex, &Mutex, &FrameWrittenEvent, &bIsCancelled, SlowTask](int32 ThreadIndex)
 		{
 			int32 FrameIndex = StartFrameIndex + ThreadIndex;
 
-			while (FrameIndex <= EndFrameIndex)
+			while (FrameIndex <= EndFrameIndex && !bIsCancelled)
 			{
+				if (IsInGameThread() && SlowTask && SlowTask->ShouldCancel())
+				{
+					bIsCancelled = true;
+					break;
+				}
+
 				// Read frame data into memory
 				ReadFrame(FrameIndex, InFlags, ThreadIndex);
 
@@ -606,6 +645,8 @@ void FAbcFile::ProcessFrames(TFunctionRef<void(int32, FAbcFile*)> InCallback, co
 
 		FPlatformProcess::ReturnSynchEventToPool(FrameWrittenEvent);
 	}
+
+	return !bIsCancelled;
 }
 
 const int32 FAbcFile::GetMinFrameIndex() const
