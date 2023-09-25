@@ -92,6 +92,9 @@ namespace PhysicsReplicationCVars
 		static bool bRuntimeCorrectionEnabled = true;
 		static FAutoConsoleVariableRef CVarResimRuntimeCorrectionEnabled(TEXT("np2.Resim.RuntimeCorrectionEnabled"), bRuntimeCorrectionEnabled, TEXT("Apply runtime corrections while error is smalle enough not to trigger a resim."));
 
+		static bool bDisableReplicationOnInteraction = true;
+		static FAutoConsoleVariableRef CVarResimDisableReplicationOnInteraction(TEXT("np2.Resim.DisableReplicationOnInteraction"), bDisableReplicationOnInteraction, TEXT("If a resim object interacts with another object not running resimulation, deactivate that objects replication until interaction stops."));
+
 		static float PosStabilityMultiplier = 0.5f;
 		static FAutoConsoleVariableRef CVarResimPosStabilityMultiplier(TEXT("np2.Resim.PosStabilityMultiplier"), PosStabilityMultiplier, TEXT("Recommended range between 0.0-1.0. Lower value means more stable positional corrections."));
 
@@ -152,7 +155,7 @@ namespace PhysicsReplicationCVars
 		static float EarlyOutAngle = 1.f;
 		static FAutoConsoleVariableRef CVarEarlyOutAngle(TEXT("np2.PredictiveInterpolation.EarlyOutAngle"), EarlyOutAngle, TEXT("If object is within this rotational angle (in degrees) from the source target, early out from replication and apply sleep if replicated."));
 		
-		static bool PostResimWaitForUpdate = true;
+		static bool PostResimWaitForUpdate = false;
 		static FAutoConsoleVariableRef CVarPostResimWaitForUpdate(TEXT("np2.PredictiveInterpolation.PostResimWaitForUpdate"), PostResimWaitForUpdate, TEXT("After a resimulation, wait for replicated states that correspond to post-resim state before processing replication again."));
 		
 		static bool bVelocityBased = true;
@@ -732,7 +735,7 @@ void FPhysicsReplicationAsync::OnPreSimulate_Internal()
 		const bool bRewindDataExist = RewindData != nullptr;
 		if (bRewindDataExist && RewindData->IsResim())
 		{
-			// TODO, Handle the transition from post-resim to interpolation better.
+			// TODO, Handle the transition from post-resim to interpolation better (disabled by default, resim vs replication interaction is handled via FPhysicsReplicationAsync::CacheResimInteractions)
 			if (PhysicsReplicationCVars::PredictiveInterpolationCVars::PostResimWaitForUpdate && RewindData->IsFinalResim())
 			{
 				for (auto Itr = ObjectToTarget.CreateIterator(); Itr; ++Itr)
@@ -773,6 +776,11 @@ void FPhysicsReplicationAsync::OnPreSimulate_Internal()
 
 			UpdateRewindDataTarget(Input);
 			UpdateAsyncTarget(Input, RigidsSolver);
+		}
+
+		if (Chaos::FPBDRigidsSolver::IsNetworkPhysicsPredictionEnabled())
+		{
+			CacheResimInteractions();
 		}
 
 		ApplyTargetStatesAsync(GetDeltaTime_Internal(), AsyncInput->ErrorCorrection, AsyncInput->InputData);
@@ -829,13 +837,13 @@ void FPhysicsReplicationAsync::UpdateAsyncTarget(const FPhysicsRepAsyncInputData
 		Target->PrevLinVel = Input.TargetState.LinVel;
 	}
 
-	if (Input.ServerFrame >= Target->ServerFrame)
+	if (Input.ServerFrame >= Target->PrevServerFrame)
 	{
 		const int32 PrevTickCount = Target->TickCount;
 		const int32 PrevReceiveInterval = Target->ReceiveInterval;
 
-		Target->PrevServerFrame = (Target->ServerFrame == INDEX_NONE) ? (Input.ServerFrame - 1) : Target->ServerFrame;
-		Target->ServerFrame = Input.ServerFrame;
+		Target->PrevServerFrame = Target->bWaiting ? Input.ServerFrame : Target->ServerFrame;
+		Target->ServerFrame = Target->bWaiting ? Target->ServerFrame : Input.ServerFrame;
 		Target->PrevReceiveFrame = (Target->ReceiveFrame == INDEX_NONE) ? (RigidsSolver->GetCurrentFrame() - 1) : Target->ReceiveFrame;
 		Target->ReceiveFrame = RigidsSolver->GetCurrentFrame();
 		Target->ReceiveInterval = FMath::Clamp((Target->ReceiveFrame - Target->PrevReceiveFrame), 1, 255);
@@ -843,7 +851,6 @@ void FPhysicsReplicationAsync::UpdateAsyncTarget(const FPhysicsRepAsyncInputData
 		Target->RepMode = Input.RepMode;
 		Target->FrameOffset = Input.FrameOffset;
 		Target->TickCount = 0;
-		Target->bWaiting = false;
 
 		if (Input.RepMode == EPhysicsReplicationMode::PredictiveInterpolation)
 		{
@@ -853,7 +860,7 @@ void FPhysicsReplicationAsync::UpdateAsyncTarget(const FPhysicsRepAsyncInputData
 
 			// If we extrapolated the previous target past the receive interval, extrapolate this target by the overshoot
 			const int32 OvershootingExtrapolation = FMath::Clamp((PrevTickCount - PrevReceiveInterval), -1, FMath::CeilToInt(Target->AverageReceiveInterval));
-			if (OvershootingExtrapolation > 0)
+			if (!Target->bWaiting && OvershootingExtrapolation > 0)
 			{
 				ExtrapolateTarget(*Target, OvershootingExtrapolation, GetDeltaTime_Internal());
 			}
@@ -862,6 +869,35 @@ void FPhysicsReplicationAsync::UpdateAsyncTarget(const FPhysicsRepAsyncInputData
 
 	/** Cache the latest ping time */
 	LatencyOneWay = Input.LatencyOneWay;
+}
+
+void FPhysicsReplicationAsync::CacheResimInteractions()
+{
+	Chaos::FPBDRigidsSolver* RigidsSolver = static_cast<Chaos::FPBDRigidsSolver*>(GetSolver());
+	if (RigidsSolver == nullptr)
+	{
+		return;
+	}
+
+	ParticlesInResimIslands.Empty(FMath::CeilToInt(static_cast<float>(ParticlesInResimIslands.Num()) * 0.9f));
+	Chaos::Private::FPBDIslandManager& IslandManager = RigidsSolver->GetEvolution()->GetIslandManager();
+	Chaos::FWritePhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetWrite();
+	for (auto Itr = ObjectToTarget.CreateIterator(); Itr; ++Itr)
+	{
+		FReplicatedPhysicsTargetAsync& Target = Itr.Value();
+		if (Target.RepMode == EPhysicsReplicationMode::Resimulation)
+		{
+			Chaos::FConstPhysicsObjectHandle& POHandle = Itr.Key();
+			if (Chaos::FGeometryParticleHandle* Handle = Interface.GetParticle(POHandle))
+			{
+				// Get a list of particles from the same island as a resim particle is in, i.e. particles interacting with a resim particle
+				for (const Chaos::FGeometryParticleHandle* InteractParticle : IslandManager.FindParticlesInIslands(IslandManager.FindParticleIslands(Handle)))
+				{
+					ParticlesInResimIslands.Add(InteractParticle->GetHandleIdx());
+				}
+			}
+		}
+	}
 }
 
 void FPhysicsReplicationAsync::ApplyTargetStatesAsync(const float DeltaSeconds, const FPhysicsRepErrorCorrectionData& ErrorCorrection, const TArray<FPhysicsRepAsyncInputData>& InputData)
@@ -882,20 +918,19 @@ void FPhysicsReplicationAsync::ApplyTargetStatesAsync(const float DeltaSeconds, 
 	}
 
 	// PhysicsObject flow
+	Chaos::FWritePhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetWrite();
 	for (auto Itr = ObjectToTarget.CreateIterator(); Itr; ++Itr)
 	{
 		bool bRemoveItr = true; // Remove current cached replication target unless replication logic tells us to store it for next tick
 
-		Chaos::FConstPhysicsObjectHandle POHandle = Itr.Key();
-		Chaos::FWritePhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetWrite();
+		Chaos::FConstPhysicsObjectHandle& POHandle = Itr.Key();
 		if (FGeometryParticleHandle* Handle = Interface.GetParticle(POHandle))
 		{
 			FReplicatedPhysicsTargetAsync& Target = Itr.Value();
 
 			if (FPBDRigidParticleHandle* RigidHandle = Handle->CastToRigidParticle())
 			{
-				EPhysicsReplicationMode RepMode = Target.RepMode;
-
+				const EPhysicsReplicationMode RepMode = Target.RepMode;
 				switch (RepMode)
 				{
 					case EPhysicsReplicationMode::Default:
@@ -982,6 +1017,11 @@ bool FPhysicsReplicationAsync::DefaultReplication(Chaos::FPBDRigidParticleHandle
 	if (RigidsSolver == nullptr)
 	{
 		return true;
+	}
+
+	if (PhysicsReplicationCVars::ResimulationCVars::bDisableReplicationOnInteraction && ParticlesInResimIslands.Contains(Handle->GetHandleIdx()))
+	{
+		return false;
 	}
 
 	//
@@ -1222,15 +1262,24 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 		return true;
 	}
 
-	if (Target.bWaiting)
+	if (Target.bWaiting && (Target.PrevServerFrame + Target.TickCount) < Target.ServerFrame)
 	{
 		return false;
 	}
+	Target.bWaiting = false;
 
 	Chaos::FPBDRigidsSolver* RigidsSolver = static_cast<Chaos::FPBDRigidsSolver*>(GetSolver());
 	if (RigidsSolver == nullptr)
 	{
 		return true;
+	}
+
+	if (PhysicsReplicationCVars::ResimulationCVars::bDisableReplicationOnInteraction && ParticlesInResimIslands.Contains(Handle->GetHandleIdx()))
+	{
+		// If particle is in an island with a resim object, don't run replication and wait for an up to date target (after leaving the island)
+		Target.bWaiting = true;
+		Target.ServerFrame = RigidsSolver->GetCurrentFrame() + Target.FrameOffset;
+		return false;
 	}
 
 	const bool bCanSimulate = Handle->IsDynamic() || Handle->IsSleeping();
@@ -1245,7 +1294,7 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 			RigidsSolver->GetEvolution()->SetParticleObjectState(Handle, Chaos::EObjectStateType::Sleeping);
 		}
 
-		const bool bClearTarget = (!bCanSimulate || bShouldSleep) && !PhysicsReplicationCVars::PredictiveInterpolationCVars::bDontClearTarget;
+		const bool bClearTarget = (!bCanSimulate || (bAllowSleep && bShouldSleep)) && !PhysicsReplicationCVars::PredictiveInterpolationCVars::bDontClearTarget;
 		return bClearTarget;
 	};
 
@@ -1459,6 +1508,7 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 	}
 
 	const int32 LocalFrame = Target.ServerFrame - Target.FrameOffset;
+
 	if (LocalFrame > RewindData->CurrentFrame() || LocalFrame < RewindData->GetEarliestFrame_Internal())
 	{
 		if (LocalFrame > 0)

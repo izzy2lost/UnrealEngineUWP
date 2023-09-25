@@ -1571,7 +1571,18 @@ private:
 	};
 
 	template <typename TDirtyObjs, typename TObj>
-	auto& FindOrAddDirtyObjImp(TDirtyObjs& DirtyObjs, TObj& Handle, const int32 InitializedOnFrame = INDEX_NONE)
+	auto* FindDirtyObjImp(TDirtyObjs& DirtyObjs, TObj& Handle)
+	{
+		return DirtyObjs.Find(&Handle);
+	}
+
+	FDirtyParticleInfo* FindDirtyObj(const FGeometryParticleHandle& Handle)
+	{
+		return FindDirtyObjImp(DirtyParticles, Handle);
+	}
+
+	template <typename TDirtyObjs, typename TObj>
+	auto& FindOrAddDirtyObjImp(TDirtyObjs & DirtyObjs, TObj & Handle, const int32 InitializedOnFrame = INDEX_NONE)
 	{
 		if (auto Info = DirtyObjs.Find(&Handle))
 		{

@@ -97,6 +97,8 @@ struct FReplicatedPhysicsTargetAsync
 		, ReceiveFrame(INDEX_NONE)
 		, ReceiveInterval(5)
 		, AverageReceiveInterval(5.f)
+		, PrevServerFrame(INDEX_NONE)
+		, bWaiting(false)
 	{ }
 
 	/** The target state replicated by server */
@@ -157,10 +159,12 @@ private:
 	float LatencyOneWay;
 	FRigidBodyErrorCorrection ErrorCorrectionDefault;
 	TMap<Chaos::FConstPhysicsObjectHandle, FReplicatedPhysicsTargetAsync> ObjectToTarget;
+	TArray<int32> ParticlesInResimIslands;
 
 private:
 	void UpdateAsyncTarget(const FPhysicsRepAsyncInputData& Input, Chaos::FPBDRigidsSolver* RigidsSolver);
 	void UpdateRewindDataTarget(const FPhysicsRepAsyncInputData& Input);
+	void CacheResimInteractions();
 	void ExtrapolateTarget(FReplicatedPhysicsTargetAsync& Target, const int32 ExtrapolateFrames, const float DeltaSeconds);
 
 public:
