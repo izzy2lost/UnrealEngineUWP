@@ -3,6 +3,7 @@
 #include "ChaosClothAsset/CollectionClothSimPatternFacade.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "ChaosClothAsset/ClothCollection.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothGeometryTools.h"
 
 namespace UE::Chaos::ClothAsset
@@ -85,7 +86,7 @@ namespace UE::Chaos::ClothAsset
 		, PatternIndex(InPatternIndex)
 	{
 		check(ClothCollection->IsValid());
-		check(PatternIndex >= 0 && PatternIndex < ClothCollection->GetNumElements(FClothCollection::SimPatternsGroup));
+		check(PatternIndex >= 0 && PatternIndex < ClothCollection->GetNumElements(ClothCollectionGroup::SimPatterns));
 	}
 
 	void FCollectionClothSimPatternFacade::Reset()
@@ -192,10 +193,10 @@ namespace UE::Chaos::ClothAsset
 
 	FIntVector2 FCollectionClothSimPatternFacade::AppendSimVertices(int32 NumSimVertices)
 	{
-		const FIntVector2 OrigNumVertices(GetNumSimVertices2D(), ClothCollection->GetNumElements(FClothCollection::SimVertices3DGroup));
+		const FIntVector2 OrigNumVertices(GetNumSimVertices2D(), ClothCollection->GetNumElements(ClothCollectionGroup::SimVertices3D));
 
 		// Resize arrays
-		GetClothCollection()->SetNumElements(OrigNumVertices[1] + NumSimVertices, FClothCollection::SimVertices3DGroup);
+		GetClothCollection()->SetNumElements(OrigNumVertices[1] + NumSimVertices, ClothCollectionGroup::SimVertices3D);
 		SetNumSimVertices2D(OrigNumVertices[0] + NumSimVertices);
 
 		// Set lookups to each other
@@ -234,7 +235,7 @@ namespace UE::Chaos::ClothAsset
 		}
 
 		GetClothCollection()->RemoveElements(
-			FClothCollection::SimVertices2DGroup,
+			ClothCollectionGroup::SimVertices2D,
 			GlobalIndexSortedDeletionList,
 			GetClothCollection()->GetSimVertices2DStart(),
 			GetClothCollection()->GetSimVertices2DEnd(),
@@ -245,7 +246,7 @@ namespace UE::Chaos::ClothAsset
 	{
 		GetClothCollection()->SetNumElements(
 			NumSimFaces,
-			FClothCollection::SimFacesGroup,
+			ClothCollectionGroup::SimFaces,
 			GetClothCollection()->GetSimFacesStart(),
 			GetClothCollection()->GetSimFacesEnd(),
 			GetElementIndex());
@@ -280,7 +281,7 @@ namespace UE::Chaos::ClothAsset
 		}
 
 		GetClothCollection()->RemoveElements(
-			FClothCollection::SimFacesGroup,
+			ClothCollectionGroup::SimFaces,
 			GlobalIndexSortedDeletionList,
 			GetClothCollection()->GetSimFacesStart(),
 			GetClothCollection()->GetSimFacesEnd(),
@@ -306,7 +307,7 @@ namespace UE::Chaos::ClothAsset
 	{
 		GetClothCollection()->SetNumElements(
 			NumSimVertices,
-			FClothCollection::SimVertices2DGroup,
+			ClothCollectionGroup::SimVertices2D,
 			GetClothCollection()->GetSimVertices2DStart(),
 			GetClothCollection()->GetSimVertices2DEnd(),
 			GetElementIndex());

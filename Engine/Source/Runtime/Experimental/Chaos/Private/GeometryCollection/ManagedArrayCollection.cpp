@@ -419,6 +419,13 @@ void FManagedArrayCollection::SetDependency(FName Name, FName Group, FName Depen
 	}
 }
 
+FName FManagedArrayCollection::GetDependency(FName Name, FName Group) const
+{
+	check(HasAttribute(Name, Group));
+	const FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
+	return Map[Key].GroupIndexDependency;
+}
+
 void FManagedArrayCollection::RemoveDependencyFor(FName Group)
 {
 	ensure(HasGroup(Group));

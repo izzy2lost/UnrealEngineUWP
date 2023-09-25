@@ -2,6 +2,7 @@
 
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "ChaosClothAsset/ClothCollection.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothGeometryTools.h"
 #include "Chaos/ChaosArchive.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
@@ -20,7 +21,7 @@ namespace UE::Chaos::ClothAsset
 
 	bool FCollectionClothConstFacade::IsValid() const
 	{
-		return ClothCollection->IsValid() && ClothCollection->GetNumElements(FClothCollection::LodsGroup) == 1;
+		return ClothCollection->IsValid() && ClothCollection->GetNumElements(ClothCollectionGroup::Lods) == 1;
 	}
 
 	bool FCollectionClothConstFacade::HasValidData() const
@@ -110,7 +111,7 @@ namespace UE::Chaos::ClothAsset
 		for (const FName& WeightMapName : WeightMapNames)
 		{
 			ResultHash = HashCombineFast(ResultHash, GetTypeHash(WeightMapName));
-			ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetUserDefinedAttribute<float>(WeightMapName, FClothCollection::SimVertices3DGroup)));
+			ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetUserDefinedAttribute<float>(WeightMapName, ClothCollectionGroup::SimVertices3D)));
 		}
 		return ResultHash;
 	}
@@ -118,18 +119,18 @@ namespace UE::Chaos::ClothAsset
 	const FString& FCollectionClothConstFacade::GetPhysicsAssetPathName() const
 	{
 		static const FString EmptyString;
-		return ClothCollection->GetPhysicsAssetPathName() && ClothCollection->GetNumElements(FClothCollection::LodsGroup) > 0 ? (*ClothCollection->GetPhysicsAssetPathName())[0] : EmptyString;
+		return ClothCollection->GetPhysicsAssetPathName() && ClothCollection->GetNumElements(ClothCollectionGroup::Lods) > 0 ? (*ClothCollection->GetPhysicsAssetPathName())[0] : EmptyString;
 	}
 
 	const FString& FCollectionClothConstFacade::GetSkeletalMeshPathName() const
 	{
 		static const FString EmptyString;
-		return ClothCollection->GetSkeletalMeshPathName() && ClothCollection->GetNumElements(FClothCollection::LodsGroup) > 0 ? (*ClothCollection->GetSkeletalMeshPathName())[0] : EmptyString;
+		return ClothCollection->GetSkeletalMeshPathName() && ClothCollection->GetNumElements(ClothCollectionGroup::Lods) > 0 ? (*ClothCollection->GetSkeletalMeshPathName())[0] : EmptyString;
 	}
 
 	int32 FCollectionClothConstFacade::GetNumSimVertices2D() const
 	{
-		return ClothCollection->GetNumElements(FClothCollection::SimVertices2DGroup);
+		return ClothCollection->GetNumElements(ClothCollectionGroup::SimVertices2D);
 	}
 
 	TConstArrayView<FVector2f> FCollectionClothConstFacade::GetSimPosition2D() const
@@ -144,7 +145,7 @@ namespace UE::Chaos::ClothAsset
 
 	int32 FCollectionClothConstFacade::GetNumSimVertices3D() const
 	{
-		return ClothCollection->GetNumElements(FClothCollection::SimVertices3DGroup);
+		return ClothCollection->GetNumElements(ClothCollectionGroup::SimVertices3D);
 	}
 
 	TConstArrayView<FVector3f> FCollectionClothConstFacade::GetSimPosition3D() const
@@ -189,7 +190,7 @@ namespace UE::Chaos::ClothAsset
 
 	int32 FCollectionClothConstFacade::GetNumSimFaces() const
 	{
-		return ClothCollection->GetNumElements(FClothCollection::SimFacesGroup);
+		return ClothCollection->GetNumElements(ClothCollectionGroup::SimFaces);
 	}
 
 	TConstArrayView<FIntVector3> FCollectionClothConstFacade::GetSimIndices2D() const
@@ -204,7 +205,7 @@ namespace UE::Chaos::ClothAsset
 
 	int32 FCollectionClothConstFacade::GetNumSimPatterns() const
 	{
-		return ClothCollection->GetNumElements(FClothCollection::SimPatternsGroup);
+		return ClothCollection->GetNumElements(ClothCollectionGroup::SimPatterns);
 	}
 
 	FCollectionClothSimPatternConstFacade FCollectionClothConstFacade::GetSimPattern(int32 PatternIndex) const
@@ -224,7 +225,7 @@ namespace UE::Chaos::ClothAsset
 
 	int32 FCollectionClothConstFacade::GetNumRenderPatterns() const
 	{
-		return ClothCollection->GetNumElements(FClothCollection::RenderPatternsGroup);
+		return ClothCollection->GetNumElements(ClothCollectionGroup::RenderPatterns);
 	}
 
 	FCollectionClothRenderPatternConstFacade FCollectionClothConstFacade::GetRenderPattern(int32 PatternIndex) const
@@ -249,7 +250,7 @@ namespace UE::Chaos::ClothAsset
 
 	int32 FCollectionClothConstFacade::GetNumSeams() const
 	{
-		return ClothCollection->GetNumElements(FClothCollection::SeamsGroup);
+		return ClothCollection->GetNumElements(ClothCollectionGroup::Seams);
 	}
 
 	FCollectionClothSeamConstFacade FCollectionClothConstFacade::GetSeam(int32 SeamIndex) const
@@ -259,7 +260,7 @@ namespace UE::Chaos::ClothAsset
 
 	int32 FCollectionClothConstFacade::GetNumRenderVertices() const
 	{
-		return ClothCollection->GetNumElements(FClothCollection::RenderVerticesGroup);
+		return ClothCollection->GetNumElements(ClothCollectionGroup::RenderVertices);
 	}
 
 	TConstArrayView<FVector3f> FCollectionClothConstFacade::GetRenderPosition() const
@@ -304,7 +305,7 @@ namespace UE::Chaos::ClothAsset
 
 	int32 FCollectionClothConstFacade::GetNumRenderFaces() const
 	{
-		return ClothCollection->GetNumElements(FClothCollection::RenderFacesGroup);
+		return ClothCollection->GetNumElements(ClothCollectionGroup::RenderFaces);
 	}
 
 	TConstArrayView<FIntVector3> FCollectionClothConstFacade::GetRenderIndices() const
@@ -314,17 +315,17 @@ namespace UE::Chaos::ClothAsset
 
 	bool FCollectionClothConstFacade::HasWeightMap(const FName& Name) const
 	{
-		return ClothCollection->HasUserDefinedAttribute<float>(Name, FClothCollection::SimVertices3DGroup);
+		return ClothCollection->HasUserDefinedAttribute<float>(Name, ClothCollectionGroup::SimVertices3D);
 	}
 
 	TArray<FName> FCollectionClothConstFacade::GetWeightMapNames() const
 	{
-		return ClothCollection->GetUserDefinedAttributeNames<float>(FClothCollection::SimVertices3DGroup);
+		return ClothCollection->GetUserDefinedAttributeNames<float>(ClothCollectionGroup::SimVertices3D);
 	}
 
 	TConstArrayView<float> FCollectionClothConstFacade::GetWeightMap(const FName& Name) const
 	{
-		return ClothCollection->GetElements(ClothCollection->GetUserDefinedAttribute<float>(Name, FClothCollection::SimVertices3DGroup));
+		return ClothCollection->GetElements(ClothCollection->GetUserDefinedAttribute<float>(Name, ClothCollectionGroup::SimVertices3D));
 	}
 
 	void FCollectionClothConstFacade::BuildSimulationMesh(TArray<FVector3f>& Positions, TArray<FVector3f>& Normals, TArray<uint32>& Indices, TArray<FVector2f>& PatternsPositions, TArray<uint32>& PatternsIndices,
@@ -386,8 +387,8 @@ namespace UE::Chaos::ClothAsset
 	void FCollectionClothFacade::Reset()
 	{
 		// Hack to reset all Lods data
-		GetClothCollection()->SetNumElements(0, FClothCollection::LodsGroup);
-		GetClothCollection()->SetNumElements(1, FClothCollection::LodsGroup);
+		GetClothCollection()->SetNumElements(0, ClothCollectionGroup::Lods);
+		GetClothCollection()->SetNumElements(1, ClothCollectionGroup::Lods);
 		RemoveAllSimVertices3D();
 		SetNumSimPatterns(0);
 		SetNumRenderPatterns(0);
@@ -419,7 +420,7 @@ namespace UE::Chaos::ClothAsset
 		// Sim Vertices 3D Group
 		const int32 StartNumSimVertices3D = GetNumSimVertices3D();
 		const int32 OtherNumSimVertices3D = Other.GetNumSimVertices3D();
-		GetClothCollection()->SetNumElements(StartNumSimVertices3D + OtherNumSimVertices3D, FClothCollection::SimVertices3DGroup);
+		GetClothCollection()->SetNumElements(StartNumSimVertices3D + OtherNumSimVertices3D, ClothCollectionGroup::SimVertices3D);
 		FClothCollection::CopyArrayViewData(GetSimPosition3D().Right(OtherNumSimVertices3D), Other.GetSimPosition3D());
 		FClothCollection::CopyArrayViewData(GetSimNormal().Right(OtherNumSimVertices3D), Other.GetSimNormal());
 		FClothCollection::CopyArrayViewData(GetSimBoneIndices().Right(OtherNumSimVertices3D), Other.GetSimBoneIndices());
@@ -474,7 +475,7 @@ namespace UE::Chaos::ClothAsset
 
 	void FCollectionClothFacade::SetPhysicsAssetPathName(const FString& PathName)
 	{
-		if (ClothCollection->GetNumElements(FClothCollection::LodsGroup))
+		if (ClothCollection->GetNumElements(ClothCollectionGroup::Lods))
 		{
 			(*GetClothCollection()->GetPhysicsAssetPathName())[0] = PathName;
 		}
@@ -482,7 +483,7 @@ namespace UE::Chaos::ClothAsset
 	}
 	void FCollectionClothFacade::SetSkeletalMeshPathName(const FString& PathName)
 	{
-		if (ClothCollection->GetNumElements(FClothCollection::LodsGroup))
+		if (ClothCollection->GetNumElements(ClothCollectionGroup::Lods))
 		{
 			(*GetClothCollection()->GetSkeletalMeshPathName())[0] = PathName;
 		}
@@ -542,12 +543,12 @@ namespace UE::Chaos::ClothAsset
 	{
 		const int32 NumSimVertices = GetNumSimVertices3D();
 		check(InNumSimVertices >= NumSimVertices);
-		GetClothCollection()->SetNumElements(NumSimVertices - InNumSimVertices, FClothCollection::SimVertices3DGroup);
+		GetClothCollection()->SetNumElements(NumSimVertices - InNumSimVertices, ClothCollectionGroup::SimVertices3D);
 	}
 
 	void FCollectionClothFacade::RemoveSimVertices3D(const TArray<int32>& SortedDeletionList)
 	{
-		GetClothCollection()->RemoveElements(FClothCollection::SimVertices3DGroup, SortedDeletionList);
+		GetClothCollection()->RemoveElements(ClothCollectionGroup::SimVertices3D, SortedDeletionList);
 	}
 
 	void FCollectionClothFacade::CompactSimVertex2DLookup()
@@ -584,7 +585,7 @@ namespace UE::Chaos::ClothAsset
 			GetSimPattern(PatternIndex).Reset();
 		}
 
-		GetClothCollection()->SetNumElements(InNumPatterns, FClothCollection::SimPatternsGroup);
+		GetClothCollection()->SetNumElements(InNumPatterns, ClothCollectionGroup::SimPatterns);
 
 		for (int32 PatternIndex = NumPatterns; PatternIndex < InNumPatterns; ++PatternIndex)
 		{
@@ -611,7 +612,7 @@ namespace UE::Chaos::ClothAsset
 			GetSimPattern(PatternToRemove).Reset();
 		}
 
-		GetClothCollection()->RemoveElements(FClothCollection::SimPatternsGroup, SortedDeletionList);
+		GetClothCollection()->RemoveElements(ClothCollectionGroup::SimPatterns, SortedDeletionList);
 	}
 
 	void FCollectionClothFacade::SetNumRenderPatterns(int32 InNumPatterns)
@@ -623,7 +624,7 @@ namespace UE::Chaos::ClothAsset
 			GetRenderPattern(PatternIndex).Reset();
 		}
 
-		GetClothCollection()->SetNumElements(InNumPatterns, FClothCollection::RenderPatternsGroup);
+		GetClothCollection()->SetNumElements(InNumPatterns, ClothCollectionGroup::RenderPatterns);
 
 		for (int32 PatternIndex = NumPatterns; PatternIndex < InNumPatterns; ++PatternIndex)
 		{
@@ -650,7 +651,7 @@ namespace UE::Chaos::ClothAsset
 			GetRenderPattern(PatternToRemove).Reset();
 		}
 
-		GetClothCollection()->RemoveElements(FClothCollection::RenderPatternsGroup, SortedDeletionList);
+		GetClothCollection()->RemoveElements(ClothCollectionGroup::RenderPatterns, SortedDeletionList);
 	}
 
 	TArrayView<FString> FCollectionClothFacade::GetRenderMaterialPathName()
@@ -667,7 +668,7 @@ namespace UE::Chaos::ClothAsset
 			GetSeam(SeamIndex).Reset();
 		}
 
-		GetClothCollection()->SetNumElements(InNumSeams, FClothCollection::SeamsGroup);
+		GetClothCollection()->SetNumElements(InNumSeams, ClothCollectionGroup::Seams);
 
 		for (int32 SeamIndex = NumSeams; SeamIndex < InNumSeams; ++SeamIndex)
 		{
@@ -693,7 +694,7 @@ namespace UE::Chaos::ClothAsset
 		{
 			GetSeam(SeamToRemove).Reset();
 		}
-		GetClothCollection()->RemoveElements(FClothCollection::SeamsGroup, SortedDeletionList);
+		GetClothCollection()->RemoveElements(ClothCollectionGroup::Seams, SortedDeletionList);
 	}
 
 	//~ Render Vertices Group
@@ -745,23 +746,23 @@ namespace UE::Chaos::ClothAsset
 	void FCollectionClothFacade::AddWeightMap(const FName& Name)
 	{
 		check(IsValid());
-		GetClothCollection()->AddUserDefinedAttribute<float>(Name, FClothCollection::SimVertices3DGroup);
+		GetClothCollection()->AddUserDefinedAttribute<float>(Name, ClothCollectionGroup::SimVertices3D);
 	}
 
 	void FCollectionClothFacade::RemoveWeightMap(const FName& Name)
 	{
 		check(IsValid());
-		GetClothCollection()->RemoveUserDefinedAttribute(Name, FClothCollection::SimVertices3DGroup);
+		GetClothCollection()->RemoveUserDefinedAttribute(Name, ClothCollectionGroup::SimVertices3D);
 	}
 
 	TArrayView<float> FCollectionClothFacade::GetWeightMap(const FName& Name)
 	{
-		return GetClothCollection()->GetElements(GetClothCollection()->GetUserDefinedAttribute<float>(Name, FClothCollection::SimVertices3DGroup));
+		return GetClothCollection()->GetElements(GetClothCollection()->GetUserDefinedAttribute<float>(Name, ClothCollectionGroup::SimVertices3D));
 	}
 
 	void FCollectionClothFacade::SetDefaults()
 	{
-		GetClothCollection()->SetNumElements(1, FClothCollection::LodsGroup);
+		GetClothCollection()->SetNumElements(1, ClothCollectionGroup::Lods);
 	}
 
 } // End namespace UE::Chaos::ClothAsset

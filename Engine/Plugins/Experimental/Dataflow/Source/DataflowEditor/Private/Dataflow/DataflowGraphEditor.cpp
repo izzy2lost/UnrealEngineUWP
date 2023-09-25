@@ -179,12 +179,12 @@ void SDataflowGraphEditor::DeleteNode()
 
 void SDataflowGraphEditor::OnSelectedNodesChanged(const TSet<UObject*>& NewSelection)
 {
+	OnSelectionChangedMulticast.Broadcast(NewSelection);  // Broadcast the selection change before refreshing the DetailsView, the nodes' specific UI data have to be updated before the UI is being redrawn
+
 	if (DataflowAsset.Get() && DetailsView)
 	{
 		FDataflowEditorCommands::OnSelectedNodesChanged(DetailsView, AssetOwner.Get(), DataflowAsset.Get(), NewSelection);
 	}
-
-	OnSelectionChangedMulticast.Broadcast(NewSelection);
 }
 
 FReply SDataflowGraphEditor::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)

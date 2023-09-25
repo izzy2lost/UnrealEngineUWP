@@ -21,17 +21,6 @@ namespace UE::Chaos::ClothAsset
 	class FClothCollection final
 	{
 	public:
-		static const FName LodsGroup;  // LOD information (only one LOD per collection)
-		static const FName SeamsGroup;  // Collection of seam stitches
-		static const FName SeamStitchesGroup;  // Contains pairs of stitched sim vertex indices
-		static const FName SimPatternsGroup;  // Contains sim pattern relationships to other groups
-		static const FName RenderPatternsGroup;  // Contains render pattern relationships to other groups
-		static const FName SimFacesGroup;  // Contains indices to sim vertices
-		static const FName SimVertices2DGroup;  // Contains 2D positions
-		static const FName SimVertices3DGroup;  // Contains 3D positions
-		static const FName RenderFacesGroup;  // Contains indices to render vertex
-		static const FName RenderVerticesGroup;  // Contains 3D render model
-
 		static constexpr int8 MaxNumBoneInfluences = 12; // This should be <= MAX_TOTAL_INFLUENCES defined in GPUSkinPublicDefs.h 
 		static constexpr int8 MaxNumTetherAttachments = 4; // This should be <= FClothTetherDataPrivate::MaxNumAttachments
 

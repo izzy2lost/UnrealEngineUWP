@@ -16,16 +16,11 @@ namespace UE::Chaos::ClothAsset
 		inline static const FString NotOverridden = TEXT("#");
 
 		/**
-		 * Modifies a string to make it suitable as an attribute name.
+		 * Modifies a string to make it suitable as a weight map name.
 		 * Replaces any deemed special characters and spaces by underscores, and remove leading and ending underscores from the name.
 		 * Note that leading underscores are reserved for non user/internal attribute names.
 		 */
-		static void MakeWeightMapName(FString& InOutString)
-		{
-			InOutString = SlugStringForValidName(InOutString, TEXT("_")).Replace(TEXT("\\"), TEXT("_"));
-			bool bCharsWereRemoved;
-			do { InOutString.TrimCharInline(TEXT('_'), &bCharsWereRemoved); } while (bCharsWereRemoved);
-		}
+		static CHAOSCLOTHASSETDATAFLOWNODES_API void MakeWeightMapName(FString& InOutString);
 	};
 }
 

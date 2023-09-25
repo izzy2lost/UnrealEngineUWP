@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/ClothMeshSelectionTool.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothEditorContextObject.h"
 #include "ChaosClothAsset/ClothPatternVertexType.h"
 #include "ChaosClothAsset/SelectionNode.h"
@@ -308,6 +309,8 @@ void UClothMeshSelectionTool::SetClothEditorContextObject(TObjectPtr<UClothEdito
 
 bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE::Geometry::FGroupTopologySelection& OutSelection)
 {
+	using namespace UE::Chaos::ClothAsset;
+
 	const FChaosClothAssetSelectionNode* const MeshSelectionNode = ClothEditorContextObject->GetSingleSelectedNodeOfType<FChaosClothAssetSelectionNode>();
 	check(MeshSelectionNode);
 
@@ -342,7 +345,9 @@ bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE:
 	};
 
 
-	if (MeshSelectionNode->Type == EChaosClothAssetSelectionType::SimVertex2D || MeshSelectionNode->Type == EChaosClothAssetSelectionType::SimVertex3D || MeshSelectionNode->Type == EChaosClothAssetSelectionType::RenderVertex)
+	if (MeshSelectionNode->Group.Name == ClothCollectionGroup::SimVertices2D.ToString() ||
+		MeshSelectionNode->Group.Name == ClothCollectionGroup::SimVertices3D.ToString() ||
+		MeshSelectionNode->Group.Name == ClothCollectionGroup::RenderVertices.ToString())
 	{
 		if (bHasNonManifoldMapping)
 		{
@@ -356,7 +361,8 @@ bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE:
 			AppendVerticesIfValid(OutSelection.SelectedCornerIDs, MeshSelectionNode->Indices);
 		}
 	}
-	else if (MeshSelectionNode->Type == EChaosClothAssetSelectionType::SimFace || MeshSelectionNode->Type == EChaosClothAssetSelectionType::RenderFace)
+	else if (MeshSelectionNode->Group.Name == ClothCollectionGroup::SimFaces.ToString() ||
+		MeshSelectionNode->Group.Name == ClothCollectionGroup::RenderFaces)
 	{
 		AppendFacesIfValid(OutSelection.SelectedGroupIDs, MeshSelectionNode->Indices);
 	}
@@ -369,11 +375,13 @@ bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE:
 
 void UClothMeshSelectionTool::UpdateSelectedNode()
 {
+	using namespace UE::Chaos::ClothAsset;
+
 	const UE::Geometry::FGroupTopologySelection& Selection = SelectionMechanic->GetActiveSelection();
-	const UE::Chaos::ClothAsset::EClothPatternVertexType ViewMode = ClothEditorContextObject->GetConstructionViewMode();
+	const EClothPatternVertexType ViewMode = ClothEditorContextObject->GetConstructionViewMode();
 
 	TSet<int32> Indices;
-	EChaosClothAssetSelectionType Type = EChaosClothAssetSelectionType::SimVertex2D;
+	FName GroupName = ClothCollectionGroup::SimVertices2D;
 
 	if (SelectionMechanic->Properties->bSelectVertices)
 	{
@@ -385,16 +393,15 @@ void UClothMeshSelectionTool::UpdateSelectedNode()
 		switch(ViewMode)
 		{
 		case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D:
-			Type = EChaosClothAssetSelectionType::SimVertex2D;
+			GroupName = ClothCollectionGroup::SimVertices2D;
 			break;
 		case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D:
-			Type = EChaosClothAssetSelectionType::SimVertex3D;
+			GroupName = ClothCollectionGroup::SimVertices3D;
 			break;
 		case UE::Chaos::ClothAsset::EClothPatternVertexType::Render:
-			Type = EChaosClothAssetSelectionType::RenderVertex;
+			GroupName = ClothCollectionGroup::RenderVertices;
 			break;
 		}
-
 	}
 	else
 	{
@@ -404,10 +411,10 @@ void UClothMeshSelectionTool::UpdateSelectedNode()
 		{
 		case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D:
 		case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D:
-			Type = EChaosClothAssetSelectionType::SimFace;
+			GroupName = ClothCollectionGroup::SimFaces;
 			break;
 		case UE::Chaos::ClothAsset::EClothPatternVertexType::Render:
-			Type = EChaosClothAssetSelectionType::RenderFace;
+			GroupName = ClothCollectionGroup::RenderFaces;
 			break;
 		}
 	}
@@ -416,7 +423,7 @@ void UClothMeshSelectionTool::UpdateSelectedNode()
 	check(MeshSelectionNode);
 
 	MeshSelectionNode->Name = ToolProperties->Name;
-	MeshSelectionNode->Type = Type;
+	MeshSelectionNode->Group.Name = GroupName.ToString();
 
 	if (SelectionMechanic->Properties->bSelectVertices && bHasNonManifoldMapping)
 	{

@@ -469,6 +469,13 @@ public:
 	CHAOS_API void SetDependency(FName Name, FName Group, FName DependencyGroup, bool bAllowCircularDependency = false);
 
 	/**
+	* Return the group index dependency for the specified attribute.
+	* @param Name - The name of the attribute
+	* @param Group - The group that manages the attribute
+	*/
+	CHAOS_API FName GetDependency(FName Name, FName Group) const;
+
+	/**
 	*
 	*/
 	CHAOS_API void RemoveDependencyFor(FName Group);

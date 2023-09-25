@@ -13,10 +13,10 @@ namespace UE::Chaos::ClothAsset
 	 * Cloth Asset collection Selection facade class. Each Selection consists of a set of integer indices, a name, and a string representing the type of element being indexed.
 	 * Const access (read only) version.
 	 */
-	class CHAOSCLOTHASSET_API FCollectionClothSelectionConstFacade
+	class FCollectionClothSelectionConstFacade
 	{
 	public:
-		explicit FCollectionClothSelectionConstFacade(const TSharedRef<const FManagedArrayCollection>& ManagedArrayCollection);
+		CHAOSCLOTHASSET_API explicit FCollectionClothSelectionConstFacade(const TSharedRef<const FManagedArrayCollection>& ManagedArrayCollection);
 
 		FCollectionClothSelectionConstFacade() = delete;
 		FCollectionClothSelectionConstFacade(const FCollectionClothSelectionConstFacade&) = delete;
@@ -26,38 +26,38 @@ namespace UE::Chaos::ClothAsset
 		virtual ~FCollectionClothSelectionConstFacade() = default;
 
 		/** Return whether the facade is defined on the collection. */
-		bool IsValid() const;
+		CHAOSCLOTHASSET_API bool IsValid() const;
 
-		/** Return the total number of selections in the collection */
-		int32 GetNumSelections() const;
+		/** Return the number of selections in the collection. */
+		CHAOSCLOTHASSET_API int32 GetNumSelections() const;
 
-		const TArrayView<const FString> GetName() const;
-		const TArrayView<const FString> GetType() const;
-		const TArrayView<const TSet<int32>> GetIndices() const;
+		/** Return an array of all the selections' name in the collection. */
+		CHAOSCLOTHASSET_API TArray<FName> GetNames() const;
 
-		/** Find a selection with the given name. Return INDEX_NONE if no such selection exists. */
-		int32 FindSelection(const FString& Name) const;
+		/** Return whether a selection with the given name cyrrently exists in the collection. */
+		CHAOSCLOTHASSET_API bool HasSelection(const FName& Name) const;
+
+		/** Return the selection group dependency. The selection must exist to call this function. */
+		CHAOSCLOTHASSET_API FName GetSelectionGroup(const FName& Name) const;
+
+		/** Get the selection set for the given selection name. The selection must exist to call this function. */
+		CHAOSCLOTHASSET_API const TSet<int32>& GetSelectionSet(const FName& Name) const;
+
+		/** Find a selection with the given name, or nullptr if no such selection exists. */
+		CHAOSCLOTHASSET_API const TSet<int32>* FindSelectionSet(const FName& Name) const;
 
 	protected:
-
 		TSharedRef<FManagedArrayCollection> ManagedArrayCollection;
-
-		// Schema (non-const since these will be used by the subclass as well)
-		TManagedArray<FString>* Name;
-		TManagedArray<FString>* Type;
-		TManagedArray<TSet<int32>>* Indices;
 	};
-
 
 	/**
 	 * Cloth Asset collection Selection facade class. Each Selection consists of a set of integer indices, a name, and a string representing the type of element being indexed.
 	 * Non-const access (read/write) version.
 	 */
-	class CHAOSCLOTHASSET_API FCollectionClothSelectionFacade final : public FCollectionClothSelectionConstFacade
+	class FCollectionClothSelectionFacade final : public FCollectionClothSelectionConstFacade
 	{
 	public:
-
-		explicit FCollectionClothSelectionFacade(const TSharedRef<const FManagedArrayCollection>& ManagedArrayCollection);
+		CHAOSCLOTHASSET_API explicit FCollectionClothSelectionFacade(const TSharedRef<const FManagedArrayCollection>& ManagedArrayCollection);
 
 		FCollectionClothSelectionFacade() = delete;
 		FCollectionClothSelectionFacade(const FCollectionClothSelectionFacade&) = delete;
@@ -66,23 +66,20 @@ namespace UE::Chaos::ClothAsset
 		FCollectionClothSelectionFacade& operator=(FCollectionClothSelectionFacade&&) = default;
 		virtual ~FCollectionClothSelectionFacade() override = default;
 
-		/** Add the Selection attributes to the underlying collection */
-		void DefineSchema();
+		/** Add the Selection attributes to the underlying collection. */
+		CHAOSCLOTHASSET_API void DefineSchema();
 
-		TArrayView<FString> GetName();
-		TArrayView<FString> GetType();
-		TArrayView<TSet<int32>> GetIndices();
+		/** Get the selection set for the given selection name. The selection must exist to call this function. */
+		CHAOSCLOTHASSET_API TSet<int32>& GetSelectionSet(const FName& Name);
 
-		/** 
-		* Create a new Selection in the collection with the given name and return its index. If a Selection with the name already exists, return the index of the existing selection. 
-		* 
-		* @param Name The name of the new selection to create if it doesn't already exist
-		* @return The previous number of Selections if we added a new Selection, or the index of the Selection with the given Name if it already existed, or INDEX_NONE if the schema for this facade object is not valid.
-		*/
-		int32 FindOrAddSelection(const FString& Name);
+		/** Find a selection with the given name, or nullptr if no such selection exists. */
+		CHAOSCLOTHASSET_API TSet<int32>* FindSelectionSet(const FName& Name);
 
-		/** Set the Type and Indices for the given Selection. Returns false if the Facade is invalid or if the SelectionIndex is out of range */
-		bool SetSelection(int32 SelectionIndex, const FString& InType, const TSet<int32>& InSelectedIndices);
+		/**
+		 * Find, or add if it doesn't already exist, a selection for the specified group with the given name.
+		 * If the group doesn't already exists, this function will create it.
+		 * If the selection already exists, but depends on a different group, the old selection will be deleted and a new one recreated with the new group dependency.
+		 */
+		CHAOSCLOTHASSET_API TSet<int32>& FindOrAddSelectionSet(const FName& Name, const FName& GroupName);
 	};
-
 }

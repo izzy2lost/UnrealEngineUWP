@@ -1,22 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/ClothCollection.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 
 namespace UE::Chaos::ClothAsset::Private
 {
-	// Groups
-	static const FName LodsGroup(TEXT("Lods")); // One lod per collection, but keeping the name for now to represent whatever is a single scalar for the whole collection
-	static const FName SeamsGroup(TEXT("Seams"));
-	static const FName SeamStitchesGroup(TEXT("SeamStitches"));
-	static const FName SimPatternsGroup(TEXT("SimPatterns"));
-	static const FName RenderPatternsGroup(TEXT("RenderPatterns"));
-	static const FName SimFacesGroup(TEXT("SimFaces"));
-	static const FName SimVertices2DGroup(TEXT("SimVertices2D"));
-	static const FName SimVertices3DGroup(TEXT("SimVertices3D"));
-	static const FName RenderFacesGroup(TEXT("RenderFaces"));
-	static const FName RenderVerticesGroup(TEXT("RenderVertices"));
-
 	// Lods Group
 	static const FName PhysicsAssetPathNameAttribute(TEXT("PhysicsAssetPathName"));
 	static const FName SkeletalMeshPathNameAttribute(TEXT("SkeletalMeshPathName"));
@@ -142,93 +131,81 @@ namespace UE::Chaos::ClothAsset::Private
 
 	static const TMap<FName, TArray<FName>> FixedAttributeNamesMap =
 	{
-		{ LodsGroup, LodsGroupAttributes },
-		{ SeamsGroup, SeamsGroupAttributes },
-		{ SeamStitchesGroup, SeamStitchesGroupAttributes },
-		{ SimPatternsGroup, SimPatternsGroupAttributes },
-		{ RenderPatternsGroup, RenderPatternsGroupAttributes },
-		{ SimFacesGroup, SimFacesGroupAttributes },
-		{ SimVertices2DGroup, SimVertices2DGroupAttributes },
-		{ SimVertices3DGroup, SimVertices3DGroupAttributes },
-		{ RenderFacesGroup, RenderFacesGroupAttributes },
-		{ RenderVerticesGroup, RenderVerticesGroupAttributes }
+		{ ClothCollectionGroup::Lods, LodsGroupAttributes },
+		{ ClothCollectionGroup::Seams, SeamsGroupAttributes },
+		{ ClothCollectionGroup::SeamStitches, SeamStitchesGroupAttributes },
+		{ ClothCollectionGroup::SimPatterns, SimPatternsGroupAttributes },
+		{ ClothCollectionGroup::RenderPatterns, RenderPatternsGroupAttributes },
+		{ ClothCollectionGroup::SimFaces, SimFacesGroupAttributes },
+		{ ClothCollectionGroup::SimVertices2D, SimVertices2DGroupAttributes },
+		{ ClothCollectionGroup::SimVertices3D, SimVertices3DGroupAttributes },
+		{ ClothCollectionGroup::RenderFaces, RenderFacesGroupAttributes },
+		{ ClothCollectionGroup::RenderVertices, RenderVerticesGroupAttributes }
 	};
 }  // End namespace UE::Chaos::ClothAsset::Private
 
 namespace UE::Chaos::ClothAsset
 {
-	// Groups
-	const FName FClothCollection::LodsGroup = Private::LodsGroup;
-	const FName FClothCollection::SeamsGroup = Private::SeamsGroup;
-	const FName FClothCollection::SeamStitchesGroup = Private::SeamStitchesGroup;
-	const FName FClothCollection::SimPatternsGroup = Private::SimPatternsGroup;
-	const FName FClothCollection::RenderPatternsGroup = Private::RenderPatternsGroup;
-	const FName FClothCollection::SimFacesGroup = Private::SimFacesGroup;
-	const FName FClothCollection::SimVertices2DGroup = Private::SimVertices2DGroup;
-	const FName FClothCollection::SimVertices3DGroup = Private::SimVertices3DGroup;
-	const FName FClothCollection::RenderFacesGroup = Private::RenderFacesGroup;
-	const FName FClothCollection::RenderVerticesGroup = Private::RenderVerticesGroup;
-
 	FClothCollection::FClothCollection(const TSharedRef<FManagedArrayCollection>& InManagedArrayCollection)
 		: ManagedArrayCollection(InManagedArrayCollection)
 	{
 		using namespace UE::Chaos::ClothAsset::Private;
 
 		// LODs Group
-		PhysicsAssetPathName = ManagedArrayCollection->FindAttribute<FString>(PhysicsAssetPathNameAttribute, LodsGroup);
-		SkeletalMeshPathName = ManagedArrayCollection->FindAttribute<FString>(SkeletalMeshPathNameAttribute, LodsGroup);
+		PhysicsAssetPathName = ManagedArrayCollection->FindAttribute<FString>(PhysicsAssetPathNameAttribute, ClothCollectionGroup::Lods);
+		SkeletalMeshPathName = ManagedArrayCollection->FindAttribute<FString>(SkeletalMeshPathNameAttribute, ClothCollectionGroup::Lods);
 
 		// Seam Group
-		SeamStitchStart = ManagedArrayCollection->FindAttribute<int32>(SeamStitchStartAttribute, SeamsGroup);
-		SeamStitchEnd = ManagedArrayCollection->FindAttribute<int32>(SeamStitchEndAttribute, SeamsGroup);
+		SeamStitchStart = ManagedArrayCollection->FindAttribute<int32>(SeamStitchStartAttribute, ClothCollectionGroup::Seams);
+		SeamStitchEnd = ManagedArrayCollection->FindAttribute<int32>(SeamStitchEndAttribute, ClothCollectionGroup::Seams);
 
 		// Seam Stitches Group
-		SeamStitch2DEndIndices = ManagedArrayCollection->FindAttribute<FIntVector2>(SeamStitch2DEndIndicesAttribute, SeamStitchesGroup);
-		SeamStitch3DIndex = ManagedArrayCollection->FindAttribute<int32>(SeamStitch3DIndexAttribute, SeamStitchesGroup);
+		SeamStitch2DEndIndices = ManagedArrayCollection->FindAttribute<FIntVector2>(SeamStitch2DEndIndicesAttribute, ClothCollectionGroup::SeamStitches);
+		SeamStitch3DIndex = ManagedArrayCollection->FindAttribute<int32>(SeamStitch3DIndexAttribute, ClothCollectionGroup::SeamStitches);
 
 		// Sim Patterns Group
-		SimVertices2DStart = ManagedArrayCollection->FindAttribute<int32>(SimVertices2DStartAttribute, SimPatternsGroup);
-		SimVertices2DEnd = ManagedArrayCollection->FindAttribute<int32>(SimVertices2DEndAttribute, SimPatternsGroup);
-		SimFacesStart = ManagedArrayCollection->FindAttribute<int32>(SimFacesStartAttribute, SimPatternsGroup);
-		SimFacesEnd = ManagedArrayCollection->FindAttribute<int32>(SimFacesEndAttribute, SimPatternsGroup);
+		SimVertices2DStart = ManagedArrayCollection->FindAttribute<int32>(SimVertices2DStartAttribute, ClothCollectionGroup::SimPatterns);
+		SimVertices2DEnd = ManagedArrayCollection->FindAttribute<int32>(SimVertices2DEndAttribute, ClothCollectionGroup::SimPatterns);
+		SimFacesStart = ManagedArrayCollection->FindAttribute<int32>(SimFacesStartAttribute, ClothCollectionGroup::SimPatterns);
+		SimFacesEnd = ManagedArrayCollection->FindAttribute<int32>(SimFacesEndAttribute, ClothCollectionGroup::SimPatterns);
 
 		// Render Patterns Group
-		RenderVerticesStart = ManagedArrayCollection->FindAttribute<int32>(RenderVerticesStartAttribute, RenderPatternsGroup);
-		RenderVerticesEnd = ManagedArrayCollection->FindAttribute<int32>(RenderVerticesEndAttribute, RenderPatternsGroup);
-		RenderFacesStart = ManagedArrayCollection->FindAttribute<int32>(RenderFacesStartAttribute, RenderPatternsGroup);
-		RenderFacesEnd = ManagedArrayCollection->FindAttribute<int32>(RenderFacesEndAttribute, RenderPatternsGroup);
-		RenderMaterialPathName = ManagedArrayCollection->FindAttribute<FString>(RenderMaterialPathNameAttribute, RenderPatternsGroup);
+		RenderVerticesStart = ManagedArrayCollection->FindAttribute<int32>(RenderVerticesStartAttribute, ClothCollectionGroup::RenderPatterns);
+		RenderVerticesEnd = ManagedArrayCollection->FindAttribute<int32>(RenderVerticesEndAttribute, ClothCollectionGroup::RenderPatterns);
+		RenderFacesStart = ManagedArrayCollection->FindAttribute<int32>(RenderFacesStartAttribute, ClothCollectionGroup::RenderPatterns);
+		RenderFacesEnd = ManagedArrayCollection->FindAttribute<int32>(RenderFacesEndAttribute, ClothCollectionGroup::RenderPatterns);
+		RenderMaterialPathName = ManagedArrayCollection->FindAttribute<FString>(RenderMaterialPathNameAttribute, ClothCollectionGroup::RenderPatterns);
 
 		// Sim Faces Group
-		SimIndices2D = ManagedArrayCollection->FindAttribute<FIntVector3>(SimIndices2DAttribute, SimFacesGroup);
-		SimIndices3D = ManagedArrayCollection->FindAttribute<FIntVector3>(SimIndices3DAttribute, SimFacesGroup);
+		SimIndices2D = ManagedArrayCollection->FindAttribute<FIntVector3>(SimIndices2DAttribute, ClothCollectionGroup::SimFaces);
+		SimIndices3D = ManagedArrayCollection->FindAttribute<FIntVector3>(SimIndices3DAttribute, ClothCollectionGroup::SimFaces);
 
 		// Sim Vertices 2D Group
-		SimPosition2D = ManagedArrayCollection->FindAttribute<FVector2f>(SimPosition2DAttribute, SimVertices2DGroup);
-		SimVertex3DLookup = ManagedArrayCollection->FindAttribute<int32>(SimVertex3DLookupAttribute, SimVertices2DGroup);
+		SimPosition2D = ManagedArrayCollection->FindAttribute<FVector2f>(SimPosition2DAttribute, ClothCollectionGroup::SimVertices2D);
+		SimVertex3DLookup = ManagedArrayCollection->FindAttribute<int32>(SimVertex3DLookupAttribute, ClothCollectionGroup::SimVertices2D);
 
 		// Sim Vertices 3D Group
-		SimPosition3D = ManagedArrayCollection->FindAttribute<FVector3f>(SimPosition3DAttribute, SimVertices3DGroup);
-		SimNormal = ManagedArrayCollection->FindAttribute<FVector3f>(SimNormalAttribute, SimVertices3DGroup);
-		SimBoneIndices = ManagedArrayCollection->FindAttribute<TArray<int32>>(SimBoneIndicesAttribute, SimVertices3DGroup);
-		SimBoneWeights = ManagedArrayCollection->FindAttribute<TArray<float>>(SimBoneWeightsAttribute, SimVertices3DGroup);
-		TetherKinematicIndex = ManagedArrayCollection->FindAttribute<TArray<int32>>(TetherKinematicIndexAttribute, SimVertices3DGroup);
-		TetherReferenceLength = ManagedArrayCollection->FindAttribute<TArray<float>>(TetherReferenceLengthAttribute, SimVertices3DGroup);
-		SimVertex2DLookup = ManagedArrayCollection->FindAttribute<TArray<int32>>(SimVertex2DLookupAttribute, SimVertices3DGroup);
-		SeamStitchLookup = ManagedArrayCollection->FindAttribute<TArray<int32>>(SeamStitchLookupAttribute, SimVertices3DGroup);
+		SimPosition3D = ManagedArrayCollection->FindAttribute<FVector3f>(SimPosition3DAttribute, ClothCollectionGroup::SimVertices3D);
+		SimNormal = ManagedArrayCollection->FindAttribute<FVector3f>(SimNormalAttribute, ClothCollectionGroup::SimVertices3D);
+		SimBoneIndices = ManagedArrayCollection->FindAttribute<TArray<int32>>(SimBoneIndicesAttribute, ClothCollectionGroup::SimVertices3D);
+		SimBoneWeights = ManagedArrayCollection->FindAttribute<TArray<float>>(SimBoneWeightsAttribute, ClothCollectionGroup::SimVertices3D);
+		TetherKinematicIndex = ManagedArrayCollection->FindAttribute<TArray<int32>>(TetherKinematicIndexAttribute, ClothCollectionGroup::SimVertices3D);
+		TetherReferenceLength = ManagedArrayCollection->FindAttribute<TArray<float>>(TetherReferenceLengthAttribute, ClothCollectionGroup::SimVertices3D);
+		SimVertex2DLookup = ManagedArrayCollection->FindAttribute<TArray<int32>>(SimVertex2DLookupAttribute, ClothCollectionGroup::SimVertices3D);
+		SeamStitchLookup = ManagedArrayCollection->FindAttribute<TArray<int32>>(SeamStitchLookupAttribute, ClothCollectionGroup::SimVertices3D);
 
 		// Render Faces Group
-		RenderIndices = ManagedArrayCollection->FindAttribute<FIntVector3>(RenderIndicesAttribute, RenderFacesGroup);
+		RenderIndices = ManagedArrayCollection->FindAttribute<FIntVector3>(RenderIndicesAttribute, ClothCollectionGroup::RenderFaces);
 
 		// Render Vertices Group
-		RenderPosition = ManagedArrayCollection->FindAttribute<FVector3f>(RenderPositionAttribute, RenderVerticesGroup);
-		RenderNormal = ManagedArrayCollection->FindAttribute<FVector3f>(RenderNormalAttribute, RenderVerticesGroup);
-		RenderTangentU = ManagedArrayCollection->FindAttribute<FVector3f>(RenderTangentUAttribute, RenderVerticesGroup);
-		RenderTangentV = ManagedArrayCollection->FindAttribute<FVector3f>(RenderTangentVAttribute, RenderVerticesGroup);
-		RenderUVs = ManagedArrayCollection->FindAttribute<TArray<FVector2f>>(RenderUVsAttribute, RenderVerticesGroup);
-		RenderColor = ManagedArrayCollection->FindAttribute<FLinearColor>(RenderColorAttribute, RenderVerticesGroup);
-		RenderBoneIndices = ManagedArrayCollection->FindAttribute<TArray<int32>>(RenderBoneIndicesAttribute, RenderVerticesGroup);
-		RenderBoneWeights = ManagedArrayCollection->FindAttribute<TArray<float>>(RenderBoneWeightsAttribute, RenderVerticesGroup);
+		RenderPosition = ManagedArrayCollection->FindAttribute<FVector3f>(RenderPositionAttribute, ClothCollectionGroup::RenderVertices);
+		RenderNormal = ManagedArrayCollection->FindAttribute<FVector3f>(RenderNormalAttribute, ClothCollectionGroup::RenderVertices);
+		RenderTangentU = ManagedArrayCollection->FindAttribute<FVector3f>(RenderTangentUAttribute, ClothCollectionGroup::RenderVertices);
+		RenderTangentV = ManagedArrayCollection->FindAttribute<FVector3f>(RenderTangentVAttribute, ClothCollectionGroup::RenderVertices);
+		RenderUVs = ManagedArrayCollection->FindAttribute<TArray<FVector2f>>(RenderUVsAttribute, ClothCollectionGroup::RenderVertices);
+		RenderColor = ManagedArrayCollection->FindAttribute<FLinearColor>(RenderColorAttribute, ClothCollectionGroup::RenderVertices);
+		RenderBoneIndices = ManagedArrayCollection->FindAttribute<TArray<int32>>(RenderBoneIndicesAttribute, ClothCollectionGroup::RenderVertices);
+		RenderBoneWeights = ManagedArrayCollection->FindAttribute<TArray<float>>(RenderBoneWeightsAttribute, ClothCollectionGroup::RenderVertices);
 	}
 
 	bool FClothCollection::IsValid() const
@@ -298,68 +275,68 @@ namespace UE::Chaos::ClothAsset
 		// Dependencies
 		constexpr bool bSaved = true;
 		constexpr bool bAllowCircularDependency = true;
-		FManagedArrayCollection::FConstructionParameters SeamStitchesDependency(SeamStitchesGroup, bSaved, bAllowCircularDependency);
-		FManagedArrayCollection::FConstructionParameters RenderFacesDependency(RenderFacesGroup, bSaved, bAllowCircularDependency);
-		FManagedArrayCollection::FConstructionParameters RenderVerticesDependency(RenderVerticesGroup, bSaved, bAllowCircularDependency);
-		FManagedArrayCollection::FConstructionParameters SimFacesDependency(SimFacesGroup, bSaved, bAllowCircularDependency);
-		FManagedArrayCollection::FConstructionParameters SimVertices2DDependency(SimVertices2DGroup, bSaved, bAllowCircularDependency);
-		FManagedArrayCollection::FConstructionParameters SimVertices3DDependency(SimVertices3DGroup, bSaved, bAllowCircularDependency);  // Any attribute with this dependency must handle welding and splitting in FCollectionClothSeamFacade
+		FManagedArrayCollection::FConstructionParameters SeamStitchesDependency(ClothCollectionGroup::SeamStitches, bSaved, bAllowCircularDependency);
+		FManagedArrayCollection::FConstructionParameters RenderFacesDependency(ClothCollectionGroup::RenderFaces, bSaved, bAllowCircularDependency);
+		FManagedArrayCollection::FConstructionParameters RenderVerticesDependency(ClothCollectionGroup::RenderVertices, bSaved, bAllowCircularDependency);
+		FManagedArrayCollection::FConstructionParameters SimFacesDependency(ClothCollectionGroup::SimFaces, bSaved, bAllowCircularDependency);
+		FManagedArrayCollection::FConstructionParameters SimVertices2DDependency(ClothCollectionGroup::SimVertices2D, bSaved, bAllowCircularDependency);
+		FManagedArrayCollection::FConstructionParameters SimVertices3DDependency(ClothCollectionGroup::SimVertices3D, bSaved, bAllowCircularDependency);  // Any attribute with this dependency must handle welding and splitting in FCollectionClothSeamFacade
 
 		// LODs Group
-		PhysicsAssetPathName = &ManagedArrayCollection->AddAttribute<FString>(PhysicsAssetPathNameAttribute, LodsGroup);
-		SkeletalMeshPathName = &ManagedArrayCollection->AddAttribute<FString>(SkeletalMeshPathNameAttribute, LodsGroup);
+		PhysicsAssetPathName = &ManagedArrayCollection->AddAttribute<FString>(PhysicsAssetPathNameAttribute, ClothCollectionGroup::Lods);
+		SkeletalMeshPathName = &ManagedArrayCollection->AddAttribute<FString>(SkeletalMeshPathNameAttribute, ClothCollectionGroup::Lods);
 
 		// Seams Group
-		SeamStitchStart = &ManagedArrayCollection->AddAttribute<int32>(SeamStitchStartAttribute, SeamsGroup, SeamStitchesDependency);
-		SeamStitchEnd = &ManagedArrayCollection->AddAttribute<int32>(SeamStitchEndAttribute, SeamsGroup, SeamStitchesDependency);
+		SeamStitchStart = &ManagedArrayCollection->AddAttribute<int32>(SeamStitchStartAttribute, ClothCollectionGroup::Seams, SeamStitchesDependency);
+		SeamStitchEnd = &ManagedArrayCollection->AddAttribute<int32>(SeamStitchEndAttribute, ClothCollectionGroup::Seams, SeamStitchesDependency);
 
 		// Seam Stitches Group
-		SeamStitch2DEndIndices = &ManagedArrayCollection->AddAttribute<FIntVector2>(SeamStitch2DEndIndicesAttribute, SeamStitchesGroup, SimVertices2DDependency);
-		SeamStitch3DIndex = &ManagedArrayCollection->AddAttribute<int32>(SeamStitch3DIndexAttribute, SeamStitchesGroup, SimVertices3DDependency);
+		SeamStitch2DEndIndices = &ManagedArrayCollection->AddAttribute<FIntVector2>(SeamStitch2DEndIndicesAttribute, ClothCollectionGroup::SeamStitches, SimVertices2DDependency);
+		SeamStitch3DIndex = &ManagedArrayCollection->AddAttribute<int32>(SeamStitch3DIndexAttribute, ClothCollectionGroup::SeamStitches, SimVertices3DDependency);
 
 		// Sim Patterns Group
-		SimVertices2DStart = &ManagedArrayCollection->AddAttribute<int32>(SimVertices2DStartAttribute, SimPatternsGroup, SimVertices2DDependency);
-		SimVertices2DEnd = &ManagedArrayCollection->AddAttribute<int32>(SimVertices2DEndAttribute, SimPatternsGroup, SimVertices2DDependency);
-		SimFacesStart = &ManagedArrayCollection->AddAttribute<int32>(SimFacesStartAttribute, SimPatternsGroup, SimFacesDependency);
-		SimFacesEnd = &ManagedArrayCollection->AddAttribute<int32>(SimFacesEndAttribute, SimPatternsGroup, SimFacesDependency);
+		SimVertices2DStart = &ManagedArrayCollection->AddAttribute<int32>(SimVertices2DStartAttribute, ClothCollectionGroup::SimPatterns, SimVertices2DDependency);
+		SimVertices2DEnd = &ManagedArrayCollection->AddAttribute<int32>(SimVertices2DEndAttribute, ClothCollectionGroup::SimPatterns, SimVertices2DDependency);
+		SimFacesStart = &ManagedArrayCollection->AddAttribute<int32>(SimFacesStartAttribute, ClothCollectionGroup::SimPatterns, SimFacesDependency);
+		SimFacesEnd = &ManagedArrayCollection->AddAttribute<int32>(SimFacesEndAttribute, ClothCollectionGroup::SimPatterns, SimFacesDependency);
 
 		// Render Patterns Group
-		RenderVerticesStart = &ManagedArrayCollection->AddAttribute<int32>(RenderVerticesStartAttribute, RenderPatternsGroup, RenderVerticesDependency);
-		RenderVerticesEnd = &ManagedArrayCollection->AddAttribute<int32>(RenderVerticesEndAttribute, RenderPatternsGroup, RenderVerticesDependency);
-		RenderFacesStart = &ManagedArrayCollection->AddAttribute<int32>(RenderFacesStartAttribute, RenderPatternsGroup, RenderFacesDependency);
-		RenderFacesEnd = &ManagedArrayCollection->AddAttribute<int32>(RenderFacesEndAttribute, RenderPatternsGroup, RenderFacesDependency);
-		RenderMaterialPathName = &ManagedArrayCollection->AddAttribute<FString>(RenderMaterialPathNameAttribute, RenderPatternsGroup);
+		RenderVerticesStart = &ManagedArrayCollection->AddAttribute<int32>(RenderVerticesStartAttribute, ClothCollectionGroup::RenderPatterns, RenderVerticesDependency);
+		RenderVerticesEnd = &ManagedArrayCollection->AddAttribute<int32>(RenderVerticesEndAttribute, ClothCollectionGroup::RenderPatterns, RenderVerticesDependency);
+		RenderFacesStart = &ManagedArrayCollection->AddAttribute<int32>(RenderFacesStartAttribute, ClothCollectionGroup::RenderPatterns, RenderFacesDependency);
+		RenderFacesEnd = &ManagedArrayCollection->AddAttribute<int32>(RenderFacesEndAttribute, ClothCollectionGroup::RenderPatterns, RenderFacesDependency);
+		RenderMaterialPathName = &ManagedArrayCollection->AddAttribute<FString>(RenderMaterialPathNameAttribute, ClothCollectionGroup::RenderPatterns);
 
 		// Sim Faces Group
-		SimIndices2D = &ManagedArrayCollection->AddAttribute<FIntVector3>(SimIndices2DAttribute, SimFacesGroup, SimVertices2DDependency);
-		SimIndices3D = &ManagedArrayCollection->AddAttribute<FIntVector3>(SimIndices3DAttribute, SimFacesGroup, SimVertices3DDependency);
+		SimIndices2D = &ManagedArrayCollection->AddAttribute<FIntVector3>(SimIndices2DAttribute, ClothCollectionGroup::SimFaces, SimVertices2DDependency);
+		SimIndices3D = &ManagedArrayCollection->AddAttribute<FIntVector3>(SimIndices3DAttribute, ClothCollectionGroup::SimFaces, SimVertices3DDependency);
 
 		// Sim Vertices 2D Group
-		SimPosition2D = &ManagedArrayCollection->AddAttribute<FVector2f>(SimPosition2DAttribute, SimVertices2DGroup);
-		SimVertex3DLookup = &ManagedArrayCollection->AddAttribute<int32>(SimVertex3DLookupAttribute, SimVertices2DGroup, SimVertices3DDependency);
+		SimPosition2D = &ManagedArrayCollection->AddAttribute<FVector2f>(SimPosition2DAttribute, ClothCollectionGroup::SimVertices2D);
+		SimVertex3DLookup = &ManagedArrayCollection->AddAttribute<int32>(SimVertex3DLookupAttribute, ClothCollectionGroup::SimVertices2D, SimVertices3DDependency);
 
 		// Sim Vertices 3D Group
-		SimPosition3D = &ManagedArrayCollection->AddAttribute<FVector3f>(SimPosition3DAttribute, SimVertices3DGroup);
-		SimNormal = &ManagedArrayCollection->AddAttribute<FVector3f>(SimNormalAttribute, SimVertices3DGroup);
-		SimBoneIndices = &ManagedArrayCollection->AddAttribute<TArray<int32>>(SimBoneIndicesAttribute, SimVertices3DGroup);
-		SimBoneWeights = &ManagedArrayCollection->AddAttribute<TArray<float>>(SimBoneWeightsAttribute, SimVertices3DGroup);
-		TetherKinematicIndex = &ManagedArrayCollection->AddAttribute<TArray<int32>>(TetherKinematicIndexAttribute, SimVertices3DGroup, SimVertices3DDependency);
-		TetherReferenceLength = &ManagedArrayCollection->AddAttribute<TArray<float>>(TetherReferenceLengthAttribute, SimVertices3DGroup);
-		SimVertex2DLookup = &ManagedArrayCollection->AddAttribute<TArray<int32>>(SimVertex2DLookupAttribute, SimVertices3DGroup, SimVertices2DDependency);
-		SeamStitchLookup = &ManagedArrayCollection->AddAttribute<TArray<int32>>(SeamStitchLookupAttribute, SimVertices3DGroup, SeamStitchesDependency);
+		SimPosition3D = &ManagedArrayCollection->AddAttribute<FVector3f>(SimPosition3DAttribute, ClothCollectionGroup::SimVertices3D);
+		SimNormal = &ManagedArrayCollection->AddAttribute<FVector3f>(SimNormalAttribute, ClothCollectionGroup::SimVertices3D);
+		SimBoneIndices = &ManagedArrayCollection->AddAttribute<TArray<int32>>(SimBoneIndicesAttribute, ClothCollectionGroup::SimVertices3D);
+		SimBoneWeights = &ManagedArrayCollection->AddAttribute<TArray<float>>(SimBoneWeightsAttribute, ClothCollectionGroup::SimVertices3D);
+		TetherKinematicIndex = &ManagedArrayCollection->AddAttribute<TArray<int32>>(TetherKinematicIndexAttribute, ClothCollectionGroup::SimVertices3D, SimVertices3DDependency);
+		TetherReferenceLength = &ManagedArrayCollection->AddAttribute<TArray<float>>(TetherReferenceLengthAttribute, ClothCollectionGroup::SimVertices3D);
+		SimVertex2DLookup = &ManagedArrayCollection->AddAttribute<TArray<int32>>(SimVertex2DLookupAttribute, ClothCollectionGroup::SimVertices3D, SimVertices2DDependency);
+		SeamStitchLookup = &ManagedArrayCollection->AddAttribute<TArray<int32>>(SeamStitchLookupAttribute, ClothCollectionGroup::SimVertices3D, SeamStitchesDependency);
 
 		// Render Faces Group
-		RenderIndices = &ManagedArrayCollection->AddAttribute<FIntVector3>(RenderIndicesAttribute, RenderFacesGroup, RenderVerticesDependency);
+		RenderIndices = &ManagedArrayCollection->AddAttribute<FIntVector3>(RenderIndicesAttribute, ClothCollectionGroup::RenderFaces, RenderVerticesDependency);
 
 		// Render Vertices Group
-		RenderPosition = &ManagedArrayCollection->AddAttribute<FVector3f>(RenderPositionAttribute, RenderVerticesGroup);
-		RenderNormal = &ManagedArrayCollection->AddAttribute<FVector3f>(RenderNormalAttribute, RenderVerticesGroup);
-		RenderTangentU = &ManagedArrayCollection->AddAttribute<FVector3f>(RenderTangentUAttribute, RenderVerticesGroup);
-		RenderTangentV = &ManagedArrayCollection->AddAttribute<FVector3f>(RenderTangentVAttribute, RenderVerticesGroup);
-		RenderUVs = &ManagedArrayCollection->AddAttribute<TArray<FVector2f>>(RenderUVsAttribute, RenderVerticesGroup);
-		RenderColor = &ManagedArrayCollection->AddAttribute<FLinearColor>(RenderColorAttribute, RenderVerticesGroup);
-		RenderBoneIndices = &ManagedArrayCollection->AddAttribute<TArray<int32>>(RenderBoneIndicesAttribute, RenderVerticesGroup);
-		RenderBoneWeights = &ManagedArrayCollection->AddAttribute<TArray<float>>(RenderBoneWeightsAttribute, RenderVerticesGroup);
+		RenderPosition = &ManagedArrayCollection->AddAttribute<FVector3f>(RenderPositionAttribute, ClothCollectionGroup::RenderVertices);
+		RenderNormal = &ManagedArrayCollection->AddAttribute<FVector3f>(RenderNormalAttribute, ClothCollectionGroup::RenderVertices);
+		RenderTangentU = &ManagedArrayCollection->AddAttribute<FVector3f>(RenderTangentUAttribute, ClothCollectionGroup::RenderVertices);
+		RenderTangentV = &ManagedArrayCollection->AddAttribute<FVector3f>(RenderTangentVAttribute, ClothCollectionGroup::RenderVertices);
+		RenderUVs = &ManagedArrayCollection->AddAttribute<TArray<FVector2f>>(RenderUVsAttribute, ClothCollectionGroup::RenderVertices);
+		RenderColor = &ManagedArrayCollection->AddAttribute<FLinearColor>(RenderColorAttribute, ClothCollectionGroup::RenderVertices);
+		RenderBoneIndices = &ManagedArrayCollection->AddAttribute<TArray<int32>>(RenderBoneIndicesAttribute, ClothCollectionGroup::RenderVertices);
+		RenderBoneWeights = &ManagedArrayCollection->AddAttribute<TArray<float>>(RenderBoneWeightsAttribute, ClothCollectionGroup::RenderVertices);
 	}
 
 	int32 FClothCollection::GetNumElements(const FName& GroupName) const

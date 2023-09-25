@@ -209,6 +209,7 @@ FChaosClothAssetEditorToolkit::~FChaosClothAssetEditorToolkit()
 	if (DataflowNode && OnNodeInvalidatedDelegateHandle.IsValid())
 	{
 		DataflowNode->GetOnNodeInvalidatedDelegate().Remove(OnNodeInvalidatedDelegateHandle);
+		DataflowNode->OnDeselected();
 	}
 	DataflowNode.Reset();
 
@@ -933,7 +934,7 @@ void FChaosClothAssetEditorToolkit::OnNodeTitleCommitted(const FText& InNewText,
 
 void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& NewSelection)
 {
-	auto GetClothCollectionIfPossible = [](const TSharedPtr<const FDataflowNode> InDataflowNode, const TSharedPtr<Dataflow::FEngineContext> Context) -> TSharedPtr<FManagedArrayCollection>
+	auto GetClothCollectionIfPossible = [](const TSharedPtr<FDataflowNode> InDataflowNode, const TSharedPtr<Dataflow::FEngineContext> Context) -> TSharedPtr<FManagedArrayCollection>
 	{
 		if (Context.IsValid())
 		{
@@ -971,32 +972,56 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 	{
 		Dataflow->RenderTargets.Reset();
 
-		for (UObject* const Selected : NewSelection)
+		if (!NewSelection.Num())
 		{
-			if (UDataflowEdNode* const Node = Cast<UDataflowEdNode>(Selected))
+			if (DataflowNode)
 			{
-				Dataflow->RenderTargets.Add(Node);
-
-				if (DataflowNode && OnNodeInvalidatedDelegateHandle.IsValid())
+				if (OnNodeInvalidatedDelegateHandle.IsValid())
 				{
 					DataflowNode->GetOnNodeInvalidatedDelegate().Remove(OnNodeInvalidatedDelegateHandle);
 				}
-				DataflowNode = Node->GetDataflowNode();
-
-				if (DataflowNode)
+				DataflowNode->OnDeselected();
+				DataflowNode.Reset();
+			}
+		}
+		else
+		{
+			for (UObject* const Selected : NewSelection)
+			{
+				if (UDataflowEdNode* const Node = Cast<UDataflowEdNode>(Selected))
 				{
-					Collection = GetClothCollectionIfPossible(DataflowNode, this->DataflowContext);
-					DataflowNode->GetOnNodeInvalidatedDelegate();
+					Dataflow->RenderTargets.Add(Node);
 
-					// Set a callback to re-evaluate the node if it is invalidated
-					OnNodeInvalidatedDelegateHandle = DataflowNode->GetOnNodeInvalidatedDelegate().AddLambda(
-						[this, &GetClothCollectionIfPossible](FDataflowNode* InDataflowNode)
+					if (DataflowNode != Node->GetDataflowNode())
+					{
+						if (DataflowNode)
 						{
-							if (DataflowNode.Get() == InDataflowNode)
+							if (OnNodeInvalidatedDelegateHandle.IsValid())
 							{
-								GetClothCollectionIfPossible(DataflowNode, DataflowContext);
+								DataflowNode->GetOnNodeInvalidatedDelegate().Remove(OnNodeInvalidatedDelegateHandle);
 							}
-						});
+							DataflowNode->OnDeselected();
+						}
+						DataflowNode = Node->GetDataflowNode();
+
+						if (DataflowNode)
+						{
+							Collection = GetClothCollectionIfPossible(DataflowNode, DataflowContext);
+							DataflowNode->OnSelected(*DataflowContext);
+
+							// Set a callback to re-evaluate the node if it is invalidated
+							OnNodeInvalidatedDelegateHandle = DataflowNode->GetOnNodeInvalidatedDelegate().AddLambda(
+								[this, &GetClothCollectionIfPossible](FDataflowNode* InDataflowNode)
+								{
+									if (DataflowNode.Get() == InDataflowNode)
+									{
+										GetClothCollectionIfPossible(DataflowNode, DataflowContext);
+										DataflowNode->OnSelected(*DataflowContext);
+									}
+								});
+						}
+					}
+					break;
 				}
 			}
 		}

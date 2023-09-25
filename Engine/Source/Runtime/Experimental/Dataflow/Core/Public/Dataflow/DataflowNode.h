@@ -139,6 +139,11 @@ struct FDataflowNode
 	/** Override this method to provide custom serialization for this node. */
 	virtual void Serialize(FArchive& Ar) {}
 
+	/** Called by editor toolkits when the node is selected, or already selected and invalidated. */
+	virtual void OnSelected(Dataflow::FContext& Context) {}
+	/** Called by editor toolkits when the node is deselected. */
+	virtual void OnDeselected() {}
+
 	//
 	//  Struct Support
 	//

@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SelectionToWeightMapNode.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
+#include "ChaosClothAsset/ClothDataflowTools.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "ChaosClothAsset/CollectionClothSelectionFacade.h"
-#include "ChaosClothAsset/ClothDataflowTools.h"
 #include "Dataflow/DataflowInputOutput.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SelectionToWeightMapNode)
@@ -18,7 +19,6 @@ FChaosClothAssetSelectionToWeightMapNode::FChaosClothAssetSelectionToWeightMapNo
 	RegisterOutputConnection(&WeightMapName);
 }
 
-
 void FChaosClothAssetSelectionToWeightMapNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	using namespace UE::Chaos::ClothAsset;
@@ -30,36 +30,33 @@ void FChaosClothAssetSelectionToWeightMapNode::Evaluate(Dataflow::FContext& Cont
 		FCollectionClothFacade ClothFacade(ClothCollection);
 
 		const FCollectionClothSelectionConstFacade SelectionFacade(ClothCollection);
-		const FString InSelectionName = GetValue<FString>(Context, &SelectionName);
+		const FName InSelectionName(*GetValue<FString>(Context, &SelectionName));
 
-		if (SelectionFacade.IsValid() && ClothFacade.IsValid())
+		if (SelectionFacade.IsValid() && ClothFacade.IsValid() && InSelectionName != NAME_None)
 		{
-			const int32 FoundSelectionIndex = SelectionFacade.FindSelection(InSelectionName);
-
-			if (FoundSelectionIndex != INDEX_NONE)
+			if (const TSet<int32>* const SelectionSet = SelectionFacade.FindSelectionSet(InSelectionName))
 			{
-				const FString& SelectionType = SelectionFacade.GetType()[FoundSelectionIndex];
+				const FName& SelectionGroup = SelectionFacade.GetSelectionGroup(InSelectionName);
 
-				if (SelectionType == "SimVertex3D" || SelectionType == "SimVertex2D" || SelectionType == "SimFace")
+				if (SelectionGroup == ClothCollectionGroup::SimVertices2D ||
+					SelectionGroup == ClothCollectionGroup::SimVertices3D || 
+					SelectionGroup == ClothCollectionGroup::SimFaces)
 				{
 					const FName InMapName(WeightMapName);
 					ClothFacade.AddWeightMap(InMapName);
 					TArrayView<float> OutClothWeights = ClothFacade.GetWeightMap(InMapName);
 
-					const TSet<int32>& Selection = SelectionFacade.GetIndices()[FoundSelectionIndex];
-
-					if (SelectionType == "SimVertex3D")
+					if (SelectionGroup == ClothCollectionGroup::SimVertices3D)
 					{
 						for (int32 VertexIndex = 0; VertexIndex < OutClothWeights.Num(); ++VertexIndex)
 						{
-							OutClothWeights[VertexIndex] = Selection.Contains(VertexIndex) ? SelectedValue : UnselectedValue;
+							OutClothWeights[VertexIndex] = SelectionSet->Contains(VertexIndex) ? SelectedValue : UnselectedValue;
 						}
 					}
-					else if (SelectionType == "SimVertex2D")
+					else if (SelectionGroup == ClothCollectionGroup::SimVertices2D)
 					{
 						// We are given a selection over the set of 2D vertices, but weight maps only exist for 3D vertices, so
 						// we need a bit of translation
-
 						const TConstArrayView<TArray<int32>> Vertex3DTo2D = ClothFacade.GetSimVertex2DLookup();
 
 						for (int32 Vertex3DIndex = 0; Vertex3DIndex < OutClothWeights.Num(); ++Vertex3DIndex)
@@ -68,7 +65,7 @@ void FChaosClothAssetSelectionToWeightMapNode::Evaluate(Dataflow::FContext& Cont
 							OutClothWeights[Vertex3DIndex] = UnselectedValue;
 							for (const int32 Vertex2DIndex : Vertex3DTo2D[Vertex3DIndex])
 							{
-								if (Selection.Contains(Vertex2DIndex))
+								if (SelectionSet->Contains(Vertex2DIndex))
 								{
 									OutClothWeights[Vertex3DIndex] = SelectedValue;
 									break;
@@ -78,14 +75,15 @@ void FChaosClothAssetSelectionToWeightMapNode::Evaluate(Dataflow::FContext& Cont
 					}
 					else
 					{
-						check(SelectionType == "SimFace");
+						check(SelectionGroup == ClothCollectionGroup::SimFaces);
+
 						// Fill with unselected value and then set all vertices in the selected faces to the selected value.
 						for (int32 Vertex3DIndex = 0; Vertex3DIndex < OutClothWeights.Num(); ++Vertex3DIndex)
 						{
 							OutClothWeights[Vertex3DIndex] = UnselectedValue;
 						}
 						const TConstArrayView<FIntVector3> SimIndices3D = ClothFacade.GetSimIndices3D();
-						for (const int32 FaceIndex : Selection)
+						for (const int32 FaceIndex : *SelectionSet)
 						{
 							OutClothWeights[SimIndices3D[FaceIndex][0]] = SelectedValue;
 							OutClothWeights[SimIndices3D[FaceIndex][1]] = SelectedValue;
@@ -96,16 +94,20 @@ void FChaosClothAssetSelectionToWeightMapNode::Evaluate(Dataflow::FContext& Cont
 				else
 				{
 					FClothDataflowTools::LogAndToastWarning(*this,
-						LOCTEXT("SelectionTypeNotCorrectHeadline", "Selection type is incompatible."),
-						FText::Format(LOCTEXT("SelectionTypeNotCorrectDetails", "Selection with Name \"{0}\" does not have Type \"SimVertex3D\", \"SimVertex2D\", or \"SimFace\"."), FText::FromString(InSelectionName)));
+						LOCTEXT("SelectionTypeNotCorrectHeadline", "Invalid selection group."),
+						FText::Format(LOCTEXT("SelectionTypeNotCorrectDetails", "Selection \"{0}\" does not have its index dependency group set to \"{1}\", \"{2}\", or \"{3}\"."),
+							FText::FromName(InSelectionName),
+							FText::FromName(ClothCollectionGroup::SimVertices2D),
+							FText::FromName(ClothCollectionGroup::SimVertices3D),
+							FText::FromName(ClothCollectionGroup::SimFaces)));
 				}
 			}
 			else
 			{
 				FClothDataflowTools::LogAndToastWarning(*this,
-					LOCTEXT("SelectionNameNotFoundHeadline", "Selection Name was not found."),
-					FText::Format(LOCTEXT("SelectionNameNotFoundDetails", "A Selection with Name \"{0}\" was not found in the Collection."),
-						FText::FromString(InSelectionName)));
+					LOCTEXT("SelectionNameNotFoundHeadline", "Invalid selection name."),
+					FText::Format(LOCTEXT("SelectionNameNotFoundDetails", "Selection \"{0}\" was not found in the collection."),
+						FText::FromName(InSelectionName)));
 			}
 		}
 

@@ -11,9 +11,6 @@ namespace UE::Chaos::ClothAsset
 	namespace Private
 	{
 		static const FName SelectionGroup(TEXT("Selection"));
-		static const FName NameAttribute(TEXT("Name"));
-		static const FName TypeAttribute(TEXT("Type"));
-		static const FName IndicesAttribute(TEXT("Indices"));
 	}
 
 	// --------------- FCollectionClothSelectionConstFacade -------------------------------
@@ -21,61 +18,50 @@ namespace UE::Chaos::ClothAsset
 	FCollectionClothSelectionConstFacade::FCollectionClothSelectionConstFacade(const TSharedRef<const FManagedArrayCollection>& InManagedArrayCollection) :
 		ManagedArrayCollection(ConstCastSharedRef<FManagedArrayCollection>(InManagedArrayCollection))
 	{
-		Name = ManagedArrayCollection->FindAttribute<FString>(Private::NameAttribute, Private::SelectionGroup);
-		Type = ManagedArrayCollection->FindAttribute<FString>(Private::TypeAttribute, Private::SelectionGroup);
-		Indices = ManagedArrayCollection->FindAttribute<TSet<int32>>(Private::IndicesAttribute, Private::SelectionGroup);
 	}
 
 	bool FCollectionClothSelectionConstFacade::IsValid() const
 	{
-		return Name && Type && Indices;
+		return ManagedArrayCollection->HasGroup(Private::SelectionGroup) &&
+			ManagedArrayCollection->NumElements(Private::SelectionGroup) == 1;
 	}
 
 	int32 FCollectionClothSelectionConstFacade::GetNumSelections() const
 	{
-		return ManagedArrayCollection->NumElements(Private::SelectionGroup);
+		return ManagedArrayCollection->NumAttributes(Private::SelectionGroup);
 	}
 
-	const TArrayView<const FString> FCollectionClothSelectionConstFacade::GetName() const
+	TArray<FName> FCollectionClothSelectionConstFacade::GetNames() const
 	{
-		if (Name)
-		{
-			return TArrayView<const FString>(Name->GetData(), Name->Num());
-		}
-		return TArrayView<const FString>();
+		return ManagedArrayCollection->AttributeNames(Private::SelectionGroup);
 	}
 
-	const TArrayView<const FString> FCollectionClothSelectionConstFacade::GetType() const
+	bool FCollectionClothSelectionConstFacade::HasSelection(const FName& Name) const
 	{
-		if (Type)
-		{
-			return TArrayView<const FString>(Type->GetData(), Type->Num());
-		}
-		return TArrayView<const FString>();
+		return IsValid() && ManagedArrayCollection->HasAttribute(Name, Private::SelectionGroup);
 	}
 
-	const TArrayView<const TSet<int32>> FCollectionClothSelectionConstFacade::GetIndices() const
+	FName FCollectionClothSelectionConstFacade::GetSelectionGroup(const FName& Name) const
 	{
-		if (Indices)
-		{
-			return TArrayView<const TSet<int32>>(Indices->GetData(), Indices->Num());
-		}
-		return TArrayView<const TSet<int32>>();
+		check(IsValid());
+		check(HasSelection(Name));
+		return ManagedArrayCollection->GetDependency(Name, Private::SelectionGroup);
 	}
 
-	int32 FCollectionClothSelectionConstFacade::FindSelection(const FString& SearchName) const
+	const TSet<int32>& FCollectionClothSelectionConstFacade::GetSelectionSet(const FName& Name) const
 	{
-		const TArrayView<const FString> Names = GetName();
-		for (int32 SelectionIndex = 0; SelectionIndex < Names.Num(); ++SelectionIndex)
-		{
-			if (Names[SelectionIndex] == SearchName)
-			{
-				return SelectionIndex;
-			}
-		}
-		return INDEX_NONE;
+		check(IsValid());
+		const TManagedArray<TSet<int32>>* const Selection = ManagedArrayCollection->FindAttributeTyped<TSet<int32>>(Name, Private::SelectionGroup);
+		check(Selection);
+		return *Selection->GetData();
 	}
 
+	const TSet<int32>* FCollectionClothSelectionConstFacade::FindSelectionSet(const FName& Name) const
+	{
+		check(IsValid());
+		const TManagedArray<TSet<int32>>* const Selection = ManagedArrayCollection->FindAttributeTyped<TSet<int32>>(Name, Private::SelectionGroup);
+		return Selection ? Selection->GetData() : nullptr;
+	}
 
 	// --------------- FCollectionClothSelectionFacade -------------------------------
 
@@ -89,82 +75,62 @@ namespace UE::Chaos::ClothAsset
 		{
 			ManagedArrayCollection->AddGroup(Private::SelectionGroup);
 		}
-
-		// AddAttribute will only add the attribute if it doesn't already exist, otherwise it will return the existing one
-		Name = &ManagedArrayCollection->AddAttribute<FString>(Private::NameAttribute, Private::SelectionGroup);
-		Type = &ManagedArrayCollection->AddAttribute<FString>(Private::TypeAttribute, Private::SelectionGroup);
-		Indices = &ManagedArrayCollection->AddAttribute<TSet<int32>>(Private::IndicesAttribute, Private::SelectionGroup);
+		const int32 NumElements = ManagedArrayCollection->NumElements(Private::SelectionGroup);
+		if (NumElements > 1)
+		{
+			ManagedArrayCollection->RemoveElements(Private::SelectionGroup, NumElements - 1, 1);
+		}
+		else if (NumElements == 0)
+		{
+			ManagedArrayCollection->AddElements(1, Private::SelectionGroup);
+		}
 	}
 
-	TArrayView<FString> FCollectionClothSelectionFacade::GetName()
+	TSet<int32>& FCollectionClothSelectionFacade::GetSelectionSet(const FName& Name)
 	{
-		if (Name)
-		{
-			return TArrayView<FString>(Name->GetData(), Name->Num());
-		}
-		return TArrayView<FString>();
+		check(IsValid());
+		TManagedArray<TSet<int32>>* const Selection = ManagedArrayCollection->FindAttributeTyped<TSet<int32>>(Name, Private::SelectionGroup);
+		check(Selection);
+		return *Selection->GetData();
 	}
 
-	TArrayView<FString> FCollectionClothSelectionFacade::GetType()
+	TSet<int32>* FCollectionClothSelectionFacade::FindSelectionSet(const FName& Name)
 	{
-		if (Type)
-		{
-			return TArrayView<FString>(Type->GetData(), Type->Num());
-		}
-		return TArrayView<FString>();
+		check(IsValid());
+		TManagedArray<TSet<int32>>* const Selection = ManagedArrayCollection->FindAttributeTyped<TSet<int32>>(Name, Private::SelectionGroup);
+		return Selection ? Selection->GetData() : nullptr;
 	}
 
-	TArrayView<TSet<int32>> FCollectionClothSelectionFacade::GetIndices()
+	TSet<int32>& FCollectionClothSelectionFacade::FindOrAddSelectionSet(const FName& Name, const FName& GroupName)
 	{
-		if (Indices)
+		check(IsValid());
+		ensure(GroupName != NAME_None && Name != NAME_None);
+		constexpr bool bAllowCircularDependency = false;
+
+		TManagedArray<TSet<int32>>* Selection = ManagedArrayCollection->FindAttributeTyped<TSet<int32>>(Name, Private::SelectionGroup);
+		if (Selection)
 		{
-			return TArrayView<TSet<int32>>(Indices->GetData(), Indices->Num());
+			check(Selection->Num() == 1);  // This should always be the case if the facade is valid
+
+			// Recycle the existing selection, with the new group if needed
+			if (ManagedArrayCollection->GetDependency(Name, Private::SelectionGroup) != GroupName)
+			{
+				ManagedArrayCollection->SetDependency(Name, Private::SelectionGroup, GroupName, bAllowCircularDependency);
+				(*Selection)[0].Reset();  // No point in keeping unrelated selection indices since the group has changed better clear everything
+			}
 		}
-		return TArrayView<TSet<int32>>();
+		else
+		{
+			// Create a new selection
+			constexpr bool bSaved = true;
+			const FManagedArrayCollection::FConstructionParameters GroupDependency(GroupName, bSaved, bAllowCircularDependency);
+			Selection = &ManagedArrayCollection->AddAttribute<TSet<int32>>(Name, Private::SelectionGroup, GroupDependency);
+
+			check(Selection->Num() == 1);  // This should always be the case if the facade is valid
+		}
+
+		return (*Selection)[0];
 	}
-
-	int32 FCollectionClothSelectionFacade::FindOrAddSelection(const FString& InName)
-	{
-		if (!IsValid())
-		{
-			return INDEX_NONE;
-		}
-
-		// Check for existing selection with matching Name
-		const int32 FoundIndex = FindSelection(InName);
-		if (FoundIndex != INDEX_NONE)
-		{
-			return FoundIndex;
-		}
-
-		// No selection with the given name exists
-		checkf(ManagedArrayCollection->HasGroup(Private::SelectionGroup), TEXT("Expected SelectionGroup to exist in the managed array at this point"));
-
-		const int32 NewIndex = ManagedArrayCollection->AddElements(1, Private::SelectionGroup);
-		
-		GetName()[NewIndex] = InName;
-
-		return NewIndex;
-	}
-
-	bool FCollectionClothSelectionFacade::SetSelection(int32 SelectionIndex, const FString& InType, const TSet<int32>& InSelectedIndices)
-	{
-		if (!IsValid())
-		{
-			return false;
-		}
-
-		if (SelectionIndex < 0 || SelectionIndex >= GetNumSelections())
-		{
-			return false;
-		}
-
-		GetType()[SelectionIndex] = InType;
-		GetIndices()[SelectionIndex] = InSelectedIndices;
-		return true;
-	}
-
-
 }	// namespace  UE::Chaos::ClothAsset
 
 #undef LOCTEXT_NAMESPACE

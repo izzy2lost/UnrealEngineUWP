@@ -450,4 +450,11 @@ namespace UE::Chaos::ClothAsset
 
 		UE_LOG(LogChaosClothAssetDataflowNodes, Display, TEXT("%s"), *Text.ToString());
 	}
+
+	void FClothDataflowTools::MakeCollectionName(FString& InOutString)
+	{
+		InOutString = SlugStringForValidName(InOutString, TEXT("_")).Replace(TEXT("\\"), TEXT("_"));
+		bool bCharsWereRemoved;
+		do { InOutString.TrimCharInline(TEXT('_'), &bCharsWereRemoved); } while (bCharsWereRemoved);
+	}
 }  // End namespace UE::Chaos::ClothAsset

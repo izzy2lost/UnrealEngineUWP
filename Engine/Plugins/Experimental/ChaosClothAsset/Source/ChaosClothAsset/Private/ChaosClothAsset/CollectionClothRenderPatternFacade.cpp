@@ -2,6 +2,7 @@
 
 #include "ChaosClothAsset/CollectionClothRenderPatternFacade.h"
 #include "ChaosClothAsset/ClothCollection.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothGeometryTools.h"
 
 namespace UE::Chaos::ClothAsset
@@ -9,7 +10,7 @@ namespace UE::Chaos::ClothAsset
 	const FString& FCollectionClothRenderPatternConstFacade::GetRenderMaterialPathName() const
 	{
 		static const FString EmptyString;
-		return ClothCollection->GetRenderMaterialPathName() && ClothCollection->GetNumElements(FClothCollection::RenderPatternsGroup) > GetElementIndex() ? 
+		return ClothCollection->GetRenderMaterialPathName() && ClothCollection->GetNumElements(ClothCollectionGroup::RenderPatterns) > GetElementIndex() ?
 			(*ClothCollection->GetRenderMaterialPathName())[GetElementIndex()] : EmptyString;
 	}
 
@@ -136,7 +137,7 @@ namespace UE::Chaos::ClothAsset
 		, PatternIndex(InPatternIndex)
 	{
 		check(ClothCollection->IsValid());
-		check(PatternIndex >= 0 && PatternIndex < ClothCollection->GetNumElements(FClothCollection::RenderPatternsGroup));
+		check(PatternIndex >= 0 && PatternIndex < ClothCollection->GetNumElements(ClothCollectionGroup::RenderPatterns));
 	}
 
 	void FCollectionClothRenderPatternFacade::Reset()
@@ -178,7 +179,7 @@ namespace UE::Chaos::ClothAsset
 	{
 		GetClothCollection()->SetNumElements(
 			NumRenderVertices,
-			FClothCollection::RenderVerticesGroup,
+			ClothCollectionGroup::RenderVertices,
 			GetClothCollection()->GetRenderVerticesStart(),
 			GetClothCollection()->GetRenderVerticesEnd(),
 			GetElementIndex());
@@ -195,7 +196,7 @@ namespace UE::Chaos::ClothAsset
 		}
 
 		GetClothCollection()->RemoveElements(
-			FClothCollection::RenderVerticesGroup,
+			ClothCollectionGroup::RenderVertices,
 			GlobalIndexSortedDeletionList,
 			GetClothCollection()->GetRenderVerticesStart(),
 			GetClothCollection()->GetRenderVerticesEnd(),
@@ -278,7 +279,7 @@ namespace UE::Chaos::ClothAsset
 	{
 		GetClothCollection()->SetNumElements(
 			NumRenderFaces,
-			FClothCollection::RenderFacesGroup,
+			ClothCollectionGroup::RenderFaces,
 			GetClothCollection()->GetRenderFacesStart(),
 			GetClothCollection()->GetRenderFacesEnd(),
 			GetElementIndex());
@@ -295,7 +296,7 @@ namespace UE::Chaos::ClothAsset
 		}
 
 		GetClothCollection()->RemoveElements(
-			FClothCollection::RenderFacesGroup,
+			ClothCollectionGroup::RenderFaces,
 			GlobalIndexSortedDeletionList,
 			GetClothCollection()->GetRenderFacesStart(),
 			GetClothCollection()->GetRenderFacesEnd(),

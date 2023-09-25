@@ -3,6 +3,7 @@
 #include "ChaosClothAsset/CollectionClothSeamFacade.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "ChaosClothAsset/ClothCollection.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothGeometryTools.h"
 #include "Containers/Map.h"
 
@@ -502,7 +503,7 @@ namespace UE::Chaos::ClothAsset
 		, SeamIndex(SeamIndex)
 	{
 		check(ClothCollection->IsValid());
-		check(SeamIndex >= 0 && SeamIndex < ClothCollection->GetNumElements(FClothCollection::SeamsGroup));
+		check(SeamIndex >= 0 && SeamIndex < ClothCollection->GetNumElements(ClothCollectionGroup::Seams));
 	}
 
 	void FCollectionClothSeamFacade::Reset()
@@ -572,7 +573,7 @@ namespace UE::Chaos::ClothAsset
 				//
 
 				// This resize will invalidate any existing SimVertex3DGroup ArrayViews!
-				GetClothCollection()->SetNumElements(OrigNumSimVertices3D + NumNewSimVertices3D, FClothCollection::SimVertices3DGroup);
+				GetClothCollection()->SetNumElements(OrigNumSimVertices3D + NumNewSimVertices3D, ClothCollectionGroup::SimVertices3D);
 
 				// Update 2D <--> 3D lookups
 				UpdateVertexLookupsAfterSplitting(SplittingGroups, Cloth.GetSimVertex3DLookupPrivate(), Cloth.GetSimVertex2DLookupPrivate());
@@ -727,7 +728,7 @@ namespace UE::Chaos::ClothAsset
 			}
 		}
 		VerticesToRemove.Sort();
-		GetClothCollection()->RemoveElements(FClothCollection::SimVertices3DGroup, VerticesToRemove);		
+		GetClothCollection()->RemoveElements(ClothCollectionGroup::SimVertices3D, VerticesToRemove);
 	}
 
 	void FCollectionClothSeamFacade::Initialize(const FCollectionClothSeamConstFacade& Other, const int32 SimVertex2DOffset, const int32 SimVertex3DOffset)
@@ -741,7 +742,7 @@ namespace UE::Chaos::ClothAsset
 	{
 		GetClothCollection()->SetNumElements(
 			NumStitches,
-			FClothCollection::SeamStitchesGroup,
+			ClothCollectionGroup::SeamStitches,
 			GetClothCollection()->GetSeamStitchStart(),
 			GetClothCollection()->GetSeamStitchEnd(),
 			GetElementIndex());

@@ -8,7 +8,7 @@
 
 /** What type of element is selected in the Selection */
 UENUM()
-enum class EChaosClothAssetSelectionType : uint8
+enum class UE_DEPRECATED(5.4, "Use FChaosClothAssetNodeSelectionGroup instead") EChaosClothAssetSelectionType : uint8
 {
 	/** 2D simulation vertices */
 	SimVertex2D,
@@ -23,10 +23,26 @@ enum class EChaosClothAssetSelectionType : uint8
 	SimFace,
 
 	/** Render faces */
-	RenderFace
+	RenderFace,
+
+	/** Deprecated marker */
+	Deprecated UMETA(Hidden)
 };
 
-/** Integer index set selection node */
+/**
+ * The managed array collection group used in the selection.
+ * This separate structure is required to allow for customization of the UI.
+ */
+USTRUCT()
+struct FChaosClothAssetNodeSelectionGroup
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Selection Group")
+	FString Name;
+};
+
+/** Integer index set selection node. */
 USTRUCT(Meta = (DataflowCloth))
 struct FChaosClothAssetSelectionNode : public FDataflowNode
 {
@@ -43,17 +59,32 @@ public:
 	FString Name;
 
 	/** The type of element the selection refers to */
+	UE_DEPRECATED(5.4, "Use Group instead")
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UPROPERTY()
+	EChaosClothAssetSelectionType Type_DEPRECATED = EChaosClothAssetSelectionType::Deprecated;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	/** The type of element the selection refers to */
 	UPROPERTY(EditAnywhere, Category = "Selection")
-	EChaosClothAssetSelectionType Type = EChaosClothAssetSelectionType::SimVertex2D;
+	FChaosClothAssetNodeSelectionGroup Group;
 
 	/** Selected element indices */
-	UPROPERTY(EditAnywhere, Category = "Selection")
+	UPROPERTY(EditAnywhere, Category = "Selection", Meta = (ClampMin = "0"))
 	TSet<int32> Indices;
 
 	FChaosClothAssetSelectionNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
+	/** Return a cached array of all the groups used by the input collection during at the time of the latest evaluation. */
+	const TArray<FName>& GetCachedCollectionGroupNames() const { return CachedCollectionGroupNames; }
+
 private:
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void OnSelected(Dataflow::FContext& Context) override;
+	virtual void OnDeselected() override;
+	virtual void Serialize(FArchive& Ar);
+
+	TArray<FName> CachedCollectionGroupNames;
 };
 
