@@ -910,6 +910,7 @@ void ENGINE_API HDRSettingChangedSinkCallback()
 	static const auto CVarHDRMidLuminance = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.HDR.Display.MidLuminance"));
 	static const auto CVarHDRMaxLuminance = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.HDR.Display.MaxLuminance"));
 	static const auto CVarHDRSceneColorMultiplier = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.HDR.Aces.SceneColorMultiplier"));
+	static const auto CVarHDRGamutCompression = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.HDR.Aces.GamutCompression"));
 
 	if (GRHIVendorId == 0)
 	{
@@ -920,6 +921,7 @@ void ENGINE_API HDRSettingChangedSinkCallback()
 	static float GHDRMidLuminnance = CVarHDRMidLuminance->GetValueOnAnyThread();
 	static int32 GHDRMaxLuminnance = CVarHDRMaxLuminance->GetValueOnAnyThread();
 	static float GHDRSceneColorMultiplier = CVarHDRSceneColorMultiplier->GetValueOnAnyThread();
+	static float GHDRGamutCompression = CVarHDRGamutCompression->GetValueOnAnyThread();
 	static int32 GDisplayNitLevel = 1000;
 
 	bool bIsHDREnabled = IsHDREnabled();
@@ -934,7 +936,9 @@ void ENGINE_API HDRSettingChangedSinkCallback()
 	if(bIsHDREnabled != GRHIIsHDREnabled || !FMath::IsNearlyEqual(GHDRMinLuminnanceLog10, CVarHDRMinLuminanceLog10->GetValueOnAnyThread())
 		|| !FMath::IsNearlyEqual(GHDRMidLuminnance, CVarHDRMidLuminance->GetValueOnAnyThread())
 		|| (GHDRMaxLuminnance != CVarHDRMaxLuminance->GetValueOnAnyThread()) || (DisplayNitLevel != GDisplayNitLevel)
-		|| !FMath::IsNearlyEqual(GHDRSceneColorMultiplier, CVarHDRSceneColorMultiplier->GetValueOnAnyThread()))
+		|| !FMath::IsNearlyEqual(GHDRSceneColorMultiplier, CVarHDRSceneColorMultiplier->GetValueOnAnyThread())
+		|| !FMath::IsNearlyEqual(GHDRGamutCompression, CVarHDRGamutCompression->GetValueOnAnyThread())
+		)
 	{
 		HDRConfigureCVars(bIsHDREnabled, DisplayNitLevel, false);
 
@@ -944,6 +948,7 @@ void ENGINE_API HDRSettingChangedSinkCallback()
 		GHDRMidLuminnance = CVarHDRMidLuminance->GetValueOnAnyThread();
 		GHDRMaxLuminnance = CVarHDRMaxLuminance->GetValueOnAnyThread();
 		GHDRSceneColorMultiplier = CVarHDRSceneColorMultiplier->GetValueOnAnyThread();
+		GHDRGamutCompression = CVarHDRGamutCompression->GetValueOnAnyThread();
 		GDisplayNitLevel = DisplayNitLevel;
 	}
 }

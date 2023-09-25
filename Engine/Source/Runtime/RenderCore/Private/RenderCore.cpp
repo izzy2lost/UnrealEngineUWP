@@ -405,6 +405,13 @@ static TAutoConsoleVariable<float> CVarHDRAcesColorMultiplier(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<float> CVarHDRAcesGamutCompression(
+	TEXT("r.HDR.Aces.GamutCompression"),
+	0.0f,
+	TEXT("HDR equivalent of BlueCorrection: Bright blue desaturates instead of going to violet"),
+	ECVF_RenderThreadSafe
+);
+
 TAutoConsoleVariable<int32> CVarHDROutputEnabled(
 	TEXT("r.HDR.EnableHDROutput"),
 	0,
@@ -983,6 +990,7 @@ void ConfigureACESTonemapParams(FACESTonemapParams& OutACESTonemapParams, float 
 	OutACESTonemapParams.ACESCoefsHigh_4 = PARAMS.coefsHigh[4];
 
 	OutACESTonemapParams.ACESSceneColorMultiplier = CVarHDRAcesColorMultiplier.GetValueOnAnyThread();
+	OutACESTonemapParams.ACESGamutCompression = CVarHDRAcesGamutCompression.GetValueOnAnyThread();
 
 }
 
