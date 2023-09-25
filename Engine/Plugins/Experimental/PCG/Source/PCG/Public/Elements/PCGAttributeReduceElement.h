@@ -74,7 +74,7 @@ protected:
 };
 
 
-class FPCGAttributeReduceElement : public FSimplePCGElement
+class FPCGAttributeReduceElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

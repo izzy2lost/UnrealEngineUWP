@@ -229,7 +229,7 @@ public:
 	FPCGPointFilterThresholdSettings MaxThreshold;
 };
 
-class FPCGPointFilterElementBase : public FSimplePCGElement
+class FPCGPointFilterElementBase : public IPCGElement
 {
 protected:
 	bool DoFiltering(FPCGContext* Context, EPCGPointFilterOperator InOperation, const FPCGAttributePropertyInputSelector& TargetAttribute, const FPCGPointFilterThresholdSettings& FirstThreshold, const FPCGPointFilterThresholdSettings* SecondThreshold = nullptr) const;

@@ -42,10 +42,10 @@ public:
 #endif
 };
 
-class FPCGInnerIntersectionElement : public FSimplePCGElement
+class FPCGInnerIntersectionElement : public IPCGElement
 {
 protected:
-	virtual bool ExecuteInternal(FPCGContext* Context) const;
+	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

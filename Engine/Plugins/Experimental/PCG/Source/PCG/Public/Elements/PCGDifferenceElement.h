@@ -59,7 +59,7 @@ public:
 #endif
 };
 
-class FPCGDifferenceElement : public FSimplePCGElement
+class FPCGDifferenceElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

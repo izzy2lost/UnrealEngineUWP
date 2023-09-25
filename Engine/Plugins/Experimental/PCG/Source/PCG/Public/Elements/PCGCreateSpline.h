@@ -68,7 +68,7 @@ public:
 	EPCGAttachOptions AttachOptions = EPCGAttachOptions::Attached;
 };
 
-class FPCGCreateSplineElement : public FSimplePCGElement
+class FPCGCreateSplineElement : public IPCGElement
 {
 protected:
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override;

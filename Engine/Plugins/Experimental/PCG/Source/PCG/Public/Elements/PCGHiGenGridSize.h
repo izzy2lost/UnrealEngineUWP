@@ -42,7 +42,7 @@ protected:
 	EPCGHiGenGrid HiGenGridSize = EPCGHiGenGrid::Grid256;
 };
 
-class FPCGHiGenGridSizeElement : public FSimplePCGElement
+class FPCGHiGenGridSizeElement : public IPCGElement
 {
 public:
 	virtual void GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const override;

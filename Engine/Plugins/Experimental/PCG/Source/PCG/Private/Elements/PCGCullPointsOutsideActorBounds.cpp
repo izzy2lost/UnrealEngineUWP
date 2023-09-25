@@ -84,7 +84,7 @@ bool FPCGCullPointsOutsideActorBoundsElement::ExecuteInternal(FPCGContext* Conte
 void FPCGCullPointsOutsideActorBoundsElement::GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const
 {
 	FPCGCrc Crc;
-	FSimplePCGElement::GetDependenciesCrc(InInput, InSettings, InComponent, Crc);
+	IPCGElement::GetDependenciesCrc(InInput, InSettings, InComponent, Crc);
 
 	// The culling volume depends on the component transform.
 	const UPCGData* ActorData = InComponent ? InComponent->GetActorPCGData() : nullptr;

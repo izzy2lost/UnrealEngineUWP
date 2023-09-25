@@ -8,14 +8,9 @@
 
 #define LOCTEXT_NAMESPACE "PCGExternalData"
 
-FPCGContext* FPCGExternalDataElement::Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node)
+FPCGContext* FPCGExternalDataElement::CreateContext()
 {
-	FPCGExternalDataContext* Context = new FPCGExternalDataContext();
-	Context->InputData = InputData;
-	Context->SourceComponent = SourceComponent;
-	Context->Node = Node;
-
-	return Context;
+	return new FPCGExternalDataContext();
 }
 
 bool FPCGExternalDataElement::PrepareDataInternal(FPCGContext* InContext) const

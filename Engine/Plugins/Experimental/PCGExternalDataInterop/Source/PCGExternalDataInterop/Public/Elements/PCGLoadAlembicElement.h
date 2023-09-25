@@ -68,10 +68,8 @@ public:
 
 class PCGEXTERNALDATAINTEROP_API FPCGLoadAlembicElement : public FPCGExternalDataElement
 {
-public:
-	virtual FPCGContext* Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node) override;
-
 protected:
+	virtual FPCGContext* CreateContext() override;
 	virtual bool PrepareLoad(FPCGExternalDataContext* Context) const override;
 	virtual bool ExecuteLoad(FPCGExternalDataContext* Context) const override;
 };

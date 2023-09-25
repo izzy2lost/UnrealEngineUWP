@@ -171,7 +171,7 @@ protected:
 	void PrepareSubgraphUserParameters(const UPCGSubgraphSettings* Settings, FPCGSubgraphContext* Context, FPCGDataCollection& OutputData) const;
 };
 
-class PCG_API FPCGInputForwardingElement : public FSimplePCGElement
+class PCG_API FPCGInputForwardingElement : public IPCGElement
 {
 public:
 	FPCGInputForwardingElement(const FPCGDataCollection& InputToForward);

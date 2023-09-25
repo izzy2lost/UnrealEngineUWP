@@ -30,7 +30,7 @@ protected:
 	//~End UPCGSettings interface
 };
 
-class FPCGGetBoundsElement : public FSimplePCGElement
+class FPCGGetBoundsElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

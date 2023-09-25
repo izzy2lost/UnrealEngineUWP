@@ -82,7 +82,7 @@ private:
 #endif
 };
 
-class FPCGPointMatchAndSetElement : public FSimplePCGElement
+class FPCGPointMatchAndSetElement : public IPCGElement
 {
 public:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

@@ -28,7 +28,7 @@ protected:
 	//~End UPCGSettings interface
 };
 
-class FPCGCollapseElement : public FSimplePCGElement
+class FPCGCollapseElement : public IPCGElement
 {
 public:
 	// Might be sampling spline/landscape or other external data, worth computing a full CRC in case we can halt change propagation/re-executions

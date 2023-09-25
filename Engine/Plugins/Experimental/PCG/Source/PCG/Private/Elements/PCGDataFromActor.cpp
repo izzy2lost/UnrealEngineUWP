@@ -132,14 +132,9 @@ TArray<FPCGPinProperties> UPCGDataFromActorSettings::OutputPinProperties() const
 	return Pins;
 }
 
-FPCGContext* FPCGDataFromActorElement::Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node)
+FPCGContext* FPCGDataFromActorElement::CreateContext()
 {
-	FPCGDataFromActorContext* Context = new FPCGDataFromActorContext();
-	Context->InputData = InputData;
-	Context->SourceComponent = SourceComponent;
-	Context->Node = Node;
-
-	return Context;
+	return new FPCGDataFromActorContext();
 }
 
 bool FPCGDataFromActorElement::ExecuteInternal(FPCGContext* InContext) const

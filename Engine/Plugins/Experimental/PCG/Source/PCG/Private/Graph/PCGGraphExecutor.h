@@ -209,7 +209,7 @@ private:
 #endif
 };
 
-class FPCGFetchInputElement : public FSimplePCGElement
+class FPCGFetchInputElement : public IPCGElement
 {
 public:
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
@@ -220,7 +220,7 @@ protected:
 	virtual bool IsPassthrough(const UPCGSettings* InSettings) const override { return true; }
 };
 
-class FPCGGenericElement : public FSimplePCGElement
+class FPCGGenericElement : public IPCGElement
 {
 public:
 	using FContextAllocator = TFunction<FPCGContext*(const FPCGDataCollection&, TWeakObjectPtr<UPCGComponent>, const UPCGNode*)>;

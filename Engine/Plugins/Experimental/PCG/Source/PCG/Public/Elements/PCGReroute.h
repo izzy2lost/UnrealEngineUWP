@@ -31,7 +31,7 @@ protected:
 #endif
 };
 
-class PCG_API FPCGRerouteElement : public FSimplePCGElement
+class PCG_API FPCGRerouteElement : public IPCGElement
 {
 public:
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return true; }

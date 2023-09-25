@@ -130,14 +130,8 @@ private:
 	void CleanupAndValidateOutput(FPCGContext* Context) const;
 };
 
-/**
-* Basic PCG element class for elements that do not store any intermediate data in the context
-*/
-class PCG_API FSimplePCGElement : public IPCGElement
-{
-	// TODO: Will be scrubbed and cleaned up in a following CL
-	// TODO: In the same CL, go through and have classes with simple initializations replaced with CreateContext only
-};
+class UE_DEPRECATED(5.4, "This class has been deprecated. Please inherit from IPCGElement directly.") PCG_API FSimplePCGElement : public IPCGElement
+{};
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "Misc/OutputDeviceRedirector.h"

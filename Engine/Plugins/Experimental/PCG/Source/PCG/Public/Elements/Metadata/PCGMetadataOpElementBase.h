@@ -160,7 +160,7 @@ protected:
 };
 
 
-class FPCGMetadataElementBase : public FSimplePCGElement
+class FPCGMetadataElementBase : public IPCGElement
 {
 public:
 	struct FOperationData

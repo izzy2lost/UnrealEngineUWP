@@ -35,7 +35,7 @@ public:
 	FName NewAttributeName = NAME_None;
 };
 
-class FPCGMetadataRenameElement : public FSimplePCGElement
+class FPCGMetadataRenameElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

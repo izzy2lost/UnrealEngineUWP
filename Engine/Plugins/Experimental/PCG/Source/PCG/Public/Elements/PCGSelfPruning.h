@@ -50,7 +50,7 @@ protected:
 	// ~End UPCGSettings interface
 };
 
-class FPCGSelfPruningElement : public FSimplePCGElement
+class FPCGSelfPruningElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

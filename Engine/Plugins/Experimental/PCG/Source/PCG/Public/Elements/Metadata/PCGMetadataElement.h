@@ -67,7 +67,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif // WITH_EDITORONLY_DATA
 };
 
-class FPCGMetadataOperationElement : public FSimplePCGElement
+class FPCGMetadataOperationElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

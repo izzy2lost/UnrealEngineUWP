@@ -95,14 +95,9 @@ FPCGMeshSamplerContext::~FPCGMeshSamplerContext()
 	}
 }
 
-FPCGContext* FPCGMeshSamplerElement::Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node)
+FPCGContext* FPCGMeshSamplerElement::CreateContext()
 {
-	FPCGMeshSamplerContext* Context = new FPCGMeshSamplerContext();
-	Context->InputData = InputData;
-	Context->SourceComponent = SourceComponent;
-	Context->Node = Node;
-
-	return Context;
+	return new FPCGMeshSamplerContext();
 }
 
 bool FPCGMeshSamplerElement::PrepareDataInternal(FPCGContext* InContext) const

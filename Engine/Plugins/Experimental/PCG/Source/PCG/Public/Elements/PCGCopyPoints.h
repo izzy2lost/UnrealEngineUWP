@@ -72,7 +72,7 @@ public:
 	EPCGCopyPointsMetadataInheritanceMode AttributeInheritance = EPCGCopyPointsMetadataInheritanceMode::SourceFirst;
 };
 
-class FPCGCopyPointsElement : public FSimplePCGElement
+class FPCGCopyPointsElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

@@ -31,7 +31,7 @@ protected:
 	//~End UPCGSettings interface
 };
 
-class FPCGGatherElement : public FSimplePCGElement
+class FPCGGatherElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

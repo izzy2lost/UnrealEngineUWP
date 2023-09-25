@@ -73,14 +73,9 @@ void UPCGLoadAlembicSettings::SetupFromStandard(EPCGLoadAlembicStandardSetup InS
 	}
 }
 
-FPCGContext* FPCGLoadAlembicElement::Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node)
+FPCGContext* FPCGLoadAlembicElement::CreateContext()
 {
-	FPCGLoadAlembicContext* Context = new FPCGLoadAlembicContext();
-	Context->InputData = InputData;
-	Context->SourceComponent = SourceComponent;
-	Context->Node = Node;
-
-	return Context;
+	return new FPCGLoadAlembicContext();
 }
 
 bool FPCGLoadAlembicElement::PrepareLoad(FPCGExternalDataContext* InContext) const

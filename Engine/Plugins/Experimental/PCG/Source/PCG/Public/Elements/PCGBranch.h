@@ -35,7 +35,7 @@ public:
 	bool bOutputToB = false;
 };
 
-class FPCGBranchElement : public FSimplePCGElement
+class FPCGBranchElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

@@ -38,7 +38,7 @@ public:
 	bool bMultiplyDensity = true;
 };
 
-class FPCGLinearDensityRemapElement : public FSimplePCGElement
+class FPCGLinearDensityRemapElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const;

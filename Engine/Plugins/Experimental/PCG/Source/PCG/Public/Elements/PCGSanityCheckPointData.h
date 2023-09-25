@@ -34,10 +34,10 @@ public:
 	int32 MaxPointCount = 100;
 };
 
-class FPCGSanityCheckPointDataElement : public FSimplePCGElement
+class FPCGSanityCheckPointDataElement : public IPCGElement
 {
 protected:
-	virtual bool ExecuteInternal(FPCGContext* Context) const;
+	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

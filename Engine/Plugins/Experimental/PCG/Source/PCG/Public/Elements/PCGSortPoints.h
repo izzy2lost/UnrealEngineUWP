@@ -45,7 +45,7 @@ public:
 	EPCGSortMethod SortMethod = EPCGSortMethod::Ascending;
 };
 
-class FPCGSortPointsElement : public FSimplePCGElement
+class FPCGSortPointsElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

@@ -177,7 +177,7 @@ public:
 	FPCGSplineSamplerParams SamplerParams;
 };
 
-class FPCGSplineSamplerElement : public FSimplePCGElement
+class FPCGSplineSamplerElement : public IPCGElement
 {
 public:
 	// Worth computing a full CRC in case we can halt change propagation/re-executions

@@ -30,7 +30,7 @@ public:
 	FName PartitionAttribute = NAME_None;
 };
 
-class FPCGMetadataPartitionElement : public FSimplePCGElement
+class FPCGMetadataPartitionElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

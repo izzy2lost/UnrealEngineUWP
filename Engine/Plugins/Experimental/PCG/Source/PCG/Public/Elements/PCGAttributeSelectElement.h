@@ -94,7 +94,7 @@ protected:
 };
 
 
-class FPCGAttributeSelectElement : public FSimplePCGElement
+class FPCGAttributeSelectElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

@@ -73,7 +73,7 @@ public:
 	bool bRecomputeSeed = false;
 };
 
-class FPCGTransformPointsElement : public FSimplePCGElement
+class FPCGTransformPointsElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

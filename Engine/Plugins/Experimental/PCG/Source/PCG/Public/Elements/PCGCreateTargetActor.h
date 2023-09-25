@@ -73,12 +73,11 @@ public:
 	FTransform ActorPivot;
 };
 
-class FPCGCreateTargetActorElement : public FSimplePCGElement
+class FPCGCreateTargetActorElement : public IPCGElement
 {
 protected:
 	// Since this element creates an actor, it needs to run on the game thread and cannot be cached
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
 	virtual bool IsCacheable(const UPCGSettings* Settings) const override { return false; }
-	
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };

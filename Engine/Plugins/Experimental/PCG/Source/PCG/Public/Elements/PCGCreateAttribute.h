@@ -187,7 +187,7 @@ protected:
 	virtual bool ShouldAddAttributesPin() const override { return false; }
 };
 
-class FPCGCreateAttributeElement : public FSimplePCGElement
+class FPCGCreateAttributeElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

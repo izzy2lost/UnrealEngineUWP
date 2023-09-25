@@ -42,10 +42,10 @@ public:
 	bool bCullPointsOutsideVolume = false;
 };
 
-class FPCGCreatePointsElement : public FSimplePCGElement
+class FPCGCreatePointsElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override;
-	virtual bool ShouldComputeFullOutputDataCrc(FPCGContext* Context) const { return true; }
+	virtual bool ShouldComputeFullOutputDataCrc(FPCGContext* Context) const override { return true; }
 };

@@ -28,7 +28,7 @@ protected:
 	//~End UPCGSettings interface
 };
 
-class FPCGMergeAttributesElement : public FSimplePCGElement
+class FPCGMergeAttributesElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

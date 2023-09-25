@@ -34,7 +34,7 @@ public:
 	bool bMergeMetadata = true;
 };
 
-class FPCGMergeElement : public FSimplePCGElement
+class FPCGMergeElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

@@ -96,11 +96,11 @@ private:
 	bool bIncludeChildren_DEPRECATED = false;
 };
 
-class FPCGPropertyToParamDataElement : public FSimplePCGElement
+class FPCGPropertyToParamDataElement : public IPCGElement
 {
 public:
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return !CastChecked<UPCGPropertyToParamDataSettings>(InSettings)->bAlwaysRequeryActors; }
 protected:
-	virtual bool ExecuteInternal(FPCGContext* Context) const;
+	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };

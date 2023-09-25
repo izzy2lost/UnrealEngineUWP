@@ -66,6 +66,11 @@ FPCGElementPtr UPCGStaticMeshSpawnerSettings::CreateElement() const
 	return MakeShared<FPCGStaticMeshSpawnerElement>();
 }
 
+FPCGContext* FPCGStaticMeshSpawnerElement::CreateContext()
+{
+	return new FPCGStaticMeshSpawnerContext();
+}
+
 bool FPCGStaticMeshSpawnerElement::PrepareDataInternal(FPCGContext* InContext) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGStaticMeshSpawnerElement::PrepareDataInternal);
@@ -298,16 +303,6 @@ bool FPCGStaticMeshSpawnerElement::ExecuteInternal(FPCGContext* InContext) const
 	}
 
 	return Context->MeshInstancesData.IsEmpty();
-}
-
-FPCGContext* FPCGStaticMeshSpawnerElement::Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node)
-{
-	FPCGStaticMeshSpawnerContext* Context = new FPCGStaticMeshSpawnerContext();
-	Context->InputData = InputData;
-	Context->SourceComponent = SourceComponent;
-	Context->Node = Node;
-
-	return Context;
 }
 
 bool FPCGStaticMeshSpawnerElement::CanExecuteOnlyOnMainThread(FPCGContext* Context) const

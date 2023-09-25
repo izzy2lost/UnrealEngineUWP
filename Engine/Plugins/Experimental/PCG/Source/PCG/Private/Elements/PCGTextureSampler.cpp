@@ -129,20 +129,15 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 	return false;
 }
 
-FPCGContext* FPCGTextureSamplerElement::Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node)
+FPCGContext* FPCGTextureSamplerElement::CreateContext()
 {
-	FPCGTextureSamplerContext* Context = new FPCGTextureSamplerContext();
-	Context->InputData = InputData;
-	Context->SourceComponent = SourceComponent;
-	Context->Node = Node;
-
-	return Context;
+	return new FPCGTextureSamplerContext();
 }
 
 void FPCGTextureSamplerElement::GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const
 {
 	FPCGCrc Crc;
-	FSimplePCGElement::GetDependenciesCrc(InInput, InSettings, InComponent, Crc);
+	IPCGElement::GetDependenciesCrc(InInput, InSettings, InComponent, Crc);
 
 	if (const UPCGTextureSamplerSettings* Settings = Cast<UPCGTextureSamplerSettings>(InSettings))
 	{

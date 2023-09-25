@@ -76,14 +76,9 @@ FPCGIndirectionContext::~FPCGIndirectionContext()
 	InnerContext = nullptr;
 }
 
-FPCGContext* FPCGIndirectionElement::Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node)
+FPCGContext* FPCGIndirectionElement::CreateContext()
 {
-	FPCGIndirectionContext* Context = new FPCGIndirectionContext();
-	Context->InputData = InputData;
-	Context->SourceComponent = SourceComponent;
-	Context->Node = Node;
-
-	return Context;
+	return new FPCGIndirectionContext();
 }
 
 bool FPCGIndirectionElement::PrepareDataInternal(FPCGContext* InContext) const

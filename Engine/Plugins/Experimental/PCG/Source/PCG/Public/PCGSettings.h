@@ -477,11 +477,8 @@ protected:
 	virtual FPCGElementPtr CreateElement() const override;
 };
 
-class PCG_API FPCGTrivialElement : public FSimplePCGElement
+class PCG_API FPCGTrivialElement : public IPCGElement
 {
-public:
-	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return true; }
-
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 	virtual bool IsPassthrough(const UPCGSettings* InSettings) const override { return true; }

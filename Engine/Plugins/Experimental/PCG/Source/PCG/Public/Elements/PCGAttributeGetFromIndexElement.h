@@ -31,7 +31,7 @@ public:
 	int32 Index = 0;
 };
 
-class FPCGAttributeGetFromIndexElement : public FSimplePCGElement
+class FPCGAttributeGetFromIndexElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

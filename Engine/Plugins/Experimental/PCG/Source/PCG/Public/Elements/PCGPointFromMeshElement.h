@@ -40,8 +40,8 @@ public:
 	FName MeshPathAttributeName = NAME_None;
 };
 
-class FPCGPointFromMeshElement : public FSimplePCGElement
+class FPCGPointFromMeshElement : public IPCGElement
 {
 protected:
-	virtual bool ExecuteInternal(FPCGContext* Context) const;
+	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };

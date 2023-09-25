@@ -43,7 +43,7 @@ protected:
 	//~End UPCGSettings interface
 };
 
-class PCG_API FPCGUserParameterGetElement : public FSimplePCGElement
+class PCG_API FPCGUserParameterGetElement : public IPCGElement
 {
 public:
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }

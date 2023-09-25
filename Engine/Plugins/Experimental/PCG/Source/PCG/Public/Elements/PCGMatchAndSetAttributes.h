@@ -66,7 +66,7 @@ public:
 	FName WeightAttribute = NAME_None;
 };
 
-class FPCGMatchAndSetAttributesElement : public FSimplePCGElement
+class FPCGMatchAndSetAttributesElement : public IPCGElement
 {
 public:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

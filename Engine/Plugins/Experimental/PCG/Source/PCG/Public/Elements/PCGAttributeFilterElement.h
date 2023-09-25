@@ -60,7 +60,7 @@ public:
 };
 
 
-class FPCGAttributeFilterElement : public FSimplePCGElement
+class FPCGAttributeFilterElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

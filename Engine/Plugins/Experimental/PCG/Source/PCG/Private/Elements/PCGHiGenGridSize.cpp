@@ -140,7 +140,7 @@ bool FPCGHiGenGridSizeElement::ExecuteInternal(FPCGContext* Context) const
 void FPCGHiGenGridSizeElement::GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const
 {
 	FPCGCrc Crc;
-	FSimplePCGElement::GetDependenciesCrc(InInput, InSettings, InComponent, Crc);
+	IPCGElement::GetDependenciesCrc(InInput, InSettings, InComponent, Crc);
 
 	// The grid cell volume output depends on the component transform.
 	// NOTE: It might be interesting to only incorporate the transform if the cell volume output pin is connected (and if we have a node obviously).

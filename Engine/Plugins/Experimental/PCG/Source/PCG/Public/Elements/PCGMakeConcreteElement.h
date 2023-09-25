@@ -28,7 +28,7 @@ protected:
 	//~End UPCGSettings interface
 };
 
-class FPCGMakeConcreteElement : public FSimplePCGElement
+class FPCGMakeConcreteElement : public IPCGElement
 {
 public:
 	// Might be sampling spline/landscape or other external data, worth computing a full CRC in case we can halt change propagation/re-executions

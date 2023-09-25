@@ -35,10 +35,10 @@ public:
 	EPCGUnionDensityFunction DensityFunction = EPCGUnionDensityFunction::Maximum;
 };
 
-class FPCGUnionElement : public FSimplePCGElement
+class FPCGUnionElement : public IPCGElement
 {
 protected:
-	virtual bool ExecuteInternal(FPCGContext* Context) const;
+	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

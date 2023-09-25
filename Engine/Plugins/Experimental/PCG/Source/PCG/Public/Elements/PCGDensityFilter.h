@@ -41,7 +41,7 @@ public:
 #endif
 };
 
-class FPCGDensityFilterElement : public FSimplePCGElement
+class FPCGDensityFilterElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

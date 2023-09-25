@@ -33,12 +33,12 @@ public:
 	FPCGWorldVolumetricQueryParams QueryParams;
 };
 
-class FPCGWorldVolumetricQueryElement : public FSimplePCGElement
+class FPCGWorldVolumetricQueryElement : public IPCGElement
 {
 public:
-	virtual bool IsCacheable(const UPCGSettings* InSettings) const { return false; }
+	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 protected:
-	virtual bool ExecuteInternal(FPCGContext* Context) const;
+	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
 
 UCLASS(BlueprintType, ClassGroup = (Procedural))
@@ -67,10 +67,10 @@ public:
 	FPCGWorldRayHitQueryParams QueryParams;
 };
 
-class FPCGWorldRayHitQueryElement : public FSimplePCGElement
+class FPCGWorldRayHitQueryElement : public IPCGElement
 {
 public:
-	virtual bool IsCacheable(const UPCGSettings* InSettings) const { return false; }
+	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 protected:
-	virtual bool ExecuteInternal(FPCGContext* Context) const;
+	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };

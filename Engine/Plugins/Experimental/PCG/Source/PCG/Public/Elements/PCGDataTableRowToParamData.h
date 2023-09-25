@@ -43,11 +43,11 @@ protected:
 	// ~End UPCGSettings interface
 };
 
-class FPCGDataTableRowToParamData : public FSimplePCGElement
+class FPCGDataTableRowToParamData : public IPCGElement
 {
 public:
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
-	virtual bool IsCacheable(const UPCGSettings* InSettings) const { return false; }
+	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

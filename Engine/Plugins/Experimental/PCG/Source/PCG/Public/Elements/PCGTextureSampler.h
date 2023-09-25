@@ -80,12 +80,12 @@ struct PCG_API FPCGTextureSamplerContext : public FPCGContext
 	bool bTextureReadbackDone = false;
 };
 
-class FPCGTextureSamplerElement : public FSimplePCGElement
+class FPCGTextureSamplerElement : public IPCGElement
 {
 public:
-	virtual FPCGContext* Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node) override;
 	virtual void GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const override;
 
 protected:
+	virtual FPCGContext* CreateContext() override;
 	virtual bool ExecuteInternal(FPCGContext* InContext) const override;
 };

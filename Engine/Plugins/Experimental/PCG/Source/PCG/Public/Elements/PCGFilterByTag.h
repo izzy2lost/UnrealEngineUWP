@@ -46,7 +46,7 @@ public:
 	FString SelectedTags;
 };
 
-class FPCGFilterByTagElement : public FSimplePCGElement
+class FPCGFilterByTagElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

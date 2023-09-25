@@ -8,10 +8,9 @@
 struct FPCGPoint;
 struct FPCGTaggedData;
 
-class PCG_API FPCGPointProcessingElementBase : public FSimplePCGElement
+class PCG_API FPCGPointProcessingElementBase : public IPCGElement
 {
 protected:
-	virtual bool ExecuteInternal(FPCGContext* Context) const = 0;
 	void ProcessPoints(FPCGContext* Context, const TArray<FPCGTaggedData>& Inputs, TArray<FPCGTaggedData>& Outputs, const TFunction<bool(const FPCGPoint&, FPCGPoint&)>& PointFunc) const;
 };
 

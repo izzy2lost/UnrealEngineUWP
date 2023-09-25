@@ -69,7 +69,7 @@ public:
 #endif
 };
 
-class FPCGAttributeTransferElement : public FSimplePCGElement
+class FPCGAttributeTransferElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

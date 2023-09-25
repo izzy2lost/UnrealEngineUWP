@@ -36,7 +36,7 @@ public:
 	bool bUseInputB = false;
 };
 
-class FPCGBooleanSelectElement : public FSimplePCGElement
+class FPCGBooleanSelectElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

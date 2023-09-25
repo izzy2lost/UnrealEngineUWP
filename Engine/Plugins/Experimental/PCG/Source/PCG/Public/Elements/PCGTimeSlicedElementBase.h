@@ -144,7 +144,7 @@ private:
  * @tparam PerIterationStateT Struct type of the "per-iteration" data state
  */
 template <typename PerExecutionStateT, typename PerIterationStateT>
-class TPCGTimeSlicedElementBase : public FSimplePCGElement
+class TPCGTimeSlicedElementBase : public IPCGElement
 {
 public:
 	// Aliases, for ease of use with the template

@@ -78,7 +78,7 @@ protected:
 
 
 template <typename DataType>
-class FPCGNumberOfElementsBaseElement : public FSimplePCGElement
+class FPCGNumberOfElementsBaseElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

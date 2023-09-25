@@ -16,7 +16,7 @@ namespace PCGInputOutputConstants
 	const FName DefaultNewCustomPinName = TEXT("NewPin");
 }
 
-class PCG_API FPCGInputOutputElement : public FSimplePCGElement
+class PCG_API FPCGInputOutputElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

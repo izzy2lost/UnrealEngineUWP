@@ -62,7 +62,7 @@ protected:
 };
 
 
-class FPCGAttributeGetFromPointIndexElement : public FSimplePCGElement
+class FPCGAttributeGetFromPointIndexElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

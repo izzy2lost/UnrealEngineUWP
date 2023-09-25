@@ -31,7 +31,7 @@ public:
 	FName OutputAttributeName = NAME_None;
 };
 
-class FPCGDataNumElement : public FSimplePCGElement
+class FPCGDataNumElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

@@ -56,7 +56,7 @@ public:
 #endif // WITH_EDITORONLY_DATA
 };
 
-class FPCGOuterIntersectionElement : public FSimplePCGElement
+class FPCGOuterIntersectionElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

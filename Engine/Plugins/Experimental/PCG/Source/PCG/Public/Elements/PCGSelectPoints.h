@@ -38,7 +38,7 @@ public:
 #endif
 };
 
-class FPCGSelectPointsElement : public FSimplePCGElement
+class FPCGSelectPointsElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

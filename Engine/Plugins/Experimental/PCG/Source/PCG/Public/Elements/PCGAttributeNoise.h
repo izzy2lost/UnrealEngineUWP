@@ -112,10 +112,9 @@ struct FPCGAttributeNoiseContext : public FPCGContext
 
 class FPCGAttributeNoiseElement : public IPCGElement
 {
-public:
-	virtual FPCGContext* Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node) override;
 protected:
-	virtual bool ExecuteInternal(FPCGContext* Context) const;
+	virtual FPCGContext* CreateContext() override;
+	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

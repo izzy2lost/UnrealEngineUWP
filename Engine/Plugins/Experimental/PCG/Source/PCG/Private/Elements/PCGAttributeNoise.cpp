@@ -153,14 +153,9 @@ FPCGElementPtr UPCGAttributeNoiseSettings::CreateElement() const
 	return MakeShared<FPCGAttributeNoiseElement>();
 }
 
-FPCGContext* FPCGAttributeNoiseElement::Initialize(const FPCGDataCollection& InInputData, TWeakObjectPtr<UPCGComponent> InSourceComponent, const UPCGNode* InNode)
+FPCGContext* FPCGAttributeNoiseElement::CreateContext()
 {
-	FPCGAttributeNoiseContext* Context = new FPCGAttributeNoiseContext();
-	Context->InputData = InInputData;
-	Context->SourceComponent = InSourceComponent;
-	Context->Node = InNode;
-
-	return Context;
+	return new FPCGAttributeNoiseContext();
 }
 
 bool FPCGAttributeNoiseElement::ExecuteInternal(FPCGContext* InContext) const

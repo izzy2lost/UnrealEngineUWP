@@ -27,7 +27,7 @@ public:
 
 };
 
-class FPCGBadOutputNodeElement : public FSimplePCGElement
+class FPCGBadOutputNodeElement : public IPCGElement
 {
 public:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

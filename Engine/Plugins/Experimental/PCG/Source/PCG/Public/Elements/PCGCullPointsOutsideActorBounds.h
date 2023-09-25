@@ -30,7 +30,7 @@ protected:
 	//~End UPCGSettings interface
 };
 
-class FPCGCullPointsOutsideActorBoundsElement : public FSimplePCGElement
+class FPCGCullPointsOutsideActorBoundsElement : public IPCGElement
 {
 public:
 	virtual void GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const override;

@@ -33,8 +33,8 @@ public:
 	EPCGDataType TargetType = EPCGDataType::Any;
 };
 
-class FPCGFilterByTypeElement : public FSimplePCGElement
+class FPCGFilterByTypeElement : public IPCGElement
 {
 protected:
-	virtual bool ExecuteInternal(FPCGContext* InContext) const;
+	virtual bool ExecuteInternal(FPCGContext* InContext) const override;
 };

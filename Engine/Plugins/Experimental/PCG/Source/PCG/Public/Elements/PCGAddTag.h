@@ -37,7 +37,7 @@ public:
 	FString TagsToAdd;
 };
 
-class FPCGAddTagElement : public FSimplePCGElement
+class FPCGAddTagElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

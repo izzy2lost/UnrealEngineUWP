@@ -38,14 +38,14 @@ public:
 	TSoftObjectPtr<AActor> TargetActor;
 };
 
-class FPCGDebugElement : public FSimplePCGElement
+class FPCGDebugElement : public IPCGElement
 {
 public:
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
-	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const { return true; }
+	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
 
 protected:
-	virtual bool ExecuteInternal(FPCGContext* Context) const override;	
+	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
