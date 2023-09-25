@@ -210,7 +210,8 @@ UActorComponent* FSubobjectData::FindMutableComponentInstanceInActor(const AActo
 				}
 			}
 		}
-		else if (ComponentTemplate)
+		
+		if (ComponentTemplate)
 		{
 			TInlineComponentArray<UActorComponent*> Components;
 			InActor->GetComponents(Components);

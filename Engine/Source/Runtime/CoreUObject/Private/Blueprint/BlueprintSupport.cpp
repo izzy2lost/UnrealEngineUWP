@@ -2806,7 +2806,7 @@ FObjectInitializer* FDeferredObjInitializationHelper::DeferObjectInitializerIfNe
 		// FObjectInitializers will init default sub-object properties, copying  
 		// from the super's DSOs) - this means that we need to separately defer 
 		// init'ing these sub-objects when their archetype hasn't been loaded yet 
-		else if (TargetObj->HasAnyFlags(RF_InheritableComponentTemplate))
+		else if (TargetObj->HasAllFlags(RF_InheritableComponentTemplate|RF_WasLoaded))
 		{
 			const UClass* OwnerClass = Cast<UClass>(TargetObj->GetOuter());
 			DEFERRED_DEPENDENCY_CHECK(OwnerClass && OwnerClass->HasAnyClassFlags(CLASS_CompiledFromBlueprint));

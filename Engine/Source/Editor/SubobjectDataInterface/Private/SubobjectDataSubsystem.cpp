@@ -2018,17 +2018,10 @@ bool USubobjectDataSubsystem::AttachSubobject(const FSubobjectDataHandle& OwnerH
 	if(ChildToAddData->IsComponent())
 	{
 		const UActorComponent* ComponentTemplate = OwnerData->GetObject<UActorComponent>();
-		USceneComponent* ParentInstance = nullptr;
-		bool bIsInstancedComponent = OwnerData->IsInstancedComponent();
-
-		if (ComponentTemplate)
-		{
-			// Find the component instance on the current actor if we can
-			const FSubobjectDataHandle& ActorHandle = GetActorRootHandle(OwnerData->GetHandle());
-			const FSubobjectData* ActorData = ActorHandle.GetData();
-			ParentInstance = ActorData ? Cast<USceneComponent>(OwnerData->FindMutableComponentInstanceInActor(ActorData->GetObject<AActor>())) : nullptr;
-			bIsInstancedComponent |= ParentInstance != nullptr;
-		}
+		const FSubobjectDataHandle& ActorHandle = GetActorRootHandle(OwnerData->GetHandle());
+		const FSubobjectData* ActorData = ActorHandle.GetData();
+		USceneComponent* ParentInstance = ActorData ? Cast<USceneComponent>(OwnerData->FindMutableComponentInstanceInActor(ActorData->GetObject<AActor>())) : nullptr;
+		const bool bIsInstancedComponent = OwnerData->IsInstancedComponent() || ParentInstance != nullptr;
 
 		// Add a child node to the SCS tree node if not already present
 		if(USCS_Node* SCS_ChildNode = ChildToAddData->GetSCSNode())
@@ -2474,7 +2467,6 @@ void USubobjectDataSubsystem::DuplicateSubobjects(const FSubobjectDataHandle& Co
 		if(UActorComponent* ComponentTemplate = OriginalData->GetMutableComponentTemplate())
 		{
 			USCS_Node* SCSNode = OriginalData->GetSCSNode();
-			check(SCSNode == nullptr || SCSNode->ComponentTemplate == ComponentTemplate);
 
 			NewSubobjectParams.NewClass = ComponentTemplate->GetClass();
 			if (BpContext)
@@ -2510,7 +2502,6 @@ void USubobjectDataSubsystem::DuplicateSubobjects(const FSubobjectDataHandle& Co
 		FSubobjectData* OriginalData = DuplicatedPair.Key;
 		FSubobjectData* NewData = DuplicatedPair.Value;
 
-		USceneComponent* OriginalComponent = CastChecked<USceneComponent>(OriginalData->GetMutableComponentTemplate());
 		USceneComponent* NewSceneComponent = CastChecked<USceneComponent>(NewData->GetMutableComponentTemplate());
 		
 		if(BpContext)
