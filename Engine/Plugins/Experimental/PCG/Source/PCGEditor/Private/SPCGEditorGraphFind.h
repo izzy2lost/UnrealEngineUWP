@@ -14,6 +14,8 @@ template <typename ItemType> class STreeView;
 
 class FPCGEditor;
 class UEdGraphNode;
+class UPCGEditorGraph;
+class UPCGGraph;
 
 struct FPCGEditorGraphFindResult
 {
@@ -43,6 +45,9 @@ struct FPCGEditorGraphFindResult
 
 	/** Create an icon to represent the result */
 	TSharedRef<SWidget> CreateIcon() const;
+
+	/** ParentGraph if not current */
+	UPCGEditorGraph* ParentGraph = nullptr;
 
 	/** Search result parent */
 	TWeakPtr<FPCGEditorGraphFindResult> Parent;
@@ -96,6 +101,9 @@ private:
 
 	/** Find any results that contain all of the tokens */
 	void MatchTokens(const TArray<FString>& InTokens);
+
+	/** Recursive internal implementation of the MatchTokens */
+	void MatchTokensInternal(const TArray<FString>& InTokens, UPCGEditorGraph* PCGEditorGraph, TFunctionRef<FPCGEditorGraphFindResultPtr()> GetParentFunc, TArray<UPCGGraph*>& VisitedSubgraphNodes);
 
 	/** Determines if a string matches the search tokens */
 	static bool StringMatchesSearchTokens(const TArray<FString>& InTokens, const FString& InComparisonString);

@@ -6,6 +6,7 @@
 #include "PCGEditorGraph.h"
 #include "PCGEditorGraphNodeBase.h"
 #include "PCGNode.h"
+#include "PCGSubgraph.h"
 
 #include "EdGraph/EdGraphSchema.h"
 #include "Framework/Application/SlateApplication.h"
@@ -47,13 +48,29 @@ FPCGEditorGraphFindResult::FPCGEditorGraphFindResult(const FString& InValue, TSh
 
 FReply FPCGEditorGraphFindResult::OnClick(TWeakPtr<FPCGEditor> InPCGEditorPtr)
 {
-	if (UEdGraphPin* ResolvedPin = Pin.Get())
+	TSharedPtr<FPCGEditor> Editor;
+
+	// If result points to another graph, make that visible
+	if (ParentGraph)
 	{
-		InPCGEditorPtr.Pin()->JumpToNode(ResolvedPin->GetOwningNode());
+		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(ParentGraph->GetPCGGraph());
+		Editor = ParentGraph->GetEditor().Pin();
 	}
-	else if (GraphNode.IsValid())
+	else
 	{
-		InPCGEditorPtr.Pin()->JumpToNode(GraphNode.Get());
+		Editor = InPCGEditorPtr.Pin();
+	}
+
+	if (Editor)
+	{
+		if (UEdGraphPin* ResolvedPin = Pin.Get())
+		{
+			Editor->JumpToNode(ResolvedPin->GetOwningNode());
+		}
+		else if (GraphNode.IsValid())
+		{
+			Editor->JumpToNode(GraphNode.Get());
+		}
 	}
 
 	return FReply::Handled();
@@ -265,35 +282,62 @@ void SPCGEditorGraphFind::MatchTokens(const TArray<FString>& InTokens)
 	RootFindResult.Reset();
 
 	UPCGEditorGraph* PCGEditorGraph = PCGEditorPtr.Pin()->GetPCGEditorGraph();
+
+	if (PCGEditorGraph)
+	{
+		RootFindResult = MakeShared<FPCGEditorGraphFindResult>(FString("PCGTreeRoot"));
+		auto GetParentFunc = []() -> FPCGEditorGraphFindResultPtr { return nullptr; };
+
+		TArray<UPCGGraph*> VisitedGraphs;
+		VisitedGraphs.Add(PCGEditorGraph->GetPCGGraph());
+		MatchTokensInternal(InTokens, PCGEditorGraph, GetParentFunc, VisitedGraphs);
+	}
+}
+
+void SPCGEditorGraphFind::MatchTokensInternal(const TArray<FString>& InTokens, UPCGEditorGraph* PCGEditorGraph, TFunctionRef<FPCGEditorGraphFindResultPtr()> GetParentFunc, TArray<UPCGGraph*>& VisitedSubgraphs)
+{
 	if (!PCGEditorGraph)
 	{
 		return;
 	}
 
-	RootFindResult = MakeShared<FPCGEditorGraphFindResult>(FString("PCGTreeRoot"));
-
 	for (UEdGraphNode* Node : PCGEditorGraph->Nodes)
 	{
+		check(Node);
 		const FString NodeName = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
 		const FString NodeType = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
 
 		FString NodeSearchString = NodeName + NodeType + Node->NodeComment;
 
-		if (const UPCGEditorGraphNodeBase* PCGEditorGraphNodeBase = Cast<UPCGEditorGraphNodeBase>(Node))
-        {
-        	if (const UPCGNode* PCGNode = PCGEditorGraphNodeBase->GetPCGNode())
-        	{
-        		NodeSearchString.Append(PCGNode->GetName());
-        	}
-        }
+		const UPCGEditorGraphNodeBase* PCGEditorGraphNodeBase = Cast<UPCGEditorGraphNodeBase>(Node);
+
+		if (PCGEditorGraphNodeBase)
+		{
+			if (const UPCGNode* PCGNode = PCGEditorGraphNodeBase->GetPCGNode())
+			{
+				NodeSearchString.Append(PCGNode->GetName());
+			}
+		}
+
 		NodeSearchString = NodeSearchString.Replace(TEXT(" "), TEXT(""));
 
 		FPCGEditorGraphFindResultPtr NodeResult;
-		auto GetOrCreateNodeResult = [this, &NodeResult, &NodeName, &NodeType, Node]() -> FPCGEditorGraphFindResultPtr&
+		auto GetOrCreateNodeResult = [this, &NodeResult, &NodeName, &NodeType, Node, PCGEditorGraph, &GetParentFunc]() -> FPCGEditorGraphFindResultPtr&
 		{
 			if (!NodeResult.IsValid())
 			{
 				NodeResult = MakeShared<FPCGEditorGraphFindResult>((NodeName == NodeType) ? NodeName : NodeName + " - " + NodeType, RootFindResult, Node);
+
+				FPCGEditorGraphFindResultPtr Parent = GetParentFunc();
+				if(Parent)
+				{
+					NodeResult->ParentGraph = PCGEditorGraph;
+					Parent->Children.Add(NodeResult);
+				}
+				else
+				{
+					ItemsFound.Add(NodeResult);
+				}
 			}
 			return NodeResult;
 		};
@@ -313,14 +357,28 @@ void SPCGEditorGraphFind::MatchTokens(const TArray<FString>& InTokens)
 				if (StringMatchesSearchTokens(InTokens, PinSearchString))
 				{
 					FPCGEditorGraphFindResultPtr PinResult(MakeShared<FPCGEditorGraphFindResult>(PinName.ToString(), GetOrCreateNodeResult(), Pin));
+					PinResult->ParentGraph = PCGEditorGraph;
 					NodeResult->Children.Add(PinResult);
 				}
 			}
 		}
 
-		if (NodeResult.IsValid())
+		// Search recursively in subgraph nodes
+		const UPCGBaseSubgraphNode* SubgraphNode = PCGEditorGraphNodeBase ? Cast<UPCGBaseSubgraphNode>(PCGEditorGraphNodeBase->GetPCGNode()) : nullptr;
+		if(UPCGGraph* Subgraph = SubgraphNode ? SubgraphNode->GetSubgraph() : nullptr)
 		{
-			ItemsFound.Add(NodeResult);
+			// Skip already visited subgraph nodes to prevent recursion issues
+			if (!VisitedSubgraphs.Contains(Subgraph))
+			{
+				VisitedSubgraphs.Add(Subgraph);
+
+				if (UPCGEditorGraph* EditorSubgraph = FPCGEditor::GetPCGEditorGraph(Subgraph))
+				{
+					const int CountBeforeRecursion = VisitedSubgraphs.Num();
+					MatchTokensInternal(InTokens, EditorSubgraph, GetOrCreateNodeResult, VisitedSubgraphs);
+					VisitedSubgraphs.SetNum(CountBeforeRecursion);
+				}
+			}
 		}
 	}
 }

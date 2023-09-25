@@ -37,8 +37,8 @@ public:
 
 	UPCGGraph* GetPCGGraph() const { return PCGGraph; }
 
-	void SetEditor(TWeakPtr<const FPCGEditor> InEditor) { PCGEditor = InEditor; }
-	TWeakPtr<const FPCGEditor> GetEditor() const { return PCGEditor; }
+	void SetEditor(TWeakPtr<FPCGEditor> InEditor) { PCGEditor = InEditor; }
+	TWeakPtr<FPCGEditor> GetEditor() const { return PCGEditor; }
 
 	/** Updates the grid size visualization in the editor. */
 	void UpdateGridSizeVisualization(UPCGComponent* InPCGComponentBeingInspected);
@@ -52,5 +52,5 @@ private:
 	UPROPERTY()
 	TObjectPtr<UPCGGraph> PCGGraph = nullptr;
 
-	TWeakPtr<const FPCGEditor> PCGEditor = nullptr;
+	TWeakPtr<FPCGEditor> PCGEditor = nullptr;
 };

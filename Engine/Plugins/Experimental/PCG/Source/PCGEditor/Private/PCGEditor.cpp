@@ -80,6 +80,23 @@ namespace FPCGEditor_private
 	const FName LogID = FName(TEXT("Log"));
 }
 
+UPCGEditorGraph* FPCGEditor::GetPCGEditorGraph(UPCGGraph* InGraph)
+{
+	if (!InGraph)
+	{
+		return nullptr;
+	}
+
+	if (!InGraph->PCGEditorGraph)
+	{
+		InGraph->PCGEditorGraph = NewObject<UPCGEditorGraph>(InGraph, UPCGEditorGraph::StaticClass(), NAME_None, RF_Transactional | RF_Transient);
+		InGraph->PCGEditorGraph->Schema = UPCGEditorGraphSchema::StaticClass();
+		InGraph->PCGEditorGraph->InitFromNodeGraph(InGraph);
+	}
+
+	return InGraph->PCGEditorGraph;
+}
+
 void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<class IToolkitHost>& InToolkitHost, UPCGGraph* InPCGGraph)
 {
 	PCGGraphBeingEdited = InPCGGraph;
@@ -90,12 +107,8 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 		PCGGraphBeingEdited->OnGraphDynamicallyExecutedDelegate.AddRaw(this, &FPCGEditor::OnGraphDynamicallyExecuted);
 	}
 
-	if (!PCGGraphBeingEdited->PCGEditorGraph)
-	{
-		PCGGraphBeingEdited->PCGEditorGraph = NewObject<UPCGEditorGraph>(PCGGraphBeingEdited, UPCGEditorGraph::StaticClass(), NAME_None, RF_Transactional | RF_Transient);
-		PCGGraphBeingEdited->PCGEditorGraph->Schema = UPCGEditorGraphSchema::StaticClass();
-		PCGGraphBeingEdited->PCGEditorGraph->InitFromNodeGraph(InPCGGraph);
-	}
+	// Initializes the UPCGEditorGraph if needed
+	GetPCGEditorGraph(InPCGGraph);
 
 	PCGGraphBeingEdited->PCGEditorGraph->SetEditor(SharedThis(this));
 	PCGEditorGraph = PCGGraphBeingEdited->PCGEditorGraph;

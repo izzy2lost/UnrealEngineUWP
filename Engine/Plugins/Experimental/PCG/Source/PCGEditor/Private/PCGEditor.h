@@ -44,6 +44,9 @@ public:
 	/** Get the PCG graph being edited */
 	UPCGEditorGraph* GetPCGEditorGraph();
 
+	/** Gets/Creates the PCG graph editor for a given PCG graph */
+	static UPCGEditorGraph* GetPCGEditorGraph(UPCGGraph* InGraph);
+
 	/** Sets the PCG component and stack that we want to inspect */
 	void SetComponentAndStackBeingInspected(UPCGComponent* InPCGComponent, const FPCGStack& InPCGStack);
 
