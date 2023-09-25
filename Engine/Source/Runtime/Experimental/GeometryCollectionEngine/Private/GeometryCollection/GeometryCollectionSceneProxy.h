@@ -209,6 +209,7 @@ class FGeometryCollectionSceneProxy final : public FPrimitiveSceneProxy
 	int32 CurrentTransformBufferIndex = 0;
 	bool TransformVertexBuffersContainsRestTransforms = true;
 	bool bSupportsTripleBufferVertexUpload = false;
+	bool bRenderResourcesCreated = false;
 	TArray<FGeometryCollectionTransformBuffer, TInlineAllocator<3>> TransformBuffers;
 	TArray<FGeometryCollectionTransformBuffer, TInlineAllocator<3>> PrevTransformBuffers;
 
@@ -242,7 +243,7 @@ public:
 	virtual ~FGeometryCollectionSceneProxy();
 
 	/** Called on render thread to setup dynamic geometry for rendering */
-	void SetDynamicData_RenderThread(FGeometryCollectionDynamicData* NewDynamicData);
+	void SetDynamicData_RenderThread(FRHICommandListBase& RHICmdList, FGeometryCollectionDynamicData* NewDynamicData);
 
 	uint32 GetMemoryFootprint() const override { return sizeof(*this) + GetAllocatedSize(); }
 	uint32 GetAllocatedSize() const;

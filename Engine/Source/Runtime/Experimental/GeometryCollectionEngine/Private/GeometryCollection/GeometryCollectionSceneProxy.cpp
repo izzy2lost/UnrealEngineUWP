@@ -377,6 +377,9 @@ void FGeometryCollectionSceneProxy::CreateRenderThreadResources(FRHICommandListB
 		bGeometryResourceUpdated = true;
 	}
 #endif
+
+	bRenderResourcesCreated = true;
+	SetDynamicData_RenderThread(RHICmdList, DynamicData);
 }
 
 void FGeometryCollectionSceneProxy::DestroyRenderThreadResources()
@@ -415,18 +418,19 @@ void FGeometryCollectionSceneProxy::DestroyRenderThreadResources()
 #endif
 }
 
-void FGeometryCollectionSceneProxy::SetDynamicData_RenderThread(FGeometryCollectionDynamicData* NewDynamicData)
+void FGeometryCollectionSceneProxy::SetDynamicData_RenderThread(FRHICommandListBase& RHICmdList, FGeometryCollectionDynamicData* NewDynamicData)
 {
-	check(IsInRenderingThread());
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-	if (DynamicData)
+	if (NewDynamicData != DynamicData)
 	{
-		GDynamicDataPool.Release(DynamicData);
-		DynamicData = nullptr;
+		if (DynamicData)
+		{
+			GDynamicDataPool.Release(DynamicData);
+			DynamicData = nullptr;
+		}
+		DynamicData = NewDynamicData;
 	}
-	DynamicData = NewDynamicData;
 
-	if (MeshDescription.NumVertices == 0)
+	if (MeshDescription.NumVertices == 0 || !DynamicData || !bRenderResourcesCreated)
 	{
 		return;
 	}
