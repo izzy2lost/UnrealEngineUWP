@@ -87,11 +87,6 @@ namespace Chaos
 
 	void FEventManager::DispatchEvents()
 	{
-		FScopeLock ScopeLock(&AccessDeferredHandlersLock);
-
-		check(!bCurrentlyDispatchingEvents);
-		bCurrentlyDispatchingEvents = true;
-		
 		if (BufferMode == EMultiBufferMode::Double)
 		{
 			ResourceLock.ReadLock();
@@ -110,22 +105,6 @@ namespace Chaos
 		if (BufferMode == EMultiBufferMode::Double)
 		{
 			ResourceLock.ReadUnlock();
-		}
-		
-		ensure(bCurrentlyDispatchingEvents);
-		bCurrentlyDispatchingEvents = false;
-
-		// If we deferred any handler registration in RegisterHandler, complete it now. 
-		if (DeferredHandlers.Num() > 0)
-		{
-			ContainerLock.WriteLock();
-			for (TPair<FEventID, IEventHandler*>& DeferredHandler : DeferredHandlers)
-			{
-				checkf(DeferredHandler.Key < EventContainers.Num(), TEXT("Registering event Handler for an event ID that does not exist"));
-				EventContainers[DeferredHandler.Key]->RegisterHandler(DeferredHandler.Value);
-			}
-			DeferredHandlers.Reset();
-			ContainerLock.WriteUnlock();
 		}
 	}
 
