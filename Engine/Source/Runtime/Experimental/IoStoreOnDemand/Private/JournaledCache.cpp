@@ -49,6 +49,11 @@ namespace UE::IO::IAS::JournaledCache
 // {{{1 misc ...................................................................
 
 ////////////////////////////////////////////////////////////////////////////////
+TRACE_DECLARE_INT_COUNTER(IasMemDemand, TEXT("Ias/CacheMemDemand"));
+TRACE_DECLARE_INT_COUNTER(IasAllowance, TEXT("Ias/CacheAllowance"));
+TRACE_DECLARE_INT_COUNTER(IasOpCount,   TEXT("Ias/CacheOpCount"));
+
+////////////////////////////////////////////////////////////////////////////////
 static bool LoadCache(class FDiskCache&);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1392,11 +1397,6 @@ int32 FGovernor::GetMaxWaitCycles() const
 
 
 // {{{1 service-thread .........................................................
-
-////////////////////////////////////////////////////////////////////////////////
-TRACE_DECLARE_INT_COUNTER(IasMemDemand, TEXT("Ias/CacheMemDemand"));
-TRACE_DECLARE_INT_COUNTER(IasAllowance, TEXT("Ias/CacheAllowance"));
-TRACE_DECLARE_INT_COUNTER(IasOpCount,   TEXT("Ias/CacheOpCount"));
 
 ////////////////////////////////////////////////////////////////////////////////
 class FServiceThread
