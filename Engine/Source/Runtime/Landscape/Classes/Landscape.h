@@ -400,7 +400,9 @@ protected:
 
 private:
 	bool SupportsEditLayersLocalMerge();
-	void CreateLayersRenderingResource();
+	bool HasNormalCaptureBPBrushLayer();
+
+	void CreateLayersRenderingResource(bool bUseNormalCapture);
 	void PrepareEditLayersLocalMergeResources();
 	void UpdateLayersContent(bool bInWaitForStreaming = false, bool bInSkipMonitorLandscapeEdModeChanges = false, bool bIntermediateRender = false, bool bFlushRender = false);
 	void MonitorShaderCompilation();
@@ -465,7 +467,7 @@ private:
 
 	void CopyTexturePS(const FString& InSourceDebugName, FTextureResource* InSourceResource, const FString& InDestDebugName, FTextureResource* InDestResource) const;
 
-	void InitializeLayers();
+	void InitializeLayers(bool bUseNormalCapture);
 	
 	void PrintLayersDebugRT(const FString& InContext, UTextureRenderTarget2D* InDebugRT, uint8 InMipRender = 0, bool InOutputHeight = true, bool InOutputNormals = false) const;
 	void PrintLayersDebugTextureResource(const FString& InContext, FTextureResource* InTextureResource, uint8 InMipRender = 0, bool InOutputHeight = true, bool InOutputNormals = false) const;
@@ -564,7 +566,10 @@ private:
 
 	UPROPERTY(Transient)
 	bool bLandscapeLayersAreInitialized;
-	
+
+	UPROPERTY(Transient)
+	bool bLandscapeLayersAreInitializedForNormalCapture;
+
 	UPROPERTY(Transient)
 	bool bLandscapeLayersAreUsingLocalMerge;
 
