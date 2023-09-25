@@ -21,6 +21,7 @@
 #include "SceneOutlinerFwd.h"
 #include "SceneOutlinerModule.h"
 #include "SceneOutlinerPublicTypes.h"
+#include "Elements/Interfaces/Capabilities/TypedElementUiTextCapability.h"
 #include "TypedElementOutliner/TypedElementOutlinerItem.h"
 
 #define LOCTEXT_NAMESPACE "TypedElementsUI_SceneOutliner"
@@ -120,7 +121,7 @@ public:
 		TSharedPtr<FTypedElementWidgetConstructor> InHeaderWidgetConstructor,
 		TSharedPtr<FTypedElementWidgetConstructor> InCellWidgetConstructor,
 		FName InFallbackColumnName,
-		ISceneOutliner& OwningOutliner)
+		ISceneOutliner& InOwningOutliner)
 		: ColumnTypes(MoveTemp(InColumnTypes))
 		, HeaderWidgetConstructor(MoveTemp(InHeaderWidgetConstructor))
 		, CellWidgetConstructor(MoveTemp(InCellWidgetConstructor))
@@ -129,6 +130,7 @@ public:
 		, StorageCompatibility(InStorageCompatibility)
 		, QueryDescription(Storage.GetQueryDescription(InQuery))
 		, NameId(InNameId)
+		, OwningOutliner(InOwningOutliner)
 	{
 		MetaData.AddOrSetMutableData(TEXT("Name"), NameId.ToString());
 		ColumnTypes.Shrink();
@@ -186,12 +188,30 @@ public:
 				]
 			];
 	}
+
+	void SetHighlightText(SWidget& Widget)
+	{
+		if (TSharedPtr<ITypedElementUiTextCapability> TextCapability = Widget.GetMetaData<ITypedElementUiTextCapability>())
+		{
+			TextCapability->SetHighlightText(OwningOutliner.GetFilterHighlightText());
+		}
+	
+		if (FChildren* ChildWidgets = Widget.GetChildren())
+		{
+			ChildWidgets->ForEachWidget([this](SWidget& ChildWidget)
+				{
+					SetHighlightText(ChildWidget);
+				});
+		}
+	}
 	
 	const TSharedRef<SWidget> ConstructRowWidget(FSceneOutlinerTreeItemRef TreeItem, const STableRow<FSceneOutlinerTreeItemPtr>& Row) override
 	{
 		using namespace TypedElementDataStorage;
 		
 		TypedElementRowHandle RowHandle = TypedElementInvalidRowHandle;
+
+		TSharedPtr<SWidget> RowWidget;
 
 		if(const FTypedElementOutlinerTreeItem* TEDSItem = TreeItem->CastTo<FTypedElementOutlinerTreeItem>())
 		{
@@ -207,7 +227,7 @@ public:
 		}
 		else if(FallbackColumn)
 		{
-			return FallbackColumn->ConstructRowWidget(TreeItem, Row);
+			RowWidget = FallbackColumn->ConstructRowWidget(TreeItem, Row);
 		}
 
 		if (RowHandle != TypedElementInvalidRowHandle && Storage.HasColumns(RowHandle, ColumnTypes))
@@ -229,13 +249,20 @@ public:
 			if (TSharedPtr<SWidget> Widget = StorageUi.ConstructWidget(UiRowHandle, *CellWidgetConstructor, 
 				FComboMetaDataView(FGenericMetaDataView(MetaData)).Next(FQueryMetaDataView(QueryDescription))))
 			{
-				return Widget.ToSharedRef();
+				RowWidget =  Widget;
 			}
 			else
 			{
 				Storage.RemoveRow(RowHandle);
 			}
 		}
+
+		if(RowWidget)
+		{
+			SetHighlightText(*RowWidget);
+			return RowWidget.ToSharedRef();
+		}
+		
 		return SNullWidget::NullWidget;
 	}
 
@@ -259,6 +286,7 @@ public:
 	TypedElementDataStorage::FMetaData MetaData;
 	FName NameId;
 	TSharedPtr<ISceneOutlinerColumn> FallbackColumn;
+	ISceneOutliner& OwningOutliner;
 };
 
 

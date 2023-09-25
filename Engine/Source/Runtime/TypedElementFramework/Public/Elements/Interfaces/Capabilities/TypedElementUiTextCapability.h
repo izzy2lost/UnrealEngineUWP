@@ -17,6 +17,8 @@ public:
 	~ITypedElementUiTextCapability() override = default;
 
 	virtual void SetText(TAttribute<FText> Text) = 0;
+
+	virtual void SetHighlightText(TAttribute<FText> Text) = 0;
 };
 
 template<typename WidgetType>
@@ -28,6 +30,11 @@ public:
 	void SetText(TAttribute<FText> Text) override
 	{
 		Widget.SetText(Text);
+	}
+
+	void SetHighlightText(TAttribute<FText> Text) override
+	{
+		Widget.SetHighlightText(Text);
 	}
 
 private:

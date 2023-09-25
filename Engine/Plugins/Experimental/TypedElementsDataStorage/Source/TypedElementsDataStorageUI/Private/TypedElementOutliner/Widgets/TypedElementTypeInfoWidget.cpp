@@ -8,6 +8,7 @@
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
+#include "Elements/Interfaces/Capabilities/TypedElementUiTextCapability.h"
 #include "Styling/SlateIconFinder.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Images/SImage.h"
@@ -38,6 +39,8 @@ FTypedElementTypeInfoWidgetConstructor::FTypedElementTypeInfoWidgetConstructor(c
 TSharedPtr<SWidget> FTypedElementTypeInfoWidgetConstructor::CreateWidget(
 	const TypedElementDataStorage::FMetaDataView& Arguments	)
 {
+	bUseIcon = false;
+	
 	// Check if the caller provided metadata to use an icon widget
 	TypedElementDataStorage::FMetaDataEntryView MetaDataEntryView = Arguments.FindGeneric("TypedElementTypeInfoWidget_bUseIcon");
 	if(MetaDataEntryView.IsSet())
@@ -101,11 +104,13 @@ bool FTypedElementTypeInfoWidgetConstructor::FinalizeWidget(ITypedElementDataSto
 			// If not, we simply show a text block with the type
 			if(!ActualWidget)
 			{
-				ActualWidget = SNew(STextBlock)
+				TSharedPtr<STextBlock> TextBlock = SNew(STextBlock)
 								.ColorAndOpacity(FSlateColor::UseSubduedForeground())
 								.Text(FText::FromString(TypeInfoColumn->TypeInfo.Get()->GetName()));
-			}
 
+				TextBlock->AddMetadata(MakeShared<TTypedElementUiTextCapability<STextBlock>>(*TextBlock));
+				ActualWidget = TextBlock;
+			}
 
 			WidgetInstance->AddSlot()
 						.AutoWidth()

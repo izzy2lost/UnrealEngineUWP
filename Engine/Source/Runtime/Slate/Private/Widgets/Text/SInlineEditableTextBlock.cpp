@@ -178,6 +178,12 @@ void SInlineEditableTextBlock::SetText( const FString& InText )
 	SetEditableText( Text );
 }
 
+
+void SInlineEditableTextBlock::SetHighlightText( const TAttribute< FText >& InText )
+{
+	TextBlock->SetHighlightText(InText);
+}
+
 void SInlineEditableTextBlock::SetWrapTextAt( const TAttribute<float>& InWrapTextAt )
 {
 	TextBlock->SetWrapTextAt( InWrapTextAt );
