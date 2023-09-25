@@ -20,6 +20,7 @@ import backend from "../../backend";
 import { GetArtifactResponseV2 } from "../../backend/Api";
 import { StepTrendsPanelV2 } from "./JobDetailStepTrendsV2";
 import { BisectionPanel } from "./JobDetailBisection";
+import { PreflightPanel } from "./JobDetailPreflight";
 
 
 class StepDetailDataView extends JobDataView {
@@ -144,6 +145,9 @@ const StepDetailViewInner: React.FC<{ jobDetails: JobDetailsV2, stepId: string }
 
       <Stack>
          <StepSummaryPanel jobDetails={jobDetails} stepId={stepId} />
+      </Stack>
+      <Stack>
+         <PreflightPanel jobDetails={jobDetails} />
       </Stack>
       <Stack>
          <HealthPanel jobDetails={jobDetails} />

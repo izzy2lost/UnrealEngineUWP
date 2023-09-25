@@ -16,6 +16,7 @@ import { SummaryPanel } from "./JobDetailViewSummary";
 import { JobOperations } from "./JobOperationsBar";
 import { StepDetailView } from "./StepDetailView";
 import { BisectionPanel } from "./JobDetailBisection";
+import { PreflightPanel } from "./JobDetailPreflight";
 
 class BreadcrumbDataView extends JobDataView {
 
@@ -301,6 +302,7 @@ const DetailsViewOverview: React.FC<{ jobDetails: JobDetailsV2 }> = ({ jobDetail
 
    return <Stack style={{ width: "100%" }} >
       <SummaryPanel jobDetails={details} />
+      <PreflightPanel jobDetails={details} />
       <StepsPanelV2 jobDetails={details} />
       <HealthPanel jobDetails={details} />
       <TimelinePanel jobDetails={details} />      

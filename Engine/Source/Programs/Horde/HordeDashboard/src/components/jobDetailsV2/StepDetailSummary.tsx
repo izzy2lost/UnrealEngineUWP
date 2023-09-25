@@ -5,10 +5,8 @@ import React, { useEffect } from 'react';
 import { JobStepError, JobStepOutcome, JobStepState, ReportPlacement } from '../../backend/Api';
 import { Markdown } from '../../base/components/Markdown';
 import { ISideRailLink } from '../../base/components/SideRail';
-import { getNiceTime, getStepElapsed, getStepETA, getStepFinishTime, getStepTimingDelta } from '../../base/utilities/timeUtils';
+import { getNiceTime, getStepETA, getStepElapsed, getStepFinishTime, getStepTimingDelta } from '../../base/utilities/timeUtils';
 import { hordeClasses, modeColors } from '../../styles/Styles';
-import { AutosubmitInfo } from '../AutoSubmit';
-import { ChangeSummary } from '../ChangeSummary';
 import { getBatchText } from '../JobDetailCommon';
 import { JobDataView, JobDetailsV2 } from './JobDetailsViewCommon';
 
@@ -242,14 +240,6 @@ export const StepSummaryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
                {!!priceText && <Stack style={{ paddingTop: 8 }}>
                   <Text>{priceText}</Text>
                </Stack>}
-
-               <Stack tokens={{ padding: 8 }} style={{ paddingTop: 24 }}>
-                  <AutosubmitInfo jobDetails={jobDetails} />
-               </Stack>
-               <Stack>
-                  <ChangeSummary streamId={jobData.streamId} change={jobData.preflightChange ?? jobData.change!} />
-               </Stack>
-
             </Stack>
          </Stack>
       </Stack>
