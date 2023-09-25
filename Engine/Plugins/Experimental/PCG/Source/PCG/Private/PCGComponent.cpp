@@ -30,6 +30,7 @@
 
 #include "LandscapeComponent.h"
 #include "LandscapeProxy.h"
+#include "Algo/AllOf.h"
 #include "Algo/AnyOf.h"
 #include "Algo/Transform.h"
 #include "Components/BillboardComponent.h"
@@ -202,15 +203,7 @@ void UPCGComponent::SetPropertiesFromOriginal(const UPCGComponent* Original)
 
 #if WITH_EDITOR
 	const bool bHasDirtyInput = InputType != NewInputType;
-
-	TSet<FPCGActorSelectionKey> TrackedKeys;
-	TSet<FPCGActorSelectionKey> OriginalTrackedKeys;
-	CachedTrackedKeysToSettings.GetKeys(TrackedKeys);
-	Original->CachedTrackedKeysToSettings.GetKeys(OriginalTrackedKeys);
-
-	const bool bHasDirtyTracking = !(TrackedKeys.Num() == OriginalTrackedKeys.Num() && TrackedKeys.Includes(OriginalTrackedKeys));
-
-	const bool bIsDirty = bHasDirtyInput || bHasDirtyTracking || bGraphInstanceIsDifferent;
+	const bool bIsDirty = bHasDirtyInput || bGraphInstanceIsDifferent;
 #endif // WITH_EDITOR
 
 	InputType = NewInputType;
@@ -229,11 +222,6 @@ void UPCGComponent::SetPropertiesFromOriginal(const UPCGComponent* Original)
 	}
 
 #if WITH_EDITOR
-	if (bHasDirtyTracking)
-	{
-		UpdateTrackingCache();
-	}
-
 	// Note that while we dirty here, we won't trigger a refresh since we don't have the required context
 	if (bIsDirty)
 	{
@@ -1344,6 +1332,11 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 		DirtyGenerated(EPCGComponentDirtyFlag::Input);
 		Refresh();
 	}
+	else if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, Seed))
+	{
+		DirtyGenerated();
+		Refresh();
+	}
 	// General properties that don't affect behavior
 	else
 	{
@@ -1397,8 +1390,9 @@ void UPCGComponent::PostEditUndo()
 
 bool UPCGComponent::UpdateTrackingCache(TArray<FPCGActorSelectionKey>* OptionalChangedKeys)
 {
-	// Without an owner, it probably means we are in a BP template, so no need to setup callbacks
-	if (!GetOwner())
+	// Without an owner, it probably means we are in a BP template, so no need to update the tracking cache.
+	// Same for local components, as we will use the cache of the original component.
+	if (!GetOwner() || IsLocalComponent())
 	{
 		return false;
 	}
@@ -1427,26 +1421,23 @@ bool UPCGComponent::UpdateTrackingCache(TArray<FPCGActorSelectionKey>* OptionalC
 		{
 			const FPCGActorSelectionKey& Key = It.Key;
 
-			bool bShouldCull = true;
-			for (const FPCGSettingsAndCulling& SettingsAndCulling : It.Value)
-			{
-				if (!SettingsAndCulling.Value)
-				{
-					bShouldCull = false;
-					break;
-				}
-			}
+			// Should cull only if all the settings requires a cull.
+			const bool bShouldCull = Algo::AllOf(It.Value, [](const FPCGSettingsAndCulling& SettingsAndCullingPair) { return SettingsAndCullingPair.Value; });
 
 			NewTrackedKeysToCulling.Emplace(Key, bShouldCull);
 
-			bool* OldCulling = CachedTrackedKeysToCulling.Find(Key);
-			if (OldCulling && (*OldCulling == bShouldCull))
+			// Look for the key in the previous cached keys.
+			const bool* OldCulling = CachedTrackedKeysToCulling.Find(Key);
+			// It is a new key if we didn't find it. We also mark it changed if the key existed, but the culling changed.
+			const bool bNewKeyOrCullChanged = !OldCulling || (*OldCulling != bShouldCull);
+			// Then remove the key.
+			CachedTrackedKeysToCulling.Remove(Key);
+
+			if (!bNewKeyOrCullChanged)
 			{
 				++FoundKeys;
 			}
-
-			// Remove the key from the previous cached map. If nothing is removed, it means it is a new key
-			if ((CachedTrackedKeysToCulling.Remove(Key) == 0) && OptionalChangedKeys)
+			else if (OptionalChangedKeys)
 			{
 				OptionalChangedKeys->Add(Key);
 			}
@@ -2294,16 +2285,16 @@ UPCGSubsystem* UPCGComponent::GetSubsystem() const
 }
 
 #if WITH_EDITOR
-bool UPCGComponent::DirtyTrackedActor(AActor* InActor, bool bIntersect, const TSet<FName>& InRemovedTags, const UObject* InOriginatingChangeObject)
+TArray<const UPCGSettings*> UPCGComponent::GatherSettingsTrackingActor(const AActor* InActor, bool bIntersect, const TSet<FName>& InRemovedTags, const UObject* InOriginatingChangeObject) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::DirtyTrackedActor);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::GatherSettingsTrackingActor);
 
 	if (!InActor)
 	{
-		return false;
+		return {};
 	}
 
-	bool bWasDirtied = false;
+	TArray<const UPCGSettings*> TrackedSettings;
 
 	for (const auto& It : CachedTrackedKeysToSettings)
 	{
@@ -2327,24 +2318,15 @@ bool UPCGComponent::DirtyTrackedActor(AActor* InActor, bool bIntersect, const TS
 					continue;
 				}
 
-				const TWeakObjectPtr<const UPCGSettings>& Settings = SettingsAndCulling.Key;
-				if (Settings.IsValid())
+				if (const UPCGSettings* Settings = SettingsAndCulling.Key.Get())
 				{
-					GetSubsystem()->CleanFromCache(Settings->GetElement().Get(), Settings.Get());
+					TrackedSettings.Add(Settings);
 				}
-
-				bWasDirtied = true;
 			}
 		}
 	}
 
-	// Special case for landscape, we should dirty.
-	if (ShouldTrackLandscape() && InActor->IsA<ALandscapeProxy>())
-	{
-		bWasDirtied = true;
-	}
-
-	return bWasDirtied;
+	return TrackedSettings;
 }
 
 bool UPCGComponent::ShouldTrackLandscape() const

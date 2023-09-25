@@ -915,6 +915,21 @@ void UPCGGraph::GetTrackedActorKeysToSettings(FPCGActorSelectionKeyToSettingsMap
 			Node->GetSettings()->GetTrackedActorKeys(OutTagsToSettings, OutVisitedGraphs);
 		}
 	}
+
+	// Make sure that all Self/Original keys are marked as not-cull, since the component will always intersect with its owner/original
+	// We need to loop because we can have multiple keys that have Filter to self or original.
+	for (auto& It : OutTagsToSettings)
+	{
+		const FPCGActorSelectionKey& Key = It.Key;
+		TArray<FPCGSettingsAndCulling>& SettingsAndCullingArray = It.Value;
+		if (Key.ActorFilter == EPCGActorFilter::Self || Key.ActorFilter == EPCGActorFilter::Original)
+		{
+			for (FPCGSettingsAndCulling& SettingsAndCullingPair : SettingsAndCullingArray)
+			{
+				SettingsAndCullingPair.Value = false;
+			}
+		}
+	}
 }
 
 void UPCGGraph::NotifyGraphChanged(EPCGChangeType ChangeType)

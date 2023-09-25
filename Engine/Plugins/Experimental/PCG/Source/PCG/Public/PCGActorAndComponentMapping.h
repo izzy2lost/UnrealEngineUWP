@@ -126,8 +126,10 @@ private:
 	bool UnregisterActor(AActor* InActor);
 
 	void OnActorAdded(AActor* InActor);
+	void OnActorLoaded(AActor& InActor);
 	void OnActorAdded_Internal(AActor* InActor, bool bShouldDirty, int32 LevelInstanceDepth);
 	void OnActorDeleted(AActor* InActor);
+	void OnActorUnloaded(AActor& InActor);
 	void OnActorDeleted_Internal(AActor* InActor, int32 LevelInstanceDepth);
 	void OnActorMoved(AActor* InActor);
 	void OnActorMoved_Internal(AActor* InActor, int32 LevelInstanceDepth);
@@ -155,6 +157,9 @@ private:
 	void UpdateActorDependencies(AActor* InActor);
 
 	bool IsActorTracked(const AActor* InActor) const;
+
+	/** Gather all settings from a given component that track the actor, and clear the cache for them. Returns true if we should dirty afterwards (aka at least one settings was cleared and/or landscape changed). */
+	bool ClearCacheForActor(const AActor* InActor, const UPCGComponent* InComponent, const bool bIntersect, const TSet<FName>& InRemovedTags, const UObject* InOriginatingChange) const;
 #endif // WITH_EDITOR
 
 private:
