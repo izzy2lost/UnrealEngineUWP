@@ -162,10 +162,14 @@ struct FNavLinkAuxiliaryId
 	bool operator==(const FNavLinkAuxiliaryId& Other) const { return Id == Other.Id; }
 	bool operator!=(const FNavLinkAuxiliaryId& Other) const { return !this->operator==(Other); }
 
+
+	UE_DEPRECATED(5.4, "This function is not deterministic in all instances during cooking. Use the version which takes PathName.")
+	static ENGINE_API FNavLinkAuxiliaryId GenerateUniqueAuxiliaryId();
+
 	/**
 	 * Helper function: returns unique Auxiliary ID for custom links.
 	 **/
-	static ENGINE_API FNavLinkAuxiliaryId GenerateUniqueAuxiliaryId();
+	static ENGINE_API FNavLinkAuxiliaryId GenerateUniqueAuxiliaryId(FStringView PathName);
 
 private:
 	FNavLinkAuxiliaryId(uint64 InId)
