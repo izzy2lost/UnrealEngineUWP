@@ -75,12 +75,12 @@ void FOnDemandHttpClient::Issue(FAnsiStringView Url, FGetCallback&& Callback, FI
 
 	auto Sink = [
 		Buffer = FIoBuffer(),
-			Callback = MoveTemp(Callback),
-			Url = FString(Url),
-			Offset = Range.GetOffset(),
-			StartTime = FPlatformTime::Cycles64(),
-			StatusCode = uint32(0)]
-			(const FTicketStatus& Status) mutable
+		Callback = MoveTemp(Callback),
+		Url = FString(Url),
+		Offset = Range.GetOffset(),
+		StartTime = FPlatformTime::Cycles64(),
+		StatusCode = uint32(0)]
+		(const FTicketStatus& Status) mutable
 	{
 		if (FTicketStatus::EId::Response == Status.GetId())
 		{
