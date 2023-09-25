@@ -169,7 +169,7 @@ public class StorageClient : BundleStorageClient
 		_blobIndex = blobIndex;
 	}
 
-	public override async Task AddAliasAsync(Utf8String name, BundleNodeLocator locator, int rank, CancellationToken cancellationToken = default)
+	public override async Task AddAliasAsync(Utf8String name, BundleNodeLocator locator, int rank, ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
 	{
 		// TODO: Implement aliases
 		await Task.CompletedTask;
@@ -181,11 +181,11 @@ public class StorageClient : BundleStorageClient
 		await Task.CompletedTask;
 	}
 
-	public override async IAsyncEnumerable<BundleNodeHandle> FindAliasAsync(Utf8String name, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+	public override async Task<BlobAlias[]> FindAliasesAsync(Utf8String name, int? maxResults = null, CancellationToken cancellationToken = default)
 	{
 		// TODO: Implement aliases
 		await Task.CompletedTask;
-		yield break;
+		throw new NotImplementedException();
 	}
 
 	public override async Task<BundleNodeHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)

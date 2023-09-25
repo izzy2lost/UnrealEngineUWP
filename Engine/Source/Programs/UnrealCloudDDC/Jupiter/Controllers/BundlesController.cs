@@ -297,9 +297,9 @@ namespace Jupiter.Controllers
 			StorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 
 			FindNodesResponse response = new FindNodesResponse();
-			await foreach (BundleNodeHandle handle in client.FindAliasAsync(alias, cancellationToken))
+			foreach (BlobAlias blobAlias in await client.FindAliasesAsync(alias, null, cancellationToken))
 			{
-				response.Nodes.Add(new FindNodeResponse(handle));
+				response.Nodes.Add(new FindNodeResponse((BundleNodeHandle)blobAlias.Target));
 			}
 
 			if (response.Nodes.Count == 0)

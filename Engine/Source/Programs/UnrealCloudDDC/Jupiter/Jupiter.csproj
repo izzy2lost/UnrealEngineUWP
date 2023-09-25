@@ -41,11 +41,13 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <DocumentationFile>Jupiter.xml</DocumentationFile>
     <NoWarn>1701;1702;1591</NoWarn>
+    <WarningsNotAsErrors>NU1902;NU1903</WarningsNotAsErrors>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <DocumentationFile>Jupiter.xml</DocumentationFile>
     <NoWarn>1701;1702;1591</NoWarn>
+    <WarningsNotAsErrors>NU1902;NU1903</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
