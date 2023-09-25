@@ -10,6 +10,16 @@
     <WarningsAsErrors />
     <OpenApiGenerateDocuments>false</OpenApiGenerateDocuments>
     <LangVersion>10</LangVersion>
+	
+    <NoWarn>1591</NoWarn>
+	<Configurations>Debug;Release;Analyze</Configurations>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Analyze|AnyCPU'">
+    <RunAnalyzersDuringBuild>True</RunAnalyzersDuringBuild>
+    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>True</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

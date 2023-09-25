@@ -32,22 +32,21 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningsAsErrors />
     <LangVersion>10</LangVersion>
+	<Configurations>Debug;Release;Analyze</Configurations>
+    <DocumentationFile>Jupiter.xml</DocumentationFile>
+    <NoWarn>1701;1702;1591</NoWarn>
+    <WarningsNotAsErrors>NU1902;NU1903</WarningsNotAsErrors>
 
     <!--- SourceLink -->
     <PublishRepositoryUrl>false</PublishRepositoryUrl>
     <EmbedUntrackedSources>false</EmbedUntrackedSources>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DocumentationFile>Jupiter.xml</DocumentationFile>
-    <NoWarn>1701;1702;1591</NoWarn>
-    <WarningsNotAsErrors>NU1902;NU1903</WarningsNotAsErrors>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DocumentationFile>Jupiter.xml</DocumentationFile>
-    <NoWarn>1701;1702;1591</NoWarn>
-    <WarningsNotAsErrors>NU1902;NU1903</WarningsNotAsErrors>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Analyze|AnyCPU'">
+    <RunAnalyzersDuringBuild>True</RunAnalyzersDuringBuild>
+    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>True</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

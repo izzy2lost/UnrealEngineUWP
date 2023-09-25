@@ -9,7 +9,6 @@ using System.Text.Json;
 using EpicGames.Horde.Storage;
 using JetBrains.Annotations;
 using Jupiter.Common.Implementation;
-using OpenTelemetry.Trace;
 
 namespace Jupiter.Implementation.TransactionLog
 {

@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
-using EpicGames.Serialization;
 
 namespace Jupiter.Implementation
 {

@@ -43,7 +43,7 @@ namespace Jupiter.Implementation
 		private bool _disposed = false;
 
 		private static Histogram<long>? s_replicatedCounter;
-		private static JsonSerializerOptions DefaultSerializerSettings = ConfigureJsonOptions();
+		private static readonly JsonSerializerOptions DefaultSerializerSettings = ConfigureJsonOptions();
 		public RefsReplicator(ReplicatorSettings replicatorSettings, IBlobService blobService, IHttpClientFactory httpClientFactory, IReplicationLog replicationLog, IServiceCredentials serviceCredentials, Tracer tracer, BufferedPayloadFactory bufferedPayloadFactory, ReplicationLogFactory replicationLogFactory, ILogger<RefsReplicator> logger, Meter meter)
 		{
 			_name = replicatorSettings.ReplicatorName;

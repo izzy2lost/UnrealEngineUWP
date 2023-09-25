@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
 using Jupiter.Common.Implementation;
-using Jupiter.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Trace;
 

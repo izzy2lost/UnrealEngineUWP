@@ -4,18 +4,15 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
-using Microsoft.Extensions.Options;
 
 namespace Jupiter.Implementation.Blob;
 
 public class CachedBlobIndex : IBlobIndex
 {
-	private readonly IOptionsMonitor<JupiterSettings> _jupiterSettings;
 	private readonly FileSystemStore _fileSystemStore;
 
-	public CachedBlobIndex(IOptionsMonitor<JupiterSettings> jupiterSettings, FileSystemStore fileSystemStore)
+	public CachedBlobIndex(FileSystemStore fileSystemStore)
 	{
-		_jupiterSettings = jupiterSettings;
 		_fileSystemStore = fileSystemStore;
 	}
 
