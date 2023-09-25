@@ -242,10 +242,10 @@ void FTestRunner::GlobalSetup()
 	{
 		// Set up default output devices to handle Log, Verbose, VeryVerbose.
 		FPlatformOutputDevices::SetupOutputDevices();
-
 		FLogSuppressionInterface::Get().ProcessConfigAndCommandLine();
 	}
 
+	FTestDelegates::GetGlobalPlatformSetup().ExecuteIfBound();
 	FTestDelegates::GetGlobalSetup().ExecuteIfBound();
 }
 
