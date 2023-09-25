@@ -986,6 +986,7 @@ namespace Horde.Server.Notifications.Sinks
 			(MessageStateDocument state, bool isNew) = await SendOrUpdateMessageAsync(triageChannel, eventId, null, text);
 			SlackMessageId threadId = state.MessageId;
 
+			bool isSecondThread = false;
 			if (isNew)
 			{
 				// Create the summary text
@@ -1028,156 +1029,33 @@ namespace Horde.Server.Notifications.Sinks
 				SlackMessageId summaryId = await _slackClient.PostMessageToThreadAsync(threadId, message);
 
 				// Permalink to the summary text so we link inside the thread rather than just to the original message
-				string? permalink = await _slackClient.GetPermalinkAsync(summaryId);
+				string permalink = await _slackClient.GetPermalinkAsync(summaryId);
 				await UpdateMessageStateAsync(state.Id, state.MessageId, permalink);
 
-				_issueService.Collection.GetLogger(issue.Id).LogInformation("Created Slack thread: {SlackLink}", permalink);
-				if (permalink != null)
+				_issueService.Collection.GetLogger(issue.Id).LogInformation("Created Slack thread under workflow {WorkflowId}: {SlackLink}", workflow.Id, permalink);
+				try
 				{
-					try
+					for (IIssue? updateIssue = issue; updateIssue != null; )
 					{
-						await _issueService.UpdateIssueAsync(issue.Id, workflowThreadUrl: new Uri(permalink));
-					}
-					catch (Exception ex)
-					{
-						_issueService.Collection.GetLogger(issue.Id).LogInformation(ex, "Error associating workflow thread with issue, bad URI format? {ErrorMessage}", ex.Message);
-					}
-				}
-			}
-
-			// Post a message containing the controls and status
-			{
-				SlackMessage message = new SlackMessage();
-
-				if (workflow.TriageInstructions != null)
-				{
-					message.AddSection(workflow.TriageInstructions);
-				}
-
-				if (!closed)
-				{
-					ActionsBlock actions = message.AddActions();
-					actions.AddButton("Assign to Me", value: $"issue_{issue.Id}_ack", style: ButtonStyle.Primary);
-					actions.AddButton("Not Me", value: $"issue_{issue.Id}_decline", style: ButtonStyle.Danger);
-					actions.AddButton("Mark Fixed", value: $"issue_{issue.Id}_markfixed");
-
-					string? context = null;
-					if (issue.OwnerId != null)
-					{
-						string user = await FormatNameAsync(issue.OwnerId.Value);
-						if (issue.AcknowledgedAt == null)
+						if (updateIssue.WorkflowThreadUrl != null)
 						{
-							context = $"Assigned to {user} (unacknowledged).";
-						}
-						else
-						{
-							context = $"Acknowledged by {user}.";
-						}
-					}
-					else if (suspects.Any(x => x.DeclinedAt != null))
-					{
-						HashSet<UserId> userIds = new HashSet<UserId>();
-						foreach (IIssueSuspect suspect in suspects)
-						{
-							if (suspect.DeclinedAt != null)
-							{
-								userIds.Add(suspect.AuthorId);
-							}
+							await _slackClient.PostMessageToThreadAsync(threadId, $"Existing thread here: {updateIssue.WorkflowThreadUrl}");
+							isSecondThread = true;
+							break;
 						}
 
-						List<string> users = new List<string>();
-						foreach (UserId userId in userIds)
+						updateIssue = await _issueService.Collection.TryUpdateIssueAsync(updateIssue, null, newWorkflowThreadUrl: new Uri(permalink));
+						if (updateIssue != null)
 						{
-							users.Add(await FormatNameAsync(userId));
-						}
-						users.Sort(StringComparer.OrdinalIgnoreCase);
-
-						context = $"Declined by {StringUtils.FormatList(users)}.";
-					}
-
-					if (context != null)
-					{
-						message.AddContext(context);
-					}
-				}
-
-				if (message.Blocks.Count == 0)
-				{
-					message.AddSection("Issue has been closed.");
-				}
-
-				await SendOrUpdateMessageToThreadAsync(triageChannel, $"{eventId}_buttons", null, threadId, message);
-			}
-
-			bool notifyTriageAlias = false;
-			if (isNew)
-			{
-				// If it has an owner, show that
-				HashSet<UserId> inviteUserIds = new HashSet<UserId>();
-				if (issue.OwnerId != null)
-				{
-					string mention = await FormatMentionAsync(issue.OwnerId.Value, workflow.AllowMentions);
-
-					string changes = String.Join(", ", suspects.Where(x => x.AuthorId == issue.OwnerId).Select(x => FormatChange(x.Change)));
-					if (changes.Length > 0)
-					{
-						mention += $" ({changes})";
-					}
-
-					await _slackClient.PostMessageToThreadAsync(threadId, $"Assigned to {mention}");
-					inviteUserIds.Add(issue.OwnerId.Value);
-				}
-				else
-				{
-					IGrouping<UserId, IIssueSuspect>[] suspectGroups = suspects.GroupBy(x => x.AuthorId).ToArray();
-					if (suspectGroups.Length > 0 && suspectGroups.Length <= workflow.MaxMentions)
-					{
-						List<string> suspectList = new List<string>();
-						foreach (IGrouping<UserId, IIssueSuspect> suspectGroup in suspectGroups)
-						{
-							string mention = await FormatMentionAsync(suspectGroup.Key, workflow.AllowMentions);
-							string changes = String.Join(", ", suspectGroup.Select(x => FormatChange(x.Change)));
-							suspectList.Add($"{mention} ({changes})");
-							inviteUserIds.Add(suspectGroup.Key);
+							break;
 						}
 
-						string suspectMessage = $"Possibly {StringUtils.FormatList(suspectList, "or")}.";
-						await _slackClient.PostMessageToThreadAsync(threadId, suspectMessage);
-					}
-					else
-					{
-						notifyTriageAlias = true;
+						updateIssue = await _issueService.Collection.GetIssueAsync(issue.Id);
 					}
 				}
-
-				if (_environment.IsProduction() && workflow.AllowMentions)
+				catch (Exception ex)
 				{
-					await InviteUsersAsync(state.Channel, inviteUserIds, workflow.InviteRestrictedUsers);
-				}
-			}
-
-			if (workflow.EscalateAlias != null && workflow.EscalateTimes.Count > 0)
-			{
-				DateTime escalateTime = issue.CreatedAt.AddMinutes(workflow.EscalateTimes[0]);
-				if (await _redisService.GetDatabase().SortedSetAddAsync(s_escalateIssues, issue.Id, (escalateTime - DateTime.UnixEpoch).TotalSeconds, StackExchange.Redis.When.NotExists))
-				{
-					_logger.LogInformation("First escalation time for issue {IssueId} is {Time}", issue.Id, escalateTime);
-				}
-			}
-
-			if ((workflow.TriageAlias != null || workflow.TriageTypeAliases != null) && issue.OwnerId == null && (suspects.All(x => x.DeclinedAt != null) || notifyTriageAlias) && !closed)
-			{
-				string? triageAlias;
-
-				if (workflow.TriageTypeAliases == null || issue.Fingerprints.Count == 0 || !workflow.TriageTypeAliases.TryGetValue(issue.Fingerprints[0].Type, out triageAlias))
-				{
-					triageAlias = workflow.TriageAlias;
-				}
-
-				if (triageAlias != null)
-				{
-					string triageMessage = $"(cc {FormatUserOrGroupMention(triageAlias)} for triage).";
-					await SendOrUpdateMessageToThreadAsync(triageChannel, eventId + "_triage", null, threadId, triageMessage);
+					_issueService.Collection.GetLogger(issue.Id).LogInformation(ex, "Error associating workflow thread with issue, bad URI format? {ErrorMessage}", ex.Message);
 				}
 			}
 
@@ -1185,46 +1063,188 @@ namespace Horde.Server.Notifications.Sinks
 			if (issue.FixChange != null)
 			{
 				fixFailedSpan = GetFixFailedSpan(issue, spans);
+			}
 
-				if (fixFailedSpan == null)
+			if (!isSecondThread)
+			{
+				// Post a message containing the controls and status
 				{
-					string fixedEventId = $"issue_{issue.Id}_fixed_{issue.FixChange}";
-					string fixedMessage = $"Marked as fixed in {FormatChange(issue.FixChange.Value)}";
-					await PostSingleMessageToThreadAsync(triageChannel, fixedEventId, threadId, fixedMessage);
+					SlackMessage message = new SlackMessage();
+
+					if (workflow.TriageInstructions != null)
+					{
+						message.AddSection(workflow.TriageInstructions);
+					}
+
+					if (!closed)
+					{
+						ActionsBlock actions = message.AddActions();
+						actions.AddButton("Assign to Me", value: $"issue_{issue.Id}_ack", style: ButtonStyle.Primary);
+						actions.AddButton("Not Me", value: $"issue_{issue.Id}_decline", style: ButtonStyle.Danger);
+						actions.AddButton("Mark Fixed", value: $"issue_{issue.Id}_markfixed");
+
+						string? context = null;
+						if (issue.OwnerId != null)
+						{
+							string user = await FormatNameAsync(issue.OwnerId.Value);
+							if (issue.AcknowledgedAt == null)
+							{
+								context = $"Assigned to {user} (unacknowledged).";
+							}
+							else
+							{
+								context = $"Acknowledged by {user}.";
+							}
+						}
+						else if (suspects.Any(x => x.DeclinedAt != null))
+						{
+							HashSet<UserId> userIds = new HashSet<UserId>();
+							foreach (IIssueSuspect suspect in suspects)
+							{
+								if (suspect.DeclinedAt != null)
+								{
+									userIds.Add(suspect.AuthorId);
+								}
+							}
+
+							List<string> users = new List<string>();
+							foreach (UserId userId in userIds)
+							{
+								users.Add(await FormatNameAsync(userId));
+							}
+							users.Sort(StringComparer.OrdinalIgnoreCase);
+
+							context = $"Declined by {StringUtils.FormatList(users)}.";
+						}
+
+						if (context != null)
+						{
+							message.AddContext(context);
+						}
+					}
+
+					if (message.Blocks.Count == 0)
+					{
+						message.AddSection("Issue has been closed.");
+					}
+
+					await SendOrUpdateMessageToThreadAsync(triageChannel, $"{eventId}_buttons", null, threadId, message);
 				}
-				else
+
+				bool notifyTriageAlias = false;
+				if (isNew)
 				{
-					string fixFailedEventId = $"issue_{issue.Id}_fixfailed_{issue.FixChange}";
-					string fixFailedMessage = $"Issue not fixed by {FormatChange(issue.FixChange.Value)}; see {FormatJobStep(fixFailedSpan.LastFailure, fixFailedSpan.NodeName)} at CL {fixFailedSpan.LastFailure.Change} in {fixFailedSpan.StreamName}.";
-					if (issue.OwnerId.HasValue)
+					// If it has an owner, show that
+					HashSet<UserId> inviteUserIds = new HashSet<UserId>();
+					if (issue.OwnerId != null)
 					{
 						string mention = await FormatMentionAsync(issue.OwnerId.Value, workflow.AllowMentions);
-						fixFailedMessage += $" ({mention})";
+
+						string changes = String.Join(", ", suspects.Where(x => x.AuthorId == issue.OwnerId).Select(x => FormatChange(x.Change)));
+						if (changes.Length > 0)
+						{
+							mention += $" ({changes})";
+						}
+
+						await _slackClient.PostMessageToThreadAsync(threadId, $"Assigned to {mention}");
+						inviteUserIds.Add(issue.OwnerId.Value);
 					}
-					await PostSingleMessageToThreadAsync(triageChannel, fixFailedEventId, threadId, fixFailedMessage);
+					else
+					{
+						IGrouping<UserId, IIssueSuspect>[] suspectGroups = suspects.GroupBy(x => x.AuthorId).ToArray();
+						if (suspectGroups.Length > 0 && suspectGroups.Length <= workflow.MaxMentions)
+						{
+							List<string> suspectList = new List<string>();
+							foreach (IGrouping<UserId, IIssueSuspect> suspectGroup in suspectGroups)
+							{
+								string mention = await FormatMentionAsync(suspectGroup.Key, workflow.AllowMentions);
+								string changes = String.Join(", ", suspectGroup.Select(x => FormatChange(x.Change)));
+								suspectList.Add($"{mention} ({changes})");
+								inviteUserIds.Add(suspectGroup.Key);
+							}
+
+							string suspectMessage = $"Possibly {StringUtils.FormatList(suspectList, "or")}.";
+							await _slackClient.PostMessageToThreadAsync(threadId, suspectMessage);
+						}
+						else
+						{
+							notifyTriageAlias = true;
+						}
+					}
+
+					if (_environment.IsProduction() && workflow.AllowMentions)
+					{
+						await InviteUsersAsync(state.Channel, inviteUserIds, workflow.InviteRestrictedUsers);
+					}
 				}
 
-				if (fixFailedSpan == null)
+				if (workflow.EscalateAlias != null && workflow.EscalateTimes.Count > 0)
 				{
-					foreach (IIssueStream stream in issue.Streams)
+					DateTime escalateTime = issue.CreatedAt.AddMinutes(workflow.EscalateTimes[0]);
+					if (await _redisService.GetDatabase().SortedSetAddAsync(s_escalateIssues, issue.Id, (escalateTime - DateTime.UnixEpoch).TotalSeconds, StackExchange.Redis.When.NotExists))
 					{
-						if ((stream.MergeOrigin ?? false) && !(stream.ContainsFix ?? false))
+						_logger.LogInformation("First escalation time for issue {IssueId} is {Time}", issue.Id, escalateTime);
+					}
+				}
+
+				if ((workflow.TriageAlias != null || workflow.TriageTypeAliases != null) && issue.OwnerId == null && (suspects.All(x => x.DeclinedAt != null) || notifyTriageAlias) && !closed)
+				{
+					string? triageAlias;
+
+					if (workflow.TriageTypeAliases == null || issue.Fingerprints.Count == 0 || !workflow.TriageTypeAliases.TryGetValue(issue.Fingerprints[0].Type, out triageAlias))
+					{
+						triageAlias = workflow.TriageAlias;
+					}
+
+					if (triageAlias != null)
+					{
+						string triageMessage = $"(cc {FormatUserOrGroupMention(triageAlias)} for triage).";
+						await SendOrUpdateMessageToThreadAsync(triageChannel, eventId + "_triage", null, threadId, triageMessage);
+					}
+				}
+
+				if (issue.FixChange != null)
+				{
+					if (fixFailedSpan == null)
+					{
+						string fixedEventId = $"issue_{issue.Id}_fixed_{issue.FixChange}";
+						string fixedMessage = $"Marked as fixed in {FormatChange(issue.FixChange.Value)}";
+						await PostSingleMessageToThreadAsync(triageChannel, fixedEventId, threadId, fixedMessage);
+					}
+					else
+					{
+						string fixFailedEventId = $"issue_{issue.Id}_fixfailed_{issue.FixChange}";
+						string fixFailedMessage = $"Issue not fixed by {FormatChange(issue.FixChange.Value)}; see {FormatJobStep(fixFailedSpan.LastFailure, fixFailedSpan.NodeName)} at CL {fixFailedSpan.LastFailure.Change} in {fixFailedSpan.StreamName}.";
+						if (issue.OwnerId.HasValue)
 						{
-							string streamName = spans.FirstOrDefault(x => x.StreamId == stream.StreamId)?.StreamName ?? stream.StreamId.ToString();
-							string missingEventId = $"issue_{issue.Id}_fixmissing_{issue.FixChange}_{stream.StreamId}";
-							string missingMessage = $"Note: Fix may need manually merging to {streamName}";
-							await PostSingleMessageToThreadAsync(triageChannel, missingEventId, threadId, missingMessage);
+							string mention = await FormatMentionAsync(issue.OwnerId.Value, workflow.AllowMentions);
+							fixFailedMessage += $" ({mention})";
+						}
+						await PostSingleMessageToThreadAsync(triageChannel, fixFailedEventId, threadId, fixFailedMessage);
+					}
+
+					if (fixFailedSpan == null)
+					{
+						foreach (IIssueStream stream in issue.Streams)
+						{
+							if ((stream.MergeOrigin ?? false) && !(stream.ContainsFix ?? false))
+							{
+								string streamName = spans.FirstOrDefault(x => x.StreamId == stream.StreamId)?.StreamName ?? stream.StreamId.ToString();
+								string missingEventId = $"issue_{issue.Id}_fixmissing_{issue.FixChange}_{stream.StreamId}";
+								string missingMessage = $"Note: Fix may need manually merging to {streamName}";
+								await PostSingleMessageToThreadAsync(triageChannel, missingEventId, threadId, missingMessage);
+							}
 						}
 					}
 				}
-			}
 
-			// Assignment notifications
-			if (issue.OwnerId != null && issue.NominatedById != null && issue.NominatedById != issue.OwnerId)
-			{
-				string assignmentEventId = $"issue_{issue.Id}_nominated";
-				string assignmentMessage = $"{await FormatMentionAsync(issue.OwnerId.Value, workflow.AllowMentions)} was nominated to fix by {await FormatMentionAsync(issue.NominatedById.Value, workflow.AllowMentions)}.";
-				await PostSingleMessageToThreadAsync(triageChannel, assignmentEventId, threadId, assignmentMessage);
+				// Assignment notifications
+				if (issue.OwnerId != null && issue.NominatedById != null && issue.NominatedById != issue.OwnerId)
+				{
+					string assignmentEventId = $"issue_{issue.Id}_nominated";
+					string assignmentMessage = $"{await FormatMentionAsync(issue.OwnerId.Value, workflow.AllowMentions)} was nominated to fix by {await FormatMentionAsync(issue.NominatedById.Value, workflow.AllowMentions)}.";
+					await PostSingleMessageToThreadAsync(triageChannel, assignmentEventId, threadId, assignmentMessage);
+				}
 			}
 
 			// Reactions
