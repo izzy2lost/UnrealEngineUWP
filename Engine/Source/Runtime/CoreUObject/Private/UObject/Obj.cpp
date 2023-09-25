@@ -2046,7 +2046,8 @@ FString GetConfigFilename( UObject* SourceObject )
 	return SourceObject->GetClass()->GetConfigName();
 }
 
-namespace UE { namespace Object { namespace Private {
+namespace UE::Object::Private
+{
 
 // Thread local state to avoid UObject::GetAssetRegistryTags() API change
 thread_local FAssetBundleData const** TGetAssetRegistryTags_OutBundles = nullptr;
@@ -2134,7 +2135,7 @@ static void GetAssetRegistryTagsFromSearchableProperties(const UObject* Object, 
 	}
 }
 
-}}} // end namespace UE::Object::Private
+} // end namespace UE::Object::Private
 
 const FName FPrimaryAssetId::PrimaryAssetTypeTag(TEXT("PrimaryAssetType"));
 const FName FPrimaryAssetId::PrimaryAssetNameTag(TEXT("PrimaryAssetName"));
@@ -2188,10 +2189,6 @@ void UObject::GetExtendedAssetRegistryTagsForSave(const ITargetPlatform* TargetP
 {
 	// Notify external sources that we need tags for save.
 	FAssetRegistryTag::OnGetExtendedAssetRegistryTagsForSave.Broadcast(this, TargetPlatform, OutTags);
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	GetExternalActorExtendedAssetRegistryTags(OutTags);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 #endif // WITH_EDITOR
 

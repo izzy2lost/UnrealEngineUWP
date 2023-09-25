@@ -15,6 +15,7 @@
 #include "Serialization/UnversionedPropertySerialization.h"
 #include "Templates/PimplPtr.h"
 #include "Templates/UniquePtr.h"
+#include "UObject/ArchiveCookContext.h"
 #include "UObject/LinkerSave.h"
 #include "UObject/NameTypes.h"
 #include "UObject/ObjectMacros.h"
@@ -465,6 +466,11 @@ public:
 		}
 
 		ObjectSaveContext.Set(InPackage, GetTargetPlatform(), TargetPackagePath, SaveArgs.SaveFlags);
+		if (SaveArgs.ArchiveCookData)
+		{
+			ObjectSaveContext.CookType = SaveArgs.ArchiveCookData->CookContext.GetCookType();
+			ObjectSaveContext.CookingDLC = SaveArgs.ArchiveCookData->CookContext.GetCookingDLC();
+		}
 
 		// Setup the harvesting flags and generate the context for harvesting the package
 		SetupHarvestingRealms();

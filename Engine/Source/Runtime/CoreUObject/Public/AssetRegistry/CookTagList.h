@@ -47,7 +47,7 @@ struct FCookTagList
 	*/
 	void Add(UObject* InObject, FName InTagName, FString&& InTagValue)
 	{
-		if (!ensure(InObject->GetOutermost() == Package))
+		if (!Package || !ensure(InObject->GetOutermost() == Package))
 		{
 			return;
 		}

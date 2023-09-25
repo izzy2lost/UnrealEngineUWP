@@ -9124,17 +9124,20 @@ FString SaveGlobalShaderFile(EShaderPlatform Platform, FString SavePath, class I
 
 	TArray<uint8> GlobalShaderData;
 	{
+#if WITH_EDITOR
+		TOptional<FArchiveCookContext> CookContext;
+		TOptional<FArchiveCookData> CookData;
+#endif
 		FMemoryWriter MemoryWriter(GlobalShaderData, true);
 
 #if WITH_EDITOR
-		TOptional<FArchiveCookData> CookData;
-		FArchiveCookContext CookContext(nullptr /*InPackage*/, FArchiveCookContext::ECookTypeUnknown, FArchiveCookContext::ECookingDLCUnknown);
 		if (TargetPlatform != nullptr)
 		{
-			CookData.Emplace(*TargetPlatform, CookContext);
+			CookContext.Emplace(nullptr /*InPackage*/, UE::Cook::ECookType::Unknown,
+				UE::Cook::ECookingDLC::Unknown);
+			CookData.Emplace(*TargetPlatform, *CookContext);
+			MemoryWriter.SetCookData(CookData.GetPtrOrNull());
 		}
-		
-		MemoryWriter.SetCookData(CookData.GetPtrOrNull());
 #endif // WITH_EDITOR
 
 		GlobalShaderMap->SaveToGlobalArchive(MemoryWriter);
@@ -9749,16 +9752,18 @@ void CompileGlobalShaderMapForRemote(
 	FinishRecompileGlobalShaders();
 
 	// Write the shader compilation info to memory, converting FName to strings
+	TOptional<FArchiveCookContext> CookContext;
+	TOptional<FArchiveCookData> CookData;
 	FMemoryWriter MemWriter(*OutArray, true);
 	FNameAsStringProxyArchive Ar(MemWriter);
 
-	TOptional<FArchiveCookData> CookData;
-	FArchiveCookContext CookContext(nullptr /*InPackage*/, FArchiveCookContext::ECookTypeUnknown, FArchiveCookContext::ECookingDLCUnknown);
 	if (TargetPlatform != nullptr)
 	{
-		CookData.Emplace(*TargetPlatform, CookContext);
+		CookContext.Emplace(nullptr /*InPackage*/, UE::Cook::ECookType::Unknown,
+			UE::Cook::ECookingDLC::Unknown);
+		CookData.Emplace(*TargetPlatform, *CookContext);
+		Ar.SetCookData(CookData.GetPtrOrNull());
 	}
-	Ar.SetCookData(CookData.GetPtrOrNull());
 
 	// save out the global shader map to the byte array
 	SaveGlobalShadersForRemoteRecompile(Ar, ShaderPlatform);
@@ -9767,17 +9772,18 @@ void CompileGlobalShaderMapForRemote(
 void SaveShaderMapsForRemote(ITargetPlatform* TargetPlatform, const TMap<FString, TArray<TRefCountPtr<FMaterialShaderMap>>>& CompiledShaderMaps, TArray<uint8>* OutArray)
 {
 	// write the shader compilation info to memory, converting fnames to strings
+	TOptional<FArchiveCookContext> CookContext;
+	TOptional<FArchiveCookData> CookData;
 	FMemoryWriter MemWriter(*OutArray, true);
 	FNameAsStringProxyArchive Ar(MemWriter);
 
-	TOptional<FArchiveCookData> CookData;
-	FArchiveCookContext CookContext(nullptr /*InPackage*/, FArchiveCookContext::ECookTypeUnknown, FArchiveCookContext::ECookingDLCUnknown);
 	if (TargetPlatform != nullptr)
 	{
-		CookData.Emplace(*TargetPlatform, CookContext);
+		CookContext.Emplace(nullptr /*InPackage*/, UE::Cook::ECookType::Unknown,
+			UE::Cook::ECookingDLC::Unknown);
+		CookData.Emplace(*TargetPlatform, *CookContext);
+		Ar.SetCookData(CookData.GetPtrOrNull());
 	}
-
-	Ar.SetCookData(CookData.GetPtrOrNull());
 
 	// save out the shader map to the byte array
 	FMaterialShaderMap::SaveForRemoteRecompile(Ar, CompiledShaderMaps);

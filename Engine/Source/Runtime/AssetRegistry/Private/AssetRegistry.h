@@ -193,6 +193,14 @@ public:
 	virtual FFileLoadProgressUpdatedEvent& OnFileLoadProgressUpdated() override;
 
 	virtual bool IsLoadingAssets() const override;
+	virtual bool IsUpdateDiskCacheAfterLoad() const override
+	{
+#if WITH_EDITORONLY_DATA
+		return bUpdateDiskCacheAfterLoad;
+#else
+		return false;
+#endif
+	}
 
 	virtual void Tick (float DeltaTime) override;
 
@@ -301,6 +309,9 @@ private:
 #if WITH_EDITORONLY_DATA
 	/** If true, the asset registry will inject missing tags from UMetaData for cooked assets only in GetAssetRegistryTags */
 	bool bAddMetaDataTagsToOnGetExtraObjectTags = true;
+
+	/** If true, the AssetRegistry updates its on-disk information for an Asset whenever that Asset loads. */
+	bool bUpdateDiskCacheAfterLoad = true;
 #endif
 
 	/** The delegate to execute when one or more files have been blocked from the registry */

@@ -204,7 +204,8 @@ public:
 	void ClearGathererCache();
 #if WITH_EDITOR
 	void AssetsSaved(UE::AssetRegistry::Impl::FEventContext& EventContext, TArray<FAssetData>&& Assets);
-	void GetProcessLoadedAssetsBatch(TArray<const UObject*>& OutLoadedAssets, uint32 BatchSize);
+	void GetProcessLoadedAssetsBatch(TArray<const UObject*>& OutLoadedAssets, uint32 BatchSize,
+		bool bUpdateDiskCacheAfterLoad);
 	void PushProcessLoadedAssetsBatch(Impl::FEventContext& EventContext,
 		TArrayView<FAssetData> LoadedAssetDatas, TArrayView<const UObject*> UnprocessedFromBatch);
 	/** Call LoadCalculatedDependencies on each Package updated after the last LoadCalculatedDependencies. */
@@ -245,7 +246,6 @@ public:
 	void GetSubClasses(Impl::FClassInheritanceContext& InheritanceContext, const TArray<FTopLevelAssetPath>& InClassNames,
 		const TSet<FTopLevelAssetPath>& ExcludedClassNames, TSet<FTopLevelAssetPath>& SubClassNames) const;
 
-	bool IsUpdateDiskCacheAfterLoad() const { return bUpdateDiskCacheAfterLoad; }
 	bool IsInitialSearchCompleted() const { return bInitialSearchCompleted; }
 	bool IsTempCachingEnabled() const { return bIsTempCachingEnabled; }
 	bool IsTempCachingAlwaysEnabled() const { return bIsTempCachingAlwaysEnabled; }
@@ -393,9 +393,6 @@ private:
 	Impl::FClassInheritanceBuffer TempCachedInheritanceBuffer;
 
 	uint64 ClassGeneratorNamesRegisteredClassesVersionNumber;
-
-	/** If true, will cache AssetData loaded from in memory assets back into the disk cache */
-	bool bUpdateDiskCacheAfterLoad;
 
 	/** The tree of known cached paths that assets may reside within */
 	FPathTree CachedPathTree;

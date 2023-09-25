@@ -198,7 +198,7 @@ void UMaterialInterface::Serialize(FArchive& Ar)
 	{
 		// Mark whether this material is part of the base game. This provides information on whether it is safe to be
 		// used as a parent safely in child modules.
-		bIncludedInBaseGame = Ar.GetCookContext()->GetCookingDLC() == FArchiveCookContext::ECookingDLCNo;
+		bIncludedInBaseGame = Ar.GetCookContext()->GetCookingDLC() == UE::Cook::ECookingDLC::No;
 	}
 
 	Super::Serialize(Ar);

@@ -784,6 +784,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AssetRegistry")
 	virtual bool IsLoadingAssets() const = 0;
 
+	/** If true, the AssetRegistry updates its on-disk information for an Asset whenever that Asset loads. */
+	virtual bool IsUpdateDiskCacheAfterLoad() const = 0;
+
 	/** Tick the asset registry */
 	virtual void Tick (float DeltaTime) = 0;
 

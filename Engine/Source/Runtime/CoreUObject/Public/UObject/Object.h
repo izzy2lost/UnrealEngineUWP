@@ -840,11 +840,12 @@ public:
 		FString Value;
 
 		/** Broad description of kind of data represented in Value */
-		ETagType Type;
+		ETagType Type = TT_Alphabetical;
 
 		/** Flags describing more detail for displaying in the UI */
-		uint32 DisplayFlags;
+		uint32 DisplayFlags = TD_None;
 
+		FAssetRegistryTag() = default;
 		FAssetRegistryTag(FName InName, const FString& InValue, ETagType InType, uint32 InDisplayFlags = TD_None)
 			: Name(InName), Value(InValue), Type(InType), DisplayFlags(InDisplayFlags) {}
 		FAssetRegistryTag(FName InName, FString&& InValue, ETagType InType, uint32 InDisplayFlags = TD_None)
@@ -868,9 +869,6 @@ public:
 	 * @param	OutTags		A list of key-value pairs associated with this object and their types
 	 */
 	COREUOBJECT_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const;
-
-	UE_DEPRECATED(5.1, "Use the new GetExtendedAssetRegistryTagsForSave that takes a TargetPlatform")
-	virtual void GetExternalActorExtendedAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const {}
 
 #if WITH_EDITOR
 	/**

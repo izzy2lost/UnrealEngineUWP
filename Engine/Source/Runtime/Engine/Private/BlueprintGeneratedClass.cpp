@@ -399,7 +399,7 @@ void UBlueprintGeneratedClass::GetAssetRegistryTags(TArray<FAssetRegistryTag>& O
 	 *
 	 * See UBlueprint::GetExtendedAssetRegistryTagsForSave.
 	 */
-	if (GIsSavingPackage)
+	if (GIsSavingPackage && !IsRunningCookCommandlet())
 	{
 		if (AActor* BlueprintCDO = Cast<AActor>(ClassDefaultObject))
 		{

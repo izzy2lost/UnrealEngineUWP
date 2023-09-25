@@ -694,7 +694,7 @@ EChunkProgressReportingType::Type GetChunkAvailabilityProgressType(EAssetAvailab
 	return ChunkReportType;
 }
 
-ASSETREGISTRY_API const TCHAR* GetDevelopmentAssetRegistryFilename()
+const TCHAR* GetDevelopmentAssetRegistryFilename()
 {
 	return TEXT("DevelopmentAssetRegistry.bin");
 }
@@ -852,7 +852,15 @@ void FAssetRegistryImpl::Initialize(Impl::FInitializeContext& Context)
 	StoreGatherResultsTimeSeconds = 0.f;
 
 	// By default update the disk cache once on asset load, to incorporate changes made in PostLoad. This only happens in editor builds
-	bUpdateDiskCacheAfterLoad = true;
+#if !WITH_EDITOR
+	Context.bUpdateDiskCacheAfterLoad = false;
+#else
+	Context.bUpdateDiskCacheAfterLoad = true;
+	if (GConfig)
+	{
+		GConfig->GetBool(TEXT("AssetRegistry"), TEXT("bUpdateDiskCacheAfterLoad"), Context.bUpdateDiskCacheAfterLoad, GEngineIni);
+	}
+#endif
 
 	bIsTempCachingAlwaysEnabled = ASSETREGISTRY_CACHE_ALWAYS_ENABLED;
 	bIsTempCachingEnabled = bIsTempCachingAlwaysEnabled;
@@ -907,14 +915,6 @@ void FAssetRegistryImpl::Initialize(Impl::FInitializeContext& Context)
 		StartupDuration,
 		bStartedAsyncGather
 	});
-
-#if WITH_EDITOR
-	if (GConfig)
-	{
-		GConfig->GetBool(TEXT("AssetRegistry"), TEXT("bUpdateDiskCacheAfterLoad"), bUpdateDiskCacheAfterLoad, GEngineIni);
-	}
-#endif
-	Context.bUpdateDiskCacheAfterLoad = bUpdateDiskCacheAfterLoad;
 
 	// Content roots always exist; add them as paths
 	FPackageName::QueryRootContentPaths(Context.RootContentPaths, false, false, true);
@@ -1012,7 +1012,8 @@ void UAssetRegistryImpl::InitializeEvents(UE::AssetRegistry::Impl::FInitializeCo
 		}
 	}
 
-	if (Context.bUpdateDiskCacheAfterLoad)
+	bUpdateDiskCacheAfterLoad = Context.bUpdateDiskCacheAfterLoad;
+	if (bUpdateDiskCacheAfterLoad)
 	{
 		FCoreUObjectDelegates::OnAssetLoaded.AddUObject(this, &UAssetRegistryImpl::OnAssetLoaded);
 	}
@@ -1530,7 +1531,7 @@ void UAssetRegistryImpl::FinishDestroy()
 			}
 		}
 
-		if (GuardedData.IsUpdateDiskCacheAfterLoad())
+		if (bUpdateDiskCacheAfterLoad)
 		{
 			FCoreUObjectDelegates::OnAssetLoaded.RemoveAll(this);
 		}
@@ -2407,7 +2408,7 @@ FAssetData UAssetRegistryImpl::GetAssetByObjectPath(const FSoftObjectPath& Objec
 		{
 			if (!bSkipARFilteredAssets || !UE::AssetRegistry::FFiltering::ShouldSkipAsset(Asset))
 			{
-				return FAssetData(Asset, false /* bAllowBlueprintClass */);
+				return FAssetData(Asset, FAssetData::ECreationFlags::None /** Do not allow blueprint classes */);
 			}
 			else
 			{
@@ -3830,7 +3831,7 @@ void UAssetRegistryImpl::AssetCreated(UObject* NewAsset)
 		{
 			checkf(IsInGameThread(), TEXT("AssetCreated is not yet implemented as callable from other threads"));
 			// Let subscribers know that the new asset was added to the registry
-			FAssetData AssetData = FAssetData(NewAsset, true /* bAllowBlueprintClass */); 
+			FAssetData AssetData = FAssetData(NewAsset, FAssetData::ECreationFlags::AllowBlueprintClass);
 			AssetAddedEvent.Broadcast(AssetData);
 			OnAssetsAdded().Broadcast({ AssetData });
 
@@ -3883,7 +3884,7 @@ void UAssetRegistryImpl::AssetDeleted(UObject* DeletedAsset)
 
 		if (!bShouldSkipAsset)
 		{
-			FAssetData AssetDataDeleted = FAssetData(DeletedAsset, true /* bAllowBlueprintClass */);
+			FAssetData AssetDataDeleted = FAssetData(DeletedAsset, FAssetData::ECreationFlags::AllowBlueprintClass);
 
 			checkf(IsInGameThread(), TEXT("AssetDeleted is not yet implemented as callable from other threads"));
 			// Let subscribers know that the asset was removed from the registry
@@ -3941,7 +3942,10 @@ void UAssetRegistryImpl::AssetRenamed(const UObject* RenamedAsset, const FString
 		if (!bShouldSkipAsset)
 		{
 			checkf(IsInGameThread(), TEXT("AssetRenamed is not yet implemented as callable from other threads"));
-			AssetRenamedEvent.Broadcast(FAssetData(RenamedAsset, true /* bAllowBlueprintClass */), OldObjectPath);
+			AssetRenamedEvent.Broadcast(
+				FAssetData(RenamedAsset, FAssetData::ECreationFlags::AllowBlueprintClass),
+				OldObjectPath
+			);
 		}
 	}
 }
@@ -3966,7 +3970,7 @@ void UAssetRegistryImpl::AssetsSaved(TArray<FAssetData>&& Assets)
 void UAssetRegistryImpl::AssetFullyUpdateTags(UObject* Object)
 {
 #if WITH_EDITOR
-	FAssetData AssetData(Object);
+	FAssetData AssetData(Object, FAssetData::ECreationFlags::None);
 	TArray<FAssetData> Assets;
 	Assets.Add(MoveTemp(AssetData));
 
@@ -6208,7 +6212,7 @@ void UAssetRegistryImpl::ProcessLoadedAssetsToUpdateCache(UE::AssetRegistry::Imp
 	{
 		LLM_SCOPE(ELLMTag::AssetRegistry);
 		FWriteScopeLock InterfaceScopeLock(InterfaceLock);
-		GuardedData.GetProcessLoadedAssetsBatch(BatchObjects, BatchSize);
+		GuardedData.GetProcessLoadedAssetsBatch(BatchObjects, BatchSize, bUpdateDiskCacheAfterLoad);
 		if (BatchObjects.Num() == 0)
 		{
 			return;
@@ -6232,7 +6236,7 @@ void UAssetRegistryImpl::ProcessLoadedAssetsToUpdateCache(UE::AssetRegistry::Imp
 				// If the object has changed and is no longer an asset, ignore it. This can happen when an Actor is modified during cooking to no longer have an external package
 				continue;
 			}
-			BatchAssetDatas.Add(FAssetData(LoadedObject, true /* bAllowBlueprintClass */));
+			BatchAssetDatas.Add(FAssetData(LoadedObject, FAssetData::ECreationFlags::AllowBlueprintClass));
 
 			// Check to see if we have run out of time in this tick
 			if (!bFlushFullBuffer &&
@@ -6251,7 +6255,7 @@ void UAssetRegistryImpl::ProcessLoadedAssetsToUpdateCache(UE::AssetRegistry::Imp
 		{
 			break;
 		}
-		GuardedData.GetProcessLoadedAssetsBatch(BatchObjects, BatchSize);
+		GuardedData.GetProcessLoadedAssetsBatch(BatchObjects, BatchSize, bUpdateDiskCacheAfterLoad);
 	}
 }
 
@@ -6263,7 +6267,8 @@ void FAssetRegistryImpl::AddLoadedAssetToProcess(const UObject& AssetLoaded)
 	LoadedAssetsToProcess.Add(&AssetLoaded);
 }
 
-void FAssetRegistryImpl::GetProcessLoadedAssetsBatch(TArray<const UObject*>& OutLoadedAssets, uint32 BatchSize)
+void FAssetRegistryImpl::GetProcessLoadedAssetsBatch(TArray<const UObject*>& OutLoadedAssets, uint32 BatchSize,
+	bool bUpdateDiskCacheAfterLoad)
 {
 	if (!GlobalGatherer.IsValid() || !bUpdateDiskCacheAfterLoad)
 	{
@@ -6319,7 +6324,7 @@ void FAssetRegistryImpl::PushProcessLoadedAssetsBatch(Impl::FEventContext& Event
 		else
 		{
 			// When updating disk-based AssetData with the AssetData from a loaded UObject, we keep
-			// existing tags from disk even if they no are no longer returned from the GetAssetRegistryTags
+			// existing tags from disk even if they are no longer returned from the GetAssetRegistryTags
 			// function on the loaded UObject. We do this because they might come from GetAssetRegistryTagsExtended,
 			// which is only called during Save.
 			// Modified tag values on the other hand do overwrite the old values from disk.

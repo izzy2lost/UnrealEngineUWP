@@ -62,6 +62,8 @@ bool UObjectRedirector::NeedsLoadForEditorGame() const
 
 void UObjectRedirector::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	Super::GetAssetRegistryTags(OutTags);
+
 	FString DestVal;
 	if ( DestinationObject != nullptr )
 	{

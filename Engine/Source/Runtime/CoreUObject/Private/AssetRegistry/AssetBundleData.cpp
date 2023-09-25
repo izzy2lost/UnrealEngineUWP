@@ -33,9 +33,12 @@ namespace UE::AssetBundleEntry::Private
 
 bool FAssetBundleEntry::ExportTextItem(FString& ValueStr, const FAssetBundleEntry& DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const
 {	
-	if (DefaultValue.IsValid())
+	// If the DefaultValue points to this, that is the import/export system's way of specifying that there are no
+	// available defaults and the entire struct should be exported. If the DefautlValue is an empty version of the
+	// struct, then we also will export the entire struct. Otherwise there are actual defaults and we're supposed to
+	// export a delta. This path does not handle that delta, fall back to normal export path
+	if (&DefaultValue != this && DefaultValue.IsValid())
 	{
-		// This path does not handle default values, fall back to normal export path
 		return false;
 	}
 
@@ -485,9 +488,12 @@ bool FAssetBundleData::ExportTextItem(FString& ValueStr, FAssetBundleData const&
 		// Empty, don't write anything to avoid it cluttering the asset registry tags
 		return true;
 	}
-	else if (DefaultValue.Bundles.Num() != 0)
+	// If the DefaultValue points to this, that is the import/export system's way of specifying that there are no
+	// available defaults and the entire struct should be exported. If the DefautlValue is an empty version of the
+	// struct, then we also will export the entire struct. Otherwise there are actual defaults and we're supposed to
+	// export a delta. This path does not handle that delta, fall back to normal export path
+	else if (&DefaultValue != this && DefaultValue.Bundles.Num() != 0)
 	{
-		// This path does not handle default values, fall back to normal export path
 		return false;
 	}
 	

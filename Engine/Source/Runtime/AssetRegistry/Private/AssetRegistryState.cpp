@@ -154,34 +154,33 @@ void FAssetRegistryState::Reset()
 	CachedPackageData.Empty();
 }
 
-void FAssetRegistryState::FilterTags(const FAssetDataTagMapSharedView& InTagsAndValues, FAssetDataTagMap& OutTagsAndValues, const TSet<FName>* ClassSpecificFilterList, const FAssetRegistrySerializationOptions& Options)
+void FAssetRegistryState::FilterTags(const FAssetDataTagMapSharedView& InTagsAndValues, FAssetDataTagMap& OutTagsAndValues,
+	const TSet<FName>* ClassSpecificFilterList, const FAssetRegistrySerializationOptions& Options)
 {
 	const TSet<FName>* AllClassesFilterList = Options.CookFilterlistTagsByClass.Find(UE::AssetRegistry::WildcardPathName);
 
 	// Exclude denied tags or include only allowed tags, based on how we were configured in ini
 	for (const auto& TagPair : InTagsAndValues)
 	{
-			const bool bInAllClassesList = AllClassesFilterList && (AllClassesFilterList->Contains(TagPair.Key) || AllClassesFilterList->Contains(UE::AssetRegistry::WildcardFName));
-			const bool bInClassSpecificList = ClassSpecificFilterList && (ClassSpecificFilterList->Contains(TagPair.Key) || ClassSpecificFilterList->Contains(UE::AssetRegistry::WildcardFName));
-			if (Options.bUseAssetRegistryTagsAllowListInsteadOfDenyList)
-			{
-				// It's an allow list, only include it if it is in the all classes list or in the class specific list
-			if (bInAllClassesList || bInClassSpecificList)
-			{
-				// It is in the allow list. Keep it.
-				OutTagsAndValues.Add(TagPair.Key, TagPair.Value.ToLoose());
-			}
-			}
-			else
-			{
-				// It's a deny list, include it unless it is in the all classes list or in the class specific list
-			if (!bInAllClassesList && !bInClassSpecificList)
+		bool bKeep = false;
+
+		const bool bInAllClassesList = AllClassesFilterList && (AllClassesFilterList->Contains(TagPair.Key) || AllClassesFilterList->Contains(UE::AssetRegistry::WildcardFName));
+		const bool bInClassSpecificList = ClassSpecificFilterList && (ClassSpecificFilterList->Contains(TagPair.Key) || ClassSpecificFilterList->Contains(UE::AssetRegistry::WildcardFName));
+		if (Options.bUseAssetRegistryTagsAllowListInsteadOfDenyList)
 		{
-				// It isn't in the deny list. Keep it.
+			// It's an allow list, only include it if it is in the all classes list or in the class specific list
+			bKeep = bInAllClassesList || bInClassSpecificList;
+		}
+		else
+		{
+			// It's a deny list, include it unless it is in the all classes list or in the class specific list
+			bKeep = !bInAllClassesList && !bInClassSpecificList;
+		}
+		if (bKeep)
+		{
 			OutTagsAndValues.Add(TagPair.Key, TagPair.Value.ToLoose());
 		}
 	}
-}
 }
 
 void FAssetRegistryState::InitializeFromExistingAndPrune(const FAssetRegistryState & ExistingState, const TSet<FName>& RequiredPackages, const TSet<FName>& RemovePackages,

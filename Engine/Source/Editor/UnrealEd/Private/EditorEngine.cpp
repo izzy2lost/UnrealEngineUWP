@@ -4618,6 +4618,11 @@ FSavePackageResultStruct UEditorEngine::Save(UPackage* InOuter, UObject* InAsset
 	const bool bSavingConcurrent = !!(SaveArgs.SaveFlags & ESaveFlags::SAVE_Concurrent);
 
 	FObjectSaveContextData ObjectSaveContext(InOuter, SaveArgs.GetTargetPlatform(), Filename, SaveArgs.SaveFlags);
+	if (InSaveArgs.ArchiveCookData)
+	{
+		ObjectSaveContext.CookType = InSaveArgs.ArchiveCookData->CookContext.GetCookType();
+		ObjectSaveContext.CookingDLC = InSaveArgs.ArchiveCookData->CookContext.GetCookingDLC();
+	}
 	UWorld *OriginalOwningWorld = nullptr;
 	if ( World )
 	{

@@ -734,6 +734,7 @@ UObject::FAssetRegistryTag UNiagaraEditorSettings::CreateClassUsageAssetRegistry
 				ClassPaths.Add(ObjectInPackage->GetClass()->GetClassPathName().ToString());
 			}
 		}
+		ClassPaths.Sort([](const FString& A, const FString& B) { return A < B; });
 		ClassUsageList = FString::Join(ClassPaths, TEXT("\n"));
 	}
 	else
