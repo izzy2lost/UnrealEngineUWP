@@ -46,6 +46,7 @@ class FImplicitObjectUnion : public FImplicitObject
 
 	CHAOS_API void Combine(TArray<Chaos::FImplicitObjectPtr>& Objects);
 	CHAOS_API void RemoveAt(int32 RemoveIndex);
+	CHAOS_API void RemoveAtSortedIndices(const TArrayView<const int32>& InIndices);
 
 	// The total number of root objects in the hierarchy (same as GetObjects().Num())
 	int32 GetNumRootObjects() const

@@ -960,9 +960,24 @@ namespace Chaos
 	void FClusterUnionManager::FlushIncrementalGeometryOperations(FClusterUnion& ClusterUnion)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_FlushIncrementalGeometryOperations);
-		check(ClusterUnion.Geometry != nullptr && ClusterUnion.Geometry->GetType() == ImplicitObjectType::Union);
+		check(ClusterUnion.Geometry != nullptr);
+
+		FImplicitObjectUnion* ImplicitUnion = ClusterUnion.Geometry->template AsA<FImplicitObjectUnion>();
+		check(ImplicitUnion != nullptr);
 
 		const TArray<FPBDRigidParticleHandle*>& PendingGeometryAdditions = ClusterUnion.GetPendingGeometryOperationParticles(EClusterUnionGeometryOperation::Add);
+		const TArray<FPBDRigidParticleHandle*>& PendingGeometryRemovals = ClusterUnion.GetPendingGeometryOperationParticles(EClusterUnionGeometryOperation::Remove);
+		const TArray<FPBDRigidParticleHandle*>& PendingGeometryRefresh = ClusterUnion.GetPendingGeometryOperationParticles(EClusterUnionGeometryOperation::Refresh);
+		if (PendingGeometryAdditions.IsEmpty() && PendingGeometryRemovals.IsEmpty() && PendingGeometryRefresh.IsEmpty())
+		{
+			// NOTE: Early out is important to prevent collision reset and BVH rebuild when there are no changes
+			return;
+		}
+
+		// We are about to change the geometry so clear all cached collisions and prevent the BVH from being rebuilt until we are done
+		MEvolution.InvalidateParticle(ClusterUnion.InternalCluster);
+		ImplicitUnion->SetAllowBVH(false);
+
 		const FRigidTransform3 ClusterWorldTM(ClusterUnion.InternalCluster->X(), ClusterUnion.InternalCluster->R());
 		if (!PendingGeometryAdditions.IsEmpty())
 		{
@@ -998,14 +1013,12 @@ namespace Chaos
 			ClusterUnion.ClearPendingGeometryOperations(EClusterUnionGeometryOperation::Add);
 		}
 
-		const TArray<FPBDRigidParticleHandle*>& PendingGeometryRemovals = ClusterUnion.GetPendingGeometryOperationParticles(EClusterUnionGeometryOperation::Remove);
 		if (!PendingGeometryRemovals.IsEmpty())
 		{
 			RemoveParticlesFromClusterUnionGeometry(ClusterUnion.InternalCluster, PendingGeometryRemovals, ClusterUnion.GeometryChildParticles);
 			ClusterUnion.ClearPendingGeometryOperations(EClusterUnionGeometryOperation::Remove);
 		}
 
-		const TArray<FPBDRigidParticleHandle*>& PendingGeometryRefresh = ClusterUnion.GetPendingGeometryOperationParticles(EClusterUnionGeometryOperation::Refresh);
 		if (!PendingGeometryRefresh.IsEmpty())
 		{
 			// For each particle we need to find the corresponding shape.
@@ -1056,6 +1069,9 @@ namespace Chaos
 
 			ClusterUnion.ClearPendingGeometryOperations(EClusterUnionGeometryOperation::Refresh);
 		}
+
+		// Re-enable the BVH to rebuild it
+		ImplicitUnion->SetAllowBVH(true);
 	}
 
 	DECLARE_CYCLE_STAT(TEXT("FClusterUnionManager::GetOrCreateClusterUnionIndexFromExplicitIndex"), STAT_GetOrCreateClusterUnionIndexFromExplicitIndex, STATGROUP_Chaos);

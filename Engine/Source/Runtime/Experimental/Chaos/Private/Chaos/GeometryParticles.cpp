@@ -7,6 +7,7 @@
 #include "Chaos/ImplicitObjectUnion.h"
 #include "Chaos/Particle/ParticleUtilities.h"
 #include "Chaos/ParticleHandle.h"
+#include "Chaos/Framework/ArrayAlgorithm.h"
 #include "Chaos/Framework/PhysicsSolverBase.h"
 
 namespace Chaos
@@ -50,10 +51,9 @@ namespace Chaos
 	}
 
 	template <typename T, int d, EGeometryParticlesSimType SimType>
-	void TGeometryParticlesImp<T, d, SimType>::RemoveShapeAtIndex(const int32 ParticleIndex, const int32 Index)
+	void TGeometryParticlesImp<T, d, SimType>::RemoveShapesAtSortedIndices(const int32 ParticleIndex, const TArrayView<const int32>& InIndices)
 	{
-		check(MShapesArray.IsValidIndex(ParticleIndex));
-		MShapesArray[ParticleIndex].RemoveAt(Index);
+		RemoveArrayItemsAtSortedIndices(MShapesArray[ParticleIndex], InIndices);
 	}
 
 	template <typename T, int d, EGeometryParticlesSimType SimType>

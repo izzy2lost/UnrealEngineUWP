@@ -852,7 +852,12 @@ void UClusterUnionComponent::SyncClusterUnionFromProxy()
 		}
 	}
 
-	PhysicsProxy->ForceSetGeometryChildParticles_External(MoveTemp(ChildParticles));
+	// We don't set the child particles if we did not sync geometry in PullFromPhysicsState because ChildParticles 
+	// would not have been populated. However ChildParticles may legitimately be empty if all children were removed
+	if (FullData.bDidSyncGeometry)
+	{
+		PhysicsProxy->ForceSetGeometryChildParticles_External(MoveTemp(ChildParticles));
+	}
 
 	// We need to handle any additions, deletions, and modifications to any child in the cluster union here.
 	// If a component lives in MappedData but not in PerComponentData, new component!

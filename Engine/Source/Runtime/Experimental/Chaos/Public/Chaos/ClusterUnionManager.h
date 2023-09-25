@@ -2,6 +2,7 @@
 #pragma once
 
 #include "Chaos/ClusterCreationParameters.h"
+#include "Chaos/Framework/ArrayAlgorithm.h"
 #include "Chaos/ParticleHandleFwd.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
@@ -383,12 +384,7 @@ namespace Chaos
 			return;
 		}
 
-		const Chaos::FShapesArray& ShapesArray = ClusterParticle->ShapesArray();
-		const Chaos::FImplicitObjectRef Geometry = ClusterParticle->GetGeometry();
-		check(Geometry != nullptr);
-
-		const Chaos::FImplicitObjectUnion& GeometryUnion = Geometry->GetObjectChecked<Chaos::FImplicitObjectUnion>();
-		check(AllChildParticles.Num() == ShapesArray.Num());
+		check(AllChildParticles.Num() == ClusterParticle->ShapesArray().Num());
 		
 		TArray<int32> ShapeIndicesToRemove;
 		ShapeIndicesToRemove.Reserve(ShapeParticles.Num());
@@ -402,35 +398,12 @@ namespace Chaos
 			}
 		}
 
-		// To make sure we preserve the index as we remove shapes one-by-one, we need to order
-		// shape removal based on their index.
-		ShapeIndicesToRemove.Sort(
-			[](const int32 A, const int32 B)
-			{
-				// This way we guarantee descending order.
-				return A > B;
-			}
-		);
+		ShapeIndicesToRemove.Sort();
 
-		int32 LastIndex = INDEX_NONE;
-		// TODO: Can we batch this to remove all shapes at once?
-		// We're going to need to do that so we don't do multiple iterations through the shapes array.
-		for (int32 ToRemoveIndex : ShapeIndicesToRemove)
-		{
-			// This is a good cheap way of preventing us from trying to remove the same shape (index)
-			// multiple times.
-			if (ToRemoveIndex == LastIndex)
-			{
-				// Probably a good indication of a failure if we end up trying to remove the same shape more than once.
-				check(false);
-				continue;
-			}
+		ClusterParticle->RemoveShapesAtSortedIndices(ShapeIndicesToRemove);
 
-			ClusterParticle->RemoveShapeAtIndex(ToRemoveIndex);
-			AllChildParticles.RemoveAt(ToRemoveIndex);
-			LastIndex = ToRemoveIndex;
-		}
+		RemoveArrayItemsAtSortedIndices(AllChildParticles, ShapeIndicesToRemove);
 
-		check(AllChildParticles.Num() == ShapesArray.Num());
+		check(AllChildParticles.Num() == ClusterParticle->ShapesArray().Num());
 	}
 }

@@ -4,6 +4,7 @@
 #include "Chaos/ImplicitObjectBVH.h"
 #include "Chaos/BoundingVolumeHierarchy.h"
 #include "Chaos/Convex.h"
+#include "Chaos/Framework/ArrayAlgorithm.h"
 #include "Chaos/Tribox.h"
 
 #include "UObject/FortniteMainBranchObjectVersion.h"
@@ -130,6 +131,22 @@ void FImplicitObjectUnion::RemoveAt(int32 RemoveIndex)
 	MLocalBoundingBox = CalculateObjectsBounds(MakeArrayView(MObjects));
 	RebuildBVH();
 }
+
+void FImplicitObjectUnion::RemoveAtSortedIndices(const TArrayView<const int32>& InIndices)
+{
+	if (InIndices.IsEmpty())
+	{
+		return;
+	}
+
+	RemoveArrayItemsAtSortedIndices(MObjects, InIndices);
+
+	SetNumLeafObjects(Private::FImplicitBVH::CountLeafObjects(MakeArrayView(GetObjects())));
+
+	MLocalBoundingBox = CalculateObjectsBounds(MakeArrayView(MObjects));
+	RebuildBVH();
+}
+
 
 void FImplicitObjectUnion::SetNumLeafObjects(int32 InNumLeafObjects)
 {

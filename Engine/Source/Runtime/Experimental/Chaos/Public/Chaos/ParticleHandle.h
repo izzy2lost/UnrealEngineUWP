@@ -589,7 +589,7 @@ public:
 	const FShapeInstanceArray& ShapeInstances() const { return GeometryParticles->ShapeInstances(ParticleIdx); }
 
 	void RemoveShape(FPerShapeData* InShape);
-	void RemoveShapeAtIndex(int32 InIndex);
+	void RemoveShapesAtSortedIndices(const TArrayView<const int32>& InIndices);
 
 	const TAABB<T, d>& LocalBounds() const { return GeometryParticles->LocalBounds(ParticleIdx); }
 	void SetLocalBounds(const TAABB<T, d>& NewBounds) { GeometryParticles->LocalBounds(ParticleIdx) = NewBounds; }
@@ -2543,7 +2543,7 @@ public:
 	TSerializablePtr<FImplicitObject> Geometry() const { check(false); return TSerializablePtr<FImplicitObject>(); }
 
 	CHAOS_API void RemoveShape(FPerShapeData* InShape, bool bWakeTouching);
-	CHAOS_API void RemoveShapeAtIndex(int32 InIndex);
+	CHAOS_API void RemoveShapesAtSortedIndices(const TArrayView<const int32>& InIndices);
 
 	void* UserData() const { return MUserData; }
 	void SetUserData(void* InUserData)

@@ -111,44 +111,32 @@ namespace Chaos
 		// NOTE: only intended use is to remove objects from inside a FImplicitObjectUnion
 		CHAOS_ENSURE(MNonFrequentData.Read().GetGeometry()->GetType() == FImplicitObjectUnion::StaticType());
 
-		int32 FoundIndex = INDEX_NONE;
 		for (int32 Index = 0; Index < MShapesArray.Num(); Index++)
 		{
 			if (InShape == MShapesArray[Index].Get())
 			{
-				FoundIndex = Index;
-				break;
+				RemoveShapesAtSortedIndices({ Index });
+				return;
 			}
 		}
-
-		RemoveShapeAtIndex(FoundIndex);
 	}
 
 	template <typename T, int d>
-	void Chaos::TGeometryParticle<T, d>::RemoveShapeAtIndex(int32 InIndex)
+	void Chaos::TGeometryParticle<T, d>::RemoveShapesAtSortedIndices(const TArrayView<const int32>& InIndices)
 	{
 		// NOTE: only intended use is to remove objects from inside a FImplicitObjectUnion
 		CHAOS_ENSURE(MNonFrequentData.Read().GetGeometry()->GetType() == FImplicitObjectUnion::StaticType());
 
-		if (InIndex == INDEX_NONE)
-		{
-			return;
-		}
-
-		check(MShapesArray.IsValidIndex(InIndex));
-		MShapesArray.RemoveAt(InIndex);
-
-		if (MNonFrequentData.Read().GetGeometry()->GetType() == FImplicitObjectUnion::StaticType())
-		{
-			// if we are currently a union then remove geometry from this union
-			ModifyGeometry([InIndex](FImplicitObject& GeomToModify)
+		ModifyGeometry(
+			[this, &InIndices](FImplicitObject& GeomToModify)
 			{
-				if (FImplicitObjectUnion* Union = GeomToModify.template GetObject<FImplicitObjectUnion>())
+				if (FImplicitObjectUnion* Union = GeomToModify.template AsA<FImplicitObjectUnion>())
 				{
-					Union->RemoveAt(InIndex);
+					RemoveArrayItemsAtSortedIndices(MShapesArray, InIndices);
+
+					Union->RemoveAtSortedIndices(InIndices);
 				}
 			});
-		}
 	}
 
 	template <typename T, int d, bool bPersistent>
@@ -158,52 +146,40 @@ namespace Chaos
 		const FImplicitObjectRef CurrentGeometry = GetGeometry();
 		if (ensure(CurrentGeometry != nullptr))
 		{
-			if (ensure(CurrentGeometry->GetType() == FImplicitObjectUnion::StaticType()))
+			const FShapesArray& CurrentShapesArray = ShapesArray();
+			for (int32 Index = 0; Index < CurrentShapesArray.Num(); Index++)
 			{
-				const FShapesArray& CurrentShapesArray = ShapesArray();
-
-				int32 FoundIndex = INDEX_NONE;
-				for (int32 Index = 0; Index < CurrentShapesArray.Num(); Index++)
+				if (InShape == CurrentShapesArray[Index].Get())
 				{
-					if (InShape == CurrentShapesArray[Index].Get())
-					{
-						FoundIndex = Index;
-						break;
-					}
+					RemoveShapesAtSortedIndices(MakeArrayView({ Index }));
+					return;
 				}
-
-				RemoveShapeAtIndex(FoundIndex);
 			}
 		}
 	}
 
 	template <typename T, int d, bool bPersistent>
-	void Chaos::TGeometryParticleHandleImp<T, d, bPersistent>::RemoveShapeAtIndex(int32 InIndex)
+	void Chaos::TGeometryParticleHandleImp<T, d, bPersistent>::RemoveShapesAtSortedIndices(const TArrayView<const int32>& InIndices)
 	{
-		if (InIndex == INDEX_NONE)
-		{
-			return;
-		}
-
 		// NOTE: only intended use is to remove objects from inside a FImplicitObjectUnion
 		const FImplicitObjectRef CurrentGeometry = GetGeometry();
-		if (!ensure(CurrentGeometry != nullptr))
+		if (CurrentGeometry == nullptr)
 		{
 			return;
 		}
 
-		if (!ensure(CurrentGeometry->GetType() == FImplicitObjectUnion::StaticType()))
+		FImplicitObjectUnion* Union = CurrentGeometry->template AsA<FImplicitObjectUnion>();
+		if (Union == nullptr)
 		{
 			return;
 		}
 
-		GeometryParticles->RemoveShapeAtIndex(ParticleIdx, InIndex);
+		GeometryParticles->RemoveShapesAtSortedIndices(ParticleIdx, InIndices);
 
-		// if we are currently a union then remove geometry from this union
-		FImplicitObjectUnion& Union = CurrentGeometry->GetObjectChecked<FImplicitObjectUnion>();
-		Union.RemoveAt(InIndex);
+		Union->RemoveAtSortedIndices(InIndices);
 
 		// Needed to update the shapes array.
+		// @todo(chaos): is it though? Maybe for the bounds etc?
 		SetGeometry(GeometryParticles->GetGeometry(ParticleIdx));
 	}
 

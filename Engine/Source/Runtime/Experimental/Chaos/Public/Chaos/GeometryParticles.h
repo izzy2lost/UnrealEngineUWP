@@ -252,7 +252,7 @@ namespace Chaos
 		bool& HasCollision(const int32 Index) { return MHasCollision[Index]; }
 
 		const FShapesArray& ShapesArray(const int32 Index) const { return reinterpret_cast<const FShapesArray&>(MShapesArray[Index]); }
-		void RemoveShapeAtIndex(const int32 ParticleIndex, const int32 Index);
+		void RemoveShapesAtSortedIndices(const int32 ParticleIndex, const TArrayView<const int32>& InIndices);
 
 		const FShapeInstanceArray& ShapeInstances(const int32 Index) const { return MShapesArray[Index]; }
 
@@ -312,6 +312,11 @@ namespace Chaos
 
 		void SetGeometryImpl(const int32 Index, const FImplicitObjectPtr& InGeometry)
 		{
+			// We hit these checks if there's a call to modify geometry without first clearing constraints 
+			// on the particle (e.g., PBDRigidsEvolutionGBF::InvalidateParticle)
+			check(MParticleCollisions[Index].Num() == 0);
+			check(MParticleConstraints[Index].Num() == 0);
+
 			MGeometry[Index] = InGeometry;
 
 			UpdateShapesArray(Index);

@@ -45,6 +45,9 @@ namespace Chaos
 		// Whether the cluster is anchored or not.
 		bool bIsAnchored;
 
+		// Whether we assigned new geometry from the PT in PullFromPhysicsState
+		bool bDidSyncGeometry;
+
 		// Data on every child particle in the cluster union.
 		TArray<FClusterUnionChildData> ChildParticles;
 	};

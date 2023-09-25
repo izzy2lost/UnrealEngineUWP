@@ -397,6 +397,7 @@ namespace Chaos
 		}
 
 		SyncedData_External.bIsAnchored = CurrentPullData.bIsAnchored;
+		SyncedData_External.bDidSyncGeometry = false;
 		SyncedData_External.ChildParticles.Empty(CurrentPullData.ChildParticles.Num());
 
 		// I question the need to do this individual copy one by one...maybe we should've used the same type for the synced data.
@@ -413,6 +414,7 @@ namespace Chaos
 		if (CurrentPullData.Geometry)
 		{
 			Particle_External->SetGeometry(CurrentPullData.Geometry);
+			SyncedData_External.bDidSyncGeometry = true;
 		}
 		Particle_External->SetObjectState(CurrentPullData.ObjectState, true, /*bInvalidate=*/false);
 
