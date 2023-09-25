@@ -10,7 +10,6 @@
 
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SSpacer.h"
-#include "Widgets/Layout/SSplitter.h"
 
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SWidget.h"
@@ -74,6 +73,10 @@ void SRCMajorPanel::Construct(const SRCMajorPanel::FArguments& InArgs)
 				.Orientation(InArgs._ChildOrientation)
 				.HitDetectionSplitterHandleSize(SplitterHandleSize)
 				.PhysicalSplitterHandleSize(SplitterHandleSize)
+				.OnSplitterFinishedResizing_Lambda([this]()
+				{
+					OnSplitterFinishedResizing().ExecuteIfBound();
+				})
 			]
 		]
 	);
@@ -142,9 +145,9 @@ void SRCMajorPanel::Construct(const SRCMajorPanel::FArguments& InArgs)
 
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
-void SRCMajorPanel::AddPanel(TSharedRef<SWidget> InContent, const float InDesiredSize, const bool bResizable/* = true */)
+int32 SRCMajorPanel::AddPanel(TSharedRef<SWidget> InContent, const TAttribute<float> InDesiredSize, const bool bResizable/* = true */)
 {
-	const SSplitter::ESizeRule SizeRule = InDesiredSize == 0.f ? SSplitter::ESizeRule::SizeToContent : SSplitter::ESizeRule::FractionOfParent;
+	const SSplitter::ESizeRule SizeRule = InDesiredSize.Get() == 0.f ? SSplitter::ESizeRule::SizeToContent : SSplitter::ESizeRule::FractionOfParent;
 
 	if (Children.IsValid())
 	{
@@ -155,7 +158,12 @@ void SRCMajorPanel::AddPanel(TSharedRef<SWidget> InContent, const float InDesire
 			[
 				InContent
 			];
+
+		const int32 SlotsCount = Children->GetChildren()->Num();
+		return SlotsCount - 1;
 	}
+
+	return -1;
 }
 
 const TSharedRef<SWidget>& SRCMajorPanel::GetContent() const
@@ -199,6 +207,11 @@ void SRCMajorPanel::AddFooterToolItem(EToolbar InToolbar, TSharedRef<SWidget> In
 		default:
 			break;
 	}
+}
+
+SSplitter::FSlot& SRCMajorPanel::GetSplitterSlotAt(const int32 InIndex) const
+{
+	return Children->SlotAt(InIndex);
 }
 
 SLATE_IMPLEMENT_WIDGET(SRCMinorPanel)

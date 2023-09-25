@@ -342,6 +342,9 @@ void SRemoteControlPanel::Construct(const FArguments& InArgs, URemoteControlPres
 	ActivePanel = ERCPanels::RCP_Properties;
 
 	RCPanelStyle = &FRemoteControlPanelStyle::Get()->GetWidgetStyle<FRCPanelStyle>("RemoteControlPanel.MinorPanel");
+	
+	const URemoteControlSettings* RemoteControlSettings = GetMutableDefault<URemoteControlSettings>();
+	bIsLogicPanelEnabled = RemoteControlSettings->bLogicPanelVisibility;
 
 	TArray<TSharedRef<SWidget>> ExtensionWidgets;
 	FRemoteControlUIModule::Get().GetExtensionGenerators().Broadcast(ExtensionWidgets);
@@ -567,8 +570,39 @@ void SRemoteControlPanel::Construct(const FArguments& InArgs, URemoteControlPres
 	ActionPanel = SNew(SRCActionPanel, SharedThis(this))
 		.Visibility_Lambda([this] { return !bIsInLiveMode && bIsLogicPanelEnabled && (ActivePanel == ERCPanels::RCP_Properties || ActivePanel == ERCPanels::RCP_None) ? EVisibility::Visible : EVisibility::Collapsed; });
 
-	LogicPanel->AddPanel(ControllersAndBehavioursPanel, 0.6f);
-	LogicPanel->AddPanel(ActionPanel.ToSharedRef(), 0.4f);
+	// Retrieve Action Panel Split ratio from RC Settings.
+	// We can't just get the value, since it will update in real time as the user resizes the slot: this value needs to update in real time
+	const TAttribute<float> ActionPanelSplitRatioAttribute = TAttribute<float>::Create(
+		TAttribute<float>::FGetter::CreateLambda([]()
+		{
+			const URemoteControlSettings* Settings = GetMutableDefault<URemoteControlSettings>();
+			return Settings->ActionPanelSplitRatio;
+		}));
+	
+	int32 ActionPanelSlotIndex = LogicPanel->AddPanel(ControllersAndBehavioursPanel, ActionPanelSplitRatioAttribute, true);
+	LogicPanel->AddPanel(ActionPanel.ToSharedRef(), 1.0 - ActionPanelSplitRatioAttribute.Get(), true);
+
+	if (ActionPanelSlotIndex >= 0)
+	{
+		const TWeakPtr<SRCMajorPanel> LogicPanelWeak = LogicPanel.ToWeakPtr();
+
+		// We setup a lambda to fire whenever the user is done resizing the splitter.
+		// This lambda will record the current splitter position in Remote Control Settings
+		LogicPanel->OnSplitterFinishedResizing().BindLambda([ActionPanelSlotIndex, LogicPanelWeak]()
+		{
+			if (LogicPanelWeak.IsValid())
+			{
+				if (const TSharedPtr<SRCMajorPanel> LogicPanelShared = LogicPanelWeak.Pin())
+				{
+					const SSplitter::FSlot& Slot = LogicPanelShared->GetSplitterSlotAt(ActionPanelSlotIndex);		
+					URemoteControlSettings* Settings = GetMutableDefault<URemoteControlSettings>();
+					Settings->ActionPanelSplitRatio = Slot.GetSizeValue();
+					Settings->PostEditChange();
+					Settings->SaveConfig();
+				}
+			}
+		});
+	}
 
 	// Make 2 Columns with Panel Drawer + Main Panel
 	TSharedRef<SSplitter> ContentPanel = SNew(SSplitter)
@@ -2036,6 +2070,9 @@ void SRemoteControlPanel::GenerateToolbar()
 		MiscWidgets = MiscWidgetsHBox;
 	}
 
+	const URemoteControlSettings* Settings = GetMutableDefault<URemoteControlSettings>();
+	const FName& DefaultPanelMode = Settings->DefaultPanelMode;
+
 	Toolbar =
 		SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
@@ -2067,7 +2104,7 @@ void SRemoteControlPanel::GenerateToolbar()
 		.AutoWidth()
 		[
 			SNew(SRCModeSwitcher)
-			.DefaultMode("Setup")
+			.DefaultMode(DefaultPanelMode)
 			.OnModeSwitched_Lambda([this](const SRCModeSwitcher::FRCMode& NewMode)
 				{
 					if (NewMode.ModeId == TEXT("Operation"))
@@ -2078,8 +2115,6 @@ void SRemoteControlPanel::GenerateToolbar()
 					{
 						bIsInLiveMode = false;
 					}
-
-					bIsLogicPanelEnabled = bIsInLiveMode;
 
 					if (PanelDrawer.IsValid())
 					{
@@ -2099,6 +2134,11 @@ void SRemoteControlPanel::GenerateToolbar()
 					}
 
 					OnLiveModeChange.ExecuteIfBound(SharedThis(this), bIsInLiveMode);
+
+					URemoteControlSettings* Settings = GetMutableDefault<URemoteControlSettings>();					
+					Settings->DefaultPanelMode = NewMode.ModeId;
+					Settings->PostEditChange();
+					Settings->SaveConfig();
 				}
 			)
 
@@ -2374,6 +2414,11 @@ bool SRemoteControlPanel::IsInProtocolsMode() const
 void SRemoteControlPanel::ToggleLogicEditor_Execute()
 {
 	bIsLogicPanelEnabled = !bIsLogicPanelEnabled;
+
+	URemoteControlSettings* Settings = GetMutableDefault<URemoteControlSettings>();
+	Settings->bLogicPanelVisibility = bIsLogicPanelEnabled;
+	Settings->PostEditChange();
+	Settings->SaveConfig();	
 
 	if (PanelDrawer.IsValid() && (ActivePanel != ERCPanels::RCP_Properties || ActivePanel == ERCPanels::RCP_None))
 	{

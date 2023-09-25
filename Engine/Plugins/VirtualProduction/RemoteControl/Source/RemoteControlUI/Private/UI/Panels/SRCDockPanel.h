@@ -4,10 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SSplitter.h"
 
 struct FRCPanelStyle;
 class SHorizontalBox;
-class SSplitter;
 class SWidget;
 
 enum EToolbar
@@ -90,8 +90,11 @@ public:
 	 * Adds the given panel to the children.
 	 *
 	 * @param InPanel The panel widget.
+	 * @param InDesiredSize The desired size for the Panel widget
+	 * @param bResizable Can the slot be resize by the user
+	 * @return the index of the newly added slot. Slot can be accessed using this index by calling SRCMajorPanel::GetSplitterSlotAt(Index)
 	 */
-	virtual void AddPanel(TSharedRef<SWidget> InPanel, const float InDesiredSize, const bool bResizable = true);
+	virtual int32 AddPanel(TSharedRef<SWidget> InPanel, const TAttribute<float> InDesiredSize, const bool bResizable = true);
 
 	/**
 	 * Gets the content of this panel
@@ -105,6 +108,12 @@ public:
 
 	/** Adds widgets to the specified footer toolbar (Left or Right). */
 	void AddFooterToolItem(EToolbar InToolbar, TSharedRef<SWidget> InWidget);
+
+	/** Delegate called whenever the splitter is finished resizing */
+	FSimpleDelegate& OnSplitterFinishedResizing() { return OnSplitterFinishedResizingDelegate; }
+
+	/** Returns the slot at the specified index */
+	SSplitter::FSlot& GetSplitterSlotAt(const int32 InIndex) const;
 	
 private:
 
@@ -116,6 +125,9 @@ private:
 
 	/** Holds the entire child panels. */
 	TSharedPtr<SSplitter> Children;
+
+	/** Delegate called whenever the splitter is finished resizing */
+	FSimpleDelegate OnSplitterFinishedResizingDelegate;
 };
 
 /**

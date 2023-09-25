@@ -21,6 +21,7 @@
 #include "RemoteControlPropertyIdRegistry.h"
 #include "RemoteControlPanelStyle.h"
 #include "RemoteControlPreset.h"
+#include "RemoteControlSettings.h"
 #include "RemoteControlUIModule.h"
 #include "ScopedTransaction.h"
 #include "SRCHeaderRow.h"
@@ -191,6 +192,10 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 	RCPanelStyle = &FRemoteControlPanelStyle::Get()->GetWidgetStyle<FRCPanelStyle>("RemoteControlPanel.MinorPanel");
 	ActiveListMode = EEntitiesListMode::Default;
 
+	// Retrieve from settings which columns should be hidden
+	const URemoteControlSettings* Settings = GetMutableDefault<URemoteControlSettings>();
+	const TArray<FName>& HiddenColumns = Settings->EntitiesListHiddenColumns.Array();
+
 	// The Default group will be selected by default.
 	if (Preset.IsValid())
 	{
@@ -262,6 +267,7 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 			SAssignNew(FieldsHeaderRow, SRCHeaderRow)
 			.Style(&RCPanelStyle->HeaderRowStyle)
 			.CanSelectGeneratedColumn(true) //To show/hide columns
+			.HiddenColumnsList(HiddenColumns) // List of columns to hide by default. User can un-hide via context menu list
 
 			+ SRCHeaderRow::Column(RemoteControlPresetColumns::DragDropHandle)
 			.DefaultLabel(LOCTEXT("RCPresetDragDropHandleColumnHeader", ""))
