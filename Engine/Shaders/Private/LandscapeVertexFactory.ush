@@ -256,14 +256,7 @@ struct FVertexFactoryInterpolantsVSToPS
 #if NUM_TEX_COORD_INTERPOLATORS
 float2 GetUV(FVertexFactoryInterpolantsVSToPS Interpolants, int UVIndex)
 {
-	float2 Out = 0;
-	if (UVIndex < NUM_TEX_COORD_INTERPOLATORS)
-	{
-		float2 CustomizedUVs[NUM_TEX_COORD_INTERPOLATORS];
-		GetCustomInterpolators(VertexParameters, CustomizedUVs);
-		Out = CustomizedUVs[UVIndex];
-	}
-	return Out;
+	return 0;
 }
 #endif
 
