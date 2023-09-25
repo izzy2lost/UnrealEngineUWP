@@ -147,7 +147,7 @@ namespace Horde.Server.Ugs
 			{
 				UgsMetadataDocument document = (UgsMetadataDocument)metadata;
 
-				int userIdx = document.Users.FindIndex(x => x.User != null && x.User.Equals(userName, StringComparison.OrdinalIgnoreCase));
+				int userIdx = document.Users?.FindIndex(x => x.User != null && x.User.Equals(userName, StringComparison.OrdinalIgnoreCase)) ?? -1;
 				if (userIdx == -1)
 				{
 					// Create a new user entry
