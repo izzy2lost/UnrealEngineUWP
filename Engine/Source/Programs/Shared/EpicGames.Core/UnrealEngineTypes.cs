@@ -1201,6 +1201,11 @@ namespace EpicGames.Core
 		PropagateToArrayInner =	ExportObject | PersistentInstance | InstancedReference | ContainsInstancedReference | Config | EditConst | Deprecated | EditorOnly | AutoWeak | UObjectWrapper,
 
 		/// <summary>
+		/// Flags that are propagated to properties inside optional container
+		/// </summary>
+		PropagateToOptionalInner = ExportObject | PersistentInstance | InstancedReference | ContainsInstancedReference | Config | EditConst | Deprecated | EditorOnly | AutoWeak | UObjectWrapper | Edit,
+
+		/// <summary>
 		/// Flags that are propagated to value properties inside map container
 		/// </summary>
 		PropagateToMapValue = ExportObject | PersistentInstance | InstancedReference | ContainsInstancedReference | Config | EditConst | Deprecated | EditorOnly | AutoWeak | UObjectWrapper | Edit,

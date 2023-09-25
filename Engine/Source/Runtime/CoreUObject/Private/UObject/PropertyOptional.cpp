@@ -39,6 +39,11 @@ FOptionalProperty::FOptionalProperty(FFieldVariant InOwner, const FName& InName,
 {
 }
 
+FOptionalProperty::FOptionalProperty(FFieldVariant InOwner, const UECodeGen_Private::FGenericPropertyParams& Prop)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
+{
+}
+
 FOptionalProperty::~FOptionalProperty()
 {
 	if (ValueProperty)
@@ -100,6 +105,11 @@ void FOptionalProperty::GetInnerFields(TArray<FField*>& OutFields)
 	checkSlow(ValueProperty);
 	OutFields.Add(ValueProperty);
 	ValueProperty->GetInnerFields(OutFields);
+}
+
+void FOptionalProperty::AddCppProperty(FProperty* Property)
+{
+	SetValueProperty(Property);
 }
 
 FString FOptionalProperty::GetCPPType(FString* ExtendedTypeText, uint32 CPPExportFlags) const

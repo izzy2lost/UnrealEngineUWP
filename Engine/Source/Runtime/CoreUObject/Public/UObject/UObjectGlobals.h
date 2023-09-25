@@ -3382,6 +3382,7 @@ namespace UECodeGen_Private
 		Enum              = 0x1E,
 		FieldPath         = 0x1F,
 		LargeWorldCoordinatesReal = 0x20,
+		Optional          = 0x21,
 
 		// Property-specific flags
 		NativeBool        = 0x40,

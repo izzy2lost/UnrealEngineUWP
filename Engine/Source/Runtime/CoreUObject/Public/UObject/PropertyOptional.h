@@ -3,6 +3,7 @@
 #pragma once
 
 #include "UObject/UnrealType.h"
+#include "UObject/UObjectGlobals.h"
 #include "Misc/Optional.h"
 
 // 
@@ -184,6 +185,7 @@ class COREUOBJECT_API FOptionalProperty : public FProperty, public FOptionalProp
 public:
 
 	FOptionalProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
+	FOptionalProperty(FFieldVariant InOwner, const UECodeGen_Private::FGenericPropertyParams& Prop);
 	virtual ~FOptionalProperty();
 
 	// Sets the optional property's value property.
@@ -198,6 +200,7 @@ public:
 	virtual void PostDuplicate(const FField& InField) override;
 	virtual FField* GetInnerFieldByName(const FName& InName) override;
 	virtual void GetInnerFields(TArray<FField*>& OutFields) override;
+	virtual void AddCppProperty(FProperty* Property) override;
 	// End of Field interface
 
 	// UHT interface

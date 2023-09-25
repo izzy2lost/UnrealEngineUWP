@@ -5966,6 +5966,15 @@ namespace UECodeGen_Private
 				NewProp = NewFProperty<FFieldPathProperty, FFieldPathPropertyParams>(Outer, *PropBase);
 			}
 			break;
+
+			case EPropertyGenFlags::Optional:
+			{
+				NewProp = NewFProperty<FOptionalProperty, FGenericPropertyParams>(Outer, *PropBase);
+
+				// Next property is the optional inner
+				ReadMore = 1;
+			}
+			break;
 		}
 
 		NewProp->ArrayDim = PropBase->ArrayDim;
