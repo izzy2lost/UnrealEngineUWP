@@ -30,4 +30,5 @@ protected:
 	ITypedElementDataStorageCompatibilityInterface* StorageCompatibility{ nullptr };
 
 	TArray<TPair<TypedElementDataStorage::FQueryDescription, TSharedPtr<FTypedElementWidgetConstructor>>> QueryToWidgetConstructorMap;
+	TArray<FName, TFixedAllocator<3>> WidgetPurposes;
 };

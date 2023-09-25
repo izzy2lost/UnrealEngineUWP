@@ -239,6 +239,16 @@ public:
 		return SNullWidget::NullWidget;
 	}
 
+	virtual void PopulateSearchStrings( const ISceneOutlinerTreeItem& Item, TArray< FString >& OutSearchStrings ) const override
+	{
+		// TODO: We don't currently have a way to convert TEDS widgets into searchable strings, but we can rely on the fallback column if it exists
+		if(FallbackColumn)
+		{
+			FallbackColumn->PopulateSearchStrings(Item, OutSearchStrings);
+		}
+	}
+	
+
 	TArray<TWeakObjectPtr<const UScriptStruct>> ColumnTypes;
 	TSharedPtr<FTypedElementWidgetConstructor> HeaderWidgetConstructor;
 	TSharedPtr<FTypedElementWidgetConstructor> CellWidgetConstructor;
@@ -284,6 +294,13 @@ void UTypedElementSceneOutlinerFactory::RegisterWidgetPurposes(ITypedElementData
 		LOCTEXT("CellWidgetPurpose", "Widgets for cells in any Scene Outliner for specific columns or column combinations."));
 	DataStorageUi.RegisterWidgetPurpose(FTypedElementSceneOutlinerQueryBinder::DefaultCellWidgetPurpose, PurposeType::UniqueByName,
 		LOCTEXT("DefaultCellWidgetPurpose", "The default widget to use in cells for the Scene Outliner."));
+
+	DataStorageUi.RegisterWidgetPurpose(FTypedElementSceneOutlinerQueryBinder::ItemLabelCellWidgetPurpose, PurposeType::UniqueByNameAndColumn,
+		LOCTEXT("ItemCellWidgetPurpose", "Widgets for cells in any Scene Outliner that are specific to the Item label column."));
+	DataStorageUi.RegisterWidgetPurpose(FTypedElementSceneOutlinerQueryBinder::DefaultItemLabelCellWidgetPurpose, PurposeType::UniqueByName,
+		LOCTEXT("DefaultItemCellWidgetPurpose", "The default widget to use in cells for the Scene Outliner specific to the Item label column."));
+
+
 }
 
 
@@ -297,6 +314,8 @@ const FName FTypedElementSceneOutlinerQueryBinder::HeaderWidgetPurpose(TEXT("Sce
 const FName FTypedElementSceneOutlinerQueryBinder::DefaultHeaderWidgetPurpose(TEXT("SceneOutliner.Header.Default"));
 const FName FTypedElementSceneOutlinerQueryBinder::CellWidgetPurpose(TEXT("SceneOutliner.Cell"));
 const FName FTypedElementSceneOutlinerQueryBinder::DefaultCellWidgetPurpose(TEXT("SceneOutliner.Cell.Default"));
+const FName FTypedElementSceneOutlinerQueryBinder::ItemLabelCellWidgetPurpose(TEXT("SceneOutliner.ItemLabel.Cell"));
+const FName FTypedElementSceneOutlinerQueryBinder::DefaultItemLabelCellWidgetPurpose(TEXT("SceneOutliner.ItemLabel.Cell.Default"));
 
 FTypedElementSceneOutlinerQueryBinder::FTypedElementSceneOutlinerQueryBinder()
 {

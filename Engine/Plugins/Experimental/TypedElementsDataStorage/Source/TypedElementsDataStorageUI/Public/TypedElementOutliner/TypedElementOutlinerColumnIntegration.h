@@ -56,6 +56,9 @@ public:
 	static const FName DefaultHeaderWidgetPurpose;
 	static const FName CellWidgetPurpose;
 	static const FName DefaultCellWidgetPurpose;
+	static const FName ItemLabelCellWidgetPurpose;
+	static const FName DefaultItemLabelCellWidgetPurpose;
+
 
 	static FTypedElementSceneOutlinerQueryBinder& GetInstance();
 

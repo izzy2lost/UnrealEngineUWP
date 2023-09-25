@@ -13,6 +13,7 @@
 #include "Widgets/SWidget.h"
 
 FBaseTEDSOutlinerMode::FBaseTEDSOutlinerMode()
+: WidgetPurposes{TEXT("SceneOutliner.ItemLabel.Cell"), TEXT("SceneOutliner.Cell"), TEXT("General.Cell")}
 {
 	// Initialize the TEDS constructs
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
@@ -36,19 +37,30 @@ FBaseTEDSOutlinerMode::FBaseTEDSOutlinerMode()
 
 		TSharedPtr<FTypedElementWidgetConstructor> OutWidgetConstructorPtr;
 
-		StorageUi->CreateWidgetConstructors(TEXT("General.Cell"), MatchApproach::ExactMatch, ColumnTypes, {},
-				[&OutWidgetConstructorPtr, ColumnTypes](
+		bool bFoundWidget = false;
+		
+		for(const FName& WidgetPurpose : WidgetPurposes)
+		{
+			StorageUi->CreateWidgetConstructors(WidgetPurpose, MatchApproach::ExactMatch, ColumnTypes, {},
+				[&OutWidgetConstructorPtr, ColumnTypes, &bFoundWidget](
 				TUniquePtr<FTypedElementWidgetConstructor> CreatedConstructor, 
 				TConstArrayView<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes)
 				{
 					if (ColumnTypes.Num() == MatchedColumnTypes.Num())
 					{
 						OutWidgetConstructorPtr = TSharedPtr<FTypedElementWidgetConstructor>(CreatedConstructor.Release());
+						bFoundWidget = true;
 					}
 					// Either this was the exact match so no need to search further or the longest possible chain didn't match so the next ones will 
 					// always be shorter in both cases just return.
 					return false;
 				});
+
+			if(bFoundWidget)
+			{
+				break;
+			}
+		}
 
 		return OutWidgetConstructorPtr;
 	};

@@ -411,6 +411,19 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 		Style->Set("Icons.Recent", new IMAGE_BRUSH_SVG("Starship/Common/Recent", Icon16x16));
 
 		Style->Set("Icons.BadgeModified", new IMAGE_BRUSH_SVG("Starship/Common/badge-modified", Icon16x16));
+
+		// Background images for all override badges (first layer)
+		Style->Set("Icons.BadgeOverrideBase", new IMAGE_BRUSH_SVG("Starship/Common/CircleBadgeDot", Icon16x16, FStyleColors::AccentBlue));
+		Style->Set("Icons.BadgeOverrideAddBase", new IMAGE_BRUSH_SVG("Starship/Common/CircleBadgeDot", Icon16x16, FStyleColors::AccentGreen));
+		Style->Set("Icons.BadgeOverrideRemoveBase", new IMAGE_BRUSH_SVG("Starship/Common/CircleBadgeDot", Icon16x16, FStyleColors::AccentRed));
+
+		// Foreground images for all override badges (second layer)
+		Style->Set("Icons.BadgeOverrideSelf", new IMAGE_BRUSH_SVG("Starship/Common/CircleBadgeBorder", Icon16x16, FStyleColors::Recessed));
+		Style->Set("Icons.BadgeOverrideChild", new IMAGE_BRUSH_SVG("Starship/Common/CircleBadgeOutline", Icon16x16, FStyleColors::Recessed));
+		Style->Set("Icons.BadgeOverrideSelfAndChild", new IMAGE_BRUSH_SVG("Starship/Common/CircleBadgeHalf", Icon16x16, FStyleColors::Recessed));
+		Style->Set("Icons.BadgeOverrideAdd", new IMAGE_BRUSH_SVG("Starship/Common/CircleBadgePlus", Icon16x16, FStyleColors::Recessed));
+		Style->Set("Icons.BadgeOverrideRemove", new IMAGE_BRUSH_SVG("Starship/Common/CircleBadgeMinus", Icon16x16, FStyleColors::Recessed));
+		
 		
 		// Toolbar Size Icons
 		Style->Set("Icons.Toolbar.Settings", new IMAGE_BRUSH_SVG("Starship/Common/settings", Icon20x20));
