@@ -935,7 +935,8 @@ public:
 						{
 							FCbFieldView RawHashField = ResultObj["RawHash"];
 							FIoHash RawHash = RawHashField.AsHash();
-							if (const FCbAttachment* Attachment = Response.FindAttachment(RawHash))
+							const FCbAttachment* Attachment = EnumHasAnyFlags(RequestWithStats.Request.Policy, ECachePolicy::SkipData) ? nullptr : Response.FindAttachment(RawHash);
+							if (Attachment)
 							{
 								Value.Emplace(Attachment->AsCompressedBinary());
 							}
@@ -1154,7 +1155,9 @@ public:
 							RawHash = HashView.AsHash();
 							if (!HashView.HasError())
 							{
-								if (const FCbAttachment* Attachment = Response.FindAttachment(HashView.AsHash()))
+								const FCbAttachment* Attachment = EnumHasAnyFlags(RequestWithStats.Request.Policy, ECachePolicy::SkipData) ? nullptr : Response.FindAttachment(HashView.AsHash());
+
+								if (Attachment)
 								{
 									FCompressedBuffer CompressedBuffer = Attachment->AsCompressedBinary();
 									if (CompressedBuffer)
