@@ -730,6 +730,8 @@ void FPrimitiveComponentInstanceData::ApplyToComponent(UActorComponent* Componen
 
 	if (Component->IsRegistered() && ((VisibilityId != INDEX_NONE) || SavedProperties.Num() > 0))
 	{
+		// This is needed to restore transient primitive data from serialized defaults
+		PrimitiveComponent->ResetCustomPrimitiveData();
 		Component->MarkRenderStateDirty();
 	}
 }

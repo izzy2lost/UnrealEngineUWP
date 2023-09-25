@@ -1067,6 +1067,9 @@ public:
 	 */
 	const FCustomPrimitiveData& GetCustomPrimitiveData() const { return CustomPrimitiveDataInternal; }
 
+	/** Reset the custom primitive data of this primitive to the optional user defined default */
+	ENGINE_API void ResetCustomPrimitiveData();
+
 	/**
 	 * Set a scalar parameter for default custom primitive data. This will be serialized and is useful in construction scripts.
 	 * @param	ParameterName	The parameter name of the custom primitive
@@ -1112,9 +1115,6 @@ public:
 #endif
 
 protected:
-
-	/** Reset the custom primitive data of this primitive to the optional user defined default */
-	ENGINE_API void ResetCustomPrimitiveData();
 
 	/** Insert an array of floats into the CustomPrimitiveData, starting at the given index */
 	ENGINE_API void SetCustomPrimitiveDataInternal(int32 DataIndex, const TArray<float>& Values);
