@@ -259,7 +259,8 @@ public:
 	static const TSet<FName>& GetExposedEntitiesColumnNames()
 	{
 		static TSet<FName> ColumnNames =
-			{ TEXT("OwnerName")
+			{ TEXT("PropertyID")
+			, TEXT("OwnerName")
 			, TEXT("Subobject Path")
 			, TEXT("Description")
 			, TEXT("Value")};
