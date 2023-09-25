@@ -681,8 +681,6 @@ FMessageBuilder& FMessageBuilder::operator << (FAnsiStringView Lhs)
 class FSocket
 {
 public:
-	SocketType	Get() const { return Socket; } // to be removed
-
 	enum class EResult
 	{
 		HangUp			=  0,
