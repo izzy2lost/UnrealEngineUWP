@@ -86,6 +86,34 @@ namespace UE::Chaos::ClothAsset
 		}
 	}
 
+	void FCollectionClothSelectionFacade::Append(const FCollectionClothSelectionConstFacade& Other, bool bOverwriteExistingIfMismatched)
+	{
+		if (Other.IsValid())
+		{
+			const int32 NumInSelections = Other.GetNumSelections();
+			const TArray<FName> InSelectionNames = Other.GetNames();
+			for (int32 InSelectionIndex = 0; InSelectionIndex < NumInSelections; ++InSelectionIndex)
+			{
+				const FName& SelectionName = InSelectionNames[InSelectionIndex];
+				if (HasSelection(SelectionName))
+				{
+					if (GetSelectionGroup(SelectionName) == Other.GetSelectionGroup(SelectionName))
+					{
+						TSet<int32>& UnionedSet = GetSelectionSet(SelectionName);
+						UnionedSet.Append(Other.GetSelectionSet(SelectionName));
+						continue;
+					}
+					if (!bOverwriteExistingIfMismatched)
+					{
+						continue;
+					}
+				}
+
+				FindOrAddSelectionSet(SelectionName, Other.GetSelectionGroup(SelectionName)) = Other.GetSelectionSet(SelectionName);
+			}
+		}
+	}
+
 	TSet<int32>& FCollectionClothSelectionFacade::GetSelectionSet(const FName& Name)
 	{
 		check(IsValid());

@@ -20,6 +20,11 @@
 	const int32 Property##KeyIndex = AddPropertyHelper(Properties, FName(TEXT(#Property))); \
 	Properties.SetValue(Property##KeyIndex, (int32)Property);
 
+/** Macro for adding and setting string value from inside AddProperties() */
+#define UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYSTRING(Property) \
+	const int32 Property##KeyIndex = AddPropertyHelper(Properties, FName(TEXT(#Property))); \
+	Properties.SetStringValue(Property##KeyIndex, Property);
+
 /** Macro for adding and setting weighted value properties from inside AddProperties() and check for a similar property being overriden. */
 #define UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYCHECKED1(Property, SimilarProperty1) \
 	const int32 Property##KeyIndex = AddPropertyHelper(Properties, FName(TEXT(#Property)), true, \

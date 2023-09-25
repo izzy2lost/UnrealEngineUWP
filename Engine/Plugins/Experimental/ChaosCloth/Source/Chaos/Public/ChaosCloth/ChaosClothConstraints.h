@@ -49,11 +49,22 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			const FTriangleMesh& TriangleMesh,
 			const FClothingPatternData* PatternData,
 			const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
+			const TMap<FString, const TSet<int32>*>& VertexSets,
 			const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>>& Tethers,
 			Softs::FSolverReal MeshScale,
 			bool bEnabled);
 
-		UE_DEPRECATED(5.3, "Use AddRules() with WeightMaps and optional PatternData instead.")
+		UE_DEPRECATED(5.4, "Use AddRules() with WeightMaps, VertexSets, and optional PatternData instead.")
+		void AddRules(
+			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
+			const FTriangleMesh& TriangleMesh,
+			const FClothingPatternData* PatternData,
+			const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
+			const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>>& Tethers,
+			Softs::FSolverReal MeshScale,
+			bool bEnabled);
+
+		UE_DEPRECATED(5.3, "Use AddRules() with WeightMaps, VertexSets, and optional PatternData instead.")
 		void AddRules(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 			const FTriangleMesh& TriangleMesh,
@@ -62,6 +73,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			Softs::FSolverReal MeshScale,
 			bool bEnabled);
 
+		void Update(
+			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
+			const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
+			const TMap<FString, const TSet<int32>*>& VertexSets,
+			Softs::FSolverReal MeshScale,
+			Softs::FSolverReal MaxDistancesScale = (Softs::FSolverReal)1.);
+
+		UE_DEPRECATED(5.4, "Use Update() with WeightMaps and VertexSets instead.")
 		void Update(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 			const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
@@ -193,11 +212,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		const TSharedPtr<Softs::FPBDCollisionSpringConstraints>& GetSelfCollisionConstraints() const { return SelfCollisionConstraints; }
 		const TSharedPtr<Softs::FPBDTriangleMeshIntersections>& GetSelfIntersectionConstraints() const { return SelfIntersectionConstraints; }
 		const TSharedPtr<Softs::FPBDTriangleMeshCollisions>& GetSelfCollisionInit() const { return SelfCollisionInit; }
+		const TSharedPtr<Softs::FPBDSelfCollisionSphereConstraints>& GetSelfCollisionSphereConstraints() const
+		{ return SelfCollisionSphereConstraints; }
 		// ---- End of debug functions ----
 
 	private:
 		void CreateSelfCollisionConstraints(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
+			const TMap<FString, const TSet<int32>*>& VertexSets,
 			const FTriangleMesh& TriangleMesh);
 		void CreateStretchConstraints(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
@@ -260,6 +282,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TSharedPtr<Softs::FPBDTriangleMeshCollisions> SelfCollisionInit;
 		TSharedPtr<Softs::FPBDCollisionSpringConstraints> SelfCollisionConstraints;
 		TSharedPtr<Softs::FPBDTriangleMeshIntersections> SelfIntersectionConstraints;
+		TSharedPtr<Softs::FPBDSelfCollisionSphereConstraints> SelfCollisionSphereConstraints;
 		
 		Softs::FPBDEvolution* Evolution;
 		const TArray<Softs::FSolverVec3>* AnimationPositions;

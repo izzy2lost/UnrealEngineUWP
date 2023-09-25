@@ -2,6 +2,8 @@
 
 #include "ChaosClothAsset/ClothSimulationModel.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
+#include "ChaosClothAsset/CollectionClothSelectionFacade.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothGeometryTools.h"
 #include "ChaosClothAsset/ClothLodTransitionDataCache.h"
 #include "Utils/ClothingMeshUtils.h"
@@ -143,6 +145,8 @@ bool FChaosClothSimulationLodModel::Serialize(FArchive& Ar)
 	Ar << LODTransitionUpData;
 	Ar << LODTransitionDownData;
 
+	Ar << VertexSets;
+
 	// Return true to confirm that serialization has already been taken care of
 	return true;
 }
@@ -175,6 +179,18 @@ FChaosClothSimulationModel::FChaosClothSimulationModel(const TArray<TSharedRef<c
 		for (const FName& WeightMapName : WeightMapNames)
 		{
 			LodModel.WeightMaps.Add(WeightMapName) = Cloth.GetWeightMap(WeightMapName);
+		}
+
+		// Copy vertex sets
+		FCollectionClothSelectionConstFacade Selection(ClothCollections[LodIndex]);
+		const TArray<FName> SelectionNames = Selection.GetNames();
+		LodModel.VertexSets.Reserve(SelectionNames.Num()); // At this point, only the SimVertex3d selections should be in the collection.
+		for (const FName& SelectionName : SelectionNames)
+		{
+			if (Selection.GetSelectionGroup(SelectionName) == ClothCollectionGroup::SimVertices3D)
+			{
+				LodModel.VertexSets.Add(SelectionName) = Selection.GetSelectionSet(SelectionName);
+			}
 		}
 
 		// Copy bone influences and gather tether data

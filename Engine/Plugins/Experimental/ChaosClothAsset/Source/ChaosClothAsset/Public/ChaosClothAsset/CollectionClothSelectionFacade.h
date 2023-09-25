@@ -75,6 +75,16 @@ namespace UE::Chaos::ClothAsset
 		/** Find a selection with the given name, or nullptr if no such selection exists. */
 		CHAOSCLOTHASSET_API TSet<int32>* FindSelectionSet(const FName& Name);
 
+		/** 
+		 * Append all sets from an existing collection to this collection.
+		 * Matching sets (i.e., same name and type) will be unioned.
+		 * Mismatching sets (same name, different type) will be handled according to bOverwriteExistingIfMismatched
+		 * 
+		 * @param bOverwriteExistingIfMismatched: If true, overwrite existing mismatched sets.
+		 *   If false, keep the existing set.
+		 */
+		CHAOSCLOTHASSET_API void Append(const FCollectionClothSelectionConstFacade& Other, bool bOverwriteExistingIfMismatched);
+
 		/**
 		 * Find, or add if it doesn't already exist, a selection for the specified group with the given name.
 		 * If the group doesn't already exists, this function will create it.

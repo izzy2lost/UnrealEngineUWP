@@ -159,6 +159,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return WeightMaps;
 	}
 
+	TMap<FString, const TSet<int32>*> FClothingSimulationSkeletalMesh::GetVertexSets(int32 LODIndex) const
+	{
+		// Not supported
+		return TMap<FString, const TSet<int32>*>();
+	}
+
 	TArray<TConstArrayView<TTuple<int32, int32, float>>> FClothingSimulationSkeletalMesh::GetTethers(int32 LODIndex, bool bUseGeodesicTethers) const
 	{
 		TArray<TConstArrayView<TTuple<int32, int32, float>>> Tethers;

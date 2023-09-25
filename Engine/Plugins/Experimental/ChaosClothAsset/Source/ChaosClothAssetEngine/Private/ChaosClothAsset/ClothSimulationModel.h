@@ -62,6 +62,9 @@ struct FChaosClothSimulationLodModel
 	UPROPERTY()
 	FClothTetherData TetherData;
 
+	/** Vertex sets */
+	TMap<FName, TSet<int32>> VertexSets;
+
 	// Custom serialize for weight maps
 	bool Serialize(FArchive& Ar);
 };

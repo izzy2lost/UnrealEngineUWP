@@ -123,6 +123,20 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return WeightMaps;
 	}
 
+	TMap<FString, const TSet<int32>*> FClothSimulationMesh::GetVertexSets(int32 LODIndex) const
+	{
+		TMap<FString, const TSet<int32>*> VertexSets;
+		if (ClothSimulationModel.ClothSimulationLodModels.IsValidIndex(LODIndex))
+		{
+			VertexSets.Reserve(ClothSimulationModel.ClothSimulationLodModels[LODIndex].VertexSets.Num());
+			for (TMap<FName, TSet<int32>>::TConstIterator Iter = ClothSimulationModel.ClothSimulationLodModels[LODIndex].VertexSets.CreateConstIterator(); Iter; ++Iter)
+			{
+				VertexSets.Emplace(Iter.Key().ToString(), &Iter.Value());
+			}
+		}
+		return VertexSets;
+	}
+
 	TArray<TConstArrayView<TTuple<int32, int32, float>>> FClothSimulationMesh::GetTethers(int32 LODIndex, bool /*bUseGeodesicTethers*/) const
 	{
 		return ClothSimulationModel.GetTethers(LODIndex);

@@ -69,6 +69,7 @@ namespace Chaos
 		class FPBDCollisionSpringConstraints;
 		class FPBDTriangleMeshIntersections;
 		class FPBDTriangleMeshCollisions;
+		class FPBDSelfCollisionSphereConstraints;
 
 		// Softs solver forces
 		class FVelocityAndPressureField;

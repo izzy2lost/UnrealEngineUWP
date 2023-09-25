@@ -19,6 +19,7 @@
 #include "Chaos/PBDBendingConstraints.h"
 #include "Chaos/PBDCollisionSpringConstraints.h"
 #include "Chaos/PBDLongRangeConstraints.h"
+#include "Chaos/PBDSelfCollisionSphereConstraints.h"
 #include "Chaos/PBDSphericalConstraint.h"
 #include "Chaos/PBDSpringConstraints.h"
 #include "Chaos/PBDTriangleMeshCollisions.h"
@@ -1985,6 +1986,32 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 					static const FLinearColor Orange(0.3f, 0.15f, 0.f);
 					DrawPoint(PDI, P, Orange, nullptr, 2.f);
 					DrawLine(PDI, Pos1, P, Orange);
+				}
+			}
+
+			if (const Softs::FPBDSelfCollisionSphereConstraints* const SelfCollisionSphereConstraints =
+				ClothConstraints.GetSelfCollisionSphereConstraints().Get())
+			{
+				const TArray<Softs::FSolverVec3>& Positions = Solver->GetParticleXs();
+				const TArray<TVec2<int32>>& Constraints = SelfCollisionSphereConstraints->GetConstraints();
+				for (int32 Index = 0; Index < Constraints.Num(); ++Index)
+				{
+					const TVec2<int32>& Constraint = Constraints[Index];
+					const FVector P0 = LocalSpaceLocation + FVector(Positions[Constraint[0]]);
+					const FVector P1 = LocalSpaceLocation + FVector(Positions[Constraint[1]]);
+					static const FLinearColor Brown(0.1f, 0.05f, 0.f);
+					DrawLine(PDI, P0, P1, Brown);
+				}
+
+				if (const TSet<int32>* const VertexSet = SelfCollisionSphereConstraints->GetVertexSet())
+				{
+					const FReal Radius = (FReal)SelfCollisionSphereConstraints->GetRadius();
+					for (const int32 Vertex : *VertexSet)
+					{
+						const FVector P0 = LocalSpaceLocation + FVector(Positions[Vertex + Offset]);
+						DrawSphere(PDI, TSphere<FReal, 3>(FVector::ZeroVector, Radius), FQuat::Identity,
+							P0, FLinearColor(FColor::Orange));
+					}
 				}
 			}
 		}

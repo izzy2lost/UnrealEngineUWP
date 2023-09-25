@@ -6,6 +6,8 @@
 #include "ChaosClothAsset/ClothGeometryTools.h"
 #include "ChaosClothAsset/ClothLODTransitionDataCache.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
+#include "ChaosClothAsset/CollectionClothSelectionFacade.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "Animation/Skeleton.h"
 #include "Chaos/CollectionPropertyFacade.h"
 #include "Dataflow/DataflowInputOutput.h"
@@ -30,6 +32,21 @@ namespace UE::Chaos::ClothAsset::Private
 			{
 				Checksum = Cloth.CalculateTypeHash(bIncludeWeightMapsTrue, Checksum);
 			}
+			FCollectionClothSelectionConstFacade Selection(ClothCollection);
+			if (Selection.IsValid())
+			{
+				// Just checksum the sets that are SimVertex3D sets since those are the only ones we care about right now
+				const TArray<FName> SelectionNames = Selection.GetNames();
+				for (const FName& SelectionName : SelectionNames)
+				{
+					if (Selection.GetSelectionGroup(SelectionName) == ClothCollectionGroup::SimVertices3D)
+					{
+						const TArray<int32> SelectionAsArray = Selection.GetSelectionSet(SelectionName).Array();
+						Checksum = HashCombineFast(Checksum, GetTypeHash(SelectionName));
+						Checksum = GetArrayHash(SelectionAsArray.GetData(), SelectionAsArray.Num(), Checksum);
+					}
+				}
+			}
 		}
 		return Checksum;
 	}
@@ -50,10 +67,10 @@ namespace UE::Chaos::ClothAsset::Private
 			}
 			for (int32 PropertyIndex = 0; PropertyIndex < Property0.Num(); ++PropertyIndex)
 			{
-				if (Property0.GetKey(PropertyIndex) != Property1.GetKey(PropertyIndex))
-				{
-					return false;
-				}
+if (Property0.GetKey(PropertyIndex) != Property1.GetKey(PropertyIndex))
+{
+	return false;
+}
 			}
 		}
 		return true;
@@ -139,6 +156,23 @@ void FChaosClothAssetTerminalNode::SetAssetValue(TObjectPtr<UObject> Asset, Data
 			// Set properties
 			constexpr bool bUpdateExistingProperties = false;
 			Chaos::Softs::FCollectionPropertyMutableFacade(ClothCollection).Append(InClothCollections[LodIndex].ToSharedPtr(), bUpdateExistingProperties);
+
+			// Set selections
+			FCollectionClothSelectionFacade Selection(ClothCollection);
+			FCollectionClothSelectionConstFacade InSelection(InClothCollections[LodIndex]);
+			if (InSelection.IsValid())
+			{
+				Selection.DefineSchema();
+				const TArray<FName> InSelectionNames = InSelection.GetNames();
+				for (const FName& InSelectionName : InSelectionNames)
+				{
+					if (InSelection.GetSelectionGroup(InSelectionName) == ClothCollectionGroup::SimVertices3D)
+					{
+						Selection.FindOrAddSelectionSet(InSelectionName, ClothCollectionGroup::SimVertices3D) = InSelection.GetSelectionSet(InSelectionName);
+					}
+				}
+			}
+
 
 			// Set physics asset only with LOD 0 at the moment
 			if (LodIndex == 0)

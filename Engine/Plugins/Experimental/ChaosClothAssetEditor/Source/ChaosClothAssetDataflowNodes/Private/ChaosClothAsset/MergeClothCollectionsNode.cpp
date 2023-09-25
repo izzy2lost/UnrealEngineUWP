@@ -2,6 +2,7 @@
 
 #include "ChaosClothAsset/MergeClothCollectionsNode.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
+#include "ChaosClothAsset/CollectionClothSelectionFacade.h"
 #include "Chaos/CollectionPropertyFacade.h"
 #include "Dataflow/DataflowInputOutput.h"
 
@@ -40,6 +41,9 @@ void FChaosClothAssetMergeClothCollectionsNode::Evaluate(Dataflow::FContext& Con
 		FCollectionPropertyMutableFacade PropertyFacade(ClothCollection);
 		bAreAnyValid |= PropertyFacade.IsValid();
 
+		FCollectionClothSelectionFacade SelectionFacade(ClothCollection);
+		bAreAnyValid |= SelectionFacade.IsValid();
+
 		// Iterate through the inputs and append them to LOD 0
 		const TArray<const FManagedArrayCollection*> Collections = GetCollections();
 		for (int32 InputIndex = 1; InputIndex < Collections.Num(); ++InputIndex)
@@ -58,6 +62,14 @@ void FChaosClothAssetMergeClothCollectionsNode::Evaluate(Dataflow::FContext& Con
 			{
 				constexpr bool bUpdateExistingProperties = true; // Want last one wins.
 				PropertyFacade.Append(OtherClothCollection.ToSharedPtr(), bUpdateExistingProperties);
+				bAreAnyValid = true;
+			}
+			// Copy selections
+			const FCollectionClothSelectionConstFacade OtherSelectionFacade(OtherClothCollection);
+			if (OtherSelectionFacade.IsValid())
+			{
+				constexpr bool bUpdateExistingSelections = true; // Want last one wins.
+				SelectionFacade.Append(OtherSelectionFacade, bUpdateExistingSelections);
 				bAreAnyValid = true;
 			}
 		}

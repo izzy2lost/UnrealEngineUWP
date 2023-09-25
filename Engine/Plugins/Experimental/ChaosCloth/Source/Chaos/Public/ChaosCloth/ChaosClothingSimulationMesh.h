@@ -72,6 +72,7 @@ namespace Chaos
 		UE_DEPRECATED(5.3, "Use LODIndex version.")
 		virtual TMap<FString, int32> GetWeightMapIndices() const { return GetWeightMapIndices(0); }
 		virtual TArray<TConstArrayView<FRealSingle>> GetWeightMaps(int32 LODIndex) const;
+		virtual TMap<FString, const TSet<int32>*> GetVertexSets(int32 LODIndex) const;
 		virtual TArray<TConstArrayView<TTuple<int32, int32, float>>> GetTethers(int32 LODIndex, bool bUseGeodesicTethers) const;
 		virtual int32 GetReferenceBoneIndex() const;
 		virtual FTransform GetReferenceBoneTransform() const;
@@ -131,6 +132,9 @@ namespace Chaos
 
 		/* Return the specified LOD's weight map. */
 		virtual TArray<TConstArrayView<FRealSingle>> GetWeightMaps(int32 LODIndex) const = 0;
+
+		/* Return the specified LOD's vertex sets. */
+		virtual const TMap<FString, TSet<int32>*> GetVertexSets(int32 LODIndex) const = 0;
 
 		/* Return the tethers connections for the long range attachment into convenient parallel friendly batches. */
 		virtual TArray<TConstArrayView<TTuple<int32, int32, float>>> GetTethers(int32 LODIndex, bool bUseGeodesicTethers) const = 0;

@@ -69,10 +69,10 @@ inline uint32 GetTypeHash(const Chaos::FHierarchicalSpatialHashCellIdx& Idx)
 	return (uint32)Hash;
 }
 
-// Currently this assumes a 3 dimensional grid. 
-template<typename PayloadType, typename T>
-class THierarchicalSpatialHash
+template<typename PayloadType>
+class TSpatialHashGridBase
 {
+protected:	
 	struct FPayloadAndBounds
 	{
 		PayloadType Payload;
@@ -121,7 +121,17 @@ class THierarchicalSpatialHash
 						++IndexToWrite;
 					}
 				}
-			}			
+			}
+		}
+
+		int32 ConcurrentAddElement(const TVec3<int32>& CellIdx, int32 Lod, const FPayloadAndBounds& Value)
+		{
+			const int32 IndexToWrite = ConcurrentElementAddIdx.fetch_add(1, std::memory_order_relaxed);
+			Elements[IndexToWrite].Key = FHierarchicalSpatialHashCellIdx{ CellIdx, Lod };
+			Elements[IndexToWrite].Value = Value;
+			const uint32 HashKey = GetTypeHash(Elements[IndexToWrite].Key) & (Hash.Num() - 1);
+			Elements[IndexToWrite].NextIndex = Hash[HashKey].exchange(IndexToWrite);
+			return IndexToWrite;
 		}
 
 		void ShrinkElementsAfterConcurrentAdd()
@@ -157,6 +167,11 @@ class THierarchicalSpatialHash
 			return Elements[Index].Value;
 		}
 
+		const FHierarchicalSpatialHashCellIdx& GetKey(int32 Index) const
+		{
+			return Elements[Index].Key;
+		}
+
 	private:
 
 		TArray<std::atomic<int32>> Hash;
@@ -170,6 +185,23 @@ class THierarchicalSpatialHash
 		TArray<FElement> Elements;
 		std::atomic<int32> ConcurrentElementAddIdx;
 	};
+
+	FHashMap HashMap;
+
+	void Reset()
+	{
+		HashMap.Reset();
+	}
+};
+
+// Currently this assumes a 3 dimensional grid. 
+template<typename PayloadType, typename T>
+class THierarchicalSpatialHash : public TSpatialHashGridBase<PayloadType>
+{
+	typedef TSpatialHashGridBase<PayloadType> Base;
+	using typename Base::FPayloadAndBounds;
+	using typename Base::FHashMap;
+	using Base::HashMap;
 
 	class FVectorAABB
 	{
@@ -210,7 +242,7 @@ public:
 
 	void Reset()
 	{
-		HashMap.Reset();
+		Base::Reset();
 		UsedLods.Reset();
 	}
 
@@ -346,12 +378,161 @@ public:
 		return Result;
 	}
 
-
-
 private:
 	TMap<int32, T> UsedLods;
-	FHashMap HashMap;
 	TArray<FVectorAABB> Bounds;
+};
+
+template<typename PayloadType, typename T>
+class TSpatialHashGridPoints : public TSpatialHashGridBase<PayloadType>
+{
+	typedef TSpatialHashGridBase<PayloadType> Base;
+	using typename Base::FPayloadAndBounds;
+	using typename Base::FHashMap;
+	using Base::HashMap;
+
+public:
+	TSpatialHashGridPoints(const T InCellSize)
+		: Base()
+		, CellSize(InCellSize)
+	{}
+
+	void Reset()
+	{
+		Base::Reset();
+		ParticleIndexToElement.Reset();
+	}
+
+	template<typename ParticlesType>
+	void InitializePoints(const ParticlesType& Particles)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(SpatialHashGridConstantBounds_Init);
+		Reset();
+
+		ParticleIndexToElement.SetNum(Particles.Num());
+		HashMap.PreallocateElementsForConcurrentAdd(Particles.Num(), Particles.Num());
+		PhysicsParallelFor(Particles.Num(),
+			[this, &Particles](int32 ParticleIdx)
+		{
+			const auto& Particle = Particles[ParticleIdx];
+			const PayloadType Payload = Particle.template GetPayload<PayloadType>(ParticleIdx);
+			const TVec3<int32> CellIdx = FHierarchicalSpatialHashCellIdx::CellIdxForPoint(Particle.X(), CellSize);
+			const FPayloadAndBounds Value = { Payload, ParticleIdx };
+			const int32 ElementIdx = HashMap.ConcurrentAddElement(CellIdx, INDEX_NONE, Value);
+			ParticleIndexToElement[ParticleIdx] = ElementIdx;
+		}
+		);
+
+		HashMap.ShrinkElementsAfterConcurrentAdd();
+	}
+
+	TArray<TVec2<PayloadType>> FindAllSelfProximities(int32 CellRadius, int32 MaxNumExpectedConnections, TFunctionRef<bool(const int32 Payload0, const int32 Payload1)> NarrowTest)
+	{
+		check(CellRadius >= 0);
+
+		// Resize using a RWLock. Start with MaxNumExpectedConnections
+		TArray<TVec2<PayloadType>> Result;
+		Result.SetNum(MaxNumExpectedConnections);
+		Result.SetNum(Result.Max()); // Remove all slack.
+		std::atomic<int32> ResultIndex(0);
+		std::atomic<int32> CurrentResultNum(Result.Num()); // Arrays aren't thread-safe, so use this to track size instead.
+		FRWLock ResultResizeRWLock;
+
+		auto AddResult = [this, &NarrowTest, &Result, &ResultIndex, &CurrentResultNum, &ResultResizeRWLock]
+		(const TVec2<PayloadType>& Proximity)
+		{
+			if (!NarrowTest(Proximity[0], Proximity[1]))
+			{
+				return;
+			}
+			const int32 NewResultIndex = ResultIndex.fetch_add(1);
+			if (NewResultIndex < CurrentResultNum.load())
+			{
+				ResultResizeRWLock.ReadLock();
+				Result[NewResultIndex] = Proximity;
+				ResultResizeRWLock.ReadUnlock();
+			}
+			else
+			{
+				ResultResizeRWLock.WriteLock();
+				if (NewResultIndex >= CurrentResultNum.load())
+				{
+					// Use array's allocator to decide how much slack to create
+					Result.SetNum(NewResultIndex+1);
+					Result.SetNum(Result.Max());
+					CurrentResultNum.store(Result.Num());
+				}
+				Result[NewResultIndex] = Proximity;
+				ResultResizeRWLock.WriteUnlock();
+			}
+		};
+
+		auto AddResultsInCell = [this,&AddResult](PayloadType ThisPayload, const FHierarchicalSpatialHashCellIdx& Cell)
+		{
+			for (int32 HashIndex = HashMap.First(Cell); HashMap.IsValid(HashIndex); HashIndex = HashMap.Next(HashIndex))
+			{
+				if (HashMap.KeyMatches(HashIndex, Cell))
+				{
+					AddResult(TVec2<PayloadType>(ThisPayload, HashMap.GetValue(HashIndex).Payload));
+				}
+			}
+		};
+
+		PhysicsParallelFor(ParticleIndexToElement.Num(),
+			[this, &AddResult, &AddResultsInCell, CellRadius](int32 ParticleIdx)
+		{
+			const int32 ThisElementIdx = ParticleIndexToElement[ParticleIdx];
+			const int32 ThisPayload = HashMap.GetValue(ThisElementIdx).Payload;
+			const FHierarchicalSpatialHashCellIdx& ThisKey = HashMap.GetKey(ThisElementIdx);
+
+			// All neighbors in our cell after us in the list
+			int32 OtherElementIdx = HashMap.Next(ThisElementIdx);
+			for (; HashMap.IsValid(OtherElementIdx); OtherElementIdx = HashMap.Next(OtherElementIdx))
+			{
+				if (HashMap.KeyMatches(OtherElementIdx, ThisKey))
+				{
+					AddResult(TVec2<PayloadType>(ThisPayload, HashMap.GetValue(OtherElementIdx).Payload));
+				}
+			}
+
+			// Iterate over cells within CellRadius away. Only look "forward". Particles behind us will find us by looking forward.
+			// I dunno... there's probably a better way to do this.....
+			for (int32 ZIndex = 1; ZIndex <= CellRadius; ++ZIndex)
+			{
+				AddResultsInCell(ThisPayload, FHierarchicalSpatialHashCellIdx{ ThisKey.Cell + TVec3<int32>(0,0,ZIndex), INDEX_NONE });
+			}
+
+			for (int32 YIndex = 1; YIndex <= CellRadius; ++YIndex)
+			{
+				for (int32 ZIndex = -CellRadius; ZIndex <= CellRadius; ++ZIndex)
+				{
+					AddResultsInCell(ThisPayload, FHierarchicalSpatialHashCellIdx{ ThisKey.Cell + TVec3<int32>(0,YIndex,ZIndex), INDEX_NONE });
+				}
+			}
+
+			for (int32 XIndex = 1; XIndex <= CellRadius; ++XIndex)
+			{
+				for (int32 YIndex = -CellRadius; YIndex <= CellRadius; ++YIndex)
+				{
+					for (int32 ZIndex = -CellRadius; ZIndex <= CellRadius; ++ZIndex)
+					{
+						AddResultsInCell(ThisPayload, FHierarchicalSpatialHashCellIdx{ ThisKey.Cell + TVec3<int32>(XIndex,YIndex,ZIndex), INDEX_NONE });
+					}
+				}
+			}
+		}
+		);
+
+		// Shrink Result array to actual number of found proximities
+		const int32 ResultNum = ResultIndex.load();
+		Result.SetNum(ResultNum, /*bAllowShrinking*/ true);
+		return Result;
+	}
+private:
+	const T CellSize;
+
+	// Particle Index is dense array index passed in at build time. 
+	TArray<int32> ParticleIndexToElement;
 };
 }
 
