@@ -295,7 +295,7 @@ enum class ERenderCommandPipeFlags : uint8
 ENUM_CLASS_FLAGS(ERenderCommandPipeFlags);
 
 class FRenderCommandPipe;
-using FRenderCommandPipeBitArrayAllocator = TInlineAllocator<1, FConcurrentLinearArrayAllocator>;
+using FRenderCommandPipeBitArrayAllocator = TInlineAllocator<1, FConcurrentLinearBitArrayAllocator>;
 using FRenderCommandPipeBitArray = TBitArray<FRenderCommandPipeBitArrayAllocator>;
 using FRenderCommandPipeSetBitIterator = TConstSetBitIterator<FRenderCommandPipeBitArrayAllocator>;
 
@@ -318,24 +318,16 @@ namespace UE::RenderCommandPipe
 	extern RENDERCORE_API FRenderCommandPipeBitArray StopRecording();
 	extern RENDERCORE_API FRenderCommandPipeBitArray StopRecording(TConstArrayView<FRenderCommandPipe*> Pipes);
 
+	// Returns the list of all registered pipes.
+	extern TConstArrayView<FRenderCommandPipe*> GetPipes();
+
 	// [Game Thread] Stops render command pipe recording during the duration of the scope and restarts recording once the scope is complete.
-	class FSyncScope
+	class RENDERCORE_API FSyncScope
 	{
 	public:
-		FSyncScope()
-		{
-			PipeBits = StopRecording();
-		}
-
-		FSyncScope(TConstArrayView<FRenderCommandPipe*> Pipes)
-		{
-			PipeBits = StopRecording(Pipes);
-		}
-
-		~FSyncScope()
-		{
-			StartRecording(PipeBits);
-		}
+		FSyncScope();
+		FSyncScope(TConstArrayView<FRenderCommandPipe*> Pipes);
+		~FSyncScope();
 
 	private:
 		FRenderCommandPipeBitArray PipeBits;
@@ -437,6 +429,11 @@ public:
 		return bRecording;
 	}
 
+	FORCEINLINE bool IsEmpty() const
+	{
+		return NumInFlightCommands.load(std::memory_order_relaxed) == 0;
+	}
+
 	void SetEnabled(bool bInIsEnabled)
 	{
 		check(IsInGameThread());
@@ -462,17 +459,7 @@ public:
 	template <typename RenderCommandTag>
 	static void Enqueue(FRenderCommandPipe& Pipe, FCommandListFunction&& Function)
 	{
-		if (GRenderCommandPipeMode == ERenderCommandPipeMode::All)
-		{
-			UE::TScopeLock Lock(Pipe.Mutex);
-			if (Pipe.Frame_GameThread)
-			{
-				Pipe.EnqueueAndLaunch(MoveTemp(Function), RenderCommandTag::GetName(), RenderCommandTag::GetSpecId());
-				return;
-			}
-		}
-		
-		EnqueueUniqueRenderCommand<RenderCommandTag>([Function = MoveTemp(Function)](FRHICommandListImmediate& RHICmdList) { Function(RHICmdList); });
+		Enqueue<RenderCommandTag>(&Pipe, MoveTemp(Function));
 	}
 
 	template <typename RenderCommandTag>
@@ -494,17 +481,7 @@ public:
 	template <typename RenderCommandTag>
 	static void Enqueue(FRenderCommandPipe& Pipe, FEmptyFunction&& Function)
 	{
-		if (Pipe.bEnabled)
-		{
-			UE::TScopeLock Lock(Pipe.Mutex);
-			if (Pipe.Frame_GameThread)
-			{
-				Pipe.EnqueueAndLaunch(MoveTemp(Function), RenderCommandTag::GetName(), RenderCommandTag::GetSpecId());
-				return;
-			}
-		}
-
-		EnqueueUniqueRenderCommand<RenderCommandTag>([Function = MoveTemp(Function)](FRHICommandListImmediate&) { Function(); });
+		Enqueue<RenderCommandTag>(&Pipe, MoveTemp(Function));
 	}
 
 	template <typename RenderCommandTag, typename LambdaType>
@@ -562,6 +539,7 @@ private:
 	FFrame* Frame_RenderThread = nullptr;
 	TLinkedList<FRenderCommandPipe*> GlobalListLink;
 	FAutoConsoleVariable ConsoleVariable;
+	std::atomic_int32_t NumInFlightCommands{ 0 };
 	uint16 Index = uint16(-1);
 	bool bRecording = false;
 	bool bEnabled = true;
