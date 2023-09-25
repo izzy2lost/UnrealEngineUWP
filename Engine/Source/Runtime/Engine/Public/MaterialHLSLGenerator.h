@@ -175,7 +175,7 @@ public:
 		TArrayView<FConnectedInput> ConnectedInputs,
 		int32 OutputIndex);
 
-	const UE::HLSLTree::FExpression* GenerateBranch(UE::HLSLTree::FScope& Scope,
+	ENGINE_API const UE::HLSLTree::FExpression* GenerateBranch(UE::HLSLTree::FScope& Scope,
 		const UE::HLSLTree::FExpression* ConditionExpression,
 		const UE::HLSLTree::FExpression* TrueExpression,
 		const UE::HLSLTree::FExpression* FalseExpression);

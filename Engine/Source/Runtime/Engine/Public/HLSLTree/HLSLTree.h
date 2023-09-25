@@ -632,8 +632,8 @@ public:
 	FFunction* NewFunction();
 
 	/** Shortcuts to create various common expression types */
-	const FExpression* NewConstant(const Shader::FValue& Value);
-	const FExpression* NewSwizzle(const FSwizzleParameters& Params, const FExpression* Input);
+	ENGINE_API const FExpression* NewConstant(const Shader::FValue& Value);
+	ENGINE_API const FExpression* NewSwizzle(const FSwizzleParameters& Params, const FExpression* Input);
 	ENGINE_API const FExpression* NewUnaryOp(EOperation Op, const FExpression* Input);
 	ENGINE_API const FExpression* NewBinaryOp(EOperation Op, const FExpression* Lhs, const FExpression* Rhs);
 	const FExpression* NewTernaryOp(EOperation Op, const FExpression* Input0, const FExpression* Input1, const FExpression* Input2);
