@@ -40,9 +40,10 @@ namespace UE::Chaos::ClothAsset
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
-				.MaxWidth(160.f)
+				.MaxWidth(145.f)
 				[
 					SAssignNew(ComboButton, SComboButton)
+					.ButtonStyle(FAppStyle::Get(), "NoBorder")
 					.ContentPadding(0)
 					.OnGetMenuContent(this, &FSelectionGroupCustomization::OnGetMenuContent)
 					.ButtonContent()
