@@ -1164,6 +1164,11 @@ void UPCGComponent::BeginDestroy()
 	Super::BeginDestroy();
 }
 
+bool UPCGComponent::IsEditorOnly() const
+{
+	return Super::IsEditorOnly() || (GraphInstance && GraphInstance->IsEditorOnly());
+}
+
 void UPCGComponent::PostInitProperties()
 {
 #if WITH_EDITOR

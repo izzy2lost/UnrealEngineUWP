@@ -178,6 +178,7 @@ public:
 	UPCGGraph(const FObjectInitializer& ObjectInitializer);
 	/** ~Begin UObject interface */
 	virtual void PostLoad() override;
+	virtual bool IsEditorOnly() const override;
 #if WITH_EDITOR
 	static void DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass);
 #endif
@@ -269,7 +270,7 @@ public:
 	void AddNodes(TArray<UPCGNode*>& InNodes);
 
 	/** Calls the lambda on every node in graph. */
-	void ForEachNode(const TFunction<void(UPCGNode*)>& Action);
+	void ForEachNode(const TFunction<void(UPCGNode*)>& Action) const;
 
 	bool RemoveInboundEdges(UPCGNode* InNode, const FName& InboundLabel);
 	bool RemoveOutboundEdges(UPCGNode* InNode, const FName& OutboundLabel);
@@ -362,6 +363,10 @@ protected:
 	mutable TMap<const UPCGNode*, uint32> NodeToGridSize;
 	mutable FRWLock NodeToGridSizeLock;
 
+	/** Sets whether this graph is marked as editor-only; note that the IsEditorOnly call depends on the local graph value and the value in all subgraphs, recursively. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Cooking)
+	bool bIsEditorOnly = false;
+
 #if WITH_EDITORONLY_DATA
 	/** When true the Debug flag in the graph editor will display debug information contextually for the selected debug object. Otherwise
 	* debug information is displayed for all components using a graph (requires regenerate).
@@ -417,6 +422,7 @@ public:
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
 	virtual void PostEditImport() override;
 	virtual void BeginDestroy() override;
+	virtual bool IsEditorOnly() const override { return GetGraph() && GetGraph()->IsEditorOnly(); }
 
 #if WITH_EDITOR
 	virtual void PreEditChange(FProperty* InProperty) override;

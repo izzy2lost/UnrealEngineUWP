@@ -79,6 +79,7 @@ public:
 	virtual void PostLoad() override;
 	virtual void PostInitProperties() override;
 	virtual void BeginDestroy() override;
+	virtual bool IsEditorOnly() const override;
 
 #if WITH_EDITOR
 	virtual bool CanEditChange(const FProperty* InProperty) const override;

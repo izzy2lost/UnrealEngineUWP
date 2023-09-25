@@ -332,6 +332,28 @@ void UPCGGraph::PostLoad()
 #endif
 }
 
+bool UPCGGraph::IsEditorOnly() const
+{
+	bool bIsCurrentlyEditorOnly = (Super::IsEditorOnly() || bIsEditorOnly);
+
+	if (!bIsCurrentlyEditorOnly)
+	{
+		// Check for any subgraphs...
+		ForEachNode([&bIsCurrentlyEditorOnly](UPCGNode* Node)
+		{
+			if (UPCGBaseSubgraphNode* SubgraphNode = Cast<UPCGBaseSubgraphNode>(Node))
+			{
+				if (SubgraphNode->GetSubgraph())
+				{
+					bIsCurrentlyEditorOnly |= SubgraphNode->GetSubgraph()->IsEditorOnly();
+				}
+			}
+		});
+	}
+
+	return bIsCurrentlyEditorOnly;
+}
+
 #if WITH_EDITOR
 void UPCGGraph::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass)
 {
@@ -708,7 +730,7 @@ bool UPCGGraph::RemoveEdge(UPCGNode* From, const FName& FromLabel, UPCGNode* To,
 	return TouchedNodes.Num() > 0;
 }
 
-void UPCGGraph::ForEachNode(const TFunction<void(UPCGNode*)>& Action)
+void UPCGGraph::ForEachNode(const TFunction<void(UPCGNode*)>& Action) const
 {
 	Action(InputNode);
 	Action(OutputNode);
