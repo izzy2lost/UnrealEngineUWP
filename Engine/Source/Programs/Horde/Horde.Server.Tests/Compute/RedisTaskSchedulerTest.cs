@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Compute;
@@ -22,14 +23,12 @@ namespace Horde.Server.Tests.Compute
 			_scheduler = new RedisTaskScheduler<string, string>(redisService.ConnectionPool, new RedisKey("myBaseKey"), loggerFactory.CreateLogger<RedisTaskScheduler<string, string>>());
 		}
 
-		protected override void Dispose(bool disposing)
+		public override async ValueTask DisposeAsync()
 		{
-			base.Dispose(disposing);
+			await base.DisposeAsync();
+			GC.SuppressFinalize(this);
 
-			if (disposing)
-			{
-				_scheduler.Dispose();
-			}
+			_scheduler.Dispose();
 		}
 
 		[TestMethod]

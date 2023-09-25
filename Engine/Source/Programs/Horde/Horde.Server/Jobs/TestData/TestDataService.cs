@@ -16,7 +16,7 @@ namespace Horde.Server.Jobs.TestData
 	/// <summary>
 	/// Device management service
 	/// </summary>
-	public sealed class TestDataService : IHostedService, IDisposable
+	public sealed class TestDataService : IHostedService, IAsyncDisposable
 	{
 		
 		readonly ITestDataCollection _testData;
@@ -57,9 +57,9 @@ namespace Horde.Server.Jobs.TestData
 		}
 
 		/// <inheritdoc/>
-		public void Dispose()
+		public async ValueTask DisposeAsync()
 		{
-			_ticker.Dispose();
+			await _ticker.DisposeAsync();
 		}
 
 		/// <summary>

@@ -34,7 +34,7 @@ namespace Horde.Server.Agents.Fleet;
 /// <summary>
 /// Service handling callbacks and lifecycle events triggered by EC2 auto-scaling in AWS
 /// </summary>
-public sealed class AwsAutoScalingLifecycleService : IHostedService, IDisposable
+public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDisposable
 {
 	/// <summary>
 	/// Lifecycle action for continue
@@ -140,10 +140,13 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IDisposable
 	}
 
 	/// <inheritdoc/>
-	public void Dispose()
+	public async ValueTask DisposeAsync()
 	{
-		_updateLifecyclesTicker.Dispose();
-		_lifecycleEventListenerTasks.ForEach(x => x.Dispose());
+		await _updateLifecyclesTicker.DisposeAsync();
+		foreach (BackgroundTask bgTask in _lifecycleEventListenerTasks)
+		{
+			await bgTask.DisposeAsync();
+		}
 	}
 
 	/// <summary>

@@ -37,7 +37,7 @@ namespace Horde.Server.Notifications
 	/// <summary>
 	/// Wraps functionality for delivering notifications.
 	/// </summary>
-	public class NotificationService : BackgroundService, INotificationService
+	public sealed class NotificationService : IHostedService, INotificationService, IAsyncDisposable
 	{
 		/// <summary>
 		/// The available notification sinks
@@ -127,6 +127,7 @@ namespace Horde.Server.Notifications
 
 		readonly Counter<int> _jobCounter;
 		readonly Histogram<double> _jobDurationHistogram;
+		readonly BackgroundTask _backgroundTask;
 
 		static string RedisQueueListKey(string notificationType) => "NotificationService.queued." + notificationType;
 
@@ -162,6 +163,7 @@ namespace Horde.Server.Notifications
 			_logFileService = logFileService;
 			_cache = cache;
 			_redisConnectionPool = redisService.ConnectionPool;
+			_backgroundTask = new BackgroundTask(ExecuteAsync);
 
 			issueService.OnIssueUpdated += NotifyIssueUpdated;
 			jobService.OnJobStepComplete += NotifyJobStepComplete;
@@ -175,17 +177,29 @@ namespace Horde.Server.Notifications
 		}
 
 		/// <inheritdoc/>
-		public override void Dispose()
+		public async Task StartAsync(CancellationToken cancellationToken)
 		{
-			base.Dispose();
+			_backgroundTask.Start();
+			await _ticker.StartAsync();
+		}
 
+		/// <inheritdoc/>
+		public async Task StopAsync(CancellationToken cancellationToken)
+		{
+			await _ticker.StopAsync();
+			await _backgroundTask.StopAsync();
+		}
+
+		/// <inheritdoc/>
+		public async ValueTask DisposeAsync()
+		{
 			_issueService.OnIssueUpdated -= NotifyIssueUpdated;
 			_jobService.OnJobStepComplete -= NotifyJobStepComplete;
 			_jobService.OnJobScheduled += NotifyJobScheduled;
 			_jobService.OnLabelUpdate -= NotifyLabelUpdate;
 
-			GC.SuppressFinalize(this);
-			_ticker.Dispose();
+			await _ticker.DisposeAsync();
+			await _backgroundTask.DisposeAsync();
 		}
 
 		/// <inheritdoc/>
@@ -408,10 +422,8 @@ namespace Horde.Server.Notifications
 		}
 
 		/// <inheritdoc/>
-		protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+		async Task ExecuteAsync(CancellationToken stoppingToken)
 		{
-			await _ticker.StartAsync();
-			
 			// This background service just waits for tasks to finish and prints any exception info. The only reason to do this is to
 			// ensure we finish processing everything before shutdown.
 			using (CancellationTask stoppingTask = new CancellationTask(stoppingToken))
@@ -461,8 +473,6 @@ namespace Horde.Server.Notifications
 					}
 				}
 			}
-			
-			await _ticker.StopAsync();
 		}
 
 		internal Task ExecuteBackgroundForTest(CancellationToken stoppingToken)

@@ -38,7 +38,7 @@ namespace Horde.Server.Jobs
 	/// <summary>
 	/// Background service to dispatch pending work to agents in priority order.
 	/// </summary>
-	public sealed class JobTaskSource : TaskSourceBase<ExecuteJobTask>, IHostedService, IDisposable
+	public sealed class JobTaskSource : TaskSourceBase<ExecuteJobTask>, IHostedService, IAsyncDisposable
 	{
 		/// <inheritdoc/>
 		public override string Type => "Job";
@@ -252,7 +252,7 @@ namespace Horde.Server.Jobs
 		public Task StopAsync(CancellationToken cancellationToken) => _ticker.StopAsync();
 
 		/// <inheritdoc/>
-		public void Dispose() => _ticker.Dispose();
+		public async ValueTask DisposeAsync() => await _ticker.DisposeAsync();
 
 		/// <summary>
 		/// Gets an object containing the stats of the queue for diagnostic purposes.

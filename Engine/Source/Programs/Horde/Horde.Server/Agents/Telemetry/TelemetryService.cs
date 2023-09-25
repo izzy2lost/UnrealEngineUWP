@@ -18,7 +18,7 @@ namespace Horde.Server.Agents.Telemetry
 	/// <summary>
 	/// Service which updates telemetry periodically
 	/// </summary>
-	public sealed class TelemetryService : IHostedService, IDisposable
+	public sealed class TelemetryService : IHostedService, IAsyncDisposable
 	{
 		readonly ITelemetryCollection _telemetryCollection;
 		readonly IAgentCollection _agentCollection;
@@ -51,7 +51,7 @@ namespace Horde.Server.Agents.Telemetry
 		public Task StopAsync(CancellationToken cancellationToken) => _tick.StopAsync();
 
 		/// <inheritdoc/>
-		public void Dispose() => _tick.Dispose();
+		public ValueTask DisposeAsync() => _tick.DisposeAsync();
 
 		/// <inheritdoc/>
 		async ValueTask TickLeaderAsync(CancellationToken stoppingToken)

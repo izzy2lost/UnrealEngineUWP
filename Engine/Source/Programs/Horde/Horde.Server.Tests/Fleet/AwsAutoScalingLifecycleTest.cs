@@ -32,15 +32,18 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	private readonly string _queueUrl1 = "https://sqs.us-east-1.amazonaws.com/123456789/MyQueue-1";
 	private readonly string _queueUrl2 = "https://sqs.us-east-1.amazonaws.com/123456789/MyQueue-2";
 
-	protected override void Dispose(bool disposing)
+	public override async ValueTask DisposeAsync()
 	{
-		if (disposing)
+		GC.SuppressFinalize(this);
+		await base.DisposeAsync();
+
+		if (_asgLifecycleService != null)
 		{
-			_asgLifecycleService?.Dispose();
-			_fakeSqs?.Dispose();
+			await _asgLifecycleService.DisposeAsync();
+			_asgLifecycleService = null!;
 		}
 
-		base.Dispose(disposing);
+		_fakeSqs?.Dispose();
 	}
 
 	[TestInitialize]

@@ -18,7 +18,7 @@ namespace Horde.Server.Agents.Pools
 	/// <summary>
 	/// Periodically updates pool documents to contain the correct workspaces
 	/// </summary>
-	public sealed class PoolUpdateService : IHostedService, IDisposable
+	public sealed class PoolUpdateService : IHostedService, IAsyncDisposable
 	{
 		readonly IAgentCollection _agents;
 		readonly IPoolCollection _pools;
@@ -59,10 +59,10 @@ namespace Horde.Server.Agents.Pools
 		} 
 
 		/// <inheritdoc/>
-		public void Dispose()
+		public async ValueTask DisposeAsync()
 		{
-			_updatePoolsTicker.Dispose();
-			_shutdownDisabledAgentsTicker.Dispose();
+			await _updatePoolsTicker.DisposeAsync();
+			await _shutdownDisabledAgentsTicker.DisposeAsync();
 		}
 
 		/// <summary>

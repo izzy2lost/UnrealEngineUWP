@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading;
+using System.Threading.Tasks;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Mvc;
@@ -112,7 +113,7 @@ namespace Horde.Server.Tests
 		}
 	}
 
-	public class ServiceTest : IDisposable
+	public class ServiceTest : IAsyncDisposable
 	{
 		private ServiceProvider? _serviceProvider = null;
 
@@ -131,15 +132,15 @@ namespace Horde.Server.Tests
 			}
 		}
 
-		public void Dispose()
+		public virtual async ValueTask DisposeAsync()
 		{
-			Dispose(true);
 			GC.SuppressFinalize(this);
-		}
 
-		protected virtual void Dispose(bool disposing)
-		{
-			_serviceProvider?.Dispose();
+			if (_serviceProvider != null)
+			{
+				await _serviceProvider.DisposeAsync();
+				_serviceProvider = null;
+			}
 		}
 
 		protected virtual void ConfigureSettings(ServerSettings settings)
@@ -173,10 +174,11 @@ namespace Horde.Server.Tests
 			services.AddSingleton(GetRedisServiceSingleton());
 		}
 
-		protected override void Dispose(bool disposing)
+		public override async ValueTask DisposeAsync()
 		{
-			base.Dispose(disposing);
+			await base.DisposeAsync();
 
+			GC.SuppressFinalize(this);
 			_mongoDbInstance?.Dispose();
 			_mongoService?.Dispose();
 			_redisService?.Dispose();

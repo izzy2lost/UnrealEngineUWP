@@ -140,7 +140,7 @@ namespace Horde.Server.Issues
 	/// <summary>
 	/// Wraps funtionality for manipulating build health issues
 	/// </summary>
-	public sealed class IssueService : IHostedService, IDisposable
+	public sealed class IssueService : IHostedService, IAsyncDisposable
 	{
 		/// <summary>
 		/// Maximum number of changes to query from Perforce in one go
@@ -253,7 +253,10 @@ namespace Horde.Server.Issues
 		public Task StopAsync(CancellationToken cancellationToken) => _ticker.StopAsync();
 
 		/// <inheritdoc/>
-		public void Dispose() => _ticker.Dispose();
+		public async ValueTask DisposeAsync()
+		{
+			await _ticker.DisposeAsync();
+		}
 
 		/// <summary>
 		/// Periodically update the list of cached open issues

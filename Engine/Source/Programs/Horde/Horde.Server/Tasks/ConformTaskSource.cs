@@ -26,7 +26,7 @@ namespace Horde.Server.Tasks
 	/// <summary>
 	/// Generates tasks telling agents to sync their workspaces
 	/// </summary>
-	public sealed class ConformTaskSource : TaskSourceBase<ConformTask>, IHostedService, IDisposable
+	public sealed class ConformTaskSource : TaskSourceBase<ConformTask>, IHostedService, IAsyncDisposable
 	{
 		/// <inheritdoc/>
 		public override string Type => "Conform";
@@ -69,7 +69,7 @@ namespace Horde.Server.Tasks
 		public Task StopAsync(CancellationToken cancellationToken) => _tickConformList.StopAsync();
 
 		/// <inheritdoc/>
-		public void Dispose() => _tickConformList.Dispose();
+		public async ValueTask DisposeAsync() => await _tickConformList.DisposeAsync();
 
 		/// <summary>
 		/// Clean up the conform list of any outdated entries

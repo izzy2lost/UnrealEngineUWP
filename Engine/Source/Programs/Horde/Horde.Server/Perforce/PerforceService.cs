@@ -30,7 +30,7 @@ namespace Horde.Server.Perforce
 	/// <summary>
 	/// P4API implementation of the Perforce service
 	/// </summary>
-	class PerforceService : IPerforceService, IDisposable
+	class PerforceService : IPerforceService, IAsyncDisposable
 	{
 		protected sealed class PooledConnection : IDisposable
 		{
@@ -268,7 +268,7 @@ namespace Horde.Server.Perforce
 			}
 		}
 
-		public virtual void Dispose()
+		public virtual ValueTask DisposeAsync()
 		{
 			foreach (PooledConnection pooledConnection in _pooledConnections)
 			{
@@ -278,6 +278,7 @@ namespace Horde.Server.Perforce
 
 			_userCache.Dispose();
 			_streamCache.Dispose();
+			return new ValueTask();
 		}
 
 		async Task<PooledConnectionHandle> CreatePooledConnectionAsync(string serverAndPort, Credentials credentials, ClientRecord? clientRecord, CancellationToken cancellationToken)

@@ -55,7 +55,7 @@ namespace Horde.Server.Agents.Fleet
 	/// <summary>
 	/// Service for managing the autoscaling of agent pools
 	/// </summary>
-	public sealed class FleetService : IHostedService, IDisposable
+	public sealed class FleetService : IHostedService, IAsyncDisposable
 	{
 		/// <summary>
 		/// Max number of auto-scaling calculations to be done concurrently (sizing calculations and fleet manager calls)
@@ -139,10 +139,10 @@ namespace Horde.Server.Agents.Fleet
 		}
 
 		/// <inheritdoc/>
-		public void Dispose()
+		public async ValueTask DisposeAsync()
 		{
-			_ticker.Dispose();
-			_tickerHighFrequency.Dispose();
+			await _ticker.DisposeAsync();
+			await _tickerHighFrequency.DisposeAsync();
 		}
 
 		internal async ValueTask TickLeaderAsync(CancellationToken stoppingToken)

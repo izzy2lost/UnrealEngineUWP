@@ -28,7 +28,7 @@ using OpenTelemetry.Trace;
 namespace Horde.Server.Tests
 {
 	[TestClass]
-    public class LogFileServiceTest : DatabaseIntegrationTest
+    public sealed class LogFileServiceTest : DatabaseIntegrationTest, IAsyncDisposable
     {
 		private readonly FakeClock _clock;
         private readonly LogFileService _logFileService;
@@ -52,11 +52,12 @@ namespace Horde.Server.Tests
 			_logFileService = new LogFileService(logFileCollection, null!, logBuilder, _logStorage, _clock, null!, null!, settingsOpts, tracer, logger);
         }
 
-		protected override void Dispose(bool disposing)
+		public override async ValueTask DisposeAsync()
 		{
-			base.Dispose(disposing);
+			await base.DisposeAsync();
 
-			_logFileService.Dispose();
+			GC.SuppressFinalize(this);
+			await _logFileService.DisposeAsync();
 			_logStorageBackend.Dispose();
 			_logStorage.Dispose();
 			_loggerFactory.Dispose();
@@ -134,7 +135,7 @@ namespace Horde.Server.Tests
 			Assert.AreEqual(offset, lines.Take(lineIndex).Sum(x => x.Length + 1));
         }
         
-        protected static async Task<string> ReadLogFileAsync(ILogFileService logFileService, ILogFile logFile, long offset, long length)
+        static async Task<string> ReadLogFileAsync(ILogFileService logFileService, ILogFile logFile, long offset, long length)
         {
 			using Stream stream = await logFileService.OpenRawStreamAsync(logFile);
 

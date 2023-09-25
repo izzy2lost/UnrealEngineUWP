@@ -50,7 +50,7 @@ namespace Horde.Server.Notifications.Sinks
 	/// <summary>
 	/// Maintains a connection to Slack, in order to receive socket-mode notifications of user interactions
 	/// </summary>
-	public sealed class SlackNotificationSink : BackgroundService, INotificationSink, IAvatarService
+	public sealed class SlackNotificationSink : IHostedService, INotificationSink, IAvatarService, IAsyncDisposable
 	{
 		const bool DefaultAllowMentions = true;
 
@@ -218,6 +218,7 @@ namespace Horde.Server.Notifications.Sinks
 		readonly JsonSerializerOptions _jsonSerializerOptions;
 		readonly ITicker _escalateTicker;
 		static readonly RedisSortedSetKey<int> s_escalateIssues = "slack/escalate";
+		readonly BackgroundTask _backgroundTask;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly ILogger _logger;
 
@@ -250,6 +251,7 @@ namespace Horde.Server.Notifications.Sinks
 			_settings = settings.Value;
 			_messageStates = mongoService.GetCollection<MessageStateDocument>("SlackV2", keys => keys.Ascending(x => x.Recipient).Ascending(x => x.EventId), unique: true);
 			_slackUsers = mongoService.GetCollection<SlackUserDocument>("Slack.UsersV2");
+			_backgroundTask = new BackgroundTask(ExecuteAsync);
 			_globalConfig = globalConfig;
 			_logger = logger;
 
@@ -279,33 +281,29 @@ namespace Horde.Server.Notifications.Sinks
 		}
 
 		/// <inheritdoc/>
-		public override void Dispose()
+		public async ValueTask DisposeAsync()
 		{
-			base.Dispose();
-
 			_userCache.Dispose();
 			_httpClient.Dispose();
 			_adminHttpClient?.Dispose();
-			_issueQueueTicker.Dispose();
-			_escalateTicker.Dispose();
+			await _issueQueueTicker.DisposeAsync();
+			await _escalateTicker.DisposeAsync();
 		}
 
 		/// <inheritdoc/>
-		public override async Task StartAsync(CancellationToken cancellationToken)
+		public async Task StartAsync(CancellationToken cancellationToken)
 		{
-			await base.StartAsync(cancellationToken);
-
+			_backgroundTask.Start();
 			await _issueQueueTicker.StartAsync();
 			await _escalateTicker.StartAsync();
 		}
 
 		/// <inheritdoc/>
-		public override async Task StopAsync(CancellationToken cancellationToken)
+		public async Task StopAsync(CancellationToken cancellationToken)
 		{
-			await base.StopAsync(cancellationToken);
-
 			await _escalateTicker.StopAsync();
 			await _issueQueueTicker.StopAsync();
+			await _backgroundTask.StopAsync();
 		}
 
 		#region Avatars
@@ -2662,7 +2660,7 @@ namespace Horde.Server.Notifications.Sinks
 		}
 
 		/// <inheritdoc/>
-		protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+		async Task ExecuteAsync(CancellationToken stoppingToken)
 		{
 			if (String.IsNullOrEmpty(_settings.SlackSocketToken))
 			{

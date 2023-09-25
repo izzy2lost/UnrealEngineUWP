@@ -68,7 +68,7 @@ namespace Horde.Server.Storage
 	/// <summary>
 	/// Functionality related to the storage service
 	/// </summary>
-	public sealed class StorageService : IHostedService, IDisposable, IStorageClientFactory
+	public sealed class StorageService : IHostedService, IAsyncDisposable, IStorageClientFactory
 	{
 		sealed class StorageBackendImpl : IStorageBackend
 		{
@@ -547,7 +547,7 @@ namespace Horde.Server.Storage
 		}
 
 		/// <inheritdoc/>
-		public void Dispose()
+		public async ValueTask DisposeAsync()
 		{
 			if (_lastState != null)
 			{
@@ -555,9 +555,9 @@ namespace Horde.Server.Storage
 				_lastState = null;
 			}
 
-			_blobTicker.Dispose();
-			_refTicker.Dispose();
-			_gcTicker.Dispose();
+			await _blobTicker.DisposeAsync();
+			await _refTicker.DisposeAsync();
+			await _gcTicker.DisposeAsync();
 		}
 
 		/// <inheritdoc/>

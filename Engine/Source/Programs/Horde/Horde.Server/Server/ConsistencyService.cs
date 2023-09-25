@@ -18,7 +18,7 @@ namespace Horde.Server.Server
 	/// <summary>
 	/// Service which checks the database for consistency and fixes up any errors
 	/// </summary>
-	class ConsistencyService : IHostedService, IDisposable
+	class ConsistencyService : IHostedService, IAsyncDisposable
 	{
 		readonly IAgentCollection _agentCollection;
 		readonly ISessionCollection _sessionCollection;
@@ -47,7 +47,7 @@ namespace Horde.Server.Server
 		public Task StopAsync(CancellationToken cancellationToken) => _ticker.StopAsync();
 
 		/// <inheritdoc/>
-		public void Dispose() => _ticker.Dispose();
+		public async ValueTask DisposeAsync() => await _ticker.DisposeAsync();
 
 		/// <summary>
 		/// Poll for inconsistencies in the database

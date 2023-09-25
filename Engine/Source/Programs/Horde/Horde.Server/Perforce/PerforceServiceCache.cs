@@ -220,11 +220,11 @@ namespace Horde.Server.Perforce
 		}
 
 		/// <inheritdoc/>
-		public override void Dispose()
+		public override async ValueTask DisposeAsync()
 		{
-			base.Dispose();
+			await base.DisposeAsync();
 
-			_updateCommitsTicker.Dispose();
+			await _updateCommitsTicker.DisposeAsync();
 		}
 
 		/// <inheritdoc/>

@@ -80,7 +80,7 @@ namespace Horde.Server.Devices
 	/// <summary>
 	/// Device management service
 	/// </summary>
-	public sealed class DeviceService : IHostedService, IDisposable
+	public sealed class DeviceService : IHostedService, IAsyncDisposable
 	{
 		readonly INotificationService _notificationService;
 		readonly JobService _jobService;
@@ -140,10 +140,10 @@ namespace Horde.Server.Devices
 		}
 
 		/// <inheritdoc/>
-		public void Dispose() 
+		public async ValueTask DisposeAsync() 
 		{ 
-			_ticker.Dispose(); 
-			_telemetryTicker.Dispose(); 
+			await _ticker.DisposeAsync(); 
+			await _telemetryTicker.DisposeAsync(); 
 		}
 
 		/// <summary>

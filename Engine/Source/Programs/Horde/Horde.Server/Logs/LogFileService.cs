@@ -226,7 +226,7 @@ namespace Horde.Server.Logs
 	/// <summary>
 	/// Wraps functionality for manipulating logs
 	/// </summary>
-	public sealed class LogFileService : IHostedService, ILogFileService, IDisposable
+	public sealed class LogFileService : IHostedService, ILogFileService, IAsyncDisposable
 	{
 		private const int MaxConcurrentChunkWrites = 10;
 
@@ -590,11 +590,11 @@ namespace Horde.Server.Logs
 		}
 
 		/// <inheritdoc/>
-		public void Dispose()
+		public async ValueTask DisposeAsync()
 		{
 			_logFileCache.Dispose();
 			_storage.Dispose();
-			_ticker.Dispose();
+			await _ticker.DisposeAsync();
 		}
 
 		/// <inheritdoc/>

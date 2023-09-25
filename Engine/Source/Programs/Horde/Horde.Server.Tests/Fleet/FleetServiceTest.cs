@@ -101,7 +101,7 @@ namespace Horde.Server.Tests.Fleet
 		[TestMethod]
 		public async Task OnlyEnabledAgentsAreAutoScaledAsync()
 		{
-			using FleetService service = GetFleetService(_fleetManagerSpy);
+			await using FleetService service = GetFleetService(_fleetManagerSpy);
 			IPool pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.LeaseUtilization });
 			await CreateAgentAsync(pool, true);
 			await CreateAgentAsync(pool, true);
@@ -117,7 +117,7 @@ namespace Horde.Server.Tests.Fleet
 		[TestMethod]
 		public async Task ScaleOutWithPendingShutdownsAsync()
 		{
-			using FleetService service = GetFleetService(new FakeFleetManager());
+			await using FleetService service = GetFleetService(new FakeFleetManager());
 			IPool pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.LeaseUtilization });
 			IAgent agent1 = await CreateAgentAsync(pool, true);
 			IAgent agent2 = await CreateAgentAsync(pool, true, requestShutdown: true);
@@ -135,7 +135,7 @@ namespace Horde.Server.Tests.Fleet
 		[TestMethod]
 		public async Task ScaleOutWithPendingShutdownsWithStoppedAgentsAsync()
 		{
-			using FleetService service = GetFleetService(new FakeFleetManager());
+			await using FleetService service = GetFleetService(new FakeFleetManager());
 			IPool pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.LeaseUtilization });
 			IAgent agent1 = await CreateAgentAsync(pool, true);
 			IAgent agent2 = await CreateAgentAsync(pool, false);
@@ -154,7 +154,7 @@ namespace Horde.Server.Tests.Fleet
 		[TestMethod]
 		public async Task ScaleOutCooldownAsync()
 		{
-			using FleetService service = GetFleetService(_fleetManagerSpy);
+			await using FleetService service = GetFleetService(_fleetManagerSpy);
 			IPool pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.NoOp });
 
 			// First scale-out will succeed
@@ -177,7 +177,7 @@ namespace Horde.Server.Tests.Fleet
 		[TestMethod]
 		public async Task ScaleInCooldownAsync()
 		{
-			using FleetService service = GetFleetService(_fleetManagerSpy);
+			await using FleetService service = GetFleetService(_fleetManagerSpy);
 			IPool pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.NoOp });
 			IAgent agent1 = await CreateAgentAsync(pool);
 			IAgent agent2 = await CreateAgentAsync(pool);
@@ -202,7 +202,7 @@ namespace Horde.Server.Tests.Fleet
 		[TestMethod]
 		public async Task ScaleOutDuringDowntimeAsync()
 		{
-			using FleetService service = GetFleetService(_fleetManagerSpy, true);
+			await using FleetService service = GetFleetService(_fleetManagerSpy, true);
 			IPool pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.NoOp });
 
 			ScaleResult result = await service.ScalePoolAsync(pool, new List<IAgent>(), new PoolSizeResult(0, 1), CancellationToken.None);
@@ -213,7 +213,7 @@ namespace Horde.Server.Tests.Fleet
 		[TestMethod]
 		public async Task ScaleInDuringDowntimeAsync()
 		{
-			using FleetService service = GetFleetService(_fleetManagerSpy, true);
+			await using FleetService service = GetFleetService(_fleetManagerSpy, true);
 			IPool pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.NoOp });
 			IAgent agent1 = await CreateAgentAsync(pool);
 			IAgent agent2 = await CreateAgentAsync(pool);

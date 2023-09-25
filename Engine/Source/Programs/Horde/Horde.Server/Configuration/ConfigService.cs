@@ -29,7 +29,7 @@ namespace Horde.Server.Configuration
 	/// <summary>
 	/// Service which processes runtime configuration data.
 	/// </summary>
-	public sealed class ConfigService : IOptionsFactory<GlobalConfig>, IOptionsChangeTokenSource<GlobalConfig>, IHostedService, IDisposable
+	public sealed class ConfigService : IOptionsFactory<GlobalConfig>, IOptionsChangeTokenSource<GlobalConfig>, IHostedService, IAsyncDisposable
 	{
 		// Index to all current config files 
 		[ProtoContract]
@@ -153,10 +153,10 @@ namespace Horde.Server.Configuration
 		}
 
 		/// <inheritdoc/>
-		public void Dispose()
+		public async ValueTask DisposeAsync()
 		{
 			_updateTask.Dispose();
-			_ticker.Dispose();
+			await _ticker.DisposeAsync();
 		}
 
 		class OverrideConfigFile : IConfigFile

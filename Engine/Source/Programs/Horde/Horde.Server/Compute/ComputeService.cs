@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -49,7 +50,7 @@ namespace Horde.Server.Compute
 	/// <summary>
 	/// Assigns compute leases to agents
 	/// </summary>
-	public sealed class ComputeService : IHostedService, IDisposable
+	public sealed class ComputeService : IHostedService, IAsyncDisposable
 	{
 		/// <summary>
 		/// Time-to-live for each bucket of request (currently grouped per minute)
@@ -124,9 +125,9 @@ namespace Horde.Server.Compute
 		}
 		
 		/// <inheritdoc/>
-		public void Dispose()
+		public async ValueTask DisposeAsync()
 		{
-			_ticker.Dispose();
+			await _ticker.DisposeAsync();
 		}
 
 		private async ValueTask TickSharedAsync(CancellationToken stoppingToken)

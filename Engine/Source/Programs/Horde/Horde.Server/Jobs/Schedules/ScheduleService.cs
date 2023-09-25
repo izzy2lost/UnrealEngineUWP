@@ -29,7 +29,7 @@ namespace Horde.Server.Jobs.Schedules
 	/// <summary>
 	/// Manipulates schedule instances
 	/// </summary>
-	public sealed class ScheduleService : IHostedService, IDisposable
+	public sealed class ScheduleService : IHostedService, IAsyncDisposable
 	{
 		[RedisConverter(typeof(RedisCbConverter<QueueItem>))]
 		class QueueItem
@@ -112,9 +112,9 @@ namespace Horde.Server.Jobs.Schedules
 		}
 
 		/// <inheritdoc/>
-		public void Dispose()
+		public async ValueTask DisposeAsync()
 		{
-			_ticker.Dispose();
+			await _ticker.DisposeAsync();
 		}
 
 		async ValueTask TickAsync(CancellationToken cancellationToken)

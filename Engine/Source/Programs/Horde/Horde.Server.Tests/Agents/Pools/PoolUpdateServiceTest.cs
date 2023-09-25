@@ -40,14 +40,12 @@ namespace Horde.Server.Tests.Agents.Pools
 			_disabledAgentBeyondGracePeriod = (await AgentService.GetAgentAsync(_disabledAgentBeyondGracePeriod.Id))!;
 		}
 
-		protected override void Dispose(bool disposing)
+		public override async ValueTask DisposeAsync()
 		{
-			if (disposing)
-			{
-				_pus.Dispose();
-			}
+			GC.SuppressFinalize(this);
+			await base.DisposeAsync();
 
-			base.Dispose(disposing);
+			await _pus.DisposeAsync();
 		}
 
 		[TestMethod]

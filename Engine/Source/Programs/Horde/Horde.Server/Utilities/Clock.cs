@@ -19,7 +19,7 @@ namespace HordeCommon
 	/// <summary>
 	/// Base interface for a scheduled event
 	/// </summary>
-	public interface ITicker : IDisposable
+	public interface ITicker : IAsyncDisposable
 	{
 		/// <summary>
 		/// Start the ticker
@@ -38,7 +38,7 @@ namespace HordeCommon
 	public sealed class NullTicker : ITicker
 	{
 		/// <inheritdoc/>
-		public void Dispose() { }
+		public ValueTask DisposeAsync() => new ValueTask();
 
 		/// <inheritdoc/>
 		public Task StartAsync() => Task.CompletedTask;
@@ -190,17 +190,9 @@ namespace HordeCommon
 				}
 			}
 
-			public void Dispose()
-			{
-				_cancellationSource.Dispose();
-			}
-
 			public async ValueTask DisposeAsync()
 			{
-				if (_backgroundTask != null)
-				{
-					await StopAsync();
-				}
+				await StopAsync();
 				_cancellationSource.Dispose();
 			}
 

@@ -97,7 +97,7 @@ namespace Horde.Server.Issues.External
 	/// <summary>
 	/// Jira service functionality
 	/// </summary>
-	internal sealed class JiraService : IExternalIssueService, IHostedService, IDisposable
+	internal sealed class JiraService : IExternalIssueService, IHostedService, IAsyncDisposable
 	{
 		readonly ILogger _logger;
 
@@ -154,9 +154,9 @@ namespace Horde.Server.Issues.External
 		public Task StopAsync(CancellationToken cancellationToken) => _ticker.StopAsync();
 
 		/// <inheritdoc/>
-		public void Dispose()
+		public async ValueTask DisposeAsync()
 		{
-			_ticker.Dispose();
+			await _ticker.DisposeAsync();
 			_client.Dispose();
 		}
 

@@ -52,10 +52,11 @@ namespace Horde.Server.Tests
 			_logFileService = new LogFileService(logFileCollection, null!, logBuilder, _logStorage, new FakeClock(), null!, null!, settingsOpts, tracer, logger);
 		}
 
-		protected override void Dispose(bool disposing)
+		public override async ValueTask DisposeAsync()
 		{
-			base.Dispose(disposing);
+			await base.DisposeAsync();
 
+			GC.SuppressFinalize(this);
 			_logStorage.Dispose();
 			_nullLogStorage.Dispose();
 		}

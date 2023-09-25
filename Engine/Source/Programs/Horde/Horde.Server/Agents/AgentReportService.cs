@@ -40,7 +40,7 @@ namespace Horde.Server.Agents
 	/// <summary>
 	/// Posts summaries for all the open issues in different streams to Slack channels
 	/// </summary>
-	public sealed class AgentReportService : IHostedService, IDisposable
+	public sealed class AgentReportService : IHostedService, IAsyncDisposable
 	{
 		readonly SingletonDocument<AgentReportState> _state;
 		readonly IAgentCollection _agentCollection;
@@ -61,9 +61,9 @@ namespace Horde.Server.Agents
 		}
 
 		/// <inheritdoc/>
-		public void Dispose()
+		public async ValueTask DisposeAsync()
 		{
-			_ticker.Dispose();
+			await _ticker.DisposeAsync();
 		}
 
 		/// <inheritdoc/>

@@ -45,7 +45,7 @@ namespace Horde.Server.Agents
 	/// <summary>
 	/// Wraps funtionality for manipulating agents
 	/// </summary>
-	public sealed class AgentService : IHostedService, IDisposable
+	public sealed class AgentService : IHostedService, IAsyncDisposable
 	{
 		/// <summary>
 		/// Maximum time between updates for an agent to be considered online
@@ -139,9 +139,9 @@ namespace Horde.Server.Agents
 		}
 
 		/// <inheritdoc/>
-		public void Dispose()
+		public async ValueTask DisposeAsync()
 		{
-			_ticker.Dispose();
+			await _ticker.DisposeAsync();
 		}
 
 		/// <summary>

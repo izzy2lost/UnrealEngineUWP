@@ -97,7 +97,7 @@ namespace Horde.Server.Perforce
 	/// <summary>
 	/// Load balancer for Perforce edge servers
 	/// </summary>
-	public sealed class PerforceLoadBalancer : IHostedService, IDisposable
+	public sealed class PerforceLoadBalancer : IHostedService, IAsyncDisposable
 	{
 		/// <summary>
 		/// Information about a resolved Perforce server
@@ -174,7 +174,7 @@ namespace Horde.Server.Perforce
 		public Task StopAsync(CancellationToken cancellationToken) => _ticker.StopAsync();
 
 		/// <inheritdoc/>
-		public void Dispose() => _ticker.Dispose();
+		public async ValueTask DisposeAsync() => await _ticker.DisposeAsync();
 
 		/// <summary>
 		/// Get the current server list

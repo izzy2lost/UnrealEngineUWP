@@ -95,7 +95,7 @@ namespace Horde.Server.Telemetry
 		/// <inheritdoc />
 		public async ValueTask DisposeAsync()
 		{
-			_ticker.Dispose();
+			await _ticker.DisposeAsync();
 			foreach (ITelemetrySinkInternal sink in _telemetrySinks)
 			{
 				await sink.DisposeAsync();
