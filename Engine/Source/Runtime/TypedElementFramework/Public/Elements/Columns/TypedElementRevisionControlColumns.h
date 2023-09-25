@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -45,7 +45,7 @@ struct FSCCStatusColumn final : public FTypedElementDataStorageColumn
 	GENERATED_BODY()
 
 	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
-	ESCCModification Modification;
+	ESCCModification Modification = ESCCModification::Modified;
 };
 
 USTRUCT()
@@ -54,7 +54,7 @@ struct FSCCRevisionId
 	GENERATED_BODY()
 
 	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
-	uint32 Id[5];
+	uint32 Id[5] = {0};
 };
 
 USTRUCT(meta = (DisplayName = "Revision ID"))

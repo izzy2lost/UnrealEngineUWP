@@ -30,7 +30,7 @@ struct FAnimCurveOverride
 	FName CurveName;
 	// Value to set to the curve
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "CurveValue")
-	float CurveValue;
+	float CurveValue = 0.0f;
 };
 
 template <>
