@@ -283,7 +283,7 @@ void FCameraCutEditorHandler::SetCameraCutForViewport(
 		else
 		{
 			// We have no "to" camera, so let's blend back to the original viewport position.
-			FromPreviewTarget.PreAnimatedStorage = PreAnimatedStorage;
+			ToPreviewTarget.PreAnimatedStorage = PreAnimatedStorage;
 		}
 
 		ViewportPreviewer.SetupBlend(FromPreviewTarget, ToPreviewTarget, CameraCutParams.PreviewBlendFactor);
