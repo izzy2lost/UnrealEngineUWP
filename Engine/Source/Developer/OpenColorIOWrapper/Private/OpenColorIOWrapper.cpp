@@ -922,14 +922,17 @@ bool FOpenColorIOWrapperProcessor::TransformImage(const FImageView& InOutImage) 
 				// Primary transform processor
 				ConstCPUProcessorRcPtr CPUProcessor = Pimpl->Processor->getOptimizedCPUProcessor(BitDepth, BitDepth, OPTIMIZATION_DEFAULT);
 
-				// Apply parallelized color transformation
-				FImageCore::ImageParallelFor(TEXT("FOpenColorIOWrapperProcessor.TransformImage.PF"), InOutImage, [&](FImageView& ImagePart)
-					{
-						OCIO_NAMESPACE::PackedImageDesc ImagePartDesc = GetImageDesc(ImagePart);
+				// Apply parallelized color transformation (when it isn't a no-op)
+				if (!CPUProcessor->isNoOp())
+				{
+					FImageCore::ImageParallelFor(TEXT("FOpenColorIOWrapperProcessor.TransformImage.PF"), InOutImage, [&](FImageView& ImagePart)
+						{
+							OCIO_NAMESPACE::PackedImageDesc ImagePartDesc = GetImageDesc(ImagePart);
 
-						// Apply the main color transformation
-						CPUProcessor->apply(ImagePartDesc);
-					});
+							// Apply the main color transformation
+							CPUProcessor->apply(ImagePartDesc);
+						});
+				}
 
 				return true;
 			}
