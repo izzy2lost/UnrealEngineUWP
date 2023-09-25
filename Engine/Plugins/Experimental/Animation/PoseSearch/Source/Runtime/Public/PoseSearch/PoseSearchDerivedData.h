@@ -34,6 +34,7 @@ namespace UE::PoseSearch
 		static FAsyncPoseSearchDatabasesManagement& Get();
 
 		void OnObjectModified(UObject* Object);
+		void OnObjectTransacted(UObject* Object, const FTransactionObjectEvent& TransactionObjectEvent);
 		void OnPackageReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent);
 
 		void Shutdown();
@@ -58,6 +59,7 @@ namespace UE::PoseSearch
 		
 		FPoseSearchDatabaseAsyncCacheTasks& Tasks;
 		FDelegateHandle OnObjectModifiedHandle;
+		FDelegateHandle OnObjectTransactedHandle;
 		FDelegateHandle OnPackageReloadedHandle;
 		
 		static FCriticalSection Mutex;

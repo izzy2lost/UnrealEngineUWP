@@ -69,6 +69,7 @@ namespace UE::PoseSearch
 			ESelectInfo::Type SelectionType);
 
 		void RefreshStatisticsWidgetInformation();
+		void RefreshEditor();
 
 		struct FSelectionWidget
 		{

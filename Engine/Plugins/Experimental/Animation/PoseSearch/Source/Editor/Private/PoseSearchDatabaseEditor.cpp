@@ -221,6 +221,9 @@ namespace UE::PoseSearch
 				// Ensure any database changes are reflected
 				DatabaseAsset->UnregisterOnDerivedDataRebuild(this);
 				DatabaseAsset->RegisterOnDerivedDataRebuild(UPoseSearchDatabase::FOnDerivedDataRebuild::CreateSP(this, &FDatabaseEditor::RefreshStatisticsWidgetInformation));
+
+				DatabaseAsset->UnregisterOnSynchronizeWithExternalDependencies(this);
+				DatabaseAsset->RegisterOnSynchronizeWithExternalDependencies(UPoseSearchDatabase::FOnDerivedDataRebuild::CreateSP(this, &FDatabaseEditor::RefreshEditor));
 			}
 		}
 		
@@ -295,6 +298,7 @@ namespace UE::PoseSearch
 			if (UPoseSearchDatabase* DatabaseAsset = ViewModel->GetPoseSearchDatabase())
 			{
 				DatabaseAsset->UnregisterOnDerivedDataRebuild(this);
+				DatabaseAsset->UnregisterOnSynchronizeWithExternalDependencies(this);
 			}
 		}
 	}
@@ -635,6 +639,11 @@ namespace UE::PoseSearch
 		Statistics->AddToRoot();
 		Statistics->Initialize(GetPoseSearchDatabase());
 		StatisticsOverviewWidget->SetObject(Statistics);
+	}
+
+	void FDatabaseEditor::RefreshEditor()
+	{
+		AssetTreeWidget->RefreshTreeView(false, true);
 	}
 }
 

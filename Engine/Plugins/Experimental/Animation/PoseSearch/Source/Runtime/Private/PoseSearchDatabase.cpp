@@ -16,6 +16,10 @@
 #include "PoseSearch/PoseSearchSchema.h"
 #include "UObject/ObjectSaveContext.h"
 
+#if WITH_EDITOR
+#include "AssetRegistry/AssetRegistryModule.h"
+#endif //WITH_EDITOR
+
 #if WITH_EDITOR && WITH_ENGINE
 #include "Editor/EditorEngine.h"
 #endif //WITH_EDITOR && WITH_ENGINE
@@ -580,18 +584,88 @@ void UPoseSearchDatabase::PostLoad()
 }
 
 #if WITH_EDITOR
-void UPoseSearchDatabase::RegisterOnDerivedDataRebuild(const FOnDerivedDataRebuild& Delegate)
+void UPoseSearchDatabase::SynchronizeWithExternalDependencies()
 {
-	OnDerivedDataRebuild.Add(Delegate);
-}
-void UPoseSearchDatabase::UnregisterOnDerivedDataRebuild(void* Unregister)
-{
-	OnDerivedDataRebuild.RemoveAll(Unregister);
+	TArray<FTopLevelAssetPath> AncestorClassNames;
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+
+	TArray<FAssetIdentifier> Referencers;
+	AssetRegistry.GetReferencers(GetPackage()->GetFName(), Referencers);
+
+	for (const FAssetIdentifier& Referencer : Referencers)
+	{
+		TArray<FAssetData> Assets;
+		AssetRegistry.GetAssetsByPackageName(Referencer.PackageName, Assets);
+
+		for (const FAssetData& Asset : Assets)
+		{
+			if (Asset.IsInstanceOf(UAnimSequenceBase::StaticClass()))
+			{
+				SynchronizeWithExternalDependencies(CastChecked<UAnimSequence>(Asset.FastGetAsset(true)));
+			}
+		}
+	}
 }
 
-void UPoseSearchDatabase::NotifyDerivedDataRebuild() const
+void UPoseSearchDatabase::SynchronizeWithExternalDependencies(UAnimSequenceBase* SequenceBase)
 {
-	OnDerivedDataRebuild.Broadcast();
+	if (SequenceBase)
+	{
+		bool bModified = false;
+		for (const FAnimNotifyEvent& NotifyEvent : SequenceBase->Notifies)
+		{
+			if (const UAnimNotifyState_PoseSearchBranchIn* PoseSearchBranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(NotifyEvent.NotifyStateClass))
+			{
+				if (PoseSearchBranchIn->Database == this)
+				{
+					if (!bModified)
+					{
+						for (int32 AnimationAssetIndex = AnimationAssets.Num() - 1; AnimationAssetIndex >= 0; --AnimationAssetIndex)
+						{
+							if (const FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAssets[AnimationAssetIndex].GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+							{
+								if (AnimationAssetBase->GetAnimationAsset() == SequenceBase)
+								{
+									AnimationAssets.RemoveAt(AnimationAssetIndex);
+								}
+							}
+						}
+
+						bModified = true;
+					}
+
+					if (UAnimSequence* Sequence = Cast<UAnimSequence>(SequenceBase))
+					{
+						FPoseSearchDatabaseSequence DatabaseSequence;
+						DatabaseSequence.Sequence = Sequence;
+						DatabaseSequence.SamplingRange = FFloatInterval(NotifyEvent.GetTriggerTime(), NotifyEvent.GetEndTriggerTime());
+						AnimationAssets.Add(FInstancedStruct::Make(DatabaseSequence));
+					}
+					else if (UAnimComposite* AnimComposite = Cast<UAnimComposite>(SequenceBase))
+					{
+						FPoseSearchDatabaseAnimComposite DatabaseAnimComposite;
+						DatabaseAnimComposite.AnimComposite = AnimComposite;
+						DatabaseAnimComposite.SamplingRange = FFloatInterval(NotifyEvent.GetTriggerTime(), NotifyEvent.GetEndTriggerTime());
+						AnimationAssets.Add(FInstancedStruct::Make(DatabaseAnimComposite));
+					}
+					else if (UAnimMontage* AnimMontage = Cast<UAnimMontage>(SequenceBase))
+					{
+						FPoseSearchDatabaseAnimMontage DatabaseAnimMontage;
+						DatabaseAnimMontage.AnimMontage = AnimMontage;
+						DatabaseAnimMontage.SamplingRange = FFloatInterval(NotifyEvent.GetTriggerTime(), NotifyEvent.GetEndTriggerTime());
+						AnimationAssets.Add(FInstancedStruct::Make(DatabaseAnimMontage));
+					}
+				}
+			}
+		}
+
+		if (bModified)
+		{
+			Modify();
+			NotifySynchronizeWithExternalDependencies();
+		}
+	}
 }
 
 void UPoseSearchDatabase::BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform)
@@ -608,6 +682,13 @@ bool UPoseSearchDatabase::IsCachedCookedPlatformDataLoaded(const ITargetPlatform
 	return FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(this, ERequestAsyncBuildFlag::ContinueRequest);
 }
 #endif // WITH_EDITOR
+
+void UPoseSearchDatabase::PreSaveRoot(FObjectPreSaveRootContext ObjectSaveContext)
+{
+#if WITH_EDITOR
+	SynchronizeWithExternalDependencies();
+#endif
+}
 
 void UPoseSearchDatabase::PostSaveRoot(FObjectPostSaveRootContext ObjectSaveContext)
 {

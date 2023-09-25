@@ -6,6 +6,8 @@
 #include "BoneContainer.h"
 #include "PoseSearchAnimNotifies.generated.h"
 
+class UPoseSearchDatabase;
+
 // Base class for pose search anim notify states
 UCLASS(Abstract)
 class POSESEARCH_API UAnimNotifyState_PoseSearchBase : public UAnimNotifyState
@@ -87,4 +89,15 @@ public:
 	FVector LinearVelocity = FVector::ZeroVector;
 
 #endif // WITH_EDITORONLY_DATA
+};
+
+UCLASS(Blueprintable, meta = (DisplayName = "Pose Matching: Motion Matched Branch In"))
+class POSESEARCH_API UAnimNotifyState_PoseSearchBranchIn : public UAnimNotifyState_PoseSearchBase
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(EditAnywhere, Category = Config)
+	TObjectPtr<UPoseSearchDatabase> Database;
 };

@@ -23,9 +23,12 @@
 #include "PoseSearch/PoseSearchSchema.h"
 #include "PoseSearchEigenHelper.h"
 #include "ProfilingDebugging/CookStats.h"
+#include "ScopedTransaction.h"
 #include "Serialization/BulkDataRegistry.h"
 #include "UObject/NoExportTypes.h"
 #include "UObject/PackageReload.h"
+
+#define LOCTEXT_NAMESPACE "PoseSearchDerivedData"
 
 namespace UE::PoseSearch
 {
@@ -34,40 +37,40 @@ namespace UE::PoseSearch
 enum EMotionMatchTestFlags
 {
 	// no additional tests will be performed
-	None = 0x0,
+	None = 0,
 
 	// cache will be invalidated every frame (to stress test DDC cancellation while tasks are flying if !WaitForTaskCompletion)
-	InvalidateCache = 0x1,
+	InvalidateCache = 1 << 0,
 
 	// cache will be invalidated once the flying tasks are ended
-	WaitForTaskCompletion = 0x2,
+	WaitForTaskCompletion = 1 << 1,
 
 	// we'll force the database re-indexing and compare the result SearchIndex with the one retrieved via DDC
-	ForceIndexing = 0x4,
+	ForceIndexing = 1 << 2,
 
 	// test KDTree Construct determinism
-	TestKDTreeConstructDeterminism = 0x8,
+	TestKDTreeConstructDeterminism = 1 << 3,
 
 	// validating the kdtree construction
-	ValidateKDTreeConstruct = 0x10,
+	ValidateKDTreeConstruct = 1 << 4,
 
 	// test VPTree Construct determinism
-	TestVPTreeConstructDeterminism = 0x20,
+	TestVPTreeConstructDeterminism = 1 << 5,
 
 	// validating the vptree construction
-	ValidateVPTreeConstruct = 0x40,
+	ValidateVPTreeConstruct = 1 << 6,
 
 	// test IndexDatabase determinism
-	TestIndexDatabaseDeterminism = 0x80,
+	TestIndexDatabaseDeterminism = 1 << 7,
 
 	// test PruneDuplicateValues determinism
-	TestPruneDuplicateValuesDeterminism = 0x100,
+	TestPruneDuplicateValuesDeterminism = 1 << 8,
 
 	// test PruneDuplicatePCAValues determinism
-	TestPruneDuplicatePCAValuesDeterminism = 0x200,
+	TestPruneDuplicatePCAValuesDeterminism = 1 << 9,
 
 	// validating the data we gave to DDC is stored correctly
-	ValidateDDC = 0x400,
+	ValidateDDC = 1 << 10,
 };
 static TAutoConsoleVariable<int32> CVarMotionMatchTestFlags(TEXT("a.MotionMatch.TestFlags"), EMotionMatchTestFlags::None, TEXT("Test Motion Matching using EMotionMatchTestFlags"));
 static TAutoConsoleVariable<int32> CVarMotionMatchTestNumIterations(TEXT("a.MotionMatch.TestNumIterations"), 10, TEXT("Test Motion Matching Num Iterations"));
@@ -1736,6 +1739,7 @@ FAsyncPoseSearchDatabasesManagement::FAsyncPoseSearchDatabasesManagement()
 	FScopeLock Lock(&Mutex);
 
 	OnObjectModifiedHandle = FCoreUObjectDelegates::OnObjectModified.AddRaw(this, &FAsyncPoseSearchDatabasesManagement::OnObjectModified);
+	OnObjectTransactedHandle = FCoreUObjectDelegates::OnObjectTransacted.AddRaw(this, &FAsyncPoseSearchDatabasesManagement::OnObjectTransacted);
 	OnPackageReloadedHandle = FCoreUObjectDelegates::OnPackageReloaded.AddRaw(this, &FAsyncPoseSearchDatabasesManagement::OnPackageReloaded);
 
 	FCoreDelegates::OnPreExit.AddRaw(this, &FAsyncPoseSearchDatabasesManagement::Shutdown);
@@ -1765,6 +1769,45 @@ void FAsyncPoseSearchDatabasesManagement::OnObjectModified(UObject* Object)
 		{
 			Tasks.RemoveAtSwap(TaskIndex, 1, false);
 		}
+	}
+}
+
+void FAsyncPoseSearchDatabasesManagement::OnObjectTransacted(UObject* Object, const FTransactionObjectEvent& TransactionObjectEvent)
+{
+	check(IsInGameThread());
+
+	FScopeLock Lock(&Mutex);
+
+	// synchronize the UPoseSearchDatabase with eventual UAnimSequenceBase containing UAnimNotifyState_PoseSearchBranchIn(s)
+	UAnimSequenceBase* SequenceBaseToSynchronizeWith = nullptr;
+	UPoseSearchDatabase* Database = nullptr;
+	if (UAnimNotifyState_PoseSearchBranchIn* BranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(Object))
+	{
+		if (BranchIn->Database)
+		{
+			SequenceBaseToSynchronizeWith = Cast<UAnimSequenceBase>(BranchIn->GetOuter());
+			Database = BranchIn->Database;
+		}
+	}
+	else if (UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(Object))
+	{
+		for (const FAnimNotifyEvent& NotifyEvent : SequenceBase->Notifies)
+		{
+			if (const UAnimNotifyState_PoseSearchBranchIn* NotifyEventBranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(NotifyEvent.NotifyStateClass))
+			{
+				if (NotifyEventBranchIn->Database)
+				{
+					SequenceBaseToSynchronizeWith = SequenceBase;
+					Database = NotifyEventBranchIn->Database;
+					break;
+				}
+			}
+		}
+	}
+
+	if (SequenceBaseToSynchronizeWith)
+	{
+		Database->SynchronizeWithExternalDependencies(SequenceBaseToSynchronizeWith);
 	}
 }
 
@@ -1926,4 +1969,7 @@ bool FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSear
 }
 
 } // namespace UE::PoseSearch
+
+#undef LOCTEXT_NAMESPACE
+
 #endif // WITH_EDITOR

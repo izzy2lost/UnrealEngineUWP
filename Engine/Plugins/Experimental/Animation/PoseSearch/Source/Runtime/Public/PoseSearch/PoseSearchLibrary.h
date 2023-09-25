@@ -84,10 +84,7 @@ class POSESEARCH_API UPoseSearchLibrary : public UBlueprintFunctionLibrary
 		int32 NodeId,
 		float DeltaTime,
 		bool bSearch,
-		float RecordingTime,
-		float SearchBestCost,
-		float SearchBruteForceCost,
-		int32 SearchBestPosePos);
+		float RecordingTime);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 
 	static FPoseSearchQueryTrajectory ProcessTrajectory(
@@ -165,5 +162,8 @@ public:
 		float FutureAnimationStartTime = 0.f,
 		float TimeToFutureAnimationStart = 0.f,
 		const int32 DebugSessionUniqueIdentifier = 6174);
+
+
+	static UE::PoseSearch::FSearchResult MotionMatch(const FAnimationBaseContext& Context, const UObject* Object);
 };
 

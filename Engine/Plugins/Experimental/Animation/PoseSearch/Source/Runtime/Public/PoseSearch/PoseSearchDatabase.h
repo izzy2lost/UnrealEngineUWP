@@ -315,6 +315,9 @@ private:
 #if WITH_EDITOR
 	DECLARE_MULTICAST_DELEGATE(FOnDerivedDataRebuildMulticaster);
 	FOnDerivedDataRebuildMulticaster OnDerivedDataRebuild;
+
+	DECLARE_MULTICAST_DELEGATE(FOnSynchronizeWithExternalDependenciesMulticaster);
+	FOnSynchronizeWithExternalDependenciesMulticaster OnSynchronizeWithExternalDependencies;
 #endif // WITH_EDITOR
 
 public:
@@ -343,6 +346,7 @@ public:
 
 	// Begin UObject
 	virtual void PostLoad() override;
+	virtual void PreSaveRoot(FObjectPreSaveRootContext ObjectSaveContext) override;
 	virtual void PostSaveRoot(FObjectPostSaveRootContext ObjectSaveContext) override;
 	virtual void Serialize(FArchive& Ar) override;
 	// End UObject
@@ -355,9 +359,17 @@ public:
 	virtual bool IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform) override;
 
 	typedef FOnDerivedDataRebuildMulticaster::FDelegate FOnDerivedDataRebuild;
-	void RegisterOnDerivedDataRebuild(const FOnDerivedDataRebuild& Delegate);
-	void UnregisterOnDerivedDataRebuild(void* Unregister);
-	void NotifyDerivedDataRebuild() const;
+	void RegisterOnDerivedDataRebuild(const FOnDerivedDataRebuild& Delegate) { OnDerivedDataRebuild.Add(Delegate); }
+	void UnregisterOnDerivedDataRebuild(void* Unregister) { OnDerivedDataRebuild.RemoveAll(Unregister); }
+	void NotifyDerivedDataRebuild() const { OnDerivedDataRebuild.Broadcast(); }
+
+	typedef FOnSynchronizeWithExternalDependenciesMulticaster::FDelegate FOnSynchronizeWithExternalDependencies;
+	void RegisterOnSynchronizeWithExternalDependencies(const FOnSynchronizeWithExternalDependencies& Delegate) { OnSynchronizeWithExternalDependencies.Add(Delegate); }
+	void UnregisterOnSynchronizeWithExternalDependencies(void* Unregister) { OnSynchronizeWithExternalDependencies.RemoveAll(Unregister); }
+	void NotifySynchronizeWithExternalDependencies() const { OnSynchronizeWithExternalDependencies.Broadcast(); }
+
+	void SynchronizeWithExternalDependencies();
+	void SynchronizeWithExternalDependencies(UAnimSequenceBase* SequenceBase);
 #endif // WITH_EDITOR
 
 private:
