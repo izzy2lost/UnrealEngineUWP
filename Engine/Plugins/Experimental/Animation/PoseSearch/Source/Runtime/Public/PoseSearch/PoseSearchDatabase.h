@@ -287,11 +287,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Performance", meta = (DisplayName = "KNNQueryNumNeighbors", EditCondition = "PoseSearchMode == EPoseSearchMode::PCAKDTree || PoseSearchMode == VPTree", EditConditionHides, ClampMin = "1", ClampMax = "600", UIMin = "1"))
 	int32 KDTreeQueryNumNeighbors = 200;
 
-	// When evaluating multiple searches, including the continuing pose search, the system keeps track of the best pose and associated cost.
-	// if the current database cannot possibly improve the current cost, the database search will be skipped entirely.
-	UPROPERTY(EditAnywhere, Category = "Performance")
-	bool bSkipSearchIfPossible = true;
-
 	// if two poses values (multi dimensional point with the schema cardinality) are closer than PosePruningSimilarityThreshold,
 	// only one will be saved into the database FSearchIndexBase (to save memory) and accessed by the two different pose indexes
 	UPROPERTY(EditAnywhere, Category = "Performance")

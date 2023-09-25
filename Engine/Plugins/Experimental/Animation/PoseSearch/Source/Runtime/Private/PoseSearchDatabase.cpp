@@ -546,7 +546,7 @@ bool UPoseSearchDatabase::GetSkipSearchIfPossible() const
 		return false;
 	}
 #endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
-	return bSkipSearchIfPossible;
+	return true;
 }
 
 void UPoseSearchDatabase::PostLoad()
@@ -869,19 +869,16 @@ FPoseSearchCost UPoseSearchDatabase::SearchContinuingPose(UE::PoseSearch::FSearc
 	const FAnimationAssetSampler SequenceBaseSampler(DatabaseAnimationAssetBase->GetAnimationAsset(), SearchIndexAsset.BlendParameters);
 	const float SampleTime = GetNormalizedAssetTime(PoseIdx);
 
-	// @todo: change ExtractPoseSearchNotifyStates api to avoid NotifyStates allocation
-	TArray<UAnimNotifyState_PoseSearchBase*> NotifyStates;
-	SequenceBaseSampler.ExtractPoseSearchNotifyStates(SampleTime, NotifyStates);
-
 	float UpdatedContinuingPoseCostBias = ContinuingPoseCostBias;
-	for (const UAnimNotifyState_PoseSearchBase* PoseSearchNotify : NotifyStates)
-	{
-		if (const UAnimNotifyState_PoseSearchOverrideContinuingPoseCostBias* ContinuingPoseCostBiasNotify = Cast<const UAnimNotifyState_PoseSearchOverrideContinuingPoseCostBias>(PoseSearchNotify))
+	SequenceBaseSampler.ExtractPoseSearchNotifyStates(SampleTime, [&UpdatedContinuingPoseCostBias](const UAnimNotifyState_PoseSearchBase* PoseSearchNotify)
 		{
-			UpdatedContinuingPoseCostBias = ContinuingPoseCostBiasNotify->CostAddend;
-			break;
-		}
-	}
+			if (const UAnimNotifyState_PoseSearchOverrideContinuingPoseCostBias* ContinuingPoseCostBiasNotify = Cast<const UAnimNotifyState_PoseSearchOverrideContinuingPoseCostBias>(PoseSearchNotify))
+			{
+				UpdatedContinuingPoseCostBias = ContinuingPoseCostBiasNotify->CostAddend;
+				return false;
+			}
+			return true;
+		});
 
 	// since any PoseCost calculated here is at least SearchIndex.MinCostAddend + UpdatedContinuingPoseCostBias,
 	// there's no point in performing the search if CurrentBestTotalCost is already better than that

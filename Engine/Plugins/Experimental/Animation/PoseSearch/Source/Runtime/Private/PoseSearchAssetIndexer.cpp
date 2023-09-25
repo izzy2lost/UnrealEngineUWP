@@ -140,19 +140,18 @@ void FAssetIndexer::Process(int32 AssetIdx)
 		float CostAddend = SamplingContext.BaseCostBias;
 		bool bBlockTransition = false;
 
-		TArray<UAnimNotifyState_PoseSearchBase*> NotifyStates;
-		AssetSampler.ExtractPoseSearchNotifyStates(SampleTime, NotifyStates);
-		for (const UAnimNotifyState_PoseSearchBase* PoseSearchNotify : NotifyStates)
-		{
-			if (PoseSearchNotify->GetClass()->IsChildOf<UAnimNotifyState_PoseSearchBlockTransition>())
+		AssetSampler.ExtractPoseSearchNotifyStates(SampleTime, [&bBlockTransition, &CostAddend](const UAnimNotifyState_PoseSearchBase* PoseSearchNotify)
 			{
-				bBlockTransition = true;
-			}
-			else if (const UAnimNotifyState_PoseSearchModifyCost* ModifyCostNotify = Cast<const UAnimNotifyState_PoseSearchModifyCost>(PoseSearchNotify))
-			{
-				CostAddend = ModifyCostNotify->CostAddend;
-			}
-		}
+				if (PoseSearchNotify->GetClass()->IsChildOf<UAnimNotifyState_PoseSearchBlockTransition>())
+				{
+					bBlockTransition = true;
+				}
+				else if (const UAnimNotifyState_PoseSearchModifyCost* ModifyCostNotify = Cast<const UAnimNotifyState_PoseSearchModifyCost>(PoseSearchNotify))
+				{
+					CostAddend = ModifyCostNotify->CostAddend;
+				}
+				return true;
+			});
 
 		if (AssetSampler.IsLoopable())
 		{

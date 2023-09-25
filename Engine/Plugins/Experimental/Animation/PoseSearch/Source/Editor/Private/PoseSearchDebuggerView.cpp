@@ -275,7 +275,7 @@ bool SDebuggerView::UpdateNodeSelection()
 				.Padding(10.0f)
 				[
 					SNew(SButton)
-					.Text(FText::FromString(Model->GetCurrentDatabase()->GetName()))
+					.Text(FText::FromString(GetNameSafe(Model->GetCurrentDatabase())))
 					.HAlign(HAlign_Center)
 					.VAlign(VAlign_Center)
 					.ContentPadding(10.0f)

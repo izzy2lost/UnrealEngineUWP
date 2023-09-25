@@ -581,7 +581,7 @@ void FAnimationAssetSampler::Process(const FBoneContainer& BoneContainer)
 	}
 }
 
-void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TArray<UAnimNotifyState_PoseSearchBase*>& NotifyStates) const
+void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TFunction<bool(UAnimNotifyState_PoseSearchBase*)> ProcessPoseSearchBase) const
 {
 	float SampleTime = Time;
 	FAnimNotifyContext NotifyContext;
@@ -642,7 +642,10 @@ void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TArray<UA
 
 		if (UAnimNotifyState_PoseSearchBase* PoseSearchAnimNotify = Cast<UAnimNotifyState_PoseSearchBase>(NotifyEvent->NotifyStateClass))
 		{
-			NotifyStates.Add(PoseSearchAnimNotify);
+			if (!ProcessPoseSearchBase(PoseSearchAnimNotify))
+			{
+				break;
+			}
 		}
 	}
 }

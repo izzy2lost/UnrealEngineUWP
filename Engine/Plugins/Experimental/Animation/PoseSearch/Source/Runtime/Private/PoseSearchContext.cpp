@@ -432,15 +432,35 @@ FTransform FSearchContext::GetWorldRootBoneTransformAtTime(float SampleTime, boo
 	FTransform WorldRootBoneTransform = FTransform::Identity;
 	if (bUseHistoryRoot)
 	{
+#if WITH_EDITOR
+		if (!History)
+		{
+			UE_LOG(LogPoseSearch, Error, TEXT("FSearchContext::GetWorldRootBoneTransformAtTime - missing History is required!"));
+		}
+		else
+#else // WITH_EDITOR
 		check(History);
-		// asking for root bone (RootBoneIndexType) in world space (WorldSpaceIndexType)
-		History->GetTransformAtTime(SampleTime, WorldRootBoneTransform, AnimInstance->CurrentSkeleton, RootBoneIndexType, WorldSpaceIndexType, bExtrapolate);
+#endif // WITH_EDITOR
+		{
+			// asking for root bone (RootBoneIndexType) in world space (WorldSpaceIndexType)
+			History->GetTransformAtTime(SampleTime, WorldRootBoneTransform, AnimInstance->CurrentSkeleton, RootBoneIndexType, WorldSpaceIndexType, bExtrapolate);
+		}
 	}
 	else
 	{
+#if WITH_EDITOR
+		if (!Trajectory)
+		{
+			UE_LOG(LogPoseSearch, Error, TEXT("FSearchContext::GetWorldRootBoneTransformAtTime - missing Trajectory is required!"));
+		}
+		else
+#else // WITH_EDITOR
 		check(Trajectory);
-		// Trajectory is already in root bone world space (transformed in UPoseSearchLibrary::ProcessTrajectory), so we just ask for a sample at the proper SampleTime 
-		WorldRootBoneTransform = Trajectory->GetSampleAtTime(SampleTime, bExtrapolate).GetTransform();
+#endif // WITH_EDITOR
+		{
+			// Trajectory is already in root bone world space (transformed in UPoseSearchLibrary::ProcessTrajectory), so we just ask for a sample at the proper SampleTime 
+			WorldRootBoneTransform = Trajectory->GetSampleAtTime(SampleTime, bExtrapolate).GetTransform();
+		}
 	}
 
 	return WorldRootBoneTransform;
