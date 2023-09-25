@@ -340,7 +340,7 @@ namespace Horde.Server.Ugs
 			long newUpdateTicks = DateTime.UtcNow.Ticks;
 			update = update.Set(x => x.UpdateTicks, newUpdateTicks);
 
-			FilterDefinition<UgsMetadataDocument> filter = Builders<UgsMetadataDocument>.Filter.Expr(x => x.Change == document.Change && x.UpdateIndex == document.UpdateIndex);
+			FilterDefinition<UgsMetadataDocument> filter = Builders<UgsMetadataDocument>.Filter.Expr(x => x.Id == document.Id && x.UpdateIndex == document.UpdateIndex);
 			try
 			{
 				UpdateResult result = await _collection.UpdateOneAsync(filter, update);
