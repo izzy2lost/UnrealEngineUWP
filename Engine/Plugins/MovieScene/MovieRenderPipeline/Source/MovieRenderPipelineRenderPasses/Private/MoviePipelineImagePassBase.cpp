@@ -921,23 +921,38 @@ namespace MoviePipeline
 
 				if (SamplePixelData->GetType() == EImagePixelType::Float32)
 				{
-					const void* RawDataPtr;
+					const void* RawDataPtr = nullptr;
 					int64 RawDataSize;
-					SamplePixelData->GetRawData(RawDataPtr, RawDataSize);
-
-					FMemory::Memcpy(FullSizeData.GetData(), RawDataPtr, RawDataSize);
+					
+					if(SamplePixelData->GetRawData(RawDataPtr, RawDataSize) == true)
+					{
+						FMemory::Memcpy(FullSizeData.GetData(), RawDataPtr, RawDataSize);
+					}
+					else
+					{
+						UE_LOG(LogMovieRenderPipelineIO, Error, TEXT("Failed to retrieve raw data from image data for writing. Bailing."));
+						return;
+					}
 				}
 				else if (SamplePixelData->GetType() == EImagePixelType::Float16)
 				{
-					const void* RawDataPtr;
+					const void* RawDataPtr = nullptr;
 					int64 RawDataSize;
-					SamplePixelData->GetRawData(RawDataPtr, RawDataSize);
 
-					const FFloat16Color* DataAsColor = reinterpret_cast<const FFloat16Color*>(RawDataPtr);
-					for (int64 Index = 0; Index < RawSize.X * RawSize.Y; Index++)
+					if(SamplePixelData->GetRawData(RawDataPtr, RawDataSize) == true)
 					{
-						FullSizeData[Index] = FLinearColor(DataAsColor[Index]);
+						const FFloat16Color* DataAsColor = reinterpret_cast<const FFloat16Color*>(RawDataPtr);
+						for (int64 Index = 0; Index < RawSize.X * RawSize.Y; Index++)
+						{
+							FullSizeData[Index] = FLinearColor(DataAsColor[Index]);
+						}
 					}
+					else
+					{
+						UE_LOG(LogMovieRenderPipelineIO, Error, TEXT("Failed to retrieve raw data from image data for writing. Bailing."));
+						return;
+					}
+
 				}
 				else
 				{

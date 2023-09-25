@@ -336,9 +336,15 @@ static int32 GetComponentWidth(const EImagePixelType InPixelType)
 template <Imf::PixelType OutputFormat>
 int64 FEXRImageWriteTask::CompressRaw(Imf::Header& InHeader, Imf::FrameBuffer& InFrameBuffer, FImagePixelData* InLayer)
 {
-	void const* RawDataPtr;
+	void const* RawDataPtr = nullptr;
 	int64 RawDataSize;
-	InLayer->GetRawData(RawDataPtr, RawDataSize);
+
+	if (InLayer->GetRawData(RawDataPtr, RawDataSize) == false)
+	{
+		UE_LOG(LogMovieRenderPipelineIO, Error, TEXT("Failed to retrieve raw data from image data for writing. Bailing."));
+		return 0;
+	}
+		
 
 	// Look up our layer name (if any).
 	FString& LayerName = LayerNames.FindOrAdd(InLayer);
