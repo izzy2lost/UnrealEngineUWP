@@ -158,8 +158,7 @@ TArray<TSharedPtr<FContentBundleEditor>>& FContentBundleContainer::GetEditorCont
 
 bool FContentBundleContainer::UseEditorContentBundle() const
 {
-	bool bIsEditorEditWorld = !GetInjectedWorld()->IsGameWorld() && GetInjectedWorld()->IsEditorWorld();
-	return bIsEditorEditWorld || IsRunningCookCommandlet();
+	return !GetInjectedWorld()->IsGameWorld() || IsRunningCookCommandlet();
 }
 
 #endif
