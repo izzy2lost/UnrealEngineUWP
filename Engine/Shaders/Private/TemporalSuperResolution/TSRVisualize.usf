@@ -11,10 +11,12 @@
 //------------------------------------------------------- CONSTS
 
 static tsr_half3 kWhite  = tsr_half3(0.33, 0.33, 0.33);
+static tsr_half3 kYellow = tsr_half3(1.00, 1.00, 0.10);
 static tsr_half3 kRed    = tsr_half3(1.00, 0.10, 0.10);
 static tsr_half3 kOrange = tsr_half3(1.00, 0.75, 0.10);
 static tsr_half3 kGreen  = tsr_half3(0.10, 1.00, 0.10);
 static tsr_half3 kBlue   = tsr_half3(0.10, 0.10, 1.00);
+static tsr_half3 kPink   = tsr_half3(1.00, 0.10, 0.50);
 
 
 //------------------------------------------------------- PARAMETERS
@@ -31,11 +33,13 @@ uint bCanResurrectHistory;
 uint bCanSpatialAntiAlias;
 float MaxHistorySampleCount;
 float OutputToHistoryResolutionFractionSquare;
+float FlickeringFramePeriod;
 
 Texture2D<tsr_half3> SceneColorTexture;
 Texture2D<float2>    ClosestDepthTexture;
 Texture2D<float2>    DilatedVelocityTexture;
 Texture2D<tsr_half4> HistoryRejectionTexture;
+Texture2D<tsr_half4> MoireHistoryTexture;
 Texture2D<tsr_ushort> AntiAliasMaskTexture;
 Texture2D<tsr_half4> HistoryMetadataTexture;
 Texture2D<tsr_half3> ResurrectedHistoryColorTexture;
@@ -117,13 +121,17 @@ tsr_half3 DisplayResurrectionMask(FContext Ctx)
 	bool ResurrectionMask = (tsr_ushort(HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).a * tsr_half(255.0)) & tsr_ushort(0x2)) != tsr_ushort(0x0);
 	if (!bCanResurrectHistory)
 	{
-		return SampleTSROutputGray(Ctx) * kRed;
+		return SampleTSROutputGray(Ctx) * kPink;
 	}
 	return SampleTSROutputGray(Ctx) * select(ResurrectionMask, lerp(kRed, kGreen, LowFrequencyRejection), kWhite);
 }
 
 tsr_half3 DisplayResurrectedColor(FContext Ctx)
 {
+	if (!bCanResurrectHistory)
+	{
+		return SampleTSROutputGray(Ctx) * kPink;
+	}
 	tsr_half LowFrequencyRejection = HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).r;
 	float ClosestDeviceZ = ClosestDepthTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).g;
 	bool ResurrectionMask = (tsr_ushort(HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).a * tsr_half(255.0)) & tsr_ushort(0x2)) != tsr_ushort(0x0);
@@ -145,9 +153,48 @@ tsr_half3 DisplaySpatialAntiAliasingMask(FContext Ctx)
 	bool bSpatialAntiAlias = AntiAliasMaskTexture[Ctx.InputPixelPos] != tsr_ushort(0x0);
 	if (!bCanSpatialAntiAlias)
 	{
-		return SampleTSROutputGray(Ctx) * kRed;
+		return SampleTSROutputGray(Ctx) * kPink;
 	}
 	return SampleTSROutputGray(Ctx) * select(bSpatialAntiAlias, kGreen, kWhite);
+}
+
+tsr_half3 DisplayAntiFlickering(FContext Ctx)
+{
+	if (FlickeringFramePeriod == 0.0)
+	{
+		return SampleTSROutputGray(Ctx) * kPink;
+	}
+
+	const tsr_half BlendFinal = tsr_half(0.05);
+	const tsr_half MoireEncodingError = tsr_half(rcp(127.0));
+	const tsr_half MaxPrevTotalVariationCount = tsr_half(20.0);
+	
+	// Compute the threshold at which the variation count should quick in
+	const tsr_half TotalVariationCountThreshold = tsr_half(1.0 / (1.0 - pow(1.0 - BlendFinal, tsr_half(FlickeringFramePeriod))));
+
+	tsr_half4 MoireHistory = MoireHistoryTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0);
+
+
+	// Unpack history
+	tsr_half FlickeringHistory   = MoireHistory[0];
+	tsr_half Gradient            = MoireHistory[1] * tsr_half(255.0 / 127.0) - tsr_half(1.0);
+	tsr_half TotalVariation      = MoireHistory[2] * (tsr_half(1.0) - BlendFinal);
+	tsr_half TotalVariationCount = MoireHistory[3] * MaxPrevTotalVariationCount * (tsr_half(1.0) - BlendFinal);
+	
+	// Compute the final luminance 
+	#if 1
+		tsr_half LocalCountFadeIn = saturate(TotalVariationCount / TotalVariationCountThreshold - tsr_half(0.5));
+	#else
+		tsr_half LocalCountFadeIn = saturate(TotalVariationCount - TotalVariationCountThreshold);
+	#endif
+	tsr_half LocalMoireError = (abs(TotalVariation * SafeRcp(TotalVariationCount)) + TotalVariationCount * MoireEncodingError);
+	
+	tsr_half3 Color;
+	Color = lerp(kGreen, kYellow, saturate(LocalMoireError * 16.0));
+	Color = lerp(Color,  kRed,    saturate(LocalMoireError * 16.0 - 1.0));
+	Color = lerp(kWhite, Color,   LocalCountFadeIn);
+
+	return SampleTSROutputGray(Ctx) * Color;
 }
 
 
@@ -203,6 +250,10 @@ void MainCS(
 	else if (VisualizeId == 6)
 	{
 		OutputColor = DisplaySpatialAntiAliasingMask(Ctx);
+	}
+	else if (VisualizeId == 7)
+	{
+		OutputColor = DisplayAntiFlickering(Ctx);
 	}
 
 	{

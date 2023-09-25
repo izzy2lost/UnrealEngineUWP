@@ -281,7 +281,9 @@ TAutoConsoleVariable<int32> CVarTSRVisualize(
 	TEXT("  2: Mask where the history is rejected;\n")
 	TEXT("  3: Mask where the history is clamped;\n")
 	TEXT("  4: Mask where the history is resurrected (with r.TSR.Resurrection=1);\n")
-	TEXT("  5: Mask where the history is resurrected in the resurrected frame (with r.TSR.Resurrection=1), particularily interesting to tune r.TSR.Resurrection.PersistentFrameInterval;\n"),
+	TEXT("  5: Mask where the history is resurrected in the resurrected frame (with r.TSR.Resurrection=1), particularily interesting to tune r.TSR.Resurrection.PersistentFrameInterval;\n")
+	TEXT("  6: Mask where spatial anti-aliasing is being computed;\n")
+	TEXT("  7: Mask where the anti-flickering heuristic is taking effects (with r.TSR.ShadingRejection.Flickering=1);\n"),
 	ECVF_RenderThreadSafe);
 
 #endif
@@ -940,11 +942,13 @@ class FTSRVisualizeCS : public FTSRShader
 		SHADER_PARAMETER(int32, bCanSpatialAntiAlias)
 		SHADER_PARAMETER(float, MaxHistorySampleCount)
 		SHADER_PARAMETER(float, OutputToHistoryResolutionFractionSquare)
+		SHADER_PARAMETER(float, FlickeringFramePeriod)
 
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, SceneColorTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ClosestDepthTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DilatedVelocityTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HistoryRejectionTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, MoireHistoryTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, AntiAliasMaskTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, HistoryMetadataTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ResurrectedHistoryColorTexture)
@@ -1304,7 +1308,8 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 
 	static auto CVarAntiAliasingQuality = IConsoleManager::Get().FindConsoleVariable(TEXT("sg.AntiAliasingQuality"));
 	check(CVarAntiAliasingQuality);
-
+	
+	if (IsVisualizeTSREnabled(View))
 	RDG_EVENT_SCOPE(GraphBuilder, "TemporalSuperResolution(sg.AntiAliasingQuality=%d%s) %dx%d -> %dx%d",
 		CVarAntiAliasingQuality->GetInt(),
 		bSupportsAlpha ? TEXT(" Alpha") : TEXT(""),
@@ -1943,6 +1948,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 	FRDGTextureRef HistoryRejectionTexture = nullptr;
 	FRDGTextureRef InputSceneColorLdrLumaTexture = nullptr;
 	FRDGTextureRef AntiAliasMaskTexture = nullptr;
+	FRDGTextureSRVRef MoireHistoryTexture = nullptr;
 	{
 		const bool bComputeInputSceneColorTexture = InputSceneColorLdrLumaTexture == nullptr;
 		if (bComputeInputSceneColorTexture)
@@ -2072,7 +2078,18 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			}
 			else if (View.bStatePrevViewInfoIsReadOnly)
 			{
-				PassParameters->HistoryMoireOutput = CreateDummyUAV(GraphBuilder, History.MoireArray->Desc.Format);
+				FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
+					InputExtent,
+					History.MoireArray->Desc.Format,
+					FClearValueBinding::None,
+					/* InFlags = */ TexCreate_ShaderResource | TexCreate_UAV);
+
+				// Create an unused texture for the moire history so that the VisualizeTSR can still display the updated moire history.
+				FRDGTextureRef UnusedMoireHistoryTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.History.Moire"));
+				GraphBuilder.RemoveUnusedTextureWarning(UnusedMoireHistoryTexture);
+
+				PassParameters->HistoryMoireOutput = GraphBuilder.CreateUAV(UnusedMoireHistoryTexture);
+				MoireHistoryTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc(UnusedMoireHistoryTexture));
 			}
 			else
 			{
@@ -2082,6 +2099,8 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 				MoireUAVDesc.DimensionOverride = ETextureDimension::Texture2D;
 
 				PassParameters->HistoryMoireOutput = GraphBuilder.CreateUAV(MoireUAVDesc);
+
+				MoireHistoryTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(History.MoireArray, CurrentFrameSliceIndex));
 			}
 
 			// Output how the history should rejected in the HistoryUpdate
@@ -2471,6 +2490,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			ResurrectionMask = 4,
 			ResurrectedColor = 5,
 			SpatialAntiAliasingMask = 6,
+			AntiFlickering = 7,
 			MAX,
 		};
 
@@ -2482,6 +2502,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			TEXT("ResurrectionMask"),
 			TEXT("ResurrectedColor"),
 			TEXT("SpatialAntiAliasingMask"),
+			TEXT("AntiFlickering"),
 		};
 		static_assert(UE_ARRAY_COUNT(kVisualizationName) == int32(EVisualizeId::MAX), "kVisualizationName doesn't match EVisualizeId");
 
@@ -2515,11 +2536,13 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->bCanSpatialAntiAlias = RejectionAntiAliasingQuality > 0;
 			PassParameters->MaxHistorySampleCount = MaxHistorySampleCount;
 			PassParameters->OutputToHistoryResolutionFractionSquare = OutputToHistoryResolutionFractionSquare;
+			PassParameters->FlickeringFramePeriod = FlickeringFramePeriod;
 
 			PassParameters->SceneColorTexture = SceneColorOutputTextureSRV;
 			PassParameters->ClosestDepthTexture = ClosestDepthTexture;
 			PassParameters->DilatedVelocityTexture = DilatedVelocityTexture;
 			PassParameters->HistoryRejectionTexture = HistoryRejectionTexture;
+			PassParameters->MoireHistoryTexture = MoireHistoryTexture ? MoireHistoryTexture : GraphBuilder.CreateSRV(FRDGTextureSRVDesc(BlackDummy));
 			PassParameters->AntiAliasMaskTexture = AntiAliasMaskTexture ? AntiAliasMaskTexture : BlackUintDummy;
 			PassParameters->HistoryMetadataTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(History.MetadataArray, CurrentFrameSliceIndex));
 			if (PrevHistory.ColorArray == BlackArrayDummy)
@@ -2565,6 +2588,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 					Tiles[4 * 2 + 0] = Visualize(EVisualizeId::ResurrectedColor, TEXT("Resurrected Frame"));
 				}
 				Tiles[4 * 3 + 0] = Visualize(EVisualizeId::SpatialAntiAliasingMask, TEXT("Spatial Anti-Aliasing"));
+				Tiles[4 * 1 + 3] = Visualize(EVisualizeId::AntiFlickering, TEXT("Flickering Temporal Analysis"));
 			}
 
 			{
