@@ -397,7 +397,7 @@ FVector4f FSceneCapturePhotoSet::ComputeSampleNearest(
 
 MODELINGCOMPONENTS_API
 TArray<FSpatialPhotoParams> ComputeStandardExteriorSpatialPhotoParameters(
-	UWorld* World,
+	UWorld* Unused,
 	const TArray<AActor*>& Actors,
 	const TArray<UActorComponent*>& Components,
 	FImageDimensions PhotoDimensions,

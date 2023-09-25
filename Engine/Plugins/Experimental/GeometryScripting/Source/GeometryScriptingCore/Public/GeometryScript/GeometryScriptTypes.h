@@ -626,6 +626,81 @@ struct TStructOpsTypeTraits<FGeometryScriptDynamicMeshBVH> : public TStructOpsTy
 
 
 
+
+//
+// Render Capture data structures
+//
+
+
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptRenderCaptureCamera
+{
+	GENERATED_BODY()
+
+	/** The pixel resolution of render capture photo set, this value is used for width and height */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int Resolution = 256;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	double FieldOfViewDegrees = 45.0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	FVector ViewPosition = FVector::Zero();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	FVector ViewDirection = FVector::UnitX();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	double NearPlaneDist = 1.0;
+};
+
+
+
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptRenderCaptureCamerasForBoxOptions
+{
+	GENERATED_BODY()
+
+	/** The pixel resolution of render capture photos, this value is used for width and height */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int Resolution = 256;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	double FieldOfViewDegrees = 45.;
+
+	/** Enable 6 directions corresponding to views from box face centers to the box center */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bViewFromBoxFaces = true;
+
+	/** Enable 4 directions corresponding to views from box upper corners to the box center */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bViewFromUpperCorners = false;
+
+	/** Enable 4 directions corresponding to views from box lower corners to the box center */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bViewFromLowerCorners = false;
+
+	/** Enable 4 directions corresponding to views from box upper edges centers to the box center */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bViewFromUpperEdges = false;
+
+	/** Enable 4 directions corresponding to views from box lower edges centers to the box center */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bViewFromLowerEdges = false;
+
+	/** Enable 4 directions corresponding to views from box side edges centers to the box center */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bViewFromSideEdges = false;
+
+	/** Extra positions from which to deduce view directions on the box center (located at (0,0,0)) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	TArray<FVector> ExtraViewFromPositions;
+};
+
+
+
+
+
 //
 // Errors/Debugging
 //

@@ -992,8 +992,9 @@ void FSceneCapturePhotoSet::EmptyPhotoSet(ERenderCaptureType CaptureType)
 	}
 }
 
+// TODO Deprecate this function and replace it with ComputeRenderCaptureCamerasForBox
 TArray<FSpatialPhotoParams> UE::Geometry::ComputeStandardExteriorSpatialPhotoParameters(
-	UWorld* World,
+	UWorld* Unused,
 	const TArray<AActor*>& Actors,
 	const TArray<UActorComponent*>& Components,
 	FImageDimensions PhotoDimensions,
@@ -1005,7 +1006,7 @@ TArray<FSpatialPhotoParams> UE::Geometry::ComputeStandardExteriorSpatialPhotoPar
 	bool bUpperEdges,
 	bool bSideEdges)
 {
-	if (!World || (Actors.IsEmpty() && Components.IsEmpty()))
+	if (Actors.IsEmpty() && Components.IsEmpty())
 	{
 		return {};
 	}

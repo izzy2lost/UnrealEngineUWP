@@ -863,6 +863,18 @@ namespace GeometryScriptBakeLocals
 } // end namespace GeometryScriptBakeLocals
 
 
+
+int UGeometryScriptLibrary_MeshBakeFunctions::ConvertBakeResolutionToInt(EGeometryScriptBakeResolution BakeResolution)
+{
+	FImageDimensions Dimensions = GeometryScriptBakeLocals::GetDimensions(BakeResolution);
+
+	int Output;
+	Output = Dimensions.GetWidth();
+	checkSlow(Output == Dimensions.GetHeight());
+	return Output;
+}
+
+
 FGeometryScriptBakeTypeOptions UGeometryScriptLibrary_MeshBakeFunctions::MakeBakeTypeTangentNormal()
 {
 	FGeometryScriptBakeTypeOptions Output;
@@ -1111,9 +1123,57 @@ FGeometryScriptRenderCaptureTextures UGeometryScriptLibrary_MeshBakeFunctions::B
 		return {};
 	}
 
-	const FSceneCaptureConfig Options = GeometryScriptBakeLocals::GetSceneCaptureConfig(BakeOptions);
 	TUniquePtr<FSceneCapturePhotoSet> SceneCapture = MakeUnique<FSceneCapturePhotoSet>();
-	ConfigureSceneCapture(SceneCapture, ValidSourceActors, Options, false);
+	const FSceneCaptureConfig Options = GeometryScriptBakeLocals::GetSceneCaptureConfig(BakeOptions);
+
+	// TODO This block is similar to ConfigureSceneCapture function but handles an explicit Cameras array, when the BakeRC
+	// tool also supports explicit Cameras then we can re-unify the code paths
+	{
+		ForEachCaptureType([&SceneCapture, &Options](ERenderCaptureType CaptureType)
+		{
+			const bool bCaptureTypeEnabled = Options.Flags[CaptureType];
+			SceneCapture->SetCaptureTypeEnabled(CaptureType, bCaptureTypeEnabled);
+
+			FRenderCaptureConfig Config;
+			Config.bAntiAliasing = (CaptureType == ERenderCaptureType::DeviceDepth ? false : Options.bAntiAliasing);
+			SceneCapture->SetCaptureConfig(CaptureType, Config);
+		});
+
+		SceneCapture->SetCaptureSceneActors(ValidSourceActors[0]->GetWorld(), ValidSourceActors);
+
+		if (BakeOptions.Cameras.IsEmpty())
+		{
+			AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs,
+				LOCTEXT("BakeTextureFromRenderCaptures_EmptyCameraSet", "BakeTextureFromRenderCaptures: Cameras array was empty so a default camera set was used. Please update your blueprint by providing an explicit array e.g., by using ComputeRenderCaptureCamerasForBox"));
+		
+			TArray<FSpatialPhotoParams> SpatialParams = ComputeStandardExteriorSpatialPhotoParameters(
+				nullptr,
+				ValidSourceActors,
+				TArray<UActorComponent*>(),
+				FImageDimensions(Options.RenderCaptureImageSize, Options.RenderCaptureImageSize),
+				Options.FieldOfViewDegrees,
+				Options.NearPlaneDist,
+				true, true, true, true, true);
+			SceneCapture->SetSpatialPhotoParams(SpatialParams);
+		}
+		else
+		{
+			TArray<FSpatialPhotoParams> SpatialParams;
+			for (const FGeometryScriptRenderCaptureCamera& Camera : BakeOptions.Cameras)
+			{
+				FSpatialPhotoParams Params;
+				Params.NearPlaneDist = Camera.NearPlaneDist;
+				Params.HorzFOVDegrees = Camera.FieldOfViewDegrees;
+				Params.Dimensions = FImageDimensions(FMath::Max(1, Camera.Resolution), FMath::Max(1, Camera.Resolution));
+				Params.Frame.AlignAxis(0, Camera.ViewDirection);
+				Params.Frame.ConstrainedAlignAxis(2, FVector3d::UnitZ(), Params.Frame.X());
+				Params.Frame.Origin = Camera.ViewPosition;
+				SpatialParams.Add(Params);
+			}
+			SceneCapture->SetSpatialPhotoParams(SpatialParams);
+		}
+	}
+
 	SceneCapture->Compute();
 
 	const FDynamicMeshAABBTree3 TargetMeshSpatial(TargetMesh->GetMeshPtr());

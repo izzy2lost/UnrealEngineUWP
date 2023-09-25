@@ -312,13 +312,48 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeRenderCaptureOptions
 {
 	GENERATED_BODY()
 
+	/*~
+	 * Options to configure the Render Capture
+	 */
+
+	/**
+	 * If not empty the given Render Capture Cameras are used to create the photos from which to Bake textures
+	 * If empty then a default set of Render Capture Cameras with frustums containing the SourceActors bounding box is used
+	 * Note: Providing a value is highly recommended, the default camera set is intended only to support legacy blueprints
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	TArray<FGeometryScriptRenderCaptureCamera> Cameras;
+
+	/**
+	 * The pixel resolution of the default render capture camera photo sets.
+	 * Only used if Cameras is empty
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta=(DisplayName="Default Capture Resolution"))
+	EGeometryScriptBakeResolution RenderCaptureResolution = EGeometryScriptBakeResolution::Resolution256;
+
+	/**
+	 * Default field of view of the default render capture cameras.
+	 * Only used if Cameras is empty
+	 */
+	UPROPERTY()
+	double FieldOfViewDegrees = 45.0;
+
+	/**
+	 * Default near plane distance for the viewing frustums of the default render capture cameras.
+	 * Only used if Cameras is empty
+	 */
+	UPROPERTY()
+	double NearPlaneDist = 1.0;
+
+
+
+	/*~
+	 * Options to configure the Baking step to create textures from the Render Capture photos
+	 */
+
 	/** The pixel resolution of the generated textures */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	EGeometryScriptBakeResolution Resolution = EGeometryScriptBakeResolution::Resolution256;
-	
-	/** The pixel resolution of render capture photo set */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
-	EGeometryScriptBakeResolution RenderCaptureResolution = EGeometryScriptBakeResolution::Resolution256;
 
 	/** Number of samples per pixel */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
@@ -371,15 +406,6 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeRenderCaptureOptions
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bSubsurfaceColorMap = true;
-
-	// These are hidden in the UI right now, we might want to expose them if they turn out to be useful for very large
-	// or very small objects (not tested yet) TODO Figure out if we want to expose these options
-
-	UPROPERTY()
-	double FieldOfViewDegrees = 45.0;
-
-	UPROPERTY()
-	double NearPlaneDist = 1.0;
 };
 
 USTRUCT(BlueprintType)
@@ -447,6 +473,10 @@ class GEOMETRYSCRIPTINGCORE_API UGeometryScriptLibrary_MeshBakeFunctions : publi
 {
 	GENERATED_BODY()
 public:
+
+	UFUNCTION(BlueprintPure, Category = "GeometryScript|Bake", meta=(CompactNodeTitle = "->", BlueprintAutocast))
+	static UPARAM(DisplayName="Resolution Out") int ConvertBakeResolutionToInt(EGeometryScriptBakeResolution BakeResolution);
+
 	UFUNCTION(BlueprintPure, Category = "GeometryScript|Bake")
 	static UPARAM(DisplayName="Bake Type Out") FGeometryScriptBakeTypeOptions MakeBakeTypeTangentNormal();
 
