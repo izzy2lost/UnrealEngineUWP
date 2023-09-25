@@ -36,6 +36,8 @@ namespace UnrealBuildTool.Rules
                 );
             }
 
+			bAllowAutoRTFMInstrumentation = true;
+
 			SetupIrisSupport(Target);
 		}
 	}
