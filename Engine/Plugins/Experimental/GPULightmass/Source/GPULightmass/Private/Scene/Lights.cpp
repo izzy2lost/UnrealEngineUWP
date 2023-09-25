@@ -386,8 +386,9 @@ void FSkyLightRenderState::PrepareSkyTexture(FRHICommandListImmediate& RHICmdLis
 void FDirectionalLightRenderState::RenderStaticShadowDepthMap(FRHICommandListImmediate& RHICmdList, FSceneRenderState& Scene)
 {
 	FRDGBuilder GraphBuilder(RHICmdList);
+	FSceneUniformBuffer SceneUniforms;
 
-	if (!Scene.SetupRayTracingScene(GraphBuilder))
+	if (!Scene.SetupRayTracingScene(GraphBuilder, SceneUniforms))
 	{
 		return;
 	}
@@ -486,8 +487,9 @@ void FDirectionalLightRenderState::RenderStaticShadowDepthMap(FRHICommandListImm
 void FSpotLightRenderState::RenderStaticShadowDepthMap(FRHICommandListImmediate& RHICmdList, FSceneRenderState& Scene)
 {
 	FRDGBuilder GraphBuilder(RHICmdList);
+	FSceneUniformBuffer SceneUniforms;
 
-	if (!Scene.SetupRayTracingScene(GraphBuilder))
+	if (!Scene.SetupRayTracingScene(GraphBuilder, SceneUniforms))
 	{
 		return;
 	}
@@ -605,8 +607,9 @@ void FSpotLightRenderState::RenderStaticShadowDepthMap(FRHICommandListImmediate&
 void FPointLightRenderState::RenderStaticShadowDepthMap(FRHICommandListImmediate& RHICmdList, FSceneRenderState& Scene)
 {
 	FRDGBuilder GraphBuilder(RHICmdList);
+	FSceneUniformBuffer SceneUniforms;
 
-	if (!Scene.SetupRayTracingScene(GraphBuilder))
+	if (!Scene.SetupRayTracingScene(GraphBuilder, SceneUniforms))
 	{
 		return;
 	}
@@ -698,8 +701,9 @@ void FPointLightRenderState::RenderStaticShadowDepthMap(FRHICommandListImmediate
 void FRectLightRenderState::RenderStaticShadowDepthMap(FRHICommandListImmediate& RHICmdList, FSceneRenderState& Scene)
 {
 	FRDGBuilder GraphBuilder(RHICmdList);
+	FSceneUniformBuffer SceneUniforms;
 
-	if (!Scene.SetupRayTracingScene(GraphBuilder))
+	if (!Scene.SetupRayTracingScene(GraphBuilder, SceneUniforms))
 	{
 		return;
 	}

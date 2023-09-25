@@ -298,7 +298,7 @@ int32 FSceneRenderState::GetPrimitiveIdForGPUScene(const FGeometryInstanceRender
 	return INDEX_NONE;
 }
 
-void FCachedRayTracingSceneData::SetupViewAndSceneUniformBufferFromSceneRenderState(FRDGBuilder& GraphBuilder, FSceneRenderState& Scene)
+void FCachedRayTracingSceneData::SetupViewAndSceneUniformBufferFromSceneRenderState(FRDGBuilder& GraphBuilder, FSceneRenderState& Scene, FSceneUniformBuffer& SceneUniforms)
 {
 	TArray<FPrimitiveSceneShaderData>	PrimitiveSceneData;
 	TArray<FLightmapSceneShaderData>	LightmapSceneData;
@@ -613,7 +613,7 @@ void FCachedRayTracingSceneData::SetupViewAndSceneUniformBufferFromSceneRenderSt
 			GPUScene.GPUSceneLightData = GraphBuilder.CreateSRV(RDGLightDataBuffer);
 		}
 
-		Scene.SceneUniforms.Set(SceneUB::GPUScene, GPUScene);
+		SceneUniforms.Set(SceneUB::GPUScene, GPUScene);
 	}
 }
 
@@ -780,11 +780,11 @@ void FCachedRayTracingSceneData::SetupFromSceneRenderState(FSceneRenderState& Sc
 #endif // RHI_RAYTRACING
 }
 
-void FCachedRayTracingSceneData::RestoreCachedBuffers(FRDGBuilder& GraphBuilder, FSceneRenderState& RenderState)
+void FCachedRayTracingSceneData::RestoreCachedBuffers(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniforms)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(RestoreCachedBuffers);
 
-	FGPUSceneResourceParameters GPUScene = RenderState.SceneUniforms.Get(SceneUB::GPUScene);
+	FGPUSceneResourceParameters GPUScene = {};
 	
 	check(GPUScenePrimitiveDataBuffer.IsValid())
 	GPUScene.GPUScenePrimitiveSceneData = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(GPUScenePrimitiveDataBuffer));
@@ -802,10 +802,7 @@ void FCachedRayTracingSceneData::RestoreCachedBuffers(FRDGBuilder& GraphBuilder,
 	check(GPUSceneLightDataBuffer.IsValid())
 	GPUScene.GPUSceneLightData = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(GPUSceneLightDataBuffer));
 
-	// Clear cached parameters so that bGPUSceneIsDirty will be true
-	// Required as the uniform buffer in SceneUniforms has only 1 frame lifetime and needs to be recreated
-	RenderState.SceneUniforms.Set(SceneUB::GPUScene, {});
-	RenderState.SceneUniforms.Set(SceneUB::GPUScene, GPUScene);
+	SceneUniforms.Set(SceneUB::GPUScene, GPUScene);
 }
 
 FCachedRayTracingSceneData::~FCachedRayTracingSceneData()
@@ -816,7 +813,7 @@ FCachedRayTracingSceneData::~FCachedRayTracingSceneData()
 	RHICmdList.EnqueueLambda([OwnedRayTracingInstanceTransforms = MoveTemp(OwnedRayTracingInstanceTransforms)](FRHICommandList&){});
 }
 
-bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, int32 LODIndex)
+bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniforms, int32 LODIndex)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(SetupRayTracingScene);
 
@@ -830,13 +827,13 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, int32 LO
 
 	if (CachedRayTracingScene.IsValid())
 	{
-		CachedRayTracingScene->RestoreCachedBuffers(GraphBuilder, *this);
+		CachedRayTracingScene->RestoreCachedBuffers(GraphBuilder, SceneUniforms);
 	}
 	else
 	{
 		CachedRayTracingScene = MakeUnique<FCachedRayTracingSceneData>();
 
-		CachedRayTracingScene->SetupViewAndSceneUniformBufferFromSceneRenderState(GraphBuilder, *this);
+		CachedRayTracingScene->SetupViewAndSceneUniformBufferFromSceneRenderState(GraphBuilder, *this, SceneUniforms);
 		CachedRayTracingScene->SetupFromSceneRenderState(*this);
 
 		CalculateDistributionPrefixSumForAllLightmaps();
@@ -2060,7 +2057,9 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 	RectLightAtlas::UpdateAtlasTexture(GraphBuilder, Scene->FeatureLevel);
 	IESAtlas::UpdateAtlasTexture(GraphBuilder, Scene->FeatureLevel);
 
-	if (!Scene->SetupRayTracingScene(GraphBuilder, MostCommonLODIndex))
+	FSceneUniformBuffer SceneUniforms;
+
+	if (!Scene->SetupRayTracingScene(GraphBuilder, SceneUniforms, MostCommonLODIndex))
 	{
 		return;
 	}
@@ -2089,7 +2088,7 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 			TRACE_CPUPROFILER_EVENT_SCOPE(InstanceIdsIdentityBuffer);
 
 			TArray<uint32, SceneRenderingAllocator> InstanceIdsIdentity;
-			for (uint32 Index = 0U; Index < FMath::Max(1U, Scene->SceneUniforms.Get(SceneUB::GPUScene).InstanceDataSOAStride); ++Index)
+			for (uint32 Index = 0U; Index < FMath::Max(1U, SceneUniforms.Get(SceneUB::GPUScene).InstanceDataSOAStride); ++Index)
 			{
 				InstanceIdsIdentity.Add(Index);
 			}
@@ -2270,7 +2269,7 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 
 							auto* PassParameters = GraphBuilder.AllocParameters<FLightmapGBufferPassParameters>();
 							PassParameters->View = Scene->ReferenceView->ViewUniformBuffer;
-							PassParameters->Scene = Scene->SceneUniforms.GetBuffer(GraphBuilder);
+							PassParameters->Scene = SceneUniforms.GetBuffer(GraphBuilder);
 							PassParameters->PassUniformBuffer = PassUniformBuffer;
 							PassParameters->InstanceCulling = InstanceCullingUniformBuffer;
 
@@ -2426,7 +2425,7 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 
 									PassParameters->BatchedTiles = GPUBatchedTileRequests.BatchedTilesSRV;
 									PassParameters->ViewUniformBuffer = Scene->ReferenceView->ViewUniformBuffer;
-									PassParameters->Scene = Scene->SceneUniforms.GetBuffer(GraphBuilder);
+									PassParameters->Scene = SceneUniforms.GetBuffer(GraphBuilder);
 									PassParameters->IrradianceCachingParameters = Scene->IrradianceCache->IrradianceCachingParametersUniformBuffer;
 
 									if (PreviousPassParameters[GPUIndex] == nullptr)
@@ -2715,7 +2714,7 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 					{
 						auto* PassParameters = GraphBuilder.AllocParameters<FLightmapGBufferPassParameters>();
 						PassParameters->View = Scene->ReferenceView->ViewUniformBuffer;
-						PassParameters->Scene = Scene->SceneUniforms.GetBuffer(GraphBuilder);
+						PassParameters->Scene = SceneUniforms.GetBuffer(GraphBuilder);
 						PassParameters->PassUniformBuffer = PassUniformBuffer;
 						PassParameters->InstanceCulling = InstanceCullingUniformBuffer;
 
@@ -2782,7 +2781,7 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 
 						FStationaryLightShadowTracingRGS::FParameters* PassParameters = GraphBuilder.AllocParameters<FStationaryLightShadowTracingRGS::FParameters>();
 						PassParameters->ViewUniformBuffer = Scene->ReferenceView->ViewUniformBuffer;
-						PassParameters->Scene = Scene->SceneUniforms.GetBuffer(GraphBuilder);
+						PassParameters->Scene = SceneUniforms.GetBuffer(GraphBuilder);
 						PassParameters->TLAS = Scene->RayTracingSceneSRV;
 						PassParameters->BatchedTiles = GPUBatchedTileRequests.BatchedTilesSRV;
 						PassParameters->LightTypeArray = HoldReference(GraphBuilder, LightTypeSRV);
