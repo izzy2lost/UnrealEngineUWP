@@ -167,27 +167,30 @@ namespace Horde.Server.Issues
 							workflowStats = new WorkflowStats();
 						}
 
-						IssueReport report = new IssueReport(streamConfig.Id, workflowConfig.Id, workflowStats, workflowConfig.TriageChannel, workflowConfig.GroupIssuesByTemplate);
-						foreach (IIssueSpan span in spans)
+						if (spans.Count > 0 || !workflowConfig.SkipWhenEmpty)
 						{
-							if (span.LastFailure.Annotations.WorkflowId == workflowConfig.Id)
+							IssueReport report = new IssueReport(streamConfig.Id, workflowConfig.Id, workflowStats, workflowConfig.TriageChannel, workflowConfig.GroupIssuesByTemplate);
+							foreach (IIssueSpan span in spans)
 							{
-								report.IssueSpans.Add(span);
+								if (span.LastFailure.Annotations.WorkflowId == workflowConfig.Id)
+								{
+									report.IssueSpans.Add(span);
+								}
 							}
+
+							HashSet<int> issueIds = new HashSet<int>(report.IssueSpans.Select(x => x.IssueId));
+							report.Issues.AddRange(issues.Where(x => issueIds.Contains(x.Id)));
+
+							DateTime reportTime = lastScheduledReportTime;
+
+							IssueReportGroup? group = groups.FirstOrDefault(x => x.Channel == workflowConfig.ReportChannel && x.Time == reportTime);
+							if (group == null)
+							{
+								group = new IssueReportGroup(workflowConfig.ReportChannel, reportTime);
+								groups.Add(group);
+							}
+							group.Reports.Add(report);
 						}
-
-						HashSet<int> issueIds = new HashSet<int>(report.IssueSpans.Select(x => x.IssueId));
-						report.Issues.AddRange(issues.Where(x => issueIds.Contains(x.Id)));
-
-						DateTime reportTime = lastScheduledReportTime;
-
-						IssueReportGroup? group = groups.FirstOrDefault(x => x.Channel == workflowConfig.ReportChannel && x.Time == reportTime);
-						if (group == null)
-						{
-							group = new IssueReportGroup(workflowConfig.ReportChannel, reportTime);
-							groups.Add(group);
-						}
-						group.Reports.Add(report);
 
 						updateKeys.Add(key);
 					}

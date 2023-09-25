@@ -93,6 +93,11 @@ namespace Horde.Server.Issues
 		public bool InviteRestrictedUsers { get; set; }
 
 		/// <summary>
+		/// Skips sending reports when there are no active issues. 
+		/// </summary>
+		public bool SkipWhenEmpty { get; set; }
+
+		/// <summary>
 		/// Additional node annotations implicit in this workflow
 		/// </summary>
 		public NodeAnnotations Annotations { get; set; } = new NodeAnnotations();
