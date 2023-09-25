@@ -555,7 +555,7 @@ namespace UnrealConversionUtils
 
 		 // Copying Indices
 		 {
-			 if (SrcLODModel.MultiSizeIndexContainer.GetIndexBuffer())
+			 if (SrcLODModel.MultiSizeIndexContainer.IsIndexBufferValid())
 			 {
 				 int32 IndexCount = SrcLODModel.MultiSizeIndexContainer.GetIndexBuffer()->Num();
 				 int32 ElementSize = SrcLODModel.MultiSizeIndexContainer.GetDataTypeSize();
