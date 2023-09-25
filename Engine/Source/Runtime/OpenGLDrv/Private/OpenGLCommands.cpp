@@ -1762,22 +1762,28 @@ void FOpenGLDynamicRHI::SetRenderTargetsAndClear(const FRHISetRenderTargetsInfo&
 	bool bClearDepth = RenderTargetsInfo.bClearDepth;
 
 	FLinearColor ClearColors[MaxSimultaneousRenderTargets];
+	bool bClearColorArray[MaxSimultaneousRenderTargets];
 	float DepthClear = 0.0;
 	uint32 StencilClear = 0;
 
 	for (int32 i = 0; i < RenderTargetsInfo.NumColorRenderTargets; ++i)
 	{
+		bClearColorArray[i] = RenderTargetsInfo.ColorRenderTarget[i].LoadAction == ERenderTargetLoadAction::EClear;
+
 		if (RenderTargetsInfo.ColorRenderTarget[i].Texture != nullptr)
 		{
 			const FClearValueBinding& ClearValue = RenderTargetsInfo.ColorRenderTarget[i].Texture->GetClearBinding();
 
 			if (bIsTiledGPU)
 			{
-				bClearColor |= RenderTargetsInfo.ColorRenderTarget[i].LoadAction == ERenderTargetLoadAction::ENoAction;
+				const bool bNoAction = RenderTargetsInfo.ColorRenderTarget[i].LoadAction == ERenderTargetLoadAction::ENoAction;
+
+				bClearColor |= bNoAction;
+				bClearColorArray[i] |= bNoAction;
 
 				ClearColors[i] = ClearValue.ColorBinding == EClearBinding::EColorBound ? ClearValue.GetClearColor() : FLinearColor::Black;
 			}
-			else if(bClearColor)
+			else if(bClearColorArray[i])
 			{
 				checkf(ClearValue.ColorBinding == EClearBinding::EColorBound, TEXT("Texture: %s does not have a color bound for fast clears"), *RenderTargetsInfo.ColorRenderTarget[i].Texture->GetName().GetPlainNameString());
 
@@ -1811,7 +1817,7 @@ void FOpenGLDynamicRHI::SetRenderTargetsAndClear(const FRHISetRenderTargetsInfo&
 
 	if (bClearColor || bClearStencil || bClearDepth)
 	{
-		this->RHIClearMRT(bClearColor, RenderTargetsInfo.NumColorRenderTargets, ClearColors, bClearDepth, DepthClear, bClearStencil, StencilClear);
+		this->RHIClearMRT(bClearColor ? bClearColorArray : nullptr, RenderTargetsInfo.NumColorRenderTargets, ClearColors, bClearDepth, DepthClear, bClearStencil, StencilClear);
 	}
 }
 
@@ -2718,16 +2724,19 @@ static inline void ClearCurrentDepthStencilWithCurrentScissor( int8 ClearType, f
 	}
 }
 
-void FOpenGLDynamicRHI::ClearCurrentFramebufferWithCurrentScissor(FOpenGLContextState& ContextState, int8 ClearType, int32 NumClearColors, const FLinearColor* ClearColorArray, float Depth, uint32 Stencil)
+void FOpenGLDynamicRHI::ClearCurrentFramebufferWithCurrentScissor(FOpenGLContextState& ContextState, int8 ClearType, int32 NumClearColors, const bool* bClearColorArray, const FLinearColor* ClearColorArray, float Depth, uint32 Stencil)
 {
 	VERIFY_GL_SCOPE();
 		
 	// Clear color buffers
-	if (ClearType & CT_Color)
+	if (ClearType & CT_Color && bClearColorArray)
 	{
 		for(int32 ColorIndex = 0; ColorIndex < NumClearColors; ++ColorIndex)
 		{
-			FOpenGL::ClearBufferfv( GL_COLOR, ColorIndex, (const GLfloat*)&ClearColorArray[ColorIndex] );
+			if (bClearColorArray[ColorIndex])
+			{
+				FOpenGL::ClearBufferfv( GL_COLOR, ColorIndex, (const GLfloat*)&ClearColorArray[ColorIndex] );
+			}
 		}
 	}
 
@@ -2737,14 +2746,14 @@ void FOpenGLDynamicRHI::ClearCurrentFramebufferWithCurrentScissor(FOpenGLContext
 	}
 }
 
-void FOpenGLDynamicRHI::RHIClearMRT(bool bClearColor,int32 NumClearColors,const FLinearColor* ClearColorArray,bool bClearDepth,float Depth,bool bClearStencil,uint32 Stencil)
+void FOpenGLDynamicRHI::RHIClearMRT(const bool* bClearColorArray,int32 NumClearColors,const FLinearColor* ClearColorArray,bool bClearDepth,float Depth,bool bClearStencil,uint32 Stencil)
 {
 	FIntRect ExcludeRect;
 	VERIFY_GL_SCOPE();
 
 	check((GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5) || !PendingState.bFramebufferSetupInvalid);
 
-	if (bClearColor)
+	if (bClearColorArray)
 	{
 		// This is copied from DirectX11 code - apparently there's a silent assumption that there can be no valid render target set at index higher than an invalid one.
 		int32 NumActiveRenderTargets = 0;
@@ -2785,22 +2794,25 @@ void FOpenGLDynamicRHI::RHIClearMRT(bool bClearColor,int32 NumClearColors,const 
 	int8 ClearType = CT_None;
 
 	// Prepare color buffer masks, if applicable
-	if (bClearColor)
+	if (bClearColorArray)
 	{
 		ClearType |= CT_Color;
 
 		for(int32 ColorIndex = 0; ColorIndex < NumClearColors; ++ColorIndex)
 		{
-			if( !ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskR ||
-				!ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskG ||
-				!ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskB ||
-				!ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskA)
+			if (bClearColorArray[ColorIndex])
 			{
-				FOpenGL::ColorMaskIndexed(ColorIndex, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-				ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskR = 1;
-				ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskG = 1;
-				ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskB = 1;
-				ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskA = 1;
+				if (!ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskR ||
+					!ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskG ||
+					!ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskB ||
+					!ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskA)
+				{
+					FOpenGL::ColorMaskIndexed(ColorIndex, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+					ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskR = 1;
+					ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskG = 1;
+					ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskB = 1;
+					ContextState.BlendState.RenderTargets[ColorIndex].ColorWriteMaskA = 1;
+				}
 			}
 		}
 	}
@@ -2830,7 +2842,7 @@ void FOpenGLDynamicRHI::RHIClearMRT(bool bClearColor,int32 NumClearColors,const 
 	}
 
 	// Just one clear
-	ClearCurrentFramebufferWithCurrentScissor(ContextState, ClearType, NumClearColors, ClearColorArray, Depth, Stencil);
+	ClearCurrentFramebufferWithCurrentScissor(ContextState, ClearType, NumClearColors, bClearColorArray, ClearColorArray, Depth, Stencil);
 
 	if (bScissorChanged)
 	{
