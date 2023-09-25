@@ -503,7 +503,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					builder.Append(PackageApi);
 				}
 
-				AppendNativeFunctionHeader(builder, function, UhtPropertyTextType.EventFunctionArgOrRetVal, true, exportFunctionName, extraParameter, UhtFunctionExportFlags.None, "; \\\r\n");
+				AppendNativeFunctionHeader(builder, function, UhtPropertyTextType.EventFunctionArgOrRetVal, true, exportFunctionName, extraParameter, UhtFunctionExportFlags.None, 0, "; \\\r\n");
 			}
 			return builder;
 		}
@@ -838,7 +838,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					continue;
 				}
 				AppendNetValidateDeclaration(builder, classObj, function);
-				AppendNativeFunctionHeader(builder, function, UhtPropertyTextType.ClassFunctionArgOrRetVal, true, null, null, UhtFunctionExportFlags.None, "; \\\r\n");
+				AppendNativeFunctionHeader(builder, function, UhtPropertyTextType.ClassFunctionArgOrRetVal, true, null, null, UhtFunctionExportFlags.None, 1, "; \\\r\n");
 			}
 			return builder;
 		}
@@ -857,7 +857,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				}
 				if (!function.FunctionExportFlags.HasAnyFlags(UhtFunctionExportFlags.ImplFound))
 				{
-					AppendNativeFunctionHeader(builder, function, UhtPropertyTextType.ClassFunctionArgOrRetVal, true, null, null, UhtFunctionExportFlags.None, "; \\\r\n");
+					AppendNativeFunctionHeader(builder, function, UhtPropertyTextType.ClassFunctionArgOrRetVal, true, null, null, UhtFunctionExportFlags.None, 1, "; \\\r\n");
 				}
 			}
 			return builder;
@@ -908,7 +908,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					if (!function.FunctionFlags.HasAnyFlags(EFunctionFlags.NetResponse) &&
 						function.EngineName != function.MarshalAndCallName)
 					{
-						AppendNativeFunctionHeader(builder, function, UhtPropertyTextType.EventFunctionArgOrRetVal, true, null, null, UhtFunctionExportFlags.None, " \\\r\n");
+						AppendNativeFunctionHeader(builder, function, UhtPropertyTextType.EventFunctionArgOrRetVal, true, null, null, UhtFunctionExportFlags.None, 1, " \\\r\n");
 						builder.Append(" \\\r\n");
 					}
 				}
@@ -1434,7 +1434,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			{
 				AppendNativeFunctionHeader(builder, function, UhtPropertyTextType.InterfaceFunctionArgOrRetVal, true, null,
 					function.FunctionFlags.HasAnyFlags(EFunctionFlags.Const) ? ConstExtraArg : ExtraArg, UhtFunctionExportFlags.None,
-					"; \\\r\n");
+					1, "; \\\r\n");
 			}
 			return builder;
 		}

@@ -146,7 +146,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 		#region Function helper methods
 		protected StringBuilder AppendNativeFunctionHeader(StringBuilder builder, UhtFunction function, UhtPropertyTextType textType, bool isDeclaration,
-			string? alternateFunctionName, string? extraParam, UhtFunctionExportFlags extraExportFlags, string endl)
+			string? alternateFunctionName, string? extraParam, UhtFunctionExportFlags extraExportFlags, int tabs, string endl)
 		{
 			UhtClass? outerClass = function.Outer as UhtClass;
 			UhtFunctionExportFlags exportFlags = function.FunctionExportFlags | extraExportFlags;
@@ -154,10 +154,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			bool isInterface = !isDelegate && (outerClass != null && outerClass.ClassFlags.HasAnyFlags(EClassFlags.Interface));
 			bool isK2Override = function.FunctionFlags.HasAnyFlags(EFunctionFlags.BlueprintEvent);
 
-			if (!isDelegate)
-			{
-				builder.Append('\t');
-			}
+			builder.AppendTabs(tabs);
 
 			if (isDeclaration)
 			{
