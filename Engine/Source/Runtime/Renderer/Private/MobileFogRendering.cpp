@@ -239,7 +239,7 @@ void FMobileSceneRenderer::RenderFog(FRHICommandList& RHICmdList, const FViewInf
 	FMobileFogPS::FParameters PSParameters;
 	PSParameters.View = View.GetShaderParameters();
 	PSParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
-	SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetVertexShader(), PSParameters);
+	SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PSParameters);
 
 	// Draw a quad covering the view.
 	RHICmdList.SetStreamSource(0, GScreenSpaceVertexBuffer.VertexBufferRHI, 0);
