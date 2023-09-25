@@ -57,7 +57,7 @@ void FRigVMModule::ShutdownModule()
 bool RigVMCore::SupportsUObjects()
 {
 #if UE_RIGVM_UOBJECT_PROPERTIES_ENABLED
-	return CVarRigVMEnableUObjects.GetValueOnGameThread();
+	return CVarRigVMEnableUObjects.GetValueOnAnyThread();
 #else
 	return false;
 #endif
@@ -66,7 +66,7 @@ bool RigVMCore::SupportsUObjects()
 bool RigVMCore::SupportsUInterfaces()
 {
 #if UE_RIGVM_UINTERFACE_PROPERTIES_ENABLED
-	return CVarRigVMEnableUInterfaces.GetValueOnGameThread();
+	return CVarRigVMEnableUInterfaces.GetValueOnAnyThread();
 #else
 	return false;
 #endif
