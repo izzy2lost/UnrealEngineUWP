@@ -1330,7 +1330,7 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 					}
 					else
 					{
-						Handle = BuildNonClusters_Internal(TransformGroupIndex, RigidsSolver, Masses[TransformGroupIndex], Inertias[TransformGroupIndex]);
+						Handle = BuildNonClusters_Internal(TransformGroupIndex, RigidsSolver, AdjustMassForScale(Masses[TransformGroupIndex]), Inertias[TransformGroupIndex]);
 					}
 					Handle->GTGeometryParticle() = GTParticle;
 
