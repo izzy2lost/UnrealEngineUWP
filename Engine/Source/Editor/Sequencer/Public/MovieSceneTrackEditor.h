@@ -35,6 +35,8 @@ struct FKeyPropertyResult
 		bHandleCreated |= A.bHandleCreated;
 		bTrackCreated |= A.bTrackCreated;
 		bKeyCreated |= A.bKeyCreated;
+		SectionsCreated.Append(A.SectionsCreated);
+		SectionsKeyed.Append(A.SectionsKeyed);
 	}
 
 	/* Was the track modified in any way? */

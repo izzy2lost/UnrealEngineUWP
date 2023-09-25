@@ -73,6 +73,8 @@ public:
 
 private:
 
+	void OnTransformPropertyChanged(const FPropertyChangedParams& PropertyChangedParams, EMovieSceneTransformChannel TransformChannel);
+
 	void ProcessKeyOperation(UObject* ObjectToKey, TArrayView<const UE::Sequencer::FKeySectionOperation> SectionsToKey, ISequencer& InSequencer, FFrameNumber KeyTime);
 
 	/** Returns whether or not a transform track can be added for an actor with a specific handle. */
@@ -197,6 +199,14 @@ private:
 
 	/** Mapping of objects to their existing transform data (for comparing against new transform data) */
 	TMap< TWeakObjectPtr<UObject>, FTransformData > ObjectToExistingTransform;
+
+	struct FTransformPropertyInfo
+	{
+		const FProperty* Property;
+		EMovieSceneTransformChannel TransformChannel;
+	};
+	/** Array of transform property info for the scene component transform properties for explicit support */
+	TArray<FTransformPropertyInfo, TFixedAllocator<3>> TransformProperties;
 
 	/** Command Bindings added by the Transform Track Editor to Sequencer and curve editor. */
 	TSharedPtr<FUICommandList> CommandBindings;

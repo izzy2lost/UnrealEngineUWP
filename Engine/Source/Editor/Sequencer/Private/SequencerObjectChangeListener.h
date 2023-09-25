@@ -26,6 +26,7 @@ public:
 
 	/** ISequencerObjectChangeListener interface */
 	virtual FOnAnimatablePropertyChanged& GetOnAnimatablePropertyChanged( FAnimatedPropertyKey PropertyKey ) override;
+	virtual FOnAnimatablePropertyChanged& GetOnAnimatablePropertyChanged(const FProperty* Property) override;
 	virtual FOnPropagateObjectChanges& GetOnPropagateObjectChanges() override;
 	virtual FOnObjectPropertyChanged& GetOnAnyPropertyChanged(UObject& Object) override;
 	virtual void ReportObjectDestroyed(UObject& Object) override;
@@ -91,6 +92,9 @@ private:
 
 	/** A mapping of property classes to multi-cast delegate that is broadcast when properties of that type change */
 	TMap< FAnimatedPropertyKey, FOnAnimatablePropertyChanged > PropertyChangedEventMap;
+
+	/** A mapping of an explicitly supported property path to multi-cast delegate that is broadcast when properties of that type change */
+	TMap<const FProperty*, FOnAnimatablePropertyChanged> PropertyPathChangedEventMap;
 
 	/** A mapping of object instance to property change event */
 	TMap< FObjectKey, FOnObjectPropertyChanged > ObjectToPropertyChangedEvent;

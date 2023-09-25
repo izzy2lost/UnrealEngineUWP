@@ -24,6 +24,11 @@ public:
 	virtual FOnAnimatablePropertyChanged& GetOnAnimatablePropertyChanged( FAnimatedPropertyKey PropertyKey ) = 0;
 
 	/**
+	 * A delegate for when a property of a specific path is changed. 
+	 */
+	virtual FOnAnimatablePropertyChanged& GetOnAnimatablePropertyChanged(const FProperty* Property) = 0;
+
+	/**
 	 * A delegate for when object changes should be propagated to/from puppet actors
 	 */
 	virtual FOnPropagateObjectChanges& GetOnPropagateObjectChanges() = 0;

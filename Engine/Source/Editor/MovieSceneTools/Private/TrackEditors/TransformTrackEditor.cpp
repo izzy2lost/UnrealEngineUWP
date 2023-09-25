@@ -43,6 +43,7 @@
 #include "Constraints/TransformConstraintChannelInterface.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "Engine/Selection.h"
+#include "ISequencerObjectChangeListener.h"
 
 #define LOCTEXT_NAMESPACE "MovieScene_TransformTrack"
 
@@ -77,6 +78,28 @@ F3DTransformTrackEditor::F3DTransformTrackEditor( TSharedRef<ISequencer> InSeque
 	{
 		GEditor->RegisterForUndo(this);
 	}
+
+	if (TSharedPtr<ISequencer> SequencerPtr = FMovieSceneTrackEditor::GetSequencer())
+	{
+	    const FProperty* LocationProperty = FindFProperty<FProperty>(USceneComponent::StaticClass(), USceneComponent::GetRelativeLocationPropertyName());
+		const FProperty* RotationProperty = FindFProperty<FProperty>(USceneComponent::StaticClass(), USceneComponent::GetRelativeRotationPropertyName());
+		const FProperty* Scale3DProperty = FindFProperty<FProperty>(USceneComponent::StaticClass(), USceneComponent::GetRelativeScale3DPropertyName());
+
+		ISequencerObjectChangeListener& ObjectChangeListener = SequencerPtr->GetObjectChangeListener();
+		auto AddTransformProperty = [this, &ObjectChangeListener](const FProperty* Property, EMovieSceneTransformChannel TransformChannel)
+		{
+			if (Property)
+			{
+				TransformProperties.Add({ Property, TransformChannel });
+				ObjectChangeListener.GetOnAnimatablePropertyChanged(Property)
+					.AddRaw(this, &F3DTransformTrackEditor::OnTransformPropertyChanged, TransformChannel);
+			}
+		};
+
+		AddTransformProperty(LocationProperty, EMovieSceneTransformChannel::Translation);
+		AddTransformProperty(RotationProperty, EMovieSceneTransformChannel::Rotation);
+		AddTransformProperty(Scale3DProperty, EMovieSceneTransformChannel::Scale);
+	}
 }
 
 F3DTransformTrackEditor::~F3DTransformTrackEditor()
@@ -84,6 +107,15 @@ F3DTransformTrackEditor::~F3DTransformTrackEditor()
 	if (GEditor != nullptr)
 	{
 		GEditor->UnregisterForUndo(this);
+	}
+
+	if (TSharedPtr<ISequencer> SequencerPtr = FMovieSceneTrackEditor::GetSequencer())
+	{
+		ISequencerObjectChangeListener& ObjectChangeListener = SequencerPtr->GetObjectChangeListener();
+		for (const FTransformPropertyInfo& TransformProperty : TransformProperties)
+		{
+			ObjectChangeListener.GetOnAnimatablePropertyChanged(TransformProperty.Property).RemoveAll(this);
+		}
 	}
 }
 //for 5.2 we will move this over to the header
@@ -1082,6 +1114,72 @@ int32 GetPreviousKey(FMovieSceneDoubleChannel& Channel, FFrameNumber Time)
 
 	int32 Index = Channel.GetData().GetIndex(KeyHandles[KeyHandles.Num() - 1]);
 	return Index;
+}
+
+void F3DTransformTrackEditor::OnTransformPropertyChanged(const FPropertyChangedParams& PropertyChangedParams, EMovieSceneTransformChannel TransformChannel)
+{
+	// Key Property sends in one object at a time
+	USceneComponent* SceneComponent = MovieSceneHelpers::SceneComponentFromRuntimeObject(PropertyChangedParams.ObjectsThatChanged[0]);
+	if (!SceneComponent)
+	{
+		return;
+	}
+
+	UObject* ObjectToKey = SceneComponent;
+
+	// Set Owning Actor to key instead of Scene Component if it's the root
+	AActor* OwningActor = SceneComponent->GetOwner();
+	if (OwningActor && SceneComponent == OwningActor->GetRootComponent())
+	{
+		ObjectToKey = OwningActor;
+	}
+
+	auto InitializeNewTrack = [](UMovieScene3DTransformTrack* NewTrack)
+	{
+		NewTrack->SetPropertyNameAndPath(TransformPropertyName, TransformPropertyName.ToString());
+	};
+
+	auto GenerateKeys = [this, SceneComponent, TransformChannel](UMovieSceneSection* Section, FGeneratedTrackKeys& OutGeneratedKeys)
+	{
+		UMovieScene3DTransformSection* TransformSection = CastChecked<UMovieScene3DTransformSection>(Section);
+
+		// Ensure that the Transform Channel is masked in
+		TransformSection->SetMask(TransformSection->GetMask().GetChannels() | TransformChannel);
+
+		GetTransformKeys(TOptional<FTransformData>(), FTransformData(SceneComponent), TransformChannel, SceneComponent, Section, OutGeneratedKeys);
+	};
+
+	auto KeyProperty = [this, ObjectToKey, PropertyChangedParams, InitializeNewTrack, GenerateKeys, TransformChannel](FFrameNumber KeyTime)
+	{
+		FKeyPropertyResult KeyPropertyResult = this->AddKeysToObjects({ ObjectToKey },
+			KeyTime,
+			PropertyChangedParams.KeyMode,
+			UMovieScene3DTransformTrack::StaticClass(),
+			TransformPropertyName,
+			InitializeNewTrack,
+			GenerateKeys);
+
+		for (TWeakObjectPtr<UMovieSceneSection>& WeakSection : KeyPropertyResult.SectionsKeyed)
+		{
+			if (UMovieScene3DTransformSection* Section = Cast<UMovieScene3DTransformSection>(WeakSection.Get()))
+			{
+				FMovieSceneConstraintChannelHelper::CompensateIfNeeded(GetSequencer(), Section, KeyTime);
+			}
+		}
+
+		// For new sections created, mask so only the relevant transform channel appears
+		for (TWeakObjectPtr<UMovieSceneSection>& WeakSection : KeyPropertyResult.SectionsCreated)
+		{
+			if (UMovieScene3DTransformSection* Section = Cast<UMovieScene3DTransformSection>(WeakSection.Get()))
+			{
+				Section->SetMask(TransformChannel);
+			}
+		}
+
+		return KeyPropertyResult;
+	};
+
+	AnimatablePropertyChanged(FOnKeyProperty::CreateLambda(KeyProperty));
 }
 
 void F3DTransformTrackEditor::ProcessKeyOperation(UObject* ObjectToKey, TArrayView<const UE::Sequencer::FKeySectionOperation> SectionsToKey, ISequencer& InSequencer, FFrameNumber KeyTime)

@@ -140,6 +140,11 @@ FOnAnimatablePropertyChanged& FSequencerObjectChangeListener::GetOnAnimatablePro
 	return PropertyChangedEventMap.FindOrAdd( PropertyKey );
 }
 
+FOnAnimatablePropertyChanged& FSequencerObjectChangeListener::GetOnAnimatablePropertyChanged(const FProperty* Property)
+{
+	return PropertyPathChangedEventMap.FindOrAdd(Property);
+}
+
 FOnPropagateObjectChanges& FSequencerObjectChangeListener::GetOnPropagateObjectChanges()
 {
 	return OnPropagateObjectChanges;
@@ -199,8 +204,13 @@ const FOnAnimatablePropertyChanged* FSequencerObjectChangeListener::FindProperty
 	// we check for flags on the outer property but must not use setter functions that would not know the index to set
 	const bool bCanApplyFunction = PropertyOrContainer == &Property;
 
-	const FOnAnimatablePropertyChanged* DelegatePtr = PropertyChangedEventMap.Find(PropertyKey);
-	if (DelegatePtr != nullptr)
+	// Early return if explicitly supported
+	if (const FOnAnimatablePropertyChanged* DelegatePtr = PropertyPathChangedEventMap.Find(&Property))
+	{
+		return DelegatePtr;
+	}
+
+	if (const FOnAnimatablePropertyChanged* DelegatePtr = PropertyChangedEventMap.Find(PropertyKey))
 	{
 		FString PropertyVarName = PropertyOrContainer->GetName();
 
@@ -310,6 +320,12 @@ bool FSequencerObjectChangeListener::CanKeyProperty_Internal(FCanKeyPropertyPara
 			// If there is a custom accessor for this specific property path, it is animatable (as long as there is a supported track editor registered for the property type)
 			if (UE::MovieScene::GlobalCustomAccessorExists(CanKeyPropertyParams.ObjectClass, InOutPropertyPath.ToString(TEXT("."))))
 			{
+				if (const FOnAnimatablePropertyChanged* DelegatePtr = PropertyPathChangedEventMap.Find(Property))
+				{
+					InOutProperty = Property;
+					InOutDelegate = *DelegatePtr;
+					return true;
+				}
 				if (const FOnAnimatablePropertyChanged* DelegatePtr = PropertyChangedEventMap.Find(PropertyKey))
 				{
 					InOutProperty = Property;
