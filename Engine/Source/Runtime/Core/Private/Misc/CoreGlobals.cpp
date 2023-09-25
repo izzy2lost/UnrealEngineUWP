@@ -356,6 +356,12 @@ bool (*IsAsyncLoadingMultithreaded)() = &IsAsyncLoadingCoreInternal;
 void (*SuspendTextureStreamingRenderTasks)() = &appNoop;
 void (*ResumeTextureStreamingRenderTasks)() = &appNoop;
 
+static FName appNotAvailable()
+{
+	return TEXT("N/A");
+}
+FName (*GetLoaderName)() = &appNotAvailable;
+
 /** Whether the editor is currently loading a package or not												*/
 bool					GIsEditorLoadingPackage				= false;
 /** Whether the cooker is currently loading a package or not												*/

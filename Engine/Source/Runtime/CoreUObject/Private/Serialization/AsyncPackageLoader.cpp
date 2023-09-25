@@ -326,6 +326,11 @@ bool IsAsyncLoadingMultithreadedCoreUObjectInternal()
 	return GetAsyncPackageLoader().IsMultithreaded();
 }
 
+FName GetLoaderNameInternal()
+{
+	return GetAsyncPackageLoader().GetLoaderName();
+}
+
 void SuspendAsyncLoadingInternal()
 {
 	LLM_SCOPE(ELLMTag::AsyncLoading);
