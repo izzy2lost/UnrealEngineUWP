@@ -55,6 +55,8 @@ namespace Audio
 		// Process audio in the delay line, return the delayed value
 		SIGNALPROCESSING_API virtual float ProcessAudioSample(const float InAudio);
 
+		SIGNALPROCESSING_API virtual void ProcessAudioBuffer(const float* InAudio, int32 InNumSamples, float* OutAudio);
+
 	protected:
 
 		// Updates delay line based on any recent changes to settings

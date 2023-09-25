@@ -173,6 +173,21 @@ namespace Audio
 		return OutputAttenuation * Yn;
 	}
 
+	void FDelay::ProcessAudioBuffer(const float* InAudio, int32 InNumSamples, float* OutAudio)
+	{
+		// Note: There is probably some optization that could be done here with 
+		// memcpys or someting, but for now we will do the simple version. Obviously
+		// it could get very complicated when the delay buffer is smaller than the
+		// number of samples being requested. 
+		for (int32 SampleIndex = 0; SampleIndex < InNumSamples; ++SampleIndex)
+		{
+			Update();
+			const float Yn = DelayInSamples == 0 ? InAudio[SampleIndex] : Read();
+			WriteDelayAndInc(InAudio[SampleIndex]);
+			OutAudio[SampleIndex] = OutputAttenuation * Yn;
+		}
+	}
+
 	void FDelay::Update(bool bForce)
 	{
 		if (!EaseDelayMsec.IsDone() || bForce)
