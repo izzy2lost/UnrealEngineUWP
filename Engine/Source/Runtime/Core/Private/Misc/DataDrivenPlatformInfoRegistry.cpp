@@ -50,9 +50,8 @@ static const TArray<FString>& GetDataDrivenIniFilenames()
 		}
 
 		// look for the special files in any project config subdirectories
-		// @note: this will not work for Programs, the Platforms dir is outside of the ProjectDir in their case
 		TArray<FString> ProjectPlatformDirs;
-		IFileManager::Get().FindFiles(ProjectPlatformDirs, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Platforms"), TEXT("*")), false, true);
+		IFileManager::Get().FindFiles(ProjectPlatformDirs, *FPaths::Combine(FPaths::ProjectConfigDir(), TEXT("*")), false, true);
 		for (const FString& PlatformDir : ProjectPlatformDirs)
 		{
 			FString IniPath = FPaths::Combine(FPaths::ProjectPlatformExtensionDir(*PlatformDir), TEXT("Config/DataDrivenPlatformInfo.ini"));
