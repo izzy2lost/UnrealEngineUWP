@@ -20,6 +20,7 @@
 #include "PackageVirtualizationProcess.h"
 #include "ProfilingDebugging/CookStats.h"
 #include "VirtualizationFilterSettings.h"
+#include "VirtualizationUtilities.h"
 
 #define LOCTEXT_NAMESPACE "Virtualization"
 
@@ -1982,12 +1983,11 @@ FVirtualizationManager::ErrorHandlingResult FVirtualizationManager::OnPayloadPul
 
 	if (CriticalSection.TryLock())
 	{
-		
 		const FText Title(LOCTEXT("VAPullTitle", "Failed to pull virtualized data!"));
 
 		FTextBuilder MsgBuilder;
 		MsgBuilder.AppendLine(LOCTEXT("VAPullMsgHeader", "Failed to pull payload(s) from virtualization storage and allowing the editor to continue could corrupt data!"));
-		
+
 		if (!BackendErrors.IsEmpty())
 		{
 			MsgBuilder.AppendLine(FString(TEXT("")));
@@ -2000,16 +2000,30 @@ FVirtualizationManager::ErrorHandlingResult FVirtualizationManager::OnPayloadPul
 			MsgBuilder.AppendLine(PullErrorAdditionalMsg);
 		}
 
-		MsgBuilder.AppendLine(FString(TEXT("")));
-		MsgBuilder.AppendLine(LOCTEXT("VAPullMsgYes", "[Yes] Retry pulling the data"));
-		MsgBuilder.AppendLine(LOCTEXT("VAPullMsgNo", "[No] Quit the editor"));
+		// By default we should quit the process unless the user can opt to retry
+		EAppReturnType::Type Result = EAppReturnType::No;
 
-		const FText Message = MsgBuilder.ToText();
+		if (Utils::IsProcessInteractive())
+		{
+			MsgBuilder.AppendLine(FString(TEXT("")));
+			MsgBuilder.AppendLine(LOCTEXT("VAPullMsgYes", "[Yes] Retry pulling the data"));
+			MsgBuilder.AppendLine(LOCTEXT("VAPullMsgNo", "[No] Quit the editor"));
 
-		EAppReturnType::Type Result = FMessageDialog::Open(EAppMsgType::YesNo, EAppReturnType::No, Message, Title);
+			const FText Message = MsgBuilder.ToText();
+
+			Result = FMessageDialog::Open(EAppMsgType::YesNo, EAppReturnType::No, Message, Title);
+		}
+		else
+		{
+			const FText Message = MsgBuilder.ToText();
+			UE_LOG(LogVirtualization, Error, TEXT("%s"), *Message.ToString());
+		}
 
 		if (Result == EAppReturnType::No)
 		{
+			// Reporting a fatal error will print the callstack and initiate the crash handling system to be treated like a bug
+			// where as this error indicates an infrastructure failure or other connection issue which needs to be solved.
+			// So we will force the process to close after logging our errors instead.
 			UE_LOG(LogVirtualization, Error, TEXT("Failed to pull payloads from persistent storage and the connection could not be re-established, exiting..."));
 			GIsCriticalError = 1;
 			FPlatformMisc::RequestExit(true);
@@ -2019,6 +2033,8 @@ FVirtualizationManager::ErrorHandlingResult FVirtualizationManager::OnPayloadPul
 	}
 	else
 	{
+		// Since we failed to get the lock the error is being dealt with on another thread so we need to wait here until
+		// that thread has resolved the problem or terminated the process.
 		FScopeLock _(&CriticalSection);
 	}
 

@@ -4,6 +4,7 @@
 
 #include "HAL/PlatformProcess.h"
 #include "IO/IoHash.h"
+#include "Misc/App.h"
 #include "Misc/Paths.h"
 #include "Misc/StringBuilder.h"
 #include "UObject/PackageFileSummary.h"
@@ -137,6 +138,11 @@ bool ExpandEnvironmentVariables(FStringView InputPath, FStringBuilderBase& OutEx
 
 		InputPath = InputPath.Mid(EnvVarEnd + 1);
 	}
+}
+
+bool IsProcessInteractive()
+{
+	return !FApp::IsUnattended() && !IsRunningCommandlet() && !GIsRunningUnattendedScript && !IS_PROGRAM;
 }
 
 } // namespace UE::Virtualization::Utils

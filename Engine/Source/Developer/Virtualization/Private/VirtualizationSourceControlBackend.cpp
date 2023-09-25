@@ -367,7 +367,7 @@ IVirtualizationBackend::EConnectionStatus FSourceControlBackend::OnConnect()
 		// If the local ini settings are ignored then there is no point saving correct settings given by the user.
 		// They will need to fix their root problem instead.
 		// TODO: Maybe give a bespoke error at this point?
-		if (bUseRetryConnectionDialog && bUseLocalIniFileSettings)
+		if (bUseRetryConnectionDialog && bUseLocalIniFileSettings && Utils::IsProcessInteractive())
 		{
 			SRevisionControlConnectionDialog::FResult DialogResult = SRevisionControlConnectionDialog::RunDialog(	TEXT("Perforce"),
 																													TEXT("PerforceSourceControl.VirtualizationSettings"),
