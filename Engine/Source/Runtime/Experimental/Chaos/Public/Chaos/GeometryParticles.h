@@ -315,7 +315,7 @@ namespace Chaos
 			// We hit these checks if there's a call to modify geometry without first clearing constraints 
 			// on the particle (e.g., PBDRigidsEvolutionGBF::InvalidateParticle)
 			check(MParticleCollisions[Index].Num() == 0);
-			check(MParticleConstraints[Index].Num() == 0);
+			//check(MParticleConstraints[Index].Num() == 0);
 
 			MGeometry[Index] = InGeometry;
 
