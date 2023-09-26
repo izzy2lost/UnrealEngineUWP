@@ -130,6 +130,11 @@ namespace Horde.Server.Jobs.Bisect
 		public JobStepOutcome? MinOutcome { get; }
 
 		/// <summary>
+		/// The steps involved in the bisection
+		/// </summary>
+		public IReadOnlyList<JobStepRefId> Steps { get; }
+
+		/// <summary>
 		/// First known job id that is broken
 		/// </summary>
 		public JobId CurrentJobId { get; }

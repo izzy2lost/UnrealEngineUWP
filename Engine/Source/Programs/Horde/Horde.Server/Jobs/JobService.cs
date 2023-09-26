@@ -14,6 +14,7 @@ using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Issues;
+using Horde.Server.Jobs.Bisect;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Templates;
 using Horde.Server.Jobs.Timing;
@@ -72,6 +73,7 @@ namespace Horde.Server.Jobs
 		readonly IGraphCollection _graphs;
 		readonly IAgentCollection _agents;
 		readonly IJobStepRefCollection _jobStepRefs;
+		readonly IBisectTaskCollection _bisectTasks;
 		readonly IJobTimingCollection _jobTimings;
 		readonly IUserCollection _userCollection;
 		readonly INotificationTriggerCollection _triggerCollection;
@@ -113,12 +115,13 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobService(IJobCollection jobs, IGraphCollection graphs, IAgentCollection agents, IJobStepRefCollection jobStepRefs, IJobTimingCollection jobTimings, IUserCollection userCollection, INotificationTriggerCollection triggerCollection, JobTaskSource jobTaskSource, IStreamCollection streamCollection, ITemplateCollection templateCollection, IssueService issueService, IPerforceService perforceService, Tracer tracer, ILogger<JobService> logger)
+		public JobService(IJobCollection jobs, IGraphCollection graphs, IAgentCollection agents, IJobStepRefCollection jobStepRefs, IBisectTaskCollection bisectTasks, IJobTimingCollection jobTimings, IUserCollection userCollection, INotificationTriggerCollection triggerCollection, JobTaskSource jobTaskSource, IStreamCollection streamCollection, ITemplateCollection templateCollection, IssueService issueService, IPerforceService perforceService, Tracer tracer, ILogger<JobService> logger)
 		{
 			_jobs = jobs;
 			_graphs = graphs;
 			_agents = agents;
 			_jobStepRefs = jobStepRefs;
+			_bisectTasks = bisectTasks;
 			_jobTimings = jobTimings;
 			_userCollection = userCollection;
 			_triggerCollection = triggerCollection;
@@ -1084,6 +1087,7 @@ namespace Horde.Server.Jobs
 						if (job.TryGetBatch(batchId, out IJobStepBatch? batch) && batch.TryGetStep(stepId, out IJobStep? step) && step.StartTimeUtc != null)
 						{
 							await _jobStepRefs.UpdateAsync(job, batch, step, graph);
+							await _bisectTasks.UpdateAsync(job, batch, step);
 						}
 					}
 

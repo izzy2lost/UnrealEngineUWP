@@ -80,6 +80,10 @@ namespace Horde.Server.Jobs.Bisect
 			[BsonElement("minOut"), BsonIgnoreIfNull]
 			public JobStepOutcome? MinOutcome { get; set; }
 
+			[BsonElement("steps")]
+			public List<JobStepRefId> Steps { get; set; } = new List<JobStepRefId>();
+			IReadOnlyList<JobStepRefId> IBisectTask.Steps => Steps;
+
 			[BsonElement("idx")]
 			public int UpdateIdx { get; set; }
 
@@ -230,6 +234,11 @@ namespace Horde.Server.Jobs.Bisect
 			if (options.State != null)
 			{
 				update = update.Set(x => x.State, options.State.Value);
+			}
+
+			if (options.JobStep != null)
+			{
+				update = update.AddToSet(x => x.Steps, options.JobStep.Value);
 			}
 		
 			if (options.IncludeChanges != null && options.IncludeChanges.Count > 0)

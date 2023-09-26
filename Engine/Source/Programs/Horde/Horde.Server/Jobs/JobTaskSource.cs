@@ -32,6 +32,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using EpicGames.Horde.Api;
+using Horde.Server.Jobs.Bisect;
 
 namespace Horde.Server.Jobs
 {
@@ -180,9 +181,10 @@ namespace Horde.Server.Jobs
 		readonly ILogFileService _logFileService;
 		readonly IAgentCollection _agentsCollection;
 		readonly IJobCollection _jobs;
-		readonly IJobStepRefCollection _jobStepRefs;
+		readonly IJobStepRefCollection _jobStepRefs;		
 		readonly IGraphCollection _graphs;
 		readonly IPoolCollection _poolCollection;
+		readonly IBisectTaskCollection _bisectTasks;
 		readonly PoolService _poolService;
 		readonly IUgsMetadataCollection _ugsMetadataCollection;
 		readonly PerforceLoadBalancer _perforceLoadBalancer;
@@ -223,12 +225,13 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobTaskSource(AclService aclService, IAgentCollection agents, IJobCollection jobs, IJobStepRefCollection jobStepRefs, IGraphCollection graphs, IPoolCollection pools, PoolService poolService, IUgsMetadataCollection ugsMetadataCollection, IStreamCollection streamCollection, ILogFileService logFileService, PerforceLoadBalancer perforceLoadBalancer, IClock clock, IOptionsMonitor<ServerSettings> settings, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<JobTaskSource> logger)
+		public JobTaskSource(AclService aclService, IAgentCollection agents, IJobCollection jobs, IJobStepRefCollection jobStepRefs, IBisectTaskCollection bisectTasks, IGraphCollection graphs, IPoolCollection pools, PoolService poolService, IUgsMetadataCollection ugsMetadataCollection, IStreamCollection streamCollection, ILogFileService logFileService, PerforceLoadBalancer perforceLoadBalancer, IClock clock, IOptionsMonitor<ServerSettings> settings, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<JobTaskSource> logger)
 		{
 			_aclService = aclService;
 			_agentsCollection = agents;
 			_jobs = jobs;
 			_jobStepRefs = jobStepRefs;
+			_bisectTasks = bisectTasks;
 			_graphs = graphs;
 			_poolCollection = pools;
 			_poolService = poolService;
@@ -1069,6 +1072,7 @@ namespace Horde.Server.Jobs
 						if (runningStepIdx != -1)
 						{
 							await _jobStepRefs.UpdateAsync(job, batch, batch.Steps[runningStepIdx], graph, logger);
+							await _bisectTasks.UpdateAsync(job, batch, batch.Steps[runningStepIdx], logger);
 						}
 						break;
 					}

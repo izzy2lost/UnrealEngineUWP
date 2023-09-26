@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Agents.Pools;
-using Horde.Server.Jobs.Bisect;
 using Horde.Server.Logs;
 using Horde.Server.Server;
 using Horde.Server.Streams;
@@ -16,8 +15,6 @@ using HordeCommon;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using EpicGames.Horde.Api;
-using OpenTelemetry.Trace;
-using MongoDB.Bson;
 
 namespace Horde.Server.Jobs
 {
@@ -72,16 +69,13 @@ namespace Horde.Server.Jobs
 			[BsonIgnoreIfNull]
 			public List<int>? IssueIds { get; set; }
 
-			[BsonElement("btid"), BsonIgnoreIfNull]
-			public BisectTaskId? BisectTaskId { get; set; }
-
 			DateTime IJobStepRef.StartTimeUtc => StartTimeUtc ?? StartTime?.UtcDateTime ?? default;
 			DateTime? IJobStepRef.FinishTimeUtc => FinishTimeUtc ?? FinishTime?.UtcDateTime;
 			string IJobStepRef.NodeName => Name;
 			bool IJobStepRef.UpdateIssues => UpdateIssues ?? false;			
 			IReadOnlyList<int>? IJobStepRef.IssueIds => IssueIds;			
 
-			public JobStepRef(JobStepRefId id, string jobName, string nodeName, StreamId streamId, TemplateId templateId, int change, LogId? logId, PoolId? poolId, AgentId? agentId, JobStepOutcome? outcome, bool updateIssues, int? lastSuccess, int? lastWarning, float batchWaitTime, float batchInitTime, DateTime jobStartTimeUtc, DateTime startTimeUtc, DateTime? finishTimeUtc, BisectTaskId? bisectTaskId)
+			public JobStepRef(JobStepRefId id, string jobName, string nodeName, StreamId streamId, TemplateId templateId, int change, LogId? logId, PoolId? poolId, AgentId? agentId, JobStepOutcome? outcome, bool updateIssues, int? lastSuccess, int? lastWarning, float batchWaitTime, float batchInitTime, DateTime jobStartTimeUtc, DateTime startTimeUtc, DateTime? finishTimeUtc)
 			{
 				Id = id;
 				JobName = jobName;
@@ -100,37 +94,31 @@ namespace Horde.Server.Jobs
 				BatchInitTime = batchInitTime;
 				JobStartTimeUtc = jobStartTimeUtc;
 				StartTimeUtc = startTimeUtc;
-				FinishTimeUtc = finishTimeUtc;
-				BisectTaskId = bisectTaskId;
+				FinishTimeUtc = finishTimeUtc;				
 			}
 		}
 
-		readonly IMongoCollection<JobStepRef> _jobStepRefs;
-		readonly MongoIndex<JobStepRef> _bisectTaskIdIndex;
-		readonly ITelemetrySink _telemetrySink;
-		readonly Tracer _tracer;
+		readonly IMongoCollection<JobStepRef> _jobStepRefs;		
+		readonly ITelemetrySink _telemetrySink;		
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="mongoService">The database service instance</param>
-		/// <param name="tracer">Telemetry sink</param>
+		/// <param name="mongoService">The database service instance</param>		
 		/// <param name="telemetrySink">Telemetry sink</param>
-		public JobStepRefCollection(MongoService mongoService, Tracer tracer, ITelemetrySink telemetrySink)
+		public JobStepRefCollection(MongoService mongoService, ITelemetrySink telemetrySink)
 		{
 			List<MongoIndex<JobStepRef>> indexes = new List<MongoIndex<JobStepRef>>();
-			indexes.Add(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.TemplateId).Ascending(x => x.Name).Descending(x => x.Change));
-			indexes.Add(_bisectTaskIdIndex = MongoIndex.Create<JobStepRef>(keys => keys.Descending(x => x.BisectTaskId)));
+			indexes.Add(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.TemplateId).Ascending(x => x.Name).Descending(x => x.Change));			
 
 			_jobStepRefs = mongoService.GetCollection<JobStepRef>("JobStepRefs", indexes);
-			_telemetrySink = telemetrySink;
-			_tracer = tracer;
+			_telemetrySink = telemetrySink;			
 		}
 
 		/// <inheritdoc/>
-		public async Task<IJobStepRef> InsertOrReplaceAsync(JobStepRefId id, string jobName, string stepName, StreamId streamId, TemplateId templateId, int change, LogId? logId, PoolId? poolId, AgentId? agentId, JobStepOutcome? outcome, bool updateIssues, int? lastSuccess, int? lastWarning, float waitTime, float initTime, DateTime jobStartTimeUtc, DateTime startTimeUtc, DateTime? finishTimeUtc, BisectTaskId? bisectTaskId)
+		public async Task<IJobStepRef> InsertOrReplaceAsync(JobStepRefId id, string jobName, string stepName, StreamId streamId, TemplateId templateId, int change, LogId? logId, PoolId? poolId, AgentId? agentId, JobStepOutcome? outcome, bool updateIssues, int? lastSuccess, int? lastWarning, float waitTime, float initTime, DateTime jobStartTimeUtc, DateTime startTimeUtc, DateTime? finishTimeUtc)
 		{
-			JobStepRef newJobStepRef = new JobStepRef(id, jobName, stepName, streamId, templateId, change, logId, poolId, agentId, outcome, updateIssues, lastSuccess, lastWarning, waitTime, initTime, jobStartTimeUtc, startTimeUtc, finishTimeUtc, bisectTaskId);
+			JobStepRef newJobStepRef = new JobStepRef(id, jobName, stepName, streamId, templateId, change, logId, poolId, agentId, outcome, updateIssues, lastSuccess, lastWarning, waitTime, initTime, jobStartTimeUtc, startTimeUtc, finishTimeUtc);
 			await _jobStepRefs.ReplaceOneAsync(Builders<JobStepRef>.Filter.Eq(x => x.Id, newJobStepRef.Id), newJobStepRef, new ReplaceOptions { IsUpsert = true });
 
 			if (_telemetrySink.Enabled)
@@ -190,16 +178,14 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<IJobStepRef>> FindBisectTaskStepsAsync(BisectTaskId bisectTaskId, CancellationToken cancellationToken)
+		public async Task<List<IJobStepRef>> FindAsync(JobStepRefId[] ids, CancellationToken cancellationToken)
 		{
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobStepRefCollection)}.{nameof(FindBisectTaskStepsAsync)}");
-			span.SetAttribute("TaskId", bisectTaskId.Id.ToString());
-			span.SetAttribute("IndexHint", _bisectTaskIdIndex.Name.ToString());
-			span.SetAttribute("IndexBsonHint", new BsonString(_bisectTaskIdIndex.Name).ToString());
+			FilterDefinitionBuilder<JobStepRef> filterBuilder = Builders<JobStepRef>.Filter;
+			FilterDefinition<JobStepRef> filter = FilterDefinition<JobStepRef>.Empty;
+			filter &= filterBuilder.In(x => x.Id, ids);
 
-			FilterDefinition<JobStepRef> filter = Builders<JobStepRef>.Filter.Eq(x => x.BisectTaskId, bisectTaskId);			
-			List<JobStepRef> results = await _jobStepRefs.Find(filter, new FindOptions { Hint = new BsonString(_bisectTaskIdIndex.Name) }).SortBy(x => x.Change).ToListAsync(cancellationToken);
-			return results.ConvertAll<IJobStepRef>(x => x);
+			List<JobStepRef> steps = await _jobStepRefs.Find(filter).SortByDescending(x => x.Change).ToListAsync(cancellationToken);
+			return steps.ConvertAll<IJobStepRef>(x => x);
 		}
 
 		/// <inheritdoc/>

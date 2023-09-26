@@ -384,12 +384,12 @@ namespace Horde.Server.Jobs.Bisect
 
 			IUser? user = await _userCollection.GetCachedUserAsync(task.OwnerId);
 
-			List<IJobStepRef> steps = await _jobStepRefs.FindBisectTaskStepsAsync(task.Id, cancellationToken);
-			IJobStepRef? initialStep = await _jobStepRefs.FindAsync(task.InitialJobId, task.InitialBatchId, task.InitialStepId);
-			if (initialStep != null)
-			{
-				steps.Add(initialStep);
-			}
+			List<JobStepRefId> stepIds = new List<JobStepRefId>();
+			stepIds.AddRange(task.Steps);
+			stepIds.Add(new JobStepRefId(task.InitialJobId, task.InitialBatchId, task.InitialStepId));
+			
+
+			List<IJobStepRef> steps = await _jobStepRefs.FindAsync(stepIds.ToArray(), cancellationToken);
 
 			IJob? nextJob = task.State == BisectTaskState.Running ? await _jobCollection.FindBisectTaskJobsAsync(task.Id, true, cancellationToken).FirstOrDefaultAsync(cancellationToken) : null;
 			return new GetBisectTaskResponse(task, user?.ToThinApiResponse(), steps, nextJob);
