@@ -71,6 +71,9 @@
 #include "TextureResource.h"
 #include "Serialization/ArchiveCrc32.h"
 #include "SceneRendererInterface.h"
+#if WITH_EDITOR
+#include "MaterialHLSLGenerator.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "Landscape"
 
@@ -1806,6 +1809,22 @@ int32 UMaterialExpressionLandscapeGrassOutput::Compile(class FMaterialCompiler* 
 	}
 
 	return INDEX_NONE;
+}
+
+bool UMaterialExpressionLandscapeGrassOutput::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	if (!GrassTypes.IsValidIndex(OutputIndex))
+	{
+		return Generator.Error(TEXT("Invalid LandscapeGrassOutput OutputIndex."));
+	}
+
+	OutExpression = GrassTypes[OutputIndex].Input.AcquireHLSLExpressionOrConstant(Generator, Scope, 0.f);
+	return true;
+}
+
+UE::Shader::EValueType UMaterialExpressionLandscapeGrassOutput::GetCustomOutputType(int32 OutputIndex) const
+{
+	return UE::Shader::EValueType::Float1;
 }
 
 void UMaterialExpressionLandscapeGrassOutput::GetCaption(TArray<FString>& OutCaptions) const

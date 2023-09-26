@@ -199,6 +199,9 @@ enum class EExternalInput : uint8
 	PerInstanceRandom,
 
 	SkyAtmosphereViewLuminance,
+	SkyAtmosphereDistantLightScatteredLuminance,
+
+	DistanceCullFade,
 
 	IsOrthographic,
 
@@ -453,6 +456,25 @@ public:
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
 
+class FExpressionStaticTerrainLayerWeight : public FExpression
+{
+public:
+	FExpressionStaticTerrainLayerWeight(const FMaterialParameterInfo& InBaseParameterInfo, const FExpression* InTexCoordExpression, float InDefaultWeight)
+		: BaseParameterInfo(InBaseParameterInfo)
+		, TexCoordExpression(InTexCoordExpression)
+		, DefaultWeight(InDefaultWeight)
+	{
+		check(!BaseParameterInfo.Name.IsNone());
+	}
+
+	FMaterialParameterInfo BaseParameterInfo;
+	const FExpression* TexCoordExpression;
+	float DefaultWeight;
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
 class FExpressionTextureProperty : public FExpression
 {
 public:
@@ -483,6 +505,19 @@ public:
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const override;
+};
+
+class FExpressionRuntimeVirtualTextureOutput : public FExpressionForward
+{
+public:
+	FExpressionRuntimeVirtualTextureOutput(uint8 InOutputAttributeMask, const FExpression* OutputExpression)
+		: FExpressionForward(OutputExpression)
+		, OutputAttributeMask(InOutputAttributeMask)
+	{}
+
+	uint8 OutputAttributeMask;
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 };
 
 class FExpressionVirtualTextureUnpack : public FExpression
@@ -730,6 +765,34 @@ public:
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
 
+class FExpressionSkyAtmosphereLightIlluminance : public FExpression
+{
+public:
+	const FExpression* WorldPositionExpression;
+	int32 LightIndex;
+
+	FExpressionSkyAtmosphereLightIlluminance(const FExpression* InWorldPositionExpression, int32 InLightIndex)
+		: WorldPositionExpression(InWorldPositionExpression)
+		, LightIndex(InLightIndex)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionSkyAtmosphereLightIlluminanceOnGround : public FExpression
+{
+public:
+	int32 LightIndex;
+
+	FExpressionSkyAtmosphereLightIlluminanceOnGround(int32 InLightIndex)
+		: LightIndex(InLightIndex)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
 class FExpressionDistanceToNearestSurface : public FExpression
 {
 public:
@@ -857,6 +920,19 @@ public:
 	{}
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+};
+
+class FExpressionBlackBody : public FExpression
+{
+public:
+	FExpressionBlackBody(const FExpression* InTempExpression)
+		: TempExpression(InTempExpression)
+	{}
+
+	const FExpression* TempExpression;
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
 
 struct FVertexInterpolator

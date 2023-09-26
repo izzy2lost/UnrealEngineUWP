@@ -977,6 +977,11 @@ bool FExpressionAppend::PrepareValue(FEmitContext& Context, FEmitScope& Scope, c
 	}
 
 	const FPreparedType& RhsType = Context.PrepareExpression(Rhs, Scope, RhsRequestedType);
+	if (RhsType.IsVoid())
+	{
+		return false;
+	}
+
 	const Private::FAppendTypes Types = Private::GetAppendTypes(RequestedType, LhsType, RhsType);
 	check(!Types.ResultType.IsNumericScalar()); // Appending 2 values should never result in a scalar
 	if (Types.ResultType.IsVoid())

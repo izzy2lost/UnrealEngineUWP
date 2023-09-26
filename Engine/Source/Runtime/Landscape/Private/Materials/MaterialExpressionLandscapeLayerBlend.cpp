@@ -7,6 +7,7 @@
 #include "MaterialCompiler.h"
 #if WITH_EDITOR
 #include "MaterialGraph/MaterialGraphNode.h"
+#include "MaterialHLSLGenerator.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "Landscape"
@@ -281,6 +282,107 @@ int32 UMaterialExpressionLandscapeLayerBlend::Compile(class FMaterialCompiler* C
 
 	return OutputCode;
 }
+
+bool UMaterialExpressionLandscapeLayerBlend::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	bool bNeedsRenormalize = false;
+	FTree& Tree = Generator.GetTree();
+	const FExpression* ConstantOne = Tree.NewConstant(1.f);
+	const FExpression* WeightSumExpression = Tree.NewConstant(0.f);
+	TArray<const FExpression*> WeightExpressions;
+
+	WeightExpressions.Empty(Layers.Num());
+
+	for (int32 LayerIdx = 0; LayerIdx < Layers.Num(); LayerIdx++)
+	{
+		WeightExpressions.Add(nullptr);
+
+		const FLayerBlendInput& Layer = Layers[LayerIdx];
+
+		// LB_AlphaBlend layers are blended last
+		if (Layer.BlendType != LB_AlphaBlend)
+		{
+			const FExpression* WeightExpression = nullptr;
+			verify(GenerateStaticTerrainLayerWeightExpression(Layer.LayerName, Layer.PreviewWeight, Generator, WeightExpression));
+
+			if (WeightExpression)
+			{
+				switch (Layer.BlendType)
+				{
+				case LB_WeightBlend:
+				{
+					// Store the weight plus accumulate the sum of all weights so far
+					WeightExpressions[LayerIdx] = WeightExpression;
+					WeightSumExpression = Tree.NewAdd(WeightSumExpression, WeightExpression);
+				}
+				break;
+				case LB_HeightBlend:
+				{
+					bNeedsRenormalize = true;
+
+					// Modify weight with height
+					const FExpression* HeightExpression = Layer.HeightInput.AcquireHLSLExpressionOrConstant(Generator, Scope, Layer.ConstHeightInput);
+					const FExpression* ModifiedWeight = Tree.NewLerp(Tree.NewConstant(-1.f), ConstantOne, WeightExpression);
+					ModifiedWeight = Tree.NewAdd(ModifiedWeight, HeightExpression);
+					ModifiedWeight = Tree.NewMin(Tree.NewMax(ModifiedWeight, Tree.NewConstant(0.0001f)), ConstantOne);
+
+					// Store the final weight plus accumulate the sum of all weights so far
+					WeightExpressions[LayerIdx] = ModifiedWeight;
+					WeightSumExpression = Tree.NewAdd(WeightSumExpression, ModifiedWeight);
+				}
+				break;
+				}
+			}
+		}
+	}
+
+	const FExpression* InvWeightSumExpression = Tree.NewDiv(ConstantOne, WeightSumExpression);
+	OutExpression = Tree.NewConstant(0.f);
+
+	for (int32 LayerIdx = 0; LayerIdx < Layers.Num(); LayerIdx++)
+	{
+		const FLayerBlendInput& Layer = Layers[LayerIdx];
+
+		if (WeightExpressions[LayerIdx])
+		{
+			const FExpression* LayerExpression = Layer.LayerInput.AcquireHLSLExpressionOrConstant(Generator, Scope, FVector3f(Layer.ConstLayerInput));
+
+			if (bNeedsRenormalize)
+			{
+				// Renormalize the weights as our height modification has made them non-uniform
+				OutExpression = Tree.NewAdd(OutExpression, Tree.NewMul(LayerExpression, Tree.NewMul(InvWeightSumExpression, WeightExpressions[LayerIdx])));
+			}
+			else
+			{
+				// No renormalization is necessary, so just add the weights
+				OutExpression = Tree.NewAdd(OutExpression, Tree.NewMul(LayerExpression, WeightExpressions[LayerIdx]));
+			}
+		}
+	}
+
+	// Blend in LB_AlphaBlend layers
+	for (const FLayerBlendInput& Layer : Layers)
+	{
+		if (Layer.BlendType == LB_AlphaBlend)
+		{
+			const FExpression* WeightExpression = nullptr;
+			verify(GenerateStaticTerrainLayerWeightExpression(Layer.LayerName, Layer.PreviewWeight, Generator, WeightExpression));
+
+			if (WeightExpression)
+			{
+				const FExpression* LayerExpression = Layer.LayerInput.AcquireHLSLExpressionOrConstant(Generator, Scope, FVector3f(Layer.ConstLayerInput));
+
+				// Blend in the layer using the alpha value
+				OutExpression = Tree.NewLerp(OutExpression, LayerExpression, WeightExpression);
+			}
+		}
+	}
+
+	return true;
+}
+
 #endif // WITH_EDITOR
 
 UObject* UMaterialExpressionLandscapeLayerBlend::GetReferencedTexture() const

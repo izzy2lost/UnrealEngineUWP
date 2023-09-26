@@ -6,6 +6,9 @@
 #include "EngineGlobals.h"
 #include "MaterialCompiler.h"
 #include "Materials/Material.h"
+#if WITH_EDITOR
+#include "MaterialHLSLGenerator.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MaterialExpressionLandscapeLayerSample)
 
@@ -48,6 +51,12 @@ int32 UMaterialExpressionLandscapeLayerSample::Compile(class FMaterialCompiler* 
 		return WeightCode;
 	}
 }
+
+bool UMaterialExpressionLandscapeLayerSample::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	return GenerateStaticTerrainLayerWeightExpression(ParameterName, PreviewWeight, Generator, OutExpression);
+}
+
 #endif // WITH_EDITOR
 
 UObject* UMaterialExpressionLandscapeLayerSample::GetReferencedTexture() const

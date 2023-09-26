@@ -15,6 +15,7 @@
 #include "RHIFeatureLevel.h"
 #include "HLSLTree/HLSLTreeTypes.h"
 #include "HLSLTree/HLSLTreeHash.h"
+#include "MaterialShared.h"
 
 class FMaterial;
 class FMaterialCompilationOutput;
@@ -42,6 +43,7 @@ class FEmitShaderExpression;
 class FEmitShaderStatement;
 
 struct FEmitPreshaderScope;
+struct FEmitValuePreshaderResult;
 
 struct FEmitShaderScopeEntry
 {
@@ -636,6 +638,20 @@ struct FEmitOwnerScope
 	FEmitContext& Context;
 	const FOwnedNode* Node;
 };
+
+namespace Private
+{
+void EmitPreshaderField(
+	FEmitContext& Context,
+	TMemoryImageArray<FMaterialUniformPreshaderHeader>& UniformPreshaders,
+	TMemoryImageArray<FMaterialUniformPreshaderField>& UniformPreshaderFields,
+	Shader::FPreshaderData& UniformPreshaderData,
+	FMaterialUniformPreshaderHeader*& PreshaderHeader,
+	TFunction<void (FEmitValuePreshaderResult&)> EmitPreshaderOpcode,
+	const Shader::FValueTypeDescription& TypeDesc,
+	int32 ComponentIndex,
+	FStringBuilderBase& FormattedCode);
+}
 
 } // namespace UE::HLSLTree
 

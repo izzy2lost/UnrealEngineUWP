@@ -6,6 +6,9 @@
 #include "EngineGlobals.h"
 #include "MaterialCompiler.h"
 #include "Materials/Material.h"
+#if WITH_EDITOR
+#include "MaterialHLSLGenerator.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MaterialExpressionLandscapeVisibilityMask)
 
@@ -42,6 +45,19 @@ int32 UMaterialExpressionLandscapeVisibilityMask::Compile(class FMaterialCompile
 {
 	int32 MaskLayerCode = Compiler->StaticTerrainLayerWeight(ParameterName, Compiler->Constant(0.f));
 	return MaskLayerCode == INDEX_NONE ? Compiler->Constant(1.f) : Compiler->Sub(Compiler->Constant(1.f), MaskLayerCode);
+}
+
+bool UMaterialExpressionLandscapeVisibilityMask::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const FExpression* MaskLayerExpression = nullptr;
+	verify(GenerateStaticTerrainLayerWeightExpression(ParameterName, 0.f, Generator, MaskLayerExpression));
+
+	FTree& Tree = Generator.GetTree();
+	const FExpression* ConstantOne = Tree.NewConstant(1.f);
+	OutExpression = MaskLayerExpression ? Tree.NewSub(ConstantOne, MaskLayerExpression) : ConstantOne;
+	return true;
 }
 #endif // WITH_EDITOR
 

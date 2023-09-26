@@ -2,6 +2,7 @@
 #if WITH_EDITOR
 
 #include "MaterialHLSLTree.h"
+#include "Engine/Engine.h"
 #include "Engine/Texture.h"
 #include "HLSLTree/HLSLTreeEmit.h"
 #include "MaterialDomain.h"
@@ -160,6 +161,9 @@ FExternalInputDescription GetExternalInputDescription(EExternalInput Input)
 	case EExternalInput::PerInstanceRandom: return FExternalInputDescription(TEXT("PerInstanceRandom"), Shader::EValueType::Float1);
 
 	case EExternalInput::SkyAtmosphereViewLuminance: return FExternalInputDescription(TEXT("SkyAtmosphereViewLuminance"), Shader::EValueType::Float3);
+	case EExternalInput::SkyAtmosphereDistantLightScatteredLuminance: return FExternalInputDescription(TEXT("SkyAtmosphereDistanceLightScatteredLuminance"), Shader::EValueType::Float3);
+
+	case EExternalInput::DistanceCullFade: return FExternalInputDescription(TEXT("DistanceCullFade"), Shader::EValueType::Float1);
 
 	case EExternalInput::IsOrthographic: return FExternalInputDescription(TEXT("IsOrthographic"), Shader::EValueType::Float1);
 
@@ -237,7 +241,12 @@ bool FExpressionExternalInput::PrepareValue(FEmitContext& Context, FEmitScope& S
 				Context.MaterialCompilationOutput->bUsesPerInstanceRandom = true;
 				break;
 			case EExternalInput::SkyAtmosphereViewLuminance:
+			case EExternalInput::SkyAtmosphereDistantLightScatteredLuminance:
 				Context.bUsesSkyAtmosphere = true;
+				break;
+			case EExternalInput::DistanceCullFade:
+				Context.MaterialCompilationOutput->bUsesDistanceCullFade = true;
+				break;
 			default:
 				break;
 			}
@@ -379,6 +388,9 @@ void FExpressionExternalInput::EmitValueShader(FEmitContext& Context, FEmitScope
 		case EExternalInput::PerInstanceRandom: Code = TEXT("GetPerInstanceRandom(Parameters)"); break;
 
 		case EExternalInput::SkyAtmosphereViewLuminance: Code = TEXT("MaterialExpressionSkyAtmosphereViewLuminance(Parameters)"); break;
+		case EExternalInput::SkyAtmosphereDistantLightScatteredLuminance: Code = TEXT("MaterialExpressionSkyAtmosphereDistantLightScatteredLuminance(Parameters)"); break;
+
+		case EExternalInput::DistanceCullFade: Code = TEXT("GetDistanceCullFade()"); break;
 
 		case EExternalInput::IsOrthographic: Code = TEXT("((View.ViewToClip[3][3] < 1.0f) ? 0.0f : 1.0f)"); break;
 
@@ -481,6 +493,31 @@ void EmitTextureShader(FEmitContext& Context,
 	OutCode.Appendf(TEXT("Material.%s_%d"), TextureTypeName, TextureParameterIndex);
 }
 
+void EmitNumericParameterPreshader(
+	FEmitContext& Context,
+	FEmitData& EmitData,
+	const FMaterialParameterInfo& ParameterInfo,
+	EMaterialParameterType ParameterType,
+	Shader::FValue DefaultValue,
+	FEmitValuePreshaderResult& OutResult)
+{
+	check(IsNumericMaterialParameter(ParameterType));
+	const uint32* PrevDefaultOffset = EmitData.DefaultUniformValues.Find(DefaultValue);
+	uint32 DefaultOffset;
+	if (PrevDefaultOffset)
+	{
+		DefaultOffset = *PrevDefaultOffset;
+	}
+	else
+	{
+		DefaultOffset = Context.MaterialCompilationOutput->UniformExpressionSet.AddDefaultParameterValue(DefaultValue);
+		EmitData.DefaultUniformValues.Add(DefaultValue, DefaultOffset);
+	}
+	const int32 ParameterIndex = Context.MaterialCompilationOutput->UniformExpressionSet.FindOrAddNumericParameter(ParameterType, ParameterInfo, DefaultOffset);
+	check(ParameterIndex >= 0 && ParameterIndex <= 0xffff);
+	OutResult.Preshader.WriteOpcode(Shader::EPreshaderOpcode::Parameter).Write((uint16)ParameterIndex);
+}
+
 } // namespace Private
 
 void FExpressionParameter::ComputeAnalyticDerivatives(FTree& Tree, FExpressionDerivatives& OutResult) const
@@ -538,7 +575,7 @@ void FExpressionParameter::EmitValueShader(FEmitContext& Context, FEmitScope& Sc
 	{
 		TStringBuilder<64> FormattedTexture;
 		Private::EmitTextureShader(Context, TextureValue, FormattedTexture);
-		// Emit a texture/sampler pair1
+		// Emit a texture/sampler pair
 		OutResult.Code = Context.EmitInlineExpression(Scope, FMaterialTextureValue::GetTypeName(), TEXT("%,%Sampler"), FormattedTexture.ToString(), FormattedTexture.ToString());
 	}
 }
@@ -587,21 +624,7 @@ void FExpressionParameter::EmitValuePreshader(FEmitContext& Context, FEmitScope&
 	}
 	else
 	{
-		check(IsNumericMaterialParameter(ParameterType));
-		const uint32* PrevDefaultOffset = EmitMaterialData.DefaultUniformValues.Find(DefaultValue);
-		uint32 DefaultOffset;
-		if (PrevDefaultOffset)
-		{
-			DefaultOffset = *PrevDefaultOffset;
-		}
-		else
-		{
-			DefaultOffset = Context.MaterialCompilationOutput->UniformExpressionSet.AddDefaultParameterValue(DefaultValue);
-			EmitMaterialData.DefaultUniformValues.Add(DefaultValue, DefaultOffset);
-		}
-		const int32 ParameterIndex = Context.MaterialCompilationOutput->UniformExpressionSet.FindOrAddNumericParameter(ParameterType, ParameterInfo, DefaultOffset);
-		check(ParameterIndex >= 0 && ParameterIndex <= 0xffff);
-		OutResult.Preshader.WriteOpcode(Shader::EPreshaderOpcode::Parameter).Write((uint16)ParameterIndex);
+		Private::EmitNumericParameterPreshader(Context, EmitMaterialData, ParameterInfo, ParameterType, DefaultValue, OutResult);
 	}
 }
 
@@ -977,12 +1000,22 @@ uint32 AcquireVTStackIndex(
 	return StackIndex;
 }
 
-} // namespace Private
-
-void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+FEmitShaderExpression* EmitTextureSampleShader(
+	FEmitContext& Context,
+	FEmitScope& Scope,
+	const FMaterialTextureValue& TextureValue,
+	FEmitShaderExpression* EmitTexCoordValue,
+	FEmitShaderExpression* EmitMipValue,
+	FEmitShaderExpression* EmitTexCoordValueDdx,
+	FEmitShaderExpression* EmitTexCoordValueDdy,
+	ESamplerSourceMode SamplerSource,
+	ETextureMipValueMode MipValueMode,
+	int16 TextureLayerIndex,
+	int16 PageTableLayerIndex,
+	bool bAdaptive,
+	bool bEnableFeedback,
+	bool bAutomaticViewMipBias)
 {
-	FMaterialTextureValue TextureValue;
-	verify(TextureExpression->GetValueObject(Context, Scope, TextureValue));
 	UTexture* Texture = TextureValue.Texture;
 	URuntimeVirtualTexture* RuntimeVirtualTexture = TextureValue.RuntimeVirtualTexture;
 
@@ -1041,26 +1074,20 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 		}
 	}
 
-	FEmitShaderExpression* EmitTexCoordValue = TexCoordExpression->GetValueShader(Context, Scope, TexCoordType);
-	FEmitShaderExpression* EmitMipValue = nullptr;
-	FEmitShaderExpression* EmitTexCoordValueDdx = nullptr;
-	FEmitShaderExpression* EmitTexCoordValueDdy = nullptr;
-	const ETextureMipValueMode LocalMipValueMode = Private::GetMipValueMode(Context, this);
-	if (LocalMipValueMode == TMVM_Derivative)
+	if (MipValueMode == TMVM_Derivative)
 	{
-		EmitTexCoordValueDdx = TexCoordDerivatives.ExpressionDdx->GetValueShader(Context, Scope, TexCoordType);
-		EmitTexCoordValueDdy = TexCoordDerivatives.ExpressionDdy->GetValueShader(Context, Scope, TexCoordType);
+		check(EmitTexCoordValueDdx && EmitTexCoordValueDdy);
+		EmitMipValue = nullptr;
 	}
-	else if (LocalMipValueMode == TMVM_MipLevel || LocalMipValueMode == TMVM_MipBias)
+	else if (MipValueMode == TMVM_MipLevel || MipValueMode == TMVM_MipBias)
 	{
-		if (MipValueExpression)
-		{
-			EmitMipValue = MipValueExpression->GetValueShader(Context, Scope, Shader::EValueType::Float1);
-		}
-		else
+		if (!EmitMipValue)
 		{
 			EmitMipValue = Context.EmitConstantZero(Scope, Shader::EValueType::Float1);
 		}
+
+		EmitTexCoordValueDdx = nullptr;
+		EmitTexCoordValueDdy = nullptr;
 	}
 
 	FEmitShaderExpression* EmitTextureResult = nullptr;
@@ -1086,7 +1113,7 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 			// The layer index in the virtual texture stack is already known
 			// Create a page table sample for each new combination of virtual texture and sample parameters
 			VTStackIndex = Private::AcquireVTStackIndex(Context, Scope, EmitMaterialData,
-				LocalMipValueMode,
+				MipValueMode,
 				StaticAddressX,
 				StaticAddressY,
 				1.0f,
@@ -1110,7 +1137,7 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 
 			// Create a page table sample for each new set of sample parameters
 			VTStackIndex = Private::AcquireVTStackIndex(Context, Scope, EmitMaterialData,
-				LocalMipValueMode,
+				MipValueMode,
 				StaticAddressX,
 				StaticAddressY,
 				TextureAspectRatio,
@@ -1135,7 +1162,7 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 		{
 			// VT doesn't care if the shared sampler is wrap or clamp. It only cares if it is aniso or not.
 			// The wrap/clamp/mirror operation is handled in the shader explicitly.
-			const bool bUseAnisoSampler = VirtualTextureScalability::IsAnisotropicFilteringEnabled() && LocalMipValueMode != TMVM_MipLevel;
+			const bool bUseAnisoSampler = VirtualTextureScalability::IsAnisotropicFilteringEnabled() && MipValueMode != TMVM_MipLevel;
 			const TCHAR* SharedSamplerName = bUseAnisoSampler ? TEXT("View.SharedBilinearAnisoClampedSampler") : TEXT("View.SharedBilinearClampedSampler");
 			FormattedSampler.Appendf(TEXT("GetMaterialSharedSampler(Material.VirtualTexturePhysical_%dSampler, %s)"), TextureParameterIndex, SharedSamplerName);
 		}
@@ -1144,7 +1171,7 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 			FormattedSampler.Appendf(TEXT("Material.VirtualTexturePhysical_%dSampler"), TextureParameterIndex);
 		}
 
-		const TCHAR* SampleFunctionName = (LocalMipValueMode == TMVM_MipLevel) ? TEXT("TextureVirtualSampleLevel") : TEXT("TextureVirtualSample");
+		const TCHAR* SampleFunctionName = (MipValueMode == TMVM_MipLevel) ? TEXT("TextureVirtualSampleLevel") : TEXT("TextureVirtualSample");
 		EmitTextureResult = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("%(%, %, %, %, VTUniform_Unpack(Material.VTPackedUniform[%]))"),
 			SampleFunctionName,
 			FormattedTexture.ToString(),
@@ -1185,7 +1212,6 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 		TStringBuilder<64> FormattedTexture;
 		Private::EmitTextureShader(Context, TextureValue, FormattedTexture);
 
-		const bool AutomaticViewMipBias = AutomaticMipBiasExpression ? AutomaticMipBiasExpression->GetValueConstant(Context, Scope, Shader::EValueType::Bool1).AsBoolScalar() : false;
 		TStringBuilder<256> FormattedSampler;
 		switch (SamplerSource)
 		{
@@ -1195,12 +1221,12 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 		case SSM_Wrap_WorldGroupSettings:
 			FormattedSampler.Appendf(TEXT("GetMaterialSharedSampler(%sSampler,%s)"),
 				FormattedTexture.ToString(),
-				AutomaticViewMipBias ? TEXT("View.MaterialTextureBilinearWrapedSampler") : TEXT("Material.Wrap_WorldGroupSettings"));
+				bAutomaticViewMipBias ? TEXT("View.MaterialTextureBilinearWrapedSampler") : TEXT("Material.Wrap_WorldGroupSettings"));
 			break;
 		case SSM_Clamp_WorldGroupSettings:
 			FormattedSampler.Appendf(TEXT("GetMaterialSharedSampler(%sSampler,%s)"),
 				FormattedTexture.ToString(),
-				AutomaticViewMipBias ? TEXT("View.MaterialTextureBilinearClampedSampler") : TEXT("Material.Clamp_WorldGroupSettings"));
+				bAutomaticViewMipBias ? TEXT("View.MaterialTextureBilinearClampedSampler") : TEXT("Material.Clamp_WorldGroupSettings"));
 			break;
 		case SSM_TerrainWeightmapGroupSettings:
 			FormattedSampler.Appendf(TEXT("GetMaterialSharedSampler(%sSampler,%s)"),
@@ -1212,7 +1238,7 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 			break;
 		}
 
-		switch (LocalMipValueMode)
+		switch (MipValueMode)
 		{
 		case TMVM_Derivative:
 			EmitTextureResult = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("%Grad(%, %, %, %, %)"),
@@ -1253,7 +1279,236 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 	}
 
 	check(EmitTextureResult);
-	OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("ApplyMaterialSamplerType(%, %)"), EmitTextureResult, TextureValue.SamplerType);
+	return Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("ApplyMaterialSamplerType(%, %)"), EmitTextureResult, TextureValue.SamplerType);
+}
+
+} // namespace Private
+
+void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FMaterialTextureValue TextureValue;
+	verify(TextureExpression->GetValueObject(Context, Scope, TextureValue));
+
+	EMaterialValueType TextureType = MCT_Unknown;
+	if (TextureValue.Texture)
+	{
+		TextureType = TextureValue.Texture->GetMaterialType();
+	}
+	else if (TextureValue.RuntimeVirtualTexture)
+	{
+		TextureType = MCT_TextureVirtual;
+	}
+
+	const Shader::EValueType TexCoordType = Private::GetTexCoordType(TextureType);
+	FEmitShaderExpression* EmitTexCoordValue = TexCoordExpression->GetValueShader(Context, Scope, TexCoordType);
+	FEmitShaderExpression* EmitMipValue = nullptr;
+	FEmitShaderExpression* EmitTexCoordValueDdx = nullptr;
+	FEmitShaderExpression* EmitTexCoordValueDdy = nullptr;
+	const ETextureMipValueMode LocalMipValueMode = Private::GetMipValueMode(Context, this);
+	if (LocalMipValueMode == TMVM_Derivative)
+	{
+		EmitTexCoordValueDdx = TexCoordDerivatives.ExpressionDdx->GetValueShader(Context, Scope, TexCoordType);
+		EmitTexCoordValueDdy = TexCoordDerivatives.ExpressionDdy->GetValueShader(Context, Scope, TexCoordType);
+	}
+	else if (LocalMipValueMode == TMVM_MipLevel || LocalMipValueMode == TMVM_MipBias)
+	{
+		if (MipValueExpression)
+		{
+			EmitMipValue = MipValueExpression->GetValueShader(Context, Scope, Shader::EValueType::Float1);
+		}
+		else
+		{
+			EmitMipValue = Context.EmitConstantZero(Scope, Shader::EValueType::Float1);
+		}
+	}
+
+	const bool bAutomaticViewMipBias = AutomaticMipBiasExpression ?
+		AutomaticMipBiasExpression->GetValueConstant(Context, Scope, Shader::EValueType::Bool1).AsBoolScalar() : false;
+
+	OutResult.Code = Private::EmitTextureSampleShader(
+		Context,
+		Scope,
+		TextureValue,
+		EmitTexCoordValue,
+		EmitMipValue,
+		EmitTexCoordValueDdx,
+		EmitTexCoordValueDdy,
+		SamplerSource,
+		LocalMipValueMode,
+		TextureLayerIndex,
+		PageTableLayerIndex,
+		bAdaptive,
+		bEnableFeedback,
+		bAutomaticViewMipBias);
+}
+
+bool FExpressionStaticTerrainLayerWeight::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	const EMaterialValueType TextureMaterialType = GEngine->WeightMapPlaceholderTexture->GetMaterialType();
+	const FRequestedType TexCoordRequestedType = Private::GetTexCoordType(TextureMaterialType);
+	const FPreparedType& TexCoordPreparedType = Context.PrepareExpression(TexCoordExpression, Scope, TexCoordRequestedType);
+	if (TexCoordPreparedType.IsVoid())
+	{
+		return false;
+	}
+	
+	bool bFoundMatchingParameter = false;
+	FEmitData& EmitData = Context.FindData<FEmitData>();
+
+	if (Context.bMarkLiveValues && EmitData.CachedExpressionData && EmitData.StaticParameters)
+	{
+		for (int32 ParameterIndex = 0; ParameterIndex < EmitData.StaticParameters->EditorOnly.TerrainLayerWeightParameters.Num(); ++ParameterIndex)
+		{
+			const FStaticTerrainLayerWeightParameter& Parameter = EmitData.StaticParameters->EditorOnly.TerrainLayerWeightParameters[ParameterIndex];
+
+			// If there are multiple weight maps with the same name, they should be numbered to allow for unique masks
+			FName LayerNameTest = Parameter.LayerName;
+			LayerNameTest.SetNumber(0);
+
+			if (LayerNameTest != BaseParameterInfo.Name)
+			{
+				continue;
+			}
+
+			const int32 WeightmapIndex = Parameter.WeightmapIndex;
+
+			if (WeightmapIndex == INDEX_NONE)
+			{
+				continue;
+			}
+
+			bFoundMatchingParameter = true;
+
+			FMaterialParameterInfo WeightmapParameterInfo = BaseParameterInfo;
+			WeightmapParameterInfo.Name = *FString::Printf(TEXT("Weightmap%d"), WeightmapIndex);
+
+			FMaterialParameterMetadata WeightmapParameterMeta;
+			WeightmapParameterMeta.Value = GEngine->WeightMapPlaceholderTexture;
+
+			UObject* UnusedReferencedTexture;
+			EmitData.CachedExpressionData->AddParameter(WeightmapParameterInfo, WeightmapParameterMeta, UnusedReferencedTexture);
+
+			FMaterialParameterInfo LayerMaskParameterInfo = BaseParameterInfo;
+			LayerMaskParameterInfo.Name = *FString::Printf(TEXT("LayerMask_%s"), *Parameter.LayerName.ToString());
+
+			FMaterialParameterMetadata LayerMaskParameterMeta;
+			LayerMaskParameterMeta.Value = FLinearColor(1.f, 0.f, 0.f, 0.f);
+
+			EmitData.CachedExpressionData->AddParameter(LayerMaskParameterInfo, LayerMaskParameterMeta, UnusedReferencedTexture);
+		}
+
+		if (bFoundMatchingParameter)
+		{
+			EmitData.CachedExpressionData->ReferencedTextures.AddUnique(GEngine->WeightMapPlaceholderTexture);
+		}
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float4);
+}
+
+void FExpressionStaticTerrainLayerWeight::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitData& EmitData = Context.FindData<FEmitData>();
+
+	if (!EmitData.StaticParameters)
+	{
+		OutResult.Code = Context.EmitConstantZero(Scope, Shader::EValueType::Float4);
+		return;
+	}
+
+	const EMaterialValueType TextureMaterialType = GEngine->WeightMapPlaceholderTexture->GetMaterialType();
+	const Shader::EValueType TexCoordType = Private::GetTexCoordType(TextureMaterialType);
+	FEmitShaderExpression* EmitTexCoordValue = nullptr;
+	FEmitShaderExpression* EmitResult = nullptr;
+	int32 NumWeightmapParameters = 0;
+
+	for (int32 ParameterIndex = 0; ParameterIndex < EmitData.StaticParameters->EditorOnly.TerrainLayerWeightParameters.Num(); ++ParameterIndex)
+	{
+		const FStaticTerrainLayerWeightParameter& Parameter = EmitData.StaticParameters->EditorOnly.TerrainLayerWeightParameters[ParameterIndex];
+
+		// If there are multiple weight maps with the same name, they should be numbered to allow for unique masks
+		FName LayerNameTest = Parameter.LayerName;
+		LayerNameTest.SetNumber(0);
+
+		if (LayerNameTest != BaseParameterInfo.Name)
+		{
+			continue;
+		}
+
+		const int32 WeightmapIndex = Parameter.WeightmapIndex;
+
+		if (WeightmapIndex == INDEX_NONE)
+		{
+			continue;
+		}
+
+		FMaterialTextureValue TextureValue;
+		TextureValue.Texture = GEngine->WeightMapPlaceholderTexture;
+		TextureValue.SamplerType = SAMPLERTYPE_Masks;
+		TextureValue.ParameterInfo = BaseParameterInfo;
+		TextureValue.ParameterInfo.Name = *FString::Printf(TEXT("Weightmap%d"), WeightmapIndex);
+
+		if (!EmitTexCoordValue)
+		{
+			EmitTexCoordValue = TexCoordExpression->GetValueShader(Context, Scope, TexCoordType);
+		}
+
+		FEmitShaderExpression* EmitWeightmapSampleValue = Private::EmitTextureSampleShader(
+			Context, Scope,
+			TextureValue, EmitTexCoordValue, nullptr, nullptr, nullptr,
+			SSM_TerrainWeightmapGroupSettings, TMVM_MipLevel, INDEX_NONE, INDEX_NONE, false, false, false);
+
+		FMaterialParameterInfo LayerMaskParameterInfo = BaseParameterInfo;
+		LayerMaskParameterInfo.Name = *FString::Printf(TEXT("LayerMask_%s"), *Parameter.LayerName.ToString());
+
+		FUniformExpressionSet& UniformExpressionSet = Context.MaterialCompilationOutput->UniformExpressionSet;
+		FMaterialUniformPreshaderHeader* PreshaderHeader = nullptr;
+		TStringBuilder<64> FormattedLayerMaskCode;
+
+		UE::HLSLTree::Private::EmitPreshaderField(
+			Context,
+			UniformExpressionSet.UniformPreshaders,
+			UniformExpressionSet.UniformPreshaderFields,
+			UniformExpressionSet.UniformPreshaderData,
+			PreshaderHeader,
+			[&Context, &EmitData, &LayerMaskParameterInfo](FEmitValuePreshaderResult& OutResult)
+			{
+				Private::EmitNumericParameterPreshader(
+					Context,
+					EmitData,
+					LayerMaskParameterInfo,
+					EMaterialParameterType::Vector,
+					FLinearColor(1.f, 0.f, 0.f, 0.f),
+					OutResult);
+			},
+			Shader::GetValueTypeDescription(Shader::EValueType::Float4),
+			0,
+			FormattedLayerMaskCode);
+
+		FEmitShaderExpression* EmitLayerMaskValue = Context.InternalEmitExpression(
+			Scope, TArrayView<FEmitShaderNode*>(), true, Shader::EValueType::Float4, FormattedLayerMaskCode.ToView());
+
+		FEmitShaderExpression* EmitWeightValue = Context.EmitExpression(Scope, Shader::EValueType::Float1, TEXT("VectorSum(% * %)"), EmitWeightmapSampleValue, EmitLayerMaskValue);
+
+		if (!EmitResult)
+		{
+			EmitResult = EmitWeightValue;
+		}
+		else
+		{
+			EmitResult = Context.EmitExpression(Scope, Shader::EValueType::Float1, TEXT("(% + %)"), EmitResult, EmitWeightValue);
+		}
+		++NumWeightmapParameters;
+	}
+
+	if (NumWeightmapParameters > 0)
+	{
+		OutResult.Code = NumWeightmapParameters > 1 ? Context.EmitExpression(Scope, Shader::EValueType::Float1, TEXT("saturate(%)"), EmitResult) : EmitResult;
+	}
+	else
+	{
+		OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float1, TEXT("((float)%)"), Context.Material && Context.Material->IsPreview() ? DefaultWeight : 0.f);
+	}
 }
 
 bool FExpressionTextureProperty::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
@@ -1325,6 +1580,17 @@ void FExpressionRuntimeVirtualTextureUniform::EmitValuePreshader(FEmitContext& C
 	++Context.PreshaderStackPosition;
 	OutResult.Type = URuntimeVirtualTexture::GetUniformParameterType(VectorIndex);
 	OutResult.Preshader.WriteOpcode(Shader::EPreshaderOpcode::RuntimeVirtualTextureUniform).Write(ParameterInfo).Write(TextureIndex).Write(VectorIndex);
+}
+
+bool FExpressionRuntimeVirtualTextureOutput::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
+	{
+		Context.MaterialCompilationOutput->bHasRuntimeVirtualTextureOutputNode |= OutputAttributeMask != 0;
+		Context.MaterialCompilationOutput->RuntimeVirtualTextureOutputAttributeMask |= OutputAttributeMask;
+	}
+
+	return FExpressionForward::PrepareValue(Context, Scope, RequestedType, OutResult);
 }
 
 bool FExpressionVirtualTextureUnpack::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
@@ -1901,6 +2167,12 @@ void FExpressionSkyAtmosphereLightDirection::EmitValueShader(FEmitContext& Conte
 
 bool FExpressionSkyAtmosphereLightDiskLuminance::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
+	const FPreparedType& CosHalfDiskRadiusPreparedType = Context.PrepareExpression(CosHalfDiskRadiusExpression, Scope, Shader::EValueType::Float1);
+	if (CosHalfDiskRadiusPreparedType.IsVoid())
+	{
+		return false;
+	}
+
 	if (Context.bMarkLiveValues)
 	{
 		Context.bUsesSkyAtmosphere = true;
@@ -1916,6 +2188,12 @@ void FExpressionSkyAtmosphereLightDiskLuminance::EmitValueShader(FEmitContext& C
 
 bool FExpressionSkyAtmosphereAerialPerspective::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
+	const FPreparedType& WorldPositionPreparedType = Context.PrepareExpression(WorldPositionExpression, Scope, Shader::EValueType::Double3);
+	if (WorldPositionPreparedType.IsVoid())
+	{
+		return false;
+	}
+
 	if (Context.bMarkLiveValues)
 	{
 		Context.bUsesSkyAtmosphere = true;
@@ -1927,6 +2205,41 @@ void FExpressionSkyAtmosphereAerialPerspective::EmitValueShader(FEmitContext& Co
 {
 	FEmitShaderExpression* EmitWorldPosition = WorldPositionExpression->GetValueShader(Context, Scope, Shader::EValueType::Double3);
 	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float4, TEXT("MaterialExpressionSkyAtmosphereAerialPerspective(Parameters, %)"), EmitWorldPosition);
+}
+
+bool FExpressionSkyAtmosphereLightIlluminance::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	const FPreparedType& WorldPositionPreparedType = Context.PrepareExpression(WorldPositionExpression, Scope, Shader::EValueType::Double3);
+	if (WorldPositionPreparedType.IsVoid())
+	{
+		return false;
+	}
+
+	if (Context.bMarkLiveValues)
+	{
+		Context.bUsesSkyAtmosphere = true;
+	}
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+}
+
+void FExpressionSkyAtmosphereLightIlluminance::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitWorldPosition = WorldPositionExpression->GetValueShader(Context, Scope, Shader::EValueType::Double3);
+	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float3, TEXT("MaterialExpressionSkyAtmosphereLightIlluminance(Parameters, %, %)"), EmitWorldPosition, LightIndex);
+}
+
+bool FExpressionSkyAtmosphereLightIlluminanceOnGround::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Context.bMarkLiveValues)
+	{
+		Context.bUsesSkyAtmosphere = true;
+	}
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+}
+
+void FExpressionSkyAtmosphereLightIlluminanceOnGround::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float3, TEXT("MaterialExpressionSkyAtmosphereLightIlluminanceOnGround(Parameters, %)"), LightIndex);
 }
 
 namespace Private
@@ -2109,6 +2422,24 @@ void FExpressionHairColor::EmitValueShader(FEmitContext& Context, FEmitScope& Sc
 		EmitMelanin,
 		EmitRedness,
 		EmitDyeColor);
+}
+
+bool FExpressionBlackBody::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	const FPreparedType& TempPreparedType = Context.PrepareExpression(TempExpression, Scope, Shader::EValueType::Float1);
+	if (TempPreparedType.IsVoid())
+	{
+		return false;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+}
+
+void FExpressionBlackBody::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitTemp = TempExpression->GetValueShader(Context, Scope, Shader::EValueType::Float1);
+
+	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float3, TEXT("MaterialExpressionBlackBody(%)"), EmitTemp);
 }
 
 bool FExpressionLightVector::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const

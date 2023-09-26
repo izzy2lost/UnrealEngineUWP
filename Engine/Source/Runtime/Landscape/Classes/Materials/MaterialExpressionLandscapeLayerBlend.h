@@ -84,6 +84,8 @@ class UMaterialExpressionLandscapeLayerBlend : public UMaterialExpression
 	LANDSCAPE_API virtual FExpressionInput* GetInput(int32 InputIndex) override;
 	LANDSCAPE_API virtual FName GetInputName(int32 InputIndex) const override;
 
+	virtual bool GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const override;
+
 	/**
 	 * Gets the landscape layer names
 	 */

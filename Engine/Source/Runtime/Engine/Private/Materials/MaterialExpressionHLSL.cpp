@@ -27,6 +27,7 @@
 #include "Materials/MaterialExpressionAtmosphericLightColor.h"
 #include "Materials/MaterialExpressionAtmosphericLightVector.h"
 #include "Materials/MaterialExpressionBinaryOp.h"
+#include "Materials/MaterialExpressionBlackBody.h"
 #include "Materials/MaterialExpressionBlendMaterialAttributes.h"
 #include "Materials/MaterialExpressionBreakMaterialAttributes.h"
 #include "Materials/MaterialExpressionBumpOffset.h"
@@ -60,6 +61,7 @@
 #include "Materials/MaterialExpressionDeriveNormalZ.h"
 #include "Materials/MaterialExpressionDesaturation.h"
 #include "Materials/MaterialExpressionDistance.h"
+#include "Materials/MaterialExpressionDistanceCullFade.h"
 #include "Materials/MaterialExpressionDistanceFieldApproxAO.h"
 #include "Materials/MaterialExpressionDistanceFieldGradient.h"
 #include "Materials/MaterialExpressionDistanceFieldsRenderingSwitch.h"
@@ -151,6 +153,7 @@
 #include "Materials/MaterialExpressionRotateAboutAxis.h"
 #include "Materials/MaterialExpressionRotator.h"
 #include "Materials/MaterialExpressionRound.h"
+#include "Materials/MaterialExpressionRuntimeVirtualTextureOutput.h"
 #include "Materials/MaterialExpressionRuntimeVirtualTextureSample.h"
 #include "Materials/MaterialExpressionRuntimeVirtualTextureSampleParameter.h"
 #include "Materials/MaterialExpressionSaturate.h"
@@ -1726,6 +1729,87 @@ bool UMaterialExpressionRuntimeVirtualTextureSample::GenerateHLSLExpression(FMat
 	}
 
 	OutExpression = UnpackExpression;
+	return true;
+}
+
+UE::Shader::EValueType UMaterialExpressionRuntimeVirtualTextureOutput::GetCustomOutputType(int32 OutputIndex) const
+{
+	using namespace UE::Shader;
+
+	switch (OutputIndex)
+	{
+	case 0:
+	case 3:
+		return EValueType::Float3;
+	case 1:
+	case 2:
+	case 4:
+	case 5:
+	case 6:
+		return EValueType::Float1;
+	default:
+		checkNoEntry();
+		return EValueType::Void;
+	}
+}
+
+bool UMaterialExpressionRuntimeVirtualTextureOutput::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	auto MakeOutputExpression = [&Generator, &Scope](const FExpressionInput& Input, const UE::Shader::FValue& DefaultValue, ERuntimeVirtualTextureAttributeType AttributeType)
+	{
+		if (!Input.GetTracedInput().Expression)
+		{
+			return Generator.NewConstant(DefaultValue);
+		}
+		
+		const FExpression* AttributeExpression = Input.AcquireHLSLExpression(Generator, Scope);
+		if (AttributeType == ERuntimeVirtualTextureAttributeType::Count)
+		{
+			return AttributeExpression;
+		}
+
+		const uint8 OutputAttributeMask = 1 << (uint8)AttributeType;
+		return Generator.GetTree().NewExpression<Material::FExpressionRuntimeVirtualTextureOutput>(OutputAttributeMask, AttributeExpression);
+	};
+
+	// Order of outputs generates function names GetVirtualTextureOutput{index}
+	// These must match the function names called in VirtualTextureMaterial.usf
+	if (OutputIndex == 0)
+	{
+		OutExpression = MakeOutputExpression(BaseColor, FVector3f::ZeroVector, ERuntimeVirtualTextureAttributeType::BaseColor);
+	}
+	else if (OutputIndex == 1)
+	{
+		OutExpression = MakeOutputExpression(Specular, 0.5f, ERuntimeVirtualTextureAttributeType::Specular);
+	}
+	else if (OutputIndex == 2)
+	{
+		OutExpression = MakeOutputExpression(Roughness, 0.5f, ERuntimeVirtualTextureAttributeType::Roughness);
+	}
+	else if (OutputIndex == 3)
+	{
+		OutExpression = MakeOutputExpression(Normal, FVector3f(0.f, 0.f, 1.f), ERuntimeVirtualTextureAttributeType::Normal);
+	}
+	else if (OutputIndex == 4)
+	{
+		OutExpression = MakeOutputExpression(WorldHeight, 0.f, ERuntimeVirtualTextureAttributeType::WorldHeight);
+	}
+	else if (OutputIndex == 5)
+	{
+		OutExpression = MakeOutputExpression(Opacity, 1.f, ERuntimeVirtualTextureAttributeType::Count);
+	}
+	else if (OutputIndex == 6)
+	{
+		OutExpression = MakeOutputExpression(Mask, 1.f, ERuntimeVirtualTextureAttributeType::Mask);
+	}
+	else
+	{
+		checkNoEntry();
+		return false;
+	}
+
 	return true;
 }
 
@@ -3448,10 +3532,32 @@ bool UMaterialExpressionSkyAtmosphereAerialPerspective::GenerateHLSLExpression(F
 	return true;
 }
 
+bool UMaterialExpressionSkyAtmosphereLightIlluminance::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	const FExpression* WorldPositionExpression = WorldPosition.AcquireHLSLExpressionOrExternalInput(Generator, Scope, Material::EExternalInput::WorldPosition);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionSkyAtmosphereLightIlluminance>(WorldPositionExpression, LightIndex);
+	return true;
+}
+
+bool UMaterialExpressionSkyAtmosphereLightIlluminanceOnGround::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionSkyAtmosphereLightIlluminanceOnGround>(LightIndex);
+	return true;
+}
+
 bool UMaterialExpressionSkyAtmosphereViewLuminance::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	using namespace UE::HLSLTree;
 	OutExpression = Generator.NewExternalInput(Material::EExternalInput::SkyAtmosphereViewLuminance);
+	return true;
+}
+
+bool UMaterialExpressionSkyAtmosphereDistantLightScatteredLuminance::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	OutExpression = Generator.NewExternalInput(Material::EExternalInput::SkyAtmosphereDistantLightScatteredLuminance);
 	return true;
 }
 
@@ -4215,6 +4321,35 @@ bool UMaterialExpressionSingleLayerWaterMaterialOutput::GenerateHLSLExpression(F
 	}
 
 	return OutExpression != nullptr;
+}
+
+bool UMaterialExpressionBlackBody::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const FExpression* TempExpression = Temp.AcquireHLSLExpression(Generator, Scope);
+	if (!TempExpression)
+	{
+		return false;
+	}
+
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionBlackBody>(TempExpression);
+	return true;
+}
+
+bool UMaterialExpressionDistanceCullFade::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	OutExpression = Generator.NewExternalInput(Material::EExternalInput::DistanceCullFade);
+	return true;
+}
+
+bool GenerateStaticTerrainLayerWeightExpression(FName LayerName, float PreviewWeight, FMaterialHLSLGenerator& Generator, const UE::HLSLTree::FExpression*& OutExpression)
+{
+	using namespace UE::HLSLTree;
+	const FExpression* TexCoordExpression = Generator.NewExternalInput(Material::EExternalInput::TexCoord3);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionStaticTerrainLayerWeight>(Generator.GetParameterInfo(LayerName), TexCoordExpression, PreviewWeight);
+	return true;
 }
 
 #endif // WITH_EDITOR

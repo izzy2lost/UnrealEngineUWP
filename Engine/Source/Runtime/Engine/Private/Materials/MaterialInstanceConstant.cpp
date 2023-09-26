@@ -248,6 +248,8 @@ void UMaterialInstanceConstant::UpdateCachedData()
 			FStaticParameterSet OverriddenStaticParameters;
 #if WITH_EDITORONLY_DATA
 			{
+				OverriddenStaticParameters.EditorOnly.TerrainLayerWeightParameters = LocalStaticParameters.EditorOnly.TerrainLayerWeightParameters;
+
 				FMaterialInheritanceChain InstanceChain;
 				GetMaterialInheritanceChain(InstanceChain);
 

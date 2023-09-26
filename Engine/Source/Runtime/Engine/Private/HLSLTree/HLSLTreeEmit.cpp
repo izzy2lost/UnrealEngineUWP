@@ -1005,6 +1005,100 @@ void WriteMaterialUniformAccess(Shader::EValueComponentType ComponentType, uint3
 		OutResult.Append(TEXT(")"));
 	}
 }
+
+void EmitPreshaderField(
+	FEmitContext& Context,
+	TMemoryImageArray<FMaterialUniformPreshaderHeader>& UniformPreshaders,
+	TMemoryImageArray<FMaterialUniformPreshaderField>& UniformPreshaderFields,
+	Shader::FPreshaderData& UniformPreshaderData,
+	FMaterialUniformPreshaderHeader*& PreshaderHeader,
+	TFunction<void (FEmitValuePreshaderResult&)> EmitPreshaderOpcode,
+	const Shader::FValueTypeDescription& TypeDesc,
+	int32 ComponentIndex,
+	FStringBuilderBase& FormattedCode)
+{
+	// Only need to allocate uniform buffer for non-constant components
+	// Constant components can have their value inlined into the shader directly
+	if (!PreshaderHeader)
+	{
+		// Allocate a preshader header the first time we hit a non-constant field
+		PreshaderHeader = &UniformPreshaders.AddDefaulted_GetRef();
+		PreshaderHeader->FieldIndex = UniformPreshaderFields.Num();
+		PreshaderHeader->NumFields = 0u;
+		PreshaderHeader->OpcodeOffset = UniformPreshaderData.Num();
+		FEmitValuePreshaderResult PreshaderResult(UniformPreshaderData);
+		EmitPreshaderOpcode(PreshaderResult);
+		PreshaderHeader->OpcodeSize = UniformPreshaderData.Num() - PreshaderHeader->OpcodeOffset;
+	}
+
+	FMaterialUniformPreshaderField& PreshaderField = UniformPreshaderFields.AddDefaulted_GetRef();
+	PreshaderField.ComponentIndex = ComponentIndex;
+	PreshaderField.Type = TypeDesc.ValueType;
+	PreshaderHeader->NumFields++;
+
+	const int32 NumFieldComponents = TypeDesc.NumComponents;
+	
+	if (TypeDesc.ComponentType == Shader::EValueComponentType::Bool)
+	{
+		// 'Bool' uniforms are packed into bits
+		if (Context.CurrentNumBoolComponents + NumFieldComponents > 32u)
+		{
+			Context.CurrentBoolUniformOffset = Context.UniformPreshaderOffset++;
+			Context.CurrentNumBoolComponents = 0u;
+		}
+
+		const uint32 RegisterIndex = Context.CurrentBoolUniformOffset / 4;
+		const uint32 RegisterOffset = Context.CurrentBoolUniformOffset % 4;
+		FormattedCode.Appendf(TEXT("UnpackUniform_%s(asuint(Material.PreshaderBuffer[%u][%u]), %u)"),
+			TypeDesc.Name,
+			RegisterIndex,
+			RegisterOffset,
+			Context.CurrentNumBoolComponents);
+
+		PreshaderField.BufferOffset = Context.CurrentBoolUniformOffset * 32u + Context.CurrentNumBoolComponents;
+		Context.CurrentNumBoolComponents += NumFieldComponents;
+	}
+	else if (TypeDesc.ComponentType == Shader::EValueComponentType::Double)
+	{
+		// Double uniforms are split into Tile/Offset components to make FLWCScalar/FLWCVectors
+		PreshaderField.BufferOffset = Context.UniformPreshaderOffset;
+
+		if (NumFieldComponents > 1)
+		{
+			FormattedCode.Appendf(TEXT("MakeLWCVector%d("), NumFieldComponents);
+		}
+		else
+		{
+			FormattedCode.Append(TEXT("MakeLWCScalar("));
+		}
+
+		// Write the tile uniform
+		Private::WriteMaterialUniformAccess(Shader::EValueComponentType::Float, NumFieldComponents, Context.UniformPreshaderOffset, FormattedCode);
+		Context.UniformPreshaderOffset += NumFieldComponents;
+		FormattedCode.Append(TEXT(", "));
+
+		// Write the offset uniform
+		Private::WriteMaterialUniformAccess(Shader::EValueComponentType::Float, NumFieldComponents, Context.UniformPreshaderOffset, FormattedCode);
+		Context.UniformPreshaderOffset += NumFieldComponents;
+		FormattedCode.Append(TEXT(")"));
+	}
+	else
+	{
+		// Float/Int uniforms are written directly to the uniform buffer
+		const uint32 RegisterOffset = Context.UniformPreshaderOffset % 4;
+		if (RegisterOffset + NumFieldComponents > 4u)
+		{
+			// If this uniform would span multiple registers, align offset to the next register to avoid this
+			// TODO - we could keep track of this empty padding space, and pack other smaller uniform types here
+			Context.UniformPreshaderOffset = Align(Context.UniformPreshaderOffset, 4u);
+		}
+
+		PreshaderField.BufferOffset = Context.UniformPreshaderOffset;
+		Private::WriteMaterialUniformAccess(TypeDesc.ComponentType, NumFieldComponents, Context.UniformPreshaderOffset, FormattedCode);
+		Context.UniformPreshaderOffset += NumFieldComponents;
+	}
+}
+
 } // namespace Private
 
 FEmitShaderExpression* FEmitContext::EmitPreshaderOrConstant(FEmitScope& Scope, const FRequestedType& RequestedType, const Shader::FType& ResultType, const FExpression* Expression)
@@ -1060,7 +1154,7 @@ FEmitShaderExpression* FEmitContext::EmitPreshaderOrConstant(FEmitScope& Scope, 
 		}
 
 		const Shader::EValueType FieldType = ResultType.GetFlatFieldType(FieldIndex);
-		const Shader::FValueTypeDescription TypeDesc = Shader::GetValueTypeDescription(FieldType);
+		const Shader::FValueTypeDescription& TypeDesc = Shader::GetValueTypeDescription(FieldType);
 		const int32 NumFieldComponents = TypeDesc.NumComponents;
 
 		// If this is a struct, use GetFieldEvaluation()
@@ -1071,85 +1165,21 @@ FEmitShaderExpression* FEmitContext::EmitPreshaderOrConstant(FEmitScope& Scope, 
 
 		if (FieldEvaluation == EExpressionEvaluation::Preshader)
 		{
-			// Only need to allocate uniform buffer for non-constant components
-			// Constant components can have their value inlined into the shader directly
 			FUniformExpressionSet& UniformExpressionSet = MaterialCompilationOutput->UniformExpressionSet;
-			if (!PreshaderHeader)
-			{
-				// Allocate a preshader header the first time we hit a non-constant field
-				PreshaderHeader = &UniformExpressionSet.UniformPreshaders.AddDefaulted_GetRef();
-				PreshaderHeader->FieldIndex = UniformExpressionSet.UniformPreshaderFields.Num();
-				PreshaderHeader->NumFields = 0u;
-				PreshaderHeader->OpcodeOffset = UniformExpressionSet.UniformPreshaderData.Num();
-				FEmitValuePreshaderResult PreshaderResult(UniformExpressionSet.UniformPreshaderData);
-				Expression->EmitValuePreshader(*this, Scope, RequestedType, PreshaderResult);
-				PreshaderHeader->OpcodeSize = UniformExpressionSet.UniformPreshaderData.Num() - PreshaderHeader->OpcodeOffset;
-			}
 
-			FMaterialUniformPreshaderField& PreshaderField = UniformExpressionSet.UniformPreshaderFields.AddDefaulted_GetRef();
-			PreshaderField.ComponentIndex = ComponentIndex;
-			PreshaderField.Type = FieldType;
-			PreshaderHeader->NumFields++;
-
-			if (TypeDesc.ComponentType == Shader::EValueComponentType::Bool)
-			{
-				// 'Bool' uniforms are packed into bits
-				if (CurrentNumBoolComponents + NumFieldComponents > 32u)
+			Private::EmitPreshaderField(
+				*this,
+				UniformExpressionSet.UniformPreshaders,
+				UniformExpressionSet.UniformPreshaderFields,
+				UniformExpressionSet.UniformPreshaderData,
+				PreshaderHeader,
+				[Expression, &Context = *this, &Scope, &RequestedType](FEmitValuePreshaderResult& OutResult)
 				{
-					CurrentBoolUniformOffset = UniformPreshaderOffset++;
-					CurrentNumBoolComponents = 0u;
-				}
-
-				const uint32 RegisterIndex = CurrentBoolUniformOffset / 4;
-				const uint32 RegisterOffset = CurrentBoolUniformOffset % 4;
-				FormattedCode.Appendf(TEXT("UnpackUniform_%s(asuint(Material.PreshaderBuffer[%u][%u]), %u)"),
-					TypeDesc.Name,
-					RegisterIndex,
-					RegisterOffset,
-					CurrentNumBoolComponents);
-
-				PreshaderField.BufferOffset = CurrentBoolUniformOffset * 32u + CurrentNumBoolComponents;
-				CurrentNumBoolComponents += NumFieldComponents;
-			}
-			else if (TypeDesc.ComponentType == Shader::EValueComponentType::Double)
-			{
-				// Double uniforms are split into Tile/Offset components to make FLWCScalar/FLWCVectors
-				PreshaderField.BufferOffset = UniformPreshaderOffset;
-
-				if (NumFieldComponents > 1)
-				{
-					FormattedCode.Appendf(TEXT("MakeLWCVector%d("), NumFieldComponents);
-				}
-				else
-				{
-					FormattedCode.Append(TEXT("MakeLWCScalar("));
-				}
-
-				// Write the tile uniform
-				Private::WriteMaterialUniformAccess(Shader::EValueComponentType::Float, NumFieldComponents, UniformPreshaderOffset, FormattedCode);
-				UniformPreshaderOffset += NumFieldComponents;
-				FormattedCode.Append(TEXT(", "));
-
-				// Write the offset uniform
-				Private::WriteMaterialUniformAccess(Shader::EValueComponentType::Float, NumFieldComponents, UniformPreshaderOffset, FormattedCode);
-				UniformPreshaderOffset += NumFieldComponents;
-				FormattedCode.Append(TEXT(")"));
-			}
-			else
-			{
-				// Float/Int uniforms are written directly to the uniform buffer
-				const uint32 RegisterOffset = UniformPreshaderOffset % 4;
-				if (RegisterOffset + NumFieldComponents > 4u)
-				{
-					// If this uniform would span multiple registers, align offset to the next register to avoid this
-					// TODO - we could keep track of this empty padding space, and pack other smaller uniform types here
-					UniformPreshaderOffset = Align(UniformPreshaderOffset, 4u);
-				}
-
-				PreshaderField.BufferOffset = UniformPreshaderOffset;
-				Private::WriteMaterialUniformAccess(TypeDesc.ComponentType, NumFieldComponents, UniformPreshaderOffset, FormattedCode);
-				UniformPreshaderOffset += NumFieldComponents;
-			}
+					Expression->EmitValuePreshader(Context, Scope, RequestedType, OutResult);
+				},
+				TypeDesc,
+				ComponentIndex,
+				FormattedCode);
 		}
 		else
 		{

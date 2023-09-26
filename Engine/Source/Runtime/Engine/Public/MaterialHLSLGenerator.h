@@ -332,4 +332,10 @@ private:
 	TMap<FXxHash64, int32> CustomExpressionOutputStructIdMap;
 };
 
+ENGINE_API bool GenerateStaticTerrainLayerWeightExpression(
+	FName LayerName,
+	float PreviewWeight,
+	FMaterialHLSLGenerator& Generator,
+	const UE::HLSLTree::FExpression*& OutExpression);
+
 #endif // WITH_EDITOR

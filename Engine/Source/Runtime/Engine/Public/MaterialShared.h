@@ -99,6 +99,11 @@ namespace UE
 namespace HLSLTree
 {
 class FEmitContext;
+
+namespace Material
+{
+class FExpressionStaticTerrainLayerWeight;
+}
 }
 }
 
@@ -660,6 +665,7 @@ protected:
 	friend class FMaterialVirtualTextureStack;
 	friend class FDebugUniformExpressionSet;
 	friend class UE::HLSLTree::FEmitContext;
+	friend class UE::HLSLTree::Material::FExpressionStaticTerrainLayerWeight;
 
 	LAYOUT_FIELD(TMemoryImageArray<FMaterialUniformPreshaderHeader>, UniformPreshaders);
 	LAYOUT_FIELD(TMemoryImageArray<FMaterialUniformPreshaderField>, UniformPreshaderFields);
