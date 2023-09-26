@@ -203,6 +203,7 @@ protected:
 	// Updated every tick
 	TSet<FGuid> ShownActorGuids;
 	TSet<FGuid> DirtyActorGuids;
+	TSet<FGuid> SelectedActorGuids;
 	FLoaderInterfaceSet ShownLoaderInterfaces;
 	FLoaderInterfaceSet HoveredLoaderInterfaces;
 	FLoaderInterfaceStack HoveredLoaderInterfacesStack;
