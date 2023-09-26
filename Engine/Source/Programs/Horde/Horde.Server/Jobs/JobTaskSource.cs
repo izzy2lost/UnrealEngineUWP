@@ -1072,7 +1072,7 @@ namespace Horde.Server.Jobs
 						if (runningStepIdx != -1)
 						{
 							await _jobStepRefs.UpdateAsync(job, batch, batch.Steps[runningStepIdx], graph, logger);
-							await _bisectTasks.UpdateAsync(job, batch, batch.Steps[runningStepIdx], logger);
+							await _bisectTasks.UpdateAsync(job, batch, batch.Steps[runningStepIdx], graph, logger);
 						}
 						break;
 					}

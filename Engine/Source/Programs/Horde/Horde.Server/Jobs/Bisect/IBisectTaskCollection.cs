@@ -8,6 +8,7 @@ using Horde.Server.Perforce;
 using HordeCommon;
 using EpicGames.Horde.Api;
 using Microsoft.Extensions.Logging;
+using Horde.Server.Jobs.Graphs;
 
 namespace Horde.Server.Jobs.Bisect
 {
@@ -136,7 +137,7 @@ namespace Horde.Server.Jobs.Bisect
 
 	static class BisectTaskCollectionExtensions
 	{
-		public static async Task UpdateAsync(this IBisectTaskCollection bisectTasks, IJob job, IJobStepBatch batch, IJobStep step, ILogger ? logger = null, CancellationToken cancellationToken = default)
+		public static async Task UpdateAsync(this IBisectTaskCollection bisectTasks, IJob job, IJobStepBatch batch, IJobStep step, IGraph graph, ILogger ? logger = null, CancellationToken cancellationToken = default)
 		{
 			if (job.StartedByBisectTaskId == null)
 			{
@@ -146,6 +147,12 @@ namespace Horde.Server.Jobs.Bisect
 			IBisectTask? bisectTask = await bisectTasks.GetAsync(job.StartedByBisectTaskId.Value, cancellationToken);
 
 			if (bisectTask == null)
+			{
+				return;
+			}
+
+			string nodeName = graph.Groups[batch.GroupIdx].Nodes[step.NodeIdx].Name;
+			if (nodeName != bisectTask.NodeName)
 			{
 				return;
 			}

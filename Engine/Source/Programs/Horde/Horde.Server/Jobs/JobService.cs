@@ -1087,7 +1087,7 @@ namespace Horde.Server.Jobs
 						if (job.TryGetBatch(batchId, out IJobStepBatch? batch) && batch.TryGetStep(stepId, out IJobStep? step) && step.StartTimeUtc != null)
 						{
 							await _jobStepRefs.UpdateAsync(job, batch, step, graph);
-							await _bisectTasks.UpdateAsync(job, batch, step);
+							await _bisectTasks.UpdateAsync(job, batch, step, graph);
 						}
 					}
 
