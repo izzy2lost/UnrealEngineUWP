@@ -398,6 +398,7 @@ protected:
 
 	bool AllowIniLoading() const;
 
+	bool AllowAsyncLoading() const;
 	bool UseAsyncLoading() const;
 
 private:
