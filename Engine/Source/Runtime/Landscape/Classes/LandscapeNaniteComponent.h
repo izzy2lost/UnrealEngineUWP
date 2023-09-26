@@ -91,6 +91,9 @@ public:
 		return bEnabled;
 	}
 
+	virtual bool NeedsLoadForServer() const override { return false; }
+	virtual bool NeedsLoadForTargetPlatform(const class ITargetPlatform* TargetPlatform) const override;
+
 private:
 	
 	/** Collect all the PSO precache data used by the static mesh component */

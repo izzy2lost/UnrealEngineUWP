@@ -11,6 +11,7 @@
 #include "Engine/StaticMeshSourceData.h"
 #include "NaniteDefinitions.h"
 #include "UObject/Package.h"
+#include "RenderUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LandscapeNaniteComponent)
 
@@ -131,6 +132,12 @@ void ULandscapeNaniteComponent::SetEnabled(bool bValue)
 		bEnabled = bValue;
 		MarkRenderStateDirty();
 	}
+}
+
+bool ULandscapeNaniteComponent::NeedsLoadForTargetPlatform(const class ITargetPlatform* TargetPlatform) const
+{
+	// The ULandscapeNaniteComponent will never contain collision data, so if the platform cannot support rendering nanite, it does not need to be exported
+	return DoesTargetPlatformSupportNanite(TargetPlatform);
 }
 
 bool ULandscapeNaniteComponent::IsHLODRelevant() const
@@ -307,6 +314,8 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 				AsyncBuildData->NaniteStaticMesh->MarkPackageDirty();
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeNaniteComponent::ExportLandscapeAsync - FinalizeOnComponent);
+
+				InStaticMesh->CreateBodySetup();
 				if (UBodySetup* BodySetup = InStaticMesh->GetBodySetup())
 				{
 					BodySetup->DefaultInstance.SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
