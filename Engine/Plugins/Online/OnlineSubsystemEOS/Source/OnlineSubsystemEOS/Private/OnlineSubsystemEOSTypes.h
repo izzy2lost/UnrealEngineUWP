@@ -553,6 +553,36 @@ private:
 
 #include "eos_sessions_types.h"
 
+struct FSessionDetailsEOS : FNoncopyable
+{
+	EOS_HSessionDetails SessionDetailsHandle;
+
+	FSessionDetailsEOS(EOS_HSessionDetails InSessionDetailsHandle)
+		: SessionDetailsHandle(InSessionDetailsHandle)
+	{
+	}
+
+	virtual ~FSessionDetailsEOS()
+	{
+		EOS_SessionDetails_Release(SessionDetailsHandle);
+	}
+};
+
+struct FLobbyDetailsEOS : FNoncopyable
+{
+	EOS_HLobbyDetails LobbyDetailsHandle;
+
+	FLobbyDetailsEOS(EOS_HLobbyDetails InLobbyDetailsHandle)
+		: LobbyDetailsHandle(InLobbyDetailsHandle)
+	{
+	}
+
+	virtual ~FLobbyDetailsEOS()
+	{
+		EOS_LobbyDetails_Release(LobbyDetailsHandle);
+	}
+};
+
 /**
  * Implementation of session information
  */
@@ -575,11 +605,16 @@ PACKAGE_SCOPE:
 		, HostAddr(Src.HostAddr)
 		, SessionId(Src.SessionId)
 		, SessionHandle(Src.SessionHandle)
+		, LobbyHandle(Src.LobbyHandle)
 		, bIsFromClone(true)
 	{
 	}
 
-	FOnlineSessionInfoEOS(const FString& InHostIp, FUniqueNetIdStringRef UniqueNetId, EOS_HSessionDetails InSessionHandle);
+	FOnlineSessionInfoEOS(const FString& InHostIp, FUniqueNetIdStringRef UniqueNetId, const TSharedPtr<FSessionDetailsEOS>& InSessionHandle, const TSharedPtr<FLobbyDetailsEOS>& InLobbyHandle);
+
+	static FOnlineSessionInfoEOS Create(const FString& InHostIp, FUniqueNetIdStringRef UniqueNetId);
+	static FOnlineSessionInfoEOS Create(const FString& InHostIp, FUniqueNetIdStringRef UniqueNetId, const TSharedPtr<FSessionDetailsEOS>& InSessionHandle);
+	static FOnlineSessionInfoEOS Create(const FString& InHostIp, FUniqueNetIdStringRef UniqueNetId, const TSharedPtr<FLobbyDetailsEOS>& InLobbyHandle);
 
 	/**
 	 * Initialize LAN session
@@ -591,8 +626,10 @@ PACKAGE_SCOPE:
 	TSharedPtr<class FInternetAddr> HostAddr;
 	/** Unique Id for this session */
 	FUniqueNetIdStringRef SessionId;
-	/** EOS session handle. Note: this needs to be released by the SDK */
-	EOS_HSessionDetails SessionHandle;
+	/** EOS session handle. The same handle can be shared between a local session and a search result. The struct type will call the release API automatically upon destruction */
+	TSharedPtr<FSessionDetailsEOS> SessionHandle;
+	/** EOS lobby handle. The same handle can be shared between a local session and a search result. The struct type will call the release API automatically upon destruction */
+	TSharedPtr<FLobbyDetailsEOS> LobbyHandle;
 	/** Whether we should delete this handle or not */
 	bool bIsFromClone;
 

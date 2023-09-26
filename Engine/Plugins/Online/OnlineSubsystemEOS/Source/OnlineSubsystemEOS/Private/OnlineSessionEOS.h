@@ -34,21 +34,6 @@ struct FSessionSearchEOS
 	}
 };
 
-struct FLobbyDetailsEOS : FNoncopyable
-{
-	EOS_HLobbyDetails LobbyDetailsHandle;
-
-	FLobbyDetailsEOS(EOS_HLobbyDetails InLobbyDetailsHandle)
-		: LobbyDetailsHandle(InLobbyDetailsHandle)
-	{
-	}
-
-	virtual ~FLobbyDetailsEOS()
-	{
-		EOS_LobbyDetails_Release(LobbyDetailsHandle);
-	}
-};
-
 /**
  * Interface for interacting with EOS sessions
  */
@@ -212,8 +197,7 @@ private:
 	// EOS Lobbies
 
 	EOS_HLobby LobbyHandle;
-	TArray<TSharedRef<FLobbyDetailsEOS>> PendingLobbySearchResults;
-	TMap<FString, TSharedRef<FLobbyDetailsEOS>> LobbySearchResultsCache;
+	TArray<TSharedRef<FLobbyDetailsEOS>> LobbySearchResultsPendingIdResolution;
 
 	// Lobby session callbacks and methods
 	FCallbackBase* LobbyCreatedCallback;
@@ -267,7 +251,7 @@ private:
 	// Methods to update an OSS Lobby from an API Lobby
 	typedef TFunction<void(bool bWasSuccessful)> FOnCopyLobbyDataCompleteCallback;
 	void CopyLobbyData(const TSharedRef<FLobbyDetailsEOS>& LobbyDetails, EOS_LobbyDetails_Info* LobbyDetailsInfo, FOnlineSession& OutSession, const FOnCopyLobbyDataCompleteCallback& Callback);
-	void CopyLobbyAttributes(const TSharedRef<FLobbyDetailsEOS>& LobbyDetails, FOnlineSession& OutSession);
+	void CopyLobbyAttributes(const FLobbyDetailsEOS& LobbyDetails, FOnlineSession& OutSession);
 	void CopyLobbyMemberAttributes(const FLobbyDetailsEOS& LobbyDetails, const EOS_ProductUserId& TargetUserId, FSessionSettings& OutSessionSettings);
 
 	// Lobby search
@@ -307,10 +291,10 @@ private:
 	void BeginSessionAnalytics(FNamedOnlineSession* Session);
 	void EndSessionAnalytics();
 
-	void AddSearchResult(EOS_HSessionDetails SessionHandle, const TSharedRef<FOnlineSessionSearch>& SearchSettings);
+	void AddSearchResult(const TSharedRef<FSessionDetailsEOS>& SessionHandle, const TSharedRef<FOnlineSessionSearch>& SearchSettings);
 	void AddSearchAttribute(EOS_HSessionSearch SearchHandle, const EOS_Sessions_AttributeData* Attribute, EOS_EOnlineComparisonOp ComparisonOp);
-	void CopySearchResult(EOS_HSessionDetails SessionHandle, EOS_SessionDetails_Info* SessionInfo, FOnlineSession& SessionSettings);
-	void CopyAttributes(EOS_HSessionDetails SessionHandle, FOnlineSession& OutSession);
+	void CopySearchResult(const FSessionDetailsEOS& SessionHandle, EOS_SessionDetails_Info* SessionInfo, FOnlineSession& SessionSettings);
+	void CopyAttributes(const FSessionDetailsEOS& SessionHandle, FOnlineSession& OutSession);
 
 	void SetPermissionLevel(EOS_HSessionModification SessionModHandle, FNamedOnlineSession* Session);
 	void SetMaxPlayers(EOS_HSessionModification SessionModHandle, FNamedOnlineSession* Session);
