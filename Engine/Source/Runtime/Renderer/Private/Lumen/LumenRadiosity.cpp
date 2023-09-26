@@ -530,6 +530,7 @@ class FLumenRadiosityIntegrateCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, RadiosityProbeSHGreenAtlas)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, RadiosityProbeSHBlueAtlas)
 		SHADER_PARAMETER(float, ProbePlaneWeightingDepthScale)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FPlaneWeighting : SHADER_PERMUTATION_BOOL("INTERPOLATION_PLANE_WEIGHTING");
@@ -944,6 +945,7 @@ void LumenRadiosity::AddRadiosityPass(
 		PassParameters->RadiosityProbeSHGreenAtlas = RadiosityProbeSHGreenAtlas;
 		PassParameters->RadiosityProbeSHBlueAtlas = RadiosityProbeSHBlueAtlas;
 		PassParameters->ProbePlaneWeightingDepthScale = GRadiosityProbePlaneWeightingDepthScale;
+		PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 
 		FLumenRadiosityIntegrateCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FLumenRadiosityIntegrateCS::FPlaneWeighting>(GRadiosityFilteringProbePlaneWeighting != 0);
