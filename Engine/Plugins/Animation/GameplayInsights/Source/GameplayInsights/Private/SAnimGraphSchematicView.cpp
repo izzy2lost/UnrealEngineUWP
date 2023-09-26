@@ -44,6 +44,7 @@ namespace AnimGraphSchematicColumns
 {
 	static const FName Type("Type");
 	static const FName Name("Name");
+	static const FName Asset("Asset");
 	static const FName Weight("Weight");
 	static const FName RootMotionWeight("Root Motion Weight");
 };
@@ -393,6 +394,7 @@ void SAnimGraphSchematicView::Construct(const FArguments& InArgs, uint64 InAnimI
 	// Make default columns
 	Columns.Add(AnimGraphSchematicColumns::Type, { 0, true });
 	Columns.Add(AnimGraphSchematicColumns::Name, { 1, true });
+	Columns.Add(AnimGraphSchematicColumns::Asset, { 2, true });
 	Columns.Add(AnimGraphSchematicColumns::Weight, { 99999, true });
 	Columns.Add(AnimGraphSchematicColumns::RootMotionWeight, { 100000, false });
 

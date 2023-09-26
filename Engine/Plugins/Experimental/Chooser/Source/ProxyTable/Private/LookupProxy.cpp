@@ -116,3 +116,11 @@ void FLookupProxy::Compile(IHasContextClass* HasContext, bool bForce)
 		}
 	}
 }
+
+void FLookupProxy::GetDebugName(FString& OutName) const
+{
+	if (Proxy)
+	{
+		OutName = Proxy.GetName();
+	}
+}

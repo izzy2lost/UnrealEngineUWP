@@ -71,4 +71,6 @@ public:
 		}
 		return EIteratorStatus::Continue;
 	}
+
+	virtual void GetDebugName(FString& OutDebugName) const {};
 };

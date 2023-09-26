@@ -112,7 +112,7 @@ void FAnimNode_SequencePlayerBase::UpdateAssetPlayer(const FAnimationUpdateConte
 
 	TRACE_ANIM_SEQUENCE_PLAYER(Context, *this);
 	TRACE_ANIM_NODE_VALUE(Context, TEXT("Name"), CurrentSequence != nullptr ? CurrentSequence->GetFName() : NAME_None);
-	TRACE_ANIM_NODE_VALUE(Context, TEXT("Sequence"), CurrentSequence);
+	TRACE_ANIM_NODE_VALUE(Context, TEXT("Asset"), CurrentSequence);
 	TRACE_ANIM_NODE_VALUE(Context, TEXT("Playback Time"), InternalTimeAccumulator);
 }
 

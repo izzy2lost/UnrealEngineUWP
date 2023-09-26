@@ -22,7 +22,9 @@ void UChooserTable::PostLoad()
 #if WITH_EDITOR
 	CachedPreviousOutputObjectType = OutputObjectType;
 	CachedPreviousResultType = ResultType;
+#endif
 
+#if WITH_EDITORONLY_DATA
 	// convert old data if it exists
 
 	if (ContextObjectType_DEPRECATED)
@@ -322,4 +324,12 @@ UObject* FEvaluateChooser::ChooseObject(FChooserEvaluationContext& Context) cons
 FObjectChooserBase::EIteratorStatus FEvaluateChooser::ChooseMulti(FChooserEvaluationContext& Context, FObjectChooserIteratorCallback Callback) const
 {
 	return UChooserTable::EvaluateChooser(Context, Chooser, Callback);
+}
+
+void FEvaluateChooser::GetDebugName(FString& OutDebugName) const
+{
+	if (Chooser)
+	{
+		OutDebugName = Chooser.GetName();
+	}
 }

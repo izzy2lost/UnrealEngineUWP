@@ -110,6 +110,8 @@ struct CHOOSER_API FEvaluateChooser : public FObjectChooserBase
 
 	virtual UObject* ChooseObject(FChooserEvaluationContext& Context) const final override;
 	virtual EIteratorStatus ChooseMulti(FChooserEvaluationContext &Context, FObjectChooserIteratorCallback Callback) const final override;
+	virtual void GetDebugName(FString& OutDebugName) const override;
+	
 	public:
 
 	FEvaluateChooser() : Chooser(nullptr) {}

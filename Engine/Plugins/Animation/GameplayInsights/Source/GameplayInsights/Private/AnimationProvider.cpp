@@ -497,7 +497,7 @@ FText FAnimationProvider::FormatNodeValue(const FAnimNodeValueMessage& InMessage
 	case EAnimNodeValueType::Object:
 	{
 		const FObjectInfo& ObjectInfo = GameplayProvider.GetObjectInfo(InMessage.Value.Object.Value);
-		Text = FText::FromString(ObjectInfo.PathName);
+		Text = FText::FromString(ObjectInfo.Name);
 		break;
 	}
 	case EAnimNodeValueType::Class:

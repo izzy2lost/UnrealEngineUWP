@@ -1141,8 +1141,12 @@ void FRewindDebugger::Tick(float DeltaTime)
 																	TRACE_CPUPROFILER_EVENT_SCOPE(AnimGraphNodeValues);
 																	InNodeValuesTimeline.EnumerateEvents(InGraphStartTime, InGraphEndTime, [AnimationProvider, &DebugData](double InStartTime, double InEndTime, uint32 InDepth, const FAnimNodeValueMessage& InMessage)
 																	{
-																		FText Text = AnimationProvider->FormatNodeKeyValue(InMessage);
-																		DebugData.RecordNodeValue(InMessage.NodeId, Text.ToString());
+																		// don't send "Name" Node value for display in the graph
+																		if (FPlatformString::Strcmp(InMessage.Key, TEXT("Name")) != 0)
+																		{
+																			FText Text = AnimationProvider->FormatNodeKeyValue(InMessage);
+																			DebugData.RecordNodeValue(InMessage.NodeId, Text.ToString());
+																		}
 																		return TraceServices::EEventEnumerate::Continue;
 																	});
 																});
