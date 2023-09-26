@@ -410,6 +410,7 @@ namespace Horde.Server.Jobs
 			indexes.Add(keys => keys.Ascending(x => x.StartedByUserId));
 			indexes.Add(keys => keys.Ascending(x => x.TemplateId));
 			indexes.Add(keys => keys.Descending(x => x.SchedulePriority));
+			indexes.Add(keys => keys.Descending(x => x.StartedByBisectTaskId));
 			_jobs = mongoService.GetCollection<JobDocument>("Jobs", indexes);
 		}
 
