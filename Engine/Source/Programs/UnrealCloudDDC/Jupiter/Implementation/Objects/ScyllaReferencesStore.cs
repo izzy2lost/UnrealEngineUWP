@@ -277,6 +277,11 @@ namespace Jupiter.Implementation
 					continue;
 				}
 
+				if (blobIdentifier == null)
+				{
+					continue;
+				}
+
 				yield return (new RefId(name), blobIdentifier.AsBlobIdentifier());
 			}
 		}

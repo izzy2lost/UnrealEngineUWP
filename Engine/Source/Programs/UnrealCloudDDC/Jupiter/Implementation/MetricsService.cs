@@ -93,7 +93,8 @@ namespace Jupiter.Implementation
 					await foreach (BucketId bucket in _referencesStore.GetBuckets(ns).WithCancellation(cancellationToken))
 					{
 						DateTime start = DateTime.UtcNow;
-						
+						_logger.LogInformation("Calculating stats for {Namespace} {Bucket}", ns, bucket);
+
 						await calculator.CalculateStatsForBucketAsync(ns, bucket);
 
 						TimeSpan duration = DateTime.UtcNow - start;
