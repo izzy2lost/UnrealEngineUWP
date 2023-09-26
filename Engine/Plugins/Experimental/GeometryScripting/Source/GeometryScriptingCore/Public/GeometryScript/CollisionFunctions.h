@@ -127,6 +127,20 @@ public:
 	FGeometryScriptSimpleCollisionTriangulationOptions ShapeToHullTriangulation;
 };
 
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptConvexHullSimplificationOptions
+{
+	GENERATED_BODY()
+public:
+
+	/** Simplified hull should stay within this distance of the initial convex hull. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	float SimplificationDistanceThreshold = 10.f;
+
+	/** The minimum number of faces to use for the convex hull. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (ClampMin = 4))
+	int32 MinTargetFaceCount = 12;
+};
 
 UCLASS(meta = (ScriptName = "GeometryScript_Collision"))
 class GEOMETRYSCRIPTINGCORE_API UGeometryScriptLibrary_CollisionFunctions : public UBlueprintFunctionLibrary
@@ -224,6 +238,20 @@ public:
 		return SimpleCollision.AggGeom.GetElementCount();
 	}
 
+	/**
+	 * Simplify any convex hulls in the given simple collision representation. Updates the passed-in Simple Collision.
+	 *
+	 * @param SimpleCollision		The collision in which to attempt to simplify the convex hulls
+	 * @param ConvexSimplifyOptions	Options controlling how convex hulls are simplified
+	 * @param bHasSimplified		Indicates whether any convex hulls were modified
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision", meta = (AutoCreateRefTerm = "SimplifyOptions"))
+	static void SimplifyConvexHulls(
+		UPARAM(ref) FGeometryScriptSimpleCollision& SimpleCollision,
+		const FGeometryScriptConvexHullSimplificationOptions& SimplifyOptions,
+		bool& bHasSimplified,
+		UGeometryScriptDebug* Debug = nullptr
+	);
 
 	/**
 	 * Attempt to merge collision shapes to create a representation with fewer overall shapes.
