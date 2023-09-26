@@ -348,11 +348,6 @@ public:
 	FAsyncLoadingThread(int32 InThreadIndex);
 	virtual ~FAsyncLoadingThread();
 
-	virtual FName GetLoaderName() const override
-	{
-		return TEXT("LegacyLoader");
-	}
-
 	IAsyncPackageLoader* GetIoStorePackageLoader() const
 	{
 		return IoStorePackageLoader;

@@ -230,8 +230,6 @@ public:
 
 	virtual void NotifyRegistrationComplete() = 0;
 
-	virtual FName GetLoaderName() const = 0;
-
 protected:
 	static int32 GetNextRequestId();
 
