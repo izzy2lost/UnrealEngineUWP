@@ -244,6 +244,9 @@ private:
 	/** If any VT producer destroyed callbacks have been registered */
 	mutable uint8 HasVirtualTextureCallbacks : 1;
 
+	/** Mutex for locking uniform expression invalidation / evaluation for this material. */
+	mutable UE::FMutex Mutex;
+
 #if WITH_EDITOR
 	/**
 	 * Tracks all material render proxies in all scenes.

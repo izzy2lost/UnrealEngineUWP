@@ -499,6 +499,8 @@ void FMaterialRenderProxy::InvalidateUniformExpressionCache(bool bRecreateUnifor
 	FStaticLightingSystemInterface::OnMaterialInvalidated.Broadcast(this);
 #endif
 
+	UE::TScopeLock Lock(Mutex);
+
 	if (HasVirtualTextureCallbacks)
 	{
 		GetRendererModule().RemoveAllVirtualTextureProducerDestroyedCallbacks(this);
@@ -527,6 +529,7 @@ void FMaterialRenderProxy::UpdateUniformExpressionCacheIfNeeded(FRHICommandListB
 	const FMaterial* Material = GetMaterialNoFallback(InFeatureLevel);
 	// Note: We would actually need to compare the FMaterialShaderMapId of both shader maps but a simple pointer compare also works
 	// because shader maps are currently swapped out whenever they are modified.
+	UE::TScopeLock Lock(Mutex);
 	if (Material && Material->GetRenderingThreadShaderMap() != UniformExpressionCache[InFeatureLevel].CachedUniformExpressionShaderMap)
 	{
 		FMaterialRenderContext MaterialRenderContext(this, *Material, nullptr);
@@ -689,7 +692,11 @@ void FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions(FRHICommandLis
 		GUniformExpressionCacheAsyncUpdateTask.Wait();
 	}
 
-	auto EvaluateUniformExpressionsLambda = [RHICmdListTask, bAllowAsyncUpdate]
+	DeferredUniformExpressionCacheRequestsMutex.Lock();
+	TSet<FMaterialRenderProxy*> UniformExpressions = MoveTemp(DeferredUniformExpressionCacheRequests);
+	DeferredUniformExpressionCacheRequestsMutex.Unlock();
+
+	auto EvaluateUniformExpressionsLambda = [RHICmdListTask, bAllowAsyncUpdate, UniformExpressions = MoveTemp(UniformExpressions)]
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions);
 		CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Material_UpdateDeferredCachedUniformExpressions);
@@ -699,32 +706,27 @@ void FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions(FRHICommandLis
 		FUniformExpressionCacheAsyncUpdater Updater;
 		FUniformExpressionCacheAsyncUpdater* UpdaterIfEnabled = bAllowAsyncUpdate ? &Updater : nullptr;
 
+		for (TSet<FMaterialRenderProxy*>::TConstIterator It(UniformExpressions); It; ++It)
 		{
-			UE::TScopeLock Lock(DeferredUniformExpressionCacheRequestsMutex);
-
-			for (TSet<FMaterialRenderProxy*>::TConstIterator It(DeferredUniformExpressionCacheRequests); It; ++It)
+			FMaterialRenderProxy* MaterialProxy = *It;
+			if (MaterialProxy->IsDeleted())
 			{
-				FMaterialRenderProxy* MaterialProxy = *It;
-				if (MaterialProxy->IsDeleted())
-				{
-					UE_LOG(LogMaterial, Fatal, TEXT("FMaterialRenderProxy deleted and GC mark was: %i"), MaterialProxy->IsMarkedForGarbageCollection());
-				}
-
-				UMaterialInterface::IterateOverActiveFeatureLevels([&](ERHIFeatureLevel::Type InFeatureLevel)
-				{
-					// Don't bother caching if we'll be falling back to a different FMaterialRenderProxy for rendering anyway
-					const FMaterial* Material = MaterialProxy->GetMaterialNoFallback(InFeatureLevel);
-					if (Material && Material->GetRenderingThreadShaderMap())
-					{
-						FMaterialRenderContext MaterialRenderContext(MaterialProxy, *Material, nullptr);
-						MaterialRenderContext.bShowSelection = GIsEditor;
-						MaterialProxy->EvaluateUniformExpressions(*RHICmdListTask, MaterialProxy->UniformExpressionCache[(int32)InFeatureLevel], MaterialRenderContext, UpdaterIfEnabled);
-					}
-				});
-
-				MaterialProxy->FinishCacheUniformExpressions();
+				UE_LOG(LogMaterial, Fatal, TEXT("FMaterialRenderProxy deleted and GC mark was: %i"), MaterialProxy->IsMarkedForGarbageCollection());
 			}
-			DeferredUniformExpressionCacheRequests.Reset();
+
+			UMaterialInterface::IterateOverActiveFeatureLevels([&](ERHIFeatureLevel::Type InFeatureLevel)
+			{
+				// Don't bother caching if we'll be falling back to a different FMaterialRenderProxy for rendering anyway
+				const FMaterial* Material = MaterialProxy->GetMaterialNoFallback(InFeatureLevel);
+				if (Material && Material->GetRenderingThreadShaderMap())
+				{
+					FMaterialRenderContext MaterialRenderContext(MaterialProxy, *Material, nullptr);
+					MaterialRenderContext.bShowSelection = GIsEditor;
+					MaterialProxy->EvaluateUniformExpressions(*RHICmdListTask, MaterialProxy->UniformExpressionCache[(int32)InFeatureLevel], MaterialRenderContext, UpdaterIfEnabled);
+				}
+			});
+
+			MaterialProxy->FinishCacheUniformExpressions();
 		}
 
 		if (UpdaterIfEnabled)
