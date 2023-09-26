@@ -943,9 +943,6 @@ void FViewInfo::Init()
 	NumSphereReflectionCaptures = 0;
 	FurthestReflectionCaptureDistance = 0;
 
-	// Disable HDR encoding for editor elements.
-	EditorSimpleElementCollector.BatchedElements.EnableMobileHDREncoding(false);
-	
 	TemporalJitterSequenceLength = 1;
 	TemporalJitterIndex = 0;
 	TemporalJitterPixels = FVector2D::ZeroVector;

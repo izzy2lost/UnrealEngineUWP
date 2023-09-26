@@ -237,10 +237,34 @@ public:
 			+ Sprites.GetAllocatedSize() + MeshElements.GetAllocatedSize() + MeshVertices.GetAllocatedSize();
 	}
 
-	void EnableMobileHDREncoding(bool bInEnableHDREncoding)
+	UE_DEPRECATED(5.4, "EnableMobileHDREncoding is no longer supported")
+	void EnableMobileHDREncoding(bool bInEnableHDREncoding) {}
+
+	class FAllocationInfo
 	{
-		bEnableHDREncoding = bInEnableHDREncoding;
-	}
+	public:
+		FAllocationInfo() = default;
+
+	private:
+		int32 NumPoints = 0;
+		int32 NumWireTris = 0;
+		int32 NumWireTriVerts = 0;
+		int32 NumThickLines = 0;
+		int32 NumSprites = 0;
+		int32 NumMeshElements = 0;
+		int32 NumMeshVertices = 0;
+
+		friend FBatchedElements;
+	};
+
+	/** Accumulates allocation info for use calling Reserve. */
+	ENGINE_API void AddAllocationInfo(FAllocationInfo& AllocationInfo) const;
+
+	/** Reserves memory for all containers. */
+	ENGINE_API void Reserve(const FAllocationInfo& AllocationInfo);
+
+	/** Appends contents of another batched elements into this one and clears the other one. */
+	ENGINE_API void Append(FBatchedElements& Other);
 
 private:
 
@@ -347,8 +371,5 @@ private:
 		const FSceneView* View = nullptr,
 		float OpacityMaskRefVal = .5f
 		) const;
-
-	/** if false then prevent the use of HDR encoded shaders. */
-	bool bEnableHDREncoding;
 };
 

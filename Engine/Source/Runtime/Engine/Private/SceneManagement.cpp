@@ -156,10 +156,7 @@ TGlobalResource<FDefaultWorkingColorSpaceUniformBuffer> GDefaultWorkingColorSpac
 
 FSimpleElementCollector::FSimpleElementCollector() :
 	FPrimitiveDrawInterface(nullptr)
-{
-	static auto* MobileHDRCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MobileHDR"));
-	bIsMobileHDR = (MobileHDRCvar->GetValueOnAnyThread() == 1);
-}
+{}
 
 FSimpleElementCollector::~FSimpleElementCollector()
 {
@@ -311,6 +308,28 @@ void FSimpleElementCollector::DrawBatchedElements(FRHICommandList& RHICmdList, c
 		);
 }
 
+void FSimpleElementCollector::AddAllocationInfo(FAllocationInfo& AllocationInfo) const
+{
+	BatchedElements.AddAllocationInfo(AllocationInfo.BatchedElements);
+	TopBatchedElements.AddAllocationInfo(AllocationInfo.TopBatchedElements);
+	AllocationInfo.NumDynamicResources += DynamicResources.Num();
+}
+
+void FSimpleElementCollector::Reserve(const FAllocationInfo& AllocationInfo)
+{
+	BatchedElements.Reserve(AllocationInfo.BatchedElements);
+	TopBatchedElements.Reserve(AllocationInfo.TopBatchedElements);
+	DynamicResources.Reserve(AllocationInfo.NumDynamicResources);
+}
+
+void FSimpleElementCollector::Append(FSimpleElementCollector& Other)
+{
+	BatchedElements.Append(Other.BatchedElements);
+	TopBatchedElements.Append(Other.TopBatchedElements);
+	DynamicResources.Append(Other.DynamicResources);
+	Other.DynamicResources.Empty();
+}
+
 FMeshBatchAndRelevance::FMeshBatchAndRelevance(const FMeshBatch& InMesh, const FPrimitiveSceneProxy* InPrimitiveSceneProxy, ERHIFeatureLevel::Type FeatureLevel) :
 	Mesh(&InMesh),
 	PrimitiveSceneProxy(InPrimitiveSceneProxy)
@@ -349,11 +368,12 @@ FRayTracingMaterialGatheringContext::~FRayTracingMaterialGatheringContext()
 
 #endif
 
-FMeshElementCollector::FMeshElementCollector(ERHIFeatureLevel::Type InFeatureLevel, FSceneRenderingBulkObjectAllocator& InBulkAllocator) :
+FMeshElementCollector::FMeshElementCollector(ERHIFeatureLevel::Type InFeatureLevel, FSceneRenderingBulkObjectAllocator& InBulkAllocator, ECommitFlags InCommitFlags) :
 	OneFrameResources(InBulkAllocator),
 	PrimitiveSceneProxy(NULL),
 	DynamicReadBuffer(nullptr),
 	FeatureLevel(InFeatureLevel),
+	CommitFlags(InCommitFlags),
 	bUseGPUScene(UseGPUScene(GMaxRHIShaderPlatform, FeatureLevel))
 {
 }
@@ -375,18 +395,17 @@ void FMeshElementCollector::SetPrimitive(const FPrimitiveSceneProxy* InPrimitive
 	for (int32 ViewIndex = 0; ViewIndex < SimpleElementCollectors.Num(); ViewIndex++)
 	{
 		SimpleElementCollectors[ViewIndex]->HitProxyId = DefaultHitProxyId;
-		SimpleElementCollectors[ViewIndex]->PrimitiveMeshId = 0;
 	}
 
 	for (int32 ViewIndex = 0; ViewIndex < MeshIdInPrimitivePerView.Num(); ++ViewIndex)
 	{
 		MeshIdInPrimitivePerView[ViewIndex] = 0;
 	}
+
 #if UE_ENABLE_DEBUG_DRAWING
 	for (int32 ViewIndex = 0; ViewIndex < DebugSimpleElementCollectors.Num(); ViewIndex++)
 	{
 		DebugSimpleElementCollectors[ViewIndex]->HitProxyId = DefaultHitProxyId;
-		DebugSimpleElementCollectors[ViewIndex]->PrimitiveMeshId = 0;
 	}
 #endif
 }
@@ -405,7 +424,7 @@ void FMeshElementCollector::Start(
 }
 
 void FMeshElementCollector::AddViewMeshArrays(
-	FSceneView* InView,
+	const FSceneView* InView,
 	TArray<FMeshBatchAndRelevance, SceneRenderingAllocator>* ViewMeshes,
 	FSimpleElementCollector* ViewSimpleElementCollector,
 	FGPUScenePrimitiveCollector* DynamicPrimitiveCollector
@@ -482,13 +501,26 @@ void FMeshElementCollector::Finish()
 	RHICmdList = nullptr;
 }
 
+void FMeshElementCollector::CacheUniformExpressions(FMaterialRenderProxy* Proxy, bool bRecreateUniformBuffer)
+{
+	check(Proxy);
+	if (EnumHasAnyFlags(CommitFlags, ECommitFlags::DeferMaterials))
+	{
+		MaterialProxiesToInvalidate.Emplace(Proxy, bRecreateUniformBuffer);
+	}
+	else
+	{
+		Proxy->InvalidateUniformExpressionCache(bRecreateUniformBuffer);
+	}
+}
+
 void FMeshElementCollector::AddMesh(int32 ViewIndex, FMeshBatch& MeshBatch)
 {
 	DEFINE_LOG_CATEGORY_STATIC(FMeshElementCollector_AddMesh, Warning, All);
 
 	if (MeshBatch.bCanApplyViewModeOverrides)
 	{
-		FSceneView* View = Views[ViewIndex];
+		const FSceneView* View = Views[ViewIndex];
 
 		ApplyViewModeOverrides(
 			ViewIndex,
@@ -509,10 +541,24 @@ void FMeshElementCollector::AddMesh(int32 ViewIndex, FMeshBatch& MeshBatch)
 
 	if (bUseGPUScene && MeshBatch.VertexFactory->GetPrimitiveIdStreamIndex(FeatureLevel, EVertexInputStreamType::Default) >= 0)
 	{
-		MeshBatchesForGPUScene.Emplace(DynamicPrimitiveCollectorPerView[ViewIndex], &MeshBatch);
+		if (EnumHasAnyFlags(CommitFlags, ECommitFlags::DeferGPUScene))
+		{
+			MeshBatchesForGPUScene.Emplace(DynamicPrimitiveCollectorPerView[ViewIndex], &MeshBatch);
+		}
+		else
+		{
+			GetRendererModule().AddMeshBatchToGPUScene(DynamicPrimitiveCollectorPerView[ViewIndex], MeshBatch);
+		}
 	}
 
-	MaterialProxiesToUpdate.Emplace(MeshBatch.MaterialRenderProxy);
+	if (EnumHasAnyFlags(CommitFlags, ECommitFlags::DeferMaterials))
+	{
+		MaterialProxiesToUpdate.Emplace(MeshBatch.MaterialRenderProxy);
+	}
+	else
+	{
+		MeshBatch.MaterialRenderProxy->UpdateUniformExpressionCacheIfNeeded(*RHICmdList, FeatureLevel);
+	}
 
 	MeshBatch.MeshIdInPrimitive = MeshIdInPrimitivePerView[ViewIndex];
 	++MeshIdInPrimitivePerView[ViewIndex];

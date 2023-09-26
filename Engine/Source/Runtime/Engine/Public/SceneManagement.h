@@ -1585,7 +1585,7 @@ class FPrimitiveDrawInterface
 {
 public:
 
-	const FSceneView* const View;
+	const FSceneView* View;
 
 	/** Initialization constructor. */
 	FPrimitiveDrawInterface(const FSceneView* InView):
@@ -1776,6 +1776,28 @@ public:
 
 	ENGINE_API void DrawBatchedElements(FRHICommandList& RHICmdList, const FMeshPassProcessorRenderState& DrawRenderState, const FSceneView& InView, EBlendModeFilter::Type Filter, ESceneDepthPriorityGroup DPG) const;
 
+	class FAllocationInfo
+	{
+	public:
+		FAllocationInfo() = default;
+
+	private:
+		FBatchedElements::FAllocationInfo BatchedElements;
+		FBatchedElements::FAllocationInfo TopBatchedElements;
+		uint32 NumDynamicResources = 0;
+
+		friend FSimpleElementCollector;
+	};
+
+	/** Accumulates allocation info for use calling Reserve. */
+	ENGINE_API void AddAllocationInfo(FAllocationInfo& AllocationInfo) const;
+
+	/** Reserves memory for all containers. */
+	ENGINE_API void Reserve(const FAllocationInfo& AllocationInfo);
+
+	/** Appends contents of another batched elements into this one and clears the other one. */
+	ENGINE_API void Append(FSimpleElementCollector& Other);
+
 	bool HasAnyPrimitives() const
 	{
 		return BatchedElements.HasPrimsToDraw() || TopBatchedElements.HasPrimsToDraw();
@@ -1796,11 +1818,7 @@ public:
 	FBatchedElements TopBatchedElements;
 
 private:
-
 	FHitProxyId HitProxyId;
-	uint16 PrimitiveMeshId;
-
-	bool bIsMobileHDR;
 
 	/** The dynamic resources which have been registered with this drawer. */
 	TArray<FDynamicPrimitiveResource*,SceneRenderingAllocator> DynamicResources;
@@ -1931,11 +1949,7 @@ public:
 	}
 
 	/** Adds a request to force caching of uniform expressions for a material render proxy. */
-	void CacheUniformExpressions(FMaterialRenderProxy* Proxy, bool bRecreateUniformBuffer)
-	{
-		check(Proxy);
-		MaterialProxiesToInvalidate.Emplace(Proxy, bRecreateUniformBuffer);
-	}
+	ENGINE_API void CacheUniformExpressions(FMaterialRenderProxy* Proxy, bool bRecreateUniformBuffer);
 
 	/** Allocates a temporary resource that is safe to be referenced by an FMeshBatch added to the collector. */
 	template<typename T, typename... ARGS>
@@ -1965,8 +1979,21 @@ public:
 	}
 
 protected:
+	enum class ECommitFlags
+	{
+		None = 0,
 
-	ENGINE_API FMeshElementCollector(ERHIFeatureLevel::Type InFeatureLevel, FSceneRenderingBulkObjectAllocator& InBulkAllocator);
+		// Defers material uniform expression updates until Commit or Finish is called.
+		DeferMaterials = 1 << 0,
+
+		// Defers GPU scene updates until Commit or Finish is called.
+		DeferGPUScene  = 1 << 1,
+
+		DeferAll = DeferMaterials | DeferGPUScene
+	};
+	FRIEND_ENUM_CLASS_FLAGS(ECommitFlags);
+
+	ENGINE_API FMeshElementCollector(ERHIFeatureLevel::Type InFeatureLevel, FSceneRenderingBulkObjectAllocator& InBulkAllocator, ECommitFlags CommitFlags = ECommitFlags::None);
 
 	ENGINE_API ~FMeshElementCollector();
 
@@ -1979,7 +2006,7 @@ protected:
 		FGlobalDynamicReadBuffer& DynamicReadBuffer);
 
 	ENGINE_API void AddViewMeshArrays(
-		FSceneView* InView,
+		const FSceneView* InView,
 		TArray<FMeshBatchAndRelevance, SceneRenderingAllocator>* ViewMeshes,
 		FSimpleElementCollector* ViewSimpleElementCollector,
 		FGPUScenePrimitiveCollector* DynamicPrimitiveCollector
@@ -1998,7 +2025,7 @@ protected:
 	 * Using TChunkedArray which will never realloc as new elements are added
 	 * @todo - use mem stack
 	 */
-	TChunkedArray<FMeshBatch> MeshBatchStorage;
+	TChunkedArray<FMeshBatch, 1024, FConcurrentLinearArrayAllocator> MeshBatchStorage;
 
 	/** Meshes to render */
 	TArray<TArray<FMeshBatchAndRelevance, SceneRenderingAllocator>*, TInlineAllocator<2, SceneRenderingAllocator> > MeshBatches;
@@ -2014,7 +2041,7 @@ protected:
 #endif
 
 	/** Views being collected for */
-	TArray<FSceneView*, TInlineAllocator<2, SceneRenderingAllocator>> Views;
+	TArray<const FSceneView*, TInlineAllocator<2, SceneRenderingAllocator>> Views;
 
 	/** Current Mesh Id In Primitive per view */
 	TArray<uint16, TInlineAllocator<2, SceneRenderingAllocator>> MeshIdInPrimitivePerView;
@@ -2045,6 +2072,7 @@ protected:
 	FRHICommandList* RHICmdList = nullptr;
 
 	const ERHIFeatureLevel::Type FeatureLevel;
+	const ECommitFlags CommitFlags;
 	const bool bUseGPUScene;
 
 	/** Tracks dynamic primitive data for upload to GPU Scene for every view, when enabled. */
@@ -2057,8 +2085,12 @@ protected:
 	friend class FCardPageRenderData;
 	friend class FViewFamilyInfo;
 	friend class FShadowMeshCollector;
+	friend class FDynamicMeshElementContext;
 	friend struct FRayTracingMaterialGatheringContext;
+	friend FSceneRenderingBulkObjectAllocator;
 };
+
+ENUM_CLASS_FLAGS(FMeshElementCollector::ECommitFlags);
 
 #if RHI_RAYTRACING
 /**

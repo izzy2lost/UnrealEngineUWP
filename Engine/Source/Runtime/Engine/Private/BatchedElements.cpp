@@ -130,7 +130,6 @@ FBatchedElements::FBatchedElements()
 	, MaxMeshIndicesAllowed(GDrawUPIndexCheckCount / sizeof(int32))
 	// the index buffer is 2 bytes, so make sure we only address 0xFFFF vertices in the index buffer
 	, MaxMeshVerticesAllowed(FMath::Min<uint32>(0xFFFF, GDrawUPVertexCheckCount / sizeof(FSimpleElementVertex)))
-	, bEnableHDREncoding(true)
 {
 }
 
@@ -1309,10 +1308,45 @@ bool FBatchedElements::Draw(FRHICommandList& RHICmdList, const FMeshPassProcesso
 
 void FBatchedElements::Clear()
 {
-	LineVertices.Empty();
 	Points.Empty();
+	WireTris.Empty();
+	WireTriVerts.Empty();
+	ThickLines.Empty();
 	Sprites.Empty();
 	MeshElements.Empty();
-	ThickLines.Empty();
 	MeshVertices.Empty();
+}
+
+void FBatchedElements::AddAllocationInfo(FAllocationInfo& AllocationInfo) const
+{
+	AllocationInfo.NumPoints += Points.Num();
+	AllocationInfo.NumWireTris += WireTris.Num();
+	AllocationInfo.NumWireTriVerts += WireTriVerts.Num();
+	AllocationInfo.NumThickLines += ThickLines.Num();
+	AllocationInfo.NumSprites += Sprites.Num();
+	AllocationInfo.NumMeshElements += MeshElements.Num();
+	AllocationInfo.NumMeshVertices += MeshVertices.Num();
+}
+
+void FBatchedElements::Reserve(const FAllocationInfo& AllocationInfo)
+{
+	Points.Reserve(AllocationInfo.NumPoints);
+	WireTris.Reserve(AllocationInfo.NumWireTris);
+	WireTriVerts.Reserve(AllocationInfo.NumWireTriVerts);
+	ThickLines.Reserve(AllocationInfo.NumThickLines);
+	Sprites.Reserve(AllocationInfo.NumSprites);
+	MeshElements.Reserve(AllocationInfo.NumMeshElements);
+	MeshVertices.Reserve(AllocationInfo.NumMeshVertices);
+}
+
+void FBatchedElements::Append(FBatchedElements& Other)
+{
+	Points.Append(Other.Points);
+	WireTris.Append(Other.WireTris);
+	WireTriVerts.Append(Other.WireTriVerts);
+	ThickLines.Append(Other.ThickLines);
+	Sprites.Append(Other.Sprites);
+	MeshElements.Append(Other.MeshElements);
+	MeshVertices.Append(Other.MeshVertices);
+	Other.Clear();
 }
