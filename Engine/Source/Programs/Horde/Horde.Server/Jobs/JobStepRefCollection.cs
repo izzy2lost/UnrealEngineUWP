@@ -77,7 +77,7 @@ namespace Horde.Server.Jobs
 			DateTime? IJobStepRef.FinishTimeUtc => FinishTimeUtc ?? FinishTime?.UtcDateTime;
 			string IJobStepRef.NodeName => Name;
 			bool IJobStepRef.UpdateIssues => UpdateIssues ?? false;			
-			IReadOnlyList<int>? IJobStepRef.IssueIds => IssueIds;
+			IReadOnlyList<int>? IJobStepRef.IssueIds => IssueIds;			
 
 			public JobStepRef(JobStepRefId id, string jobName, string nodeName, StreamId streamId, TemplateId templateId, int change, LogId? logId, PoolId? poolId, AgentId? agentId, JobStepOutcome? outcome, bool updateIssues, int? lastSuccess, int? lastWarning, float batchWaitTime, float batchInitTime, DateTime jobStartTimeUtc, DateTime startTimeUtc, DateTime? finishTimeUtc, BisectTaskId? bisectTaskId)
 			{
@@ -104,8 +104,9 @@ namespace Horde.Server.Jobs
 		}
 
 		readonly IMongoCollection<JobStepRef> _jobStepRefs;
+		readonly MongoIndex<JobStepRef> _bisectTaskIdIndex;
 		readonly ITelemetrySink _telemetrySink;
-
+		
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -113,7 +114,11 @@ namespace Horde.Server.Jobs
 		/// <param name="telemetrySink">Telemetry sink</param>
 		public JobStepRefCollection(MongoService mongoService, ITelemetrySink telemetrySink)
 		{
-			_jobStepRefs = mongoService.GetCollection<JobStepRef>("JobStepRefs", keys => keys.Ascending(x => x.StreamId).Ascending(x => x.TemplateId).Ascending(x => x.Name).Descending(x => x.Change));
+			List<MongoIndex<JobStepRef>> indexes = new List<MongoIndex<JobStepRef>>();
+			indexes.Add(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.TemplateId).Ascending(x => x.Name).Descending(x => x.Change));
+			indexes.Add(_bisectTaskIdIndex = MongoIndex.Create<JobStepRef>(keys => keys.Descending(x => x.BisectTaskId)));			
+
+			_jobStepRefs = mongoService.GetCollection<JobStepRef>("JobStepRefs", indexes);
 			_telemetrySink = telemetrySink;
 		}
 
@@ -180,7 +185,15 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<IJobStepRef>> GetStepsForNodeAsync(StreamId streamId, TemplateId templateId, string nodeName, int? change, bool includeFailed, int maxCount, BisectTaskId? bisectTaskId, CancellationToken cancellationToken)
+		public async Task<List<IJobStepRef>> FindBisectTaskStepsAsync(BisectTaskId bisectTaskId, CancellationToken cancellationToken)
+		{
+			FilterDefinition<JobStepRef> filter = Builders<JobStepRef>.Filter.Eq(x => x.BisectTaskId, bisectTaskId);			
+			List<JobStepRef> results = await _jobStepRefs.WithReadPreference(ReadPreference.SecondaryPreferred).FindWithHintAsync(filter, _bisectTaskIdIndex.Name, x => x.SortBy(x => x.Change).ToListAsync(cancellationToken));
+			return results.ConvertAll<IJobStepRef>(x => x);
+		}
+
+		/// <inheritdoc/>
+		public async Task<List<IJobStepRef>> GetStepsForNodeAsync(StreamId streamId, TemplateId templateId, string nodeName, int? change, bool includeFailed, int maxCount, CancellationToken cancellationToken)
 		{
 			// Find all the steps matching the given criteria
 			FilterDefinitionBuilder<JobStepRef> filterBuilder = Builders<JobStepRef>.Filter;
@@ -196,10 +209,6 @@ namespace Horde.Server.Jobs
 			if (!includeFailed)
 			{
 				filter &= filterBuilder.Ne(x => x.Outcome, JobStepOutcome.Failure);
-			}
-			if (bisectTaskId != null)
-			{
-				filter &= filterBuilder.Eq(x => x.BisectTaskId, bisectTaskId.Value);
 			}
 
 			List<JobStepRef> steps = await _jobStepRefs.Find(filter).SortByDescending(x => x.Change).ThenByDescending(x => x.StartTimeUtc).Limit(maxCount).ToListAsync(cancellationToken);

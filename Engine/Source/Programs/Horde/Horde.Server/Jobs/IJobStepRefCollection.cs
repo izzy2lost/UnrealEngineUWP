@@ -72,10 +72,9 @@ namespace Horde.Server.Jobs
 		/// <param name="change">The current change</param>
 		/// <param name="includeFailed">Whether to include failed nodes</param>
 		/// <param name="maxCount">Number of results to return</param>
-		/// <param name="bisectTaskId">The bisection task to get nodes for</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of step references</returns>
-		Task<List<IJobStepRef>> GetStepsForNodeAsync(StreamId streamId, TemplateId templateId, string nodeName, int? change, bool includeFailed, int maxCount, BisectTaskId? bisectTaskId = null, CancellationToken cancellationToken = default);
+		Task<List<IJobStepRef>> GetStepsForNodeAsync(StreamId streamId, TemplateId templateId, string nodeName, int? change, bool includeFailed, int maxCount, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets the previous job that ran a given step
@@ -101,6 +100,14 @@ namespace Horde.Server.Jobs
 		/// <param name="updateIssues">If true, constrain to steps which update issues</param>
 		/// <returns>The previous job, or null.</returns>
 		Task<IJobStepRef?> GetNextStepForNodeAsync(StreamId streamId, TemplateId templateId, string nodeName, int change, JobStepOutcome? outcome = null, bool? updateIssues = null);
+
+		/// <summary>
+		/// Gets the steps for specified bisection task
+		/// </summary>
+		/// <param name="bisectTaskId"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		Task<List<IJobStepRef>> FindBisectTaskStepsAsync(BisectTaskId bisectTaskId, CancellationToken cancellationToken);
 	}
 
 	static class JobStepRefCollectionExtensions

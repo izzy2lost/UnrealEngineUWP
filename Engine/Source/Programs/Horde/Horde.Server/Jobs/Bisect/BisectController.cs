@@ -384,7 +384,7 @@ namespace Horde.Server.Jobs.Bisect
 		{
 			IUser? user = await _userCollection.GetCachedUserAsync(task.OwnerId);
 
-			List<IJobStepRef> steps = await _jobStepRefs.GetStepsForNodeAsync(initialJob.StreamId, initialJob.TemplateId, task.NodeName, null, true, 1024, task.Id, cancellationToken);
+			List<IJobStepRef> steps = await _jobStepRefs.FindBisectTaskStepsAsync(task.Id, cancellationToken);
 			IJobStepRef? initialStep = await _jobStepRefs.FindAsync(task.InitialJobId, task.InitialBatchId, task.InitialStepId);
 			if (initialStep != null)
 			{
