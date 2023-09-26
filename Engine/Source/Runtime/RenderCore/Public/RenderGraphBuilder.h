@@ -252,6 +252,12 @@ public:
 	template <typename TaskLambda, typename PrerequisitesCollectionType>
 	UE::Tasks::FTask AddCommandListSetupTask(TaskLambda&& Task, UE::Tasks::FPipe* Pipe, PrerequisitesCollectionType&& Prerequisites, UE::Tasks::ETaskPriority Priority = UE::Tasks::ETaskPriority::Normal, bool bCondition = true);
 
+	/** Whether RDG will launch async tasks when AddSetup{CommandList}Task is called. */
+	inline bool IsParallelSetupEnabled() const
+	{
+		return bParallelSetupEnabled;
+	}
+
 	/** Tells the builder to delete unused RHI resources. The behavior of this method depends on whether RDG immediate mode is enabled:
 	 *   Deferred:  RHI resource flushes are performed prior to execution.
 	 *   Immediate: RHI resource flushes are performed immediately.
