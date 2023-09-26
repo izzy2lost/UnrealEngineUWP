@@ -1471,22 +1471,32 @@ void DumpPackageHeaderDiffs_ZenPackage(
 		return;
 	}
 
-	TArray<FName> SourceNames;
-	TArray<FName> DestNames;
+	TArray<FString> SourceNames;
+	TArray<FString> DestNames;
 	for (FDisplayNameEntryId Id : SourceHeader.GetPackageHeader().NameMap)
 	{
-		SourceNames.Add(Id.ToName(0));
+		SourceNames.Add(Id.ToName(0).ToString());
 	}
 	for (FDisplayNameEntryId Id : DestHeader.GetPackageHeader().NameMap)
 	{
-		DestNames.Add(Id.ToName(0));
+		DestNames.Add(Id.ToName(0).ToString());
 	}
-	Algo::Sort(SourceNames, FNameFastLess());
-	Algo::Sort(DestNames, FNameFastLess());
-
-	if (SourceNames != DestNames)
+	auto StringSortByNoCaseThenCase = [](const FString& A, const FString& B)
 	{
-		DumpTableDifferences<FName>(SourceHeader, DestHeader, SourceNames, DestNames,
+		int32 NoCase = A.Compare(B, ESearchCase::IgnoreCase);
+		if (NoCase != 0)
+		{
+			return NoCase < 0;
+		}
+		int32 Case = A.Compare(B, ESearchCase::CaseSensitive);
+		return Case < 0;
+	};
+	Algo::Sort(SourceNames, StringSortByNoCaseThenCase);
+	Algo::Sort(DestNames, StringSortByNoCaseThenCase);
+
+	if (!SourceHeader.IsNameMapIdentical(DestHeader, SourceNames, DestNames))
+	{
+		DumpTableDifferences<FString>(SourceHeader, DestHeader, SourceNames, DestNames,
 			*AssetFilename, TEXT("Name"), MaxDiffsToLog);
 	}
 

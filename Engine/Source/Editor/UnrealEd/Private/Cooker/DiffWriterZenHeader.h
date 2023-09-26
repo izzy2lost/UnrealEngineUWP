@@ -53,9 +53,11 @@ public:
 	FStringView GetObjectIndexPathName(FPackageObjectIndex PackageObjectIndex);
 
 	// API for DumpTableDifferences
-	FString GetTableKey(FName Id);
-	bool CompareTableItem(FDiffWriterZenHeader& DestContext, FName SourceName, FName DestName);
-	FString ConvertItemToText(FName Id);
+	bool IsNameMapIdentical(FDiffWriterZenHeader& DestContext,
+		const TArray<FString>& SourceNames, const TArray<FString>& DestNames);
+	FString GetTableKey(const FString& Id);
+	bool CompareTableItem(FDiffWriterZenHeader& DestContext, const FString& SourceText, const FString& DestText);
+	FString ConvertItemToText(const FString& Id);
 
 	bool IsImportMapIdentical(FDiffWriterZenHeader& DestContext);
 	FString GetTableKey(FPackageObjectIndex Id);

@@ -113,20 +113,38 @@ FStringView FDiffWriterZenHeader::GetObjectIndexPathName(FPackageObjectIndex Pac
 	return *PathName;
 }
 
-FString FDiffWriterZenHeader::GetTableKey(FName Id)
+bool FDiffWriterZenHeader::IsNameMapIdentical(FDiffWriterZenHeader& DestContext,
+	const TArray<FString>& SourceNames, const TArray<FString>& DestNames)
 {
-	return Id.ToString();
+	int32 NumNames = SourceNames.Num();
+	if (NumNames != DestNames.Num())
+	{
+		return false;
+	}
+	for (int32 Index = 0; Index < NumNames; ++Index)
+	{
+		if (SourceNames[Index].Compare(DestNames[Index], ESearchCase::CaseSensitive) != 0)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+FString FDiffWriterZenHeader::GetTableKey(const FString& Id)
+{
+	return Id;
 }
 
 bool FDiffWriterZenHeader::CompareTableItem(FDiffWriterZenHeader& DestContext,
-	FName SourceName, FName DestName)
+	const FString& SourceName, const FString& DestName)
 {
-	return SourceName == DestName;
+	return SourceName.Compare(DestName, ESearchCase::CaseSensitive) == 0;
 }
 
-FString FDiffWriterZenHeader::ConvertItemToText(FName Id)
+FString FDiffWriterZenHeader::ConvertItemToText(const FString& Id)
 {
-	return Id.ToString();
+	return Id;
 }
 
 bool FDiffWriterZenHeader::IsImportMapIdentical(FDiffWriterZenHeader& DestContext)
