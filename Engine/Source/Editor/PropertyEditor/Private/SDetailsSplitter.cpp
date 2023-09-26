@@ -8,6 +8,15 @@
 #include "Styling/StyleColors.h"
 #include "Framework/Application/SlateApplication.h"
 
+static const TArray<TWeakObjectPtr<UObject>>* GetObjects(const TSharedPtr<FDetailTreeNode>& TreeNode)
+{
+	if (const IDetailsViewPrivate* DetailsView = TreeNode->GetDetailsView())
+	{
+		return &DetailsView->GetSelectedObjects();
+	}
+	return nullptr;
+}
+
 // converts from a container helper like FScriptArrayHelper to a property like FArrayProperty
 template<typename HelperType>
 using TContainerPropertyType =
@@ -17,32 +26,48 @@ using TContainerPropertyType =
 	void>>>;
 
 template<typename HelperType>
-static bool TryGetSourceContainer(TSharedPtr<FDetailTreeNode> DetailsNode, FPropertyNode*& OutPropNode, TUniquePtr<HelperType>& OutResolvedProperty)
+static bool TryGetSourceContainer(TSharedPtr<FDetailTreeNode> DetailsNode, FPropertyNode*& OutPropNode, TArray<TUniquePtr<HelperType>>& OutContainerHelper)
 {
 	using ContainerPropertyType = TContainerPropertyType<HelperType>;
 	if (TryGetSourceContainer<ContainerPropertyType>(DetailsNode, OutPropNode))
 	{
 		const FPropertySoftPath SoftPropertyPath(FPropertyNode::CreatePropertyPath(OutPropNode->AsShared()).Get());
-		const UObject* Object = DetailsNode->GetDetailsView()->GetSelectedObjects()[0].Get();
-		const FResolvedProperty Resolved = SoftPropertyPath.Resolve(Object);
-		const ContainerPropertyType* ContainerProperty = CastFieldChecked<ContainerPropertyType>(Resolved.Property);
-		OutResolvedProperty = MakeUnique<HelperType>(ContainerProperty, ContainerProperty->template ContainerPtrToValuePtr<UObject*>(Resolved.Object));
+		if (const TArray<TWeakObjectPtr<UObject>>* Objects = GetObjects(DetailsNode))
+		{
+			for (const TWeakObjectPtr<UObject> WeakObject : *Objects)
+			{
+				if (const UObject* Object = WeakObject.Get())
+				{
+					const FResolvedProperty Resolved = SoftPropertyPath.Resolve(Object);
+					const ContainerPropertyType* ContainerProperty = CastFieldChecked<ContainerPropertyType>(Resolved.Property);
+					OutContainerHelper.Add(MakeUnique<HelperType>(ContainerProperty, ContainerProperty->template ContainerPtrToValuePtr<UObject*>(Resolved.Object)));
+				}
+			}
+		}
 		return true;
 	}
 	return false;
 }
 
 template<typename HelperType>
-static bool TryGetDestinationContainer(TSharedPtr<FDetailTreeNode> DetailsNode, FPropertyNode*& OutPropNode, TUniquePtr<HelperType>& OutContainerHelper, int32& OutInsertIndex)
+static bool TryGetDestinationContainer(TSharedPtr<FDetailTreeNode> DetailsNode, FPropertyNode*& OutPropNode, TArray<TUniquePtr<HelperType>>& OutContainerHelper, int32& OutInsertIndex)
 {
 	using ContainerPropertyType = TContainerPropertyType<HelperType>;
 	if (TryGetDestinationContainer<ContainerPropertyType>(DetailsNode, OutPropNode, OutInsertIndex))
 	{
 		const FPropertySoftPath SoftPropertyPath(FPropertyNode::CreatePropertyPath(OutPropNode->AsShared()).Get());
-		const UObject* Object = DetailsNode->GetDetailsView()->GetSelectedObjects()[0].Get();
-		const FResolvedProperty Resolved = SoftPropertyPath.Resolve(Object);
-		const ContainerPropertyType* ContainerProperty = CastFieldChecked<ContainerPropertyType>(Resolved.Property);
-		OutContainerHelper = MakeUnique<HelperType>(ContainerProperty, ContainerProperty->template ContainerPtrToValuePtr<UObject*>(Resolved.Object));
+		if (const TArray<TWeakObjectPtr<UObject>>* Objects = GetObjects(DetailsNode))
+		{
+			for (const TWeakObjectPtr<UObject> WeakObject : *Objects)
+			{
+				if (const UObject* Object = WeakObject.Get())
+				{
+					const FResolvedProperty Resolved = SoftPropertyPath.Resolve(Object);
+					const ContainerPropertyType* ContainerProperty = CastFieldChecked<ContainerPropertyType>(Resolved.Property);
+					OutContainerHelper.Add(MakeUnique<HelperType>(ContainerProperty, ContainerProperty->template ContainerPtrToValuePtr<UObject*>(Resolved.Object)));
+				}
+			}
+		}
 		return true;
 	}
 	return false;
@@ -123,66 +148,84 @@ static void SendPropertyChangeNotification(FPropertyNode* PropertyNode, UObject*
 
 static void CopyPropertyValueForInsert(const TSharedPtr<FDetailTreeNode>& SourceDetailsNode, const TSharedPtr<FDetailTreeNode>& DestinationDetailsNode)
 {
-	TUniquePtr<FScriptArrayHelper> SourceArray;
+	const TSharedPtr<IPropertyHandle> DestinationHandle = DestinationDetailsNode->CreatePropertyHandle();
+
+	// Array
+	TArray<TUniquePtr<FScriptArrayHelper>> SourceArrays;
 	FPropertyNode* SourceArrayPropertyNode;
-	if (TryGetSourceContainer(SourceDetailsNode, SourceArrayPropertyNode, SourceArray))
+	if (TryGetSourceContainer(SourceDetailsNode, SourceArrayPropertyNode, SourceArrays))
 	{
 		int32 InsertIndex;
-		TUniquePtr<FScriptArrayHelper> DestinationArray;
+		TArray<TUniquePtr<FScriptArrayHelper>> DestinationArrays;
 		FPropertyNode* DestinationArrayPropertyNode;
-		if (ensure(TryGetDestinationContainer(DestinationDetailsNode, DestinationArrayPropertyNode, DestinationArray, InsertIndex)))
+		if (ensure(TryGetDestinationContainer(DestinationDetailsNode, DestinationArrayPropertyNode, DestinationArrays, InsertIndex)))
 		{
-			DestinationArray->InsertValues(InsertIndex, 1);
-			const void* SourceData = SourceArray->GetElementPtr(SourceDetailsNode->GetPropertyNode()->GetArrayIndex());
-			void* DestinationData = DestinationArray->GetElementPtr(InsertIndex);
-			const FArrayProperty* ArrayProperty = CastFieldChecked<FArrayProperty>(DestinationArrayPropertyNode->GetProperty());
-			const FProperty* ElementProperty = ArrayProperty->Inner;
-			ElementProperty->CopySingleValue(DestinationData, SourceData);
-			SendPropertyChangeNotification(
-				DestinationArrayPropertyNode,
-				DestinationDetailsNode->GetDetailsView()->GetSelectedObjects()[0].Get(),
-				EPropertyChangeType::ArrayAdd);
+			ensure(SourceArrays.Num() == DestinationArrays.Num());
+			DestinationHandle->NotifyPreChange();
+			for (int32 ArrayNum = 0; ArrayNum < SourceArrays.Num(); ++ ArrayNum)
+			{
+				DestinationArrays[ArrayNum]->InsertValues(InsertIndex, 1);
+				const void* SourceData = SourceArrays[ArrayNum]->GetElementPtr(SourceDetailsNode->GetPropertyNode()->GetArrayIndex());
+				void* DestinationData = DestinationArrays[ArrayNum]->GetElementPtr(InsertIndex);
+				const FArrayProperty* ArrayProperty = CastFieldChecked<FArrayProperty>(DestinationArrayPropertyNode->GetProperty());
+				const FProperty* ElementProperty = ArrayProperty->Inner;
+				ElementProperty->CopySingleValue(DestinationData, SourceData);
+			}
+			
+			DestinationHandle->NotifyPostChange(EPropertyChangeType::ArrayAdd);
+			DestinationHandle->NotifyFinishedChangingProperties();
 		}
+		return;
 	}
 	
-	TUniquePtr<FScriptSetHelper> SourceSet;
+	// Set
+	TArray<TUniquePtr<FScriptSetHelper>> SourceSets;
 	FPropertyNode* SourceSetPropertyNode;
-	if (TryGetSourceContainer(SourceDetailsNode, SourceSetPropertyNode, SourceSet))
+	if (TryGetSourceContainer(SourceDetailsNode, SourceSetPropertyNode, SourceSets))
 	{
 		int32 InsertIndex;
-		TUniquePtr<FScriptSetHelper> DestinationSet;
+		TArray<TUniquePtr<FScriptSetHelper>> DestinationSets;
 		FPropertyNode* DestinationPropertyNode;
-		if (ensure(TryGetDestinationContainer(DestinationDetailsNode, DestinationPropertyNode, DestinationSet, InsertIndex)))
+		if (ensure(TryGetDestinationContainer(DestinationDetailsNode, DestinationPropertyNode, DestinationSets, InsertIndex)))
 		{
-			const void* SourceData = SourceSet->FindNthElementPtr(SourceDetailsNode->GetPropertyNode()->GetArrayIndex());
-			DestinationSet->AddElement(SourceData);
+			ensure(SourceSets.Num() == DestinationSets.Num());
+			DestinationHandle->NotifyPreChange();
+			for (int32 SetNum = 0; SetNum < SourceSets.Num(); ++ SetNum)
+			{
+				const void* SourceData = SourceSets[SetNum]->FindNthElementPtr(SourceDetailsNode->GetPropertyNode()->GetArrayIndex());
+				DestinationSets[SetNum]->AddElement(SourceData);
+			}
 			
-			SendPropertyChangeNotification(
-				DestinationPropertyNode,
-				DestinationDetailsNode->GetDetailsView()->GetSelectedObjects()[0].Get(),
-				EPropertyChangeType::ArrayAdd);
+			DestinationHandle->NotifyPostChange(EPropertyChangeType::ArrayAdd);
+			DestinationHandle->NotifyFinishedChangingProperties();
 		}
+		return;
 	}
 	
-	TUniquePtr<FScriptMapHelper> SourceMap;
+	// Map
+	TArray<TUniquePtr<FScriptMapHelper>> SourceMaps;
 	FPropertyNode* SourceMapPropertyNode;
-	if (TryGetSourceContainer(SourceDetailsNode, SourceMapPropertyNode, SourceMap))
+	if (TryGetSourceContainer(SourceDetailsNode, SourceMapPropertyNode, SourceMaps))
 	{
 		int32 InsertIndex;
-		TUniquePtr<FScriptMapHelper> DestinationMap;
+		TArray<TUniquePtr<FScriptMapHelper>> DestinationMaps;
 		FPropertyNode* DestinationPropertyNode;
-		if (ensure(TryGetDestinationContainer(DestinationDetailsNode, DestinationPropertyNode, DestinationMap, InsertIndex)))
+		if (ensure(TryGetDestinationContainer(DestinationDetailsNode, DestinationPropertyNode, DestinationMaps, InsertIndex)))
 		{
-			const int32 Index = SourceMap->FindInternalIndex(SourceDetailsNode->GetPropertyNode()->GetArrayIndex());
-			const void* SourceKey = SourceMap->GetKeyPtr(Index);
-			const void* SourceVal = SourceMap->GetValuePtr(Index);
-			DestinationMap->AddPair(SourceKey, SourceVal);
+			ensure(SourceMaps.Num() == DestinationMaps.Num());
+			DestinationHandle->NotifyPreChange();
+			for (int32 MapNum = 0; MapNum < SourceMaps.Num(); ++ MapNum)
+			{
+				const int32 Index = SourceMaps[MapNum]->FindInternalIndex(SourceDetailsNode->GetPropertyNode()->GetArrayIndex());
+				const void* SourceKey = SourceMaps[MapNum]->GetKeyPtr(Index);
+				const void* SourceVal = SourceMaps[MapNum]->GetValuePtr(Index);
+				DestinationMaps[MapNum]->AddPair(SourceKey, SourceVal);
+			}
 			
-			SendPropertyChangeNotification(
-				DestinationPropertyNode,
-				DestinationDetailsNode->GetDetailsView()->GetSelectedObjects()[0].Get(),
-				EPropertyChangeType::ArrayAdd);
+			DestinationHandle->NotifyPostChange(EPropertyChangeType::ArrayAdd);
+			DestinationHandle->NotifyFinishedChangingProperties();
 		}
+		return;
 	}
 }
 
@@ -206,47 +249,45 @@ static void CopyPropertyValue(const TSharedPtr<FDetailTreeNode>& SourceDetailsNo
 		default:
 			return;
 	}
-	
-	FResolvedProperty SourceResolved;
-	FResolvedProperty DestinationResolved;
-	bool bCopySingleValue = false;
-	
-	if (SourceDetailsNode)
+
+	TArray<void*> SourceData;
+	TArray<void*> DestinationData;
+	const TSharedPtr<IPropertyHandle> SourceHandle = SourceDetailsNode->CreatePropertyHandle();
+	const TSharedPtr<IPropertyHandle> DestinationHandle = DestinationDetailsNode->CreatePropertyHandle();
+	if (!ensure(SourceHandle && DestinationHandle))
 	{
-		const UObject* Object = SourceDetailsNode->GetDetailsView()->GetSelectedObjects()[0].Get();
-		const FPropertyPath PropertyPath = SourceDetailsNode->GetPropertyPath();
-		SourceResolved = FPropertySoftPath(PropertyPath).Resolve(Object);
-		bCopySingleValue = PropertyPath.GetLeafMostProperty().ArrayIndex != INDEX_NONE;
+		return;
 	}
-	if (DestinationDetailsNode)
+	if (!ensure(SourceHandle->GetProperty()->SameType(DestinationHandle->GetProperty())))
 	{
-		const UObject* Object = DestinationDetailsNode->GetDetailsView()->GetSelectedObjects()[0].Get();
-		const FPropertyPath PropertyPath = DestinationDetailsNode->GetPropertyPath();
-		DestinationResolved = FPropertySoftPath(PropertyPath).Resolve(Object);
-		bCopySingleValue = PropertyPath.GetLeafMostProperty().ArrayIndex != INDEX_NONE;
+		return;
 	}
-		
-	if (SourceResolved.Property && DestinationResolved.Property && SourceResolved.Object && DestinationResolved.Object)
+	SourceHandle->AccessRawData(SourceData);
+	DestinationHandle->AccessRawData(DestinationData);
+	if (!ensure(SourceData.Num() == DestinationData.Num()))
 	{
-		const void* SourceData = SourceResolved.Property->ContainerPtrToValuePtr<void*>(SourceResolved.Object);
-		void* DestinationData = (void*)DestinationResolved.Property->ContainerPtrToValuePtr<void*>(DestinationResolved.Object);
-		if (bCopySingleValue)
+		return;
+	}
+
+	
+	DestinationHandle->NotifyPreChange();
+	for (int32 I = 0; I < SourceData.Num(); ++I)
+	{
+		if (DestinationHandle->GetArrayIndex() != INDEX_NONE)
 		{
-			DestinationResolved.Property->CopySingleValue(DestinationData, SourceData);
+			DestinationHandle->GetProperty()->CopySingleValue(DestinationData[I], SourceData[I]);
 		}
 		else
 		{
-			DestinationResolved.Property->CopyCompleteValue(DestinationData, SourceData);
+			DestinationHandle->GetProperty()->CopyCompleteValue(DestinationData[I], SourceData[I]);
 		}
-		SendPropertyChangeNotification(
-			DestinationDetailsNode->GetPropertyNode().Get(),
-			DestinationDetailsNode->GetDetailsView()->GetSelectedObjects()[0].Get(),
-			EPropertyChangeType::ValueSet);
 	}
+	DestinationHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
+	DestinationHandle->NotifyFinishedChangingProperties();
 }
 
 // note: DestinationDetailsNode is the node before the position in the tree you wish to insert
-static bool CanCopyPropertyValueForInsert(TSharedPtr<FDetailTreeNode> SourceDetailsNode, TSharedPtr<FDetailTreeNode> DestinationDetailsNode)
+static bool CanCopyPropertyValueForInsert(const TSharedPtr<FDetailTreeNode>& SourceDetailsNode, const TSharedPtr<FDetailTreeNode>& DestinationDetailsNode)
 {
 	FPropertyNode* SourceArrayPropertyNode;
 	if (TryGetSourceContainer<FArrayProperty>(SourceDetailsNode, SourceArrayPropertyNode))
@@ -288,9 +329,17 @@ static bool CanCopyPropertyValueForInsert(TSharedPtr<FDetailTreeNode> SourceDeta
 	return false;
 }
 
-static bool CanCopyPropertyValue(TSharedPtr<FDetailTreeNode> SourceDetailsNode, TSharedPtr<FDetailTreeNode> DestinationDetailsNode, ETreeDiffResult Diff)
+static bool CanCopyPropertyValue(const TSharedPtr<FDetailTreeNode>& SourceDetailsNode, const TSharedPtr<FDetailTreeNode>& DestinationDetailsNode, ETreeDiffResult Diff)
 {
-	switch(Diff)
+	// in order to copy properties there needs to be the same number of objects in each panel
+	const TArray<TWeakObjectPtr<UObject>>* SourceObjects = GetObjects(SourceDetailsNode);
+	const TArray<TWeakObjectPtr<UObject>>* DestinationObjects = GetObjects(DestinationDetailsNode);
+	if (!SourceObjects || !DestinationObjects || SourceObjects->Num() != DestinationObjects->Num())
+	{
+		return false;
+	}
+	
+	switch (Diff)
 	{
 	// traditional copy
 	case ETreeDiffResult::DifferentValues:
@@ -300,7 +349,7 @@ static bool CanCopyPropertyValue(TSharedPtr<FDetailTreeNode> SourceDetailsNode, 
 	case ETreeDiffResult::MissingFromTree1:
 	case ETreeDiffResult::MissingFromTree2:
 		return CanCopyPropertyValueForInsert(SourceDetailsNode, DestinationDetailsNode);
-		
+
 	// no difference
 	case ETreeDiffResult::Invalid:
 	case ETreeDiffResult::Identical:
@@ -312,6 +361,10 @@ static bool CanCopyPropertyValue(TSharedPtr<FDetailTreeNode> SourceDetailsNode, 
 void SDetailsSplitter::Construct(const FArguments& InArgs)
 {
 	Splitter = SNew(SSplitter).PhysicalSplitterHandleSize(5.f);
+	
+	GetRowHighlightColor = InArgs._RowHighlightColor.IsBound() ? InArgs._RowHighlightColor : FRowHighlightColor::CreateStatic(
+		[](const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>&) {return FLinearColor(0.f, 1.f, 1.f, .7f);});
+	
 	for(const FSlot::FSlotArguments& SlotArgs : InArgs._Slots)
 	{
 		AddSlot(SlotArgs);
@@ -342,6 +395,7 @@ void SDetailsSplitter::AddSlot(const FSlot::FSlotArguments& SlotArgs, int32 Inde
 		SlotArgs._DetailsView,
 		SlotArgs._IsReadonly,
 		SlotArgs._DifferencesWithRightPanel,
+		SlotArgs._ShouldIgnoreRow.IsBound() ? SlotArgs._ShouldIgnoreRow : FShouldIgnoreRow::CreateStatic([](const TWeakPtr<FDetailTreeNode>&){return false;})
 	}, Index);
 }
 
@@ -350,9 +404,73 @@ SDetailsSplitter::FPanel& SDetailsSplitter::GetPanel(int32 Index)
 	return Panels[Index];
 }
 
-void SDetailsSplitter::AddHighlights(const TMap<FString, TMap<FPropertySoftPath, FLinearColor>>& Highlights)
+// find the inner-most object in the property path and shorten the path relative to that object
+static void ShortenToPathFromLastObject(const UObject*& InOutObject, FPropertyPath& InOutPath)
 {
-	CustomHighlights = Highlights;
+	TArray<FPropertyInfo> PathFromSubObjectReversed;
+	PathFromSubObjectReversed.Add(InOutPath.GetLeafMostProperty());
+	InOutPath = *InOutPath.TrimPath(1);
+	while (InOutPath.IsValid())
+	{
+		// Note that if we have perf issues, this could be made faster by writing a custom resolve function that stops
+		// at the last FObjectProperty. that way we wouldn't need to resolve multiple times
+		const FResolvedProperty Resolved = FPropertySoftPath(InOutPath).Resolve(InOutObject);
+		if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Resolved.Property))
+		{
+			InOutObject = ObjectProperty->GetObjectPropertyValue(ObjectProperty->ContainerPtrToValuePtr<void>(Resolved.Object));
+			break;
+		}
+		PathFromSubObjectReversed.Add(InOutPath.GetLeafMostProperty());
+		InOutPath = *InOutPath.TrimPath(1);
+	}
+
+	InOutPath = {};
+	while(!PathFromSubObjectReversed.IsEmpty())
+	{
+		InOutPath.AddProperty(PathFromSubObjectReversed.Pop());
+	}
+}
+
+void SDetailsSplitter::HighlightFromMergeResults(const TMap<FString, TMap<FPropertySoftPath, ETreeDiffResult>>& CustomHighlights)
+{
+	GetRowHighlightColor = FRowHighlightColor::CreateLambda([CustomHighlights](const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>& DiffNode)
+	{
+		const TSharedPtr<FDetailTreeNode> DetailNode = DiffNode->ValueA.IsValid() ? DiffNode->ValueA.Pin() : DiffNode->ValueB.Pin();
+		
+		FPropertyPath Path = DetailNode->GetPropertyPath();
+		const UObject* OwningObject = DetailNode->GetDetailsView()->GetSelectedObjects()[0].Get();
+		if (OwningObject && Path.IsValid())
+		{
+			FPropertyPath PathFromSubObject;
+			ShortenToPathFromLastObject(OwningObject, Path);
+			if (OwningObject)
+			{
+				if (const TMap<FPropertySoftPath, ETreeDiffResult>* Highlights = CustomHighlights.Find(OwningObject->GetPathName(OwningObject->GetPackage())))
+				{
+					if (const ETreeDiffResult* DiffResult = Highlights->Find(FPropertySoftPath(Path)))
+					{
+						switch(*DiffResult)
+						{
+						case ETreeDiffResult::MissingFromTree1: // fall through
+						case ETreeDiffResult::MissingFromTree2: // fall through
+						case ETreeDiffResult::DifferentValues:
+							// color is intentionally using values greater than 1 so that it stays very saturated
+							return FLinearColor(1.5f, 0.3f, 0.3f);
+						
+						default:; // ignore identical and invalid
+						}
+					}
+				}
+			}
+		}
+		
+		return FLinearColor(0.f, 1.f, 1.f, .7f);
+	});
+}
+
+void SDetailsSplitter::SetRowHighlightColorDelegate(const FRowHighlightColor& Delegate)
+{
+	GetRowHighlightColor = Delegate;
 }
 
 SDetailsSplitter::FSlot::FSlotArguments SDetailsSplitter::Slot()
@@ -387,7 +505,7 @@ int32 SDetailsSplitter::OnPaint(const FPaintArgs& Args, const FGeometry& Allotte
 			
 			Diff->ForEachRow([&](const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>& DiffNode, int32, int32)->ETreeTraverseControl
 			{
-				const FLinearColor Color = GetHighlightColor(DiffNode);
+				const FLinearColor Color = GetRowHighlightColor.Execute(DiffNode);
 				
 				FSlateRect LeftPropertyRect;
 				if (const TSharedPtr<FDetailTreeNode> LeftDetailNode = DiffNode->ValueA.Pin())
@@ -404,7 +522,10 @@ int32 SDetailsSplitter::OnPaint(const FPaintArgs& Args, const FGeometry& Allotte
 				}
 				if (LeftPropertyRect.IsValid() && DiffNode->DiffResult != ETreeDiffResult::Identical)
 				{
-					RowHighlights.Add(LeftPropertyRect, Color);
+					if (!LeftPanel.ShouldIgnoreRow.Execute(DiffNode->ValueA))
+					{
+						RowHighlights.Add(LeftPropertyRect, Color);
+					}
 				}
 		
 				const int32 RightIndex = LeftIndex + 1;
@@ -426,27 +547,33 @@ int32 SDetailsSplitter::OnPaint(const FPaintArgs& Args, const FGeometry& Allotte
 					}
 					if (RightPropertyRect.IsValid() && DiffNode->DiffResult != ETreeDiffResult::Identical)
 					{
-						RowHighlights.Add(RightPropertyRect, Color);
+						if (!RightPanel.ShouldIgnoreRow.Execute(DiffNode->ValueB))
+						{
+							RowHighlights.Add(RightPropertyRect, Color);
+						}
 					}
 					
 					if (LeftPropertyRect.IsValid() && RightPropertyRect.IsValid() && DiffNode->DiffResult != ETreeDiffResult::Identical)
 					{
-						FLinearColor FillColor = Color.Desaturate(.3f) * FLinearColor(0.053f,0.053f,0.053f);
-						FillColor.A = 0.43f;
+						if (!LeftPanel.ShouldIgnoreRow.Execute(DiffNode->ValueA) && !RightPanel.ShouldIgnoreRow.Execute(DiffNode->ValueB))
+						{
+							FLinearColor FillColor = Color.Desaturate(.3f) * FLinearColor(0.053f,0.053f,0.053f);
+							FillColor.A = 0.43f;
 			
-						const FLinearColor OutlineColor = Color;
-						PaintPropertyConnector(OutDrawElements, MaxLayerId, LeftPropertyRect, RightPropertyRect, FillColor, OutlineColor);
-						++MaxLayerId;
+							const FLinearColor OutlineColor = Color;
+							PaintPropertyConnector(OutDrawElements, MaxLayerId, LeftPropertyRect, RightPropertyRect, FillColor, OutlineColor);
+							++MaxLayerId;
 
-						if (!RightPanel.IsReadonly.Get(true) && CanCopyPropertyValue(LastSeenLeftDetailsNode, LastSeenRightDetailsNode, DiffNode->DiffResult))
-						{
-							PaintCopyPropertyButton(OutDrawElements, MaxLayerId, DiffNode, LeftPropertyRect, RightPropertyRect, EPropertyCopyDirection::CopyLeftToRight);
+							if (!RightPanel.IsReadonly.Get(true) && CanCopyPropertyValue(LastSeenLeftDetailsNode, LastSeenRightDetailsNode, DiffNode->DiffResult))
+							{
+								PaintCopyPropertyButton(OutDrawElements, MaxLayerId, DiffNode, LeftPropertyRect, RightPropertyRect, EPropertyCopyDirection::CopyLeftToRight);
+							}
+							if (!LeftPanel.IsReadonly.Get(true) && CanCopyPropertyValue(LastSeenRightDetailsNode, LastSeenLeftDetailsNode, DiffNode->DiffResult))
+							{
+								PaintCopyPropertyButton(OutDrawElements, MaxLayerId, DiffNode, LeftPropertyRect, RightPropertyRect, EPropertyCopyDirection::CopyRightToLeft);
+							}
+							++MaxLayerId;
 						}
-						if (!LeftPanel.IsReadonly.Get(true) && CanCopyPropertyValue(LastSeenRightDetailsNode, LastSeenLeftDetailsNode, DiffNode->DiffResult))
-						{
-							PaintCopyPropertyButton(OutDrawElements, MaxLayerId, DiffNode, LeftPropertyRect, RightPropertyRect, EPropertyCopyDirection::CopyRightToLeft);
-						}
-						++MaxLayerId;
 						
 					}
 				}
@@ -819,56 +946,4 @@ void SDetailsSplitter::PaintCopyPropertyButton(FSlateWindowElementList& OutDrawE
 		ESlateDrawEffect::None,
 		ButtonColor
 	);
-}
-
-// find the inner-most object in the property path and shorten the path relative to that object
-static void ShortenToPathFromLastObject(const UObject*& InOutObject, FPropertyPath& InOutPath)
-{
-	TArray<FPropertyInfo> PathFromSubObjectReversed;
-	PathFromSubObjectReversed.Add(InOutPath.GetLeafMostProperty());
-	InOutPath = *InOutPath.TrimPath(1);
-	while (InOutPath.IsValid())
-	{
-		// Note that if we have perf issues, this could be made faster by writing a custom resolve function that stops
-		// at the last FObjectProperty. that way we wouldn't need to resolve multiple times
-		const FResolvedProperty Resolved = FPropertySoftPath(InOutPath).Resolve(InOutObject);
-		if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Resolved.Property))
-		{
-			InOutObject = ObjectProperty->GetObjectPropertyValue(ObjectProperty->ContainerPtrToValuePtr<void>(Resolved.Object));
-			break;
-		}
-		PathFromSubObjectReversed.Add(InOutPath.GetLeafMostProperty());
-		InOutPath = *InOutPath.TrimPath(1);
-	}
-
-	InOutPath = {};
-	while(!PathFromSubObjectReversed.IsEmpty())
-	{
-		InOutPath.AddProperty(PathFromSubObjectReversed.Pop());
-	}
-}
-
-FLinearColor SDetailsSplitter::GetHighlightColor(const TUniquePtr<TDiffNode<TWeakPtr<FDetailTreeNode>>>& DiffNode) const
-{
-	const TSharedPtr<FDetailTreeNode> DetailNode = DiffNode->ValueA.IsValid() ? DiffNode->ValueA.Pin() : DiffNode->ValueB.Pin();
-	
-	FPropertyPath Path = DetailNode->GetPropertyPath();
-	const UObject* OwningObject = DetailNode->GetDetailsView()->GetSelectedObjects()[0].Get();
-	if (OwningObject && Path.IsValid())
-	{
-		FPropertyPath PathFromSubObject;
-		ShortenToPathFromLastObject(OwningObject, Path);
-		if (OwningObject)
-		{
-			if (const TMap<FPropertySoftPath, FLinearColor>* Highlights = CustomHighlights.Find(OwningObject->GetPathName(OwningObject->GetPackage())))
-            {
-            	if (const FLinearColor* Highlight = Highlights->Find(FPropertySoftPath(Path)))
-            	{
-            		return *Highlight;
-            	}
-            }
-		}
-	}
-	
-	return FLinearColor(0.f, 1.f, 1.f, .7f);
 }

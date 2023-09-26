@@ -69,6 +69,53 @@ namespace TreeDiffSpecification
 	template<typename InNodeType>
 	bool ShouldMatchByValue(const InNodeType& TreeNode);
 
+}
+
+template<typename InNodeType>
+class TTreeDiffSpecification
+{
+public:
+	virtual ~TTreeDiffSpecification() = default;
+	
+	/**
+	 * determine whether the values stored in two nodes are equal.
+	 * @param TreeNodeA node from the first user provided tree (guaranteed not to be null)
+	 * @param TreeNodeB node from the second user provided tree (guaranteed not to be null)
+	 */
+	virtual bool AreValuesEqual(const InNodeType& TreeNodeA, const InNodeType& TreeNodeB) const
+	{
+		return TreeNodeA == TreeNodeB;
+	}
+
+	/**
+	 * determine whether two nodes occupy the same space in their trees
+	 * for example if you have a tree key/value pairs, AreMatching should compare the keys while AreValuesEqual
+	 * should compare the values
+	 * @param TreeNodeA node from the first user provided tree (guaranteed not to be null)
+	 * @param TreeNodeB node from the second user provided tree (guaranteed not to be null)
+	 */
+	virtual bool AreMatching(const InNodeType& TreeNodeA, const InNodeType& TreeNodeB) const
+	{
+		return TreeNodeA == TreeNodeB;
+	}
+
+	/**
+	 * retrieves an array of children nodes from the parent node
+	 * @param InParent node from one of the two user provided trees (guaranteed not to be null)
+	 * @param[out] OutChildren to be filled with the children of parent
+	 */
+	virtual void GetChildren(const InNodeType& InParent, TArray<InNodeType>& OutChildren) const
+	{}
+
+	/**
+	 * return true for nodes that match using AreValuesEqual first, and pair up by position second
+	 * this is useful for arrays since we often want to keep elements with the same data paired while diffing other elements in order
+	 * @param TreeNode node from one of the two user provided trees (guaranteed not to be null)
+	*/
+	virtual bool ShouldMatchByValue(const InNodeType& TreeNode) const
+	{
+		return true;
+	}
 };
 
 
@@ -92,13 +139,13 @@ struct TDiffNode
 	TDiffNode() = default;
 	TDiffNode(TDiffNode &&Other) = default;
 	
-	TDiffNode(const ValueType& InValueA, const ValueType& InValueB, const TDiffNode* InParent)
+	TDiffNode(const ValueType& InValueA, const ValueType& InValueB, const TDiffNode* InParent, TUniquePtr<TTreeDiffSpecification<ValueType>>& Specification)
 		: ValueA(InValueA), ValueB(InValueB), Children(), Parent(InParent)
 	{
-		SetDiffType();
+		SetDiffType(Specification);
 	}
 
-	void SetDiffType();
+	void SetDiffType(TUniquePtr<TTreeDiffSpecification<ValueType>>& Specification);
 
 	bool operator==(const TDiffNode& Other) const;
 	
@@ -123,8 +170,15 @@ public:
 	// calls Method(DiffNode) on each diff node in the tree.
 	void ForEach(ETreeTraverseOrder TraversalOrder, const TFunction<ETreeTraverseControl(const TUniquePtr<DiffNodeType>&)>& Method) const;
 
+	template<typename SpecificationType, typename... TArgs>
+	void SetDiffSpecification(TArgs... Args);
+
 	// head of the main diff tree (note: not for user modification. Tick() will overwrite user changes)
 	TUniquePtr<DiffNodeType> Head;
+
+	// every time the update queue is completed this is called (max of once per Tick)
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnQueueFlushed, const TAsyncTreeDifferences&);
+	FOnQueueFlushed OnQueueFlushed;
 private:
 
 	// process one element from the top of the queue
@@ -132,10 +186,10 @@ private:
 	
 	void QueueParallelNodeLists(const TArray<ValueType>& ValuesA, const TArray<ValueType>& ValuesB, DiffNodeType* ParentNode);
 	
-	static TArray<TArray<int32>> CalculateLCSTableForMatchingValues(const TArray<ValueType>& ValuesA, const TArray<ValueType>& ValuesB);
+	TArray<TArray<int32>> CalculateLCSTableForMatchingValues(const TArray<ValueType>& ValuesA, const TArray<ValueType>& ValuesB);
 	static TArray<TArray<int32>> CalculateLCSTableForDiffNodes(const TArray<DiffNodeType>& FoundNodes, const TArray<TUniquePtr<DiffNodeType>>& ExpectedNodes);
 
-	static bool AreMatching(const ValueType& ValueA, const ValueType& ValueB);
+	bool AreMatching(const ValueType& ValueA, const ValueType& ValueB);
 	
 	static bool PreOrderRecursive(const TUniquePtr<DiffNodeType>& Node, const TFunction<ETreeTraverseControl(const TUniquePtr<DiffNodeType>&)>& Method);
 	static bool PostOrderRecursive(const TUniquePtr<DiffNodeType>& Node, const TFunction<ETreeTraverseControl(const TUniquePtr<DiffNodeType>&)>& Method);
@@ -145,14 +199,15 @@ private:
 	TArray<DiffNodeType*> UpdateQueue;
 	TAttribute<TArray<ValueType>> RootValuesA;
 	TAttribute<TArray<ValueType>> RootValuesB;
+	TUniquePtr<TTreeDiffSpecification<ValueType>> Specification;
 };
 
 template <typename InNodeType>
-void TDiffNode<InNodeType>::SetDiffType()
+void TDiffNode<InNodeType>::SetDiffType(TUniquePtr<TTreeDiffSpecification<ValueType>>& Specification)
 {
 	if (ValueA != NullValue && ValueB != NullValue)
 	{
-		if (TreeDiffSpecification::AreValuesEqual<ValueType>(ValueA, ValueB))
+		if (Specification->AreValuesEqual(ValueA, ValueB))
 		{
 			DiffResult = ETreeDiffResult::Identical;
 			return;
@@ -186,6 +241,7 @@ TAsyncTreeDifferences<InNodeType>::TAsyncTreeDifferences(const TAttribute<TArray
 	: Head(MakeUnique<DiffNodeType>())
 	, RootValuesA(InRootValuesA)
 	, RootValuesB(InRootValuesB)
+	, Specification(MakeUnique<TTreeDiffSpecification<ValueType>>())
 {
 	QueueParallelNodeLists(RootValuesA.Get(), RootValuesB.Get(), Head.Get());
 }
@@ -203,6 +259,11 @@ void TAsyncTreeDifferences<InNodeType>::Tick(float MaxAllottedTimeMs)
 	{
 		ProcessTopOfQueue();
 	}
+	
+	if (UpdateQueue.IsEmpty())
+	{
+		OnQueueFlushed.Broadcast(*this);
+	}
 }
 
 template <typename InNodeType>
@@ -212,6 +273,7 @@ void TAsyncTreeDifferences<InNodeType>::FlushQueue()
 	{
 		ProcessTopOfQueue();
 	}
+	OnQueueFlushed.Broadcast(*this);
 }
 
 template <typename InNodeType>
@@ -233,6 +295,13 @@ void TAsyncTreeDifferences<InNodeType>::ForEach(ETreeTraverseOrder TraversalOrde
 		break;
 	default: check(false);
 	}
+}
+
+template <typename InNodeType>
+template <typename SpecificationType, typename... TArgs>
+void TAsyncTreeDifferences<InNodeType>::SetDiffSpecification(TArgs... Args)
+{
+	Specification = MakeUnique<SpecificationType>(Args...);
 }
 
 template <typename InNodeType>
@@ -336,11 +405,11 @@ void TAsyncTreeDifferences<InNodeType>::ProcessTopOfQueue()
 	TArray<ValueType> ChildrenB;
 	if (DiffNode->ValueA != DiffNodeType::NullValue)
 	{
-		TreeDiffSpecification::GetChildren<ValueType>(DiffNode->ValueA, ChildrenA);
+		Specification->GetChildren(DiffNode->ValueA, ChildrenA);
 	}
 	if (DiffNode->ValueB != DiffNodeType::NullValue)
 	{
-		TreeDiffSpecification::GetChildren<ValueType>(DiffNode->ValueB, ChildrenB);
+		Specification->GetChildren(DiffNode->ValueB, ChildrenB);
 	}
 	
 	if (!ChildrenA.IsEmpty() || !ChildrenB.IsEmpty())
@@ -373,27 +442,27 @@ void TAsyncTreeDifferences<InNodeType>::QueueParallelNodeLists(const TArray<Valu
         	if (IndexA == 0)
         	{
         		// ValueB doesn't match. push it on it's own
-        		FoundChildren.Add(DiffNodeType(DiffNodeType::NullValue, ValuesB[--IndexB], ParentNode));
+        		FoundChildren.Add(DiffNodeType(DiffNodeType::NullValue, ValuesB[--IndexB], ParentNode, Specification));
         	}
         	else if (IndexB == 0)
         	{
         		// ValueA doesn't match. push it on it's own
-        		FoundChildren.Add(DiffNodeType(ValuesA[--IndexA], DiffNodeType::NullValue, ParentNode));
+        		FoundChildren.Add(DiffNodeType(ValuesA[--IndexA], DiffNodeType::NullValue, ParentNode, Specification));
         	}
         	else if (AreMatching(ValuesA[IndexA - 1], ValuesB[IndexB - 1]))
         	{
         		// found a match between both nodes
-        		FoundChildren.Add(DiffNodeType(ValuesA[--IndexA], ValuesB[--IndexB], ParentNode));
+        		FoundChildren.Add(DiffNodeType(ValuesA[--IndexA], ValuesB[--IndexB], ParentNode, Specification));
         	}
         	else if (LCS[IndexA - 1][IndexB] <= LCS[IndexA][IndexB - 1])
         	{
         		// ValueB doesn't match. push it on it's own
-        		FoundChildren.Add(DiffNodeType(DiffNodeType::NullValue, ValuesB[--IndexB], ParentNode));
+        		FoundChildren.Add(DiffNodeType(DiffNodeType::NullValue, ValuesB[--IndexB], ParentNode, Specification));
         	}
         	else
         	{
         		// ValueA doesn't match. push it on it's own
-        		FoundChildren.Add(DiffNodeType(ValuesA[--IndexA], DiffNodeType::NullValue, ParentNode));
+        		FoundChildren.Add(DiffNodeType(ValuesA[--IndexA], DiffNodeType::NullValue, ParentNode, Specification));
         	}
         }
 
@@ -411,7 +480,7 @@ void TAsyncTreeDifferences<InNodeType>::QueueParallelNodeLists(const TArray<Valu
 	for (DiffNodeType& FoundChild : AllFoundChildren)
 	{
 		if (FoundChild.DiffResult == ETreeDiffResult::MissingFromTree1 &&
-			TreeDiffSpecification::ShouldMatchByValue<ValueType>(FoundChild.ValueB))
+			Specification->ShouldMatchByValue(FoundChild.ValueB))
 		{
 			if (CompressCount == 0)
 			{
@@ -423,10 +492,10 @@ void TAsyncTreeDifferences<InNodeType>::QueueParallelNodeLists(const TArray<Valu
 		}
 		if (CompressCount > 0 &&
             FoundChild.DiffResult == ETreeDiffResult::MissingFromTree2 &&
-			TreeDiffSpecification::ShouldMatchByValue<ValueType>(FoundChild.ValueA))
+			Specification->ShouldMatchByValue(FoundChild.ValueA))
 		{
 			FoundChildren[CompressIndex].ValueA = FoundChild.ValueA;
-			FoundChildren[CompressIndex].SetDiffType();
+			FoundChildren[CompressIndex].SetDiffType(Specification);
 			++CompressIndex;
 			--CompressCount;
 			continue;
@@ -541,15 +610,15 @@ TArray<TArray<int32>> TAsyncTreeDifferences<InNodeType>::CalculateLCSTableForDif
 template <typename InNodeType>
 bool TAsyncTreeDifferences<InNodeType>::AreMatching(const ValueType& ValueA, const ValueType& ValueB)
 {
-	const bool bMatchValueAByValue = TreeDiffSpecification::ShouldMatchByValue<ValueType>(ValueA);
-	const bool bMatchValueBByValue = TreeDiffSpecification::ShouldMatchByValue<ValueType>(ValueA);
+	const bool bMatchValueAByValue = Specification->ShouldMatchByValue(ValueA);
+	const bool bMatchValueBByValue = Specification->ShouldMatchByValue(ValueB);
 	if (bMatchValueAByValue && bMatchValueBByValue)
 	{
-		return TreeDiffSpecification::AreValuesEqual<ValueType>(ValueA, ValueB);
+		return Specification->AreValuesEqual(ValueA, ValueB);
 	}
 	if (!bMatchValueAByValue && !bMatchValueBByValue)
 	{
-		return TreeDiffSpecification::AreMatching<ValueType>(ValueA, ValueB);
+		return Specification->AreMatching(ValueA, ValueB);
 	}
 
 	// a node that should match by value will never match a node that shouldn't match by value

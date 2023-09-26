@@ -474,8 +474,8 @@ SDetailsDiff::FDiffControl SDetailsDiff::GenerateDetailsPanel(const TFunction<co
 					}
 				}
 			}
-			
-			Splitter->AddHighlights(Highlights);
+
+			Splitter->HighlightFromMergeResults(MergeConflicts);
 		}
 	});
 	if (OutputObject)

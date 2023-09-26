@@ -384,16 +384,18 @@ struct FPropertyInstance
 };
 
 // methods that make FPropertyInstance diffable
-namespace TreeDiffSpecification
+template<>
+class TTreeDiffSpecification<FPropertyInstance>
 {
-	template<>
-	bool AreValuesEqual<FPropertyInstance>(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB)
+public:
+	virtual ~TTreeDiffSpecification() = default;
+	
+	virtual bool AreValuesEqual(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB) const
 	{
 		return TreeNodeA == TreeNodeB;
 	}
 	
-	template<>
-	bool AreMatching<FPropertyInstance>(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB)
+	virtual bool AreMatching(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB) const
 	{
 		if (TreeNodeA.KeyProperty->GetName() == TreeNodeB.KeyProperty->GetName())
 		{
@@ -411,14 +413,12 @@ namespace TreeDiffSpecification
 		return false;
 	}
 	
-	template<>
-	void GetChildren<FPropertyInstance>(const FPropertyInstance& InParent, TArray<FPropertyInstance>& OutChildren)
+	virtual void GetChildren(const FPropertyInstance& InParent, TArray<FPropertyInstance>& OutChildren) const
 	{
 		return InParent.GetChildren(OutChildren);
 	}
 
-	template<>
-	bool ShouldMatchByValue<FPropertyInstance>(const FPropertyInstance& TreeNodeA)
+	virtual bool ShouldMatchByValue(const FPropertyInstance& TreeNodeA) const
 	{
 		// array elements should match by value
 		return CastField<FArrayProperty>(TreeNodeA.KeyProperty->Owner.ToField()) != nullptr;
@@ -579,7 +579,7 @@ static void RelinkObjectProperties(const TArray<FPropertyInstance>& Props, UPack
 		}
 		
 		TArray<FPropertyInstance> Children;
-		TreeDiffSpecification::GetChildren(Instance, Children);
+		Instance.GetChildren(Children);
 		if (Children.Num())
 		{
 			RelinkObjectProperties(Children, FromPackage, ToPackage);

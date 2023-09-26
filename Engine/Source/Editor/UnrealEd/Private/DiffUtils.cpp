@@ -1074,6 +1074,96 @@ bool DiffUtils::Identical(const FResolvedProperty& AProp, const FResolvedPropert
 	return DifferingProperties.Num() == 0;
 }
 
+bool DiffUtils::Identical(const TSharedPtr<IPropertyHandle>& PropertyHandleA, const TSharedPtr<IPropertyHandle>& PropertyHandleB,
+                          const TArray<TWeakObjectPtr<UObject>>& OwningOutersA, const TArray<TWeakObjectPtr<UObject>>& OwningOutersB)
+{
+	TArray<void*> ValuesA;
+	TArray<void*> ValuesB;
+	PropertyHandleA->AccessRawData(ValuesA);
+	PropertyHandleB->AccessRawData(ValuesB);
+
+	// if OwningOuters weren't provided, fallback to using the property handles to find them
+	TArray<UObject*> HandleOutersA;
+	TArray<UObject*> HandleOutersB;
+	if (OwningOutersA.IsEmpty())
+	{
+		PropertyHandleA->GetOuterObjects(HandleOutersA);
+	}
+	if (OwningOutersB.IsEmpty())
+	{
+		PropertyHandleB->GetOuterObjects(HandleOutersB);
+	}
+	
+	if (!ensure(ValuesA.Num() == OwningOutersA.Num()))
+	{
+		// Outer count mismatch
+		return false;
+	}
+	if (!ensure(ValuesB.Num() == OwningOutersB.Num()))
+	{
+		// Outer count mismatch
+		return false;
+	}
+
+	auto IsIdenticalAtIndex = [&](int32 IndexA, int32 IndexB)
+	{
+		const void* ValueA = ValuesA[IndexA];
+		const void* ValueB = ValuesB[IndexB];
+
+		const UObject* OwningOuterA = OwningOutersA.IsEmpty() ? HandleOutersA[IndexA] : OwningOutersA[IndexA].Get();
+		const UObject* OwningOuterB = OwningOutersB.IsEmpty() ? HandleOutersB[IndexB] : OwningOutersB[IndexB].Get();;
+
+		// note that we're not directly calling FProperty::Identical because sub-object properties should be weakly compared based on
+		// their paths instead of their pointers or data
+		TArray<FPropertySoftPath> DifferingProperties;
+		IdenticalHelper(PropertyHandleA->GetProperty(), PropertyHandleB->GetProperty(), ValueA, ValueB,
+			OwningOuterA, OwningOuterB, {}, DifferingProperties, true);
+
+		return DifferingProperties.IsEmpty();
+	};
+	
+	if (ValuesA.Num() == ValuesB.Num())
+	{
+		// compare AValues[I] with BValues[I]
+		for (int32 I = 0; I < ValuesA.Num(); ++I)
+		{
+			if (!IsIdenticalAtIndex(I,I))
+			{
+				return false;
+			}
+		}
+	}
+	else if (ValuesA.Num() == 1)
+	{
+		// compare AValues[0] with BValues[0...N]
+		for (int32 I = 0; I < ValuesB.Num(); ++I)
+		{
+			if (!IsIdenticalAtIndex(0,I))
+			{
+				return false;
+			}
+		}
+	}
+	else if (ValuesB.Num() == 1)
+	{
+		// compare BValues[0] with AValues[0...N]
+		for (int32 I = 0; I < ValuesA.Num(); ++I)
+		{
+			if (!IsIdenticalAtIndex(I,0))
+			{
+				return false;
+			}
+		}
+	}
+	else
+	{
+		// number of values doesn't match... this cannot be compared
+		return ensure(false);
+	}
+	
+	return true;
+}
+
 TArray<FPropertySoftPath> DiffUtils::GetVisiblePropertiesInOrderDeclared(const UStruct* ForStruct, const FPropertySoftPath& Scope /*= TArray<FName>()*/)
 {
 	TArray<FPropertySoftPath> Ret;
