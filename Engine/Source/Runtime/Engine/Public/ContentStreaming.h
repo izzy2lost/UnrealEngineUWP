@@ -520,6 +520,12 @@ struct IAudioStreamingManager : public IStreamingManager
 	/** Removes a Sound Wave from the streaming manager. */
 	virtual void RemoveStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave) = 0;
 
+	/** Adds the memory usage of the force inline sound to the streaming cache budget */
+	virtual void AddForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) { };
+
+	/** Removes the memory usage of the force inline sound from the streaming cache budget */
+	virtual void RemoveForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) { };
+
 	/** Adds the decoder to the streaming manager to prevent stream chunks from getting reaped from underneath it */
 	virtual void AddDecoder(ICompressedAudioInfo* CompressedAudioInfo) = 0;
 

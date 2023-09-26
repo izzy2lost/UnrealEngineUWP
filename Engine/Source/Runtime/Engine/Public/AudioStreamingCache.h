@@ -122,8 +122,12 @@ public:
 	void AddNewReferenceToChunk(const FChunkKey& InKey);
 	void RemoveReferenceToChunk(const FChunkKey& InKey);
 
-	// Evict all sounds from the cache.
+	// Evict all sounds from the cache. Does not account for force inline sounds
 	void ClearCache();
+
+	void AddForceInlineSoundWave(const FSoundWaveProxyPtr&);
+
+	void RemoveForecInlineSoundWave(const FSoundWaveProxyPtr&);
 
 	// This function will reclaim memory by freeing as many chunks as needed to free BytesToFree.
 	// returns the amount of bytes we were actually able to free.
@@ -396,6 +400,8 @@ private:
 	TAtomic<uint64> MemoryCounterBytes;
 	uint64 MemoryLimitBytes;
 
+	TAtomic<uint64> ForceInlineMemoryCounterBytes;
+
 	// Number of async load operations we have currently in flight.
 	FThreadSafeCounter NumberOfLoadsInFlight;
 
@@ -510,6 +516,8 @@ public:
 	// IAudioStreamingManager interface (unused functions)
 	virtual void AddStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave) override;
 	virtual void RemoveStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave) override;
+	virtual void AddForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) override;
+	virtual void RemoveForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) override;
 	virtual void AddDecoder(ICompressedAudioInfo* CompressedAudioInfo) override;
 	virtual void RemoveDecoder(ICompressedAudioInfo* CompressedAudioInfo) override;
 	virtual bool IsManagedStreamingSoundWave(const FSoundWaveProxyPtr&  SoundWave) const override;
