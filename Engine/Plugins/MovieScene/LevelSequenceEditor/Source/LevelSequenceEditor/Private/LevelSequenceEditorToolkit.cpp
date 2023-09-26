@@ -659,8 +659,9 @@ void FLevelSequenceEditorToolkit::HandleAddComponentActionExecute(UActorComponen
 	TArray<UActorComponent*> ActorComponents;
 	ActorComponents.Add(Component);
 
+	// Add selected actor components if the given component is from a selected actor
 	USelection* SelectedActors = GEditor->GetSelectedActors();
-	if (SelectedActors && SelectedActors->Num() > 0)
+	if (SelectedActors && SelectedActors->Num() > 0 && SelectedActors->IsSelected(Component->GetOwner()))
 	{
 		for (FSelectionIterator Iter(*SelectedActors); Iter; ++Iter)
 		{
