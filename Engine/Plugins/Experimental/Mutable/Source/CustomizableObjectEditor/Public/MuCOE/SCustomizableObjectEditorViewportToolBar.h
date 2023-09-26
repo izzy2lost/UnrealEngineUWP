@@ -11,6 +11,7 @@ namespace ETextCommit { enum Type : int; }
 class FMenuBuilder;
 class SMenuAnchor;
 class SWidget;
+class SButton;
 struct FSlateBrush;
 
 
@@ -32,43 +33,7 @@ private:
 	* @return The widget containing the view menu content
 	*/
 	TSharedRef<SWidget> GenerateViewMenu() const;
-
-	/**
-	* Generates the toolbar show menu content
-	*
-	* @return The widget containing the show menu content
-	*/
-	//TSharedRef<SWidget> GenerateShowMenu() const;
-
-	/**
-	* Generates the Show -> Scene sub menu content
-	*/
-	//void FillShowSceneMenu(FMenuBuilder& MenuBuilder) const;
-
-	/**
-	* Generates the Show -> Advanced sub menu content
-	*/
-	//void FillShowAdvancedMenu(FMenuBuilder& MenuBuilder) const;
-
-	/**
-	* Generates the Show -> Bone sub menu content
-	*/
-	//void FillShowBoneDrawMenu(FMenuBuilder& MenuBuilder) const;
-
-	/**
-	* Generates the Show -> Overlay sub menu content
-	*/
-	//void FillShowOverlayDrawMenu(FMenuBuilder& MenuBuilder) const;
-
-	/**
-	* Generates the Show -> Clothing sub menu content
-	*/
-	//void FillShowClothingMenu(FMenuBuilder& MenuBuilder) const;
-
-	/**
-	* Generates the Show -> Display Info sub menu content
-	*/
-	//void FillShowDisplayInfoMenu(FMenuBuilder& MenuBuilder) const;
+	
 
 	/** Add the projector Rotation, traslation and scale buttons to viewport toolbar */
 	TSharedRef<SWidget> GenerateRTSButtons();
@@ -101,25 +66,12 @@ private:
 	*/
 	TSharedRef<SWidget> GeneratePlaybackMenu() const;
 
-	/** Generate the turntable menu entries */
-	void GenerateTurnTableMenu(FMenuBuilder& MenuBuilder) const;
-
-	/** Generate the scene setup menu */
-	void GenerateSceneSetupMenu(FMenuBuilder& MenuBuilder);
-
 	/**
 	* Generates the toolbar Options Mode menu content
 	*
 	* @return The widget containing the Options menu content
 	*/
 	TSharedRef<SWidget> GenerateViewportOptionsMenu() const;
-
-
-	/** Customize the details of the scene setup object */
-	//TSharedRef<class IDetailCustomization> CustomizePreviewSceneDescription();
-
-	/** Customize a preview mesh collection entry */
-	//TSharedRef<class IPropertyTypeCustomization> CustomizePreviewMeshCollectionEntry();
 
 	/**
 	* Generate color of the text on the top
@@ -145,8 +97,6 @@ private:
 	float OnGetFOVValue() const;
 	/** Called when the FOV slider is adjusted in the perspective viewport */
 	void OnFOVValueChanged(float NewValue) const;
-	/** Called when a value is entered into the FOV slider/box in the perspective viewport */
-	void OnFOVValueCommitted(float NewValue, ETextCommit::Type CommitInfo);
 
 	/** Called by the floor offset slider in the perspective viewport to get the offset value */
 	TOptional<float> OnGetFloorOffset() const;
@@ -156,14 +106,11 @@ private:
 	// Called to determine if the gizmos can be used in the current preview
 	EVisibility GetTransformToolbarVisibility() const;
 
-	// Called to show / hide Customizalbe Object compile error
+	// Called to show / hide Customizable Object compile error
 	EVisibility GetShowCompileErrorOverlay() const;
 
 	// Called to modify the instance compile status overlay information text
 	FText GetCompileErrorOverlayText() const;
-
-	// Called to show / hide Customizalbe Object info layout
-	EVisibility GetShowCompileInfoOverlay() const;
 
 	ECheckBoxState IsRotationGridSnapChecked() const;
 	void HandleToggleRotationGridSnap(ECheckBoxState InState);
@@ -180,17 +127,11 @@ private:
 	/** Generates widgets for viewport camera FOV control */
 	TSharedRef<SWidget> GenerateFOVMenu() const;
 
-private:
 	/** The viewport that we are in */
-	TWeakPtr<class SCustomizableObjectEditorViewportTabBody> Viewport;
+	TWeakPtr<SCustomizableObjectEditorViewportTabBody> Viewport;
 
 	// Layout to show information about instance skeletal mesh update / CO asset data
-	TSharedPtr<class SButton> CompileErrorLayout;
-
-	// Layout to show if the skeletal mesh of a functional CO is being updated
-	TSharedPtr<class SButton> UpdateInfoLayout;
-
-	SViewportToolBar* CastedViewportToolbar;
+	TSharedPtr<SButton> CompileErrorLayout;
 
 	TSharedPtr<SMenuAnchor> MenuAnchor;
 };

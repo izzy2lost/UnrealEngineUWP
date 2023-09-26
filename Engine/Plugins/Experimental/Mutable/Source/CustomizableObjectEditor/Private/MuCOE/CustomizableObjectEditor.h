@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "CustomizableObjectInstanceEditor.h"
 #include "EditorUndoClient.h"
 #include "GraphEditor.h"
 #include "Misc/NotifyHook.h"
@@ -184,12 +185,27 @@ public:
 	// ICustomizableObjectEditor interface
 	virtual UCustomizableObject* GetCustomizableObject() override;
 	virtual void RefreshTool() override;
-	virtual void RefreshViewport() override;
+	virtual TSharedPtr<SCustomizableObjectEditorViewportTabBody> GetViewport() override;
 	virtual UCustomizableObjectInstance* GetPreviewInstance() override;
 	virtual bool CanPasteNodes() const override;
 	virtual void PasteNodesHere(const FVector2D& Location) override;
 	virtual void SelectNode(const UCustomizableObjectNode* Node) override;
 	virtual void ReconstructAllChildNodes(UCustomizableObjectNode& StartNode, const UClass& NodeType) override;
+	virtual UProjectorParameter* GetProjectorParameter() override;
+	virtual UCustomSettings* GetCustomSettings() override;
+	virtual void HideGizmo() override;
+	virtual void ShowGizmoProjectorNodeProjectorConstant(UCustomizableObjectNodeProjectorConstant& Node) override;
+	virtual void HideGizmoProjectorNodeProjectorConstant() override;
+	virtual void ShowGizmoProjectorNodeProjectorParameter(UCustomizableObjectNodeProjectorParameter& Node) override;
+	virtual void HideGizmoProjectorNodeProjectorParameter() override;
+	virtual void ShowGizmoProjectorParameter(const FString& ParamName, int32 RangeIndex = -1) override;
+	virtual void HideGizmoProjectorParameter() override;
+	virtual void ShowGizmoClipMorph(UCustomizableObjectNodeMeshClipMorph& Node) override;
+	virtual void HideGizmoClipMorph() override;
+	virtual void ShowGizmoClipMesh(UCustomizableObjectNodeMeshClipWithMesh& Node) override;
+	virtual void HideGizmoClipMesh() override;
+	virtual void ShowGizmoLight(ULightComponent& SelectedLight) override;
+	virtual void HideGizmoLight() override;
 
 	/** Called to undo the last action */
 	void UndoGraphAction();
@@ -302,10 +318,7 @@ private:
 
 	/** Callback for the object modified event */
 	void OnObjectModified(UObject* Object);
-	
-	/** */
-	void OnPreviewInstanceUpdated();
-	
+		
 	void CreateGraphEditorWidget(UEdGraph* InGraph);
 
 	/** Copy the currently selected nodes */
@@ -329,12 +342,6 @@ private:
 	/** Updates the visibility of PreviewSkeletalMeshComponent */
 	void UpdatePreviewVisibility();
 
-	/** Handler for when an asset's property has changed */
-	void OnObjectPropertyChanged(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent);
-
-	/** Utility method to reset current's projector visibility with no Skeletal Mesh Update */
-	void ResetProjectorVisibilityNoUpdate();
-
 	/** Searches a node that contains the inserted word */
 	void OnEnterText(const FText& NewText, ETextCommit::Type TextType);
 
@@ -356,12 +363,10 @@ private:
 	void CreatePreviewComponents();
 
 public:
-
 	// Helpers to get the absolute parent of a Customizable Object
 	static UCustomizableObject* GetAbsoluteCOParent(const UCustomizableObjectNodeObject* const Root);
 	static void AddCachedReferencers(const FName& PathName, TArray<FName>& ArrayReferenceNames, TArray<FAssetData>& ArrayAssetData);
 	static void GetExternalChildObjects(const UCustomizableObject* const Object, TArray<UCustomizableObject*>& ExternalChildren, const bool bRecursively = true, const EObjectFlags ExcludeFlags = EObjectFlags::RF_Transient);
-
 
 	/**	The tab ids for all the tabs used */
 	static const FName ViewportTabId;
@@ -395,7 +400,7 @@ private:
 	TSharedPtr<SCustomizableObjectEditorViewportTabBody> Viewport;
 	TSharedPtr<FCustomizableObjectEditorViewportClient> ViewportClient;
 
-	TSharedPtr<class IDetailsView> CustomizableInstanceDetailsView;
+	TSharedPtr<IDetailsView> CustomizableInstanceDetailsView;
 
 
 	/** Property View */
@@ -412,35 +417,8 @@ private:
 	/** Widget to select which node pins are visible. */
 	TSharedPtr<class SCustomizableObjectNodePinViewer> NodePinViewer;
 
-	UCustomizableObjectNodeMeshClipMorph* SelectedMeshClipMorphNode = nullptr;
-
-	UCustomizableObjectNodeMeshClipWithMesh* SelectedMeshClipWithMeshNode = nullptr;
-
-	UCustomizableObjectNodeProjectorConstant* SelectedProjectorNode = nullptr;
-
-	UCustomizableObjectNodeProjectorParameter* SelectedProjectorParameterNode = nullptr;
-
 	/** Handle for the OnObjectModified event */
 	FDelegateHandle OnObjectModifiedHandle;
-
-	bool ProjectorConstantNodeSelected = false;
-	bool ProjectorParameterNodeSelected = false;
-	bool SelectedGraphNodesChanged = false;
-	bool SelectedProjectorParameterNotNode = false;
-	bool ResetProjectorVisibilityForNonNode = false;
-	bool SetProjectorVisibilityForParameter = false;
-	bool SetProjectorTypeForParameter = false;
-	FString ProjectorParameterName;
-	FString ProjectorParameterNameWithIndex;
-	int32 ProjectorRangeIndex;
-	int32 ProjectorParameterIndex = -1;
-	FVector3f ProjectorParameterPosition;
-	FVector3f ProjectorParameterDirection;
-	FVector3f ProjectorParameterUp;
-	FVector3f ProjectorParameterScale;
-	ECustomizableObjectProjectorType ProjectorParameterProjectionType;
-	float ProjectionAngle;
-	bool ManagingProjector = false;
 
 	/** Flag to know when the asset registry initial loading has completed */
 	bool AssetRegistryLoaded = false;
@@ -456,9 +434,6 @@ private:
 
 	/** Scene preview settings widget */
 	TSharedPtr<class SCustomizableObjectEditorAdvancedPreviewSettings> CustomizableObjectEditorAdvancedPreviewSettings;
-
-	/** Advanced scene preview settings */
-	TObjectPtr<class UCustomizableObjectEmptyClassForSettings> AdditionalSettings;
 	
 	/** Texture Analyzer table widget which shows the information of the transient textures used in the customizable object instance */
 	TSharedPtr<class SCustomizableObjecEditorTextureAnalyzer> TextureAnalyzer;
@@ -477,7 +452,15 @@ private:
 
 	/** Postponed work to do when OnUpdatePreviewInstance is called. Emptied at the end on each OnUpdatePreviewInstance call. */
 	TArray<TFunction<void()>> OnUpdatePreviewInstanceWork;
+
+	TObjectPtr<UProjectorParameter> ProjectorParameter = nullptr;
+
+	TObjectPtr<UCustomSettings> CustomSettings = nullptr;
+
+	bool bRecursionGuard = false;
 	
+	EProjectorGizmo ProjectorGizmo = EProjectorGizmo::None;
+
 protected:
 	/** @return the documentation location for this editor */
 	virtual FString GetDocumentationLink() const override;

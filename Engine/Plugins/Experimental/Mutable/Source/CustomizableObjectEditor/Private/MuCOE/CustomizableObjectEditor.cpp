@@ -51,6 +51,7 @@
 #include "MuCOE/SCustomizableObjectEditorViewport.h"
 #include "PropertyEditorModule.h"
 #include "ScopedTransaction.h"
+#include "MuCOE/SCustomizableInstanceProperties.h"
 #include "UObject/EnumProperty.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SSearchBox.h"
@@ -198,6 +199,11 @@ FCustomizableObjectEditor::~FCustomizableObjectEditor()
 
 void FCustomizableObjectEditor::InitCustomizableObjectEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost)
 {
+	ProjectorParameter = NewObject<UProjectorParameter>();
+
+	CustomSettings = NewObject<UCustomSettings>();
+	CustomSettings->SetEditor(SharedThis(this));
+
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 	if (AssetRegistryModule.Get().IsLoadingAssets())
 	{
@@ -234,7 +240,6 @@ void FCustomizableObjectEditor::InitCustomizableObjectEditor(const EToolkitMode:
 	DetailsViewArgs.bShowScrollBar = false;
 
 	CustomizableObjectDetailsView = PropPlugin.CreateDetailView( DetailsViewArgs );
-	CustomizableObjectDetailsView->SetObject(CustomizableObject);
 
 	CustomizableInstanceDetailsView = PropPlugin.CreateDetailView( DetailsViewArgs );
 	GraphNodeDetailsView = PropPlugin.CreateDetailView(DetailsViewArgs);
@@ -252,20 +257,13 @@ void FCustomizableObjectEditor::InitCustomizableObjectEditor(const EToolkitMode:
 	// \TODO: Create only when needed?
 	TagExplorer = SNew(SCustomizableObjectEditorTagExplorer).CustomizableObjectEditor(this);
 	
-	AdditionalSettings = NewObject<UCustomizableObjectEmptyClassForSettings>();
-	if(AdditionalSettings != nullptr)
-		{
-		AdditionalSettings->Viewport = Viewport;
-		AdditionalSettings->PreviewSkeletalMeshComp = !PreviewSkeletalMeshComponents.IsEmpty() ? &PreviewSkeletalMeshComponents[0] : nullptr;
-	}
-
 	FAdvancedPreviewSceneModule& AdvancedPreviewSceneModule = FModuleManager::LoadModuleChecked<FAdvancedPreviewSceneModule>("AdvancedPreviewScene");
 
 	TSharedPtr<FAdvancedPreviewScene> AdvancedPreviewScene = StaticCastSharedPtr<FAdvancedPreviewScene>(Viewport->GetPreviewScene());
 
 	CustomizableObjectEditorAdvancedPreviewSettings =
 		SNew(SCustomizableObjectEditorAdvancedPreviewSettings, AdvancedPreviewScene.ToSharedRef())
-		.AdditionalSettings(AdditionalSettings)
+		.CustomSettings(CustomSettings)
 		.CustomizableObjectEditor(this);
 	CustomizableObjectEditorAdvancedPreviewSettings->LoadProfileEnvironment();
 	AdvancedPreviewSettingsWidget = CustomizableObjectEditorAdvancedPreviewSettings;
@@ -325,12 +323,14 @@ void FCustomizableObjectEditor::InitCustomizableObjectEditor(const EToolkitMode:
 					->SetHideTabWell(true)
 				)
 			)
-		)
+		)	
 	);
 
 	const bool bCreateDefaultStandaloneMenu = true;
 	const bool bCreateDefaultToolbar = true;
 	FAssetEditorToolkit::InitAssetEditor( Mode, InitToolkitHost, CustomizableObjectEditorAppIdentifier, StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, CustomizableObject);
+	
+	CustomizableObjectDetailsView->SetObject(CustomizableObject); // Can only be called after initializing the Asset Editor
 
 	ExtendToolbar();
 	RegenerateMenusAndToolbars();
@@ -339,8 +339,6 @@ void FCustomizableObjectEditor::InitCustomizableObjectEditor(const EToolkitMode:
 	OnObjectPropertySelectionChanged(NULL);
 	OnInstancePropertySelectionChanged(NULL);
 	OnObjectModifiedHandle = FCoreUObjectDelegates::OnObjectModified.AddRaw(this, &FCustomizableObjectEditor::OnObjectModified);
-
-	FCoreUObjectDelegates::OnObjectPropertyChanged.AddSP(this, &FCustomizableObjectEditor::OnObjectPropertyChanged);
 
 	// Compile for the first time if necessary
 	if (!CustomizableObject->IsCompiled())
@@ -472,12 +470,6 @@ void FCustomizableObjectEditor::CreatePreviewInstance()
 }
 
 
-void FCustomizableObjectEditor::OnPreviewInstanceUpdated()
-{
-	RefreshViewport();
-}
-
-
 void FCustomizableObjectEditor::AddReferencedObjects( FReferenceCollector& Collector )
 {
 	Collector.AddReferencedObject( CustomizableObject );
@@ -486,7 +478,8 @@ void FCustomizableObjectEditor::AddReferencedObjects( FReferenceCollector& Colle
 	Collector.AddReferencedObject( PreviewStaticMeshComponent );
 	Collector.AddReferencedObjects( PreviewSkeletalMeshComponents );
 	Collector.AddReferencedObject( HelperCallback );
-	Collector.AddReferencedObject( AdditionalSettings );
+	Collector.AddReferencedObject( ProjectorParameter );
+	Collector.AddReferencedObject( CustomSettings );
 }
 
 
@@ -926,6 +919,315 @@ void FCustomizableObjectEditor::ReconstructAllChildNodes(UCustomizableObjectNode
 }
 
 
+UProjectorParameter* FCustomizableObjectEditor::GetProjectorParameter()
+{
+	return ProjectorParameter;
+}
+
+
+UCustomSettings* FCustomizableObjectEditor::GetCustomSettings()
+{
+	return CustomSettings;
+}
+
+
+void FCustomizableObjectEditor::HideGizmo()
+{
+	HideGizmoProjectorNodeProjectorConstant();
+	HideGizmoProjectorNodeProjectorParameter();
+	HideGizmoClipMorph();
+	HideGizmoClipMesh();
+	HideGizmoLight();
+
+	FCustomizableObjectInstanceEditor::HideGizmo(SharedThis(this), Viewport, CustomizableInstanceDetailsView);
+}
+
+
+void FCustomizableObjectEditor::ShowGizmoProjectorNodeProjectorConstant(UCustomizableObjectNodeProjectorConstant& Node)
+{
+	HideGizmo();
+	
+	ProjectorGizmo = EProjectorGizmo::NodeProjectorConstant;
+	
+	GraphEditor->ClearSelectionSet();
+	GraphEditor->SetNodeSelection(&Node, true);
+	
+	FProjectorTypeDelegate ProjectorTypeDelegate;
+	ProjectorTypeDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorConstant::GetProjectorType);		
+
+	FWidgetColorDelegate WidgetColorDelegate;
+	WidgetColorDelegate.BindLambda([]() { return FColor::Red; });
+
+	FWidgetLocationDelegate WidgetLocationDelegate;
+	WidgetLocationDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorConstant::GetProjectorPosition);
+
+	FOnWidgetLocationChangedDelegate OnWidgetLocationChangedDelegate;
+	OnWidgetLocationChangedDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorConstant::SetProjectorPosition);
+
+	FWidgetDirectionDelegate WidgetDirectionDelegate;
+	WidgetDirectionDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorConstant::GetProjectorDirection);
+
+	FOnWidgetDirectionChangedDelegate OnWidgetDirectionChangedDelegate;
+	OnWidgetDirectionChangedDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorConstant::SetProjectorDirection);
+
+	FWidgetUpDelegate WidgetUpDelegate;
+	WidgetUpDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorConstant::GetProjectorUp);
+
+	FOnWidgetUpChangedDelegate OnWidgetUpChangedDelegate;
+	OnWidgetUpChangedDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorConstant::SetProjectorUp);
+
+	FWidgetScaleDelegate WidgetScaleDelegate;
+	WidgetScaleDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorConstant::GetProjectorScale);
+
+	FOnWidgetScaleChangedDelegate OnWidgetScaleChangedDelegate;
+	OnWidgetScaleChangedDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorConstant::SetProjectorScale);
+
+	FWidgetAngleDelegate WidgetAngleDelegate;
+	WidgetAngleDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorConstant::GetProjectorAngle);
+
+	FWidgetTrackingStartedDelegate WidgetTrackingStartedDelegate;
+	WidgetTrackingStartedDelegate.BindLambda([WeakNode = MakeWeakObjectPtr(&Node)]()
+	{
+		if (UCustomizableObjectNodeProjectorConstant* Node = WeakNode.Get())
+		{
+			Node->Modify();
+		}
+	});
+	
+	Viewport->ShowGizmoProjector(WidgetLocationDelegate, OnWidgetLocationChangedDelegate,
+		WidgetDirectionDelegate, OnWidgetDirectionChangedDelegate,
+		WidgetUpDelegate, OnWidgetUpChangedDelegate,
+		WidgetScaleDelegate, OnWidgetScaleChangedDelegate,
+		WidgetAngleDelegate,
+		ProjectorTypeDelegate,
+		WidgetColorDelegate,
+		WidgetTrackingStartedDelegate);
+}
+
+
+void FCustomizableObjectEditor::HideGizmoProjectorNodeProjectorConstant()
+{
+	if (ProjectorGizmo != EProjectorGizmo::NodeProjectorConstant)
+	{
+		return;
+	}
+	
+	Viewport->HideGizmoProjector();
+
+	const FGraphPanelSelectionSet SelectedNodes = GraphEditor->GetSelectedNodes();
+	for (FGraphPanelSelectionSet::TConstIterator NodeIt( SelectedNodes ); NodeIt; ++NodeIt)
+	{
+		const UObject* Node = *NodeIt;
+		if (Node->IsA<UCustomizableObjectNodeProjectorConstant>())
+		{
+			GraphEditor->ClearSelectionSet();
+			break;
+		}
+	}			
+}
+
+
+void FCustomizableObjectEditor::ShowGizmoProjectorNodeProjectorParameter(UCustomizableObjectNodeProjectorParameter& Node)
+{
+	HideGizmo();
+
+	ProjectorGizmo = EProjectorGizmo::NodeProjectorParameter;
+	
+	GraphEditor->ClearSelectionSet();
+	GraphEditor->SetNodeSelection(&Node, true);
+	
+	FProjectorTypeDelegate ProjectorTypeDelegate;
+	ProjectorTypeDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorParameter::GetProjectorType);		
+
+	FWidgetColorDelegate WidgetColorDelegate;
+	WidgetColorDelegate.BindLambda([]() { return FColor::Red; });
+	
+	FWidgetLocationDelegate WidgetLocationDelegate;
+	WidgetLocationDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorParameter::GetProjectorDefaultPosition);
+
+	FOnWidgetLocationChangedDelegate OnWidgetLocationChangedDelegate;
+	OnWidgetLocationChangedDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorParameter::SetProjectorDefaultPosition);
+
+	FWidgetDirectionDelegate WidgetDirectionDelegate;
+	WidgetDirectionDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorParameter::GetProjectorDefaultDirection);
+
+	FOnWidgetDirectionChangedDelegate OnWidgetDirectionChangedDelegate;
+	OnWidgetDirectionChangedDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorParameter::SetProjectorDefaultDirection);
+
+	FWidgetUpDelegate WidgetUpDelegate;
+	WidgetUpDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorParameter::GetProjectorDefaultUp);
+
+	FOnWidgetUpChangedDelegate OnWidgetUpChangedDelegate;
+	OnWidgetUpChangedDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorParameter::SetProjectorDefaultUp);
+
+	FWidgetScaleDelegate WidgetScaleDelegate;
+	WidgetScaleDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorParameter::GetProjectorDefaultScale);
+
+	FOnWidgetScaleChangedDelegate OnWidgetScaleChangedDelegate;
+	OnWidgetScaleChangedDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorParameter::SetProjectorDefaultScale);
+
+	FWidgetAngleDelegate WidgetAngleDelegate;
+	WidgetAngleDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorParameter::GetProjectorDefaultAngle);
+	
+	FWidgetTrackingStartedDelegate WidgetTrackingStartedDelegate;
+	WidgetTrackingStartedDelegate.BindLambda([WeakNode = MakeWeakObjectPtr(&Node)]()
+	{
+		if (UCustomizableObjectNodeProjectorParameter* Node = WeakNode.Get())
+		{
+			Node->Modify();
+		}
+	});
+	
+	Viewport->ShowGizmoProjector(WidgetLocationDelegate, OnWidgetLocationChangedDelegate,
+		WidgetDirectionDelegate, OnWidgetDirectionChangedDelegate,
+		WidgetUpDelegate, OnWidgetUpChangedDelegate,
+		WidgetScaleDelegate, OnWidgetScaleChangedDelegate,
+		WidgetAngleDelegate,
+		ProjectorTypeDelegate,
+		WidgetColorDelegate,
+		WidgetTrackingStartedDelegate);
+}
+
+
+void FCustomizableObjectEditor::HideGizmoProjectorNodeProjectorParameter()
+{
+	if (ProjectorGizmo != EProjectorGizmo::NodeProjectorParameter)
+	{
+		return;
+	}
+	
+	Viewport->HideGizmoProjector();
+
+	const FGraphPanelSelectionSet SelectedNodes = GraphEditor->GetSelectedNodes();
+	for (FGraphPanelSelectionSet::TConstIterator NodeIt( SelectedNodes ); NodeIt; ++NodeIt)
+	{
+		const UObject* Node = *NodeIt;
+		if (Node->IsA<UCustomizableObjectNodeProjectorParameter>())
+		{
+			GraphEditor->ClearSelectionSet();
+			break;
+		}
+	}	
+}
+
+
+void FCustomizableObjectEditor::ShowGizmoProjectorParameter(const FString& ParamName, int32 RangeIndex)
+{
+	ProjectorGizmo = EProjectorGizmo::Parameter;
+	
+	FCustomizableObjectInstanceEditor::ShowGizmoProjectorParameter(ParamName, RangeIndex, SharedThis(this), Viewport, CustomizableInstanceDetailsView, ProjectorParameter, PreviewInstance);
+}
+
+
+void FCustomizableObjectEditor::HideGizmoProjectorParameter()
+{
+	if (ProjectorGizmo != EProjectorGizmo::Parameter)
+	{
+		return;	
+	}
+	
+	FCustomizableObjectInstanceEditor::HideGizmoProjectorParameter(SharedThis(this), Viewport, CustomizableInstanceDetailsView);
+}
+
+
+void FCustomizableObjectEditor::ShowGizmoClipMorph(UCustomizableObjectNodeMeshClipMorph& Node)
+{
+	if (Node.BoneName != FName())
+	{
+		HideGizmo();
+
+		GraphEditor->ClearSelectionSet();
+		GraphEditor->SetNodeSelection(&Node, true);
+
+		Viewport->ShowGizmoClipMorph(Node);
+	}
+}
+
+
+void FCustomizableObjectEditor::HideGizmoClipMorph()
+{
+	Viewport->HideGizmoClipMorph();
+
+	const FGraphPanelSelectionSet SelectedNodes = GraphEditor->GetSelectedNodes();
+	for (FGraphPanelSelectionSet::TConstIterator NodeIt( SelectedNodes ); NodeIt; ++NodeIt)
+	{
+		const UObject* Node = *NodeIt;
+		if (Node->IsA<UCustomizableObjectNodeMeshClipMorph>())
+		{
+			GraphEditor->ClearSelectionSet();
+			break;
+		}
+	}	
+}
+
+
+void FCustomizableObjectEditor::ShowGizmoClipMesh(UCustomizableObjectNodeMeshClipWithMesh& Node)
+{
+	UStaticMesh* ClipMesh = nullptr;
+
+	if (const UEdGraphPin* ConnectedPin = FollowInputPin(*Node.ClipMeshPin()))
+	{
+		if (const UEdGraphNode* ConnectedNode = ConnectedPin->GetOwningNode())
+		{
+			if (const UCustomizableObjectNodeStaticMesh* TypedNode = Cast<UCustomizableObjectNodeStaticMesh>(ConnectedNode))
+			{
+				ClipMesh = TypedNode->StaticMesh;
+			}
+			else if (const UCustomizableObjectNodeTable* TableNode = Cast<UCustomizableObjectNodeTable>(ConnectedNode))
+			{
+				ClipMesh = TableNode->GetColumnDefaultAssetByType<UStaticMesh>(ConnectedPin);
+			}
+		}
+	}
+
+	if (ClipMesh)
+	{
+		HideGizmo();
+
+		GraphEditor->ClearSelectionSet();
+		GraphEditor->SetNodeSelection(&Node, true);
+
+		Viewport->ShowGizmoClipMesh(Node, *ClipMesh);
+	}
+}
+
+
+void FCustomizableObjectEditor::HideGizmoClipMesh()
+{
+	Viewport->HideGizmoClipMesh();
+
+	const FGraphPanelSelectionSet SelectedNodes = GraphEditor->GetSelectedNodes();
+	for (FGraphPanelSelectionSet::TConstIterator NodeIt( SelectedNodes ); NodeIt; ++NodeIt)
+	{
+		const UObject* Node = *NodeIt;
+		if (Node->IsA<UCustomizableObjectNodeMeshClipWithMesh>())
+		{
+			GraphEditor->ClearSelectionSet();
+			break;
+		}
+	}	
+}
+
+
+void FCustomizableObjectEditor::ShowGizmoLight(ULightComponent& InSelectedLight)
+{
+	HideGizmo();
+
+	CustomSettings->SetSelectedLight(&InSelectedLight);
+
+	Viewport->ShowGizmoLight(InSelectedLight);
+	
+	CustomizableObjectEditorAdvancedPreviewSettings->Refresh();
+}
+
+
+void FCustomizableObjectEditor::HideGizmoLight()
+{
+	CustomSettings->SetSelectedLight(nullptr);
+	CustomizableObjectEditorAdvancedPreviewSettings->Refresh();
+}
+
+
 void FCustomizableObjectEditor::PostUndo(bool bSuccess)
 {
 	if (bSuccess)
@@ -1112,11 +1414,31 @@ UCustomizableObject* FCustomizableObjectEditor::GetCustomizableObject()
 
 void FCustomizableObjectEditor::RefreshTool()
 {
-	RefreshViewport();
+	if (ViewportClient)
+	{
+		ViewportClient->Invalidate();
+	}
 }
 
 
-void FCustomizableObjectEditor::RefreshViewport()
+TSharedPtr<SCustomizableObjectEditorViewportTabBody> FCustomizableObjectEditor::GetViewport()
+{
+	return Viewport;
+}
+
+
+void FCustomizableObjectEditor::OnObjectPropertySelectionChanged(FProperty* InProperty)
+{
+	CustomizableObject->PostEditChange();
+
+	if (ViewportClient)
+	{
+		ViewportClient->Invalidate();
+	}
+}
+
+
+void FCustomizableObjectEditor::OnInstancePropertySelectionChanged(FProperty* InProperty)
 {
 	if (ViewportClient)
 	{
@@ -1125,145 +1447,12 @@ void FCustomizableObjectEditor::RefreshViewport()
 }
 
 
-void FCustomizableObjectEditor::OnObjectPropertySelectionChanged(FProperty* InProperty)
-{
-	CustomizableObject->PostEditChange();
-	RefreshViewport();
-}
-
-
-void FCustomizableObjectEditor::OnInstancePropertySelectionChanged(FProperty* InProperty)
-{
-	RefreshViewport();
-}
-
-
 void FCustomizableObjectEditor::OnObjectModified(UObject* Object)
 {
-	UCustomizableObjectInstance* Instance = Cast<UCustomizableObjectInstance>(Object);
-
-	if ((Instance != nullptr) && (Instance == PreviewInstance))
-	{
-		if (ManagingProjector)
-		{
-			return;
-		}
-
-		if(Instance->ProjectorLayerChange)
-		{
-			// Don't make any changes in the projector if only a projector layer has changed
-			Instance->ProjectorLayerChange = false;
-			return;
-		}
-
-		if (Viewport->GetGizmoHasAssignedData() && !Viewport->GetGizmoAssignedDataIsFromNode())
-		{
-			Instance->LastSelectedProjectorParameter = Viewport->GetGizmoProjectorParameterName();
-			Instance->LastSelectedProjectorParameterWithIndex = Viewport->GetGizmoProjectorParameterNameWithIndex();
-		}
-
-		//UE_LOG(LogMutable, Warning, TEXT("LastSelectedProjectorParameter=%s, LastSelectedProjectorParameterWithIndex=%s"), *(PreviewInstance->LastSelectedProjectorParameter), *(PreviewInstance->LastSelectedProjectorParameterWithIndex));
-
-		// Update projector parameter information (not projector parameter node information,
-		// this is the case where a projector parameter in the object details is selected)
-		const TArray<FCustomizableObjectProjectorParameterValue>& Parameters = PreviewInstance->GetProjectorParameters();
-		const int32 MaxIndex = Parameters.Num();
-		bool AnySelected = false;
-
-		for (int32 i = 0; (!AnySelected && (i < MaxIndex)); ++i)
-		{
-			int32 RangeIndex = Parameters[i].RangeValues.Num() > 0 ? 0 : -1;
-
-			for (; RangeIndex < Parameters[i].RangeValues.Num(); ++RangeIndex)
-			{
-				const FCustomizableObjectProjector& Value = (RangeIndex == -1) ? Parameters[i].Value : Parameters[i].RangeValues[RangeIndex];
-
-				FString ParameterNameWithIndex = Parameters[i].ParameterName;
-
-				if (RangeIndex != -1)
-				{
-					ParameterNameWithIndex += FString::Printf(TEXT("__%d"), RangeIndex);
-				}
-
-				if ((PreviewInstance->GetProjectorState(Parameters[i].ParameterName, RangeIndex) == EProjectorState::Selected) ||
-					((PreviewInstance->GetProjectorState(Parameters[i].ParameterName, RangeIndex) == EProjectorState::TypeChanged) &&
-					(ParameterNameWithIndex != Instance->LastSelectedProjectorParameterWithIndex)))
-				{
-					AnySelected = true;
-					SetProjectorVisibilityForParameter = true;
-					ProjectorParameterName = Parameters[i].ParameterName;
-					ProjectorParameterNameWithIndex = Parameters[i].ParameterName;
-					if (RangeIndex != -1)
-					{
-						ProjectorParameterNameWithIndex += FString::Printf(TEXT("__%d"), RangeIndex);
-					}
-					ProjectorRangeIndex = RangeIndex;
-					ProjectorParameterIndex = i;
-					ProjectorParameterPosition = Value.Position;
-					ProjectorParameterDirection = Value.Direction;
-					ProjectorParameterUp = Value.Up;
-					ProjectorParameterScale = Value.Scale;
-					ProjectorParameterProjectionType = Value.ProjectionType;
-					ProjectionAngle = Value.Angle;
-				}
-				else if ((PreviewInstance->GetProjectorState(Parameters[i].ParameterName, RangeIndex) == EProjectorState::TypeChanged) &&
-					(Parameters[i].ParameterName == Instance->LastSelectedProjectorParameter))
-				{
-					AnySelected = true;
-					SetProjectorTypeForParameter = true;
-					ProjectorParameterName = Parameters[i].ParameterName;
-					ProjectorParameterNameWithIndex = Parameters[i].ParameterName;
-					if (RangeIndex != -1)
-					{
-						ProjectorParameterNameWithIndex += FString::Printf(TEXT("__%d"), RangeIndex);
-					}
-					ProjectorRangeIndex = RangeIndex;
-					ProjectorParameterIndex = i;
-					ProjectorParameterPosition = Value.Position;
-					ProjectorParameterDirection = Value.Direction;
-					ProjectorParameterUp = Value.Up;
-					ProjectorParameterScale = Value.Scale;
-					ProjectorParameterProjectionType = Value.ProjectionType;
-					ProjectionAngle = Value.Angle;
-				}
-			}
-		}
-
-		// Another projector parameter is being selected, and there already a projector parameter selected pending to be hidden,
-		// update its information before selecting the new one
-		bool ResetPendingDone = false;
-		if (AnySelected && SetProjectorVisibilityForParameter && !Instance->LastSelectedProjectorParameter.IsEmpty())
-		{
-			ResetProjectorVisibilityNoUpdate();
-			Instance->LastSelectedProjectorParameter = "";
-			Instance->LastSelectedProjectorParameterWithIndex = "";
-			ResetPendingDone = true;
-		}
-
-		if (!ProjectorConstantNodeSelected && !ProjectorParameterNodeSelected && !ResetPendingDone && !AnySelected && !Viewport->GetIsManipulatingGizmo())
-		{
-			ResetProjectorVisibilityForNonNode = true;
-		}
-		else if (ProjectorParameterNodeSelected)
-		{
-			SelectedProjectorParameterNotNode = true;
-		}
-
-		if (Instance->UnselectProjector)
-		{
-			Instance->UnselectProjector = false;
-
-			ResetProjectorVisibilityNoUpdate();
-			
-			Instance->LastSelectedProjectorParameter = "";
-			Instance->LastSelectedProjectorParameterWithIndex = "";
-		}
-	}
-
-	if (!Instance)
+	if (const UCustomizableObjectInstance* Instance = Cast<UCustomizableObjectInstance>(Object); !Instance)
 	{
 		// Sometimes when another CO is open in another editor window/tab, it triggers this callback, so prevent the modification of this object by a callback triggered by another one
-		if(UCustomizableObject* AuxCustomizableObject = Cast<UCustomizableObject>(Object))
+		if (UCustomizableObject* AuxCustomizableObject = Cast<UCustomizableObject>(Object))
 		{
 			AuxCustomizableObject->UpdateVersionId();
 		}
@@ -1290,11 +1479,7 @@ void FCustomizableObjectEditor::OnObjectModified(UObject* Object)
 
 void FCustomizableObjectEditor::CompileObject()
 {
-	// If any projector selected, unselect it in case the projector node is removed with this CO compile
-	ResetProjectorVisibilityNoUpdate();
-
 	// Resetting viewport parameters
-	Viewport->SetClipMorphPlaneVisibility(false, nullptr);
 	Viewport->SetDrawDefaultUVMaterial(true);
 
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: -----------------------------------------------------------"));
@@ -1310,8 +1495,6 @@ void FCustomizableObjectEditor::CompileObject()
 		FSlateNotificationManager::Get().AddNotification(Info);
 		return;
 	}
-
-	Viewport->UpdateGizmoDataToOrigin();
 
 	if (CustomizableObject->Source)
 	{
@@ -1468,57 +1651,59 @@ bool FCustomizableObjectEditor::CanDuplicateSelectedNodes() const
 void FCustomizableObjectEditor::OnSelectedGraphNodesChanged(const FGraphPanelSelectionSet& NewSelection)
 {
 	TArray<UObject*> Objects;
-	for ( FGraphPanelSelectionSet::TConstIterator It(NewSelection); It; ++It)
+	for (FGraphPanelSelectionSet::TConstIterator It(NewSelection); It; ++It)
 	{
 		Objects.Add(*It);
 	}
 
 	// Standard details
-	if ( GraphNodeDetailsView.IsValid() )
+	if (GraphNodeDetailsView.IsValid())
 	{
-		GraphNodeDetailsView->SetObjects( Objects );
-	}
-
-	if (Objects.Num())
+		GraphNodeDetailsView->SetObjects(Objects);
+	}		
+	
+	if (!bRecursionGuard) // Calling the following functions will unselect some nodes causing OnSelectedGraphNodesChanged to be called again
 	{
-		UObject* FirstNode = nullptr;
-		FirstNode = Objects[0];
-		SelectedMeshClipMorphNode = Cast<UCustomizableObjectNodeMeshClipMorph>(FirstNode);
+		TGuardValue<bool> RecursionGuard(bRecursionGuard, true);
 
-		if (!SelectedMeshClipMorphNode)
+		if (Objects.Num() != 1)
 		{
-			SelectedMeshClipWithMeshNode = Cast<UCustomizableObjectNodeMeshClipWithMesh>(FirstNode);
+			HideGizmoClipMorph();
+			HideGizmoClipMesh();
+			HideGizmoProjectorNodeProjectorConstant();
+			HideGizmoProjectorNodeProjectorParameter();
 
-			if (!SelectedProjectorNode || (SelectedProjectorNode && FirstNode && (SelectedProjectorNode != FirstNode)))
+			for (UObject* Object : Objects) // Reselect the multiple selection. Clearly showing gizmos when selecting a node is a really bad idea. Remove on MTBL-1684
 			{
-				SelectedProjectorNode = Cast<UCustomizableObjectNodeProjectorConstant>(FirstNode);
-				if (SelectedProjectorNode != nullptr)
-				{
-					ProjectorConstantNodeSelected = true;
-				}
+				GraphEditor->SetNodeSelection(Cast<UEdGraphNode>(Object), true);
 			}
-
-			if (!SelectedProjectorParameterNode || (SelectedProjectorParameterNode && FirstNode && (SelectedProjectorParameterNode != FirstNode)))
-			{
-				SelectedProjectorParameterNode = Cast<UCustomizableObjectNodeProjectorParameter>(FirstNode);
-				if (SelectedProjectorParameterNode != nullptr)
-				{
-					ProjectorParameterNodeSelected = true;
-				}
-			}
+			
+			return;
 		}
-	}
-	else 
-	{
-		SelectedMeshClipMorphNode = nullptr;
-		SelectedMeshClipWithMeshNode = nullptr;
-		SelectedProjectorNode = nullptr;
-		SelectedProjectorParameterNode = nullptr;
-	}
 
-	if (!ManagingProjector)
-	{
-		SelectedGraphNodesChanged = true;
+		if (UCustomizableObjectNodeMeshClipMorph* NodeMeshClipMorph = Cast<UCustomizableObjectNodeMeshClipMorph>(Objects[0]))
+		{		
+			ShowGizmoClipMorph(*NodeMeshClipMorph);			
+		}
+		else if (UCustomizableObjectNodeMeshClipWithMesh* NodeMeshClipWithMesh = Cast<UCustomizableObjectNodeMeshClipWithMesh>(Objects[0]))
+		{
+			ShowGizmoClipMesh(*NodeMeshClipWithMesh);			
+		}
+		else if (UCustomizableObjectNodeProjectorConstant* NodeProjectorConstant = Cast<UCustomizableObjectNodeProjectorConstant>(Objects[0]))
+		{
+			ShowGizmoProjectorNodeProjectorConstant(*NodeProjectorConstant);
+		}
+		else if (UCustomizableObjectNodeProjectorParameter* NodeProjectorParameter = Cast<UCustomizableObjectNodeProjectorParameter>(Objects[0]))
+		{
+			ShowGizmoProjectorNodeProjectorParameter(*NodeProjectorParameter);		
+		}
+		else
+		{
+			HideGizmoClipMorph();	
+			HideGizmoClipMesh();
+			HideGizmoProjectorNodeProjectorParameter();
+			HideGizmoProjectorNodeProjectorConstant();
+		}
 	}
 }
 
@@ -1548,7 +1733,7 @@ bool FCustomizableObjectEditor::IsTickable() const
 }
 
 
-void FCustomizableObjectEditor::Tick( float InDeltaTime )
+void FCustomizableObjectEditor::Tick(float InDeltaTime)
 {
 	const bool bUpdated = Compiler.Tick();
 	
@@ -1564,143 +1749,6 @@ void FCustomizableObjectEditor::Tick( float InDeltaTime )
 		{
 			CreatePreviewInstance();
 		}
-	}
-
-	if (SelectedMeshClipMorphNode)
-	{
-		bool bVisible = SelectedMeshClipMorphNode->BoneName != FName();
-
-		Viewport->SetClipMorphPlaneVisibility(bVisible, SelectedMeshClipMorphNode);
-	}
-	else if (SelectedMeshClipWithMeshNode)
-	{
-		UStaticMesh* ClipMesh = nullptr;
-
-		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*SelectedMeshClipWithMeshNode->ClipMeshPin()))
-		{
-			if (const UEdGraphNode* Node = ConnectedPin->GetOwningNode())
-			{
-				if (const UCustomizableObjectNodeStaticMesh* TypedNode = Cast<UCustomizableObjectNodeStaticMesh>(Node))
-				{
-					ClipMesh = TypedNode->StaticMesh;
-				}
-				else if (const UCustomizableObjectNodeTable* TableNode = Cast<UCustomizableObjectNodeTable>(Node))
-				{
-					ClipMesh = TableNode->GetColumnDefaultAssetByType<UStaticMesh>(ConnectedPin);
-				}
-			}
-		}
-
-		bool bVisible = ClipMesh != nullptr;
-		Viewport->SetClipMeshVisibility(bVisible, ClipMesh, SelectedMeshClipWithMeshNode);
-	}
-	else if (ProjectorConstantNodeSelected)
-	{
-		ManagingProjector = true;
-		Viewport->SetProjectorVisibility(true, SelectedProjectorNode);
-		Viewport->ProjectorParameterChanged(SelectedProjectorNode);
-		ManagingProjector = false;
-		ProjectorConstantNodeSelected = false;
-	}
-	else if (ProjectorParameterNodeSelected)
-	{
-		ManagingProjector = true;
-		Viewport->SetProjectorParameterVisibility(true, SelectedProjectorParameterNode);
-		Viewport->ProjectorParameterChanged(SelectedProjectorParameterNode);
-		ManagingProjector = false;
-		ProjectorParameterNodeSelected = false;
-	}
-	else
-	{
-		if (SetProjectorVisibilityForParameter)
-		{
-			ManagingProjector = true;
-			if (Viewport->AnyProjectorNodeSelected())
-			{
-				GraphEditor->ClearSelectionSet();
-			}
-			FCustomizableObjectProjector ProjectorParameterValue;
-			ProjectorParameterValue.Position = (FVector3f)ProjectorParameterPosition;
-			ProjectorParameterValue.Direction = (FVector3f)ProjectorParameterDirection;
-			ProjectorParameterValue.Up = (FVector3f)ProjectorParameterUp;
-			ProjectorParameterValue.Scale = (FVector3f)ProjectorParameterScale;
-			ProjectorParameterValue.ProjectionType = ProjectorParameterProjectionType;
-			ProjectorParameterValue.Angle = ProjectionAngle;
-			Viewport->SetProjectorVisibility(true, ProjectorParameterName, ProjectorParameterNameWithIndex, ProjectorRangeIndex, ProjectorParameterValue, ProjectorParameterIndex);
-			ManagingProjector = false;
-			SetProjectorVisibilityForParameter = false;
-		}
-
-		if (SetProjectorTypeForParameter)
-		{
-			ManagingProjector = true;
-			if (Viewport->AnyProjectorNodeSelected())
-			{
-				GraphEditor->ClearSelectionSet();
-			}
-			FCustomizableObjectProjector ProjectorParameterValue;
-			ProjectorParameterValue.Position = (FVector3f)ProjectorParameterPosition;
-			ProjectorParameterValue.Direction = (FVector3f)ProjectorParameterDirection;
-			ProjectorParameterValue.Up = (FVector3f)ProjectorParameterUp;
-			ProjectorParameterValue.Scale = (FVector3f)ProjectorParameterScale;
-			ProjectorParameterValue.ProjectionType = ProjectorParameterProjectionType;
-			ProjectorParameterValue.Angle = ProjectionAngle;
-			Viewport->SetProjectorType(true, ProjectorParameterName, ProjectorParameterNameWithIndex, ProjectorRangeIndex, ProjectorParameterValue, ProjectorParameterIndex);
-			ManagingProjector = false;
-			SetProjectorTypeForParameter = false;
-		}
-
-		if (ResetProjectorVisibilityForNonNode && PreviewInstance && !PreviewInstance->AvoidResetProjectorVisibilityForNonNode)
-		{
-			ResetProjectorVisibilityNoUpdate();
-		}
-
-		if ((SelectedGraphNodesChanged && !SelectedProjectorParameterNotNode) || (PreviewInstance && PreviewInstance->TempUpdateGizmoInViewport))
-		{
-			ManagingProjector = true;
-			Viewport->ResetProjectorVisibility(false);
-			ManagingProjector = false;
-		}
-		Viewport->SetClipMorphPlaneVisibility(false, nullptr);
-		Viewport->SetClipMeshVisibility(false, nullptr, nullptr);
-	}
-
-	if (SelectedGraphNodesChanged)
-	{
-		SelectedGraphNodesChanged = false;
-	}
-
-	if (SelectedProjectorParameterNotNode)
-	{
-		SelectedProjectorParameterNotNode = false;
-	}
-
-	if (ResetProjectorVisibilityForNonNode)
-	{
-		ResetProjectorVisibilityForNonNode = false;
-    }
-
-	if (PreviewInstance != nullptr)
-	{
-		PreviewInstance->AvoidResetProjectorVisibilityForNonNode = false;
-	}
-
-    // TEMP CODE
-    if ((PreviewInstance != nullptr) && PreviewInstance->TempUpdateGizmoInViewport)
-    {
-        PreviewInstance->TempUpdateGizmoInViewport = false;
-		PreviewInstance->AvoidResetProjectorVisibilityForNonNode = true;
-        Viewport->CopyTransformFromOriginData();
-        PreviewInstance->UpdateSkeletalMeshAsync(true);
-
-        EProjectorState::Type ProjectorState = PreviewInstance->GetProjectorState(PreviewInstance->TempProjectorParameterName, PreviewInstance->TempProjectorParameterRangeIndex);
-        if (ProjectorState != EProjectorState::Selected)
-        {
-            //ResetProjectorVisibilityForNonNode = false;
-			PreviewInstance->ResetProjectorStates();
-			PreviewInstance->SetProjectorState(PreviewInstance->TempProjectorParameterName, PreviewInstance->TempProjectorParameterRangeIndex, EProjectorState::Selected);
-            FCoreUObjectDelegates::BroadcastOnObjectModified(PreviewInstance);
-        }
 	}
 }
 
@@ -1969,42 +2017,9 @@ void FCustomizableObjectEditor::OnAssetRegistryLoadComplete()
 }
 
 
-void FCustomizableObjectEditor::OnObjectPropertyChanged(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent)
-{
-	if (Object->IsA(UCustomizableObjectGraph::StaticClass()) && PropertyChangedEvent.Property)
-	{
-		UClass* OuterClass = PropertyChangedEvent.Property->GetOwnerClass();
-		if (OuterClass->IsChildOf(UCustomizableObjectNodeProjectorConstant::StaticClass()))
-		{
-			if (Viewport.IsValid() && SelectedProjectorNode)
-			{
-				Viewport->ProjectorParameterChanged(SelectedProjectorNode);
-			}
-		}
-		else if (OuterClass->IsChildOf(UCustomizableObjectNodeProjectorParameter::StaticClass()))
-		{
-			if (Viewport.IsValid() && SelectedProjectorParameterNode)
-			{
-				Viewport->ProjectorParameterChanged(SelectedProjectorParameterNode);
-			}
-		}
-	}
-}
-
-
 TSharedPtr<SCustomizableObjectEditorAdvancedPreviewSettings> FCustomizableObjectEditor::GetCustomizableObjectEditorAdvancedPreviewSettings()
 {
 	return CustomizableObjectEditorAdvancedPreviewSettings;
-}
-
-
-void FCustomizableObjectEditor::ResetProjectorVisibilityNoUpdate()
-{
-	ManagingProjector = true;
-	Viewport->SetGizmoCallUpdateSkeletalMesh(false);
-	Viewport->ResetProjectorVisibility(true);
-	Viewport->SetGizmoCallUpdateSkeletalMesh(true);
-	ManagingProjector = false;
 }
 
 
@@ -2504,35 +2519,6 @@ void FCustomizableObjectEditor::OnUpdatePreviewInstance()
 	ViewportClient->ReSetAnimation();
 	ViewportClient->SetReferenceMeshMissingWarningMessage(false);
 
-	if (AssetRegistryLoaded)
-	{
-		// If the instance is updated due to a change in a parameter projector, set again the LastSelectedProjectorParameter variable with the
-		// current projector the viewport gizmo has to continue having it as selected when rebuilding the parameter details widget.
-		// Otherwise, reset the value.
-
-		if (Viewport->GetGizmoHasAssignedData() && !Viewport->GetGizmoAssignedDataIsFromNode())
-		{
-			PreviewInstance->LastSelectedProjectorParameter = Viewport->GetGizmoProjectorParameterName();
-			PreviewInstance->LastSelectedProjectorParameterWithIndex = Viewport->GetGizmoProjectorParameterNameWithIndex();
-
-			if (!PreviewInstance->ProjectorAlphaChange && !Viewport->GetIsManipulatingGizmo())
-			{
-				TArray<UObject*> instances;
-				instances.Add(PreviewInstance);
-				CustomizableInstanceDetailsView->SetObjects(instances, true);
-			}
-
-			PreviewInstance->ProjectorAlphaChange = false;
-		}
-		else
-		{
-			PreviewInstance->LastSelectedProjectorParameter = "";
-			PreviewInstance->LastSelectedProjectorParameterWithIndex = "";
-		}
-
-		//UE_LOG(LogMutable, Warning, TEXT("LastSelectedProjectorParameter=%s, LastSelectedProjectorParameterWithIndex=%s"), *(PreviewInstance->LastSelectedProjectorParameter), *(PreviewInstance->LastSelectedProjectorParameterWithIndex));
-	}
-
 	if (TextureAnalyzer.IsValid())
 	{
 		TextureAnalyzer->RefreshTextureAnalyzerTable(PreviewInstance);
@@ -2805,7 +2791,6 @@ void FCustomizableObjectEditor::CreatePreviewComponents()
 		}
 	}
 }
-
 
 
 #undef LOCTEXT_NAMESPACE

@@ -1530,51 +1530,63 @@ void FCustomizableObjectInstanceDescriptor::SetProjectorValue(const FString& Pro
 
 void FCustomizableObjectInstanceDescriptor::SetProjectorPosition(const FString& ProjectorParamName, const FVector3f& Pos, const int32 RangeIndex)
 {
-	check(CustomizableObject);
-	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set Projector parameter "))
+	FVector DummyPos, Direction, Up, Scale;
+	float Angle;
+	ECustomizableObjectProjectorType Type;
+   	GetProjectorValue(ProjectorParamName, DummyPos, Direction, Up, Scale, Angle, Type, RangeIndex);
+	
+	SetProjectorValue(ProjectorParamName, static_cast<FVector>(Pos), Direction, Up, Scale, Angle, RangeIndex);
+}
 
-	const int32 ParameterIndexInObject = CustomizableObject->FindParameter(ProjectorParamName);
-	const int32 ParameterIndexInInstance = FindProjectorParameterNameIndex(ProjectorParamName);
 
-	if (ParameterIndexInObject < 0 || ParameterIndexInInstance < 0)
-	{
-		// Early out since we could not find the parameter to set.
-		LogParameterNotFoundWarning(ProjectorParamName, ParameterIndexInObject, ParameterIndexInInstance, CustomizableObject, __FUNCTION__);
-		return;
-	}
+void FCustomizableObjectInstanceDescriptor::SetProjectorDirection(const FString& ProjectorParamName, const FVector& Direction, int32 RangeIndex)
+{
+	FVector Position, DummyDirection, Up, Scale;
+	float Angle;
+	ECustomizableObjectProjectorType Type;
+	GetProjectorValue(ProjectorParamName, Position, DummyDirection, Up, Scale, Angle, Type, RangeIndex);
+		
+	SetProjectorValue(ProjectorParamName, Position, Direction, Up, Scale, Angle, RangeIndex);
+}
 
-	// Parameter to modify
-	FCustomizableObjectProjectorParameterValue& ProjectorParameter = ProjectorParameters[ParameterIndexInInstance];
 
-	FCustomizableObjectProjector ProjectorData = ProjectorParameter.Value;
-	ProjectorData.Position = static_cast<FVector3f>(Pos);
+void FCustomizableObjectInstanceDescriptor::SetProjectorUp(const FString& ProjectorParamName, const FVector& Up, int32 RangeIndex)
+{
+	FVector Position, Direction, DummyUp, Scale;
+	float Angle;
+	ECustomizableObjectProjectorType Type;
+	GetProjectorValue(ProjectorParamName, Position, Direction, DummyUp, Scale, Angle, Type, RangeIndex);
 
-	if (RangeIndex == -1)
-	{
-		check(!CustomizableObject->IsParameterMultidimensional(ParameterIndexInObject)); // This param is multidimensional, it must have a RangeIndex of 0 or more
-		ProjectorParameter.Value = ProjectorData;
-	}
-	else
-	{
-		check(CustomizableObject->IsParameterMultidimensional(ParameterIndexInObject)); // This param is not multidimensional, it must have a RangeIndex of -1
+	SetProjectorValue(ProjectorParamName, Position, Direction, Up, Scale, Angle, RangeIndex);
+}
 
-		if (!ProjectorParameter.RangeValues.IsValidIndex(RangeIndex))
-		{
-			const int32 InsertionIndex = ProjectorParameter.RangeValues.Num();
-			const int32 NumInsertedElements = RangeIndex + 1 - ProjectorParameter.RangeValues.Num();
-			ProjectorParameter.RangeValues.InsertDefaulted(InsertionIndex, NumInsertedElements);
-		}
 
-		check(ProjectorParameter.RangeValues.IsValidIndex(RangeIndex));
-		ProjectorParameter.RangeValues[RangeIndex] = ProjectorData;
-	}
+void FCustomizableObjectInstanceDescriptor::SetProjectorScale(const FString& ProjectorParamName, const FVector& Scale, int32 RangeIndex)
+{
+	FVector Position, Direction, Up, DummyScale;
+	float Angle;
+	ECustomizableObjectProjectorType Type;
+	GetProjectorValue(ProjectorParamName, Position, Direction, Up, DummyScale, Angle, Type, RangeIndex);
+	
+	SetProjectorValue(ProjectorParamName, Position, Direction, Up, Scale, Angle, RangeIndex);
+}
+
+
+void FCustomizableObjectInstanceDescriptor::SetProjectorAngle(const FString& ProjectorParamName, float Angle, int32 RangeIndex)
+{
+	FVector Position, Direction, Up, Scale;
+	float DummyAngle;
+	ECustomizableObjectProjectorType Type;
+	GetProjectorValue(ProjectorParamName, Position, Direction, Up, Scale, DummyAngle, Type, RangeIndex);
+	
+	SetProjectorValue(ProjectorParamName, Position, Direction, Up, Scale, Angle, RangeIndex);
 }
 
 
 void FCustomizableObjectInstanceDescriptor::GetProjectorValue(const FString& ProjectorParamName,
-	FVector& OutPos, FVector& OutDirection, FVector& OutUp, FVector& OutScale,
-	float& OutAngle, ECustomizableObjectProjectorType& OutType,
-	const int32 RangeIndex) const
+                                                              FVector& OutPos, FVector& OutDirection, FVector& OutUp, FVector& OutScale,
+                                                              float& OutAngle, ECustomizableObjectProjectorType& OutType,
+                                                              const int32 RangeIndex) const
 {
 	FVector3f Pos, Direction, Up, Scale;
 	GetProjectorValueF(ProjectorParamName, Pos, Direction, Up, Scale, OutAngle, OutType, RangeIndex);

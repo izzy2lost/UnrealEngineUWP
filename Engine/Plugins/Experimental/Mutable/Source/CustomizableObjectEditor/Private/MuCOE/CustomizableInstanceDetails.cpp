@@ -24,8 +24,8 @@ void FCustomizableInstanceDetails::CustomizeDetails(const TSharedPtr<IDetailLayo
 	const IDetailsView* DetailsView = DetailBuilder->GetDetailsView();
 	check(DetailsView->GetSelectedObjects().Num());
 
-	CustomInstance = Cast<UCustomizableObjectInstance>(DetailsView->GetSelectedObjects()[0].Get());
-	check(CustomInstance.IsValid());
+	UCustomizableObjectInstance* CustomInstance = Cast<UCustomizableObjectInstance>(DetailsView->GetSelectedObjects()[0].Get());
+	check(CustomInstance);
 	
 	LayoutBuilder = DetailBuilder;
 	
@@ -33,7 +33,7 @@ void FCustomizableInstanceDetails::CustomizeDetails(const TSharedPtr<IDetailLayo
 
 	MainCategory.AddCustomRow( LOCTEXT("CustomizableInstanceDetails", "Instance Parameters") )
 	[
-		SAssignNew(InstancePropertiesWidget, SCustomizableInstanceProperties)
+		SNew(SCustomizableInstanceProperties)
 			.CustomInstance(CustomInstance)
 			.InstanceDetails(SharedThis(this))
 	];

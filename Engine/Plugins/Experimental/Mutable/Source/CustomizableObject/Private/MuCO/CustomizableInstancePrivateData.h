@@ -201,9 +201,6 @@ public:
 	UPROPERTY( Transient )
 	TArray<FGeneratedTexture> GeneratedTextures;
 
-	// Projector state for each parameter name
-	TMap<TPair<FString, int32>, EProjectorState::Type> ProjectorStates;
-
 	// Indices of the parameters that are relevant for the given parameter values.
 	// This only gets updated if parameter decorations are generated.
 	TArray<int> RelevantParameters;

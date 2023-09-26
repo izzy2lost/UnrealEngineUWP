@@ -3,7 +3,9 @@
 #include "MuCOE/SCustomizableInstanceProperties.h"
 
 #include "ContentBrowserModule.h"
+#include "CustomizableObjectInstanceEditor.h"
 #include "Editor.h"
+#include "ScopedTransaction.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "Misc/Paths.h"
 #include "MuCO/CustomizableObject.h"
@@ -13,8 +15,10 @@
 #include "MuCOE/CustomizableObjectEditorUtilities.h"
 #include "MuCOE/SMutableTextSearchBox.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
+#include "MuCOE/SCustomizableObjectEditorViewport.h"
 #include "Serialization/BufferArchive.h"
 #include "Slate/DeferredCleanupSlateBrush.h"
+#include "Toolkits/ToolkitManager.h"
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Colors/SColorPicker.h"
 #include "Widgets/Input/SButton.h"
@@ -35,9 +39,17 @@ void SCustomizableInstanceProperties::Construct(const FArguments& InArgs)
 	check(CustomInstance.IsValid());
 	
 	InstanceDetails = InArgs._InstanceDetails;
+
+	TSharedPtr<IToolkit> FoundAssetEditor = FToolkitManager::Get().FindEditorForAsset(InArgs._CustomInstance); // Tab spawned in a COEInstanceEditor
+	if (!FoundAssetEditor)
+	{
+		FoundAssetEditor = FToolkitManager::Get().FindEditorForAsset(CustomInstance->GetCustomizableObject()); // Tab spawned in a COEditor
+	}
+	check(FoundAssetEditor);
+
+	WeakEditor = StaticCastSharedPtr<ICustomizableObjectInstanceEditor>(FoundAssetEditor).ToWeakPtr();
 	
 	NoInstanceMessage = LOCTEXT("Model not compiled", "Model not compiled");
-	SimplifiedProjectorInterface = false;
 	
 	if (CustomInstance->IsSelectedParameterProfileDirty())
 	{
@@ -387,12 +399,6 @@ void SCustomizableInstanceProperties::SetNoInstanceMessage(const FText& InNoInst
 }
 
 
-void SCustomizableInstanceProperties::SetSimplifiedProjectorInterface(bool Enabled)
-{
-	SimplifiedProjectorInterface = Enabled;
-}
-
-
 const UCustomizableObjectInstance* SCustomizableInstanceProperties::GetInstance() const
 {
 	return CustomInstance.Get();
@@ -443,9 +449,6 @@ void SCustomizableInstanceProperties::ResetParamBox()
 	ParamChildren.Empty();
 	ParamHasParent.Empty();
 	ParamNameToExpandableAreaMap.Empty();
-
-	MapProjectorButton.Empty();
-	MapProjectorButtonTextBlock.Empty();
 
 	if (UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject())
 	{
@@ -547,6 +550,8 @@ void SCustomizableInstanceProperties::AddParameter(int32 ParamIndexInObject)
 {
 	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
 	check(CustomizableObject);
+
+	TSharedPtr<ICustomizableObjectInstanceEditor> Editor = GetEditorChecked();
 	
 	FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
 
@@ -903,427 +908,353 @@ void SCustomizableInstanceProperties::AddParameter(int32 ParamIndexInObject)
 
 	case EMutableParameterType::Projector:
 	{
-		if (SimplifiedProjectorInterface)
+		bool bIsParamMultidimensional = CustomInstance->GetCustomizableObject()->IsParameterMultidimensional(ParamIndexInObject);
+
+		if (!bIsParamMultidimensional)
 		{
+			const UProjectorParameter* ProjectorParameter = Editor->GetProjectorParameter();
+			const bool bSelectedProjector = ProjectorParameter->IsProjectorSelected(ParamName);
+
+			TSharedPtr<SButton> Button;
+			TSharedPtr<STextBlock> TextBlock;
+
 			ParameterBox->AddSlot()
 			.AutoWidth()
-			.FillWidth(1.0f)
-			.Padding(2.0f)
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
+				.VAlign(VAlign_Center)
 				[
-					SNew(SCheckBox)
-					.Type(ESlateCheckBoxType::ToggleButton)
-					.ToolTipText(LOCTEXT("Hide_Projector", "Hide projector"))
-					.IsChecked(this, &SCustomizableInstanceProperties::IsProjectorHidden, ParamName)
+					SAssignNew(Button, SButton)
+					.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorSelectChanged, ParamName, -1)
+					.HAlign(HAlign_Center)
+					.Content()
 					[
-						SNew(SImage)
-						// todo: editor style not available in game
-						//.Image(UE_MUTABLE_GET_BRUSH(TEXT("LevelEditor.ViewOptions.Small")))
+						SNew(STextBlock)
+						.Text(bSelectedProjector ? LOCTEXT("Unselect Projector", "Unselect Projector") : LOCTEXT("Select Projector", "Select Projector"))
+						.ToolTipText(bSelectedProjector ? LOCTEXT("Unselect Projector", "Unselect Projector") : LOCTEXT("Select Projector", "Select Projector"))
 					]
 				]
 			
-				+ SHorizontalBox::Slot()
+				+SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
 				.AutoWidth()
 				[
-					SNew(SCheckBox)
-					.Type(ESlateCheckBoxType::ToggleButton)
-					.ToolTipText(LOCTEXT("Show_Projector", "Show projector widget"))
-					.IsChecked(this, &SCustomizableInstanceProperties::IsProjectorTranslate, ParamName)
-					.OnCheckStateChanged(this, &SCustomizableInstanceProperties::OnProjectorTranslateStateChanged, ParamName)
-					.Padding(2.f)
-					[
-						SNew(SImage)
-						// todo: editor style not available in game
-						// .Image(UE_MUTABLE_GET_BRUSH(TEXT("LevelEditor.TranslateMode.Small")))
-					]
+					SNew(SButton)
+					.HAlign(HAlign_Center)
+					.ToolTipText(LOCTEXT("Copy Transform", "Copy Transform"))
+					.Text(LOCTEXT("Copy Transform", "Copy Transform"))
+					.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorCopyTransform, ParamName, -1)
+				]
+				
+				+ SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SNew(SButton)
+					.HAlign(HAlign_Center)
+					.ToolTipText(LOCTEXT("Paste Transform", "Paste Transform"))
+					.Text(LOCTEXT("Paste Transform", "Paste Transform"))
+					.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorPasteTransform, ParamName, -1)
+				]
+				
+				+ SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SNew(SButton)
+					.HAlign(HAlign_Center)
+					.ToolTipText(LOCTEXT("Reset Transform", "Reset Transform"))
+					.Text(LOCTEXT("Reset Transform", "Reset Transform"))
+					.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorResetTransform, ParamName, -1)
 				]
 			];
+
+			Button->SetBorderBackgroundColor(bSelectedProjector ? FLinearColor::Green : FLinearColor::White);
 		}
 		else
 		{
-			bool bIsParamMultidimensional = CustomInstance->GetCustomizableObject()->IsParameterMultidimensional(ParamIndexInObject);
+			TArray<FCustomizableObjectProjectorParameterValue>& ProjectorParameters = CustomInstance->GetProjectorParameters();
+			const int32 ProjectorParamIndex = CustomInstance->FindProjectorParameterNameIndex(ParamName);
+			check(ProjectorParamIndex < ProjectorParameters.Num());
 
-			if (!bIsParamMultidimensional)
+			// Selected Pose UI
+			const FString PoseSwitchEnumParamName = ParamName + FMultilayerProjector::POSE_PARAMETER_POSTFIX;
+			const int32 PoseSwitchEnumParamIndexInObject = CustomizableObject->FindParameter(PoseSwitchEnumParamName);
+
+			if (PoseSwitchEnumParamIndexInObject != INDEX_NONE)
 			{
-				FString ParamNameWithIndex = ParamName + FString::Printf(TEXT("__%d"), -1);
+				const int32 NumPoseValues = CustomizableObject->GetIntParameterNumOptions(PoseSwitchEnumParamIndexInObject);
+
+				TArray<FString> PoseOptionNamesAttribute;
+				FString PoseValue = GetIntParameterValue(PoseSwitchEnumParamName, -1);
+				int32 PoseValueIndex = 0;
+
+				for (int32 j = 0; j < NumPoseValues; ++j)
+				{
+					const FString PossibleValue = CustomizableObject->GetIntParameterAvailableOption(PoseSwitchEnumParamIndexInObject, j);
+					if (PossibleValue == PoseValue)
+					{
+						PoseValueIndex = j;
+					}
+
+					PoseOptionNamesAttribute.Add(PossibleValue);
+				}
+
+				ParameterBox->AddSlot()
+					.HAlign(HAlign_Right)
+					.VAlign(VAlign_Fill)
+					.FillWidth(10.f)
+					[
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+							.HAlign(HAlign_Fill)
+							.VAlign(VAlign_Center)
+							.FillWidth(0.45f)
+							[
+								SNew(SMutableTextSearchBox)
+								.PossibleSuggestions(PoseOptionNamesAttribute)
+								.InitialText(FText::FromString(PoseOptionNamesAttribute[PoseValueIndex]))
+								.MustMatchPossibleSuggestions(TAttribute<bool>(true))
+								.SuggestionListPlacement(EMenuPlacement::MenuPlacement_ComboBox)
+								.OnTextCommitted(this, &SCustomizableInstanceProperties::OnProjectorTextureParameterComboBoxChanged, PoseSwitchEnumParamName, -1)
+								.ToolTipText(LOCTEXT("Pose selector tooltip", "Select the skeletal mesh pose used for projection. This does not control the actual visual mesh pose in the viewport (or during gameplay for that matter). It has to be manually set. You can drag&drop a pose onto the preview viewport."))
+							]
+
+						+ SHorizontalBox::Slot()
+							.HAlign(HAlign_Fill)
+							.VAlign(VAlign_Center)
+							.FillWidth(0.3f)
+							[
+								SNew(SButton)
+								.ToolTipText(LOCTEXT("Add Layer", "Add Layer"))
+								.Text(LOCTEXT("Add Layer", "Add Layer"))
+								.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorLayerAdded, ParamName)
+								.HAlign(HAlign_Fill)
+							]
+					];
+
+			}
+			else
+			{
+				ParameterBox->AddSlot()
+					.HAlign(HAlign_Right)
+					.VAlign(VAlign_Fill)
+					.FillWidth(10.f)
+					[
+						SNew(SButton)
+						.ToolTipText(LOCTEXT("Add Layer", "Add Layer"))
+						.Text(LOCTEXT("Add Layer", "Add Layer"))
+						.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorLayerAdded, ParamName)
+						.HAlign(HAlign_Fill)
+					];
+			}
+
+			const FString TextureSwitchEnumParamName = ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX;
+			
+			for (int32 RangeIndex = 0; RangeIndex < ProjectorParameters[ProjectorParamIndex].RangeValues.Num(); ++RangeIndex)
+			{
+				const int32 TextureSwitchEnumParamIndexInObject = CustomizableObject->FindParameter(TextureSwitchEnumParamName);
+				check(TextureSwitchEnumParamIndexInObject >= 0);
+				int32 NumValues = CustomizableObject->GetIntParameterNumOptions(TextureSwitchEnumParamIndexInObject);
+
+				FString OpacitySliderParamName = ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX;
+				FString OpacitySliderParamNameWithRange = OpacitySliderParamName + FString::Printf(TEXT("__%d"), RangeIndex);
+
+				TArray<FString> OptionNamesAttribute;
+				FString Value = GetIntParameterValue(TextureSwitchEnumParamName, RangeIndex);
+				int32 ValueIndex = 0;
+
+				const UProjectorParameter* ProjectorParameter = Editor->GetProjectorParameter();
+				const bool bSelectedProjector = ProjectorParameter->IsProjectorSelected(ParamName, RangeIndex);
+
+				for (int32 CandidateIndex = 0; CandidateIndex < NumValues; ++CandidateIndex)
+				{
+					FString PossibleValue = CustomizableObject->GetIntParameterAvailableOption(TextureSwitchEnumParamIndexInObject, CandidateIndex);
+					if (PossibleValue == Value)
+					{
+						ValueIndex = CandidateIndex;
+					}
+					OptionNamesAttribute.Add(CustomizableObject->GetIntParameterAvailableOption(TextureSwitchEnumParamIndexInObject, CandidateIndex));
+				}
+				
+				TSharedPtr<SHorizontalBox> SliderBox;
+				TSharedPtr<SSpinBox<float>> Slider;
+				TSharedPtr<SHorizontalBox> PropertiesHB;
+				int32 SliderIndex = FloatSliders.Num();
 
 				TSharedPtr<SButton> Button;
 				TSharedPtr<STextBlock> TextBlock;
 
-				ParameterBox->AddSlot()
+				//Horizontal box that owns all the hidden layer properties
+				ActualParamBox->AddSlot()
+				.HAlign(HAlign_Fill)
+				.Padding(0, 10.f)
+				[
+					SAssignNew(PropertiesHB, SHorizontalBox)
+					
+					//Select Projector slot
+					+ SHorizontalBox::Slot()
+					.Padding(1, 0)
+					.AutoWidth()
+					[
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.Padding(1, 0)
+						[
+							SNew(SBox)
+							.MinDesiredWidth(115.f)
+							.MaxDesiredWidth(115.f)
+							[
+								SAssignNew(Button, SButton)
+								.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorSelectChanged, ParamName, RangeIndex)
+								.VAlign(VAlign_Center)
+								.HAlign(HAlign_Center)
+								.Content()
+								[
+									SNew(STextBlock)
+									.Text(bSelectedProjector ? LOCTEXT("Unselect Projector", "Unselect Projector") : LOCTEXT("Select Projector", "Select Projector"))
+									.ToolTipText(bSelectedProjector ? LOCTEXT("Unselect Projector", "Unselect Projector") : LOCTEXT("Select Projector", "Select Projector"))
+									.Justification(ETextJustify::Center)
+									//.AutoWrapText(true)
+								]
+							]
+						]
+
+						+ SHorizontalBox::Slot()
+						.Padding(1, 0)
+						[
+							SNew(SBox)
+							.MinDesiredWidth(120.f)
+							[
+								SNew(SMutableTextSearchBox)
+								.PossibleSuggestions(OptionNamesAttribute)
+								.InitialText(FText::FromString(OptionNamesAttribute[ValueIndex]))
+								.MustMatchPossibleSuggestions(TAttribute<bool>(true))
+								.SuggestionListPlacement(EMenuPlacement::MenuPlacement_ComboBox)
+								.OnTextCommitted(this, &SCustomizableInstanceProperties::OnProjectorTextureParameterComboBoxChanged, TextureSwitchEnumParamName, RangeIndex)
+							]
+						]
+					]
+				];
+
+				Button->SetBorderBackgroundColor(bSelectedProjector ? FLinearColor::Green : FLinearColor::White);
+
+				PropertiesHB->AddSlot()
+				.HAlign(HAlign_Fill)
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.Padding(1, 0)
+					.HAlign(HAlign_Fill)
+					[
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						[
+							SAssignNew(Slider, SSpinBox<float>)
+							.MinValue(0.0f)
+							.MaxValue(1.0f)
+							.Value(this, &SCustomizableInstanceProperties::GetSliderValue, SliderIndex)
+							.OnValueChanged(this, &SCustomizableInstanceProperties::OnProjectorFloatParameterChanged, SliderIndex)
+							.OnBeginSliderMovement(this, &SCustomizableInstanceProperties::OnProjectorFloatParameterSliderBegin)
+							.OnEndSliderMovement(this, &SCustomizableInstanceProperties::OnProjectorFloatParameterSliderEnd)
+						]
+
+					]
+				];
+
+				PropertiesHB->AddSlot()
+				.HAlign(HAlign_Right)
 				.AutoWidth()
 				[
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.VAlign(VAlign_Center)
+					.Padding(1, 0)
 					[
-						SAssignNew(Button, SButton)
-						.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorSelectStateChanged, ParamNameWithIndex)
-						.HAlign(HAlign_Center)
-						.Content()
-						[
-							SAssignNew(TextBlock, STextBlock)
-							.Text(LOCTEXT("Select Projector", "Select Projector"))
-							.ToolTipText(LOCTEXT("Select Projector", "Select Projector"))
-						]
-					]
-				
-					+SHorizontalBox::Slot()
-					.VAlign(VAlign_Center)
-					.AutoWidth()
-					[
-						SNew(SButton)
-						.HAlign(HAlign_Center)
-						.ToolTipText(LOCTEXT("Copy Transform", "Copy Transform"))
-						.Text(LOCTEXT("Copy Transform", "Copy Transform"))
-						.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorCopyTransform, ParamNameWithIndex)
-					]
-					
-					+ SHorizontalBox::Slot()
-					.VAlign(VAlign_Center)
-					.AutoWidth()
-					[
-						SNew(SButton)
-						.HAlign(HAlign_Center)
-						.ToolTipText(LOCTEXT("Paste Transform", "Paste Transform"))
-						.Text(LOCTEXT("Paste Transform", "Paste Transform"))
-						.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorPasteTransform, ParamNameWithIndex)
-					]
-					
-					+ SHorizontalBox::Slot()
-					.VAlign(VAlign_Center)
-					.AutoWidth()
-					[
-						SNew(SButton)
-						.HAlign(HAlign_Center)
-						.ToolTipText(LOCTEXT("Reset Transform", "Reset Transform"))
-						.Text(LOCTEXT("Reset Transform", "Reset Transform"))
-						.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorResetTransform, ParamNameWithIndex)
-					]
-				];
-				
-				ArrayProjectorParameterNameWithIndex.Add(ParamNameWithIndex);
-
-				MapProjectorButton.Add(ParamNameWithIndex, Button);
-				MapProjectorButtonTextBlock.Add(ParamNameWithIndex, TextBlock);
-
-				if (!CustomInstance->LastSelectedProjectorParameter.IsEmpty() && (CustomInstance->LastSelectedProjectorParameter == ParamName))
-				{
-					if (Button.Get() != nullptr)
-					{
-						Button->SetBorderBackgroundColor(FLinearColor::Green);
-					}
-
-					if (TextBlock.Get() != nullptr)
-					{
-						TextBlock->SetText(LOCTEXT("Unselect Projector", "Unselect Projector"));
-					}
-				}
-			}
-			else
-			{
-				TArray<FCustomizableObjectProjectorParameterValue>& ProjectorParameters = CustomInstance->GetProjectorParameters();
-				const int32 ProjectorParamIndex = CustomInstance->FindProjectorParameterNameIndex(ParamName);
-				check(ProjectorParamIndex < ProjectorParameters.Num());
-
-				// Selected Pose UI
-				FString PoseSwitchEnumParamName = ParamName + FMultilayerProjector::POSE_PARAMETER_POSTFIX;
-				FString PoseSwitchEnumParamNameWithRange = PoseSwitchEnumParamName + FString::Printf(TEXT("__%d"), -1);
-				const int32 PoseSwitchEnumParamIndexInObject = CustomizableObject->FindParameter(PoseSwitchEnumParamName);
-
-				if (PoseSwitchEnumParamIndexInObject != INDEX_NONE)
-				{
-					const int32 NumPoseValues = CustomizableObject->GetIntParameterNumOptions(PoseSwitchEnumParamIndexInObject);
-
-					TArray<FString> PoseOptionNamesAttribute;
-					FString PoseValue = GetIntParameterValue(PoseSwitchEnumParamName, -1);
-					int32 PoseValueIndex = 0;
-
-					for (int32 j = 0; j < NumPoseValues; ++j)
-					{
-						const FString PossibleValue = CustomizableObject->GetIntParameterAvailableOption(PoseSwitchEnumParamIndexInObject, j);
-						if (PossibleValue == PoseValue)
-						{
-							PoseValueIndex = j;
-						}
-
-						PoseOptionNamesAttribute.Add(PossibleValue);
-					}
-
-					ParameterBox->AddSlot()
-						.HAlign(HAlign_Right)
-						.VAlign(VAlign_Fill)
-						.FillWidth(10.f)
-						[
-							SNew(SHorizontalBox)
-							+ SHorizontalBox::Slot()
-								.HAlign(HAlign_Fill)
-								.VAlign(VAlign_Center)
-								.FillWidth(0.45f)
-								[
-									SNew(SMutableTextSearchBox)
-									.PossibleSuggestions(PoseOptionNamesAttribute)
-									.InitialText(FText::FromString(PoseOptionNamesAttribute[PoseValueIndex]))
-									.MustMatchPossibleSuggestions(TAttribute<bool>(true))
-									.SuggestionListPlacement(EMenuPlacement::MenuPlacement_ComboBox)
-									.OnTextCommitted(this, &SCustomizableInstanceProperties::OnProjectorTextureParameterComboBoxChanged, PoseSwitchEnumParamNameWithRange)
-									.ToolTipText(LOCTEXT("Pose selector tooltip", "Select the skeletal mesh pose used for projection. This does not control the actual visual mesh pose in the viewport (or during gameplay for that matter). It has to be manually set. You can drag&drop a pose onto the preview viewport."))
-								]
-
-							+ SHorizontalBox::Slot()
-								.HAlign(HAlign_Fill)
-								.VAlign(VAlign_Center)
-								.FillWidth(0.3f)
-								[
-									SNew(SButton)
-									.ToolTipText(LOCTEXT("Add Layer", "Add Layer"))
-									.Text(LOCTEXT("Add Layer", "Add Layer"))
-									.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorLayerAdded, ParamName)
-									.HAlign(HAlign_Fill)
-								]
-						];
-
-				}
-				else
-				{
-					ParameterBox->AddSlot()
-						.HAlign(HAlign_Right)
-						.VAlign(VAlign_Fill)
-						.FillWidth(10.f)
+						SNew(SBox)
+						.MinDesiredWidth(80.f)
 						[
 							SNew(SButton)
-							.ToolTipText(LOCTEXT("Add Layer", "Add Layer"))
-							.Text(LOCTEXT("Add Layer", "Add Layer"))
-							.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorLayerAdded, ParamName)
-							.HAlign(HAlign_Fill)
-						];
-				}
+							.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorCopyTransform, ParamName, RangeIndex)
+							.VAlign(VAlign_Center)
+							.HAlign(HAlign_Center)
+							.Content()
+							[
+								SNew(STextBlock)
+								.ToolTipText(LOCTEXT("Copy Transform", "Copy Transform"))
+								.Text(LOCTEXT("Copy Transform", "Copy Transform"))
+								.AutoWrapText(true)
+								.Justification(ETextJustify::Center)
+							]
+						]
+					]
 
-				const FString TextureSwitchEnumParamName = ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX;
-				
-				for (int32 i = 0; i < ProjectorParameters[ProjectorParamIndex].RangeValues.Num(); ++i)
-				{
-					const FString ParamNameWithIndex = ParamName + FString::Printf(TEXT("__%d"), i);
-
-					const FString TextureSwitchEnumParamNameWithRange = TextureSwitchEnumParamName + FString::Printf(TEXT("__%d"), i);
-					const int32 TextureSwitchEnumParamIndexInObject = CustomizableObject->FindParameter(TextureSwitchEnumParamName);
-					check(TextureSwitchEnumParamIndexInObject >= 0);
-					int32 NumValues = CustomizableObject->GetIntParameterNumOptions(TextureSwitchEnumParamIndexInObject);
-
-					FString OpacitySliderParamName = ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX;
-					FString OpacitySliderParamNameWithRange = OpacitySliderParamName + FString::Printf(TEXT("__%d"), i);
-
-					TArray<FString> OptionNamesAttribute;
-					FString Value = GetIntParameterValue(TextureSwitchEnumParamName, i);
-					int32 ValueIndex = 0;
-
-					for (int32 CandidateIndex = 0; CandidateIndex < NumValues; ++CandidateIndex)
-					{
-						FString PossibleValue = CustomizableObject->GetIntParameterAvailableOption(TextureSwitchEnumParamIndexInObject, CandidateIndex);
-						if (PossibleValue == Value)
-						{
-							ValueIndex = CandidateIndex;
-						}
-						OptionNamesAttribute.Add(CustomizableObject->GetIntParameterAvailableOption(TextureSwitchEnumParamIndexInObject, CandidateIndex));
-					}
-					
-					TSharedPtr<SHorizontalBox> SliderBox;
-					TSharedPtr<SSpinBox<float>> Slider;
-					TSharedPtr<SHorizontalBox> PropertiesHB;
-					int32 SliderIndex = FloatSliders.Num();
-
-					TSharedPtr<SButton> Button;
-					TSharedPtr<STextBlock> TextBlock;
-
-					//Horizontal box that owns all the hidden layer properties
-					ActualParamBox->AddSlot()
-					.HAlign(HAlign_Fill)
-					.Padding(0, 10.f)
+					+ SHorizontalBox::Slot()
+					.Padding(1, 0)
 					[
-						SAssignNew(PropertiesHB, SHorizontalBox)
-						
-						//Select Projector slot
-						+ SHorizontalBox::Slot()
-						.Padding(1, 0)
-						.AutoWidth()
+						SNew(SBox)
+						.MinDesiredWidth(80.f)
 						[
-							SNew(SHorizontalBox)
-							+ SHorizontalBox::Slot()
-							.Padding(1, 0)
+							SNew(SButton)
+							.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorPasteTransform, ParamName, RangeIndex)
+							.VAlign(VAlign_Center)
+							.HAlign(HAlign_Center)
+							.Content()
 							[
-								SNew(SBox)
-								.MinDesiredWidth(115.f)
-								.MaxDesiredWidth(115.f)
-								[
-									SAssignNew(Button, SButton)
-									.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorSelectStateChanged, ParamNameWithIndex)
-									.VAlign(VAlign_Center)
-									.HAlign(HAlign_Center)
-									.Content()
-									[
-										SAssignNew(TextBlock, STextBlock)
-										.Text(LOCTEXT("Select Projector", "Select Projector"))
-										.ToolTipText(LOCTEXT("Select Projector", "Select Projector"))
-										.Justification(ETextJustify::Center)
-										//.AutoWrapText(true)
-									]
-								]
-							]
-
-							+ SHorizontalBox::Slot()
-							.Padding(1, 0)
-							[
-								SNew(SBox)
-								.MinDesiredWidth(120.f)
-								[
-									SNew(SMutableTextSearchBox)
-									.PossibleSuggestions(OptionNamesAttribute)
-									.InitialText(FText::FromString(OptionNamesAttribute[ValueIndex]))
-									.MustMatchPossibleSuggestions(TAttribute<bool>(true))
-									.SuggestionListPlacement(EMenuPlacement::MenuPlacement_ComboBox)
-									.OnTextCommitted(this, &SCustomizableInstanceProperties::OnProjectorTextureParameterComboBoxChanged, TextureSwitchEnumParamNameWithRange)
-								]
+								SNew(STextBlock)
+								.ToolTipText(LOCTEXT("Paste Transform", "Paste Transform"))
+								.Text(LOCTEXT("Paste Transform", "Paste Transform"))
+								.Justification(ETextJustify::Center)
+								.AutoWrapText(true)
 							]
 						]
-					];
-						
-					MapProjectorButton.Add(ParamNameWithIndex, Button);
-					MapProjectorButtonTextBlock.Add(ParamNameWithIndex, TextBlock);
+					]
 
-					PropertiesHB->AddSlot()
-					.HAlign(HAlign_Fill)
+					+ SHorizontalBox::Slot()
+					.Padding(1, 0)
 					[
-						SNew(SHorizontalBox)
-						+ SHorizontalBox::Slot()
-						.Padding(1, 0)
-						.HAlign(HAlign_Fill)
+						SNew(SBox)
+						.MinDesiredWidth(80.f)
 						[
-							SNew(SHorizontalBox)
-							+ SHorizontalBox::Slot()
+							SNew(SButton)
+							.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorResetTransform, ParamName, RangeIndex)
+							.VAlign(VAlign_Center)
+							.HAlign(HAlign_Center)
+							.Content()
 							[
-								SAssignNew(Slider, SSpinBox<float>)
-								.MinValue(0.0f)
-								.MaxValue(1.0f)
-								.Value(this, &SCustomizableInstanceProperties::GetSliderValue, SliderIndex)
-								.OnValueChanged(this, &SCustomizableInstanceProperties::OnProjectorFloatParameterChanged, SliderIndex, ParamNameWithIndex)
-								.OnBeginSliderMovement(this, &SCustomizableInstanceProperties::OnProjectorFloatParameterSliderBegin)
-								.OnEndSliderMovement(this, &SCustomizableInstanceProperties::OnProjectorFloatParameterSliderEnd)
+								SNew(STextBlock)
+								.ToolTipText(LOCTEXT("Reset Transform", "Reset Transform"))
+								.Text(LOCTEXT("Reset Transform", "Reset Transform"))
+								.Justification(ETextJustify::Center)
+								.AutoWrapText(true)
 							]
-
 						]
-					];
+					]
 
-					PropertiesHB->AddSlot()
-					.HAlign(HAlign_Right)
-					.AutoWidth()
+					+ SHorizontalBox::Slot()
+					.Padding(1, 0)
 					[
-						SNew(SHorizontalBox)
-						+ SHorizontalBox::Slot()
-						.Padding(1, 0)
+						SNew(SBox)
+						.MinDesiredWidth(80.f)
 						[
-							SNew(SBox)
-							.MinDesiredWidth(80.f)
+							SNew(SButton)
+							.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorLayerRemoved, ParamName, RangeIndex)
+							.VAlign(VAlign_Center)
+							.HAlign(HAlign_Center)
+							.Content()
 							[
-								SNew(SButton)
-								.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorCopyTransform, ParamNameWithIndex)
-								.VAlign(VAlign_Center)
-								.HAlign(HAlign_Center)
-								.Content()
-								[
-									SNew(STextBlock)
-									.ToolTipText(LOCTEXT("Copy Transform", "Copy Transform"))
-									.Text(LOCTEXT("Copy Transform", "Copy Transform"))
-									.AutoWrapText(true)
-									.Justification(ETextJustify::Center)
-								]
+								SNew(STextBlock)
+								.ToolTipText(LOCTEXT("Remove Layer", "Remove Layer"))
+								.Text(LOCTEXT("Remove Layer", "Remove Layer"))
+								.Justification(ETextJustify::Center)
+								.AutoWrapText(true)
 							]
 						]
+					]
+				];
 
-						+ SHorizontalBox::Slot()
-						.Padding(1, 0)
-						[
-							SNew(SBox)
-							.MinDesiredWidth(80.f)
-							[
-								SNew(SButton)
-								.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorPasteTransform, ParamNameWithIndex)
-								.VAlign(VAlign_Center)
-								.HAlign(HAlign_Center)
-								.Content()
-								[
-									SNew(STextBlock)
-									.ToolTipText(LOCTEXT("Paste Transform", "Paste Transform"))
-									.Text(LOCTEXT("Paste Transform", "Paste Transform"))
-									.Justification(ETextJustify::Center)
-									.AutoWrapText(true)
-								]
-							]
-						]
-
-						+ SHorizontalBox::Slot()
-						.Padding(1, 0)
-						[
-							SNew(SBox)
-							.MinDesiredWidth(80.f)
-							[
-								SNew(SButton)
-								.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorResetTransform, ParamNameWithIndex)
-								.VAlign(VAlign_Center)
-								.HAlign(HAlign_Center)
-								.Content()
-								[
-									SNew(STextBlock)
-									.ToolTipText(LOCTEXT("Reset Transform", "Reset Transform"))
-									.Text(LOCTEXT("Reset Transform", "Reset Transform"))
-									.Justification(ETextJustify::Center)
-									.AutoWrapText(true)
-								]
-							]
-						]
-
-						+ SHorizontalBox::Slot()
-						.Padding(1, 0)
-						[
-							SNew(SBox)
-							.MinDesiredWidth(80.f)
-							[
-								SNew(SButton)
-								.OnClicked(this, &SCustomizableInstanceProperties::OnProjectorLayerRemoved, ParamNameWithIndex)
-								.VAlign(VAlign_Center)
-								.HAlign(HAlign_Center)
-								.Content()
-								[
-									SNew(STextBlock)
-									.ToolTipText(LOCTEXT("Remove Layer", "Remove Layer"))
-									.Text(LOCTEXT("Remove Layer", "Remove Layer"))
-									.Justification(ETextJustify::Center)
-									.AutoWrapText(true)
-								]
-							]
-						]
-					];
-
-					ArrayProjectorParameterNameWithIndex.Add(ParamNameWithIndex);
-
-					if (!CustomInstance->LastSelectedProjectorParameterWithIndex.IsEmpty() && (CustomInstance->LastSelectedProjectorParameterWithIndex == ParamNameWithIndex))
-					{
-						if (Button.Get() != nullptr)
-						{
-							Button->SetBorderBackgroundColor(FLinearColor::Green);
-						}
-
-						if (TextBlock.Get() != nullptr)
-						{
-							TextBlock->SetText(LOCTEXT("Unselect Projector", "Unselect Projector"));
-						}
-					}
-
-					FloatSliders.Add(FSliderData(Slider, OpacitySliderParamName, i, GetFloatParameterValue(OpacitySliderParamName, i)));
-				}
+				FloatSliders.Add(FSliderData(Slider, OpacitySliderParamName, RangeIndex, GetFloatParameterValue(OpacitySliderParamName, RangeIndex)));
 			}
 		}
 		break;
@@ -1648,19 +1579,6 @@ void SCustomizableInstanceProperties::OnIntParameterComboBoxChanged(TSharedPtr<F
 
 					if (ValueName == *Selection)
 					{
-						if (ValueName == "None" || CustomInstance->FindProjectorParameterNameIndex(ParamName) == INDEX_NONE)
-						{
-							// Hiding the projector when the selection doesn't have one
-							CustomInstance->ResetProjectorStates();
-							CustomInstance->UnselectProjector = true;
-						}
-						else
-						{
-							// Variable used in a non multilayer projector to not lose the focus of the gizmo
-							CustomInstance->ProjectorLayerChange = true;
-						}
-						
-
 						IntParameters[i].ParameterValueName = ValueName;
 						break;
 					}
@@ -1764,69 +1682,6 @@ void SCustomizableInstanceProperties::OnSetColorFromColorPicker(FLinearColor New
 }
 
 
-FString ParseNameAndIndex(const FString& ParamNameWithIndex, int& OutIndex)
-{
-	FString ParamName, Index;
-	const bool bSplit = ParamNameWithIndex.Split(FString("__"), &ParamName, &Index);
-	check(bSplit && Index.IsNumeric());
-
-	OutIndex = FCString::Atoi(*Index);
-
-	return ParamName;
-}
-
-
-ECheckBoxState SCustomizableInstanceProperties::IsProjectorHidden(FString ParamNameWithIndex) const
-{
-	int32 RangeIndex;
-	const  FString ParamName = ParseNameAndIndex(ParamNameWithIndex, RangeIndex);
-
-	if (CustomInstance->GetProjectorState(ParamName, RangeIndex) == EProjectorState::Hidden)
-	{
-		return ECheckBoxState::Checked;
-	}
-	return ECheckBoxState::Unchecked;
-}
-
-
-ECheckBoxState SCustomizableInstanceProperties::IsProjectorTranslate(FString ParamNameWithIndex) const
-{
-	int32 RangeIndex;
-	const FString ParamName = ParseNameAndIndex(ParamNameWithIndex, RangeIndex);
-
-	if (CustomInstance->GetProjectorState(ParamName, RangeIndex) == EProjectorState::Translate)
-	{
-		return ECheckBoxState::Checked;
-	}
-	return ECheckBoxState::Unchecked;
-}
-
-
-ECheckBoxState SCustomizableInstanceProperties::IsProjectorRotate(FString ParamNameWithIndex) const
-{
-	int32 RangeIndex;
-	const FString ParamName = ParseNameAndIndex(ParamNameWithIndex, RangeIndex);
-
-	if (CustomInstance->GetProjectorState(ParamName, RangeIndex) == EProjectorState::Rotate)
-	{
-		return ECheckBoxState::Checked;
-	}
-	return ECheckBoxState::Unchecked;
-}
-
-
-ECheckBoxState SCustomizableInstanceProperties::IsProjectorScale(FString ParamNameWithIndex) const
-{
-	int32 RangeIndex;
-	const FString ParamName = ParseNameAndIndex(ParamNameWithIndex, RangeIndex);
-
-	if (CustomInstance->GetProjectorState(ParamName, RangeIndex) == EProjectorState::Scale)
-	{
-		return ECheckBoxState::Checked;
-	}
-	return ECheckBoxState::Unchecked;
-}
-
 FReply SCustomizableInstanceProperties::OnProjectorLayerAdded(FString ParamName) const
 {
 	const int32 NumLayers = CustomInstance->AddValueToProjectorRange(ParamName) + 1;
@@ -1864,11 +1719,8 @@ FReply SCustomizableInstanceProperties::OnProjectorLayerAdded(FString ParamName)
 }
 
 
-FReply SCustomizableInstanceProperties::OnProjectorLayerRemoved(FString ParamNameWithIndex) const
+FReply SCustomizableInstanceProperties::OnProjectorLayerRemoved(const FString ParamName, const int32 RangeIndex) const
 {
-	int32 RangeIndex;
-	const FString ParamName = ParseNameAndIndex(ParamNameWithIndex, RangeIndex);
-
 	const int32 projectorParameterIndex = CustomInstance->FindProjectorParameterNameIndex(ParamName);
 	if (projectorParameterIndex == INDEX_NONE
 		|| CustomInstance->GetProjectorParameters()[projectorParameterIndex].RangeValues.Num() <= 0)
@@ -1876,10 +1728,7 @@ FReply SCustomizableInstanceProperties::OnProjectorLayerRemoved(FString ParamNam
 		return FReply::Handled();
 	}
 
-	CustomInstance->SetProjectorState(ParamName, RangeIndex, EProjectorState::Hidden);  // If the Projector was selected, unselect it
-
 	const int32 NumLayers = CustomInstance->RemoveValueFromProjectorRange(ParamName, RangeIndex) + 1;
-	CustomInstance->RemovedProjectorParameterNameWithIndex = ParamNameWithIndex; // Since the gizmo updates the CustomObjectInstance when unselected, a check is required to avoid updating the removed projector parameter range index
 
 	const FString TextureSwitchEnumParamName = ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX;
 	CustomInstance->RemoveValueFromIntRange(TextureSwitchEnumParamName, RangeIndex);
@@ -1910,109 +1759,27 @@ FReply SCustomizableInstanceProperties::OnProjectorLayerRemoved(FString ParamNam
 }
 
 
-FReply SCustomizableInstanceProperties::OnProjectorSelectStateChanged(FString ParamNameWithIndex)
+FReply SCustomizableInstanceProperties::OnProjectorSelectChanged(const FString ParamName, const int32 RangeIndex) const
 {
-	const int32 MaxIndex = ArrayProjectorParameterNameWithIndex.Num();
+	const TSharedPtr<ICustomizableObjectInstanceEditor> Editor = GetEditorChecked();
 
-	const TSharedPtr<SButton> Button = MapProjectorButton[ParamNameWithIndex];
-	const TSharedPtr<STextBlock> TextBlock = MapProjectorButtonTextBlock[ParamNameWithIndex];
-
-	CustomInstance->ProjectorLayerChange = false;
-
-	for (TPair<FString, TSharedPtr<SButton>>& Element : MapProjectorButton)
+	const UProjectorParameter* ProjectorParameter = Editor->GetProjectorParameter();
+	if (ProjectorParameter->IsProjectorSelected(ParamName, RangeIndex))
 	{
-		if (/*Element.Value && */Element.Value != Button)
-		{
-			Element.Value->SetBorderBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 1.0f));
-		}
+		Editor->HideGizmoProjectorParameter();
 	}
-
-	for (TPair<FString, TSharedPtr<STextBlock>>& Element : MapProjectorButtonTextBlock)
+	else
 	{
-		if (/*Element.Value &&*/ Element.Value != TextBlock)
-		{
-			Element.Value->SetText(LOCTEXT("Select Projector", "Select Projector"));
-		}
+		Editor->ShowGizmoProjectorParameter(ParamName, RangeIndex);		
 	}
-
-	bool SelectProjector = true;
-
-	if ((TextBlock.Get() != nullptr) && (TextBlock.Get()->GetText().ToString() == FString("Unselect Projector")))
-	{
-		SelectProjector = false;
-	}
-
-	if (Button.Get() != nullptr)
-	{
-		Button->SetBorderBackgroundColor(SelectProjector ? FLinearColor::Green : FLinearColor::White);
-	}
-
-	if (TextBlock.Get() != nullptr)
-	{
-		TextBlock->SetText(SelectProjector ? LOCTEXT("Unselect Projector", "Unselect Projector") : LOCTEXT("Select Projector", "Select Projector"));
-	}
-
-	for (int32 i = 0; i < MaxIndex; ++i)
-	{
-		int32 ArrayRangeIndex;
-		FString ArrayParamName = ParseNameAndIndex(ArrayProjectorParameterNameWithIndex[i], ArrayRangeIndex);
-
-		if ((ArrayProjectorParameterNameWithIndex[i] != ParamNameWithIndex) &&
-			(CustomInstance->GetProjectorState(ArrayParamName, ArrayRangeIndex) != EProjectorState::Hidden))
-		{
-			CustomInstance->SetProjectorState(ArrayParamName, ArrayRangeIndex, EProjectorState::Hidden);
-		}
-
-		if (ArrayProjectorParameterNameWithIndex[i] == ParamNameWithIndex)
-		{
-			CustomInstance->SetProjectorState(ArrayParamName, ArrayRangeIndex, SelectProjector ? EProjectorState::Selected : EProjectorState::Hidden);
-
-			if (SelectProjector)
-			{
-				CustomInstance->LastSelectedProjectorParameterWithIndex = ParamNameWithIndex;
-			}
-		}
-	}
-
-	FCoreUObjectDelegates::BroadcastOnObjectModified(CustomInstance.Get());
-
+	
 	return FReply::Handled();
 }
 
 
-void SCustomizableInstanceProperties::OnProjectorTranslateStateChanged(ECheckBoxState InCheckboxState, FString ParamNameWithIndex) const
-{
-	int32 RangeIndex;
-	const FString ParamName = ParseNameAndIndex(ParamNameWithIndex, RangeIndex);
-
-	CustomInstance->SetProjectorState(ParamName, RangeIndex, EProjectorState::Translate);
-}
-
-
-void SCustomizableInstanceProperties::OnProjectorRotateStateChanged(ECheckBoxState InCheckboxState, FString ParamNameWithIndex) const
-{
-	int32 RangeIndex;
-	const FString ParamName = ParseNameAndIndex(ParamNameWithIndex, RangeIndex);
-
-	CustomInstance->SetProjectorState(ParamName, RangeIndex, EProjectorState::Rotate);
-}
-
-
-void SCustomizableInstanceProperties::OnProjectorScaleStateChanged(ECheckBoxState InCheckboxState, FString ParamNameWithIndex) const
-{
-	int32 RangeIndex;
-	const FString ParamName = ParseNameAndIndex(ParamNameWithIndex, RangeIndex);
-
-	CustomInstance->SetProjectorState(ParamName, RangeIndex, EProjectorState::Scale);
-}
-
-
-void SCustomizableInstanceProperties::OnProjectorTextureParameterComboBoxChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, FString ParamNameWithIndex) const
+void SCustomizableInstanceProperties::OnProjectorTextureParameterComboBoxChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, FString ParamName, int32 RangeIndex) const
 {
 	TArray<FCustomizableObjectIntParameterValue>& IntParameters = CustomInstance->GetIntParameters();
-
-	int32 RangeIndex;
-	const FString ParamName = ParseNameAndIndex(ParamNameWithIndex, RangeIndex);
 
 	const UCustomizableObject* CustomObject = CustomInstance->GetCustomizableObject();
 	for (int32 i = 0; i < IntParameters.Num(); ++i)
@@ -2049,8 +1816,6 @@ void SCustomizableInstanceProperties::OnProjectorTextureParameterComboBoxChanged
 
 	CustomInstance->SetSelectedParameterProfileDirty();
 
-	CustomInstance->ProjectorLayerChange = true;
-
 	CustomInstance->UpdateSkeletalMeshAsync(true, true);
 
 	CustomInstance->PostEditChange();
@@ -2060,47 +1825,26 @@ void SCustomizableInstanceProperties::OnProjectorTextureParameterComboBoxChanged
 }
 
 
-void SCustomizableInstanceProperties::OnProjectorFloatParameterChanged(float Value, int SliderIndex, FString ParamNameWithIndex)
+void SCustomizableInstanceProperties::OnProjectorFloatParameterChanged(float Value, int SliderIndex)
 {
 	OnFloatParameterChanged(Value, SliderIndex);
-
-	// Code commented since it was causing problems with the alpha slider. Selecting the projector removed the focus on the slider.
-	//int32 RangeIndex;
-	//FString ParamName = ParseNameAndIndex(ParamNameWithIndex, RangeIndex);
-
-	//EProjectorState::Type ProjectorState = CustomInstance->GetProjectorState(ParamName, RangeIndex);
-	//if (ProjectorState != EProjectorState::Selected)
-	//{
-	//	CustomInstance->ResetProjectorStates();
-	//	CustomInstance->SetProjectorState(ParamName, RangeIndex, EProjectorState::Selected);
-
-	//	CustomInstance->LastSelectedProjectorParameterWithIndex = ParamNameWithIndex;
-	//	FCoreUObjectDelegates::BroadcastOnObjectModified(CustomInstance.Get());
-	//}
 }
 
 
 void SCustomizableInstanceProperties::OnProjectorFloatParameterSliderBegin()
 {
 	OnFloatParameterSliderBegin();
-
-	CustomInstance->ProjectorAlphaChange = true;
 }
 
 
 void SCustomizableInstanceProperties::OnProjectorFloatParameterSliderEnd(float Value)
 {
 	OnFloatParameterSliderEnd(Value);
-
-	CustomInstance->ProjectorAlphaChange = false;
 }
 
 
-FReply SCustomizableInstanceProperties::OnProjectorCopyTransform(FString ParamNameWithIndex) const
+FReply SCustomizableInstanceProperties::OnProjectorCopyTransform(const FString ParamName, const int32 RangeIndex) const
 {
-	int32 RangeIndex;
-	const FString ParamName = ParseNameAndIndex(ParamNameWithIndex, RangeIndex);
-
 	const int32 ParameterIndexInObject = CustomInstance->GetCustomizableObject()->FindParameter(ParamName);
 	const int32 ProjectorParamIndex = CustomInstance->FindProjectorParameterNameIndex(ParamName);
 
@@ -2133,11 +1877,11 @@ FReply SCustomizableInstanceProperties::OnProjectorCopyTransform(FString ParamNa
 }
 
 
-FReply SCustomizableInstanceProperties::OnProjectorPasteTransform(FString ParamNameWithIndex) const
+FReply SCustomizableInstanceProperties::OnProjectorPasteTransform(const FString ParamName, const int32 RangeIndex)
 {
-	int32 RangeIndex;
-	FString ParamName = ParseNameAndIndex(ParamNameWithIndex, RangeIndex);
-
+	FScopedTransaction Transaction(LOCTEXT("PasteTransform", "Paste Transform"));
+	CustomInstance->Modify();
+	
 	FString ClipboardText;
 	FPlatformApplicationMisc::ClipboardPaste(ClipboardText);
 	FCustomizableObjectProjector DefaultValue;
@@ -2152,23 +1896,20 @@ FReply SCustomizableInstanceProperties::OnProjectorPasteTransform(FString ParamN
 		DefaultValue.Angle,
 		RangeIndex);
 
-	//Instance->UpdateSkeletalMeshAsync(true);
-	CustomInstance->TempUpdateGizmoInViewport = true;
-	CustomInstance->TempProjectorParameterName = ParamName;
-	CustomInstance->TempProjectorParameterRangeIndex = RangeIndex;
+	const TSharedPtr<ICustomizableObjectInstanceEditor> Editor = GetEditorChecked();
 
-	CustomInstance->ProjectorLayerChange = false;
+	Editor->ShowGizmoProjectorParameter(ParamName, RangeIndex);
+	CustomInstance->UpdateSkeletalMeshAsync(true, true);
 
 	return FReply::Handled();
 }
 
 
-FReply SCustomizableInstanceProperties::OnProjectorResetTransform(FString ParamNameWithIndex) const
+FReply SCustomizableInstanceProperties::OnProjectorResetTransform(const FString ParamName, const int32 RangeIndex)
 {
-	int32 RangeIndex;
-
-	FString ParamName = ParseNameAndIndex(ParamNameWithIndex, RangeIndex);
-
+	FScopedTransaction Transaction(LOCTEXT("ResetTransform", "Reset Transform"));
+	CustomInstance->Modify();
+	
 	const FCustomizableObjectProjector DefaultValue = CustomInstance->GetCustomizableObject()->GetProjectorParameterDefaultValue(ParamName);
 
 	CustomInstance->SetProjectorValue(ParamName,
@@ -2179,11 +1920,10 @@ FReply SCustomizableInstanceProperties::OnProjectorResetTransform(FString ParamN
 		DefaultValue.Angle,
 		RangeIndex);
 
-	CustomInstance->TempUpdateGizmoInViewport = true;
-	CustomInstance->TempProjectorParameterName = ParamName;
-	CustomInstance->TempProjectorParameterRangeIndex = RangeIndex;
+	const TSharedPtr<ICustomizableObjectInstanceEditor> Editor = GetEditorChecked();
 
-	CustomInstance->ProjectorLayerChange = false;
+	Editor->ShowGizmoProjectorParameter(ParamName, RangeIndex);
+	CustomInstance->UpdateSkeletalMeshAsync(true, true);
 
 	return FReply::Handled();
 }
@@ -2192,7 +1932,6 @@ FReply SCustomizableInstanceProperties::OnProjectorResetTransform(FString ParamN
 void SCustomizableInstanceProperties::InstanceUpdated(UCustomizableObjectInstance* Instance) const
 {
 	if (CustomInstance->bShowOnlyRelevantParameters &&
-		!CustomInstance->ProjectorUpdatedInViewport &&
 		bShouldResetParamBox)
 	{
 		if (const TSharedPtr<FCustomizableInstanceDetails> Details = InstanceDetails.Pin())
@@ -2200,6 +1939,15 @@ void SCustomizableInstanceProperties::InstanceUpdated(UCustomizableObjectInstanc
 			Details->Refresh();
 		}
 	}
+}
+
+
+TSharedPtr<ICustomizableObjectInstanceEditor> SCustomizableInstanceProperties::GetEditorChecked() const
+{
+	TSharedPtr<ICustomizableObjectInstanceEditor> Editor = WeakEditor.Pin();
+	check(Editor);
+	
+	return Editor;
 }
 
 

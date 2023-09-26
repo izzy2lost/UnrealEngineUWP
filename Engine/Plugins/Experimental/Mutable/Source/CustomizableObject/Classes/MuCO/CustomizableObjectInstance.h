@@ -27,20 +27,6 @@ struct FPropertyChangedEvent;
 #define MUTABLE_VERTEXBUFFER_TEXCOORDS	2
 
 
-// Current state of a projector associated with a parameter.
-namespace EProjectorState
-{
-	typedef uint8 Type;
-	
-	const Type Hidden = 0;
-	const Type Translate = 1;
-	const Type Rotate = 2;
-	const Type Scale = 3;	
-	const Type Selected = 4;
-	const Type TypeChanged = 5;
-};
-
-
 /** FString with the possible errors from skeletal mesh update */
 namespace ESkeletalMeshState
 {
@@ -326,12 +312,6 @@ public:
 	bool bShowOnlyRuntimeParameters = true;
 	bool bShowOnlyRelevantParameters = true;
 
-	/** Control the display of support widgets to edit projectors of this instance. */
-	void SetProjectorState( const FString& ParamName, int32 RangeIndex, EProjectorState::Type state );
-	void ResetProjectorStates();
-	EProjectorState::Type GetProjectorState(const FString& ParamName, int32 RangeIndex) const;
-	FProjectorStateChangedDelegate ProjectorStateChangedDelegate;
-
 	// DEPRECATED: Use the method in the CustomizableObject instead which takes an index among all parameters
 	// Returns how many possible options an int parameter has
 	//int32 GetIntParameterNumOptions(int32 IntParamIndex);
@@ -394,8 +374,25 @@ public:
 		int32 RangeIndex = -1);
 
 	/** Set only the projector position. */
-	void SetProjectorPosition(const FString& ProjectorParamName, const FVector3f& Pos, int32 RangeIndex = -1);
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	void SetProjectorPosition(const FString& ProjectorParamName, const FVector3f& Pos, int32 RangeIndex = -1); // TODO GMTFuture Make API consistent (FVector3f -> FVector)
 
+	/** Set only the projector direction vector. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	void SetProjectorDirection(const FString& ProjectorParamName, const FVector& Direction, int32 RangeIndex = -1);
+	
+	/** Set only the projector up vector. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	void SetProjectorUp(const FString& ProjectorParamName, const FVector& Up, int32 RangeIndex = -1);
+
+	/** Set only the projector scale. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	void SetProjectorScale(const FString& ProjectorParamName, const FVector& Scale, int32 RangeIndex = -1);
+
+	/** Set only the cylindrical projector angle. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	void SetProjectorAngle(const FString& ProjectorParamName, float Angle, int32 RangeIndex = -1);
+	
 	// Get the projector values of a projector parameter with index "ProjectorParamIndex"
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	void GetProjectorValue(const FString& ProjectorParamName,
@@ -660,49 +657,14 @@ public:
 
 	UCustomizableInstancePrivateData* GetPrivate() const;
 
-	bool ProjectorUpdatedInViewport = false;
-
-	// TEMP VARIABLE to ease updating the gizmo in the editor after pasting a new projector's transform information
-	bool TempUpdateGizmoInViewport = false;
-
-	// TEMP VARIABLE to verify the projector parameter with transform modified by Paste Transform is set as selected
-	FString TempProjectorParameterName;
-
-	// TEMP VARIABLE to verify the projector parameter with transform modified by Paste Transform is set as selected
-	int32 TempProjectorParameterRangeIndex;
-
-	// TEMP VARIABLE to avoid the projector selection being reset after pasting transform
-	bool AvoidResetProjectorVisibilityForNonNode = false;
-
 	// TEMP VARIABLE to check the Min desired LODs for this instance
 	TWeakObjectPtr<UCustomizableSkeletalComponent> NearestToActor;
 	TWeakObjectPtr<const AActor> NearestToViewCenter;
 
 #if WITH_EDITOR
-	/** If there's a projector parameter pending to be hidden, name of that projector parameter */
-	FString LastSelectedProjectorParameter;
-
-	/** For the case of projector parameter in several layers (the name of the projector is the same and only the index will change */
-	FString LastSelectedProjectorParameterWithIndex;
-
-	/** Flag to ease detect a projector layer change event in FCustomizableObjectEditor::OnObjectModified */
-	bool ProjectorLayerChange = false;
-
-	/** Flag to avoid resetting projector state when editing the alpha value of a layer */
-	bool ProjectorAlphaChange = false;
-
-	/** Flag to unselect the projector */
-	bool UnselectProjector = false;
-
 	/** Profile index the instance parameters are in and if the profile needs to be refreshed */
 	int32 SelectedProfileIndex = INDEX_NONE;
 	bool bSelectedProfileDirty = false;
-
-	/** Tag required to avoid updating the wrong projector parameter range index once removed.
-	On a Group Projector Parameter, if a projector gizmo is removed while is selected, the projector is unselected and removed. The unselection will causes a late update
-	to that projector index, which is performed after the projector being removed. During the update, since the projector index has been removed, the update index is no
-	longer valid. This tag allows to check if the last removed index matches with the currently update index. In the case they match, the update does not occur.*/
-	FString RemovedProjectorParameterNameWithIndex;
 #endif 
 
 private:

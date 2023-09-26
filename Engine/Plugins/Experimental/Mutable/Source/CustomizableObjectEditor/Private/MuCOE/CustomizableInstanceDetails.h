@@ -29,10 +29,6 @@ public:
 	void Refresh() const;
 
 private:
-	TWeakObjectPtr<UCustomizableObjectInstance> CustomInstance;
-	TWeakObjectPtr<UCustomizableSkeletalComponent> CustomizableSkeletalComponent;
-	TSharedPtr<SCustomizableInstanceProperties> InstancePropertiesWidget;
-	
 	TWeakPtr<IDetailLayoutBuilder> LayoutBuilder;
 };
 

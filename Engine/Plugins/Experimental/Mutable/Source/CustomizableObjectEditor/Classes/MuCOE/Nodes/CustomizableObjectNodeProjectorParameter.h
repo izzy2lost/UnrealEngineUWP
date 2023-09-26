@@ -50,12 +50,6 @@ public:
 	/** Temporary variable where to put the direction information for bone combo box selection changes (in FCustomizableObjectNodeProjectorParameterDetails)*/
 	FVector BoneComboBoxUpDirection = FVector::ZeroVector;
 
-	/** Flag to know which parameters have been modified of the node in the details tab.
-	* 0 Means projection type
-	* 1 projection angle
-	* 2 projector transform */
-	int32 ParameterSetModified = -1;
-
 	// UObject interface.
 	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 
@@ -68,9 +62,32 @@ public:
 	void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	virtual bool IsAffectedByLOD() const override { return false; }
 
+	// Own interface
 	UEdGraphPin* ProjectorPin() const
 	{
 		return FindPin(TEXT("Value"));
 	}
+
+	ECustomizableObjectProjectorType GetProjectorType() const;
+
+	FVector GetProjectorDefaultPosition() const;
+	
+	void SetProjectorDefaultPosition(const FVector& Position);
+
+	FVector GetProjectorDefaultDirection() const;
+
+	void SetProjectorDefaultDirection(const FVector& Direction);
+
+	FVector GetProjectorDefaultUp() const;
+
+	void SetProjectorDefaultUp(const FVector& Up);
+
+	FVector GetProjectorDefaultScale() const;
+
+	void SetProjectorDefaultScale(const FVector& Scale);
+
+	float GetProjectorDefaultAngle() const;
+
+	void SetProjectorDefaultAngle(float Angle);
 };
 

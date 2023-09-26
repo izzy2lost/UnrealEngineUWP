@@ -152,6 +152,8 @@ const FCustomizableInstanceComponentData* UCustomizableInstancePrivateData::GetC
 
 UCustomizableObjectInstance::UCustomizableObjectInstance()
 {
+	SetFlags(RF_Transactional);
+	
 	PrivateData = CreateDefaultSubobject<UCustomizableInstancePrivateData>(FName("PrivateData"), true);
 }
 
@@ -556,14 +558,6 @@ void UCustomizableInstancePrivateData::ReloadParameters(UCustomizableObjectInsta
 
 	InstanceUpdateFlags(*Public); // TODO Move somewhere else.
 
-#if WITH_EDITOR
-	if(!Public->ProjectorAlphaChange)
-#endif
-	{
-		ProjectorStates.Reset();
-	}
-	
-
 	if (bInvalidatePreviousData)
 	{
 		InvalidateGeneratedData();
@@ -634,8 +628,6 @@ void UCustomizableObjectInstance::SetState(const int32 InState)
 
 	if (OldState != InState)
 	{
-		PrivateData->ProjectorStates.Reset();
-
 		// State may change texture properties, so invalidate the texture reuse cache
 		PrivateData->TextureReuseCache.Empty();
 	}
@@ -651,32 +643,6 @@ FString UCustomizableObjectInstance::GetCurrentState() const
 void UCustomizableObjectInstance::SetCurrentState(const FString& StateName)
 {
 	Descriptor.SetCurrentState(StateName);
-}
-
-
-void UCustomizableObjectInstance::SetProjectorState(const FString& ParamName, int32 RangeIndex, EProjectorState::Type state)
-{
-	PrivateData->ProjectorStates.Add(TPair<FString, int32>(ParamName, RangeIndex), state);
-	ProjectorStateChangedDelegate.ExecuteIfBound(ParamName);
-}
-
-
-void UCustomizableObjectInstance::ResetProjectorStates()
-{
-	PrivateData->ProjectorStates.Empty();
-}
-
-
-EProjectorState::Type UCustomizableObjectInstance::GetProjectorState(const FString& ParamName, int32 RangeIndex) const
-{
-	if (const EProjectorState::Type* state = PrivateData->ProjectorStates.Find(TPair<FString, int32>(ParamName, RangeIndex)))
-	{
-		return *state;
-	}
-	else
-	{
-		return EProjectorState::Hidden;
-	}
 }
 
 
@@ -2419,10 +2385,34 @@ void UCustomizableObjectInstance::SetProjectorPosition(const FString& ProjectorP
 }
 
 
+void UCustomizableObjectInstance::SetProjectorDirection(const FString& ProjectorParamName, const FVector& Direction, int32 RangeIndex)
+{
+	Descriptor.SetProjectorDirection(ProjectorParamName, Direction, RangeIndex);
+}
+
+
+void UCustomizableObjectInstance::SetProjectorUp(const FString& ProjectorParamName, const FVector& Up, int32 RangeIndex)
+{
+	Descriptor.SetProjectorUp(ProjectorParamName, Up, RangeIndex);	
+}
+
+
+void UCustomizableObjectInstance::SetProjectorScale(const FString& ProjectorParamName, const FVector& Scale, int32 RangeIndex)
+{
+	Descriptor.SetProjectorScale(ProjectorParamName, Scale, RangeIndex);	
+}
+
+
+void UCustomizableObjectInstance::SetProjectorAngle(const FString& ProjectorParamName, float Angle, int32 RangeIndex)
+{
+	Descriptor.SetProjectorAngle(ProjectorParamName, Angle, RangeIndex);
+}
+
+
 void UCustomizableObjectInstance::GetProjectorValue(const FString& ProjectorParamName,
-	FVector& OutPos, FVector& OutDir, FVector& OutUp, FVector& OutScale,
-	float& OutAngle, ECustomizableObjectProjectorType& OutType,
-	const int32 RangeIndex) const
+                                                    FVector& OutPos, FVector& OutDir, FVector& OutUp, FVector& OutScale,
+                                                    float& OutAngle, ECustomizableObjectProjectorType& OutType,
+                                                    const int32 RangeIndex) const
 {
 	Descriptor.GetProjectorValue(ProjectorParamName, OutPos, OutDir, OutUp, OutScale, OutAngle, OutType, RangeIndex);
 }

@@ -8,7 +8,6 @@
 namespace EAnimationMode { enum Type : int; }
 
 class FCanvas;
-class FCustomizableObjectWidget;
 class FMaterialRenderProxy;
 class FPreviewScene;
 class FPrimitiveDrawInterface;
@@ -31,127 +30,45 @@ class UStaticMeshComponent;
 struct FInputKeyEventArgs;
 
 
+DECLARE_DELEGATE_RetVal(FVector, FWidgetLocationDelegate);
+DECLARE_DELEGATE_OneParam(FOnWidgetLocationChangedDelegate, const FVector&)
+
+DECLARE_DELEGATE_RetVal(FVector, FWidgetDirectionDelegate);
+DECLARE_DELEGATE_OneParam(FOnWidgetDirectionChangedDelegate, const FVector&)
+
+DECLARE_DELEGATE_RetVal(FVector, FWidgetUpDelegate);
+DECLARE_DELEGATE_OneParam(FOnWidgetUpChangedDelegate, const FVector&)
+
+DECLARE_DELEGATE_RetVal(FVector, FWidgetScaleDelegate);
+DECLARE_DELEGATE_OneParam(FOnWidgetScaleChangedDelegate, const FVector&)
+
+DECLARE_DELEGATE_RetVal(float, FWidgetAngleDelegate);
+
+DECLARE_DELEGATE_RetVal(ECustomizableObjectProjectorType, FProjectorTypeDelegate);
+
+DECLARE_DELEGATE_RetVal(FColor, FWidgetColorDelegate);
+
+DECLARE_DELEGATE(FWidgetTrackingStartedDelegate);
+
+
 extern void RemoveRestrictedChars(FString& String);
 
-/**
-* Class used to store all the possible gizmo edition options for projectors
-* (constant projector node, parameter projector node, and projector
-* parameter from a Customizable Object Instance
-*/
-class GizmoRTSProxy
+
+enum class EWidgetType : uint8
 {
-public:
-	GizmoRTSProxy();
-
-	/** Updates the origin data of this gizmo proxy with the information
-    * present in GizmoRTSProxy::Value */
-    void CopyTransformFromOriginData();
-
-	/** Updates the origin data of this gizmo proxy with the information
-	* present in GizmoRTSProxy::Value */
-	bool UpdateOriginData();
-
-	/** Call to the corresponding Modify method when DataOriginParameter
-	* or DataOriginConstant is not nullptr */
-	bool Modify();
-
-	/** Call to the corresponding graph Modify method when DataOriginParameter
-	* or DataOriginConstant is not nullptr */
-	bool ModifyGraph();
-
-	/** Reinitializes the values of DataOriginParameter, DataOriginConstant
-	* and ProjectorParameterName and ProjectorRangeIndex */
-	void CleanOriginData();
-
-	/** Returns true if the values in the variable Parameter given has the ones assigned
-	* in the FCustomizableObjectProjector constructor (to identify uninitialized
-	* parameter proyector data outside the graph editor and initialize it) */
-	bool ProjectorHasInitialValues(FCustomizableObjectProjector& Parameter);
-
-	/** Returns the initial transform data for the projector */
-	FCustomizableObjectProjector SetProjectorInitialValue(TArray<TWeakObjectPtr<class UDebugSkelMeshComponent>>& SkeletalMeshComponents, float TotalLength);
-
-	/** Returns true if a projector parameter is selected in the viewport */
-	bool IsProjectorParameterSelected();
-
-	/** To notify of changes in any parameter projector node property in case is the one being used, currently
-	* just the projector type parameter is taken into account */
-	void ProjectorParameterChanged(UCustomizableObjectNodeProjectorParameter* Node);
-
-	/** To notify of changes in any parameter projector node property in case is the one being used, currently
-	* just the projector type parameter is taken into account */
-	void ProjectorParameterChanged(UCustomizableObjectNodeProjectorConstant* Node);
-
-	/** Setter for CallUpdateSkeletalMesh */
-	void SetCallUpdateSkeletalMesh(bool Value);
-
-	/** Set Projector updated in viewport to skip rebuilding the Instance Properties panel */
-	void SetProjectorUpdatedInViewport(bool Value);
-
-	/** Getter for ProjectorParameterName */
-	FString GetProjectorParameterName();
-
-	/** Getter for ProjectorParameterNameWithIndex */
-	FString GetProjectorParameterNameWithIndex();
-
-	/** Getter for HasAssignedData */
-	bool GetHasAssignedData();
-
-	/** Getter for AssignedDataIsFromNode */
-	bool GetAssignedDataIsFromNode();
-
-	// Projector information for edition
-	FCustomizableObjectProjector Value;
-
-	// True if there's a gizmo to be shown, false otherwise
-	bool AnyGizmoSelected;
-
-	// Pointer to the Customizable Object Node Projector Parameter
-	// in case this proxy is using gizmo data from an instance of this type
-	UCustomizableObjectNodeProjectorParameter* DataOriginParameter;
-
-	// Pointer to the Customizable Object Node Projector Constant
-	// in case this proxy is using gizmo data from an instance of this type
-	UCustomizableObjectNodeProjectorConstant* DataOriginConstant;
-
-	// Name of the projecto parameter in case this proxy is using gizmo
-	// data from a Customizable Object Instance Projector parameter data
-	// (an element of CustomizableObjectInstance::ProjectorParameters)
-	FString ProjectorParameterName;
-	FString ProjectorParameterNameWithIndex;
-	int32 ProjectorRangeIndex;
-
-	/** Pointer back to the editor tool that owns the FCustomizableObjectEditorViewportClient instance */
-	TWeakPtr<ICustomizableObjectInstanceEditor> CustomizableObjectEditorPtr;
-
-	/** Simple flag to cache when to update the original data source of the gizmo */
-	bool HasAssignedData;
-
-	/** Simple flag to when the gizmo assigned data is from a node */
-	bool AssignedDataIsFromNode;
-
-	/** Index of the projector parameter in the Customizable Object Instance projector
-	* parameter array in the case of editing a projector parameter */
-	int32 ProjectorParameterIndex;
-
-	/** To track edition of the projector gizmo */
-	bool ProjectorGizmoEdited;
-
-	/** In the case of selecting another parameter projector, avoid re-generating the skeletal mesh since no change is done in the selection event */
-	bool CallUpdateSkeletalMesh;
-
-	bool bManipulatingGizmo;
-
-	// Projection type for the associated texture.
-	ECustomizableObjectProjectorType ProjectionType;
+	Hidden,
+	Projector,
+	ClipMorph,
+	ClipMesh,
+	Light,
 };
 
 
-/** Viewport Client for the preview viewport */
+/** Viewport which shows the scene with the generated Instance. */
 class FCustomizableObjectEditorViewportClient : public FEditorViewportClient, public TSharedFromThis<FCustomizableObjectEditorViewportClient>
 {
 public:
-	FCustomizableObjectEditorViewportClient(TWeakPtr<class ICustomizableObjectInstanceEditor> InCustomizableObjectEditor, FPreviewScene* InPreviewScene);
+	FCustomizableObjectEditorViewportClient(TWeakPtr<ICustomizableObjectInstanceEditor> InCustomizableObjectEditor, FPreviewScene* InPreviewScene);
 	~FCustomizableObjectEditorViewportClient();
 
 	/** persona config options **/
@@ -166,9 +83,8 @@ public:
 
 	virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
 	virtual bool InputWidgetDelta(FViewport* Viewport, EAxisList::Type CurrentAxis, FVector& Drag, FRotator& Rot, FVector& Scale) override;
-	virtual void TrackingStarted(const struct FInputEventState& InInputState, bool bIsDragging, bool bNudge) override;
+	virtual void TrackingStarted(const FInputEventState& InInputState, bool bIsDragging, bool bNudge) override;
 	virtual void TrackingStopped() override;
-	virtual UE::Widget::EWidgetMode GetWidgetMode() const override;
 	virtual bool CanSetWidgetMode(UE::Widget::EWidgetMode NewMode) const override;
 	virtual FVector GetWidgetLocation() const override;
 	virtual FMatrix GetWidgetCoordSystem() const override;
@@ -232,22 +148,7 @@ public:
 
 	/** Callback for toggling the bounds show flag. */
 	void SetShowBounds();
-	
-	/** Callback for checking the bounds show flag. */
-	bool IsSetShowBoundsChecked() const;
-
-	/** Callback for toggling the collision geometry show flag. */
-	void SetShowCollision();
-	
-	/** Callback for checking the collision geometry show flag. */
-	bool IsSetShowCollisionChecked() const;
-
-	/** Callback for toggling the pivot show flag. */
-	void SetShowPivot();
-
-	/** Callback for checking the pivot show flag. */
-	bool IsSetShowPivotChecked() const;
-	
+		
 	/** Returns the desired target of the camera */
 	FSphere GetCameraTarget();
 
@@ -259,68 +160,57 @@ public:
 
 	/* Sets the floor height offset, saves it to config and invalidates the viewport so it shows up immediately */
 	void SetFloorOffset(float NewValue);
+	
+	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
+	void ShowGizmoClipMorph(UCustomizableObjectNodeMeshClipMorph& ClipPlainNode);
 
-	void SetClipMorphPlaneVisibility(bool bVisible, const FVector& Origin, const FVector& Normal, float MorphLength, const FBoxSphereBounds& Bounds, float InRadius1, float InRadius2, float InRotationAngle);
-	void SetClipMorphPlaneVisibility(bool bVisible, UCustomizableObjectNodeMeshClipMorph* ClipPlainNode);
-	void SetClipMeshVisibility(bool bVisible, UStaticMesh* ClipMesh, UCustomizableObjectNodeMeshClipWithMesh* ClipMeshNode);
-	void SetProjectorVisibility(bool bVisible, FString ProjectorParameterName, FString ProjectorParameterNameWithIndex, int32 ProjectorRangeIndex, const FCustomizableObjectProjector& Data, int32 ProjectorParameterIndex);
-	void SetProjectorType(bool bVisible, FString ProjectorParameterName, FString ProjectorParameterNameWithIndex, int32 ProjectorRangeIndex, const FCustomizableObjectProjector& Data, int32 ProjectorParameterIndex);
-	void SetProjectorVisibility(bool bVisible, UCustomizableObjectNodeProjectorConstant* Projector);
-	void SetProjectorParameterVisibility(bool bVisible, UCustomizableObjectNodeProjectorParameter* InProjectorParameter);
-	void ResetProjectorVisibility();
+	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
+	void HideGizmoClipMorph();
+	
+	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
+	void ShowGizmoClipMesh(UCustomizableObjectNodeMeshClipWithMesh& ClipMeshNode, UStaticMesh& ClipMesh);
+
+	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
+	void HideGizmoClipMesh();
+	
+	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
+	void ShowGizmoProjector(
+		const FWidgetLocationDelegate& WidgetLocationDelegate, const FOnWidgetLocationChangedDelegate& OnWidgetLocationChangedDelegate,
+		const FWidgetDirectionDelegate& WidgetDirectionDelegate, const FOnWidgetDirectionChangedDelegate& OnWidgetDirectionChangedDelegate,
+		const FWidgetUpDelegate& WidgetUpDelegate, const FOnWidgetUpChangedDelegate& OnWidgetUpChangedDelegate,
+		const FWidgetScaleDelegate& WidgetScaleDelegate, const FOnWidgetScaleChangedDelegate& OnWidgetScaleChangedDelegate,
+		const FWidgetAngleDelegate& WidgetAngleDelegate,
+		const FProjectorTypeDelegate& ProjectorTypeDelegate,
+		const FWidgetColorDelegate& WidgetColorDelegate,
+		const FWidgetTrackingStartedDelegate& WidgetTrackingStartedDelegate);
+
+	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
+	void HideGizmoProjector();
+	
+	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
+	void ShowGizmoLight(ULightComponent& Light);
+
+	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
+	void HideGizmoLight();
+	
 	void SetVisibilityForWireframeMode(bool bIsWireframeMode);
 
-	void SetAnimation(class UAnimationAsset* Animation, EAnimationMode::Type AnimationType);
+	void SetAnimation(UAnimationAsset* Animation, EAnimationMode::Type AnimationType);
 
 	/** Set again the animation saved in AnimationBeingPlayed (if any) */
 	void ReSetAnimation();
 
-	/** Add Light Component to the scene */
-	void AddLightToScene(class ULightComponent* AddedLight);
+	/** Add Light Component to the scene. */
+	void AddLightToScene(ULightComponent* AddedLight);
 
-	/** Remove Light component from the scene. use destroy component instead? */
-	void RemoveLightFromScene(class ULightComponent* RemovedLight);
+	/** Remove Light component from the scene. */
+	void RemoveLightFromScene(ULightComponent* RemovedLight);
 
-	/** Select/Unselect lights, selected lights can be edited using gizmos */
-	void SetSelectedLight(class ULightComponent* SelectedLight);
-
-	void SetProjectorWidgetMode(UE::Widget::EWidgetMode InMode);
-
-	const GizmoRTSProxy& GetGizmoProxy();
-
-	/** Getter of GizmoRTSProxy::IsProjectorParameterSelected */
-	bool GetGizmoIsProjectorParameterSelected();
-
-	/** Getter for bManipulating */
-	bool GetIsManipulating();
-
-	/** Getter for WidgetVisibility */
-	bool GetWidgetVisibility();
-
-	/** Update the current gizmo data to its corresponding data origin */
-	void UpdateGizmoDataToOrigin();
-
-	/** Updates the origin data of this gizmo proxy with the information
-    * present in GizmoRTSProxy::Value */
-    void CopyTransformFromOriginData();
-
-	/** Returns true if any projector node is currently selected (in the case of the Customizable Object Editor) */
-	bool AnyProjectorNodeSelected();
-
-	/** Returns in ArrayBoxSize and ArrayBoxColor the data for drawing the visual clue of the performance for the state enter and update test */
-	void BuildMeanTimesBoxSizes(float MaxWidth, TArray<float>& ArrayData, TArray<float>& ArrayBoxSize, TArray<FLinearColor>& ArrayBoxColor);
-
-	/** Returns in BoxSize and BoxColor the data for drawing the visual clue of the performance test for state enter and parameter update */
-	void BuildMeanTimesBoxSize(const float MinValue, const float MaxValue, const float MeanValue, const float MaxWidth, const float Data, float& BoxSize, FLinearColor& BoxColor) const;
+	/** Remove all Light components from the scene. */
+	void RemoveAllLightsFromScene();
 
 	/** Setter of CustomizableObject */
 	void SetCustomizableObject(UCustomizableObject* CustomizableObjectParameter);
-
-	/** Setter for StateChangeShowDataFlag */
-	void SetStateChangeShowDataFlag(bool Value);
-
-	/** Getter for StateChangeShowDataFlag */
-	bool GetStateChangeShowDataFlag();
 
 	/** Helper method to draw shadowed string on viewport */
 	void DrawShadowedString(FCanvas* Canvas, float StartX, float StartY, const FLinearColor& Color, float TextScale, FString String);
@@ -344,32 +234,6 @@ public:
 
 	/** Delegate for preview profile is changed (used for updating show flags) */
 	void OnAssetViewerSettingsChanged(const FName& InPropertyName);
-
-	/** To notify of changes in any parameter projector node property in case is the one being used, currently
-	* just the projector type parameter is taken into account */
-	void ProjectorParameterChanged(UCustomizableObjectNodeProjectorParameter* Node);
-
-	/** To notify of changes in any parameter projector node property in case is the one being used, currently
-	* just the projector type parameter is taken into account */
-	void ProjectorParameterChanged(UCustomizableObjectNodeProjectorConstant* Node);
-
-	/** Setter for LevelViewportClient::GizmoProxy::CallUpdateSkeletalMesh */
-	void SetGizmoCallUpdateSkeletalMesh(bool Value);
-
-	/** Getter for LevelViewportClient::GizmoProxy::ProjectorParameterName */
-	FString GetGizmoProjectorParameterName();
-
-	/** Getter for LevelViewportClient::GizmoProxy::ProjectorParameterNameWithIndex */
-	FString GetGizmoProjectorParameterNameWithIndex();
-
-	/** Getter for LevelViewportClient::GizmoProxy::HasAssignedData */
-	bool GetGizmoHasAssignedData();
-
-	/** Getter for LevelViewportClient::GizmoProxy::AssignedDataIsFromNode */
-	bool GetGizmoAssignedDataIsFromNode();
-
-	/** */
-	bool IsNodeMeshClipMorphSelected();
 
 	/** Debug draw a partial cylinder, given by MaxAngle in [0, 2PI] */
 	void DrawCylinderArc(FPrimitiveDrawInterface* PDI, const FMatrix& CylToWorld, const FVector& Base, const FVector& XAxis, const FVector& YAxis, const FVector& ZAxis, float Radius, float HalfHeight, uint32 Sides, const FMaterialRenderProxy* MaterialRenderProxy, uint8 DepthPriority, FColor Color, float MaxAngle);
@@ -401,41 +265,29 @@ public:
 	/** Sets the skeletal mesh bones visibility */
 	void SetShowBones();
 
-	/** Returns true if bones are vibile in viewport */
+	/** Returns true if bones are visible in viewport */
 	bool IsShowingBones() const;
 
+	const TArray<ULightComponent*>& GetLightComponents() const;
+	
+private:
 	/** Draws Mesh Bones in foreground (From: FAnimationViewportClient) */
 	void DrawMeshBones(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI);
 
-private:
+	void SetWidgetType(EWidgetType Type);
+	
 	/** Component for the static/skeletal mesh. */
-	TWeakObjectPtr<class UStaticMeshComponent> StaticMeshComponent;
-	TArray<TWeakObjectPtr<class UDebugSkelMeshComponent>> SkeletalMeshComponents;
-		
-	TMap< int, TSharedPtr<FCustomizableObjectWidget> > ProjectorWidgets;
+	TWeakObjectPtr<UStaticMeshComponent> StaticMeshComponent;
+	TArray<TWeakObjectPtr<UDebugSkelMeshComponent>> SkeletalMeshComponents;
 
-	/** Last hit proxy data. */
-	bool bManipulating;
-	EAxis::Type LastHitProxyAxis;
-	FCustomizableObjectWidget* LastHitProxyWidget;
-
-	/** Drag values for handling moving and rotating widgets. */
-	FVector LocalManDir;
-	FVector WorldManDir;
-	float DragDirX;
-	float DragDirY;
+	/** True if the widget is being dragged. */
+	bool bManipulating = false;
 
 	/** Pointer back to the editor tool that owns us */
 	TWeakPtr<ICustomizableObjectInstanceEditor> CustomizableObjectEditorPtr;
 
 	/** Flags for various options in the editor. */
-	bool bCameraMove;
 	bool bDrawUVs;
-	bool bShowSockets;
-	bool bDrawNormals;
-	bool bDrawTangents;
-	bool bDrawBinormals;
-	bool bShowPivot;
 	bool bDrawSky;
 
 	// Material index to draw in the uv preview.
@@ -449,7 +301,6 @@ private:
 
 	UCustomizableObjectNodeMeshClipMorph* ClipMorphNode;
 	TObjectPtr<UMaterial> ClipMorphMaterial;
-	bool bClipMorphVisible;
 	bool bClipMorphLocalStartOffset;
 	FVector ClipMorphOrigin;
 	FVector ClipMorphOffset;
@@ -465,21 +316,14 @@ private:
 	float Radius2;
 	float RotationAngle;
 
-	UE::Widget::EWidgetMode WidgetMode;
 	FSphere BoundSphere;
 
-	/** Light beeing edited */
-	class ULightComponent* SelectedLightComponent;
+	/** Light being edited */
+	ULightComponent* SelectedLightComponent;
 
-	bool bIsEditingLightEnabled;
-
-	/** Proxy class to store the gizmo information needed for gizmo edition for a projector
-	* (constant node, parameter node or Customizable Object Instance projector parameter */
-	GizmoRTSProxy GizmoProxy;
-
-	/** To track Widget::bDefaultVisibility value (there's no getter and FWidget::bDefaultVisibility is private) */
-	bool WidgetVisibility;
-
+	/** Spawned light components. */
+	TArray<ULightComponent*> LightComponents;
+	
 	/** To know if an animation ia being played by the Customizable Object and restre it after compilation */
 	bool IsPlayingAnimation;
 
@@ -489,7 +333,7 @@ private:
 	/** Customizable object being used */
 	UCustomizableObject* CustomizableObject;
 
-	/** Flag to control whther to show / hide the instance geometry information data */
+	/** Flag to control whether to show / hide the instance geometry information data */
 	bool StateChangeShowGeometryDataFlag;
 
 	/** To know if the user has given permission to overwrite files when baking if already present */
@@ -513,6 +357,29 @@ private:
 	// Temp Instance used in the bake process if a new instance is needed because mutable texture streaming is enabled so the viewport 
 	// instance does not have the high quality mips in the texture's platform data
 	TObjectPtr<UCustomizableObjectInstance> BakeTempInstance = nullptr;
+
+	// The following delegates currently are only used by the EWidgetType::Projector
+	FWidgetLocationDelegate WidgetLocationDelegate;
+	FOnWidgetLocationChangedDelegate OnWidgetLocationChangedDelegate;
+
+	FWidgetLocationDelegate WidgetDirectionDelegate;
+	FOnWidgetLocationChangedDelegate OnWidgetDirectionChangedDelegate;
+
+	FWidgetLocationDelegate WidgetUpDelegate;
+	FOnWidgetLocationChangedDelegate OnWidgetUpChangedDelegate;
+
+	FWidgetLocationDelegate WidgetScaleDelegate;
+	FOnWidgetLocationChangedDelegate OnWidgetScaleChangedDelegate;
+
+	FWidgetAngleDelegate WidgetAngleDelegate; 
+
+	FProjectorTypeDelegate ProjectorTypeDelegate;
+
+	FWidgetColorDelegate WidgetColorDelegate;
+
+	FWidgetTrackingStartedDelegate WidgetTrackingStartedDelegate;
+	
+	EWidgetType WidgetType = EWidgetType::Hidden;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

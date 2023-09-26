@@ -47,7 +47,6 @@ class FCustomizableObjectEditorViewportCommands : public TCommands<FCustomizable
 public:
 	FCustomizableObjectEditorViewportCommands();
 	
-	/**  */
 	TSharedPtr< FUICommandInfo > SetDrawUVs;
 	TSharedPtr< FUICommandInfo > SetShowGrid;
 	TSharedPtr< FUICommandInfo > SetShowSky;
@@ -56,14 +55,7 @@ public:
 	TSharedPtr< FUICommandInfo > SetCameraLock;
 	TSharedPtr< FUICommandInfo > SaveThumbnail;
 
-	// View Menu Commands
-	TSharedPtr< FUICommandInfo > SetShowNormals;
-	TSharedPtr< FUICommandInfo > SetShowTangents;
-	TSharedPtr< FUICommandInfo > SetShowBinormals;
-	TSharedPtr< FUICommandInfo > SetShowPivot;
-
 	TSharedPtr< FUICommandInfo > BakeInstance;
-	TSharedPtr< FUICommandInfo > StateChangeTest;
 	TSharedPtr< FUICommandInfo > StateChangeShowData;
 	TSharedPtr< FUICommandInfo > StateChangeShowGeometryData;
 
