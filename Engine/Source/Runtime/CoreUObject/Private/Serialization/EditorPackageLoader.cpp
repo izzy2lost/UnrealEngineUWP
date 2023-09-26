@@ -25,6 +25,11 @@ public:
 
 	virtual ~FEditorPackageLoader () { }
 
+	virtual FName GetLoaderName() const override
+	{
+		return TEXT("EditorPackageLoader");
+	}
+
 	virtual void InitializeLoading() override
 	{
 		if (FIoDispatcher::Get().DoesChunkExist(CreateIoChunkId(0, 0, EIoChunkType::ScriptObjects)))
