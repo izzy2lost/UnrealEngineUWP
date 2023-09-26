@@ -628,11 +628,7 @@ public:
 
 	enum ReplicationSystemConstants : uint32
 	{
-#if UE_NET_ALLOW_MULTIPLE_REPLICATION_SYSTEMS
 		MaxReplicationSystemCount = 16,
-#else
-		MaxReplicationSystemCount = 1,
-#endif
 	};
 
 private:

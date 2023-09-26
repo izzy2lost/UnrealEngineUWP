@@ -79,13 +79,15 @@ FInternalNetRefIndex FNetRefHandleManager::InternalCreateNetObject(const FNetRef
 	// Verify that the handle is free
 	if (RefHandleToInternalIndex.Contains(NetRefHandle))
 	{
-		ensureAlwaysMsgf(false, TEXT("NetRefHandleManager::InternalCreateNetObject %s already exists"), *NetRefHandle.ToString());
+		ensureMsgf(false, TEXT("NetRefHandleManager::InternalCreateNetObject %s already exists"), *NetRefHandle.ToString());
 		return InvalidInternalIndex;
 	}
 
 	const uint32 InternalIndex = GetNextFreeInternalIndex();
 	if (InternalIndex != InvalidInternalIndex)
 	{
+		UE_LOG(LogIris, Verbose, TEXT("FNetRefHandleManager::InternalCreateNetObject ( InternalIndex: %u ) %s"), InternalIndex, *NetRefHandle.ToString());
+
 		// Store data;
 		FReplicatedObjectData& Data = ReplicatedObjectData[InternalIndex];
 
