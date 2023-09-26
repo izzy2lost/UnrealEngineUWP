@@ -49,8 +49,7 @@
 const FName FRigVMEditorModes::RigVMEditorMode = TEXT("RigVM");
 
 FRigVMEditor::FRigVMEditor()
-	: Host(nullptr)
-	, bAnyErrorsLeft(false)
+	: bAnyErrorsLeft(false)
 	, KnownInstructionLimitWarnings()
 	, HaltedAtNode(nullptr)
 	, LastDebuggedHost()
@@ -844,9 +843,12 @@ URigVMBlueprint* FRigVMEditor::GetRigVMBlueprint() const
 
 URigVMHost* FRigVMEditor::GetRigVMHost() const
 {
-	if(Host && IsValid(Host))
+	if (URigVMBlueprint* RigVMBlueprint = GetRigVMBlueprint())
 	{
-		return Host;
+		if(RigVMBlueprint->EditorHost && IsValid(RigVMBlueprint->EditorHost))
+		{
+			return RigVMBlueprint->EditorHost;
+		}
 	}
 	return nullptr;
 }
@@ -2813,10 +2815,13 @@ void FRigVMEditor::ClearDetailsViewWrapperObjects()
 
 void FRigVMEditor::SetHost(URigVMHost* InHost)
 {
-	Host = InHost;
-	if(Host && IsValid(Host))
+	if (URigVMBlueprint* RigVMBlueprint = GetRigVMBlueprint())
 	{
-		OnPreviewHostUpdated().Broadcast(this);
+		RigVMBlueprint->EditorHost = InHost;
+		if(RigVMBlueprint->EditorHost && IsValid(RigVMBlueprint->EditorHost))
+		{
+			OnPreviewHostUpdated().Broadcast(this);
+		}
 	}
 }
 

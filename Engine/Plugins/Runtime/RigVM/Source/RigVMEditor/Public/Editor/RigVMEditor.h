@@ -303,7 +303,7 @@ private:
 	void OnPIEStopped(bool bSimulation);
 
 	/** Our currently running rig vm instance */
-	TObjectPtr<URigVMHost> Host;
+	//TObjectPtr<URigVMHost> Host;
 
 	FPreviewHostUpdated PreviewHostUpdated;
 

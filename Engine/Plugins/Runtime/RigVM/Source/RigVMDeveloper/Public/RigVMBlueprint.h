@@ -607,6 +607,10 @@ protected:
 	
 	virtual void HandlePackageDone();
 
+	/** Our currently running rig vm instance */
+	UPROPERTY(transient)
+	TObjectPtr<URigVMHost> EditorHost = nullptr;
+
 private:
 	
 	// RigVMBP, once end-loaded, will inform other RigVM-Dependent systems that Host instances are ready.

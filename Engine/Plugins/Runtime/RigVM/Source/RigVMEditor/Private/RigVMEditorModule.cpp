@@ -1707,6 +1707,8 @@ void FRigVMEditorModule::PostChange(const UUserDefinedStruct* Changed, FStructur
 	}
 
 	TArray<URigVMBlueprint*> BlueprintsToRefresh;
+	TArray<UEdGraph*> EdGraphsToRefresh;
+
 	for (TObjectIterator<URigVMPin> It(RF_Transient | RF_ClassDefaultObject, /** bIncludeDerivedClasses */ true, /** InternalExcludeFlags */ EInternalObjectFlags::Garbage); It; ++It)
 	{
 		const URigVMPin* Pin = *It;
@@ -1738,6 +1740,11 @@ void FRigVMEditorModule::PostChange(const UUserDefinedStruct* Changed, FStructur
 						}
 					}	
 				}
+
+				if (URigVMGraph* RigVMGraph = Pin->GetNode()->GetGraph())
+				{
+					EdGraphsToRefresh.AddUnique(Cast<UEdGraph>(RigVMBlueprint->GetEditorObjectForRigVMGraph(RigVMGraph)));
+				}
 			}
 		}
 	}
@@ -1747,7 +1754,13 @@ void FRigVMEditorModule::PostChange(const UUserDefinedStruct* Changed, FStructur
 		RigVMBlueprint->OnRigVMRegistryChanged();
 		(void)RigVMBlueprint->MarkPackageDirty();
 	}
-	
+
+	// Avoid slate crashing after pins get repopulated
+	for (UEdGraph* Graph : EdGraphsToRefresh)
+	{
+		Graph->NotifyGraphChanged();
+	}
+
 	for (URigVMBlueprint* RigVMBlueprint : BlueprintsToRefresh)
 	{
 		// this should make sure variables in BP are updated with the latest struct object
