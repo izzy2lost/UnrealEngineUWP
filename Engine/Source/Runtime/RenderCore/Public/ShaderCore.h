@@ -458,7 +458,10 @@ struct FShaderCompilerEnvironment
 	// Map of the virtual file path -> content.
 	// The virtual file paths are the ones that USF files query through the #include "<The Virtual Path of the file>"
 	TMap<FString,FString> IncludeVirtualPathToContentsMap;
-	
+
+	TMap<FString, FThreadSafeSharedAnsiStringPtr> IncludeVirtualPathToSharedContentsMap;
+
+	UE_DEPRECATED(5.4, "IncludeVirtualPathToExternalContentsMap has been replaced with IncludeVirtualPathToSharedContentsMap (type change from FString to ANSI string).")
 	TMap<FString, FThreadSafeSharedStringPtr> IncludeVirtualPathToExternalContentsMap;
 
 	FShaderCompilerFlags CompilerFlags;
@@ -624,7 +627,7 @@ struct FShaderCompilerEnvironment
 		// Note: this serialize is used to pass between UE and the shader compile worker, recompile both when modifying
 		Ar << Environment.IncludeVirtualPathToContentsMap;
 
-		// Note: skipping Environment.IncludeVirtualPathToExternalContentsMap, which is handled by FShaderCompileUtilities::DoWriteTasks in order to maintain sharing
+		// Note: skipping Environment.IncludeVirtualPathToSharedContentsMap, which is handled by FShaderCompileUtilities::DoWriteTasks in order to maintain sharing
 
 		Environment.SerializeEverythingButFiles(Ar);
 		return Ar;
@@ -1209,9 +1212,10 @@ RENDERCORE_API void UpdateReferencedUniformBufferNames(
 	TArrayView<const FVertexFactoryType*> OutdatedFactoryTypes,
 	TArrayView<const FShaderPipelineType*> OutdatedShaderPipelineTypes);
 
+/** Deprecated structure (only used by deprecated "CacheUniformBufferIncludes" and "SerializeUniformBufferInfo") */
 struct FCachedUniformBufferDeclaration
 {
-	// Using SharedPtr so we can hand off lifetime ownership to FShaderCompilerEnvironment::IncludeVirtualPathToExternalContentsMap when invalidating this cache
+	// Using SharedPtr so we can hand off lifetime ownership to FShaderCompilerEnvironment::IncludeVirtualPathToSharedContentsMap when invalidating this cache
 	FThreadSafeSharedStringPtr Declaration;
 };
 

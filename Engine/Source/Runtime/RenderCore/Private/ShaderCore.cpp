@@ -157,13 +157,19 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 // Apply lock striping as we're mostly reader lock bound.
 constexpr int32 GSHADERFILECACHE_BUCKETS = 31; /* prime number for best distribution using modulo */
 
+struct FShaderFileCacheEntry
+{
+	FString Source;
+	FShaderSharedAnsiStringPtr StrippedSource;		// Source with comments stripped out, and converted to ANSICHAR
+};
+
 struct FShaderFileCache
 {
 	/** Protects Map from simultaneous access by multiple threads. */
 	FRWLock Lock;
 
 	/** The shader file cache, used to minimize shader file reads */
-	TMap<FString, FString> Map;
+	TMap<FString, FShaderFileCacheEntry> Map;
 } GShaderFileCache[GSHADERFILECACHE_BUCKETS];
 
 class FShaderHashCache
@@ -851,7 +857,7 @@ void FShaderCompilerEnvironment::Merge(const FShaderCompilerEnvironment& Other)
 		}
 	}
 
-	check(Other.IncludeVirtualPathToExternalContentsMap.Num() == 0);
+	check(Other.IncludeVirtualPathToSharedContentsMap.Num() == 0);
 
 	CompilerFlags.Append(Other.CompilerFlags);
 	ResourceTableMap.Append(Other.ResourceTableMap);
@@ -1809,7 +1815,101 @@ void FixupShaderFilePath(FString& VirtualFilePath, EShaderPlatform ShaderPlatfor
 	ReplaceVirtualFilePathForShaderAutogen(VirtualFilePath, ShaderPlatform, ShaderPlatformName);
 }
 
-bool LoadShaderSourceFile(const TCHAR* InVirtualFilePath, EShaderPlatform ShaderPlatform, FString* OutFileContents, TArray<FShaderCompilerError>* OutCompileErrors, const FName* ShaderPlatformName) // TODO: const FString&
+inline bool IsEndOfLine(TCHAR C)
+{
+	return C == TEXT('\r') || C == TEXT('\n');
+}
+
+inline bool CommentStripNeedsHandling(TCHAR C)
+{
+	return IsEndOfLine(C) || C == TEXT('/') || C == 0;
+}
+
+inline int NewlineCharCount(TCHAR First, TCHAR Second)
+{
+	return ((First + Second) == TEXT('\r') + TEXT('\n')) ? 2 : 1;
+}
+
+// Given an FString containing the contents of a shader source file, populates the given array with contents of
+// that source file with all comments stripped. This is needed since the STB preprocessor itself does not strip 
+// comments.
+void ShaderConvertAndStripComments(const FString& ShaderSource, TArray<ANSICHAR>& OutStripped)
+{
+	// STB preprocessor does not strip comments, so we do so here before returning the loaded source
+	// Doing so is barely more costly than the memcopy we require anyways so has negligible overhead.
+	// Reserve worst case (i.e. assuming there are no comments at all) to avoid reallocation
+	int32 BufferSize = ShaderSource.Len() + 1; // +1 to append null terminator
+	OutStripped.SetNumUninitialized(BufferSize);
+
+	ANSICHAR* CurrentOut = OutStripped.GetData();
+
+	const TCHAR* const End = ShaderSource.GetCharArray().GetData() + ShaderSource.Len();
+
+	// We rely on null termination to avoid the need to check Current < End in some cases
+	check(*End == TEXT('\0'));
+	for (const TCHAR* Current = ShaderSource.GetCharArray().GetData(); Current < End;)
+	{
+		// sanity check that we're not overrunning the buffer
+		check(CurrentOut < (OutStripped.GetData() + BufferSize));
+		// CommentStripNeedsHandling returns true when *Current == '\0';
+		while (!CommentStripNeedsHandling(*Current))
+		{
+			// straight cast to ansichar; since this is a character in hlsl source that's not in a comment
+			// we assume that it must be valid to do so. if this assumption is not valid the shader source was
+			// broken/corrupt anyways.
+			*CurrentOut++ = (ANSICHAR)(*Current++);
+		}
+
+		if (IsEndOfLine(*Current))
+		{
+			*CurrentOut++ = '\n';
+			Current += NewlineCharCount(Current[0], Current[1]);
+		}
+		else if (Current[0] == '/')
+		{
+			if (Current[1] == '/')
+			{
+				while (!IsEndOfLine(*Current) && Current < End)
+				{
+					++Current;
+				}
+			}
+			else if (Current[1] == '*')
+			{
+				Current += 2;
+				while (Current < End)
+				{
+					if (Current[0] == '*' && Current[1] == '/')
+					{
+						Current += 2;
+						break;
+					}
+					else if (IsEndOfLine(*Current))
+					{
+						*CurrentOut++ = '\n';
+						Current += NewlineCharCount(Current[0], Current[1]);
+					}
+					else
+					{
+						++Current;
+					}
+				}
+			}
+			else
+			{
+				*CurrentOut++ = (ANSICHAR)(*Current++);
+			}
+		}
+	}
+	// Null terminate after comment-stripped copy
+	check(CurrentOut < (OutStripped.GetData() + BufferSize));
+	*CurrentOut++ = 0;
+
+	// Set correct length after stripping but don't bother shrinking/reallocating, minor memory overhead to save time
+	OutStripped.SetNum(CurrentOut - OutStripped.GetData(), /* bAllowShrinking */false);
+}
+
+bool LoadShaderSourceFile(const TCHAR* InVirtualFilePath, EShaderPlatform ShaderPlatform, FString* OutFileContents, TArray<FShaderCompilerError>* OutCompileErrors, const FName* ShaderPlatformName, FShaderSharedAnsiStringPtr* OutStrippedContents) // TODO: const FString&
 {
 #if WITH_EDITORONLY_DATA
 	// it's not expected that cooked platforms get here, but if they do, this is the final out
@@ -1828,7 +1928,7 @@ bool LoadShaderSourceFile(const TCHAR* InVirtualFilePath, EShaderPlatform Shader
 		FString VirtualFilePath(InVirtualFilePath);
 		FixupShaderFilePath(VirtualFilePath, ShaderPlatform, ShaderPlatformName);
 
-		FString* CachedFile = nullptr;
+		FShaderFileCacheEntry* CachedFile = nullptr;
 
 		// First try a shared lock and only acquire exclusive access if element is not found in cache
 		uint32 CurrentHash = GetTypeHash(VirtualFilePath);
@@ -1842,7 +1942,11 @@ bool LoadShaderSourceFile(const TCHAR* InVirtualFilePath, EShaderPlatform Shader
 		{
 			if (OutFileContents)
 			{
-				*OutFileContents = *CachedFile;
+				*OutFileContents = CachedFile->Source;
+			}
+			if (OutStrippedContents)
+			{
+				*OutStrippedContents = CachedFile->StrippedSource;
 			}
 			bResult = true;
 		}
@@ -1858,7 +1962,11 @@ bool LoadShaderSourceFile(const TCHAR* InVirtualFilePath, EShaderPlatform Shader
 			{
 				if (OutFileContents)
 				{
-					*OutFileContents = *CachedFile;
+					*OutFileContents = CachedFile->Source;
+				}
+				if (OutStrippedContents)
+				{
+					*OutStrippedContents = CachedFile->StrippedSource;
 				}
 				bResult = true;
 			}
@@ -1867,15 +1975,23 @@ bool LoadShaderSourceFile(const TCHAR* InVirtualFilePath, EShaderPlatform Shader
 				FString ShaderFilePath = GetShaderSourceFilePath(VirtualFilePath, OutCompileErrors);
 
 				// verify SHA hash of shader files on load. missing entries trigger an error
-				FString FileContents;
-				if (!ShaderFilePath.IsEmpty() && FFileHelper::LoadFileToString(FileContents, *ShaderFilePath, FFileHelper::EHashOptions::EnableVerify|FFileHelper::EHashOptions::ErrorMissingHash) )
+				FShaderFileCacheEntry FileContents;
+				if (!ShaderFilePath.IsEmpty() && FFileHelper::LoadFileToString(FileContents.Source, *ShaderFilePath, FFileHelper::EHashOptions::EnableVerify|FFileHelper::EHashOptions::ErrorMissingHash) )
 				{
+					TArray<ANSICHAR>* StrippedSource = new TArray<ANSICHAR>;
+					ShaderConvertAndStripComments(FileContents.Source, *StrippedSource);
+					FileContents.StrippedSource = MakeShareable(StrippedSource);
+
 					//update the shader file cache
 					ShaderFileCache.Map.AddByHash(CurrentHash, VirtualFilePath, FileContents);
 
 					if (OutFileContents)
 					{
-						*OutFileContents = FileContents;
+						*OutFileContents = FileContents.Source;
+					}
+					if (OutStrippedContents)
+					{
+						*OutStrippedContents = FileContents.StrippedSource;
 					}
 					bResult = true;
 				}
@@ -3124,6 +3240,20 @@ FString FShaderCompileJobKey::ToString() const
 		PermutationId);
 }
 
+struct FShaderVirtualFileContents
+{
+	const FString* Wide;
+	const TArray<ANSICHAR>* Ansi;
+
+	FShaderVirtualFileContents(const FString* InWide)
+		: Wide(InWide), Ansi(nullptr)
+	{}
+
+	FShaderVirtualFileContents(const TArray<ANSICHAR>* InAnsi)
+		: Wide(nullptr), Ansi(InAnsi)
+	{}
+};
+
 FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 {
 	if (bInputHashSet)
@@ -3190,7 +3320,7 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 			// unroll the included files for the parallel processing.
 			// These are temporary arrays that only exist for the ParallelFor
 			TArray<const TCHAR*> IncludeVirtualPaths;
-			TArray<const FString*> Contents;
+			TArray<FShaderVirtualFileContents> Contents;
 			TArray<bool> OnlyHashIncludes;
 			TArray<FBlake3Hash> Hashes;
 
@@ -3204,7 +3334,7 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 				Hashes.AddDefaulted();
 			}
 
-			for (TMap<FString, FThreadSafeSharedStringPtr>::TConstIterator It(Input.Environment.IncludeVirtualPathToExternalContentsMap); It; ++It)
+			for (TMap<FString, FThreadSafeSharedAnsiStringPtr>::TConstIterator It(Input.Environment.IncludeVirtualPathToSharedContentsMap); It; ++It)
 			{
 				const FString& VirtualPath = It.Key();
 				IncludeVirtualPaths.Add(*VirtualPath);
@@ -3227,7 +3357,7 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 					Hashes.AddDefaulted();
 				}
 
-				for (TMap<FString, FThreadSafeSharedStringPtr>::TConstIterator It(Input.SharedEnvironment->IncludeVirtualPathToExternalContentsMap); It; ++It)
+				for (TMap<FString, FThreadSafeSharedAnsiStringPtr>::TConstIterator It(Input.SharedEnvironment->IncludeVirtualPathToSharedContentsMap); It; ++It)
 				{
 					const FString& VirtualPath = It.Key();
 					IncludeVirtualPaths.Add(*VirtualPath);
@@ -3246,7 +3376,19 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 			ParallelFor(Contents.Num(), [&IncludeVirtualPaths, &Contents, &OnlyHashIncludes, &Hashes, &Platform](int32 FileIndex)
 				{
 					FMemoryHasherBlake3 MemHasher;
-					HashShaderFileWithIncludes(MemHasher, IncludeVirtualPaths[FileIndex], *Contents[FileIndex], Platform, OnlyHashIncludes[FileIndex]);
+					if (Contents[FileIndex].Wide)
+					{
+						HashShaderFileWithIncludes(MemHasher, IncludeVirtualPaths[FileIndex], *Contents[FileIndex].Wide, Platform, OnlyHashIncludes[FileIndex]);
+					}
+					else
+					{
+						// ANSI files are shared uniform buffer struct declarations (or generated stereo code), and never have includes, so we just need to hash the
+						// single file contents.  Make sure that assumption hasn't been violated (this test costs less than 0.1% of GetInputHash, so might as well).
+						check(FCStringAnsi::Strstr(Contents[FileIndex].Ansi->GetData(), "#include") == nullptr);
+
+						MemHasher.Serialize(reinterpret_cast<void*>(const_cast<TCHAR*>(IncludeVirtualPaths[FileIndex])), FCString::Strlen(IncludeVirtualPaths[FileIndex]));
+						MemHasher << const_cast<TArray<ANSICHAR>&>(*Contents[FileIndex].Ansi);
+					}
 					Hashes[FileIndex] = MemHasher.Finalize();
 				},
 				EParallelForFlags::Unbalanced

@@ -26,6 +26,7 @@
 #include "Templates/SharedPointer.h"
 
 using FThreadSafeSharedStringPtr = TSharedPtr<FString, ESPMode::ThreadSafe>;
+using FThreadSafeSharedAnsiStringPtr = TSharedPtr<TArray<ANSICHAR>, ESPMode::ThreadSafe>;
 using FThreadSafeNameBufferPtr = TSharedPtr<TArray<TCHAR>, ESPMode::ThreadSafe>;
 struct FShaderResourceTableMap;
 
@@ -353,6 +354,7 @@ public:
 #if WITH_EDITOR
 	inline bool IsUniformBufferDeclarationInitialized() const { return UniformBufferDeclaration.IsValid(); }
 	FThreadSafeSharedStringPtr GetUniformBufferDeclarationPtr() const { return UniformBufferDeclaration; }
+	FThreadSafeSharedAnsiStringPtr GetUniformBufferDeclarationAnsiPtr() const { return UniformBufferDeclarationAnsi; }
 	const FString& GetUniformBufferDeclaration() const { return *UniformBufferDeclaration; }
 	FORCEINLINE const FString& GetUniformBufferPath() const { return UniformBufferPath; }
 	FORCEINLINE const FString& GetUniformBufferInclude() const { return UniformBufferInclude; }
@@ -442,6 +444,7 @@ private:
 #if WITH_EDITOR
 	/** Uniform buffer declaration, created once */
 	FThreadSafeSharedStringPtr UniformBufferDeclaration;
+	FThreadSafeSharedAnsiStringPtr UniformBufferDeclarationAnsi;
 
 	/** Cache of uniform buffer resource table, and storage for member names used by the table, created once */
 	TArray<FUniformResourceEntry> ResourceTableCache;

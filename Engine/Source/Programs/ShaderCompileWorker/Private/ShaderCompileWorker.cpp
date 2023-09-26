@@ -455,7 +455,7 @@ private:
 		};
 
 		// Shared inputs
-		TMap<FString, FThreadSafeSharedStringPtr> ExternalIncludes;
+		TMap<FString, FThreadSafeSharedAnsiStringPtr> ExternalIncludes;
 		{
 			int32 NumExternalIncludes = 0;
 			InputFile << NumExternalIncludes;
@@ -465,7 +465,7 @@ private:
 			{
 				FString NewIncludeName;
 				InputFile << NewIncludeName;
-				FString* NewIncludeContents = new FString();
+				TArray<ANSICHAR>* NewIncludeContents = new TArray<ANSICHAR>;
 				InputFile << (*NewIncludeContents);
 				ExternalIncludes.Add(NewIncludeName, MakeShareable(NewIncludeContents));
 			}

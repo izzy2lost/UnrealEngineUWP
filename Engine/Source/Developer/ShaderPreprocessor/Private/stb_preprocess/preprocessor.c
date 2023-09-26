@@ -2953,6 +2953,8 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 		int parse_rest = 0;
 		const char* s = p;
 
+		stbds_arrinline(arguments, char*, 16);
+
 		// plan:
 		//   1. find opening parenthesis, if any
 		//   2. parse arguments into arguments[] array
@@ -3001,9 +3003,13 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 		//   2. parse arguments into arguments[] array
 		//
 
+		// Inline storage shared for all argument strings.  Uses stbds_arrinline_suballoc to reuse remaining portion of buffer.
+		char* argument_buffer;
+		stbds_arrinline(argument_buffer, char, 4096);
+
 		for (i = 0; i < md->num_parameters; ++i)
 		{
-			char* copy = 0;
+			char* copy = argument_buffer;
 			int arg_newlines = 0;
 
 			p = preprocessor_skip_whitespace(p, &cs->src_line_number);
@@ -3062,6 +3068,12 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 				}
 				*e = 0;
 
+				// Sub-allocate the remaining space in argument_buffer for subsequent arguments.  Note that it's necessary to do the suballocation BEFORE
+				// the call to arrsetlen below, because downstream code assumes there is a null terminator beyond the official length of the array.  Doing
+				// the sub-allocation first preserves the null terminator -- without this, the sub-allocation will overwrite it.  We only suballocate if
+				// a minimum of 200 characters is available, as copy_argument reserves this.
+				argument_buffer = stbds_arrinline_suballoc(argument_buffer, char, 200);
+
 				arrsetlen(copy, e - p);
 				arrput(arguments, copy);
 				cs->src_line_number += arg_newlines;
@@ -3099,7 +3111,7 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 			else
 			{
 				int arg_newlines = 0;
-				char *e, *copy = 0;
+				char *e, *copy = argument_buffer;
 				p = preprocessor_skip_whitespace(p, &cs->src_line_number);
 				// parse all the remaining arguments
 				s = p;
@@ -3137,6 +3149,8 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 					e = copy;
 				*e = 0;
 
+				argument_buffer = stbds_arrinline_suballoc(argument_buffer, char, 200);
+
 				arrput(arguments, copy);
 				cs->src_line_number += arg_newlines;
 			}
@@ -3167,6 +3181,7 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 
 		// populate temporary buffer
 		char* tmp = 0;
+		stbds_arrinline(tmp, char, 4096);
 		for (i = 0; i < arrlen(md->expansion) - 1; ++i)
 		{
 			int an;
@@ -3297,6 +3312,9 @@ static char* macro_expand_directive(parse_state* cs, const char* p, char* direct
 
 static int evaluate_if(parse_state* cs, const char* p, int* syntax_error)
 {
+	char* dest = 0;
+	stbds_arrinline(dest, char, 1024);
+
 	int result = 0;
 	parse_state ncs;
 	ncs = *cs;
@@ -3304,7 +3322,7 @@ static int evaluate_if(parse_state* cs, const char* p, int* syntax_error)
 	ncs.src_length = strlen(p);
 	ncs.src_offset = 0;
 	ncs.parent = cs;
-	ncs.dest = 0;
+	ncs.dest = dest;
 	ncs.fast_dest = 0;
 
 	preprocess_string(&ncs, IN_MACRO_if_condition, "#if", NULL);
@@ -3484,7 +3502,7 @@ static void process_directive(parse_state* cs, conditional_state* cons)
 	pp_context* c = cs->context;
 	const char *p, *endptr;
 	const char* alloc = NULL;	 // all exit paths SHOULD do 'if (alloc) arrfree(alloc)', but we allow it to leak on error-handling returns
-	char buffer[1000];
+	char buffer[2048];
 	int dummy;	// uninitialized, should never get incremented by parse_directive_after_hash
 
 	assert(cs->src[cs->src_offset] == '#');
@@ -4576,13 +4594,20 @@ char* preprocess_file(char* output_autobuffer,
 	struct macro_definition** predefined_macros,
 	int num_predefined_macros,
 	pp_diagnostic** pd,
-	int* num_pd)
+	int* num_pd,
+	char* output_inlinebuffer,
+	size_t output_inlinebuffersize)
 {
 	char* output = 0;
 	pp_context c = { 0 };
 	int i;
 	size_t length;
 	const char* main_file;
+
+	if (output_inlinebuffer && output_inlinebuffersize)
+	{
+		output = (char*)stbds_arrinlinef((size_t*)output_inlinebuffer, sizeof(char), output_inlinebuffersize - sizeof(stbds_array_header));
+	}
 
 	main_file = (*loadfile_callback)(filename, custom_context, &length);
 	*num_pd = 0;
@@ -4627,6 +4652,7 @@ char* preprocess_file(char* output_autobuffer,
 		// initial parse_state for preprocess_string_from_file to initialize from
 		parse_state ps = {0};
 		ps.context = &c;
+		ps.dest = output;
 		ps.fast_dest = output_autobuffer;
 		ps.state_limit = PP_STATE_active_count;
 
@@ -4681,6 +4707,15 @@ char* preprocess_file(char* output_autobuffer,
 	// c.num_disabled_lines, c.num_onced_files, c.num_includes);
 
 	return output;
+}
+
+int preprocessor_file_size(char* text)
+{
+	return text ? arrlen(text) : 0;
+}
+int preprocessor_file_capacity(char* text)
+{
+	return text ? arrcap(text) : 0;
 }
 
 void preprocessor_file_free(char* text, pp_diagnostic* pd)

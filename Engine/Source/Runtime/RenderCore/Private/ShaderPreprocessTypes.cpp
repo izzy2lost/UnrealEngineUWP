@@ -152,6 +152,9 @@ void FShaderPreprocessOutput::StripCode()
 {
 	// Reserve worst case slack (i.e. assuming there is nothing to strip) to avoid reallocation
 	FString PreprocessedSourceStripped(LineDirectiveSentinel, PreprocessedSource.Len() + 1);
+	PreprocessedSourceStripped.GetCharArray().AddUninitialized(PreprocessedSourceStripped.GetCharArray().GetSlack());
+	TCHAR* OutStrippedData = PreprocessedSourceStripped.GetCharArray().GetData();
+	TCHAR* OutStripped = OutStrippedData + LineDirectiveSentinel.Len();
 
 	const TCHAR* Begin = PreprocessedSource.GetCharArray().GetData(), *Current = Begin;
 	const TCHAR* End = Current + PreprocessedSource.Len();
@@ -161,21 +164,21 @@ void FShaderPreprocessOutput::StripCode()
 	{
 		while (!StripNeedsHandling(*Current))
 		{
-			PreprocessedSourceStripped.AppendChar(*Current++);
+			*OutStripped++ = *Current++;
 		}
 
 		if (IsEndOfLine(*Current))
 		{
 			// only emit \n if it wasn't preceded immediately by another linebreak 
 			// (i.e. skip empty lines)
-			if (PreprocessedSourceStripped.Len() && !IsEndOfLine(PreprocessedSourceStripped[PreprocessedSourceStripped.Len() - 1]))
+			if (!IsEndOfLine(*(OutStripped - 1)))
 			{
 				// Record the offset from the start of the block given by the last line directive for each line
 				// output in the stripped code. 
 				Remapper.AddStrippedLine(CurrentStrippedLineNum, CurrentBlockUnstrippedLineOffset);
 
 				// normalize line endings
-				PreprocessedSourceStripped.AppendChar(TEXT('\n'));
+				*OutStripped++ = TEXT('\n');
 				CurrentStrippedLineNum++;
 			}
 			CurrentBlockUnstrippedLineOffset++;
@@ -201,7 +204,7 @@ void FShaderPreprocessOutput::StripCode()
 			}
 			else
 			{
-				PreprocessedSourceStripped.AppendChar(*Current++);
+				*OutStripped++ = *Current++;
 			}
 		}
 		else if (Current[0] == TEXT('#'))
@@ -268,12 +271,14 @@ void FShaderPreprocessOutput::StripCode()
 			}
 			else
 			{
-				PreprocessedSourceStripped.AppendChar(*Current++);
+				*OutStripped++ = *Current++;
 			}
 		}
 	}
 	// Null terminate after stripped copy
-	PreprocessedSourceStripped.AppendChar(0);
+	*OutStripped++ = 0;
+	check(OutStripped <= OutStrippedData + PreprocessedSourceStripped.GetCharArray().Num());
+	PreprocessedSourceStripped.GetCharArray().SetNum((int32)(OutStripped - OutStrippedData));
 
 	OriginalPreprocessedSource = MoveTemp(PreprocessedSource);
 	PreprocessedSource = MoveTemp(PreprocessedSourceStripped);

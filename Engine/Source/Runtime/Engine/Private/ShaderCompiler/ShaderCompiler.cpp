@@ -2527,12 +2527,12 @@ bool DoWriteTasksInner(const TArray<FShaderCommonCompileJobPtr>& QueuedJobs, FAr
 
 	// Gather External Includes and serialize separately, these are largely shared between jobs
 	{
-		TMap<FString, FString> ExternalIncludes;
+		TMap<FString, TArray<ANSICHAR>> ExternalIncludes;
 		ExternalIncludes.Reserve(32);
 
 		for (int32 JobIndex = 0; JobIndex < QueuedSingleJobs.Num(); JobIndex++)
 		{
-			QueuedSingleJobs[JobIndex]->Input.GatherSharedInputs(ExternalIncludes, SharedEnvironments, RequestShaderParameterStructures);
+			QueuedSingleJobs[JobIndex]->Input.GatherSharedInputsAnsi(ExternalIncludes, SharedEnvironments, RequestShaderParameterStructures);
 		}
 
 		for (int32 JobIndex = 0; JobIndex < QueuedPipelineJobs.Num(); JobIndex++)
@@ -2542,14 +2542,14 @@ bool DoWriteTasksInner(const TArray<FShaderCommonCompileJobPtr>& QueuedJobs, FAr
 
 			for (int32 Index = 0; Index < NumStageJobs; Index++)
 			{
-				PipelineJob->StageJobs[Index]->Input.GatherSharedInputs(ExternalIncludes, SharedEnvironments, RequestShaderParameterStructures);
+				PipelineJob->StageJobs[Index]->Input.GatherSharedInputsAnsi(ExternalIncludes, SharedEnvironments, RequestShaderParameterStructures);
 			}
 		}
 
 		int32 NumExternalIncludes = ExternalIncludes.Num();
 		TransferFile << NumExternalIncludes;
 
-		for (TMap<FString, FString>::TIterator It(ExternalIncludes); It; ++It)
+		for (TMap<FString, TArray<ANSICHAR>>::TIterator It(ExternalIncludes); It; ++It)
 		{
 			TransferFile << It.Key();
 			TransferFile << It.Value();
@@ -7237,7 +7237,7 @@ void ValidateShaderFilePath(const FString& VirtualShaderFilePath, const FString&
 FCriticalSection GCachedGeneratedInstancedStereoCodeLock;
 
 /** Storage for instanced stereo code so it is not generated every time we compile a shader. */
-TMap<EShaderPlatform, FThreadSafeSharedStringPtr> GCachedGeneratedInstancedStereoCode;
+TMap<EShaderPlatform, FThreadSafeSharedAnsiStringPtr> GCachedGeneratedInstancedStereoCode;
 
 void GlobalBeginCompileShader(
 	const FString& DebugGroupName,
@@ -7335,7 +7335,7 @@ void GlobalBeginCompileShader(
 			ValidateShaderFilePath(Entry.Key, Input.VirtualSourceFilePath);
 		}
 
-		for (const auto& Entry : Input.Environment.IncludeVirtualPathToExternalContentsMap)
+		for (const auto& Entry : Input.Environment.IncludeVirtualPathToSharedContentsMap)
 		{
 			ValidateShaderFilePath(Entry.Key, Input.VirtualSourceFilePath);
 		}
@@ -7555,10 +7555,10 @@ void GlobalBeginCompileShader(
 		SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(Input.Environment, MOBILE_MULTI_VIEW, false);
 	}
 
-	// Reserve space in maps to prevent reallocation and rehashing in AddUniformBufferIncludesToEnvironment
-	const int32 UniformBufferReserveNum = Input.Environment.UniformBufferMap.Num() + ShaderType->GetReferencedUniformBufferNames().Num() + (VFType ? VFType->GetReferencedUniformBufferNames().Num() : 0);
+	// Reserve space in maps to prevent reallocation and rehashing in AddUniformBufferIncludesToEnvironment -- plus one at the end is for GeneratedInstancedStereo.ush
+	const int32 UniformBufferReserveNum = Input.Environment.UniformBufferMap.Num() + ShaderType->GetReferencedUniformBufferNames().Num() + (VFType ? VFType->GetReferencedUniformBufferNames().Num() : 0) + 1;
 	Input.Environment.UniformBufferMap.Reserve(UniformBufferReserveNum);
-	Input.Environment.IncludeVirtualPathToExternalContentsMap.Reserve(UniformBufferReserveNum);
+	Input.Environment.IncludeVirtualPathToSharedContentsMap.Reserve(UniformBufferReserveNum);
 
 	ShaderType->AddUniformBufferIncludesToEnvironment(Input.Environment, ShaderPlatform);
 
@@ -7572,16 +7572,20 @@ void GlobalBeginCompileShader(
 		// this function may be called on multiple threads, so protect the storage
 		FScopeLock GeneratedInstancedCodeLock(&GCachedGeneratedInstancedStereoCodeLock);
 
-		FThreadSafeSharedStringPtr* Existing = GCachedGeneratedInstancedStereoCode.Find(ShaderPlatform);
-		FThreadSafeSharedStringPtr CachedCodePtr = Existing ? *Existing : nullptr;
+		FThreadSafeSharedAnsiStringPtr* Existing = GCachedGeneratedInstancedStereoCode.Find(ShaderPlatform);
+		FThreadSafeSharedAnsiStringPtr CachedCodePtr = Existing ? *Existing : nullptr;
 		if (!CachedCodePtr.IsValid())
 		{
-			CachedCodePtr = MakeShareable(new FString());
-			GenerateInstancedStereoCode(*CachedCodePtr.Get(), ShaderPlatform);
+			FString CachedCode;
+			GenerateInstancedStereoCode(CachedCode, ShaderPlatform);
+
+			CachedCodePtr = MakeShareable(new TArray<ANSICHAR>());
+			ShaderConvertAndStripComments(CachedCode, *CachedCodePtr);
+
 			GCachedGeneratedInstancedStereoCode.Add(ShaderPlatform, CachedCodePtr);
 		}
 
-		Input.Environment.IncludeVirtualPathToExternalContentsMap.Add(TEXT("/Engine/Generated/GeneratedInstancedStereo.ush"), CachedCodePtr);
+		Input.Environment.IncludeVirtualPathToSharedContentsMap.Add(TEXT("/Engine/Generated/GeneratedInstancedStereo.ush"), CachedCodePtr);
 	}
 
 	{

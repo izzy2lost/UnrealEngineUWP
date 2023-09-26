@@ -91,7 +91,12 @@ STB_PP_DEF char* preprocess_file(
 	struct macro_definition** predefined_macros,
 	int num_predefined_macros,
 	pp_diagnostic** pd,
-	int* num_pd);
+	int* num_pd,
+	char* output_inlinebuffer,
+	size_t output_inlinebuffersize);
+
+STB_PP_DEF int preprocessor_file_size(char* text);
+STB_PP_DEF int preprocessor_file_capacity(char* text);
 
 // frees memory allocated by preprocess_file (preprocessed results and diagnostic messages)
 STB_PP_DEF void preprocessor_file_free(char* text, pp_diagnostic* pd);

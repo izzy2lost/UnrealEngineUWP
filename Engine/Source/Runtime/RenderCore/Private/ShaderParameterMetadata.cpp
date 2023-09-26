@@ -8,6 +8,7 @@
 #include "RenderCore.h"
 #include "RHIUniformBufferLayoutInitializer.h"
 #include "ShaderCore.h"
+#include "ShaderCompilerCore.h"
 #include "ShaderParameters.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "ShaderParameterMacros.h"
@@ -917,6 +918,11 @@ void FShaderParametersMetadata::InitializeUniformBufferDeclaration()
 		check(!NewDeclaration->IsEmpty());
 
 		UniformBufferDeclaration = MakeShareable(NewDeclaration);
+
+		// Cache preprocessor friendly copy of uniform buffer declaration
+		TArray<ANSICHAR>* NewDeclarationAnsi = new TArray<ANSICHAR>;
+		ShaderConvertAndStripComments(*NewDeclaration, *NewDeclarationAnsi);
+		UniformBufferDeclarationAnsi = MakeShareable(NewDeclarationAnsi);
 
 		// Generate ResourceTableCache and MemberNameBuffer
 		FResourceTableEntryString Prefix;

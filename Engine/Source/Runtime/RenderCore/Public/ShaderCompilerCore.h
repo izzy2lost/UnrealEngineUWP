@@ -27,9 +27,10 @@ class IShaderFormat;
 class FShaderCommonCompileJob;
 class FShaderCompileJob;
 class FShaderPipelineCompileJob;
+typedef TSharedPtr<TArray<ANSICHAR>, ESPMode::ThreadSafe> FShaderSharedAnsiStringPtr;
 
 // this is for the protocol, not the data, bump if FShaderCompilerInput or ProcessInputFromArchive changes.
-inline const int32 ShaderCompileWorkerInputVersion = 21;
+inline const int32 ShaderCompileWorkerInputVersion = 22;
 // this is for the protocol, not the data, bump if FShaderCompilerOutput or WriteToOutputArchive changes.
 inline const int32 ShaderCompileWorkerOutputVersion = 18;
 // this is for the protocol, not the data.
@@ -356,14 +357,46 @@ struct FShaderCompilerInput
 		TArray<TRefCountPtr<FSharedShaderCompilerEnvironment>>& SharedEnvironments,
 		TArray<const FShaderParametersMetadata*>& ParametersStructures)
 	{
-		check(!SharedEnvironment || SharedEnvironment->IncludeVirtualPathToExternalContentsMap.Num() == 0);
+		check(!SharedEnvironment || SharedEnvironment->IncludeVirtualPathToSharedContentsMap.Num() == 0);
 
 		// If the input is already preprocessed we don't need to serialize includes when writing worker input files
 		if (!bCachePreprocessed)
 		{
-			for (const auto& It : Environment.IncludeVirtualPathToExternalContentsMap)
+			for (const auto& It : Environment.IncludeVirtualPathToSharedContentsMap)
 			{
 				FString* FoundEntry = ExternalIncludes.Find(It.Key);
+
+				if (!FoundEntry)
+				{
+					ExternalIncludes.Add(It.Key, FString(*It.Value));
+				}
+			}
+		}
+
+		if (SharedEnvironment)
+		{
+			SharedEnvironments.AddUnique(SharedEnvironment);
+		}
+
+		if (RootParametersStructure)
+		{
+			ParametersStructures.AddUnique(RootParametersStructure);
+		}
+	}
+
+	void GatherSharedInputsAnsi(
+		TMap<FString, TArray<ANSICHAR>>& ExternalIncludes,
+		TArray<TRefCountPtr<FSharedShaderCompilerEnvironment>>& SharedEnvironments,
+		TArray<const FShaderParametersMetadata*>& ParametersStructures)
+	{
+		check(!SharedEnvironment || SharedEnvironment->IncludeVirtualPathToSharedContentsMap.Num() == 0);
+
+		// If the input is already preprocessed we don't need to serialize includes when writing worker input files
+		if (!bCachePreprocessed)
+		{
+			for (const auto& It : Environment.IncludeVirtualPathToSharedContentsMap)
+			{
+				TArray<ANSICHAR>* FoundEntry = ExternalIncludes.Find(It.Key);
 
 				if (!FoundEntry)
 				{
@@ -390,9 +423,9 @@ struct FShaderCompilerInput
 		if (!bCachePreprocessed)
 		{
 			TArray<FString> ReferencedExternalIncludes;
-			ReferencedExternalIncludes.Empty(Environment.IncludeVirtualPathToExternalContentsMap.Num());
+			ReferencedExternalIncludes.Empty(Environment.IncludeVirtualPathToSharedContentsMap.Num());
 
-			for (const auto& It : Environment.IncludeVirtualPathToExternalContentsMap)
+			for (const auto& It : Environment.IncludeVirtualPathToSharedContentsMap)
 			{
 				ReferencedExternalIncludes.Add(It.Key);
 			}
@@ -414,7 +447,7 @@ struct FShaderCompilerInput
 
 	void DeserializeSharedInputs(
 		FArchive& Ar,
-		const TMap<FString, FThreadSafeSharedStringPtr>& ExternalIncludes,
+		const TMap<FString, FThreadSafeSharedAnsiStringPtr>& ExternalIncludes,
 		const TArray<FShaderCompilerEnvironment>& SharedEnvironments,
 		const TArray<TUniquePtr<FShaderParametersMetadata>>& ShaderParameterStructures)
 	{
@@ -425,11 +458,11 @@ struct FShaderCompilerInput
 			TArray<FString> ReferencedExternalIncludes;
 			Ar << ReferencedExternalIncludes;
 
-			Environment.IncludeVirtualPathToExternalContentsMap.Reserve(ReferencedExternalIncludes.Num());
+			Environment.IncludeVirtualPathToSharedContentsMap.Reserve(ReferencedExternalIncludes.Num());
 
 			for (int32 i = 0; i < ReferencedExternalIncludes.Num(); i++)
 			{
-				Environment.IncludeVirtualPathToExternalContentsMap.Add(ReferencedExternalIncludes[i], ExternalIncludes.FindChecked(ReferencedExternalIncludes[i]));
+				Environment.IncludeVirtualPathToSharedContentsMap.Add(ReferencedExternalIncludes[i], ExternalIncludes.FindChecked(ReferencedExternalIncludes[i]));
 			}
 		}
 
@@ -732,12 +765,17 @@ extern RENDERCORE_API bool CheckVirtualShaderFilePath(FStringView VirtualPath, T
 extern RENDERCORE_API void FixupShaderFilePath(FString& VirtualFilePath, EShaderPlatform ShaderPlatform, const FName* ShaderPlatformName);
 
 /**
+ * Utility function to strip comments and convert source to ANSI, useful for preprocessing
+ */
+extern RENDERCORE_API void ShaderConvertAndStripComments(const FString& ShaderSource, TArray<ANSICHAR>& OutStripped);
+
+/**
  * Loads the shader file with the given name.
  * @param VirtualFilePath - The virtual path of shader file to load.
  * @param OutFileContents - If true is returned, will contain the contents of the shader file. Can be null.
  * @return True if the file was successfully loaded.
  */
-extern RENDERCORE_API bool LoadShaderSourceFile(const TCHAR* VirtualFilePath, EShaderPlatform ShaderPlatform, FString* OutFileContents, TArray<FShaderCompilerError>* OutCompileErrors, const FName* ShaderPlatformName = nullptr);
+extern RENDERCORE_API bool LoadShaderSourceFile(const TCHAR* VirtualFilePath, EShaderPlatform ShaderPlatform, FString* OutFileContents, TArray<FShaderCompilerError>* OutCompileErrors, const FName* ShaderPlatformName = nullptr, FShaderSharedAnsiStringPtr* OutStrippedContents = nullptr);
 
 enum class EShaderCompilerWorkerType : uint8
 {
