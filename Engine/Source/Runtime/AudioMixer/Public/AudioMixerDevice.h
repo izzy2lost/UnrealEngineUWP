@@ -67,6 +67,15 @@ namespace Audio
 		{}
 	};	
 
+	/** Data used to interpolate the audio clock in between buffer callbacks */
+	struct FAudioClockTimingData
+	{
+		/** Time in secods of previous audio clock update */
+		double UpdateTime = 0.0;
+
+		/** Interpolates the given clock based on the amount of platform time that has passed since last update */
+		double GetInterpolatedAudioClock(const double InAudioClock, const double InAudioClockDelta) const;
+	};
 
 	// Deprecated, use ERequiredSubmixes above
 	namespace EMasterSubmixType
@@ -120,6 +129,7 @@ namespace Audio
 		AUDIOMIXER_API virtual void UpdateGameThread() override;
 		AUDIOMIXER_API virtual void UpdateHardware() override;
 		AUDIOMIXER_API virtual double GetAudioTime() const override;
+		AUDIOMIXER_API virtual double GetInterpolatedAudioClock() const override;
 		AUDIOMIXER_API virtual FAudioEffectsManager* CreateEffectsManager() override;
 		AUDIOMIXER_API virtual FSoundSource* CreateSoundSource() override;
 		AUDIOMIXER_API virtual FName GetRuntimeFormat(const USoundWave* SoundWave) const override;
@@ -410,6 +420,9 @@ namespace Audio
 		// Pumps the audio render thread command queue
 		void PumpCommandQueue();
 		void PumpGameThreadCommandQueue();
+
+		/** Updates the audio clock and the associated timing data */
+		void UpdateAudioClock();
 		
 		TArray<USoundSubmix*> RequiredSubmixes;
 		TArray<FMixerSubmixPtr> RequiredSubmixInstances;
@@ -437,6 +450,9 @@ namespace Audio
 
 		/** The time delta for each callback block. */
 		double AudioClockDelta;
+
+		/** The timing data used to interpolate the audio clock */
+		FAudioClockTimingData AudioClockTimingData;
 
 		/** What the previous master volume was. */
 		float PreviousPrimaryVolume;

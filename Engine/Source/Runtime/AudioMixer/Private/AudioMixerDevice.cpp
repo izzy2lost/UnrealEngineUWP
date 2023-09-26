@@ -522,7 +522,7 @@ namespace Audio
 
 				AudioClock = 0.0;
 				AudioClockDelta = (double)OpenStreamParams.NumFrames / OpenStreamParams.SampleRate;
-
+				AudioClockTimingData.UpdateTime = 0.0;
 
 				PluginInitializationParams.NumSources = SourceManagerInitParams.NumSources;
 				PluginInitializationParams.SampleRate = SampleRate;
@@ -754,6 +754,11 @@ namespace Audio
 		return AudioClock;
 	}
 
+	double FMixerDevice::GetInterpolatedAudioClock() const
+	{
+		return AudioClockTimingData.GetInterpolatedAudioClock(AudioClock, AudioClockDelta);
+	}
+
 	FAudioEffectsManager* FMixerDevice::CreateEffectsManager()
 	{
 		return new FAudioMixerEffectsManager(this);
@@ -931,13 +936,19 @@ namespace Audio
 		}
 
 		// Update the audio clock
-		AudioClock += AudioClockDelta;
+		UpdateAudioClock();
 
 		// notify interested parties
 		NotifyAudioDevicePostRender(RenderInfo);
 
 		KickQueuedTasks((Audio::AudioTaskQueueId)DeviceID);
 		return true;
+	}
+
+	void FMixerDevice::UpdateAudioClock()
+	{
+		AudioClock += AudioClockDelta;
+		AudioClockTimingData.UpdateTime = FPlatformTime::Seconds();
 	}
 
 	void FMixerDevice::OnAudioStreamShutdown()
@@ -2922,4 +2933,20 @@ namespace Audio
 		return Audio::KickQueuedTasks(QueueId);
 	}
 
+	double FAudioClockTimingData::GetInterpolatedAudioClock(const double InAudioClock, const double InAudioClockDelta) const
+	{
+		if (UpdateTime > 0.0)
+		{
+			const double TargetClock = InAudioClock + InAudioClockDelta;
+			const double CurrentDeltaSeconds = FPlatformTime::Seconds() - UpdateTime;
+			const double Alpha = FMath::Clamp(CurrentDeltaSeconds / InAudioClockDelta, 0.0f, 1.0f);
+
+			const double InterpolatedClock = FMath::Lerp(InAudioClock, TargetClock, Alpha);
+
+			return InterpolatedClock;
+		}
+
+		// Fall back to quantized clock if no timing data is available
+		return InAudioClock;
+	}
 }

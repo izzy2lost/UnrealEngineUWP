@@ -1896,6 +1896,11 @@ public:
 	/** Returns the audio clock of the audio device. Not supported on all platforms. */
 	double GetAudioClock() const { return AudioClock; }
 
+	/** Returns the audio clock interploated between audio device callbacks to provide a smoothed value.
+	 *  Default implementation does not interpolate.
+	 */
+	virtual double GetInterpolatedAudioClock() const { return GetAudioClock(); }
+
 	ENGINE_API void AddVirtualLoop(const FAudioVirtualLoop& InVirtualLoop);
 
 	bool AreStartupSoundsPreCached() const { return bStartupSoundsPreCached; }
