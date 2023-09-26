@@ -16,6 +16,10 @@
 #include "NaniteDice.ush"
 #endif
 
+// Update this GUID to bump and recompile all Nanite rasterization material shaders
+// Merge conflicts on this line should be resolved by generating a new GUID
+#pragma message("UESHADERMETADATA_VERSION E5676DB6-A6F1-471F-9A4C-7870A7FCA31D")
+
 #if PIXELSHADER
 ALLOW_NO_PS_EXPORT
 #endif

@@ -1072,8 +1072,6 @@ BEGIN_SHADER_PARAMETER_STRUCT( FRasterizePassParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV( ByteAddressBuffer, ClusterPageData )
 	SHADER_PARAMETER_SRV( ByteAddressBuffer, MaterialSlotTable )
 
-	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
-
 	SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< FPackedView >,	InViews )
 	SHADER_PARAMETER_RDG_BUFFER_SRV( ByteAddressBuffer,					VisibleClustersSWHW )
 	SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< FUintVector2 >,	InTotalPrevDrawClusters )
@@ -3544,7 +3542,6 @@ FBinningData FRenderer::AddPass_Rasterize(
 
 	auto* RasterPassParameters = GraphBuilder.AllocParameters<FRasterizePassParameters>();
 	RasterPassParameters->RenderFlags				= RenderFlags;
-	RasterPassParameters->View						= SceneView.ViewUniformBuffer;
 	RasterPassParameters->ClusterPageData			= GStreamingManager.GetClusterPageDataSRV( GraphBuilder );
 	RasterPassParameters->Scene						= SceneUniformBuffer;
 	RasterPassParameters->RasterParameters			= RasterParameters;
