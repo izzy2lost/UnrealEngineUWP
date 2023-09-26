@@ -1097,7 +1097,7 @@ namespace UE
 
 				const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(Context.World);
 				static constexpr bool bSorted = true;
-				const TArray<TObjectPtr<UTickableConstraint>> AllConstraints = Controller.GetAllConstraints(bSorted);
+				const TArray<TWeakObjectPtr<UTickableConstraint>> AllConstraints = Controller.GetAllConstraints(bSorted);
 
 				for ( FFrameTime EvalTime = StartFrame; EvalTime <= EndFrame; EvalTime += Interval )
 				{
@@ -1105,9 +1105,12 @@ namespace UE
 					Context.Sequencer->ForceEvaluate();
 
 					// Evaluate constraints (these run on tick in the editor, so here we must trigger them manually)
-					for (const UTickableConstraint* Constraint : AllConstraints)
+					for (const TWeakObjectPtr<UTickableConstraint>& Constraint : AllConstraints)
 					{
-						Constraint->Evaluate();
+						if (Constraint.IsValid())
+						{
+							Constraint->Evaluate();
+						}
 					}
 
 					FFrameTime KeyTime = FFrameRate::Snap( EvalTime, Resolution, DisplayRate ).FloorToFrame();

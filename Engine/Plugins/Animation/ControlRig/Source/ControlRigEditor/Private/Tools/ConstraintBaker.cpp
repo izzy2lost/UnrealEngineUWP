@@ -41,7 +41,7 @@ void FConstraintBaker::GetMinimalFramesToBake(
 	TArrayView<const bool> ConstraintValues;
 
 	// note that we might want to bake a constraint which is not animated
-	FConstraintAndActiveChannel* ThisActiveChannel = ConstrainedSection->GetConstraintChannel(InConstraint->GetFName());
+	FConstraintAndActiveChannel* ThisActiveChannel = ConstrainedSection->GetConstraintChannel(InConstraint->ConstraintID);
 	if (ThisActiveChannel)
 	{
 		const TMovieSceneChannelData<const bool> ConstraintChannelData = ThisActiveChannel->ActiveChannel.GetData();
@@ -142,7 +142,7 @@ void FConstraintBaker::GetMinimalFramesToBake(
 		static constexpr bool bSorted = true;
 		const uint32 ChildHash = InConstraint->ChildTRSHandle->GetHash();
 		const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(InWorld);
-		using ConstraintPtr = TObjectPtr<UTickableConstraint>;
+		using ConstraintPtr = TWeakObjectPtr<UTickableConstraint>;
 		const TArray<ConstraintPtr> Constraints = Controller.GetParentConstraints(ChildHash, bSorted);
 
 		// store the other channels that may need compensation
@@ -152,8 +152,8 @@ void FConstraintBaker::GetMinimalFramesToBake(
 			const UTickableTransformConstraint* TransformConstraint = Cast<UTickableTransformConstraint>(Constraint.Get());
 			if (TransformConstraint && TransformConstraint->NeedsCompensation() && TransformConstraint != InConstraint) 
 			{
-				const FName ConstraintName = TransformConstraint->GetFName();
-				if (FConstraintAndActiveChannel* ConstraintChannel = ConstrainedSection->GetConstraintChannel(ConstraintName))
+				const FGuid ConstraintID= TransformConstraint->ConstraintID;
+				if (FConstraintAndActiveChannel* ConstraintChannel = ConstrainedSection->GetConstraintChannel(ConstraintID))
 				{
 					OtherChannels.Add(ConstraintChannel);
 				}

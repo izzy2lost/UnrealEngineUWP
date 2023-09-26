@@ -72,7 +72,7 @@ public:
 	CONSTRAINTS_API void OnBindingIDsUpdated(const TMap<UE::MovieScene::FFixedObjectBindingID, UE::MovieScene::FFixedObjectBindingID>& OldFixedToNewFixedMap, FMovieSceneSequenceID LocalSequenceID, const FMovieSceneSequenceHierarchy* Hierarchy, IMovieScenePlayer& Player);
 	
 	/** Perform any special ticking needed for this handle, by default it does nothing, todo need to see if we need to tick control rig also*/
-	virtual void TickForBaking() {};
+	virtual void TickForBaking() const {};
 	/** Get the array of float channels for the specified section*/
 	CONSTRAINTS_API virtual TArrayView<FMovieSceneFloatChannel*>  GetFloatChannels(const UMovieSceneSection* InSection) const PURE_VIRTUAL(GetFloatChannels, return TArrayView<FMovieSceneFloatChannel*>(); );
 	/** Get the array of double channels for the specified section*/
@@ -149,7 +149,7 @@ public:
 	/** Gets the local transform of Component in it's attachment. */
 	CONSTRAINTS_API virtual FTransform GetLocalTransform() const override;
 	/** Tick the component*/
-	CONSTRAINTS_API virtual void TickForBaking() override;
+	CONSTRAINTS_API virtual void TickForBaking() const override;
 	/** Returns the target object containing the tick function (e.i. Component). */
 	CONSTRAINTS_API virtual UObject* GetPrerequisiteObject() const override;
 	/** Returns Component's tick function. */

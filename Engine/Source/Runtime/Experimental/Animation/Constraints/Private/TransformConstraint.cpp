@@ -7,6 +7,8 @@
 #include "GameFramework/Actor.h"
 #include "MovieSceneSection.h"
 #include "Engine/World.h"
+#include "UObject/Package.h"
+#include "Components/SkeletalMeshComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(TransformConstraint)
 
@@ -16,13 +18,13 @@ namespace
 struct FConstraintCycleChecker
 {
 public:
-	using ConstraintPtr = TObjectPtr<UTickableConstraint>;
+	using ConstraintPtr = TWeakObjectPtr<UTickableConstraint>;
 	using ConstraintArray = TArray<ConstraintPtr>;
 
 	/** Checks if this handle is cycle from a tick dependencies perspective. */
-	static bool IsCycling(const TObjectPtr<UTransformableHandle>& InHandle)
+	static bool IsCycling(const TWeakObjectPtr<UTransformableHandle>& InHandle)
 	{
-		if (!IsValid(InHandle))
+		if (!IsValid(InHandle.Get()))
 		{
 			return false;
 		}
@@ -40,6 +42,7 @@ public:
 			return;
 		}
 
+		//todo constraints on level sequences aren't in a world
 		UWorld* World = InConstraint->GetWorld();
 		if (!IsValid(World))
 		{
@@ -83,7 +86,7 @@ public:
 		TSet<const FTickFunction*> VisitedFunctions;
 		for (const ConstraintPtr& Constraint: CyclingConstraints)
 		{
-			if (HasPrerequisiteDependencyWith(&Constraint->ConstraintTick, &InConstraint->ConstraintTick, VisitedFunctions))
+			if (HasPrerequisiteDependencyWith(&Constraint->GetTickFunction(World), &InConstraint->GetTickFunction(World), VisitedFunctions))
 			{
 				UpdateCyclingDependency(World, Cast<UTickableTransformConstraint>(Constraint));
 			}
@@ -139,7 +142,7 @@ private:
 	static void UpdateCyclingDependency(UWorld* InWorld, UTickableTransformConstraint* InConstraintToUpdate)
 	{
 		// nothing to do if this constraint doesn't tick
-		if (!InConstraintToUpdate->ConstraintTick.IsTickFunctionEnabled())
+		if (!InConstraintToUpdate->GetTickFunction(InWorld).IsTickFunctionEnabled())
 		{
 			return;
 		}
@@ -172,7 +175,7 @@ private:
 		// check if there's any active constraint in ParentConstraints
 		const bool bHasActiveParentConstraint = ParentConstraints.ContainsByPredicate([](const ConstraintPtr& Constraint)
 		{
-			return IsValid(Constraint) && Constraint->IsFullyActive(); 
+			return Constraint.IsValid() && IsValid(Constraint.Get()) && Constraint->IsFullyActive(); 
 		});
 
 		// update the constraint prerequisites based on the result
@@ -181,12 +184,12 @@ private:
 			if (bHasActiveParentConstraint)
 			{
 				// UE_LOG(LogTemp, Warning, TEXT("REMOVE %s prerex on %s."), *TargetObject->GetName(), *InConstraintToUpdate->GetName());
-				InConstraintToUpdate->ConstraintTick.RemovePrerequisite(TargetObject, *TargetTickFunction);
+				InConstraintToUpdate->GetTickFunction(InWorld).RemovePrerequisite(TargetObject, *TargetTickFunction);
 			}
 			else
 			{
 				// UE_LOG(LogTemp, Warning, TEXT("ADD %s prerex on %s."), *TargetObject->GetName(), *InConstraintToUpdate->GetName());
-				InConstraintToUpdate->ConstraintTick.AddPrerequisite(TargetObject, *TargetTickFunction);
+				InConstraintToUpdate->GetTickFunction(InWorld).AddPrerequisite(TargetObject, *TargetTickFunction);
 			}
 		}
 	}
@@ -238,8 +241,13 @@ UTickableConstraint* UTickableTransformConstraint::Duplicate(UObject* NewOuter) 
 		UTransformableHandle* HandleCopy = ParentTRSHandle->Duplicate(Dup);
 		Dup->ParentTRSHandle = HandleCopy;
 	}
-	Dup->SetupDependencies();
-	Dup->RegisterDelegates();
+	for (TPair<TWeakObjectPtr<ULevel>, FConstraintTickFunction>& Pair : ConstraintTicks)
+	{
+		if (Pair.Key.IsValid())
+		{
+			UWorld* World = Pair.Key->GetTypedOuter<UWorld>();
+		}
+	}
 	return Dup;
 }
 
@@ -316,7 +324,6 @@ void UTickableTransformConstraint::PostEditChangeProperty(FPropertyChangedEvent&
 void UTickableTransformConstraint::PostEditUndo()
 {
 	Super::PostEditUndo();
-	InitConstraint();
 }
 
 UTickableTransformConstraint::FOnConstraintChanged& UTickableTransformConstraint::GetOnConstraintChanged()
@@ -361,12 +368,29 @@ void UTickableTransformConstraint::Setup()
 	}
 	
 	ComputeOffset();
-	SetupDependencies();
-	RegisterDelegates();
+
 }
 
-void UTickableTransformConstraint::SetupDependencies()
+void UTickableTransformConstraint::SetupDependencies(UWorld* InWorld)
 {
+	//we may not be the outer for old files so move it over
+	if (ParentTRSHandle)
+	{
+		UTickableTransformConstraint* PTRS = ParentTRSHandle->GetTypedOuter<UTickableTransformConstraint>();
+		if(PTRS != this)
+		{
+			ParentTRSHandle->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		}
+	}
+	if (ChildTRSHandle)
+	{
+		UTickableTransformConstraint* CTRS = ChildTRSHandle->GetTypedOuter<UTickableTransformConstraint>();
+		if (CTRS != this)
+		{
+			ChildTRSHandle->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		}
+	}
+	
 	FTickFunction* ParentTickFunction = GetParentHandleTickFunction();
 	FTickFunction* ChildTickFunction = GetChildHandleTickFunction();
 	
@@ -375,24 +399,32 @@ void UTickableTransformConstraint::SetupDependencies()
 		// manage dependencies
 		// force ConstraintTickFunction to tick after InParent does.
 		// Note that this might not register anything if the parent can't tick (static meshes for instance)
+		FConstraintTickFunction& ConstraintTick = ConstraintTicks.FindOrAdd(InWorld->GetCurrentLevel());
 		ConstraintTick.AddPrerequisite(ParentTRSHandle->GetPrerequisiteObject(), *ParentTickFunction);
 	}
 	
 	// TODO also check for cycle dependencies here
 	if (ChildTickFunction)
 	{
-		// force InChild to tick after ConstraintTickFunction does.
-		// Note that this might not register anything if the child can't tick (static meshes for instance)
-		ChildTickFunction->AddPrerequisite(this, ConstraintTick);
+		USkeletalMeshComponent* ChildOwner = Cast<USkeletalMeshComponent>(ChildTRSHandle->GetTarget().Get());
+		if (ChildOwner == nullptr)
+		{
+			// force InChild to tick after ConstraintTickFunction does.
+			// Note that this might not register anything if the child can't tick (static meshes for instance)
+			// Also don't do if it's a skel mesh will cause cycle.
+			FConstraintTickFunction& ConstraintTick = ConstraintTicks.FindOrAdd(InWorld->GetCurrentLevel());
+			ChildTickFunction->AddPrerequisite(this, ConstraintTick);
+		}
 	}
 }
 
-void UTickableTransformConstraint::EnsurePrimaryDependency()
+void UTickableTransformConstraint::EnsurePrimaryDependency(UWorld* InWorld)
 {
 	const FTickFunction* ParentTickFunction = GetParentHandleTickFunction();
 	const FTickFunction* ChildTickFunction = GetChildHandleTickFunction();
 	if (ParentTickFunction && (ChildTickFunction != ParentTickFunction))
 	{
+		FConstraintTickFunction& ConstraintTick = ConstraintTicks.FindOrAdd(InWorld->GetCurrentLevel());
 		const TArray<FTickPrerequisite>& ParentPrerequisites = ConstraintTick.GetPrerequisites();
 		if (ParentPrerequisites.IsEmpty())
 		{
@@ -418,24 +450,12 @@ void UTickableTransformConstraint::OnActiveStateChanged() const
 void UTickableTransformConstraint::PostLoad()
 {
 	Super::PostLoad();
-	InitConstraint();
 }
 
 void UTickableTransformConstraint::PostDuplicate(bool bDuplicateForPIE)
 {
 	Super::PostDuplicate(bDuplicateForPIE);
-	if (ConstraintTick.ConstraintFunctions.IsEmpty())
-	{
-		ConstraintTick.RegisterFunction(GetFunction());
-	}
 
-	SetupDependencies();
-	RegisterDelegates();
-
-	if (bDuplicateForPIE)
-	{
-		EnsurePrimaryDependency();
-	}
 }
 
 uint32 UTickableTransformConstraint::GetTargetHash() const
@@ -495,7 +515,7 @@ void UTickableTransformConstraint::Evaluate(bool bTickHandlesAlso) const
 		}
 
 		Super::Evaluate();
-
+		//todo test this more may be able to remove it
 		if (ChildTRSHandle)
 		{
 			ChildTRSHandle->TickForBaking();
@@ -509,7 +529,7 @@ void UTickableTransformConstraint::Evaluate(bool bTickHandlesAlso) const
 
 void UTickableTransformConstraint::SetActive(const bool bIsActive)
 {
-	const bool bNeedsUpdate = (Active != bIsActive) || (bIsActive != ConstraintTick.IsTickFunctionEnabled());
+	const bool bNeedsUpdate = (Active != bIsActive);
 	Super::SetActive(bIsActive);
 	
 	if (bNeedsUpdate)
@@ -565,7 +585,14 @@ void UTickableTransformConstraint::OnHandleModified(UTransformableHandle* InHand
 	{
 		if (InNotification == EHandleEvent::ComponentUpdated)
 		{
-			SetupDependencies();
+			UWorld* World = nullptr;
+			if (InHandle->GetTarget().Get())
+			{
+				if (InHandle->GetTarget().Get()->GetWorld())
+				{
+					SetupDependencies(InHandle->GetTarget().Get()->GetWorld());
+				}
+			}
 			return;
 		}
 	}
@@ -573,18 +600,31 @@ void UTickableTransformConstraint::OnHandleModified(UTransformableHandle* InHand
 	// update the constraint if the parent's transform has been modified 
 	if (InHandle == ParentTRSHandle && InNotification == EHandleEvent::GlobalTransformUpdated)
 	{
-		if (IsFullyActive() && ConstraintTick.IsTickFunctionRegistered() && ConstraintTick.IsTickFunctionEnabled())
+		if (InHandle->GetTarget().Get())
 		{
-			Evaluate();
+			if (UWorld* World = InHandle->GetTarget().Get()->GetWorld())
+			{
+				FConstraintTickFunction* ConstraintTick = ConstraintTicks.Find(World->GetCurrentLevel());
+				if (IsFullyActive() && ConstraintTick->IsTickFunctionRegistered() && ConstraintTick->IsTickFunctionEnabled())
+				{
+					Evaluate();
+				}
+
+			}
 		}
 		return;
 	}
 }
 
+bool UTickableTransformConstraint::IsValid() const
+{
+	return (bValid && ::IsValid(ChildTRSHandle) && ChildTRSHandle->IsValid()
+		&& ::IsValid(ParentTRSHandle) && ParentTRSHandle->IsValid());
+}
+
 bool UTickableTransformConstraint::IsFullyActive() const
 {
-	return (Active && IsValid(ChildTRSHandle) && ChildTRSHandle->IsValid() 
-		&& IsValid(ParentTRSHandle) && ParentTRSHandle->IsValid());
+	return (Active && IsValid());
 }
 
 bool UTickableTransformConstraint::NeedsCompensation() const
@@ -605,14 +645,7 @@ FTickFunction* UTickableTransformConstraint::GetParentHandleTickFunction() const
 
 FTickFunction* UTickableTransformConstraint::GetHandleTickFunction(const TObjectPtr<UTransformableHandle>& InHandle) const 
 {
-	if (!IsValid(InHandle) || !InHandle->IsValid())
-	{
-		return nullptr;
-	}
-
-	// avoid creating dependencies between functions that are registered in levels that don't leave in the same world 
-	const UObject* PrerequisiteObject = InHandle->GetPrerequisiteObject();
-	if (!PrerequisiteObject || PrerequisiteObject->GetWorld() != GetWorld())
+	if (!::IsValid(InHandle) || !InHandle->IsValid())
 	{
 		return nullptr;
 	}
@@ -620,17 +653,27 @@ FTickFunction* UTickableTransformConstraint::GetHandleTickFunction(const TObject
 	return InHandle->GetTickFunction();
 }
 
-void UTickableTransformConstraint::InitConstraint()
+void UTickableTransformConstraint::InitConstraint(UWorld *InWorld)
 {
+	FConstraintTickFunction& ConstraintTick = ConstraintTicks.FindOrAdd(InWorld->GetCurrentLevel());
+
 	if (ConstraintTick.ConstraintFunctions.IsEmpty())
 	{
 		ConstraintTick.RegisterFunction(GetFunction());
 	}
-
-	SetupDependencies();
+	ConstraintTick.RegisterTickFunction(InWorld->GetCurrentLevel());
+	ConstraintTick.Constraint = this;
+	SetupDependencies(InWorld);
 	RegisterDelegates();
+	bValid = true;
 
-	EnsurePrimaryDependency();
+}
+
+void UTickableTransformConstraint::TeardownConstraint(UWorld* InWorld)
+{
+	FConstraintTickFunction& ConstraintTick = ConstraintTicks.FindOrAdd(InWorld->GetCurrentLevel());
+	ConstraintTick.UnRegisterTickFunction(); 
+	ConstraintTicks.Remove(InWorld->GetCurrentLevel());
 }
 
 /** 
@@ -709,6 +752,10 @@ FConstraintTickFunction::ConstraintFunction UTickableTranslationConstraint::GetF
 		Transform.SetLocation(NewTranslation);
 			
 		SetChildGlobalTransform(Transform);
+		if (ChildTRSHandle)
+		{
+			ChildTRSHandle->TickForBaking();
+		}
 	};
 }
 
@@ -830,7 +877,7 @@ FConstraintTickFunction::ConstraintFunction UTickableRotationConstraint::GetFunc
 		{
 			return;
 		}
-		
+
 		const FQuat ParentRotation = GetParentGlobalTransform().GetRotation();
 		FTransform Transform = GetChildGlobalTransform();
 		const FQuat ChildRotation = Transform.GetRotation();
@@ -846,6 +893,10 @@ FConstraintTickFunction::ConstraintFunction UTickableRotationConstraint::GetFunc
 		Transform.SetRotation(NewRotation);
 		
 		SetChildGlobalTransform(Transform);
+		if (ChildTRSHandle)
+		{
+			ChildTRSHandle->TickForBaking();
+		}
 	};
 }
 
@@ -987,6 +1038,10 @@ FConstraintTickFunction::ConstraintFunction UTickableScaleConstraint::GetFunctio
 		Transform.SetScale3D(NewScale);
 			
 		SetChildGlobalTransform(Transform);
+		if (ChildTRSHandle)
+		{
+			ChildTRSHandle->TickForBaking();
+		}
 	};
 }
 
@@ -1132,7 +1187,7 @@ FConstraintTickFunction::ConstraintFunction UTickableParentConstraint::GetFuncti
 			OutTransform.SetRotation(NewRotation);
 			OutTransform.SetScale3D(NewScale);
 		};
-
+	
 		const FTransform ParentTransform = GetParentGlobalTransform();
 		
 		FTransform TargetTransform = (!bMaintainOffset) ? ParentTransform : OffsetTransform * ParentTransform;
@@ -1147,6 +1202,10 @@ FConstraintTickFunction::ConstraintFunction UTickableParentConstraint::GetFuncti
 		}
 		
 		SetChildGlobalTransform(TargetTransform);
+		if (ChildTRSHandle)
+		{
+			ChildTRSHandle->TickForBaking();
+		}
 	};
 }
 
@@ -1295,6 +1354,10 @@ FConstraintTickFunction::ConstraintFunction UTickableLookAtConstraint::GetFuncti
 				FTransform Transform = ChildTransform;
 				Transform.SetRotation(Rotation.GetNormalized());
 				SetChildGlobalTransform(Transform);
+				if (ChildTRSHandle)
+				{
+					ChildTRSHandle->TickForBaking();
+				}
 			}
 		}
 	};
@@ -1355,13 +1418,13 @@ void UTickableLookAtConstraint::PostEditChangeProperty(FPropertyChangedEvent& Pr
 namespace
 {
 
-UTransformableHandle* GetHandle(UObject* InObject, const FName& InSocketName, UObject* Outer)
+UTransformableHandle* GetHandle(UObject* InObject, const FName& InSocketName)
 {
 	// look for customized transform handle
 	const FTransformableRegistry& Registry = FTransformableRegistry::Get();
 	if (const FTransformableRegistry::CreateHandleFuncT CreateFunction = Registry.GetCreateFunction(InObject->GetClass()))
 	{
-		return CreateFunction(Outer, InObject, InSocketName);
+		return CreateFunction(InObject, InSocketName);
 	}
 
 	return nullptr;
@@ -1383,13 +1446,12 @@ uint32 GetConstrainableHash(const UObject* InObject)
 
 UTransformableComponentHandle* FTransformConstraintUtils::CreateHandleForSceneComponent(
 	USceneComponent* InSceneComponent,
-	const FName& InSocketName,
-	UObject* Outer)
+	const FName& InSocketName)
 {
 	UTransformableComponentHandle* ComponentHandle = nullptr;
 	if (InSceneComponent)
 	{
-		ComponentHandle = NewObject<UTransformableComponentHandle>(Outer, NAME_None, RF_Transactional);
+		ComponentHandle = NewObject<UTransformableComponentHandle>(GetTransientPackage(), NAME_None, RF_Transactional);
 		ComponentHandle->Component = InSceneComponent;
 		ComponentHandle->SocketName = InSocketName;
 		InSceneComponent->SetMobility(EComponentMobility::Movable);
@@ -1401,7 +1463,7 @@ UTransformableComponentHandle* FTransformConstraintUtils::CreateHandleForSceneCo
 void FTransformConstraintUtils::GetParentConstraints(
 	UWorld* InWorld,
 	const AActor* InChild,
-	TArray< TObjectPtr<UTickableConstraint> >& OutConstraints)
+	TArray< TWeakObjectPtr<UTickableConstraint> >& OutConstraints)
 {
 	if (!InWorld || !InChild)
 	{
@@ -1473,7 +1535,7 @@ namespace
 // we suppose that both InParentHandle and InChildHandle are safe to use
 bool HasConstraintDependencyWith(UWorld* InWorld, const UTransformableHandle* InParentHandle, const UTransformableHandle* InChildHandle)
 {
-	using ConstraintPtr = TObjectPtr<UTickableConstraint>;
+	using ConstraintPtr = TWeakObjectPtr<UTickableConstraint>;
 	using HandlePtr = TObjectPtr<UTransformableHandle>;
 
 	static constexpr bool bSorted = false;
@@ -1568,20 +1630,13 @@ UTickableTransformConstraint* FTransformConstraintUtils::CreateAndAddFromObjects
 		return nullptr;
 	}
 
-	UConstraintsManager* ConstraintsManager = UConstraintsManager::Get(InWorld);
-	if (!ConstraintsManager)
-	{
-		UE_LOG(LogTemp, Error, TEXT("%s constraint manager is null."), ErrorPrefix);
-		return nullptr;
-	}
-
-	UTransformableHandle* ParentHandle = GetHandle(InParent, InParentSocketName, ConstraintsManager);
+	UTransformableHandle* ParentHandle = GetHandle(InParent, InParentSocketName);
 	if (!ParentHandle)
 	{
 		return nullptr;
 	}
 	
-	UTransformableHandle* ChildHandle = GetHandle(InChild, InChildSocketName, ConstraintsManager);
+	UTransformableHandle* ChildHandle = GetHandle(InChild, InChildSocketName);
 	if (!ChildHandle)
 	{
 		return nullptr;
@@ -1630,7 +1685,7 @@ bool FTransformConstraintUtils::AddConstraint(
 
 	// store previous child constraints
 	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(InWorld);
-	const TArray<TObjectPtr<UTickableConstraint>> ChildParentConstraints = Controller.GetParentConstraints(InChildHandle->GetHash(), true);
+	const TArray<TWeakObjectPtr<UTickableConstraint>> ChildParentConstraints = Controller.GetParentConstraints(InChildHandle->GetHash(), true);
 
 	// add the new one
 	const bool bConstraintAdded = Controller.AddConstraint(Constraint);
@@ -1639,17 +1694,11 @@ bool FTransformConstraintUtils::AddConstraint(
 		return false;
 	}
 
-	// setup the constraint
-	auto SetupConstraint = [InParentHandle, InChildHandle, bMaintainOffset](UTickableTransformConstraint* InConstraint)
-	{
-		InConstraint->ParentTRSHandle = InParentHandle;
-		InConstraint->ChildTRSHandle = InChildHandle;
-		InConstraint->bMaintainOffset = bMaintainOffset;
-		InConstraint->Setup();
-	};
-	
-	SetupConstraint(Constraint);
-
+	Constraint->ParentTRSHandle = InParentHandle;
+	Constraint->ChildTRSHandle = InChildHandle;
+	Constraint->bMaintainOffset = bMaintainOffset;
+	Constraint->Setup();
+	Constraint->InitConstraint(InWorld);
 	// add dependencies with the last child constraint
 	const FName NewConstraintName = Constraint->GetFName();
 	if (!ChildParentConstraints.IsEmpty())
@@ -1659,12 +1708,12 @@ bool FTransformConstraintUtils::AddConstraint(
 	}
 
 	// make sure we tick after the parent.
-	Constraint->EnsurePrimaryDependency();
+	Constraint->EnsurePrimaryDependency(InWorld);
 
 	// if child handle is the parent of some other constraints, ensure they will tick after that new one
-	TArray<TObjectPtr<UTickableConstraint>> ChildChildConstraints;
+	TArray<TWeakObjectPtr<UTickableConstraint>> ChildChildConstraints;
 	GetChildrenConstraints(InWorld, InChildHandle, ChildChildConstraints);
-	for (const TObjectPtr<UTickableConstraint>& ChildConstraint: ChildChildConstraints)
+	for (const TWeakObjectPtr<UTickableConstraint>& ChildConstraint: ChildChildConstraints)
 	{
 		Controller.SetConstraintsDependencies( NewConstraintName, ChildConstraint->GetFName());
 	}
@@ -1755,7 +1804,7 @@ TOptional<FTransform> FTransformConstraintUtils::GetRelativeTransform(UWorld* In
 	static constexpr bool bSorted = true;
 	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(InWorld);
 
-	const TArray< TObjectPtr<UTickableConstraint> > Constraints = Controller.GetParentConstraints(InHandleHash, bSorted);
+	const TArray< TWeakObjectPtr<UTickableConstraint> > Constraints = Controller.GetParentConstraints(InHandleHash, bSorted);
 	if (Constraints.IsEmpty())
 	{
 		return TOptional<FTransform>();
@@ -1777,7 +1826,7 @@ TOptional<FTransform> FTransformConstraintUtils::GetRelativeTransform(UWorld* In
 }
 
 TOptional<FTransform> FTransformConstraintUtils::GetConstraintsRelativeTransform(
-	const TArray< TObjectPtr<UTickableConstraint> >& InConstraints,
+	const TArray< TWeakObjectPtr<UTickableConstraint> >& InConstraints,
 	const FTransform& InChildLocal, const FTransform& InChildWorld)
 {
 	if (InConstraints.IsEmpty())
@@ -1802,7 +1851,7 @@ TOptional<FTransform> FTransformConstraintUtils::GetConstraintsRelativeTransform
 	}
 
 	// otherwise, we need to look for constraints on a sub-transform basis so we compute the relative transform for each of them
-	using ConstraintPtr = TObjectPtr<UTickableConstraint>;
+	using ConstraintPtr = TWeakObjectPtr<UTickableConstraint>;
 	auto GetLastSubTransformIndex = [InConstraints](const EMovieSceneTransformChannel& InChannel)
 	{
 		return InConstraints.FindLastByPredicate([InChannel](const ConstraintPtr& InConstraint)
@@ -1848,9 +1897,9 @@ TOptional<FTransform> FTransformConstraintUtils::GetConstraintsRelativeTransform
 	return ChildLocal;
 }
 
-int32 FTransformConstraintUtils::GetLastActiveConstraintIndex(const TArray< TObjectPtr<UTickableConstraint> >& InConstraints)
+int32 FTransformConstraintUtils::GetLastActiveConstraintIndex(const TArray< TWeakObjectPtr<UTickableConstraint> >& InConstraints)
 {
-	return InConstraints.FindLastByPredicate([](const TObjectPtr<UTickableConstraint>& InConstraint)
+	return InConstraints.FindLastByPredicate([](const TWeakObjectPtr<UTickableConstraint>& InConstraint)
 	{
 	   if (const UTickableTransformConstraint* TransformConstraint = Cast<UTickableTransformConstraint>(InConstraint.Get()))
 	   {
@@ -1863,9 +1912,9 @@ int32 FTransformConstraintUtils::GetLastActiveConstraintIndex(const TArray< TObj
 void FTransformConstraintUtils::GetChildrenConstraints(
 	UWorld* World,
 	const UTransformableHandle* InParentHandle,
-	TArray< TObjectPtr<UTickableConstraint> >& OutConstraints)
+	TArray< TWeakObjectPtr<UTickableConstraint> >& OutConstraints)
 {
-	using ConstraintPtr = TObjectPtr<UTickableConstraint>;
+	using ConstraintPtr = TWeakObjectPtr<UTickableConstraint>;
 	
 	// filter for transform constraints where the InParentHandle is the parent (based on its hash value)
 	const uint32 ParentHash = InParentHandle->GetHash();

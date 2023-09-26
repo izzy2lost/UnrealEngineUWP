@@ -3150,7 +3150,6 @@ void UControlRig::PostInitInstance(URigVMHost* InCDO)
 }
 
 UTransformableControlHandle* UControlRig::CreateTransformableControlHandle(
-	UObject* InOuter,
 	const FName& InControlName) const
 {
 	auto IsConstrainable = [this](const FName& InControlName)
@@ -3178,7 +3177,7 @@ UTransformableControlHandle* UControlRig::CreateTransformableControlHandle(
 		return nullptr;
 	}
 	
-	UTransformableControlHandle* CtrlHandle = NewObject<UTransformableControlHandle>(InOuter, NAME_None, RF_Transactional);
+	UTransformableControlHandle* CtrlHandle = NewObject<UTransformableControlHandle>(GetTransientPackage(), NAME_None, RF_Transactional);
 	check(CtrlHandle);
 	CtrlHandle->ControlRig = this;
 	CtrlHandle->ControlName = InControlName;

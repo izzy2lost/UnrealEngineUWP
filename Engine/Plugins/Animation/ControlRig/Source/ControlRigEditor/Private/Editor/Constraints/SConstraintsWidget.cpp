@@ -25,6 +25,7 @@
 #include "ISequencer.h"
 #include "Tools/BakingHelper.h"
 #include "MovieSceneToolHelpers.h"
+#include "ConstraintsManager.h"
 #include "Styling/SlateIconFinder.h"
 #include "Widgets/Input/NumericTypeInterface.h"
 #include "FrameNumberDetailsCustomization.h"
@@ -346,6 +347,11 @@ void SDroppableConstraintItem::CreateConstraint(
 					{
 						FMovieSceneConstraintChannelHelper::SmartConstraintKey(WeakSequencer.Pin(), Constraint, TOptional<bool>(), TOptional<FFrameNumber>());
 					}
+					else
+					{
+						FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
+						Controller.StaticConstraintCreated(World, Constraint);
+					}		
 				}
 			}
 		}
@@ -504,17 +510,16 @@ void SEditableConstraintItem::Construct(
 	};
 	TWeakObjectPtr<UTickableConstraint> Constraint = GetConstraint();
 
+	UWorld* World = GetCurrentWorld();
+
 	// sequencer
 	TWeakPtr<ISequencer> WeakSequencer = GetSequencerChecked();
-	
+
+	//manager for static check
+	UConstraintsManager* Manager = UConstraintsManager::Find(World);
+
 	// labels
 	FString ParentLabel(TEXT("undefined")), ChildLabel(TEXT("undefined"));
-	if (!InItem->GetLabel().IsEmpty())
-	{
-		ChildLabel = InItem->GetLabel();
-		InItem->GetLabel().Split(TEXT("."), &ParentLabel, &ChildLabel);
-	}
-	
 	FString ParentFullLabel = ParentLabel, ChildFullLabel = ChildLabel;
 	if (IsValid(Constraint.Get()))
 	{
@@ -536,11 +541,15 @@ void SEditableConstraintItem::Construct(
 			SNew(SBorder)
 			.Padding(FMargin(5.0, 2.0, 5.0, 2.0))
 			.BorderImage(RoundedBoxBrush)
-			.BorderBackgroundColor_Lambda([Constraint]()
+			.BorderBackgroundColor_Lambda([Manager, World,Constraint]()
 			{
 				if (!Constraint.IsValid() || !IsValid(Constraint.Get()))
 				{
 					return FStyleColors::Transparent;
+				}
+				if (Manager && Manager->IsStaticConstraint(Constraint.Get()))
+				{
+					return FSlateColor(FLinearColor::Green * 0.5);
 				}
 				return Constraint->IsFullyActive() ? FStyleColors::Select : FStyleColors::Transparent;
 			})
@@ -568,9 +577,17 @@ void SEditableConstraintItem::Construct(
 				.Padding(0)
 				[
 					SNew( STextBlock )
-					.Text_Lambda( [ParentLabel]()
+					.Text_Lambda( [Constraint, ParentLabel, ChildLabel,World]()
 					{
-						return FText::FromString(ParentLabel);
+							FString CurrentParentLabel = ParentLabel, CurrentChildLabel = ChildLabel;
+							if (Constraint.IsValid() && IsValid(Constraint.Get()) && Constraint->IsValid())
+							{
+								FString Label = Constraint->GetLabel();
+								Label.Split(TEXT("."), &CurrentParentLabel, &CurrentChildLabel);
+							}
+							static constexpr TCHAR LabelFormat[] = TEXT("%s <-- %s");
+							const FString Label = FString::Printf(LabelFormat, *CurrentParentLabel, *CurrentChildLabel);
+							return FText::FromString(Label);
 					})
 					.Font_Lambda([Constraint]()
 					{
@@ -779,6 +796,66 @@ void FBaseConstraintListWidget::InvalidateConstraintList()
 	}
 }
 
+FBaseConstraintListWidget::EShowConstraints FBaseConstraintListWidget::ShowConstraints = FBaseConstraintListWidget::EShowConstraints::ShowSelected;
+
+FText FBaseConstraintListWidget::GetShowConstraintsText(EShowConstraints Index) const
+{
+	FText Text = FText::GetEmpty();
+	switch (Index)
+	{
+		case EShowConstraints::ShowSelected:
+		{
+			Text = FText(LOCTEXT("Selected", "Selected"));
+		}
+		break;
+		case EShowConstraints::ShowLevelSequence:
+		{
+			Text = FText(LOCTEXT("LevelSequence", "Level Sequence"));
+		}
+		break;
+		case EShowConstraints::ShowValid:
+		{
+			Text = FText(LOCTEXT("Current", "Current"));
+		}
+		break;
+		case EShowConstraints::ShowAll:
+		{
+			Text = FText(LOCTEXT("All", "All"));
+		}
+		break;
+	}
+	return Text;
+}
+
+FText FBaseConstraintListWidget::GetShowConstraintsTooltip(EShowConstraints Index) const
+{
+	FText Text = FText::GetEmpty();
+	switch (Index)
+	{
+		case EShowConstraints::ShowSelected:
+		{
+			Text = FText(LOCTEXT("SelectedTooltip", "Show constraints on selected"));
+		}
+		break;
+		case EShowConstraints::ShowLevelSequence:
+		{
+			Text = FText(LOCTEXT("LevelSequenceTooltip", "Show constraints on active level sequence"));
+		}
+		break;
+		case EShowConstraints::ShowValid:
+		{
+			Text = FText(LOCTEXT("CurrentTooltip", "Show constraints that are current in level sequences or static"));
+		}
+		break;
+		case EShowConstraints::ShowAll:
+		{
+			Text = FText(LOCTEXT("AllTooltip", "Show all constraints"));
+		}
+		break;
+	}
+	return Text;
+}
+
 int32 FBaseConstraintListWidget::RefreshConstraintList()
 {
 	// get constraints
@@ -792,18 +869,67 @@ int32 FBaseConstraintListWidget::RefreshConstraintList()
 
 	const bool bIsConstraintsActor = Selection.Num() == 1 && Selection[0]->IsA<AConstraintsActor>();
 
-	TArray< TObjectPtr<UTickableConstraint> > Constraints;
-	if (bIsConstraintsActor)
+	TArray< TWeakObjectPtr<UTickableConstraint> > Constraints;
+	if (ShowConstraints == EShowConstraints::ShowSelected)
+	{
+		if (bIsConstraintsActor)
+		{
+			const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
+			static constexpr bool bSorted = true;
+			TArray< TObjectPtr<UTickableConstraint> > StaticConstraints;
+
+			StaticConstraints = Controller.GetStaticConstraints(bSorted);
+			for (TObjectPtr<UTickableConstraint>& Constraint : StaticConstraints)
+			{
+				Constraints.Add(Constraint);
+			}
+		}
+		else
+		{
+			for (const AActor* Actor : Selection)
+			{
+				FTransformConstraintUtils::GetParentConstraints(World, Actor, Constraints);
+			}
+			//remove if not active...
+			for (int32 Index = Constraints.Num() - 1; Index >= 0; --Index)
+			{
+				if (Constraints[Index].Get() == nullptr || Constraints[Index].Get()->IsValid() == false)
+				{
+					Constraints.RemoveAt(Index);
+				}
+			}
+		}
+	}
+	else
 	{
 		const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
 		static constexpr bool bSorted = true;
 		Constraints = Controller.GetAllConstraints(bSorted);
-	}
-	else
-	{
-		for (const AActor* Actor : Selection)
+		if (ShowConstraints == EShowConstraints::ShowLevelSequence)
 		{
-			FTransformConstraintUtils::GetParentConstraints(World, Actor, Constraints);
+			TWeakPtr<ISequencer> WeakSequencer = GetSequencerChecked();
+			if (WeakSequencer.IsValid())
+			{
+				UMovieScene* MovieScene = WeakSequencer.Pin()->GetFocusedMovieSceneSequence()->GetMovieScene();
+				for (int32 Index = Constraints.Num() - 1; Index >= 0; --Index)
+				{
+					UMovieScene* OuterMovieScene = Constraints[Index].Get() ? Constraints[Index]->GetTypedOuter<UMovieScene>() : nullptr;
+					if (OuterMovieScene != MovieScene)
+					{
+						Constraints.RemoveAt(Index);
+					}
+				}
+			}
+		}
+		else if (ShowConstraints == EShowConstraints::ShowValid)
+		{
+			for (int32 Index = Constraints.Num() - 1; Index >= 0; --Index)
+			{
+				if (Constraints[Index].Get() == nullptr || Constraints[Index].Get()->IsValid() == false)
+				{
+					Constraints.RemoveAt(Index);
+				}
+			}
 		}
 	}
 
@@ -811,13 +937,13 @@ int32 FBaseConstraintListWidget::RefreshConstraintList()
 	ListItems.Empty();
 
 	const UEnum* ETransformConstraintTypeEnum = StaticEnum<ETransformConstraintType>();
-	for (const TObjectPtr<UTickableConstraint>& Constraint : Constraints)
+	for (const TWeakObjectPtr<UTickableConstraint>& Constraint : Constraints)
 	{
 		const int8 Type = FConstraintInfo::GetType(Constraint->GetClass());
 		if (ETransformConstraintTypeEnum->IsValidEnumValue(Type))
 		{
 			const ETransformConstraintType ConstraintType = static_cast<ETransformConstraintType>(Type);
-			ListItems.Emplace(FEditableConstraintItem::Make(Constraint, ConstraintType));
+			ListItems.Emplace(FEditableConstraintItem::Make(Constraint.Get(), ConstraintType));
 		}
 	}
 
@@ -842,6 +968,7 @@ void FBaseConstraintListWidget::OnActorSelectionChanged(const TArray<UObject*>& 
 
 void SConstraintsEditionWidget::Construct(const FArguments& InArgs)
 {
+	WeakSequencer = GetSequencerChecked();
 
 	ChildSlot
 	[
@@ -907,12 +1034,24 @@ void SConstraintsEditionWidget::Construct(const FArguments& InArgs)
 	RegisterSelectionChanged();
 }
 
+bool SConstraintsEditionWidget::SequencerTimeChanged() 
+{
+	if (WeakSequencer.IsValid())
+	{
+		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+		const bool bTimeChanged = (SequencerLastTime.Rate != Sequencer->GetLocalTime().Rate ||
+			SequencerLastTime.Time != Sequencer->GetLocalTime().Time);
+		SequencerLastTime = Sequencer->GetLocalTime();
+		return bTimeChanged;
+	}
+	return false;
+}
 
 void SConstraintsEditionWidget::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 
-	if(bNeedsRefresh)
+	if(bNeedsRefresh || SequencerTimeChanged())
 	{
 		RefreshConstraintList();
 		bNeedsRefresh = false;
@@ -1017,7 +1156,7 @@ void SConstraintsEditionWidget::RemoveItem(const TSharedPtr<FEditableConstraintI
 	
 	FScopedTransaction Transaction(LOCTEXT("RemoveConstraint", "Remove Constraint"));
 	
-	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
+	FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
 	
 	Controller.RemoveConstraint(Item->Constraint.Get());
 
@@ -1027,7 +1166,6 @@ void SConstraintsEditionWidget::RemoveItem(const TSharedPtr<FEditableConstraintI
 FReply SConstraintsEditionWidget::OnBakeClicked()
 {
 	UTickableTransformConstraint* InConstraint = nullptr;
-	TWeakPtr<ISequencer> WeakSequencer = GetSequencerChecked();
 	if (!WeakSequencer.IsValid() || ListItems.Num() < 1)
 	{
 		return FReply::Unhandled();
@@ -1140,11 +1278,10 @@ TSharedPtr<SWidget> SConstraintsEditionWidget::CreateContextMenu()
 			LOCTEXT("BakeConstraintLabel", "Bake"),
 			FText::Format(LOCTEXT("BakeConstraintDoItTooltip", "Bake {0} transforms."), ConstraintLabel),
 			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateLambda([Constraint, World]()
+			FUIAction(FExecuteAction::CreateLambda([this, Constraint, World]()
 				{
 					if (UTickableTransformConstraint* TransformConstraint = Cast<UTickableTransformConstraint>(Constraint))
 					{
-						const TWeakPtr<ISequencer> WeakSequencer = GetSequencerChecked();
 						if (!WeakSequencer.IsValid())
 						{
 							return;
@@ -1165,7 +1302,6 @@ TSharedPtr<SWidget> SConstraintsEditionWidget::CreateContextMenu()
 			return TransformConstraint->bDynamicOffset;
 		});
 
-		TWeakPtr<ISequencer> WeakSequencer = GetSequencerChecked();
 		if (!bIsLookAtConstraint && WeakSequencer.IsValid())
 		{
 			MenuBuilder.BeginSection("KeyConstraint", LOCTEXT("KeyConstraintHeader", "Keys"));
@@ -1174,7 +1310,7 @@ TSharedPtr<SWidget> SConstraintsEditionWidget::CreateContextMenu()
 				LOCTEXT("CompensateKeyLabel", "Compensate Key"),
 				FText::Format(LOCTEXT("CompensateKeyTooltip", "Compensate transform key for {0}."), ConstraintLabel),
 				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateLambda([TransformConstraint, WeakSequencer]()
+				FUIAction(FExecuteAction::CreateLambda([TransformConstraint, this]()
 				{
 					const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
 					const FFrameRate TickResolution = Sequencer->GetFocusedTickResolution();
@@ -1189,7 +1325,7 @@ TSharedPtr<SWidget> SConstraintsEditionWidget::CreateContextMenu()
 				LOCTEXT("CompensateAllKeysLabel", "Compensate All Keys"),
 				FText::Format(LOCTEXT("CompensateAllKeysTooltip", "Compensate all transform keys for {0}."), ConstraintLabel),
 				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateLambda([TransformConstraint, WeakSequencer]()
+				FUIAction(FExecuteAction::CreateLambda([TransformConstraint, this]()
 				{
 					FMovieSceneConstraintChannelHelper::Compensate(WeakSequencer.Pin(), TransformConstraint, TOptional<FFrameNumber>());
 				}), IsCompensationEnabled),
@@ -1503,11 +1639,7 @@ void SBakeConstraintItem::Construct(
 
 	// labels
 	FString ParentLabel(TEXT("undefined")), ChildLabel(TEXT("undefined"));
-	if (!InItem->GetLabel().IsEmpty())
-	{
-		ChildLabel = InItem->GetLabel();
-		InItem->GetLabel().Split(TEXT("."), &ParentLabel, &ChildLabel);
-	}
+	
 
 	FString ParentFullLabel = ParentLabel, ChildFullLabel = ChildLabel;
 	if (IsValid(Constraint.Get()))
@@ -1558,9 +1690,17 @@ void SBakeConstraintItem::Construct(
 					.Padding(0)
 					[
 						SNew(STextBlock)
-						.Text_Lambda([ParentLabel]()
+						.Text_Lambda([Constraint, ParentLabel, ChildLabel]()
 							{
-								return FText::FromString(ParentLabel);
+								FString CurrentParentLabel = ParentLabel, CurrentChildLabel = ChildLabel;
+								if (Constraint.IsValid() && IsValid(Constraint.Get()))
+								{
+									FString Label = Constraint->GetLabel();
+									Label.Split(TEXT("."), &CurrentParentLabel, &CurrentChildLabel);
+								}
+								static constexpr TCHAR LabelFormat[] = TEXT("%s <-- %s");
+								const FString Label = FString::Printf(LabelFormat, *CurrentParentLabel, *CurrentChildLabel);
+								return FText::FromString(Label);
 							})
 					.Font_Lambda([Constraint]()
 						{

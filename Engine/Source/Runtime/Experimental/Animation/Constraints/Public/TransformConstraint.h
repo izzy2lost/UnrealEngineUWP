@@ -16,7 +16,7 @@ class UTransformableHandle;
 class UTransformableComponentHandle;
 class USceneComponent;
 enum class EMovieSceneTransformChannel : uint32;
-
+class UWorld;
 /** 
  * UTickableTransformConstraint
  **/
@@ -46,7 +46,10 @@ public:
 	/** Resolve the bound objects so that any object it references are resovled and correctly set up*/
 	CONSTRAINTS_API virtual void ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, IMovieScenePlayer& Player,UObject* SubObject) override;
 
-	/** If Active and the handles and targets are valid*/
+	/** Whether or not it's valid for example it may not be fully loaded*/
+	virtual bool IsValid() const override;
+
+	/** If Active and the handles and targets are valid, and tick function is registered*/
 	CONSTRAINTS_API virtual bool IsFullyActive() const override;
 
 	/** If that constraint needs to be handled by the compensation system. */
@@ -114,7 +117,7 @@ public:
 	/**
 	* Sets up dependencies with the first primary prerequisite available if the parent does not tick.   
 	*/
-	CONSTRAINTS_API void EnsurePrimaryDependency();
+	CONSTRAINTS_API void EnsurePrimaryDependency(UWorld* InWorld);
 	
 protected:
 
@@ -133,7 +136,7 @@ protected:
 	 * Sets up dependencies between the parent, the constraint and the child using their respective tick functions.
 	 * It creates a dependency graph between them so that they tick in the right order when evaluated.   
 	*/
-	CONSTRAINTS_API void SetupDependencies();
+	CONSTRAINTS_API void SetupDependencies(UWorld* InWorld);
 
 	/** Set the current child's global transform. */
 	CONSTRAINTS_API void SetChildGlobalTransform(const FTransform& InGlobal) const;
@@ -151,8 +154,10 @@ protected:
 	/** Returns the handle's tick function (ensuring it lives in the same world). */
 	CONSTRAINTS_API FTickFunction* GetHandleTickFunction(const TObjectPtr<UTransformableHandle>& InHandle) const;
 
+public:
 	/** (Re-)Registers the constraint function and (re-)binds the required delegates*/
-	CONSTRAINTS_API void InitConstraint();
+	CONSTRAINTS_API virtual void InitConstraint(UWorld * InWorld) override;
+	CONSTRAINTS_API virtual void TeardownConstraint(UWorld * InWorld) override;
 
 #if WITH_EDITOR
 public:
@@ -441,13 +446,12 @@ struct FTransformConstraintUtils
 	static CONSTRAINTS_API void GetParentConstraints(
 		UWorld* World,
 		const AActor* InChild,
-		TArray< TObjectPtr<UTickableConstraint> >& OutConstraints);
+		TArray< TWeakObjectPtr<UTickableConstraint> >& OutConstraints);
 
 	/** Create a handle for the scene component.*/
 	static CONSTRAINTS_API UTransformableComponentHandle* CreateHandleForSceneComponent(
 		USceneComponent* InSceneComponent,
-		const FName& InSocketName,
-		UObject* Outer);
+		const FName& InSocketName);
 
 	/** Creates a new transform constraint based on the InType. */
 	static CONSTRAINTS_API UTickableTransformConstraint* CreateFromType(
@@ -480,15 +484,15 @@ struct FTransformConstraintUtils
 	/** Computes the current constraint space local transform. */
 	static CONSTRAINTS_API TOptional<FTransform> GetRelativeTransform(UWorld* InWorld, const uint32 InHandleHash);
 	static CONSTRAINTS_API TOptional<FTransform> GetConstraintsRelativeTransform(
-		const TArray< TObjectPtr<UTickableConstraint> >& InConstraints,
+		const TArray< TWeakObjectPtr<UTickableConstraint> >& InConstraints,
 		const FTransform& InChildLocal, const FTransform& InChildWorld);
 
 	/** Get the last active constraint that has dynamic offset. */
-	static CONSTRAINTS_API int32 GetLastActiveConstraintIndex(const TArray< TObjectPtr<UTickableConstraint> >& InConstraints);
+	static CONSTRAINTS_API int32 GetLastActiveConstraintIndex(const TArray< TWeakObjectPtr<UTickableConstraint> >& InConstraints);
 
 	/** Fills a constraint array that InParentHandle is the parent of. */
 	static CONSTRAINTS_API void GetChildrenConstraints(
 		UWorld* World,
 		const UTransformableHandle* InParentHandle,
-		TArray< TObjectPtr<UTickableConstraint> >& OutConstraints);
+		TArray< TWeakObjectPtr<UTickableConstraint> >& OutConstraints);
 };

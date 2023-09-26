@@ -72,7 +72,7 @@ public:
 	virtual UTransformableHandle* Duplicate(UObject* NewOuter) const override;
 
 	/** tick things when baking*/ 
-	virtual void TickForBaking() override;
+	virtual void TickForBaking() const override;
 
 	/** Returns the skeletal mesh bound to ControlRig. */
 	USkeletalMeshComponent* GetSkeletalMesh() const;

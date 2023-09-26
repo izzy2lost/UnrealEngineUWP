@@ -125,6 +125,11 @@ private:
 	EVisibility GetRigOptionExpanderVisibility() const;
 
 	void OnRigOptionFinishedChange(const FPropertyChangedEvent& PropertyChangedEvent);
+	
+	/** constraint type to show selection*/
+	void OnSelectShowConstraints(int32 Index);
+	FText GetShowConstraintsName() const;
+	FText GetShowConstraintsTooltip() const;
 
 private:
 	/** Toolbar functions and windows*/

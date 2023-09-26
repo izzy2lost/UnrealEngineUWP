@@ -67,7 +67,7 @@ bool UTransformableComponentHandle::IsValid() const
 }
 
 //need to tick any skelmesh component, sibling or parent
-void UTransformableComponentHandle::TickForBaking()
+void UTransformableComponentHandle::TickForBaking() const
 {
 	if (!Component.IsValid())
 	{
@@ -223,16 +223,16 @@ FTickPrerequisite LookForPrimaryPrerequisite(USceneComponent* Component)
 		static constexpr bool bSorted = true;
 		
 		const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
-		const TArray<TObjectPtr<UTickableConstraint>> ParentConstraints =
+		const TArray<TWeakObjectPtr<UTickableConstraint>> ParentConstraints =
 			Controller.GetParentConstraints(GetTypeHash(Component), bSorted);
 		
 		for (int Index = ParentConstraints.Num()-1; Index >= 0; Index--)
 		{
-			if (UTickableConstraint* Constraint = ParentConstraints[Index])
+			if (UTickableConstraint* Constraint = ParentConstraints[Index].Get())
 			{
-				if(IsValidTickFunction(&Constraint->ConstraintTick))
+				if(IsValidTickFunction(&Constraint->GetTickFunction(World)))
 				{
-					return FTickPrerequisite(Constraint->GetOuter(), Constraint->ConstraintTick);
+					return FTickPrerequisite(Constraint->GetOuter(), Constraint->GetTickFunction(World));
 				}
 			}
 		}	

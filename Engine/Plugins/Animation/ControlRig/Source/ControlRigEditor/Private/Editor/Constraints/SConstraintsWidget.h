@@ -8,6 +8,7 @@
 #include "EditorUndoClient.h"
 #include "IStructureDetailsView.h"
 #include "BakingAnimationKeySettings.h"
+#include "Misc/QualifiedFrameTime.h"
 #include "ConstraintsManager.h"
 
 class AActor;
@@ -213,6 +214,18 @@ class CONTROLRIGEDITOR_API FBaseConstraintListWidget : public FEditorUndoClient
 {
 public:
 
+	/**
+	*  Constraints to show in Widget
+	*/
+	enum class EShowConstraints
+	{
+		ShowSelected = 0x0,
+		ShowLevelSequence = 0x1,
+		ShowValid = 0x2,
+		ShowAll = 0x3,
+	};
+public:
+
 	virtual ~FBaseConstraintListWidget() override;
 	/* FEditorUndoClient interface */
 	virtual void PostUndo(bool bSuccess);
@@ -227,6 +240,18 @@ public:
 
 	/** Triggers a constraint list invalidation when selection in the level viewport. */
 	void OnActorSelectionChanged(const TArray<UObject*>& NewSelection, bool bForceRefresh);
+
+	/** Which constraints to show  */
+	EShowConstraints GetShowConstraints() const { return ShowConstraints; }
+	void SetShowConstraints(EShowConstraints InShowConstraints)
+	{
+		if (InShowConstraints != ShowConstraints) {
+			ShowConstraints = InShowConstraints;
+			bNeedsRefresh = true;
+		}
+	}
+	FText GetShowConstraintsText(EShowConstraints Index) const;
+	FText GetShowConstraintsTooltip(EShowConstraints Index) const;
 
 protected:
 	/** Types */
@@ -248,6 +273,10 @@ protected:
 
 	FDelegateHandle OnSelectionChangedHandle;
 
+public:
+
+	static EShowConstraints ShowConstraints;
+
 };
 
 /**
@@ -259,7 +288,6 @@ class CONTROLRIGEDITOR_API SConstraintsEditionWidget : public SCompoundWidget, p
 public:
 	SLATE_BEGIN_ARGS(SConstraintsEditionWidget)	{}
 	SLATE_END_ARGS()
-
 	/** Constructs this widget with InArgs */
 	void Construct(const FArguments& InArgs);
 
@@ -291,6 +319,12 @@ private:
 	void OnItemDoubleClicked(ItemSharedPtr InItem);
 
 	FReply OnBakeClicked();
+
+	//sequencer and it's time
+	TWeakPtr<ISequencer> WeakSequencer;
+	bool SequencerTimeChanged();
+	FQualifiedFrameTime SequencerLastTime;
+
 };
 
 /** Widget allowing baking of constraints */

@@ -177,13 +177,11 @@ struct FEulerTransformParameterStringAndValue
 
 struct FConstraintAndActiveValue
 {
-	FConstraintAndActiveValue(TWeakObjectPtr<UTickableConstraint> InConstraint, TWeakObjectPtr<UTickableConstraint> InSpawnConstraint, bool InValue)
+	FConstraintAndActiveValue(TWeakObjectPtr<UTickableConstraint> InConstraint,  bool InValue)
 		: Constraint(InConstraint)
-		, SpawnConstraint(InSpawnConstraint)
 		, Value(InValue)
 	{}
 	TWeakObjectPtr<UTickableConstraint> Constraint;
-	TWeakObjectPtr<UTickableConstraint> SpawnConstraint;
 	bool Value;
 };
 
@@ -1121,6 +1119,26 @@ static UControlRig* GetControlRig(const UMovieSceneControlRigParameterSection* S
 	return ControlRig;
 }
 
+static UTickableConstraint* CreateConstraintIfNeeded(const FConstraintsManagerController& Controller, FConstraintAndActiveValue& ConstraintValue, UMovieSceneControlRigParameterSection* Section)
+{
+	UTickableConstraint* Constraint = ConstraintValue.Constraint.Get();
+
+	if (!Constraint) 
+	{
+		return nullptr;
+	}
+	else // it's possible that we have it but it's not in the manager, due to manager not being saved with it (due to spawning or undo/redo).
+	{
+		const TArray< TWeakObjectPtr<UTickableConstraint>>& ConstraintsArray = Controller.GetConstraintsArray();
+		if (Controller.GetConstraint(Constraint->ConstraintID) == nullptr)
+		{
+			Controller.AddConstraint(ConstraintValue.Constraint.Get());
+		}
+	}
+
+	return Constraint;
+}
+
 /* Simple token used for non-blendables*/
 struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 {
@@ -1148,11 +1166,10 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 		UControlRig* ControlRig = Section->GetControlRig();
 
 		// Update the animation's state
-		
+		TArrayView<TWeakObjectPtr<>> BoundObjects = Player.FindBoundObjects(Operand);
 		if (ControlRig)
 		{
 			const UMovieSceneSequence* Sequence = Player.State.FindSequence(Operand.SequenceID);
-			TArrayView<TWeakObjectPtr<>> BoundObjects = Player.FindBoundObjects(Operand);
 
 			UObject* BoundObject = BoundObjects.Num() > 0 ? BoundObjects[0].Get() : nullptr;
 			if (Sequence && BoundObject)
@@ -1301,35 +1318,48 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 						}
 					}
 				}
-
-				const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(ControlRig->GetWorld());
-				for (FConstraintAndActiveValue& ConstraintValue : ConstraintsValues)
+				UObject* BoundObject = BoundObjects.Num() > 0 ? BoundObjects[0].Get() : nullptr;
+				if (BoundObject)
 				{
-					//if the constraint isn't valid try to make a copy of our spawn copy if it exists and add that
-					if (ConstraintValue.Constraint.IsValid() == false && ConstraintValue.SpawnConstraint.IsValid())
+					const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(BoundObject->GetWorld());
+					for (FConstraintAndActiveValue& ConstraintValue : ConstraintsValues)
 					{
-						UTickableConstraint* NewOne = Controller.AddConstraintFromCopy(ConstraintValue.SpawnConstraint.Get());
-						ConstraintValue.Constraint = NewOne;
 						UMovieSceneControlRigParameterSection* NonConstSection = const_cast<UMovieSceneControlRigParameterSection*>(Section);
-						NonConstSection->ReplaceConstraint(ConstraintValue.SpawnConstraint.Get()->GetFName(), NewOne);
+						CreateConstraintIfNeeded(Controller, ConstraintValue, NonConstSection);
+
+						if (ConstraintValue.Constraint.IsValid())
+						{
+							//For Control Rig we may need to explicitly set the control rig
+							if (UTickableTransformConstraint* TransformConstraint = Cast<UTickableTransformConstraint>(ConstraintValue.Constraint))
+							{
+								TransformConstraint->InitConstraint(BoundObject->GetWorld());
+							}
+							ConstraintValue.Constraint->ResolveBoundObjects(Operand.SequenceID, Player, ControlRig);
+							ConstraintValue.Constraint->SetActive(ConstraintValue.Value);
+						}
 					}
-					if (ConstraintValue.Constraint.IsValid())
+					//unfortunately for Constraints with ControlRig we need to resolve all Parents also. Don't need to do children since they wil be handled by
+					//the channel resolve above
+					TArray< TWeakObjectPtr<UTickableConstraint>> Constraints = Controller.GetAllConstraints();
+					for (TWeakObjectPtr<UTickableConstraint>& TickConstraint : Constraints)
 					{
-						//For Control Rig we may need to explicitly set the control rig
-						ConstraintValue.Constraint->ResolveBoundObjects(Operand.SequenceID, Player, ControlRig);
-						ConstraintValue.Constraint->SetActive(ConstraintValue.Value);
+						if (UTickableTransformConstraint* TransformConstraint = Cast< UTickableTransformConstraint>(TickConstraint.Get()))
+						{
+							if (TransformConstraint->ParentTRSHandle)
+							{
+								TransformConstraint->ParentTRSHandle->ResolveBoundObjects(Operand.SequenceID, Player, ControlRig);
+								TransformConstraint->EnsurePrimaryDependency(BoundObject->GetWorld());
+							}
+						}
 					}
 				}
-				//unfortunately for Constraints with ControlRig we need to resolve all Parents also. Don't need to do children since they wil be handled by
-				//the channel resolve above
-				TArray< TObjectPtr<UTickableConstraint>> Constraints =  Controller.GetAllConstraints();
-				for (UTickableConstraint* TickConstraint : Constraints)
+				else  //no bound object so turn off constraint
 				{
-					if (UTickableTransformConstraint* TransformConstraint = Cast< UTickableTransformConstraint>(TickConstraint))
+					for (FConstraintAndActiveValue& ConstraintValue : ConstraintsValues)
 					{
-						if (TransformConstraint->ParentTRSHandle)
+						if (ConstraintValue.Constraint.IsValid())
 						{
-							TransformConstraint->ParentTRSHandle->ResolveBoundObjects(Operand.SequenceID, Player, ControlRig);
+							ConstraintValue.Constraint->SetActive(ConstraintValue.Value);
 						}
 					}
 				}
@@ -1891,11 +1921,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 			bool Value = false;
 			const FConstraintAndActiveChannel& ConstraintAndActiveChannel = Constraints[Index];
 			ConstraintAndActiveChannel.ActiveChannel.Evaluate(RoundTime, Value);
-			if (ConstraintAndActiveChannel.Constraint.IsPending())
-			{
-				ConstraintAndActiveChannel.Constraint.LoadSynchronous();
-			}
-			Values.ConstraintsValues.Emplace(ConstraintAndActiveChannel.Constraint.Get(), ConstraintAndActiveChannel.ConstraintCopyToSpawn, Value);
+			Values.ConstraintsValues.Emplace(ConstraintAndActiveChannel.GetConstraint().Get(), Value);
 		}
 		
 		for (int32 Index = 0; Index < Bools.Num(); ++Index)

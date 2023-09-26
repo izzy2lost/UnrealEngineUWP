@@ -19,7 +19,7 @@
 #include "Channels/MovieSceneBoolChannel.h"
 #include "Sequencer/MovieSceneControlRigSpaceChannel.h"
 #include "ConstraintChannel.h"
-
+#include "KeyParams.h"
 #include "MovieSceneControlRigParameterSection.generated.h"
 
 class UAnimSequence;
@@ -272,12 +272,12 @@ public:
 	/*
 	* Whether it has that channel
 	*/
-	virtual bool HasConstraintChannel(const FName& InConstraintName) const override;
+	virtual bool HasConstraintChannel(const FGuid& InConstraintName) const override;
 
 	/*
 	* Get constraint with that name
 	*/
-	virtual FConstraintAndActiveChannel* GetConstraintChannel(const FName& InConstraintName) override;
+	virtual FConstraintAndActiveChannel* GetConstraintChannel(const FGuid& InConstraintID) override;
 
 	/*
 	*  Add Constraint channel
@@ -309,11 +309,11 @@ public:
 
 #if WITH_EDITOR
 	//Function to save control rig key when recording.
-	void RecordControlRigKey(FFrameNumber FrameNumber, bool bSetDefault, ERichCurveInterpMode InInterpMode);
+	void RecordControlRigKey(FFrameNumber FrameNumber, bool bSetDefault, EMovieSceneKeyInterpolation InInterpMode);
 
 	//Function to load an Anim Sequence into this section. It will automatically resize to the section size.
 	//Will return false if fails or is canceled
-	virtual bool LoadAnimSequenceIntoThisSection(UAnimSequence* Sequence, UMovieScene* MovieScene, UObject* BoundObject, bool bKeyReduce, float Tolerance, FFrameNumber InStartFrame = 0);
+	virtual bool LoadAnimSequenceIntoThisSection(UAnimSequence* Sequence, UMovieScene* MovieScene, UObject* BoundObject, bool bKeyReduce, float Tolerance, FFrameNumber InStartFrame = 0, EMovieSceneKeyInterpolation InInterolation = EMovieSceneKeyInterpolation::SmartAuto);
 #endif
 	const TArray<bool>& GetControlsMask() const
 	{

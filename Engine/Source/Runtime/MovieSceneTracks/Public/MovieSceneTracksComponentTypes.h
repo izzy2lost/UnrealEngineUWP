@@ -17,6 +17,7 @@
 #include "ConstraintChannel.h"
 #include "MaterialTypes.h"
 #include "Sections/MovieSceneCameraShakeSection.h"
+#include "Misc/Guid.h"
 #include "Tracks/MovieSceneMaterialTrack.h"
 #include "MovieSceneTracksComponentTypes.generated.h"
 
@@ -81,7 +82,7 @@ struct FConstraintComponentData
 	GENERATED_BODY()
 
 	UPROPERTY()
-	FName ConstraintName;
+	FGuid ConstraintID;
 	UMovieScene3DTransformSection* Section;
 };
 

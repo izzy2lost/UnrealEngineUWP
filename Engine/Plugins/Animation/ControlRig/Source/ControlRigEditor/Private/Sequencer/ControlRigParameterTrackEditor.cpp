@@ -1974,33 +1974,68 @@ void FControlRigParameterTrackEditor::AddTrackForComponent(USceneComponent* InCo
 	}
 }
 
+//test to see if actor has a constraint, in which case we need to add a constraint channel/key
+//or a control rig in which case we create a track if cvar is off
 void FControlRigParameterTrackEditor::HandleActorAdded(AActor* Actor, FGuid TargetObjectGuid)
 {
+	if (Actor == nullptr)
+	{
+		return;
+	}
+	//test for constraint
+	FConstraintsManagerController& Controller = FConstraintsManagerController::Get(Actor->GetWorld());
+	TArray< TWeakObjectPtr<UTickableConstraint>> Constraints = Controller.GetAllConstraints();
+	for (TWeakObjectPtr<UTickableConstraint>& WeakConstraint : Constraints)
+	{
+		if (WeakConstraint.IsValid())
+		{
+			if (UTickableTransformConstraint* Constraint = Cast<UTickableTransformConstraint>(WeakConstraint.Get()))
+			{
+				if (Constraint->ChildTRSHandle)
+				{
+					if (UObject* Child = Constraint->ChildTRSHandle->GetTarget().Get())
+					{
+						AActor* TargetActor = Cast<AActor>(Child);
+						if (TargetActor == nullptr)
+						{
+							TargetActor = Child->GetTypedOuter<AActor>();
+						}
+						if (TargetActor == Actor)
+						{
+							const TOptional<bool> bActive = true;
+							const TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+							FMovieSceneConstraintChannelHelper::SmartConstraintKey(SequencerPtr, Constraint, bActive, TOptional<FFrameNumber>());
+						}		
+					}
+				}
+			}
+		}
+	}
+	
+	//test for control rig
+
 	if (!CVarAutoGenerateControlRigTrack.GetValueOnGameThread())
 	{
 		return;
 	}
 
-	if (Actor)
+	if (UControlRigComponent* ControlRigComponent = Actor->FindComponentByClass<UControlRigComponent>())
 	{
-		if (UControlRigComponent* ControlRigComponent = Actor->FindComponentByClass<UControlRigComponent>())
-		{
-			AddControlRigFromComponent(TargetObjectGuid);
-			return;
-		}
+		AddControlRigFromComponent(TargetObjectGuid);
+		return;
+	}
 
-		if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(Actor->GetRootComponent()))
-		{
-			AddTrackForComponent(SkeletalMeshComponent, TargetObjectGuid);
-			return;
-		}
+	if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(Actor->GetRootComponent()))
+	{
+		AddTrackForComponent(SkeletalMeshComponent, TargetObjectGuid);
+		return;
+	}
 
-		for (UActorComponent* Component : Actor->GetComponents())
+	for (UActorComponent* Component : Actor->GetComponents())
+	{
+		if (USceneComponent* SceneComp = Cast<USceneComponent>(Component))
 		{
-			if (USceneComponent* SceneComp = Cast<USceneComponent>(Component))
-			{
-				AddTrackForComponent(SceneComp, FGuid());
-			}
+			AddTrackForComponent(SceneComp, FGuid());
 		}
 	}
 }
@@ -2700,7 +2735,7 @@ namespace
 				return Data;
 			}
 
-			Data.Constraint = Cast<UTickableTransformConstraint>(ConstraintChannels[Index].Constraint.Get());
+			Data.Constraint = Cast<UTickableTransformConstraint>(ConstraintChannels[Index].GetConstraint().Get());
 
 			// get constraint name
 			auto GetControlName = [InSection, Index]()
@@ -2854,17 +2889,17 @@ void FControlRigParameterTrackEditor::HandleConstraintRemoved(IMovieSceneConstra
 								return;
 							}
 
-							const FConstraintAndActiveChannel* ConstraintChannel = InSection->GetConstraintChannel(Constraint->GetFName());
-							if (!ConstraintChannel || ConstraintChannel->Constraint != Constraint)
+							const FConstraintAndActiveChannel* ConstraintChannel = InSection->GetConstraintChannel(Constraint->ConstraintID);
+							if (!ConstraintChannel || ConstraintChannel->GetConstraint().Get() != Constraint)
 							{
 								return;
 							}
 
 							const bool bCompensate = (InNotifyType == EConstraintsManagerNotifyType::ConstraintRemovedWithCompensation);
-							if (bCompensate && ConstraintChannel->Constraint.IsValid())
+							if (bCompensate && ConstraintChannel->GetConstraint().Get())
 							{
 								FMovieSceneConstraintChannelHelper::HandleConstraintRemoved(
-									ConstraintChannel->Constraint.Get(),
+									ConstraintChannel->GetConstraint().Get(),
 									&ConstraintChannel->ActiveChannel,
 									GetSequencer(),
 									Section);
@@ -2915,7 +2950,7 @@ void FControlRigParameterTrackEditor::HandleConstraintPropertyChanged(UTickableT
 	const TArray<FConstraintAndActiveChannel>& ConstraintChannels = ConstraintSection->GetConstraintsChannels();
 	const FConstraintAndActiveChannel* Channel = ConstraintChannels.FindByPredicate([InConstraint](const FConstraintAndActiveChannel& Channel)
 	{
-		return Channel.Constraint == InConstraint || Channel.ConstraintCopyToSpawn == InConstraint;
+		return Channel.GetConstraint() == InConstraint;
 	});
 
 	if (!Channel)
@@ -4671,8 +4706,7 @@ bool FControlRigParameterTrackEditor::CollapseAllLayers(TSharedPtr<ISequencer>&S
 					FScopedSlowTask Feedback(Frames.Num(), LOCTEXT("CollapsingSections", "Collapsing Sections"));
 					Feedback.MakeDialog(true);
 
-					const ERichCurveInterpMode InterpMode = InSettings.bReduceKeys ? RCIM_Cubic : RCIM_Linear;
-
+					const EMovieSceneKeyInterpolation InterpMode = SequencerPtr->GetSequencerSettings()->GetKeyInterpolation();
 					Index = 0;
 					for (Index = 0; Index < Frames.Num(); ++Index)
 					{
@@ -5094,15 +5128,18 @@ bool FControlRigParameterSection::RequestDeleteCategory(const TArray<FName>& Cat
 
 	if (ParameterSection && SequencerPtr)
 	{
-		const FName& Channel = CategoryNamePaths.Last();
-
+		const FName& ChannelName = CategoryNamePaths.Last();
+		const int32 Index = ParameterSection->GetConstraintsChannels().IndexOfByPredicate([ChannelName](const FConstraintAndActiveChannel& InChannel)
+			{
+				return InChannel.GetConstraint().Get() ? InChannel.GetConstraint()->GetFName() == ChannelName : false;
+			});
 		// remove constraint channel if there are no keys
-		const FConstraintAndActiveChannel* ConstraintChannel = ParameterSection->GetConstraintChannel(Channel);
+		const FConstraintAndActiveChannel* ConstraintChannel = Index != INDEX_NONE ? &(ParameterSection->GetConstraintsChannels()[Index]): nullptr;
 		if (ConstraintChannel && ConstraintChannel->ActiveChannel.GetNumKeys() == 0)
 		{
 			if (ParameterSection->TryModify())
 			{
-				ParameterSection->RemoveConstraintChannel(ConstraintChannel->Constraint.Get());
+				ParameterSection->RemoveConstraintChannel(ConstraintChannel->GetConstraint().Get());
 				SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
 				return true;
 			}

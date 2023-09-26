@@ -3972,7 +3972,7 @@ void FControlRigEditMode::SetControlShapeTransform(
 	}
 	
 	// find the last constraint in the stack (this could be cached on mouse press)
-	TArray< TObjectPtr<UTickableConstraint> > Constraints;
+	TArray< TWeakObjectPtr<UTickableConstraint> > Constraints;
 	FTransformConstraintUtils::GetParentConstraints(ControlRig->GetWorld(), InShapeActor, Constraints);
 
 	const int32 LastActiveIndex = FTransformConstraintUtils::GetLastActiveConstraintIndex(Constraints);

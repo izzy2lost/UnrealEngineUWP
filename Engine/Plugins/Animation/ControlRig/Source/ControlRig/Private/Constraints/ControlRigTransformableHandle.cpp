@@ -12,6 +12,7 @@
 #include "Sequencer/MovieSceneControlRigParameterSection.h"
 #include "Sections/MovieScene3DTransformSection.h"
 #include "Sequencer/ControlRigSequencerHelpers.h"
+#include "UObject/Package.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigTransformableHandle)
 
@@ -52,7 +53,7 @@ bool UTransformableControlHandle::IsValid() const
 	return true;
 }
 
-void UTransformableControlHandle::TickForBaking()
+void UTransformableControlHandle::TickForBaking() const
 {
 	USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMesh();
 	if (SkeletalMeshComponent)

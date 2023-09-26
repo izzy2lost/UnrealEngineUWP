@@ -34,11 +34,11 @@ void FControlRigModule::RegisterTransformableCustomization() const
 	FModuleManager::Get().LoadModule(ConstraintsModuleName);
 	
 	// register UControlRig and AControlRigShapeActor
-	auto CreateControlHandle = [](UObject* Outer, UObject* InObject, const FName& InControlName)->UTransformableHandle*
+	auto CreateControlHandle = [](UObject* InObject, const FName& InControlName)->UTransformableHandle*
 	{
 		if (const UControlRig* ControlRig = Cast<UControlRig>(InObject))
 		{
-			return ControlRig->CreateTransformableControlHandle(Outer, InControlName);
+			return ControlRig->CreateTransformableControlHandle(InControlName);
 		}
 		return nullptr;
 	};
@@ -52,11 +52,11 @@ void FControlRigModule::RegisterTransformableCustomization() const
 		return 0;
 	};
 	
-	auto CreateControlHandleFromActor = [CreateControlHandle](UObject* Outer, UObject* InObject, const FName&)->UTransformableHandle*
+	auto CreateControlHandleFromActor = [CreateControlHandle](UObject* InObject, const FName&)->UTransformableHandle*
 	{
 		if (const AControlRigShapeActor* ControlActor = Cast<AControlRigShapeActor>(InObject))
 		{
-			return CreateControlHandle(Outer, ControlActor->ControlRig.Get(), ControlActor->ControlName);
+			return CreateControlHandle(ControlActor->ControlRig.Get(), ControlActor->ControlName);
 		}
 		return nullptr;
 	};

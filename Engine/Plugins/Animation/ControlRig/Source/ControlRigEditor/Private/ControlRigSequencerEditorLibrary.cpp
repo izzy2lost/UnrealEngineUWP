@@ -471,6 +471,11 @@ UTickableConstraint* UControlRigSequencerEditorLibrary::AddConstraint(UWorld* Wo
 	{
 		FMovieSceneConstraintChannelHelper::SmartConstraintKey(WeakSequencer.Pin(), Constraint, TOptional<bool>(), TOptional<FFrameNumber>());
 	}
+	else
+	{
+		FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
+		Controller.StaticConstraintCreated(World, Constraint);
+	}
 	return Constraint;
 }
 
@@ -478,10 +483,10 @@ TArray <UTickableConstraint*> UControlRigSequencerEditorLibrary::GetConstraintsF
 {
 	TArray <UTickableConstraint*> Constraints;
 	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(InWorld);
-	const TArray<TObjectPtr<UTickableConstraint>>& AllConstraints = Controller.GetAllConstraints(false);
-	for (const TObjectPtr<UTickableConstraint>& TickConstraint : AllConstraints)
+	const TArray<TWeakObjectPtr<UTickableConstraint>>& AllConstraints = Controller.GetAllConstraints(false);
+	for (const TWeakObjectPtr<UTickableConstraint>& TickConstraint : AllConstraints)
 	{
-		if (TObjectPtr<UTickableTransformConstraint> Constraint = Cast<UTickableTransformConstraint>(TickConstraint))
+		if (TObjectPtr<UTickableTransformConstraint> Constraint = Cast<UTickableTransformConstraint>(TickConstraint.Get()))
 		{
 			if (Constraint->ChildTRSHandle == InChild)
 			{
@@ -588,7 +593,7 @@ bool UControlRigSequencerEditorLibrary::GetConstraintKeys(UTickableConstraint* I
 		UE_LOG(LogControlRig, Error, TEXT("GetConstraintKeys: Section doesn't support constraints"));
 		return false;
 	}
-	FConstraintAndActiveChannel* ConstraintAndChannel = ConstrainedSection->GetConstraintChannel(InConstraint->GetFName());
+	FConstraintAndActiveChannel* ConstraintAndChannel = ConstrainedSection->GetConstraintChannel(InConstraint->ConstraintID);
 	if (ConstraintAndChannel == nullptr)
 	{
 		UE_LOG(LogControlRig, Error, TEXT("GetConstraintKeys: Constraint not found in section"));
@@ -661,7 +666,7 @@ bool UControlRigSequencerEditorLibrary::MoveConstraintKey(UTickableConstraint* C
 		UE_LOG(LogControlRig, Error, TEXT("MoveConstraintKey: Constraint not valid"));
 		return false;
 	}
-	FConstraintAndActiveChannel* ConstraintAndChannel = ConstrainedSection->GetConstraintChannel(Constraint->GetFName());
+	FConstraintAndActiveChannel* ConstraintAndChannel = ConstrainedSection->GetConstraintChannel(Constraint->ConstraintID);
 	if (ConstraintAndChannel == nullptr)
 	{
 		UE_LOG(LogControlRig, Error, TEXT("MoveConstraintKey: Constraint not found in section"));
@@ -719,7 +724,7 @@ bool UControlRigSequencerEditorLibrary::DeleteConstraintKey(UTickableConstraint*
 		UE_LOG(LogControlRig, Error, TEXT("DeleteConstraintKey: Constraint not valid"));
 		return false;
 	}
-	FConstraintAndActiveChannel* ConstraintAndChannel = ConstrainedSection->GetConstraintChannel(Constraint->GetFName());
+	FConstraintAndActiveChannel* ConstraintAndChannel = ConstrainedSection->GetConstraintChannel(Constraint->ConstraintID);
 	if (ConstraintAndChannel == nullptr)
 	{
 		UE_LOG(LogControlRig, Error, TEXT("DeleteConstraintKey: Constraint not found in section"));

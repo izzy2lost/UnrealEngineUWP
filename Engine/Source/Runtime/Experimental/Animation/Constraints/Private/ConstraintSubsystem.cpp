@@ -1,0 +1,232 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "ConstraintSubsystem.h"
+#include "Containers/Ticker.h"
+#include "Engine/Engine.h"
+#include "ConstraintsManager.h"
+#include "TransformConstraint.h"
+
+//needs to be static to avoid system getting deleted with dangling handles.
+FDelegateHandle UConstraintSubsystem::OnWorldInitHandle;
+FDelegateHandle UConstraintSubsystem::OnWorldCleanupHandle;
+
+UConstraintSubsystem::UConstraintSubsystem()
+{
+}
+
+void UConstraintSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+
+	OnWorldInitHandle = FWorldDelegates::OnPreWorldInitialization.AddStatic(&UConstraintSubsystem::OnWorldInit);
+	OnWorldCleanupHandle = FWorldDelegates::OnWorldCleanup.AddStatic(&UConstraintSubsystem::OnWorldCleanup);
+	
+	SetFlags(RF_Transactional);
+}
+
+void UConstraintSubsystem::Deinitialize()
+{
+	for (int32 Index = ConstraintsInWorld.Num() - 1; Index >= 0; --Index)
+	{
+		ConstraintsInWorld[Index].RemoveConstraints(ConstraintsInWorld[Index].World);
+	}
+	ConstraintsInWorld.Reset();
+	FWorldDelegates::OnPreWorldInitialization.Remove(OnWorldInitHandle);
+	FWorldDelegates::OnWorldCleanup.Remove(OnWorldCleanupHandle);
+	Super::Deinitialize();
+}
+
+UConstraintSubsystem* UConstraintSubsystem::Get()
+{
+	return GEngine->GetEngineSubsystem<UConstraintSubsystem>();
+}
+
+const FConstraintsInWorld* UConstraintSubsystem::ConstraintsInWorldFind(UWorld* InWorld) const
+{
+	for (const FConstraintsInWorld& CInW : ConstraintsInWorld)
+	{
+		if (CInW.World.Get() == InWorld)
+		{
+			return &CInW;
+		}
+	}
+	return nullptr;
+}
+
+FConstraintsInWorld* UConstraintSubsystem::ConstraintsInWorldFind(UWorld* InWorld) 
+{
+	for (FConstraintsInWorld& CInW : ConstraintsInWorld)
+	{
+		if (CInW.World.Get() == InWorld)
+		{
+			return &CInW;
+		}
+	}
+	return nullptr;
+}
+
+FConstraintsInWorld& UConstraintSubsystem::ConstraintsInWorldFindOrAdd(UWorld* InWorld)
+{
+	for (FConstraintsInWorld& CInW : ConstraintsInWorld)
+	{
+		if (CInW.World.Get() == InWorld)
+		{
+			return CInW;
+		}
+	}
+	FConstraintsInWorld NewCInW;
+	NewCInW.World = InWorld;
+	int32 Index = ConstraintsInWorld.Add(NewCInW);
+	return ConstraintsInWorld[Index];
+}
+TArray<TWeakObjectPtr<UTickableConstraint>> UConstraintSubsystem::GetConstraints(UWorld* InWorld) const
+{
+	static const TArray< TWeakObjectPtr<UTickableConstraint> > DummyArray;
+	if (const FConstraintsInWorld* Constraints = ConstraintsInWorldFind(InWorld))
+	{
+		return (Constraints->Constraints);
+	}
+	return DummyArray;
+}
+
+const TArray<TWeakObjectPtr<UTickableConstraint>>& UConstraintSubsystem::GetConstraintsArray(UWorld* InWorld) const
+{
+	static const TArray< TWeakObjectPtr<UTickableConstraint> > DummyArray;
+	if (const FConstraintsInWorld* Constraints = ConstraintsInWorldFind(InWorld))
+	{
+		return (Constraints->Constraints);
+	}
+	return DummyArray;
+}
+
+void UConstraintSubsystem::AddConstraint(UWorld* InWorld, UTickableConstraint* InConstraint)
+{	
+	Modify();
+	FConstraintsInWorld& Constraints = ConstraintsInWorldFindOrAdd(InWorld);
+	if (Constraints.Constraints.Contains(InConstraint) == false)
+	{
+		Constraints.Constraints.Emplace(InConstraint);
+	}
+	OnConstraintAddedToSystem_BP.Broadcast(this, InConstraint);
+}
+
+void UConstraintSubsystem::RemoveConstraint(UWorld* InWorld, UTickableConstraint* InConstraint, bool bDoNoCompensate)
+{
+	Modify();
+	OnConstraintRemovedFromSystem_BP.Broadcast(this, InConstraint, bDoNoCompensate);
+
+	// disable constraint
+	InConstraint->Modify();
+	InConstraint->TeardownConstraint(InWorld);
+	InConstraint->SetActive(false);
+
+	if (FConstraintsInWorld* Constraints = ConstraintsInWorldFind(InWorld))
+	{
+		Constraints->Constraints.Remove(InConstraint);
+	}
+}
+
+// we want InFunctionToTickBefore to tick first = InFunctionToTickBefore is a prerex of InFunctionToTickAfter
+void UConstraintSubsystem::SetConstraintDependencies(
+	FConstraintTickFunction* InFunctionToTickBefore,
+	FConstraintTickFunction* InFunctionToTickAfter)
+{
+	// look for child tick function in in parent's prerequisites. 
+	const TArray<FTickPrerequisite>& ParentPrerequisites = InFunctionToTickAfter->GetPrerequisites();
+	const bool bIsChildAPrerexOfParent = ParentPrerequisites.ContainsByPredicate([InFunctionToTickBefore](const FTickPrerequisite& Prerex)
+		{
+			return Prerex.PrerequisiteTickFunction == InFunctionToTickBefore;
+		});
+
+	// child tick function is already a prerex -> parent already ticks after child
+	if (bIsChildAPrerexOfParent)
+	{
+		return;
+	}
+
+	// look for parent tick function in in child's prerequisites
+	const TArray<FTickPrerequisite>& ChildPrerequisites = InFunctionToTickBefore->GetPrerequisites();
+	const bool bIsParentAPrerexOfChild = ChildPrerequisites.ContainsByPredicate([InFunctionToTickAfter](const FTickPrerequisite& Prerex)
+		{
+			return Prerex.PrerequisiteTickFunction == InFunctionToTickAfter;
+		});
+
+	// parent tick function is a prerex of the child tick function (child ticks after parent)
+	// so remove it before setting new dependencies.
+	if (bIsParentAPrerexOfChild)
+	{
+		InFunctionToTickBefore->RemovePrerequisite(this, *InFunctionToTickAfter);
+	}
+
+	// set dependency
+	InFunctionToTickAfter->AddPrerequisite(this, *InFunctionToTickBefore);
+}
+
+bool UConstraintSubsystem::HasConstraint(UWorld* InWorld, UTickableConstraint* InConstraint)
+{
+	const TArray<TWeakObjectPtr<UTickableConstraint>>& Constraints = GetConstraintsArray(InWorld);
+	return  Constraints.Contains(InConstraint);
+}
+
+#if WITH_EDITOR
+
+void UConstraintSubsystem::PostEditUndo()
+{
+	Super::PostEditUndo();
+
+	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(GetWorld());
+	Controller.Notify(EConstraintsManagerNotifyType::ManagerUpdated, this);
+
+}
+#endif
+
+void UConstraintSubsystem::OnWorldInit(UWorld* InWorld, const UWorld::InitializationValues IVS)
+{
+	UConstraintSubsystem* System = UConstraintSubsystem::Get();
+	FConstraintsInWorld &ConstraintInWorld = System->ConstraintsInWorldFindOrAdd(InWorld);
+	ConstraintInWorld.Init(InWorld);
+}
+
+void UConstraintSubsystem::OnWorldCleanup(UWorld* InWorld, bool bSessionEnded, bool bCleanupResources)
+{
+	UConstraintSubsystem* System = UConstraintSubsystem::Get();
+
+	for (int32 Index = System->ConstraintsInWorld.Num() - 1; Index >= 0; --Index)
+	{
+		if (System->ConstraintsInWorld[Index].World.Get() == InWorld)
+		{
+			System->ConstraintsInWorld[Index].RemoveConstraints(InWorld);
+			System->ConstraintsInWorld.RemoveAt(Index);
+			break;
+		}
+	}
+}
+
+/*************************************
+*FConstraintsInWorld
+*************************************/
+
+void FConstraintsInWorld::RemoveConstraints(UWorld* InWorld)
+{
+	for (TWeakObjectPtr<UTickableConstraint>& Constraint : Constraints)
+	{
+		if (Constraint.IsValid())
+		{
+			Constraint->TeardownConstraint(InWorld);
+			Constraint->SetActive(false);
+		}
+	}
+	Constraints.SetNum(0);
+}
+
+
+void FConstraintsInWorld::Init(UWorld* InWorld)
+{
+	if (InWorld)
+	{
+		World = InWorld;
+	}
+}
+
+
+

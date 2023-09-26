@@ -782,7 +782,7 @@ void UMovieSceneControlRigParameterSection::OnBindingIDsUpdated(const TMap<UE::M
 {
 	for (FConstraintAndActiveChannel& ConstraintChannel : ConstraintsChannels)
 	{
-		if (UTickableTransformConstraint* TransformConstraint = Cast< UTickableTransformConstraint>(ConstraintChannel.Constraint.Get()))
+		if (UTickableTransformConstraint* TransformConstraint = Cast< UTickableTransformConstraint>(ConstraintChannel.GetConstraint()))
 		{
 			if (TransformConstraint->ChildTRSHandle)
 			{
@@ -793,17 +793,6 @@ void UMovieSceneControlRigParameterSection::OnBindingIDsUpdated(const TMap<UE::M
 				TransformConstraint->ParentTRSHandle->OnBindingIDsUpdated(OldFixedToNewFixedMap, LocalSequenceID, Hierarchy, Player);
 			}
 		}
-		if (UTickableTransformConstraint* SpawnCopy = Cast< UTickableTransformConstraint>(ConstraintChannel.ConstraintCopyToSpawn))
-		{
-			if (SpawnCopy->ChildTRSHandle)
-			{
-				SpawnCopy->ChildTRSHandle->OnBindingIDsUpdated(OldFixedToNewFixedMap, LocalSequenceID, Hierarchy, Player);
-			}
-			if (SpawnCopy->ParentTRSHandle)
-			{
-				SpawnCopy->ParentTRSHandle->OnBindingIDsUpdated(OldFixedToNewFixedMap, LocalSequenceID, Hierarchy, Player);
-			}
-		}
 	}
 }
 
@@ -811,7 +800,7 @@ void UMovieSceneControlRigParameterSection::GetReferencedBindings(TArray<FGuid>&
 {
 	for (FConstraintAndActiveChannel& ConstraintChannel : ConstraintsChannels)
 	{
-		if (UTickableTransformConstraint* TransformConstraint = Cast< UTickableTransformConstraint>(ConstraintChannel.Constraint.Get()))
+		if (UTickableTransformConstraint* TransformConstraint = Cast< UTickableTransformConstraint>(ConstraintChannel.GetConstraint().Get()))
 		{
 			if (TransformConstraint->ChildTRSHandle && TransformConstraint->ChildTRSHandle->ConstraintBindingID.IsValid())
 			{
@@ -828,14 +817,6 @@ void UMovieSceneControlRigParameterSection::GetReferencedBindings(TArray<FGuid>&
 void UMovieSceneControlRigParameterSection::PreSave(FObjectPreSaveContext SaveContext)
 {
 	Super::PreSave(SaveContext);
-	
-	for (FConstraintAndActiveChannel& ActiveChannel : ConstraintsChannels)
-	{
-		if (ActiveChannel.Constraint.IsValid())
-		{
-			ActiveChannel.ConstraintCopyToSpawn = ActiveChannel.Constraint->Duplicate(this);
-		}
-	}
 }
 
 bool UMovieSceneControlRigParameterSection::RenameParameterName(const FName& OldParameterName, const FName& NewParameterName)
@@ -1028,21 +1009,7 @@ void UMovieSceneControlRigParameterSection::Serialize(FArchive& Ar)
 #if WITH_EDITOR
 void UMovieSceneControlRigParameterSection::PostDuplicate(bool bDuplicateForPIE)
 {
-	Super::PostDuplicate(bDuplicateForPIE);
-	//if not duplicating for PIE clear out the soft object ptrs to the constraints we dont' want to hold pointers to the old constraints.
-	//also make the copy to spawn so we can duplicate it if it doesn't exist in the level
-	//to the old ones but make new duplicates
-	if (bDuplicateForPIE == false)
-	{
-		for (FConstraintAndActiveChannel& ConstraintChannel : ConstraintsChannels)
-		{
-			if (ConstraintChannel.Constraint.IsValid() && !ConstraintChannel.ConstraintCopyToSpawn)
-			{
-				ConstraintChannel.ConstraintCopyToSpawn = ConstraintChannel.Constraint->Duplicate(this);
-			}
-			ConstraintChannel.Constraint.Reset();
-		}
-	}
+	Super::PostDuplicate(bDuplicateForPIE);	
 }
 #endif
 
@@ -1064,8 +1031,7 @@ void UMovieSceneControlRigParameterSection::PostLoad()
 	{
 		for (FConstraintAndActiveChannel& ConstraintChannel : ConstraintsChannels)
 		{
-			ConstraintChannel.Constraint.Reset(); //clear it out may be referencing wrong level
-			if (UTickableTransformConstraint* TransformConstraint = Cast<UTickableTransformConstraint>(ConstraintChannel.ConstraintCopyToSpawn))
+			if (UTickableTransformConstraint* TransformConstraint = Cast<UTickableTransformConstraint>(ConstraintChannel.GetConstraint()))
 			{
 				if (UTransformableControlHandle* Handle = Cast<UTransformableControlHandle>(TransformConstraint->ChildTRSHandle))
 				{
@@ -1466,20 +1432,19 @@ void UMovieSceneControlRigParameterSection::AddSpaceChannel(FName InControlName,
 	}
 }
 
-bool UMovieSceneControlRigParameterSection::HasConstraintChannel(const FName& InConstraintName) const
+bool UMovieSceneControlRigParameterSection::HasConstraintChannel(const FGuid& InGuid) const
 {
-	return ConstraintsChannels.ContainsByPredicate( [InConstraintName](const FConstraintAndActiveChannel& InChannel)
+	return ConstraintsChannels.ContainsByPredicate( [InGuid](const FConstraintAndActiveChannel& InChannel)
 	{
-		return InChannel.Constraint.IsValid() ? InChannel.Constraint->GetFName() == InConstraintName : false;
+		return InChannel.GetConstraint().Get() ? InChannel.GetConstraint()->ConstraintID == InGuid : false;
 	});
 }
 
-FConstraintAndActiveChannel* UMovieSceneControlRigParameterSection::GetConstraintChannel(const FName& InConstraintName)
+FConstraintAndActiveChannel* UMovieSceneControlRigParameterSection::GetConstraintChannel(const FGuid& InConstraintID)
 {
-	const int32 Index = ConstraintsChannels.IndexOfByPredicate([InConstraintName](const FConstraintAndActiveChannel& InChannel)
+	const int32 Index = ConstraintsChannels.IndexOfByPredicate([InConstraintID](const FConstraintAndActiveChannel& InChannel)
 		{
-			return InChannel.Constraint.IsValid() ? InChannel.Constraint->GetFName() == InConstraintName : (InChannel.ConstraintCopyToSpawn ?
-			InChannel.ConstraintCopyToSpawn->GetFName() == InConstraintName : false);
+			return InChannel.GetConstraint().Get() ? InChannel.GetConstraint()->ConstraintID == InConstraintID : false;
 		});
 	return (Index != INDEX_NONE) ? &ConstraintsChannels[Index] : nullptr;	
 }
@@ -1488,12 +1453,12 @@ void UMovieSceneControlRigParameterSection::ReplaceConstraint(const FName InCons
 {
 	const int32 Index = ConstraintsChannels.IndexOfByPredicate([InConstraintName](const FConstraintAndActiveChannel& InChannel)
 	{
-		return InChannel.ConstraintCopyToSpawn ? InChannel.ConstraintCopyToSpawn->GetFName() == InConstraintName : false;
+		return InChannel.GetConstraint().Get() ? InChannel.GetConstraint()->GetFName() == InConstraintName : false;
 	});
 	if (Index != INDEX_NONE)
 	{
 		Modify();
-		ConstraintsChannels[Index].Constraint = InConstraint;
+		ConstraintsChannels[Index].SetConstraint(InConstraint);
 		ReconstructChannelProxy();
 	}
 }
@@ -1505,8 +1470,7 @@ void UMovieSceneControlRigParameterSection::OnConstraintsChanged()
 
 void UMovieSceneControlRigParameterSection::AddConstraintChannel(UTickableConstraint* InConstraint)
 {
-	
-	if (InConstraint && !HasConstraintChannel(InConstraint->GetFName()))
+	if (InConstraint && !HasConstraintChannel(InConstraint->ConstraintID))
 	{
 		Modify();
 		
@@ -1516,8 +1480,9 @@ void UMovieSceneControlRigParameterSection::AddConstraintChannel(UTickableConstr
 		ExistingChannel->SetDefault(false);
 		
 		//make copy that we can spawn if it doesn't exist
-		ConstraintsChannels[NewIndex].ConstraintCopyToSpawn = InConstraint->Duplicate(this);
-
+		//the rename changes the outer to this section (from any actor manager)
+		InConstraint->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		
 		if (OnConstraintChannelAdded.IsBound())
 		{
 			OnConstraintChannelAdded.Broadcast(this, ExistingChannel);
@@ -1536,7 +1501,7 @@ void UMovieSceneControlRigParameterSection::RemoveConstraintChannel(const UTicka
 	}
 	const int32 Index = ConstraintsChannels.IndexOfByPredicate([InConstraint](const FConstraintAndActiveChannel& InChannel)
 	{
-		return InChannel.Constraint.IsValid() ? InChannel.Constraint == InConstraint : false;
+		return InChannel.GetConstraint().Get() ? InChannel.GetConstraint().Get() == InConstraint : false;
 	});
 
 	if (ConstraintsChannels.IsValidIndex(Index))
@@ -1670,42 +1635,45 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 		auto AddConstrainChannels = [this, GetConstraints, &ConstraintsChannelIndex, &TotalIndex, &Channels](
 			const FName& InControlName, const FText& InGroup, const bool bEnabled)
 		{
-			TArray<TObjectPtr<UTickableConstraint>> Constraints = GetConstraints(InControlName);
-			for (const TObjectPtr<UTickableConstraint>& Constraint: Constraints)
+			TArray<TWeakObjectPtr<UTickableConstraint>> Constraints = GetConstraints(InControlName);
+			for (const TWeakObjectPtr<UTickableConstraint>& Constraint: Constraints)
 			{
-				const FName& ConstraintName = Constraint->GetFName();
-				if(FConstraintAndActiveChannel* ConstraintChannel = GetConstraintChannel(ConstraintName))
+				if (Constraint.IsValid())
 				{
-					if (FChannelMapInfo* ChannelInfo = ControlChannelMap.Find(InControlName))
+					const FGuid& ConstraintID = Constraint->ConstraintID;
+					if (FConstraintAndActiveChannel* ConstraintChannel = GetConstraintChannel(ConstraintID))
 					{
-						ChannelInfo->ConstraintsIndex.Add(ConstraintsChannelIndex);
-					}
+						if (FChannelMapInfo* ChannelInfo = ControlChannelMap.Find(InControlName))
+						{
+							ChannelInfo->ConstraintsIndex.Add(ConstraintsChannelIndex);
+						}
 
 #if WITH_EDITOR
-					ConstraintChannel->ActiveChannel.ExtraLabel = [WeakConstraint = MakeWeakObjectPtr(Constraint)]
-					{
-						if (WeakConstraint.IsValid())
+						ConstraintChannel->ActiveChannel.ExtraLabel = [Constraint]
 						{
-							FString ParentStr; WeakConstraint->GetLabel().Split(TEXT("."), &ParentStr, nullptr);
-							if (!ParentStr.IsEmpty())
+							if (Constraint.IsValid())
 							{
-								return ParentStr;
-							}		
-						}
-						static const FString DummyStr;
-						return DummyStr;
-					};
-					
-					const FText DisplayText = FText::FromString(Constraint->GetTypeLabel());
-					FMovieSceneChannelMetaData MetaData(ConstraintName, DisplayText,InGroup, bEnabled);
-					ConstraintsChannelIndex += 1;
-					MetaData.SortOrder = TotalIndex++;
-					MetaData.bCanCollapseToTrack = false;
-		
-					Channels.Add(ConstraintChannel->ActiveChannel, MetaData, TMovieSceneExternalValue<bool>());
+								FString ParentStr; Constraint->GetLabel().Split(TEXT("."), &ParentStr, nullptr);
+								if (!ParentStr.IsEmpty())
+								{
+									return ParentStr;
+								}
+							}
+							static const FString DummyStr;
+							return DummyStr;
+						};
+
+						const FText DisplayText = FText::FromString(Constraint->GetTypeLabel());
+						FMovieSceneChannelMetaData MetaData(Constraint->GetFName(), DisplayText, InGroup, bEnabled);
+						ConstraintsChannelIndex += 1;
+						MetaData.SortOrder = TotalIndex++;
+						MetaData.bCanCollapseToTrack = false;
+
+						Channels.Add(ConstraintChannel->ActiveChannel, MetaData, TMovieSceneExternalValue<bool>());
 #else
-					Channels.Add(ConstraintChannel->ActiveChannel);
+						Channels.Add(ConstraintChannel->ActiveChannel);
 #endif
+					}
 				}
 			}
 		};
@@ -2886,7 +2854,7 @@ void UMovieSceneControlRigParameterSection::AutoSetTangents(const FName& Control
 }
 #if WITH_EDITOR
 
-void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber FrameNumber, bool bSetDefault, ERichCurveInterpMode InInterpMode)
+void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber FrameNumber, bool bSetDefault, EMovieSceneKeyInterpolation InInterpMode)
 {
 	if (ControlRig)
 	{
@@ -2900,23 +2868,28 @@ void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber Fra
 		{
 			switch (InInterpMode)
 			{
-			case RCIM_Linear:
+			case EMovieSceneKeyInterpolation::Linear:
 				FloatChannels[ChannelIndex++]->AddLinearKey(FrameNumber, Value.X);
 				FloatChannels[ChannelIndex++]->AddLinearKey(FrameNumber, Value.Y);
 				FloatChannels[ChannelIndex++]->AddLinearKey(FrameNumber, Value.Z);
 				break;
 
-			case RCIM_Constant:
+			case EMovieSceneKeyInterpolation::Constant:
 				FloatChannels[ChannelIndex++]->AddConstantKey(FrameNumber, Value.X);
 				FloatChannels[ChannelIndex++]->AddConstantKey(FrameNumber, Value.Y);
 				FloatChannels[ChannelIndex++]->AddConstantKey(FrameNumber, Value.Z);
 				break;
 
-			case RCIM_Cubic:
-			default:
+			case  EMovieSceneKeyInterpolation::Auto:
 				FloatChannels[ChannelIndex++]->AddCubicKey(FrameNumber, Value.X, ERichCurveTangentMode::RCTM_Auto);
 				FloatChannels[ChannelIndex++]->AddCubicKey(FrameNumber, Value.Y, ERichCurveTangentMode::RCTM_Auto);
 				FloatChannels[ChannelIndex++]->AddCubicKey(FrameNumber, Value.Z, ERichCurveTangentMode::RCTM_Auto);
+				break;
+			case  EMovieSceneKeyInterpolation::SmartAuto:
+			default:
+				FloatChannels[ChannelIndex++]->AddCubicKey(FrameNumber, Value.X, ERichCurveTangentMode::RCTM_SmartAuto);
+				FloatChannels[ChannelIndex++]->AddCubicKey(FrameNumber, Value.Y, ERichCurveTangentMode::RCTM_SmartAuto);
+				FloatChannels[ChannelIndex++]->AddCubicKey(FrameNumber, Value.Z, ERichCurveTangentMode::RCTM_SmartAuto);
 				break;
 			}
 		};
@@ -2983,17 +2956,21 @@ void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber Fra
 
 					switch (InInterpMode)
 					{
-					case RCIM_Linear:
+					case EMovieSceneKeyInterpolation::Linear:
 						FloatChannels[ChannelIndex++]->AddLinearKey(FrameNumber, Val);
 						break;
 
-					case RCIM_Constant:
+					case EMovieSceneKeyInterpolation::Constant:
 						FloatChannels[ChannelIndex++]->AddConstantKey(FrameNumber, Val);
 						break;
 
-					case RCIM_Cubic:
-					default:
+					case EMovieSceneKeyInterpolation::Auto:
 						FloatChannels[ChannelIndex++]->AddCubicKey(FrameNumber, Val, ERichCurveTangentMode::RCTM_Auto);
+						break;
+
+					case EMovieSceneKeyInterpolation::SmartAuto:
+					default:
+						FloatChannels[ChannelIndex++]->AddCubicKey(FrameNumber, Val, ERichCurveTangentMode::RCTM_SmartAuto);
 						break;
 					}
 
@@ -3010,20 +2987,23 @@ void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber Fra
 
 					switch (InInterpMode)
 					{
-					case RCIM_Linear:
+					case EMovieSceneKeyInterpolation::Linear:
 						FloatChannels[ChannelIndex++]->AddLinearKey(FrameNumber, Val.X);
 						FloatChannels[ChannelIndex++]->AddLinearKey(FrameNumber, Val.Y);
 						break;
 
-					case RCIM_Constant:
+					case  EMovieSceneKeyInterpolation::Constant:
 						FloatChannels[ChannelIndex++]->AddConstantKey(FrameNumber, Val.X);
 						FloatChannels[ChannelIndex++]->AddConstantKey(FrameNumber, Val.Y);
 						break;
-
-					case RCIM_Cubic:
-					default:
+					case  EMovieSceneKeyInterpolation::Auto:
 						FloatChannels[ChannelIndex++]->AddCubicKey(FrameNumber, Val.X, ERichCurveTangentMode::RCTM_Auto);
 						FloatChannels[ChannelIndex++]->AddCubicKey(FrameNumber, Val.Y, ERichCurveTangentMode::RCTM_Auto);
+						break;
+					case EMovieSceneKeyInterpolation::SmartAuto:
+					default:
+						FloatChannels[ChannelIndex++]->AddCubicKey(FrameNumber, Val.X, ERichCurveTangentMode::RCTM_SmartAuto);
+						FloatChannels[ChannelIndex++]->AddCubicKey(FrameNumber, Val.Y, ERichCurveTangentMode::RCTM_SmartAuto);
 						break;
 					}
 
@@ -3075,9 +3055,7 @@ void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber Fra
 					}
 					else
 					{
-						Val = 
-							ControlRig
-							->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransform_Float>().ToTransform();
+						Val = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransform_Float>().ToTransform();
 					}
 					FVector CurrentVector = Val.GetTranslation();
 					if (bSetDefault)
@@ -3128,7 +3106,7 @@ void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber Fra
 	}
 }
 
-bool UMovieSceneControlRigParameterSection::LoadAnimSequenceIntoThisSection(UAnimSequence* AnimSequence, UMovieScene* MovieScene, UObject* BoundObject, bool bKeyReduce, float Tolerance, FFrameNumber InStartFrame)
+bool UMovieSceneControlRigParameterSection::LoadAnimSequenceIntoThisSection(UAnimSequence* AnimSequence, UMovieScene* MovieScene, UObject* BoundObject, bool bKeyReduce, float Tolerance, FFrameNumber InStartFrame, EMovieSceneKeyInterpolation InInterpolation)
 {
 	USkeletalMeshComponent* SkelMeshComp = Cast<USkeletalMeshComponent>(BoundObject);
 	
@@ -3265,8 +3243,7 @@ bool UMovieSceneControlRigParameterSection::LoadAnimSequenceIntoThisSection(UAni
 		}
 		ControlRig->Execute(FRigUnit_InverseExecution::EventName);
 
-		const ERichCurveInterpMode InterpMode = bKeyReduce ? RCIM_Cubic : RCIM_Linear;
-		RecordControlRigKey(FrameNumber, Index == 0, InterpMode);
+		RecordControlRigKey(FrameNumber, Index == 0, InInterpolation);
 		Progress.EnterProgressFrame(1);
 		if (Progress.ShouldCancel())
 		{

@@ -942,7 +942,7 @@ void F3DTransformTrackEditor::AddTransformKeys( UObject* ObjectToKey, const TOpt
 //todo move to external function so it can also be used by sdk/python
 static void UpdateTransformBasedOnConstraint(FTransform& CurrentTransform, USceneComponent* SceneComponent)
 {
-	TArray< TObjectPtr<UTickableConstraint> > Constraints;
+	TArray< TWeakObjectPtr<UTickableConstraint> > Constraints;
 	AActor* ShapeActor = SceneComponent->GetTypedOuter<AActor>();
 	
 	if (ShapeActor)
@@ -1558,7 +1558,7 @@ static UTickableTransformConstraint* GetTickableTransformConstraint(IMovieSceneC
 
 	if (Index != INDEX_NONE)
 	{
-		Constraint = Cast<UTickableTransformConstraint>(ConstraintChannels[Index].Constraint.Get());
+		Constraint = Cast<UTickableTransformConstraint>(ConstraintChannels[Index].GetConstraint().Get());
 	}
 	return Constraint;
 }
@@ -1636,17 +1636,17 @@ void F3DTransformTrackEditor::HandleConstraintRemoved(IMovieSceneConstrainedSect
 									return;
 								}
 
-								const FConstraintAndActiveChannel* ConstraintChannel = InSection->GetConstraintChannel(Constraint->GetFName());
-								if (!ConstraintChannel || ConstraintChannel->Constraint != Constraint)
+								const FConstraintAndActiveChannel* ConstraintChannel = InSection->GetConstraintChannel(Constraint->ConstraintID);
+								if (!ConstraintChannel || ConstraintChannel->GetConstraint().Get() != Constraint)
 								{
 									return;
 								}
 
 								const bool bCompensate = (InNotifyType == EConstraintsManagerNotifyType::ConstraintRemovedWithCompensation);
-								if (bCompensate && ConstraintChannel->Constraint.IsValid())
+								if (bCompensate && ConstraintChannel->GetConstraint().Get())
 								{
 									FMovieSceneConstraintChannelHelper::HandleConstraintRemoved(
-										ConstraintChannel->Constraint.Get(),
+										ConstraintChannel->GetConstraint().Get(),
 										&ConstraintChannel->ActiveChannel,
 										GetSequencer(),
 										Section);
@@ -1697,7 +1697,7 @@ void F3DTransformTrackEditor::HandleConstraintPropertyChanged(UTickableTransform
 	const TArray<FConstraintAndActiveChannel>& ConstraintChannels = ConstraintSection->GetConstraintsChannels();
 	const FConstraintAndActiveChannel* Channel = ConstraintChannels.FindByPredicate([InConstraint](const FConstraintAndActiveChannel& Channel)
 	{
-		return Channel.Constraint == InConstraint || Channel.ConstraintCopyToSpawn == InConstraint;
+		return Channel.GetConstraint() == InConstraint;
 	});
 
 	if (!Channel)

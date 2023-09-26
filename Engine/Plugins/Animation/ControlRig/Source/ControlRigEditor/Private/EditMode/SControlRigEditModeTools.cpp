@@ -34,6 +34,7 @@
 #include "ControlRigSpaceChannelEditors.h"
 #include "IKeyArea.h"
 #include "Widgets/Notifications/SNotificationList.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "ScopedTransaction.h"
 #include "EditMode/ControlRigEditModeToolkit.h"
@@ -188,6 +189,7 @@ void SControlRigEditModeTools::Construct(const FArguments& InArgs, TSharedPtr<FC
 	RigTreeDelegates.OnGetDisplaySettings = FOnGetRigTreeDisplaySettings::CreateSP(this, &SControlRigEditModeTools::GetDisplaySettings);
 	RigTreeDelegates.OnSelectionChanged = FOnRigTreeSelectionChanged::CreateSP(this, &SControlRigEditModeTools::HandleSelectionChanged);
 #endif
+
 
 	ChildSlot
 	[
@@ -362,7 +364,51 @@ void SControlRigEditModeTools::Construct(const FArguments& InArgs, TSharedPtr<FC
 					[
 						SNew(SSpacer)
 					]
+					// "Selected" button
+					+SHorizontalBox::Slot()
+					.AutoWidth()
+					.HAlign(HAlign_Right)
+					.VAlign(VAlign_Center)
+					.Padding(0.f, 2.f, 8.f, 2.f)
+					[
+						// Combo Button to swap what constraints we show  
+						SNew(SComboButton)
+						.OnGetMenuContent_Lambda([this]()
+						{
+							FMenuBuilder MenuBuilder(true, NULL);
+							MenuBuilder.BeginSection("Constraints");
+							if (ConstraintsEditionWidget.IsValid())
+							{
+								for (int32 Index = 0; Index < 4; ++Index)
+								{
+									FUIAction ItemAction(FExecuteAction::CreateSP(this, &SControlRigEditModeTools::OnSelectShowConstraints, Index));
+									const TAttribute<FText> Text = ConstraintsEditionWidget->GetShowConstraintsText((FBaseConstraintListWidget::EShowConstraints)(Index));
+									const TAttribute<FText> Tooltip = ConstraintsEditionWidget->GetShowConstraintsTooltip((FBaseConstraintListWidget::EShowConstraints)(Index));
+									MenuBuilder.AddMenuEntry(Text, Tooltip, FSlateIcon(), ItemAction);
+								}
+							}
+							MenuBuilder.EndSection();
 
+							return MenuBuilder.MakeWidget();
+						})
+						.ButtonContent()
+						[
+							SNew(SHorizontalBox)
+			
+							+SHorizontalBox::Slot()
+							[
+								SNew(STextBlock)
+								.Text_Lambda([this]()
+									{
+										return GetShowConstraintsName();
+									})
+								.ToolTipText_Lambda([this]()
+								{
+									return GetShowConstraintsTooltip();
+								})
+							]
+						]
+					]
 					// "Plus" icon
 					+SHorizontalBox::Slot()
 					.AutoWidth()
@@ -432,9 +478,38 @@ void SControlRigEditModeTools::SetSettingsDetailsObject(const TWeakObjectPtr<>& 
 		TArray<TWeakObjectPtr<>> Objects;
 		Objects.Add(InObject);
 		SettingsDetailsView->SetObjects(Objects);
-
 	}
 }
+
+void SControlRigEditModeTools::OnSelectShowConstraints(int32 Index)
+{
+	if (ConstraintsEditionWidget.IsValid())
+	{
+		SConstraintsEditionWidget::EShowConstraints ShowConstraint = (SConstraintsEditionWidget::EShowConstraints)(Index);
+		ConstraintsEditionWidget->SetShowConstraints(ShowConstraint);
+	}
+}
+
+FText SControlRigEditModeTools::GetShowConstraintsName() const
+{
+	FText Text = FText::GetEmpty();
+	if (ConstraintsEditionWidget.IsValid())
+	{
+		Text = ConstraintsEditionWidget->GetShowConstraintsText(FBaseConstraintListWidget::ShowConstraints);
+	}
+	return Text;
+}
+
+FText SControlRigEditModeTools::GetShowConstraintsTooltip() const
+{
+	FText Text = FText::GetEmpty();
+	if (ConstraintsEditionWidget.IsValid())
+	{
+		Text = ConstraintsEditionWidget->GetShowConstraintsTooltip(FBaseConstraintListWidget::ShowConstraints);
+	}
+	return Text;
+}
+
 #if USE_LOCAL_DETAILS
 
 void SControlRigEditModeTools::SetEulerTransformDetailsObjects(const TArray<TWeakObjectPtr<>>& InObjects)

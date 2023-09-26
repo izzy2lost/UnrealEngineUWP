@@ -2,7 +2,6 @@
 
 
 #include "ConstraintsActor.h"
-
 #include "ConstraintsManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ConstraintsActor)
@@ -74,14 +73,15 @@ void AConstraintsActor::RegisterConstraintsTickFunctions() const
 			// remove invalid pointers
 			ConstraintsManager->Constraints.RemoveAll( [](const TObjectPtr<UTickableConstraint>& InConstraint)
 			{
-				return !IsValid(InConstraint);
+				return !IsValid(InConstraint) || !InConstraint->IsValid();
 			});
 			
-			// ensure registration
+			// ensure registration, we now do this by adding it to the controller (which registers and sets it with the
+			//subsystem
+			FConstraintsManagerController& Controller = FConstraintsManagerController::Get(GetWorld());
 			for (const TObjectPtr<UTickableConstraint>& ConstPtr: ConstraintsManager->Constraints)
 			{
-				ConstPtr->ConstraintTick.RegisterTickFunction(Level);
-				ConstPtr->ConstraintTick.Constraint = ConstPtr;
+				Controller.AddConstraint(ConstPtr);
 			}
 		}
 	}
@@ -91,12 +91,5 @@ void AConstraintsActor::RegisterConstraintsTickFunctions() const
 void AConstraintsActor::PostEditUndo()
 {
 	Super::PostEditUndo();
-
-	if (IsValid(ConstraintsManager))
-	{
-		const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(GetWorld());
-		Controller.Notify(EConstraintsManagerNotifyType::ManagerUpdated, ConstraintsManager);
-		ConstraintsManager->Init(GetWorld());
-	}
 }
 #endif
