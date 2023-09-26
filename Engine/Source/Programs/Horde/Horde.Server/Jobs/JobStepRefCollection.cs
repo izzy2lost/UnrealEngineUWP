@@ -116,7 +116,7 @@ namespace Horde.Server.Jobs
 		{
 			List<MongoIndex<JobStepRef>> indexes = new List<MongoIndex<JobStepRef>>();
 			indexes.Add(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.TemplateId).Ascending(x => x.Name).Descending(x => x.Change));
-			indexes.Add(_bisectTaskIdIndex = MongoIndex.Create<JobStepRef>(keys => keys.Descending(x => x.BisectTaskId)));			
+			indexes.Add(_bisectTaskIdIndex = MongoIndex.Create<JobStepRef>(keys => keys.Descending(x => x.BisectTaskId), sparse: true));
 
 			_jobStepRefs = mongoService.GetCollection<JobStepRef>("JobStepRefs", indexes);
 			_telemetrySink = telemetrySink;
