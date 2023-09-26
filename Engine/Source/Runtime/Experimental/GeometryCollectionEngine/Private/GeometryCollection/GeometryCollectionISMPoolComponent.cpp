@@ -281,7 +281,7 @@ void FGeometryCollectionISMPool::BatchUpdateInstanceCustomData(FGeometryCollecti
 	}
 	
 	FGeometryCollectionISM& ISM = ISMs[MeshInfo.ISMIndex];
-	if (!ensure(CustomFloatValue < ISM.MeshInstance.Desc.NumCustomDataFloats))
+	if (!ensure(CustomFloatIndex < ISM.MeshInstance.Desc.NumCustomDataFloats))
 	{
 		return;
 	}
