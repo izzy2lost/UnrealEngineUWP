@@ -448,7 +448,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				builder.Append("struct ").Append(staticsName).Append("\r\n");
 				builder.Append("{\r\n");
 				builder.Append("\tstatic const UECodeGen_Private::FEnumeratorParam Enumerators[];\r\n");
-				builder.AppendMetaDataDecl(enumObj, MetaDataParamsName, 2);
+				builder.AppendMetaDataDecl(enumObj, null, null, MetaDataParamsName, 1);
 				builder.Append("\tstatic const UECodeGen_Private::FEnumParams EnumParams;\r\n");
 				builder.Append("};\r\n");
 
@@ -465,9 +465,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					++enumIndex;
 				}
 				builder.Append("};\r\n");
-
-				// Meta data
-				builder.AppendMetaDataDef(enumObj, staticsName, MetaDataParamsName, 0);
 
 				// Singleton parameters
 				builder.Append("const UECodeGen_Private::FEnumParams ").Append(staticsName).Append("::EnumParams = {\r\n");
@@ -638,6 +635,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			int hashCodeBlockStart = builder.Length;
 
 			// Collect the properties
+			PropertyMemberContextImpl context = new(CodeGenerator, scriptStruct, scriptStruct.SourceName, staticsName);
 			UhtUsedDefineScopes<UhtProperty> properties = new(scriptStruct.Properties);
 
 			// Declare the statics structure
@@ -653,7 +651,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				}
 
 				// Meta data
-				builder.AppendMetaDataDecl(scriptStruct, MetaDataParamsName, 1);
+				builder.AppendMetaDataDecl(scriptStruct, context, properties, MetaDataParamsName, 1);
 
 				// New struct ops
 				if (scriptStruct.ScriptStructFlags.HasAnyFlags(EStructFlags.Native))
@@ -661,16 +659,14 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					builder.Append("\tstatic void* NewStructOps();\r\n");
 				}
 
-				AppendPropertiesDecl(builder, scriptStruct, scriptStruct.SourceName, properties, staticsName, 1);
+				AppendPropertiesDecl(builder, context, properties, 1);
 
-				builder.Append("\tstatic const UECodeGen_Private::FStructParams ReturnStructParams;\r\n");
+				builder.Append("\tstatic const UECodeGen_Private::FStructParams StructParams;\r\n");
 				builder.Append("};\r\n");
 			}
 
 			// Populate the elements of the static structure
 			{
-				builder.AppendMetaDataDef(scriptStruct, staticsName, MetaDataParamsName, 0);
-
 				if (scriptStruct.ScriptStructFlags.HasAnyFlags(EStructFlags.Native))
 				{
 					builder.Append("void* ").Append(staticsName).Append("::NewStructOps()\r\n");
@@ -679,9 +675,9 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					builder.Append("}\r\n");
 				}
 
-				AppendPropertiesDefs(builder, scriptStruct, scriptStruct.SourceName, properties, staticsName, 0);
+				AppendPropertiesDefs(builder, context, properties, 0);
 
-				builder.Append("const UECodeGen_Private::FStructParams ").Append(staticsName).Append("::ReturnStructParams = {\r\n");
+				builder.Append("const UECodeGen_Private::FStructParams ").Append(staticsName).Append("::StructParams = {\r\n");
 				builder.Append("\t(UObject* (*)())").Append(PackageSingletonName).Append(",\r\n");
 				builder.Append('\t').Append(GetSingletonName(scriptStruct.SuperScriptStruct, true)).Append(",\r\n");
 				if (scriptStruct.ScriptStructFlags.HasAnyFlags(EStructFlags.Native))
@@ -701,8 +697,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				builder.Append($"\tEStructFlags(0x{(uint)(scriptStruct.ScriptStructFlags & ~EStructFlags.ComputedFlags):X8}),\r\n");
 				builder.Append('\t').AppendMetaDataParams(scriptStruct, staticsName, MetaDataParamsName).Append("\r\n");
 				builder.Append("};\r\n");
-
-				builder.AppendPropertiesParamsCountStaticAssert(properties, staticsName);
 			}
 
 			// Generate the registration function
@@ -721,7 +715,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				}
 				builder.Append("\tif (!").Append(innerSingletonName).Append(")\r\n");
 				builder.Append("\t{\r\n");
-				builder.Append("\t\tUECodeGen_Private::ConstructUScriptStruct(").Append(innerSingletonName).Append(", ").Append(staticsName).Append("::ReturnStructParams);\r\n");
+				builder.Append("\t\tUECodeGen_Private::ConstructUScriptStruct(").Append(innerSingletonName).Append(", ").Append(staticsName).Append("::StructParams);\r\n");
 				builder.Append("\t}\r\n");
 				builder.Append("\treturn ").Append(innerSingletonName).Append(";\r\n");
 				builder.Append("}\r\n");
@@ -869,6 +863,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			{
 
 				// Collect the properties
+				PropertyMemberContextImpl context = new(CodeGenerator, function, eventParameters, staticsName);
 				UhtUsedDefineScopes<UhtProperty> properties = new(function.Properties);
 
 				// Statics declaration
@@ -886,9 +881,9 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						AppendEventParameter(builder, function, strippedFunctionName, UhtPropertyTextType.EventParameterFunctionMember, false, 1, "\r\n");
 					}
 
-					AppendPropertiesDecl(builder, function, eventParameters, properties, staticsName, 1);
+					AppendPropertiesDecl(builder, context, properties, 1);
 
-					builder.AppendMetaDataDecl(function, MetaDataParamsName, 1);
+					builder.AppendMetaDataDecl(function, context, properties, MetaDataParamsName, 1);
 
 					builder.Append("\tstatic const UECodeGen_Private::FFunctionParams FuncParams;\r\n");
 
@@ -897,9 +892,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 				// Statics definition
 				{
-					AppendPropertiesDefs(builder, function, eventParameters, properties, staticsName, 0);
-
-					builder.AppendMetaDataDef(function, staticsName, MetaDataParamsName, 0);
+					AppendPropertiesDefs(builder, context, properties, 0);
 
 					builder
 						.Append("const UECodeGen_Private::FFunctionParams ")
@@ -946,8 +939,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						.Append(isNet ? function.RPCResponseId : 0).Append(", ")
 						.AppendMetaDataParams(function, staticsName, MetaDataParamsName)
 						.Append(" };\r\n");
-
-					builder.AppendPropertiesParamsCountStaticAssert(properties, staticsName);
 
 					if (!String.IsNullOrEmpty(sizeOfStatic))
 					{
@@ -1023,15 +1014,12 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return builder;
 		}
 
-		private StringBuilder AppendPropertiesDecl(StringBuilder builder, UhtStruct structObj, string structSourceName, UhtUsedDefineScopes<UhtProperty> properties, string staticsName, int tabs)
+		private static StringBuilder AppendPropertiesDecl(StringBuilder builder, IUhtPropertyMemberContext context, UhtUsedDefineScopes<UhtProperty> properties, int tabs)
 		{
 			if (properties.IsEmpty)
 			{
 				return builder;
 			}
-
-			PropertyMemberContextImpl context = new(CodeGenerator, structObj, structSourceName, staticsName);
-
 			builder.AppendInstances(properties, UhtDefineScopeNames.Standard,
 				builder => { },
 				(builder, property) => builder.AppendMemberDecl(property, context, property.EngineName, "", tabs),
@@ -1039,22 +1027,23 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return builder;
 		}
 
-		private StringBuilder AppendPropertiesDefs(StringBuilder builder, UhtStruct structObj, string structSourceName, UhtUsedDefineScopes<UhtProperty> properties, string staticsName, int tabs)
+		private static StringBuilder AppendPropertiesDefs(StringBuilder builder, IUhtPropertyMemberContext context, UhtUsedDefineScopes<UhtProperty> properties, int tabs)
 		{
 			if (properties.IsEmpty)
 			{
 				return builder;
 			}
-
-			PropertyMemberContextImpl context = new(CodeGenerator, structObj, structSourceName, staticsName);
-
 			builder.AppendInstances(properties, UhtDefineScopeNames.Standard,
 				(builder, property) => builder.AppendMemberDef(property, context, property.EngineName, "", null, tabs));
 
 			builder.AppendInstances(properties, UhtDefineScopeNames.Standard,
-				builder => builder.AppendTabs(tabs).Append("const UECodeGen_Private::FPropertyParamsBase* const ").Append(staticsName).Append("::PropPointers[] = {\r\n"),
+				builder => builder.AppendTabs(tabs).Append("const UECodeGen_Private::FPropertyParamsBase* const ").Append(context.StaticsName).Append("::PropPointers[] = {\r\n"),
 				(builder, property) => builder.AppendMemberPtr(property, context, property.EngineName, "", tabs + 1),
-				builder => builder.AppendTabs(tabs).Append("};\r\n"));
+				builder =>
+				{
+					builder.AppendTabs(tabs).Append("};\r\n");
+					builder.AppendTabs(tabs).Append("static_assert(UE_ARRAY_COUNT(").Append(context.StaticsName).Append("::PropPointers) < 2048);\r\n");
+				});
 			return builder;
 		}
 
@@ -1179,7 +1168,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						string getterCallText = property.Getter ?? "Get" + property.SourceName;
 						builder.AppendPropertyText(property, UhtPropertyTextType.GetterRetVal).Append(classObj.SourceName).Append("::").Append(getterCallText).Append("() const\r\n");
 						builder.Append("{\r\n");
-						builder.Append('\t').Append("return ").Append(property.SourceName).Append(";\r\n");
+						builder.Append("\treturn ").Append(property.SourceName).Append(";\r\n");
 						builder.Append("}\r\n");
 					}
 					if (property.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.SetterSpecifiedAuto))
@@ -1482,9 +1471,9 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 				builder.AppendIfInstances(functions, UhtDefineScopeNames.WithEditor, builder => builder.Append("\tstatic const FClassFunctionLinkInfo FuncInfo[];\r\n"));
 
-				builder.AppendMetaDataDecl(classObj, MetaDataParamsName, 1);
+				builder.AppendMetaDataDecl(classObj, context, properties, MetaDataParamsName, 1);
 
-				AppendPropertiesDecl(builder, classObj, classObj.SourceName, properties, staticsName, 1);
+				AppendPropertiesDecl(builder, context, properties, 1);
 
 				if (hasInterfaces)
 				{
@@ -1532,9 +1521,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						builder.Append("static_assert(UE_ARRAY_COUNT(").Append(staticsName).Append("::FuncInfo) < 2048);\r\n");
 					});
 
-				builder.AppendMetaDataDef(classObj, staticsName, MetaDataParamsName, 0);
-
-				AppendPropertiesDefs(builder, classObj, classObj.SourceName, properties, staticsName, 0);
+				AppendPropertiesDefs(builder, context, properties, 0);
 
 				if (hasInterfaces)
 				{
@@ -1600,8 +1587,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				builder.Append($"\t\t0x{(uint)classFlags:X8}u,\r\n");
 				builder.Append('\t').AppendMetaDataParams(classObj, staticsName, MetaDataParamsName).Append("\r\n");
 				builder.Append("};\r\n");
-
-				builder.AppendPropertiesParamsCountStaticAssert(properties, staticsName);
 			}
 
 			// Class registration
@@ -2021,22 +2006,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					}
 				}
 			}
-			return builder;
-		}
-
-		/// <summary>
-		/// Append static_assert to check that properties params count fit within struct
-		/// </summary>
-		/// <param name="builder">Destination builder</param>
-		/// <param name="properties">Collection of properties</param>
-		/// <param name="staticsName">Name of the statics section for this structure</param>
-		/// <returns>Destination builder</returns>
-		public static StringBuilder AppendPropertiesParamsCountStaticAssert(this StringBuilder builder, UhtUsedDefineScopes<UhtProperty> properties, string staticsName)
-		{
-			builder.AppendIfInstances(properties, UhtDefineScopeNames.Standard, builder =>
-			{
-				builder.Append("static_assert(UE_ARRAY_COUNT(").Append(staticsName).Append("::PropPointers) < 2048);\r\n");
-			});
 			return builder;
 		}
 	}

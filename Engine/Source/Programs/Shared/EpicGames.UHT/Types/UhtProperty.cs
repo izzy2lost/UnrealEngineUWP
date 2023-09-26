@@ -1165,6 +1165,20 @@ namespace EpicGames.UHT.Types
 		}
 
 		/// <summary>
+		/// Append the required code to declare the properties meta data
+		/// </summary>
+		/// <param name="builder">Output builder</param>
+		/// <param name="context">Current context</param>
+		/// <param name="name">Name of the property.  This is needed in some cases where the name in the declarations doesn't match the property name.</param>
+		/// <param name="nameSuffix">Suffix to the property name</param>
+		/// <param name="tabs">Number of tabs prefix the line with</param>
+		/// <returns>Output builder</returns>
+		public virtual StringBuilder AppendMetaDataDecl(StringBuilder builder, IUhtPropertyMemberContext context, string name, string nameSuffix, int tabs)
+		{
+			return builder.AppendMetaDataDecl(this, context.NamePrefix, name, nameSuffix, context.MetaDataSuffix, tabs);
+		}
+
+		/// <summary>
 		/// Append the required code to declare the property as a member
 		/// </summary>
 		/// <param name="builder">Output builder</param>
@@ -1184,14 +1198,9 @@ namespace EpicGames.UHT.Types
 		/// <param name="nameSuffix">Suffix to the property name</param>
 		/// <param name="tabs">Number of tabs prefix the line with</param>
 		/// <param name="paramsStructName">Structure name</param>
-		/// <param name="appendMetaDataDecl">If true, add the meta data decl prior to the member decl</param>
 		/// <returns>Output builder</returns>
-		public StringBuilder AppendMemberDecl(StringBuilder builder, IUhtPropertyMemberContext context, string name, string nameSuffix, int tabs, string paramsStructName, bool appendMetaDataDecl = true)
+		public static StringBuilder AppendMemberDecl(StringBuilder builder, IUhtPropertyMemberContext context, string name, string nameSuffix, int tabs, string paramsStructName)
 		{
-			if (appendMetaDataDecl)
-			{
-				builder.AppendMetaDataDecl(this, context, name, nameSuffix, tabs);
-			}
 			builder.AppendTabs(tabs).Append("static const UECodeGen_Private::").Append(paramsStructName).Append(' ').AppendNameDecl(context, name, nameSuffix).Append(";\r\n");
 			return builder;
 		}
@@ -1219,16 +1228,11 @@ namespace EpicGames.UHT.Types
 		/// <param name="tabs">Number of tabs prefix the line with</param>
 		/// <param name="paramsStructName">Structure name</param>
 		/// <param name="paramsGenFlags">Structure flags</param>
-		/// <param name="appendMetaDataDef">If true, add the meta data def prior to the member def</param>
 		/// <param name="appendOffset">If true, add the offset parameter</param>
 		/// <returns>Output builder</returns>
 		public StringBuilder AppendMemberDefStart(StringBuilder builder, IUhtPropertyMemberContext context, string name, string nameSuffix, string? offset, int tabs,
-			string paramsStructName, string paramsGenFlags, bool appendMetaDataDef = true, bool appendOffset = true)
+			string paramsStructName, string paramsGenFlags, bool appendOffset = true)
 		{
-			if (appendMetaDataDef)
-			{
-				builder.AppendMetaDataDef(this, context, name, nameSuffix, tabs);
-			}
 			builder
 				.AppendTabs(tabs)
 				.Append("const UECodeGen_Private::").Append(paramsStructName).Append(' ')

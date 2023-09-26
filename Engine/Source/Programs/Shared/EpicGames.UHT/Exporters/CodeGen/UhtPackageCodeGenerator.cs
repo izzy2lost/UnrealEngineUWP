@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Linq;
+using System.Text;
 using EpicGames.UHT.Types;
+using EpicGames.UHT.Utils;
 
 namespace EpicGames.UHT.Exporters.CodeGen
 {
@@ -117,5 +120,41 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return C;
 		}
 		#endregion
+	}
+
+	/// <summary>
+	/// Helper formatting methods
+	/// </summary>
+	public static class UhtPackageCodeGeneratorExtensions
+	{
+		/// <summary>
+		/// Append the meta data declaration
+		/// </summary>
+		/// <param name="builder">Destination builder</param>
+		/// <param name="type">Source type containing the meta data</param>
+		/// <param name="propertyContext">Context for formatting properties</param>
+		/// <param name="properties">Optional collection of properties to output</param>
+		/// <param name="name">Name</param>
+		/// <param name="tabs">Number of tabs to indent</param>
+		/// <returns>Destination builder</returns>
+		public static StringBuilder AppendMetaDataDecl(this StringBuilder builder, UhtType type, IUhtPropertyMemberContext? propertyContext, UhtUsedDefineScopes<UhtProperty>? properties, string name, int tabs)
+		{
+			UhtStruct? structObj = type as UhtStruct;
+			if (!type.MetaData.IsEmpty() || (properties != null && properties.Instances.Any(x => !x.MetaData.IsEmpty())))
+			{
+				builder.Append("#if WITH_METADATA\r\n");
+				builder.AppendMetaDataDecl(type, null, name, null, null, tabs);
+				if (propertyContext != null && properties != null)
+				{
+					builder.AppendInstances(properties, UhtDefineScopeNames.Standard,
+						(builder, property) =>
+						{
+							builder.AppendMetaDataDecl(property, propertyContext, property.EngineName, "", tabs);
+						});
+				}
+				builder.Append("#endif // WITH_METADATA\r\n");
+			}
+			return builder;
+		}
 	}
 }
