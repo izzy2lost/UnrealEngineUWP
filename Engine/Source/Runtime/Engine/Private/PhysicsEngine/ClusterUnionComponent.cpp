@@ -568,6 +568,16 @@ void UClusterUnionComponent::SetIsAnchored(bool bIsAnchored)
 	PhysicsProxy->SetIsAnchored_External(bIsAnchored);
 }
 
+ENGINE_API bool UClusterUnionComponent::IsAnchored() const
+{
+	if (!PhysicsProxy)
+	{
+		return false;
+	}
+
+	return PhysicsProxy->IsAnchored_External();
+}
+
 bool UClusterUnionComponent::IsAuthority() const
 {
 	ENetMode Mode = GetNetMode();

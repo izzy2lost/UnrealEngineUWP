@@ -151,6 +151,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Cluster Union")
 	ENGINE_API void SetIsAnchored(bool bIsAnchored);
 
+	ENGINE_API bool IsAnchored() const;
+
 	// SyncClusterUnionFromProxy will examine the make up of the cluster union (particles, child to parent, etc.) and do whatever is needed on the GT in terms of bookkeeping.
 	ENGINE_API void SyncClusterUnionFromProxy();
 
