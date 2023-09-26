@@ -99,6 +99,9 @@ private:
 	/** Called when toggling whether the track can blend camera cuts. */
 	void HandleToggleCanBlendExecute(UMovieSceneCameraCutTrack* CameraCutTrack);
 
+	/** Called when toggling whether the track auto-manages camera cuts. */
+	void HandleToggleAutoArrangeSectionsExecute(UMovieSceneCameraCutTrack* CameraCutTrack);
+
 	/** Delegate for camera button lock state */
 	ECheckBoxState IsCameraLocked() const; 
 

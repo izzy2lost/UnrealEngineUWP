@@ -139,54 +139,46 @@ void FCameraCutTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBuilder, UMo
 		"Edit",
 		EUserInterfaceActionType::ToggleButton
 	);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("AutoArrangeShots", "Auto Arrange"),
+		LOCTEXT("AutoArrangeShotsTooltip", "Auto-arrange and resize sections to fill gaps."),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &FCameraCutTrackEditor::HandleToggleAutoArrangeSectionsExecute, CameraCutTrack),
+			FCanExecuteAction::CreateLambda([=]() { return CameraCutTrack != nullptr; }),
+			FIsActionChecked::CreateLambda([=]() { return CameraCutTrack->IsAutoManagingSections(); })
+			),
+		"Edit",
+		EUserInterfaceActionType::ToggleButton
+	);
 }
 
 void FCameraCutTrackEditor::HandleToggleCanBlendExecute(UMovieSceneCameraCutTrack* CameraCutTrack)
 {
+	const FScopedTransaction Transaction(LOCTEXT("CameraCutTrackSetCanBlend", "Set Camera Cut Track Can Blend"));
+
+	CameraCutTrack->Modify();
+
 	CameraCutTrack->bCanBlend = !CameraCutTrack->bCanBlend;
 
 	if (!CameraCutTrack->bCanBlend)
 	{
-		// Reset all easing and remove overlaps.
-		const UMovieScene* FocusedMovieScene = GetFocusedMovieScene();
-		const FFrameRate TickResolution = FocusedMovieScene->GetTickResolution();
-		const FFrameRate DisplayRate = FocusedMovieScene->GetDisplayRate();
+		CameraCutTrack->RearrangeAllSections();
+	}
+}
 
-		const TArray<UMovieSceneSection*> Sections = CameraCutTrack->GetAllSections();
-		for (int32 Idx = 1; Idx < Sections.Num(); ++Idx)
-		{
-			UMovieSceneSection* CurSection = Sections[Idx];
-			UMovieSceneSection* PrevSection = Sections[Idx - 1];
+void FCameraCutTrackEditor::HandleToggleAutoArrangeSectionsExecute(UMovieSceneCameraCutTrack* CameraCutTrack)
+{
+	const FScopedTransaction Transaction(LOCTEXT("CameraCutTrackSetAutoArrangeSections", "Set Camera Cut Track Auto Arrange"));
 
-			CurSection->Modify();
+	CameraCutTrack->Modify();
 
-			TRange<FFrameNumber> CurSectionRange = CurSection->GetRange();
-			TRange<FFrameNumber> PrevSectionRange = PrevSection->GetRange();
-			const FFrameNumber OverlapOrGap = (PrevSectionRange.GetUpperBoundValue() - CurSectionRange.GetLowerBoundValue());
-			if (OverlapOrGap > 0)
-			{
-				const FFrameTime TimeAtHalfBlend = CurSectionRange.GetLowerBoundValue() + FMath::FloorToInt(OverlapOrGap.Value / 2.f);
-				const FFrameNumber FrameAtHalfBlend = FFrameRate::Snap(TimeAtHalfBlend, TickResolution, DisplayRate).CeilToFrame();
+	CameraCutTrack->SetIsAutoManagingSections(!CameraCutTrack->IsAutoManagingSections());
 
-				PrevSectionRange.SetUpperBoundValue(FrameAtHalfBlend);
-				PrevSection->SetRange(PrevSectionRange);
-
-				CurSectionRange.SetLowerBoundValue(FrameAtHalfBlend);
-				CurSection->SetRange(CurSectionRange);
-			}
-
-			CurSection->Easing.AutoEaseInDuration = 0;
-			PrevSection->Easing.AutoEaseOutDuration = 0;
-		}
-		if (Sections.Num() > 0)
-		{
-			Sections[0]->Modify();
-
-			Sections[0]->Easing.AutoEaseInDuration = 0;
-			Sections[0]->Easing.ManualEaseInDuration = 0;
-			Sections.Last()->Easing.AutoEaseOutDuration = 0;
-			Sections.Last()->Easing.ManualEaseOutDuration = 0;
-		}
+	if (CameraCutTrack->IsAutoManagingSections())
+	{
+		CameraCutTrack->RearrangeAllSections();
 	}
 }
 
