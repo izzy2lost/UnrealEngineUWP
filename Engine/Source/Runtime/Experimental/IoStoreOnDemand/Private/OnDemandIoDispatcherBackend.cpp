@@ -78,7 +78,7 @@ static FAutoConsoleVariableRef CVar_IasMaxHttpRetryCount(
 	TEXT("Max number of HTTP request retries before failing the I/O request.")
 );
 
-int32 GIasHttpTimeOutMs = 30 * 1000;
+int32 GIasHttpTimeOutMs = 10 * 1000;
 static FAutoConsoleVariableRef CVar_IasHttpTimeOutMs(
 	TEXT("ias.HttpTimeOutMs"),
 	GIasHttpTimeOutMs,
