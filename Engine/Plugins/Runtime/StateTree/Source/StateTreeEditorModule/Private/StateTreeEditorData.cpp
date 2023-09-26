@@ -16,6 +16,16 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeEditorData)
 
+UStateTreeEditorData::UStateTreeEditorData()
+{
+	FStateTreeEditorColor DefaultColor;
+	DefaultColor.ColorRef = FStateTreeEditorColorRef();
+	DefaultColor.Color = FLinearColor(FColor(31, 151, 167));
+	DefaultColor.DisplayName = TEXT("Default Color");
+
+	Colors.Add(MoveTemp(DefaultColor));
+}
+
 void UStateTreeEditorData::PostInitProperties()
 {
 	Super::PostInitProperties();

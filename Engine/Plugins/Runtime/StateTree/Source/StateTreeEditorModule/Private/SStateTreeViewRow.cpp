@@ -20,6 +20,20 @@
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
+namespace UE::StateTree::Editor
+{
+	FLinearColor LerpColorSRGB(const FLinearColor ColorA, FLinearColor ColorB, float T)
+	{
+		const FColor A = ColorA.ToFColorSRGB();
+		const FColor B = ColorB.ToFColorSRGB();
+		return FLinearColor(FColor(
+			static_cast<uint8>(FMath::RoundToInt(static_cast<float>(A.R) * (1.f - T) + static_cast<float>(B.R) * T)),
+			static_cast<uint8>(FMath::RoundToInt(static_cast<float>(A.G) * (1.f - T) + static_cast<float>(B.G) * T)),
+			static_cast<uint8>(FMath::RoundToInt(static_cast<float>(A.B) * (1.f - T) + static_cast<float>(B.B) * T)),
+			static_cast<uint8>(FMath::RoundToInt(static_cast<float>(A.A) * (1.f - T) + static_cast<float>(B.A) * T))));
+	}
+} // UE:StateTree::Editor
+
 void SStateTreeViewRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TWeakObjectPtr<UStateTreeState> InState, const TSharedPtr<SScrollBox>& ViewBox, TSharedRef<FStateTreeViewModel> InStateTreeViewModel)
 {
 	StateTreeViewModel = InStateTreeViewModel;
@@ -607,6 +621,7 @@ TSharedRef<SHorizontalBox> SStateTreeViewRow::CreateTasksWidget()
 					SNew(SBorder)
 					.VAlign(VAlign_Center)
 					.BorderImage(FStateTreeEditorStyle::Get().GetBrush("StateTree.Task.Rect"))
+					.BorderBackgroundColor(this, &SStateTreeViewRow::GetTitleColor)
 					.Padding(0)
 					.IsEnabled_Lambda(IsTaskEnabledFunc)
 					[
@@ -658,11 +673,18 @@ void SStateTreeViewRow::RequestRename() const
 
 FSlateColor SStateTreeViewRow::GetTitleColor() const
 {
-	if (const UStateTreeState* State = WeakState.Get())
+	const UStateTreeState* State = WeakState.Get();
+	const UStateTreeEditorData* EditorData = WeakTreeData.Get();
+
+	if (State != nullptr && EditorData != nullptr)
 	{
-		if (IsRootState() || State->Type == EStateTreeStateType::Subtree)
+		if (const FStateTreeEditorColor* FoundColor = EditorData->FindColor(State->ColorRef))
 		{
-			return FLinearColor(FColor(17, 117, 131));
+			if (IsRootState() || State->Type == EStateTreeStateType::Subtree)
+			{
+				return UE::StateTree::Editor::LerpColorSRGB(FoundColor->Color, FColor::Black, 0.25f);
+			}
+			return FoundColor->Color;
 		}
 	}
 
@@ -693,7 +715,8 @@ FSlateColor SStateTreeViewRow::GetSubTreeMarkerColor() const
 	{
 		if (IsRootState() || State->Type == EStateTreeStateType::Subtree)
 		{
-			return FLinearColor(FColor(136, 186, 193));
+			const FSlateColor TitleColor = GetTitleColor();
+			return UE::StateTree::Editor::LerpColorSRGB(TitleColor.GetSpecifiedColor(), FLinearColor::White, 0.2f);
 		}
 	}
 

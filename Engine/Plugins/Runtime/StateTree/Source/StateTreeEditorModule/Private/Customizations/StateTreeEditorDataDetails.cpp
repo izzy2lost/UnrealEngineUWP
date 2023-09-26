@@ -47,6 +47,10 @@ void FStateTreeEditorDataDetails::CustomizeDetails(IDetailLayoutBuilder& DetailB
 	IDetailCategoryBuilder& ContextDataCategory = DetailBuilder.EditCategory(TEXT("Context"), LOCTEXT("EditorDataDetailsContext", "Context"));
 	ContextDataCategory.SetSortOrder(1);
 
+	// Theme category
+	IDetailCategoryBuilder& ThemeCategory = DetailBuilder.EditCategory(TEXT("Theme"));
+	ThemeCategory.InitiallyCollapsed(true);
+
 	if (Schema != nullptr)
 	{
 		for (const FStateTreeExternalDataDesc& ContextData : Schema->GetContextDataDescs())

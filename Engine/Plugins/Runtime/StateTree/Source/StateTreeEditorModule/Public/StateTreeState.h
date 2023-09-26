@@ -3,6 +3,7 @@
 #pragma once
 
 #include "StateTreeEditorNode.h"
+#include "StateTreeEditorTypes.h"
 #include "StateTreeState.generated.h"
 
 class UStateTreeState;
@@ -220,6 +221,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "State", meta = (IgnoreForMemberInitializationTest))
 	FGuid ID;
+
+	UPROPERTY(EditDefaultsOnly, Category = "State", DisplayName = "Color")
+	FStateTreeEditorColorRef ColorRef;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Enter Conditions", meta = (BaseStruct = "/Script/StateTreeModule.StateTreeConditionBase", BaseClass = "/Script/StateTreeModule.StateTreeConditionBlueprintBase"))
 	TArray<FStateTreeEditorNode> EnterConditions;

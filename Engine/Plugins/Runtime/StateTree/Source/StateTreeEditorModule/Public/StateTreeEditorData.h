@@ -4,6 +4,7 @@
 
 #include "StateTreeState.h"
 #include "StateTreeEditorPropertyBindings.h"
+#include "StateTreeEditorTypes.h"
 #include "Debugger/StateTreeDebuggerTypes.h"
 #include "StateTreeEditorData.generated.h"
 
@@ -49,6 +50,8 @@ class STATETREEEDITORMODULE_API UStateTreeEditorData : public UObject, public IS
 	GENERATED_BODY()
 	
 public:
+	UStateTreeEditorData();
+
 	virtual void PostInitProperties() override;
 	
 	// IStateTreeEditorPropertyBindingsOwner
@@ -235,6 +238,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// ~StateTree Builder API
 
+	/**
+	 * Attempts to find a Color matching the provided Color Key
+	 */
+	const FStateTreeEditorColor* FindColor(const FStateTreeEditorColorRef& ColorRef) const
+	{
+		return Colors.Find(FStateTreeEditorColor(ColorRef));
+	}
+
 private:
 	void FixObjectInstance(TSet<UObject*>& SeenObjects, UObject& Outer, FStateTreeEditorNode& Node);
 	void FixObjectNodes();
@@ -262,6 +273,10 @@ public:
 
 	UPROPERTY(meta = (ExcludeFromHash))
 	FStateTreeEditorPropertyBindings EditorBindings;
+
+	/** Color Options to assign to a State */
+	UPROPERTY(EditDefaultsOnly, Category = "Theme")
+	TSet<FStateTreeEditorColor> Colors;
 
 	/** Top level States. */
 	UPROPERTY()

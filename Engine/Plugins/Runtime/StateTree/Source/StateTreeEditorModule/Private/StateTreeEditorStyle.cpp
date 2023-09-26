@@ -111,7 +111,8 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 			.SetColorAndOpacity(FLinearColor(230.0f / 255.0f, 230.0f / 255.0f, 230.0f / 255.0f, 0.85f));
 		Set("StateTree.Task.Title", TaskTitle);
 
-		Set("StateTree.Task.Rect", new FSlateRoundedBoxBrush(FLinearColor(FColor(21, 104, 116)), 0.0f, FLinearColor(FColor(27, 138, 154)), 1.0f));
+		// Tasks to be show up a bit darker than the state
+		Set("StateTree.Task.Rect", new FSlateColorBrush(FLinearColor(FVector3f(0.67f))));
 	}
 	
 	// Details rich text

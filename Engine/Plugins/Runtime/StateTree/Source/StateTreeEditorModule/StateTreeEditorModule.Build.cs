@@ -47,7 +47,9 @@ namespace UnrealBuildTool.Rules
 				"ToolWidgets",
 				"ApplicationCore",
 				"DeveloperSettings",
-				"RewindDebuggerInterface"
+				"RewindDebuggerInterface",
+				"DetailCustomizations",
+				"AppFramework"
 			}
 			);
 
