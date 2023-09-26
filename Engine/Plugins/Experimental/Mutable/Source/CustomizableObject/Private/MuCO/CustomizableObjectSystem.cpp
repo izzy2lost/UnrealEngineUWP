@@ -2533,7 +2533,7 @@ namespace impl
 			FinishUpdateGlobal(nullptr, EUpdateResult::Error, &Operation->UpdateCallback);
 			return;
 		}
-
+		
 		CandidateInstancePrivateData->InstanceUpdateFlags(*CandidateInstance);
 		
 		if (CandidateInstancePrivateData->HasCOInstanceFlags(PendingLODsUpdate))
@@ -2541,6 +2541,17 @@ namespace impl
 			CandidateInstancePrivateData->ClearCOInstanceFlags(PendingLODsUpdate);
 			// TODO: Is anything needed for this now?
 			//Operation->CustomizableObjectInstance->ReleaseMutableInstanceId(); // To make mutable regenerate the LODs even if the instance parameters have not changed
+		}
+
+		// Skip update, the requested update is equal to the running update.
+		if (Operation->InstanceDescriptorRuntimeHash.IsSubset(CandidateInstance->GetDescriptorRuntimeHash()))
+		{
+			CandidateInstance->SkeletalMeshStatus = ESkeletalMeshState::Correct;
+
+			CandidateInstancePrivateData->ClearCOInstanceFlags(Updating);
+			System->ClearCurrentMutableOperation();
+			UpdateSkeletalMesh(*CandidateInstance, CandidateInstance->GetDescriptorRuntimeHash(), EUpdateResult::ErrorOptimized, &Operation->UpdateCallback);
+			return;
 		}
 
 		bool bCancel = false;
@@ -2567,14 +2578,6 @@ namespace impl
 			&& CandidateInstancePrivateData->LastMinSquareDistFromComponentToPlayer != FLT_MAX // This means it is the first frame so it has to be updated
 		   )
 		{
-			bCancel = true;
-		}
-
-		// Skip update, the requested update is equal to the running update.
-		if (Operation->InstanceDescriptorRuntimeHash.IsSubset(CandidateInstance->GetDescriptorRuntimeHash()))
-		{
-			CandidateInstance->SkeletalMeshStatus = ESkeletalMeshState::Correct;
-			UpdateSkeletalMesh(*CandidateInstance, CandidateInstance->GetDescriptorRuntimeHash(), EUpdateResult::Success, &Operation->UpdateCallback);
 			bCancel = true;
 		}
 
