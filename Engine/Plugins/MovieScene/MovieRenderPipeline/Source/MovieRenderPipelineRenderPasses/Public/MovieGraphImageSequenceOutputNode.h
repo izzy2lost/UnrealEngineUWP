@@ -67,6 +67,12 @@ public:
 		static const FText EXRSequenceNodeName = NSLOCTEXT("MovieGraph", "NodeName_EXRSequence", ".exr Sequence");
 		return EXRSequenceNodeName;
 	}
+
+	virtual FText GetKeywords() const override
+	{
+		static const FText Keywords = NSLOCTEXT("MovieGraph", "ImageSequenceOutputNode_EXR_Keywords", "exr image");
+		return Keywords;
+	}
 	
 	virtual FLinearColor GetNodeTitleColor() const override
 	{
@@ -148,6 +154,12 @@ public:
 		}
 		return NSLOCTEXT("MovieGraph", "ImgSequenceBMPSetting_NodeTitleShort", ".bmp Sequence");
 	}
+
+	virtual FText GetKeywords() const override
+	{
+		static const FText Keywords = NSLOCTEXT("MovieGraph", "ImageSequenceOutputNode_BMP_Keywords", "bmp image");
+		return Keywords;
+	}
 	
 	virtual FLinearColor GetNodeTitleColor() const override
 	{
@@ -190,6 +202,12 @@ public:
 		}
 		return NSLOCTEXT("MovieGraph", "ImgSequenceJPGSetting_NodeTitleShort", ".jpg Sequence");
 	}
+
+	virtual FText GetKeywords() const override
+	{
+		static const FText Keywords = NSLOCTEXT("MovieGraph", "ImageSequenceOutputNode_JPG_Keywords", "jpg jpeg image");
+		return Keywords;
+	}
 	
 	virtual FLinearColor GetNodeTitleColor() const override
 	{
@@ -230,6 +248,12 @@ public:
 			return NSLOCTEXT("MovieGraph", "ImgSequencePNGSetting_NodeTitleFull", ".png Sequence\n[8bit]"); 
 		}
 		return NSLOCTEXT("MovieGraph", "ImgSequencePNGSetting_NodeTitleShort", ".png Sequence");
+	}
+
+	virtual FText GetKeywords() const override
+	{
+		static const FText Keywords = NSLOCTEXT("MovieGraph", "ImageSequenceOutputNode_PNG_Keywords", "png image");
+		return Keywords;
 	}
 	
 	virtual FLinearColor GetNodeTitleColor() const override

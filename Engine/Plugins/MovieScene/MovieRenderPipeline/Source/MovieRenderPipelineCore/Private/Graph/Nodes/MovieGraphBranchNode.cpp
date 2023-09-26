@@ -109,6 +109,12 @@ FText UMovieGraphBranchNode::GetMenuCategory() const
 	return LOCTEXT("NodeCategory_Conditionals", "Conditionals");
 }
 
+FText UMovieGraphBranchNode::GetKeywords() const
+{
+	static const FText Keywords = LOCTEXT("BranchNode_Keywords", "branch if logic conditional");
+    return Keywords;
+}
+
 FLinearColor UMovieGraphBranchNode::GetNodeTitleColor() const
 {
 	static const FLinearColor BranchNodeColor = FLinearColor(0.266f, 0.266f, 0.266f);

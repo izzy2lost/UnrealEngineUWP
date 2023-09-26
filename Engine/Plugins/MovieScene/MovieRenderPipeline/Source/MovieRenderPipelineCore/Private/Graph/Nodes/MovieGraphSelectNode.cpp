@@ -377,6 +377,12 @@ FText UMovieGraphSelectNode::GetMenuCategory() const
 	return NodeCategory_Conditionals;
 }
 
+FText UMovieGraphSelectNode::GetKeywords() const
+{
+	static const FText Keywords = NSLOCTEXT("MovieGraphNodes", "SelectNode_Keywords", "select if logic conditional");
+	return Keywords;
+}
+
 FLinearColor UMovieGraphSelectNode::GetNodeTitleColor() const
 {
 	static const FLinearColor SelectNodeColor = FLinearColor(0.266f, 0.266f, 0.266f);

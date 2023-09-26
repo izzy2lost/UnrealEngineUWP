@@ -288,6 +288,9 @@ public:
 
 	/** Gets the category that the node belongs under. */
 	virtual FText GetMenuCategory() const PURE_VIRTUAL(UMovieGraphNode::GetMenuCategory, return FText(); );
+
+	/** Gets the keywords (space-separated) that will be searched in the node creation context menu. */
+	virtual FText GetKeywords() const { return FText(); }
 #endif
 
 protected:

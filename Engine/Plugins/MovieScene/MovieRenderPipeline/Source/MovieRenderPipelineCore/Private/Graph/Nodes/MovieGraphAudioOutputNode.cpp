@@ -26,6 +26,12 @@ FText UMovieGraphAudioOutputNode::GetNodeTitle(const bool bGetDescriptive) const
 	return AudioOutputNodeName;
 }
 
+FText UMovieGraphAudioOutputNode::GetKeywords() const
+{
+	static const FText Keywords = NSLOCTEXT("MovieGraphNodes", "AudioOutputNode_Keywords", "wav audio");
+	return Keywords;
+}
+
 FLinearColor UMovieGraphAudioOutputNode::GetNodeTitleColor() const
 {
 	static const FLinearColor AudioOutputNodeColor = FLinearColor(0.04f, 0.22f, 0.36f);

@@ -104,7 +104,7 @@ struct FMovieGraphSchemaAction_NewNode : public FMovieGraphSchemaAction
 		: FMovieGraphSchemaAction()
 	{}
 
-	FMovieGraphSchemaAction_NewNode(FText InNodeCategory, FText InDisplayName, FText InToolTip);
+	FMovieGraphSchemaAction_NewNode(FText InNodeCategory, FText InDisplayName, FText InToolTip, int32 InGrouping, FText InKeywords);
 
 	virtual ~FMovieGraphSchemaAction_NewNode() override = default;
 	

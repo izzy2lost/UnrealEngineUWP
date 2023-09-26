@@ -34,6 +34,12 @@ FText UMovieGraphSetCVarValueNode::GetMenuCategory() const
 	return NSLOCTEXT("MovieGraphNodes", "SetCVarGraphNode_Category", "Utility");
 }
 
+FText UMovieGraphSetCVarValueNode::GetKeywords() const
+{
+	static const FText Keywords = NSLOCTEXT("MovieGraphNodes", "SetCVarGraphNode_Keywords", "cvar console variable");
+	return Keywords;
+}
+
 FLinearColor UMovieGraphSetCVarValueNode::GetNodeTitleColor() const
 {
 	static const FLinearColor SetCVarNodeColor = FLinearColor(0.04f, 0.22f, 0.36f);
