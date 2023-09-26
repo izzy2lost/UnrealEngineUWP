@@ -852,7 +852,7 @@ public:
 #if PIPELINESTATECACHE_VERIFYTHREADSAFE
 		FScopeVerifyIncrement S(VerifyMutex);
 #endif
-		// everything is added to the local cache then at end of frame we consoldate them all
+		// everything is added to the local cache then at end of frame we consolidate them all
 		TMap<TMyKey, TMyValue> &LocalCache = GetLocalCache();
 
 		check( LocalCache.Contains(InKey) == false );

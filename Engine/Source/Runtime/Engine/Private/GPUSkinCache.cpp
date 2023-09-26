@@ -1157,9 +1157,6 @@ void FGPUSkinCache::DispatchUpdateSkinTangents(FRHICommandList& RHICmdList, FGPU
 			SCOPED_DRAW_EVENTF(RHICmdList, SkinTangents_PerTrianglePass, TEXT("%sTangentsTri  Mesh=%s, LOD=%d, Chunk=%d, IndexStart=%d Tri=%d BoneInfluenceType=%d UVPrecision=%d"),
 				*RayTracingTag , *GetSkeletalMeshObjectName(Entry->GPUSkin), LODIndex, SectionIndex, DispatchData.IndexBufferOffsetValue, DispatchData.NumTriangles, Entry->BoneInfluenceType, bFullPrecisionUV);
 
-			FRHIComputeShader* ShaderRHI = Shader.GetComputeShader();
-			SetComputePipelineState(RHICmdList, Shader.GetComputeShader());
-
 			if (!GAllowDupedVertsForRecomputeTangents)
 			{
 #if WITH_EDITOR
@@ -1182,6 +1179,9 @@ void FGPUSkinCache::DispatchUpdateSkinTangents(FRHICommandList& RHICmdList, FGPU
 
 			const FRWBuffer& ShaderStagingBuffer = GRecomputeTangentsParallelDispatch ? DispatchData.GetIntermediateAccumulatedTangentBuffer()->Buffer : StagingBuffer->Buffer;
 
+			FRHIComputeShader* ShaderRHI = Shader.GetComputeShader();
+			SetComputePipelineState(RHICmdList, Shader.GetComputeShader());
+
 			SetShaderParametersLegacyCS(RHICmdList, Shader, Entry, DispatchData, ShaderStagingBuffer);
 			DispatchComputeShader(RHICmdList, Shader.GetShader(), ThreadGroupCountValue, 1, 1);
 			UnsetShaderParametersLegacyCS(RHICmdList, Shader);
@@ -1203,8 +1203,6 @@ void FGPUSkinCache::DispatchUpdateSkinTangents(FRHICommandList& RHICmdList, FGPU
 		else
 			ComputeShader = ComputeShader0;
 
-		SetComputePipelineState(RHICmdList, ComputeShader.GetComputeShader());
-
 		uint32 VertexCount = DispatchData.NumVertices;
 		uint32 ThreadGroupCountValue = FMath::DivideAndRoundUp(VertexCount, ComputeShader->ThreadGroupSizeX);
 
@@ -1216,6 +1214,8 @@ void FGPUSkinCache::DispatchUpdateSkinTangents(FRHICommandList& RHICmdList, FGPU
 				StagingBuffer->UpdateAccessState(ERHIAccess::UAVCompute)
 				});
 		}
+
+		SetComputePipelineState(RHICmdList, ComputeShader.GetComputeShader());
 
 		SetShaderParametersLegacyCS(RHICmdList, ComputeShader, Entry, DispatchData, GRecomputeTangentsParallelDispatch ? DispatchData.GetIntermediateAccumulatedTangentBuffer()->Buffer : StagingBuffer->Buffer);
 		DispatchComputeShader(RHICmdList, ComputeShader.GetShader(), ThreadGroupCountValue, 1, 1);
@@ -2079,14 +2079,18 @@ void FGPUSkinCache::DispatchUpdateSkinning(FRHICommandList& RHICmdList, FGPUSkin
 
 	check(Shader.IsValid());
 
-	if ((DispatchData.DispatchFlags & ((uint32)EGPUSkinCacheDispatchFlags::DispatchPrevPosition | (uint32)EGPUSkinCacheDispatchFlags::DispatchPosition)) != 0)
+	const bool bDispatchPrevPosition = (DispatchData.DispatchFlags & (uint32)EGPUSkinCacheDispatchFlags::DispatchPrevPosition) != 0;
+	const bool bDispatchPosition = (DispatchData.DispatchFlags & (uint32)EGPUSkinCacheDispatchFlags::DispatchPosition) != 0;
+
+	if (bDispatchPrevPosition || bDispatchPosition)
 	{
-		SetComputePipelineState(RHICmdList, Shader.GetComputeShader());
 		uint32 VertexCountAlign64 = FMath::DivideAndRoundUp(DispatchData.NumVertices, (uint32)64);
 
-		if ((DispatchData.DispatchFlags & (uint32)EGPUSkinCacheDispatchFlags::DispatchPrevPosition) != 0)
+		if (bDispatchPrevPosition)
 		{
 			const FVertexBufferAndSRV& PrevBoneBuffer = ShaderData.GetBoneBufferForReading(true);
+
+			SetComputePipelineState(RHICmdList, Shader.GetComputeShader());
 
 			SetShaderParametersLegacyCS(
 				RHICmdList,
@@ -2105,9 +2109,11 @@ void FGPUSkinCache::DispatchUpdateSkinning(FRHICommandList& RHICmdList, FGPUSkin
 			BuffersToTransitionToRead.Add(DispatchData.GetPreviousPositionRWBuffer());
 		}
 
-		if ((DispatchData.DispatchFlags & (uint32)EGPUSkinCacheDispatchFlags::DispatchPosition) != 0)
+		if (bDispatchPosition)
 		{
 			const FVertexBufferAndSRV& BoneBuffer = ShaderData.GetBoneBufferForReading(false);
+
+			SetComputePipelineState(RHICmdList, Shader.GetComputeShader());
 
 			SetShaderParametersLegacyCS(
 				RHICmdList,
