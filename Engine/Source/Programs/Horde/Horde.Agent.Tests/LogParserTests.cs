@@ -593,6 +593,20 @@ namespace Horde.Agent.Tests
 		}
 
 		[TestMethod]
+		public void DockerDiskSpaceMatcher()
+		{
+			string[] lines =
+			{
+				@"  Horde.Server -> /app/out/",
+				@"Error processing tar file(exit status 1): write /app/Source/Programs/Horde/Horde.Server/obj/Release/net6.0/Horde.Server.dll: no space left on device",
+				@"Took 32.59s to run docker, ExitCode=1",
+			};
+
+			List<LogEvent> logEvents = Parse(lines);
+			CheckEventGroup(logEvents, 1, 1, LogLevel.Error, KnownLogEvents.Systemic_OutOfDiskSpace);
+		}
+
+		[TestMethod]
 		public void SystemicErrorMatcher()
 		{
 			string[] lines =
