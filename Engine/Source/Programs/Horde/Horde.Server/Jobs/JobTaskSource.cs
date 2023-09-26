@@ -1052,6 +1052,16 @@ namespace Horde.Server.Jobs
 
 					if (job != null)
 					{
+						IJobStepBatch? newBatch;
+						if (job.TryGetBatch(batch.Id, out newBatch))
+						{
+							batch = newBatch;
+						}
+						else
+						{
+							logger.LogInformation("New job is missing failed batch {JobId}:{BatchId}", job.Id, batch.Id);
+						}
+
 						if (batch.Error != JobStepBatchError.None)
 						{
 							logger.LogInformation("Failed lease {LeaseId}, job {JobId}, batch {BatchId} with error {Error}", leaseId, job.Id, batch.Id, batch.Error);
