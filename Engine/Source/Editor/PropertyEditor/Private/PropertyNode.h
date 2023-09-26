@@ -1078,6 +1078,16 @@ public:
 	 */
 	void MarkDestroyedRecursive();
 
+	TSharedPtr<FPropertyNode>& GetOptionalValueNode() { return OptionalValueNode; }
+
+	/**
+	 * Interface function for getting a FOptionalProperty's Node's OptionalValueNode (May construct it if needed).
+	 * @return The optionals value OR null if this is not an optional or is an unset optional.
+	 * 
+	 * Note: This is currently the only method by which an optional's Value FPropertyNode is created (If you change this please update this documentation).
+	 */
+	virtual TSharedPtr<FPropertyNode>& GetOrCreateOptionalValueNode() { return OptionalValueNode; }
+
 protected:
 	TSharedRef<FEditPropertyChain> BuildPropertyChain( FProperty* PropertyAboutToChange ) const;
 	TSharedRef<FEditPropertyChain> BuildPropertyChain( FProperty* PropertyAboutToChange, const TSet<UObject*>& InAffectedArchetypeInstances ) const;
@@ -1188,6 +1198,9 @@ protected:
 
 	/**	The property node, if any, that serves as the key value for this node */
 	TSharedPtr<FPropertyNode> PropertyKeyNode;
+
+	/**	The property node, if any, is this nodes optional value */
+	TSharedPtr<FPropertyNode> OptionalValueNode;
 
 	/** Cached read addresses for this property node */
 	mutable FReadAddressListData CachedReadAddresses;

@@ -175,6 +175,37 @@ namespace PropertyCustomizationHelpers
 			.IsFocusable( false );
 	}
 
+	TSharedRef<SWidget> MakeSetOptionalButton(FSimpleDelegate OnSetOptionalClicked, TAttribute<FText> OptionalToolTipText, TAttribute<bool> IsEnabled)
+	{
+		// Custom widget for this button as it has no image and should fill a larger space
+		return SNew(SBox)
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.ToolTipText(OptionalToolTipText.Get().IsEmpty() ? LOCTEXT("SetButtonToolTipText", "Set Optional to default value.") : OptionalToolTipText)
+			[
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "Button")
+				.OnClicked_Lambda([OnSetOptionalClicked](){
+					OnSetOptionalClicked.ExecuteIfBound();
+					return FReply::Handled();
+				})
+				.Text(LOCTEXT("SetButtonText", "Set to Value"))
+				.ContentPadding(0)
+				.IsFocusable(false)
+			];
+	}
+
+	TSharedRef<SWidget> MakeClearOptionalButton(FSimpleDelegate OnClearOptionalClicked, TAttribute<FText> OptionalToolTipText, TAttribute<bool> IsEnabled)
+	{
+		return
+			SNew(SPropertyEditorButton)
+			.Text(OptionalToolTipText.Get().IsEmpty() ? LOCTEXT("ClearButtonToolTipText", "Clear Optional") : OptionalToolTipText)
+			.Image(FAppStyle::Get().GetBrush("Icons.X"))
+			.OnClickAction(OnClearOptionalClicked)
+			.IsEnabled(IsEnabled)
+			.IsFocusable(false);
+	}
+
 	FText GetVisibilityDisplay(TAttribute<bool> bEnabled)
 	{
 		return bEnabled.Get() ? FEditorFontGlyphs::Eye : FEditorFontGlyphs::Eye_Slash;

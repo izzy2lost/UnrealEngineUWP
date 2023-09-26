@@ -37,6 +37,8 @@ namespace EPropertyButton
 		NewBlueprint,
 		EditConfigHierarchy,
 		Documentation,
+		OptionalSet,
+		OptionalClear,
 	};
 }
 
@@ -151,6 +153,13 @@ namespace PropertyEditorHelpers
 	 * @param InPropertyNode	The property node containing the property to check
 	 */
 	bool IsDynamicArray( const FPropertyNode& InPropertyNode );
+
+	/**
+	 * Returns whether or not a property is an optional wrapper
+	 *
+	 * @param InPropertyNode	The property node containing the property to check
+	 */
+	bool IsOptionalProperty(const FPropertyNode& InPropertyNode);
 
 	/**
 	 * Returns true if this is an FSoftObjectPath and should be treated like a TSoftObjectPtr

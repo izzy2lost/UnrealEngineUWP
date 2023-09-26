@@ -32,6 +32,7 @@
 #include "PropertyPathHelpers.h"
 #include "PropertyTextUtilities.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "UObject/PropertyOptional.h"
 
 #define LOCTEXT_NAMESPACE "PropertyHandleImplementation"
 
@@ -489,9 +490,24 @@ FPropertyAccess::Result FPropertyValueImpl::ImportText( const TArray<FObjectBase
 				bInteractiveChangeInProgress = (Flags & EPropertyValueSetFlags::InteractiveChange) != 0;
 			}
 
+			const bool bDidOptionalHaveValueNode = !!(InPropertyNode->GetOptionalValueNode());
+
 			// Set the new value.
 			EPropertyPortFlags PortFlags = (Flags & EPropertyValueSetFlags::InstanceObjects) != 0 ? PPF_InstanceSubobjects : PPF_None;
 			FPropertyTextUtilities::TextToPropertyHelper(*NewValue, InPropertyNode, NodeProperty, Cur, PortFlags);
+
+			// If we are an FOptionalProperty, this check tells us whether we have changed between set/unset and 
+			// thus require a re-draw of our node in the details panel UI which is accomplished by having our parent rebuild us.
+			// 
+			// NOTE: It seems that the property propagation below relies entierly on the FProperty and not the FPropertyNode.
+			// So, we don't worry about updating `InPropertyNode->OptionalValueNode` as we are going to rebuild anyways which will handle this for us.
+			if (FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(NodeProperty))
+			{
+				if (ParentNode && bDidOptionalHaveValueNode != OptionalProperty->IsSet(Cur.BaseAddress))
+				{
+					ParentNode->RequestRebuildChildren();
+				}
+			}
 
 			// Cache the value of the property after having modified it.
 			FString ValueAfterImport;
@@ -3451,6 +3467,7 @@ IMPLEMENT_PROPERTY_VALUE( FPropertyHandleByte )
 IMPLEMENT_PROPERTY_VALUE( FPropertyHandleString )
 IMPLEMENT_PROPERTY_VALUE( FPropertyHandleObject )
 IMPLEMENT_PROPERTY_VALUE( FPropertyHandleArray )
+IMPLEMENT_PROPERTY_VALUE(FPropertyHandleOptional)
 IMPLEMENT_PROPERTY_VALUE( FPropertyHandleText )
 IMPLEMENT_PROPERTY_VALUE( FPropertyHandleSet )
 IMPLEMENT_PROPERTY_VALUE( FPropertyHandleMap )
@@ -4961,6 +4978,116 @@ bool FPropertyHandleArray::IsEditable() const
 {
 	// Property is editable if its a non-const dynamic array
 	return Implementation->HasValidPropertyNode() && !Implementation->IsEditConst() && Implementation->IsPropertyTypeOf(FArrayProperty::StaticClass());
+}
+
+bool FPropertyHandleOptional::Supports(TSharedRef<FPropertyNode> PropertyNode)
+{
+	FProperty* Property = PropertyNode->GetProperty();
+
+	return !!CastField<FOptionalProperty>(Property);
+}
+
+/** IPropertyHandleOptional interface */
+FPropertyAccess::Result FPropertyHandleOptional::GetOptionalValue(FProperty* OutValue)
+{
+	const TSharedPtr<FPropertyNode>& PropertyNode = Implementation->GetPropertyNode();
+	FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(PropertyNode->GetProperty());
+	
+	uint8* ValueAddress = nullptr;
+	FPropertyAccess::Result Result = PropertyNode->GetSingleReadAddress(ValueAddress);
+
+	if (Result != FPropertyAccess::Success)
+	{
+		return Result;
+	}
+
+	if (OptionalProperty->IsSet(ValueAddress))
+	{
+		OutValue = OptionalProperty->GetValueProperty();
+	}
+
+	return Result;
+}
+
+FPropertyAccess::Result FPropertyHandleOptional::SetOptionalValue(FProperty* NewValue)
+{
+	const TSharedPtr<FPropertyNode>& PropertyNode = Implementation->GetPropertyNode();
+	FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(PropertyNode->GetProperty());
+	
+	FReadAddressList Addresses;
+	if (!PropertyNode->GetReadAddress(Addresses))
+	{
+		return FPropertyAccess::Fail;
+	}
+
+	for (int i = 0; i < Addresses.Num(); i++)
+	{
+		void* Optional = Addresses.GetAddress(i);
+		OptionalProperty->MarkSetAndGetInitializedValuePointerToReplace(Optional);
+
+		if (NewValue)
+		{
+			OptionalProperty->SetValueProperty(NewValue);
+		}
+	}
+
+	// Rebuild our parent as we require a de-draw in the details panel
+	if (FPropertyNode* ParentNode = PropertyNode->GetParentNode())
+	{
+		ParentNode->RequestRebuildChildren();
+	}
+
+	return FPropertyAccess::Success;
+}
+
+FPropertyAccess::Result FPropertyHandleOptional::ClearOptionalValue()
+{
+	if (!IsEditable())
+	{
+		return FPropertyAccess::Fail;
+	}
+
+	const TSharedPtr<FPropertyNode>& PropertyNode = Implementation->GetPropertyNode();
+	FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(PropertyNode->GetProperty());
+
+	if (!OptionalProperty)
+	{
+		return FPropertyAccess::Fail;
+	}
+
+	FReadAddressList Addresses;
+	if (!PropertyNode->GetReadAddress(Addresses))
+	{
+		return FPropertyAccess::Fail;
+	}
+	
+	for (int i = 0; i < Addresses.Num(); i++)
+	{
+		void* Optional = Addresses.GetAddress(i);
+		OptionalProperty->MarkUnset(Optional);
+	}
+
+	// Could be removed as unecessary (rebuild will do this for us... but removing now makes any future debugging clearer)
+	PropertyNode->GetOptionalValueNode().Reset();
+
+	// Rebuild our parent as we require a re-draw in the details panel
+	if (FPropertyNode* ParentNode = PropertyNode->GetParentNode())
+	{
+		ParentNode->RequestRebuildChildren();
+	}
+
+	return FPropertyAccess::Success;
+}
+
+TSharedPtr<IPropertyHandleOptional> FPropertyHandleOptional::AsOptional()
+{
+	return SharedThis(this);
+}
+
+bool FPropertyHandleOptional::IsEditable() const
+{
+	// Property is editable if its a non-const dynamic array
+	return Implementation->HasValidPropertyNode() && !Implementation->IsEditConst() && Implementation->IsPropertyTypeOf(FOptionalProperty::StaticClass());
 }
 
 // Localized Text

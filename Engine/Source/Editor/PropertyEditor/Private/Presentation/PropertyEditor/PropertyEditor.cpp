@@ -300,6 +300,36 @@ void FPropertyEditor::OnAddGivenItem(const FString InGivenItem)
 	}
 }
 
+void FPropertyEditor::SetOptionalItem(FProperty* NewValue)
+{
+	// This action must be deferred until next tick so that we avoid accessing invalid data before we have a chance to tick
+	PropertyUtilities->EnqueueDeferredAction(FSimpleDelegate::CreateSP(this, &FPropertyEditor::OnSetOptionalValue, NewValue));
+}
+
+void FPropertyEditor::ClearOptionalItem()
+{
+	// This action must be deferred until next tick so that we avoid accessing invalid data before we have a chance to tick
+	PropertyUtilities->EnqueueDeferredAction(FSimpleDelegate::CreateSP(this, &FPropertyEditor::OnClearOptionalValue));
+}
+
+void FPropertyEditor::OnSetOptionalValue(FProperty* NewValue)
+{
+	TSharedPtr<IPropertyHandleOptional> OptionalHandle = PropertyHandle->AsOptional();
+	if (OptionalHandle.IsValid())
+	{
+		OptionalHandle->SetOptionalValue(NewValue);
+	}
+}
+
+void FPropertyEditor::OnClearOptionalValue()
+{
+	TSharedPtr<IPropertyHandleOptional> OptionalHandle = PropertyHandle->AsOptional();
+	if (OptionalHandle.IsValid())
+	{
+		OptionalHandle->ClearOptionalValue();
+	}
+}
+
 void FPropertyEditor::ClearItem()
 {
 	OnClearItem();

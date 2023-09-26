@@ -30,6 +30,8 @@
 #include "UObject/EnumProperty.h"
 #include "UObject/UnrealType.h"
 
+#include "UObject/PropertyOptional.h"
+
 #define LOCTEXT_NAMESPACE "PropertyNode"
 
 FEditConditionParser FPropertyNode::EditConditionParser;
@@ -173,7 +175,7 @@ void FPropertyNode::InitNode(const FPropertyNodeInitParams& InitParams)
 		const FProperty* OwnerProperty = MyProperty->GetOwnerProperty();
 
 		const bool bIsObjectOrInterface = CastField<FObjectPropertyBase>(MyProperty) || CastField<FInterfaceProperty>(MyProperty);
-		bool bIsInsideContainer = CastField<FArrayProperty>(OwnerProperty) || CastField<FSetProperty>(OwnerProperty) || CastField<FMapProperty>(OwnerProperty);
+		bool bIsInsideContainer = CastField<FArrayProperty>(OwnerProperty) || CastField<FSetProperty>(OwnerProperty) || CastField<FMapProperty>(OwnerProperty) || CastField<FOptionalProperty>(OwnerProperty);
 
 		// Don't consider the container's inline status if the key is a class property that is not inline
 		if (const FMapProperty* MapProperty = CastField<FMapProperty>(OwnerProperty))
@@ -243,7 +245,7 @@ void FPropertyNode::InitNode(const FPropertyNodeInitParams& InitParams)
 		bool bRequiresValidation = bIsEditInlineNew || bShowInnerObjectProperties;
 	
 		// We require validation if we are in a container.
-		bRequiresValidation |= MyProperty->IsA<FArrayProperty>() || MyProperty->IsA<FSetProperty>() || MyProperty->IsA<FMapProperty>();
+		bRequiresValidation |= MyProperty->IsA<FArrayProperty>() || MyProperty->IsA<FSetProperty>() || MyProperty->IsA<FMapProperty>() || MyProperty->IsA<FOptionalProperty>();
 
 		// We require validation if our parent also needs validation (if an array parent was resized all the addresses of children are invalid)
 		bRequiresValidation |= (GetParentNode() && GetParentNode()->HasNodeFlags(EPropertyNodeFlags::RequiresValidation));
@@ -270,6 +272,11 @@ void FPropertyNode::InitNode(const FPropertyNodeInitParams& InitParams)
  */
 void FPropertyNode::RebuildChildren()
 {
+	if (TSharedPtr<FPropertyNode>& ValueNode = GetOrCreateOptionalValueNode())
+	{
+		return ValueNode->RebuildChildren();
+	}
+
 	CachedReadAddresses.Reset();
 
 	bool bDestroySelf = false;
@@ -495,6 +502,11 @@ void FPropertyNode::MarkChildrenAsRebuilt()
  */
 EPropertyDataValidationResult FPropertyNode::EnsureDataIsValid()
 {
+	if (TSharedPtr<FPropertyNode>& ValueNode = GetOrCreateOptionalValueNode())
+	{
+		return ValueNode->EnsureDataIsValid();
+	}
+
 	bool bValidateChildren = !HasNodeFlags(EPropertyNodeFlags::SkipChildValidation);
 	bool bValidateChildrenKeyNodes = false;		// by default, we don't check this, since it's just for Map properties
 
@@ -1651,8 +1663,8 @@ public:
 			PropertyValueRoot.OwnerObject = Cast<UClass>(PropertyValueRoot.OwnerObject)->GetDefaultObject();
 		}
 
-		const bool bIsContainerProperty = CastField<FArrayProperty>(Property) || CastField<FSetProperty>(Property) || CastField<FMapProperty>(Property);
-		const bool bIsInsideContainerProperty = Property->GetOwner<FArrayProperty>() || Property->GetOwner<FSetProperty>() || Property->GetOwner<FMapProperty>();
+		const bool bIsContainerProperty = CastField<FArrayProperty>(Property) || CastField<FSetProperty>(Property) || CastField<FMapProperty>(Property) || CastField<FOptionalProperty>(Property);
+		const bool bIsInsideContainerProperty = Property->GetOwner<FArrayProperty>() || Property->GetOwner<FSetProperty>() || Property->GetOwner<FMapProperty>() || Property->GetOwner<FOptionalProperty>();
 
 		FPropertyNode* Node = bIsInsideContainerProperty ? ParentNode : PropertyNode;
 
@@ -2349,8 +2361,8 @@ bool FPropertyNode::GetDiffersFromDefault()
 			StructNode->GetAllStructureData(Structs);
 			
 			const bool bIsSparse = HasNodeFlags(EPropertyNodeFlags::IsSparseClassData);
-			const bool bIsContainer = CastField<FArrayProperty>(Prop) || CastField<FSetProperty>(Prop) || CastField<FMapProperty>(Prop);
-			const bool bIsInsideContainerProperty = Property->GetOwner<FArrayProperty>() || Property->GetOwner<FSetProperty>() || Property->GetOwner<FMapProperty>();
+			const bool bIsContainer = CastField<FArrayProperty>(Prop) || CastField<FSetProperty>(Prop) || CastField<FMapProperty>(Prop) || CastField<FOptionalProperty>(Prop);
+			const bool bIsInsideContainerProperty = Property->GetOwner<FArrayProperty>() || Property->GetOwner<FSetProperty>() || Property->GetOwner<FMapProperty>() || Property->GetOwner<FOptionalProperty>();
 			const FPropertyNode* BaseNode = bIsInsideContainerProperty ? GetParentNode() : this;
 
 			FStructOnScope DefaultStruct;
@@ -2502,8 +2514,8 @@ FString FPropertyNode::GetDefaultValueAsString(bool bUseDisplayName)
 		StructNode->GetAllStructureData(Structs);
 
 		const bool bIsSparse = HasNodeFlags(EPropertyNodeFlags::IsSparseClassData);
-		const bool bIsContainer = CastField<FArrayProperty>(Prop) || CastField<FSetProperty>(Prop) || CastField<FMapProperty>(Prop);
-		const bool bIsInsideContainerProperty = Property->GetOwner<FArrayProperty>() || Property->GetOwner<FSetProperty>() || Property->GetOwner<FMapProperty>();
+		const bool bIsContainer = CastField<FArrayProperty>(Prop) || CastField<FSetProperty>(Prop) || CastField<FMapProperty>(Prop) || CastField<FOptionalProperty>(Prop);
+		const bool bIsInsideContainerProperty = Property->GetOwner<FArrayProperty>() || Property->GetOwner<FSetProperty>() || Property->GetOwner<FMapProperty>() || Property->GetOwner<FOptionalProperty>();
 		const FPropertyNode* BaseNode = bIsInsideContainerProperty ? GetParentNode() : this;
 
 		FStructOnScope DefaultStruct;

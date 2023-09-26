@@ -23,10 +23,13 @@
 #include "UserInterface/PropertyEditor/SPropertyEditorStruct.h"
 #include "UserInterface/PropertyEditor/SPropertyEditorSet.h"
 #include "UserInterface/PropertyEditor/SPropertyEditorMap.h"
+#include "UserInterface/PropertyEditor/SPropertyEditorOptional.h"
 
 #include "Kismet2/KismetEditorUtilities.h"
 #include "EditorClassUtils.h"
 #include "Engine/Selection.h"
+
+#include "UObject/PropertyOptional.h"
 
 #define LOCTEXT_NAMESPACE "PropertyEditor"
 
@@ -156,6 +159,14 @@ TSharedRef<SWidget> SPropertyValueWidget::ConstructPropertyEditorWidget( TShared
 				.Font( FontStyle );
 
 			MapWidget->GetDesiredWidth( MinDesiredWidth, MaxDesiredWidth );
+		}
+		else if (SPropertyEditorOptional::Supports(PropertyEditorRef))
+		{
+			TSharedRef<SPropertyEditorOptional> OptionalWidget =
+				SAssignNew(PropertyWidget, SPropertyEditorOptional, PropertyEditorRef, InPropertyUtilities.ToSharedRef())
+				.Font(FontStyle);
+
+			OptionalWidget->GetDesiredWidth(MinDesiredWidth, MaxDesiredWidth);
 		}
 		else if (SPropertyEditorClass::Supports(PropertyEditorRef))
 		{
@@ -438,6 +449,12 @@ namespace PropertyEditorHelpers
 		return NodeProperty && CastField<const FArrayProperty>(NodeProperty) != NULL;
 	}
 
+	bool IsOptionalProperty(const FPropertyNode& InPropertyNode)
+	{
+		const FProperty* NodeProperty = InPropertyNode.GetProperty();
+		return NodeProperty && CastField<const FOptionalProperty>(NodeProperty) != NULL;
+	}
+
 	const FProperty* GetArrayParent( const FPropertyNode& InPropertyNode )
 	{
 		const FProperty* ParentProperty = InPropertyNode.GetParentNode() != NULL ? InPropertyNode.GetParentNode()->GetProperty() : NULL;
@@ -626,6 +643,10 @@ namespace PropertyEditorHelpers
 		{
 			PropertyHandle = MakeShareable(new FPropertyHandleFieldPath(PropertyNode, NotifyHook, PropertyUtilities));
 		}
+		else if (FPropertyHandleOptional::Supports(PropertyNode))
+		{
+			PropertyHandle = MakeShareable(new FPropertyHandleOptional(PropertyNode, NotifyHook, PropertyUtilities));
+		}
 		// struct should be checked last as there are several specializations of it above
 		else if (FPropertyHandleStruct::Supports(PropertyNode))
 		{
@@ -680,6 +701,17 @@ namespace PropertyEditorHelpers
 			{
 				OutRequiredButtons.Add( EPropertyButton::Add );
 				OutRequiredButtons.Add( EPropertyButton::Empty );
+			}
+		}
+
+		//////////////////////////////
+		// Handle an optional property.
+		if (const FOptionalProperty* OptionalProp = CastField<FOptionalProperty>(NodeProperty))
+		{
+			uint8* ValueAddress = nullptr;
+			if (PropertyNode->GetSingleReadAddress(ValueAddress) == FPropertyAccess::Success && OptionalProp->IsSet(ValueAddress))
+			{
+				OutRequiredButtons.Add(EPropertyButton::OptionalClear);
 			}
 		}
 
@@ -1070,6 +1102,14 @@ namespace PropertyEditorHelpers
 
 		case EPropertyButton::Documentation:
 			NewButton = PropertyCustomizationHelpers::MakeDocumentationButton(PropertyEditor);
+			break;
+
+		case EPropertyButton::OptionalSet:
+			NewButton = PropertyCustomizationHelpers::MakeSetOptionalButton(FSimpleDelegate::CreateSP(PropertyEditor, &FPropertyEditor::SetOptionalItem, (FProperty*)nullptr), FText(), IsEnabledAttribute);
+			break;
+
+		case EPropertyButton::OptionalClear:
+			NewButton = PropertyCustomizationHelpers::MakeClearOptionalButton(FSimpleDelegate::CreateSP(PropertyEditor, &FPropertyEditor::ClearOptionalItem), FText(), IsEnabledAttribute);
 			break;
 
 		default:

@@ -14,6 +14,7 @@ class FResetToDefaultOverride;
 class IPropertyHandleArray;
 class IPropertyHandleMap;
 class IPropertyHandleSet;
+class IPropertyHandleOptional;
 class IPropertyHandleStruct;
 class IStructureDataProvider;
 
@@ -522,6 +523,11 @@ public:
 	virtual TSharedPtr<IPropertyHandleMap> AsMap() = 0;
 
 	/**
+	 * @return This handle as an optional if possible
+	 */
+	virtual TSharedPtr<IPropertyHandleOptional> AsOptional() = 0;
+
+	/**
 	 * @return This handle as struct if possible
 	 */
 	virtual TSharedPtr<IPropertyHandleStruct> AsStruct() = 0;
@@ -911,4 +917,32 @@ public:
 	virtual ~IPropertyHandleStruct() {}
 
 	virtual TSharedPtr<FStructOnScope> GetStructData() const = 0;
+};
+
+/**
+ * A handle to an optional property which allows you to manipulate the optional
+ */
+class IPropertyHandleOptional
+{
+public:
+	virtual ~IPropertyHandleOptional() {}
+
+	/**
+	 * Get the item
+	 * @param OutValue	The value of the optional if it is set.
+	 */
+	virtual FPropertyAccess::Result GetOptionalValue(FProperty* OutValue) = 0;
+
+	/**
+	 * Set the item
+	 * @param NewValue	The value to set the optional to. Pass in nullptr to default-initialize the value.
+	 * @return			Whether or not this was successful
+	 */
+	virtual FPropertyAccess::Result SetOptionalValue(FProperty* NewValue) = 0;
+
+	/**
+	 * Clear the item
+	 * @return Whether or not this was successful
+	 */
+	virtual FPropertyAccess::Result ClearOptionalValue() = 0;
 };

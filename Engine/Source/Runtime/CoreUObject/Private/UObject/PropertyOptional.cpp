@@ -33,6 +33,7 @@ struct FLegacyFOptionPropertyCustomVersion
 	{}
 };
 static FLegacyFOptionPropertyCustomVersion LegacyFOptionPropertyCustomVersion;
+static const FString InitString = TEXT("__INIT__");
 
 FOptionalProperty::FOptionalProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
 	: FProperty(InOwner, InName, InObjectFlags)
@@ -301,6 +302,14 @@ void FOptionalProperty::ExportText_Internal(FString& ValueStr, const void* Conta
 	if (const void* ValuePointer = GetValuePointerForReadIfSet(OptionalValuePointer))
 	{
 		ValueProperty->ExportTextItem_Direct(ValueStr, ValuePointer, DefaultValue ? GetValuePointerForReadIfSet(DefaultValue) : nullptr, Parent, PortFlags, ExportRootScope);
+
+		// If we got no value back from our ValueProperty's text export but we are SET (ie: an empty array, map, set, etc), 
+		// we set `__init__` to the exported text to so we know to do an initialize on importing (See ImportText_Internal).
+		if (ValueStr == TEXT("("))
+		{
+			ValueStr = InitString;
+			return;
+		}
 	}
 	ValueStr += TEXT(")");
 }
@@ -310,7 +319,21 @@ const TCHAR* FOptionalProperty::ImportText_Internal(const TCHAR* Buffer, void* C
 	checkSlow(ValueProperty);
 	void* Data = PointerToValuePtr(ContainerOrPropertyPtr, PropertyPointerType);
 
-	if (!Buffer || *Buffer++ != TCHAR('('))
+	if (!Buffer)
+	{
+		return nullptr;
+	}
+
+	// INIT
+	if (FString(Buffer) == InitString)
+	{
+		// We are set but have no text to import for our value property.
+		MarkUnset(Data);
+		MarkSetAndGetInitializedValuePointerToReplace(Data);
+		return Buffer;
+	}
+
+	if (*Buffer++ != TCHAR('('))
 	{
 		return nullptr;
 	}

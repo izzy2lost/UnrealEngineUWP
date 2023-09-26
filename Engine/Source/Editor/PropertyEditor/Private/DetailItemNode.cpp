@@ -12,6 +12,7 @@
 #include "PropertyPermissionList.h"
 #include "SDetailCategoryTableRow.h"
 #include "SDetailSingleItemRow.h"
+#include "UObject/PropertyOptional.h"
 
 FDetailItemNode::FDetailItemNode(const FDetailLayoutCustomization& InCustomization, TSharedRef<FDetailCategoryImpl> InParentCategory, TAttribute<bool> InIsParentEnabled, TSharedPtr<IDetailGroup> InParentGroup)
 	: Customization( InCustomization )
@@ -143,7 +144,7 @@ void FDetailItemNode::InitPropertyEditor()
 {
 	FProperty* NodeProperty = Customization.GetPropertyNode()->GetProperty();
 
-	if( NodeProperty && (NodeProperty->IsA<FArrayProperty>() || NodeProperty->IsA<FSetProperty>() || NodeProperty->IsA<FMapProperty>() ))
+	if( NodeProperty && (NodeProperty->IsA<FArrayProperty>() || NodeProperty->IsA<FSetProperty>() || NodeProperty->IsA<FMapProperty>() || NodeProperty->IsA<FOptionalProperty>()))
 	{
 		const bool bUpdateFilteredNodes = false;
 		FSimpleDelegate OnRegenerateChildren = FSimpleDelegate::CreateSP( this, &FDetailItemNode::GenerateChildren, bUpdateFilteredNodes );
@@ -586,7 +587,7 @@ static bool PassesAllFilters( FDetailItemNode* ItemNode, const FDetailLayoutCust
 			if (PropertyNode.IsValid())
 			{
 				// Is it a container (array, map, set?) - if so, ignore it, we don't care about these, only their inner nodes.
-				if (CastField<FArrayProperty>(PropertyNode->GetProperty()) || CastField<FMapProperty>(PropertyNode->GetProperty()) || CastField<FSetProperty>(PropertyNode->GetProperty()))
+				if (CastField<FArrayProperty>(PropertyNode->GetProperty()) || CastField<FMapProperty>(PropertyNode->GetProperty()) || CastField<FSetProperty>(PropertyNode->GetProperty()) || CastField<FOptionalProperty>(PropertyNode->GetProperty()))
 				{
 					return FString();
 				}

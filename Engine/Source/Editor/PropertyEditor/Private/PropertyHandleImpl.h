@@ -465,6 +465,7 @@ public:
 	virtual TSharedPtr<IPropertyHandleArray> AsArray() override { return nullptr; }
 	virtual TSharedPtr<IPropertyHandleSet> AsSet() override { return nullptr; }
 	virtual TSharedPtr<IPropertyHandleMap> AsMap() override { return nullptr; }
+	virtual TSharedPtr<IPropertyHandleOptional> AsOptional() override { return nullptr; }
 	virtual TSharedPtr<IPropertyHandleStruct> AsStruct() override { return nullptr; }
 	virtual const FFieldClass* GetPropertyClass() const override;
 	virtual FProperty* GetProperty() const override;
@@ -709,6 +710,19 @@ public:
 	virtual TSharedPtr<IPropertyHandleArray> AsArray() override;
 	virtual TSharedRef<IPropertyHandle> GetElement( int32 Index ) const override;
 	virtual FPropertyAccess::Result MoveElementTo(int32 OriginalIndex, int32 NewIndex) override;
+	virtual bool IsEditable() const override;
+};
+
+class FPropertyHandleOptional : public FPropertyHandleBase, public IPropertyHandleOptional
+{
+public:
+	FPropertyHandleOptional(TSharedRef<FPropertyNode> PropertyNode, FNotifyHook* NotifyHook, TSharedPtr<IPropertyUtilities> PropertyUtilities);
+	static bool Supports(TSharedRef<FPropertyNode> PropertyNode);
+	/** IPropertyHandleOptional interface */
+	virtual FPropertyAccess::Result GetOptionalValue(FProperty* OutValue) override;
+	virtual FPropertyAccess::Result SetOptionalValue(FProperty* NewValue) override;
+	virtual FPropertyAccess::Result ClearOptionalValue() override;
+	virtual TSharedPtr<IPropertyHandleOptional> AsOptional() override;
 	virtual bool IsEditable() const override;
 };
 
