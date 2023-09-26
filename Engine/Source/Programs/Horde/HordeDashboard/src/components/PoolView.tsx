@@ -1218,9 +1218,14 @@ const PoolPanel: React.FC = () => {
       const disabled = agents.filter(a => !a.enabled).length;
       const ready = agents.filter(a => !a.leases?.length && a.online && a.enabled && !a.pendingConform && !a.pendingFullConform).length;
 
-      let interval = pool.conformInterval;
-      if (!interval) {
-         interval = 24;
+      let interval = "";
+
+      if (pool.conformInterval === 0) {
+         interval = "0 - Disabled";
+      } else if (pool.conformInterval !== undefined) {
+         interval = `${pool.conformInterval}h`
+      } else {
+         interval = "24h - Default";
       }
 
       summaryItems.push({ name: "Agents", value: `${total} ` });
@@ -1231,9 +1236,9 @@ const PoolPanel: React.FC = () => {
       summaryItems.push({ name: "Autoscaling", value: pool.enableAutoscaling ? "On" : "Off" });
       if (pool.enableAutoscaling) {
          summaryItems.push({ name: "Min/Reserve", value: `${pool.minAgents?.toString() ?? "???"} / ${pool.numReserveAgents?.toString() ?? "???"}` });
-         summaryItems.push({ name: "Strategy", value: pool.sizeStrategy ?? PoolSizeStrategy.LeaseUtilization });
-         summaryItems.push({ name: "Conform Interval", value: interval.toString()});
+         summaryItems.push({ name: "Strategy", value: pool.sizeStrategy ?? PoolSizeStrategy.LeaseUtilization });         
       }     
+      summaryItems.push({ name: "Conform Interval", value: interval});
       
    }
 

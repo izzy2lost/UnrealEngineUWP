@@ -36,10 +36,10 @@ class PreflightDataView extends JobDataView {
 
       if (!jobData) {
          return;
-      }      
+      }
 
       if (this.dirty) {
-         const hasPreflight = !!jobData?.preflightChange || !!jobData?.preflightDescription;   
+         const hasPreflight = !!jobData?.preflightChange || !!jobData?.preflightDescription;
          this.initialize(hasPreflight ? [sideRail] : undefined);
          this.updateReady();
          this.dirty = false;
@@ -70,21 +70,15 @@ const AutosubmitInfo: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ jobDe
    if (jobData.autoSubmitChange) {
       const url = `${dashboard.swarmUrl}/change/${jobData.autoSubmitChange}`;
       return <Stack tokens={{ childrenGap: 8 }} style={{ paddingBottom: 12, paddingTop: 18 }}>
-         <Stack>
-            <Text styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>{`Autosubmit`}</Text>
-         </Stack>
-         <Stack style={{ paddingLeft: 12 }}>
+         <Stack style={{  }}>
             <Text>Automatically submitted in <a href={url} target="_blank" rel="noreferrer" onClick={ev => ev?.stopPropagation()}>{`CL ${jobData.autoSubmitChange}`}</a></Text>
          </Stack>
       </Stack>
    }
 
    if (jobData.autoSubmitMessage) {
-      return <Stack tokens={{ childrenGap: 8 }}  style={{ paddingBottom: 12, paddingTop: 18 }}>
-         <Stack>
-            <Text styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>{`Autosubmit`}</Text>
-         </Stack>
-         <Stack style={{ paddingLeft: 12 }}>
+      return <Stack tokens={{ childrenGap: 8 }} style={{ paddingBottom: 12, paddingTop: 18 }}>
+         <Stack style={{  }}>
             <Stack style={{ paddingTop: 24, whiteSpace: "pre" }}><Text>{`Unable to submit change: ${jobData.autoSubmitMessage}`}</Text></Stack>;
          </Stack>
       </Stack>
@@ -93,13 +87,8 @@ const AutosubmitInfo: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ jobDe
    if (jobData.state !== JobState.Complete) {
 
       if (jobData.preflightChange) {
-         return <Stack tokens={{ childrenGap: 8 }}  style={{ paddingBottom: 12, paddingTop: 18 }}>
-            <Stack>
-               <Text styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>{`Autosubmit`}</Text>
-            </Stack>
-
-
-            <Stack style={{ paddingTop: 8, paddingLeft: 12 }}>
+         return <Stack tokens={{ childrenGap: 8 }} style={{ paddingBottom: 12, paddingTop: 18 }}>
+            <Stack style={{ paddingTop: 8 }}>
                <Checkbox label="Automatically submit preflight on success"
                   checked={state.autoSubmit}
                   disabled={state.inflight || (jobData.startedByUserInfo?.id !== dashboard.userId)}
@@ -153,7 +142,7 @@ export const PreflightPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observer((
 
    const jobData = jobDetails.jobData;
 
-   const hasPreflight = !!jobData?.preflightChange || !!jobData?.preflightDescription;   
+   const hasPreflight = !!jobData?.preflightChange || !!jobData?.preflightDescription;
 
    if (!jobData || !hasPreflight) {
       return null;
@@ -165,15 +154,12 @@ export const PreflightPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observer((
          <Stack tokens={{ childrenGap: 12 }} grow>
             <Stack horizontal>
                <Stack>
-                  <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>{`Preflight`}</Text>
+                  <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>{`Preflight (CL ${jobData.preflightChange})`}</Text>
                </Stack>
             </Stack>
             <Stack >
-               <Stack style={{ paddingBottom: 8 }}>
-                  <Text styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>{`CL ${jobData.preflightChange}`}</Text>
-               </Stack>
-               <Stack style={{ paddingLeft: 12 }} tokens={{ childrenGap: 12 }}>
-                  {!!jobData.preflightDescription && <Stack> <Text styles={{ root: { whiteSpace: "pre-wrap" } }}>{jobData.preflightDescription}</Text> </Stack>}
+               <Stack style={{ paddingLeft: 12, paddingTop: 8 }} tokens={{ childrenGap: 12 }}>
+                  {!!jobData.preflightDescription && <Stack> <Text styles={{ root: { whiteSpace: "pre-wrap", fontFamily: "Horde Cousine Regular, monospace, monospace" } }}>{jobData.preflightDescription}</Text> </Stack>}
                </Stack>
                <Stack>
                   <AutosubmitInfo jobDetails={jobDetails} />
