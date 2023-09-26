@@ -100,6 +100,7 @@ void UControlRig::BeginDestroy()
 	PostConstructionEvent.Clear();
 	PreForwardsSolveEvent.Clear();
 	PostForwardsSolveEvent.Clear();
+	PreAdditiveValuesApplicationEvent.Clear();
 
 #if WITH_EDITOR
 	if (!HasAnyFlags(RF_ClassDefaultObject))
@@ -362,6 +363,12 @@ void UControlRig::Evaluate_AnyThread()
 		// Store control pose after backwards solve to figure out additive local transforms based on animation
 		ControlsAfterBackwardsSolve = Hierarchy->GetPose(false, ERigElementType::Control, TArrayView<const FRigElementKey>());
 
+		if (PreAdditiveValuesApplicationEvent.IsBound())
+		{
+			FControlRigBracketScope BracketScope(PreAdditiveValuesApplicationBracket);
+			PreAdditiveValuesApplicationEvent.Broadcast(this, TEXT("Additive"));
+		}
+		
 		// Apply additive controls
 		for (TPair<FRigElementKey, FRigSetControlValueInfo>& Value : ControlValues)
 		{
@@ -444,6 +451,20 @@ void UControlRig::ResetControlValues()
 void UControlRig::ClearPoseBeforeBackwardsSolve()
 {
 	PoseBeforeBackwardsSolve.Reset();
+}
+
+void UControlRig::InvertInputPose(EControlRigSetKey InSetKey)
+{
+	for (const FRigPoseElement& PoseElement : ControlsAfterBackwardsSolve)
+	{
+		if (FRigControlElement* ControlElement = Cast<FRigControlElement>(DynamicHierarchy->Get(PoseElement.Index)))
+		{
+			FRigControlValue Value;
+			Value.SetFromTransform(PoseElement.LocalTransform.Inverse(), ControlElement->Settings.ControlType, ControlElement->Settings.PrimaryAxis);
+			FRigSetControlValueInfo Info = {Value, true, FRigControlModifiedContext(InSetKey), false, false, false};
+			ControlValues.Add(ControlElement->GetKey(), Info);
+		}
+	}
 }
 
 void UControlRig::InitializeFromCDO()

@@ -38,6 +38,9 @@ public:
 	/** Reset Transforms for Controls */
 	TSharedPtr< FUICommandInfo > ResetAllTransforms;
 
+	/** Invert input pose for additive control rigs */
+	TSharedPtr< FUICommandInfo > InvertInputPose;
+
 	/** Clear Selection*/
 	TSharedPtr< FUICommandInfo > ClearSelection;
 

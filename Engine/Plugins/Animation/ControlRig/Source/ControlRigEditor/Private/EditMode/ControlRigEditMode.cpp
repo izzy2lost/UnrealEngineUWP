@@ -2359,6 +2359,9 @@ void FControlRigEditMode::BindCommands()
 		Commands.ResetAllTransforms,
 		FExecuteAction::CreateRaw(this, &FControlRigEditMode::ResetTransforms, false));
 	CommandBindings->MapAction(
+		Commands.InvertInputPose,
+		FExecuteAction::CreateRaw(this, &FControlRigEditMode::InvertInputPose));
+	CommandBindings->MapAction(
 		Commands.ClearSelection,
 		FExecuteAction::CreateRaw(this, &FControlRigEditMode::ClearSelection));
 
@@ -3038,6 +3041,22 @@ void FControlRigEditMode::ResetTransforms(bool bSelectionOnly)
 			for (const FRigElementKey& ControlToReset : ControlsToReset)
 			{
 				NotifyDrivenControls(ControlRig, ControlToReset);
+			}
+		}
+	}
+}
+
+void FControlRigEditMode::InvertInputPose()
+{
+	FScopedTransaction Transaction(LOCTEXT("HierarchyInvertInputPose", "Invert Input Pose"));
+	for (TWeakObjectPtr<UControlRig>& RuntimeRigPtr : RuntimeControlRigs)
+	{
+		if (RuntimeRigPtr.IsValid())
+		{
+			if (RuntimeRigPtr->IsAdditive())
+			{
+				RuntimeRigPtr->InvertInputPose(EControlRigSetKey::Never);
+				RuntimeRigPtr->Evaluate_AnyThread();
 			}
 		}
 	}

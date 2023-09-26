@@ -3876,7 +3876,7 @@ bool MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(UMovieScene* MovieScene, I
 		int32 LocalIndex = LocalStartFrame + FrameCount;
 		FFrameNumber LocalFrame(LocalIndex);
 		TickFrame(LocalFrame, DeltaTime, MovieScene, AnimTrackAdapter, BakeHelpers, SkelMeshComps, LiveLinkClient, SourceAndMode);
-		TickCallback.ExecuteIfBound(DeltaTime);
+		TickCallback.ExecuteIfBound(DeltaTime, LocalFrame);
 	}
 
 	for (IMovieSceneToolsAnimationBakeHelper* BakeHelper : BakeHelpers)
@@ -3954,7 +3954,7 @@ bool MovieSceneToolHelpers::ExportToAnimSequence(UAnimSequence* AnimSequence, UA
 		SkelMeshComp->UpdateLODStatus();
 	});
 
-	FTickAnimationCB TickCallback = FTickAnimationCB::CreateLambda([&AnimationRecorder](float DeltaTime)
+	FTickAnimationCB TickCallback = FTickAnimationCB::CreateLambda([&AnimationRecorder](float DeltaTime, FFrameNumber FrameNumber)
 	{
 		AnimationRecorder.Update(DeltaTime);
 

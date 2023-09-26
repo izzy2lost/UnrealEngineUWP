@@ -140,6 +140,9 @@ public:
 	 * This usually indicates a new pose should be stored. */
 	void ClearPoseBeforeBackwardsSolve();
 
+	/* For additive rigs, will set control values by inverting the pose found after the backwards solve */
+	void InvertInputPose(EControlRigSetKey InSetKey);
+
 	/** Setup bindings to a runtime object (or clear by passing in nullptr). */
 	void SetObjectBinding(TSharedPtr<IControlRigObjectBinding> InObjectBinding)
 	{
@@ -319,6 +322,7 @@ public:
 	FControlRigExecuteEvent& OnPostConstruction_AnyThread() { return PostConstructionEvent; }
 	FControlRigExecuteEvent& OnPreForwardsSolve_AnyThread() { return PreForwardsSolveEvent; }
 	FControlRigExecuteEvent& OnPostForwardsSolve_AnyThread() { return PostForwardsSolveEvent; }
+	FControlRigExecuteEvent& OnPreAdditiveValuesApplication_AnyThread() { return PreAdditiveValuesApplicationEvent; }
 	FRigEventDelegate& OnRigEvent_AnyThread() { return RigEventDelegate; }
 
 	// Setup the initial transform / ref pose of the bones based upon an anim instance
@@ -438,6 +442,9 @@ private:
 	
 	/** Broadcasts a notification after a forward solve has been initiated */
 	FControlRigExecuteEvent PostForwardsSolveEvent;
+
+	/** Broadcasts a notification before additive controls have been applied */
+	FControlRigExecuteEvent PreAdditiveValuesApplicationEvent;
 
 	/** Handle changes within the hierarchy */
 	void HandleHierarchyModified(ERigHierarchyNotification InNotification, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
@@ -574,6 +581,7 @@ protected:
 	int32 PostConstructionBracket;
 	int32 PreForwardsSolveBracket;
 	int32 PostForwardsSolveBracket;
+	int32 PreAdditiveValuesApplicationBracket;
 	int32 InteractionBracket;
 	int32 InterRigSyncBracket;
 	int32 ControlUndoBracketIndex;

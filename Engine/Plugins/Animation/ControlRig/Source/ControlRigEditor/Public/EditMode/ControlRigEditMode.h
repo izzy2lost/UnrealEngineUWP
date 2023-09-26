@@ -248,6 +248,9 @@ private:
 	/** Reset Transforms */
 	void ResetTransforms(bool bSelectionOnly);
 
+	/** Invert Input Pose */
+	void InvertInputPose();
+
 	/** Increase Shape Size */
 	void IncreaseShapeSize();
 

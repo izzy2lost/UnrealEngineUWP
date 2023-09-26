@@ -88,6 +88,7 @@
 #include "Constraints/TransformConstraintChannelInterface.h"
 #include "BakingAnimationKeySettings.h"
 #include "FrameNumberDetailsCustomization.h"
+#include "Editor/UnrealEd/Private/FbxExporter.h"
 #include "Sequencer/ControlRigSequencerHelpers.h"
 #include "Widgets/Layout/SSpacer.h"
 
@@ -1228,6 +1229,70 @@ void FControlRigParameterTrackEditor::BakeToControlRig(UClass* InClass, FGuid Ob
 			}
 		}
 	}
+}
+
+void FControlRigParameterTrackEditor::BakeInvertedPose(UControlRig* InControlRig, UMovieSceneControlRigParameterTrack* Track)
+{
+	if (!InControlRig->IsAdditive())
+	{
+		return;
+	}
+
+	UMovieSceneControlRigParameterSection* Section = Cast<UMovieSceneControlRigParameterSection>(Track->GetSectionToKey());
+	USkeletalMeshComponent* SkelMeshComp = Cast<USkeletalMeshComponent>(InControlRig->GetObjectBinding()->GetBoundObject());
+	UMovieSceneSequence* MovieSceneSequence = GetSequencer()->GetFocusedMovieSceneSequence();
+	UMovieScene* MovieScene = MovieSceneSequence->GetMovieScene();
+	UAnimSeqExportOption* ExportOptions = NewObject<UAnimSeqExportOption>(GetTransientPackage(), NAME_None);
+	UBakeToControlRigSettings* BakeSettings = GetMutableDefault<UBakeToControlRigSettings>();
+	const TSharedPtr<ISequencer> ParentSequencer = GetSequencer();
+	FMovieSceneSequenceIDRef Template = ParentSequencer->GetFocusedTemplateID();
+	FMovieSceneSequenceTransform RootToLocalTransform = ParentSequencer->GetFocusedMovieSceneSequenceTransform();
+
+	if (ExportOptions == nullptr || MovieScene == nullptr || SkelMeshComp == nullptr)
+	{
+		UE_LOG(LogMovieScene, Error, TEXT("FControlRigParameterTrackEditor::BakeInvertedPose All parameters must be valid."));
+		return;
+	}
+	
+	const FScopedTransaction Transaction(LOCTEXT("BakeInvertedPose_Transaction", "Bake Inverted Pose"));
+
+	UnFbx::FLevelSequenceAnimTrackAdapter AnimTrackAdapter(ParentSequencer.Get(), MovieScene, RootToLocalTransform);
+	int32 AnimationLength = AnimTrackAdapter.GetLength();
+	FScopedSlowTask Progress(AnimationLength, LOCTEXT("BakingToControlRig_SlowTask", "Baking To Control Rig..."));
+	Progress.MakeDialog(true);
+
+	auto DelegateHandle = InControlRig->OnPreAdditiveValuesApplication_AnyThread().AddLambda([](UControlRig* InControlRig, const FName& InEventName)
+	{
+		InControlRig->InvertInputPose(EControlRigSetKey::Never);
+	});
+
+	auto KeyFrame = [this, ParentSequencer, InControlRig, SkelMeshComp](const FFrameNumber FrameNumber)
+	{
+		const FFrameNumber NewTime = ConvertFrameTime(FrameNumber, ParentSequencer->GetFocusedDisplayRate(), ParentSequencer->GetFocusedTickResolution()).FrameNumber;
+		float LocalTime = ParentSequencer->GetFocusedTickResolution().AsSeconds(FFrameTime(NewTime));
+
+		AddControlKeys(SkelMeshComp, InControlRig, InControlRig->GetFName(), NAME_None, EControlRigContextChannelToKey::AllTransform, 
+				ESequencerKeyMode::ManualKeyForced, LocalTime);
+	};
+
+	FInitAnimationCB InitCallback = FInitAnimationCB::CreateLambda([]{});
+	FStartAnimationCB StartCallback = FStartAnimationCB::CreateLambda([AnimTrackAdapter, KeyFrame]
+	{
+		KeyFrame(AnimTrackAdapter.GetLocalStartFrame());
+	});
+	FTickAnimationCB TickCallback = FTickAnimationCB::CreateLambda([KeyFrame, &Progress](float DeltaTime, FFrameNumber FrameNumber)
+	{
+		KeyFrame(FrameNumber);
+		Progress.EnterProgressFrame(1);
+	});
+	FEndAnimationCB EndCallback = FEndAnimationCB::CreateLambda([]{});
+
+	MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(MovieScene,ParentSequencer.Get(),
+		SkelMeshComp, Template, RootToLocalTransform, ExportOptions,
+		InitCallback, StartCallback, TickCallback, EndCallback);
+
+	InControlRig->OnPreAdditiveValuesApplication_AnyThread().Remove(DelegateHandle);
+	ParentSequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
 }
 
 void FControlRigParameterTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, const TArray<FGuid>& ObjectBindings, const UClass* ObjectClass)
@@ -3362,7 +3427,7 @@ void FControlRigParameterTrackEditor::GetControlRigKeys(
 
 
 			bool bMaskKeyOut = (ControlIndex >= ControlsMask.Num() || ControlsMask[ControlIndex] == false);
-			bool bSetKey = ControlElement->GetFName() == ParameterName && !bMaskKeyOut;
+			bool bSetKey = ParameterName.IsNone() || (ControlElement->GetFName() == ParameterName && !bMaskKeyOut);
 
 			FRigControlValue ControlValue = InControlRig->GetControlValue(ControlElement, ERigControlValueType::Current);
 
@@ -3980,6 +4045,23 @@ void FControlRigParameterTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBu
 		MenuBuilder.EndSection();
 
 		MenuBuilder.AddMenuSeparator();
+	}
+	else if (UControlRig* AdditiveRig = Cast<UControlRig>(Track->GetControlRig()))
+	{
+		if (AdditiveRig->IsAdditive())
+		{
+			MenuBuilder.BeginSection("Additive Control Rig", LOCTEXT("AdditiveControlRig", "Additive Control Rig"));
+			{
+				MenuBuilder.AddMenuEntry(
+					LOCTEXT("Bake Inverted Pose", "Bake Inverted Pose"),
+					LOCTEXT("BakeInvertedPoseToolTip", "Bake inversion of the input pose into the rig"),
+					FSlateIcon(),
+					FUIAction(
+						FExecuteAction::CreateRaw(this, &FControlRigParameterTrackEditor::BakeInvertedPose, AdditiveRig, Track)));
+			}
+			MenuBuilder.EndSection();
+			MenuBuilder.AddMenuSeparator();
+		}
 	}
 
 }
