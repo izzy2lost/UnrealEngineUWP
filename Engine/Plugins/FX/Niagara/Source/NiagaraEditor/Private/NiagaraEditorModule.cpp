@@ -110,6 +110,7 @@
 #include "Customizations/NiagaraBakerSettingsDetails.h"
 #include "Customizations/NiagaraOutlinerCustomization.h"
 #include "Customizations/NiagaraSimulationStageCustomization.h"
+#include "Customizations/NiagaraDataChannelDetails.h"
 
 #include "NiagaraComponent.h"
 #include "NiagaraNodeStaticSwitch.h"
@@ -1040,7 +1041,11 @@ void FNiagaraEditorModule::StartupModule()
 	PropertyModule.RegisterCustomClassLayout(
 		UNiagaraComponentRendererProperties::StaticClass()->GetFName(), 
 		FOnGetDetailCustomizationInstance::CreateStatic(&FNiagaraComponentRendererPropertiesDetails::MakeInstance));
-	
+
+	PropertyModule.RegisterCustomClassLayout(
+		UNiagaraDataChannelAsset::StaticClass()->GetFName(),
+		FOnGetDetailCustomizationInstance::CreateStatic(&FNiagaraDataChannelAssetDetails::MakeInstance));
+
 	PropertyModule.RegisterCustomPropertyTypeLayout(
 		FNiagaraFloat::StaticStruct()->GetFName(),
 		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraNumericCustomization::MakeInstance));

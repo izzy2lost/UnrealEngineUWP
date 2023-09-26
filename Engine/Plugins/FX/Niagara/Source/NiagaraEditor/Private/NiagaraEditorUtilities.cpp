@@ -1063,7 +1063,8 @@ void FNiagaraEditorUtilities::MarkDependentCompilableAssetsDirty(const TArray<FA
 	{
 		FAssetData AssetToCheck = AssetsToCheck[0];
 		AssetsToCheck.RemoveAtSwap(0);
-		if (IsCompilableAssetClass(AssetToCheck.GetClass()))
+		bool bMustBeCompilableAsset = !InAssetsToCheck.Contains(AssetToCheck);//Don't require the original assets to be compilable.
+		if (!bMustBeCompilableAsset || IsCompilableAssetClass(AssetToCheck.GetClass()))
 		{
 			if (AssetsToLoadAndMarkDirty.Contains(AssetToCheck) == false)
 			{
