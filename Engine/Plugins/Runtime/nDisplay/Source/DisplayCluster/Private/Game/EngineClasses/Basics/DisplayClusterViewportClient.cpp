@@ -894,13 +894,6 @@ void UDisplayClusterViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCa
 	{
 		// Or if none to render, do logic for when rendering is skipped
 		GetRendererModule().PerFrameCleanupIfSkipRenderer();
-
-		// Make sure RHI resources get flushed if we're not using a renderer
-		ENQUEUE_RENDER_COMMAND(UDisplayClusterViewportClient_FlushRHIResources)(
-			[](FRHICommandListImmediate& RHICmdList)
-			{
-				RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
-			});
 	}
 
 	// Handle special viewports game-thread logic at frame end

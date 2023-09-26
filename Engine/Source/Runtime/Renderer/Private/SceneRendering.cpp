@@ -4930,10 +4930,14 @@ void FRendererModule::PostRenderAllViewports()
 
 void FRendererModule::PerFrameCleanupIfSkipRenderer()
 {
+	UE::RenderCommandPipe::FSyncScope SyncScope;
+
 	// Some systems (e.g. Slate) can still draw (via FRendererModule::DrawTileMesh for example) when scene renderer is not used
 	ENQUEUE_RENDER_COMMAND(CmdPerFrameCleanupIfSkipRenderer)(
 		[](FRHICommandListImmediate& RHICmdList)
 	{
+		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
+		PipelineStateCache::FlushResources();
 		FSceneRenderer::CleanUp(RHICmdList);
 		GPrimitiveIdVertexBufferPool.DiscardAll();
 	});

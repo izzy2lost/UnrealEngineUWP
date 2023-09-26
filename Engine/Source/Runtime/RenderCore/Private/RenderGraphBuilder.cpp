@@ -385,6 +385,7 @@ void FRDGBuilder::EndFlushResourcesRHI()
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(STAT_RDG_FlushResourcesRHI);
 	SCOPED_NAMED_EVENT(EndFlushResourcesRHI, FColor::Emerald);
 	RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
+	PipelineStateCache::FlushResources();
 }
 
 void FRDGBuilder::TickPoolElements()

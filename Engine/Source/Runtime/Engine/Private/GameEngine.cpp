@@ -1948,11 +1948,6 @@ void UGameEngine::Tick( float DeltaSeconds, bool bIdleMode )
 		if (bRenderingSuspended)
 		{
 			GetRendererModule().PerFrameCleanupIfSkipRenderer();
-			ENQUEUE_RENDER_COMMAND(UGameEngine_Tick_FlushRHIResources)(
-				[](FRHICommandListImmediate& RHICmdList)
-				{
-					RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
-				});
 		}
 	}
 
