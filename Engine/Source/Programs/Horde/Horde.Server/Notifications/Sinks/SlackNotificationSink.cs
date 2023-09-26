@@ -283,6 +283,7 @@ namespace Horde.Server.Notifications.Sinks
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
+			await _backgroundTask.DisposeAsync();
 			_userCache.Dispose();
 			_httpClient.Dispose();
 			_adminHttpClient?.Dispose();
