@@ -44,15 +44,6 @@ static FAutoConsoleVariableRef CVarNaniteFastTileClear(
 );
 
 // TODO: Heavily work in progress / experimental - do not use!
-static int32 GNaniteComputeMaterials = 0;
-static FAutoConsoleVariableRef CVarNaniteComputeMaterials(
-	TEXT("r.Nanite.ComputeMaterials"),
-	GNaniteComputeMaterials,
-	TEXT("Whether to enable Nanite material compute shading"),
-	ECVF_RenderThreadSafe
-);
-
-// TODO: Heavily work in progress / experimental - do not use!
 static int32 GNaniteBundleEmulation = 0;
 static FAutoConsoleVariableRef CVarNaniteBundleEmulation(
 	TEXT("r.Nanite.Bundle.Emulation"),
@@ -218,16 +209,9 @@ static FORCEINLINE const TCHAR* GetShadingMaterialName(const FMaterialRenderProx
 }
 #endif
 
-static bool UseComputeMaterials()
-{
-	// TODO: Heavily work in progress / experimental - do not use!
-	static const bool bAllowComputeMaterials = NaniteComputeMaterialsSupported();
-	return (bAllowComputeMaterials && GNaniteComputeMaterials != 0);
-}
-
 static bool UseLegacyCulling()
 {
-	return !UseComputeMaterials();
+	return !UseNaniteComputeMaterials();
 }
 
 static uint32 GetShadingRateTileSize()
@@ -1229,7 +1213,7 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 	Result.BasePass = CreateOpaqueBasePassUniformBuffer(GraphBuilder, View, 0, {}, DBufferTextures, bLumenGIEnabled);
 	Result.ActiveShadingBin = ~uint32(0);
 
-	if (UseComputeMaterials())
+	if (UseNaniteComputeMaterials())
 	{
 		// No possibility of read/write hazard due to fully resolved vbuffer/materials
 		const ERDGUnorderedAccessViewFlags OutTargetFlags = GNaniteBarrierTest != 0 ? ERDGUnorderedAccessViewFlags::SkipBarrier : ERDGUnorderedAccessViewFlags::None;
@@ -1362,7 +1346,7 @@ void DispatchBasePass(
 	TArray<FRDGTextureRef, TInlineAllocator<MaxSimultaneousRenderTargets>> ClearTargetList;
 
 	// Fast tile clear prior to fast clear eliminate
-	const bool bFastTileClear = UseComputeMaterials() && GNaniteFastTileClear != 0 && RHISupportsRenderTargetWriteMask(GMaxRHIShaderPlatform);
+	const bool bFastTileClear = UseNaniteComputeMaterials() && GNaniteFastTileClear != 0 && RHISupportsRenderTargetWriteMask(GMaxRHIShaderPlatform);
 	if (bFastTileClear)
 	{
 		for (uint32 TargetIndex = 0; TargetIndex < MaxSimultaneousRenderTargets; ++TargetIndex)
@@ -1559,7 +1543,7 @@ void DispatchBasePass(
 								continue;
 							}
 							// This cache lookup cannot be parallelized due to the possibility of a fence insertion into the command list during a miss.
-							Dispatch.PipelineState = PipelineStateCache::GetAndOrCreateComputePipelineState(RHICmdList, Dispatch.Shader, false);
+							Dispatch.PipelineState = GetComputePipelineState(RHICmdList, Dispatch.Shader);
 							if (RHICmdList.Bypass())
 							{
 								Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
@@ -1579,7 +1563,7 @@ void DispatchBasePass(
 							Dispatch.Shader = ShadingCommand->ComputeShader.GetComputeShader();
 							check(Dispatch.Shader);
 
-							Dispatch.PipelineState = PipelineStateCache::GetAndOrCreateComputePipelineState(RHICmdList, Dispatch.Shader, false);
+							Dispatch.PipelineState = GetComputePipelineState(RHICmdList, Dispatch.Shader);
 							check(Dispatch.PipelineState);
 							if (RHICmdList.Bypass())
 							{
@@ -1708,7 +1692,7 @@ void DrawBasePass(
 	const bool bDrawSceneViewsInOneNanitePass = ShouldDrawSceneViewsInOneNanitePass(View);
 	FIntRect ViewRect = bDrawSceneViewsInOneNanitePass ? View.GetFamilyViewRect() : View.ViewRect;
 
-	if (UseComputeMaterials())
+	if (UseNaniteComputeMaterials())
 	{
 		DispatchBasePass(
 			GraphBuilder,

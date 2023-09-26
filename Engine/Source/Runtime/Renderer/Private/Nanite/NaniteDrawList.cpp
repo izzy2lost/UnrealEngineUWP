@@ -205,7 +205,7 @@ void FNaniteDrawListContext::Apply(FScene& Scene)
 {
 	check(IsInParallelRenderingThread());
 
-	static const bool bAllowComputeMaterials = NaniteComputeMaterialsSupported();
+	const bool bUseComputeMaterials = UseNaniteComputeMaterials();
 
 	for (int32 MeshPass = 0; MeshPass < ENaniteMeshPass::Num; ++MeshPass)
 	{
@@ -235,7 +235,7 @@ void FNaniteDrawListContext::Apply(FScene& Scene)
 			FPrimitiveSceneInfo* PrimitiveSceneInfo = PipelinesCommand.PrimitiveSceneInfo;
 			FNaniteVisibility::PrimitiveBinsType* RasterBins = Visibility.GetRasterBinReferences(PrimitiveSceneInfo);
 
-			check(!bAllowComputeMaterials || (PipelinesCommand.RasterPipelines.Num() == PipelinesCommand.ShadingPipelines.Num()));
+			check(!bUseComputeMaterials || (PipelinesCommand.RasterPipelines.Num() == PipelinesCommand.ShadingPipelines.Num()));
 			const int32 MaterialSectionCount = PipelinesCommand.RasterPipelines.Num();
 			for (int32 MaterialSectionIndex = 0; MaterialSectionIndex < MaterialSectionCount; ++MaterialSectionIndex)
 			{
@@ -261,7 +261,7 @@ void FNaniteDrawListContext::Apply(FScene& Scene)
 				}
 
 				// Register shading bin
-				if (bAllowComputeMaterials)
+				if (bUseComputeMaterials)
 				{
 					const FNaniteShadingPipeline& ShadingPipeline = PipelinesCommand.ShadingPipelines[MaterialSectionIndex];
 					const FNaniteShadingBin ShadingBin = ShadingPipelines.Register(ShadingPipeline);

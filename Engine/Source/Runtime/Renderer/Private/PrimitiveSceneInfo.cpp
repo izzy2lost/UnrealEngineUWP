@@ -669,8 +669,6 @@ void FPrimitiveSceneInfo::CacheNaniteDrawCommands(FScene* Scene, const TArrayVie
 	const bool bNaniteEnabled = DoesPlatformSupportNanite(GMaxRHIShaderPlatform);
 	if (bNaniteEnabled)
 	{
-		static const bool bAllowComputeMaterials = NaniteComputeMaterialsSupported();
-
 		TArray<FNaniteDrawListContext, TInlineAllocator<1>> DrawListContexts;
 
 		if (GNaniteDrawCommandCacheMultithreaded && FApp::ShouldUseThreadingForPerformance())
@@ -703,7 +701,7 @@ void FPrimitiveSceneInfo::CacheNaniteDrawCommands(FScene* Scene, const TArrayVie
 			}
 		}
 
-		if (bAllowComputeMaterials)
+		if (UseNaniteComputeMaterials())
 		{
 			// Base Pass
 			{
@@ -722,8 +720,8 @@ void FPrimitiveSceneInfo::CacheNaniteDrawCommands(FScene* Scene, const TArrayVie
 
 void BuildNaniteDrawCommands(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneInfo, FNaniteDrawListContext& DrawListContext)
 {
-	static const bool bAllowComputeMaterials = NaniteComputeMaterialsSupported();
 	static const bool bAllowStaticLighting = FReadOnlyCVARCache::Get().bAllowStaticLighting;
+	const bool bUseComputeMaterials = UseNaniteComputeMaterials();
 
 	FPrimitiveSceneProxy* Proxy = PrimitiveSceneInfo->Proxy;
 	if (Proxy->IsNaniteMesh())
@@ -732,7 +730,7 @@ void BuildNaniteDrawCommands(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 		{
 			FNaniteDrawListContext::FPrimitiveSceneInfoScope PrimInfoScope(DrawListContext, *PrimitiveSceneInfo);
 	
-			auto PassBody = [PrimitiveSceneInfo, NaniteProxy, &DrawListContext](ENaniteMeshPass::Type MeshPass, FMeshPassProcessor* const NaniteMeshProcessor)
+			auto PassBody = [PrimitiveSceneInfo, NaniteProxy, &DrawListContext, bUseComputeMaterials](ENaniteMeshPass::Type MeshPass, FMeshPassProcessor* const NaniteMeshProcessor)
 			{
 				FNaniteDrawListContext::FMeshPassScope MeshPassScope(DrawListContext, MeshPass);
 
@@ -753,7 +751,7 @@ void BuildNaniteDrawCommands(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 				if (NaniteMaterialSections.Num() > 0)
 				{
 					FLightCacheInterface* LightCacheInterface = nullptr;
-					if (bAllowComputeMaterials && bAllowStaticLighting && NaniteProxy->HasStaticLighting())
+					if (bUseComputeMaterials && bAllowStaticLighting && NaniteProxy->HasStaticLighting())
 					{
 						FPrimitiveSceneProxy::FLCIArray LCIs;
 						NaniteProxy->GetLCIs(LCIs);
@@ -784,7 +782,7 @@ void BuildNaniteDrawCommands(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 							!MaterialSection.bAlwaysEvaluateWPO &&
 							NaniteProxy->GetInstanceWorldPositionOffsetDisableDistance(WPODisableDistance);
 
-						if (bAllowComputeMaterials)
+						if (bUseComputeMaterials)
 						{
 							FNaniteShadingPipeline& ShadingPipeline = PipelinesCommand.ShadingPipelines.Emplace_GetRef();
 							ShadingPipeline.ShadingMaterial = MaterialSection.ShadingMaterialProxy;

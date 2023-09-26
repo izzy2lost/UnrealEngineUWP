@@ -72,6 +72,19 @@ static TAutoConsoleVariable<int32> CVarNaniteAllowComputeMaterials(
 	TEXT("Whether to enable support for (highly experimental) Nanite compute materials"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
+// TODO: Heavily work in progress / experimental - do not use!
+static TAutoConsoleVariable<int32> CVarNaniteUseComputeMaterials(
+	TEXT("r.Nanite.ComputeMaterials"),
+	0, // Off by default
+	TEXT("Whether to enable (highly experimental) Nanite compute materials"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
+	{
+		// Force recaching of Nanite draw commands when toggled.
+		FGlobalComponentRecreateRenderStateContext Context;
+	}),
+	ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarNaniteAllowTessellation(
 	TEXT("r.Nanite.AllowTessellation"),
 	0, // Off by default
