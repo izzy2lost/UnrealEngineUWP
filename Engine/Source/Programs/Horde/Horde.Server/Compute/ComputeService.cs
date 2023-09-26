@@ -66,6 +66,16 @@ namespace Horde.Server.Compute
 		/// </summary>
 		private readonly TimeSpan _resourceNeedsMaxAge = TimeSpan.FromMinutes(2);
 		
+		/// <summary>
+		/// Delegate for resource need events
+		/// </summary>
+		public delegate void ResourceNeedEvent(string clusterId, string poolId, string resourceName, int total);
+		
+		/// <summary>
+		/// Event triggered when resource needs have been calculated and updated
+		/// </summary>
+		public event ResourceNeedEvent? OnResourceNeedsUpdated;
+		
 		readonly IAgentCollection _agentCollection;
 		readonly ILogFileService _logService;
 		readonly AgentService _agentService;
@@ -107,6 +117,7 @@ namespace Horde.Server.Compute
 			{
 				if (_resourceNeedsMeasurements.Count == 0)
 				{
+					// If no new measurements are available, send zero to prevent OpenTelemetry gauge from caching last observed value
 					return new List<Measurement<int>> { new (0) };
 				}
 				List<Measurement<int>> copy = new(_resourceNeedsMeasurements);
@@ -179,6 +190,7 @@ namespace Horde.Server.Compute
 					new ("resource", key.ResourceName)
 				};
 				measurements.Add(new Measurement<int>(totalValue, kvp));
+				OnResourceNeedsUpdated?.Invoke(key.ClusterId, key.PoolId, key.ResourceName, totalValue);
 			}
 
 			return measurements;

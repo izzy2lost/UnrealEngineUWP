@@ -106,6 +106,7 @@ using Horde.Server.Ddc;
 using System.Net.Mime;
 using Microsoft.Extensions.Logging.Abstractions;
 using EpicGames.Redis;
+using Horde.Server.Aws;
 using StackExchange.Redis;
 
 namespace Horde.Server
@@ -568,6 +569,8 @@ namespace Horde.Server
 				services.AddAWSService<IAmazonAutoScaling>();
 				services.AddAWSService<IAmazonSQS>();
 				services.AddAWSService<IAmazonEC2>();
+				
+				services.AddSingleton<AwsCloudWatchMetricExporter>();
 			}
 
 			ConfigureLogStorage(services);
@@ -764,6 +767,7 @@ namespace Horde.Server
 				if (settings.WithAws)
 				{
 					services.AddHostedService(provider => provider.GetRequiredService<AwsAutoScalingLifecycleService>());
+					services.AddHostedService(provider => provider.GetRequiredService<AwsCloudWatchMetricExporter>());
 				}
 			}
 
