@@ -114,7 +114,7 @@ int32 SWorldPartitionEditorGridSpatialHash::PaintGrid(const FGeometry& AllottedG
 	// Paint grid lines
 	if (ToBox2D(VisibleGridRectWorld).GetArea() > 0.0f)
 	{
-		auto PaintGridLines = [this, &OutDrawElements, &LayerId, &AllottedGeometry](const FBox& VisibleGridRectWorld, float EffectiveCellSize, float Thickness, const FLinearColor& Color)
+		auto PaintGridLines = [this, &OutDrawElements, &LayerId, &AllottedGeometry](const FBox& VisibleGridRectWorld, int64 EffectiveCellSize, float Thickness, const FLinearColor& Color)
 		{
 			if (Color.A > 0.0f)
 			{
