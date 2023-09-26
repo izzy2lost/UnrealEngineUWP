@@ -93,8 +93,10 @@ static void PrintHelp()
 static int32 PingCDN(const FString& Url, const FString& TocPath)
 {
 #if !UE_BUILD_SHIPPING
+	const uint32 TimeoutMs = 30 * 1000;
+
 	int32 Results[4] = {};
-	UE::IO::IAS::HTTP::LatencyTest(Url, TocPath, MakeArrayView(Results));
+	UE::IO::IAS::HTTP::LatencyTest(Url, TocPath, TimeoutMs, MakeArrayView(Results));
 
 	// Ignore the first result as it might be wildly higher due to caching on the CDN
 	return (Results[1] + Results[2] + Results[3]) / 3;

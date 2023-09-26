@@ -8,6 +8,6 @@
 namespace UE::IO::IAS::HTTP
 {
 
-void LatencyTest(FStringView InUrl, FStringView InPath, TArrayView<int32> OutResults);
+void LatencyTest(FStringView InUrl, FStringView InPath, uint32 InTimeOutMs, TArrayView<int32> OutResults);
 
 } // namespace UE::IO::IAS::HTTP

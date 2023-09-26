@@ -12,7 +12,7 @@
 namespace UE::IO::IAS::HTTP
 {
 
-void LatencyTest(FStringView InUrl, FStringView InPath, TArrayView<int32> OutResults)
+void LatencyTest(FStringView InUrl, FStringView InPath, uint32 InTimeOutMs, TArrayView<int32> OutResults)
 {
 	auto AnsiUrl = StringCast<ANSICHAR>(InUrl.GetData(), InUrl.Len());
 
@@ -45,7 +45,7 @@ void LatencyTest(FStringView InUrl, FStringView InPath, TArrayView<int32> OutRes
 			});
 
 		uint64 Cycles = FPlatformTime::Cycles64();
-		while (Loop.Tick(-1) != 0);
+		while (Loop.Tick(InTimeOutMs) != 0);
 		Cycles = FPlatformTime::Cycles64() - Cycles;
 
 		Result = Ok ? int32(Cycles) : -1;

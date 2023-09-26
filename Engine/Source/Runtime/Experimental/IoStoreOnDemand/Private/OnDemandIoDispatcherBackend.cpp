@@ -78,6 +78,13 @@ static FAutoConsoleVariableRef CVar_IasMaxHttpRetryCount(
 	TEXT("Max number of HTTP request retries before failing the I/O request.")
 );
 
+int32 GIasHttpTimeOutMs = 30 * 1000;
+static FAutoConsoleVariableRef CVar_IasHttpTimeOutMs(
+	TEXT("ias.HttpTimeOutMs"),
+	GIasHttpTimeOutMs,
+	TEXT("Time out value for HTTP requests in milliseconds")
+);
+
 int32 GIasHttpHealthCheckWaitTime = 3000;
 static FAutoConsoleVariableRef CVar_IasHttpHealthCheckWaitTime(
 	TEXT("ias.HttpHealthCheckWaitTime"),
@@ -154,8 +161,10 @@ static FAutoConsoleCommand CVar_IasAbandonCache(
 #if !UE_BUILD_SHIPPING
 static void LatencyTest(FStringView Url, FStringView Path)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::LatencyTest);
+
 	int32 Results[4] = {};
-	UE::IO::IAS::HTTP::LatencyTest(Url, Path, MakeArrayView(Results));
+	UE::IO::IAS::HTTP::LatencyTest(Url, Path, GIasHttpTimeOutMs, MakeArrayView(Results));
 	UE_LOG(LogIas, Log, TEXT("Endpoint '%s' latency test (ms): %d %d %d %d"),
 		Url.GetData(), Results[0], Results[1], Results[2], Results[3]);
 }
@@ -163,10 +172,12 @@ static void LatencyTest(FStringView Url, FStringView Path)
 ///////////////////////////////////////////////////////////////////////////////
 static int32 LatencyTest(TConstArrayView<FString> Urls, FStringView Path, std::atomic_bool& bCancel)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::LatencyTest);
+
 	for (int32 Idx = 0; Idx < Urls.Num() && !bCancel.load(std::memory_order_relaxed); ++Idx)
 	{
 		int32 LatencyMs = -1;
-		UE::IO::IAS::HTTP::LatencyTest(Urls[Idx], Path, MakeArrayView(&LatencyMs, 1));
+		UE::IO::IAS::HTTP::LatencyTest(Urls[Idx], Path, GIasHttpTimeOutMs, MakeArrayView(&LatencyMs, 1));
 		if (LatencyMs > 0)
 		{
 			return Idx;
