@@ -3204,10 +3204,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		Scene->SplineMeshSceneResources->Update(GraphBuilder, GetSceneUniforms());
 	}
 
-	// Substrate initialisation is always run even when not enabled.
-	const bool bSubstrateEnabled = Substrate::IsSubstrateEnabled();
-	Substrate::InitialiseSubstrateFrameSceneData(GraphBuilder, *this);
-
 	if (DepthPass.IsComputeStencilDitherEnabled())
 	{
 		AddDitheredStencilFillPass(GraphBuilder, Views, SceneTextures.Depth.Target, DepthPass);
@@ -3237,6 +3233,11 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_FGlobalDynamicVertexBuffer_Commit);
 		DynamicReadBufferForInitViews.Commit(GraphBuilder.RHICmdList);
 	}
+
+	// Substrate initialisation is always run even when not enabled.
+	// Need to run after EndInitViews() to ensure ViewRelevance computation are completed
+	const bool bSubstrateEnabled = Substrate::IsSubstrateEnabled();
+	Substrate::InitialiseSubstrateFrameSceneData(GraphBuilder, *this);
 
 	UE::SVT::GetStreamingManager().EndAsyncUpdate(GraphBuilder);
 
