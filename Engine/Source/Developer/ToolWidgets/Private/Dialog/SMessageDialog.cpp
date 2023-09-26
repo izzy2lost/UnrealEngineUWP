@@ -36,7 +36,7 @@ void SMessageDialog::Construct(const FArguments& InArgs)
 		.ContentAreaPadding(FMargin(16.f, 0.f, 0.f, 0.f))
 		.UseScrollBox(InArgs._UseScrollBox)
 		.ScrollBoxMaxHeight(InArgs._ScrollBoxMaxHeight)
-		.ButtonAreaPadding(0.f)
+		.ButtonAreaPadding(FMargin(0.f, 32.f, 0.f, 0.f))
 		.OnClosed(InArgs._OnClosed)
 		.BeforeButtons()
 		[

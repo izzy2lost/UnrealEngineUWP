@@ -145,6 +145,7 @@ void SUsdDefaultAssetCacheDialog::Construct( const FArguments& InArgs )
 			]
 
 			+SVerticalBox::Slot()
+			.Padding(0.f, 32.f, 0.f, 0.f)
 			.AutoHeight()
 			[
 				SNew(SHorizontalBox)
@@ -153,7 +154,7 @@ void SUsdDefaultAssetCacheDialog::Construct( const FArguments& InArgs )
 				.FillWidth(1.0f)
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
-				.Padding(FMargin(16.f, 0.f, 0.f, 0.f))
+				.Padding(0)
 				[
 					SNew(SCheckBox)
 					.IsChecked(ECheckBoxState::Unchecked)
@@ -176,9 +177,10 @@ void SUsdDefaultAssetCacheDialog::Construct( const FArguments& InArgs )
 				.AutoWidth()
 				.HAlign(HAlign_Right)
 				.VAlign(VAlign_Center)
+				.Padding(16.f, 0.f, 0.f, 0.f)
 				[
 					SNew( SUniformGridPanel )
-					.SlotPadding( 2 )
+					.SlotPadding(FAppStyle::Get().GetMargin("StandardDialog.SlotPadding"))
 					.MinDesiredSlotWidth(FAppStyle::Get().GetFloat("StandardDialog.MinDesiredSlotWidth"))
 					.MinDesiredSlotHeight(FAppStyle::Get().GetFloat("StandardDialog.MinDesiredSlotHeight"))
 

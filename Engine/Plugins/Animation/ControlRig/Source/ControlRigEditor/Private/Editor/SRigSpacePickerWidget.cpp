@@ -1202,7 +1202,7 @@ void SRigSpacePickerBakeWidget::Construct(const FArguments& InArgs)
 
 			+SVerticalBox::Slot()
 			.AutoHeight()
-			.Padding(0.f, 16.f, 0.f, 0.f)
+			.Padding(0.f, 16.f, 0.f, 16.f)
 			[
 				SNew(SHorizontalBox)
 

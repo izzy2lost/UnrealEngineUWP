@@ -4416,13 +4416,13 @@ void SCollapseControlsWidget::Construct(const FArguments& InArgs)
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot()
 				.AutoHeight()
-				.Padding(0.f, 8.f, 0.f, 0.f)
+				.Padding(0.f)
 				[
 					DetailsView->GetWidget().ToSharedRef()
 				]
 				+ SVerticalBox::Slot()
 				.AutoHeight()
-				.Padding(FMargin(0.0f, 0.f))
+				.Padding(16.f)
 				[
 
 					SNew(SHorizontalBox)

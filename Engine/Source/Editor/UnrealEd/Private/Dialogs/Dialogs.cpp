@@ -117,6 +117,7 @@ public:
 				]
 
 				+SVerticalBox::Slot()
+				.Padding(0.f, 32.f, 0.f, 0.f)
 				.AutoHeight()
 				[
 					SNew(SHorizontalBox)
@@ -163,7 +164,7 @@ public:
 					.VAlign(VAlign_Center)
 					[
 						SAssignNew( ButtonBox, SUniformGridPanel )
-						.SlotPadding(FMargin(16.f, 0.f, 0.f, 0.f))
+						.SlotPadding(FMargin(8.f, 0.f, 0.f, 0.f))
 						.MinDesiredSlotWidth(FAppStyle::Get().GetFloat("StandardDialog.MinDesiredSlotWidth"))
 						.MinDesiredSlotHeight(FAppStyle::Get().GetFloat("StandardDialog.MinDesiredSlotHeight"))
 					]
@@ -630,6 +631,7 @@ public:
 		ChildSlot
 		[
 			SNew(SBorder)
+			.Padding(16.f)
 			.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
 			[
 				SNew( SVerticalBox )
@@ -649,7 +651,6 @@ public:
 						+SHorizontalBox::Slot()
 						.AutoWidth()
 						.VAlign(VAlign_Center)
-						.Padding(16) // currently hardcoded until we adjust StandardDialog.SlotPadding
 						[
 							SNew( SImage )
 							.Image(InArgs._Image)
@@ -659,7 +660,7 @@ public:
 						+SHorizontalBox::Slot()
 						.AutoWidth()
 						.VAlign(VAlign_Center)
-						.Padding(0)
+						.Padding(FMargin(16.f, 0.f, 0.f, 0.f))
 						[
 							SNew( STextBlock )
 							.WrapTextAt(512.0f)
@@ -672,6 +673,7 @@ public:
 				+SVerticalBox::Slot()
 				.AutoHeight()
 				.HAlign(HAlign_Fill)
+				.Padding(FMargin(0.f, 32.f, 0.f, 0.f))
 				[
 					ConstructConditionalInternals(InArgs)
 				]
@@ -693,7 +695,6 @@ public:
 		// checkbox with user specified text
 		HorizontalBox->AddSlot()
 		.HAlign(HAlign_Left)
-		.Padding(16) // currently hardcoded until we adjust StandardDialog.SlotPadding
 		.FillWidth(1.0)
 		[
 			SNew(SCheckBox)
@@ -708,7 +709,7 @@ public:
 		];
 		HorizontalBox->AddSlot()
 		.HAlign(HAlign_Right)
-		.Padding(16) // currently hardcoded until we adjust StandardDialog.SlotPadding
+		.Padding(FMargin(16.f, 0.f, 0.f, 0.f)) // currently hardcoded until we adjust StandardDialog.SlotPadding
 		.AutoWidth()
 		[
 			SNew(SPrimaryButton)
@@ -724,7 +725,7 @@ public:
 			// cancel/stop/abort button
 			HorizontalBox->AddSlot()
 			.HAlign(HAlign_Right)
-			.Padding(0, 16, 16, 16) // currently hardcoded until we adjust StandardDialog.SlotPadding
+			.Padding(FMargin(8.f, 0.f, 0.f, 0.f)) // currently hardcoded until we adjust StandardDialog.SlotPadding
 			.AutoWidth()
 			[
 				SNew( SButton )
@@ -1025,7 +1026,7 @@ void SGenericDialogWidget::Construct( const FArguments& InArgs )
 		+SVerticalBox::Slot()
 		.HAlign(HAlign_Right)
 		.AutoHeight()
-		.Padding(0.0f, 2.0f, 0.0f, 0.0f)
+		.Padding(0.f, 2.f, 0.f, 0.f)
 		[
 			SNew(SButton)
 			.Text( NSLOCTEXT("UnrealEd", "OK", "OK") )
