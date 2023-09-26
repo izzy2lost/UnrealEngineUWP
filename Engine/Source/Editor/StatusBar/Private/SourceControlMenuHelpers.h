@@ -49,13 +49,9 @@ public:
 class FSourceControlMenuHelpers
 {
 	friend class FSourceControlCommands;
-public:
-	/**
-	 * Static: Access singleton instance
-	 *
-	 * @return	Reference to the singleton object
-	 */
-	static FSourceControlMenuHelpers& Get();
+
+private:
+	FSourceControlMenuHelpers() {};
 
 private:
 	enum EQueryState
@@ -64,7 +60,6 @@ private:
 		Querying,
 		Queried,
 	};
-
 
 	static EQueryState QueryState;
 
@@ -97,5 +92,20 @@ private:
 	static FText GetSourceControlCheckInStatusTooltipText();
 	static const FSlateBrush* GetSourceControlCheckInStatusIcon();
 	static FReply OnSourceControlCheckInChangesClicked();
+
+	/** Callbacks */
+	static void OnSourceControlProviderChanged(ISourceControlProvider& OldProvider, ISourceControlProvider& NewProvider);
+	static void OnSourceControlStateChanged();
+
+	/** Conflicts */
+	static bool AreConflictsRemaining();
+
+private:
+	/** Delegate handles */
+	static FDelegateHandle SourceControlProviderChangedHandle;
+	static FDelegateHandle SourceControlStateChangedHandle;
+
+	/** Is there a conflict remaining? */
+	static bool bConflictsRemaining;
 };
 
