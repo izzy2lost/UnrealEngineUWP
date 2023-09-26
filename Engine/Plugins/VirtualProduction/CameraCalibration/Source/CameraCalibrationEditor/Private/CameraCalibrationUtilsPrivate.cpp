@@ -128,24 +128,6 @@ namespace UE::CameraCalibration::Private
 		}
 	}
 
-	void SortArucoCalibrationPoints(const TArray<FArucoCalibrationPoint>& ArucoCalibrationPoints, TMap<UObject*, TArray<FArucoCalibrationPoint>>& OutSortedArucoCalibrationPointMap)
-	{
-		for (const FArucoCalibrationPoint& ArucoCalibrationPoint : ArucoCalibrationPoints)
-		{
-			if (TArray<FArucoCalibrationPoint>* ArucoCalibrationPointSet = OutSortedArucoCalibrationPointMap.Find(ArucoCalibrationPoint.Owner))
-			{
-				ArucoCalibrationPointSet->Add(ArucoCalibrationPoint);
-			}
-			else
-			{
-				TArray<FArucoCalibrationPoint> NewArucoCalibrationPointSet;
-				NewArucoCalibrationPointSet.Add(ArucoCalibrationPoint);
-
-				OutSortedArucoCalibrationPointMap.Add(ArucoCalibrationPoint.Owner, NewArucoCalibrationPointSet);
-			}
-		}
-	}
-
 	bool FindArucoCalibrationPoint(const TArray<UCalibrationPointComponent*>& CalibrationComponents, EArucoDictionary ArucoDictionary, const FArucoMarker& ArucoMarker, FArucoCalibrationPoint& OutArucoCalibrationPoint)
 	{
 		// Build calibrator point name based on the detected marker
@@ -183,7 +165,6 @@ namespace UE::CameraCalibration::Private
 			// If all four corners were found, we're done. Otherwise, check the next calibration component for the four corners
 			if (FoundCorners == NumExpectedCorners)
 			{
-				OutArucoCalibrationPoint.Owner = Component;
 				return true;
 			}
 		}

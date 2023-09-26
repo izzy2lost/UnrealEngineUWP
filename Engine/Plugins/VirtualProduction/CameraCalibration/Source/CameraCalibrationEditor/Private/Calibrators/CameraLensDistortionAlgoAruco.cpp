@@ -35,7 +35,6 @@
 #define LOCTEXT_NAMESPACE "CameraLensDistortionAlgoAruco"
 
 #if WITH_EDITOR
-static TAutoConsoleVariable<bool> CVarUseIntrinsicsGuessAruco(TEXT("LensDistortionAruco.UseIntrinsicsGuess"), true, TEXT("If true, the solver initializes the camera intrinsics to a user-provided estimate. Otherwise, the solver will compute the initial values."));
 static TAutoConsoleVariable<bool> CVarFixExtrinsicsAruco(TEXT("LensDistortionAruco.FixExtrinsics"), false, TEXT("If true, the solver will fix the camera extrinsics to the user-provided camera poses"));
 static TAutoConsoleVariable<bool> CVarFixZeroDistortionAruco(TEXT("LensDistortionAruco.FixZeroDistortion"), false, TEXT("If true, the solver will fix all distortion values to always be 0"));
 static TAutoConsoleVariable<bool> CVarUseExtrinsicsGuessAruco(TEXT("LensDistortionAruco.UseExtrinsicsGuess"), false, TEXT("If true, the actual calibrator and camera poses will be used when running the solver"));
@@ -377,14 +376,14 @@ bool UCameraLensDistortionAlgoAruco::GetLensDistortion(
 
 	ECalibrationFlags SolverFlags = ECalibrationFlags::None;
 
+	// Aruco markers may be detected anywhere in the image, and there is no guarantee that they will be coplanar. 
+	// The solver's initialization for focal length assumes all points in an image are coplanar. 
+	// Therefore, we must provide an intrinsics guess to skip this initialization step in the solver. 
+	EnumAddFlags(SolverFlags, ECalibrationFlags::UseIntrinsicGuess);
+
 	if (CVarUseExtrinsicsGuessAruco.GetValueOnGameThread())
 	{
 		EnumAddFlags(SolverFlags, ECalibrationFlags::UseExtrinsicGuess);
-	}
-
-	if (CVarUseIntrinsicsGuessAruco.GetValueOnAnyThread())
-	{
-		EnumAddFlags(SolverFlags, ECalibrationFlags::UseIntrinsicGuess);
 	}
 
 	if (CVarFixExtrinsicsAruco.GetValueOnAnyThread())
@@ -548,21 +547,16 @@ bool UCameraLensDistortionAlgoAruco::AddCalibrationRow(FText& OutErrorMessage)
 		}
 	}
 
-	// In the current implementation, we expect each set of 3D-2D point correspondences to be coplanar. All of the aruco markers belonging to a single calibration component should be coplanar.
-	// Therefore, we group the aruco calibration points by the calibration component they belong to, and each distinct component will contribute its own set of coplanar points.
-	TMap<UObject*, TArray<FArucoCalibrationPoint>> MarkerSets;
-	UE::CameraCalibration::Private::SortArucoCalibrationPoints(ArucoCalibrationPoints, MarkerSets);
-
 	ExportSessionData();
 
 	// For each set of coplanar markers, add a new calibration row
-	for (const TPair<UObject*, TArray<FArucoCalibrationPoint>>& MarkerSetPair : MarkerSets)
+	if (ArucoCalibrationPoints.Num() > 0)
 	{
 		TSharedPtr<FLensDistortionArucoRowData> NewRow = MakeShared<FLensDistortionArucoRowData>();
 		NewRow->Index = LensDistortionTool->AdvanceSessionRowIndex();
 
 		// Save the aruco points associated with this row 
-		NewRow->ArucoPoints = MarkerSetPair.Value;
+		NewRow->ArucoPoints = ArucoCalibrationPoints;
 
 		// Get the current pose of the selected CineCamera actor
 		NewRow->CameraPose = FTransform::Identity;

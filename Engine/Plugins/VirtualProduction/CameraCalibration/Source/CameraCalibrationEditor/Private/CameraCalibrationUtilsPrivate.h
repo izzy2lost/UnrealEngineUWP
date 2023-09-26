@@ -28,12 +28,6 @@ struct FArucoCalibrationPoint
 	/** Name of the marker (follows the naming convention of "[DictionaryName]-[MarkerID]") */
 	UPROPERTY()
 	FString Name;
-
-	/** 
-	 * Object (almost certainly a CalibrationPointComponent) that owns this aruco point. 
-	 * Used to sort detected points that belong to different patterns in the same image 
-	 */
-	TObjectPtr<UObject> Owner = nullptr;
 };
 
 namespace UE::CameraCalibration::Private
@@ -52,9 +46,6 @@ namespace UE::CameraCalibration::Private
 
 	/** Find an aruco marker calibration point in one of the input calibration components that matches the input dictionary and marker ID */
 	bool FindArucoCalibrationPoint(const TArray<UCalibrationPointComponent*>& CalibrationComponents, EArucoDictionary ArucoDictionary, const FArucoMarker& ArucoMarker, FArucoCalibrationPoint& OutArucoCalibrationPoint);
-
-	/** Sort input calibration points based on owner */
-	void SortArucoCalibrationPoints(const TArray<FArucoCalibrationPoint>& ArucoCalibrationPoints, TMap<UObject*, TArray<FArucoCalibrationPoint>>& OutSortedArucoCalibrationPointMap);
 
 	/** Set every pixel in the input texture to the clear color */
 	void ClearTexture(UTexture2D* Texture, FColor ClearColor = FColor::Transparent);
