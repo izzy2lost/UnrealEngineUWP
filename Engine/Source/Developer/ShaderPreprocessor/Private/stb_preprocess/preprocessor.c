@@ -3149,7 +3149,7 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 					e = copy;
 				*e = 0;
 
-				argument_buffer = stbds_arrinline_suballoc(argument_buffer, char, 200);
+				stbds_arrinline_suballoc(argument_buffer, char, 200);
 
 				arrput(arguments, copy);
 				cs->src_line_number += arg_newlines;
