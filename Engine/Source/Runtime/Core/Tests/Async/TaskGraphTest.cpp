@@ -1385,6 +1385,73 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		check(bDestroyed);
 	}
+
+	TEST_CASE_NAMED(FTaskGraphWaitForAnyTask, "System::Core::Async::TaskGraph::WaitForAnyTask", "[.][ApplicationContextMask][EngineFilter]")
+	{
+		{	// blocks if none of tasks is completed
+			FGraphEventRef Blocker = FGraphEvent::CreateGraphEvent(); // blocks all tasks
+
+			FGraphEventArray Tasks
+			{
+				FFunctionGraphTask::CreateAndDispatchWhenReady([] {}, TStatId{}, Blocker),
+				FFunctionGraphTask::CreateAndDispatchWhenReady([] {}, TStatId{}, Blocker)
+			};
+
+			verify(WaitForAnyTaskCompleted(Tasks, FTimespan::FromMilliseconds(1.0)) == INDEX_NONE);
+
+			Blocker->DispatchSubsequents();
+
+			verify(WaitForAnyTaskCompleted(Tasks) != INDEX_NONE);
+		}
+
+		{	// doesn't wait for all tasks
+			FGraphEventRef Blocker = FGraphEvent::CreateGraphEvent();
+
+			FGraphEventArray Tasks
+			{
+				FFunctionGraphTask::CreateAndDispatchWhenReady([] {}),
+				FFunctionGraphTask::CreateAndDispatchWhenReady([] {}, TStatId{}, Blocker) // is blocked
+			};
+
+			verify(WaitForAnyTaskCompleted(Tasks) == 0);
+
+			Blocker->DispatchSubsequents();
+		}
+	}
+
+	TEST_CASE_NAMED(FTaskGraphAnyTask, "System::Core::Async::TaskGraph::AnyTask", "[.][ApplicationContextMask][EngineFilter]")
+	{
+		{	// blocks if none of tasks is completed
+			FGraphEventRef Blocker = FGraphEvent::CreateGraphEvent(); // blocks all tasks
+
+			FGraphEventArray Tasks
+			{
+				FFunctionGraphTask::CreateAndDispatchWhenReady([] {}, TStatId{}, Blocker),
+				FFunctionGraphTask::CreateAndDispatchWhenReady([] {}, TStatId{}, Blocker)
+			};
+
+			FPlatformProcess::Sleep(0.1f);
+			verify(!AnyTaskCompleted(Tasks)->IsComplete());
+
+			Blocker->DispatchSubsequents();
+
+			AnyTaskCompleted(Tasks)->Wait();
+		}
+
+		{	// doesn't wait for all tasks
+			FGraphEventRef Blocker = FGraphEvent::CreateGraphEvent();
+
+			FGraphEventArray Tasks
+			{
+				FFunctionGraphTask::CreateAndDispatchWhenReady([] {}),
+				FFunctionGraphTask::CreateAndDispatchWhenReady([] {}, TStatId{}, Blocker) // is blocked
+			};
+
+			AnyTaskCompleted(Tasks)->Wait();
+
+			Blocker->DispatchSubsequents();
+		}
+	}
 }
 
 #endif //WITH_TESTS

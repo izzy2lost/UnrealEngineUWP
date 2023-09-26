@@ -400,6 +400,92 @@ namespace UE::Tasks
 		return Tasks;
 	}
 
+	/////////////////////////////////////////////////////////////
+	// "any task" support. these functions allocate excessively (per input task plus more).
+	// can be reduced to a single alloc if this is a perf issue
+	
+	// Blocks the current thread until any of the given tasks is completed.
+	// Is slightly more efficient than `Any().Wait()`.
+	// Returns the index of the first completed task, or `INDEX_NONE` on timeout
+	template<typename TaskCollectionType>
+	int32 WaitAny(const TaskCollectionType& Tasks, FTimespan Timeout = FTimespan::MaxValue())
+	{
+		if (UNLIKELY(Tasks.Num() == 0))
+		{
+			return INDEX_NONE;
+		}
+
+		FSharedEventRef Event;
+		std::atomic<int32> CompletedTaskIndex;
+
+		for (int32 Index = 0; Index != Tasks.Num(); ++Index)
+		{
+			Launch(UE_SOURCE_LOCATION, 
+				[Event, Index, &CompletedTaskIndex] 
+				{ 
+					CompletedTaskIndex.store(Index, std::memory_order_relaxed);
+					Event->Trigger(); 
+				}, 
+				Prerequisites(Tasks[Index]),
+				ETaskPriority::Default, 
+				EExtendedTaskPriority::Inline
+			);
+		}
+
+		return Event->Wait(Timeout) ? CompletedTaskIndex.load(std::memory_order_relaxed) : INDEX_NONE;
+	}
+
+	// Returns a task that gets completed as soon as any of the given tasks gets completed
+	template<typename TaskCollectionType>
+	FTask Any(const TaskCollectionType& Tasks)
+	{
+		if (UNLIKELY(Tasks.Num() == 0))
+		{
+			return FTask{};
+		}
+
+		struct FSharedData
+		{
+			explicit FSharedData(uint32 InitRefCount)
+				: RefCount(InitRefCount)
+			{
+			}
+
+			FTaskEvent Event{ UE_SOURCE_LOCATION };
+			std::atomic<uint32> RefCount;
+		};
+
+		FSharedData* SharedData = new FSharedData(Tasks.Num());
+		// `SharedData` can be destroyed before leaving the scope, cache the result locally
+		FTaskEvent Result = SharedData->Event;
+
+		for (const FTask& Task : Tasks)
+		{
+			Launch(UE_SOURCE_LOCATION,
+				[SharedData, Num = Tasks.Num()]
+				{
+					// cache the local copy as `SharedData` can be concurrently deleted right after decrementing the ref counter
+					FTaskEvent Event = SharedData->Event;
+					uint32 PrevRefCount = SharedData->RefCount.fetch_sub(1, std::memory_order_acq_rel); // acq_rel to sync between tasks
+
+					if (UNLIKELY(PrevRefCount == Num))
+					{	// the first completed task
+						Event.Trigger();
+					}
+					else if (UNLIKELY(PrevRefCount == 1))
+					{	// the last competed task
+						delete SharedData;
+					}
+				},
+				Prerequisites(Task),
+				ETaskPriority::Default,
+				EExtendedTaskPriority::Inline
+			);
+		}
+
+		return Result;
+	}
+
 	// Adds the nested task to the task that is being currently executed by the current thread. A parent task is not flagged completed
 	// until all nested tasks are completed. It's similar to explicitly waiting for a sub-task at the end of its parent task, except explicit waiting
 	// blocks the worker executing the parent task until the sub-task is completed. With nested tasks, the worker won't be blocked.

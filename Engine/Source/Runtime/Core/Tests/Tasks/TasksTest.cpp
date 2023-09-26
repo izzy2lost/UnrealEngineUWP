@@ -1453,6 +1453,72 @@ namespace UE { namespace TasksTests
 			Wait(TArray{ Task1, Task2 });
 		}
 	}
+
+	TEST_CASE_NAMED(FTasksWaitAny, "System::Core::Async::Tasks::WaitAny", "[.][ApplicationContextMask][EngineFilter]")
+	{
+		{	// blocks if none of tasks is completed
+			FTaskEvent Blocker{ UE_SOURCE_LOCATION }; // blocks all tasks
+
+			TArray<FTask> Tasks
+			{
+				Launch(UE_SOURCE_LOCATION, [] {}, Prerequisites(Blocker)),
+				Launch(UE_SOURCE_LOCATION, [] {}, Prerequisites(Blocker))
+			};
+
+			verify(WaitAny(Tasks, FTimespan::FromMilliseconds(1.0)) == INDEX_NONE);
+
+			Blocker.Trigger();
+
+			verify(WaitAny(Tasks) != INDEX_NONE);
+		}
+
+		{	// doesn't wait for all tasks
+			FTaskEvent Blocker{ UE_SOURCE_LOCATION };
+
+			TArray<FTask> Tasks
+			{
+				Launch(UE_SOURCE_LOCATION, [] {}),
+				Launch(UE_SOURCE_LOCATION, [] {}, Prerequisites(Blocker)) // is blocked
+			};
+
+			verify(WaitAny(Tasks) == 0);
+
+			Blocker.Trigger();
+		}
+	}
+
+	TEST_CASE_NAMED(FTasksAny, "System::Core::Async::Tasks::Any", "[.][ApplicationContextMask][EngineFilter]")
+	{
+		{	// blocks if none of tasks is completed
+			FTaskEvent Blocker{ UE_SOURCE_LOCATION }; // blocks all tasks
+
+			TArray<FTask> Tasks
+			{
+				Launch(UE_SOURCE_LOCATION, [] {}, Prerequisites(Blocker)),
+				Launch(UE_SOURCE_LOCATION, [] {}, Prerequisites(Blocker))
+			};
+
+			verify(!Any(Tasks).Wait(FTimespan::FromMilliseconds(0.1)));
+
+			Blocker.Trigger();
+
+			Any(Tasks).Wait();
+		}
+
+		{	// doesn't wait for all tasks
+			FTaskEvent Blocker{ UE_SOURCE_LOCATION };
+
+			TArray<FTask> Tasks
+			{
+				Launch(UE_SOURCE_LOCATION, [] {}),
+				Launch(UE_SOURCE_LOCATION, [] {}, Prerequisites(Blocker)) // is blocked
+			};
+
+			Any(Tasks).Wait();
+
+			Blocker.Trigger();
+		}
+	}
 }}
 
 #endif // WITH_TESTS

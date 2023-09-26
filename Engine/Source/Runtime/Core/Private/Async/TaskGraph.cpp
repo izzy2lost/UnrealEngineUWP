@@ -2800,3 +2800,81 @@ static FAutoConsoleCommand TaskThreadPriorityCmd(
 	TEXT("Sets the priority of the task threads. Argument is one of belownormal, normal or abovenormal."),
 	FConsoleCommandWithArgsDelegate::CreateStatic(&SetTaskThreadPriority)
 	);
+
+/////////////////////////////////////////////////////////////
+// "any task" support. these functions allocate excessively (per input task plus more)
+// can be reduced to a single alloc if this is a perf issue
+
+int32 WaitForAnyTaskCompleted(const FGraphEventArray& GraphEvents, FTimespan Timeout /*= FTimespan::MaxValue()*/)
+{
+	if (UNLIKELY(GraphEvents.Num() == 0))
+	{
+		return INDEX_NONE;
+	}
+
+	FSharedEventRef SystemEvent;
+	std::atomic<int32> CompletedTaskIndex;
+
+	for (int32 Index = 0; Index != GraphEvents.Num(); ++Index)
+	{
+		FFunctionGraphTask::CreateAndDispatchWhenReady(
+			[SystemEvent, Index, &CompletedTaskIndex] 
+			{ 
+				CompletedTaskIndex.store(Index, std::memory_order_relaxed);
+				SystemEvent->Trigger(); 
+			}, 
+			TStatId{}, 
+			GraphEvents[Index]
+		);
+	}
+
+	return SystemEvent->Wait(Timeout) ? CompletedTaskIndex.load(std::memory_order_relaxed) : INDEX_NONE;
+}
+
+FGraphEventRef AnyTaskCompleted(const FGraphEventArray& GraphEvents)
+{
+	if (UNLIKELY(GraphEvents.Num() == 0))
+	{
+		FGraphEventRef Result = FGraphEvent::CreateGraphEvent();
+		Result->DispatchSubsequents();
+		return Result;
+	}
+
+	struct FSharedData
+	{
+		explicit FSharedData(uint32 InitRefCount)
+			: RefCount(InitRefCount)
+		{
+		}
+
+		FGraphEventRef Event = FGraphEvent::CreateGraphEvent();
+		std::atomic<uint32> RefCount;
+	};
+
+	FSharedData* SharedData = new FSharedData(GraphEvents.Num());
+	// `SharedData` can be destroyed before leaving the scope, cache the result locally
+	FGraphEventRef Result = SharedData->Event;
+
+	for (const FGraphEventRef& GraphEvent : GraphEvents)
+	{
+		FFunctionGraphTask::CreateAndDispatchWhenReady(
+			[SharedData, Num = GraphEvents.Num()]
+			{
+				// cache the local copy as `SharedData` can be concurrently deleted right after decrementing the ref counter
+				FGraphEventRef Event = SharedData->Event;
+				uint32 PrevRefCount = SharedData->RefCount.fetch_sub(1, std::memory_order_acq_rel); // acq_rel to sync between tasks
+				
+				if (UNLIKELY(PrevRefCount == Num))
+				{	// the first completed task
+					Event->DispatchSubsequents();
+				}
+				else if (UNLIKELY(PrevRefCount == 1))
+				{	// the last competed task
+					delete SharedData;
+				}
+			}
+		);
+	}
+
+	return Result;
+}
