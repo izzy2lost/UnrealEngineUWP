@@ -45,7 +45,7 @@ namespace Metasound
 
 	namespace ArrayNodeVertexNames
 	{
-		static const TCHAR* InputInitialArrayName = TEXT("Array");
+		static const FLazyName InputInitialArrayName = TEXT("Array");
 #if WITH_EDITOR
 		static const FText InputInitialArrayTooltip = LOCTEXT("InitialArrayTooltip", "Initial Array");
 		static const FText InputInitialArrayDisplayName = LOCTEXT("InitialArrayDisplayName", "Init Array"); 
