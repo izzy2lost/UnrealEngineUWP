@@ -4,6 +4,7 @@
 #include "GeometryBase.h"
 
 #include "Curve/GeneralPolygon2.h"
+#include "CompGeom/ConvexDecomposition3.h"
 
 
 FGeometryScriptDebugMessage UE::Geometry::MakeScriptError(EGeometryScriptErrorType ErrorTypeIn, const FText& MessageIn)
@@ -59,6 +60,16 @@ void UE::Geometry::AppendWarning(TArray<FGeometryScriptDebugMessage>* DebugMessa
 	{
 		DebugMessages->Add(Result);
 	}
+}
+
+
+void FGeometryScriptSphereCovering::Reset()
+{
+	if (Spheres.IsValid() == false)
+	{
+		Spheres = MakeShared<UE::Geometry::FSphereCovering>();
+	}
+	Spheres->Reset();
 }
 
 

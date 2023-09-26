@@ -21,6 +21,7 @@
 #include "ConstrainedDelaunay2.h"
 #include "Arrangement2d.h"
 #include "CompGeom/Delaunay2.h"
+#include "CompGeom/ConvexDecomposition3.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MeshPrimitiveFunctions)
 
@@ -1480,6 +1481,43 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSimpleCollisi
 	{
 		// Tapered capsules and level sets are not supported yet
 		UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::OperationFailed, LOCTEXT("PrimitiveFunctions_AppendSimpleCollisionShapes Tapered Capsules and Level Sets Unsupported", "AppendSimpleCollisionShapes: Tapered Capsules and Level Sets are not supported and will be skipped"));
+	}
+
+	return TargetMesh;
+}
+
+
+UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSphereCovering(
+	UDynamicMesh* TargetMesh,
+	FGeometryScriptPrimitiveOptions PrimitiveOptions,
+	FTransform Transform,
+	const FGeometryScriptSphereCovering& SphereCovering,
+	int32 StepsX,
+	int32 StepsY,
+	int32 StepsZ,
+	UGeometryScriptDebug* Debug
+)
+{
+	if (TargetMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("PrimitiveFunctions_AppendSphereCovering_NullTargetMesh", "AppendSphereCovering: TargetMesh is Null"));
+		return TargetMesh;
+	}
+	if (!SphereCovering.Spheres.IsValid())
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("PrimitiveFunctions_AppendSphereCovering_NullSphereCovering", "AppendSphereCovering: Sphere Covering is Null"));
+		return TargetMesh;
+	}
+
+	for (int32 SphereIdx = 0; SphereIdx < SphereCovering.Spheres->Num(); ++SphereIdx)
+	{
+		FBoxSphereGenerator SphereGenerator;
+		SphereGenerator.Box.Frame.Origin = SphereCovering.Spheres->GetCenter(SphereIdx);
+		SphereGenerator.Radius = FMath::Max(FMathf::ZeroTolerance, SphereCovering.Spheres->GetRadius(SphereIdx));
+		SphereGenerator.EdgeVertices = FIndex3i(StepsX, StepsY, StepsZ);
+		SphereGenerator.bPolygroupPerQuad = (PrimitiveOptions.PolygroupMode == EGeometryScriptPrimitivePolygroupMode::PerQuad);
+		SphereGenerator.Generate();
+		AppendPrimitive(TargetMesh, &SphereGenerator, Transform, PrimitiveOptions);
 	}
 
 	return TargetMesh;

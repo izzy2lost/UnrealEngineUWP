@@ -13,6 +13,7 @@ PREDECLARE_GEOMETRY(template<typename MeshType> class TFastWindingTree);
 PREDECLARE_GEOMETRY(typedef TMeshAABBTree3<FDynamicMesh3> FDynamicMeshAABBTree3);
 PREDECLARE_GEOMETRY(template<typename RealType> class TGeneralPolygon2);
 PREDECLARE_GEOMETRY(typedef TGeneralPolygon2<double> FGeneralPolygon2d);
+PREDECLARE_GEOMETRY(class FSphereCovering);
 
 
 UENUM(BlueprintType)
@@ -95,10 +96,7 @@ public:
 // Collision Shapes
 //
 
-/**
- * ~This is a wrapper to let Blueprint functions pass around the FKAggregateGeom simple collision primitives
- * Holds simple shapes that can be used for collision
- */
+// Holds simple shapes that can be used for collision
 USTRUCT(BlueprintType)
 struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptSimpleCollision
 {
@@ -109,6 +107,38 @@ public:
 	FKAggregateGeom AggGeom;
 	
 };
+
+// A set of spheres used to represent a volume
+USTRUCT(BlueprintType, meta = (DisplayName = "Sphere Covering"))
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptSphereCovering
+{
+	GENERATED_BODY()
+public:
+	TSharedPtr<UE::Geometry::FSphereCovering> Spheres;
+
+	void Reset();
+
+	// Required by TStructOpsTypeTraits interface
+	bool operator==(const FGeometryScriptSphereCovering& Other) const
+	{
+		return Spheres.Get() == Other.Spheres.Get();
+	}
+	bool operator!=(const FGeometryScriptSphereCovering& Other) const
+	{
+		return Spheres.Get() != Other.Spheres.Get();
+	}
+};
+
+template<>
+struct TStructOpsTypeTraits<FGeometryScriptSphereCovering> : public TStructOpsTypeTraitsBase2<FGeometryScriptSphereCovering>
+{
+	enum
+	{
+		WithIdenticalViaEquality = true,
+	};
+};
+
+
 
 // Settings to control the triangulation of simple collision primitives -- used for conversion to mesh or convex hull geometry
 USTRUCT(BlueprintType)

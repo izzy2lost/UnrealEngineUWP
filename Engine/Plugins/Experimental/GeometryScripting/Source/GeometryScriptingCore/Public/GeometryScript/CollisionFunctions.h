@@ -102,6 +102,49 @@ public:
 	bool bEmitTransaction = true;
 };
 
+
+// Method to distribute sampling spheres, used by FComputeNegativeSpaceOptions
+UENUM(BlueprintType)
+enum class ENegativeSpaceSampleMethod : uint8
+{
+	// Place sample spheres in a uniform grid pattern
+	Uniform,
+	// Use voxel-based subtraction and offsetting methods to specifically target concavities
+	VoxelSearch
+};
+
+// Options controlling how to sample the negative space of shapes, e.g. to define a region that must be avoided when merging collision shapes
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FComputeNegativeSpaceOptions
+{
+	GENERATED_BODY()
+public:
+
+	/** Method to use to find and sample negative space */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace)
+	ENegativeSpaceSampleMethod SampleMethod = ENegativeSpaceSampleMethod::Uniform;
+
+	/** Whether to require that all candidate locations identified by Voxel Search are covered by negative space samples, up to the specified Min Sample Spacing. Only applies to Voxel Search. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace, meta = (EditCondition = "SampleMethod == EGeometryScriptNegativeSpaceSampleMethod::VoxelSearch", EditConditionHides))
+	bool bRequireSearchSampleCoverage = false;
+
+	/** Approximate number of spheres to consider when covering negative space */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace, meta = (ClampMin = 1))
+	int32 TargetNumSamples = 50;
+
+	/** Minimum desired spacing between sphere centers; if > 0, will attempt not to place sphere centers closer than this */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace, meta = (ClampMin = 0, Units = cm))
+	double MinSampleSpacing = 1.0;
+
+	/** Amount of space to leave between convex hulls and protected negative space */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace, meta = (ClampMin = .01, UIMin = .1, Units = cm))
+	double NegativeSpaceTolerance = 2.0;
+
+	/** Spheres smaller than this are not included in the negative space */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace, meta = (ClampMin = 0, Units = cm))
+	double MinRadius = 10.0;
+};
+
 // Options controlling how collision shapes can be merged together
 USTRUCT(BlueprintType)
 struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptMergeSimpleCollisionOptions
@@ -121,6 +164,18 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (UIMin = "0", UIMax = "100.", Units = cm))
 	double ErrorTolerance = 0.0;
+
+	// Negative space that must be preserved during merging
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace)
+	FGeometryScriptSphereCovering PrecomputedNegativeSpace;
+
+	// Whether to compute a new sphere covering representing the negative space of the input shapes
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace)
+	bool bComputeNegativeSpace = false;
+
+	// Options controlling how the negative space is computed, if ComputeNegativeSpace is true
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace)
+	FComputeNegativeSpaceOptions ComputeNegativeSpaceOptions;
 
 	// Controls for how smooth shapes can be triangulated when/if converted to a convex hull for a merge
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ConvexHulls)
@@ -261,7 +316,7 @@ public:
 	 * @param bHasMerged			Indicates whether any shapes have been merged
 	 * @return						Simple Collision with collision shapes merged, as allowed by settings
 	 */
-	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision")
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision", meta = (AutoCreateRefTerm = "MergeOptions"))
 	static UPARAM(DisplayName = "Merged Simple Collision") FGeometryScriptSimpleCollision MergeSimpleCollisionShapes(
 		const FGeometryScriptSimpleCollision& SimpleCollision,
 		const FGeometryScriptMergeSimpleCollisionOptions& MergeOptions,
@@ -269,5 +324,18 @@ public:
 		UGeometryScriptDebug* Debug = nullptr
 	);
 
+	/**
+	 * Compute the negative space of an input mesh surface that should be protected when merging simple collision shapes
+	 * 
+	 * @param MeshBVH				A Dynamic Mesh BVH structure of the surface for which we will compute negative space
+	 * @param NegativeSpaceOptions	Options controlling how the negative space is generated
+	 * @return						A set of spheres that cover the negative space of the input shape
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision", meta = (AutoCreateRefTerm = "NegativeSpaceOptions"))
+	static UPARAM(DisplayName = "Negative Space") FGeometryScriptSphereCovering ComputeNegativeSpace(
+		const FGeometryScriptDynamicMeshBVH& MeshBVH,
+		const FComputeNegativeSpaceOptions& NegativeSpaceOptions,
+		UGeometryScriptDebug* Debug = nullptr
+	);
 
 };

@@ -68,6 +68,9 @@ struct FNegativeSpaceSampleSettings
 	// Note: This takes priority over TargetNumSamples if the TargetNumSamples did not achieve the required coverage.
 	bool bRequireSearchSampleCoverage = false;
 
+	// Whether the reference mesh used has flipped orientation, so winding < -.5 is 'inside'
+	bool bReferenceMeshHasNegativeWinding = true;
+
 	// Make sure the settings values are in valid ranges
 	void Sanitize()
 	{

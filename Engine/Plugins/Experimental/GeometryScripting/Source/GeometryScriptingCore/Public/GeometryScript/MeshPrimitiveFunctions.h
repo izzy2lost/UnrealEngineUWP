@@ -573,7 +573,10 @@ public:
 		bool& bTriangulationError,
 		UGeometryScriptDebug* Debug = nullptr);
 
-
+	
+	/**
+	 * Appends Simple Collision shapes to the Target Mesh, triangulated as specified by Triangulation Options
+	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives")
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
 	AppendSimpleCollisionShapes(
@@ -585,6 +588,21 @@ public:
 		UGeometryScriptDebug* Debug = nullptr
 	);
 
+	/**
+	 * Appends the spheres in the Sphere Covering to the Target Mesh
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives")
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	AppendSphereCovering(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptPrimitiveOptions PrimitiveOptions,
+		FTransform Transform,
+		const FGeometryScriptSphereCovering& SphereCovering,
+		int32 StepsX = 6,
+		int32 StepsY = 6,
+		int32 StepsZ = 6,
+		UGeometryScriptDebug* Debug = nullptr
+	);
 
 
 	//---------------------------------------------

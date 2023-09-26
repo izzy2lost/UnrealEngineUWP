@@ -220,6 +220,34 @@ static void SetStaticMeshSimpleCollision(UStaticMesh* StaticMeshAsset, const FKA
 }
 
 
+// local helper to convert the blueprint-accessible enum to the geometrycore equivalent
+static UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod ConvertNegativeSpaceSampleMethodDataflowEnum(ENegativeSpaceSampleMethod SampleMethod)
+{
+	switch (SampleMethod)
+	{
+	case ENegativeSpaceSampleMethod::Uniform:
+		return UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod::Uniform;
+	case ENegativeSpaceSampleMethod::VoxelSearch:
+		return UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod::VoxelSearch;
+	}
+	return UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod::Uniform;
+}
+
+// local helper to convert negative space settings from the blueprint-accessible struct to the geometrycore equivalent
+static FNegativeSpaceSampleSettings ConvertNegativeSpaceOptions(const FComputeNegativeSpaceOptions& NegativeSpaceOptions)
+{
+	UE::Geometry::FNegativeSpaceSampleSettings NegativeSpaceSettings;
+	NegativeSpaceSettings.TargetNumSamples = NegativeSpaceOptions.TargetNumSamples;
+	NegativeSpaceSettings.MinRadius = NegativeSpaceOptions.MinRadius;
+	NegativeSpaceSettings.ReduceRadiusMargin = NegativeSpaceOptions.NegativeSpaceTolerance;
+	NegativeSpaceSettings.MinSpacing = NegativeSpaceOptions.MinSampleSpacing;
+	NegativeSpaceSettings.SampleMethod = ConvertNegativeSpaceSampleMethodDataflowEnum(NegativeSpaceOptions.SampleMethod);
+	NegativeSpaceSettings.bRequireSearchSampleCoverage = NegativeSpaceOptions.bRequireSearchSampleCoverage;
+	NegativeSpaceSettings.bReferenceMeshHasNegativeWinding = false;
+	NegativeSpaceSettings.Sanitize();
+	return NegativeSpaceSettings;
+}
+
 // local helper to append a convex elem to a compact dynamic mesh, if it has more than a given number of tris
 static bool AppendConvexElemToCompactDynamicMesh(const FKConvexElem& Elem, FDynamicMesh3& Mesh, int32 MinTris = 0)
 {
@@ -236,7 +264,6 @@ static bool AppendConvexElemToCompactDynamicMesh(const FKConvexElem& Elem, FDyna
 	}
 	for (int32 TriStart = 0; TriStart + 2 < Elem.IndexData.Num(); TriStart += 3)
 	{
-		// Note: We intentially reverse triangle winding here because FKConvexElem stores triangles with the opposite winding vs Dynamic Mesh
 		Mesh.AppendTriangle(StartV + Elem.IndexData[TriStart], StartV + Elem.IndexData[TriStart + 2], StartV + Elem.IndexData[TriStart + 1]);
 	}
 
@@ -580,7 +607,29 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::MergeS
 	TArray<int32> HullVertexCounts;
 	TArray<double> HullVolumes;
 	TArray<const FKShapeElem*> HullToShapeElem;
+	TUniquePtr<FDynamicMesh3> CollisionMesh;
+	if (MergeOptions.bComputeNegativeSpace)
+	{
+		CollisionMesh = MakeUnique<FDynamicMesh3>();
+	}
 
+	auto AppendGeneratorToCollisionMesh = [&CollisionMesh](const FMeshShapeGenerator& Generator)
+	{
+		if (!CollisionMesh)
+		{
+			return;
+		}
+		checkSlow(CollisionMesh->IsCompact());
+		int32 NewVertStart = CollisionMesh->MaxVertexID();
+		for (FVector3d V : Generator.Vertices)
+		{
+			CollisionMesh->AppendVertex(V);
+		}
+		for (FIndex3i T : Generator.Triangles)
+		{
+			CollisionMesh->AppendTriangle(T.A + NewVertStart, T.B + NewVertStart, T.C + NewVertStart);
+		}
+	};
 	auto TransformVertices = [](TArrayView<FVector3d> Vertices, const FTransform& Transform)
 	{
 		for (FVector3d& Vertex : Vertices)
@@ -610,9 +659,21 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::MergeS
 		OrientedBox.Extents = FVector(Box.X * .5, Box.Y * .5, Box.Z * .5);
 		OrientedBox.Frame.Origin = Box.Center;
 		OrientedBox.Frame.Rotation = (FQuaterniond)Box.Rotation;
-		TArray<FVector3d, TFixedAllocator<8>> BoxVertices;
-		OrientedBox.EnumerateCorners([&](FVector3d Corner) { BoxVertices.Add(Corner); });
-		AppendHullVertices(BoxVertices, Box.GetScaledVolume(FVector3d::One()), &Box);
+		if (CollisionMesh)
+		{
+			FGridBoxMeshGenerator BoxGenerator;
+			BoxGenerator.EdgeVertices = FIndex3i(1, 1, 1);
+			BoxGenerator.Box = OrientedBox;
+			BoxGenerator.Generate();
+			AppendHullVertices(BoxGenerator.Vertices, Box.GetScaledVolume(FVector3d::One()), &Box);
+			AppendGeneratorToCollisionMesh(BoxGenerator);
+		}
+		else
+		{
+			TArray<FVector3d, TFixedAllocator<8>> BoxVertices;
+			OrientedBox.EnumerateCorners([&](FVector3d Corner) { BoxVertices.Add(Corner); });
+			AppendHullVertices(BoxVertices, Box.GetScaledVolume(FVector3d::One()), &Box);
+		}
 	}
 	for (const FKSphereElem& Sphere : SimpleCollision.AggGeom.SphereElems)
 	{
@@ -621,10 +682,10 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::MergeS
 		SphereGenerator.Radius = FMath::Max(FMathf::ZeroTolerance, Sphere.Radius);
 		int32 StepsPerSide = FMath::Max(1, MergeOptions.ShapeToHullTriangulation.SphereStepsPerSide);
 		SphereGenerator.EdgeVertices = FIndex3i(StepsPerSide, StepsPerSide, StepsPerSide);
-		SphereGenerator.bPolygroupPerQuad = false;
 		SphereGenerator.Generate();
 		double Volume = GeneratorVolume(&SphereGenerator);
 		AppendHullVertices(SphereGenerator.Vertices, Volume, &Sphere);
+		AppendGeneratorToCollisionMesh(SphereGenerator);
 	}
 	for (const FKSphylElem& Capsule : SimpleCollision.AggGeom.SphylElems)
 	{
@@ -633,12 +694,12 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::MergeS
 		CapsuleGenerator.SegmentLength = Capsule.Length;
 		CapsuleGenerator.NumHemisphereArcSteps = FMath::Max(2, MergeOptions.ShapeToHullTriangulation.CapsuleHemisphereSteps);
 		CapsuleGenerator.NumCircleSteps = FMath::Max(3, MergeOptions.ShapeToHullTriangulation.CapsuleCircleSteps);
-		CapsuleGenerator.bPolygroupPerQuad = false;
 		CapsuleGenerator.Generate();
 		FTransform CapsuleTransform(Capsule.Rotation, Capsule.Center);
 		TransformVertices(CapsuleGenerator.Vertices, CapsuleTransform);
 		double Volume = GeneratorVolume(&CapsuleGenerator);
 		AppendHullVertices(CapsuleGenerator.Vertices, Volume, &Capsule);
+		AppendGeneratorToCollisionMesh(CapsuleGenerator);
 	}
 	for (const FKConvexElem& Convex : SimpleCollision.AggGeom.ConvexElems)
 	{
@@ -647,6 +708,10 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::MergeS
 		// Note: We take the negative volume because the hull triangles have opposite winding from ordinary meshes
 		double Volume = -TMeshQueries<TIndexMeshArrayAdapter<int32, double, FVector3d>>::GetVolumeArea(HullMeshAdapter).X;
 		AppendHullVertices(Convex.VertexData, Volume, &Convex);
+		if (CollisionMesh)
+		{
+			UELocal::AppendConvexElemToCompactDynamicMesh(Convex, *CollisionMesh);
+		}
 	}
 
 	const int32 InitialNumConvex = HullVertexCounts.Num();
@@ -679,7 +744,22 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::MergeS
 	Decomposition.InitializeFromHulls(HullVertexStarts.Num(),
 		[&HullVolumes](int32 HullIdx) { return HullVolumes[HullIdx]; }, [&HullVertexCounts](int32 HullIdx) { return HullVertexCounts[HullIdx]; },
 		[&HullVertexStarts, &HullVertices](int32 HullIdx, int32 VertIdx) { return HullVertices[HullVertexStarts[HullIdx] + VertIdx]; }, HullProximity);
-	Decomposition.MergeBest(MergeOptions.MaxShapeCount, MergeOptions.ErrorTolerance, 0.0, true, false, MergeOptions.MaxShapeCount, nullptr /*optional negative space*/, nullptr /*optional FTransform for negative space*/);
+	FSphereCovering NegativeSpace;
+	// Build the negative space of the collision shapes, if requested
+	if (MergeOptions.bComputeNegativeSpace)
+	{
+		FNegativeSpaceSampleSettings SampleSettings = UELocal::ConvertNegativeSpaceOptions(MergeOptions.ComputeNegativeSpaceOptions);
+		FDynamicMeshAABBTree3 CollisionAABBTree(CollisionMesh.Get(), true);
+		TFastWindingTree<FDynamicMesh3> CollisionFastWinding(&CollisionAABBTree, true);
+		NegativeSpace.AddNegativeSpace(CollisionFastWinding, SampleSettings);
+	}
+	// Add any precomputed negative space, if valid/non-empty
+	if (MergeOptions.PrecomputedNegativeSpace.Spheres.IsValid() && MergeOptions.PrecomputedNegativeSpace.Spheres->Num() > 0)
+	{
+		NegativeSpace.Append(*MergeOptions.PrecomputedNegativeSpace.Spheres);
+	}
+	FSphereCovering* UseNegativeSpace = NegativeSpace.Num() > 0 ? &NegativeSpace : nullptr;
+	Decomposition.MergeBest(MergeOptions.MaxShapeCount, MergeOptions.ErrorTolerance, 0.0, true, false, MergeOptions.MaxShapeCount, UseNegativeSpace, nullptr /*optional FTransform for negative space*/);
 
 	// Algorithm decided not to merge
 	if (Decomposition.NumHulls() == InitialNumConvex)
@@ -745,6 +825,26 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::MergeS
 		Convex.UpdateElemBox(); // Note: In addition to updating the bounding box, this also re-computes hull indices.
 	}
 	
+	return ToRet;
+}
+
+FGeometryScriptSphereCovering UGeometryScriptLibrary_CollisionFunctions::ComputeNegativeSpace(
+	const FGeometryScriptDynamicMeshBVH& MeshBVH,
+	const FComputeNegativeSpaceOptions& NegativeSpaceOptions,
+	UGeometryScriptDebug* Debug
+)
+{
+	FGeometryScriptSphereCovering ToRet;
+
+	if (!MeshBVH.FWNTree || !MeshBVH.Spatial)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("ComputeNegativeSpace_Null_BVH", "ComputeNegativeSpace: BVH must be initialized"));
+		return ToRet;
+	}
+	
+	FNegativeSpaceSampleSettings UseSettings = UELocal::ConvertNegativeSpaceOptions(NegativeSpaceOptions);
+	ToRet.Reset();
+	ToRet.Spheres->AddNegativeSpace(*MeshBVH.FWNTree, UseSettings);
 	return ToRet;
 }
 

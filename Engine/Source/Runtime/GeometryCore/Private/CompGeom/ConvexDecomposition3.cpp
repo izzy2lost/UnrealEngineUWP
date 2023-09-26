@@ -31,6 +31,8 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 
 	FAxisAlignedBox3d Bounds = Spatial.GetTree()->GetBoundingBox();
 
+	double WindingSign = SampleSettings.bReferenceMeshHasNegativeWinding ? -1 : 1;
+
 	if (SampleSettings.SampleMethod == FNegativeSpaceSampleSettings::ESampleMethod::Uniform)
 	{
 		// Expand the sampling region by ~ the radius of interest, to make sure there is room to fit negative space spheres on concavities near the borders
@@ -62,8 +64,8 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 				{
 					double ZPos = Bounds.Min.Z + StepSizes.Z * (.5 + Z);
 					FVector3d Pos(XPos, YPos, ZPos);
-					double Winding = Spatial.FastWindingNumber(Pos);
-					if (Winding < -.5)
+					double Winding = Spatial.FastWindingNumber(Pos) * WindingSign;
+					if (Winding > .5)
 					{
 						continue;
 					}
@@ -148,10 +150,10 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 		MarchingCubes.RootMode = ERootfindingModes::Bisection;
 		MarchingCubes.RootModeSteps = 3;
 		MarchingCubes.IsoValue = 0;
-		MarchingCubes.Implicit = [&HullWinding, &Spatial](const FVector3d& Pt) -> double
+		MarchingCubes.Implicit = [&HullWinding, &Spatial, WindingSign](const FVector3d& Pt) -> double
 		{
-			// Volume is anything inside the hull and outside the input surface; note the input surface has negative winding
-			return (HullWinding.FastWindingNumber(Pt) > .5) && !(Spatial.FastWindingNumber(Pt) < -.5) ? 1.0 : -1.0;
+			// Volume is anything inside the hull and outside the input surface
+			return (HullWinding.FastWindingNumber(Pt) > .5) && (Spatial.FastWindingNumber(Pt) * WindingSign <= .5) ? 1.0 : -1.0;
 		};
 		TArray<FVector3d> MCSeeds;
 		MCSeeds.Reserve(Mesh->VertexCount());
@@ -178,10 +180,10 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 		// Make sure the mesh is compact to simplify downsampling below
 		MorphologyMesh.CompactInPlace();
 
-		auto AddSample = [this, &Mesh, &Spatial, &SampleSettings, &bAddedPoints](FVector3d Pos)
+		auto AddSample = [this, &Mesh, &Spatial, &SampleSettings, &bAddedPoints, WindingSign](FVector3d Pos)
 		{
-			double Winding = Spatial.FastWindingNumber(Pos);
-			if (Winding < -.5)
+			double Winding = Spatial.FastWindingNumber(Pos) * WindingSign;
+			if (Winding > .5)
 			{
 				return;
 			}
@@ -205,7 +207,7 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 				
 				// Move away and re-test the sample
 				Pos += Away * ((SampleSettings.MinRadius - R) * 1.1);
-				if (Spatial.FastWindingNumber(Pos) >= -.5)
+				if (Spatial.FastWindingNumber(Pos) * WindingSign <= .5)
 				{
 					NearTID = Spatial.GetTree()->FindNearestTriangle(Pos, NearDistSq);
 					R = FMath::Sqrt(NearDistSq) - SampleSettings.ReduceRadiusMargin;
