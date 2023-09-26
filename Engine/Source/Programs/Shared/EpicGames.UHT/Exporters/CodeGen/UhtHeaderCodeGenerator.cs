@@ -424,6 +424,11 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				!function.FunctionExportFlags.HasAnyFlags(UhtFunctionExportFlags.CustomThunk);
 		}
 
+		protected static bool IsCallbackFunction(UhtFunction function)
+		{
+			return function.FunctionFlags.HasAnyFlags(EFunctionFlags.Event) && function.SuperFunction == null;
+		}
+
 		/// <summary>
 		/// Determines whether the glue version of the specified native function should be exported.
 		/// </summary>
