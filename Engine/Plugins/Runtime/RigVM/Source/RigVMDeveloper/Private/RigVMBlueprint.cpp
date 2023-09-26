@@ -1312,6 +1312,10 @@ void URigVMBlueprint::RefreshAllModels(ERigVMBlueprintLoadType InLoadType)
 
 	if (ensure(IsInGameThread()))
 	{
+		TArray<URigVMController::FRepopulatePinsNodeData> RepopulatePinsNodesData;
+		constexpr int32 REPOPULATE_NODES_NUM_RESERVED = 800;
+		RepopulatePinsNodesData.Reserve(REPOPULATE_NODES_NUM_RESERVED);
+
 		for (URigVMGraph* Graph : AllModelsLeavesFirst)
 		{
 			URigVMController* Controller = GetOrCreateController(Graph);
@@ -1320,11 +1324,24 @@ void URigVMBlueprint::RefreshAllModels(ERigVMBlueprintLoadType InLoadType)
 			TGuardValue<bool> GuardEditGraph(Graph->bEditable, true);
 			FRigVMControllerNotifGuard NotifGuard(Controller, true);
 			LinkedPaths.Add(Graph, Controller->GetLinkedPaths());
-			Controller->FastBreakLinkedPaths(LinkedPaths.FindChecked(Graph));
-			TArray<URigVMNode*> Nodes = Graph->GetNodes();
-			for (URigVMNode* Node : Nodes)
+
+			const TArray<URigVMNode*> Nodes = Graph->GetNodes();
+			if (Nodes.Num() > 0)
 			{
-				Controller->RepopulatePinsOnNode(Node, true, true);
+				RepopulatePinsNodesData.Reset();
+
+				for (URigVMNode* Node : Nodes)
+				{
+					Controller->GenerateRepopulatePinsNodeData(RepopulatePinsNodesData, Node, true, true);
+				}
+
+#if UE_RIGVMCONTROLLER_VERBOSE_REPOPULATE
+				UE_LOG(LogRigVMDeveloper, Display, TEXT("--- Graph: [%s/%s]  - NumNodes : [%d]"), *Graph->GetOuter()->GetName(), *Graph->GetName(), RepopulatePinsNodesData.Num());
+#endif
+
+				Controller->OrphanPins(RepopulatePinsNodesData);
+				Controller->FastBreakLinkedPaths(LinkedPaths.FindChecked(Graph));
+				Controller->RepopulatePins(RepopulatePinsNodesData);
 			}
 		}
 		SetupPinRedirectorsForBackwardsCompatibility();
@@ -1338,7 +1355,8 @@ void URigVMBlueprint::RefreshAllModels(ERigVMBlueprintLoadType InLoadType)
 		{
 			URigVMController::FRestoreLinkedPathSettings Settings;
 			Settings.bFollowCoreRedirectors = true;
-			Controller->RestoreLinkedPaths(LinkedPaths.FindChecked(Graph));
+			Settings.bRelayToOrphanPins = true;
+			Controller->RestoreLinkedPaths(LinkedPaths.FindChecked(Graph), Settings);
 		}
 
 		for(URigVMNode* ModelNode : Graph->GetNodes())

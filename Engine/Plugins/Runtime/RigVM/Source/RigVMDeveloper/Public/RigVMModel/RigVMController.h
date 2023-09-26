@@ -1016,7 +1016,32 @@ public:
 	bool ShouldRedirectPin(UScriptStruct* InOwningStruct, const FString& InOldRelativePinPath, FString& InOutNewRelativePinPath) const;
 	bool ShouldRedirectPin(const FString& InOldPinPath, FString& InOutNewPinPath) const;
 
+
+	struct FRepopulatePinsNodeData
+	{
+		URigVMNode* Node = nullptr;
+		uint32 PreviousPinHash = 0;
+		FRigVMPinInfoArray PreviousPinInfos;
+		FRigVMPinInfoArray NewPinInfos;
+		TArray<int32> NewPinsToAdd;
+		TArray<int32> PreviousPinsToRemove;
+		TArray<int32> PreviousPinsToOrphan;
+		TArray<int32> PreviousPinsToUpdate;
+		bool bSetupOrphanPinsForThisNode = false;
+		bool bFollowCoreRedirectors = false;
+		bool bRequirePinStates = false;
+		bool bRecreateLinks = false;
+		bool bRequireRecreateLinks = false;
+	};
+
+	void GenerateRepopulatePinsNodeData(TArray<FRepopulatePinsNodeData>& NodesPinData, URigVMNode* InNode, bool bInFollowCoreRedirectors = true, bool bInSetupOrphanedPins = false, bool bInRecreateLinks = false);
+	void OrphanPins(const TArray<FRepopulatePinsNodeData>& NodesPinData);
+	void RepopulatePins(const TArray<FRepopulatePinsNodeData>& NodesPinData);
+
 	void RepopulatePinsOnNode(URigVMNode* InNode, bool bFollowCoreRedirectors = true, bool bSetupOrphanedPins = false, bool bRecreateLinks = false);
+	bool GenerateNewPinInfos(const FRigVMRegistry& Registry, URigVMNode* InNode, const FRigVMPinInfoArray& PreviousPinInfos, FRigVMPinInfoArray& NewPinInfos, const bool bSetupOrphanPinsForThisNode);
+	void GenerateRepopulatePinLists(const FRigVMRegistry& Registry, FRepopulatePinsNodeData& NodeData);
+	void RepopulatePinsOnNode(const FRigVMRegistry& Registry, const FRepopulatePinsNodeData& NodeData);
 	void RemovePinsDuringRepopulate(URigVMNode* InNode, TArray<URigVMPin*>& InPins, bool bSetupOrphanedPins);
 
 	// removes any orphan pins that no longer holds a link
