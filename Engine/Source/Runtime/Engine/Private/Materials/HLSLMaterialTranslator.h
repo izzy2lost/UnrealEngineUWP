@@ -499,6 +499,9 @@ protected:
 		bool bSubstrateMaterialIsSingle;
 		bool bSubstrateMaterialIsUnlitNode;
 
+		bool bSubstrateWritesEmissive;
+		bool bSubstrateWritesAmbientOcclusion;
+
 		/** Stack of unique id for each node of the Substrate tree
 		* This is transient and updated on the fly in the exact same way when parsing node for
 		*  1- SubstrateGenerateMaterialTopologyTree: generating a picture of the Substrate material tree for code generation and simplifications.
@@ -536,6 +539,9 @@ protected:
 	int32 FullySimplifiedSubstrateFrontMaterialCodeChunk = INDEX_NONE;
 	FString FullySimplifiedSubstrateFrontMaterialTranslatedCodeChunkDefinitions;
 	FString FullySimplifiedSubstrateFrontMaterialTranslatedCodeChunks;
+
+	bool bSubstrateWritesEmissive;
+	bool bSubstrateWritesAmbientOcclusion;
 
 	bool bSubstrateUsesConversionFromLegacy;
 	bool bSubstrateOutputsOpaqueRoughRefractions;

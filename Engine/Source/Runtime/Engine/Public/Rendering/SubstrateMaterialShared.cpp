@@ -57,6 +57,9 @@ FSubstrateOperator::FSubstrateOperator()
 	bBSDFHasGlint = false;
 	bBSDFHasSpecularProfile = false;
 
+	bBSDFWritesEmissive = false;
+	bBSDFWritesAmbientOcclusion = false;
+
 	MaxDistanceFromLeaves = 0;
 	LayerDepth = 0;
 	bIsTop = false;

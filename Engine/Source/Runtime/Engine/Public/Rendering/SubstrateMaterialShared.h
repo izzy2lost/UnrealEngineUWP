@@ -57,6 +57,9 @@ public:
 	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasGlint);
 	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasSpecularProfile);
 
+	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFWritesEmissive);
+	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFWritesAmbientOcclusion);
+
 	// Data derived after the tree has been built.
 	LAYOUT_FIELD_EDITORONLY(int32, MaxDistanceFromLeaves);
 	LAYOUT_FIELD_EDITORONLY(int32, LayerDepth);

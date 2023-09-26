@@ -307,6 +307,8 @@ void FHLSLMaterialTranslator::FSubstrateCompilationContext::Initialise()
 	bSubstrateMaterialIsSimple = false;
 	bSubstrateMaterialIsSingle = false;
 	bSubstrateMaterialIsUnlitNode = false;
+	bSubstrateWritesEmissive = false;
+	bSubstrateWritesAmbientOcclusion = false;
 	bSubstrateTreeOutOfStackDepthOccurred = false;
 
 	// Default value used as the root of the tree for the first path (when a node parent==nullptr).
@@ -435,6 +437,9 @@ FHLSLMaterialTranslator::FHLSLMaterialTranslator(FMaterial* InMaterial,
 			TargetPlatform = TPM->GetRunningTargetPlatform();
 		}
 	}
+
+	bSubstrateWritesEmissive = false;
+	bSubstrateWritesAmbientOcclusion = false;
 
 	bSubstrateUsesConversionFromLegacy = false;
 	bSubstrateOutputsOpaqueRoughRefractions = false;
@@ -884,6 +889,9 @@ bool FHLSLMaterialTranslator::Translate()
 		UMaterialExpression* FrontMaterialExpr = nullptr;
 		int32 FrontMaterialOutputIndex = INDEX_NONE;
 
+		bSubstrateWritesEmissive = false;
+		bSubstrateWritesAmbientOcclusion = false;
+
 		UMaterialExpression* ExpressionToPreview = Material->GetMaterialGraphNodePreviewExpression();
 		if (ExpressionToPreview)
 		{
@@ -938,6 +946,9 @@ bool FHLSLMaterialTranslator::Translate()
 				{
 					Errorf(TEXT("Substrate material errors encountered."));
 				}
+
+				bSubstrateWritesEmissive |= SubstrateCtx.bSubstrateWritesEmissive;
+				bSubstrateWritesAmbientOcclusion |= SubstrateCtx.bSubstrateWritesAmbientOcclusion;
 			}
 			CurrentSubstrateCompilationContext = ESubstrateCompilationContext::SCC_Default;
 		}
@@ -1233,7 +1244,7 @@ bool FHLSLMaterialTranslator::Translate()
 		// At this point we mark the code chunk generation complete.
 		bAllowCodeChunkGeneration = false;
 
-		bUsesEmissiveColor = IsMaterialPropertyUsed(MP_EmissiveColor, Chunk[MP_EmissiveColor], FLinearColor(0, 0, 0, 0), 3);
+		bUsesEmissiveColor = bSubstrateWritesEmissive || IsMaterialPropertyUsed(MP_EmissiveColor, Chunk[MP_EmissiveColor], FLinearColor(0, 0, 0, 0), 3);
 		bUsesPixelDepthOffset = (AllowPixelDepthOffset(Platform) && IsMaterialPropertyUsed(MP_PixelDepthOffset, Chunk[MP_PixelDepthOffset], FLinearColor(0, 0, 0, 0), 1));
 
 		bool bUsesWorldPositionOffsetCurrent = IsMaterialPropertyUsed(MP_WorldPositionOffset, Chunk[MP_WorldPositionOffset], FLinearColor(0, 0, 0, 0), 3);
@@ -2263,7 +2274,7 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 				VolumetricAdvancedNode->ConservativeDensity.IsConnected() ? TEXT("1") : TEXT("0"));
 
 			OutEnvironment.SetDefine(TEXT("MATERIAL_VOLUMETRIC_ADVANCED_OVERRIDE_AMBIENT_OCCLUSION"),
-				Material->HasAmbientOcclusionConnected() ? TEXT("1") : TEXT("0"));
+				(Material->HasAmbientOcclusionConnected() || bSubstrateWritesAmbientOcclusion) ? TEXT("1") : TEXT("0"));
 
 			OutEnvironment.SetDefine(TEXT("MATERIAL_VOLUMETRIC_ADVANCED_GROUND_CONTRIBUTION"),
 				VolumetricAdvancedNode->bGroundContribution ? TEXT("1") : TEXT("0"));
@@ -11497,6 +11508,13 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 		{
 			check(RootIndex == INDEX_NONE);	// There can only be one
 			RootIndex = It.Index;
+		}
+
+		if (It.OperatorType == SUBSTRATE_OPERATOR_BSDF)
+		{
+			// Gather information about data written by BSDF
+			bSubstrateWritesEmissive |= It.bBSDFWritesEmissive > 0;
+			bSubstrateWritesAmbientOcclusion |= It.bBSDFWritesAmbientOcclusion > 0;
 		}
 	}
 	SubstrateMaterialRootOperator = &SubstrateMaterialExpressionRegisteredOperators[RootIndex];
