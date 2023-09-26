@@ -37,6 +37,7 @@ void FDataDrivenConsoleVariable::Register()
 		}
 		CVarToAdd->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(UDataDrivenConsoleVariableSettings::OnDataDrivenChange));
 		ShadowName = Name;
+		ShadowToolTip = ToolTip;
 		ShadowType = Type;
 	}
 }
@@ -67,6 +68,11 @@ void FDataDrivenConsoleVariable::Refresh()
 			UnRegister(true);
 		}
 		ShadowName = Name;
+	}
+	else if (ShadowToolTip != ToolTip)
+	{
+		UnRegister(true);
+		ShadowToolTip = ToolTip;
 	}
 	else if (ShadowType != Type)
 	{
