@@ -278,6 +278,10 @@ namespace EpicGames.Core
 			{
 				directory.Delete(true);
 			}
+			catch (DirectoryNotFoundException)
+			{
+				// Race condition with something else deleting the same directory.
+			}
 			catch (Exception ex)
 			{
 				throw new WrappedFileOrDirectoryException(ex, String.Format("Unable to delete '{0}': {1}", directory.FullName, ex.Message.TrimEnd()));
@@ -307,20 +311,27 @@ namespace EpicGames.Core
 			{
 				if (directory.Exists)
 				{
-					foreach (FileInfo file in directory.EnumerateFiles())
+					try
 					{
-						ForceDeleteFile(file);
+						foreach (FileInfo file in directory.EnumerateFiles())
+						{
+							ForceDeleteFile(file);
+						}
+						foreach (DirectoryInfo subDirectory in directory.EnumerateDirectories())
+						{
+							if (subDirectory.Attributes.HasFlag(FileAttributes.ReparsePoint))
+							{
+								ForceDeleteDirectoryInternal(subDirectory);
+							}
+							else
+							{
+								ForceDeleteDirectory(subDirectory);
+							}
+						}
 					}
-					foreach (DirectoryInfo subDirectory in directory.EnumerateDirectories())
+					catch (DirectoryNotFoundException)
 					{
-						if (subDirectory.Attributes.HasFlag(FileAttributes.ReparsePoint))
-						{
-							ForceDeleteDirectoryInternal(subDirectory);
-						}
-						else
-						{
-							ForceDeleteDirectory(subDirectory);
-						}
+						// Race condition with something else deleting the same directory.
 					}
 				}
 			}
