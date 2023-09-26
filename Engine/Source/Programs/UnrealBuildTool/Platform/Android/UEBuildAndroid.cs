@@ -326,7 +326,7 @@ namespace UnrealBuildTool
 		{
 			// don't do any target platform stuff if not available for host and opted in
 			// do not require SDK to build it since we don't necessarily need it for editor building
-			if (!(TryGetBuildPlatform(Platform, out _) && Target.IsPlatformOptedIn(Platform)))
+			if (!UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target, bIgnoreSDKCheck: true))
 			{
 				return;
 			}

@@ -333,6 +333,8 @@ static void LoadDDPIIniSettings(const FConfigFile& IniFile, FDataDrivenPlatformI
 	DDPIGetBool(IniFile, TEXT("bCanChangeGamepadType"), Info.bCanChangeGamepadType);
 	DDPIGetBool(IniFile, TEXT("bSupportsTouch"), Info.bSupportsTouch);
 
+	DDPIGetName(IniFile, TEXT("OverrideCookPlatformName"), Info.OverrideCookPlatformName);
+
 #if DDPI_HAS_EXTENDED_PLATFORMINFO_DATA
 
 	DDPIGetString(IniFile, TEXT("AutoSDKPath"), Info.AutoSDKPath);

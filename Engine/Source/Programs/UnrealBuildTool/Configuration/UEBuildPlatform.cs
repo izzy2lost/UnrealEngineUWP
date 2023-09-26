@@ -617,10 +617,11 @@ namespace UnrealBuildTool
 		/// Determines whether a given platform is available
 		/// </summary>
 		/// <param name="Platform">The platform to check for</param>
+		/// <param name="bIgnoreSDKCheck">Ignore the sdks presence when checking for platform availablity (many platforms can be cooked as a target platform without requiring sdk)</param>
 		/// <returns>True if it's available, false otherwise</returns>
-		public static bool IsPlatformAvailable(UnrealTargetPlatform Platform)
+		public static bool IsPlatformAvailable(UnrealTargetPlatform Platform, bool bIgnoreSDKCheck = false)
 		{
-			return BuildPlatformDictionary.ContainsKey(Platform) && BuildPlatformDictionary[Platform].HasRequiredSDKsInstalled() == SDKStatus.Valid;
+			return BuildPlatformDictionary.ContainsKey(Platform) && (bIgnoreSDKCheck || BuildPlatformDictionary[Platform].HasRequiredSDKsInstalled() == SDKStatus.Valid);
 		}
 
 		/// <summary>
@@ -628,10 +629,11 @@ namespace UnrealBuildTool
 		/// </summary>
 		/// <param name="Platform">The platform to check for</param>
 		/// <param name="Target">A Target object that may further restrict available platforms</param>
+		/// <param name="bIgnoreSDKCheck">Ignore the sdks presence when checking for platform availablity (many platforms can be cooked as a target platform without requiring sdk)</param>
 		/// <returns>True if it's available, false otherwise</returns>
-		public static bool IsPlatformAvailableForTarget(UnrealTargetPlatform Platform, ReadOnlyTargetRules Target)
+		public static bool IsPlatformAvailableForTarget(UnrealTargetPlatform Platform, ReadOnlyTargetRules Target, bool bIgnoreSDKCheck = false)
 		{
-			return IsPlatformAvailable(Platform) && Target.IsPlatformOptedIn(Platform);
+			return IsPlatformAvailable(Platform, bIgnoreSDKCheck) && Target.IsPlatformOptedIn(Platform);
 		}
 
 		/// <summary>

@@ -161,6 +161,18 @@ struct FDataDrivenPlatformInfo
 	// the compression format that this platform wants; overrides game unless bForceUseProjectCompressionFormat
 	FString HardwareCompressionFormat;
 
+	/** Platform name to be used for cooking (note: DOES NOT include the configuration name, eg "Server", "Client", only the platform name) */
+	FName OverrideCookPlatformName;
+
+	const FName& GetCookPlatformName() const
+	{
+		if (!OverrideCookPlatformName.IsValid())
+		{
+			return OverrideCookPlatformName;
+		}
+		return IniPlatformName;
+	}
+
 	// NOTE: add more settings here (and read them in in the LoadDDPIIniSettings() function in the .cpp)
 
 
