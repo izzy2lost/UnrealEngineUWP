@@ -456,8 +456,15 @@ void FInstallBundleSourcePlatformChunkInstall::RequestUpdateContent(FRequestUpda
 	}
 	else if (PlatformChunkInstall->GetNamedChunkLocation(BundleInfo->NamedChunk) == EChunkLocation::LocalFast)
 	{
-		LOG_SOURCE_CHUNKINSTALL_OVERRIDE(Context.LogVerbosityOverride, Error, TEXT("Bundle %s is already installed (named chunk: %s)"), *Context.BundleName.ToString(), *BundleInfo->NamedChunk.ToString());
-		bFailed = true;
+		LOG_SOURCE_CHUNKINSTALL_OVERRIDE(Context.LogVerbosityOverride, Display, TEXT("Bundle request %s finished. (named chunk %s already installed)"), *Context.BundleName.ToString(), *BundleInfo->NamedChunk.ToString() );
+
+		// send the completion callback immediately
+		FInstallBundleSourceUpdateContentResultInfo ResultInfo;
+		ResultInfo.BundleName = Context.BundleName;
+		ResultInfo.Result = EInstallBundleResult::OK;
+		ResultInfo.ContentPaths = BundleInfo->FilePaths;
+		ResultInfo.bContentWasInstalled = (BundleInfo->FilePaths.Num() > 0);
+		Context.CompleteCallback.ExecuteIfBound(AsShared(), MoveTemp(ResultInfo));
 	}
 	else
 	{
