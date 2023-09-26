@@ -19,6 +19,17 @@
 
 namespace UE::Mass::Debug
 {
+	bool bAllowProceduralDebuggedEntitySelection = false;
+	bool bAllowBreakOnlDebuggedEntity = false;
+
+	FAutoConsoleVariableRef CVars[] =
+	{
+		FAutoConsoleVariableRef(TEXT("mass.debug.AllowProceduralDebuggedEntitySelection"), bAllowProceduralDebuggedEntitySelection
+			, TEXT("Guards whether MASS_SET_ENTITY_DEBUGGED calls take effect."), ECVF_Cheat)
+		, FAutoConsoleVariableRef(TEXT("mass.debug.AllowBreakOnlDebuggedEntity"), bAllowBreakOnlDebuggedEntity
+			, TEXT("Guards whether MASS_BREAK_IF_ENTITY_DEBUGGED calls take effect."), ECVF_Cheat)
+	};
+	
 
 	FString DebugGetFragmentAccessString(EMassFragmentAccess Access)
 	{

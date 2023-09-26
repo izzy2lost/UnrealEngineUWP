@@ -39,6 +39,17 @@ namespace UE::Mass::Debug
 } // namespace UE::Mass::Debug
 
 #if WITH_MASSENTITY_DEBUG
+
+namespace UE::Mass::Debug
+{
+	extern MASSENTITY_API bool bAllowProceduralDebuggedEntitySelection;
+	extern MASSENTITY_API bool bAllowBreakOnlDebuggedEntity;
+} // namespace UE::Mass::Debug
+
+#define MASS_IF_ENTITY_DEBUGGED(Manager, EntityHandle) (FMassDebugger::GetSelectedEntity(Manager) == EntityHandle)
+#define MASS_BREAK_IF_ENTITY_DEBUGGED(Manager, EntityHandle) { if (UE::Mass::Debug::bAllowBreakOnlDebuggedEntity && MASS_IF_ENTITY_DEBUGGED(Manager, EntityHandle)) { PLATFORM_BREAK();} }
+#define MASS_SET_ENTITY_DEBUGGED(Manager, EntityHandle) { if (UE::Mass::Debug::bAllowProceduralDebuggedEntitySelection) {FMassDebugger::SelectEntity(Manager, EntityHandle); }}
+
 namespace UE::Mass::Debug
 {
 	struct MASSENTITY_API FQueryRequirementsView
@@ -142,5 +153,9 @@ struct MASSENTITY_API FMassDebugger
 	static FString GetRequirementsDescription(const FMassFragmentRequirements& Requirements) { return TEXT("[no debug information]"); }
 	static FString GetArchetypeRequirementCompatibilityDescription(const FMassFragmentRequirements& Requirements, const FMassArchetypeHandle& ArchetypeHandle) { return TEXT("[no debug information]"); }
 };
+
+#define MASS_IF_ENTITY_DEBUGGED(a, b) false
+#define MASS_BREAK_IF_ENTITY_DEBUGGED(a, b)
+#define MASS_SET_ENTITY_DEBUGGED(a, b)
 
 #endif // WITH_MASSENTITY_DEBUG
