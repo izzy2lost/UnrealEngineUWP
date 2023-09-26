@@ -542,6 +542,11 @@ protected:
 	 */
 	void UpdateBandwidthThrottling();
 
+	/**
+	 * Get frame from either the local or global cache, nullptr if not found.
+	 */
+	const TSharedPtr<FImgMediaFrame, ESPMode::ThreadSafe>* GetCachedFrame(int32 InFrameNumber);
+
 private:
 
 	/** Critical section for synchronizing access to Frames. */
