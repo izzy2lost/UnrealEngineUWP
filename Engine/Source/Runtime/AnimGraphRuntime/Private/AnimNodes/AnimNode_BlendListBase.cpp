@@ -7,6 +7,8 @@
 #include "Animation/AnimInstanceProxy.h"
 #include "Animation/AnimNode_Inertialization.h"
 #include "Animation/AnimTrace.h"
+#include "Animation/SkeletonRemapping.h"
+#include "Animation/SkeletonRemappingRegistry.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_BlendListBase)
 
@@ -318,7 +320,17 @@ void FAnimNode_BlendListBase::Evaluate_AnyThread(FPoseContext& Output)
 		UBlendProfile* CurrentBlendProfile = GetBlendProfile();
 		if (CurrentBlendProfile)
 		{
-			FAnimationRuntime::BlendPosesTogetherPerBone(FilteredPoses, FilteredCurve, FilteredAttributes, CurrentBlendProfile, PerBoneSampleData, PosesToEvaluate, OutAnimationPoseData);
+			const USkeleton* TargetSkeleton = Output.Pose.GetBoneContainer().GetSkeletonAsset();
+			const USkeleton* SourceSkeleton = CurrentBlendProfile->OwningSkeleton;
+			const FSkeletonRemapping& SkeletonRemapping = UE::Anim::FSkeletonRemappingRegistry::Get().GetRemapping(SourceSkeleton, TargetSkeleton);
+			if (SkeletonRemapping.IsValid())
+			{
+				FAnimationRuntime::BlendPosesTogetherPerBoneRemapped(FilteredPoses, FilteredCurve, FilteredAttributes, CurrentBlendProfile, PerBoneSampleData, PosesToEvaluate, SkeletonRemapping, OutAnimationPoseData);
+			}
+			else
+			{
+				FAnimationRuntime::BlendPosesTogetherPerBone(FilteredPoses, FilteredCurve, FilteredAttributes, CurrentBlendProfile, PerBoneSampleData, PosesToEvaluate, OutAnimationPoseData);
+			}
 		}
 		else
 		{

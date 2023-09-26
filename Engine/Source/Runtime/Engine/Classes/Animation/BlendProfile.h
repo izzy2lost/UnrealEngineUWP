@@ -165,7 +165,15 @@ public:
 	 * @param OutDurationPerBone Must be sized to the number bones in the skeleton pose. It will be filled with the durations of each bone as setup in the blend profile editor.
 	 * @param Duration The duration of the blend.
 	 */
+	UE_DEPRECATED(5.4, "Please use the FillSkeletonBoneDurationsArray that takes a target skeleton as parameter.")
 	ENGINE_API void FillSkeletonBoneDurationsArray(TCustomBoneIndexArrayView<float, FSkeletonPoseBoneIndex> OutDurationPerBone, float Duration) const;
+
+	/** Fill an array of floats with the bone duration values. One for each bone in the skeleton pose.
+	 * @param OutDurationPerBone Must be sized to the number bones in the skeleton pose. It will be filled with the durations of each bone as setup in the blend profile editor.
+	 * @param Duration The duration of the blend.
+	 * @param TargetSkeleton The target skeleton we are working on. If this is a nullptr, the owning skeleton of the blend profile is assumed. This can be used when using skeleton compatibility.
+	 */
+	ENGINE_API void FillSkeletonBoneDurationsArray(TCustomBoneIndexArrayView<float, FSkeletonPoseBoneIndex> OutDurationPerBone, float Duration, const USkeleton* TargetSkeleton) const;
 
 	// IInterpolationIndexProvider
 	ENGINE_API virtual int32 GetPerBoneInterpolationIndex(const FCompactPoseBoneIndex& InCompactPoseBoneIndex, const FBoneContainer& BoneContainer, const IInterpolationIndexProvider::FPerBoneInterpolationData* Data) const override;

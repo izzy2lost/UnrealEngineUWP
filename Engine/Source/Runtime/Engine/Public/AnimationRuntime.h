@@ -14,6 +14,7 @@
 #include "Animation/AnimationAsset.h"
 #include "Animation/AnimCurveTypes.h"
 #include "Animation/AnimSequenceBase.h"
+#include "Animation/SkeletonRemapping.h"
 #include "Components/SkinnedMeshComponent.h"
 #include "BonePose.h"
 #include "Containers/ArrayView.h"
@@ -254,6 +255,17 @@ public:
 		const IInterpolationIndexProvider* InterpolationIndexProvider,
 		TArrayView<const FBlendSampleData> BlendSampleDataCache,
 		/*out*/ FAnimationPoseData& OutAnimationPoseData);
+
+	static ENGINE_API void BlendPosesTogetherPerBoneRemapped(
+		TArrayView<const FCompactPose> SourcePoses, 
+		TArrayView<const FBlendedCurve> SourceCurves, 
+		TArrayView<const UE::Anim::FStackAttributeContainer> SourceAttributes, 
+		const IInterpolationIndexProvider* InterpolationIndexProvider,
+		TArrayView<const FBlendSampleData> BlendSampleDataCache,
+		TArrayView<const int32> BlendSampleDataCacheIndices, 
+		const FSkeletonRemapping& SkeletonRemapping,
+		/*out*/ FAnimationPoseData& OutAnimationPoseData);
+
 
 	/**
 	* Blends together a set of poses, each with a given weight.

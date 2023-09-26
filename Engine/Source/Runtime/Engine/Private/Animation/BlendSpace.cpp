@@ -12,6 +12,8 @@
 #include "Animation/AnimationPoseData.h"
 #include "Animation/BlendSpaceHelpers.h"
 #include "Animation/BlendSpace1DHelpers.h"
+#include "Animation/SkeletonRemapping.h"
+#include "Animation/SkeletonRemappingRegistry.h"
 #include "Math/UnrealMathUtility.h"
 #include "UObject/FrameworkObjectVersion.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
@@ -799,17 +801,30 @@ int32 UBlendSpace::GetPerBoneInterpolationIndex(
 	}
 	const TArray<FSortedPerBoneInterpolation>& SortedData = static_cast<const FSortedPerBoneInterpolationData*>(Data)->Data;
 
+	const USkeleton* SourceSkeleton = GetSkeleton();
+	const FSkeletonRemapping& SkeletonRemapping = UE::Anim::FSkeletonRemappingRegistry().Get().GetRemapping(SourceSkeleton, RequiredBones.GetSkeletonAsset());
+
 	for (int32 Iter = 0; Iter < SortedData.Num(); ++Iter)
 	{
 		const FPerBoneInterpolation& PerBoneInterpolation = SortedData[Iter].PerBoneBlend;
-		int32 OriginalIndex = SortedData[Iter].OriginalIndex;
+		const int32 OriginalIndex = SortedData[Iter].OriginalIndex;
 		const FBoneReference& SmoothedBone = PerBoneInterpolation.BoneReference;
-		FCompactPoseBoneIndex SmoothedBoneCompactPoseIndex = 
-			RequiredBones.GetCompactPoseIndexFromSkeletonPoseIndex(SmoothedBone.GetSkeletonPoseIndex(RequiredBones));
+
+		FSkeletonPoseBoneIndex SkelBoneIndex = SmoothedBone.GetSkeletonPoseIndex(RequiredBones);
+
+		// Remap to the target skeleton, using skeleton remapping, as we might be applying this blend space onto another skeleton than the asset was created for.
+		if (SkeletonRemapping.IsValid())
+		{
+			const int32 RemappedSkelBoneIndex = SkeletonRemapping.GetTargetSkeletonBoneIndex(SkelBoneIndex.GetInt());
+			SkelBoneIndex = FSkeletonPoseBoneIndex(RemappedSkelBoneIndex);
+		}
+
+		const FCompactPoseBoneIndex SmoothedBoneCompactPoseIndex = RequiredBones.GetCompactPoseIndexFromSkeletonPoseIndex(SkelBoneIndex);
 		if (SmoothedBoneCompactPoseIndex == InCompactPoseBoneIndex)
 		{
 			return OriginalIndex;
 		}
+
 		// BoneIsChildOf returns true if InCompactPoseBoneIndex is a child of SmoothedBoneCompactPoseIndex. 
 		if (SmoothedBoneCompactPoseIndex != INDEX_NONE && 
 			RequiredBones.BoneIsChildOf(InCompactPoseBoneIndex, SmoothedBoneCompactPoseIndex))
@@ -1591,10 +1606,10 @@ void UBlendSpace::InitializePerBoneBlend()
 	{
 		PerBoneBlendValues.Empty();
 
-		UBlendProfile* BlendProfile = PerBoneBlendProfile.BlendProfile.Get();
+		const UBlendProfile* BlendProfile = PerBoneBlendProfile.BlendProfile.Get();
 		if (BlendProfile)
 		{
-			int32 NumBlendEntries = BlendProfile->GetNumBlendEntries();
+			const int32 NumBlendEntries = BlendProfile->GetNumBlendEntries();
 			for (int32 EntryIndex = 0; EntryIndex < NumBlendEntries; ++EntryIndex)
 			{
 				const FBlendProfileBoneEntry& BoneEntry = BlendProfile->GetEntry(EntryIndex);

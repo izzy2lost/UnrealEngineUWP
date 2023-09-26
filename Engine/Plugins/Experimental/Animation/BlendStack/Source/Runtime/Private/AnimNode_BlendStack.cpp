@@ -38,7 +38,7 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 	USkeleton* Skeleton = Context.AnimInstanceProxy->GetSkeleton();
 	check(Skeleton);
 
-	const FReferenceSkeleton& RefSkeleton = Context.AnimInstanceProxy->GetSkeleton()->GetReferenceSkeleton();
+	const FReferenceSkeleton& RefSkeleton = Skeleton->GetReferenceSkeleton();
 	const bool bApplyDifferentRootBoneBlendTime = RootBoneBlendTime >= 0.f && !FMath::IsNearlyEqual(RootBoneBlendTime, BlendTime);
 	const int32 NumSkeletonBones = RefSkeleton.GetNum();
 	if (NumSkeletonBones <= 0)
@@ -50,11 +50,9 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 		// handling BlendTime > 0 and RootBoneBlendTime >= 0
 		if (BlendProfile != nullptr)
 		{
-			check(BlendProfile->OwningSkeleton && NumSkeletonBones == BlendProfile->OwningSkeleton->GetReferenceSkeleton().GetNum());
-
 			TotalBlendInTimePerBone.Init(BlendTime, NumSkeletonBones);
 
-			BlendProfile->FillSkeletonBoneDurationsArray(TotalBlendInTimePerBone, BlendTime);
+			BlendProfile->FillSkeletonBoneDurationsArray(TotalBlendInTimePerBone, BlendTime, Skeleton);
 
 			if (bApplyDifferentRootBoneBlendTime)
 			{

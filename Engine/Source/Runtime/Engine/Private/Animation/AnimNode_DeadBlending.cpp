@@ -761,13 +761,14 @@ void FAnimNode_DeadBlending::Evaluate_AnyThread(FPoseContext& Output)
 		InertializationDuration = BlendTimeMultiplier * RequestQueue[ShortestRequestIdx].Duration;
 		InertializationDurationPerBone.Init(InertializationDuration, NumSkeletonBones);
 
+		const USkeleton* TargetSkeleton = Output.AnimInstanceProxy->GetRequiredBones().GetSkeletonAsset();
 		if (RequestQueue[ShortestRequestIdx].BlendProfile)
 		{
-			RequestQueue[ShortestRequestIdx].BlendProfile->FillSkeletonBoneDurationsArray(InertializationDurationPerBone, InertializationDuration);
+			RequestQueue[ShortestRequestIdx].BlendProfile->FillSkeletonBoneDurationsArray(InertializationDurationPerBone, InertializationDuration, TargetSkeleton);
 		}
 		else if (DefaultBlendProfile)
 		{
-			DefaultBlendProfile->FillSkeletonBoneDurationsArray(InertializationDurationPerBone, InertializationDuration);
+			DefaultBlendProfile->FillSkeletonBoneDurationsArray(InertializationDurationPerBone, InertializationDuration, TargetSkeleton);
 		}
 
 		// Cache the maximum duration across all bones (so we know when to deactivate the inertialization request)

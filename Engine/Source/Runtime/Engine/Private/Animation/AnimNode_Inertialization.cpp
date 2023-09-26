@@ -290,7 +290,8 @@ void FAnimNode_Inertialization::Evaluate_AnyThread(FPoseContext& Output)
 		
 		const int32 NumSkeletonBones = UE::Anim::GetNumSkeletonBones(Output.AnimInstanceProxy->GetRequiredBones());
 
-		auto FillSkeletonBoneDurationsArray = [this, NumSkeletonBones](auto& DurationPerBone, float Duration, const UBlendProfile* BlendProfile) {
+		const USkeleton* TargetSkeleton = Output.AnimInstanceProxy->GetRequiredBones().GetSkeletonAsset();
+		auto FillSkeletonBoneDurationsArray = [this, NumSkeletonBones, TargetSkeleton](auto& DurationPerBone, float Duration, const UBlendProfile* BlendProfile) {
 			if (BlendProfile == nullptr)
 			{
 				BlendProfile = DefaultBlendProfile;
@@ -299,7 +300,7 @@ void FAnimNode_Inertialization::Evaluate_AnyThread(FPoseContext& Output)
 			if (BlendProfile != nullptr)
 			{
 				DurationPerBone.SetNum(NumSkeletonBones);
-				BlendProfile->FillSkeletonBoneDurationsArray(DurationPerBone, Duration);
+				BlendProfile->FillSkeletonBoneDurationsArray(DurationPerBone, Duration, TargetSkeleton);
 			}
 			else
 			{

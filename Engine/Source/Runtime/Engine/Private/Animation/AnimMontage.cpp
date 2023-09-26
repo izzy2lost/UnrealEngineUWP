@@ -1436,7 +1436,7 @@ void FAnimMontageInstance::Play(float InPlayRate)
 		BlendInSettings.Blend = Montage->BlendIn;
 		BlendInSettings.BlendMode = Montage->BlendModeIn;
 		BlendInSettings.BlendProfile = Montage->BlendProfileIn;
-}
+	}
 
 	Play(InPlayRate, BlendInSettings);
 }
