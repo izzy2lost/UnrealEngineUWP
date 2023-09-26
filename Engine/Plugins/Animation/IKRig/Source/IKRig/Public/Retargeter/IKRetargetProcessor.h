@@ -73,7 +73,7 @@ struct IKRIG_API FRetargetSkeleton
 		TArray<FTransform>& OutLocalPose,
 		const TArray<FTransform>& InGlobalPose) const;
 
-	FTransform GetGlobalRefPoseOfSingleBone(
+	FTransform GetGlobalRetargetPoseOfSingleBone(
 		const int32 BoneIndex,
 		const TArray<FTransform>& InGlobalPose) const;
 
