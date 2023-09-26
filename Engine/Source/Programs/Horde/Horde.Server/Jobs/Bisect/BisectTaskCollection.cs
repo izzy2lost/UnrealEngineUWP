@@ -14,6 +14,7 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using EpicGames.Horde.Api;
+using OpenTelemetry.Trace;
 
 namespace Horde.Server.Jobs.Bisect
 {
@@ -95,14 +96,16 @@ namespace Horde.Server.Jobs.Bisect
 			IReadOnlySet<JobId> IBisectTask.IgnoreJobs => IgnoreJobs;
 		}
 
+		readonly Tracer _tracer;
 		readonly IMongoCollection<BisectTaskDoc> _bisectTasks;
 
-		public BisectTaskCollection(MongoService mongoService)
+		public BisectTaskCollection(Tracer tracer, MongoService mongoService)
 		{
 			List<MongoIndex<BisectTaskDoc>> indexes = new List<MongoIndex<BisectTaskDoc>>();
 			indexes.Add(keys => keys.Ascending(x => x.Id).Ascending(x => x.Running).Ascending(x => x.InitialJobId), sparse: true);
 
 			_bisectTasks = mongoService.GetCollection<BisectTaskDoc>("BisectTasks", indexes);
+			_tracer = tracer;
 		}
 
 		/// <inheritdoc/>
@@ -147,6 +150,8 @@ namespace Horde.Server.Jobs.Bisect
 		/// <inheritdoc/>
 		public async IAsyncEnumerable<IBisectTask> FindActiveAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(BisectTaskCollection)}.{nameof(FindActiveAsync)}");
+
 			using (IAsyncCursor<BisectTaskDoc> cursor = await _bisectTasks.Find(x => x.State == BisectTaskState.Running).SortBy(x => x.Id).ToCursorAsync(cancellationToken))
 			{
 				while (await cursor.MoveNextAsync(cancellationToken))
@@ -168,6 +173,8 @@ namespace Horde.Server.Jobs.Bisect
 		/// <inheritdoc/>
 		public async Task<IReadOnlyList<IBisectTask>> FindAsync(BisectTaskId[]? taskIds = null, JobId? jobId = null, UserId? ownerId = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, int? index = null, int? count = null, CancellationToken cancellationToken = default)
 		{
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(BisectTaskCollection)}.{nameof(FindAsync)}");
+			
 			// Find all the bisection tasks matching the given criteria
 			FilterDefinitionBuilder<BisectTaskDoc> filterBuilder = Builders<BisectTaskDoc>.Filter;
 

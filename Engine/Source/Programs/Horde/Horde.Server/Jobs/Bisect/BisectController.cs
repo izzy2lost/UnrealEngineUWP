@@ -17,6 +17,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using EpicGames.Horde.Api;
+using OpenTelemetry.Trace;
 
 namespace Horde.Server.Jobs.Bisect
 {
@@ -193,11 +194,12 @@ namespace Horde.Server.Jobs.Bisect
 		readonly IGraphCollection _graphCollection;
 		readonly IUserCollection _userCollection;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
+		readonly Tracer _tracer;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BisectTasksController(IBisectTaskCollection bisectTaskCollection, JobService jobService, IJobCollection jobCollection, IJobStepRefCollection jobStepRefs, IGraphCollection graphCollection, IUserCollection userCollection, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public BisectTasksController(IBisectTaskCollection bisectTaskCollection, JobService jobService, IJobCollection jobCollection, IJobStepRefCollection jobStepRefs, IGraphCollection graphCollection, IUserCollection userCollection, Tracer tracer, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_bisectTaskCollection = bisectTaskCollection;
 			_jobService = jobService;
@@ -206,6 +208,7 @@ namespace Horde.Server.Jobs.Bisect
 			_graphCollection = graphCollection;
 			_userCollection = userCollection;
 			_globalConfig = globalConfig;
+			_tracer = tracer;
 		}
 
 		/// <summary>
@@ -376,6 +379,9 @@ namespace Horde.Server.Jobs.Bisect
 
 		async Task<GetBisectTaskResponse> CreateBisectTaskResponseAsync(IBisectTask task, CancellationToken cancellationToken = default)
 		{
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(BisectTasksController)}.{nameof(CreateBisectTaskResponseAsync)}");
+			span.SetAttribute("TaskId", task.Id.ToString());
+
 			IUser? user = await _userCollection.GetCachedUserAsync(task.OwnerId);
 
 			List<IJobStepRef> steps = await _jobStepRefs.FindBisectTaskStepsAsync(task.Id, cancellationToken);
@@ -438,6 +444,8 @@ namespace Horde.Server.Jobs.Bisect
 			[FromQuery] int count = 100,
 			CancellationToken cancellationToken = default)
 		{
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(BisectTasksController)}.{nameof(FindBisectTasksAsync)}");			
+
 			List<GetBisectTaskResponse> responses = new List<GetBisectTaskResponse>();
 
 			BisectTaskId[]? bisectTaskIdValues = (ids == null) ? (BisectTaskId[]?)null : Array.ConvertAll(ids, x => BisectTaskId.Parse(x));
@@ -449,9 +457,7 @@ namespace Horde.Server.Jobs.Bisect
 			if (tasks.Count == 0)
 			{
 				return responses;
-			}
-
-			List<IJob> jobs = await _jobCollection.FindAsync(new HashSet<JobId>(tasks.Select(x => x.InitialJobId)).ToArray());
+			}			
 
 			for (int i = 0; i < tasks.Count; i++)
 			{

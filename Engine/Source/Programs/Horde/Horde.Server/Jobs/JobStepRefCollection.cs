@@ -16,6 +16,7 @@ using HordeCommon;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using EpicGames.Horde.Api;
+using OpenTelemetry.Trace;
 
 namespace Horde.Server.Jobs
 {
@@ -106,13 +107,15 @@ namespace Horde.Server.Jobs
 		readonly IMongoCollection<JobStepRef> _jobStepRefs;
 		readonly MongoIndex<JobStepRef> _bisectTaskIdIndex;
 		readonly ITelemetrySink _telemetrySink;
-		
+		readonly Tracer _tracer;
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="mongoService">The database service instance</param>
+		/// <param name="tracer">Telemetry sink</param>
 		/// <param name="telemetrySink">Telemetry sink</param>
-		public JobStepRefCollection(MongoService mongoService, ITelemetrySink telemetrySink)
+		public JobStepRefCollection(MongoService mongoService, Tracer tracer, ITelemetrySink telemetrySink)
 		{
 			List<MongoIndex<JobStepRef>> indexes = new List<MongoIndex<JobStepRef>>();
 			indexes.Add(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.TemplateId).Ascending(x => x.Name).Descending(x => x.Change));
@@ -120,6 +123,7 @@ namespace Horde.Server.Jobs
 
 			_jobStepRefs = mongoService.GetCollection<JobStepRef>("JobStepRefs", indexes);
 			_telemetrySink = telemetrySink;
+			_tracer = tracer;
 		}
 
 		/// <inheritdoc/>
@@ -187,6 +191,9 @@ namespace Horde.Server.Jobs
 		/// <inheritdoc/>
 		public async Task<List<IJobStepRef>> FindBisectTaskStepsAsync(BisectTaskId bisectTaskId, CancellationToken cancellationToken)
 		{
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobStepRefCollection)}.{nameof(FindBisectTaskStepsAsync)}");
+			span.SetAttribute("TaskId", bisectTaskId.Id.ToString());
+
 			FilterDefinition<JobStepRef> filter = Builders<JobStepRef>.Filter.Eq(x => x.BisectTaskId, bisectTaskId);			
 			List<JobStepRef> results = await _jobStepRefs.WithReadPreference(ReadPreference.SecondaryPreferred).FindWithHintAsync(filter, _bisectTaskIdIndex.Name, x => x.SortBy(x => x.Change).ToListAsync(cancellationToken));
 			return results.ConvertAll<IJobStepRef>(x => x);
