@@ -175,21 +175,21 @@ namespace mu
 
             // This reference has to be the smart pointer to avoid memory aliasing, keeping
             // processed nodes alive.
-            NodePtrConst pNode;
+            Ptr<const Node> pNode;
             int state = -1;
-			TArray<mu::string> activeTags;
+			TArray<FString> activeTags;
         };
 
         //! This struct contains additional state propagated from bottom to top of the object node graph.
         //! It is stored for every visited node, and restored when the cache is used.
-        struct BOTTOM_UP_STATE
+        struct FBottomUpState
         {
             //! Generated root address for the node.
             Ptr<ASTOp> m_address;
         };
-        BOTTOM_UP_STATE m_currentBottomUpState;
+		FBottomUpState m_currentBottomUpState;
 
-        typedef TMap<FVisitedKeyMap,BOTTOM_UP_STATE> VisitedMap;
+        typedef TMap<FVisitedKeyMap, FBottomUpState> VisitedMap;
         VisitedMap m_compiled;
 
         //!
@@ -219,7 +219,7 @@ namespace mu
         uint32 m_freeVertexIndex = 0;
 
 		// (top-down) Tags that are active when generating nodes.
-		TArray< TArray<mu::string> > m_activeTags;
+		TArray< TArray<FString> > m_activeTags;
 
         struct FParentKey
         {
@@ -247,9 +247,9 @@ namespace mu
 
         // List of additional components to add to an object that come from child objects.
         // The index is the object and lod that should receive the components.
-        struct ADDITIONAL_COMPONENT_KEY
+        struct FAdditionalComponentKey
         {
-            ADDITIONAL_COMPONENT_KEY()
+			FAdditionalComponentKey()
             {
                 m_pObject = nullptr;
                 m_lod = -1;
@@ -258,14 +258,14 @@ namespace mu
             const NodeObjectNew::Private* m_pObject;
             int m_lod;
 
-            inline bool operator<(const ADDITIONAL_COMPONENT_KEY& o) const
+            inline bool operator<(const FAdditionalComponentKey& o) const
             {
                 if (m_pObject < o.m_pObject) return true;
                 if (m_pObject > o.m_pObject) return false;
                 return m_lod < o.m_lod;
             }
         };
-        std::map< ADDITIONAL_COMPONENT_KEY, TArray<Ptr<ASTOp>> > m_additionalComponents;
+        std::map< FAdditionalComponentKey, TArray<Ptr<ASTOp>> > m_additionalComponents;
 
 
         struct OBJECT_GENERATION_DATA
@@ -275,7 +275,7 @@ namespace mu
         };
 		TArray< OBJECT_GENERATION_DATA > m_currentObject;
 
-        map< std::pair<TablePtr,string>, std::pair<TablePtr,Ptr<ASTOp>> > m_generatedTables;
+        map< std::pair<TablePtr, FString>, std::pair<TablePtr,Ptr<ASTOp>> > m_generatedTables;
 
         //! Variables added for every node
         map< Ptr<const Node>, Ptr<ASTOpParameter> > m_nodeVariables;
@@ -284,7 +284,7 @@ namespace mu
 		{
 			Ptr<ASTOp> Condition;
 			Ptr<ASTOp> ExtensionDataOp;
-			string ExtensionDataName;
+			FString ExtensionDataName;
 		};
 
 		TArray<FConditionalExtensionDataOp> m_conditionalExtensionDataOps;
@@ -292,11 +292,11 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		// Get the modifiers that have to be applied to elements with a specific tag.
-		void GetModifiersFor(const TArray<string>& tags, int LOD,
-			bool bModifiersForBeforeOperations, TArray<FirstPassGenerator::MODIFIER>& modifiers);
+		void GetModifiersFor(const TArray<FString>& tags, int LOD,
+			bool bModifiersForBeforeOperations, TArray<FirstPassGenerator::FModifier>& modifiers);
 
 		// Apply the required mesh modifiers to the given operation.
-		Ptr<ASTOp> ApplyMeshModifiers( const Ptr<ASTOp>& sourceOp, const TArray<string>& tags,
+		Ptr<ASTOp> ApplyMeshModifiers( const Ptr<ASTOp>& sourceOp, const TArray<FString>& tags,
 			bool bModifiersForBeforeOperations, const void* errorContext);
 
 		// Get the modifiers that have to be applied to elements with a specific tag.
@@ -304,7 +304,7 @@ namespace mu
 
         //-----------------------------------------------------------------------------------------
         //!
-        Ptr<ASTOp> GenerateTableVariable( TablePtr pTable, const string& strName );
+        Ptr<ASTOp> GenerateTableVariable( TablePtr pTable, const FString& strName );
 
         //!
         Ptr<ASTOp> GenerateMissingBoolCode(const TCHAR* strWhere, bool value, const void* errorContext );
@@ -350,7 +350,7 @@ namespace mu
 			Ptr<const Layout> LayoutToApply;
 
 			/** Tags that are active at this point of the generation. */
-			TArray<mu::string> ActiveTags;
+			TArray<FString> ActiveTags;
 
 			friend FORCEINLINE uint32 GetTypeHash(const FImageGenerationOptions& InKey)
 			{
@@ -475,7 +475,7 @@ namespace mu
 			int32 State = 0;
 
 			/** Tags that are active at this point of the generation. */
-			TArray<mu::string> ActiveTags;
+			TArray<FString> ActiveTags;
 
 			/** Whatever mesh we reach at the leaves of the graph will need to have unique ids for its vertices.
 			* This is used to track mesh removal indices, morph data in other nodes, clothing data, etc.
@@ -716,10 +716,10 @@ namespace mu
             Ptr<ASTOp> sizeOp;
 
             //
-            string rangeName;
+            FString rangeName;
 
             //
-            string rangeUID;
+			FString rangeUID;
         };
 
         typedef TMap<FVisitedKeyMap,FRangeGenerationResult> GeneratedRangeMap;
@@ -736,7 +736,7 @@ namespace mu
 
         void GenerateSurface( FSurfaceGenerationResult& result,
                               NodeSurfaceNewPtrConst node,
-                              const TArray<FirstPassGenerator::SURFACE::EDIT>& edits );
+                              const TArray<FirstPassGenerator::FSurface::FEdit>& edits );
     };
 
 
@@ -764,9 +764,9 @@ namespace mu
         TablePtr pTable;
         Ptr<ASTOp> variable;
 
-        map< std::pair<TablePtr,string>, std::pair<TablePtr,Ptr<ASTOp>> >::iterator it
+        map< std::pair<TablePtr,FString>, std::pair<TablePtr,Ptr<ASTOp>> >::iterator it
                 = m_generatedTables.find
-                ( std::pair<TablePtr,string>(node.m_pTable,node.m_parameterName) );
+                ( std::pair<TablePtr,FString>(node.m_pTable,node.m_parameterName) );
         if ( it!=m_generatedTables.end() )
         {
             pTable = it->second.first;
@@ -779,12 +779,12 @@ namespace mu
             pTable = node.m_pTable;
             variable = GenerateTableVariable( pTable, node.m_parameterName );
 
-            m_generatedTables[ std::pair<TablePtr,string>(node.m_pTable,node.m_parameterName) ] =
+            m_generatedTables[ std::pair<TablePtr, FString>(node.m_pTable,node.m_parameterName) ] =
                     std::pair<TablePtr,Ptr<ASTOp>>( pTable, variable );
         }
 
         // Verify that the table column is the right type
-        int colIndex = pTable->FindColumn( node.m_columnName.c_str() );
+        int colIndex = pTable->FindColumn( node.m_columnName );
         if ( colIndex<0 )
         {
             m_pErrorLog->GetPrivate()->Add("Table column not found.", ELMT_ERROR, node.m_errorContext);

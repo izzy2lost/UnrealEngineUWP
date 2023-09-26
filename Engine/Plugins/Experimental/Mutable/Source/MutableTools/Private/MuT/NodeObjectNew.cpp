@@ -108,43 +108,29 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
-	const char* NodeObjectNew::GetName() const
+	const FString& NodeObjectNew::GetName() const
 	{
-		return m_pD->m_name.c_str();
+		return m_pD->m_name;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeObjectNew::SetName( const char* strName )
+	void NodeObjectNew::SetName( const FString& Name )
 	{
-		if( strName )
-		{
-			m_pD->m_name = strName;
-		}
-		else
-		{
-			m_pD->m_name = "";
-		}
+		m_pD->m_name = Name;
 	}
 
 
-	const char* NodeObjectNew::GetUid() const
+	const FString& NodeObjectNew::GetUid() const
 	{
-		return m_pD->m_uid.c_str();
+		return m_pD->m_uid;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeObjectNew::SetUid( const char* strUid )
+	void NodeObjectNew::SetUid( const FString& Uid )
 	{
-		if( strUid )
-		{
-			m_pD->m_uid = strUid;
-		}
-		else
-		{
-			m_pD->m_uid = "";
-		}
+		m_pD->m_uid = Uid;
 	}
 
 
@@ -272,29 +258,21 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	int NodeObjectNew::GetStateCount() const
+	int32 NodeObjectNew::GetStateCount() const
 	{
 		return m_pD->m_states.Num();
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeObjectNew::SetStateCount( int c )
+	void NodeObjectNew::SetStateCount( int32 c )
 	{
 		m_pD->m_states.SetNum( c );
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	const char* NodeObjectNew::GetStateName( int s ) const
-	{
-		check( s>=0 && s<GetStateCount() );
-		return m_pD->m_states[s].m_name.c_str();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeObjectNew::SetStateName( int s, const char* n )
+	void NodeObjectNew::SetStateName( int32 s, const FString& n )
 	{
 		check( s>=0 && s<GetStateCount() );
 		m_pD->m_states[s].m_name = n;
@@ -302,7 +280,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	bool NodeObjectNew::HasStateParam( int s, const char* param ) const
+	bool NodeObjectNew::HasStateParam( int32 s, const FString& param ) const
 	{
 		check( s>=0 && s<GetStateCount() );
 		return m_pD->m_states[s].m_runtimeParams.Contains( param );
@@ -310,7 +288,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeObjectNew::AddStateParam( int s, const char* param )
+	void NodeObjectNew::AddStateParam( int32 s, const FString& param )
 	{
 		check( s>=0 && s<GetStateCount() );
 
@@ -322,7 +300,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeObjectNew::RemoveStateParam( int s, const char* param )
+	void NodeObjectNew::RemoveStateParam( int32 s, const FString& param )
 	{
 		check( s>=0 && s<GetStateCount() );
 
@@ -351,7 +329,7 @@ namespace mu
     }
 
     //---------------------------------------------------------------------------------------------
-	void NodeObjectNew::AddExtensionDataNode(NodeExtensionDataPtr Node, const char* Name)
+	void NodeObjectNew::AddExtensionDataNode(NodeExtensionDataPtr Node, const FString& Name)
 	{
 		NodeObjectNew::Private::NamedExtensionDataNode& Entry = m_pD->m_extensionDataNodes.AddDefaulted_GetRef();
 		Entry.Node = Node;

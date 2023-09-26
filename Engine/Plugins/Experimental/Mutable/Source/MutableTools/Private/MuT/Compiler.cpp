@@ -202,7 +202,7 @@ namespace mu
                 STATE_COMPILATION_DATA data;
                 data.nodeState = s.first;
                 data.root = s.second;
-                data.state.m_name = s.first.m_name;
+                data.state.Name = s.first.m_name;
                 states.push_back( data );
             }
 
@@ -279,11 +279,10 @@ namespace mu
                 else
                 {
 					FString Temp = FString::Printf(TEXT(
-						"The state [%s] refers to a parameter [%s] "
-						"that has not been found in the model. This error can be "
+						"The state [%s] refers to a parameter [%s]  that has not been found in the model. This error can be "
 						"safely dismissed in case of partial compilation."), 
-						StringCast<TCHAR>(s.nodeState.m_name.c_str()).Get(),
-						StringCast<TCHAR>(s.nodeState.m_runtimeParams[p].c_str()).Get());
+						*s.nodeState.m_name,
+						*s.nodeState.m_runtimeParams[p]);
                     m_pD->m_pErrorLog->GetPrivate()->Add(Temp, ELMT_WARNING, pNode->GetBasePrivate()->m_errorContext );
                 }
             }

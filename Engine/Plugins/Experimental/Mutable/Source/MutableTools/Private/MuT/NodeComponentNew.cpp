@@ -67,25 +67,16 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
-	const char* NodeComponentNew::GetName() const
+	const FString& NodeComponentNew::GetName() const
 	{
-		const char* strResult = m_pD->m_name.c_str();
-
-		return strResult;
+		return m_pD->m_name;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeComponentNew::SetName( const char* strName )
+	void NodeComponentNew::SetName( const FString& strName )
 	{
-		if (strName)
-		{
-			m_pD->m_name = strName;
-		}
-		else
-		{
-			m_pD->m_name = "";
-		}
+		m_pD->m_name = strName;
 	}
 
 

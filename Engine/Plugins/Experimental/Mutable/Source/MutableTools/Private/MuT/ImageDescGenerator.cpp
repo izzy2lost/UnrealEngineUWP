@@ -120,7 +120,7 @@ namespace mu
         m_desc = MUTABLE_MISSING_IMAGE_DESC;
 
         // Verify that the table column is the right type
-        int colIndex = node.m_pTable->FindColumn( node.m_columnName.c_str() );
+        int colIndex = node.m_pTable->FindColumn( node.m_columnName );
         if ( colIndex<0 )
         {
             check( false );

@@ -65,74 +65,22 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
-	const char* NodeProjectorParameter::GetName() const
+	void NodeProjectorParameter::SetName( const FString& strName )
 	{
-		return m_pD->m_name.c_str();
+		m_pD->m_name = strName;
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	void NodeProjectorParameter::SetName( const char* strName )
+	const FString& NodeProjectorParameter::GetUid() const
 	{
-		if ( strName )
-		{
-			m_pD->m_name = strName;
-		}
-		else
-		{
-			m_pD->m_name = "";
-		}
+		return m_pD->m_uid;
 	}
 
 
-	const char* NodeProjectorParameter::GetUid() const
+	void NodeProjectorParameter::SetUid( const FString& strUid )
 	{
-		return m_pD->m_uid.c_str();
+		m_pD->m_uid = strUid;
 	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeProjectorParameter::SetUid( const char* strUid )
-	{
-		if ( strUid )
-		{
-			m_pD->m_uid = strUid;
-		}
-		else
-		{
-			m_pD->m_uid = "";
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeProjectorParameter::GetDefaultValue( PROJECTOR_TYPE* pType,
-                                                  float* pPosX, float* pPosY, float* pPosZ,
-												  float* pDirX, float* pDirY, float* pDirZ,
-												  float* pUpX, float* pUpY, float* pUpZ,
-                                                  float* pScaleU, float* pScaleV, float* pScaleW,
-                                                  float* pProjectionAngle ) const
-	{
-        if (pType) *pType = m_pD->m_type;
-
-        if (pPosX) *pPosX = m_pD->m_position[0];
-        if (pPosY) *pPosY = m_pD->m_position[1];
-        if (pPosZ) *pPosZ = m_pD->m_position[2];
-
-        if (pDirX) *pDirX = m_pD->m_direction[0];
-        if (pDirY) *pDirY = m_pD->m_direction[1];
-        if (pDirZ) *pDirZ = m_pD->m_direction[2];
-
-        if (pUpX) *pUpX = m_pD->m_up[0];
-        if (pUpY) *pUpY = m_pD->m_up[1];
-        if (pUpZ) *pUpZ = m_pD->m_up[2];
-
-        if (pScaleU) *pScaleU = m_pD->m_scale[0];
-        if (pScaleV) *pScaleV = m_pD->m_scale[1];
-        if (pScaleW) *pScaleW = m_pD->m_scale[2];
-
-        if (pProjectionAngle) *pProjectionAngle = m_pD->m_projectionAngle;
-    }
 
 
 	//---------------------------------------------------------------------------------------------

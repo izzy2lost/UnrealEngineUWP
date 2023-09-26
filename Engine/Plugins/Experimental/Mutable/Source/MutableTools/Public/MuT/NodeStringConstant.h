@@ -37,9 +37,6 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
-
-        
-
         const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
 
@@ -51,11 +48,8 @@ namespace mu
 		// Own Interface
 		//-----------------------------------------------------------------------------------------
 
-		//! Get the value to be returned by the node.
-		const char* GetValue() const;
-
 		//! Set the value to be returned by the node.
-		void SetValue( const char* v );
+		void SetValue( const FString& v );
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern

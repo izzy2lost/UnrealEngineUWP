@@ -30,7 +30,7 @@ namespace mu
 
 		static NODE_TYPE s_type;
 
-		string m_name;
+		FString m_name;
 
 		uint16 m_id = 0;
 
@@ -39,7 +39,7 @@ namespace mu
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 3;
+            uint32_t ver = 4;
 			
 			arch << ver;
 
@@ -53,9 +53,18 @@ namespace mu
 		{
             uint32_t ver;
 			arch >> ver;
-			check(ver >= 2);
+			check(ver>=2 && ver<=4);
 
-			arch >> m_name;
+			if (ver <= 3)
+			{
+				std::string Temp;
+				arch>>Temp;
+				m_name = Temp.c_str();
+			}
+			else
+			{
+				arch >> m_name;
+			}
 
 			if (ver >= 3)
 			{

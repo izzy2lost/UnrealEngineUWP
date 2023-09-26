@@ -51,8 +51,8 @@ namespace mu
         void SetSize( const Ptr<NodeScalar>& );
 
         //!
-        const char* GetName() const;
-        void SetName( const char* strName );
+		const FString& GetName() const;
+		void SetName(const FString& Name);
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern

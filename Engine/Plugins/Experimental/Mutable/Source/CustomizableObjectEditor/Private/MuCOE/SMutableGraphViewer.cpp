@@ -156,7 +156,7 @@ void SMutableGraphViewer::Construct(const FArguments& InArgs, const mu::NodePtr&
 
 					// Dump source model to a file.
 					FString SaveFileName = FString(SaveFilenames[0]);
-					mu::OutputFileStream stream(StringCast<ANSICHAR>(*SaveFileName).Get());
+					mu::OutputFileStream stream(SaveFileName);
 					stream.Write(MUTABLE_SOURCE_MODEL_FILETAG, 4);
 					mu::OutputArchive arch(&stream);
 					mu::Node::Serialise(InRootNode.get(), arch);
@@ -490,7 +490,7 @@ FReply SMutableGraphViewer::OnDragOver(const FGeometry& MyGeometry, const FDragD
 				if (DraggedFileExtension == TEXT(".mutable_source"))
 				{
 					// Dump source model to a file.
-					mu::InputFileStream stream(StringCast<ANSICHAR>(*Files[0]).Get());
+					mu::InputFileStream stream(Files[0]);
 
 					char MutableSourceTag[4] = {};
 					stream.Read(MutableSourceTag, 4);
@@ -526,7 +526,7 @@ FReply SMutableGraphViewer::OnDrop(const FGeometry& MyGeometry, const FDragDropE
 				if (DraggedFileExtension == TEXT(".mutable_source"))
 				{
 					// Dump source model to a file.
-					mu::InputFileStream stream(StringCast<ANSICHAR>(*Files[0]).Get());
+					mu::InputFileStream stream(Files[0]);
 
 					char MutableSourceTag[4] = {};
 					stream.Read(MutableSourceTag, 4);

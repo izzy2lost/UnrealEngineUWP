@@ -41,9 +41,6 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
-
-		
-
 		const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
 
@@ -56,15 +53,14 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		//! Set the name of the implicit table parameter.
-		void SetParameterName( const char* strName );
+		void SetParameterName( const FString& strName );
 
 		//!
 		TablePtr GetTable() const;
 		void SetTable( TablePtr );
 
 		//!
-		const char* GetColumn() const;
-		void SetColumn( const char* strName );
+		void SetColumn( const FString& strName );
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern

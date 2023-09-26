@@ -6,7 +6,6 @@
 #include "MuR/ConvertData.h"
 #include "MuR/MutableTrace.h"
 #include "MuR/Platform.h"
-#include "MuR/OpMeshChartDifference.h"
 
 
 namespace mu

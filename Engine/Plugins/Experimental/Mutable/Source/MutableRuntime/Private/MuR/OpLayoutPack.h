@@ -11,8 +11,6 @@
 
 namespace mu
 {
-	typedef std::string string;
-
 	//---------------------------------------------------------------------------------------------
     // inline void SimpleLayoutPack( Layout* pResult, const Layout* pSource )
 	// {
@@ -211,7 +209,7 @@ namespace mu
     };
 
 
-    inline string DebugGetBlockAt( const SCRATCH_LAYOUT_PACK& scratch,
+    inline char DebugGetBlockAt( const SCRATCH_LAYOUT_PACK& scratch,
                                    const TArray<uint8_t>& packedFlag,
                                    int x, int y )
     {
@@ -226,14 +224,11 @@ namespace mu
                      y<scratch.positions[i][1]+scratch.sorted[b].size[1]
                      )
                 {
-                    char temp[2];
-                    temp[1] = 0;
-                    temp[0] = char('a')+char(b);
-                    return temp;
+					return char('a')+char(b);
                 }
             }
         }
-        return ".";
+        return '.';
     }
 
 
@@ -375,12 +370,10 @@ namespace mu
 	}
 
 
-    //---------------------------------------------------------------------------------------------
-    //! Even more expensive but precise version
-    //---------------------------------------------------------------------------------------------
-	inline void ReduceBlock(int blockCount, int* area, int* reverse_it, SCRATCH_LAYOUT_PACK* scratch, EReductionMethod ReductionMethod)
+    /** Updates the area, and the iterator. */
+	inline void ReduceBlock(int blockCount, int32& InOutArea, int32& InOutBlockIt, SCRATCH_LAYOUT_PACK* scratch, EReductionMethod ReductionMethod)
 	{
-		int r_it = (*reverse_it);
+		int r_it = InOutBlockIt;
 		bool pass = false;
 
 		int oldBlockArea = scratch->sorted[r_it].size[0] * scratch->sorted[r_it].size[1];
@@ -454,15 +447,15 @@ namespace mu
 		
 		int newBlockArea = scratch->sorted[r_it].size[0] * scratch->sorted[r_it].size[1];
 
-		(*area) = (*area) - (oldBlockArea - newBlockArea);
+		InOutArea = InOutArea - (oldBlockArea - newBlockArea);
 
 		if (pass)
 		{
-			(*reverse_it) = (*reverse_it) + 1;
+			InOutBlockIt = InOutBlockIt + 1;
 
-			if ((*reverse_it) >= blockCount)
+			if (InOutBlockIt >= blockCount)
 			{
-				(*reverse_it) = 0;
+				InOutBlockIt = 0;
 			}
 		}
 	}
@@ -797,7 +790,9 @@ namespace mu
 		}
         
         int bestY = maxY;
-		int r_it = 0;
+
+		// This is used to iterate through blocks.
+		int32 BlockIterator = 0;
 
         // Sort by height, area
         check( (int)scratch->sorted.Num()==blockCount );
@@ -815,10 +810,10 @@ namespace mu
 				scratch->sorted.Sort(CompareBlocksPriority);
 			}
 
-			//Shrink blocks in case we do not have enough space to pack everything
+			// Shrink blocks in case we do not have enough space to pack everything
 			while (maxX*maxY < area)
 			{
-				ReduceBlock(blockCount, &area, &r_it, scratch, pSourceLayout->GetBlockReductionMethod());
+				ReduceBlock(blockCount, area, BlockIterator, scratch, pSourceLayout->GetBlockReductionMethod());
 			}
 			
 		}
@@ -827,24 +822,24 @@ namespace mu
 
 		while (!fits)
 		{
-			//Sort by height&area before packing
+			// Sort by height&area before packing
 			if (usePriority)
 			{
 				scratch->sorted.Sort(CompareBlocks);
 			}
 
-			//Try to pack everything
+			// Try to pack everything
 			fits = SetPositions(bestY, layoutSizeY, &maxX, &maxY, scratch, pSourceLayout->GetLayoutPackingStrategy());
 
 			if (!fits && pSourceLayout->GetLayoutPackingStrategy() == EPackStrategy::FIXED_LAYOUT)
 			{
-				//Sort by priority before shrink
+				// Sort by priority before shrink
 				if (usePriority)
 				{
 					scratch->sorted.Sort(CompareBlocksPriority);
 				}
 
-				ReduceBlock(blockCount, &area, &r_it, scratch, pSourceLayout->GetBlockReductionMethod());
+				ReduceBlock(blockCount, area, BlockIterator, scratch, pSourceLayout->GetBlockReductionMethod());
 			}
 		}
 

@@ -59,20 +59,13 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		//! Get the name of the parameter. It will be exposed in the final compiled data.
-		const char* GetName() const;
 		void SetName( const char* );
 
 		//! Get the uid of the parameter. It will be exposed in the final compiled data.
-		const char* GetUid() const;
 		void SetUid( const char* );
 
 		//! Get the default value of the parameter.
-		float GetDefaultValue() const;
 		void SetDefaultValue( float v );
-
-		//! Get the additional information about the type
-		PARAMETER_DETAILED_TYPE GetDetailedType() const ;
-		void SetDetailedType( PARAMETER_DETAILED_TYPE type );
 
         //! Set the number of ranges (dimensions) for this parameter.
         //! By default a parameter has 0 ranges, meaning it only has one value.

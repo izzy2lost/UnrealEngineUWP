@@ -401,7 +401,7 @@ void SMutableCodeViewer::Construct(const FArguments& InArgs, const TSharedPtr<mu
 					{
 						const FString SaveFileName = FString(SaveFilenames[0]);
 
-						mu::OutputFileStream Stream(StringCast<ANSICHAR>(*SaveFileName).Get());
+						mu::OutputFileStream Stream(SaveFileName);
 						Stream.Write(MUTABLE_COMPILED_MODEL_FILETAG, 4);
 						mu::OutputArchive Archive(&Stream);
 						mu::Model::Serialise(InMutableModel.Get(), Archive);
@@ -1393,7 +1393,7 @@ void SMutableCodeViewer::GenerateAllTreeElements()
 	for ( uint32 StateIndex=0; StateIndex<StateCount; ++StateIndex )
 	{
 		const mu::FProgram::FState& State = ModelPrivate->m_program.m_states[StateIndex];
-		FString Caption = FString::Printf( TEXT("state [%s]"), StringCast<TCHAR>(State.m_name.c_str()).Get() );
+		FString Caption = FString::Printf( TEXT("state [%s]"), *State.Name );
 
 		const FSlateColor LabelColor = ColorPerComputationalCost[StaticCast<uint8>(GetOperationTypeComputationalCost(
 			ModelPrivate->m_program.GetOpType(State.m_root)))];
@@ -2703,19 +2703,13 @@ void SMutableCodeViewer::PrepareProjectorViewer()
 }
 
 
-void SMutableCodeViewer::PreviewMutableString(const mu::string* InStringPtr)
+void SMutableCodeViewer::PreviewMutableString(const FString& InString)
 {
-	if (!InStringPtr)
-	{
-		UE_LOG(LogTemp,Error,TEXT("Unable to preview data on null String pointer."))
-		return;
-	}
-	
 	// Prepare the previewer object to receive data 
 	PrepareStringViewer();
 	
 	//  Provide the desired data to the previewer object
-	const FText TextToShow = FText::FromString(FString(InStringPtr->c_str()));
+	const FText TextToShow = FText::FromString(InString);
 	PreviewStringViewer->SetString(TextToShow);
 }
 
@@ -2813,7 +2807,7 @@ FReply SMutableCodeViewer::OnDragOver(const FGeometry& MyGeometry, const FDragDr
 				if (DraggedFileExtension == TEXT(".mutable_compiled"))
 				{
 					// Dump source model to a file.
-					mu::InputFileStream stream(StringCast<ANSICHAR>(*Files[0]).Get());
+					mu::InputFileStream stream(Files[0]);
 
 					char MutableSourceTag[4] = {};
 					stream.Read(MutableSourceTag, 4);
@@ -2849,7 +2843,7 @@ FReply SMutableCodeViewer::OnDrop(const FGeometry& MyGeometry, const FDragDropEv
 				if (DraggedFileExtension == TEXT(".mutable_compiled"))
 				{
 					// Read a mutable compiled model file.
-					mu::InputFileStream stream(StringCast<ANSICHAR>(*Files[0]).Get());
+					mu::InputFileStream stream(Files[0]);
 
 					char MutableSourceTag[4] = {};
 					stream.Read(MutableSourceTag, 4);

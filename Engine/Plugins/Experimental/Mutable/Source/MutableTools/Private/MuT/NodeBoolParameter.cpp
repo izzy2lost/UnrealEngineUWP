@@ -66,30 +66,9 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
-	const char* NodeBoolParameter::GetName() const
+	void NodeBoolParameter::SetName( const FString& strName )
 	{
-		return m_pD->m_name.c_str();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeBoolParameter::SetName( const char* strName )
-	{
-		if ( strName )
-		{
-			m_pD->m_name = strName;
-		}
-		else
-		{
-			m_pD->m_name = "";
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	bool NodeBoolParameter::GetDefaultValue() const
-	{
-		return m_pD->m_defaultValue;
+		m_pD->m_name = strName;
 	}
 
 

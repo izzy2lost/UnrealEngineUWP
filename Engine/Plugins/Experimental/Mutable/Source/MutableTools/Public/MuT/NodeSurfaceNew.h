@@ -74,11 +74,8 @@ namespace mu
 		// Own Interface
 		//-----------------------------------------------------------------------------------------
 
-        //! Get the name of the Surface.
-		const char* GetName() const;
-
         //! Set the name of the Surface.
-        void SetName( const char* );
+        void SetName( const FString&);
 
         //! Add an optional, opaque id that will be returned in the surfaces of the created
         //! instances. Can be useful to identify surfaces on the application side.
@@ -88,9 +85,6 @@ namespace mu
 		//! Add an id that will be used to identify the same surface in other LODs 
 		void SetSharedSurfaceId( int32 SharedSurfaceId );
 
-		//! Return the surface ID shared between LODs 
-		int32 GetSharedSurfaceId() const;
-
         //! \name Tags
         //! \{
 
@@ -98,13 +92,7 @@ namespace mu
         //! - the surface will be affected by modifier nodes with the same tag
         //! - the tag will be enabled when the surface is added to an object, and it can activate
         //! variations for any surface.
-		void AddTag(const char* tagName);
-
-        //! Get the number of tags added to the Surface.
-        int GetTagCount() const;
-
-        //! Get a tag string from an index (0 to GetTagCount-1)
-        const char* GetTag( int ) const;
+		void AddTag(const FString& tagName);
 
         //! \}
 
@@ -125,14 +113,14 @@ namespace mu
 		//! \param index index of the mesh, from 0 to GetMeshCount()-1
 		void SetMesh( int index, NodeMeshPtr );
 
-        //! Get the name of a mesh in the Surface.
-		//! \param index index of the mesh, from 0 to GetMeshCount()-1
-		const char* GetMeshName( int index ) const;
+		//! Get the name of a mesh in the Surface.
+		//! \param index index of the image, from 0 to GetMeshCount()-1
+		const FString& GetMeshName(int index) const;
 
         //! Set the name of a mesh in the Surface.
 		//! \param index index of the mesh, from 0 to GetMeshCount()-1
 		//! \param strName name of the mesh
-		void SetMeshName( int index, const char* strName );
+		void SetMeshName( int index, const FString& strName );
 
 		//! \}
 
@@ -156,12 +144,12 @@ namespace mu
 
 		//! Get the name of a image in the Surface.
 		//! \param index index of the image, from 0 to GetImageCount()-1
-		const char* GetImageName(int index) const;
+		const FString& GetImageName(int index) const;
 
         //! Set the name of a image in the Surface.
         //! \param index index of the image, from 0 to GetImageCount()-1
         //! \param strName name of the image
-        void SetImageName( int index, const char* strName );
+        void SetImageName( int index, const FString& strName );
 
         //! Get the name of a image in the Surface.
         //! \param index index of the image, from 0 to GetImageCount()-1
@@ -174,7 +162,7 @@ namespace mu
 
 		//! This can be used to ser additional information for error reporting.
 		//! It is not propagated to compiled objects in any way.
-		void SetImageAdditionalNames(int index, const char* strMaterialName, const char* strMaterialParameterName);
+		void SetImageAdditionalNames(int index, const FString& strMaterialName, const FString& strMaterialParameterName);
 
         //! \}
 
@@ -198,12 +186,12 @@ namespace mu
 
         //! Get the name of a vectors in the Surface.
         //! \param index index of the vector, from 0 to GetVectorCount()-1
-        const char* GetVectorName(int index) const;
+        const FString& GetVectorName(int index) const;
 
         //! Set the name of a image in the Surface.
         //! \param index index of the vector, from 0 to GetVectorCount()-1
         //! \param strName name of the vector
-        void SetVectorName(int index, const char* strName);
+        void SetVectorName(int index, const FString& strName);
 
         //! \}
 
@@ -227,12 +215,12 @@ namespace mu
 
         //! Get the name of a Scalars in the Surface.
         //! \param index index of the Scalar, from 0 to GetScalarCount()-1
-        const char* GetScalarName( int index ) const;
+        const FString& GetScalarName( int index ) const;
 
         //! Set the name of a image in the Surface.
         //! \param index index of the Scalar, from 0 to GetScalarCount()-1
         //! \param strName name of the Scalar
-        void SetScalarName( int index, const char* strName );
+        void SetScalarName( int index, const FString& strName );
 
         //! \}
 
@@ -256,12 +244,12 @@ namespace mu
 
         //! Get the name of a String in the Surface.
         //! \param index index of the String, from 0 to GetStringCount()-1
-        const char* GetStringName( int index ) const;
+        const FString& GetStringName( int index ) const;
 
         //! Set the name of a image in the Surface.
         //! \param index index of the String, from 0 to GetStringCount()-1
         //! \param strName name of the String
-        void SetStringName( int index, const char* strName );
+        void SetStringName( int index, const FString& strName );
 
         //! \}
 

@@ -92,7 +92,6 @@ namespace mu
 			param.m_name = node.m_name;
 			param.m_uid = node.m_uid;
 			param.m_type = PARAMETER_TYPE::T_FLOAT;
-			param.m_detailedType = node.m_detailedType;
 			param.m_defaultValue.Set<ParamStringType>(node.m_defaultValue);
 
 			op = new ASTOpParameter();

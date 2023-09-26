@@ -106,17 +106,17 @@ namespace mu
     struct FObjectState
     {
         //! Name used to identify the state from the code and user interface.
-        string m_name;
+        FString m_name;
 
         //! GPU Optimisation options
 		FStateOptimizationOptions m_optimisation;
 
         //! List of names of the runtime parameters in this state
-        TArray<string> m_runtimeParams;
+        TArray<FString> m_runtimeParams;
 
         void Serialise( OutputArchive& arch ) const
         {
-            const int32_t ver = 5;
+            const int32 ver = 6;
             arch << ver;
 
             arch << m_name;
@@ -127,13 +127,36 @@ namespace mu
 
         void Unserialise( InputArchive& arch )
         {
-            int32_t ver = 0;
+            int32 ver = 0;
             arch >> ver;
-            check( ver==5 );
+            check( ver>=5 && ver<=6 );
 
-            arch >> m_name;
+			if (ver <= 5)
+			{
+				std::string Temp;
+				arch >> Temp;
+				m_name = Temp.c_str();
+			}
+			else
+			{
+				arch >> m_name;
+			}
             arch >> m_optimisation;
-            arch >> m_runtimeParams;
+
+			if (ver <= 5)
+			{
+				TArray<std::string> Temp;
+				arch >> Temp;
+				m_runtimeParams.SetNum(Temp.Num());
+				for ( int32 i=0; i<Temp.Num(); ++i)
+				{
+					m_runtimeParams[i] = Temp[i].c_str();
+				}
+			}
+			else
+			{
+				arch >> m_runtimeParams;
+			}
         }
     };
 
@@ -151,7 +174,7 @@ namespace mu
 
         //! List of root instructions for the dynamic resources that depend on the runtime
         //! parameters of this state.
-		TArray< TPair<Ptr<ASTOp>, TArray<string> > > m_dynamicResources;
+		TArray< TPair<Ptr<ASTOp>, TArray<FString> > > m_dynamicResources;
     };
 
 

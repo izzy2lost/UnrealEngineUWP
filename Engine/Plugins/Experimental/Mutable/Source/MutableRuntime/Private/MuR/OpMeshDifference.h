@@ -72,7 +72,6 @@ struct MORPH_VERTEX
 					if ( sem != MBS_VERTEXINDEX &&
 					     sem != MBS_BONEINDICES &&
 					     sem != MBS_BONEWEIGHTS &&
-					     sem != MBS_CHART &&
 					     sem != MBS_LAYOUTBLOCK &&
 					     sem != MBS_OTHER && 
 					     ( !ignoreTexCoords || sem!=MBS_TEXCOORDS ) )

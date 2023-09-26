@@ -38,7 +38,7 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		static void Serialise( const NodeModifier* pNode, OutputArchive& arch );
-		static NodeModifierPtr StaticUnserialise( InputArchive& arch );
+		static Ptr<NodeModifier> StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
         // Node interface
@@ -55,13 +55,7 @@ namespace mu
         //! \{
 
         //! Add a tag to the surface, which will be affected by modifier nodes with the same tag
-        void AddTag(const char* tagName);
-
-        //! Get the number of tags added to the Surface.
-        int GetTagCount() const;
-
-        //! Get a tag string from an index (0 to GetTagCount-1)
-        const char* GetTag( int ) const;
+        void AddTag(const FString& tagName);
 
         //! \}
 

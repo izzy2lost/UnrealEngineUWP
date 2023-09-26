@@ -522,7 +522,6 @@ namespace mu
 					);
 
 					if (sourceSemantic == MBS_LAYOUTBLOCK
-						|| sourceSemantic == MBS_CHART
 						|| (isVertexBuffer && sourceSemantic == MBS_VERTEXINDEX)
 						)
 					{

@@ -430,9 +430,9 @@ namespace mu
 
                     OP::ADDRESS nameAd = args.name;
                     check(  nameAd < (uint32)pModel->GetPrivate()->m_program.m_constantStrings.Num() );
-                    const char* strName = pModel->GetPrivate()->m_program.m_constantStrings[ nameAd ].c_str();
+                    const FString& Name = pModel->GetPrivate()->m_program.m_constantStrings[ nameAd ];
 
-                    pResult->GetPrivate()->AddVector( 0, 0, 0, value, strName );
+                    pResult->GetPrivate()->AddVector( 0, 0, 0, value, FName(Name) );
                 }
                 StoreInstance( item, pResult );
                 break;
@@ -475,9 +475,9 @@ namespace mu
 
                     OP::ADDRESS nameAd = args.name;
                     check(  nameAd < (uint32)pModel->GetPrivate()->m_program.m_constantStrings.Num() );
-                    const char* strName = pModel->GetPrivate()->m_program.m_constantStrings[ nameAd ].c_str();
+                    const FString& Name = pModel->GetPrivate()->m_program.m_constantStrings[ nameAd ];
 
-                    pResult->GetPrivate()->AddScalar( 0, 0, 0, value, strName );
+                    pResult->GetPrivate()->AddScalar( 0, 0, 0, value, FName(Name));
                 }
                 StoreInstance( item, pResult );
                 break;
@@ -521,10 +521,9 @@ namespace mu
 
                     OP::ADDRESS nameAd = args.name;
                     check( nameAd < (uint32)pModel->GetPrivate()->m_program.m_constantStrings.Num() );
-                    const char* strName =
-                        pModel->GetPrivate()->m_program.m_constantStrings[nameAd].c_str();
+                    const FString& Name = pModel->GetPrivate()->m_program.m_constantStrings[nameAd];
 
-                    pResult->GetPrivate()->AddString( 0, 0, 0, value->GetValue(), strName );
+                    pResult->GetPrivate()->AddString( 0, 0, 0, value->GetValue(), FName(Name) );
                 }
                 StoreInstance( item, pResult );
                 break;
@@ -567,22 +566,22 @@ namespace mu
 
                     int cindex = pResult->GetPrivate()->AddComponent( 0 );
 
-                    if ( !pComp->GetPrivate()->m_lods.IsEmpty()
+                    if ( !pComp->GetPrivate()->Lods.IsEmpty()
                          &&
-                         !pResult->GetPrivate()->m_lods.IsEmpty()
+                         !pResult->GetPrivate()->Lods.IsEmpty()
                          &&
-                         !pComp->GetPrivate()->m_lods[0].m_components.IsEmpty() )
+                         !pComp->GetPrivate()->Lods[0].Components.IsEmpty() )
                     {
-                        pResult->GetPrivate()->m_lods[0].m_components[cindex] =
-                                pComp->GetPrivate()->m_lods[0].m_components[0];
+                        pResult->GetPrivate()->Lods[0].Components[cindex] =
+                                pComp->GetPrivate()->Lods[0].Components[0];
 
-                    	pResult->GetPrivate()->m_lods[0].m_components[cindex].m_id = args.id;
+                    	pResult->GetPrivate()->Lods[0].Components[cindex].Id = args.id;
                     	
                         // Name
                         OP::ADDRESS nameAd = args.name;
                         check( nameAd < (uint32)pModel->GetPrivate()->m_program.m_constantStrings.Num() );
-                        const char* strName = pModel->GetPrivate()->m_program.m_constantStrings[ nameAd ].c_str();
-                        pResult->GetPrivate()->SetComponentName( 0, cindex, strName );
+                        const FString& Name = pModel->GetPrivate()->m_program.m_constantStrings[ nameAd ];
+                        pResult->GetPrivate()->SetComponentName( 0, cindex, FName(Name) );
                     }
                 }
                 StoreInstance( item, pResult );
@@ -632,29 +631,29 @@ namespace mu
                     // Surface data
                     if (pSurf
                             &&
-                            pSurf->GetPrivate()->m_lods.Num()
+                            pSurf->GetPrivate()->Lods.Num()
                             &&
-                            pSurf->GetPrivate()->m_lods[0].m_components.Num()
+                            pSurf->GetPrivate()->Lods[0].Components.Num()
                             &&
-                            pSurf->GetPrivate()->m_lods[0].m_components[0].m_surfaces.Num())
+                            pSurf->GetPrivate()->Lods[0].Components[0].Surfaces.Num())
                     {
-                        pResult->GetPrivate()->m_lods[0].m_components[0].m_surfaces[sindex] =
-                            pSurf->GetPrivate()->m_lods[0].m_components[0].m_surfaces[0];
+                        pResult->GetPrivate()->Lods[0].Components[0].Surfaces[sindex] =
+                            pSurf->GetPrivate()->Lods[0].Components[0].Surfaces[0];
 
                         // Meshes must be added later.
-                        check(!pSurf->GetPrivate()->m_lods[0].m_components[0].m_meshes.Num());
+                        check(!pSurf->GetPrivate()->Lods[0].Components[0].Meshes.Num());
                     }
 
                     // Name
                     OP::ADDRESS nameAd = args.name;
                     check( nameAd < (uint32)pModel->GetPrivate()->m_program.m_constantStrings.Num() );
-                    const char* strName = pModel->GetPrivate()->m_program.m_constantStrings[ nameAd ].c_str();
-                    pResult->GetPrivate()->SetSurfaceName( 0, 0, sindex, strName );
+                    const FString& Name = pModel->GetPrivate()->m_program.m_constantStrings[ nameAd ];
+                    pResult->GetPrivate()->SetSurfaceName( 0, 0, sindex, FName(Name) );
 
                     // IDs
-                    pResult->GetPrivate()->m_lods[0].m_components[0].m_surfaces[sindex].InternalId = args.id;
-                    pResult->GetPrivate()->m_lods[0].m_components[0].m_surfaces[sindex].ExternalId = args.ExternalId;
-                    pResult->GetPrivate()->m_lods[0].m_components[0].m_surfaces[sindex].SharedId = args.SharedSurfaceId;
+                    pResult->GetPrivate()->Lods[0].Components[0].Surfaces[sindex].InternalId = args.id;
+                    pResult->GetPrivate()->Lods[0].Components[0].Surfaces[sindex].ExternalId = args.ExternalId;
+                    pResult->GetPrivate()->Lods[0].Components[0].Surfaces[sindex].SharedId = args.SharedSurfaceId;
                 }
                 StoreInstance( item, pResult );
                 break;
@@ -711,9 +710,9 @@ namespace mu
                             int LODIndex = pResult->GetPrivate()->AddLOD();
 
                             // In a degenerated case, the returned pLOD may not have an LOD inside
-                            if ( pLOD && !pLOD->GetPrivate()->m_lods.IsEmpty() )
+                            if ( pLOD && !pLOD->GetPrivate()->Lods.IsEmpty() )
                             {
-                                pResult->GetPrivate()->m_lods[LODIndex] = pLOD->GetPrivate()->m_lods[0];
+                                pResult->GetPrivate()->Lods[LODIndex] = pLOD->GetPrivate()->Lods[0];
                             }
                         }
                         else
@@ -766,9 +765,9 @@ namespace mu
 					{
 						const OP::ADDRESS NameAddress = Args.ExtensionDataName;
 						check(NameAddress < (uint32)pModel->GetPrivate()->m_program.m_constantStrings.Num());
-						const char* NameString = pModel->GetPrivate()->m_program.m_constantStrings[NameAddress].c_str();
+						const FString& NameString = pModel->GetPrivate()->m_program.m_constantStrings[NameAddress];
 
-						Result->GetPrivate()->AddExtensionData(ExtensionData, NameString);
+						Result->GetPrivate()->AddExtensionData(ExtensionData, FName(NameString) );
 					}
 
 					StoreInstance(item, Result);
@@ -833,8 +832,8 @@ namespace mu
 					FResourceID MeshId = m_pSystem->WorkingMemoryManager.GetResourceKey(InModel,InParams,args.relevantParametersListIndex, args.value);
 					OP::ADDRESS NameAd = args.name;
 					check(NameAd < (uint32)InModel->GetPrivate()->m_program.m_constantStrings.Num());
-					const char* Name = InModel->GetPrivate()->m_program.m_constantStrings[NameAd].c_str();
-					pResult->GetPrivate()->AddMesh(0, 0, MeshId, Name);
+					const FString& Name = InModel->GetPrivate()->m_program.m_constantStrings[NameAd];
+					pResult->GetPrivate()->AddMesh(0, 0, MeshId, FName(Name));
                 }
                 StoreInstance( item, pResult );
                 break;
@@ -874,8 +873,8 @@ namespace mu
 					FResourceID ImageId = m_pSystem->WorkingMemoryManager.GetResourceKey(InModel, InParams, args.relevantParametersListIndex, args.value);
 					OP::ADDRESS NameAd = args.name;
 					check(NameAd < (uint32)InModel->GetPrivate()->m_program.m_constantStrings.Num());
-					const char* Name = InModel->GetPrivate()->m_program.m_constantStrings[NameAd].c_str();
-					pResult->GetPrivate()->AddImage(0, 0, 0, ImageId, Name);
+					const FString& Name = InModel->GetPrivate()->m_program.m_constantStrings[NameAd];
+					pResult->GetPrivate()->AddImage(0, 0, 0, ImageId, FName(Name) );
                 }
                 StoreInstance( item, pResult );
                 break;
@@ -5278,8 +5277,8 @@ namespace mu
 			OP::ResourceConstantArgs args = pModel->GetPrivate()->m_program.GetOpArgs<OP::ResourceConstantArgs>( item.At );
             check( args.value < (uint32)pModel->GetPrivate()->m_program.m_constantStrings.Num() );
 
-            const std::string& result = pModel->GetPrivate()->m_program.m_constantStrings[args.value];
-            StoreString( item, new String(result.c_str()) );
+            const FString& result = pModel->GetPrivate()->m_program.m_constantStrings[args.value];
+            StoreString( item, new String(result) );
 
             break;
         }
@@ -5288,8 +5287,9 @@ namespace mu
         {
 			OP::ParameterArgs args = pModel->GetPrivate()->m_program.GetOpArgs<OP::ParameterArgs>( item.At );
 			Ptr<RangeIndex> index = BuildCurrentOpRangeIndex( item, pParams, pModel, args.variable );
-            string result = pParams->GetStringValue( args.variable, index );
-            StoreString( item, new String( result.c_str() ) );
+			FString result;
+			pParams->GetStringValue(args.variable, result, index);
+            StoreString( item, new String(result) );
             break;
         }
 
@@ -6114,7 +6114,7 @@ namespace mu
 				}
 
 				// At least keep the levels we already have.
-				int startLevel = BaseDesc.m_lods;
+				int32 startLevel = BaseDesc.m_lods;
 				levelCount = FMath::Max(startLevel, levelCount);
 
 				// Update result.

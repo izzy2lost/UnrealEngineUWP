@@ -144,7 +144,6 @@ namespace mu
 			param.m_uid = node.m_uid;
 			param.m_type = PARAMETER_TYPE::T_FLOAT;
 			param.m_defaultValue.Set<ParamFloatType>(node.m_defaultValue);
-			param.m_detailedType = node.m_detailedType;
 
 			op = new ASTOpParameter();
 			op->type = OP_TYPE::SC_PARAMETER;
@@ -184,7 +183,6 @@ namespace mu
 			param.m_uid = node.m_uid;
 			param.m_type = PARAMETER_TYPE::T_INT;
 			param.m_defaultValue.Set<ParamIntType>(node.m_defaultValue);
-			param.m_detailedType = node.m_detailedType;
 
 			param.m_possibleValues.SetNum(node.m_options.Num());
 			for (int32 i = 0; i < node.m_options.Num(); ++i)
@@ -296,7 +294,7 @@ namespace mu
 		for (int t = node.m_variations.Num() - 1; t >= 0; --t)
 		{
 			int tagIndex = -1;
-			const string& tag = node.m_variations[t].m_tag;
+			const FString& tag = node.m_variations[t].m_tag;
 			for (int i = 0; i < m_firstPass.m_tags.Num(); ++i)
 			{
 				if (m_firstPass.m_tags[i].tag == tag)
@@ -307,7 +305,7 @@ namespace mu
 
 			if (tagIndex < 0)
 			{
-				FString Msg = FString::Printf(TEXT("Unknown tag found in image variation [%s]."), *FString(tag.c_str()));
+				FString Msg = FString::Printf(TEXT("Unknown tag found in image variation [%s]."), *tag);
 
 				m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, node.m_errorContext);
 				continue;
@@ -323,8 +321,7 @@ namespace mu
 			else
 			{
 				// This argument is required
-				variationOp = GenerateMissingScalarCode(TEXT("Variation option"), 0.0f,
-					node.m_errorContext);
+				variationOp = GenerateMissingScalarCode(TEXT("Variation option"), 0.0f, node.m_errorContext);
 			}
 
 

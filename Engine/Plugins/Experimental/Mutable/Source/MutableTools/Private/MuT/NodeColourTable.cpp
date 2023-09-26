@@ -58,28 +58,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
-	const char* NodeColourTable::GetColumn() const
+	void NodeColourTable::SetColumn( const FString& strName )
 	{
-		return m_pD->m_columnName.c_str();
+		m_pD->m_columnName = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeColourTable::SetColumn( const char* strName )
-	{
-		if (strName)
-		{
-			m_pD->m_columnName = strName;
-		}
-		else
-		{
-			m_pD->m_columnName = "";
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeColourTable::SetParameterName( const char* strName )
+	void NodeColourTable::SetParameterName( const FString& strName )
 	{
 		m_pD->m_parameterName = strName;
 	}

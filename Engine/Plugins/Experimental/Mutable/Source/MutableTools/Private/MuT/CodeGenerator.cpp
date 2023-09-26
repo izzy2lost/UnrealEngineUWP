@@ -148,7 +148,7 @@ namespace mu
 		m_generatedRanges.Reset();
 		m_generatedTables.clear();
 		m_firstPass = FirstPassGenerator();
-		m_currentBottomUpState = BOTTOM_UP_STATE();
+		m_currentBottomUpState = FBottomUpState();
 		m_currentParents.Empty();
 		m_currentObject.Empty();
 		m_additionalComponents.clear();
@@ -204,7 +204,7 @@ namespace mu
 		{
 			// This happens only if we generate a node graph that has a NodeSurfaceNew at the root.
 			FSurfaceGenerationResult surfResult;
-			const TArray<FirstPassGenerator::SURFACE::EDIT> edits;
+			const TArray<FirstPassGenerator::FSurface::FEdit> edits;
 			GenerateSurface(surfResult, surfNode, edits);
 			return surfResult.surfaceOp;
 		}
@@ -296,13 +296,13 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	Ptr<ASTOp> CodeGenerator::GenerateTableVariable(TablePtr pTable, const string& strName)
+	Ptr<ASTOp> CodeGenerator::GenerateTableVariable(TablePtr pTable, const FString& strName)
 	{
 		Ptr<ASTOp> result;
 
         FParameterDesc param;
         param.m_name = strName;
-        if ( param.m_name.size()==0 )
+        if ( param.m_name.Len()==0 )
         {
             param.m_name = TCHAR_TO_ANSI(*pTable->GetName());
         }
@@ -325,7 +325,7 @@ namespace mu
 
 			if (pTable->GetPrivate()->bNoneOption)
 			{
-				FParameterDesc::INT_VALUE_DESC nullValue;
+				FParameterDesc::FIntValueDesc nullValue;
 				nullValue.m_value = -1;
 				nullValue.m_name = "None";
 				param.m_possibleValues.Add(nullValue);
@@ -336,7 +336,7 @@ namespace mu
 			int32 rows = pTable->GetPrivate()->Rows.Num();
 			for (size_t i = 0; i < rows; ++i)
 			{
-				FParameterDesc::INT_VALUE_DESC value;
+				FParameterDesc::FIntValueDesc value;
 				value.m_value = (int16_t)pTable->GetPrivate()->Rows[i].Id;
 
 				if (nameCol > -1)
@@ -584,7 +584,7 @@ namespace mu
 		if (!pNodeLayout)
 		{
 			FString Msg = FString::Printf(TEXT("In object [%s] NodePatchImage couldn't find the layout in parent."),
-				m_currentParents.Last().m_pObject->m_name.c_str()
+				*m_currentParents.Last().m_pObject->m_name
 			);
 
 			m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, node.m_errorContext);
@@ -625,7 +625,7 @@ namespace mu
 		}
 
 		// Add components from child objects
-		ADDITIONAL_COMPONENT_KEY thisKey;
+		FAdditionalComponentKey thisKey;
 		thisKey.m_lod = m_currentParents.Last().m_lod;
 		thisKey.m_pObject = m_currentParents.Last().m_pObject;
 		auto addIt = m_additionalComponents.find(thisKey);
@@ -658,7 +658,7 @@ namespace mu
 		if (lastCompOp && m_currentParents.Num() > 2)
 		{
 			const auto& parentObjectKey = m_currentParents[m_currentParents.Num() - 2];
-			ADDITIONAL_COMPONENT_KEY parentKey;
+			FAdditionalComponentKey parentKey;
 			parentKey.m_lod = m_currentParents.Last().m_lod;
 			parentKey.m_pObject = parentObjectKey.m_pObject;
 			m_additionalComponents[parentKey].Add(lastCompOp);
@@ -729,7 +729,7 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     void CodeGenerator::GenerateSurface( FSurfaceGenerationResult& result,
                                          NodeSurfaceNewPtrConst surfaceNode,
-                                         const TArray<FirstPassGenerator::SURFACE::EDIT>& edits )
+                                         const TArray<FirstPassGenerator::FSurface::FEdit>& edits )
     {
         //MUTABLE_CPUPROFILER_SCOPE(GenerateSurface);
 
@@ -767,8 +767,8 @@ namespace mu
 
 		// Do we need to generate the mesh? Or was it already generated for state conditions 
 		// accepting the current state?
-		FirstPassGenerator::SURFACE* targetSurface = nullptr;
-		for (FirstPassGenerator::SURFACE& its : m_firstPass.surfaces)
+		FirstPassGenerator::FSurface* targetSurface = nullptr;
+		for (FirstPassGenerator::FSurface& its : m_firstPass.surfaces)
 		{
             if (its.node->GetPrivate() == &node)
             {
@@ -856,7 +856,7 @@ namespace mu
             // Apply mesh merges from child objects "edit surface" nodes
             for ( int32 editIndex=0; editIndex<edits.Num(); ++editIndex )
             {
-                const FirstPassGenerator::SURFACE::EDIT& e = edits[editIndex];
+                const FirstPassGenerator::FSurface::FEdit& e = edits[editIndex];
 
                 if ( e.node->m_pMesh )
                 {
@@ -928,7 +928,7 @@ namespace mu
             // and not the base.
 			// \TODO: Apply base removes first, and then "added meshes" removes here. It may have lower memory footprint during generation.
             Ptr<ASTOpMeshRemoveMask> rop;
-            for ( const FirstPassGenerator::SURFACE::EDIT& e: edits )
+            for ( const FirstPassGenerator::FSurface::FEdit& e: edits )
             {
                 if ( e.node->m_pMesh )
                 {
@@ -978,7 +978,7 @@ namespace mu
             }
 
             // Apply mesh morphs from child objects "edit surface" nodes
-            for ( const FirstPassGenerator::SURFACE::EDIT& e: edits )
+            for ( const FirstPassGenerator::FSurface::FEdit& e: edits )
             {
                 if ( NodeMeshPtr pMorph = e.node->m_pMorph )
                 {
@@ -1240,9 +1240,9 @@ namespace mu
 					{
 						int currentLOD = m_currentParents.Last().m_lod;
 						FString Msg = FString::Printf( TEXT("An image block for [%s] [%s] [%s] at lod [%d] has zero size and will not be generated. "),
-							node.m_images[t].m_name.c_str(),
-							node.m_images[t].m_materialName.c_str(),
-							node.m_images[t].m_materialParameterName.c_str(),
+							*node.m_images[t].m_name,
+							*node.m_images[t].m_materialName,
+							*node.m_images[t].m_materialParameterName,
 							currentLOD
 						);
 						m_pErrorLog->GetPrivate()->Add(Msg, ELMT_INFO, node.m_errorContext);
@@ -1250,7 +1250,7 @@ namespace mu
 
 					else if (desc.m_format == EImageFormat::IF_NONE)
 					{
-						FString Msg = FString::Printf(TEXT("An image [%s] has an unidentified pixel format. "), node.m_images[t].m_name.c_str());
+						FString Msg = FString::Printf(TEXT("An image [%s] has an unidentified pixel format. "), *node.m_images[t].m_name);
 						m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, node.m_errorContext);
 					}
 
@@ -1271,7 +1271,7 @@ namespace mu
 						// Look for patches to this block
 						for (int32 editIndex = 0; editIndex < edits.Num(); ++editIndex)
 						{
-							const FirstPassGenerator::SURFACE::EDIT& e = edits[editIndex];
+							const FirstPassGenerator::FSurface::FEdit& e = edits[editIndex];
 							if (t < e.node->m_textures.Num())
 							{
 								if (const NodePatchImage* pPatch = e.node->m_textures[t].m_pPatch.get())
@@ -1351,9 +1351,9 @@ namespace mu
 
 								int currentLOD = m_currentParents.Last().m_lod;
 								FString Msg = FString::Printf( TEXT("A texture [%s] for material [%s] parameter [%s] in LOD [%d] has been resized from [%d x %d] to [%d x %d] because it didn't fit the layout [%d x %d]. "),
-									node.m_images[t].m_name.c_str(),
-									node.m_images[t].m_materialName.c_str(),
-									node.m_images[t].m_materialParameterName.c_str(),
+									*node.m_images[t].m_name,
+									*node.m_images[t].m_materialName,
+									*node.m_images[t].m_materialParameterName,
 									currentLOD,
 									oldSize[0], oldSize[1], desc.m_size[0], desc.m_size[1], grid[0], grid[1]);
 								m_pErrorLog->GetPrivate()->Add(Msg, ELMT_INFO, node.m_errorContext);
@@ -1421,7 +1421,7 @@ namespace mu
 								// Look for patches to this block
 								for (int32 editIndex = 0; editIndex < edits.Num(); ++editIndex)
 								{
-									const FirstPassGenerator::SURFACE::EDIT& e = edits[editIndex];
+									const FirstPassGenerator::FSurface::FEdit& e = edits[editIndex];
 									if (t < e.node->m_textures.Num())
 									{
 										if (const NodePatchImage* pPatch = e.node->m_textures[t].m_pPatch.get())
@@ -1458,7 +1458,7 @@ namespace mu
 							// Apply composition of blocks coming from child objects
 							for (int32 editIndex = 0; editIndex < edits.Num(); ++editIndex)
 							{
-								const FirstPassGenerator::SURFACE::EDIT& e = edits[editIndex];
+								const FirstPassGenerator::FSurface::FEdit& e = edits[editIndex];
 								if (t < e.node->m_textures.Num())
 								{
 									Ptr<NodeImage> pExtend = e.node->m_textures[t].m_pExtend;
@@ -1469,7 +1469,7 @@ namespace mu
 											!meshResults.extraMeshLayouts[editIndex].GeneratedLayouts[LayoutIndex])
 										{
 											FString Msg = FString::Printf(TEXT("Trying to extend a layout that doesn't exist in object [%s]."),
-												m_currentParents.Last().m_pObject->m_name.c_str()
+												*m_currentParents.Last().m_pObject->m_name
 											);
 
 											m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, node.m_errorContext);
@@ -1633,7 +1633,7 @@ namespace mu
 							op->value = imageAd;
 
 							// Name
-							op->name = node.m_images[t].m_name.c_str();
+							op->name = node.m_images[t].m_name;
 
 							lastSurfOp = op;
 						}
@@ -1734,7 +1734,7 @@ namespace mu
 		// Build a series of operations to assemble the component
         Ptr<ASTOp> lastCompOp;
         Ptr<ASTOp> lastMeshOp;
-        string lastMeshName;
+        FString lastMeshName;
 
         // This generates a different ID for each surface. It can be used to match it to the
         // mesh surface, or for debugging. It cannot be 0 because it is a special case for the
@@ -1744,7 +1744,7 @@ namespace mu
         // Look for all surfaces that belong to this component
 		for (int32 i = 0; i<m_firstPass.surfaces.Num(); ++i, ++surfaceID)
 		{
-			const FirstPassGenerator::SURFACE& its = m_firstPass.surfaces[i];
+			const FirstPassGenerator::FSurface& its = m_firstPass.surfaces[i];
 			if (its.component==&node)
 			{
                 // Apply state conditions: only generate it if it enabled in this state
@@ -1947,7 +1947,7 @@ namespace mu
 			}
 
 			// Name must be valid
-			check(NamedNode.Name.length() > 0);
+			check(NamedNode.Name.Len() > 0);
 
 			FExtensionDataGenerationResult Result;
 			GenerateExtensionData(Result, NamedNode.Node);
@@ -2002,7 +2002,7 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     Ptr<ASTOp> CodeGenerator::Visit( const NodeObjectGroup::Private& node )
     {
-		vector<string> usedNames;
+		TArray<FString> usedNames;
 
         // Parse the child objects first, which will accumulate operations in the patching lists
         for ( int32 t=0; t<node.m_children.Num(); ++t )
@@ -2014,7 +2014,7 @@ namespace mu
 				bool found = false;
                 for( int32 i = 0; !found && i != m_firstPass.objects.Num(); i++ )
 				{
-					FirstPassGenerator::OBJECT& it = m_firstPass.objects[i];
+					FirstPassGenerator::FObject& it = m_firstPass.objects[i];
 					if (it.node == pChildNode->GetBasePrivate())
 					{
 						found = true;
@@ -2038,19 +2038,15 @@ namespace mu
                 m_currentObject.Pop();
 
 				// Check for duplicated child names
-				const char* strChildName = pChildNode->GetName();
-				if (std::find(usedNames.begin(), usedNames.end(), strChildName)
-					!=
-					usedNames.end() )
+				FString strChildName = pChildNode->GetName();
+				if (usedNames.Contains(strChildName))
 				{
-					FString Msg = FString::Printf(TEXT("Object group has more than one children with the same name [%s]."),
-						strChildName
-					);
+					FString Msg = FString::Printf(TEXT("Object group has more than one children with the same name [%s]."), *strChildName );
 					m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, node.m_errorContext);
 				}
 				else
 				{
-					usedNames.push_back(strChildName);
+					usedNames.Add(strChildName);
 				}
             }
         }
@@ -2079,15 +2075,15 @@ namespace mu
 
 	//---------------------------------------------------------------------------------------------
 	void CodeGenerator::GetModifiersFor(
-		const TArray<string>& tags,
+		const TArray<FString>& tags,
 		int LOD, bool bModifiersForBeforeOperations,
-		TArray<FirstPassGenerator::MODIFIER>& modifiers)
+		TArray<FirstPassGenerator::FModifier>& modifiers)
 	{
         MUTABLE_CPUPROFILER_SCOPE(GetModifiersFor);
 
 		if (tags.Num())
 		{
-			for (const FirstPassGenerator::MODIFIER& m: m_firstPass.modifiers)
+			for (const FirstPassGenerator::FModifier& m: m_firstPass.modifiers)
 			{
 				// Correct LOD?
 				if (m.lod != LOD)
@@ -2103,7 +2099,7 @@ namespace mu
 
 				// Already there?
 				bool alreadyAdded = 
-					modifiers.FindByPredicate( [&m](const FirstPassGenerator::MODIFIER& c) {return c.node == m.node; })
+					modifiers.FindByPredicate( [&m](const FirstPassGenerator::FModifier& c) {return c.node == m.node; })
 					!= 
 					nullptr;
 
@@ -2130,14 +2126,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	Ptr<ASTOp> CodeGenerator::ApplyMeshModifiers(
 		const Ptr<ASTOp>& sourceOp,
-		const TArray<string>& tags,
+		const TArray<FString>& tags,
 		bool bModifiersForBeforeOperations,
 		const void* errorContext )
 	{
 		Ptr<ASTOp> lastMeshOp = sourceOp;
 
 		// Apply mesh modifiers
-		TArray<FirstPassGenerator::MODIFIER> modifiers;
+		TArray<FirstPassGenerator::FModifier> modifiers;
 
 		int currentLOD = m_currentParents.Last().m_lod;
 		GetModifiersFor(tags, currentLOD, bModifiersForBeforeOperations, modifiers);
@@ -2148,7 +2144,7 @@ namespace mu
 
 		// Process clip-with-mesh modifiers
 		Ptr<ASTOpMeshRemoveMask> removeOp;
-		for (const FirstPassGenerator::MODIFIER& m : modifiers)
+		for (const FirstPassGenerator::FModifier& m : modifiers)
 		{
 			if (const NodeModifierMeshClipWithMesh::Private* TypedClipNode = dynamic_cast<const NodeModifierMeshClipWithMesh::Private*>(m.node))
 			{
@@ -2193,7 +2189,7 @@ namespace mu
 
 
 		// Process clip-morph-plane modifiers
-		for (const FirstPassGenerator::MODIFIER& m : modifiers)
+		for (const FirstPassGenerator::FModifier& m : modifiers)
 		{
 			Ptr<ASTOp> modifiedMeshOp;
 
@@ -2273,7 +2269,7 @@ namespace mu
 		}
 
     	// Process clip deform modifiers.
-		for (const FirstPassGenerator::MODIFIER& M : modifiers)
+		for (const FirstPassGenerator::FModifier& M : modifiers)
 		{
 			Ptr<ASTOp> ModifiedMeshOp;
 

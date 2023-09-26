@@ -61,13 +61,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	const char* NodeScalarParameter::GetName() const
-	{
-		return m_pD->m_name.c_str();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	void NodeScalarParameter::SetName( const char* strName )
 	{
 		if ( strName )
@@ -78,12 +71,6 @@ namespace mu
 		{
 			m_pD->m_name = "";
 		}
-	}
-
-
-	const char* NodeScalarParameter::GetUid() const
-	{
-		return m_pD->m_uid.c_str();
 	}
 
 
@@ -102,30 +89,9 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	float NodeScalarParameter::GetDefaultValue() const
-	{
-		return m_pD->m_defaultValue;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	void NodeScalarParameter::SetDefaultValue( float v )
 	{
 		m_pD->m_defaultValue = v;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	PARAMETER_DETAILED_TYPE NodeScalarParameter::GetDetailedType() const
-	{
-		return m_pD->m_detailedType;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeScalarParameter::SetDetailedType( PARAMETER_DETAILED_TYPE t )
-	{
-		m_pD->m_detailedType = t;
 	}
 
 

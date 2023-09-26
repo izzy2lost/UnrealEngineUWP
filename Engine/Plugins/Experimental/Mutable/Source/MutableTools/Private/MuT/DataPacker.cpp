@@ -507,7 +507,6 @@ namespace mu
             // Default state: we need everything except internal semantics
             uint64_t defaultState = 0xffffffffffffffff;
             defaultState ^= (UINT64_C(1)<<MBS_LAYOUTBLOCK);
-            defaultState ^= (UINT64_C(1)<<MBS_CHART);
             defaultState ^= (UINT64_C(1)<<MBS_VERTEXINDEX);
 
             Traverse(roots,defaultState);
@@ -613,10 +612,9 @@ namespace mu
                 // todo: check if we really need all of them
                 uint64_t newState = currentSemantics;
                 newState |= (UINT64_C(1)<<MBS_LAYOUTBLOCK);
-                newState |= (UINT64_C(1)<<MBS_CHART);
                 newState |= (UINT64_C(1)<<MBS_VERTEXINDEX);
 
-                RecurseWithState( op->source.child(), newState );
+                RecurseWithState( op->Source.child(), newState );
                 break;
             }
 
@@ -700,7 +698,6 @@ namespace mu
         {
             uint64_t layoutSemantics = 0;
             layoutSemantics |= (UINT64_C(1)<<MBS_LAYOUTBLOCK);
-            layoutSemantics |= (UINT64_C(1)<<MBS_CHART);
 
             if ( (usedSemantics&layoutSemantics) == 0)
             {

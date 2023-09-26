@@ -116,7 +116,7 @@ namespace mu
 		if (!linkedAddress)
 		{
 			OP::InstanceAddArgs args;
-			memset(&args, 0, sizeof(args));
+			FMemory::Memzero(&args, sizeof(args));
 			args.id = id;
 			args.ExternalId = ExternalId;
 			args.SharedSurfaceId = SharedSurfaceId;
@@ -134,7 +134,7 @@ namespace mu
 				visitor.Run(value.child());
 
 				TArray<uint16> params;
-				for (const string& paramName : visitor.m_params)
+				for (const FString& paramName : visitor.m_params)
 				{
 					for (int32 i = 0; i < program.m_parameters.Num(); ++i)
 					{

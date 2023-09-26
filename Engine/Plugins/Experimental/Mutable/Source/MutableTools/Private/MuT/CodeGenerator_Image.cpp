@@ -1349,10 +1349,10 @@ namespace mu
                 if ( GeneratedLayoutBlockId>=0 )
                 {
                     Ptr<ASTOpMeshExtractLayoutBlocks> eop = new ASTOpMeshExtractLayoutBlocks();
-                    eop->source = CurrentMeshToProjectOp;
-                    eop->layout = node.m_layout;
+                    eop->Source = CurrentMeshToProjectOp;
+                    eop->Layout = node.m_layout;
 
-                    eop->blocks.Add(GeneratedLayoutBlockId);
+                    eop->Blocks.Add(GeneratedLayoutBlockId);
 
 					CurrentMeshToProjectOp = eop;
                 }
@@ -1625,7 +1625,7 @@ namespace mu
         for ( int t = int( node.m_variations.Num() ) - 1; t >= 0; --t )
         {
             int tagIndex = -1;
-            const string& tag = node.m_variations[t].m_tag;
+            const FString& tag = node.m_variations[t].m_tag;
             for ( int i = 0; i < int( m_firstPass.m_tags.Num() ); ++i )
             {
                 if ( m_firstPass.m_tags[i].tag == tag )
@@ -1636,7 +1636,7 @@ namespace mu
 
             if ( tagIndex < 0 )
             {
-				FString Msg = FString::Printf(TEXT("Unknown tag found in image variation [%s]."), tag.c_str() );
+				FString Msg = FString::Printf(TEXT("Unknown tag found in image variation [%s]."), *tag );
 
                 m_pErrorLog->GetPrivate()->Add( Msg, ELMT_WARNING, node.m_errorContext );
                 continue;

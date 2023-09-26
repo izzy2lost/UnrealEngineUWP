@@ -879,9 +879,7 @@ namespace mu
 						// Skip system buffers
 						if (chan.m_semantic == MBS_VERTEXINDEX
 							||
-							chan.m_semantic == MBS_LAYOUTBLOCK
-							||
-							chan.m_semantic == MBS_CHART)
+							chan.m_semantic == MBS_LAYOUTBLOCK)
 						{
 							continue;
 						}
@@ -1138,7 +1136,7 @@ namespace mu
 		// Tags
 		Result->m_tags = pFirst->m_tags;
 
-		for (const string& SecondTag : pSecond->m_tags)
+		for (const FString& SecondTag : pSecond->m_tags)
 		{
 			Result->m_tags.AddUnique(SecondTag);
 		}

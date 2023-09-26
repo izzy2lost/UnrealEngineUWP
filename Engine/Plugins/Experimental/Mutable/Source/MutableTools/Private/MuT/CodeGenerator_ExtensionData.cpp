@@ -165,15 +165,15 @@ class Node;
 		// Process variations in reverse order, since conditionals are built bottom-up.
 		for (int32 VariationIndex = Node.Variations.Num() - 1; VariationIndex >= 0; --VariationIndex)
 		{
-			const string& Tag = Node.Variations[VariationIndex].Tag;
-			const int32 TagIndex = m_firstPass.m_tags.IndexOfByPredicate([Tag](const FirstPassGenerator::TAG& CandidateTag)
+			const FString& Tag = Node.Variations[VariationIndex].Tag;
+			const int32 TagIndex = m_firstPass.m_tags.IndexOfByPredicate([Tag](const FirstPassGenerator::FTag& CandidateTag)
 			{
 				return CandidateTag.tag == Tag;
 			});
 
 			if (TagIndex == INDEX_NONE)
 			{
-				const FString Msg = FString::Printf(TEXT("Unknown tag found in Extension Data variation [%s]"), *FString{ Tag.c_str() });
+				const FString Msg = FString::Printf(TEXT("Unknown tag found in Extension Data variation [%s]"), *Tag);
 				m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, Node.m_errorContext);
 				continue;
 			}

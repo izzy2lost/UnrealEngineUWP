@@ -52,15 +52,9 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
-	const char* NodeStringConstant::GetValue() const
+	void NodeStringConstant::SetValue( const FString& v )
 	{
-		return m_pD->m_value.c_str();
-	}
-
-	//---------------------------------------------------------------------------------------------
-	void NodeStringConstant::SetValue( const char* v )
-	{
-		m_pD->m_value = v?v:"";
+		m_pD->m_value = v;
 	}
 
 

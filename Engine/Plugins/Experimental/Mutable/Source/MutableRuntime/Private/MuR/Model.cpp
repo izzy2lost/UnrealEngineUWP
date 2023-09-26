@@ -487,27 +487,28 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    const char* Model::GetStateName( int index ) const
+    const FString& Model::GetStateName( int32 index ) const
     {
         const char* strRes = 0;
 
         if ( index>=0 && index<(int)m_pD->m_program.m_states.Num() )
         {
-            strRes = m_pD->m_program.m_states[index].m_name.c_str();
+            return m_pD->m_program.m_states[index].Name;
         }
 
-        return strRes;
+		static FString None;
+        return None;
     }
 
 
     //---------------------------------------------------------------------------------------------
-    int Model::FindState( const char* strName ) const
+    int32 Model::FindState( const FString& Name ) const
     {
         int res = -1;
 
         for ( int i=0; res<0 && i<(int)m_pD->m_program.m_states.Num(); ++i )
         {
-            if ( m_pD->m_program.m_states[i].m_name == strName )
+            if ( m_pD->m_program.m_states[i].Name == Name )
             {
                 res = i;
             }

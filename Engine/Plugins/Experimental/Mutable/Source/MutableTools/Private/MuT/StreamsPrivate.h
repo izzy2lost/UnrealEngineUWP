@@ -21,15 +21,15 @@ namespace mu
 	{
 	public:
 
-		FILE* m_pFile;
+		TSharedPtr<IFileHandle> File;
 
-		uint64 m_size;
-		uint64 m_pos;
-
-		uint64 m_readBytes;
+		uint64 FileSize;
+		uint64 BytesInBuffer;
+		uint64 BufferPosition;
+		uint64 FilePosition;
 
     private:
-        uint8* m_buffer;
+        TArray<uint8> Buffer;
 
         friend class InputFileStream;
     };
@@ -40,12 +40,12 @@ namespace mu
 	{
 	public:
 
-		FILE* m_pFile;
+		TSharedPtr<IFileHandle> File;
 
-		uint64 m_pos;
+		uint64 BufferPosition;
 
     private:
-        uint8* m_buffer;
+		TArray<uint8> Buffer;
 
         friend class OutputFileStream;
     };
@@ -161,16 +161,15 @@ namespace mu
     class MUTABLETOOLS_API ResourceProxyFile : public ResourceProxy<R>
     {
     private:
-        std::string m_fileName;
-        uint64 m_filePos = 0;
+		FString FileName;
+        uint64 FilePos = 0;
 		FCriticalSection Mutex;
 
     public:
-        ResourceProxyFile( const std::string& fileName, uint64 filePos )
+        ResourceProxyFile( const FString& InFileName, uint64 InFilePos )
         {
-			FScopeLock Lock(&Mutex);
-			m_fileName = fileName;
-            m_filePos = filePos;
+			FileName = InFileName;
+            FilePos = InFilePos;
         }
 
         Ptr<const R> Get() override
@@ -178,10 +177,10 @@ namespace mu
 			FScopeLock Lock(&Mutex);
 
             Ptr<const R> r;
-            if (!m_fileName.empty())
+            if (!FileName.IsEmpty())
             {
-                InputFileStream stream( m_fileName.c_str() );
-                stream.Seek( m_filePos );
+                InputFileStream stream(FileName);
+                stream.Seek( FilePos );
                 InputArchive arch(&stream);
                 r =  R::StaticUnserialise( arch );
             }

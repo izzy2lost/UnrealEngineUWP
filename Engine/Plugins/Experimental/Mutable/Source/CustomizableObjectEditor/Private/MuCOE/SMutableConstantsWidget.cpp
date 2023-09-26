@@ -118,7 +118,7 @@ public:
 		// Generate the text to be displayed taking in mind the string value held by the constant to be able to "preview"
 		// it for easier navigation
 		const FString MainString = FString::FromInt(InRowElement->IndexOnSourceVector) + FString(TEXT("_STR "));
-		const FString ConstantStringText = FString(InRowElement->MutableString->c_str());
+		const FString ConstantStringText = InRowElement->MutableString;
 		const FString GlimpseConstantText = ConstantStringText.Left(GlimpseCharacterCount);
 		
 		// Compose the FStrings to produce the UI text to be displayed
@@ -1124,12 +1124,12 @@ void SMutableConstantsWidget::LoadConstantStrings()
 	for (int32 StringAddressIndex = 0; StringAddressIndex < ConstantsCount; StringAddressIndex++)
 	{
 		TSharedPtr<FMutableConstantStringElement> ConstantStringElement = MakeShared<FMutableConstantStringElement>();
-		ConstantStringElement->MutableString = &(MutableProgramPtr->m_constantStrings[StringAddressIndex]);
+		ConstantStringElement->MutableString = MutableProgramPtr->m_constantStrings[StringAddressIndex];
 		ConstantStringElement->IndexOnSourceVector = StringAddressIndex;
 		
 		// Cache resource size
 		// in case we change the type of the contents of the mu::string we check its size as if it was a vector<>
-		ConstantStringsAccumulatedSize += ConstantStringElement->MutableString->size() * sizeof (mu::string::value_type);
+		ConstantStringsAccumulatedSize += ConstantStringElement->MutableString.GetAllocatedSize();
 		
 		ConstantStringElements.Add(ConstantStringElement);
 	}

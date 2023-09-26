@@ -37,9 +37,6 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
-
-        
-
         const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
 
@@ -50,10 +47,10 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 		// NodeObject Interface
 		//-----------------------------------------------------------------------------------------
-        const char* GetName() const override;
-        void SetName( const char* strName ) override;
-        const char* GetUid() const override;
-        void SetUid( const char* strUid ) override;
+        virtual const FString& GetName() const override;
+		virtual void SetName( const FString&) override;
+		virtual const FString& GetUid() const override;
+		virtual void SetUid( const FString&) override;
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface

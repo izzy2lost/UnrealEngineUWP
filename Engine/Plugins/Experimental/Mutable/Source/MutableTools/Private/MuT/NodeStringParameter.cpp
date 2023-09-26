@@ -75,13 +75,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	const char* NodeStringParameter::GetName() const
-	{
-		return m_pD->m_name.c_str();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	void NodeStringParameter::SetName( const char* strName )
 	{
 		if ( strName )
@@ -92,12 +85,6 @@ namespace mu
 		{
 			m_pD->m_name = "";
 		}
-	}
-
-
-	const char* NodeStringParameter::GetUid() const
-	{
-		return m_pD->m_uid.c_str();
 	}
 
 
@@ -116,30 +103,9 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	const char* NodeStringParameter::GetDefaultValue() const
-	{
-		return m_pD->m_defaultValue.c_str();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	void NodeStringParameter::SetDefaultValue( const char* v )
 	{
 		m_pD->m_defaultValue = v?v:"";
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	PARAMETER_DETAILED_TYPE NodeStringParameter::GetDetailedType() const
-	{
-		return m_pD->m_detailedType;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeStringParameter::SetDetailedType( PARAMETER_DETAILED_TYPE t )
-	{
-		m_pD->m_detailedType = t;
 	}
 
 

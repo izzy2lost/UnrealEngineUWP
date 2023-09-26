@@ -59,7 +59,8 @@ void SSimpleTextureViewer::SetTexture( UTexture* InTexture)
 	FVector2D Size(Resource->GetSizeX(), Resource->GetSizeY());
 	TextureBrush = MakeShared<FSlateImageBrush>(Texture, Size,
 		FSlateColor(FLinearColor(1, 1, 1, 1)), ESlateBrushTileType::NoTile,
-		ESlateBrushImageType::Linear);
+		ESlateBrushImageType::Linear
+);
 
 }
 
@@ -284,7 +285,7 @@ void SMutableImageViewer::Tick(const FGeometry& AllottedGeometry, const double I
 			}
 
 			FMutableModelImageProperties Props;
-			Props.Filter = TF_Bilinear;
+			Props.Filter = TF_Nearest;
 			Props.SRGB = true;
 			Props.LODBias = 0;
 			UCustomizableInstancePrivateData::ConvertImage(UnrealImage, ImageToConvert, Props, CurrentVisibleLOD, ExtractChannel);

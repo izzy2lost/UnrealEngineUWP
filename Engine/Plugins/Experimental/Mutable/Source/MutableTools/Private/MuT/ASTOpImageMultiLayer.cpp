@@ -21,7 +21,7 @@ namespace mu
 		: base(this)
 		, blend(this)
 		, mask(this)
-		, range(this, nullptr, string(), string())
+		, range(this, nullptr, FString(), FString())
 	{
 	}
 

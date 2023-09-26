@@ -178,25 +178,13 @@ namespace mu
 		// Own Interface
 		//-----------------------------------------------------------------------------------------
 
-		//! Get the name of the parameter. It will be exposed in the final compiled data.
-		const char* GetName() const;
-
 		//! Set the name of the parameter.
-		void SetName( const char* );
+		void SetName( const FString& );
+
 
 		//! Get the uid of the parameter. It will be exposed in the final compiled data.
-		const char* GetUid() const;
-
-		//! Set the uid of the parameter.
-		void SetUid( const char* );
-
-		//! Get the default value of the parameter.
-        void GetDefaultValue( PROJECTOR_TYPE* pType,
-                              float* posX, float* posY, float* posZ,
-							  float* pDirX, float* pDirY, float* pDirZ,
-							  float* pUpX, float* pUpY, float *pUpZ,
-                              float *pScaleU, float *pScaleV, float* pScaleW,
-                              float* pProjectionAngle ) const;
+		const FString& GetUid() const;
+		void SetUid( const FString& );
 
 		//! Set the default value of the parameter.
         void SetDefaultValue( PROJECTOR_TYPE type,

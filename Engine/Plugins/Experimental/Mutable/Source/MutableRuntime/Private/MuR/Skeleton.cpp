@@ -154,7 +154,7 @@ namespace mu
 		}
 		else
 		{
-			TArray<string> OldBoneNames;
+			TArray<std::string> OldBoneNames;
 			arch >> OldBoneNames;
 
 			const int32 NumBones = OldBoneNames.Num();

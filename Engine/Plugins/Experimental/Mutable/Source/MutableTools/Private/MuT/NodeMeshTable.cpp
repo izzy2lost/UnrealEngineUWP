@@ -58,28 +58,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
-	const char* NodeMeshTable::GetColumn() const
+	void NodeMeshTable::SetColumn( const FString& strName )
 	{
-		return m_pD->m_columnName.c_str();
+		m_pD->m_columnName = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeMeshTable::SetColumn( const char* strName )
-	{
-		if (strName)
-		{
-			m_pD->m_columnName = strName;
-		}
-		else
-		{
-			m_pD->m_columnName = "";
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeMeshTable::SetParameterName( const char* strName )
+	void NodeMeshTable::SetParameterName( const FString& strName )
 	{
 		m_pD->m_parameterName = strName;
 	}

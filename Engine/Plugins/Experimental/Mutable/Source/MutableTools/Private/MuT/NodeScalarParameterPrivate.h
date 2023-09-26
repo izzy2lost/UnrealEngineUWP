@@ -25,22 +25,20 @@ namespace mu
 		static NODE_TYPE s_type;
 
 		float m_defaultValue = 0.0f;
-		string m_name;
-		string m_uid;
-		PARAMETER_DETAILED_TYPE m_detailedType = PARAMETER_DETAILED_TYPE::UNKNOWN;
+		FString m_name;
+		FString m_uid;
 
 		TArray<Ptr<NodeRange>> m_ranges;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 5;
+            uint32_t ver = 7;
 			arch << ver;
 
 			arch << m_defaultValue;
 			arch << m_name;
 			arch << m_uid;
-			arch << m_detailedType;
             arch << m_ranges;
         }
 
@@ -49,17 +47,35 @@ namespace mu
 		{
             uint32_t ver;
 			arch >> ver;
-            check(ver>=4 && ver<=5);
+            check(ver>=4 && ver<=7);
 
 			arch >> m_defaultValue;
-			arch >> m_name;
-            arch >> m_uid;
+			if (ver <= 6)
+			{
+				std::string Temp;
+				arch >> Temp;
+				m_name = Temp.c_str();
+				arch >> Temp;
+				m_uid = Temp.c_str();
+			}
+			else
+			{
+				arch >> m_name;
+				arch >> m_uid;
+			}
+
 			if (ver < 5)
 			{
 				TArray<Ptr<NodeImage>> TempAdditionalImages;
 				arch >> TempAdditionalImages;
 			}
-            arch >> m_detailedType;
+
+			if (ver <= 5)
+			{
+				int32 Dummy=0;
+				arch >> Dummy;
+			}
+
             arch >> m_ranges;
         }
 	};

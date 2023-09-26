@@ -285,7 +285,7 @@ namespace mu
         void Run( Ptr<ASTOp> root );
 
         //! After Run, list of relevant parameters.
-        std::unordered_set< string > m_params;
+        TSet< FString > m_params;
 
     private:
 
@@ -313,7 +313,7 @@ namespace mu
 
         // Result cache
         // \todo optimise by storing unique lists separately and an index here.
-        std::unordered_map< STATE, std::unordered_set< string >, state_hash > m_resultCache;
+        std::unordered_map< STATE, TSet<FString>, state_hash > m_resultCache;
     };
 
 }

@@ -13,7 +13,7 @@
 //! data structures. Compiled models are not necessarily compatible when the runtime is updated,
 //! so this version number can be used externally to verify this. It is not used internally, and
 //! serializing models from different versions than this runtime will probably result in a crash.
-#define MUTABLE_COMPILED_MODEL_CODE_VERSION		uint32( 77 )
+#define MUTABLE_COMPILED_MODEL_CODE_VERSION		uint32( 79 )
 #define MUTABLE_PARAMETERS_VERSION              uint32( 2 )
 
 
@@ -82,10 +82,10 @@ namespace mu
 		int GetStateCount() const;
 
 		//! Get a state name by state index from 0 to GetStateCount-1
-		const char* GetStateName( int stateIndex ) const;
+		const FString& GetStateName( int32 StateIndex ) const;
 
 		//! Find a state index by state name
-		int FindState( const char* strName ) const;
+		int32 FindState( const FString& Name ) const;
 
 		//! Get the number of parameters available in a particular state.
 		int GetStateParameterCount( int stateIndex ) const;

@@ -123,7 +123,7 @@ namespace mu
         struct FState
         {
             //! Name of the state
-            string m_name;
+            FString Name;
 
             //! First instruction of the full build of an instance in this state
             OP::ADDRESS m_root = 0;
@@ -145,7 +145,7 @@ namespace mu
             //!
             inline void Serialise( OutputArchive& arch ) const
             {
-                arch << m_name;
+                arch << Name;
                 arch << m_root;
                 arch << m_runtimeParameters;
                 arch << m_updateCache;
@@ -155,7 +155,7 @@ namespace mu
             //!
             inline void Unserialise( InputArchive& arch )
             {
-                arch >> m_name;
+                arch >> Name;
                 arch >> m_root;
                 arch >> m_runtimeParameters;
                 arch >> m_updateCache;
@@ -235,7 +235,7 @@ namespace mu
 		TArray<FExtensionDataConstant> m_constantExtensionData;
 
         //! Constant string data
-		TArray<string> m_constantStrings;
+		TArray<FString> m_constantStrings;
 
         //! Constant layout data
 		TArray<Ptr<const Layout>> m_constantLayouts;
@@ -460,7 +460,7 @@ namespace mu
             return index;
         }
 
-        OP::ADDRESS AddConstant( const string& str )
+        OP::ADDRESS AddConstant( const FString& str )
         {            
             // Ensure unique
             for ( SIZE_T i=0; i<m_constantStrings.Num(); ++i)

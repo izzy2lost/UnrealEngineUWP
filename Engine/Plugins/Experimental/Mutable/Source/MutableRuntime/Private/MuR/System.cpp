@@ -303,7 +303,7 @@ namespace mu
 		pLiveInstance->Instance = Result;
 		if (Result)
 		{
-			Result->GetPrivate()->m_id = pLiveInstance->InstanceID;
+			Result->GetPrivate()->Id = pLiveInstance->InstanceID;
 		}
 
 		m_pD->WorkingMemoryManager.EndRunnerThread();

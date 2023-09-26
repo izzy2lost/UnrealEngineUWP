@@ -37,48 +37,31 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	Node* NodeScalarTable::GetInputNode( int i ) const
+	Node* NodeScalarTable::GetInputNode( int ) const
 	{
-		check( i >=0 && i < 0 );
-        (void)i;
-        return 0;
+		check( false);
+        return nullptr;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    void NodeScalarTable::SetInputNode( int i, NodePtr )
+    void NodeScalarTable::SetInputNode( int, NodePtr )
 	{
-		check( i >=0 && i < 0 );
-        (void)i;
-        //m_pD->m_pObject = dynamic_cast<NodeObject*>( pNode.get() );
+		check( false);
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
-	const char* NodeScalarTable::GetColumn() const
+	void NodeScalarTable::SetColumn( const FString& strName )
 	{
-		return m_pD->m_columnName.c_str();
+		m_pD->m_columnName = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeScalarTable::SetColumn( const char* strName )
-	{
-		if (strName)
-		{
-			m_pD->m_columnName = strName;
-		}
-		else
-		{
-			m_pD->m_columnName = "";
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeScalarTable::SetParameterName( const char* strName )
+	void NodeScalarTable::SetParameterName( const FString& strName )
 	{
 		m_pD->m_parameterName = strName;
 	}

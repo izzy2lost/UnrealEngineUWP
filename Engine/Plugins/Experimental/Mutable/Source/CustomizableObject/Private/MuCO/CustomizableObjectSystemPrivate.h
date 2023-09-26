@@ -396,7 +396,7 @@ struct FInstanceUpdateData
 {
 	struct FImage
 	{
-		FString Name;
+		FName Name;
 		mu::FResourceID ImageID;
 		
 		// LOD of the ImageId. If the texture is shared between LOD, first LOD where this image can be found. 
@@ -410,13 +410,13 @@ struct FInstanceUpdateData
 
 	struct FVector
 	{
-		FString Name;
+		FName Name;
 		FLinearColor Vector;
 	};
 
 	struct FScalar
 	{
-		FString Name;
+		FName Name;
 		float Scalar;
 	};
 

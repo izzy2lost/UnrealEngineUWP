@@ -52,13 +52,6 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
-    const char* NodeImageParameter::GetName() const
-	{
-		return m_pD->m_name.c_str();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
     void NodeImageParameter::SetName( const char* strName )
 	{
 		if ( strName )
@@ -69,12 +62,6 @@ namespace mu
 		{
 			m_pD->m_name = "";
 		}
-	}
-
-
-	const char* NodeImageParameter::GetUid() const
-	{
-		return m_pD->m_uid.c_str();
 	}
 
 
@@ -89,13 +76,6 @@ namespace mu
 		{
 			m_pD->m_uid = "";
 		}
-	}
-
-	
-	//---------------------------------------------------------------------------------------------
-	FName NodeImageParameter::GetDefaultValue() const
-	{
-		return m_pD->m_defaultValue;
 	}
 
 	

@@ -23,20 +23,19 @@ namespace mu
 
 		static NODE_TYPE s_type;
 
-		string m_name;
-		string m_uid;
-		int m_defaultValue = 0;
-		PARAMETER_DETAILED_TYPE m_detailedType = PARAMETER_DETAILED_TYPE::UNKNOWN;
+		FString m_name;
+		FString m_uid;
+		int32 m_defaultValue = 0;
 
 		struct OPTION
 		{
-			string name;
+			FString name;
 			float value;
 
 			//!
 			void Serialise( OutputArchive& arch ) const
 			{
-                uint32_t ver = 0;
+                uint32 ver = 1;
 				arch << ver;
 
 				arch << name;
@@ -46,11 +45,20 @@ namespace mu
 			//!
 			void Unserialise( InputArchive& arch )
 			{
-                uint32_t ver;
+                uint32 ver;
 				arch >> ver;
-                check(ver<=0);
+                check(ver<=1);
 
-				arch >> name;
+				if (ver == 0)
+				{
+					std::string Temp;
+					arch >> Temp;
+					name = Temp.c_str();
+				}
+				else
+				{
+					arch >> name;
+				}
 				arch >> value;
 			}
 		};
@@ -62,13 +70,12 @@ namespace mu
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 2;
+            uint32_t ver = 4;
 			arch << ver;
 
 			arch << m_name;
 			arch << m_uid;
 			arch << m_defaultValue;
-			arch << m_detailedType;
             arch << m_options;
             arch << m_ranges;
         }
@@ -78,12 +85,28 @@ namespace mu
 		{
             uint32_t ver;
 			arch >> ver;
-            check(ver==2);
+            check(ver>=2 && ver<=4);
 
-			arch >> m_name;
-            arch >> m_uid;
+			if (ver <= 3)
+			{
+				std::string Temp;
+				arch >> Temp;
+				m_name = Temp.c_str();
+				arch >> Temp;
+				m_uid = Temp.c_str();
+			}
+			else
+			{
+				arch >> m_name;
+				arch >> m_uid;
+			}
+
 			arch >> m_defaultValue;
-			arch >> m_detailedType;
+			if (ver <= 2)
+			{
+				int32 Dummy = 0;
+				arch >> Dummy;
+			}
 			arch >> m_options;
             arch >> m_ranges;
         }

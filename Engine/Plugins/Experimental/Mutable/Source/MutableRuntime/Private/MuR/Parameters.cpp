@@ -18,7 +18,6 @@
 namespace mu
 {
     MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(PARAMETER_TYPE)              
-    MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(PARAMETER_DETAILED_TYPE)     
     MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(PROJECTOR_TYPE)
 
 	
@@ -57,108 +56,108 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    void Parameters::SerialisePortable( const Parameters* params, OutputArchive& arch )
-    {
-        const int32_t ver = 0;
-        arch << ver;
+    //void Parameters::SerialisePortable( const Parameters* params, OutputArchive& arch )
+    //{
+    //    const int32_t ver = 0;
+    //    arch << ver;
 
-        uint32 valueCount = params->GetPrivate()->m_values.Num();
-        arch << valueCount;
+    //    uint32 valueCount = params->GetPrivate()->m_values.Num();
+    //    arch << valueCount;
 
-        for (size_t p=0; p<valueCount; ++p)
-        {
-            const FParameterDesc& desc = params->GetPrivate()->m_pModel->GetPrivate()->m_program.m_parameters[p];
-            arch << desc.m_name;
-            arch << desc.m_uid;
-            arch << desc.m_type;
-            arch << params->GetPrivate()->m_values[p];
-        }
-    }
+    //    for (size_t p=0; p<valueCount; ++p)
+    //    {
+    //        const FParameterDesc& desc = params->GetPrivate()->m_pModel->GetPrivate()->m_program.m_parameters[p];
+    //        arch << desc.m_name;
+    //        arch << desc.m_uid;
+    //        arch << desc.m_type;
+    //        arch << params->GetPrivate()->m_values[p];
+    //    }
+    //}
 
 
     //---------------------------------------------------------------------------------------------
-    ParametersPtr Parameters::UnserialisePortable( InputArchive& arch, TSharedPtr<const Model> pModel )
-    {
-		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
+  //  ParametersPtr Parameters::UnserialisePortable( InputArchive& arch, TSharedPtr<const Model> pModel )
+  //  {
+		//LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 
-        ParametersPtr pResult = Model::NewParameters(pModel);
-        size_t modelParameters = pModel->GetPrivate()->m_program.m_parameters.Num();
+  //      ParametersPtr pResult = Model::NewParameters(pModel);
+  //      size_t modelParameters = pModel->GetPrivate()->m_program.m_parameters.Num();
 
-        int32_t ver;
-        arch >> ver;
-        check( ver == 0 );
+  //      int32_t ver;
+  //      arch >> ver;
+  //      check( ver == 0 );
 
-        uint32_t valueCount = 0;
-        arch >> valueCount;
+  //      uint32_t valueCount = 0;
+  //      arch >> valueCount;
 
-        for (uint32_t p=0; p<valueCount; ++p)
-        {
-            // Read the parameter data.
-            mu::string name;
-            arch >> name;
+  //      for (uint32_t p=0; p<valueCount; ++p)
+  //      {
+  //          // Read the parameter data.
+  //          std::string name;
+  //          arch >> name;
 
-            mu::string uid;
-            arch >> uid;
+  //          std::string uid;
+  //          arch >> uid;
 
-            PARAMETER_TYPE type;
-            arch >> type;
+  //          PARAMETER_TYPE type;
+  //          arch >> type;
 
-            PARAMETER_VALUE value;
-            arch >> value;
+  //          PARAMETER_VALUE value;
+  //          arch >> value;
 
-            int modelParam = -1;
+  //          int modelParam = -1;
 
-            // UIDs have higher priority
-            if ( !uid.empty() )
-            {
-                for (size_t mp=0; mp<modelParameters; ++mp)
-                {
-                    const FParameterDesc& desc = pModel->GetPrivate()->m_program.m_parameters[mp];
-                    if (desc.m_uid==uid)
-                    {
-                        modelParam = int(mp);
-                        break;
-                    }
-                }
-            }
+  //          // UIDs have higher priority
+  //          if ( !uid.empty() )
+  //          {
+  //              for (size_t mp=0; mp<modelParameters; ++mp)
+  //              {
+  //                  const FParameterDesc& desc = pModel->GetPrivate()->m_program.m_parameters[mp];
+  //                  if (desc.m_uid==uid)
+  //                  {
+  //                      modelParam = int(mp);
+  //                      break;
+  //                  }
+  //              }
+  //          }
 
-            // Try with name+type
-            if (modelParam<0)
-            {
-                for (size_t mp=0; mp<modelParameters; ++mp)
-                {
-                    const FParameterDesc& desc = pModel->GetPrivate()->m_program.m_parameters[mp];
-                    if (desc.m_name==name && desc.m_type==type)
-                    {
-                        modelParam = int(mp);
-                        break;
-                    }
-                }
-            }
+  //          // Try with name+type
+  //          if (modelParam<0)
+  //          {
+  //              for (size_t mp=0; mp<modelParameters; ++mp)
+  //              {
+  //                  const FParameterDesc& desc = pModel->GetPrivate()->m_program.m_parameters[mp];
+  //                  if (desc.m_name==name && desc.m_type==type)
+  //                  {
+  //                      modelParam = int(mp);
+  //                      break;
+  //                  }
+  //              }
+  //          }
 
-            // Try with name only, and maybe adapt type
-            if (modelParam<0)
-            {
-                for (size_t mp=0; mp<modelParameters; ++mp)
-                {
-                    const FParameterDesc& desc = pModel->GetPrivate()->m_program.m_parameters[mp];
-                    if (desc.m_name==name)
-                    {
-                        modelParam = int(mp);
-                        break;
-                    }
-                }
-            }
+  //          // Try with name only, and maybe adapt type
+  //          if (modelParam<0)
+  //          {
+  //              for (size_t mp=0; mp<modelParameters; ++mp)
+  //              {
+  //                  const FParameterDesc& desc = pModel->GetPrivate()->m_program.m_parameters[mp];
+  //                  if (desc.m_name==name)
+  //                  {
+  //                      modelParam = int(mp);
+  //                      break;
+  //                  }
+  //              }
+  //          }
 
-            if (modelParam>=0)
-            {
-                // We found something. \todo: convert the type if necessary?
-                pResult->GetPrivate()->m_values[modelParam] = value;
-            }
-        }
+  //          if (modelParam>=0)
+  //          {
+  //              // We found something. \todo: convert the type if necessary?
+  //              pResult->GetPrivate()->m_values[modelParam] = value;
+  //          }
+  //      }
 
-        return pResult;
-    }
+  //      return pResult;
+  //  }
 
 
 	//---------------------------------------------------------------------------------------------
@@ -191,27 +190,27 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	const char* Parameters::GetName( int index ) const
+	const FString& Parameters::GetName( int index ) const
 	{
 		const FProgram& program = m_pD->m_pModel->GetPrivate()->m_program;
 		check( index>=0 && index<(int)program.m_parameters.Num() );
 
-		return program.m_parameters[index].m_name.c_str();
+		return program.m_parameters[index].m_name;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	const char* Parameters::GetUid( int index ) const
+	const FString& Parameters::GetUid( int index ) const
 	{
 		const FProgram& program = m_pD->m_pModel->GetPrivate()->m_program;
 		check( index>=0 && index<(int)program.m_parameters.Num() );
 
-		return program.m_parameters[index].m_uid.c_str();
+		return program.m_parameters[index].m_uid;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	int Parameters::Find( const char* strName ) const
+	int Parameters::Find( const FString& strName ) const
 	{
 		return m_pD->Find( strName );
 	}
@@ -224,16 +223,6 @@ namespace mu
 		check( index>=0 && index<(int)program.m_parameters.Num() );
 
 		return program.m_parameters[index].m_type;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	PARAMETER_DETAILED_TYPE Parameters::GetDetailedType( int index ) const
-	{
-		const FProgram& program = m_pD->m_pModel->GetPrivate()->m_program;
-		check( index>=0 && index<(int)program.m_parameters.Num() );
-
-		return program.m_parameters[index].m_detailedType;
 	}
 
 
@@ -423,7 +412,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	int Parameters::GetIntValueIndex(int paramIndex, const char* valueName) const
+	int Parameters::GetIntValueIndex(int paramIndex, const FString& ValueName) const
 	{
 		const FProgram& program = m_pD->m_pModel->GetPrivate()->m_program;
 		check(paramIndex >= 0
@@ -432,7 +421,7 @@ namespace mu
 		int result = -1;
 		for (size_t v = 0; v < program.m_parameters[paramIndex].m_possibleValues.Num(); ++v)
 		{
-			if (program.m_parameters[paramIndex].m_possibleValues[v].m_name == valueName)
+			if (program.m_parameters[paramIndex].m_possibleValues[v].m_name == ValueName)
 			{
 				result = (int)v;
 				break;
@@ -461,7 +450,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	const char* Parameters::GetIntPossibleValueName( int paramIndex, int valueIndex ) const
+	const FString& Parameters::GetIntPossibleValueName( int paramIndex, int valueIndex ) const
 	{
 		const FProgram& program = m_pD->m_pModel->GetPrivate()->m_program;
 		check( paramIndex>=0
@@ -469,13 +458,12 @@ namespace mu
 		check( valueIndex>=0
 				&& valueIndex<(int)program.m_parameters[paramIndex].m_possibleValues.Num() );
 
-		return program.m_parameters[paramIndex].m_possibleValues[valueIndex].m_name.c_str();
+		return program.m_parameters[paramIndex].m_possibleValues[valueIndex].m_name;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    int Parameters::GetIntValue( int index,
-                                 const Ptr<const RangeIndex>& pos ) const
+    int Parameters::GetIntValue( int index, const Ptr<const RangeIndex>& pos ) const
 	{
 		check( index>=0 && index<(int)m_pD->m_values.Num() );
 		check( GetType(index)== PARAMETER_TYPE::T_INT );
@@ -828,7 +816,7 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    const char* Parameters::GetStringValue( int index, const Ptr<const RangeIndex>& pos ) const
+    void Parameters::GetStringValue( int index, FString& OutValue, const Ptr<const RangeIndex>& pos ) const
     {
         check( index >= 0 && index < (int)m_pD->m_values.Num() );
         check( GetType( index ) == PARAMETER_TYPE::T_STRING );
@@ -837,15 +825,16 @@ namespace mu
         if ( index < 0 || index >= (int)m_pD->m_values.Num() ||
              GetType( index ) != PARAMETER_TYPE::T_STRING )
         {
-            return "";
+            OutValue = TEXT("");
+			return;
         }
 
         // Single value case
         if ( !pos )
         {
             // Return the single value
-            const string& String = m_pD->m_values[index].Get<ParamStringType>();
-            return String.c_str();
+			OutValue = m_pD->m_values[index].Get<ParamStringType>();
+            return;
         }
 
         // Multivalue case
@@ -857,19 +846,19 @@ namespace mu
 			const PARAMETER_VALUE* it = m.Find( pos->m_pD->m_values );
             if ( it )
             {
-                const string& String = it->Get<ParamStringType>();
-                return String.c_str();
+				OutValue = it->Get<ParamStringType>();
+                return;
             }
         }
 
         // Multivalue parameter, but no multivalue set. Return single value.
-        const string& String = m_pD->m_values[index].Get<ParamStringType>();
-        return String.c_str();
+		OutValue = m_pD->m_values[index].Get<ParamStringType>();
+        return;
     }
 
 
     //---------------------------------------------------------------------------------------------
-    void Parameters::SetStringValue( int index, const char* value, const Ptr<const RangeIndex>& pos )
+    void Parameters::SetStringValue( int index, const FString& Value, const Ptr<const RangeIndex>& pos )
     {
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 
@@ -892,7 +881,7 @@ namespace mu
                 m_pD->m_multiValues[index].Empty();
             }
 
-        	m_pD->m_values[index].Set<ParamStringType>(value);
+        	m_pD->m_values[index].Set<ParamStringType>(Value);
         }
 
         // Multivalue case
@@ -907,14 +896,13 @@ namespace mu
 
 			TMap< TArray<int32_t>, PARAMETER_VALUE >& m = m_pD->m_multiValues[index];
 			PARAMETER_VALUE& it = m.FindOrAdd( pos->m_pD->m_values );
-        	it.Set<ParamStringType>(value);
+        	it.Set<ParamStringType>(Value);
         }
     }
 
 
     //---------------------------------------------------------------------------------------------
-    FProjector Parameters::Private::GetProjectorValue( int index,
-                                                      const Ptr<const RangeIndex>& pos ) const
+    FProjector Parameters::Private::GetProjectorValue( int index, const Ptr<const RangeIndex>& pos ) const
     {
 
         const FProgram& program = m_pModel->GetPrivate()->m_program;
@@ -1119,7 +1107,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	int Parameters::Private::Find( const char* strName ) const
+	int32 Parameters::Private::Find( const FString& Name ) const
 	{
 		const FProgram& program = m_pModel->GetPrivate()->m_program;
 
@@ -1129,7 +1117,7 @@ namespace mu
 		{
 			const FParameterDesc& p = program.m_parameters[i];
 
-			if ( p.m_name == strName )
+			if (p.m_name == Name)
 			{
 				result = i;
 			}
@@ -1172,7 +1160,7 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    const char* RangeIndex::GetRangeName( int index ) const
+    const FString& RangeIndex::GetRangeName( int index ) const
     {
         check( index >= 0 && index < GetRangeCount() );
         check( index < int(m_pD->m_pParameters->GetPrivate()->m_values.Num()) );
@@ -1180,12 +1168,12 @@ namespace mu
         check(pModel);
         check( index < int(pModel->GetPrivate()->m_program.m_ranges.Num()) );
 
-        return pModel->GetPrivate()->m_program.m_ranges[index].m_name.c_str();
+        return pModel->GetPrivate()->m_program.m_ranges[index].m_name;
     }
 
 
     //---------------------------------------------------------------------------------------------
-    const char* RangeIndex::GetRangeUid( int index ) const
+    const FString& RangeIndex::GetRangeUid( int index ) const
     {
         check( index >= 0 && index < GetRangeCount() );
         check( index < int(m_pD->m_pParameters->GetPrivate()->m_values.Num()) );
@@ -1193,7 +1181,7 @@ namespace mu
 		check(pModel);
         check( index < int(pModel->GetPrivate()->m_program.m_ranges.Num()) );
 
-        return pModel->GetPrivate()->m_program.m_ranges[index].m_uid.c_str();
+        return pModel->GetPrivate()->m_program.m_ranges[index].m_uid;
     }
 
 

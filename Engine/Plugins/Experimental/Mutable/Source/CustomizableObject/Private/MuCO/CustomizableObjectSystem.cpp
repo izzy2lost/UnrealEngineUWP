@@ -1675,13 +1675,13 @@ namespace impl
 						{
 							MUTABLE_CPUPROFILER_SCOPE(GetScalar)
 
-							const FString ScalarName = Instance->GetScalarName(BaseLODIndex, ComponentIndex, InstanceSurfaceIndex, ScalarIndex);
+							const FName ScalarName = Instance->GetScalarName(BaseLODIndex, ComponentIndex, InstanceSurfaceIndex, ScalarIndex);
 							const float ScalarValue = Instance->GetScalar(BaseLODIndex, ComponentIndex, InstanceSurfaceIndex, ScalarIndex);
 							
 							FString EncodingMaterialIdString = "__MutableMaterialId";
 							
 							// Decoding Material Switch from Mutable parameter name
-							if (ScalarName.Equals(EncodingMaterialIdString))
+							if (ScalarName.ToString().Equals(EncodingMaterialIdString))
 							{
 								Surface.MaterialIndex = static_cast<uint32>(ScalarValue);
 							
@@ -1701,16 +1701,15 @@ namespace impl
 		// Copy ExtensionData Object node input from the Instance to the InstanceUpdateData
 		for (int32 ExtensionDataIndex = 0; ExtensionDataIndex < Instance->GetExtensionDataCount(); ExtensionDataIndex++)
 		{
-			mu::ExtensionDataPtrConst ExtensionData;
-			const char* NameAnsi = nullptr;
-			Instance->GetExtensionData(ExtensionDataIndex, ExtensionData, NameAnsi);
+			mu::Ptr<const mu::ExtensionData> ExtensionData;
+			FName Name;
+			Instance->GetExtensionData(ExtensionDataIndex, ExtensionData, Name);
 
 			check(ExtensionData);
-			check(NameAnsi);
 
 			FInstanceUpdateData::FNamedExtensionData& NewEntry = OperationData->InstanceUpdateData.ExtendedInputPins.AddDefaulted_GetRef();
 			NewEntry.Data = ExtensionData;
-			NewEntry.Name = NameAnsi;
+			NewEntry.Name = Name;
 			check(NewEntry.Name != NAME_None);
 		}
 	}
@@ -1779,7 +1778,7 @@ namespace impl
 
 				const int32 MipSizeX = FMath::Max(Image.FullImageSizeX >> MipsToSkip, 1);
 				const int32 MipSizeY = FMath::Max(Image.FullImageSizeY >> MipsToSkip, 1);
-				if (MipsToSkip > 0 && CustomizableObjectSystemPrivateData->EnableSkipGenerateResidentMips != 0 && OperationData->LowPriorityTextures.Find(Image.Name) != INDEX_NONE)
+				if (MipsToSkip > 0 && CustomizableObjectSystemPrivateData->EnableSkipGenerateResidentMips != 0 && OperationData->LowPriorityTextures.Find(Image.Name.ToString()) != INDEX_NONE)
 				{
 					Image.Image = new mu::Image(MipSizeX, MipSizeY, FullLODCount - MipsToSkip, ImageDesc.m_format, mu::EInitializationType::Black);
 				}
@@ -1848,7 +1847,7 @@ namespace impl
 			{
 				const FInstanceUpdateData::FImage& Image = OperationData->InstanceUpdateData.Images[Surface.FirstImage+ImageIndex];
 
-				const FString KeyName = Image.Name;
+				const FName KeyName = Image.Name;
 				mu::ImagePtrConst MutableImage = Image.Image;
 
 				// If the image is null, it must be in the cache (or repeated in this instance), and we don't need to do anything here.
@@ -1861,7 +1860,7 @@ namespace impl
 						{
 							FTexturePlatformData* PlatformData = UCustomizableInstancePrivateData::MutableCreateImagePlatformData(MutableImage, -1, Image.FullImageSizeX, Image.FullImageSizeY);
 							OperationData->ImageToPlatformDataMap.Add(Image.ImageID, PlatformData);
-							OperationData->PendingTextureCoverageQueries.Add({ KeyName, Surface.MaterialIndex, PlatformData });
+							OperationData->PendingTextureCoverageQueries.Add({ KeyName.ToString(), Surface.MaterialIndex, PlatformData});
 						}
 						else
 						{

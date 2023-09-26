@@ -51,7 +51,7 @@ struct FMutableConstantMeshElement : public FMutableConstantElement
 */
 struct FMutableConstantStringElement : public FMutableConstantElement
 {
-	const mu::string* MutableString = nullptr;
+	FString MutableString;
 };
 
 /**

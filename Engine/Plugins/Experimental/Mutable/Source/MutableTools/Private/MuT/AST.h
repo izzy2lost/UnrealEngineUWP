@@ -515,13 +515,13 @@ namespace mu
             ASTChild rangeSize;
 
             //!
-            string rangeName;
+            FString rangeName;
 
             //!
-            string rangeUID;
+			FString rangeUID;
 
             //!
-            FRangeData( ASTOp* parentOp, Ptr<ASTOp> childOp, const string& name, const string& uid )
+            FRangeData( ASTOp* parentOp, Ptr<ASTOp> childOp, const FString& name, const FString& uid )
                 : rangeSize( parentOp, childOp )
                 , rangeName(name)
                 , rangeUID(uid)

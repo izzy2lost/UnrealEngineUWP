@@ -253,9 +253,6 @@ namespace mu
 
 		Result->CopyFrom(*pSource);
 
-        // TODO
-        Result->SetFaceGroupCount( 0 );
-
         MeshBufferIteratorConst<MBF_UINT32,uint32,1> itMaskVI( pMask->GetVertexBuffers(), MBS_VERTEXINDEX );
 
         int32 firstFreeVertex = 0;

@@ -251,7 +251,7 @@ namespace mu
 		for (int t = node.m_variations.Num() - 1; t >= 0; --t)
 		{
 			int tagIndex = -1;
-			const string& tag = node.m_variations[t].m_tag;
+			const FString& tag = node.m_variations[t].m_tag;
 			for (int i = 0; i < m_firstPass.m_tags.Num(); ++i)
 			{
 				if (m_firstPass.m_tags[i].tag == tag)
@@ -262,7 +262,7 @@ namespace mu
 
 			if (tagIndex < 0)
 			{
-				FString Msg = FString::Printf(TEXT("Unknown tag found in color variation [%s]."), *FString(tag.c_str()));
+				FString Msg = FString::Printf(TEXT("Unknown tag found in color variation [%s]."), *tag);
 				m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, node.m_errorContext);
 				continue;
 			}

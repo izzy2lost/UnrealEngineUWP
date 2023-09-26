@@ -67,10 +67,10 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		//! Get the name of the component.
-		const char* GetName() const;
+		const FString& GetName() const;
 
 		//! Set the name of the component.
-		void SetName( const char* );
+		void SetName( const FString& );
 
 		//! Get the id of the component.
 		uint16 GetId() const;

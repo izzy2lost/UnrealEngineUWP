@@ -142,7 +142,7 @@ namespace mu
                     case OP_TYPE::IM_PARAMETER:
                     {
 						const ASTOpParameter* typed = dynamic_cast<const ASTOpParameter*>(at.get());
-                        const TArray<string>& params = m_pState->nodeState.m_runtimeParams;
+                        const TArray<FString>& params = m_pState->nodeState.m_runtimeParams;
                         if ( params.Find( typed->parameter.m_name)
                              !=
                              INDEX_NONE )
@@ -1619,7 +1619,7 @@ namespace mu
     void SubtreeRelevantParametersVisitorAST::Run( Ptr<ASTOp> root )
     {
         // Cached?
-		std::unordered_map< STATE, std::unordered_set< string >, state_hash >::iterator it = m_resultCache.find( STATE(root,false) );
+		std::unordered_map< STATE, TSet<FString>, state_hash >::iterator it = m_resultCache.find( STATE(root,false) );
         if (it!=m_resultCache.end())
         {
             m_params = it->second;
@@ -1630,7 +1630,7 @@ namespace mu
         {
             MUTABLE_CPUPROFILER_SCOPE(SubtreeRelevantParametersVisitorAST);
 
-            m_params.clear();
+            m_params.Empty();
 
             // The state is the onlyLayoutRelevant flag
             ASTOp::Traverse_TopDown_Unique_Imprecise_WithState<bool>( root, false,
@@ -1648,7 +1648,7 @@ namespace mu
                 case OP_TYPE::IM_PARAMETER:
                 {
 					const ASTOpParameter* typedAt = dynamic_cast<const ASTOpParameter*>(at.get());
-                    m_params.insert(typedAt->parameter.m_name);
+                    m_params.Add(typedAt->parameter.m_name);
 
                     // Not interested in the parameters from the parameters decorators.
                     return false;
@@ -1748,8 +1748,8 @@ namespace mu
                     subtreeParams.Run( i.Key );
 
 					// Temp copy
-					TArray<mu::string> ParamCopy;
-					for ( const string& e: subtreeParams.m_params )
+					TArray<FString> ParamCopy;
+					for ( const FString& e: subtreeParams.m_params )
 					{
 						ParamCopy.Add(e);
 					}

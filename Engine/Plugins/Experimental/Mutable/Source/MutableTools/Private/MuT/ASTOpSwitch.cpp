@@ -445,7 +445,7 @@ namespace mu
 			bool bFirstValue = true;
 			bool bAllSame = true;
 			Ptr<ASTOp> SameBranch = nullptr;
-			for (const FParameterDesc::INT_VALUE_DESC& Value : ParamOp->parameter.m_possibleValues)
+			for (const FParameterDesc::FIntValueDesc& Value : ParamOp->parameter.m_possibleValues)
 			{
 				// Look for the switch branch it would take
 				Ptr<ASTOp> Branch = def.child();

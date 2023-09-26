@@ -1149,7 +1149,7 @@ FString UCustomizableObject::GetStateName(int32 StateIndex) const
 
 	if (PrivateData->GetModel())
 	{
-		Result = StringCast<TCHAR>( PrivateData->GetModel()->GetStateName(StateIndex) ).Get();
+		Result = PrivateData->GetModel()->GetStateName(StateIndex);
 	}
 
 	return Result;

@@ -66,7 +66,7 @@ namespace mu
 		vec3f m_selectionBoxRadius;
 		uint16 m_vertexSelectionBone;
 
-		TArray<mu::string> m_tags;
+		TArray<FString> m_tags;
 
 		// Max distance a vertex can have to the bone in order to be affected. A negative value
 		// means no limit.
@@ -75,7 +75,7 @@ namespace mu
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 4;
+            uint32_t ver = 5;
 			arch << ver;
 
 			arch << m_pSource;
@@ -99,7 +99,7 @@ namespace mu
 		{
             uint32_t ver;
 			arch >> ver;
-            check(ver==3);
+            check(ver>=3&&ver<=5);
 
 			arch >> m_pSource;
 			arch >> m_origin;
@@ -112,7 +112,21 @@ namespace mu
 			arch >> m_vertexSelectionType;
 			arch >> m_selectionBoxOrigin;
 			arch >> m_selectionBoxRadius;
-			arch >> m_tags;
+
+			if (ver >= 5)
+			{
+				arch >> m_tags;
+			}
+			else
+			{
+				TArray<std::string> Temp;
+				arch >> Temp;
+				m_tags.SetNum(Temp.Num());
+				for (int32 i=0;i<Temp.Num();++i)
+				{
+					m_tags[i] = Temp[i].c_str();
+				}
+			}
 
 			if (ver >= 4)
 			{

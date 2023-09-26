@@ -12,6 +12,7 @@
 
 #include "MuR/Model.h"
 
+#include <string>
 
 namespace mu
 {
@@ -134,7 +135,6 @@ namespace Private
 }
 
     MUTABLE_DEFINE_ENUM_SERIALISABLE(PARAMETER_TYPE)
-    MUTABLE_DEFINE_ENUM_SERIALISABLE(PARAMETER_DETAILED_TYPE)
     MUTABLE_DEFINE_ENUM_SERIALISABLE(PROJECTOR_TYPE)
 
 
@@ -373,7 +373,7 @@ namespace Private
 	using ParamColorType = FVector3f;
 	using ParamProjectorType = Private::TIndirectObject<FProjector>;
 	using ParamImageType = FName;
-	using ParamStringType = Private::TIndirectObject<string>;
+	using ParamStringType = Private::TIndirectObject<FString>;
 	
 	using PARAMETER_VALUE = TVariant<
             ParamBoolType, ParamIntType, ParamFloatType, ParamColorType, ParamProjectorType, ParamImageType, ParamStringType>;
@@ -402,14 +402,12 @@ namespace Private
 
     struct FParameterDesc
     {
-        string m_name;
+        FString m_name;
 
         //! Unique id (provided externally, so no actual guarantee that it is unique.)
-		string m_uid;
+		FString m_uid;
 
         PARAMETER_TYPE m_type = PARAMETER_TYPE::T_NONE;
-
-        PARAMETER_DETAILED_TYPE m_detailedType = PARAMETER_DETAILED_TYPE::UNKNOWN;
 
         PARAMETER_VALUE m_defaultValue;
 
@@ -418,13 +416,13 @@ namespace Private
 		TArray<uint32> m_ranges;
 
         //! Possible values of the parameter in case of being an integer, and its names
-        struct INT_VALUE_DESC
+        struct FIntValueDesc
         {
             int16 m_value;
-            string m_name;
+			FString m_name;
 
             //!
-            bool operator==( const INT_VALUE_DESC& other ) const
+            bool operator==( const FIntValueDesc& other ) const
             {
                 return m_value==other.m_value &&
                         m_name==other.m_name;
@@ -447,7 +445,7 @@ namespace Private
 
         //! For integer parameters, this contains the description of the possible values.
         //! If empty, the integer may have any value.
-		TArray<INT_VALUE_DESC> m_possibleValues;
+		TArray<FIntValueDesc> m_possibleValues;
 
         //!
         bool operator==( const FParameterDesc& other ) const
@@ -461,7 +459,7 @@ namespace Private
         //!
         void Serialise( OutputArchive& arch ) const
         {
-            const int32 ver = 7;
+            const int32 ver = 8;
             arch << ver;
 
 			arch << m_name;
@@ -477,28 +475,22 @@ namespace Private
         {
             int32 ver;
             arch >> ver;
-            check( ver >= 6 );
+            check( ver==8 );
 
 			arch >> m_name;
-            arch >> m_uid;
+			arch >> m_uid;
             arch >> m_type;
             arch >> m_defaultValue;
             arch >> m_ranges;
-
-			if (ver<=6)
-			{ 
-				TArray<OP::ADDRESS> UnusedDescImages;
-				arch >> UnusedDescImages;
-			}
-            arch >> m_possibleValues;
+			arch >> m_possibleValues;
         }
     };
 
 
     struct FRangeDesc
     {
-        string m_name;
-        string m_uid;
+		FString m_name;
+		FString m_uid;
 
 		/** Parameter that controls the size of this range, if any. */
 		int32 m_dimensionParameter = -1;
@@ -516,7 +508,7 @@ namespace Private
         //!
         void Serialise( OutputArchive& arch ) const
         {
-            const uint32 ver = 2;
+            const uint32 ver = 3;
             arch << ver;
 
             arch << m_name;
@@ -529,15 +521,11 @@ namespace Private
         {
             uint32 ver;
             arch >> ver;
-            check( ver <= 2 );
+            check( ver == 3 );
 
-            arch >> m_name;
-            arch >> m_uid;
-
-			if (ver >= 2)
-			{
-				arch >> m_dimensionParameter;
-			}
+			arch >> m_name;
+			arch >> m_uid;
+			arch >> m_dimensionParameter;
         }
     };
 
@@ -590,14 +578,14 @@ namespace Private
         {
             uint32 ver;
             arch >> ver;
-			check(ver <= 3);
+			check(ver == 3);
        
 		    arch >> m_values;
 			arch >> m_multiValues;
         }
 
         //!
-        int Find( const char* strName ) const;
+        int32 Find( const FString& Name ) const;
 
         //!
         FProjector GetProjectorValue( int index, const Ptr<const RangeIndex>& pos ) const;

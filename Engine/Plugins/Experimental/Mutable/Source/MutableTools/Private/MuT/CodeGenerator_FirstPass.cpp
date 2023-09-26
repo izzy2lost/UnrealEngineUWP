@@ -38,7 +38,7 @@ namespace mu
 	FirstPassGenerator::FirstPassGenerator()
 	{
 		// Default conditions when there is no restriction accumulated.
-		CONDITION_CONTEXT noCondition;
+		FConditionContext noCondition;
         m_currentCondition.Add(noCondition);
         m_currentStateCondition.Add(StateCondition());
 	}
@@ -83,7 +83,7 @@ namespace mu
             for (int32 t=0; t<surfaces[s].node->GetPrivate()->m_tags.Num(); ++t)
 			{
 				int tag = -1;
-                auto tagStr = surfaces[s].node->GetPrivate()->m_tags[t];
+                const FString& tagStr = surfaces[s].node->GetPrivate()->m_tags[t];
                 for (std::size_t i = 0; i<m_tags.Num() && tag<0; ++i)
 				{
                     if (m_tags[i].tag == tagStr)
@@ -96,7 +96,7 @@ namespace mu
 				if (tag < 0)
 				{
                     tag = (int)m_tags.Num();
-					TAG newTag;
+					FTag newTag;
                     newTag.tag = tagStr;
                     m_tags.Add(newTag);
 				}
@@ -128,7 +128,7 @@ namespace mu
                     if (tag < 0)
                     {
                         tag = (int)m_tags.Num();
-                        TAG newTag;
+						FTag newTag;
                         newTag.tag = tagStr;
                         m_tags.Add(newTag);
                     }
@@ -162,7 +162,7 @@ namespace mu
     Ptr<ASTOp> FirstPassGenerator::Visit(const NodeModifierMeshClipMorphPlane::Private& node)
 	{
         // Add the data about this modifier
-        MODIFIER thisData;
+        FModifier thisData;
         thisData.node = &node;
         thisData.objectCondition = m_currentCondition.Last().objectCondition;
         thisData.stateCondition = m_currentStateCondition.Last();
@@ -179,7 +179,7 @@ namespace mu
     Ptr<ASTOp> FirstPassGenerator::Visit(const NodeModifierMeshClipWithMesh::Private& node)
 	{
         // Add the data about this modifier
-		MODIFIER thisData;
+		FModifier thisData;
 		thisData.node = &node;
         thisData.objectCondition = m_currentCondition.Last().objectCondition;
         thisData.stateCondition = m_currentStateCondition.Last();
@@ -196,7 +196,7 @@ namespace mu
     Ptr<ASTOp> FirstPassGenerator::Visit(const NodeModifierMeshClipDeform::Private& node)
 	{
         // Add the data about this modifier
-		MODIFIER thisData;
+		FModifier thisData;
 		thisData.node = &node;
         thisData.objectCondition = m_currentCondition.Last().objectCondition;
         thisData.stateCondition = m_currentStateCondition.Last();
@@ -212,7 +212,7 @@ namespace mu
     Ptr<ASTOp> FirstPassGenerator::Visit(const NodeSurfaceNew::Private& node)
 	{
 		// Add the data about this surface
-		SURFACE thisData;
+		FSurface thisData;
 		thisData.node = dynamic_cast<const NodeSurfaceNew*>(node.m_pNode);
 		thisData.component = m_currentComponent;
         thisData.objectCondition = m_currentCondition.Last().objectCondition;
@@ -230,7 +230,7 @@ namespace mu
 	{
 		// Store a reference to this node in the surface data for the surface that this node is
 		// editing.
-		auto its = surfaces.FindByPredicate([&node](const FirstPassGenerator::SURFACE& s)
+		auto its = surfaces.FindByPredicate([&node](const FirstPassGenerator::FSurface& s)
         {
             // Are we editing the main surface node of this surface?
             if (s.node.get() == node.m_pParent.get()) return true;
@@ -251,9 +251,9 @@ namespace mu
 		// with wrong input or in case of partial models for preview.
 		if (its)
 		{
-			SURFACE& surface = *its;
+			FSurface& surface = *its;
 
-            SURFACE::EDIT edit;
+			FSurface::FEdit edit;
             edit.node = &node;
             edit.condition = m_currentCondition.Last().objectCondition;
             surface.edits.Add(edit);
@@ -470,7 +470,7 @@ namespace mu
     Ptr<ASTOp> FirstPassGenerator::Visit(const NodeObjectNew::Private& node)
 	{
 		// Add the data about this object
-		OBJECT thisData;
+		FObject thisData;
 		thisData.node = &node;
         thisData.condition = m_currentCondition.Last().objectCondition;
 		objects.Add(thisData);
@@ -482,8 +482,8 @@ namespace mu
 
             if ( s.m_runtimeParams.Num() > MUTABLE_MAX_RUNTIME_PARAMETERS_PER_STATE )
             {
-                FString Msg = FString::Printf( TEXT("State [%s] has more than %d runtime parameters. Their update may fail."),
-                	StringCast<TCHAR>(s.m_name.c_str()).Get(),
+                FString Msg = FString::Printf( TEXT("State [%s] has more than %d runtime parameters. Their update may fail."), 
+					*s.m_name,
                     MUTABLE_MAX_RUNTIME_PARAMETERS_PER_STATE);
                 m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, node.m_errorContext );
             }
@@ -526,14 +526,14 @@ namespace mu
             Ptr<ASTOpParameter> op = new ASTOpParameter();
             op->type = OP_TYPE::NU_PARAMETER;
 
-            op->parameter.m_name = node.m_name;
-            op->parameter.m_uid = node.m_uid;
+            op->parameter.m_name = node.Name;
+            op->parameter.m_uid = node.Uid;
             op->parameter.m_type = PARAMETER_TYPE::T_INT;
             op->parameter.m_defaultValue.Set<ParamIntType>(-1);
 
             if ( node.m_type==NodeObjectGroup::CS_ONE_OR_NONE )
             {
-                FParameterDesc::INT_VALUE_DESC nullValue;
+                FParameterDesc::FIntValueDesc nullValue;
                 nullValue.m_value = -1;
                 nullValue.m_name = "None";
                 op->parameter.m_possibleValues.Add( nullValue );
@@ -582,8 +582,8 @@ namespace mu
                     case NodeObjectGroup::CS_ALWAYS_ONE:
                     {
                         // Add the option to the enumeration parameter
-                        FParameterDesc::INT_VALUE_DESC value;
-                        value.m_value = (int16_t)t;
+                        FParameterDesc::FIntValueDesc value;
+                        value.m_value = (int16)t;
                         value.m_name = pChildNode->GetName();
                         enumOp->parameter.m_possibleValues.Add( value );
 
@@ -619,7 +619,7 @@ namespace mu
                     paramOp = op;
                 }
 
-				CONDITION_CONTEXT data;
+				FConditionContext data;
                 data.objectCondition = paramOp;
                 m_currentCondition.Add( data );
 

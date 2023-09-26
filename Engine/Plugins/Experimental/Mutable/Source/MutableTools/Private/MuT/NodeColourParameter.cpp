@@ -62,52 +62,16 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
-	const char* NodeColourParameter::GetName() const
+	void NodeColourParameter::SetName( const FString& strName )
 	{
-		return m_pD->m_name.c_str();
+		m_pD->m_name = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeColourParameter::SetName( const char* strName )
+	void NodeColourParameter::SetUid( const FString& strUid )
 	{
-		if ( strName )
-		{
-			m_pD->m_name = strName;
-		}
-		else
-		{
-			m_pD->m_name = "";
-		}
-	}
-
-
-	const char* NodeColourParameter::GetUid() const
-	{
-		return m_pD->m_uid.c_str();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeColourParameter::SetUid( const char* strUid )
-	{
-		if ( strUid )
-		{
-			m_pD->m_uid = strUid;
-		}
-		else
-		{
-			m_pD->m_uid = "";
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeColourParameter::GetDefaultValue( float* pR, float* pG, float* pB ) const
-	{
-		if (*pR) *pR = m_pD->m_defaultValue[0];
-		if (*pG) *pG = m_pD->m_defaultValue[1];
-		if (*pB) *pB = m_pD->m_defaultValue[2];
+		m_pD->m_uid = strUid;
 	}
 
 

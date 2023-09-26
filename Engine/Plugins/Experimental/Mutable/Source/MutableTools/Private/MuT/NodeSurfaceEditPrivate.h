@@ -37,7 +37,7 @@ namespace mu
         //! morph information. This means that the morph information needs to be generated.
         bool m_morphIsTarget = true;
 
-		struct TEXTURE
+		struct FTexture
 		{
 			NodeImagePtr m_pExtend;
 			NodePatchImagePtr m_pPatch;
@@ -56,10 +56,10 @@ namespace mu
 			}
 		};
 
-		TArray<TEXTURE> m_textures;
+		TArray<FTexture> m_textures;
 
         //! Tags in this surface edit
-		TArray<mu::string> m_tags;
+		TArray<FString> m_tags;
 
 		//! Factor of the morph
 		NodeScalarPtr m_pFactor;
@@ -67,7 +67,7 @@ namespace mu
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 4;
+            uint32_t ver = 5;
 			arch << ver;
 
 			arch << m_pParent;
@@ -84,14 +84,27 @@ namespace mu
 		{
             uint32_t ver;
 			arch >> ver;
-            check( ver==4 );
+            check( ver>=4 && ver<=5 );
 
 			arch >> m_pParent;
 			arch >> m_pMesh;
 			arch >> m_pMorph;
             arch >> m_morphIsTarget;
 			arch >> m_textures;
-            arch >> m_tags;
+			if (ver <= 4)
+			{
+				TArray <std::string> Temp;
+				arch >> Temp;
+				m_tags.SetNum(Temp.Num());
+				for (int32 i=0; i<Temp.Num(); ++i)
+				{
+					m_tags[i] = Temp[i].c_str();
+				}
+			}
+			else
+			{
+				arch >> m_tags;
+			}
 			arch >> m_pFactor;
         }
 	};

@@ -22,9 +22,7 @@
 
 
 namespace mu
-{
-	typedef std::string string;
-	
+{	
 
     //!
     class MUTABLERUNTIME_API InputMemoryStream : public InputStream
@@ -373,15 +371,15 @@ namespace mu
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(FVector4f);
 
 	//---------------------------------------------------------------------------------------------
-	template<>
-	inline void operator<< <std::string>( OutputArchive& arch, const std::string& v )
-	{
-        arch << (uint32)v.size();
-		if ( v.size() )
-		{
-			arch.GetPrivate()->m_pStream->Write( &v[0], (unsigned)v.size()*sizeof(char) );
-		}
-	}
+	//template<>
+	//inline void operator<< <std::string>( OutputArchive& arch, const std::string& v )
+	//{
+	//	arch << (uint32)v.size();
+	//	if ( v.size() )
+	//	{
+	//		arch.GetPrivate()->m_pStream->Write( &v[0], (unsigned)v.size()*sizeof(char) );
+	//	}
+	//}
 
 	template<>
 	inline void operator>> <std::string>( InputArchive& arch, std::string& v )

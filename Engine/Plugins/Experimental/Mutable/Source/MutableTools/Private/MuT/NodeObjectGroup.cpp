@@ -73,43 +73,29 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
-	const char* NodeObjectGroup::GetName() const
+	const FString& NodeObjectGroup::GetName() const
 	{
-		return m_pD->m_name.c_str();
+		return m_pD->Name;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeObjectGroup::SetName( const char* strName )
+	void NodeObjectGroup::SetName( const FString& Name )
 	{
-		if( strName )
-		{
-			m_pD->m_name = strName;
-		}
-		else
-		{
-			m_pD->m_name = "";
-		}
+		m_pD->Name = Name;
 	}
 
 
-	const char* NodeObjectGroup::GetUid() const
+	const FString& NodeObjectGroup::GetUid() const
 	{
-		return m_pD->m_uid.c_str();
+		return m_pD->Uid;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeObjectGroup::SetUid( const char* strUid )
+	void NodeObjectGroup::SetUid( const FString& Uid )
 	{
-		if( strUid )
-		{
-			m_pD->m_uid = strUid;
-		}
-		else
-		{
-			m_pD->m_uid = "";
-		}
+		m_pD->Uid = Uid;
 	}
 
 

@@ -47,7 +47,6 @@ uint64 ASTOpAddExtensionData::Hash() const
 	
 	hash_combine(Result, Instance.child().get());
 	hash_combine(Result, ExtensionData.child().get());
-	hash_combine(Result, ExtensionDataName);
 	
 	return Result;
 }
@@ -86,7 +85,7 @@ void ASTOpAddExtensionData::Link(FProgram& Program, FLinkerOptions*)
 	check(ExtensionData->linkedAddress);
 	Args.ExtensionData = ExtensionData->linkedAddress;
 
-	check(ExtensionDataName.length() > 0);
+	check(ExtensionDataName.Len() > 0);
 	Args.ExtensionDataName = Program.AddConstant(ExtensionDataName);
 
 	linkedAddress = (OP::ADDRESS)Program.m_opAddress.Num();

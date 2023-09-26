@@ -84,37 +84,13 @@ namespace mu
 	}
 
 	//---------------------------------------------------------------------------------------------
-	void NodeModifier::AddTag(const char* tagName)
+	void NodeModifier::AddTag(const FString& tagName)
 	{
 		NodeModifier::Private* pD = dynamic_cast<NodeModifier::Private*>(GetBasePrivate());
 		check(pD);
 
 		pD->m_tags.Add(tagName);
 	}
-
-
-    //---------------------------------------------------------------------------------------------
-    int NodeModifier::GetTagCount() const
-    {
-        NodeModifier::Private* pD = dynamic_cast<NodeModifier::Private*>(GetBasePrivate());
-        check(pD);
-
-        return pD->m_tags.Num();
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    const char* NodeModifier::GetTag( int i ) const
-    {
-        NodeModifier::Private* pD = dynamic_cast<NodeModifier::Private*>(GetBasePrivate());
-        check(pD);
-
-        if (i>=0 && i<GetTagCount())
-        {
-            return pD->m_tags[i].c_str();
-        }
-        return nullptr;
-    }
 
 
 	//---------------------------------------------------------------------------------------------

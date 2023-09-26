@@ -64,7 +64,7 @@ void SMutableParametersWidget::Tick(const FGeometry& AllottedGeometry, const dou
 	
 	for ( int32 ParamIndex=0; ParamIndex< MutableParameters->GetCount(); ++ParamIndex )
 	{
-		FString ParamName = StringCast<TCHAR>(MutableParameters->GetName(ParamIndex)).Get();
+		FString ParamName = MutableParameters->GetName(ParamIndex);
 
 		TSharedPtr<SHorizontalBox> ParameterBox;
 
@@ -288,8 +288,8 @@ void SMutableParametersWidget::GenerateAndAttachParameterSlate(const int32 Param
 			const int32 ValueIndex = MutableParameters->GetIntValueIndex( ParamIndex, Value );
 			for (int32 i = 0; i < ValueCount; ++i)
 			{
-				const char* ValueText = MutableParameters->GetIntPossibleValueName( ParamIndex, i );
-				OptionNamesAttribute.Add( FString(StringCast<TCHAR>(ValueText).Get()) );				
+				const FString& ValueText = MutableParameters->GetIntPossibleValueName( ParamIndex, i );
+				OptionNamesAttribute.Add( ValueText );				
 			}
 
 			ParameterHorizontalBox->AddSlot()
@@ -530,7 +530,7 @@ void SMutableParametersWidget::OnIntParameterChanged(int32 InValue, int32 ParamI
 		// Update the text combo if any
 		if (Combo)
 		{
-			const FString Text = StringCast<TCHAR>(MutableParameters->GetIntPossibleValueName(ParamIndex, InValue)).Get();
+			const FString Text = MutableParameters->GetIntPossibleValueName(ParamIndex, InValue);
 			Combo->SetText(FText::FromString(Text));
 		}
 		

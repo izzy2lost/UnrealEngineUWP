@@ -81,23 +81,16 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-    const char* NodeRangeFromScalar::GetName() const
+    const FString& NodeRangeFromScalar::GetName() const
 	{
-        return m_pD->m_name.c_str();
+        return m_pD->m_name;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    void NodeRangeFromScalar::SetName( const char* strName )
+    void NodeRangeFromScalar::SetName( const FString& strName )
 	{
-        if (!strName)
-        {
-            m_pD->m_name.clear();
-        }
-        else
-        {
-            m_pD->m_name = strName;
-        }
+        m_pD->m_name = strName;
 	}
 
 }

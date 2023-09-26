@@ -60,21 +60,14 @@ namespace mu
 		// Own Interface
 		//-----------------------------------------------------------------------------------------
 
-		//! Get the name of the parameter. It will be exposed in the final compiled data.
-		const char* GetName() const;
+		//! Set the name of the parameter. It will be exposed in the final compiled data.
 		void SetName( const char* );
 
-		//! Get the uid of the parameter. It will be exposed in the final compiled data.
-		const char* GetUid() const;
+		//! Set the uid of the parameter. It will be exposed in the final compiled data.
 		void SetUid( const char* );
 
-		//! Get the default value of the parameter.
-		const char* GetDefaultValue() const;
+		//! Set the default value of the parameter.
 		void SetDefaultValue( const char* v );
-
-		//! Get the additional information about the type
-		PARAMETER_DETAILED_TYPE GetDetailedType() const ;
-		void SetDetailedType( PARAMETER_DETAILED_TYPE type );
 
         //! Set the number of ranges (dimensions) for this parameter.
         //! By default a parameter has 0 ranges, meaning it only has one value.

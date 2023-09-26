@@ -920,19 +920,19 @@ class Node;
                 Ptr<ASTOpMeshExtractLayoutBlocks> op = new ASTOpMeshExtractLayoutBlocks();
                 OutResult.meshOp = op;
 
-                op->source = BaseResult.meshOp;
+                op->Source = BaseResult.meshOp;
 
                 if (BaseResult.GeneratedLayouts.Num()>node.m_layoutOrGroup )
                 {
                     const Layout* pLayout = BaseResult.GeneratedLayouts[node.m_layoutOrGroup].get();
-                    op->layout = (uint16)node.m_layoutOrGroup;
+                    op->Layout = (uint16)node.m_layoutOrGroup;
 
                     for ( int32 i=0; i<node.m_blocks.Num(); ++i )
                     {
                         if (node.m_blocks[i]>=0 && node.m_blocks[i]<pLayout->m_blocks.Num() )
                         {
                             int bid = pLayout->m_blocks[ node.m_blocks[i] ].m_id;
-                            op->blocks.Add(bid);
+                            op->Blocks.Add(bid);
                         }
                         else
                         {
@@ -1189,7 +1189,7 @@ class Node;
         for ( int32 t = node.m_variations.Num()-1; t >= 0; --t )
         {
             int tagIndex = -1;
-            const string& tag = node.m_variations[t].m_tag;
+            const FString& tag = node.m_variations[t].m_tag;
             for ( int i = 0; i < m_firstPass.m_tags.Num(); ++i )
             {
                 if ( m_firstPass.m_tags[i].tag==tag)
@@ -1200,10 +1200,8 @@ class Node;
 
             if ( tagIndex < 0 )
             {
-				const char* Aux = nullptr;
-				Aux = tag.c_str();
                 m_pErrorLog->GetPrivate()->Add( 
-					FString::Printf(TEXT("Unknown tag found in mesh variation [%s]."), StringCast<TCHAR>(Aux).Get()),
+					FString::Printf(TEXT("Unknown tag found in mesh variation [%s]."), *tag),
 					ELMT_WARNING,
 					node.m_errorContext,
 					ELMSB_UNKNOWN_TAG
@@ -1434,7 +1432,7 @@ class Node;
 
  
 		// Apply the modifier for the pre-normal operations stage.
-		BOTTOM_UP_STATE temp = m_currentBottomUpState;
+		FBottomUpState temp = m_currentBottomUpState;
 
 		bool bModifiersForBeforeOperations = true;
 		OutResult.meshOp = ApplyMeshModifiers(op, InOptions.ActiveTags, bModifiersForBeforeOperations, node.m_errorContext);

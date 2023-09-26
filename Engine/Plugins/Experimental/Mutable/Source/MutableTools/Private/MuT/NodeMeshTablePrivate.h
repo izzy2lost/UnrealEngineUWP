@@ -23,16 +23,16 @@ namespace mu
 
 		static NODE_TYPE s_type;
 
-		string m_parameterName;
+		FString m_parameterName;
 		TablePtr m_pTable;
-		string m_columnName;
+		FString m_columnName;
 
 		TArray<NodeLayoutPtr> m_layouts;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32 ver = 1;
+            uint32 ver = 2;
 			arch << ver;
 
 			arch << m_parameterName;
@@ -46,11 +46,31 @@ namespace mu
 		{
             uint32 ver;
 			arch >> ver;
-            check(ver==1);
+            check(ver>=1 && ver<=2);
 
-			arch >> m_parameterName;
+			if (ver == 1)
+			{
+				std::string Temp;
+				arch >> Temp;
+				m_parameterName = Temp.c_str();
+			}
+			else
+			{
+				arch >> m_parameterName;
+			}
+
 			arch >> m_pTable;
-			arch >> m_columnName;
+
+			if (ver == 1)
+			{
+				std::string Temp;
+				arch >> Temp;
+				m_columnName = Temp.c_str();
+			}
+			else
+			{
+				arch >> m_columnName;
+			}
 			arch >> m_layouts;
 		}
 

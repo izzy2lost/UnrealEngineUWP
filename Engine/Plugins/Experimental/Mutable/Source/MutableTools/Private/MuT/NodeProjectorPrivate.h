@@ -77,8 +77,8 @@ namespace mu
 
 		static NODE_TYPE s_type;
 
-		string m_name;
-		string m_uid;
+		FString m_name;
+		FString m_uid;
 
 		TArray<Ptr<NodeRange>> m_ranges;
 
@@ -87,7 +87,7 @@ namespace mu
 		{
 			NodeProjectorConstant::Private::Serialise( arch );
 
-            uint32_t ver = 2;
+            uint32_t ver = 3;
 			arch << ver;
 
 			arch << m_name;
@@ -102,13 +102,24 @@ namespace mu
 
             uint32_t ver;
 			arch >> ver;
-            check(ver<=2);
+            check(ver<=3);
 
-			arch >> m_name;
-            if (ver>=1)
-            {
-                arch >> m_uid;
-            }
+			if (ver <= 2)
+			{
+				std::string Temp;
+				arch >> Temp;
+				m_name = Temp.c_str();
+				if (ver >= 1)
+				{
+					arch >> Temp;
+					m_uid = Temp.c_str();
+				}
+			}
+			else
+			{
+				arch >> m_name;
+				arch >> m_uid;
+			}
 
             if (ver>=2)
             {

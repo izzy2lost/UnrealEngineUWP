@@ -24,7 +24,7 @@ namespace mu
 
 	uint64 ASTOpConstantString::Hash() const
 	{
-		uint64 res = std::hash<std::string>()(value.c_str());
+		uint64 res = std::hash<int32>()(value.Len());
 		return res;
 	}
 
@@ -52,7 +52,7 @@ namespace mu
 		if (!linkedAddress)
 		{
 			OP::ResourceConstantArgs args;
-			memset(&args, 0, sizeof(args));
+			FMemory::Memset(&args, 0, sizeof(args));
 			args.value = program.AddConstant(value);
 
 			linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();

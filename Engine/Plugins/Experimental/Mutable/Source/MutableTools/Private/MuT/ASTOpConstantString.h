@@ -20,7 +20,7 @@ struct FProgram;
 	{
 	public:
 		//!
-		string value;
+		FString value;
 
 	public:
 		OP_TYPE GetOpType() const override { return OP_TYPE::ST_CONSTANT; }

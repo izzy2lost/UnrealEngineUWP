@@ -187,7 +187,6 @@ namespace mu
 		{   0,   0, -10,   0 },	// ME_REMOVEMASK
 		{   0,   0,   0,   0 },	// ME_FORMAT
 		{   0, -10,   0,   0 },	// ME_EXTRACTLAYOUTBLOCK
-		{   0, -10,   0,   0 },	// ME_EXTRACTFACEGROUP
 		{   0,   0,   0,   0 },	// ME_TRANSFORM
 		{   0, -10,   0,   0 },	// ME_CLIPMORPHPLANE
 		{   0, -10,   0,   0 },	// ME_CLIPWITHMESH
@@ -208,8 +207,9 @@ namespace mu
 		{   0,   0,   0,   0 },	// IN_ADDSTRING
 		{   0,   0,   0,   0 },	// IN_ADDSURFACE
 		{   0,   0,   0,   0 },	// IN_ADDCOMPONENT
-		{   0,   0,   0,   0 },	// IN_ADDLOD
-		    
+		{	0,   0,   0,   0 },	// IN_ADDLOD
+		{	0,   0,   0,   0 },	// IN_ADDEXTENSIONDATA
+
 		{   0,   0,   0,   0 },	// LA_PACK
 		{   0,   0,   0,   0 },	// LA_MERGE
 		{   0,  -1,   0,   0 },	// LA_REMOVEBLOCKS

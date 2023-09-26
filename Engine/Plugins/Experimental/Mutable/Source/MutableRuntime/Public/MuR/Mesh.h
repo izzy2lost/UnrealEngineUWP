@@ -262,33 +262,6 @@ namespace mu
 
         //! \}
 
-        //! \name Face groups
-        //! \{
-
-        //!
-        void SetFaceGroupCount( int count );
-
-        //!
-        int GetFaceGroupCount() const;
-
-        //!
-        const char* GetFaceGroupName( int group ) const;
-
-        //!
-        void SetFaceGroupName( int group, const char* strName );
-
-        //!
-        int GetFaceGroupFaceCount( int group ) const;
-
-        //!
-        const int32* GetFaceGroupFaces( int group ) const;
-
-        //!
-        void SetFaceGroupFaces( int group, int count, const int32* faces );
-
-        //! \}
-
-
         //! \name Tags
         //! \{
 
@@ -299,10 +272,10 @@ namespace mu
         int GetTagCount() const;
 
         //!
-        const char* GetTag( int tagIndex ) const;
+        const FString& GetTag( int tagIndex ) const;
 
         //!
-        void SetTag( int tagIndex, const char* strName );
+        void SetTag( int tagIndex, const FString& Name );
 
 		//!
 		int32 FindBonePose(uint16 BoneId) const;
@@ -395,30 +368,10 @@ namespace mu
 
 		//! Texture Layout blocks attached to this mesh. They are const because they could be shared with
 		//! other meshes, so they need to be cloned and replaced if a modification is needed.
-		TArray<Ptr<const Layout>> m_layouts;
-
-		struct FACE_GROUP
-		{
-			string m_name;
-			TArray<int32> m_faces;
-
-			inline void Serialise(OutputArchive& arch) const;
-
-
-			inline void Unserialise(InputArchive& arch);
-
-			//!
-			inline bool operator==(const FACE_GROUP& o) const
-			{
-				return m_name == o.m_name
-					&& m_faces == o.m_faces;
-			}
-
-		};
-		TArray<FACE_GROUP> m_faceGroups;
+		TArray<Ptr<const Layout>> m_layouts;		
 
 		//!
-		TArray<string> m_tags;
+		TArray<FString> m_tags;
 
 		struct FBonePose
 		{
@@ -476,7 +429,6 @@ namespace mu
 				}
 			}
 			if (equal) equal = (m_surfaces == o.m_surfaces);
-			if (equal) equal = (m_faceGroups == o.m_faceGroups);
 			if (equal) equal = (m_tags == o.m_tags);
 			if (equal) equal = (SkeletonIDs == o.SkeletonIDs);
 

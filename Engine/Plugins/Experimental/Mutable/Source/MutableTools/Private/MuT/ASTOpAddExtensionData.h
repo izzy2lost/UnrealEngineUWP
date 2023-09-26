@@ -23,7 +23,7 @@ public:
 
 	ASTChild Instance;
 	ASTChild ExtensionData;
-	string ExtensionDataName;
+	FString ExtensionDataName;
 
 public:
 

@@ -130,27 +130,9 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    void NodeSurfaceEdit::AddTag(const char* tagName)
+    void NodeSurfaceEdit::AddTag(const FString& tagName)
     {
         m_pD->m_tags.Add(tagName);
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    int NodeSurfaceEdit::GetTagCount() const
-    {
-        return m_pD->m_tags.Num();
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    const char* NodeSurfaceEdit::GetTag( int i ) const
-    {
-        if (i>=0 && i<GetTagCount())
-        {
-            return m_pD->m_tags[i].c_str();
-        }
-        return nullptr;
     }
 
 

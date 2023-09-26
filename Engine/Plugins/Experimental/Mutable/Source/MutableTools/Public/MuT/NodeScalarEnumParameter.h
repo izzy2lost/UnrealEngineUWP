@@ -46,9 +46,6 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
-
-        
-
         const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
 
@@ -61,12 +58,12 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		//! Get the name of the parameter. It will be exposed in the final compiled data.
-		const char* GetName() const;
-		void SetName( const char* );
+		const FString& GetName() const;
+		void SetName( const FString&);
 
 		//! Get the uid of the parameter. It will be exposed in the final compiled data.
-		const char* GetUid() const;
-		void SetUid( const char* );
+		const FString& GetUid() const;
+		void SetUid( const FString&);
 
 		//! Get the index of the default value of the parameter.
 		int GetDefaultValueIndex() const;
@@ -79,7 +76,7 @@ namespace mu
 		int GetValueCount() const;
 
 		//! Set the data of one of the possible values of the parameter.
-		void SetValue( int i, float value, const char* strName );
+		void SetValue( int i, float value, const FString& strName );
 
         //! Set the number of ranges (dimensions) for this parameter.
         //! By default a parameter has 0 ranges, meaning it only has one value.

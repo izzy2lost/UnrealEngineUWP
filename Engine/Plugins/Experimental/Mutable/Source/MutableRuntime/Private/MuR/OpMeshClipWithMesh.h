@@ -5,7 +5,6 @@
 #include "MuR/MeshPrivate.h"
 #include "MuR/ConvertData.h"
 #include "MuR/Platform.h"
-#include "MuR/OpMeshChartDifference.h"
 #include "MuR/MutableTrace.h"
 #include "Math/Ray.h"
 #include "TriangleTypes.h"

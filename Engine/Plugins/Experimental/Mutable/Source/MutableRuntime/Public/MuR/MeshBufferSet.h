@@ -105,9 +105,7 @@ namespace mu
 		//! It will never be in the same buffer that other vertex semantics.
 		MBS_LAYOUTBLOCK,
 
-		//! Internal semantic indicating what chart does the given vertex or face belong to.
-		//! It can be safely ignored if present in meshes returned by the system.
-		MBS_CHART,
+		MBS_CHART_DEPRECATED,
 
 		//! To let users define channels with semantics unknown to the system.
 		//! These channels will never be transformed, and the per-vertex or per-index data will be

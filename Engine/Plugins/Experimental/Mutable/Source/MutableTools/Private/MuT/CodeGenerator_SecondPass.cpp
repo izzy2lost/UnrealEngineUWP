@@ -249,7 +249,7 @@ namespace mu
 
 		for (const auto& t : surf.positiveTags)
 		{
-			auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::TAG& e) { return e.tag == t; });
+			auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.tag == t; });
 			if (!it)
 			{
 				// This could happen if a tag is in a variation but noone defines it.
@@ -318,7 +318,7 @@ namespace mu
 
 		for (const auto& t : surf.negativeTags)
 		{
-			auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::TAG& e) { return e.tag == t; });
+			auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.tag == t; });
 			if (!it)
 			{
 				// This could happen if a tag is in a variation but noone defines it.
@@ -393,7 +393,7 @@ namespace mu
 		bool done = false;
 		for (const auto& t : mod.positiveTags)
 		{
-			auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::TAG& e) { return e.tag == t; });
+			auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.tag == t; });
 			if (!it)
 			{
 				// This could happen if a tag is in a variation but noone defines it.
@@ -457,7 +457,7 @@ namespace mu
 		{
 			for (const auto& t : mod.negativeTags)
 			{
-				auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::TAG& e) { return e.tag == t; });
+				auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.tag == t; });
 				if (!it)
 				{
 					// This could happen if a tag is in a variation but noone defines it.
@@ -561,7 +561,7 @@ namespace mu
 				auto& csurf = m_pFirstPass->surfaces[cs];
 				for (auto sct : csurf.positiveTags)
 				{
-					auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::TAG& e) { return e.tag == sct; });
+					auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.tag == sct; });
 					if (!it)
 					{
 						// This could happen if a tag is in a variation but noone defines it.
@@ -582,7 +582,7 @@ namespace mu
 				}
 				for (auto sct : csurf.negativeTags)
 				{
-					auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::TAG& e) { return e.tag == sct; });
+					auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.tag == sct; });
 					if (!it)
 					{
 						// This could happen if a tag is in a variation but noone defines it.

@@ -28,16 +28,16 @@ namespace mu
         TArray<NodeSurfacePtr> m_defaultSurfaces;
 		TArray<NodeModifierPtr> m_defaultModifiers;
 
-		struct VARIATION
+		struct FVariation
 		{
 			TArray<NodeSurfacePtr> m_surfaces;
 			TArray<NodeModifierPtr> m_modifiers;
-            string m_tag;
+            FString m_tag;
 
 			//!
 			void Serialise( OutputArchive& arch ) const
 			{
-                uint32_t ver = 1;
+                uint32 ver = 2;
 				arch << ver;
 
 				arch << m_tag;
@@ -47,11 +47,20 @@ namespace mu
 
 			void Unserialise( InputArchive& arch )
 			{
-                uint32_t ver = 0;
+                uint32 ver = 0;
 				arch >> ver;
-                check(ver==1);
+                check(ver>=1&&ver<=2);
 
-				arch >> m_tag;
+				if (ver <= 1)
+				{
+					std::string Temp;
+					arch >> Temp;
+					m_tag = Temp.c_str();
+				}
+				else
+				{
+					arch >> m_tag;
+				}
 				arch >> m_surfaces;
                 arch >> m_modifiers;
 			}
@@ -59,12 +68,12 @@ namespace mu
 
         NodeSurfaceVariation::VariationType m_type = NodeSurfaceVariation::VariationType::Tag;
 
-		TArray<VARIATION> m_variations;
+		TArray<FVariation> m_variations;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 3;
+            uint32 ver = 3;
 			arch << ver;
 
             arch << uint32_t(m_type);
@@ -76,11 +85,11 @@ namespace mu
 		//!
 		void Unserialise( InputArchive& arch )
 		{
-            uint32_t ver;
+            uint32 ver;
 			arch >> ver;
             check( ver==3 );
 
-            uint32_t temp;
+            uint32 temp;
             arch >> temp;
             m_type = NodeSurfaceVariation::VariationType(temp);
 

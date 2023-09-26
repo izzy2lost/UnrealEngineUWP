@@ -69,12 +69,12 @@ namespace mu
 		//-------------------------
 
 		//! Store the conditions that will enable or disable every object
-		struct OBJECT
+		struct FObject
 		{
 			const NodeObjectNew::Private* node;
             Ptr<ASTOp> condition;
 		};
-		TArray<OBJECT> objects;
+		TArray<FObject> objects;
 
         //! Type used to represent the activation conditions regarding states
         //! This is the state mask for the states in which this surface must be added. If it
@@ -88,7 +88,7 @@ namespace mu
 		//! - all edit operators
         //! A surface may have different versions depending on the different parents and conditions
         //! it is reached with.
-		struct SURFACE
+		struct FSurface
 		{
             NodeSurfaceNewPtrConst node;
 
@@ -97,10 +97,10 @@ namespace mu
             const NodeComponentNew::Private* component = nullptr;
 
             // List of tags that are required for the presence of this surface
-			TArray<string> positiveTags;
+			TArray<FString> positiveTags;
 
             // List of tags that block the presence of this surface
-			TArray<string> negativeTags;
+			TArray<FString> negativeTags;
 
 			// This conditions is the condition of the object defining this surface which may not
 			// be the parent object where this surface will be added.
@@ -114,7 +114,7 @@ namespace mu
             Ptr<ASTOp> surfaceCondition;
 
 			// All surface editing nodes that edit this surface
-            struct EDIT
+            struct FEdit
             {
                 //! Condition that enables the effects of this edit node on the surface
                 Ptr<ASTOp> condition;
@@ -122,24 +122,24 @@ namespace mu
                 //! Weak reference to the edit node, used during compilation.
                 const NodeSurfaceEdit::Private* node = nullptr;
             };
-			TArray<EDIT> edits;
+			TArray<FEdit> edits;
 
             // This is filled in the final code generation pass
             Ptr<ASTOp> resultSurfaceOp;
             Ptr<ASTOp> resultMeshOp;
         };
-		TArray<SURFACE> surfaces;
+		TArray<FSurface> surfaces;
 
 		//! Store the conditions that enable every modifier.
-		struct MODIFIER
+		struct FModifier
 		{
             const NodeModifier::Private* node = nullptr;
 
             // List of tags that are required for the presence of this surface
-			TArray<string> positiveTags;
+			TArray<FString> positiveTags;
 
             // List of tags that block the presence of this surface
-			TArray<string> negativeTags;
+			TArray<FString> negativeTags;
 
             // This conditions is the condition of the object defining this modifier which may not
             // be the parent object where this surface will be added.
@@ -154,14 +154,14 @@ namespace mu
             StateCondition stateCondition;
 
             //
-            int lod = 0;
+            int32 lod = 0;
         };
-		TArray<MODIFIER> modifiers;
+		TArray<FModifier> modifiers;
 
 		//! Info about all found tags.
-		struct TAG
+		struct FTag
 		{
-			string tag;
+			FString tag;
 
             // Surfaces that activate the tag. These are indices to the FirstPassGenerator::surfaces
             // vector.
@@ -176,7 +176,7 @@ namespace mu
             // condition. This is filled in CodeGenerator_SecondPass.
             Ptr<ASTOp> genericCondition;
         };
-        TArray<TAG> m_tags;
+        TArray<FTag> m_tags;
 
         //! Accumulate the model states found while generating code, with their generated root
         //! nodes.
@@ -200,11 +200,11 @@ namespace mu
 
 	private:
 
-        struct CONDITION_CONTEXT
+        struct FConditionContext
         {
             Ptr<ASTOp> objectCondition;
         };
-		TArray< CONDITION_CONTEXT > m_currentCondition;
+		TArray< FConditionContext > m_currentCondition;
 
         //!
 		TArray< StateCondition > m_currentStateCondition;
@@ -213,8 +213,8 @@ namespace mu
         const NodeComponentNew::Private* m_currentComponent = nullptr;
 
         //! Current relevant tags so far. Used during traversal.
-		TArray<string> m_currentPositiveTags;
-		TArray<string> m_currentNegativeTags;
+		TArray<FString> m_currentPositiveTags;
+		TArray<FString> m_currentNegativeTags;
 
 		//! Index of the LOD we are processing
         int m_currentLOD = -1;

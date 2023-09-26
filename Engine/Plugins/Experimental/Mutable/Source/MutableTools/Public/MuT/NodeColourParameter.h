@@ -40,9 +40,6 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
-
-		
-
 		const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
 
@@ -54,20 +51,11 @@ namespace mu
 		// Own Interface
 		//-----------------------------------------------------------------------------------------
 
-		//! Get the name of the parameter. It will be exposed in the final compiled data.
-		const char* GetName() const;
-
 		//! Set the name of the parameter.
-		void SetName( const char* );
-
-		//! Get the uid of the parameter. It will be exposed in the final compiled data.
-		const char* GetUid() const;
+		void SetName( const FString& );
 
 		//! Set the uid of the parameter.
-		void SetUid( const char* );
-
-		//! Get the default value of the parameter.
-		void GetDefaultValue( float* pR, float* pG, float* pB ) const;
+		void SetUid( const FString& );
 
 		//! Set the default value of the parameter.
 		void SetDefaultValue( float r, float g, float b );

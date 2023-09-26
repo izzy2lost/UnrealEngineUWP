@@ -24,15 +24,15 @@ namespace mu
 
         NodeImagePtr m_defaultImage;
 
-        struct VARIATION
+        struct FVariation
         {
             NodeImagePtr m_image;
-            string m_tag;
+			FString m_tag;
 
             //!
             void Serialise( OutputArchive& arch ) const
             {
-                uint32_t ver = 1;
+                uint32_t ver = 2;
                 arch << ver;
 
                 arch << m_tag;
@@ -43,14 +43,23 @@ namespace mu
             {
                 uint32_t ver = 0;
                 arch >> ver;
-                check( ver == 1 );
+				check(ver >= 1 && ver <= 2);
 
-                arch >> m_tag;
-                arch >> m_image;
+				if (ver <= 1)
+				{
+					std::string Temp;
+					arch >> Temp;
+					m_tag = Temp.c_str();
+				}
+				else
+				{
+					arch >> m_tag;
+				}
+				arch >> m_image;
             }
         };
 
-		TArray<VARIATION> m_variations;
+		TArray<FVariation> m_variations;
 
         //!
         void Serialise( OutputArchive& arch ) const

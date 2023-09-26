@@ -23,8 +23,8 @@ namespace mu
 
 		static NODE_TYPE s_type;
 
-		string m_name;
-		string m_uid;
+		FString Name;
+		FString Uid;
 
 		CHILD_SELECTION m_type;
 
@@ -36,12 +36,12 @@ namespace mu
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 1;
+            uint32_t ver = 2;
 			arch << ver;
 
 			arch << m_type;
-			arch << m_name;
-			arch << m_uid;
+			arch << Name;
+			arch << Uid;
 			arch << m_children;
 		}
 
@@ -50,11 +50,23 @@ namespace mu
 		{
             uint32_t ver;
 			arch >> ver;
-            check(ver==1);
+            check(ver>=1 && ver<=2);
 
 			arch >> m_type;
-			arch >> m_name;
-            arch >> m_uid;
+			if (ver <= 1)
+			{
+				std::string Temp;
+				arch >> Temp;
+				Name = Temp.c_str();
+				arch >> Temp;
+				Uid = Temp.c_str();
+			}
+			else
+			{
+				arch >> Name;
+				arch >> Uid;
+			}
+
 			arch >> m_children;
 		}
 

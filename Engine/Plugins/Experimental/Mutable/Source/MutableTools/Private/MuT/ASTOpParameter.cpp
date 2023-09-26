@@ -63,7 +63,7 @@ namespace mu
 	{
 		uint64 res = std::hash<uint64>()(uint64(type));
 		hash_combine(res, parameter.m_type);
-		hash_combine(res, parameter.m_name);
+		hash_combine(res, parameter.m_name.Len());
 		return res;
 	}
 

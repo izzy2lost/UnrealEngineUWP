@@ -25,8 +25,8 @@ namespace mu
 
 		static NODE_TYPE s_type;
 
-		string m_name;
-		string m_uid;
+		FString m_name;
+		FString m_uid;
 
 		TArray<NodeLODPtr> m_lods;
 
@@ -34,8 +34,8 @@ namespace mu
 
 		struct NamedExtensionDataNode
 		{
-			NodeExtensionDataPtr Node;
-			string Name;
+			Ptr<NodeExtensionData> Node;
+			FString Name;
 
 			void Serialise(OutputArchive& arch) const
 			{
@@ -60,7 +60,7 @@ namespace mu
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 3;
+            uint32_t ver = 4;
 			arch << ver;
 
 			arch << m_name;
@@ -76,17 +76,42 @@ namespace mu
 		{
             uint32_t ver;
 			arch >> ver;
-            check(ver >= 2);
+            check(ver>=2 && ver<=4);
 
-			arch >> m_name;
-            arch >> m_uid;
+			if (ver <= 3)
+			{
+				std::string Temp;
+				arch >> Temp;
+				m_name = Temp.c_str();
+				arch >> Temp;
+				m_uid = Temp.c_str();
+			}
+			else
+			{
+				arch >> m_name;
+				arch >> m_uid;
+			}
+
 			arch >> m_lods;
 			arch >> m_children;
 			arch >> m_states;
 
-			if (ver >= 3)
+			if (ver >= 4)
 			{
 				arch >> m_extensionDataNodes;
+			}
+			else if (ver >= 3)
+			{
+				int32 Num = 0;
+				arch >> Num;
+				m_extensionDataNodes.SetNum(Num);
+				for (int i=0;i<Num; ++i)
+				{
+					std::string Temp;
+					arch >> Temp;
+					m_extensionDataNodes[i].Name = Temp.c_str();;
+					arch >> m_extensionDataNodes[i].Node;
+				}
 			}
 		}
 

@@ -50,7 +50,6 @@ MeshPtr Mesh::Clone() const
 	pResult->m_surfaces = m_surfaces;
 	pResult->m_pSkeleton = m_pSkeleton;
 	pResult->m_pPhysicsBody = m_pPhysicsBody;
-	pResult->m_faceGroups = m_faceGroups;
 	pResult->m_tags = m_tags;
 
     // Clone the main buffers
@@ -103,11 +102,6 @@ MeshPtr Mesh::Clone(EMeshCopyFlags Flags) const
 	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithPhysicsBody))
 	{
 		pResult->m_pPhysicsBody = m_pPhysicsBody;
-	}
-
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithFaceGroups))
-	{
-		pResult->m_faceGroups = m_faceGroups;
 	}
 
 	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithTags))
@@ -195,11 +189,6 @@ void Mesh::CopyFrom(const Mesh& From, EMeshCopyFlags Flags)
 	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithPhysicsBody))
 	{
 		m_pPhysicsBody = From.m_pPhysicsBody;
-	}
-
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithFaceGroups))
-	{
-		m_faceGroups = From.m_faceGroups;
 	}
 
 	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithTags))
@@ -483,70 +472,6 @@ void Mesh::SetLayout( int i, Ptr<const Layout> pLayout )
 
 
 //---------------------------------------------------------------------------------------------
-void Mesh::SetFaceGroupCount( int count )
-{
-    m_faceGroups.SetNum( count );
-}
-
-
-//---------------------------------------------------------------------------------------------
-int Mesh::GetFaceGroupCount() const
-{
-    return m_faceGroups.Num();
-}
-
-
-//---------------------------------------------------------------------------------------------
-const char* Mesh::GetFaceGroupName( int group ) const
-{
-    check( group>=0 && group<m_faceGroups.Num() );
-    return m_faceGroups[group].m_name.c_str();
-}
-
-
-//---------------------------------------------------------------------------------------------
-void Mesh::SetFaceGroupName( int group, const char* strName )
-{
-    check( group>=0 && group<m_faceGroups.Num() );
-    m_faceGroups[group].m_name = strName;
-}
-
-
-//---------------------------------------------------------------------------------------------
-int Mesh::GetFaceGroupFaceCount( int group ) const
-{
-    check( group>=0 && group<m_faceGroups.Num() );
-    return m_faceGroups[group].m_faces.Num();
-}
-
-
-//---------------------------------------------------------------------------------------------
-const int32* Mesh::GetFaceGroupFaces( int group ) const
-{
-    check( group>=0 && group<m_faceGroups.Num() );
-    const int32* pResult = m_faceGroups[group].m_faces.GetData();
-    return pResult;
-}
-
-
-//---------------------------------------------------------------------------------------------
-void Mesh::SetFaceGroupFaces( int group, int count, const int32* faces )
-{
-    check( group>=0 && group<m_faceGroups.Num() );
-    check( !count || faces );
-	LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
-
-    m_faceGroups[group].m_faces.SetNum( count );
-
-    if (count)
-    {
-		FMemory::Memcpy( m_faceGroups[group].m_faces.GetData(), faces, count*sizeof(int32) );
-    }
-
-}
-
-
-//---------------------------------------------------------------------------------------------
 int Mesh::GetTagCount() const
 {
     return m_tags.Num();
@@ -562,30 +487,31 @@ void Mesh::SetTagCount( int count )
 
 
 //---------------------------------------------------------------------------------------------
-const char* Mesh::GetTag( int tagIndex ) const
+const FString& Mesh::GetTag( int tagIndex ) const
 {
     check( tagIndex>=0 && tagIndex<GetTagCount() );
 
     if (tagIndex >= 0 && tagIndex < GetTagCount())
     {
-        return m_tags[tagIndex].c_str();
+        return m_tags[tagIndex];
     }
     else
     {
-        return nullptr;
+		static FString NullString;
+        return NullString;
     }
 }
 
 
 //---------------------------------------------------------------------------------------------
-void Mesh::SetTag( int tagIndex, const char* strName )
+void Mesh::SetTag( int tagIndex, const FString& Name )
 {
     check( tagIndex>=0 && tagIndex<GetTagCount() );
 	LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 
     if (tagIndex >= 0 && tagIndex < GetTagCount())
     {
-        m_tags[tagIndex] = strName ? strName : "";
+        m_tags[tagIndex] = Name;
     }
 }
 
@@ -1198,29 +1124,6 @@ void MESH_SURFACE::Unserialise(InputArchive& arch)
 
 
 //-------------------------------------------------------------------------------------------------
-void Mesh::FACE_GROUP::Serialise(OutputArchive& arch) const
-{
-	const int32 ver = 0;
-	arch << ver;
-
-	arch << m_name;
-	arch << m_faces;
-}
-
-
-//-------------------------------------------------------------------------------------------------
-void Mesh::FACE_GROUP::Unserialise(InputArchive& arch)
-{
-	int32 ver = 0;
-	arch >> ver;
-	check(ver == 0);
-
-	arch >> m_name;
-	arch >> m_faces;
-}
-
-
-//-------------------------------------------------------------------------------------------------
 void Mesh::FBonePose::Serialise(OutputArchive& arch) const
 {
 	const int32 ver = 2;
@@ -1241,8 +1144,8 @@ void Mesh::FBonePose::Unserialise(InputArchive& arch)
 
 	if (ver <= 1)
 	{
-		string BoneName;
-		arch >> BoneName;
+		std::string DeprecatedBoneName;
+		arch >> DeprecatedBoneName;
 
 		BoneId = 0;
 	}
@@ -1269,7 +1172,7 @@ void Mesh::FBonePose::Unserialise(InputArchive& arch)
 //-------------------------------------------------------------------------------------------------
 void Mesh::Serialise(OutputArchive& arch) const
 {
-	uint32 ver = 16;
+	uint32 ver = 17;
 	arch << ver;
 
 	arch << m_IndexBuffers;
@@ -1285,7 +1188,6 @@ void Mesh::Serialise(OutputArchive& arch) const
 
 	arch << m_staticFormatFlags;
 	arch << m_surfaces;
-	arch << m_faceGroups;
 
 	arch << m_tags;
 
@@ -1301,7 +1203,7 @@ void Mesh::Unserialise(InputArchive& arch)
 {
 	uint32 ver;
 	arch >> ver;
-	check(ver <= 16);
+	check(ver <= 17);
 
 	arch >> m_IndexBuffers;
 	arch >> m_VertexBuffers;
@@ -1335,9 +1237,40 @@ void Mesh::Unserialise(InputArchive& arch)
 		// Deserialize LegacySurfaces
 		UnserialiseLegacySurfaces(arch, m_surfaces);
 	}
-	arch >> m_faceGroups;
 
-	arch >> m_tags;
+	if (ver <= 16)
+	{
+		struct FACE_GROUP_DEPRECATED
+		{
+			std::string m_name;
+			TArray<int32> m_faces;
+			inline void Unserialise(InputArchive& arch) 
+			{
+				int32 ver = 0;
+				arch >> ver;
+				arch >> m_name;
+				arch >> m_faces;
+			}
+
+		};
+		TArray<FACE_GROUP_DEPRECATED> FaceGroups;
+		arch >> FaceGroups;
+	}
+
+	if (ver <= 16)
+	{
+		TArray < std::string > Temp;
+		arch >> Temp;
+		m_tags.SetNum(Temp.Num());
+		for (int32 c = 0; c < Temp.Num(); ++c)
+		{
+			m_tags[c] = Temp[c].c_str();
+		}
+	}
+	else
+	{
+		arch >> m_tags;
+	}
 
 	if (ver >= 13)
 	{
@@ -1421,7 +1354,6 @@ bool Mesh::IsSimilar(const Mesh& o, bool bCompareLayouts) const
 	}
 
 	if (equal) equal = (m_surfaces == o.m_surfaces);
-	if (equal) equal = (m_faceGroups == o.m_faceGroups);
 	if (equal) equal = (m_tags == o.m_tags);
 
 	// Special comparison for layouts

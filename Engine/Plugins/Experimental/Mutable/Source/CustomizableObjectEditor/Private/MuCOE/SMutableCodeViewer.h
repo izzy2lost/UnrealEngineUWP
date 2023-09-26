@@ -784,7 +784,7 @@ public:
 	void PreviewMutableMesh (mu::MeshPtrConst InMeshPtr);
 	void PreviewMutableLayout(mu::LayoutPtrConst Layout);
 	void PreviewMutableSkeleton(mu::SkeletonPtrConst Skeleton);
-	void PreviewMutableString(const mu::string* InStringPtr);
+	void PreviewMutableString(const FString& InString);
 	void PreviewMutableProjector(const mu::FProjector* Projector);
 	void PreviewMutableMatrix(const mu::mat4f* Mat);
 	void PreviewMutableShape(const mu::FShape* Shape);
@@ -911,7 +911,7 @@ public:
 		{
 			mu::OP::ParameterArgs Args = Program.GetOpArgs<mu::OP::ParameterArgs>(MutableOperation);
 			OpName += TEXT(" ");
-			OpName += StringCast<TCHAR>(Program.m_parameters[int32(Args.variable)].m_name.c_str()).Get();
+			OpName += Program.m_parameters[int32(Args.variable)].m_name;
 			break;
 		}
 
@@ -1008,7 +1008,7 @@ public:
 			if (Program.m_constantStrings.IsValidIndex(Args.name))
 			{
 				OpName += TEXT(" name: ");
-				OpName += FString(Program.m_constantStrings[Args.name].c_str());
+				OpName += Program.m_constantStrings[Args.name];
 			}
  			break;
 		}

@@ -30,13 +30,13 @@ namespace mu
 
 		static NODE_TYPE s_type;
 
-		string m_name;
-        uint32_t ExternalId =0;
+		FString m_name;
+        uint32 ExternalId =0;
         int32 SharedSurfaceId =INDEX_NONE;
 
 		struct MESH
 		{
-			string m_name;
+			FString m_name;
 			NodeMeshPtr m_pMesh;
 
 			//!
@@ -57,9 +57,9 @@ namespace mu
 
 		struct IMAGE
 		{
-			string m_name;
-			string m_materialName;
-			string m_materialParameterName;
+			FString m_name;
+			FString m_materialName;
+			FString m_materialParameterName;
 			NodeImagePtr m_pImage;
 
 			// It could be negative, to indicate no layout.
@@ -89,7 +89,7 @@ namespace mu
 
 		struct VECTOR
 		{
-			string m_name;
+			FString m_name;
 			NodeColourPtr m_pVector;
 
 			//!
@@ -110,7 +110,7 @@ namespace mu
 
         struct SCALAR
         {
-            string m_name;
+			FString m_name;
             NodeScalarPtr m_pScalar;
 
             //!
@@ -131,7 +131,7 @@ namespace mu
 
         struct STRING
         {
-            string m_name;
+			FString m_name;
             NodeStringPtr m_pString;
 
             //!
@@ -151,27 +151,27 @@ namespace mu
 		TArray<STRING> m_strings;
 
         //! Tags in this surface
-		TArray<mu::string> m_tags;
+		TArray<FString> m_tags;
 
 		//! Find an image node index by name or return -1
-		int FindImage( const char* strName ) const;
+		int FindImage( const FString& strName ) const;
 
 		//! Find a mesh node index by name or return -1
-		int FindMesh(const char* strName) const;
+		int FindMesh(const FString& strName) const;
 
         //! Find a vector node index by name or return -1
-        int FindVector(const char* strName) const;
+        int FindVector(const FString& strName) const;
 
         //! Find a scalar node index by name or return -1
-        int FindScalar( const char* strName ) const;
+        int FindScalar( const FString& strName ) const;
 
         //! Find a string node index by name or return -1
-        int FindString( const char* strName ) const;
+        int FindString( const FString& strName ) const;
 
         //!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 8;
+            uint32 ver = 9;
 			arch << ver;
 
 			arch << m_name;
@@ -189,11 +189,20 @@ namespace mu
         //!
 		void Unserialise( InputArchive& arch )
 		{
-            uint32_t ver;
+            uint32 ver;
 			arch >> ver;
-            check(ver<=8);
+            check(ver<=9);
 
-			arch >> m_name;
+			std::string Temp;
+			if (ver <= 8)
+			{
+				arch >> Temp;
+				m_name = Temp.c_str();
+			}
+			else
+			{
+				arch >> m_name;
+			}
             arch >> ExternalId;
 
 			if (ver >= 8)
@@ -201,12 +210,80 @@ namespace mu
 				arch >> SharedSurfaceId;
 			}
 
-			arch >> m_meshes;
-			arch >> m_images;
-            arch >> m_tags;
-            arch >> m_vectors;
-            arch >> m_scalars;
-            arch >> m_strings;
+			if (ver <= 8)
+			{
+				int32 Num = 0;
+
+				arch >> Num;
+				m_meshes.SetNum(Num);
+				for (int32 i=0; i<Num; ++i)
+				{
+					arch >> Temp;
+					m_meshes[i].m_name = Temp.c_str();
+					arch >> m_meshes[i].m_pMesh;
+				}
+
+				arch >> Num;
+				m_images.SetNum(Num);
+				for (int32 i = 0; i < Num; ++i)
+				{
+					arch >> Temp;
+					m_images[i].m_name = Temp.c_str();
+
+					arch >> Temp;
+					m_images[i].m_materialName = Temp.c_str();
+
+					arch >> Temp;
+					m_images[i].m_materialParameterName = Temp.c_str();
+
+					arch >> m_images[i].m_pImage;
+					arch >> m_images[i].m_layoutIndex;
+				}
+
+				arch >> Num;
+				m_tags.SetNum(Num);
+				for (int32 i = 0; i < Num; ++i)
+				{
+					arch >> Temp;
+					m_tags[i] = Temp.c_str();
+				}
+
+				arch >> Num;
+				m_vectors.SetNum(Num);
+				for (int32 i = 0; i < Num; ++i)
+				{
+					arch >> Temp;
+					m_vectors[i].m_name = Temp.c_str();
+					arch >> m_vectors[i].m_pVector;
+				}
+
+				arch >> Num;
+				m_scalars.SetNum(Num);
+				for (int32 i = 0; i < Num; ++i)
+				{
+					arch >> Temp;
+					m_scalars[i].m_name = Temp.c_str();
+					arch >> m_scalars[i].m_pScalar;
+				}
+
+				arch >> Num;
+				m_strings.SetNum(Num);
+				for (int32 i = 0; i < Num; ++i)
+				{
+					arch >> Temp;
+					m_strings[i].m_name = Temp.c_str();
+					arch >> m_strings[i].m_pString;
+				}
+			}
+			else
+			{
+				arch >> m_meshes;
+				arch >> m_images;
+				arch >> m_tags;
+				arch >> m_vectors;
+				arch >> m_scalars;
+				arch >> m_strings;
+			}
         }
     };
 
