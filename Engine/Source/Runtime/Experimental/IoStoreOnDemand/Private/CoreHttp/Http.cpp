@@ -1170,23 +1170,19 @@ static int32 MaybeConnectSocks(FSocket& Socket, uint32 IpAddress, uint32 Port)
 // {{{1 connection-pool ........................................................
 
 ////////////////////////////////////////////////////////////////////////////////
-class FSocketPool
+class FHost
 {
 public:
 	enum class EDirection : uint8 { Send, Recv };
 
-					FSocketPool(const ANSICHAR* InHostName, uint32 InPort, uint32 InMaxLeases);
-					~FSocketPool();
-	static uint32	GetAllocSize(uint32 MaxLeases);
-	bool			LeaseSocket(FSocket& Out);
-	void			ReturnLease(FSocket&& Socket);
+					FHost(const ANSICHAR* InHostName, uint32 InPort);
 	void			SetBufferSize(EDirection Dir, int32 Size);
 	int32			GetBufferSize(EDirection Dir) const;
 	int32			IsResolved() const;
 	int32			ResolveHostName();
-	uint32			GetIpAddress() const	{ return IpAddresses[0]; }
-	FAnsiStringView	GetHostName() const		{ return HostName; }
-	uint32			GetPort() const			{ return Port; }
+	uint32			GetIpAddress() const		{ return IpAddresses[0]; }
+	FAnsiStringView	GetHostName() const			{ return HostName; }
+	uint32			GetPort() const				{ return Port; }
 
 private:
 	const ANSICHAR*	HostName;
@@ -1194,6 +1190,112 @@ private:
 	int16			SendBufKb = -1;
 	int16			RecvBufKb = -1;
 	uint16			Port;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+FHost::FHost(const ANSICHAR* InHostName, uint32 InPort)
+: HostName(InHostName)
+, Port(uint16(InPort))
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void FHost::SetBufferSize(EDirection Dir, int32 Size)
+{
+	(Dir == EDirection::Send) ? SendBufKb : RecvBufKb = uint16(Size >> 10);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+int32 FHost::GetBufferSize(EDirection Dir) const
+{
+	return int32((Dir == EDirection::Send) ? SendBufKb : RecvBufKb) << 10;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+int32 FHost::ResolveHostName()
+{
+	// todo: GetAddrInfoW() for async resolve on Windows
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(IasHttp::PoolResolve);
+
+	IpAddresses[0] = 1;
+
+	addrinfo* Info = nullptr;
+	ON_SCOPE_EXIT { if (Info != nullptr) freeaddrinfo(Info); };
+
+	addrinfo Hints = {};
+	Hints.ai_family = AF_INET;
+	Hints.ai_socktype = SOCK_STREAM;
+	Hints.ai_protocol = IPPROTO_TCP;
+	auto Result = getaddrinfo(HostName, nullptr, &Hints, &Info);
+	if (uint32(Result) || Info == nullptr)
+	{
+		return -1;
+	}
+
+	if (Info->ai_family != AF_INET)
+	{
+		return -2;
+	}
+
+	uint32 AddressCount = 0;
+	for (const addrinfo* Cursor = Info; Cursor != nullptr; Cursor = Cursor->ai_next)
+	{
+		const auto* AddrInet = (sockaddr_in*)(Cursor->ai_addr);
+		if (AddrInet->sin_family != AF_INET)
+		{
+			continue;
+		}
+
+		uint32 IpAddress = 0;
+		memcpy(&IpAddress, &(AddrInet->sin_addr), sizeof(uint32));
+
+		if (IpAddress == 0)
+		{
+			break;
+		}
+
+		IpAddresses[AddressCount] = IpAddress;
+		if (++AddressCount >= UE_ARRAY_COUNT(IpAddresses))
+		{
+			break;
+		}
+	}
+
+	if (AddressCount > 0)
+	{
+		return AddressCount;
+	}
+
+	return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+int32 FHost::IsResolved() const
+{
+	switch (IpAddresses[0])
+	{
+	case 0:  return 0;
+	case 1:  return -1;
+	default: return 1;
+	}
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+class FSocketPool
+{
+public:
+					FSocketPool(const ANSICHAR* InHostName, uint32 InPort, uint32 InMaxLeases);
+					~FSocketPool();
+	static uint32	GetAllocSize(uint32 MaxLeases);
+	FHost&			GetHost() { return Host; }
+	bool			LeaseSocket(FSocket& Out);
+	void			ReturnLease(FSocket&& Socket);
+
+private:
+	FHost			Host;
 	uint8			LeaseCount = 0;
 	uint8			MaxLeases;
 	FSocket			Sockets[1/*...N*/]; // this should be the last member
@@ -1201,8 +1303,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 FSocketPool::FSocketPool(const ANSICHAR* InHostName, uint32 InPort, uint32 InMaxLeases)
-: HostName(InHostName)
-, Port(uint16(InPort))
+: Host(InHostName, InPort)
 , MaxLeases(uint8(InMaxLeases))
 {
 	check(MaxLeases == InMaxLeases); // field overflow
@@ -1252,91 +1353,6 @@ void FSocketPool::ReturnLease(FSocket&& Socket)
 	Sockets[LeaseCount] = MoveTemp(Socket);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-void FSocketPool::SetBufferSize(EDirection Dir, int32 Size)
-{
-	(Dir == EDirection::Send) ? SendBufKb : RecvBufKb = uint16(Size >> 10);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-int32 FSocketPool::GetBufferSize(EDirection Dir) const
-{
-	return int32((Dir == EDirection::Send) ? SendBufKb : RecvBufKb) << 10;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-int32 FSocketPool::IsResolved() const
-{
-	switch (IpAddresses[0])
-	{
-	case 0:  return 0;
-	case 1:  return -1;
-	default: return 1;
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////
-int32 FSocketPool::ResolveHostName()
-{
-	// todo: GetAddrInfoW() for async resolve on Windows
-
-	TRACE_CPUPROFILER_EVENT_SCOPE(IasHttp::PoolResolve);
-
-	IpAddresses[0] = 1;
-
-	addrinfo* Info = nullptr;
-	ON_SCOPE_EXIT { if (Info != nullptr) freeaddrinfo(Info); };
-
-	addrinfo Hints = {};
-	Hints.ai_family = AF_INET;
-	Hints.ai_socktype = SOCK_STREAM;
-	Hints.ai_protocol = IPPROTO_TCP;
-	auto Result = getaddrinfo(HostName, nullptr, &Hints, &Info);
-	if (uint32(Result) || Info == nullptr)
-	{
-		IpAddresses[0] = 2;
-		return -1;
-	}
-
-	if (Info->ai_family != AF_INET)
-	{
-		IpAddresses[0] = 2;
-		return -2;
-	}
-
-	uint32 AddressCount = 0;
-	for (const addrinfo* Cursor = Info; Cursor != nullptr; Cursor = Cursor->ai_next)
-	{
-		const auto* AddrInet = (sockaddr_in*)(Cursor->ai_addr);
-		if (AddrInet->sin_family != AF_INET)
-		{
-			continue;
-		}
-
-		uint32 IpAddress = 0;
-		memcpy(&IpAddress, &(AddrInet->sin_addr), sizeof(uint32));
-
-		if (IpAddress == 0)
-		{
-			break;
-		}
-
-		IpAddresses[AddressCount] = IpAddress;
-		if (++AddressCount >= UE_ARRAY_COUNT(IpAddresses))
-		{
-			break;
-		}
-	}
-
-	if (AddressCount > 0)
-	{
-		return AddressCount;
-	}
-
-	IpAddresses[0] = 2;
-	return 0;
-}
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1382,8 +1398,8 @@ FConnectionPool::FConnectionPool(const FParams& Params)
 		Params.Host.Port,
 		Params.ConnectionCount
 	);
-	Internal->SetBufferSize(FSocketPool::EDirection::Send, Params.SendBufSize);
-	Internal->SetBufferSize(FSocketPool::EDirection::Recv, Params.RecvBufSize);
+	Internal->GetHost().SetBufferSize(FHost::EDirection::Send, Params.SendBufSize);
+	Internal->GetHost().SetBufferSize(FHost::EDirection::Recv, Params.RecvBufSize);
 
 	Ptr = Internal;
 }
@@ -1400,7 +1416,7 @@ FConnectionPool::~FConnectionPool()
 ////////////////////////////////////////////////////////////////////////////////
 bool FConnectionPool::Resolve()
 {
-	return (Ptr->ResolveHostName() > 0);
+	return (Ptr->GetHost().ResolveHostName() > 0);
 }
 
 
@@ -1621,7 +1637,7 @@ static void Activity_Free(FActivity* Activity)
 			Socket = FSocket();
 		}
 
-		if (Activity->Pool->GetIpAddress() > 0x00ff'ffff)
+		if (Activity->Pool->GetHost().GetIpAddress() > 0x00ff'ffff)
 		{
 			Activity->Pool->ReturnLease(MoveTemp(Socket));
 		}
@@ -1963,7 +1979,7 @@ static uint64 ReadyCheck(FActivity** Activities, uint32 Num, uint32 TimeoutMs)
 			break;
 
 		case EWait::Pool:
-			if (Activity->Pool->GetIpAddress() > 0x00ff'ffff)
+			if (Activity->Pool->GetHost().GetIpAddress() > 0x00ff'ffff)
 			{
 				Activity_EndWait(Activities[i]);
 				Ret |= (1ull << Activity->Slot);
@@ -2021,7 +2037,7 @@ static int32 DoResolve(FActivity* Activity)
 	// needs to happen once, the first activity in can do the honours. Everyone
 	// else can wait.
 	FSocketPool* Pool = Activity->Pool;
-	int32 Result = Pool->IsResolved();
+	int32 Result = Pool->GetHost().IsResolved();
 	if (Result > 0)
 	{
 		Activity_ChangeState(Activity, FActivity::EState::Connect);
@@ -2036,7 +2052,7 @@ static int32 DoResolve(FActivity* Activity)
 	}
 
 	// We won! We WON!
-	Result = Pool->ResolveHostName();
+	Result = Pool->GetHost().ResolveHostName();
 	switch (Result)
 	{
 	case 0:  Activity_SetError(Activity, "Unable to resolve host"); return -1;
@@ -2054,10 +2070,10 @@ static int32 DoConnect(FActivity* Activity)
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasHttp::DoConnect);
 
 	FSocketPool* Pool = Activity->Pool;
-	check(Pool->IsResolved() > 0);
+	check(Pool->GetHost().IsResolved() > 0);
 
-	uint32 IpAddress = Pool->GetIpAddress();
-	uint32 Port = Pool->GetPort();
+	uint32 IpAddress = Pool->GetHost().GetIpAddress();
+	uint32 Port = Pool->GetHost().GetPort();
 	if (IpAddress <= 0x00ff'ffff)
 	{
 		Activity_SetError(Activity, "Unresolved host");
@@ -2108,12 +2124,12 @@ static int32 DoConnect(FActivity* Activity)
 		return -1;
 	}
 
-	if (int32 OptValue = Pool->GetBufferSize(FSocketPool::EDirection::Send); OptValue >= 0)
+	if (int32 OptValue = Pool->GetHost().GetBufferSize(FHost::EDirection::Send); OptValue >= 0)
 	{
 		Candidate.SetSendBufSize(OptValue);
 	}
 
-	if (int32 OptValue = Pool->GetBufferSize(FSocketPool::EDirection::Recv); OptValue >= 0)
+	if (int32 OptValue = Pool->GetHost().GetBufferSize(FHost::EDirection::Recv); OptValue >= 0)
 	{
 		Candidate.SetRecvBufSize(OptValue);
 	}
@@ -2650,7 +2666,7 @@ FRequest FEventLoop::FImpl::Request(
 	FMessageBuilder Builder(Activity->Buffer);
 
 	Builder << Method << " " << Path << " HTTP/1.1" "\r\n"
-		"Host: " << Activity->Pool->GetHostName() << "\r\n";
+		"Host: " << Activity->Pool->GetHost().GetHostName() << "\r\n";
 
 	// HTTP/1.1 is persistent by default thus "Connection" header isn't required
 	if (!Activity->IsKeepAlive)
