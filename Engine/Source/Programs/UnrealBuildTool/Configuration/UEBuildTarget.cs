@@ -2634,23 +2634,17 @@ namespace UnrealBuildTool
 			}
 
 			// Compile the resource files common to all DLLs on Windows
-			if (!ShouldCompileMonolithic())
+			if (!ShouldCompileMonolithic() & !Rules.bFormalBuild && Platform.IsInGroup(UnrealPlatformGroup.Windows))
 			{
-				if (Platform == UnrealTargetPlatform.Win64)
+				FileReference DefaultResourceLocation = FileReference.Combine(Unreal.EngineDirectory, "Build", "Windows", "Resources", "Default.rc2");
+				if (!UnrealBuildTool.IsFileInstalled(DefaultResourceLocation))
 				{
-					if (!Rules.bFormalBuild)
-					{
-						FileReference DefaultResourceLocation = FileReference.Combine(Unreal.EngineDirectory, "Build", "Windows", "Resources", "Default.rc2");
-						if (!UnrealBuildTool.IsFileInstalled(DefaultResourceLocation))
-						{
-							CppCompileEnvironment DefaultResourceCompileEnvironment = new CppCompileEnvironment(GlobalCompileEnvironment);
+					CppCompileEnvironment DefaultResourceCompileEnvironment = new CppCompileEnvironment(GlobalCompileEnvironment);
 
-							FileItem DefaultResourceFile = FileItem.GetItemByFileReference(DefaultResourceLocation);
+					FileItem DefaultResourceFile = FileItem.GetItemByFileReference(DefaultResourceLocation);
 
-							CPPOutput DefaultResourceOutput = TargetToolChain.CompileRCFiles(DefaultResourceCompileEnvironment, new List<FileItem> { DefaultResourceFile }, EngineIntermediateDirectory, MakefileBuilder);
-							GlobalLinkEnvironment.DefaultResourceFiles.AddRange(DefaultResourceOutput.ObjectFiles);
-						}
-					}
+					CPPOutput DefaultResourceOutput = TargetToolChain.CompileRCFiles(DefaultResourceCompileEnvironment, new List<FileItem> { DefaultResourceFile }, EngineIntermediateDirectory, MakefileBuilder);
+					GlobalLinkEnvironment.DefaultResourceFiles.AddRange(DefaultResourceOutput.ObjectFiles);
 				}
 			}
 

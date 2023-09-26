@@ -814,9 +814,22 @@ namespace UnrealBuildTool
 						// Set the original file name macro; used in Default.rc2 to set the binary metadata fields.
 						ResourceCompileEnvironment.Definitions.Add("ORIGINAL_FILE_NAME=\"" + OutputFilePaths[0].GetFileName() + "\"");
 
-						// Set the other version fields
-						ResourceCompileEnvironment.Definitions.Add(String.Format("BUILT_FROM_CHANGELIST={0}", Target.Version.Changelist));
-						ResourceCompileEnvironment.Definitions.Add(String.Format("BUILD_VERSION={0}", Target.BuildVersion));
+						// Set the other version fields if requested
+						if (Target.WindowsPlatform.bSetResourceVersions)
+						{
+							if (Target.Version.Changelist != 0)
+							{
+								ResourceCompileEnvironment.Definitions.Add(String.Format("BUILT_FROM_CHANGELIST={0}", Target.Version.Changelist));
+							}
+							if (!String.IsNullOrEmpty(Target.Version.BranchName))
+							{
+								ResourceCompileEnvironment.Definitions.Add(String.Format("BRANCH_NAME={0}", Target.Version.BranchName));
+							}
+							if (!String.IsNullOrEmpty(Target.BuildVersion))
+							{
+								ResourceCompileEnvironment.Definitions.Add(String.Format("BUILD_VERSION={0}", Target.BuildVersion));
+							}
+						}
 
 						// Otherwise compile the default resource file per-binary, so that it gets the correct ORIGINAL_FILE_NAME macro.
 						FileItem DefaultResourceFile = FileItem.GetItemByFileReference(FileReference.Combine(Unreal.EngineDirectory, "Build", "Windows", "Resources", "Default.rc2"));

@@ -201,6 +201,22 @@ namespace UnrealBuildTool
 		TargetRules Target;
 
 		/// <summary>
+		/// If enabled will set the ProductVersion embeded in windows executables and dlls to contain BUILT_FROM_CHANGELIST and BuildVersion
+		/// Enabled by default for all precompiled and Shipping configurations. Regardless of this setting, the versions from Build.version will be available via the BuildSettings module
+		/// Note: Embedding these versions will cause resource files to be recompiled whenever changelist is updated which will cause binaries to relink
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "SetResourceVersions")]
+		[XmlConfigFile(Category = "WindowsPlatform")]
+		[CommandLine("-SetResourceVersions")]
+		[CommandLine("-NoSetResourceVersions", Value = "false")]
+		public bool bSetResourceVersions
+		{
+			get => bSetResourceVersionPrivate ?? Target.bPrecompile || Target.Configuration == UnrealTargetConfiguration.Shipping;
+			set => bSetResourceVersionPrivate = value;
+		}
+		private bool? bSetResourceVersionPrivate = null;
+
+		/// <summary>
 		/// If -PGOOptimize is specified but the linker flags have changed since the last -PGOProfile, this will emit a warning and build without PGO instead of failing during link with LNK1268. 
 		/// </summary>
 		[XmlConfigFile(Category = "WindowsPlatform")]
@@ -720,6 +736,8 @@ namespace UnrealBuildTool
 		/// </summary>
 		#region Read-only accessor properties 
 #pragma warning disable CS1591
+
+		public bool bSetResourceVersions => Inner.bSetResourceVersions;
 
 		public bool bIgnoreStalePGOData => Inner.bIgnoreStalePGOData;
 

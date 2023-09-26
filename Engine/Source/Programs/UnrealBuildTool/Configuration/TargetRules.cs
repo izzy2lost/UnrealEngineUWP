@@ -2123,7 +2123,7 @@ namespace UnrealBuildTool
 		public bool bIgnoreBuildOutputs = false;
 
 		/// <summary>
-		/// Indicates that this is a formal build, intended for distribution. This flag is automatically set to true when Build.version has a changelist set.
+		/// Indicates that this is a formal build, intended for distribution. This flag is automatically set to true when Build.version has a changelist set and is a promoted build.
 		/// The only behavior currently bound to this flag is to compile the default resource file separately for each binary so that the OriginalFilename field is set correctly.
 		/// By default, we only compile the resource once to reduce build times.
 		/// </summary>
@@ -2627,7 +2627,7 @@ namespace UnrealBuildTool
 			ConfigValueTracker = new ConfigValueTracker(ConfigValues);
 
 			// If we've got a changelist set, set that we're making a formal build
-			bFormalBuild = (Version.Changelist != 0 && Version.IsPromotedBuild);
+			bFormalBuild = bFormalBuild || (Version.Changelist != 0 && Version.IsPromotedBuild);
 
 			// Allow the build platform to set defaults for this target
 			UEBuildPlatform.GetBuildPlatform(Platform).ResetTarget(this);
