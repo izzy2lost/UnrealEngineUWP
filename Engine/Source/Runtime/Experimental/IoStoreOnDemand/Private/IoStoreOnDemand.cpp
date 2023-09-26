@@ -1518,7 +1518,7 @@ void FIoStoreOnDemandModule::ReportAnalytics(TArray<FAnalyticsEventAttribute>& O
 	}
 }
 
-void FIoStoreOnDemandModule::StartupModule()
+void FIoStoreOnDemandModule::InitializeInternal()
 {
 	LLM_SCOPE_BYTAG(Ias);
 
@@ -1531,8 +1531,18 @@ void FIoStoreOnDemandModule::StartupModule()
 		return;
 	}
 #endif //WITH_EDITOR
-
+	
 	const TCHAR* CommandLine = FCommandLine::Get();
+	
+#if !UE_BUILD_SHIPPING
+	if (FParse::Param(CommandLine, TEXT("NoIas")))
+	{
+		return;
+	}
+#endif
+
+	// Make sure we haven't called initialize before
+	check(!Backend.IsValid());
 
 	FOnDemandEndpoint Endpoint;
 	
@@ -1568,12 +1578,8 @@ void FIoStoreOnDemandModule::StartupModule()
 		}
 	}
 
-#if !UE_BUILD_SHIPPING
-	if (FParse::Param(CommandLine, TEXT("NoIas")))
-	{
-		return;
-	}
-#endif
+	UE_LOG(LogIas, Display, TEXT("Initializing IoStoreOnDemand on service %s from %s."),
+		*Endpoint.ServiceUrl, *Endpoint.DistributionUrl);
 
 	FLatencyInjector::Initialize(CommandLine);
 
@@ -1603,6 +1609,13 @@ void FIoStoreOnDemandModule::StartupModule()
 	}
 #endif
 	FIoDispatcher::Get().Mount(Backend.ToSharedRef(), BackendPriority);
+}
+	
+void FIoStoreOnDemandModule::StartupModule()
+{
+#if !UE_IAS_CUSTOM_INITIALIZATION
+	InitializeInternal();
+#endif
 }
 
 void FIoStoreOnDemandModule::ShutdownModule()

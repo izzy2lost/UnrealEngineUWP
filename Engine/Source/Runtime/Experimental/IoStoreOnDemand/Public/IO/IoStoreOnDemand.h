@@ -28,6 +28,12 @@ struct FIoStoreWriterSettings;
 namespace UE::IO::IAS { struct FOnDemandEndpoint; }
 using FIoBlockHash = uint32;
 
+// Custom initialization allows users to control when
+// the system should be initialized.
+#if !defined(UE_IAS_CUSTOM_INITIALIZATION)
+	#define UE_IAS_CUSTOM_INITIALIZATION 0
+#endif
+
 UE_API DECLARE_LOG_CATEGORY_EXTERN(LogIas, VeryVerbose, All);
 
 namespace UE::IO::IAS
@@ -209,6 +215,7 @@ class FIoStoreOnDemandModule
 	: public IModuleInterface
 {
 private:
+	void InitializeInternal();
 	TSharedPtr<IOnDemandIoDispatcherBackend> Backend;
 
 public:
@@ -220,6 +227,10 @@ public:
 
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
+	
+#if UE_IAS_CUSTOM_INITIALIZATION
+	UE_API void Initialize() { InitializeInternal(); };
+#endif
 };
 
 } // namespace UE::IO::IAS
