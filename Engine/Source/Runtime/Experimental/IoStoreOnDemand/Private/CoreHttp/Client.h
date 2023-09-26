@@ -6,6 +6,10 @@
 #include "Containers/StringView.h"
 #endif
 
+#if !defined(IAS_HTTP_WITH_PERF)
+#	define IAS_HTTP_WITH_PERF !UE_BUILD_SHIPPING
+#endif
+
 #define UE_API
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,6 +132,22 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+class UE_API FTicketPerf
+{
+#if IAS_HTTP_WITH_PERF
+public:
+	struct FSample
+	{
+		uint32			TotalMs;
+		uint32			WaitMs;
+	};
+
+	FSample				GetSendSample() const;
+	FSample				GetRecvSample() const;
+#endif // IAS_HTTP_WITH_PERF
+};
+
+////////////////////////////////////////////////////////////////////////////////
 class UE_API FTicketStatus
 {
 public:
@@ -139,6 +159,7 @@ public:
 	FResponse&			GetResponse() const;		// if GetId() == EId::Response
 	const FIoBuffer&	GetContent() const;			// if GetId() == EId::Content
 	uint32				GetContentLength() const;	//  |
+	const FTicketPerf&	GetPerf() const;			// _|_
 	const char*			GetErrorReason() const;		// if GetId() == EId::Error
 
 private:
