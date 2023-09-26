@@ -103,6 +103,18 @@ public:
 };
 
 
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptSetStaticMeshCollisionOptions
+{
+	GENERATED_BODY()
+public:
+	// Whether to mark the static mesh collision as customized when it is set, so that it will not be overwritten on next import.
+	// If false, Static Mesh collision will not be un-marked as Customized; its state will just be left unchanged.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bMarkAsCustomized = true;
+};
+
+
 // Method to distribute sampling spheres, used by FComputeNegativeSpaceOptions
 UENUM(BlueprintType)
 enum class ENegativeSpaceSampleMethod : uint8
@@ -212,6 +224,7 @@ public:
 		UDynamicMesh* FromDynamicMesh, 
 		UStaticMesh* ToStaticMeshAsset, 
 		FGeometryScriptCollisionFromMeshOptions Options,
+		FGeometryScriptSetStaticMeshCollisionOptions StaticMeshCollisionOptions = FGeometryScriptSetStaticMeshCollisionOptions(),
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
@@ -223,7 +236,14 @@ public:
 		UStaticMesh* StaticMeshAsset, 
 		UPrimitiveComponent* SourceComponent,
 		FGeometryScriptSetSimpleCollisionOptions Options = FGeometryScriptSetSimpleCollisionOptions(),
+		FGeometryScriptSetStaticMeshCollisionOptions StaticMeshCollisionOptions = FGeometryScriptSetStaticMeshCollisionOptions(),
 		UGeometryScriptDebug* Debug = nullptr);
+
+	/*
+	 * @returns true if the static mesh has customized collision. If no editor data is available, returns false.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision")
+	static UPARAM(DisplayName = "IsCustomized") bool StaticMeshHasCustomizedCollision(UStaticMesh* StaticMeshAsset);
 
 	/** 
 	* Generate Simple Collision shapes for a Dynamic Mesh Component based on the input Dynamic Mesh. 
@@ -282,6 +302,7 @@ public:
 		const FGeometryScriptSimpleCollision& SimpleCollision,
 		UStaticMesh* StaticMesh, 
 		FGeometryScriptSetSimpleCollisionOptions Options, 
+		FGeometryScriptSetStaticMeshCollisionOptions StaticMeshCollisionOptions = FGeometryScriptSetStaticMeshCollisionOptions(),
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/*

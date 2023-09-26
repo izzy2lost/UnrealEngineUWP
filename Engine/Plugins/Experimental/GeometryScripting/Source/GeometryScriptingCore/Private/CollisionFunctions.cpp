@@ -150,7 +150,7 @@ void ComputeCollisionFromMesh(
 
 
 
-static void SetStaticMeshSimpleCollision(UStaticMesh* StaticMeshAsset, const FKAggregateGeom& NewSimpleCollision, bool bEmitTransaction)
+static void SetStaticMeshSimpleCollision(UStaticMesh* StaticMeshAsset, const FKAggregateGeom& NewSimpleCollision, bool bEmitTransaction, bool bMarkCollisionAsCustomized = true)
 {
 #if WITH_EDITOR
 	if (bEmitTransaction && GEditor)
@@ -206,7 +206,10 @@ static void SetStaticMeshSimpleCollision(UStaticMesh* StaticMeshAsset, const FKA
 
 #if WITH_EDITORONLY_DATA
 		// mark the static mesh as having customized collision so it is not regenerated on reimport
-		StaticMeshAsset->bCustomizedCollision = true;
+		if (bMarkCollisionAsCustomized)
+		{
+			StaticMeshAsset->bCustomizedCollision = true;
+		}
 #endif // WITH_EDITORONLY_DATA
 	}
 
@@ -278,6 +281,7 @@ UDynamicMesh* UGeometryScriptLibrary_CollisionFunctions::SetStaticMeshCollisionF
 	UDynamicMesh* FromDynamicMesh,
 	UStaticMesh* ToStaticMeshAsset,
 	FGeometryScriptCollisionFromMeshOptions Options,
+	FGeometryScriptSetStaticMeshCollisionOptions StaticMeshCollisionOptions,
 	UGeometryScriptDebug* Debug)
 {
 	if (FromDynamicMesh == nullptr)
@@ -297,7 +301,7 @@ UDynamicMesh* UGeometryScriptLibrary_CollisionFunctions::SetStaticMeshCollisionF
 		UELocal::ComputeCollisionFromMesh(ReadMesh, NewCollision, Options);
 	});
 
-	UELocal::SetStaticMeshSimpleCollision(ToStaticMeshAsset, NewCollision, Options.bEmitTransaction);
+	UELocal::SetStaticMeshSimpleCollision(ToStaticMeshAsset, NewCollision, Options.bEmitTransaction, StaticMeshCollisionOptions.bMarkAsCustomized);
 
 	return FromDynamicMesh;
 }
@@ -309,6 +313,7 @@ void UGeometryScriptLibrary_CollisionFunctions::SetStaticMeshCollisionFromCompon
 	UStaticMesh* UpdateStaticMeshAsset, 
 	UPrimitiveComponent* SourceComponent,
 	FGeometryScriptSetSimpleCollisionOptions Options,
+	FGeometryScriptSetStaticMeshCollisionOptions StaticMeshCollisionOptions,
 	UGeometryScriptDebug* Debug)
 {
 	if (UpdateStaticMeshAsset == nullptr)
@@ -329,10 +334,18 @@ void UGeometryScriptLibrary_CollisionFunctions::SetStaticMeshCollisionFromCompon
 		return;
 	}
 
-	UELocal::SetStaticMeshSimpleCollision(UpdateStaticMeshAsset, BodySetup->AggGeom, Options.bEmitTransaction);
+	UELocal::SetStaticMeshSimpleCollision(UpdateStaticMeshAsset, BodySetup->AggGeom, Options.bEmitTransaction, StaticMeshCollisionOptions.bMarkAsCustomized);
 }
 
 
+bool UGeometryScriptLibrary_CollisionFunctions::StaticMeshHasCustomizedCollision(UStaticMesh* StaticMeshAsset)
+{
+#if WITH_EDITORONLY_DATA
+	return StaticMeshAsset->bCustomizedCollision;
+#else
+	return false;
+#endif
+}
 
 
 
@@ -529,9 +542,10 @@ void UGeometryScriptLibrary_CollisionFunctions::SetSimpleCollisionOfStaticMesh(
 	const FGeometryScriptSimpleCollision& SimpleCollision,
 	UStaticMesh* StaticMesh, 
 	FGeometryScriptSetSimpleCollisionOptions Options,
+	FGeometryScriptSetStaticMeshCollisionOptions StaticMeshCollisionOptions,
 	UGeometryScriptDebug* Debug)
 {
-	UELocal::SetStaticMeshSimpleCollision(StaticMesh, SimpleCollision.AggGeom, Options.bEmitTransaction);
+	UELocal::SetStaticMeshSimpleCollision(StaticMesh, SimpleCollision.AggGeom, Options.bEmitTransaction, StaticMeshCollisionOptions.bMarkAsCustomized);
 }
 
 void UGeometryScriptLibrary_CollisionFunctions::SimplifyConvexHulls(
