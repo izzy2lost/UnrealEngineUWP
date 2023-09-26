@@ -136,6 +136,7 @@ public:
 	 * @param Time The time of the image frame to get (relative to the beginning of the sequence).
 	 * @return The frame, or nullptr if the frame wasn't available yet.
 	 */
+	UE_DEPRECATED(5.4, "This method will be removed.")
 	TSharedPtr<FImgMediaTextureSample, ESPMode::ThreadSafe> GetFrameSample(FTimespan Time);
 
 	/**
