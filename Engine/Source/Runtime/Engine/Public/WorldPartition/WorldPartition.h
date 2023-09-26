@@ -198,6 +198,8 @@ private:
 	ENGINE_API void OnActorDescUpdated(FWorldPartitionActorDesc* ActorDesc);
 
 	ENGINE_API bool GetInstancingContext(const FLinkerInstancingContext*& OutInstancingContext) const;
+
+	ENGINE_API void InitializeActorDescContainerEditorStreaming(UActorDescContainer* InActorDescContainer, bool bInHashActorDescs);
 #endif
 
 public:
