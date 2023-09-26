@@ -8,6 +8,7 @@
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Rendering/NaniteResources.h"
+#include "RenderUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NaniteDisplacedMesh)
 
@@ -19,7 +20,6 @@
 #include "NaniteBuilder.h"
 #include "NaniteDisplacedMeshAlgo.h"
 #include "NaniteDisplacedMeshCompiler.h"
-#include "RenderUtils.h"
 #include "Serialization/MemoryHasher.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
@@ -28,24 +28,6 @@
 #include "StaticMeshCompiler.h"
 #endif
 
-static bool DoesTargetPlatformSupportNanite(const ITargetPlatform* TargetPlatform)
-{
-	if (TargetPlatform != nullptr)
-	{
-		TArray<FName> DesiredShaderFormats;
-		TargetPlatform->GetAllTargetedShaderFormats(DesiredShaderFormats);
-		for (int32 FormatIndex = 0; FormatIndex < DesiredShaderFormats.Num(); FormatIndex++)
-		{
-			const EShaderPlatform ShaderPlatform = ShaderFormatToLegacyShaderPlatform(DesiredShaderFormats[FormatIndex]);
-			if (DoesPlatformSupportNanite(ShaderPlatform))
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
 
 #if WITH_EDITOR
 
@@ -647,26 +629,7 @@ bool UNaniteDisplacedMesh::IsReadyForFinishDestroy()
 
 bool UNaniteDisplacedMesh::NeedsLoadForTargetPlatform(const ITargetPlatform* TargetPlatform) const
 {
-	return IsSupportedByTargetPlatform(TargetPlatform);
-}
-
-bool UNaniteDisplacedMesh::IsSupportedByTargetPlatform(const ITargetPlatform* TargetPlatform)
-{
-	if (TargetPlatform != nullptr)
-	{
-		TArray<FName> DesiredShaderFormats;
-		TargetPlatform->GetAllTargetedShaderFormats(DesiredShaderFormats);
-		for (int32 FormatIndex = 0; FormatIndex < DesiredShaderFormats.Num(); FormatIndex++)
-		{
-			const EShaderPlatform ShaderPlatform = ShaderFormatToLegacyShaderPlatform(DesiredShaderFormats[FormatIndex]);
-			if (DoesPlatformSupportNanite(ShaderPlatform))
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
+	return DoesTargetPlatformSupportNanite(TargetPlatform);
 }
 
 void UNaniteDisplacedMesh::InitResources()
@@ -785,7 +748,7 @@ void UNaniteDisplacedMesh::NotifyOnRenderingDataChanged()
 
 FIoHash UNaniteDisplacedMesh::CreateDerivedDataKeyHash(const ITargetPlatform* TargetPlatform)
 {
-	if (!IsSupportedByTargetPlatform(TargetPlatform))
+	if (!DoesTargetPlatformSupportNanite(TargetPlatform))
 	{
 		return FIoHash::Zero;
 	}

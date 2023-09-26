@@ -17,9 +17,9 @@
 #include "RenderCore.h"
 #include "SubstrateDefinitions.h"
 #include "Animation/MeshDeformerProvider.h"
+#include "Interfaces/ITargetPlatform.h"
 
 #if WITH_EDITOR
-#include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "RHIShaderFormatDefinitions.inl"
 #endif
@@ -1333,6 +1333,25 @@ bool DoesRuntimeSupportNanite(EShaderPlatform ShaderPlatform, bool bCheckForAtom
 	const bool bForwardShadingEnabled = IsForwardShadingEnabled(ShaderPlatform);
 
 	return bSupportedPlatform && (!bCheckForAtomicSupport || NaniteAtomicsSupported()) && !bForwardShadingEnabled;
+}
+
+bool DoesTargetPlatformSupportNanite(const ITargetPlatform* TargetPlatform)
+{
+	if (TargetPlatform != nullptr)
+	{
+		TArray<FName> DesiredShaderFormats;
+		TargetPlatform->GetAllTargetedShaderFormats(DesiredShaderFormats);
+		for (int32 FormatIndex = 0; FormatIndex < DesiredShaderFormats.Num(); FormatIndex++)
+		{
+			const EShaderPlatform ShaderPlatform = ShaderFormatToLegacyShaderPlatform(DesiredShaderFormats[FormatIndex]);
+			if (DoesPlatformSupportNanite(ShaderPlatform))
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 bool UseNanite(EShaderPlatform ShaderPlatform, bool bCheckForAtomicSupport /*= true*/, bool bCheckForProjectSetting /*= true*/)

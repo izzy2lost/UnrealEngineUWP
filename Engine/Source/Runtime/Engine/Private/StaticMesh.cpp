@@ -170,25 +170,6 @@ namespace StaticMeshCookStats
 }
 #endif
 
-static bool DoesTargetPlatformSupportNanite(const ITargetPlatform* TargetPlatform)
-{
-	if (TargetPlatform != nullptr)
-	{
-		TArray<FName> DesiredShaderFormats;
-		TargetPlatform->GetAllTargetedShaderFormats(DesiredShaderFormats);
-		for (int32 FormatIndex = 0; FormatIndex < DesiredShaderFormats.Num(); FormatIndex++)
-		{
-			const EShaderPlatform ShaderPlatform = ShaderFormatToLegacyShaderPlatform(DesiredShaderFormats[FormatIndex]);
-			if (DoesPlatformSupportNanite(ShaderPlatform))
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
 #if WITH_EDITOR
 static void FillMaterialName(const TArray<FStaticMaterial>& StaticMaterials, TMap<int32, FName>& OutMaterialMap)
 {

@@ -377,6 +377,7 @@ RENDERCORE_API bool UseNaniteComputeMaterials();
 
 RENDERCORE_API bool DoesPlatformSupportNanite(EShaderPlatform Platform, bool bCheckForProjectSetting = true);
 RENDERCORE_API bool DoesRuntimeSupportNanite(EShaderPlatform ShaderPlatform, bool bCheckForAtomicSupport, bool bCheckForProjectSetting);
+RENDERCORE_API bool DoesTargetPlatformSupportNanite(const ITargetPlatform* TargetPlatform);
 
 /**
  * Returns true if Nanite rendering should be used for the given shader platform.
