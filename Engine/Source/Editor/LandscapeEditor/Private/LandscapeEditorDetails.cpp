@@ -162,7 +162,7 @@ void FLandscapeEditorDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuild
 		SNew(STextBlock)
 		.TextStyle( &FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>( "SmallText" ) )
 		.Text(LOCTEXT("BrushSelector", "Brush Type"))
-
+		.ToolTipText(LOCTEXT("BrushSelectorToolTip", "Selects the type of brush to use"))
 	]
 	.ValueContent()
 	[
@@ -176,6 +176,7 @@ void FLandscapeEditorDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuild
 		SNew(STextBlock)
 		.TextStyle( &FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>( "SmallText" ) )
 		.Text(LOCTEXT("BrushFalloff", "Brush Falloff"))
+		.ToolTipText(LOCTEXT("BrushFalloffToolTip", "Selects the profile shape of the brush falloff"))
 
 	]
 	.ValueContent()
@@ -265,7 +266,7 @@ FText FLandscapeEditorDetails::GetLocalizedName(FString Name)
 	}
 
 	FText Result;
-	ensure(FText::FindText(TEXT("LandscapeEditor"), Name, Result));
+	ensure(FText::FindText(TEXT(LOCTEXT_NAMESPACE), Name, Result));
 	return Result;
 }
 
