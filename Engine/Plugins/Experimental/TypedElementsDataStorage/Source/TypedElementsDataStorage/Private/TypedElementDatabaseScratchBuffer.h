@@ -5,6 +5,7 @@
 #include <atomic>
 #include <type_traits>
 #include "GenericPlatform/GenericPlatformMath.h"
+#include "Math/UnrealMath.h"
 #include "Misc/MTAccessDetector.h"
 #include "Templates/AlignmentTemplates.h"
 #include "Templates/UnrealTemplate.h"
@@ -81,7 +82,7 @@ private:
 	void ConfigureDestructorTail(FDestructorTail& Destructor, DestructorFunction Callback, void* Object, int32 Count = 1);
 
 	// Detect any invalid calls to recycle blocks while allocating memory.
-	FRWRecursiveAccessDetector AccessDetector;
+	UE_MT_DECLARE_RW_ACCESS_DETECTOR(AccessDetector);
 
 	std::atomic<FBlock*> AvailableBlocks = nullptr;
 	std::atomic<FBlock*> FullBlocks = nullptr;

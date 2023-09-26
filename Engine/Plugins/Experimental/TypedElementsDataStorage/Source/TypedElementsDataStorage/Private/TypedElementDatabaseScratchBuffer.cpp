@@ -30,7 +30,7 @@ FTypedElementDatabaseScratchBuffer::~FTypedElementDatabaseScratchBuffer()
 void* FTypedElementDatabaseScratchBuffer::Allocate(size_t Size, size_t Alignment)
 {
 	// ReaderAccessDetector to assert that this scope has shared access to any thread also making an Allocate call
-	TScopedReaderAccessDetector Detector(AccessDetector);
+	UE_MT_SCOPED_READ_ACCESS(AccessDetector);
 	return GetThreadLocalBlockController().Allocate(Size, Alignment);
 }
 
@@ -39,7 +39,7 @@ void FTypedElementDatabaseScratchBuffer::RecycleBlocks()
 	if (FullBlocks)
 	{
 		// WriterAccessDetector to assert that this scope has exclusive access - should not overlap Allocate()
-		TScopedWriterDetector Detector(AccessDetector);
+		UE_MT_SCOPED_WRITE_ACCESS(AccessDetector);
 		
 		// Destroy any objects in blocks. It walks the allocations in a block backwards and invokes the destructors on the allocated 
 		// objects. It moves to the next block once it reaches the beginning of the block. At the end the cleared blocks are reinserted 
