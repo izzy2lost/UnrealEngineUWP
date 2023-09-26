@@ -39,7 +39,7 @@ static TAutoConsoleVariable<bool> CVarMotionMatchCompareAgainstBruteForce(TEXT("
 static TAutoConsoleVariable<bool> CVarMotionMatchValidateKNNSearch(TEXT("a.MotionMatch.ValidateKNNSearch"), false, TEXT("Validate KNN search"));
 #endif
 
-typedef TArray<size_t, TInlineAllocator<256>> FNonSelectableIdx;
+typedef TArray<int32, TInlineAllocator<256>> FNonSelectableIdx;
 static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearchContext& SearchContext, const UPoseSearchDatabase* Database
 #if UE_POSE_SEARCH_TRACE_ENABLED
 	, TConstArrayView<float> QueryValues
@@ -155,7 +155,7 @@ static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearc
 
 struct FSearchFilters
 {
-	FSearchFilters(const UPoseSearchSchema* Schema, TConstArrayView<size_t> NonSelectableIdx, bool bAnyBlockTransition)
+	FSearchFilters(const UPoseSearchSchema* Schema, TConstArrayView<int32> NonSelectableIdx, bool bAnyBlockTransition)
 	{
 		NonSelectableIdxFilter.NonSelectableIdx = NonSelectableIdx;
 
@@ -164,7 +164,7 @@ struct FSearchFilters
 			Filters.Add(&BlockTransitionFilter);
 		}
 
-		if (NonSelectableIdxFilter.IsFilterActive())
+		if (NonSelectableIdxFilter.Init(NonSelectableIdx).IsFilterActive())
 		{
 			Filters.Add(&NonSelectableIdxFilter);
 		}
@@ -213,6 +213,13 @@ struct FSearchFilters
 private:
 	struct FNonSelectableIdxFilter : public IPoseSearchFilter
 	{
+		const FNonSelectableIdxFilter& Init(TConstArrayView<int32> InNonSelectableIdx)
+		{
+			check(Algo::IsSorted(InNonSelectableIdx));
+			NonSelectableIdx = InNonSelectableIdx;
+			return *this;
+		}
+
 		virtual bool IsFilterActive() const override
 		{
 			return !NonSelectableIdx.IsEmpty();
@@ -223,7 +230,7 @@ private:
 			return Algo::BinarySearch(NonSelectableIdx, PoseIdx) == INDEX_NONE;
 		}
 
-		TConstArrayView<size_t> NonSelectableIdx;
+		TConstArrayView<int32> NonSelectableIdx;
 	};
 
 	struct FBlockTransitionFilter : public IPoseSearchFilter
@@ -808,7 +815,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::Search(UE::PoseSearch::FSearc
 
 template<bool bReconstructPoseValues, bool bAlignedAndPadded>
 static inline void EvaluatePoseKernel(UE::PoseSearch::FSearchResult& Result, const UE::PoseSearch::FSearchIndex& SearchIndex, TConstArrayView<float> QueryValues, TArrayView<float> ReconstructedPoseValuesBuffer,
-	int32 PoseIdx, const UE::PoseSearch::FSearchFilters& SearchFilters, UE::PoseSearch::FSearchContext& SearchContext, const UPoseSearchDatabase* Database, bool bUpdateBestCandidates, size_t ResultIndex)
+	int32 PoseIdx, const UE::PoseSearch::FSearchFilters& SearchFilters, UE::PoseSearch::FSearchContext& SearchContext, const UPoseSearchDatabase* Database, bool bUpdateBestCandidates, int32 ResultIndex = -1)
 {
 	using namespace UE::PoseSearch;
 
@@ -936,7 +943,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 		const bool bArePCAValuesPruned = SearchIndex.PCAValuesVectorToPoseIndexes.Num() > 0;
 
 		//stack allocated temporaries
-		TArrayView<size_t> ResultIndexes((size_t*)FMemory_Alloca((ClampedKDTreeQueryNumNeighbors + 1) * sizeof(size_t)), ClampedKDTreeQueryNumNeighbors + 1);
+		TArrayView<int32> ResultIndexes((int32*)FMemory_Alloca((ClampedKDTreeQueryNumNeighbors + 1) * sizeof(int32)), ClampedKDTreeQueryNumNeighbors + 1);
 		TArrayView<float> ResultDistanceSqr((float*)FMemory_Alloca((ClampedKDTreeQueryNumNeighbors + 1) * sizeof(float)), ClampedKDTreeQueryNumNeighbors + 1);
 		TArrayView<float> ProjectedQueryValues((float*)FMemory_Alloca(ClampedNumberOfPrincipalComponents * sizeof(float)), ClampedNumberOfPrincipalComponents);
 	
@@ -956,7 +963,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 #endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
 
 		// if bRunNonSelectableIdxPostKDTree we filter out the NonSelectableIdx after kdtree search, otherwise during kdtree search
-		FKDTree::FKNNResultSet ResultSet(ClampedKDTreeQueryNumNeighbors, ResultIndexes, ResultDistanceSqr, bRunNonSelectableIdxPostKDTree ? TConstArrayView<size_t>() : NonSelectableIdx);
+		FKDTree::FKNNResultSet ResultSet(ClampedKDTreeQueryNumNeighbors, ResultIndexes, ResultDistanceSqr, bRunNonSelectableIdxPostKDTree ? TConstArrayView<int32>() : NonSelectableIdx);
 
 		check(QueryValues.Num() == NumDimensions);
 		// projecting QueryValues into the PCA space 
@@ -986,7 +993,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 					return A.Value < B.Value;
 				});
 
-			for (size_t ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
+			for (int32 ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
 			{
 				if (PCAValueIndexCost[ResultIndex].Key != ResultIndexes[ResultIndex])
 				{
@@ -1008,7 +1015,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 #endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
 
 		// NonSelectableIdx are already filtered out inside the kdtree search
-		const FSearchFilters SearchFilters(Schema, bRunNonSelectableIdxPostKDTree ? NonSelectableIdx : TConstArrayView<size_t>(), SearchIndex.bAnyBlockTransition);
+		const FSearchFilters SearchFilters(Schema, bRunNonSelectableIdxPostKDTree ? NonSelectableIdx : TConstArrayView<int32>(), SearchIndex.bAnyBlockTransition);
 		
 		// are the PCAValues pruned out of duplicates (multiple poses are associated with the same PCAValuesVectorIdx)
 		if (bArePCAValuesPruned)
@@ -1021,9 +1028,9 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 			if (NumDimensions % 4 == 0)
 			{
 				int32 NumEvaluatePoseKernelCalls = 0;
-				for (size_t ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
+				for (int32 ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
 				{
-					const TConstArrayView<uint32> PoseIndexes = SearchIndex.PCAValuesVectorToPoseIndexes[ResultIndexes[ResultIndex]];
+					const TConstArrayView<int32> PoseIndexes = SearchIndex.PCAValuesVectorToPoseIndexes[ResultIndexes[ResultIndex]];
 					for (int32 Index = 0; Index < PoseIndexes.Num() && NumEvaluatePoseKernelCalls < MaxNumEvaluatePoseKernelCalls; ++Index, ++NumEvaluatePoseKernelCalls)
 					{
 						EvaluatePoseKernel<false, true>(Result, SearchIndex, QueryValues, TArrayView<float>(), PoseIndexes[Index], SearchFilters, SearchContext, this, true, ResultIndex);
@@ -1033,9 +1040,9 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 			else
 			{
 				int32 NumEvaluatePoseKernelCalls = 0;
-				for (size_t ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
+				for (int32 ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
 				{
-					const TConstArrayView<uint32> PoseIndexes = SearchIndex.PCAValuesVectorToPoseIndexes[ResultIndexes[ResultIndex]];
+					const TConstArrayView<int32> PoseIndexes = SearchIndex.PCAValuesVectorToPoseIndexes[ResultIndexes[ResultIndex]];
 					for (int32 Index = 0; Index < PoseIndexes.Num() && NumEvaluatePoseKernelCalls < MaxNumEvaluatePoseKernelCalls; ++Index, ++NumEvaluatePoseKernelCalls)
 					{
 						EvaluatePoseKernel<false, false>(Result, SearchIndex, QueryValues, TArrayView<float>(), PoseIndexes[Index], SearchFilters, SearchContext, this, true, ResultIndex);
@@ -1049,7 +1056,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 			// FMemory_Alloca is forced 16 bytes aligned
 			TArrayView<float> ReconstructedPoseValuesBuffer((float*)FMemory_Alloca(NumDimensions * sizeof(float)), NumDimensions);
 			check(IsAligned(ReconstructedPoseValuesBuffer.GetData(), alignof(VectorRegister4Float)));
-			for (size_t ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
+			for (int32 ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
 			{
 				EvaluatePoseKernel<true, false>(Result, SearchIndex, QueryValues, ReconstructedPoseValuesBuffer, ResultIndexes[ResultIndex], SearchFilters, SearchContext, this, true, ResultIndex);
 			}
@@ -1057,7 +1064,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 		// is the data padded at 16 bytes (and 16 bytes aligned by construction)?
 		else if (NumDimensions % 4 == 0)
 		{
-			for (size_t ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
+			for (int32 ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
 			{
 				EvaluatePoseKernel<false, true>(Result, SearchIndex, QueryValues, TArrayView<float>(), ResultIndexes[ResultIndex], SearchFilters, SearchContext, this, true, ResultIndex);
 			}
@@ -1065,7 +1072,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 		// no reconstruction, but data is not 16 bytes padded
 		else
 		{
-			for (size_t ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
+			for (int32 ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
 			{
 				EvaluatePoseKernel<false, false>(Result, SearchIndex, QueryValues, TArrayView<float>(), ResultIndexes[ResultIndex], SearchFilters, SearchContext, this, true, ResultIndex);
 			}
@@ -1118,7 +1125,6 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchVPTree(UE::PoseSearch::
 			, QueryValues
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 		);
-		check(Algo::IsSorted(NonSelectableIdx));
 
 		const int32 NumDimensions = Schema->SchemaCardinality;
 		check(QueryValues.Num() == NumDimensions);
@@ -1142,7 +1148,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchVPTree(UE::PoseSearch::
 				const FIndexDistance& IndexDistance = UnsortedResults[ResultIndex];
 
 				// @todo: IndexDistance.Distance is the Sqrt(DissimilarityCost), so there's no need to calculate it again in SearchIndex.ComparePoses
-				const TConstArrayView<uint32> PoseIndexes = SearchIndex.ValuesVectorToPoseIndexes[IndexDistance.Index];
+				const TConstArrayView<int32> PoseIndexes = SearchIndex.ValuesVectorToPoseIndexes[IndexDistance.Index];
 				for (int32 Index = 0; Index < PoseIndexes.Num() && NumEvaluatePoseKernelCalls < MaxNumEvaluatePoseKernelCalls; ++Index, ++NumEvaluatePoseKernelCalls)
 				{
 					EvaluatePoseKernel<false, false>(Result, SearchIndex, QueryValues, TArrayView<float>(), PoseIndexes[Index], SearchFilters, SearchContext, this, true, ResultIndex);
@@ -1206,7 +1212,6 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchBruteForce(UE::PoseSear
 			, QueryValues
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 		);
-		check(Algo::IsSorted(NonSelectableIdx));
 
 		const int32 NumDimensions = Schema->SchemaCardinality;
 		const FSearchFilters SearchFilters(Schema, NonSelectableIdx, SearchIndex.bAnyBlockTransition);

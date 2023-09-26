@@ -188,7 +188,7 @@ struct FSearchStats
 };
 
 // compact representation of an array of arrays
-template <typename Type = uint32>
+template <typename Type = int32>
 struct FSparsePoseMultiMap
 {
 	FSparsePoseMultiMap(Type InMaxKey = Type(0), Type InMaxValue = Type(0))
@@ -309,7 +309,7 @@ struct FSparsePoseMultiMap
 struct FSearchIndexBase
 {
 	TAlignedArray<float> Values;
-	FSparsePoseMultiMap<uint32> ValuesVectorToPoseIndexes;
+	FSparsePoseMultiMap<int32> ValuesVectorToPoseIndexes;
 	TAlignedArray<FPoseMetadata> PoseMetadata;
 	bool bAnyBlockTransition = false;
 	TAlignedArray<FSearchIndexAsset> Assets;
@@ -375,7 +375,7 @@ struct FSearchIndex : public FSearchIndexBase
 	// since (VA - VB).square() could lead to big numbers, and VW being multiplied by the variance of the dataset
 	TAlignedArray<float> WeightsSqrt;
 	TAlignedArray<float> PCAValues;
-	FSparsePoseMultiMap<uint32> PCAValuesVectorToPoseIndexes;
+	FSparsePoseMultiMap<int32> PCAValuesVectorToPoseIndexes;
 	TAlignedArray<float> PCAProjectionMatrix;
 	TAlignedArray<float> Mean;
 

@@ -19,7 +19,7 @@ namespace UE::PoseSearch
 {
 
 #if UE_POSE_SEARCH_USE_NANOFLANN
-using FKDTreeImplementationBase = nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<float, FKDTree::FDataSource>, FKDTree::FDataSource>;
+using FKDTreeImplementationBase = nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<float, FKDTree::FDataSource>, FKDTree::FDataSource, -1, AccessorType>;
 struct FKDTreeImplementation : FKDTreeImplementationBase
 {
 	using FKDTreeImplementationBase::FKDTreeImplementationBase;
@@ -36,13 +36,13 @@ struct FKDTreeImplementation : FKDTreeImplementationBase
 			return false;
 		}
 
-		const uint32 RootBBoxSize = root_bbox.size();
+		const AccessorType RootBBoxSize = root_bbox.size();
 		if (RootBBoxSize != Other.root_bbox.size())
 		{
 			return false;
 		}
 
-		for (uint32 Index = 0; Index < RootBBoxSize; ++Index)
+		for (AccessorType Index = 0; Index < RootBBoxSize; ++Index)
 		{
 			const Interval& ThisInterval = root_bbox[Index];
 			const Interval& OtherInterval = Other.root_bbox[Index];
@@ -145,7 +145,7 @@ private:
 };
 #endif
 
-FKDTree::FKDTree(int32 Count, int32 Dim, const float* Data, int32 MaxLeafSize)
+FKDTree::FKDTree(AccessorType Count, AccessorType Dim, const float* Data, AccessorType MaxLeafSize)
 : DataSource(Count, Dim, Data)
 , Impl(nullptr)
 {
@@ -207,31 +207,31 @@ FKDTree::FKDTree(const FKDTree& Other)
 
 		DataSource = Other.DataSource;
 
-		check(Other.Impl->m_size <= UINT_MAX);
+		check(Other.Impl->m_size <= AccessorTypeMax);
 		Impl->m_size = Other.Impl->m_size;
 
 		if (Impl->m_size > 0)
 		{
 			Impl->dim = Other.Impl->dim;
 
-			check(Other.Impl->root_bbox.size() <= UINT_MAX);
-			const uint32 root_bbox_size = Other.Impl->root_bbox.size();
+			check(Other.Impl->root_bbox.size() <= AccessorTypeMax);
+			const AccessorType root_bbox_size = Other.Impl->root_bbox.size();
 			Impl->root_bbox.resize(root_bbox_size);
 
-			for (uint32 i = 0; i < root_bbox_size; ++i)
+			for (AccessorType i = 0; i < root_bbox_size; ++i)
 			{
 				Impl->root_bbox[i] = Other.Impl->root_bbox[i];
 			}
 
-			check(Other.Impl->m_leaf_max_size <= UINT_MAX);
-			const uint32 KDTreeLeafMaxSize = Other.Impl->m_leaf_max_size;
+			check(Other.Impl->m_leaf_max_size <= AccessorTypeMax);
+			const AccessorType KDTreeLeafMaxSize = Other.Impl->m_leaf_max_size;
 			Impl->m_leaf_max_size = KDTreeLeafMaxSize;
 
-			check(Other.Impl->vAcc.size() <= UINT_MAX);
-			const uint32 VAccSize = Other.Impl->vAcc.size();
+			check(Other.Impl->vAcc.size() <= AccessorTypeMax);
+			const AccessorType VAccSize = Other.Impl->vAcc.size();
 			Impl->vAcc.resize(VAccSize);
 			
-			for (uint32 i = 0; i < VAccSize; ++i)
+			for (AccessorType i = 0; i < VAccSize; ++i)
 			{
 				Impl->vAcc[i] = Other.Impl->vAcc[i];
 			}
@@ -288,7 +288,7 @@ void FKDTree::Reset()
 	DataSource = FDataSource();
 }
 
-void FKDTree::Construct(int32 Count, int32 Dim, const float* Data, int32 MaxLeafSize)
+void FKDTree::Construct(AccessorType Count, AccessorType Dim, const float* Data, AccessorType MaxLeafSize)
 {
 	Reset();
 	new(this)FKDTree(Count, Dim, Data, MaxLeafSize);
@@ -373,11 +373,11 @@ FArchive& SerializeSubTree(FArchive& Ar, FKDTree& KDTree, FKDTreeImplementation:
 	const bool bIsLeafNode = !bAnyNodeChild1 && !bAnyNodeChild2;
 	if (bIsLeafNode)
 	{
-		check(KDTreeNode->node_type.lr.left <= UINT_MAX);
-		check(KDTreeNode->node_type.lr.right <= UINT_MAX);
+		check(KDTreeNode->node_type.lr.left <= AccessorTypeMax);
+		check(KDTreeNode->node_type.lr.right <= AccessorTypeMax);
 
-		uint32 OffsetLeft = KDTreeNode->node_type.lr.left;
-		uint32 OffsetRight = KDTreeNode->node_type.lr.right;
+		AccessorType OffsetLeft = KDTreeNode->node_type.lr.left;
+		AccessorType OffsetRight = KDTreeNode->node_type.lr.right;
 
 		Ar << OffsetLeft;
 		Ar << OffsetRight;
@@ -417,9 +417,9 @@ FArchive& SerializeSubTree(FArchive& Ar, FKDTree& KDTree, FKDTreeImplementation:
 FArchive& Serialize(FArchive& Ar, FKDTree& KDTree, const float* KDTreeData)
 {
 #if UE_POSE_SEARCH_USE_NANOFLANN
-	check(!KDTree.Impl || KDTree.Impl->m_size <= UINT_MAX);
+	check(!KDTree.Impl || KDTree.Impl->m_size <= AccessorTypeMax);
 
-	uint32 KDTreeSize = KDTree.Impl ? KDTree.Impl->m_size : 0;
+	AccessorType KDTreeSize = KDTree.Impl ? KDTree.Impl->m_size : 0;
 
 	Ar << KDTreeSize;
 
@@ -434,8 +434,8 @@ FArchive& Serialize(FArchive& Ar, FKDTree& KDTree, const float* KDTreeData)
 
 		Ar << KDTree.Impl->dim;
 
-		uint32 root_bbox_size = KDTree.Impl->root_bbox.size();
-		check(KDTree.Impl->root_bbox.size() <= UINT_MAX);
+		AccessorType root_bbox_size = KDTree.Impl->root_bbox.size();
+		check(KDTree.Impl->root_bbox.size() <= AccessorTypeMax);
 		Ar << root_bbox_size;
 
 		if (Ar.IsLoading())
@@ -452,19 +452,19 @@ FArchive& Serialize(FArchive& Ar, FKDTree& KDTree, const float* KDTreeData)
 			Ar.Serialize(&el, sizeof(FKDTreeImplementation::Interval));
 		}
 
-		check(KDTree.Impl->m_leaf_max_size <= UINT_MAX);
-		uint32 KDTreeLeafMaxSize = KDTree.Impl->m_leaf_max_size;
+		check(KDTree.Impl->m_leaf_max_size <= AccessorTypeMax);
+		AccessorType KDTreeLeafMaxSize = KDTree.Impl->m_leaf_max_size;
 		Ar << KDTreeLeafMaxSize;
 		KDTree.Impl->m_leaf_max_size = KDTreeLeafMaxSize;
 
-		check(KDTree.Impl->vAcc.size() <= UINT_MAX);
-		uint32 VAccSize = KDTree.Impl->vAcc.size();
+		check(KDTree.Impl->vAcc.size() <= AccessorTypeMax);
+		AccessorType VAccSize = KDTree.Impl->vAcc.size();
 		Ar << VAccSize;
 		if (Ar.IsLoading())
 		{
 			KDTree.Impl->vAcc.resize(VAccSize);
 		}
-		for (uint32_t& el : KDTree.Impl->vAcc)
+		for (AccessorType& el : KDTree.Impl->vAcc)
 		{
 			Ar << el;
 		}

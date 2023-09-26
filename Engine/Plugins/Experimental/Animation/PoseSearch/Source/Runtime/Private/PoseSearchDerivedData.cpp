@@ -466,7 +466,7 @@ static void PreprocessSearchIndexWeights(FSearchIndex& SearchIndex, const UPoseS
 }
 
 // it calculates Mean, PCAValues, and PCAProjectionMatrix
-static void PreprocessSearchIndexPCAData(FSearchIndex& SearchIndex, int32 NumDimensions, uint32 NumberOfPrincipalComponents, EPoseSearchMode PoseSearchMode)
+static void PreprocessSearchIndexPCAData(FSearchIndex& SearchIndex, int32 NumDimensions, int32 NumberOfPrincipalComponents, EPoseSearchMode PoseSearchMode)
 {
 	// binding SearchIndex.Values and SearchIndex.PCAValues Eigen row major matrix maps
 	const int32 NumPoses = SearchIndex.GetNumPoses();
@@ -531,13 +531,13 @@ static void PreprocessSearchIndexPCAData(FSearchIndex& SearchIndex, int32 NumDim
 
 		// sorting EigenVectors by EigenValues, so we pick the most significant ones to compose our PCA projection matrix.
 		const RowMajorVector EigenValues = EigenSolver.eigenvalues().real();
-		TArray<size_t> Indexer;
+		TArray<int32> Indexer;
 		Indexer.Reserve(NumDimensions);
-		for (size_t DimensionIndex = 0; DimensionIndex < NumDimensions; ++DimensionIndex)
+		for (int32 DimensionIndex = 0; DimensionIndex < NumDimensions; ++DimensionIndex)
 		{
 			Indexer.Push(DimensionIndex);
 		}
-		Indexer.Sort([&EigenValues](size_t a, size_t b)
+		Indexer.Sort([&EigenValues](int32 a, int32 b)
 		{
 			return EigenValues[a] > EigenValues[b];
 		});
@@ -545,7 +545,7 @@ static void PreprocessSearchIndexPCAData(FSearchIndex& SearchIndex, int32 NumDim
 		// composing the PCA projection matrix with the PCANumComponents most significant EigenVectors
 		ColMajorMatrixMap PCAProjectionMatrix(SearchIndex.PCAProjectionMatrix.GetData(), NumDimensions, NumberOfPrincipalComponents);
 		float AccumulatedVariance = 0.f;
-		for (size_t PCAComponentIndex = 0; PCAComponentIndex < NumberOfPrincipalComponents; ++PCAComponentIndex)
+		for (int32 PCAComponentIndex = 0; PCAComponentIndex < NumberOfPrincipalComponents; ++PCAComponentIndex)
 		{
 			PCAProjectionMatrix.col(PCAComponentIndex) = EigenVectors.col(Indexer[PCAComponentIndex]);
 			AccumulatedVariance += EigenValues[Indexer[PCAComponentIndex]];
@@ -628,20 +628,20 @@ static void PreprocessSearchIndexKDTree(FSearchIndex& SearchIndex, const UPoseSe
 			// testing the KDTree is returning the proper searches for all the points in pca space
 			const int32 KDTreeQueryNumNeighbors = Database->KDTreeQueryNumNeighbors;
 
-			TArray<size_t> ResultIndexes;
+			TArray<int32> ResultIndexes;
 			TArray<float> ResultDistanceSqr;
 			ResultIndexes.SetNum(NumPCAValuesVectors + 1);
 			ResultDistanceSqr.SetNum(NumPCAValuesVectors + 1);
 
-			size_t MaxNumNeighborToFindAPoint = 0;
-			for (size_t PointIndex = 0; PointIndex < NumPCAValuesVectors; ++PointIndex)
+			int32 MaxNumNeighborToFindAPoint = 0;
+			for (int32 PointIndex = 0; PointIndex < NumPCAValuesVectors; ++PointIndex)
 			{
 				// searching the kdtree for PointIndex
 				FKDTree::FRadiusResultSet ResultSet(UE_SMALL_NUMBER, NumPCAValuesVectors, ResultIndexes, ResultDistanceSqr);
 				SearchIndex.KDTree.FindNeighbors(ResultSet, MakeArrayView(&SearchIndex.PCAValues[PointIndex * NumberOfPrincipalComponents], NumberOfPrincipalComponents));
 
 				bool bFound = false;
-				for (size_t ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
+				for (int32 ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
 				{
 					if (PointIndex == ResultIndexes[ResultIndex])
 					{
@@ -671,12 +671,12 @@ static void PreprocessSearchIndexKDTree(FSearchIndex& SearchIndex, const UPoseSe
 			{
 				// testing the KDTree is returning the proper searches for all the original points transformed in pca space
 				TArrayView<float> ProjectedValues((float*)FMemory_Alloca(NumberOfPrincipalComponents * sizeof(float)), NumberOfPrincipalComponents);
-				for (size_t PointIndex = 0; PointIndex < NumPCAValuesVectors; ++PointIndex)
+				for (int32 PointIndex = 0; PointIndex < NumPCAValuesVectors; ++PointIndex)
 				{
 					FKDTree::FKNNResultSet ResultSet(KDTreeQueryNumNeighbors, ResultIndexes, ResultDistanceSqr);
 					SearchIndex.KDTree.FindNeighbors(ResultSet, SearchIndex.PCAProject(SearchIndex.GetPoseValuesBase(PointIndex, NumDimensions), ProjectedValues));
 
-					size_t ResultIndex = 0;
+					int32 ResultIndex = 0;
 					for (; ResultIndex < ResultSet.Num(); ++ResultIndex)
 					{
 						if (PointIndex == ResultIndexes[ResultIndex])

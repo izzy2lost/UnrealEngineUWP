@@ -10,13 +10,16 @@ class FArchive;
 
 namespace UE::PoseSearch
 {
+enum { AccessorTypeMax = INT_MAX };
+typedef int32 AccessorType;
+
 struct FKDTreeImplementation;
 
 struct FKDTree
 {
 	struct FDataSource
 	{
-		FDataSource(int32 pointCount, int32 pointDim, const float* data)
+		FDataSource(AccessorType pointCount, AccessorType pointDim, const float* data)
 		: PointCount((pointDim > 0 && data) ? pointCount : 0)
 		, PointDim(pointDim)
 		, Data(data)
@@ -47,8 +50,8 @@ struct FKDTree
 				return false;
 			}
 
-			const int32 DataSize = PointCount * PointDim;
-			for (int32 DataIndex = 0; DataIndex < DataSize; ++DataIndex)
+			const AccessorType DataSize = PointCount * PointDim;
+			for (AccessorType DataIndex = 0; DataIndex < DataSize; ++DataIndex)
 			{
 				if (Data[DataIndex] != Other.Data[DataIndex])
 				{
@@ -60,10 +63,10 @@ struct FKDTree
 		}
 
 		// Must return the number of data points
-		inline size_t kdtree_get_point_count() const { return PointCount; }
+		inline AccessorType kdtree_get_point_count() const { return PointCount; }
 
 		// this method is called by nanoflann::findNeighbors -> nanoflann::searchLevel, so it has to be as fast as possible
-		inline float kdtree_get_pt(const size_t idx, const size_t dim) const { return Data[idx * PointDim + dim]; }
+		inline float kdtree_get_pt(const AccessorType idx, const AccessorType dim) const { return Data[idx * PointDim + dim]; }
 
 		// Optional bounding-box computation: return false to default to a standard
 		// bbox computation loop.
@@ -72,14 +75,14 @@ struct FKDTree
 		//   find out the expected dimensionality (e.g. 2 or 3 for point clouds)
 		template <class BBOX> bool kdtree_get_bbox(BBOX& /* bb */) const { return false; }
 
-		int32 PointCount = 0;
-		int32 PointDim = 0;
+		AccessorType PointCount = 0;
+		AccessorType PointDim = 0;
 		const float* Data = nullptr;
 	};
 
 	struct FKNNResultSet
 	{
-		inline FKNNResultSet(size_t InNumNeighbors, TArrayView<size_t> InIndexes, TArrayView<float> InDistances, TConstArrayView<size_t> InExcludeFromSearchIndexes = TConstArrayView<size_t>())
+		inline FKNNResultSet(AccessorType InNumNeighbors, TArrayView<AccessorType> InIndexes, TArrayView<float> InDistances, TConstArrayView<AccessorType> InExcludeFromSearchIndexes = TConstArrayView<AccessorType>())
 		: Indexes(InIndexes)
 		, Distances(InDistances)
 		, NumNeighbors(InNumNeighbors)
@@ -95,7 +98,7 @@ struct FKDTree
 			Distances[NumNeighbors - 1] = UE_BIG_NUMBER;
 		}
 
-		inline size_t Num() const
+		inline AccessorType Num() const
 		{
 			return Count;
 		}
@@ -105,7 +108,7 @@ struct FKDTree
 			return Count == NumNeighbors;
 		}
 
-		inline bool addPoint(float dist, size_t index)
+		inline bool addPoint(float dist, AccessorType index)
 		{
 			if (Algo::BinarySearch(ExcludeFromSearchIndexes, index) != INDEX_NONE)
 			{
@@ -113,7 +116,7 @@ struct FKDTree
 			}
 
 			// shifting Distances[i] and Indexes[i] to make space for "dist" and "index" at the right "i"th slot
-			size_t i;
+			AccessorType i;
 			for (i = Count; (i > 0) && (Distances[i - 1] > dist); --i)
 			{
 				// no need to check "if (i < capacity)" since dists and indices can contains more items than capacity_ 
@@ -138,16 +141,16 @@ struct FKDTree
 		inline float worstDist() const { return Distances[NumNeighbors - 1]; }
 
 	private:
-		TArrayView<size_t> Indexes;
+		TArrayView<AccessorType> Indexes;
 		TArrayView<float> Distances;
-		size_t NumNeighbors;
-		size_t Count;
-		TConstArrayView<size_t> ExcludeFromSearchIndexes; // sorted array view
+		AccessorType NumNeighbors;
+		AccessorType Count;
+		TConstArrayView<AccessorType> ExcludeFromSearchIndexes; // sorted array view
 	};
 
 	struct FRadiusResultSet
 	{
-		inline FRadiusResultSet(float Radius, size_t MaxNumNeighbors, TArrayView<size_t> InIndexes, TArrayView<float> InDistances)
+		inline FRadiusResultSet(float Radius, AccessorType MaxNumNeighbors, TArrayView<AccessorType> InIndexes, TArrayView<float> InDistances)
 		: Indexes(InIndexes)
 		, Distances(InDistances)
 		, NumNeighbors(MaxNumNeighbors)
@@ -161,7 +164,7 @@ struct FKDTree
 			Distances[NumNeighbors - 1] = Radius;
 		}
 
-		inline size_t Num() const
+		inline AccessorType Num() const
 		{
 			return Count;
 		}
@@ -171,12 +174,12 @@ struct FKDTree
 			return Count == NumNeighbors;
 		}
 
-		inline bool addPoint(float dist, size_t index)
+		inline bool addPoint(float dist, AccessorType index)
 		{
 			if (dist < worstDist())
 			{
 				// shifting Distances[i] and Indexes[i] to make space for "dist" and "index" at the right "i"th slot
-				size_t i;
+				AccessorType i;
 				for (i = Count; (i > 0) && (Distances[i - 1] > dist); --i)
 				{
 					// no need to check "if (i < capacity)" since dists and indices can contains more items than capacity_ 
@@ -202,14 +205,14 @@ struct FKDTree
 		inline float worstDist() const { return Distances[NumNeighbors - 1]; }
 
 	private:
-		TArrayView<size_t> Indexes;
+		TArrayView<AccessorType> Indexes;
 		TArrayView<float> Distances;
-		size_t NumNeighbors;
-		size_t Count;
+		AccessorType NumNeighbors;
+		AccessorType Count;
 	};
 	
 
-	FKDTree(int32 Count, int32 Dim, const float* Data, int32 MaxLeafSize = 16);
+	FKDTree(AccessorType Count, AccessorType Dim, const float* Data, AccessorType MaxLeafSize = 16);
 	FKDTree();
 	FKDTree(const FKDTree& Other);
 	FKDTree(FKDTree&& Other) = delete;
@@ -221,7 +224,7 @@ struct FKDTree
 	bool operator==(const FKDTree& Other) const;
 	
 	void Reset();
-	void Construct(int32 Count, int32 Dim, const float* Data, int32 MaxLeafSize = 16);
+	void Construct(AccessorType Count, AccessorType Dim, const float* Data, AccessorType MaxLeafSize = 16);
 	bool FindNeighbors(FKNNResultSet& Result, TConstArrayView<float> Query) const;
 	bool FindNeighbors(FRadiusResultSet& Result, TConstArrayView<float> Query) const;
 	POSESEARCH_API SIZE_T GetAllocatedSize() const;
