@@ -152,7 +152,7 @@ namespace Horde.Server.Ddc
 				using Stream stream = content.GetStream();
 				await stream.ReadAsync(memory, cancellationToken);
 
-				blobHandle = await writer.WriteNodeAsync(memory.Length, Array.Empty<BlobHandle>(), s_rawBlobType, cancellationToken);
+				blobHandle = await writer.WriteBlobAsync(memory.Length, Array.Empty<BlobHandle>(), s_rawBlobType, cancellationToken);
 				await writer.FlushAsync(cancellationToken);
 			}
 

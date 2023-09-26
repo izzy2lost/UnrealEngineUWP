@@ -166,10 +166,11 @@ namespace EpicGames.Horde.Storage.Bundles
 			public readonly int Offset;
 			public readonly int Length;
 			public readonly BundleNodeHandle[] Refs;
+			public readonly AliasInfo[] Aliases;
 
 			public PendingBundle? PendingBundle => _pendingBundle;
 
-			public PendingNode(BundleReader reader, NodeKey key, int packet, int offset, int length, IReadOnlyList<BundleNodeHandle> refs, PendingBundle pendingBundle)
+			public PendingNode(BundleReader reader, NodeKey key, int packet, int offset, int length, IReadOnlyList<BundleNodeHandle> refs, IReadOnlyList<AliasInfo> aliases, PendingBundle pendingBundle)
 				: base(key.Hash)
 			{
 				_reader = reader;
@@ -179,6 +180,7 @@ namespace EpicGames.Horde.Storage.Bundles
 				Offset = offset;
 				Length = length;
 				Refs = refs.ToArray();
+				Aliases = aliases.ToArray();
 
 				_pendingBundle = pendingBundle;
 			}
@@ -428,14 +430,14 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 
 			// Finish a node write
-			public PendingNode WriteNode(NodeKey nodeKey, int size, IReadOnlyList<BlobHandle> refs)
+			public PendingNode WriteNode(NodeKey nodeKey, int size, IReadOnlyList<BlobHandle> refs, IReadOnlyList<AliasInfo> aliases)
 			{
 				int offset = _currentPacketLength;
 
 				_currentPacketLength += size;
 				UncompressedLength += size;
 
-				PendingNode pendingNode = new PendingNode(_treeReader, nodeKey, _currentPacketIdx, offset, (int)size, refs.ConvertAll(x => (BundleNodeHandle)x), this);
+				PendingNode pendingNode = new PendingNode(_treeReader, nodeKey, _currentPacketIdx, offset, (int)size, refs.ConvertAll(x => (BundleNodeHandle)x), aliases, this);
 				_queue.Add(pendingNode);
 				_queuedRefs += refs.Count;
 				_nodeKeyToInfo.Add(nodeKey, pendingNode);
@@ -547,9 +549,16 @@ namespace EpicGames.Horde.Storage.Bundles
 
 					for (int idx = 0; idx < _queue.Count; idx++)
 					{
+						PendingNode node = _queue[idx];
+
 						BundleNodeLocator nodeLocator = new BundleNodeLocator(_queue[idx].Key.Hash, locator, idx);
 						traceLogger?.LogInformation("Updated pending node {Hash} with locator {Locator}", _queue[idx].Key.Hash, nodeLocator);
 						_queue[idx].MarkAsWritten(nodeLocator);
+
+						foreach (AliasInfo alias in node.Aliases)
+						{
+							await store.AddAliasAsync(alias.Name, nodeLocator, alias.Rank, alias.Data);
+						}
 					}
 
 					BlobWriteCallback? callback = Interlocked.Exchange(ref _callbacks, s_callbackSentinel);
@@ -851,9 +860,10 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <param name="size">Used size of the buffer</param>
 		/// <param name="references">References to other nodes</param>
 		/// <param name="type">Type of the node that was written</param>
+		/// <param name="aliases">Aliases for the node</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the written node</returns>
-		public async ValueTask<BlobHandle> WriteNodeAsync(int size, IReadOnlyList<BlobHandle> references, BlobType type, CancellationToken cancellationToken = default)
+		public async ValueTask<BlobHandle> WriteBlobAsync(int size, IReadOnlyList<BlobHandle> references, BlobType type, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
 		{
 			PendingBundle currentBundle = GetCurrentBundle();
 
@@ -872,7 +882,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 
 			// Append this node data
-			PendingNode pendingNode = currentBundle.WriteNode(nodeKey, size, references);
+			PendingNode pendingNode = currentBundle.WriteNode(nodeKey, size, references, aliases);
 			_nodeCache.Add(nodeKey, pendingNode);
 			TraceLogger?.LogInformation("Added new node for {NodeKey} in bundle {BundleId}", nodeKey, currentBundle.BundleId);
 

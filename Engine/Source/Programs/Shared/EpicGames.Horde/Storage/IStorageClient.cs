@@ -70,6 +70,14 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
+	/// Information about an alias
+	/// </summary>
+	/// <param name="Name">Name of the alias</param>
+	/// <param name="Rank">Rank of the alias</param>
+	/// <param name="Data">Inline data to be stored for the alias</param>
+	public record class AliasInfo(Utf8String Name, int Rank, ReadOnlyMemory<byte> Data);
+
+	/// <summary>
 	/// Interface for the storage system.
 	/// </summary>
 	public interface IStorageClient : IDisposable
@@ -183,9 +191,10 @@ namespace EpicGames.Horde.Storage
 		/// <param name="size">Used size of the buffer</param>
 		/// <param name="references">References to other nodes</param>
 		/// <param name="type">Type of the node that was written</param>
+		/// <param name="aliases">Aliases for this node</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the written node</returns>
-		ValueTask<BlobHandle> WriteNodeAsync(int size, IReadOnlyList<BlobHandle> references, BlobType type, CancellationToken cancellationToken = default);
+		ValueTask<BlobHandle> WriteBlobAsync(int size, IReadOnlyList<BlobHandle> references, BlobType type, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Writes the reference using the given target node
@@ -355,6 +364,26 @@ namespace EpicGames.Horde.Storage
 			StorageStats stats = new StorageStats();
 			store.GetStats(stats);
 			return stats;
+		}
+	}
+
+	/// <summary>
+	/// Extension methods for <see cref="IStorageWriter"/>
+	/// </summary>
+	public static class StorageWriterExtensions
+	{
+		/// <summary>
+		/// Finish writing a node.
+		/// </summary>
+		/// <param name="writer">Writer instance to manipulate</param>
+		/// <param name="size">Used size of the buffer</param>
+		/// <param name="references">References to other nodes</param>
+		/// <param name="type">Type of the node that was written</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Handle to the written node</returns>
+		public static ValueTask<BlobHandle> WriteBlobAsync(this IStorageWriter writer, int size, IReadOnlyList<BlobHandle> references, BlobType type, CancellationToken cancellationToken = default)
+		{
+			return writer.WriteBlobAsync(size, references, type, Array.Empty<AliasInfo>(), cancellationToken);
 		}
 	}
 }

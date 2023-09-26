@@ -197,7 +197,7 @@ namespace EpicGames.Horde.Storage
 			node.Serialize(nodeWriter);
 
 			// Write the final data
-			BlobHandle handle = await writer.WriteNodeAsync(nodeWriter.Length, nodeWriter.References, node.NodeType, cancellationToken);
+			BlobHandle handle = await writer.WriteBlobAsync(nodeWriter.Length, nodeWriter.References, node.NodeType, cancellationToken);
 			return new NodeRef<TNode>(handle);
 		}
 

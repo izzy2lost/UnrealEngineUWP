@@ -345,7 +345,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <returns>Handle to the written leaf node</returns>
 		async ValueTask FlushLeafNodeAsync(CancellationToken cancellationToken)
 		{
-			BlobHandle handle = await _writer.WriteNodeAsync(_leafLength, Array.Empty<BlobHandle>(), s_leafNodeType, cancellationToken);
+			BlobHandle handle = await _writer.WriteBlobAsync(_leafLength, Array.Empty<BlobHandle>(), s_leafNodeType, cancellationToken);
 			_leafHandles.Add(new NodeRef<ChunkedDataNode>(handle));
 			ResetLeafState();
 		}
