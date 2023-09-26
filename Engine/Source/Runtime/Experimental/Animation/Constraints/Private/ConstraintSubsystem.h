@@ -82,6 +82,7 @@ private:
 	//handles for handling world creation init and teardown
 	static FDelegateHandle OnWorldInitHandle;
 	static FDelegateHandle OnWorldCleanupHandle;
+	void RegisterWorldDelegates();
 
 	const FConstraintsInWorld* ConstraintsInWorldFind(UWorld* InWorld) const;
 	FConstraintsInWorld* ConstraintsInWorldFind(UWorld* InWorld);
