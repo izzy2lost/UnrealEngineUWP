@@ -2187,6 +2187,7 @@ void FNiagaraGpuComputeDispatch::OnDestroy()
 
 bool FNiagaraGpuComputeDispatch::AddSortedGPUSimulation(FRHICommandListBase& RHICmdList, FNiagaraGPUSortInfo& SortInfo)
 {
+	UE::TScopeLock Lock(AddSortedGPUSimulationMutex);
 	if (GPUSortManager && GPUSortManager->AddTask(RHICmdList, SortInfo.AllocationInfo, SortInfo.ParticleCount, SortInfo.SortFlags))
 	{
 		// It's not worth currently to have a map between SortInfo.AllocationInfo.SortBatchId and the relevant indices in SimulationsToSort

@@ -235,6 +235,8 @@ private:
 
 	int32 MaxTicksToFlush = TNumericLimits<int32>::Max();
 
+	UE::FMutex AddSortedGPUSimulationMutex;
+
 	bool bRequiresReadback = false;
 	TArray<FNiagaraSystemGpuComputeProxy*> ProxiesPerStage[ENiagaraGpuComputeTickStage::Max];
 

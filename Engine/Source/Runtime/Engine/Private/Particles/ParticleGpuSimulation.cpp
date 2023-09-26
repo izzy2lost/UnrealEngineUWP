@@ -4280,6 +4280,7 @@ bool FFXSystem::AddSortedGPUSimulation(FRHICommandListBase& RHICmdList, FParticl
 		EGPUSortFlags::LowPrecisionKeys | 
 		EGPUSortFlags::SortAfterPostRenderOpaque;
 
+	UE::TScopeLock Lock(AddSortedGPUSimulationMutex);
 	// Currently opaque materials would need SortAfterPreRender but this is incompatible with KeyGenAfterPostRenderOpaque
 	if (bIsTranslucent && GPUSortManager && GPUSortManager->AddTask(RHICmdList, OutInfo, Simulation->VertexBuffer.ParticleCount, SortFlags))
 	{

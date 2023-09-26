@@ -384,6 +384,9 @@ private:
 
 	/** Previous frame new particles for multi-gpu simulation*/
 	TArray<FNewParticle> LastFrameNewParticles;
+
+	UE::FMutex AddSortedGPUSimulationMutex;
+
 #if WITH_EDITOR
 	/** true if the system has been suspended. */
 	bool bSuspended;
