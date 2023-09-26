@@ -142,7 +142,18 @@ TAutoConsoleVariable<int32> CVarPostProcessingForceAsyncDispatch(
 	TEXT("Only available for testing in non-shipping builds."),
 	ECVF_RenderThreadSafe);
 #endif
+
+#if WITH_EDITOR
+TAutoConsoleVariable<int32> CVarGBufferPicking(
+	TEXT("r.PostProcessing.GBufferPicking"), 0,
+	TEXT("Evaluate GBuffer value for debugging purpose."),
+	ECVF_RenderThreadSafe);
+#endif
 }
+
+#if WITH_EDITOR
+static void AddGBufferPicking(FRDGBuilder& GraphBuilder, const FViewInfo& View, const TRDGUniformBufferRef<FSceneTextureUniformParameters>& SceneTextures);
+#endif 
 
 EDownsampleQuality GetDownsampleQuality(const TAutoConsoleVariable<int32>& CVar)
 {
@@ -1636,6 +1647,13 @@ void AddPostProcessingPasses(
 			VirtualShadowMapArray->AddVisualizePass(GraphBuilder, View, ViewIndex, SceneColor);
 		}
 
+		#if WITH_EDITOR
+		if (CVarGBufferPicking.GetValueOnRenderThread())
+		{
+			AddGBufferPicking(GraphBuilder, View, Inputs.SceneTextures);
+		}
+		#endif
+
 		{
 			RectLightAtlas::AddDebugPass(GraphBuilder, View, SceneColor.Texture);
 			IESAtlas::AddDebugPass(GraphBuilder, View, SceneColor.Texture);
@@ -2882,5 +2900,53 @@ FScreenPassTexture AddFinalPostProcessDebugInfoPasses(FRDGBuilder& GraphBuilder,
 		});
 
 	return MoveTemp(ScreenPassSceneColor);
+}
+#endif
+
+// Shader for visualizing GBuffer values
+class FGBufferPickingCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FGBufferPickingCS);
+	SHADER_USE_PARAMETER_STRUCT(FGBufferPickingCS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTexturesStruct)
+		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintParameters)
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
+	END_SHADER_PARAMETER_STRUCT()
+
+public:
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) 
+	{ 
+		return ShaderPrint::IsSupported(Parameters.Platform) && !Substrate::IsSubstrateEnabled() && 
+			EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
+	}
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("SHADER_GBUFFER_PICKING"), 1);
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FGBufferPickingCS, "/Engine/Private/PostProcessGBufferHints.usf", "MainCS", SF_Compute);
+
+#if WITH_EDITOR
+static void AddGBufferPicking(FRDGBuilder& GraphBuilder, const FViewInfo& View, const TRDGUniformBufferRef<FSceneTextureUniformParameters>& SceneTextures)
+{
+	if (CVarGBufferPicking.GetValueOnRenderThread() <= 0 || !ShaderPrint::IsSupported(View.Family->GetShaderPlatform()))
+	{
+		return;
+	}
+
+	// Force ShaderPrint on.
+	ShaderPrint::SetEnabled(true);
+
+	FGBufferPickingCS::FParameters* Parameters = GraphBuilder.AllocParameters<FGBufferPickingCS::FParameters>();
+	Parameters->ViewUniformBuffer = View.ViewUniformBuffer;
+	Parameters->SceneTexturesStruct = SceneTextures;
+	ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, Parameters->ShaderPrintParameters);
+
+	TShaderMapRef<FGBufferPickingCS> ComputeShader(View.ShaderMap);
+	FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("Debug::GBufferPicking"), ComputeShader, Parameters, FIntVector(1,1,1));
 }
 #endif
