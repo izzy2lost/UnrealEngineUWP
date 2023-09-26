@@ -2851,8 +2851,6 @@ void FVirtualTextureSystem::ReleasePendingResources()
 
 float FVirtualTextureSystem::GetGlobalMipBias() const
 {
-	UE::TScopeLock Lock(Mutex);
-
 	float MaxResidencyMipMapBias = 0.f;
 	for (int32 SpaceIndex = 0; SpaceIndex < PhysicalSpaces.Num(); ++SpaceIndex)
 	{

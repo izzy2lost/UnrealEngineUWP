@@ -82,6 +82,12 @@ struct FVirtualTextureUpdateSettings
 
 class FVirtualTextureUpdater
 {
+public:
+	UE::Tasks::FTask GetTask() const
+	{
+		return AsyncTask;
+	}
+
 private:
 	FVirtualTextureUpdateSettings Settings;
 	FConcurrentLinearBulkObjectAllocator Allocator;
