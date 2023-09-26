@@ -55,6 +55,12 @@ static TAutoConsoleVariable<int32> CVarShaderDevelopmentMode(
 	TEXT("0: Default, 1: Enable various shader development utilities, such as the ability to retry on failed shader compile, and extra logging as shaders are compiled."),
 	ECVF_Default);
 
+static TAutoConsoleVariable<bool> CVarDumpDebugInfoForCacheHits(
+	TEXT("r.ShaderCompiler.DumpDebugInfoForCacheHits"),
+	true,
+	TEXT("If true, debug info (via IShaderFormat::OutputDebugData) will be output for all jobs including duplicates and cache/DDC hits. If false, only jobs that actually executed compilation will dump debug info."),
+	ECVF_Default);
+
 void UpdateShaderDevelopmentMode()
 {
 	// Keep LogShaders verbosity in sync with r.ShaderDevelopmentMode
@@ -3446,13 +3452,14 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 void FShaderCompileJob::SerializeOutput(FArchive& Ar)
 {
 	double ActualCompileTime = 0.0;
-	double ActualPreprocessTime = 0.0;
+	// Save the preprocess time as set in the job regardless of whether saving or loading - if loading from the cache and the preprocessed job
+	// cache is enabled this job will have already run its own preprocessing and we want to track/aggregate this time properly.
+	double ActualPreprocessTime = Output.PreprocessTime;
 	if (Ar.IsSaving())
 	{
-		// Cached jobs won't have accurate results anyway, so reduce the storage requirements by setting those fields to a known value.
-		// This significantly reduces the memory needed to store the outputs (by more than a half)
+		// Clear preprocess time and compile time when storing a job in the cache. This reduces storage requirements since these objects are
+		// deduplicated based on a hash (and otherwise duplicate jobs will still differ in these values).
 		ActualCompileTime = Output.CompileTime;
-		ActualPreprocessTime = Output.PreprocessTime;
 		Output.CompileTime = 0.0;
 		Output.PreprocessTime = 0.0;
 	}
@@ -3468,10 +3475,13 @@ void FShaderCompileJob::SerializeOutput(FArchive& Ar)
 	}
 	else
 	{
-		// restore the compile time for this jobs. Jobs that will be deserialized from the cache will have a compile time of 0.0
+		// Restore the compile time for this job if we're saving to the cache.
+		// Jobs that will be deserialized from the cache will have a compile time of 0.0
 		Output.CompileTime = ActualCompileTime;
-		Output.PreprocessTime = ActualPreprocessTime;
 	}
+
+	// Unconditionally restore the preprocess time for this job after saving to or loading from the cache.
+	Output.PreprocessTime = ActualPreprocessTime;
 }
 
 void FShaderCompileJob::OnComplete()
@@ -3489,8 +3499,13 @@ void FShaderCompileJob::OnComplete()
 		// dump debug info for the job at this point if the preprocessed cache is enabled
 		// this ensures we get debug output for all jobs, including those that were found in the job cache,
 		// or matched another in-flight job's hash and so could share its results
-		if (Input.bCachePreprocessed && Input.DumpDebugInfoEnabled())
+		if (Input.bCachePreprocessed 
+			&& Input.DumpDebugInfoEnabled()
+			// if we only want debug info for jobs which actually compiled, check the CompileTime
+			// (jobs deserialized from the cache/wait list/ddc will have a compiletime of 0.0)
+			&& (CVarDumpDebugInfoForCacheHits.GetValueOnAnyThread() || Output.CompileTime > 0.0f))
 		{
+			
 			if (SecondaryPreprocessOutput.IsValid() && SecondaryOutput.IsValid())
 			{
 				ShaderFormat->OutputDebugData(Input, PreprocessOutput, *SecondaryPreprocessOutput, Output, *SecondaryOutput);

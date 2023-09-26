@@ -354,8 +354,10 @@ public:
 			TotalCompileTime += Other.TotalCompileTime;
 			TotalPreprocessTime += Other.TotalPreprocessTime;
 			NumCompiled += Other.NumCompiled;
-			AverageCompileTime = (TotalCompileTime + Other.TotalCompileTime) / static_cast<float>(NumCompiled + Other.NumCompiled);
-
+			if (NumCompiled)
+			{
+				AverageCompileTime = TotalCompileTime / static_cast<float>(NumCompiled);
+			}
 			return *this;
 		}
 	};
@@ -394,7 +396,7 @@ public:
 	void RegisterAssignedJob(FShaderCommonCompileJob& InOutJob);
 
 	/** Marks the job as finished for the stats purpose. Job will be modified to include the current timestamp. */
-	void RegisterFinishedJob(FShaderCommonCompileJob& InOutJob);
+	void RegisterFinishedJob(FShaderCommonCompileJob& InOutJob, bool bWasCached);
 
 	/** Informs statistics about a new job batch, so we can tally up batches. */
 	void RegisterJobBatch(int32 NumJobs, EExecutionType ExecType);
