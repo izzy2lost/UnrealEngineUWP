@@ -185,6 +185,8 @@ struct FTextureBuildSettings
 	uint8 PowerOfTwoMode;
 	/** The color used to pad the texture out if it is resized due to PowerOfTwoMode */
 	FColor PaddingColor;
+	/** If set to true, texture padding will be performed using colors of the border pixels in order to improve quality of the generated mipmaps. */
+	bool bPadWithBorderColor;
 	/** The color that will be replaced with transparent black if chroma keying is enabled */
 	FColor ChromaKeyColor;
 	/** The threshold that components have to match for the texel to be considered equal to the ChromaKeyColor when chroma keying (<=, set to 0 to require a perfect exact match) */
@@ -295,6 +297,7 @@ struct FTextureBuildSettings
 		, bChromaKeyTexture(false)
 		, PowerOfTwoMode(0 /*ETexturePowerOfTwoSetting::None*/)
 		, PaddingColor(FColor::Black)
+		, bPadWithBorderColor(false)
 		, ChromaKeyColor(FColorList::Magenta)
 		, ChromaKeyThreshold(1.0f / 255.0f)
 		, CompressionQuality(-1)

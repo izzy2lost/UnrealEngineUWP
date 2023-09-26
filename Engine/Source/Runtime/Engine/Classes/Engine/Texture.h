@@ -1222,9 +1222,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Texture)
 	TEnumAsByte<enum ETexturePowerOfTwoSetting::Type> PowerOfTwoMode;
 
-	/** The color used to pad the texture out if it is resized due to PowerOfTwoMode */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Texture)
+	/** The color used to pad the texture out if it is padded due to PowerOfTwoMode */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Texture, meta = (EditCondition = "(PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToSquarePowerOfTwo) && !bPadWithBorderColor", EditConditionHides))
 	FColor PaddingColor;
+
+	/** If set to true, texture padding will be performed using colors of the border pixels. This can be used to improve quality of the generated mipmaps for padded textures. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Texture, meta = (EditCondition = "PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToSquarePowerOfTwo", EditConditionHides))
+	bool bPadWithBorderColor;
 
 	/** Whether to chroma key the image, replacing any pixels that match ChromaKeyColor with transparent black */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Adjustments)

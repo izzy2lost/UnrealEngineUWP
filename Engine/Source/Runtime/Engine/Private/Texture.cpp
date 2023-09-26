@@ -176,6 +176,7 @@ UTexture::UTexture(const FObjectInitializer& ObjectInitializer)
 	AlphaCoverageThresholds = FVector4(0, 0, 0, 0);
 	bUseNewMipFilter = false;
 	PaddingColor = FColor::Black;
+	bPadWithBorderColor = false;
 	ChromaKeyColor = FColorList::Magenta;
 	ChromaKeyThreshold = 1.0f / 255.0f;
 	VirtualTextureStreaming = 0;

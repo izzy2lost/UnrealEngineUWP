@@ -3922,6 +3922,7 @@ private:
 				else
 				{
 					FLinearColor FillColor = BuildSettings.PaddingColor;
+					bool bPadWithBorderColor = BuildSettings.bPadWithBorderColor;
 
 					FLinearColor* TargetPtr = (FLinearColor*)TargetImage.RawData.GetData();
 					FLinearColor* SourcePtr = (FLinearColor*)SourceImage.RawData.GetData();
@@ -3940,10 +3941,18 @@ private:
 								SourcePtr += SourceImage.SizeX;
 								TargetPtr += SourceImage.SizeX;
 							}
+							else if (bPadWithBorderColor)
+							{
+								XStart = TargetImage.SizeX;
+								// We're copying the entirely of the last line of the target image, which we know has proper padding horizontally
+								// because earlier passes (when Y < SourceImage.SizeY) will pad out the line in the loop below.
+								FMemory::Memcpy(TargetPtr, TargetPtr - TargetImage.SizeX, TargetImage.SizeX * sizeof(FLinearColor));
+								TargetPtr += TargetImage.SizeX;
+							}
 
 							for (int32 XPad = XStart; XPad < TargetImage.SizeX; ++XPad)
 							{
-								*TargetPtr++ = FillColor;
+								*TargetPtr++ = bPadWithBorderColor ? *(TargetPtr - 1) : FillColor;
 							}
 						}
 					}
@@ -3952,9 +3961,19 @@ private:
 					{
 						for (int32 Y = 0; Y < TargetImage.SizeY; ++Y)
 						{
-							for (int32 X = 0; X< TargetImage.SizeX; ++X)
+							if (bPadWithBorderColor)
 							{
-								*TargetPtr++ = FillColor;
+								// We're copying the entirely of the corresponding line from the previous slice, which we know has proper padding
+								// performed during earlier passes (SliceIndex < SourceImage.NumSlices).
+								FMemory::Memcpy(TargetPtr, TargetPtr - (int64) TargetImage.SizeX * TargetImage.SizeY, TargetImage.SizeX * sizeof(FLinearColor));
+								TargetPtr += TargetImage.SizeX;
+							}
+							else
+							{
+								for (int32 X = 0; X < TargetImage.SizeX; ++X)
+								{
+									*TargetPtr++ = FillColor;
+								}
 							}
 						}
 					}
