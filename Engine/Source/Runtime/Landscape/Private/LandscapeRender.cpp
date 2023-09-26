@@ -1393,7 +1393,7 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 	UpdateVisibleInLumenScene();
 
 	// Force OnTransformChanged and {Create, Destroy}RenderThreadResources onto the render thread.
-	bConstrainToRenderThread = true;
+	bSupportsParallelCreateDestroy = false;
 }
 
 void FLandscapeComponentSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
@@ -4347,7 +4347,7 @@ FLandscapeMeshProxySceneProxy::FLandscapeMeshProxySceneProxy(UStaticMeshComponen
 	}
 
 	// Force OnTransformChanged and {Create, Destroy}RenderThreadResources onto the render thread.
-	bConstrainToRenderThread = true;
+	bSupportsParallelCreateDestroy = false;
 }
 
 void FLandscapeMeshProxySceneProxy::RegisterSections()

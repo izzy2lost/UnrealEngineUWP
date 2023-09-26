@@ -1954,7 +1954,7 @@ void FScene::BatchAddPrimitivesInternal(TArrayView<T*> InPrimitives)
 		FMatrix RenderMatrix = Primitive->GetRenderMatrix();
 		FVector AttachmentRootPosition = Primitive->GetActorPositionForRenderer();
 
-		TArray<FCreateCommand, TInlineAllocator<1>>& CreateCommands = GRenderCommandPipeMode != ERenderCommandPipeMode::All || PrimitiveSceneProxy->ShouldConstrainToRenderThread()
+		TArray<FCreateCommand, TInlineAllocator<1>>& CreateCommands = GRenderCommandPipeMode != ERenderCommandPipeMode::All || !PrimitiveSceneProxy->SupportsParallelCreateDestroy()
 			? CreateCommandsRenderThread
 			: CreateCommandsScenePipe;
 
@@ -2514,16 +2514,16 @@ void FScene::BatchRemovePrimitivesInternal(TArrayView<T*> InPrimitives)
 		{
 			FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveSceneProxy->GetPrimitiveSceneInfo();
 
-			const bool bConstrainToRenderThread = GRenderCommandPipeMode != ERenderCommandPipeMode::All || PrimitiveSceneProxy->ShouldConstrainToRenderThread();
+			const bool bRenderThreadSceneCommands = GRenderCommandPipeMode != ERenderCommandPipeMode::All || !PrimitiveSceneProxy->SupportsParallelCreateDestroy();
 
-			if (bConstrainToRenderThread)
+			if (bRenderThreadSceneCommands)
 			{
 				DestroyProxies.Emplace(PrimitiveSceneProxy);
 			}
 
 			// Disassociate the primitive's scene proxy.
 			Primitive->ReleaseSceneProxy();
-			DetachCommands.Add({ PrimitiveSceneInfo, !bConstrainToRenderThread ? PrimitiveSceneProxy : nullptr, &Primitive->GetSceneData().AttachmentCounter });
+			DetachCommands.Add({ PrimitiveSceneInfo, !bRenderThreadSceneCommands ? PrimitiveSceneProxy : nullptr, &Primitive->GetSceneData().AttachmentCounter });
 		}
 	}
 
@@ -3815,6 +3815,7 @@ void FSceneVelocityData::StartFrame(FScene* Scene)
 
 void FScene::GetPrimitiveUniformShaderParameters_RenderThread(const FPrimitiveSceneInfo* PrimitiveSceneInfo, bool& bHasPrecomputedVolumetricLightmap, FMatrix& PreviousLocalToWorld, int32& SingleCaptureIndex, bool& bOutputVelocity) const 
 {
+	SCOPED_NAMED_EVENT(GetPrimitiveUniformShaderParameters_RenderThread, FColor::Yellow);
 	const FMatrix LocalToWorld = PrimitiveSceneInfo->Proxy->GetLocalToWorld();
 	PreviousLocalToWorld = LocalToWorld;
 	bOutputVelocity = false;
@@ -5475,7 +5476,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 			TRACE_CPUPROFILER_EVENT_SCOPE(Scene::CreatePrimitiveResources);
 			for (FPrimitiveSceneInfo* Primitive : CreateResourcesPrimitives)
 			{
-				if (!Primitive->Proxy->ShouldConstrainToRenderThread())
+				if (Primitive->Proxy->SupportsParallelCreateDestroy())
 				{
 					Primitive->Proxy->CreateRenderThreadResources(RHICmdList);
 				}

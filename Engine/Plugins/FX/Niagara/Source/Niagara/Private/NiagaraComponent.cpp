@@ -207,6 +207,9 @@ FNiagaraSceneProxy::FNiagaraSceneProxy(UNiagaraComponent* InComponent)
 		SystemStatString = NiagaraSystem->GetFName().ToString();
 #endif
 	}
+
+	// Niagara renderers reference a lot of common contexts that aren't locked (and would otherwise introduce a lot of contention).
+	bSupportsParallelGDME = false;
 }
 
 SIZE_T FNiagaraSceneProxy::GetTypeHash() const

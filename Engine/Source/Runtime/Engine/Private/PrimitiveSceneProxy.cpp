@@ -433,7 +433,8 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 ,	bForceHidden(false)
 ,	bCollisionEnabled(InProxyDesc.IsCollisionEnabled())
 ,	bTreatAsBackgroundForOcclusion(InProxyDesc.bTreatAsBackgroundForOcclusion)
-,	bConstrainToRenderThread(false)
+,	bSupportsParallelCreateDestroy(true)
+,	bSupportsParallelGDME(true)
 ,	bVisibleInLumenScene(false)
 ,	bCanSkipRedundantTransformUpdates(true)
 ,	bGoodCandidateForCachedShadowmap(true)
@@ -1663,7 +1664,7 @@ bool FPrimitiveSceneProxy::IsShown(const FSceneView* View) const
 			return false;
 		}
 
-		const bool bOwnersContain = Owners.Contains(View->ViewActor);
+		const bool bOwnersContain = !Owners.IsEmpty() && Owners.Contains(View->ViewActor);
 		if (bOnlyOwnerSee && !bOwnersContain)
 		{
 			return false;
@@ -1706,8 +1707,8 @@ bool FPrimitiveSceneProxy::IsShadowCast(const FSceneView* View) const
 		{
 			return false;
 		}
-		
-		if (View->HiddenPrimitives.Contains(PrimitiveComponentId))
+
+		if (!View->HiddenPrimitives.IsEmpty() && View->HiddenPrimitives.Contains(PrimitiveComponentId))
 		{
 			return false;
 		}
