@@ -6,28 +6,83 @@
 #include "DiffUtils.h"
 #include "PropertyHandleImpl.h"
 
-static TArray<TWeakObjectPtr<UObject>> GetObjects(const TSharedPtr<FDetailTreeNode>& TreeNode)
+namespace AsyncDetailViewDiffHelpers
 {
-	TArray<UObject*> Result;
-	if (const IDetailsViewPrivate* DetailsView = TreeNode->GetDetailsView())
+	TArray<TWeakObjectPtr<UObject>> GetObjects(const TSharedPtr<FDetailTreeNode>& TreeNode)
 	{
-		return DetailsView->GetSelectedObjects();
+		TArray<UObject*> Result;
+		if (const IDetailsViewPrivate* DetailsView = TreeNode->GetDetailsView())
+		{
+			return DetailsView->GetSelectedObjects();
+		}
+		return {};
 	}
-	return {};
+
+	FResolvedProperty GetResolvedProperty(const TSharedPtr<FPropertyNode>& PropertyNode, const UObject* Object)
+	{
+		if (PropertyNode && Object)
+		{
+			const TSharedRef<FPropertyPath> PropertyPath = FPropertyNode::CreatePropertyPath(PropertyNode.ToSharedRef());
+			if (PropertyPath->IsValid())
+			{
+				return FPropertySoftPath(*PropertyPath).Resolve(Object);
+			}
+		}
+		return FResolvedProperty();
+	}
+	
+	bool MapKeysMatch(const TSharedRef<FPropertyNode>& MapPropertyNodeA, const TSharedRef<FPropertyNode>& MapPropertyNodeB, int32 KeyIndexA, int32 KeyIndexB,
+		const UObject* OwningObjectA, const UObject* OwningObjectB)
+	{
+		const FMapProperty* MapPropertyA = CastField<FMapProperty>(MapPropertyNodeA->GetProperty());
+		const FMapProperty* MapPropertyB = CastField<FMapProperty>(MapPropertyNodeB->GetProperty());
+		if (!MapPropertyA || !MapPropertyB)
+		{
+			return false;
+		}
+		
+		const FResolvedProperty ResolvedMapA = AsyncDetailViewDiffHelpers::GetResolvedProperty(MapPropertyNodeA, OwningObjectA);
+		const FResolvedProperty ResolvedMapB = AsyncDetailViewDiffHelpers::GetResolvedProperty(MapPropertyNodeB, OwningObjectB);
+		FScriptMapHelper MapHelperA(MapPropertyA, MapPropertyA->ContainerPtrToValuePtr<UObject*>(ResolvedMapA.Object));
+		FScriptMapHelper MapHelperB(MapPropertyB, MapPropertyB->ContainerPtrToValuePtr<UObject*>(ResolvedMapB.Object));
+		
+		const void* KeyA = MapHelperA.FindNthKeyPtr(KeyIndexA);
+		const void* KeyB = MapHelperB.FindNthKeyPtr(KeyIndexB);
+		
+		if (MapPropertyA->KeyProp->SameType(MapPropertyB->KeyProp))
+		{
+			return MapPropertyA->KeyProp->Identical(KeyA, KeyB, PPF_DeepComparison);
+		}
+		return false;
+	}
+
+	bool SetKeysMatch(const TSharedRef<FPropertyNode>& SetPropertyNodeA, const TSharedRef<FPropertyNode>& SetPropertyNodeB, int32 KeyIndexA, int32 KeyIndexB,
+		const UObject* OwningObjectA, const UObject* OwningObjectB)
+	{
+		const FSetProperty* SetPropertyA = CastField<FSetProperty>(SetPropertyNodeA->GetProperty());
+		const FSetProperty* SetPropertyB = CastField<FSetProperty>(SetPropertyNodeB->GetProperty());
+		if (!SetPropertyA || !SetPropertyB)
+		{
+			return false;
+		}
+		
+		const FResolvedProperty ResolvedSetA = AsyncDetailViewDiffHelpers::GetResolvedProperty(SetPropertyNodeA, OwningObjectA);
+		const FResolvedProperty ResolvedSetB = AsyncDetailViewDiffHelpers::GetResolvedProperty(SetPropertyNodeB, OwningObjectB);
+		FScriptSetHelper SetHelperA(SetPropertyA, SetPropertyA->ContainerPtrToValuePtr<UObject*>(ResolvedSetA.Object));
+		FScriptSetHelper SetHelperB(SetPropertyB, SetPropertyB->ContainerPtrToValuePtr<UObject*>(ResolvedSetB.Object));
+		
+		const void* KeyA = SetHelperA.FindNthElementPtr(KeyIndexA);
+		const void* KeyB = SetHelperB.FindNthElementPtr(KeyIndexB);
+		
+		if (SetPropertyA->ElementProp->SameType(SetPropertyB->ElementProp))
+		{
+			return SetPropertyA->ElementProp->Identical(KeyA, KeyB, PPF_DeepComparison);
+		}
+		return false;
+	}
 }
 
-static FResolvedProperty GetResolvedProperty(const TSharedPtr<FPropertyNode>& PropertyNode, const UObject* Object)
-{
-	if (PropertyNode && Object)
-	{
-		const TSharedRef<FPropertyPath> PropertyPath = FPropertyNode::CreatePropertyPath(PropertyNode.ToSharedRef());
-		if (PropertyPath->IsValid())
-		{
-			return FPropertySoftPath(*PropertyPath).Resolve(Object);
-		}
-	}
-	return FResolvedProperty();
-}
+
 
 
 bool TTreeDiffSpecification<TWeakPtr<FDetailTreeNode>>::AreValuesEqual(const TWeakPtr<FDetailTreeNode>& TreeNodeA, const TWeakPtr<FDetailTreeNode>& TreeNodeB) const
@@ -63,64 +118,14 @@ bool TTreeDiffSpecification<TWeakPtr<FDetailTreeNode>>::AreValuesEqual(const TWe
 		return true;
 	}
 	
-	const TArray<TWeakObjectPtr<UObject>> OwningObjectsA = GetObjects(PinnedTreeNodeA);
-	const TArray<TWeakObjectPtr<UObject>> OwningObjectsB = GetObjects(PinnedTreeNodeB);
+	const TArray<TWeakObjectPtr<UObject>> OwningObjectsA = AsyncDetailViewDiffHelpers::GetObjects(PinnedTreeNodeA);
+	const TArray<TWeakObjectPtr<UObject>> OwningObjectsB = AsyncDetailViewDiffHelpers::GetObjects(PinnedTreeNodeB);
 
 	if (!ensure(OwningObjectsA.Num() == DataValuesA.Num() && OwningObjectsB.Num() == DataValuesB.Num()))
 	{
 		return true;
 	}
 	return DiffUtils::Identical(PropertyHandleA, PropertyHandleB, OwningObjectsA, OwningObjectsB);
-}
-
-static bool MapKeysMatch(const TSharedRef<FPropertyNode>& MapPropertyNodeA, const TSharedRef<FPropertyNode>& MapPropertyNodeB, int32 KeyIndexA, int32 KeyIndexB,
-	const UObject* OwningObjectA, const UObject* OwningObjectB)
-{
-	const FMapProperty* MapPropertyA = CastField<FMapProperty>(MapPropertyNodeA->GetProperty());
-	const FMapProperty* MapPropertyB = CastField<FMapProperty>(MapPropertyNodeB->GetProperty());
-	if (!MapPropertyA || !MapPropertyB)
-	{
-		return false;
-	}
-	
-	const FResolvedProperty ResolvedMapA = GetResolvedProperty(MapPropertyNodeA, OwningObjectA);
-	const FResolvedProperty ResolvedMapB = GetResolvedProperty(MapPropertyNodeB, OwningObjectB);
-	FScriptMapHelper MapHelperA(MapPropertyA, MapPropertyA->ContainerPtrToValuePtr<UObject*>(ResolvedMapA.Object));
-	FScriptMapHelper MapHelperB(MapPropertyB, MapPropertyB->ContainerPtrToValuePtr<UObject*>(ResolvedMapB.Object));
-	
-	const void* KeyA = MapHelperA.FindNthKeyPtr(KeyIndexA);
-	const void* KeyB = MapHelperB.FindNthKeyPtr(KeyIndexB);
-	
-	if (MapPropertyA->KeyProp->SameType(MapPropertyB->KeyProp))
-	{
-		return MapPropertyA->KeyProp->Identical(KeyA, KeyB, PPF_DeepComparison);
-	}
-	return false;
-}
-
-static bool SetKeysMatch(const TSharedRef<FPropertyNode>& SetPropertyNodeA, const TSharedRef<FPropertyNode>& SetPropertyNodeB, int32 KeyIndexA, int32 KeyIndexB,
-	const UObject* OwningObjectA, const UObject* OwningObjectB)
-{
-	const FSetProperty* SetPropertyA = CastField<FSetProperty>(SetPropertyNodeA->GetProperty());
-	const FSetProperty* SetPropertyB = CastField<FSetProperty>(SetPropertyNodeB->GetProperty());
-	if (!SetPropertyA || !SetPropertyB)
-	{
-		return false;
-	}
-	
-	const FResolvedProperty ResolvedSetA = GetResolvedProperty(SetPropertyNodeA, OwningObjectA);
-	const FResolvedProperty ResolvedSetB = GetResolvedProperty(SetPropertyNodeB, OwningObjectB);
-	FScriptSetHelper SetHelperA(SetPropertyA, SetPropertyA->ContainerPtrToValuePtr<UObject*>(ResolvedSetA.Object));
-	FScriptSetHelper SetHelperB(SetPropertyB, SetPropertyB->ContainerPtrToValuePtr<UObject*>(ResolvedSetB.Object));
-	
-	const void* KeyA = SetHelperA.FindNthElementPtr(KeyIndexA);
-	const void* KeyB = SetHelperB.FindNthElementPtr(KeyIndexB);
-	
-	if (SetPropertyA->ElementProp->SameType(SetPropertyB->ElementProp))
-	{
-		return SetPropertyA->ElementProp->Identical(KeyA, KeyB, PPF_DeepComparison);
-	}
-	return false;
 }
 
 bool TTreeDiffSpecification<TWeakPtr<FDetailTreeNode>>::AreMatching(const TWeakPtr<FDetailTreeNode>& TreeNodeA, const TWeakPtr<FDetailTreeNode>& TreeNodeB) const
@@ -147,8 +152,8 @@ bool TTreeDiffSpecification<TWeakPtr<FDetailTreeNode>>::AreMatching(const TWeakP
 		return PinnedTreeNodeA->GetNodeName() == PinnedTreeNodeB->GetNodeName();
 	}
 
-	const TArray<TWeakObjectPtr<UObject>> OwningObjectsA = GetObjects(PinnedTreeNodeA);
-	const TArray<TWeakObjectPtr<UObject>> OwningObjectsB = GetObjects(PinnedTreeNodeB);
+	const TArray<TWeakObjectPtr<UObject>> OwningObjectsA = AsyncDetailViewDiffHelpers::GetObjects(PinnedTreeNodeA);
+	const TArray<TWeakObjectPtr<UObject>> OwningObjectsB = AsyncDetailViewDiffHelpers::GetObjects(PinnedTreeNodeB);
 	if (OwningObjectsA.IsEmpty() || OwningObjectsB.IsEmpty())
 	{
 		return PinnedTreeNodeA->GetNodeName() == PinnedTreeNodeB->GetNodeName();
@@ -181,14 +186,14 @@ bool TTreeDiffSpecification<TWeakPtr<FDetailTreeNode>>::AreMatching(const TWeakP
 			// and compare those instead
 			if (ParentPropertyA->IsA<FMapProperty>() || ParentPropertyB->IsA<FMapProperty>())
 			{
-				if (!MapKeysMatch(ParentPropertyNodeA, ParentPropertyNodeB, ArrayIndexA, ArrayIndexB, OwningObjectA, OwningObjectB))
+				if (!AsyncDetailViewDiffHelpers::MapKeysMatch(ParentPropertyNodeA, ParentPropertyNodeB, ArrayIndexA, ArrayIndexB, OwningObjectA, OwningObjectB))
 				{
 					return false;
 				}
 			}
 			if (ParentPropertyA->IsA<FSetProperty>() || ParentPropertyB->IsA<FSetProperty>())
 			{
-				if (SetKeysMatch(ParentPropertyNodeA, ParentPropertyNodeB, ArrayIndexA, ArrayIndexB, OwningObjectA, OwningObjectB))
+				if (AsyncDetailViewDiffHelpers::SetKeysMatch(ParentPropertyNodeA, ParentPropertyNodeB, ArrayIndexA, ArrayIndexB, OwningObjectA, OwningObjectB))
 				{
 					return false;
 				}
