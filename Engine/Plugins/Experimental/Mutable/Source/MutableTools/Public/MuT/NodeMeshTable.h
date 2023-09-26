@@ -46,8 +46,6 @@ namespace mu
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
 
-        
-
         const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
 
@@ -76,6 +74,9 @@ namespace mu
 		//! Get the node defining a layout of the meshes on this column.
 		NodeLayoutPtr GetLayout( int index ) const;
 		void SetLayout( int index, NodeLayoutPtr );
+
+		//! Adds the "None" option to the parameter that represents this table column
+		void SetNoneOption(bool bAddOption);
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern

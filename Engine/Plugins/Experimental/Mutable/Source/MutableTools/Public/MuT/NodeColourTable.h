@@ -62,6 +62,10 @@ namespace mu
 		//!
 		void SetColumn( const FString& strName );
 
+		//! Adds the "None" option to the parameter that represents this table column
+		void SetNoneOption(bool bAddOption);
+
+
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
 		//-----------------------------------------------------------------------------------------

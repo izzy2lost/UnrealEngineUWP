@@ -120,7 +120,7 @@ namespace mu
         m_desc = MUTABLE_MISSING_IMAGE_DESC;
 
         // Verify that the table column is the right type
-        int colIndex = node.m_pTable->FindColumn( node.m_columnName );
+        int colIndex = node.Table->FindColumn( node.ColumnName );
         if ( colIndex<0 )
         {
             check( false );
@@ -130,15 +130,15 @@ namespace mu
         Ptr<const Image> pImage;
 
         std::size_t i = 0;
-        while ( !pImage && i<node.m_pTable->GetPrivate()->Rows.Num() )
+        while ( !pImage && i<node.Table->GetPrivate()->Rows.Num() )
         {
-			if (node.m_pTable->GetPrivate()->Rows[i].Values[colIndex].ProxyImage->Get()->IsReference())
+			if (node.Table->GetPrivate()->Rows[i].Values[colIndex].ProxyImage->Get()->IsReference())
 			{
 				// Image References do not need an image desc
 				break;
 			}
 
-            pImage = node.m_pTable->GetPrivate()->Rows[i].Values[ colIndex ].ProxyImage->Get();
+            pImage = node.Table->GetPrivate()->Rows[i].Values[ colIndex ].ProxyImage->Get();
             ++i;
         }
 

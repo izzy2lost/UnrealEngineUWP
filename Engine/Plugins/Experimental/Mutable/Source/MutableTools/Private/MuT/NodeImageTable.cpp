@@ -59,30 +59,36 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void NodeImageTable::SetColumn( const FString& strName )
 	{
-		m_pD->m_columnName = strName;
+		m_pD->ColumnName = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeImageTable::SetParameterName( const FString& strName )
 	{
-		m_pD->m_parameterName = strName;
+		m_pD->ParameterName = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeImageTable::SetTable( TablePtr pTable )
 	{
-		m_pD->m_pTable = pTable;
+		m_pD->Table = pTable;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	TablePtr NodeImageTable::GetTable() const
 	{
-		return m_pD->m_pTable;
+		return m_pD->Table;
 	}
 
+
+	//---------------------------------------------------------------------------------------------
+	void NodeImageTable::SetNoneOption(bool bAddNoneOption)
+	{
+		m_pD->bNoneOption = bAddNoneOption;
+	}
 
 }
 

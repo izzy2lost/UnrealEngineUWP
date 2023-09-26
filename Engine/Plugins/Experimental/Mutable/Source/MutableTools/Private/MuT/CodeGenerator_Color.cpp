@@ -471,14 +471,23 @@ namespace mu
 	{
 		const NodeColourTable::Private& node = *Typed->GetPrivate();
 
+		FColorGenerationResult DefaultValue;
+		// Creating a default colour node
+		{
+			NodeColourConstantPtr pNode = new NodeColourConstant();
+			pNode->SetValue(mu::DefaultMutableColorValue);
+
+			GenerateColor(DefaultValue, pNode);
+		}
+
 		result.op = GenerateTableSwitch<NodeColourTable::Private, ETableColumnType::Color, OP_TYPE::CO_SWITCH>(node,
 			[this](const NodeColourTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
 			{
 				NodeColourConstantPtr CellData = new NodeColourConstant();
-				FVector4f Colour = node.m_pTable->GetPrivate()->Rows[row].Values[colIndex].Color;
+				FVector4f Colour = node.Table->GetPrivate()->Rows[row].Values[colIndex].Color;
 				CellData->SetValue(Colour);
 				return Generate(CellData);
-			});
+			}, DefaultValue.op);
 	}
 
 

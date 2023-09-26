@@ -296,7 +296,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	Ptr<ASTOp> CodeGenerator::GenerateTableVariable(TablePtr pTable, const FString& strName)
+	Ptr<ASTOp> CodeGenerator::GenerateTableVariable(TablePtr pTable, const FString& strName, bool bAddNoneOption)
 	{
 		Ptr<ASTOp> result;
 
@@ -323,7 +323,7 @@ namespace mu
 				}
 			}
 
-			if (pTable->GetPrivate()->bNoneOption)
+			if (bAddNoneOption)
 			{
 				FParameterDesc::FIntValueDesc nullValue;
 				nullValue.m_value = -1;

@@ -50,12 +50,11 @@ namespace mu
 		FString Name;
 		TArray<FTableColumn> Columns;
 		TArray<FTableRow> Rows;
-		bool bNoneOption = false;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32 ver = 3;
+            uint32 ver = 4;
 			arch << ver;
 
             arch << Columns.Num();
@@ -94,8 +93,6 @@ namespace mu
 					}
 				}
 			}
-
-			arch << bNoneOption;
 		}
 
 		//!
@@ -103,7 +100,7 @@ namespace mu
 		{
             uint32 ver;
 			arch >> ver;
-			check(ver<=3);
+			check(ver<=4);
 
             uint32 ColumnCount;
 			arch >> ColumnCount;
@@ -194,9 +191,10 @@ namespace mu
 				}
 			}
 
-			if (ver >= 1)
+			if (ver >= 1 && ver <= 3)
 			{
-				arch >> bNoneOption;
+				bool bNoneOption_DEPRECATED;
+				arch >> bNoneOption_DEPRECATED;
 			}
 		}
 

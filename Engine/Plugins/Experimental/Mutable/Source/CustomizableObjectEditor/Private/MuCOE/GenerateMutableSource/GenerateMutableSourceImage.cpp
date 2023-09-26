@@ -1047,6 +1047,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 							ImageTableNode->SetTable(Table);
 							ImageTableNode->SetColumn(StringCast<ANSICHAR>(*ColumnName).Get());
 							ImageTableNode->SetParameterName(StringCast<ANSICHAR>(*TypedNodeTable->ParameterName).Get());
+							ImageTableNode->SetNoneOption(TypedNodeTable->bAddNoneOption);
 
 							GenerationContext.AddParameterNameUnique(Node, TypedNodeTable->ParameterName);
 						}
