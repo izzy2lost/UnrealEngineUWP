@@ -560,7 +560,10 @@ FRigVMPinInfoArray::FRigVMPinInfoArray(const URigVMNode* InNode, URigVMControlle
 	for(const URigVMPin* Pin : InNode->GetPins())
 	{
 		const FString DefaultValue = Pin->GetDefaultValue();
-		ensureMsgf(Pin->GetTypeIndex() != INDEX_NONE, TEXT("Invalid pin type %s in %s"), *Pin->GetCPPType(), *InNode->GetPackage()->GetPathName());
+		if (Pin->GetTypeIndex() == INDEX_NONE)
+		{
+			InController->ReportErrorf( TEXT("Invalid pin type %s for %s in %s"), *Pin->GetCPPType(), *Pin->GetPathName(), *InNode->GetPackage()->GetPathName());
+		}
 		(void)AddPin(InController, INDEX_NONE, Pin->GetFName(), Pin->GetDirection(), Pin->GetTypeIndex(), DefaultValue, nullptr, InPreviousPinInfos, bAddSubPins);
 	}
 }
@@ -573,6 +576,10 @@ FRigVMPinInfoArray::FRigVMPinInfoArray(const FRigVMGraphFunctionHeader& Function
 	for(const FRigVMGraphFunctionArgument& FunctionArgument : FunctionHeader.Arguments)
 	{
 		const TRigVMTypeIndex TypeIndex = Registry.GetTypeIndexFromCPPType(FunctionArgument.CPPType.ToString());
+		if (TypeIndex == INDEX_NONE)
+		{
+			InController->ReportErrorf( TEXT("Invalid pin type %s for %s in %s"), *FunctionArgument.CPPType.ToString(), *FunctionHeader.LibraryPointer.LibraryNode.ToString(), *InController->GetPackage()->GetPathName());
+		}
 		ensureMsgf(TypeIndex != INDEX_NONE, TEXT("Invalid pin type %s in %s"), *FunctionArgument.CPPType.ToString(), *InController->GetPackage()->GetPathName());
 		(void)AddPin(InController, INDEX_NONE, FunctionArgument.Name, FunctionArgument.Direction, TypeIndex, FunctionArgument.DefaultValue, nullptr, InPreviousPinInfos, true);
 	}
@@ -614,7 +621,6 @@ int32 FRigVMPinInfoArray::AddPin(FProperty* InProperty, URigVMController* InCont
 int32 FRigVMPinInfoArray::AddPin(URigVMController* InController, int32 InParentIndex, const FName& InName, ERigVMPinDirection InDirection,
 	TRigVMTypeIndex InTypeIndex, const FString& InDefaultValue, const uint8* InDefaultValueMemory, const FRigVMPinInfoArray* InPreviousPinInfos, bool bAddSubPins)
 {
-	ensureMsgf(InTypeIndex != INDEX_NONE, TEXT("Invalid pin type for pin %s in %s"), *InName.ToString(), *InController->GetPackage()->GetPathName());
 	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
 		
 	FRigVMPinInfo Info;
@@ -627,6 +633,10 @@ int32 FRigVMPinInfoArray::AddPin(URigVMController* InController, int32 InParentI
 	Info.CorrectExecuteTypeIndex();
 
 	const int32 Index = Pins.Add(Info);
+	if (InTypeIndex == INDEX_NONE)
+	{
+		InController->ReportErrorf(TEXT("Cannot add pin %s due to invalid type in package %s."), *GetPinPath(Index), *InController->GetPackage()->GetPathName());
+	}
 
 	if(InPreviousPinInfos)
 	{
@@ -18293,9 +18303,12 @@ bool URigVMController::BreakLinkedPaths(const TArray<FLinkedPath>& InLinkedPaths
 			if(Link)
 			{
 				URigVMPin* SourcePin = Link->GetSourcePin();
-				URigVMPin* TargetPin = Link->GetTargetPin();				
+				URigVMPin* TargetPin = Link->GetTargetPin();
 
-				check((SourcePin == nullptr) == (TargetPin == nullptr))
+				if ((SourcePin == nullptr) != (TargetPin == nullptr))
+				{
+					ReportErrorf(TEXT("Cannot break link %s in package %s"), *PinPathRepresentation, *GetPackage()->GetPathName());
+				}
 
 				if(SourcePin)
 				{

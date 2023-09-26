@@ -29,7 +29,11 @@ void URigVMGraph::PostLoad()
 	{
 		URigVMPin* SourcePin = Link->GetSourcePin();
 		URigVMPin* TargetPin = Link->GetTargetPin();
-		check((SourcePin == nullptr) == (TargetPin == nullptr));
+		if ((SourcePin == nullptr) != (TargetPin == nullptr))
+		{
+			static constexpr TCHAR Format[] = TEXT("Cannot add link %s in package %s.");
+			UE_LOG(LogRigVMDeveloper, Warning, Format, *Link->GetPinPathRepresentation(), *GetPackage()->GetPathName());
+		}
 		
 		if(SourcePin)
 		{

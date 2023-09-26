@@ -834,7 +834,7 @@ TRigVMTypeIndex FRigVMRegistry::GetTypeIndex(const FRigVMTemplateArgumentType& I
 
 const FRigVMTemplateArgumentType& FRigVMRegistry::GetType(TRigVMTypeIndex InTypeIndex) const
 {
-	if(ensure(Types.IsValidIndex(InTypeIndex)))
+	if((Types.IsValidIndex(InTypeIndex)))
 	{
 		return Types[InTypeIndex].Type;
 	}
@@ -857,7 +857,7 @@ const FRigVMTemplateArgumentType& FRigVMRegistry::FindTypeFromCPPType(const FStr
 TRigVMTypeIndex FRigVMRegistry::GetTypeIndexFromCPPType(const FString& InCPPType) const
 {
 	TRigVMTypeIndex Result = INDEX_NONE;
-	if(ensure(!InCPPType.IsEmpty()))
+	if(!InCPPType.IsEmpty())
 	{
 		const FName CPPTypeName = *InCPPType;
 
@@ -895,7 +895,7 @@ TRigVMTypeIndex FRigVMRegistry::GetTypeIndexFromCPPType(const FString& InCPPType
 
 bool FRigVMRegistry::IsArrayType(TRigVMTypeIndex InTypeIndex) const
 {
-	if(ensure(Types.IsValidIndex(InTypeIndex)))
+	if((Types.IsValidIndex(InTypeIndex)))
 	{
 		return Types[InTypeIndex].bIsArray;
 	}
