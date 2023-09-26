@@ -1083,12 +1083,13 @@ bool FShaderParameterParser::MoveShaderParametersToRootConstantBuffer(
 		});
 
 		FString CBufferCodeBlock = FString::Printf(
-			TEXT("%s %s\r\n")
+			TEXT("%s %s : register(b%d)\r\n")
 			TEXT("{\r\n")
 			TEXT("%s")
 			TEXT("}\r\n\r\n"),
 			ConstantBufferType,
 			FShaderParametersMetadata::kRootUniformBufferBindingName,
+			FShaderParametersMetadata::kRootCBufferBindingIndex,
 			*RootCBufferContent);
 
 		FString NewShaderCode = (
