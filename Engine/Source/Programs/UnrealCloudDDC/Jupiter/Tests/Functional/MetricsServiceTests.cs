@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
@@ -158,6 +159,15 @@ namespace Jupiter.FunctionalTests.Metrics
 			Assert.AreEqual(4, stats1.SmallestBlobFound);
 			Assert.AreEqual(6, stats1.LargestBlob);
 			Assert.AreEqual(5, stats1.AvgSize);
+		}
+
+		[TestMethod]
+		public async Task GetBucketsTest()
+		{
+			IReferencesStore referenceStore = (IReferencesStore)_server!.Services.GetService(typeof(IReferencesStore))!;
+
+			IAsyncEnumerable<BucketId> buckets = referenceStore.GetBuckets(TestNamespace);
+			List<BucketId> _ = await buckets.ToListAsync();
 		}
 
 		private static (BlobId, CbObject) GetCBWithAttachment(BlobId blobIdentifier)

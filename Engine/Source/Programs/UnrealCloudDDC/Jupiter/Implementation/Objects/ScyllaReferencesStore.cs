@@ -355,9 +355,9 @@ namespace Jupiter.Implementation
 
 		public async IAsyncEnumerable<BucketId> GetBuckets(NamespaceId ns)
 		{
-			foreach (ScyllaBucket? scyllaBucket in await _mapper.FetchAsync<ScyllaBucket>("WHERE namespace=?", ns.ToString()))
+			foreach (ScyllaBucket scyllaBucket in await _mapper.FetchAsync<ScyllaBucket>("WHERE namespace=?", ns.ToString()))
 			{
-				if (scyllaBucket == null)
+				if (scyllaBucket.Bucket == null)
 				{
 					continue;
 				}
@@ -559,6 +559,10 @@ namespace Jupiter.Implementation
 	[Cassandra.Mapping.Attributes.Table("buckets_v2")]
 	public class ScyllaBucket
 	{
+		public ScyllaBucket()
+		{
+		}
+
 		public ScyllaBucket(NamespaceId ns, BucketId bucket)
 		{
 			Namespace = ns.ToString();
@@ -569,7 +573,7 @@ namespace Jupiter.Implementation
 		public string? Namespace { get; set; }
 
 		[Cassandra.Mapping.Attributes.ClusteringKey]
-		public string Bucket { get; set; }
+		public string? Bucket { get; set; }
 	}
 
 	
