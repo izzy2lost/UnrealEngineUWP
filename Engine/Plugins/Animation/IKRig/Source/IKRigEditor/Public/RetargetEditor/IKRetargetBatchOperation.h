@@ -124,19 +124,8 @@ private:
 	/* Generate list of newly created assets to report to user */
 	void GetNewAssets(TArray<UObject*>& NewAssets) const;
 
-	/**
-	* Duplicates the supplied AssetsToDuplicate and returns a map of original asset to duplicate. Templated wrapper that calls DuplicateAssetInternal.
-	*
-	* @param	AssetsToDuplicate	The animations to duplicate
-	* @param	DestinationPackage	The package that the duplicates should be placed in
-	*
-	* @return	TMap of original animation to duplicate
-	*/
-	template<class AssetType>
-	static TMap<AssetType*, AssetType*> DuplicateAssets(
-		const TArray<AssetType*>& AssetsToDuplicate,
-		UPackage* DestinationPackage,
-		const EditorAnimUtils::FNameDuplicationRule* NameRule);
+	/* If user cancelled half way, cleanup all the duplicated assets */
+	void CleanupIfCancelled(const FScopedSlowTask& Progress) const;
 	
 	/** Lists of assets to retarget. Populated from selection during init */
 	TArray<UAnimationAsset*>	AnimationAssetsToRetarget;
