@@ -93,5 +93,11 @@ namespace EpicGames.Horde.Compute.Clients
 			return Task.FromResult<IComputeLease?>(new LeaseImpl(socket));
 #pragma warning restore CA2000 // Dispose objects before losing scope
 		}
+
+		/// <inheritdoc/>
+		public Task DeclareResourceNeedsAsync(ClusterId clusterId, string pool, Dictionary<string, int> resourceNeeds, CancellationToken cancellationToken = default)
+		{
+			return Task.CompletedTask;
+		}
 	}
 }

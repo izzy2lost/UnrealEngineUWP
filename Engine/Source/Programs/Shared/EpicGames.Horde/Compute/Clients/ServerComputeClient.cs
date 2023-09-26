@@ -81,6 +81,7 @@ namespace EpicGames.Horde.Compute.Clients
 
 		readonly IHttpClientFactory _httpClientFactory;
 		readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
+		readonly string _sessionId;
 		readonly ILogger _logger;
 
 		/// <summary>
@@ -88,9 +89,20 @@ namespace EpicGames.Horde.Compute.Clients
 		/// </summary>
 		/// <param name="httpClientFactory">Factory for constructing http client instances</param>
 		/// <param name="logger">Logger for diagnostic messages</param>
-		public ServerComputeClient(IHttpClientFactory httpClientFactory, ILogger logger)
+		public ServerComputeClient(IHttpClientFactory httpClientFactory, ILogger logger) : this(httpClientFactory, null, logger)
+		{
+		}
+		
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="httpClientFactory">Factory for constructing http client instances</param>
+		/// <param name="sessionId">Arbitrary ID used for identifying this compute client. If not provided, a random one will be generated</param>
+		/// <param name="logger">Logger for diagnostic messages</param>
+		public ServerComputeClient(IHttpClientFactory httpClientFactory, string? sessionId, ILogger logger)
 		{
 			_httpClientFactory = httpClientFactory;
+			_sessionId = sessionId ?? Guid.NewGuid().ToString();
 			_logger = logger;
 		}
 
@@ -120,6 +132,14 @@ namespace EpicGames.Horde.Compute.Clients
 		}
 
 		/// <inheritdoc/>
+		public async Task DeclareResourceNeedsAsync(ClusterId clusterId, string pool, Dictionary<string, int> resourceNeeds, CancellationToken cancellationToken = default)
+		{
+			HttpClient client = _httpClientFactory.CreateClient(HordeHttpClient.HttpClientName);
+			ResourceNeedsMessage request = new () { SessionId = _sessionId, Pool = pool, ResourceNeeds = resourceNeeds };
+			using HttpResponseMessage response = await HordeHttpClient.PostAsync(client, $"api/v2/compute/{clusterId}/resource-needs", request, _cancellationSource.Token);
+			response.EnsureSuccessStatusCode();
+		}
+
 		async IAsyncEnumerable<LeaseInfo> ConnectAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ILogger workerLogger, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			_logger.LogDebug("Requesting compute resource");
