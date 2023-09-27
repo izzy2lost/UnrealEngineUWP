@@ -93,20 +93,38 @@ namespace Horde.Server.Jobs.Bisect
 		/// <inheritdoc cref="IBisectTask.Outcome"/>
 		public JobStepOutcome Outcome => _bisectTask.Outcome;
 
-		/// <inheritdoc cref="IBisectTask.InitialJobStep"/>
-		public JobStepRefId InitialJobStep => _bisectTask.InitialJobStep;
+		/// Initial Job Id
+		public string InitialJobId => _bisectTask.InitialJobStep.JobId.ToString();
+
+		/// Initial Job Batch Id
+		public string InitialBatchId => _bisectTask.InitialJobStep.BatchId.ToString();
+
+		/// Initial Job Step Id
+		public string InitialStepId => _bisectTask.InitialJobStep.StepId.ToString();
 
 		/// <inheritdoc cref="IBisectTask.InitialChange"/>
 		public int InitialChange => _bisectTask.InitialChange;
 
-		/// <inheritdoc cref="IBisectTask.MinJobStep"/>
-		public JobStepRefId? MinJobStep => _bisectTask.MinJobStep;
+		/// Min Job Id
+		public string? MinJobId => _bisectTask.MinJobStep?.JobId.ToString();
+
+		/// Min Job Batch Id
+		public string? MinBatchId => _bisectTask.MinJobStep?.BatchId.ToString();
+
+		/// Min Job Step Id
+		public string? MinStepId => _bisectTask.MinJobStep?.StepId.ToString();
 
 		/// <inheritdoc cref="IBisectTask.MinChange"/>
 		public int? MinChange => _bisectTask.MinChange;
 
-		/// <inheritdoc cref="IBisectTask.CurrentJobStep"/>
-		public JobStepRefId CurrentJobStep => _bisectTask.CurrentJobStep;
+		/// Current Job Id
+		public string CurrentJobId => _bisectTask.CurrentJobStep.JobId.ToString();
+
+		/// Current Job Batch Id
+		public string CurrentBatchId => _bisectTask.CurrentJobStep.BatchId.ToString();
+
+		/// Current Job Step Id
+		public string CurrentStepId => _bisectTask.CurrentJobStep.StepId.ToString();
 
 		/// <inheritdoc cref="IBisectTask.CurrentChange"/>
 		public int CurrentChange => _bisectTask.CurrentChange;
