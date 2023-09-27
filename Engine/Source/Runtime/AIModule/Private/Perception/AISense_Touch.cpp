@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Perception/AISense_Touch.h"
+#include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
 #include "Perception/AIPerceptionListenerInterface.h"
 #include "Perception/AIPerceptionComponent.h"
