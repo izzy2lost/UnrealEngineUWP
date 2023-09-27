@@ -163,6 +163,16 @@ static TAutoConsoleVariable<bool> CVarDebugDumpShaderCode(
 	TEXT("If true, each shader job will dump a ShaderCode.bin containing the contents of the output shader code object (the contents of this can differ for each shader format; note that this is the data that is hashed to produce the OutputHash.txt file)"),
 	ECVF_ReadOnly);
 
+static TAutoConsoleVariable<bool> CVarDebugDumpDetailedShaderSource(
+	TEXT("r.ShaderCompiler.DebugDumpDetailedShaderSource"),
+	false,
+	TEXT("If true, and if the preprocessed job cache is enabled, this will dump multiple copies of the shader source for any job which has debug output enabled:\n")
+	TEXT("\t1. The unmodified output of the preprocessing step as constructed by the PreprocessShader implementation of the IShaderFormat (Preprocessed_<shader>.usf\n")
+	TEXT("\t2. The stripped version of the above (with comments, line directives, and whitespace-only lines removed), which is the version hashed for inclusion in the job input hash when the preprocessed job cache is enabled (Stripped_<shader>.usf)")
+	TEXT("\t3. The final source as passed to the platform compiler (this will differ if the IShaderFormat compile function applies further modifications to the source after preprocessing; otherwise this will be the same as 2 above (<shader>.usf)\n")
+	TEXT("If false, or the preprocessed job cache is disabled, this will simply dump whatever source is passed to the compiler (equivalent to either 1 or 3 depending on if the IShaderFormat implementation modifies the source in the compile step."),
+	ECVF_ReadOnly);
+
 static TAutoConsoleVariable<bool> CVarCompileParallelInProcess(
 	TEXT("r.ShaderCompiler.ParallelInProcess"),
 	false,
@@ -5667,6 +5677,11 @@ EShaderDebugInfoFlags FShaderCompilingManager::GetDumpShaderDebugInfoFlags() con
 	if (CVarDebugDumpShaderCode.GetValueOnAnyThread())
 	{
 		Flags |= EShaderDebugInfoFlags::ShaderCodeBinary;
+	}
+
+	if (CVarDebugDumpDetailedShaderSource.GetValueOnAnyThread())
+	{
+		Flags |= EShaderDebugInfoFlags::DetailedSource;
 	}
 
 	return Flags;

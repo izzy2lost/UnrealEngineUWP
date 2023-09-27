@@ -120,6 +120,15 @@ namespace UE::ShaderCompilerCommon
 			const TCHAR* BaseFileName;
 			const TCHAR* Data;
 		};
+		
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		// Explicitly-defaulted ctors are needed temporarily due to deprecation of the HlslCCFlags field.
+		// These can be removed once the deprecation window for said field ends.
+		FDebugShaderDataOptions() = default;
+		FDebugShaderDataOptions(FDebugShaderDataOptions&&) = default;
+		FDebugShaderDataOptions(const FDebugShaderDataOptions&) = default;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		
 		UE_DEPRECATED(5.4, "HlslCCFlags field is no longer used in debug output; please remove any usage.")
 		uint32 HlslCCFlags = 0;
 		const TCHAR* OverrideBaseFilename = nullptr;

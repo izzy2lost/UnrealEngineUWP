@@ -219,6 +219,7 @@ enum class EShaderDebugInfoFlags : uint8
 	InputHash = 1 << 1,
 	Diagnostics = 1 << 2,
 	ShaderCodeBinary = 1 << 3,
+	DetailedSource = 1 << 4,
 };
 ENUM_CLASS_FLAGS(EShaderDebugInfoFlags)
 

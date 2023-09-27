@@ -1625,7 +1625,26 @@ namespace UE::ShaderCompilerCommon
 		const FShaderCompilerOutput& Output,
 		const FDebugShaderDataOptions& Options)
 	{
-		const FString& SourceToDump = Output.ModifiedShaderSource.IsEmpty() ? PreprocessOutput.GetUnstrippedSource() : Output.ModifiedShaderSource;
+		if (Input.bCachePreprocessed && EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::DetailedSource))
+		{
+			FDebugShaderDataOptions PrefixedOptions(Options);
+			uint32 SlackLen = Options.FilenamePrefix ? FCString::Strlen(Options.FilenamePrefix) : 0;
+			FString StrippedPrefix(TEXT("Stripped_"), SlackLen);
+			FString PreprocessedPrefix(TEXT("Preprocessed_"), SlackLen);
+			if (Options.FilenamePrefix)
+			{
+				StrippedPrefix += Options.FilenamePrefix;
+				PreprocessedPrefix += Options.FilenamePrefix;
+			}
+			
+			PrefixedOptions.FilenamePrefix = *StrippedPrefix;
+			FFileHelper::SaveStringToFile(PreprocessOutput.GetSource(), *PrefixedOptions.GetDebugShaderPath(Input));
+
+			PrefixedOptions.FilenamePrefix = *PreprocessedPrefix;
+			FFileHelper::SaveStringToFile(PreprocessOutput.GetUnstrippedSource(), *PrefixedOptions.GetDebugShaderPath(Input));
+		}
+			
+		const FString& SourceToDump = Output.ModifiedShaderSource.IsEmpty() ? PreprocessOutput.GetSource() : Output.ModifiedShaderSource;
 		DumpDebugShaderData(Input, SourceToDump, Options);
 		FFileHelper::SaveStringToFile(Output.OutputHash.ToString(), *GetDebugFileName(Input, Options, TEXT("OutputHash.txt")), FFileHelper::EEncodingOptions::ForceAnsi);
 
