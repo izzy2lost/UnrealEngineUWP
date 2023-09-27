@@ -2231,6 +2231,16 @@ namespace AutomationTool
 		}
 
 		/// <summary>
+		/// Invokes p4 add command with a list of files.
+		/// </summary>
+		/// <param name="CL">Changelist where the checked out files should be added.</param>
+		/// <param name="Files">The list of files to add.</param>
+		public void Add(int CL, List<string> Files, bool AllowSpew = true)
+		{
+			BatchedCommand($"add -c {CL}", Files, AllowSpew: AllowSpew);
+		}
+
+		/// <summary>
 		/// Invokes p4 delete command.
 		/// </summary>
 		/// <param name="CL">Changelist where the files should be added to.</param>
@@ -2238,6 +2248,16 @@ namespace AutomationTool
 		public void Delete(int CL, string CommandLine)
 		{
 			LogP4("", "delete " + String.Format("-c {0} ", CL) + CommandLine);
+		}
+
+		/// <summary>
+		/// Invokes p4 delete command with a list of files.
+		/// </summary>
+		/// <param name="CL">Changelist where the checked out files should be added.</param>
+		/// <param name="Files">List of files to be deleted.</param>
+		public void Delete(int CL, List<string> Files, bool AllowSpew = true)
+		{
+			BatchedCommand($"delete -c {CL}", Files, AllowSpew: AllowSpew);
 		}
 
 		/// <summary>
