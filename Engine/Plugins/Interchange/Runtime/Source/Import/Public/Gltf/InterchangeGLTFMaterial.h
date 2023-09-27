@@ -142,7 +142,7 @@ namespace UE::Interchange::GLTFMaterials
 			TPair<FString, TArray<FString>>(
 				TEXT("/Interchange/gltf/MaterialBodies/MF_ClearCoat_Body.MF_ClearCoat_Body"),
 				TArray<FString>{
-					TEXT("ClearCoatBottomNormal"),
+					TEXT("ClearCoatNormal"),
 					TEXT("BaseColor"),
 					TEXT("Metallic"),
 					TEXT("Specular"),
