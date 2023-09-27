@@ -626,13 +626,6 @@ public:
 	 */
 	virtual void WaitForPremadeAssetRegistry() = 0;
 
-#if WITH_EDITOR
-	/**
-	 * Make directory watcher pick up new changes to files on disk, then wait for scan to be complete.
-	 */
-	virtual void FlushDirectoryWatcherAndWaitForCompletion() = 0;
-#endif
-
 	/**
 	 * Empty the global gatherer's cache and disable further caching of scans from disk.
 	 * Used to save memory when cooking after the scan is complete.
