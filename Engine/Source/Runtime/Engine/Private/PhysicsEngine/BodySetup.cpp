@@ -388,16 +388,7 @@ FByteBulkData* UBodySetup::GetCookedFormatData()
 {
 	// Find or create cooked physics data
 	static FName PhysicsFormatName(FPlatformProperties::GetPhysicsFormat());
-
-	FByteBulkData* FormatData = GetCookedData(PhysicsFormatName);
-
-	// On dedicated servers we may be cooking generic data and sharing it
-	if (FormatData == nullptr && IsRunningDedicatedServer())
-	{
-		FormatData = GetCookedData(FGenericPlatformProperties::GetPhysicsFormat());
-	}
-
-	return FormatData;
+	return GetCookedData(PhysicsFormatName);
 }
 
 void UBodySetup::CreatePhysicsMeshes()
