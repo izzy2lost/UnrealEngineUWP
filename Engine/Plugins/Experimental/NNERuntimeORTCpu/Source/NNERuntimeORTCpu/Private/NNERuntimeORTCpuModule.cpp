@@ -10,7 +10,7 @@ void FNNERuntimeORTCpuModule::StartupModule()
 {
 	if (FModuleManager::Get().IsModuleLoaded("NNERuntimeORT"))
 	{
-		UE_LOG(LogNNE, Warning, TEXT("NNERuntimeORTCpu startup aborted, NNERuntimeORT plugin is active and provide the Cpu runtime, please deactivate NNERuntimeORTCpu plugin and make sure it has been removed from the .uplugin."));
+		UE_LOG(LogNNE, Warning, TEXT("NNERuntimeORTCpu startup aborted, NNERuntimeORT plugin is active and provide the Cpu runtime, at the moment NNERuntimeORTCpu plugin is still providing internal tools for the other runtimes however."));
 		return;
 	}
 
