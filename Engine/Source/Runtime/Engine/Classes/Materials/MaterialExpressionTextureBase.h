@@ -15,6 +15,7 @@
 class UTexture;
 struct FPropertyChangedEvent;
 enum EMaterialSamplerType : int;
+enum EShaderPlatform : uint16;
 
 UCLASS(abstract, hidecategories=Object, MinimalAPI)
 class UMaterialExpressionTextureBase : public UMaterialExpression 
