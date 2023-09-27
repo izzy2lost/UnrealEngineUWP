@@ -726,6 +726,11 @@ void UChaosCache::BuildSpawnableFromComponent(const UPrimitiveComponent* InCompo
 			SceneComponent->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
 		}
 	}
+	// make sure we do not have any initialization fields because those may also keep dangling references preventing garbage collection
+	if (UGeometryCollectionComponent* GeometryCollectionComponent = Cast<UGeometryCollectionComponent>(Spawnable.DuplicatedTemplate))
+	{
+		GeometryCollectionComponent->InitializationFields.Empty();
+	}
 	Spawnable.InitialTransform = InComponent->GetComponentToWorld();
 	Spawnable.ComponentTransform = InComponent->GetComponentToWorld() * SpaceTransform.Inverse();
 }
