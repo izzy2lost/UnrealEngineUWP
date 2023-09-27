@@ -1441,10 +1441,10 @@ namespace UnrealBuildTool
 			Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bSupportsVulkan", out bSupportsVulkan);
 			Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bSupportsVulkanSM5", out bSupportsVulkanSM5);
 
-			bool bCopyVulkanLayers = (bSupportsVulkan || bSupportsVulkanSM5) && (Configuration == "Debug" || Configuration == "Development");
+			bool bCopyVulkanLayers = (bSupportsVulkan || bSupportsVulkanSM5) && (Configuration != "Shipping");
 			if (bCopyVulkanLayers)
 			{
-				string VulkanLayersDir = Environment.ExpandEnvironmentVariables("%NDKROOT%/sources/third_party/vulkan/src/build-android/jniLibs/") + NDKArch;
+				string VulkanLayersDir = Path.Combine(Unreal.EngineDirectory.ToString(), "Binaries", "ThirdParty", "Vulkan", "Android", NDKArch);
 				if (Directory.Exists(VulkanLayersDir))
 				{
 					Logger.LogInformation("Copying {ANDROID_VULKAN_VALIDATION_LAYER} vulkan layer from {VulkanLayersDir}", ANDROID_VULKAN_VALIDATION_LAYER, VulkanLayersDir);
@@ -1458,33 +1458,36 @@ namespace UnrealBuildTool
 					DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
 					File.SetLastWriteTimeUtc(DestFilename, File.GetLastWriteTimeUtc(SourceFilename));
 				}
-			}
-
-			// Copy debug validation layers
-			if (bSupportsVulkan && Configuration != "Shipping")
-			{
-				String LayerDir = "";
-				AndroidPlatformSDK.GetPath(Ini, "/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "DebugVulkanLayerDirectory", out LayerDir);
-
-				Logger.LogInformation("DebugVulkanLayerDirectory {LayerDir}", LayerDir);
-
-				if (!String.IsNullOrEmpty(LayerDir))
+				else
 				{
-					LayerDir = Environment.ExpandEnvironmentVariables(LayerDir);
-					if (!Path.IsPathRooted(LayerDir))
-						LayerDir = Path.Combine(Unreal.RootDirectory.ToString(), LayerDir); 
-					string VulkanLayersDir = Path.Combine(LayerDir, NDKArch);
+					Logger.LogWarning("{ANDROID_VULKAN_VALIDATION_LAYER} vulkan layer not found at {VulkanLayersDir}, skipping", ANDROID_VULKAN_VALIDATION_LAYER, VulkanLayersDir);
+				}
 
-					if (Directory.Exists(VulkanLayersDir))
+				String DebugVulkanLayerDirectory = "";
+				AndroidPlatformSDK.GetPath(Ini, "/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "DebugVulkanLayerDirectory", out DebugVulkanLayerDirectory);
+				Logger.LogInformation("DebugVulkanLayerDirectory {LayerDir}", DebugVulkanLayerDirectory);
+
+				if (!String.IsNullOrEmpty(DebugVulkanLayerDirectory))
+				{
+					DebugVulkanLayerDirectory = Environment.ExpandEnvironmentVariables(DebugVulkanLayerDirectory);
+					if (!Path.IsPathRooted(DebugVulkanLayerDirectory))
+						DebugVulkanLayerDirectory = Path.Combine(Unreal.RootDirectory.ToString(), DebugVulkanLayerDirectory); 
+					string LayersDir = Path.Combine(DebugVulkanLayerDirectory, NDKArch);
+
+					if (Directory.Exists(LayersDir))
 					{
 						string DestDir = Path.Combine(UnrealBuildPath, "libs", NDKArch);
-						Logger.LogInformation("Copying Debug vulkan layers from {VulkanLayersDir} to {DestDir}", VulkanLayersDir, DestDir);
+						Logger.LogInformation("Copying Debug vulkan layers from {DebugVulkanLayerDirectory} to {DestDir}", DebugVulkanLayerDirectory, DestDir);
 
 						if (!Directory.Exists(DestDir))
 						{
 							Directory.CreateDirectory(DestDir);
 						}
-						CopyFileDirectory(VulkanLayersDir, DestDir);
+						CopyFileDirectory(LayersDir, DestDir);
+					}
+					else
+					{
+						Logger.LogWarning("DebugVulkanLayerDirectory vulkan layers not found at {DebugVulkanLayerDirectory}, skipping", DebugVulkanLayerDirectory);
 					}
 				}
 			}

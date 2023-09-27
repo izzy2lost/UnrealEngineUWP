@@ -20,8 +20,8 @@ bool GRenderDocFound = false;
 #if VULKAN_HAS_DEBUGGING_ENABLED
 TAutoConsoleVariable<int32> GValidationCvar(
 	TEXT("r.Vulkan.EnableValidation"),
-	0,
-	TEXT("0 to disable validation layers (default)\n")
+	VULKAN_VALIDATION_DEFAULT_VALUE,
+	TEXT("0 to disable validation layers\n")
 	TEXT("1 to enable errors\n")
 	TEXT("2 to enable errors & warnings\n")
 	TEXT("3 to enable errors, warnings & performance warnings\n")

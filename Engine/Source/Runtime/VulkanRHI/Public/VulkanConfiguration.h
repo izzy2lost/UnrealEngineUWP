@@ -20,10 +20,23 @@ struct VkAllocationCallbacks;
 
 // by default, we enable debugging in Development builds, unless the platform says not to
 #ifndef VULKAN_SHOULD_DEBUG_IN_DEVELOPMENT
-	#define VULKAN_SHOULD_DEBUG_IN_DEVELOPMENT 1
+	#define VULKAN_SHOULD_DEBUG_IN_DEVELOPMENT					1
 #endif
 
-#define VULKAN_HAS_DEBUGGING_ENABLED							(UE_BUILD_DEBUG || (UE_BUILD_DEVELOPMENT && VULKAN_SHOULD_DEBUG_IN_DEVELOPMENT))
+#ifndef VULKAN_HAS_DEBUGGING_ENABLED
+	#define VULKAN_HAS_DEBUGGING_ENABLED						(UE_BUILD_DEBUG || (UE_BUILD_DEVELOPMENT && VULKAN_SHOULD_DEBUG_IN_DEVELOPMENT))
+#endif
+
+// default value of r.Vulkan.EnableValidation
+// 0 - disable validation layers
+// 1 - enable errors
+// 2 - enable errors & warnings
+// 3 - enable errors, warnings & performance warnings
+// 4 - enable errors, warnings, performance & information messages
+// 5 - enable all messages
+#ifndef VULKAN_VALIDATION_DEFAULT_VALUE
+	#define VULKAN_VALIDATION_DEFAULT_VALUE						(UE_BUILD_DEBUG ? 2 : 0)
+#endif
 
 #ifndef VULKAN_SHOULD_ENABLE_DRAW_MARKERS
 	#define VULKAN_SHOULD_ENABLE_DRAW_MARKERS					0
