@@ -914,12 +914,12 @@ public:
 		OutNumVisible = IsShadingTestValid() ? VisibleShadingDraws : OutNumTotal;
 	}
 
-	void SetRasterBinIndexTranslator(const FNaniteRasterBinIndexTranslator InTranslator)
+	FORCEINLINE void SetRasterBinIndexTranslator(const FNaniteRasterBinIndexTranslator InTranslator)
 	{
 		BinIndexTranslator = InTranslator;
 	}
 
-	bool ShouldRenderCustomDepthPrimitive(uint32 PrimitiveId) const
+	FORCEINLINE bool ShouldRenderCustomDepthPrimitive(uint32 PrimitiveId) const
 	{
 		if (!bRasterTestValid && !bShadingTestValid)
 		{
@@ -927,6 +927,16 @@ public:
 			return true;
 		}
 		return VisibleCustomDepthPrimitives.Contains(PrimitiveId);
+	}
+
+	FORCEINLINE const TBitArray<>& GetRasterBinVisibility() const
+	{
+		return RasterBinVisibility;
+	}
+
+	FORCEINLINE const TBitArray<>& GetShadingBinVisibility() const
+	{
+		return ShadingBinVisibility;
 	}
 
 private:

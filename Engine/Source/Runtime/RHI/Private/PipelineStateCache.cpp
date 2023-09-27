@@ -291,6 +291,7 @@ void PipelineStateCache::PreCompileComplete()
 	}
 }
 
+extern RHI_API FComputePipelineState* FindComputePipelineState(FRHIComputeShader* ComputeShader, bool bVerifyUse);
 extern RHI_API FComputePipelineState* GetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader);
 extern RHI_API FRHIComputePipelineState* ExecuteSetComputePipelineState(FComputePipelineState* ComputePipelineState);
 extern RHI_API FRHIGraphicsPipelineState* ExecuteSetGraphicsPipelineState(FGraphicsPipelineState* GraphicsPipelineState);
@@ -525,6 +526,29 @@ public:
 		return true;
 	}
 
+	inline void Verify_IncUse()
+	{
+	#if PIPELINESTATECACHE_VERIFYTHREADSAFE
+		int32 Result = InUseCount.Increment();
+		check(Result >= 1);
+	#endif
+	}
+
+	inline void Verify_DecUse()
+	{
+	#if PIPELINESTATECACHE_VERIFYTHREADSAFE
+		int32 Result = InUseCount.Decrement();
+		check(Result >= 0);
+	#endif
+	}
+
+	inline void Verify_NoUse()
+	{
+	#if PIPELINESTATECACHE_VERIFYTHREADSAFE
+		check(InUseCount.GetValue() == 0);
+	#endif
+	}
+
 	FRHIComputeShader* ComputeShader;
 	TRefCountPtr<FRHIComputePipelineState> RHIPipeline;
 #if PIPELINESTATECACHE_VERIFYTHREADSAFE
@@ -543,6 +567,29 @@ public:
 	virtual bool IsCompute() const
 	{
 		return false;
+	}
+
+	inline void Verify_IncUse()
+	{
+	#if PIPELINESTATECACHE_VERIFYTHREADSAFE
+		int32 Result = InUseCount.Increment();
+		check(Result >= 1);
+	#endif
+	}
+
+	inline void Verify_DecUse()
+	{
+	#if PIPELINESTATECACHE_VERIFYTHREADSAFE
+		int32 Result = InUseCount.Decrement();
+		check(Result >= 0);
+	#endif
+	}
+
+	inline void Verify_NoUse()
+	{
+	#if PIPELINESTATECACHE_VERIFYTHREADSAFE
+		check(InUseCount.GetValue() == 0);
+	#endif
 	}
 
 	TRefCountPtr<FRHIGraphicsPipelineState> RHIPipeline;
@@ -612,6 +659,13 @@ public:
 	bool IsCompilationComplete() const 
 	{
 		return !CompletionEvent.IsValid() || CompletionEvent->IsComplete();
+	}
+
+	inline void Verify_NoUse()
+	{
+	#if PIPELINESTATECACHE_VERIFYTHREADSAFE
+		check(InUseCount.GetValue() == 0);
+	#endif
 	}
 
 	FRayTracingPipelineStateRHIRef RHIPipeline;
@@ -689,13 +743,15 @@ bool IsPrecachedPSO(const FGraphicsPipelineStateInitializer& Initializer)
 	return Initializer.bFromPSOFileCache || Initializer.bPSOPrecache;
 }
 
+FComputePipelineState* FindComputePipelineState(FRHIComputeShader* ComputeShader, bool bVerifyUse)
+{
+	return PipelineStateCache::FindComputePipelineState(ComputeShader, bVerifyUse);
+}
+
 FComputePipelineState* GetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader)
 {
 	FComputePipelineState* PipelineState = PipelineStateCache::GetAndOrCreateComputePipelineState(RHICmdList, ComputeShader, false);
-#if PIPELINESTATECACHE_VERIFYTHREADSAFE
-	int32 Result = PipelineState->InUseCount.Increment();
-	check(Result >= 1);
-#endif
+	PipelineState->Verify_IncUse();
 	return PipelineState;
 }
 
@@ -714,10 +770,7 @@ void SetGraphicsPipelineState(FRHICommandList& RHICmdList, const FGraphicsPipeli
 
 	if (PipelineState && !Initializer.bFromPSOFileCache)
 	{
-#if PIPELINESTATECACHE_VERIFYTHREADSAFE
-		int32 Result = PipelineState->InUseCount.Increment();
-		check(Result >= 1);
-#endif
+		PipelineState->Verify_IncUse();
 		check(IsInRenderingThread() || IsInParallelRenderingThread());
 		RHICmdList.SetGraphicsPipelineState(PipelineState, Initializer.BoundShaderState, StencilRef, bApplyAdditionalState);
 	}
@@ -924,10 +977,9 @@ public:
 		{
 			for (TMyValue& OldPipelineState : DeleteArray)
 			{
-				//once in the delayed list this object should not be findable anymore, so the 0 should remain, making this safe
-			#if PIPELINESTATECACHE_VERIFYTHREADSAFE
-				check(OldPipelineState->InUseCount.GetValue() == 0);
-			#endif
+				// Once in the delayed list this object should not be findable anymore, so the 0 should remain, making this safe
+				OldPipelineState->Verify_NoUse();
+
 				// Duplicate entries must wait for in progress compiles to complete.
 				// inprogress tasks could also remain in this container and deferred for the next tick.
 				bool bWaited = OldPipelineState->WaitCompletion();
@@ -949,11 +1001,10 @@ public:
 		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 		RHICmdList.EnqueueLambda([BackfillMap = MoveTemp(*BackfillMap)](FRHICommandListImmediate& RHICmdList) mutable
 		{
-			for ( const auto& DiscardIterator :  BackfillMap)
+			for (const auto& DiscardIterator :  BackfillMap)
 			{
-			#if PIPELINESTATECACHE_VERIFYTHREADSAFE
-				check(DiscardIterator.Value->InUseCount.GetValue() == 0);
-			#endif
+				DiscardIterator.Value->Verify_NoUse();
+
 				// Incomplete tasks should be put back to the current map. There should be no incomplete tasks encountered here.
 				bool bWaited = DiscardIterator.Value->WaitCompletion();
 				UE_CLOG(bWaited, LogRHI, Error, TEXT("Waited on a pipeline compile task while discarding retired PSOs."));
@@ -2439,15 +2490,12 @@ FRayTracingPipelineState* PipelineStateCache::GetRayTracingPipelineState(const F
 #endif // RHI_RAYTRACING
 }
 
-FRHIComputePipelineState* ExecuteSetComputePipelineState(FComputePipelineState* ComputePipelineState)
+FRHIComputePipelineState* ExecuteSetComputePipelineState(FComputePipelineState* PipelineState)
 {
-	ensure(ComputePipelineState->RHIPipeline);
-	ComputePipelineState->AddUse();
-#if PIPELINESTATECACHE_VERIFYTHREADSAFE
-	int32 Result = ComputePipelineState->InUseCount.Decrement();
-	check(Result >= 0);
-#endif
-	return ComputePipelineState->RHIPipeline;
+	ensure(PipelineState->RHIPipeline);
+	PipelineState->AddUse(); // Update Stats
+	PipelineState->Verify_DecUse(); // Lifetime Tracking
+	return PipelineState->RHIPipeline;
 }
 
 #if PSO_TRACK_CACHE_STATS
@@ -2591,10 +2639,10 @@ FGraphicsPipelineState* PipelineStateCache::GetAndOrCreateGraphicsPipelineState(
 	FGraphicsPipelineState* OutCachedState = nullptr;
 
 	bool bWasFound = GGraphicsPipelineCache.Find(Initializer, OutCachedState);
-	bool DoAsyncCompile = IsAsyncCompilationAllowed(RHICmdList, Initializer.bFromPSOFileCache);
-
 	if (bWasFound == false)
 	{
+		bool DoAsyncCompile = IsAsyncCompilationAllowed(RHICmdList, Initializer.bFromPSOFileCache);
+
 		bool bWasPSOPrecached = PSOPrecacheResult == EPSOPrecacheResult::Active || PSOPrecacheResult == EPSOPrecacheResult::Complete;
 
 		FPipelineFileCacheManager::CacheGraphicsPSO(GetTypeHash(Initializer), Initializer, bWasPSOPrecached);
@@ -2657,24 +2705,50 @@ FGraphicsPipelineState* PipelineStateCache::GetAndOrCreateGraphicsPipelineState(
 	return OutCachedState;
 }
 
-FComputePipelineState* PipelineStateCache::FindComputePipelineState(FRHIComputeShader* ComputeShader)
+FComputePipelineState* PipelineStateCache::FindComputePipelineState(FRHIComputeShader* ComputeShader, bool bVerifyUse)
 {
 	LLM_SCOPE(ELLMTag::PSO);
 	check(ComputeShader != nullptr);
 
 	FComputePipelineState* PipelineState = nullptr;
 	GComputePipelineCache.Find(ComputeShader, PipelineState);
-	return (PipelineState && PipelineState->IsComplete()) ? PipelineState : nullptr;
+
+	if (PipelineState && PipelineState->IsComplete())
+	{
+		if (bVerifyUse)
+		{
+			PipelineState->Verify_IncUse();
+		}
+
+		return PipelineState;
+	}
+	else
+	{
+		return nullptr;
+	}
 }
 
-FGraphicsPipelineState* PipelineStateCache::FindGraphicsPipelineState(const FGraphicsPipelineStateInitializer& Initializer)
+FGraphicsPipelineState* PipelineStateCache::FindGraphicsPipelineState(const FGraphicsPipelineStateInitializer& Initializer, bool bVerifyUse)
 {
 	LLM_SCOPE(ELLMTag::PSO);
 	ValidateGraphicsPipelineStateInitializer(Initializer);
 
 	FGraphicsPipelineState* PipelineState = nullptr;
 	GGraphicsPipelineCache.Find(Initializer, PipelineState);
-	return (PipelineState && PipelineState->IsComplete()) ? PipelineState : nullptr;
+
+	if (PipelineState && PipelineState->IsComplete())
+	{
+		if (bVerifyUse)
+		{
+			PipelineState->Verify_IncUse();
+		}
+
+		return PipelineState;
+	}
+	else
+	{
+		return nullptr;
+	}
 }
 
 bool PipelineStateCache::IsPSOPrecachingEnabled()
@@ -2889,11 +2963,8 @@ uint32 PipelineStateCache::NumActivePrecacheRequests()
 FRHIGraphicsPipelineState* ExecuteSetGraphicsPipelineState(FGraphicsPipelineState* GraphicsPipelineState)
 {
 	FRHIGraphicsPipelineState* RHIPipeline = GraphicsPipelineState->RHIPipeline;
-	GraphicsPipelineState->AddUse();
-#if PIPELINESTATECACHE_VERIFYTHREADSAFE
-	int32 Result = GraphicsPipelineState->InUseCount.Decrement();
-	check(Result >= 0);
-#endif
+	GraphicsPipelineState->AddUse(); // Update Stats
+	GraphicsPipelineState->Verify_DecUse(); // Lifetime Tracking
 	return RHIPipeline;
 }
 
