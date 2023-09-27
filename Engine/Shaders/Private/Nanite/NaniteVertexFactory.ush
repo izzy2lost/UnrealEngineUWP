@@ -702,12 +702,25 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FPrimitiveSceneData 
 
 	const float4 LightMapCoordinateScaleBias = GetLightmapData(LightMapDataIndex).LightMapCoordinateScaleBias;
 	const float2 InstanceLightMapScaleBias = CondMask(bHasPerInstanceCoordinateScaleBias, InstanceData.LightMapAndShadowMapUVBias.xy, LightMapCoordinateScaleBias.zw);
-	TDual< float2 > LightMapCoordinate = LightMapCoordinateInput * LightMapCoordinateScaleBias.xy + InstanceLightMapScaleBias;
+
+	// TODO: Figure out why LightMapCoordinateInput * LightMapCoordinateScaleBias.xy + InstanceLightMapScaleBias fails to compile
+	TDual< float2 > LightMapCoordinate = LightMapCoordinateInput;
+	LightMapCoordinate.Value *= LightMapCoordinateScaleBias.xy;
+	LightMapCoordinate.Value_dx *= LightMapCoordinateScaleBias.xy;
+	LightMapCoordinate.Value_dy *= LightMapCoordinateScaleBias.xy;
+	LightMapCoordinate.Value += InstanceLightMapScaleBias;
+
 	TDual< float2 > ShadowMapCoordinate = (TDual< float2 >)0;
 #if STATICLIGHTING_TEXTUREMASK
 	const float4 ShadowMapCoordinateScaleBias = GetLightmapData(LightMapDataIndex).ShadowMapCoordinateScaleBias;
 	const float2 InstanceShadowMapScaleBias = CondMask(bHasPerInstanceCoordinateScaleBias, InstanceData.LightMapAndShadowMapUVBias.zw, ShadowMapCoordinateScaleBias.zw);
-	ShadowMapCoordinate = LightMapCoordinateInput * ShadowMapCoordinateScaleBias.xy + InstanceShadowMapScaleBias;
+
+	// TODO: Figure out why LightMapCoordinateInput * ShadowMapCoordinateScaleBias.xy + InstanceShadowMapScaleBias fails to compile
+	ShadowMapCoordinate = LightMapCoordinateInput;
+	ShadowMapCoordinate.Value *= ShadowMapCoordinateScaleBias.xy;
+	ShadowMapCoordinate.Value_dx *= ShadowMapCoordinateScaleBias.xy;
+	ShadowMapCoordinate.Value_dy *= ShadowMapCoordinateScaleBias.xy;
+	ShadowMapCoordinate.Value += InstanceShadowMapScaleBias;
 #endif
 
 #if LIGHTMAP_UV_ACCESS
