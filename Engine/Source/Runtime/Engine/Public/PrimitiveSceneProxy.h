@@ -41,6 +41,11 @@ struct FPrimitiveUniformShaderParametersBuilder;
 struct FPrimitiveSceneProxyDesc;
 class IPrimitiveComponent;
 
+namespace UE::RenderCommandPipe
+{
+	extern ENGINE_API FRenderCommandPipe Scene;
+}
+
 namespace Nanite
 {
 	using CoarseMeshStreamingHandle = int16;
