@@ -1126,7 +1126,6 @@ RequestZenShutdownOnEffectivePort(uint16 EffectiveListenPort)
 	}
 
 	semctl(Semaphore, 0, SETVAL, 0);
-	semctl(Semaphore, 0, IPC_RMID);
 	return true;
 #else
 	static_assert(false, "Missing implementation for Zen named shutdown events");
