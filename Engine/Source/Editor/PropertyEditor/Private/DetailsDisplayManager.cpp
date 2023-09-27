@@ -4,6 +4,11 @@
 
 #include "DetailsViewStyle.h"
 #include "SDetailsView.h"
+#include "DetailLayoutBuilderImpl.h"
+#include "DetailCategoryBuilderImpl.h"
+#include "ObjectEditorUtils.h"
+#include "ObjectPropertyNode.h"
+
 
 static TAutoConsoleVariable<bool> CVarForceShowComponentEditor(
 	TEXT("CoreEntity.UI.ForceShowComponentEditor"),
@@ -70,6 +75,45 @@ FMargin FDetailsDisplayManager::GetTablePadding() const
 
 bool FDetailsDisplayManager::ShowEmptyCategoryIfRootUObjectHasNoPropertyData(UObject* InNode) const
 {
+	return false;
+}
+
+bool FDetailsDisplayManager::AddEmptyCategoryToDetailLayoutIfNeeded(TSharedRef<FComplexPropertyNode> Node,
+                                                      TSharedRef<FDetailLayoutBuilderImpl> DetailLayoutBuilder)
+{
+	if (FObjectPropertyNode* ObjectPropertyNode = Node->AsObjectNode())
+	{
+		/* a pointer to the UObject for this Category, if we have one */
+		UObject* UObjectForCategory = nullptr;
+
+		const bool bPropertyNodeHasOneUObject =  ObjectPropertyNode && ObjectPropertyNode->GetNumObjects() == 1;
+		if ( bPropertyNodeHasOneUObject )
+		{
+			UObjectForCategory = ObjectPropertyNode->GetUObject(0);
+		}
+
+		if (UObjectForCategory &&
+			/* we're supposed to show an empty category for this particular object if it has no UProperties */
+			ShowEmptyCategoryIfRootUObjectHasNoPropertyData(UObjectForCategory) &&
+			UObjectForCategory->GetClass())
+		{
+			/* Base empty category display text off the display text of the UObject class */
+			const FText UObjectClassNameDisplayText = UObjectForCategory->GetClass()->GetDisplayNameText();
+			
+			/* Base empty category name off the name of the UObject class */
+			const FName UObjectClassName = UObjectForCategory->GetClass()->GetFName();
+			
+			FDetailCategoryImpl& EmptyCategory = DetailLayoutBuilder->DefaultCategory( UObjectClassName );
+			EmptyCategory.SetDisplayName(UObjectClassName, UObjectClassNameDisplayText);
+
+			/* property node for now will always show empty ~ eventually we will want to add hooks to optionally show
+			 * a "No properties here" or "This empty component does XYZ" string of some kind that can be overridden
+			 * based on object type and usage */
+			EmptyCategory.AddPropertyNode(Node, UObjectClassName);
+			EmptyCategory.SetIsEmpty(true);
+			return true;
+		}
+	}
 	return false;
 }
 

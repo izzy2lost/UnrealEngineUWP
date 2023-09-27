@@ -1059,28 +1059,15 @@ bool FDetailLayoutBuilderImpl::IsPropertyPathAllowed(const FString& InPath) cons
 
 bool FDetailLayoutBuilderImpl::AddEmptyCategoryIfNeeded(TSharedPtr<FComplexPropertyNode> Node)
 {
-	if (DefaultCategoryMap.IsEmpty())
+	const bool bHasNoValidCategories = DefaultCategoryMap.IsEmpty();
+	const bool bHasValidDisplayManager = DetailsView && DetailsView->GetDisplayManager().IsValid();
+	const bool bHasValidPropertyNode = Node.IsValid();
+	
+	if ( bHasNoValidCategories &&
+		 bHasValidDisplayManager &&
+		 bHasValidPropertyNode )
 	{
-		if (Node.IsValid() &&
-			Node->AsObjectNode() &&
-			Node->AsObjectNode()->GetNumObjects() > 0)
-		{
-			const FName PropertyCategoryName = FObjectEditorUtils::GetCategoryFName(Node->GetProperty());
-			FDetailCategoryImpl& Category = DefaultCategory(PropertyCategoryName);
-			const FName InstanceName = Node->GetProperty()->GetFName();
-			
-			FObjectPropertyNode* ObjectPropertyNode =  Node->AsObjectNode();
-			UObject* OutObject = ObjectPropertyNode->GetUObject(0);
-
-			if (DetailsView &&
-				DetailsView->GetDisplayManager().IsValid() &&
-				DetailsView->GetDisplayManager()->ShowEmptyCategoryIfRootUObjectHasNoPropertyData(OutObject))
-			{
-				Category.AddPropertyNode(Node.ToSharedRef(), InstanceName);
-				Category.SetIsEmpty(true);
-				return true;
-			}
-		}
+ 		return DetailsView->GetDisplayManager()->AddEmptyCategoryToDetailLayoutIfNeeded(Node.ToSharedRef(), SharedThis(this));
 	}
 	return false;
 }

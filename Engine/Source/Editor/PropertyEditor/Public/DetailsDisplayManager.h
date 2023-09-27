@@ -8,6 +8,8 @@
 DECLARE_DELEGATE(FOnDetailsNeedsUpdate)
 
 class FDetailsViewStyle;
+class FComplexPropertyNode;
+class FDetailLayoutBuilderImpl;
 
 /** An @code FDetailsDisplayManager @endcode provides an API to tweak various settings of your details view, and
  * provides some utility methods to work with Details.  */
@@ -91,6 +93,18 @@ public:
 	FMargin GetTablePadding() const;
 
 	/**
+	 * If TSharedRef<FComplexPropertyNode> Node has a valid UObject instance, add an empty properties
+	 * Category to the DetailLayoutBuilder
+	 *
+	 * @param Node the FComplexPropertyNode that wil be added as a property to the new Category
+	 * @param DetailLayoutBuilder The FDetailLayoutBuilderImpl that will have a stub category added to it
+	 *
+	 * @return true if the Category was successfully added to FDetailLayoutBuilderImpl& DetailLayoutBuilder,
+	 * else it returns false
+	 */	
+	PROPERTYEDITOR_API virtual bool AddEmptyCategoryToDetailLayoutIfNeeded(TSharedRef<FComplexPropertyNode> Node, TSharedRef<FDetailLayoutBuilderImpl> DetailLayoutBuilder);
+
+	/**
 	* Returns true if the specified UObject is a Root Node Object and should show an empty Category stub even if it
 	* has no UProperty Data, else it returns false
 	*
@@ -121,6 +135,5 @@ protected:
 	* here means that in this value the work has been done to figure out if the scrollbar should show 
 	 */
 	bool bIsScrollBarNeeded = false;
-
 };
 
