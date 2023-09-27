@@ -282,7 +282,7 @@ bool UActorDescContainer::ShouldHandleActorEvent(const AActor* Actor)
 	return Actor && IsActorDescHandled(Actor) && Actor->IsMainPackageActor() && Actor->GetLevel();
 }
 
-const FWorldPartitionActorDesc* UActorDescContainer::GetActorDescByName(const FString& ActorPath) const
+const FWorldPartitionActorDesc* UActorDescContainer::GetActorDescByPath(const FString& ActorPath) const
 {
 	FString ActorName;
 	FString ActorContext;
@@ -291,17 +291,22 @@ const FWorldPartitionActorDesc* UActorDescContainer::GetActorDescByName(const FS
 		ActorName = ActorPath;
 	}
 
-	if (const TUniquePtr<FWorldPartitionActorDesc>* const* ActorDesc = ActorsByName.Find(*ActorName))
+	return GetActorDescByName(FName(*ActorName));
+}
+
+const FWorldPartitionActorDesc* UActorDescContainer::GetActorDescByPath(const FSoftObjectPath& ActorPath) const
+{
+	return GetActorDescByPath(ActorPath.ToString());
+}
+
+const FWorldPartitionActorDesc* UActorDescContainer::GetActorDescByName(FName ActorName) const
+{
+	if (const TUniquePtr<FWorldPartitionActorDesc>* const* ActorDesc = ActorsByName.Find(ActorName))
 	{
 		return (*ActorDesc)->Get();
 	}
 
 	return nullptr;
-}
-
-const FWorldPartitionActorDesc* UActorDescContainer::GetActorDescByName(const FSoftObjectPath& ActorPath) const
-{
-	return GetActorDescByName(ActorPath.ToString());
 }
 
 void UActorDescContainer::OnObjectPreSave(UObject* Object, FObjectPreSaveContext SaveContext)

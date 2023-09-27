@@ -137,7 +137,7 @@ bool UWorldPartitionFoliageBuilder::RunInternal(UWorld* World, const FCellInfo& 
 
 				const FString ExpectedActorPath = FString::Printf(TEXT("%s.%s"), *World->PersistentLevel->GetPathName(), *ExpectedActorName);
 				
-				if (const FWorldPartitionActorDesc* DupActorDesc = WorldPartition->GetActorDescByName(ExpectedActorPath))
+				if (const FWorldPartitionActorDesc* DupActorDesc = WorldPartition->GetActorDescByPath(ExpectedActorPath))
 				{
 					// Merge with existing
 					FWorldPartitionReference DupActorRef(WorldPartition, DupActorDesc->GetGuid());

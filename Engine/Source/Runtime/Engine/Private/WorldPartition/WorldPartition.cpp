@@ -199,7 +199,7 @@ static FAutoConsoleCommand DumpActorDesc(
 						TMap<FName, FString> DataLayersDumpString = GetDataLayersDumpString(WorldPartition);
 						for (const FString& ActorPath : ActorPaths)
 						{
-							if (const FWorldPartitionActorDesc* ActorDesc = WorldPartition->GetActorDescByName(ActorPath))
+							if (const FWorldPartitionActorDesc* ActorDesc = WorldPartition->GetActorDescByPath(ActorPath))
 							{
 								UE_LOG(LogWorldPartition, Log, TEXT("%s"), *GetActorDescDumpString(ActorDesc, DataLayersDumpString));
 							}
@@ -1576,7 +1576,7 @@ bool UWorldPartition::ResolveSubobject(const TCHAR* SubObjectPath, UObject*& Out
 				SubObjectName = SubObjectPath;
 			}
 
-			if (const FWorldPartitionActorDesc* ActorDesc = GetActorDescByName(SubObjectName))
+			if (const FWorldPartitionActorDesc* ActorDesc = GetActorDescByPath(SubObjectName))
 			{
 				if (bLoadIfExists)
 				{

@@ -1264,7 +1264,7 @@ void SPropertyEditorAsset::OnBrowse()
 				{
 					if (UWorld* World = Cast<UWorld>(MapObject); World && World->IsPartitionedWorld())
 					{
-						if (const FWorldPartitionActorDesc* ActorDesc = World->GetWorldPartition()->GetActorDescByName(Value.ObjectPath))
+						if (const FWorldPartitionActorDesc* ActorDesc = World->GetWorldPartition()->GetActorDescByPath(Value.ObjectPath))
 						{
 							World->GetWorldPartition()->PinActors({ ActorDesc->GetGuid() });
 							GetValue(Value);

@@ -101,8 +101,9 @@ public:
 
 	ENGINE_API bool ShouldHandleActorEvent(const AActor* Actor);
 
-	ENGINE_API const FWorldPartitionActorDesc* GetActorDescByName(const FString& ActorPath) const;
-	ENGINE_API const FWorldPartitionActorDesc* GetActorDescByName(const FSoftObjectPath& InActorPath) const;
+	ENGINE_API const FWorldPartitionActorDesc* GetActorDescByPath(const FString& ActorPath) const;
+	ENGINE_API const FWorldPartitionActorDesc* GetActorDescByPath(const FSoftObjectPath& ActorPath) const;
+	ENGINE_API const FWorldPartitionActorDesc* GetActorDescByName(FName ActorName) const;
 
 	bool bContainerInitialized;
 

@@ -40,8 +40,9 @@ public:
 	FWorldPartitionActorDesc& GetActorDescChecked(const FGuid& Guid);
 	const FWorldPartitionActorDesc& GetActorDescChecked(const FGuid& Guid) const;
 
-	const FWorldPartitionActorDesc* GetActorDescByName(const FString& ActorPath) const;
-	const FWorldPartitionActorDesc* GetActorDescByName(const FSoftObjectPath& ActorPath) const;
+	const FWorldPartitionActorDesc* GetActorDescByPath(const FString& ActorPath) const;
+	const FWorldPartitionActorDesc* GetActorDescByPath(const FSoftObjectPath& ActorPath) const;
+	const FWorldPartitionActorDesc* GetActorDescByName(FName ActorName) const;
 
 	template<typename Dummy = void, typename = typename TEnableIf<!TIsConst<TRemovePointer<ActorDescContPtrType>>::Value, Dummy>::Type>
 	bool RemoveActor(const FGuid& ActorGuid);
@@ -328,12 +329,12 @@ FWorldPartitionActorDesc& TActorDescContainerCollection<ActorDescContPtrType>::G
 }
 
 template<class ActorDescContPtrType>
-const FWorldPartitionActorDesc* TActorDescContainerCollection<ActorDescContPtrType>::GetActorDescByName(const FString& ActorPath) const
+const FWorldPartitionActorDesc* TActorDescContainerCollection<ActorDescContPtrType>::GetActorDescByPath(const FString& ActorPath) const
 {
 	const FWorldPartitionActorDesc* ActorDesc = nullptr;
 	ForEachActorDescContainerBreakable([&ActorPath, &ActorDesc](ActorDescContPtrType ActorDescContainer)
 	{
-		ActorDesc = ActorDescContainer->GetActorDescByName(ActorPath);
+		ActorDesc = ActorDescContainer->GetActorDescByPath(ActorPath);
 		return ActorDesc == nullptr;
 	});
 
@@ -341,12 +342,25 @@ const FWorldPartitionActorDesc* TActorDescContainerCollection<ActorDescContPtrTy
 }
 
 template<class ActorDescContPtrType>
-const FWorldPartitionActorDesc* TActorDescContainerCollection<ActorDescContPtrType>::GetActorDescByName(const FSoftObjectPath& ActorPath) const
+const FWorldPartitionActorDesc* TActorDescContainerCollection<ActorDescContPtrType>::GetActorDescByPath(const FSoftObjectPath& ActorPath) const
 {
 	const FWorldPartitionActorDesc* ActorDesc = nullptr;
 	ForEachActorDescContainerBreakable([&ActorPath, &ActorDesc](ActorDescContPtrType ActorDescContainer)
 	{
-		ActorDesc = ActorDescContainer->GetActorDescByName(ActorPath);
+		ActorDesc = ActorDescContainer->GetActorDescByPath(ActorPath);
+		return ActorDesc == nullptr;
+	});
+
+	return ActorDesc;
+}
+
+template<class ActorDescContPtrType>
+const FWorldPartitionActorDesc* TActorDescContainerCollection<ActorDescContPtrType>::GetActorDescByName(FName ActorName) const
+{
+	const FWorldPartitionActorDesc* ActorDesc = nullptr;
+	ForEachActorDescContainerBreakable([&ActorName, &ActorDesc](ActorDescContPtrType ActorDescContainer)
+	{
+		ActorDesc = ActorDescContainer->GetActorDescByName(ActorName);
 		return ActorDesc == nullptr;
 	});
 
