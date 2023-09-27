@@ -15,6 +15,7 @@
 #endif
 #include "VolumeLightingCommon.ush"
 #include "VolumetricLightmapShared.ush"
+#include "ReflectionEnvironmentShared.ush"
 #include "ForwardShadowingCommon.ush"
 #include "ParticipatingMediaCommon.ush"
 #include "LightDataUniforms.ush"
@@ -656,7 +657,7 @@ float GetDirectionalLightFunction(float3 TranslatedWorldPosition) // directional
 	return Texture2DSampleLevel(LightFunctionTexture, LightFunctionSampler, LightFunctionUV, 0).x;
 }
 
-float4 SkySH[3];
+uint SampleSkyLightDiffuseEnvMap;
 float2 UseHeightFogColors;	// x=override directional light using height fog inscattering color, y=override sky light using heigh fog inscattering cubemap
 float UseDirectionalLightShadowing;
 float StaticLightingScatteringIntensity;
@@ -811,12 +812,7 @@ void LightScatteringCS(
 			}
 			else
 			{
-				FTwoBandSHVectorRGB SkyIrradianceSH;
-				SkyIrradianceSH.R.V = SkySH[0];
-				SkyIrradianceSH.G.V = SkySH[1];
-				SkyIrradianceSH.B.V = SkySH[2];
-
-				SkyLighting = View.SkyLightColor.rgb * max(DotSH(SkyIrradianceSH, RotatedHGZonalHarmonic), 0) / PI;
+				SkyLighting = SampleSkyLightDiffuseEnvMap > 0 ? View.SkyLightColor.rgb * GetSkySHDiffuseSimple(CameraVector * -PhaseG) : 0.0f.xxx;
 			}
 
 			float SkyVisibility = ComputeSkyVisibility(TranslatedWorldPosition, BrickTextureUVs);

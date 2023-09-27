@@ -985,7 +985,7 @@ class FVolumetricFogLightScatteringCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FAOParameters, AOParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FGlobalDistanceFieldParameters2, GlobalDistanceFieldParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, RWLightScattering)
-		SHADER_PARAMETER_ARRAY(FVector4f, SkySH, [3])
+		SHADER_PARAMETER(uint32, SampleSkyLightDiffuseEnvMap)
 		SHADER_PARAMETER(FMatrix44f, DirectionalLightFunctionTranslatedWorldToShadow)
 		SHADER_PARAMETER(FMatrix44f, CloudShadowmapTranslatedWorldToLightClipMatrix)
 		SHADER_PARAMETER(FVector2f, PrevConservativeDepthTextureSize)
@@ -1563,18 +1563,12 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 				&& View.Family->EngineShowFlags.SkyLighting)
 			{
 				PassParameters->SkyLightUseStaticShadowing = SkyLight->bWantsStaticShadowing && SkyLight->bCastShadows ? 1.0f : 0.0f;
-
-				const FSHVectorRGB3& SkyIrradiance = SkyLight->IrradianceEnvironmentMap;
-				PassParameters->SkySH[0] = (FVector4f&)SkyIrradiance.R.V;
-				PassParameters->SkySH[1] = (FVector4f&)SkyIrradiance.G.V;
-				PassParameters->SkySH[2] = (FVector4f&)SkyIrradiance.B.V;
+				PassParameters->SampleSkyLightDiffuseEnvMap = 1;
 			}
 			else
 			{
 				PassParameters->SkyLightUseStaticShadowing = 0.0f;
-				PassParameters->SkySH[0] = FVector4f(0, 0, 0, 0);
-				PassParameters->SkySH[1] = FVector4f(0, 0, 0, 0);
-				PassParameters->SkySH[2] = FVector4f(0, 0, 0, 0);
+				PassParameters->SampleSkyLightDiffuseEnvMap = 0;
 			}
 
 			float StaticLightingScatteringIntensityValue = 0;
