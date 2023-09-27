@@ -1309,7 +1309,18 @@ bool FEditorModeTools::ProcessCapturedMouseMoves( FEditorViewportClient* InViewp
 /** Notifies all active modes of keyboard input via a viewport client */
 bool FEditorModeTools::InputKey(FEditorViewportClient* InViewportClient, FViewport* Viewport, FKey Key, EInputEvent Event, bool bRouteToToolsContext)
 {
-	const bool bWasHandledByToolsContext = bRouteToToolsContext && InteractiveToolsContext->InputKey(InViewportClient, Viewport, Key, Event);
+	bool bWasHandledByToolsContext = false;
+	if (bRouteToToolsContext)
+	{
+		bWasHandledByToolsContext = InteractiveToolsContext->InputKey(InViewportClient, Viewport, Key, Event);
+	}
+	else
+	{
+		// If we're not routing to the tools context, we still need to let it look at the event so that it can update
+		// its internal memory of which mouse keys are down, to pass the correct mouse state later.
+		InteractiveToolsContext->UpdateStateWithoutRoutingInputKey(InViewportClient, Viewport, Key, Event);
+	}
+
 	if (bWasHandledByToolsContext && !bIsTracking && GetInteractiveToolsContext()->InputRouter->HasActiveMouseCapture())
 	{
 		StartTracking(InViewportClient, Viewport);

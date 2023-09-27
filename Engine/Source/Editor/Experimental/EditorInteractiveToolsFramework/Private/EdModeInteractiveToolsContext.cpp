@@ -890,6 +890,31 @@ void UModeManagerInteractiveToolsContext::DeactivateAllActiveTools(EToolShutdown
 	Super::DeactivateAllActiveTools(ShutdownType);
 }
 
+void UModeManagerInteractiveToolsContext::UpdateStateWithoutRoutingInputKey(FEditorViewportClient* ViewportClient, FViewport* Viewport, FKey Key, EInputEvent Event)
+{
+	// Currently, the only internal state we keep is the state of various mouse keys being down. Note
+	// that we don't want to save bPressed or bReleased for them as those are one-time events issued
+	// from InputKey, and shouldn't show up on mouse moves or on other keys being pressed/released.
+	if ((Event == IE_Pressed || Event == IE_Released)
+		&& Key.IsMouseButton())
+	{
+		if (Key.IsMouseButton())
+		{
+			if (Key == EKeys::LeftMouseButton)
+			{
+				CurrentMouseState.Mouse.Left.bDown = (Event == IE_Pressed);
+			}
+			else if (Key == EKeys::MiddleMouseButton)
+			{
+				CurrentMouseState.Mouse.Middle.bDown = (Event == IE_Pressed);
+			}
+			else if (Key == EKeys::RightMouseButton)
+			{
+				CurrentMouseState.Mouse.Right.bDown = (Event == IE_Pressed);
+			}
+		}
+	}
+}
 
 bool UModeManagerInteractiveToolsContext::InputKey(FEditorViewportClient* ViewportClient, FViewport* Viewport, FKey Key, EInputEvent Event)
 {
@@ -900,6 +925,9 @@ bool UModeManagerInteractiveToolsContext::InputKey(FEditorViewportClient* Viewpo
 	else if (Event == IE_Axis) { UE_LOG(LogTemp, Warning, TEXT("AXIS EVENT")); }
 	else if (Event == IE_DoubleClick) { UE_LOG(LogTemp, Warning, TEXT("DOUBLECLICK EVENT")); }
 #endif
+
+	// Update the current state, then route result
+	UpdateStateWithoutRoutingInputKey(ViewportClient, Viewport, Key, Event);
 
 	if (Event == IE_Pressed || Event == IE_Released)
 	{
@@ -932,22 +960,16 @@ bool UModeManagerInteractiveToolsContext::InputKey(FEditorViewportClient* Viewpo
 				{
 					InputState.Mouse.Left.SetStates(
 						(Event == IE_Pressed), (Event == IE_Pressed), (Event == IE_Released));
-					CurrentMouseState.Mouse.Left.bDown = (Event == IE_Pressed);
-					CurrentMouseState.Mouse.Left.bReleased = (Event == IE_Released);
 				}
 				else if (bIsMiddleMouse)
 				{
 					InputState.Mouse.Middle.SetStates(
 						(Event == IE_Pressed), (Event == IE_Pressed), (Event == IE_Released));
-					CurrentMouseState.Mouse.Middle.bDown = (Event == IE_Pressed);
-					CurrentMouseState.Mouse.Middle.bReleased = (Event == IE_Released);
 				}
 				else
 				{
 					InputState.Mouse.Right.SetStates(
 						(Event == IE_Pressed), (Event == IE_Pressed), (Event == IE_Released));
-					CurrentMouseState.Mouse.Right.bDown = (Event == IE_Pressed);
-					CurrentMouseState.Mouse.Right.bReleased = (Event == IE_Released);
 				}
 				if (InputRouter->PostInputEvent(InputState))
 				{

@@ -256,6 +256,12 @@ public:
 	//
 public:
 	bool InputKey(FEditorViewportClient* ViewportClient, FViewport* Viewport, FKey Key, EInputEvent Event);
+	/**
+	 * This updates internal state like InputKey, but doesn't route the results to the input router. 
+	 * Use this if the input is captured by some higher system, to avoid this class from having an
+	 * incorrect view of e.g. the mouse state because it did not receive a mouse release event.
+	 */
+	void UpdateStateWithoutRoutingInputKey(FEditorViewportClient* ViewportClient, FViewport* Viewport, FKey Key, EInputEvent Event);
 
 	bool MouseEnter(FEditorViewportClient* ViewportClient, FViewport* Viewport, int32 x, int32 y);
 	bool MouseLeave(FEditorViewportClient* ViewportClient, FViewport* Viewport);
