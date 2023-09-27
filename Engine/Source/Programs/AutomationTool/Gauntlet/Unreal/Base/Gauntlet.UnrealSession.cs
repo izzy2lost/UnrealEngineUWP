@@ -6,10 +6,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using UnrealBuildTool;
+using Gauntlet.Utils;
 
 namespace Gauntlet
 {
@@ -1082,45 +1082,102 @@ namespace Gauntlet
 		}
 
 		/// <summary>
-		/// Retrieves and saves all artifacts from the provided session role. Artifacts are saved to the destination path 
+		/// Retrieves and saves all artifacts from the provided session role. Artifacts are saved to the destination path
 		/// </summary>
 		/// <param name="InContext"></param>
 		/// <param name="InRunningRole"></param>
-		/// <param name="InDestArtifactPath"></param>
+		/// <param name="DestinationArtifactPath"></param>
 		/// <returns></returns>
-		public UnrealRoleArtifacts SaveRoleArtifacts(UnrealTestContext InContext, UnrealSessionInstance.RoleInstance InRunningRole, string InDestArtifactPath)
+		public UnrealRoleArtifacts SaveRoleArtifacts(UnrealTestContext InContext, UnrealSessionInstance.RoleInstance InRunningRole, string DestinationArtifactPath)
 		{
-			bool IsServer = InRunningRole.Role.RoleType.IsServer();
+			DirectoryInfo SourceDirectory = new DirectoryInfo(InRunningRole.AppInstance.ArtifactPath);
+			DirectoryInfo DestinationDirectory = new DirectoryInfo(DestinationArtifactPath);
+			bool bRetainArtifacts = InContext.TestParams.ParseParam("RetainDeviceArtifacts");
+
+			// Whether this is a Dummy, Client, Server, Editor, etc
 			string RoleName = (InRunningRole.Role.IsDummy() ? "Dummy" : "") + InRunningRole.Role.RoleType.ToString();
-			UnrealTargetPlatform? Platform = InRunningRole.Role.Platform;
-			string RoleConfig = InRunningRole.Role.Configuration.ToString();
 
-			if (!Directory.Exists(InDestArtifactPath))
-			{
-				Directory.CreateDirectory(InDestArtifactPath);
-			}
-
+			// We only want to move artifacts for editor data if there was a crash on a buildmachine.
+			// Also, don't move artifacts in dev mode, because peoples saved data could be huuuuuuuge!
 			bool IsDevBuild = InContext.TestParams.ParseParam("dev");
 			bool IsEditorBuild = InRunningRole.Role.RoleType.UsesEditor();
 			bool IsBuildMachine = CommandUtils.IsBuildMachine;
+			bool SkipArchivingAssets = IsDevBuild || (IsEditorBuild && (IsBuildMachine == false || InRunningRole.AppInstance.ExitCode == 0));
 
-			// Unless there was a crash on a builder don't archive editor data (there can be a *lot* of stuff in there).
-			bool SkipArchivingAssets = IsDevBuild ||
-										(IsEditorBuild && 
-											(IsBuildMachine == false || InRunningRole.AppInstance.ExitCode == 0)
-										);
+			// Check if we should copy artifacts
+			if (!SkipArchivingAssets)
+			{
+				if (SourceDirectory.Exists)
+				{
+					DirectoryInfo PersistentDownloadDirectory = null;
 
-			DirectoryInfo DestSavedDirInfo = new DirectoryInfo(InDestArtifactPath);
-			// save the contents of the saved directory
-			string SourceSavedDir = InRunningRole.AppInstance.ArtifactPath;
-			
-			string ArtifactLogFilePath = String.Empty;
+					// Locate any long crash reporter directories and truncate them. This prevents path too long errors.
+					foreach (DirectoryInfo SubDirectory in SourceDirectory.EnumerateDirectories("*", SearchOption.AllDirectories))
+					{
+						string TruncatedName = TruncateLongPathFilter(SubDirectory.Name);
+						if (!SubDirectory.Name.Equals(TruncatedName, StringComparison.OrdinalIgnoreCase))
+						{
+							// This path was successfully truncated, perform a move to rename the path
+							string NewDestination = Path.Combine(SubDirectory.Parent.FullName, TruncatedName);
+							SubDirectory.MoveTo(NewDestination);
+						}
 
-			// Get the size of the log to determine if it should be saved under a certain size
+						// If we find a PDD we'll also mark it for deletion before the move.
+						if (SubDirectory.Name.Equals(EIntendedBaseCopyDirectory.PersistentDownloadDir.ToString(), StringComparison.OrdinalIgnoreCase))
+						{
+							PersistentDownloadDirectory = SubDirectory;
+						}
+					}
+
+					if(PersistentDownloadDirectory != null)
+					{
+						PersistentDownloadDirectory.Delete(true);
+					}
+
+					// Perform the move/copy
+					SystemHelpers.CopyDirectory(SourceDirectory.FullName, DestinationDirectory.FullName);
+					if (!bRetainArtifacts)
+					{
+						SourceDirectory.Delete(true);
+					}
+				}
+				else
+				{
+					Log.Info("Archive path '{0}' was not found!", SourceDirectory.FullName);
+				}
+			}
+			else
+			{
+				if (IsEditorBuild)
+				{
+					Log.Info("Skipping archival of assets for editor {0}", RoleName);
+				}
+				else if (IsDevBuild)
+				{
+					Log.Info("Skipping archival of assets for dev build");
+				}
+			}
+
+			// Next, move over any additional artifacts that a role requested
+			foreach (EIntendedBaseCopyDirectory AdditionalDirectory in InRunningRole.Role.AdditionalArtifactDirectories)
+			{
+				Dictionary<EIntendedBaseCopyDirectory, string> PlatformMappings = InRunningRole.AppInstance.Device.GetPlatformDirectoryMappings();
+				if (PlatformMappings.ContainsKey(AdditionalDirectory))
+				{
+					DirectoryInfo AdditionalSourceDirectory = new DirectoryInfo(PlatformMappings[AdditionalDirectory]);
+					if (AdditionalSourceDirectory.Exists)
+					{
+						string TargetDirectory = Path.Combine(DestinationDirectory.FullName, AdditionalSourceDirectory.Name);
+						SystemHelpers.CopyDirectory(AdditionalSourceDirectory.FullName, TargetDirectory);
+					}
+				}
+			}
+
+			// Now write the role's log file
+			string ArtifactLogFilePath = string.Empty;
 			int MaxLogSize = 1024 * 1024 * 1024;
 			int LogSize = InRunningRole.AppInstance.StdOut.Length * sizeof(char);
 			bool bIgnoreMaxSize = Globals.Params.ParseParam("NoMaxLogSize");
-
 			if (!bIgnoreMaxSize && LogSize > MaxLogSize)
 			{
 				Log.Warning("The process log for Role {0} was over 1 GB in size. A log artifact will not be generated for this process.", InRunningRole.ToString());
@@ -1129,9 +1186,9 @@ namespace Gauntlet
 			{
 				try
 				{
-					ArtifactLogFilePath = Path.Combine(DestSavedDirInfo.FullName, RoleName + "Output.log");
+					ArtifactLogFilePath = Path.Combine(DestinationDirectory.FullName, RoleName + "Output.log");
 
-					// save the output from TTY
+					// Write a short gauntlet blurb before the entire process log
 					using (StreamWriter Writer = new(ArtifactLogFilePath, false))
 					{
 						Writer.WriteLine("------ Gauntlet Test ------");
@@ -1141,6 +1198,7 @@ namespace Gauntlet
 						Writer.Write(InRunningRole.AppInstance.StdOut);
 					}
 					Log.Info($"Wrote {RoleName} Log to {ArtifactLogFilePath}");
+
 					// On build machines, copy all role logs to Horde.
 					if (IsBuildMachine)
 					{
@@ -1155,30 +1213,35 @@ namespace Gauntlet
 				}
 			}
 
-			if (IsServer == false)
+			// Move crash dumps
+			if (InRunningRole.AppInstance.Device.CopyCrashDumps())
 			{
-				// gif-ify and jpeg-ify any screenshots
+				DirectoryInfo CrashDumpDirectory = new DirectoryInfo(InRunningRole.AppInstance.Device.CrashDumpPath);
+				if (CrashDumpDirectory.Exists)
+				{
+					string DesinationCrashDumpDirectory = Path.Combine(DestinationDirectory.FullName, "CrashDumps");
+					Log.Info("Moving any CrashDumps from {0} to {1}", CrashDumpDirectory.FullName, DesinationCrashDumpDirectory);
+					CrashDumpDirectory.MoveTo(DesinationCrashDumpDirectory);
+				}
+			}
+
+			// Convert any screenshots to jpegs and create a gif when not running a server
+			if (!InRunningRole.Role.RoleType.IsServer())
+			{
 				try
 				{
-					string ScreenshotPath = Path.Combine(SourceSavedDir, "Screenshots", Platform.ToString()).ToLower();
+					DirectoryInfo ScreenshotDirectory = new(Path.Combine(DestinationDirectory.FullName, "Screenshots", InRunningRole.Role.Platform.ToString()));
 
 					// Check as early as possible for screenshots before creating a temp folder to copy
-					if (Directory.Exists(ScreenshotPath) && Directory.GetFiles(ScreenshotPath).Any())
+					if (ScreenshotDirectory.Exists && ScreenshotDirectory.GetFiles().Any())
 					{
-						string TempScreenshotPath = Path.GetTempPath();
-						if (!Directory.Exists(TempScreenshotPath))
-						{
-							Log.Info("Creating temp directory {0}", TempScreenshotPath);
-							Directory.CreateDirectory(TempScreenshotPath);
-						}
+						Log.Info("Downsizing and gifying session images at {0}", ScreenshotDirectory.FullName);
 
-						Log.Info("Downsizing and gifying session images at {0}", ScreenshotPath);
+						// Downsize first so gif-step is quicker and takes less resoruces.
+						Utils.Image.ConvertImages(ScreenshotDirectory.FullName, ScreenshotDirectory.FullName, "jpg", true);
 
-						// downsize first so gif-step is quicker and takes less resoruces.
-						Utils.Image.ConvertImages(ScreenshotPath, TempScreenshotPath, "jpg", true);
-
-						string GifPath = Path.Combine(DestSavedDirInfo.FullName, RoleName + "Test.gif");
-						if (Utils.Image.SaveImagesAsGif(TempScreenshotPath, GifPath))
+						string GifPath = Path.Combine(DestinationDirectory.FullName, RoleName + "Test.gif");
+						if (Utils.Image.SaveImagesAsGif(ScreenshotDirectory.FullName, GifPath))
 						{
 							Log.Info("Saved gif to {0}", GifPath);
 						}
@@ -1190,119 +1253,17 @@ namespace Gauntlet
 				}
 			}
 
-			// don't archive data in dev mode, because peoples saved data could be huuuuuuuge!
-			if (SkipArchivingAssets)
-			{
-				if (IsEditorBuild)
-				{
-					Log.Info("Skipping archival of assets for editor {0}", RoleName);
-				}
-				else if (IsDevBuild)
-				{
-					Log.Info("Skipping archival of assets for dev build");
-				}
-			}
-			else
-			{
-				LogLevel OldLevel = Log.Level;
-				Log.Level = LogLevel.Normal;
-
-				if (Directory.Exists(SourceSavedDir))
-				{
-					// Only Copy the artifacts we want
-					foreach (string SubDirectory in Directory.EnumerateDirectories(SourceSavedDir))
-					{
-						DirectoryInfo DirInfo = new DirectoryInfo(SubDirectory);
-
-						if (DirInfo.Name == EIntendedBaseCopyDirectory.PersistentDownloadDir.ToString())
-						{
-							// Do not store the PersistentDownloadDir when possible
-							continue;
-						}
-						
-						// Don't copy an empty directory when possible
-						if (Directory.EnumerateDirectories(SubDirectory).Any() || Directory.EnumerateFiles(SubDirectory).Any())
-						{
-							string FullyQualifiedDestPath = Utils.SystemHelpers.GetFullyQualifiedPath(Path.Combine(DestSavedDirInfo.FullName, DirInfo.Name));
-							Utils.SystemHelpers.CopyDirectory(DirInfo.FullName, FullyQualifiedDestPath, Utils.SystemHelpers.CopyOptions.Default, TruncateLongPathFilter);
-							Log.Info($"Archived artifact \\{DirInfo.Parent.Name}\\{DirInfo.Name}\\ to {FullyQualifiedDestPath}");
-						}
-					}
-
-					// Copy any Crash Dumps as well
-					if (InRunningRole.AppInstance.Device.CopyCrashDumps())
-					{
-						string DeviceCrashDumpPath = InRunningRole.AppInstance.Device.CrashDumpPath;
-						if (!string.IsNullOrEmpty(DeviceCrashDumpPath))
-						{
-							string ArtifactCrashDumpDir = Path.Combine(DestSavedDirInfo.FullName, "CrashDumps");
-							Log.Info("Copying any CrashDumps from {0} to {1}", DeviceCrashDumpPath, ArtifactCrashDumpDir);
-							Utils.SystemHelpers.CopyDirectory(DeviceCrashDumpPath, Utils.SystemHelpers.GetFullyQualifiedPath(ArtifactCrashDumpDir), Utils.SystemHelpers.CopyOptions.Default, TruncateLongPathFilter);
-							Log.Info("Cleaning files in {0}", DeviceCrashDumpPath);
-							foreach (FileInfo CrashDumpFile in Utils.SystemHelpers.GetFiles(new DirectoryInfo(DeviceCrashDumpPath), "*", SearchOption.AllDirectories))
-							{
-								Utils.SystemHelpers.Delete(CrashDumpFile);
-							}
-						}
-					}
-
-					// Copy any lose files from the source
-					foreach (string SourceFile in Directory.EnumerateFiles(SourceSavedDir))
-					{
-						FileInfo SourceFileInfo = new FileInfo(SourceFile);
-						string FullyQualifiedDestPath = Utils.SystemHelpers.GetFullyQualifiedPath(Path.Combine(DestSavedDirInfo.FullName, SourceFileInfo.Name));
-						FileInfo DestInfo = new FileInfo(FullyQualifiedDestPath);
-
-						try
-						{
-							DestInfo = SourceFileInfo.CopyTo(DestInfo.FullName, overwrite:true);
-
-							// Clear attributes and set last write time
-							DestInfo.Attributes = FileAttributes.Normal;
-							DestInfo.LastWriteTime = SourceFileInfo.LastWriteTime;
-							Log.Info($"Archived {SourceFileInfo.Name} to {DestInfo.FullName}");
-						}
-						catch (IOException ex)
-						{
-							Log.Warning($"Archive of {SourceFileInfo.Name} to {DestInfo.FullName} FAILED: Skipping\n{ex.Message}");
-						}
-					}
-				}
-				else
-				{
-					Log.Info("Archive path '{0}' was not found!", SourceSavedDir);
-				}
-
-				Log.Level = OldLevel;
-			}
-
-			foreach (EIntendedBaseCopyDirectory ArtifactDir in InRunningRole.Role.AdditionalArtifactDirectories)
-			{
-				if (InRunningRole.AppInstance.Device.GetPlatformDirectoryMappings().ContainsKey(ArtifactDir))
-				{
-					string SourcePath = InRunningRole.AppInstance.Device.GetPlatformDirectoryMappings()[ArtifactDir];
-					var DirToCopy = new DirectoryInfo(SourcePath);
-					if (DirToCopy.Exists)
-					{
-						// Grab the final dir name to copy everything into, so everything does not go into the root artifact dir.
-						string IntendedCopyLocation = Path.Combine(DestSavedDirInfo.FullName, DirToCopy.Name);
-						Utils.SystemHelpers.CopyDirectory(SourcePath, Utils.SystemHelpers.GetFullyQualifiedPath(IntendedCopyLocation), Utils.SystemHelpers.CopyOptions.Default, TruncateLongPathFilter);
-					}
-				}
-			}
-
 			// TODO REMOVEME- this should go elsewhere, likely a util that can be called or inserted by relevant test nodes.
-			SavePSOs(InContext, InRunningRole, DestSavedDirInfo.FullName);
+			SavePSOs(InContext, InRunningRole, DestinationDirectory.FullName);
 			// END REMOVEME
 
-			UnrealLogParser LogParser = new UnrealLogParser(InRunningRole.AppInstance.StdOut);
-
 			// Save the Artifact filepath
-			return new UnrealRoleArtifacts(InRunningRole.Role, InRunningRole.AppInstance, DestSavedDirInfo.FullName, ArtifactLogFilePath, LogParser);
+			UnrealLogParser LogParser = new UnrealLogParser(InRunningRole.AppInstance.StdOut);
+			return new UnrealRoleArtifacts(InRunningRole.Role, InRunningRole.AppInstance, DestinationDirectory.FullName, ArtifactLogFilePath, LogParser);
 		}
 
 		/// <summary>
-		/// Saves all artifacts from the provided session to the specified output path. 
+		/// Saves all artifacts from the provided session to the specified output path.
 		/// </summary>
 		/// <param name="Context"></param>
 		/// <param name="TestInstance"></param>
@@ -1310,9 +1271,8 @@ namespace Gauntlet
 		/// <returns></returns>
 		public IEnumerable<UnrealRoleArtifacts> SaveRoleArtifacts(UnrealTestContext Context, UnrealSessionInstance TestInstance, string OutputPath)
 		{
-			Dictionary<UnrealTargetRole, int> RoleCounts = new Dictionary<UnrealTargetRole, int>();
 			int DummyClientCount = 0;
-
+			Dictionary<UnrealTargetRole, int> RoleCounts = new Dictionary<UnrealTargetRole, int>();
 			List<UnrealRoleArtifacts> AllArtifacts = new List<UnrealRoleArtifacts>();
 
 			foreach (UnrealSessionInstance.RoleInstance App in TestInstance.RunningRoles)
@@ -1341,7 +1301,6 @@ namespace Gauntlet
 					RoleCount = RoleCounts[App.Role.RoleType];
 				}
 
-				
 				if (RoleCount > 1)
 				{
 					FolderName += string.Format("_{0:00}", RoleCount);
@@ -1385,7 +1344,7 @@ namespace Gauntlet
 						AllArtifacts.Add(Artifacts);
 					}
 				}
-				else 
+				else
 				{
 					Log.Verbose("Skipping SaveRoleArtifacts for Null Role: {0}", App.ToString());
 				}
@@ -1495,11 +1454,11 @@ namespace Gauntlet
 		{
 			Dictionary<string, string> LongCrashReporterStringToIndex = new Dictionary<string, string>();
 
-			Match RegexMatch = Regex.Match(LongFilePath, @"UECC-.+-([\dA-Fa-f]+)");
+			Match RegexMatch = Regex.Match(LongFilePath, @"((?i)UECC)-.+-([\dA-Fa-f]+)");
 
 			if (RegexMatch.Success)
 			{
-				string LongString = RegexMatch.Groups[1].ToString();
+				string LongString = RegexMatch.Groups[2].ToString();
 
 				if (!LongCrashReporterStringToIndex.ContainsKey(LongString))
 				{
