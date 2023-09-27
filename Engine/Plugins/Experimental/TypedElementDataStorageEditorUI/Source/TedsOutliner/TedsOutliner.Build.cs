@@ -25,6 +25,7 @@ public class TedsOutliner : ModuleRules
 					"SceneOutliner",
 					"Slate",
 					"SlateCore",
+					"StructUtils",
 					"TypedElementFramework",
 				});
 			PrivateDependencyModuleNames.AddRange(
