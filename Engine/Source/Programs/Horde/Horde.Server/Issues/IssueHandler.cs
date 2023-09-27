@@ -1,11 +1,24 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 
 namespace Horde.Server.Issues
 {
+	/// <summary>
+	/// Marks an issue handler that should be automatically inserted into the pipeline
+	/// </summary>
+	[AttributeUsage(AttributeTargets.Class)]
+	sealed class IssueHandlerAttribute : Attribute
+	{
+		/// <summary>
+		/// Priority of this handler
+		/// </summary>
+		public int Priority { get; set; }
+	}
+
 	/// <summary>
 	/// Interface for issue matchers
 	/// </summary>
@@ -15,11 +28,6 @@ namespace Horde.Server.Issues
 		/// Identifier for the type of issue
 		/// </summary>
 		public abstract string Type { get; }
-
-		/// <summary>
-		/// Priority of this matcher
-		/// </summary>
-		public abstract int Priority { get; }
 
 		/// <summary>
 		/// Whether this handler requires being enabled by a workflow

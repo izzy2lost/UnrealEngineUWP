@@ -9,6 +9,7 @@ namespace Horde.Server.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
+	[IssueHandler(Priority = 0)]
 	class DefaultIssueHandler : IssueHandler
 	{
 		/// <summary>
@@ -18,9 +19,6 @@ namespace Horde.Server.Issues.Handlers
 
 		/// <inheritdoc/>
 		public override string Type => TypeConst;
-
-		/// <inheritdoc/>
-		public override int Priority => 0;
 
 		/// <inheritdoc/>
 		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)

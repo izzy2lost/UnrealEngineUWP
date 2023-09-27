@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Metadata.Ecma335;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,6 +21,7 @@ using Horde.Server.Server;
 using Horde.Server.Streams;
 using Horde.Server.Users;
 using HordeCommon;
+using Microsoft.AspNetCore.Mvc.TagHelpers;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -171,6 +173,8 @@ namespace Horde.Server.Issues
 		/// </summary>
 		public event IssueUpdatedEvent? OnIssueUpdated;
 
+		readonly Type[] _handlerTypes;
+
 		/// <summary>
 		/// List of issue handlers
 		/// </summary>
@@ -233,14 +237,24 @@ namespace Horde.Server.Issues
 			_tracer = tracer;
 			_logger = logger;
 
+			// Find all the issue handler types
+			List<(int Priority, Type Type)> handlerTypes = new List<(int, Type)>();
+			foreach (Type type in Assembly.GetExecutingAssembly().GetTypes())
+			{
+				IssueHandlerAttribute? attribute = type.GetCustomAttribute<IssueHandlerAttribute>();
+				if (attribute != null)
+				{
+					handlerTypes.Add((attribute.Priority, type));
+				}
+			}
+			_handlerTypes = handlerTypes.OrderByDescending(x => x.Priority).Select(x => x.Type).ToArray();
+
 			// Create all the issue handlers
-			Type[] handlerTypes = Assembly.GetExecutingAssembly().GetTypes().Where(x => !x.IsAbstract && typeof(IssueHandler).IsAssignableFrom(x)).ToArray();
-			foreach (Type handlerType in handlerTypes)
+			foreach (Type handlerType in _handlerTypes)
 			{
 				IssueHandler matcher = (IssueHandler)Activator.CreateInstance(handlerType)!;
 				_handlers.Add(matcher);
 			}
-			_handlers.SortBy(x => -x.Priority);
 
 			// Build the type name to factory map
 			_typeToHandler = _handlers.ToDictionary(x => x.Type, x => x, StringComparer.Ordinal);

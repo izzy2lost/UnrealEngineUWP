@@ -14,15 +14,13 @@ namespace Horde.Server.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
+	[IssueHandler(Priority = 1)]
 	class HashedIssueHandler : IssueHandler
 	{
 		const string NodeName = "Node";
 
 		/// <inheritdoc/>
 		public override string Type => "Hashed";
-
-		/// <inheritdoc/>
-		public override int Priority => 1;
 
 		/// <summary>
 		///  Known general events

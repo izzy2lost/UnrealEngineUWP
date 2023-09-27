@@ -12,13 +12,11 @@ namespace Horde.Server.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular shader compile error
 	/// </summary>
+	[IssueHandler(Priority = 10)]
 	class ShaderIssueHandler : SourceFileIssueHandler
 	{
 		/// <inheritdoc/>
 		public override string Type => "Shader";
-
-		/// <inheritdoc/>
-		public override int Priority => 10;
 
 		/// <summary>
 		/// Determines if the given event id matches

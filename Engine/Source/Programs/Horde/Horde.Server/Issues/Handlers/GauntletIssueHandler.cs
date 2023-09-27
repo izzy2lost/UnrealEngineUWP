@@ -16,6 +16,7 @@ namespace Horde.Server.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular Gauntlet error
 	/// </summary>
+	[IssueHandler(Priority = 10)]
 	class GauntletIssueHandler : IssueHandler
 	{
 		/// <summary>
@@ -50,9 +51,6 @@ namespace Horde.Server.Issues.Handlers
 
 		/// <inheritdoc/>
 		public override string Type => "Gauntlet";
-
-		/// <inheritdoc/>
-		public override int Priority => 10;
 
 		/// <summary>
 		///  Known Gauntlet events

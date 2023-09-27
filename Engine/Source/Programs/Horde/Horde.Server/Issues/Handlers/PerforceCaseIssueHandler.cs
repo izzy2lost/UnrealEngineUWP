@@ -15,13 +15,11 @@ namespace Horde.Server.Issues.Handlers
 	/// <summary>
 	/// Instance of a Perforce case mismatch error
 	/// </summary>
+	[IssueHandler(Priority = 10)]
 	class PerforceCaseIssueHandler : IssueHandler
 	{
 		/// <inheritdoc/>
 		public override string Type => "PerforceCase";
-
-		/// <inheritdoc/>
-		public override int Priority => 10;
 
 		/// <summary>
 		/// Determines if the given event id matches

@@ -15,15 +15,13 @@ namespace Horde.Server.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular systemic error
 	/// </summary>
+	[IssueHandler(Priority = 10)]
 	class SystemicIssueHandler : IssueHandler
 	{
 		const string NodeNameKey = "Node";
 
 		/// <inheritdoc/>
 		public override string Type => "Systemic";
-
-		/// <inheritdoc/>
-		public override int Priority => 10;
 
 		/// <summary>
 		///  Known systemic errors

@@ -13,6 +13,7 @@ namespace Horde.Server.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
+	[IssueHandler(Priority = 10)]
 	class CompileIssueHandler : SourceFileIssueHandler
 	{
 		/// <summary>
@@ -27,9 +28,6 @@ namespace Horde.Server.Issues.Handlers
 
 		/// <inheritdoc/>
 		public override string Type => "Compile";
-
-		/// <inheritdoc/>
-		public override int Priority => 10;
 
 		/// <summary>
 		/// Determines if the given event id matches

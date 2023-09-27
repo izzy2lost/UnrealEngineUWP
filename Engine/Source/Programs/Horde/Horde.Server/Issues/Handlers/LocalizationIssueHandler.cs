@@ -16,13 +16,11 @@ namespace Horde.Server.Issues.Handlers
 	/// <summary>
 	/// Instance of a localization error
 	/// </summary>
+	[IssueHandler(Priority = 10)]
 	class LocalizationIssueHandler : IssueHandler
 	{
 		/// <inheritdoc/>
 		public override string Type => "Localization";
-
-		/// <inheritdoc/>
-		public override int Priority => 10;
 
 		/// <summary>
 		/// Determines if the given event id matches

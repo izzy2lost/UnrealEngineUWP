@@ -12,13 +12,11 @@ namespace Horde.Server.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular BuildGraph script error
 	/// </summary>
+	[IssueHandler(Priority = 10)]
 	class BuildGraphIssueHandler : SourceFileIssueHandler
 	{
 		/// <inheritdoc/>
 		public override string Type => "BuildGraph";
-
-		/// <inheritdoc/>
-		public override int Priority => 10;
 
 		/// <summary>
 		/// Determines if the given event id matches

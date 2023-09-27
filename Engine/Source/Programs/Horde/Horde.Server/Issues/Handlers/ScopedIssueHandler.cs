@@ -16,6 +16,7 @@ namespace Horde.Server.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
+	[IssueHandler(Priority = 2)]
 	class ScopedIssueHandler : IssueHandler
 	{
 
@@ -26,9 +27,6 @@ namespace Horde.Server.Issues.Handlers
 
 		/// <inheritdoc/>
 		public override string Type => "Scoped";
-
-		/// <inheritdoc/>
-		public override int Priority => 2;
 
 		/// <inheritdoc/>
 		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)

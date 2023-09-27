@@ -12,13 +12,11 @@ namespace Horde.Server.Issues.Handlers
 	/// <summary>
 	/// Instance of a Perforce case mismatch error
 	/// </summary>
+	[IssueHandler(Priority = 8)]
 	class UnacceptableWordsIssueHandler : SourceFileIssueHandler
 	{
 		/// <inheritdoc/>
 		public override string Type => "UnacceptableWords";
-
-		/// <inheritdoc/>
-		public override int Priority => 8;
 
 		/// <summary>
 		/// Determines if the given event id matches

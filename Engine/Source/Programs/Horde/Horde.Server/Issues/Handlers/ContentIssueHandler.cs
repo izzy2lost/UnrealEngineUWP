@@ -16,13 +16,11 @@ namespace Horde.Server.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
+	[IssueHandler(Priority = 10)]
 	class ContentIssueHandler : IssueHandler
 	{
 		/// <inheritdoc/>
 		public override string Type => "Content";
-
-		/// <inheritdoc/>
-		public override int Priority => 10;
 
 		/// <summary>
 		/// Determines if the given event id matches

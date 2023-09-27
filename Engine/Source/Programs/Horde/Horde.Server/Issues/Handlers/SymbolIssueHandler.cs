@@ -16,6 +16,7 @@ namespace Horde.Server.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
+	[IssueHandler(Priority = 10)]
 	class SymbolIssueHandler : IssueHandler
 	{
 		const string NodeName = "Node";
@@ -25,9 +26,6 @@ namespace Horde.Server.Issues.Handlers
 
 		/// <inheritdoc/>
 		public override string Type => "Symbol";
-
-		/// <inheritdoc/>
-		public override int Priority => 10;
 
 		/// <summary>
 		/// Determines if the given event id matches
