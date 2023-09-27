@@ -15,6 +15,7 @@
 #include "HairStrands/HairStrandsRendering.h"
 #include "VirtualShadowMaps/VirtualShadowMapProjection.h"
 #include "Shadows/ShadowSceneRenderer.h"
+#include "Shadows/ScreenSpaceShadows.h"
 #include "RenderCore.h"
 #include "TranslucentLighting.h"
 #include "MobileBasePassRendering.h"
@@ -2414,11 +2415,15 @@ void FMobileSceneRenderer::RenderMobileShadowProjections(
 		// Local light shadows don't render to shadow mask texture on mobile deferred
 		if (LightSceneProxy->GetLightType() == LightType_Directional || !IsMobileDeferredShadingEnabled(ShaderPlatform))
 		{
+			const bool bProjectingForForwardShading = true;
+
 			RenderShadowProjections(GraphBuilder, SceneTextures,
 				ScreenShadowMaskTexture,
 				nullptr,
 				LightSceneInfo,
-				true);
+				bProjectingForForwardShading);
+
+			RenderScreenSpaceShadows(GraphBuilder, SceneTextures, Views, LightSceneInfo, bProjectingForForwardShading, ScreenShadowMaskTexture);
 		}
 	}
 }
