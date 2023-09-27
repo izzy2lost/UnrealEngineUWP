@@ -2360,9 +2360,9 @@ public:
 			DirectoryIndexReader.IterateDirectoryIndex(
 				FIoDirectoryIndexHandle::RootDirectory(),
 				TEXT(""),
-				[this](FString Filename, uint32 TocEntryIndex) -> bool
+				[this](FStringView Filename, uint32 TocEntryIndex) -> bool
 				{
-					ChunkFileNamesMap.Add(TocEntryIndex, MoveTemp(Filename));
+					ChunkFileNamesMap.Add(TocEntryIndex, FString(Filename));
 					return true;
 				});
 		}
@@ -3516,9 +3516,9 @@ void FIoStoreReader::GetFilenames(TArray<FString>& OutFileList) const
 	DirectoryIndex.IterateDirectoryIndex(
 		FIoDirectoryIndexHandle::RootDirectory(),
 		TEXT(""),
-		[&OutFileList](FString Filename, uint32 TocEntryIndex) -> bool
+		[&OutFileList](FStringView Filename, uint32 TocEntryIndex) -> bool
 		{
-			OutFileList.AddUnique(Filename);
+			OutFileList.AddUnique(FString(Filename));
 			return true;
 		});
 }
@@ -3528,13 +3528,13 @@ void FIoStoreReader::GetFilenamesByBlockIndex(const TArray<int32>& InBlockIndexL
 	const FIoDirectoryIndexReader& DirectoryIndex = GetDirectoryIndexReader();
 
 	DirectoryIndex.IterateDirectoryIndex(FIoDirectoryIndexHandle::RootDirectory(), TEXT(""),
-		[this, &InBlockIndexList, &OutFileList](FString Filename, uint32 TocEntryIndex) -> bool
+		[this, &InBlockIndexList, &OutFileList](FStringView Filename, uint32 TocEntryIndex) -> bool
 		{
 			for (int32 BlockIndex : InBlockIndexList)
 			{
 				if (Impl->TocChunkContainsBlockIndex(TocEntryIndex, BlockIndex))
 				{
-					OutFileList.AddUnique(Filename);
+					OutFileList.AddUnique(FString(Filename));
 					break;
 				}
 			}

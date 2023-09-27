@@ -853,18 +853,18 @@ void FPakPlatformFile::ForeachPackageInIostoreWhile(TFunctionRef<bool(FName)> Pr
 			const bool Result = DirectoryIndex.IterateDirectoryIndex(
 				FIoDirectoryIndexHandle::RootDirectory(),
 				TEXT(""),
-				[Predicate](FString Filename, uint32) -> bool
+				[Predicate](FStringView Filename, uint32) -> bool
 				{
-					const FString Ext = FPaths::GetExtension(Filename);
-					if (Ext != TEXT("umap") && Ext != TEXT("uasset"))
+					const FStringView Ext = FPathViews::GetExtension(Filename);
+					if (Ext != TEXTVIEW("umap") && Ext != TEXTVIEW("uasset"))
 					{
 						return true; // ignore non package files
 					}
 
-					FString PackageName;
-					if (FPackageName::TryConvertFilenameToLongPackageName(Filename, PackageName))
+					TStringBuilder<256> PackageNameBuilder;
+					if (FPackageName::TryConvertFilenameToLongPackageName(Filename, PackageNameBuilder))
 					{
-						return Invoke(Predicate, FName(*PackageName));
+						return Invoke(Predicate, FName(PackageNameBuilder.ToView()));
 					}
 
 					return true; // ignore not mapped packages

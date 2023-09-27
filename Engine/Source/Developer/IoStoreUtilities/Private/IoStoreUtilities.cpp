@@ -5745,12 +5745,12 @@ int32 CreateContentPatch(const FIoStoreArguments& Arguments, const FIoStoreWrite
 
 		TMap<FIoChunkId, FString> ChunkFileNamesMap;
 		TargetReader->GetDirectoryIndexReader().IterateDirectoryIndex(FIoDirectoryIndexHandle::RootDirectory(), TEXT(""),
-		[&ChunkFileNamesMap, &TargetReader](FString Filename, uint32 TocEntryIndex) -> bool
+		[&ChunkFileNamesMap, &TargetReader](FStringView Filename, uint32 TocEntryIndex) -> bool
 		{
 			TIoStatusOr<FIoStoreTocChunkInfo> ChunkInfo = TargetReader->GetChunkInfo(TocEntryIndex);
 			if (ChunkInfo.IsOk())
 			{
-				ChunkFileNamesMap.Add(ChunkInfo.ValueOrDie().Id, Filename);
+				ChunkFileNamesMap.Add(ChunkInfo.ValueOrDie().Id, FString(Filename));
 			}
 			return true;
 		});
