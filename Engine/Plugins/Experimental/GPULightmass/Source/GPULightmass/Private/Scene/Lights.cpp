@@ -71,8 +71,16 @@ void FLocalLightRenderState::RenderThreadInit()
 	if (IESTexture)
 	{
 		IESAtlasId = IESAtlas::AddTexture(IESTexture);
-		IESAtlasIndex = IESAtlas::GetAtlasSlot(IESAtlasId);
 	}
+}
+
+float FLocalLightRenderState::GetIESAtlasIndex() const
+{
+	if (IESAtlasId != INDEX_NONE)
+	{
+		return IESAtlas::GetAtlasSlot(IESAtlasId);
+	}
+	return float(INDEX_NONE);
 }
 
 void FLocalLightRenderState::RenderThreadFinalize()

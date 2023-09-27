@@ -94,9 +94,10 @@ struct FLocalLightRenderState
 	bool bCastShadow = true;
 	int ShadowMapChannel = INDEX_NONE;
 	uint32 IESAtlasId = INDEX_NONE;
-	float IESAtlasIndex = INDEX_NONE;
 	UTextureLightProfile* IESTexture = nullptr;
 	
+	float GetIESAtlasIndex() const;
+
 	TSharedPtr<FLightComponentMapBuildData, ESPMode::ThreadSafe> LightComponentMapBuildData;
 
 	virtual FLightRenderParameters GetLightShaderParameters() const = 0;
