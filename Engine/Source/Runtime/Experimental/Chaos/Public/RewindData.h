@@ -2,7 +2,6 @@
 #pragma once
 #include "Chaos/Core.h"
 #include "Chaos/ParticleHandle.h"
-#include "PhysicsProxy/SingleParticlePhysicsProxyFwd.h"
 #include "Chaos/Framework/PhysicsSolverBase.h"
 #include "Serialization/BufferArchive.h"
 #include "Containers/CircularBuffer.h"
@@ -1443,7 +1442,7 @@ public:
 	/** Rewind the states from all the history states datas */
 	void RewindStates(const int32 RewindFrame, const bool bResetSolver);
 
-	void BufferPhysicsResults(TMap<const FSingleParticlePhysicsProxy*, struct FDirtyRigidParticleReplicationErrorData>& DirtyRigidErrors);
+	void BufferPhysicsResults(TMap<const IPhysicsProxyBase*, struct FDirtyRigidParticleReplicationErrorData>& DirtyRigidErrors);
 
 	/** Return the rewind data solver */
 	const FPBDRigidsSolver* GetSolver() const { return Solver; }

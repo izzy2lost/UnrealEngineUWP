@@ -8,6 +8,7 @@
 #include "Chaos/PullPhysicsDataImp.h"
 #include "Math/UnrealMathUtility.h"
 #include "PBDRigidsSolver.h"
+#include "Chaos/DebugDrawQueue.h"
 
 namespace Chaos
 {
@@ -381,7 +382,7 @@ namespace Chaos
 	}
 
 	DECLARE_CYCLE_STAT(TEXT("FClusterUnionPhysicsProxy::PullFromPhysicsState"), STAT_ClusterUnionPhysicsProxyPullFromPhysicsState, STATGROUP_Chaos);
-	bool FClusterUnionPhysicsProxy::PullFromPhysicsState(const FDirtyClusterUnionData& PullData, int32 SolverSyncTimestamp, const FDirtyClusterUnionData* NextPullData, const FRealSingle* Alpha)
+	bool FClusterUnionPhysicsProxy::PullFromPhysicsState(const FDirtyClusterUnionData& PullData, int32 SolverSyncTimestamp, const FDirtyClusterUnionData* NextPullData, const FRealSingle* Alpha, const FDirtyRigidParticleReplicationErrorData* Error, const Chaos::FReal AsyncFixedTimeStep)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_ClusterUnionPhysicsProxyPullFromPhysicsState);
 		if (!ensure(Particle_External))
@@ -394,6 +395,12 @@ namespace Chaos
 		if (!ProxyTimestamp)
 		{
 			return false;
+		}
+
+		if (Error)
+		{
+			const int32 RenderInterpErrorCorrectionDurationTicks = FMath::FloorToInt32(GetRenderInterpErrorCorrectionDuration() / AsyncFixedTimeStep); // Convert duration from seconds to simulation ticks
+			InterpolationData.AccumlateErrorXR(Error->ErrorX, Error->ErrorR, SolverSyncTimestamp, RenderInterpErrorCorrectionDurationTicks);
 		}
 
 		SyncedData_External.bIsAnchored = CurrentPullData.bIsAnchored;
@@ -453,15 +460,24 @@ namespace Chaos
 				return OverwriteProperty.Timestamp <= SolverSyncTimestamp ? (OverwriteProperty.Timestamp < SolverSyncTimestamp ? &Prev : &OverwriteProperty.Value) : nullptr;
 			};
 
+			const bool bIsReplicationErrorSmoothing = InterpolationData.IsErrorSmoothing();
+			InterpolationData.UpdateError(SolverSyncTimestamp, AsyncFixedTimeStep);
+
 			if (const FVec3* Prev = LerpHelper(PullData.X, ProxyTimestamp->OverWriteX))
 			{
-				const FVec3 NewX = FMath::Lerp(*Prev, NextPullData->X, *Alpha);
+				const FVec3 NewX = bIsReplicationErrorSmoothing ?
+					FMath::Lerp(*Prev, NextPullData->X, *Alpha) + InterpolationData.GetErrorX(*Alpha) :
+					FMath::Lerp(*Prev, NextPullData->X, *Alpha);
+
 				Particle_External->SetX(NewX, false);
 			}
 
 			if (const FQuat* Prev = LerpHelper(PullData.R, ProxyTimestamp->OverWriteR))
 			{
-				const FQuat NewR = FMath::Lerp(*Prev, NextPullData->R, *Alpha);
+				const FQuat NewR = bIsReplicationErrorSmoothing ? 
+					InterpolationData.GetErrorR(*Alpha) * FMath::Lerp(*Prev, NextPullData->R, *Alpha) : 
+					FMath::Lerp(*Prev, NextPullData->R, *Alpha);
+		
 				Particle_External->SetR(NewR, false);
 			}
 
@@ -476,6 +492,26 @@ namespace Chaos
 				const FVec3 NewW = FMath::Lerp(*Prev, NextPullData->W, *Alpha);
 				Particle_External->SetW(NewW, false);
 			}
+
+#if CHAOS_DEBUG_DRAW
+			if (GetRenderInterpDebugDraw())
+			{
+				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(NextPullData->X, FVector(2, 1, 1), NextPullData->R, FColor::Yellow, false, 5.f, 0, 0.5f);
+				Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PullData.X, NextPullData->X, 0.5f, FColor::Yellow, false, 5.0f, 0, 0.5f);
+				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Particle_External->X(), FVector(2, 1, 1), Particle_External->R(), FColor::Green, false, 5.f, 0, 0.5f);
+
+				if (bIsReplicationErrorSmoothing)
+				{
+					if (Error)
+					{
+						Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(PullData.X, FVector(4, 2, 2), PullData.R, FColor::Red, false, 5.f, 0, 0.5f);
+						Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PullData.X, (PullData.X + InterpolationData.GetErrorX(0)), 1, FColor::Red, false, 5.0f, 0, 0.5f);
+					}
+
+					Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow((Particle_External->X() - InterpolationData.GetErrorX(*Alpha)), Particle_External->X(), 1, FColor::Blue, false, 5.0f, 0, 0.5f);
+				}
+			}
+#endif // CHAOS_DEBUG_DRAW
 		}
 		else
 		{

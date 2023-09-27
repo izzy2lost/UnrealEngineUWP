@@ -159,7 +159,7 @@ class FPullPhysicsData
 {
 public:
 	TArray<FDirtyRigidParticleData> DirtyRigids;
-	TMap<const FSingleParticlePhysicsProxy*, FDirtyRigidParticleReplicationErrorData> DirtyRigidErrors;
+	TMap<const IPhysicsProxyBase*, FDirtyRigidParticleReplicationErrorData> DirtyRigidErrors;
 	TArray<FDirtyGeometryCollectionData> DirtyGeometryCollections;
 	TArray<FDirtyClusterUnionData> DirtyClusterUnions;
 	TArray<FDirtyJointConstraintData> DirtyJointConstraints;

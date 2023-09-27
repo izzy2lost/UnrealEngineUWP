@@ -124,7 +124,7 @@ namespace Chaos
 		// and the physics thread.
 		//
 		CHAOS_API void PushToPhysicsState(const FDirtyPropertiesManager& Manager, int32 DataIdx, const FDirtyProxy& Dirty);
-		CHAOS_API bool PullFromPhysicsState(const FDirtyClusterUnionData& PullData, int32 SolverSyncTimestamp, const FDirtyClusterUnionData* NextPullData = nullptr, const FRealSingle* Alpha = nullptr);
+		CHAOS_API bool PullFromPhysicsState(const FDirtyClusterUnionData& PullData, int32 SolverSyncTimestamp, const FDirtyClusterUnionData* NextPullData = nullptr, const FRealSingle* Alpha = nullptr, const FDirtyRigidParticleReplicationErrorData* Error = nullptr, const Chaos::FReal AsyncFixedTimeStep = 0);
 
 		CHAOS_API void BufferPhysicsResults_Internal(FDirtyClusterUnionData& BufferData);
 		CHAOS_API void BufferPhysicsResults_External(FDirtyClusterUnionData& BufferData);
@@ -151,7 +151,7 @@ namespace Chaos
 		FInternalParticle* Particle_Internal = nullptr;
 		FClusterUnionIndex ClusterUnionIndex = INDEX_NONE;
 
-		FProxyInterpolationBase InterpolationData;
+		FProxyInterpolationError InterpolationData;
 
 		// An array of a particles that exist in the external implicit object union.
 		// Note that this array should only be used for book-keeping. It is generally

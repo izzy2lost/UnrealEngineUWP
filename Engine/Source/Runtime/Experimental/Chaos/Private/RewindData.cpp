@@ -3,6 +3,7 @@
 #include "RewindData.h"
 #include "PBDRigidsSolver.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
+#include "PhysicsProxy/ClusterUnionPhysicsProxy.h"
 #include "HAL/IConsoleManager.h"
 #include "Chaos/PBDJointConstraints.h"
 #include "Misc/Paths.h"
@@ -749,7 +750,7 @@ void FRewindData::SpawnProxyIfNeeded(FSingleParticlePhysicsProxy& Proxy)
 }
 
 // Hand over error data per particle from RewindData to a solver collection instead which gets marshalled to GT
-void FRewindData::BufferPhysicsResults(TMap<const FSingleParticlePhysicsProxy*, struct FDirtyRigidParticleReplicationErrorData>& DirtyRigidErrors)
+void FRewindData::BufferPhysicsResults(TMap<const IPhysicsProxyBase*, struct FDirtyRigidParticleReplicationErrorData>& DirtyRigidErrors)
 {
 	DirtyRigidErrors.Reserve(DirtyParticleErrors.Num());
 
@@ -758,7 +759,26 @@ void FRewindData::BufferPhysicsResults(TMap<const FSingleParticlePhysicsProxy*, 
 		FDirtyRigidParticleReplicationErrorData ErrorData;
 		ErrorData.ErrorX = ErrorInfo.GetErrorX();
 		ErrorData.ErrorR = ErrorInfo.GetErrorR();
-		DirtyRigidErrors.Add(static_cast<const FSingleParticlePhysicsProxy*>(ErrorInfo.GetObjectPtr()->PhysicsProxy()), ErrorData);
+
+		const IPhysicsProxyBase* PhysicsProxy = static_cast<const IPhysicsProxyBase*>(ErrorInfo.GetObjectPtr()->PhysicsProxy());
+		DirtyRigidErrors.Add(PhysicsProxy, ErrorData);
+
+		// todo, move out of RewindData.cpp, possibly to ChaosResultManager.cpp
+		// If ClusterUnion, hand over error to child GeometryCollections which do their own render interpolation and need the error offset individually
+		if (PhysicsProxy->GetType() == EPhysicsProxyType::ClusterUnionProxy)
+		{
+			const FClusterUnionPhysicsProxy* ClusterProxy = static_cast<const FClusterUnionPhysicsProxy*>(PhysicsProxy);
+			if (ClusterProxy)
+			{
+				for (IPhysicsProxyBase* ChildProxy : ClusterProxy->GetParticle_Internal()->PhysicsProxies())
+				{
+					if (ChildProxy->GetType() == EPhysicsProxyType::GeometryCollectionType)
+					{
+						DirtyRigidErrors.Add(ChildProxy, ErrorData);
+					}
+				}
+			}
+		}
 	}
 
 	DirtyParticleErrors.Reset();

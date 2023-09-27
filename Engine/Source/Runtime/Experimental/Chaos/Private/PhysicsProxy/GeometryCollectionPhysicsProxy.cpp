@@ -3810,7 +3810,7 @@ bool FGeometryCollectionPhysicsProxy::PullNonInterpolatableDataFromSinglePhysics
 }
 
 // Called from FPhysScene_ChaosInterface::SyncBodies(), NOT the solver.
-bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGeometryCollectionData& PullData, const int32 SolverSyncTimestamp, const Chaos::FDirtyGeometryCollectionData* NextPullData, const Chaos::FRealSingle* Alpha)
+bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGeometryCollectionData& PullData, const int32 SolverSyncTimestamp, const Chaos::FDirtyGeometryCollectionData* NextPullData, const Chaos::FRealSingle* Alpha, const Chaos::FDirtyRigidParticleReplicationErrorData* Error, const Chaos::FReal AsyncFixedTimeStep)
 {
 	if(IsObjectDeleting) return false;
 
@@ -3832,6 +3832,12 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 	if (!bHasResults && !bHasNextResults)
 	{
 		return false;
+	}
+
+	if (Error)
+	{
+		const int32 RenderInterpErrorCorrectionDurationTicks = FMath::FloorToInt32(GetRenderInterpErrorCorrectionDuration() / AsyncFixedTimeStep); // Convert duration from seconds to simulation ticks
+		InterpolationData.AccumlateErrorXR(Error->ErrorX, Error->ErrorR, SolverSyncTimestamp, RenderInterpErrorCorrectionDurationTicks);
 	}
 
 	const int32 NumTransforms = GameThreadCollection.Transform.Num();
@@ -3857,6 +3863,8 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 		// second : interpolate-able ones
 		if (bNeedInterpolation)
 		{
+			InterpolationData.UpdateError(SolverSyncTimestamp, AsyncFixedTimeStep);
+
 			const FGeometryCollectionResults& PrevResults = PullData.Results();
 			const FGeometryCollectionResults& NextResults = NextPullData->Results();
 
@@ -3888,6 +3896,13 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 					Chaos::FVec3 NewX;
 					Chaos::FRotation3 NewR;
 					ResultInterpolator.GetPositions(NewX, NewR);
+
+					if (InterpolationData.IsErrorSmoothing())
+					{
+						NewX = NewX + InterpolationData.GetErrorX(*Alpha);
+						NewR = InterpolationData.GetErrorR(*Alpha) * NewR;
+					}
+
 					const bool XRModified = UpdateGTParticleXR(GTParticle, NewX, NewR);
 					bIsCollectionDirty |= XRModified;
 
