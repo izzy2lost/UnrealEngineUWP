@@ -20,12 +20,12 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// List of keys which identify this issue.
 		/// </summary>
-		public CaseInsensitiveStringSet Keys { get; }
+		public IReadOnlySet<IssueKey> Keys { get; }
 
 		/// <summary>
 		/// Set of keys which should trigger a negative match
 		/// </summary>
-		public CaseInsensitiveStringSet? RejectKeys { get; }
+		public IReadOnlySet<IssueKey>? RejectKeys { get; }
 
 		/// <summary>
 		/// Collection of additional metadata added by the handler

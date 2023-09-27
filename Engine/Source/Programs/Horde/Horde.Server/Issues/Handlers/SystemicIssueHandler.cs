@@ -66,7 +66,7 @@ namespace Horde.Server.Issues.Handlers
 					}
 					else
 					{
-						fingerprint ??= new NewIssueFingerprint(Type, new[] { $"step:{job.StreamId}:{job.TemplateId}:{node.Name}" }, null, new[] { $"{NodeNameKey}={node.Name}" });
+						fingerprint ??= new NewIssueFingerprint(Type, new[] { IssueKey.FromStep(job.StreamId, job.TemplateId, node.Name) }, null, new[] { $"{NodeNameKey}={node.Name}" });
 						stepEvent.Fingerprint = fingerprint;
 					}
 				}

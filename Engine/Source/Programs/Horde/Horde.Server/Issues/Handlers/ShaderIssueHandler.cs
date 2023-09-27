@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using EpicGames.Core;
@@ -44,7 +43,7 @@ namespace Horde.Server.Issues.Handlers
 					EventId eventId = stepEvent.EventId.Value;
 					if (IsMatchingEventId(eventId))
 					{
-						List<string> newFileNames = new List<string>();
+						HashSet<IssueKey> newFileNames = new HashSet<IssueKey>();
 						GetSourceFiles(stepEvent.EventData, newFileNames);
 
 						stepEvent.Fingerprint = new NewIssueFingerprint(Type, newFileNames, null, null);
@@ -62,7 +61,7 @@ namespace Horde.Server.Issues.Handlers
 		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
 		{
 			string level = (severity == IssueSeverity.Warning) ? "warnings" : "errors";
-			string list = StringUtils.FormatList(fingerprint.Keys.Where(x => !x.StartsWith(NotePrefix, StringComparison.Ordinal)).ToArray(), 2);
+			string list = StringUtils.FormatList(fingerprint.Keys.Where(x => x.Type == IssueKeyType.File).Select(x => x.Name).ToArray(), 2);
 			return $"Shader compile {level} in {list}";
 		}
 	}

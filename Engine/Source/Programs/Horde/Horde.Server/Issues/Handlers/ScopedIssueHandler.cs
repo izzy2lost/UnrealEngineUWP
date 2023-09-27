@@ -72,7 +72,7 @@ namespace Horde.Server.Issues.Handlers
 				
 				if (TryGetHash(hashSource, out Md5Hash hash))
 				{
-					stepEvent.Fingerprint = new NewIssueFingerprint(fingerprintType, new[] { $"hash:{hash}" }, null, metadata);
+					stepEvent.Fingerprint = new NewIssueFingerprint(fingerprintType, new[] { IssueKey.FromHash(hash) }, null, metadata);
 				}
 			}
 		}

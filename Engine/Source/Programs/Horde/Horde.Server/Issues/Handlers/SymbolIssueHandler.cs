@@ -54,14 +54,15 @@ namespace Horde.Server.Issues.Handlers
 		/// </summary>
 		/// <param name="eventData">The log event data</param>
 		/// <param name="symbolNames">Receives the list of symbol names</param>
-		public static void GetSymbolNames(ILogEventData eventData, SortedSet<string> symbolNames)
+		public static void GetSymbolNames(ILogEventData eventData, HashSet<IssueKey> symbolNames)
 		{
 			foreach (ILogEventLine line in eventData.Lines)
 			{
 				string? identifier;
 				if (line.Data.TryGetNestedProperty("properties.symbol.identifier", out identifier))
 				{
-					symbolNames.Add(identifier);
+					IssueKey key = new IssueKey(identifier, IssueKeyType.Symbol);
+					symbolNames.Add(key);
 				}
 			}
 		}
@@ -70,9 +71,13 @@ namespace Horde.Server.Issues.Handlers
 		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> changes)
 		{
 			HashSet<string> names = new HashSet<string>();
-			foreach (string name in fingerprint.Keys)
+			foreach (IssueKey key in fingerprint.Keys)
 			{
-				names.UnionWith(name.Split("::", StringSplitOptions.RemoveEmptyEntries));
+				if (key.Type == IssueKeyType.Symbol)
+				{
+					string name = key.Name;
+					names.UnionWith(name.Split("::", StringSplitOptions.RemoveEmptyEntries));
+				}
 			}
 
 			foreach (SuspectChange change in changes)
@@ -88,7 +93,7 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
 		{
-			HashSet<string> symbols = fingerprint.Keys;
+			HashSet<string> symbols = new HashSet<string>(fingerprint.Keys.Where(x => x.Type == IssueKeyType.Symbol).Select(x => x.Name));
 			if (symbols.Count == 0)
 			{
 				string[] nodes = fingerprint.GetMetadataValues(NodeName).ToArray();
@@ -126,7 +131,7 @@ namespace Horde.Server.Issues.Handlers
 					EventId eventId = stepEvent.EventId.Value;
 					if (IsMatchingEventId(eventId))
 					{
-						SortedSet<string> symbolNames = new SortedSet<string>();
+						HashSet<IssueKey> symbolNames = new HashSet<IssueKey>();
 						GetSymbolNames(stepEvent.EventData, symbolNames);
 
 						if (symbolNames.Count > 0)

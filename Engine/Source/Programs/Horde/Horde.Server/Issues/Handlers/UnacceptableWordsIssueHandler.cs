@@ -33,7 +33,7 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
 		{
-			return $"Unacceptable words in {StringUtils.FormatList(fingerprint.Keys.Select(x => x.Substring(x.LastIndexOf('/') + 1)).ToArray(), 3)}";
+			return $"Unacceptable words in {StringUtils.FormatList(fingerprint.Keys.Select(x => x.Name.Substring(x.Name.LastIndexOf('/') + 1)).ToArray(), 3)}";
 		}
 
 		/// <inheritdoc/>
@@ -43,7 +43,7 @@ namespace Horde.Server.Issues.Handlers
 			{
 				if(stepEvent.EventId != null && IsMatchingEventId(stepEvent.EventId.Value))
 				{
-					List<string> newFileNames = new List<string>();
+					HashSet<IssueKey> newFileNames = new HashSet<IssueKey>();
 					GetSourceFiles(stepEvent.EventData, newFileNames);
 
 					stepEvent.Fingerprint = new NewIssueFingerprint(Type, newFileNames, null, null);

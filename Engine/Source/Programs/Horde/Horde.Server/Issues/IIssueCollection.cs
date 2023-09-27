@@ -24,11 +24,17 @@ namespace Horde.Server.Issues
 		/// <inheritdoc/>
 		public string Type { get; }
 
-		/// <inheritdoc/>
-		public CaseInsensitiveStringSet Keys { get; set; }
+		/// <inheritdoc cref="IIssueFingerprint.Keys"/>
+		public HashSet<IssueKey> Keys { get; set; }
 
 		/// <inheritdoc/>
-		public CaseInsensitiveStringSet? RejectKeys { get; set; }
+		IReadOnlySet<IssueKey> IIssueFingerprint.Keys => Keys;
+
+		/// <inheritdoc cref="IIssueFingerprint.RejectKeys"/>
+		public HashSet<IssueKey>? RejectKeys { get; set; }
+
+		/// <inheritdoc/>
+		IReadOnlySet<IssueKey>? IIssueFingerprint.RejectKeys => RejectKeys;
 
 		/// <inheritdoc/>
 		public CaseInsensitiveStringSet? Metadata { get; set; }
@@ -40,14 +46,14 @@ namespace Horde.Server.Issues
 		/// <param name="keys">Keys which uniquely identify this issue</param>
 		/// <param name="rejectKeys">Keys which should not match with this issue</param>
 		/// <param name="metadata">Additional metadata added by the issue handler</param>
-		public NewIssueFingerprint(string type, IEnumerable<string> keys, IEnumerable<string>? rejectKeys, IEnumerable<string>? metadata)
+		public NewIssueFingerprint(string type, IEnumerable<IssueKey> keys, IEnumerable<IssueKey>? rejectKeys, IEnumerable<string>? metadata)
 		{
 			Type = type;
-			Keys = new CaseInsensitiveStringSet(keys);
+			Keys = new HashSet<IssueKey>(keys);
 
 			if (rejectKeys != null && rejectKeys.Any())
 			{
-				RejectKeys = new CaseInsensitiveStringSet(rejectKeys);
+				RejectKeys = new HashSet<IssueKey>(rejectKeys);
 			}
 			if (metadata != null && metadata.Any())
 			{
@@ -73,7 +79,7 @@ namespace Horde.Server.Issues
 			Keys.UnionWith(other.Keys);
 			if (other.RejectKeys != null)
 			{
-				RejectKeys ??= new CaseInsensitiveStringSet();
+				RejectKeys ??= new HashSet<IssueKey>();
 				RejectKeys.UnionWith(other.RejectKeys);
 			}
 			if (other.Metadata != null)
@@ -123,6 +129,24 @@ namespace Horde.Server.Issues
 		/// <param name="setA"></param>
 		/// <param name="setB"></param>
 		/// <returns></returns>
+		static bool ContentsEqual(IReadOnlySet<IssueKey>? setA, IReadOnlySet<IssueKey>? setB)
+		{
+			if (setA == null || setA.Count == 0)
+			{
+				return setB == null || setB.Count == 0;
+			}
+			else
+			{
+				return setB != null && setA.SetEquals(setB);
+			}
+		}
+
+		/// <summary>
+		/// Checks if the contents of two sets are equal
+		/// </summary>
+		/// <param name="setA"></param>
+		/// <param name="setB"></param>
+		/// <returns></returns>
 		static bool ContentsEqual(CaseInsensitiveStringSet? setA, CaseInsensitiveStringSet? setB)
 		{
 			if (setA == null || setA.Count == 0)
@@ -133,6 +157,24 @@ namespace Horde.Server.Issues
 			{
 				return setB != null && setA.SetEquals(setB);
 			}
+		}
+
+		/// <summary>
+		/// Gets the hash of the contents of a case insensitive set
+		/// </summary>
+		/// <param name="set"></param>
+		/// <returns></returns>
+		static int GetContentsHash(IEnumerable<IssueKey>? set)
+		{
+			int value = 0;
+			if (set != null)
+			{
+				foreach (IssueKey element in set)
+				{
+					value = HashCode.Combine(value, element);
+				}
+			}
+			return value;
 		}
 
 		/// <summary>

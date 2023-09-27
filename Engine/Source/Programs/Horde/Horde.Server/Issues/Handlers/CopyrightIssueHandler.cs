@@ -37,7 +37,7 @@ namespace Horde.Server.Issues.Handlers
 			{
 				if (stepEvent.EventId != null && IsMatchingEventId(stepEvent.EventId.Value))
 				{
-					List<string> newFileNames = new List<string>();
+					HashSet<IssueKey> newFileNames = new HashSet<IssueKey>();
 					GetSourceFiles(stepEvent.EventData, newFileNames);
 					stepEvent.Fingerprint = new NewIssueFingerprint(Type, newFileNames, null, null);
 				}
@@ -47,7 +47,7 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
 		{
-			return $"Missing copyright notice in {StringUtils.FormatList(fingerprint.Keys.ToArray(), 2)}";
+			return $"Missing copyright notice in {StringUtils.FormatList(fingerprint.Keys.Select(x => x.Name).ToArray(), 2)}";
 		}
 	}
 }

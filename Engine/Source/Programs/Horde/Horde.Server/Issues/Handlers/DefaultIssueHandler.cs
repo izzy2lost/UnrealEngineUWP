@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using System.Linq;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 
@@ -26,7 +25,7 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
 		{
-			NewIssueFingerprint fingerprint = new NewIssueFingerprint(TypeConst, new[] { node.Name }, null, null);
+			NewIssueFingerprint fingerprint = new NewIssueFingerprint(TypeConst, new[] { IssueKey.FromStep(job.StreamId, job.TemplateId, node.Name) }, null, null);
 			foreach (IssueEvent stepEvent in stepEvents)
 			{
 				stepEvent.Fingerprint = fingerprint;
@@ -41,7 +40,16 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
 		{
-			string nodeName = fingerprint.Keys.FirstOrDefault() ?? "(unknown)";
+			string nodeName = "(unknown)";
+			foreach (IssueKey key in fingerprint.Keys)
+			{
+				if(key.Type == IssueKeyType.Step)
+				{
+					nodeName = key.Name.Substring(key.Name.LastIndexOf(':') + 1);
+					break;
+				}
+			}
+
 			if(severity == IssueSeverity.Warning)
 			{
 				return $"Warnings in {nodeName}";

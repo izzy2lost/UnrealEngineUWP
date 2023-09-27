@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 using EpicGames.Horde.Api;
@@ -19,6 +20,7 @@ using Horde.Server.Utilities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
@@ -162,7 +164,7 @@ namespace Horde.Server.Issues
 					}
 
 					return String.Join(", ", Fingerprints.Select(x => {
-					   return $"(Type: {x.Type} / Keys: {String.Join(", ", x.Keys)} / RejectKeys: {String.Join(", ", x.RejectKeys ?? new CaseInsensitiveStringSet(new string[] {"No Reject Keys"}))})";
+					   return $"(Type: {x.Type} / Keys: {String.Join(", ", x.Keys)} / RejectKeys: {String.Join(", ", x.RejectKeys ?? new HashSet<IssueKey>())})";
 				   }));
 				}
 			}
@@ -229,23 +231,72 @@ namespace Horde.Server.Issues
 		class IssueFingerprint : IIssueFingerprint
 		{
 			public string Type { get; set; }
-			public CaseInsensitiveStringSet Keys { get; set; }
-			public CaseInsensitiveStringSet? RejectKeys { get; set; }
+
+			[BsonElement("inc")]
+			public HashSet<IssueKey> Keys { get; set; } = new HashSet<IssueKey>();
+
+			IReadOnlySet<IssueKey> IIssueFingerprint.Keys => Keys;
+
+			[BsonElement("exc"), BsonIgnoreIfNull]
+			public HashSet<IssueKey>? RejectKeys { get; set; } = new HashSet<IssueKey>();
+
+			IReadOnlySet<IssueKey>? IIssueFingerprint.RejectKeys => RejectKeys;
+
+#pragma warning disable IDE0051
+			[BsonElement("Keys"), BsonIgnoreIfNull]
+			CaseInsensitiveStringSet? LegacyKeys 
+			{ 
+				get => null;
+				set => Keys = ParseKeySet(value) ?? new HashSet<IssueKey>();
+			}
+
+			[BsonElement("RejectKeys"), BsonIgnoreIfNull]
+			CaseInsensitiveStringSet? LegacyRejectKeys
+			{ 
+				get => null;
+				set => RejectKeys = ParseKeySet(value);
+			}
+#pragma warning restore IDE0051
+
 			public CaseInsensitiveStringSet? Metadata { get; set; }
 
 			[BsonConstructor]
 			private IssueFingerprint()
 			{
 				Type = String.Empty;
-				Keys = new CaseInsensitiveStringSet();
 			}
 
 			public IssueFingerprint(IIssueFingerprint fingerprint)
 			{
 				Type = fingerprint.Type;
-				Keys = fingerprint.Keys;
-				RejectKeys = fingerprint.RejectKeys;
+				Keys = new HashSet<IssueKey>(fingerprint.Keys);
+				RejectKeys = (fingerprint.RejectKeys == null)? null : new HashSet<IssueKey>(fingerprint.RejectKeys);
 				Metadata = fingerprint.Metadata;
+			}
+
+			[return: NotNullIfNotNull("set")]
+			static HashSet<IssueKey>? ParseKeySet(CaseInsensitiveStringSet? set) => (set == null)? null : new HashSet<IssueKey>(set.Select(x => ParseKey(x)));
+
+			static IssueKey ParseKey(string key)
+			{
+				int colonIdx = key.IndexOf(':', StringComparison.Ordinal);
+				if (colonIdx != -1)
+				{
+					ReadOnlySpan<char> prefix = key.AsSpan(0, colonIdx);
+					if (prefix.Equals("hash", StringComparison.Ordinal))
+					{
+						return new IssueKey(key.Substring(colonIdx + 1), IssueKeyType.Hash);
+					}
+					if (prefix.Equals("note", StringComparison.Ordinal))
+					{
+						return new IssueKey(key.Substring(colonIdx + 1), IssueKeyType.Note);
+					}
+					if (prefix.Equals("step", StringComparison.Ordinal))
+					{
+						return new IssueKey(key.Substring(colonIdx + 1), IssueKeyType.Step);
+					}
+				}
+				return new IssueKey(key, IssueKeyType.Unknown);
 			}
 		}
 
@@ -447,6 +498,16 @@ namespace Horde.Server.Issues
 		readonly IAuditLog<int> _auditLog;
 		readonly ITelemetrySink _telemetrySink;
 		readonly ILogger _logger;
+
+		static IssueCollection()
+		{
+			BsonClassMap.RegisterClassMap<IssueKey>(cm =>
+			{
+				cm.MapConstructor(() => new IssueKey("", IssueKeyType.Unknown), nameof(IssueKey.Name), nameof(IssueKey.Type));
+				cm.MapProperty(x => x.Name).SetElementName("n");
+				cm.MapProperty(x => x.Type).SetElementName("t");
+			});
+		}
 
 		public IssueCollection(MongoService mongoService, RedisService redisService, IUserCollection userCollection, IAuditLogFactory<int> auditLogFactory, ITelemetrySink telemetrySink, ILogger<IssueCollection> logger)
 		{

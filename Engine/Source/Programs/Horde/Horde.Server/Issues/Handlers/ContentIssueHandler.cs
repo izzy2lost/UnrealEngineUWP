@@ -49,7 +49,7 @@ namespace Horde.Server.Issues.Handlers
 		/// </summary>
 		/// <param name="eventData">The log event to parse</param>
 		/// <param name="assetNames">Receives the referenced asset names</param>
-		public static void GetAssetNames(ILogEventData eventData, HashSet<string> assetNames)
+		public static void GetAssetNames(ILogEventData eventData, HashSet<IssueKey> assetNames)
 		{
 			foreach (ILogEventLine line in eventData.Lines)
 			{
@@ -58,7 +58,8 @@ namespace Horde.Server.Issues.Handlers
 				{
 					int endIdx = relativePath.LastIndexOfAny(new char[] { '/', '\\' }) + 1;
 					string fileName = relativePath.Substring(endIdx);
-					assetNames.Add(fileName);
+					IssueKey issueKey = new IssueKey(fileName, IssueKeyType.File);
+					assetNames.Add(issueKey);
 				}
 			}
 		}
@@ -73,7 +74,7 @@ namespace Horde.Server.Issues.Handlers
 				{
 					if (IsMatchingEventId(stepEvent.EventId.Value))
 					{
-						HashSet<string> newAssetNames = new HashSet<string>();
+						HashSet<IssueKey> newAssetNames = new HashSet<IssueKey>();
 						GetAssetNames(stepEvent.EventData, newAssetNames);
 
 						stepEvent.Fingerprint = new NewIssueFingerprint(Type, newAssetNames, null, null);
@@ -91,7 +92,7 @@ namespace Horde.Server.Issues.Handlers
 		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
 		{
 			string type = (severity == IssueSeverity.Warning) ? "Warnings" : "Errors";
-			string list = StringUtils.FormatList(fingerprint.Keys.ToArray(), 2);
+			string list = StringUtils.FormatList(fingerprint.Keys.Where(x => x.Type == IssueKeyType.File).Select(x => x.Name).ToArray(), 2);
 			return $"{type} in {list}";
 		}
 
@@ -100,7 +101,7 @@ namespace Horde.Server.Issues.Handlers
 		{
 			foreach (SuspectChange suspect in suspects)
 			{
-				if (suspect.Files.Any(x => fingerprint.Keys.Any(y => x.Contains(y, StringComparison.OrdinalIgnoreCase))))
+				if (suspect.Files.Any(x => fingerprint.Keys.Any(y => x.Contains(y.Name, StringComparison.OrdinalIgnoreCase))))
 				{
 					suspect.Rank += 20;
 				}

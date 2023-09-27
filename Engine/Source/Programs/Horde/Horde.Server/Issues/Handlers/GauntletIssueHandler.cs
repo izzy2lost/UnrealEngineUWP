@@ -57,7 +57,8 @@ namespace Horde.Server.Issues.Handlers
 		/// <summary>
 		///  Known Gauntlet events
 		/// </summary>
-		static readonly Dictionary<EventId, string> s_knownGauntletEvents = new Dictionary<EventId, string> {
+		static readonly Dictionary<EventId, string> s_knownGauntletEvents = new Dictionary<EventId, string> 
+		{
 			{ KnownLogEvents.Gauntlet, FrameworkPrefix},
 			{ KnownLogEvents.Gauntlet_TestEvent, TestPrefix},
 			{ KnownLogEvents.Gauntlet_DeviceEvent, DevicePrefix},
@@ -206,7 +207,7 @@ namespace Horde.Server.Issues.Handlers
 					}
 					metadata.Add($"type={GetEventPrefix(stepEvent.EventId.Value)}");
 
-					stepEvent.Fingerprint = new NewIssueFingerprint(Type, keys, null, metadata);
+					stepEvent.Fingerprint = new NewIssueFingerprint(Type, keys.Select(x => new IssueKey(x, IssueKeyType.Unknown)), null, metadata);
 				}
 			}
 		}

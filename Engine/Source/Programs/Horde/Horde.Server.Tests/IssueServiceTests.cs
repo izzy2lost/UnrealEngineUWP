@@ -528,7 +528,7 @@ namespace Horde.Server.Tests
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(IssueSeverity.Warning, issues[0].Severity);
 				Assert.AreEqual("PerforceCase", issues[0].Fingerprints[0].Type);
-				Assert.AreEqual("Bar.txt", issues[0].Fingerprints[0].Keys.First());
+				Assert.AreEqual(new IssueKey("Bar.txt", IssueKeyType.File), issues[0].Fingerprints[0].Keys.First());
 				Assert.AreEqual(chris.Id, issues[0].OwnerId);
 
 				Assert.AreEqual("Inconsistent case for Bar.txt", issues[0].Summary);
@@ -578,7 +578,7 @@ namespace Horde.Server.Tests
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(IssueSeverity.Error, issues[0].Severity);
 				Assert.AreEqual("Shader", issues[0].Fingerprints[0].Type);
-				Assert.AreEqual("LumenScreenProbeTracing.usf", issues[0].Fingerprints[0].Keys.First());
+				Assert.AreEqual(new IssueKey("LumenScreenProbeTracing.usf", IssueKeyType.File), issues[0].Fingerprints[0].Keys.First());
 				Assert.AreEqual(chris.Id, issues[0].OwnerId);
 
 				Assert.AreEqual("Shader compile errors in LumenScreenProbeTracing.usf", issues[0].Summary);
@@ -1102,7 +1102,7 @@ namespace Horde.Server.Tests
 				IIssueFingerprint fingerprint = issue.Fingerprints[0];
 				Assert.AreEqual(handler.Type, fingerprint.Type);
 				Assert.AreEqual(1, fingerprint.Keys.Count);
-				Assert.AreEqual("FOO.CPP", fingerprint.Keys.First());
+				Assert.AreEqual(new IssueKey("FOO.CPP", IssueKeyType.File), fingerprint.Keys.First());
 			}
 		}
 
@@ -1127,7 +1127,7 @@ namespace Horde.Server.Tests
 			IIssueFingerprint fingerprint = issues[0].Fingerprints[0];
 			Assert.AreEqual("Compile", fingerprint.Type);
 			Assert.AreEqual(1, fingerprint.Keys.Count);
-			Assert.AreEqual("foo.cpp", fingerprint.Keys.First());
+			Assert.AreEqual(new IssueKey("foo.cpp", IssueKeyType.File), fingerprint.Keys.First());
 		}
 
 		[TestMethod]
@@ -1684,7 +1684,7 @@ namespace Horde.Server.Tests
 				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
-				Assert.AreEqual("test:Bar.Foo.Test", issues[0].Fingerprints[0].Keys.First());
+				Assert.AreEqual(new IssueKey("test:Bar.Foo.Test", IssueKeyType.Unknown), issues[0].Fingerprints[0].Keys.First());
 				Assert.AreEqual("Gauntlet test errors with Bar.Foo.Test", issues[0].Summary);
 			}
 			// #2
@@ -1701,7 +1701,7 @@ namespace Horde.Server.Tests
 				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
-				Assert.AreEqual("device:Foo", issues[0].Fingerprints[0].Keys.First());
+				Assert.AreEqual(new IssueKey("device:Foo", IssueKeyType.Unknown), issues[0].Fingerprints[0].Keys.First());
 				Assert.AreEqual("Gauntlet device warnings with Foo", issues[0].Summary);
 			}
 			// #3
@@ -1719,7 +1719,7 @@ namespace Horde.Server.Tests
 				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
-				Assert.AreEqual("access:/Bar/Foo.txt", issues[0].Fingerprints[0].Keys.First());
+				Assert.AreEqual(new IssueKey("access:/Bar/Foo.txt", IssueKeyType.Unknown), issues[0].Fingerprints[0].Keys.First());
 				Assert.AreEqual("Gauntlet access errors with /Bar/Foo.txt and with /Bar/Foo", issues[0].Summary);
 			}
 			// #4
@@ -1763,7 +1763,7 @@ namespace Horde.Server.Tests
 				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
-				Assert.AreEqual("hash:", issues[0].Fingerprints[0].Keys.First().Substring(0, 5));
+				Assert.AreEqual("hash:", issues[0].Fingerprints[0].Keys.First().Name.Substring(0, 5));
 				Assert.AreEqual("Gauntlet fatal errors in Update Version Files", issues[0].Summary);
 			}
 			// #5
@@ -1797,7 +1797,7 @@ namespace Horde.Server.Tests
 				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
-				Assert.AreEqual("hash:", issues[0].Fingerprints[0].Keys.First().Substring(0, 5));
+				Assert.AreEqual("hash:", issues[0].Fingerprints[0].Keys.First().Name.Substring(0, 5));
 				Assert.AreEqual("Gauntlet test errors in Update Version Files", issues[0].Summary);
 			}
 		}

@@ -49,7 +49,7 @@ namespace Horde.Server.Issues.Handlers
 		/// </summary>
 		/// <param name="logEventData">The event data</param>
 		/// <param name="sourceFiles">List of source files</param>
-		public static void GetSourceFiles(ILogEventData logEventData, HashSet<string> sourceFiles)
+		public static void GetSourceFiles(ILogEventData logEventData, HashSet<IssueKey> sourceFiles)
 		{
 			foreach (ILogEventLine line in logEventData.Lines)
 			{
@@ -60,7 +60,7 @@ namespace Horde.Server.Issues.Handlers
 					{
 						int endIdx = relativePath.LastIndexOfAny(new char[] { '/', '\\' }) + 1;
 						string fileName = relativePath.Substring(endIdx);
-						sourceFiles.Add(fileName);
+						sourceFiles.Add(new IssueKey(fileName, IssueKeyType.File));
 					}
 				}
 			}
@@ -76,7 +76,7 @@ namespace Horde.Server.Issues.Handlers
 				{
 					if (IsMatchingEventId(stepEvent.EventId.Value))
 					{
-						HashSet<string> newFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+						HashSet<IssueKey> newFileNames = new HashSet<IssueKey>();
 						GetSourceFiles(stepEvent.EventData, newFileNames);
 
 						if (newFileNames.Count == 0)
@@ -101,11 +101,12 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> suspects)
 		{
+			string[] files = fingerprint.Keys.Where(x => x.Type == IssueKeyType.File).Select(x => x.Name).ToArray();
 			foreach (SuspectChange suspect in suspects)
 			{
 				if (suspect.ContainsCode)
 				{
-					if (fingerprint.Keys.Any(x => suspect.ModifiesFile(x)))
+					if (files.Any(x => suspect.ModifiesFile(x)))
 					{
 						suspect.Rank += 20;
 					}
@@ -121,7 +122,7 @@ namespace Horde.Server.Issues.Handlers
 		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
 		{
 			string type = (severity == IssueSeverity.Warning)? "warnings" : "errors";
-			return $"Localization {type} in {StringUtils.FormatList(fingerprint.Keys.ToArray(), 2)}";
+			return $"Localization {type} in {StringUtils.FormatList(fingerprint.Keys.Select(x => x.Name).ToArray(), 2)}";
 		}
 	}
 }

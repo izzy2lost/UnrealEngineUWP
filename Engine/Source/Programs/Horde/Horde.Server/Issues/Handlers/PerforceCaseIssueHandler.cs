@@ -41,7 +41,7 @@ namespace Horde.Server.Issues.Handlers
 				foreach(string file in change.Files)
 				{
 					string fileName = GetFileName(file);
-					if(fingerprint.Keys.Contains(fileName))
+					if(fingerprint.Keys.Contains(new IssueKey(fileName, IssueKeyType.File)))
 					{
 						change.Rank += 30;
 					}
@@ -52,7 +52,7 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
 		{
-			return $"Inconsistent case for {StringUtils.FormatList(fingerprint.Keys.Select(x => x.Substring(x.LastIndexOf('/') + 1)).ToArray(), 3)}";
+			return $"Inconsistent case for {StringUtils.FormatList(fingerprint.Keys.Select(x => x.Name.Substring(x.Name.LastIndexOf('/') + 1)).ToArray(), 3)}";
 		}
 
 		/// <summary>
@@ -60,7 +60,7 @@ namespace Horde.Server.Issues.Handlers
 		/// </summary>
 		/// <param name="logEventData">The event data</param>
 		/// <param name="fileNames">List of source files</param>
-		static void GetSourceFiles(ILogEventData logEventData, HashSet<string> fileNames)
+		static void GetSourceFiles(ILogEventData logEventData, HashSet<IssueKey> fileNames)
 		{
 			foreach (JsonProperty property in logEventData.FindPropertiesOfType(LogValueType.DepotPath))
 			{
@@ -68,7 +68,7 @@ namespace Horde.Server.Issues.Handlers
 				if (property.Value.TryGetProperty(LogEventPropertyName.Text.Span, out value) && value.ValueKind == JsonValueKind.String)
 				{
 					string fileName = GetFileName(value.GetString() ?? String.Empty);
-					fileNames.Add(fileName);
+					fileNames.Add(new IssueKey(fileName, IssueKeyType.File));
 				}
 			}
 		}
@@ -90,7 +90,7 @@ namespace Horde.Server.Issues.Handlers
 			{
 				if (stepEvent.EventId != null && IsMatchingEventId(stepEvent.EventId.Value))
 				{
-					HashSet<string> newFileNames = new HashSet<string>();
+					HashSet<IssueKey> newFileNames = new HashSet<IssueKey>();
 					GetSourceFiles(stepEvent.EventData, newFileNames);
 
 					stepEvent.Fingerprint = new NewIssueFingerprint(Type, newFileNames, null, null);

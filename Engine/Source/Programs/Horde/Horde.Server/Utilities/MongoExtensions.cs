@@ -20,6 +20,15 @@ namespace Horde.Server.Utilities
 	public static class MongoExtensions
 	{
 		/// <summary>
+		/// Maps a constructor for a type into a classmap
+		/// </summary>
+		public static void MapConstructor<T>(this BsonClassMap classMap, Expression<Func<T>> generator, params string[] argumentNames)
+		{
+			NewExpression newExpr = (NewExpression)generator.Body;
+			classMap.MapConstructor(newExpr.Constructor, argumentNames);
+		}
+
+		/// <summary>
 		/// Rounds a time value to its BSON equivalent (ie. milliseconds since Unix Epoch).
 		/// </summary>
 		/// <param name="time"></param>

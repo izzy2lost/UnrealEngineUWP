@@ -61,17 +61,17 @@ namespace Horde.Server.Issues.Handlers
 					if (IsGeneralEventId(stepEvent.EventId.Value))
 					{
 						hashSource += $"step:{job.StreamId}:{job.TemplateId}";
-					}					
+					}
 				}
 
 				if (hashes.Count < 25 && TryGetHash(hashSource, out Md5Hash hash))
 				{
 					hashes.Add(hash);
-					stepEvent.Fingerprint = new NewIssueFingerprint(Type, new[] { $"hash:{hash}" }, null, metadata);
+					stepEvent.Fingerprint = new NewIssueFingerprint(Type, new[] { IssueKey.FromHash(hash) }, null, metadata);
 				}
 				else
 				{
-					genericFingerprint ??= new NewIssueFingerprint(Type, new[] { $"step:{job.StreamId}:{job.TemplateId}:{node.Name}" }, null, metadata);
+					genericFingerprint ??= new NewIssueFingerprint(Type, new[] { IssueKey.FromStep(job.StreamId, job.TemplateId, node.Name) }, null, metadata);
 					stepEvent.Fingerprint = genericFingerprint;
 				}
 			}
