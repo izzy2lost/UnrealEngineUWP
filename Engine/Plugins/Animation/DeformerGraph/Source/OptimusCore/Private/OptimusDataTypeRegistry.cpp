@@ -1240,7 +1240,7 @@ TArray<FOptimusDataTypeHandle> FOptimusDataTypeRegistry::GetAllTypes() const
 	TArray<FOptimusDataTypeHandle> Result;
 	for (const FName& TypeName : RegistrationOrder)
 	{
-		Result.Add(RegisteredTypes[TypeName].Handle);
+		Result.Add(RegisteredTypes[TypeName].DataType);
 	}
 	return Result;
 }
@@ -1298,7 +1298,7 @@ FOptimusDataTypeHandle FOptimusDataTypeRegistry::FindType(const UClass& InClassT
 FOptimusDataTypeHandle FOptimusDataTypeRegistry::FindType(FName InTypeName) const
 {
 	const FTypeInfo* InfoPtr = RegisteredTypes.Find(InTypeName);
-	return InfoPtr ? InfoPtr->Handle : FOptimusDataTypeHandle();
+	return InfoPtr ? InfoPtr->DataType : FOptimusDataTypeHandle();
 }
 
 
@@ -1306,7 +1306,7 @@ FOptimusDataTypeHandle FOptimusDataTypeRegistry::FindType(FShaderValueTypeHandle
 {
 	for (const FName& TypeName : RegistrationOrder)
 	{
-		const FOptimusDataTypeHandle Handle = RegisteredTypes[TypeName].Handle;
+		const FOptimusDataTypeHandle Handle = RegisteredTypes[TypeName].DataType;
 		if (Handle->ShaderValueType == InValueType)
 		{
 			return Handle;
@@ -1478,9 +1478,9 @@ UScriptStruct* FOptimusDataTypeRegistry::FindAttributeType(FName InTypeName) con
 		return nullptr;
 	}
 
-	if (ensure(EnumHasAnyFlags(InfoPtr->Handle->UsageFlags, EOptimusDataTypeUsageFlags::AnimAttributes)))
+	if (ensure(EnumHasAnyFlags(InfoPtr->DataType->UsageFlags, EOptimusDataTypeUsageFlags::AnimAttributes)))
 	{
-		return Cast<UScriptStruct>(InfoPtr->Handle->TypeObject);
+		return Cast<UScriptStruct>(InfoPtr->DataType->TypeObject);
 	}
 
 	return nullptr;
@@ -1489,6 +1489,20 @@ UScriptStruct* FOptimusDataTypeRegistry::FindAttributeType(FName InTypeName) con
 FOptimusDataTypeRegistry::FOnDataTypeChanged& FOptimusDataTypeRegistry::GetOnDataTypeChanged()
 {
 	return OnDataTypeChanged;
+}
+
+void FOptimusDataTypeRegistry::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	for (const TTuple<FName, FTypeInfo>& TypeItem: RegisteredTypes)
+	{
+		TSharedPtr<FOptimusDataType> DataType = TypeItem.Value.DataType;
+
+		if (DataType->TypeObject.IsValid())
+		{
+			Collector.AddReferencedObject(DataType->TypeObject);
+		}
+		
+	}
 }
 
 void FOptimusDataTypeRegistry::UnregisterType(FName InTypeName)
