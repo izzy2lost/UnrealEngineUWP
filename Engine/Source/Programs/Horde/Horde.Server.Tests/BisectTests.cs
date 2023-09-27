@@ -75,6 +75,9 @@ namespace Horde.Server.Tests
 			Assert.AreEqual(1, bisectTasks.Count);
 			Assert.AreEqual(bisectTask.Owner?.Id ?? default, bisectTasks[0].Owner?.Id ?? default);
 
+			List<IBisectTask> running = await BisectTaskCollection.FindActiveAsync().ToListAsync();
+			Assert.AreEqual(1, running.Count);
+
 			await Clock.AdvanceAsync(TimeSpan.FromMinutes(30));
 
 			bisectTask = Deref(await BisectTasksController!.GetAsync(task!.BisectTaskId));
@@ -109,6 +112,9 @@ namespace Horde.Server.Tests
 			Assert.AreEqual(failedJob.Id.ToString(), jobTasks[0].InitialJobId);
 			Assert.AreEqual(5, jobTasks[0].Steps.Count);
 			Assert.AreEqual(BisectTaskState.Succeeded, jobTasks[0].State);
+
+			running = await BisectTaskCollection.FindActiveAsync().ToListAsync();
+			Assert.AreEqual(0, running.Count);
 
 		}
 
