@@ -39,7 +39,7 @@
 
 TAutoConsoleVariable<int32> CVarCurlEventLoopEnableChance(
 	TEXT("http.CurlEventLoopEnableChance"),
-	100,
+	0,
 	TEXT("Enable chance of curl event loop, from 0 to 100"),
 	ECVF_SaveForNextBoot
 );
