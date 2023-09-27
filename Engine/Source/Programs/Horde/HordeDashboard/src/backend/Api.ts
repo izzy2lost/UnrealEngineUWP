@@ -4770,11 +4770,23 @@ export type GetBisectTaskResponse = {
 	/// Starting job id for the bisect
 	initialJobId: string;
 
+	/// Starting job batch id for the bisect
+	initialBatchId: string;
+
+	/// Starting job step id for the bisect
+	initialStepId: string;
+
 	/// Starting change for the bisect
 	initialChange: number;
 
 	/// First known job id that is broken
 	currentJobId: string;
+
+	/// First known job batch id that is broken
+	currentBatchId: string;
+
+	/// First known job step id that is broken
+	currentStepId: string;
 
 	/// Changelist number of the first broken job id
 	currentChange: number;
@@ -4789,14 +4801,14 @@ export type GetBisectTaskResponse = {
 	minJobId?: string;
 
 	/// Lower step id bounds
+	minBatchId?: string;
+
+	/// Lower step id bounds
 	minStepId?: string;
 	
 	/// Lower change id bounds
 	minChange?: number;
-
-	/// Lower outcome id bounds
-	minOutcome?: JobStepOutcome
-
+	
 	/// The steps that have been run on bisect
 	steps?: GetJobStepRefResponse[];
 

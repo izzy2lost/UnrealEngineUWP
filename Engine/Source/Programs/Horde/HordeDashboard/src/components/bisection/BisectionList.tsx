@@ -220,21 +220,6 @@ class BisectionRenderer {
       const maxCL = bisection.initialChange;
       let minCL = Math.min(bisection.currentChange, bisection.nextJobChange ?? Number.MAX_SAFE_INTEGER);
       bisection.steps?.forEach(s => minCL = Math.min(minCL, s.change));
-      if (bisection.minChange) {
-         if (bisection.minOutcome === JobStepOutcome.Success) {
-            changeColors.set(bisection.minChange, scolors.get(StatusColor.Success)!);
-         } else if (bisection.minOutcome === JobStepOutcome.Warnings) {
-            changeColors.set(bisection.minChange, scolors.get(StatusColor.Warnings)!);
-         } else if (bisection.minOutcome === JobStepOutcome.Failure) {
-            changeColors.set(bisection.minChange, scolors.get(StatusColor.Failure)!);
-         } else {
-            changeColors.set(bisection.minChange, scolors.get(StatusColor.Unspecified)!);
-         }
-
-         changeSet.add(bisection.minChange);
-
-         minCL = Math.min(minCL, bisection.minChange);
-      }
 
       // bisection result
       let result: BisectionResult | undefined;
