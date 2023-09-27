@@ -29,8 +29,7 @@ void UPixelStreamingMediaOutput::BeginDestroy()
 
 UMediaCapture* UPixelStreamingMediaOutput::CreateMediaCaptureImpl()
 {
-	Capture = nullptr;
-	Capture = NewObject<UPixelStreamingMediaCapture>();
+	UPixelStreamingMediaCapture* Capture = NewObject<UPixelStreamingMediaCapture>();
 	Capture->SetMediaOutput(this);
 
 	if (!VideoInput)
@@ -78,16 +77,6 @@ void UPixelStreamingMediaOutput::StartStreaming()
 		const FString SignallingServerURL = FString::Printf(TEXT("%s:%s"), *SignallingDomain, *FString::FromInt(StreamerPort));
 		Streamer->SetSignallingServerURL(SignallingServerURL);
 
-		// Only update streamer's video input if we don't have one or it is different than the one we already have.
-		if (VideoInput.IsValid())
-		{
-			TSharedPtr<FPixelStreamingVideoInput> StreamerVideoInput = Streamer->GetVideoInput().Pin();
-			if (!StreamerVideoInput.IsValid() || StreamerVideoInput != VideoInput)
-			{
-				Streamer->SetVideoInput(VideoInput);
-			}
-		}
-
 		if (!Streamer->IsStreaming())
 		{
 			Streamer->StartStreaming();
@@ -99,6 +88,7 @@ void UPixelStreamingMediaOutput::StopStreaming()
 {
 	if (Streamer)
 	{
+		// todo destroy video input here and stop capturing
 		Streamer->StopStreaming();
 		Streamer->SetTargetWindow(nullptr);
 	}

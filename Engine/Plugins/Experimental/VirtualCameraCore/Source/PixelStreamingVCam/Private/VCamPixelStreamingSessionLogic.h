@@ -11,6 +11,7 @@
 class UVCamPixelStreamingSession;
 class UPixelStreamingMediaCapture;
 class UPixelStreamingMediaOutput;
+class IPixelStreamingStreamer;
 
 namespace UE::PixelStreamingVCam::Private
 {
@@ -43,14 +44,23 @@ namespace UE::PixelStreamingVCam::Private
 
 		TObjectPtr<UPixelStreamingMediaOutput> MediaOutput = nullptr;
 		TObjectPtr<UPixelStreamingMediaCapture> MediaCapture = nullptr;
-		
+
 		void SetupSignallingServer();
 		void StopSignallingServer();
-	
+
 		void SetupCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr);
 		void StartCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr);
+		void StopCapture();
+		void UpdateVideoInput();
+
+		void OnPreStreaming(IPixelStreamingStreamer* PreConnectionStreamer, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr);
+		void StopStreaming();
+		void OnStreamingStarted(IPixelStreamingStreamer* StartedStreamer, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr);
+		void OnStreamingStopped(IPixelStreamingStreamer* StoppedStreamer);
+		void StopEverything();
+
 		void SetupCustomInputHandling(UVCamPixelStreamingSession* This);
-	
+
 		void OnCaptureStateChanged(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr);
 		void OnRemoteResolutionChanged(const FIntPoint& RemoteResolution, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr);
 

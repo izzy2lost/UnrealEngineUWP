@@ -39,7 +39,6 @@ public:
 	FRemoteResolutionChangedEvent& OnRemoteResolutionChanged() { return RemoteResolutionChangedEvent; }
 
 private:
-	UPixelStreamingMediaCapture* Capture = nullptr;
 	TSharedPtr<IPixelStreamingStreamer> Streamer;
 	TSharedPtr<FPixelStreamingVideoInputVCam> VideoInput;
 

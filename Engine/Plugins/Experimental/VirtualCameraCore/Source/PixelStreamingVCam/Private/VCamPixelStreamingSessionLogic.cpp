@@ -29,7 +29,7 @@
 namespace UE::PixelStreamingVCam::Private
 {
 	int32 FVCamPixelStreamingSessionLogic::NextDefaultStreamerId = 1;
-	
+
 	void FVCamPixelStreamingSessionLogic::OnDeinitialize(DecoupledOutputProvider::IOutputProviderEvent& Args)
 	{
 		if (MediaOutput)
@@ -43,7 +43,7 @@ namespace UE::PixelStreamingVCam::Private
 	{
 		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
 		const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr = This;
-		
+
 		if (!This->IsInitialized())
 		{
 			UE_LOG(LogPixelStreamingVCam, Warning, TEXT("Trying to start Pixel Streaming, but has not been initialized yet"));
@@ -80,6 +80,9 @@ namespace UE::PixelStreamingVCam::Private
 		{
 			MediaOutput = UPixelStreamingMediaOutput::Create(GetTransientPackage(), This->StreamerId);
 			MediaOutput->OnRemoteResolutionChanged().AddSP(this, &FVCamPixelStreamingSessionLogic::OnRemoteResolutionChanged, WeakThisPtr);
+			MediaOutput->GetStreamer()->OnPreConnection().AddSP(this, &FVCamPixelStreamingSessionLogic::OnPreStreaming, WeakThisPtr);
+			MediaOutput->GetStreamer()->OnStreamingStarted().AddSP(this, &FVCamPixelStreamingSessionLogic::OnStreamingStarted, WeakThisPtr);
+			MediaOutput->GetStreamer()->OnStreamingStopped().AddSP(this, &FVCamPixelStreamingSessionLogic::OnStreamingStopped);
 		}
 
 		UEditorPerformanceSettings* Settings = GetMutableDefault<UEditorPerformanceSettings>();
@@ -90,9 +93,6 @@ namespace UE::PixelStreamingVCam::Private
 			Settings->PostEditChange();
 		}
 
-		// This sets up media capture and streamer
-		SetupCapture(WeakThisPtr);
-
 		// Super::Activate() creates our UMG which we need before setting up our custom input handling
 		Args.ExecuteSuperFunction();
 
@@ -101,9 +101,12 @@ namespace UE::PixelStreamingVCam::Private
 		// We need signalling server to be up before we can start streaming
 		SetupSignallingServer();
 
-		if (MediaOutput->IsValid())
+		if (MediaOutput)
 		{
 			UE_LOG(LogPixelStreamingVCam, Log, TEXT("Activating PixelStreaming VCam Session. Endpoint: %s"), *MediaOutput->GetStreamer()->GetSignallingServerURL());
+
+			// Start streaming here, this will trigger capturer to start
+			MediaOutput->StartStreaming();
 		}
 	}
 
@@ -115,24 +118,7 @@ namespace UE::PixelStreamingVCam::Private
 			PixelStreamingSubsystem->UnregisterActiveOutputProvider(This);
 		}
 
-		if (MediaCapture)
-		{
-
-			if (MediaOutput && MediaOutput->IsValid())
-			{
-				// Shutting streamer down before closing signalling server prevents an ugly websocket disconnect showing in the log
-				MediaOutput->GetStreamer()->StopStreaming();
-			}
-
-			StopSignallingServer();
-			MediaCapture->StopCapture(false);
-			MediaCapture = nullptr;
-		}
-		else
-		{
-			// There is not media capture we defensively clean up the signalling server if it exists.
-			StopSignallingServer();
-		}
+		StopEverything();
 
 		Args.ExecuteSuperFunction();
 		if (bUsingDummyUMG)
@@ -146,6 +132,47 @@ namespace UE::PixelStreamingVCam::Private
 		Settings->PostEditChange();
 	}
 
+	void FVCamPixelStreamingSessionLogic::StopCapture()
+	{
+		if(MediaCapture)
+		{
+			MediaCapture->StopCapture(false);
+			MediaCapture = nullptr;
+		}
+	}
+
+	void FVCamPixelStreamingSessionLogic::OnPreStreaming(IPixelStreamingStreamer* PreConnectionStreamer, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr)
+	{
+		SetupCapture(WeakThisPtr);
+	}
+
+	void FVCamPixelStreamingSessionLogic::StopStreaming()
+	{
+		if(!MediaOutput)
+		{
+			return;
+		}
+
+		MediaOutput->StopStreaming();
+	}
+
+	void FVCamPixelStreamingSessionLogic::OnStreamingStarted(IPixelStreamingStreamer* StartedStreamer, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr)
+	{
+
+	}
+
+	void FVCamPixelStreamingSessionLogic::OnStreamingStopped(IPixelStreamingStreamer* StartedStreamer)
+	{
+		StopCapture();
+	}
+
+	void FVCamPixelStreamingSessionLogic::StopEverything()
+	{
+		StopStreaming();
+		StopSignallingServer();
+		StopCapture();
+	}
+
 	void FVCamPixelStreamingSessionLogic::OnAddReferencedObjects(DecoupledOutputProvider::IOutputProviderEvent& Args, FReferenceCollector& Collector)
 	{
 		Collector.AddReferencedObject(MediaOutput, &Args.GetOutputProvider());
@@ -156,7 +183,7 @@ namespace UE::PixelStreamingVCam::Private
 	void FVCamPixelStreamingSessionLogic::OnPostEditChangeProperty(DecoupledOutputProvider::IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent)
 	{
 		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
-		
+
 		FProperty* Property = PropertyChangedEvent.MemberProperty;
 		if (Property && PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
 		{
@@ -234,11 +261,39 @@ namespace UE::PixelStreamingVCam::Private
 		MediaCapture = Cast<UPixelStreamingMediaCapture>(MediaOutput->CreateMediaCapture());
 		MediaCapture->OnStateChangedNative.AddSP(this, &FVCamPixelStreamingSessionLogic::OnCaptureStateChanged, WeakThisPtr);
 		StartCapture(WeakThisPtr);
+
+		// Creating media capture will have created a video input, set that on streamer
+		UpdateVideoInput();
+	}
+
+	void FVCamPixelStreamingSessionLogic::UpdateVideoInput()
+	{
+		if(!MediaCapture)
+		{
+			return;
+		}
+
+		if(TSharedPtr<FPixelStreamingVideoInputVCam> VideoInput = MediaCapture->GetVideoInput().Pin())
+		{
+			TSharedPtr<IPixelStreamingStreamer> Streamer = MediaOutput->GetStreamer();
+			if(!Streamer)
+			{
+				return;
+			}
+
+			TSharedPtr<FPixelStreamingVideoInput> StreamerVideoInput = Streamer->GetVideoInput().Pin();
+
+			// Only update streamer's video input if we don't have one or it is different than the one we already have.
+			if (!StreamerVideoInput || StreamerVideoInput != VideoInput)
+			{
+				Streamer->SetVideoInput(VideoInput);
+			}
+		}
 	}
 
 	void FVCamPixelStreamingSessionLogic::StartCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr)
 	{
-		if (!ensure(WeakThisPtr.IsValid()) || !MediaCapture)
+		if (!WeakThisPtr.IsValid() || !MediaCapture)
 		{
 			return;
 		}
@@ -370,7 +425,7 @@ namespace UE::PixelStreamingVCam::Private
 
 	void FVCamPixelStreamingSessionLogic::OnCaptureStateChanged(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr)
 	{
-		if (!MediaCapture || !MediaOutput || !MediaOutput->IsValid())
+		if (!MediaCapture)
 		{
 			return;
 		}
@@ -378,8 +433,7 @@ namespace UE::PixelStreamingVCam::Private
 		switch (MediaCapture->GetState())
 		{
 		case EMediaCaptureState::Capturing:
-			UE_LOG(LogPixelStreamingVCam, Log, TEXT("Starting media capture and streaming for Pixel Streaming VCam."));
-			MediaOutput->StartStreaming();
+			UE_LOG(LogPixelStreamingVCam, Log, TEXT("Starting media capture for Pixel Streaming VCam."));
 			break;
 		case EMediaCaptureState::Stopped:
 			if (MediaCapture->WasViewportResized())
@@ -390,8 +444,7 @@ namespace UE::PixelStreamingVCam::Private
 			}
 			else
 			{
-				UE_LOG(LogPixelStreamingVCam, Log, TEXT("Stopping media capture and streaming for Pixel Streaming VCam."));
-				MediaOutput->StopStreaming();
+				UE_LOG(LogPixelStreamingVCam, Log, TEXT("Stopping media capture for Pixel Streaming VCam."));
 			}
 			break;
 		case EMediaCaptureState::Error:

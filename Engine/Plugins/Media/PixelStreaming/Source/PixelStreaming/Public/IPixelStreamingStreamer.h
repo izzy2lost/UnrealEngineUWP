@@ -148,6 +148,17 @@ public:
 	virtual bool IsStreaming() const = 0;
 
 	/**
+	 * @brief Event fired just before the streamer begins connecting to signalling.
+	 */
+	DECLARE_EVENT_OneParam(IPixelStreamingStreamer, FPreConnectionEvent, IPixelStreamingStreamer*);
+
+	/**
+	 * @brief A getter for the OnPreConnection event. Intent is for users to call IPixelStreamingModule::Get().FindStreamer(ID)->OnPreConnection().AddXXX.
+	 * @return - The bindable OnPreConnection event.
+	 */
+	virtual FPreConnectionEvent& OnPreConnection() = 0;
+
+	/**
 	 * @brief Event fired when the streamer has connected to a signalling server and is ready for peers.
 	 */
 	DECLARE_EVENT_OneParam(IPixelStreamingStreamer, FStreamingStartedEvent, IPixelStreamingStreamer*);

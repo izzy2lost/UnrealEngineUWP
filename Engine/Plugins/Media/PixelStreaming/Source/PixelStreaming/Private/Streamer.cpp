@@ -229,6 +229,9 @@ namespace UE::PixelStreaming
 			AllConnectionsClosedHandle = Delegates->OnAllConnectionsClosedNative.AddSP(AsShared(), &FStreamer::TriggerMouseLeave);
 		}
 
+		// Broadcast the preconnection event just before we do `TryConnect`
+		StreamingPreConnectionEvent.Broadcast(this);
+
 		VideoSourceGroup->Start();
 		SignallingServerConnection->TryConnect(CurrentSignallingServerURL);
 		bStreamingStarted = true;
@@ -256,6 +259,11 @@ namespace UE::PixelStreaming
 
 		DeleteAllPlayerSessions();
 		bStreamingStarted = false;
+	}
+
+	IPixelStreamingStreamer::FPreConnectionEvent& FStreamer::OnPreConnection()
+	{
+		return StreamingPreConnectionEvent;
 	}
 
 	IPixelStreamingStreamer::FStreamingStartedEvent& FStreamer::OnStreamingStarted()

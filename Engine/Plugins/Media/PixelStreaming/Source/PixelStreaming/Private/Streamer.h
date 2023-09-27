@@ -51,6 +51,7 @@ namespace UE::PixelStreaming
 		virtual void StopStreaming() override;
 		virtual bool IsStreaming() const override { return bStreamingStarted; }
 
+		virtual FPreConnectionEvent& OnPreConnection() override;
 		virtual FStreamingStartedEvent& OnStreamingStarted() override;
 		virtual FStreamingStoppedEvent& OnStreamingStopped() override;
 
@@ -134,6 +135,7 @@ namespace UE::PixelStreaming
 		// When we send a freeze frame we retain the data so we send freeze frame to new peers if they join during a freeze frame.
 		TArray64<uint8> CachedJpegBytes;
 
+		FPreConnectionEvent StreamingPreConnectionEvent;
 		FStreamingStartedEvent StreamingStartedEvent;
 		FStreamingStoppedEvent StreamingStoppedEvent;
 

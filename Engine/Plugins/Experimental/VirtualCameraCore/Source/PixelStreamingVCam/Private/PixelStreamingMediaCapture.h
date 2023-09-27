@@ -15,19 +15,34 @@ class UPixelStreamingMediaCapture : public UMediaCapture
 
 	//~ Begin UMediaCapture interface
 public:
+
+	/**
+	* GPU copy methods
+	*/
 	virtual void OnRHIResourceCaptured_RenderingThread(
 		const FCaptureBaseData& InBaseData,
 		TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData,
 		FTextureRHIRef InTexture) override;
 
 	virtual void OnRHIResourceCaptured_AnyThread(
-		const FCaptureBaseData& InBaseData, 
-		TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, 
+		const FCaptureBaseData& InBaseData,
+		TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData,
 		FTextureRHIRef InTexture) override;
+
+	/**
+	* CPU readback methods
+	*/
+	virtual void OnFrameCaptured_RenderingThread(
+		const FCaptureBaseData& InBaseData,
+		TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData,
+		void* InBuffer,
+		int32 Width,
+		int32 Height,
+		int32 BytesPerRow) override;
 
 	virtual bool InitializeCapture() override;
 	virtual bool PostInitializeCaptureViewport(TSharedPtr<FSceneViewport>& InSceneViewport) override;
-	virtual bool ShouldCaptureRHIResource() const { return true; }
+	virtual bool ShouldCaptureRHIResource() const { return bDoGPUCopy; }
 	virtual void StopCaptureImpl(bool bAllowPendingFrameToBeProcess) override;
 	virtual bool SupportsAnyThreadCapture() const override;
 	//~ End UMediaCapture interface
@@ -36,9 +51,13 @@ public:
 	virtual void ViewportResized(FViewport* Viewport, uint32 ResizeCode);
 	bool WasViewportResized() const { return bViewportResized; }
 	void SetVideoInput(TWeakPtr<FPixelStreamingVideoInputVCam> InVideoInput) { VideoInput = InVideoInput; }
+	TWeakPtr<FPixelStreamingVideoInputVCam> GetVideoInput() { return VideoInput; }
 
 	DECLARE_MULTICAST_DELEGATE(FOnCaptureViewportInitialized);
 	FOnCaptureViewportInitialized OnCaptureViewportInitialized;
+
+private:
+	void ConfigureThreadCaptureMode(bool bForceRenderThread);
 
 private:
 	TWeakPtr<FSceneViewport> SceneViewport;
@@ -46,4 +65,7 @@ private:
 
 	/* We track whether the viewport has been resized since we created this capturer as resize means restart capturer. */
 	bool bViewportResized = false;
+
+	/* Whether we want the UMediaCapture to read back to frame into cpu memory or not. */
+	bool bDoGPUCopy = true;
 };

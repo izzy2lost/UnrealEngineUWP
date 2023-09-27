@@ -5,6 +5,8 @@
 #include "PixelCaptureInputFrameRHI.h"
 #include "Slate/SceneViewport.h"
 #include "PixelStreamingVCamLog.h"
+#include "PixelStreamingCodec.h"
+#include "IPixelStreamingModule.h"
 
 void UPixelStreamingMediaCapture::OnRHIResourceCaptured_RenderingThread(
 	const FCaptureBaseData& InBaseData,
@@ -30,15 +32,33 @@ void UPixelStreamingMediaCapture::OnRHIResourceCaptured_AnyThread(
 	}
 }
 
+void UPixelStreamingMediaCapture::OnFrameCaptured_RenderingThread(
+		const FCaptureBaseData& InBaseData,
+		TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData,
+		void* InBuffer,
+		int32 Width,
+		int32 Height,
+		int32 BytesPerRow)
+{
+	// Todo: implement this if we want to support cpu readback captures
+}
+
 bool UPixelStreamingMediaCapture::InitializeCapture()
 {
 	UE_LOG(LogPixelStreamingVCam, Log, TEXT("Initializing media capture for Pixel Streaming VCam."));
 	bViewportResized = false;
+	bDoGPUCopy = true;
+
+	ConfigureThreadCaptureMode(SupportsAnyThreadCapture());
+
 	SetState(EMediaCaptureState::Capturing);
 
-	// The following CVars condontionally force the MediaCapture capture/readback to be completed on the render thread (or any thread).
-	static bool bForceRenderThread = false;
-	static char ForceRenderThreadBit = bForceRenderThread ? 0 : 1;
+	return true;
+}
+
+void UPixelStreamingMediaCapture::ConfigureThreadCaptureMode(bool bForceRenderThread)
+{
+	char ForceRenderThreadBit = bForceRenderThread ? 0 : 1;
 
 	// Whether to wait for resource readback in a separate thread. (Experimental)
 	IConsoleVariable* CVarScheduleAnyThread = IConsoleManager::Get().FindConsoleVariable(TEXT("MediaIO.ScheduleOnAnyThread"));
@@ -53,8 +73,6 @@ bool UPixelStreamingMediaCapture::InitializeCapture()
 	{
 		CVarExperimentalScheduling->Set(ForceRenderThreadBit, EConsoleVariableFlags::ECVF_SetByCode);
 	}
-
-	return true;
 }
 
 void UPixelStreamingMediaCapture::StopCaptureImpl(bool bAllowPendingFrameToBeProcess)
@@ -62,10 +80,13 @@ void UPixelStreamingMediaCapture::StopCaptureImpl(bool bAllowPendingFrameToBePro
 	// Todo: Any cleanup on capture stop should happen here.
 }
 
+// This will activate the _AnyThread method calls when true.
 bool UPixelStreamingMediaCapture::SupportsAnyThreadCapture() const
 {
-	// This will activate the _AnyThread method calls when true.
-	return true;
+	EPixelStreamingCodec SelectedCodec = IPixelStreamingModule::Get().GetCodec();
+	// If we are using VP8 or VP9 we want to ensure capture happens on the render thread as we do our capture/convert to I420 there
+	bool bForceRenderThread = SelectedCodec == EPixelStreamingCodec::VP8 || SelectedCodec == EPixelStreamingCodec::VP9;
+	return bForceRenderThread == false;
 }
 
 bool UPixelStreamingMediaCapture::PostInitializeCaptureViewport(TSharedPtr<FSceneViewport>& InSceneViewport)
