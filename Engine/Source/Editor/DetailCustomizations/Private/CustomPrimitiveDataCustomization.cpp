@@ -896,6 +896,7 @@ FReply FCustomPrimitiveDataCustomization::OnMouseButtonDownColorBlock(const FGeo
 	GEditor->BeginTransaction(FText::Format(LOCTEXT("SetVectorColor", "Edit Primitive Data Vector: {0}"), FText::AsNumber(PrimIdx)));
 
 	FColorPickerArgs PickerArgs;
+	PickerArgs.bOnlyRefreshOnOk = true;
 	PickerArgs.bUseAlpha = true;
 	PickerArgs.InitialColor = GetVectorColor(PrimIdx);
 	PickerArgs.ParentWidget = ColorBlocks[PrimIdx];
