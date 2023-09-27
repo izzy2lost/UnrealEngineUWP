@@ -11,6 +11,8 @@
 #include "Insights/Table/ViewModels/TableCellValueGetter.h"
 #include "Insights/Table/ViewModels/TableColumn.h"
 
+#include <cmath>
+
 #define LOCTEXT_NAMESPACE "Insights::FTableCellValueFormatter"
 
 namespace Insights
@@ -205,7 +207,11 @@ FText FFloatValueFormatterAsNumber::FormatValue(const TOptional<FTableCellValue>
 	if (InValue.IsSet())
 	{
 		const float Value = InValue.GetValue().Float;
-		if (Value == 0.0f)
+		if (std::isnan(Value))
+		{
+			return FText::FromString(TEXT("NaN"));
+		}
+		else if (Value == 0.0f)
 		{
 			return FText::FromString(TEXT("0"));
 		}
@@ -255,7 +261,11 @@ FText FDoubleValueFormatterAsNumber::FormatValue(const TOptional<FTableCellValue
 	if (InValue.IsSet())
 	{
 		const double Value = InValue.GetValue().Double;
-		if (Value == 0.0)
+		if (std::isnan(Value))
+		{
+			return FText::FromString(TEXT("NaN"));
+		}
+		else if (Value == 0.0)
 		{
 			return FText::FromString(TEXT("0"));
 		}
