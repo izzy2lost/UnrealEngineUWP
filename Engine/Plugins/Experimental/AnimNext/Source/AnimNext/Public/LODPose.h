@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -6,6 +6,7 @@
 #include "ReferencePose.h"
 #include "BoneIndices.h"
 #include "TransformArray.h"
+#include "TransformArrayOperations.h"
 #include "LODPose.generated.h"
 
 namespace UE::AnimNext
@@ -22,41 +23,31 @@ enum class ELODPoseFlags : uint8
 
 ENUM_CLASS_FLAGS(ELODPoseFlags);
 
-template <typename AllocatorType>
-struct TLODPose
+struct FLODPose
 {
 	static constexpr int32 INVALID_LOD_LEVEL = -1;
 
-	TTransformArray<AllocatorType> LocalTransforms;
+	FTransformArrayView LocalTransformsView;
 	const FReferencePose* RefPose = nullptr;
 	int32 LODLevel = INVALID_LOD_LEVEL;
 	ELODPoseFlags Flags = ELODPoseFlags::None;
 
-	TLODPose() = default;
+	FLODPose() = default;
 
-	TLODPose(const FReferencePose& InRefPose, int32 InLODLevel, bool bSetRefPose = true, bool bAdditive = false)
+	void CopyFrom(const FLODPose& Other)
 	{
-		PrepareForLOD(InRefPose, InLODLevel, bSetRefPose, bAdditive);
-	}
+		check(LODLevel == Other.LODLevel);
+		check(RefPose == Other.RefPose);
+		check(LocalTransformsView.Num() == Other.LocalTransformsView.Num());
 
-	void PrepareForLOD(const FReferencePose& InRefPose, int32 InLODLevel, bool bSetRefPose = true, bool bAdditive = false)
-	{
-		LODLevel = InLODLevel;
-		RefPose = &InRefPose;
-
-		const int32 NumTransforms = InRefPose.GetNumBonesForLOD(InLODLevel);
-		LocalTransforms.SetNum(NumTransforms);
-		Flags = (ELODPoseFlags)(bAdditive ? (Flags | ELODPoseFlags::Additive) : Flags & ELODPoseFlags::Additive);
-
-		if (bSetRefPose && NumTransforms > 0)
-		{
-			SetRefPose(bAdditive);
-		}
+		// Copy over the flags and transforms from our source
+		Flags = Other.Flags;
+		CopyTransforms(LocalTransformsView, Other.LocalTransformsView);
 	}
 
 	void SetRefPose(bool bAdditive = false)
 	{
-		const int32 NumTransforms = LocalTransforms.Num();
+		const int32 NumTransforms = LocalTransformsView.Num();
 
 		if (NumTransforms > 0)
 		{
@@ -67,7 +58,7 @@ struct TLODPose
 			else
 			{
 				check(RefPose != nullptr);
-				LocalTransforms.CopyTransforms(RefPose->ReferenceLocalTransforms, 0, NumTransforms);
+				CopyTransforms(LocalTransformsView, RefPose->ReferenceLocalTransforms.GetConstView(), 0, NumTransforms);
 			}
 		}
 
@@ -82,7 +73,7 @@ struct TLODPose
 
 	void SetIdentity(bool bAdditive = false)
 	{
-		LocalTransforms.SetIdentity(bAdditive);
+		UE::AnimNext::SetIdentity(LocalTransformsView, bAdditive);
 	}
 
 	int32 GetNumBones() const
@@ -117,6 +108,16 @@ struct TLODPose
 	const USkeleton* GetSkeletonAsset() const
 	{
 		return RefPose != nullptr ? RefPose->Skeleton.Get() : nullptr;
+	}
+
+	bool IsValid() const
+	{
+		return RefPose != nullptr;
+	}
+
+	bool IsAdditive() const
+	{
+		return (Flags & ELODPoseFlags::Additive) != ELODPoseFlags::None;
 	}
 
 	/** Disable Retargeting */
@@ -154,13 +155,40 @@ struct TLODPose
 	{
 		return (Flags & ELODPoseFlags::UseSourceData) != ELODPoseFlags::None;
 	}
+};
 
+template <typename AllocatorType>
+struct TLODPose : public FLODPose
+{
+	TTransformArray<AllocatorType> LocalTransforms;
+
+	TLODPose() = default;
+
+	TLODPose(const FReferencePose& InRefPose, int32 InLODLevel, bool bSetRefPose = true, bool bAdditive = false)
+	{
+		PrepareForLOD(InRefPose, InLODLevel, bSetRefPose, bAdditive);
+	}
+
+	void PrepareForLOD(const FReferencePose& InRefPose, int32 InLODLevel, bool bSetRefPose = true, bool bAdditive = false)
+	{
+		LODLevel = InLODLevel;
+		RefPose = &InRefPose;
+
+		const int32 NumTransforms = InRefPose.GetNumBonesForLOD(InLODLevel);
+		LocalTransforms.SetNum(NumTransforms);
+		LocalTransformsView = LocalTransforms.GetView();
+
+		Flags = (ELODPoseFlags)(bAdditive ? (Flags | ELODPoseFlags::Additive) : Flags & ELODPoseFlags::Additive);
+
+		if (bSetRefPose && NumTransforms > 0)
+		{
+			SetRefPose(bAdditive);
+		}
+	}
 };
 
 using FLODPoseHeap = TLODPose<FDefaultAllocator>;
 using FLODPoseStack = TLODPose<FAnimStackAllocator>;
-
-using FLODPose = FLODPoseHeap;
 
 }
 
@@ -168,7 +196,7 @@ using FLODPose = FLODPoseHeap;
 USTRUCT()
 struct FAnimNextLODPose
 #if CPP
-	: UE::AnimNext::FLODPose
+	: UE::AnimNext::FLODPoseHeap
 #endif
 {
 	GENERATED_BODY()

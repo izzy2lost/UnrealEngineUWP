@@ -16,7 +16,7 @@ namespace UE::AnimNext
 		Trajectory = 0x01,
 
 		// Evaluates the animation pose of all bones
-		Pose = 0x02,
+		Bones = 0x02,
 
 		// Evaluates the animation curves
 		Curves = 0x04,

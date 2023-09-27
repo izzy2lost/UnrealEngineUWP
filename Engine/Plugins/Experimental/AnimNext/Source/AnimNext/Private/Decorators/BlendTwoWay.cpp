@@ -3,6 +3,7 @@
 #include "Decorators/BlendTwoWay.h"
 
 #include "DecoratorBase/ExecutionContext.h"
+#include "EvaluationVM/Tasks/BlendKeyframes.h"
 
 namespace UE::AnimNext
 {
@@ -16,14 +17,22 @@ namespace UE::AnimNext
 
 	void FBlendTwoWayDecorator::PostEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{
-		// TODO:
-		// Now that our children have finished evaluating, we can pop their two poses and blend it
-		// Children execute in depth first order, as such the poses need to be popped in reverse order
-		// FPose&& pose1 = Context.PopPose();
-		// FPose&& pose0 = Context.PopPose();
-		// FPose resultPose = BlendTwoWay(pose0, pose1, blendWeight);
-		// Context.PushPose(resultPose);
-		// If we have full weight on a child, there is no work to do and we can early exit instead
+		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		if (InstanceData->ChildA.IsValid() && InstanceData->ChildB.IsValid())
+		{
+			// We have two children, interpolate them
+			const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
+
+			const float BlendWeight = SharedData->GetBlendWeight(Context, Binding);
+
+			FEvaluateTraversalContext& TraversalContext = Context.GetTraversalContext<FEvaluateTraversalContext>();
+			TraversalContext.AppendTask(FAnimNextBlendTwoKeyframesTask::Make(BlendWeight));
+		}
+		else
+		{
+			// We have only one child that is active, do nothing
+		}
 	}
 
 	void FBlendTwoWayDecorator::PreUpdate(FExecutionContext& Context, const TDecoratorBinding<IUpdate>& Binding) const

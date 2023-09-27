@@ -3,15 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "DecoratorBase/EvaluationFlags.h"
 #include "DecoratorBase/IDecoratorInterface.h"
 #include "DecoratorBase/ITraversalContext.h"
+#include "EvaluationVM/EvaluationProgram.h"
+#include "EvaluationVM/KeyframeState.h"
 
 namespace UE::AnimNext
 {
-	// TODO: Hook up our real pose container
-	struct FPoseContainer final {};
-
 	/**
 	 * FEvaluateTraversalContext
 	 *
@@ -19,31 +17,34 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXT_API FEvaluateTraversalContext : ITraversalContext
 	{
-		explicit FEvaluateTraversalContext(EEvaluationFlags EvaluationFlags_);
+		FEvaluateTraversalContext() = default;
 
-		EEvaluationFlags GetEvaluationFlags() const { return EvaluationFlags; }
-
-		//void PushPose(FPose&& Pose);
-		//FPose&& PopPose();
+		// Appends a new task into the evaluation program, tasks mutate state in the order they have been appended in
+		// This means that child nodes need to evaluate first, tasks will usually be appended in IEvaluate::PostEvaluate
+		// Tasks are moved into their final memory location, caller can allocate the task anywhere, it is no longer needed after this operation
+		// @see FEvaluationProgram, FEvaluationTask, FEvaluationVM
+		template<class TaskType>
+		void AppendTask(TaskType&& Task) { EvaluationProgram->AppendTask(MoveTemp(Task)); }
 
 	private:
-		EEvaluationFlags EvaluationFlags;
+		FEvaluationProgram* EvaluationProgram = nullptr;
+
+		friend struct FScopedEvaluationProgram;
 	};
 
 	/**
 	 * IEvaluate
 	 * 
-	 * This interface is called during the evaluation traversal. It aims to produce some
-	 * of the following: an output pose, its velocity, the root trajectory, scalar curves, attributes, etc.
+	 * This interface is called during the evaluation traversal. It aims to produce an evaluation program.
 	 * 
-	 * When a node is decorator is visited, PreEvaluate is first called on it. It is responsible for forwarding
+	 * When a node is visited, PreEvaluate is first called on its top decorator. It is responsible for forwarding
 	 * the call to the next decorator that implements this interface on the decorator stack of the node. Once
 	 * all decorators have had the chance to PreEvaluate, the children of the decorator are queried through
 	 * the IHierarchy interface. The children will then evaluate and PostEvaluate will then be called afterwards
 	 * on the original decorator.
 	 * 
 	 * The execution context contains what to evaluate.
-	 * @see EEvaluationFlags
+	 * @see FEvaluationProgram
 	 */
 	struct ANIMNEXT_API IEvaluate : IDecoratorInterface
 	{
@@ -79,7 +80,7 @@ namespace UE::AnimNext
 	};
 
 	/**
-	 * Evaluates a sub-graph starting at the graph root and produces its result.
+	 * Evaluates a sub-graph starting at its root and produces an evaluation program.
 	 * Evaluation starts at the top of the stack that includes the graph root decorator.
 	 *
 	 * For each node:
@@ -90,5 +91,5 @@ namespace UE::AnimNext
 	 *
 	 * @see IEvaluate::PreEvaluate, IEvaluate::PostEvaluate, IHierarchy::GetChildren
 	 */
-	ANIMNEXT_API void EvaluateGraph(FExecutionContext& Context, FWeakDecoratorPtr GraphRootPtr, EEvaluationFlags EvaluationFlags, FPoseContainer& OutContainer);
+	[[nodiscard]] ANIMNEXT_API FEvaluationProgram EvaluateGraph(FExecutionContext& Context, FEvaluateTraversalContext& TraversalContext, FWeakDecoratorPtr GraphRootPtr);
 }

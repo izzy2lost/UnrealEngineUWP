@@ -42,7 +42,7 @@ namespace UE::AnimNext
 		EUpdateStep			DesiredStep = EUpdateStep::PreUpdate;
 	};
 
-	void UpdateGraph(FExecutionContext& Context, FWeakDecoratorPtr GraphRootPtr, float DeltaTime)
+	void UpdateGraph(FExecutionContext& Context, FUpdateTraversalContext& TraversalContext, FWeakDecoratorPtr GraphRootPtr)
 	{
 		if (!GraphRootPtr.IsValid())
 		{
@@ -56,8 +56,6 @@ namespace UE::AnimNext
 
 		FChildrenArray Children;
 		Children.Reserve(64);
-
-		FUpdateTraversalContext TraversalContext(DeltaTime);
 
 		FScopedTraversalContext ScopedTraversalContext(Context, TraversalContext);
 

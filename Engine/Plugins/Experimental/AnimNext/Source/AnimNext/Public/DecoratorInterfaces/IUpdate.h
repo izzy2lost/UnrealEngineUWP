@@ -13,13 +13,13 @@ namespace UE::AnimNext
 	 * 
 	 * Contains all relevant transient data for an update traversal.
 	 */
-	struct FUpdateTraversalContext : ITraversalContext
+	struct ANIMNEXT_API FUpdateTraversalContext : ITraversalContext
 	{
 		explicit FUpdateTraversalContext(float InDeltaTime);
 
 		float GetDeltaTime() const { return DeltaTime; }
 
-	private:
+	protected:
 		float DeltaTime;
 	};
 
@@ -28,7 +28,7 @@ namespace UE::AnimNext
 	 *
 	 * This interface is called during the update traversal.
 	 *
-	 * When a node is decorator is visited, PreUpdate is first called on it. It is responsible for forwarding
+	 * When a node is visited, PreUpdate is first called on its top decorator. It is responsible for forwarding
 	 * the call to the next decorator that implements this interface on the decorator stack of the node. Once
 	 * all decorators have had the chance to PreUpdate, the children of the decorator are queried through
 	 * the IHierarchy interface. The children will then evaluate and PostUpdate will then be called afterwards
@@ -68,7 +68,7 @@ namespace UE::AnimNext
 	};
 
 	/**
-	 * Updates a sub-graph starting at the graph root.
+	 * Updates a sub-graph starting at its root.
 	 * Update starts at the top of the stack that includes the graph root decorator.
 	 *
 	 * For each node:
@@ -79,5 +79,5 @@ namespace UE::AnimNext
 	 *
 	 * @see IUpdate::PreUpdate, IUpdate::PostUpdate, IHierarchy::GetChildren
 	 */
-	ANIMNEXT_API void UpdateGraph(FExecutionContext& Context, FWeakDecoratorPtr GraphRootPtr, float DeltaTime);
+	ANIMNEXT_API void UpdateGraph(FExecutionContext& Context, FUpdateTraversalContext& TraversalContext, FWeakDecoratorPtr GraphRootPtr);
 }

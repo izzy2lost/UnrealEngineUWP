@@ -401,7 +401,7 @@ struct FCompareBoneIndexType
 			const FCompactPoseBoneIndex CompactBoneIndex = SourcePose.Pose.GetBoneContainer().GetCompactPoseIndexFromSkeletonIndex(SkeletonBoneIndex);
 			if (CompactBoneIndex.GetInt() != INDEX_NONE)
 			{
-				TargetPose.LocalTransforms[i] = SourcePose.Pose[CompactBoneIndex];
+				TargetPose.LocalTransformsView[i] = SourcePose.Pose[CompactBoneIndex];
 			}
 		}
 	}
@@ -424,7 +424,7 @@ struct FCompareBoneIndexType
 			const FCompactPoseBoneIndex CompactBoneIndex = TargetPose.Pose.GetBoneContainer().GetCompactPoseIndexFromSkeletonIndex(SkeletonBoneIndex);
 			if (CompactBoneIndex.GetInt() != INDEX_NONE)
 			{
-				TargetPose.Pose[CompactBoneIndex] = SourcePose.LocalTransforms[i];
+				TargetPose.Pose[CompactBoneIndex] = SourcePose.LocalTransformsView[i];
 			}
 		}
 	}

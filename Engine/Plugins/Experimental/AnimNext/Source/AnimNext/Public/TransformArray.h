@@ -1,9 +1,10 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Animation/AnimTypes.h"
+#include "TransformArrayView.h"
 #include <algorithm>
 
 #define ANIM_ENABLE_POINTER_ITERATION 1
@@ -79,6 +80,16 @@ struct TTransformArrayAoS
 	inline const FTransform& operator[](int32 Index) const
 	{
 		return Transforms[Index];
+	}
+
+	FTransformArrayAoSView GetView()
+	{
+		return FTransformArrayAoSView(Transforms);
+	}
+
+	FTransformArrayAoSConstView GetConstView() const
+	{
+		return FTransformArrayAoSConstView(Transforms);
 	}
 
 	/** Set this transform array to the weighted blend of the supplied two transforms. */
@@ -237,80 +248,6 @@ private:
 */
 using FTransformArrayAoSHeap = TTransformArrayAoS<FDefaultAllocator>;
 using FTransformArrayAoSStack = TTransformArrayAoS<FAnimStackAllocator>;
-
-// This enables using a SoA array with operator[]
-struct FTransformSoAAdapter
-{
-	FQuat& Rotation;
-	FVector& Translation;
-	FVector& Scale3D;
-
-	FTransformSoAAdapter(FQuat& InRotation, FVector& InTranslation, FVector& InScale3D)
-		: Rotation(InRotation)
-		, Translation(InTranslation)
-		, Scale3D(InScale3D)
-	{
-	}
-
-	FORCEINLINE FQuat& GetRotation() const
-	{
-		return Rotation;
-	}
-
-	FORCEINLINE void SetRotation(const FQuat& InRotation)
-	{
-		Rotation = InRotation;
-	}
-
-	FORCEINLINE FVector& GetTranslation() const
-	{
-		return Translation;
-	}
-
-	FORCEINLINE void SetTranslation(const FVector& InTranslation)
-	{
-		Translation = InTranslation;
-	}
-
-	FORCEINLINE FVector& GetScale3D() const
-	{
-		return Scale3D;
-	}
-
-	FORCEINLINE void SetScale3D(const FVector& InScale3D)
-	{
-		Scale3D = InScale3D;
-	}
-
-	FORCEINLINE operator FTransform()
-	{
-		return FTransform(Rotation, Translation, Scale3D);
-	}
-
-	FORCEINLINE operator FTransform() const
-	{
-		return FTransform(Rotation, Translation, Scale3D);
-	}
-
-	FORCEINLINE void operator= (const FTransform& Transform)
-	{
-		Rotation = Transform.GetRotation();
-		Translation = Transform.GetTranslation();
-		Scale3D = Transform.GetScale3D();
-	}
-
-	FORCEINLINE void ScaleTranslation(const FVector::FReal& Scale)
-	{
-		Translation *= Scale;
-		//DiagnosticCheckNaN_Translate();
-	}
-
-	FORCEINLINE void NormalizeRotation()
-	{
-		Rotation.Normalize();
-		//DiagnosticCheckNaN_Rotate();
-	}
-};
 
 /**
 * Transform Array Test using StructOfArrays model
@@ -498,9 +435,27 @@ struct TTransformArraySoA
 		return FTransformSoAAdapter(Rotations[Index], Translations[Index], Scales3D[Index]);
 	}
 
-	const FTransformSoAAdapter operator[] (int Index) const
+	const FTransformSoAAdapterConst operator[] (int Index) const
 	{
-		return FTransformSoAAdapter(Rotations[Index], Translations[Index], Scales3D[Index]);
+		return FTransformSoAAdapterConst(Rotations[Index], Translations[Index], Scales3D[Index]);
+	}
+
+	FTransformArraySoAView GetView()
+	{
+		FTransformArraySoAView View;
+		View.Translations = Translations;
+		View.Rotations = Rotations;
+		View.Scales3D = Scales3D;
+		return View;
+	}
+
+	FTransformArraySoAConstView GetConstView() const
+	{
+		FTransformArraySoAConstView View;
+		View.Translations = Translations;
+		View.Rotations = Rotations;
+		View.Scales3D = Scales3D;
+		return View;
 	}
 
 	bool ContainsNaN() const

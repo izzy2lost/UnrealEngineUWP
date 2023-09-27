@@ -7,10 +7,36 @@
 
 namespace UE::AnimNext
 {
-	FEvaluateTraversalContext::FEvaluateTraversalContext(EEvaluationFlags EvaluationFlags_)
-		: EvaluationFlags(EvaluationFlags_)
+	/**
+	 * FScopedEvaluationProgram
+	 *
+	 * Pushes and pops a evaluation program onto the evaluation traversal context.
+	 * During the lifetime of an instance of this object, the traversal context will
+	 * return the provided evaluation program as the current evaluation program.
+	 *
+	 * @see FEvaluateTraversalContext
+	 */
+	struct ANIMNEXT_API FScopedEvaluationProgram final
 	{
-	}
+		FScopedEvaluationProgram(FEvaluateTraversalContext& InTraversalContext, FEvaluationProgram& InEvaluationProgram)
+			: TraversalContext(InTraversalContext)
+			, OldEvaluationProgram(InTraversalContext.EvaluationProgram)
+		{
+			InTraversalContext.EvaluationProgram = &InEvaluationProgram;
+		}
+
+		~FScopedEvaluationProgram()
+		{
+			TraversalContext.EvaluationProgram = OldEvaluationProgram;
+		}
+
+		FScopedEvaluationProgram(const FScopedEvaluationProgram&) = delete;
+		FScopedEvaluationProgram& operator=(const FScopedEvaluationProgram&) = delete;
+
+	private:
+		FEvaluateTraversalContext& TraversalContext;
+		FEvaluationProgram* OldEvaluationProgram;
+	};
 
 	void IEvaluate::PreEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{
@@ -42,13 +68,13 @@ namespace UE::AnimNext
 		EEvaluateStep		DesiredStep = EEvaluateStep::PreEvaluate;
 	};
 
-	void EvaluateGraph(FExecutionContext& Context, FWeakDecoratorPtr GraphRootPtr, EEvaluationFlags EvaluationFlags, FPoseContainer& OutContainer)
+	FEvaluationProgram EvaluateGraph(FExecutionContext& Context, FEvaluateTraversalContext& TraversalContext, FWeakDecoratorPtr GraphRootPtr)
 	{
-		// TODO: Reset container
+		FEvaluationProgram EvaluationProgram;
 
 		if (!GraphRootPtr.IsValid())
 		{
-			return;	// Nothing to update
+			return EvaluationProgram;	// Nothing to update
 		}
 
 		FMemMark Mark(FMemStack::Get());
@@ -59,8 +85,7 @@ namespace UE::AnimNext
 		FChildrenArray Children;
 		Children.Reserve(64);
 
-		FEvaluateTraversalContext TraversalContext(EvaluationFlags);
-
+		FScopedEvaluationProgram ScopedEvaluationProgram(TraversalContext, EvaluationProgram);
 		FScopedTraversalContext ScopedTraversalContext(Context, TraversalContext);
 
 		// Add the graph root to kick start the evaluation process
@@ -116,5 +141,7 @@ namespace UE::AnimNext
 				// It is either a sibling read for its post-evaluate or our parent entry ready for its post-evaluate
 			}
 		}
+
+		return EvaluationProgram;
 	}
 }

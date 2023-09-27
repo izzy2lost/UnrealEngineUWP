@@ -3,9 +3,7 @@
 #include "Decorators/SequencePlayer.h"
 
 #include "DecoratorBase/ExecutionContext.h"
-#include "Param/ParamStack.h"
-#include "Graph/AnimNext_LODPose.h"
-#include "DecompressionTools.h"
+#include "EvaluationVM/Tasks/PushAnimSequenceKeyframe.h"
 
 namespace UE::AnimNext
 {
@@ -33,35 +31,13 @@ namespace UE::AnimNext
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
-		// TODO: Sample pose
-		// FPose foo = ...
-		// Context.PushPose(foo);
+		const bool bInterpolate = true;
 
-		FParamStack& ParamStack = FParamStack::Get();
+		FAnimNextAnimSequenceKeyframeTask Task = FAnimNextAnimSequenceKeyframeTask::MakeFromSampleTime(SharedData->AnimSequence, InstanceData->InternalTimeAccumulator, bInterpolate);
+		Task.bExtractTrajectory = false;	/*Output.AnimInstanceProxy->ShouldExtractRootMotion()*/
 
-		FDeltaTimeRecord DeltaTimeRecord;
-		DeltaTimeRecord.Set(InstanceData->PrevInternalTimeAccumulator, InstanceData->InternalTimeAccumulator);
-
-		const FAnimExtractContext ExtractionContext(static_cast<double>(InstanceData->InternalTimeAccumulator)
-			, false /*Output.AnimInstanceProxy->ShouldExtractRootMotion()*/
-			, DeltaTimeRecord
-			, SharedData->GetbLoop(Context, Binding));
-
-		const FAnimNextGraphReferencePose& GraphReferencePose = ParamStack.GetParam<FAnimNextGraphReferencePose>("GraphReferencePose");
-		const int32 GraphLODLevel = ParamStack.GetParam<int32>("GraphLODLevel");
-		const bool bGraphExpectsAdditive = ParamStack.GetParam<bool>("GraphExpectsAdditive");
-
-		// HACK: Write to our output directly, only works if we have a single node in the graph that outputs a pose
-		FAnimNextGraphLODPose& ResultPose = ParamStack.GetMutableParam<FAnimNextGraphLODPose>("ResultPose");
-
-		ResultPose.LODPose.PrepareForLOD(*GraphReferencePose.ReferencePose, GraphLODLevel, true, bGraphExpectsAdditive);
-
-		// Note : calling FDecompressionTools instead of UAnimSequence / UAnimSequenceBase, as I can not modify the engine code (so I extracted the function)
-		// TODO : Revisit this, so we can plug other sequence types
-		if (SharedData->AnimSequence != nullptr)
-		{
-			FDecompressionTools::GetAnimationPose(SharedData->AnimSequence, ResultPose.LODPose, ExtractionContext);
-		}
+		FEvaluateTraversalContext& TraversalContext = Context.GetTraversalContext<FEvaluateTraversalContext>();
+		TraversalContext.AppendTask(Task);
 	}
 
 	double FSequencePlayerDecorator::GetPlayRate(FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding) const

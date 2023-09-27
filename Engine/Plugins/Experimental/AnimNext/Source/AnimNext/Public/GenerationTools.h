@@ -88,7 +88,7 @@ public:
 	static void RemapPose(int32 LODLevel
 		, const FPoseContext& SourcePose
 		, const FReferencePose& RefPose
-		, FLODPose& TargetPose); // TODO : see how to deal with heap and stack variants without duplicating functions (and if possible without templating the function)
+		, FLODPose& TargetPose);
 
 	// Converts AnimNext pose to AnimBP Pose
 	// This function expects both poses to have the same LOD (number of bones and indexes)
@@ -96,7 +96,7 @@ public:
 	static void RemapPose(int32 LODLevel
 		, const FReferencePose& RefPose
 		, const FLODPose& SourcePose
-		, FPoseContext& TargetPose); // TODO : see how to deal with heap and stack variants without duplicating functions (and if possible without templating the function)
+		, FPoseContext& TargetPose);
 };
 
 } // namespace UE::AnimNext

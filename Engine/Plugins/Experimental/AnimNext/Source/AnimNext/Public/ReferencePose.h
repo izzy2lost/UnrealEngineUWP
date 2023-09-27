@@ -30,9 +30,19 @@ ENUM_CLASS_FLAGS(EReferencePoseGenerationFlags);
 template <typename AllocatorType>
 struct TReferencePose
 {
+	// Transform array of our bind pose sorted by LOD, allows us to truncate the array for a specific LOD
+	// Higher LOD come first
 	TTransformArray<AllocatorType> ReferenceLocalTransforms;
+
+	// List of LOD bone indices for each LOD
+	// Each list of bone indices is a mapping of: BoneIndexAtLOD -> BoneIndexInSkeleton
 	TArray<TArray<FBoneIndexType, AllocatorType>, AllocatorType> LODBoneIndexes;
+
+	// List of skeleton bone indices for each LOD
+	// Each list of skeleton bone indices is a mapping of: BoneIndexInSkeleton -> BoneIndexAtLOD
 	TArray<TArray<FBoneIndexType, AllocatorType>, AllocatorType> SkeletonToLODBoneIndexes;
+
+	// Number of bones for each LOD
 	TArray<int32, AllocatorType> LODNumBones;
 
 	TWeakObjectPtr<const USkeletalMesh> SkeletalMesh = nullptr;
@@ -146,7 +156,7 @@ struct TReferencePose
 		return ReferenceLocalTransforms[LODBoneIndex];
 	}
 
-	const FQuat& GetRefPoseRotation(int32 LODBoneIndex) const
+	const FQuat GetRefPoseRotation(int32 LODBoneIndex) const
 	{
 		const int32 NumBonesLOD0 = LODBoneIndexes[0].Num();
 		check(LODBoneIndex < NumBonesLOD0);
@@ -154,7 +164,7 @@ struct TReferencePose
 		return ReferenceLocalTransforms[LODBoneIndex].GetRotation();
 	}
 
-	const FVector& GetRefPoseTranslation(int32 LODBoneIndex) const
+	const FVector GetRefPoseTranslation(int32 LODBoneIndex) const
 	{
 		const int32 NumBonesLOD0 = LODBoneIndexes[0].Num();
 		check(LODBoneIndex < NumBonesLOD0);
@@ -162,7 +172,7 @@ struct TReferencePose
 		return ReferenceLocalTransforms[LODBoneIndex].GetTranslation();
 	}
 
-	const FVector& GetRefPoseScale3D(int32 LODBoneIndex) const
+	const FVector GetRefPoseScale3D(int32 LODBoneIndex) const
 	{
 		const int32 NumBonesLOD0 = LODBoneIndexes[0].Num();
 		check(LODBoneIndex < NumBonesLOD0);

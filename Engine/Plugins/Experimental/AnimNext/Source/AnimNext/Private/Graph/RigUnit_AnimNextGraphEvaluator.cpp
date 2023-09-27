@@ -4,7 +4,10 @@
 #include "DecoratorBase/ExecutionContext.h"
 #include "DecoratorInterfaces/IUpdate.h"
 #include "DecoratorInterfaces/IEvaluate.h"
+#include "EvaluationVM/EvaluationVM.h"
 #include "Context.h"
+#include "Param/ParamStack.h"
+#include "Graph/AnimNext_LODPose.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnit_AnimNextGraphEvaluator)
 
@@ -24,16 +27,39 @@ void FRigUnit_AnimNextGraphEvaluator::StaticExecute(FRigVMExtendedExecuteContext
 		const FContext& InterfaceContext = VMExecuteContext.GetContext();
 
 		// Call pre/post update on our graph
-		UpdateGraph(Context, GraphInstancePtr, InterfaceContext.GetDeltaTime());
+		FUpdateTraversalContext TraversalContext(InterfaceContext.GetDeltaTime());
+		UpdateGraph(Context, TraversalContext, GraphInstancePtr);
 	}
 
 	if (EnumHasAnyFlags(SimulationSteps, EAnimNextGraphSimulationSteps::Evaluate))
 	{
 		// Call pre/post evaluate on our graph
-		FPoseContainer PoseContainer;
-		EvaluateGraph(Context, GraphInstancePtr, EEvaluationFlags::All, PoseContainer);
+		FEvaluateTraversalContext TraversalContext;
+		FEvaluationProgram EvaluationProgram = EvaluateGraph(Context, TraversalContext, GraphInstancePtr);
 
-		// TODO: Write out our output pose/curves/attributes/etc
-		//ExecuteContext_.GetContext().SetResult<FAnimationGraphNodeResult>(Result);
+		if (!EvaluationProgram.IsEmpty())
+		{
+			FParamStack& ParamStack = FParamStack::Get();
+
+			const FAnimNextGraphReferencePose& GraphReferencePose = ParamStack.GetParam<FAnimNextGraphReferencePose>("GraphReferencePose");
+			const int32 GraphLODLevel = ParamStack.GetParam<int32>("GraphLODLevel");
+
+			FEvaluationVM EvaluationVM(EEvaluationFlags::All, *GraphReferencePose.ReferencePose, GraphLODLevel);
+			EvaluationProgram.Execute(EvaluationVM);
+
+			FAnimNextGraphLODPose& ResultPose = ParamStack.GetMutableParam<FAnimNextGraphLODPose>("ResultPose");
+
+			TUniquePtr<FKeyframeState> EvaluatedKeyframe;
+			if (EvaluationVM.PopValue(KEYFRAME_STACK_NAME, EvaluatedKeyframe))
+			{
+				ResultPose.LODPose.CopyFrom(EvaluatedKeyframe->Pose);
+			}
+			else
+			{
+				// We need to output a valid pose, generate one
+				FKeyframeState ReferenceKeyframe = EvaluationVM.MakeReferenceKeyframe(ParamStack.GetParam<bool>("GraphExpectsAdditive"));
+				ResultPose.LODPose.CopyFrom(ReferenceKeyframe.Pose);
+			}
+		}
 	}
 }

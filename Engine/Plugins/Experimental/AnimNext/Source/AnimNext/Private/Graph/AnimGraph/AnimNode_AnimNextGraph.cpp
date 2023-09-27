@@ -145,8 +145,8 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext & Output)
 
 	FAnimNextGraphReferencePose GraphReferencePose(&RefPose);
 
-	FAnimNextGraphLODPose GraphSourceLODPose(FLODPose(RefPose, LODLevel, false, Output.ExpectsAdditivePose()));
-	FAnimNextGraphLODPose ResultPose(FLODPose(RefPose, LODLevel, true, Output.ExpectsAdditivePose()));
+	FAnimNextGraphLODPose GraphSourceLODPose(FLODPoseHeap(RefPose, LODLevel, false, Output.ExpectsAdditivePose()));
+	FAnimNextGraphLODPose ResultPose(FLODPoseHeap(RefPose, LODLevel, true, Output.ExpectsAdditivePose()));
 	FGenerationTools::RemapPose(LODLevel, SourcePose, RefPose, GraphSourceLODPose.LODPose);
 
 	FParamStack& ParamStack = FParamStack::Get();
