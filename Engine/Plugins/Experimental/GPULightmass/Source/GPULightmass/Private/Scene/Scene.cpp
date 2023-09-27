@@ -1044,8 +1044,9 @@ void FScene::AddGeometryInstanceFromComponent(UInstancedStaticMeshComponent* InC
 			RelevantPointLightsToAddOnRenderThread,
 			RelevantSpotLightsToAddOnRenderThread,
 			RelevantRectLightsToAddOnRenderThread
-		](FRHICommandListImmediate&) mutable
+		](FRHICommandListImmediate& RHICmdList) mutable
 	{
+		InstanceRenderState.InstancedRenderData->BindBuffersToVertexFactories(RHICmdList);
 
 		FInstanceGroupRenderStateRef InstanceRenderStateRef = RenderState.InstanceGroupRenderStates.Emplace(MoveTemp(InstanceRenderState));
 
