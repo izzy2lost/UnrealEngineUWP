@@ -188,7 +188,7 @@ void MaterialSetupCS(
 		float LFVExtinction = 0.0;
 		if (FogInstance.HeightFogExtinction > 0.0f)
 		{
-			LFVExtinction += SphereFade <= 0.0f ? 0.0f : FogInstance.HeightFogExtinction * exp(-FogInstance.HeightFogFalloff * UnitSpacePos.z);
+			LFVExtinction += SphereFade <= 0.0f ? 0.0f : FogInstance.HeightFogExtinction * exp(-FogInstance.HeightFogFalloff * (UnitSpacePos.z - FogInstance.HeightFogOffset));
 		}
 		if(FogInstance.RadialFogExtinction > 0.0f)
 		{
