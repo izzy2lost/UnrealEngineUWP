@@ -1223,7 +1223,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenReSTIRGather(
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->SceneTexturesStruct = SceneTextures.UniformBuffer;
 		PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
-		LumenReflections::SetupCompositeParameters(PassParameters->ReflectionsCompositeParameters);
+		LumenReflections::SetupCompositeParameters(View, PassParameters->ReflectionsCompositeParameters);
 		PassParameters->UpsampleKernelSize = GLumenReSTIRUpsampleKernelSize;
 		PassParameters->UpsampleNumSamples = GLumenReSTIRUpsampleNumSamples;
 

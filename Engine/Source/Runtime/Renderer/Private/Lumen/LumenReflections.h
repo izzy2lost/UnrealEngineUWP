@@ -35,7 +35,7 @@ namespace LumenReflections
 		SHADER_PARAMETER(float, InvRoughnessFadeLength)
 	END_SHADER_PARAMETER_STRUCT()
 
-	void SetupCompositeParameters(LumenReflections::FCompositeParameters& OutParameters);
+	void SetupCompositeParameters(const FViewInfo& View, LumenReflections::FCompositeParameters& OutParameters);
 	bool UseAsyncCompute(const FViewFamilyInfo& ViewFamily);
 }
 

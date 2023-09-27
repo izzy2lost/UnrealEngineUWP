@@ -329,7 +329,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenIrradianceFieldGath
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->SceneTexturesStruct = SceneTextures.UniformBuffer;
 		PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
-		LumenReflections::SetupCompositeParameters(PassParameters->ReflectionsCompositeParameters);
+		LumenReflections::SetupCompositeParameters(View, PassParameters->ReflectionsCompositeParameters);
 		PassParameters->ProbeOcclusionViewBias = GLumenIrradianceFieldProbeOcclusionViewBias;
 		PassParameters->ProbeOcclusionNormalBias = GLumenIrradianceFieldProbeOcclusionNormalBias;
 

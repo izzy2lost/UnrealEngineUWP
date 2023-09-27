@@ -1275,7 +1275,7 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 
 			PassParameters->BufferUVToOutputPixelPosition = BufferExtent;
 			PassParameters->EyeAdaptation = GraphBuilder.CreateSRV(GetEyeAdaptationBuffer(GraphBuilder, View));
-			LumenReflections::SetupCompositeParameters(PassParameters->ReflectionsCompositeParameters);
+			LumenReflections::SetupCompositeParameters(View, PassParameters->ReflectionsCompositeParameters);
 			PassParameters->ScreenBentNormalParameters = ScreenBentNormalParameters;
 			PassParameters->bLumenSupportBackfaceDiffuse = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen && DenoiserOutputs.Textures[1] != SystemTextures.Black;
 			PassParameters->bLumenReflectionInputIsSSR = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen && ViewPipelineState.ReflectionsMethod == EReflectionsMethod::SSR;
@@ -1743,7 +1743,7 @@ static void AddSkyReflectionPass(
 			PassParameters->PS.BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
 		}
 
-		LumenReflections::SetupCompositeParameters(PassParameters->PS.ReflectionsCompositeParameters);
+		LumenReflections::SetupCompositeParameters(View, PassParameters->PS.ReflectionsCompositeParameters);
 	}
 
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorTexture.Target, ERenderTargetLoadAction::ELoad);

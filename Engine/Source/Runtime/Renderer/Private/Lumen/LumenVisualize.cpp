@@ -639,7 +639,7 @@ void SetupVisualizeParameters(
 		CommonParameters.VisualizeMode = VisualizeMode;
 		CommonParameters.MaxReflectionBounces = MaxReflectionBounces;
 
-		LumenReflections::SetupCompositeParameters(CommonParameters.ReflectionsCompositeParameters);
+		LumenReflections::SetupCompositeParameters(View, CommonParameters.ReflectionsCompositeParameters);
 		CommonParameters.PreIntegratedGF = GSystemTextures.PreintegratedGF->GetRHI();
 		CommonParameters.PreIntegratedGFSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 

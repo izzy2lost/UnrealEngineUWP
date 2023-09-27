@@ -1080,7 +1080,7 @@ void InterpolateAndIntegrate(
 	const bool bSupportBackfaceDiffuse = BackfaceDiffuseIndirect != nullptr;
 
 	LumenReflections::FCompositeParameters ReflectionsCompositeParameters;
-	LumenReflections::SetupCompositeParameters(ReflectionsCompositeParameters);
+	LumenReflections::SetupCompositeParameters(View, ReflectionsCompositeParameters);
 
 	if (bSSREnabled)
 	{
