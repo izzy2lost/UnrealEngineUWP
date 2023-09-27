@@ -45,6 +45,7 @@
 #include "UObject/UObjectIterator.h"
 #include "GenericPlatform/ICursor.h"
 #include "Rendering/RenderCommandPipes.h"
+#include "SceneManagement.h"
 
 #include "InstancedStaticMeshSceneProxyDesc.h"
 

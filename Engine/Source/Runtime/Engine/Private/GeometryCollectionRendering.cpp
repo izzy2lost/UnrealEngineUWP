@@ -10,6 +10,7 @@
 #include "ProfilingDebugging/LoadTimeTracker.h"
 #include "PrimitiveUniformShaderParameters.h"
 #include "RenderUtils.h"
+#include "SceneManagement.h"
 
 IMPLEMENT_TYPE_LAYOUT(FGeometryCollectionVertexFactoryShaderParameters);
 

@@ -20,6 +20,7 @@
 #include "GPUSkinVertexFactory.h"
 #include "RenderUtils.h"
 #include "SceneInterface.h"
+#include "SceneManagement.h"
 
 IMPLEMENT_TYPE_LAYOUT(FLocalVertexFactoryShaderParametersBase);
 IMPLEMENT_TYPE_LAYOUT(FLocalVertexFactoryShaderParameters);
