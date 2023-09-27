@@ -581,6 +581,9 @@ FRDGBuilder::FRDGBuilder(FRHICommandListImmediate& InRHICmdList, FRDGEventName I
 {
 	AddProloguePass();
 
+	bSupportsTransientTextures = TransientResourceAllocator ? TransientResourceAllocator->SupportsResourceType(ERHITransientResourceType::Texture) : false;
+	bSupportsTransientBuffers = TransientResourceAllocator ? TransientResourceAllocator->SupportsResourceType(ERHITransientResourceType::Buffer) : false;
+
 #if RDG_EVENTS != RDG_EVENTS_NONE
 	// This is polled once as a workaround for a race condition since the underlying global is not always changed on the render thread.
 	GRDGEmitDrawEvents_RenderThread = GetEmitDrawEvents();
@@ -982,7 +985,7 @@ FRDGTexture* FRDGBuilder::RegisterExternalTexture(
 	if (FRDGTexture* FoundTexture = FindExternalTexture(ExternalTextureRHI))
 	{
 		return FoundTexture;
-	}
+	} 
 
 	const FRDGTextureDesc Desc = Translate(ExternalPooledTexture->GetDesc());
 	FRDGTexture* Texture = Textures.Allocate(Allocator, Name, Desc, Flags);
@@ -3589,7 +3592,7 @@ void FRDGBuilder::BeginResourceRHI(FRDGPassHandle PassHandle, FRDGTextureRef Tex
 	}
 #endif
 
-	if (TransientResourceAllocator && IsTransient(Texture))
+	if (TransientResourceAllocator && bSupportsTransientTextures && IsTransient(Texture))
 	{
 		if (FRHITransientTexture* TransientTexture = TransientResourceAllocator->CreateTexture(Texture->Desc, Texture->Name, PassHandle.GetIndex()))
 		{
@@ -3681,7 +3684,7 @@ void FRDGBuilder::BeginResourceRHI(FRDGPassHandle PassHandle, FRDGBufferRef Buff
 	Buffer->FinalizeDesc();
 
 	// If transient then create the resource on the transient allocator. External or extracted resource can't be transient because of lifetime tracking issues.
-	if (TransientResourceAllocator && IsTransient(Buffer))
+	if (TransientResourceAllocator && bSupportsTransientBuffers && IsTransient(Buffer))
 	{
 		if (FRHITransientBuffer* TransientBuffer = TransientResourceAllocator->CreateBuffer(Translate(Buffer->Desc), Buffer->Name, PassHandle.GetIndex()))
 		{

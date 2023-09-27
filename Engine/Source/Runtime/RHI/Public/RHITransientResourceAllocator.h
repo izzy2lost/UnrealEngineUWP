@@ -354,6 +354,9 @@ class IRHITransientResourceAllocator
 public:
 	virtual ~IRHITransientResourceAllocator() = default;
 
+	// Supports transient allocations of given resource type
+	virtual bool SupportsResourceType(ERHITransientResourceType InType) const = 0;
+
 	// Allocates a new transient resource with memory backed by the transient allocator.
 	virtual FRHITransientTexture* CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex) = 0;
 	virtual FRHITransientBuffer* CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex) = 0;

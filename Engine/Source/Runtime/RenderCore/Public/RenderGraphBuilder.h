@@ -735,7 +735,9 @@ private:
 	IF_RDG_CMDLIST_STATS(TStatId CommandListStatScope);
 	IF_RDG_CMDLIST_STATS(TStatId CommandListStatState);
 
-	IRHITransientResourceAllocator* TransientResourceAllocator = nullptr;
+	IRHITransientResourceAllocator* TransientResourceAllocator = nullptr; 
+	bool bSupportsTransientTextures = false;
+	bool bSupportsTransientBuffers = false;
 
 	FRHICommandListScopedExtendResourceLifetime ExtendResourceLifetimeScope;
 
