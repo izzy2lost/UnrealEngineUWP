@@ -122,5 +122,20 @@ private:
 };
 
 
+/**
+ * Defines a scope during which a given sequence hierarchy will not be recompiled when changed
+ * even if it was set to volatile.
+ */
+struct MOVIESCENE_API FScopedVolatilityManagerSuppression
+{
+	FScopedVolatilityManagerSuppression(FInstanceRegistry* InInstanceRegistry, FRootInstanceHandle InRootInstanceHandle);
+	~FScopedVolatilityManagerSuppression();
+
+private:
+	FInstanceRegistry* InstanceRegistry;
+	FRootInstanceHandle RootInstanceHandle;
+	TUniquePtr<FCompiledDataVolatilityManager> PreviousVolatilityManager;
+};
+
 } // namespace MovieScene
 } // namespace UE

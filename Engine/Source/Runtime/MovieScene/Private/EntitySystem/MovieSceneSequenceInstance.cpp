@@ -179,10 +179,6 @@ void FSequenceInstance::InvalidateCachedData(UMovieSceneEntitySystemLinker* Link
 		if (!VolatilityManager)
 		{
 			VolatilityManager = FCompiledDataVolatilityManager::Construct(*Player, RootCompiledDataID, CompiledDataManager);
-			if (VolatilityManager)
-			{
-				VolatilityManager->ConditionalRecompile(*Player, RootCompiledDataID, CompiledDataManager);
-			}
 		}
 
 		ISequenceUpdater::FactoryInstance(SequenceUpdater, CompiledDataManager, RootCompiledDataID);

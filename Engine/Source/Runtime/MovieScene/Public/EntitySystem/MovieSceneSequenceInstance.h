@@ -380,6 +380,8 @@ private:
 	bool bFinished : 1;
 	/** Flag that is set if this sequence has ever updated. */
 	bool bHasEverUpdated : 1;
+
+	friend struct FScopedVolatilityManagerSuppression;
 };
 
 

@@ -8,6 +8,9 @@
 #include "CoreGlobals.h"
 #include "Engine/Engine.h"
 #include "Engine/EngineTypes.h"
+#include "EntitySystem/MovieSceneEntitySystemLinker.h"
+#include "EntitySystem/MovieSceneInstanceRegistry.h"
+#include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "ISequencer.h"
 #include "LevelSequence.h"
@@ -751,7 +754,9 @@ FQualifiedFrameTime UTakeRecorder::GetRecordTime() const
 
 void UTakeRecorder::InternalTick(float DeltaTime)
 {
-	UE::MovieScene::FScopedSignedObjectModifyDefer FlushOnTick(true);
+	using namespace UE::MovieScene;
+
+	FScopedSignedObjectModifyDefer FlushOnTick(true);
 
 	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
 	FQualifiedFrameTime RecordTime = GetRecordTime();
@@ -892,6 +897,8 @@ void UTakeRecorder::PreRecord()
 
 void UTakeRecorder::Start()
 {
+	using namespace UE::MovieScene;
+
 	FTimecode Timecode = FApp::GetTimecode();
 
 	State = ETakeRecorderState::Started;
@@ -978,6 +985,10 @@ void UTakeRecorder::Start()
 	{
 		TakeRecorderSubsystem->TakeRecorderStarted.Broadcast();
 	}
+
+	FRootInstanceHandle RootInstanceHandle = Sequencer->GetEvaluationTemplate().GetRootInstanceHandle();
+	FInstanceRegistry* InstanceRegistry = Sequencer->GetEvaluationTemplate().GetEntitySystemLinker()->GetInstanceRegistry();
+	CompileSuppression = MakeUnique<FScopedVolatilityManagerSuppression>(InstanceRegistry, RootInstanceHandle);
 }
 
 void UTakeRecorder::Stop()
@@ -1038,6 +1049,8 @@ void UTakeRecorder::StopInternal(const bool bCancelled)
 			Sequencer->ResetTimeController();
 		}
 	}
+
+	CompileSuppression.Reset();
 
 	if (bDidEverStartRecording)
 	{

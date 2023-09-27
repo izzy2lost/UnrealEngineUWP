@@ -11,6 +11,7 @@
 #include "EntitySystem/BuiltInComponentTypes.h"
 
 #include "Compilation/MovieSceneCompiledDataManager.h"
+#include "Compilation/MovieSceneCompiledVolatilityManager.h"
 
 #include "Evaluation/MovieSceneSequenceHierarchy.h"
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
@@ -125,6 +126,21 @@ void FInstanceRegistry::CleanupLinkerEntities(const TSet<FMovieSceneEntityID>& E
 			Instance.Ledger.CleanupLinkerEntities(ExpiredBoundObjects);
 		}
 	}
+}
+
+FScopedVolatilityManagerSuppression::FScopedVolatilityManagerSuppression(FInstanceRegistry* InInstanceRegistry, FRootInstanceHandle InRootInstanceHandle)
+	: InstanceRegistry(InInstanceRegistry)
+	, RootInstanceHandle(InRootInstanceHandle)
+{
+	FSequenceInstance& Instance = InstanceRegistry->MutateInstance(RootInstanceHandle);
+	PreviousVolatilityManager = MoveTemp(Instance.VolatilityManager);
+}
+
+FScopedVolatilityManagerSuppression::~FScopedVolatilityManagerSuppression()
+{
+	FSequenceInstance& Instance = InstanceRegistry->MutateInstance(RootInstanceHandle);
+	Instance.VolatilityManager = MoveTemp(PreviousVolatilityManager);
+	Instance.ConditionalRecompile(InstanceRegistry->GetLinker());
 }
 
 } // namespace MovieScene
