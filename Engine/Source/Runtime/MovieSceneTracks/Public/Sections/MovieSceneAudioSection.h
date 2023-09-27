@@ -212,7 +212,7 @@ private:
 		}	
 	}
 
-	MOVIESCENETRACKS_API void SetupSoundInputParameters(const USoundBase* InSoundBase);
+	MOVIESCENETRACKS_API void SetupSoundInputParameters(USoundBase* InSoundBase);
 
 	/** The sound cue or wave that this section plays */
 	UPROPERTY(EditAnywhere, Category="Audio", BlueprintGetter=GetSound, BlueprintSetter=SetSound)

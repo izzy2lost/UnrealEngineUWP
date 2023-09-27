@@ -154,7 +154,7 @@ EMovieSceneChannelProxyType  UMovieSceneAudioSection::CacheChannelProxy()
 #endif
 
 	using namespace MovieSceneAudioSectionPrivate;
-	SetupSoundInputParameters(GetSound());
+	SetupSoundInputParameters(Sound);
 	AddInputChannels<FMovieSceneFloatChannel, float>(this, Channels);
 	AddInputChannels<FMovieSceneBoolChannel, bool>(this, Channels);
 	AddInputChannels<FMovieSceneIntegerChannel, int32>(this, Channels);
@@ -166,11 +166,13 @@ EMovieSceneChannelProxyType  UMovieSceneAudioSection::CacheChannelProxy()
 	return EMovieSceneChannelProxyType::Dynamic;
 }
 
-void UMovieSceneAudioSection::SetupSoundInputParameters(const USoundBase* InSoundBase)
+void UMovieSceneAudioSection::SetupSoundInputParameters(USoundBase* InSoundBase)
 {
 	// Populate with defaults.
 	if (InSoundBase)
 	{
+		InSoundBase->InitResources();
+
 		TArray<FAudioParameter> DefaultParams;
 		InSoundBase->GetAllDefaultParameters(DefaultParams);
 
