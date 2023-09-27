@@ -1,12 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DMXPixelMappingToolbar.h"
-#include "Framework/Commands/UICommandList.h"
-#include "Toolkits/DMXPixelMappingToolkit.h"
+
 #include "DMXPixelMappingEditorCommands.h"
 #include "DMXPixelMappingEditorStyle.h"
-
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Framework/Commands/UICommandList.h"
+#include "Styling/AppStyle.h"
+#include "Toolkits/DMXPixelMappingToolkit.h"
+
 
 #define LOCTEXT_NAMESPACE "FDMXPixelMappingToolbar"
 
@@ -35,7 +37,7 @@ void FDMXPixelMappingToolbar::BuildToolbarCallback(FToolBarBuilder& ToolbarBuild
 			NAME_None, 
 			TAttribute<FText>(), 
 			TAttribute<FText>(),
-			FSlateIcon(FDMXPixelMappingEditorStyle::Get().GetStyleSetName(), "Icons.AddMapping"),
+			FSlateIcon(FDMXPixelMappingEditorStyle::Get().GetStyleSetName(), "Icons.AddSource"),
 			FName(TEXT("Add Source")));
 	}
 	ToolbarBuilder.EndSection();

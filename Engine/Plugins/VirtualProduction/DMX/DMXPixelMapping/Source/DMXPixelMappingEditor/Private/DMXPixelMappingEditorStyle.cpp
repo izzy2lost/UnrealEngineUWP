@@ -8,10 +8,10 @@
 #include "Misc/Paths.h"
 #include "Rendering/SlateRenderer.h"
 #include "Styling/SlateBrush.h"
-#include "Styling/StyleColors.h"
+#include "Styling/SlateStyle.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateStyleRegistry.h"
-#include "Styling/SlateStyle.h"
+#include "Styling/StyleColors.h"
 
 
 FDMXPixelMappingEditorStyle::FDMXPixelMappingEditorStyle()
@@ -41,7 +41,7 @@ FDMXPixelMappingEditorStyle::FDMXPixelMappingEditorStyle()
 	{
 		Set("Icons.Preview", new IMAGE_BRUSH_SVG("Preview", Icon16x16));
 		Set("Icons.ZoomToFit", new IMAGE_BRUSH_SVG("ZoomToFit", Icon16x16));
-		Set("Icons.AddMapping", new IMAGE_BRUSH("icon_DMXPixelMappingEditor_AddMapping_40x", Icon16x16));
+		Set("Icons.AddSource",new CORE_IMAGE_BRUSH("Icons/PlusSymbol_12x", Icon12x12));
 		Set("Icons.PlayDMX", new CORE_IMAGE_BRUSH_SVG("Starship/Common/play", Icon16x16, FStyleColors::AccentGreen));
 		Set("Icons.StopPlayingDMX", new CORE_IMAGE_BRUSH_SVG("Starship/Common/stop", Icon16x16, FStyleColors::AccentRed));
 	}
