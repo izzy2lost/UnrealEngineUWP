@@ -3,6 +3,7 @@
 #include "Animation/AnimPoseSearchProvider.h"
 #include "Features/IModularFeatures.h"
 #include "Modules/ModuleManager.h"
+#include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearch/PoseSearchLibrary.h"
 
 class FPoseSearchModule final : public IModuleInterface, public UE::Anim::IPoseSearchProvider
@@ -21,14 +22,19 @@ public:
 	}
 
 	// IPoseSearchProvider
-	virtual UE::Anim::IPoseSearchProvider::FSearchResult Search(const FAnimationBaseContext& GraphContext, const UObject* Object) override
+	virtual UE::Anim::IPoseSearchProvider::FSearchResult Search(const FAnimationBaseContext& GraphContext, TConstArrayView<UAnimationAsset*> AnimationAssets) override
 	{
-		const UE::PoseSearch::FSearchResult SearchResult = UPoseSearchLibrary::MotionMatch(GraphContext, Object);
-		
+		const UE::PoseSearch::FSearchResult SearchResult = UPoseSearchLibrary::MotionMatch(GraphContext, AnimationAssets);
 		UE::Anim::IPoseSearchProvider::FSearchResult ProviderResult;
-		ProviderResult.Dissimilarity = SearchResult.PoseCost.GetTotalCost();
-		ProviderResult.PoseIdx = SearchResult.PoseIdx;
-		ProviderResult.TimeOffsetSeconds = SearchResult.AssetTime;
+		if (const UE::PoseSearch::FSearchIndexAsset* SearchIndexAsset = SearchResult.GetSearchIndexAsset())
+		{
+			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = SearchResult.Database->GetAnimationAssetBase(*SearchIndexAsset))
+			{
+				ProviderResult.AnimationAsset = DatabaseAnimationAssetBase->GetAnimationAsset();
+				ProviderResult.Dissimilarity = SearchResult.PoseCost.GetTotalCost();
+				ProviderResult.TimeOffsetSeconds = SearchResult.AssetTime;
+			}
+		}
 
 		return ProviderResult;
 	}

@@ -631,6 +631,11 @@ struct FPoseCandidateFlags : ITextColumn
 				Sring.Append("F ");
 			}
 
+			if (EnumHasAnyFlags(Row->PoseCandidateFlags, EPoseCandidateFlags::DiscardedBy_AssetIdxFilter))
+			{
+				Sring.Append("A ");
+			}
+			
 			if (EnumHasAnyFlags(Row->PoseCandidateFlags, EPoseCandidateFlags::DiscardedBy_Search))
 			{
 				Sring.Append("S ");
@@ -669,6 +674,11 @@ struct FPoseCandidateFlags : ITextColumn
 				TextBuilder.AppendLine(LOCTEXT("DiscardedBy_PoseFilter_Tooltip", "(F) Filter"));
 			}
 
+			if (EnumHasAnyFlags(Row->PoseCandidateFlags, EPoseCandidateFlags::DiscardedBy_AssetIdxFilter))
+			{
+				TextBuilder.AppendLine(LOCTEXT("DiscardedBy_AssetIdxFilter_Tooltip", "(A) Asset Idx Filter"));
+			}
+			
 			if (EnumHasAnyFlags(Row->PoseCandidateFlags, EPoseCandidateFlags::DiscardedBy_Search))
 			{
 				TextBuilder.AppendLine(LOCTEXT("DiscardedBy_Search_Tooltip", "(S) Search"));

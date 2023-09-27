@@ -282,7 +282,8 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 	FMemMark Mark(FMemStack::Get());
 	const UAnimInstance* AnimInstance = Cast<const UAnimInstance>(Context.AnimInstanceProxy->GetAnimInstanceObject());
 	check(AnimInstance);
-	FSearchContext SearchContext(AnimInstance, &TrajectoryRootSpace, History, 0.f, &InOutMotionMatchingState.PoseIndicesHistory, InOutMotionMatchingState.CurrentSearchResult, PoseJumpThresholdTime, bForceInterrupt);
+	FSearchContext SearchContext(AnimInstance, History, TConstArrayView<const UAnimationAsset*>(), &TrajectoryRootSpace, 0.f,
+		&InOutMotionMatchingState.PoseIndicesHistory, InOutMotionMatchingState.CurrentSearchResult, PoseJumpThresholdTime, bForceInterrupt);
 
 	const bool bCanAdvance = InOutMotionMatchingState.CurrentSearchResult.CanAdvance(DeltaTime);
 
@@ -537,7 +538,7 @@ void UPoseSearchLibrary::MotionMatch(
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 		}
 
-		FSearchContext SearchContext(AnimInstance, &TrajectoryRootSpace, ExtendedPoseHistory.IsInitialized() ? &ExtendedPoseHistory : nullptr, TimeToFutureAnimationStart);
+		FSearchContext SearchContext(AnimInstance, ExtendedPoseHistory.IsInitialized() ? &ExtendedPoseHistory : nullptr, TConstArrayView<const UAnimationAsset*>(), &TrajectoryRootSpace, TimeToFutureAnimationStart);
 
 		FSearchResult SearchResult = Database->Search(SearchContext);
 		if (SearchResult.IsValid())
@@ -561,13 +562,13 @@ void UPoseSearchLibrary::MotionMatch(
 			FAnimInstanceProxy* AnimInstanceProxy = UAnimInstanceProxyProvider::GetAnimInstanceProxy(AnimInstance);
 			if (CVarAnimMotionMatchDrawMatchEnable.GetValueOnAnyThread())
 			{
-				UE::PoseSearch::FDebugDrawParams DrawParams(AnimInstanceProxy, AnimInstanceProxy->GetComponentTransform(), SearchResult.Database.Get());
+				FDebugDrawParams DrawParams(AnimInstanceProxy, AnimInstanceProxy->GetComponentTransform(), SearchResult.Database.Get());
 				DrawParams.DrawFeatureVector(SearchResult.PoseIdx);
 			}
 
 			if (CVarAnimMotionMatchDrawQueryEnable.GetValueOnAnyThread())
 			{
-				UE::PoseSearch::FDebugDrawParams DrawParams(AnimInstanceProxy, AnimInstanceProxy->GetComponentTransform(), SearchResult.Database.Get(), EDebugDrawFlags::DrawQuery);
+				FDebugDrawParams DrawParams(AnimInstanceProxy, AnimInstanceProxy->GetComponentTransform(), SearchResult.Database.Get(), EDebugDrawFlags::DrawQuery);
 				DrawParams.DrawFeatureVector(SearchContext.GetOrBuildQuery(SearchResult.Database->Schema).GetValues());
 			}
 		}
@@ -581,15 +582,40 @@ void UPoseSearchLibrary::MotionMatch(
 	}
 }
 
-UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBaseContext& Context, const UObject* Object)
+UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBaseContext& Context, TConstArrayView<UAnimationAsset*> AnimationAssets)
 {
-	//using namespace UE::Anim;
 	using namespace UE::PoseSearch;
 
 	FSearchResult SearchResult;
 
-	// @todo: we currently support only animation assets, but in the future we should support choosers and proxy (via some common interface)
-	if (const UAnimSequenceBase* SequenceBase = Cast<const UAnimSequenceBase>(Object))
+	// budgeting some stack allocations for simple use cases. bigger requests of AnimationAssets contining 
+	// UAnimNotifyState_PoseSearchBranchIn referencing multiple datbases will default to slower heap allocations
+	enum { MAX_STACK_ALLOCATED_ANIMATIONS = 16 };
+	enum { MAX_STACK_ALLOCATED_SETS = 2 };
+	typedef	TArray<const UAnimationAsset*, TInlineAllocator<MAX_STACK_ALLOCATED_ANIMATIONS>> TDbAnims;
+	typedef TMap<const UPoseSearchDatabase*, TDbAnims, TInlineSetAllocator<MAX_STACK_ALLOCATED_SETS>> FPerDbAnimMap;
+	typedef TPair<const UPoseSearchDatabase*, TDbAnims> FPerDbAnimPair;
+	FPerDbAnimMap PerDbAnimMap;
+	
+	// colecting all the UAnimSequenceBase to consider for each database
+	for (const UAnimationAsset* AnimationAsset : AnimationAssets)
+	{
+		if (const UAnimSequenceBase* SequenceBase = Cast<const UAnimSequenceBase>(AnimationAsset))
+		{
+			for (const FAnimNotifyEvent& NotifyEvent : SequenceBase->Notifies)
+			{
+				if (const UAnimNotifyState_PoseSearchBranchIn* PoseSearchBranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(NotifyEvent.NotifyStateClass))
+				{
+					if (PoseSearchBranchIn->Database)
+					{
+						PerDbAnimMap.FindOrAdd(PoseSearchBranchIn->Database).AddUnique(SequenceBase);
+					}
+				}
+			}
+		}
+	}
+
+	if (!PerDbAnimMap.IsEmpty())
 	{
 		const IPoseHistory* History = nullptr;
 		if (IPoseHistoryProvider* PoseHistoryProvider = Context.GetMessage<IPoseHistoryProvider>())
@@ -601,37 +627,17 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 		check(AnimInstance);
 
 		FMemMark Mark(FMemStack::Get());
-		FSearchContext SearchContext(AnimInstance, nullptr, History);
-		for (const FAnimNotifyEvent& NotifyEvent : SequenceBase->Notifies)
+		FSearchContext SearchContext(AnimInstance, History);
+
+		for (const FPerDbAnimPair& PerDbAnimPair : PerDbAnimMap)
 		{
-			if (const UAnimNotifyState_PoseSearchBranchIn* PoseSearchBranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(NotifyEvent.NotifyStateClass))
+			SearchContext.SetAnimationsToConsider(PerDbAnimPair.Value);
+
+			const FSearchResult NewSearchResult = PerDbAnimPair.Key->Search(SearchContext);
+			if (NewSearchResult.PoseCost.GetTotalCost() < SearchResult.PoseCost.GetTotalCost())
 			{
-				if (PoseSearchBranchIn->Database)
-				{
-#if ENABLE_ANIM_DEBUG
-					// @todo: implement database filtering based on subsets of Database->AnimationAssets!
-					//		  FSearchContext should hold a list of UAnimationAsset(s) to use to narrow down the database search,
-					//		  but for now we log an error
-					for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < PoseSearchBranchIn->Database->AnimationAssets.Num(); ++AnimationAssetIndex)
-					{
-						if (const FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = PoseSearchBranchIn->Database->GetAnimationAssetBase(AnimationAssetIndex))
-						{
-							if (AnimationAssetBase->GetAnimationAsset() != Object)
-							{
-								UE_LOG(LogPoseSearch, Error, TEXT("UAnimNotifyState_PoseSearchBranchIn doesn't yet support database between multiple animation assets"));
-							}
-						}
-					}
-#endif // ENABLE_ANIM_DEBUG
-
-					const FSearchResult NewSearchResult = PoseSearchBranchIn->Database->Search(SearchContext);
-
-					if (NewSearchResult.PoseCost.GetTotalCost() < SearchResult.PoseCost.GetTotalCost())
-					{
-						SearchResult = NewSearchResult;
-						SearchContext.UpdateCurrentBestCost(SearchResult.PoseCost);
-					}
-				}
+				SearchResult = NewSearchResult;
+				SearchContext.UpdateCurrentBestCost(SearchResult.PoseCost);
 			}
 		}
 
@@ -640,13 +646,13 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 		{
 			if (CVarAnimMotionMatchDrawMatchEnable.GetValueOnAnyThread())
 			{
-				UE::PoseSearch::FDebugDrawParams DrawParams(Context.AnimInstanceProxy, Context.AnimInstanceProxy->GetComponentTransform(), SearchResult.Database.Get());
+				FDebugDrawParams DrawParams(Context.AnimInstanceProxy, Context.AnimInstanceProxy->GetComponentTransform(), SearchResult.Database.Get());
 				DrawParams.DrawFeatureVector(SearchResult.PoseIdx);
 			}
 
 			if (CVarAnimMotionMatchDrawQueryEnable.GetValueOnAnyThread())
 			{
-				UE::PoseSearch::FDebugDrawParams DrawParams(Context.AnimInstanceProxy, Context.AnimInstanceProxy->GetComponentTransform(), SearchResult.Database.Get(), EDebugDrawFlags::DrawQuery);
+				FDebugDrawParams DrawParams(Context.AnimInstanceProxy, Context.AnimInstanceProxy->GetComponentTransform(), SearchResult.Database.Get(), EDebugDrawFlags::DrawQuery);
 				DrawParams.DrawFeatureVector(SearchContext.GetOrBuildQuery(SearchResult.Database->Schema).GetValues());
 			}
 		}

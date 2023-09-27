@@ -24,7 +24,7 @@ public:
 	
 	struct FSearchResult
 	{
-		int32 PoseIdx = INDEX_NONE;
+		UAnimationAsset* AnimationAsset = nullptr;
 		float TimeOffsetSeconds = 0.f;
 		float Dissimilarity = MAX_flt;
 	};
@@ -33,11 +33,11 @@ public:
 	* Finds a matching pose in the input Object given the current graph context
 	* 
 	* @param	GraphContext	Graph execution context used to construct a pose search query
-	* @param	Object			The object to search for the pose query
+	* @param	AnimationAssets	The animation assets to search for the pose query
 	* 
-	* @return	The pose in the animation asset that most closely matches the query
+	* @return	The pose in the AnimationAssets that most closely matches the query
 	*/
-	virtual FSearchResult Search(const FAnimationBaseContext& GraphContext, const UObject* Object) = 0;
+	virtual FSearchResult Search(const FAnimationBaseContext& GraphContext, TConstArrayView<UAnimationAsset*> AnimationAssets) = 0;
 };
 
 } // namespace UE::Anim

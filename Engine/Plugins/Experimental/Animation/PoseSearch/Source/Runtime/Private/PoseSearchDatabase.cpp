@@ -39,6 +39,28 @@ static TAutoConsoleVariable<bool> CVarMotionMatchCompareAgainstBruteForce(TEXT("
 static TAutoConsoleVariable<bool> CVarMotionMatchValidateKNNSearch(TEXT("a.MotionMatch.ValidateKNNSearch"), false, TEXT("Validate KNN search"));
 #endif
 
+typedef TArray<int32, TInlineAllocator<256>> FSelectableAssetIdx;
+static void PopulateSelectableAssetIdx(FSelectableAssetIdx& SelectableAssetIdx, TConstArrayView<const UAnimationAsset*> AnimationsToConsider, const UPoseSearchDatabase* Database)
+{
+	check(Database);
+	SelectableAssetIdx.Reset();
+	if (!AnimationsToConsider.IsEmpty())
+	{
+		const FSearchIndex& SearchIndex = Database->GetSearchIndex();
+
+		for (int32 AssetIndex = 0; AssetIndex < SearchIndex.Assets.Num(); ++AssetIndex)
+		{
+			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(SearchIndex.Assets[AssetIndex]))
+			{
+				if (AnimationsToConsider.Contains(DatabaseAnimationAssetBase->GetAnimationAsset()))
+				{
+					SelectableAssetIdx.Add(AssetIndex);
+				}
+			}
+		}
+	}
+}
+
 typedef TArray<int32, TInlineAllocator<256>> FNonSelectableIdx;
 static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearchContext& SearchContext, const UPoseSearchDatabase* Database
 #if UE_POSE_SEARCH_TRACE_ENABLED
@@ -155,10 +177,8 @@ static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearc
 
 struct FSearchFilters
 {
-	FSearchFilters(const UPoseSearchSchema* Schema, TConstArrayView<int32> NonSelectableIdx, bool bAnyBlockTransition)
+	FSearchFilters(const UPoseSearchSchema* Schema, TConstArrayView<int32> NonSelectableIdx, TConstArrayView<int32> SelectableAssetIdx, bool bAnyBlockTransition)
 	{
-		NonSelectableIdxFilter.NonSelectableIdx = NonSelectableIdx;
-
 		if (bAnyBlockTransition)
 		{
 			Filters.Add(&BlockTransitionFilter);
@@ -167,6 +187,11 @@ struct FSearchFilters
 		if (NonSelectableIdxFilter.Init(NonSelectableIdx).IsFilterActive())
 		{
 			Filters.Add(&NonSelectableIdxFilter);
+		}
+
+		if (SelectableAssetIdxFilter.Init(SelectableAssetIdx).IsFilterActive())
+		{
+			Filters.Add(&SelectableAssetIdxFilter);
 		}
 
 		for (const IPoseSearchFilter* Filter : Schema->GetChannels())
@@ -192,6 +217,11 @@ struct FSearchFilters
 				if (Filter == &NonSelectableIdxFilter)
 				{
 					// candidate already added to SearchContext.BestCandidates by PopulateNonSelectableIdx
+				}
+				else if (Filter == &SelectableAssetIdxFilter)
+				{
+					const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
+					SearchContext.BestCandidates.Add(PoseCost, PoseIdx, Database, EPoseCandidateFlags::DiscardedBy_AssetIdxFilter);
 				}
 				else if (Filter == &BlockTransitionFilter)
 				{
@@ -233,6 +263,28 @@ private:
 		TConstArrayView<int32> NonSelectableIdx;
 	};
 
+	struct FSelectableAssetIdxFilter : public IPoseSearchFilter
+	{
+		const FSelectableAssetIdxFilter& Init(TConstArrayView<int32> InSelectableAssetIdxFilter)
+		{
+			check(Algo::IsSorted(InSelectableAssetIdxFilter));
+			SelectableAssetIdxFilter = InSelectableAssetIdxFilter;
+			return *this;
+		}
+
+		virtual bool IsFilterActive() const override
+		{
+			return !SelectableAssetIdxFilter.IsEmpty();
+		}
+
+		virtual bool IsFilterValid(TConstArrayView<float> PoseValues, TConstArrayView<float> QueryValues, int32 PoseIdx, const FPoseMetadata& Metadata) const override
+		{
+			return Algo::BinarySearch(SelectableAssetIdxFilter, int32(Metadata.GetAssetIndex())) != INDEX_NONE;
+		}
+
+		TConstArrayView<int32> SelectableAssetIdxFilter;
+	};
+
 	struct FBlockTransitionFilter : public IPoseSearchFilter
 	{
 		virtual bool IsFilterActive() const override
@@ -247,6 +299,7 @@ private:
 	};
 
 	FNonSelectableIdxFilter NonSelectableIdxFilter;
+	FSelectableAssetIdxFilter SelectableAssetIdxFilter;
 	FBlockTransitionFilter BlockTransitionFilter;
 
 	TArray<const IPoseSearchFilter*, TInlineAllocator<64>> Filters;
@@ -943,6 +996,9 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 	
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema).GetValues();
 
+		FSelectableAssetIdx SelectableAssetIdx;
+		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAnimationsToConsider(), this);
+
 		FNonSelectableIdx NonSelectableIdx;
 		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this
 #if UE_POSE_SEARCH_TRACE_ENABLED
@@ -1009,7 +1065,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 #endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
 
 		// NonSelectableIdx are already filtered out inside the kdtree search
-		const FSearchFilters SearchFilters(Schema, bRunNonSelectableIdxPostKDTree ? NonSelectableIdx : TConstArrayView<int32>(), SearchIndex.bAnyBlockTransition);
+		const FSearchFilters SearchFilters(Schema, bRunNonSelectableIdxPostKDTree ? NonSelectableIdx : TConstArrayView<int32>(), SelectableAssetIdx, SearchIndex.bAnyBlockTransition);
 		
 		// are the PCAValues pruned out of duplicates (multiple poses are associated with the same PCAValuesVectorIdx)
 		if (bArePCAValuesPruned)
@@ -1108,6 +1164,9 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchVPTree(UE::PoseSearch::
 	{
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema).GetValues();
 
+		FSelectableAssetIdx SelectableAssetIdx;
+		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAnimationsToConsider(), this);
+
 		// @todo: implement filtering within the VPTree as KDTree does
 		FNonSelectableIdx NonSelectableIdx;
 		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this
@@ -1119,7 +1178,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchVPTree(UE::PoseSearch::
 		const int32 NumDimensions = Schema->SchemaCardinality;
 		check(QueryValues.Num() == NumDimensions);
 		
-		const FSearchFilters SearchFilters(Schema, NonSelectableIdx, SearchIndex.bAnyBlockTransition);
+		const FSearchFilters SearchFilters(Schema, NonSelectableIdx, SelectableAssetIdx, SearchIndex.bAnyBlockTransition);
 
 		// @todo: implement a FVPTreeDataSource for aligned and padded features vector like CompareAlignedPoses does 
 		FVPTreeDataSource DataSource(SearchIndex);
@@ -1192,6 +1251,9 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchBruteForce(UE::PoseSear
 	{
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema).GetValues();
 
+		FSelectableAssetIdx SelectableAssetIdx;
+		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAnimationsToConsider(), this);
+
 		FNonSelectableIdx NonSelectableIdx;
 		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this
 #if UE_POSE_SEARCH_TRACE_ENABLED
@@ -1200,7 +1262,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchBruteForce(UE::PoseSear
 		);
 
 		const int32 NumDimensions = Schema->SchemaCardinality;
-		const FSearchFilters SearchFilters(Schema, NonSelectableIdx, SearchIndex.bAnyBlockTransition);
+		const FSearchFilters SearchFilters(Schema, NonSelectableIdx, SelectableAssetIdx, SearchIndex.bAnyBlockTransition);
 		const bool bUpdateBestCandidates = PoseSearchMode == EPoseSearchMode::BruteForce;
 
 		// do we need to reconstruct pose values?

@@ -163,7 +163,6 @@ public:
 		float TimeToFutureAnimationStart = 0.f,
 		const int32 DebugSessionUniqueIdentifier = 6174);
 
-
-	static UE::PoseSearch::FSearchResult MotionMatch(const FAnimationBaseContext& Context, const UObject* Object);
+	static UE::PoseSearch::FSearchResult MotionMatch(const FAnimationBaseContext& Context, TConstArrayView<UAnimationAsset*> AnimationAssets);
 };
 
