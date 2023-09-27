@@ -61,7 +61,7 @@ struct FActorInstanceHandle
 	T* FetchActor() const;
 
 	AActor* GetCachedActor() const { return Actor.Get(); }
-	void SetCachedActor(AActor* InActor) const;
+	ENGINE_API void SetCachedActor(AActor* InActor) const;
 
 	/* Returns the index used internally by the manager */
 	FORCEINLINE int32 GetInstanceIndex() const { return InstanceIndex; }
