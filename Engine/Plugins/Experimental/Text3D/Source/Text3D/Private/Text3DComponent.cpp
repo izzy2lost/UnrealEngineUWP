@@ -473,9 +473,6 @@ bool UText3DComponent::AllocateGlyphs(int32 Num)
 			const FName CharacterKerningComponentName = MakeUniqueObjectName(this, USceneComponent::StaticClass(), FName(*FString::Printf(TEXT("CharacterKerning%d"), GlyphId)));
 			USceneComponent* CharacterKerningComponent = NewObject<USceneComponent>(this, CharacterKerningComponentName, RF_Transient);
 			
-#if WITH_EDITOR
-			CharacterKerningComponent->SetIsVisualizationComponent(true);
-#endif
 			CharacterKerningComponent->AttachToComponent(TextRoot, FAttachmentTransformRules::KeepRelativeTransform);
 			CharacterKerningComponent->RegisterComponent();
 			CharacterKernings.Add(CharacterKerningComponent);
