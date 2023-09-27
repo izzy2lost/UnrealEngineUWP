@@ -430,6 +430,7 @@ void FGroomCustomAssetEditorToolkit::InitCustomAssetEditor(const EToolkitMode::T
 
 	ViewportTab = SNew(SGroomEditorViewport);
 	ThumbnailPool = MakeShared<FAssetThumbnailPool>(64);
+	GroomEditorStyle = MakeShareable(new FGroomEditorStyle());
 
 	// Automatically affect the first skelal mesh compatible with the groom asset
 	#if 0
@@ -982,6 +983,11 @@ void FGroomCustomAssetEditorToolkit::PreviewBinding(int32 BindingIndex)
 int32 FGroomCustomAssetEditorToolkit::GetActiveBindingIndex() const
 {
 	return ActiveGroomBindingIndex;
+}
+
+FGroomEditorStyle* FGroomCustomAssetEditorToolkit::GetSlateStyle() const 
+{ 
+	return GroomEditorStyle.Get();
 }
 
 #undef LOCTEXT_NAMESPACE

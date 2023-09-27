@@ -63,6 +63,7 @@
 #include "IPropertyUtilities.h"
 
 #include "Styling/AppStyle.h"
+#include "GroomEditorStyle.h"
 
 #define LOCTEXT_NAMESPACE "GroomRenderingDetails"
 
@@ -1526,6 +1527,16 @@ void FGroomRenderingDetails::OnGenerateElementForHairGroup(TSharedRef<IPropertyH
 						}
 					);
 
+					const FSlateBrush* Brush = nullptr;
+					if (const ISlateStyle* AppStyle = Toolkit->GetSlateStyle())
+					{
+						Brush = AppStyle->GetBrush("GroomEditor.GroomCardGenerator");
+					}
+					else
+					{
+						Brush = FAppStyle::GetBrush("ContentBrowser.AssetActions.ReimportAsset");
+					}
+
 					TSharedRef<SHorizontalBox> ProceduralGenButtons = SNew(SHorizontalBox).Visibility(ProceduralPropertyVisibility);
 					if (bHasProceduralGenerationPlugin)
 					{
@@ -1541,10 +1552,7 @@ void FGroomRenderingDetails::OnGenerateElementForHairGroup(TSharedRef<IPropertyH
 									.OnClicked(this, &FGroomRenderingDetails::OnGenerateCardDataUsingPlugin, GroupIndex)
 									[
 										SNew(SImage)
-											// @TODO: Need a specialized icon for this?
-											.Image(FAppStyle::GetBrush("ContentBrowser.AssetActions.ReimportAsset"))
-											.RenderTransform(FSlateRenderTransform(FQuat2D(FMath::DegreesToRadians(90.0f))))
-											.RenderTransformPivot(FVector2D(0.5f, 0.5f))
+											.Image(Brush)
 									]
 							];
 					}
