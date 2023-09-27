@@ -998,8 +998,7 @@ void UMovieScenePropertyInstantiatorSystem::InitializeBlendPath(const FPropertyP
 		if (!Params.PropertyInfo->HierarchicalMetaData.bBlendHierarchicalBias)
 		{
 			// Make sure that the hierarchical blend target component does not exist if it no longer has one
-			Mutation.RemoveMask.Set(BuiltInComponents->HierarchicalBlendTarget);
-			Mutation.RemoveMask.Set(BuiltInComponents->HierarchicalEasingChannel);
+			Mutation.AddMask.Set(BuiltInComponents->Tags.RemoveHierarchicalBlendTarget);
 		}
 
 		for (; ContributorIt; ++ContributorIt)
@@ -1032,8 +1031,7 @@ void UMovieScenePropertyInstantiatorSystem::InitializeBlendPath(const FPropertyP
 	if (!Params.PropertyInfo->HierarchicalMetaData.bBlendHierarchicalBias)
 	{
 		// Make sure that the hierarchical blend target component does not exist if it no longer has one
-		InputMutation.RemoveMask.Set(BuiltInComponents->HierarchicalBlendTarget);
-		InputMutation.RemoveMask.Set(BuiltInComponents->HierarchicalEasingChannel);
+		InputMutation.AddMask.Set(BuiltInComponents->Tags.RemoveHierarchicalBlendTarget);
 	}
 	for (FComponentTypeID Component : Params.PropertyDefinition->MetaDataTypes)
 	{

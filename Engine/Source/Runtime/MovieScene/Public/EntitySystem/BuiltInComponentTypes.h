@@ -658,6 +658,8 @@ public:
 
 		FComponentTypeID DontOptimizeConstants;
 
+		FComponentTypeID RemoveHierarchicalBlendTarget;
+
 	} Tags;
 
 	struct

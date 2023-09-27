@@ -311,6 +311,7 @@ struct FEasingChannelMutationBase : IMovieSceneConditionalEntityMutation
 		if (StaleEntities.Num())
 		{
 			FComponentMask ComponentsToRemove;
+			ComponentsToRemove.Set(BuiltInComponents->HierarchicalBlendTarget);
 			ComponentsToRemove.Set(BuiltInComponents->HierarchicalEasingChannel);
 			ComponentsToRemove.Set(BuiltInComponents->WeightAndEasingResult);
 
@@ -426,12 +427,13 @@ struct FConsumerEasingChannelMutation : FEasingChannelMutationBase
 		TOptionalComponentWriter<uint16>                   ExistingEasingChannels = Allocation->TryWriteComponents(BuiltInComponents->HierarchicalEasingChannel, FEntityAllocationWriteContext::NewAllocation());
 		TOptionalComponentReader<FHierarchicalBlendTarget> BlendTargets           = Allocation->TryReadComponents(BuiltInComponents->HierarchicalBlendTarget);
 
+		const bool bRemoveBlendTarget = Allocation->HasComponent(BuiltInComponents->Tags.RemoveHierarchicalBlendTarget);
 		const bool bHasExistingEasing = ExistingEasingChannels.IsValid();
 
 		// Loop through each entity and check whether it has easing.
 		// If so, either assign the new easing channel or mark it for mutation.
 		// If not, mark it for removal
-		if (BlendTargets)
+		if (BlendTargets && !bRemoveBlendTarget)
 		{
 			check(CachedHierarchicalBlendTargetChannels);
 			TOptionalComponentReader<int16> HierarchicalBias = Allocation->TryReadComponents(BuiltInComponents->HierarchicalBias);
@@ -1004,6 +1006,12 @@ void UMovieSceneHierarchicalEasingInstantiatorSystem::FinalizeBlendTargets()
 
 		ensure(bChannelsHaveBeenInvalidated || !ConsumerMutation.HasStaleComponents());
 		ConsumerMutation.RemoveStaleComponents(Linker);
+	}
+
+	if (Linker->EntityManager.ContainsComponent(BuiltInComponents->Tags.RemoveHierarchicalBlendTarget))
+	{
+		FRemoveSingleMutation RemoveTag(BuiltInComponents->Tags.RemoveHierarchicalBlendTarget);
+		Linker->EntityManager.MutateAll(FEntityComponentFilter().All({ BuiltInComponents->Tags.RemoveHierarchicalBlendTarget }), RemoveTag);
 	}
 }
 
