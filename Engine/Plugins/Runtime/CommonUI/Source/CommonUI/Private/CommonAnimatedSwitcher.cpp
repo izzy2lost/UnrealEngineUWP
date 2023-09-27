@@ -104,6 +104,7 @@ void UCommonAnimatedSwitcher::HandleSlateActiveIndexChanged(int32 ActiveIndex)
 	if (Slots.IsValidIndex(ActiveWidgetIndex))
 	{
 		OnActiveWidgetIndexChanged.Broadcast(GetWidgetAtIndex(ActiveWidgetIndex), ActiveWidgetIndex);
+		OnActiveWidgetIndexChangedBP.Broadcast(GetWidgetAtIndex(ActiveWidgetIndex), ActiveWidgetIndex);
 	}
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
