@@ -881,6 +881,7 @@ public:
 	FNaniteVisibilityResults() = default;
 
 	bool IsRasterBinVisible(uint16 BinIndex) const;
+	bool IsShadingBinVisible(uint16 BinIndex) const;
 	bool IsShadingDrawVisible(uint32 DrawId) const;
 
 	void Invalidate();
@@ -899,6 +900,12 @@ public:
 	{
 		OutNumTotal = TotalRasterBins;
 		OutNumVisible = IsRasterTestValid() ? VisibleRasterBins : OutNumTotal;
+	}
+
+	FORCEINLINE void GetShadingBinStats(uint32& OutNumVisible, uint32& OutNumTotal) const
+	{
+		OutNumTotal = TotalShadingBins;
+		OutNumVisible = IsShadingTestValid() ? VisibleShadingBins : OutNumTotal;
 	}
 
 	FORCEINLINE void GetShadingDrawStats(uint32& OutNumVisible, uint32& OutNumTotal) const
@@ -924,12 +931,15 @@ public:
 
 private:
 	TBitArray<> RasterBinVisibility;
+	TBitArray<> ShadingBinVisibility;
 	TArray<uint32> ShadingDrawVisibility;
 	TSet<uint32> VisibleCustomDepthPrimitives;
 	FNaniteRasterBinIndexTranslator BinIndexTranslator;
 	uint32 TotalRasterBins		= 0;
+	uint32 TotalShadingBins		= 0;
 	uint32 TotalShadingDraws	= 0;
 	uint32 VisibleRasterBins	= 0;
+	uint32 VisibleShadingBins	= 0;
 	uint32 VisibleShadingDraws	= 0;
 	bool bRasterTestValid		= false;
 	bool bShadingTestValid		= false;
@@ -940,20 +950,27 @@ class FNaniteVisibility
 	friend class FNaniteVisibilityTask;
 
 public:
-	struct FPrimitiveBins
+	struct FRasterBin
 	{
 		uint16 Primary = 0xFFFFu;
 		uint16 Secondary = 0xFFFFu;
 	};
 
-	using PrimitiveBinsType = TArray<FPrimitiveBins, TInlineAllocator<1>>;
-	using PrimitiveDrawType = TArray<uint32, TInlineAllocator<1>>;
+	struct FShadingBin
+	{
+		uint16 Primary = 0xFFFFu;
+	};
+
+	using PrimitiveRasterBinType   = TArray<FRasterBin, TInlineAllocator<1>>;
+	using PrimitiveShadingBinType  = TArray<FShadingBin, TInlineAllocator<1>>;
+	using PrimitiveShadingDrawType = TArray<uint32, TInlineAllocator<1>>;
 
 	struct FPrimitiveReferences
 	{
 		const FPrimitiveSceneInfo* SceneInfo = nullptr;
-		PrimitiveBinsType RasterBins;
-		PrimitiveDrawType ShadingDraws;
+		PrimitiveRasterBinType   RasterBins;
+		PrimitiveShadingBinType  ShadingBins;
+		PrimitiveShadingDrawType ShadingDraws;
 		bool bWritesCustomDepthStencil = false;
 	};
 
@@ -969,13 +986,16 @@ public:
 		FScene& Scene,
 		const TConstArrayView<FConvexVolume>& ViewList,
 		const class FNaniteRasterPipelines* RasterPipelines,
+		const class FNaniteShadingPipelines* ShadingPipelines,
 		const class FNaniteMaterialCommands* MaterialCommands = nullptr
 	);
 
 	void FinishVisibilityQuery(FNaniteVisibilityQuery* Query, FNaniteVisibilityResults& OutResults);
 
-	PrimitiveBinsType* GetRasterBinReferences(const FPrimitiveSceneInfo* SceneInfo);
-	PrimitiveDrawType* GetShadingDrawReferences(const FPrimitiveSceneInfo* SceneInfo);
+	PrimitiveRasterBinType*   GetRasterBinReferences(const FPrimitiveSceneInfo* SceneInfo);
+	PrimitiveShadingBinType*  GetShadingBinReferences(const FPrimitiveSceneInfo* SceneInfo);
+	PrimitiveShadingDrawType* GetShadingDrawReferences(const FPrimitiveSceneInfo* SceneInfo);
+
 	void RemoveReferences(const FPrimitiveSceneInfo* SceneInfo);
 
 private:

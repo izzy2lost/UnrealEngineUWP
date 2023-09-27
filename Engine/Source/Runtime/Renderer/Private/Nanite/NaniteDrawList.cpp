@@ -224,7 +224,8 @@ void FNaniteDrawListContext::Apply(FScene& Scene)
 			FNaniteCommandInfo CommandInfo = ShadingCommands.Register(Command.MeshDrawCommand, Command.CommandHash, InstructionCount, Command.bWPOEnabled);
 			AddShadingCommand(*PrimitiveSceneInfo, CommandInfo, ENaniteMeshPass::Type(MeshPass), Command.SectionIndex);
 
-			if (FNaniteVisibility::PrimitiveDrawType* ShadingDraws = Visibility.GetShadingDrawReferences(PrimitiveSceneInfo))
+			FNaniteVisibility::PrimitiveShadingDrawType* ShadingDraws = !bUseComputeMaterials ? Visibility.GetShadingDrawReferences(PrimitiveSceneInfo) : nullptr;
+			if (ShadingDraws)
 			{
 				ShadingDraws->Add(Command.CommandHash.AsUInt());
 			}
@@ -233,7 +234,8 @@ void FNaniteDrawListContext::Apply(FScene& Scene)
 		for (const FDeferredPipelines& PipelinesCommand : DeferredPipelines[MeshPass])
 		{
 			FPrimitiveSceneInfo* PrimitiveSceneInfo = PipelinesCommand.PrimitiveSceneInfo;
-			FNaniteVisibility::PrimitiveBinsType* RasterBins = Visibility.GetRasterBinReferences(PrimitiveSceneInfo);
+			FNaniteVisibility::PrimitiveRasterBinType*  RasterBins  = Visibility.GetRasterBinReferences(PrimitiveSceneInfo);
+			FNaniteVisibility::PrimitiveShadingBinType* ShadingBins = bUseComputeMaterials ? Visibility.GetShadingBinReferences(PrimitiveSceneInfo) : nullptr;
 
 			check(!bUseComputeMaterials || (PipelinesCommand.RasterPipelines.Num() == PipelinesCommand.ShadingPipelines.Num()));
 			const int32 MaterialSectionCount = PipelinesCommand.RasterPipelines.Num();
@@ -256,7 +258,7 @@ void FNaniteDrawListContext::Apply(FScene& Scene)
 
 					if (RasterBins)
 					{
-						RasterBins->Add(FNaniteVisibility::FPrimitiveBins{ PrimaryRasterBin.BinIndex, SecondaryRasterBin.BinIndex });
+						RasterBins->Add(FNaniteVisibility::FRasterBin{ PrimaryRasterBin.BinIndex, SecondaryRasterBin.BinIndex });
 					}
 				}
 
@@ -266,6 +268,11 @@ void FNaniteDrawListContext::Apply(FScene& Scene)
 					const FNaniteShadingPipeline& ShadingPipeline = PipelinesCommand.ShadingPipelines[MaterialSectionIndex];
 					const FNaniteShadingBin ShadingBin = ShadingPipelines.Register(ShadingPipeline);
 					AddShadingBin(*PrimitiveSceneInfo, ShadingBin, ENaniteMeshPass::Type(MeshPass), uint8(MaterialSectionIndex));
+
+					if (ShadingBins)
+					{
+						ShadingBins->Add(FNaniteVisibility::FShadingBin{ ShadingBin.BinIndex });
+					}
 				}
 			}
 
