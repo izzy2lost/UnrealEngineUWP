@@ -174,13 +174,7 @@ void UPoseSearchLibrary::TraceMotionMatchingState(
 
 	const int32 CurrentPoseIdx = bSearch && CurrentResult.PoseCost.IsValid() ? CurrentResult.PoseIdx : INDEX_NONE;
 	FTraceMotionMatchingState TraceState;
-
-	for (const UPoseSearchDatabase* SearchedDatabase : SearchContext.BestCandidates.GetSearchedDatabases())
-	{
-		AddUniqueDatabase(TraceState.DatabaseEntries, SearchedDatabase, SearchContext);
-	}
-
-	while (!SearchContext.BestCandidates.IsEmpty())
+	while (!SearchContext.BestCandidates.IsEmpty()) 
 	{
 		FSearchContext::FPoseCandidate PoseCandidate;
 		SearchContext.BestCandidates.Pop(PoseCandidate);
@@ -194,6 +188,8 @@ void UPoseSearchLibrary::TraceMotionMatchingState(
 		PoseEntry.PoseCandidateFlags = PoseCandidate.PoseCandidateFlags;
 		if (CurrentPoseIdx == PoseCandidate.PoseIdx && CurrentResult.Database.Get() == PoseCandidate.Database)
 		{
+			check(EnumHasAnyFlags(PoseEntry.PoseCandidateFlags, EPoseCandidateFlags::Valid_Pose | EPoseCandidateFlags::Valid_ContinuingPose));
+
 			EnumAddFlags(PoseEntry.PoseCandidateFlags, EPoseCandidateFlags::Valid_CurrentPose);
 			
 			TraceState.CurrentDbEntryIdx = DbEntryIdx;
