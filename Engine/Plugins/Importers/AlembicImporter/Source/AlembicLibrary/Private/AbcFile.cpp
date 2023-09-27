@@ -584,7 +584,7 @@ bool FAbcFile::ProcessFrames(TFunctionRef<void(int32, FAbcFile*)> InCallback, co
 				return false;
 			}
 
-			ReadFrame(FrameIndex, InFlags, 0);		
+			ReadFrame(FrameIndex, InFlags, 0);
 			InCallback(FrameIndex, this);
 			CleanupFrameData(0);
 		}

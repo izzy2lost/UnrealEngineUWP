@@ -62,8 +62,6 @@ struct FCompressedAbcData
 	TArray<TArray<float>> CurveValues;
 	/** Contains the time key values for each individual base */
 	TArray<TArray<float>> TimeValues;
-	/** Material names used for retrieving created materials */
-	TArray<FString> MaterialNames;
 };
 
 /** Mesh section used for chunking the mesh data during Skeletal mesh building */
@@ -179,14 +177,15 @@ private:
 	* @param Name - Name for the static mesh
 	* @param Flags - Object flags
 	* @param NumMaterials - Number of materials to add
-	* @param FaceSetNames - Face set names used for retrieving the materials
-	* @param MeshDescription - The MeshDescription from which the static mesh should be constructed
+	* @param UniqueFaceSetNames - The array of unique face set (material slot) names for merged mesh
+	* @param LookupMaterialSlot - Mapping from faceset index (in flattened list) to material slot
+	* @param Sample - The FAbcMeshSample from which the static mesh should be constructed
 	* @return UStaticMesh*
 	*/
-	UStaticMesh* CreateStaticMeshFromSample(UObject* InParent, const FString& Name, EObjectFlags Flags, const uint32 NumMaterials, const TArray<FString>& FaceSetNames, const FAbcMeshSample* Sample);
+	UStaticMesh* CreateStaticMeshFromSample(UObject* InParent, const FString& Name, EObjectFlags Flags, const TArray<FString>& UniqueFaceSetNames, const TArray<int32>& LookupMaterialSlot, const FAbcMeshSample* Sample);
 
 	/** Generates and populate a FMeshDescription instance from the given sample*/
-	void GenerateMeshDescriptionFromSample(const FAbcMeshSample* Sample, FMeshDescription* MeshDescription, UStaticMesh* StaticMesh);
+	void GenerateMeshDescriptionFromSample(const TArray<FString>& UniqueFaceSetNames, const TArray<int32>& LookupMaterialSlot, const FAbcMeshSample* Sample, FMeshDescription* MeshDescription);
 	
 	/** Compresses the imported animation data, returns true if compression was successful and compressed data was populated */
 	const bool CompressAnimationDataUsingPCA(const FAbcCompressionSettings& InCompressionSettings, const bool bRunComparison = false);	
@@ -198,7 +197,9 @@ private:
 	void CompareCompressionResult(const TArray64<float>& OriginalMatrix, const uint32 NumSamples, const uint32 NumUsedSingularValues, const TArrayView64<float>& OutU, const TArray64<float>& OutV, const float Tolerance);
 	
 	/** Build a skeletal mesh from the PCA compressed data */
-	bool BuildSkeletalMesh(FSkeletalMeshLODModel& LODModel, const FReferenceSkeleton& RefSkeleton, FAbcMeshSample* Sample, TArray<int32>& OutMorphTargetVertexRemapping, TArray<int32>& OutUsedVertexIndicesForMorphs);
+	bool BuildSkeletalMesh(FSkeletalMeshLODModel& LODModel, const FReferenceSkeleton& RefSkeleton, FAbcMeshSample* Sample, 
+		int32 NumMaterialSlots, const TArray<int32> LookupMaterialSlot, 
+		TArray<int32>& OutMorphTargetVertexRemapping, TArray<int32>& OutUsedVertexIndicesForMorphs);
 	
 	/** Generate morph target vertices from the PCA compressed bases */
 	void GenerateMorphTargetVertices(FAbcMeshSample* BaseSample, TArray<FMorphTargetDelta> &MorphDeltas, FAbcMeshSample* AverageSample, uint32 WedgeOffset, const TArray<int32>& RemapIndices, const TArray<int32>& UsedVertexIndicesForMorphs, const uint32 VertexOffset, const uint32 IndexOffset);
