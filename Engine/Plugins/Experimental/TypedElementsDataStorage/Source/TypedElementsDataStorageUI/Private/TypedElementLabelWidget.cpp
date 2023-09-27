@@ -75,7 +75,6 @@ void UTypedElementLabelWidgetFactory::RegisterQueries(ITypedElementDataStorageIn
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
-	
 
 	TypedElementQueryHandle UpdateLabelWidget = DataStorage.RegisterQuery(
 		Select()
@@ -131,9 +130,7 @@ void UTypedElementLabelWidgetFactory::RegisterWidgetConstructors(ITypedElementDa
 	using namespace TypedElementQueryBuilder;
 
 	DataStorageUi.RegisterWidgetFactory<FTypedElementLabelWidgetConstructor>(FName(TEXT("General.Cell")), 
-		FColumn<FTypedElementLabelColumn>());
-	DataStorageUi.RegisterWidgetFactory<FTypedElementLabelWithHashTooltipWidgetConstructor>(FName(TEXT("General.Cell")),
-		FColumn<FTypedElementLabelColumn>() && FColumn<FTypedElementLabelHashColumn>());
+		FColumn<FTypedElementLabelColumn>() || (FColumn<FTypedElementLabelColumn>() && FColumn<FTypedElementLabelHashColumn>()));
 }
 
 
@@ -228,7 +225,7 @@ TSharedPtr<SWidget> FTypedElementLabelWidgetConstructor::Construct(
 bool FTypedElementLabelWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row)
 {
 	DataStorage->GetColumn<FTypedElementU64IntValueCacheColumn>(Row)->Value = 0;
-	DataStorage->AddOrGetColumn<FTypedElementLabelWidgetColumn>(Row)->bShowHashInTooltip = false;
+	DataStorage->AddOrGetColumn<FTypedElementLabelWidgetColumn>(Row)->bShowHashInTooltip = (MatchedColumnTypes.Num() == 2);
 	return true;
 }
 
@@ -242,39 +239,7 @@ bool FTypedElementLabelWidgetConstructor::FinalizeWidget(
 		DataStorage, 
 		DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row,
 		*DataStorage->GetColumn<FTypedElementU64IntValueCacheColumn>(Row),
-		Widget, false);
-	return true;
-}
-
-
-
-//
-// FTypedElementLabelWithHashTooltipWidgetConstructor
-//
-
-FTypedElementLabelWithHashTooltipWidgetConstructor::FTypedElementLabelWithHashTooltipWidgetConstructor()
-	: Super(FTypedElementLabelWithHashTooltipWidgetConstructor::StaticStruct())
-{
-}
-
-bool FTypedElementLabelWithHashTooltipWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row)
-{
-	DataStorage->GetColumn<FTypedElementU64IntValueCacheColumn>(Row)->Value = 0;
-	DataStorage->AddOrGetColumn<FTypedElementLabelWidgetColumn>(Row)->bShowHashInTooltip = true;
-	return true;
-}
-
-bool FTypedElementLabelWithHashTooltipWidgetConstructor::FinalizeWidget(
-	ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi,
-	TypedElementRowHandle Row,
-	const TSharedPtr<SWidget>& Widget)
-{
-	SyncColumnsToWidget(
-		DataStorage,
-		DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row,
-		*DataStorage->GetColumn<FTypedElementU64IntValueCacheColumn>(Row),
-		Widget, true);
+		Widget, MatchedColumnTypes.Num() == 2);
 	return true;
 }
 

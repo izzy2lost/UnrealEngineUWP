@@ -79,18 +79,8 @@ private:
 	bool CreateSingleWidgetConstructor(
 		const FWidgetFactory::ConstructorType& Constructor,
 		const TypedElementDataStorage::FMetaDataView& Arguments,
-		TConstArrayView<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes,
+		TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes,
 		const WidgetConstructorCallback& Callback);
-
-	void CreateWidgetInstanceFromDescription(
-		const UScriptStruct* Target,
-		const TypedElementDataStorage::FMetaDataView& Arguments,
-		const WidgetCreatedCallback& ConstructionCallback);
-
-	void CreateWidgetInstanceFromInstance(
-		FTypedElementWidgetConstructor* SourceConstructor,
-		const TypedElementDataStorage::FMetaDataView& Arguments,
-		const WidgetCreatedCallback& ConstructionCallback);
 
 	void CreateWidgetInstance(
 		FTypedElementWidgetConstructor& Constructor,

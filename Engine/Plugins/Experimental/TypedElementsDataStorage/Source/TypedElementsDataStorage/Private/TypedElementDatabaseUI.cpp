@@ -332,13 +332,24 @@ void UTypedElementDatabaseUi::ConstructWidgets(FName Purpose, const TypedElement
 		{
 			std::visit(Internal::TOverloaded
 				{
-					[this, &Arguments, &ConstructionCallback](const UScriptStruct* Constructor)
+					[this, &Arguments, &ConstructionCallback](const UScriptStruct* ConstructorType)
 					{ 
-						CreateWidgetInstanceFromDescription(Constructor, Arguments, ConstructionCallback); 
+						FTypedElementWidgetConstructor* Constructor = reinterpret_cast<FTypedElementWidgetConstructor*>(
+							FMemory_Alloca_Aligned(ConstructorType->GetStructureSize(), ConstructorType->GetMinAlignment()));
+						if (Constructor)
+						{
+							ConstructorType->InitializeStruct(Constructor);
+							CreateWidgetInstance(*Constructor, Arguments, ConstructionCallback);
+							ConstructorType->DestroyStruct(&Constructor);
+						}
+						else
+						{
+							checkf(false, TEXT("Remaining stack space is too small to create a Typed Elements widget constructor from a description."));
+						}
 					},
 					[this, &Arguments, &ConstructionCallback](const TUniquePtr<FTypedElementWidgetConstructor>& Constructor)
 					{
-						CreateWidgetInstanceFromInstance(Constructor.Get(), Arguments, ConstructionCallback);
+						CreateWidgetInstance(*Constructor, Arguments, ConstructionCallback);
 					}
 				}, Factory.Constructor);
 		}
@@ -348,7 +359,7 @@ void UTypedElementDatabaseUi::ConstructWidgets(FName Purpose, const TypedElement
 bool UTypedElementDatabaseUi::CreateSingleWidgetConstructor(
 	const FWidgetFactory::ConstructorType& Constructor,
 	const TypedElementDataStorage::FMetaDataView& Arguments,
-	TConstArrayView<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes, 
+	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes, 
 	const WidgetConstructorCallback& Callback)
 {
 	return std::visit(Internal::TOverloaded
@@ -360,7 +371,8 @@ bool UTypedElementDatabaseUi::CreateSingleWidgetConstructor(
 				if (Result)
 				{
 					Target->InitializeStruct(Result.Get());
-					return Callback(MoveTemp(Result), MatchedColumnTypes);
+					Result->Initialize(Arguments, MoveTemp(MatchedColumnTypes));
+					return Callback(MoveTemp(Result), Result->GetMatchedColumns());
 				}
 				return true;
 			},
@@ -374,59 +386,12 @@ bool UTypedElementDatabaseUi::CreateSingleWidgetConstructor(
 				{
 					TargetType->InitializeStruct(Result.Get());
 					TargetType->CopyScriptStruct(Result.Get(), Target.Get());
-					return Callback(MoveTemp(Result), MatchedColumnTypes);
+					Result->Initialize(Arguments, MoveTemp(MatchedColumnTypes));
+					return Callback(MoveTemp(Result), Result->GetMatchedColumns());
 				}
 				return true;
 			}
 		}, Constructor);
-}
-
-void UTypedElementDatabaseUi::CreateWidgetInstanceFromDescription(
-	const UScriptStruct* Target,
-	const TypedElementDataStorage::FMetaDataView& Arguments,
-	const WidgetCreatedCallback& ConstructionCallback)
-{
-	FTypedElementWidgetConstructor* Constructor = reinterpret_cast<FTypedElementWidgetConstructor*>(
-		FMemory_Alloca_Aligned(Target->GetStructureSize(), Target->GetMinAlignment()));
-	if (Constructor)
-	{
-		Target->InitializeStruct(Constructor);
-		CreateWidgetInstance(*Constructor, Arguments, ConstructionCallback);
-		Target->DestroyStruct(&Constructor);
-	}
-	else
-	{
-		checkf(false, TEXT("Remaining stack space is too small to create a Typed Elements widget constructor from a description."));
-	}
-}
-
-void UTypedElementDatabaseUi::CreateWidgetInstanceFromInstance(
-	FTypedElementWidgetConstructor* SourceConstructor,
-	const TypedElementDataStorage::FMetaDataView& Arguments,
-	const WidgetCreatedCallback& ConstructionCallback)
-{
-	if (SourceConstructor->CanBeReused())
-	{
-		CreateWidgetInstance(*SourceConstructor, Arguments, ConstructionCallback);
-	}
-	else
-	{
-		const UScriptStruct* Target = SourceConstructor->GetTypeInfo();
-		checkf(Target, TEXT("Expected valid type information from a widget constructor."));
-		FTypedElementWidgetConstructor* Constructor = reinterpret_cast<FTypedElementWidgetConstructor*>(
-			FMemory_Alloca_Aligned(Target->GetStructureSize(), Target->GetMinAlignment()));
-		if (Constructor)
-		{
-			Target->InitializeStruct(Constructor);
-			Target->CopyScriptStruct(Constructor, SourceConstructor);
-			CreateWidgetInstance(*Constructor, Arguments, ConstructionCallback);
-			Target->DestroyStruct(&Constructor);
-		}
-		else
-		{
-			checkf(false, TEXT("Remaining stack space is too small to create a Typed Elements widget constructor from an instance."));
-		}
-	}
 }
 
 void UTypedElementDatabaseUi::CreateWidgetInstance(
@@ -450,30 +415,7 @@ void UTypedElementDatabaseUi::CreateWidgetInstance(
 TSharedPtr<SWidget> UTypedElementDatabaseUi::ConstructWidget(TypedElementRowHandle Row, FTypedElementWidgetConstructor& Constructor,
 	const TypedElementDataStorage::FMetaDataView& Arguments)
 {
-	if (Constructor.CanBeReused())
-	{
-		return Constructor.Construct(Row, Storage, this, Arguments);
-	}
-	else
-	{
-		const UScriptStruct* Target = Constructor.GetTypeInfo();
-		FTypedElementWidgetConstructor* ConstructorCopy = reinterpret_cast<FTypedElementWidgetConstructor*>(
-			FMemory_Alloca_Aligned(Target->GetStructureSize(), Target->GetMinAlignment()));
-		if (ConstructorCopy)
-		{
-			Target->InitializeStruct(ConstructorCopy);
-			Target->CopyScriptStruct(ConstructorCopy, &Constructor);
-			TSharedPtr<SWidget> Widget = ConstructorCopy->Construct(Row, Storage, this, Arguments);
-			Target->DestroyStruct(&ConstructorCopy);
-			return Widget;
-		}
-		else
-		{
-			checkf(false, TEXT("Remaining stack space is too small to create a Typed Elements widget constructor from an instance."));
-			return nullptr;
-		}
-		return nullptr;
-	}
+	return Constructor.Construct(Row, Storage, this, Arguments);
 }
 
 void UTypedElementDatabaseUi::ListWidgetPurposes(const WidgetPurposeCallback& Callback) const
@@ -500,7 +442,6 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_LongestMatch(const TArray
 	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumns;
 	for (auto FactoryIt = WidgetFactories.CreateConstIterator(); FactoryIt && !Columns.IsEmpty(); ++FactoryIt)
 	{
-		int32 MatchingIndex = INDEX_NONE;
 		if (FactoryIt->Columns.MinimumColumnMatchRequired() > Columns.Num())
 		{
 			// There are more columns required for this factory than there are in the requested columns list so skip this
@@ -514,27 +455,29 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_LongestMatch(const TArray
 		{
 			// Remove the found columns from the requested list.
 			Algo::SortBy(MatchedColumns, [](const TWeakObjectPtr<const UScriptStruct>& Column) { return Column.Get(); });
-			TConstArrayView<TWeakObjectPtr<const UScriptStruct>> CleanMatchedColumns(MatchedColumns.GetData(), Algo::Unique(MatchedColumns));
-
+			MatchedColumns.SetNum(Algo::Unique(MatchedColumns), false);
+			
 			TWeakObjectPtr<const UScriptStruct>* ColumnsIt = Columns.GetData();
 			TWeakObjectPtr<const UScriptStruct>* ColumnsEnd = ColumnsIt + Columns.Num();
 			int32 ColumnIndex = 0;
-			for (const TWeakObjectPtr<const UScriptStruct>& MatchedColumn : CleanMatchedColumns)
+			for (const TWeakObjectPtr<const UScriptStruct>& MatchedColumn : MatchedColumns)
 			{
+				// Remove all the columns that were matched from the provided column list.
 				while (*ColumnsIt != MatchedColumn)
 				{
 					++ColumnIndex;
 					++ColumnsIt;
 					if (ColumnsIt == ColumnsEnd)
 					{
-						ensureMsgf(false, TEXT("A previous found matching column can't be found in the original array."));
+						ensureMsgf(false, TEXT("A previously found matching column can't be found in the original array."));
 						return;
 					}
 				}
-				Columns.RemoveAt(ColumnIndex);
+				Columns.RemoveAt(ColumnIndex, 1, false /* Allow shrinking */);
+				--ColumnsEnd;
 			}
 			
-			if (!CreateSingleWidgetConstructor(FactoryIt->Constructor, Arguments, CleanMatchedColumns, Callback))
+			if (!CreateSingleWidgetConstructor(FactoryIt->Constructor, Arguments, MoveTemp(MatchedColumns), Callback))
 			{
 				return;
 			}
@@ -562,29 +505,11 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_ExactMatch(const TArray<F
 		if (Factory.Columns.Verify(MatchedColumns, Columns, true))
 		{
 			Algo::SortBy(MatchedColumns, [](const TWeakObjectPtr<const UScriptStruct>& Column) { return Column.Get(); });
-			TWeakObjectPtr<const UScriptStruct>* MatchedColumnsIt = MatchedColumns.GetData();
-			TWeakObjectPtr<const UScriptStruct>* MatchedColumnsEnd = MatchedColumnsIt + MatchedColumns.Num();
-			bool bFullyMatched = true;
-			for (TWeakObjectPtr<const UScriptStruct> Column : Columns)
-			{
-				while (*MatchedColumnsIt != Column)
-				{
-					if (++MatchedColumnsIt == MatchedColumnsEnd)
-					{
-						bFullyMatched = false;
-						break;
-					}
-				}
-				if (!bFullyMatched)
-				{
-					break;
-				}
-			}
-
-			if (bFullyMatched)
+			MatchedColumns.SetNum(Algo::Unique(MatchedColumns), false);
+			if (MatchedColumns.Num() == Columns.Num())
 			{
 				Columns.Reset();
-				CreateSingleWidgetConstructor(Factory.Constructor, Arguments, MatchedColumns, Callback);
+				CreateSingleWidgetConstructor(Factory.Constructor, Arguments, MoveTemp(MatchedColumns), Callback);
 				return;
 			}
 		}
@@ -618,7 +543,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_SingleMatch(const TArray<
 			if (ColumnData[0] == Columns[ColumnIndex])
 			{
 				Columns.RemoveAt(ColumnIndex);
-				CreateSingleWidgetConstructor((*FactoryIt).Constructor, Arguments, ColumnData, Callback);
+				CreateSingleWidgetConstructor((*FactoryIt).Constructor, Arguments, TArray<TWeakObjectPtr<const UScriptStruct>>(ColumnData), Callback);
 				// Match was found so move on to the next column in the column.
 				break;
 			}

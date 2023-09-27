@@ -11,30 +11,30 @@
 #include "TypedElementLabelWidget.generated.h"
 
 UCLASS()
-class TYPEDELEMENTSDATASTORAGEUI_API UTypedElementLabelWidgetFactory : public UTypedElementDataStorageFactory
+class UTypedElementLabelWidgetFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	~UTypedElementLabelWidgetFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const override;
-	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
+	TYPEDELEMENTSDATASTORAGEUI_API void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const override;
+	TYPEDELEMENTSDATASTORAGEUI_API void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
 };
 
 USTRUCT()
-struct TYPEDELEMENTSDATASTORAGEUI_API FTypedElementLabelWidgetConstructor : public FTypedElementWidgetConstructor
+struct FTypedElementLabelWidgetConstructor : public FTypedElementWidgetConstructor
 {
 	GENERATED_BODY()
 
 public:
-	FTypedElementLabelWidgetConstructor();
+	TYPEDELEMENTSDATASTORAGEUI_API FTypedElementLabelWidgetConstructor();
 	~FTypedElementLabelWidgetConstructor() override = default;
 
-	TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
+	TYPEDELEMENTSDATASTORAGEUI_API TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
 
-	TSharedPtr<SWidget> Construct(
+	TYPEDELEMENTSDATASTORAGEUI_API TSharedPtr<SWidget> Construct(
 		TypedElementRowHandle Row, 
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
@@ -47,25 +47,10 @@ protected:
 		TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget) override;
 };
 
-USTRUCT()
-struct TYPEDELEMENTSDATASTORAGEUI_API FTypedElementLabelWithHashTooltipWidgetConstructor : public FTypedElementLabelWidgetConstructor
-{
-	GENERATED_BODY()
-
-public:
-	FTypedElementLabelWithHashTooltipWidgetConstructor();
-	~FTypedElementLabelWithHashTooltipWidgetConstructor() = default;
-
-protected:
-	bool SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row) override;
-	bool FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
-		TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget) override;
-};
-
 USTRUCT(meta = (DisplayName = "Label widget"))
-struct TYPEDELEMENTSDATASTORAGEUI_API FTypedElementLabelWidgetColumn : public FTypedElementDataStorageColumn
+struct FTypedElementLabelWidgetColumn : public FTypedElementDataStorageColumn
 {
 	GENERATED_BODY()
 
-	bool bShowHashInTooltip : 1{ false };
+	bool bShowHashInTooltip { false };
 };

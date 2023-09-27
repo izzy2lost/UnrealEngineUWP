@@ -9,19 +9,26 @@ FTypedElementWidgetConstructor::FTypedElementWidgetConstructor(const UScriptStru
 {
 }
 
+bool FTypedElementWidgetConstructor::Initialize(const TypedElementDataStorage::FMetaDataView& InArguments,
+	TArray<TWeakObjectPtr<const UScriptStruct>> InMatchedColumnTypes)
+{
+	MatchedColumnTypes = MoveTemp(InMatchedColumnTypes);
+	return true;
+}
+
 const UScriptStruct* FTypedElementWidgetConstructor::GetTypeInfo() const
 {
 	return TypeInfo;
 }
 
+const TArray<TWeakObjectPtr<const UScriptStruct>>& FTypedElementWidgetConstructor::GetMatchedColumns() const
+{
+	return MatchedColumnTypes;
+}
+
 TConstArrayView<const UScriptStruct*> FTypedElementWidgetConstructor::GetAdditionalColumnsList() const
 {
 	return {};
-}
-
-bool FTypedElementWidgetConstructor::CanBeReused() const
-{
-	return true;
 }
 
 TSharedPtr<SWidget> FTypedElementWidgetConstructor::Construct(

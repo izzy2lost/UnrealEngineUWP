@@ -29,19 +29,17 @@ public:
 
 	virtual ~FTypedElementWidgetConstructor() = default;
 
+	/** Initializes a new constructor based on the provided arguments.. */
+	TYPEDELEMENTFRAMEWORK_API virtual bool Initialize(const TypedElementDataStorage::FMetaDataView& InArguments,
+		TArray<TWeakObjectPtr<const UScriptStruct>> InMatchedColumnTypes);
+
 	/** Retrieves the type information for the constructor type. */
 	TYPEDELEMENTFRAMEWORK_API virtual const UScriptStruct* GetTypeInfo() const;
+	/** Retrieves the columns, if any, that were matched to this constructor when it was created. */
+	TYPEDELEMENTFRAMEWORK_API virtual const TArray<TWeakObjectPtr<const UScriptStruct>>& GetMatchedColumns() const;
 
-	/** Returns a list of additional columns the widget requires. */
+	/** Returns a list of additional columns the widget requires to be added to its rows. */
 	TYPEDELEMENTFRAMEWORK_API virtual TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const;
-
-	/** 
-	 * Whether or not an instance of this constructor can be reused. Setting this to true means that the Data Storage will
-	 * avoid recreating new instances of the constructor and instead keeps reusing the created version. The default is
-	 * 'false'. Override this function and set it to true if there's no internal state that could interfere with creating
-	 * multiple widgets from the same constructor, e.g. data stored from passed in arguments.
-	 */
-	TYPEDELEMENTFRAMEWORK_API virtual bool CanBeReused() const;
 
 	/**
 	 * Constructs the widget according to the provided information. Information is collected by calling
@@ -70,6 +68,7 @@ protected:
 		TypedElementRowHandle Row,
 		const TSharedPtr<SWidget>& Widget);
 
+	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes;
 	const UScriptStruct* TypeInfo{ nullptr };
 };
 
@@ -189,12 +188,18 @@ public:
 	virtual bool RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor, 
 		TypedElementQueryBuilder::FQueryConditions Columns) = 0;
 	
-	/** Creates widget constructors for the requested purpose. */
+	/** 
+	 * Creates widget constructors for the requested purpose.
+	 * The provided arguments will be used to configure the constructor. Settings made this way will be applied to all
+	 * widgets created from the constructor, if applicable.
+	 */
 	virtual void CreateWidgetConstructors(FName Purpose, 
 		const TypedElementDataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback) = 0;
 	/** 
 	 * Finds matching widget constructors for provided columns, preferring longer matches over shorter matches.
 	 * The provided list of columns will be updated to contain all columns that couldn't be matched.
+	 * The provided arguments will be used to configure the constructor. Settings made this way will be applied to all
+	 * widgets created from the constructor, if applicable.
 	 */
 	virtual void CreateWidgetConstructors(FName Purpose, EMatchApproach MatchApproach, TArray<TWeakObjectPtr<const UScriptStruct>>& Columns,
 		const TypedElementDataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback) = 0;
@@ -207,7 +212,11 @@ public:
 	virtual void ConstructWidgets(FName Purpose, const TypedElementDataStorage::FMetaDataView& Arguments,
 		const WidgetCreatedCallback& ConstructionCallback) = 0;
 
-	/** Creates a single widget using the provided constructor. Arguments can optionally be used to intialize the constructor. */
+	/** 
+	 * Creates a single widget using the provided constructor. 
+	 * The provided row will be used to store the widget information on. If columns have already been added to the row, the 
+	 * constructor is free to use that to configure the widget. Arguments are used by the constructor to configure the widget.
+	 */
 	virtual TSharedPtr<SWidget> ConstructWidget(TypedElementRowHandle Row, FTypedElementWidgetConstructor& Constructor,
 		const TypedElementDataStorage::FMetaDataView& Arguments) = 0;
 
