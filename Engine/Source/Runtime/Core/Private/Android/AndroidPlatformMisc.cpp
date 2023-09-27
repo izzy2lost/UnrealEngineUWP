@@ -122,6 +122,7 @@ FString FAndroidMisc::DeviceMake; // make of the device we are running on eg. "s
 FString FAndroidMisc::DeviceModel; // model of the device we are running on eg "SAMSUNG-SGH-I437"
 FString FAndroidMisc::DeviceBuildNumber; // platform image build number of device "R16NW.G960NKSU1ARD6"
 FString FAndroidMisc::OSLanguage; // language code the device is set to eg "deu"
+FString FAndroidMisc::ProductName; // product/marketing name of the device, if available.
 
 // Build/API level we are running.
 int32 FAndroidMisc::AndroidBuildVersion = 0;
@@ -1696,7 +1697,7 @@ bool FAndroidMisc::FileExistsInPlatformPackage(const FString& RelativePath)
 	return false;
 }
 
-void FAndroidMisc::SetVersionInfo( FString InAndroidVersion, int32 InTargetSDKVersion, FString InDeviceMake, FString InDeviceModel, FString InDeviceBuildNumber, FString InOSLanguage )
+void FAndroidMisc::SetVersionInfo( FString InAndroidVersion, int32 InTargetSDKVersion, FString InDeviceMake, FString InDeviceModel, FString InDeviceBuildNumber, FString InOSLanguage, FString InProductName)
 {
 	AndroidVersion = InAndroidVersion;
 	AndroidMajorVersion = FCString::Atoi(*InAndroidVersion);
@@ -1705,8 +1706,8 @@ void FAndroidMisc::SetVersionInfo( FString InAndroidVersion, int32 InTargetSDKVe
 	DeviceModel = InDeviceModel;
 	DeviceBuildNumber = InDeviceBuildNumber;
 	OSLanguage = InOSLanguage;
-
-	UE_LOG(LogAndroid, Display, TEXT("Android Version Make Model BuildNumber Language: %s %s %s %s %s"), *AndroidVersion, *DeviceMake, *DeviceModel, *DeviceBuildNumber, *OSLanguage);
+	ProductName = InProductName;
+	UE_LOG(LogAndroid, Display, TEXT("Android Version: %s, Make: %s, Model: %s, BuildNumber: %s, Language: %s, Product name: %s"), *AndroidVersion, *DeviceMake, *DeviceModel, *DeviceBuildNumber, *OSLanguage, ProductName.IsEmpty() ? TEXT("[not set]") : *ProductName);
 }
 
 const FString FAndroidMisc::GetAndroidVersion()
@@ -1742,6 +1743,11 @@ const FString FAndroidMisc::GetDeviceBuildNumber()
 const FString FAndroidMisc::GetOSLanguage()
 {
 	return OSLanguage;
+}
+
+const FString FAndroidMisc::GetProductName()
+{
+	return ProductName;
 }
 
 const FString FAndroidMisc::GetProjectVersion() {

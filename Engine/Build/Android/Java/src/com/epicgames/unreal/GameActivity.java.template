@@ -638,6 +638,16 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		return (resourceId < 1) ? DefaultString : getString(resourceId);
 	}
 
+	private String getProductName()
+	{
+		String ProductName = Settings.Global.getString(getContentResolver(), "default_device_name");
+		if(ProductName == null)
+		{
+			ProductName="";
+		}
+		return ProductName;
+	}
+
     public static List<String> getInstalledPackages(final Context context)
     {
         List<String> result = new ArrayList<>();
@@ -2963,14 +2973,16 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		boolean bDebuggerAttached = android.os.Debug.isDebuggerConnected();
 		nativeSetAndroidStartupState(bDebuggerAttached);
 
+		String productName = getProductName();
 		Log.debug( "Android version is " + android.os.Build.VERSION.RELEASE );
 		Log.debug( "Android manufacturer is " + android.os.Build.MANUFACTURER );
 		Log.debug( "Android model is " + android.os.Build.MODEL );
 		Log.debug( "Android build number is " + android.os.Build.DISPLAY );
 		Log.debug( "OS language is set to " + Language );
+		Log.debug( "Product name is " + (productName.isEmpty() ? "[not set]" : productName) );
 		Log.debug( "Debugger attached is " + bDebuggerAttached );
 
-		nativeSetAndroidVersionInformation( android.os.Build.VERSION.RELEASE, targetSdkVersion, android.os.Build.MANUFACTURER, android.os.Build.MODEL, android.os.Build.DISPLAY, Language );
+		nativeSetAndroidVersionInformation( android.os.Build.VERSION.RELEASE, targetSdkVersion, android.os.Build.MANUFACTURER, android.os.Build.MODEL, android.os.Build.DISPLAY, Language, productName );
 		int PatchVersion = 0;
 		if (VersionCode > 0)
 		{
@@ -6978,7 +6990,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	public native void nativeSetObbFilePaths(String OBBMainFilePath, String OBBPatchFilePath, String OBBOverflow1FilePath, String OBBOverflow2FilePath);
 	public native void nativeSetWindowInfo(boolean bIsPortrait, int DepthBufferPreference, int PropagateAlpha);
 	public native void nativeSetObbInfo(String ProjectName, String PackageName, int Version, int PatchVersion, String AppType);
-	public native void nativeSetAndroidVersionInformation( String AndroidVersion, int TargetSDK, String PhoneMake, String PhoneModel, String PhoneBuildNumber, String OSLanguage );
+	public native void nativeSetAndroidVersionInformation( String AndroidVersion, int TargetSDK, String PhoneMake, String PhoneModel, String PhoneBuildNumber, String OSLanguage, String ProductName );
 
 	public native void nativeSetSurfaceViewInfo(int width, int height);
 	public native void nativeSetSafezoneInfo(boolean bIsPortrait, float left, float top, float right, float bottom);

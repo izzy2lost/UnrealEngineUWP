@@ -1712,15 +1712,16 @@ JNI_METHOD void Java_com_epicgames_unreal_GameActivity_nativeInitHMDs(JNIEnv* je
 	GHMDsInitialized = true;
 }
 
-JNI_METHOD void Java_com_epicgames_unreal_GameActivity_nativeSetAndroidVersionInformation(JNIEnv* jenv, jobject thiz, jstring androidVersion, jint targetSDKversion, jstring phoneMake, jstring phoneModel, jstring phoneBuildNumber, jstring osLanguage)
+JNI_METHOD void Java_com_epicgames_unreal_GameActivity_nativeSetAndroidVersionInformation(JNIEnv* jenv, jobject thiz, jstring androidVersion, jint targetSDKversion, jstring phoneMake, jstring phoneModel, jstring phoneBuildNumber, jstring osLanguage, jstring productName)
 {
 	auto UEAndroidVersion = FJavaHelper::FStringFromParam(jenv, androidVersion);
 	auto UEPhoneMake = FJavaHelper::FStringFromParam(jenv, phoneMake);
 	auto UEPhoneModel = FJavaHelper::FStringFromParam(jenv, phoneModel);
 	auto UEPhoneBuildNumber = FJavaHelper::FStringFromParam(jenv, phoneBuildNumber);
 	auto UEOSLanguage = FJavaHelper::FStringFromParam(jenv, osLanguage);
+	auto UEProductName = FJavaHelper::FStringFromParam(jenv, productName);
 
-	FAndroidMisc::SetVersionInfo(UEAndroidVersion, targetSDKversion, UEPhoneMake, UEPhoneModel, UEPhoneBuildNumber, UEOSLanguage);
+	FAndroidMisc::SetVersionInfo(UEAndroidVersion, targetSDKversion, UEPhoneMake, UEPhoneModel, UEPhoneBuildNumber, UEOSLanguage, UEProductName);
 }
 
 //This function is declared in the Java-defined class, GameActivity.java: "public native void nativeOnInitialDownloadStarted();

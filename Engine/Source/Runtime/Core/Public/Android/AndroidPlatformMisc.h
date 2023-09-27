@@ -167,13 +167,14 @@ public:
 	static CORE_API bool FileExistsInPlatformPackage(const FString& RelativePath);
 
 	// ANDROID ONLY:
-	static CORE_API void SetVersionInfo(FString AndroidVersion, int32 InTargetSDKVersion, FString DeviceMake, FString DeviceModel, FString DeviceBuildNumber, FString OSLanguage);
+	static CORE_API void SetVersionInfo(FString AndroidVersion, int32 InTargetSDKVersion, FString DeviceMake, FString DeviceModel, FString DeviceBuildNumber, FString OSLanguage, FString ProductName);
 	static CORE_API const FString GetAndroidVersion();
 	static CORE_API int32 GetAndroidMajorVersion();
 	static CORE_API int32 GetTargetSDKVersion();
 	static CORE_API const FString GetDeviceMake();
 	static CORE_API const FString GetDeviceModel();
 	static CORE_API const FString GetOSLanguage();
+	static CORE_API const FString GetProductName(); // returns the product name, if available. e.g. 'Galaxy Tab S8' or empty string.
 	static CORE_API const FString GetDeviceBuildNumber();
 	static CORE_API const FString GetProjectVersion();
 	static CORE_API FString GetDefaultLocale();
@@ -258,6 +259,7 @@ public:
 	static CORE_API FString DeviceModel; // model of the device we are running on eg "SAMSUNG-SGH-I437"
 	static CORE_API FString DeviceBuildNumber; // platform image build number of device "R16NW.G960NKSU1ARD6"
 	static CORE_API FString OSLanguage; // language code the device is set to
+	static CORE_API FString ProductName; // Product name, if available. e.g. 'Galaxy Tab S8' or empty string.
 
 	// Build version of Android, i.e. API level.
 	static CORE_API int32 AndroidBuildVersion;
