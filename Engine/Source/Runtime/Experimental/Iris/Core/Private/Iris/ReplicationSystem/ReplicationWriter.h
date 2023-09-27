@@ -15,6 +15,8 @@
 #include "Iris/ReplicationSystem/ObjectReferenceCache.h"
 #include "Iris/Stats/NetStats.h"
 #include "Containers/Array.h"
+#include "Containers/List.h"
+#include "Containers/Set.h"
 #include "Misc/EnumClassFlags.h"
 
 // Forward declaration
@@ -51,7 +53,7 @@ class FReplicationWriter
 {
 public:
 	// Scheduling constants
-	static constexpr float CreatePriority = 0.f;
+	static constexpr float CreatePriority = 1.f;
 	static constexpr float TearOffPriority = 1.f;
 	static constexpr float LostStatePriorityBump = 1.f;
 	static constexpr float SchedulingThresholdPriority = 1.f;
@@ -242,7 +244,7 @@ private:
 	{
 		FNetRefHandle Handle;
 		uint32 InternalIndex;
-		FNetObjectAttachmentsWriter::ReplicationRecord AttachmentRecord;
+		FNetObjectAttachmentsWriter::FCommitRecord AttachmentRecord;
 		ENetObjectAttachmentType AttachmentType;
 		bool bHasUnsentAttachments;
 		uint32 NewBaselineIndex : 2;
@@ -275,7 +277,7 @@ private:
 	struct FObjectRecord
 	{
 		FReplicationRecord::FRecordInfo Record;
-		FNetObjectAttachmentsWriter::ReplicationRecord AttachmentRecord;
+		FNetObjectAttachmentsWriter::FReliableReplicationRecord AttachmentRecord;
 	};
 
 	struct FBatchRecord
@@ -302,18 +304,59 @@ private:
 		FHugeObjectContext();
 		~FHugeObjectContext();
 
-		EHugeObjectSendStatus SendStatus;
-		uint32 InternalIndex;
+		FInternalNetRefIndex RootObjectInternalIndex = 0;
 		FBatchRecord BatchRecord;
 		FNetExportContext::FBatchExports BatchExports;
-		FNetTraceCollector* TraceCollector;
-		const FNetDebugName* DebugName;
-		// Cycle counter for when the huge object context went from idle to sending.
-		uint64 StartSendingTime;
-		// Cycle counter for when the last part of huge object was sent.
-		uint64 EndSendingTime;
-		// Cycle counter for when it was detected that no more parts of the huge object could be sent until some of the first parts have been acked.
-		uint64 StartStallTime;
+
+		// The entire payload. When refcount reaches one for all blobs the object has been fully acked.
+		TArray<TRefCountPtr<FNetBlob>> Blobs;
+	};
+
+	class FHugeObjectSendQueue
+	{
+	public:
+		FHugeObjectSendQueue();
+		~FHugeObjectSendQueue();
+
+		// If the queue is full we can't start another send.
+		bool IsFull() const;
+		bool IsEmpty() const;
+		uint32 NumRootObjectsInTransit() const;
+
+		// Enqueue huge object info and return true if it can be sent.
+		bool EnqueueHugeObject(const FHugeObjectContext& Context);
+
+		// Returns true if the object is a huge object root object or part of any huge object's payload. The latter is an expensive operation.
+		bool IsObjectInQueue(FInternalNetRefIndex ObjectIndex, bool bIncludeSubObjects) const;
+
+		// Best effort implementation of getting a valid index for trace.
+		FInternalNetRefIndex GetRootObjectInternalIndexForTrace() const;
+
+		// Call AckHugeObject on all objects determined to have been fully processed.
+		void AckObjects(TFunctionRef<void (const FHugeObjectContext& Context)> AckHugeObject);
+
+		void FreeContexts(TFunctionRef<void (const FHugeObjectContext& Context)> FreeHugeObject);
+
+	public:
+		// Public members
+		struct FStats
+		{
+			// Cycle counter for when the huge object context went from idle to sending.
+			uint64 StartSendingTime = 0;
+			// Cycle counter for when the last part of huge object was sent.
+			uint64 EndSendingTime = 0;
+			// Cycle counter for when it was detected that no more parts of the huge object could be sent until some of the first parts have been acked.
+			uint64 StartStallTime = 0;
+		};
+
+		FStats Stats;
+
+		FNetTraceCollector* TraceCollector = nullptr;
+		const FNetDebugName* DebugName = nullptr;
+
+	private:
+		TSet<FInternalNetRefIndex> RootObjectsInTransit;
+		TDoubleLinkedList<FHugeObjectContext> SendContexts;
 	};
 
 	enum EWriteObjectFlag : unsigned
@@ -428,14 +471,14 @@ private:
 	EWriteObjectRetryMode HandleObjectBatchFailure(EWriteObjectStatus WriteObjectStatus, const FBatchInfo& BatchInfo, const FBitStreamInfo& BatchBitStreamInfo) const;
 
 	// Update logic for dropped RecordInfo
-	void HandleDroppedRecord(const FReplicationRecord::FRecordInfo& RecordInfo, FReplicationInfo& Info, FNetObjectAttachmentsWriter::ReplicationRecord AttachmentRecord);
-	template<EReplicatedObjectState LostState> void HandleDroppedRecord(EReplicatedObjectState CurrentState, const FReplicationRecord::FRecordInfo& RecordInfo, FReplicationInfo& Info, FNetObjectAttachmentsWriter::ReplicationRecord AttachmentRecord);
+	void HandleDroppedRecord(const FReplicationRecord::FRecordInfo& RecordInfo, FReplicationInfo& Info, const FNetObjectAttachmentsWriter::FReliableReplicationRecord& AttachmentRecord);
+	template<EReplicatedObjectState LostState> void HandleDroppedRecord(EReplicatedObjectState CurrentState, const FReplicationRecord::FRecordInfo& RecordInfo, FReplicationInfo& Info, const FNetObjectAttachmentsWriter::FReliableReplicationRecord& AttachmentRecord);
 
 	// Update logic for delivered RecordInfo
-	void HandleDeliveredRecord(const FReplicationRecord::FRecordInfo& RecordInfo, FReplicationInfo& Info, FNetObjectAttachmentsWriter::ReplicationRecord AttachmentRecord);
+	void HandleDeliveredRecord(const FReplicationRecord::FRecordInfo& RecordInfo, FReplicationInfo& Info, const FNetObjectAttachmentsWriter::FReliableReplicationRecord& AttachmentRecord);
 
 	// Update logic for discarded RecordInfo, for preventing memory leaks on disconnect and shutdown.
-	void HandleDiscardedRecord(const FReplicationRecord::FRecordInfo& RecordInfo, FReplicationInfo& Info, FNetObjectAttachmentsWriter::ReplicationRecord AttachmentRecord);
+	void HandleDiscardedRecord(const FReplicationRecord::FRecordInfo& RecordInfo, FReplicationInfo& Info, const FNetObjectAttachmentsWriter::FReliableReplicationRecord& AttachmentRecord);
 
 	// Setup replication info to be able to send attachments to objects not in scope
 	void SetupReplicationInfoForAttachmentsToObjectsNotInScope();
@@ -461,10 +504,12 @@ private:
 
 	inline bool IsInitialState(const EReplicatedObjectState State) const { return State == EReplicatedObjectState::PendingCreate || (bHighPrioCreate && State == EReplicatedObjectState::WaitOnCreateConfirmation); }
 
-	bool IsActiveHugeObject(uint32 InternalIndex) const { return HugeObjectContext.InternalIndex == InternalIndex && HugeObjectContext.SendStatus != EHugeObjectSendStatus::Idle; }
+	bool IsActiveHugeObject(uint32 InternalIndex) const;
 	bool IsObjectPartOfActiveHugeObject(uint32 InternalIndex, const FReplicationInfo& Info) const;
 
-	void ClearHugeObjectContext(FHugeObjectContext& Context) const;
+	bool CanQueueHugeObject() const;
+
+	void FreeHugeObjectSendQueue();
 
 	bool HasDataToSend(const FWriteContext& Context) const;
 
@@ -521,7 +566,7 @@ private:
 
 	FWriteContext WriteContext;
 	FBitStreamInfo WriteBitStreamInfo;
-	FHugeObjectContext HugeObjectContext;
+	FHugeObjectSendQueue HugeObjectSendQueue;
 
 	// Is replication enabled?
 	bool bReplicationEnabled = false;
@@ -535,7 +580,7 @@ inline FReplicationWriter::FReplicationInfo::FReplicationInfo()
 {
 }
 
-template<FReplicationWriter::EReplicatedObjectState LostState> void FReplicationWriter::HandleDroppedRecord(FReplicationWriter::EReplicatedObjectState CurrentState, const FReplicationRecord::FRecordInfo& RecordInfo, FReplicationWriter::FReplicationInfo& Info, FNetObjectAttachmentsWriter::ReplicationRecord AttachmentRecord)
+template<FReplicationWriter::EReplicatedObjectState LostState> void FReplicationWriter::HandleDroppedRecord(FReplicationWriter::EReplicatedObjectState CurrentState, const FReplicationRecord::FRecordInfo& RecordInfo, FReplicationWriter::FReplicationInfo& Info, const FNetObjectAttachmentsWriter::FReliableReplicationRecord& AttachmentRecord)
 {
 	//static_assert(false, "Expected specialization to exist.");
 }

@@ -46,8 +46,24 @@ enum class EAttachmentWriteStatus : unsigned
 class FNetObjectAttachmentSendQueue
 {
 public:
-	typedef uint64 ReplicationRecord;
-	static constexpr uint64 InvalidReplicationRecord = uint64(0);
+	typedef FReliableNetBlobQueue::FReplicationRecord FReliableReplicationRecord;
+	
+	struct FUnreliableReplicationRecord
+	{
+		bool IsValid() const { return Record != InvalidReplicationRecord; }
+
+		static constexpr uint32 InvalidReplicationRecord = 0;
+		uint32 Record = InvalidReplicationRecord;
+	};
+
+	// Commit record contains all data to be committed after serialization is committed to, i.e. will be part of a packet intended to be sent. The ReliableReplicationRecord needs to be part of the packet replication record so that we can act on packet notifications.
+	struct FCommitRecord
+	{
+		bool IsValid() const { return UnreliableCommitRecord.IsValid() || ReliableReplicationRecord.IsValid(); }
+
+		FReliableReplicationRecord ReliableReplicationRecord;
+		FUnreliableReplicationRecord UnreliableCommitRecord;
+	};
 
 public:
 	FNetObjectAttachmentSendQueue();
@@ -65,35 +81,21 @@ public:
 
 	bool IsAllReliableSentAndAcked() const;
 
+	bool CanSendMoreReliableAttachments() const;
+
 	void SetUnreliableQueueCapacity(uint32 QueueCapacity);
 
 private:
 	friend FNetObjectAttachmentsWriter;
 	class FReliableSendQueue;
 
-	struct FInternalRecord
-	{
-		union
-		{
-			struct
-			{
-				uint32 UnreliableRecord;
-				FReliableNetBlobQueue::ReplicationRecord ReliableRecord;
-			};
-			ReplicationRecord CombinedRecord;
-		};
+	EAttachmentWriteStatus Serialize(FNetSerializationContext& Context, FNetRefHandle RefHandle, FCommitRecord& OutRecord, bool& bOutHasUnprocessedAttachments);
+	uint32 SerializeReliable(FNetSerializationContext& Context, FNetRefHandle RefHandle, FReliableReplicationRecord& OutRecord);
+	uint32 SerializeUnreliable(FNetSerializationContext& Context, FNetRefHandle RefHandle, FUnreliableReplicationRecord& OutRecord);
 
-		FInternalRecord() { CombinedRecord = InvalidReplicationRecord; };
-	};
+	void CommitReplicationRecord(const FCommitRecord& Record);
 
-	EAttachmentWriteStatus Serialize(FNetSerializationContext& Context, FNetRefHandle RefHandle, ReplicationRecord& OutRecord, bool& bOutHasUnprocessedAttachments);
-	uint32 SerializeReliable(FNetSerializationContext& Context, FNetRefHandle RefHandle, FReliableNetBlobQueue::ReplicationRecord& OutRecord);
-	uint32 SerializeUnreliable(FNetSerializationContext& Context, FNetRefHandle RefHandle, uint32& OutRecord);
-
-	void CommitReplicationRecord(ReplicationRecord Record);
-
-	void OnPacketDelivered(ReplicationRecord Record);
-	void OnPacketLost(ReplicationRecord Record);
+	void ProcessPacketDeliveryStatus(EPacketDeliveryStatus Status, const FReliableReplicationRecord& Record);
 
 	FReliableSendQueue* ReliableQueue;
 	TResizableCircularQueue<TRefCountPtr<FNetBlob>> UnreliableQueue;
@@ -103,7 +105,8 @@ private:
 class FNetObjectAttachmentsWriter
 {
 public:
-	typedef FNetObjectAttachmentSendQueue::ReplicationRecord ReplicationRecord;
+	typedef FNetObjectAttachmentSendQueue::FCommitRecord FCommitRecord;
+	typedef FNetObjectAttachmentSendQueue::FReliableReplicationRecord FReliableReplicationRecord;
 
 public:
 	bool Enqueue(ENetObjectAttachmentType Type, uint32 ObjectIndex, TArrayView<const TRefCountPtr<FNetBlob>> Attachments);
@@ -115,18 +118,20 @@ public:
 	// Whether all queued reliable attachments have been sent and acked
 	bool IsAllReliableSentAndAcked(ENetObjectAttachmentType Type, uint32 ObjectIndex) const;
 
+	// Whether more reliable attachments can be sent now. It's possible to queue up as many attachments as you see fit, but if the queue is full it can take a while before more attachments will be replicated.
+	bool CanSendMoreReliableAttachments(ENetObjectAttachmentType Type, uint32 ObjectIndex) const;
+
 	// Whether the queue can be destroyed without causing issues if more attachments are queued to this instance.
 	bool IsSafeToDestroy(ENetObjectAttachmentType Type, uint32 ObjectIndex) const;
 
 	void DropAllAttachments(ENetObjectAttachmentType Type, uint32 ObjectIndex);
 	void DropUnreliableAttachments(ENetObjectAttachmentType Type, uint32 ObjectIndex, bool& bOutHasUnsentAttachments);
 
-	EAttachmentWriteStatus Serialize(FNetSerializationContext& Context, ENetObjectAttachmentType Type, uint32 ObjectIndex, FNetRefHandle RefHandle, ReplicationRecord& OutRecord, bool& bOutHasUnsentAttachments);
+	EAttachmentWriteStatus Serialize(FNetSerializationContext& Context, ENetObjectAttachmentType Type, uint32 ObjectIndex, FNetRefHandle RefHandle, FCommitRecord& OutRecord, bool& bOutHasUnsentAttachments);
 
-	void CommitReplicationRecord(ENetObjectAttachmentType Type, uint32 ObjectIndex, ReplicationRecord Record);
+	void CommitReplicationRecord(ENetObjectAttachmentType Type, uint32 ObjectIndex, const FCommitRecord& Record);
 
-	void OnPacketDelivered(ENetObjectAttachmentType Type, uint32 ObjectIndex, ReplicationRecord Record);
-	void OnPacketLost(ENetObjectAttachmentType Type, uint32 ObjectIndex, ReplicationRecord Record);
+	void ProcessPacketDeliveryStatus(EPacketDeliveryStatus Status, ENetObjectAttachmentType Type, uint32 ObjectIndex, const FReliableReplicationRecord& Record);
 
 private:
 	bool NetBlobMightNeedSplitting(const TRefCountPtr<FNetObjectAttachment>& Attachment) const;

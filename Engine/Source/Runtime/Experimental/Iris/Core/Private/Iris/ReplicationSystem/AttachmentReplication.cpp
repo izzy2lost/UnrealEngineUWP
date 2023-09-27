@@ -66,6 +66,11 @@ public:
 		return PreQueue.Num() == 0 && ReliableQueue.IsAllSentAndAcked();
 	}
 
+	bool IsSendWindowFull() const
+	{
+		return ReliableQueue.IsSendWindowFull();
+	}
+
 	uint32 GetUnsentBlobCount() const
 	{
 		return ReliableQueue.GetUnsentBlobCount() + static_cast<uint32>(PreQueue.Num());
@@ -106,7 +111,7 @@ public:
 		return true;
 	}
 
-	uint32 Serialize(FNetSerializationContext& Context, FNetRefHandle RefHandle, FReliableNetBlobQueue::ReplicationRecord& OutRecord)
+	uint32 Serialize(FNetSerializationContext& Context, FNetRefHandle RefHandle, FReliableNetBlobQueue::FReplicationRecord& OutRecord)
 	{
 		if (RefHandle.IsValid())
 		{
@@ -118,16 +123,16 @@ public:
 		}
 	}
 
-	void ProcessPacketDeliveryStatus(EPacketDeliveryStatus Status, FReliableNetBlobQueue::ReplicationRecord Record)
+	void ProcessPacketDeliveryStatus(EPacketDeliveryStatus Status, const FReliableNetBlobQueue::FReplicationRecord& Record)
 	{
 		ReliableQueue.ProcessPacketDeliveryStatus(Status, Record);
-		if (Status == EPacketDeliveryStatus::Delivered && Record != FReliableNetBlobQueue::InvalidReplicationRecord)
+		if (Status == EPacketDeliveryStatus::Delivered && Record.IsValid())
 		{
 			PopulateQueueFromPreQueue();
 		}
 	}
 
-	void CommitReplicationRecord(FReliableNetBlobQueue::ReplicationRecord Record)
+	void CommitReplicationRecord(const FReliableNetBlobQueue::FReplicationRecord& Record)
 	{
 		ReliableQueue.CommitReplicationRecord(Record);
 	}
@@ -230,6 +235,11 @@ bool FNetObjectAttachmentSendQueue::IsAllReliableSentAndAcked() const
 	return ReliableQueue == nullptr || ReliableQueue->IsAllSentAndAcked();
 }
 
+bool FNetObjectAttachmentSendQueue::CanSendMoreReliableAttachments() const
+{
+	return ReliableQueue == nullptr || !ReliableQueue->IsSendWindowFull();
+}
+
 bool FNetObjectAttachmentSendQueue::IsSafeToDestroy() const
 {
 	return UnreliableQueue.IsEmpty() && (ReliableQueue == nullptr || ReliableQueue->IsSafeToDestroy());
@@ -251,11 +261,11 @@ void FNetObjectAttachmentSendQueue::SetUnreliableQueueCapacity(uint32 QueueCapac
 	UnreliableQueue.PopNoCheck(DropCount);
 }
 
-EAttachmentWriteStatus FNetObjectAttachmentSendQueue::Serialize(FNetSerializationContext& Context, FNetRefHandle RefHandle, FNetObjectAttachmentSendQueue::ReplicationRecord& OutRecord, bool& bOutHasUnsentAttachments)
+EAttachmentWriteStatus FNetObjectAttachmentSendQueue::Serialize(FNetSerializationContext& Context, FNetRefHandle RefHandle, FNetObjectAttachmentSendQueue::FCommitRecord& OutRecord, bool& bOutHasUnsentAttachments)
 {
 	FNetBitStreamWriter& Writer = *Context.GetBitStreamWriter();
 
-	FInternalRecord ReplicationRecord;
+	FCommitRecord ReplicationRecord;
 	// This count is the total number of unsent reliable blobs. If the reliable window is full no blobs can be sentuntil some have been acked.
 	const uint32 UnsentReliableCount = (ReliableQueue != nullptr ? ReliableQueue->GetUnsentBlobCount() : 0U);
 	const bool bCanSendReliableAttachments = UnsentReliableCount > 0 && ReliableQueue->CanSendBlobs();
@@ -264,7 +274,7 @@ EAttachmentWriteStatus FNetObjectAttachmentSendQueue::Serialize(FNetSerializatio
 	{
 		// Ideally we shouldn't get here, but we can handle it. Important to overflow to report a soft error.
 		Writer.DoOverflow();
-		OutRecord = ReplicationRecord.CombinedRecord;
+		OutRecord = ReplicationRecord;
 		bOutHasUnsentAttachments = false;
 
 		if (UnsentReliableCount > 0)
@@ -286,7 +296,7 @@ EAttachmentWriteStatus FNetObjectAttachmentSendQueue::Serialize(FNetSerializatio
 
 	if (Writer.IsOverflown())
 	{
-		OutRecord = ReplicationRecord.CombinedRecord;
+		OutRecord = ReplicationRecord;
 		bOutHasUnsentAttachments = true;
 		return EAttachmentWriteStatus::BitstreamOverflow;
 	}
@@ -295,12 +305,12 @@ EAttachmentWriteStatus FNetObjectAttachmentSendQueue::Serialize(FNetSerializatio
 	if (bCanSendReliableAttachments)
 	{
 		UE_NET_TRACE_SCOPE(Reliable, Writer, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
-		SerializedReliableCount = SerializeReliable(Context, RefHandle, ReplicationRecord.ReliableRecord);
+		SerializedReliableCount = SerializeReliable(Context, RefHandle, ReplicationRecord.ReliableReplicationRecord);
 		// If we couldn't fit any reliable attachments then don't even try unreliable
 		if (SerializedReliableCount == 0)
 		{
 			Writer.DoOverflow();
-			OutRecord = ReplicationRecord.CombinedRecord;
+			OutRecord = ReplicationRecord;
 			bOutHasUnsentAttachments = true;
 			return EAttachmentWriteStatus::BitstreamOverflow;
 		}
@@ -313,7 +323,7 @@ EAttachmentWriteStatus FNetObjectAttachmentSendQueue::Serialize(FNetSerializatio
 	if (bHasUnreliableAttachments)
 	{
 		UE_NET_TRACE_SCOPE(Unreliable, Writer, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
-		SerializedUnreliableCount = SerializeUnreliable(Context, RefHandle, ReplicationRecord.UnreliableRecord);
+		SerializedUnreliableCount = SerializeUnreliable(Context, RefHandle, ReplicationRecord.UnreliableCommitRecord);
 		if (SerializedUnreliableCount == 0)
 		{
 			// If we didn't manage to send anything then inform the caller of this via overflowing the bitstream
@@ -341,17 +351,17 @@ EAttachmentWriteStatus FNetObjectAttachmentSendQueue::Serialize(FNetSerializatio
 		}
 	}
 
-	OutRecord = ReplicationRecord.CombinedRecord;
+	OutRecord = ReplicationRecord;
 	bOutHasUnsentAttachments = (SerializedReliableCount < UnsentReliableCount) || (SerializedUnreliableCount < UnreliableQueue.Count());
 	return WriteStatus;
 }
 
-uint32 FNetObjectAttachmentSendQueue::SerializeReliable(FNetSerializationContext& Context, FNetRefHandle RefHandle, FReliableNetBlobQueue::ReplicationRecord& OutRecord)
+uint32 FNetObjectAttachmentSendQueue::SerializeReliable(FNetSerializationContext& Context, FNetRefHandle RefHandle, FReliableNetBlobQueue::FReplicationRecord& OutRecord)
 {
 	return ReliableQueue->Serialize(Context, RefHandle, OutRecord);
 }
 
-uint32 FNetObjectAttachmentSendQueue::SerializeUnreliable(FNetSerializationContext& Context, FNetRefHandle RefHandle, uint32& OutRecord)
+uint32 FNetObjectAttachmentSendQueue::SerializeUnreliable(FNetSerializationContext& Context, FNetRefHandle RefHandle, FUnreliableReplicationRecord& OutRecord)
 {
 	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
 	const FObjectReferenceCache* ObjectReferenceCache = Context.GetInternalContext()->ObjectReferenceCache;
@@ -404,47 +414,32 @@ uint32 FNetObjectAttachmentSendQueue::SerializeUnreliable(FNetSerializationConte
 			PrevHasMoreAttachmentsWritePos = HasMoreAttachmentsWritePos;
 		}
 	}
-
-	OutRecord = SerializedUnreliableCount;
+	FUnreliableReplicationRecord ReplicationRecord;
+	ReplicationRecord.Record = SerializedUnreliableCount;
+	OutRecord = ReplicationRecord;
 	return SerializedUnreliableCount;
 }
 
-void FNetObjectAttachmentSendQueue::CommitReplicationRecord(FNetObjectAttachmentSendQueue::ReplicationRecord Record)
+void FNetObjectAttachmentSendQueue::CommitReplicationRecord(const FNetObjectAttachmentSendQueue::FCommitRecord& Record)
 {
-	FInternalRecord InternalRecord;
-	InternalRecord.CombinedRecord = Record;
-	if (InternalRecord.UnreliableRecord)
+	if (Record.UnreliableCommitRecord.IsValid())
 	{
-		UnreliableQueue.PopNoCheck(InternalRecord.UnreliableRecord);
+		UnreliableQueue.PopNoCheck(Record.UnreliableCommitRecord.Record);
 	}
-	if (InternalRecord.ReliableRecord)
+	if (Record.ReliableReplicationRecord.IsValid())
 	{
-		ReliableQueue->CommitReplicationRecord(InternalRecord.ReliableRecord);
+		ReliableQueue->CommitReplicationRecord(Record.ReliableReplicationRecord);
 	}
 }
 
-void FNetObjectAttachmentSendQueue::OnPacketDelivered(FNetObjectAttachmentSendQueue::ReplicationRecord Record)
+void FNetObjectAttachmentSendQueue::ProcessPacketDeliveryStatus(EPacketDeliveryStatus Status, const FNetObjectAttachmentSendQueue::FReliableReplicationRecord& Record)
 {
 	if (ReliableQueue == nullptr)
 	{
 		return;
 	}
 
-	FInternalRecord InternalRecord;
-	InternalRecord.CombinedRecord = Record;
-	ReliableQueue->ProcessPacketDeliveryStatus(EPacketDeliveryStatus::Delivered, InternalRecord.ReliableRecord);
-}
-
-void FNetObjectAttachmentSendQueue::OnPacketLost(FNetObjectAttachmentSendQueue::ReplicationRecord Record)
-{
-	if (ReliableQueue == nullptr)
-	{
-		return;
-	}
-
-	FInternalRecord InternalRecord;
-	InternalRecord.CombinedRecord = Record;
-	ReliableQueue->ProcessPacketDeliveryStatus(EPacketDeliveryStatus::Lost, InternalRecord.ReliableRecord);
+	ReliableQueue->ProcessPacketDeliveryStatus(Status, Record);
 }
 
 bool FNetObjectAttachmentsWriter::Enqueue(ENetObjectAttachmentType Type, uint32 ObjectIndex, TArrayView<const TRefCountPtr<FNetBlob>> Attachments)
@@ -491,6 +486,17 @@ bool FNetObjectAttachmentsWriter::IsAllReliableSentAndAcked(ENetObjectAttachment
 	return Queue->IsAllSentAndAcked();
 }
 
+bool FNetObjectAttachmentsWriter::CanSendMoreReliableAttachments(ENetObjectAttachmentType Type, uint32 ObjectIndex) const
+{
+	const FNetObjectAttachmentSendQueue* Queue = GetQueue(Type, ObjectIndex);
+	if (Queue == nullptr)
+	{
+		return true;
+	}
+
+	return Queue->CanSendMoreReliableAttachments();
+}
+
 bool FNetObjectAttachmentsWriter::IsSafeToDestroy(ENetObjectAttachmentType Type, uint32 ObjectIndex) const
 {
 	const FNetObjectAttachmentSendQueue* Queue = GetQueue(Type, ObjectIndex);
@@ -523,27 +529,29 @@ void FNetObjectAttachmentsWriter::DropUnreliableAttachments(ENetObjectAttachment
 	}
 }
 
-EAttachmentWriteStatus FNetObjectAttachmentsWriter::Serialize(FNetSerializationContext& Context, ENetObjectAttachmentType Type, uint32 ObjectIndex, const FNetRefHandle RefHandle,  FNetObjectAttachmentsWriter::ReplicationRecord& OutRecord, bool& bOutHasUnsentAttachments)
+EAttachmentWriteStatus FNetObjectAttachmentsWriter::Serialize(FNetSerializationContext& Context, ENetObjectAttachmentType Type, uint32 ObjectIndex, const FNetRefHandle RefHandle,  FNetObjectAttachmentsWriter::FCommitRecord& OutRecord, bool& bOutHasUnsentAttachments)
 {
 	FNetObjectAttachmentSendQueue* Queue = GetQueue(Type, ObjectIndex);
 	// If this ensure fires we have bad logic for keeping track of whether there are attachments or not
-	if (!ensure(Queue != nullptr))
+	if (ensure(Queue != nullptr))
 	{
-		OutRecord = 0;
+		return Queue->Serialize(Context, RefHandle, OutRecord, bOutHasUnsentAttachments);
+	}
+	else
+	{
+		OutRecord = FCommitRecord();
 		bOutHasUnsentAttachments = false;
 		return EAttachmentWriteStatus::NoAttachments;
 	}
-
-	return Queue->Serialize(Context, RefHandle, OutRecord, bOutHasUnsentAttachments);
 }
 
-void FNetObjectAttachmentsWriter::CommitReplicationRecord(ENetObjectAttachmentType Type, uint32 ObjectIndex, FNetObjectAttachmentsWriter::ReplicationRecord Record)
+void FNetObjectAttachmentsWriter::CommitReplicationRecord(ENetObjectAttachmentType Type, uint32 ObjectIndex, const FNetObjectAttachmentsWriter::FCommitRecord& Record)
 {
 	FNetObjectAttachmentSendQueue* Queue = GetQueue(Type, ObjectIndex);
 	Queue->CommitReplicationRecord(Record);
 }
 
-void FNetObjectAttachmentsWriter::OnPacketDelivered(ENetObjectAttachmentType Type, uint32 ObjectIndex, FNetObjectAttachmentsWriter::ReplicationRecord Record)
+void FNetObjectAttachmentsWriter::ProcessPacketDeliveryStatus(EPacketDeliveryStatus Status, ENetObjectAttachmentType Type, uint32 ObjectIndex, const FReliableReplicationRecord& Record)
 {
 	FNetObjectAttachmentSendQueue* Queue = GetQueue(Type, ObjectIndex);
 	if (Queue == nullptr)
@@ -551,18 +559,7 @@ void FNetObjectAttachmentsWriter::OnPacketDelivered(ENetObjectAttachmentType Typ
 		return;
 	}
 
-	Queue->OnPacketDelivered(Record);
-}
-
-void FNetObjectAttachmentsWriter::OnPacketLost(ENetObjectAttachmentType Type, uint32 ObjectIndex, ReplicationRecord Record)
-{
-	FNetObjectAttachmentSendQueue* Queue = GetQueue(Type, ObjectIndex);
-	if (Queue == nullptr)
-	{
-		return;
-	}
-
-	Queue->OnPacketLost(Record);
+	Queue->ProcessPacketDeliveryStatus(Status, Record);
 }
 
 FNetObjectAttachmentSendQueue* FNetObjectAttachmentsWriter::GetQueue(ENetObjectAttachmentType Type, uint32 ObjectIndex)

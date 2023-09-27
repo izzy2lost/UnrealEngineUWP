@@ -47,18 +47,20 @@ bool FReliableNetBlobQueue::IsSafeToDestroy() const
 	return true;
 }
 
-uint32 FReliableNetBlobQueue::Serialize(FNetSerializationContext& Context, FReliableNetBlobQueue::ReplicationRecord& OutRecord)
+uint32 FReliableNetBlobQueue::Serialize(FNetSerializationContext& Context, FReliableNetBlobQueue::FReplicationRecord& OutRecord)
 {
 	FNetRefHandle InvalidNetHandle;
-	return SerializeInternal(Context, InvalidNetHandle, OutRecord, false);
+	constexpr bool bSerializeWithObject = false;
+	return SerializeInternal(Context, InvalidNetHandle, OutRecord, bSerializeWithObject);
 }
 
-uint32 FReliableNetBlobQueue::SerializeWithObject(FNetSerializationContext& Context, FNetRefHandle RefHandle, FReliableNetBlobQueue::ReplicationRecord& OutRecord)
+uint32 FReliableNetBlobQueue::SerializeWithObject(FNetSerializationContext& Context, FNetRefHandle RefHandle, FReliableNetBlobQueue::FReplicationRecord& OutRecord)
 {
-	return SerializeInternal(Context, RefHandle, OutRecord, true);
+	constexpr bool bSerializeWithObject = true;
+	return SerializeInternal(Context, RefHandle, OutRecord, bSerializeWithObject);
 }
 
-uint32 FReliableNetBlobQueue::SerializeInternal(FNetSerializationContext& Context, FNetRefHandle RefHandle, FReliableNetBlobQueue::ReplicationRecord& OutRecord, const bool bSerializeWithObject)
+uint32 FReliableNetBlobQueue::SerializeInternal(FNetSerializationContext& Context, FNetRefHandle RefHandle, FReliableNetBlobQueue::FReplicationRecord& OutRecord, const bool bSerializeWithObject)
 {
 	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
 	const FObjectReferenceCache* ObjectReferenceCache = Context.GetInternalContext()->ObjectReferenceCache;
@@ -66,9 +68,14 @@ uint32 FReliableNetBlobQueue::SerializeInternal(FNetSerializationContext& Contex
 	uint32 PrevHasMoreBlobsWritePos = 0;
 	uint32 SerializedCount = 0;
 	uint32 PrevWrittenSeq = ~0U;
-	uint32 WrittenSeq[2] = {~0U, ~0U};
-	uint32 WrittenCount[2] = {0U, 0U};
 	uint32 WrittenIndex = 0;
+	uint32 WrittenCount[MaxWriteSequenceCount] = {};
+	uint32 WrittenSeq[MaxWriteSequenceCount];
+	for (uint32& Sequence : WrittenSeq)
+	{
+		Sequence = ~0U;
+	}
+
 	for (uint32 Seq = FirstSeq, EndSeq = LastSeq; Seq < EndSeq; ++Seq)
 	{
 		const uint32 Index = SequenceToIndex(Seq);
@@ -87,7 +94,7 @@ uint32 FReliableNetBlobQueue::SerializeInternal(FNetSerializationContext& Contex
 		else if (PrevWrittenSeq + 1U != Seq)
 		{
 			++WrittenIndex;
-			// Our ReplicationRecord can't hold a lot of info.
+			// There's limited support for disjoint sequences in the replication record.
 			if (WrittenIndex >= UE_ARRAY_COUNT(WrittenCount))
 			{
 				break;
@@ -139,7 +146,6 @@ uint32 FReliableNetBlobQueue::SerializeInternal(FNetSerializationContext& Contex
 
 			++SerializedCount;
 
-			// Our ReplicationRecord currently only holds two sequences with number and count, one byte each.
 			++WrittenCount[WrittenIndex];
 			if (WrittenCount[WrittenIndex] == 255)
 			{
@@ -155,22 +161,25 @@ uint32 FReliableNetBlobQueue::SerializeInternal(FNetSerializationContext& Contex
 		}
 	}
 
-	//
-	const ReplicationRecord Record = ((WrittenSeq[0] & 255) << 24U) | ((WrittenCount[0] & 255) << 16U) | ((WrittenSeq[1] & 255) << 8U) | ((WrittenCount[1] & 255) << 0U);
-	OutRecord = (SerializedCount ? Record : FReliableNetBlobQueue::InvalidReplicationRecord);
+	// Assemble replication record
+	FReplicationRecord Record;
+	for (uint32 Index = 0; Index < MaxWriteSequenceCount; ++Index)
+	{
+		Record.Sequences[Index] = WrittenSeq[Index] & 255U;
+		Record.Counts[Index] = WrittenCount[Index] & 255U;
+	}
+	OutRecord = Record;
 
 	return SerializedCount;
 }
 
-void FReliableNetBlobQueue::CommitReplicationRecord(FReliableNetBlobQueue::ReplicationRecord Record)
+void FReliableNetBlobQueue::CommitReplicationRecord(const FReliableNetBlobQueue::FReplicationRecord& Record)
 {
-	uint32 RecordSeq[2] = {(Record >> 24U) & 255, (Record >> 8U) & 255U};
-	uint32 RecordCount[2] = {(Record >> 16U) & 255, (Record >> 0U) & 255U};
-
-	UnsentBlobCount -= RecordCount[0] + RecordCount[1];
-	for (const uint32 Index : {0U, 1U})
+	for (uint32 Index = 0, EndIndex = MaxWriteSequenceCount; Index != EndIndex; ++Index)
 	{
-		for (uint32 Seq = RecordSeq[Index], EndSeq = Seq + RecordCount[Index]; Seq != EndSeq; ++Seq)
+		const uint32 Count = Record.Counts[Index];
+		UnsentBlobCount -= Count;
+		for (uint32 Seq = Record.Sequences[Index], EndSeq = Seq + Count; Seq != EndSeq; ++Seq)
 		{
 			SetSequenceIsSent(Seq);
 		}
@@ -230,7 +239,7 @@ uint32 FReliableNetBlobQueue::DeserializeInternal(FNetSerializationContext& Cont
 		const TRefCountPtr<FNetBlob>& Blob = BlobReceiver->CreateNetBlob(CreationInfo);
 		if (!Blob.IsValid())
 		{
-			UE_LOG(LogIris, Warning, TEXT("%s"), TEXT("Unable to create blob."));
+			UE_LOG(LogIris, Warning, TEXT("%hs"), "Unable to create blob.");
 			Context.SetError(GNetError_UnsupportedNetBlob);
 
 			return DeserializedCount;
@@ -266,7 +275,7 @@ uint32 FReliableNetBlobQueue::DeserializeInternal(FNetSerializationContext& Cont
 
 bool FReliableNetBlobQueue::Enqueue(const TRefCountPtr<FNetBlob>& Blob)
 {
-	if (IsFull())
+	if (IsSendWindowFull())
 	{
 		return false;
 	}
@@ -302,7 +311,7 @@ void FReliableNetBlobQueue::Pop()
 	// $TODO. For a memory optimization one can change the storage implementation and free the memory here if everything is acked.
 }
 
-void FReliableNetBlobQueue::ProcessPacketDeliveryStatus(EPacketDeliveryStatus Status, FReliableNetBlobQueue::ReplicationRecord Record)
+void FReliableNetBlobQueue::ProcessPacketDeliveryStatus(EPacketDeliveryStatus Status, const FReliableNetBlobQueue::FReplicationRecord& Record)
 {
 	switch (Status)
 	{
@@ -316,6 +325,12 @@ void FReliableNetBlobQueue::ProcessPacketDeliveryStatus(EPacketDeliveryStatus St
 		OnPacketDropped(Record);
 		break;
 	}
+	case EPacketDeliveryStatus::Discard:
+	{
+		// Pretend that it was delivered.
+		OnPacketDelivered(Record);
+		break;
+	}
 	default:
 	{
 		break;
@@ -323,17 +338,20 @@ void FReliableNetBlobQueue::ProcessPacketDeliveryStatus(EPacketDeliveryStatus St
 	}
 }
 
-void FReliableNetBlobQueue::OnPacketDelivered(FReliableNetBlobQueue::ReplicationRecord Record)
+void FReliableNetBlobQueue::OnPacketDelivered(const FReliableNetBlobQueue::FReplicationRecord& Record)
 {
-	uint32 RecordSeq[2] = {(Record >> 24U) & 255, (Record >> 8U) & 255U};
-	uint32 RecordCount[2] = {(Record >> 16U) & 255, (Record >> 0U) & 255U};
-
 	// Mark blobs as acked
-	for (const uint32 Index : {0U, 1U})
+	for (uint32 SeqIt = 0, EndSeqIt = MaxWriteSequenceCount; SeqIt != EndSeqIt; ++SeqIt)
 	{
-		for (uint32 Seq = RecordSeq[Index], EndSeq = Seq + RecordCount[Index]; Seq != EndSeq; ++Seq)
+		const uint32 Count = Record.Counts[SeqIt];
+		for (uint32 Seq = Record.Sequences[SeqIt], EndSeq = Seq + Count; Seq != EndSeq; ++Seq)
 		{
-			SetSequenceIsAcked(Seq);
+			const uint32 Index = SequenceToIndex(Seq);
+
+			SetIndexIsAcked(Index);
+
+			// Release blob as quickly as possible.
+			NetBlobs[Index].SafeRelease();
 		}
 	}
 
@@ -341,16 +359,14 @@ void FReliableNetBlobQueue::OnPacketDelivered(FReliableNetBlobQueue::Replication
 	PopInOrderAckedBlobs();
 }
 
-void FReliableNetBlobQueue::OnPacketDropped(FReliableNetBlobQueue::ReplicationRecord Record)
+void FReliableNetBlobQueue::OnPacketDropped(const FReliableNetBlobQueue::FReplicationRecord& Record)
 {
-	uint32 RecordSeq[2] = {(Record >> 24U) & 255, (Record >> 8U) & 255U};
-	uint32 RecordCount[2] = {(Record >> 16U) & 255, (Record >> 0U) & 255U};
-
 	// Mark blobs as unsent
-	UnsentBlobCount += RecordCount[0] + RecordCount[1];
-	for (const uint32 Index : {0U, 1U})
+	for (uint32 SeqIt = 0, EndSeqIt = MaxWriteSequenceCount; SeqIt != EndSeqIt; ++SeqIt)
 	{
-		for (uint32 Seq = RecordSeq[Index], EndSeq = Seq + RecordCount[Index]; Seq != EndSeq; ++Seq)
+		const uint32 Count = Record.Counts[SeqIt];
+		UnsentBlobCount += Count;
+		for (uint32 Seq = Record.Sequences[SeqIt], EndSeq = Seq + Count; Seq != EndSeq; ++Seq)
 		{
 			ClearSequenceIsSent(Seq);
 		}
@@ -367,7 +383,6 @@ void FReliableNetBlobQueue::PopInOrderAckedBlobs()
 			return;
 		}
 
-		NetBlobs[Index].SafeRelease();
 		ClearIndexIsAcked(Index);
 		ClearIndexIsSent(Index);
 	}

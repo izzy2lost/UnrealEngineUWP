@@ -14,6 +14,7 @@ IRISCORE_API extern const FName GNetError_ArraySizeTooLarge;
 IRISCORE_API extern const FName GNetError_InvalidNetHandle;
 IRISCORE_API extern const FName GNetError_BrokenNetHandle;
 IRISCORE_API extern const FName GNetError_InvalidValue;
+IRISCORE_API extern const FName GNetError_InternalError;
 
 class FNetErrorContext
 {
