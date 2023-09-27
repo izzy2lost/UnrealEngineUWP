@@ -608,6 +608,7 @@ bool USkeleton::RenameMarkerName(FName InOldName, FName InNewName)
 
 bool USkeleton::DoesParentChainMatch(int32 StartBoneIndex, const USkinnedAsset* InSkinnedAsset) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("USkeleton::DoesParentChainMatch");
 	const FReferenceSkeleton& SkeletonRefSkel = ReferenceSkeleton;
 	const FReferenceSkeleton& MeshRefSkel = InSkinnedAsset->GetRefSkeleton();
 
@@ -653,6 +654,7 @@ bool USkeleton::DoesParentChainMatch(int32 StartBoneIndex, const USkinnedAsset* 
 
 bool USkeleton::IsCompatibleMesh(const USkinnedAsset* InSkinnedAsset, bool bDoParentChainCheck) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("USkeleton::IsCompatibleMesh");
 	// at least % of bone should match 
 	int32 NumOfBoneMatches = 0;
 
@@ -899,8 +901,9 @@ bool USkeleton::RecreateBoneTree(USkinnedAsset* InSkinnedAsset)
 	return false;
 }
 
-bool USkeleton::MergeAllBonesToBoneTree(const USkinnedAsset* InSkinnedAsset)
+bool USkeleton::MergeAllBonesToBoneTree(const USkinnedAsset* InSkinnedAsset, bool bShowProgress /*= true*/)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("USkeleton::MergeAllBonesToBoneTree");
 	if( InSkinnedAsset )
 	{
 		TArray<int32> RequiredBoneIndices;
@@ -916,7 +919,7 @@ bool USkeleton::MergeAllBonesToBoneTree(const USkinnedAsset* InSkinnedAsset)
 		if( RequiredBoneIndices.Num() > 0 )
 		{
 			// merge bones to the selected skeleton
-			return MergeBonesToBoneTree( InSkinnedAsset, RequiredBoneIndices );
+			return MergeBonesToBoneTree( InSkinnedAsset, RequiredBoneIndices, bShowProgress);
 		}
 	}
 
@@ -925,6 +928,7 @@ bool USkeleton::MergeAllBonesToBoneTree(const USkinnedAsset* InSkinnedAsset)
 
 bool USkeleton::CreateReferenceSkeletonFromMesh(const USkinnedAsset* InSkinnedAsset, const TArray<int32> & RequiredRefBones)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("USkeleton::CreateReferenceSkeletonFromMesh");
 	// Filter list, we only want bones that have their parents present in this array.
 	TArray<int32> FilteredRequiredBones; 
 	FAnimationRuntime::ExcludeBonesWithNoParents(RequiredRefBones, InSkinnedAsset->GetRefSkeleton(), FilteredRequiredBones);
@@ -964,7 +968,7 @@ bool USkeleton::CreateReferenceSkeletonFromMesh(const USkinnedAsset* InSkinnedAs
 }
 
 
-bool USkeleton::MergeBonesToBoneTree(const USkinnedAsset* InSkinnedAsset, const TArray<int32> & RequiredRefBones)
+bool USkeleton::MergeBonesToBoneTree(const USkinnedAsset* InSkinnedAsset, const TArray<int32> & RequiredRefBones, bool bShowProgress /*= true*/)
 {
 	// see if it needs all animation data to remap - only happens when bone structure CHANGED - added
 	bool bSuccess = false;
@@ -983,6 +987,7 @@ bool USkeleton::MergeBonesToBoneTree(const USkinnedAsset* InSkinnedAsset, const 
 		// can we play? - hierarchy matches
 		if( IsCompatibleMesh(InSkinnedAsset) )
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE("USkeleton::MergeBonesToBoneTree::CompatibleBranch");
 			// Exclude bones who do not have a parent.
 			TArray<int32> FilteredRequiredBones;
 			FAnimationRuntime::ExcludeBonesWithNoParents(RequiredRefBones, InSkinnedAsset->GetRefSkeleton(), FilteredRequiredBones);
@@ -1022,7 +1027,7 @@ bool USkeleton::MergeBonesToBoneTree(const USkinnedAsset* InSkinnedAsset, const 
 	if (bShouldHandleHierarchyChange)
 	{
 #if WITH_EDITOR
-		HandleSkeletonHierarchyChange();
+		HandleSkeletonHierarchyChange(bShowProgress);
 #endif
 	}
 
@@ -1347,7 +1352,14 @@ USkeletalMesh* USkeleton::GetAssetPreviewMesh(UObject* InAsset)
 
 	if (!PreviewMesh)
 	{
-		PreviewMesh = GetPreviewMesh(false);
+		//The const version avoid verifying the skeleton compatibility, which can stall the thread
+		const USkeleton* ThisSkeleton = this;
+		PreviewMesh = ThisSkeleton->GetPreviewMesh();
+		if (PreviewMesh && !PreviewMesh->IsCompiling())
+		{
+			//Verify the compatibility only if we are not building
+			PreviewMesh = GetPreviewMesh(false);
+		}
 	}
 
 	return PreviewMesh;
@@ -1397,8 +1409,9 @@ void USkeleton::RemoveBonesFromSkeleton( const TArray<FName>& BonesToRemove, boo
 	}
 }
 
-void USkeleton::HandleSkeletonHierarchyChange()
+void USkeleton::HandleSkeletonHierarchyChange(bool bShowProgress /*= true*/)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("USkeleton::HandleSkeletonHierarchyChange");
 	MarkPackageDirty();
 
 	RegenerateGuid();
@@ -1433,15 +1446,21 @@ void USkeleton::HandleSkeletonHierarchyChange()
 		}
 	}
 
-	FScopedSlowTask SlowTask((float)NumLoadedAssets, LOCTEXT("HandleSkeletonHierarchyChange", "Rebuilding animations..."));
-	SlowTask.MakeDialog();
+	FScopedSlowTask SlowTask((float)NumLoadedAssets, LOCTEXT("HandleSkeletonHierarchyChange", "Rebuilding animations..."), bShowProgress);
+	if (bShowProgress)
+	{
+		SlowTask.MakeDialog();
+	}
 
 	for (TObjectIterator<UAnimationAsset> It; It; ++It)
 	{
 		UAnimationAsset* CurrentAnimation = *It;
 		if (CurrentAnimation->GetSkeleton() == this)
 		{
-			SlowTask.EnterProgressFrame(1.0f, FText::Format(LOCTEXT("HandleSkeletonHierarchyChange_Format", "Rebuilding Animation: {0}"), FText::FromString(CurrentAnimation->GetName())));
+			if (bShowProgress)
+			{
+				SlowTask.EnterProgressFrame(1.0f, FText::Format(LOCTEXT("HandleSkeletonHierarchyChange_Format", "Rebuilding Animation: {0}"), FText::FromString(CurrentAnimation->GetName())));
+			}
 
 			CurrentAnimation->ValidateSkeleton();
 		}

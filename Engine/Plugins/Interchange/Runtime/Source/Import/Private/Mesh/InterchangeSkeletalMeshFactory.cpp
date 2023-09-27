@@ -1510,8 +1510,18 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::End
 	const UClass* SkeletalMeshClass = SkeletalMeshFactoryNode->GetObjectClass();
 	check(SkeletalMeshClass && SkeletalMeshClass->IsChildOf(GetFactoryClass()));
 
-	//Get the skeletal mesh asset
-	USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(StaticFindObject(nullptr, Arguments.Parent, *Arguments.AssetName));
+	//Get the skeletal mesh asset from the factory node or a find if the node was not set properly
+	USkeletalMesh* SkeletalMesh = nullptr;
+	FSoftObjectPath ReferenceObject;
+	if (SkeletalMeshFactoryNode->GetCustomReferenceObject(ReferenceObject))
+	{
+		SkeletalMesh = Cast<USkeletalMesh>(ReferenceObject.TryLoad());
+	}
+	if (!SkeletalMesh)
+	{
+		SkeletalMesh = Cast<USkeletalMesh>(StaticFindObject(nullptr, Arguments.Parent, *Arguments.AssetName));
+	}
+	
 	if (!ensure(SkeletalMesh))
 	{
 		if (Arguments.ReimportObject == nullptr)
@@ -1551,7 +1561,8 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::End
 
 	if (USkeleton* SkeletonReference = ImportAssetObjectData.SkeletonReference)
 	{
-		if ((!ImportAssetObjectData.bApplyGeometryOnly || !ImportAssetObjectData.bIsReImport) && !SkeletonReference->MergeAllBonesToBoneTree(SkeletalMesh))
+		constexpr bool bShowProgress = false;
+		if ((!ImportAssetObjectData.bApplyGeometryOnly || !ImportAssetObjectData.bIsReImport) && !SkeletonReference->MergeAllBonesToBoneTree(SkeletalMesh, bShowProgress))
 		{
 			TUniqueFunction<bool()> RecreateSkeleton = [this, WeakSkeletalMesh = TWeakObjectPtr<USkeletalMesh>(SkeletalMesh), WeakSkeleton = TWeakObjectPtr<USkeleton>(SkeletonReference)]()
 			{
@@ -1618,7 +1629,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::End
 								for (const USkeletalMesh* ExtraSkeletalMesh : OtherSkeletalMeshUsingSkeleton)
 								{
 									// merge still can fail
-									if (!SkeletonPtr->MergeAllBonesToBoneTree(ExtraSkeletalMesh))
+									if (!SkeletonPtr->MergeAllBonesToBoneTree(ExtraSkeletalMesh, bShowProgress))
 									{
 										FMessageDialog::Open(EAppMsgType::Ok,
 											FText::Format(NSLOCTEXT("InterchangeSkeletalMeshFactory", "SkeletonRegenError_RemergingBones", "Failed to merge SkeletalMesh '{0}'."), FText::FromString(ExtraSkeletalMesh->GetName())));
@@ -1712,7 +1723,7 @@ void UInterchangeSkeletalMeshFactory::Cancel()
 /* This function is call in the completion task on the main thread, use it to call main thread post creation step for your assets*/
 void UInterchangeSkeletalMeshFactory::SetupObject_GameThread(const FSetupObjectParams& Arguments)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeSkeletalMeshFactory::PreImportPreCompletedCallback")
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeSkeletalMeshFactory::SetupObject_GameThread")
 	check(IsInGameThread());
 	Super::SetupObject_GameThread(Arguments);
 
@@ -1762,6 +1773,7 @@ void UInterchangeSkeletalMeshFactory::SetupObject_GameThread(const FSetupObjectP
 				{
 					EInterchangeSkeletalMeshContentType ImportContentType = EInterchangeSkeletalMeshContentType::All;
 					SkeletalMeshFactoryNode->GetCustomImportContentType(ImportContentType);
+					FMD5Hash SourceFileHash = Arguments.SourceData->GetFileContentHash().Get(FMD5Hash());
 					const FString& NewSourceFilename = Arguments.SourceData->GetFilename();
 					const int32 NewSourceIndex = GetSourceIndexFromContentType(ImportContentType);
 					//NewSourceIndex should be 0, 1 or 2 (All, Geo, Skinning)
@@ -1773,11 +1785,14 @@ void UInterchangeSkeletalMeshFactory::SetupObject_GameThread(const FSetupObjectP
 						FString SourceLabel = GetSourceLabelFromSourceIndex(SourceIndex);
 						if (SourceIndex == NewSourceIndex)
 						{
-							AssetImportData->ScriptedAddFilename(NewSourceFilename, SourceIndex, SourceLabel);
-							//Do not add any extra path if import both geo and skinning
-							if(SourceIndex == GetSourceIndexFromContentType(EInterchangeSkeletalMeshContentType::All))
+							if (SourceIndex == GetSourceIndexFromContentType(EInterchangeSkeletalMeshContentType::All))
 							{
+								AssetImportData->Update(NewSourceFilename, SourceFileHash);
 								break;
+							}
+							else
+							{
+								AssetImportData->ScriptedAddFilename(NewSourceFilename, SourceIndex, SourceLabel);
 							}
 						}
 						else

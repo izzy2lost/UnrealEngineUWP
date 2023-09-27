@@ -1531,6 +1531,7 @@ UClass* UInterchangeTextureFactory::GetFactoryClass() const
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangeTextureFactory::BeginImportAsset_GameThread(const FImportAssetObjectParams& Arguments)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeTextureFactory::BeginImportAsset_GameThread");
 	using namespace  UE::Interchange::Private::InterchangeTextureFactory;
 	FImportAssetResult ImportAssetResult;
 	UTexture* Texture = nullptr;
@@ -1785,7 +1786,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeTextureFactory::ImportAs
 /* This function is call in the completion task on the main thread, use it to call main thread post creation step for your assets*/
 void UInterchangeTextureFactory::SetupObject_GameThread(const FSetupObjectParams& Arguments)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeTextureFactory::BeginPreCompletedCallback);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeTextureFactory::SetupObject_GameThread);
 
 	check(IsInGameThread());
 
@@ -1881,6 +1882,7 @@ void UInterchangeTextureFactory::SetupObject_GameThread(const FSetupObjectParams
 
 void UInterchangeTextureFactory::CheckForInvalidResolutions(UE::Interchange::Private::InterchangeTextureFactory::FTexturePayloadVariant& InPayloadVariant, const UInterchangeSourceData* SourceData, const UInterchangeTextureFactoryNode* TextureFactoryNode)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeTextureFactory::CheckForInvalidResolutions);
 	using namespace UE::Interchange;
 
 	auto AddErrorMessage = [this, &TextureFactoryNode](FString&& InSourceAssetName, const FText& ErrorMessage) -> UInterchangeResultError_Generic*

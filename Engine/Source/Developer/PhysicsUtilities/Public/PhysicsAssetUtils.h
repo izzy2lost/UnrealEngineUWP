@@ -133,7 +133,7 @@ namespace FPhysicsAssetUtils
 	 * @param	OutErrorMessage		Additional error information
 	 * @param	bSetToMesh			Whether or not to apply the physics asset to SkelMesh immediately
 	 */
-	PHYSICSUTILITIES_API bool CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, USkeletalMesh* SkelMesh, const FPhysAssetCreateParams& Params, FText& OutErrorMessage, bool bSetToMesh = true);
+	PHYSICSUTILITIES_API bool CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, USkeletalMesh* SkelMesh, const FPhysAssetCreateParams& Params, FText& OutErrorMessage, bool bSetToMesh = true, bool bShowProgress = true);
 
 	/** Replaces any collision already in the BodySetup with an auto-generated one using the parameters provided.
 	 * 

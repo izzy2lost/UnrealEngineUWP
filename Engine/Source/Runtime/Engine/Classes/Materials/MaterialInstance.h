@@ -975,6 +975,10 @@ public:
 #endif
 	ENGINE_API virtual bool IsComplete() const override;
 
+#if WITH_EDITOR
+	ENGINE_API virtual bool IsCompiling() const override;
+#endif
+
 	/** Tracking of in-flight uniform expression cache update operations for the material instance, for thread safety destroying the resource. */
 	void StartCacheUniformExpressions() const;
 	void FinishCacheUniformExpressions() const;

@@ -200,3 +200,9 @@ void UTextureThumbnailRenderer::Draw(UObject* Object, int32 X, int32 Y, uint32 W
 		}
 	}
 }
+
+bool UTextureThumbnailRenderer::CanVisualizeAsset(UObject* Object)
+{
+	UTexture* Texture = Cast<UTexture>(Object);
+	return (Texture && !Texture->IsCompiling());
+}

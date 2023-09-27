@@ -30,6 +30,7 @@
 #include "RHIFeatureLevel.h"
 #include "PSOPrecache.h"
 #include "StaticParameterSet.h"
+#include "Interfaces/Interface_AsyncCompilation.h"
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "RHI.h"
@@ -251,7 +252,7 @@ public:
 };
 
 UCLASS(abstract, BlueprintType, MinimalAPI, HideCategories = (Thumbnail))
-class UMaterialInterface : public UObject, public IBlendableInterface, public IInterface_AssetUserData
+class UMaterialInterface : public UObject, public IBlendableInterface, public IInterface_AssetUserData, public IInterface_AsyncCompilation
 {
 	GENERATED_UCLASS_BODY()
 
@@ -996,6 +997,14 @@ public:
 	* @note This function will return true if the resources are not cache for this material yet.
 	*/
 	virtual bool IsComplete() const { return true; }
+
+	/** IInterface_AsyncCompilation begin*/
+#if WITH_EDITOR
+	ENGINE_API virtual bool IsCompiling() const override { return false; };
+#else
+	FORCEINLINE bool IsCompiling() const { return false; }
+#endif
+	/** IInterface_AsyncCompilation end*/
 
 	/** @brief Checks to see if this material has all its shaders cached and if not, will perform a synchronous compilation of those.
 	*

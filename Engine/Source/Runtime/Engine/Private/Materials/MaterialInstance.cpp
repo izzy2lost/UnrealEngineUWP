@@ -2595,6 +2595,32 @@ bool UMaterialInstance::IsComplete() const
 }
 
 #if WITH_EDITOR
+bool UMaterialInstance::IsCompiling() const
+{
+	bool bIsCompiling = false;
+	if (bHasStaticPermutationResource && FApp::CanEverRender())
+	{
+		uint32 FeatureLevelsToCompile = GetFeatureLevelsToCompileForRendering();
+		const EMaterialQualityLevel::Type ActiveQualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
+
+		while (FeatureLevelsToCompile != 0)
+		{
+			const ERHIFeatureLevel::Type FeatureLevel = (ERHIFeatureLevel::Type)FBitSet::GetAndClearNextBit(FeatureLevelsToCompile);
+			const EShaderPlatform ShaderPlatform = GShaderPlatformForFeatureLevel[FeatureLevel];
+
+			FMaterialResource* CurrentResource = FindMaterialResource(StaticPermutationMaterialResources, FeatureLevel, ActiveQualityLevel, true);
+			if (CurrentResource && !CurrentResource->IsCompilationFinished())
+			{
+				bIsCompiling = true;
+				break;
+			}
+		}
+	}
+	return bIsCompiling;
+}
+#endif
+
+#if WITH_EDITOR
 bool UMaterialInstance::SetMaterialLayers(const FMaterialLayersFunctions& LayersValue)
 {
 	UMaterialInstanceEditorOnlyData* EditorOnly = GetEditorOnlyData();

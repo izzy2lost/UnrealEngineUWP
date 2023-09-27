@@ -806,7 +806,7 @@ public:
 	 * 
 	 * @return true if success
 	 */
-	ENGINE_API bool MergeBonesToBoneTree(const USkinnedAsset* InSkinnedAsset, const TArray<int32> &RequiredRefBones);
+	ENGINE_API bool MergeBonesToBoneTree(const USkinnedAsset* InSkinnedAsset, const TArray<int32> &RequiredRefBones, bool bShowProgress = true);
 
 	/** 
 	 * Merge all Bones to BoneTrees if not exists
@@ -818,7 +818,7 @@ public:
 	 * 
 	 * @return true if success
 	 */
-	ENGINE_API bool MergeAllBonesToBoneTree(const USkinnedAsset* InSkinnedAsset);
+	ENGINE_API bool MergeAllBonesToBoneTree(const USkinnedAsset* InSkinnedAsset, bool bShowProgress = true);
 
 	/** 
 	 * Merge has failed, then Recreate BoneTree
@@ -974,7 +974,7 @@ protected:
 	FOnSkeletonHierarchyChangedMulticaster OnSkeletonHierarchyChanged;
 
 	/** Call this when the skeleton has changed to fix dependent assets */
-	ENGINE_API void HandleSkeletonHierarchyChange();
+	ENGINE_API void HandleSkeletonHierarchyChange(bool bShowProgress = true);
 
 public:
 	typedef FOnSkeletonHierarchyChangedMulticaster::FDelegate FOnSkeletonHierarchyChanged;

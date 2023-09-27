@@ -515,6 +515,25 @@ void USkeletalMesh::ValidateBoundsExtension()
 
 #if WITH_EDITOR
 
+bool USkeletalMesh::IsReadyToRenderInThumbnail() const
+{
+	if (IsCompiling() || !GetResourceForRendering())
+	{
+		return false;
+	}
+
+	//Since skeletal mesh use material, we want to avoid drawing thumbnail when shader are compiling
+	for (const FSkeletalMaterial& SkeletalMaterial : GetMaterials())
+	{
+		if (SkeletalMaterial.MaterialInterface && SkeletalMaterial.MaterialInterface->IsCompiling())
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 bool USkeletalMesh::IsInitialBuildDone() const
 {
 	//We are consider built if we have a valid lod model and a valid inline reduction cache

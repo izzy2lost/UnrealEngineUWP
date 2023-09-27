@@ -1360,6 +1360,10 @@ public:
 #endif
 	ENGINE_API virtual bool IsComplete() const override;
 
+#if WITH_EDITOR
+	ENGINE_API virtual bool IsCompiling() const override;
+#endif
+
 #if WITH_EDITORONLY_DATA
 	ENGINE_API virtual bool IterateDependentFunctions(TFunctionRef<bool(UMaterialFunctionInterface*)> Predicate) const override;
 	ENGINE_API virtual void GetDependentFunctions(TArray<class UMaterialFunctionInterface*>& DependentFunctions) const override;

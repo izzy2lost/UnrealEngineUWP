@@ -566,6 +566,7 @@ void UInterchangeGenericMeshPipeline::PostImportSkeletalMesh(UObject* CreatedAss
 
 void UInterchangeGenericMeshPipeline::PostImportPhysicsAssetImport(UObject* CreatedAsset, const UInterchangeFactoryBaseNode* FactoryNode)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeGenericMeshPipeline::PostImportPhysicsAssetImport");
 #if WITH_EDITOR
 	if (!bCreatePhysicsAsset || !BaseNodeContainer)
 	{
@@ -592,9 +593,12 @@ void UInterchangeGenericMeshPipeline::PostImportPhysicsAssetImport(UObject* Crea
 					{
 						auto CreateFromSkeletalMeshLambda = [CreatedPhysicsAsset, SkeletalMesh]()
 						{
+							TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeGenericMeshPipeline::PostImportPhysicsAssetImport::CreateFromSkeletalMeshLambda");
 							FPhysAssetCreateParams NewBodyData;
 							FText CreationErrorMessage;
-							if (!FPhysicsAssetUtils::CreateFromSkeletalMesh(CreatedPhysicsAsset, SkeletalMesh, NewBodyData, CreationErrorMessage))
+							constexpr bool bSetToMesh = true;
+							constexpr bool bShowProgress = false;
+							if (!FPhysicsAssetUtils::CreateFromSkeletalMesh(CreatedPhysicsAsset, SkeletalMesh, NewBodyData, CreationErrorMessage, bSetToMesh, bShowProgress))
 							{
 								//TODO: Log an error
 							}

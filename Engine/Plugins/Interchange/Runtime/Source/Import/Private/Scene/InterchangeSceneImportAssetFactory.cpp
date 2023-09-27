@@ -85,6 +85,7 @@ bool UInterchangeSceneImportAssetFactory::SetSourceFilename(const UObject* Objec
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangeSceneImportAssetFactory::BeginImportAsset_GameThread(const FImportAssetObjectParams& Arguments)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeSceneImportAssetFactory::BeginImportAsset_GameThread");
 	using namespace UE::Interchange::Private::InterchangeSceneImportAssetFactory;
 
 	UClass* TargetClass = GetFactoryClass();
@@ -114,6 +115,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSceneImportAssetFactory:
 
 void UInterchangeSceneImportAssetFactory::SetupObject_GameThread(const FSetupObjectParams& Arguments)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeSceneImportAssetFactory::SetupObject_GameThread");
 	check(IsInGameThread());
 	Super::SetupObject_GameThread(Arguments);
 
@@ -135,6 +137,7 @@ void UInterchangeSceneImportAssetFactory::SetupObject_GameThread(const FSetupObj
 
 void UInterchangeSceneImportAssetFactory::FinalizeObject_GameThread(const FSetupObjectParams& Arguments)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeSceneImportAssetFactory::FinalizeObject_GameThread");
 	check(IsInGameThread());
 	Super::FinalizeObject_GameThread(Arguments);
 

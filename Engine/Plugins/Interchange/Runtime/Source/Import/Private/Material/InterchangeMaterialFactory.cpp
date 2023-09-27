@@ -686,6 +686,7 @@ UClass* UInterchangeMaterialFactory::GetFactoryClass() const
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFactory::BeginImportAsset_GameThread(const FImportAssetObjectParams& Arguments)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeMaterialFactory::BeginImportAsset_GameThread");
 	FImportAssetResult ImportAssetResult;
 	UObject* Material = nullptr;
 
@@ -890,6 +891,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFactory::BeginIm
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFactory::ImportAsset_Async(const FImportAssetObjectParams& Arguments)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeMaterialFactory::ImportAsset_Async");
 	FImportAssetResult ImportAssetResult;
 	ImportAssetResult.bIsFactorySkipAsset = bSkipImport;
 
@@ -969,6 +971,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFactory::ImportA
 /* This function is call in the completion task on the main thread, use it to call main thread post creation step for your assets*/
 void UInterchangeMaterialFactory::SetupObject_GameThread(const FSetupObjectParams& Arguments)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeMaterialFactory::SetupObject_GameThread");
 	check(IsInGameThread());
 	Super::SetupObject_GameThread(Arguments);
 
@@ -983,7 +986,7 @@ void UInterchangeMaterialFactory::SetupObject_GameThread(const FSetupObjectParam
 		UMaterialInterface* ImportedMaterialInterface = CastChecked<UMaterialInterface>(Arguments.ImportedObject);
 
 #if WITH_EDITOR
-		//Update the samplers type in case the textures were changed during their PreImportPreCompletedCallback
+		//Update the samplers type in case the textures were changed during their SetupObject_GameThread
 		if (UMaterial* ImportedMaterial = Cast<UMaterial>(ImportedMaterialInterface))
 		{
 			for (UMaterialExpression* Expression : ImportedMaterial->GetExpressions())
@@ -1036,6 +1039,8 @@ bool UInterchangeMaterialFactory::SetSourceFilename(const UObject* Object, const
 #if WITH_EDITOR
 void UInterchangeMaterialFactory::SetupMaterial(UMaterial* Material, const FImportAssetObjectParams& Arguments, const UInterchangeBaseMaterialFactoryNode* BaseMaterialFactoryNode)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeMaterialFactory::SetupMaterial");
+
 	using namespace UE::Interchange::Materials;
 	using namespace UE::Interchange::MaterialFactory::Internal;
 
@@ -1538,6 +1543,7 @@ void UInterchangeMaterialFactory::SetupMaterial(UMaterial* Material, const FImpo
 
 void UInterchangeMaterialFactory::SetupMaterialInstance(UMaterialInstance& MaterialInstance, const UInterchangeBaseNodeContainer& NodeContainer, const UInterchangeMaterialInstanceFactoryNode& FactoryNode, bool bResetInstance)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeMaterialFactory::SetupMaterialInstance");
 	using namespace UE::Interchange::MaterialFactory::Internal;
 
 	if (bResetInstance)
@@ -1729,6 +1735,7 @@ UClass* UInterchangeMaterialFunctionFactory::GetFactoryClass() const
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFunctionFactory::BeginImportAsset_GameThread(const FImportAssetObjectParams& Arguments)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeMaterialFunctionFactory::BeginImportAsset_GameThread");
 	FImportAssetResult ImportAssetResult;
 	UObject* Material = nullptr;
 
@@ -1814,6 +1821,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFunctionFactory:
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFunctionFactory::ImportAsset_Async(const FImportAssetObjectParams& Arguments)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeMaterialFunctionFactory::ImportAsset_Async");
 	FImportAssetResult ImportAssetResult;
 	ImportAssetResult.bIsFactorySkipAsset = bSkipImport;
 
@@ -1869,6 +1877,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFunctionFactory:
 /* This function is call in the completion task on the main thread, use it to call main thread post creation step for your assets*/
 void UInterchangeMaterialFunctionFactory::SetupObject_GameThread(const FSetupObjectParams& Arguments)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeMaterialFunctionFactory::SetupObject_GameThread");
 	Super::SetupObject_GameThread(Arguments);
 
 	if (bSkipImport)
@@ -1883,7 +1892,7 @@ void UInterchangeMaterialFunctionFactory::SetupObject_GameThread(const FSetupObj
 
 		if (UMaterialFunctionEditorOnlyData* Data = ImportedMaterialFunction->GetEditorOnlyData())
 		{
-			//Update the samplers type in case the textures were changed during their PreImportPreCompletedCallback
+			//Update the samplers type in case the textures were changed during their SetupObject_GameThread
 			for (UMaterialExpression* Expression : Data->ExpressionCollection.Expressions)
 			{
 				if (UMaterialExpressionTextureBase* TextureSample = Cast<UMaterialExpressionTextureBase>(Expression))
@@ -1899,6 +1908,7 @@ void UInterchangeMaterialFunctionFactory::SetupObject_GameThread(const FSetupObj
 #if WITH_EDITOR
 void UInterchangeMaterialFunctionFactory::SetupMaterial(UMaterialFunction* MaterialFunction, const FImportAssetObjectParams& Arguments, const UInterchangeMaterialFunctionFactoryNode* MaterialFunctionFactoryNode)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeMaterialFunctionFactory::SetupMaterial");
 	using namespace UE::Interchange::MaterialFactory::Internal;
 	using namespace UE::Interchange::Materials;
 

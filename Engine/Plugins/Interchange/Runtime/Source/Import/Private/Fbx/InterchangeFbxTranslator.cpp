@@ -83,6 +83,9 @@ TArray<FString> UInterchangeFbxTranslator::GetSupportedFormats() const
 
 bool UInterchangeFbxTranslator::Translate(UInterchangeBaseNodeContainer& BaseNodeContainer) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeFbxTranslator::Translate");
+	//Make sure the hash is compute here in asynchronous mode
+	GetSourceData()->GetFileContentHash();
 	FString Filename = GetSourceData()->GetFilename();
 	if (!FPaths::FileExists(Filename))
 	{

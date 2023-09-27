@@ -747,6 +747,8 @@ public:
 		return false;
 	}
 
+	ENGINE_API bool IsReadyToRenderInThumbnail() const;
+
 	/* Return true if this skeletalmesh was never build since its creation. USkinnedAsset interface. */
 	ENGINE_API virtual bool IsInitialBuildDone() const override;
 
