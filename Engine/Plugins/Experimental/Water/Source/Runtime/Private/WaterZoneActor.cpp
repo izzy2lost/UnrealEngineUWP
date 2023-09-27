@@ -60,6 +60,7 @@ AWaterZone::AWaterZone(const FObjectInitializer& Initializer)
 		BoundsComponent->SetupAttachment(WaterMesh);
 		// Bounds component extent is half-extent, ZoneExtent is full extent.
 		BoundsComponent->SetBoxExtent(FVector(ZoneExtent / 2., 8192.));
+		BoundsComponent->bIsEditorOnly = true;
 	}
 
 	if (GIsEditor && !IsTemplate())
