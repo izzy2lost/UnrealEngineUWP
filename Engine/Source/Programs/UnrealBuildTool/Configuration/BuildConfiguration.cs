@@ -33,9 +33,10 @@ namespace UnrealBuildTool
 		public bool bPrintDebugInfo = false;
 
 		/// <summary>
-		/// Whether the hybrid executor will be used (a remote executor and local executor).
+		/// Whether the hybrid executor will be used (a remote executor and local executor). No longer supported.
 		/// </summary>
 		[XmlConfigFile]
+		[Obsolete("HybridExecutor is no longer supported")]
 		public bool bAllowHybridExecutor = false;
 
 #if __BOXEXECUTOR_AVAILABLE__
