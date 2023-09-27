@@ -181,7 +181,7 @@ namespace PropertyCustomizationHelpers
 		return SNew(SBox)
 			.HAlign(HAlign_Left)
 			.VAlign(VAlign_Center)
-			.ToolTipText(OptionalToolTipText.Get().IsEmpty() ? LOCTEXT("SetButtonToolTipText", "Set Optional to default value.") : OptionalToolTipText)
+			.ToolTipText(OptionalToolTipText.Get().IsEmpty() ? LOCTEXT("SetOptionalButtonToolTipText", "Set Optional to default value.") : OptionalToolTipText)
 			[
 				SNew(SButton)
 				.ButtonStyle(FAppStyle::Get(), "Button")
@@ -199,7 +199,7 @@ namespace PropertyCustomizationHelpers
 	{
 		return
 			SNew(SPropertyEditorButton)
-			.Text(OptionalToolTipText.Get().IsEmpty() ? LOCTEXT("ClearButtonToolTipText", "Clear Optional") : OptionalToolTipText)
+			.Text(OptionalToolTipText.Get().IsEmpty() ? LOCTEXT("ClearOptionalButtonToolTipText", "Clear Optional") : OptionalToolTipText)
 			.Image(FAppStyle::Get().GetBrush("Icons.X"))
 			.OnClickAction(OnClearOptionalClicked)
 			.IsEnabled(IsEnabled)
