@@ -220,9 +220,12 @@ namespace UE::Learning::Agents
 
 void ULearningAgentsNeuralNetworkData::PostLoad()
 {
+	Super::PostLoad();
+
 	if (FileData.Num() > 0)
 	{
 		Network = MakeShared<UE::Learning::Agents::FNeuralNetwork>(*this);
+		Network->ReloadFromFileData();
 	}
 }
 
