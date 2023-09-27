@@ -103,6 +103,7 @@ public:
 	 * @return Returns true if the supplied filename properly maps to one of the long package roots.
 	 */
 	static COREUOBJECT_API bool TryConvertFilenameToLongPackageName(const FString& InFilename, FString& OutPackageName, FString* OutFailureReason = nullptr);
+	static COREUOBJECT_API bool TryConvertFilenameToLongPackageName(FStringView InFilename, FStringBuilderBase& OutPackageName, FStringBuilderBase* OutFailureReason = nullptr);
 
 	/** 
 	 * Converts the supplied filename to long package name.
