@@ -42,12 +42,12 @@ DECLARE_CYCLE_STAT(TEXT("Perception Sense: Sight, Remove To Target"), STAT_AI_Se
 DECLARE_CYCLE_STAT(TEXT("Perception Sense: Sight, Process pending result"), STAT_AI_Sense_Sight_ProcessPendingQuery, STATGROUP_AI);
 
 
-static const int32 DefaultMaxTracesPerTick = 6;
-static const int32 DefaultMaxAsyncTracesPerTick = 10;
-static const int32 DefaultMinQueriesPerTimeSliceCheck = 40;
-static const float DefaultPendingQueriesBudgetReductionRatio = 0.5f;
-static const bool bDefaultUseAsynchronousTraceForDefaultSightQueries = false;
-static const float DefaultStimulusStrength = 1.f;
+constexpr int32 DefaultMaxTracesPerTick = 6;
+constexpr int32 DefaultMaxAsyncTracesPerTick = 10;
+constexpr int32 DefaultMinQueriesPerTimeSliceCheck = 40;
+constexpr float DefaultPendingQueriesBudgetReductionRatio = 0.5f;
+constexpr bool bDefaultUseAsynchronousTraceForDefaultSightQueries = false;
+constexpr float DefaultStimulusStrength = 1.f;
 
 enum class EForEachResult : uint8
 {
@@ -94,7 +94,7 @@ EReverseForEachResult ReverseForEach(T& Array, const PREDICATE_CLASS& Predicate)
 const FAISightTarget::FTargetId FAISightTarget::InvalidTargetId = FAISystem::InvalidUnsignedID;
 
 FAISightTarget::FAISightTarget(AActor* InTarget, FGenericTeamId InTeamId)
-	: Target(InTarget), SightTargetInterface(NULL), TeamId(InTeamId)
+	: Target(InTarget), SightTargetInterface(nullptr), TeamId(InTeamId)
 {
 	if (InTarget)
 	{
@@ -122,8 +122,10 @@ UAISense_Sight::FDigestedSightProperties::FDigestedSightProperties(const UAISens
 }
 
 UAISense_Sight::FDigestedSightProperties::FDigestedSightProperties()
-	: PeripheralVisionAngleCos(0.f), SightRadiusSq(-1.f), AutoSuccessRangeSqFromLastSeenLocation(FAISystem::InvalidRange), LoseSightRadiusSq(-1.f), PointOfViewBackwardOffset(0.0f), NearClippingRadiusSq(0.0f), AffiliationFlags(-1)
-{}
+	: PeripheralVisionAngleCos(0.f), SightRadiusSq(-1.f), AutoSuccessRangeSqFromLastSeenLocation(FAISystem::InvalidRange), LoseSightRadiusSq(-1.f), PointOfViewBackwardOffset(0.0f), NearClippingRadiusSq(0.0f)
+{
+	AffiliationFlags = FAISenseAffiliationFilter::DetectAllFlags();
+}
 
 //----------------------------------------------------------------------//
 // UAISense_Sight
@@ -161,7 +163,7 @@ UAISense_Sight::UAISense_Sight(const FObjectInitializer& ObjectInitializer)
 	DefaultSightCollisionChannel = GET_AI_CONFIG_VAR(DefaultSightCollisionChannel);
 }
 
-FORCEINLINE_DEBUGGABLE float UAISense_Sight::CalcQueryImportance(const FPerceptionListener& Listener, const FVector& TargetLocation, const float SightRadiusSq) const
+float UAISense_Sight::CalcQueryImportance(const FPerceptionListener& Listener, const FVector& TargetLocation, const float SightRadiusSq) const
 {
 	const FVector::FReal DistanceSq = FVector::DistSquared(Listener.CachedLocation, TargetLocation);
 	return DistanceSq <= HighImportanceDistanceSquare ? MaxQueryImportance
@@ -295,7 +297,7 @@ float UAISense_Sight::Update()
 #if AISENSE_SIGHT_TIMESLICING_DEBUG
 	UE::AISense_Sight::FTimingSlicingInfo SlicingInfo;
 #endif // AISENSE_SIGHT_TIMESLICING_DEBUG
-	static const int32 InitialInvalidItemsSize = 16;
+	constexpr int32 InitialInvalidItemsSize = 16;
 	enum class EOperationType : uint8
 	{
 		Remove,
@@ -434,7 +436,7 @@ float UAISense_Sight::Update()
 		});
         // Do all the removes first and save the out of range swaps because we will insert them at the right location to prevent sorting
 		TArray<FAISightQuery> SightQueriesOutOfRangeToInsert;
-		for (FQueryOperation& Operation : QueryOperations)
+		for (const FQueryOperation& Operation : QueryOperations)
 		{
 			switch (Operation.OpType)
 			{
@@ -913,7 +915,7 @@ void UAISense_Sight::OnListenerUpdateImpl(const FPerceptionListener& UpdatedList
 	// see if this listener is a Target as well
 	const FAISightTarget::FTargetId AsTargetId = UpdatedListener.GetBodyActorUniqueID();
 	FAISightTarget* AsTarget = ObservedTargets.Find(AsTargetId);
-	if (AsTarget != NULL)
+	if (AsTarget != nullptr)
 	{
 		if (AsTarget->Target.IsValid())
 		{
