@@ -22,7 +22,7 @@ class FTransformDynamicCollection : public FManagedArrayCollection
 public:
 	typedef FManagedArrayCollection Super;
 
-	CHAOS_API FTransformDynamicCollection();
+	CHAOS_API FTransformDynamicCollection(const FGeometryCollection* InRestCollection);
 	FTransformDynamicCollection(FTransformDynamicCollection&) = delete;
 	FTransformDynamicCollection& operator=(const FTransformDynamicCollection&) = delete;
 	FTransformDynamicCollection(FTransformDynamicCollection&&) = delete;
@@ -32,17 +32,24 @@ public:
 	CHAOS_API void SetTransform(int32 Index, const FTransform3f& Transform);
 	CHAOS_API const TArray<FTransform3f>& GetTransforms() const;
 
+	CHAOS_API const TManagedArray<bool>& GetHasParent() const;
+	CHAOS_API bool GetHasParent(int32 Index) const;
+	CHAOS_API void SetHasParent(int32 Index, bool Value);
+	CHAOS_API int32 GetParent(int32 Index) const;
+
 	// Transform Group
-	TManagedArray<int32>        Parent;
 	TManagedArray<TSet<int32>>  Children;
 
 private:
+	TManagedArray<bool>         HasParent;
 	TManagedArray<FTransform3f> Transform;
 	/** Construct */
 	CHAOS_API void Construct();
 
 	friend class FGeometryCollectionPhysicsProxy;
 	friend class UGeometryCollectionComponent;
+
+	const FGeometryCollection* RestCollection;
 };
 
 
@@ -55,7 +62,7 @@ private:
 class FGeometryDynamicCollection : public FTransformDynamicCollection
 {
 public:
-	CHAOS_API FGeometryDynamicCollection();
+	CHAOS_API FGeometryDynamicCollection(const FGeometryCollection* InRestCollection);
 	FGeometryDynamicCollection(FGeometryDynamicCollection&) = delete;
 	FGeometryDynamicCollection& operator=(const FGeometryDynamicCollection&) = delete;
 	FGeometryDynamicCollection(FGeometryDynamicCollection&&) = delete;
@@ -164,7 +171,7 @@ private:
 	TManagedArrayAccessor<TSet<int32>> ChildrenAttribute;
 	
 	/** Current parent (potentially different from the initial parent) */
-	TManagedArrayAccessor<int32> ParentAttribute;
+	TManagedArrayAccessor<bool> HasParentAttribute;
 
 	/** type of internal state parent */
 	TManagedArrayAccessor<uint8> InternalClusterParentTypeAttribute;
@@ -400,8 +407,8 @@ public:
 	struct FStateData
 	{
 		int32  TransformIndex;
-		int32  ParentTransformIndex;
 		int32  InternalClusterUniqueIdx;
+		bool   HasParent;
 		FState State;
 	};
 

@@ -467,7 +467,7 @@ FGeometryCollectionPhysicsProxy::FGeometryCollectionPhysicsProxy(
 	, LastSyncCountGT(MAX_uint32)
 #endif
 	, CollisionParticlesPerObjectFraction(CollisionParticlesPerObjectFractionDefault)
-
+	, PhysicsThreadCollection(Parameters.RestCollection)
 	, GameThreadCollection(GameThreadCollectionIn)
 	, GameThreadPerFrameData(SimulationParameters)
 	, MaterialOverrideMassScaleMultiplierChange(0)
@@ -647,7 +647,7 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 				// step 1 : find parents
 				for(const int32 ChildIndex: ChildrenToCheckForParentFix)
 				{
-					const int32 ParentIndex = GameThreadCollection.Parent[ChildIndex];
+					const int32 ParentIndex = GameThreadCollection.GetParent(ChildIndex);
 					if (ParentIndex != INDEX_NONE)
 					{
 						ParentToPotentiallyFix.Add(ParentIndex);
@@ -782,7 +782,7 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 		// make sure we set Activate the right way when clustering is enabled ( only root should be enabled at start ) 
 		for (int32 TransformIndex = 0; TransformIndex < NumTransforms; ++TransformIndex)
 		{
-			bool bIsRoot = (GameThreadCollection.Parent[TransformIndex] == INDEX_NONE);
+			const bool bIsRoot = !GameThreadCollection.GetHasParent(TransformIndex);
 			GameThreadCollection.Active[TransformIndex] = bIsRoot;
 			PhysicsThreadCollection.Active[TransformIndex] = bIsRoot;
 
@@ -1065,7 +1065,6 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 		const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.Implicits;
 		const TManagedArray<TUniquePtr<FCollisionStructureManager::FSimplicial>>& Simplicials = DynamicCollection.Simplicials;
 		const TManagedArray<TSet<int32>>& Children = DynamicCollection.Children;
-		const TManagedArray<int32>& Parent = DynamicCollection.Parent;
 
 		// In PushToPhysicsState, we're going to compute a relative transform from Parameters.PrevWorldTransform
 		// to a particle's current world transform to get its relative transform. Then, that relative transform is
@@ -1076,7 +1075,7 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 		Parameters.PrevWorldTransform = Parameters.WorldTransform;
 
 		TArray<FTransform> Transform;
-		GeometryCollectionAlgo::GlobalMatrices(DynamicCollection.Transform, Parent, Transform);
+		GeometryCollectionAlgo::GlobalMatrices(DynamicCollection.Transform, DynamicCollection, Transform);
 
 		// Here Clean up Additional particles
 		TBitArray<> EffectiveParticles;
@@ -1633,7 +1632,6 @@ Chaos::TPBDGeometryCollectionParticleHandle<Chaos::FReal, 3>* FGeometryCollectio
 {
 	FGeometryDynamicCollection& DynamicCollection = PhysicsThreadCollection;
 	TManagedArray<int32>& DynamicState = DynamicCollection.DynamicState;
-	TManagedArray<int32>& ParentIndex = DynamicCollection.Parent;
 	TManagedArray<FTransform3f>& Transform = DynamicCollection.Transform;
 	const TManagedArray<FTransform>& MassToLocal = Parameters.RestCollection->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
 	const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.Implicits;
@@ -1641,7 +1639,7 @@ Chaos::TPBDGeometryCollectionParticleHandle<Chaos::FReal, 3>* FGeometryCollectio
 	Chaos::Facades::FCollectionAnchoringFacade AnchoringFacade(DynamicCollection);
 
 	//If we are a root particle use the world transform, otherwise set the relative transform
-	const FTransform CollectionSpaceTransform = GeometryCollectionAlgo::GlobalMatrix(Transform, ParentIndex, CollectionClusterIndex);
+	const FTransform CollectionSpaceTransform = GeometryCollectionAlgo::GlobalMatrix(Transform, DynamicCollection, CollectionClusterIndex);
 	const Chaos::TRigidTransform<Chaos::FReal, 3> ParticleTM = MassToLocal[CollectionClusterIndex] * CollectionSpaceTransform * Parameters.WorldTransform;
 
 	// Gather unique indices from GT to pass into PT handle creation
@@ -1719,7 +1717,7 @@ Chaos::TPBDGeometryCollectionParticleHandle<Chaos::FReal, 3>* FGeometryCollectio
 		Shape->SetMaterial(Parameters.PhysicalMaterialHandle);
 	}
 
-	const FTransform ParentTransform = GeometryCollectionAlgo::GlobalMatrix(DynamicCollection.Transform, DynamicCollection.Parent, CollectionClusterIndex);
+	const FTransform ParentTransform = GeometryCollectionAlgo::GlobalMatrix(DynamicCollection.Transform, DynamicCollection, CollectionClusterIndex);
 
 	// Populate bounds as we didn't pass a shared implicit to PopulateSimulatedParticle this will have been skipped, now that we have the full cluster we can build it
 	if (Handle->GetGeometry() && Handle->GetGeometry()->HasBoundingBox())
@@ -1752,14 +1750,13 @@ FGeometryCollectionPhysicsProxy::BuildClusters_Internal(
 
 	FGeometryDynamicCollection& DynamicCollection = PhysicsThreadCollection;
 	TManagedArray<int32>& DynamicState = DynamicCollection.DynamicState;
-	TManagedArray<int32>& ParentIndex = DynamicCollection.Parent;
 	TManagedArray<FTransform3f>& Transform = DynamicCollection.Transform;
 	const TManagedArray<FTransform>& MassToLocal = Parameters.RestCollection->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
 	//TManagedArray<TSharedPtr<FCollisionStructureManager::FSimplicial> >& Simplicials = DynamicCollection.Simplicials;
 	TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.Implicits;
 
 	//If we are a root particle use the world transform, otherwise set the relative transform
-	const FTransform CollectionSpaceTransform = GeometryCollectionAlgo::GlobalMatrix(Transform, ParentIndex, CollectionClusterIndex);
+	const FTransform CollectionSpaceTransform = GeometryCollectionAlgo::GlobalMatrix(Transform, DynamicCollection, CollectionClusterIndex);
 	const Chaos::TRigidTransform<Chaos::FReal, 3> ParticleTM = MassToLocal[CollectionClusterIndex] * CollectionSpaceTransform * Parameters.WorldTransform;
 
 	//create new cluster particle
@@ -1788,7 +1785,7 @@ FGeometryCollectionPhysicsProxy::BuildClusters_Internal(
 	// Construct an active cluster particle, disable children, derive M and I from children:
 	Chaos::TPBDRigidClusteredParticleHandle<Chaos::FReal, 3>* Parent =
 		static_cast<Chaos::FPBDRigidsSolver*>(Solver)->GetEvolution()->GetRigidClustering().CreateClusterParticle(
-			(ParentIndex[CollectionClusterIndex] == INDEX_NONE) ? Parameters.ClusterGroupIndex : 0, 
+			(!DynamicCollection.GetHasParent(CollectionClusterIndex)) ? Parameters.ClusterGroupIndex : 0, 
 			MoveTemp(ChildHandlesCopy),
 			ClusterCreationParameters,
 			Implicits[CollectionClusterIndex], // union from children if null
@@ -1854,7 +1851,7 @@ FGeometryCollectionPhysicsProxy::BuildClusters_Internal(
 		Shape->SetMaterial(Parameters.PhysicalMaterialHandle);
 	}
 
-	const FTransform ParentTransform = GeometryCollectionAlgo::GlobalMatrix(DynamicCollection.Transform, DynamicCollection.Parent, CollectionClusterIndex);
+	const FTransform ParentTransform = GeometryCollectionAlgo::GlobalMatrix(DynamicCollection.Transform, DynamicCollection, CollectionClusterIndex);
 
 	int32 MinCollisionGroup = INT_MAX;
 	for(int32 Idx=0; Idx < ChildHandles.Num(); Idx++)
@@ -2622,9 +2619,8 @@ void FGeometryCollectionPhysicsProxy::SetNotifyGlobalCrumblings_External(bool bN
 int32 FGeometryCollectionPhysicsProxy::CalculateHierarchyLevel(const FGeometryDynamicCollection& DynamicCollection, int32 TransformIndex)
 {
 	int32 Level = 0;
-	while (DynamicCollection.Parent[TransformIndex] != INDEX_NONE)
+	while ((TransformIndex = DynamicCollection.GetParent(TransformIndex)) != INDEX_NONE)
 	{
-		TransformIndex = DynamicCollection.Parent[TransformIndex];
 		Level++;
 	}
 	return Level;
@@ -2658,8 +2654,7 @@ TBitArray<> FGeometryCollectionPhysicsProxy::CalculateClustersToCreateFromChildr
 			// step 1 : find parents
 			for (const int32 ChildIndex : ChildrenToCheckForParentFix)
 			{
-				const int32 ParentIndex = DynamicCollection.Parent[ChildIndex];
-				if (ParentIndex != INDEX_NONE)
+				if (int32 ParentIndex = DynamicCollection.GetParent(ChildIndex); ParentIndex != INDEX_NONE)
 				{
 					ParentToPotentiallyFix.Add(ParentIndex);
 				}
@@ -3341,10 +3336,10 @@ static void UpdateParticleHandleTransformIfNeeded(Chaos::FPBDRigidsSolver& Curre
 inline static bool RemoveFromParentInCollection_Internal(FGeometryDynamicCollection& PhysicsThreadCollection, int32 TransformGroupIndex)
 {
 	// CONTEXT : PHYSICS THREAD
-	if (PhysicsThreadCollection.Parent[TransformGroupIndex] != INDEX_NONE)
+	if (int32 ParentIndex = PhysicsThreadCollection.GetParent(TransformGroupIndex); ParentIndex != INDEX_NONE)
 	{
-		PhysicsThreadCollection.Children[PhysicsThreadCollection.Parent[TransformGroupIndex]].Remove(TransformGroupIndex);
-		PhysicsThreadCollection.Parent[TransformGroupIndex] = INDEX_NONE;
+		PhysicsThreadCollection.Children[ParentIndex].Remove(TransformGroupIndex);
+		PhysicsThreadCollection.SetHasParent(TransformGroupIndex, false);
 		return true;
 	}
 	return false;
@@ -3402,7 +3397,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 
 			FGeometryCollectionResults::FStateData StateData;
 			StateData.TransformIndex = TransformGroupIndex;
-			StateData.ParentTransformIndex = PhysicsThreadCollection.Parent[TransformGroupIndex];
+			StateData.HasParent = PhysicsThreadCollection.GetHasParent(TransformGroupIndex);
 			StateData.InternalClusterUniqueIdx = INDEX_NONE;
 			StateData.State.DisabledState = Handle->Disabled();
 			StateData.State.HasInternalClusterParent = false;
@@ -3429,16 +3424,16 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 			Chaos::FPBDRigidClusteredParticleHandle* ClusterParent = Handle->Parent();
 
 			// Has parent changed? ( can be a new one or nullptr)
-			const bool bHasNewParent = (SolverClusterID[TransformGroupIndex] != ClusterParent) || (!ClusterParent && PhysicsThreadCollection.Parent[TransformGroupIndex]);
+			const bool bHasNewParent = (SolverClusterID[TransformGroupIndex] != ClusterParent) || (!ClusterParent && PhysicsThreadCollection.GetHasParent(TransformGroupIndex));
 			if (bHasNewParent)
 			{
 				// Force all driven rigid bodies out of the transform hierarchy ( because the new parent can only be an internal cluster )
 				if (RemoveFromParentInCollection_Internal(PhysicsThreadCollection, TransformGroupIndex))
 				{
-					// If the parent of this NON DISABLED body is set to anything other than INDEX_NONE,
+					// If the parent flag of this NON DISABLED body is set to false,
 					// then it was just unparented, likely either by rigid clustering or by fields.  We
 					// need to force all such enabled rigid bodies out of the transform hierarchy.
-					StateData.ParentTransformIndex = INDEX_NONE;
+					StateData.HasParent = false;
 
 					// Indicate that this object needs to be updated and the proxy is active.
 					StateData.State.DisabledState = false;
@@ -3752,7 +3747,7 @@ bool FGeometryCollectionPhysicsProxy::PullNonInterpolatableDataFromSinglePhysics
 			bIsCollectionDirty = true;
 		}
 
-		if (UpdateValue(GameThreadCollection.Parent[TransformGroupIndex], StateData.ParentTransformIndex))
+		if (UpdateValue(GameThreadCollection.HasParent[TransformGroupIndex], StateData.HasParent))
 		{
 			bIsCollectionDirty = true;
 		}
@@ -3945,7 +3940,7 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 						{
 							const FParticle& GTParticle = *GTParticles[TransformIndex];
 							const FTransform& ParticleMassToLocal = MassToLocal[TransformIndex];
-							const int32 ParentTransformIndex = GameThreadCollection.Parent[TransformIndex];
+							const int32 ParentTransformIndex = GameThreadCollection.GetParent(TransformIndex);
 
 							const FTransform& WorldTransform = ParticleMassToLocal.Inverse() * FTransform { GTParticle.R(), GTParticle.X() };
 

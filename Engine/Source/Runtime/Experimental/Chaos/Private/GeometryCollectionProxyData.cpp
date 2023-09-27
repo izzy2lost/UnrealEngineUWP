@@ -12,12 +12,13 @@ GeometryCollectionProxyData.cpp:
 * FTransformDynamicCollection (FManagedArrayCollection)
 */
 
-FTransformDynamicCollection::FTransformDynamicCollection()
+FTransformDynamicCollection::FTransformDynamicCollection(const FGeometryCollection* InRestCollection)
 	: FManagedArrayCollection()
+	, RestCollection(InRestCollection)
 {
+	check(RestCollection != nullptr);
 	Construct();
 }
-
 
 void FTransformDynamicCollection::Construct()
 {
@@ -25,7 +26,7 @@ void FTransformDynamicCollection::Construct()
 
 	// Transform Group
 	AddExternalAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup, Transform);
-	AddExternalAttribute<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup, Parent);
+	AddExternalAttribute<bool>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup, HasParent);
 	AddExternalAttribute<TSet<int32>>(FTransformCollection::ChildrenAttribute, FTransformCollection::TransformGroup, Children);
 }
 
@@ -42,6 +43,27 @@ void FTransformDynamicCollection::SetTransform(int32 Index, const FTransform3f& 
 const TArray<FTransform3f>& FTransformDynamicCollection::GetTransforms() const
 {
 	return Transform.GetConstArray();
+}
+
+const TManagedArray<bool>& FTransformDynamicCollection::GetHasParent() const
+{
+	return HasParent;
+}
+
+bool FTransformDynamicCollection::GetHasParent(int32 Index) const
+{
+	return HasParent[Index];
+}
+
+void FTransformDynamicCollection::SetHasParent(int32 Index, bool Value)
+{
+	HasParent[Index] = Value;
+}
+
+int32 FTransformDynamicCollection::GetParent(int32 Index) const 
+{
+	check(RestCollection != nullptr);
+	return HasParent[Index] ? RestCollection->Parent[Index] : INDEX_NONE;
 }
 
 
@@ -62,8 +84,8 @@ const FName FGeometryDynamicCollection::SharedImplicitsAttribute("SharedImplicit
 const FName FGeometryDynamicCollection::CollisionMaskAttribute("CollisionMask");
 const FName FGeometryDynamicCollection::CollisionGroupAttribute("CollisionGroup");
 
-FGeometryDynamicCollection::FGeometryDynamicCollection()
-	: FTransformDynamicCollection()
+FGeometryDynamicCollection::FGeometryDynamicCollection(const FGeometryCollection* InRestCollection)
+	: FTransformDynamicCollection(InRestCollection)
 {
 	// Transform Group
 	AddExternalAttribute<bool>(FGeometryDynamicCollection::ActiveAttribute, FTransformCollection::TransformGroup, Active);
@@ -124,8 +146,8 @@ void FGeometryDynamicCollection::FInitialVelocityFacade::CopyFrom(const FGeometr
 FGeometryCollectionDynamicStateFacade::FGeometryCollectionDynamicStateFacade(FManagedArrayCollection& InCollection)
 	: ActiveAttribute(InCollection, FGeometryDynamicCollection::ActiveAttribute,  FTransformCollection::TransformGroup)
 	, DynamicStateAttribute(InCollection, FGeometryDynamicCollection::DynamicStateAttribute,  FTransformCollection::TransformGroup)
-	, ChildrenAttribute(InCollection, "Children",  FTransformCollection::TransformGroup)
-	, ParentAttribute(InCollection, "Parent",  FTransformCollection::TransformGroup)
+	, ChildrenAttribute(InCollection, FTransformCollection::ChildrenAttribute,  FTransformCollection::TransformGroup)
+	, HasParentAttribute(InCollection, FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup)
 	, InternalClusterParentTypeAttribute(InCollection, "InternalClusterParentTypeArray", FGeometryCollection::TransformGroup)
 {
 }
@@ -135,9 +157,8 @@ bool FGeometryCollectionDynamicStateFacade::IsValid() const
 	return ActiveAttribute.IsValid()
 		&& DynamicStateAttribute.IsValid()
 		&& ChildrenAttribute.IsValid()
-		&& ParentAttribute.IsValid()
-		&& InternalClusterParentTypeAttribute.IsValid()
-		;
+		&& HasParentAttribute.IsValid()
+		&& InternalClusterParentTypeAttribute.IsValid();
 }
 
 bool FGeometryCollectionDynamicStateFacade::IsActive(int32 TransformIndex) const
@@ -165,7 +186,7 @@ bool FGeometryCollectionDynamicStateFacade::HasChildren(int32 TransformIndex) co
 bool FGeometryCollectionDynamicStateFacade::HasBrokenOff(int32 TransformIndex) const
 {
 	const bool bIsActive = IsActive(TransformIndex);
-	const bool bHasParent = (ParentAttribute.Get()[TransformIndex] != INDEX_NONE);
+	const bool bHasParent = HasParentAttribute.Get()[TransformIndex];
 	return bIsActive && (!bHasParent) && IsDynamicOrSleeping(TransformIndex);
 }
 

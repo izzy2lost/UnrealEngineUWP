@@ -31,7 +31,7 @@ namespace GeometryCollectionTest
 
 			const TManagedArray<FTransform>& MassToLocal = Collection->RestCollection->GetAttribute<FTransform>("MassToLocal", FGeometryCollection::TransformGroup);
 
-			EXPECT_EQ(Collection->DynamicCollection->Parent[0], 1); // is a child of index one
+			EXPECT_EQ(Collection->DynamicCollection->GetParent(0), 1); // is a child of index one
 			EXPECT_TRUE(MassToLocal[0].Equals(FTransform::Identity)); // we are not testing MassToLocal in this test
 			
 			
@@ -80,7 +80,7 @@ namespace GeometryCollectionTest
 
 			const TManagedArray<FTransform>& MassToLocal = Collection->RestCollection->GetAttribute<FTransform>("MassToLocal", FGeometryCollection::TransformGroup);
 
-			EXPECT_EQ(Collection->DynamicCollection->Parent[0], 1); // is a child of index one
+			EXPECT_EQ(Collection->DynamicCollection->GetParent(0), 1); // is a child of index one
 			EXPECT_TRUE(MassToLocal[0].Equals(FTransform::Identity)); // we are not testing MassToLocal in this test
 
 			UnitTest.AddSimulationObject(Collection);
@@ -293,7 +293,7 @@ namespace GeometryCollectionTest
 			
 			const TManagedArray<FTransform>& MassToLocal = Collection->RestCollection->GetAttribute<FTransform>("MassToLocal", FGeometryCollection::TransformGroup);
 
-			EXPECT_EQ(Collection->DynamicCollection->Parent[0], 1); // is a child of index one
+			EXPECT_EQ(Collection->DynamicCollection->GetParent(0), 1); // is a child of index one
 			EXPECT_TRUE(MassToLocal[0].Equals(FTransform::Identity)); // we are not testing MassToLocal in this test
 
 			UnitTest.AddSimulationObject(Collection);
@@ -314,7 +314,7 @@ namespace GeometryCollectionTest
 			
 			const TManagedArray<FTransform>& MassToLocal = Collection->RestCollection->GetAttribute<FTransform>("MassToLocal", FGeometryCollection::TransformGroup);
 			
-			EXPECT_EQ(CollectionStaticSphere->DynamicCollection->Parent[0], 1); // is a child of index one
+			EXPECT_EQ(CollectionStaticSphere->DynamicCollection->GetParent(0), 1); // is a child of index one
 			EXPECT_TRUE(MassToLocal[0].Equals(FTransform::Identity)); // we are not testing MassToLocal in this test
 
 			UnitTest.AddSimulationObject(CollectionStaticSphere);
@@ -518,7 +518,7 @@ namespace GeometryCollectionTest
 
 			const TManagedArray<FTransform>& MassToLocal = Collection->RestCollection->GetAttribute<FTransform>("MassToLocal", FGeometryCollection::TransformGroup);
 
-			EXPECT_EQ(Collection->DynamicCollection->Parent[0], -1); // is a child of index one
+			EXPECT_EQ(Collection->DynamicCollection->GetParent(0), -1); // is a child of index one
 			EXPECT_NEAR((MassToLocal[0].GetTranslation()-FVector(0,0,Scale + 10)).Size(),0,KINDA_SMALL_NUMBER);
 
 			UnitTest.AddSimulationObject(Collection);

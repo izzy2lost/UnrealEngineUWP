@@ -108,10 +108,9 @@ using namespace ChaosTest;
 			EXPECT_EQ(SimulationType[1],FGeometryCollection::ESimulationTypes::FST_Rigid);
 			EXPECT_EQ(SimulationType[2],FGeometryCollection::ESimulationTypes::FST_Clustered);
 
-			TManagedArray<int32>& Parent = Collection->DynamicCollection->Parent;
-			EXPECT_EQ(Parent[0],2);
-			EXPECT_EQ(Parent[1],2);
-			EXPECT_EQ(Parent[2],-1);
+			EXPECT_EQ(Collection->DynamicCollection->GetParent(0),2);
+			EXPECT_EQ(Collection->DynamicCollection->GetParent(1),2);
+			EXPECT_EQ(Collection->DynamicCollection->GetParent(2),-1);
 
 			// Set the one cluster to disabled
 			UnitTest.Solver->GetEvolution()->DisableParticle(Collection->PhysObject->GetSolverClusterHandles()[0]);

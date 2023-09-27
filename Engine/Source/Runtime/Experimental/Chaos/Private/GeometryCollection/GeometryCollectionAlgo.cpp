@@ -7,6 +7,7 @@
 #include "GeometryCollection/GeometryCollection.h"
 #include "GeometryCollection/RecordedTransformTrack.h"
 #include "GeometryCollection/Facades/CollectionHierarchyFacade.h"
+#include "GeometryCollectionProxyData.h"
 #include "Async/ParallelFor.h"
 
 DEFINE_LOG_CATEGORY_STATIC(GeometryCollectionAlgoLog, Log, All);
@@ -292,18 +293,18 @@ namespace GeometryCollectionAlgo
 	using FIndicesNeedMatricesArray = TArray<int32, TInlineAllocator<16>>;
 
 	// return false if we failed to get the indices, which can happen if the parent array does not describe a valid tree (e.g., if it contains a loop)
-	bool GlobalMatricesGetIndicesToProcessHelper(const int32 Index, const TManagedArray<int32>& Parents, TArray<bool>& IsTransformComputed, FIndicesNeedMatricesArray& OutToProcess)
+	bool GlobalMatricesGetIndicesToProcessHelper(const int32 Index, const FGeometryDynamicCollection& DynamicCollection, int32 ParentNum, TArray<bool>& IsTransformComputed, FIndicesNeedMatricesArray& OutToProcess)
 	{
 		checkSlow(Index != FGeometryCollection::Invalid);
 		checkSlow(OutToProcess.IsEmpty());
 
 		OutToProcess.Add(Index);
 		bool bFoundRootOrComputed = false;
-		const int32 MaxDepth = Parents.Num();
+		const int32 MaxDepth = ParentNum;
 		while (OutToProcess.Num() <= MaxDepth)
 		{
-			int32 Parent = Parents[OutToProcess.Last()];
-			if (Parent < 0 || IsTransformComputed[Parent])
+			const int32 Parent = DynamicCollection.GetParent(OutToProcess.Last());
+			if (Parent == INDEX_NONE || IsTransformComputed[Parent])
 			{
 				bFoundRootOrComputed = true;
 				break;
@@ -317,6 +318,72 @@ namespace GeometryCollectionAlgo
 
 		return true;
 	}
+
+	
+	// return false if we failed to get the indices, which can happen if the parent array does not describe a valid tree (e.g., if it contains a loop)
+	bool GlobalMatricesGetIndicesToProcessHelper(const int32 Index, const TManagedArray<int32>& Parents, TArray<bool>& IsTransformComputed, FIndicesNeedMatricesArray& OutToProcess)
+	{
+		checkSlow(Index != FGeometryCollection::Invalid);
+		checkSlow(OutToProcess.IsEmpty());
+
+		OutToProcess.Add(Index);
+		bool bFoundRootOrComputed = false;
+		const int32 MaxDepth = Parents.Num();
+		while (OutToProcess.Num() <= MaxDepth)
+		{
+			int32 Parent = Parents[OutToProcess.Last()];
+			if (Parent == INDEX_NONE || IsTransformComputed[Parent])
+			{
+				bFoundRootOrComputed = true;
+				break;
+			}
+			OutToProcess.Add(Parent);
+		}
+		if (!ensureMsgf(bFoundRootOrComputed, TEXT("Geometry Collection has invalid parent hierarchy, could not find root to create global transforms")))
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	template<typename TransformType>
+	void GlobalMatricesHelper(const int32 Index, const FGeometryDynamicCollection& DynamicCollection, const TManagedArray<TransformType>& Transform, TArray<bool>& IsTransformComputed, const TManagedArray<FTransform>* UniformScale, TArray<FTransform>& OutGlobalTransforms)
+	{
+		if (IsTransformComputed[Index])
+		{
+			return;
+		}
+
+		FIndicesNeedMatricesArray ToProcess;
+		if (!GlobalMatricesGetIndicesToProcessHelper(Index, DynamicCollection, Transform.Num(), IsTransformComputed, ToProcess))
+		{
+			return;
+		}
+
+		while (!ToProcess.IsEmpty())
+		{
+			const int32 ProcessIndex = ToProcess.Pop(false);
+			const int32 ParentIndex = DynamicCollection.GetParent(ProcessIndex);
+			FTransform Result = FTransform(Transform[ProcessIndex]);
+			if (ParentIndex != FGeometryCollection::Invalid)
+			{
+				Result *= OutGlobalTransforms[ParentIndex];
+			}
+
+			if (UniformScale)
+			{
+				OutGlobalTransforms[ProcessIndex] = (*UniformScale)[ProcessIndex] * Result;
+			}
+			else
+			{
+				OutGlobalTransforms[ProcessIndex] = Result;
+			}
+
+			IsTransformComputed[ProcessIndex] = true;
+		}
+	}
+
 
 	template<typename TransformType>
 	void GlobalMatricesHelper(const int32 Index, const TManagedArray<int32>& Parents, const TManagedArray<TransformType>& Transform, TArray<bool>& IsTransformComputed, const TManagedArray<FTransform>* UniformScale, TArray<FMatrix>& OutGlobalTransforms)
@@ -393,6 +460,44 @@ namespace GeometryCollectionAlgo
 		}
 	}
 
+	FTransform GlobalMatricesHelperForIndices(const int32 Index, const FGeometryDynamicCollection& DynamicCollection, const TManagedArray<FTransform3f>& Transform, TArray<bool>& IsTransformComputed, const TManagedArray<FTransform>* UniformScale, TArray<FTransform>& TransformCache)
+	{
+		if (IsTransformComputed[Index])
+		{
+			return TransformCache[Index];
+		}
+
+		FIndicesNeedMatricesArray ToProcess;
+		if (!GlobalMatricesGetIndicesToProcessHelper(Index, DynamicCollection, Transform.Num(), IsTransformComputed, ToProcess))
+		{
+			return TransformCache[Index];
+		}
+
+		while (!ToProcess.IsEmpty())
+		{
+			const int32 ProcessIndex = ToProcess.Pop(false);
+			const int32 ParentIndex = DynamicCollection.GetParent(ProcessIndex);
+			FTransform Result = FTransform(Transform[ProcessIndex]);
+			if (ParentIndex != FGeometryCollection::Invalid)
+			{
+				Result *= TransformCache[ParentIndex];
+			}
+
+			if (UniformScale)
+			{
+				TransformCache[ProcessIndex] = (*UniformScale)[ProcessIndex] * Result;
+			}
+			else
+			{
+				TransformCache[ProcessIndex] = Result;
+			}
+
+			IsTransformComputed[ProcessIndex] = true;
+		}
+
+		return TransformCache[Index];
+	}
+
 	template<typename TransformType>
 	FTransform GlobalMatricesHelperForIndices(const int32 Index, const TManagedArray<int32>& Parents, const TManagedArray<TransformType>& Transform, TArray<bool>& IsTransformComputed, const TManagedArray<FTransform>* UniformScale, TArray<FTransform>& TransformCache)
 	{
@@ -433,12 +538,27 @@ namespace GeometryCollectionAlgo
 	}
 
 
+	FTransform GlobalMatrix(const TManagedArray<FTransform3f>& RelativeTransforms, const FGeometryDynamicCollection& DynamicCollection, int32 Index)
+	{
+		FTransform Transform = FTransform::Identity;
+
+		if (RelativeTransforms.IsValidIndex(Index))
+		{
+			while (Index != FGeometryCollection::Invalid)
+			{
+				Transform = Transform * FTransform(RelativeTransforms[Index]);
+				Index = DynamicCollection.GetParent(Index);
+			}
+		}
+		return Transform;
+	}
+
 	template<class TransformType>
 	FTransform GlobalMatrixTemplate(const TManagedArray<TransformType>& RelativeTransforms, const TManagedArray<int32>& Parents, int32 Index)
 	{
 		FTransform Transform = FTransform::Identity;
 
-		if (0 <= Index && Index < RelativeTransforms.Num())
+		if (RelativeTransforms.IsValidIndex(Index))
 		{
 			while (Index != FGeometryCollection::Invalid)
 			{
@@ -457,6 +577,21 @@ namespace GeometryCollectionAlgo
 	FTransform GlobalMatrix(const TManagedArray<FTransform3f>& RelativeTransforms, const TManagedArray<int32>& Parents, int32 Index)
 	{
 		return GlobalMatrixTemplate(RelativeTransforms, Parents, Index);
+	}
+
+	void GlobalMatrices(const TManagedArray<FTransform3f>& RelativeTransforms, const FGeometryDynamicCollection& DynamicCollection, const TArray<int32>& Indices, TArray<FTransform>& OutGlobalTransforms)
+	{
+		TArray<bool> IsTransformComputed;
+		IsTransformComputed.AddDefaulted(RelativeTransforms.Num());
+
+		TArray<FTransform> TransformCache;
+		TransformCache.SetNumUninitialized(RelativeTransforms.Num(), false);
+
+		OutGlobalTransforms.SetNumUninitialized(Indices.Num(), false);
+		for (int Idx = 0; Idx < Indices.Num(); Idx++)
+		{
+			OutGlobalTransforms[Idx] = GlobalMatricesHelperForIndices(Indices[Idx], DynamicCollection, RelativeTransforms, IsTransformComputed, nullptr, TransformCache);
+		}
 	}
 
 	template<class TransformType>
@@ -512,6 +647,21 @@ namespace GeometryCollectionAlgo
 		for (int BoneIdx = 0; BoneIdx < NumTransforms; ++BoneIdx)
 		{
 			GlobalMatricesHelper<TransformType>(BoneIdx, Parents, RelativeTransforms, IsTransformComputed, &UniformScale, OutGlobalTransforms);
+		}
+	}
+
+	void GlobalMatrices(const TManagedArray<FTransform3f>& RelativeTransforms, const FGeometryDynamicCollection& DynamicCollection, TArray<FTransform>& OutGlobalTransforms)
+	{
+		int32 NumTransforms = RelativeTransforms.Num();
+
+		TArray<bool> IsTransformComputed;
+		IsTransformComputed.AddDefaulted(NumTransforms);
+
+		OutGlobalTransforms.SetNumUninitialized(NumTransforms, false);
+
+		for (int BoneIdx = 0; BoneIdx < NumTransforms; ++BoneIdx)
+		{
+			GlobalMatricesHelper<FTransform3f>(BoneIdx, DynamicCollection, RelativeTransforms, IsTransformComputed, nullptr, OutGlobalTransforms);
 		}
 	}
 

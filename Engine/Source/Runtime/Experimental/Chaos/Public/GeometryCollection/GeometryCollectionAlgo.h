@@ -7,6 +7,7 @@
 #include "GeometryCollection/TransformCollection.h"
 
 class FGeometryCollection;
+class FGeometryDynamicCollection;
 
 namespace GeometryCollectionAlgo
 {
@@ -134,6 +135,7 @@ namespace GeometryCollectionAlgo
 	*/
 	FTransform CHAOS_API GlobalMatrix(const TManagedArray<FTransform>& RelativeTransforms, const TManagedArray<int32>& Parents, int32 Index);
 	FTransform CHAOS_API GlobalMatrix(const TManagedArray<FTransform3f>& RelativeTransforms, const TManagedArray<int32>& Parents, int32 Index);
+	FTransform CHAOS_API GlobalMatrix(const TManagedArray<FTransform3f>& RelativeTransforms, const FGeometryDynamicCollection& DynamicCollection, int32 Index);
 
 
 	/*
@@ -141,6 +143,7 @@ namespace GeometryCollectionAlgo
 	*/
 	void CHAOS_API GlobalMatrices(const TManagedArray<FTransform>& RelativeTransforms, const TManagedArray<int32>& Parents, const TArray<int32>& Indices, TArray<FTransform>& Transforms);
 	void CHAOS_API GlobalMatrices(const TManagedArray<FTransform3f>& RelativeTransforms, const TManagedArray<int32>& Parents, const TArray<int32>& Indices, TArray<FTransform>& Transforms);
+	void CHAOS_API GlobalMatrices(const TManagedArray<FTransform3f>& RelativeTransforms, const FGeometryDynamicCollection& DynamicCollection, const TArray<int32>& Indices, TArray<FTransform>& Transforms);
 
 	/*
 	 *  Recursively traverse from a root node down
@@ -155,6 +158,8 @@ namespace GeometryCollectionAlgo
 
 	template<typename MatrixType, typename TransformType>
 	void CHAOS_API GlobalMatrices(const TManagedArray<TransformType>& RelativeTransforms, const TManagedArray<int32>& Parents, TArray<MatrixType>& Transforms);
+
+	void CHAOS_API GlobalMatrices(const TManagedArray<FTransform3f>& RelativeTransforms, const FGeometryDynamicCollection& DynamicCollection, TArray<FTransform>& Transforms);
 
 
 	/*

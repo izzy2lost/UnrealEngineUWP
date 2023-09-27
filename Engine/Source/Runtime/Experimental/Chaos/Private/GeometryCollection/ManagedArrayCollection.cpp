@@ -554,9 +554,14 @@ void FManagedArrayCollection::CopyAttribute(const FManagedArrayCollection& InCol
 
 	const FValueType& OriginalValue = InCollection.Map[SrcKey];
 	const FValueType& DestValue = Map[DestKey];
-	// Now a FTransform3f can be copy in a FTransform, and the way around
-	// check(OriginalValue.ArrayType == DestValue.ArrayType);
-	DestValue.Value->Init(*OriginalValue.Value);
+	if (OriginalValue.ArrayType == DestValue.ArrayType)
+	{
+		DestValue.Value->Init(*OriginalValue.Value);
+	}
+	else
+	{
+		DestValue.Value->Convert(*OriginalValue.Value);
+	}
 }
 
 bool FManagedArrayCollection::IsConnected(FName StartingNode, FName TargetNode)

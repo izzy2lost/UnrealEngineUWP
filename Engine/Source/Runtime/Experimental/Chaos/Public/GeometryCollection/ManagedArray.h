@@ -180,6 +180,11 @@ protected:
 	virtual void Init(const FManagedArrayBase& ) {};
 
 	/**
+	* Convert from a predefined Array, the managed array itself should have defined its conversion procedure
+	*/
+	virtual void Convert(const FManagedArrayBase&) { check(false); /* This type has no conversion process defined*/ };
+
+	/**
 	* Copy a range of values from the ConstArray into this
 	*/
 	virtual void CopyRange(const FManagedArrayBase& ConstArray, int32 Start, int32 Stop, int32 Offset = 0) {};
@@ -673,8 +678,6 @@ void InitHelper(TArray<TDst>& Array, const TManagedArrayBase<TSrc>& NewTypedArra
 	}
 }
 
-
-
 template <typename T>
 void InitHelper(TArray<TUniquePtr<T>>& Array, const TManagedArrayBase<TUniquePtr<T>>& NewTypedArray, int32 Size)
 {
@@ -1001,7 +1004,7 @@ public:
 		}
 
 	}
-private:
+protected:
 	/**
 	* Protected Resize to prevent external resizing of the array
 	*
@@ -1205,27 +1208,39 @@ protected:
 	/**
 	* Init from a predefined Array of matching type
 	*/
-	virtual void Init(const FManagedArrayBase& NewArray) override
+	virtual void Convert(const FManagedArrayBase& NewArray) override
 	{
-		if (NewArray.GetTypeSize() == GetTypeSize())
-		{
-			TManagedArrayBase::Init(NewArray);
-		}
-		else
-		{
-			check(NewArray.GetTypeSize() == 2 * GetTypeSize());
-			check(NewArray.GetTypeSize() == sizeof(FTransform));
-			const TManagedArrayBase<FTransform>& NewTypedArray = static_cast<const TManagedArrayBase<FTransform>&>(NewArray);
-			const int32 Size = NewTypedArray.Num();
-			Resize(Size);
-			InitHelper(Array, NewTypedArray, Size);
-		}
+		check(NewArray.GetTypeSize() != GetTypeSize());
+		check(NewArray.GetTypeSize() == 2 * GetTypeSize());
+		check(NewArray.GetTypeSize() == sizeof(FTransform));
+		const TManagedArrayBase<FTransform>& NewTypedArray = static_cast<const TManagedArrayBase<FTransform>&>(NewArray);
+		const int32 Size = NewTypedArray.Num();
+		Resize(Size);
+		InitHelper(Array, NewTypedArray, Size);
 	}
 };
 
 template<>
 class TManagedArray<bool> : public FManagedBitArrayBase
-{};
+{
+protected:
+	/**
+	* Init from a predefined Array of matching type
+	*/
+	virtual void Convert(const FManagedArrayBase& NewArray) override
+	{
+		check(NewArray.GetTypeSize() != GetTypeSize());
+		check(NewArray.GetTypeSize() == sizeof(int32));
+		
+		const TManagedArrayBase<int32>& NewTypedArray = static_cast<const TManagedArrayBase<int32>&>(NewArray);
+		const int32 Size = NewTypedArray.Num();
+		Resize(Size);
+		for (int32 Index = 0; Index < Size; Index++)
+		{
+			Array[Index] = NewTypedArray[Index] != INDEX_NONE;
+		}
+	}
+};
 
 template<>
 class TManagedArray<TSet<int32>> : public TManagedArrayBase<TSet<int32>>

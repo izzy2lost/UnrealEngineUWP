@@ -519,6 +519,7 @@ TManagedArray<FTransform3f>& UGeometryCollectionComponent::GetTransformArrayCopy
 	}
 	return *IndirectTransformArray;
 }
+
 void UGeometryCollectionComponent::ResetTransformArrayDynamic()
 {
 	IndirectTransformArray = nullptr;
@@ -526,6 +527,32 @@ void UGeometryCollectionComponent::ResetTransformArrayDynamic()
 const TManagedArray<FTransform>& UGeometryCollectionComponent::GetTransformArrayRest() const
 {
 	return RestCollection->GetGeometryCollection()->Transform;
+}
+
+TManagedArray<int32>& UGeometryCollectionComponent::GetParentArrayCopyOnWrite()
+{
+	if (!IndirectParentArray)
+	{
+		DynamicCollection->AddAttribute<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
+		DynamicCollection->CopyAttribute(*RestCollection->GetGeometryCollection(), FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
+		IndirectParentArray = &DynamicCollection->ModifyAttribute<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
+		CopyOnWriteAttributeList.Add(reinterpret_cast<FManagedArrayBase**>(&IndirectParentArray));
+	}
+	return *IndirectParentArray;
+}
+
+int32 UGeometryCollectionComponent::GetParent(int32 Index) const
+{
+	if (DynamicCollection)
+	{
+		return DynamicCollection->GetParent(Index);
+	}
+	return RestCollection->GetGeometryCollection()->Parent[Index];
+}
+
+const TManagedArray<int32>& UGeometryCollectionComponent::GetParentArrayRest() const
+{
+	return RestCollection->GetGeometryCollection()->Parent;
 }
 
 UGeometryCollectionComponent::UGeometryCollectionComponent(const FObjectInitializer& ObjectInitializer)
@@ -1374,11 +1401,11 @@ bool UGeometryCollectionComponent::DoCustomNavigableGeometryExport(FNavigableGeo
 	TArray<FTransform> GeomToComponent;
 	if (DynamicCollection)
 	{
-		GeometryCollectionAlgo::GlobalMatrices(GetTransformArray(), GetParentArray(), TransformIndexBuffer, GeomToComponent);
+		GeometryCollectionAlgo::GlobalMatrices(GetTransformArray(), *DynamicCollection, TransformIndexBuffer, GeomToComponent);
 	}
 	else
 	{
-		GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform>(GetCurrentRestTransforms()), GetParentArray(), TransformIndexBuffer, GeomToComponent);
+		GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform>(GetCurrentRestTransforms()), GetParentArrayRest(), TransformIndexBuffer, GeomToComponent);
 	}
 
 	OutVertexBuffer.AddUninitialized(VertexCount);
@@ -2917,18 +2944,17 @@ void UGeometryCollectionComponent::SetInitialClusterBreaks(const TArray<int32>& 
 {
 	if (DynamicCollection)
 	{
-		TManagedArray<int32>& Parent = DynamicCollection->Parent;
 		TManagedArray <TSet<int32>>& Children = DynamicCollection->Children;
-		const int32 NumTransforms = Parent.Num();
+		const int32 NumTransforms = DynamicCollection->GetTransforms().Num();
 
 		for (int32 ReleaseIndex : ReleaseIndices)
 		{
 			if (ReleaseIndex < NumTransforms)
 			{
-				if (Parent[ReleaseIndex] > INDEX_NONE)
+				if (int32 ParentIndex = DynamicCollection->GetParent(ReleaseIndex); ParentIndex > INDEX_NONE)
 				{
-					Children[Parent[ReleaseIndex]].Remove(ReleaseIndex);
-					Parent[ReleaseIndex] = INDEX_NONE;
+					Children[ParentIndex].Remove(ReleaseIndex);
+					DynamicCollection->SetHasParent(ReleaseIndex, false);
 				}
 			}
 		}
@@ -3470,7 +3496,7 @@ void UGeometryCollectionComponent::ResetDynamicCollection()
 #endif
 	if (bCreateDynamicCollection && RestCollection && RestCollection->GetGeometryCollection())
 	{
-		DynamicCollection = MakeUnique<FGeometryDynamicCollection>();
+		DynamicCollection = MakeUnique<FGeometryDynamicCollection>(RestCollection->GetGeometryCollection().Get());
 		for (const auto DynamicArray : CopyOnWriteAttributeList)
 		{
 			*DynamicArray = nullptr;
@@ -5434,12 +5460,11 @@ const TArray<FTransform>& UGeometryCollectionComponent::FComponentSpaceTransform
 	if (bFastPath)
 	{
 		const TArray<int32>& BreadthFirstTransformIndices = Component->RestCollection->GetBreadthFirstTransformIndices();
-		const TArray<int32>& ParentArray = Component->GetParentArray().GetConstArray();
 
 		for (int32 Index = 0; Index < BreadthFirstTransformIndices.Num(); Index++)
 		{
 			const int32 TransformIndex = BreadthFirstTransformIndices[Index];
-			const int32 ParentTransformIndex = ParentArray[TransformIndex];
+			const int32 ParentTransformIndex = Component->GetParent(TransformIndex);
 
 
 			FTransform CurrentTransform;
@@ -5467,11 +5492,11 @@ const TArray<FTransform>& UGeometryCollectionComponent::FComponentSpaceTransform
 	{
 		if (Component->DynamicCollection)
 		{
-			GeometryCollectionAlgo::GlobalMatrices(Component->GetTransformArray(), Component->GetParentArray(), Transforms);
+			GeometryCollectionAlgo::GlobalMatrices(Component->GetTransformArray(), *Component->GetDynamicCollection(), Transforms);
 		}
 		else
 		{
-			GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform>(Component->GetCurrentRestTransforms()), Component->GetParentArray(), Transforms);
+			GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform>(Component->GetCurrentRestTransforms()), Component->GetParentArrayRest(), Transforms);
 		}
 		
 	}

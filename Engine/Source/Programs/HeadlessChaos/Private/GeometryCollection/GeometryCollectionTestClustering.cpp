@@ -631,7 +631,8 @@ namespace GeometryCollectionTest
 		EXPECT_TRUE(ClusterMapContains(ClusterMap, Collection1Handles[2], { Collection1Handles[1],Collection1Handles[0] }));
 		EXPECT_TRUE(ClusterMapContains(ClusterMap, Collection1Handles[3], { Collection1Handles[2] }));
 		const TManagedArray<FTransform3f> Transforms1(DynamicCollection1->GetTransforms());
-		TArray<FTransform> Collection1_PreReleaseTM; GeometryCollectionAlgo::GlobalMatrices(Transforms1, DynamicCollection1->Parent, Collection1_PreReleaseTM);
+		TArray<FTransform> Collection1_PreReleaseTM; 
+		GeometryCollectionAlgo::GlobalMatrices(Transforms1, *DynamicCollection1.Get(), Collection1_PreReleaseTM);
 		for (int Idx = 0; Idx < Collection1_PreReleaseTM.Num(); Idx++) {
 			EXPECT_TRUE( (Collection1_PreReleaseTM[Idx].GetTranslation()-Collection1_InitialTM[Idx].GetTranslation()).Size()<KINDA_SMALL_NUMBER);
 		}
@@ -643,7 +644,8 @@ namespace GeometryCollectionTest
 		EXPECT_EQ(ClusterMap.Num(), 1);
 		EXPECT_TRUE(ClusterMapContains(ClusterMap, Collection1Handles[2], { Collection1Handles[1],Collection1Handles[0] }));
 		const TManagedArray<FTransform3f> Transforms2(DynamicCollection1->GetTransforms());
-		TArray<FTransform> Collection1_PostReleaseTM; GeometryCollectionAlgo::GlobalMatrices(Transforms2, DynamicCollection1->Parent, Collection1_PostReleaseTM);
+		TArray<FTransform> Collection1_PostReleaseTM; 
+		GeometryCollectionAlgo::GlobalMatrices(Transforms2, *DynamicCollection1.Get(), Collection1_PostReleaseTM);
 		for (int Idx = 0; Idx < Collection1_PostReleaseTM.Num(); Idx++) {
 			EXPECT_TRUE((Collection1_PostReleaseTM[Idx].GetTranslation() - Collection1_InitialTM[Idx].GetTranslation()).Size() < KINDA_SMALL_NUMBER);
 		}
@@ -654,7 +656,7 @@ namespace GeometryCollectionTest
 		EXPECT_EQ(SovlerParticleHandles.Size(), 4);
 		EXPECT_EQ(ClusterMap.Num(), 0);
 		const TManagedArray<FTransform3f> Transforms3(DynamicCollection1->GetTransforms());
-		TArray<FTransform> Collection1_PostRelease2TM; GeometryCollectionAlgo::GlobalMatrices(Transforms3, DynamicCollection1->Parent, Collection1_PostRelease2TM);
+		TArray<FTransform> Collection1_PostRelease2TM; GeometryCollectionAlgo::GlobalMatrices(Transforms3, *DynamicCollection1, Collection1_PostRelease2TM);
 		for (int Idx = 0; Idx < Collection1_PostRelease2TM.Num(); Idx++) {
 			EXPECT_TRUE((Collection1_PostRelease2TM[Idx].GetTranslation() - Collection1_InitialTM[Idx].GetTranslation()).Size() < KINDA_SMALL_NUMBER);
 		}
@@ -1460,10 +1462,10 @@ namespace GeometryCollectionTest
 			if (Frame == 0)
 			{
 				TArray<FTransform> GlobalTransform;
-				GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection->GetTransforms()), DynamicCollection->Parent, GlobalTransform);
+				GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection->GetTransforms()), *DynamicCollection, GlobalTransform);
 
 				TArray<FTransform> GlobalTransform2;
-				GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), DynamicCollection2->Parent, GlobalTransform2);
+				GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), *DynamicCollection2, GlobalTransform2);
 
 				// build relative transforms distances
 				for (int32 i = 0; i < (int32)GlobalTransform.Num()-1; i++)
@@ -1482,10 +1484,10 @@ namespace GeometryCollectionTest
 
 		
 		TArray<FTransform> GlobalTransform;
-		GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection->GetTransforms()), DynamicCollection->Parent, GlobalTransform);
+		GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection->GetTransforms()), *DynamicCollection, GlobalTransform);
 
 		TArray<FTransform> GlobalTransform2;
-		GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), DynamicCollection2->Parent, GlobalTransform2);
+		GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), *DynamicCollection2, GlobalTransform2);
 
 		// build relative transforms distances
 		TArray<FReal> Distances2;
@@ -1558,10 +1560,10 @@ namespace GeometryCollectionTest
 		});
 
 		TArray<FTransform> PrevGlobalTransform;
-		GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection->GetTransforms()), DynamicCollection->Parent, PrevGlobalTransform);
+		GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection->GetTransforms()), *DynamicCollection, PrevGlobalTransform);
 
 		TArray<FTransform> PrevGlobalTransform2;
-		GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), DynamicCollection2->Parent, PrevGlobalTransform2);
+		GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), *DynamicCollection2, PrevGlobalTransform2);
 
 
 		for (int Frame = 0; Frame < 100; Frame++)
@@ -1569,21 +1571,21 @@ namespace GeometryCollectionTest
 			UnitTest.Advance();
 
 			TArray<FTransform> GlobalTransform;
-			GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection->GetTransforms()), DynamicCollection->Parent, GlobalTransform);
+			GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection->GetTransforms()), *DynamicCollection, GlobalTransform);
 
 			TArray<FTransform> GlobalTransform2;
-			GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), DynamicCollection2->Parent, GlobalTransform2);
+			GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), *DynamicCollection2, GlobalTransform2);
 
 			EXPECT_EQ(ClusterMap.Num(), 1);
 			EXPECT_TRUE(ClusterMapContains(ClusterMap, ParticleHandles.Handle(6)->CastToRigidParticle(), { ParticleHandles.Handle(1)->CastToRigidParticle(),ParticleHandles.Handle(0)->CastToRigidParticle(),ParticleHandles.Handle(3)->CastToRigidParticle(),ParticleHandles.Handle(4)->CastToRigidParticle() }));
 
-			EXPECT_TRUE(DynamicCollection->Parent[0] == INDEX_NONE);
-			EXPECT_TRUE(DynamicCollection->Parent[1] == INDEX_NONE);
-			EXPECT_TRUE(DynamicCollection->Parent[2] == INDEX_NONE);
+			EXPECT_TRUE(DynamicCollection->GetParent(0) == INDEX_NONE);
+			EXPECT_TRUE(DynamicCollection->GetParent(1) == INDEX_NONE);
+			EXPECT_TRUE(DynamicCollection->GetParent(2) == INDEX_NONE);
 
-			EXPECT_TRUE(DynamicCollection2->Parent[0] == INDEX_NONE);
-			EXPECT_TRUE(DynamicCollection2->Parent[1] == INDEX_NONE);
-			EXPECT_TRUE(DynamicCollection2->Parent[2] == INDEX_NONE);
+			EXPECT_TRUE(DynamicCollection2->GetParent(0) == INDEX_NONE);
+			EXPECT_TRUE(DynamicCollection2->GetParent(1) == INDEX_NONE);
+			EXPECT_TRUE(DynamicCollection2->GetParent(2) == INDEX_NONE);
 
 			EXPECT_TRUE(GlobalTransform[0].GetTranslation().X == PrevGlobalTransform[0].GetTranslation().X);
 			EXPECT_TRUE(GlobalTransform[1].GetTranslation().X == PrevGlobalTransform[1].GetTranslation().X);
@@ -1699,10 +1701,10 @@ namespace GeometryCollectionTest
 				FTransform RootTransform(Root->R(), Root->X());
 
 				TArray<FTransform> GlobalTransform1;
-				GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection->GetTransforms()), DynamicCollection->Parent, GlobalTransform1);
+				GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection->GetTransforms()), *DynamicCollection, GlobalTransform1);
 
 				TArray<FTransform> GlobalTransform2;
-				GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), DynamicCollection2->Parent, GlobalTransform2);
+				GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), *DynamicCollection2, GlobalTransform2);
 
 				EXPECT_TRUE(!InitialRootPosition.Equals(Root->X())); // root moves
 
@@ -1717,13 +1719,13 @@ namespace GeometryCollectionTest
 			// Validate that the children have been removed from the 
 			// parenting hierarchy.
 			//
-			EXPECT_TRUE(DynamicCollection->Parent[0] == INDEX_NONE);
-			EXPECT_TRUE(DynamicCollection->Parent[1] == INDEX_NONE);
-			EXPECT_TRUE(DynamicCollection->Parent[2] == INDEX_NONE);
+			EXPECT_TRUE(DynamicCollection->GetParent(0) == INDEX_NONE);
+			EXPECT_TRUE(DynamicCollection->GetParent(1) == INDEX_NONE);
+			EXPECT_TRUE(DynamicCollection->GetParent(2) == INDEX_NONE);
 
-			EXPECT_TRUE(DynamicCollection2->Parent[0] == INDEX_NONE);
-			EXPECT_TRUE(DynamicCollection2->Parent[1] == INDEX_NONE);
-			EXPECT_TRUE(DynamicCollection2->Parent[2] == INDEX_NONE);
+			EXPECT_TRUE(DynamicCollection2->GetParent(0) == INDEX_NONE);
+			EXPECT_TRUE(DynamicCollection2->GetParent(1) == INDEX_NONE);
+			EXPECT_TRUE(DynamicCollection2->GetParent(2) == INDEX_NONE);
 		}
 	}
 	
@@ -1775,8 +1777,8 @@ namespace GeometryCollectionTest
 		TSharedPtr<FGeometryDynamicCollection> DynamicCollection1 = Collection1->DynamicCollection;
 		TSharedPtr<FGeometryDynamicCollection> DynamicCollection2 = Collection2->DynamicCollection;
 
-		TArray<FTransform> Collection1_InitialTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), DynamicCollection1->Parent, Collection1_InitialTM);
-		TArray<FTransform> Collection2_InitialTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), DynamicCollection2->Parent, Collection2_InitialTM);
+		TArray<FTransform> Collection1_InitialTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), *DynamicCollection1, Collection1_InitialTM);
+		TArray<FTransform> Collection2_InitialTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), *DynamicCollection2, Collection2_InitialTM);
 
 		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& Collection1Handles = Collection1->PhysObject->GetSolverParticleHandles();
 		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& Collection2Handles = Collection2->PhysObject->GetSolverParticleHandles();
@@ -1810,8 +1812,8 @@ namespace GeometryCollectionTest
 		EXPECT_TRUE(ClusterMapContains(ClusterMap, ClusterUnion.InternalCluster, { Collection1Handles[0], Collection1Handles[1], Collection2Handles[0], Collection2Handles[1] }));
 		EXPECT_EQ(ClusterMap[ClusterUnion.InternalCluster].Num(), 4);
 
-		TArray<FTransform> Collection1_PreReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), DynamicCollection1->Parent, Collection1_PreReleaseTM);
-		TArray<FTransform> Collection2_PreReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), DynamicCollection2->Parent, Collection2_PreReleaseTM);
+		TArray<FTransform> Collection1_PreReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), *DynamicCollection1, Collection1_PreReleaseTM);
+		TArray<FTransform> Collection2_PreReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), *DynamicCollection2, Collection2_PreReleaseTM);
 		for (int Idx = 0; Idx < Collection1_PreReleaseTM.Num() - 1; Idx++) {
 			EXPECT_LT(Collection1_PreReleaseTM[Idx].GetTranslation().Z, Collection1_InitialTM[Idx].GetTranslation().Z);
 			EXPECT_LT(Collection2_PreReleaseTM[Idx].GetTranslation().Z, Collection2_InitialTM[Idx].GetTranslation().Z);
@@ -1835,8 +1837,8 @@ namespace GeometryCollectionTest
 
 		EXPECT_EQ(SovlerParticleHandles.Size(), 7);
 
-		TArray<FTransform> Collection1_PostReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), DynamicCollection1->Parent, Collection1_PostReleaseTM);
-		TArray<FTransform> Collection2_PostReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), DynamicCollection2->Parent, Collection2_PostReleaseTM);
+		TArray<FTransform> Collection1_PostReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), *DynamicCollection1, Collection1_PostReleaseTM);
+		TArray<FTransform> Collection2_PostReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), *DynamicCollection2, Collection2_PostReleaseTM);
 		for (int Idx = 0; Idx < Collection1_PostReleaseTM.Num() - 1; Idx++) {
 			EXPECT_LT(Collection1_PostReleaseTM[Idx].GetTranslation().Z, Collection1_PreReleaseTM[Idx].GetTranslation().Z);
 			EXPECT_LT(Collection2_PostReleaseTM[Idx].GetTranslation().Z, Collection2_PreReleaseTM[Idx].GetTranslation().Z);
@@ -1891,8 +1893,8 @@ namespace GeometryCollectionTest
 		Chaos::FClusterUnionManager& ClusterUnionManager = Clustering.GetClusterUnionManager();
 		const auto& ClusterMap = Clustering.GetChildrenMap();
 
-		TArray<FTransform> Collection1_InitialTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), DynamicCollection1->Parent, Collection1_InitialTM);
-		TArray<FTransform> Collection2_InitialTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), DynamicCollection2->Parent, Collection2_InitialTM);
+		TArray<FTransform> Collection1_InitialTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), *DynamicCollection1, Collection1_InitialTM);
+		TArray<FTransform> Collection2_InitialTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), *DynamicCollection2, Collection2_InitialTM);
 
 		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& Collection1Handles = Collection1->PhysObject->GetSolverParticleHandles();
 		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& Collection2Handles = Collection2->PhysObject->GetSolverParticleHandles();
@@ -1925,8 +1927,8 @@ namespace GeometryCollectionTest
 		EXPECT_TRUE(ClusterMapContains(ClusterMap, ClusterUnion.InternalCluster, { Collection1Handles[0], Collection1Handles[1], Collection2Handles[0], Collection2Handles[1] }));
 		EXPECT_EQ(ClusterMap[ClusterUnion.InternalCluster].Num(), 4);
 
-		TArray<FTransform> Collection1_PreReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), DynamicCollection1->Parent, Collection1_PreReleaseTM);
-		TArray<FTransform> Collection2_PreReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), DynamicCollection2->Parent, Collection2_PreReleaseTM);
+		TArray<FTransform> Collection1_PreReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), *DynamicCollection1, Collection1_PreReleaseTM);
+		TArray<FTransform> Collection2_PreReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), *DynamicCollection2, Collection2_PreReleaseTM);
 		for (int Idx = 0; Idx < Collection1_PreReleaseTM.Num() - 1; Idx++) 
 		{
 			EXPECT_EQ(Collection1_PreReleaseTM[Idx].GetTranslation().Z, Collection1_InitialTM[Idx].GetTranslation().Z);
@@ -1953,8 +1955,8 @@ namespace GeometryCollectionTest
 
 		// validate that DynamicCollection2 became dynamic and fell from the cluster. 
 
-		TArray<FTransform> Collection1_PostReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), DynamicCollection1->Parent, Collection1_PostReleaseTM);
-		TArray<FTransform> Collection2_PostReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), DynamicCollection2->Parent, Collection2_PostReleaseTM);
+		TArray<FTransform> Collection1_PostReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), *DynamicCollection1, Collection1_PostReleaseTM);
+		TArray<FTransform> Collection2_PostReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection2->GetTransforms()), *DynamicCollection2, Collection2_PostReleaseTM);
 		for (int Idx = 0; Idx < Collection1_PostReleaseTM.Num() - 1; Idx++) 
 		{
 			if(Idx == 1)
@@ -2002,7 +2004,7 @@ namespace GeometryCollectionTest
 
 		auto& Clustering = UnitTest.Solver->GetEvolution()->GetRigidClustering();
 		const auto& ClusterMap = Clustering.GetChildrenMap();
-		TArray<FTransform> Collection1_InitialTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), DynamicCollection1->Parent, Collection1_InitialTM);
+		TArray<FTransform> Collection1_InitialTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), *DynamicCollection1, Collection1_InitialTM);
 		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& Collection1Handles = Collection1->PhysObject->GetSolverParticleHandles();
 		const auto& SovlerParticleHandles = UnitTest.Solver->GetParticles().GetParticleHandles();
 
@@ -2021,7 +2023,7 @@ namespace GeometryCollectionTest
 		EXPECT_TRUE(ClusterMapContains(ClusterMap, Collection1Handles[2], { Collection1Handles[1],Collection1Handles[0] }));
 		EXPECT_TRUE(ClusterMapContains(ClusterMap, Collection1Handles[3], { Collection1Handles[2] }));
 
-		TArray<FTransform> Collection1_PreReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), DynamicCollection1->Parent, Collection1_PreReleaseTM);
+		TArray<FTransform> Collection1_PreReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), *DynamicCollection1, Collection1_PreReleaseTM);
 		for (int Idx = 0; Idx < Collection1_PreReleaseTM.Num() - 1; Idx++)
 		{
 			EXPECT_EQ(Collection1_PreReleaseTM[Idx].GetTranslation().Z, Collection1_InitialTM[Idx].GetTranslation().Z);
@@ -2038,7 +2040,7 @@ namespace GeometryCollectionTest
 		EXPECT_EQ(ClusterMap.Num(), 1);
 
 		// validate that DynamicCollection1 BODY 2 became dynamic and fell from the cluster. 
-		TArray<FTransform> Collection1_PostReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), DynamicCollection1->Parent, Collection1_PostReleaseTM);
+		TArray<FTransform> Collection1_PostReleaseTM; GeometryCollectionAlgo::GlobalMatrices(TManagedArray<FTransform3f>(DynamicCollection1->GetTransforms()), *DynamicCollection1, Collection1_PostReleaseTM);
 		EXPECT_NEAR(Collection1_PostReleaseTM[1].GetTranslation().Z, Collection1_PreReleaseTM[1].GetTranslation().Z, KINDA_SMALL_NUMBER); // the original kinematic should be frozen
 		EXPECT_LT(Collection1_PostReleaseTM[0].GetTranslation().Z, Collection1_PreReleaseTM[0].GetTranslation().Z);
 	}

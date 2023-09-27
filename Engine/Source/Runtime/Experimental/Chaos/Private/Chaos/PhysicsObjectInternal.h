@@ -70,7 +70,7 @@ namespace Chaos
 				FGeometryCollectionPhysicsProxy* GeometryCollectionProxy = static_cast<FGeometryCollectionPhysicsProxy*>(Proxy);
 				FGeometryDynamicCollection& Collection = GetGeometryCollectionDynamicCollection<Id>(*GeometryCollectionProxy);
 
-				if (int32 Index = Collection.Parent[BodyIndex]; Index != INDEX_NONE)
+				if (int32 Index = Collection.GetParent(BodyIndex); Index != INDEX_NONE)
 				{
 					return GeometryCollectionProxy->GetPhysicsObjectByIndex(Index);
 				}
