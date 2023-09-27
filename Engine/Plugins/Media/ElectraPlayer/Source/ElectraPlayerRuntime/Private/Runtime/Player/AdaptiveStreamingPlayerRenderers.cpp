@@ -16,6 +16,7 @@
 #define VALIDITY_VALUE_KEY TEXT("$renderVV$")
 #define DURATION_VALUE_KEY TEXT("duration")
 #define TIMESTAMP_VALUE_KEY TEXT("pts")
+#define EOS_VALUE_KEY TEXT("eos")
 
 #define AUDIO_BUFFER_SIZE TEXT("max_buffer_size")
 #define AUDIO_BUFFER_NUM TEXT("num_buffers")
@@ -464,36 +465,38 @@ UEMediaError FAdaptiveStreamingWrappedRenderer::ReturnBufferCommon(IBuffer* Buff
 		InSampleProperties.SetOrUpdate(DURATION_VALUE_KEY, FVariantValue(Duration));
 	}
 
+	bool bIsUnusedReturnBuffer = bRender == false && InSampleProperties.GetValue(EOS_VALUE_KEY).SafeGetBool(false) == false;
+
 	FScopeLock lock(&Lock);
 	EnqueuedDuration += Duration;
 	++NumEnqueuedSamples;
 
-	if (bRender)
+	if (!bIsUnusedReturnBuffer)
 	{
-	    bool bHoldback = !bIsRunning;
-	    // If the video renderer shall not hold back the first frame (used for scrubbing video)
-	    // then we pass it out. The count is reset in Flush().
-	    if (Type == EStreamType::Video && bDoNotHoldBackFirstVideoFrame)
-	    {
-		    if (NumBuffersNotHeldBack == 0)
-		    {
-			    bHoldback = false;
-		    }
-		    if (!bHoldback)
-		    {
-			    ++NumBuffersNotHeldBack;
-		    }
-	    }
-	    if (bHoldback)
-	    {
-		    FPendingReturnBuffer pb;
-		    pb.Buffer = Buffer;
-		    pb.bRender = bRender;
-		    pb.Properties = InSampleProperties;
-		    PendingReturnBuffers.Enqueue(MoveTemp(pb));
-		    ++NumPendingReturnBuffers;
-		    return UEMEDIA_ERROR_OK;
-	    }
+		bool bHoldback = !bIsRunning;
+		// If the video renderer shall not hold back the first frame (used for scrubbing video)
+		// then we pass it out. The count is reset in Flush().
+		if (Type == EStreamType::Video && bDoNotHoldBackFirstVideoFrame)
+		{
+			if (NumBuffersNotHeldBack == 0)
+			{
+				bHoldback = false;
+			}
+			if (!bHoldback)
+			{
+				++NumBuffersNotHeldBack;
+			}
+		}
+		if (bHoldback)
+		{
+			FPendingReturnBuffer pb;
+			pb.Buffer = Buffer;
+			pb.bRender = bRender;
+			pb.Properties = InSampleProperties;
+			PendingReturnBuffers.Enqueue(MoveTemp(pb));
+			++NumPendingReturnBuffers;
+			return UEMEDIA_ERROR_OK;
+		}
 	}
 	lock.Unlock();
 	return WrappedRenderer->ReturnBuffer(Buffer, bRender, InSampleProperties);
