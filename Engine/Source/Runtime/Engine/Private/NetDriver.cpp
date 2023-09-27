@@ -2393,7 +2393,13 @@ void UNetDriver::ProcessRemoteFunctionForChannelPrivate(
 				}
 
 				NETWORK_PROFILER(GNetworkProfiler.TrackSendRPC(Ch->Actor, Function, HeaderBits, ParameterBits, 0, Connection));
-				Ch->SendBunch(&Bunch, true);
+				FPacketIdRange PacketIdRange = Ch->SendBunch(&Bunch, true);
+
+				if (UNLIKELY(PacketIdRange.First == INDEX_NONE && PacketIdRange.Last == INDEX_NONE))
+				{
+					UE_LOG(LogNetTraffic, Error, TEXT("      ERROR: Failed to send RPC: %s::%s [%.1f bytes]"), *GetFullNameSafe(TargetObj), *GetNameSafe(Function), Bunch.GetNumBits() / 8.f);
+				}
+
 			}
 		}
 	}
