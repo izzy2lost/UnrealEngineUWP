@@ -82,11 +82,11 @@ extern "C" void autortfm_llvm_fail(const char* Message)
 {
     if (Message)
     {
-		UE_LOG(LogAutoRTFM, Warning, TEXT("Transaction failing because of language issue '%s'."), ANSI_TO_TCHAR(Message));
+		UE_LOG(LogAutoRTFM, Fatal, TEXT("Transaction failing because of language issue '%s'."), ANSI_TO_TCHAR(Message));
     }
     else
     {
-		UE_LOG(LogAutoRTFM, Warning, TEXT("Transaction failing because of language issue."));
+		UE_LOG(LogAutoRTFM, Fatal, TEXT("Transaction failing because of language issue."));
 	}
 
 	FContext* Context = FContext::Get();
