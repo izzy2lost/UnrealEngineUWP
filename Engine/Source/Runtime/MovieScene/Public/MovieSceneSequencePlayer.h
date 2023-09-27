@@ -30,6 +30,7 @@ namespace UE::MovieScene
 }
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMovieSceneSequencePlayerEvent);
+DECLARE_DELEGATE(FOnMovieSceneSequencePlayerNativeEvent);
 
 /**
  * Enum used to define how to update to a particular time
@@ -397,6 +398,8 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Sequencer|Player")
 	FOnMovieSceneSequencePlayerEvent OnFinished;
 
+	/** Native event triggered when the level sequence player finishes naturally (without explicitly calling stop) */
+	FOnMovieSceneSequencePlayerNativeEvent OnNativeFinished;
 
 public:
 

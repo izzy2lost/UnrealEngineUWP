@@ -505,6 +505,8 @@ void UMovieSceneSequencePlayer::FinishPlaybackInternal(FFrameTime TimeToFinishAt
 	{
 		OnFinished.Broadcast();
 	}
+
+	OnNativeFinished.ExecuteIfBound();
 }
 
 void UMovieSceneSequencePlayer::GoToEndAndStop()
