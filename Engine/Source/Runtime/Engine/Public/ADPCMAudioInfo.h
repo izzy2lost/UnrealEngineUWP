@@ -98,6 +98,7 @@ public:
 	ENGINE_API virtual bool ReadCompressedInfo(const uint8* InSrcBufferData, uint32 InSrcBufferDataSize, struct FSoundQualityInfo* QualityInfo);
 	ENGINE_API virtual bool ReadCompressedData(uint8* Destination, bool bLooping, uint32 BufferSize);
 	ENGINE_API virtual void SeekToTime(const float SeekTime);
+	ENGINE_API virtual void SeekToFrame(const uint32 SeekFrame);
 	ENGINE_API virtual void ExpandFile(uint8* DstBuffer, struct FSoundQualityInfo* QualityInfo);
 	virtual void EnableHalfRate(bool HalfRate) {};
 	virtual uint32 GetSourceBufferSize() const { return SrcBufferDataSize; }
@@ -179,10 +180,10 @@ private:
 
 private:
 	void ProcessSeekRequest();
-	void SeekToTimeInternal(const float InSeekTime);
+	void SeekToFrameInternal(const uint32 InSeekFrame);
 	void ResetSeekState();
 
-	std::atomic<float> TargetSeekTime;
+	std::atomic<uint32> TargetSeekFrame;
 
 	FCriticalSection StreamSeekCriticalSection;
 };

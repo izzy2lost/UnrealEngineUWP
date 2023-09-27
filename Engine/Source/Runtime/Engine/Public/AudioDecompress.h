@@ -65,6 +65,11 @@ public:
 	virtual void SeekToTime(const float SeekTime) = 0;
 
 	/**
+	* Seeks to specific frame in the audio (Some formats might not be seekable)
+	*/
+	virtual void SeekToFrame(const uint32 Frame) = 0;
+
+	/**
 	* Decompress an entire data file to a TArray
 	*/
 	virtual void ExpandFile(uint8* DstBuffer, struct FSoundQualityInfo* QualityInfo) = 0;
@@ -199,7 +204,8 @@ public:
 	//~ Begin ICompressedInfo Interface
 	ENGINE_API virtual bool ReadCompressedInfo(const uint8* InSrcBufferData, uint32 InSrcBufferDataSize, FSoundQualityInfo* QualityInfo) override;
 	ENGINE_API virtual bool ReadCompressedData(uint8* Destination, bool bLooping, uint32 BufferSize) override;
-	ENGINE_API virtual void SeekToTime(const float SeekTime) override;;
+	ENGINE_API virtual void SeekToTime(const float SeekTime) override;
+	ENGINE_API virtual void SeekToFrame(const uint32 SeekFrame) override;
 	ENGINE_API virtual void ExpandFile(uint8* DstBuffer, struct FSoundQualityInfo* QualityInfo) override;
 	virtual void EnableHalfRate(bool HalfRate) override {};
 	virtual uint32 GetSourceBufferSize() const override { return SrcBufferDataSize; }

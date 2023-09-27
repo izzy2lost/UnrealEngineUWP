@@ -330,16 +330,29 @@ void FOpusAudioInfo::SeekToTime(const float InSeekTime)
 	}
 	else if (SrcBufferData && SrcBufferDataSize)
 	{
-		uint32 SeekSampleNum = 0;
+		uint32 SeekFrameNum = 0;
 		if (InSeekTime > 0.0f)
 		{
-			SeekSampleNum = (uint32)(InSeekTime * Header.SampleRate * NumChannels);
+			SeekFrameNum = (uint32)(InSeekTime * Header.SampleRate);
 		}
 
+		SeekToFrame(SeekFrameNum);
+	}
+}
+
+void FOpusAudioInfo::SeekToFrame(const uint32 InSeekFrame)
+{
+	if (GetStreamingSoundWave().IsValid())
+	{
+		IStreamedCompressedInfo::SeekToFrame(InSeekFrame);
+	}
+	else if (SrcBufferData && SrcBufferDataSize)
+	{
+		uint32 SeekSampleNum = InSeekFrame * NumChannels;
 		const uint8* ChunkPtr = SrcBufferData + AudioDataOffset;
 		const uint8* const EndPtr = SrcBufferData + SrcBufferDataSize;
 		uint32 CurrentChunkSampleNum = 0;
-		while(ChunkPtr < EndPtr)
+		while (ChunkPtr < EndPtr)
 		{
 			uint32 ChunkSize = (uint32)ChunkPtr[0] + ((uint32)ChunkPtr[1] << 8);
 			int32 ExpectedFrames = opus_packet_get_nb_frames(ChunkPtr + 2, ChunkSize);
@@ -366,4 +379,3 @@ void FOpusAudioInfo::SeekToTime(const float InSeekTime)
 	NumRemainingSamplesToSkip = Header.NumSilentSamplesAtBeginning + Header.NumPreSkipSamples;
 	PreviousDecodedUnusedSamples.Empty();
 }
-

@@ -121,13 +121,27 @@ void FBinkAudioInfo::SeekToTime(const float SeekTimeSeconds)
 		return;
 	}
 
+	// convert seconds to frames and call SeekToFrame
 	uint32 SeekTimeFrames = 0;
-	uint32 SeekTimeSamples = 0;
 	if (SeekTimeSeconds > 0)
 	{
 		SeekTimeFrames = (uint32)(SeekTimeSeconds * SampleRate);
-		SeekTimeSamples = SeekTimeFrames * NumChannels;
 	}
+
+	SeekToFrame(SeekTimeFrames);
+}
+
+void FBinkAudioInfo::SeekToFrame(const uint32 InFrameNum)
+{
+	// If there's no seek table on the header, fall-back to Super implementation.
+	if (Decoder->SeekTableCount == 0)
+	{
+		Super::SeekToFrame(InFrameNum);
+		return;
+	}
+
+	uint32 SeekTimeFrames = InFrameNum;
+	uint32 SeekTimeSamples = SeekTimeFrames * NumChannels;
 
 	uint32 SamplesInFrame = GetMaxFrameSizeSamples();
 	if (SeekTimeSamples > this->TrueSampleCount)

@@ -553,6 +553,28 @@ void FVorbisAudioInfo::SeekToTime( const float SeekTime )
 	ov_time_seek( &VFWrapper->vf, TargetTime );
 }
 
+void FVorbisAudioInfo::SeekToFrame(const uint32 SeekFrames)
+{
+	if (!bDllLoaded)
+	{
+		UE_LOG(LogAudio, Error, TEXT("FVorbisAudioInfo::SeekToTime failed due to vorbis DLL not being loaded."));
+		return;
+	}
+
+	FScopeLock ScopeLock(&VorbisCriticalSection);
+
+	if (!bHeaderParsed)
+	{
+		UE_LOG(LogAudio, Error, TEXT("FVorbisAudioInfo::SeekToTime failed due to not parsing header first."));
+		return;
+	}
+
+	vorbis_info* vi = ov_info(&VFWrapper->vf, -1);
+	int64 SeekSamples = SeekFrames * vi->channels;
+	const int64 TargetSample = FMath::Min(SeekSamples, (int64)ov_pcm_total(&VFWrapper->vf, -1));
+	ov_pcm_seek(&VFWrapper->vf, TargetSample);
+}
+
 void FVorbisAudioInfo::EnableHalfRate( bool HalfRate )
 {
 	if (!bDllLoaded)

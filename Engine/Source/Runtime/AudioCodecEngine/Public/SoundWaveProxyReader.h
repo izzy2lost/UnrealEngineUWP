@@ -135,6 +135,15 @@ public:
 	 */
 	AUDIOCODECENGINE_API bool SeekToTime(float InSeconds);
 
+	/** Seeks to position in wave at a specific frame.
+	 *
+	 * @param InFrameNum - The specific frame to seek the playhead
+	 *
+	 * @return true on success, false on failure.
+	 */
+	AUDIOCODECENGINE_API bool SeekToFrame(uint32 InFrameNum);
+
+
 	/** Pops audio from reader and copies audio into OutBuffer. It returns the number of samples copied.
 	 * Samples not written to will be set to zero.
 	 */

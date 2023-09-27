@@ -146,7 +146,7 @@ bool FSoundWaveProxyReader::SeekToTime(float InSeconds)
 
 	if (WaveProxy->IsSeekable() && CompressedAudioInfo)
 	{
-		CompressedAudioInfo->SeekToTime(InSeconds);
+		CompressedAudioInfo->SeekToFrame(InFrameIndex);
 		CurrentFrameIndex = InFrameIndex;
 		DecoderOutput.SetNum(0);
 		NumDecodeSamplesToDiscard = 0;
@@ -155,6 +155,30 @@ bool FSoundWaveProxyReader::SeekToTime(float InSeconds)
 	}
 	// Direct seeking is not supported. A new decoder must be created. 
 	bIsDecoderValid = InitializeDecoder(InSeconds);
+	return bIsDecoderValid;
+}
+
+AUDIOCODECENGINE_API bool FSoundWaveProxyReader::SeekToFrame(uint32 InFrameNum)
+{
+	// ignore seek request if we're already at the specified time
+	if (InFrameNum == CurrentFrameIndex)
+	{
+		return bIsDecoderValid;
+	}
+
+	if (WaveProxy->IsSeekable() && CompressedAudioInfo)
+	{
+		CompressedAudioInfo->SeekToFrame(InFrameNum);
+		CurrentFrameIndex = InFrameNum;
+		DecoderOutput.SetNum(0);
+		NumDecodeSamplesToDiscard = 0;
+		DecodeResult = EDecodeResult::MoreDataRemaining;
+		return bIsDecoderValid;
+	}
+
+	// Direct seeking is not supported. A new decoder must be created.
+	float Seconds = GetSampleRate() * InFrameNum;
+	bIsDecoderValid = InitializeDecoder(Seconds);
 	return bIsDecoderValid;
 }
 
@@ -224,7 +248,6 @@ int32 FSoundWaveProxyReader::PopAudio(Audio::FAlignedFloatBuffer& OutBuffer)
 			// we can produce more audio, but we were unable to
 			// this is likely due to the streaming data not being available yet
 			// let's early out to avoid a hitch and hope that it's ready on the next read
-			UE_LOG(LogAudio, Verbose, TEXT("FSoundWaveProxyReader experienced an underrun while decoding samples: %s"), *WaveProxy->GetPackageName().ToString());
 			break;
 		}
 	}

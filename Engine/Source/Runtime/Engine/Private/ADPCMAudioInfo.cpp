@@ -66,7 +66,7 @@ FADPCMAudioInfo::FADPCMAudioInfo(void)
 	, bNewSeekRequest(false)
 	, bSeekPendingRead(false)
 	, bSeekedFowardToNextChunk(false)
-	, TargetSeekTime(0.0f)
+	, TargetSeekFrame(0)
 {
 }
 
@@ -86,18 +86,31 @@ void FADPCMAudioInfo::SeekToTime(const float InSeekTime)
 		return;
 	}
 
-	TargetSeekTime = InSeekTime;
+	const uint32 SamplesPerSec = *WaveInfo.pSamplesPerSec;
+	TargetSeekFrame = static_cast<uint32>(InSeekTime * SamplesPerSec);
 	bNewSeekRequest = true;
 }
 
-void FADPCMAudioInfo::SeekToTimeInternal(const float InSeekTime)
+void FADPCMAudioInfo::SeekToFrame(const uint32 InSeekFrame)
+{
+	if (bDisableADPCMSeekingCVar)
+	{
+		return;
+	}
+
+	TargetSeekFrame = InSeekFrame;
+	bNewSeekRequest = true;
+}
+
+void FADPCMAudioInfo::SeekToFrameInternal(const uint32 InSeekFrame)
 {
 	// Reset chunk handle in preperation for a new chunk.
 	CurCompressedChunkData = nullptr;
 
-	UE_LOG(LogAudio, Verbose, TEXT("Seeking ADPCM source to %.3f sec"), InSeekTime);
+	float SeekTimeSeconds = InSeekFrame / static_cast<float>(*WaveInfo.pSamplesPerSec);
+	UE_LOG(LogAudio, Verbose, TEXT("Seeking ADPCM source to %.3f sec"), SeekTimeSeconds);
 
-	if (InSeekTime <= 0.0f)
+	if (InSeekFrame == 0)
 	{
 		CurrentCompressedBlockIndex = 0;
 		CurrentUncompressedBlockSampleIndex = 0;
@@ -111,8 +124,7 @@ void FADPCMAudioInfo::SeekToTimeInternal(const float InSeekTime)
 
 	// Calculate block index & force SeekTime to be in bounds.
 	check(WaveInfo.pSamplesPerSec != nullptr);
-	const uint32 SamplesPerSec = *WaveInfo.pSamplesPerSec;
-	uint32 SeekedSamples = static_cast<uint32>(InSeekTime * SamplesPerSec);
+	uint32 SeekedSamples = InSeekFrame;
 	TotalSamplesStreamed = FMath::Min<uint32>(SeekedSamples, TotalSamplesPerChannel - 1);
 
 	const uint32 HeaderOffset = static_cast<uint32>(WaveInfo.SampleDataStart - SrcBufferData);
@@ -447,16 +459,9 @@ int FADPCMAudioInfo::GetStreamBufferSize() const
 
 void FADPCMAudioInfo::ProcessSeekRequest()
 {
-	float NewSeekTime = -1.0f;
 	if (bNewSeekRequest)
 	{
-		NewSeekTime = TargetSeekTime;
-	}
-
-
-	if (NewSeekTime >= 0.0f)
-	{
-		SeekToTimeInternal(NewSeekTime);
+		SeekToFrameInternal(TargetSeekFrame);
 	}
 }
 

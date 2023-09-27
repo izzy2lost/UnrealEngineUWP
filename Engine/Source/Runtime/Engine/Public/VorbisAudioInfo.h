@@ -80,6 +80,8 @@ public:
 
 	ENGINE_API virtual void SeekToTime( const float SeekTime ) override;
 
+	ENGINE_API virtual void SeekToFrame(const uint32 SeekFrame) override;
+
 	/** 
 	 * Decompress an entire ogg data file to a TArray
 	 */

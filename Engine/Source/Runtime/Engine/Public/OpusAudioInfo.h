@@ -29,6 +29,7 @@ public:
 	FDecodeResult Decode(const uint8* CompressedData, const int32 CompressedDataSize, uint8* OutPCMData, const int32 OutputPCMDataSize) override;
 	void PrepareToLoop() override;
 	void SeekToTime(const float SeekTime) override;
+	void SeekToFrame(const uint32 SeekFrame) override;
 	//~ End IStreamedCompressedInfo Interface
 
 	struct ENGINE_API FHeader

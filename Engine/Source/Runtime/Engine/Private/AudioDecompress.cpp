@@ -151,6 +151,25 @@ void IStreamedCompressedInfo::SeekToTime(const float InSeekTimeSeconds)
 	}
 }
 
+void IStreamedCompressedInfo::SeekToFrame(const uint32 InSeekTimeFrames)
+{
+	if (StreamingSoundWave.IsValid())
+	{
+		const FSoundWavePtr WaveData = StreamingSoundWave->GetSoundWaveData();
+		if (WaveData.IsValid())
+		{
+			// If we have a chunk setup to contain a seek-table it will return a value other than INDEX_NONE here.
+			const int32 ChunkIndexToSeekTo = WaveData->FindChunkIndexForSeeking(IntCastChecked<uint32>(InSeekTimeFrames));
+			if (ChunkIndexToSeekTo >= 0)
+			{
+				StreamSeekBlockIndex = ChunkIndexToSeekTo;
+				StreamSeekBlockOffset = 0;								// We don't know this until the seek-table is loaded, so we leave it 0 for now.
+				StreamSeekToAudioFrames = InSeekTimeFrames;			// Store the time in samples so when we load the chunks table loads we can find the offset.
+			}
+		}
+	}
+}
+
 void IStreamedCompressedInfo::ExpandFile(uint8* DstBuffer, struct FSoundQualityInfo* QualityInfo)
 {
 	check(DstBuffer);
