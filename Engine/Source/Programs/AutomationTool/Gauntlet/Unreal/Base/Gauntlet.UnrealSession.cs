@@ -1221,7 +1221,9 @@ namespace Gauntlet
 				{
 					string DesinationCrashDumpDirectory = Path.Combine(DestinationDirectory.FullName, "CrashDumps");
 					Log.Info("Moving any CrashDumps from {0} to {1}", CrashDumpDirectory.FullName, DesinationCrashDumpDirectory);
-					CrashDumpDirectory.MoveTo(DesinationCrashDumpDirectory);
+
+					SystemHelpers.CopyDirectory(CrashDumpDirectory.FullName, DesinationCrashDumpDirectory);
+					CrashDumpDirectory.Delete(true);
 				}
 			}
 
