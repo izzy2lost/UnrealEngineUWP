@@ -104,27 +104,6 @@ FCriticalSection CSVActorClassNameToCountMapLock;
 #endif // (CSV_PROFILER && !UE_BUILD_SHIPPING)
 
 #if WITH_EDITOR
-void FActorInstanceGuidMapper::RegisterGuidMapper(FName InPackageName, const FGuidMapper& InGuidMapper)
-{
-	check(!GuidMappers.Contains(InPackageName));
-	GuidMappers.Add(InPackageName, InGuidMapper);
-}
-
-void FActorInstanceGuidMapper::UnregisterGuidMapper(FName InPackageName)
-{
-	check(GuidMappers.Contains(InPackageName));
-	GuidMappers.Remove(InPackageName);
-}
-
-FGuid FActorInstanceGuidMapper::MapGuid(FName InPackageName, const FGuid& InGuid)
-{
-	if (FGuidMapper* GuidMapper = GuidMappers.Find(InPackageName))
-	{
-		return (*GuidMapper)(InGuid);
-	}
-	return InGuid;
-}
-
 AActor::FDuplicationSeedInterface::FDuplicationSeedInterface(TMap<UObject*, UObject*>& InDuplicationSeed)
 	: DuplicationSeed(InDuplicationSeed)
 {
@@ -887,16 +866,6 @@ void AActor::Serialize(FArchive& Ar)
 		else if ((Ar.GetPortFlags() & (PPF_Duplicate | PPF_DuplicateForPIE)) == PPF_Duplicate)
 		{
 			ActorGuid = FGuid::NewGuid();
-		}
-
-		if (!IsTemplate())
-		{
-			const FGuid NewActorInstanceGuid = TLazySingleton<FActorInstanceGuidMapper>::Get().MapGuid(GetOuter()->GetPackage()->GetFName(), ActorGuid);
-			if (NewActorInstanceGuid != ActorGuid)
-			{
-				check(!ActorInstanceGuid.IsValid());
-				ActorInstanceGuid = NewActorInstanceGuid;
-			}
 		}
 
 		if (!CanChangeIsSpatiallyLoadedFlag() && (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) < FUE5ReleaseStreamObjectVersion::ActorGridPlacementDeprecateDefaultValueFixup))

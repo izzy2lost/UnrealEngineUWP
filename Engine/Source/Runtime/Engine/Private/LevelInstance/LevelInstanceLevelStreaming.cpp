@@ -107,25 +107,64 @@ FBox ULevelStreamingLevelInstance::GetBounds() const
 	return CachedBounds;
 }
 
-void ULevelStreamingLevelInstance::OnLoadedActorPreAddedToLevel(const TArray<AActor*>& InActors)
+void ULevelStreamingLevelInstance::OnLoadedActorsAddedToLevelPreEvent(const TArray<AActor*>& InActors)
 {
-	check(LevelInstanceEditorInstanceActor.IsValid());
-	if (ILevelInstanceInterface* LevelInstance = GetLevelInstance())
+	if (!GetWorld()->IsGameWorld())
 	{
-		for (AActor* Actor : InActors)
+		if (ILevelInstanceInterface* LevelInstance = GetLevelInstance())
 		{
-			// Must happen before the actors are registered with the world, which is the case for this delegate.
-			const FActorContainerID& ContainerID = LevelInstance->GetLevelInstanceID().GetContainerID();
-			FSetActorInstanceGuid SetActorInstanceGuid(Actor, ContainerID.GetActorGuid(Actor->GetActorGuid()));
+			for (AActor* Actor : InActors)
+			{
+				if (Actor->IsPackageExternal())
+				{
+					if (bResetLoadersCalled)
+					{
+						ResetLoaders(Actor->GetExternalPackage());
+					}
+
+					FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(Actor->GetExternalPackage());
+				}
+
+				// Must happen before the actors are registered with the world, which is the case for this delegate.
+				const FActorContainerID& ContainerID = LevelInstance->GetLevelInstanceID().GetContainerID();
+				FSetActorInstanceGuid SetActorInstanceGuid(Actor, ContainerID.GetActorGuid(Actor->GetActorGuid()));
+
+				FSetActorIsInLevelInstance SetIsInLevelInstance(Actor);
+			}
 		}
 	}
 }
 
-void ULevelStreamingLevelInstance::OnLoadedActorAddedToLevel(AActor& InActor)
+void ULevelStreamingLevelInstance::OnLoadedActorsAddedToLevelPostEvent(const TArray<AActor*>& InActors)
 {
-	check(LevelInstanceEditorInstanceActor.IsValid());
-	// If bResetLoadersCalled is false, wait for ResetLevelInstanceLoaders call to do the ResetLoaders calls
-	PrepareLevelInstanceLoadedActor(InActor, GetLevelInstance(), bResetLoadersCalled);
+	if (!GetWorld()->IsGameWorld())
+	{
+		if (GetLoadedLevel()->bAreComponentsCurrentlyRegistered)
+		{
+			if (ILevelInstanceInterface* LevelInstance = GetLevelInstance())
+			{
+				for (AActor* Actor : InActors)
+				{
+					if (IsValid(Actor))
+					{
+						Actor->PushSelectionToProxies();
+						if (LevelInstance)
+						{
+							Actor->PushLevelInstanceEditingStateToProxies(CastChecked<AActor>(LevelInstance)->IsInEditingLevelInstance());
+						}
+
+						if (LevelInstanceEditorInstanceActor.IsValid())
+						{
+							if (Actor->GetAttachParentActor() == nullptr && !Actor->IsChildActor())
+							{
+								Actor->AttachToActor(LevelInstanceEditorInstanceActor.Get(), FAttachmentTransformRules::KeepWorldTransform);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 void ULevelStreamingLevelInstance::ResetLevelInstanceLoaders()
@@ -173,42 +212,20 @@ void ULevelStreamingLevelInstance::ResetLevelInstanceLoaders()
 	}
 }
 
-void ULevelStreamingLevelInstance::PrepareLevelInstanceLoadedActor(AActor& InActor, ILevelInstanceInterface* InLevelInstance, bool bResetLoaders)
-{
-	if (InActor.IsPackageExternal())
-	{
-		if (bResetLoaders)
-		{
-			ResetLoaders(InActor.GetExternalPackage());
-		}
-
-		FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(InActor.GetExternalPackage());
-	}
-
-	InActor.PushSelectionToProxies();
-	if (InLevelInstance)
-	{
-		InActor.PushLevelInstanceEditingStateToProxies(CastChecked<AActor>(InLevelInstance)->IsInEditingLevelInstance());
-	}
-
-	if (LevelInstanceEditorInstanceActor.IsValid())
-	{
-		if (InActor.GetAttachParentActor() == nullptr && !InActor.IsChildActor())
-		{
-			InActor.AttachToActor(LevelInstanceEditorInstanceActor.Get(), FAttachmentTransformRules::KeepWorldTransform);
-		}
-	}
-
-	FSetActorIsInLevelInstance SetIsInLevelInstance(&InActor);
-}
-
-void ULevelStreamingLevelInstance::OnLoadedActorRemovedFromLevel(AActor& InActor)
+void ULevelStreamingLevelInstance::OnLoadedActorsRemovedFromLevelPostEvent(const TArray<AActor*>& InActors)
 {
 	// Detach actor or else it will keep it alive (attachement keeps a reference to the actor)
 	check(LevelInstanceEditorInstanceActor.IsValid());
-	if (InActor.GetAttachParentActor() == LevelInstanceEditorInstanceActor.Get())
+
+	for (AActor* Actor : InActors)
 	{
-		InActor.DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		if (IsValid(Actor))
+		{
+			if (Actor->GetAttachParentActor() == LevelInstanceEditorInstanceActor.Get())
+			{
+				Actor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			}
+		}
 	}
 }
 
@@ -257,12 +274,6 @@ ULevelStreamingLevelInstance* ULevelStreamingLevelInstance::LoadInstance(ILevelI
 
 	const FString LevelInstancePackageName = ULevelStreamingDynamic::GetLevelInstancePackageName(Params);
 
-#if WITH_EDITOR
-	FActorInstanceGuidMapper& ActorInstanceGuidMapper = TLazySingleton<FActorInstanceGuidMapper>::Get();
-	ActorInstanceGuidMapper.RegisterGuidMapper(*LevelInstancePackageName, [LevelInstance](const FGuid& InActorGuid) { return LevelInstance->GetLevelInstanceID().GetContainerID().GetActorGuid(InActorGuid); });
-	ON_SCOPE_EXIT { ActorInstanceGuidMapper.UnregisterGuidMapper(*LevelInstancePackageName); };
-#endif
-
 	ULevelStreamingLevelInstance* LevelStreaming = Cast<ULevelStreamingLevelInstance>(ULevelStreamingDynamic::LoadLevelInstance(Params, bOutSuccess));
 	if (bOutSuccess)
 	{
@@ -273,39 +284,15 @@ ULevelStreamingLevelInstance* ULevelStreamingLevelInstance::LoadInstance(ILevelI
 		{
 			GEngine->BlockTillLevelStreamingCompleted(LevelInstanceActor->GetWorld());
 
-			// Most of the code here is meant to allow partial support for undo/redo of LevelInstance Instance Loading:
-			// by setting the objects RF_Transient and !RF_Transactional we can check when unloading if those flags
-			// have been changed and figure out if we need to clear the transaction buffer or not.
-			// It might not be the final solution to support Undo/Redo in LevelInstances but it handles most of the non-editing part
 			if (ULevel* Level = LevelStreaming->GetLoadedLevel())
 			{
 				check(LevelStreaming->GetLevelStreamingState() == ELevelStreamingState::LoadedVisible);
 
-				Level->OnLoadedActorAddedToLevelPreEvent.AddUObject(LevelStreaming, &ULevelStreamingLevelInstance::OnLoadedActorPreAddedToLevel);
-				Level->OnLoadedActorAddedToLevelEvent.AddUObject(LevelStreaming, &ULevelStreamingLevelInstance::OnLoadedActorAddedToLevel);
-				Level->OnLoadedActorRemovedFromLevelEvent.AddUObject(LevelStreaming, &ULevelStreamingLevelInstance::OnLoadedActorRemovedFromLevel);
-
-				FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(Level->GetPackage());
-
-				for (AActor* LevelActor : Level->Actors)
-				{
-					if (LevelActor)
-					{
-						LevelStreaming->PrepareLevelInstanceLoadedActor(*LevelActor, LevelInstance, false);
-					}
-				}
-
-				Level->ForEachActorFolder([](UActorFolder* ActorFolder)
-				{
-					if (ActorFolder->IsPackageExternal())
-					{
-						FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(ActorFolder->GetPackage());
-					}
-					return true;
-				});
-
 				// Create special actor that will handle selection and transform
 				LevelStreaming->LevelInstanceEditorInstanceActor = ALevelInstanceEditorInstanceActor::Create(LevelInstance, Level);
+
+				// Push editing state to child actors
+				LevelInstanceActor->PushLevelInstanceEditingStateToProxies(LevelInstanceActor->IsInEditingLevelInstance());
 			}
 			else
 			{
@@ -333,8 +320,8 @@ void ULevelStreamingLevelInstance::UnloadInstance(ULevelStreamingLevelInstance* 
 	{
 		ULevel* LoadedLevel = LevelStreaming->GetLoadedLevel();
 		LoadedLevel->OnLoadedActorAddedToLevelPreEvent.RemoveAll(LevelStreaming);
-		LoadedLevel->OnLoadedActorAddedToLevelEvent.RemoveAll(LevelStreaming);
-		LoadedLevel->OnLoadedActorRemovedFromLevelEvent.RemoveAll(LevelStreaming);
+		LoadedLevel->OnLoadedActorAddedToLevelPostEvent.RemoveAll(LevelStreaming);
+		LoadedLevel->OnLoadedActorRemovedFromLevelPreEvent.RemoveAll(LevelStreaming);
 		LevelStreaming->LevelInstanceEditorInstanceActor.Reset();
 
 		// Check if we need to flush the Trans buffer...
@@ -362,6 +349,33 @@ void ULevelStreamingLevelInstance::OnLevelLoadedChanged(ULevel* InLevel)
 
 	if (ULevel* NewLoadedLevel = GetLoadedLevel())
 	{
+#if WITH_EDITOR
+		if (!GetWorld()->IsGameWorld())
+		{
+			// Most of the code here is meant to allow partial support for undo/redo of LevelInstance Instance Loading:
+			// by setting the objects RF_Transient and !RF_Transactional we can check when unloading if those flags
+			// have been changed and figure out if we need to clear the transaction buffer or not.
+			// It might not be the final solution to support Undo/Redo in LevelInstances but it handles most of the non-editing part
+			check(!InLevel->bAreComponentsCurrentlyRegistered);
+			FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(NewLoadedLevel->GetPackage());
+
+			NewLoadedLevel->ForEachActorFolder([](UActorFolder* ActorFolder)
+			{
+				if (ActorFolder->IsPackageExternal())
+				{
+					FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(ActorFolder->GetPackage());
+				}
+				return true;
+			});
+
+			OnLoadedActorsAddedToLevelPreEvent(InLevel->Actors);
+
+			NewLoadedLevel->OnLoadedActorAddedToLevelPreEvent.AddUObject(this, &ULevelStreamingLevelInstance::OnLoadedActorsAddedToLevelPreEvent);
+			NewLoadedLevel->OnLoadedActorAddedToLevelPostEvent.AddUObject(this, &ULevelStreamingLevelInstance::OnLoadedActorsAddedToLevelPostEvent);
+			NewLoadedLevel->OnLoadedActorRemovedFromLevelPreEvent.AddUObject(this, &ULevelStreamingLevelInstance::OnLoadedActorsRemovedFromLevelPostEvent);
+		}
+#endif
+
 		check(InLevel == NewLoadedLevel);
 		if (!NewLoadedLevel->bAlreadyMovedActors)
 		{

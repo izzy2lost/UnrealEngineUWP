@@ -40,10 +40,9 @@ protected:
 private:
 #if WITH_EDITOR
 	ENGINE_API void ResetLevelInstanceLoaders();
-	ENGINE_API void PrepareLevelInstanceLoadedActor(AActor& InActor, ILevelInstanceInterface* InLevelInstance, bool bResetLoaders);
-	ENGINE_API void OnLoadedActorPreAddedToLevel(const TArray<AActor*>& InActors);
-	ENGINE_API void OnLoadedActorAddedToLevel(AActor& InActor);
-	ENGINE_API void OnLoadedActorRemovedFromLevel(AActor& InActor);
+	ENGINE_API virtual void OnLoadedActorsAddedToLevelPreEvent(const TArray<AActor*>& InActors);
+	ENGINE_API virtual void OnLoadedActorsAddedToLevelPostEvent(const TArray<AActor*>& InActors);
+	ENGINE_API virtual void OnLoadedActorsRemovedFromLevelPostEvent(const TArray<AActor*>& InActors);
 
 	TWeakObjectPtr<ALevelInstanceEditorInstanceActor> LevelInstanceEditorInstanceActor;
 
