@@ -399,7 +399,7 @@ class FVulkanKHRMultiviewExtension : public FVulkanDeviceExtension
 public:
 
 	FVulkanKHRMultiviewExtension(FVulkanDevice* InDevice)
-		: FVulkanDeviceExtension(InDevice, VK_KHR_MULTIVIEW_EXTENSION_NAME, VULKAN_SUPPORTS_MULTIVIEW, VK_API_VERSION_1_1)
+		: FVulkanDeviceExtension(InDevice, VK_KHR_MULTIVIEW_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED, VK_API_VERSION_1_1)
 	{}
 
 	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final
