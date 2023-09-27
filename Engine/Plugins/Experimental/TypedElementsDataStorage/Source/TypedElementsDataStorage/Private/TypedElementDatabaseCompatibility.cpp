@@ -319,7 +319,6 @@ void UTypedElementDatabaseCompatibility::CreateStandardArchetypes()
 	StandardActorTable = Storage->RegisterTable(TTypedElementColumnTypeList<
 			FMassActorFragment, FTypedElementUObjectColumn, FTypedElementClassTypeInfoColumn,
 			FTypedElementLabelColumn, FTypedElementLabelHashColumn,
-			FTypedElementPackagePathColumn, FTypedElementPackageLoadedPathColumn,
 			FTypedElementSyncFromWorldTag>(), 
 		FName("Editor_StandardActorTable"));
 
@@ -329,7 +328,6 @@ void UTypedElementDatabaseCompatibility::CreateStandardArchetypes()
 
 	StandardUObjectTable = Storage->RegisterTable(TTypedElementColumnTypeList<
 			FTypedElementUObjectColumn, FTypedElementClassTypeInfoColumn,
-			FTypedElementPackagePathColumn, FTypedElementPackageLoadedPathColumn,
 			FTypedElementSyncFromWorldTag>(), 
 		FName("Editor_StandardUObjectTable"));
 

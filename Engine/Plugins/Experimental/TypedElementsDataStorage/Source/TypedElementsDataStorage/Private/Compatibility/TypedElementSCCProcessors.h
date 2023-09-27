@@ -15,6 +15,7 @@ class UTypedElementSCCFactory : public UTypedElementDataStorageFactory
 public:
 	~UTypedElementSCCFactory() override = default;
 
+	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) const override;
 	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const override;
 	
 };

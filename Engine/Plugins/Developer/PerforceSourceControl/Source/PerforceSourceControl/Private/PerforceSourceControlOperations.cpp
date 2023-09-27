@@ -22,6 +22,11 @@
 #include "PerforceSourceControlRevision.h"
 #include "SourceControlHelpers.h"
 #include "SourceControlOperations.h"
+#include "Elements/Columns/TypedElementPackageColumns.h"
+#include "Elements/Columns/TypedElementRevisionControlColumns.h"
+#include "Elements/Framework/TypedElementIndexHasher.h"
+#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 
 #define LOCTEXT_NAMESPACE "PerforceSourceControl"
@@ -1979,6 +1984,86 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPerforceUpdateStatusWorker::UpdateStates);
 
+	auto UpdateDataStorage = [](const FPerforceSourceControlState& State)
+	{
+		using namespace TypedElementQueryBuilder;
+		using DSI = ITypedElementDataStorageInterface;
+
+		DSI* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		if (!DataStorage)
+		{
+			return;
+		}
+		
+		FString Filename = FPaths::SetExtension(State.GetFilename(), "");
+		FPaths::NormalizeFilename(Filename);
+
+		auto GetRevisionControlRow = [DataStorage](const FString& Filename) -> TypedElementRowHandle
+		{
+			uint64 Index = TypedElementDataStorage::GenerateIndexHash(Filename);
+			TypedElementRowHandle Row = DataStorage->FindIndexedRow(Index);
+
+			if (!DataStorage->IsRowAvailable(Row))
+			{
+				static TypedElementTableHandle Table = DataStorage->FindTable(FName("Editor_RevisionControlTable"));
+				Row = DataStorage->AddRow(Table);
+				DataStorage->IndexRow(Index, Row);
+			}
+			return Row;
+		};
+
+		TypedElementRowHandle Row = GetRevisionControlRow(Filename);
+
+		DataStorage->AddOrGetColumn<FSCCRevisionIdColumn>(Row)->RevisionId.Id[0] = State.LocalRevNumber;
+		DataStorage->AddOrGetColumn<FSCCExternalRevisionIdColumn>(Row)->RevisionId.Id[0] = State.DepotRevNumber;
+
+		TArray<UScriptStruct*> ToAdd;
+		TArray<UScriptStruct*> ToRemove;
+		auto SyncTagFromState = [&](bool bCondition, UScriptStruct* Tag)
+		{
+			if (bCondition)
+			{
+				ToAdd.Add(Tag);
+			}
+			else
+			{
+				ToRemove.Add(Tag);
+			}
+		};
+		bool bAnyStatus = false;
+		auto SyncStatusFromState = [&](bool bCondition, ESCCModification Modification)
+		{
+			if (bCondition)
+			{
+				DataStorage->AddOrGetColumn<FSCCStatusColumn>(Row)->Modification = Modification;
+				bAnyStatus = true;
+			}
+		};
+		SyncStatusFromState(State.IsModified(), ESCCModification::Modified);
+		SyncStatusFromState(State.IsAdded(), ESCCModification::Added);
+		SyncStatusFromState(State.IsDeleted(), ESCCModification::Removed);
+		SyncStatusFromState(State.IsConflicted(), ESCCModification::Conflicted);
+		if (!bAnyStatus)
+		{
+			ToRemove.Add(FSCCStatusColumn::StaticStruct());
+		}
+						
+		FString WhoCheckedOut;
+		const bool bIsCheckedOutByOther = State.IsCheckedOutOther(&WhoCheckedOut);
+		if (bIsCheckedOutByOther && State.bExclusiveCheckout)
+		{
+			DataStorage->AddOrGetColumn<FSCCExternallyLockedColumn>(Row)->LockedBy.Name = WhoCheckedOut;
+		}
+		else
+		{
+			ToRemove.Add(FSCCExternallyLockedColumn::StaticStruct());
+		}
+		SyncTagFromState(bIsCheckedOutByOther, FSCCExternallyEditedTag::StaticStruct());
+		SyncTagFromState(State.IsCheckedOut(), FSCCLockedTag::StaticStruct());
+		SyncTagFromState(State.Changelist.IsInitialized(), FSCCInChangelistTag::StaticStruct());
+		DataStorage->AddRemoveColumns(Row, ToAdd, ToRemove);
+	};
+
 	bool bUpdated = false;
 
 	const FDateTime Now = FDateTime::Now();
@@ -1995,6 +2080,7 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		State->History = MoveTemp(History);
 		State->TimeStamp = Now;
 		bUpdated = true;
+		UpdateDataStorage(*State);
 	}
 
 	// next update state from 'opened' call
@@ -2008,6 +2094,7 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		State->History = History;
 		State->TimeStamp = Now;
 		bUpdated = true;
+		UpdateDataStorage(*State);
 	}
 
 	// add modified state
@@ -2018,6 +2105,7 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		State->bModifed = true;
 		State->TimeStamp = Now;
 		bUpdated = true;
+		UpdateDataStorage(*State);
 	}
 
 	return !bForceQuiet && bUpdated;

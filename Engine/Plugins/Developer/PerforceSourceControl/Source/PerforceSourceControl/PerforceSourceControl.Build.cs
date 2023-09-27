@@ -16,6 +16,7 @@ public class PerforceSourceControl : ModuleRules
 				"Slate",
 				"SlateCore",
 				"SourceControl",
+				"TypedElementFramework",
 			}
 		);
 

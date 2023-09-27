@@ -5,6 +5,7 @@
 #include "HAL/IConsoleManager.h"
 
 #include "Elements/Columns/TypedElementMiscColumns.h"
+#include "Elements/Columns/TypedElementPackageColumns.h"
 #include "Elements/Columns/TypedElementRevisionControlColumns.h"
 #include "Elements/Columns/TypedElementSelectionColumns.h"
 #include "Elements/Columns/TypedElementViewportColumns.h"
@@ -70,6 +71,15 @@ FAutoConsoleCommandWithArgsAndOutputDevice SetSelectionSCCStateConsoleCommand(
 			}
 		}
 	));
+
+void UTypedElementSCCFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage) const
+{
+	DataStorage.RegisterTable(
+		TTypedElementColumnTypeList<
+			FTypedElementPackagePathColumn, FTypedElementPackageLoadedPathColumn,
+			FSCCRevisionIdColumn, FSCCExternalRevisionIdColumn>(),
+		FName("Editor_RevisionControlTable"));
+}
 
 void UTypedElementSCCFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const
 {
