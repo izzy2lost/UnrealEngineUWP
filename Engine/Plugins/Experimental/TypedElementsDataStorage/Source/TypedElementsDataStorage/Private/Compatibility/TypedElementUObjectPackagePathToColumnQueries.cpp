@@ -6,6 +6,8 @@
 #include "Elements/Columns/TypedElementPackageColumns.h"
 #include "Elements/Framework/TypedElementIndexHasher.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
+#include "Misc/PackageName.h"
+#include "Misc/Paths.h"
 #include "UObject/Package.h"
 
 static void ResolvePackageReference(ITypedElementDataStorageInterface::IQueryContext& Context, const UPackage* Package, TypedElementRowHandle Row, TypedElementRowHandle PackageRow)
