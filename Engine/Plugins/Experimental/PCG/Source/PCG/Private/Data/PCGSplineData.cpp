@@ -57,6 +57,14 @@ void UPCGSplineData::ApplyTo(USplineComponent* InSplineComponent)
 	SplineStruct.ApplyTo(InSplineComponent);
 }
 
+void UPCGSplineData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
+{
+	Super::AddToCrc(Ar, bFullDataCrc);
+
+	// This data does not have a bespoke CRC implementation so just use a global unique data CRC.
+	AddUIDToCrc(Ar);
+}
+
 FTransform UPCGSplineData::GetTransform() const
 {
 	return SplineStruct.GetTransform();
@@ -313,6 +321,12 @@ void UPCGSplineProjectionData::Initialize(const UPCGSplineData* InSourceSpline, 
 			ProjectedPoint.InterpMode = SplinePoint.InterpMode;
 		}
 	}
+}
+
+void UPCGSplineProjectionData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
+{
+	// This data does not have a bespoke CRC implementation so just use a global unique data CRC.
+	AddUIDToCrc(Ar);
 }
 
 const UPCGSplineData* UPCGSplineProjectionData::GetSpline() const

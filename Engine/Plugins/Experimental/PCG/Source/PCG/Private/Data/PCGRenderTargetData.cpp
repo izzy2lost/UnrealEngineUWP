@@ -42,6 +42,14 @@ void UPCGRenderTargetData::Initialize(UTextureRenderTarget2D* InRenderTarget, co
 	Bounds = Bounds.TransformBy(Transform);
 }
 
+void UPCGRenderTargetData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
+{
+	Super::AddToCrc(Ar, bFullDataCrc);
+
+	// This data does not have a bespoke CRC implementation so just use a global unique data CRC.
+	AddUIDToCrc(Ar);
+}
+
 UPCGSpatialData* UPCGRenderTargetData::CopyInternal() const
 {
 	UPCGRenderTargetData* NewRenderTargetData = NewObject<UPCGRenderTargetData>();

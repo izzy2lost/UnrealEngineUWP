@@ -35,9 +35,11 @@ void UPCGParamData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 		Metadata->GetAttributes(AttributeNames, AttributeTypes);
 	}
 
-	// Add all attribute values
+	// Add attributes to CRC
 	for (FName AttributeName : AttributeNames)
 	{
+		Ar << AttributeName;
+
 		FPCGAttributePropertyInputSelector InputSource;
 		InputSource.SetAttributeName(AttributeName);
 

@@ -304,6 +304,14 @@ void UPCGTextureData::Initialize(UTexture2D* InTexture, const FTransform& InTran
 	}
 }
 
+void UPCGTextureData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
+{
+	Super::AddToCrc(Ar, bFullDataCrc);
+
+	// This data does not have a bespoke CRC implementation so just use a global unique data CRC.
+	AddUIDToCrc(Ar);
+}
+
 UPCGSpatialData* UPCGTextureData::CopyInternal() const
 {
 	UPCGTextureData* NewTextureData = NewObject<UPCGTextureData>();

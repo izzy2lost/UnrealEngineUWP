@@ -22,6 +22,7 @@ enum class EPCGExtraProperties : uint8
 	Index
 };
 
+class FArchiveCrc32;
 struct FPCGCustomVersion;
 class UPCGData;
 
@@ -57,7 +58,6 @@ public:
 	EPCGPointProperties GetPointProperty() const { return PointProperty; }
 	EPCGExtraProperties GetExtraProperty() const { return ExtraProperty; }
 
-
 	// Return the name of the selector.
 	FName GetName() const;
 
@@ -79,6 +79,8 @@ public:
 	}
 
 	void ImportFromOtherSelector(const FPCGAttributePropertySelector& InOther);
+
+	virtual void AddToCrc(FArchiveCrc32& Ar) const;
 
 protected:
 	UPROPERTY()

@@ -232,6 +232,14 @@ void UPCGSettings::PostEditUndo()
 }
 #endif // WITH_EDITOR
 
+void UPCGSettings::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
+{
+	Super::AddToCrc(Ar, bFullDataCrc);
+
+	// This data does not have a bespoke CRC implementation so just use a global unique data CRC.
+	AddUIDToCrc(Ar);
+}
+
 void UPCGSettings::PostLoad()
 {
 	Super::PostLoad();

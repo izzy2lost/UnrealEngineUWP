@@ -189,6 +189,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "PCG|Metadata")
 	void GetAttributes(TArray<FName>& AttributeNames, TArray<EPCGMetadataTypes>& AttributeTypes) const;
 
+	/** Returns name of the most recently created attribute, or none if no attributes are present. */
 	FName GetLatestAttributeNameOrNone() const;
 
 	/** Delete/Hide attribute */

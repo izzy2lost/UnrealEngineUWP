@@ -41,6 +41,7 @@ public:
 
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Spatial; }
+	virtual void AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const override;
 
 	virtual bool HasCachedLastSelector() const override;
 	virtual FPCGAttributePropertyInputSelector GetCachedLastSelector() const override;

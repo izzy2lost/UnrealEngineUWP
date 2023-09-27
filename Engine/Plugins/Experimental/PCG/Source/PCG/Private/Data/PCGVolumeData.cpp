@@ -39,6 +39,14 @@ void UPCGVolumeData::Initialize(const FBox& InBounds)
 	StrictBounds = InBounds;
 }
 
+void UPCGVolumeData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
+{
+	Super::AddToCrc(Ar, bFullDataCrc);
+
+	// This data does not have a bespoke CRC implementation so just use a global unique data CRC.
+	AddUIDToCrc(Ar);
+}
+
 FBox UPCGVolumeData::GetBounds() const
 {
 	return Bounds;

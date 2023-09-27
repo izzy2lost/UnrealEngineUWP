@@ -26,6 +26,7 @@ class UPCGUserParametersData : public UPCGData
 public:
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Other; }
+	virtual void AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const override { AddUIDToCrc(Ar); }
 	// ~End UPCGData interface
 
 	UPROPERTY()

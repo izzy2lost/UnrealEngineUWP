@@ -28,6 +28,14 @@ void UPCGProjectionData::Initialize(const UPCGSpatialData* InSource, const UPCGS
 	CachedStrictBounds = ProjectBounds(Source->GetStrictBounds());
 }
 
+void UPCGProjectionData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
+{
+	Super::AddToCrc(Ar, bFullDataCrc);
+
+	// This data does not have a bespoke CRC implementation so just use a global unique data CRC.
+	AddUIDToCrc(Ar);
+}
+
 int UPCGProjectionData::GetDimension() const
 {
 	check(Source && Target);

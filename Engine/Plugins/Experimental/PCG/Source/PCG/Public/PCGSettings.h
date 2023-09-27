@@ -188,6 +188,7 @@ class PCG_API UPCGSettings : public UPCGSettingsInterface
 public:
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Settings; }
+	virtual void AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const override;
 	// ~End UPCGData interface
 
 	// ~Begin UPCGSettingsInterface interface

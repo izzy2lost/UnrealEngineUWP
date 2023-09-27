@@ -64,6 +64,8 @@ protected:
 	/** Whether intersection, union, difference combine Crc values from operands. If false they fall back to using data UID. */
 	bool PropagateCrcThroughBooleanData() const;
 
+	void AddUIDToCrc(FArchiveCrc32& Ar) const;
+
 private:
 	void InitUID();
 

@@ -100,11 +100,12 @@ class PCG_API UPCGTextureData : public UPCGBaseTextureData
 	GENERATED_BODY()
 
 public:
+	void Initialize(UTexture2D* InTexture, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback);
+
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Texture; }
+	virtual void AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const override;
 	// ~End UPCGData interface
-
-	void Initialize(UTexture2D* InTexture, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback);
 
 	//~Begin UPCGSpatialData interface
 protected:

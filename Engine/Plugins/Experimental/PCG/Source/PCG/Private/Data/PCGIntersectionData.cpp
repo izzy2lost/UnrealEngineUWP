@@ -88,7 +88,7 @@ FPCGCrc UPCGIntersectionData::ComputeCrc(bool bFullDataCrc) const
 	}
 	else
 	{
-		UPCGData::AddToCrc(Ar, bFullDataCrc);
+		AddUIDToCrc(Ar);
 	}
 
 	return FPCGCrc(Ar.GetCrc());
@@ -96,6 +96,8 @@ FPCGCrc UPCGIntersectionData::ComputeCrc(bool bFullDataCrc) const
 
 void UPCGIntersectionData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 {
+	Super::AddToCrc(Ar, bFullDataCrc);
+
 	uint32 UniqueTypeID = StaticClass()->GetDefaultObject()->GetUniqueID();
 	Ar << UniqueTypeID;
 

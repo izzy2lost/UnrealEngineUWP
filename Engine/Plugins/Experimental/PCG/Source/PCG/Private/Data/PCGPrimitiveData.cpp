@@ -18,6 +18,14 @@ void UPCGPrimitiveData::Initialize(UPrimitiveComponent* InPrimitive)
 	// Not obvious to find strict bounds, leave at the default value
 }
 
+void UPCGPrimitiveData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
+{
+	Super::AddToCrc(Ar, bFullDataCrc);
+
+	// This data does not have a bespoke CRC implementation so just use a global unique data CRC.
+	AddUIDToCrc(Ar);
+}
+
 bool UPCGPrimitiveData::SamplePoint(const FTransform& InTransform, const FBox& InBounds, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const
 {
 	// Pure implementation

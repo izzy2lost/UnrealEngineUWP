@@ -111,9 +111,9 @@ FPCGCrc UPCGData::ComputeCrc(bool bFullDataCrc) const
 
 void UPCGData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 {
-	// Fallback implementation uses UID to ensure every object returns a different Crc.
-	uint64 UIDValue = UID;
-	Ar << UIDValue;
+	// Add "last attribute" which can affect downstream nodes.
+	FPCGAttributePropertyInputSelector LastSelector = GetCachedLastSelector();
+	LastSelector.AddToCrc(Ar);
 }
 
 bool UPCGData::PropagateCrcThroughBooleanData() const
@@ -124,6 +124,13 @@ bool UPCGData::PropagateCrcThroughBooleanData() const
 void UPCGData::VisitDataNetwork(TFunctionRef<void(const UPCGData*)> Action) const
 {
 	Action(this);
+}
+
+void UPCGData::AddUIDToCrc(FArchiveCrc32& Ar) const
+{
+	// Fallback implementation uses UID to ensure every object returns a different Crc.
+	uint64 UIDValue = UID;
+	Ar << UIDValue;
 }
 
 void UPCGData::InitUID()

@@ -267,11 +267,13 @@ const UPCGPointData::PointOctree& UPCGPointData::GetOctree() const
 
 void UPCGPointData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 {
+	Super::AddToCrc(Ar, bFullDataCrc);
+
 	// The code below has non-trivial cost, and can be disabled from console.
 	if (!bFullDataCrc || !CVarCacheFullPointDataCrc.GetValueOnAnyThread())
 	{
 		// Fallback to UID
-		Super::AddToCrc(Ar, bFullDataCrc);
+		AddUIDToCrc(Ar);
 		return;
 	}
 

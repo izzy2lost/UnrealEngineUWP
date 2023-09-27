@@ -8,6 +8,8 @@
 #include "Metadata/PCGMetadata.h"
 #include "Metadata/PCGMetadataAttribute.h"
 
+#include "Serialization/ArchiveCrc32.h"
+
 namespace PCGAttributePropertySelectorConstants
 {
 	static const TCHAR* PropertyPrefix = TEXT("$");
@@ -245,6 +247,25 @@ bool FPCGAttributePropertySelector::Update(FString NewValue)
 	}
 
 	return SetAttributeName(NewName.IsEmpty() ? NAME_None : FName(NewName), /*bResetExtraNames=*/ false) || bExtraChanged;
+}
+
+void FPCGAttributePropertySelector::AddToCrc(FArchiveCrc32& Ar) const
+{
+	Ar << Selection;
+	Ar << const_cast<TArray<FString>&>(ExtraNames);
+
+	switch (Selection)
+	{
+	case EPCGAttributePropertySelection::Attribute:
+		Ar << const_cast<FName&>(AttributeName);
+		break;
+	case EPCGAttributePropertySelection::PointProperty:
+		Ar << PointProperty;
+		break;
+	case EPCGAttributePropertySelection::ExtraProperty:
+		Ar << ExtraProperty;
+		break;
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////

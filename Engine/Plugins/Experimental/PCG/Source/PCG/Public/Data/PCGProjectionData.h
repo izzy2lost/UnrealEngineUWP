@@ -18,6 +18,10 @@ public:
 
 	const FPCGProjectionParams& GetProjectionParams() const { return ProjectionParams; }
 
+	// ~Begin UPCGData interface
+	virtual void AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const override;
+	// ~End UPCGData interface
+
 	//~Begin UPCGSpatialData interface
 	virtual int GetDimension() const override;
 	virtual FBox GetBounds() const override;

@@ -151,6 +151,14 @@ void UPCGLandscapeData::PostLoad()
 #endif
 }
 
+void UPCGLandscapeData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
+{
+	Super::AddToCrc(Ar, bFullDataCrc);
+
+	// This data does not have a bespoke CRC implementation so just use a global unique data CRC.
+	AddUIDToCrc(Ar);
+}
+
 FBox UPCGLandscapeData::GetBounds() const
 {
 	return Bounds;

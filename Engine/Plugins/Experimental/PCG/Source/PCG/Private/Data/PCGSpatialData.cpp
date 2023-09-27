@@ -7,6 +7,8 @@
 #include "Data/PCGProjectionData.h"
 #include "Data/PCGUnionData.h"
 
+#include "Serialization/ArchiveCrc32.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGSpatialData)
 
 UPCGSpatialData::UPCGSpatialData(const FObjectInitializer& ObjectInitializer)
@@ -233,6 +235,18 @@ UPCGSpatialData* UPCGSpatialData::DuplicateData(const bool bInitializeMetadata) 
 	}
 
 	return NewSpatialData;
+}
+
+void UPCGSpatialData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
+{
+	Super::AddToCrc(Ar, bFullDataCrc);
+
+	if (Metadata)
+	{
+		// Can impact results of downstream node execution.
+		FName LatestAttribute = Metadata->GetLatestAttributeNameOrNone();
+		Ar << LatestAttribute;
+	}
 }
 
 bool UPCGSpatialData::HasCachedLastSelector() const

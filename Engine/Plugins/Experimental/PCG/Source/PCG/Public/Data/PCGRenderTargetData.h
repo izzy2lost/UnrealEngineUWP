@@ -18,6 +18,7 @@ class PCG_API UPCGRenderTargetData : public UPCGBaseTextureData
 public:
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::RenderTarget; }
+	virtual void AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const override;
 	// ~End UPCGData interface
 
 

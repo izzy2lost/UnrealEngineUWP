@@ -43,6 +43,8 @@ bool UPCGCollisionShapeData::IsSupported(UShapeComponent* InComponent)
 
 void UPCGCollisionShapeData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 {
+	Super::AddToCrc(Ar, bFullDataCrc);
+
 	uint32 UniqueTypeID = StaticClass()->GetDefaultObject()->GetUniqueID();
 	Ar << UniqueTypeID;
 
