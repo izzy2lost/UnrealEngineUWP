@@ -1089,13 +1089,16 @@ void FInstancedStaticMeshVertexFactory::GetVertexElements(
 			Elements.Add(AccessStreamComponent(NullComponent, 14, Streams));
 		}
 
-		if (Data.LightMapCoordinateComponent.VertexBuffer)
+		if (FReadOnlyCVARCache::Get().bAllowStaticLighting)
 		{
-			Elements.Add(AccessStreamComponent(Data.LightMapCoordinateComponent, 15, Streams));
-		}
-		else if (Data.TextureCoordinates.Num())
-		{
-			Elements.Add(AccessStreamComponent(Data.TextureCoordinates[0], 15, Streams));
+			if (Data.LightMapCoordinateComponent.VertexBuffer)
+			{
+				Elements.Add(AccessStreamComponent(Data.LightMapCoordinateComponent, 15, Streams));
+			}
+			else if (Data.TextureCoordinates.Num())
+			{
+				Elements.Add(AccessStreamComponent(Data.TextureCoordinates[0], 15, Streams));
+			}
 		}
 	}
 

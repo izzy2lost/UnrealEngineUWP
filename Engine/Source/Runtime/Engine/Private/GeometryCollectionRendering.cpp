@@ -203,13 +203,16 @@ void FGeometryCollectionVertexFactory::InitRHI(FRHICommandListBase& RHICmdList)
 		}
 	}
 
-	if (Data.LightMapCoordinateComponent.VertexBuffer)
+	if (FReadOnlyCVARCache::Get().bAllowStaticLighting)
 	{
-		Elements.Add(AccessStreamComponent(Data.LightMapCoordinateComponent, 15));
-	}
-	else if (Data.TextureCoordinates.Num())
-	{
-		Elements.Add(AccessStreamComponent(Data.TextureCoordinates[0], 15));
+		if (Data.LightMapCoordinateComponent.VertexBuffer)
+		{
+			Elements.Add(AccessStreamComponent(Data.LightMapCoordinateComponent, 15));
+		}
+		else if (Data.TextureCoordinates.Num())
+		{
+			Elements.Add(AccessStreamComponent(Data.TextureCoordinates[0], 15));
+		}
 	}
 
 	check(Streams.Num() > 0);

@@ -333,7 +333,8 @@ void FLocalVertexFactory::GetPSOPrecacheVertexFetchElements(EVertexInputStreamTy
 		Elements.Add(FVertexElement(1, 4, VET_PackedNormal, 2, sizeof(FPackedNormal)*2u, false));
 	}
 
-	if (UseGPUScene(GMaxRHIShaderPlatform, GMaxRHIFeatureLevel))
+	if (UseGPUScene(GMaxRHIShaderPlatform, GMaxRHIFeatureLevel) 
+		&& !PlatformGPUSceneUsesUniformBufferView(GMaxRHIShaderPlatform))
 	{
 		switch (VertexInputStreamType)
 		{
@@ -364,7 +365,8 @@ void FLocalVertexFactory::GetVertexElements(ERHIFeatureLevel::Type FeatureLevel,
 	int32 ColorStreamIndex;
 	GetVertexElements(FeatureLevel, InputStreamType, bSupportsManualVertexFetch, Data, Elements, VertexStreams, ColorStreamIndex);
 
-	if (UseGPUScene(GMaxRHIShaderPlatform, GMaxRHIFeatureLevel))
+	if (UseGPUScene(GMaxRHIShaderPlatform, GMaxRHIFeatureLevel) 
+		&& !PlatformGPUSceneUsesUniformBufferView(GMaxRHIShaderPlatform))
 	{
 		Elements.Add(FVertexElement(VertexStreams.Num(), 0, VET_UInt, 13, sizeof(uint32), true));
 	}
@@ -538,17 +540,24 @@ void FLocalVertexFactory::GetVertexElements(
 			}
 		}
 
-		// Fill PreSkinPosition slot for GPUSkinPassThrough vertex factory, or else use a dummy buffer.
-		FVertexStreamComponent NullComponent(&GNullVertexBuffer, 0, 0, VET_Float4);
-		Elements.Add(AccessStreamComponent(Data.PreSkinPositionComponent.VertexBuffer ? Data.PreSkinPositionComponent : NullComponent, 14, InOutStreams));
-
-		if (Data.LightMapCoordinateComponent.VertexBuffer)
+		// TODO: should also check if VFType supports 'SupportsGPUSkinPassThrough'
+		if (IsGPUSkinPassThroughSupported(GMaxRHIShaderPlatform))
 		{
-			Elements.Add(AccessStreamComponent(Data.LightMapCoordinateComponent, 15, InOutStreams));
+			// Fill PreSkinPosition slot for GPUSkinPassThrough vertex factory, or else use a dummy buffer.
+			FVertexStreamComponent NullComponent(&GNullVertexBuffer, 0, 0, VET_Float4);
+			Elements.Add(AccessStreamComponent(Data.PreSkinPositionComponent.VertexBuffer ? Data.PreSkinPositionComponent : NullComponent, 14, InOutStreams));
 		}
-		else if (Data.TextureCoordinates.Num())
+
+		if (FReadOnlyCVARCache::Get().bAllowStaticLighting)
 		{
-			Elements.Add(AccessStreamComponent(Data.TextureCoordinates[0], 15, InOutStreams));
+			if (Data.LightMapCoordinateComponent.VertexBuffer)
+			{
+				Elements.Add(AccessStreamComponent(Data.LightMapCoordinateComponent, 15, InOutStreams));
+			}
+			else if (Data.TextureCoordinates.Num())
+			{
+				Elements.Add(AccessStreamComponent(Data.TextureCoordinates[0], 15, InOutStreams));
+			}
 		}
 	}
 }
