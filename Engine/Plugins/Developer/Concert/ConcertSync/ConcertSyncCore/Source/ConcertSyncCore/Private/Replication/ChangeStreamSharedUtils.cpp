@@ -102,4 +102,82 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 			}
 		}
 	}
+	
+	void IterateInvalidEntries(
+		const FObjectReplicationMap& ReplicationMap,
+		TFunctionRef<EBreakBehavior(const FSoftObjectPath&, const FReplicatedObjectInfo&)> Callback
+		)
+	{
+		for (const TPair<const FSoftObjectPath&, const FReplicatedObjectInfo&> Pair : ReplicationMap.ReplicatedObjects)
+		{
+			if (!Pair.Value.IsValidForSendingToServer() && Callback(Pair.Key, Pair.Value) == EBreakBehavior::Break)
+			{
+				break;
+			}
+		}
+	}
+
+	namespace Private
+	{
+		static void BuildPutObjectList(const FGuid& StreamId, const FObjectReplicationMap& Base, const FObjectReplicationMap& Desired, FConcertChangeStream_Request& Request)
+		{
+			for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& BasePair : Base.ReplicatedObjects)
+			{
+				const FSoftObjectPath& ObjectPath = BasePair.Key;
+				const FObjectInStreamID ObjectId { StreamId, ObjectPath };
+				const FReplicatedObjectInfo* DesiredObjectInfo = Desired.ReplicatedObjects.Find(ObjectPath);
+				if (DesiredObjectInfo)
+				{
+					const FReplicatedObjectInfo& BaseObjectInfo = BasePair.Value;
+					const TOptional<FConcertChangeStream_PutObject> PutObject = FConcertChangeStream_PutObject::MakeFromChange(BaseObjectInfo, *DesiredObjectInfo);
+				
+					const bool bDesiredHasChangedFromBase = BaseObjectInfo != *DesiredObjectInfo;
+					// If MakeFromChange returned unset, it means that this request is not valid to submit. 
+					const bool bBaseAndDesiredStateAreValid = ensureMsgf(PutObject, TEXT("Function assumption violated; you did not pass in valid base or desired state."));
+					if (bDesiredHasChangedFromBase && bBaseAndDesiredStateAreValid)
+					{
+						Request.ObjectsToPut.Add(ObjectId, *PutObject);
+					}
+				}
+				else
+				{
+					Request.ObjectsToRemove.Add(ObjectId);
+				}
+			}
+		}
+
+		static void BuildRemoveObjectList(const FGuid& StreamId, const FObjectReplicationMap& Base, const FObjectReplicationMap& Desired, FConcertChangeStream_Request& Request)
+		{
+			for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& DesiredPair : Desired.ReplicatedObjects)
+			{
+				const FSoftObjectPath& ObjectPath = DesiredPair.Key;
+				if (Base.ReplicatedObjects.Contains(ObjectPath))
+				{
+					// Handled up above
+					continue;
+				}
+
+				// Desired wants to add an object
+				const FReplicatedObjectInfo& ObjectInfo = DesiredPair.Value;
+				const TOptional<FConcertChangeStream_PutObject> PutObject = FConcertChangeStream_PutObject::MakeFromInfo(ObjectInfo);
+				const bool bDesiredStateHasEnoughDataToForPut = ensureMsgf(PutObject, TEXT("Function assumption violated; you did not pass in valid base or desired state."));
+				if (bDesiredStateHasEnoughDataToForPut)
+				{
+					Request.ObjectsToPut.Add({ StreamId, ObjectPath}, *PutObject);
+				}
+			}
+		}
+	}
+
+	FConcertChangeStream_Request BuildRequestFromDiff(
+		const FGuid& StreamId,
+		const FObjectReplicationMap& Base,
+		const FObjectReplicationMap& Desired
+		)
+	{
+		FConcertChangeStream_Request Request;
+		Private::BuildPutObjectList(StreamId, Base, Desired, Request);
+		Private::BuildRemoveObjectList(StreamId, Base, Desired, Request);
+		return Request;
+	}
 }

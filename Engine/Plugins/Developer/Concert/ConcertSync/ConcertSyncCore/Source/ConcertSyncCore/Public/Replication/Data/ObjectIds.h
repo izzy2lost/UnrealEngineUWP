@@ -18,6 +18,8 @@ struct FObjectInStreamID
 	/** The object to process */
 	UPROPERTY()
 	FSoftObjectPath Object;
+
+	FString ToString() const { return FString::Printf(TEXT("StreamId: %s, Object: %s"), *StreamId.ToString(), *Object.ToString()); }
 		
 	friend bool operator==(const FObjectInStreamID& Left, const FObjectInStreamID& Right)
 	{
@@ -38,6 +40,8 @@ struct FReplicatedObjectId : public FObjectInStreamID
 	
 	/** The ID of the endpoint that sent this object. This can be the client or server endpoint depending on who receives it. */
 	FGuid SenderEndpointId;
+	
+	FString ToString() const { return FString::Printf(TEXT("StreamId: %s, Object: %s, Sender: %s"), *StreamId.ToString(), *Object.ToString(), *SenderEndpointId.ToString()); }
 		
 	friend bool operator==(const FReplicatedObjectId& Left, const FReplicatedObjectId& Right)
 	{

@@ -16,12 +16,14 @@ struct FReplicatedObjectInfo
 	UPROPERTY()
 	FConcertPropertySelection PropertySelection;
 
+	/** @return Whether this data is valid for sending to the server. */
+	bool IsValidForSendingToServer() const { return ClassPath.IsValid() && !PropertySelection.ReplicatedProperties.IsEmpty(); }
+	
 	friend bool operator==(const FReplicatedObjectInfo& Left, const FReplicatedObjectInfo& Right)
 	{
 		return Left.ClassPath == Right.ClassPath
 			&& Left.PropertySelection == Right.PropertySelection;
 	}
-
 	friend bool operator!=(const FReplicatedObjectInfo& Left, const FReplicatedObjectInfo& Right)
 	{
 		return !(Left == Right);

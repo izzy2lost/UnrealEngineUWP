@@ -4,7 +4,7 @@
 #include "Replication/Messages/ConcertReplicationEvents.h"
 #include "Replication/Processing/ObjectReplicationCache.h"
 #include "Replication/Data/ObjectIds.h"
-#include "TestReflectionObject.h"
+#include "Replication/TestReflectionObject.h"
 #include "Util/ClientServerCommunicationTest.h"
 
 #include "Misc/AutomationTest.h"

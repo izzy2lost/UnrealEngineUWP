@@ -5,7 +5,10 @@
 #include "ConcertMessageData.h"
 #include "Replication/Data/ClientQueriedInfo.h"
 #include "Replication/Data/ObjectIds.h"
+#include "Misc/Optional.h"
 #include "ConcertReplicationEvents.generated.h"
+
+class FOutputDevice;
 
 /** Contains data to be applied to a replicated object. */
 USTRUCT()
@@ -204,10 +207,21 @@ struct FConcertChangeStream_PutObject
 	 */
 	UPROPERTY()
 	FSoftClassPath ClassPath;
+
+	// Intention: Ideally code dealing with PutObject requests uses these constructors / factory functions.
+	// If a property is added to FReplicatedObjectInfo, only the below code needs to be updated.
+
+	/** @return The PutObject request if New contained sufficient info - empty otherwise */
+	CONCERTSYNCCORE_API static TOptional<FConcertChangeStream_PutObject> MakeFromInfo(const FReplicatedObjectInfo& New);
+	/** @return The PutObject request if changing Base to Desired contained sufficient info - empty otherwise */
+	CONCERTSYNCCORE_API static TOptional<FConcertChangeStream_PutObject> MakeFromChange(const FReplicatedObjectInfo& Base, const FReplicatedObjectInfo& Desired);
+
+	/** Creates a new object info if there is sufficient data (all fields must be set for this). */
+	CONCERTSYNCCORE_API TOptional<FReplicatedObjectInfo> MakeObjectInfoIfValid() const;
 };
 
 /**
- * Let's a client changing its streams owned on the server.
+ * Let's a client change its streams owned on the server.
  * 
  * This request is processed atomically: it either succeeds completely or fails completely.
  * If any sub-change causes a failure, the failure reason will be returned in the response and the client must make a new request.
@@ -235,6 +249,9 @@ struct FConcertChangeStream_Request
 	 * @see FConcertChangeStream_Response::AuthorityConflicts for some examples of conflicts.
 	 *
 	 * If the key identifies a stream that does not exist, the request will fail.
+	 * 
+	 * If the key identifies a stream that is in StreamsToAdd, the request will fail to avoid allowing the construction of
+	 * ambiguous requests, e.g. both StreamsToAdd and ObjectsToPut containing object Foo but with different property selections.
 	 */
 	UPROPERTY()
 	TMap<FObjectInStreamID, FConcertChangeStream_PutObject> ObjectsToPut;
@@ -242,6 +259,9 @@ struct FConcertChangeStream_Request
 	/**
 	 * New streams to add to the server.
 	 * Fails if any ID overlaps with a pre-existing one.
+	 *
+	 * It is valid to have the same stream in StreamsToRemove: StreamsToAdd is applied after StreamsToRemove resulting
+	 * in the stream's content being replaced.
 	 */
 	UPROPERTY()
 	TArray<FReplicationStreamDescription_NetPacked> StreamsToAdd;
@@ -251,6 +271,9 @@ struct FConcertChangeStream_Request
 	 * Supplying a stream that does not exist does not cause failure (but is nonsensical).
 	 * 
 	 * If the requesting client has authority over any of the objects contained in the stream, authority is removed.
+	 * 
+	 * It is valid to have the same stream in StreamsToAdd: StreamsToAdd is applied after StreamsToRemove resulting
+	 * in the stream's content being replaced.
 	 */
 	UPROPERTY()
 	TSet<FGuid> StreamsToRemove;
@@ -305,4 +328,7 @@ struct FConcertChangeStream_Response
 
 	bool IsSuccess() const { return AuthorityConflicts.IsEmpty() && ObjectsToPutSemanticErrors.IsEmpty() && FailedStreamCreation.IsEmpty(); }
 	bool IsFailure() const { return !IsSuccess(); }
+
+	/** If IsFailure(), logs the errors. */
+	CONCERTSYNCCORE_API void LogErrors(FOutputDevice& OutputDevice) const;
 };
