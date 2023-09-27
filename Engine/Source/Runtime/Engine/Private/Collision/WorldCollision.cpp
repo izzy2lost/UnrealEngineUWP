@@ -460,7 +460,7 @@ bool UWorld::ComponentSweepMultiByChannel(TArray<struct FHitResult>& OutHits, cl
 
 	const FTransform WorldToComponent = PrimComp->GetComponentToWorld().Inverse();
 
-	TArray<struct FOverlapResult> TempOverlaps;
+	TArray<FHitResult> TempHits;
 	for (Chaos::FPhysicsObjectHandle Object : PhysicsObjects)
 	{
 		FComponentQueryParams ParamsCopy{ Params };
@@ -498,16 +498,16 @@ bool UWorld::ComponentSweepMultiByChannel(TArray<struct FHitResult>& OutHits, cl
 			}
 
 			FPhysicsGeometryCollection GeomCollection = FPhysicsInterface::GetGeometryCollection(ShapeHandle);
-			TArray<FHitResult> TmpHits;
-			if (FPhysicsInterface::GeomSweepMulti(this, GeomCollection, Rot, TmpHits, Start, End, TraceChannel, ParamsCopy, FCollisionResponseParams(PrimComp->GetCollisionResponseToChannels())))
+			TempHits.Reset();
+			if (FPhysicsInterface::GeomSweepMulti(this, GeomCollection, Rot, TempHits, Start, End, TraceChannel, ParamsCopy, FCollisionResponseParams(PrimComp->GetCollisionResponseToChannels())))
 			{
 				bHaveBlockingHit = true;
 			}
-			OutHits.Append(TmpHits);	//todo: should these be made unique?
-			OutHits.Sort(FCompareFHitResultTime());
+			OutHits.Append(TempHits);	//todo: should these be made unique?
 		}
 	}
 
+	OutHits.Sort(FCompareFHitResultTime());
 	return bHaveBlockingHit;
 }
 
