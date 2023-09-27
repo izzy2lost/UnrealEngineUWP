@@ -236,17 +236,7 @@ TStatId FClothBufferPool::GetStatId() const
 TConsoleVariableData<int32>* FGPUBaseSkinVertexFactory::FShaderDataType::MaxBonesVar = NULL;
 uint32 FGPUBaseSkinVertexFactory::FShaderDataType::MaxGPUSkinBones = 0;
 
-static TAutoConsoleVariable<int32> CVarRHICmdDeferSkeletalLockAndFillToRHIThread(
-	TEXT("r.RHICmdDeferSkeletalLockAndFillToRHIThread"),
-	0,
-	TEXT("If > 0, then do the bone and cloth copies on the RHI thread. Experimental option."));
-
-static bool DeferSkeletalLockAndFillToRHIThread()
-{
-	return IsRunningRHIInSeparateThread() && CVarRHICmdDeferSkeletalLockAndFillToRHIThread.GetValueOnRenderThread() > 0 && !UE::RenderCommandPipe::SkeletalMesh.IsReplaying();
-}
-
-bool FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandList& RHICmdList, const TArray<FMatrix44f>& ReferenceToLocalMatrices,
+void FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandList& RHICmdList, const TArray<FMatrix44f>& ReferenceToLocalMatrices,
 	const TArray<FBoneIndexType>& BoneMap, uint32 RevisionNumber, bool bPrevious, ERHIFeatureLevel::Type InFeatureLevel, bool bUseSkinCache, bool bForceUpdateImmediately, const FName& AssetPathName)
 {
 	// stat disabled by default due to low-value/high-frequency
@@ -285,38 +275,6 @@ bool FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandList&
 		}
 		if(NumBones)
 		{
-			if (!bUseSkinCache && !bForceUpdateImmediately && DeferSkeletalLockAndFillToRHIThread())
-			{
-				FRHIBuffer* VertexBuffer = CurrentBoneBuffer->VertexBufferRHI;
-				RHICmdList.EnqueueLambda([VertexBuffer, VectorArraySize, &ReferenceToLocalMatrices, &BoneMap](FRHICommandList& InRHICmdList)
-				{
-					QUICK_SCOPE_CYCLE_COUNTER(STAT_FRHICommandUpdateBoneBuffer_Execute);
-					FMatrix3x4* LambdaChunkMatrices = (FMatrix3x4*)InRHICmdList.LockBuffer(VertexBuffer, 0, VectorArraySize, RLM_WriteOnly);
-					//FMatrix3x4 is sizeof() == 48
-					// PLATFORM_CACHE_LINE_SIZE (128) / 48 = 2.6
-					//  sizeof(FMatrix) == 64
-					// PLATFORM_CACHE_LINE_SIZE (128) / 64 = 2
-					const uint32 LocalNumBones = BoneMap.Num();
-					check(LocalNumBones > 0 && LocalNumBones < 256); // otherwise maybe some bad threading on BoneMap, maybe we need to copy that
-					const int32 PreFetchStride = 2; // FPlatformMisc::Prefetch stride
-					for (uint32 BoneIdx = 0; BoneIdx < LocalNumBones; BoneIdx++)
-					{
-						const FBoneIndexType RefToLocalIdx = BoneMap[BoneIdx];
-						check(ReferenceToLocalMatrices.IsValidIndex(RefToLocalIdx)); // otherwise maybe some bad threading on BoneMap, maybe we need to copy that
-						FPlatformMisc::Prefetch(ReferenceToLocalMatrices.GetData() + RefToLocalIdx + PreFetchStride);
-						FPlatformMisc::Prefetch(ReferenceToLocalMatrices.GetData() + RefToLocalIdx + PreFetchStride, PLATFORM_CACHE_LINE_SIZE);
-
-						FMatrix3x4& BoneMat = LambdaChunkMatrices[BoneIdx];
-						const FMatrix44f& RefToLocal = ReferenceToLocalMatrices[RefToLocalIdx];
-						RefToLocal.To3x4MatrixTranspose((float*)BoneMat.M);
-					}
-					InRHICmdList.UnlockBuffer(VertexBuffer);
-				});
-
-				RHICmdList.RHIThreadFence(true);
-
-				return true;
-			}
 			ChunkMatrices = (FMatrix3x4*)RHICmdList.LockBuffer(CurrentBoneBuffer->VertexBufferRHI, 0, VectorArraySize, RLM_WriteOnly);
 		}
 	}
@@ -373,7 +331,6 @@ bool FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandList&
 	{
 		UniformBuffer = RHICreateUniformBuffer(&GBoneUniformStruct, FBoneMatricesUniformShaderParameters::FTypeInfo::GetStructMetadata()->GetLayoutPtr(), UniformBuffer_MultiFrame);
 	}
-	return false;
 }
 
 int32 FGPUBaseSkinVertexFactory::GetMinimumPerPlatformMaxGPUSkinBonesValue()
@@ -1054,7 +1011,7 @@ IMPLEMENT_TYPE_LAYOUT(TGPUSkinAPEXClothVertexFactoryShaderParameters);
 	TGPUSkinAPEXClothVertexFactory::ClothShaderType
 -----------------------------------------------------------------------------*/
 
-bool FGPUBaseSkinAPEXClothVertexFactory::ClothShaderType::UpdateClothSimulData(FRHICommandList& RHICmdList, const TArray<FVector3f>& InSimulPositions,
+void FGPUBaseSkinAPEXClothVertexFactory::ClothShaderType::UpdateClothSimulData(FRHICommandList& RHICmdList, const TArray<FVector3f>& InSimulPositions,
 	const TArray<FVector3f>& InSimulNormals, uint32 RevisionNumber, ERHIFeatureLevel::Type FeatureLevel, bool bForceUpdateImmediately, const FName& AssetPathName)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FGPUBaseSkinAPEXClothVertexFactory_UpdateClothSimulData);
@@ -1083,35 +1040,6 @@ bool FGPUBaseSkinAPEXClothVertexFactory::ClothShaderType::UpdateClothSimulData(F
 
 	if(NumSimulVerts)
 	{
-		if (!bForceUpdateImmediately && DeferSkeletalLockAndFillToRHIThread())
-		{
-			FRHIBuffer* VertexBuffer = CurrentClothBuffer->VertexBufferRHI;
-			RHICmdList.EnqueueLambda([VertexBuffer, VectorArraySize, &InSimulPositions, &InSimulNormals](FRHICommandList& InRHICmdList)
-			{
-				QUICK_SCOPE_CYCLE_COUNTER(STAT_FRHICommandUpdateBoneBuffer_Execute);
-				float* RESTRICT Data = (float* RESTRICT)InRHICmdList.LockBuffer(VertexBuffer, 0, VectorArraySize, RLM_WriteOnly);
-				uint32 LambdaNumSimulVerts = InSimulPositions.Num();
-				check(LambdaNumSimulVerts > 0 && LambdaNumSimulVerts <= MAX_APEXCLOTH_VERTICES_FOR_VB);
-				float* RESTRICT Pos = (float* RESTRICT) &InSimulPositions[0].X;
-				float* RESTRICT Normal = (float* RESTRICT) &InSimulNormals[0].X;
-				for (uint32 Index = 0; Index < LambdaNumSimulVerts; Index++)
-				{
-					FPlatformMisc::Prefetch(Pos + PLATFORM_CACHE_LINE_SIZE);
-					FPlatformMisc::Prefetch(Normal + PLATFORM_CACHE_LINE_SIZE);
-
-					FMemory::Memcpy(Data, Pos, sizeof(float) * 3);
-					FMemory::Memcpy(Data + 3, Normal, sizeof(float) * 3);
-					Data += 6;
-					Pos += 3;
-					Normal += 3;
-				}
-				InRHICmdList.UnlockBuffer(VertexBuffer);
-			});
-
-			RHICmdList.RHIThreadFence(true);
-
-			return true;
-		}
 		float* RESTRICT Data = (float* RESTRICT)RHICmdList.LockBuffer(CurrentClothBuffer->VertexBufferRHI, 0, VectorArraySize, RLM_WriteOnly);
 		{
 			QUICK_SCOPE_CYCLE_COUNTER(STAT_FGPUBaseSkinAPEXClothVertexFactory_UpdateClothSimulData_CopyData);
@@ -1131,8 +1059,6 @@ bool FGPUBaseSkinAPEXClothVertexFactory::ClothShaderType::UpdateClothSimulData(F
 		}
 		RHICmdList.UnlockBuffer(CurrentClothBuffer->VertexBufferRHI);
 	}
-	
-	return false;
 }
 
 void FGPUBaseSkinAPEXClothVertexFactory::ClothShaderType::SetCurrentRevisionNumber(uint32 RevisionNumber)

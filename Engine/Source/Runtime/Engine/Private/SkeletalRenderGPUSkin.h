@@ -670,16 +670,11 @@ protected:
 
 	ENGINE_API virtual void UpdateMorphVertexBuffer(FRHICommandList& RHICmdList, EGPUSkinCacheEntryMode Mode, FSkeletalMeshObjectLOD& LOD, const FSkeletalMeshLODRenderData& LODData, bool bGPUSkinCacheEnabled, FMorphVertexBuffer& MorphVertexBuffer);
 
-	ENGINE_API void WaitForRHIThreadFenceForDynamicData();
-
 	/** Render data for each LOD */
 	TArray<struct FSkeletalMeshObjectLOD> LODs;
 
 	/** Data that is updated dynamically and is needed for rendering */
 	FDynamicSkelMeshObjectDataGPUSkin* DynamicData;
-
-	/** Fence for dynamic Data */
-	FGraphEventRef RHIThreadFenceForDynamicData;
 
 	/** True if we are doing a deferred update later in GDME. */
 	bool bNeedsUpdateDeferred;

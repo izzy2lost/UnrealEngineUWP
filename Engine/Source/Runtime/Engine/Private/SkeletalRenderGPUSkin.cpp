@@ -248,7 +248,6 @@ FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectGPUSkin(USkinnedMeshComponent* In
 
 FSkeletalMeshObjectGPUSkin::~FSkeletalMeshObjectGPUSkin()
 {
-	check(!RHIThreadFenceForDynamicData.GetReference());
 	if (DynamicData)
 	{
 		FDynamicSkelMeshObjectDataGPUSkin::FreeDynamicSkelMeshObjectDataGPUSkin(DynamicData);
@@ -296,7 +295,7 @@ void FSkeletalMeshObjectGPUSkin::ReleaseResources()
 	ReleaseMorphResources();
 	FSkeletalMeshObjectGPUSkin* MeshObject = this;
 	FGPUSkinCacheEntry** PtrSkinCacheEntry = &SkinCacheEntry;
-	ENQUEUE_RENDER_COMMAND(WaitRHIThreadFenceForDynamicData)(UE::RenderCommandPipe::SkeletalMesh,
+	ENQUEUE_RENDER_COMMAND(ReleaseSkeletalMeshSkinCacheResources)(UE::RenderCommandPipe::SkeletalMesh,
 		[MeshObject, PtrSkinCacheEntry, &SkinCacheEntryForRayTracing = SkinCacheEntryForRayTracing](FRHICommandList& RHICmdList)
 		{
 			FGPUSkinCacheEntry*& LocalSkinCacheEntry = *PtrSkinCacheEntry;
@@ -304,7 +303,6 @@ void FSkeletalMeshObjectGPUSkin::ReleaseResources()
 			FGPUSkinCacheEntry* LocalSkinCacheEntryForRayTracing = SkinCacheEntryForRayTracing;
 			FGPUSkinCache::Release(LocalSkinCacheEntryForRayTracing);
 
-			MeshObject->WaitForRHIThreadFenceForDynamicData();
 			*PtrSkinCacheEntry = nullptr;
 			SkinCacheEntryForRayTracing = nullptr;
 		}
@@ -505,7 +503,6 @@ void FSkeletalMeshObjectGPUSkin::UpdateDynamicData_RenderThread(FGPUSkinCache* G
 	}
 #endif
 
-	WaitForRHIThreadFenceForDynamicData();
 	if (DynamicData)
 	{
 		FDynamicSkelMeshObjectDataGPUSkin::FreeDynamicSkelMeshObjectDataGPUSkin(DynamicData);
@@ -552,17 +549,6 @@ void FSkeletalMeshObjectGPUSkin::PreGDMECallback(FRHICommandList& RHICmdList, FG
 	if (bNeedsUpdateDeferred)
 	{
 		ProcessUpdatedDynamicData(EGPUSkinCacheEntryMode::Raster, GPUSkinCache, RHICmdList, FrameNumber, LastBoneTransformRevisionNumber, bMorphNeedsUpdateDeferred, DynamicData->LODIndex);
-	}
-}
-
-void FSkeletalMeshObjectGPUSkin::WaitForRHIThreadFenceForDynamicData()
-{
-	// we should be done with the old data at this point
-	if (RHIThreadFenceForDynamicData.GetReference())
-	{
-		FScopeCycleCounter Context(GetStatId());
-		RHIThreadFenceForDynamicData->Wait();
-		RHIThreadFenceForDynamicData = nullptr;
 	}
 }
 
@@ -703,7 +689,7 @@ void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(EGPUSkinCacheEntryMod
 
 			// Create a uniform buffer from the bone transforms.
 			TArray<FMatrix44f>& ReferenceToLocalMatrices = bShouldUseSeparateMatricesForRayTracing ? DynamicData->ReferenceToLocalForRayTracing : DynamicData->ReferenceToLocal;
-			bool bNeedFence = ShaderData.UpdateBoneData(RHICmdList, ReferenceToLocalMatrices, Section.BoneMap, RevisionNumber, false, FeatureLevel, bUseSkinCache, DynamicData->bForceUpdateDynamicDataImmediately, OwnerName);
+			ShaderData.UpdateBoneData(RHICmdList, ReferenceToLocalMatrices, Section.BoneMap, RevisionNumber, false, FeatureLevel, bUseSkinCache, DynamicData->bForceUpdateDynamicDataImmediately, OwnerName);
 			ShaderData.UpdatedFrameNumber = FrameNumberToPrepare;
 
 			// Update uniform buffer for APEX cloth simulation mesh positions and normals
@@ -713,7 +699,7 @@ void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(EGPUSkinCacheEntryMod
 				ClothShaderData.ClothBlendWeight = DynamicData->ClothBlendWeight;
 				ClothShaderData.WorldScale = (FVector3f)WorldScale;
 
-				bNeedFence = ClothShaderData.UpdateClothSimulData(RHICmdList, SimData->Positions, SimData->Normals, RevisionNumber, FeatureLevel, DynamicData->bForceUpdateDynamicDataImmediately, OwnerName) || bNeedFence;
+				ClothShaderData.UpdateClothSimulData(RHICmdList, SimData->Positions, SimData->Normals, RevisionNumber, FeatureLevel, DynamicData->bForceUpdateDynamicDataImmediately, OwnerName);
 				// Transform from cloth space to local space. Cloth space is relative to cloth root bone, local space is component space.
 				ClothShaderData.GetClothToLocalForWriting() = FMatrix44f(SimData->ComponentRelativeTransform.ToMatrixWithScale());
 			}
@@ -753,11 +739,6 @@ void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(EGPUSkinCacheEntryMod
 			{
 				FGPUBaseSkinAPEXClothVertexFactory::ClothShaderType& ClothShaderData = VertexFactoryData.ClothVertexFactories[SectionIdx]->GetClothShaderData();
 				ClothShaderData.EnableDoubleBuffer();
-			}
-
-			if (bNeedFence)
-			{
-				RHIThreadFenceForDynamicData = RHICmdList.RHIThreadFence(true);
 			}
 		}
 	}
