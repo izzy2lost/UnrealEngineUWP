@@ -51,7 +51,7 @@ namespace UE::PixelStreaming
 		EPixelStreamingCodec Codec;
 
 		TUniquePtr<FVideoEncoderConfig> InitialVideoConfig;
-		TWeakPtr<FVideoEncoderHardware> HardwareEncoder;
+		TSharedPtr<FVideoEncoderHardware> HardwareEncoder;
 
 		// We store this so we can restore back to it if the user decides to use then stop using the PixelStreaming.Encoder.TargetBitrate CVar.
 		int32 WebRtcProposedTargetBitrate = 5000000;
@@ -64,5 +64,8 @@ namespace UE::PixelStreaming
 
 		// used to key into active hardware encoders and pull the correct encoder for the stream.
 		uint32 EncodingStreamId;
+
+		// Used to track how often we encode the same frame
+		uint64 LastEncodedFrameId = 0;
 	};
 } // namespace UE::PixelStreaming
