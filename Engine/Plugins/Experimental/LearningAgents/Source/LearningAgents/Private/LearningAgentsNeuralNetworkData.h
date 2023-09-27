@@ -16,58 +16,16 @@ namespace UE::NNE
 	class IModelInstanceCPU;
 }
 
-UCLASS()
-class LEARNINGAGENTS_API ULearningAgentsNeuralNetworkData : public UObject 
-{
-	GENERATED_BODY()
-
-public:
-
-	virtual TSharedPtr<UE::Learning::INeuralNetwork> GetNetworkInterface() { return nullptr; }
-
-	virtual void CopyFrom(const ULearningAgentsNeuralNetworkData* Other) {}
-
-	virtual void CreateMLP(
-		const uint32 InputSize,
-		const uint32 OutputSize,
-		const uint32 HiddenUnitNum,
-		const uint32 LayerNum,
-		const ELearningAgentsActivationFunction Activation) {}
-};
-
-UCLASS()
-class LEARNINGAGENTS_API ULearningAgentsMLPNeuralNetworkData : public ULearningAgentsNeuralNetworkData 
-{
-	GENERATED_BODY()
-
-public:
-
-	virtual void Serialize(FArchive& Ar) override final;
-
-	virtual TSharedPtr<UE::Learning::INeuralNetwork> GetNetworkInterface() override final;
-
-	virtual void CopyFrom(const ULearningAgentsNeuralNetworkData* Other) override final;
-
-	virtual void CreateMLP(
-		const uint32 InputSize,
-		const uint32 OutputSize,
-		const uint32 HiddenUnitNum,
-		const uint32 LayerNum,
-		const ELearningAgentsActivationFunction Activation) override final;
-
-	TSharedPtr<UE::Learning::FNeuralNetworkMLP> Network;
-};
-
-class ULearningAgentsNNENeuralNetworkData;
+class ULearningAgentsNeuralNetworkData;
 
 namespace UE::Learning::Agents
 {
-	struct FNeuralNetworkNNE;
-	struct FNeuralNetworkNNEInference;
+	struct FNeuralNetwork;
+	struct FNeuralNetworkInference;
 
-	struct FNeuralNetworkNNE : public INeuralNetwork
+	struct FNeuralNetwork : public INeuralNetwork
 	{
-		FNeuralNetworkNNE(ULearningAgentsNNENeuralNetworkData& InParent);
+		FNeuralNetwork(ULearningAgentsNeuralNetworkData& InParent);
 
 		//~ Begin INeuralNetwork Interface
 		virtual bool DeserializeFromBytes(int32& InOutOffset, const TLearningArrayView<1, const uint8> RawBytes) override final;
@@ -83,14 +41,14 @@ namespace UE::Learning::Agents
 
 		void ReloadFromFileData();
 
-		ULearningAgentsNNENeuralNetworkData& Parent;
+		ULearningAgentsNeuralNetworkData& Parent;
 		TSharedPtr<NNE::IModelCPU> Model;
-		TArray<TWeakPtr<FNeuralNetworkNNEInference>, TInlineAllocator<64>> InferenceObjects;
+		TArray<TWeakPtr<FNeuralNetworkInference>, TInlineAllocator<64>> InferenceObjects;
 	};
 
-	struct FNeuralNetworkNNEInference : public INeuralNetworkInference
+	struct FNeuralNetworkInference : public INeuralNetworkInference
 	{
-		FNeuralNetworkNNEInference(
+		FNeuralNetworkInference(
 			NNE::IModelCPU& InModel,
 			const FNeuralNetworkInferenceSettings& InSettings,
 			const int32 MaxBatchSize,
@@ -114,26 +72,34 @@ namespace UE::Learning::Agents
 }
 
 UCLASS()
-class LEARNINGAGENTS_API ULearningAgentsNNENeuralNetworkData : public ULearningAgentsNeuralNetworkData
+class LEARNINGAGENTS_API ULearningAgentsNeuralNetworkData : public UObject
 {
 	GENERATED_BODY()
 
-	friend struct UE::Learning::Agents::FNeuralNetworkNNE;
+	friend struct UE::Learning::Agents::FNeuralNetwork;
 
 public:
 
 	virtual void PostLoad() override final;
 
-	virtual TSharedPtr<UE::Learning::INeuralNetwork> GetNetworkInterface() override final;
+	TSharedPtr<UE::Learning::INeuralNetwork> GetNetworkInterface();
 
-	virtual void CopyFrom(const ULearningAgentsNeuralNetworkData* Other) override final;
+	void CopyFrom(const ULearningAgentsNeuralNetworkData* Other);
 
-	virtual void CreateMLP(
+	void CreateMLP(
 		const uint32 InputSize,
 		const uint32 OutputSize,
 		const uint32 HiddenUnitNum,
 		const uint32 LayerNum,
-		const ELearningAgentsActivationFunction Activation) override final;
+		const ELearningAgentsActivationFunction Activation);
+
+	void CreateMemoryBackbone(
+		const uint32 InputSize,
+		const uint32 OutputSize,
+		const uint32 MemorySize,
+		const uint32 HiddenUnitNum,
+		const uint32 PrefixLayerNum,
+		const uint32 PostfixLayerNum);
 
 private:
 
@@ -149,7 +115,5 @@ private:
 	UPROPERTY()
 	TObjectPtr<UNNEModelData> ModelData;
 
-	TSharedPtr<UE::Learning::Agents::FNeuralNetworkNNE> Network;
+	TSharedPtr<UE::Learning::Agents::FNeuralNetwork> Network;
 };
-
-using ULearningAgentsDefaultNeuralNetworkData = ULearningAgentsNNENeuralNetworkData;

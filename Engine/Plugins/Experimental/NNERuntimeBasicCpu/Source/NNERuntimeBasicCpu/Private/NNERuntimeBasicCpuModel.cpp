@@ -120,6 +120,417 @@ namespace UE::NNE::RuntimeBasic
 
 		//--------------------------------------------------------------------------
 
+		static inline float Sigmoid(const float X)
+		{
+			return 1.0f / (1.0f + FMath::Exp(-X));
+		}
+
+		//--------------------------------------------------------------------------
+
+		static inline void IdentityLayer(
+			float* RESTRICT Output,
+			const float* RESTRICT Input,
+			const uint32 BatchSize,
+			const uint32 InputOutputSize,
+			const uint32 OutputStride,
+			const uint32 InputStride)
+		{
+#if NNE_RUNTIME_BASIC_ENABLE_ISPC
+			ispc::NNERuntimeBasicCPUIdentityLayer(
+				Output,
+				Input,
+				BatchSize,
+				InputOutputSize,
+				OutputStride,
+				InputStride);
+#else
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				for (uint32 Idx = 0; Idx < InputOutputSize; Idx++)
+				{
+					Output[BatchIdx * OutputStride + Idx] = Input[BatchIdx * InputStride + Idx];
+				}
+			}
+#endif
+		}
+
+		static inline void NormalizeLayer(
+			float* RESTRICT Output,
+			const float* RESTRICT Input,
+			const float* RESTRICT Mean,
+			const float* RESTRICT Std,
+			const uint32 BatchSize,
+			const uint32 InputOutputSize,
+			const uint32 OutputStride,
+			const uint32 InputStride)
+		{
+#if NNE_RUNTIME_BASIC_ENABLE_ISPC
+			ispc::NNERuntimeBasicCPUNormalizeLayer(
+				Output,
+				Input,
+				Mean,
+				Std,
+				BatchSize,
+				InputOutputSize,
+				OutputStride,
+				InputStride);
+#else
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				for (uint32 Idx = 0; Idx < InputOutputSize; Idx++)
+				{
+					Output[BatchIdx * OutputStride + Idx] = (Input[BatchIdx * InputStride + Idx] - Mean[Idx]) / Std[Idx];
+				}
+			}
+#endif
+		}
+
+		static inline void DenormalizeLayer(
+			float* RESTRICT Output,
+			const float* RESTRICT Input,
+			const float* RESTRICT Mean,
+			const float* RESTRICT Std,
+			const uint32 BatchSize,
+			const uint32 InputOutputSize,
+			const uint32 OutputStride,
+			const uint32 InputStride)
+		{
+#if NNE_RUNTIME_BASIC_ENABLE_ISPC
+			ispc::NNERuntimeBasicCPUDenormalizeLayer(
+				Output,
+				Input,
+				Mean,
+				Std,
+				BatchSize,
+				InputOutputSize,
+				OutputStride,
+				InputStride);
+#else
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				for (uint32 Idx = 0; Idx < InputOutputSize; Idx++)
+				{
+					Output[BatchIdx * OutputStride + Idx] = (Input[BatchIdx * InputStride + Idx] * Std[Idx]) + Mean[Idx];
+				}
+			}
+#endif
+		}
+
+		static inline void LinearLayer(
+			float* RESTRICT Output,
+			const float* RESTRICT Input,
+			const float* RESTRICT Weights,
+			const float* RESTRICT Biases,
+			const uint32 BatchSize,
+			const uint32 InputSize,
+			const uint32 OutputSize,
+			const uint32 OutputStride,
+			const uint32 InputStride)
+		{
+#if NNE_RUNTIME_BASIC_ENABLE_ISPC
+			ispc::NNERuntimeBasicCPULinearLayer(
+				Output,
+				Input,
+				Weights,
+				Biases,
+				BatchSize,
+				InputSize,
+				OutputSize,
+				OutputStride,
+				InputStride);
+#else
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				for (uint32 ColIdx = 0; ColIdx < OutputSize; ColIdx++)
+				{
+					Output[BatchIdx * OutputStride + ColIdx] = Biases[ColIdx];
+				}
+			}
+
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				for (uint32 RowIdx = 0; RowIdx < InputSize; RowIdx++)
+				{
+					const float Value = Input[BatchIdx * InputStride + RowIdx];
+
+					if (Value != 0.0)
+					{
+						for (uint32 ColIdx = 0; ColIdx < OutputSize; ColIdx++)
+						{
+							Output[BatchIdx * OutputStride + ColIdx] += Value * Weights[RowIdx * OutputSize + ColIdx];
+						}
+					}
+				}
+			}
+#endif
+		}
+
+		static inline void CompressedLinearLayer(
+			float* RESTRICT Output,
+			const float* RESTRICT Input,
+			const uint16* RESTRICT Weights,
+			const float* RESTRICT WeightOffsets,
+			const float* RESTRICT WeightScales,
+			const float* RESTRICT Biases,
+			const uint32 BatchSize,
+			const uint32 InputSize,
+			const uint32 OutputSize,
+			const uint32 OutputStride,
+			const uint32 InputStride)
+		{
+#if NNE_RUNTIME_BASIC_ENABLE_ISPC
+			ispc::NNERuntimeBasicCPUCompressedLinearLayer(
+				Output,
+				Input,
+				Weights,
+				WeightOffsets,
+				WeightScales,
+				Biases,
+				BatchSize,
+				InputSize,
+				OutputSize,
+				OutputStride,
+				InputStride);
+#else
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				for (uint32 ColIdx = 0; ColIdx < OutputSize; ColIdx++)
+				{
+					Output[BatchIdx * OutputStride + ColIdx] = Biases[ColIdx];
+				}
+			}
+
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				for (uint32 RowIdx = 0; RowIdx < InputSize; RowIdx++)
+				{
+					const float Value = Input[BatchIdx * InputStride + RowIdx];
+
+					if (Value != 0.0)
+					{
+						const float Offset = WeightOffsets[RowIdx];
+						const float Scales = WeightScales[RowIdx];
+
+						for (uint32 ColIdx = 0; ColIdx < OutputSize; ColIdx++)
+						{
+							Output[BatchIdx * OutputStride + ColIdx] += Value * ((Scales * ((float)Weights[RowIdx * OutputSize + ColIdx])) + Offset);
+						}
+					}
+				}
+			}
+#endif
+		}
+
+		static inline void MultiLinearLayer(
+			float* RESTRICT Output,
+			const float* RESTRICT Input,
+			const float* RESTRICT Weights,
+			const float* RESTRICT Biases,
+			const uint32 BatchSize,
+			const uint32 BlockNum,
+			const uint32 InputSize,
+			const uint32 OutputSize,
+			const uint32 OutputStride,
+			const uint32 InputStride)
+		{
+			// For this function ispc generates slightly less efficient code than the naive C++ implementation so we
+			// don't bother calling out to the ispc version even if it is available
+
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				for (uint32 BlockIdx = 0; BlockIdx < BlockNum; BlockIdx++)
+				{
+					for (uint32 ColIdx = 0; ColIdx < OutputSize; ColIdx++)
+					{
+						Output[BatchIdx * OutputStride + BlockIdx * OutputSize + ColIdx] = Biases[BlockIdx * OutputSize + ColIdx];
+					}
+				}
+			}
+
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				for (uint32 BlockIdx = 0; BlockIdx < BlockNum; BlockIdx++)
+				{
+					for (uint32 RowIdx = 0; RowIdx < InputSize; RowIdx++)
+					{
+						const float Value = Input[BatchIdx * InputStride + BlockIdx * InputSize + RowIdx];
+
+						if (Value != 0.0)
+						{
+							for (uint32 ColIdx = 0; ColIdx < OutputSize; ColIdx++)
+							{
+								Output[BatchIdx * OutputStride + BlockIdx * OutputSize + ColIdx] += Value * Weights[BlockIdx * InputSize * OutputSize + RowIdx * OutputSize + ColIdx];
+							}
+						}
+					}
+				}
+			}
+		}
+
+		static inline void ActivationReLU(
+			float* RESTRICT Output,
+			const float* RESTRICT Input,
+			const uint32 BatchSize,
+			const uint32 InputOutputSize,
+			const uint32 OutputStride,
+			const uint32 InputStride)
+		{
+#if NNE_RUNTIME_BASIC_ENABLE_ISPC
+			ispc::NNERuntimeBasicCPUActivationReLU(
+				Output,
+				Input,
+				BatchSize,
+				InputOutputSize,
+				OutputStride,
+				InputStride);
+#else
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				for (uint32 Idx = 0; Idx < InputOutputSize; Idx++)
+				{
+					Output[BatchIdx * OutputStride + Idx] = FMath::Max(Input[BatchIdx * InputStride + Idx], 0.0f);
+				}
+			}
+#endif
+		}
+
+		static inline void ActivationELU(
+			float* RESTRICT Output,
+			const float* RESTRICT Input,
+			const uint32 BatchSize,
+			const uint32 InputOutputSize,
+			const uint32 OutputStride,
+			const uint32 InputStride)
+		{
+#if NNE_RUNTIME_BASIC_ENABLE_ISPC
+			ispc::NNERuntimeBasicCPUActivationELU(
+				Output,
+				Input,
+				BatchSize,
+				InputOutputSize,
+				OutputStride,
+				InputStride);
+#else
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				for (uint32 Idx = 0; Idx < InputOutputSize; Idx++)
+				{
+					const float Value = Input[BatchIdx * InputStride + Idx];
+					Output[BatchIdx * OutputStride + Idx] = Value > 0.0f ? Value : FMath::InvExpApprox(-Value) - 1.0f;
+				}
+			}
+#endif
+		}
+
+		static inline void ActivationTanH(
+			float* RESTRICT Output,
+			const float* RESTRICT Input,
+			const uint32 BatchSize,
+			const uint32 InputOutputSize,
+			const uint32 OutputStride,
+			const uint32 InputStride)
+		{
+#if NNE_RUNTIME_BASIC_ENABLE_ISPC
+			ispc::NNERuntimeBasicCPUActivationTanH(
+				Output,
+				Input,
+				BatchSize,
+				InputOutputSize,
+				OutputStride,
+				InputStride);
+#else
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				for (uint32 Idx = 0; Idx < InputOutputSize; Idx++)
+				{
+					Output[BatchIdx * OutputStride + Idx] = FMath::Tanh(Input[BatchIdx * InputStride + Idx]);
+				}
+			}
+#endif
+		}
+
+		static inline void ActivationPReLU(
+			float* RESTRICT Output,
+			const float* RESTRICT Input,
+			const float* RESTRICT Alpha,
+			const uint32 BatchSize,
+			const uint32 InputOutputSize,
+			const uint32 OutputStride,
+			const uint32 InputStride)
+		{
+#if NNE_RUNTIME_BASIC_ENABLE_ISPC
+			ispc::NNERuntimeBasicCPUActivationPReLU(
+				Output,
+				Input,
+				Alpha,
+				BatchSize,
+				InputOutputSize,
+				OutputStride,
+				InputStride);
+#else
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				for (uint32 Idx = 0; Idx < InputOutputSize; Idx++)
+				{
+					const float Value = Input[BatchIdx * InputStride + Idx];
+					Output[BatchIdx * OutputStride + Idx] = Value > 0.0f ? Value : Alpha[Idx] * Value;
+				}
+			}
+#endif
+		}
+
+		static inline void MemoryCellUpdateMemory(
+			float* RESTRICT Output,
+			const float* RESTRICT RememberGate,
+			const float* RESTRICT Memory,
+			const float* RESTRICT Update,
+			const uint32 BatchSize,
+			const uint32 MemorySize,
+			const uint32 OutputStride,
+			const uint32 RememberGateStride,
+			const uint32 MemoryStride,
+			const uint32 UpdateStride)
+		{
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				for (uint32 Idx = 0; Idx < MemorySize; Idx++)
+				{
+					const float Gate = Sigmoid(RememberGate[BatchIdx * RememberGateStride + Idx]);
+					const float Prev = Memory[BatchIdx * MemoryStride + Idx];
+					const float Targ = FMath::Tanh(Update[BatchIdx * UpdateStride + Idx]);
+
+					Output[BatchIdx * OutputStride + Idx] = (1.0f - Gate) * Prev + Gate * Targ;
+				}
+			}
+		}
+
+		static inline void MemoryCellUpdateOutput(
+			float* RESTRICT Output,
+			const float* RESTRICT PassthroughGate,
+			const float* RESTRICT MemoryUpdate,
+			const float* RESTRICT InputUpdate,
+			const uint32 BatchSize,
+			const uint32 OutputSize,
+			const uint32 OutputStride,
+			const uint32 PassthroughGateStride,
+			const uint32 MemoryUpdateStride,
+			const uint32 InputUpdateStride)
+		{
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				for (uint32 Idx = 0; Idx < OutputSize; Idx++)
+				{
+					const float Gate = Sigmoid(PassthroughGate[BatchIdx * PassthroughGateStride + Idx]);
+					const float MemTarg = FMath::Tanh(MemoryUpdate[BatchIdx * MemoryUpdateStride + Idx]);
+					const float InTarg = FMath::Tanh(InputUpdate[BatchIdx * InputUpdateStride + Idx]);
+
+					Output[BatchIdx * OutputStride + Idx] = (1.0f - Gate) * MemTarg + Gate * InTarg;
+				}
+			}
+		}
+
+		//--------------------------------------------------------------------------
+
 		/** Layer Type Id - this should match what is given in nne_runtime_basic_cpu.py  */
 		enum class ELayerType : uint32
 		{
@@ -134,6 +545,8 @@ namespace UE::NNE::RuntimeBasic
 			ELU = 8,
 			TanH = 9,
 			PReLU = 10,
+			MemoryCell = 11,
+			MemoryBackbone = 12,
 		};
 
 		//--------------------------------------------------------------------------
@@ -185,20 +598,20 @@ namespace UE::NNE::RuntimeBasic
 			 * Note that the input and output buffers may not match the exact dimensions expected by this layer - the
 			 * size dimension can be over-allocated to allow for buffer re-use.
 			 *
-			 * @param Output			The output buffer of size (BatchSize, OutputBufferSize).
-			 * @param Input				The input buffer of size (BatchSize, InputBufferSize).
+			 * @param Output			The output buffer of size (BatchSize, OutputStride).
+			 * @param Input				The input buffer of size (BatchSize, InputStride).
 			 * @param Instance			The instance data for this layer.
 			 * @param BatchSize			The batchsize of the inputs and outputs
-			 * @param OutputBufferSize	The size of the output buffer vector for each item in the batch
-			 * @param InputBufferSize	The size of the input buffer vector for each item in the batch
+			 * @param OutputStride		The stride of the output buffer vector for each item in the batch
+			 * @param InputStride		The stride of the input buffer vector for each item in the batch
 			 */
 			virtual void Evaluate(
 				TArrayView<float> Output,
 				TConstArrayView<float> Input,
 				ILayerInstance* Instance,
 				uint32 BatchSize,
-				uint32 OutputBufferSize,
-				uint32 InputBufferSize) = 0;
+				uint32 OutputStride,
+				uint32 InputStride) = 0;
 		};
 
 		//--------------------------------------------------------------------------
@@ -212,7 +625,7 @@ namespace UE::NNE::RuntimeBasic
 			virtual void SetBatchSize(const uint32 BatchSize) override final;
 
 			const FSequenceLayer& SequenceLayer;
-			uint32 ActivationBufferSize = 0;
+			uint32 ActivationStride = 0;
 			TArray<TSharedPtr<ILayerInstance>, TInlineAllocator<32>> Instances;
 			TArray<float, TInlineAllocator<512>> ActivationBufferFront;
 			TArray<float, TInlineAllocator<512>> ActivationBufferBack;
@@ -263,8 +676,8 @@ namespace UE::NNE::RuntimeBasic
 				TConstArrayView<float> Input,
 				ILayerInstance* Instance,
 				uint32 BatchSize,
-				uint32 OutputBufferSize,
-				uint32 InputBufferSize) override final
+				uint32 OutputStride,
+				uint32 InputStride) override final
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(NNE::RuntimeBasic::Private::FSequenceLayer::Evaluate);
 
@@ -283,8 +696,8 @@ namespace UE::NNE::RuntimeBasic
 						Input,
 						SequenceInstance->Instances[0].Get(),
 						BatchSize,
-						OutputBufferSize,
-						InputBufferSize);
+						OutputStride,
+						InputStride);
 
 					return;
 				}
@@ -296,8 +709,8 @@ namespace UE::NNE::RuntimeBasic
 					Input,
 					SequenceInstance->Instances[0].Get(),
 					BatchSize,
-					SequenceInstance->ActivationBufferSize,
-					InputBufferSize);
+					SequenceInstance->ActivationStride,
+					InputStride);
 
 				// Evaluate intermediate layers using front and back buffers
 
@@ -316,8 +729,8 @@ namespace UE::NNE::RuntimeBasic
 						LayerInput,
 						SequenceInstance->Instances[LayerIdx].Get(),
 						BatchSize,
-						SequenceInstance->ActivationBufferSize,
-						SequenceInstance->ActivationBufferSize);
+						SequenceInstance->ActivationStride,
+						SequenceInstance->ActivationStride);
 				}
 
 				// Evaluate final layer from activation buffer into output
@@ -331,8 +744,8 @@ namespace UE::NNE::RuntimeBasic
 					FinalLayerInput,
 					SequenceInstance->Instances.Last().Get(),
 					BatchSize,
-					OutputBufferSize,
-					SequenceInstance->ActivationBufferSize);
+					OutputStride,
+					SequenceInstance->ActivationStride);
 			}
 
 			TArray<TSharedPtr<ILayer>, TInlineAllocator<32>> Layers;
@@ -353,10 +766,10 @@ namespace UE::NNE::RuntimeBasic
 
 			// Compute the largest intermediate size used
 
-			ActivationBufferSize = SequenceLayer.Layers[0]->GetInputSize();
+			ActivationStride = SequenceLayer.Layers[0]->GetInputSize();
 			for (uint32 LayerIdx = 1; LayerIdx < LayerNum; LayerIdx++)
 			{
-				ActivationBufferSize = FMath::Max(ActivationBufferSize, SequenceLayer.Layers[LayerIdx]->GetOutputSize());
+				ActivationStride = FMath::Max(ActivationStride, SequenceLayer.Layers[LayerIdx]->GetOutputSize());
 			}
 		}
 
@@ -378,30 +791,11 @@ namespace UE::NNE::RuntimeBasic
 			// Allocate front and back buffers to maximum size. Don't shrink to avoid re-allocation 
 			// when smaller batches are requested.
 
-			ActivationBufferFront.SetNumUninitialized(BatchSize * ActivationBufferSize, false);
-			ActivationBufferBack.SetNumUninitialized(BatchSize * ActivationBufferSize, false);
+			ActivationBufferFront.SetNumUninitialized(BatchSize * ActivationStride, false);
+			ActivationBufferBack.SetNumUninitialized(BatchSize * ActivationStride, false);
 		}
 
 		//--------------------------------------------------------------------------
-
-		static inline void NormalizeLayer(
-			float* RESTRICT Output,
-			const float* RESTRICT Input,
-			const float* RESTRICT Mean,
-			const float* RESTRICT Std,
-			const uint32 BatchNum,
-			const uint32 InputOutputNum,
-			const uint32 OutputBufferSize,
-			const uint32 InputBufferSize)
-		{
-			for (uint32 BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
-			{
-				for (uint32 Idx = 0; Idx < InputOutputNum; Idx++)
-				{
-					Output[BatchIdx * OutputBufferSize + Idx] = (Input[BatchIdx * InputBufferSize + Idx] - Mean[Idx]) / Std[Idx];
-				}
-			}
-		}
 
 		struct FNormalizeLayer : public ILayer
 		{
@@ -435,22 +829,11 @@ namespace UE::NNE::RuntimeBasic
 				TConstArrayView<float> Input,
 				ILayerInstance* Instance,
 				uint32 BatchSize,
-				uint32 OutputBufferSize,
-				uint32 InputBufferSize) override final
+				uint32 OutputStride,
+				uint32 InputStride) override final
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(NNE::RuntimeBasic::Private::FNormalizeLayer::Evaluate);
 
-#if NNE_RUNTIME_BASIC_ENABLE_ISPC
-				ispc::NNERuntimeBasicCPUNormalizeLayer(
-					Output.GetData(),
-					Input.GetData(),
-					Mean.GetData(),
-					Std.GetData(),
-					BatchSize,
-					InputOutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#else
 				NormalizeLayer(
 					Output.GetData(),
 					Input.GetData(),
@@ -458,9 +841,8 @@ namespace UE::NNE::RuntimeBasic
 					Std.GetData(),
 					BatchSize,
 					InputOutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#endif
+					OutputStride,
+					InputStride);
 			}
 
 			uint32 InputOutputSize = 0;
@@ -470,24 +852,7 @@ namespace UE::NNE::RuntimeBasic
 
 		//--------------------------------------------------------------------------
 
-		static inline void DenormalizeLayer(
-			float* RESTRICT Output,
-			const float* RESTRICT Input,
-			const float* RESTRICT Mean,
-			const float* RESTRICT Std,
-			const uint32 BatchNum,
-			const uint32 InputOutputNum,
-			const uint32 OutputBufferSize,
-			const uint32 InputBufferSize)
-		{
-			for (uint32 BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
-			{
-				for (uint32 Idx = 0; Idx < InputOutputNum; Idx++)
-				{
-					Output[BatchIdx * OutputBufferSize + Idx] = (Input[BatchIdx * InputBufferSize + Idx] * Std[Idx]) + Mean[Idx];
-				}
-			}
-		}
+
 
 		struct FDenormalizeLayer : public ILayer
 		{
@@ -521,22 +886,11 @@ namespace UE::NNE::RuntimeBasic
 				TConstArrayView<float> Input,
 				ILayerInstance* Instance,
 				uint32 BatchSize,
-				uint32 OutputBufferSize,
-				uint32 InputBufferSize) override final
+				uint32 OutputStride,
+				uint32 InputStride) override final
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(NNE::RuntimeBasic::Private::FDenormalizeLayer::Evaluate);
 
-#if NNE_RUNTIME_BASIC_ENABLE_ISPC
-				ispc::NNERuntimeBasicCPUDenormalizeLayer(
-					Output.GetData(),
-					Input.GetData(),
-					Mean.GetData(),
-					Std.GetData(),
-					BatchSize,
-					InputOutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#else
 				DenormalizeLayer(
 					Output.GetData(),
 					Input.GetData(),
@@ -544,9 +898,8 @@ namespace UE::NNE::RuntimeBasic
 					Std.GetData(),
 					BatchSize,
 					InputOutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#endif
+					OutputStride,
+					InputStride);
 			}
 
 			uint32 InputOutputSize = 0;
@@ -555,42 +908,6 @@ namespace UE::NNE::RuntimeBasic
 		};
 
 		//--------------------------------------------------------------------------
-
-		static inline void LinearLayer(
-			float* RESTRICT Output,
-			const float* RESTRICT Input,
-			const float* RESTRICT Weights,
-			const float* RESTRICT Biases,
-			const uint32 BatchNum,
-			const uint32 RowNum,
-			const uint32 ColNum,
-			const uint32 OutputBufferSize,
-			const uint32 InputBufferSize)
-		{
-			for (uint32 BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
-			{
-				for (uint32 ColIdx = 0; ColIdx < ColNum; ColIdx++)
-				{
-					Output[BatchIdx * OutputBufferSize + ColIdx] = Biases[ColIdx];
-				}
-			}
-
-			for (uint32 BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
-			{
-				for (uint32 RowIdx = 0; RowIdx < RowNum; RowIdx++)
-				{
-					const float Value = Input[BatchIdx * InputBufferSize + RowIdx];
-
-					if (Value != 0.0)
-					{
-						for (uint32 ColIdx = 0; ColIdx < ColNum; ColIdx++)
-						{
-							Output[BatchIdx * OutputBufferSize + ColIdx] += Value * Weights[RowIdx * ColNum + ColIdx];
-						}
-					}
-				}
-			}
-		}
 
 		struct FLinearLayer : public ILayer
 		{
@@ -627,23 +944,11 @@ namespace UE::NNE::RuntimeBasic
 				TConstArrayView<float> Input,
 				ILayerInstance* Instance,
 				uint32 BatchSize,
-				uint32 OutputBufferSize,
-				uint32 InputBufferSize) override final
+				uint32 OutputStride,
+				uint32 InputStride) override final
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(NNE::RuntimeBasic::Private::FLinearLayer::Evaluate);
 
-#if NNE_RUNTIME_BASIC_ENABLE_ISPC
-				ispc::NNERuntimeBasicCPULinearLayer(
-					Output.GetData(),
-					Input.GetData(),
-					Weights.GetData(),
-					Biases.GetData(),
-					BatchSize,
-					InputSize,
-					OutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#else
 				LinearLayer(
 					Output.GetData(),
 					Input.GetData(),
@@ -652,9 +957,8 @@ namespace UE::NNE::RuntimeBasic
 					BatchSize,
 					InputSize,
 					OutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#endif
+					OutputStride,
+					InputStride);
 			}
 
 			uint32 InputSize = 0;
@@ -664,47 +968,6 @@ namespace UE::NNE::RuntimeBasic
 		};
 
 		//--------------------------------------------------------------------------
-
-		static inline void CompressedLinearLayer(
-			float* RESTRICT Output,
-			const float* RESTRICT Input,
-			const uint16* RESTRICT Weights,
-			const float* RESTRICT WeightOffsets,
-			const float* RESTRICT WeightScales,
-			const float* RESTRICT Biases,
-			const uint32 BatchNum,
-			const uint32 RowNum,
-			const uint32 ColNum,
-			const uint32 OutputBufferSize,
-			const uint32 InputBufferSize)
-		{
-			for (uint32 BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
-			{
-				for (uint32 ColIdx = 0; ColIdx < ColNum; ColIdx++)
-				{
-					Output[BatchIdx * OutputBufferSize + ColIdx] = Biases[ColIdx];
-				}
-			}
-
-			for (uint32 BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
-			{
-				for (uint32 RowIdx = 0; RowIdx < RowNum; RowIdx++)
-				{
-					const float Value = Input[BatchIdx * InputBufferSize + RowIdx];
-
-					if (Value != 0.0)
-					{
-						const float Offset = WeightOffsets[RowIdx];
-						const float Scales = WeightScales[RowIdx];
-
-						for (uint32 ColIdx = 0; ColIdx < ColNum; ColIdx++)
-						{
-							Output[BatchIdx * OutputBufferSize + ColIdx] += Value * ((Scales * ((float)Weights[RowIdx * ColNum + ColIdx])) + Offset);
-						}
-					}
-				}
-			}
-		}
 
 		struct FCompressedLinearLayer : public ILayer
 		{
@@ -747,25 +1010,11 @@ namespace UE::NNE::RuntimeBasic
 				TConstArrayView<float> Input,
 				ILayerInstance* Instance,
 				uint32 BatchSize,
-				uint32 OutputBufferSize,
-				uint32 InputBufferSize) override final
+				uint32 OutputStride,
+				uint32 InputStride) override final
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(NNE::RuntimeBasic::Private::FCompressedLinearLayer::Evaluate);
 
-#if NNE_RUNTIME_BASIC_ENABLE_ISPC
-				ispc::NNERuntimeBasicCPUCompressedLinearLayer(
-					Output.GetData(),
-					Input.GetData(),
-					Weights.GetData(),
-					WeightOffsets.GetData(),
-					WeightScales.GetData(),
-					Biases.GetData(),
-					BatchSize,
-					InputSize,
-					OutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#else
 				CompressedLinearLayer(
 					Output.GetData(),
 					Input.GetData(),
@@ -776,9 +1025,8 @@ namespace UE::NNE::RuntimeBasic
 					BatchSize,
 					InputSize,
 					OutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#endif
+					OutputStride,
+					InputStride);
 			}
 
 			uint32 InputSize = 0;
@@ -790,49 +1038,6 @@ namespace UE::NNE::RuntimeBasic
 		};
 
 		//--------------------------------------------------------------------------
-
-		static inline void MultiLinearLayer(
-			float* RESTRICT Output,
-			const float* RESTRICT Input,
-			const float* RESTRICT Weights,
-			const float* RESTRICT Biases,
-			const uint32 BatchNum,
-			const uint32 BlockNum,
-			const uint32 RowNum,
-			const uint32 ColNum,
-			const uint32 OutputBufferSize,
-			const uint32 InputBufferSize)
-		{
-			for (uint32 BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
-			{
-				for (uint32 BlockIdx = 0; BlockIdx < BlockNum; BlockIdx++)
-				{
-					for (uint32 ColIdx = 0; ColIdx < ColNum; ColIdx++)
-					{
-						Output[BatchIdx * OutputBufferSize + BlockIdx * ColNum + ColIdx] = Biases[BlockIdx * ColNum + ColIdx];
-					}
-				}
-			}
-
-			for (uint32 BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
-			{
-				for (uint32 BlockIdx = 0; BlockIdx < BlockNum; BlockIdx++)
-				{
-					for (uint32 RowIdx = 0; RowIdx < RowNum; RowIdx++)
-					{
-						const float Value = Input[BatchIdx * InputBufferSize + BlockIdx * RowNum + RowIdx];
-
-						if (Value != 0.0)
-						{
-							for (uint32 ColIdx = 0; ColIdx < ColNum; ColIdx++)
-							{
-								Output[BatchIdx * OutputBufferSize + BlockIdx * ColNum + ColIdx] += Value * Weights[BlockIdx * RowNum * ColNum + RowIdx * ColNum + ColIdx];
-							}
-						}
-					}
-				}
-			}
-		}
 
 		struct FMultiLinearLayer : public ILayer
 		{
@@ -872,27 +1077,11 @@ namespace UE::NNE::RuntimeBasic
 				TConstArrayView<float> Input,
 				ILayerInstance* Instance,
 				uint32 BatchSize,
-				uint32 OutputBufferSize,
-				uint32 InputBufferSize) override final
+				uint32 OutputStride,
+				uint32 InputStride) override final
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(NNE::RuntimeBasic::Private::FMultiLinearLayer::Evaluate);
 
-				// Here ispc generates slightly less efficient code than the naive C++ implementation
-				// so we want to disable the use of the ispc version unconditionally
-#if 0
-//#if NNE_RUNTIME_BASIC_ENABLE_ISPC
-				ispc::NNERuntimeBasicCPUMultiLinearLayer(
-					Output.GetData(),
-					Input.GetData(),
-					Weights.GetData(),
-					Biases.GetData(),
-					BatchSize,
-					BlockNum,
-					InputSize,
-					OutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#else
 				MultiLinearLayer(
 					Output.GetData(),
 					Input.GetData(),
@@ -902,9 +1091,8 @@ namespace UE::NNE::RuntimeBasic
 					BlockNum,
 					InputSize,
 					OutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#endif
+					OutputStride,
+					InputStride);
 			}
 
 			uint32 InputSize = 0;
@@ -916,22 +1104,7 @@ namespace UE::NNE::RuntimeBasic
 
 		//--------------------------------------------------------------------------
 
-		static inline void ActivationReLU(
-			float* RESTRICT Output,
-			const float* RESTRICT Input,
-			const uint32 BatchNum,
-			const uint32 Num,
-			const uint32 OutputBufferSize,
-			const uint32 InputBufferSize)
-		{
-			for (uint32 BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
-			{
-				for (uint32 Idx = 0; Idx < Num; Idx++)
-				{
-					Output[BatchIdx * OutputBufferSize + Idx] = FMath::Max(Input[BatchIdx * InputBufferSize + Idx], 0.0f);
-				}
-			}
-		}
+
 
 		struct FReLULayer : public ILayer
 		{
@@ -959,52 +1132,24 @@ namespace UE::NNE::RuntimeBasic
 				TConstArrayView<float> Input,
 				ILayerInstance* Instance,
 				uint32 BatchSize,
-				uint32 OutputBufferSize,
-				uint32 InputBufferSize) override final
+				uint32 OutputStride,
+				uint32 InputStride) override final
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(NNE::RuntimeBasic::Private::FReLULayer::Evaluate);
 
-#if NNE_RUNTIME_BASIC_ENABLE_ISPC
-				ispc::NNERuntimeBasicCPUActivationReLU(
-					Output.GetData(),
-					Input.GetData(),
-					BatchSize,
-					InputOutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#else
 				ActivationReLU(
 					Output.GetData(),
 					Input.GetData(),
 					BatchSize,
 					InputOutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#endif
+					OutputStride,
+					InputStride);
 			}
 
 			uint32 InputOutputSize = 0;
 		};
 
 		//--------------------------------------------------------------------------
-
-		static inline void ActivationELU(
-			float* RESTRICT Output,
-			const float* RESTRICT Input,
-			const uint32 BatchNum,
-			const uint32 Num,
-			const uint32 OutputBufferSize,
-			const uint32 InputBufferSize)
-		{
-			for (uint32 BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
-			{
-				for (uint32 Idx = 0; Idx < Num; Idx++)
-				{
-					const float Value = Input[BatchIdx * InputBufferSize + Idx];
-					Output[BatchIdx * OutputBufferSize + Idx] = Value > 0.0f ? Value : FMath::InvExpApprox(-Value) - 1.0f;
-				}
-			}
-		}
 
 		struct FELULayer : public ILayer
 		{
@@ -1032,51 +1177,24 @@ namespace UE::NNE::RuntimeBasic
 				TConstArrayView<float> Input,
 				ILayerInstance* Instance,
 				uint32 BatchSize,
-				uint32 OutputBufferSize,
-				uint32 InputBufferSize) override final
+				uint32 OutputStride,
+				uint32 InputStride) override final
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(NNE::RuntimeBasic::Private::FELULayer::Evaluate);
 
-#if NNE_RUNTIME_BASIC_ENABLE_ISPC
-				ispc::NNERuntimeBasicCPUActivationELU(
-					Output.GetData(),
-					Input.GetData(),
-					BatchSize,
-					InputOutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#else
 				ActivationELU(
 					Output.GetData(),
 					Input.GetData(),
 					BatchSize,
 					InputOutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#endif
+					OutputStride,
+					InputStride);
 			}
 
 			uint32 InputOutputSize = 0;
 		};
 
 		//--------------------------------------------------------------------------
-
-		static inline void ActivationTanH(
-			float* RESTRICT Output,
-			const float* RESTRICT Input,
-			const uint32 BatchNum,
-			const uint32 Num,
-			const uint32 OutputBufferSize,
-			const uint32 InputBufferSize)
-		{
-			for (uint32 BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
-			{
-				for (uint32 Idx = 0; Idx < Num; Idx++)
-				{
-					Output[BatchIdx * OutputBufferSize + Idx] = FMath::Tanh(Input[BatchIdx * InputBufferSize + Idx]);
-				}
-			}
-		}
 
 		struct FTanHLayer : public ILayer
 		{
@@ -1104,53 +1222,24 @@ namespace UE::NNE::RuntimeBasic
 				TConstArrayView<float> Input,
 				ILayerInstance* Instance,
 				uint32 BatchSize,
-				uint32 OutputBufferSize,
-				uint32 InputBufferSize) override final
+				uint32 OutputStride,
+				uint32 InputStride) override final
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(NNE::RuntimeBasic::Private::FTanHLayer::Evaluate);
 
-#if NNE_RUNTIME_BASIC_ENABLE_ISPC
-				ispc::NNERuntimeBasicCPUActivationTanH(
-					Output.GetData(),
-					Input.GetData(),
-					BatchSize,
-					InputOutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#else
 				ActivationTanH(
 					Output.GetData(),
 					Input.GetData(),
 					BatchSize,
 					InputOutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#endif
+					OutputStride,
+					InputStride);
 			}
 
 			uint32 InputOutputSize = 0;
 		};
 
 		//--------------------------------------------------------------------------
-
-		static inline void ActivationPReLU(
-			float* RESTRICT Output,
-			const float* RESTRICT Input,
-			const float* RESTRICT Alpha,
-			const uint32 BatchNum,
-			const uint32 Num,
-			const uint32 OutputBufferSize,
-			const uint32 InputBufferSize)
-		{
-			for (uint32 BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
-			{
-				for (uint32 Idx = 0; Idx < Num; Idx++)
-				{
-					const float Value = Input[BatchIdx * InputBufferSize + Idx];
-					Output[BatchIdx * OutputBufferSize + Idx] = Value > 0.0f ? Value : Alpha[Idx] * Value;
-				}
-			}
-		}
 
 		struct FPReLULayer : public ILayer
 		{
@@ -1181,35 +1270,392 @@ namespace UE::NNE::RuntimeBasic
 				TConstArrayView<float> Input,
 				ILayerInstance* Instance,
 				uint32 BatchSize,
-				uint32 OutputBufferSize,
-				uint32 InputBufferSize) override final
+				uint32 OutputStride,
+				uint32 InputStride) override final
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(NNE::RuntimeBasic::Private::FPReLuLayer::Evaluate);
 
-#if NNE_RUNTIME_BASIC_ENABLE_ISPC
-				ispc::NNERuntimeBasicCPUActivationPReLU(
-					Output.GetData(),
-					Input.GetData(),
-					Alpha.GetData(),
-					BatchSize,
-					InputOutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#else
 				ActivationPReLU(
 					Output.GetData(),
 					Input.GetData(),
 					Alpha.GetData(),
 					BatchSize,
 					InputOutputSize,
-					OutputBufferSize,
-					InputBufferSize);
-#endif
+					OutputStride,
+					InputStride);
 			}
 
 			uint32 InputOutputSize = 0;
 			TConstArrayView<float> Alpha;
 		};
+
+		//--------------------------------------------------------------------------
+
+		struct FMemoryCellLayer;
+
+		struct FMemoryCellInstance : public ILayerInstance
+		{
+			FMemoryCellInstance(const FMemoryCellLayer& InMemoryCellLayer);
+
+			virtual void SetBatchSize(const uint32 BatchSize) override final;
+
+			const FMemoryCellLayer& MemoryCellLayer;
+			TArray<float, TInlineAllocator<512>> RememberGateBuffer;
+			TArray<float, TInlineAllocator<512>> MemoryUpdateBuffer;
+			TArray<float, TInlineAllocator<512>> PassthroughGateBuffer;
+			TArray<float, TInlineAllocator<512>> OutputMemoryUpdateBuffer;
+			TArray<float, TInlineAllocator<512>> OutputInputUpdateBuffer;
+		};
+
+		//--------------------------------------------------------------------------
+
+		struct FMemoryCellLayer : public ILayer
+		{
+			virtual TSharedPtr<ILayerInstance> MakeInstance() const { return MakeShared<FMemoryCellInstance>(*this); };
+			virtual ELayerType GetLayerType() const override final { return ELayerType::MemoryCell; }
+			virtual uint32 GetInputSize() const override final { return InputSize + MemorySize; }
+			virtual uint32 GetOutputSize() const override final { return OutputSize + MemorySize; }
+
+			virtual void SerializationSize(uint64& InOutOffset) const override final
+			{
+				Serialization::Size(InOutOffset, InputSize);
+				Serialization::Size(InOutOffset, OutputSize);
+				Serialization::Size(InOutOffset, MemorySize);
+				Serialization::Size(InOutOffset, BiasesWr);
+				Serialization::Size(InOutOffset, WeightsWr);
+				Serialization::Size(InOutOffset, BiasesWp);
+				Serialization::Size(InOutOffset, WeightsWp);
+				Serialization::Size(InOutOffset, BiasesWn);
+				Serialization::Size(InOutOffset, WeightsWn);
+				Serialization::Size(InOutOffset, BiasesWz);
+				Serialization::Size(InOutOffset, WeightsWz);
+				Serialization::Size(InOutOffset, BiasesWy);
+				Serialization::Size(InOutOffset, WeightsWy);
+			}
+
+			virtual void SerializationLoad(uint64& InOutOffset, TConstArrayView<uint8> Data) override final
+			{
+				Serialization::Load(InOutOffset, InputSize, Data);
+				Serialization::Load(InOutOffset, OutputSize, Data);
+				Serialization::Load(InOutOffset, MemorySize, Data);
+				Serialization::Load(InOutOffset, BiasesWr, Data, MemorySize);
+				Serialization::Load(InOutOffset, WeightsWr, Data, (InputSize + MemorySize) * MemorySize);
+				Serialization::Load(InOutOffset, BiasesWp, Data, OutputSize);
+				Serialization::Load(InOutOffset, WeightsWp, Data, (InputSize + MemorySize) * OutputSize);
+				Serialization::Load(InOutOffset, BiasesWn, Data, MemorySize);
+				Serialization::Load(InOutOffset, WeightsWn, Data, (InputSize + MemorySize) * MemorySize);
+				Serialization::Load(InOutOffset, BiasesWz, Data, OutputSize);
+				Serialization::Load(InOutOffset, WeightsWz, Data, (InputSize + MemorySize) * OutputSize);
+				Serialization::Load(InOutOffset, BiasesWy, Data, OutputSize);
+				Serialization::Load(InOutOffset, WeightsWy, Data, MemorySize * OutputSize);
+			}
+
+			virtual void SerializationSave(uint64& InOutOffset, TArrayView<uint8> Data) const override final
+			{
+				Serialization::Save(InOutOffset, InputSize, Data);
+				Serialization::Save(InOutOffset, OutputSize, Data);
+				Serialization::Save(InOutOffset, MemorySize, Data);
+				Serialization::Save(InOutOffset, BiasesWr, Data);
+				Serialization::Save(InOutOffset, WeightsWr, Data);
+				Serialization::Save(InOutOffset, BiasesWp, Data);
+				Serialization::Save(InOutOffset, WeightsWp, Data);
+				Serialization::Save(InOutOffset, BiasesWn, Data);
+				Serialization::Save(InOutOffset, WeightsWn, Data);
+				Serialization::Save(InOutOffset, BiasesWz, Data);
+				Serialization::Save(InOutOffset, WeightsWz, Data);
+				Serialization::Save(InOutOffset, BiasesWy, Data);
+				Serialization::Save(InOutOffset, WeightsWy, Data);
+			}
+
+			virtual void Evaluate(
+				TArrayView<float> Output,
+				TConstArrayView<float> Input,
+				ILayerInstance* Instance,
+				uint32 BatchSize,
+				uint32 OutputStride,
+				uint32 InputStride) override final
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(NNE::RuntimeBasic::Private::FMemoryCellLayer::Evaluate);
+
+				FMemoryCellInstance* MemoryCellInstance = StaticCast<FMemoryCellInstance*>(Instance);
+				check(MemoryCellInstance);
+
+				// Remember Gate
+
+				LinearLayer(
+					MemoryCellInstance->RememberGateBuffer.GetData(),
+					Input.GetData(),
+					WeightsWr.GetData(),
+					BiasesWr.GetData(),
+					BatchSize,
+					InputSize + MemorySize,
+					MemorySize,
+					MemorySize,
+					InputStride);
+
+				// Passthrough Gate
+
+				LinearLayer(
+					MemoryCellInstance->PassthroughGateBuffer.GetData(),
+					Input.GetData(),
+					WeightsWp.GetData(),
+					BiasesWp.GetData(),
+					BatchSize,
+					InputSize + MemorySize,
+					OutputSize,
+					OutputSize,
+					InputStride);
+
+				// Memory Update
+
+				LinearLayer(
+					MemoryCellInstance->MemoryUpdateBuffer.GetData(),
+					Input.GetData(),
+					WeightsWn.GetData(),
+					BiasesWn.GetData(),
+					BatchSize,
+					InputSize + MemorySize,
+					MemorySize,
+					MemorySize,
+					InputStride);
+
+				// Update Memory State
+
+				MemoryCellUpdateMemory(
+					Output.GetData() + OutputSize,
+					MemoryCellInstance->RememberGateBuffer.GetData(),
+					Input.GetData() + InputSize,
+					MemoryCellInstance->MemoryUpdateBuffer.GetData(),
+					BatchSize,
+					MemorySize,
+					OutputStride,
+					MemorySize,
+					InputStride,
+					MemorySize);
+
+				// Output Input Update
+
+				LinearLayer(
+					MemoryCellInstance->OutputInputUpdateBuffer.GetData(),
+					Input.GetData(),
+					WeightsWz.GetData(),
+					BiasesWz.GetData(),
+					BatchSize,
+					InputSize + MemorySize,
+					OutputSize,
+					OutputSize,
+					InputStride);
+
+				// Output Memory Update
+
+				LinearLayer(
+					MemoryCellInstance->OutputMemoryUpdateBuffer.GetData(),
+					Output.GetData() + OutputSize,
+					WeightsWy.GetData(),
+					BiasesWy.GetData(),
+					BatchSize,
+					MemorySize,
+					OutputSize,
+					OutputSize,
+					OutputStride);
+
+				// Update Final Output
+
+				MemoryCellUpdateOutput(
+					Output.GetData(),
+					MemoryCellInstance->PassthroughGateBuffer.GetData(),
+					MemoryCellInstance->OutputMemoryUpdateBuffer.GetData(),
+					MemoryCellInstance->OutputInputUpdateBuffer.GetData(),
+					BatchSize,
+					OutputSize,
+					OutputStride,
+					OutputSize,
+					OutputSize,
+					OutputSize);
+			}
+
+			uint32 InputSize = 0;
+			uint32 OutputSize = 0;
+			uint32 MemorySize = 0;
+			TConstArrayView<float> BiasesWr;
+			TConstArrayView<float> WeightsWr;
+			TConstArrayView<float> BiasesWp;
+			TConstArrayView<float> WeightsWp;
+			TConstArrayView<float> BiasesWn;
+			TConstArrayView<float> WeightsWn;
+			TConstArrayView<float> BiasesWz;
+			TConstArrayView<float> WeightsWz;
+			TConstArrayView<float> BiasesWy;
+			TConstArrayView<float> WeightsWy;
+		};
+
+		//--------------------------------------------------------------------------
+
+		FMemoryCellInstance::FMemoryCellInstance(const FMemoryCellLayer& InMemoryCellLayer) 
+			: MemoryCellLayer(InMemoryCellLayer) {}
+
+		void FMemoryCellInstance::SetBatchSize(const uint32 BatchSize)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(NNE::RuntimeBasic::Private::FMemoryCellInstance::SetBatchSize);
+
+			RememberGateBuffer.SetNumUninitialized(BatchSize * MemoryCellLayer.MemorySize, false);
+			MemoryUpdateBuffer.SetNumUninitialized(BatchSize * MemoryCellLayer.MemorySize, false);
+			PassthroughGateBuffer.SetNumUninitialized(BatchSize * MemoryCellLayer.OutputSize, false);
+			OutputMemoryUpdateBuffer.SetNumUninitialized(BatchSize * MemoryCellLayer.OutputSize, false);
+			OutputInputUpdateBuffer.SetNumUninitialized(BatchSize * MemoryCellLayer.OutputSize, false);
+		}
+
+		//--------------------------------------------------------------------------
+
+		struct FMemoryBackboneLayer;
+
+		struct FMemoryBackboneInstance : public ILayerInstance
+		{
+			FMemoryBackboneInstance(const FMemoryBackboneLayer& InMemoryBackboneLayer);
+
+			virtual void SetBatchSize(const uint32 BatchSize) override final;
+
+			const FMemoryBackboneLayer& MemoryBackboneLayer;
+			TArray<float, TInlineAllocator<512>> CellInputBuffer;
+			TArray<float, TInlineAllocator<512>> CellOutputBuffer;
+			TSharedPtr<ILayerInstance> PrefixInstance;
+			TSharedPtr<ILayerInstance> CellInstance;
+			TSharedPtr<ILayerInstance> PostfixInstance;
+		};
+
+		//--------------------------------------------------------------------------
+
+		struct FMemoryBackboneLayer : public ILayer
+		{
+			virtual TSharedPtr<ILayerInstance> MakeInstance() const { return MakeShared<FMemoryBackboneInstance>(*this); };
+			virtual ELayerType GetLayerType() const override final { return ELayerType::MemoryBackbone; }
+			virtual uint32 GetInputSize() const override final { return PrefixInputSize + MemorySize; }
+			virtual uint32 GetOutputSize() const override final { return PostfixOutputSize + MemorySize; }
+
+			virtual void SerializationSize(uint64& InOutOffset) const override final
+			{
+				Serialization::Size(InOutOffset, MemorySize);
+				Serialization::Size(InOutOffset, Cell);
+				Serialization::Size(InOutOffset, Prefix);
+				Serialization::Size(InOutOffset, Postfix);
+			}
+
+			virtual void SerializationLoad(uint64& InOutOffset, TConstArrayView<uint8> Data) override final
+			{
+				Serialization::Load(InOutOffset, MemorySize, Data);
+				Serialization::Load(InOutOffset, Cell, Data);
+				Serialization::Load(InOutOffset, Prefix, Data);
+				Serialization::Load(InOutOffset, Postfix, Data);
+
+				PrefixInputSize = Prefix->GetInputSize();
+				PrefixOutputSize = Prefix->GetOutputSize();
+				PostfixInputSize = Postfix->GetInputSize();
+				PostfixOutputSize = Postfix->GetOutputSize();
+			}
+
+			virtual void SerializationSave(uint64& InOutOffset, TArrayView<uint8> Data) const override final
+			{
+				Serialization::Save(InOutOffset, MemorySize, Data);
+				Serialization::Save(InOutOffset, Cell, Data);
+				Serialization::Save(InOutOffset, Prefix, Data);
+				Serialization::Save(InOutOffset, Postfix, Data);
+			}
+
+			virtual void Evaluate(
+				TArrayView<float> Output,
+				TConstArrayView<float> Input,
+				ILayerInstance* Instance,
+				uint32 BatchSize,
+				uint32 OutputStride,
+				uint32 InputStride) override final
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(NNE::RuntimeBasic::Private::FMemoryBackboneLayer::Evaluate);
+
+				FMemoryBackboneInstance* MemoryBackboneInstance = StaticCast<FMemoryBackboneInstance*>(Instance);
+				check(MemoryBackboneInstance);
+
+				// Evaluate Prefix
+
+				Prefix->Evaluate(
+					MemoryBackboneInstance->CellInputBuffer,
+					Input,
+					MemoryBackboneInstance->PrefixInstance.Get(),
+					BatchSize,
+					PrefixOutputSize + MemorySize,
+					InputStride);
+
+				// Copy Memory State to Cell Input
+
+				IdentityLayer(
+					MemoryBackboneInstance->CellInputBuffer.GetData() + PrefixOutputSize,
+					Input.GetData() + PrefixInputSize,
+					BatchSize,
+					MemorySize,
+					PrefixOutputSize + MemorySize,
+					InputStride);
+
+				// Evaluate Cell
+
+				Cell->Evaluate(
+					MemoryBackboneInstance->CellOutputBuffer,
+					MemoryBackboneInstance->CellInputBuffer,
+					MemoryBackboneInstance->CellInstance.Get(),
+					BatchSize,
+					PostfixInputSize + MemorySize,
+					PrefixOutputSize + MemorySize);
+
+				// Evaluate Postfix
+
+				Postfix->Evaluate(
+					Output,
+					MemoryBackboneInstance->CellOutputBuffer,
+					MemoryBackboneInstance->PostfixInstance.Get(),
+					BatchSize,
+					OutputStride,
+					PostfixInputSize + MemorySize);
+
+				// Copy Memory State to Output
+
+				IdentityLayer(
+					Output.GetData() + PostfixOutputSize,
+					MemoryBackboneInstance->CellOutputBuffer.GetData() + PostfixInputSize,
+					BatchSize,
+					MemorySize,
+					OutputStride,
+					PostfixInputSize + MemorySize);
+			}
+
+			uint32 MemorySize = 0;
+			TSharedPtr<ILayer> Cell;
+			TSharedPtr<ILayer> Prefix;
+			TSharedPtr<ILayer> Postfix;
+			uint32 PrefixInputSize = 0;
+			uint32 PrefixOutputSize = 0;
+			uint32 PostfixInputSize = 0;
+			uint32 PostfixOutputSize = 0;
+		};
+
+		//--------------------------------------------------------------------------
+
+		FMemoryBackboneInstance::FMemoryBackboneInstance(const FMemoryBackboneLayer& InMemoryBackboneLayer)
+			: MemoryBackboneLayer(InMemoryBackboneLayer)
+		{
+			CellInstance = MemoryBackboneLayer.Cell->MakeInstance();
+			PrefixInstance = MemoryBackboneLayer.Prefix->MakeInstance();
+			PostfixInstance = MemoryBackboneLayer.Postfix->MakeInstance();
+		}
+
+		void FMemoryBackboneInstance::SetBatchSize(const uint32 BatchSize)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(NNE::RuntimeBasic::Private::FMemoryBackboneInstance::SetBatchSize);
+
+			if (CellInstance) { CellInstance->SetBatchSize(BatchSize); }
+			if (PrefixInstance) { PrefixInstance->SetBatchSize(BatchSize); }
+			if (PostfixInstance) { PostfixInstance->SetBatchSize(BatchSize); }
+
+			CellInputBuffer.SetNumUninitialized(BatchSize * (MemoryBackboneLayer.PrefixOutputSize + MemoryBackboneLayer.MemorySize), false);
+			CellOutputBuffer.SetNumUninitialized(BatchSize * (MemoryBackboneLayer.PostfixInputSize + MemoryBackboneLayer.MemorySize), false);
+		}
 
 		//--------------------------------------------------------------------------
 
@@ -1242,6 +1688,8 @@ namespace UE::NNE::RuntimeBasic
 					case ELayerType::ELU: OutLayer = MakeShared<FELULayer>(); break;
 					case ELayerType::TanH: OutLayer = MakeShared<FTanHLayer>(); break;
 					case ELayerType::PReLU: OutLayer = MakeShared<FPReLULayer>(); break;
+					case ELayerType::MemoryCell: OutLayer = MakeShared<FMemoryCellLayer>(); break;
+					case ELayerType::MemoryBackbone: OutLayer = MakeShared<FMemoryBackboneLayer>(); break;
 					default: checkf(false, TEXT("Unknown Layer Id %i"), LayerTypeId);
 					}
 				}
@@ -1525,6 +1973,130 @@ namespace UE::NNE::RuntimeBasic
 
 		Private::FSequenceLayer* Sequence = StaticCast<Private::FSequenceLayer*>(Model->Layer.Get());
 		Sequence->Layers.Empty();
+	}
+
+	//--------------------------------------------------------------------------
+
+	FMemoryBackboneModelBuilder::FMemoryBackboneModelBuilder()
+	{
+		Model = MakeShared<FModelCPU>();
+	}
+
+	void FMemoryBackboneModelBuilder::BuildEmptyModel(
+		const uint32 InputNum,
+		const uint32 OutputNum,
+		const uint32 MemoryNum,
+		const uint32 HiddenUnitNum,
+		const uint32 PrefixLayerNum,
+		const uint32 PostfixLayerNum)
+	{
+		// Allocate enough zeros for every weight matrix used
+
+		const uint32 MaxZeroNumPrefix = FMath::Max(InputNum * HiddenUnitNum, HiddenUnitNum * HiddenUnitNum);
+		const uint32 MaxZeroNumPostfix = FMath::Max(HiddenUnitNum * HiddenUnitNum, OutputNum * HiddenUnitNum);
+		const uint32 MaxZeroNumCell = FMath::Max((HiddenUnitNum + MemoryNum) * MemoryNum, (HiddenUnitNum + MemoryNum) * HiddenUnitNum);
+
+		ZerosData.Init(0.0f, FMath::Max(FMath::Max(MaxZeroNumPrefix, MaxZeroNumPostfix), MaxZeroNumCell));
+		TConstArrayView<float> ZerosView = ZerosData;
+
+		// Create Cell Layer
+
+		TSharedRef<Private::FMemoryCellLayer> CellLayer = MakeShared<Private::FMemoryCellLayer>();
+		CellLayer->InputSize = HiddenUnitNum;
+		CellLayer->MemorySize = MemoryNum;
+		CellLayer->OutputSize = HiddenUnitNum;
+		CellLayer->BiasesWr = ZerosView.Slice(0, MemoryNum);
+		CellLayer->WeightsWr = ZerosView.Slice(0, (HiddenUnitNum + MemoryNum) * MemoryNum);
+		CellLayer->BiasesWp = ZerosView.Slice(0, HiddenUnitNum);
+		CellLayer->WeightsWp = ZerosView.Slice(0, (HiddenUnitNum + MemoryNum) * HiddenUnitNum);
+		CellLayer->BiasesWn = ZerosView.Slice(0, MemoryNum);
+		CellLayer->WeightsWn = ZerosView.Slice(0, (HiddenUnitNum + MemoryNum) * MemoryNum);
+		CellLayer->BiasesWz = ZerosView.Slice(0, HiddenUnitNum);
+		CellLayer->WeightsWz = ZerosView.Slice(0, (HiddenUnitNum + MemoryNum) * HiddenUnitNum);
+		CellLayer->BiasesWy = ZerosView.Slice(0, HiddenUnitNum);
+		CellLayer->WeightsWy = ZerosView.Slice(0, MemoryNum * HiddenUnitNum);
+
+		// Create Prefix Network
+
+		check(PrefixLayerNum >= 1);
+
+		TSharedRef<Private::FSequenceLayer> PrefixLayer = MakeShared<Private::FSequenceLayer>();
+		PrefixLayer->Layers.Reserve(PrefixLayerNum * 2);
+
+		for (uint32 LayerIdx = 0; LayerIdx < PrefixLayerNum; LayerIdx++)
+		{
+			const TSharedPtr<Private::FLinearLayer> LinearLayer = MakeShared<Private::FLinearLayer>();
+			LinearLayer->InputSize = LayerIdx == 0 ? InputNum : HiddenUnitNum;
+			LinearLayer->OutputSize = HiddenUnitNum;
+			LinearLayer->Biases = ZerosView.Slice(0, LinearLayer->OutputSize);
+			LinearLayer->Weights = ZerosView.Slice(0, LinearLayer->InputSize * LinearLayer->OutputSize);
+
+			PrefixLayer->Layers.Emplace(LinearLayer);
+
+			const TSharedPtr<Private::FELULayer> ActivationLayer = MakeShared<Private::FELULayer>();
+			ActivationLayer->InputOutputSize = LinearLayer->OutputSize;
+
+			PrefixLayer->Layers.Emplace(ActivationLayer);
+		}
+
+		// Create Postfix Network
+
+		check(PostfixLayerNum >= 1);
+
+		TSharedRef<Private::FSequenceLayer> PostfixLayer = MakeShared<Private::FSequenceLayer>();
+		PostfixLayer->Layers.Reserve(PostfixLayerNum * 2 - 1);
+
+		for (uint32 LayerIdx = 0; LayerIdx < PostfixLayerNum; LayerIdx++)
+		{
+			const TSharedPtr<Private::FLinearLayer> LinearLayer = MakeShared<Private::FLinearLayer>();
+			LinearLayer->InputSize = HiddenUnitNum;
+			LinearLayer->OutputSize = LayerIdx + 1 == PostfixLayerNum ? OutputNum : HiddenUnitNum;
+			LinearLayer->Biases = ZerosView.Slice(0, LinearLayer->OutputSize);
+			LinearLayer->Weights = ZerosView.Slice(0, LinearLayer->InputSize * LinearLayer->OutputSize);
+
+			PostfixLayer->Layers.Emplace(LinearLayer);
+
+			if (LayerIdx + 1 != PostfixLayerNum)
+			{
+				const TSharedPtr<Private::FELULayer> ActivationLayer = MakeShared<Private::FELULayer>();
+				ActivationLayer->InputOutputSize = LinearLayer->OutputSize;
+
+				PostfixLayer->Layers.Emplace(ActivationLayer);
+			}
+		}
+
+		// Create Backbone
+
+		TSharedRef<Private::FMemoryBackboneLayer> BackboneLayer = MakeShared<Private::FMemoryBackboneLayer>();
+		BackboneLayer->MemorySize = MemoryNum;
+		BackboneLayer->Cell = CellLayer;
+		BackboneLayer->Prefix = PrefixLayer;
+		BackboneLayer->Postfix = PostfixLayer;
+
+		Model->Layer = BackboneLayer;
+	}
+
+	uint64 FMemoryBackboneModelBuilder::GetWriteByteNum() const
+	{
+		checkf(Model->Layer, TEXT("Model not built."));
+		uint64 Offset = 0;
+		Model->SerializationSize(Offset);
+		return Offset;
+	}
+
+	void FMemoryBackboneModelBuilder::WriteAndReset(TArrayView<uint8> OutBytes)
+	{
+		checkf(Model->Layer, TEXT("Model not built."));
+		check((uint64)OutBytes.Num() >= GetWriteByteNum());
+
+		// Zero to ensure any padding due to alignment is always zero
+		FMemory::Memzero(OutBytes.GetData(), OutBytes.Num());
+
+		uint64 Offset = 0;
+		Model->SerializationSave(Offset, OutBytes);
+
+		Model->Layer.Reset();
+		ZerosData.Empty();
 	}
 
 	//--------------------------------------------------------------------------

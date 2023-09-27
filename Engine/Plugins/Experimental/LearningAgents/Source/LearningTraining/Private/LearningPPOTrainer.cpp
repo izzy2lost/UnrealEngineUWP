@@ -134,6 +134,7 @@ namespace UE::Learning
 
 		const int32 ObservationVectorDimensionNum = ReplayBuffer.GetObservations().Num<1>();
 		const int32 ActionVectorDimensionNum = ReplayBuffer.GetActions().Num<1>();
+		const int32 MemoryStateVectorDimensionNum = ReplayBuffer.GetMemoryStates().Num<1>();
 
 		if (!ensure(Policy.Region == nullptr))
 		{
@@ -157,8 +158,10 @@ namespace UE::Learning
 			EpisodeLengths = SharedMemory::Allocate<2, int32>({ ProcessNum, ReplayBuffer.GetMaxEpisodeNum() });
 			EpisodeCompletionModes = SharedMemory::Allocate<2, ECompletionMode>({ ProcessNum, ReplayBuffer.GetMaxEpisodeNum() });
 			EpisodeFinalObservations = SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxEpisodeNum(), ObservationVectorDimensionNum });
+			EpisodeFinalMemoryStates = SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxEpisodeNum(), MemoryStateVectorDimensionNum });
 			Observations = SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxStepNum(), ObservationVectorDimensionNum });
 			Actions = SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxStepNum(), ActionVectorDimensionNum });
+			MemoryStates = SharedMemory::Allocate<3, float>({ ProcessNum, ReplayBuffer.GetMaxStepNum(), MemoryStateVectorDimensionNum });
 			Rewards = SharedMemory::Allocate<2, float>({ ProcessNum, ReplayBuffer.GetMaxStepNum() });
 
 			// We need to zero the control memory before we start
@@ -183,8 +186,10 @@ namespace UE::Learning
 				SubprocessCommandLine += FString(TEXT(" -LearningEpisodeLengthsGuid ")) + EpisodeLengths.Guid.ToString();
 				SubprocessCommandLine += FString(TEXT(" -LearningEpisodeCompletionModesGuid ")) + EpisodeCompletionModes.Guid.ToString();
 				SubprocessCommandLine += FString(TEXT(" -LearningEpisodeFinalObservationsGuid ")) + EpisodeFinalObservations.Guid.ToString();
+				SubprocessCommandLine += FString(TEXT(" -LearningEpisodeFinalMemoryStatesGuid ")) + EpisodeFinalMemoryStates.Guid.ToString();
 				SubprocessCommandLine += FString(TEXT(" -LearningObservationsGuid ")) + Observations.Guid.ToString();
 				SubprocessCommandLine += FString(TEXT(" -LearningActionsGuid ")) + Actions.Guid.ToString();
+				SubprocessCommandLine += FString(TEXT(" -LearningMemoryStatesGuid ")) + MemoryStates.Guid.ToString();
 				SubprocessCommandLine += FString(TEXT(" -LearningRewardsGuid ")) + Rewards.Guid.ToString();
 
 				const TSharedPtr<FMonitoredProcess> Subprocess = MakeShared<FMonitoredProcess>(
@@ -234,12 +239,15 @@ namespace UE::Learning
 			ConfigObject->SetStringField(TEXT("EpisodeLengthsGuid"), *EpisodeLengths.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 			ConfigObject->SetStringField(TEXT("EpisodeCompletionModesGuid"), *EpisodeCompletionModes.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 			ConfigObject->SetStringField(TEXT("EpisodeFinalObservationsGuid"), *EpisodeFinalObservations.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
+			ConfigObject->SetStringField(TEXT("EpisodeFinalMemoryStatesGuid"), *EpisodeFinalMemoryStates.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 			ConfigObject->SetStringField(TEXT("ObservationsGuid"), *Observations.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 			ConfigObject->SetStringField(TEXT("ActionsGuid"), *Actions.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
+			ConfigObject->SetStringField(TEXT("MemoryStatesGuid"), *MemoryStates.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 			ConfigObject->SetStringField(TEXT("RewardsGuid"), *Rewards.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 
 			ConfigObject->SetNumberField(TEXT("ObservationVectorDimensionNum"), ObservationVectorDimensionNum);
 			ConfigObject->SetNumberField(TEXT("ActionVectorDimensionNum"), ActionVectorDimensionNum);
+			ConfigObject->SetNumberField(TEXT("MemoryStateVectorDimensionNum"), MemoryStateVectorDimensionNum);
 			ConfigObject->SetNumberField(TEXT("MaxEpisodeNum"), ReplayBuffer.GetMaxEpisodeNum());
 			ConfigObject->SetNumberField(TEXT("MaxStepNum"), ReplayBuffer.GetMaxStepNum());
 
@@ -257,13 +265,20 @@ namespace UE::Learning
 			ConfigObject->SetNumberField(TEXT("LearningRateDecay"), TrainingSettings.LearningRateDecay);
 			ConfigObject->SetNumberField(TEXT("WeightDecay"), TrainingSettings.WeightDecay);
 			ConfigObject->SetNumberField(TEXT("InitialActionScale"), TrainingSettings.InitialActionScale);
-			ConfigObject->SetNumberField(TEXT("BatchSize"), TrainingSettings.BatchSize);
+			ConfigObject->SetNumberField(TEXT("InitialMemoryScale"), TrainingSettings.InitialMemoryScale);
+			ConfigObject->SetNumberField(TEXT("InitialCriticScale"), TrainingSettings.InitialCriticScale);
+			ConfigObject->SetNumberField(TEXT("PolicyBatchSize"), TrainingSettings.PolicyBatchSize);
+			ConfigObject->SetNumberField(TEXT("CriticBatchSize"), TrainingSettings.CriticBatchSize);
+			ConfigObject->SetNumberField(TEXT("PolicyWindow"), TrainingSettings.PolicyWindow);
+			ConfigObject->SetNumberField(TEXT("IterationsPerGather"), TrainingSettings.IterationsPerGather);
 			ConfigObject->SetNumberField(TEXT("EpsilonClip"), TrainingSettings.EpsilonClip);
 			ConfigObject->SetNumberField(TEXT("ActionRegularizationWeight"), TrainingSettings.ActionRegularizationWeight);
-			ConfigObject->SetNumberField(TEXT("EntropyWeight"), TrainingSettings.EntropyWeight);
+			ConfigObject->SetNumberField(TEXT("ActionEntropyWeight"), TrainingSettings.ActionEntropyWeight);
+			ConfigObject->SetNumberField(TEXT("ReturnRegularizationWeight"), TrainingSettings.ReturnRegularizationWeight);
 			ConfigObject->SetNumberField(TEXT("GaeLambda"), TrainingSettings.GaeLambda);
-			ConfigObject->SetBoolField(TEXT("ClipAdvantages"), TrainingSettings.bClipAdvantages);
 			ConfigObject->SetBoolField(TEXT("AdvantageNormalization"), TrainingSettings.bAdvantageNormalization);
+			ConfigObject->SetNumberField(TEXT("AdvantageMin"), TrainingSettings.AdvantageMin);
+			ConfigObject->SetNumberField(TEXT("AdvantageMax"), TrainingSettings.AdvantageMax);
 			ConfigObject->SetNumberField(TEXT("TrimEpisodeStartStepNum"), TrainingSettings.TrimEpisodeStartStepNum);
 			ConfigObject->SetNumberField(TEXT("TrimEpisodeEndStepNum"), TrainingSettings.TrimEpisodeEndStepNum);
 			ConfigObject->SetNumberField(TEXT("Seed"), TrainingSettings.Seed);
@@ -314,8 +329,10 @@ namespace UE::Learning
 			FGuid EpisodeLengthsGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningEpisodeLengthsGuid"), EpisodeLengthsGuid));
 			FGuid EpisodeCompletionModesGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningEpisodeCompletionModesGuid"), EpisodeCompletionModesGuid));
 			FGuid EpisodeFinalObservationsGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningEpisodeFinalObservationsGuid"), EpisodeFinalObservationsGuid));
+			FGuid EpisodeFinalMemoryStatesGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningEpisodeFinalMemoryStatesGuid"), EpisodeFinalMemoryStatesGuid));
 			FGuid ObservationsGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningObservationsGuid"), ObservationsGuid));
 			FGuid ActionsGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningActionsGuid"), ActionsGuid));
+			FGuid MemoryStatesGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningMemoryStatesGuid"), MemoryStatesGuid));
 			FGuid RewardsGuid; ensure(FParse::Value(FCommandLine::Get(), TEXT("LearningRewardsGuid"), RewardsGuid));
 
 			// Map shared memory
@@ -327,8 +344,10 @@ namespace UE::Learning
 			EpisodeLengths = SharedMemory::Map<2, int32>(EpisodeLengthsGuid, { ProcessNum, ReplayBuffer.GetMaxEpisodeNum() });
 			EpisodeCompletionModes = SharedMemory::Map<2, ECompletionMode>(EpisodeCompletionModesGuid, { ProcessNum, ReplayBuffer.GetMaxEpisodeNum() });
 			EpisodeFinalObservations = SharedMemory::Map<3, float>(EpisodeFinalObservationsGuid, { ProcessNum, ReplayBuffer.GetMaxEpisodeNum(), ObservationVectorDimensionNum });
+			EpisodeFinalMemoryStates = SharedMemory::Map<3, float>(EpisodeFinalMemoryStatesGuid, { ProcessNum, ReplayBuffer.GetMaxEpisodeNum(), MemoryStateVectorDimensionNum });
 			Observations = SharedMemory::Map<3, float>(ObservationsGuid, { ProcessNum, ReplayBuffer.GetMaxStepNum(), ObservationVectorDimensionNum });
 			Actions = SharedMemory::Map<3, float>(ActionsGuid, { ProcessNum, ReplayBuffer.GetMaxStepNum(), ActionVectorDimensionNum });
+			MemoryStates = SharedMemory::Map<3, float>(MemoryStatesGuid, { ProcessNum, ReplayBuffer.GetMaxStepNum(), MemoryStateVectorDimensionNum });
 			Rewards = SharedMemory::Map<2, float>(RewardsGuid, { ProcessNum, ReplayBuffer.GetMaxStepNum() });
 		}
 	}
@@ -453,8 +472,10 @@ namespace UE::Learning
 			EpisodeLengths.View[ProcessIdx],
 			EpisodeCompletionModes.View[ProcessIdx],
 			EpisodeFinalObservations.View[ProcessIdx],
+			EpisodeFinalMemoryStates.View[ProcessIdx],
 			Observations.View[ProcessIdx],
 			Actions.View[ProcessIdx],
+			MemoryStates.View[ProcessIdx],
 			Rewards.View[ProcessIdx],
 			Controls.View[ProcessIdx],
 			ReplayBuffer,
@@ -472,8 +493,10 @@ namespace UE::Learning
 			SharedMemory::Deallocate(EpisodeLengths);
 			SharedMemory::Deallocate(EpisodeCompletionModes);
 			SharedMemory::Deallocate(EpisodeFinalObservations);
+			SharedMemory::Deallocate(EpisodeFinalMemoryStates);
 			SharedMemory::Deallocate(Observations);
 			SharedMemory::Deallocate(Actions);
+			SharedMemory::Deallocate(MemoryStates);
 			SharedMemory::Deallocate(Rewards);
 		}
 	}
@@ -643,6 +666,7 @@ namespace UE::Learning
 	{
 		const int32 ObservationVectorDimensionNum = ReplayBuffer.GetObservations().Num<1>();
 		const int32 ActionVectorDimensionNum = ReplayBuffer.GetActions().Num<1>();
+		const int32 MemoryStateVectorDimensionNum = ReplayBuffer.GetMemoryStates().Num<1>();
 
 		// Write Config
 
@@ -657,6 +681,7 @@ namespace UE::Learning
 
 		ConfigObject->SetNumberField(TEXT("ObservationVectorDimensionNum"), ObservationVectorDimensionNum);
 		ConfigObject->SetNumberField(TEXT("ActionVectorDimensionNum"), ActionVectorDimensionNum);
+		ConfigObject->SetNumberField(TEXT("MemoryStateVectorDimensionNum"), MemoryStateVectorDimensionNum);
 		ConfigObject->SetNumberField(TEXT("MaxEpisodeNum"), ReplayBuffer.GetMaxEpisodeNum());
 		ConfigObject->SetNumberField(TEXT("MaxStepNum"), ReplayBuffer.GetMaxStepNum());
 
@@ -672,13 +697,20 @@ namespace UE::Learning
 		ConfigObject->SetNumberField(TEXT("LearningRateDecay"), TrainingSettings.LearningRateDecay);
 		ConfigObject->SetNumberField(TEXT("WeightDecay"), TrainingSettings.WeightDecay);
 		ConfigObject->SetNumberField(TEXT("InitialActionScale"), TrainingSettings.InitialActionScale);
-		ConfigObject->SetNumberField(TEXT("BatchSize"), TrainingSettings.BatchSize);
+		ConfigObject->SetNumberField(TEXT("InitialMemoryScale"), TrainingSettings.InitialMemoryScale);
+		ConfigObject->SetNumberField(TEXT("InitialCriticScale"), TrainingSettings.InitialCriticScale);
+		ConfigObject->SetNumberField(TEXT("PolicyBatchSize"), TrainingSettings.PolicyBatchSize);
+		ConfigObject->SetNumberField(TEXT("CriticBatchSize"), TrainingSettings.CriticBatchSize);
+		ConfigObject->SetNumberField(TEXT("PolicyWindow"), TrainingSettings.PolicyWindow);
+		ConfigObject->SetNumberField(TEXT("IterationsPerGather"), TrainingSettings.IterationsPerGather);
 		ConfigObject->SetNumberField(TEXT("EpsilonClip"), TrainingSettings.EpsilonClip);
 		ConfigObject->SetNumberField(TEXT("ActionRegularizationWeight"), TrainingSettings.ActionRegularizationWeight);
-		ConfigObject->SetNumberField(TEXT("EntropyWeight"), TrainingSettings.EntropyWeight);
+		ConfigObject->SetNumberField(TEXT("ActionEntropyWeight"), TrainingSettings.ActionEntropyWeight);
+		ConfigObject->SetNumberField(TEXT("ReturnRegularizationWeight"), TrainingSettings.ReturnRegularizationWeight);
 		ConfigObject->SetNumberField(TEXT("GaeLambda"), TrainingSettings.GaeLambda);
-		ConfigObject->SetBoolField(TEXT("ClipAdvantages"), TrainingSettings.bClipAdvantages);
 		ConfigObject->SetBoolField(TEXT("AdvantageNormalization"), TrainingSettings.bAdvantageNormalization);
+		ConfigObject->SetNumberField(TEXT("AdvantageMin"), TrainingSettings.AdvantageMin);
+		ConfigObject->SetNumberField(TEXT("AdvantageMax"), TrainingSettings.AdvantageMax);
 		ConfigObject->SetNumberField(TEXT("TrimEpisodeStartStepNum"), TrainingSettings.TrimEpisodeStartStepNum);
 		ConfigObject->SetNumberField(TEXT("TrimEpisodeEndStepNum"), TrainingSettings.TrimEpisodeEndStepNum);
 		ConfigObject->SetNumberField(TEXT("Seed"), TrainingSettings.Seed);
@@ -819,6 +851,8 @@ namespace UE::Learning
 			INeuralNetwork& CriticNetwork,
 			TLearningArrayView<2, float> ObservationVectorBuffer,
 			TLearningArrayView<2, float> ActionVectorBuffer,
+			TLearningArrayView<2, float> PreEvaluationMemoryStateVectorBuffer,
+			TLearningArrayView<2, float> MemoryStateVectorBuffer,
 			TLearningArrayView<1, float> RewardBuffer,
 			TLearningArrayView<1, ECompletionMode> CompletionBuffer,
 			const ECompletionMode EpisodeEndCompletionMode,
@@ -849,7 +883,7 @@ namespace UE::Learning
 				UE_LOG(LogLearning, Display, TEXT("Sending initial Policy..."));
 			}
 
-			Response = Trainer.SendPolicy(PolicyNetwork, 20.0f, PolicyNetworkLock);
+			Response = Trainer.SendPolicy(PolicyNetwork, UE::Learning::Trainer::DefaultTimeout, PolicyNetworkLock);
 
 			if (Response != ETrainerResponse::Success)
 			{
@@ -869,7 +903,7 @@ namespace UE::Learning
 				UE_LOG(LogLearning, Display, TEXT("Sending initial Critic..."));
 			}
 
-			Response = Trainer.SendCritic(CriticNetwork, 20.0f, CriticNetworkLock);
+			Response = Trainer.SendCritic(CriticNetwork, UE::Learning::Trainer::DefaultTimeout, CriticNetworkLock);
 
 			if (Response != ETrainerResponse::Success)
 			{
@@ -891,7 +925,7 @@ namespace UE::Learning
 					UE_LOG(LogLearning, Display, TEXT("Receiving initial Policy..."));
 				}
 
-				Response = Trainer.RecvPolicy(PolicyNetwork, 20.0f, PolicyNetworkLock);
+				Response = Trainer.RecvPolicy(PolicyNetwork, UE::Learning::Trainer::DefaultTimeout, PolicyNetworkLock);
 
 				if (Response != ETrainerResponse::Success)
 				{
@@ -919,7 +953,7 @@ namespace UE::Learning
 					UE_LOG(LogLearning, Display, TEXT("Receiving initial Critic..."));
 				}
 
-				Response = Trainer.RecvCritic(CriticNetwork, 20.0f, CriticNetworkLock);
+				Response = Trainer.RecvCritic(CriticNetwork, UE::Learning::Trainer::DefaultTimeout, CriticNetworkLock);
 
 				if (Response != ETrainerResponse::Success)
 				{
@@ -974,6 +1008,8 @@ namespace UE::Learning
 						ResetBuffer,
 						ObservationVectorBuffer,
 						ActionVectorBuffer,
+						PreEvaluationMemoryStateVectorBuffer,
+						MemoryStateVectorBuffer,
 						RewardBuffer,
 						CompletionBuffer,
 						EpisodeEndCompletionMode,
@@ -986,7 +1022,7 @@ namespace UE::Learning
 						CompletionFunction,
 						Instances);
 
-					Response = Trainer.SendExperience(ReplayBuffer, 10.0f);
+					Response = Trainer.SendExperience(ReplayBuffer, UE::Learning::Trainer::DefaultTimeout);
 
 					if (Response != ETrainerResponse::Success)
 					{
@@ -1000,7 +1036,7 @@ namespace UE::Learning
 					}
 				}
 
-				Response = Trainer.RecvPolicy(PolicyNetwork, 10.0f, PolicyNetworkLock);
+				Response = Trainer.RecvPolicy(PolicyNetwork, UE::Learning::Trainer::DefaultTimeout, PolicyNetworkLock);
 
 				if (Response == ETrainerResponse::Completed)
 				{
@@ -1024,7 +1060,7 @@ namespace UE::Learning
 					*bPolicyNetworkUpdatedSignal = true;
 				}
 
-				Response = Trainer.RecvCritic(CriticNetwork, 10.0f, CriticNetworkLock);
+				Response = Trainer.RecvCritic(CriticNetwork, UE::Learning::Trainer::DefaultTimeout, CriticNetworkLock);
 
 				if (Response != ETrainerResponse::Success)
 				{
@@ -1043,7 +1079,7 @@ namespace UE::Learning
 
 			// Allow some time for trainer to shut down gracefully before we kill it...
 			
-			Response = Trainer.Wait(5.0f);
+			Response = Trainer.Wait(UE::Learning::Trainer::DefaultTimeout);
 
 			if (Response != ETrainerResponse::Success)
 			{

@@ -183,6 +183,8 @@ private:
 
 	void DoneTraining();
 
+	TLearningArray<1, int32> RecordedEpisodeStarts;
+	TLearningArray<1, int32> RecordedEpisodeLengths;
 	TLearningArray<2, float> RecordedObservations;
 	TLearningArray<2, float> RecordedActions;
 

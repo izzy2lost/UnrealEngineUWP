@@ -4,6 +4,7 @@
 
 #include "LearningAgentsManager.h"
 #include "LearningAgentsInteractor.h"
+#include "LearningAgentsHelpers.h"
 #include "LearningAgentsNeuralNetworkData.h"
 #include "LearningFeatureObject.h"
 #include "LearningNeuralNetwork.h"
@@ -52,14 +53,17 @@ void ULearningAgentsPolicy::SetupPolicy(
 
 	// Setup Neural Network
 
+	const int32 NetworkInputNum = Interactor->GetObservationFeature().DimNum() + PolicySettings.MemoryStateSize;
+	const int32 NetworkOutputNum = 2 * Interactor->GetActionFeature().DimNum() + PolicySettings.MemoryStateSize;
+
 	if (NeuralNetworkAsset)
 	{
 		// Use Existing Neural Network Asset
 
 		if (NeuralNetworkAsset->NeuralNetworkData)
 		{
-			if (NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetInputNum() != Interactor->GetObservationFeature().DimNum() ||
-				NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetOutputNum() != 2 * Interactor->GetActionFeature().DimNum())
+			if (NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetInputNum() != NetworkInputNum ||
+				NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetOutputNum() != NetworkOutputNum)
 			{
 				UE_LOG(LogLearning, Error, TEXT("%s: Neural Network Asset provided during Setup is incorrect size: Inputs and outputs don't match what is required."), *GetName());
 				return;
@@ -70,13 +74,16 @@ void ULearningAgentsPolicy::SetupPolicy(
 		else
 		{
 			Network = NeuralNetworkAsset;
-			Network->NeuralNetworkData = NewObject<ULearningAgentsDefaultNeuralNetworkData>(Network);
-			Network->NeuralNetworkData->CreateMLP(
+			Network->NeuralNetworkData = NewObject<ULearningAgentsNeuralNetworkData>(Network);
+			
+			Network->NeuralNetworkData->CreateMemoryBackbone(
 				Interactor->GetObservationFeature().DimNum(),
 				2 * Interactor->GetActionFeature().DimNum(),
+				PolicySettings.MemoryStateSize,
 				PolicySettings.HiddenLayerSize,
-				PolicySettings.LayerNum,
-				PolicySettings.ActivationFunction);
+				FMath::Max(PolicySettings.LayerNum / 2, 1),
+				FMath::Max(PolicySettings.LayerNum / 2, 1));
+
 		}
 	}
 	else
@@ -86,13 +93,16 @@ void ULearningAgentsPolicy::SetupPolicy(
 		const FName UniqueName = MakeUniqueObjectName(this, ULearningAgentsNeuralNetwork::StaticClass(), TEXT("PolicyNetwork"), EUniqueObjectNameOptions::GloballyUnique);
 
 		Network = NewObject<ULearningAgentsNeuralNetwork>(this, UniqueName);
-		Network->NeuralNetworkData = NewObject<ULearningAgentsDefaultNeuralNetworkData>(Network);
-		Network->NeuralNetworkData->CreateMLP(
+		Network->NeuralNetworkData = NewObject<ULearningAgentsNeuralNetworkData>(Network);
+		
+		Network->NeuralNetworkData->CreateMemoryBackbone(
 			Interactor->GetObservationFeature().DimNum(),
 			2 * Interactor->GetActionFeature().DimNum(),
+			PolicySettings.MemoryStateSize,
 			PolicySettings.HiddenLayerSize,
-			PolicySettings.LayerNum,
-			PolicySettings.ActivationFunction);
+			FMath::Max(PolicySettings.LayerNum / 2, 1),
+			FMath::Max(PolicySettings.LayerNum / 2, 1));
+
 	}
 
 	// Create Policy Object
@@ -105,17 +115,77 @@ void ULearningAgentsPolicy::SetupPolicy(
 		TEXT("PolicyObject"),
 		Manager->GetInstanceData().ToSharedRef(),
 		Manager->GetMaxAgentNum(),
+		Interactor->GetObservationFeature().DimNum(),
+		Interactor->GetActionFeature().DimNum(),
+		PolicySettings.MemoryStateSize,
 		Network->NeuralNetworkData->GetNetworkInterface(),
 		PolicySettings.ActionNoiseSeed,
 		UE::Learning::FNeuralNetworkInferenceSettings(),
 		PolicyFunctionSettings);
 
-	Manager->GetInstanceData()->Link(Interactor->GetObservationFeature().FeatureHandle, PolicyObject->InputHandle);
-	Manager->GetInstanceData()->Link(PolicyObject->OutputHandle, Interactor->GetActionFeature().FeatureHandle);
+	PolicyAgentIteration.SetNumUninitialized({ Manager->GetMaxAgentNum() });
+	UE::Learning::Array::Set<1, uint64>(PolicyAgentIteration, INDEX_NONE);
+
+	PreEvaluationMemoryStateHandle = Manager->GetInstanceData()->Add<2, float>({ GetFName(), TEXT("PreEvaluationMemoryState") }, { Manager->GetMaxAgentNum(), PolicySettings.MemoryStateSize });
+	UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(PreEvaluationMemoryStateHandle), FLT_MAX);
+
+	MemoryStateHandle = Manager->GetInstanceData()->Add<2, float>({ GetFName(), TEXT("MemoryState") }, { Manager->GetMaxAgentNum(), PolicySettings.MemoryStateSize });
+	UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(MemoryStateHandle), FLT_MAX);
 
 	bIsSetup = true;
 
 	OnAgentsAdded(Manager->GetAllAgentIds());
+}
+
+void ULearningAgentsPolicy::OnAgentsAdded(const TArray<int32>& AgentIds)
+{
+	if (IsSetup())
+	{
+		UE::Learning::Array::Set<1, uint64>(PolicyAgentIteration, 0, AgentIds);
+		UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(PreEvaluationMemoryStateHandle), 0.0f, AgentIds);
+		UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(MemoryStateHandle), 0.0f, AgentIds);
+
+		for (ULearningAgentsHelper* Helper : HelperObjects)
+		{
+			Helper->OnAgentsAdded(AgentIds);
+		}
+
+		AgentsAdded(AgentIds);
+	}
+}
+
+void ULearningAgentsPolicy::OnAgentsRemoved(const TArray<int32>& AgentIds)
+{
+	if (IsSetup())
+	{
+		UE::Learning::Array::Set<1, uint64>(PolicyAgentIteration, INDEX_NONE, AgentIds);
+		UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(PreEvaluationMemoryStateHandle), FLT_MAX, AgentIds);
+		UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(MemoryStateHandle), FLT_MAX, AgentIds);
+
+		for (ULearningAgentsHelper* Helper : HelperObjects)
+		{
+			Helper->OnAgentsRemoved(AgentIds);
+		}
+
+		AgentsRemoved(AgentIds);
+	}
+}
+
+void ULearningAgentsPolicy::OnAgentsReset(const TArray<int32>& AgentIds)
+{
+	if (IsSetup())
+	{
+		UE::Learning::Array::Set<1, uint64>(PolicyAgentIteration, 0, AgentIds);
+		UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(PreEvaluationMemoryStateHandle), 0.0f, AgentIds);
+		UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(MemoryStateHandle), 0.0f, AgentIds);
+
+		for (ULearningAgentsHelper* Helper : HelperObjects)
+		{
+			Helper->OnAgentsReset(AgentIds);
+		}
+
+		AgentsReset(AgentIds);
+	}
 }
 
 ULearningAgentsNeuralNetwork* ULearningAgentsPolicy::GetNetworkAsset()
@@ -236,9 +306,41 @@ void ULearningAgentsPolicy::EvaluatePolicy()
 	ValidAgentSet = ValidAgentIds;
 	ValidAgentSet.TryMakeSlice();
 
+	// Record pre-evaluation state
+
+	TLearningArrayView<2, float> PreEvaluationMemoryStateView = Manager->GetInstanceData()->View(PreEvaluationMemoryStateHandle);
+	TLearningArrayView<2, float> MemoryStateView = Manager->GetInstanceData()->View(MemoryStateHandle);
+
+	UE::Learning::Array::Copy<2, float>(PreEvaluationMemoryStateView, MemoryStateView, ValidAgentSet);
+
+	// Copy Observations and Memory State into input buffer
+
+	TLearningArrayView<2, const float> ObservationsView = Manager->GetInstanceData()->ConstView(Interactor->GetObservationFeature().FeatureHandle);
+	TLearningArrayView<2, float> InputObservationView = Manager->GetInstanceData()->View(PolicyObject->InputObservationHandle);
+	TLearningArrayView<2, float> InputMemoryStateView = Manager->GetInstanceData()->View(PolicyObject->InputMemoryStateHandle);
+
+	UE::Learning::Array::Copy<2, float>(InputObservationView, ObservationsView, ValidAgentSet);
+	UE::Learning::Array::Copy<2, float>(InputMemoryStateView, MemoryStateView, ValidAgentSet);
+
 	// Evaluate Policy
 
 	PolicyObject->Evaluate(ValidAgentSet);
+
+	// Increment Policy Evaluation Iteration
+
+	for (const int32 AgentId : ValidAgentSet)
+	{
+		PolicyAgentIteration[AgentId]++;
+	}
+
+	// Copy Actions and Memory State out of output buffer
+
+	TLearningArrayView<2, float> ActionsView = Manager->GetInstanceData()->View(Interactor->GetActionFeature().FeatureHandle);
+	TLearningArrayView<2, const float> OutputActionView = Manager->GetInstanceData()->ConstView(PolicyObject->OutputActionHandle);
+	TLearningArrayView<2, const float> OutputMemoryStateView = Manager->GetInstanceData()->ConstView(PolicyObject->OutputMemoryStateHandle);
+
+	UE::Learning::Array::Copy<2, float>(ActionsView, OutputActionView, ValidAgentSet);
+	UE::Learning::Array::Copy<2, float>(MemoryStateView, OutputMemoryStateView, ValidAgentSet);
 
 	// Increment Action Encoding Iteration
 
@@ -287,8 +389,79 @@ void ULearningAgentsPolicy::SetActionNoiseScale(const float ActionNoiseScale)
 		return;
 	}
 
-
 	UE::Learning::Array::Set(PolicyObject->InstanceData->View(PolicyObject->ActionNoiseScaleHandle), ActionNoiseScale);
+}
+
+void ULearningAgentsPolicy::GetMemoryState(TArray<float>& OutMemoryState, const int32 AgentId) const
+{
+	if (!IsSetup())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
+		OutMemoryState.Empty();
+		return;
+	}
+
+	if (!HasAgent(AgentId))
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: AgentId %d not found in the agents set."), *GetName(), AgentId);
+		OutMemoryState.Empty();
+		return;
+	}
+
+	TLearningArrayView<2, const float> MemoryStateView = Manager->GetInstanceData()->ConstView(MemoryStateHandle);
+
+	OutMemoryState.SetNumUninitialized(MemoryStateView.Num<1>());
+	UE::Learning::Array::Copy<1, float>(OutMemoryState, MemoryStateView[AgentId]);
+}
+
+void ULearningAgentsPolicy::SetMemoryState(const int32 AgentId, const TArray<float>& InMemoryState)
+{
+	if (!IsSetup())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
+		return;
+	}
+
+	if (!HasAgent(AgentId))
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: AgentId %d not found in the agents set."), *GetName(), AgentId);
+		return;
+	}
+
+	TLearningArrayView<2, float> MemoryStateView = Manager->GetInstanceData()->View(MemoryStateHandle);
+
+	if (InMemoryState.Num() != MemoryStateView.Num<1>())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Memory State is incorrect size. Expected %i, got %i."), *GetName(), MemoryStateView.Num<1>(), InMemoryState.Num());
+		return;
+	}
+
+	UE::Learning::Array::Copy<1, float>(MemoryStateView[AgentId], InMemoryState);
+}
+
+TLearningArrayView<2, const float> ULearningAgentsPolicy::GetPreEvaluationMemoryStateView() const
+{
+	return Manager->GetInstanceData()->ConstView(PreEvaluationMemoryStateHandle);
+}
+
+TLearningArrayView<2, float> ULearningAgentsPolicy::GetPreEvaluationMemoryStateView()
+{
+	return Manager->GetInstanceData()->View(PreEvaluationMemoryStateHandle);
+}
+
+TLearningArrayView<2, const float> ULearningAgentsPolicy::GetMemoryStateView() const
+{
+	return Manager->GetInstanceData()->ConstView(MemoryStateHandle);
+}
+
+TLearningArrayView<2, float> ULearningAgentsPolicy::GetMemoryStateView()
+{
+	return Manager->GetInstanceData()->View(MemoryStateHandle);
+}
+
+int32 ULearningAgentsPolicy::GetMemoryStateSize() const
+{
+	return Manager->GetInstanceData()->ConstView(MemoryStateHandle).Num<1>();
 }
 
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
@@ -296,10 +469,11 @@ void ULearningAgentsPolicy::VisualLog(const UE::Learning::FIndexSet AgentSet) co
 {
 	UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(ULearningAgentsPolicy::VisualLog);
 
-	const TLearningArrayView<2, const float> InputView = PolicyObject->InstanceData->ConstView(PolicyObject->InputHandle);
-	const TLearningArrayView<2, const float> OutputView = PolicyObject->InstanceData->ConstView(PolicyObject->OutputHandle);
-	const TLearningArrayView<2, const float> OutputMeanView = PolicyObject->InstanceData->ConstView(PolicyObject->OutputMeanHandle);
-	const TLearningArrayView<2, const float> OutputStdView = PolicyObject->InstanceData->ConstView(PolicyObject->OutputStdHandle);
+	const TLearningArrayView<2, const float> InputObservationView = PolicyObject->InstanceData->ConstView(PolicyObject->InputObservationHandle);
+	const TLearningArrayView<2, const float> InputMemoryStateView = PolicyObject->InstanceData->ConstView(PolicyObject->InputMemoryStateHandle);
+	const TLearningArrayView<2, const float> OutputActionView = PolicyObject->InstanceData->ConstView(PolicyObject->OutputActionHandle);
+	const TLearningArrayView<2, const float> OutputActionMeanView = PolicyObject->InstanceData->ConstView(PolicyObject->OutputActionMeanHandle);
+	const TLearningArrayView<2, const float> OutputActionStdView = PolicyObject->InstanceData->ConstView(PolicyObject->OutputActionStdHandle);
 	const TLearningArrayView<1, const float> ActionNoiseScaleView = PolicyObject->InstanceData->ConstView(PolicyObject->ActionNoiseScaleHandle);
 
 	for (const int32 AgentId : AgentSet)
@@ -309,15 +483,17 @@ void ULearningAgentsPolicy::VisualLog(const UE::Learning::FIndexSet AgentSet) co
 			UE_LEARNING_AGENTS_VLOG_STRING(this, LogLearning, Display,
 				Actor->GetActorLocation(),
 				VisualLogColor.ToFColor(true),
-				TEXT("Agent %i\nAction Noise Scale: [% 6.3f]\nInput: %s\nInput Stats (Min/Max/Mean/Std): %s\nOutput Mean: %s\nOutput Std: %s\nOutput Sample: %s\nOutput Stats (Min/Max/Mean/Std): %s"),
+				TEXT("Agent %i\nAction Noise Scale: [% 6.3f]\nObservation Input: %s\nObservation Input Stats (Min/Max/Mean/Std): %s\nMemory State Input: %s\nMemory State Input Stats (Min/Max/Mean/Std): %s\nOutput Mean: %s\nOutput Std: %s\nOutput Sample: %s\nOutput Stats (Min/Max/Mean/Std): %s"),
 				AgentId,
 				ActionNoiseScaleView[AgentId],
-				*UE::Learning::Array::FormatFloat(InputView[AgentId]),
-				*UE::Learning::Agents::Debug::FloatArrayToStatsString(InputView[AgentId]),
-				*UE::Learning::Array::FormatFloat(OutputMeanView[AgentId]),
-				*UE::Learning::Array::FormatFloat(OutputStdView[AgentId]),
-				*UE::Learning::Array::FormatFloat(OutputView[AgentId]),
-				*UE::Learning::Agents::Debug::FloatArrayToStatsString(OutputView[AgentId]));
+				*UE::Learning::Array::FormatFloat(InputObservationView[AgentId]),
+				*UE::Learning::Agents::Debug::FloatArrayToStatsString(InputObservationView[AgentId]),
+				*UE::Learning::Array::FormatFloat(InputMemoryStateView[AgentId]),
+				*UE::Learning::Agents::Debug::FloatArrayToStatsString(InputMemoryStateView[AgentId]),
+				*UE::Learning::Array::FormatFloat(OutputActionMeanView[AgentId]),
+				*UE::Learning::Array::FormatFloat(OutputActionStdView[AgentId]),
+				*UE::Learning::Array::FormatFloat(OutputActionView[AgentId]),
+				*UE::Learning::Agents::Debug::FloatArrayToStatsString(OutputActionView[AgentId]));
 
 		}
 	}

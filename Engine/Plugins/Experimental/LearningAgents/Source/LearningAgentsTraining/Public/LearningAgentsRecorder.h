@@ -158,7 +158,7 @@ private:
 	struct FAgentRecordBuffer
 	{
 		const int32 ChunkSize = 1024;
-		int32 SampleNum = 0;
+		int32 StepNum = 0;
 		TArray<TLearningArray<2, float>, TInlineAllocator<16>> Observations;
 		TArray<TLearningArray<2, float>, TInlineAllocator<16>> Actions;
 

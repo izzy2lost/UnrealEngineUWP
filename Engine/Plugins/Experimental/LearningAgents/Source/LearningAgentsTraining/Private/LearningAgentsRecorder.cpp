@@ -43,43 +43,43 @@ void ULearningAgentsRecorder::FAgentRecordBuffer::Push(
 	const TLearningArrayView<1, const float> Observation,
 	const TLearningArrayView<1, const float> Action)
 {
-	if (SampleNum / ChunkSize <= Observations.Num())
+	if (StepNum / ChunkSize <= Observations.Num())
 	{
 		Observations.AddDefaulted_GetRef().SetNumUninitialized({ ChunkSize, Observation.Num() });
 		Actions.AddDefaulted_GetRef().SetNumUninitialized({ ChunkSize, Action.Num() });
 	}
 
-	UE::Learning::Array::Copy(GetObservation(SampleNum), Observation);
-	UE::Learning::Array::Copy(GetAction(SampleNum), Action);
-	SampleNum++;
+	UE::Learning::Array::Copy(GetObservation(StepNum), Observation);
+	UE::Learning::Array::Copy(GetAction(StepNum), Action);
+	StepNum++;
 }
 
 bool ULearningAgentsRecorder::FAgentRecordBuffer::IsEmpty() const
 {
-	return SampleNum == 0;
+	return StepNum == 0;
 }
 
 void ULearningAgentsRecorder::FAgentRecordBuffer::Empty()
 {
-	SampleNum = 0;
+	StepNum = 0;
 	Observations.Empty();
 	Actions.Empty();
 }
 
 void ULearningAgentsRecorder::FAgentRecordBuffer::CopyToRecord(FLearningAgentsRecord& Record) const
 {
-	UE_LEARNING_CHECK(SampleNum > 0);
+	UE_LEARNING_CHECK(StepNum > 0);
 
-	Record.SampleNum = SampleNum;
+	Record.StepNum = StepNum;
 	Record.ObservationDimNum = GetObservation(0).Num();
 	Record.ActionDimNum = GetAction(0).Num();
-	Record.Observations.SetNumUninitialized({ SampleNum, Observations[0].Num<1>() });
-	Record.Actions.SetNumUninitialized({ SampleNum, Actions[0].Num<1>() });
+	Record.Observations.SetNumUninitialized({ StepNum, Observations[0].Num<1>() });
+	Record.Actions.SetNumUninitialized({ StepNum, Actions[0].Num<1>() });
 
-	for (int32 SampleIdx = 0; SampleIdx < SampleNum; SampleIdx++)
+	for (int32 StepIdx = 0; StepIdx < StepNum; StepIdx++)
 	{
-		UE::Learning::Array::Copy(Record.Observations[SampleIdx], GetObservation(SampleIdx));
-		UE::Learning::Array::Copy(Record.Actions[SampleIdx], GetAction(SampleIdx));
+		UE::Learning::Array::Copy(Record.Observations[StepIdx], GetObservation(StepIdx));
+		UE::Learning::Array::Copy(Record.Actions[StepIdx], GetAction(StepIdx));
 	}
 }
 

@@ -35,6 +35,9 @@ namespace UE::Learning
 			const FName& InIdentifier,
 			const TSharedRef<FArrayMap>& InInstanceData,
 			const int32 InMaxInstanceNum,
+			const int32 InObservationNum,
+			const int32 InActionNum,
+			const int32 InMemoryStateNum,
 			const TSharedPtr<INeuralNetwork>& InNeuralNetwork,
 			const uint32 InSeed,
 			const FNeuralNetworkInferenceSettings& InInferenceSettings = FNeuralNetworkInferenceSettings(),
@@ -45,18 +48,27 @@ namespace UE::Learning
 		/** Sets the NeuralNetwork and re-creates the NeuralNetworkInference object */
 		void UpdateNeuralNetwork(const TSharedPtr<INeuralNetwork>& NewNeuralNetwork);
 
-		uint32 MaxInstanceNum = 0;
+		int32 MaxInstanceNum = 0;
+		int32 ObservationNum = 0;
+		int32 ActionNum = 0;
+		int32 MemoryStateNum = 0;
 		TSharedPtr<INeuralNetwork> NeuralNetwork;
 		TSharedPtr<INeuralNetworkInference> NeuralNetworkInference;
 		FNeuralNetworkInferenceSettings InferenceSettings;
 		FNeuralNetworkPolicyFunctionSettings Settings;
 
 		TArrayMapHandle<1, uint32> SeedHandle;
-		TArrayMapHandle<2, float> InputHandle;
-		TArrayMapHandle<2, float> OutputHandle;
+
+		TArrayMapHandle<2, float> InputObservationHandle;
+		TArrayMapHandle<2, float> InputMemoryStateHandle;
+		TArrayMapHandle<2, float> InputNetworkHandle;
+
 		TArrayMapHandle<2, float> OutputNetworkHandle;
-		TArrayMapHandle<2, float> OutputMeanHandle;
-		TArrayMapHandle<2, float> OutputStdHandle;
+		TArrayMapHandle<2, float> OutputMemoryStateHandle;
+		TArrayMapHandle<2, float> OutputActionHandle;
+		TArrayMapHandle<2, float> OutputActionMeanHandle;
+		TArrayMapHandle<2, float> OutputActionStdHandle;
+		
 		TArrayMapHandle<1, float> ActionNoiseScaleHandle;
 	};
 
@@ -70,6 +82,8 @@ namespace UE::Learning
 			const FName& InIdentifier,
 			const TSharedRef<FArrayMap>& InInstanceData,
 			const int32 InMaxInstanceNum,
+			const int32 InObservationNum,
+			const int32 InMemoryStateNum,
 			const TSharedPtr<INeuralNetwork>& InNeuralNetwork,
 			const FNeuralNetworkInferenceSettings& InInferenceSettings = FNeuralNetworkInferenceSettings());
 
@@ -78,12 +92,16 @@ namespace UE::Learning
 		/** Sets the NeuralNetwork and re-creates the NeuralNetworkInference object */
 		void UpdateNeuralNetwork(const TSharedPtr<INeuralNetwork>& NewNeuralNetwork);
 
-		uint32 MaxInstanceNum = 0;
+		int32 MaxInstanceNum = 0;
+		int32 ObservationNum = 0;
+		int32 MemoryStateNum = 0;
 		TSharedPtr<INeuralNetwork> NeuralNetwork;
 		TSharedPtr<INeuralNetworkInference> NeuralNetworkInference;
 		FNeuralNetworkInferenceSettings InferenceSettings;
 
-		TArrayMapHandle<2, float> InputHandle;
+		TArrayMapHandle<2, float> InputObservationHandle;
+		TArrayMapHandle<2, float> InputMemoryStateHandle;
+		TArrayMapHandle<2, float> InputNetworkHandle;
 		TArrayMapHandle<1, float> OutputHandle;
 	};
 }

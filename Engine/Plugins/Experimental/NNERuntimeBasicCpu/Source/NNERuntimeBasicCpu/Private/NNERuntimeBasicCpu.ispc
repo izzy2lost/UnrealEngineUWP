@@ -7,12 +7,12 @@ export void NNERuntimeBasicCPUNormalizeLayer(
 	uniform const float Std[],
 	uniform const int BatchNum,
 	uniform const int InputOutputNum,
-	uniform const int OutputBufferSize,
-	uniform const int InputBufferSize)
+	uniform const int OutputStride,
+	uniform const int InputStride)
 {
 	foreach(BatchIdx = 0 ... BatchNum, Idx = 0 ... InputOutputNum)
 	{
-		Output[BatchIdx * OutputBufferSize + Idx] = (Input[BatchIdx * InputBufferSize + Idx] - Mean[Idx]) / Std[Idx];
+		Output[BatchIdx * OutputStride + Idx] = (Input[BatchIdx * InputStride + Idx] - Mean[Idx]) / Std[Idx];
 	}
 }
 
@@ -23,12 +23,12 @@ export void NNERuntimeBasicCPUDenormalizeLayer(
 	uniform const float Std[],
 	uniform const int BatchNum,
 	uniform const int InputOutputNum,
-	uniform const int OutputBufferSize,
-	uniform const int InputBufferSize)
+	uniform const int OutputStride,
+	uniform const int InputStride)
 {
 	foreach(BatchIdx = 0 ... BatchNum, Idx = 0 ... InputOutputNum)
 	{
-		Output[BatchIdx * OutputBufferSize + Idx] = (Input[BatchIdx * InputBufferSize + Idx] * Std[Idx]) + Mean[Idx];
+		Output[BatchIdx * OutputStride + Idx] = (Input[BatchIdx * InputStride + Idx] * Std[Idx]) + Mean[Idx];
 	}
 }
 
@@ -40,25 +40,25 @@ export void NNERuntimeBasicCPULinearLayer(
 	uniform const int BatchNum,
 	uniform const int RowNum,
 	uniform const int ColNum,
-	uniform const int OutputBufferSize,
-	uniform const int InputBufferSize)
+	uniform const int OutputStride,
+	uniform const int InputStride)
 {
 	foreach(BatchIdx = 0 ... BatchNum, ColIdx = 0 ... ColNum)
 	{
-		Output[BatchIdx * OutputBufferSize + ColIdx] = Biases[ColIdx];
+		Output[BatchIdx * OutputStride + ColIdx] = Biases[ColIdx];
 	}
 
 	for (uniform int BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
 	{
 		for (uniform int RowIdx = 0; RowIdx < RowNum; RowIdx++)
 		{
-			uniform const float Value = Input[BatchIdx * InputBufferSize + RowIdx];
+			uniform const float Value = Input[BatchIdx * InputStride + RowIdx];
 
 			if (Value != 0.0)
 			{
 				foreach(ColIdx = 0 ... ColNum)
 				{
-					Output[BatchIdx * OutputBufferSize + ColIdx] += Value * Weights[RowIdx * ColNum + ColIdx];
+					Output[BatchIdx * OutputStride + ColIdx] += Value * Weights[RowIdx * ColNum + ColIdx];
 				}
 			}
 		}
@@ -75,19 +75,19 @@ export void NNERuntimeBasicCPUCompressedLinearLayer(
 	uniform const int BatchNum,
 	uniform const int RowNum,
 	uniform const int ColNum,
-	uniform const int OutputBufferSize,
-	uniform const int InputBufferSize)
+	uniform const int OutputStride,
+	uniform const int InputStride)
 {
 	foreach(BatchIdx = 0 ... BatchNum, ColIdx = 0 ... ColNum)
 	{
-		Output[BatchIdx * OutputBufferSize + ColIdx] = Biases[ColIdx];
+		Output[BatchIdx * OutputStride + ColIdx] = Biases[ColIdx];
 	}
 
 	for (uniform int BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
 	{
 		for (uniform int RowIdx = 0; RowIdx < RowNum; RowIdx++)
 		{
-			uniform const float Value = Input[BatchIdx * InputBufferSize + RowIdx];
+			uniform const float Value = Input[BatchIdx * InputStride + RowIdx];
 
 			if (Value != 0.0)
 			{
@@ -96,7 +96,7 @@ export void NNERuntimeBasicCPUCompressedLinearLayer(
 
 				foreach(ColIdx = 0 ... ColNum)
 				{
-					Output[BatchIdx * OutputBufferSize + ColIdx] += Value * ((Scale * ((float)Weights[RowIdx * ColNum + ColIdx])) + Offset);
+					Output[BatchIdx * OutputStride + ColIdx] += Value * ((Scale * ((float)Weights[RowIdx * ColNum + ColIdx])) + Offset);
 				}
 			}
 		}
@@ -112,12 +112,12 @@ export void NNERuntimeBasicCPUMultiLinearLayer(
 	uniform const int BlockNum,
 	uniform const int RowNum,
 	uniform const int ColNum,
-	uniform const int OutputBufferSize,
-	uniform const int InputBufferSize)
+	uniform const int OutputStride,
+	uniform const int InputStride)
 {
 	foreach(BatchIdx = 0 ... BatchNum, BlockIdx = 0 ... BlockNum, ColIdx = 0 ... ColNum)
 	{
-		Output[BatchIdx * OutputBufferSize + BlockIdx * ColNum + ColIdx] = Biases[BlockIdx * ColNum + ColIdx];
+		Output[BatchIdx * OutputStride + BlockIdx * ColNum + ColIdx] = Biases[BlockIdx * ColNum + ColIdx];
 	}
 
 	for (uniform int BatchIdx = 0; BatchIdx < BatchNum; BatchIdx++)
@@ -126,13 +126,13 @@ export void NNERuntimeBasicCPUMultiLinearLayer(
 		{
 			for (uniform int RowIdx = 0; RowIdx < RowNum; RowIdx++)
 			{
-				uniform const float Value = Input[BatchIdx * InputBufferSize + BlockIdx * RowNum + RowIdx];
+				uniform const float Value = Input[BatchIdx * InputStride + BlockIdx * RowNum + RowIdx];
 
 				if (Value != 0.0)
 				{
 					foreach (ColIdx = 0 ... ColNum)
 					{
-						Output[BatchIdx * OutputBufferSize + BlockIdx * ColNum + ColIdx] += Value * Weights[BlockIdx * RowNum * ColNum + RowIdx * ColNum + ColIdx];
+						Output[BatchIdx * OutputStride + BlockIdx * ColNum + ColIdx] += Value * Weights[BlockIdx * RowNum * ColNum + RowIdx * ColNum + ColIdx];
 					}
 				}
 			}
@@ -140,17 +140,17 @@ export void NNERuntimeBasicCPUMultiLinearLayer(
 	}
 }
 
-export void NNERuntimeBasicCPUActivationLinear(
+export void NNERuntimeBasicCPUIdentityLayer(
 	uniform float Output[],
 	uniform const float Input[],
 	uniform const int BatchNum,
 	uniform const int Num,
-	uniform const int OutputBufferSize,
-	uniform const int InputBufferSize)
+	uniform const int OutputStride,
+	uniform const int InputStride)
 {
 	foreach(BatchIdx = 0 ... BatchNum, Idx = 0 ... Num)
 	{
-		Output[BatchIdx * OutputBufferSize + Idx] = Input[BatchIdx * InputBufferSize + Idx];
+		Output[BatchIdx * OutputStride + Idx] = Input[BatchIdx * InputStride + Idx];
 	}
 }
 
@@ -159,12 +159,12 @@ export void NNERuntimeBasicCPUActivationReLU(
 	uniform const float Input[],
 	uniform const int BatchNum,
 	uniform const int Num,
-	uniform const int OutputBufferSize,
-	uniform const int InputBufferSize)
+	uniform const int OutputStride,
+	uniform const int InputStride)
 {
 	foreach(BatchIdx = 0 ... BatchNum, Idx = 0 ... Num)
 	{
-		Output[BatchIdx * OutputBufferSize + Idx] = max(Input[BatchIdx * InputBufferSize + Idx], 0.0f);
+		Output[BatchIdx * OutputStride + Idx] = max(Input[BatchIdx * InputStride + Idx], 0.0f);
 	}
 }
 
@@ -173,13 +173,13 @@ export void NNERuntimeBasicCPUActivationELU(
 	uniform const float Input[],
 	uniform const int BatchNum,
 	uniform const int Num,
-	uniform const int OutputBufferSize,
-	uniform const int InputBufferSize)
+	uniform const int OutputStride,
+	uniform const int InputStride)
 {
 	foreach(BatchIdx = 0 ... BatchNum, Idx = 0 ... Num)
 	{
-		const float Value = Input[BatchIdx * InputBufferSize + Idx];
-		Output[BatchIdx * OutputBufferSize + Idx] = select(Value > 0.0f, Value, exp(Value) - 1.0f);
+		const float Value = Input[BatchIdx * InputStride + Idx];
+		Output[BatchIdx * OutputStride + Idx] = select(Value > 0.0f, Value, exp(Value) - 1.0f);
 	}
 }
 
@@ -194,12 +194,12 @@ export void NNERuntimeBasicCPUActivationTanH(
 	uniform const float Input[],
 	uniform const int BatchNum,
 	uniform const int Num,
-	uniform const int OutputBufferSize,
-	uniform const int InputBufferSize)
+	uniform const int OutputStride,
+	uniform const int InputStride)
 {
 	foreach(BatchIdx = 0 ... BatchNum, Idx = 0 ... Num)
 	{
-		Output[BatchIdx * OutputBufferSize + Idx] = NNERuntimeBasicCPUTanH(Input[BatchIdx * InputBufferSize + Idx]);
+		Output[BatchIdx * OutputStride + Idx] = NNERuntimeBasicCPUTanH(Input[BatchIdx * InputStride + Idx]);
 	}
 }
 
@@ -209,12 +209,12 @@ export void NNERuntimeBasicCPUActivationPReLU(
 	uniform const float Alpha[],
 	uniform const int BatchNum,
 	uniform const int Num,
-	uniform const int OutputBufferSize,
-	uniform const int InputBufferSize)
+	uniform const int OutputStride,
+	uniform const int InputStride)
 {
 	foreach(BatchIdx = 0 ... BatchNum, Idx = 0 ... Num)
 	{
-		const float Value = Input[BatchIdx * InputBufferSize + Idx];
-		Output[BatchIdx * OutputBufferSize + Idx] = select(Value > 0.0f, Value, Alpha[Idx] * Value);
+		const float Value = Input[BatchIdx * InputStride + Idx];
+		Output[BatchIdx * OutputStride + Idx] = select(Value > 0.0f, Value, Alpha[Idx] * Value);
 	}
 }

@@ -20,7 +20,7 @@ public:
 
 	/** The number of observations and actions recorded. */
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "LearningAgents")
-	int32 SampleNum = 0;
+	int32 StepNum = 0;
 
 	/** The number of dimensions in the observation vector for this record */
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "LearningAgents")

@@ -113,4 +113,53 @@ namespace UE::NNE::RuntimeBasic
 
 		TSharedPtr<FModelCPU> Model;
 	};
+
+	/**
+	 * This class can be used to construct file data for "memory backbone" model which contains a recurrent memory 
+	 * cell sandwiched between two feedforward neural networks. In this case it is only possible to build an empty
+	 * model with zero'd weights.
+	 */
+	class NNERUNTIMEBASICCPU_API FMemoryBackboneModelBuilder
+	{
+
+	public:
+
+		FMemoryBackboneModelBuilder();
+
+		/**
+		 * Builds an empty Memory Backbone model.
+		 *
+		 * @param InputNum			Number of normal inputs to the model
+		 * @param OutputNum			Number of normal outputs from the model
+		 * @param MemoryNum			The size of the memory vector used by the model
+		 * @param HiddenUnitNum		The number of hidden units used in all internal layers.
+		 * @param PrefixLayerNum	The number of layers used in the prefix feed-forward neural network
+		 * @param PostfixLayerNum	The number of layers used in the postfix feed-forward neural network
+		 */
+		void BuildEmptyModel(
+			const uint32 InputNum,
+			const uint32 OutputNum,
+			const uint32 MemoryNum,
+			const uint32 HiddenUnitNum,
+			const uint32 PrefixLayerNum,
+			const uint32 PostfixLayerNum);
+
+		/**
+		 * Get the number of bytes this builder currently wants to write.
+		 */
+		uint64 GetWriteByteNum() const;
+
+		/**
+		 * Write the Model to FileData and reset this builder, freeing all the memory used. Use `GetWriteByteNum` to
+		 * get the number of bytes this will write so that `FileData` can be allocated to the right size.
+		 */
+		void WriteAndReset(TArrayView<uint8> FileData);
+
+	private:
+
+		TSharedPtr<FModelCPU> Model;
+		TArray<float> ZerosData;
+	};
+
+
 }

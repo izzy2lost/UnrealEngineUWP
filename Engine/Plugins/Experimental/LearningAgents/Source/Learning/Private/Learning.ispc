@@ -139,11 +139,6 @@ export void LearningResampleStateArray(
 // 
 /////////////////////////////////////////////////////////
 
-inline float LearningInvExpApprox(const float X)
-{
-	return 1.0f / (1.0f + 1.00746054f * X + 0.45053901f * X * X + 0.25724632f * X * X * X);
-}
-
 export void LearningLayerMatMulPlusBias(
 	uniform float Output[],
 	const uniform float Input[],
@@ -225,7 +220,7 @@ export void LearningLayerTanH(
 
 inline float LearningSigmoid(const float X)
 {
-	return 1.0f / (1.0f + LearningInvExpApprox(X));
+	return 1.0f / (1.0f + exp(-X));
 }
 
 export void LearningLayerActionNoise(
@@ -236,20 +231,21 @@ export void LearningLayerActionNoise(
 	const uniform uint32 Seed[],
 	const uniform float ActionNoiseScale[],
 	const uniform int BatchNum,
-	const uniform int OutputNum,
+	const uniform int ActionNum,
+	const uniform int MemoryStateNum,
 	const uniform float LogActionNoiseMin,
 	const uniform float LogActionNoiseMax)
 {
-	foreach (BatchIdx = 0 ... BatchNum, OutputIdx = 0 ... OutputNum)
+	foreach (BatchIdx = 0 ... BatchNum, ActionIdx = 0 ... ActionNum)
 	{
-		OutputMean[BatchIdx * OutputNum + OutputIdx] = OutputNetwork[BatchIdx * 2 * OutputNum + OutputIdx];
-		OutputStd[BatchIdx * OutputNum + OutputIdx] = ActionNoiseScale[BatchIdx] *
-			exp(LearningSigmoid(OutputNetwork[BatchIdx * 2 * OutputNum + OutputNum + OutputIdx]) * (LogActionNoiseMax - LogActionNoiseMin) + LogActionNoiseMin);
+		OutputMean[BatchIdx * ActionNum + ActionIdx] = OutputNetwork[BatchIdx * (2 * ActionNum + MemoryStateNum) + ActionIdx];
+		OutputStd[BatchIdx * ActionNum + ActionIdx] = ActionNoiseScale[BatchIdx] *
+			exp(LearningSigmoid(OutputNetwork[BatchIdx * (2 * ActionNum + MemoryStateNum) + ActionNum + ActionIdx]) * (LogActionNoiseMax - LogActionNoiseMin) + LogActionNoiseMin);
 
-		Output[BatchIdx * OutputNum + OutputIdx] = LearningRandomGaussian(
-			Seed[BatchIdx] ^ 0xab744615 ^ LearningRandomInt(OutputIdx ^ 0xf8a88a27),
-			OutputMean[BatchIdx * OutputNum + OutputIdx],
-			OutputStd[BatchIdx * OutputNum + OutputIdx]);
+		Output[BatchIdx * ActionNum + ActionIdx] = LearningRandomGaussian(
+			Seed[BatchIdx] ^ 0xab744615 ^ LearningRandomInt(ActionIdx ^ 0xf8a88a27),
+			OutputMean[BatchIdx * ActionNum + ActionIdx],
+			OutputStd[BatchIdx * ActionNum + ActionIdx]);
 	}
 }
 
@@ -260,20 +256,21 @@ export void LearningLayerActionNoiseSingleBatch(
 	const uniform float OutputNetwork[],
 	const uniform uint32 Seed,
 	const uniform float ActionNoiseScale,
-	const uniform int OutputNum,
+	const uniform int ActionNum,
+	const uniform int MemoryStateNum,
 	const uniform float LogActionNoiseMin,
 	const uniform float LogActionNoiseMax)
 {
-	foreach(OutputIdx = 0 ... OutputNum)
+	foreach(ActionIdx = 0 ... ActionNum)
 	{
-		OutputMean[OutputIdx] = OutputNetwork[OutputIdx];
-		OutputStd[OutputIdx] = ActionNoiseScale *
-			exp(LearningSigmoid(OutputNetwork[OutputNum + OutputIdx]) * (LogActionNoiseMax - LogActionNoiseMin) + LogActionNoiseMin);
+		OutputMean[ActionIdx] = OutputNetwork[ActionIdx];
+		OutputStd[ActionIdx] = ActionNoiseScale *
+			exp(LearningSigmoid(OutputNetwork[ActionNum + ActionIdx]) * (LogActionNoiseMax - LogActionNoiseMin) + LogActionNoiseMin);
 
-		Output[OutputIdx] = LearningRandomGaussian(
-			Seed ^ 0xab744615 ^ LearningRandomInt(OutputIdx ^ 0xf8a88a27),
-			OutputMean[OutputIdx],
-			OutputStd[OutputIdx]);
+		Output[ActionIdx] = LearningRandomGaussian(
+			Seed ^ 0xab744615 ^ LearningRandomInt(ActionIdx ^ 0xf8a88a27),
+			OutputMean[ActionIdx],
+			OutputStd[ActionIdx]);
 	}
 }
 

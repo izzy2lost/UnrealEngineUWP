@@ -50,8 +50,8 @@ namespace UE::Learning
 		// closer to 1000000 iterations or more is required for an exhaustively trained network.
 		uint32 IterationNum = 1000000;
 
-		// Learning rate of the actor network. Typical values are between 0.001f and 0.0001f
-		float LearningRateActor = 0.0001f;
+		// Learning rate of the policy network. Typical values are between 0.001f and 0.0001f
+		float LearningRatePolicy = 0.0001f;
 
 		// Ratio by which to decay the learning rate every 1000 iterations.
 		float LearningRateDecay = 0.99f;
@@ -60,9 +60,24 @@ namespace UE::Learning
 		// weights to be smaller.
 		float WeightDecay = 0.001f;
 
-		// Batch size to use for training. Smaller values tend to produce better results 
+		// Initial scale to apply to actions before noise is added to them. The smaller this is, 
+		// the less likely you are to have spurious correlations at the beginning of training which 
+		// can make things slow or unstable. Too small and the network may become too slow to train.
+		float InitialActionScale = 0.1f;
+
+		// Initial scale to apply to memory. The smaller this is, the more stable training will be. Too small and the 
+		// network may not use its memory while training.
+		float InitialMemoryScale = 0.1f;
+
+		// Batch size to use for training the policy. Smaller values tend to produce better results 
 		// at the cost of slowing down training.
-		uint32 BatchSize = 128;
+		uint32 PolicyBatchSize = 128;
+
+		// The window of observations and actions over which to do the training of the policy. Increasing this value 
+		// will encourage the policy to use its memory effectively. Too large and training can become unstable. Given
+		// we don't know the memory state during imitation learning it is better this is slightly larger than when we 
+		// are doing reinforcement learning.
+		uint32 PolicyWindow = 64;
 
 		// Random seed to use for training
 		uint32 Seed = 1234;
@@ -160,15 +175,19 @@ namespace UE::Learning
 		/**
 		* Push experience to the trainer.
 		*
-		* @param ObservationVectors		Set of observation vectors
-		* @param ActionVectors			Set of action vectors
-		* @param Timeout				Timeout to wait in seconds
-		* @param LogSettings			Log settings
-		* @returns						Trainer response
+		* @param EpisodeStartsExperience	Array of offsets where episodes start
+		* @param EpisodeLengthsExperience	Array of episode lengths
+		* @param ObservationsExperience		Set of observation vectors
+		* @param ActionsExperience			Set of action vectors
+		* @param Timeout					Timeout to wait in seconds
+		* @param LogSettings				Log settings
+		* @returns							Trainer response
 		*/
 		virtual ETrainerResponse SendExperience(
-			const TLearningArrayView<2, const float> ObservationVectors,
-			const TLearningArrayView<2, const float> ActionVectors,
+			const TLearningArrayView<1, const int32> EpisodeStartsExperience,
+			const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
+			const TLearningArrayView<2, const float> ObservationsExperience,
+			const TLearningArrayView<2, const float> ActionsExperience,
 			const float Timeout = Trainer::DefaultTimeout,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) = 0;
 	};
@@ -186,9 +205,11 @@ namespace UE::Learning
 		* @param SitePackagesPath		Path to the site-packages shipped with the PythonFoundationPackages plugin
 		* @param PythonContentPath		Path to the Python Content folder provided by the Learning plugin
 		* @param IntermediatePath		Path to the intermediate folder to write temporary files, logs, and snapshots to
-		* @param MaxSampleNum			Maximum number of samples in the training data
+		* @param MaxEpisodeNum			Maximum number of episodes in the training data
+		* @param MaxStepNum				Maximum number of steps in the training data
 		* @param ObservationDimNum		Number of dimensions in the observation vector
 		* @param ActionDimNum			Number of dimensions in the action vector
+		* @param MemoryStateDimNum		Number of dimensions in the memory state vector
 		* @param PolicyNetwork			Policy Network to use
 		* @param TrainingSettings		Trainer Training settings
 		* @param NetworkSettings		Trainer Network settings
@@ -201,9 +222,11 @@ namespace UE::Learning
 			const FString& SitePackagesPath,
 			const FString& PythonContentPath,
 			const FString& IntermediatePath,
-			const int32 MaxSampleNum,
+			const int32 MaxEpisodeNum,
+			const int32 MaxStepNum,
 			const int32 ObservationDimNum,
 			const int32 ActionDimNum,
+			const int32 MemoryStateDimNum,
 			const INeuralNetwork& PolicyNetwork,
 			const FImitationTrainerTrainingSettings& TrainingSettings = FImitationTrainerTrainingSettings(),
 			const FImitationTrainerNetworkSettings& NetworkSettings = FImitationTrainerNetworkSettings(),
@@ -234,8 +257,10 @@ namespace UE::Learning
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
 		virtual ETrainerResponse SendExperience(
-			const TLearningArrayView<2, const float> ObservationVectors,
-			const TLearningArrayView<2, const float> ActionVectors,
+			const TLearningArrayView<1, const int32> EpisodeStartsExperience,
+			const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
+			const TLearningArrayView<2, const float> ObservationsExperience,
+			const TLearningArrayView<2, const float> ActionsExperience,
 			const float Timeout = Trainer::DefaultTimeout,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
@@ -250,6 +275,8 @@ namespace UE::Learning
 
 		UE::Learning::TSharedMemoryArrayView<1, uint8> Policy;
 		UE::Learning::TSharedMemoryArrayView<1, volatile int32> Controls; // Mark as volatile to avoid compiler optimizing away reads without writes etc.
+		UE::Learning::TSharedMemoryArrayView<1, int32> EpisodeStarts;
+		UE::Learning::TSharedMemoryArrayView<1, int32> EpisodeLengths;
 		UE::Learning::TSharedMemoryArrayView<2, float> Observations;
 		UE::Learning::TSharedMemoryArrayView<2, float> Actions;
 
@@ -326,9 +353,11 @@ namespace UE::Learning
 		*
 		* @param OutResponse				Response to the initial connection
 		* @param TaskName					Name of the training task - used to help identify the logs, snapshots, and other files generated by training
-		* @param MaxSampleNum				Maximum number of samples in the training data
+		* @param MaxEpisodeNum				Maximum number of episodes in the training data
+		* @param MaxStepNum					Maximum number of steps in the training data
 		* @param ObservationDimNum			Number of dimensions in the observation vector
 		* @param ActionDimNum				Number of dimensions in the action vector
+		* @param MemoryStateDimNum			Number of dimensions in the memory state vector
 		* @param PolicyNetwork				Policy Network to use
 		* @param IpAddress					Server Ip address
 		* @param Port						Server Port
@@ -340,9 +369,11 @@ namespace UE::Learning
 		FSocketImitationTrainer(
 			ETrainerResponse& OutResponse,
 			const FString& TaskName,
-			const int32 MaxSampleNum,
+			const int32 MaxEpisodeNum,
+			const int32 MaxStepNum,
 			const int32 ObservationDimNum,
 			const int32 ActionDimNum,
+			const int32 MemoryStateDimNum,
 			const INeuralNetwork& PolicyNetwork,
 			const TCHAR* IpAddress = Trainer::DefaultIp,
 			const uint32 Port = Trainer::DefaultPort,
@@ -374,8 +405,10 @@ namespace UE::Learning
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
 		virtual ETrainerResponse SendExperience(
-			const TLearningArrayView<2, const float> ObservationVectors,
-			const TLearningArrayView<2, const float> ActionVectors,
+			const TLearningArrayView<1, const int32> EpisodeStartsExperience,
+			const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
+			const TLearningArrayView<2, const float> ObservationsExperience,
+			const TLearningArrayView<2, const float> ActionsExperience,
 			const float Timeout = Trainer::DefaultTimeout,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings) override final;
 
@@ -392,8 +425,10 @@ namespace UE::Learning
 		*
 		* @param Trainer							Trainer
 		* @param Network							Policy network
-		* @param ObservationVectors					Observation Data
-		* @param ActionVectors						Action Data
+		* @param EpisodeStartsExperience			Array of offsets where episodes start
+		* @param EpisodeLengthsExperience			Array of episode lengths
+		* @param ObservationsExperience				Set of observation vectors
+		* @param ActionsExperience					Set of action vectors
 		* @param TrainerFlags						Flags for the trainer, should match what was used to initialize the Trainer object.
 		* @param bRequestTrainingStopSignal			Optional signal that can be raised to indicate training should be stopped
 		* @param NetworkLock						Optional Lock to use when updating the policy network
@@ -404,8 +439,10 @@ namespace UE::Learning
 		LEARNINGTRAINING_API ETrainerResponse Train(
 			IImitationTrainer& Trainer,
 			INeuralNetwork& Network,
-			const TLearningArrayView<2, const float> ObservationVectors,
-			const TLearningArrayView<2, const float> ActionVectors,
+			const TLearningArrayView<1, const int32> EpisodeStartsExperience,
+			const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
+			const TLearningArrayView<2, const float> ObservationsExperience,
+			const TLearningArrayView<2, const float> ActionsExperience,
 			const EImitationTrainerFlags TrainerFlags = EImitationTrainerFlags::None,
 			TAtomic<bool>* bRequestTrainingStopSignal = nullptr,
 			FRWLock* NetworkLock = nullptr,

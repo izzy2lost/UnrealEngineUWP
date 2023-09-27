@@ -4,6 +4,7 @@
 
 #include "LearningAgentsManager.h"
 #include "LearningAgentsInteractor.h"
+#include "LearningAgentsPolicy.h"
 #include "LearningAgentsHelpers.h"
 #include "LearningAgentsNeuralNetworkData.h"
 #include "LearningFeatureObject.h"
@@ -22,6 +23,7 @@ ULearningAgentsCritic::~ULearningAgentsCritic() = default;
 
 void ULearningAgentsCritic::SetupCritic(
 	ULearningAgentsInteractor* InInteractor, 
+	ULearningAgentsPolicy* InPolicy,
 	const FLearningAgentsCriticSettings& CriticSettings,
 	ULearningAgentsNeuralNetwork* NeuralNetworkAsset)
 {
@@ -51,14 +53,31 @@ void ULearningAgentsCritic::SetupCritic(
 
 	Interactor = InInteractor;
 
+	if (!InPolicy)
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: InPolicy is nullptr."), *GetName());
+		return;
+	}
+
+	if (!InPolicy->IsSetup())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: %s's Setup must be run before it can be used."), *GetName(), *InPolicy->GetName());
+		return;
+	}
+
+	Policy = InPolicy;
+
+	const int32 NetworkInputNum = Interactor->GetObservationFeature().DimNum() + Policy->GetMemoryStateSize();
+	const int32 NetworkOutputNum = 1;
+
 	if (NeuralNetworkAsset)
 	{
 		// Use Existing Neural Network Asset
 
 		if (NeuralNetworkAsset->NeuralNetworkData)
 		{
-			if (NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetInputNum() != Interactor->GetObservationFeature().DimNum() ||
-				NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetOutputNum() != 2 * Interactor->GetActionFeature().DimNum())
+			if (NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetInputNum() != NetworkInputNum ||
+				NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetOutputNum() != NetworkOutputNum)
 			{
 				UE_LOG(LogLearning, Error, TEXT("%s: Neural Network Asset provided during Setup is incorrect size: Inputs and outputs don't match."), *GetName());
 				return;
@@ -69,10 +88,10 @@ void ULearningAgentsCritic::SetupCritic(
 		else
 		{
 			Network = NeuralNetworkAsset;
-			Network->NeuralNetworkData = NewObject<ULearningAgentsDefaultNeuralNetworkData>(Network);
+			Network->NeuralNetworkData = NewObject<ULearningAgentsNeuralNetworkData>(Network);
 			Network->NeuralNetworkData->CreateMLP(
-				Interactor->GetObservationFeature().DimNum(),
-				1,
+				NetworkInputNum,
+				NetworkOutputNum,
 				CriticSettings.HiddenLayerSize,
 				CriticSettings.LayerNum,
 				CriticSettings.ActivationFunction);
@@ -85,10 +104,10 @@ void ULearningAgentsCritic::SetupCritic(
 		const FName UniqueName = MakeUniqueObjectName(this, ULearningAgentsNeuralNetwork::StaticClass(), TEXT("CriticNetwork"), EUniqueObjectNameOptions::GloballyUnique);
 
 		Network = NewObject<ULearningAgentsNeuralNetwork>(this, UniqueName);
-		Network->NeuralNetworkData = NewObject<ULearningAgentsDefaultNeuralNetworkData>(Network);
+		Network->NeuralNetworkData = NewObject<ULearningAgentsNeuralNetworkData>(Network);
 		Network->NeuralNetworkData->CreateMLP(
-			Interactor->GetObservationFeature().DimNum(),
-			1,
+			NetworkInputNum,
+			NetworkOutputNum,
 			CriticSettings.HiddenLayerSize,
 			CriticSettings.LayerNum,
 			CriticSettings.ActivationFunction);
@@ -99,12 +118,12 @@ void ULearningAgentsCritic::SetupCritic(
 		TEXT("CriticObject"),
 		Manager->GetInstanceData().ToSharedRef(),
 		Manager->GetMaxAgentNum(),
+		Interactor->GetObservationFeature().DimNum(),
+		Policy->GetMemoryStateSize(),
 		Network->NeuralNetworkData->GetNetworkInterface());
 
-	Manager->GetInstanceData()->Link(Interactor->GetObservationFeature().FeatureHandle, CriticObject->InputHandle);
-
-	DiscountedReturnAgentIteration.SetNumUninitialized({ Manager->GetMaxAgentNum() });
-	UE::Learning::Array::Set<1, uint64>(DiscountedReturnAgentIteration, INDEX_NONE);
+	CriticAgentIteration.SetNumUninitialized({ Manager->GetMaxAgentNum() });
+	UE::Learning::Array::Set<1, uint64>(CriticAgentIteration, INDEX_NONE);
 
 	bIsSetup = true;
 
@@ -115,7 +134,7 @@ void ULearningAgentsCritic::OnAgentsAdded(const TArray<int32>& AgentIds)
 {
 	if (IsSetup())
 	{
-		UE::Learning::Array::Set<1, uint64>(DiscountedReturnAgentIteration, 0, AgentIds);
+		UE::Learning::Array::Set<1, uint64>(CriticAgentIteration, 0, AgentIds);
 
 		for (ULearningAgentsHelper* Helper : HelperObjects)
 		{
@@ -130,7 +149,7 @@ void ULearningAgentsCritic::OnAgentsRemoved(const TArray<int32>& AgentIds)
 {
 	if (IsSetup())
 	{
-		UE::Learning::Array::Set<1, uint64>(DiscountedReturnAgentIteration, INDEX_NONE, AgentIds);
+		UE::Learning::Array::Set<1, uint64>(CriticAgentIteration, INDEX_NONE, AgentIds);
 
 		for (ULearningAgentsHelper* Helper : HelperObjects)
 		{
@@ -145,7 +164,7 @@ void ULearningAgentsCritic::OnAgentsReset(const TArray<int32>& AgentIds)
 {
 	if (IsSetup())
 	{
-		UE::Learning::Array::Set<1, uint64>(DiscountedReturnAgentIteration, 0, AgentIds);
+		UE::Learning::Array::Set<1, uint64>(CriticAgentIteration, 0, AgentIds);
 
 		for (ULearningAgentsHelper* Helper : HelperObjects)
 		{
@@ -257,6 +276,7 @@ void ULearningAgentsCritic::EvaluateCritic()
 	}
 
 	// Check Agents actually have encoded observations.
+	// All added agents should already have some memory state even if it is zero.
 
 	ValidAgentIds.Empty(Manager->GetAgentNum());
 
@@ -274,6 +294,16 @@ void ULearningAgentsCritic::EvaluateCritic()
 	ValidAgentSet = ValidAgentIds;
 	ValidAgentSet.TryMakeSlice();
 
+	// Get views of Observations and Memory State and copy into network input buffers
+
+	TLearningArrayView<2, const float> MemoryStateView = Policy->GetMemoryStateView();
+	TLearningArrayView<2, const float> ObservationsView = Manager->GetInstanceData()->ConstView(Interactor->GetObservationFeature().FeatureHandle);
+	TLearningArrayView<2, float> InputObservationView = Manager->GetInstanceData()->View(CriticObject->InputObservationHandle);
+	TLearningArrayView<2, float> InputMemoryStateView = Manager->GetInstanceData()->View(CriticObject->InputMemoryStateHandle);
+
+	UE::Learning::Array::Copy<2, float>(InputObservationView, ObservationsView, ValidAgentSet);
+	UE::Learning::Array::Copy<2, float>(InputMemoryStateView, MemoryStateView, ValidAgentSet);
+
 	// Evaluate Critic
 
 	CriticObject->Evaluate(ValidAgentSet);
@@ -282,7 +312,7 @@ void ULearningAgentsCritic::EvaluateCritic()
 
 	for (const int32 AgentId : ValidAgentSet)
 	{
-		DiscountedReturnAgentIteration[AgentId]++;
+		CriticAgentIteration[AgentId]++;
 	}
 		
 	// Visual Logger
@@ -306,7 +336,7 @@ float ULearningAgentsCritic::GetEstimatedDiscountedReturn(const int32 AgentId) c
 		return 0.0f;
 	}
 
-	if (DiscountedReturnAgentIteration[AgentId] == 0)
+	if (CriticAgentIteration[AgentId] == 0)
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Agent with id %d has not yet computed the estimated discounted return. Did you run EvaluateCritic?"), *GetName(), AgentId);
 		return 0.0f;
@@ -320,7 +350,8 @@ void ULearningAgentsCritic::VisualLog(const UE::Learning::FIndexSet AgentSet) co
 {
 	UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(ULearningAgentsCritic::VisualLog);
 
-	const TLearningArrayView<2, const float> InputView = CriticObject->InstanceData->ConstView(CriticObject->InputHandle);
+	const TLearningArrayView<2, const float> InputObservationView = CriticObject->InstanceData->ConstView(CriticObject->InputObservationHandle);
+	const TLearningArrayView<2, const float> InputMemoryStateView = CriticObject->InstanceData->ConstView(CriticObject->InputMemoryStateHandle);
 	const TLearningArrayView<1, const float> OutputView = CriticObject->InstanceData->ConstView(CriticObject->OutputHandle);
 
 	for (const int32 AgentId : AgentSet)
@@ -330,10 +361,12 @@ void ULearningAgentsCritic::VisualLog(const UE::Learning::FIndexSet AgentSet) co
 			UE_LEARNING_AGENTS_VLOG_STRING(this, LogLearning, Display,
 				Actor->GetActorLocation(),
 				VisualLogColor.ToFColor(true),
-				TEXT("Agent %i\nInput: %s\nInput Stats (Min/Max/Mean/Std): %s\nOutput: [% 6.3f]"),
+				TEXT("Agent %i\nObservation Input: %s\nObservation Input Stats (Min/Max/Mean/Std): %s\nMemory State Input: %s\nMemory State Input Stats (Min/Max/Mean/Std): %s\nOutput: [% 6.3f]"),
 				AgentId,
-				*UE::Learning::Array::FormatFloat(InputView[AgentId]),
-				*UE::Learning::Agents::Debug::FloatArrayToStatsString(InputView[AgentId]),
+				*UE::Learning::Array::FormatFloat(InputObservationView[AgentId]),
+				*UE::Learning::Agents::Debug::FloatArrayToStatsString(InputObservationView[AgentId]),
+				*UE::Learning::Array::FormatFloat(InputMemoryStateView[AgentId]),
+				*UE::Learning::Agents::Debug::FloatArrayToStatsString(InputMemoryStateView[AgentId]),
 				OutputView[AgentId]);
 		}
 	}

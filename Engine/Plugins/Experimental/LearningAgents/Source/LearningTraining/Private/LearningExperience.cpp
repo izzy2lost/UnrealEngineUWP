@@ -12,13 +12,15 @@ namespace UE::Learning
 		const int32 InMaxInstanceNum,
 		const int32 InMaxStepNum,
 		const int32 InObservationVectorDimNum,
-		const int32 InActionVectorDimNum)
+		const int32 InActionVectorDimNum,
+		const int32 InMemoryStateVectorDimNum)
 	{
 		MaxInstanceNum = InMaxInstanceNum;
 		MaxStepNum = InMaxStepNum;
 		EpisodeStepNums.SetNumUninitialized({ InMaxInstanceNum });
 		Observations.SetNumUninitialized({ InMaxInstanceNum, InMaxStepNum, InObservationVectorDimNum });
 		Actions.SetNumUninitialized({ InMaxInstanceNum, InMaxStepNum, InActionVectorDimNum });
+		MemoryStates.SetNumUninitialized({ InMaxInstanceNum, InMaxStepNum, InMemoryStateVectorDimNum });
 		Rewards.SetNumUninitialized({ InMaxInstanceNum, InMaxStepNum });
 
 		Array::Zero(EpisodeStepNums);
@@ -27,6 +29,7 @@ namespace UE::Learning
 	void FEpisodeBuffer::Push(
 		const TLearningArrayView<2, const float> InObservations,
 		const TLearningArrayView<2, const float> InActions,
+		const TLearningArrayView<2, const float> InMemoryStates,
 		const TLearningArrayView<1, const float> InRewards,
 		const FIndexSet Instances)
 	{
@@ -38,6 +41,7 @@ namespace UE::Learning
 
 			Array::Copy(Observations[InstanceIdx][EpisodeStepNums[InstanceIdx]], InObservations[InstanceIdx]);
 			Array::Copy(Actions[InstanceIdx][EpisodeStepNums[InstanceIdx]], InActions[InstanceIdx]);
+			Array::Copy(MemoryStates[InstanceIdx][EpisodeStepNums[InstanceIdx]], InMemoryStates[InstanceIdx]);
 			Rewards[InstanceIdx][EpisodeStepNums[InstanceIdx]] = InRewards[InstanceIdx];
 
 			EpisodeStepNums[InstanceIdx]++;
@@ -74,15 +78,20 @@ namespace UE::Learning
 		return Actions[InstanceIdx].Slice(0, EpisodeStepNums[InstanceIdx]);
 	}
 
+	const TLearningArrayView<2, const float> FEpisodeBuffer::GetMemoryStates(const int32 InstanceIdx) const
+	{
+		return MemoryStates[InstanceIdx].Slice(0, EpisodeStepNums[InstanceIdx]);
+	}
+
 	const TLearningArrayView<1, const float> FEpisodeBuffer::GetRewards(const int32 InstanceIdx) const
 	{
 		return Rewards[InstanceIdx].Slice(0, EpisodeStepNums[InstanceIdx]);
 	}
 
-
 	void FReplayBuffer::Resize(
 		const int32 InObservationVectorDimensionNum,
 		const int32 InActionVectorDimensionNum,
+		const int32 InMemoryStateVectorDimensionNum,
 		const int32 InMaxEpisodeNum,
 		const int32 InMaxStepNum)
 	{
@@ -94,8 +103,10 @@ namespace UE::Learning
 		EpisodeLengths.SetNumUninitialized({ InMaxEpisodeNum });
 		EpisodeCompletionModes.SetNumUninitialized({ InMaxEpisodeNum });
 		EpisodeFinalObservations.SetNumUninitialized({ InMaxEpisodeNum, InObservationVectorDimensionNum });
+		EpisodeFinalMemoryStates.SetNumUninitialized({ InMaxEpisodeNum, InMemoryStateVectorDimensionNum });
 		Observations.SetNumUninitialized({ InMaxStepNum, InObservationVectorDimensionNum });
 		Actions.SetNumUninitialized({ InMaxStepNum, InActionVectorDimensionNum });
+		MemoryStates.SetNumUninitialized({ InMaxStepNum, InMemoryStateVectorDimensionNum });
 		Rewards.SetNumUninitialized({ InMaxStepNum });
 	}
 
@@ -108,6 +119,7 @@ namespace UE::Learning
 	bool FReplayBuffer::AddEpisodes(
 		const TLearningArrayView<1, const ECompletionMode> InEpisodeCompletionModes,
 		const TLearningArrayView<2, const float> InEpisodeFinalObservations,
+		const TLearningArrayView<2, const float> InEpisodeFinalMemoryStates,
 		const FEpisodeBuffer& EpisodeBuffer,
 		const FIndexSet Instances,
 		const bool bAddTruncatedEpisodeWhenFull)
@@ -128,6 +140,7 @@ namespace UE::Learning
 				// Copy the data into the replay buffer
 				Array::Copy(Observations.Slice(StepNum, EpisodeStepNum), EpisodeBuffer.GetObservations(InstanceIdx));
 				Array::Copy(Actions.Slice(StepNum, EpisodeStepNum), EpisodeBuffer.GetActions(InstanceIdx));
+				Array::Copy(MemoryStates.Slice(StepNum, EpisodeStepNum), EpisodeBuffer.GetMemoryStates(InstanceIdx));
 				Array::Copy(Rewards.Slice(StepNum, EpisodeStepNum), EpisodeBuffer.GetRewards(InstanceIdx));
 
 				// Write the Episode start, length, completion, and final observation
@@ -135,6 +148,7 @@ namespace UE::Learning
 				EpisodeLengths[EpisodeNum] = EpisodeStepNum;
 				EpisodeCompletionModes[EpisodeNum] = InEpisodeCompletionModes[InstanceIdx];
 				Array::Copy(EpisodeFinalObservations[EpisodeNum], InEpisodeFinalObservations[InstanceIdx]);
+				Array::Copy(EpisodeFinalMemoryStates[EpisodeNum], InEpisodeFinalMemoryStates[InstanceIdx]);
 
 				// Increment the Counts
 				EpisodeNum++;
@@ -154,6 +168,7 @@ namespace UE::Learning
 				// Copy the data into the replay buffer
 				Array::Copy(Observations.Slice(StepNum, PartialStepNum), EpisodeBuffer.GetObservations(InstanceIdx).Slice(0, PartialStepNum));
 				Array::Copy(Actions.Slice(StepNum, PartialStepNum), EpisodeBuffer.GetActions(InstanceIdx).Slice(0, PartialStepNum));
+				Array::Copy(MemoryStates.Slice(StepNum, PartialStepNum), EpisodeBuffer.GetMemoryStates(InstanceIdx).Slice(0, PartialStepNum));
 				Array::Copy(Rewards.Slice(StepNum, PartialStepNum), EpisodeBuffer.GetRewards(InstanceIdx).Slice(0, PartialStepNum));
 
 				// Write the Episode start, length, completion, and final observation
@@ -161,6 +176,7 @@ namespace UE::Learning
 				EpisodeLengths[EpisodeNum] = PartialStepNum;
 				EpisodeCompletionModes[EpisodeNum] = ECompletionMode::Truncated;
 				Array::Copy(EpisodeFinalObservations[EpisodeNum], InEpisodeFinalObservations[InstanceIdx]);
+				Array::Copy(EpisodeFinalMemoryStates[EpisodeNum], InEpisodeFinalMemoryStates[InstanceIdx]);
 
 				// Increment the Counts
 				EpisodeNum++;
@@ -214,6 +230,11 @@ namespace UE::Learning
 		return EpisodeFinalObservations.Slice(0, EpisodeNum);
 	}
 
+	const TLearningArrayView<2, const float> FReplayBuffer::GetEpisodeFinalMemoryStates() const
+	{
+		return EpisodeFinalMemoryStates.Slice(0, EpisodeNum);
+	}
+
 	const TLearningArrayView<2, const float> FReplayBuffer::GetObservations() const
 	{
 		return Observations.Slice(0, StepNum);
@@ -222,6 +243,11 @@ namespace UE::Learning
 	const TLearningArrayView<2, const float> FReplayBuffer::GetActions() const
 	{
 		return Actions.Slice(0, StepNum);
+	}
+
+	const TLearningArrayView<2, const float> FReplayBuffer::GetMemoryStates() const
+	{
+		return MemoryStates.Slice(0, StepNum);
 	}
 
 	const TLearningArrayView<1, const float> FReplayBuffer::GetRewards() const
@@ -248,6 +274,8 @@ namespace UE::Learning
 			FResetInstanceBuffer& ResetBuffer,
 			TLearningArrayView<2, float> ObservationVectorBuffer,
 			TLearningArrayView<2, float> ActionVectorBuffer,
+			TLearningArrayView<2, float> PreEvaluationMemoryStateVectorBuffer,
+			TLearningArrayView<2, float> MemoryStateVectorBuffer,
 			TLearningArrayView<1, float> RewardBuffer,
 			TLearningArrayView<1, ECompletionMode> CompletionBuffer,
 			const ECompletionMode EpisodeEndCompletionMode,
@@ -297,6 +325,7 @@ namespace UE::Learning
 			EpisodeBuffer.Push(
 				ObservationVectorBuffer,
 				ActionVectorBuffer,
+				PreEvaluationMemoryStateVectorBuffer,
 				RewardBuffer,
 				Instances);
 
@@ -324,6 +353,7 @@ namespace UE::Learning
 				const bool bReplayBufferFull = ReplayBuffer.AddEpisodes(
 					CompletionBuffer,
 					ObservationVectorBuffer,
+					MemoryStateVectorBuffer,
 					EpisodeBuffer,
 					ResetBuffer.GetResetInstances());
 
@@ -343,6 +373,8 @@ namespace UE::Learning
 			FResetInstanceBuffer& ResetBuffer,
 			TLearningArrayView<2, float> ObservationVectorBuffer,
 			TLearningArrayView<2, float> ActionVectorBuffer,
+			TLearningArrayView<2, float> PreEvaluationMemoryStateVectorBuffer,
+			TLearningArrayView<2, float> MemoryStateVectorBuffer,
 			TLearningArrayView<1, float> RewardBuffer,
 			TLearningArrayView<1, ECompletionMode> CompletionBuffer,
 			const ECompletionMode EpisodeEndCompletionMode,
@@ -369,6 +401,8 @@ namespace UE::Learning
 					ResetBuffer,
 					ObservationVectorBuffer,
 					ActionVectorBuffer,
+					PreEvaluationMemoryStateVectorBuffer,
+					MemoryStateVectorBuffer,
 					RewardBuffer,
 					CompletionBuffer,
 					EpisodeEndCompletionMode,

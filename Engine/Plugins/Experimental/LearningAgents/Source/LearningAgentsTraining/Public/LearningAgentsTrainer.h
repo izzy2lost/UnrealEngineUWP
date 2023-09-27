@@ -148,7 +148,7 @@ struct LEARNINGAGENTSTRAINING_API FLearningAgentsTrainerTrainingSettings
 public:
 
 	/** The number of iterations to run before ending training. */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0", UIMin = "0"))
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", UIMin = "1"))
 	int32 NumberOfIterations = 1000000;
 
 	/** Learning rate of the policy network. Typical values are between 0.001 and 0.0001. */
@@ -181,11 +181,25 @@ public:
 	float InitialActionScale = 0.1f;
 
 	/**
-	 * Batch size to use for training. Smaller values tend to produce better results at the cost of slowing down 
+	 * Batch size to use for training the policy. Smaller values tend to produce better results at the cost of slowing down 
 	 * training. Large batch sizes are much more computationally efficient when training on the GPU.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0", ClampMax = "4096", UIMin = "0", UIMax = "4096"))
-	int32 BatchSize = 128;
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", ClampMax = "4096", UIMin = "1", UIMax = "4096"))
+	int32 PolicyBatchSize = 32;
+
+	/**
+	 * Batch size to use for training the critic. Smaller values tend to produce better results at the cost of slowing down
+	 * training. Large batch sizes are much more computationally efficient when training on the GPU.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", ClampMax = "4096", UIMin = "1", UIMax = "4096"))
+	int32 CriticBatchSize = 256;
+
+	/**
+	 * The size of the window of observations and actions over which to do the training of the policy. Increasing this value 
+	 * will encourage the policy to use its memory effectively. Too large and training can become slow and unstable.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", ClampMax = "128", UIMin = "1", UIMax = "128"))
+	int32 PolicyWindowSize = 8;
 
 	/**
 	 * Clipping ratio to apply to policy updates. Keeps the training "on-policy". Larger values may speed up training at 
@@ -194,6 +208,12 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
 	float EpsilonClip = 0.2f;
+
+	/**
+	 * Weight used to regularize returns. Encourages the critic not to over or under estimate returns.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+	float ReturnRegularizationWeight = 0.0001f;
 
 	/**
 	 * Weight used to regularize actions. Larger values will encourage smaller actions but too large will cause actions 
@@ -207,7 +227,7 @@ public:
 	 * exploration but can make actions very noisy.
 	 */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
-	float EntropyWeight = 0.01f;
+	float ActionEntropyWeight = 0.01f;
 
 	/**
 	 * This is used in the Generalized Advantage Estimation as what is essentially an exponential smoothing/decay. 
@@ -216,16 +236,23 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
 	float GaeLambda = 0.9f;
 
-	/**
-	 * When true, very large or small advantages will be clipped. This has few downsides and helps with numerical 
-	 * stability.
-	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents")
-	bool bClipAdvantages = true;
-
 	/** When true, advantages are normalized. This tends to makes training more robust to adjustments of the scale of rewards. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents")
 	bool bAdvantageNormalization = true;
+
+	/**
+	 * The minimum advantage to allow. Setting this below zero will encourage the policy to move away from bad actions, 
+	 * but can introduce instability.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents")
+	float MinimumAdvantage = 0.0f;
+
+	/**
+	 * The maximum advantage to allow. Making this smaller may increase training stability
+	 * at the cost of some training speed.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents")
+	float MaximumAdvantage = 10.0f;
 
 	/**
 	 * The number of steps to trim from the start of the episode, e.g. can be useful if some things are still getting

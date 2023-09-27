@@ -80,6 +80,8 @@ namespace UE::Learning
 
 		LEARNINGTRAINING_API ETrainerResponse SendExperience(
 			FSocket& Socket,
+			const TLearningArrayView<1, const int32> EpisodeStartsExperience,
+			const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
 			const TLearningArrayView<2, const float> ObservationExperience,
 			const TLearningArrayView<2, const float> ActionExperience,
 			const float Timeout = Trainer::DefaultTimeout,

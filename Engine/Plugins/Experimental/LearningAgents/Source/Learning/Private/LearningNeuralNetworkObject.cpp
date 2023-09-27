@@ -14,7 +14,7 @@ namespace UE::Learning
 	{
 		static inline float Sigmoid(const float X)
 		{
-			return 1.0f / (1.0f + FMath::InvExpApprox(X));
+			return 1.0f / (1.0f + FMath::Exp(-X));
 		}
 	}
 
@@ -22,22 +22,37 @@ namespace UE::Learning
 		const FName& InIdentifier,
 		const TSharedRef<FArrayMap>& InInstanceData,
 		const int32 InMaxInstanceNum,
+		const int32 InObservationNum,
+		const int32 InActionNum,
+		const int32 InMemoryStateNum,
 		const TSharedPtr<INeuralNetwork>& InNeuralNetwork,
 		const uint32 InSeed,
 		const FNeuralNetworkInferenceSettings& InInferenceSettings,
 		const FNeuralNetworkPolicyFunctionSettings& InSettings)
 		: FFunctionObject(InInstanceData)
 		, MaxInstanceNum(InMaxInstanceNum)
+		, ObservationNum(InObservationNum)
+		, ActionNum(InActionNum)
+		, MemoryStateNum(InMemoryStateNum)
 		, NeuralNetwork(InNeuralNetwork)
 		, InferenceSettings(InInferenceSettings)
 		, Settings(InSettings)
 	{
+		UE_LEARNING_CHECK(NeuralNetwork->GetInputNum() == ObservationNum + MemoryStateNum);
+		UE_LEARNING_CHECK(NeuralNetwork->GetOutputNum() == 2 * ActionNum + MemoryStateNum);
+
 		SeedHandle = InstanceData->Add<1, uint32>({ InIdentifier, TEXT("Seed") }, { InMaxInstanceNum });
-		InputHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("Input") }, { InMaxInstanceNum, NeuralNetwork->GetInputNum() }, 0.0f);
-		OutputHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("Output") }, { InMaxInstanceNum, NeuralNetwork->GetOutputNum() / 2 }, 0.0f);
-		OutputNetworkHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("OutputNetwork") }, { InMaxInstanceNum, NeuralNetwork->GetOutputNum() }, 0.0f);
-		OutputMeanHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("OutputMean") }, { InMaxInstanceNum, NeuralNetwork->GetOutputNum() / 2 }, 0.0f);
-		OutputStdHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("OutputStd") }, { InMaxInstanceNum, NeuralNetwork->GetOutputNum() / 2 }, 0.0f);
+		
+		InputObservationHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("InputObservation") }, { InMaxInstanceNum, ObservationNum }, 0.0f);
+		InputMemoryStateHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("InputMemoryState") }, { InMaxInstanceNum, MemoryStateNum }, 0.0f);
+		InputNetworkHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("InputNetwork") }, { InMaxInstanceNum, ObservationNum + MemoryStateNum }, 0.0f);
+
+		OutputNetworkHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("OutputNetwork") }, { InMaxInstanceNum, 2 * ActionNum + MemoryStateNum }, 0.0f);
+		OutputMemoryStateHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("OutputMemoryState") }, { InMaxInstanceNum, MemoryStateNum }, 0.0f);
+		OutputActionHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("OutputAction") }, { InMaxInstanceNum, ActionNum }, 0.0f);
+		OutputActionMeanHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("OutputActionMean") }, { InMaxInstanceNum, ActionNum }, 0.0f);
+		OutputActionStdHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("OutputActionStd") }, { InMaxInstanceNum, ActionNum }, 0.0f);
+
 		ActionNoiseScaleHandle = InstanceData->Add<1, float>({ InIdentifier, TEXT("ActionNoiseScale") }, { InMaxInstanceNum }, Settings.ActionNoiseScale);
 
 		NeuralNetworkInference = NeuralNetwork->CreateInferenceObject(InMaxInstanceNum, InInferenceSettings);
@@ -49,26 +64,47 @@ namespace UE::Learning
 	{
 		UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(Learning::FNeuralNetworkPolicyFunction::Evaluate);
 
-		const TLearningArrayView<2, const float> Input = InstanceData->ConstView(InputHandle);
-		const TLearningArrayView<1, const float> ActionNoiseScale = InstanceData->ConstView(ActionNoiseScaleHandle);
-		TLearningArrayView<2, float> Output = InstanceData->View(OutputHandle);
-		TLearningArrayView<2, float> OutputNetwork = InstanceData->View(OutputNetworkHandle);
-		TLearningArrayView<2, float> OutputMean = InstanceData->View(OutputMeanHandle);
-		TLearningArrayView<2, float> OutputStd = InstanceData->View(OutputStdHandle);
 		TLearningArrayView<1, uint32> Seed = InstanceData->View(SeedHandle);
 
+		const TLearningArrayView<2, const float> InputObservation = InstanceData->ConstView(InputObservationHandle);
+		const TLearningArrayView<2, const float> InputMemoryState = InstanceData->ConstView(InputMemoryStateHandle);
+		TLearningArrayView<2, float> InputNetwork = InstanceData->View(InputNetworkHandle);
+
+		TLearningArrayView<2, float> OutputNetwork = InstanceData->View(OutputNetworkHandle);
+		TLearningArrayView<2, float> OutputMemoryState = InstanceData->View(OutputMemoryStateHandle);
+		TLearningArrayView<2, float> OutputAction = InstanceData->View(OutputActionHandle);
+		TLearningArrayView<2, float> OutputActionMean = InstanceData->View(OutputActionMeanHandle);
+		TLearningArrayView<2, float> OutputActionStd = InstanceData->View(OutputActionStdHandle);
+
+		const TLearningArrayView<1, const float> ActionNoiseScale = InstanceData->ConstView(ActionNoiseScaleHandle);
+
 		const int32 InstanceNum = Instances.Num();
-		const int32 InputNum = Input.Num<1>();
-		const int32 OutputNum = Output.Num<1>();
 
-		UE_LEARNING_CHECK(NeuralNetwork->GetInputNum() == InputNum);
-		UE_LEARNING_CHECK(NeuralNetwork->GetOutputNum() == 2 * OutputNum);
+		Array::Check(InputObservation, Instances);
+		Array::Check(InputMemoryState, Instances);
 
-		Array::Check(Input, Instances);
+		// Copy in Observation and Memory State into network input
 
-		NeuralNetworkInference->Evaluate(OutputNetwork, Input, Instances);
+		for (const int32 InstanceIdx : Instances)
+		{
+			Array::Copy(InputNetwork[InstanceIdx].Slice(0, ObservationNum), InputObservation[InstanceIdx]);
+			Array::Copy(InputNetwork[InstanceIdx].Slice(ObservationNum, MemoryStateNum), InputMemoryState[InstanceIdx]);
+		}
+
+		NeuralNetworkInference->Evaluate(OutputNetwork, InputNetwork, Instances);
 
 		Array::Check(OutputNetwork, Instances);
+
+		// Copy Out Memory State
+
+		for (const int32 InstanceIdx : Instances)
+		{
+			Array::Copy(
+				OutputMemoryState[InstanceIdx],
+				OutputNetwork[InstanceIdx].Slice(2 * ActionNum, MemoryStateNum));
+		}
+
+		Array::Check(OutputMemoryState, Instances);
 
 		// Apply Action Noise
 
@@ -80,14 +116,15 @@ namespace UE::Learning
 		if (Instances.IsSlice())
 		{
 			ispc::LearningLayerActionNoise(
-				Output.Slice(Instances.GetSliceStart(), Instances.GetSliceNum()).GetData(),
-				OutputMean.Slice(Instances.GetSliceStart(), Instances.GetSliceNum()).GetData(),
-				OutputStd.Slice(Instances.GetSliceStart(), Instances.GetSliceNum()).GetData(),
+				OutputAction.Slice(Instances.GetSliceStart(), Instances.GetSliceNum()).GetData(),
+				OutputActionMean.Slice(Instances.GetSliceStart(), Instances.GetSliceNum()).GetData(),
+				OutputActionStd.Slice(Instances.GetSliceStart(), Instances.GetSliceNum()).GetData(),
 				OutputNetwork.Slice(Instances.GetSliceStart(), Instances.GetSliceNum()).GetData(),
 				Seed.Slice(Instances.GetSliceStart(), Instances.GetSliceNum()).GetData(),
 				ActionNoiseScale.Slice(Instances.GetSliceStart(), Instances.GetSliceNum()).GetData(),
 				Instances.GetSliceNum(),
-				OutputNum,
+				ActionNum,
+				MemoryStateNum,
 				LogActionNoiseMin,
 				LogActionNoiseMax);
 		}
@@ -96,13 +133,14 @@ namespace UE::Learning
 			for (const int32 InstanceIdx : Instances)
 			{
 				ispc::LearningLayerActionNoiseSingleBatch(
-					Output[InstanceIdx].GetData(),
-					OutputMean[InstanceIdx].GetData(),
-					OutputStd[InstanceIdx].GetData(),
+					OutputAction[InstanceIdx].GetData(),
+					OutputActionMean[InstanceIdx].GetData(),
+					OutputActionStd[InstanceIdx].GetData(),
 					OutputNetwork[InstanceIdx].GetData(),
 					Seed[InstanceIdx],
 					ActionNoiseScale[InstanceIdx],
-					OutputNum,
+					ActionNum,
+					MemoryStateNum,
 					LogActionNoiseMin,
 					LogActionNoiseMax);
 			}
@@ -110,26 +148,26 @@ namespace UE::Learning
 #else
 		for (const int32 InstanceIdx : Instances)
 		{
-			for (int32 OutputIdx = 0; OutputIdx < OutputNum; OutputIdx++)
+			for (int32 ActionIdx = 0; ActionIdx < ActionNum; ActionIdx++)
 			{
-				OutputMean[InstanceIdx][OutputIdx] = OutputNetwork[InstanceIdx][OutputIdx];
-				OutputStd[InstanceIdx][OutputIdx] = ActionNoiseScale[InstanceIdx] *
+				OutputActionMean[InstanceIdx][ActionIdx] = OutputNetwork[InstanceIdx][ActionIdx];
+				OutputActionStd[InstanceIdx][ActionIdx] = ActionNoiseScale[InstanceIdx] *
 					FMath::Exp(NeuralNetworkPolicyFunction::Private::Sigmoid(
-						OutputNetwork[InstanceIdx][OutputNum + OutputIdx]) * (LogActionNoiseMax - LogActionNoiseMin) + LogActionNoiseMin);
+						OutputNetwork[InstanceIdx][ActionNum + ActionIdx]) * (LogActionNoiseMax - LogActionNoiseMin) + LogActionNoiseMin);
 
-				Output[InstanceIdx][OutputIdx] = Random::Gaussian(
-					Seed[InstanceIdx] ^ 0xab744615 ^ Random::Int(OutputIdx ^ 0xf8a88a27),
-					OutputMean[InstanceIdx][OutputIdx],
-					OutputStd[InstanceIdx][OutputIdx]);
+				OutputAction[InstanceIdx][ActionIdx] = Random::Gaussian(
+					Seed[InstanceIdx] ^ 0xab744615 ^ Random::Int(ActionIdx ^ 0xf8a88a27),
+					OutputActionMean[InstanceIdx][ActionIdx],
+					OutputActionStd[InstanceIdx][ActionIdx]);
 			}
 		}
 #endif
 
 		Random::ResampleStateArray(Seed, Instances);
 
-		Array::Check(OutputMean, Instances);
-		Array::Check(OutputStd, Instances);
-		Array::Check(Output, Instances);
+		Array::Check(OutputActionMean, Instances);
+		Array::Check(OutputActionStd, Instances);
+		Array::Check(OutputAction, Instances);
 	}
 
 	void FNeuralNetworkPolicyFunction::UpdateNeuralNetwork(const TSharedPtr<INeuralNetwork>& NewNeuralNetwork)
@@ -145,14 +183,23 @@ namespace UE::Learning
 		const FName& InIdentifier,
 		const TSharedRef<FArrayMap>& InInstanceData,
 		const int32 InMaxInstanceNum,
+		const int32 InObservationNum,
+		const int32 InMemoryStateNum,
 		const TSharedPtr<INeuralNetwork>& InNeuralNetwork,
 		const FNeuralNetworkInferenceSettings& InInferenceSettings)
 		: FFunctionObject(InInstanceData)
 		, MaxInstanceNum(InMaxInstanceNum)
+		, ObservationNum(InObservationNum)
+		, MemoryStateNum(InMemoryStateNum)
 		, NeuralNetwork(InNeuralNetwork)
 		, InferenceSettings(InInferenceSettings)
 	{
-		InputHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("Input") }, { InMaxInstanceNum, NeuralNetwork->GetInputNum() }, 0.0f);
+		UE_LEARNING_CHECK(NeuralNetwork->GetInputNum() == ObservationNum + MemoryStateNum);
+		UE_LEARNING_CHECK(NeuralNetwork->GetOutputNum() == 1);
+
+		InputObservationHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("InputObservation") }, { InMaxInstanceNum, ObservationNum }, 0.0f);
+		InputMemoryStateHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("InputMemoryState") }, { InMaxInstanceNum, MemoryStateNum }, 0.0f);
+		InputNetworkHandle = InstanceData->Add<2, float>({ InIdentifier, TEXT("InputNetwork") }, { InMaxInstanceNum, ObservationNum + MemoryStateNum }, 0.0f);
 		OutputHandle = InstanceData->Add<1, float>({ InIdentifier, TEXT("Output") }, { InMaxInstanceNum }, 0.0f);
 
 		NeuralNetworkInference = NeuralNetwork->CreateInferenceObject(InMaxInstanceNum, InInferenceSettings);
@@ -162,15 +209,23 @@ namespace UE::Learning
 	{
 		UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(Learning::FNeuralNetworkCriticFunction::Evaluate);
 
-		const TLearningArrayView<2, const float> Input = InstanceData->ConstView(InputHandle);
+		const TLearningArrayView<2, const float> InputObservation = InstanceData->ConstView(InputObservationHandle);
+		const TLearningArrayView<2, const float> InputMemoryState = InstanceData->ConstView(InputMemoryStateHandle);
+		TLearningArrayView<2, float> InputNetwork = InstanceData->View(InputNetworkHandle);
 		TLearningArrayView<1, float> Output = InstanceData->View(OutputHandle);
 
-		UE_LEARNING_CHECK(NeuralNetwork->GetInputNum() == Input.Num<1>());
-		UE_LEARNING_CHECK(NeuralNetwork->GetOutputNum() == 1);
+		// Copy in Observation and Memory State into network input
+
+		for (const int32 InstanceIdx : Instances)
+		{
+			Array::Copy(InputNetwork[InstanceIdx].Slice(0, ObservationNum), InputObservation[InstanceIdx]);
+			Array::Copy(InputNetwork[InstanceIdx].Slice(ObservationNum, MemoryStateNum), InputMemoryState[InstanceIdx]);
+		}
 
 		NeuralNetworkInference->Evaluate(
 			TLearningArrayView<2, float>(Output.GetData(), { Output.Num(), 1 }),
-			Input, Instances);
+			InputNetwork, 
+			Instances);
 
 		Array::Check(Output, Instances);
 	}

@@ -9,7 +9,7 @@
 
 bool FLearningAgentsRecord::Serialize(FArchive& Ar)
 {
-	Ar << SampleNum;
+	Ar << StepNum;
 	Ar << ObservationDimNum;
 	Ar << ActionDimNum;
 	UE::Learning::Array::Serialize(Ar, Observations);
@@ -66,7 +66,7 @@ void ULearningAgentsRecording::LoadRecordingFromFile(const FFilePath& File)
 
 		for (int32 RecordIdx = 0; RecordIdx < RecordNum; RecordIdx++)
 		{
-			UE::Learning::DeserializeFromBytes(Offset, RecordingData, Records[RecordIdx].SampleNum);
+			UE::Learning::DeserializeFromBytes(Offset, RecordingData, Records[RecordIdx].StepNum);
 			UE::Learning::DeserializeFromBytes(Offset, RecordingData, Records[RecordIdx].ObservationDimNum);
 			UE::Learning::DeserializeFromBytes(Offset, RecordingData, Records[RecordIdx].ActionDimNum);
 			UE::Learning::Array::DeserializeFromBytes(Offset, RecordingData, Records[RecordIdx].Observations);
@@ -99,7 +99,7 @@ void ULearningAgentsRecording::SaveRecordingToFile(const FFilePath& File) const
 			sizeof(int32) + // ObservationDimNum
 			sizeof(int32) + // ActionDimNum
 			UE::Learning::Array::SerializationByteNum<2, float>(Records[RecordIdx].Observations.Shape()) + // Observations
-			UE::Learning::Array::SerializationByteNum<2, float>(Records[RecordIdx].Actions.Shape()); // Actions
+			UE::Learning::Array::SerializationByteNum<2, float>(Records[RecordIdx].Actions.Shape());	   // Actions
 	}
 
 	RecordingData.SetNumUninitialized(TotalByteNum);
@@ -111,7 +111,7 @@ void ULearningAgentsRecording::SaveRecordingToFile(const FFilePath& File) const
 
 	for (int32 RecordIdx = 0; RecordIdx < Records.Num(); RecordIdx++)
 	{
-		UE::Learning::SerializeToBytes(Offset, RecordingData, Records[RecordIdx].SampleNum);
+		UE::Learning::SerializeToBytes(Offset, RecordingData, Records[RecordIdx].StepNum);
 		UE::Learning::SerializeToBytes(Offset, RecordingData, Records[RecordIdx].ObservationDimNum);
 		UE::Learning::SerializeToBytes(Offset, RecordingData, Records[RecordIdx].ActionDimNum);
 		UE::Learning::Array::SerializeToBytes(Offset, RecordingData, Records[RecordIdx].Observations);

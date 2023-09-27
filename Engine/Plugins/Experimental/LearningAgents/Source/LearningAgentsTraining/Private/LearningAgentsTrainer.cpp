@@ -203,7 +203,8 @@ void ULearningAgentsTrainer::SetupTrainer(
 		Manager->GetMaxAgentNum(),
 		TrainerSettings.MaxStepNum,
 		Interactor->GetObservationFeature().DimNum(),
-		Interactor->GetActionFeature().DimNum());
+		Interactor->GetActionFeature().DimNum(),
+		Policy->GetMemoryStateSize());
 
 	MaxStepsCompletion = TrainerSettings.MaxStepsCompletion;
 
@@ -212,6 +213,7 @@ void ULearningAgentsTrainer::SetupTrainer(
 	ReplayBuffer->Resize(
 		Interactor->GetObservationFeature().DimNum(),
 		Interactor->GetActionFeature().DimNum(),
+		Policy->GetMemoryStateSize(),
 		TrainerSettings.MaximumRecordedEpisodesPerIteration,
 		TrainerSettings.MaximumRecordedStepsPerIteration);
 
@@ -476,13 +478,17 @@ void ULearningAgentsTrainer::BeginTraining(
 	PPOTrainingSettings.LearningRateDecay = TrainerTrainingSettings.LearningRateDecay;
 	PPOTrainingSettings.WeightDecay = TrainerTrainingSettings.WeightDecay;
 	PPOTrainingSettings.InitialActionScale = TrainerTrainingSettings.InitialActionScale;
-	PPOTrainingSettings.BatchSize = TrainerTrainingSettings.BatchSize;
+	PPOTrainingSettings.PolicyBatchSize = TrainerTrainingSettings.PolicyBatchSize;
+	PPOTrainingSettings.CriticBatchSize = TrainerTrainingSettings.CriticBatchSize;
+	PPOTrainingSettings.PolicyWindow = TrainerTrainingSettings.PolicyWindowSize;
 	PPOTrainingSettings.EpsilonClip = TrainerTrainingSettings.EpsilonClip;
+	PPOTrainingSettings.ReturnRegularizationWeight = TrainerTrainingSettings.ReturnRegularizationWeight;
 	PPOTrainingSettings.ActionRegularizationWeight = TrainerTrainingSettings.ActionRegularizationWeight;
-	PPOTrainingSettings.EntropyWeight = TrainerTrainingSettings.EntropyWeight;
+	PPOTrainingSettings.ActionEntropyWeight = TrainerTrainingSettings.ActionEntropyWeight;
 	PPOTrainingSettings.GaeLambda = TrainerTrainingSettings.GaeLambda;
-	PPOTrainingSettings.bClipAdvantages = TrainerTrainingSettings.bClipAdvantages;
 	PPOTrainingSettings.bAdvantageNormalization = TrainerTrainingSettings.bAdvantageNormalization;
+	PPOTrainingSettings.AdvantageMin = TrainerTrainingSettings.MinimumAdvantage;
+	PPOTrainingSettings.AdvantageMax = TrainerTrainingSettings.MaximumAdvantage;
 	PPOTrainingSettings.TrimEpisodeStartStepNum = TrainerTrainingSettings.NumberOfStepsToTrimAtStartOfEpisode;
 	PPOTrainingSettings.TrimEpisodeEndStepNum = TrainerTrainingSettings.NumberOfStepsToTrimAtEndOfEpisode;
 	PPOTrainingSettings.Seed = TrainerTrainingSettings.RandomSeed;
@@ -496,7 +502,7 @@ void ULearningAgentsTrainer::BeginTraining(
 
 	UE::Learning::EPPOTrainerFlags TrainerFlags = UE::Learning::EPPOTrainerFlags::None;
 	if (!bReinitializePolicyNetwork) { TrainerFlags |= UE::Learning::EPPOTrainerFlags::UseInitialPolicyNetwork; }
-	if (!bReinitializeCriticNetwork && Critic) { TrainerFlags |= UE::Learning::EPPOTrainerFlags::UseInitialCriticNetwork; }
+	if (!bReinitializeCriticNetwork) { TrainerFlags |= UE::Learning::EPPOTrainerFlags::UseInitialCriticNetwork; }
 
 	// Start Python Training Process (this must be done on game thread)
 	Trainer = MakeUnique<UE::Learning::FSharedMemoryPPOTrainer>(
@@ -634,7 +640,7 @@ void ULearningAgentsTrainer::EvaluateRewards()
 		return;
 	}
 
-	// Check agents have actually make observations and taken actions.
+	// Check agents have actually made observations and taken actions.
 
 	ValidAgentIds.Empty(Manager->GetAgentNum());
 
@@ -730,7 +736,7 @@ void ULearningAgentsTrainer::EvaluateCompletions()
 		return;
 	}
 
-	// Check agents have actually make observations and taken actions.
+	// Check agents have actually made observations and taken actions.
 
 	ValidAgentIds.Empty(Manager->GetAgentNum());
 
@@ -889,6 +895,7 @@ void ULearningAgentsTrainer::ProcessExperience()
 	EpisodeBuffer->Push(
 		Observations.FeatureBuffer(),
 		Actions.FeatureBuffer(),
+		Policy->GetPreEvaluationMemoryStateView(),
 		Rewards->RewardBuffer(),
 		ValidAgentSet);
 
@@ -913,6 +920,7 @@ void ULearningAgentsTrainer::ProcessExperience()
 		const bool bReplayBufferFull = ReplayBuffer->AddEpisodes(
 			Completions->CompletionBuffer(),
 			Observations.FeatureBuffer(),
+			Policy->GetMemoryStateView(),
 			*EpisodeBuffer,
 			ResetBuffer->GetResetInstances());
 

@@ -103,30 +103,33 @@ void ULearningAgentsImitationTrainer::BeginTraining(
 
 	// Sizes
 
-	const int32 PolicyInputNum = Policy->GetPolicyNetwork().GetInputNum();
-	const int32 PolicyOutputNum = Policy->GetPolicyNetwork().GetOutputNum();
+	const int32 ObservationNum = Policy->GetPolicyObject().ObservationNum;
+	const int32 ActionNum = Policy->GetPolicyObject().ActionNum;
+	const int32 MemoryStateNum = Policy->GetPolicyObject().MemoryStateNum;
 
 	// Get Number of Steps
 
-	int32 TotalSampleNum = 0;
+	int32 TotalEpisodeNum = 0;
+	int32 TotalStepNum = 0;
 	for (const FLearningAgentsRecord& Record : Recording->Records)
 	{
-		if (Record.ObservationDimNum != PolicyInputNum)
+		if (Record.ObservationDimNum != ObservationNum)
 		{
-			UE_LOG(LogLearning, Warning, TEXT("%s: Record has wrong dimensionality for observations, got %i, policy expected %i."), *GetName(), Record.ObservationDimNum, PolicyInputNum);
+			UE_LOG(LogLearning, Warning, TEXT("%s: Record has wrong dimensionality for observations, got %i, policy expected %i."), *GetName(), Record.ObservationDimNum, ObservationNum);
 			continue;
 		}
 
-		if (Record.ActionDimNum != PolicyOutputNum / 2)
+		if (Record.ActionDimNum != ActionNum)
 		{
-			UE_LOG(LogLearning, Warning, TEXT("%s: Record has wrong dimensionality for actions, got %i, policy expected %i."), *GetName(), Record.ActionDimNum, PolicyOutputNum / 2);
+			UE_LOG(LogLearning, Warning, TEXT("%s: Record has wrong dimensionality for actions, got %i, policy expected %i."), *GetName(), Record.ActionDimNum, ActionNum);
 			continue;
 		}
 
-		TotalSampleNum += Record.SampleNum;
+		TotalEpisodeNum++;
+		TotalStepNum += Record.StepNum;
 	}
 
-	if (TotalSampleNum == 0)
+	if (TotalStepNum == 0)
 	{
 		UE_LOG(LogLearning, Warning, TEXT("%s: Recording contains no valid training data."), *GetName());
 		return;
@@ -134,21 +137,28 @@ void ULearningAgentsImitationTrainer::BeginTraining(
 
 	// Copy into Flat Arrays
 
-	RecordedObservations.SetNumUninitialized({ TotalSampleNum, PolicyInputNum });
-	RecordedActions.SetNumUninitialized({ TotalSampleNum, PolicyOutputNum / 2 });
+	RecordedEpisodeStarts.SetNumUninitialized({ TotalEpisodeNum });
+	RecordedEpisodeLengths.SetNumUninitialized({ TotalEpisodeNum });
+	RecordedObservations.SetNumUninitialized({ TotalStepNum, ObservationNum });
+	RecordedActions.SetNumUninitialized({ TotalStepNum, ActionNum });
 
-	int32 SampleIdx = 0;
+	int32 EpisodeIdx = 0;
+	int32 StepIdx = 0;
 	for (const FLearningAgentsRecord& Record : Recording->Records)
 	{
-		if (Record.ObservationDimNum != PolicyInputNum) { continue; }
-		if (Record.ActionDimNum != PolicyOutputNum / 2) { continue; }
+		if (Record.ObservationDimNum != ObservationNum) { continue; }
+		if (Record.ActionDimNum != ActionNum) { continue; }
 
-		UE::Learning::Array::Copy(RecordedObservations.Slice(SampleIdx, Record.SampleNum), Record.Observations);
-		UE::Learning::Array::Copy(RecordedActions.Slice(SampleIdx, Record.SampleNum), Record.Actions);
-		SampleIdx += Record.SampleNum;
+		RecordedEpisodeStarts[EpisodeIdx] = StepIdx;
+		RecordedEpisodeLengths[EpisodeIdx] = Record.StepNum;
+		UE::Learning::Array::Copy(RecordedObservations.Slice(StepIdx, Record.StepNum), Record.Observations);
+		UE::Learning::Array::Copy(RecordedActions.Slice(StepIdx, Record.StepNum), Record.Actions);
+		EpisodeIdx++;
+		StepIdx += Record.StepNum;
 	}
 
-	UE_LEARNING_CHECK(SampleIdx == TotalSampleNum);
+	UE_LEARNING_CHECK(EpisodeIdx == TotalEpisodeNum);
+	UE_LEARNING_CHECK(StepIdx == TotalStepNum);
 
 	// Begin Training Properly
 
@@ -157,10 +167,10 @@ void ULearningAgentsImitationTrainer::BeginTraining(
 
 	UE::Learning::FImitationTrainerTrainingSettings ImitationTrainingSettings;
 	ImitationTrainingSettings.IterationNum = ImitationTrainerTrainingSettings.NumberOfIterations;
-	ImitationTrainingSettings.LearningRateActor = ImitationTrainerTrainingSettings.LearningRate;
+	ImitationTrainingSettings.LearningRatePolicy = ImitationTrainerTrainingSettings.LearningRate;
 	ImitationTrainingSettings.LearningRateDecay = ImitationTrainerTrainingSettings.LearningRateDecay;
 	ImitationTrainingSettings.WeightDecay = ImitationTrainerTrainingSettings.WeightDecay;
-	ImitationTrainingSettings.BatchSize = ImitationTrainerTrainingSettings.BatchSize;
+	ImitationTrainingSettings.PolicyBatchSize = ImitationTrainerTrainingSettings.BatchSize;
 	ImitationTrainingSettings.Seed = ImitationTrainerTrainingSettings.RandomSeed;
 	ImitationTrainingSettings.Device = UE::Learning::Agents::GetTrainerDevice(ImitationTrainerTrainingSettings.Device);
 	ImitationTrainingSettings.bUseTensorboard = ImitationTrainerTrainingSettings.bUseTensorboard;
@@ -176,9 +186,11 @@ void ULearningAgentsImitationTrainer::BeginTraining(
 		SitePackagesPath,
 		PythonContentPath,
 		IntermediatePath,
-		RecordedObservations.Num<0>(),
-		RecordedObservations.Num<1>(),
-		RecordedActions.Num<1>(),
+		TotalEpisodeNum,
+		TotalStepNum,
+		ObservationNum,
+		ActionNum,
+		MemoryStateNum,
 		Policy->GetPolicyNetwork(),
 		ImitationTrainingSettings);
 
@@ -215,7 +227,12 @@ void ULearningAgentsImitationTrainer::BeginTraining(
 
 	// Send Experience
 
-	Response = ImitationTrainer->SendExperience(RecordedObservations, RecordedActions, TrainerTimeout);
+	Response = ImitationTrainer->SendExperience(
+		RecordedEpisodeStarts,
+		RecordedEpisodeLengths,
+		RecordedObservations, 
+		RecordedActions, 
+		TrainerTimeout);
 
 	if (Response != UE::Learning::ETrainerResponse::Success)
 	{

@@ -7,6 +7,7 @@
 #include "LearningAgentsNeuralNetwork.h" // Included for ELearningAgentsActivationFunction
 #include "LearningAgentsDebug.h"
 #include "LearningArray.h"
+#include "LearningArrayMap.h"
 #include "UObject/ObjectPtr.h"
 
 #include "LearningAgentsPolicy.generated.h"
@@ -52,6 +53,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", UIMin = "1"))
 	int32 HiddenLayerSize = 128;
 
+	/** Number of neurons in the memory state of the policy network */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", UIMin = "1"))
+	int32 MemoryStateSize = 128;
+
 	/** Activation function to use on hidden layers of the policy network */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents")
 	ELearningAgentsActivationFunction ActivationFunction = ELearningAgentsActivationFunction::ELU;
@@ -82,6 +87,14 @@ public:
 	void SetupPolicy(ULearningAgentsInteractor* InInteractor, 
 		const FLearningAgentsPolicySettings& PolicySettings = FLearningAgentsPolicySettings(),
 		ULearningAgentsNeuralNetwork* NeuralNetworkAsset = nullptr);
+
+public:
+
+	//~ Begin ULearningAgentsManagerComponent Interface
+	virtual void OnAgentsAdded(const TArray<int32>& AgentIds) override;
+	virtual void OnAgentsRemoved(const TArray<int32>& AgentIds) override;
+	virtual void OnAgentsReset(const TArray<int32>& AgentIds) override;
+	//~ End ULearningAgentsManagerComponent Interface
 
 // ----- Load / Save -----
 public:
@@ -147,6 +160,24 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
 	void SetActionNoiseScale(const float ActionNoiseScale);
 
+	/**
+	 * Gets the current memory state for a given agent as represented by an abstract vector learned by the policy.
+	 *
+	 * @param OutMemoryState	The output memory state of the agent
+	 * @param AgentId			The AgentId to get the memory state of
+	 */
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents", Meta = (AgentId = -1))
+	void GetMemoryState(TArray<float>& OutMemoryState, const int32 AgentId) const;
+
+	/**
+	 * Sets the current memory state for a given agent as represented by an abstract vector learned by the policy.
+	 *
+	 * @param AgentId			The AgentId to set the memory state of
+	 * @param InMemoryState		The input memory state of the agent
+	 */
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents", Meta = (AgentId = -1))
+	void SetMemoryState(const int32 AgentId, const TArray<float>& InMemoryState);
+
 // ----- Non-blueprint public interface -----
 public:
 
@@ -158,6 +189,21 @@ public:
 
 	/** Get a reference to this policy's policy function object. */
 	UE::Learning::FNeuralNetworkPolicyFunction& GetPolicyObject();
+
+	/** Gets a view of the memory state for the given agent before evaluation */
+	TLearningArrayView<2, const float> GetPreEvaluationMemoryStateView() const;
+
+	/** Gets a view of the memory state for the given agent before evaluation */
+	TLearningArrayView<2, float> GetPreEvaluationMemoryStateView();
+
+	/** Gets a view of the current memory state for the given agent */
+	TLearningArrayView<2, const float> GetMemoryStateView() const;
+
+	/** Gets a view of the current memory state for the given agent */
+	TLearningArrayView<2, float> GetMemoryStateView();
+
+	/** Gets the size of the memory state */
+	int32 GetMemoryStateSize() const;
 
 // ----- Private Data -----
 private:
@@ -173,8 +219,17 @@ private:
 	/** Internal Policy Function Object */
 	TSharedPtr<UE::Learning::FNeuralNetworkPolicyFunction> PolicyObject;
 
+	/** The internal memory state of each agent before evaluation. */
+	UE::Learning::TArrayMapHandle<2, float> PreEvaluationMemoryStateHandle;
+
+	/** The internal memory state of each agent. */
+	UE::Learning::TArrayMapHandle<2, float> MemoryStateHandle;
+
 // ----- Private Iteration Checks ----- 
 private:
+
+	/** Number of times policy has been evaluated for all agents. */
+	TLearningArray<1, uint64, TInlineAllocator<32>> PolicyAgentIteration;
 
 	/** Temp buffers used to record the set of agents that are valid for evaluation */
 	TArray<int32> ValidAgentIds;

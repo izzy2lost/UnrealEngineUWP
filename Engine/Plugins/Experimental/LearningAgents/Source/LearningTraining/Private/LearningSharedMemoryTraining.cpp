@@ -229,8 +229,10 @@ namespace UE::Learning::SharedMemoryTraining
 		TLearningArrayView<1, int32> EpisodeLengths,
 		TLearningArrayView<1, ECompletionMode> EpisodeCompletionModes,
 		TLearningArrayView<2, float> EpisodeFinalObservations,
+		TLearningArrayView<2, float> EpisodeFinalMemoryStates,
 		TLearningArrayView<2, float> Observations,
 		TLearningArrayView<2, float> Actions,
+		TLearningArrayView<2, float> MemoryStates,
 		TLearningArrayView<1, float> Rewards,
 		TLearningArrayView<1, volatile int32> Controls,
 		const FReplayBuffer& ReplayBuffer,
@@ -265,8 +267,10 @@ namespace UE::Learning::SharedMemoryTraining
 		Array::Copy(EpisodeLengths.Slice(0, EpisodeNum), ReplayBuffer.GetEpisodeLengths());
 		Array::Copy(EpisodeCompletionModes.Slice(0, EpisodeNum), ReplayBuffer.GetEpisodeCompletionModes());
 		Array::Copy(EpisodeFinalObservations.Slice(0, EpisodeNum), ReplayBuffer.GetEpisodeFinalObservations());
+		Array::Copy(EpisodeFinalMemoryStates.Slice(0, EpisodeNum), ReplayBuffer.GetEpisodeFinalMemoryStates());
 		Array::Copy(Observations.Slice(0, StepNum), ReplayBuffer.GetObservations());
 		Array::Copy(Actions.Slice(0, StepNum), ReplayBuffer.GetActions());
+		Array::Copy(MemoryStates.Slice(0, StepNum), ReplayBuffer.GetMemoryStates());
 		Array::Copy(Rewards.Slice(0, StepNum), ReplayBuffer.GetRewards());
 
 		// Indicate that experience is written
@@ -278,9 +282,13 @@ namespace UE::Learning::SharedMemoryTraining
 	}
 
 	ETrainerResponse SendExperience(
+		TLearningArrayView<1, int32> EpisodeStarts,
+		TLearningArrayView<1, int32> EpisodeLengths,
 		TLearningArrayView<2, float> Observations,
 		TLearningArrayView<2, float> Actions,
 		TLearningArrayView<1, volatile int32> Controls,
+		const TLearningArrayView<1, const int32> EpisodeStartsExperience,
+		const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
 		const TLearningArrayView<2, const float> ObservationExperience,
 		const TLearningArrayView<2, const float> ActionExperience,
 		const float Timeout,
@@ -306,13 +314,17 @@ namespace UE::Learning::SharedMemoryTraining
 			UE_LOG(LogLearning, Display, TEXT("Pushing Experience..."));
 		}
 
-		const int32 StepNum = ObservationExperience.Num(0);
+		const int32 EpisodeNum = EpisodeStartsExperience.Num<0>();
+		const int32 StepNum = ObservationExperience.Num<0>();
 
 		// Write experience to the shared memory
+		Array::Copy(EpisodeStarts.Slice(0, EpisodeNum), EpisodeStartsExperience);
+		Array::Copy(EpisodeLengths.Slice(0, EpisodeNum), EpisodeLengthsExperience);
 		Array::Copy(Observations.Slice(0, StepNum), ObservationExperience);
 		Array::Copy(Actions.Slice(0, StepNum), ActionExperience);
 
 		// Confirm that experience is written
+		Controls[(uint8)EControls::ExperienceEpisodeNum] = EpisodeNum;
 		Controls[(uint8)EControls::ExperienceStepNum] = StepNum;
 		Controls[(uint8)EControls::ExperienceSignal] = true;
 

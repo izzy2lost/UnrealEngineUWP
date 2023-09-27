@@ -114,9 +114,11 @@ namespace UE::Learning
 		const FString& SitePackagesPath,
 		const FString& PythonContentPath,
 		const FString& IntermediatePath,
-		const int32 MaxSampleNum,
+		const int32 MaxEpisodeNum,
+		const int32 MaxStepNum,
 		const int32 ObservationDimNum,
 		const int32 ActionDimNum,
+		const int32 MemoryStateDimNum,
 		const INeuralNetwork& PolicyNetwork,
 		const FImitationTrainerTrainingSettings& TrainingSettings,
 		const FImitationTrainerNetworkSettings& NetworkSettings,
@@ -132,8 +134,10 @@ namespace UE::Learning
 
 		Policy = SharedMemory::Allocate<1, uint8>({ PolicyNetwork.GetSerializationByteNum() });
 		Controls = SharedMemory::Allocate<1, volatile int32>({ SharedMemoryTraining::GetControlNum() });
-		Observations = SharedMemory::Allocate<2, float>({ MaxSampleNum, ObservationDimNum });
-		Actions = SharedMemory::Allocate<2, float>({ MaxSampleNum, ActionDimNum });
+		EpisodeStarts = SharedMemory::Allocate<1, int32>({ MaxEpisodeNum });
+		EpisodeLengths = SharedMemory::Allocate<1, int32>({ MaxEpisodeNum });
+		Observations = SharedMemory::Allocate<2, float>({ MaxStepNum, ObservationDimNum });
+		Actions = SharedMemory::Allocate<2, float>({ MaxStepNum, ActionDimNum });
 
 		// We need to zero the control memory before we start
 		// the training sub-process since it may contain uninitialized 
@@ -162,22 +166,29 @@ namespace UE::Learning
 
 		ConfigObject->SetStringField(TEXT("PolicyGuid"), *Policy.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 		ConfigObject->SetStringField(TEXT("ControlsGuid"), *Controls.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
+		ConfigObject->SetStringField(TEXT("EpisodeStartsGuid"), *EpisodeStarts.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
+		ConfigObject->SetStringField(TEXT("EpisodeLengthsGuid"), *EpisodeLengths.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 		ConfigObject->SetStringField(TEXT("ObservationsGuid"), *Observations.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 		ConfigObject->SetStringField(TEXT("ActionsGuid"), *Actions.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 
 		ConfigObject->SetNumberField(TEXT("ObservationVectorDimensionNum"), ObservationDimNum);
 		ConfigObject->SetNumberField(TEXT("ActionVectorDimensionNum"), ActionDimNum);
-		ConfigObject->SetNumberField(TEXT("MaxSampleNum"), MaxSampleNum);
+		ConfigObject->SetNumberField(TEXT("MemoryStateVectorDimensionNum"), MemoryStateDimNum);
+		ConfigObject->SetNumberField(TEXT("MaxEpisodeNum"), MaxEpisodeNum);
+		ConfigObject->SetNumberField(TEXT("MaxStepNum"), MaxStepNum);
 
 		ConfigObject->SetNumberField(TEXT("PolicyNetworkByteNum"), PolicyNetwork.GetSerializationByteNum());
 		ConfigObject->SetNumberField(TEXT("PolicyActionNoiseMin"), NetworkSettings.PolicyActionNoiseMin);
 		ConfigObject->SetNumberField(TEXT("PolicyActionNoiseMax"), NetworkSettings.PolicyActionNoiseMax);
 
 		ConfigObject->SetNumberField(TEXT("IterationNum"), TrainingSettings.IterationNum);
-		ConfigObject->SetNumberField(TEXT("LearningRateActor"), TrainingSettings.LearningRateActor);
+		ConfigObject->SetNumberField(TEXT("LearningRatePolicy"), TrainingSettings.LearningRatePolicy);
 		ConfigObject->SetNumberField(TEXT("LearningRateDecay"), TrainingSettings.LearningRateDecay);
 		ConfigObject->SetNumberField(TEXT("WeightDecay"), TrainingSettings.WeightDecay);
-		ConfigObject->SetNumberField(TEXT("BatchSize"), TrainingSettings.BatchSize);
+		ConfigObject->SetNumberField(TEXT("InitialActionScale"), TrainingSettings.InitialActionScale);
+		ConfigObject->SetNumberField(TEXT("InitialMemoryScale"), TrainingSettings.InitialMemoryScale);
+		ConfigObject->SetNumberField(TEXT("PolicyBatchSize"), TrainingSettings.PolicyBatchSize);
+		ConfigObject->SetNumberField(TEXT("PolicyWindow"), TrainingSettings.PolicyWindow);
 		ConfigObject->SetNumberField(TEXT("Seed"), TrainingSettings.Seed);
 		ConfigObject->SetStringField(TEXT("Device"), Trainer::GetDeviceString(TrainingSettings.Device));
 		ConfigObject->SetBoolField(TEXT("UseTensorBoard"), TrainingSettings.bUseTensorboard);
@@ -260,17 +271,23 @@ namespace UE::Learning
 	}
 
 	ETrainerResponse FSharedMemoryImitationTrainer::SendExperience(
-		const TLearningArrayView<2, const float> ObservationVectors,
-		const TLearningArrayView<2, const float> ActionVectors,
+		const TLearningArrayView<1, const int32> EpisodeStartsExperience,
+		const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
+		const TLearningArrayView<2, const float> ObservationsExperience,
+		const TLearningArrayView<2, const float> ActionsExperience,
 		const float Timeout,
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::SendExperience(
+			EpisodeStarts.View,
+			EpisodeLengths.View,
 			Observations.View,
 			Actions.View,
 			Controls.View,
-			ObservationVectors,
-			ActionVectors,
+			EpisodeStartsExperience,
+			EpisodeLengthsExperience,
+			ObservationsExperience,
+			ActionsExperience,
 			Timeout,
 			LogSettings);
 	}
@@ -449,9 +466,11 @@ namespace UE::Learning
 	FSocketImitationTrainer::FSocketImitationTrainer(
 		ETrainerResponse& OutResponse,
 		const FString& TaskName,
-		const int32 MaxSampleNum,
+		const int32 MaxEpisodeNum,
+		const int32 MaxStepNum,
 		const int32 ObservationDimNum,
 		const int32 ActionDimNum,
+		const int32 MemoryStateDimNum,
 		const INeuralNetwork& PolicyNetwork,
 		const TCHAR* IpAddress,
 		const uint32 Port,
@@ -476,17 +495,22 @@ namespace UE::Learning
 
 		ConfigObject->SetNumberField(TEXT("ObservationVectorDimensionNum"), ObservationDimNum);
 		ConfigObject->SetNumberField(TEXT("ActionVectorDimensionNum"), ActionDimNum);
-		ConfigObject->SetNumberField(TEXT("MaxSampleNum"), MaxSampleNum);
+		ConfigObject->SetNumberField(TEXT("MemoryStateVectorDimensionNum"), MemoryStateDimNum);
+		ConfigObject->SetNumberField(TEXT("MaxEpisodeNum"), MaxEpisodeNum);
+		ConfigObject->SetNumberField(TEXT("MaxStepNum"), MaxStepNum);
 
 		ConfigObject->SetNumberField(TEXT("PolicyNetworkByteNum"), PolicyNetwork.GetSerializationByteNum());
 		ConfigObject->SetNumberField(TEXT("PolicyActionNoiseMin"), NetworkSettings.PolicyActionNoiseMin);
 		ConfigObject->SetNumberField(TEXT("PolicyActionNoiseMax"), NetworkSettings.PolicyActionNoiseMax);
 
 		ConfigObject->SetNumberField(TEXT("IterationNum"), TrainingSettings.IterationNum);
-		ConfigObject->SetNumberField(TEXT("LearningRateActor"), TrainingSettings.LearningRateActor);
+		ConfigObject->SetNumberField(TEXT("LearningRatePolicy"), TrainingSettings.LearningRatePolicy);
 		ConfigObject->SetNumberField(TEXT("LearningRateDecay"), TrainingSettings.LearningRateDecay);
 		ConfigObject->SetNumberField(TEXT("WeightDecay"), TrainingSettings.WeightDecay);
-		ConfigObject->SetNumberField(TEXT("BatchSize"), TrainingSettings.BatchSize);
+		ConfigObject->SetNumberField(TEXT("InitialActionScale"), TrainingSettings.InitialActionScale);
+		ConfigObject->SetNumberField(TEXT("InitialMemoryScale"), TrainingSettings.InitialMemoryScale);
+		ConfigObject->SetNumberField(TEXT("PolicyBatchSize"), TrainingSettings.PolicyBatchSize);
+		ConfigObject->SetNumberField(TEXT("PolicyWindow"), TrainingSettings.PolicyWindow);
 		ConfigObject->SetNumberField(TEXT("Seed"), TrainingSettings.Seed);
 		ConfigObject->SetStringField(TEXT("Device"), Trainer::GetDeviceString(TrainingSettings.Device));
 		ConfigObject->SetBoolField(TEXT("UseTensorBoard"), TrainingSettings.bUseTensorboard);
@@ -586,12 +610,21 @@ namespace UE::Learning
 	}
 
 	ETrainerResponse FSocketImitationTrainer::SendExperience(
-		const TLearningArrayView<2, const float> ObservationVectors,
-		const TLearningArrayView<2, const float> ActionVectors,
+		const TLearningArrayView<1, const int32> EpisodeStartsExperience,
+		const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
+		const TLearningArrayView<2, const float> ObservationsExperience,
+		const TLearningArrayView<2, const float> ActionsExperience,
 		const float Timeout,
 		const ELogSetting LogSettings)
 	{
-		return SocketTraining::SendExperience(*Socket, ObservationVectors, ActionVectors, Timeout, LogSettings);
+		return SocketTraining::SendExperience(
+			*Socket, 
+			EpisodeStartsExperience,
+			EpisodeLengthsExperience,
+			ObservationsExperience,
+			ActionsExperience,
+			Timeout, 
+			LogSettings);
 	}
 
 	namespace ImitationTrainer
@@ -599,8 +632,10 @@ namespace UE::Learning
 		ETrainerResponse Train(
 			IImitationTrainer& Trainer,
 			INeuralNetwork& Network,
-			const TLearningArrayView<2, const float> ObservationVectors,
-			const TLearningArrayView<2, const float> ActionVectors,
+			const TLearningArrayView<1, const int32> EpisodeStartsExperience,
+			const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
+			const TLearningArrayView<2, const float> ObservationsExperience,
+			const TLearningArrayView<2, const float> ActionsExperience,
 			const EImitationTrainerFlags TrainerFlags, 
 			TAtomic<bool>* bRequestTrainingStopSignal,
 			FRWLock* NetworkLock,
@@ -654,7 +689,12 @@ namespace UE::Learning
 
 			// Send Experience
 
-			Response = Trainer.SendExperience(ObservationVectors, ActionVectors, 10.0f);
+			Response = Trainer.SendExperience(
+				EpisodeStartsExperience,
+				EpisodeLengthsExperience,
+				ObservationsExperience, 
+				ActionsExperience, 
+				10.0f);
 
 			if (Response != ETrainerResponse::Success)
 			{

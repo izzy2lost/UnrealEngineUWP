@@ -19,6 +19,8 @@ namespace UE::Learning
 
 struct FFilePath;
 class ULearningAgentsNeuralNetwork;
+class ULearningAgentsInteractor;
+class ULearningAgentsPolicy;
 
 /** The configurable settings for a ULearningAgentsCritic. */
 USTRUCT(BlueprintType, Category = "LearningAgents")
@@ -57,6 +59,7 @@ public:
 	/**
 	 * Initializes this object to be used with the given agent interactor and critic settings.
 	 * @param InInteractor The input Interactor component
+	 * @param InPolicy The input Policy component
 	 * @param CriticSettings The critic settings to use
 	 * @param NeuralNetworkAsset Optional Network Asset to use. If provided must match the given CriticSettings. If not
 	 * provided or asset is empty then a new neural network object will be created according to the given 
@@ -65,6 +68,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
 	void SetupCritic(
 		ULearningAgentsInteractor* InInteractor,
+		ULearningAgentsPolicy* InPolicy,
 		const FLearningAgentsCriticSettings& CriticSettings = FLearningAgentsCriticSettings(),
 		ULearningAgentsNeuralNetwork* NeuralNetworkAsset = nullptr);
 
@@ -134,7 +138,7 @@ public:
 	 * @param AgentId	The AgentId to look-up the estimated discounted return for
 	 * @returns			The estimated average discounted return according to the critic
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", Meta=(AgentId = -1))
 	float GetEstimatedDiscountedReturn(const int32 AgentId) const;
 
 // ----- Non-blueprint public interface -----
@@ -156,18 +160,22 @@ private:
 	UPROPERTY(VisibleAnywhere, Transient, Category = "LearningAgents")
 	TObjectPtr<ULearningAgentsInteractor> Interactor;
 
+	/** The policy this critic is associated with. */
+	UPROPERTY(VisibleAnywhere, Transient, Category = "LearningAgents")
+	TObjectPtr<ULearningAgentsPolicy> Policy;
+
 	/** The underlying neural network. */
 	UPROPERTY(VisibleAnywhere, Transient, Category = "LearningAgents")
 	TObjectPtr<ULearningAgentsNeuralNetwork> Network;
 
 	/** Internal Critic Function Object */
 	TSharedPtr<UE::Learning::FNeuralNetworkCriticFunction> CriticObject;
-	
+
 // ----- Private Iteration Checks ----- 
 private:
 
 	/** Number of times critic has been evaluated for all agents */
-	TLearningArray<1, uint64, TInlineAllocator<32>> DiscountedReturnAgentIteration;
+	TLearningArray<1, uint64, TInlineAllocator<32>> CriticAgentIteration;
 
 	/** Temp buffers used to record the set of agents that are valid for evaluation */
 	TArray<int32> ValidAgentIds;

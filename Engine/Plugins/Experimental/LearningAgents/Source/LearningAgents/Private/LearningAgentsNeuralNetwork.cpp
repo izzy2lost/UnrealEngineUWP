@@ -29,7 +29,7 @@ void ULearningAgentsNeuralNetwork::LoadNetworkFromSnapshot(const FFilePath& File
 
 	if (FFileHelper::LoadFileToArray(NetworkData, *File.FilePath))
 	{
-		ULearningAgentsNeuralNetworkData* TempNeuralNetworkData = NewObject<ULearningAgentsDefaultNeuralNetworkData>(this);
+		ULearningAgentsNeuralNetworkData* TempNeuralNetworkData = NewObject<ULearningAgentsNeuralNetworkData>(this);
 		int32 Offset = 0;
 		bool bSuccess = TempNeuralNetworkData->GetNetworkInterface()->DeserializeFromBytes(Offset, NetworkData);
 		
@@ -117,7 +117,7 @@ void ULearningAgentsNeuralNetwork::LoadNetworkFromAsset(ULearningAgentsNeuralNet
 	}
 	else
 	{
-		NeuralNetworkData = NewObject<ULearningAgentsDefaultNeuralNetworkData>(this);
+		NeuralNetworkData = NewObject<ULearningAgentsNeuralNetworkData>(this);
 	}
 
 	NeuralNetworkData->CopyFrom(NeuralNetworkAsset->NeuralNetworkData);
@@ -140,7 +140,7 @@ void ULearningAgentsNeuralNetwork::SaveNetworkToAsset(ULearningAgentsNeuralNetwo
 
 	if (!NeuralNetworkAsset->NeuralNetworkData)
 	{
-		NeuralNetworkAsset->NeuralNetworkData = NewObject<ULearningAgentsDefaultNeuralNetworkData>(NeuralNetworkAsset);
+		NeuralNetworkAsset->NeuralNetworkData = NewObject<ULearningAgentsNeuralNetworkData>(NeuralNetworkAsset);
 	}
 
 	NeuralNetworkAsset->NeuralNetworkData->CopyFrom(NeuralNetworkData);

@@ -77,15 +77,39 @@ namespace UE::Learning
 		// can make things slow or unstable. Too small and the network may become difficult to train.
 		float InitialActionScale = 0.1f;
 
-		// Batch size to use for training. Smaller values tend to produce better results 
+		// Initial scale to apply to memory. The smaller this is, the more stable training will be. Too small and the 
+		// network may not use its memory while training.
+		float InitialMemoryScale = 0.1f;
+
+		// Initial scale to apply to the critic outputs. The smaller this is, the more stable training will be. Too 
+		// small and the network may become too slow to train.
+		float InitialCriticScale = 0.1f;
+
+		// Batch size to use for training the policy. Smaller values tend to produce better results 
 		// at the cost of slowing down training. Large batch sizes are much more computationally efficient 
 		// when training on the GPU.
-		uint32 BatchSize = 128;
+		uint32 PolicyBatchSize = 32;
+
+		// Batch size to use for training the critic. Smaller values tend to produce better results 
+		// at the cost of slowing down training. Large batch sizes are much more computationally efficient 
+		// when training on the GPU.
+		uint32 CriticBatchSize = 256;
+
+		// The window of observations and actions over which to do the training of the policy. Increasing this value 
+		// will encourage the policy to use its memory effectively. Too large and training can become slow and unstable.
+		uint32 PolicyWindow = 8;
+
+		// Number of training iterations to perform per buffer of experience gathered. This should be large enough for
+		// the critic and policy to be effectively updated, but too large and it will simply slow down training.
+		uint32 IterationsPerGather = 250;
 
 		// Clipping ratio to apply to policy updates. Keeps the training "on-policy". 
 		// Larger values may speed up training at the cost of stability. Conversely, too small 
 		// values will keep the policy from being able to learn an optimal policy.
 		float EpsilonClip = 0.2f;
+
+		// Weight used to regularize predicted returns. Encourages the critic not to over or under estimate returns.
+		float ReturnRegularizationWeight = 0.0001f;
 
 		// Weight used to regularize actions. Larger values will encourage smaller actions but too large
 		// will cause actions to become always zero.
@@ -93,19 +117,23 @@ namespace UE::Learning
 
 		// Weighting used for the entropy bonus. Larger values encourage larger action 
 		// noise and therefore greater exploration but can make actions very noisy.
-		float EntropyWeight = 0.01f;
+		float ActionEntropyWeight = 0.01f;
 
 		// This is used in the Generalized Advantage Estimation as what is essentially 
 		// an exponential smoothing/decay. Typical values should be between 0.9 and 1.0.
 		float GaeLambda = 0.9f;
 
-		// When true, very large or small advantages will be clipped. This has few downsides 
-		// and helps with numerical stability.
-		bool bClipAdvantages = true;
-
 		// When true, advantages are normalized. This tends to makes training more robust to 
 		// adjustments of the scale of rewards. 
 		bool bAdvantageNormalization = true;
+
+		// The minimum advantage to allow. Setting this below zero will encourage the policy to
+		// move away from bad actions, but can introduce instability.
+		float AdvantageMin = 0.0f;
+
+		// The maximum advantage to allow. Making this smaller may increase training stability
+		// at the cost of some training speed.
+		float AdvantageMax = 10.0f;
 
 		// Number of steps to trim from the start of each episode during training. This can
 		// be useful if some reset process is taking several steps or you know your starting
@@ -364,16 +392,18 @@ namespace UE::Learning
 
 		// Shared memory
 
-		UE::Learning::TSharedMemoryArrayView<1, uint8> Policy;
-		UE::Learning::TSharedMemoryArrayView<1, uint8> Critic;
-		UE::Learning::TSharedMemoryArrayView<2, volatile int32> Controls; // Mark as volatile to avoid compiler optimizing away reads without writes etc.
-		UE::Learning::TSharedMemoryArrayView<2, int32> EpisodeStarts;
-		UE::Learning::TSharedMemoryArrayView<2, int32> EpisodeLengths;
-		UE::Learning::TSharedMemoryArrayView<2, ECompletionMode> EpisodeCompletionModes;
-		UE::Learning::TSharedMemoryArrayView<3, float> EpisodeFinalObservations;
-		UE::Learning::TSharedMemoryArrayView<3, float> Observations;
-		UE::Learning::TSharedMemoryArrayView<3, float> Actions;
-		UE::Learning::TSharedMemoryArrayView<2, float> Rewards;
+		TSharedMemoryArrayView<1, uint8> Policy;
+		TSharedMemoryArrayView<1, uint8> Critic;
+		TSharedMemoryArrayView<2, volatile int32> Controls; // Mark as volatile to avoid compiler optimizing away reads without writes etc.
+		TSharedMemoryArrayView<2, int32> EpisodeStarts;
+		TSharedMemoryArrayView<2, int32> EpisodeLengths;
+		TSharedMemoryArrayView<2, ECompletionMode> EpisodeCompletionModes;
+		TSharedMemoryArrayView<3, float> EpisodeFinalObservations;
+		TSharedMemoryArrayView<3, float> EpisodeFinalMemoryStates;
+		TSharedMemoryArrayView<3, float> Observations;
+		TSharedMemoryArrayView<3, float> Actions;
+		TSharedMemoryArrayView<3, float> MemoryStates;
+		TSharedMemoryArrayView<2, float> Rewards;
 
 		// Training Process
 
@@ -533,33 +563,35 @@ namespace UE::Learning
 		/**
 		* Train a policy while gathering experience
 		*
-		* @param Trainer						Trainer
-		* @param ReplayBuffer					Replay Buffer
-		* @param EpisodeBuffer					Episode Buffer
-		* @param ResetBuffer					Reset Buffer
-		* @param PolicyNetwork					Policy Network to use
-		* @param CriticNetwork					Optional Critic Network to use
-		* @param ObservationVectorBuffer		Buffer to read/write observation vectors into
-		* @param ActionVectorBuffer				Buffer to read/write action vectors into
-		* @param RewardBuffer					Buffer to read/write rewards into
-		* @param CompletionBuffer				Buffer to read/write completions into
-		* @param EpisodeEndCompletionMode		Completion mode to use for episodes that reach the max length
-		* @param ResetFunction					Function to run for resetting the environment
-		* @param ObservationFunction			Function to run for evaluating observations
-		* @param PolicyFunction					Function to run for evaluating the policy
-		* @param ActionFunction					Function to run for evaluating actions
-		* @param UpdateFunction					Function to run for updating the environment
-		* @param RewardFunction					Function to run for evaluating rewards
-		* @param CompletionFunction				Function to run for evaluating completions
-		* @param Instances						Set of instances to run training for
-		* @param TrainerFlags					Flags for the trainer, should match what was used to initialize the Trainer object.
-		* @param bRequestTrainingStopSignal		Optional signal that can be set to indicate training should be stopped
-		* @param PolicyNetworkLock				Optional Lock to use when updating the policy network
-		* @param CriticNetworkLock				Optional Lock to use when updating the critic network
-		* @param bPolicyNetworkUpdatedSignal	Optional signal that will be set when the policy network is updated
-		* @param bCriticNetworkUpdatedSignal	Optional signal that will be set when the critic network is updated
-		* @param LogSettings					Logging settings
-		* @returns								Trainer response in case of errors during communication otherwise Success
+		* @param Trainer								Trainer
+		* @param ReplayBuffer							Replay Buffer
+		* @param EpisodeBuffer							Episode Buffer
+		* @param ResetBuffer							Reset Buffer
+		* @param PolicyNetwork							Policy Network to use
+		* @param CriticNetwork							Optional Critic Network to use
+		* @param ObservationVectorBuffer				Buffer to read/write observation vectors into
+		* @param ActionVectorBuffer						Buffer to read/write action vectors into
+		* @param PreEvaluationMemoryStateVectorBuffer	Buffer to read/write pre-evaluation memory state vectors into
+		* @param MemoryStateVectorBuffer				Buffer to read/write (post-evaluation) memory state vectors into
+		* @param RewardBuffer							Buffer to read/write rewards into
+		* @param CompletionBuffer						Buffer to read/write completions into
+		* @param EpisodeEndCompletionMode				Completion mode to use for episodes that reach the max length
+		* @param ResetFunction							Function to run for resetting the environment
+		* @param ObservationFunction					Function to run for evaluating observations
+		* @param PolicyFunction							Function to run for evaluating the policy
+		* @param ActionFunction							Function to run for evaluating actions
+		* @param UpdateFunction							Function to run for updating the environment
+		* @param RewardFunction							Function to run for evaluating rewards
+		* @param CompletionFunction						Function to run for evaluating completions
+		* @param Instances								Set of instances to run training for
+		* @param TrainerFlags							Flags for the trainer, should match what was used to initialize the Trainer object.
+		* @param bRequestTrainingStopSignal				Optional signal that can be set to indicate training should be stopped
+		* @param PolicyNetworkLock						Optional Lock to use when updating the policy network
+		* @param CriticNetworkLock						Optional Lock to use when updating the critic network
+		* @param bPolicyNetworkUpdatedSignal			Optional signal that will be set when the policy network is updated
+		* @param bCriticNetworkUpdatedSignal			Optional signal that will be set when the critic network is updated
+		* @param LogSettings							Logging settings
+		* @returns										Trainer response in case of errors during communication otherwise Success
 		*/
 		LEARNINGTRAINING_API ETrainerResponse Train(
 			IPPOTrainer& Trainer,
@@ -570,6 +602,8 @@ namespace UE::Learning
 			INeuralNetwork& CriticNetwork,
 			TLearningArrayView<2, float> ObservationVectorBuffer,
 			TLearningArrayView<2, float> ActionVectorBuffer,
+			TLearningArrayView<2, float> PreEvaluationMemoryStateVectorBuffer,
+			TLearningArrayView<2, float> MemoryStateVectorBuffer,
 			TLearningArrayView<1, float> RewardBuffer,
 			TLearningArrayView<1, ECompletionMode> CompletionBuffer,
 			const ECompletionMode EpisodeEndCompletionMode,

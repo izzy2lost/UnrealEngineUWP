@@ -56,8 +56,10 @@ namespace UE::Learning
 			TLearningArrayView<1, int32> EpisodeLengths,
 			TLearningArrayView<1, ECompletionMode> EpisodeCompletionModes,
 			TLearningArrayView<2, float> EpisodeFinalObservations,
+			TLearningArrayView<2, float> EpisodeFinalMemoryStates,
 			TLearningArrayView<2, float> Observations,
 			TLearningArrayView<2, float> Actions,
+			TLearningArrayView<2, float> MemoryStates,
 			TLearningArrayView<1, float> Rewards,
 			TLearningArrayView<1, volatile int32> Controls,
 			const FReplayBuffer& ReplayBuffer,
@@ -65,9 +67,13 @@ namespace UE::Learning
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
 
 		LEARNINGTRAINING_API ETrainerResponse SendExperience(
+			TLearningArrayView<1, int32> EpisodeStarts,
+			TLearningArrayView<1, int32> EpisodeLengths,
 			TLearningArrayView<2, float> Observations,
 			TLearningArrayView<2, float> Actions,
 			TLearningArrayView<1, volatile int32> Controls,
+			const TLearningArrayView<1, const int32> EpisodeStartsExperience,
+			const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
 			const TLearningArrayView<2, const float> ObservationExperience,
 			const TLearningArrayView<2, const float> ActionExperience,
 			const float Timeout = Trainer::DefaultTimeout,

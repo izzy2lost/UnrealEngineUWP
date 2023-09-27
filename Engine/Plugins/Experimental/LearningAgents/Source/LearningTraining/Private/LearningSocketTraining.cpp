@@ -325,12 +325,18 @@ namespace UE::Learning::SocketTraining
 		Response = SendWithTimeout(Socket, (const uint8*)ReplayBuffer.GetEpisodeFinalObservations().GetData(), ReplayBuffer.GetEpisodeFinalObservations().Num() * sizeof(float), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 		
+		Response = SendWithTimeout(Socket, (const uint8*)ReplayBuffer.GetEpisodeFinalMemoryStates().GetData(), ReplayBuffer.GetEpisodeFinalMemoryStates().Num() * sizeof(float), Timeout);
+		if (Response != ETrainerResponse::Success) { return Response; }
+
 		Response = SendWithTimeout(Socket, (const uint8*)ReplayBuffer.GetObservations().GetData(), ReplayBuffer.GetObservations().Num() * sizeof(float), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 		
 		Response = SendWithTimeout(Socket, (const uint8*)ReplayBuffer.GetActions().GetData(), ReplayBuffer.GetActions().Num() * sizeof(float), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 		
+		Response = SendWithTimeout(Socket, (const uint8*)ReplayBuffer.GetMemoryStates().GetData(), ReplayBuffer.GetMemoryStates().Num() * sizeof(float), Timeout);
+		if (Response != ETrainerResponse::Success) { return Response; }
+
 		Response = SendWithTimeout(Socket, (const uint8*)ReplayBuffer.GetRewards().GetData(), ReplayBuffer.GetRewards().Num() * sizeof(float), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
@@ -339,6 +345,8 @@ namespace UE::Learning::SocketTraining
 
 	ETrainerResponse SendExperience(
 		FSocket& Socket,
+		const TLearningArrayView<1, const int32> EpisodeStartsExperience,
+		const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
 		const TLearningArrayView<2, const float> ObservationExperience,
 		const TLearningArrayView<2, const float> ActionExperience,
 		const float Timeout,
@@ -349,13 +357,23 @@ namespace UE::Learning::SocketTraining
 			UE_LOG(LogLearning, Display, TEXT("Pushing Experience..."));
 		}
 
-		const int32 SampleNum = ObservationExperience.Num<0>();
+		const int32 EpisodeNum = EpisodeStartsExperience.Num<0>();
+		const int32 StepNum = ObservationExperience.Num<0>();
 
 		const uint8 Signal = (uint8)ESignal::SendExperience;
 		ETrainerResponse Response = SendWithTimeout(Socket, &Signal, 1, Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
-		Response = SendWithTimeout(Socket, (const uint8*)&SampleNum, sizeof(int32), Timeout);
+		Response = SendWithTimeout(Socket, (const uint8*)&EpisodeNum, sizeof(int32), Timeout);
+		if (Response != ETrainerResponse::Success) { return Response; }
+
+		Response = SendWithTimeout(Socket, (const uint8*)&StepNum, sizeof(int32), Timeout);
+		if (Response != ETrainerResponse::Success) { return Response; }
+
+		Response = SendWithTimeout(Socket, (const uint8*)EpisodeStartsExperience.GetData(), EpisodeStartsExperience.Num() * sizeof(float), Timeout);
+		if (Response != ETrainerResponse::Success) { return Response; }
+
+		Response = SendWithTimeout(Socket, (const uint8*)EpisodeLengthsExperience.GetData(), EpisodeLengthsExperience.Num() * sizeof(float), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
 		Response = SendWithTimeout(Socket, (const uint8*)ObservationExperience.GetData(), ObservationExperience.Num() * sizeof(float), Timeout);
