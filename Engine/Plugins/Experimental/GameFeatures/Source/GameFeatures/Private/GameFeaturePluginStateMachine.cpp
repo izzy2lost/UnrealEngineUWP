@@ -63,6 +63,10 @@ namespace UE::GameFeatures
 		false,
 		TEXT("Enable to use aysnc loading"));
 
+	static TAutoConsoleVariable<bool> CVarForceAsyncLoad(TEXT("GameFeaturePlugin.ForceAsyncLoad"),
+		false,
+		TEXT("Enable to force use of aysnc loading even if normally not allowed"));
+
 	static TAutoConsoleVariable<bool> CVarAllowForceMonolithicShaderLibrary(TEXT("GameFeaturePlugin.AllowForceMonolithicShaderLibrary"),
 		true,
 		TEXT("Enable to force only searching for monolithic shader libs when possible"));
@@ -584,9 +588,17 @@ bool FGameFeaturePluginState::AllowIniLoading() const
 	}
 }
 
+bool FGameFeaturePluginState::AllowAsyncLoading() const
+{
+	// Ticking is required for async loading
+	return !IsRunningCommandlet();
+}
+
 bool FGameFeaturePluginState::UseAsyncLoading() const
 {
-	return UE::GameFeatures::CVarAsyncLoad.GetValueOnGameThread();
+	return
+		(AllowAsyncLoading() && UE::GameFeatures::CVarAsyncLoad.GetValueOnGameThread()) ||
+		UE::GameFeatures::CVarForceAsyncLoad.GetValueOnGameThread();
 }
 
 /*
@@ -1504,6 +1516,7 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 		Cleanup();
 
 		check(StateProperties.GetPluginProtocol() == EGameFeaturePluginProtocol::InstallBundle);
+		ensureMsgf(AllowAsyncLoading(), TEXT("FGameFeaturePluginState::AllowAsyncLoading is while attempting to download GFP data."));
 
 		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
 		const TArray<FName>& InstallBundles = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>().InstallBundles;
@@ -2115,7 +2128,7 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 
 		if (Result.HasError())
 		{
-			CompletedSubStates |= ESubState::MountPlugin;
+			CompletedSubStates |= ESubState::LoadAssetRegistry;
 			return;
 		}
 
@@ -2932,16 +2945,21 @@ struct FGameFeaturePluginState_Activating : public FGameFeaturePluginState
 
 		if (AllowIniLoading())
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Activating_InitIni);
 			StateProperties.GameFeatureData->InitializeHierarchicalPluginIniFiles(StateProperties.PluginInstalledFilename);
 		}
 
-		UGameFeaturesSubsystem::Get().OnGameFeatureActivating(StateProperties.GameFeatureData, StateProperties.PluginName, Context, StateProperties.PluginIdentifier);
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Activating_SendEvents);
+			UGameFeaturesSubsystem::Get().OnGameFeatureActivating(StateProperties.GameFeatureData, StateProperties.PluginName, Context, StateProperties.PluginIdentifier);
+		}
 
 		// @TODO: non-blocking wait here?
 		// If this plugin caused localization data to load, wait for that here before marking it as active
 		if (TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(StateProperties.PluginName);
 			Plugin && Plugin->GetDescriptor().bExplicitlyLoaded && Plugin->GetDescriptor().LocalizationTargets.Num() > 0)
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Activating_WaitForLoc);
 			FTextLocalizationManager::Get().WaitForAsyncTasks();
 		}
 

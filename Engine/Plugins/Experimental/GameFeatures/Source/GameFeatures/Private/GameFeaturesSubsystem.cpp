@@ -801,13 +801,19 @@ void UGameFeaturesSubsystem::OnGameFeatureUnloading(const UGameFeatureData* Game
 
 void UGameFeaturesSubsystem::OnGameFeatureActivating(const UGameFeatureData* GameFeatureData, const FString& PluginName, FGameFeatureActivatingContext& Context, const FGameFeaturePluginIdentifier& PluginIdentifier)
 {
-	CallbackObservers(EObserverCallback::Activating, PluginIdentifier, &PluginName, GameFeatureData);
-
-	for (UGameFeatureAction* Action : GameFeatureData->GetActions())
 	{
-		if (Action != nullptr)
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_OnActivating_CallbackObservers);
+		CallbackObservers(EObserverCallback::Activating, PluginIdentifier, &PluginName, GameFeatureData);
+	}
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_OnActivating_CallbackActions);
+		for (UGameFeatureAction* Action : GameFeatureData->GetActions())
 		{
-			Action->OnGameFeatureActivating(Context);
+			if (Action != nullptr)
+			{
+				Action->OnGameFeatureActivating(Context);
+			}
 		}
 	}
 }
@@ -1571,8 +1577,6 @@ private:
 
 #endif // !UE_BUILD_SHIPPING
 
-// @TODO: Need to make sure all code paths wait for this properly
-// For example, after login, UFortGlobalUIContext::SetSubGame can call ChangeBundleStateForPrimaryAssets which may cancel pending loads
 void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugins(FBuiltInPluginAdditionalFilters AdditionalFilter, const FBuiltInGameFeaturePluginsLoaded& InCompleteDelegate /*= FBuiltInGameFeaturePluginsLoaded()*/)
 {
 	struct FLoadContext
